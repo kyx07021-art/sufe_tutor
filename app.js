@@ -509,19 +509,22 @@ function renderTeachers(teachers) {
     const meta = [grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
     const rows = renderSubjectScoreRows(t);
 
-    return `<div class="list-card">
-      <div class="list-card-header">
-        <span class="list-card-title">${escHtml(t.username)}<span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating||4).toFixed(1)}</b></span></span>
-        <span class="list-card-meta">${meta}</span>
+    return `<div class="list-card list-card--teacher">
+      <div class="teacher-card-main">
+        <div class="list-card-header">
+          <span class="list-card-title">${escHtml(t.username)}<span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating||4).toFixed(1)}</b></span></span>
+          <span class="list-card-meta">${meta}</span>
+        </div>
+        ${rows ? `<div class="subject-block"><div class="section-title">擅长科目</div>${rows}</div>` : ''}
+        <div class="list-card-contact">
+          ${t.wechat ? `<span>${UI.CONTACT_WECHAT_PREFIX}${escHtml(t.wechat)}</span>` : ''}
+          ${t.email ? `<span>${UI.CONTACT_EMAIL_PREFIX}${escHtml(t.email)}</span>` : ''}
+        </div>
+        <div class="list-card-actions">
+          <button type="button" class="btn btn-outline btn-sm" onclick="openTeacherModal(${t.user_id})">${UI.BTN_VIEW_DETAIL}</button>
+        </div>
       </div>
-      ${rows ? `<div class="subject-block"><div class="section-title">擅长科目</div>${rows}</div>` : ''}
-      <div class="list-card-contact">
-        ${t.wechat ? `<span>${UI.CONTACT_WECHAT_PREFIX}${escHtml(t.wechat)}</span>` : ''}
-        ${t.email ? `<span>${UI.CONTACT_EMAIL_PREFIX}${escHtml(t.email)}</span>` : ''}
-      </div>
-      <div class="list-card-actions">
-        <button type="button" class="btn btn-outline btn-sm" onclick="openTeacherModal(${t.user_id})">${UI.BTN_VIEW_DETAIL}</button>
-      </div>
+      <div class="teacher-photo" aria-hidden="true"></div>
     </div>`;
   }).join('');
 }

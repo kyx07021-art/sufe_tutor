@@ -560,19 +560,32 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
 /* 教师信息展示（卡片与弹窗共用）：无深色框；灰小标题 + 纵向极细分隔行 */
 .section-title { font-size: .72rem; font-weight: 700; color: var(--muted); letter-spacing: .08em; margin-bottom: 2px; }
-.subject-block { margin-top: 16px; }
+.subject-block { margin-top: 12px; }
 .subject-row {
   display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-  padding: 9px 2px; font-size: .85rem; font-weight: 500; color: var(--ink);
+  padding: 6px 2px; font-size: .78rem; font-weight: 400; color: var(--ink);
 }
 .subject-row + .subject-row { border-top: 1px solid var(--line); }
-.subject-row .subject-score { color: var(--muted); font-size: .8rem; font-weight: 600; white-space: nowrap; }
+.subject-row .subject-score { color: var(--muted); font-size: .72rem; font-weight: 500; white-space: nowrap; }
 
 /* 星级紧跟姓名，不加框 */
 .teacher-rating { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; font-size: .8rem; color: var(--muted); }
 .teacher-rating b { font-weight: 800; color: var(--ink); }
 .teacher-headline { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .teacher-headline .teacher-rating { margin-left: 0; font-size: .9rem; }
+
+/* 教师卡：右侧方形照片预留区（深一档占位，线稿人形呼应全站描边母题），
+   内容列整体左移为其让位；悬停时占位块随卡片微变淡紫 */
+.list-card--teacher { display: flex; align-items: flex-start; gap: 18px; }
+.teacher-card-main { flex: 1; min-width: 0; }
+.teacher-photo {
+  flex: 0 0 76px; width: 76px; height: 76px;
+  background-color: var(--paper-3);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 44 44' fill='none' stroke='%23111114' stroke-opacity='.22' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='22' cy='15' r='7'/%3E%3Cpath d='M8 36c0-8 6-12 14-12s14 4 14 12'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center; background-size: 42px 42px;
+  transition: background-color var(--t-base) var(--ease-out);
+}
+.list-card--teacher:hover .teacher-photo { background-color: var(--lilac-2); }
 
 /* ============================================================
    Browse / List
@@ -771,6 +784,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .checkbox-grid { grid-template-columns: repeat(2, 1fr); }
   .modal { max-height: 92vh; }
   .list-card-contact { flex-direction: column; gap: 6px; }
+  .teacher-photo { flex-basis: 60px; width: 60px; height: 60px; background-size: 34px 34px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-row { flex-direction: column; gap: 12px; }
   .invite-code-display { flex-direction: column; }
