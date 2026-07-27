@@ -560,6 +560,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 需求卡头部工具区（日期 + 编辑按钮） */
 .demand-card-tools { display: inline-flex; align-items: center; gap: 10px; }
 
+/* 需求卡内嵌意向列表（模块3） */
+.intents-box { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--border-light); }
+.intents-box .admin-row { margin-top: var(--s2); }
+
 /* 管理面板邀请码条（已迁入侧边栏，留空占位防孤儿注释）*/
 
 /* 教师信息展示（卡片与弹窗共用）：无深色框；灰小标题 + 纵向极细分隔行 */

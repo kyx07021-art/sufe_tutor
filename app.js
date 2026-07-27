@@ -128,6 +128,7 @@ function selectPage(pageId) {
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b =>
     b.classList.toggle('active', b.dataset.page === pageId));
   state.page = pageId;
+  if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
   if (cfg && cfg.enter) cfg.enter();
   closeSidebar();
@@ -254,6 +255,7 @@ async function validateInviteAndRegister() {
 
 function handleLogout() {
   if (state.inviteTimerId) clearInterval(state.inviteTimerId);
+  if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询
   state.user = null; state.page = null;
   state.allTeachers = []; state.adminTeachers = []; state.adminModalTeacher = null;
   state.myDemands = []; state.editingDemandId = null;

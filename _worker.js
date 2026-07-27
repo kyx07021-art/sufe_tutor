@@ -23,6 +23,7 @@ import {
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs,
 } from './server/routes-admin.js';
+import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 
 // API 分发：纯路由，无副作用（留档在 fetch 层统一包裹）
 async function routeApi(db, p, method, body, url, req) {
@@ -81,6 +82,14 @@ async function routeApi(db, p, method, body, url, req) {
   // 评价
   if (p === '/api/reviews' && method === 'POST') return await handleCreateReview(db, body);
   if (p === '/api/reviews' && method === 'GET') return await handleGetReviews(db, url);
+
+  // 资料共享（模块2：section 字段预留分区，当前全在广场）
+  if (p === '/api/posts' && method === 'GET') return await handleListPosts(db, url);
+  if (p === '/api/posts' && method === 'POST') return await handleCreatePost(db, body, req);
+  const postLike = p.match(/^\/api\/posts\/(\d+)\/like$/);
+  if (postLike && method === 'POST') return await handleToggleLike(db, parseInt(postLike[1]), body, req);
+  const postById = p.match(/^\/api\/posts\/(\d+)$/);
+  if (postById && method === 'DELETE') return await handleDeletePost(db, parseInt(postById[1]), body, req);
 
   // 健康检查
   if (p === '/api/health') return json({ status: 'ok', timestamp: new Date().toISOString() });

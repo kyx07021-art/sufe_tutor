@@ -130,13 +130,15 @@
     isValidProvince(id) { return this.provinces.some(p => p.id === id); },
 
     policyOf(provinceId) {
-      const cfg = this.provincePolicy[provinceId] || this.DEFAULT_POLICY;
-      const p = this.policies[cfg.policy];
+      const cfg = this.provincePolicy[provinceId];
+      // 空 {} 登记 = 缺省配置（3+1+2 + standard5）：空对象 truthy，必须显式判定 policy 字段
+      const eff = (cfg && cfg.policy) ? cfg : this.DEFAULT_POLICY;
+      const p = this.policies[eff.policy];
       return {
-        ...p, type: cfg.policy,
-        gradeSystem: cfg.gradeSystem ? this.gradeSystems[cfg.gradeSystem] : null,
-        gradeSystemId: cfg.gradeSystem || null,
-        extraElective: cfg.extraElective || null,
+        ...p, type: eff.policy,
+        gradeSystem: eff.gradeSystem ? this.gradeSystems[eff.gradeSystem] : null,
+        gradeSystemId: eff.gradeSystem || null,
+        extraElective: eff.extraElective || null,
       };
     },
 
