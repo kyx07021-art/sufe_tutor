@@ -1,0 +1,144 @@
+/* ============================================================
+   地区赋分组件库样式（模块1：地区档案 + 赋分组件）
+   与 app-region.js 配套，需在 style.css 之后引入
+   （.gk-pill 对 .grade-option 的字号/内边距覆盖依赖层叠顺序）。
+   设计语言：零圆角、零投影，沿用 --paper / --ink / --lilac 令牌
+   与全站竖条 hover 母题。
+   ============================================================ */
+
+/* ---------- 通用提示 ---------- */
+
+/* 地区限制提示（非上海时），warn 色小字 */
+.region-hint {
+  margin: 6px 0 0;
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--warn-deep);
+}
+
+/* 教师端：高考政策锁定条（灰底小字条，零圆角零投影，左竖条点题） */
+.region-locked-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: var(--paper-2);
+  border-left: 3px solid var(--ink);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--ink-3);
+}
+
+/* 锁定条下方的政策说明小字 */
+.region-policy-desc {
+  margin: 0 0 14px;
+  font-size: .72rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* 满分 / 标准分旁注（warn 色小字） */
+.region-max-note {
+  margin-left: 4px;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: var(--warn-deep);
+}
+
+/* ---------- 学生端：等第制 / 分数制页签 ---------- */
+
+/* 左右对半分 pill 组：直角、墨色描边，active = 墨底白字 */
+.score-mode-tabs {
+  display: inline-flex;
+  width: 172px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--ink);
+  background: transparent;
+}
+.score-mode-tab {
+  flex: 1 1 50%;
+  padding: 5px 0;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-align: center;
+  color: var(--ink);
+  background: transparent;
+  transition: background-color var(--t-fast) var(--ease-out),
+              color var(--t-fast) var(--ease-out);
+}
+.score-mode-tab + .score-mode-tab { border-left: 1.5px solid var(--ink); }
+.score-mode-tab:not(.active):hover { background: var(--paper-2); }
+.score-mode-tab.active { background: var(--ink); color: var(--paper); }
+
+/* 页签面板：等第 pill / 分数输入，换行独占整行 */
+.score-mode-pane {
+  flex: 1 1 100%;
+  padding: 6px 0 2px;
+}
+.score-mode-pane:not(.hidden) { animation: region-pane-in .18s var(--ease-out); }
+@keyframes region-pane-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 学生成绩行：极细分隔线分行，沿用编辑式细线母题 */
+.region-score-row + .region-score-row { border-top: 1px solid var(--line); }
+
+/* ---------- 教师端：单选 pill 组（首选科目 / 文理分科） ---------- */
+
+/* pill 容器；pill 本身复用 .grade-option，.gk-pill 放大字号与内边距 */
+.gk-pill-group { display: inline-flex; flex-wrap: wrap; gap: 6px; }
+.gk-pill { padding: 5px 16px; font-size: .78rem; }
+
+/* 首选科目 / 文理分科 pill：竖条 hover 母题，selected = 墨底白字 + 常驻竖条 */
+.gk-first-pills .gk-pill,
+.gk-track-pills .gk-pill {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--field);
+  color: var(--ink-3);
+  transition: background-color var(--t-fast) var(--ease-out),
+              color var(--t-fast) var(--ease-out);
+}
+.gk-first-pills .gk-pill::before,
+.gk-track-pills .gk-pill::before {
+  content: '';
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--accent);
+  transform: scaleY(0); transform-origin: top;
+  transition: transform var(--t-base) var(--ease-snap);
+}
+.gk-first-pills .gk-pill:hover,
+.gk-track-pills .gk-pill:hover { background: var(--field-2); color: var(--ink); }
+.gk-first-pills .gk-pill:hover::before,
+.gk-track-pills .gk-pill:hover::before { transform: scaleY(1); }
+.gk-first-pills .gk-pill.selected,
+.gk-track-pills .gk-pill.selected { background: var(--ink); color: var(--paper); }
+.gk-first-pills .gk-pill.selected::before,
+.gk-track-pills .gk-pill.selected::before { background: var(--accent-bright); transform: scaleY(1); }
+
+/* 文理分科 pill 再放大一档，作为段落主操作 */
+.gk-track-pills .gk-pill { padding: 8px 26px; font-size: .84rem; font-weight: 700; }
+
+/* 教师端勾选网格：与科目行数对齐（再选 4 门 / 选考 6-7 门） */
+.gk-check-grid { margin-bottom: 12px; grid-template-columns: repeat(4, 1fr); }
+
+/* 21 档等第下拉：收窄宽度，保留 .form-select 的聚焦底条擦入 */
+.gk-grade-select {
+  width: auto;
+  min-width: 190px;
+  padding: 7px 34px 7px 10px;
+  font-size: .8rem;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 768px) {
+  .gk-check-grid { grid-template-columns: repeat(2, 1fr); }
+  .score-mode-tabs { width: 152px; }
+}
