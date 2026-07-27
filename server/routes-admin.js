@@ -1,5 +1,6 @@
 /**
- * 路由模块：管理员（邀请码 / 统计 / 用户管理 / 需求管理 / 评价审核）
+ * 路由模块：管理员（邀请码 / 统计 / 用户管理 / 需求管理 / 评价审核 / 日志检索）
+ * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）
  */
 import {
   json, error, requireAdmin, genCode, dbGet, dbRun, dbAll,
@@ -12,6 +13,7 @@ import {
   dbUpdateReviewStatus, dbGetApprovedReviewStats, dbUpdateTeacherRating,
   dbGetDemandById, dbDeleteDemand, dbDeleteReview, mapTeacherProfileRow,
 } from './db.js';
+import { logEvent, queryLog } from './log.js';
 
 // 邀请码有效期
 const INVITE_VALIDITY_MS = 5 * 60 * 1000;
@@ -20,15 +22,16 @@ export async function handleAdminCheck(db, url) {
   return json({ isAdmin: !!(await requireAdmin(db, url.searchParams.get('username'))) });
 }
 
-export async function handleGenInvite(db, body) {
+export async function handleGenInvite(db, body, req) {
   const { username } = body;
-  if (!(await requireAdmin(db, username))) return error(MSG.ADMIN_ONLY, 403);
-  const admin = await dbFindUserByUsername(db, username);
-  if (!admin) return error(MSG.ADMIN_NOT_FOUND, 403);
+  const admin = await requireAdmin(db, username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
 
   const code = genCode(8);
   const expiresAt = new Date(Date.now() + INVITE_VALIDITY_MS).toISOString();
   await dbCreateInviteCode(db, code, admin.id, expiresAt);
+  logEvent(db, { action: 'admin.invite.create', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'invite', entityId: code, detail: { expiresAt }, req });
   return json({ code, expiresAt });
 }
 
@@ -62,8 +65,9 @@ export async function handleAdminReviews(db, url) {
   return json({ reviews });
 }
 
-export async function handleReviewAction(db, reviewId, action, body) {
-  if (!(await requireAdmin(db, body.username))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleReviewAction(db, reviewId, action, body, req) {
+  const admin = await requireAdmin(db, body.username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return error(MSG.REVIEW_NOT_FOUND);
 
@@ -77,6 +81,9 @@ export async function handleReviewAction(db, reviewId, action, body) {
     const rating = (INITIAL_RATING * INITIAL_WEIGHT + sum) / (INITIAL_WEIGHT + cnt);
     await dbUpdateTeacherRating(db, review.teacher_user_id, rating, cnt, sum);
   }
+  logEvent(db, { action: `admin.review.${action}`, actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'review', entityId: reviewId,
+    detail: { teacherUserId: review.teacher_user_id }, req });
   return json({ message: action === 'approve' ? MSG.REVIEW_APPROVED : MSG.REVIEW_REJECTED });
 }
 
@@ -101,27 +108,45 @@ export async function handleAdminUsers(db, url) {
   return json({ users });
 }
 
-export async function handleBanUser(db, userId, body) {
-  if (!(await requireAdmin(db, body.username))) return error(MSG.ADMIN_ONLY, 403);
-  const target = await dbGet(db, 'SELECT id,role FROM users WHERE id=?', [userId]);
+export async function handleBanUser(db, userId, body, req) {
+  const admin = await requireAdmin(db, body.username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const target = await dbGet(db, 'SELECT id,username,role FROM users WHERE id=?', [userId]);
   if (!target) return error(MSG.USER_NOT_FOUND, 404);
   if (target.role === 'admin') return error(MSG.NO_PERMISSION, 403);
 
   const banned = body.banned ? 1 : 0;
   await dbRun(db, 'UPDATE users SET banned=? WHERE id=?', [banned, userId]);
+  logEvent(db, { action: banned ? 'admin.ban' : 'admin.unban', actorUserId: admin.id,
+    actorUsername: admin.username, actorRole: 'admin', entity: 'user', entityId: userId,
+    detail: { targetUsername: target.username, targetRole: target.role, banned }, req });
   return json({ message: banned ? MSG.BANNED : MSG.UNBANNED, banned });
 }
 
-export async function handleAdminDeleteDemand(db, demandId, body) {
-  if (!(await requireAdmin(db, body.username))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminDeleteDemand(db, demandId, body, req) {
+  const admin = await requireAdmin(db, body.username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
   if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
   await dbDeleteDemand(db, demandId);
+  logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'demand', entityId: demandId, req });
   return json({ message: MSG.DEMAND_DELETED });
 }
 
-export async function handleAdminDeleteReview(db, reviewId, body) {
-  if (!(await requireAdmin(db, body.username))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminDeleteReview(db, reviewId, body, req) {
+  const admin = await requireAdmin(db, body.username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
   if (!(await dbGetReviewById(db, reviewId))) return error(MSG.REVIEW_NOT_FOUND, 404);
   await dbDeleteReview(db, reviewId);
+  logEvent(db, { action: 'admin.review.delete', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'review', entityId: reviewId, req });
   return json({ message: MSG.REVIEW_DELETED });
+}
+
+// 日志检索（action 前缀 / 操作人 / 实体 / 时间范围 / detail 模糊 / 分页）
+export async function handleAdminLogs(db, url) {
+  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+  const f = Object.fromEntries(url.searchParams);
+  const result = await queryLog(db, f);
+  return json(result);
 }

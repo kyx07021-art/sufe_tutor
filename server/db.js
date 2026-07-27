@@ -7,6 +7,7 @@ import {
   dbAll, dbGet, dbRun, hashPassword,
   ADMIN_USERNAMES, ADMIN_DEFAULT_PASSWORD, INITIAL_RATING,
 } from './core.js';
+import { initLogDb } from './log.js';
 
 // ============================================================
 // 数据库初始化 + 迁移
@@ -61,6 +62,42 @@ export async function initDb(db) {
       UNIQUE(demand_id, teacher_user_id),
       FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // 模块3：意向状态列经 ensureColumns 幂等补齐（旧表不能重建）
+    // 模块4：会话与消息（意向同意后建立；kind 预留 image/file）
+    db.prepare(`CREATE TABLE IF NOT EXISTS conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+      demand_id INTEGER, status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','closed')),
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      UNIQUE(student_user_id, teacher_user_id),
+      FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE SET NULL)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversation_id INTEGER NOT NULL, sender_user_id INTEGER NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file')),
+      body TEXT NOT NULL DEFAULT '',
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+      FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, id)'),
+    // 模块2：资料共享帖子（section 预留分区，当前恒 'plaza'）
+    db.prepare(`CREATE TABLE IF NOT EXISTS posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL, section TEXT NOT NULL DEFAULT 'plaza',
+      title TEXT NOT NULL, body_md TEXT NOT NULL DEFAULT '',
+      like_count INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      updated_at DATETIME,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS post_likes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      UNIQUE(post_id, user_id),
+      FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
   ]);
 
   // 一次性迁移：users 的 role 扩展支持 admin + 新增 banned 列。
@@ -178,6 +215,26 @@ export async function initDb(db) {
         [name, hash, salt, 'admin']);
     }
   }
+
+  // 留档表（模块5；绑定独立 LOG_DB 时此表建在业务库亦无害，查询走 getLogDb 路由）
+  await initLogDb(db);
+
+  // 幂等加列（模块1：地区档案；模块3：意向状态机）
+  await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'demand_intents', [
+    ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
+    ['resolved_at', 'DATETIME'],
+  ]);
+}
+
+// 幂等加列迁移：PRAGMA 探测后再 ALTER（D1 无 ADD COLUMN IF NOT EXISTS）
+async function ensureColumns(db, table, cols) {
+  const info = await dbAll(db, `PRAGMA table_info(${table})`);
+  const have = new Set(info.map(c => c.name));
+  for (const [name, ddl] of cols) {
+    if (!have.has(name)) await dbRun(db, `ALTER TABLE ${table} ADD COLUMN ${name} ${ddl}`);
+  }
 }
 
 // ============================================================
@@ -243,13 +300,13 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   const gaokao = JSON.stringify(profile.gaokao_scores);
 
   if (existing) {
-    await dbRun(db, `UPDATE teacher_profiles SET grade=?,gender=?,subjects=?,gaokao_scores=?,
+    await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
       price=?,wechat=?,email=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, userId]);
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, userId]);
   } else {
-    await dbRun(db, `INSERT INTO teacher_profiles (user_id,grade,gender,subjects,gaokao_scores,price,wechat,email)
-      VALUES (?,?,?,?,?,?,?,?)`,
-      [userId, profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email]);
+    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email)
+      VALUES (?,?,?,?,?,?,?,?,?)`,
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email]);
   }
 }
 
@@ -257,7 +314,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 export function mapTeacherProfileRow(p) {
   return {
     id: p.id, user_id: p.user_id, username: p.username,
-    grade: p.grade, gender: p.gender,
+    province: p.province || '', grade: p.grade, gender: p.gender,
     subjects: p.subjects ? JSON.parse(p.subjects) : [],
     gaokao_scores: p.gaokao_scores ? JSON.parse(p.gaokao_scores) : [],
     price: p.price || 0, wechat: p.wechat, email: p.email,
@@ -283,11 +340,11 @@ export async function dbUpdateTeacherRating(db, teacherUserId, rating, count, su
 export async function dbCreateDemand(db, userId, demand) {
   // address_detail（详细门牌号）已因合规原因停用：不再收集、不再写入，列保留但恒为空
   const result = await dbRun(db, `INSERT INTO student_demands
-    (user_id,student_grade,student_gender,target_subjects,current_scores,
+    (user_id,province,student_grade,student_gender,target_subjects,current_scores,
      teaching_method,address,budget_min,budget_max,
      submitter_type,parent_contact,student_contact,additional_info)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
-    userId, demand.student_grade, demand.student_gender,
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+    userId, demand.province || '', demand.student_grade, demand.student_gender,
     JSON.stringify(demand.target_subjects), JSON.stringify(demand.current_scores),
     demand.teaching_method || 'offline', demand.address || '',
     demand.budget_min || 0, demand.budget_max || 0,
@@ -326,11 +383,11 @@ export async function dbGetDemandById(db, id) {
 }
 
 export async function dbUpdateDemand(db, id, d) {
-  await dbRun(db, `UPDATE student_demands SET student_grade=?,student_gender=?,
+  await dbRun(db, `UPDATE student_demands SET province=?,student_grade=?,student_gender=?,
     target_subjects=?,current_scores=?,teaching_method=?,address=?,address_detail='',
     budget_min=?,budget_max=?,submitter_type=?,parent_contact=?,student_contact=?,
     additional_info=? WHERE id=?`, [
-    d.student_grade, d.student_gender,
+    d.province || '', d.student_grade, d.student_gender,
     JSON.stringify(d.target_subjects), JSON.stringify(d.current_scores),
     d.teaching_method || 'offline', d.address || '',
     d.budget_min || 0, d.budget_max || 0,
@@ -354,12 +411,37 @@ export async function dbCreateIntent(db, demandId, teacherUserId) {
 }
 
 export async function dbGetIntentTeachers(db, demandId) {
-  const rows = await dbAll(db, `SELECT tp.*, di.teacher_user_id AS user_id, u.username
+  const rows = await dbAll(db, `SELECT tp.*, di.teacher_user_id AS user_id, u.username,
+      di.id AS intent_id, di.status AS intent_status, di.created_at AS intent_created_at
     FROM demand_intents di
     JOIN users u ON u.id=di.teacher_user_id
     LEFT JOIN teacher_profiles tp ON tp.user_id=di.teacher_user_id
     WHERE di.demand_id=? ORDER BY di.created_at DESC`, [demandId]);
-  return rows.map(mapTeacherProfileRow);
+  // 附加意向自身字段（id/状态/时间），供学生端同意/拒绝按钮使用
+  return rows.map(r => ({ ...mapTeacherProfileRow(r),
+    intent_id: r.intent_id, intent_status: r.intent_status, intent_created_at: r.intent_created_at }));
+}
+
+export async function dbGetIntentWithDemand(db, intentId) {
+  return await dbGet(db, `SELECT di.*, sd.user_id AS demand_owner
+    FROM demand_intents di JOIN student_demands sd ON sd.id=di.demand_id
+    WHERE di.id=?`, [intentId]);
+}
+
+export async function dbResolveIntent(db, intentId, status) {
+  await dbRun(db,
+    "UPDATE demand_intents SET status=?, resolved_at=datetime('now','localtime') WHERE id=?",
+    [status, intentId]);
+}
+
+// 学生视角：自己所有需求上收到的意向（含状态与教师名）
+export async function dbGetIntentsForStudent(db, userId) {
+  return await dbAll(db, `SELECT di.id, di.demand_id, di.status, di.created_at,
+      di.teacher_user_id, u.username AS teacher_name
+    FROM demand_intents di
+    JOIN student_demands sd ON sd.id=di.demand_id
+    JOIN users u ON u.id=di.teacher_user_id
+    WHERE sd.user_id=? ORDER BY di.created_at DESC`, [userId]);
 }
 
 // ============================================================
@@ -445,4 +527,54 @@ export async function dbGetRecentDemands(db, limit = 8) {
   const rows = await dbAll(db, `SELECT sd.id,sd.student_grade,sd.target_subjects,sd.created_at,u.username
     FROM student_demands sd JOIN users u ON sd.user_id=u.id ORDER BY sd.created_at DESC LIMIT ?`, [limit]);
   return rows.map(d => ({ ...d, target_subjects: JSON.parse(d.target_subjects || '[]') }));
+}
+
+// ============================================================
+// 会话与消息（模块4）
+// ============================================================
+
+// 同一师生对唯一会话（UNIQUE(student,teacher)）；已存在则返回既有 id
+export async function dbUpsertConversation(db, studentUserId, teacherUserId, demandId) {
+  await dbRun(db,
+    'INSERT OR IGNORE INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)',
+    [studentUserId, teacherUserId, demandId || null]);
+  const row = await dbGet(db,
+    'SELECT id FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
+    [studentUserId, teacherUserId]);
+  return row?.id || null;
+}
+
+export async function dbGetConversationById(db, id) {
+  return await dbGet(db, 'SELECT * FROM conversations WHERE id=?', [id]);
+}
+
+// 我参与的会话列表（含对方用户名 + 最后一条消息预览）
+export async function dbGetMyConversations(db, userId) {
+  return await dbAll(db, `SELECT c.*,
+      us.username AS student_name, ut.username AS teacher_name,
+      lm.body AS last_body, lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender
+    FROM conversations c
+    JOIN users us ON us.id=c.student_user_id
+    JOIN users ut ON ut.id=c.teacher_user_id
+    LEFT JOIN (
+      SELECT m.conversation_id, m.body, m.kind, m.created_at, m.sender_user_id
+      FROM messages m JOIN (SELECT conversation_id, MAX(id) AS mid FROM messages GROUP BY conversation_id) x
+        ON x.mid=m.id
+    ) lm ON lm.conversation_id=c.id
+    WHERE c.student_user_id=? OR c.teacher_user_id=?
+    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId]);
+}
+
+export async function dbGetMessages(db, convId, sinceId = 0, limit = 100) {
+  return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.body, m.created_at,
+      u.username AS sender_name
+    FROM messages m JOIN users u ON u.id=m.sender_user_id
+    WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
+}
+
+export async function dbCreateMessage(db, convId, senderUserId, kind, body) {
+  const result = await dbRun(db,
+    'INSERT INTO messages (conversation_id, sender_user_id, kind, body) VALUES (?,?,?,?)',
+    [convId, senderUserId, kind, body]);
+  return Number(result.meta.last_row_id);
 }

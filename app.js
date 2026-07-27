@@ -25,9 +25,12 @@ const ROLE_PAGES = {
   student: [
     { id: 'my-demands',      label: '我的需求',     enter: loadMyDemands },
     { id: 'browse-teachers', label: '浏览教师',     enter: loadTeachers },
+    { id: 'my-chats',        label: '我的沟通',     enter: () => enterMyChats() },
   ],
   teacher: [
     { id: 'browse-demands',  label: '需求大厅',     enter: loadBrowseDemands },
+    { id: 'resource-share',  label: '资料共享',     enter: () => enterResourceShare() },
+    { id: 'my-chats',        label: '我的沟通',     enter: () => enterMyChats() },
     { id: 'edit-profile',    label: '编辑自身信息', enter: initProfileForm },
   ],
   admin: [

@@ -9,6 +9,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style-region.css">
+  <link rel="stylesheet" href="/style-posts.css">
+  <link rel="stylesheet" href="/style-chat.css">
   <noscript><style>.hand-part{opacity:.14!important;transform:none!important}.flow-field{opacity:.5!important}.eyebrow,.hero-title span,.stage-copy,.stage-kicker,.stage-note,.entry{opacity:1!important;transform:none!important}</style></noscript>
 
 </head>
@@ -330,6 +333,18 @@
           <div class="browse-list" id="admin-reviews-list"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
 
+        <!-- 教师：资料共享（模块2；section 字段预留未来分区，当前全在广场） -->
+        <section class="client-page hidden" data-page="resource-share">
+          <div class="page-header"><h2>资料共享</h2></div>
+          <div id="posts-content"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 学生 / 教师：我的沟通（模块4：意向同意后建立的会话） -->
+        <section class="client-page hidden" data-page="my-chats">
+          <div class="page-header"><h2>我的沟通</h2></div>
+          <div id="chats-content"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
       </main>
     </div>
 
@@ -339,7 +354,11 @@
   <div id="modal-container"></div>
 
   <script src="/constants.js"></script>
+  <script src="/region-data.js"></script>
   <script src="/app.js"></script>
+  <script src="/app-region.js"></script>
+  <script src="/app-posts.js"></script>
+  <script src="/app-chat.js"></script>
   <script>
     /* 入场动效门控：等两张蒙版图 + 字体就绪后给 <html> 加 .site-ready，
        避免"网页没加载好动画就播完"；2.5s 兜底防卡住。每次回到主页由 display 切换重排重放动画。 */

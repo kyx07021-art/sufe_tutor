@@ -41,6 +41,8 @@ export const MSG = {
   DEMAND_NOT_FOUND: '需求不存在',
   DEMAND_UPDATED: '需求已更新',
   DEMAND_DELETED: '需求已删除',
+  PROVINCE_REQUIRED: '请选择省份',
+  REGION_ONLINE_ONLY: '该省份目前只支持线上教学',
   TEACHER_ONLY: '仅教师可操作',
   ADMIN_ONLY: '仅管理员可操作',
   USER_NOT_FOUND: '用户不存在',
@@ -53,6 +55,12 @@ export const MSG = {
   INTENT_SUBMITTED: '意向已提交',
   INTENT_NOT_FOUND: '意向不存在',
   INTENT_RESOLVED: '意向已处理',
+  INTENT_ALREADY_RESOLVED: '该意向已被处理',
+
+  // 沟通
+  CONVERSATION_NOT_FOUND: '会话不存在',
+  MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
+  FEATURE_TODO: '该功能即将开放，敬请期待',
 
   // 评价
   RATING_RANGE: '评分需在1-5之间',
