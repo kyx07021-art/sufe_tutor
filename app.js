@@ -22,13 +22,13 @@ const state = { user: null, view: 'landing', page: null, allTeachers: [], myDema
 // ============================================================
 const ROLE_PAGES = {
   student: [
-    { id: 'my-demands',      label: '我的需求',     icon: '📚', enter: loadMyDemands },
-    { id: 'browse-teachers', label: '浏览教师',     icon: '👩‍🏫', enter: loadTeachers },
+    { id: 'my-demands',      label: '我的需求',     enter: loadMyDemands },
+    { id: 'browse-teachers', label: '浏览教师',     enter: loadTeachers },
   ],
   teacher: [
-    { id: 'browse-demands',  label: '需求大厅',     icon: '📋', enter: loadBrowseDemands },
-    { id: 'edit-profile',    label: '编辑自身信息', icon: '📝', enter: initProfileForm },
-    { id: 'admin-dashboard', label: '管理员面板',   icon: '👑', enter: loadAdminDashboard, adminOnly: true },
+    { id: 'browse-demands',  label: '需求大厅',     enter: loadBrowseDemands },
+    { id: 'edit-profile',    label: '编辑自身信息', enter: initProfileForm },
+    { id: 'admin-dashboard', label: '管理员面板',   enter: loadAdminDashboard, adminOnly: true },
   ],
 };
 
@@ -104,9 +104,9 @@ function renderSidebar() {
       <span class="user-badge">${u.role === 'student' ? UI.ROLE_STUDENT : UI.ROLE_TEACHER}</span>
       ${u.isAdmin ? `<span class="user-badge admin-badge">${UI.ADMIN_BADGE}</span>` : ''}
     </div>`;
-  document.getElementById('sidebar-nav').innerHTML = pagesForRole().map(p => `
+  document.getElementById('sidebar-nav').innerHTML = pagesForRole().map((p, i) => `
     <button type="button" class="sidebar-item" data-page="${p.id}" onclick="selectPage('${p.id}')">
-      <span class="sidebar-item-icon" aria-hidden="true">${p.icon}</span><span>${p.label}</span>
+      <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span><span>${p.label}</span>
     </button>`).join('');
 }
 
@@ -270,7 +270,7 @@ function closeModal() { document.getElementById('modal-container').innerHTML = '
 function renderDemandModal(demand) {
   return `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div class="modal-header"><h2>${demand ? '📚 编辑学生需求' : '📚 提交学生需求'}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${demand ? '编辑学生需求' : '提交学生需求'}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
@@ -305,11 +305,7 @@ function renderDemandModal(demand) {
           <div id="d-address-section">
             <div class="form-group">
               <label class="form-label">地址 <span class="req">*</span></label>
-              <input type="text" class="form-input" id="d-address" placeholder="上海市xx区xx路xx弄">
-            </div>
-            <div class="form-group">
-              <label class="form-label">详细门牌号（选填）</label>
-              <input type="text" class="form-input" id="d-address-detail" placeholder="如：xx号xx室">
+              <input type="text" class="form-input" id="d-address" placeholder="上海市xx区xx路（精确门牌号请后续自行与教师沟通）">
             </div>
           </div>
           <div class="form-group">
@@ -339,7 +335,8 @@ function renderDemandModal(demand) {
             <label class="form-label">其他补充信息</label>
             <textarea class="form-input" id="d-info" rows="3" placeholder="上课时间偏好、特殊要求等"></textarea>
           </div>
-          <div class="modal-footer" style="padding:0;border:none;margin-top:var(--s6);">
+          <div class="modal-footer">
+            ${demand ? `<button type="button" class="btn btn-danger btn-sm modal-footer-start" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
             <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
             <button type="submit" class="btn btn-primary" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
           </div>
@@ -375,7 +372,6 @@ function prefillDemandForm(d) {
   document.getElementById('d-method').value = d.teaching_method || 'offline';
   toggleAddressField();
   document.getElementById('d-address').value        = d.address || '';
-  document.getElementById('d-address-detail').value = d.address_detail || '';
   document.getElementById('d-budget-min').value = d.budget_min || '';
   document.getElementById('d-budget-max').value = d.budget_max || '';
   document.getElementById('d-submitter').value      = d.submitter_type || 'parent';
@@ -444,7 +440,6 @@ async function handleSubmitDemand(e) {
     target_subjects: subjects, current_scores: scores,
     teaching_method: document.getElementById('d-method').value,
     address: document.getElementById('d-address').value.trim(),
-    address_detail: document.getElementById('d-address-detail').value.trim(),
     budget_min: +document.getElementById('d-budget-min').value,
     budget_max: +document.getElementById('d-budget-max').value,
     submitter_type: document.getElementById('d-submitter').value,
@@ -493,32 +488,36 @@ async function loadTeachers() {
   }
 }
 
+// 科目 + 成绩纵向行（教师卡与教师弹窗共用）：灰小标题 + 极细分隔线，无框
+function renderSubjectScoreRows(t) {
+  return (t.subjects || []).map(sid => {
+    const s = SUBJECTS.find(x => x.id === sid);
+    if (!s) return '';
+    const gs = (t.gaokao_scores || []).find(x => x.subject === sid);
+    const val = gs ? (gs.score !== undefined ? `${gs.score} / ${s.maxScore}分` : (gs.grade || '')) : '';
+    return `<div class="subject-row"><span>${s.name}</span><span class="subject-score">${val}</span></div>`;
+  }).join('');
+}
+
 function renderTeachers(teachers) {
   const el = document.getElementById('teachers-list');
   if (!teachers.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_TEACHERS}</p></div>`; return; }
 
   el.innerHTML = teachers.map(t => {
-    const subjNames = (t.subjects||[]).map(id => SUBJECTS.find(s=>s.id===id)?.name || id);
     const grade = TEACHER_GRADES.find(g=>g.id===t.grade)?.name || t.grade || '';
     const gender = GENDERS.find(g=>g.id===t.gender)?.name || '';
-    const gaokaoHtml = (t.gaokao_scores||[]).map(gs => {
-      const n = SUBJECTS.find(s=>s.id===gs.subject)?.name || gs.subject;
-      return `<span class="tag">${n}: ${gs.score!==undefined ? gs.score+'分' : gs.grade||''}</span>`;
-    }).join('');
+    const meta = [grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
+    const rows = renderSubjectScoreRows(t);
 
     return `<div class="list-card">
       <div class="list-card-header">
-        <span class="list-card-title">${escHtml(t.username)}</span>
-        <span class="list-card-meta">${grade} · ${gender} · ${t.price||'?'}元/h</span>
+        <span class="list-card-title">${escHtml(t.username)}<span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating||4).toFixed(1)}</b></span></span>
+        <span class="list-card-meta">${meta}</span>
       </div>
-      <div class="list-card-body">
-        ${subjNames.map(n=>`<span class="tag tag-primary">${n}</span>`).join('')}
-        <span class="tag tag-star">${renderStars(t.rating)} ${(t.rating||4).toFixed(1)}</span>
-      </div>
-      ${gaokaoHtml ? `<div class="list-card-detail" style="display:flex;flex-wrap:wrap;gap:var(--s2);">${gaokaoHtml}</div>` : ''}
+      ${rows ? `<div class="subject-block"><div class="section-title">擅长科目</div>${rows}</div>` : ''}
       <div class="list-card-contact">
-        ${t.wechat ? `<span>${UI.CONTACT_WECHAT_PREFIX}${t.wechat}</span>` : ''}
-        ${t.email ? `<span>${UI.CONTACT_EMAIL_PREFIX}${t.email}</span>` : ''}
+        ${t.wechat ? `<span>${UI.CONTACT_WECHAT_PREFIX}${escHtml(t.wechat)}</span>` : ''}
+        ${t.email ? `<span>${UI.CONTACT_EMAIL_PREFIX}${escHtml(t.email)}</span>` : ''}
       </div>
       <div class="list-card-actions">
         <button type="button" class="btn btn-outline btn-sm" onclick="openTeacherModal(${t.user_id})">${UI.BTN_VIEW_DETAIL}</button>
@@ -574,42 +573,26 @@ async function openTeacherModal(userId) {
 }
 
 function renderTeacherModal(t) {
-  const grade = TEACHER_GRADES.find(g => g.id === t.grade)?.name || '—';
-  const gender = GENDERS.find(g => g.id === t.gender)?.name || '—';
-  const subjNames = (t.subjects || []).map(id => SUBJECTS.find(s => s.id === id)?.name || id);
-  const gaokaoHtml = (t.gaokao_scores || []).map(gs => {
-    const n = SUBJECTS.find(s => s.id === gs.subject)?.name || gs.subject;
-    return `<span class="tag">${n}: ${gs.score !== undefined ? gs.score + '分' : gs.grade || ''}</span>`;
-  }).join('');
+  const grade = TEACHER_GRADES.find(g => g.id === t.grade)?.name || '';
+  const gender = GENDERS.find(g => g.id === t.gender)?.name || '';
+  const meta = [grade, gender, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
+  const rows = renderSubjectScoreRows(t);
 
   return `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div class="modal-header"><h2>${escHtml(t.username)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
-        <dl class="teacher-facts">
-          <div class="teacher-fact"><dt>年级</dt><dd>${grade}</dd></div>
-          <div class="teacher-fact"><dt>性别</dt><dd>${gender}</dd></div>
-          <div class="teacher-fact"><dt>报价</dt><dd>${t.price || '?'}${UI.PRICE_UNIT}</dd></div>
-          <div class="teacher-fact"><dt>评分</dt><dd>${renderStars(t.rating)} ${(t.rating || 4).toFixed(1)}</dd></div>
-        </dl>
-        <div class="teacher-modal-section">
-          <h4>擅长科目</h4>
-          <div class="list-card-body">${subjNames.length ? subjNames.map(n => `<span class="tag tag-primary">${n}</span>`).join('') : '<p class="text-sm text-muted">未填写</p>'}</div>
+        <div class="teacher-headline">
+          <span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating || 4).toFixed(1)}</b></span>
+          <span class="list-card-meta">${meta}</span>
         </div>
-        <div class="teacher-modal-section">
-          <h4>高考成绩 / 等第</h4>
-          <div class="list-card-body">${gaokaoHtml || '<p class="text-sm text-muted">未填写</p>'}</div>
-        </div>
-        <div class="teacher-modal-section">
-          <h4>联系方式</h4>
-          <div class="list-card-body">
-            ${t.wechat ? `<span class="tag">${UI.CONTACT_WECHAT_PREFIX}${escHtml(t.wechat)}</span>` : ''}
-            ${t.email ? `<span class="tag">${UI.CONTACT_EMAIL_PREFIX}${escHtml(t.email)}</span>` : ''}
-            ${!t.wechat && !t.email ? '<p class="text-sm text-muted">未填写</p>' : ''}
-          </div>
-        </div>
-        <div class="teacher-modal-section" id="teacher-modal-reviews">
-          <h4>评价</h4>
+        ${rows ? `<div class="subject-block"><div class="section-title">擅长科目</div>${rows}</div>` : ''}
+        ${(t.wechat || t.email) ? `<div class="subject-block"><div class="section-title">联系方式</div>
+          ${t.wechat ? `<div class="subject-row"><span>微信</span><span class="subject-score">${escHtml(t.wechat)}</span></div>` : ''}
+          ${t.email ? `<div class="subject-row"><span>邮箱</span><span class="subject-score">${escHtml(t.email)}</span></div>` : ''}
+        </div>` : ''}
+        <div class="subject-block" id="teacher-modal-reviews">
+          <div class="section-title">评价</div>
           <p class="text-sm text-muted">加载中...</p>
         </div>
       </div>
@@ -618,7 +601,7 @@ function renderTeacherModal(t) {
 }
 
 function renderReviewItems(reviews, t) {
-  return `<h4>评价 (${reviews.length})</h4>
+  return `<div class="section-title">评价 (${reviews.length})</div>
     ${reviews.map(r => `<div class="review-item">
       <div class="review-header">
         <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)}</span>
@@ -653,7 +636,7 @@ function openReviewModal(teacherUserId, teacherName) {
           <label class="form-label">评价内容 <span class="req">*</span></label>
           <textarea class="form-input" id="review-comment" rows="4" placeholder="请分享你的体验..."></textarea>
         </div>
-        <div class="modal-footer" style="padding:0;border:none;">
+        <div class="modal-footer">
           <button class="btn btn-outline" onclick="closeModal()">取消</button>
           <button class="btn btn-primary" onclick="submitReview(${teacherUserId})">提交评价</button>
         </div>
@@ -686,6 +669,33 @@ async function submitReview(teacherUserId) {
     showToast(UI.SUCCESS_REVIEW_SUBMITTED);
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+  }
+}
+
+function confirmDeleteDemand(demandId) {
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:400px;">
+      <div class="modal-header"><h2>${UI.BTN_DELETE_DEMAND}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <p class="text-sm" style="color:var(--ink-3);">${UI.CONFIRM_DELETE_DEMAND}</p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-danger" onclick="handleDeleteDemand(${demandId})">${UI.BTN_DELETE_DEMAND}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function handleDeleteDemand(demandId) {
+  try {
+    await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: { userId: state.user.id } });
+    closeModal();
+    showToast(UI.SUCCESS_DEMAND_DELETED);
+    state.myDemands = state.myDemands.filter(d => d.id !== demandId);
+    if (state.page === 'my-demands') loadMyDemands();
+  } catch (err) {
+    showToast(err.message);
   }
 }
 
@@ -722,8 +732,8 @@ function renderDemandCard(d, opts = {}) {
       <span class="tag">提交者: ${submitter}</span>
     </div>
     ${scoresHtml ? `<div class="list-card-detail" style="display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2);">${scoresHtml}</div>` : ''}
-    ${d.address ? `<div class="list-card-detail">📍 ${escHtml(d.address)}${d.address_detail ? ' '+escHtml(d.address_detail) : ''}</div>` : ''}
-    ${d.additional_info ? `<div class="list-card-detail">💬 ${escHtml(d.additional_info)}</div>` : ''}
+    ${d.address ? `<div class="list-card-detail">地址：${escHtml(d.address)}</div>` : ''}
+    ${d.additional_info ? `<div class="list-card-detail">补充：${escHtml(d.additional_info)}</div>` : ''}
     <div class="list-card-contact">
       ${d.parent_contact ? `<span>家长: ${escHtml(d.parent_contact)}</span>` : ''}
       ${d.student_contact ? `<span>学生: ${escHtml(d.student_contact)}</span>` : ''}

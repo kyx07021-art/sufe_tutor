@@ -59,6 +59,7 @@ window.APP_CONSTANTS = {
     BTN_SUBMIT_DEMAND: '提交需求',
     BTN_EDIT: '编辑',
     BTN_SAVE_DEMAND: '保存修改',
+    BTN_DELETE_DEMAND: '删除需求',
     BTN_GENERATE_INVITE: '生成邀请码',
     BTN_CANCEL: '取消',
     BTN_BACK: '← 返回',
@@ -75,11 +76,13 @@ window.APP_CONSTANTS = {
     VALIDATE_SELECT_SUBJECT: '请至少选择一个科目',
     VALIDATE_SELECT_RATING: '请选择评分',
     VALIDATE_COMMENT_TOO_SHORT: '评价内容太短',
+    CONFIRM_DELETE_DEMAND: '删除后不可恢复，相关教师意向也会一并清除。确定要删除这条需求吗？',
 
     // 成功提示
     SUCCESS_INVITE_CONFIRMED: '邀请码已确认，请填写注册信息',
     SUCCESS_DEMAND_SUBMITTED: '需求已提交！',
     SUCCESS_DEMAND_UPDATED: '需求已更新！',
+    SUCCESS_DEMAND_DELETED: '需求已删除',
     SUCCESS_PROFILE_SAVED: '信息已保存！',
     SUCCESS_REVIEW_SUBMITTED: '评价已提交，等待管理员审核',
     SUCCESS_COPIED: '已复制',

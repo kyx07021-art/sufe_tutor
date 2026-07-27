@@ -59,6 +59,7 @@ const MSG = {
   DEMAND_SUBMITTED: '需求已提交',
   DEMAND_NOT_FOUND: '需求不存在',
   DEMAND_UPDATED: '需求已更新',
+  DEMAND_DELETED: '需求已删除',
   TEACHER_ONLY: '仅教师可操作',
 
   // 意向
@@ -260,14 +261,15 @@ async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {
 
 // --- 学生需求 ---
 async function dbCreateDemand(db, userId, demand) {
+  // address_detail（详细门牌号）已因合规原因停用：不再收集、不再写入，列保留但恒为空
   const result = await dbRun(db, `INSERT INTO student_demands
     (user_id,student_grade,student_gender,target_subjects,current_scores,
-     teaching_method,address,address_detail,budget_min,budget_max,
+     teaching_method,address,budget_min,budget_max,
      submitter_type,parent_contact,student_contact,additional_info)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
     userId, demand.student_grade, demand.student_gender,
     JSON.stringify(demand.target_subjects), JSON.stringify(demand.current_scores),
-    demand.teaching_method || 'offline', demand.address || '', demand.address_detail || '',
+    demand.teaching_method || 'offline', demand.address || '',
     demand.budget_min || 0, demand.budget_max || 0,
     demand.submitter_type, demand.parent_contact, demand.student_contact, demand.additional_info || '',
   ]);
@@ -281,8 +283,9 @@ const DEMANDS_SELECT = `SELECT sd.*, u.username, COALESCE(ic.cnt, 0) AS intent_c
     ON ic.demand_id=sd.id`;
 
 function mapDemandRow(r) {
+  const { address_detail, ...rest } = r; // 合规：该字段不再向前端暴露
   return {
-    ...r,
+    ...rest,
     target_subjects: JSON.parse(r.target_subjects || '[]'),
     current_scores: JSON.parse(r.current_scores || '[]'),
   };
@@ -304,15 +307,20 @@ async function dbGetDemandById(db, id) {
 
 async function dbUpdateDemand(db, id, d) {
   await dbRun(db, `UPDATE student_demands SET student_grade=?,student_gender=?,
-    target_subjects=?,current_scores=?,teaching_method=?,address=?,address_detail=?,
+    target_subjects=?,current_scores=?,teaching_method=?,address=?,address_detail='',
     budget_min=?,budget_max=?,submitter_type=?,parent_contact=?,student_contact=?,
     additional_info=? WHERE id=?`, [
     d.student_grade, d.student_gender,
     JSON.stringify(d.target_subjects), JSON.stringify(d.current_scores),
-    d.teaching_method || 'offline', d.address || '', d.address_detail || '',
+    d.teaching_method || 'offline', d.address || '',
     d.budget_min || 0, d.budget_max || 0,
     d.submitter_type, d.parent_contact, d.student_contact, d.additional_info || '', id,
   ]);
+}
+
+async function dbDeleteDemand(db, id) {
+  await dbRun(db, 'DELETE FROM demand_intents WHERE demand_id=?', [id]);
+  await dbRun(db, 'DELETE FROM student_demands WHERE id=?', [id]);
 }
 
 // --- 意向 ---
@@ -611,6 +619,18 @@ async function handleUpdateDemand(db, demandId, body) {
   return json({ message: MSG.DEMAND_UPDATED });
 }
 
+async function handleDeleteDemand(db, demandId, body) {
+  const { userId } = body;
+  const user = await dbFindUserById(db, userId);
+  if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const existing = await dbGetDemandById(db, demandId);
+  if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (existing.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+
+  await dbDeleteDemand(db, demandId);
+  return json({ message: MSG.DEMAND_DELETED });
+}
+
 // ============================================================
 // 路由：需求意向（后端骨架，前端 UI 下一轮接入）
 // ============================================================
@@ -687,7 +707,7 @@ export default {
 
     const db = env.DB;
     let body = {};
-    if (request.method === 'POST' || request.method === 'PUT') {
+    if (request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE') {
       try { body = await request.json(); } catch { body = {}; }
     }
 
@@ -721,6 +741,7 @@ export default {
       if (p === '/api/student/demands' && request.method === 'GET') return await handleGetDemands(db, url);
       const demandById = p.match(/^\/api\/student\/demands\/(\d+)$/);
       if (demandById && request.method === 'PUT') return await handleUpdateDemand(db, parseInt(demandById[1]), body);
+      if (demandById && request.method === 'DELETE') return await handleDeleteDemand(db, parseInt(demandById[1]), body);
 
       // 需求意向（骨架）
       const intentMatch = p.match(/^\/api\/demands\/(\d+)\/intents$/);

@@ -519,7 +519,12 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .sidebar-item:hover::before { transform: scaleY(1); }
 .sidebar-item.active { background: var(--lilac-2); color: var(--ink); font-weight: 700; }
 .sidebar-item.active::before { transform: scaleY(1); }
-.sidebar-item-icon { font-size: 1rem; width: 20px; text-align: center; flex-shrink: 0; }
+.sidebar-item-index {
+  font-family: var(--mono); font-size: .68rem; font-weight: 700;
+  width: 20px; flex-shrink: 0; color: var(--muted);
+  transition: color var(--t-base) var(--ease-out);
+}
+.sidebar-item:hover .sidebar-item-index, .sidebar-item.active .sidebar-item-index { color: var(--ink); }
 
 .sidebar-close { display: none; margin: auto 10px 0; padding: 10px 14px; color: var(--muted); font-size: .8rem; font-weight: 600; text-align: left; }
 .sidebar-close:hover { color: var(--ink); }
@@ -553,13 +558,21 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 管理面板邀请码条 */
 .admin-invite-bar { margin-bottom: 20px; }
 
-/* 教师信息弹窗（可复用组件） */
-.teacher-facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.teacher-fact { background: var(--field); padding: 10px 12px; }
-.teacher-fact dt { font-size: .68rem; font-weight: 700; color: var(--muted); letter-spacing: .03em; margin-bottom: 3px; }
-.teacher-fact dd { font-size: .9rem; font-weight: 700; color: var(--ink); }
-.teacher-modal-section { margin-top: 18px; }
-.teacher-modal-section > h4 { font-size: .8rem; font-weight: 800; color: var(--ink-3); margin-bottom: 10px; }
+/* 教师信息展示（卡片与弹窗共用）：无深色框；灰小标题 + 纵向极细分隔行 */
+.section-title { font-size: .72rem; font-weight: 700; color: var(--muted); letter-spacing: .08em; margin-bottom: 2px; }
+.subject-block { margin-top: 16px; }
+.subject-row {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 9px 2px; font-size: .85rem; font-weight: 500; color: var(--ink);
+}
+.subject-row + .subject-row { border-top: 1px solid var(--line); }
+.subject-row .subject-score { color: var(--muted); font-size: .8rem; font-weight: 600; white-space: nowrap; }
+
+/* 星级紧跟姓名，不加框 */
+.teacher-rating { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; font-size: .8rem; color: var(--muted); }
+.teacher-rating b { font-weight: 800; color: var(--ink); }
+.teacher-headline { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.teacher-headline .teacher-rating { margin-left: 0; font-size: .9rem; }
 
 /* ============================================================
    Browse / List
@@ -611,10 +624,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   display: inline-flex; align-items: center; padding: 3px 10px;
   background: var(--paper-2); font-size: .72rem; font-weight: 600; color: var(--ink-3); letter-spacing: .01em;
 }
-.tag-primary { background: var(--accent-tint); color: var(--accent-deep); }
 .tag-accent  { background: var(--sand-tint); color: var(--sand-deep); }
 .tag-warn    { background: var(--warn-tint); color: var(--warn-deep); }
-.tag-star    { color: var(--star); font-weight: 700; }
 
 .list-card-detail { margin-top: 12px; font-size: .8rem; color: var(--ink-3); line-height: 1.6; }
 .list-card-contact {
@@ -629,8 +640,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .stars .star.filled { color: var(--star); }
 .rating-text { font-size: .72rem; color: var(--muted); margin-left: 8px; }
 
-/* 评价 */
-.review-item { padding: 12px; background: var(--field); margin-bottom: 8px; font-size: .8rem; }
+/* 评价（教师弹窗内）：无框，细线分行 */
+.review-item { padding: 12px 2px; font-size: .8rem; }
+.review-item + .review-item { border-top: 1px solid var(--line); }
 .review-item .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
 .review-item .review-author { font-weight: 700; color: var(--ink-3); }
 .review-item .review-date { font-size: .68rem; color: var(--muted); }
@@ -682,11 +694,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   position: sticky; top: 0; z-index: 1;
 }
 .modal-header h2 { font-size: 1.15rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
-.modal-body { padding: 20px 24px; }
-.modal-footer {
-  padding: 16px 24px 22px; display: flex; gap: 10px; justify-content: flex-end;
-  position: sticky; bottom: 0; background: var(--field);
-}
+.modal-body { padding: 20px 24px 24px; }
+.modal-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; }
+.modal-footer-start { margin-right: auto; }
 @keyframes modal-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 
 /* 星级输入 */

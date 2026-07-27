@@ -181,8 +181,8 @@
         <!-- 学生：我的需求 -->
         <section class="client-page hidden" data-page="my-demands">
           <div class="page-header">
-            <h2>📚 我的需求</h2>
-            <button class="btn btn-primary btn-sm" onclick="openDemandModal()">＋ 新建需求</button>
+            <h2>我的需求</h2>
+            <button class="btn btn-primary btn-sm" onclick="openDemandModal()">+ 新建需求</button>
           </div>
           <div class="browse-list" id="my-demands-list"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
@@ -190,7 +190,7 @@
         <!-- 学生：浏览教师 -->
         <section class="client-page hidden" data-page="browse-teachers">
           <div class="page-header">
-            <h2>👩‍🏫 教师信息</h2>
+            <h2>教师信息</h2>
             <button class="btn btn-outline btn-sm" onclick="toggleFilters()">筛选</button>
           </div>
           <div class="filter-panel hidden" id="teacher-filters">
@@ -238,7 +238,7 @@
 
         <!-- 教师：需求大厅 -->
         <section class="client-page hidden" data-page="browse-demands">
-          <div class="page-header"><h2>📋 需求大厅</h2></div>
+          <div class="page-header"><h2>需求大厅</h2></div>
           <div class="browse-list" id="demands-list">
             <div class="empty-state"><p>加载中...</p></div>
           </div>
@@ -246,7 +246,7 @@
 
         <!-- 教师：编辑自身信息 -->
         <section class="client-page hidden" data-page="edit-profile">
-          <div class="page-header"><h2>📝 编辑教师信息</h2></div>
+          <div class="page-header"><h2>编辑教师信息</h2></div>
           <div id="profile-alert"></div>
           <form onsubmit="handleSaveProfile(event)" class="profile-form">
             <div class="form-group">
@@ -285,7 +285,7 @@
 
         <!-- 管理员：管理面板（邀请码 UI 须在 #admin-content 外，其 innerHTML 会被整体重写） -->
         <section class="client-page hidden" data-page="admin-dashboard">
-          <div class="page-header"><h2>👑 管理面板</h2></div>
+          <div class="page-header"><h2>管理面板</h2></div>
           <div class="admin-invite-bar">
             <p class="text-sm text-muted" style="margin-bottom:12px;">生成邀请码用于新教师注册，或查看平台统计数据。</p>
             <button class="btn btn-primary btn-sm" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
