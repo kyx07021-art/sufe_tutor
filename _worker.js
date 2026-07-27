@@ -61,6 +61,11 @@ const MSG = {
   DEMAND_UPDATED: '需求已更新',
   DEMAND_DELETED: '需求已删除',
   TEACHER_ONLY: '仅教师可操作',
+  ADMIN_ONLY: '仅管理员可操作',
+  USER_NOT_FOUND: '用户不存在',
+  ACCOUNT_BANNED: '该账户已被封禁，禁止登录',
+  BANNED: '已封禁',
+  UNBANNED: '已解封',
 
   // 意向
   INTENT_DUPLICATE: '你已对该需求提交过意向',
@@ -74,6 +79,7 @@ const MSG = {
   REVIEW_NOT_FOUND: '评价不存在',
   REVIEW_APPROVED: '评价已通过',
   REVIEW_REJECTED: '评价已拒绝',
+  REVIEW_DELETED: '评价已删除',
 
   // 通用
   REGISTER_SUCCESS: '注册成功',
@@ -104,7 +110,8 @@ async function initDb(db) {
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL, salt TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('student','teacher')),
+      role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
+      banned INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT (datetime('now','localtime')))`),
     db.prepare(`CREATE TABLE IF NOT EXISTS teacher_profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
@@ -150,13 +157,119 @@ async function initDb(db) {
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
   ]);
 
-  // 种子管理员
+  // 一次性迁移：users 的 role 扩展支持 admin + 新增 banned 列。
+  // D1 强制开启外键且不可关闭，DROP 被引用表会失败，故用"改名腾位"策略，
+  // 每一步都单独满足外键约束（生产环境的原子 batch 可一次完成，本地逐句执行也安全）：
+  //   ① 旧表整体改名为 _*_old（SQLite 自动同步改写旧表间的 FK 引用）
+  //   ② 按"父先于子"建新表并改名回终名，数据从 _*_old 全量拷贝
+  //   ③ 先子后父删 _*_old
+  // 幂等守卫：检查 sqlite_master 里 users 表定义是否已含 'admin'。
+  const meta = await dbGet(db, "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'");
+  if (meta && !meta.sql.includes("'admin'")) {
+    await db.batch([
+      // ① 腾位
+      db.prepare('ALTER TABLE users RENAME TO _users_old'),
+      db.prepare('ALTER TABLE teacher_profiles RENAME TO _teacher_profiles_old'),
+      db.prepare('ALTER TABLE student_demands RENAME TO _student_demands_old'),
+      db.prepare('ALTER TABLE reviews RENAME TO _reviews_old'),
+      db.prepare('ALTER TABLE invite_codes RENAME TO _invite_codes_old'),
+      db.prepare('ALTER TABLE demand_intents RENAME TO _demand_intents_old'),
+
+      // ② 新 users：建 → 拷贝 → 管理员升级 → 改回终名（此后子表 FK 即可引用 users）
+      db.prepare(`CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL, salt TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
+        banned INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT (datetime('now','localtime')))`),
+      db.prepare(`INSERT INTO users_new (id,username,password_hash,salt,role,banned,created_at)
+        SELECT id,username,password_hash,salt,role,0,created_at FROM _users_old`),
+      db.prepare(`UPDATE users_new SET role='admin' WHERE username IN (${ADMIN_USERNAMES.map(() => '?').join(',')})`).bind(...ADMIN_USERNAMES),
+      db.prepare('ALTER TABLE users_new RENAME TO users'),
+
+      db.prepare(`CREATE TABLE teacher_profiles_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
+        grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
+        price REAL DEFAULT 0, wechat TEXT, email TEXT,
+        rating REAL DEFAULT ${INITIAL_RATING},
+        rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
+        updated_at DATETIME DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+      db.prepare(`INSERT INTO teacher_profiles_new SELECT * FROM _teacher_profiles_old`),
+      db.prepare('ALTER TABLE teacher_profiles_new RENAME TO teacher_profiles'),
+
+      db.prepare(`CREATE TABLE student_demands_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+        student_grade TEXT NOT NULL, student_gender TEXT NOT NULL,
+        target_subjects TEXT NOT NULL, current_scores TEXT NOT NULL,
+        teaching_method TEXT NOT NULL DEFAULT 'offline',
+        address TEXT DEFAULT '', address_detail TEXT DEFAULT '',
+        budget_min REAL DEFAULT 0, budget_max REAL DEFAULT 0,
+        submitter_type TEXT NOT NULL, parent_contact TEXT NOT NULL,
+        student_contact TEXT NOT NULL, additional_info TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+      db.prepare(`INSERT INTO student_demands_new SELECT * FROM _student_demands_old`),
+      db.prepare('ALTER TABLE student_demands_new RENAME TO student_demands'),
+
+      db.prepare(`CREATE TABLE reviews_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, teacher_user_id INTEGER NOT NULL,
+        reviewer_user_id INTEGER NOT NULL, rating INTEGER NOT NULL CHECK(rating>=1 AND rating<=5),
+        comment TEXT NOT NULL, status TEXT DEFAULT 'pending'
+          CHECK(status IN ('pending','approved','rejected')),
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        reviewed_at DATETIME, reviewed_by INTEGER,
+        FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+      db.prepare(`INSERT INTO reviews_new SELECT * FROM _reviews_old`),
+      db.prepare('ALTER TABLE reviews_new RENAME TO reviews'),
+
+      db.prepare(`CREATE TABLE invite_codes_new (
+        code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        expires_at DATETIME NOT NULL, used_by INTEGER DEFAULT NULL,
+        used_at DATETIME DEFAULT NULL,
+        FOREIGN KEY (created_by) REFERENCES users(id),
+        FOREIGN KEY (used_by) REFERENCES users(id))`),
+      db.prepare(`INSERT INTO invite_codes_new SELECT * FROM _invite_codes_old`),
+      db.prepare('ALTER TABLE invite_codes_new RENAME TO invite_codes'),
+
+      db.prepare(`CREATE TABLE demand_intents_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        demand_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        UNIQUE(demand_id, teacher_user_id),
+        FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
+        FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+      db.prepare(`INSERT INTO demand_intents_new SELECT * FROM _demand_intents_old`),
+      db.prepare('ALTER TABLE demand_intents_new RENAME TO demand_intents'),
+
+      // ③ 清旧（先子后父；_*_old 已无任何表引用）
+      db.prepare('DROP TABLE _demand_intents_old'),
+      db.prepare('DROP TABLE _invite_codes_old'),
+      db.prepare('DROP TABLE _reviews_old'),
+      db.prepare('DROP TABLE _student_demands_old'),
+      db.prepare('DROP TABLE _teacher_profiles_old'),
+      db.prepare('DROP TABLE _users_old'),
+    ]);
+  }
+  // 迁移残留清理（IF EXISTS 恒安全；兜底任何半途状态遗留下的 _*_old）
+  await db.batch([
+    db.prepare('DROP TABLE IF EXISTS _demand_intents_old'),
+    db.prepare('DROP TABLE IF EXISTS _invite_codes_old'),
+    db.prepare('DROP TABLE IF EXISTS _reviews_old'),
+    db.prepare('DROP TABLE IF EXISTS _student_demands_old'),
+    db.prepare('DROP TABLE IF EXISTS _teacher_profiles_old'),
+    db.prepare('DROP TABLE IF EXISTS _users_old'),
+  ]);
+
+  // 种子管理员（独立 admin 角色）
   for (const name of ADMIN_USERNAMES) {
     const existing = await dbGet(db, 'SELECT id FROM users WHERE username = ?', [name]);
     if (!existing) {
       const { hash, salt } = await hashPassword(ADMIN_DEFAULT_PASSWORD);
       await dbRun(db, 'INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,?,?)',
-        [name, hash, salt, 'student']);
+        [name, hash, salt, 'admin']);
     }
   }
 }
@@ -355,10 +468,19 @@ async function dbGetApprovedReviews(db, teacherUserId) {
     [teacherUserId]);
 }
 
-async function dbGetPendingReviews(db) {
-  return await dbAll(db, `SELECT r.*, u1.username as reviewer_name, u2.username as teacher_name
-    FROM reviews r JOIN users u1 ON r.reviewer_user_id=u1.id JOIN users u2 ON r.teacher_user_id=u2.id
-    WHERE r.status='pending' ORDER BY r.created_at DESC`);
+// 管理端评价查询：可按状态 / 教师过滤（评价管理页与教师详情内评价栏共用）
+async function dbGetReviewsAdmin(db, { status, teacherUserId } = {}) {
+  let sql = `SELECT r.*, u1.username as reviewer_name, u2.username as teacher_name
+    FROM reviews r JOIN users u1 ON r.reviewer_user_id=u1.id JOIN users u2 ON r.teacher_user_id=u2.id`;
+  const cond = [], params = [];
+  if (status) { cond.push('r.status=?'); params.push(status); }
+  if (teacherUserId) { cond.push('r.teacher_user_id=?'); params.push(teacherUserId); }
+  if (cond.length) sql += ' WHERE ' + cond.join(' AND ');
+  return await dbAll(db, sql + ' ORDER BY r.created_at DESC', params);
+}
+
+async function dbDeleteReview(db, reviewId) {
+  await dbRun(db, 'DELETE FROM reviews WHERE id=?', [reviewId]);
 }
 
 async function dbUpdateReviewStatus(db, reviewId, status) {
@@ -454,7 +576,12 @@ function json(data, status = 200) {
 
 function error(msg, status = 400) { return json({ error: msg }, status); }
 
-function checkAdmin(username) { return ADMIN_USERNAMES.includes(username); }
+// 管理员校验：users 表 role='admin'（旧用户名白名单仅保留用于种子与迁移）
+async function requireAdmin(db, username) {
+  if (!username) return null;
+  const u = await dbGet(db, 'SELECT id,username,role FROM users WHERE username=?', [username]);
+  return (u && u.role === 'admin') ? u : null;
+}
 
 function genCode(len = 8) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -500,20 +627,20 @@ async function handleLogin(db, body) {
   if (!user || !(await verifyPassword(password, user.password_hash, user.salt))) {
     return error(MSG.LOGIN_FAILED, 401);
   }
-  return json({ user: { id: user.id, username: user.username, role: user.role, isAdmin: checkAdmin(username) } });
+  if (user.banned) return error(MSG.ACCOUNT_BANNED, 403);
+  return json({ user: { id: user.id, username: user.username, role: user.role } });
 }
 
 // ============================================================
 // 路由：管理员
 // ============================================================
 async function handleAdminCheck(db, url) {
-  const username = url.searchParams.get('username');
-  return json({ isAdmin: checkAdmin(username) });
+  return json({ isAdmin: !!(await requireAdmin(db, url.searchParams.get('username'))) });
 }
 
 async function handleGenInvite(db, body) {
   const { username } = body;
-  if (!checkAdmin(username)) return error(MSG.NO_PERMISSION, 403);
+  if (!(await requireAdmin(db, username))) return error(MSG.ADMIN_ONLY, 403);
   const admin = await dbFindUserByUsername(db, username);
   if (!admin) return error(MSG.ADMIN_NOT_FOUND, 403);
 
@@ -524,13 +651,13 @@ async function handleGenInvite(db, body) {
 }
 
 async function handleAdminInvites(db, url) {
-  if (!checkAdmin(url.searchParams.get('username'))) return error(MSG.NO_PERMISSION, 403);
+  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
   const invites = await dbGetAllInvites(db);
   return json({ invites });
 }
 
 async function handleAdminStats(db, url) {
-  if (!checkAdmin(url.searchParams.get('username'))) return error(MSG.NO_PERMISSION, 403);
+  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
 
   const users = await dbGetUserStats(db) || { total:0, students:0, teachers:0 };
   const profiles = await dbGetCount(db, 'teacher_profiles');
@@ -546,13 +673,15 @@ async function handleAdminStats(db, url) {
 }
 
 async function handleAdminReviews(db, url) {
-  if (!checkAdmin(url.searchParams.get('username'))) return error(MSG.NO_PERMISSION, 403);
-  const reviews = await dbGetPendingReviews(db);
+  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+  const status = url.searchParams.get('status') || '';
+  const teacherUserId = parseInt(url.searchParams.get('teacherUserId')) || 0;
+  const reviews = await dbGetReviewsAdmin(db, { status, teacherUserId });
   return json({ reviews });
 }
 
 async function handleReviewAction(db, reviewId, action, body) {
-  if (!checkAdmin(body.username)) return error(MSG.NO_PERMISSION, 403);
+  if (!(await requireAdmin(db, body.username))) return error(MSG.ADMIN_ONLY, 403);
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return error(MSG.REVIEW_NOT_FOUND);
 
@@ -567,6 +696,55 @@ async function handleReviewAction(db, reviewId, action, body) {
     await dbUpdateTeacherRating(db, review.teacher_user_id, rating, cnt, sum);
   }
   return json({ message: action === 'approve' ? MSG.REVIEW_APPROVED : MSG.REVIEW_REJECTED });
+}
+
+// ============================================================
+// 路由：管理员 — 用户 / 需求 / 评价管理
+// ============================================================
+async function handleAdminUsers(db, url) {
+  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+  const role = url.searchParams.get('role');
+  if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
+
+  let users;
+  if (role === 'student') {
+    users = await dbAll(db, `SELECT u.id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
+      FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
+      WHERE u.role='student' GROUP BY u.id ORDER BY u.created_at DESC`);
+  } else {
+    const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
+        tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.wechat, tp.email,
+        tp.rating, tp.rating_count, tp.updated_at
+      FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
+      WHERE u.role='teacher' ORDER BY u.created_at DESC`);
+    users = rows.map(r => ({ ...mapTeacherProfileRow(r), role: r.role, banned: r.banned, created_at: r.created_at }));
+  }
+  return json({ users });
+}
+
+async function handleBanUser(db, userId, body) {
+  if (!(await requireAdmin(db, body.username))) return error(MSG.ADMIN_ONLY, 403);
+  const target = await dbGet(db, 'SELECT id,role FROM users WHERE id=?', [userId]);
+  if (!target) return error(MSG.USER_NOT_FOUND, 404);
+  if (target.role === 'admin') return error(MSG.NO_PERMISSION, 403);
+
+  const banned = body.banned ? 1 : 0;
+  await dbRun(db, 'UPDATE users SET banned=? WHERE id=?', [banned, userId]);
+  return json({ message: banned ? MSG.BANNED : MSG.UNBANNED, banned });
+}
+
+async function handleAdminDeleteDemand(db, demandId, body) {
+  if (!(await requireAdmin(db, body.username))) return error(MSG.ADMIN_ONLY, 403);
+  if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+  await dbDeleteDemand(db, demandId);
+  return json({ message: MSG.DEMAND_DELETED });
+}
+
+async function handleAdminDeleteReview(db, reviewId, body) {
+  if (!(await requireAdmin(db, body.username))) return error(MSG.ADMIN_ONLY, 403);
+  if (!(await dbGetReviewById(db, reviewId))) return error(MSG.REVIEW_NOT_FOUND, 404);
+  await dbDeleteReview(db, reviewId);
+  return json({ message: MSG.REVIEW_DELETED });
 }
 
 // ============================================================
@@ -730,6 +908,13 @@ export default {
         const id = parseInt(p.match(/\/(\d+)\//)[1]);
         return await handleReviewAction(db, id, 'reject', body);
       }
+      if (p === '/api/admin/users' && request.method === 'GET') return await handleAdminUsers(db, url);
+      const userBan = p.match(/^\/api\/admin\/users\/(\d+)\/ban$/);
+      if (userBan && request.method === 'POST') return await handleBanUser(db, parseInt(userBan[1]), body);
+      const adminDemand = p.match(/^\/api\/admin\/demands\/(\d+)$/);
+      if (adminDemand && request.method === 'DELETE') return await handleAdminDeleteDemand(db, parseInt(adminDemand[1]), body);
+      const adminReviewById = p.match(/^\/api\/admin\/reviews\/(\d+)$/);
+      if (adminReviewById && request.method === 'DELETE') return await handleAdminDeleteReview(db, parseInt(adminReviewById[1]), body);
 
       // 教师
       if (p === '/api/teacher/profile' && request.method === 'GET') return await handleGetProfile(db, url);
