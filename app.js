@@ -5,9 +5,9 @@
 // ============================================================
 // 常量（来自 constants.js）
 // ============================================================
-const { SUBJECTS, ELECTIVE, GRADE_LEVELS, STUDENT_GRADES,
-        TEACHER_GRADES, GENDERS, SCORE_SCALES, TEACHING_METHODS,
-        BUDGET_OPTIONS, UI } = APP_CONSTANTS;
+// 科目满分/等第档位等业务数据已迁至 region-data.js（按省份政策驱动），此处仅留 UI 必需集
+const { SUBJECTS, STUDENT_GRADES,
+        TEACHER_GRADES, GENDERS, TEACHING_METHODS, UI } = APP_CONSTANTS;
 
 // ============================================================
 // 状态
@@ -462,14 +462,6 @@ function updateDemandScores() {
   if (!prov || !grade) { el.innerHTML = ''; return; }
   if (!checked.length) { el.innerHTML = '<p class="text-sm text-muted">请先选择目标科目</p>'; return; }
   el.innerHTML = buildStudentScoreRows(prov, grade, checked);
-}
-
-function pickScale(el) {
-  const row = el.closest('.score-row');
-  row.querySelectorAll('.score-option').forEach(o => o.classList.remove('selected'));
-  el.classList.add('selected');
-  const input = row.querySelector('input[type="number"]');
-  if (input) input.max = el.dataset.sc;
 }
 
 async function handleSubmitDemand(e) {
@@ -1002,42 +994,6 @@ async function loadProfile() {
       }
     }
   } catch (err) { console.error(err); }
-}
-
-function updateGaokaoScores(existing) {
-  const checked = [...document.querySelectorAll('#profile-subjects input:checked')].map(cb=>cb.value);
-  const el = document.getElementById('profile-gaokao-scores');
-  if (!checked.length) { el.innerHTML = `<p class="text-sm text-muted">${UI.LABEL_SELECT_HINT}</p>`; return; }
-
-  const main = checked.filter(id => ['chinese','math','english'].includes(id));
-  const elec = checked.filter(id => ELECTIVE.includes(id));
-
-  let html = '';
-  if (main.length) {
-    html += `<div class="gaokao-section"><h4>${UI.GAOKAO_MAIN}</h4>`;
-    main.forEach(sid => {
-      const s = SUBJECTS.find(x=>x.id===sid);
-      const ex = existing.find(x=>x.subject===sid);
-      html += `<div class="gaokao-row"><span class="subject-name">${s.name}</span>
-        <input type="number" class="score-inline" data-gk-subject="${sid}" data-gk-type="score"
-          value="${ex?.score||''}" placeholder="分数" min="0" max="${s.maxScore}">
-        <span class="score-max">/ ${s.maxScore}</span></div>`;
-    });
-    html += '</div>';
-  }
-  if (elec.length) {
-    html += `<div class="gaokao-section"><h4>${UI.GAOKAO_ELECTIVE}</h4>`;
-    elec.forEach(sid => {
-      const s = SUBJECTS.find(x=>x.id===sid);
-      const ex = existing.find(x=>x.subject===sid);
-      html += `<div class="gaokao-row"><span class="subject-name">${s.name}</span>
-        <div class="grade-selector" data-gk-subject="${sid}">
-          ${GRADE_LEVELS.map(g=>`<span class="grade-option ${ex?.grade===g?'selected':''}" onclick="pickGrade(this)" data-grade="${g}">${g}</span>`).join('')}
-        </div></div>`;
-    });
-    html += '</div>';
-  }
-  el.innerHTML = html;
 }
 
 function pickGrade(el) {
