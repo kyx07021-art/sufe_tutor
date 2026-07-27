@@ -172,6 +172,15 @@
       <aside class="client-sidebar" id="client-sidebar">
         <div class="sidebar-user" id="sidebar-user"></div>
         <nav class="sidebar-nav" id="sidebar-nav" aria-label="功能导航"></nav>
+        <!-- 管理员：邀请码（仅 admin 可见，由 renderSidebar 控制显隐） -->
+        <div class="sidebar-invite hidden" id="sidebar-invite">
+          <button type="button" class="btn btn-primary btn-sm sidebar-invite-btn" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
+          <div class="invite-display hidden" id="invite-code-display">
+            <button type="button" class="btn btn-outline btn-xs" onclick="copyInviteCode()">复制</button>
+            <span class="invite-timer" id="invite-code-timer"></span>
+            <span class="invite-code-text" id="invite-code-text"></span>
+          </div>
+        </div>
         <button type="button" class="sidebar-close" onclick="closeSidebar()">✕ 关闭菜单</button>
       </aside>
       <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
@@ -283,23 +292,42 @@
           </form>
         </section>
 
-        <!-- 管理员：管理面板（邀请码 UI 须在 #admin-content 外，其 innerHTML 会被整体重写） -->
-        <section class="client-page hidden" data-page="admin-dashboard">
-          <div class="page-header"><h2>管理面板</h2></div>
-          <div class="admin-invite-bar">
-            <p class="text-sm text-muted" style="margin-bottom:12px;">生成邀请码用于新教师注册，或查看平台统计数据。</p>
-            <button class="btn btn-primary btn-sm" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
-            <div class="invite-code-display hidden" id="invite-code-display">
-              <div class="invite-code-text" id="invite-code-text"></div>
-              <div>
-                <button class="btn btn-outline btn-sm" onclick="copyInviteCode()">复制</button>
-                <div class="invite-code-timer mt-2" id="invite-code-timer"></div>
-              </div>
-            </div>
+        <!-- 管理员：统计（可扩展更多统计板块） -->
+        <section class="client-page hidden" data-page="admin-stats">
+          <div class="page-header"><h2>统计</h2></div>
+          <div id="admin-stats-content"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 管理员：学生管理 -->
+        <section class="client-page hidden" data-page="admin-students">
+          <div class="page-header"><h2>学生管理</h2></div>
+          <div class="browse-list" id="admin-students-list"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 管理员：教师管理 -->
+        <section class="client-page hidden" data-page="admin-teachers">
+          <div class="page-header"><h2>教师管理</h2></div>
+          <div class="browse-list" id="admin-teachers-list"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 管理员：需求管理 -->
+        <section class="client-page hidden" data-page="admin-demands">
+          <div class="page-header"><h2>需求管理</h2></div>
+          <div class="browse-list" id="admin-demands-list"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 管理员：评价管理（含审核） -->
+        <section class="client-page hidden" data-page="admin-reviews">
+          <div class="page-header">
+            <h2>评价管理</h2>
+            <select class="filter-select filter-select-auto" id="admin-reviews-status" onchange="loadAdminReviews()">
+              <option value="">全部状态</option>
+              <option value="pending">待审核</option>
+              <option value="approved">已通过</option>
+              <option value="rejected">已拒绝</option>
+            </select>
           </div>
-          <div class="browse-list" id="admin-content">
-            <div class="empty-state"><p>加载中...</p></div>
-          </div>
+          <div class="browse-list" id="admin-reviews-list"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
 
       </main>

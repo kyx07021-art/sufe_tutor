@@ -184,6 +184,7 @@ body:has(#view-landing:not(.hidden)) .navbar {
 .btn-danger:hover { background: var(--danger-deep); }
 
 .btn-sm { padding: 8px 14px; font-size: .8rem; }
+.btn-xs { padding: 4px 9px; font-size: .7rem; }
 .btn-lg { padding: 15px 30px; font-size: 1rem; }
 .btn-icon { width: 36px; height: 36px; padding: 0; }
 
@@ -475,13 +476,17 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .score-inline:focus { background-size: 100% 2px; }
 .score-max { font-size: .72rem; color: var(--muted); }
 
-/* 邀请码（管理面板页内） */
-.invite-code-display { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
-.invite-code-text {
-  font-family: var(--mono); font-size: 1.3rem; font-weight: 700; letter-spacing: .14em;
-  padding: 12px 20px; background: var(--ink); color: var(--paper); flex: 1; text-align: center;
+/* 邀请码（管理员侧边栏底部）：黑按钮 + 浅棕底黑字小组件（比按钮窄） */
+.sidebar-invite { padding: 16px 10px 0; }
+.sidebar-invite-btn { width: 100%; }
+.invite-display {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 8px; padding: 7px 9px;
+  background: var(--sand-tint); width: max-content; max-width: 100%;
+  animation: fade-in .2s ease;
 }
-.invite-code-timer { font-size: .72rem; color: var(--warn-deep); font-weight: 700; }
+.invite-code-text { font-family: var(--mono); font-size: .85rem; font-weight: 700; letter-spacing: .12em; color: var(--ink); overflow-wrap: anywhere; }
+.invite-timer { font-size: .68rem; color: var(--warn-deep); font-weight: 700; white-space: nowrap; }
 
 /* ============================================================
    Client 壳 — 可扩展侧边栏 + 页面区
@@ -555,8 +560,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 需求卡头部工具区（日期 + 编辑按钮） */
 .demand-card-tools { display: inline-flex; align-items: center; gap: 10px; }
 
-/* 管理面板邀请码条 */
-.admin-invite-bar { margin-bottom: 20px; }
+/* 管理面板邀请码条（已迁入侧边栏，留空占位防孤儿注释）*/
 
 /* 教师信息展示（卡片与弹窗共用）：无深色框；灰小标题 + 纵向极细分隔行 */
 .section-title { font-size: .72rem; font-weight: 700; color: var(--muted); letter-spacing: .08em; margin-bottom: 2px; }
@@ -639,6 +643,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 }
 .tag-accent  { background: var(--sand-tint); color: var(--sand-deep); }
 .tag-warn    { background: var(--warn-tint); color: var(--warn-deep); }
+.tag-danger  { background: var(--danger-tint); color: var(--danger-deep); }
+.tag-ok      { background: var(--ok-tint); color: var(--ok-deep); }
 
 .list-card-detail { margin-top: 12px; font-size: .8rem; color: var(--ink-3); line-height: 1.6; }
 .list-card-contact {
@@ -680,13 +686,23 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .admin-panel { background: var(--white); padding: 20px; margin-bottom: 14px; }
 .admin-panel h3 { font-size: .95rem; font-weight: 800; margin-bottom: 16px; color: var(--ink); letter-spacing: -.01em; }
 
-.review-admin-item {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  padding: 12px; background: var(--field); margin-bottom: 8px; gap: 12px;
+/* 管理列表行（学生 / 教师 / 需求 / 评价管理共用） */
+.admin-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+  background: var(--white); padding: 14px 16px; margin-bottom: 8px;
 }
-.review-admin-item .review-info { flex: 1; font-size: .8rem; color: var(--ink-3); }
-.review-admin-item .review-info strong { color: var(--ink); }
-.review-admin-item .review-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.admin-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.admin-row-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .88rem; color: var(--ink); }
+.admin-row-line strong { font-weight: 800; }
+.admin-row-meta { font-size: .72rem; color: var(--muted); }
+.admin-row .review-text { font-size: .8rem; color: var(--ink-3); line-height: 1.5; }
+.admin-row-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
+
+/* 教师详情弹窗内评价的管理操作 */
+.review-admin-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+/* 页头内联筛选下拉（如评价状态） */
+.filter-select-auto { width: auto; min-width: 120px; }
 
 /* ============================================================
    Modal — 白实心直角，墨色顶条，无毛玻璃
@@ -787,9 +803,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .teacher-photo { flex-basis: 60px; width: 60px; height: 60px; background-size: 34px 34px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-row { flex-direction: column; gap: 12px; }
-  .invite-code-display { flex-direction: column; }
-  .invite-code-text { width: 100%; }
-  .review-admin-item { flex-direction: column; }
+  .admin-row { flex-direction: column; gap: 10px; }
 }
 
 /* ---------- utilities ---------- */

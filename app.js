@@ -12,7 +12,8 @@ const { SUBJECTS, ELECTIVE, GRADE_LEVELS, STUDENT_GRADES,
 // ============================================================
 // 状态
 // ============================================================
-const state = { user: null, view: 'landing', page: null, allTeachers: [], myDemands: [], editingDemandId: null,
+const state = { user: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], adminModalTeacher: null,
+                myDemands: [], editingDemandId: null,
                 inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
 
 // ============================================================
@@ -28,7 +29,13 @@ const ROLE_PAGES = {
   teacher: [
     { id: 'browse-demands',  label: '需求大厅',     enter: loadBrowseDemands },
     { id: 'edit-profile',    label: '编辑自身信息', enter: initProfileForm },
-    { id: 'admin-dashboard', label: '管理员面板',   enter: loadAdminDashboard, adminOnly: true },
+  ],
+  admin: [
+    { id: 'admin-stats',    label: '统计',     enter: loadAdminStats },
+    { id: 'admin-students', label: '学生管理', enter: loadAdminStudents },
+    { id: 'admin-teachers', label: '教师管理', enter: loadAdminTeachers },
+    { id: 'admin-demands',  label: '需求管理', enter: loadAdminDemands },
+    { id: 'admin-reviews',  label: '评价管理', enter: loadAdminReviews },
   ],
 };
 
@@ -68,10 +75,10 @@ function goHome() { state.user ? enterClient() : showView('landing'); }
 function updateNavbar() {
   const el = document.getElementById('navbar-actions');
   if (state.user) {
-    const role = state.user.role === 'student' ? UI.ROLE_STUDENT : UI.ROLE_TEACHER;
-    const admin = state.user.isAdmin ? `<span class="user-badge admin-badge">${UI.ADMIN_BADGE}</span>` : '';
+    const u = state.user;
+    const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
     el.innerHTML = `<div class="navbar-user">
-      <span>${state.user.username}</span><span class="user-badge">${role}</span>${admin}
+      <span>${escHtml(u.username)}</span><span class="user-badge${u.role === 'admin' ? ' admin-badge' : ''}">${roleLabel}</span>
       <button class="btn btn-ghost btn-sm" onclick="handleLogout()">${UI.NAV_LOGOUT}</button></div>`;
   } else {
     el.innerHTML = `<button class="btn btn-ghost" onclick="showView('login')">${UI.NAV_LOGIN}</button>
@@ -83,7 +90,7 @@ function updateNavbar() {
 // 客户端壳：侧边栏 + 页面区（栏目由 ROLE_PAGES 配置驱动）
 // ------------------------------------------------------------
 function pagesForRole() {
-  return (ROLE_PAGES[state.user.role] || []).filter(p => !p.adminOnly || state.user.isAdmin);
+  return ROLE_PAGES[state.user.role] || [];
 }
 
 function defaultPageFor() {
@@ -98,16 +105,18 @@ function enterClient(pageId) {
 
 function renderSidebar() {
   const u = state.user;
+  const isAdmin = u.role === 'admin';
+  const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
   document.getElementById('sidebar-user').innerHTML = `
     <div class="sidebar-user-name">${escHtml(u.username)}</div>
     <div class="sidebar-user-meta">
-      <span class="user-badge">${u.role === 'student' ? UI.ROLE_STUDENT : UI.ROLE_TEACHER}</span>
-      ${u.isAdmin ? `<span class="user-badge admin-badge">${UI.ADMIN_BADGE}</span>` : ''}
+      <span class="user-badge${isAdmin ? ' admin-badge' : ''}">${roleLabel}</span>
     </div>`;
   document.getElementById('sidebar-nav').innerHTML = pagesForRole().map((p, i) => `
     <button type="button" class="sidebar-item" data-page="${p.id}" onclick="selectPage('${p.id}')">
       <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span><span>${p.label}</span>
     </button>`).join('');
+  document.getElementById('sidebar-invite').classList.toggle('hidden', !isAdmin);
 }
 
 function selectPage(pageId) {
@@ -126,11 +135,6 @@ function openSidebar()   { document.body.classList.add('sidebar-open'); }
 function closeSidebar()  { document.body.classList.remove('sidebar-open'); }
 function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
 
-// student 身份的管理员统一按教师端处理（原三处重复分支收敛于此）
-function normalizeUser(u) {
-  if (u.isAdmin && u.role === 'student') u.role = 'teacher';
-  return u;
-}
 
 // ============================================================
 // 认证
@@ -159,7 +163,7 @@ async function handleLogin(e) {
   try {
     btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${UI.LOADING_LOGIN}`;
     const data = await api('/api/auth/login', { method: 'POST', body: { username, password } });
-    state.user = normalizeUser(data.user);
+    state.user = data.user;
     alertEl.innerHTML = '';
 
     // 记住登录状态
@@ -208,7 +212,7 @@ async function handleRegister(e) {
       state.validatedInviteCode = null; // 用后即清
     }
     const data = await api('/api/auth/register', { method: 'POST', body });
-    state.user = normalizeUser(data.user);
+    state.user = data.user;
     alertEl.innerHTML = '';
     enterClient();
   } catch (err) {
@@ -248,7 +252,8 @@ async function validateInviteAndRegister() {
 function handleLogout() {
   if (state.inviteTimerId) clearInterval(state.inviteTimerId);
   state.user = null; state.page = null;
-  state.allTeachers = []; state.myDemands = []; state.editingDemandId = null;
+  state.allTeachers = []; state.adminTeachers = []; state.adminModalTeacher = null;
+  state.myDemands = []; state.editingDemandId = null;
   state.inviteTimerId = null; state.currentInviteCode = null;
   localStorage.removeItem('sufe_session');
   closeSidebar();
@@ -562,13 +567,27 @@ function applyFilters() {
 // 教师信息弹窗 — 可复用组件（档案 + 高考成绩 + 联系方式 + 评价）
 // ============================================================
 async function openTeacherModal(userId) {
-  const t = state.allTeachers.find(x => x.user_id === userId);
+  const t = state.allTeachers.find(x => x.user_id === userId) || state.adminTeachers.find(x => x.user_id === userId);
   if (!t) return;
+  state.adminModalTeacher = (state.user && state.user.role === 'admin') ? t : null;
   document.getElementById('modal-container').innerHTML = renderTeacherModal(t);
+  // 管理员：评价栏走管理端接口（全状态 + 逐条管理）
+  if (state.adminModalTeacher) { loadTeacherReviewsAdmin(userId); return; }
   try {
     const data = await api(`/api/reviews?teacherUserId=${userId}`);
     const el = document.getElementById('teacher-modal-reviews');
-    if (el) el.innerHTML = renderReviewItems(data.reviews || [], t); // 防竞态：弹窗已关则丢弃
+    if (el) el.innerHTML = renderReviewItems(data.reviews || [], t, {}); // 防竞态：弹窗已关则丢弃
+  } catch {
+    const el = document.getElementById('teacher-modal-reviews');
+    if (el) el.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_REVIEWS}</p>`;
+  }
+}
+
+async function loadTeacherReviewsAdmin(userId) {
+  try {
+    const data = await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}&teacherUserId=${userId}`);
+    const el = document.getElementById('teacher-modal-reviews');
+    if (el) el.innerHTML = renderReviewItems(data.reviews || [], state.adminModalTeacher, { admin: true });
   } catch {
     const el = document.getElementById('teacher-modal-reviews');
     if (el) el.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_REVIEWS}</p>`;
@@ -603,17 +622,26 @@ function renderTeacherModal(t) {
   </div>`;
 }
 
-function renderReviewItems(reviews, t) {
+function renderReviewItems(reviews, t, opts = {}) {
+  const { admin = false } = opts;
+  const statusTag = r => r.status === 'approved' ? `<span class="tag tag-ok">${UI.STATUS_APPROVED}</span>`
+    : r.status === 'rejected' ? `<span class="tag tag-danger">${UI.STATUS_REJECTED}</span>`
+    : `<span class="tag tag-warn">${UI.STATUS_PENDING}</span>`;
   return `<div class="section-title">评价 (${reviews.length})</div>
     ${reviews.map(r => `<div class="review-item">
       <div class="review-header">
-        <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)}</span>
+        <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)} ${admin ? statusTag(r) : ''}</span>
         <span class="review-date">${r.created_at || ''}</span>
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
+      ${admin ? `<div class="review-admin-actions">
+        ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
+        <button type="button" class="btn btn-outline btn-xs" onclick="adminReviewAction(${r.id},'reject',1)">${UI.BTN_REJECT}</button>` : ''}
+        <button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
+      </div>` : ''}
     </div>`).join('')}
     ${!reviews.length ? `<p class="text-sm text-muted">${UI.EMPTY_NO_REVIEWS}</p>` : ''}
-    ${state.user && state.user.role === 'student' ? `
+    ${!admin && state.user && state.user.role === 'student' ? `
       <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id})">写评价</button>
     ` : ''}`;
 }
@@ -675,28 +703,80 @@ async function submitReview(teacherUserId) {
   }
 }
 
-function confirmDeleteDemand(demandId) {
+// 通用危险操作二次确认（onConfirm 仅由内部以数字 id 拼装全局函数调用串）
+function confirmDanger(title, text, onConfirm) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal" style="max-width:400px;">
-      <div class="modal-header"><h2>${UI.BTN_DELETE_DEMAND}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${title}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
-        <p class="text-sm" style="color:var(--ink-3);">${UI.CONFIRM_DELETE_DEMAND}</p>
+        <p class="text-sm" style="color:var(--ink-3);">${text}</p>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger" onclick="handleDeleteDemand(${demandId})">${UI.BTN_DELETE_DEMAND}</button>
+          <button type="button" class="btn btn-danger" onclick="${onConfirm}">${UI.BTN_CONFIRM}</button>
         </div>
       </div>
     </div>
   </div>`;
 }
 
-async function handleDeleteDemand(demandId) {
+function confirmDeleteDemand(demandId, asAdmin) {
+  confirmDanger(UI.BTN_DELETE_DEMAND, UI.CONFIRM_DELETE_DEMAND, `handleDeleteDemand(${demandId}, ${asAdmin ? 1 : 0})`);
+}
+
+async function handleDeleteDemand(demandId, asAdmin) {
   try {
-    await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: { userId: state.user.id } });
+    if (asAdmin) {
+      await api(`/api/admin/demands/${demandId}`, { method: 'DELETE', body: { username: state.user.username } });
+    } else {
+      await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: { userId: state.user.id } });
+    }
     closeModal();
     showToast(UI.SUCCESS_DEMAND_DELETED);
     state.myDemands = state.myDemands.filter(d => d.id !== demandId);
-    if (state.page === 'my-demands') loadMyDemands();
+    if (asAdmin) { if (state.page === 'admin-demands') loadAdminDemands(); }
+    else if (state.page === 'my-demands') loadMyDemands();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+function confirmBanUser(userId, banned) {
+  confirmDanger(banned ? UI.BAN : UI.UNBAN, banned ? UI.CONFIRM_BAN : UI.CONFIRM_UNBAN, `doBanUser(${userId}, ${banned})`);
+}
+
+async function doBanUser(userId, banned) {
+  try {
+    await api(`/api/admin/users/${userId}/ban`, { method: 'POST', body: { username: state.user.username, banned } });
+    closeModal();
+    showToast(banned ? UI.SUCCESS_BANNED : UI.SUCCESS_UNBANNED);
+    if (state.page === 'admin-students') loadAdminStudents();
+    if (state.page === 'admin-teachers') loadAdminTeachers();
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+function confirmDeleteReview(reviewId, fromModal) {
+  confirmDanger(UI.BTN_DELETE_REVIEW, UI.CONFIRM_DELETE_REVIEW, `adminReviewAction(${reviewId},'delete',${fromModal})`);
+}
+
+// action: approve / reject / delete；fromModal: 是否从教师详情弹窗内触发（决定刷新哪里）
+async function adminReviewAction(reviewId, action, fromModal) {
+  try {
+    if (action === 'delete') {
+      await api(`/api/admin/reviews/${reviewId}`, { method: 'DELETE', body: { username: state.user.username } });
+      showToast(UI.REVIEW_DELETED);
+    } else {
+      await api(`/api/admin/reviews/${reviewId}/${action}`, { method: 'POST', body: { username: state.user.username } });
+      showToast(action === 'approve' ? UI.SUCCESS_APPROVED : UI.SUCCESS_REJECTED);
+    }
+    closeModal();
+    if (fromModal && state.adminModalTeacher) {
+      document.getElementById('modal-container').innerHTML = renderTeacherModal(state.adminModalTeacher);
+      loadTeacherReviewsAdmin(state.adminModalTeacher.user_id);
+    } else if (state.page === 'admin-reviews') {
+      loadAdminReviews();
+    }
   } catch (err) {
     showToast(err.message);
   }
@@ -706,7 +786,7 @@ async function handleDeleteDemand(demandId) {
 // 需求卡与列表（学生「我的需求」与教师「需求大厅」共用渲染）
 // ============================================================
 function renderDemandCard(d, opts = {}) {
-  const { editable = false } = opts;
+  const { editable = false, admin = false } = opts;
   const subjNames = (d.target_subjects||[]).map(id => SUBJECTS.find(s=>s.id===id)?.name || id);
   const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
   const gender = GENDERS.find(g=>g.id===d.student_gender)?.name || '';
@@ -722,10 +802,11 @@ function renderDemandCard(d, opts = {}) {
 
   return `<div class="list-card">
     <div class="list-card-header">
-      <span class="list-card-title">${grade} · ${gender}</span>
+      <span class="list-card-title">${admin && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
       <span class="demand-card-tools">
         <span class="list-card-meta">${d.created_at||''}</span>
         ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
+        ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
     </div>
     <div class="list-card-body">
@@ -916,15 +997,14 @@ function copyInviteCode() {
   navigator.clipboard?.writeText(state.currentInviteCode.code).then(() => showToast(UI.SUCCESS_COPIED));
 }
 
-async function loadAdminDashboard() {
-  const el = document.getElementById('admin-content');
+// 统计面板（原「管理员面板」，去掉待审核评价——审核并入「评价管理」；
+// 结构上保留 stats-grid + 若干 admin-panel 板块，后期扩展统计数据直接加板块即可）
+async function loadAdminStats() {
+  const el = document.getElementById('admin-stats-content');
+  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
   try {
-    const [statsData, reviewsData] = await Promise.all([
-      api(`/api/admin/stats?username=${state.user.username}`),
-      api(`/api/admin/reviews?username=${state.user.username}`),
-    ]);
+    const statsData = await api(`/api/admin/stats?username=${encodeURIComponent(state.user.username)}`);
     const s = statsData.stats;
-    const pendingReviews = reviewsData.reviews || [];
 
     el.innerHTML = `
       <div class="stats-grid">
@@ -939,27 +1019,9 @@ async function loadAdminDashboard() {
       </div>
 
       <div class="admin-panel">
-        <h3>待审核评价 (${pendingReviews.length})</h3>
-        ${pendingReviews.length ? pendingReviews.map(r => `
-          <div class="review-admin-item">
-            <div class="review-info">
-              <strong>${r.teacher_name}</strong> ← ${r.reviewer_name}
-              <span class="stars">${renderStars(r.rating)}</span>
-              <div style="margin-top:4px;color:var(--text-2);">${r.comment}</div>
-              <div class="review-date">${r.created_at||''}</div>
-            </div>
-            <div class="review-actions">
-              <button class="btn btn-accent btn-sm" onclick="adminReview(${r.id},'approve')">通过</button>
-              <button class="btn btn-danger btn-sm" onclick="adminReview(${r.id},'reject')">拒绝</button>
-            </div>
-          </div>
-        `).join('') : '<p class="text-sm text-muted">暂无待审核评价</p>'}
-      </div>
-
-      <div class="admin-panel">
         <h3>最近注册用户</h3>
         ${s.recentUsers.map(u => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
-          <span><strong>${u.username}</strong> <span class="tag">${u.role==='student'?'学生':'教师'}</span></span>
+          <span><strong>${escHtml(u.username)}</strong> <span class="tag">${u.role==='student'?'学生':u.role==='teacher'?'教师':'管理员'}</span></span>
           <span class="text-muted">${u.created_at||''}</span>
         </div>`).join('')}
       </div>
@@ -967,7 +1029,7 @@ async function loadAdminDashboard() {
       <div class="admin-panel">
         <h3>最近需求</h3>
         ${s.recentDemands.map(d => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
-          <span><strong>${d.username}</strong> ${STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||''} ${d.target_subjects.map(id=>SUBJECTS.find(s=>s.id===id)?.name||'').join('、')}</span>
+          <span><strong>${escHtml(d.username)}</strong> ${STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||''} ${d.target_subjects.map(id=>SUBJECTS.find(s=>s.id===id)?.name||'').join('、')}</span>
           <span class="text-muted">${d.created_at||''}</span>
         </div>`).join('')}
       </div>
@@ -977,14 +1039,94 @@ async function loadAdminDashboard() {
   }
 }
 
-async function adminReview(reviewId, action) {
+// 学生 / 教师管理（封禁的账户无法登录）
+async function loadAdminUsers(role, elId) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
   try {
-    await api(`/api/admin/reviews/${reviewId}/${action}`, {
-      method: 'POST', body: { username: state.user.username },
-    });
-    showToast(action === 'approve' ? UI.SUCCESS_APPROVED : UI.SUCCESS_REJECTED);
-    loadAdminDashboard();
-  } catch (err) { showToast(err.message); }
+    const data = await api(`/api/admin/users?username=${encodeURIComponent(state.user.username)}&role=${role}`);
+    const users = data.users || [];
+    if (!users.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_USERS}</p></div>`; return; }
+    if (role === 'teacher') state.adminTeachers = users; // 教师详情弹窗的数据源
+    el.innerHTML = users.map(u => renderAdminUserRow(u, role)).join('');
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
+  }
+}
+function loadAdminStudents() { return loadAdminUsers('student', 'admin-students-list'); }
+function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-list'); }
+
+function renderAdminUserRow(u, role) {
+  const uid = role === 'teacher' ? u.user_id : u.id;
+  const meta = role === 'teacher'
+    ? `${TEACHER_GRADES.find(g => g.id === u.grade)?.name || '—'} · ${(u.rating || 4).toFixed(1)} 分 · ${u.price || '?'}${UI.PRICE_UNIT}`
+    : `${u.demand_count || 0} 条需求`;
+  return `<div class="admin-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line">
+        <strong>${escHtml(u.username)}</strong>
+        ${u.banned ? `<span class="tag tag-danger">已封禁</span>` : ''}
+      </div>
+      <div class="admin-row-meta">${meta} · 注册于 ${u.created_at || ''}</div>
+    </div>
+    <div class="admin-row-actions">
+      ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs" onclick="openTeacherModal(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
+      ${u.banned
+        ? `<button type="button" class="btn btn-outline btn-xs" onclick="confirmBanUser(${uid}, 0)">${UI.UNBAN}</button>`
+        : `<button type="button" class="btn btn-danger btn-xs" onclick="confirmBanUser(${uid}, 1)">${UI.BAN}</button>`}
+    </div>
+  </div>`;
+}
+
+// 需求管理（移除走管理员通道，不受归属限制）
+async function loadAdminDemands() {
+  const el = document.getElementById('admin-demands-list');
+  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  try {
+    const data = await api('/api/student/demands');
+    const demands = data.demands || [];
+    if (!demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
+    el.innerHTML = demands.map(d => renderDemandCard(d, { admin: true })).join('');
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
+  }
+}
+
+// 评价管理（含审核：通过 / 拒绝 / 删除；可按状态过滤）
+async function loadAdminReviews() {
+  const el = document.getElementById('admin-reviews-list');
+  const status = document.getElementById('admin-reviews-status')?.value || '';
+  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  try {
+    const data = await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}${status ? `&status=${status}` : ''}`);
+    const reviews = data.reviews || [];
+    if (!reviews.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_REVIEWS}</p></div>`; return; }
+    el.innerHTML = reviews.map(renderAdminReviewRow).join('');
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
+  }
+}
+
+function renderAdminReviewRow(r) {
+  const statusTag = r.status === 'approved' ? `<span class="tag tag-ok">${UI.STATUS_APPROVED}</span>`
+    : r.status === 'rejected' ? `<span class="tag tag-danger">${UI.STATUS_REJECTED}</span>`
+    : `<span class="tag tag-warn">${UI.STATUS_PENDING}</span>`;
+  return `<div class="admin-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line">
+        <strong>${escHtml(r.teacher_name || '')}</strong>
+        <span class="text-muted">←</span> ${escHtml(r.reviewer_name || '')}
+        ${renderStars(r.rating)} ${statusTag}
+      </div>
+      <div class="review-text">${escHtml(r.comment)}</div>
+      <div class="admin-row-meta">${r.created_at || ''}</div>
+    </div>
+    <div class="admin-row-actions">
+      ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs" onclick="adminReviewAction(${r.id},'approve',0)">${UI.BTN_APPROVE}</button>
+      <button type="button" class="btn btn-outline btn-xs" onclick="adminReviewAction(${r.id},'reject',0)">${UI.BTN_REJECT}</button>` : ''}
+      <button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteReview(${r.id},0)">${UI.BTN_DELETE_REVIEW}</button>
+    </div>
+  </div>`;
 }
 
 // ============================================================
@@ -1009,7 +1151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await api('/api/auth/login', {
         method: 'POST', body: { username: saved.user.username, password: saved.password },
       });
-      state.user = normalizeUser(data.user);
+      state.user = data.user;
       // 更新保存的 user 信息（可能角色或管理员状态有变）
       localStorage.setItem('sufe_session', JSON.stringify({ ...saved, user: state.user }));
       enterClient();
