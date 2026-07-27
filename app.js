@@ -270,7 +270,7 @@ function openDemandModal(demandId) {
   state.editingDemandId = demandId || null;
   const demand = demandId ? state.myDemands.find(d => d.id === demandId) : null;
   document.getElementById('modal-container').innerHTML = renderDemandModal(demand);
-  initDemandForm();
+  initDemandForm(demand ? demand.province : null);
   if (demand) prefillDemandForm(demand);
 }
 function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
@@ -283,8 +283,13 @@ function renderDemandModal(demand) {
         <div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
           <div class="form-group">
+            <label class="form-label">省份 <span class="req">*</span></label>
+            <span id="d-province-wrap"></span>
+            <div id="d-region-note"></div>
+          </div>
+          <div class="form-group">
             <label class="form-label">学生年级 <span class="req">*</span></label>
-            <select class="form-select" id="d-grade" required>
+            <select class="form-select" id="d-grade" required onchange="updateDemandSubjects()">
               <option value="">请选择</option>${STUDENT_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
             </select>
           </div>
@@ -354,7 +359,10 @@ function renderDemandModal(demand) {
   </div>`;
 }
 
-function initDemandForm() {
+function initDemandForm(selectedProvince) {
+  document.getElementById('d-province-wrap').innerHTML =
+    renderProvinceSelect('d-province', selectedProvince || '', 'onDemandProvinceChange()');
+  if (selectedProvince) onDemandProvinceChange(); // 编辑回填前先锁定线上等约束
   document.getElementById('d-subjects').addEventListener('change', updateDemandScores);
   toggleAddressField(); // 初始化地址字段可见性
 }
@@ -364,19 +372,17 @@ function initDemandForm() {
 // → 回填各科分制/分数 → 设教学方式 → 再调 toggleAddressField()
 // （initDemandForm 那次跑在默认值上，会把线下需求的地址区错误隐藏）
 function prefillDemandForm(d) {
+  document.getElementById('d-province').value = d.province || '';
+  onDemandProvinceChange(); // 锁线上约束 + 建科目池（科目池还需年级，下行补）
   document.getElementById('d-grade').value  = d.student_grade || '';
+  updateDemandSubjects();
   document.getElementById('d-gender').value = d.student_gender || '';
   (d.target_subjects || []).forEach(sid => {
     const cb = document.querySelector(`#d-subjects input[value="${sid}"]`);
     if (cb) cb.checked = true;
   });
   updateDemandScores();
-  (d.current_scores || []).forEach(cs => {
-    const opt = document.querySelector(`.score-option[data-sid="${cs.subject}"][data-sc="${cs.scale}"]`);
-    if (opt) opt.classList.add('selected');
-    const inp = document.querySelector(`input[data-score-sid="${cs.subject}"]`);
-    if (inp) { inp.value = cs.score ?? ''; if (cs.scale) inp.max = cs.scale; }
-  });
+  prefillStudentScores(d.current_scores || []);
   document.getElementById('d-method').value = d.teaching_method || 'offline';
   toggleAddressField();
   document.getElementById('d-address').value        = d.address || '';
@@ -386,6 +392,23 @@ function prefillDemandForm(d) {
   document.getElementById('d-parent-contact').value = d.parent_contact || '';
   document.getElementById('d-student-contact').value = d.student_contact || '';
   document.getElementById('d-info').value           = d.additional_info || '';
+}
+
+// 平时成绩回填：等第数据→点等级 pill（页签默认等第制）；分数数据→先切分数制页签再填值
+function prefillStudentScores(scores) {
+  (scores || []).forEach(cs => {
+    const row = document.querySelector(`#d-scores .region-score-row[data-score-subject="${cs.subject}"]`);
+    if (!row) return;
+    if (cs.grade) {
+      const pill = row.querySelector(`.grade-option[data-grade="${cs.grade}"]`);
+      if (pill) pickGrade(pill);
+    } else if (cs.score !== '' && cs.score != null) {
+      const tab = row.querySelector('.score-mode-tab[data-mode="score"]');
+      if (tab) switchScoreMode(tab);
+      const inp = row.querySelector('input[data-sg-subject]');
+      if (inp) inp.value = cs.score;
+    }
+  });
 }
 
 // checkbox state is now handled by pure CSS (:checked + :has)
@@ -403,22 +426,40 @@ function toggleAddressField() {
   }
 }
 
+// 省份变化（模块1）：提示 + 非上海锁线上 + 按省份/年级重建科目池
+function onDemandProvinceChange() {
+  const prov = document.getElementById('d-province').value;
+  document.getElementById('d-region-note').innerHTML = prov ? regionLockNote(prov) : '';
+  const methodSel = document.getElementById('d-method');
+  const onlineOnly = !!prov && prov !== 'shanghai';
+  [...methodSel.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
+  if (onlineOnly) { methodSel.value = 'online'; toggleAddressField(); }
+  updateDemandSubjects();
+}
+
+// 科目池 = SUFE_REGIONS.subjectsFor(省份, 年级)：地区 + 年级共同决定（需求 1.3）
+function updateDemandSubjects() {
+  const prov = document.getElementById('d-province').value;
+  const grade = document.getElementById('d-grade').value;
+  const el = document.getElementById('d-subjects');
+  if (!prov || !grade) {
+    el.innerHTML = '<p class="text-sm text-muted">请先选择省份和年级</p>';
+    document.getElementById('d-scores').innerHTML = '';
+    return;
+  }
+  el.innerHTML = buildStudentSubjectsHtml(prov, grade);
+  updateDemandScores();
+}
+
+// 平时成绩行：app-region.js 按省份等第制渲染「等第制/分数制」双页签
 function updateDemandScores() {
+  const prov = document.getElementById('d-province').value;
+  const grade = document.getElementById('d-grade').value;
   const checked = [...document.querySelectorAll('#d-subjects input:checked')].map(cb => cb.value);
   const el = document.getElementById('d-scores');
+  if (!prov || !grade) { el.innerHTML = ''; return; }
   if (!checked.length) { el.innerHTML = '<p class="text-sm text-muted">请先选择目标科目</p>'; return; }
-
-  el.innerHTML = checked.map(sid => {
-    const s = SUBJECTS.find(x => x.id === sid);
-    return `<div class="score-row">
-      <span class="score-subject">${s.name}</span>
-      <span class="text-sm text-muted" style="margin-right:4px;">满分：</span>
-      <div class="score-options">${SCORE_SCALES.map(sc => `
-        <span class="score-option ${sc===s.maxScore?'selected':''}" onclick="pickScale(this)" data-sid="${sid}" data-sc="${sc}">${sc}分制</span>
-      `).join('')}</div>
-      <input type="number" class="score-inline" data-score-sid="${sid}" placeholder="分数" min="0" max="${s.maxScore}" style="margin-left:8px;">
-    </div>`;
-  }).join('');
+  el.innerHTML = buildStudentScoreRows(prov, grade, checked);
 }
 
 function pickScale(el) {
@@ -432,17 +473,16 @@ function pickScale(el) {
 async function handleSubmitDemand(e) {
   e.preventDefault();
   const alertEl = document.getElementById('demand-alert');
+  const province = document.getElementById('d-province').value;
+  if (!province) { alertEl.innerHTML = `<div class="alert alert-error">请选择省份</div>`; return; }
   const subjects = [...document.querySelectorAll('#d-subjects input:checked')].map(cb => cb.value);
   if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
 
-  const scores = subjects.map(sid => {
-    const sel = document.querySelector(`.score-option.selected[data-sid="${sid}"]`);
-    const inp = document.querySelector(`input[data-score-sid="${sid}"]`);
-    return { subject: sid, scale: sel ? +sel.dataset.sc : SUBJECTS.find(s=>s.id===sid).maxScore, score: inp ? inp.value : '' };
-  });
+  const scores = collectStudentScores();
 
   const isEdit = !!state.editingDemandId;
   const payload = { userId: state.user.id, demand: {
+    province,
     student_grade: document.getElementById('d-grade').value,
     student_gender: document.getElementById('d-gender').value,
     target_subjects: subjects, current_scores: scores,
@@ -514,7 +554,8 @@ function renderTeachers(teachers) {
   el.innerHTML = teachers.map(t => {
     const grade = TEACHER_GRADES.find(g=>g.id===t.grade)?.name || t.grade || '';
     const gender = GENDERS.find(g=>g.id===t.gender)?.name || '';
-    const meta = [grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
+    const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
+    const meta = [provName, grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
     const rows = renderSubjectScoreRows(t);
 
     return `<div class="list-card list-card--teacher">
@@ -600,7 +641,8 @@ async function loadTeacherReviewsAdmin(userId) {
 function renderTeacherModal(t) {
   const grade = TEACHER_GRADES.find(g => g.id === t.grade)?.name || '';
   const gender = GENDERS.find(g => g.id === t.gender)?.name || '';
-  const meta = [grade, gender, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
+  const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
+  const meta = [provName, grade, gender, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
   const rows = renderSubjectScoreRows(t);
 
   return `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
@@ -789,7 +831,8 @@ async function adminReviewAction(reviewId, action, fromModal) {
 // 需求卡与列表（学生「我的需求」与教师「需求大厅」共用渲染）
 // ============================================================
 function renderDemandCard(d, opts = {}) {
-  const { editable = false, admin = false } = opts;
+  const { editable = false, admin = false, teacher = false } = opts;
+  const provinceName = (typeof SUFE_REGIONS !== 'undefined' && d.province) ? SUFE_REGIONS.provinceName(d.province) : '';
   const subjNames = (d.target_subjects||[]).map(id => SUBJECTS.find(s=>s.id===id)?.name || id);
   const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
   const gender = GENDERS.find(g=>g.id===d.student_gender)?.name || '';
@@ -808,11 +851,14 @@ function renderDemandCard(d, opts = {}) {
       <span class="list-card-title">${admin && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
       <span class="demand-card-tools">
         <span class="list-card-meta">${d.created_at||''}</span>
-        ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
+        ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleDemandIntents(${d.id})">试课意向 (${d.intent_count || 0})</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
+        ${teacher ? `<button type="button" class="btn btn-outline btn-sm" onclick="submitIntent(${d.id})">提交试课意向</button>` : ''}
         ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
     </div>
     <div class="list-card-body">
+      ${provinceName ? `<span class="tag tag-accent">${provinceName}</span>` : ''}
       ${subjNames.map(n=>`<span class="tag tag-accent">${n}</span>`).join('')}
       <span class="tag">${method}</span>
       <span class="tag tag-warn">${budget}</span>
@@ -825,6 +871,7 @@ function renderDemandCard(d, opts = {}) {
       ${d.parent_contact ? `<span>家长: ${escHtml(d.parent_contact)}</span>` : ''}
       ${d.student_contact ? `<span>学生: ${escHtml(d.student_contact)}</span>` : ''}
     </div>
+    ${editable ? `<div class="intents-box hidden" id="intents-box-${d.id}"></div>` : ''}
   </div>`;
 }
 
@@ -840,7 +887,7 @@ async function loadDemandList(elId, { mine }) {
       el.innerHTML = `<div class="empty-state"><p>${mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS}</p></div>`;
       return;
     }
-    el.innerHTML = demands.map(d => renderDemandCard(d, { editable: mine })).join('');
+    el.innerHTML = demands.map(d => renderDemandCard(d, { editable: mine, teacher: !mine })).join('');
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
   }
@@ -850,9 +897,72 @@ function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: 
 function loadBrowseDemands() { return loadDemandList('demands-list',    { mine: false }); }
 
 // ============================================================
+// 模块3：试课意向（教师提交 / 学生在需求内展开处理）
+// ============================================================
+async function submitIntent(demandId) {
+  try {
+    await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: { userId: state.user.id } });
+    showToast('试课意向已提交，等待学生处理');
+  } catch (err) { showToast(err.message); }
+}
+
+// 展开 / 收起某条需求的意向列表（学生端）
+async function toggleDemandIntents(demandId) {
+  const box = document.getElementById(`intents-box-${demandId}`);
+  if (!box) return;
+  if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+  await refreshIntentsBox(demandId);
+}
+
+async function refreshIntentsBox(demandId) {
+  const box = document.getElementById(`intents-box-${demandId}`);
+  if (!box) return;
+  box.classList.remove('hidden');
+  box.innerHTML = '<p class="text-sm text-muted">加载中...</p>';
+  try {
+    const data = await api(`/api/demands/${demandId}/intents`);
+    const ts = data.teachers || [];
+    box.innerHTML = `<div class="section-title">试课意向 (${ts.length})</div>` +
+      (ts.length ? ts.map(t => renderIntentTeacherRow(t, demandId)).join('')
+                 : '<p class="text-sm text-muted">暂无教师意向</p>');
+  } catch (err) {
+    box.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_PREFIX}${err.message}</p>`;
+  }
+}
+
+function renderIntentTeacherRow(t, demandId) {
+  const st = t.intent_status;
+  const tag = st === 'accepted' ? '<span class="tag tag-ok">已同意</span>'
+    : st === 'rejected' ? '<span class="tag tag-danger">已拒绝</span>' : '<span class="tag tag-warn">待处理</span>';
+  const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
+  const actions = st === 'pending'
+    ? `<button type="button" class="btn btn-accent btn-xs" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">同意</button>
+       <button type="button" class="btn btn-outline btn-xs" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">拒绝</button>` : '';
+  return `<div class="admin-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line"><strong>${escHtml(t.username)}</strong> ${renderStars(t.rating)} ${tag}</div>
+      <div class="admin-row-meta">${[provName, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ')}</div>
+    </div>
+    <div class="admin-row-actions">${actions}</div>
+  </div>`;
+}
+
+// 学生同意 / 拒绝意向；同意后自动建立会话，可前往「我的沟通」
+async function resolveIntent(intentId, action, demandId) {
+  try {
+    await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { userId: state.user.id, action } });
+    showToast(action === 'accept' ? '已同意，可在「我的沟通」中开始对话' : '已拒绝该意向');
+    await refreshIntentsBox(demandId);
+    loadMyDemands(); // 刷新意向计数
+  } catch (err) { showToast(err.message); }
+}
+
+// ============================================================
 // 教师档案编辑
 // ============================================================
 function initProfileForm() {
+  document.getElementById('profile-province-wrap').innerHTML =
+    renderProvinceSelect('profile-province', '', 'onTeacherProvinceChange()');
   const gradeEl = document.getElementById('profile-grade');
   gradeEl.innerHTML = '<option value="">请选择</option>' + TEACHER_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
   const genderEl = document.getElementById('profile-gender');
@@ -862,8 +972,8 @@ function initProfileForm() {
   subjEl.innerHTML = SUBJECTS.map(s=>`
     <label class="checkbox-item"><input type="checkbox" value="${s.id}">${s.name}</label>
   `).join('');
-  subjEl.addEventListener('change', () => updateGaokaoScores([]));
-  document.getElementById('profile-gaokao-scores').innerHTML = `<p class="text-sm text-muted">${UI.LABEL_SELECT_HINT}</p>`;
+  // 高考成绩区改由省份驱动（app-region.js）：选省份后渲染锁定编辑器；科目勾选仅标记擅长科目
+  document.getElementById('profile-gaokao-scores').innerHTML = `<p class="text-sm text-muted">请先选择省份（高考所在地），按该省政策填写高考成绩</p>`;
   loadProfile();
 }
 
@@ -872,6 +982,11 @@ async function loadProfile() {
     const data = await api(`/api/teacher/profile?userId=${state.user.id}`);
     if (data.profile) {
       const p = data.profile;
+      if (p.province) {
+        document.getElementById('profile-province').value = p.province;
+        document.getElementById('profile-gaokao-scores').innerHTML =
+          renderTeacherGaokaoEditor(p.province, p.gaokao_scores || []);
+      }
       document.getElementById('profile-grade').value = p.grade || '';
       document.getElementById('profile-gender').value = p.gender || '';
       document.getElementById('profile-price').value = p.price || '';
@@ -882,7 +997,6 @@ async function loadProfile() {
           const cb = document.querySelector(`#profile-subjects input[value="${id}"]`);
           if (cb) cb.checked = true;
         });
-        updateGaokaoScores(p.gaokao_scores || []);
       }
     }
   } catch (err) { console.error(err); }
@@ -932,23 +1046,20 @@ function pickGrade(el) {
 async function handleSaveProfile(e) {
   e.preventDefault();
   const alertEl = document.getElementById('profile-alert');
+  const province = document.getElementById('profile-province').value;
+  if (!province) { alertEl.innerHTML = `<div class="alert alert-error">请选择省份</div>`; return; }
   const subjects = [...document.querySelectorAll('#profile-subjects input:checked')].map(cb=>cb.value);
   if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
 
-  const gaokaoScores = [];
-  document.querySelectorAll('input[data-gk-type="score"]').forEach(inp => {
-    if (inp.value) gaokaoScores.push({ subject: inp.dataset.gkSubject, score: +inp.value });
-  });
-  document.querySelectorAll('.grade-selector').forEach(sel => {
-    const s = sel.querySelector('.grade-option.selected');
-    if (s) gaokaoScores.push({ subject: sel.dataset.gkSubject, grade: s.dataset.grade });
-  });
+  // 省份锁定组件的收集函数（app-region.js），输出与旧 gaokao_scores 形状兼容
+  const gaokaoScores = collectTeacherGaokao();
 
   try {
     const btn = document.getElementById('profile-submit');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
     await api('/api/teacher/profile', {
       method: 'POST', body: { userId: state.user.id, profile: {
+        province,
         grade: document.getElementById('profile-grade').value,
         gender: document.getElementById('profile-gender').value,
         subjects, gaokao_scores: gaokaoScores,

@@ -1,0 +1,258 @@
+/* ============================================================
+   我的沟通（模块4）— 延续编辑式扁平设计语言
+   零投影、零圆角（聊天气泡为全站唯一例外，见 .chat-bubble）；
+   会话列表 hover / 选中沿用全站竖条母题（左侧 3px 墨条 scaleY）；
+   消息区细点阵底纹，呼应品牌圆点母题（导航 logo / 参考图卡片）。
+   壳高度由 app-chat.js 的 chatFitHeight() 计算注入，此处仅兜底 min-height。
+   ============================================================ */
+
+/* ---------- 壳：两栏 260px + 1fr ---------- */
+.chats-shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 420px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  animation: fade-in .2s ease;
+}
+
+/* ============================================================
+   左栏：会话列表
+   ============================================================ */
+.chats-list-pane {
+  display: flex; flex-direction: column;
+  min-height: 0; /* 网格行内允许收缩，滚动交给 .conv-list */
+  background: var(--paper);
+  border-right: 1px solid var(--line);
+}
+
+.chats-list-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.chats-list-title {
+  font-size: .74rem; font-weight: 800; letter-spacing: .18em; color: var(--ink-3);
+}
+.chats-list-count {
+  font-family: var(--mono); font-size: .68rem; font-weight: 700; color: var(--muted);
+}
+
+.conv-list { flex: 1; overflow-y: auto; min-height: 0; }
+.conv-list::-webkit-scrollbar { width: 6px; }
+.conv-list::-webkit-scrollbar-track { background: transparent; }
+.conv-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
+.conv-list::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+/* 会话项：竖条母题（hover 擦入 / 选中常驻），选中态底色微变 */
+.conv-item {
+  position: relative; isolation: isolate;
+  display: block; width: 100%; text-align: left;
+  padding: 12px 14px 12px 17px;
+  border-bottom: 1px solid var(--border-light);
+  transition: background-color var(--t-base) var(--ease-out);
+}
+.conv-item::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--ink);
+  transform: scaleY(0); transform-origin: top;
+  transition: transform var(--t-base) var(--ease-snap);
+}
+.conv-item:hover { background: var(--field); }
+.conv-item:hover::before { transform: scaleY(1); }
+.conv-item.active { background: var(--field-2); }
+.conv-item.active::before { transform: scaleY(1); }
+
+.conv-item-top { display: flex; align-items: baseline; gap: 8px; }
+.conv-item-name {
+  flex: 1; min-width: 0;
+  font-size: .88rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.conv-item-role {
+  flex-shrink: 0; padding: 0 5px;
+  font-size: .62rem; font-weight: 700; letter-spacing: .04em;
+  color: var(--muted); border: 1px solid var(--line);
+}
+.conv-item-time {
+  flex-shrink: 0;
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .01em; color: var(--faint);
+}
+.conv-item-preview {
+  display: block; margin-top: 3px;
+  font-size: .76rem; line-height: 1.45; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.conv-item.active .conv-item-preview { color: var(--ink-3); }
+
+/* ============================================================
+   右栏：聊天窗
+   ============================================================ */
+.chat-pane {
+  display: flex; flex-direction: column;
+  min-height: 0; min-width: 0;
+}
+
+/* ---------- 头部 ---------- */
+.chat-head {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 18px;
+  background: var(--field);
+  border-bottom: 1px solid var(--line);
+}
+.chat-head-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.chat-peer-name {
+  min-width: 0;
+  font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chat-peer-tag {
+  flex-shrink: 0; padding: 2px 7px;
+  background: var(--accent-tint); color: var(--accent-deep);
+  font-size: .64rem; font-weight: 700; letter-spacing: .04em;
+}
+.chat-head-demand {
+  flex-shrink: 0;
+  font-family: var(--mono); font-size: .66rem; letter-spacing: .02em; color: var(--muted);
+}
+
+/* 移动端返回按钮：桌面隐藏，≤860px 显示（见文末媒体查询） */
+.chat-back {
+  display: none; flex-shrink: 0;
+  padding: 7px 10px;
+  background: var(--paper-2); color: var(--ink-3);
+  font-size: .78rem; font-weight: 700;
+  transition: background-color var(--t-fast) var(--ease-out),
+              color var(--t-fast) var(--ease-out),
+              transform var(--t-fast) var(--ease-out);
+}
+.chat-back:hover { background: var(--ink); color: var(--paper); }
+.chat-back:active { transform: translateX(-2px); transition-duration: 80ms; }
+
+/* ---------- 消息区：细点阵底纹 + 内部滚动 ---------- */
+.chat-messages {
+  flex: 1; overflow-y: auto; min-height: 0;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 20px 22px;
+  background-color: var(--white);
+  background-image: radial-gradient(rgba(17,17,20,.05) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+}
+.chat-messages::-webkit-scrollbar { width: 6px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--paper-3); }
+.chat-messages::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+/* 气泡入场：比网站其他区域更灵动 —— 轻升 + 微缩放开场；--i 由渲染处注入做轻量错峰 */
+@keyframes chat-pop {
+  from { opacity: 0; transform: translateY(6px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.chat-msg {
+  display: flex; flex-direction: column;
+  max-width: 72%;
+  animation: chat-pop .18s ease-out both;
+  animation-delay: calc(var(--i, 0) * 22ms);
+}
+.chat-msg--mine  { align-self: flex-end;   align-items: flex-end; }
+.chat-msg--theirs { align-self: flex-start; align-items: flex-start; }
+
+/* 气泡 —— 全站零圆角的唯一例外（12px） */
+.chat-bubble {
+  padding: 10px 14px;
+  font-size: .88rem; line-height: 1.62;
+  border-radius: 12px;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.chat-bubble--mine  { background: var(--ink); color: var(--paper); }
+.chat-bubble--theirs { background: var(--sand-tint); color: var(--ink); }
+
+.chat-msg-time {
+  margin-top: 4px;
+  font-family: var(--mono); font-size: .62rem; letter-spacing: .02em; color: var(--faint);
+}
+
+/* ---------- 输入区 ---------- */
+.chat-input-bar {
+  display: flex; align-items: flex-end; gap: 8px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border-top: 1px solid var(--line);
+}
+
+/* 图片 / 文件占位按钮：与资料共享 md 工具条同源（灰底，悬停整块擦墨） */
+.chat-attach {
+  flex-shrink: 0;
+  padding: 9px 13px;
+  background: var(--field); color: var(--ink-3);
+  font-size: .78rem; font-weight: 700; letter-spacing: .02em;
+  transition: background-color var(--t-fast) var(--ease-out),
+              color var(--t-fast) var(--ease-out),
+              transform var(--t-fast) var(--ease-out);
+}
+.chat-attach:hover { background: var(--ink); color: var(--paper); }
+.chat-attach:active { transform: translateY(1px); transition-duration: 80ms; }
+
+textarea.chat-textarea {
+  flex: 1; min-width: 0; width: auto;
+  resize: none; min-height: 40px; max-height: 120px;
+  padding: 9px 12px;
+  font-size: .88rem; line-height: 1.5;
+}
+
+.chat-send { min-width: 78px; flex-shrink: 0; }
+/* 发送成功瞬间的弹跳微反馈 */
+@keyframes chat-send-pop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(.9); }
+  60%  { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+.chat-send--flash { animation: chat-send-pop .45s var(--ease-snap); }
+
+/* 会话关闭态：输入区换成居中提示 */
+.chat-input-bar--closed { justify-content: center; }
+.chat-closed-tip { padding: 6px 0; font-size: .8rem; color: var(--muted); }
+
+/* ---------- 未选中会话占位：品牌四圆点呼吸 ---------- */
+.chat-placeholder {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 40px 24px; text-align: center;
+}
+.chat-placeholder-dots {
+  width: 44px; height: 44px; margin-bottom: 8px;
+  display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px;
+  opacity: .16;
+  animation: chat-breathe 3.2s ease-in-out infinite;
+}
+.chat-placeholder-dots span { background: var(--ink); display: block; }
+.chat-placeholder-dots span:nth-child(4) { background: var(--accent); }
+@keyframes chat-breathe {
+  0%, 100% { opacity: .12; transform: scale(1); }
+  50%      { opacity: .22; transform: scale(1.06); }
+}
+.chat-placeholder-title { font-size: .95rem; font-weight: 800; color: var(--ink-3); }
+.chat-placeholder-sub { font-size: .78rem; color: var(--muted); }
+
+/* ---------- 栏内小空态（比全局 .empty-state 收敛） ---------- */
+.empty-state--small { padding: 30px 18px; }
+.empty-state--small p { font-size: .8rem; }
+
+/* ============================================================
+   ≤860px（与 style.css 主断点一致）：列表 / 聊天窗二选一
+   默认显示列表；openConversation() 给壳加 .chats-show-chat 切到聊天窗，
+   backToConvList() 移除该类切回列表。
+   ============================================================ */
+@media (max-width: 860px) {
+  .chats-shell { grid-template-columns: 1fr; }
+  .chat-pane { display: none; }
+  .chats-show-chat .chat-pane { display: flex; }
+  .chats-show-chat .chats-list-pane { display: none; }
+  .chat-back { display: inline-flex; }
+  .chat-messages { padding: 16px 14px; }
+  .chat-msg { max-width: 84%; }
+  .chat-head { padding: 10px 12px; }
+  .chat-input-bar { padding: 10px 12px; }
+}
