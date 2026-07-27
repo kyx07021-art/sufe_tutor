@@ -57,6 +57,13 @@ const MSG = {
   // 学生需求
   STUDENT_ONLY: '仅学生可提交需求',
   DEMAND_SUBMITTED: '需求已提交',
+  DEMAND_NOT_FOUND: '需求不存在',
+  DEMAND_UPDATED: '需求已更新',
+  TEACHER_ONLY: '仅教师可操作',
+
+  // 意向
+  INTENT_DUPLICATE: '你已对该需求提交过意向',
+  INTENT_SUBMITTED: '意向已提交',
 
   // 评价
   RATING_RANGE: '评分需在1-5之间',
@@ -133,6 +140,13 @@ async function initDb(db) {
       used_at DATETIME DEFAULT NULL,
       FOREIGN KEY (created_by) REFERENCES users(id),
       FOREIGN KEY (used_by) REFERENCES users(id))`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS demand_intents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      demand_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      UNIQUE(demand_id, teacher_user_id),
+      FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
+      FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
   ]);
 
   // 种子管理员
@@ -219,17 +233,23 @@ async function dbUpsertTeacherProfile(db, userId, profile) {
   }
 }
 
-async function dbGetAllTeachers(db) {
-  const profiles = await dbAll(db, `SELECT tp.*, u.username
-    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id ORDER BY tp.updated_at DESC`);
-  return profiles.map(p => ({
+// 教师行映射器：教师列表与需求意向教师列表共用，保证两处返回形状一致
+// （前端下一轮可直接用同一个渲染函数画意向教师卡）
+function mapTeacherProfileRow(p) {
+  return {
     id: p.id, user_id: p.user_id, username: p.username,
     grade: p.grade, gender: p.gender,
     subjects: p.subjects ? JSON.parse(p.subjects) : [],
     gaokao_scores: p.gaokao_scores ? JSON.parse(p.gaokao_scores) : [],
     price: p.price || 0, wechat: p.wechat, email: p.email,
     rating: p.rating, rating_count: p.rating_count, updatedAt: p.updated_at,
-  }));
+  };
+}
+
+async function dbGetAllTeachers(db) {
+  const profiles = await dbAll(db, `SELECT tp.*, u.username
+    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id ORDER BY tp.updated_at DESC`);
+  return profiles.map(mapTeacherProfileRow);
 }
 
 async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {
@@ -254,14 +274,62 @@ async function dbCreateDemand(db, userId, demand) {
   return Number(result.meta.last_row_id);
 }
 
-async function dbGetAllDemands(db) {
-  const rows = await dbAll(db, `SELECT sd.*, u.username
-    FROM student_demands sd JOIN users u ON sd.user_id=u.id ORDER BY sd.created_at DESC`);
-  return rows.map(r => ({
+// 需求列表统一查询：JOIN 用户名 + LEFT JOIN 聚合出意向计数（向后兼容的附加字段）
+const DEMANDS_SELECT = `SELECT sd.*, u.username, COALESCE(ic.cnt, 0) AS intent_count
+  FROM student_demands sd JOIN users u ON sd.user_id=u.id
+  LEFT JOIN (SELECT demand_id, COUNT(*) AS cnt FROM demand_intents GROUP BY demand_id) ic
+    ON ic.demand_id=sd.id`;
+
+function mapDemandRow(r) {
+  return {
     ...r,
     target_subjects: JSON.parse(r.target_subjects || '[]'),
     current_scores: JSON.parse(r.current_scores || '[]'),
-  }));
+  };
+}
+
+async function dbGetAllDemands(db) {
+  const rows = await dbAll(db, DEMANDS_SELECT + ' ORDER BY sd.created_at DESC');
+  return rows.map(mapDemandRow);
+}
+
+async function dbGetDemandsByUser(db, userId) {
+  const rows = await dbAll(db, DEMANDS_SELECT + ' WHERE sd.user_id=? ORDER BY sd.created_at DESC', [userId]);
+  return rows.map(mapDemandRow);
+}
+
+async function dbGetDemandById(db, id) {
+  return await dbGet(db, 'SELECT * FROM student_demands WHERE id=?', [id]);
+}
+
+async function dbUpdateDemand(db, id, d) {
+  await dbRun(db, `UPDATE student_demands SET student_grade=?,student_gender=?,
+    target_subjects=?,current_scores=?,teaching_method=?,address=?,address_detail=?,
+    budget_min=?,budget_max=?,submitter_type=?,parent_contact=?,student_contact=?,
+    additional_info=? WHERE id=?`, [
+    d.student_grade, d.student_gender,
+    JSON.stringify(d.target_subjects), JSON.stringify(d.current_scores),
+    d.teaching_method || 'offline', d.address || '', d.address_detail || '',
+    d.budget_min || 0, d.budget_max || 0,
+    d.submitter_type, d.parent_contact, d.student_contact, d.additional_info || '', id,
+  ]);
+}
+
+// --- 意向 ---
+async function dbCreateIntent(db, demandId, teacherUserId) {
+  const result = await dbRun(db,
+    'INSERT INTO demand_intents (demand_id, teacher_user_id) VALUES (?,?)',
+    [demandId, teacherUserId]);
+  return Number(result.meta.last_row_id);
+}
+
+async function dbGetIntentTeachers(db, demandId) {
+  const rows = await dbAll(db, `SELECT tp.*, di.teacher_user_id AS user_id, u.username
+    FROM demand_intents di
+    JOIN users u ON u.id=di.teacher_user_id
+    LEFT JOIN teacher_profiles tp ON tp.user_id=di.teacher_user_id
+    WHERE di.demand_id=? ORDER BY di.created_at DESC`, [demandId]);
+  return rows.map(mapTeacherProfileRow);
 }
 
 // --- 评价 ---
@@ -525,9 +593,45 @@ async function handleCreateDemand(db, body) {
   return json({ id, message: MSG.DEMAND_SUBMITTED });
 }
 
-async function handleGetDemands(db) {
-  const demands = await dbGetAllDemands(db);
+async function handleGetDemands(db, url) {
+  const raw = url.searchParams.get('userId');
+  const demands = raw ? await dbGetDemandsByUser(db, parseInt(raw)) : await dbGetAllDemands(db);
   return json({ demands });
+}
+
+async function handleUpdateDemand(db, demandId, body) {
+  const { userId, demand: d } = body;
+  const user = await dbFindUserById(db, userId);
+  if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const existing = await dbGetDemandById(db, demandId);
+  if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (existing.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+
+  await dbUpdateDemand(db, demandId, d);
+  return json({ message: MSG.DEMAND_UPDATED });
+}
+
+// ============================================================
+// 路由：需求意向（后端骨架，前端 UI 下一轮接入）
+// ============================================================
+async function handleCreateIntent(db, demandId, body) {
+  const { userId } = body;
+  const user = await dbFindUserById(db, userId);
+  if (!user || user.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
+  if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+
+  try {
+    const id = await dbCreateIntent(db, demandId, userId);
+    return json({ id, message: MSG.INTENT_SUBMITTED }, 201);
+  } catch (err) {
+    if (String(err?.message || err).includes('UNIQUE')) return error(MSG.INTENT_DUPLICATE, 409);
+    throw err;
+  }
+}
+
+async function handleGetIntents(db, demandId) {
+  const teachers = await dbGetIntentTeachers(db, demandId);
+  return json({ demandId, count: teachers.length, teachers });
 }
 
 // ============================================================
@@ -583,7 +687,7 @@ export default {
 
     const db = env.DB;
     let body = {};
-    if (request.method === 'POST') {
+    if (request.method === 'POST' || request.method === 'PUT') {
       try { body = await request.json(); } catch { body = {}; }
     }
 
@@ -614,7 +718,14 @@ export default {
 
       // 学生需求
       if (p === '/api/student/demands' && request.method === 'POST') return await handleCreateDemand(db, body);
-      if (p === '/api/student/demands' && request.method === 'GET') return await handleGetDemands(db);
+      if (p === '/api/student/demands' && request.method === 'GET') return await handleGetDemands(db, url);
+      const demandById = p.match(/^\/api\/student\/demands\/(\d+)$/);
+      if (demandById && request.method === 'PUT') return await handleUpdateDemand(db, parseInt(demandById[1]), body);
+
+      // 需求意向（骨架）
+      const intentMatch = p.match(/^\/api\/demands\/(\d+)\/intents$/);
+      if (intentMatch && request.method === 'POST') return await handleCreateIntent(db, parseInt(intentMatch[1]), body);
+      if (intentMatch && request.method === 'GET') return await handleGetIntents(db, parseInt(intentMatch[1]));
 
       // 评论
       if (p === '/api/reviews' && request.method === 'POST') return await handleCreateReview(db, body);

@@ -18,6 +18,7 @@
     <!-- Navbar -->
     <nav class="navbar">
       <div class="container">
+        <button type="button" class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="切换侧边栏"><span></span><span></span><span></span></button>
         <div class="navbar-brand" onclick="goHome()" style="cursor:pointer;">
           <div class="navbar-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           <div>
@@ -166,82 +167,32 @@
       </div>
     </div>
 
-    <!-- Student Dashboard -->
-    <div class="dashboard hidden" id="view-student-dashboard">
-      <div class="container">
-        <div class="dashboard-header">
-          <h1>学生端</h1>
-          <p>发布需求或浏览教师信息</p>
-        </div>
-        <div class="dashboard-content">
-          <div class="dashboard-cards">
-            <div class="dashboard-card" onclick="openDemandModal()">
-              <div class="card-icon ci-blue">✏️</div>
-              <div class="card-title">提交学生需求</div>
-              <div class="card-desc">描述你的学习需求，让教师了解你的情况</div>
-            </div>
-            <div class="dashboard-card" onclick="showView('browse-teachers')">
-              <div class="card-icon ci-green">👩‍🏫</div>
-              <div class="card-title">浏览教师信息</div>
-              <div class="card-desc">查看平台上所有教师的教学信息和个人优势</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Client Shell：可扩展侧边栏 + 页面区（栏目由 app.js ROLE_PAGES 配置驱动） -->
+    <div class="client-shell hidden" id="view-client">
+      <aside class="client-sidebar" id="client-sidebar">
+        <div class="sidebar-user" id="sidebar-user"></div>
+        <nav class="sidebar-nav" id="sidebar-nav" aria-label="功能导航"></nav>
+        <button type="button" class="sidebar-close" onclick="closeSidebar()">✕ 关闭菜单</button>
+      </aside>
+      <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
-    <!-- Teacher Dashboard -->
-    <div class="dashboard hidden" id="view-teacher-dashboard">
-      <div class="container">
-        <div class="dashboard-header">
-          <h1>教师端</h1>
-          <p>编辑个人信息或浏览学生需求</p>
-        </div>
-        <div class="dashboard-content">
-          <div class="dashboard-cards">
-            <div class="dashboard-card" onclick="showView('edit-profile')">
-              <div class="card-icon ci-blue">📝</div>
-              <div class="card-title">编辑自身信息</div>
-              <div class="card-desc">完善个人资料，展示你的教学优势</div>
-            </div>
-            <div class="dashboard-card" onclick="showView('browse-demands')">
-              <div class="card-icon ci-green">📋</div>
-              <div class="card-title">浏览学生需求</div>
-              <div class="card-desc">查看学生发布的学习需求，找到合适的教学机会</div>
-            </div>
-          </div>
-          <!-- Admin section -->
-          <div class="admin-section hidden" id="admin-section">
-            <h3>👑 管理员功能</h3>
-            <p class="text-sm text-muted">生成邀请码用于新教师注册，或查看平台统计数据。</p>
-            <div class="admin-actions">
-              <button class="btn btn-primary btn-sm" onclick="showView('admin-dashboard')">管理面板</button>
-              <button class="btn btn-outline btn-sm" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
-            </div>
-            <div class="invite-code-display hidden" id="invite-code-display">
-              <div class="invite-code-text" id="invite-code-text"></div>
-              <div>
-                <button class="btn btn-outline btn-sm" onclick="copyInviteCode()">复制</button>
-                <div class="invite-code-timer mt-2" id="invite-code-timer"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <main class="client-main" id="client-main">
 
-    <!-- Browse Teachers -->
-    <div class="dashboard hidden" id="view-browse-teachers">
-      <div class="container">
-        <div class="browse-view">
-          <div class="browse-header">
+        <!-- 学生：我的需求 -->
+        <section class="client-page hidden" data-page="my-demands">
+          <div class="page-header">
+            <h2>📚 我的需求</h2>
+            <button class="btn btn-primary btn-sm" onclick="openDemandModal()">＋ 新建需求</button>
+          </div>
+          <div class="browse-list" id="my-demands-list"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 学生：浏览教师 -->
+        <section class="client-page hidden" data-page="browse-teachers">
+          <div class="page-header">
             <h2>👩‍🏫 教师信息</h2>
-            <div class="browse-header-actions">
-              <button class="btn btn-outline btn-sm" onclick="toggleFilters()">筛选</button>
-              <button class="btn btn-ghost btn-sm" onclick="goBack()">← 返回</button>
-            </div>
+            <button class="btn btn-outline btn-sm" onclick="toggleFilters()">筛选</button>
           </div>
-          <!-- Filters -->
           <div class="filter-panel hidden" id="teacher-filters">
             <div class="filter-row">
               <div class="filter-group">
@@ -282,88 +233,76 @@
           <div class="browse-list" id="teachers-list">
             <div class="empty-state"><p>加载中...</p></div>
           </div>
-        </div>
-      </div>
-    </div>
+        </section>
 
-    <!-- Browse Demands -->
-    <div class="dashboard hidden" id="view-browse-demands">
-      <div class="container">
-        <div class="browse-view">
-          <div class="browse-header">
-            <h2>📋 学生需求</h2>
-            <button class="btn btn-ghost btn-sm" onclick="showView('teacher-dashboard')">← 返回</button>
-          </div>
+
+        <!-- 教师：需求大厅 -->
+        <section class="client-page hidden" data-page="browse-demands">
+          <div class="page-header"><h2>📋 需求大厅</h2></div>
           <div class="browse-list" id="demands-list">
             <div class="empty-state"><p>加载中...</p></div>
           </div>
-        </div>
-      </div>
-    </div>
+        </section>
 
-    <!-- Edit Teacher Profile -->
-    <div class="dashboard hidden" id="view-edit-profile">
-      <div class="container">
-        <div class="browse-view">
-          <div class="browse-header">
-            <h2>📝 编辑教师信息</h2>
-            <button class="btn btn-ghost btn-sm" onclick="showView('teacher-dashboard')">← 返回</button>
-          </div>
-          <div class="browse-list">
-            <div id="profile-alert"></div>
-            <form onsubmit="handleSaveProfile(event)" class="profile-form">
+        <!-- 教师：编辑自身信息 -->
+        <section class="client-page hidden" data-page="edit-profile">
+          <div class="page-header"><h2>📝 编辑教师信息</h2></div>
+          <div id="profile-alert"></div>
+          <form onsubmit="handleSaveProfile(event)" class="profile-form">
+            <div class="form-group">
+              <label class="form-label">教师年级 <span class="req">*</span></label>
+              <select class="form-select" id="profile-grade" required><option value="">请选择</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">性别 <span class="req">*</span></label>
+              <select class="form-select" id="profile-gender" required><option value="">请选择</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">擅长科目 <span class="req">*</span>（可多选）</label>
+              <div class="checkbox-grid" id="profile-subjects"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">高考成绩 / 等第</label>
+              <div id="profile-gaokao-scores"><p class="text-sm text-muted">请先选择擅长科目</p></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">报价（元/小时）<span class="req">*</span></label>
+              <input type="number" class="form-input" id="profile-price" placeholder="如：150" min="0" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">微信号</label>
+              <input type="text" class="form-input" id="profile-wechat" placeholder="选填，便于学生联系你">
+            </div>
+            <div class="form-group">
+              <label class="form-label">邮箱</label>
+              <input type="email" class="form-input" id="profile-email" placeholder="选填">
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" id="profile-submit">保存</button>
+            </div>
+          </form>
+        </section>
 
-              <div class="form-group">
-                <label class="form-label">教师年级 <span class="req">*</span></label>
-                <select class="form-select" id="profile-grade" required><option value="">请选择</option></select>
+        <!-- 管理员：管理面板（邀请码 UI 须在 #admin-content 外，其 innerHTML 会被整体重写） -->
+        <section class="client-page hidden" data-page="admin-dashboard">
+          <div class="page-header"><h2>👑 管理面板</h2></div>
+          <div class="admin-invite-bar">
+            <p class="text-sm text-muted" style="margin-bottom:12px;">生成邀请码用于新教师注册，或查看平台统计数据。</p>
+            <button class="btn btn-primary btn-sm" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
+            <div class="invite-code-display hidden" id="invite-code-display">
+              <div class="invite-code-text" id="invite-code-text"></div>
+              <div>
+                <button class="btn btn-outline btn-sm" onclick="copyInviteCode()">复制</button>
+                <div class="invite-code-timer mt-2" id="invite-code-timer"></div>
               </div>
-              <div class="form-group">
-                <label class="form-label">性别 <span class="req">*</span></label>
-                <select class="form-select" id="profile-gender" required><option value="">请选择</option></select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">擅长科目 <span class="req">*</span>（可多选）</label>
-                <div class="checkbox-grid" id="profile-subjects"></div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">高考成绩 / 等第</label>
-                <div id="profile-gaokao-scores"><p class="text-sm text-muted">请先选择擅长科目</p></div>
-              </div>
-              <div class="form-group">
-                <label class="form-label">报价（元/小时）<span class="req">*</span></label>
-                <input type="number" class="form-input" id="profile-price" placeholder="如：150" min="0" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label">微信号</label>
-                <input type="text" class="form-input" id="profile-wechat" placeholder="选填，便于学生联系你">
-              </div>
-              <div class="form-group">
-                <label class="form-label">邮箱</label>
-                <input type="email" class="form-input" id="profile-email" placeholder="选填">
-              </div>
-              <div class="form-actions">
-                <button type="button" class="btn btn-outline" onclick="showView('teacher-dashboard')">取消</button>
-                <button type="submit" class="btn btn-primary" id="profile-submit">保存</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Admin Dashboard -->
-    <div class="dashboard hidden" id="view-admin-dashboard">
-      <div class="container">
-        <div class="browse-view">
-          <div class="browse-header">
-            <h2>👑 管理面板</h2>
-            <button class="btn btn-ghost btn-sm" onclick="showView('teacher-dashboard')">← 返回</button>
+            </div>
           </div>
           <div class="browse-list" id="admin-content">
             <div class="empty-state"><p>加载中...</p></div>
           </div>
-        </div>
-      </div>
+        </section>
+
+      </main>
     </div>
 
   </div>

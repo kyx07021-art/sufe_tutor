@@ -4,7 +4,7 @@
   "description": "上财家教信息共享平台 - 零佣金家教撮合服务",
   "private": true,
   "scripts": {
-    "dev": "npx wrangler pages dev public --d1 DB --compatibility-date 2024-01-01",
+    "dev": "npx wrangler pages dev . --d1 DB --compatibility-date 2024-01-01",
     "deploy": "npx wrangler pages deploy . --project-name sufe-tutor"
   }
 }

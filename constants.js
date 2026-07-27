@@ -57,6 +57,8 @@ window.APP_CONSTANTS = {
     BTN_REGISTER: '注册',
     BTN_SAVE: '保存',
     BTN_SUBMIT_DEMAND: '提交需求',
+    BTN_EDIT: '编辑',
+    BTN_SAVE_DEMAND: '保存修改',
     BTN_GENERATE_INVITE: '生成邀请码',
     BTN_CANCEL: '取消',
     BTN_BACK: '← 返回',
@@ -77,6 +79,7 @@ window.APP_CONSTANTS = {
     // 成功提示
     SUCCESS_INVITE_CONFIRMED: '邀请码已确认，请填写注册信息',
     SUCCESS_DEMAND_SUBMITTED: '需求已提交！',
+    SUCCESS_DEMAND_UPDATED: '需求已更新！',
     SUCCESS_PROFILE_SAVED: '信息已保存！',
     SUCCESS_REVIEW_SUBMITTED: '评价已提交，等待管理员审核',
     SUCCESS_COPIED: '已复制',
@@ -91,6 +94,7 @@ window.APP_CONSTANTS = {
     // 空状态
     EMPTY_NO_TEACHERS: '暂无教师信息',
     EMPTY_NO_DEMANDS: '暂无学生需求',
+    EMPTY_NO_MY_DEMANDS: '还没有需求，点击右上角「新建需求」发布第一条',
     EMPTY_NO_REVIEWS: '暂无评价',
     EMPTY_NO_PENDING_REVIEWS: '暂无待审核评价',
 

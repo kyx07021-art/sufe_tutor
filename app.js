@@ -12,7 +12,31 @@ const { SUBJECTS, ELECTIVE, GRADE_LEVELS, STUDENT_GRADES,
 // ============================================================
 // 状态
 // ============================================================
-const state = { user: null, view: 'landing', allTeachers: [], inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
+const state = { user: null, view: 'landing', page: null, allTeachers: [], myDemands: [], editingDemandId: null,
+                inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
+
+// ============================================================
+// 客户端配置：侧边栏栏目注册表
+// 加栏目 = 这里加一条 + index.html 加一个 section[data-page] + 一个 enter 函数
+// enter 引用的函数均为顶层声明，声明提升保证前向引用可用
+// ============================================================
+const ROLE_PAGES = {
+  student: [
+    { id: 'my-demands',      label: '我的需求',     icon: '📚', enter: loadMyDemands },
+    { id: 'browse-teachers', label: '浏览教师',     icon: '👩‍🏫', enter: loadTeachers },
+  ],
+  teacher: [
+    { id: 'browse-demands',  label: '需求大厅',     icon: '📋', enter: loadBrowseDemands },
+    { id: 'edit-profile',    label: '编辑自身信息', icon: '📝', enter: initProfileForm },
+    { id: 'admin-dashboard', label: '管理员面板',   icon: '👑', enter: loadAdminDashboard, adminOnly: true },
+  ],
+};
+
+// 内联 onclick 里插值的字符串参数一律过此函数，防引号击穿
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
 
 // ============================================================
 // API
@@ -29,8 +53,7 @@ async function api(endpoint, options = {}) {
 // ============================================================
 // 视图管理
 // ============================================================
-const VIEWS = ['landing','login','register','invite-gate','student-dashboard','teacher-dashboard',
-  'browse-teachers','browse-demands','edit-profile','admin-dashboard'];
+const VIEWS = ['landing','login','register','invite-gate','client'];
 
 function showView(name) {
   VIEWS.forEach(v => { const el = document.getElementById(`view-${v}`); if (el) el.classList.add('hidden'); });
@@ -38,28 +61,9 @@ function showView(name) {
   if (target) target.classList.remove('hidden');
   state.view = name;
   updateNavbar();
-
-  if (name === 'browse-teachers') loadTeachers();
-  if (name === 'browse-demands') loadDemands();
-  if (name === 'edit-profile') initProfileForm();
-  if (name === 'admin-dashboard') loadAdminDashboard();
 }
 
-function goHome() {
-  if (state.user) {
-    showView(state.user.role === 'student' ? 'student-dashboard' : 'teacher-dashboard');
-  } else {
-    showView('landing');
-  }
-}
-
-function goBack() {
-  if (state.user) {
-    showView(state.user.role === 'student' ? 'student-dashboard' : 'teacher-dashboard');
-  } else {
-    showView('landing');
-  }
-}
+function goHome() { state.user ? enterClient() : showView('landing'); }
 
 function updateNavbar() {
   const el = document.getElementById('navbar-actions');
@@ -75,12 +79,62 @@ function updateNavbar() {
   }
 }
 
+// ------------------------------------------------------------
+// 客户端壳：侧边栏 + 页面区（栏目由 ROLE_PAGES 配置驱动）
+// ------------------------------------------------------------
+function pagesForRole() {
+  return (ROLE_PAGES[state.user.role] || []).filter(p => !p.adminOnly || state.user.isAdmin);
+}
+
+function defaultPageFor() {
+  return (pagesForRole()[0] || { id: 'my-demands' }).id;
+}
+
+function enterClient(pageId) {
+  renderSidebar();
+  showView('client');
+  selectPage(pageId || defaultPageFor());
+}
+
+function renderSidebar() {
+  const u = state.user;
+  document.getElementById('sidebar-user').innerHTML = `
+    <div class="sidebar-user-name">${escHtml(u.username)}</div>
+    <div class="sidebar-user-meta">
+      <span class="user-badge">${u.role === 'student' ? UI.ROLE_STUDENT : UI.ROLE_TEACHER}</span>
+      ${u.isAdmin ? `<span class="user-badge admin-badge">${UI.ADMIN_BADGE}</span>` : ''}
+    </div>`;
+  document.getElementById('sidebar-nav').innerHTML = pagesForRole().map(p => `
+    <button type="button" class="sidebar-item" data-page="${p.id}" onclick="selectPage('${p.id}')">
+      <span class="sidebar-item-icon" aria-hidden="true">${p.icon}</span><span>${p.label}</span>
+    </button>`).join('');
+}
+
+function selectPage(pageId) {
+  document.querySelectorAll('#client-main .client-page').forEach(s =>
+    s.classList.toggle('hidden', s.dataset.page !== pageId));
+  document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b =>
+    b.classList.toggle('active', b.dataset.page === pageId));
+  state.page = pageId;
+  const cfg = pagesForRole().find(p => p.id === pageId);
+  if (cfg && cfg.enter) cfg.enter();
+  closeSidebar();
+  document.getElementById('client-main').scrollTop = 0;
+}
+
+function openSidebar()   { document.body.classList.add('sidebar-open'); }
+function closeSidebar()  { document.body.classList.remove('sidebar-open'); }
+function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
+
+// student 身份的管理员统一按教师端处理（原三处重复分支收敛于此）
+function normalizeUser(u) {
+  if (u.isAdmin && u.role === 'student') u.role = 'teacher';
+  return u;
+}
+
 // ============================================================
 // 认证
 // ============================================================
-function switchLoginRole(role) {
-  document.querySelectorAll('#login-role-tabs .role-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
-}
 function switchRegisterRole(role) {
   document.getElementById('register-role').value = role;
   document.querySelectorAll('#register-role-tabs .role-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
@@ -91,12 +145,8 @@ function switchRegisterRole(role) {
 }
 
 function handleFeatureClick(role) {
-  if (state.user) {
-    showView(state.user.role === 'student' ? 'student-dashboard' : 'teacher-dashboard');
-    return;
-  }
+  if (state.user) { enterClient(); return; }
   showView('login');
-  switchLoginRole(role);
 }
 
 async function handleLogin(e) {
@@ -109,30 +159,19 @@ async function handleLogin(e) {
   try {
     btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${UI.LOADING_LOGIN}`;
     const data = await api('/api/auth/login', { method: 'POST', body: { username, password } });
-    state.user = data.user;
+    state.user = normalizeUser(data.user);
     alertEl.innerHTML = '';
 
     // 记住登录状态
     if (document.getElementById('login-remember').checked) {
       localStorage.setItem('sufe_session', JSON.stringify({
-        user: data.user, password, expires: Date.now() + 7 * 24 * 3600 * 1000, // 7天
+        user: state.user, password, expires: Date.now() + 7 * 24 * 3600 * 1000, // 7天
       }));
     } else {
       localStorage.removeItem('sufe_session');
     }
 
-    // 检查管理员
-    if (data.user.role === 'teacher') {
-      showView('teacher-dashboard');
-      if (data.user.isAdmin) document.getElementById('admin-section').classList.remove('hidden');
-    } else if (data.user.isAdmin) {
-      // 管理员以 student 角色登录，显示教师端 + 管理员面板
-      state.user.role = 'teacher';
-      showView('teacher-dashboard');
-      document.getElementById('admin-section').classList.remove('hidden');
-    } else {
-      showView('student-dashboard');
-    }
+    enterClient();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
   } finally {
@@ -169,9 +208,9 @@ async function handleRegister(e) {
       state.validatedInviteCode = null; // 用后即清
     }
     const data = await api('/api/auth/register', { method: 'POST', body });
-    state.user = data.user;
+    state.user = normalizeUser(data.user);
     alertEl.innerHTML = '';
-    showView(role === 'teacher' ? 'teacher-dashboard' : 'student-dashboard');
+    enterClient();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
   } finally {
@@ -207,25 +246,31 @@ async function validateInviteAndRegister() {
 }
 
 function handleLogout() {
-  state.user = null;
+  if (state.inviteTimerId) clearInterval(state.inviteTimerId);
+  state.user = null; state.page = null;
+  state.allTeachers = []; state.myDemands = []; state.editingDemandId = null;
+  state.inviteTimerId = null; state.currentInviteCode = null;
   localStorage.removeItem('sufe_session');
-  document.getElementById('admin-section').classList.add('hidden');
+  closeSidebar();
   showView('landing');
 }
 
 // ============================================================
 // 学生需求 Modal
 // ============================================================
-function openDemandModal() {
-  document.getElementById('modal-container').innerHTML = renderDemandModal();
+function openDemandModal(demandId) {
+  state.editingDemandId = demandId || null;
+  const demand = demandId ? state.myDemands.find(d => d.id === demandId) : null;
+  document.getElementById('modal-container').innerHTML = renderDemandModal(demand);
   initDemandForm();
+  if (demand) prefillDemandForm(demand);
 }
 function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
 
-function renderDemandModal() {
+function renderDemandModal(demand) {
   return `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div class="modal-header"><h2>📚 提交学生需求</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${demand ? '📚 编辑学生需求' : '📚 提交学生需求'}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
@@ -296,7 +341,7 @@ function renderDemandModal() {
           </div>
           <div class="modal-footer" style="padding:0;border:none;margin-top:var(--s6);">
             <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
-            <button type="submit" class="btn btn-primary" id="d-submit">提交需求</button>
+            <button type="submit" class="btn btn-primary" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
           </div>
         </form>
       </div>
@@ -307,6 +352,36 @@ function renderDemandModal() {
 function initDemandForm() {
   document.getElementById('d-subjects').addEventListener('change', updateDemandScores);
   toggleAddressField(); // 初始化地址字段可见性
+}
+
+// 编辑需求时回填表单（复用提交需求组件）。
+// 时序关键：勾科目 → 手动 updateDemandScores()（程序改 checkbox 不派发 change）
+// → 回填各科分制/分数 → 设教学方式 → 再调 toggleAddressField()
+// （initDemandForm 那次跑在默认值上，会把线下需求的地址区错误隐藏）
+function prefillDemandForm(d) {
+  document.getElementById('d-grade').value  = d.student_grade || '';
+  document.getElementById('d-gender').value = d.student_gender || '';
+  (d.target_subjects || []).forEach(sid => {
+    const cb = document.querySelector(`#d-subjects input[value="${sid}"]`);
+    if (cb) cb.checked = true;
+  });
+  updateDemandScores();
+  (d.current_scores || []).forEach(cs => {
+    const opt = document.querySelector(`.score-option[data-sid="${cs.subject}"][data-sc="${cs.scale}"]`);
+    if (opt) opt.classList.add('selected');
+    const inp = document.querySelector(`input[data-score-sid="${cs.subject}"]`);
+    if (inp) { inp.value = cs.score ?? ''; if (cs.scale) inp.max = cs.scale; }
+  });
+  document.getElementById('d-method').value = d.teaching_method || 'offline';
+  toggleAddressField();
+  document.getElementById('d-address').value        = d.address || '';
+  document.getElementById('d-address-detail').value = d.address_detail || '';
+  document.getElementById('d-budget-min').value = d.budget_min || '';
+  document.getElementById('d-budget-max').value = d.budget_max || '';
+  document.getElementById('d-submitter').value      = d.submitter_type || 'parent';
+  document.getElementById('d-parent-contact').value = d.parent_contact || '';
+  document.getElementById('d-student-contact').value = d.student_contact || '';
+  document.getElementById('d-info').value           = d.additional_info || '';
 }
 
 // checkbox state is now handled by pure CSS (:checked + :has)
@@ -362,33 +437,39 @@ async function handleSubmitDemand(e) {
     return { subject: sid, scale: sel ? +sel.dataset.sc : SUBJECTS.find(s=>s.id===sid).maxScore, score: inp ? inp.value : '' };
   });
 
+  const isEdit = !!state.editingDemandId;
+  const payload = { userId: state.user.id, demand: {
+    student_grade: document.getElementById('d-grade').value,
+    student_gender: document.getElementById('d-gender').value,
+    target_subjects: subjects, current_scores: scores,
+    teaching_method: document.getElementById('d-method').value,
+    address: document.getElementById('d-address').value.trim(),
+    address_detail: document.getElementById('d-address-detail').value.trim(),
+    budget_min: +document.getElementById('d-budget-min').value,
+    budget_max: +document.getElementById('d-budget-max').value,
+    submitter_type: document.getElementById('d-submitter').value,
+    parent_contact: document.getElementById('d-parent-contact').value.trim(),
+    student_contact: document.getElementById('d-student-contact').value.trim(),
+    additional_info: document.getElementById('d-info').value.trim(),
+  }};
+
   try {
     const btn = document.getElementById('d-submit');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
-    await api('/api/student/demands', {
-      method: 'POST',
-      body: { userId: state.user.id, demand: {
-        student_grade: document.getElementById('d-grade').value,
-        student_gender: document.getElementById('d-gender').value,
-        target_subjects: subjects, current_scores: scores,
-        teaching_method: document.getElementById('d-method').value,
-        address: document.getElementById('d-address').value.trim(),
-        address_detail: document.getElementById('d-address-detail').value.trim(),
-        budget_min: +document.getElementById('d-budget-min').value,
-        budget_max: +document.getElementById('d-budget-max').value,
-        submitter_type: document.getElementById('d-submitter').value,
-        parent_contact: document.getElementById('d-parent-contact').value.trim(),
-        student_contact: document.getElementById('d-student-contact').value.trim(),
-        additional_info: document.getElementById('d-info').value.trim(),
-      }},
-    });
+    if (isEdit) {
+      await api(`/api/student/demands/${state.editingDemandId}`, { method: 'PUT', body: payload });
+    } else {
+      await api('/api/student/demands', { method: 'POST', body: payload });
+    }
     closeModal();
-    showToast(UI.SUCCESS_DEMAND_SUBMITTED);
+    state.editingDemandId = null;
+    showToast(isEdit ? UI.SUCCESS_DEMAND_UPDATED : UI.SUCCESS_DEMAND_SUBMITTED);
+    if (state.page === 'my-demands') loadMyDemands();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
   } finally {
     const btn = document.getElementById('d-submit');
-    if (btn) { btn.disabled = false; btn.textContent = UI.BTN_SUBMIT_DEMAND; }
+    if (btn) { btn.disabled = false; btn.textContent = isEdit ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND; }
   }
 }
 
@@ -427,7 +508,7 @@ function renderTeachers(teachers) {
 
     return `<div class="list-card">
       <div class="list-card-header">
-        <span class="list-card-title">${t.username}</span>
+        <span class="list-card-title">${escHtml(t.username)}</span>
         <span class="list-card-meta">${grade} · ${gender} · ${t.price||'?'}元/h</span>
       </div>
       <div class="list-card-body">
@@ -440,9 +521,8 @@ function renderTeachers(teachers) {
         ${t.email ? `<span>${UI.CONTACT_EMAIL_PREFIX}${t.email}</span>` : ''}
       </div>
       <div class="list-card-actions">
-        <button class="btn btn-outline btn-sm" onclick="loadTeacherDetail(${t.user_id},'${t.username}')">${UI.BTN_VIEW_DETAIL}</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openTeacherModal(${t.user_id})">${UI.BTN_VIEW_DETAIL}</button>
       </div>
-      <div id="teacher-detail-${t.user_id}"></div>
     </div>`;
   }).join('');
 }
@@ -476,37 +556,87 @@ function applyFilters() {
   renderTeachers(filtered);
 }
 
-async function loadTeacherDetail(userId, username) {
-  const el = document.getElementById(`teacher-detail-${userId}`);
-  if (el.innerHTML) { el.innerHTML = ''; return; }
-
+// ============================================================
+// 教师信息弹窗 — 可复用组件（档案 + 高考成绩 + 联系方式 + 评价）
+// ============================================================
+async function openTeacherModal(userId) {
+  const t = state.allTeachers.find(x => x.user_id === userId);
+  if (!t) return;
+  document.getElementById('modal-container').innerHTML = renderTeacherModal(t);
   try {
     const data = await api(`/api/reviews?teacherUserId=${userId}`);
-    const reviews = data.reviews || [];
-
-    el.innerHTML = `<div class="reviews-section">
-      <h4>评价 (${reviews.length})</h4>
-      ${reviews.map(r => `<div class="review-item">
-        <div class="review-header">
-          <span class="review-author">${r.reviewer_name} ${renderStars(r.rating)}</span>
-          <span class="review-date">${r.created_at||''}</span>
-        </div>
-        <div class="review-text">${r.comment}</div>
-      </div>`).join('')}
-      ${!reviews.length ? `<p class="text-sm text-muted">${UI.EMPTY_NO_REVIEWS}</p>` : ''}
-      ${state.user && state.user.role === 'student' ? `
-        <button class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${userId},'${username}')">写评价</button>
-      ` : ''}
-    </div>`;
-  } catch (err) {
-    el.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_REVIEWS}</p>`;
+    const el = document.getElementById('teacher-modal-reviews');
+    if (el) el.innerHTML = renderReviewItems(data.reviews || [], t); // 防竞态：弹窗已关则丢弃
+  } catch {
+    const el = document.getElementById('teacher-modal-reviews');
+    if (el) el.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_REVIEWS}</p>`;
   }
+}
+
+function renderTeacherModal(t) {
+  const grade = TEACHER_GRADES.find(g => g.id === t.grade)?.name || '—';
+  const gender = GENDERS.find(g => g.id === t.gender)?.name || '—';
+  const subjNames = (t.subjects || []).map(id => SUBJECTS.find(s => s.id === id)?.name || id);
+  const gaokaoHtml = (t.gaokao_scores || []).map(gs => {
+    const n = SUBJECTS.find(s => s.id === gs.subject)?.name || gs.subject;
+    return `<span class="tag">${n}: ${gs.score !== undefined ? gs.score + '分' : gs.grade || ''}</span>`;
+  }).join('');
+
+  return `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header"><h2>${escHtml(t.username)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <dl class="teacher-facts">
+          <div class="teacher-fact"><dt>年级</dt><dd>${grade}</dd></div>
+          <div class="teacher-fact"><dt>性别</dt><dd>${gender}</dd></div>
+          <div class="teacher-fact"><dt>报价</dt><dd>${t.price || '?'}${UI.PRICE_UNIT}</dd></div>
+          <div class="teacher-fact"><dt>评分</dt><dd>${renderStars(t.rating)} ${(t.rating || 4).toFixed(1)}</dd></div>
+        </dl>
+        <div class="teacher-modal-section">
+          <h4>擅长科目</h4>
+          <div class="list-card-body">${subjNames.length ? subjNames.map(n => `<span class="tag tag-primary">${n}</span>`).join('') : '<p class="text-sm text-muted">未填写</p>'}</div>
+        </div>
+        <div class="teacher-modal-section">
+          <h4>高考成绩 / 等第</h4>
+          <div class="list-card-body">${gaokaoHtml || '<p class="text-sm text-muted">未填写</p>'}</div>
+        </div>
+        <div class="teacher-modal-section">
+          <h4>联系方式</h4>
+          <div class="list-card-body">
+            ${t.wechat ? `<span class="tag">${UI.CONTACT_WECHAT_PREFIX}${escHtml(t.wechat)}</span>` : ''}
+            ${t.email ? `<span class="tag">${UI.CONTACT_EMAIL_PREFIX}${escHtml(t.email)}</span>` : ''}
+            ${!t.wechat && !t.email ? '<p class="text-sm text-muted">未填写</p>' : ''}
+          </div>
+        </div>
+        <div class="teacher-modal-section" id="teacher-modal-reviews">
+          <h4>评价</h4>
+          <p class="text-sm text-muted">加载中...</p>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderReviewItems(reviews, t) {
+  return `<h4>评价 (${reviews.length})</h4>
+    ${reviews.map(r => `<div class="review-item">
+      <div class="review-header">
+        <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)}</span>
+        <span class="review-date">${r.created_at || ''}</span>
+      </div>
+      <div class="review-text">${escHtml(r.comment)}</div>
+    </div>`).join('')}
+    ${!reviews.length ? `<p class="text-sm text-muted">${UI.EMPTY_NO_REVIEWS}</p>` : ''}
+    ${state.user && state.user.role === 'student' ? `
+      <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id})">写评价</button>
+    ` : ''}`;
 }
 
 // ============================================================
 // 评价 Modal
 // ============================================================
 function openReviewModal(teacherUserId, teacherName) {
+  teacherName = teacherName ?? (state.allTeachers.find(x => x.user_id === teacherUserId)?.username || '');
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div class="modal-header"><h2>评价 ${teacherName}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
@@ -560,53 +690,67 @@ async function submitReview(teacherUserId) {
 }
 
 // ============================================================
-// 浏览需求
+// 需求卡与列表（学生「我的需求」与教师「需求大厅」共用渲染）
 // ============================================================
-async function loadDemands() {
-  const el = document.getElementById('demands-list');
+function renderDemandCard(d, opts = {}) {
+  const { editable = false } = opts;
+  const subjNames = (d.target_subjects||[]).map(id => SUBJECTS.find(s=>s.id===id)?.name || id);
+  const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
+  const gender = GENDERS.find(g=>g.id===d.student_gender)?.name || '';
+  const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
+  const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || '线下';
+  const budget = (d.budget_min || d.budget_max)
+    ? `${d.budget_min||'不限'}~${d.budget_max||'不限'}元/h` : '面议';
+
+  const scoresHtml = (d.current_scores||[]).map(cs => {
+    const n = SUBJECTS.find(s=>s.id===cs.subject)?.name || cs.subject;
+    return `<span class="tag">${n}: ${cs.score||'?'}分/${cs.scale}分制</span>`;
+  }).join('');
+
+  return `<div class="list-card">
+    <div class="list-card-header">
+      <span class="list-card-title">${grade} · ${gender}</span>
+      <span class="demand-card-tools">
+        <span class="list-card-meta">${d.created_at||''}</span>
+        ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
+      </span>
+    </div>
+    <div class="list-card-body">
+      ${subjNames.map(n=>`<span class="tag tag-accent">${n}</span>`).join('')}
+      <span class="tag">${method}</span>
+      <span class="tag tag-warn">${budget}</span>
+      <span class="tag">提交者: ${submitter}</span>
+    </div>
+    ${scoresHtml ? `<div class="list-card-detail" style="display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2);">${scoresHtml}</div>` : ''}
+    ${d.address ? `<div class="list-card-detail">📍 ${escHtml(d.address)}${d.address_detail ? ' '+escHtml(d.address_detail) : ''}</div>` : ''}
+    ${d.additional_info ? `<div class="list-card-detail">💬 ${escHtml(d.additional_info)}</div>` : ''}
+    <div class="list-card-contact">
+      ${d.parent_contact ? `<span>家长: ${escHtml(d.parent_contact)}</span>` : ''}
+      ${d.student_contact ? `<span>学生: ${escHtml(d.student_contact)}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+async function loadDemandList(elId, { mine }) {
+  const el = document.getElementById(elId);
+  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
   try {
-    const data = await api('/api/student/demands');
+    const url = mine ? `/api/student/demands?userId=${state.user.id}` : '/api/student/demands';
+    const data = await api(url);
     const demands = data.demands || [];
-    if (!demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
-
-    el.innerHTML = demands.map(d => {
-      const subjNames = (d.target_subjects||[]).map(id => SUBJECTS.find(s=>s.id===id)?.name || id);
-      const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
-      const gender = GENDERS.find(g=>g.id===d.student_gender)?.name || '';
-      const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
-      const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || '线下';
-      const budget = (d.budget_min || d.budget_max)
-        ? `${d.budget_min||'不限'}~${d.budget_max||'不限'}元/h` : '面议';
-
-      const scoresHtml = (d.current_scores||[]).map(cs => {
-        const n = SUBJECTS.find(s=>s.id===cs.subject)?.name || cs.subject;
-        return `<span class="tag">${n}: ${cs.score||'?'}分/${cs.scale}分制</span>`;
-      }).join('');
-
-      return `<div class="list-card">
-        <div class="list-card-header">
-          <span class="list-card-title">${grade} · ${gender}</span>
-          <span class="list-card-meta">${d.created_at||''}</span>
-        </div>
-        <div class="list-card-body">
-          ${subjNames.map(n=>`<span class="tag tag-accent">${n}</span>`).join('')}
-          <span class="tag">${method}</span>
-          <span class="tag tag-warn">${budget}</span>
-          <span class="tag">提交者: ${submitter}</span>
-        </div>
-        ${scoresHtml ? `<div class="list-card-detail" style="display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2);">${scoresHtml}</div>` : ''}
-        ${d.address ? `<div class="list-card-detail">📍 ${d.address}${d.address_detail ? ' '+d.address_detail : ''}</div>` : ''}
-        ${d.additional_info ? `<div class="list-card-detail">💬 ${d.additional_info}</div>` : ''}
-        <div class="list-card-contact">
-          ${d.parent_contact ? `<span>家长: ${d.parent_contact}</span>` : ''}
-          ${d.student_contact ? `<span>学生: ${d.student_contact}</span>` : ''}
-        </div>
-      </div>`;
-    }).join('');
+    if (mine) state.myDemands = demands; // 编辑回填的数据源
+    if (!demands.length) {
+      el.innerHTML = `<div class="empty-state"><p>${mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS}</p></div>`;
+      return;
+    }
+    el.innerHTML = demands.map(d => renderDemandCard(d, { editable: mine })).join('');
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
   }
 }
+
+function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: true }); }
+function loadBrowseDemands() { return loadDemandList('demands-list',    { mine: false }); }
 
 // ============================================================
 // 教师档案编辑
@@ -852,20 +996,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await api('/api/auth/login', {
         method: 'POST', body: { username: saved.user.username, password: saved.password },
       });
-      state.user = data.user;
+      state.user = normalizeUser(data.user);
       // 更新保存的 user 信息（可能角色或管理员状态有变）
-      localStorage.setItem('sufe_session', JSON.stringify({ ...saved, user: data.user }));
-
-      if (data.user.role === 'teacher') {
-        showView('teacher-dashboard');
-        if (data.user.isAdmin) document.getElementById('admin-section').classList.remove('hidden');
-      } else if (data.user.isAdmin) {
-        state.user.role = 'teacher';
-        showView('teacher-dashboard');
-        document.getElementById('admin-section').classList.remove('hidden');
-      } else {
-        showView('student-dashboard');
-      }
+      localStorage.setItem('sufe_session', JSON.stringify({ ...saved, user: state.user }));
+      enterClient();
       return;
     } else if (saved) {
       localStorage.removeItem('sufe_session'); // 过期清理
