@@ -4,16 +4,15 @@
  * ============================================================================
  *
  * 【状态说明】
- * 本文件已完整实现，但处于「休眠」状态：_worker.js 不引用它，也没有任何路由
- * 指向它。部署后线上行为零变化。待产品负责人完成短信服务开通（签名 / 模板
- * 审核通过）后，按 docs/sms-plan.md 的激活清单操作即可上线。
+ * 本文件已完整实现，但处于休眠状态：_worker.js 不引用它，没有任何路由指向它，
+ * 部署后线上行为零变化。待产品负责人完成短信服务开通（签名 / 模板审核通过）
+ * 后，按 docs/sms-plan.md 的激活清单操作即可上线。
  *
- * 【激活步骤（摘要，详见 docs/sms-plan.md）】
- *   1. 在阿里云或腾讯云开通短信服务，申请「签名」与「验证码模板」，等审核通过；
- *   2. 把密钥写入 Cloudflare Pages 环境变量 / Secrets（变量名见下方清单）；
- *   3. 在 _worker.js 主路由里展开 activateRoutes(env) 返回的路由清单（示例见
- *      该函数上方注释），并在首次请求初始化时调用 initSmsAuth(db)；
- *   4. 建议先以 SMS_PROVIDER=mock 走通联调，再切换 aliyun / tencent 正式发送。
+ * 【激活摘要】（详见 docs/sms-plan.md）
+ *   1. 阿里云或腾讯云开通短信服务，申请签名与验证码模板，等审核通过；
+ *   2. 密钥写入 Cloudflare Pages Secrets（变量名见下方清单）；
+ *   3. 在 _worker.js 主路由展开 activateRoutes(env)，并调用 initSmsAuth(db) 幂等建表；
+ *   4. 先以 SMS_PROVIDER=mock 走通联调，再切换 aliyun / tencent 真实发送。
  *
  * 【所需环境变量清单】
  *   SMS_PROVIDER            'mock' | 'aliyun' | 'tencent'，缺省按 mock 处理
@@ -25,11 +24,10 @@
  *
  * 【设计约定】
  *   - 业务函数签名与 _worker.js 一致：(db, body) => Response；
- *   - 不 import、不修改任何现有文件。密码哈希与 json/error 辅助函数是
- *     _worker.js 同名实现的本地副本，PBKDF2 参数保持一致，保证手机号注册的
- *     账号与存量用户名账号共用同一套 users.password_hash 格式；
- *   - 验证码永不明文落库：PBKDF2 哈希 + 独立盐，5 分钟有效，错 5 次即作废；
- *   - 频控：同号 60 秒冷却 + 每日上限 SMS_DAILY_LIMIT 条。
+ *   - 不 import、不修改任何现有文件；密码学 / 响应辅助是 _worker.js 同名实现
+ *     的本地副本（PBKDF2 参数对齐，与存量账号密码哈希格式互通）；
+ *   - 验证码永不明文落库（哈希 + 独立盐，5 分钟有效，错 5 次作废），
+ *     同号 60 秒冷却 + 每日上限 SMS_DAILY_LIMIT 条。
  */
 
 // ============================================================
@@ -70,22 +68,19 @@ const SMS_MSG = {
 
 // ============================================================
 // 迁移 SQL（D1 / SQLite 方言）
-// 全部 CREATE TABLE IF NOT EXISTS，initSmsAuth(db) 可安全重复执行。
-// 激活时在 _worker.js 首次请求初始化处调用一次即可。
+// 全部 CREATE TABLE IF NOT EXISTS，initSmsAuth(db) 幂等可重复执行。
 // ============================================================
 
-// users_phone：手机号与 users 的 1:1 绑定表。
-// phone 直接做 PRIMARY KEY，从 schema 层面确立「手机号 = 未来唯一账号 ID」；
-// user_id 加 UNIQUE，保证一号一户、一户一号，存量账号绑定手机号时迁移路径单值。
+// users_phone：手机号与 users 的 1:1 绑定。phone 直接做 PRIMARY KEY，从 schema
+// 层面确立「手机号 = 未来唯一账号 ID」；user_id UNIQUE 保证一号一户、迁移路径单值。
 const SQL_USERS_PHONE = `CREATE TABLE IF NOT EXISTS users_phone (
   phone TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL UNIQUE,
   verified_at DATETIME DEFAULT (datetime('now','localtime')),
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 
-// sms_codes：验证码发放与校验记录。
-// 只存 code_hash + salt，明文验证码绝不落库，数据库管理员也读不到码；
-// created_at 支撑 60 秒频控与日上限统计；attempts 支撑输错次数锁定。
+// sms_codes：发放与校验记录。只存 code_hash + salt，明文绝不落库，
+// DB 管理员也读不到码；created_at 支撑频控 / 日上限，attempts 支撑输错锁定。
 const SQL_SMS_CODES = `CREATE TABLE IF NOT EXISTS sms_codes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   phone TEXT NOT NULL,
@@ -100,9 +95,7 @@ async function initSmsAuth(db) {
   await db.batch([db.prepare(SQL_USERS_PHONE), db.prepare(SQL_SMS_CODES)]);
 }
 
-// ============================================================
 // DB 辅助函数（_worker.js 同名实现的副本，因其未导出）
-// ============================================================
 async function dbGet(db, sql, params = []) {
   return await db.prepare(sql).bind(...params).first();
 }
@@ -112,10 +105,9 @@ async function dbRun(db, sql, params = []) {
 }
 
 // ============================================================
-// 密码学 —— _worker.js 中 hashPassword/verifyPassword 的本地副本。
-// 参数必须与原文件保持一致：PBKDF2 + SHA-512 + 10 万次迭代 + 512bit 输出，
-// 使手机号注册用户与存量用户名用户的 password_hash 格式互通。
-// 验证码本质是「短命密码」，同样复用 hashPassword 做哈希存储。
+// 密码学 —— _worker.js 中 hashPassword/verifyPassword 的本地副本（原文件未导出）。
+// 参数对齐：PBKDF2 + SHA-512 + 10 万次迭代 + 512bit，手机号用户与存量用户哈希格式互通。
+// 验证码是「短命密码」，同样复用 hashPassword 做哈希存储。
 // ============================================================
 function bufToHex(buf) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -156,8 +148,7 @@ function json(data, status = 200) {
 
 function error(msg, status = 400) { return json({ error: msg }, status); }
 
-// 6 位纯数字验证码：crypto.getRandomValues 保证随机性，模 10 映射
-// （模偏差对 6 位码的可猜测性影响可忽略，风格对齐 _worker.js 的 genCode）
+// 6 位纯数字验证码：crypto.getRandomValues 随机 + 模 10 映射（偏差可忽略，风格对齐 genCode）
 function genSmsCode() {
   const arr = new Uint8Array(CODE_LENGTH);
   crypto.getRandomValues(arr);
@@ -165,12 +156,11 @@ function genSmsCode() {
 }
 
 // ============================================================
-// CodeTransport 抽象 —— 统一契约：send(phone, code) => Promise<{ok, detail}>
+// CodeTransport 抽象 —— 统一契约 send(phone, code) => Promise<{ok, detail}>，
 // 激活时由 createTransport(env) 按 env.SMS_PROVIDER 选择实现。
 // ============================================================
 
-// 本地测试实现：不真实发短信，把验证码写进返回值与日志，
-// 便于 SMS_PROVIDER=mock 下端到端联调（前端可直接读 debugCode）。
+// 本地测试实现：不真实发短信，把验证码写进返回值与日志，供 mock 模式端到端联调。
 class MockTransport {
   constructor() { this.name = 'mock'; }
   async send(phone, code) {
@@ -182,11 +172,8 @@ class MockTransport {
 // 阿里云短信桩。官方文档：https://help.aliyun.com/zh/sms/
 class AliyunSmsTransport {
   constructor({ accessKeyId, accessKeySecret, signName, templateId }) {
-    this.accessKeyId = accessKeyId;
-    this.accessKeySecret = accessKeySecret;
-    this.signName = signName;       // 审核通过的签名内容
-    this.templateId = templateId;   // TemplateCode，形如 SMS_123456789
-    this.name = 'aliyun';
+    Object.assign(this, { accessKeyId, accessKeySecret, signName, templateId });
+    this.name = 'aliyun'; // templateId 即 TemplateCode，形如 SMS_123456789
   }
 
   async send(phone, code) {
@@ -206,11 +193,8 @@ class AliyunSmsTransport {
 // 腾讯云短信桩。官方文档：https://cloud.tencent.com/document/product/382
 class TencentSmsTransport {
   constructor({ accessKeyId, accessKeySecret, signName, templateId, sdkAppId }) {
-    this.accessKeyId = accessKeyId;       // SecretId
-    this.accessKeySecret = accessKeySecret; // SecretKey
-    this.signName = signName;
-    this.templateId = templateId;         // 控制台模板 ID（数字字符串）
-    this.sdkAppId = sdkAppId;             // 短信应用 SdkAppId（腾讯云特有）
+    Object.assign(this, { accessKeyId, accessKeySecret, signName, templateId, sdkAppId });
+    // accessKeyId / accessKeySecret 即腾讯云 SecretId / SecretKey；sdkAppId 为短信应用 SdkAppId（腾讯云特有）
     this.name = 'tencent';
   }
 
@@ -229,8 +213,7 @@ class TencentSmsTransport {
   }
 }
 
-// 按环境变量选择通道；密钥未配置或厂商未识别时一律回落 mock，
-// 保证休眠期 / 联调期绝不会误触发真实扣费发送。
+// 按环境变量选择通道；厂商未识别时回落 mock，休眠期绝不会误触发真实扣费发送。
 function createTransport(env) {
   const provider = (env.SMS_PROVIDER || 'mock').toLowerCase();
   const common = {
@@ -248,8 +231,7 @@ function createTransport(env) {
 // 验证码核心逻辑 —— 频控、落库、校验消费
 // ============================================================
 
-// 发送前频控检查：60 秒冷却 + 每日上限，均基于 sms_codes 发送历史。
-// 返回 null 表示放行，否则返回应回给前端的错误消息。
+// 发送前频控：60 秒冷却 + 每日上限，基于 sms_codes 历史。返回 null 放行，否则为错误消息。
 async function assertSendAllowed(db, phone) {
   const recent = await dbGet(db,
     "SELECT id FROM sms_codes WHERE phone=? AND created_at > datetime('now','localtime',?)",
@@ -263,8 +245,7 @@ async function assertSendAllowed(db, phone) {
   return null;
 }
 
-// 验证码落库：哈希后持久化。expires_at 由数据库端计算，
-// 与 created_at / 比较式同用一套 DB 时钟，规避 Worker 与 DB 的时钟漂移。
+// 验证码落库：哈希后持久化。expires_at 由数据库端计算，与比较式共用 DB 时钟防漂移。
 async function storeCode(db, phone, code) {
   const { hash, salt } = await hashPassword(code);
   await dbRun(db,
@@ -273,9 +254,8 @@ async function storeCode(db, phone, code) {
     [phone, hash, salt, `+${CODE_TTL_SECONDS} seconds`]);
 }
 
-// 消费验证码：校验通过则置 used=1 并返回 null；
-// 失败返回错误消息并累计 attempts，达到 MAX_VERIFY_ATTEMPTS 直接作废该码，
-// 防止对 6 位数字码做在线爆破。
+// 消费验证码：校验通过置 used=1 返回 null；失败累计 attempts 并返回错误消息，
+// 达到 MAX_VERIFY_ATTEMPTS 直接作废该码，防止对 6 位数字码在线爆破。
 async function consumeCode(db, phone, code) {
   if (!code) return SMS_MSG.CODE_REQUIRED;
 
@@ -312,8 +292,7 @@ async function consumeCode(db, phone, code) {
 // ============================================================
 
 // POST /api/v2/auth/send-code  body: { phone }
-// 60 秒频控 + 日上限；码为 6 位数字；哈希存库；5 分钟有效。
-// 第三个参数 transport 由 activateRoutes(env) 闭包注入，默认 mock。
+// 60 秒频控 + 日上限；6 位数字码；哈希存库；5 分钟有效。transport 由闭包注入。
 async function handleSendCode(db, body, transport) {
   const { phone } = body;
   if (!PHONE_RE.test(phone || '')) return error(SMS_MSG.INVALID_PHONE);
@@ -335,9 +314,8 @@ async function handleSendCode(db, body, transport) {
 }
 
 // POST /api/v2/auth/register  body: { phone, code, password, role, inviteCode? }
-// 手机号注册：验证码核销 -> 建 users 行（username 暂取手机号本身，
-// users.username 仍满足 UNIQUE NOT NULL）-> 写 users_phone 绑定。
-// 教师角色保留邀请码钩子，规则与 _worker.js handleRegister 完全一致。
+// 验证码核销 -> 建 users 行（username 暂取手机号本身，仍满足 UNIQUE NOT NULL）
+// -> 写 users_phone 绑定。教师保留邀请码钩子，规则与 _worker.js handleRegister 一致。
 async function handleRegisterPhone(db, body) {
   const { phone, code, password, role, inviteCode } = body;
   if (!PHONE_RE.test(phone || '')) return error(SMS_MSG.INVALID_PHONE);
@@ -385,8 +363,7 @@ async function handleRegisterPhone(db, body) {
 }
 
 // POST /api/v2/auth/login-code  body: { phone, code }
-// 验证码登录：先查绑定再核销，未注册号码不消耗验证码尝试次数，
-// 直接把用户导向注册流程。
+// 先查绑定再核销验证码：未注册号码不消耗尝试次数，直接导向注册流程。
 async function handleLoginByCode(db, body) {
   const { phone, code } = body;
   if (!PHONE_RE.test(phone || '')) return error(SMS_MSG.INVALID_PHONE);
@@ -435,9 +412,7 @@ async function handleLoginByPassword(db, body) {
 }
 
 // ============================================================
-// 路由清单 —— 激活的唯一入口
-//
-// 激活时在 _worker.js 主路由 try 块内展开（示意，届时才修改 _worker.js）：
+// 路由清单 —— 激活的唯一入口。激活时在 _worker.js 主路由 try 块内展开：
 //
 //   import { activateRoutes, initSmsAuth } from './server/sms-auth.dormant.js';
 //   // 首次请求初始化处补一句：await initSmsAuth(env.DB);
@@ -445,8 +420,7 @@ async function handleLoginByPassword(db, body) {
 //     if (p === r.path && request.method === r.method) return await r.handler(db, body);
 //   }
 //
-// 清单内 handler 统一为 (db, body) => Response，与 _worker.js 现有 if 链无缝搭配；
-// transport 实例在此处按 env 构造一次，由闭包注入 handleSendCode。
+// handler 统一 (db, body) => Response；transport 在此按 env 构造一次，闭包注入。
 // ============================================================
 export function activateRoutes(env) {
   const transport = createTransport(env || {});
@@ -458,8 +432,7 @@ export function activateRoutes(env) {
   ];
 }
 
-// 导出清单：initSmsAuth（建表）、activateRoutes（路由）、SMS_MSG（消息常量）、
-// createTransport / MockTransport（联调与单测用）、SQL 常量（便于迁移脚本复用）
+// 导出清单：建表 / 路由 / 消息常量 / transport 类（联调用）/ SQL 常量（迁移脚本复用）
 export {
   initSmsAuth,
   SMS_MSG,
