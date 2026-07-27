@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>上财家教 - 零佣金家教信息共享平台</title>
+  <meta name="description" content="上海财经大学学生创立的家教信息共享平台，零佣金撮合服务">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+  <noscript><style>.hand-part{opacity:.14!important;transform:none!important}.flow-field{opacity:.5!important}.eyebrow,.hero-title span,.stage-copy,.stage-kicker,.stage-note,.entry{opacity:1!important;transform:none!important}</style></noscript>
+
+</head>
+<body>
+  <div id="app">
+
+    <!-- Navbar -->
+    <nav class="navbar">
+      <div class="container">
+        <div class="navbar-brand" onclick="goHome()" style="cursor:pointer;">
+          <div class="navbar-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+          <div>
+            <div class="navbar-title">上财家教</div>
+            <div class="navbar-subtitle">零佣金家教信息共享平台</div>
+          </div>
+        </div>
+        <div class="navbar-actions" id="navbar-actions">
+          <button class="btn btn-ghost" onclick="showView('login')">登录</button>
+          <button class="btn btn-primary btn-sm" onclick="showView('register')">注册</button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Landing -->
+    <main class="landing" id="view-landing">
+      <section class="landing-stage">
+        <div class="hand-mask" aria-hidden="true">
+          <span class="hand-part hand-part--a"></span>
+          <span class="hand-part hand-part--b"></span>
+        </div>
+        <div class="stage-deco-grid" aria-hidden="true"></div>
+        <div class="container stage-grid">
+          <div class="stage-left">
+            <div class="stage-text">
+              <p class="eyebrow"><span class="eyebrow-rule"></span>上海财经大学学生创立</p>
+              <h1 class="hero-title" aria-label="找家教零佣金更高效">
+                <span style="--i:0">找</span><span style="--i:1">家</span><span style="--i:2">教</span>
+                <span style="--i:3">零</span><span style="--i:4">佣</span><span style="--i:5">金</span>
+                <span style="--i:6">更</span><span style="--i:7">高</span><span style="--i:8">效</span>
+              </h1>
+              <p class="stage-copy">我们是一群来自上海财经大学的学生，致力于打造最透明、最高效的家教信息共享平台。教师零佣金入驻，学生免费发布需求，没有中间商赚差价，师生直接对接。</p>
+            </div>
+            <div class="flow-field" aria-hidden="true"></div>
+          </div>
+          <div class="stage-right">
+            <p class="stage-kicker">零佣金撮合 · 师生直接对接 · 信息透明</p>
+            <div class="entry-list">
+              <button class="entry" onclick="handleFeatureClick('student')">
+                <span class="entry-index">01</span>
+                <span class="entry-body">
+                  <span class="entry-title">我要找家教</span>
+                  <span class="entry-desc">发布学习需求，浏览优秀教师，找到最适合的家教老师</span>
+                </span>
+                <span class="entry-arrow" aria-hidden="true">→</span>
+              </button>
+              <button class="entry" onclick="handleFeatureClick('teacher')">
+                <span class="entry-index">02</span>
+                <span class="entry-body">
+                  <span class="entry-title">我要做家教</span>
+                  <span class="entry-desc">展示个人优势，浏览学生需求，零佣金获取家教机会</span>
+                </span>
+                <span class="entry-arrow" aria-hidden="true">→</span>
+              </button>
+            </div>
+            <p class="stage-note">教师零佣金入驻 · 学生免费发布需求</p>
+          </div>
+        </div>
+        <footer class="landing-footer">
+          <div class="container">© 2025 上财家教平台 · 由上财学生创立并运营</div>
+        </footer>
+      </section>
+    </main>
+
+    <!-- Login -->
+    <div class="auth-view hidden" id="view-login">
+      <div class="auth-card">
+        <div class="auth-header">
+          <h2>欢迎回来</h2>
+          <p>登录你的账户以继续使用</p>
+        </div>
+        <div id="login-alert"></div>
+        <form onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label">用户名</label>
+            <input type="text" class="form-input" id="login-username" placeholder="请输入用户名" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">密码</label>
+            <input type="password" class="form-input" id="login-password" placeholder="请输入密码" required>
+          </div>
+          <label class="remember-me">
+            <input type="checkbox" id="login-remember">
+            <span>记住登录状态，下次自动登录</span>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn btn-outline" onclick="showView('landing')">返回</button>
+            <button type="submit" class="btn btn-primary" id="login-submit">登录</button>
+          </div>
+        </form>
+        <div class="auth-footer">还没有账户？<a href="#" onclick="showView('register');return false;">立即注册</a></div>
+      </div>
+    </div>
+
+    <!-- Register -->
+    <div class="auth-view hidden" id="view-register">
+      <div class="auth-card">
+        <div class="auth-header">
+          <h2>创建账户</h2>
+          <p>注册后即可使用平台全部功能</p>
+        </div>
+        <div id="register-alert"></div>
+        <div class="role-tabs" id="register-role-tabs">
+          <button class="role-tab active" data-role="student" onclick="switchRegisterRole('student')">我是学生</button>
+          <button class="role-tab" data-role="teacher" onclick="switchRegisterRole('teacher')">我是教师</button>
+        </div>
+        <form onsubmit="handleRegister(event)">
+          <input type="hidden" id="register-role" value="student">
+          <div class="form-group">
+            <label class="form-label">用户名 <span class="req">*</span></label>
+            <input type="text" class="form-input" id="register-username" placeholder="3-30 个字符" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">密码 <span class="req">*</span></label>
+            <input type="password" class="form-input" id="register-password" placeholder="至少 6 个字符" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">确认密码 <span class="req">*</span></label>
+            <input type="password" class="form-input" id="register-password2" placeholder="再次输入密码" required>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-outline" onclick="showView('landing')">返回</button>
+            <button type="submit" class="btn btn-primary" id="register-submit">注册</button>
+          </div>
+        </form>
+        <div class="auth-footer">已有账户？<a href="#" onclick="showView('login');return false;">立即登录</a></div>
+      </div>
+    </div>
+
+    <!-- Invite Gate -->
+    <div class="auth-view hidden" id="view-invite-gate">
+      <div class="auth-card">
+        <div style="text-align:center;">
+          <h2>需要邀请码</h2>
+          <p class="text-muted text-sm" style="margin-bottom:22px;">教师注册需要先验证邀请码。请输入管理员提供的邀请码，验证通过后再填写注册信息。邀请码有效期 5 分钟且仅限一人使用。</p>
+        </div>
+        <div id="invite-gate-alert"></div>
+        <div class="form-group">
+          <label class="form-label">邀请码</label>
+          <input type="text" class="form-input" id="invite-code-input" placeholder="请输入 8 位邀请码" style="text-align:center;letter-spacing:0.15em;font-weight:600;">
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline" onclick="showView('landing')">返回</button>
+          <button type="button" class="btn btn-primary" onclick="validateInviteAndRegister()">验证</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Student Dashboard -->
+    <div class="dashboard hidden" id="view-student-dashboard">
+      <div class="container">
+        <div class="dashboard-header">
+          <h1>学生端</h1>
+          <p>发布需求或浏览教师信息</p>
+        </div>
+        <div class="dashboard-content">
+          <div class="dashboard-cards">
+            <div class="dashboard-card" onclick="openDemandModal()">
+              <div class="card-icon ci-blue">✏️</div>
+              <div class="card-title">提交学生需求</div>
+              <div class="card-desc">描述你的学习需求，让教师了解你的情况</div>
+            </div>
+            <div class="dashboard-card" onclick="showView('browse-teachers')">
+              <div class="card-icon ci-green">👩‍🏫</div>
+              <div class="card-title">浏览教师信息</div>
+              <div class="card-desc">查看平台上所有教师的教学信息和个人优势</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Teacher Dashboard -->
+    <div class="dashboard hidden" id="view-teacher-dashboard">
+      <div class="container">
+        <div class="dashboard-header">
+          <h1>教师端</h1>
+          <p>编辑个人信息或浏览学生需求</p>
+        </div>
+        <div class="dashboard-content">
+          <div class="dashboard-cards">
+            <div class="dashboard-card" onclick="showView('edit-profile')">
+              <div class="card-icon ci-blue">📝</div>
+              <div class="card-title">编辑自身信息</div>
+              <div class="card-desc">完善个人资料，展示你的教学优势</div>
+            </div>
+            <div class="dashboard-card" onclick="showView('browse-demands')">
+              <div class="card-icon ci-green">📋</div>
+              <div class="card-title">浏览学生需求</div>
+              <div class="card-desc">查看学生发布的学习需求，找到合适的教学机会</div>
+            </div>
+          </div>
+          <!-- Admin section -->
+          <div class="admin-section hidden" id="admin-section">
+            <h3>👑 管理员功能</h3>
+            <p class="text-sm text-muted">生成邀请码用于新教师注册，或查看平台统计数据。</p>
+            <div class="admin-actions">
+              <button class="btn btn-primary btn-sm" onclick="showView('admin-dashboard')">管理面板</button>
+              <button class="btn btn-outline btn-sm" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
+            </div>
+            <div class="invite-code-display hidden" id="invite-code-display">
+              <div class="invite-code-text" id="invite-code-text"></div>
+              <div>
+                <button class="btn btn-outline btn-sm" onclick="copyInviteCode()">复制</button>
+                <div class="invite-code-timer mt-2" id="invite-code-timer"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Browse Teachers -->
+    <div class="dashboard hidden" id="view-browse-teachers">
+      <div class="container">
+        <div class="browse-view">
+          <div class="browse-header">
+            <h2>👩‍🏫 教师信息</h2>
+            <div class="browse-header-actions">
+              <button class="btn btn-outline btn-sm" onclick="toggleFilters()">筛选</button>
+              <button class="btn btn-ghost btn-sm" onclick="goBack()">← 返回</button>
+            </div>
+          </div>
+          <!-- Filters -->
+          <div class="filter-panel hidden" id="teacher-filters">
+            <div class="filter-row">
+              <div class="filter-group">
+                <label class="filter-label">性别</label>
+                <select class="filter-select" id="filter-gender" onchange="applyFilters()">
+                  <option value="">全部</option>
+                  <option value="male">男</option>
+                  <option value="female">女</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">科目</label>
+                <select class="filter-select" id="filter-subject" onchange="applyFilters()">
+                  <option value="">全部科目</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">报价上限</label>
+                <select class="filter-select" id="filter-price" onchange="applyFilters()">
+                  <option value="">不限</option>
+                  <option value="100">≤100元/h</option>
+                  <option value="150">≤150元/h</option>
+                  <option value="200">≤200元/h</option>
+                  <option value="300">≤300元/h</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">最低评分</label>
+                <select class="filter-select" id="filter-rating" onchange="applyFilters()">
+                  <option value="">不限</option>
+                  <option value="4.5">4.5+</option>
+                  <option value="4.0">4.0+</option>
+                  <option value="3.5">3.5+</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="browse-list" id="teachers-list">
+            <div class="empty-state"><p>加载中...</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Browse Demands -->
+    <div class="dashboard hidden" id="view-browse-demands">
+      <div class="container">
+        <div class="browse-view">
+          <div class="browse-header">
+            <h2>📋 学生需求</h2>
+            <button class="btn btn-ghost btn-sm" onclick="showView('teacher-dashboard')">← 返回</button>
+          </div>
+          <div class="browse-list" id="demands-list">
+            <div class="empty-state"><p>加载中...</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Teacher Profile -->
+    <div class="dashboard hidden" id="view-edit-profile">
+      <div class="container">
+        <div class="browse-view">
+          <div class="browse-header">
+            <h2>📝 编辑教师信息</h2>
+            <button class="btn btn-ghost btn-sm" onclick="showView('teacher-dashboard')">← 返回</button>
+          </div>
+          <div class="browse-list">
+            <div id="profile-alert"></div>
+            <form onsubmit="handleSaveProfile(event)" class="profile-form">
+
+              <div class="form-group">
+                <label class="form-label">教师年级 <span class="req">*</span></label>
+                <select class="form-select" id="profile-grade" required><option value="">请选择</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">性别 <span class="req">*</span></label>
+                <select class="form-select" id="profile-gender" required><option value="">请选择</option></select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">擅长科目 <span class="req">*</span>（可多选）</label>
+                <div class="checkbox-grid" id="profile-subjects"></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">高考成绩 / 等第</label>
+                <div id="profile-gaokao-scores"><p class="text-sm text-muted">请先选择擅长科目</p></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">报价（元/小时）<span class="req">*</span></label>
+                <input type="number" class="form-input" id="profile-price" placeholder="如：150" min="0" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">微信号</label>
+                <input type="text" class="form-input" id="profile-wechat" placeholder="选填，便于学生联系你">
+              </div>
+              <div class="form-group">
+                <label class="form-label">邮箱</label>
+                <input type="email" class="form-input" id="profile-email" placeholder="选填">
+              </div>
+              <div class="form-actions">
+                <button type="button" class="btn btn-outline" onclick="showView('teacher-dashboard')">取消</button>
+                <button type="submit" class="btn btn-primary" id="profile-submit">保存</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div class="dashboard hidden" id="view-admin-dashboard">
+      <div class="container">
+        <div class="browse-view">
+          <div class="browse-header">
+            <h2>👑 管理面板</h2>
+            <button class="btn btn-ghost btn-sm" onclick="showView('teacher-dashboard')">← 返回</button>
+          </div>
+          <div class="browse-list" id="admin-content">
+            <div class="empty-state"><p>加载中...</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <script src="/constants.js"></script>
+  <script src="/app.js"></script>
+  <script>
+    /* 入场动效门控：等两张蒙版图 + 字体就绪后给 <html> 加 .site-ready，
+       避免"网页没加载好动画就播完"；2.5s 兜底防卡住。每次回到主页由 display 切换重排重放动画。 */
+    (function () {
+      var root = document.documentElement, fired = false, done = 0, need = 3;
+      function fire() { if (!fired) { fired = true; root.classList.add('site-ready'); } }
+      function tick() { if (++done >= need) fire(); }
+      ['/hand-mask.png', '/hand-mask-rot.png'].forEach(function (src) {
+        var im = new Image(); im.onload = im.onerror = tick; im.src = src;
+      });
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(tick); else tick();
+      setTimeout(fire, 2500);
+    })();
+  </script>
+</body>
+</html>
