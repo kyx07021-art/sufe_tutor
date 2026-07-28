@@ -177,12 +177,54 @@ globalThis.APP_CONSTANTS = {
     NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。',
     NOTIFY_SUBJECTS_FALLBACK: '相关科目',
 
-    // 管理员：系统通知广播（编辑器复用发帖组件）
+    // 管理员：系统通知广播（编辑器复用发帖组件：标题+正文）
     BTN_SEND_NOTIFICATION: '发通知',
     BROADCAST_MODAL_TITLE: '发送系统通知',
-    BROADCAST_BODY_PLACEHOLDER: '输入通知内容，全部用户都会收到（支持轻量 Markdown）',
+    BROADCAST_TITLE_PLACEHOLDER: '通知标题（推送时自动加【系统通知】前缀）',
+    BROADCAST_BODY_PLACEHOLDER: '输入通知正文，全部用户都会收到（支持轻量 Markdown）',
     VALIDATE_BROADCAST_EMPTY: '通知内容不能为空',
     BROADCAST_SENT_TOAST: '通知已发送给全部用户',
+
+    // 教师端浏览同行
+    PAGE_BROWSE_TEACHERS_PEER_DESC: '查看同行的信息与评价',
+
+    // 聊天窗合同状态灰字行
+    CHAT_CONTRACT_PENDING_SENT: '合同草案已发送，等待对方确认',
+    CHAT_CONTRACT_PENDING_RECEIVED: '对方发来一份合同草案，请前往「我的合同」查看并确认',
+    CHAT_CONTRACT_SIGNING_TODO: '草案已通过，请前往「我的合同」确认签约',
+    CHAT_CONTRACT_SIGNING_WAIT: '等待对方确认签约',
+    CHAT_CONTRACT_SIGNED: '双方已完成签约',
+    CHAT_BTN_DRAFT_CONTRACT: '起草合同',
+    CHAT_PLUS_ARIA: '附件与合同',
+
+    // 我的合同
+    PAGE_MY_CONTRACTS: '我的合同',
+    PAGE_MY_CONTRACTS_DESC: '合同草案确认与正式签约',
+    BTN_DRAFT_CONTRACT: '起草合同',
+    DRAFT_MODAL_TITLE: '起草合同',
+    LABEL_CONTRACT_METHOD: '教学方式',
+    LABEL_CONTRACT_PLAN: '教学方案',
+    LABEL_CONTRACT_RATE: '约定时薪（元/小时）',
+    VALIDATE_CONTRACT_PLAN: '请填写教学方案',
+    VALIDATE_CONTRACT_RATE: '请填写约定时薪',
+    CONTRACT_STATUS_PENDING: '草案待确认',
+    CONTRACT_STATUS_SIGNING: '待签约',
+    CONTRACT_STATUS_SIGNED: '已签约',
+    CONTRACT_WAIT_DRAFT: '等待对方确认草案',
+    BTN_CONFIRM_DRAFT: '确认草案',
+    BTN_SIGN: '确认签约',
+    BTN_SIGN_WAITING: '等待对方确认签约',
+    BTN_MODIFY_CONTRACT: '修改内容',
+    BTN_VIEW_CONTRACT: '查看合同',
+    BTN_CANCEL_CONTRACT: '取消签约',
+    MODIFY_CONTRACT_TITLE: '修改合同内容',
+    CONFIRM_SIGN: '确认签约后不可单方撤销（测试版以二次确认代替短信验证）。确定确认签约吗？',
+    CONFIRM_CANCEL_CONTRACT: '取消后合同删除并通知对方（会话保留）。确定取消签约吗？',
+    CONTRACT_EMPTY_LIST: '暂无合同——可在「我的沟通」的聊天窗内起草',
+    CONTRACT_DRAFT_CONFIRMED_TOAST: '已确认草案，进入签约环节',
+    CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',
+    CONTRACT_CANCELLED_TOAST: '已取消签约',
+    CONTRACT_SIGNED_TOAST: '签约完成',
 
     // 管理员：资料管理
     ADMIN_POSTS_EMPTY: '暂无帖子',
@@ -301,7 +343,7 @@ globalThis.APP_CONSTANTS = {
     POST_UNLIKED_TOAST: '已取消点赞',
     POST_MODAL_TITLE_CREATE: '发布帖子',
     POST_LABEL_TITLE: '标题',
-    POST_TITLE_PLACEHOLDER: '一句话概括分享内容（不超过 60 字）',
+    POST_TITLE_PLACEHOLDER: '一句话概括分享内容',
     POST_LABEL_BODY: '正文',
     POST_MD_BOLD: '加粗',
     POST_MD_IMAGE: '插入图片',

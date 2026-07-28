@@ -34,9 +34,9 @@ export async function notifyUser(db, userId, text) {
   }
 }
 
-// 管理员广播：一条 SELECT-INSERT 给全体用户各插一条（系统公告可较长，截断 500 字）；返回发送条数
+// 管理员广播：一条 SELECT-INSERT 给全体用户各插一条（公告含正文可较长，截断 2000 字）；返回发送条数
 export async function dbBroadcastNotification(db, text) {
-  const t = String(text || '').trim().slice(0, 500);
+  const t = String(text || '').trim().slice(0, 2000);
   if (!t) return 0;
   const res = await dbRun(db, 'INSERT INTO notifications (user_id, text) SELECT id, ? FROM users', [t]);
   return (res && res.meta && res.meta.changes) || 0;

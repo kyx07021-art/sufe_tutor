@@ -18,6 +18,10 @@ import {
   handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from './server/routes-demands.js';
 import { handleGetNotifications, handleMarkNotificationsRead } from './server/notify.js';
+import {
+  handleCreateContract, handleGetContractByConv, handleGetMyContracts,
+  handleConfirmDraft, handleSignContract, handleModifyContract, handleCancelContract,
+} from './server/contract.js';
 import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
@@ -87,6 +91,21 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, url);
   if (p === '/api/notifications/read' && method === 'POST') return await handleMarkNotificationsRead(db, body);
   if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);
+
+  // 合同（起草 → 确认草案 → 确认签约 → signed；测试版短信验证预留）
+  if (p === '/api/contracts' && method === 'POST') return await handleCreateContract(db, body, req);
+  if (p === '/api/contracts' && method === 'GET') return await handleGetContractByConv(db, url);
+  if (p === '/api/contracts/my' && method === 'GET') return await handleGetMyContracts(db, url);
+  const contractAction = p.match(/^\/api\/contracts\/(\d+)\/(confirm-draft|sign)$/);
+  if (contractAction && method === 'POST') {
+    const cid = parseInt(contractAction[1]);
+    return contractAction[2] === 'sign'
+      ? await handleSignContract(db, cid, body, req)
+      : await handleConfirmDraft(db, cid, body, req);
+  }
+  const contractById = p.match(/^\/api\/contracts\/(\d+)$/);
+  if (contractById && method === 'PUT') return await handleModifyContract(db, parseInt(contractById[1]), body, req);
+  if (contractById && method === 'DELETE') return await handleCancelContract(db, parseInt(contractById[1]), body, req);
 
   // 站内沟通
   if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url);

@@ -654,11 +654,15 @@ textarea.form-input {
 .sidebar-item.active .sidebar-item-descwrap { grid-template-rows: 1fr; }
 .sidebar-item.active .sidebar-item-desc { color: var(--paper-ghost); padding-top: 6px; }
 
-/* 用户信息：写死在侧边栏盒底（静态 flex 末位，不参与滚动、不随内容变化位移） */
+/* 用户信息：写死在侧边栏盒底（静态 flex 末位，不参与滚动、不随内容变化位移）；
+   最左圆形头像 + 右侧 id/属性 */
 .sidebar-user {
   position: relative; z-index: 1; flex-shrink: 0;
-  background: var(--white); padding: 15px 20px 17px;
+  display: flex; align-items: center; gap: 12px;
+  background: var(--white); padding: 13px 18px 15px;
 }
+.sidebar-user-avatar { width: 42px; height: 42px; font-size: 1.15rem; }
+.sidebar-user-text { min-width: 0; }
 .sidebar-user-name { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; overflow-wrap: anywhere; }
 .sidebar-user-role { margin-top: 3px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .1em; }
 
@@ -696,6 +700,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 #client-main:has(.client-page--flush:not(.hidden)) { padding: 0; overflow: hidden; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .page-header h2 { font-size: 1.35rem; font-weight: 900; letter-spacing: -.02em; color: var(--ink); }
+
+/* 合同卡按钮行：签约/修改/查看在左，取消签约在同行的页面另一侧 */
+.contract-actions { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.contract-actions-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* 卡片浮入：通知/需求/教师信息卡统一动效（app.js initReveals 注入 .reveal 与错峰延迟） */
 .reveal {
@@ -755,10 +763,11 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 开关右上角红点：待处理意向等未读标记 */
 .corner-dot { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 
-/* 通用展开容器：grid-rows 0fr→1fr 开合动效（筛选栏等统一走这套） */
+/* 通用展开容器：grid-rows 0fr→1fr 开合动效（筛选栏等统一走这套）。
+   内容须包在无内边距的 .drop-clip 内——带 padding 的子项在 0fr 态会泄漏高度 */
 .drop-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s var(--ease-snap); }
 .drop-wrap.open { grid-template-rows: 1fr; }
-.drop-wrap > * { overflow: hidden; min-height: 0; }
+.drop-clip { overflow: hidden; min-height: 0; }
 
 /* 侧边栏「我的沟通」未读红点（语义圆点，全站唯一圆形元素之一） */
 .sidebar-dot { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: var(--danger); }

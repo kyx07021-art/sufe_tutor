@@ -154,14 +154,17 @@ export async function handleAdminLogs(db, url) {
   return json(result);
 }
 
-// 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件，支持轻量 Markdown）
+// 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件：标题+正文，
+// 推送时标题加【系统通知】前缀）
 export async function handleAdminBroadcast(db, body, req) {
   const admin = await requireAdmin(db, body.username);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const title = String(body.title || '').trim();
   const text = String(body.text || '').trim();
   if (!text) return error(MSG.BROADCAST_EMPTY);
-  const count = await dbBroadcastNotification(db, text);
+  const message = title ? `【系统通知】${title}\n${text}` : text;
+  const count = await dbBroadcastNotification(db, message);
   logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
-    actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: text.length }, req });
+    actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: message.length }, req });
   return json({ ok: true, count });
 }

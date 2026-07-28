@@ -217,6 +217,7 @@
             <button type="button" class="drop-toggle" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
           </div>
           <div class="drop-wrap" id="teacher-filters">
+          <div class="drop-clip">
           <div class="filter-panel">
             <div class="filter-row">
               <div class="filter-group">
@@ -254,6 +255,7 @@
                 </select>
               </div>
             </div>
+          </div>
           </div>
           </div>
           <div class="browse-list" id="teachers-list">
@@ -375,6 +377,12 @@
         <section class="client-page client-page--flush hidden" data-page="my-chats">
           <div class="page-header"><h2>我的沟通</h2></div>
           <div id="chats-content"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 学生+教师：我的合同（草案确认 / 正式合同预览修改 / 双方签约） -->
+        <section class="client-page hidden" data-page="my-contracts">
+          <div class="page-header"><h2>我的合同</h2></div>
+          <div class="browse-list" id="my-contracts-list"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
 
         <!-- 全角色：通知信息（拒绝/退回等节点的委婉提醒，源码 notify.js 推送维护） -->

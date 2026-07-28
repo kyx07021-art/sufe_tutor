@@ -46,6 +46,14 @@ function enterMyChats() {
         ${renderChatPlaceholder()}
       </section>
     </div>`;
+  // 加号弹层「点外面关闭」：全局只绑一次（切页重建 shell 不影响 document 级监听）
+  if (!window._chatPlusBound) {
+    window._chatPlusBound = true;
+    document.addEventListener('click', e => {
+      const w = document.getElementById('chat-plus-wrap');
+      if (w && !e.target.closest('.chat-plus-wrap')) w.classList.remove('open');
+    });
+  }
   loadConversations();
 }
 
@@ -148,6 +156,7 @@ function chatBumpConvPreview(convId, lastMsg) {
 // 右栏：打开会话 / 渲染聊天窗
 // ============================================================
 async function openConversation(convId) {
+  closeChatPlus();            // 切会话先收拢加号弹层
   stopChatPolling();          // 清掉上一段会话的定时器与状态
   chatConvId = convId;
 
@@ -162,6 +171,7 @@ async function openConversation(convId) {
   if (!pane) return;
   const conv = chatConvList.find(c => c.id === convId);
   pane.innerHTML = renderChatFrame(conv);
+  loadChatContract(convId); // 合同状态灰字行与消息并行加载
 
   try {
     const data = await api(`/api/conversations/${convId}/messages?userId=${state.user.id}`);
@@ -202,14 +212,23 @@ function renderChatFrame(conv) {
       </div>
     </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
+    <div class="chat-contract-line" id="chat-contract-line"></div>
     <div class="chat-input-bar${closed ? ' chat-input-bar--closed' : ''}">
       ${closed
         ? `<p class="chat-closed-tip">${UI.CHAT_CLOSED_TIP}</p>`
-        : `<button type="button" class="chat-attach" onclick="chatTodo()">${UI.CHAT_ATTACH_IMAGE}</button>
-           <button type="button" class="chat-attach" onclick="chatTodo()">${UI.CHAT_ATTACH_FILE}</button>
-           <textarea id="chat-input" class="form-input chat-textarea" rows="1"
+        : `<textarea id="chat-input" class="form-input chat-textarea" rows="1"
              placeholder="${UI.CHAT_INPUT_PLACEHOLDER}"
              onkeydown="chatInputKeydown(event)" oninput="chatAutogrow(this)"></textarea>
+           <div class="chat-plus-wrap" id="chat-plus-wrap">
+             <div class="chat-plus-pop">
+               <button type="button" class="chat-pop-item" onclick="chatTodo()">${UI.CHAT_ATTACH_IMAGE}</button>
+               <button type="button" class="chat-pop-item" onclick="chatTodo()">${UI.CHAT_ATTACH_FILE}</button>
+               <button type="button" class="chat-pop-item" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
+             </div>
+             <button type="button" class="chat-plus-btn" aria-label="${UI.CHAT_PLUS_ARIA}" onclick="toggleChatPlus()">
+               <span class="plus-bar plus-h"></span><span class="plus-bar plus-v"></span>
+             </button>
+           </div>
            <button type="button" class="btn btn-primary btn-sm chat-send" id="chat-send-btn" onclick="sendChatMessage()">${UI.CHAT_BTN_SEND}</button>`}
     </div>`;
 }
@@ -343,6 +362,29 @@ function chatAutogrow(ta) {
 // 图片 / 文件占位按钮：服务端 kind 暂未开放（501），前端先给预期提示
 function chatTodo() {
   showToast(UI.CHAT_TODO_TOAST);
+}
+
+// ---------- 加号弹层（附件 + 起草合同）----------
+function toggleChatPlus() { document.getElementById('chat-plus-wrap').classList.toggle('open'); }
+function closeChatPlus() { const w = document.getElementById('chat-plus-wrap'); if (w) w.classList.remove('open'); }
+function chatPlusDraft() { closeChatPlus(); if (chatConvId) openContractDraftModal(chatConvId); }
+
+// 合同状态灰字行：随会话加载，按 草案/签约/已签 + 是否起草方 + 我方是否已确认 取文案
+function contractLineText(c) {
+  const iAmDrafter = c.drafter_user_id === state.user.id;
+  const myConfirmed = iAmDrafter ? c.drafter_confirmed : c.other_confirmed;
+  if (c.status === 'pending') return iAmDrafter ? UI.CHAT_CONTRACT_PENDING_SENT : UI.CHAT_CONTRACT_PENDING_RECEIVED;
+  if (c.status === 'signing') return myConfirmed ? UI.CHAT_CONTRACT_SIGNING_WAIT : UI.CHAT_CONTRACT_SIGNING_TODO;
+  return UI.CHAT_CONTRACT_SIGNED;
+}
+async function loadChatContract(convId) {
+  const el = document.getElementById('chat-contract-line');
+  if (!el) return;
+  try {
+    const data = await api(`/api/contracts?conversationId=${convId}`);
+    if (chatConvId !== convId) return; // 会话已切走，丢弃过期响应
+    el.innerHTML = data.contract ? `<p class="chat-contract-line-text">${escHtml(contractLineText(data.contract))}</p>` : '';
+  } catch { /* 静默 */ }
 }
 
 // 移动端：从聊天窗返回会话列表（会话保持打开，轮询继续，预览照常刷新）

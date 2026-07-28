@@ -100,7 +100,7 @@
 .chat-head {
   display: flex; align-items: center; gap: 14px;
   padding: 12px 18px;
-  background: var(--field);
+  background: var(--paper); /* 与会话列表同底色，输入区亦 --paper，仅消息区点阵白 */
 }
 .chat-head-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .chat-peer-name {
@@ -182,18 +182,32 @@
   background: var(--paper);
 }
 
-/* 图片 / 文件占位按钮：与资料共享 md 工具条同源（灰底，悬停整块擦墨） */
-.chat-attach {
-  flex-shrink: 0;
-  padding: 9px 13px;
-  background: var(--field); color: var(--ink-3);
-  font-size: .78rem; font-weight: 700; letter-spacing: .02em;
-  transition: background-color var(--t-fast) var(--ease-out),
-              color var(--t-fast) var(--ease-out),
-              transform var(--t-fast) var(--ease-out);
+/* ---------- 合同状态灰字行（消息区与输入区之间） ---------- */
+.chat-contract-line { background: var(--paper); padding: 0 18px; }
+.chat-contract-line-text { padding: 7px 0; font-size: .72rem; color: var(--muted); text-align: center; letter-spacing: .02em; }
+
+/* ---------- 加号弹层（附件 / 起草合同），发送键左侧 ---------- */
+.chat-plus-wrap { position: relative; flex-shrink: 0; }
+.chat-plus-btn {
+  position: relative; width: 40px; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--field); color: var(--ink);
+  transition: background-color var(--t-fast, .16s) ease-out, color var(--t-fast, .16s) ease-out;
 }
-.chat-attach:hover { background: var(--ink); color: var(--paper); }
-.chat-attach:active { transform: translateY(1px); transition-duration: 80ms; }
+.chat-plus-btn:hover { background: var(--ink); color: var(--paper); }
+.plus-bar { position: absolute; width: 14px; height: 2px; background: currentColor; transition: transform .28s cubic-bezier(.16,1,.3,1); }
+.plus-v { transform: rotate(90deg); }
+.chat-plus-wrap.open .plus-v { transform: rotate(0deg); } /* 竖 bar 转水平，+ 变 − */
+.chat-plus-pop {
+  position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 40;
+  min-width: 140px; padding: 4px;
+  background: var(--white); border: 1px solid var(--paper-3);
+  opacity: 0; visibility: hidden; transform: translateY(6px);
+  transition: opacity .18s ease-out, transform .22s cubic-bezier(.16,1,.3,1), visibility 0s .22s;
+}
+.chat-plus-wrap.open .chat-plus-pop { opacity: 1; visibility: visible; transform: none; transition: opacity .18s ease-out, transform .22s cubic-bezier(.16,1,.3,1), visibility 0s 0s; }
+.chat-pop-item { display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: .84rem; color: var(--ink-3); transition: background-color .16s ease-out, color .16s ease-out; }
+.chat-pop-item:hover { background: var(--paper-2); color: var(--ink); }
 
 textarea.chat-textarea {
   flex: 1; min-width: 0; width: auto;

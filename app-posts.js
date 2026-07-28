@@ -133,7 +133,8 @@ function openPostEditor() {
         <div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE} <span class="req">*</span></label>
-          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.POST_TITLE_PLACEHOLDER}">
+          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.POST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
+          <span class="title-count" id="post-title-count">0/60</span>
         </div>
         <div class="form-group">
           <label class="form-label" for="post-body">${UI.POST_LABEL_BODY}</label>
@@ -332,6 +333,16 @@ async function deletePost(id) {
 }
 
 // ============================================================
+// 标题字数计数：最右灰色小字 n/60，超 55 变红，超 60 截断
+function updateTitleCount() {
+  const inp = document.getElementById('post-title');
+  const el = document.getElementById('post-title-count');
+  if (!inp || !el) return;
+  if (inp.value.length > 60) inp.value = inp.value.slice(0, 60);
+  el.textContent = `${inp.value.length}/60`;
+  el.classList.toggle('over', inp.value.length > 55);
+}
+
 // 管理员系统通知广播：复用发帖组件的 Markdown 编辑器（同一套 ID，弹窗互斥不冲突）
 // ============================================================
 function openBroadcastModal() {
@@ -340,6 +351,11 @@ function openBroadcastModal() {
       <div class="modal-header"><h2>${UI.BROADCAST_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
+        <div class="form-group">
+          <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
+          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.BROADCAST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
+          <span class="title-count" id="post-title-count">0/60</span>
+        </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_LABEL_BODY}</label>
           <div class="md-toolbar">
@@ -369,13 +385,16 @@ function openBroadcastModal() {
 }
 
 async function submitBroadcast() {
+  const title = (document.getElementById('post-title').value || '').trim();
   const text = (document.getElementById('post-body').value || '').trim();
   const alertEl = document.getElementById('post-alert');
+  if (!title) { alertEl.innerHTML = `<div class="alert alert-error">${UI.POST_TITLE_REQUIRED}</div>`; return; }
   if (!text) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_BROADCAST_EMPTY}</div>`; return; }
   const btn = document.getElementById('broadcast-submit');
   btn.disabled = true;
   try {
-    await api('/api/notifications/broadcast', { method: 'POST', body: { username: state.user.username, text } });
+    // 服务端给标题加【系统通知】前缀后群发
+    await api('/api/notifications/broadcast', { method: 'POST', body: { username: state.user.username, title, text } });
     closeModal();
     showToast(UI.BROADCAST_SENT_TOAST);
     if (state.page === 'notifications') enterNotifications(); // 自己也收一条，列表即时刷新

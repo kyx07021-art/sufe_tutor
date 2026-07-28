@@ -13,6 +13,22 @@ import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块
 // ============================================================
 // 数据库初始化 + 迁移
 // ============================================================
+// 合同表 DDL（新 schema：一条会话一份合同，草案→签约状态机）
+const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversation_id INTEGER NOT NULL,
+  drafter_user_id INTEGER NOT NULL,
+  method TEXT NOT NULL DEFAULT 'online',
+  plan TEXT NOT NULL DEFAULT '',
+  hourly_rate INTEGER NOT NULL DEFAULT 0,
+  contract_md TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','signing','signed')),
+  drafter_confirmed INTEGER NOT NULL DEFAULT 0,
+  other_confirmed INTEGER NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT (datetime('now','localtime')),
+  updated_at DATETIME DEFAULT (datetime('now','localtime')),
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`;
+
 export async function initDb(db) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
@@ -49,15 +65,8 @@ export async function initDb(db) {
       reviewed_at DATETIME, reviewed_by INTEGER,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-    // 签约关系（预留：签约机制未上线前此表恒空，评价门槛经 dbIsContracted 查本表）
-    db.prepare(`CREATE TABLE IF NOT EXISTS contracts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','ended')),
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
-      UNIQUE(student_user_id, teacher_user_id),
-      FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // 合同（草案→签约全链路，见 server/contract.js；signed 状态即评价门槛 dbIsContracted 的放行条件）
+    db.prepare(CONTRACTS_DDL),
     db.prepare(`CREATE TABLE IF NOT EXISTS invite_codes (
       code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
       created_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -119,6 +128,14 @@ export async function initDb(db) {
       FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
   ]);
+
+  // 合同表 schema 迁移：旧预留表（student/teacher 直连 + active/ended 状态）从未启用过，
+  // 检测到旧形状即整体换新（旧表恒空，无数据损失）
+  const ctCols = (await db.prepare('PRAGMA table_info(contracts)').all()).results || [];
+  if (ctCols.length && !ctCols.some(c => c.name === 'conversation_id')) {
+    await dbRun(db, 'DROP TABLE contracts');
+    await dbRun(db, CONTRACTS_DDL);
+  }
 
   // 一人一评唯一索引（幂等）；旧数据若有重复对则建不上，回落路由层成对检查，不阻塞启动
   try {
@@ -557,11 +574,11 @@ export async function dbUpdateReview(db, reviewId, rating, comment) {
     [rating, comment, reviewId]);
 }
 
-// 签约门槛查询（预留接口）：签约机制上线前 contracts 恒空 → 一律不可评价，
-// 上线后只需往本表写数据，评价门禁自动生效
+// 签约门槛查询：该师生会话存在 status='signed' 的合同即放行评价
 export async function dbIsContracted(db, studentUserId, teacherUserId) {
   return !!(await dbGet(db,
-    "SELECT 1 FROM contracts WHERE student_user_id=? AND teacher_user_id=? AND status='active'",
+    `SELECT ct.id FROM contracts ct JOIN conversations c ON c.id = ct.conversation_id
+     WHERE c.student_user_id=? AND c.teacher_user_id=? AND ct.status='signed' LIMIT 1`,
     [studentUserId, teacherUserId]));
 }
 
