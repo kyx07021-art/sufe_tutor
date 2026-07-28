@@ -235,9 +235,9 @@ function renderChatFrame(conv) {
                  <button type="button" class="chat-pop-item" onclick="chatPickImage()">${UI.CHAT_ATTACH_IMAGE}</button>
                  <button type="button" class="chat-pop-item" onclick="chatPickFile()">${UI.CHAT_ATTACH_FILE}</button>
                  <button type="button" class="chat-pop-item" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
-                 <input type="file" id="chat-image-input" accept="image/*" class="hidden" onchange="chatOnImagePicked(this)">
-                 <input type="file" id="chat-file-input" class="hidden" onchange="chatOnFilePicked(this)">
                </div>
+               <input type="file" id="chat-image-input" accept="image/*" class="sr-file-input" onchange="chatOnImagePicked(this)">
+               <input type="file" id="chat-file-input" class="sr-file-input" onchange="chatOnFilePicked(this)">
                <button type="button" class="chat-plus-btn" aria-label="${UI.CHAT_PLUS_ARIA}" onclick="toggleChatPlus()">
                  <span class="plus-bar plus-h"></span><span class="plus-bar plus-v"></span>
                </button>

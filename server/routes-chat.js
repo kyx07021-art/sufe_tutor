@@ -3,7 +3,7 @@
  * 消息内容按模块5要求全量留档（detail 含正文，走 logEvent 咽喉，后期统一加密）
  * 图片/文件：schema 已预留 kind，发送端暂返回 FEATURE_TODO
  */
-import { json, error, dbGet, MSG } from './core.js';
+import { json, error, dbGet, dbRun, MSG } from './core.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage, dbMarkConversationRead,
 } from './db.js';

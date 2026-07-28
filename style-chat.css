@@ -262,6 +262,8 @@
 
 /* ---------- 加号弹层（附件 / 起草合同），发送键左侧 ---------- */
 .chat-plus-wrap { position: relative; flex-shrink: 0; }
+/* 隐藏文件选择框：禁用 display:none（iOS 无法程序化触发），1px 透明离屏占位 */
+.sr-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; pointer-events: none; }
 .chat-plus-btn {
   position: relative; width: 40px; height: 40px;
   display: inline-flex; align-items: center; justify-content: center;
