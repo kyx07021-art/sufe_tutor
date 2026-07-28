@@ -61,6 +61,80 @@ const ROLE_PAGES = {
 // 统一下拉开关的 v 形箭头（drop-toggle 共用，currentColor 随文字变色）
 const CARET_SVG = '<svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>';
 
+// ============================================================
+// 统一下拉组件：替换原生 <select> 的丑弹层。
+// 透明触发器 + v 形箭头（开合翻转），选项面板白底细边、选中项墨色实填，
+// 原生 select 隐藏保留（id/value/onchange 语义不变，点选项后派发 change）。
+// ============================================================
+function initCustomSelects(root) {
+  (root || document).querySelectorAll('select.form-select, select.filter-select').forEach(sel => {
+    if (sel.dataset.customized) { buildCustomSelectPanel(sel); return; } // 已包装：仅重建选项
+    sel.dataset.customized = '1';
+    const wrap = document.createElement('div');
+    wrap.className = 'custom-select';
+    sel.insertAdjacentElement('afterend', wrap);
+    wrap.appendChild(sel); // select 移入包装层，id 全局仍可寻址
+    sel.classList.add('hidden');
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'custom-select-trigger';
+    trigger.setAttribute('onclick', 'toggleCustomSelect(this.closest(".custom-select"))');
+    trigger.innerHTML = `<span class="custom-select-text"></span><span class="drop-caret">${CARET_SVG}</span>`;
+    const panel = document.createElement('div');
+    panel.className = 'custom-select-panel';
+    wrap.append(trigger, panel);
+    buildCustomSelectPanel(sel);
+    // 选项被动态重填（省份/年级等 innerHTML 重写）时自动重建面板
+    new MutationObserver(() => buildCustomSelectPanel(sel)).observe(sel, { childList: true });
+  });
+}
+
+function buildCustomSelectPanel(sel) {
+  const wrap = sel.closest('.custom-select');
+  if (!wrap) return;
+  wrap.querySelector('.custom-select-panel').innerHTML = [...sel.options].map(o =>
+    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
+  syncCustomSelectText(sel);
+}
+
+function syncCustomSelectText(sel) {
+  const wrap = sel.closest('.custom-select');
+  if (!wrap) return;
+  const text = wrap.querySelector('.custom-select-text');
+  const o = sel.options[sel.selectedIndex];
+  text.textContent = o ? o.textContent : '';
+  text.classList.toggle('custom-select-empty', !sel.value);
+  wrap.querySelectorAll('.custom-option').forEach(b => b.classList.toggle('selected', b.dataset.value === sel.value));
+}
+
+function toggleCustomSelect(wrap) {
+  if (!wrap) return;
+  const wasOpen = wrap.classList.contains('open');
+  closeAllCustomSelects();
+  if (!wasOpen) wrap.classList.add('open');
+}
+function closeAllCustomSelects() {
+  document.querySelectorAll('.custom-select.open').forEach(w => w.classList.remove('open'));
+}
+// 点空白处收起；点选项写回原生 select 并派发 change（内联 onchange 照常触发）
+document.addEventListener('click', e => {
+  const opt = e.target.closest('.custom-option');
+  if (opt) {
+    const wrap = opt.closest('.custom-select');
+    const sel = wrap && wrap.querySelector('select');
+    if (sel) {
+      if (sel.value !== opt.dataset.value) {
+        sel.value = opt.dataset.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      wrap.classList.remove('open');
+      syncCustomSelectText(sel);
+    }
+    return;
+  }
+  if (!e.target.closest('.custom-select')) closeAllCustomSelects();
+});
+
 // 内联 onclick 里插值的字符串参数一律过此函数，防引号击穿
 function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c =>
@@ -521,6 +595,7 @@ function initDemandForm(selectedProvince) {
   onDemandProvinceChange(); // 初始即执行：未选省份也给提示、锁线上、科目池给出引导文案
   document.getElementById('d-subjects').addEventListener('change', updateDemandScores);
   toggleAddressField(); // 初始化地址字段可见性
+  initCustomSelects(document.getElementById('demand-form')); // 省份/年级/性别/方式/身份下拉统一换自定义组件
 }
 
 // 编辑需求时回填表单（复用提交需求组件）。
@@ -565,6 +640,8 @@ function prefillStudentScores(scores) {
       if (inp) inp.value = cs.score;
     }
   });
+  // 程序回填不派发 change：手动同步自定义下拉的触发器文字
+  document.querySelectorAll('#demand-form select').forEach(syncCustomSelectText);
 }
 
 // checkbox state is now handled by pure CSS (:checked + :has)
@@ -1486,6 +1563,7 @@ function initProfileForm() {
       lab.insertAdjacentHTML('beforeend', `<span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>`);
     }
   });
+  initCustomSelects(document.querySelector('.profile-form')); // 省份/年级/性别下拉统一换自定义组件
   loadProfile();
 }
 
@@ -1512,7 +1590,10 @@ async function loadProfile() {
         document.getElementById('profile-province').value = p.province;
         document.getElementById('profile-gaokao-scores').innerHTML =
           renderTeacherGaokaoEditor(p.province, p.gaokao_scores || []);
+        initCustomSelects(document.getElementById('profile-gaokao-scores'));
       }
+      // 程序回填不派发 change：手动同步自定义下拉的触发器文字
+      document.querySelectorAll('.profile-form select').forEach(syncCustomSelectText);
     }
   } catch (err) { console.error(err); }
 }
@@ -1757,5 +1838,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch {
     localStorage.removeItem('sufe_session'); // 登录失败清理
   }
+  initCustomSelects(); // 静态页面上的筛选/评价状态下拉统一换自定义组件
   showView('landing');
 });

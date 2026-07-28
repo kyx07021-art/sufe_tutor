@@ -464,6 +464,47 @@ textarea.form-input {
   padding-right: 24px;
 }
 
+/* ============================================================
+   自定义下拉组件（app.js initCustomSelects 包装原生 select）：
+   透明触发器 + v 形箭头开合翻转；选项面板白底细边、无投影无圆角，
+   悬停米色微变、选中项墨色实填——与全站选择语言同源。
+   ============================================================ */
+.custom-select { position: relative; }
+.form-group .custom-select, .filter-group .custom-select { flex: 1 1 0; min-width: 0; width: 100%; }
+.gaokao-row .custom-select { flex: 1; min-width: 110px; }
+.custom-select-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  width: 100%; padding: 8px 2px;
+  background: transparent; cursor: pointer;
+  font-size: .92rem; color: var(--text); text-align: left;
+  transition: color var(--t-fast) var(--ease-out);
+}
+.filter-group .custom-select-trigger { font-size: .8rem; }
+.custom-select-trigger:hover { color: var(--ink); }
+.custom-select-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.custom-select-empty { color: var(--faint); }
+.custom-select-trigger .drop-caret { color: var(--faint); flex-shrink: 0; transition: transform .28s var(--ease-snap), color var(--t-fast) var(--ease-out); }
+.custom-select.open .drop-caret { transform: rotate(180deg); color: var(--ink); }
+.custom-select-panel {
+  position: absolute; top: 100%; left: 0; right: 0; z-index: 40;
+  margin-top: 6px; padding: 4px;
+  background: var(--white); border: 1px solid var(--paper-3);
+  max-height: 264px; overflow-y: auto;
+  opacity: 0; visibility: hidden; transform: translateY(-6px);
+  transform-origin: top center;
+  transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s .22s;
+}
+.custom-select.open .custom-select-panel { opacity: 1; visibility: visible; transform: none; transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s 0s; }
+.custom-select-panel::-webkit-scrollbar { width: 6px; }
+.custom-select-panel::-webkit-scrollbar-thumb { background: var(--paper-3); }
+.custom-option {
+  display: block; width: 100%; text-align: left; cursor: pointer;
+  padding: 8px 12px; font-size: .84rem; color: var(--ink-3);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+.custom-option:hover { background: var(--paper-2); color: var(--ink); }
+.custom-option.selected { background: var(--ink); color: var(--paper); }
+
 .checkbox-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .checkbox-item {
   display: flex; align-items: center; gap: 8px; padding: 8px 10px;

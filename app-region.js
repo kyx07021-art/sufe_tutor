@@ -249,6 +249,7 @@ function onTeacherProvinceChange() {
   const el = document.getElementById('profile-gaokao-scores');
   if (!sel || !el) return;
   el.innerHTML = renderTeacherGaokaoEditor(sel.value, []);
+  if (typeof initCustomSelects === 'function') initCustomSelects(el); // 等第下拉（21 档省份）换自定义组件
 }
 
 // 擅长科目勾选变化：按新勾选集重渲编辑器。先收集当前输入作为 existing 回填，
@@ -259,6 +260,7 @@ function onTeacherSubjectsChange() {
   if (!el) return;
   const existing = collectTeacherGaokao();
   el.innerHTML = renderTeacherGaokaoEditor(sel ? sel.value : '', existing);
+  if (typeof initCustomSelects === 'function') initCustomSelects(el); // 重建后的等第下拉换自定义组件
 }
 
 // 单选 pill 通用切换（首选科目 / 文理分科共用 .gk-pill-group 容器）
