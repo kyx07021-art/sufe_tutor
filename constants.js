@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.10.0',
+  APP_VERSION: '0.11.0',
 
   // ============================================================
   // 业务数据
@@ -292,14 +292,12 @@ globalThis.APP_CONSTANTS = {
     ABOUT_WHO_TITLE: '我们是谁',
     ABOUT_WHO_TEXT: '我们是一群来自上海财经大学的学生，创立了这个零佣金家教信息共享平台。教师零佣金入驻，学生免费发布需求，没有中间商赚差价，师生直接对接，让每一次教学匹配都透明、高效。',
     ABOUT_USAGE_TITLE: '平台基本用法',
-    ABOUT_USAGE_1_TITLE: '学生：发布需求',
-    ABOUT_USAGE_1_TEXT: '在「我的需求」填写省份、年级、科目与预算，需求会展示在教师的需求大厅，等候合适的教师接单。',
-    ABOUT_USAGE_2_TITLE: '学生：挑选教师',
-    ABOUT_USAGE_2_TEXT: '在「浏览教师」按性别、科目、报价筛选教师，查看详情与评价；看中的教师可以直接把需求发送给 TA。',
-    ABOUT_USAGE_3_TITLE: '教师：浏览需求与接单',
-    ABOUT_USAGE_3_TEXT: '教师在「需求大厅」查看学生需求，提交试课意向，或回应学生主动推送的需求；完善个人档案能获得更多曝光。',
-    ABOUT_USAGE_4_TITLE: '沟通 · 签约 · 评价',
-    ABOUT_USAGE_4_TEXT: '意向通过后双方在「我的沟通」聊天，可在聊天窗起草电子合同，双方确认后完成签约；签约完成后学生可对教师作出评价。',
+    // 平台基本用法：学生签约完整流程（流程图五步，编号圆圈 + 连线展示）
+    ABOUT_FLOW_STEP_1: '发布需求：填写年级、科目与预算，发布你的家教需求',
+    ABOUT_FLOW_STEP_2: '对接教师：把需求直接发给心仪的教师，或等待教师发来试课意向',
+    ABOUT_FLOW_STEP_3: '确认开聊：对方确认后自动开启会话，在站内沟通课程细节',
+    ABOUT_FLOW_STEP_4: '起草合同：在会话中起草家教服务合同，约定时间、地点与课时费',
+    ABOUT_FLOW_STEP_5: '双方签约：到「我的合同」确认签署，按约开始上课',
     ABOUT_SUPPORT_TITLE: '用户支持',
     ABOUT_SUPPORT_OWNER: '平台负责人：康同学',
     ABOUT_SUPPORT_WECHAT: '微信：13524121020',

@@ -1966,14 +1966,15 @@ function renderNotifContent(text) {
 // 关于我们（全角色）：三张白色卡片——我们是谁 / 平台基本用法 / 用户支持（反馈 Bug / 建议）
 // ============================================================
 function enterAbout() {
-  const usage = [
-    [UI.ABOUT_USAGE_1_TITLE, UI.ABOUT_USAGE_1_TEXT],
-    [UI.ABOUT_USAGE_2_TITLE, UI.ABOUT_USAGE_2_TEXT],
-    [UI.ABOUT_USAGE_3_TITLE, UI.ABOUT_USAGE_3_TEXT],
-    [UI.ABOUT_USAGE_4_TITLE, UI.ABOUT_USAGE_4_TEXT],
-  ].map(([t, x]) => `<div class="about-usage-item">
-      <div class="about-usage-title">${escHtml(t)}</div>
-      <p class="about-usage-text">${escHtml(x)}</p>
+  // 学生签约完整流程：纵向数字圆圈 + 细连线 + 每步一句话（无小标题/分隔线，流程图样式）
+  const steps = [
+    UI.ABOUT_FLOW_STEP_1, UI.ABOUT_FLOW_STEP_2, UI.ABOUT_FLOW_STEP_3, UI.ABOUT_FLOW_STEP_4, UI.ABOUT_FLOW_STEP_5,
+  ].map((s, i, arr) => `<div class="about-flow-step">
+      <div class="about-flow-rail">
+        <span class="about-flow-dot">${i + 1}</span>
+        ${i < arr.length - 1 ? '<span class="about-flow-line"></span>' : ''}
+      </div>
+      <p class="about-flow-text">${escHtml(s)}</p>
     </div>`).join('');
   document.getElementById('about-content').innerHTML = `
     <div class="list-card about-card">
@@ -1985,7 +1986,7 @@ function enterAbout() {
     </div>
     <div class="list-card about-card-block">
       <h3 class="about-title">${UI.ABOUT_USAGE_TITLE}</h3>
-      <div class="about-usage">${usage}</div>
+      <div class="about-flow">${steps}</div>
     </div>
     <div class="list-card about-card-block">
       <h3 class="about-title">${UI.ABOUT_SUPPORT_TITLE}</h3>

@@ -1228,6 +1228,14 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .settings-deactivate { margin-top: 14px; }
 .username-deactivated { color: var(--muted); font-style: italic; } /* 已注销用户墓碑样式 */
 .danger-warn { font-size: .84rem; line-height: 1.75; color: var(--ink-3); } /* 危险操作弹窗的说明正文 */
+/* 关于我们：纵向流程图（编号圆圈 + 圆间细连线 + 右侧简述），连线 min-height 保底不过短 */
+.about-flow { display: flex; flex-direction: column; padding: 4px 2px 0; }
+.about-flow-step { display: flex; gap: 14px; }
+.about-flow-rail { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.about-flow-dot { width: 30px; height: 30px; border: 1.5px solid var(--ink); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: .78rem; font-weight: 700; color: var(--ink); background: var(--white); }
+.about-flow-line { width: 1.5px; flex: 1; min-height: 28px; margin: 5px 0; background: var(--line); }
+.about-flow-text { margin: 4px 0 20px; font-size: .86rem; line-height: 1.65; color: var(--ink-3); }
+.about-flow-step:last-child .about-flow-text { margin-bottom: 2px; }
 .flex { display: flex; }
 
 /* ---------- 尊重减弱动效偏好 ---------- */
