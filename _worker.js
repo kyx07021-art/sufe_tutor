@@ -33,6 +33,37 @@ import {
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 
+// ============================================================
+// 频次限制 + 异常 IP 封锁（模块级内存表，per-isolate best-effort：
+// workerd 实例重启即清零——误伤自愈，攻击者打满也扛不过实例轮换。
+// 公测要持久化限流再上 KV / Cloudflare Rate Limiting，见 docs/secrets-plan.md 同系规划）
+// ============================================================
+const RL = { hits: new Map(), strikes: new Map(), blocked: new Map() };
+const rlSweep = now => {
+  if (RL.hits.size < 4096) return;
+  for (const [k, v] of RL.hits) if (v.reset < now) RL.hits.delete(k);
+  for (const [k, until] of RL.blocked) if (until < now) RL.blocked.delete(k);
+};
+const rlBump = (key, limit, windowMs, now) => {
+  let e = RL.hits.get(key);
+  if (!e || e.reset < now) { e = { n: 0, reset: now + windowMs }; RL.hits.set(key, e); }
+  return ++e.n <= limit;
+};
+const rlStrike = (ip, now) => {
+  const n = (RL.strikes.get(ip) || 0) + 1;
+  RL.strikes.set(ip, n);
+  if (n >= 3) { RL.blocked.set(ip, now + 15 * 60 * 1000); RL.strikes.delete(ip); } // 10 分钟内 3 次超限 → 封 15 分钟
+};
+// 闸门：全局 300 次/分（含静态）；写操作 60 次/分；登录 8 次/10 分（按 IP+用户名，防撞库）
+function rateGate(ip, p, method, body, now) {
+  rlSweep(now);
+  if ((RL.blocked.get(ip) || 0) > now) return false;
+  if (!rlBump(`g:${ip}`, 300, 60000, now)) { rlStrike(ip, now); return false; }
+  if (method !== 'GET' && p.startsWith('/api/') && !rlBump(`w:${ip}`, 60, 60000, now)) { rlStrike(ip, now); return false; }
+  if (p === '/api/auth/login' && !rlBump(`l:${ip}:${String((body && body.username) || '').toLowerCase()}`, 8, 600000, now)) { rlStrike(ip, now); return false; }
+  return true;
+}
+
 // API 分发：纯路由，无副作用（留档在 fetch 层统一包裹）
 async function routeApi(db, p, method, body, url, req) {
   // 认证
@@ -42,12 +73,12 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/user/avatar' && method === 'POST') return await handleSaveAvatar(db, body, req);
 
   // 管理员
-  if (p === '/api/admin/check' && method === 'GET') return await handleAdminCheck(db, url);
+  if (p === '/api/admin/check' && method === 'GET') return await handleAdminCheck(db, req);
   if (p === '/api/admin/invite' && method === 'POST') return await handleGenInvite(db, body, req);
-  if (p === '/api/admin/invites' && method === 'GET') return await handleAdminInvites(db, url);
-  if (p === '/api/admin/stats' && method === 'GET') return await handleAdminStats(db, url);
-  if (p === '/api/admin/reviews' && method === 'GET') return await handleAdminReviews(db, url);
-  if (p === '/api/admin/logs' && method === 'GET') return await handleAdminLogs(db, url);
+  if (p === '/api/admin/invites' && method === 'GET') return await handleAdminInvites(db, url, req);
+  if (p === '/api/admin/stats' && method === 'GET') return await handleAdminStats(db, url, req);
+  if (p === '/api/admin/reviews' && method === 'GET') return await handleAdminReviews(db, url, req);
+  if (p === '/api/admin/logs' && method === 'GET') return await handleAdminLogs(db, url, req);
   if (p.match(/^\/api\/admin\/reviews\/(\d+)\/approve$/) && method === 'POST') {
     const id = parseInt(p.match(/\/(\d+)\//)[1]);
     return await handleReviewAction(db, id, 'approve', body, req);
@@ -56,12 +87,12 @@ async function routeApi(db, p, method, body, url, req) {
     const id = parseInt(p.match(/\/(\d+)\//)[1]);
     return await handleReviewAction(db, id, 'reject', body, req);
   }
-  if (p === '/api/admin/users' && method === 'GET') return await handleAdminUsers(db, url);
-  if (p === '/api/admin/contracts' && method === 'GET') return await handleAdminListContracts(db, url);
+  if (p === '/api/admin/users' && method === 'GET') return await handleAdminUsers(db, url, req);
+  if (p === '/api/admin/contracts' && method === 'GET') return await handleAdminListContracts(db, url, req);
   const adminContractById = p.match(/^\/api\/admin\/contracts\/(\d+)$/);
   if (adminContractById && method === 'DELETE') return await handleAdminRemoveContract(db, parseInt(adminContractById[1]), body, req);
   if (p === '/api/feedbacks' && method === 'POST') return await handleCreateFeedback(db, body, req);
-  if (p === '/api/feedbacks' && method === 'GET') return await handleAdminFeedbacks(db, url);
+  if (p === '/api/feedbacks' && method === 'GET') return await handleAdminFeedbacks(db, url, req);
   const feedbackResolve = p.match(/^\/api\/feedbacks\/(\d+)\/resolve$/);
   if (feedbackResolve && method === 'POST') return await handleResolveFeedback(db, parseInt(feedbackResolve[1]), body, req);
   const userBan = p.match(/^\/api\/admin\/users\/(\d+)\/ban$/);
@@ -167,9 +198,12 @@ export default {
       });
     }
 
-    // 非 API 请求 → 静态文件（源码目录 server/、docs/ 一律 404）
+    // 非 API 请求 → 静态文件。敏感路径一律 404：源码目录 server/、docs/、secrets.js（敏感配置）、
+    // 版本控制与构建残留（.git/、.wrangler/）、包清单（package*.json / node_modules/）
     if (!p.startsWith('/api/')) {
-      if (p.startsWith('/server/') || p.startsWith('/docs/')) {
+      if (p.startsWith('/server/') || p.startsWith('/docs/') || p === '/secrets.js' ||
+          p.startsWith('/.git/') || p.startsWith('/.wrangler/') || p.startsWith('/node_modules/') ||
+          p === '/package.json' || p === '/package-lock.json') {
         return new Response('Not Found', { status: 404 });
       }
       return env.ASSETS.fetch(request);
@@ -189,14 +223,18 @@ export default {
       try { body = await request.json(); } catch { body = {}; }
     }
 
+    // 限流闸门（IP 取 CF-Connecting-IP；超限一律 429，细节不回显）
+    const ip = request.headers.get('CF-Connecting-IP') || 'anon';
+    if (!rateGate(ip, p, request.method, body, Date.now())) return error(MSG.RATE_LIMITED, 429);
+
     try {
       const res = await routeApi(db, p, request.method, body, url, request);
       logRequest(db, { method: request.method, path: p, body, status: res.status, req: request });
       return res;
     } catch (err) {
-      console.error('API Error:', err);
+      console.error('API Error:', err); // 细节只留服务端日志
       logRequest(db, { method: request.method, path: p, body, status: 500, req: request });
-      return error(MSG.SERVER_ERROR + ': ' + err.message, 500);
+      return error(MSG.SERVER_ERROR, 500); // 回显脱敏：不回传 err.message（防泄露表名/约束等内部信息）
     }
   },
 };

@@ -2,7 +2,7 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, dbRun, MSG, INVITE_GATE_ENABLED } from './core.js';
+import { json, error, hashPassword, verifyPassword, dbRun, issueAuthToken, MSG, INVITE_GATE_ENABLED } from './core.js';
 import { dbFindUserByUsername, dbFindUserById, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
 import { logEvent } from './log.js';
 
@@ -25,9 +25,10 @@ export async function handleRegister(db, body, req) {
   const { hash, salt } = await hashPassword(password);
   const userId = await dbCreateUser(db, username, hash, salt, role);
   if (needsInvite) await dbUseInviteCode(db, inviteCode, userId);
+  const authToken = await issueAuthToken(db, userId);
   logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
     actorRole: role, entity: 'user', entityId: userId, detail: { role, via: needsInvite ? 'invite' : 'direct' }, req });
-  return json({ user: { id: userId, username, role, avatar: '' }, message: MSG.REGISTER_SUCCESS });
+  return json({ user: { id: userId, username, role, avatar: '' }, authToken, message: MSG.REGISTER_SUCCESS });
 }
 
 export async function handleLogin(db, body, req) {
@@ -45,9 +46,10 @@ export async function handleLogin(db, body, req) {
       actorRole: user.role, entity: 'user', entityId: user.id, req });
     return error(MSG.ACCOUNT_BANNED, 403);
   }
+  const authToken = await issueAuthToken(db, user.id);
   logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, req });
-  return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' } });
+  return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' }, authToken });
 }
 
 // 登录页用户名实时探测：仅返回存在与否 + 角色（登录提示用，不暴露其他字段）

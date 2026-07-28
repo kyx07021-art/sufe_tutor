@@ -151,7 +151,7 @@ export async function handleDeletePost(db, postId, body, req) {
   const post = await dbGet(db, 'SELECT id, user_id, title FROM posts WHERE id=?', [postId]);
   if (!post) return error(PMSG.POST_NOT_FOUND, 404);
   // 仅作者本人可删；管理员凭 adminUsername 越权删除（资料管理页）
-  const admin = body.adminUsername ? await requireAdmin(db, body.adminUsername) : null;
+  const admin = await requireAdmin(db, req); // 管理员删帖凭令牌放行（X-Auth-Token）
   if (userId !== Number(post.user_id) && !admin) return error(PMSG.DELETE_FORBIDDEN, 403);
 
   await dbRun(db, 'DELETE FROM posts WHERE id=?', [postId]);

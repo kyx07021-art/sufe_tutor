@@ -20,13 +20,12 @@ import { dbBroadcastNotification, notifyUser } from './notify.js';
 // 邀请码有效期
 const INVITE_VALIDITY_MS = 5 * 60 * 1000;
 
-export async function handleAdminCheck(db, url) {
-  return json({ isAdmin: !!(await requireAdmin(db, url.searchParams.get('username'))) });
+export async function handleAdminCheck(db, req) {
+  return json({ isAdmin: !!(await requireAdmin(db, req)) });
 }
 
 export async function handleGenInvite(db, body, req) {
-  const { username } = body;
-  const admin = await requireAdmin(db, username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
 
   const code = genCode(8);
@@ -39,14 +38,14 @@ export async function handleGenInvite(db, body, req) {
   return json({ code, expiresAt });
 }
 
-export async function handleAdminInvites(db, url) {
-  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminInvites(db, url, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
   const invites = await dbGetAllInvites(db);
   return json({ invites });
 }
 
-export async function handleAdminStats(db, url) {
-  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminStats(db, url, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
 
   const users = await dbGetUserStats(db) || { total:0, students:0, teachers:0 };
   const profiles = await dbGetCount(db, 'teacher_profiles');
@@ -61,8 +60,8 @@ export async function handleAdminStats(db, url) {
   });
 }
 
-export async function handleAdminReviews(db, url) {
-  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminReviews(db, url, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
   const status = url.searchParams.get('status') || '';
   const teacherUserId = parseInt(url.searchParams.get('teacherUserId')) || 0;
   const reviews = await dbGetReviewsAdmin(db, { status, teacherUserId });
@@ -70,7 +69,7 @@ export async function handleAdminReviews(db, url) {
 }
 
 export async function handleReviewAction(db, reviewId, action, body, req) {
-  const admin = await requireAdmin(db, body.username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return error(MSG.REVIEW_NOT_FOUND);
@@ -91,8 +90,8 @@ export async function handleReviewAction(db, reviewId, action, body, req) {
   return json({ message: action === 'approve' ? MSG.REVIEW_APPROVED : MSG.REVIEW_REJECTED });
 }
 
-export async function handleAdminUsers(db, url) {
-  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminUsers(db, url, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
   const role = url.searchParams.get('role');
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
 
@@ -113,7 +112,7 @@ export async function handleAdminUsers(db, url) {
 }
 
 export async function handleBanUser(db, userId, body, req) {
-  const admin = await requireAdmin(db, body.username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   const target = await dbGet(db, 'SELECT id,username,role FROM users WHERE id=?', [userId]);
   if (!target) return error(MSG.USER_NOT_FOUND, 404);
@@ -128,7 +127,7 @@ export async function handleBanUser(db, userId, body, req) {
 }
 
 export async function handleAdminDeleteDemand(db, demandId, body, req) {
-  const admin = await requireAdmin(db, body.username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
   await dbDeleteDemand(db, demandId);
@@ -138,7 +137,7 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
 }
 
 export async function handleAdminDeleteReview(db, reviewId, body, req) {
-  const admin = await requireAdmin(db, body.username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   if (!(await dbGetReviewById(db, reviewId))) return error(MSG.REVIEW_NOT_FOUND, 404);
   await dbDeleteReview(db, reviewId);
@@ -149,7 +148,7 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
 
 // DELETE /api/admin/messages/:id —— 管理员删除单条聊天消息（留档 admin.message.delete）
 export async function handleAdminDeleteMessage(db, messageId, body, req) {
-  const admin = await requireAdmin(db, body.username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   const m = await dbGet(db, 'SELECT id, conversation_id, sender_user_id, kind FROM messages WHERE id=?', [messageId]);
   if (!m) return error(MSG.MESSAGE_NOT_FOUND, 404);
@@ -161,8 +160,8 @@ export async function handleAdminDeleteMessage(db, messageId, body, req) {
 }
 
 // 日志检索（action 前缀 / 操作人 / 实体 / 时间范围 / detail 模糊 / 分页）
-export async function handleAdminLogs(db, url) {
-  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminLogs(db, url, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
   const f = Object.fromEntries(url.searchParams);
   const result = await queryLog(db, f);
   return json(result);
@@ -183,8 +182,8 @@ export async function handleCreateFeedback(db, body, req) {
 }
 
 // GET /api/feedbacks?username= —— 管理员查看全部反馈（含提交者用户名 + 处理状态）
-export async function handleAdminFeedbacks(db, url) {
-  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminFeedbacks(db, url, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
   const feedbacks = await dbAll(db,
     `SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id ORDER BY f.id DESC LIMIT 200`);
   return json({ feedbacks });
@@ -192,7 +191,7 @@ export async function handleAdminFeedbacks(db, url) {
 
 // POST /api/feedbacks/:id/resolve { username } —— 管理员标记已处理，通知反馈提出者
 export async function handleResolveFeedback(db, feedbackId, body, req) {
-  const admin = await requireAdmin(db, body.username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   const f = await dbGet(db, 'SELECT * FROM feedbacks WHERE id=?', [feedbackId]);
   if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404);
@@ -208,7 +207,7 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
 // 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件：标题+正文，
 // 推送时标题加【系统通知】前缀）
 export async function handleAdminBroadcast(db, body, req) {
-  const admin = await requireAdmin(db, body.username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   const title = String(body.title || '').trim();
   const text = String(body.text || '').trim();

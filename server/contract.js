@@ -190,8 +190,8 @@ export async function handleModifyContract(db, contractId, body, req) {
 }
 
 // GET /api/admin/contracts?username= —— 管理员查看全部合同（网页测试用途，真实场景仅管理员可见此页）
-export async function handleAdminListContracts(db, url) {
-  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+export async function handleAdminListContracts(db, url, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
   const contracts = await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
       us.username AS student_name, ut.username AS teacher_name, du.username AS drafter_name
     FROM contracts ct
@@ -205,7 +205,7 @@ export async function handleAdminListContracts(db, url) {
 
 // DELETE /api/admin/contracts/:id { username } —— 管理员移除合同（测试用；合同全链路留档，删除记 admin.contract.remove）
 export async function handleAdminRemoveContract(db, contractId, body, req) {
-  const admin = await requireAdmin(db, body.username);
+  const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);

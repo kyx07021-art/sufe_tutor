@@ -1219,6 +1219,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .text-sm { font-size: .8rem; }
 .mt-2 { margin-top: 8px; }
 .review-mine-note { margin-top: 8px; font-size: .74rem; color: var(--muted); }
+.sidebar-version { margin-top: 8px; font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; color: var(--ink-3); opacity: .45; text-align: right; } /* 侧边栏白卡底：小字版本号 */
 .flex { display: flex; }
 
 /* ---------- 尊重减弱动效偏好 ---------- */

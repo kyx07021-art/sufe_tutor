@@ -12,7 +12,7 @@ const { SUBJECTS, STUDENT_GRADES,
 // ============================================================
 // 状态
 // ============================================================
-const state = { user: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], intentTeachers: [],
+const state = { user: null, authToken: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], intentTeachers: [],
                 adminModalTeacher: null, myReviewOnModal: null,
                 myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
                 inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
@@ -221,7 +221,9 @@ function initReveals(root) {
 // API
 // ============================================================
 async function api(endpoint, options = {}) {
-  const config = { headers: { 'Content-Type': 'application/json' }, ...options };
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (state.authToken) headers['X-Auth-Token'] = state.authToken; // 管理员接口凭此令牌鉴权（登录签发，7 天有效）
+  const config = { ...options, headers };
   if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
   const res = await fetch(endpoint, config);
   const data = await res.json();
@@ -319,7 +321,8 @@ function renderSidebar() {
         <div class="sidebar-user-role">${roleLabel}</div>
       </div>
     </div>
-    <button type="button" class="sidebar-footnote" onclick="selectPage('about')">${escHtml(UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK))}</button>`;
+    <button type="button" class="sidebar-footnote" onclick="selectPage('about')">${escHtml(UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK))}</button>
+    <div class="sidebar-version">v${APP_CONSTANTS.APP_VERSION}</div>`;
   // 栏目 = 主页 entry 同款排布：亮紫序号 + 大字标题 + 选中展开简介；黑色选中块由 .sidebar-pill 滑动承担
   document.getElementById('sidebar-nav').innerHTML =
     `<span class="sidebar-pill" id="sidebar-pill" aria-hidden="true"></span>` +
@@ -450,7 +453,7 @@ async function handleLogin(e) {
   try {
     btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${UI.LOADING_LOGIN}`;
     const data = await api('/api/auth/login', { method: 'POST', body: { username, password } });
-    state.user = data.user;
+    state.user = data.user; state.authToken = data.authToken || null;
     alertEl.innerHTML = '';
 
     // 会话状态：sessionStorage 刷新不死（关标签即焚）；勾「记住我」另存 localStorage 7 天
@@ -500,7 +503,7 @@ async function handleRegister(e) {
       state.validatedInviteCode = null; // 用后即清
     }
     const data = await api('/api/auth/register', { method: 'POST', body });
-    state.user = data.user;
+    state.user = data.user; state.authToken = data.authToken || null;
     alertEl.innerHTML = '';
     // 注册即登录：会话存 sessionStorage（刷新保留，关标签即焚）
     try { sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password })); } catch { /* ignore */ }
@@ -543,7 +546,7 @@ function handleLogout() {
   if (state.inviteTimerId) clearInterval(state.inviteTimerId);
   stopBadgePoll();
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询
-  state.user = null; state.page = null;
+  state.user = null; state.authToken = null; state.page = null;
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
   state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
   state.inviteTimerId = null; state.currentInviteCode = null;
@@ -927,11 +930,13 @@ async function openTeacherModal(userId) {
   if (!t) return;
   state.adminModalTeacher = (state.user && state.user.role === 'admin') ? t : null;
   document.getElementById('modal-container').innerHTML = renderTeacherModal(t);
+  const seq = ++teacherModalSeq; // 陈旧响应守卫：请求在途时弹窗被关/换了教师 → 响应丢弃（否则会写错教师的评价 id）
   // 管理员：评价栏走管理端接口（全状态 + 逐条管理）
-  if (state.adminModalTeacher) { loadTeacherReviewsAdmin(userId); return; }
+  if (state.adminModalTeacher) { loadTeacherReviewsAdmin(userId, seq); return; }
   try {
     // reviewerUserId 取回「我的评价」（mine，任意状态），供写评价/修改评价判定
     const data = await api(`/api/reviews?teacherUserId=${userId}&reviewerUserId=${state.user ? state.user.id : ''}`);
+    if (seq !== teacherModalSeq) return;
     state.myReviewOnModal = data.mine || null;
     const el = document.getElementById('teacher-modal-reviews');
     if (el) el.innerHTML = renderReviewItems(data.reviews || [], t, { mine: data.mine }); // 防竞态：弹窗已关则丢弃
@@ -941,9 +946,12 @@ async function openTeacherModal(userId) {
   }
 }
 
-async function loadTeacherReviewsAdmin(userId) {
+let teacherModalSeq = 0; // 教师弹窗序号：每开一次自增，异步回来后序号不符即丢弃陈旧响应
+
+async function loadTeacherReviewsAdmin(userId, seq) {
   try {
     const data = await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}&teacherUserId=${userId}`);
+    if (seq !== teacherModalSeq) return; // 弹窗已被换掉/关闭，丢弃
     const el = document.getElementById('teacher-modal-reviews');
     if (el) el.innerHTML = renderReviewItems(data.reviews || [], state.adminModalTeacher, { admin: true });
   } catch {
@@ -1051,6 +1059,8 @@ function setReviewStars(val) {
   });
 }
 
+let reviewSubmitBusy = false; // 评价提交防双发（双击连发两条待审评价）
+
 // reviewId 有值 = PUT 修改既有评价（重回审核）；否则 POST 新评价（签约门槛由后端把关）
 async function submitReview(teacherUserId, reviewId) {
   const rating = +document.getElementById('review-rating').value;
@@ -1059,6 +1069,8 @@ async function submitReview(teacherUserId, reviewId) {
 
   if (!rating) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_RATING}</div>`; return; }
   if (comment.length < 2) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_COMMENT_TOO_SHORT}</div>`; return; }
+  if (reviewSubmitBusy) return;
+  reviewSubmitBusy = true;
 
   try {
     const data = reviewId
@@ -1068,6 +1080,8 @@ async function submitReview(teacherUserId, reviewId) {
     showToast(data.message || UI.SUCCESS_REVIEW_SUBMITTED);
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+  } finally {
+    reviewSubmitBusy = false;
   }
 }
 
@@ -1733,6 +1747,8 @@ function openContractDraftModal(convId) {
   updatePostPreview();
 }
 
+let contractDraftBusy = false; // 合同起草防双发（双击生成两份草案）
+
 async function submitContractDraft(convId) {
   const alertEl = document.getElementById('contract-alert');
   const method = document.getElementById('contract-method').value;
@@ -1740,12 +1756,16 @@ async function submitContractDraft(convId) {
   const plan = (document.getElementById('post-body').value || '').trim();
   if (!rate || +rate <= 0) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_RATE}</div>`; return; }
   if (!plan) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_PLAN}</div>`; return; }
+  if (contractDraftBusy) return;
+  contractDraftBusy = true;
   try {
     const data = await api('/api/contracts', { method: 'POST', body: { userId: state.user.id, conversationId: convId, method, plan, hourlyRate: +rate } });
     closeModal();
     showToast(data.message || UI.CONTRACT_DRAFT_SENT_TOAST);
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+  } finally {
+    contractDraftBusy = false;
   }
 }
 
@@ -2354,7 +2374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await api('/api/auth/login', {
         method: 'POST', body: { username: saved.user.username, password: saved.password },
       });
-      state.user = data.user;
+      state.user = data.user; state.authToken = data.authToken || null;
       localStorage.setItem('sufe_session', JSON.stringify({ ...saved, user: state.user }));
       sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password: saved.password }));
       enterClient(storedPage()); // 回到刷新前的页签
@@ -2371,7 +2391,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await api('/api/auth/login', {
         method: 'POST', body: { username: sess.user.username, password: sess.password },
       });
-      state.user = data.user;
+      state.user = data.user; state.authToken = data.authToken || null;
       sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password: sess.password }));
       enterClient(storedPage()); // 回到刷新前的页签
       return;

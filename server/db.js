@@ -5,8 +5,11 @@
  */
 import {
   dbAll, dbGet, dbRun, hashPassword,
-  ADMIN_USERNAMES, ADMIN_DEFAULT_PASSWORD, INITIAL_RATING,
+  INITIAL_RATING,
 } from './core.js';
+import '../secrets.js'; // 管理员配置抽离处（公测迁 Worker Secrets，见 docs/secrets-plan.md）
+
+const SEC = globalThis.APP_SECRETS || {};
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
 
@@ -209,7 +212,7 @@ export async function initDb(db) {
         created_at DATETIME DEFAULT (datetime('now','localtime')))`),
       db.prepare(`INSERT INTO users_new (id,username,password_hash,salt,role,banned,created_at)
         SELECT id,username,password_hash,salt,role,0,created_at FROM _users_old`),
-      db.prepare(`UPDATE users_new SET role='admin' WHERE username IN (${ADMIN_USERNAMES.map(() => '?').join(',')})`).bind(...ADMIN_USERNAMES),
+      db.prepare(`UPDATE users_new SET role='admin' WHERE username IN (${(SEC.ADMIN_USERNAMES || []).map(() => '?').join(',')})`).bind(...(SEC.ADMIN_USERNAMES || [])),
       db.prepare('ALTER TABLE users_new RENAME TO users'),
 
       db.prepare(`CREATE TABLE teacher_profiles_new (
@@ -288,11 +291,11 @@ export async function initDb(db) {
     db.prepare('DROP TABLE IF EXISTS _users_old'),
   ]);
 
-  // 种子管理员（独立 admin 角色）
-  for (const name of ADMIN_USERNAMES) {
+  // 种子管理员（独立 admin 角色；凭证取自 secrets.js，公测迁 Worker Secrets）
+  for (const name of (SEC.ADMIN_USERNAMES || [])) {
     const existing = await dbGet(db, 'SELECT id FROM users WHERE username = ?', [name]);
     if (!existing) {
-      const { hash, salt } = await hashPassword(ADMIN_DEFAULT_PASSWORD);
+      const { hash, salt } = await hashPassword(SEC.ADMIN_DEFAULT_PASSWORD || '');
       await dbRun(db, 'INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,?,?)',
         [name, hash, salt, 'admin']);
     }
@@ -302,7 +305,7 @@ export async function initDb(db) {
   await initLogDb(db);
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
-  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['auth_token', "TEXT NOT NULL DEFAULT ''"], ['token_expires', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"]]);

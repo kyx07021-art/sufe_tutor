@@ -5,10 +5,10 @@
  */
 
 // ============================================================
-// 敏感信息 — 部署时建议通过环境变量或 Secrets 覆盖
+// 敏感信息已抽离至根目录 secrets.js（公测迁 Worker Secrets，见 docs/secrets-plan.md）
+// 管理员种子读 globalThis.APP_SECRETS；管理员鉴权一律走 requireAdmin 令牌机制，
+// 「知道管理员用户名」不再等于「能执行管理员操作」
 // ============================================================
-export const ADMIN_USERNAMES = ['admin_sufe'];
-export const ADMIN_DEFAULT_PASSWORD = 'admin_sufe';
 
 // 评分系统（初始评分 + 权重，评价通过时做加权平均）
 export const INITIAL_RATING = 4.0;
@@ -104,6 +104,7 @@ export const MSG = {
   // 通用
   REGISTER_SUCCESS: '注册成功',
   SERVER_ERROR: '服务器内部错误',
+  RATE_LIMITED: '请求过于频繁，请稍后再试',
 };
 
 // ============================================================
@@ -165,12 +166,25 @@ export function json(data, status = 200) {
 export function error(msg, status = 400) { return json({ error: msg }, status); }
 
 // ============================================================
-// 管理员校验：users 表 role='admin'（旧用户名白名单仅保留用于种子与迁移）
+// 管理员校验：令牌机制。登录签发 X-Auth-Token（7 天有效），管理员请求带头校验；
+// token 存 users.auth_token，过期时间按 UTC 存储（同全站 datetime 纪律）
 // ============================================================
-export async function requireAdmin(db, username) {
-  if (!username) return null;
-  const u = await dbGet(db, 'SELECT id,username,role FROM users WHERE username=?', [username]);
-  return (u && u.role === 'admin') ? u : null;
+export async function requireAdmin(db, req) {
+  const token = req && req.headers && req.headers.get('X-Auth-Token');
+  if (!token) return null;
+  const u = await dbGet(db, 'SELECT id,username,role,token_expires FROM users WHERE auth_token=?', [token]);
+  if (!u || u.role !== 'admin') return null;
+  const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
+  if (!exp || exp < Date.now()) return null;
+  return u;
+}
+
+// 登录 / 注册签发令牌：48 位随机 hex（熵足够，无需 JWT 的无状态代价）
+export async function issueAuthToken(db, userId) {
+  const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
+  const expires = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+  await dbRun(db, 'UPDATE users SET auth_token=?, token_expires=? WHERE id=?', [token, expires, userId]);
+  return token;
 }
 
 // ============================================================
