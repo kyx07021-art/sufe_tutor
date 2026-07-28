@@ -213,9 +213,13 @@ class TencentSmsTransport {
   }
 }
 
-// 按环境变量选择通道；厂商未识别时回落 mock，休眠期绝不会误触发真实扣费发送。
+// 按环境变量选择通道。未配置 SMS_PROVIDER 时返回失效通道（发送即失败）——
+// 严禁静默回落 mock：mock 会经 HTTP 回带验证码，带病激活 = 任意手机号账号接管。
 function createTransport(env) {
-  const provider = (env.SMS_PROVIDER || 'mock').toLowerCase();
+  const provider = (env.SMS_PROVIDER || '').toLowerCase();
+  if (provider !== 'mock' && provider !== 'aliyun' && provider !== 'tencent') {
+    return { name: 'disabled', send: async () => ({ ok: false, detail: 'SMS_PROVIDER 未配置（激活流程见 docs/sms-plan.md）' }) };
+  }
   const common = {
     accessKeyId: env.SMS_ACCESS_KEY_ID,
     accessKeySecret: env.SMS_ACCESS_KEY_SECRET,

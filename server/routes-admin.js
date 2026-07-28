@@ -3,7 +3,7 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）
  */
 import {
-  json, error, requireAdmin, genCode, dbGet, dbRun, dbAll,
+  json, error, requireAdmin, authUser, genCode, dbGet, dbRun, dbAll,
   INITIAL_RATING, INITIAL_WEIGHT, MSG,
 } from './core.js';
 import {
@@ -167,13 +167,14 @@ export async function handleAdminLogs(db, url, req) {
   return json(result);
 }
 
-// POST /api/feedbacks { userId, kind, title, content } —— 全用户可提交（关于我们页「用户反馈」）
+// POST /api/feedbacks { kind, title, content } —— 全用户可提交（关于我们页「用户反馈」；身份凭令牌，防冒名）
 export async function handleCreateFeedback(db, body, req) {
-  const userId = parseInt(body.userId);
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const userId = me.id;
   const kind = body.kind === 'bug' ? 'bug' : 'suggestion';
   const title = String(body.title || '').trim().slice(0, 60);
   const content = String(body.content || '').trim().slice(0, 5000);
-  if (!userId) return error(MSG.LOGIN_REQUIRED);
   if (!content) return error(MSG.BROADCAST_EMPTY);
   const res = await dbRun(db, 'INSERT INTO feedbacks (user_id, kind, title, content) VALUES (?,?,?,?)', [userId, kind, title, content]);
   logEvent(db, { action: 'feedback.create', actorUserId: userId, entity: 'feedback',

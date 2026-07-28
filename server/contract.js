@@ -5,7 +5,7 @@
  * 正式合同正文由 buildContractMd 按草案信息生成（Markdown，后期可换更正式的格式）；双方看到的是同一条记录。
  * 短信验证码环节未接入：verifySignOtp 预留接口，测试版以二次确认代替。
  */
-import { dbAll, dbGet, dbRun, json, error, requireAdmin, MSG } from './core.js';
+import { dbAll, dbGet, dbRun, json, error, authUser, requireAdmin, MSG } from './core.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
@@ -82,7 +82,9 @@ export async function dbGetMyContracts(db, userId) {
 
 // POST /api/contracts { userId, conversationId, method, plan, hourlyRate } —— 起草并发送给另一方
 export async function handleCreateContract(db, body, req) {
-  const userId = parseInt(body.userId);
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const userId = me.id;
   const conversationId = parseInt(body.conversationId);
   const conv = await convOf(db, conversationId);
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
@@ -111,22 +113,28 @@ export async function handleCreateContract(db, body, req) {
 }
 
 // GET /api/contracts?conversationId= → { contract }（聊天窗据此渲染合同状态灰字行）
-export async function handleGetContractByConv(db, url) {
+// 合同全文敏感：仅会话参与方凭令牌可读（曾零鉴权可枚举 conversationId 读全站合同）
+export async function handleGetContractByConv(db, url, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const conversationId = parseInt(url.searchParams.get('conversationId'));
-  if (!conversationId) return error(MSG.LOGIN_REQUIRED);
+  const conv = await convOf(db, conversationId);
+  if (!isParticipant(conv, me.id)) return error(MSG.NO_PERMISSION, 403);
   return json({ contract: (await dbGetContractByConv(db, conversationId)) || null });
 }
 
-// GET /api/contracts/my?userId= → { contracts }
-export async function handleGetMyContracts(db, url) {
-  const userId = parseInt(url.searchParams.get('userId'));
-  if (!userId) return error(MSG.LOGIN_REQUIRED);
-  return json({ contracts: await dbGetMyContracts(db, userId) });
+// GET /api/contracts/my → { contracts }（身份凭令牌）
+export async function handleGetMyContracts(db, url, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  return json({ contracts: await dbGetMyContracts(db, me.id) });
 }
 
-// POST /api/contracts/:id/confirm-draft { userId } —— 对方确认草案 → 进入 signing（正式合同待双方确认签约）
+// POST /api/contracts/:id/confirm-draft —— 对方确认草案 → 进入 signing（正式合同待双方确认签约）
 export async function handleConfirmDraft(db, contractId, body, req) {
-  const userId = parseInt(body.userId);
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const userId = me.id;
   const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
   if (ct.status !== 'pending') return error(MSG.CONTRACT_STATE_INVALID, 409);
@@ -143,9 +151,11 @@ export async function handleConfirmDraft(db, contractId, body, req) {
 // 短信验证码预留：测试版恒通过，接入 SMS 后在此校验 code（docs/sms-plan.md）
 async function verifySignOtp(/* db, userId, code */) { return true; }
 
-// POST /api/contracts/:id/sign { userId } —— 确认签约；双方都确认后 status→signed
+// POST /api/contracts/:id/sign —— 确认签约；双方都确认后 status→signed
 export async function handleSignContract(db, contractId, body, req) {
-  const userId = parseInt(body.userId);
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const userId = me.id;
   const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
   // pending（收草案方直接确认签约，免去独立「确认草案」步骤）与 signing 均可签
@@ -169,9 +179,11 @@ export async function handleSignContract(db, contractId, body, req) {
   return json({ ok: true, signed: both });
 }
 
-// PUT /api/contracts/:id { userId, contractMd } —— 修改正式合同：重置双方确认，实时同步给另一边
+// PUT /api/contracts/:id { contractMd } —— 修改正式合同：重置双方确认，实时同步给另一边
 export async function handleModifyContract(db, contractId, body, req) {
-  const userId = parseInt(body.userId);
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const userId = me.id;
   const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
   if (ct.status !== 'pending' && ct.status !== 'signing') return error(MSG.CONTRACT_STATE_INVALID, 409);
@@ -179,6 +191,7 @@ export async function handleModifyContract(db, contractId, body, req) {
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
   const md = String(body.contractMd || '').slice(0, 30000);
   if (!md.trim()) return error(MSG.CONTRACT_EMPTY);
+  if (md === ct.contract_md) return json({ ok: true, unchanged: true }); // 内容未变：幂等短路，不重置确认/不重发通知（防双触发重复通知）
 
   // 修改即回退到签约选择态：双方确认清零 + pending→signing，两边都回到 确认/修改/查看 三按钮
   await dbRun(db,
@@ -216,9 +229,11 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
   return json({ ok: true });
 }
 
-// DELETE /api/contracts/:id { userId } —— 取消签约：删合同 + 通知对方；会话保留
+// DELETE /api/contracts/:id —— 取消签约：删合同 + 通知对方；会话保留
 export async function handleCancelContract(db, contractId, body, req) {
-  const userId = parseInt(body.userId);
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const userId = me.id;
   const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
   if (ct.status === 'signed') return error(MSG.CONTRACT_STATE_INVALID, 409);

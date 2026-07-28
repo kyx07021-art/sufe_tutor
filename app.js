@@ -456,11 +456,12 @@ async function handleLogin(e) {
     state.user = data.user; state.authToken = data.authToken || null;
     alertEl.innerHTML = '';
 
-    // 会话状态：sessionStorage 刷新不死（关标签即焚）；勾「记住我」另存 localStorage 7 天
-    sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password }));
+    // 会话状态：持久化令牌（绝不存明文密码）；sessionStorage 刷新不死（关标签即焚），
+    // 勾「记住我」另存 localStorage 7 天（与服务端令牌有效期一致）
+    sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, authToken: state.authToken }));
     if (document.getElementById('login-remember').checked) {
       localStorage.setItem('sufe_session', JSON.stringify({
-        user: state.user, password, expires: Date.now() + 7 * 24 * 3600 * 1000, // 7天
+        user: state.user, authToken: state.authToken, expires: Date.now() + 7 * 24 * 3600 * 1000, // 7天
       }));
     } else {
       localStorage.removeItem('sufe_session');
@@ -506,7 +507,7 @@ async function handleRegister(e) {
     state.user = data.user; state.authToken = data.authToken || null;
     alertEl.innerHTML = '';
     // 注册即登录：会话存 sessionStorage（刷新保留，关标签即焚）
-    try { sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password })); } catch { /* ignore */ }
+    try { sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, authToken: state.authToken })); } catch { /* ignore */ }
     enterClient();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
@@ -2367,37 +2368,37 @@ function showToast(msg) {
 // Init
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  // 自动登录：先试 localStorage（记住我，7 天），再试 sessionStorage（未勾记住我的会话，刷新保留、关标签即焚）
+  // 自动登录：持久化令牌经 /api/auth/me 恢复用户（不再重放密码，本地无任何明文密码）
   try {
     const saved = JSON.parse(localStorage.getItem('sufe_session'));
-    if (saved && saved.user && saved.password && saved.expires > Date.now()) {
-      const data = await api('/api/auth/login', {
-        method: 'POST', body: { username: saved.user.username, password: saved.password },
-      });
-      state.user = data.user; state.authToken = data.authToken || null;
-      localStorage.setItem('sufe_session', JSON.stringify({ ...saved, user: state.user }));
-      sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password: saved.password }));
+    if (saved && saved.authToken && saved.expires > Date.now()) {
+      state.authToken = saved.authToken;
+      const data = await api('/api/auth/me');
+      state.user = data.user;
+      localStorage.setItem('sufe_session', JSON.stringify({ user: state.user, authToken: state.authToken, expires: saved.expires }));
+      sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, authToken: state.authToken }));
       enterClient(storedPage()); // 回到刷新前的页签
       return;
     } else if (saved) {
-      localStorage.removeItem('sufe_session'); // 过期清理
+      localStorage.removeItem('sufe_session'); // 过期 / 旧版含密码格式：一并清理
     }
   } catch {
-    localStorage.removeItem('sufe_session'); // 登录失败清理
+    localStorage.removeItem('sufe_session'); // 令牌失效清理
   }
   try {
     const sess = JSON.parse(sessionStorage.getItem('sufe_session'));
-    if (sess && sess.user && sess.password) {
-      const data = await api('/api/auth/login', {
-        method: 'POST', body: { username: sess.user.username, password: sess.password },
-      });
-      state.user = data.user; state.authToken = data.authToken || null;
-      sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password: sess.password }));
+    if (sess && sess.authToken) {
+      state.authToken = sess.authToken;
+      const data = await api('/api/auth/me');
+      state.user = data.user;
+      sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, authToken: state.authToken }));
       enterClient(storedPage()); // 回到刷新前的页签
       return;
+    } else if (sess) {
+      sessionStorage.removeItem('sufe_session'); // 旧版含密码格式：清理
     }
   } catch {
-    sessionStorage.removeItem('sufe_session'); // 登录失败清理
+    sessionStorage.removeItem('sufe_session'); // 令牌失效清理
   }
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件
   showView('landing');

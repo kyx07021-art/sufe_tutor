@@ -3,7 +3,7 @@
  * 消息内容按模块5要求全量留档（detail 含正文，走 logEvent 咽喉，后期统一加密）
  * 图片/文件：kind=image/file；暂存上传走 uploads 表，发送时凭 uploadId 落入会话
  */
-import { json, error, dbGet, dbRun, MSG } from './core.js';
+import { json, error, dbGet, dbRun, authUser, MSG } from './core.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage, dbMarkConversationRead,
 } from './db.js';
@@ -12,38 +12,45 @@ import { logEvent } from './log.js';
 const isParticipant = (conv, userId) =>
   conv && (conv.student_user_id === userId || conv.teacher_user_id === userId);
 
-export async function handleGetConversations(db, url) {
-  const userId = parseInt(url.searchParams.get('userId'));
-  if (!userId) return error(MSG.LOGIN_REQUIRED);
-  const conversations = await dbGetMyConversations(db, userId);
+// 文件类 dataURL 黑名单：html/svg 可投递钓鱼内容（现代浏览器阻断执行但仍可投递），一律拒收
+const fileDataBlocked = content =>
+  content.startsWith('data:text/html') || content.startsWith('data:image/svg');
+
+export async function handleGetConversations(db, url, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const conversations = await dbGetMyConversations(db, me.id);
   return json({ conversations });
 }
 
 // 标记已读：我的已读游标推到该会话最新一条（红点点掉即消的后端支撑）
-export async function handleMarkRead(db, convId, body) {
-  const userId = parseInt(body.userId);
+export async function handleMarkRead(db, convId, body, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const conv = await dbGetConversationById(db, convId);
-  if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
-  await dbMarkConversationRead(db, convId, userId);
+  if (!conv || !isParticipant(conv, me.id)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  await dbMarkConversationRead(db, convId, me.id);
   return json({ ok: true });
 }
 
-export async function handleGetMessages(db, convId, url) {
-  const userId = parseInt(url.searchParams.get('userId'));
+export async function handleGetMessages(db, convId, url, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const sinceId = parseInt(url.searchParams.get('sinceId')) || 0;
   const conv = await dbGetConversationById(db, convId);
-  if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  if (!conv || !isParticipant(conv, me.id)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
 
   const messages = await dbGetMessages(db, convId, sinceId);
   return json({ conversation: conv, messages });
 }
 
-// GET /api/conversations/:cid/messages/:mid/attachment?userId= —— 单条附件懒加载
+// GET /api/conversations/:cid/messages/:mid/attachment —— 单条附件懒加载
 // （列表接口不下发图片/文件的 dataURL 本体，前端先渲染骨架，页面可操作后逐条补载）
-export async function handleGetAttachment(db, convId, messageId, url) {
-  const userId = parseInt(url.searchParams.get('userId'));
+export async function handleGetAttachment(db, convId, messageId, url, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const conv = await dbGetConversationById(db, convId);
-  if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  if (!conv || !isParticipant(conv, me.id)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
   const m = await dbGet(db, 'SELECT body, name FROM messages WHERE id=? AND conversation_id=?', [messageId, convId]);
   if (!m) return error(MSG.CONVERSATION_NOT_FOUND, 404);
   return json({ body: m.body, name: m.name || '' });
@@ -51,29 +58,34 @@ export async function handleGetAttachment(db, convId, messageId, url) {
 
 // POST /api/uploads —— 文件进入暂存区即真实上传（前端 XHR upload.onprogress = 本请求进度），
 // 只暂存不入会话；发送时凭 uploadId 确认落入会话
-export async function handleCreateUpload(db, body) {
-  const userId = parseInt(body.userId);
+export async function handleCreateUpload(db, body, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const kind = body.kind === 'image' ? 'image' : 'file';
-  if (!userId) return error(MSG.LOGIN_REQUIRED);
   const content = String(body.fileData ?? '');
   const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
   if (!prefixOk || content.length > 700000) return error(MSG.FILE_TOO_LARGE);
+  if (kind === 'file' && fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED);
   const name = String(body.fileName ?? '').slice(0, 100);
-  const res = await dbRun(db, 'INSERT INTO uploads (user_id, kind, body, name) VALUES (?,?,?,?)', [userId, kind, content, name]);
+  const res = await dbRun(db, 'INSERT INTO uploads (user_id, kind, body, name) VALUES (?,?,?,?)', [me.id, kind, content, name]);
   return json({ id: (res && res.meta && res.meta.last_row_id) || 0 }, 201);
 }
 
 // DELETE /api/uploads/:id —— 移除暂存项（删已上传的文件，仅本人）
-export async function handleDeleteUpload(db, uploadId, body) {
-  const userId = parseInt(body.userId);
+export async function handleDeleteUpload(db, uploadId, body, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const u = await dbGet(db, 'SELECT id, user_id FROM uploads WHERE id=?', [uploadId]);
-  if (!u || u.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+  if (!u || u.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
   await dbRun(db, 'DELETE FROM uploads WHERE id=?', [uploadId]);
   return json({ ok: true });
 }
 
 export async function handleSendMessage(db, convId, body, req) {
-  const { userId, kind = 'text' } = body;
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const userId = me.id;
+  const { kind = 'text' } = body;
   const conv = await dbGetConversationById(db, convId);
   if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
   if (conv.status !== 'active') return error(MSG.NO_PERMISSION, 403);
@@ -98,6 +110,7 @@ export async function handleSendMessage(db, convId, body, req) {
     content = String(body.fileData ?? '');
     const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
     if (!prefixOk || content.length > 700000) return error(MSG.FILE_TOO_LARGE);
+    if (kind === 'file' && fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED);
     name = String(body.fileName ?? '').slice(0, 100);
   } else {
     return error(MSG.MESSAGE_TOO_LONG);

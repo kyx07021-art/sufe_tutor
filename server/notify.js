@@ -8,7 +8,7 @@
  * 通知文案由业务方（routes-* 在拒绝/退回等节点）按场景拼装后传入，保持委婉语气。
  * 仅 import core.js（dbAll/dbGet/dbRun/json/error/MSG），不依赖 db.js，避免循环。
  */
-import { dbAll, dbRun, json, error, MSG } from './core.js';
+import { dbAll, dbRun, json, error, authUser, MSG } from './core.js';
 
 // 建表（幂等）
 export async function initNotifyTable(db) {
@@ -52,18 +52,18 @@ export async function dbMarkNotificationsRead(db, userId) {
   await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0', [userId]);
 }
 
-// GET /api/notifications?userId=  → { notifications }（含 is_read，前端据此显示未读圆点/加粗）
-export async function handleGetNotifications(db, url) {
-  const userId = parseInt(url.searchParams.get('userId'));
-  if (!userId) return error(MSG.LOGIN_REQUIRED);
-  const notifications = await dbGetNotifications(db, userId);
+// GET /api/notifications  → { notifications }（含 is_read，前端据此显示未读圆点/加粗；身份凭令牌）
+export async function handleGetNotifications(db, url, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const notifications = await dbGetNotifications(db, me.id);
   return json({ notifications });
 }
 
-// POST /api/notifications/read  body { userId }  → 全部已读
-export async function handleMarkNotificationsRead(db, body) {
-  const userId = parseInt(body.userId);
-  if (!userId) return error(MSG.LOGIN_REQUIRED);
-  await dbMarkNotificationsRead(db, userId);
+// POST /api/notifications/read  → 全部已读（身份凭令牌）
+export async function handleMarkNotificationsRead(db, body, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  await dbMarkNotificationsRead(db, me.id);
   return json({ ok: true });
 }

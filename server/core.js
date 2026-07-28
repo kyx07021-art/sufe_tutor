@@ -87,6 +87,7 @@ export const MSG = {
   MESSAGE_NOT_FOUND: '消息不存在',
   MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
   FILE_TOO_LARGE: '附件过大（上限约 500KB，图片会自动压缩）',
+  FILE_TYPE_BLOCKED: '不支持的文件类型',
 
   // 评价
   RATING_RANGE: '评分需在1-5之间',
@@ -166,17 +167,24 @@ export function json(data, status = 200) {
 export function error(msg, status = 400) { return json({ error: msg }, status); }
 
 // ============================================================
-// 管理员校验：令牌机制。登录签发 X-Auth-Token（7 天有效），管理员请求带头校验；
-// token 存 users.auth_token，过期时间按 UTC 存储（同全站 datetime 纪律）
+// 身份解析：全站一律凭 X-Auth-Token（登录签发，7 天有效，users.auth_token 存储，
+// 过期按 UTC 比较——同全站 datetime 纪律）。body/query 里的 userId 只当前端回显用，
+// 服务端身份认定永远以令牌解出的用户为准（审计整改：自报 userId 可枚举冒名）
 // ============================================================
-export async function requireAdmin(db, req) {
+export async function authUser(db, req) {
   const token = req && req.headers && req.headers.get('X-Auth-Token');
   if (!token) return null;
-  const u = await dbGet(db, 'SELECT id,username,role,token_expires FROM users WHERE auth_token=?', [token]);
-  if (!u || u.role !== 'admin') return null;
+  const u = await dbGet(db, 'SELECT id,username,role,banned,token_expires FROM users WHERE auth_token=?', [token]);
+  if (!u || u.banned) return null;
   const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
   if (!exp || exp < Date.now()) return null;
   return u;
+}
+
+// 管理员校验 = 令牌用户 + role='admin'
+export async function requireAdmin(db, req) {
+  const u = await authUser(db, req);
+  return u && u.role === 'admin' ? u : null;
 }
 
 // 登录 / 注册签发令牌：48 位随机 hex（熵足够，无需 JWT 的无状态代价）

@@ -10,7 +10,7 @@
 import { initDb } from './server/db.js';
 import { json, error, MSG } from './server/core.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
-import { handleRegister, handleLogin, handleCheckUsername, handleSaveAvatar } from './server/routes-auth.js';
+import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
@@ -54,13 +54,16 @@ const rlStrike = (ip, now) => {
   RL.strikes.set(ip, n);
   if (n >= 3) { RL.blocked.set(ip, now + 15 * 60 * 1000); RL.strikes.delete(ip); } // 10 分钟内 3 次超限 → 封 15 分钟
 };
-// 闸门：全局 300 次/分（含静态）；写操作 60 次/分；登录 8 次/10 分（按 IP+用户名，防撞库）
+// 闸门：全局 300 次/分（含静态）；写操作 60 次/分；登录 8 次/10 分（按 IP+用户名，防撞库）；
+// 注册 5 次/时（防批量建号 + PBKDF2 CPU 消耗）；用户名探测 30 次/分（防枚举）
 function rateGate(ip, p, method, body, now) {
   rlSweep(now);
   if ((RL.blocked.get(ip) || 0) > now) return false;
   if (!rlBump(`g:${ip}`, 300, 60000, now)) { rlStrike(ip, now); return false; }
   if (method !== 'GET' && p.startsWith('/api/') && !rlBump(`w:${ip}`, 60, 60000, now)) { rlStrike(ip, now); return false; }
   if (p === '/api/auth/login' && !rlBump(`l:${ip}:${String((body && body.username) || '').toLowerCase()}`, 8, 600000, now)) { rlStrike(ip, now); return false; }
+  if (p === '/api/auth/register' && !rlBump(`r:${ip}`, 5, 3600000, now)) { rlStrike(ip, now); return false; }
+  if (p === '/api/auth/check' && !rlBump(`c:${ip}`, 30, 60000, now)) return false; // 软限制不记三振
   return true;
 }
 
@@ -70,6 +73,7 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/auth/register' && method === 'POST') return await handleRegister(db, body, req);
   if (p === '/api/auth/login' && method === 'POST') return await handleLogin(db, body, req);
   if (p === '/api/auth/check' && method === 'GET') return await handleCheckUsername(db, url);
+  if (p === '/api/auth/me' && method === 'GET') return await handleAuthMe(db, req);
   if (p === '/api/user/avatar' && method === 'POST') return await handleSaveAvatar(db, body, req);
 
   // 管理员
@@ -105,39 +109,39 @@ async function routeApi(db, p, method, body, url, req) {
   if (adminMessageById && method === 'DELETE') return await handleAdminDeleteMessage(db, parseInt(adminMessageById[1]), body, req);
 
   // 教师
-  if (p === '/api/teacher/profile' && method === 'GET') return await handleGetProfile(db, url);
-  if (p === '/api/teacher/profile' && method === 'POST') return await handleSaveProfile(db, body);
+  if (p === '/api/teacher/profile' && method === 'GET') return await handleGetProfile(db, url, req);
+  if (p === '/api/teacher/profile' && method === 'POST') return await handleSaveProfile(db, body, req);
   if (p === '/api/teachers' && method === 'GET') return await handleGetTeachers(db);
 
   // 学生需求
-  if (p === '/api/student/demands' && method === 'POST') return await handleCreateDemand(db, body);
-  if (p === '/api/student/demands' && method === 'GET') return await handleGetDemands(db, url);
+  if (p === '/api/student/demands' && method === 'POST') return await handleCreateDemand(db, body, req);
+  if (p === '/api/student/demands' && method === 'GET') return await handleGetDemands(db, url, req);
   const demandById = p.match(/^\/api\/student\/demands\/(\d+)$/);
-  if (demandById && method === 'PUT') return await handleUpdateDemand(db, parseInt(demandById[1]), body);
-  if (demandById && method === 'DELETE') return await handleDeleteDemand(db, parseInt(demandById[1]), body);
+  if (demandById && method === 'PUT') return await handleUpdateDemand(db, parseInt(demandById[1]), body, req);
+  if (demandById && method === 'DELETE') return await handleDeleteDemand(db, parseInt(demandById[1]), body, req);
 
   // 需求意向
   const intentMatch = p.match(/^\/api\/demands\/(\d+)\/intents$/);
-  if (intentMatch && method === 'POST') return await handleCreateIntent(db, parseInt(intentMatch[1]), body);
-  if (intentMatch && method === 'GET') return await handleGetIntents(db, parseInt(intentMatch[1]));
+  if (intentMatch && method === 'POST') return await handleCreateIntent(db, parseInt(intentMatch[1]), body, req);
+  if (intentMatch && method === 'GET') return await handleGetIntents(db, parseInt(intentMatch[1]), req);
   const intentResolve = p.match(/^\/api\/intents\/(\d+)\/resolve$/);
   if (intentResolve && method === 'POST') return await handleResolveIntent(db, parseInt(intentResolve[1]), body, req);
 
   // 需求主动推送（学生 → 教师）+ 教师处理推送
   if (p === '/api/demand-pushes' && method === 'POST') return await handlePushDemand(db, body, req);
-  if (p === '/api/demand-pushes' && method === 'GET') return await handleGetTeacherPushes(db, url);
+  if (p === '/api/demand-pushes' && method === 'GET') return await handleGetTeacherPushes(db, url, req);
   const pushResolve = p.match(/^\/api\/demand-pushes\/(\d+)\/resolve$/);
   if (pushResolve && method === 'POST') return await handleResolvePush(db, parseInt(pushResolve[1]), body, req);
 
   // 通知信息（全角色侧边栏模块）
-  if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, url);
-  if (p === '/api/notifications/read' && method === 'POST') return await handleMarkNotificationsRead(db, body);
+  if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, url, req);
+  if (p === '/api/notifications/read' && method === 'POST') return await handleMarkNotificationsRead(db, body, req);
   if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);
 
   // 合同（起草 → 确认草案 → 确认签约 → signed；测试版短信验证预留）
   if (p === '/api/contracts' && method === 'POST') return await handleCreateContract(db, body, req);
-  if (p === '/api/contracts' && method === 'GET') return await handleGetContractByConv(db, url);
-  if (p === '/api/contracts/my' && method === 'GET') return await handleGetMyContracts(db, url);
+  if (p === '/api/contracts' && method === 'GET') return await handleGetContractByConv(db, url, req);
+  if (p === '/api/contracts/my' && method === 'GET') return await handleGetMyContracts(db, url, req);
   const contractAction = p.match(/^\/api\/contracts\/(\d+)\/(confirm-draft|sign)$/);
   if (contractAction && method === 'POST') {
     const cid = parseInt(contractAction[1]);
@@ -150,21 +154,21 @@ async function routeApi(db, p, method, body, url, req) {
   if (contractById && method === 'DELETE') return await handleCancelContract(db, parseInt(contractById[1]), body, req);
 
   // 站内沟通
-  if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url);
+  if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url, req);
   const convRead = p.match(/^\/api\/conversations\/(\d+)\/read$/);
-  if (convRead && method === 'POST') return await handleMarkRead(db, parseInt(convRead[1]), body);
+  if (convRead && method === 'POST') return await handleMarkRead(db, parseInt(convRead[1]), body, req);
   const convMsgs = p.match(/^\/api\/conversations\/(\d+)\/messages$/);
-  if (convMsgs && method === 'GET') return await handleGetMessages(db, parseInt(convMsgs[1]), url);
+  if (convMsgs && method === 'GET') return await handleGetMessages(db, parseInt(convMsgs[1]), url, req);
   if (convMsgs && method === 'POST') return await handleSendMessage(db, parseInt(convMsgs[1]), body, req);
   const msgAttach = p.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)\/attachment$/);
-  if (msgAttach && method === 'GET') return await handleGetAttachment(db, parseInt(msgAttach[1]), parseInt(msgAttach[2]), url);
-  if (p === '/api/uploads' && method === 'POST') return await handleCreateUpload(db, body);
+  if (msgAttach && method === 'GET') return await handleGetAttachment(db, parseInt(msgAttach[1]), parseInt(msgAttach[2]), url, req);
+  if (p === '/api/uploads' && method === 'POST') return await handleCreateUpload(db, body, req);
   const uploadById = p.match(/^\/api\/uploads\/(\d+)$/);
-  if (uploadById && method === 'DELETE') return await handleDeleteUpload(db, parseInt(uploadById[1]), body);
+  if (uploadById && method === 'DELETE') return await handleDeleteUpload(db, parseInt(uploadById[1]), body, req);
 
   // 评价
   if (p === '/api/reviews' && method === 'POST') return await handleCreateReview(db, body, req);
-  if (p === '/api/reviews' && method === 'GET') return await handleGetReviews(db, url);
+  if (p === '/api/reviews' && method === 'GET') return await handleGetReviews(db, url, req);
   const reviewById = p.match(/^\/api\/reviews\/(\d+)$/);
   if (reviewById && method === 'PUT') return await handleUpdateReview(db, parseInt(reviewById[1]), body, req);
 
@@ -185,7 +189,8 @@ async function routeApi(db, p, method, body, url, req) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const p = url.pathname;
+    let p = url.pathname;
+    try { p = decodeURIComponent(p); } catch { /* 非法编码保持原样 */ } // 防 %73erver 式编码绕过路径前缀检查
 
     // CORS preflight
     if (request.method === 'OPTIONS') {
@@ -203,7 +208,7 @@ export default {
     if (!p.startsWith('/api/')) {
       if (p.startsWith('/server/') || p.startsWith('/docs/') || p === '/secrets.js' ||
           p.startsWith('/.git/') || p.startsWith('/.wrangler/') || p.startsWith('/node_modules/') ||
-          p === '/package.json' || p === '/package-lock.json') {
+          p === '/package.json' || p === '/package-lock.json' || p === '/gen_flow.js' || p.endsWith('.md')) {
         return new Response('Not Found', { status: 404 });
       }
       return env.ASSETS.fetch(request);

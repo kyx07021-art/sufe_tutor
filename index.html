@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- CSP：脚本/样式/接口限同源（内联 onclick 为本站架构，需 unsafe-inline）；图片允许 data: 供附件缩略；字体走 Google Fonts -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'">
   <title>上财家教 - 零佣金家教信息共享平台</title>
   <meta name="description" content="上海财经大学学生创立的家教信息共享平台，零佣金撮合服务">
   <link rel="preconnect" href="https://fonts.googleapis.com">

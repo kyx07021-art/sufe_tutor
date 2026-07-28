@@ -2,7 +2,7 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, dbRun, issueAuthToken, MSG, INVITE_GATE_ENABLED } from './core.js';
+import { json, error, hashPassword, verifyPassword, dbRun, issueAuthToken, authUser, MSG, INVITE_GATE_ENABLED } from './core.js';
 import { dbFindUserByUsername, dbFindUserById, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
 import { logEvent } from './log.js';
 
@@ -60,13 +60,21 @@ export async function handleCheckUsername(db, url) {
   return json(user ? { exists: true, role: user.role } : { exists: false });
 }
 
+// GET /api/auth/me —— 凭令牌取当前用户（刷新保活：前端持久化 token 后不再重放密码登录）
+export async function handleAuthMe(db, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const full = await dbFindUserById(db, me.id);
+  return json({ user: { id: me.id, username: me.username, role: me.role, avatar: (full && full.avatar) || '' } });
+}
+
 // 账户设置：头像上传。前端已按居中最大内切圆裁成 160px dataURL，此处校验长度后落 users.avatar
 export async function handleSaveAvatar(db, body, req) {
-  const userId = parseInt(body.userId);
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const avatar = String(body.avatar || '');
-  if (!userId || !(await dbFindUserById(db, userId))) return error(MSG.LOGIN_REQUIRED, 404);
   if (!avatar.startsWith('data:image/') || avatar.length > 20000) return error(MSG.AVATAR_INVALID);
-  await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, userId]);
-  logEvent(db, { action: 'user.avatar.update', actorUserId: userId, entity: 'user', entityId: userId, req });
+  await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, me.id]);
+  logEvent(db, { action: 'user.avatar.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ ok: true });
 }

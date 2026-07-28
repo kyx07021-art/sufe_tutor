@@ -1,7 +1,7 @@
 /**
  * 路由模块：学生需求（增删改查）+ 需求意向
  */
-import { json, error, MSG } from './core.js';
+import { json, error, authUser, MSG } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
@@ -26,10 +26,11 @@ function demandSubjectsText(d) {
 const pushRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
 const intentRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_INTENT_REJECT.replace('{subjects}', demandSubjectsText(d));
 
-export async function handleCreateDemand(db, body) {
-  const { userId, demand: d } = body;
-  const user = await dbFindUserById(db, userId);
-  if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+export async function handleCreateDemand(db, body, req) {
+  const { demand: d } = body;
+  const me = await authUser(db, req);
+  if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const userId = me.id;
 
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
@@ -39,21 +40,34 @@ export async function handleCreateDemand(db, body) {
   return json({ id, message: MSG.DEMAND_SUBMITTED });
 }
 
-export async function handleGetDemands(db, url) {
+// 公开广场列表裁剪家长/学生联系方式（产品规则：签约后才向对方展示，后端硬把关不靠前端遮掩）
+const stripDemandContacts = list => list.map(({ parent_contact, student_contact, ...rest }) => rest);
+
+export async function handleGetDemands(db, url, req) {
   const raw = url.searchParams.get('userId');
-  if (raw) return json({ demands: await dbGetDemandsByUser(db, parseInt(raw)) });
-  // 教师大厅视角可带 teacherUserId：每条需求附 my_intent_status（该教师的意向状态）
+  if (raw) {
+    const me = await authUser(db, req);
+    if (!me || me.id !== parseInt(raw)) return error(MSG.NO_PERMISSION, 403); // 只许查自己的需求（含联系方式）
+    return json({ demands: await dbGetDemandsByUser(db, me.id) });
+  }
+  // 教师大厅视角可带 teacherUserId：每条需求附 my_intent_status（仅限本人视角，防探他人意向）
   const tRaw = url.searchParams.get('teacherUserId');
-  return json({ demands: await dbGetAllDemands(db, tRaw ? parseInt(tRaw) : null) });
+  let teacherId = null;
+  if (tRaw) {
+    const me = await authUser(db, req);
+    if (!me || me.id !== parseInt(tRaw)) return error(MSG.NO_PERMISSION, 403);
+    teacherId = me.id;
+  }
+  return json({ demands: stripDemandContacts(await dbGetAllDemands(db, teacherId)) });
 }
 
-export async function handleUpdateDemand(db, demandId, body) {
-  const { userId, demand: d } = body;
-  const user = await dbFindUserById(db, userId);
-  if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+export async function handleUpdateDemand(db, demandId, body, req) {
+  const { demand: d } = body;
+  const me = await authUser(db, req);
+  if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (existing.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+  if (existing.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
 
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
@@ -63,23 +77,22 @@ export async function handleUpdateDemand(db, demandId, body) {
   return json({ message: MSG.DEMAND_UPDATED });
 }
 
-export async function handleDeleteDemand(db, demandId, body) {
-  const { userId } = body;
-  const user = await dbFindUserById(db, userId);
-  if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+export async function handleDeleteDemand(db, demandId, body, req) {
+  const me = await authUser(db, req);
+  if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (existing.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+  if (existing.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
 
   await dbDeleteDemand(db, demandId);
   return json({ message: MSG.DEMAND_DELETED });
 }
 
 // --- 需求意向（后端骨架，前端 UI 下一轮接入） ---
-export async function handleCreateIntent(db, demandId, body) {
-  const { userId } = body;
-  const user = await dbFindUserById(db, userId);
-  if (!user || user.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
+export async function handleCreateIntent(db, demandId, body, req) {
+  const me = await authUser(db, req);
+  if (!me || me.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
+  const userId = me.id;
   if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
 
   // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单，
@@ -101,17 +114,24 @@ export async function handleCreateIntent(db, demandId, body) {
   }
 }
 
-export async function handleGetIntents(db, demandId) {
-  const teachers = await dbGetIntentTeachers(db, demandId);
+export async function handleGetIntents(db, demandId, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const demand = await dbGetDemandById(db, demandId);
+  if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (demand.user_id !== me.id) return error(MSG.NO_PERMISSION, 403); // 仅需求所有者可见意向列表
+  const teachers = (await dbGetIntentTeachers(db, demandId))
+    .map(({ wechat, email, ...rest }) => rest); // 联系方式签约前不下发
   return json({ demandId, count: teachers.length, teachers });
 }
 
 // 学生处理意向：accept → 置 accepted 并建立（或复用）师生会话；reject → 置 rejected
 export async function handleResolveIntent(db, intentId, body, req) {
-  const { userId, action } = body;
+  const { action } = body;
   if (!['accept', 'reject'].includes(action)) return error(MSG.INVALID_ROLE);
-  const user = await dbFindUserById(db, userId);
-  if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const me = await authUser(db, req);
+  if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const userId = me.id;
 
   const intent = await dbGetIntentWithDemand(db, intentId);
   if (!intent) return error(MSG.INTENT_NOT_FOUND, 404);
@@ -139,9 +159,10 @@ export async function handleResolveIntent(db, intentId, body, req) {
 // 学生主动推送需求给指定教师 / 教师处理推送
 // ============================================================
 export async function handlePushDemand(db, body, req) {
-  const { userId, teacherUserId, demandId } = body;
-  const user = await dbFindUserById(db, userId);
-  if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const { teacherUserId, demandId } = body;
+  const me = await authUser(db, req);
+  if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const userId = me.id;
   const teacher = await dbFindUserById(db, teacherUserId);
   if (!teacher || teacher.role !== 'teacher') return error(MSG.TEACHER_NOT_FOUND, 404);
   const demand = await dbGetDemandById(db, demandId);
@@ -160,19 +181,21 @@ export async function handlePushDemand(db, body, req) {
 }
 
 // 教师端：待处理推送列表（需求大厅置顶 + 红点计数同源）
-export async function handleGetTeacherPushes(db, url) {
-  const teacherUserId = parseInt(url.searchParams.get('teacherUserId'));
-  if (!teacherUserId) return error(MSG.LOGIN_REQUIRED);
-  const pushes = await dbGetPendingPushesForTeacher(db, teacherUserId);
+export async function handleGetTeacherPushes(db, url, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  if (parseInt(url.searchParams.get('teacherUserId')) !== me.id) return error(MSG.NO_PERMISSION, 403); // 只许查自己的推送
+  const pushes = await dbGetPendingPushesForTeacher(db, me.id);
   return json({ pushes });
 }
 
 // 教师确认 / 拒绝推送。确认 = 写已接受意向 + 建会话；拒绝 = 仅标记 + 委婉通知学生
 export async function handleResolvePush(db, pushId, body, req) {
-  const { userId, action } = body;
+  const { action } = body;
   if (!['accept', 'reject'].includes(action)) return error(MSG.INVALID_ROLE);
-  const user = await dbFindUserById(db, userId);
-  if (!user || user.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
+  const me = await authUser(db, req);
+  if (!me || me.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
+  const userId = me.id;
   const push = await dbGetPushById(db, pushId);
   if (!push) return error(MSG.INTENT_NOT_FOUND, 404);
   if (push.teacher_user_id !== userId) return error(MSG.NO_PERMISSION, 403);

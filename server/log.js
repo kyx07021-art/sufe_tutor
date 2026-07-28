@@ -45,8 +45,9 @@ export async function initLogDb(db) {
   ]);
 }
 
-// 敏感键剔除：口令 / 盐 / 验证码类字段绝不落档
-const SENSITIVE_KEYS = /pass|salt|secret|token|code$/i;
+// 敏感键剔除：口令 / 盐 / 验证码 / 正文大字段（聊天正文、附件 dataURL、头像）/ 联系方式绝不落明文档
+// （detail 加密见 logEvent 咽喉；此处是通用兜底留档 request body 的第一道脱敏）
+const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email/i;
 function sanitize(value, depth = 0) {
   if (value === null || value === undefined) return value;
   if (typeof value !== 'object') return value;
