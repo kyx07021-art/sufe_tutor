@@ -104,6 +104,7 @@ select.posts-sort {
 }
 .md-btn:hover { background: var(--ink); color: var(--paper); }
 .md-btn:active { transform: translateY(1px); }
+label.md-btn { display: inline-block; cursor: pointer; } /* 插图按钮是原生 label（唤起文件框），补内联块与指针 */
 
 /* 标题字数计数：输入行最右，灰色小字 n/60，超 55 变红 */
 .title-count { flex-shrink: 0; font-family: var(--mono); font-size: .68rem; color: var(--muted); letter-spacing: .02em; transition: color var(--t-fast) var(--ease-out); }

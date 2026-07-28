@@ -34,7 +34,6 @@ export const MSG = {
   TEACHER_NEEDS_INVITE: '教师注册需要邀请码',
   INVITE_INVALID: '邀请码无效或已过期',
   NO_PERMISSION: '无权限',
-  ADMIN_NOT_FOUND: '管理员账户不存在',
 
   // 教师
   PROFILE_SAVED: '教师信息已保存',
@@ -46,7 +45,6 @@ export const MSG = {
   DEMAND_UPDATED: '需求已更新',
   DEMAND_DELETED: '需求已删除',
   PROVINCE_REQUIRED: '请选择省份',
-  REGION_ONLINE_ONLY: '该省份目前只支持线上教学',
   TEACHER_ONLY: '仅教师可操作',
   ADMIN_ONLY: '仅管理员可操作',
   USER_NOT_FOUND: '用户不存在',
@@ -89,7 +87,6 @@ export const MSG = {
   MESSAGE_NOT_FOUND: '消息不存在',
   MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
   FILE_TOO_LARGE: '附件过大（上限约 500KB，图片会自动压缩）',
-  FEATURE_TODO: '该功能即将开放，敬请期待',
 
   // 评价
   RATING_RANGE: '评分需在1-5之间',
@@ -99,7 +96,6 @@ export const MSG = {
   REVIEW_CONTRACT_ONLY: '评价仅限与该教师签约的学生（签约功能即将上线）',
   REVIEW_EXISTS: '你已评价过该教师，只能修改原评价',
   REVIEW_UPDATED: '评价已更新，重新进入审核',
-  REVIEW_NOT_FOUND: '评价不存在',
   REVIEW_NOT_FOUND: '评价不存在',
   REVIEW_APPROVED: '评价已通过',
   REVIEW_REJECTED: '评价已拒绝',

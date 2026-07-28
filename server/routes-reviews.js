@@ -3,7 +3,7 @@
  * 规则：仅签约学生可评价（签约机制未上线，门禁经 dbIsContracted 预留接口）；
  *       每名学生对每名教师限一条，已有评价只能修改（修改后重回待审核）。
  */
-import { json, error, MSG } from './core.js';
+import { json, error, dbGet, MSG } from './core.js';
 import {
   dbFindUserById, dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
   dbUpdateReview, dbIsContracted,

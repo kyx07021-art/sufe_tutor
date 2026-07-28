@@ -232,8 +232,8 @@ function renderChatFrame(conv) {
            <div class="chat-actions">
              <div class="chat-plus-wrap" id="chat-plus-wrap">
                <div class="chat-plus-pop">
-                 <button type="button" class="chat-pop-item" onclick="chatPickImage()">${UI.CHAT_ATTACH_IMAGE}</button>
-                 <button type="button" class="chat-pop-item" onclick="chatPickFile()">${UI.CHAT_ATTACH_FILE}</button>
+                 <label class="chat-pop-item" for="chat-image-input" onclick="closeChatPlus()">${UI.CHAT_ATTACH_IMAGE}</label>
+                 <label class="chat-pop-item" for="chat-file-input" onclick="closeChatPlus()">${UI.CHAT_ATTACH_FILE}</label>
                  <button type="button" class="chat-pop-item" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
                </div>
                <input type="file" id="chat-image-input" accept="image/*" class="sr-file-input" onchange="chatOnImagePicked(this)">
@@ -445,11 +445,10 @@ function chatAutogrow(ta) {
 let chatStaged = [];
 let chatStageSeq = 0;
 
-function chatPickImage() { closeChatPlus(); const el = document.getElementById('chat-image-input'); if (el) el.click(); }
-function chatPickFile() { closeChatPlus(); const el = document.getElementById('chat-file-input'); if (el) el.click(); }
-
-function chatOnImagePicked(input) { const f = input.files; input.value = ''; if (f && f.length) chatStageFiles(f); }
-function chatOnFilePicked(input) { const f = input.files; input.value = ''; if (f && f.length) chatStageFiles(f); }
+// 弹层选项是 <label for> 指向文件框（原生激活 = 真实用户手势，无需程序化 click，iOS 全兼容）；
+// 取文件必须先拷贝再清空：input.files 是活引用，先清 value 会连持有的一份一起清空（选完文件无反应的根因）
+function chatOnImagePicked(input) { const files = [...input.files]; input.value = ''; if (files.length) chatStageFiles(files); }
+function chatOnFilePicked(input) { const files = [...input.files]; input.value = ''; if (files.length) chatStageFiles(files); }
 
 function chatStageFiles(files) {
   [...files].forEach(f => {
@@ -489,7 +488,7 @@ function chatUploadToServer(kind, dataUrl, name, onProgress) {
       if (xhr.status >= 200 && xhr.status < 300) resolve(data);
       else reject(new Error(data.error || ('HTTP ' + xhr.status)));
     };
-    xhr.onerror = () => reject(new Error('网络错误'));
+    xhr.onerror = () => reject(new Error(UI.ERROR_REQUEST_FAILED));
     xhr.send(JSON.stringify({ userId: state.user.id, kind, fileData: dataUrl, fileName: name }));
   });
 }

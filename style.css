@@ -192,8 +192,8 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
 
 .btn-sm { padding: 8px 14px; font-size: .8rem; }
 .btn-xs { padding: 4px 9px; font-size: .7rem; }
-.btn-lg { padding: 15px 30px; font-size: 1rem; }
 .btn-icon { width: 36px; height: 36px; padding: 0; }
+label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）补指针手型 */
 
 /* ============================================================
    Landing — 满屏编辑式二分舞台
@@ -527,14 +527,6 @@ textarea.form-input {
 
 .score-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; flex-wrap: wrap; }
 .score-subject { flex: 0 0 50px; font-size: .8rem; font-weight: 700; color: var(--ink-3); }
-.score-options { display: flex; gap: 6px; }
-.score-option {
-  padding: 3px 11px; background: transparent; font-size: .72rem; color: var(--muted);
-  cursor: pointer; transition: all var(--t-fast); font-weight: 600;
-}
-.score-option:hover { color: var(--ink); }
-.score-option.selected { background: var(--ink); color: var(--paper); }
-
 .form-divider { height: 1px; background: var(--line); margin: 24px 0; }
 .form-actions { display: flex; gap: 10px; margin-top: 24px; }
 .form-actions .btn { flex: 1; }
@@ -908,13 +900,11 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
   font-size: .8rem; color: var(--muted); display: flex; gap: 20px;
 }
-.list-card-actions { margin-top: 14px; display: flex; gap: 8px; }
 
 /* 评分星 */
 .stars { display: inline-flex; gap: 1px; font-size: .85rem; }
 .stars .star { color: var(--star-empty); }
 .stars .star.filled { color: var(--star); }
-.rating-text { font-size: .72rem; color: var(--muted); margin-left: 8px; }
 
 /* 评价（教师弹窗内）：无框，细线分行 */
 .review-item { padding: 12px 2px; font-size: .8rem; }
@@ -1225,18 +1215,11 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
 /* ---------- utilities ---------- */
 .hidden { display: none !important; }
-.text-center { text-align: center; }
 .text-muted { color: var(--muted); }
 .text-sm { font-size: .8rem; }
 .mt-2 { margin-top: 8px; }
 .review-mine-note { margin-top: 8px; font-size: .74rem; color: var(--muted); }
-.mt-4 { margin-top: 16px; }
-.mb-2 { margin-bottom: 8px; }
 .flex { display: flex; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
 
 /* ---------- 尊重减弱动效偏好 ---------- */
 @media (prefers-reduced-motion: reduce) {

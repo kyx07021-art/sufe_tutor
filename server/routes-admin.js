@@ -7,7 +7,7 @@ import {
   INITIAL_RATING, INITIAL_WEIGHT, MSG,
 } from './core.js';
 import {
-  dbFindUserByUsername, dbCreateInviteCode, dbGetAllInvites,
+  dbCreateInviteCode, dbGetAllInvites,
   dbGetUserStats, dbGetCount, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbGetApprovedReviewStats, dbUpdateTeacherRating,
@@ -213,7 +213,7 @@ export async function handleAdminBroadcast(db, body, req) {
   const title = String(body.title || '').trim();
   const text = String(body.text || '').trim();
   if (!text) return error(MSG.BROADCAST_EMPTY);
-  const message = title ? `【系统通知】${title}\n${text}` : text;
+  const message = title ? `${globalThis.APP_CONSTANTS.UI.NOTIFY_BROADCAST_PREFIX}${title}\n${text}` : text;
   const count = await dbBroadcastNotification(db, message);
   logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: message.length }, req });

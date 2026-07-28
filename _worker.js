@@ -8,7 +8,7 @@
  * 留档: routeApi 的每次应答经 logRequest 通用兜底留档（模块5）
  */
 import { initDb } from './server/db.js';
-import { json, error } from './server/core.js';
+import { json, error, MSG } from './server/core.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleSaveAvatar } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
@@ -196,7 +196,7 @@ export default {
     } catch (err) {
       console.error('API Error:', err);
       logRequest(db, { method: request.method, path: p, body, status: 500, req: request });
-      return error('服务器内部错误: ' + err.message, 500);
+      return error(MSG.SERVER_ERROR + ': ' + err.message, 500);
     }
   },
 };

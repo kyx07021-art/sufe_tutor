@@ -143,8 +143,8 @@ function openPostEditor() {
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
-            <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
+            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="9"
             placeholder="${UI.POST_BODY_PLACEHOLDER}"
@@ -209,12 +209,6 @@ function mdWrap(mode) {
   }
   ta.focus();
   updatePostPreview();
-}
-
-// 触发隐藏 file input 选图
-function pickPostImage() {
-  const input = document.getElementById('post-image-file');
-  if (input) input.click();
 }
 
 // 图片 → FileReader 读成 dataURL → 在光标处插入 ![图片](dataURL)，并独占一行
@@ -363,8 +357,8 @@ function openBroadcastModal() {
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
-            <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
+            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="7"
             placeholder="${UI.BROADCAST_BODY_PLACEHOLDER}"

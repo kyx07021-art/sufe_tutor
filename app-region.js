@@ -6,6 +6,8 @@
  *   1. region-data.js —— 提供 globalThis.SUFE_REGIONS（地区数据单源）
  *   2. app.js         —— 提供 escHtml（插值转义）；本文件的 collect 结果与
  *                        app.js 现存 gaokao_scores / current_scores 形状兼容
+ *   UI 文案：constants.js 的 UI 常量经 app.js 顶层 const 解构为全域词法绑定，
+ *            本文件与 app-posts / app-chat 同样裸引 UI.*（勿重复 const，会撞声明）
  *   3. app-region.js  —— 本文件
  *   样式：style-region.css 需在 style.css 之后引入（paddle 类依赖层叠覆盖顺序）
  *
@@ -77,14 +79,14 @@ function gkMainSection(mainIds, exOf) {
   const names = R.subjectNames;
   let html = '<div class="gaokao-section">';
   if (!mainIds || !mainIds.length) {
-    return html + '<p class="region-hint">在上方勾选擅长的主科后，在此填写成绩</p></div>';
+    return html + `<p class="region-hint">${UI.REGION_HINT_FILL_MAIN}</p></div>`;
   }
   mainIds.forEach(sid => {
     const ex = exOf(sid);
     const max = R.subjectMaxScore[sid] || 150;
     html += `<div class="gaokao-row"><span class="subject-name">${escHtml(names[sid] || sid)}</span>
       <input type="number" class="score-inline" data-gk-subject="${escHtml(sid)}" data-gk-type="score"
-        value="${gkVal(ex.score)}" placeholder="分数" min="0" max="${max}">
+        value="${gkVal(ex.score)}" placeholder="${UI.REGION_SCORE_PLACEHOLDER}" min="0" max="${max}">
       <span class="score-max">/ ${max}</span></div>`;
   });
   return html + '</div>';
@@ -102,14 +104,14 @@ function renderProvinceSelect(selectId, selectedId, onchangeAttr) {
     `<option value="${escHtml(p.id)}"${p.id === selectedId ? ' selected' : ''}>${escHtml(p.name)}</option>`
   ).join('');
   return `<select class="form-select" id="${escHtml(selectId)}"${onchangeAttr ? ' ' + onchangeAttr : ''}>
-    <option value="">请选择</option>${opts}
+    <option value="">${UI.OPTION_PLACEHOLDER}</option>${opts}
   </select>`;
 }
 
 // 非上海省份的线下教学限制提示
 function regionLockNote(provinceId) {
   if (provinceId === 'shanghai') return '';
-  return '<p class="region-hint">目前只支持上海的线下教学</p>';
+  return `<p class="region-hint">${UI.REGION_HINT_OFFLINE_ONLY}</p>`;
 }
 
 // ------------------------------------------------------------
@@ -128,7 +130,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
   const checked = new Set([...document.querySelectorAll('#profile-subjects input:checked')].map(cb => cb.value));
 
   if (!R.isValidProvince(provinceId)) {
-    return '<p class="text-sm text-muted">请先选择高考所在省份</p>';
+    return `<p class="text-sm text-muted">${UI.REGION_HINT_PICK_PROVINCE}</p>`;
   }
 
   const pol = regionResolvePolicy(provinceId);
@@ -144,18 +146,18 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
     const gs = pol.gradeSystem || R.gradeSystems.standard5;
     html += '<div class="gaokao-section">';
     if (!firstChecked.length && !reChecked.length) {
-      html += '<p class="region-hint">在上方勾选擅长的选考科目后，在此填写成绩</p>';
+      html += `<p class="region-hint">${UI.REGION_HINT_FILL_ELECTIVE}</p>`;
     } else {
       if (firstChecked.length) {
         const firstSel = firstChecked.find(hasEx) || firstChecked[0];
         const firstEx = exOf(firstSel);
-        html += `<div class="gaokao-row"><span class="subject-name">首选科目${firstChecked.length > 1 ? '（二选一）' : ''}</span>
+        html += `<div class="gaokao-row"><span class="subject-name">${UI.REGION_FIRST_SUBJECT_LABEL}${firstChecked.length > 1 ? UI.REGION_FIRST_TWO_HINT : ''}</span>
           <div class="gk-pill-group gk-first-pills" data-gk-role="first">
             ${firstChecked.map(sid => `<span class="grade-option gk-pill ${sid === firstSel ? 'selected' : ''}"
               data-gk-first="${escHtml(sid)}" onclick="pickGkPill(this)">${escHtml(names[sid] || sid)}</span>`).join('')}
           </div>
           <input type="number" class="score-inline" data-gk-role="first-score" data-gk-type="score"
-            value="${gkVal(firstEx.score)}" placeholder="分数" min="0" max="100">
+            value="${gkVal(firstEx.score)}" placeholder="${UI.REGION_SCORE_PLACEHOLDER}" min="0" max="100">
           <span class="score-max">/ 100</span>
         </div>`;
       }
@@ -181,7 +183,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
 
     html += `<div class="gaokao-section">`;
     if (!electives.length) {
-      html += '<p class="region-hint">在上方勾选擅长的选考科目后，在此填写成绩</p>';
+      html += `<p class="region-hint">${UI.REGION_HINT_FILL_ELECTIVE}</p>`;
     } else {
       html += electives.map(sid => {
         const ex = exOf(sid);
@@ -189,8 +191,8 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
         if (isStandard) {
           const max = gs.max || 300;
           ctl = `<input type="number" class="score-inline" data-gk-subject="${escHtml(sid)}" data-gk-type="score"
-            value="${gkVal(ex.score)}" placeholder="分数" min="0" max="${max}">
-            <span class="score-max">/ ${max}</span><span class="region-max-note">标准分</span>`;
+            value="${gkVal(ex.score)}" placeholder="${UI.REGION_SCORE_PLACEHOLDER}" min="0" max="${max}">
+            <span class="score-max">/ ${max}</span><span class="region-max-note">${UI.REGION_STANDARD_SCORE_NOTE}</span>`;
         } else if (usePills) {
           ctl = `<div class="grade-selector" data-gk-subject="${escHtml(sid)}">
             ${gs.levels.map(lv => `<span class="grade-option ${ex.grade === lv.id ? 'selected' : ''}"
@@ -198,13 +200,13 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
           </div>`;
         } else if (gs && gs.type === 'grade') {
           ctl = `<select class="form-select gk-grade-select" data-gk-subject="${escHtml(sid)}">
-            <option value="">请选择等第</option>
+            <option value="">${UI.REGION_GRADE_PLACEHOLDER}</option>
             ${gs.levels.map(lv => `<option value="${escHtml(lv.id)}"${ex.grade === lv.id ? ' selected' : ''}>${escHtml(lv.name)}</option>`).join('')}
           </select>`;
         } else {
           // 兜底：该省未配置赋分制时按原始分录入
           ctl = `<input type="number" class="score-inline" data-gk-subject="${escHtml(sid)}" data-gk-type="score"
-            value="${gkVal(ex.score)}" placeholder="分数" min="0" max="100">
+            value="${gkVal(ex.score)}" placeholder="${UI.REGION_SCORE_PLACEHOLDER}" min="0" max="100">
             <span class="score-max">/ 100</span>`;
         }
         return `<div class="gaokao-row" data-gk-check-row="${escHtml(sid)}">
@@ -216,7 +218,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
   } else {
     // ---- 分支三：传统文理（理/文 track pill + 对应科目原始分） ----
     const tracks = pol.tracks || { science: [], arts: [] };
-    const trackLabel = { science: '理科', arts: '文科' };
+    const trackLabel = { science: UI.REGION_TRACK_SCIENCE, arts: UI.REGION_TRACK_ARTS };
     // 当前分科：优先按勾选的擅长科目推断 → 已有成绩推断 → 默认第一 track
     let curTrack = Object.keys(tracks).find(tk => (tracks[tk] || []).some(sid => checked.has(sid)))
       || Object.keys(tracks).find(tk => list.some(x => x && (tracks[tk] || []).includes(x.subject)))
@@ -234,7 +236,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
         return `<div class="gaokao-row ${tk === curTrack ? '' : 'hidden'}" data-gk-track-row="${escHtml(tk)}">
           <span class="subject-name">${escHtml(names[sid] || sid)}</span>
           <input type="number" class="score-inline" data-gk-subject="${escHtml(sid)}" data-gk-type="score"
-            value="${gkVal(ex.score)}" placeholder="分数" min="0" max="100">
+            value="${gkVal(ex.score)}" placeholder="${UI.REGION_SCORE_PLACEHOLDER}" min="0" max="100">
           <span class="score-max">/ 100</span></div>`;
       }).join('')).join('')}
     </div>`;
@@ -279,14 +281,6 @@ function pickGkTrack(el) {
   root.querySelectorAll('[data-gk-track-row]').forEach(row => {
     row.classList.toggle('hidden', row.dataset.gkTrackRow !== el.dataset.gkTrack);
   });
-}
-
-// 勾选联动：科目 checkbox 显隐对应的成绩行（再选科目 / 3+3 选考共用）
-function toggleGkRow(cb) {
-  const root = document.getElementById('profile-gaokao-scores');
-  if (!root) return;
-  const row = root.querySelector(`[data-gk-check-row="${cb.value}"]`);
-  if (row) row.classList.toggle('hidden', !cb.checked);
 }
 
 // 收集教师端编辑器输入 → [{subject, score} | {subject, grade}]
@@ -334,9 +328,9 @@ function collectTeacherGaokao() {
 // #d-subjects 本身就是 .checkbox-grid 容器）。gradeId 未选时给出引导文案。
 function buildStudentSubjectsHtml(provinceId, gradeId) {
   const R = globalThis.SUFE_REGIONS;
-  if (!gradeId) return '<p class="text-sm text-muted">请先选择年级，再选目标科目</p>';
+  if (!gradeId) return `<p class="text-sm text-muted">${UI.REGION_HINT_PICK_GRADE}</p>`;
   const ids = R.subjectsFor(provinceId, gradeId);
-  if (!ids || !ids.length) return '<p class="text-sm text-muted">该地区暂无可选科目</p>';
+  if (!ids || !ids.length) return `<p class="text-sm text-muted">${UI.REGION_HINT_NO_SUBJECTS}</p>`;
   return ids.map(sid =>
     `<label class="checkbox-item"><input type="checkbox" value="${escHtml(sid)}">${escHtml(R.subjectNames[sid] || sid)}</label>`
   ).join('');
@@ -348,7 +342,7 @@ function buildStudentSubjectsHtml(provinceId, gradeId) {
 function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
   const R = globalThis.SUFE_REGIONS;
   const ids = (Array.isArray(subjectIds) ? subjectIds : []).filter(Boolean);
-  if (!ids.length) return '<p class="text-sm text-muted">请先选择目标科目</p>';
+  if (!ids.length) return `<p class="text-sm text-muted">${UI.REGION_HINT_PICK_SUBJECTS}</p>`;
 
   const levels = R.gradeLevelsFor(provinceId, gradeId); // null = 该省该学段无等第制
   const stage = R.stageOfGrade(gradeId);
@@ -363,8 +357,8 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
     const max = (base !== 150 && shMax) ? shMax : base;
 
     const inputPane = `<input type="number" class="score-inline" data-sg-subject="${sidE}"
-        data-score-max="${max}" placeholder="分数" min="0" max="${max}">
-      <span class="score-max">/ ${max}</span>${shMax && base !== 150 ? '<span class="region-max-note">上海选考满分 70</span>' : ''}`;
+        data-score-max="${max}" placeholder="${UI.REGION_SCORE_PLACEHOLDER}" min="0" max="${max}">
+      <span class="score-max">/ ${max}</span>${shMax && base !== 150 ? `<span class="region-max-note">${UI.REGION_SH_ELECTIVE_MAX_NOTE}</span>` : ''}`;
 
     // 主科（语数外）：统一原始分 /150，不提供等第制页签（三种高考政策主科都是原始分）
     if (R.policies['3+1+2'].main.includes(sid)) {
@@ -384,8 +378,8 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
     return `<div class="score-row region-score-row" data-score-subject="${sidE}">
       <span class="score-subject">${escHtml(name)}</span>
       <div class="score-mode-tabs">
-        <button type="button" class="score-mode-tab active" data-mode="grade" onclick="switchScoreMode(this)">等第制</button>
-        <button type="button" class="score-mode-tab" data-mode="score" onclick="switchScoreMode(this)">分数制</button>
+        <button type="button" class="score-mode-tab active" data-mode="grade" onclick="switchScoreMode(this)">${UI.REGION_TAB_GRADE}</button>
+        <button type="button" class="score-mode-tab" data-mode="score" onclick="switchScoreMode(this)">${UI.REGION_TAB_SCORE}</button>
       </div>
       <div class="score-mode-pane" data-mode="grade">
         <div class="grade-selector" data-sg-subject="${sidE}">

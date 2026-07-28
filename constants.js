@@ -72,7 +72,6 @@ globalThis.APP_CONSTANTS = {
     UNBAN: '解封',
     BTN_GENERATE_INVITE: '生成邀请码',
     BTN_CANCEL: '取消',
-    BTN_BACK: '← 返回',
 
     // 加载状态
     LOADING_LOGIN: '登录中...',
@@ -119,7 +118,6 @@ globalThis.APP_CONSTANTS = {
     EMPTY_NO_MY_DEMANDS: '还没有需求，点击右上角「新建需求」发布第一条',
     EMPTY_NO_REVIEWS: '暂无评价',
     EMPTY_NO_USERS: '暂无用户',
-    EMPTY_NO_PENDING_REVIEWS: '暂无待审核评价',
 
     // 邀请码
     INVITE_EXPIRED: '已过期',
@@ -128,8 +126,6 @@ globalThis.APP_CONSTANTS = {
     // 教师卡片 / 列表
     PRICE_UNIT: '元/h',
     BTN_VIEW_DETAIL: '查看详情 / 评价',
-    LABEL_SELECT_HINT: '请先选择擅长科目',
-    SCORE_LABEL: '满分：',
     SCORE_SCALE_SUFFIX: '分制',
 
     // 需求列表
@@ -192,6 +188,7 @@ globalThis.APP_CONSTANTS = {
 
     // 管理员：系统通知广播（编辑器复用发帖组件：标题+正文）
     BTN_SEND_NOTIFICATION: '发通知',
+    NOTIFY_BROADCAST_PREFIX: '【系统通知】',
     BROADCAST_MODAL_TITLE: '发送系统通知',
     BROADCAST_TITLE_PLACEHOLDER: '通知标题（推送时自动加【系统通知】前缀）',
     BROADCAST_BODY_PLACEHOLDER: '输入通知正文，全部用户都会收到（支持轻量 Markdown）',
@@ -216,7 +213,6 @@ globalThis.APP_CONSTANTS = {
     // 我的合同
     PAGE_MY_CONTRACTS: '我的合同',
     PAGE_MY_CONTRACTS_DESC: '合同草案确认与正式签约',
-    BTN_DRAFT_CONTRACT: '起草合同',
     DRAFT_MODAL_TITLE: '起草合同',
     LABEL_CONTRACT_METHOD: '教学方式',
     LABEL_CONTRACT_PLAN: '教学方案',
@@ -224,6 +220,9 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_PLAN_PLACEHOLDER: '描述教学目标、内容安排与上课节奏，发送后将按此信息生成正式合同',
     VALIDATE_CONTRACT_PLAN: '请填写教学方案',
     VALIDATE_CONTRACT_RATE: '请填写约定时薪',
+    CONTRACT_EMPTY: '合同内容不能为空',
+    CONTRACT_PRICE_PLACEHOLDER: '如：150',
+    ADMIN_CONTRACT_DRAFTER_PREFIX: '起草 ',
     CONTRACT_STATUS_PENDING: '草案待确认',
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',
@@ -292,9 +291,6 @@ globalThis.APP_CONSTANTS = {
     BTN_MARK_RESOLVED: '标记已处理',
     FEEDBACK_RESOLVED_TOAST: '已标记处理并通知提出者',
 
-    // 教师地址（选填，合规红线：不收详细门牌号）
-    TEACHER_ADDRESS_PLACEHOLDER: '上海市xx区xx路（无需详细门牌号）',
-
     // 账户头像
     SETTINGS_AVATAR: '账户头像',
     BTN_UPLOAD_AVATAR: '上传头像',
@@ -348,8 +344,6 @@ globalThis.APP_CONSTANTS = {
     HINT_SELECT_TARGET_SUBJECTS: '请先选择目标科目',
     HINT_SELECT_PROVINCE_GRADE: '请先选择省份和年级',
     HINT_SELECT_PROVINCE_GAOKAO: '请先选择省份（高考所在地），按该省政策填写高考成绩',
-    CONTACT_PARENT_PREFIX: '家长: ',
-    CONTACT_STUDENT_PREFIX: '学生: ',
 
     // 学生处理教师意向
     INTENT_STATUS_PENDING: '待处理',
@@ -460,6 +454,7 @@ globalThis.APP_CONSTANTS = {
     LABEL_PARENT_CONTACT: '家长联系方式',
     LABEL_STUDENT_CONTACT: '学生联系方式',
     LABEL_ADDITIONAL_INFO: '其他补充信息',
+    DEMAND_INFO_PLACEHOLDER: '上课时间偏好、特殊要求等',
     LABEL_RATING: '评分',
     LABEL_REVIEW_CONTENT: '评价内容',
     REVIEW_COMMENT_PLACEHOLDER: '请分享你的体验...',
@@ -494,10 +489,28 @@ globalThis.APP_CONSTANTS = {
     ADMIN_REVIEWS_APPROVED: '已通过评价',
     ADMIN_REVIEWS_PENDING: '待审评价',
     ADMIN_INVITES_USED: '已用邀请码',
-    ADMIN_PENDING_REVIEWS_TITLE: '待审核评价',
     ADMIN_RECENT_USERS: '最近注册用户',
     ADMIN_RECENT_DEMANDS: '最近需求',
     BTN_APPROVE: '通过',
     BTN_REJECT: '拒绝',
+
+    // 地区/赋分组件（app-region.js）
+    REGION_HINT_FILL_MAIN: '在上方勾选擅长的主科后，在此填写成绩',
+    REGION_HINT_FILL_ELECTIVE: '在上方勾选擅长的选考科目后，在此填写成绩',
+    REGION_HINT_OFFLINE_ONLY: '目前只支持上海的线下教学',
+    REGION_HINT_PICK_PROVINCE: '请先选择高考所在省份',
+    REGION_HINT_PICK_GRADE: '请先选择年级，再选目标科目',
+    REGION_HINT_NO_SUBJECTS: '该地区暂无可选科目',
+    REGION_HINT_PICK_SUBJECTS: '请先选择目标科目',
+    REGION_SCORE_PLACEHOLDER: '分数',
+    REGION_GRADE_PLACEHOLDER: '请选择等第',
+    REGION_FIRST_SUBJECT_LABEL: '首选科目',
+    REGION_FIRST_TWO_HINT: '（二选一）',
+    REGION_STANDARD_SCORE_NOTE: '标准分',
+    REGION_TRACK_SCIENCE: '理科',
+    REGION_TRACK_ARTS: '文科',
+    REGION_SH_ELECTIVE_MAX_NOTE: '上海选考满分 70',
+    REGION_TAB_GRADE: '等第制',
+    REGION_TAB_SCORE: '分数制',
   },
 };

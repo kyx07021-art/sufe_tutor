@@ -356,7 +356,6 @@ function selectPage(pageId) {
 function sidebarPillGlide() {
   glidePill(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item', 380);
 }
-function openSidebar()   { document.body.classList.add('sidebar-open'); sidebarPillGlide(); }
 function closeSidebar()  { document.body.classList.remove('sidebar-open'); sidebarPillGlide(); }
 function toggleSidebar() { document.body.classList.toggle('sidebar-open'); sidebarPillGlide(); }
 
@@ -638,7 +637,7 @@ function renderDemandModal(demand) {
           </div>
           <div class="form-group">
             <label class="form-label">${UI.LABEL_ADDITIONAL_INFO}</label>
-            <textarea class="form-input" id="d-info" rows="3" placeholder="上课时间偏好、特殊要求等"></textarea>
+            <textarea class="form-input" id="d-info" rows="3" placeholder="${UI.DEMAND_INFO_PLACEHOLDER}"></textarea>
           </div>
           <div class="modal-footer">
             ${demand ? `<button type="button" class="btn btn-danger btn-sm modal-footer-start" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
@@ -848,7 +847,7 @@ function renderSubjectScoreRows(t) {
     const s = SUBJECTS.find(x => x.id === sid);
     if (!s) return '';
     const gs = (t.gaokao_scores || []).find(x => x.subject === sid);
-    const val = gs ? (gs.score !== undefined ? `${gs.score} / ${s.maxScore}分` : (gs.grade || '')) : '';
+    const val = gs ? (gs.score !== undefined ? `${gs.score} / ${s.maxScore}${UI.SCORE_UNIT}` : (gs.grade || '')) : '';
     return `<div class="subject-row"><span>${s.name}</span><span class="subject-score">${val}</span></div>`;
   }).join('');
 }
@@ -1390,8 +1389,8 @@ function enterAccountSettings() {
     <div class="settings-row settings-row--avatar">
       <div>
         <div class="settings-label">${UI.SETTINGS_AVATAR}</div>
-        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('avatar-file').click()">${UI.BTN_UPLOAD_AVATAR}</button>
-        <input type="file" id="avatar-file" accept="image/*" class="hidden" onchange="handleAvatarUpload(this)">
+        <label class="btn btn-outline btn-sm" for="avatar-file">${UI.BTN_UPLOAD_AVATAR}</label>
+        <input type="file" id="avatar-file" accept="image/*" class="sr-file-input" onchange="handleAvatarUpload(this)">
       </div>
       ${renderAvatarHtml(u.avatar, u.username, 'settings-avatar')}
     </div>
@@ -1647,8 +1646,8 @@ function openContractModifyModal(contractId) {
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
-            <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
+            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="12" oninput="updatePostPreview()">${escHtml(c.contract_md || '')}</textarea>
         </div>
@@ -1701,13 +1700,12 @@ function openContractDraftModal(convId) {
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_METHOD}</label>
           <select class="form-select" id="contract-method">
-            <option value="online">线上</option>
-            <option value="offline">线下</option>
+            ${TEACHING_METHODS.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_RATE}</label>
-          <input type="number" class="form-input" id="contract-rate" min="0" step="1" placeholder="如：150">
+          <input type="number" class="form-input" id="contract-rate" min="0" step="1" placeholder="${UI.CONTRACT_PRICE_PLACEHOLDER}">
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_PLAN}</label>
@@ -1715,8 +1713,8 @@ function openContractDraftModal(convId) {
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
-            <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
+            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.CONTRACT_PLAN_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
         </div>
@@ -1779,7 +1777,7 @@ function renderAdminContractRow(c) {
         <strong>${escHtml(c.student_name)} × ${escHtml(c.teacher_name)}</strong>
         <span class="tag ${statusCls}">${statusText}</span>
       </div>
-      <div class="admin-row-meta">起草 ${escHtml(c.drafter_name)} · ${escHtml(methodName)} · ${c.hourly_rate}${UI.PRICE_UNIT} · ${fmtDateTime(c.updated_at)}</div>
+      <div class="admin-row-meta">${UI.ADMIN_CONTRACT_DRAFTER_PREFIX}${escHtml(c.drafter_name)} · ${escHtml(methodName)} · ${c.hourly_rate}${UI.PRICE_UNIT} · ${fmtDateTime(c.updated_at)}</div>
     </div>
     <div class="admin-row-actions">
       <button type="button" class="btn btn-outline btn-xs" onclick="adminViewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
@@ -1812,7 +1810,7 @@ function adminRemoveContract(contractId) {
 // 系统广播通知拆成标题/正文两段（格式：【系统通知】标题\n正文）；其余通知单段
 function renderNotifContent(text) {
   const t = String(text || '');
-  const prefix = '【系统通知】';
+  const prefix = UI.NOTIFY_BROADCAST_PREFIX;
   if (t.startsWith(prefix)) {
     const nl = t.indexOf('\n');
     const title = (nl === -1 ? t : t.slice(0, nl)).slice(prefix.length);
@@ -1886,8 +1884,8 @@ function openFeedbackModal(kind) {
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
-            <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
+            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${UI.FEEDBACK_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
         </div>

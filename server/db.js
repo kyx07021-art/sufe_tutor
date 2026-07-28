@@ -576,16 +576,6 @@ export async function dbResolveIntent(db, intentId, status) {
     [status, intentId]);
 }
 
-// 学生视角：自己所有需求上收到的意向（含状态与教师名）
-export async function dbGetIntentsForStudent(db, userId) {
-  return await dbAll(db, `SELECT di.id, di.demand_id, di.status, di.created_at,
-      di.teacher_user_id, u.username AS teacher_name
-    FROM demand_intents di
-    JOIN student_demands sd ON sd.id=di.demand_id
-    JOIN users u ON u.id=di.teacher_user_id
-    WHERE sd.user_id=? ORDER BY di.created_at DESC`, [userId]);
-}
-
 // ============================================================
 // 评价
 // ============================================================

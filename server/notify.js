@@ -8,7 +8,7 @@
  * 通知文案由业务方（routes-* 在拒绝/退回等节点）按场景拼装后传入，保持委婉语气。
  * 仅 import core.js（dbAll/dbGet/dbRun/json/error/MSG），不依赖 db.js，避免循环。
  */
-import { dbAll, dbGet, dbRun, json, error, MSG } from './core.js';
+import { dbAll, dbRun, json, error, MSG } from './core.js';
 
 // 建表（幂等）
 export async function initNotifyTable(db) {

@@ -1,7 +1,7 @@
 /**
- * 路由模块：站内沟通（会话列表 / 消息轮询 / 发送）
+ * 路由模块：站内沟通（会话列表 / 消息轮询 / 发送 / 附件暂存上传）
  * 消息内容按模块5要求全量留档（detail 含正文，走 logEvent 咽喉，后期统一加密）
- * 图片/文件：schema 已预留 kind，发送端暂返回 FEATURE_TODO
+ * 图片/文件：kind=image/file；暂存上传走 uploads 表，发送时凭 uploadId 落入会话
  */
 import { json, error, dbGet, dbRun, MSG } from './core.js';
 import {
