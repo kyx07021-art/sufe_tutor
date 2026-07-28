@@ -10,7 +10,7 @@
 import { initDb } from './server/db.js';
 import { json, error } from './server/core.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
-import { handleRegister, handleLogin } from './server/routes-auth.js';
+import { handleRegister, handleLogin, handleCheckUsername } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
@@ -30,6 +30,7 @@ async function routeApi(db, p, method, body, url, req) {
   // 认证
   if (p === '/api/auth/register' && method === 'POST') return await handleRegister(db, body, req);
   if (p === '/api/auth/login' && method === 'POST') return await handleLogin(db, body, req);
+  if (p === '/api/auth/check' && method === 'GET') return await handleCheckUsername(db, url);
 
   // 管理员
   if (p === '/api/admin/check' && method === 'GET') return await handleAdminCheck(db, url);

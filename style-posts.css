@@ -78,27 +78,24 @@ select.posts-sort {
   display: flex; align-items: center; gap: 10px;
 }
 
-/* ---------- 点赞按钮：灰底 → 悬停擦墨 → 已赞墨底白字 + 强调色下条 ---------- */
+/* ---------- 点赞按钮：线框拇指 → 已赞红色填充（计数随动） ---------- */
 .post-like {
-  position: relative; isolation: isolate; overflow: hidden;
-  padding: 6px 16px;
-  background: var(--paper-2); color: var(--ink-3);
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 14px;
+  background: transparent; border: 1px solid var(--border-light);
+  color: var(--muted);
   font-size: .78rem; font-weight: 700; letter-spacing: .02em;
   transition: color var(--t-base) var(--ease-out),
               background-color var(--t-base) var(--ease-out),
+              border-color var(--t-base) var(--ease-out),
               transform var(--t-fast) var(--ease-out);
 }
-.post-like::after {
-  content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%;
-  background: var(--accent-bright);
-  transform: scaleX(0); transform-origin: left;
-  transition: transform var(--t-base) var(--ease-snap);
-}
-.post-like:hover { background: var(--ink); color: var(--paper); }
-.post-like:hover::after { transform: scaleX(1); }
-.post-like:active { transform: scale(.96); transition-duration: 80ms; }
-.post-like.liked { background: var(--ink); color: var(--white); }
-.post-like.liked::after { transform: scaleX(1); }
+.post-like .like-icon { flex-shrink: 0; transition: fill var(--t-base) var(--ease-out), stroke var(--t-base) var(--ease-out); }
+.post-like .like-count { font-family: var(--mono); font-size: .74rem; }
+.post-like:hover { border-color: var(--faint); color: var(--ink-3); }
+.post-like:active { transform: scale(.94); transition-duration: 80ms; }
+.post-like.liked { color: var(--danger); border-color: var(--danger); background: var(--danger-tint, rgba(211,47,47,.06)); }
+.post-like.liked .like-icon { fill: var(--danger); stroke: var(--danger); }
 
 /* 作者自删：低调文字按钮，悬停转危险红 + 细下划线 */
 .post-del {

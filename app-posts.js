@@ -88,7 +88,13 @@ function renderPostCard(p, i) {
     ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > 80 ? '…' : ''}</p>` : ''}
     <div class="post-actions">
       <button type="button" class="post-like${p.liked ? ' liked' : ''}" data-id="${p.id}"
-        onclick="togglePostLike(${p.id})">点赞 (${p.like_count || 0})</button>
+        aria-pressed="${p.liked ? 'true' : 'false'}" aria-label="点赞" onclick="togglePostLike(${p.id})">
+        <svg class="like-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"
+          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+        </svg>
+        <span class="like-count">${p.like_count || 0}</span>
+      </button>
     </div>
   </div>`;
 }
@@ -104,7 +110,9 @@ async function togglePostLike(id) {
     const btn = document.querySelector(`#posts-list .post-like[data-id="${id}"]`);
     if (btn) {
       btn.classList.toggle('liked', data.liked);
-      btn.textContent = `点赞 (${data.likeCount})`;
+      btn.setAttribute('aria-pressed', data.liked ? 'true' : 'false');
+      const cnt = btn.querySelector('.like-count');
+      if (cnt) cnt.textContent = data.likeCount;
     }
     showToast(data.liked ? '已点赞' : '已取消点赞');
   } catch (err) {

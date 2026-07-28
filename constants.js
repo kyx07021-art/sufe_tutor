@@ -35,7 +35,7 @@ window.APP_CONSTANTS = {
     {id:'senior',name:'大四'},{id:'master',name:'硕士'},{id:'phd',name:'博士'},{id:'graduated',name:'已毕业'},
   ],
 
-  GENDERS: [{id:'male',name:'男'},{id:'female',name:'女'}],
+  GENDERS: [{id:'male',name:'男'},{id:'female',name:'女'},{id:'nonbinary',name:'非二元'}],
   SCORE_SCALES: [70, 100, 150],
   TEACHING_METHODS: [{id:'online',name:'线上'},{id:'offline',name:'线下'},{id:'both',name:'线上线下均可'}],
   BUDGET_OPTIONS: [50,80,100,120,150,180,200,250,300,400,500],

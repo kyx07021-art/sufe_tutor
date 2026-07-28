@@ -368,8 +368,16 @@ export function mapDemandRow(r) {
   };
 }
 
-export async function dbGetAllDemands(db) {
-  const rows = await dbAll(db, DEMANDS_SELECT + ' ORDER BY sd.created_at DESC');
+export async function dbGetAllDemands(db, teacherUserId = null) {
+  // 传 teacherUserId 时追加该教师在各需求上的意向状态（my_intent_status），供前端按钮三态渲染
+  let sel = DEMANDS_SELECT, extra = '', params = [];
+  if (teacherUserId) {
+    sel = DEMANDS_SELECT.replace('COALESCE(ic.cnt, 0) AS intent_count',
+      'COALESCE(ic.cnt, 0) AS intent_count, mi.status AS my_intent_status');
+    extra = ' LEFT JOIN demand_intents mi ON mi.demand_id=sd.id AND mi.teacher_user_id=?';
+    params = [teacherUserId];
+  }
+  const rows = await dbAll(db, sel + extra + ' ORDER BY sd.created_at DESC', params);
   return rows.map(mapDemandRow);
 }
 

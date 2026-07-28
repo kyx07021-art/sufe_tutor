@@ -52,6 +52,7 @@ export const MSG = {
 
   // 意向
   INTENT_DUPLICATE: '你已对该需求提交过意向',
+  PROFILE_INCOMPLETE: '教师档案不完整：省份、年级、性别、擅长科目、报价均为必填，完善后才能提交试课意向',
   INTENT_SUBMITTED: '意向已提交',
   INTENT_NOT_FOUND: '意向不存在',
   INTENT_RESOLVED: '意向已处理',

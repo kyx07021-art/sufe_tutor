@@ -12,7 +12,8 @@ const { SUBJECTS, STUDENT_GRADES,
 // ============================================================
 // 状态
 // ============================================================
-const state = { user: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], adminModalTeacher: null,
+const state = { user: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], intentTeachers: [],
+                adminModalTeacher: null,
                 myDemands: [], editingDemandId: null,
                 inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
 
@@ -58,6 +59,30 @@ async function api(endpoint, options = {}) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || '请求失败');
   return data;
+}
+
+// ============================================================
+// 登录页：用户名输入实时查角色（命中现有账户时输入框下方灰字提示）
+// ============================================================
+let loginCheckTimer = null, loginCheckSeq = 0;
+
+function checkLoginUsernameDebounced() {
+  clearTimeout(loginCheckTimer);
+  loginCheckTimer = setTimeout(checkLoginUsername, 300);
+}
+
+async function checkLoginUsername() {
+  const hint = document.getElementById('login-username-hint');
+  const name = document.getElementById('login-username').value.trim();
+  const seq = ++loginCheckSeq;
+  if (!name || !hint) { if (hint) hint.textContent = ''; return; }
+  try {
+    const data = await api(`/api/auth/check?username=${encodeURIComponent(name)}`);
+    if (seq !== loginCheckSeq) return; // 过期响应丢弃，防输入快于请求时的乱序
+    hint.textContent = !data.exists ? ''
+      : data.role === 'teacher' ? '教师账户'
+      : data.role === 'student' ? '学生账户' : '管理员账户';
+  } catch { /* 网络抖动：静默不给提示 */ }
 }
 
 // ============================================================
@@ -257,7 +282,7 @@ function handleLogout() {
   if (state.inviteTimerId) clearInterval(state.inviteTimerId);
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询
   state.user = null; state.page = null;
-  state.allTeachers = []; state.adminTeachers = []; state.adminModalTeacher = null;
+  state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
   state.myDemands = []; state.editingDemandId = null;
   state.inviteTimerId = null; state.currentInviteCode = null;
   localStorage.removeItem('sufe_session');
@@ -363,8 +388,8 @@ function renderDemandModal(demand) {
 
 function initDemandForm(selectedProvince) {
   document.getElementById('d-province-wrap').innerHTML =
-    renderProvinceSelect('d-province', selectedProvince || '', 'onDemandProvinceChange()');
-  if (selectedProvince) onDemandProvinceChange(); // 编辑回填前先锁定线上等约束
+    renderProvinceSelect('d-province', selectedProvince || '', 'onchange="onDemandProvinceChange()"');
+  onDemandProvinceChange(); // 初始即执行：未选省份也给提示、锁线上、科目池给出引导文案
   document.getElementById('d-subjects').addEventListener('change', updateDemandScores);
   toggleAddressField(); // 初始化地址字段可见性
 }
@@ -428,12 +453,12 @@ function toggleAddressField() {
   }
 }
 
-// 省份变化（模块1）：提示 + 非上海锁线上 + 按省份/年级重建科目池
+// 省份变化（模块1）：未选 / 非上海一律提示 + 锁线上；仅明确选中上海才放开线下
 function onDemandProvinceChange() {
   const prov = document.getElementById('d-province').value;
-  document.getElementById('d-region-note').innerHTML = prov ? regionLockNote(prov) : '';
+  document.getElementById('d-region-note').innerHTML = regionLockNote(prov); // regionLockNote 对空值同样给提示
   const methodSel = document.getElementById('d-method');
-  const onlineOnly = !!prov && prov !== 'shanghai';
+  const onlineOnly = prov !== 'shanghai';
   [...methodSel.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
   if (onlineOnly) { methodSel.value = 'online'; toggleAddressField(); }
   updateDemandSubjects();
@@ -605,7 +630,8 @@ function applyFilters() {
 // 教师信息弹窗 — 可复用组件（档案 + 高考成绩 + 联系方式 + 评价）
 // ============================================================
 async function openTeacherModal(userId) {
-  const t = state.allTeachers.find(x => x.user_id === userId) || state.adminTeachers.find(x => x.user_id === userId);
+  const t = state.allTeachers.find(x => x.user_id === userId) || state.adminTeachers.find(x => x.user_id === userId)
+         || state.intentTeachers.find(x => x.user_id === userId); // 意向列表里的教师也开得起来
   if (!t) return;
   state.adminModalTeacher = (state.user && state.user.role === 'admin') ? t : null;
   document.getElementById('modal-container').innerHTML = renderTeacherModal(t);
@@ -832,6 +858,12 @@ function renderDemandCard(d, opts = {}) {
   const gender = GENDERS.find(g=>g.id===d.student_gender)?.name || '';
   const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
   const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || '线下';
+  // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
+  const teacherIntentBtn = !teacher ? ''
+    : d.my_intent_status === 'accepted' ? '<button type="button" class="btn btn-sm btn-intent-ok" disabled>已建立联系</button>'
+    : d.my_intent_status === 'pending'  ? '<button type="button" class="btn btn-sm btn-intent-wait" disabled>意向已提交</button>'
+    : d.my_intent_status === 'rejected' ? '<button type="button" class="btn btn-sm btn-intent-wait" disabled>未获选</button>'
+    : `<button type="button" class="btn btn-outline btn-sm" onclick="submitIntent(${d.id})">提交试课意向</button>`;
   const budget = (d.budget_min || d.budget_max)
     ? `${d.budget_min||'不限'}~${d.budget_max||'不限'}元/h` : '面议';
 
@@ -845,9 +877,8 @@ function renderDemandCard(d, opts = {}) {
       <span class="list-card-title">${admin && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
       <span class="demand-card-tools">
         <span class="list-card-meta">${d.created_at||''}</span>
-        ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleDemandIntents(${d.id})">试课意向 (${d.intent_count || 0})</button>
-        <button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
-        ${teacher ? `<button type="button" class="btn btn-outline btn-sm" onclick="submitIntent(${d.id})">提交试课意向</button>` : ''}
+        ${teacherIntentBtn}
+        ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
         ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
     </div>
@@ -861,11 +892,14 @@ function renderDemandCard(d, opts = {}) {
     ${scoresHtml ? `<div class="list-card-detail" style="display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2);">${scoresHtml}</div>` : ''}
     ${d.address ? `<div class="list-card-detail">地址：${escHtml(d.address)}</div>` : ''}
     ${d.additional_info ? `<div class="list-card-detail">补充：${escHtml(d.additional_info)}</div>` : ''}
-    <div class="list-card-contact">
-      ${d.parent_contact ? `<span>家长: ${escHtml(d.parent_contact)}</span>` : ''}
-      ${d.student_contact ? `<span>学生: ${escHtml(d.student_contact)}</span>` : ''}
+    <div class="demand-card-foot">
+      <div class="list-card-contact">
+        ${d.parent_contact ? `<span>家长: ${escHtml(d.parent_contact)}</span>` : ''}
+        ${d.student_contact ? `<span>学生: ${escHtml(d.student_contact)}</span>` : ''}
+      </div>
+      ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleDemandIntents(${d.id})">试课意向 (${d.intent_count || 0}) <span class="intent-caret" id="intent-caret-${d.id}">▾</span></button>` : ''}
     </div>
-    ${editable ? `<div class="intents-box hidden" id="intents-box-${d.id}"></div>` : ''}
+    ${editable ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
   </div>`;
 }
 
@@ -873,7 +907,9 @@ async function loadDemandList(elId, { mine }) {
   const el = document.getElementById(elId);
   el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
   try {
-    const url = mine ? `/api/student/demands?userId=${state.user.id}` : '/api/student/demands';
+    // 教师大厅视角附带你自己的意向状态（my_intent_status），供按钮三态渲染
+    const url = mine ? `/api/student/demands?userId=${state.user.id}`
+                     : `/api/student/demands?teacherUserId=${state.user.id}`;
     const data = await api(url);
     const demands = data.demands || [];
     if (mine) state.myDemands = demands; // 编辑回填的数据源
@@ -897,30 +933,59 @@ async function submitIntent(demandId) {
   try {
     await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: { userId: state.user.id } });
     showToast('试课意向已提交，等待学生处理');
-  } catch (err) { showToast(err.message); }
+    if (state.page === 'browse-demands') loadBrowseDemands(); // 按钮刷新为「意向已提交」态
+  } catch (err) {
+    if (String(err.message).includes('档案不完整')) { showProfileIncompleteModal(); return; }
+    showToast(err.message);
+  }
 }
 
-// 展开 / 收起某条需求的意向列表（学生端）
+// 档案不完整：拦截提交并引导去补档案（后端同样把关，弹窗只是更友好的引导）
+function showProfileIncompleteModal() {
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-header"><h2>档案不完整</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <p class="text-sm" style="color:var(--ink-3);line-height:1.7;">提交试课意向前，请先完善教师档案：省份、年级、性别、擅长科目、报价均为必填。学生要看到完整的教师信息，才能判断是否接受你的意向。</p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">稍后再说</button>
+          <button type="button" class="btn btn-primary" onclick="closeModal();selectPage('edit-profile')">去完善档案</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// 展开 / 收起某条需求的意向列表（学生端）：grid-rows 动效 + ▾ 翻转，首次展开才拉数据
 async function toggleDemandIntents(demandId) {
   const box = document.getElementById(`intents-box-${demandId}`);
   if (!box) return;
-  if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
-  await refreshIntentsBox(demandId);
+  const caret = document.getElementById(`intent-caret-${demandId}`);
+  const open = box.classList.toggle('open');
+  if (caret) caret.classList.toggle('open', open);
+  if (open && !box.dataset.loaded) await refreshIntentsBox(demandId);
 }
 
 async function refreshIntentsBox(demandId) {
   const box = document.getElementById(`intents-box-${demandId}`);
   if (!box) return;
-  box.classList.remove('hidden');
-  box.innerHTML = '<p class="text-sm text-muted">加载中...</p>';
+  const inner = box.querySelector('.intents-box-inner') || box;
+  inner.innerHTML = '<div class="intents-box-content"><p class="text-sm text-muted">加载中...</p></div>';
   try {
     const data = await api(`/api/demands/${demandId}/intents`);
     const ts = data.teachers || [];
-    box.innerHTML = `<div class="section-title">试课意向 (${ts.length})</div>` +
+    // 缓存意向教师，供「查看」打开教师详情弹窗复用（openTeacherModal 第三数据源）
+    ts.forEach(t => {
+      state.intentTeachers = state.intentTeachers.filter(x => x.user_id !== t.user_id);
+      state.intentTeachers.push(t);
+    });
+    const content = `<div class="section-title">试课意向 (${ts.length})</div>` +
       (ts.length ? ts.map(t => renderIntentTeacherRow(t, demandId)).join('')
                  : '<p class="text-sm text-muted">暂无教师意向</p>');
+    inner.innerHTML = `<div class="intents-box-content">${content}</div>`;
+    box.dataset.loaded = '1';
   } catch (err) {
-    box.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_PREFIX}${err.message}</p>`;
+    inner.innerHTML = `<div class="intents-box-content"><p class="text-sm text-muted">${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
   }
 }
 
@@ -929,6 +994,7 @@ function renderIntentTeacherRow(t, demandId) {
   const tag = st === 'accepted' ? '<span class="tag tag-ok">已同意</span>'
     : st === 'rejected' ? '<span class="tag tag-danger">已拒绝</span>' : '<span class="tag tag-warn">待处理</span>';
   const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
+  const viewBtn = `<button type="button" class="btn btn-outline btn-xs" onclick="openTeacherModal(${t.user_id})">查看</button>`;
   const actions = st === 'pending'
     ? `<button type="button" class="btn btn-accent btn-xs" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">同意</button>
        <button type="button" class="btn btn-outline btn-xs" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">拒绝</button>` : '';
@@ -937,7 +1003,7 @@ function renderIntentTeacherRow(t, demandId) {
       <div class="admin-row-line"><strong>${escHtml(t.username)}</strong> ${renderStars(t.rating)} ${tag}</div>
       <div class="admin-row-meta">${[provName, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ')}</div>
     </div>
-    <div class="admin-row-actions">${actions}</div>
+    <div class="admin-row-actions">${viewBtn}${actions}</div>
   </div>`;
 }
 
@@ -947,7 +1013,7 @@ async function resolveIntent(intentId, action, demandId) {
     await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { userId: state.user.id, action } });
     showToast(action === 'accept' ? '已同意，可在「我的沟通」中开始对话' : '已拒绝该意向');
     await refreshIntentsBox(demandId);
-    loadMyDemands(); // 刷新意向计数
+    loadMyDemands(); // 刷新意向计数（整列重渲染，意向栏回到收起态）
   } catch (err) { showToast(err.message); }
 }
 
@@ -956,7 +1022,7 @@ async function resolveIntent(intentId, action, demandId) {
 // ============================================================
 function initProfileForm() {
   document.getElementById('profile-province-wrap').innerHTML =
-    renderProvinceSelect('profile-province', '', 'onTeacherProvinceChange()');
+    renderProvinceSelect('profile-province', '', 'onchange="onTeacherProvinceChange()"');
   const gradeEl = document.getElementById('profile-grade');
   gradeEl.innerHTML = '<option value="">请选择</option>' + TEACHER_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
   const genderEl = document.getElementById('profile-gender');

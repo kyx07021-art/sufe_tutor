@@ -391,6 +391,9 @@ body:has(#view-landing:not(.hidden)) .navbar {
    Forms — 实心填充直角，聚焦底条擦入
    ============================================================ */
 .form-group { margin-bottom: 18px; }
+
+/* 登录页：用户名命中现有账户时的灰字角色提示（固定占位防表单跳动） */
+.login-username-hint { min-height: 17px; margin-top: 5px; font-size: .74rem; color: var(--muted); letter-spacing: .02em; }
 .form-label { display: block; font-size: .78rem; font-weight: 700; color: var(--ink-3); margin-bottom: 7px; letter-spacing: .02em; }
 .form-label .req { color: var(--danger); }
 
@@ -560,8 +563,30 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 需求卡头部工具区（日期 + 编辑按钮） */
 .demand-card-tools { display: inline-flex; align-items: center; gap: 10px; }
 
-/* 需求卡内嵌意向列表（模块3） */
-.intents-box { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--border-light); }
+/* 需求卡底部行：联系方式 + 意向开关（学生「我的需求」，按钮靠右下贴近意向栏） */
+.demand-card-foot {
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+.demand-card-foot .list-card-contact { margin-top: 0; padding-top: 0; border-top: none; }
+.intent-caret { display: inline-block; margin-left: 4px; transition: transform .25s var(--ease-out); }
+.intent-caret.open { transform: rotate(180deg); }
+
+/* 教师意向按钮状态：待处理灰 / 已建立联系绿（均禁用点击，opacity 不随 :disabled 衰减） */
+.btn-intent-wait, .btn-intent-ok { cursor: default; }
+.btn-intent-wait:disabled, .btn-intent-ok:disabled { opacity: 1; }
+.btn-intent-wait { background: var(--paper-2); color: var(--muted); }
+.btn-intent-ok { background: var(--ok-deep); color: #fff; }
+
+/* 需求卡内嵌意向列表（模块3）：grid-rows 0fr→1fr 展开动效，内容淡入 */
+.intents-box { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s var(--ease-out); }
+.intents-box.open { grid-template-rows: 1fr; }
+.intents-box-inner { overflow: hidden; min-height: 0; }
+.intents-box-content {
+  margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--border-light);
+  opacity: 0; transition: opacity .25s var(--ease-out) .06s;
+}
+.intents-box.open .intents-box-content { opacity: 1; }
 .intents-box .admin-row { margin-top: var(--s2); }
 
 /* 管理面板邀请码条（已迁入侧边栏，留空占位防孤儿注释）*/

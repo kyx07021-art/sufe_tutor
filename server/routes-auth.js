@@ -55,3 +55,11 @@ export async function handleLogin(db, body, req) {
     actorRole: user.role, entity: 'user', entityId: user.id, req });
   return json({ user: { id: user.id, username: user.username, role: user.role } });
 }
+
+// 登录页用户名实时探测：仅返回存在与否 + 角色（登录提示用，不暴露其他字段）
+export async function handleCheckUsername(db, url) {
+  const username = (url.searchParams.get('username') || '').trim();
+  if (!username) return json({ exists: false });
+  const user = await dbFindUserByUsername(db, username);
+  return json(user ? { exists: true, role: user.role } : { exists: false });
+}

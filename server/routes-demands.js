@@ -6,7 +6,7 @@ import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省�
 import {
   dbFindUserById, dbCreateDemand, dbGetAllDemands, dbGetDemandsByUser,
   dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbCreateIntent, dbGetIntentTeachers,
-  dbGetIntentWithDemand, dbResolveIntent, dbUpsertConversation,
+  dbGetIntentWithDemand, dbResolveIntent, dbUpsertConversation, dbGetTeacherProfile,
 } from './db.js';
 import { logEvent } from './log.js';
 
@@ -25,8 +25,10 @@ export async function handleCreateDemand(db, body) {
 
 export async function handleGetDemands(db, url) {
   const raw = url.searchParams.get('userId');
-  const demands = raw ? await dbGetDemandsByUser(db, parseInt(raw)) : await dbGetAllDemands(db);
-  return json({ demands });
+  if (raw) return json({ demands: await dbGetDemandsByUser(db, parseInt(raw)) });
+  // 教师大厅视角可带 teacherUserId：每条需求附 my_intent_status（该教师的意向状态）
+  const tRaw = url.searchParams.get('teacherUserId');
+  return json({ demands: await dbGetAllDemands(db, tRaw ? parseInt(tRaw) : null) });
 }
 
 export async function handleUpdateDemand(db, demandId, body) {
@@ -63,6 +65,16 @@ export async function handleCreateIntent(db, demandId, body) {
   const user = await dbFindUserById(db, userId);
   if (!user || user.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
   if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+
+  // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单，
+  // 不完整由前端弹窗引导补档案（此处为硬把关，防绕过）
+  // 注意 dbGetTeacherProfile 已把 subjects/gaokao_scores 解析成数组，此处勿再 JSON.parse
+  const p = await dbGetTeacherProfile(db, userId);
+  const subjectsOk = !!(p && Array.isArray(p.subjects) && p.subjects.length > 0);
+  // price==null 才是未填（0 是合法报价）；其余必填项空串即不完整
+  if (!p || !p.province || !p.grade || !p.gender || !subjectsOk || p.price == null) {
+    return error(MSG.PROFILE_INCOMPLETE, 403);
+  }
 
   try {
     const id = await dbCreateIntent(db, demandId, userId);
