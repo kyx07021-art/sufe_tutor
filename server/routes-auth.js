@@ -2,8 +2,8 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, MSG } from './core.js';
-import { dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
+import { json, error, hashPassword, verifyPassword, dbRun, MSG } from './core.js';
+import { dbFindUserByUsername, dbFindUserById, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
 import { logEvent } from './log.js';
 
 export async function handleRegister(db, body, req) {
@@ -24,7 +24,7 @@ export async function handleRegister(db, body, req) {
     await dbUseInviteCode(db, inviteCode, userId);
     logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
       actorRole: role, entity: 'user', entityId: userId, detail: { role, via: 'invite' }, req });
-    return json({ user: { id: userId, username, role }, message: MSG.REGISTER_SUCCESS });
+    return json({ user: { id: userId, username, role, avatar: '' }, message: MSG.REGISTER_SUCCESS });
   }
 
   if (await dbFindUserByUsername(db, username)) return error(MSG.USERNAME_TAKEN);
@@ -33,7 +33,7 @@ export async function handleRegister(db, body, req) {
   const userId = await dbCreateUser(db, username, hash, salt, role);
   logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
     actorRole: role, entity: 'user', entityId: userId, detail: { role }, req });
-  return json({ user: { id: userId, username, role }, message: MSG.REGISTER_SUCCESS });
+  return json({ user: { id: userId, username, role, avatar: '' }, message: MSG.REGISTER_SUCCESS });
 }
 
 export async function handleLogin(db, body, req) {
@@ -53,7 +53,7 @@ export async function handleLogin(db, body, req) {
   }
   logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, req });
-  return json({ user: { id: user.id, username: user.username, role: user.role } });
+  return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' } });
 }
 
 // 登录页用户名实时探测：仅返回存在与否 + 角色（登录提示用，不暴露其他字段）
@@ -62,4 +62,15 @@ export async function handleCheckUsername(db, url) {
   if (!username) return json({ exists: false });
   const user = await dbFindUserByUsername(db, username);
   return json(user ? { exists: true, role: user.role } : { exists: false });
+}
+
+// 账户设置：头像上传。前端已按居中最大内切圆裁成 160px dataURL，此处校验长度后落 users.avatar
+export async function handleSaveAvatar(db, body, req) {
+  const userId = parseInt(body.userId);
+  const avatar = String(body.avatar || '');
+  if (!userId || !(await dbFindUserById(db, userId))) return error(MSG.LOGIN_REQUIRED, 404);
+  if (!avatar.startsWith('data:image/') || avatar.length > 20000) return error(MSG.AVATAR_INVALID);
+  await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, userId]);
+  logEvent(db, { action: 'user.avatar.update', actorUserId: userId, entity: 'user', entityId: userId, req });
+  return json({ ok: true });
 }

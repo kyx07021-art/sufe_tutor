@@ -14,6 +14,7 @@ import {
   dbGetDemandById, dbDeleteDemand, dbDeleteReview, mapTeacherProfileRow,
 } from './db.js';
 import { logEvent, queryLog } from './log.js';
+import { dbBroadcastNotification } from './notify.js';
 
 // 邀请码有效期
 const INVITE_VALIDITY_MS = 5 * 60 * 1000;
@@ -102,7 +103,7 @@ export async function handleAdminUsers(db, url) {
   } else {
     const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
         tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.wechat, tp.email,
-        tp.rating, tp.rating_count, tp.updated_at
+        tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
       FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
       WHERE u.role='teacher' ORDER BY u.created_at DESC`);
     users = rows.map(r => ({ ...mapTeacherProfileRow(r), role: r.role, banned: r.banned, created_at: r.created_at }));
@@ -151,4 +152,16 @@ export async function handleAdminLogs(db, url) {
   const f = Object.fromEntries(url.searchParams);
   const result = await queryLog(db, f);
   return json(result);
+}
+
+// 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件，支持轻量 Markdown）
+export async function handleAdminBroadcast(db, body, req) {
+  const admin = await requireAdmin(db, body.username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const text = String(body.text || '').trim();
+  if (!text) return error(MSG.BROADCAST_EMPTY);
+  const count = await dbBroadcastNotification(db, text);
+  logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: text.length }, req });
+  return json({ ok: true, count });
 }

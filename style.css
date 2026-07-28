@@ -666,6 +666,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 }
 .settings-label { font-size: .7rem; font-weight: 700; color: var(--muted); letter-spacing: .06em; margin-bottom: 3px; }
 .settings-value { font-size: .9rem; font-weight: 600; color: var(--ink); }
+/* 头像行：纵向加高，预览圆形头像置于该行最右侧 */
+.settings-row--avatar { padding: 24px 2px; align-items: center; }
+.settings-row--avatar .settings-label { margin-bottom: 9px; }
+.settings-avatar { width: 58px; height: 58px; font-size: 1.5rem; }
 .settings-logout { margin-top: 36px; }
 
 /* 汉堡按钮：桌面隐藏；≤860px 且处于壳内时由 body:has 启用 */
@@ -930,8 +934,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .checkbox-grid { grid-template-columns: repeat(2, 1fr); }
   .modal { max-height: 92vh; }
   .list-card-contact { flex-direction: column; gap: 6px; }
-  .list-card--teacher { grid-template-columns: 72px 1fr auto; column-gap: 14px; }
-  .tc-avatar { min-height: 72px; font-size: 1.9rem; }
   .tc-intro { white-space: normal; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-row { flex-direction: column; gap: 12px; }
@@ -946,10 +948,30 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   display: grid; grid-template-columns: 108px 1fr auto; column-gap: 22px; row-gap: 7px; align-items: start;
 }
 .tc-avatar {
-  grid-column: 1; grid-row: 1 / span 3; align-self: stretch; min-height: 108px;
-  display: flex; align-items: center; justify-content: center;
+  grid-column: 1; grid-row: 1 / span 3; align-self: stretch;
+  width: 108px; min-height: 108px; font-size: 2.6rem;
+}
+
+/* 头像（全站共用）：圆形（全站直角语言的特例，同语义红点）；
+   未上传 = id 首字符 + 米色底，上传图由 object-fit 居中铺满 */
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  border-radius: 50%; overflow: hidden;
   background: var(--paper-2); color: var(--ink);
-  font-family: var(--font); font-weight: 700; font-size: 2.6rem; letter-spacing: -.02em;
+  font-family: var(--font); font-weight: 700; letter-spacing: -.02em; user-select: none;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* 学生需求卡：头像占与教师卡同宽的左区，卡身整体右移 */
+.list-card--demand { display: flex; gap: 20px; align-items: flex-start; }
+.demand-avatar { width: 108px; height: 108px; font-size: 2.6rem; }
+.demand-card-main { flex: 1; min-width: 0; }
+
+/* 窄屏：教师/需求卡头像同步缩小（须置于桌面尺寸规则之后） */
+@media (max-width: 860px) {
+  .list-card--teacher { grid-template-columns: 72px 1fr auto; column-gap: 14px; }
+  .tc-avatar { width: 72px; min-height: 72px; font-size: 1.9rem; }
+  .demand-avatar { width: 72px; height: 72px; font-size: 1.9rem; }
 }
 .tc-identity { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; align-self: center; }
 .tc-username {
@@ -979,9 +1001,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   font-size: .78rem; font-weight: 700; letter-spacing: .02em;
   transition: background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
 }
-.tc-push-btn:hover { background: var(--ink); color: var(--paper); }
+.tc-push-btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+.tc-push-btn:disabled { opacity: .55; cursor: default; }
 .tc-push-btn .arrow { transition: transform var(--t-base) var(--ease-out); }
-.tc-push-btn:hover .arrow { transform: translateX(3px); }
+.tc-push-btn:hover:not(:disabled) .arrow { transform: translateX(3px); }
 
 /* 教师端被推送需求的置顶卡：右侧 时间·说明·拒绝·确认 一行 */
 .push-note-row { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }

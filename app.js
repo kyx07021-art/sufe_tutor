@@ -14,8 +14,16 @@ const { SUBJECTS, STUDENT_GRADES,
 // ============================================================
 const state = { user: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], intentTeachers: [],
                 adminModalTeacher: null, myReviewOnModal: null,
-                myDemands: [], editingDemandId: null,
+                myDemands: [], editingDemandId: null, adminPosts: [],
                 inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
+
+// ============================================================
+// 头像组件（全站共用）：圆形，上传图片则居中裁切展示，未上传 = id 首字符 + 米色底
+// ============================================================
+function renderAvatarHtml(avatar, name, cls) {
+  if (avatar) return `<span class="avatar ${cls}"><img src="${escHtml(avatar)}" alt=""></span>`;
+  return `<span class="avatar ${cls}" aria-hidden="true">${escHtml((name || '?').charAt(0).toUpperCase())}</span>`;
+}
 
 // ============================================================
 // 客户端配置：侧边栏栏目注册表
@@ -44,6 +52,7 @@ const ROLE_PAGES = {
     { id: 'admin-teachers',   label: UI.PAGE_ADMIN_TEACHERS, desc: UI.PAGE_ADMIN_TEACHERS_DESC, enter: loadAdminTeachers },
     { id: 'admin-demands',    label: UI.PAGE_ADMIN_DEMANDS,  desc: UI.PAGE_ADMIN_DEMANDS_DESC,  enter: loadAdminDemands },
     { id: 'admin-reviews',    label: UI.PAGE_ADMIN_REVIEWS,  desc: UI.PAGE_ADMIN_REVIEWS_DESC,  enter: loadAdminReviews },
+    { id: 'admin-posts',      label: UI.PAGE_ADMIN_POSTS,    desc: UI.PAGE_ADMIN_POSTS_DESC,    enter: loadAdminPosts },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
   ],
@@ -395,7 +404,7 @@ function handleLogout() {
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询
   state.user = null; state.page = null;
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
-  state.myDemands = []; state.editingDemandId = null;
+  state.myDemands = []; state.editingDemandId = null; state.adminPosts = [];
   state.inviteTimerId = null; state.currentInviteCode = null;
   localStorage.removeItem('sufe_session');
   closeSidebar();
@@ -463,9 +472,9 @@ function renderDemandModal(demand) {
           <div class="form-group">
             <label class="form-label">${UI.LABEL_BUDGET}</label>
             <div style="display:flex;gap:var(--s3);align-items:center;">
-              <input type="number" class="form-input" id="d-budget-min" placeholder="${UI.PLACEHOLDER_MIN}" min="0" step="10" style="flex:1;">
+              <input type="number" class="form-input" id="d-budget-min" placeholder="${UI.PLACEHOLDER_MIN}" min="0" step="1" style="flex:1;">
               <span class="text-muted">~</span>
-              <input type="number" class="form-input" id="d-budget-max" placeholder="${UI.PLACEHOLDER_MAX}" min="0" step="10" style="flex:1;">
+              <input type="number" class="form-input" id="d-budget-max" placeholder="${UI.PLACEHOLDER_MAX}" min="0" step="1" style="flex:1;">
             </div>
           </div>
           <div class="form-divider"></div>
@@ -713,9 +722,8 @@ function renderTeachers(teachers) {
       if (!s) return '';
       return gs.score != null ? `${s.name}${gs.score}` : `${s.name}${gs.grade || ''}`;
     }).filter(Boolean).join(' · ');
-    const initial = escHtml((t.username || '?').charAt(0).toUpperCase());
     return `<div class="list-card list-card--teacher">
-      <div class="tc-avatar" aria-hidden="true">${initial}</div>
+      ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">
         <span class="tc-username" onclick="openTeacherModal(${t.user_id})">${escHtml(t.username)}</span>
         <span class="tc-rating">${renderStars(t.rating)}<b>${(t.rating||4).toFixed(1)}</b></span>
@@ -724,7 +732,7 @@ function renderTeachers(teachers) {
         <div class="tc-info1">${escHtml(info1)}</div>
         ${info2 ? `<div class="tc-info2">${escHtml(info2)}</div>` : ''}
         <div class="tc-actions">
-          ${isStudent ? `<button type="button" class="tc-push-btn" onclick="openSendDemandModal(${t.user_id})">${UI.BTN_PUSH_DEMAND} <span class="arrow">→</span></button>` : ''}
+          ${isStudent ? renderPushBtn(t) : ''}
         </div>
       </div>
       ${t.intro ? `<div class="tc-intro" title="${escHtml(t.intro)}">${escHtml(t.intro)}</div>` : ''}
@@ -811,8 +819,10 @@ function renderTeacherModal(t) {
           <span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating || 4).toFixed(1)}</b></span>
           <span class="list-card-meta">${meta}</span>
         </div>
-        ${provName ? `<div class="subject-block"><div class="section-title">${UI.SECTION_REGION}</div>
-          <div class="subject-row"><span>${escHtml(provName)}</span></div></div>` : ''}
+        ${(provName || t.address) ? `<div class="subject-block"><div class="section-title">${UI.SECTION_REGION}</div>
+          ${provName ? `<div class="subject-row"><span>${escHtml(provName)}</span></div>` : ''}
+          ${t.address ? `<div class="subject-row"><span>${UI.LABEL_ADDRESS}</span><span class="subject-score">${escHtml(t.address)}</span></div>` : ''}
+        </div>` : ''}
         ${rows ? `<div class="subject-block"><div class="section-title">${UI.SECTION_SUBJECTS}</div>${rows}</div>` : ''}
         ${(t.wechat || t.email) ? `<div class="subject-block"><div class="section-title">${UI.SECTION_CONTACT}</div>
           <p class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</p>
@@ -1022,7 +1032,9 @@ function renderDemandCard(d, opts = {}) {
     return val ? `<span class="tag">${n}: ${escHtml(val)}</span>` : '';
   }).join('');
 
-  return `<div class="list-card">
+  return `<div class="list-card list-card--demand">
+    ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar')}
+    <div class="demand-card-main">
     <div class="list-card-header">
       <span class="list-card-title">${(admin || push) && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
       <span class="demand-card-tools">
@@ -1054,6 +1066,7 @@ function renderDemandCard(d, opts = {}) {
       ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="intent-caret" id="intent-caret-${d.id}">▾</span></button>` : ''}
     </div>
     ${editable ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
+    </div>
   </div>`;
 }
 
@@ -1136,12 +1149,36 @@ async function openSendDemandModal(teacherUserId) {
   </div>`;
 }
 
+// 推送限流：每分钟限发一条。发送后全部「发送需求」按钮变灰 + 秒级倒计时
+let pushCooldownUntil = 0, pushCooldownTimer = null;
+function pushCooldownLeft() { return Math.max(0, Math.ceil((pushCooldownUntil - Date.now()) / 1000)); }
+function renderPushBtn(t) {
+  const left = pushCooldownLeft();
+  return left > 0
+    ? `<button type="button" class="tc-push-btn" disabled>${UI.PUSH_BTN_COOLDOWN} ${left}s</button>`
+    : `<button type="button" class="tc-push-btn" onclick="openSendDemandModal(${t.user_id})">${UI.BTN_PUSH_DEMAND} <span class="arrow">→</span></button>`;
+}
+function startPushCooldown(seconds) {
+  pushCooldownUntil = Date.now() + seconds * 1000;
+  clearInterval(pushCooldownTimer);
+  pushCooldownTimer = setInterval(() => {
+    const left = pushCooldownLeft();
+    document.querySelectorAll('.tc-push-btn').forEach(b => {
+      b.disabled = left > 0;
+      b.innerHTML = left > 0 ? `${UI.PUSH_BTN_COOLDOWN} ${left}s` : `${UI.BTN_PUSH_DEMAND} <span class="arrow">→</span>`;
+    });
+    if (left <= 0) clearInterval(pushCooldownTimer);
+  }, 1000);
+}
+
 async function submitDemandPush(teacherUserId) {
   const sel = document.querySelector('input[name="push-demand"]:checked');
   if (!sel) { showToast(UI.VALIDATE_SELECT_DEMAND); return; }
+  if (pushCooldownLeft() > 0) { showToast(`${UI.PUSH_BTN_COOLDOWN} ${pushCooldownLeft()}s`); return; }
   try {
     const data = await api('/api/demand-pushes', { method: 'POST', body: { userId: state.user.id, teacherUserId, demandId: +sel.value } });
     closeModal();
+    startPushCooldown(60);
     showToast(data.message || UI.PUSH_SENT_FALLBACK);
   } catch (err) { showToast(err.message); }
 }
@@ -1160,6 +1197,9 @@ async function resolvePush(pushId, action) {
 // ============================================================
 async function enterNotifications() {
   const el = document.getElementById('notifications-content');
+  // 管理员独享「发通知」（系统广播）；其他角色隐藏
+  const bb = document.getElementById('btn-broadcast-notif');
+  if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const data = await api(`/api/notifications?userId=${state.user.id}`);
@@ -1195,6 +1235,14 @@ function enterAccountSettings() {
       ${modifiable ? `<button type="button" class="btn btn-outline btn-sm" onclick="showToast('${UI.TOAST_COMING_SOON}')">${UI.BTN_MODIFY}</button>` : ''}
     </div>`;
   document.getElementById('account-settings-content').innerHTML = `
+    <div class="settings-row settings-row--avatar">
+      <div>
+        <div class="settings-label">${UI.SETTINGS_AVATAR}</div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="document.getElementById('avatar-file').click()">${UI.BTN_UPLOAD_AVATAR}</button>
+        <input type="file" id="avatar-file" accept="image/*" class="hidden" onchange="handleAvatarUpload(this)">
+      </div>
+      ${renderAvatarHtml(u.avatar, u.username, 'settings-avatar')}
+    </div>
     <div class="settings-list">
       ${row(UI.SETTINGS_USERNAME, escHtml(u.username), false)}
       ${row(UI.SETTINGS_ROLE, roleLabel, false)}
@@ -1202,6 +1250,33 @@ function enterAccountSettings() {
       ${row(UI.SETTINGS_EMAIL, UI.SETTINGS_UNBOUND, true)}
     </div>
     <button type="button" class="btn btn-danger settings-logout" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>`;
+}
+
+// 头像上传：居中取最大内切正方形缩放至 160px（圆形由 CSS border-radius 呈现），dataURL 落库
+function handleAvatarUpload(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { showToast(UI.POST_IMAGE_ONLY); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = async () => {
+      const side = Math.min(img.width, img.height);
+      const N = 160;
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = N;
+      cv.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, N, N);
+      const url = cv.toDataURL('image/jpeg', 0.85);
+      try {
+        await api('/api/user/avatar', { method: 'POST', body: { userId: state.user.id, avatar: url } });
+        state.user.avatar = url;
+        showToast(UI.AVATAR_SAVED_TOAST);
+        if (state.page === 'account-settings') enterAccountSettings(); // 刷新右侧预览
+      } catch (err) { showToast(err.message); }
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 // 退出登录二次确认（确认类弹窗，保留点遮罩关闭）
@@ -1217,6 +1292,64 @@ function confirmLogout() {
       </div>
     </div>
   </div>`;
+}
+
+// ============================================================
+// 管理员：资料管理（教师共享帖子：列表 / 全文查看 / 越权删除）
+// ============================================================
+async function loadAdminPosts() {
+  const el = document.getElementById('admin-posts-list');
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
+  try {
+    const data = await api('/api/posts');
+    state.adminPosts = data.posts || [];
+    if (!state.adminPosts.length) { el.innerHTML = `<div class="empty-state"><p>${UI.ADMIN_POSTS_EMPTY}</p></div>`; return; }
+    el.innerHTML = state.adminPosts.map(renderAdminPostRow).join('');
+    initReveals(el);
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
+  }
+}
+
+function renderAdminPostRow(p) {
+  return `<div class="admin-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line">
+        <strong>${escHtml(p.title)}</strong>
+        <span class="text-muted">${escHtml(p.username || '')}</span>
+        <span class="list-card-meta">${p.like_count || 0} ${UI.POST_LIKE_ARIA}</span>
+      </div>
+      <div class="admin-row-meta">${fmtDateTime(p.created_at)}</div>
+    </div>
+    <div class="admin-row-actions">
+      <button type="button" class="btn btn-outline btn-xs" onclick="openPostViewModal(${p.id})">${UI.BTN_VIEW}</button>
+      <button type="button" class="btn btn-danger btn-xs" onclick="adminDeletePost(${p.id})">${UI.BTN_REMOVE}</button>
+    </div>
+  </div>`;
+}
+
+// 全文查看：复用发帖组件的 mdRender
+function openPostViewModal(postId) {
+  const p = state.adminPosts.find(x => x.id === postId);
+  if (!p) return;
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header"><h2>${escHtml(p.title)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <p class="text-sm text-muted" style="margin-bottom:12px;">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
+        <div class="md-preview">${mdRender(p.body_md || '')}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function adminDeletePost(postId) {
+  if (!confirm(UI.POST_DELETE_CONFIRM)) return;
+  try {
+    await api(`/api/posts/${postId}`, { method: 'DELETE', body: { userId: state.user.id, adminUsername: state.user.username } });
+    showToast(UI.POST_DELETED);
+    loadAdminPosts();
+  } catch (err) { showToast(err.message); }
 }
 
 // ============================================================
@@ -1350,6 +1483,7 @@ async function loadProfile() {
       document.getElementById('profile-wechat').value = p.wechat || '';
       document.getElementById('profile-email').value = p.email || '';
       document.getElementById('profile-intro').value = p.intro || '';
+      document.getElementById('profile-address').value = p.address || '';
       if (p.subjects?.length) {
         p.subjects.forEach(id => {
           const cb = document.querySelector(`#profile-subjects input[value="${id}"]`);
@@ -1395,6 +1529,7 @@ async function handleSaveProfile(e) {
         wechat: document.getElementById('profile-wechat').value.trim(),
         email: document.getElementById('profile-email').value.trim(),
         intro: document.getElementById('profile-intro').value.trim(),
+        address: document.getElementById('profile-address').value.trim(),
       }},
     });
     alertEl.innerHTML = `<div class="alert alert-success">${UI.SUCCESS_PROFILE_SAVED}</div>`;

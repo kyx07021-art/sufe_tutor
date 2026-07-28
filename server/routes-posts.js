@@ -5,7 +5,7 @@
  * 当前不做分区过滤（不传 section 即查全部），也不写死单分区逻辑。
  * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete
  */
-import { json, error, dbAll, dbGet, dbRun } from './core.js';
+import { json, error, requireAdmin, dbAll, dbGet, dbRun } from './core.js';
 import { dbFindUserById } from './db.js';
 import { logEvent } from './log.js';
 
@@ -150,12 +150,15 @@ export async function handleDeletePost(db, postId, body, req) {
 
   const post = await dbGet(db, 'SELECT id, user_id, title FROM posts WHERE id=?', [postId]);
   if (!post) return error(PMSG.POST_NOT_FOUND, 404);
-  if (userId !== Number(post.user_id)) return error(PMSG.DELETE_FORBIDDEN, 403);
+  // 仅作者本人可删；管理员凭 adminUsername 越权删除（资料管理页）
+  const admin = body.adminUsername ? await requireAdmin(db, body.adminUsername) : null;
+  if (userId !== Number(post.user_id) && !admin) return error(PMSG.DELETE_FORBIDDEN, 403);
 
   await dbRun(db, 'DELETE FROM posts WHERE id=?', [postId]);
   logEvent(db, {
-    action: 'post.delete', actorUserId: userId, actorRole: user.role,
-    entity: 'post', entityId: postId, detail: { title: post.title }, req,
+    action: admin ? 'admin.post.delete' : 'post.delete',
+    actorUserId: admin ? admin.id : userId, actorRole: admin ? 'admin' : user.role,
+    entity: 'post', entityId: postId, detail: { title: post.title, ownerUserId: post.user_id }, req,
   });
   return json({ message: PMSG.POST_DELETED });
 }

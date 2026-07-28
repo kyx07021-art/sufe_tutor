@@ -330,3 +330,57 @@ async function deletePost(id) {
     showToast(err.message);
   }
 }
+
+// ============================================================
+// 管理员系统通知广播：复用发帖组件的 Markdown 编辑器（同一套 ID，弹窗互斥不冲突）
+// ============================================================
+function openBroadcastModal() {
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header"><h2>${UI.BROADCAST_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <div id="post-alert"></div>
+        <div class="form-group">
+          <label class="form-label">${UI.POST_LABEL_BODY}</label>
+          <div class="md-toolbar">
+            <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
+            <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
+            <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
+            <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
+          </div>
+          <textarea id="post-body" class="form-input post-body-input" rows="7"
+            placeholder="${UI.BROADCAST_BODY_PLACEHOLDER}"
+            oninput="updatePostPreview()"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
+          <div id="post-preview" class="md-preview"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  updatePostPreview();
+  document.getElementById('post-body').focus();
+}
+
+async function submitBroadcast() {
+  const text = (document.getElementById('post-body').value || '').trim();
+  const alertEl = document.getElementById('post-alert');
+  if (!text) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_BROADCAST_EMPTY}</div>`; return; }
+  const btn = document.getElementById('broadcast-submit');
+  btn.disabled = true;
+  try {
+    await api('/api/notifications/broadcast', { method: 'POST', body: { username: state.user.username, text } });
+    closeModal();
+    showToast(UI.BROADCAST_SENT_TOAST);
+    if (state.page === 'notifications') enterNotifications(); // 自己也收一条，列表即时刷新
+  } catch (err) {
+    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    btn.disabled = false;
+  }
+}

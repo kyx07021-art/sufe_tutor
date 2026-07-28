@@ -10,7 +10,7 @@
 import { initDb } from './server/db.js';
 import { json, error } from './server/core.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
-import { handleRegister, handleLogin, handleCheckUsername } from './server/routes-auth.js';
+import { handleRegister, handleLogin, handleCheckUsername, handleSaveAvatar } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
@@ -23,7 +23,7 @@ import { handleCreateReview, handleGetReviews, handleUpdateReview } from './serv
 import {
   handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
-  handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs,
+  handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminBroadcast,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 
@@ -33,6 +33,7 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/auth/register' && method === 'POST') return await handleRegister(db, body, req);
   if (p === '/api/auth/login' && method === 'POST') return await handleLogin(db, body, req);
   if (p === '/api/auth/check' && method === 'GET') return await handleCheckUsername(db, url);
+  if (p === '/api/user/avatar' && method === 'POST') return await handleSaveAvatar(db, body, req);
 
   // 管理员
   if (p === '/api/admin/check' && method === 'GET') return await handleAdminCheck(db, url);
@@ -85,6 +86,7 @@ async function routeApi(db, p, method, body, url, req) {
   // 通知信息（全角色侧边栏模块）
   if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, url);
   if (p === '/api/notifications/read' && method === 'POST') return await handleMarkNotificationsRead(db, body);
+  if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);
 
   // 站内沟通
   if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url);

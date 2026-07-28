@@ -177,6 +177,27 @@ globalThis.APP_CONSTANTS = {
     NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。',
     NOTIFY_SUBJECTS_FALLBACK: '相关科目',
 
+    // 管理员：系统通知广播（编辑器复用发帖组件）
+    BTN_SEND_NOTIFICATION: '发通知',
+    BROADCAST_MODAL_TITLE: '发送系统通知',
+    BROADCAST_BODY_PLACEHOLDER: '输入通知内容，全部用户都会收到（支持轻量 Markdown）',
+    VALIDATE_BROADCAST_EMPTY: '通知内容不能为空',
+    BROADCAST_SENT_TOAST: '通知已发送给全部用户',
+
+    // 管理员：资料管理
+    ADMIN_POSTS_EMPTY: '暂无帖子',
+
+    // 教师地址（选填，合规红线：不收详细门牌号）
+    TEACHER_ADDRESS_PLACEHOLDER: '上海市xx区xx路（无需详细门牌号）',
+
+    // 账户头像
+    SETTINGS_AVATAR: '账户头像',
+    BTN_UPLOAD_AVATAR: '上传头像',
+    AVATAR_SAVED_TOAST: '头像已更新',
+
+    // 需求推送限流（每分钟一条）
+    PUSH_BTN_COOLDOWN: '已发送',
+
     // 成绩标签
     SCORE_UNIT: '分',
 
@@ -198,6 +219,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_TEACHERS: '教师管理',
     PAGE_ADMIN_DEMANDS: '需求管理',
     PAGE_ADMIN_REVIEWS: '评价管理',
+    PAGE_ADMIN_POSTS: '资料管理',
 
     // 侧边栏页签简介（选中时展开的灰字说明）
     PAGE_MY_DEMANDS_DESC: '发布与管理家教需求',
@@ -211,6 +233,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_TEACHERS_DESC: '教师账户与封禁管理',
     PAGE_ADMIN_DEMANDS_DESC: '全平台需求管理',
     PAGE_ADMIN_REVIEWS_DESC: '评价审核与删除',
+    PAGE_ADMIN_POSTS_DESC: '管理教师共享的资料帖子',
     PAGE_NOTIFICATIONS_DESC: '意向与推送的处理进展',
     PAGE_ACCOUNT_SETTINGS_DESC: '账户信息与退出登录',
 
@@ -319,7 +342,7 @@ globalThis.APP_CONSTANTS = {
     LABEL_CURRENT_SCORES: '各科当前大概成绩',
     LABEL_TEACHING_METHOD: '期望教学方式',
     LABEL_ADDRESS: '地址',
-    ADDRESS_PLACEHOLDER: '上海市xx区xx路（精确门牌号请后续自行与教师沟通）',
+    ADDRESS_PLACEHOLDER: '如上海市xx区xx路（精确门牌号请后续自行与教师沟通）',
     LABEL_BUDGET: '预算区间（元/小时）',
     PLACEHOLDER_MIN: '最低',
     PLACEHOLDER_MAX: '最高',

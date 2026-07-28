@@ -245,7 +245,8 @@ export async function initDb(db) {
   await initLogDb(db);
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
-  await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'demand_intents', [
     ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
@@ -334,12 +335,12 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 
   if (existing) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
-      price=?,wechat=?,email=?,intro=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), userId]);
+      price=?,wechat=?,email=?,intro=?,address=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), userId]);
   } else {
-    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro)
-      VALUES (?,?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, (profile.intro || '').slice(0, 50)]);
+    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro,address)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100)]);
   }
 }
 
@@ -347,16 +348,16 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 export function mapTeacherProfileRow(p) {
   return {
     id: p.id, user_id: p.user_id, username: p.username,
-    province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '',
+    province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
     subjects: p.subjects ? JSON.parse(p.subjects) : [],
     gaokao_scores: p.gaokao_scores ? JSON.parse(p.gaokao_scores) : [],
-    price: p.price || 0, wechat: p.wechat, email: p.email,
+    price: p.price || 0, wechat: p.wechat, email: p.email, avatar: p.avatar || '',
     rating: p.rating, rating_count: p.rating_count, updatedAt: p.updated_at,
   };
 }
 
 export async function dbGetAllTeachers(db) {
-  const profiles = await dbAll(db, `SELECT tp.*, u.username
+  const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id ORDER BY tp.updated_at DESC`);
   return profiles.map(mapTeacherProfileRow);
 }
@@ -387,7 +388,7 @@ export async function dbCreateDemand(db, userId, demand) {
 }
 
 // 需求列表统一查询：JOIN 用户名 + LEFT JOIN 聚合出意向计数（向后兼容的附加字段）
-export const DEMANDS_SELECT = `SELECT sd.*, u.username, COALESCE(ic.cnt, 0) AS intent_count
+export const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cnt, 0) AS intent_count
   FROM student_demands sd JOIN users u ON sd.user_id=u.id
   LEFT JOIN (SELECT demand_id, COUNT(*) AS cnt FROM demand_intents GROUP BY demand_id) ic
     ON ic.demand_id=sd.id`;
@@ -653,6 +654,7 @@ export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
   return await dbAll(db, `SELECT c.*,
       us.username AS student_name, ut.username AS teacher_name,
+      us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       lm.body AS last_body, lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id AND m.sender_user_id<>?
         AND m.id > (CASE WHEN c.student_user_id=? THEN c.student_last_read_id ELSE c.teacher_last_read_id END)

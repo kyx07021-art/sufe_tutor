@@ -93,6 +93,7 @@ function chatPeerOf(c) {
   return {
     name: isTeacherViewer ? c.student_name : c.teacher_name,
     role: isTeacherViewer ? UI.ROLE_STUDENT : UI.ROLE_TEACHER,
+    avatar: isTeacherViewer ? c.student_avatar : c.teacher_avatar,
   };
 }
 
@@ -123,6 +124,7 @@ function renderConvItem(c) {
   const time = fmtChatTime(c.last_at || c.created_at);
   return `<button type="button" class="conv-item${c.id === chatConvId ? ' active' : ''}" data-conv-id="${c.id}" onclick="openConversation(${c.id})">
     ${(c.unread_count || 0) > 0 ? `<span class="conv-unread-dot" data-unread-dot="${c.id}"></span>` : ''}
+    ${renderAvatarHtml(peer.avatar, peer.name, 'conv-avatar')}
     <span class="conv-item-top">
       <span class="conv-item-name">${escHtml(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
       <span class="conv-item-role">${peer.role}</span>

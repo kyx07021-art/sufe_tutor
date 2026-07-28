@@ -57,6 +57,12 @@ export const MSG = {
   TEACHER_NOT_FOUND: '目标教师不存在',
   PUSH_SUBMITTED: '需求已发送给老师，等待对方查看',
   PUSH_DUPLICATE: '该需求已发送给这位老师',
+
+  // 通知广播（管理员）
+  BROADCAST_EMPTY: '通知内容不能为空',
+
+  // 头像
+  AVATAR_INVALID: '头像数据无效（请上传 160px 内的图片）',
   PROFILE_INCOMPLETE: '教师档案不完整：省份、年级、性别、擅长科目、报价均为必填，完善后才能提交试课意向',
   INTENT_SUBMITTED: '意向已提交',
   INTENT_NOT_FOUND: '意向不存在',

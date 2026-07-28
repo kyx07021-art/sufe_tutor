@@ -298,6 +298,10 @@
               <input type="number" class="form-input" id="profile-price" placeholder="如：150" min="0" required>
             </div>
             <div class="form-group">
+              <label class="form-label">地址</label>
+              <input type="text" class="form-input" id="profile-address" maxlength="100" placeholder="上海市xx区xx路（无需详细门牌号）">
+            </div>
+            <div class="form-group">
               <label class="form-label">微信号</label>
               <input type="text" class="form-input" id="profile-wechat" placeholder="选填，便于学生联系你">
             </div>
@@ -353,6 +357,12 @@
           <div class="browse-list" id="admin-reviews-list"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
 
+        <!-- 管理员：资料管理（教师共享帖子的查看与删除） -->
+        <section class="client-page hidden" data-page="admin-posts">
+          <div class="page-header"><h2>资料管理</h2></div>
+          <div class="browse-list" id="admin-posts-list"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
         <!-- 教师：资料共享（模块2；section 字段预留未来分区，当前全在广场） -->
         <section class="client-page hidden" data-page="resource-share">
           <div class="page-header"><h2>资料共享</h2></div>
@@ -367,7 +377,11 @@
 
         <!-- 全角色：通知信息（拒绝/退回等节点的委婉提醒，源码 notify.js 推送维护） -->
         <section class="client-page hidden" data-page="notifications">
-          <div class="page-header"><h2>通知信息</h2></div>
+          <div class="page-header">
+            <h2>通知信息</h2>
+            <!-- 管理员：全体系统通知广播（仅 admin 可见，enterNotifications 控制显隐） -->
+            <button type="button" class="btn btn-primary btn-sm hidden" id="btn-broadcast-notif" onclick="openBroadcastModal()">发通知</button>
+          </div>
           <div id="notifications-content"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
 
