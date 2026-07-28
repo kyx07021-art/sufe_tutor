@@ -64,6 +64,10 @@ export const MSG = {
   // 头像
   AVATAR_INVALID: '头像数据无效（请上传 160px 内的图片）',
 
+  // 用户反馈
+  FEEDBACK_NOT_FOUND: '反馈不存在',
+  FEEDBACK_RESOLVED: '你提交的反馈已被标记为「已处理」。感谢你帮助我们做得更好，如有其他问题欢迎随时反馈！',
+
   // 合同（通知模板含 {name} 占位：通知不在聊天上下文，须给出具体用户名）
   CONTRACT_EXISTS: '该会话已存在进行中的合同',
   CONTRACT_NOT_FOUND: '合同不存在',

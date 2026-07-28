@@ -127,12 +127,14 @@ export async function initDb(db) {
       FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
       FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-    // 用户反馈（关于我们页提交，管理员在「用户反馈」模块查看）
+    // 用户反馈（关于我们页提交，管理员在「用户反馈」模块查看，可标记已处理）
     db.prepare(`CREATE TABLE IF NOT EXISTS feedbacks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       kind TEXT NOT NULL DEFAULT 'suggestion' CHECK(kind IN ('bug','suggestion')),
+      title TEXT NOT NULL DEFAULT '',
       content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
   ]);
@@ -292,6 +294,7 @@ export async function initDb(db) {
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
   await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'demand_intents', [

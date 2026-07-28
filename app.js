@@ -124,6 +124,13 @@ function toggleCustomSelect(wrap) {
 function closeAllCustomSelects() {
   document.querySelectorAll('.custom-select.open').forEach(w => w.classList.remove('open'));
 }
+// 兜底自愈：任何动态插入的 select 自动包装为自定义下拉（防移动端弹出原生选择器），
+// 只处理尚未包装的，避免重复构建干扰已打开的面板
+const selectSweepObserver = new MutationObserver(() => {
+  document.querySelectorAll('select.form-select:not([data-customized]), select.filter-select:not([data-customized])')
+    .forEach(sel => initCustomSelects(sel.closest('.modal') || sel.parentElement));
+});
+selectSweepObserver.observe(document.documentElement, { childList: true, subtree: true });
 // 点空白处收起；点选项写回原生 select 并派发 change（内联 onchange 照常触发）
 document.addEventListener('click', e => {
   const opt = e.target.closest('.custom-option');
@@ -311,9 +318,10 @@ function renderSidebar() {
     <button type="button" class="sidebar-item${p.id === state.page ? ' active' : ''}" data-page="${p.id}" onclick="selectPage('${p.id}')">
       <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
       <span class="sidebar-item-body">
-        <span class="sidebar-item-label">${p.label}${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}</span>
+        <span class="sidebar-item-label">${p.label}</span>
         <span class="sidebar-item-descwrap"><span class="sidebar-item-desc">${p.desc || ''}</span></span>
       </span>
+      ${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}
     </button>`).join('');
   document.getElementById('sidebar-invite').classList.toggle('hidden', !isAdmin);
   syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
@@ -342,7 +350,7 @@ function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
 // 侧边栏红点徽标：未读会话 / 待处理推送(教师) / 未读通知，30s 慢轮询统一刷新；
 // 各模块（如 app-chat 打开会话已读）也可即时回调 setBadge 消点
 // ============================================================
-const BADGE_PAGES = ['my-chats', 'browse-demands', 'notifications', 'my-contracts'];
+const BADGE_PAGES = ['my-chats', 'browse-demands', 'notifications', 'my-contracts', 'admin-feedback'];
 let badgePollTimer = null;
 
 function setBadge(pageId, n) {
@@ -374,7 +382,15 @@ async function refreshBadges() {
       const demandData = await api(`/api/student/demands?userId=${state.user.id}`);
       setBadge('my-demands', (demandData.demands || []).filter(d => d.pending_intents > 0).length);
       setBadge('browse-demands', 0);
-    } else { setBadge('browse-demands', 0); setBadge('my-demands', 0); }
+    } else {
+      setBadge('browse-demands', 0); setBadge('my-demands', 0);
+      // 管理员用户反馈红点：未处理条数
+      try {
+        const fbData = await api(`/api/feedbacks?username=${encodeURIComponent(state.user.username)}`);
+        const openFb = (fbData.feedbacks || []).filter(f => f.status !== 'resolved').length;
+        if (state.page !== 'admin-feedback') setBadge('admin-feedback', openFb);
+      } catch { /* 静默，下一轮自愈 */ }
+    }
     // 我的合同红点：待我处理的合同数（学生+教师）；正停留在合同页则就地刷新列表（对方改动 ≤30s 可见）
     if (state.user.role === 'student' || state.user.role === 'teacher') {
       const ctData = await api(`/api/contracts/my?userId=${state.user.id}`);
@@ -1821,8 +1837,7 @@ function enterAbout() {
         <div>${escHtml(UI.ABOUT_SUPPORT_EMAIL)}</div>
       </div>
       <div class="about-feedback-btns">
-        <button type="button" class="btn btn-danger btn-sm" onclick="openFeedbackModal('bug')">${UI.BTN_FEEDBACK_BUG}</button>
-        <button type="button" class="btn btn-outline btn-sm" onclick="openFeedbackModal('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openFeedbackModal('suggestion')">${UI.BTN_FEEDBACK}</button>
       </div>
     </div>`;
   initReveals(document.getElementById('about-content'));
@@ -1837,6 +1852,11 @@ function openFeedbackModal(kind) {
       <div class="modal-header"><h2 id="feedback-modal-title">${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
+        <div class="form-group">
+          <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
+          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.FEEDBACK_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
+          <span class="title-count" id="post-title-count">0/60</span>
+        </div>
         <div class="feedback-kind-row">
           <button type="button" class="feedback-kind-btn${feedbackKind === 'bug' ? ' active' : ''}" data-kind="bug" onclick="switchFeedbackKind('bug')">${UI.BTN_FEEDBACK_BUG}</button>
           <button type="button" class="feedback-kind-btn${feedbackKind === 'suggestion' ? ' active' : ''}" data-kind="suggestion" onclick="switchFeedbackKind('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
@@ -1874,11 +1894,13 @@ function switchFeedbackKind(kind) {
 }
 
 async function submitFeedback() {
+  const title = (document.getElementById('post-title').value || '').trim();
   const content = (document.getElementById('post-body').value || '').trim();
   const alertEl = document.getElementById('post-alert');
+  if (!title) { alertEl.innerHTML = `<div class="alert alert-error">${UI.POST_TITLE_REQUIRED}</div>`; return; }
   if (!content) { alertEl.innerHTML = `<div class="alert alert-error">${UI.FEEDBACK_EMPTY}</div>`; return; }
   try {
-    await api('/api/feedbacks', { method: 'POST', body: { userId: state.user.id, kind: feedbackKind, content } });
+    await api('/api/feedbacks', { method: 'POST', body: { userId: state.user.id, kind: feedbackKind, title, content } });
     closeModal();
     showToast(UI.FEEDBACK_SENT_TOAST);
   } catch (err) {
@@ -1891,6 +1913,7 @@ async function submitFeedback() {
 // ============================================================
 async function loadAdminFeedback() {
   const el = document.getElementById('admin-feedback-list');
+  setBadge('admin-feedback', 0); // 点开瞬间红点即灭（新反馈由轮询在离开本页后重新点亮）
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const data = await api(`/api/feedbacks?username=${encodeURIComponent(state.user.username)}`);
@@ -1898,19 +1921,35 @@ async function loadAdminFeedback() {
     if (!list.length) { el.innerHTML = `<div class="empty-state"><p>${UI.ADMIN_FEEDBACK_EMPTY}</p></div>`; return; }
     el.innerHTML = list.map(f => {
       const isBug = f.kind === 'bug';
-      return `<div class="list-card feedback-card${isBug ? ' feedback-card--bug' : ''}">
+      const resolved = f.status === 'resolved';
+      return `<div class="list-card feedback-card${isBug ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
         <div class="list-card-header">
-          <span class="list-card-title">${escHtml(f.username)}</span>
-          <span class="tag ${isBug ? 'tag-danger' : 'tag-accent'}">${isBug ? UI.FEEDBACK_TAG_BUG : UI.FEEDBACK_TAG_SUGGEST}</span>
+          <span class="list-card-title">${escHtml(f.title || UI.BTN_FEEDBACK)}</span>
+          <span class="feedback-tags">
+            <span class="tag ${isBug ? 'tag-danger' : 'tag-accent'}">${isBug ? UI.FEEDBACK_TAG_BUG : UI.FEEDBACK_TAG_SUGGEST}</span>
+            <span class="tag ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.FEEDBACK_STATUS_RESOLVED : UI.FEEDBACK_STATUS_OPEN}</span>
+          </span>
         </div>
         <div class="list-card-detail feedback-content">${escHtml(f.content)}</div>
-        <div class="list-card-meta" style="margin-top:8px;">${fmtDateTime(f.created_at)}</div>
+        <div class="feedback-foot">
+          <span class="list-card-meta">${escHtml(f.username)} · ${fmtDateTime(f.created_at)}</span>
+          ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs" onclick="resolveAdminFeedback(${f.id})">${UI.BTN_MARK_RESOLVED}</button>`}
+        </div>
       </div>`;
     }).join('');
     initReveals(el);
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
+}
+
+// 标记反馈已处理（后端通知提出者）
+async function resolveAdminFeedback(feedbackId) {
+  try {
+    await api(`/api/feedbacks/${feedbackId}/resolve`, { method: 'POST', body: { username: state.user.username } });
+    showToast(UI.FEEDBACK_RESOLVED_TOAST);
+    loadAdminFeedback();
+  } catch (err) { showToast(err.message); }
 }
 
 // ============================================================

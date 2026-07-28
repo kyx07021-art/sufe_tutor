@@ -175,6 +175,10 @@
     <!-- Client Shell：可扩展侧边栏 + 页面区（栏目由 app.js ROLE_PAGES 配置驱动） -->
     <div class="client-shell hidden" id="view-client">
       <aside class="client-sidebar" id="client-sidebar">
+        <!-- 移动端窄栏顶部展开/收起箭头（桌面隐藏；位置固定不随展开移动，旋转指向右/左） -->
+        <button type="button" class="sidebar-expand-toggle" onclick="toggleSidebar()" aria-label="展开或收起侧边栏">
+          <svg class="expand-caret" width="12" height="8" viewBox="0 0 12 8" fill="none" aria-hidden="true"><path d="M2 1l4 4 4-4" stroke="currentColor" stroke-width="1.8"/></svg>
+        </button>
         <!-- 装饰网格：钉死在栏盒底的背景层，与任何内容流无关 -->
         <div class="sidebar-deco-grid" aria-hidden="true"></div>
         <!-- 滚动区只装导航（+移动端关闭钮）；邀请码与用户块写死在栏底，永不位移 -->

@@ -14,7 +14,7 @@ import {
   dbGetDemandById, dbDeleteDemand, dbDeleteReview, mapTeacherProfileRow,
 } from './db.js';
 import { logEvent, queryLog } from './log.js';
-import { dbBroadcastNotification } from './notify.js';
+import { dbBroadcastNotification, notifyUser } from './notify.js';
 
 // 邀请码有效期
 const INVITE_VALIDITY_MS = 5 * 60 * 1000;
@@ -154,25 +154,41 @@ export async function handleAdminLogs(db, url) {
   return json(result);
 }
 
-// POST /api/feedbacks { userId, kind, content } —— 全用户可提交（关于我们页「反馈 Bug / 提出建议」）
+// POST /api/feedbacks { userId, kind, title, content } —— 全用户可提交（关于我们页「用户反馈」）
 export async function handleCreateFeedback(db, body, req) {
   const userId = parseInt(body.userId);
   const kind = body.kind === 'bug' ? 'bug' : 'suggestion';
+  const title = String(body.title || '').trim().slice(0, 60);
   const content = String(body.content || '').trim().slice(0, 5000);
   if (!userId) return error(MSG.LOGIN_REQUIRED);
   if (!content) return error(MSG.BROADCAST_EMPTY);
-  const res = await dbRun(db, 'INSERT INTO feedbacks (user_id, kind, content) VALUES (?,?,?)', [userId, kind, content]);
+  const res = await dbRun(db, 'INSERT INTO feedbacks (user_id, kind, title, content) VALUES (?,?,?,?)', [userId, kind, title, content]);
   logEvent(db, { action: 'feedback.create', actorUserId: userId, entity: 'feedback',
-    entityId: (res && res.meta && res.meta.last_row_id) || 0, detail: { kind, len: content.length }, req });
+    entityId: (res && res.meta && res.meta.last_row_id) || 0, detail: { kind, title, len: content.length }, req });
   return json({ ok: true }, 201);
 }
 
-// GET /api/feedbacks?username= —— 管理员查看全部反馈（含提交者用户名）
+// GET /api/feedbacks?username= —— 管理员查看全部反馈（含提交者用户名 + 处理状态）
 export async function handleAdminFeedbacks(db, url) {
   if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
   const feedbacks = await dbAll(db,
     `SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id ORDER BY f.id DESC LIMIT 200`);
   return json({ feedbacks });
+}
+
+// POST /api/feedbacks/:id/resolve { username } —— 管理员标记已处理，通知反馈提出者
+export async function handleResolveFeedback(db, feedbackId, body, req) {
+  const admin = await requireAdmin(db, body.username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const f = await dbGet(db, 'SELECT * FROM feedbacks WHERE id=?', [feedbackId]);
+  if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404);
+  if (f.status !== 'resolved') {
+    await dbRun(db, `UPDATE feedbacks SET status='resolved' WHERE id=?`, [feedbackId]);
+    await notifyUser(db, f.user_id, MSG.FEEDBACK_RESOLVED);
+    logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
+      actorRole: 'admin', entity: 'feedback', entityId: feedbackId, detail: { kind: f.kind }, req });
+  }
+  return json({ ok: true });
 }
 
 // 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件：标题+正文，
