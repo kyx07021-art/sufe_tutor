@@ -31,9 +31,6 @@
 .chats-list-title {
   font-size: .74rem; font-weight: 800; letter-spacing: .18em; color: var(--ink-3);
 }
-.chats-list-count {
-  font-family: var(--mono); font-size: .68rem; font-weight: 700; color: var(--muted);
-}
 
 .conv-list { position: relative; flex: 1; overflow-y: auto; min-height: 0; padding: 10px 0 16px; }
 .conv-list::-webkit-scrollbar { width: 6px; }

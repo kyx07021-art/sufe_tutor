@@ -214,9 +214,10 @@
         <section class="client-page hidden" data-page="browse-teachers">
           <div class="page-header">
             <h2>教师信息</h2>
-            <button class="btn btn-outline btn-sm" onclick="toggleFilters()">筛选</button>
+            <button type="button" class="drop-toggle" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
           </div>
-          <div class="filter-panel hidden" id="teacher-filters">
+          <div class="drop-wrap" id="teacher-filters">
+          <div class="filter-panel">
             <div class="filter-row">
               <div class="filter-group">
                 <label class="filter-label">性别</label>
@@ -253,6 +254,7 @@
                 </select>
               </div>
             </div>
+          </div>
           </div>
           <div class="browse-list" id="teachers-list">
             <div class="empty-state"><p>加载中...</p></div>

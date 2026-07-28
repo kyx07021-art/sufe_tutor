@@ -263,7 +263,7 @@ globalThis.APP_CONSTANTS = {
 
     // 教师弹窗 / 联系方式
     SECTION_REGION: '地区',
-    CONTACT_AFTER_SIGN_NOTE: '签约后向对方展示',
+    CONTACT_AFTER_SIGN_NOTE: '签约后展示联系方式',
 
     // 用户状态标签
     TAG_BANNED: '已封禁',

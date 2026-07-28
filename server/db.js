@@ -388,9 +388,12 @@ export async function dbCreateDemand(db, userId, demand) {
 }
 
 // 需求列表统一查询：JOIN 用户名 + LEFT JOIN 聚合出意向计数（向后兼容的附加字段）
-export const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cnt, 0) AS intent_count
+export const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cnt, 0) AS intent_count,
+    COALESCE(ic.pending, 0) AS pending_intents
   FROM student_demands sd JOIN users u ON sd.user_id=u.id
-  LEFT JOIN (SELECT demand_id, COUNT(*) AS cnt FROM demand_intents GROUP BY demand_id) ic
+  LEFT JOIN (SELECT demand_id, COUNT(*) AS cnt,
+      SUM(CASE WHEN status='pending' THEN 1 ELSE 0 END) AS pending
+    FROM demand_intents GROUP BY demand_id) ic
     ON ic.demand_id=sd.id`;
 
 export function mapDemandRow(r) {

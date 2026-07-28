@@ -410,8 +410,10 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 .form-group {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px 22px;
   margin-bottom: 0; padding: 15px 0;
-  border-top: 1px solid var(--paper-3);
 }
+/* 细米线只用于项与项之间：首项之前不出现（条件段落自带顶线保持连续） */
+.form-group + .form-group, #d-address-section + .form-group { border-top: 1px solid var(--paper-3); }
+#d-address-section { border-top: 1px solid var(--paper-3); }
 /* 右侧录入控件撑满剩余宽度（省份选择包裹层 / 成绩区 / 预算行等） */
 .form-group > span[id$="-wrap"], .form-group > div { flex: 1 1 0; min-width: 0; }
 /* 辅助内容（角色提示/地区提醒等）独占整行，排在项下方 */
@@ -495,6 +497,10 @@ textarea.form-input {
 .form-divider { height: 1px; background: var(--line); margin: 24px 0; }
 .form-actions { display: flex; gap: 10px; margin-top: 24px; }
 .form-actions .btn { flex: 1; }
+
+/* 发帖/广播组件：文本编辑区独占整行，功能按钮（H2/H3/加粗/插图）移到其下方横排 */
+.form-group > textarea.form-input { flex-basis: 100%; order: 2; }
+.form-group > .md-toolbar { flex-basis: 100%; order: 3; margin-top: 10px; }
 
 .profile-form { max-width: 640px; margin: 0 auto; padding: 8px; }
 
@@ -666,10 +672,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 }
 .settings-label { font-size: .7rem; font-weight: 700; color: var(--muted); letter-spacing: .06em; margin-bottom: 3px; }
 .settings-value { font-size: .9rem; font-weight: 600; color: var(--ink); }
-/* 头像行：纵向加高，预览圆形头像置于该行最右侧 */
-.settings-row--avatar { padding: 24px 2px; align-items: center; }
+/* 头像行：无上边线，预览放大并上探越过原细线位置，让人看清头像 */
+.settings-row--avatar { border-top: none; margin-top: -14px; padding: 26px 2px 24px; align-items: center; }
 .settings-row--avatar .settings-label { margin-bottom: 9px; }
-.settings-avatar { width: 58px; height: 58px; font-size: 1.5rem; }
+.settings-avatar { width: 88px; height: 88px; font-size: 2.2rem; }
 .settings-logout { margin-top: 36px; }
 
 /* 汉堡按钮：桌面隐藏；≤860px 且处于壳内时由 body:has 启用 */
@@ -691,8 +697,27 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
 }
 .demand-card-foot .list-card-contact { margin-top: 0; padding-top: 0; border-top: none; }
-.intent-caret { display: inline-block; margin-left: 4px; transition: transform .25s var(--ease-out); }
-.intent-caret.open { transform: rotate(180deg); }
+
+/* 统一下拉开关：透明底 + 右侧 v 形箭头（展开翻转 180°），
+   替换试课意向 / 筛选等一切「展开/收起栏目」按钮 */
+.drop-toggle {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 12px;
+  background: transparent; color: var(--ink-3);
+  font-size: .8rem; font-weight: 700; letter-spacing: .01em;
+  transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+.drop-toggle:hover { color: var(--ink); background: var(--paper-2); }
+.drop-caret { display: inline-flex; transition: transform .28s var(--ease-snap); }
+.drop-toggle.open .drop-caret { transform: rotate(180deg); }
+/* 开关右上角红点：待处理意向等未读标记 */
+.corner-dot { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+
+/* 通用展开容器：grid-rows 0fr→1fr 开合动效（筛选栏等统一走这套） */
+.drop-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s var(--ease-snap); }
+.drop-wrap.open { grid-template-rows: 1fr; }
+.drop-wrap > * { overflow: hidden; min-height: 0; }
 
 /* 侧边栏「我的沟通」未读红点（语义圆点，全站唯一圆形元素之一） */
 .sidebar-dot { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: var(--danger); }
@@ -744,8 +769,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .browse-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
 .browse-list::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
-/* 筛选面板 */
-.filter-panel { margin-bottom: 20px; padding: 18px; background: var(--white); animation: fade-in .2s ease; }
+/* 筛选面板（.drop-wrap 内：margin 会在收起态泄漏高度，间距改由内边距承担） */
+.filter-panel { margin-bottom: 0; padding: 18px; background: var(--white); }
 .filter-row { display: flex; gap: 16px; flex-wrap: wrap; }
 .filter-group { flex: 1; min-width: 120px; }
 .filter-label { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: .03em; }

@@ -58,6 +58,9 @@ const ROLE_PAGES = {
   ],
 };
 
+// 统一下拉开关的 v 形箭头（drop-toggle 共用，currentColor 随文字变色）
+const CARET_SVG = '<svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>';
+
 // 内联 onclick 里插值的字符串参数一律过此函数，防引号击穿
 function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c =>
@@ -280,7 +283,12 @@ async function refreshBadges() {
     if (state.user.role === 'teacher') {
       const pushData = await api(`/api/demand-pushes?teacherUserId=${state.user.id}`);
       setBadge('browse-demands', (pushData.pushes || []).length);
-    } else setBadge('browse-demands', 0);
+      setBadge('my-demands', 0);
+    } else if (state.user.role === 'student') {
+      const demandData = await api(`/api/student/demands?userId=${state.user.id}`);
+      setBadge('my-demands', (demandData.demands || []).filter(d => d.pending_intents > 0).length);
+      setBadge('browse-demands', 0);
+    } else { setBadge('browse-demands', 0); setBadge('my-demands', 0); }
   } catch { /* 静默，下一轮自愈 */ }
 }
 
@@ -751,7 +759,9 @@ function renderStars(rating) {
 }
 
 function toggleFilters() {
-  document.getElementById('teacher-filters').classList.toggle('hidden');
+  const open = document.getElementById('teacher-filters').classList.toggle('open'); // grid-rows 展开动效
+  const btn = document.getElementById('filter-toggle-btn');
+  if (btn) btn.classList.toggle('open', open); // v 形箭头翻转
 }
 
 function applyFilters() {
@@ -1063,7 +1073,7 @@ function renderDemandCard(d, opts = {}) {
       <div class="list-card-contact">
         <span class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>
       </div>
-      ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="intent-caret" id="intent-caret-${d.id}">▾</span></button>` : ''}
+      ${editable ? `<button type="button" class="drop-toggle" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
     </div>
     ${editable ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
     </div>
@@ -1079,7 +1089,10 @@ async function loadDemandList(elId, { mine }) {
                      : `/api/student/demands?teacherUserId=${state.user.id}`;
     const data = await api(url);
     const demands = data.demands || [];
-    if (mine) state.myDemands = demands; // 编辑回填的数据源
+    if (mine) {
+      state.myDemands = demands; // 编辑回填的数据源
+      setBadge('my-demands', demands.filter(d => d.pending_intents > 0).length); // 有待处理意向的需求数 → 侧栏红点
+    }
     if (!demands.length) {
       el.innerHTML = `<div class="empty-state"><p>${mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS}</p></div>`;
       return;
@@ -1386,9 +1399,13 @@ function showProfileIncompleteModal() {
 async function toggleDemandIntents(demandId) {
   const box = document.getElementById(`intents-box-${demandId}`);
   if (!box) return;
-  const caret = document.getElementById(`intent-caret-${demandId}`);
+  const toggle = document.getElementById(`intent-toggle-${demandId}`);
   const open = box.classList.toggle('open');
-  if (caret) caret.classList.toggle('open', open);
+  if (toggle) toggle.classList.toggle('open', open); // v 形箭头翻转
+  if (open) {
+    const dot = document.getElementById(`intent-dot-${demandId}`);
+    if (dot) dot.classList.add('hidden'); // 打开即视为已读，红点消除
+  }
   if (open && !box.dataset.loaded) await refreshIntentsBox(demandId);
 }
 

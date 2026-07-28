@@ -39,7 +39,6 @@ function enterMyChats() {
       <aside class="chats-list-pane">
         <div class="chats-list-head">
           <span class="chats-list-title">${UI.CHAT_TITLE}</span>
-          <span class="chats-list-count" id="chats-conv-count">--</span>
         </div>
         <div class="conv-list" id="conv-list"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
       </aside>
@@ -69,8 +68,6 @@ async function loadConversations() {
 function renderConvList() {
   const el = document.getElementById('conv-list');
   if (!el) return;
-  const countEl = document.getElementById('chats-conv-count');
-  if (countEl) countEl.textContent = String(chatConvList.length).padStart(2, '0');
   if (!chatConvList.length) {
     el.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.CHAT_EMPTY_NO_CONVS}</p></div>`;
     return;
