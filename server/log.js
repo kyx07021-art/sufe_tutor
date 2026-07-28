@@ -104,16 +104,26 @@ export async function initLogDb(db) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_log_actor ON activity_log(actor_user_id, ts)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_log_entity ON activity_log(entity, entity_id)'),
   ]);
-  // 幂等补列：CREATE IF NOT EXISTS 不会升级已存在的旧表——线上老留档表缺 schema_v/encrypted
-  // 会让加密版 INSERT 全体静默失败（本批次事故根因），故在此 PRAGMA 探测后 ALTER
+  // 幂等补列：CREATE IF NOT EXISTS 不会升级已存在的旧表。线上老留档表的列状态未知，
+  // INSERT 显式列出全部 11 列，缺一即全体静默失败——故把 INSERT 用到的列全部探测补齐
   // （db.js↔log.js 循环依赖，不能复用 db.js 的 ensureColumns，就地实现）
-  const cols = await dbAll(db, 'PRAGMA table_info(activity_log)');
-  const names = cols.map(c => c.name);
-  if (!names.includes('schema_v')) {
-    try { await dbRun(db, 'ALTER TABLE activity_log ADD COLUMN schema_v INTEGER NOT NULL DEFAULT 1'); } catch { /* ignore */ }
-  }
-  if (!names.includes('encrypted')) {
-    try { await dbRun(db, 'ALTER TABLE activity_log ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0'); } catch { /* ignore */ }
+  const names = (await dbAll(db, 'PRAGMA table_info(activity_log)')).map(c => c.name);
+  const backfill = [
+    ['schema_v', 'INTEGER NOT NULL DEFAULT 1'],
+    ['encrypted', 'INTEGER NOT NULL DEFAULT 0'],
+    ['actor_user_id', 'INTEGER'],
+    ['actor_username', 'TEXT'],
+    ['actor_role', 'TEXT'],
+    ['entity', 'TEXT'],
+    ['entity_id', 'TEXT'],
+    ['detail', 'TEXT'],
+    ['req_ip', 'TEXT'],
+    ['req_ua', 'TEXT'],
+  ];
+  for (const [col, decl] of backfill) {
+    if (!names.includes(col)) {
+      try { await dbRun(db, `ALTER TABLE activity_log ADD COLUMN ${col} ${decl}`); } catch { /* ignore */ }
+    }
   }
 }
 
