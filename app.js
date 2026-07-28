@@ -423,8 +423,8 @@ async function refreshBadges() {
 function switchRegisterRole(role) {
   document.getElementById('register-role').value = role;
   document.querySelectorAll('#register-role-tabs .role-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
-  // 教师注册：先验证邀请码再填表
-  if (role === 'teacher') {
+  // 教师注册：门控休眠期（内测）直接填表；恢复后先验证邀请码再填表
+  if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
     showView('invite-gate');
   }
 }
@@ -476,7 +476,7 @@ async function handleRegister(e) {
     alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_PASSWORD_MISMATCH}</div>`;
     return;
   }
-  if (role === 'teacher') {
+  if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
     if (!state.validatedInviteCode) {
       alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_INVITE_FIRST}</div>`;
       showView('invite-gate');
@@ -488,7 +488,7 @@ async function handleRegister(e) {
     const btn = document.getElementById('register-submit');
     btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${UI.LOADING_REGISTER}`;
     const body = { username, password, role };
-    if (role === 'teacher') {
+    if (role === 'teacher' && state.validatedInviteCode) {
       body.inviteCode = state.validatedInviteCode;
       state.validatedInviteCode = null; // 用后即清
     }

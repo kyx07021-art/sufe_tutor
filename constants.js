@@ -6,6 +6,10 @@
  */
 globalThis.APP_CONSTANTS = {
 
+  // 教师注册邀请码门控：内测期间休眠（true = 免邀请码注册），与后端 core.js 的
+  // INVITE_GATE_ENABLED 同步切换
+  INVITE_GATE_DORMANT: true,
+
   // ============================================================
   // 业务数据
   // ============================================================
@@ -375,9 +379,11 @@ globalThis.APP_CONSTANTS = {
     CHAT_ATTACH_FILE: '文件',
     CHAT_INPUT_PLACEHOLDER: '输入消息',
     CHAT_BTN_SEND: '发送',
+    CHAT_FILE_TOO_LARGE: '文件太大（上限 500KB，图片会自动压缩）',
+    CHAT_DOWNLOAD: '下载',
+    CHAT_FILE_FALLBACK: '文件',
     CHAT_PLACEHOLDER_TITLE: '选择左侧会话，开始沟通',
     CHAT_PLACEHOLDER_SUB: '同意试课意向后自动建立会话，消息每 4 秒自动刷新',
-    CHAT_TODO_TOAST: '该功能即将开放，敬请期待',
 
     // 资料共享广场
     POSTS_SEARCH_PLACEHOLDER: '搜索标题或正文',

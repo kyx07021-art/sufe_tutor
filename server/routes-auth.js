@@ -2,7 +2,7 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, dbRun, MSG } from './core.js';
+import { json, error, hashPassword, verifyPassword, dbRun, MSG, INVITE_GATE_ENABLED } from './core.js';
 import { dbFindUserByUsername, dbFindUserById, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
 import { logEvent } from './log.js';
 
@@ -12,27 +12,21 @@ export async function handleRegister(db, body, req) {
   if (!password || password.length < 6) return error(MSG.PASSWORD_LENGTH);
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
 
-  if (role === 'teacher') {
+  // 教师邀请码门控：内测期间休眠（INVITE_GATE_ENABLED=false 时教师免邀请码注册）
+  const needsInvite = role === 'teacher' && INVITE_GATE_ENABLED;
+  if (needsInvite) {
     if (!inviteCode) return error(MSG.TEACHER_NEEDS_INVITE);
     const code = await dbFindValidInviteCode(db, inviteCode);
     if (!code) return error(MSG.INVITE_INVALID);
-
-    if (await dbFindUserByUsername(db, username)) return error(MSG.USERNAME_TAKEN);
-
-    const { hash, salt } = await hashPassword(password);
-    const userId = await dbCreateUser(db, username, hash, salt, role);
-    await dbUseInviteCode(db, inviteCode, userId);
-    logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
-      actorRole: role, entity: 'user', entityId: userId, detail: { role, via: 'invite' }, req });
-    return json({ user: { id: userId, username, role, avatar: '' }, message: MSG.REGISTER_SUCCESS });
   }
 
   if (await dbFindUserByUsername(db, username)) return error(MSG.USERNAME_TAKEN);
 
   const { hash, salt } = await hashPassword(password);
   const userId = await dbCreateUser(db, username, hash, salt, role);
+  if (needsInvite) await dbUseInviteCode(db, inviteCode, userId);
   logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
-    actorRole: role, entity: 'user', entityId: userId, detail: { role }, req });
+    actorRole: role, entity: 'user', entityId: userId, detail: { role, via: needsInvite ? 'invite' : 'direct' }, req });
   return json({ user: { id: userId, username, role, avatar: '' }, message: MSG.REGISTER_SUCCESS });
 }
 

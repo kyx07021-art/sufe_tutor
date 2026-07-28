@@ -1122,32 +1122,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .demand-info-row { padding: 8px 0; font-size: .8rem; color: var(--ink-3); line-height: 1.65; }
 .demand-info-row + .demand-info-row { border-top: 1px solid var(--paper-3); }
 
-/* ============================================================
-   窄屏（≤860px）信息卡：必须置于桌面尺寸规则之后（层叠顺序）
-   教师卡——头像缩小保持圆形，id/评分/简介堆叠头像下方，右区信息两行左对齐
-   需求卡——头像不再独占左半边，id 与三行信息在头像下方左对齐堆叠到卡片边缘
-   ============================================================ */
-@media (max-width: 860px) {
-  .list-card { padding: 14px 16px; }
-
-  .list-card--teacher { grid-template-columns: 56px 1fr; column-gap: 12px; row-gap: 5px; }
-  .tc-avatar { grid-column: 1; grid-row: 1; align-self: start; width: 56px; height: 56px; min-height: 0; font-size: 1.4rem; }
-  .tc-identity { grid-column: 1; grid-row: 2; align-self: start; flex-direction: column; align-items: flex-start; gap: 3px; }
-  .tc-username { font-size: .8rem; white-space: normal; }
-  .tc-rating .stars { font-size: .66rem; }
-  .tc-rating b { font-size: .62rem; }
-  .tc-right { grid-column: 2; grid-row: 1 / span 2; align-items: flex-start; text-align: left; }
-  .tc-info1 { font-size: .8rem; }
-  .tc-info2 { font-size: .7rem; }
-  .tc-intro { grid-column: 1 / -1; grid-row: 3; white-space: normal; font-size: .72rem; }
-
-  .list-card--demand { display: block; }
-  .demand-avatar { width: 40px; height: 40px; font-size: 1.05rem; margin: 0 0 10px; }
-  .list-card-title { font-size: .95rem; }
-  .demand-info-row { font-size: .76rem; padding: 7px 0; }
-  .push-note-row { justify-content: flex-start; }
-}
-
 .tc-identity { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; align-self: center; }
 .tc-username {
   font-weight: 800; font-size: 1.08rem; color: var(--ink); cursor: pointer; letter-spacing: -.01em;
@@ -1180,6 +1154,33 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .tc-push-btn:disabled { opacity: .55; cursor: default; }
 .tc-push-btn .arrow { transition: transform var(--t-base) var(--ease-out); }
 .tc-push-btn:hover:not(:disabled) .arrow { transform: translateX(3px); }
+
+/* ============================================================
+   窄屏（≤860px）信息卡：必须置于桌面尺寸规则之后（层叠顺序！桌面
+   tc-* 规则在本块之前全部定义完，移动端覆写才能生效）
+   教师卡——头像缩小保持圆形，id/评分/简介堆叠头像下方，右区信息两行左对齐
+   需求卡——头像不再独占左半边，id 与三行信息在头像下方左对齐堆叠到卡片边缘
+   ============================================================ */
+@media (max-width: 860px) {
+  .list-card { padding: 14px 16px; }
+
+  .list-card--teacher { grid-template-columns: 56px 1fr; column-gap: 12px; row-gap: 5px; }
+  .tc-avatar { grid-column: 1; grid-row: 1; align-self: start; width: 56px; height: 56px; min-height: 0; font-size: 1.4rem; }
+  .tc-identity { grid-column: 1; grid-row: 2; align-self: start; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .tc-username { font-size: .8rem; white-space: normal; }
+  .tc-rating .stars { font-size: .66rem; }
+  .tc-rating b { font-size: .62rem; }
+  .tc-right { grid-column: 2; grid-row: 1 / span 2; align-items: flex-start; text-align: left; }
+  .tc-info1 { font-size: .8rem; }
+  .tc-info2 { font-size: .7rem; }
+  .tc-intro { grid-column: 1 / -1; grid-row: 3; white-space: normal; font-size: .72rem; }
+
+  .list-card--demand { display: block; }
+  .demand-avatar { width: 40px; height: 40px; font-size: 1.05rem; margin: 0 0 10px; }
+  .list-card-title { font-size: .95rem; }
+  .demand-info-row { font-size: .76rem; padding: 7px 0; }
+  .push-note-row { justify-content: flex-start; }
+}
 
 /* 教师端被推送需求的置顶卡：右侧 时间·说明·拒绝·确认 一行 */
 .push-note-row { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }

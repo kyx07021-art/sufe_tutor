@@ -12,6 +12,10 @@ export const ADMIN_DEFAULT_PASSWORD = 'admin_sufe';
 
 // 评分系统（初始评分 + 权重，评价通过时做加权平均）
 export const INITIAL_RATING = 4.0;
+
+// 教师注册邀请码门控：内测期间休眠（免邀请码注册）；恢复时置 true，
+// 并同步前端 constants.js 的 INVITE_GATE_DORMANT 为 false
+export const INVITE_GATE_ENABLED = false;
 export const INITIAL_WEIGHT = 10;
 
 // ============================================================
@@ -90,6 +94,7 @@ export const MSG = {
   // 沟通
   CONVERSATION_NOT_FOUND: '会话不存在',
   MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
+  FILE_TOO_LARGE: '附件过大（上限约 500KB，图片会自动压缩）',
   FEATURE_TODO: '该功能即将开放，敬请期待',
 
   // 评价

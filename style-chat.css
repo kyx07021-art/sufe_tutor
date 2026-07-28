@@ -182,6 +182,16 @@
   background: var(--paper);
 }
 
+/* ---------- 图片 / 文件消息 ---------- */
+.chat-bubble--media { padding: 5px; }
+.chat-bubble--media img { display: block; max-width: 240px; max-height: 320px; border-radius: 8px; cursor: zoom-in; }
+.chat-file-chip { display: inline-flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; padding: 5px 4px; }
+.chat-file-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: .82rem; }
+.chat-file-dl { flex-shrink: 0; font-size: .66rem; font-weight: 700; letter-spacing: .04em; border: 1px solid currentColor; padding: 2px 9px; }
+.chat-image-modal { max-width: 92vw; width: auto; background: transparent; }
+.chat-image-modal .modal-body { padding: 0; }
+.chat-image-modal img { display: block; max-width: 88vw; max-height: 86vh; margin: 0 auto; }
+
 /* ---------- 合同状态灰字行（消息区与输入区之间） ---------- */
 .chat-contract-line { background: var(--paper); padding: 0 18px; }
 .chat-contract-line-text { padding: 7px 0; font-size: .72rem; color: var(--muted); text-align: center; letter-spacing: .02em; }

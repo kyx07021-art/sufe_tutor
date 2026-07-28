@@ -295,6 +295,7 @@ export async function initDb(db) {
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
   await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
+  await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'demand_intents', [
@@ -732,15 +733,15 @@ export async function dbMarkConversationRead(db, convId, userId) {
 }
 
 export async function dbGetMessages(db, convId, sinceId = 0, limit = 100) {
-  return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.body, m.created_at,
+  return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.body, m.name, m.created_at,
       u.username AS sender_name
     FROM messages m JOIN users u ON u.id=m.sender_user_id
     WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
 }
 
-export async function dbCreateMessage(db, convId, senderUserId, kind, body) {
+export async function dbCreateMessage(db, convId, senderUserId, kind, body, name = '') {
   const result = await dbRun(db,
-    'INSERT INTO messages (conversation_id, sender_user_id, kind, body) VALUES (?,?,?,?)',
-    [convId, senderUserId, kind, body]);
+    'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name) VALUES (?,?,?,?,?)',
+    [convId, senderUserId, kind, body, name]);
   return Number(result.meta.last_row_id);
 }

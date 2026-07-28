@@ -44,13 +44,22 @@ export async function handleSendMessage(db, convId, body, req) {
   if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
   if (conv.status !== 'active') return error(MSG.NO_PERMISSION, 403);
 
-  if (kind !== 'text') return error(MSG.FEATURE_TODO, 501); // 图片/文件后续迭代
-  const text = String(body.body ?? '').trim();
-  if (!text) return error(MSG.MESSAGE_TOO_LONG); // 空消息复用长度错误提示位
-  if (text.length > 2000) return error(MSG.MESSAGE_TOO_LONG);
+  // 三种消息类型：text 纯文本 / image dataURL（前端已压缩）/ file dataURL + 文件名
+  let content = '', name = '';
+  if (kind === 'text') {
+    content = String(body.body ?? '').trim();
+    if (!content || content.length > 2000) return error(MSG.MESSAGE_TOO_LONG);
+  } else if (kind === 'image' || kind === 'file') {
+    content = String(body.fileData ?? '');
+    const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
+    if (!prefixOk || content.length > 700000) return error(MSG.FILE_TOO_LARGE);
+    name = String(body.fileName ?? '').slice(0, 100);
+  } else {
+    return error(MSG.MESSAGE_TOO_LONG);
+  }
 
-  const id = await dbCreateMessage(db, convId, userId, 'text', text);
+  const id = await dbCreateMessage(db, convId, userId, kind, content, name);
   logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
-    detail: { messageId: id, kind: 'text', body: text }, req });
+    detail: { messageId: id, kind, name, len: content.length }, req }); // 不记 dataURL 本体
   return json({ id, message: 'ok' }, 201);
 }
