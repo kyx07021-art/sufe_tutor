@@ -351,6 +351,13 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
         data-score-max="${max}" placeholder="分数" min="0" max="${max}">
       <span class="score-max">/ ${max}</span>${shMax && base !== 150 ? '<span class="region-max-note">上海选考满分 70</span>' : ''}`;
 
+    // 主科（语数外）：统一原始分 /150，不提供等第制页签（三种高考政策主科都是原始分）
+    if (R.policies['3+1+2'].main.includes(sid)) {
+      return `<div class="score-row region-score-row" data-score-subject="${sidE}">
+        <span class="score-subject">${escHtml(name)}</span>${inputPane}
+      </div>`;
+    }
+
     // 无等第制（小学/初中以外：如海南标准分制省份的高中）→ 仅分数输入
     if (!levels || !levels.length) {
       return `<div class="score-row region-score-row" data-score-subject="${sidE}">

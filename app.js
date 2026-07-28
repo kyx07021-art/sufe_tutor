@@ -478,7 +478,8 @@ function updateDemandSubjects() {
   updateDemandScores();
 }
 
-// 平时成绩行：app-region.js 按省份等第制渲染「等第制/分数制」双页签
+// 平时成绩行：app-region.js 按省份等第制渲染「等第制/分数制」双页签。
+// 增量更新：勾选/取消科目只增删对应行，保留其余科目已填的分数与等第选择
 function updateDemandScores() {
   const prov = document.getElementById('d-province').value;
   const grade = document.getElementById('d-grade').value;
@@ -486,7 +487,25 @@ function updateDemandScores() {
   const el = document.getElementById('d-scores');
   if (!prov || !grade) { el.innerHTML = ''; return; }
   if (!checked.length) { el.innerHTML = '<p class="text-sm text-muted">请先选择目标科目</p>'; return; }
-  el.innerHTML = buildStudentScoreRows(prov, grade, checked);
+
+  // 1) 移除取消勾选的科目行
+  el.querySelectorAll('.region-score-row').forEach(row => {
+    if (!checked.includes(row.dataset.scoreSubject)) row.remove();
+  });
+  // 2) 仅为新勾选的科目渲染行（已存在的行连同用户输入原样保留）
+  const present = new Set([...el.querySelectorAll('.region-score-row')].map(r => r.dataset.scoreSubject));
+  const fresh = checked.filter(sid => !present.has(sid));
+  if (fresh.length) {
+    const html = buildStudentScoreRows(prov, grade, fresh);
+    const ph = el.querySelector(':scope > p'); // 「请先选择目标科目」占位
+    if (ph) ph.replaceWith(document.createRange().createContextualFragment(html));
+    else el.insertAdjacentHTML('beforeend', html);
+  }
+  // 3) 行序与科目勾选列表对齐（append 既有行不丢输入）
+  checked.forEach(sid => {
+    const row = el.querySelector(`.region-score-row[data-score-subject="${sid}"]`);
+    if (row) el.appendChild(row);
+  });
 }
 
 async function handleSubmitDemand(e) {
