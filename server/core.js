@@ -68,9 +68,8 @@ export const MSG = {
   // 头像
   AVATAR_INVALID: '头像数据无效（请上传 160px 内的图片）',
 
-  // 用户反馈
+  // 用户反馈（给提出者的通知文案在 constants.js UI.FEEDBACK_RESOLVED）
   FEEDBACK_NOT_FOUND: '反馈不存在',
-  FEEDBACK_RESOLVED: '你提交的反馈已被标记为「已处理」。感谢你帮助我们做得更好，如有其他问题欢迎随时反馈！',
 
   // 合同（通知模板含 {name} 占位：通知不在聊天上下文，须给出具体用户名）
   CONTRACT_EXISTS: '该会话已存在进行中的合同',
@@ -78,13 +77,7 @@ export const MSG = {
   CONTRACT_STATE_INVALID: '合同当前状态不允许该操作',
   CONTRACT_SELF_DRAFT: '草案由你起草，等待对方确认',
   CONTRACT_EMPTY: '合同内容不能为空',
-  CONTRACT_DRAFT_SENT: '「{name}」发来一份合同草案，请前往「我的合同」查看并确认',
-  CONTRACT_DRAFT_SENT_TOAST: '合同草案已发送，等待对方确认',
-  CONTRACT_DRAFT_ACCEPTED: '「{name}」已确认合同草案，请前往「我的合同」完成你的签约确认',
-  CONTRACT_SIGN_WAITING: '「{name}」已确认签约，请在「我的合同」内完成你的确认',
-  CONTRACT_MODIFIED: '「{name}」修改了合同内容，双方签约确认已重置，请重新查看',
-  CONTRACT_SIGNED: '双方已完成签约，合作愉快！',
-  CONTRACT_CANCELLED: '「{name}」已取消签约（会话仍保留）',
+  // 合同各环节给用户的文案统一在 constants.js UI.CONTRACT_*（服务端经 globalThis 读取）
   PROFILE_INCOMPLETE: '教师档案不完整：省份、年级、性别、擅长科目、报价均为必填，完善后才能提交试课意向',
   INTENT_SUBMITTED: '意向已提交',
   INTENT_NOT_FOUND: '意向不存在',
@@ -93,6 +86,7 @@ export const MSG = {
 
   // 沟通
   CONVERSATION_NOT_FOUND: '会话不存在',
+  MESSAGE_NOT_FOUND: '消息不存在',
   MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
   FILE_TOO_LARGE: '附件过大（上限约 500KB，图片会自动压缩）',
   FEATURE_TODO: '该功能即将开放，敬请期待',

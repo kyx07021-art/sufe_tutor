@@ -172,7 +172,9 @@ async function openConversation(convId) {
 
   const pane = document.getElementById('chat-pane');
   if (!pane) return;
-  chatStaged = []; // 切会话清空上一会话的暂存附件
+  // 切会话清空上一会话的暂存附件，已上传的文件同步从服务器暂存区删除
+  chatStaged.forEach(it => { if (it.uploadId) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: { userId: state.user.id } }).catch(() => {}); });
+  chatStaged = [];
   const conv = chatConvList.find(c => c.id === convId);
   pane.innerHTML = renderChatFrame(conv);
   chatBindDropzone(); // 拖入聊天区直接加入暂存区
@@ -451,25 +453,14 @@ function chatOnFilePicked(input) { const f = input.files; input.value = ''; if (
 
 function chatStageFiles(files) {
   [...files].forEach(f => {
-    const item = { id: ++chatStageSeq, name: f.name || UI.CHAT_FILE_FALLBACK, progress: 0, ready: false, dataUrl: '', loaded: false };
-    // 进度可见性：本地读取是毫秒级、onprogress 几乎不触发，故用匀速爬坡动画走到 90%，
-    // 真实读取完成后落到 100%（两者都完成才 ready，进度圈全程肉眼可见）
-    const ramp = setInterval(() => {
-      if (item.loaded) { clearInterval(ramp); return; }
-      if (item.progress < 90) { item.progress = Math.min(90, item.progress + 6); renderChatStage(); }
-    }, 60);
-    const finish = url => {
-      item.dataUrl = url; item.loaded = true; item.progress = 100; item.ready = true;
-      clearInterval(ramp);
-      renderChatStage();
-    };
+    const item = { id: ++chatStageSeq, name: f.name || UI.CHAT_FILE_FALLBACK, progress: 0, ready: false, uploadId: null, dataUrl: '' };
     if ((f.type || '').startsWith('image/')) {
       item.kind = 'image';
       chatStaged.push(item);
       renderChatStage();
       const reader = new FileReader();
-      reader.onload = () => chatShrinkImage(reader.result, finish);
-      reader.onerror = () => { clearInterval(ramp); chatUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
+      reader.onload = () => chatShrinkImage(reader.result, url => chatDoUpload(item, url)); // 先本地压缩再传
+      reader.onerror = () => { chatUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
       reader.readAsDataURL(f);
     } else {
       if (f.size > 500 * 1024) { showToast(UI.CHAT_FILE_TOO_LARGE); return; }
@@ -477,11 +468,45 @@ function chatStageFiles(files) {
       chatStaged.push(item);
       renderChatStage();
       const reader = new FileReader();
-      reader.onload = () => finish(reader.result);
-      reader.onerror = () => { clearInterval(ramp); chatUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
+      reader.onload = () => chatDoUpload(item, reader.result);
+      reader.onerror = () => { chatUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
       reader.readAsDataURL(f);
     }
   });
+}
+
+// 进暂存区 = 真实上传服务器：进度圈即 XHR 上传字节进度（肉眼可见的真实进度）；
+// 传完拿到 uploadId 变为可发送——发送按钮只是「确认载入会话」，不再传数据
+function chatUploadToServer(kind, dataUrl, name, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/uploads');
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.min(99, Math.round(e.loaded / e.total * 100))); };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+      else reject(new Error(data.error || ('HTTP ' + xhr.status)));
+    };
+    xhr.onerror = () => reject(new Error('网络错误'));
+    xhr.send(JSON.stringify({ userId: state.user.id, kind, fileData: dataUrl, fileName: name }));
+  });
+}
+
+async function chatDoUpload(item, dataUrl) {
+  item.dataUrl = dataUrl;
+  renderChatStage(); // 图片缩略先亮（本地数据），进度圈开始转真实上传进度
+  try {
+    const data = await chatUploadToServer(item.kind, dataUrl, item.name, p => { item.progress = p; renderChatStage(); });
+    item.uploadId = data.id;
+    item.progress = 100;
+    item.ready = true;
+    renderChatStage();
+  } catch (err) {
+    chatUnstage(item.id);
+    showToast(err.message);
+  }
 }
 
 // 图片压缩：最长边缩至 900px 内，jpeg .82 落 dataURL（控制 D1 单元格体积）
@@ -501,7 +526,15 @@ function chatShrinkImage(src, cb) {
   img.src = src;
 }
 
-function chatUnstage(id) { chatStaged = chatStaged.filter(it => it.id !== id); renderChatStage(); }
+function chatUnstage(id) {
+  const it = chatStaged.find(x => x.id === id);
+  chatStaged = chatStaged.filter(x => x.id !== id);
+  renderChatStage();
+  if (it && it.uploadId) {
+    // 已上传的文件同步从服务器暂存区删除（best effort）
+    api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: { userId: state.user.id } }).catch(() => {});
+  }
+}
 
 function chatFileExt(name) { const m = /\.([a-zA-Z0-9]+)$/.exec(name || ''); return m ? m[1].toUpperCase() : 'FILE'; }
 
@@ -532,26 +565,28 @@ function renderChatStage() {
   }).join('');
 }
 
-// 发送单条附件：成功即移出暂存区，气泡立即入场
+// 发送单条附件 = 确认载入会话：数据已在上传阶段进服务器，这里只凭 uploadId 落成消息
 async function chatSendAttachment(item) {
   const convId = chatConvId;
   const data = await api(`/api/conversations/${convId}/messages`, {
     method: 'POST',
-    body: { userId: state.user.id, kind: item.kind, fileData: item.dataUrl, fileName: item.name },
+    body: { userId: state.user.id, uploadId: item.uploadId },
   });
   if (chatConvId !== convId) return; // 发送中切走会话：丢弃
   chatStaged = chatStaged.filter(it => it.id !== item.id);
   renderChatStage();
+  const kind = data.kind || item.kind;
+  const name = data.name != null ? data.name : item.name;
   const box = document.getElementById('chat-messages');
   if (box) {
     if (box.querySelector('.empty-state')) box.innerHTML = '';
     box.insertAdjacentHTML('beforeend', renderChatBubble({
-      id: data.id || 0, sender_user_id: state.user.id, kind: item.kind, body: item.dataUrl, name: item.name, created_at: chatNowStamp(),
+      id: data.id || 0, sender_user_id: state.user.id, kind, body: item.dataUrl, name, created_at: chatNowStamp(),
     }, 0));
     chatScrollToBottom(true);
   }
   if (data.id && data.id > chatLastMsgId) chatLastMsgId = data.id;
-  chatBumpConvPreview(convId, { body: '', kind: item.kind, created_at: chatNowStamp(), sender_user_id: state.user.id });
+  chatBumpConvPreview(convId, { body: '', kind, created_at: chatNowStamp(), sender_user_id: state.user.id });
 }
 
 // 拖入聊天区：松开即加入暂存区（桌面 / 平板拖放均可）

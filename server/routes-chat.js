@@ -49,11 +49,45 @@ export async function handleGetAttachment(db, convId, messageId, url) {
   return json({ body: m.body, name: m.name || '' });
 }
 
+// POST /api/uploads —— 文件进入暂存区即真实上传（前端 XHR upload.onprogress = 本请求进度），
+// 只暂存不入会话；发送时凭 uploadId 确认落入会话
+export async function handleCreateUpload(db, body) {
+  const userId = parseInt(body.userId);
+  const kind = body.kind === 'image' ? 'image' : 'file';
+  if (!userId) return error(MSG.LOGIN_REQUIRED);
+  const content = String(body.fileData ?? '');
+  const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
+  if (!prefixOk || content.length > 700000) return error(MSG.FILE_TOO_LARGE);
+  const name = String(body.fileName ?? '').slice(0, 100);
+  const res = await dbRun(db, 'INSERT INTO uploads (user_id, kind, body, name) VALUES (?,?,?,?)', [userId, kind, content, name]);
+  return json({ id: (res && res.meta && res.meta.last_row_id) || 0 }, 201);
+}
+
+// DELETE /api/uploads/:id —— 移除暂存项（删已上传的文件，仅本人）
+export async function handleDeleteUpload(db, uploadId, body) {
+  const userId = parseInt(body.userId);
+  const u = await dbGet(db, 'SELECT id, user_id FROM uploads WHERE id=?', [uploadId]);
+  if (!u || u.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+  await dbRun(db, 'DELETE FROM uploads WHERE id=?', [uploadId]);
+  return json({ ok: true });
+}
+
 export async function handleSendMessage(db, convId, body, req) {
   const { userId, kind = 'text' } = body;
   const conv = await dbGetConversationById(db, convId);
   if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
   if (conv.status !== 'active') return error(MSG.NO_PERMISSION, 403);
+
+  // 暂存附件确认入会话：凭 uploadId 取出已上传文件，落成消息后删除暂存
+  if (body.uploadId) {
+    const up = await dbGet(db, 'SELECT * FROM uploads WHERE id=?', [parseInt(body.uploadId)]);
+    if (!up || up.user_id !== userId) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+    const id = await dbCreateMessage(db, convId, userId, up.kind, up.body, up.name);
+    await dbRun(db, 'DELETE FROM uploads WHERE id=?', [up.id]);
+    logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
+      detail: { messageId: id, kind: up.kind, name: up.name, len: up.body.length }, req });
+    return json({ id, kind: up.kind, name: up.name }, 201);
+  }
 
   // 三种消息类型：text 纯文本 / image dataURL（前端已压缩）/ file dataURL + 文件名
   let content = '', name = '';

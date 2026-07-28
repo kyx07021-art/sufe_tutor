@@ -23,13 +23,13 @@ import {
   handleConfirmDraft, handleSignContract, handleModifyContract, handleCancelContract,
   handleAdminListContracts, handleAdminRemoveContract,
 } from './server/contract.js';
-import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment } from './server/routes-chat.js';
+import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
   handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminBroadcast,
-  handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback,
+  handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 
@@ -70,6 +70,8 @@ async function routeApi(db, p, method, body, url, req) {
   if (adminDemand && method === 'DELETE') return await handleAdminDeleteDemand(db, parseInt(adminDemand[1]), body, req);
   const adminReviewById = p.match(/^\/api\/admin\/reviews\/(\d+)$/);
   if (adminReviewById && method === 'DELETE') return await handleAdminDeleteReview(db, parseInt(adminReviewById[1]), body, req);
+  const adminMessageById = p.match(/^\/api\/admin\/messages\/(\d+)$/);
+  if (adminMessageById && method === 'DELETE') return await handleAdminDeleteMessage(db, parseInt(adminMessageById[1]), body, req);
 
   // 教师
   if (p === '/api/teacher/profile' && method === 'GET') return await handleGetProfile(db, url);
@@ -125,6 +127,9 @@ async function routeApi(db, p, method, body, url, req) {
   if (convMsgs && method === 'POST') return await handleSendMessage(db, parseInt(convMsgs[1]), body, req);
   const msgAttach = p.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)\/attachment$/);
   if (msgAttach && method === 'GET') return await handleGetAttachment(db, parseInt(msgAttach[1]), parseInt(msgAttach[2]), url);
+  if (p === '/api/uploads' && method === 'POST') return await handleCreateUpload(db, body);
+  const uploadById = p.match(/^\/api\/uploads\/(\d+)$/);
+  if (uploadById && method === 'DELETE') return await handleDeleteUpload(db, parseInt(uploadById[1]), body);
 
   // 评价
   if (p === '/api/reviews' && method === 'POST') return await handleCreateReview(db, body, req);

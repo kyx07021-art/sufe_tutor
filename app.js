@@ -296,9 +296,15 @@ function defaultPageFor() {
 function enterClient(pageId) {
   renderSidebar();
   showView('client');
-  selectPage(pageId || defaultPageFor());
+  // 刷新恢复：回到刷新前的页签（角色不匹配时回落默认页）
+  const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId : defaultPageFor();
+  selectPage(valid);
   startBadgePoll(); // 登录后即开始侧边栏红点慢轮询
 }
+
+// 当前页签持久化：刷新后回到原页
+function storePage(pageId) { try { localStorage.setItem('sufe_page', pageId); } catch { /* ignore */ } }
+function storedPage() { try { return localStorage.getItem('sufe_page') || ''; } catch { return ''; } }
 
 function renderSidebar() {
   const u = state.user;
@@ -338,6 +344,7 @@ function selectPage(pageId) {
   // 黑色选中块滑向新栏目；展开/退让动效由 CSS 承担，rAF 追逐保证严格同步
   glidePill(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
   state.page = pageId;
+  storePage(pageId); // 记住当前页签，刷新后回原页
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
   if (cfg && cfg.enter) cfg.enter();
@@ -447,7 +454,8 @@ async function handleLogin(e) {
     state.user = data.user;
     alertEl.innerHTML = '';
 
-    // 记住登录状态
+    // 会话状态：sessionStorage 刷新不死（关标签即焚）；勾「记住我」另存 localStorage 7 天
+    sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password }));
     if (document.getElementById('login-remember').checked) {
       localStorage.setItem('sufe_session', JSON.stringify({
         user: state.user, password, expires: Date.now() + 7 * 24 * 3600 * 1000, // 7天
@@ -495,6 +503,8 @@ async function handleRegister(e) {
     const data = await api('/api/auth/register', { method: 'POST', body });
     state.user = data.user;
     alertEl.innerHTML = '';
+    // 注册即登录：会话存 sessionStorage（刷新保留，关标签即焚）
+    try { sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password })); } catch { /* ignore */ }
     enterClient();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
@@ -539,6 +549,8 @@ function handleLogout() {
   state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
   state.inviteTimerId = null; state.currentInviteCode = null;
   localStorage.removeItem('sufe_session');
+  sessionStorage.removeItem('sufe_session');
+  try { localStorage.removeItem('sufe_page'); } catch { /* ignore */ }
   closeSidebar();
   showView('landing');
 }
@@ -2337,7 +2349,7 @@ function showToast(msg) {
 // Init
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  // 尝试自动登录
+  // 自动登录：先试 localStorage（记住我，7 天），再试 sessionStorage（未勾记住我的会话，刷新保留、关标签即焚）
   try {
     const saved = JSON.parse(localStorage.getItem('sufe_session'));
     if (saved && saved.user && saved.password && saved.expires > Date.now()) {
@@ -2345,9 +2357,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         method: 'POST', body: { username: saved.user.username, password: saved.password },
       });
       state.user = data.user;
-      // 更新保存的 user 信息（可能角色或管理员状态有变）
       localStorage.setItem('sufe_session', JSON.stringify({ ...saved, user: state.user }));
-      enterClient();
+      sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password: saved.password }));
+      enterClient(storedPage()); // 回到刷新前的页签
       return;
     } else if (saved) {
       localStorage.removeItem('sufe_session'); // 过期清理
@@ -2355,6 +2367,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   } catch {
     localStorage.removeItem('sufe_session'); // 登录失败清理
   }
-  initCustomSelects(); // 静态页面上的筛选/评价状态下拉统一换自定义组件
+  try {
+    const sess = JSON.parse(sessionStorage.getItem('sufe_session'));
+    if (sess && sess.user && sess.password) {
+      const data = await api('/api/auth/login', {
+        method: 'POST', body: { username: sess.user.username, password: sess.password },
+      });
+      state.user = data.user;
+      sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, password: sess.password }));
+      enterClient(storedPage()); // 回到刷新前的页签
+      return;
+    }
+  } catch {
+    sessionStorage.removeItem('sufe_session'); // 登录失败清理
+  }
+  initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件
   showView('landing');
 });

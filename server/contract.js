@@ -8,6 +8,8 @@
 import { dbAll, dbGet, dbRun, json, error, requireAdmin, MSG } from './core.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
+import '../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
+const UIC = globalThis.APP_CONSTANTS.UI;
 
 // 根据草案信息生成正式合同正文（合同条款为占位文案，能 test 即可，后期替换）
 export function buildContractMd({ teacherName, studentName, method, plan, rate, createdAt }) {
@@ -102,10 +104,10 @@ export async function handleCreateContract(db, body, req) {
   // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
   await dbRun(db, `INSERT INTO messages (conversation_id, sender_user_id, body, kind) VALUES (?,?,?,?)`,
     [conversationId, userId, 'contract_draft', 'contract']);
-  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_DRAFT_SENT.replace('{name}', nameOf(conv, userId)));
+  await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_DRAFT_SENT.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.create', actorUserId: userId, entity: 'contract', entityId: id,
     detail: { conversationId, method, rate }, req });
-  return json({ id, message: MSG.CONTRACT_DRAFT_SENT_TOAST }, 201);
+  return json({ id, message: UIC.CONTRACT_DRAFT_SENT_TOAST }, 201);
 }
 
 // GET /api/contracts?conversationId= → { contract }（聊天窗据此渲染合同状态灰字行）
@@ -133,7 +135,7 @@ export async function handleConfirmDraft(db, contractId, body, req) {
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
 
   await dbRun(db, `UPDATE contracts SET status='signing', updated_at=datetime('now','localtime') WHERE id=?`, [contractId]);
-  await notifyUser(db, ct.drafter_user_id, MSG.CONTRACT_DRAFT_ACCEPTED.replace('{name}', nameOf(conv, userId)));
+  await notifyUser(db, ct.drafter_user_id, UIC.CONTRACT_DRAFT_ACCEPTED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.confirm_draft', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
 }
@@ -158,9 +160,9 @@ export async function handleSignContract(db, contractId, body, req) {
   const both = !!(updated.drafter_confirmed && updated.other_confirmed);
   if (both) {
     await dbRun(db, `UPDATE contracts SET status='signed' WHERE id=?`, [contractId]);
-    await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_SIGNED);
+    await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGNED);
   } else {
-    await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_SIGN_WAITING.replace('{name}', nameOf(conv, userId)));
+    await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGN_WAITING.replace('{name}', nameOf(conv, userId)));
   }
   logEvent(db, { action: both ? 'contract.signed' : 'contract.sign_partial', actorUserId: userId,
     entity: 'contract', entityId: contractId, req });
@@ -182,7 +184,7 @@ export async function handleModifyContract(db, contractId, body, req) {
   await dbRun(db,
     `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, status='signing', updated_at=datetime('now','localtime') WHERE id=?`,
     [md, contractId]);
-  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
+  await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
 }
@@ -224,7 +226,7 @@ export async function handleCancelContract(db, contractId, body, req) {
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
 
   await dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
-  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
+  await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
 }

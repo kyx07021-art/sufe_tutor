@@ -180,6 +180,15 @@ globalThis.APP_CONSTANTS = {
     NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
     NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。',
     NOTIFY_SUBJECTS_FALLBACK: '相关科目',
+    // 以下通知/提示文案同样统一收口于此（服务端经 globalThis.APP_CONSTANTS.UI 读取，勿回 core.js）
+    FEEDBACK_RESOLVED: '你提交的反馈已被标记为「已处理」。感谢你帮助我们做得更好，如有其他问题欢迎随时反馈！',
+    CONTRACT_DRAFT_SENT: '「{name}」发来一份合同草案，请前往「我的合同」查看并确认',
+    CONTRACT_DRAFT_SENT_TOAST: '合同草案已发送，等待对方确认',
+    CONTRACT_DRAFT_ACCEPTED: '「{name}」已确认合同草案，请前往「我的合同」完成你的签约确认',
+    CONTRACT_SIGN_WAITING: '「{name}」已确认签约，请在「我的合同」内完成你的确认',
+    CONTRACT_MODIFIED: '「{name}」修改了合同内容，双方签约确认已重置，请重新查看',
+    CONTRACT_SIGNED: '双方已完成签约，合作愉快！',
+    CONTRACT_CANCELLED: '「{name}」已取消签约（会话仍保留）',
 
     // 管理员：系统通知广播（编辑器复用发帖组件：标题+正文）
     BTN_SEND_NOTIFICATION: '发通知',

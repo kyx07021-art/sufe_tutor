@@ -1005,10 +1005,13 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    Responsive
    ============================================================ */
 @media (max-width: 860px) {
-  .stage-grid { grid-template-columns: 1fr; align-items: stretch; align-content: space-between; gap: 28px; padding-block: clamp(36px, 7vh, 64px); }
+  /* 上下半区写死两等分行：下半区组件顶沿钉死在 50% 分界线，不再越界到上半区 */
+  .stage-grid { flex: 1; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); align-content: stretch; gap: 0; padding-block: 0; }
   .landing-stage { flex-direction: column; background: linear-gradient(180deg, var(--paper) 0 50%, var(--lilac) 50% 100%); min-height: calc(100vh - var(--nav-h) - 48px); min-height: calc(100dvh - var(--nav-h) - 48px); }
   body:has(#view-landing:not(.hidden)) .navbar { background: var(--paper); border-bottom-color: var(--line); }
-  .stage-left, .stage-right { max-width: 100%; margin-left: 0; }
+  .stage-left, .stage-right { max-width: 100%; margin-left: 0; min-height: 0; overflow: hidden; }
+  .stage-left { padding: clamp(28px, 5vh, 56px) 0 clamp(14px, 3vh, 28px); }
+  .stage-right { padding: clamp(20px, 4vh, 44px) 0 clamp(14px, 3vh, 32px); }
   .stage-deco-grid { display: none; }
   .landing-footer { position: static; border-top: 1px solid var(--line); margin-top: 0; }
 

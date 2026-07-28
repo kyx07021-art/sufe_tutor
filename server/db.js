@@ -127,6 +127,15 @@ export async function initDb(db) {
       FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
       FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // 聊天附件暂存区：文件拖入/选中即真实上传至此（XHR 进度），发送时才确认落入会话消息
+    db.prepare(`CREATE TABLE IF NOT EXISTS uploads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('image','file')),
+      body TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT '',
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     // 用户反馈（关于我们页提交，管理员在「用户反馈」模块查看，可标记已处理）
     db.prepare(`CREATE TABLE IF NOT EXISTS feedbacks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -747,4 +756,9 @@ export async function dbCreateMessage(db, convId, senderUserId, kind, body, name
     'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name) VALUES (?,?,?,?,?)',
     [convId, senderUserId, kind, body, name]);
   return Number(result.meta.last_row_id);
+}
+
+// 管理员删除单条消息（聊天内容管理）
+export async function dbDeleteMessage(db, messageId) {
+  return dbRun(db, 'DELETE FROM messages WHERE id=?', [messageId]);
 }

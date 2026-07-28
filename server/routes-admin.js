@@ -11,9 +11,10 @@ import {
   dbGetUserStats, dbGetCount, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbGetApprovedReviewStats, dbUpdateTeacherRating,
-  dbGetDemandById, dbDeleteDemand, dbDeleteReview, mapTeacherProfileRow,
+  dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage, mapTeacherProfileRow,
 } from './db.js';
 import { logEvent, queryLog } from './log.js';
+import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 import { dbBroadcastNotification, notifyUser } from './notify.js';
 
 // 邀请码有效期
@@ -146,6 +147,19 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
   return json({ message: MSG.REVIEW_DELETED });
 }
 
+// DELETE /api/admin/messages/:id —— 管理员删除单条聊天消息（留档 admin.message.delete）
+export async function handleAdminDeleteMessage(db, messageId, body, req) {
+  const admin = await requireAdmin(db, body.username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const m = await dbGet(db, 'SELECT id, conversation_id, sender_user_id, kind FROM messages WHERE id=?', [messageId]);
+  if (!m) return error(MSG.MESSAGE_NOT_FOUND, 404);
+  await dbDeleteMessage(db, messageId);
+  logEvent(db, { action: 'admin.message.delete', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'message', entityId: messageId,
+    detail: { conversationId: m.conversation_id, senderUserId: m.sender_user_id, kind: m.kind }, req });
+  return json({ ok: true });
+}
+
 // 日志检索（action 前缀 / 操作人 / 实体 / 时间范围 / detail 模糊 / 分页）
 export async function handleAdminLogs(db, url) {
   if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
@@ -184,7 +198,7 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
   if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404);
   if (f.status !== 'resolved') {
     await dbRun(db, `UPDATE feedbacks SET status='resolved' WHERE id=?`, [feedbackId]);
-    await notifyUser(db, f.user_id, MSG.FEEDBACK_RESOLVED);
+    await notifyUser(db, f.user_id, globalThis.APP_CONSTANTS.UI.FEEDBACK_RESOLVED);
     logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'feedback', entityId: feedbackId, detail: { kind: f.kind }, req });
   }
