@@ -175,7 +175,6 @@
     <!-- Client Shell：可扩展侧边栏 + 页面区（栏目由 app.js ROLE_PAGES 配置驱动） -->
     <div class="client-shell hidden" id="view-client">
       <aside class="client-sidebar" id="client-sidebar">
-        <div class="sidebar-user" id="sidebar-user"></div>
         <nav class="sidebar-nav" id="sidebar-nav" aria-label="功能导航"></nav>
         <!-- 管理员：邀请码（仅 admin 可见，由 renderSidebar 控制显隐） -->
         <div class="sidebar-invite hidden" id="sidebar-invite">
@@ -190,6 +189,8 @@
           </div>
         </div>
         <div class="sidebar-deco-grid" aria-hidden="true"></div>
+        <!-- 用户信息：侧边栏最下方白色区块，id + 灰小字属性 -->
+        <div class="sidebar-user" id="sidebar-user"></div>
         <button type="button" class="sidebar-close" onclick="closeSidebar()">✕ 关闭菜单</button>
       </aside>
       <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
@@ -355,7 +356,7 @@
         </section>
 
         <!-- 学生 / 教师：我的沟通（模块4：意向同意后建立的会话） -->
-        <section class="client-page hidden" data-page="my-chats">
+        <section class="client-page client-page--flush hidden" data-page="my-chats">
           <div class="page-header"><h2>我的沟通</h2></div>
           <div id="chats-content"><div class="empty-state"><p>加载中...</p></div></div>
         </section>

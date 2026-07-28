@@ -198,6 +198,21 @@ window.APP_CONSTANTS = {
     PAGE_ADMIN_DEMANDS: '需求管理',
     PAGE_ADMIN_REVIEWS: '评价管理',
 
+    // 侧边栏页签简介（选中时展开的灰字说明）
+    PAGE_MY_DEMANDS_DESC: '发布与管理家教需求',
+    PAGE_BROWSE_TEACHERS_DESC: '筛选教师，查看详情与评价',
+    PAGE_MY_CHATS_DESC: '与匹配的师生在线沟通',
+    PAGE_BROWSE_DEMANDS_DESC: '浏览学生需求并提交意向',
+    PAGE_RESOURCE_SHARE_DESC: '与同行共享教学资源',
+    PAGE_EDIT_PROFILE_DESC: '完善个人档案与高考成绩',
+    PAGE_ADMIN_STATS_DESC: '平台运行数据总览',
+    PAGE_ADMIN_STUDENTS_DESC: '学生账户与封禁管理',
+    PAGE_ADMIN_TEACHERS_DESC: '教师账户与封禁管理',
+    PAGE_ADMIN_DEMANDS_DESC: '全平台需求管理',
+    PAGE_ADMIN_REVIEWS_DESC: '评价审核与删除',
+    PAGE_NOTIFICATIONS_DESC: '意向与推送的处理进展',
+    PAGE_ACCOUNT_SETTINGS_DESC: '账户信息与退出登录',
+
     // 需求表单
     MODAL_TITLE_DEMAND_CREATE: '提交学生需求',
     MODAL_TITLE_DEMAND_EDIT: '编辑学生需求',

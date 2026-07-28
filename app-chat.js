@@ -25,8 +25,6 @@ let chatPollTimer = null;   // 轮询定时器（setInterval 句柄）
 let chatLastMsgId = 0;      // 已见最大消息 id，作轮询 sinceId
 let chatPollBusy = false;   // 上一次轮询未返回时跳过本 tick，防请求叠加
 let chatSending = false;    // 发送中，防连点
-let chatResizeBound = false;// resize 监听只绑一次
-let chatResizeTimer = null; // resize 防抖定时器
 
 // ============================================================
 // 页面入口
@@ -49,8 +47,6 @@ function enterMyChats() {
         ${renderChatPlaceholder()}
       </section>
     </div>`;
-  chatBindResize();
-  chatFitHeight();
   loadConversations();
 }
 
@@ -79,7 +75,16 @@ function renderConvList() {
     el.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.CHAT_EMPTY_NO_CONVS}</p></div>`;
     return;
   }
-  el.innerHTML = chatConvList.map(renderConvItem).join('');
+  // 选中滑块（米色大色块）始终是首个子元素，glidePill/syncPillOnce 以它为指示块
+  el.innerHTML = '<span class="conv-pill" id="conv-pill" aria-hidden="true"></span>' +
+    chatConvList.map(renderConvItem).join('');
+  syncChatPill(); // 全量重渲染后条目刚布局完，pill 立即归位（无滑动）
+}
+
+// 共享滑块同步口（app.js syncPillOnce 的本页封装）。
+// app.js 的全局 window resize 处理会在本函数存在时调用它，缩放时选中块即时重对齐。
+function syncChatPill() {
+  syncPillOnce(document.getElementById('conv-pill'), document.getElementById('conv-list'), '.conv-item');
 }
 
 // 对方名字：学生看 teacher_name，教师看 student_name
@@ -150,6 +155,7 @@ async function openConversation(convId) {
   // 左栏高亮 + 移动端切到聊天窗
   document.querySelectorAll('#conv-list .conv-item').forEach(b =>
     b.classList.toggle('active', +b.dataset.convId === convId));
+  glidePill(document.getElementById('conv-pill'), document.getElementById('conv-list'), '.conv-item'); // 米色块滑向新会话
   const shell = document.getElementById('chats-shell');
   if (shell) shell.classList.add('chats-show-chat');
 
@@ -157,7 +163,6 @@ async function openConversation(convId) {
   if (!pane) return;
   const conv = chatConvList.find(c => c.id === convId);
   pane.innerHTML = renderChatFrame(conv);
-  chatFitHeight();
 
   try {
     const data = await api(`/api/conversations/${convId}/messages?userId=${state.user.id}`);
@@ -345,7 +350,6 @@ function chatTodo() {
 function backToConvList() {
   const shell = document.getElementById('chats-shell');
   if (shell) shell.classList.remove('chats-show-chat');
-  chatFitHeight();
 }
 
 // ============================================================
@@ -368,23 +372,4 @@ function chatScrollToBottom(smooth) {
   if (!box) return;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   box.scrollTo({ top: box.scrollHeight, behavior: smooth && !reduce ? 'smooth' : 'auto' });
-}
-
-// 壳高自适应：撑满 client-main 可视区剩余高度（减去顶部页头占位），内部两栏各自滚动。
-// enterMyChats / 切会话 / 返回 / 窗口缩放时调用；selectPage 进页已重置 client-main 滚动位。
-function chatFitHeight() {
-  const shell = document.getElementById('chats-shell');
-  const main = document.getElementById('client-main');
-  if (!shell || !main) return;
-  const top = shell.getBoundingClientRect().top - main.getBoundingClientRect().top;
-  shell.style.height = Math.max(380, main.clientHeight - top - 24) + 'px';
-}
-
-function chatBindResize() {
-  if (chatResizeBound) return;
-  chatResizeBound = true;
-  window.addEventListener('resize', () => {
-    clearTimeout(chatResizeTimer);
-    chatResizeTimer = setTimeout(chatFitHeight, 120);
-  });
 }

@@ -24,28 +24,28 @@ const state = { user: null, view: 'landing', page: null, allTeachers: [], adminT
 // ============================================================
 const ROLE_PAGES = {
   student: [
-    { id: 'my-demands',       label: UI.PAGE_MY_DEMANDS,      enter: loadMyDemands },
-    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, enter: loadTeachers },
-    { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        enter: () => enterMyChats() },
-    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   enter: enterNotifications },
-    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
+    { id: 'my-demands',       label: UI.PAGE_MY_DEMANDS,      desc: UI.PAGE_MY_DEMANDS_DESC,      enter: loadMyDemands },
+    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_DESC, enter: loadTeachers },
+    { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        desc: UI.PAGE_MY_CHATS_DESC,        enter: () => enterMyChats() },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   desc: UI.PAGE_NOTIFICATIONS_DESC,   enter: enterNotifications },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
   ],
   teacher: [
-    { id: 'browse-demands',   label: UI.PAGE_BROWSE_DEMANDS,  enter: loadBrowseDemands },
-    { id: 'resource-share',   label: UI.PAGE_RESOURCE_SHARE,  enter: () => enterResourceShare() },
-    { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        enter: () => enterMyChats() },
-    { id: 'edit-profile',     label: UI.PAGE_EDIT_PROFILE,    enter: initProfileForm },
-    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   enter: enterNotifications },
-    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
+    { id: 'browse-demands',   label: UI.PAGE_BROWSE_DEMANDS,  desc: UI.PAGE_BROWSE_DEMANDS_DESC,  enter: loadBrowseDemands },
+    { id: 'resource-share',   label: UI.PAGE_RESOURCE_SHARE,  desc: UI.PAGE_RESOURCE_SHARE_DESC,  enter: () => enterResourceShare() },
+    { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        desc: UI.PAGE_MY_CHATS_DESC,        enter: () => enterMyChats() },
+    { id: 'edit-profile',     label: UI.PAGE_EDIT_PROFILE,    desc: UI.PAGE_EDIT_PROFILE_DESC,    enter: initProfileForm },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   desc: UI.PAGE_NOTIFICATIONS_DESC,   enter: enterNotifications },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
   ],
   admin: [
-    { id: 'admin-stats',      label: UI.PAGE_ADMIN_STATS,    enter: loadAdminStats },
-    { id: 'admin-students',   label: UI.PAGE_ADMIN_STUDENTS, enter: loadAdminStudents },
-    { id: 'admin-teachers',   label: UI.PAGE_ADMIN_TEACHERS, enter: loadAdminTeachers },
-    { id: 'admin-demands',    label: UI.PAGE_ADMIN_DEMANDS,  enter: loadAdminDemands },
-    { id: 'admin-reviews',    label: UI.PAGE_ADMIN_REVIEWS,  enter: loadAdminReviews },
-    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  enter: enterNotifications },
-    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
+    { id: 'admin-stats',      label: UI.PAGE_ADMIN_STATS,    desc: UI.PAGE_ADMIN_STATS_DESC,    enter: loadAdminStats },
+    { id: 'admin-students',   label: UI.PAGE_ADMIN_STUDENTS, desc: UI.PAGE_ADMIN_STUDENTS_DESC, enter: loadAdminStudents },
+    { id: 'admin-teachers',   label: UI.PAGE_ADMIN_TEACHERS, desc: UI.PAGE_ADMIN_TEACHERS_DESC, enter: loadAdminTeachers },
+    { id: 'admin-demands',    label: UI.PAGE_ADMIN_DEMANDS,  desc: UI.PAGE_ADMIN_DEMANDS_DESC,  enter: loadAdminDemands },
+    { id: 'admin-reviews',    label: UI.PAGE_ADMIN_REVIEWS,  desc: UI.PAGE_ADMIN_REVIEWS_DESC,  enter: loadAdminReviews },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
   ],
 };
 
@@ -65,6 +65,54 @@ function fmtDateTime(s) {
   if (isNaN(d)) return str.slice(0, 16); // 解析失败：退回原串截断，不抛错
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// ============================================================
+// 滑动选择块（共享基建）：绝对定位指示块实时跟随 .active 元素。
+// 侧边栏大黑块与沟通页会话选中块（app-chat.js syncChatPill）复用同一逻辑。
+// 容器须 position:relative，pill 为其直接子元素；选中项自身有展开动效，
+// 故用 rAF 逐帧追真实布局，保证指示块与退让的栏目严格同步。
+// ============================================================
+function syncPillOnce(pill, container, itemSel) {
+  if (!pill || !container) return;
+  const a = container.querySelector(itemSel + '.active');
+  if (!a) { pill.style.opacity = '0'; return; }
+  pill.style.opacity = '1';
+  pill.style.top = a.offsetTop + 'px';
+  pill.style.height = a.offsetHeight + 'px';
+}
+function glidePill(pill, container, itemSel, dur = 460) {
+  if (!pill || !container) return;
+  const t0 = performance.now();
+  const step = now => {
+    syncPillOnce(pill, container, itemSel);
+    if (now - t0 < dur) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+// 全局窗口缩放：重对齐侧边栏指示块；沟通页若已挂载也同步（其自行定义 syncChatPill）
+window.addEventListener('resize', () => {
+  syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
+  if (typeof syncChatPill === 'function') syncChatPill();
+});
+
+// ============================================================
+// 卡片浮入（通知/需求/教师信息卡统一动效）：
+// 打开栏目即播、滚进视口再播；--reveal-delay 按序错峰，从下往上浮入。
+// ============================================================
+const revealObserver = ('IntersectionObserver' in window) ? new IntersectionObserver(es => {
+  es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('revealed'); revealObserver.unobserve(e.target); } });
+}, { threshold: 0.06 }) : null;
+
+function initReveals(root) {
+  if (!root) return;
+  const items = [...root.querySelectorAll('.list-card, .notif-item')];
+  items.forEach((el, i) => {
+    el.classList.add('reveal');
+    el.style.setProperty('--reveal-delay', `${Math.min(i * 45, 360)}ms`);
+  });
+  if (revealObserver) items.forEach(el => revealObserver.observe(el));
+  else items.forEach(el => el.classList.add('revealed'));
 }
 
 // ============================================================
@@ -154,17 +202,23 @@ function renderSidebar() {
   const u = state.user;
   const isAdmin = u.role === 'admin';
   const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
+  // 用户块置侧边栏最下方（白底），属性灰小字写在 id 下方
   document.getElementById('sidebar-user').innerHTML = `
     <div class="sidebar-user-name">${escHtml(u.username)}</div>
-    <div class="sidebar-user-meta">
-      <span class="user-badge${isAdmin ? ' admin-badge' : ''}">${roleLabel}</span>
-    </div>`;
-  document.getElementById('sidebar-nav').innerHTML = pagesForRole().map((p, i) => `
+    <div class="sidebar-user-role">${roleLabel}</div>`;
+  // 栏目 = 主页 entry 同款排布：亮紫序号 + 大字标题 + 选中展开简介；黑色选中块由 .sidebar-pill 滑动承担
+  document.getElementById('sidebar-nav').innerHTML =
+    `<span class="sidebar-pill" id="sidebar-pill" aria-hidden="true"></span>` +
+    pagesForRole().map((p, i) => `
     <button type="button" class="sidebar-item" data-page="${p.id}" onclick="selectPage('${p.id}')">
-      <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span><span>${p.label}</span>
-      ${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}
+      <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
+      <span class="sidebar-item-body">
+        <span class="sidebar-item-label">${p.label}${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}</span>
+        <span class="sidebar-item-descwrap"><span class="sidebar-item-desc">${p.desc || ''}</span></span>
+      </span>
     </button>`).join('');
   document.getElementById('sidebar-invite').classList.toggle('hidden', !isAdmin);
+  syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
 }
 
 function selectPage(pageId) {
@@ -172,6 +226,8 @@ function selectPage(pageId) {
     s.classList.toggle('hidden', s.dataset.page !== pageId));
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b =>
     b.classList.toggle('active', b.dataset.page === pageId));
+  // 黑色选中块滑向新栏目；展开/退让动效由 CSS 承担，rAF 追逐保证严格同步
+  glidePill(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
   state.page = pageId;
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
@@ -673,6 +729,7 @@ function renderTeachers(teachers) {
       ${t.intro ? `<div class="tc-intro" title="${escHtml(t.intro)}">${escHtml(t.intro)}</div>` : ''}
     </div>`;
   }).join('');
+  initReveals(el);
 }
 
 function renderStars(rating) {
@@ -1014,6 +1071,7 @@ async function loadDemandList(elId, { mine }) {
       return;
     }
     el.innerHTML = demands.map(d => renderDemandCard(d, { editable: mine, teacher: !mine })).join('');
+    initReveals(el);
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
   }
@@ -1038,6 +1096,7 @@ async function loadBrowseDemands() {
     const pinned = pushes.map(p => renderDemandCard(p, { push: p })).join('');
     const normal = demands.filter(d => !pushDemandIds.has(d.id)).map(d => renderDemandCard(d, { teacher: true })).join('');
     el.innerHTML = (pinned ? `<div class="section-title" style="margin-bottom:8px;">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '') + normal;
+    initReveals(el);
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
   }
@@ -1112,6 +1171,7 @@ async function enterNotifications() {
         <div class="notif-time">${fmtDateTime(n.created_at)}</div>
       </div>
     </div>`).join('');
+    initReveals(el);
     if (list.some(n => !n.is_read)) {
       setBadge('notifications', 0);
       api('/api/notifications/read', { method: 'POST', body: { userId: state.user.id } }).catch(() => {});

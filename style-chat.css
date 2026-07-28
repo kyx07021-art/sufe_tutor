@@ -1,35 +1,32 @@
 /* ============================================================
    我的沟通（模块4）— 延续编辑式扁平设计语言
    零投影、零圆角（聊天气泡为全站唯一例外，见 .chat-bubble）；
-   会话列表 hover / 选中沿用全站竖条母题（左侧 3px 墨条 scaleY）；
+   会话列表选中态为共享滑块：.conv-pill 米色大色块（app.js glidePill
+   逐帧驱动，与平台侧边栏选中块同一套基建）；
    消息区细点阵底纹，呼应品牌圆点母题（导航 logo / 参考图卡片）。
-   壳高度由 app-chat.js 的 chatFitHeight() 计算注入，此处仅兜底 min-height。
+   壳高由 .client-page--flush 契约的 height:100% 撑满，无需 JS 计算。
    ============================================================ */
 
-/* ---------- 壳：两栏 260px + 1fr ---------- */
+/* ---------- 壳：两栏 1fr + 3fr（聊天窗占页面 3/4 = 屏幕 3/5），无色块间隙 ---------- */
 .chats-shell {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  min-height: 420px;
+  grid-template-columns: 1fr 3fr;
+  height: 100%;
   background: var(--white);
-  border: 1px solid var(--line);
-  animation: fade-in .2s ease;
 }
 
 /* ============================================================
-   左栏：会话列表
+   左栏：会话列表（仅以底色与右栏分区，无分隔线）
    ============================================================ */
 .chats-list-pane {
   display: flex; flex-direction: column;
   min-height: 0; /* 网格行内允许收缩，滚动交给 .conv-list */
-  background: var(--paper);
-  border-right: 1px solid var(--line);
+  background: var(--paper-2);
 }
 
 .chats-list-head {
   display: flex; align-items: baseline; justify-content: space-between;
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid var(--line);
+  padding: 14px 18px 10px;
 }
 .chats-list-title {
   font-size: .74rem; font-weight: 800; letter-spacing: .18em; color: var(--ink-3);
@@ -38,30 +35,32 @@
   font-family: var(--mono); font-size: .68rem; font-weight: 700; color: var(--muted);
 }
 
-.conv-list { flex: 1; overflow-y: auto; min-height: 0; }
+.conv-list { position: relative; flex: 1; overflow-y: auto; min-height: 0; padding: 10px 0 16px; }
 .conv-list::-webkit-scrollbar { width: 6px; }
 .conv-list::-webkit-scrollbar-track { background: transparent; }
 .conv-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
 .conv-list::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
-/* 会话项：竖条母题（hover 擦入 / 选中常驻），选中态底色微变 */
+/* 选中滑块：会话项背后的米色大色块。top / height / opacity 全由
+   app.js syncPillOnce / glidePill 逐帧写入，自身不带任何过渡 */
+.conv-pill {
+  position: absolute; left: 0; right: 0; top: 0;
+  height: 0; opacity: 0;
+  background: var(--paper-3);
+  z-index: 0;
+}
+
+/* 会话项：独立成块（间距分隔，不再用 border 切行）；
+   选中态加高 padding 撑出大色块呼吸感，文字保持墨色 */
 .conv-item {
-  position: relative; isolation: isolate;
+  position: relative; z-index: 1; isolation: isolate;
   display: block; width: 100%; text-align: left;
-  padding: 12px 14px 12px 17px;
-  border-bottom: 1px solid var(--border-light);
-  transition: background-color var(--t-base) var(--ease-out);
+  margin: 0 0 6px;
+  padding: 13px 18px 14px;
+  transition: color .26s ease, background-color .26s ease, padding .26s ease;
 }
-.conv-item::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--ink);
-  transform: scaleY(0); transform-origin: top;
-  transition: transform var(--t-base) var(--ease-snap);
-}
-.conv-item:hover { background: var(--field); }
-.conv-item:hover::before { transform: scaleY(1); }
-.conv-item.active { background: var(--field-2); }
-.conv-item.active::before { transform: scaleY(1); }
+.conv-item:hover:not(.active) { background: var(--field); }
+.conv-item.active { padding: 16px 18px 17px; color: var(--ink); }
 
 .conv-item-top { display: flex; align-items: baseline; gap: 8px; }
 
@@ -69,7 +68,7 @@
 .conv-unread-dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 .conv-item-name {
   flex: 1; min-width: 0;
-  font-size: .88rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink);
+  font-size: .95rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .conv-item-role {
@@ -82,9 +81,10 @@
   font-family: var(--mono); font-size: .62rem; letter-spacing: .01em; color: var(--faint);
 }
 .conv-item-preview {
-  display: block; margin-top: 3px;
+  display: block; margin-top: 4px;
   font-size: .76rem; line-height: 1.45; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  transition: color .26s ease; /* 选中加深与滑入同步 */
 }
 .conv-item.active .conv-item-preview { color: var(--ink-3); }
 
@@ -101,7 +101,6 @@
   display: flex; align-items: center; gap: 14px;
   padding: 12px 18px;
   background: var(--field);
-  border-bottom: 1px solid var(--line);
 }
 .chat-head-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .chat-peer-name {
@@ -181,7 +180,6 @@
   display: flex; align-items: flex-end; gap: 8px;
   padding: 12px 14px;
   background: var(--paper);
-  border-top: 1px solid var(--line);
 }
 
 /* 图片 / 文件占位按钮：与资料共享 md 工具条同源（灰底，悬停整块擦墨） */
