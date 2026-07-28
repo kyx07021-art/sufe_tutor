@@ -104,6 +104,17 @@ export async function initLogDb(db) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_log_actor ON activity_log(actor_user_id, ts)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_log_entity ON activity_log(entity, entity_id)'),
   ]);
+  // 幂等补列：CREATE IF NOT EXISTS 不会升级已存在的旧表——线上老留档表缺 schema_v/encrypted
+  // 会让加密版 INSERT 全体静默失败（本批次事故根因），故在此 PRAGMA 探测后 ALTER
+  // （db.js↔log.js 循环依赖，不能复用 db.js 的 ensureColumns，就地实现）
+  const cols = await dbAll(db, 'PRAGMA table_info(activity_log)');
+  const names = cols.map(c => c.name);
+  if (!names.includes('schema_v')) {
+    try { await dbRun(db, 'ALTER TABLE activity_log ADD COLUMN schema_v INTEGER NOT NULL DEFAULT 1'); } catch { /* ignore */ }
+  }
+  if (!names.includes('encrypted')) {
+    try { await dbRun(db, 'ALTER TABLE activity_log ADD COLUMN encrypted INTEGER NOT NULL DEFAULT 0'); } catch { /* ignore */ }
+  }
 }
 
 // 敏感键剔除：口令 / 盐 / 验证码 / 正文大字段（聊天正文、附件 dataURL、头像）/ 联系方式绝不落明文档
