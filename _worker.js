@@ -245,11 +245,13 @@ export default {
 
     try {
       const res = await routeApi(db, p, request.method, body, url, request);
-      logRequest(db, { method: request.method, path: p, body, status: res.status, req: request });
+      // 留档必须 await：workerd 在响应结束后掐断未完成的悬浮 Promise（加密咽喉链路较长，
+      // 不 await 会导致留档被杀在途中——本批次线上 0 留档事故根因）
+      await logRequest(db, { method: request.method, path: p, body, status: res.status, req: request });
       return res;
     } catch (err) {
       console.error('API Error:', err); // 细节只留服务端日志
-      logRequest(db, { method: request.method, path: p, body, status: 500, req: request });
+      await logRequest(db, { method: request.method, path: p, body, status: 500, req: request });
       return error(MSG.SERVER_ERROR, 500); // 回显脱敏：不回传 err.message（防泄露表名/约束等内部信息）
     }
   },
