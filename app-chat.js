@@ -451,16 +451,25 @@ function chatOnFilePicked(input) { const f = input.files; input.value = ''; if (
 
 function chatStageFiles(files) {
   [...files].forEach(f => {
-    const item = { id: ++chatStageSeq, name: f.name || UI.CHAT_FILE_FALLBACK, progress: 0, ready: false, dataUrl: '' };
+    const item = { id: ++chatStageSeq, name: f.name || UI.CHAT_FILE_FALLBACK, progress: 0, ready: false, dataUrl: '', loaded: false };
+    // 进度可见性：本地读取是毫秒级、onprogress 几乎不触发，故用匀速爬坡动画走到 90%，
+    // 真实读取完成后落到 100%（两者都完成才 ready，进度圈全程肉眼可见）
+    const ramp = setInterval(() => {
+      if (item.loaded) { clearInterval(ramp); return; }
+      if (item.progress < 90) { item.progress = Math.min(90, item.progress + 6); renderChatStage(); }
+    }, 60);
+    const finish = url => {
+      item.dataUrl = url; item.loaded = true; item.progress = 100; item.ready = true;
+      clearInterval(ramp);
+      renderChatStage();
+    };
     if ((f.type || '').startsWith('image/')) {
       item.kind = 'image';
       chatStaged.push(item);
       renderChatStage();
       const reader = new FileReader();
-      reader.onprogress = e => { if (e.total) { item.progress = Math.min(80, e.loaded / e.total * 80); renderChatStage(); } };
-      reader.onload = () => chatShrinkImage(reader.result, url => {
-        item.dataUrl = url; item.progress = 100; item.ready = true; renderChatStage();
-      });
+      reader.onload = () => chatShrinkImage(reader.result, finish);
+      reader.onerror = () => { clearInterval(ramp); chatUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
       reader.readAsDataURL(f);
     } else {
       if (f.size > 500 * 1024) { showToast(UI.CHAT_FILE_TOO_LARGE); return; }
@@ -468,8 +477,8 @@ function chatStageFiles(files) {
       chatStaged.push(item);
       renderChatStage();
       const reader = new FileReader();
-      reader.onprogress = e => { if (e.total) { item.progress = Math.min(80, e.loaded / e.total * 80); renderChatStage(); } };
-      reader.onload = () => { item.dataUrl = reader.result; item.progress = 100; item.ready = true; renderChatStage(); };
+      reader.onload = () => finish(reader.result);
+      reader.onerror = () => { clearInterval(ramp); chatUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
       reader.readAsDataURL(f);
     }
   });
