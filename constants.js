@@ -382,6 +382,9 @@ globalThis.APP_CONSTANTS = {
     CHAT_FILE_TOO_LARGE: '文件太大（上限 500KB，图片会自动压缩）',
     CHAT_DOWNLOAD: '下载',
     CHAT_FILE_FALLBACK: '文件',
+    CHAT_STAGE_WAIT: '请等待文件处理完成再发送',
+    CHAT_DROP_HINT: '松开加入发送',
+    CHAT_ATTACH_FAIL: '附件加载失败',
     CHAT_PLACEHOLDER_TITLE: '选择左侧会话，开始沟通',
     CHAT_PLACEHOLDER_SUB: '同意试课意向后自动建立会话，消息每 4 秒自动刷新',
 

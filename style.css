@@ -1175,6 +1175,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .tc-info2 { font-size: .7rem; }
   .tc-intro { grid-column: 1 / -1; grid-row: 3; white-space: normal; font-size: .72rem; }
 
+  /* 发送需求按钮右对齐，消除与右区信息的小幅重叠 */
+  .tc-actions { align-self: flex-end; }
+
   .list-card--demand { display: block; }
   .demand-avatar { width: 40px; height: 40px; font-size: 1.05rem; margin: 0 0 10px; }
   .list-card-title { font-size: .95rem; }

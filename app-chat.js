@@ -172,8 +172,10 @@ async function openConversation(convId) {
 
   const pane = document.getElementById('chat-pane');
   if (!pane) return;
+  chatStaged = []; // 切会话清空上一会话的暂存附件
   const conv = chatConvList.find(c => c.id === convId);
   pane.innerHTML = renderChatFrame(conv);
+  chatBindDropzone(); // 拖入聊天区直接加入暂存区
   loadChatContract(convId); // 合同状态灰字行与消息并行加载
 
   try {
@@ -187,6 +189,7 @@ async function openConversation(convId) {
       : `<div class="empty-state empty-state--small"><p>${UI.CHAT_EMPTY_NO_MESSAGES}</p></div>`;
     chatLastMsgId = msgs.length ? msgs[msgs.length - 1].id : 0;
     chatScrollToBottom(false);
+    if (msgs.some(m => (m.kind === 'image' || m.kind === 'file') && !m.body)) chatLazyLoadAttachments(); // 骨架占位延迟补载
     markReadConv(convId); // 打开即已读：会话项与侧边栏红点点掉
     chatStartPolling();
     if (window.innerWidth > 860) { // 移动端不自动聚焦，避免键盘弹出遮挡
@@ -215,26 +218,30 @@ function renderChatFrame(conv) {
       </div>
     </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
+    <div class="chat-drop-hint hidden" id="chat-drop-hint">${UI.CHAT_DROP_HINT}</div>
     <div class="chat-contract-line" id="chat-contract-line"></div>
+    <div class="chat-stage hidden" id="chat-stage"></div>
     <div class="chat-input-bar${closed ? ' chat-input-bar--closed' : ''}">
       ${closed
         ? `<p class="chat-closed-tip">${UI.CHAT_CLOSED_TIP}</p>`
         : `<textarea id="chat-input" class="form-input chat-textarea" rows="1"
              placeholder="${UI.CHAT_INPUT_PLACEHOLDER}"
              onkeydown="chatInputKeydown(event)" oninput="chatAutogrow(this)"></textarea>
-           <div class="chat-plus-wrap" id="chat-plus-wrap">
-             <div class="chat-plus-pop">
-               <button type="button" class="chat-pop-item" onclick="chatPickImage()">${UI.CHAT_ATTACH_IMAGE}</button>
-               <button type="button" class="chat-pop-item" onclick="chatPickFile()">${UI.CHAT_ATTACH_FILE}</button>
-               <button type="button" class="chat-pop-item" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
-               <input type="file" id="chat-image-input" accept="image/*" class="hidden" onchange="chatOnImagePicked(this)">
-               <input type="file" id="chat-file-input" class="hidden" onchange="chatOnFilePicked(this)">
+           <div class="chat-actions">
+             <div class="chat-plus-wrap" id="chat-plus-wrap">
+               <div class="chat-plus-pop">
+                 <button type="button" class="chat-pop-item" onclick="chatPickImage()">${UI.CHAT_ATTACH_IMAGE}</button>
+                 <button type="button" class="chat-pop-item" onclick="chatPickFile()">${UI.CHAT_ATTACH_FILE}</button>
+                 <button type="button" class="chat-pop-item" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
+                 <input type="file" id="chat-image-input" accept="image/*" class="hidden" onchange="chatOnImagePicked(this)">
+                 <input type="file" id="chat-file-input" class="hidden" onchange="chatOnFilePicked(this)">
+               </div>
+               <button type="button" class="chat-plus-btn" aria-label="${UI.CHAT_PLUS_ARIA}" onclick="toggleChatPlus()">
+                 <span class="plus-bar plus-h"></span><span class="plus-bar plus-v"></span>
+               </button>
              </div>
-             <button type="button" class="chat-plus-btn" aria-label="${UI.CHAT_PLUS_ARIA}" onclick="toggleChatPlus()">
-               <span class="plus-bar plus-h"></span><span class="plus-bar plus-v"></span>
-             </button>
-           </div>
-           <button type="button" class="btn btn-primary btn-sm chat-send" id="chat-send-btn" onclick="sendChatMessage()">${UI.CHAT_BTN_SEND}</button>`}
+             <button type="button" class="btn btn-primary btn-sm chat-send" id="chat-send-btn" onclick="sendChatMessage()">${UI.CHAT_BTN_SEND}</button>
+           </div>`}
     </div>`;
 }
 
@@ -260,20 +267,51 @@ function renderChatBubble(m, i) {
     return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble chat-bubble--system">${escHtml(text)}</div>${time}</div>`;
   }
-  // 图片消息：缩略气泡，点开看大图
-  if (m.kind === 'image') {
-    return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble ${skin} chat-bubble--media"><img src="${escHtml(m.body)}" alt="${UI.CHAT_ATTACH_IMAGE}" onclick="chatViewImage(this.src)"></div>${time}</div>`;
-  }
-  // 文件消息：文件名 + 下载入口（dataURL 直接 download）
-  if (m.kind === 'file') {
-    return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble ${skin} chat-bubble--media"><a class="chat-file-chip" href="${escHtml(m.body)}" download="${escHtml(m.name || '')}">
-        <span class="chat-file-name">${escHtml(m.name || UI.CHAT_FILE_FALLBACK)}</span>
-        <span class="chat-file-dl">${UI.CHAT_DOWNLOAD}</span></a></div>${time}</div>`;
+  // 图片 / 文件消息：列表接口不下发 dataURL 本体（性能），先渲染骨架占位，
+  // 页面可操作后由 chatLazyLoadAttachments 逐条补载真实内容
+  if (m.kind === 'image' || m.kind === 'file') {
+    const inner = m.body
+      ? renderChatMediaInner(m.kind, m.body, m.name)
+      : `<div class="chat-bubble ${skin} chat-bubble--media chat-bubble--loading" data-attach="${m.id}" data-attach-kind="${m.kind}">${chatStageRing(30)}</div>`;
+    const bubble = m.body
+      ? `<div class="chat-bubble ${skin} chat-bubble--media">${inner}</div>`
+      : inner;
+    return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">${bubble}${time}</div>`;
   }
   return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
     <div class="chat-bubble ${skin}">${escHtml(m.body)}</div>${time}</div>`;
+}
+
+// 图片缩略（点开放大）/ 文件 chip（dataURL 直接 download）
+function renderChatMediaInner(kind, body, name) {
+  if (kind === 'image') {
+    return `<img src="${escHtml(body)}" alt="${UI.CHAT_ATTACH_IMAGE}" loading="lazy" onclick="chatViewImage(this.src)">`;
+  }
+  return `<a class="chat-file-chip" href="${escHtml(body)}" download="${escHtml(name || '')}">
+    <span class="chat-file-name">${escHtml(name || UI.CHAT_FILE_FALLBACK)}</span>
+    <span class="chat-file-dl">${UI.CHAT_DOWNLOAD}</span></a>`;
+}
+
+// 附件懒加载：消息区渲染完（页面可操作）后延迟补载骨架占位的真实 dataURL
+function chatLazyLoadAttachments() {
+  const convId = chatConvId;
+  setTimeout(async () => {
+    const pending = [...document.querySelectorAll('.chat-bubble--loading[data-attach]')];
+    for (const el of pending) {
+      if (chatConvId !== convId) return; // 会话已切走，丢弃
+      const mid = el.dataset.attach;
+      try {
+        const data = await api(`/api/conversations/${convId}/messages/${mid}/attachment?userId=${state.user.id}`);
+        if (chatConvId !== convId) return;
+        el.innerHTML = renderChatMediaInner(el.dataset.attachKind, data.body || '', data.name || '');
+        el.classList.remove('chat-bubble--loading');
+        delete el.dataset.attach;
+      } catch {
+        el.classList.remove('chat-bubble--loading');
+        el.innerHTML = `<span class="chat-attach-fail">${UI.CHAT_ATTACH_FAIL}</span>`;
+      }
+    }
+  }, 120);
 }
 
 // 图片消息点开看大图
@@ -322,6 +360,7 @@ async function chatPollTick() {
     });
     chatLastMsgId = fresh[fresh.length - 1].id;
     chatScrollToBottom(true);
+    if (fresh.some(m => (m.kind === 'image' || m.kind === 'file') && !m.body)) chatLazyLoadAttachments(); // 轮询带回的附件补载
     chatBumpConvPreview(convId, fresh[fresh.length - 1]); // 左栏预览同步 + 置顶
     if (fresh.some(m => m.sender_user_id !== state.user.id)) markReadConv(convId); // 看着的会话收到对方消息：就地已读
   } catch (err) {
@@ -339,40 +378,45 @@ async function sendChatMessage() {
   const ta = document.getElementById('chat-input');
   const convId = chatConvId;
   if (!ta || !convId) return;
-  const body = ta.value.trim();
-  if (!body) { ta.focus(); return; }
+  const text = ta.value.trim();
+  const staged = chatStaged.slice();
+  if (!text && !staged.length) { ta.focus(); return; }
+  if (staged.some(it => !it.ready)) { showToast(UI.CHAT_STAGE_WAIT); return; } // 进度圈未走完不许发
 
   const btn = document.getElementById('chat-send-btn');
   chatSending = true;
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
   try {
-    const data = await api(`/api/conversations/${convId}/messages`, {
-      method: 'POST',
-      body: { userId: state.user.id, body, kind: 'text' },
-    });
-    if (chatConvId !== convId) return;
-    // 发送瞬间：输入框清空并复位高度，气泡立即入场
-    ta.value = '';
-    chatAutogrow(ta);
-    ta.focus();
-    const newId = data.id || 0;
-    const stamp = chatNowStamp();
-    const box = document.getElementById('chat-messages');
-    if (box) {
-      if (box.querySelector('.empty-state')) box.innerHTML = '';
-      if (!newId || !box.querySelector(`.chat-msg[data-mid="${newId}"]`)) {
-        box.insertAdjacentHTML('beforeend', renderChatBubble({
-          id: newId, sender_user_id: state.user.id, body, created_at: stamp,
-        }, 0));
+    // 先逐个发暂存附件（成功一条移出暂存区），再发文字
+    for (const it of staged) await chatSendAttachment(it);
+    if (text) {
+      ta.value = '';
+      chatAutogrow(ta);
+      const data = await api(`/api/conversations/${convId}/messages`, {
+        method: 'POST',
+        body: { userId: state.user.id, body: text, kind: 'text' },
+      });
+      if (chatConvId !== convId) return;
+      ta.focus();
+      const newId = data.id || 0;
+      const stamp = chatNowStamp();
+      const box = document.getElementById('chat-messages');
+      if (box) {
+        if (box.querySelector('.empty-state')) box.innerHTML = '';
+        if (!newId || !box.querySelector(`.chat-msg[data-mid="${newId}"]`)) {
+          box.insertAdjacentHTML('beforeend', renderChatBubble({
+            id: newId, sender_user_id: state.user.id, body: text, created_at: stamp,
+          }, 0));
+        }
+        chatScrollToBottom(true);
       }
-      chatScrollToBottom(true);
+      if (newId > chatLastMsgId) chatLastMsgId = newId; // 避免下一轮轮询重复拉回自己这条
+      chatBumpConvPreview(convId, { body: text, kind: 'text', created_at: stamp, sender_user_id: state.user.id });
     }
-    if (newId > chatLastMsgId) chatLastMsgId = newId; // 避免下一轮轮询重复拉回自己这条
-    chatBumpConvPreview(convId, { body, kind: 'text', created_at: stamp, sender_user_id: state.user.id });
     // 按钮微反馈：弹一下
     if (btn) { btn.classList.remove('chat-send--flash'); void btn.offsetWidth; btn.classList.add('chat-send--flash'); }
   } catch (err) {
-    showToast(err.message); // 失败时保留输入内容，便于重试
+    showToast(err.message); // 失败保留输入内容与剩余暂存项，便于重试
   } finally {
     chatSending = false;
     if (btn) { btn.disabled = false; btn.textContent = UI.CHAT_BTN_SEND; }
@@ -393,68 +437,127 @@ function chatAutogrow(ta) {
   ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
 }
 
-// 图片 / 文件占位按钮：服务端 kind 暂未开放（501），前端先给预期提示
-// ---------- 图片 / 文件上传 ----------
+// ---------- 图片 / 文件：暂存预览 + 圆圈进度 + 拖入聊天区 ----------
+// 选中/拖入的附件先进输入框上方暂存区（小圆角缩略 + 圆圈进度），处理完成才可发送；
+// 点发送才真正逐个发请求（类 AI 聊天端流程）
+let chatStaged = [];
+let chatStageSeq = 0;
+
 function chatPickImage() { closeChatPlus(); const el = document.getElementById('chat-image-input'); if (el) el.click(); }
 function chatPickFile() { closeChatPlus(); const el = document.getElementById('chat-file-input'); if (el) el.click(); }
 
-function chatOnImagePicked(input) {
-  const file = input.files && input.files[0];
-  input.value = ''; // 清空以便重选同一文件
-  if (!file) return;
-  chatShrinkImage(file, dataUrl => chatSendAttachment('image', dataUrl, file.name));
-}
+function chatOnImagePicked(input) { const f = input.files; input.value = ''; if (f && f.length) chatStageFiles(f); }
+function chatOnFilePicked(input) { const f = input.files; input.value = ''; if (f && f.length) chatStageFiles(f); }
 
-function chatOnFilePicked(input) {
-  const file = input.files && input.files[0];
-  input.value = '';
-  if (!file) return;
-  if (file.size > 500 * 1024) { showToast(UI.CHAT_FILE_TOO_LARGE); return; }
-  const reader = new FileReader();
-  reader.onload = () => chatSendAttachment('file', reader.result, file.name);
-  reader.readAsDataURL(file);
+function chatStageFiles(files) {
+  [...files].forEach(f => {
+    const item = { id: ++chatStageSeq, name: f.name || UI.CHAT_FILE_FALLBACK, progress: 0, ready: false, dataUrl: '' };
+    if ((f.type || '').startsWith('image/')) {
+      item.kind = 'image';
+      chatStaged.push(item);
+      renderChatStage();
+      const reader = new FileReader();
+      reader.onprogress = e => { if (e.total) { item.progress = Math.min(80, e.loaded / e.total * 80); renderChatStage(); } };
+      reader.onload = () => chatShrinkImage(reader.result, url => {
+        item.dataUrl = url; item.progress = 100; item.ready = true; renderChatStage();
+      });
+      reader.readAsDataURL(f);
+    } else {
+      if (f.size > 500 * 1024) { showToast(UI.CHAT_FILE_TOO_LARGE); return; }
+      item.kind = 'file';
+      chatStaged.push(item);
+      renderChatStage();
+      const reader = new FileReader();
+      reader.onprogress = e => { if (e.total) { item.progress = Math.min(80, e.loaded / e.total * 80); renderChatStage(); } };
+      reader.onload = () => { item.dataUrl = reader.result; item.progress = 100; item.ready = true; renderChatStage(); };
+      reader.readAsDataURL(f);
+    }
+  });
 }
 
 // 图片压缩：最长边缩至 900px 内，jpeg .82 落 dataURL（控制 D1 单元格体积）
-function chatShrinkImage(file, cb) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = () => {
-      const MAX = 900;
-      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-      const w = Math.max(1, Math.round(img.width * scale));
-      const h = Math.max(1, Math.round(img.height * scale));
-      const cv = document.createElement('canvas');
-      cv.width = w; cv.height = h;
-      cv.getContext('2d').drawImage(img, 0, 0, w, h);
-      cb(cv.toDataURL('image/jpeg', 0.82));
-    };
-    img.onerror = () => showToast(UI.CHAT_FILE_TOO_LARGE);
-    img.src = reader.result;
+function chatShrinkImage(src, cb) {
+  const img = new Image();
+  img.onload = () => {
+    const MAX = 900;
+    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+    const w = Math.max(1, Math.round(img.width * scale));
+    const h = Math.max(1, Math.round(img.height * scale));
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    cv.getContext('2d').drawImage(img, 0, 0, w, h);
+    cb(cv.toDataURL('image/jpeg', 0.82));
   };
-  reader.readAsDataURL(file);
+  img.onerror = () => showToast(UI.CHAT_FILE_TOO_LARGE);
+  img.src = src;
 }
 
-async function chatSendAttachment(kind, dataUrl, name) {
+function chatUnstage(id) { chatStaged = chatStaged.filter(it => it.id !== id); renderChatStage(); }
+
+function chatFileExt(name) { const m = /\.([a-zA-Z0-9]+)$/.exec(name || ''); return m ? m[1].toUpperCase() : 'FILE'; }
+
+function chatStageRing(p) {
+  const C = 2 * Math.PI * 13;
+  const off = C * (1 - Math.max(0, Math.min(100, p)) / 100);
+  return `<svg class="chat-stage-ring" viewBox="0 0 32 32" aria-hidden="true">
+    <circle class="ring-track" cx="16" cy="16" r="13"></circle>
+    <circle class="ring-bar" cx="16" cy="16" r="13" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}"></circle>
+  </svg>`;
+}
+
+function renderChatStage() {
+  const el = document.getElementById('chat-stage');
+  if (!el) return;
+  if (!chatStaged.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  el.classList.remove('hidden');
+  el.innerHTML = chatStaged.map(it => {
+    const media = it.kind === 'image' && it.dataUrl
+      ? `<img src="${escHtml(it.dataUrl)}" alt="${UI.CHAT_ATTACH_IMAGE}">`
+      : `<span class="chat-stage-file"><span class="chat-stage-ext">${escHtml(chatFileExt(it.name))}</span></span>`;
+    const nameRow = it.kind === 'file' ? `<span class="chat-stage-name">${escHtml(it.name)}</span>` : '';
+    return `<div class="chat-stage-item${it.kind === 'file' ? ' chat-stage-item--file' : ''}">
+      <div class="chat-stage-thumb">${media}${it.ready ? '' : chatStageRing(it.progress)}</div>
+      ${nameRow}
+      <button type="button" class="chat-stage-del" onclick="chatUnstage(${it.id})" aria-label="${UI.BTN_CANCEL}">✕</button>
+    </div>`;
+  }).join('');
+}
+
+// 发送单条附件：成功即移出暂存区，气泡立即入场
+async function chatSendAttachment(item) {
   const convId = chatConvId;
-  if (!convId) return;
-  try {
-    const data = await api(`/api/conversations/${convId}/messages`, {
-      method: 'POST',
-      body: { userId: state.user.id, kind, fileData: dataUrl, fileName: name },
-    });
-    if (chatConvId !== convId) return; // 发送中切走会话：丢弃
-    const box = document.getElementById('chat-messages');
-    if (box) {
-      if (box.querySelector('.empty-state')) box.innerHTML = '';
-      box.insertAdjacentHTML('beforeend', renderChatBubble({
-        id: data.id || 0, sender_user_id: state.user.id, kind, body: dataUrl, name, created_at: chatNowStamp(),
-      }, 0));
-      chatScrollToBottom(true);
-    }
-    chatBumpConvPreview(convId, { body: '', kind, created_at: chatNowStamp(), sender_user_id: state.user.id });
-  } catch (err) { showToast(err.message); }
+  const data = await api(`/api/conversations/${convId}/messages`, {
+    method: 'POST',
+    body: { userId: state.user.id, kind: item.kind, fileData: item.dataUrl, fileName: item.name },
+  });
+  if (chatConvId !== convId) return; // 发送中切走会话：丢弃
+  chatStaged = chatStaged.filter(it => it.id !== item.id);
+  renderChatStage();
+  const box = document.getElementById('chat-messages');
+  if (box) {
+    if (box.querySelector('.empty-state')) box.innerHTML = '';
+    box.insertAdjacentHTML('beforeend', renderChatBubble({
+      id: data.id || 0, sender_user_id: state.user.id, kind: item.kind, body: item.dataUrl, name: item.name, created_at: chatNowStamp(),
+    }, 0));
+    chatScrollToBottom(true);
+  }
+  if (data.id && data.id > chatLastMsgId) chatLastMsgId = data.id;
+  chatBumpConvPreview(convId, { body: '', kind: item.kind, created_at: chatNowStamp(), sender_user_id: state.user.id });
+}
+
+// 拖入聊天区：松开即加入暂存区（桌面 / 平板拖放均可）
+function chatBindDropzone() {
+  const zone = document.getElementById('chat-pane');
+  if (!zone || zone.dataset.dropBound) return;
+  zone.dataset.dropBound = '1';
+  const hint = document.getElementById('chat-drop-hint');
+  zone.addEventListener('dragover', e => { e.preventDefault(); if (hint) hint.classList.remove('hidden'); });
+  zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget) && hint) hint.classList.add('hidden'); });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    if (hint) hint.classList.add('hidden');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) chatStageFiles(e.dataTransfer.files);
+  });
 }
 
 // ---------- 加号弹层（附件 + 起草合同）----------

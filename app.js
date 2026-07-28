@@ -21,7 +21,7 @@ const state = { user: null, view: 'landing', page: null, allTeachers: [], adminT
 // 头像组件（全站共用）：圆形，上传图片则居中裁切展示，未上传 = id 首字符 + 米色底
 // ============================================================
 function renderAvatarHtml(avatar, name, cls) {
-  if (avatar) return `<span class="avatar ${cls}"><img src="${escHtml(avatar)}" alt=""></span>`;
+  if (avatar) return `<span class="avatar ${cls}"><img src="${escHtml(avatar)}" alt="" loading="lazy"></span>`;
   return `<span class="avatar ${cls}" aria-hidden="true">${escHtml((name || '?').charAt(0).toUpperCase())}</span>`;
 }
 

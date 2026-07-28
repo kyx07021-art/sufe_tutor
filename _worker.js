@@ -23,7 +23,7 @@ import {
   handleConfirmDraft, handleSignContract, handleModifyContract, handleCancelContract,
   handleAdminListContracts, handleAdminRemoveContract,
 } from './server/contract.js';
-import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead } from './server/routes-chat.js';
+import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
   handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
@@ -123,6 +123,8 @@ async function routeApi(db, p, method, body, url, req) {
   const convMsgs = p.match(/^\/api\/conversations\/(\d+)\/messages$/);
   if (convMsgs && method === 'GET') return await handleGetMessages(db, parseInt(convMsgs[1]), url);
   if (convMsgs && method === 'POST') return await handleSendMessage(db, parseInt(convMsgs[1]), body, req);
+  const msgAttach = p.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)\/attachment$/);
+  if (msgAttach && method === 'GET') return await handleGetAttachment(db, parseInt(msgAttach[1]), parseInt(msgAttach[2]), url);
 
   // 评价
   if (p === '/api/reviews' && method === 'POST') return await handleCreateReview(db, body, req);

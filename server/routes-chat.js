@@ -3,7 +3,7 @@
  * 消息内容按模块5要求全量留档（detail 含正文，走 logEvent 咽喉，后期统一加密）
  * 图片/文件：schema 已预留 kind，发送端暂返回 FEATURE_TODO
  */
-import { json, error, MSG } from './core.js';
+import { json, error, dbGet, MSG } from './core.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage, dbMarkConversationRead,
 } from './db.js';
@@ -36,6 +36,17 @@ export async function handleGetMessages(db, convId, url) {
 
   const messages = await dbGetMessages(db, convId, sinceId);
   return json({ conversation: conv, messages });
+}
+
+// GET /api/conversations/:cid/messages/:mid/attachment?userId= —— 单条附件懒加载
+// （列表接口不下发图片/文件的 dataURL 本体，前端先渲染骨架，页面可操作后逐条补载）
+export async function handleGetAttachment(db, convId, messageId, url) {
+  const userId = parseInt(url.searchParams.get('userId'));
+  const conv = await dbGetConversationById(db, convId);
+  if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  const m = await dbGet(db, 'SELECT body, name FROM messages WHERE id=? AND conversation_id=?', [messageId, convId]);
+  if (!m) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  return json({ body: m.body, name: m.name || '' });
 }
 
 export async function handleSendMessage(db, convId, body, req) {

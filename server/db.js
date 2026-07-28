@@ -708,7 +708,8 @@ export async function dbGetMyConversations(db, userId) {
   return await dbAll(db, `SELECT c.*,
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
-      lm.body AS last_body, lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
+      CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
+      lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id AND m.sender_user_id<>?
         AND m.id > (CASE WHEN c.student_user_id=? THEN c.student_last_read_id ELSE c.teacher_last_read_id END)
       ) AS unread_count
@@ -733,7 +734,9 @@ export async function dbMarkConversationRead(db, convId, userId) {
 }
 
 export async function dbGetMessages(db, convId, sinceId = 0, limit = 100) {
-  return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.body, m.name, m.created_at,
+  // 图片/文件消息不在列表查询里下发 dataURL 本体（大字段懒加载，走 attachment 接口）
+  return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.name, m.created_at,
+      CASE WHEN m.kind IN ('image','file') THEN '' ELSE m.body END AS body,
       u.username AS sender_name
     FROM messages m JOIN users u ON u.id=m.sender_user_id
     WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
