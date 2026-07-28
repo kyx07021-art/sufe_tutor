@@ -24,25 +24,28 @@ const state = { user: null, view: 'landing', page: null, allTeachers: [], adminT
 // ============================================================
 const ROLE_PAGES = {
   student: [
-    { id: 'my-demands',      label: '我的需求',     enter: loadMyDemands },
-    { id: 'browse-teachers', label: '浏览教师',     enter: loadTeachers },
-    { id: 'my-chats',        label: '我的沟通',     enter: () => enterMyChats() },
-    { id: 'notifications',   label: '通知信息',     enter: enterNotifications },
+    { id: 'my-demands',       label: '我的需求',     enter: loadMyDemands },
+    { id: 'browse-teachers',  label: '浏览教师',     enter: loadTeachers },
+    { id: 'my-chats',         label: '我的沟通',     enter: () => enterMyChats() },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS, enter: enterNotifications },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
   ],
   teacher: [
-    { id: 'browse-demands',  label: '需求大厅',     enter: loadBrowseDemands },
-    { id: 'resource-share',  label: '资料共享',     enter: () => enterResourceShare() },
-    { id: 'my-chats',        label: '我的沟通',     enter: () => enterMyChats() },
-    { id: 'edit-profile',    label: '编辑自身信息', enter: initProfileForm },
-    { id: 'notifications',   label: '通知信息',     enter: enterNotifications },
+    { id: 'browse-demands',   label: '需求大厅',     enter: loadBrowseDemands },
+    { id: 'resource-share',   label: '资料共享',     enter: () => enterResourceShare() },
+    { id: 'my-chats',         label: '我的沟通',     enter: () => enterMyChats() },
+    { id: 'edit-profile',     label: '编辑自身信息', enter: initProfileForm },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS, enter: enterNotifications },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
   ],
   admin: [
-    { id: 'admin-stats',    label: '统计',     enter: loadAdminStats },
-    { id: 'admin-students', label: '学生管理', enter: loadAdminStudents },
-    { id: 'admin-teachers', label: '教师管理', enter: loadAdminTeachers },
-    { id: 'admin-demands',  label: '需求管理', enter: loadAdminDemands },
-    { id: 'admin-reviews',  label: '评价管理', enter: loadAdminReviews },
-    { id: 'notifications',  label: '通知信息', enter: enterNotifications },
+    { id: 'admin-stats',      label: '统计',     enter: loadAdminStats },
+    { id: 'admin-students',   label: '学生管理', enter: loadAdminStudents },
+    { id: 'admin-teachers',   label: '教师管理', enter: loadAdminTeachers },
+    { id: 'admin-demands',    label: '需求管理', enter: loadAdminDemands },
+    { id: 'admin-reviews',    label: '评价管理', enter: loadAdminReviews },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS, enter: enterNotifications },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
   ],
 };
 
@@ -95,8 +98,8 @@ async function checkLoginUsername() {
     const data = await api(`/api/auth/check?username=${encodeURIComponent(name)}`);
     if (seq !== loginCheckSeq) return; // 过期响应丢弃，防输入快于请求时的乱序
     hint.textContent = !data.exists ? ''
-      : data.role === 'teacher' ? '教师账户'
-      : data.role === 'student' ? '学生账户' : '管理员账户';
+      : data.role === 'teacher' ? UI.HINT_ROLE_TEACHER
+      : data.role === 'student' ? UI.HINT_ROLE_STUDENT : UI.HINT_ROLE_ADMIN;
   } catch { /* 网络抖动：静默不给提示 */ }
 }
 
@@ -120,9 +123,9 @@ function updateNavbar() {
   if (state.user) {
     const u = state.user;
     const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
+    // 退出登录已迁至「账户设置」页底（含二次确认），导航栏只留身份标识
     el.innerHTML = `<div class="navbar-user">
-      <span>${escHtml(u.username)}</span><span class="user-badge${u.role === 'admin' ? ' admin-badge' : ''}">${roleLabel}</span>
-      <button class="btn btn-ghost btn-sm" onclick="handleLogout()">${UI.NAV_LOGOUT}</button></div>`;
+      <span>${escHtml(u.username)}</span><span class="user-badge${u.role === 'admin' ? ' admin-badge' : ''}">${roleLabel}</span></div>`;
   } else {
     el.innerHTML = `<button class="btn btn-ghost" onclick="showView('login')">${UI.NAV_LOGIN}</button>
       <button class="btn btn-primary btn-sm" onclick="showView('register')">${UI.NAV_REGISTER}</button>`;
@@ -664,7 +667,7 @@ function renderTeachers(teachers) {
         <div class="tc-info1">${escHtml(info1)}</div>
         ${info2 ? `<div class="tc-info2">${escHtml(info2)}</div>` : ''}
         <div class="tc-actions">
-          ${isStudent ? `<button type="button" class="tc-push-btn" onclick="openSendDemandModal(${t.user_id})">发送需求 <span class="arrow">→</span></button>` : ''}
+          ${isStudent ? `<button type="button" class="tc-push-btn" onclick="openSendDemandModal(${t.user_id})">${UI.BTN_PUSH_DEMAND} <span class="arrow">→</span></button>` : ''}
         </div>
       </div>
       ${t.intro ? `<div class="tc-intro" title="${escHtml(t.intro)}">${escHtml(t.intro)}</div>` : ''}
@@ -944,16 +947,20 @@ function renderDemandCard(d, opts = {}) {
   const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || '线下';
   // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
   const teacherIntentBtn = !teacher ? ''
-    : d.my_intent_status === 'accepted' ? '<button type="button" class="btn btn-sm btn-intent-ok" disabled>已建立联系</button>'
-    : d.my_intent_status === 'pending'  ? '<button type="button" class="btn btn-sm btn-intent-wait" disabled>意向已提交</button>'
-    : d.my_intent_status === 'rejected' ? '<button type="button" class="btn btn-sm btn-intent-wait" disabled>未获选</button>'
-    : `<button type="button" class="btn btn-outline btn-sm" onclick="submitIntent(${d.id})">提交试课意向</button>`;
+    : d.my_intent_status === 'accepted' ? `<button type="button" class="btn btn-sm btn-intent-ok" disabled>${UI.INTENT_ACCEPTED}</button>`
+    : d.my_intent_status === 'pending'  ? `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.INTENT_PENDING}</button>`
+    : d.my_intent_status === 'rejected' ? `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.INTENT_REJECTED}</button>`
+    : `<button type="button" class="btn btn-outline btn-sm" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
   const budget = (d.budget_min || d.budget_max)
-    ? `${d.budget_min||'不限'}~${d.budget_max||'不限'}元/h` : '面议';
+    ? `${d.budget_min||UI.BUDGET_NO_LIMIT}~${d.budget_max||UI.BUDGET_NO_LIMIT}${UI.BUDGET_UNIT_SUFFIX}` : UI.BUDGET_NEGOTIABLE;
 
+  // 平时成绩标签：等第制科目（mode:'grade'）只显示等第；分数制显示 分数/满分制；空值跳过
   const scoresHtml = (d.current_scores||[]).map(cs => {
     const n = SUBJECTS.find(s=>s.id===cs.subject)?.name || cs.subject;
-    return `<span class="tag">${n}: ${cs.score||'?'}分/${cs.scale}分制</span>`;
+    let val = '';
+    if (cs.grade || cs.mode === 'grade') val = cs.grade || '';
+    else if (cs.score !== '' && cs.score != null) val = `${cs.score}${UI.SCORE_UNIT}/${cs.scale}${UI.SCORE_SCALE_SUFFIX}`;
+    return val ? `<span class="tag">${n}: ${escHtml(val)}</span>` : '';
   }).join('');
 
   return `<div class="list-card">
@@ -961,11 +968,11 @@ function renderDemandCard(d, opts = {}) {
       <span class="list-card-title">${(admin || push) && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
       <span class="demand-card-tools">
         ${push ? `<span class="push-note-row">
-          <span class="push-pin-tag">主动发送</span>
+          <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
           <span class="list-card-meta">${fmtDateTime(push.push_created_at)}</span>
-          <span class="push-note-text">学生主动向你提交了需求</span>
-          <button type="button" class="btn btn-outline btn-xs" onclick="resolvePush(${push.push_id},'reject')">暂时没空</button>
-          <button type="button" class="btn btn-accent btn-xs" onclick="resolvePush(${push.push_id},'accept')">确认试课意向</button>
+          <span class="push-note-text">${UI.PUSH_NOTE_TEXT}</span>
+          <button type="button" class="btn btn-outline btn-xs" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
+          <button type="button" class="btn btn-accent btn-xs" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
         </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${teacherIntentBtn}`}
         ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
         ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
@@ -1030,7 +1037,7 @@ async function loadBrowseDemands() {
     const pushDemandIds = new Set(pushes.map(p => p.id));
     const pinned = pushes.map(p => renderDemandCard(p, { push: p })).join('');
     const normal = demands.filter(d => !pushDemandIds.has(d.id)).map(d => renderDemandCard(d, { teacher: true })).join('');
-    el.innerHTML = (pinned ? `<div class="section-title" style="margin-bottom:8px;">学生主动发给你的需求</div>${pinned}` : '') + normal;
+    el.innerHTML = (pinned ? `<div class="section-title" style="margin-bottom:8px;">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '') + normal;
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
   }
@@ -1039,7 +1046,7 @@ async function loadBrowseDemands() {
 // 学生把某条需求主动发给指定教师：弹窗列出自己的需求单选
 async function openSendDemandModal(teacherUserId) {
   const t = state.allTeachers.find(x => x.user_id === teacherUserId);
-  const tName = t ? t.username : '该老师';
+  const tName = t ? t.username : UI.PUSH_TEACHER_FALLBACK;
   let demands = state.myDemands;
   if (!demands.length) {
     try { demands = (await api(`/api/student/demands?userId=${state.user.id}`)).demands || []; state.myDemands = demands; }
@@ -1053,16 +1060,16 @@ async function openSendDemandModal(teacherUserId) {
     return `<label class="push-pick-item"><input type="radio" name="push-demand" value="${d.id}">
       <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
       <span class="push-pick-sub">${[prov, method].filter(Boolean).map(escHtml).join(' · ')}</span></span></label>`;
-  }).join('')}</div>` : '<p class="text-sm text-muted">你还没有需求，先去「我的需求」发布一条吧。</p>';
+  }).join('')}</div>` : `<p class="text-sm text-muted">${UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal" style="max-width:480px;">
-      <div class="modal-header"><h2>把需求发给 ${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
-        <p class="text-sm text-muted" style="margin-bottom:12px;">选一条需求发送给这位老师，对方会在需求大厅优先看到它。</p>
+        <p class="text-sm text-muted" style="margin-bottom:12px;">${UI.PUSH_MODAL_HINT}</p>
         ${pickHtml}
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
-          <button type="button" class="btn btn-primary" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">发送</button>
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>
         </div>
       </div>
     </div>
@@ -1071,11 +1078,11 @@ async function openSendDemandModal(teacherUserId) {
 
 async function submitDemandPush(teacherUserId) {
   const sel = document.querySelector('input[name="push-demand"]:checked');
-  if (!sel) { showToast('请先选择一条需求'); return; }
+  if (!sel) { showToast(UI.VALIDATE_SELECT_DEMAND); return; }
   try {
     const data = await api('/api/demand-pushes', { method: 'POST', body: { userId: state.user.id, teacherUserId, demandId: +sel.value } });
     closeModal();
-    showToast(data.message || '需求已发送');
+    showToast(data.message || UI.PUSH_SENT_FALLBACK);
   } catch (err) { showToast(err.message); }
 }
 
@@ -1083,7 +1090,7 @@ async function submitDemandPush(teacherUserId) {
 async function resolvePush(pushId, action) {
   try {
     await api(`/api/demand-pushes/${pushId}/resolve`, { method: 'POST', body: { userId: state.user.id, action } });
-    showToast(action === 'accept' ? '已确认，可在「我的沟通」开始对话' : '已婉拒，对方会收到通知');
+    showToast(action === 'accept' ? UI.PUSH_ACCEPTED_TOAST : UI.PUSH_REJECTED_TOAST);
     loadBrowseDemands();
   } catch (err) { showToast(err.message); }
 }
@@ -1097,7 +1104,7 @@ async function enterNotifications() {
   try {
     const data = await api(`/api/notifications?userId=${state.user.id}`);
     const list = data.notifications || [];
-    if (!list.length) { el.innerHTML = '<div class="empty-state"><p>暂无通知——当意向或推送被对方婉拒时，这里会温柔地告诉你。</p></div>'; return; }
+    if (!list.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_NOTIFICATIONS}</p></div>`; return; }
     el.innerHTML = list.map(n => `<div class="notif-item${n.is_read ? '' : ' unread'}">
       <span class="notif-dot${n.is_read ? ' read' : ''}"></span>
       <div class="notif-body">
@@ -1115,12 +1122,49 @@ async function enterNotifications() {
 }
 
 // ============================================================
+// 账户设置页（全角色）：细线分隔的设置行，无白框；退出登录置于页底 + 二次确认。
+// 初期仅展示账户信息（电话/邮箱未绑定），修改按钮为占位（功能未开放）。
+// ============================================================
+function enterAccountSettings() {
+  const u = state.user;
+  const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
+  const row = (label, value, modifiable) => `
+    <div class="settings-row">
+      <div><div class="settings-label">${label}</div><div class="settings-value">${value}</div></div>
+      ${modifiable ? `<button type="button" class="btn btn-outline btn-sm" onclick="showToast('${UI.TOAST_COMING_SOON}')">${UI.BTN_MODIFY}</button>` : ''}
+    </div>`;
+  document.getElementById('account-settings-content').innerHTML = `
+    <div class="settings-list">
+      ${row(UI.SETTINGS_USERNAME, escHtml(u.username), false)}
+      ${row(UI.SETTINGS_ROLE, roleLabel, false)}
+      ${row(UI.SETTINGS_PHONE, UI.SETTINGS_UNBOUND, true)}
+      ${row(UI.SETTINGS_EMAIL, UI.SETTINGS_UNBOUND, true)}
+    </div>
+    <button type="button" class="btn btn-danger settings-logout" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>`;
+}
+
+// 退出登录二次确认（确认类弹窗，保留点遮罩关闭）
+function confirmLogout() {
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-body">
+        <p style="margin-bottom:16px;">${UI.CONFIRM_LOGOUT}</p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-danger" onclick="closeModal();handleLogout()">${UI.BTN_LOGOUT}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ============================================================
 // 模块3：试课意向（教师提交 / 学生在需求内展开处理）
 // ============================================================
 async function submitIntent(demandId) {
   try {
     await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: { userId: state.user.id } });
-    showToast('试课意向已提交，等待学生处理');
+    showToast(UI.INTENT_SUBMITTED_TOAST);
     if (state.page === 'browse-demands') loadBrowseDemands(); // 按钮刷新为「意向已提交」态
   } catch (err) {
     if (String(err.message).includes('档案不完整')) { showProfileIncompleteModal(); return; }
@@ -1132,12 +1176,12 @@ async function submitIntent(demandId) {
 function showProfileIncompleteModal() {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal" style="max-width:420px;">
-      <div class="modal-header"><h2>档案不完整</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.PROFILE_INCOMPLETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
-        <p class="text-sm" style="color:var(--ink-3);line-height:1.7;">提交试课意向前，请先完善教师档案：省份、年级、性别、擅长科目、报价均为必填。学生要看到完整的教师信息，才能判断是否接受你的意向。</p>
+        <p class="text-sm" style="color:var(--ink-3);line-height:1.7;">${UI.PROFILE_INCOMPLETE_HINT}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">稍后再说</button>
-          <button type="button" class="btn btn-primary" onclick="closeModal();selectPage('edit-profile')">去完善档案</button>
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_LATER}</button>
+          <button type="button" class="btn btn-primary" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>
         </div>
       </div>
     </div>

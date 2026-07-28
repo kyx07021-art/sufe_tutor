@@ -479,17 +479,15 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .score-inline:focus { background-size: 100% 2px; }
 .score-max { font-size: .72rem; color: var(--muted); }
 
-/* 邀请码（管理员侧边栏底部）：黑按钮 + 浅棕底黑字小组件（比按钮窄） */
+/* 邀请码（管理员侧边栏底部）：邀请码盒 / 过期计时小字 / 复制按钮 上下三个平行块，
+   倒计时数字跳动不再影响任何元素宽度，布局零抽搐 */
 .sidebar-invite { padding: 16px 10px 0; }
 .sidebar-invite-btn { width: 100%; }
-.invite-display {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  margin-top: 8px; padding: 7px 9px;
-  background: var(--sand-tint); width: max-content; max-width: 100%;
-  animation: fade-in .2s ease;
-}
+.invite-display { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; animation: fade-in .2s ease; }
+.invite-code-box { padding: 7px 9px; background: var(--sand-tint); text-align: center; }
 .invite-code-text { font-family: var(--mono); font-size: .85rem; font-weight: 700; letter-spacing: .12em; color: var(--ink); overflow-wrap: anywhere; }
-.invite-timer { font-size: .68rem; color: var(--warn-deep); font-weight: 700; white-space: nowrap; }
+.invite-timer { font-size: .68rem; color: var(--warn-deep); font-weight: 700; text-align: center; min-height: 1em; }
+.invite-copy-btn { align-self: stretch; }
 
 /* ============================================================
    Client 壳 — 可扩展侧边栏 + 页面区
@@ -534,8 +532,19 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 }
 .sidebar-item:hover .sidebar-item-index, .sidebar-item.active .sidebar-item-index { color: var(--ink); }
 
-.sidebar-close { display: none; margin: auto 10px 0; padding: 10px 14px; color: var(--muted); font-size: .8rem; font-weight: 600; text-align: left; }
+.sidebar-close { display: none; margin: 8px 10px 0; padding: 10px 14px; color: var(--muted); font-size: .8rem; font-weight: 600; text-align: left; }
 .sidebar-close:hover { color: var(--ink); }
+
+/* 侧边栏底部装饰：主页同款细网格，底部实、向上渐隐，填充导航下方空白区 */
+.sidebar-deco-grid {
+  margin-top: auto; height: 170px; flex-shrink: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(17,17,20,.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(17,17,20,.07) 1px, transparent 1px);
+  background-size: 88px 88px;
+  -webkit-mask-image: linear-gradient(to top, #000, transparent);
+          mask-image: linear-gradient(to top, #000, transparent);
+}
 
 /* 抽屉遮罩：仅移动端启用（见 Responsive） */
 .sidebar-backdrop {
@@ -549,6 +558,16 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .client-page { max-width: 920px; margin: 0 auto; animation: fade-in .2s ease; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .page-header h2 { font-size: 1.35rem; font-weight: 900; letter-spacing: -.02em; color: var(--ink); }
+
+/* 账户设置：细线分隔的设置行（无白框），灰小标签 + 值 + 右侧修改按钮 */
+.settings-list { border-bottom: 1px solid var(--line); }
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 15px 2px; border-top: 1px solid var(--line);
+}
+.settings-label { font-size: .7rem; font-weight: 700; color: var(--muted); letter-spacing: .06em; margin-bottom: 3px; }
+.settings-value { font-size: .9rem; font-weight: 600; color: var(--ink); }
+.settings-logout { margin-top: 36px; }
 
 /* 汉堡按钮：桌面隐藏；≤860px 且处于壳内时由 body:has 启用 */
 .sidebar-toggle {

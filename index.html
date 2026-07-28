@@ -180,12 +180,14 @@
         <!-- 管理员：邀请码（仅 admin 可见，由 renderSidebar 控制显隐） -->
         <div class="sidebar-invite hidden" id="sidebar-invite">
           <button type="button" class="btn btn-primary btn-sm sidebar-invite-btn" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
+          <!-- 邀请码与复制按钮为上下两个平行组件，过期计时小字在邀请码下方，避免倒计时跳动引发布局抽搐 -->
           <div class="invite-display hidden" id="invite-code-display">
-            <button type="button" class="btn btn-outline btn-xs" onclick="copyInviteCode()">复制</button>
+            <div class="invite-code-box"><span class="invite-code-text" id="invite-code-text"></span></div>
             <span class="invite-timer" id="invite-code-timer"></span>
-            <span class="invite-code-text" id="invite-code-text"></span>
+            <button type="button" class="btn btn-outline btn-xs invite-copy-btn" onclick="copyInviteCode()">复制</button>
           </div>
         </div>
+        <div class="sidebar-deco-grid" aria-hidden="true"></div>
         <button type="button" class="sidebar-close" onclick="closeSidebar()">✕ 关闭菜单</button>
       </aside>
       <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
@@ -360,6 +362,12 @@
         <section class="client-page hidden" data-page="notifications">
           <div class="page-header"><h2>通知信息</h2></div>
           <div id="notifications-content"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 全角色：账户设置（展示账户绑定信息；退出登录在页底 + 二次确认） -->
+        <section class="client-page hidden" data-page="account-settings">
+          <div class="page-header"><h2>账户设置</h2></div>
+          <div id="account-settings-content"></div>
         </section>
 
       </main>

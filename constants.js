@@ -47,7 +47,6 @@ window.APP_CONSTANTS = {
     // 导航
     NAV_LOGIN: '登录',
     NAV_REGISTER: '注册',
-    NAV_LOGOUT: '退出',
     ROLE_STUDENT: '学生',
     ROLE_TEACHER: '教师',
     ADMIN_BADGE: '管理员',
@@ -139,6 +138,60 @@ window.APP_CONSTANTS = {
     BUDGET_NEGOTIABLE: '面议',
     BUDGET_NO_LIMIT: '不限',
     BUDGET_UNIT_SUFFIX: '元/h',
+
+    // 页面栏目
+    PAGE_NOTIFICATIONS: '通知信息',
+    PAGE_ACCOUNT_SETTINGS: '账户设置',
+
+    // 登录页用户名实时角色提示
+    HINT_ROLE_STUDENT: '学生账户',
+    HINT_ROLE_TEACHER: '教师账户',
+    HINT_ROLE_ADMIN: '管理员账户',
+
+    // 试课意向按钮四态
+    INTENT_ACCEPTED: '已建立联系',
+    INTENT_PENDING: '意向已提交',
+    INTENT_REJECTED: '未获选',
+    BTN_SUBMIT_INTENT: '提交试课意向',
+    INTENT_SUBMITTED_TOAST: '试课意向已提交，等待学生处理',
+    PROFILE_INCOMPLETE_TITLE: '档案不完整',
+    PROFILE_INCOMPLETE_HINT: '提交试课意向前，请先完善教师档案：省份、年级、性别、擅长科目、报价均为必填。学生要看到完整的教师信息，才能判断是否接受你的意向。',
+    BTN_LATER: '稍后再说',
+    BTN_GO_COMPLETE_PROFILE: '去完善档案',
+
+    // 学生主动推送需求
+    BTN_PUSH_DEMAND: '发送需求',
+    PUSH_TEACHER_FALLBACK: '该老师',
+    PUSH_MODAL_TITLE_PREFIX: '把需求发给 ',
+    PUSH_MODAL_HINT: '选一条需求发送给这位老师，对方会在需求大厅优先看到它。',
+    EMPTY_NO_MY_DEMANDS_SHORT: '你还没有需求，先去「我的需求」发布一条吧。',
+    BTN_SEND: '发送',
+    VALIDATE_SELECT_DEMAND: '请先选择一条需求',
+    PUSH_SENT_FALLBACK: '需求已发送',
+    PUSH_TAG_ACTIVE: '主动发送',
+    PUSH_NOTE_TEXT: '学生主动向你提交了需求',
+    BTN_PUSH_REJECT: '暂时没空',
+    BTN_PUSH_ACCEPT: '确认试课意向',
+    PUSH_SECTION_TITLE: '学生主动发给你的需求',
+    PUSH_ACCEPTED_TOAST: '已确认，可在「我的沟通」开始对话',
+    PUSH_REJECTED_TOAST: '已婉拒，对方会收到通知',
+
+    // 成绩标签
+    SCORE_UNIT: '分',
+
+    // 通知信息
+    EMPTY_NO_NOTIFICATIONS: '暂无通知——当意向或推送被对方婉拒时，这里会温柔地告诉你。',
+
+    // 账户设置
+    SETTINGS_USERNAME: '账户用户名',
+    SETTINGS_ROLE: '账户角色',
+    SETTINGS_PHONE: '电话',
+    SETTINGS_EMAIL: '邮箱',
+    SETTINGS_UNBOUND: '未绑定',
+    BTN_MODIFY: '修改',
+    TOAST_COMING_SOON: '该功能暂未开放，敬请期待',
+    BTN_LOGOUT: '退出登录',
+    CONFIRM_LOGOUT: '确定要退出当前账户吗？',
 
     // 管理员面板
     ADMIN_TOTAL_USERS: '总用户',
