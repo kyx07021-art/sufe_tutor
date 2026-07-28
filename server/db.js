@@ -48,6 +48,15 @@ export async function initDb(db) {
       reviewed_at DATETIME, reviewed_by INTEGER,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // 签约关系（预留：签约机制未上线前此表恒空，评价门槛经 dbIsContracted 查本表）
+    db.prepare(`CREATE TABLE IF NOT EXISTS contracts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','ended')),
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      UNIQUE(student_user_id, teacher_user_id),
+      FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS invite_codes (
       code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
       created_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -99,6 +108,11 @@ export async function initDb(db) {
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
   ]);
+
+  // 一人一评唯一索引（幂等）；旧数据若有重复对则建不上，回落路由层成对检查，不阻塞启动
+  try {
+    await dbRun(db, 'CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_reviewer_teacher ON reviews(reviewer_user_id, teacher_user_id)');
+  } catch { /* 旧重复数据：跳过索引 */ }
 
   // 一次性迁移：users 的 role 扩展支持 admin + 新增 banned 列。
   // D1 强制开启外键且不可关闭，DROP 被引用表会失败，故用"改名腾位"策略，
@@ -225,6 +239,11 @@ export async function initDb(db) {
   await ensureColumns(db, 'demand_intents', [
     ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
     ['resolved_at', 'DATETIME'],
+  ]);
+  // 会话已读游标（红点未读用：双方各自一个，指向自己已读到的最大消息 id）
+  await ensureColumns(db, 'conversations', [
+    ['student_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
+    ['teacher_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
   ]);
 }
 
@@ -469,6 +488,27 @@ export async function dbGetApprovedReviews(db, teacherUserId) {
     [teacherUserId]);
 }
 
+// 某学生对某教师的自有评价（任意状态；「已有评价只能修改」与编辑回填用）
+export async function dbGetReviewByPair(db, reviewerUserId, teacherUserId) {
+  return await dbGet(db, 'SELECT * FROM reviews WHERE reviewer_user_id=? AND teacher_user_id=?',
+    [reviewerUserId, teacherUserId]);
+}
+
+// 修改评价：重置为待审核（内容变更须重审）
+export async function dbUpdateReview(db, reviewId, rating, comment) {
+  await dbRun(db,
+    'UPDATE reviews SET rating=?, comment=?, status=\'pending\', reviewed_at=NULL, reviewed_by=NULL WHERE id=?',
+    [rating, comment, reviewId]);
+}
+
+// 签约门槛查询（预留接口）：签约机制上线前 contracts 恒空 → 一律不可评价，
+// 上线后只需往本表写数据，评价门禁自动生效
+export async function dbIsContracted(db, studentUserId, teacherUserId) {
+  return !!(await dbGet(db,
+    "SELECT 1 FROM contracts WHERE student_user_id=? AND teacher_user_id=? AND status='active'",
+    [studentUserId, teacherUserId]));
+}
+
 // 管理端评价查询：可按状态 / 教师过滤（评价管理页与教师详情内评价栏共用）
 export async function dbGetReviewsAdmin(db, { status, teacherUserId } = {}) {
   let sql = `SELECT r.*, u1.username as reviewer_name, u2.username as teacher_name
@@ -558,9 +598,13 @@ export async function dbGetConversationById(db, id) {
 
 // 我参与的会话列表（含对方用户名 + 最后一条消息预览）
 export async function dbGetMyConversations(db, userId) {
+  // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
   return await dbAll(db, `SELECT c.*,
       us.username AS student_name, ut.username AS teacher_name,
-      lm.body AS last_body, lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender
+      lm.body AS last_body, lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
+      (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id AND m.sender_user_id<>?
+        AND m.id > (CASE WHEN c.student_user_id=? THEN c.student_last_read_id ELSE c.teacher_last_read_id END)
+      ) AS unread_count
     FROM conversations c
     JOIN users us ON us.id=c.student_user_id
     JOIN users ut ON ut.id=c.teacher_user_id
@@ -570,7 +614,15 @@ export async function dbGetMyConversations(db, userId) {
         ON x.mid=m.id
     ) lm ON lm.conversation_id=c.id
     WHERE c.student_user_id=? OR c.teacher_user_id=?
-    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId]);
+    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId]);
+}
+
+// 标记已读：把我在该会话的已读游标推到最新一条消息（按角色更新对应列）
+export async function dbMarkConversationRead(db, convId, userId) {
+  await dbRun(db, `UPDATE conversations SET
+      student_last_read_id=CASE WHEN student_user_id=? THEN (SELECT COALESCE(MAX(id),0) FROM messages WHERE conversation_id=?) ELSE student_last_read_id END,
+      teacher_last_read_id=CASE WHEN teacher_user_id=? THEN (SELECT COALESCE(MAX(id),0) FROM messages WHERE conversation_id=?) ELSE teacher_last_read_id END
+    WHERE id=?`, [userId, convId, userId, convId, convId]);
 }
 
 export async function dbGetMessages(db, convId, sinceId = 0, limit = 100) {

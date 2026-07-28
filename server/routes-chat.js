@@ -5,7 +5,7 @@
  */
 import { json, error, MSG } from './core.js';
 import {
-  dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage,
+  dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage, dbMarkConversationRead,
 } from './db.js';
 import { logEvent } from './log.js';
 
@@ -17,6 +17,15 @@ export async function handleGetConversations(db, url) {
   if (!userId) return error(MSG.LOGIN_REQUIRED);
   const conversations = await dbGetMyConversations(db, userId);
   return json({ conversations });
+}
+
+// 标记已读：我的已读游标推到该会话最新一条（红点点掉即消的后端支撑）
+export async function handleMarkRead(db, convId, body) {
+  const userId = parseInt(body.userId);
+  const conv = await dbGetConversationById(db, convId);
+  if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  await dbMarkConversationRead(db, convId, userId);
+  return json({ ok: true });
 }
 
 export async function handleGetMessages(db, convId, url) {

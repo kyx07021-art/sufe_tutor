@@ -572,6 +572,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .intent-caret { display: inline-block; margin-left: 4px; transition: transform .25s var(--ease-out); }
 .intent-caret.open { transform: rotate(180deg); }
 
+/* 侧边栏「我的沟通」未读红点（语义圆点，全站唯一圆形元素之一） */
+.sidebar-dot { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: var(--danger); }
+
 /* 教师意向按钮状态：待处理灰 / 已建立联系绿（均禁用点击，opacity 不随 :disabled 衰减） */
 .btn-intent-wait, .btn-intent-ok { cursor: default; }
 .btn-intent-wait:disabled, .btn-intent-ok:disabled { opacity: 1; }
@@ -841,6 +844,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .text-muted { color: var(--muted); }
 .text-sm { font-size: .8rem; }
 .mt-2 { margin-top: 8px; }
+.review-mine-note { margin-top: 8px; font-size: .74rem; color: var(--muted); }
 .mt-4 { margin-top: 16px; }
 .mb-2 { margin-bottom: 8px; }
 .flex { display: flex; }

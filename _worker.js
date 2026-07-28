@@ -16,8 +16,8 @@ import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
   handleCreateIntent, handleGetIntents, handleResolveIntent,
 } from './server/routes-demands.js';
-import { handleGetConversations, handleGetMessages, handleSendMessage } from './server/routes-chat.js';
-import { handleCreateReview, handleGetReviews } from './server/routes-reviews.js';
+import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead } from './server/routes-chat.js';
+import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
   handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
@@ -76,13 +76,17 @@ async function routeApi(db, p, method, body, url, req) {
 
   // 站内沟通
   if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url);
+  const convRead = p.match(/^\/api\/conversations\/(\d+)\/read$/);
+  if (convRead && method === 'POST') return await handleMarkRead(db, parseInt(convRead[1]), body);
   const convMsgs = p.match(/^\/api\/conversations\/(\d+)\/messages$/);
   if (convMsgs && method === 'GET') return await handleGetMessages(db, parseInt(convMsgs[1]), url);
   if (convMsgs && method === 'POST') return await handleSendMessage(db, parseInt(convMsgs[1]), body, req);
 
   // 评价
-  if (p === '/api/reviews' && method === 'POST') return await handleCreateReview(db, body);
+  if (p === '/api/reviews' && method === 'POST') return await handleCreateReview(db, body, req);
   if (p === '/api/reviews' && method === 'GET') return await handleGetReviews(db, url);
+  const reviewById = p.match(/^\/api\/reviews\/(\d+)$/);
+  if (reviewById && method === 'PUT') return await handleUpdateReview(db, parseInt(reviewById[1]), body, req);
 
   // 资料共享（模块2：section 字段预留分区，当前全在广场）
   if (p === '/api/posts' && method === 'GET') return await handleListPosts(db, url);

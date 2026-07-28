@@ -64,6 +64,9 @@
 .conv-item.active::before { transform: scaleY(1); }
 
 .conv-item-top { display: flex; align-items: baseline; gap: 8px; }
+
+/* 会话项未读红点：右上角小圆点（打开会话即消） */
+.conv-unread-dot { position: absolute; top: 8px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 .conv-item-name {
   flex: 1; min-width: 0;
   font-size: .88rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink);

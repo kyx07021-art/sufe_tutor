@@ -28,8 +28,10 @@ export async function handleGenInvite(db, body, req) {
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
 
   const code = genCode(8);
-  const expiresAt = new Date(Date.now() + INVITE_VALIDITY_MS).toISOString();
-  await dbCreateInviteCode(db, code, admin.id, expiresAt);
+  const exp = new Date(Date.now() + INVITE_VALIDITY_MS);
+  const expiresAt = exp.toISOString();                       // 返前端：ISO 带 Z，new Date 解析无时区歧义
+  const expiresAtDb = expiresAt.slice(0, 19).replace('T', ' '); // 入库：同 datetime('now','localtime') 格式（worker 上即 UTC），字符串比较才正确
+  await dbCreateInviteCode(db, code, admin.id, expiresAtDb);
   logEvent(db, { action: 'admin.invite.create', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'invite', entityId: code, detail: { expiresAt }, req });
   return json({ code, expiresAt });

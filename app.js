@@ -13,7 +13,7 @@ const { SUBJECTS, STUDENT_GRADES,
 // 状态
 // ============================================================
 const state = { user: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], intentTeachers: [],
-                adminModalTeacher: null,
+                adminModalTeacher: null, myReviewOnModal: null,
                 myDemands: [], editingDemandId: null,
                 inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
 
@@ -47,6 +47,18 @@ const ROLE_PAGES = {
 function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// 全站时间显示统一入口：后端一律存 UTC（workerd 里 datetime('now','localtime') 即 UTC），
+// 此函数把 'YYYY-MM-DD HH:MM:SS'（视作 UTC）或 ISO 串转成浏览器本地时区的 'YYYY-MM-DD HH:MM'。
+// 凡展示时间必过此函数，禁止裸 slice 原始串。
+function fmtDateTime(s) {
+  if (!s) return '';
+  const str = String(s);
+  const d = new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(str) ? str.replace(' ', 'T') + 'Z' : str);
+  if (isNaN(d)) return str.slice(0, 16); // 解析失败：退回原串截断，不抛错
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // ============================================================
@@ -129,6 +141,7 @@ function enterClient(pageId) {
   renderSidebar();
   showView('client');
   selectPage(pageId || defaultPageFor());
+  startUnreadPoll(); // 登录后即开始未读红点慢轮询
 }
 
 function renderSidebar() {
@@ -143,6 +156,7 @@ function renderSidebar() {
   document.getElementById('sidebar-nav').innerHTML = pagesForRole().map((p, i) => `
     <button type="button" class="sidebar-item" data-page="${p.id}" onclick="selectPage('${p.id}')">
       <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span><span>${p.label}</span>
+      ${p.id === 'my-chats' ? '<span class="sidebar-dot hidden" id="sidebar-chats-dot" title="有新消息"></span>' : ''}
     </button>`).join('');
   document.getElementById('sidebar-invite').classList.toggle('hidden', !isAdmin);
 }
@@ -163,6 +177,36 @@ function selectPage(pageId) {
 function openSidebar()   { document.body.classList.add('sidebar-open'); }
 function closeSidebar()  { document.body.classList.remove('sidebar-open'); }
 function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
+
+// ============================================================
+// 「我的沟通」未读红点：30s 慢轮询会话未读总数；app-chat 打开会话已读后
+// 也会回调 setChatsBadge 实时消点
+// ============================================================
+let unreadPollTimer = null;
+
+function setChatsBadge(total) {
+  const dot = document.getElementById('sidebar-chats-dot');
+  if (dot) dot.classList.toggle('hidden', !total);
+}
+
+function startUnreadPoll() {
+  stopUnreadPoll();
+  refreshChatsBadge();
+  unreadPollTimer = setInterval(refreshChatsBadge, 30000);
+}
+
+function stopUnreadPoll() {
+  if (unreadPollTimer) { clearInterval(unreadPollTimer); unreadPollTimer = null; }
+}
+
+async function refreshChatsBadge() {
+  if (!state.user) return;
+  try {
+    const data = await api(`/api/conversations?userId=${state.user.id}`);
+    const total = (data.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
+    setChatsBadge(total);
+  } catch { /* 网络抖动静默，下一轮自愈 */ }
+}
 
 
 // ============================================================
@@ -280,6 +324,7 @@ async function validateInviteAndRegister() {
 
 function handleLogout() {
   if (state.inviteTimerId) clearInterval(state.inviteTimerId);
+  stopUnreadPoll();
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询
   state.user = null; state.page = null;
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
@@ -303,7 +348,7 @@ function openDemandModal(demandId) {
 function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
 
 function renderDemandModal(demand) {
-  return `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  return `<div class="modal-overlay">
     <div class="modal">
       <div class="modal-header"><h2>${demand ? '编辑学生需求' : '提交学生需求'}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
@@ -657,9 +702,11 @@ async function openTeacherModal(userId) {
   // 管理员：评价栏走管理端接口（全状态 + 逐条管理）
   if (state.adminModalTeacher) { loadTeacherReviewsAdmin(userId); return; }
   try {
-    const data = await api(`/api/reviews?teacherUserId=${userId}`);
+    // reviewerUserId 取回「我的评价」（mine，任意状态），供写评价/修改评价判定
+    const data = await api(`/api/reviews?teacherUserId=${userId}&reviewerUserId=${state.user ? state.user.id : ''}`);
+    state.myReviewOnModal = data.mine || null;
     const el = document.getElementById('teacher-modal-reviews');
-    if (el) el.innerHTML = renderReviewItems(data.reviews || [], t, {}); // 防竞态：弹窗已关则丢弃
+    if (el) el.innerHTML = renderReviewItems(data.reviews || [], t, { mine: data.mine }); // 防竞态：弹窗已关则丢弃
   } catch {
     const el = document.getElementById('teacher-modal-reviews');
     if (el) el.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_REVIEWS}</p>`;
@@ -715,7 +762,7 @@ function renderReviewItems(reviews, t, opts = {}) {
     ${reviews.map(r => `<div class="review-item">
       <div class="review-header">
         <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)} ${admin ? statusTag(r) : ''}</span>
-        <span class="review-date">${r.created_at || ''}</span>
+        <span class="review-date">${fmtDateTime(r.created_at)}</span>
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
       ${admin ? `<div class="review-admin-actions">
@@ -725,19 +772,24 @@ function renderReviewItems(reviews, t, opts = {}) {
       </div>` : ''}
     </div>`).join('')}
     ${!reviews.length ? `<p class="text-sm text-muted">${UI.EMPTY_NO_REVIEWS}</p>` : ''}
-    ${!admin && state.user && state.user.role === 'student' ? `
+    ${!admin && state.user && state.user.role === 'student' ? (opts.mine ? `
+      <div class="review-mine-note">你的评价：${opts.mine.status === 'approved' ? '已通过' : opts.mine.status === 'rejected' ? '未通过，可修改后重新提交' : '审核中'}</div>
+      <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id}, null, ${opts.mine.id})">修改评价</button>
+    ` : `
       <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id})">写评价</button>
-    ` : ''}`;
+    `) : ''}`;
 }
 
 // ============================================================
 // 评价 Modal
 // ============================================================
-function openReviewModal(teacherUserId, teacherName) {
+// 评价弹窗：editId 有值 = 修改自己的既有评价（自 state.myReviewOnModal 回填）
+function openReviewModal(teacherUserId, teacherName, editId) {
   teacherName = teacherName ?? (state.allTeachers.find(x => x.user_id === teacherUserId)?.username || '');
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  const existing = editId ? state.myReviewOnModal : null;
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>评价 ${teacherName}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${existing ? '修改评价' : '评价 ' + teacherName}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="review-alert"></div>
         <div class="form-group">
@@ -745,19 +797,20 @@ function openReviewModal(teacherUserId, teacherName) {
           <div class="star-rating-input" id="review-stars">
             ${[1,2,3,4,5].map(i=>`<button class="star-btn" data-val="${i}" onclick="setReviewStars(${i})" type="button">★</button>`).join('')}
           </div>
-          <input type="hidden" id="review-rating" value="0">
+          <input type="hidden" id="review-rating" value="${existing ? existing.rating : 0}">
         </div>
         <div class="form-group">
           <label class="form-label">评价内容 <span class="req">*</span></label>
-          <textarea class="form-input" id="review-comment" rows="4" placeholder="请分享你的体验..."></textarea>
+          <textarea class="form-input" id="review-comment" rows="4" placeholder="请分享你的体验...">${existing ? escHtml(existing.comment) : ''}</textarea>
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline" onclick="closeModal()">取消</button>
-          <button class="btn btn-primary" onclick="submitReview(${teacherUserId})">提交评价</button>
+          <button class="btn btn-primary" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? '保存修改' : '提交评价'}</button>
         </div>
       </div>
     </div>
   </div>`;
+  if (existing) setReviewStars(existing.rating); // 星星高亮回填
 }
 
 function setReviewStars(val) {
@@ -767,7 +820,8 @@ function setReviewStars(val) {
   });
 }
 
-async function submitReview(teacherUserId) {
+// reviewId 有值 = PUT 修改既有评价（重回审核）；否则 POST 新评价（签约门槛由后端把关）
+async function submitReview(teacherUserId, reviewId) {
   const rating = +document.getElementById('review-rating').value;
   const comment = document.getElementById('review-comment').value.trim();
   const alertEl = document.getElementById('review-alert');
@@ -776,12 +830,11 @@ async function submitReview(teacherUserId) {
   if (comment.length < 2) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_COMMENT_TOO_SHORT}</div>`; return; }
 
   try {
-    await api('/api/reviews', {
-      method: 'POST',
-      body: { teacherUserId, reviewerUserId: state.user.id, rating, comment },
-    });
+    const data = reviewId
+      ? await api(`/api/reviews/${reviewId}`, { method: 'PUT', body: { reviewerUserId: state.user.id, rating, comment } })
+      : await api('/api/reviews', { method: 'POST', body: { teacherUserId, reviewerUserId: state.user.id, rating, comment } });
     closeModal();
-    showToast(UI.SUCCESS_REVIEW_SUBMITTED);
+    showToast(data.message || UI.SUCCESS_REVIEW_SUBMITTED);
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
   }
@@ -895,7 +948,7 @@ function renderDemandCard(d, opts = {}) {
     <div class="list-card-header">
       <span class="list-card-title">${admin && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
       <span class="demand-card-tools">
-        <span class="list-card-meta">${d.created_at||''}</span>
+        <span class="list-card-meta">${fmtDateTime(d.created_at)}</span>
         ${teacherIntentBtn}
         ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
         ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
@@ -1051,6 +1104,7 @@ function initProfileForm() {
   subjEl.innerHTML = SUBJECTS.map(s=>`
     <label class="checkbox-item"><input type="checkbox" value="${s.id}">${s.name}</label>
   `).join('');
+  subjEl.addEventListener('change', onTeacherSubjectsChange); // 擅长科目驱动高考填写组件按需加载
   // 高考成绩区改由省份驱动（app-region.js）：选省份后渲染锁定编辑器；科目勾选仅标记擅长科目
   document.getElementById('profile-gaokao-scores').innerHTML = `<p class="text-sm text-muted">请先选择省份（高考所在地），按该省政策填写高考成绩</p>`;
   loadProfile();
@@ -1061,11 +1115,6 @@ async function loadProfile() {
     const data = await api(`/api/teacher/profile?userId=${state.user.id}`);
     if (data.profile) {
       const p = data.profile;
-      if (p.province) {
-        document.getElementById('profile-province').value = p.province;
-        document.getElementById('profile-gaokao-scores').innerHTML =
-          renderTeacherGaokaoEditor(p.province, p.gaokao_scores || []);
-      }
       document.getElementById('profile-grade').value = p.grade || '';
       document.getElementById('profile-gender').value = p.gender || '';
       document.getElementById('profile-price').value = p.price || '';
@@ -1076,6 +1125,12 @@ async function loadProfile() {
           const cb = document.querySelector(`#profile-subjects input[value="${id}"]`);
           if (cb) cb.checked = true;
         });
+      }
+      // 省份 + 擅长科目共同决定编辑器：须先勾科目再渲染（编辑器按勾选集按需加载）
+      if (p.province) {
+        document.getElementById('profile-province').value = p.province;
+        document.getElementById('profile-gaokao-scores').innerHTML =
+          renderTeacherGaokaoEditor(p.province, p.gaokao_scores || []);
       }
     }
   } catch (err) { console.error(err); }
@@ -1179,7 +1234,7 @@ async function loadAdminStats() {
         <h3>最近注册用户</h3>
         ${s.recentUsers.map(u => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
           <span><strong>${escHtml(u.username)}</strong> <span class="tag">${u.role==='student'?'学生':u.role==='teacher'?'教师':'管理员'}</span></span>
-          <span class="text-muted">${u.created_at||''}</span>
+          <span class="text-muted">${fmtDateTime(u.created_at)}</span>
         </div>`).join('')}
       </div>
 
@@ -1187,7 +1242,7 @@ async function loadAdminStats() {
         <h3>最近需求</h3>
         ${s.recentDemands.map(d => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
           <span><strong>${escHtml(d.username)}</strong> ${STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||''} ${d.target_subjects.map(id=>SUBJECTS.find(s=>s.id===id)?.name||'').join('、')}</span>
-          <span class="text-muted">${d.created_at||''}</span>
+          <span class="text-muted">${fmtDateTime(d.created_at)}</span>
         </div>`).join('')}
       </div>
     `;
@@ -1224,7 +1279,7 @@ function renderAdminUserRow(u, role) {
         <strong>${escHtml(u.username)}</strong>
         ${u.banned ? `<span class="tag tag-danger">已封禁</span>` : ''}
       </div>
-      <div class="admin-row-meta">${meta} · 注册于 ${u.created_at || ''}</div>
+      <div class="admin-row-meta">${meta} · 注册于 ${fmtDateTime(u.created_at)}</div>
     </div>
     <div class="admin-row-actions">
       ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs" onclick="openTeacherModal(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
@@ -1276,7 +1331,7 @@ function renderAdminReviewRow(r) {
         ${renderStars(r.rating)} ${statusTag}
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
-      <div class="admin-row-meta">${r.created_at || ''}</div>
+      <div class="admin-row-meta">${fmtDateTime(r.created_at)}</div>
     </div>
     <div class="admin-row-actions">
       ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs" onclick="adminReviewAction(${r.id},'approve',0)">${UI.BTN_APPROVE}</button>

@@ -75,7 +75,7 @@ function renderPostCard(p, i) {
   const mine = state.user && p.user_id === state.user.id;
   const raw = String(p.body_md || '');
   const snippet = raw.slice(0, 80);
-  const time = p.created_at ? String(p.created_at).slice(0, 16) : '';
+  const time = typeof fmtDateTime === 'function' ? fmtDateTime(p.created_at) : String(p.created_at || '').slice(0, 16);
   return `<div class="post-card" style="--i:${Math.min(i, 8)}">
     <div class="post-card-head">
       <h3 class="post-title">${escHtml(p.title)}</h3>
@@ -124,7 +124,8 @@ async function togglePostLike(id) {
 // 发布弹窗（标题 + Markdown 工具条 + 实时预览）
 // ============================================================
 function openPostEditor() {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  // 防误触：点遮罩不关（编辑成本高，只能 ✕ / 取消关闭）
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
       <div class="modal-header"><h2>发布帖子</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">

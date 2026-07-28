@@ -60,6 +60,7 @@ async function loadConversations() {
     const data = await api(`/api/conversations?userId=${state.user.id}`);
     chatConvList = data.conversations || [];
     renderConvList();
+    if (typeof setChatsBadge === 'function') setChatsBadge(chatsUnreadTotal()); // 同步侧边栏红点
   } catch (err) {
     const el = document.getElementById('conv-list');
     if (el) el.innerHTML = `<div class="empty-state empty-state--small"><p>加载失败：${escHtml(err.message)}</p></div>`;
@@ -90,6 +91,21 @@ function chatPeerOf(c) {
   };
 }
 
+// ---- 未读红点 ----
+function chatsUnreadTotal() { return chatConvList.reduce((s, c) => s + (c.unread_count || 0), 0); }
+
+// 会话已读：就地消红点 + 同步侧边栏徽标 + 静默上报后端（失败下一轮轮询自愈）
+async function markReadConv(convId) {
+  const c = chatConvList.find(x => x.id === convId);
+  if (c) c.unread_count = 0;
+  const dot = document.querySelector(`.conv-unread-dot[data-unread-dot="${convId}"]`);
+  if (dot) dot.remove();
+  if (typeof setChatsBadge === 'function') setChatsBadge(chatsUnreadTotal());
+  try {
+    await api(`/api/conversations/${convId}/read`, { method: 'POST', body: { userId: state.user.id } });
+  } catch { /* 静默 */ }
+}
+
 function renderConvItem(c) {
   const peer = chatPeerOf(c);
   const me = state.user.id;
@@ -101,6 +117,7 @@ function renderConvItem(c) {
   }
   const time = fmtChatTime(c.last_at || c.created_at);
   return `<button type="button" class="conv-item${c.id === chatConvId ? ' active' : ''}" data-conv-id="${c.id}" onclick="openConversation(${c.id})">
+    ${(c.unread_count || 0) > 0 ? `<span class="conv-unread-dot" data-unread-dot="${c.id}"></span>` : ''}
     <span class="conv-item-top">
       <span class="conv-item-name">${escHtml(peer.name || '未知用户')}</span>
       <span class="conv-item-role">${peer.role}</span>
@@ -153,6 +170,7 @@ async function openConversation(convId) {
       : '<div class="empty-state empty-state--small"><p>还没有消息，先打个招呼吧</p></div>';
     chatLastMsgId = msgs.length ? msgs[msgs.length - 1].id : 0;
     chatScrollToBottom(false);
+    markReadConv(convId); // 打开即已读：会话项与侧边栏红点点掉
     chatStartPolling();
     if (window.innerWidth > 860) { // 移动端不自动聚焦，避免键盘弹出遮挡
       const ta = document.getElementById('chat-input');
@@ -248,6 +266,7 @@ async function chatPollTick() {
     chatLastMsgId = fresh[fresh.length - 1].id;
     chatScrollToBottom(true);
     chatBumpConvPreview(convId, fresh[fresh.length - 1]); // 左栏预览同步 + 置顶
+    if (fresh.some(m => m.sender_user_id !== state.user.id)) markReadConv(convId); // 看着的会话收到对方消息：就地已读
   } catch (err) {
     // 网络抖动静默，下一 tick 自愈
   } finally {
@@ -333,16 +352,15 @@ function backToConvList() {
 // 小工具
 // ============================================================
 
-// 时间显示：created_at 原串截到分钟（'YYYY-MM-DD HH:MM'）
+// 时间显示：服务端存 UTC，统一过 fmtDateTime 转本地时区（'YYYY-MM-DD HH:MM'）
 function fmtChatTime(t) {
-  return t ? String(t).slice(0, 16) : '';
+  return typeof fmtDateTime === 'function' ? fmtDateTime(t) : (t ? String(t).slice(0, 16) : '');
 }
 
-// 本地时间戳（仅用于发送成功后的即时展示，下一轮渲染会被服务端时间取代）
+// 即时时间戳（发送成功瞬间展示用，下一轮渲染被服务端时间取代）：
+// 输出 ISO（UTC），与后端存储格式同源，经 fmtDateTime 转本地显示
 function chatNowStamp() {
-  const d = new Date();
-  const p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return new Date().toISOString();
 }
 
 function chatScrollToBottom(smooth) {

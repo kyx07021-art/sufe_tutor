@@ -70,12 +70,15 @@ function regionResolvePolicy(provinceId) {
   };
 }
 
-// 教师端主科段落（三种政策都含语数外原始分，/150）
+// 教师端主科段落（三种政策都含语数外原始分，/150）。
+// 标题常驻：未勾选任何主科时给出引导提示，勾了哪几科就只加载哪几科
 function gkMainSection(mainIds, exOf) {
   const R = globalThis.SUFE_REGIONS;
   const names = R.subjectNames;
-  if (!mainIds || !mainIds.length) return '';
   let html = '<div class="gaokao-section"><h4>主科成绩（原始分）</h4>';
+  if (!mainIds || !mainIds.length) {
+    return html + '<p class="region-hint">在上方勾选擅长的主科后，在此填写成绩</p></div>';
+  }
   mainIds.forEach(sid => {
     const ex = exOf(sid);
     const max = R.subjectMaxScore[sid] || 150;
@@ -121,6 +124,8 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
   const list = Array.isArray(existing) ? existing : [];
   const exOf = sid => list.find(x => x && x.subject === sid) || {};
   const hasEx = sid => Object.keys(exOf(sid)).length > 0;
+  // 填写范围 = 上方 #profile-subjects 勾选的擅长科目（单一入口，不全量填写）
+  const checked = new Set([...document.querySelectorAll('#profile-subjects input:checked')].map(cb => cb.value));
 
   if (!R.isValidProvince(provinceId)) {
     return '<p class="text-sm text-muted">请先选择高考所在省份</p>';
@@ -133,56 +138,56 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
   html += `<div class="region-locked-note">已按「${escHtml(R.provinceName(provinceId))}」高考政策加载并锁定</div>`;
   if (pol.desc) html += `<p class="region-policy-desc">${escHtml(pol.desc)}</p>`;
 
-  // 主科原始分（三分支共有）
-  html += gkMainSection(pol.main, exOf);
+  // 主科原始分（三分支共有，仅渲染勾选的擅长主科）
+  html += gkMainSection(pol.main.filter(sid => checked.has(sid)), exOf);
 
   if (pol.type === '3+1+2') {
-    // ---- 分支一：3+1+2 ----
-    // 首选：物理 / 历史 二选一（单选 pill）+ 原始分 /100
-    const firstSel = pol.first.find(sid => hasEx(sid)) || pol.first[0];
-    const firstEx = exOf(firstSel);
-    html += `<div class="gaokao-section"><h4>首选科目（二选一，原始分）</h4>
-      <div class="gaokao-row">
-        <div class="gk-pill-group gk-first-pills" data-gk-role="first">
-          ${pol.first.map(sid => `<span class="grade-option gk-pill ${sid === firstSel ? 'selected' : ''}"
-            data-gk-first="${escHtml(sid)}" onclick="pickGkPill(this)">${escHtml(names[sid] || sid)}</span>`).join('')}
-        </div>
-        <input type="number" class="score-inline" data-gk-role="first-score" data-gk-type="score"
-          value="${gkVal(firstEx.score)}" placeholder="分数" min="0" max="100">
-        <span class="score-max">/ 100</span>
-      </div></div>`;
-
-    // 再选：政地化生勾选 + 每科五等级 pill（standard5）
+    // ---- 分支一：3+1+2 ---- 首选（物/历，勾选范围内选一）+ 再选（勾选科目各填等级赋分）
+    const firstChecked = pol.first.filter(sid => checked.has(sid));
+    const reChecked = pol.reassigned.filter(sid => checked.has(sid));
     const gs = pol.gradeSystem || R.gradeSystems.standard5;
-    html += `<div class="gaokao-section"><h4>再选科目（勾选并填等第，等级赋分）</h4>
-      <div class="checkbox-grid gk-check-grid">
-        ${pol.reassigned.map(sid => `<label class="checkbox-item"><input type="checkbox"
-          value="${escHtml(sid)}"${hasEx(sid) ? ' checked' : ''} onclick="toggleGkRow(this)">${escHtml(names[sid] || sid)}</label>`).join('')}
-      </div>
-      ${pol.reassigned.map(sid => {
+    html += '<div class="gaokao-section"><h4>选考科目（等级赋分）</h4>';
+    if (!firstChecked.length && !reChecked.length) {
+      html += '<p class="region-hint">在上方勾选擅长的选考科目后，在此填写成绩</p>';
+    } else {
+      if (firstChecked.length) {
+        const firstSel = firstChecked.find(hasEx) || firstChecked[0];
+        const firstEx = exOf(firstSel);
+        html += `<div class="gaokao-row"><span class="subject-name">首选科目${firstChecked.length > 1 ? '（二选一）' : ''}</span>
+          <div class="gk-pill-group gk-first-pills" data-gk-role="first">
+            ${firstChecked.map(sid => `<span class="grade-option gk-pill ${sid === firstSel ? 'selected' : ''}"
+              data-gk-first="${escHtml(sid)}" onclick="pickGkPill(this)">${escHtml(names[sid] || sid)}</span>`).join('')}
+          </div>
+          <input type="number" class="score-inline" data-gk-role="first-score" data-gk-type="score"
+            value="${gkVal(firstEx.score)}" placeholder="分数" min="0" max="100">
+          <span class="score-max">/ 100</span>
+        </div>`;
+      }
+      html += reChecked.map(sid => {
         const ex = exOf(sid);
-        return `<div class="gaokao-row ${hasEx(sid) ? '' : 'hidden'}" data-gk-check-row="${escHtml(sid)}">
+        return `<div class="gaokao-row" data-gk-check-row="${escHtml(sid)}">
           <span class="subject-name">${escHtml(names[sid] || sid)}</span>
           <div class="grade-selector" data-gk-subject="${escHtml(sid)}">
             ${gs.levels.map(lv => `<span class="grade-option ${ex.grade === lv.id ? 'selected' : ''}"
               data-grade="${escHtml(lv.id)}" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
           </div></div>`;
-      }).join('')}
-    </div>`;
+      }).join('');
+    }
+    html += '</div>';
 
   } else if (pol.type === '3+3') {
-    // ---- 分支二：3+3 ----
-    const electives = pol.extraElective ? [...pol.electives, pol.extraElective] : [...pol.electives];
+    // ---- 分支二：3+3 ---- 选考科目 = 勾选的擅长科目（浙江含技术）
+    const electives = (pol.extraElective ? [...pol.electives, pol.extraElective] : [...pol.electives])
+      .filter(sid => checked.has(sid));
     const gs = pol.gradeSystem;
     const isStandard = !!(gs && gs.type === 'standard');            // 海南：标准分，分数录入
     const usePills = !!(gs && gs.type === 'grade' && gs.levels.length <= 11); // 档位多（21 档）改用下拉
 
-    html += `<div class="gaokao-section"><h4>选考科目（勾选并填${isStandard ? '标准分' : '等第'}）</h4>
-      <div class="checkbox-grid gk-check-grid">
-        ${electives.map(sid => `<label class="checkbox-item"><input type="checkbox"
-          value="${escHtml(sid)}"${hasEx(sid) ? ' checked' : ''} onclick="toggleGkRow(this)">${escHtml(names[sid] || sid)}</label>`).join('')}
-      </div>
-      ${electives.map(sid => {
+    html += `<div class="gaokao-section"><h4>选考科目（${isStandard ? '标准分' : '等第'}）</h4>`;
+    if (!electives.length) {
+      html += '<p class="region-hint">在上方勾选擅长的选考科目后，在此填写成绩</p>';
+    } else {
+      html += electives.map(sid => {
         const ex = exOf(sid);
         let ctl;
         if (isStandard) {
@@ -206,18 +211,20 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
             value="${gkVal(ex.score)}" placeholder="分数" min="0" max="100">
             <span class="score-max">/ 100</span>`;
         }
-        return `<div class="gaokao-row ${hasEx(sid) ? '' : 'hidden'}" data-gk-check-row="${escHtml(sid)}">
+        return `<div class="gaokao-row" data-gk-check-row="${escHtml(sid)}">
           <span class="subject-name">${escHtml(names[sid] || sid)}</span>${ctl}</div>`;
-      }).join('')}
-    </div>`;
+      }).join('');
+    }
+    html += '</div>';
 
   } else {
     // ---- 分支三：传统文理（理/文 track pill + 对应科目原始分） ----
     const tracks = pol.tracks || { science: [], arts: [] };
     const trackLabel = { science: '理科', arts: '文科' };
-    // 由已有成绩推断当前分科；无记录默认理科
-    let curTrack = Object.keys(tracks).find(tk =>
-      list.some(x => x && (tracks[tk] || []).includes(x.subject))) || Object.keys(tracks)[0] || '';
+    // 当前分科：优先按勾选的擅长科目推断 → 已有成绩推断 → 默认第一 track
+    let curTrack = Object.keys(tracks).find(tk => (tracks[tk] || []).some(sid => checked.has(sid)))
+      || Object.keys(tracks).find(tk => list.some(x => x && (tracks[tk] || []).includes(x.subject)))
+      || Object.keys(tracks)[0] || '';
 
     html += `<div class="gaokao-section"><h4>文理分科</h4>
       <div class="gaokao-row">
@@ -226,7 +233,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
             data-gk-track="${escHtml(tk)}" onclick="pickGkTrack(this)">${escHtml(trackLabel[tk] || tk)}</span>`).join('')}
         </div>
       </div>
-      ${Object.keys(tracks).map(tk => (tracks[tk] || []).map(sid => {
+      ${Object.keys(tracks).map(tk => (tracks[tk] || []).filter(sid => checked.has(sid)).map(sid => {
         const ex = exOf(sid);
         return `<div class="gaokao-row ${tk === curTrack ? '' : 'hidden'}" data-gk-track-row="${escHtml(tk)}">
           <span class="subject-name">${escHtml(names[sid] || sid)}</span>
@@ -246,6 +253,16 @@ function onTeacherProvinceChange() {
   const el = document.getElementById('profile-gaokao-scores');
   if (!sel || !el) return;
   el.innerHTML = renderTeacherGaokaoEditor(sel.value, []);
+}
+
+// 擅长科目勾选变化：按新勾选集重渲编辑器。先收集当前输入作为 existing 回填，
+// 保住已填成绩（取消勾选的科目随行移除，其成绩不再收集——不擅长即不展示）
+function onTeacherSubjectsChange() {
+  const sel = document.getElementById('profile-province');
+  const el = document.getElementById('profile-gaokao-scores');
+  if (!el) return;
+  const existing = collectTeacherGaokao();
+  el.innerHTML = renderTeacherGaokaoEditor(sel ? sel.value : '', existing);
 }
 
 // 单选 pill 通用切换（首选科目 / 文理分科共用 .gk-pill-group 容器）
