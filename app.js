@@ -311,6 +311,9 @@ function renderSidebar() {
       <div class="sidebar-user-name">${escHtml(u.username)}</div>
       <div class="sidebar-user-role">${roleLabel}</div>
     </div>`;
+  // 栏底运营脚注：文案走常量，按钮名随 BTN_FEEDBACK 联动
+  const footnote = document.getElementById('sidebar-footnote');
+  if (footnote) footnote.textContent = UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK);
   // 栏目 = 主页 entry 同款排布：亮紫序号 + 大字标题 + 选中展开简介；黑色选中块由 .sidebar-pill 滑动承担
   document.getElementById('sidebar-nav').innerHTML =
     `<span class="sidebar-pill" id="sidebar-pill" aria-hidden="true"></span>` +

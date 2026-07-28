@@ -672,6 +672,18 @@ textarea.form-input {
 /* 侧边栏展开/收起箭头：仅移动端（≤860px）启用，见媒体查询 */
 .sidebar-expand-toggle { display: none; }
 
+/* 栏底运营脚注：细黑体小字，用户块整体上移两个行距为其让位；点击直达「关于我们」 */
+.sidebar-user { margin-bottom: 2.6em; }
+.sidebar-footnote {
+  position: relative; z-index: 1; flex-shrink: 0;
+  width: 100%; padding: 0 16px 12px;
+  text-align: left; cursor: pointer;
+  font-size: .62rem; line-height: 1.7; font-weight: 300; letter-spacing: .02em;
+  color: rgba(17,17,20,.72);
+  transition: color var(--t-fast) var(--ease-out);
+}
+.sidebar-footnote:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+
 /* 侧边栏网格装饰：钉死在侧边栏盒底的背景层（内容在 .sidebar-scroll 内滚动，
    选项卡增宽退让完全不触碰它）；主页同款 44px 细网格，底部实、向上渐隐 */
 .sidebar-deco-grid {
@@ -1035,9 +1047,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .sidebar-nav { gap: 10px; }
   .sidebar-item { grid-template-columns: 1fr; justify-items: center; padding: 11px 0; }
   .sidebar-item.active { padding: 13px 0; }
-  .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid { display: none; }
+  .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote { display: none; }
   .sidebar-item-index { font-size: 1rem; }
-  .sidebar-user { padding: 10px 0; justify-content: center; }
+  .sidebar-user { padding: 10px 0; justify-content: center; margin-bottom: 0; }
   .sidebar-user-avatar { width: 38px; height: 38px; font-size: 1.05rem; }
   .sidebar-close { display: none; }
   /* 展开形态：恢复完整布局（宽度宽度过渡，内容淡入） */
@@ -1048,7 +1060,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   body.sidebar-open .sidebar-user-text { display: block; }
   body.sidebar-open .sidebar-deco-grid { display: block; }
   body.sidebar-open .sidebar-item-index { font-size: 1.25rem; }
-  body.sidebar-open .sidebar-user { padding: 13px 18px 15px; justify-content: flex-start; }
+  body.sidebar-open .sidebar-user { padding: 13px 18px 15px; justify-content: flex-start; margin-bottom: 2.6em; }
+  body.sidebar-open .sidebar-footnote { display: block; }
   .sidebar-backdrop { display: block; }
   .client-main { padding: 20px 16px 40px; }
 

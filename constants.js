@@ -242,6 +242,7 @@ globalThis.APP_CONSTANTS = {
     // 关于我们（全角色，侧边栏末尾）
     PAGE_ABOUT: '关于我们',
     PAGE_ABOUT_DESC: '平台介绍与用户支持',
+    ABOUT_FOOTNOTE: '网站初创，欢迎在「关于我们」-「{feedback}」中向我们提出优化建议。您的每一份建议都是我们优化服务的宝贵助力。',
     ABOUT_WHO_TITLE: '我们是谁',
     ABOUT_WHO_TEXT: '我们是一群来自上海财经大学的学生，创立了这个零佣金家教信息共享平台。教师零佣金入驻，学生免费发布需求，没有中间商赚差价，师生直接对接，让每一次教学匹配都透明、高效。',
     ABOUT_USAGE_TITLE: '平台基本用法',
