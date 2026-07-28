@@ -2,9 +2,10 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, dbRun, issueAuthToken, authUser, MSG, INVITE_GATE_ENABLED } from './core.js';
+import { json, error, hashPassword, verifyPassword, dbRun, issueAuthToken, authUser, confirmDangerOtp, MSG, INVITE_GATE_ENABLED } from './core.js';
 import { dbFindUserByUsername, dbFindUserById, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
 import { logEvent } from './log.js';
+import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
 
 export async function handleRegister(db, body, req) {
   const { username, password, role, inviteCode } = body;
@@ -46,6 +47,7 @@ export async function handleLogin(db, body, req) {
       actorRole: user.role, entity: 'user', entityId: user.id, req });
     return error(MSG.ACCOUNT_BANNED, 403);
   }
+  if (user.deactivated) return error(MSG.ACCOUNT_DEACTIVATED, 403);
   const authToken = await issueAuthToken(db, user.id);
   logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, req });
@@ -58,6 +60,28 @@ export async function handleCheckUsername(db, url) {
   if (!username) return json({ exists: false });
   const user = await dbFindUserByUsername(db, username);
   return json(user ? { exists: true, role: user.role } : { exists: false });
+}
+
+// POST /api/user/deactivate —— 注销账户：用户名墓碑化（「已注销用户#id」，后缀避 UNIQUE 冲突）+
+// 凭证清空 + 单方关联数据全删（档案/通知/反馈/帖子/点赞/暂存附件）；需求/会话/合同/评价等
+// 双方数据保留，JOIN username 处自然显示墓碑。后期接入短信验证（confirmDangerOtp，现恒通过）
+export async function handleDeactivateAccount(db, body, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  if (me.role === 'admin') return error(MSG.NO_PERMISSION, 403); // 管理员禁止注销，防管理面板孤岛化
+  if (!(await confirmDangerOtp(db, me.id))) return error(MSG.ACCOUNT_DEACTIVATED, 403);
+  const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
+  await dbRun(db, `UPDATE users SET username=?, password_hash='', salt='', avatar='', banned=1, deactivated=1 WHERE id=?`,
+    [tombstone, me.id]);
+  await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [me.id]);
+  await dbRun(db, 'DELETE FROM notifications WHERE user_id=?', [me.id]);
+  await dbRun(db, 'DELETE FROM feedbacks WHERE user_id=?', [me.id]);
+  await dbRun(db, 'DELETE FROM uploads WHERE user_id=?', [me.id]);
+  await dbRun(db, 'DELETE FROM post_likes WHERE user_id=?', [me.id]);
+  await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [me.id]);
+  logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
+    actorRole: me.role, entity: 'user', entityId: me.id, req });
+  return json({ ok: true });
 }
 
 // GET /api/auth/me —— 凭令牌取当前用户（刷新保活：前端持久化 token 后不再重放密码登录）

@@ -5,7 +5,7 @@
  * 正式合同正文由 buildContractMd 按草案信息生成（Markdown，后期可换更正式的格式）；双方看到的是同一条记录。
  * 短信验证码环节未接入：verifySignOtp 预留接口，测试版以二次确认代替。
  */
-import { dbAll, dbGet, dbRun, json, error, authUser, requireAdmin, MSG } from './core.js';
+import { dbAll, dbGet, dbRun, json, error, authUser, requireAdmin, confirmDangerOtp, MSG } from './core.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
@@ -298,6 +298,26 @@ export async function handleModifyContract(db, contractId, body, req) {
     [md, contractId]);
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
+  return json({ ok: true });
+}
+
+// POST /api/contracts/:id/revoke —— 撤销已签约合同（仅限双方已约定终止的场景，前端 2 次确认 + 法律后果提示）：
+// 活跃库抹掉合同行与合同气泡；签署台账与加密留档保留（不可篡改的历史凭证）；通知对方。
+// 后期接入短信验证（confirmDangerOtp，现恒通过）
+export async function handleRevokeContract(db, contractId, body, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
+  if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
+  if (ct.status !== 'signed') return error(MSG.CONTRACT_STATE_INVALID, 409); // 未签约的走取消流程
+  const conv = await convOf(db, ct.conversation_id);
+  if (!isParticipant(conv, me.id)) return error(MSG.NO_PERMISSION, 403);
+  if (!(await confirmDangerOtp(db, me.id))) return error(MSG.CONTRACT_STATE_INVALID, 403);
+  await dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
+  await dbRun(db, `DELETE FROM messages WHERE conversation_id=? AND kind='contract'`, [ct.conversation_id]);
+  await notifyUser(db, otherSide(conv, me.id), UIC.CONTRACT_REVOKED_NOTIFY.replace('{name}', nameOf(conv, me.id)));
+  logEvent(db, { action: 'contract.revoke', actorUserId: me.id, entity: 'contract', entityId: contractId,
+    detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, note: 'ledger_retained' }, req });
   return json({ ok: true });
 }
 

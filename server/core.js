@@ -49,6 +49,7 @@ export const MSG = {
   ADMIN_ONLY: '仅管理员可操作',
   USER_NOT_FOUND: '用户不存在',
   ACCOUNT_BANNED: '该账户已被封禁，禁止登录',
+  ACCOUNT_DEACTIVATED: '该账户已注销',
   BANNED: '已封禁',
   UNBANNED: '已解封',
 
@@ -186,6 +187,18 @@ export async function authUser(db, req) {
 export async function requireAdmin(db, req) {
   const u = await authUser(db, req);
   return u && u.role === 'admin' ? u : null;
+}
+
+// ============================================================
+// 危险操作 OTP 校验咽喉（注销账户 / 撤销合同等不可逆操作执行前统一过此关）
+// 内测期短信未接入 → 恒通过；公测激活后改为向绑定手机发验证码并校验
+// （密钥经 secrets 网关，流程见 docs/sms-plan.md），业务调用方零改动
+// ============================================================
+let BOUND_ENV = null;
+export function bindCoreEnv(env) { BOUND_ENV = env; }
+export async function confirmDangerOtp(db, userId) {
+  void db; void userId; void BOUND_ENV; // BOUND_ENV 激活后取 SMS 密钥用
+  return true;
 }
 
 // 登录 / 注册签发令牌：48 位随机 hex（熵足够，无需 JWT 的无状态代价）

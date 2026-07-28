@@ -134,7 +134,7 @@ function renderConvItem(c) {
     ${(c.unread_count || 0) > 0 ? `<span class="conv-unread-dot" data-unread-dot="${c.id}"></span>` : ''}
     ${renderAvatarHtml(peer.avatar, peer.name, 'conv-avatar')}
     <span class="conv-item-top">
-      <span class="conv-item-name">${escHtml(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
+      <span class="conv-item-name">${renderUsername(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
       <span class="conv-item-role">${peer.role}</span>
       <span class="conv-item-time">${escHtml(time)}</span>
     </span>
@@ -214,7 +214,7 @@ function renderChatFrame(conv) {
     <div class="chat-head">
       <button type="button" class="chat-back" onclick="backToConvList()">&larr; ${UI.CHAT_BACK_TO_LIST}</button>
       <div class="chat-head-main">
-        <span class="chat-peer-name">${escHtml(peer.name) || UI.CHAT_UNKNOWN_USER}</span>
+        <span class="chat-peer-name">${peer.name ? renderUsername(peer.name) : escHtml(UI.CHAT_UNKNOWN_USER)}</span>
         <span class="chat-peer-tag">${peer.role}</span>
         ${conv && conv.demand_id ? `<span class="chat-head-demand">${UI.CHAT_DEMAND_PREFIX}${conv.demand_id}</span>` : ''}
       </div>

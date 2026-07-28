@@ -305,7 +305,7 @@ export async function initDb(db) {
   await initLogDb(db);
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
-  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['auth_token', "TEXT NOT NULL DEFAULT ''"], ['token_expires', "TEXT NOT NULL DEFAULT ''"]]);
+  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['auth_token', "TEXT NOT NULL DEFAULT ''"], ['token_expires', "TEXT NOT NULL DEFAULT ''"], ['deactivated', 'INTEGER NOT NULL DEFAULT 0']]);
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"]]);

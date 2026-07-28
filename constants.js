@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.9.0',
+  APP_VERSION: '0.10.0',
 
   // ============================================================
   // 业务数据
@@ -240,6 +240,23 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_LEDGER_INVALID: '存证校验异常：文本与签署指纹不一致',
     CONTRACT_LEDGER_ARCHIVED: '该合同已撤销，签署时的存证留档仍保留',
     CONTRACT_LEDGER_NONE: '该合同暂无存证记录',
+
+    // 撤销合同（仅签约后可用；入口刻意低调；两级确认；活跃库抹除、台账与留档保留）
+    BTN_REVOKE_CONTRACT: '撤销合同',
+    REVOKE_MODAL_TITLE: '撤销合同',
+    REVOKE_CONTRACT_WARN: '此功能仅限在双方已经约定好结束合同时使用。撤销后，平台活跃数据库中的本合同全部信息将被抹除（签署时的存证台账与加密留档将作为不可篡改记录保留）。由此产生的一切法律后果由双方自行承担。',
+    BTN_THINK_AGAIN: '再想想',
+    BTN_CONTINUE_DANGER: '我已知晓后果，继续',
+    REVOKE_CONTRACT_FINAL: '最终确认：撤销后不可恢复，确定继续吗？',
+    CONTRACT_REVOKED_TOAST: '合同已撤销',
+    CONTRACT_REVOKED_NOTIFY: '「{name}」已撤销双方签署的合同，活跃数据已抹除，存证留档保留。',
+
+    // 注销账户（账户设置底部；两级确认；单方数据删除、双方数据保留并墓碑化展示）
+    BTN_DEACTIVATE_ACCOUNT: '注销账户',
+    DEACTIVATE_WARN: '注销后：你的教师档案、发布的帖子与点赞、反馈、通知等仅与你一人相关的数据将被永久删除；需求、会话、合同、评价等涉及双方的数据会保留，但你的用户名将显示为「已注销用户」。此操作不可恢复。',
+    DEACTIVATE_FINAL: '最终确认：注销后账户与个人数据不可恢复，确定继续吗？',
+    DEACTIVATE_DONE_TOAST: '账户已注销',
+    DEACTIVATED_USER_PREFIX: '已注销用户',
     CONTRACT_STATUS_PENDING: '草案待确认',
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',

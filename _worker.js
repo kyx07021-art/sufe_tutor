@@ -8,9 +8,9 @@
  * 留档: routeApi 的每次应答经 logRequest 通用兜底留档（模块5）
  */
 import { initDb } from './server/db.js';
-import { json, error, MSG } from './server/core.js';
+import { json, error, MSG, bindCoreEnv } from './server/core.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
-import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar } from './server/routes-auth.js';
+import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
@@ -21,7 +21,7 @@ import { handleGetNotifications, handleMarkNotificationsRead } from './server/no
 import {
   handleCreateContract, handleGetContractByConv, handleGetMyContracts,
   handleConfirmDraft, handleSignContract, handleModifyContract, handleCancelContract,
-  handleAdminListContracts, handleAdminRemoveContract, handleVerifyContract,
+  handleAdminListContracts, handleAdminRemoveContract, handleVerifyContract, handleRevokeContract,
   initLedgerTable, bindLedgerDb,
 } from './server/contract.js';
 import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
@@ -76,6 +76,7 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/auth/check' && method === 'GET') return await handleCheckUsername(db, url);
   if (p === '/api/auth/me' && method === 'GET') return await handleAuthMe(db, req);
   if (p === '/api/user/avatar' && method === 'POST') return await handleSaveAvatar(db, body, req);
+  if (p === '/api/user/deactivate' && method === 'POST') return await handleDeactivateAccount(db, body, req);
 
   // 管理员
   if (p === '/api/admin/check' && method === 'GET') return await handleAdminCheck(db, req);
@@ -154,6 +155,8 @@ async function routeApi(db, p, method, body, url, req) {
   }
   const contractVerify = p.match(/^\/api\/contracts\/(\d+)\/verify$/);
   if (contractVerify && method === 'GET') return await handleVerifyContract(db, parseInt(contractVerify[1]), req);
+  const contractRevoke = p.match(/^\/api\/contracts\/(\d+)\/revoke$/);
+  if (contractRevoke && method === 'POST') return await handleRevokeContract(db, parseInt(contractRevoke[1]), body, req);
   const contractById = p.match(/^\/api\/contracts\/(\d+)$/);
   if (contractById && method === 'PUT') return await handleModifyContract(db, parseInt(contractById[1]), body, req);
   if (contractById && method === 'DELETE') return await handleCancelContract(db, parseInt(contractById[1]), body, req);
@@ -226,6 +229,7 @@ export default {
       bindLogDb(env);
       await initLedgerTable(env.LEDGER_DB || env.DB);
       bindLedgerDb(env);
+      bindCoreEnv(env);
       env._dbInited = true;
     }
 

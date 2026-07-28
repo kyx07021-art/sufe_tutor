@@ -1222,6 +1222,12 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .sidebar-version { margin-top: 8px; font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; color: var(--ink-3); opacity: .45; text-align: right; } /* 侧边栏白卡底：小字版本号 */
 .demand-id-tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); } /* 需求卡右上角四位编号 */
 .form-note-block { margin-top: 6px; font-size: .72rem; line-height: 1.5; color: var(--muted); } /* 表单字段下方灰字备注 */
+/* 低调危险操作（撤销合同/注销账户）：灰小字下划线，悬停转红——不显眼如日常功能 */
+.btn-text-danger { background: none; border: none; padding: 4px 0; font-size: .72rem; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; transition: color var(--t-fast); }
+.btn-text-danger:hover { color: var(--danger); }
+.settings-deactivate { margin-top: 14px; }
+.username-deactivated { color: var(--muted); font-style: italic; } /* 已注销用户墓碑样式 */
+.danger-warn { font-size: .84rem; line-height: 1.75; color: var(--ink-3); } /* 危险操作弹窗的说明正文 */
 .flex { display: flex; }
 
 /* ---------- 尊重减弱动效偏好 ---------- */

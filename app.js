@@ -1168,6 +1168,14 @@ async function adminReviewAction(reviewId, action, fromModal) {
 // ============================================================
 // 需求卡与列表（学生「我的需求」与教师「需求大厅」共用渲染）
 // ============================================================
+
+// 用户名展示：注销用户（用户名以「已注销用户」开头）灰斜体墓碑样式——
+// 双方数据（需求/会话/合同/评价）保留，但向其他用户明确表明该账户已注销
+function renderUsername(name) {
+  const s = String(name || '');
+  return s.startsWith(UI.DEACTIVATED_USER_PREFIX)
+    ? `<span class="username-deactivated">${escHtml(s)}</span>` : escHtml(s);
+}
 function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false } = opts;
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
@@ -1202,7 +1210,7 @@ function renderDemandCard(d, opts = {}) {
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar')}
     <div class="demand-card-main">
     <div class="list-card-header">
-      <span class="list-card-title">${escHtml(d.username || '')}${d.status === 'contracted' ? ` <span class="tag tag-ok">${UI.DEMAND_TAG_CONTRACTED}</span>` : ''}</span>
+      <span class="list-card-title">${renderUsername(d.username || '')}${d.status === 'contracted' ? ` <span class="tag tag-ok">${UI.DEMAND_TAG_CONTRACTED}</span>` : ''}</span>
       <span class="demand-card-tools">
         ${push ? `<span class="push-note-row">
           <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
@@ -1416,7 +1424,34 @@ function enterAccountSettings() {
       ${row(UI.SETTINGS_PHONE, UI.SETTINGS_UNBOUND, true)}
       ${row(UI.SETTINGS_EMAIL, UI.SETTINGS_UNBOUND, true)}
     </div>
-    <button type="button" class="btn btn-danger settings-logout" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>`;
+    <button type="button" class="btn btn-danger settings-logout" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
+    <button type="button" class="btn-text-danger settings-deactivate" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>`;
+}
+
+// 注销账户：两级确认（数据影响说明 → 最终危险确认）。后端抹单方数据、墓碑化用户名，
+// 双方数据保留；成功后清本地会话回落地页（同登出）。
+function openDeactivateModal() {
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:430px;">
+      <div class="modal-header"><h2>${UI.BTN_DEACTIVATE_ACCOUNT}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <p class="danger-warn">${UI.DEACTIVATE_WARN}</p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="confirmDeactivateAccount()">${UI.BTN_CONTINUE_DANGER}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function confirmDeactivateAccount() {
+  openConfirmModal(UI.DEACTIVATE_FINAL, async () => {
+    try {
+      await api('/api/user/deactivate', { method: 'POST', body: {} });
+      showToast(UI.DEACTIVATE_DONE_TOAST);
+      setTimeout(handleLogout, 800); // 让用户看到提示再退
+    } catch (err) { showToast(err.message); }
+  });
 }
 
 // 头像上传：居中取最大内切正方形缩放至 160px（圆形由 CSS border-radius 呈现），dataURL 落库
@@ -1571,6 +1606,7 @@ function renderContractCard(c) {
   if (c.status === 'signed') {
     left = `<button type="button" class="btn btn-outline btn-sm" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
       <button type="button" class="btn btn-ghost btn-sm" onclick="verifyContractLedgerUi(${c.id})">${UI.BTN_VERIFY_LEDGER}</button>`;
+    right = `<button type="button" class="btn-text-danger" onclick="openRevokeContractModal(${c.id})">${UI.BTN_REVOKE_CONTRACT}</button>`; // 撤销入口刻意低调
   } else if (c.status === 'pending' && iAmDrafter) {
     // 起草方：等对方处理草案（对方直接看到三按钮，无独立「确认草案」环节）
     left = `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.CONTRACT_WAIT_DRAFT}</button>`;
@@ -1587,7 +1623,7 @@ function renderContractCard(c) {
 
   return `<div class="list-card">
     <div class="list-card-header">
-      <span class="list-card-title">${escHtml(peerName)}</span>
+      <span class="list-card-title">${renderUsername(peerName)}</span>
       <span class="tag ${statusCls}">${statusText}</span>
     </div>
     <div class="list-card-body">
@@ -1680,6 +1716,32 @@ function openContractModifyModal(contractId) {
     </div>
   </div>`;
   updatePostPreview();
+}
+
+// 撤销已签约合同：两级确认。第一级告知法律后果与数据影响（不显眼，防误触），
+// 第二级复用 openConfirmModal 危险确认。活跃库抹除合同，签署台账与加密留档保留。
+function openRevokeContractModal(contractId) {
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:430px;">
+      <div class="modal-header"><h2>${UI.REVOKE_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <p class="danger-warn">${UI.REVOKE_CONTRACT_WARN}</p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
+          <button type="button" class="btn btn-outline btn-sm" onclick="confirmRevokeContract(${contractId})">${UI.BTN_CONTINUE_DANGER}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function confirmRevokeContract(contractId) {
+  openConfirmModal(UI.REVOKE_CONTRACT_FINAL, async () => {
+    try {
+      await api(`/api/contracts/${contractId}/revoke`, { method: 'POST', body: {} });
+      showToast(UI.CONTRACT_REVOKED_TOAST);
+      loadMyContracts();
+    } catch (err) { showToast(err.message); }
+  });
 }
 
 // 存证校验：重算合同文本哈希对比签署时的台账指纹（后端 /api/contracts/:id/verify）
