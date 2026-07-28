@@ -68,6 +68,7 @@ function renderPosts() {
     return;
   }
   el.innerHTML = postsList.map(renderPostCard).join('');
+  if (typeof initReveals === 'function') initReveals(el); // 资料卡接入全站浮入管线
 }
 
 // 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 作者可删

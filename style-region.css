@@ -18,28 +18,6 @@
 }
 
 /* 教师端：高考政策锁定条（灰底小字条，零圆角零投影，左竖条点题） */
-.region-locked-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-  padding: 8px 12px;
-  background: var(--paper-2);
-  border-left: 3px solid var(--ink);
-  font-size: .74rem;
-  font-weight: 700;
-  letter-spacing: .02em;
-  color: var(--ink-3);
-}
-
-/* 锁定条下方的政策说明小字 */
-.region-policy-desc {
-  margin: 0 0 14px;
-  font-size: .72rem;
-  line-height: 1.55;
-  color: var(--muted);
-}
-
 /* 满分 / 标准分旁注（warn 色小字） */
 .region-max-note {
   margin-left: 4px;

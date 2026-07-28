@@ -23,28 +23,14 @@ select.posts-sort {
 }
 
 /* ---------- 帖子卡 ---------- */
+/* 悬停聚焦动效已取消（信息展示卡统一静态）；入场动效统一走全站 .reveal 浮入管线 */
 .post-card {
   position: relative; overflow: hidden; isolation: isolate;
   background: var(--white);
   border: 1px solid var(--border-light);
   padding: 18px 20px 14px;
-  transition: background-color var(--t-base) var(--ease-out),
-              border-color var(--t-base) var(--ease-out);
-  /* 入场：--i 由渲染处按序注入，前几张依次升起，之后同拍进场 */
-  animation: rise .34s var(--ease-snap) both;
-  animation-delay: calc(var(--i, 0) * 38ms);
 }
 .post-card + .post-card { margin-top: 12px; }
-
-/* 悬停微变底 + 左侧竖条擦入（与 list-card 同源母题，改用 --accent） */
-.post-card::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--accent);
-  transform: scaleY(0); transform-origin: top;
-  transition: transform var(--t-base) var(--ease-snap);
-}
-.post-card:hover { background: var(--field); border-color: var(--faint); }
-.post-card:hover::before { transform: scaleY(1); }
 
 .post-card-head {
   display: flex; align-items: baseline; justify-content: space-between; gap: 12px;

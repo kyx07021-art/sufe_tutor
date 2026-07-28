@@ -71,11 +71,11 @@ function regionResolvePolicy(provinceId) {
 }
 
 // 教师端主科段落（三种政策都含语数外原始分，/150）。
-// 标题常驻：未勾选任何主科时给出引导提示，勾了哪几科就只加载哪几科
+// 未勾选任何主科时给出引导提示，勾了哪几科就只加载哪几科
 function gkMainSection(mainIds, exOf) {
   const R = globalThis.SUFE_REGIONS;
   const names = R.subjectNames;
-  let html = '<div class="gaokao-section"><h4>主科成绩（原始分）</h4>';
+  let html = '<div class="gaokao-section">';
   if (!mainIds || !mainIds.length) {
     return html + '<p class="region-hint">在上方勾选擅长的主科后，在此填写成绩</p></div>';
   }
@@ -134,10 +134,6 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
   const pol = regionResolvePolicy(provinceId);
   let html = '';
 
-  // 顶部固定锁定条
-  html += `<div class="region-locked-note">已按「${escHtml(R.provinceName(provinceId))}」高考政策加载并锁定</div>`;
-  if (pol.desc) html += `<p class="region-policy-desc">${escHtml(pol.desc)}</p>`;
-
   // 主科原始分（三分支共有，仅渲染勾选的擅长主科）
   html += gkMainSection(pol.main.filter(sid => checked.has(sid)), exOf);
 
@@ -146,7 +142,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
     const firstChecked = pol.first.filter(sid => checked.has(sid));
     const reChecked = pol.reassigned.filter(sid => checked.has(sid));
     const gs = pol.gradeSystem || R.gradeSystems.standard5;
-    html += '<div class="gaokao-section"><h4>选考科目（等级赋分）</h4>';
+    html += '<div class="gaokao-section">';
     if (!firstChecked.length && !reChecked.length) {
       html += '<p class="region-hint">在上方勾选擅长的选考科目后，在此填写成绩</p>';
     } else {
@@ -183,7 +179,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
     const isStandard = !!(gs && gs.type === 'standard');            // 海南：标准分，分数录入
     const usePills = !!(gs && gs.type === 'grade' && gs.levels.length <= 11); // 档位多（21 档）改用下拉
 
-    html += `<div class="gaokao-section"><h4>选考科目（${isStandard ? '标准分' : '等第'}）</h4>`;
+    html += `<div class="gaokao-section">`;
     if (!electives.length) {
       html += '<p class="region-hint">在上方勾选擅长的选考科目后，在此填写成绩</p>';
     } else {
@@ -226,7 +222,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
       || Object.keys(tracks).find(tk => list.some(x => x && (tracks[tk] || []).includes(x.subject)))
       || Object.keys(tracks)[0] || '';
 
-    html += `<div class="gaokao-section"><h4>文理分科</h4>
+    html += `<div class="gaokao-section">
       <div class="gaokao-row">
         <div class="gk-pill-group gk-track-pills">
           ${Object.keys(tracks).map(tk => `<span class="grade-option gk-pill ${tk === curTrack ? 'selected' : ''}"

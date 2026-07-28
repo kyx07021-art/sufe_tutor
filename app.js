@@ -107,7 +107,7 @@ const revealObserver = ('IntersectionObserver' in window) ? new IntersectionObse
 
 function initReveals(root) {
   if (!root) return;
-  const items = [...root.querySelectorAll('.list-card, .notif-item')];
+  const items = [...root.querySelectorAll('.list-card, .notif-item, .post-card')];
   items.forEach((el, i) => {
     el.classList.add('reveal');
     el.style.setProperty('--reveal-delay', `${Math.min(i * 45, 360)}ms`);

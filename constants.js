@@ -125,9 +125,6 @@ window.APP_CONSTANTS = {
     CONTACT_EMAIL_PREFIX: '邮箱: ',
     BTN_VIEW_DETAIL: '查看详情 / 评价',
     LABEL_SELECT_HINT: '请先选择擅长科目',
-    GAOKAO_MAIN: '主科成绩',
-    GAOKAO_ELECTIVE: '选考科目等第',
-    GAOKAO_NO_MAIN: '未选择主科',
     SCORE_LABEL: '满分：',
     SCORE_SCALE_SUFFIX: '分制',
 
