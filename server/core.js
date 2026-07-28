@@ -52,6 +52,14 @@ export const MSG = {
 
   // 意向
   INTENT_DUPLICATE: '你已对该需求提交过意向',
+  // 系统通知模板（{subjects} 由调用方替换为科目名）
+  NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师近期时间较难排开，暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
+  NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。',
+
+  // 需求推送
+  TEACHER_NOT_FOUND: '目标教师不存在',
+  PUSH_SUBMITTED: '需求已发送给老师，等待对方查看',
+  PUSH_DUPLICATE: '该需求已发送给这位老师',
   PROFILE_INCOMPLETE: '教师档案不完整：省份、年级、性别、擅长科目、报价均为必填，完善后才能提交试课意向',
   INTENT_SUBMITTED: '意向已提交',
   INTENT_NOT_FOUND: '意向不存在',

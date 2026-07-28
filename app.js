@@ -24,27 +24,27 @@ const state = { user: null, view: 'landing', page: null, allTeachers: [], adminT
 // ============================================================
 const ROLE_PAGES = {
   student: [
-    { id: 'my-demands',       label: '我的需求',     enter: loadMyDemands },
-    { id: 'browse-teachers',  label: '浏览教师',     enter: loadTeachers },
-    { id: 'my-chats',         label: '我的沟通',     enter: () => enterMyChats() },
-    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS, enter: enterNotifications },
+    { id: 'my-demands',       label: UI.PAGE_MY_DEMANDS,      enter: loadMyDemands },
+    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, enter: loadTeachers },
+    { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        enter: () => enterMyChats() },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
   ],
   teacher: [
-    { id: 'browse-demands',   label: '需求大厅',     enter: loadBrowseDemands },
-    { id: 'resource-share',   label: '资料共享',     enter: () => enterResourceShare() },
-    { id: 'my-chats',         label: '我的沟通',     enter: () => enterMyChats() },
-    { id: 'edit-profile',     label: '编辑自身信息', enter: initProfileForm },
-    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS, enter: enterNotifications },
+    { id: 'browse-demands',   label: UI.PAGE_BROWSE_DEMANDS,  enter: loadBrowseDemands },
+    { id: 'resource-share',   label: UI.PAGE_RESOURCE_SHARE,  enter: () => enterResourceShare() },
+    { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        enter: () => enterMyChats() },
+    { id: 'edit-profile',     label: UI.PAGE_EDIT_PROFILE,    enter: initProfileForm },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
   ],
   admin: [
-    { id: 'admin-stats',      label: '统计',     enter: loadAdminStats },
-    { id: 'admin-students',   label: '学生管理', enter: loadAdminStudents },
-    { id: 'admin-teachers',   label: '教师管理', enter: loadAdminTeachers },
-    { id: 'admin-demands',    label: '需求管理', enter: loadAdminDemands },
-    { id: 'admin-reviews',    label: '评价管理', enter: loadAdminReviews },
-    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS, enter: enterNotifications },
+    { id: 'admin-stats',      label: UI.PAGE_ADMIN_STATS,    enter: loadAdminStats },
+    { id: 'admin-students',   label: UI.PAGE_ADMIN_STUDENTS, enter: loadAdminStudents },
+    { id: 'admin-teachers',   label: UI.PAGE_ADMIN_TEACHERS, enter: loadAdminTeachers },
+    { id: 'admin-demands',    label: UI.PAGE_ADMIN_DEMANDS,  enter: loadAdminDemands },
+    { id: 'admin-reviews',    label: UI.PAGE_ADMIN_REVIEWS,  enter: loadAdminReviews },
+    { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, enter: enterAccountSettings },
   ],
 };
@@ -75,7 +75,7 @@ async function api(endpoint, options = {}) {
   if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
   const res = await fetch(endpoint, config);
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || '请求失败');
+  if (!res.ok) throw new Error(data.error || UI.ERROR_REQUEST_FAILED);
   return data;
 }
 
@@ -360,79 +360,79 @@ function closeModal() { document.getElementById('modal-container').innerHTML = '
 function renderDemandModal(demand) {
   return `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${demand ? '编辑学生需求' : '提交学生需求'}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${demand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
           <div class="form-group">
-            <label class="form-label">省份 <span class="req">*</span></label>
+            <label class="form-label">${UI.LABEL_PROVINCE} <span class="req">*</span></label>
             <span id="d-province-wrap"></span>
             <div id="d-region-note"></div>
           </div>
           <div class="form-group">
-            <label class="form-label">学生年级 <span class="req">*</span></label>
+            <label class="form-label">${UI.LABEL_STUDENT_GRADE} <span class="req">*</span></label>
             <select class="form-select" id="d-grade" required onchange="updateDemandSubjects()">
-              <option value="">请选择</option>${STUDENT_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
+              <option value="">${UI.OPTION_PLACEHOLDER}</option>${STUDENT_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">学生性别 <span class="req">*</span></label>
+            <label class="form-label">${UI.LABEL_STUDENT_GENDER} <span class="req">*</span></label>
             <select class="form-select" id="d-gender" required>
-              <option value="">请选择</option>${GENDERS.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
+              <option value="">${UI.OPTION_PLACEHOLDER}</option>${GENDERS.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">目标科目 <span class="req">*</span>（可多选）</label>
+            <label class="form-label">${UI.LABEL_TARGET_SUBJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
             <div class="checkbox-grid" id="d-subjects">${SUBJECTS.map(s=>`
               <label class="checkbox-item"><input type="checkbox" value="${s.id}">${s.name}</label>
             `).join('')}</div>
           </div>
           <div class="form-group" id="d-scores-wrap">
-            <label class="form-label">各科当前大概成绩</label>
-            <div id="d-scores"><p class="text-sm text-muted">请先选择目标科目</p></div>
+            <label class="form-label">${UI.LABEL_CURRENT_SCORES}</label>
+            <div id="d-scores"><p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p></div>
           </div>
           <div class="form-group">
-            <label class="form-label">期望教学方式 <span class="req">*</span></label>
+            <label class="form-label">${UI.LABEL_TEACHING_METHOD} <span class="req">*</span></label>
             <select class="form-select" id="d-method" required onchange="toggleAddressField()">
               ${TEACHING_METHODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
             </select>
           </div>
           <div id="d-address-section">
             <div class="form-group">
-              <label class="form-label">地址 <span class="req">*</span></label>
-              <input type="text" class="form-input" id="d-address" placeholder="上海市xx区xx路（精确门牌号请后续自行与教师沟通）">
+              <label class="form-label">${UI.LABEL_ADDRESS} <span class="req">*</span></label>
+              <input type="text" class="form-input" id="d-address" placeholder="${UI.ADDRESS_PLACEHOLDER}">
             </div>
           </div>
           <div class="form-group">
-            <label class="form-label">预算区间（元/小时）</label>
+            <label class="form-label">${UI.LABEL_BUDGET}</label>
             <div style="display:flex;gap:var(--s3);align-items:center;">
-              <input type="number" class="form-input" id="d-budget-min" placeholder="最低" min="0" step="10" style="flex:1;">
+              <input type="number" class="form-input" id="d-budget-min" placeholder="${UI.PLACEHOLDER_MIN}" min="0" step="10" style="flex:1;">
               <span class="text-muted">~</span>
-              <input type="number" class="form-input" id="d-budget-max" placeholder="最高" min="0" step="10" style="flex:1;">
+              <input type="number" class="form-input" id="d-budget-max" placeholder="${UI.PLACEHOLDER_MAX}" min="0" step="10" style="flex:1;">
             </div>
           </div>
           <div class="form-divider"></div>
           <div class="form-group">
-            <label class="form-label">提交者身份 <span class="req">*</span></label>
+            <label class="form-label">${UI.LABEL_SUBMITTER} <span class="req">*</span></label>
             <select class="form-select" id="d-submitter" required>
-              <option value="parent">家长</option><option value="student">学生</option>
+              <option value="parent">${UI.SUBMITTER_PARENT}</option><option value="student">${UI.SUBMITTER_STUDENT}</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">家长联系方式 <span class="req">*</span></label>
-            <input type="text" class="form-input" id="d-parent-contact" placeholder="手机号或邮箱" required>
+            <label class="form-label">${UI.LABEL_PARENT_CONTACT} <span class="req">*</span></label>
+            <input type="text" class="form-input" id="d-parent-contact" placeholder="${UI.CONTACT_PLACEHOLDER}" required>
           </div>
           <div class="form-group">
-            <label class="form-label">学生联系方式 <span class="req">*</span></label>
-            <input type="text" class="form-input" id="d-student-contact" placeholder="手机号或邮箱" required>
+            <label class="form-label">${UI.LABEL_STUDENT_CONTACT} <span class="req">*</span></label>
+            <input type="text" class="form-input" id="d-student-contact" placeholder="${UI.CONTACT_PLACEHOLDER}" required>
           </div>
           <div class="form-group">
-            <label class="form-label">其他补充信息</label>
+            <label class="form-label">${UI.LABEL_ADDITIONAL_INFO}</label>
             <textarea class="form-input" id="d-info" rows="3" placeholder="上课时间偏好、特殊要求等"></textarea>
           </div>
           <div class="modal-footer">
             ${demand ? `<button type="button" class="btn btn-danger btn-sm modal-footer-start" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
-            <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
+            <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
             <button type="submit" class="btn btn-primary" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
           </div>
         </form>
@@ -525,7 +525,7 @@ function updateDemandSubjects() {
   const grade = document.getElementById('d-grade').value;
   const el = document.getElementById('d-subjects');
   if (!prov || !grade) {
-    el.innerHTML = '<p class="text-sm text-muted">请先选择省份和年级</p>';
+    el.innerHTML = `<p class="text-sm text-muted">${UI.HINT_SELECT_PROVINCE_GRADE}</p>`;
     document.getElementById('d-scores').innerHTML = '';
     return;
   }
@@ -541,7 +541,7 @@ function updateDemandScores() {
   const checked = [...document.querySelectorAll('#d-subjects input:checked')].map(cb => cb.value);
   const el = document.getElementById('d-scores');
   if (!prov || !grade) { el.innerHTML = ''; return; }
-  if (!checked.length) { el.innerHTML = '<p class="text-sm text-muted">请先选择目标科目</p>'; return; }
+  if (!checked.length) { el.innerHTML = `<p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p>`; return; }
 
   // 1) 移除取消勾选的科目行
   el.querySelectorAll('.region-score-row').forEach(row => {
@@ -567,7 +567,7 @@ async function handleSubmitDemand(e) {
   e.preventDefault();
   const alertEl = document.getElementById('demand-alert');
   const province = document.getElementById('d-province').value;
-  if (!province) { alertEl.innerHTML = `<div class="alert alert-error">请选择省份</div>`; return; }
+  if (!province) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
   const subjects = [...document.querySelectorAll('#d-subjects input:checked')].map(cb => cb.value);
   if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
 
@@ -753,14 +753,14 @@ function renderTeacherModal(t) {
           <span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating || 4).toFixed(1)}</b></span>
           <span class="list-card-meta">${meta}</span>
         </div>
-        ${rows ? `<div class="subject-block"><div class="section-title">擅长科目</div>${rows}</div>` : ''}
-        ${(t.wechat || t.email) ? `<div class="subject-block"><div class="section-title">联系方式</div>
-          ${t.wechat ? `<div class="subject-row"><span>微信</span><span class="subject-score">${escHtml(t.wechat)}</span></div>` : ''}
-          ${t.email ? `<div class="subject-row"><span>邮箱</span><span class="subject-score">${escHtml(t.email)}</span></div>` : ''}
+        ${rows ? `<div class="subject-block"><div class="section-title">${UI.SECTION_SUBJECTS}</div>${rows}</div>` : ''}
+        ${(t.wechat || t.email) ? `<div class="subject-block"><div class="section-title">${UI.SECTION_CONTACT}</div>
+          ${t.wechat ? `<div class="subject-row"><span>${UI.LABEL_WECHAT}</span><span class="subject-score">${escHtml(t.wechat)}</span></div>` : ''}
+          ${t.email ? `<div class="subject-row"><span>${UI.LABEL_EMAIL}</span><span class="subject-score">${escHtml(t.email)}</span></div>` : ''}
         </div>` : ''}
         <div class="subject-block" id="teacher-modal-reviews">
-          <div class="section-title">评价</div>
-          <p class="text-sm text-muted">加载中...</p>
+          <div class="section-title">${UI.SECTION_REVIEWS}</div>
+          <p class="text-sm text-muted">${UI.LOADING}</p>
         </div>
       </div>
     </div>
@@ -772,7 +772,7 @@ function renderReviewItems(reviews, t, opts = {}) {
   const statusTag = r => r.status === 'approved' ? `<span class="tag tag-ok">${UI.STATUS_APPROVED}</span>`
     : r.status === 'rejected' ? `<span class="tag tag-danger">${UI.STATUS_REJECTED}</span>`
     : `<span class="tag tag-warn">${UI.STATUS_PENDING}</span>`;
-  return `<div class="section-title">评价 (${reviews.length})</div>
+  return `<div class="section-title">${UI.SECTION_REVIEWS} (${reviews.length})</div>
     ${reviews.map(r => `<div class="review-item">
       <div class="review-header">
         <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)} ${admin ? statusTag(r) : ''}</span>
@@ -787,10 +787,10 @@ function renderReviewItems(reviews, t, opts = {}) {
     </div>`).join('')}
     ${!reviews.length ? `<p class="text-sm text-muted">${UI.EMPTY_NO_REVIEWS}</p>` : ''}
     ${!admin && state.user && state.user.role === 'student' ? (opts.mine ? `
-      <div class="review-mine-note">你的评价：${opts.mine.status === 'approved' ? '已通过' : opts.mine.status === 'rejected' ? '未通过，可修改后重新提交' : '审核中'}</div>
-      <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id}, null, ${opts.mine.id})">修改评价</button>
+      <div class="review-mine-note">${UI.MY_REVIEW_PREFIX}${opts.mine.status === 'approved' ? UI.STATUS_APPROVED : opts.mine.status === 'rejected' ? UI.REVIEW_REJECTED_HINT : UI.REVIEW_STATUS_AUDITING}</div>
+      <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id}, null, ${opts.mine.id})">${UI.BTN_EDIT_REVIEW}</button>
     ` : `
-      <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id})">写评价</button>
+      <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>
     `) : ''}`;
 }
 
@@ -803,23 +803,23 @@ function openReviewModal(teacherUserId, teacherName, editId) {
   const existing = editId ? state.myReviewOnModal : null;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${existing ? '修改评价' : '评价 ' + teacherName}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + teacherName}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="review-alert"></div>
         <div class="form-group">
-          <label class="form-label">评分 <span class="req">*</span></label>
+          <label class="form-label">${UI.LABEL_RATING} <span class="req">*</span></label>
           <div class="star-rating-input" id="review-stars">
             ${[1,2,3,4,5].map(i=>`<button class="star-btn" data-val="${i}" onclick="setReviewStars(${i})" type="button">★</button>`).join('')}
           </div>
           <input type="hidden" id="review-rating" value="${existing ? existing.rating : 0}">
         </div>
         <div class="form-group">
-          <label class="form-label">评价内容 <span class="req">*</span></label>
-          <textarea class="form-input" id="review-comment" rows="4" placeholder="请分享你的体验...">${existing ? escHtml(existing.comment) : ''}</textarea>
+          <label class="form-label">${UI.LABEL_REVIEW_CONTENT} <span class="req">*</span></label>
+          <textarea class="form-input" id="review-comment" rows="4" placeholder="${UI.REVIEW_COMMENT_PLACEHOLDER}">${existing ? escHtml(existing.comment) : ''}</textarea>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-outline" onclick="closeModal()">取消</button>
-          <button class="btn btn-primary" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? '保存修改' : '提交评价'}</button>
+          <button class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button class="btn btn-primary" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_REVIEW}</button>
         </div>
       </div>
     </div>
@@ -944,7 +944,7 @@ function renderDemandCard(d, opts = {}) {
   const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
   const gender = GENDERS.find(g=>g.id===d.student_gender)?.name || '';
   const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
-  const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || '线下';
+  const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || (TEACHING_METHODS.find(m=>m.id==='offline')||{name:''}).name;
   // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
   const teacherIntentBtn = !teacher ? ''
     : d.my_intent_status === 'accepted' ? `<button type="button" class="btn btn-sm btn-intent-ok" disabled>${UI.INTENT_ACCEPTED}</button>`
@@ -983,17 +983,17 @@ function renderDemandCard(d, opts = {}) {
       ${subjNames.map(n=>`<span class="tag tag-accent">${n}</span>`).join('')}
       <span class="tag">${method}</span>
       <span class="tag tag-warn">${budget}</span>
-      <span class="tag">提交者: ${submitter}</span>
+      <span class="tag">${UI.SUBMITTER_PREFIX}${submitter}</span>
     </div>
     ${scoresHtml ? `<div class="list-card-detail" style="display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2);">${scoresHtml}</div>` : ''}
-    ${d.address ? `<div class="list-card-detail">地址：${escHtml(d.address)}</div>` : ''}
-    ${d.additional_info ? `<div class="list-card-detail">补充：${escHtml(d.additional_info)}</div>` : ''}
+    ${d.address ? `<div class="list-card-detail">${UI.ADDRESS_PREFIX}${escHtml(d.address)}</div>` : ''}
+    ${d.additional_info ? `<div class="list-card-detail">${UI.ADDITIONAL_PREFIX}${escHtml(d.additional_info)}</div>` : ''}
     <div class="demand-card-foot">
       <div class="list-card-contact">
-        ${d.parent_contact ? `<span>家长: ${escHtml(d.parent_contact)}</span>` : ''}
-        ${d.student_contact ? `<span>学生: ${escHtml(d.student_contact)}</span>` : ''}
+        ${d.parent_contact ? `<span>${UI.CONTACT_PARENT_PREFIX}${escHtml(d.parent_contact)}</span>` : ''}
+        ${d.student_contact ? `<span>${UI.CONTACT_STUDENT_PREFIX}${escHtml(d.student_contact)}</span>` : ''}
       </div>
-      ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleDemandIntents(${d.id})">试课意向 (${d.intent_count || 0}) <span class="intent-caret" id="intent-caret-${d.id}">▾</span></button>` : ''}
+      ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="intent-caret" id="intent-caret-${d.id}">▾</span></button>` : ''}
     </div>
     ${editable ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
   </div>`;
@@ -1001,7 +1001,7 @@ function renderDemandCard(d, opts = {}) {
 
 async function loadDemandList(elId, { mine }) {
   const el = document.getElementById(elId);
-  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     // 教师大厅视角附带你自己的意向状态（my_intent_status），供按钮三态渲染
     const url = mine ? `/api/student/demands?userId=${state.user.id}`
@@ -1024,7 +1024,7 @@ function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: 
 // 教师需求大厅：普通需求 + 学生主动推送的待处理需求（置顶 + 特殊操作行）
 async function loadBrowseDemands() {
   const el = document.getElementById('demands-list');
-  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const [dData, pData] = await Promise.all([
       api(`/api/student/demands?teacherUserId=${state.user.id}`),
@@ -1100,7 +1100,7 @@ async function resolvePush(pushId, action) {
 // ============================================================
 async function enterNotifications() {
   const el = document.getElementById('notifications-content');
-  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const data = await api(`/api/notifications?userId=${state.user.id}`);
     const list = data.notifications || [];
@@ -1202,7 +1202,7 @@ async function refreshIntentsBox(demandId) {
   const box = document.getElementById(`intents-box-${demandId}`);
   if (!box) return;
   const inner = box.querySelector('.intents-box-inner') || box;
-  inner.innerHTML = '<div class="intents-box-content"><p class="text-sm text-muted">加载中...</p></div>';
+  inner.innerHTML = `<div class="intents-box-content"><p class="text-sm text-muted">${UI.LOADING}</p></div>`;
   try {
     const data = await api(`/api/demands/${demandId}/intents`);
     const ts = data.teachers || [];
@@ -1211,9 +1211,9 @@ async function refreshIntentsBox(demandId) {
       state.intentTeachers = state.intentTeachers.filter(x => x.user_id !== t.user_id);
       state.intentTeachers.push(t);
     });
-    const content = `<div class="section-title">试课意向 (${ts.length})</div>` +
+    const content = `<div class="section-title">${UI.INTENTS_TITLE} (${ts.length})</div>` +
       (ts.length ? ts.map(t => renderIntentTeacherRow(t, demandId)).join('')
-                 : '<p class="text-sm text-muted">暂无教师意向</p>');
+                 : `<p class="text-sm text-muted">${UI.EMPTY_NO_INTENTS}</p>`);
     inner.innerHTML = `<div class="intents-box-content">${content}</div>`;
     box.dataset.loaded = '1';
   } catch (err) {
@@ -1223,13 +1223,13 @@ async function refreshIntentsBox(demandId) {
 
 function renderIntentTeacherRow(t, demandId) {
   const st = t.intent_status;
-  const tag = st === 'accepted' ? '<span class="tag tag-ok">已同意</span>'
-    : st === 'rejected' ? '<span class="tag tag-danger">已拒绝</span>' : '<span class="tag tag-warn">待处理</span>';
+  const tag = st === 'accepted' ? `<span class="tag tag-ok">${UI.INTENT_STATUS_ACCEPTED}</span>`
+    : st === 'rejected' ? `<span class="tag tag-danger">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn">${UI.INTENT_STATUS_PENDING}</span>`;
   const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
-  const viewBtn = `<button type="button" class="btn btn-outline btn-xs" onclick="openTeacherModal(${t.user_id})">查看</button>`;
+  const viewBtn = `<button type="button" class="btn btn-outline btn-xs" onclick="openTeacherModal(${t.user_id})">${UI.BTN_VIEW}</button>`;
   const actions = st === 'pending'
-    ? `<button type="button" class="btn btn-accent btn-xs" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">同意</button>
-       <button type="button" class="btn btn-outline btn-xs" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">拒绝</button>` : '';
+    ? `<button type="button" class="btn btn-accent btn-xs" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
+       <button type="button" class="btn btn-outline btn-xs" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
   return `<div class="admin-row">
     <div class="admin-row-main">
       <div class="admin-row-line"><strong>${escHtml(t.username)}</strong> ${renderStars(t.rating)} ${tag}</div>
@@ -1243,7 +1243,7 @@ function renderIntentTeacherRow(t, demandId) {
 async function resolveIntent(intentId, action, demandId) {
   try {
     await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { userId: state.user.id, action } });
-    showToast(action === 'accept' ? '已同意，可在「我的沟通」中开始对话' : '已拒绝该意向');
+    showToast(action === 'accept' ? UI.INTENT_ACCEPTED_TOAST : UI.INTENT_REJECTED_TOAST);
     await refreshIntentsBox(demandId);
     loadMyDemands(); // 刷新意向计数（整列重渲染，意向栏回到收起态）
   } catch (err) { showToast(err.message); }
@@ -1256,9 +1256,9 @@ function initProfileForm() {
   document.getElementById('profile-province-wrap').innerHTML =
     renderProvinceSelect('profile-province', '', 'onchange="onTeacherProvinceChange()"');
   const gradeEl = document.getElementById('profile-grade');
-  gradeEl.innerHTML = '<option value="">请选择</option>' + TEACHER_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  gradeEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + TEACHER_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
   const genderEl = document.getElementById('profile-gender');
-  genderEl.innerHTML = '<option value="">请选择</option>' + GENDERS.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  genderEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + GENDERS.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
 
   const subjEl = document.getElementById('profile-subjects');
   subjEl.innerHTML = SUBJECTS.map(s=>`
@@ -1266,7 +1266,7 @@ function initProfileForm() {
   `).join('');
   subjEl.addEventListener('change', onTeacherSubjectsChange); // 擅长科目驱动高考填写组件按需加载
   // 高考成绩区改由省份驱动（app-region.js）：选省份后渲染锁定编辑器；科目勾选仅标记擅长科目
-  document.getElementById('profile-gaokao-scores').innerHTML = `<p class="text-sm text-muted">请先选择省份（高考所在地），按该省政策填写高考成绩</p>`;
+  document.getElementById('profile-gaokao-scores').innerHTML = `<p class="text-sm text-muted">${UI.HINT_SELECT_PROVINCE_GAOKAO}</p>`;
   loadProfile();
 }
 
@@ -1306,7 +1306,7 @@ async function handleSaveProfile(e) {
   e.preventDefault();
   const alertEl = document.getElementById('profile-alert');
   const province = document.getElementById('profile-province').value;
-  if (!province) { alertEl.innerHTML = `<div class="alert alert-error">请选择省份</div>`; return; }
+  if (!province) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
   const subjects = [...document.querySelectorAll('#profile-subjects input:checked')].map(cb=>cb.value);
   if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
 
@@ -1375,33 +1375,33 @@ function copyInviteCode() {
 // 结构上保留 stats-grid + 若干 admin-panel 板块，后期扩展统计数据直接加板块即可）
 async function loadAdminStats() {
   const el = document.getElementById('admin-stats-content');
-  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const statsData = await api(`/api/admin/stats?username=${encodeURIComponent(state.user.username)}`);
     const s = statsData.stats;
 
     el.innerHTML = `
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-value blue">${s.users.total}</div><div class="stat-label">总用户</div></div>
-        <div class="stat-card"><div class="stat-value green">${s.users.students}</div><div class="stat-label">学生</div></div>
-        <div class="stat-card"><div class="stat-value blue">${s.users.teachers}</div><div class="stat-label">教师</div></div>
-        <div class="stat-card"><div class="stat-value amber">${s.demands}</div><div class="stat-label">需求数</div></div>
-        <div class="stat-card"><div class="stat-value blue">${s.profiles}</div><div class="stat-label">教师档案</div></div>
-        <div class="stat-card"><div class="stat-value green">${s.reviews.approved}</div><div class="stat-label">已通过评价</div></div>
-        <div class="stat-card"><div class="stat-value amber">${s.reviews.pending}</div><div class="stat-label">待审评价</div></div>
-        <div class="stat-card"><div class="stat-value red">${s.invites.used||0}</div><div class="stat-label">已用邀请码</div></div>
+        <div class="stat-card"><div class="stat-value blue">${s.users.total}</div><div class="stat-label">${UI.ADMIN_TOTAL_USERS}</div></div>
+        <div class="stat-card"><div class="stat-value green">${s.users.students}</div><div class="stat-label">${UI.ADMIN_STUDENTS}</div></div>
+        <div class="stat-card"><div class="stat-value blue">${s.users.teachers}</div><div class="stat-label">${UI.ADMIN_TEACHERS}</div></div>
+        <div class="stat-card"><div class="stat-value amber">${s.demands}</div><div class="stat-label">${UI.ADMIN_DEMANDS}</div></div>
+        <div class="stat-card"><div class="stat-value blue">${s.profiles}</div><div class="stat-label">${UI.ADMIN_PROFILES}</div></div>
+        <div class="stat-card"><div class="stat-value green">${s.reviews.approved}</div><div class="stat-label">${UI.ADMIN_REVIEWS_APPROVED}</div></div>
+        <div class="stat-card"><div class="stat-value amber">${s.reviews.pending}</div><div class="stat-label">${UI.ADMIN_REVIEWS_PENDING}</div></div>
+        <div class="stat-card"><div class="stat-value red">${s.invites.used||0}</div><div class="stat-label">${UI.ADMIN_INVITES_USED}</div></div>
       </div>
 
       <div class="admin-panel">
-        <h3>最近注册用户</h3>
+        <h3>${UI.ADMIN_RECENT_USERS}</h3>
         ${s.recentUsers.map(u => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
-          <span><strong>${escHtml(u.username)}</strong> <span class="tag">${u.role==='student'?'学生':u.role==='teacher'?'教师':'管理员'}</span></span>
+          <span><strong>${escHtml(u.username)}</strong> <span class="tag">${u.role==='student'?UI.ROLE_STUDENT:u.role==='teacher'?UI.ROLE_TEACHER:UI.ADMIN_BADGE}</span></span>
           <span class="text-muted">${fmtDateTime(u.created_at)}</span>
         </div>`).join('')}
       </div>
 
       <div class="admin-panel">
-        <h3>最近需求</h3>
+        <h3>${UI.ADMIN_RECENT_DEMANDS}</h3>
         ${s.recentDemands.map(d => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
           <span><strong>${escHtml(d.username)}</strong> ${STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||''} ${d.target_subjects.map(id=>SUBJECTS.find(s=>s.id===id)?.name||'').join('、')}</span>
           <span class="text-muted">${fmtDateTime(d.created_at)}</span>
@@ -1416,7 +1416,7 @@ async function loadAdminStats() {
 // 学生 / 教师管理（封禁的账户无法登录）
 async function loadAdminUsers(role, elId) {
   const el = document.getElementById(elId);
-  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const data = await api(`/api/admin/users?username=${encodeURIComponent(state.user.username)}&role=${role}`);
     const users = data.users || [];
@@ -1433,15 +1433,15 @@ function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-
 function renderAdminUserRow(u, role) {
   const uid = role === 'teacher' ? u.user_id : u.id;
   const meta = role === 'teacher'
-    ? `${TEACHER_GRADES.find(g => g.id === u.grade)?.name || '—'} · ${(u.rating || 4).toFixed(1)} 分 · ${u.price || '?'}${UI.PRICE_UNIT}`
-    : `${u.demand_count || 0} 条需求`;
+    ? `${TEACHER_GRADES.find(g => g.id === u.grade)?.name || '—'} · ${(u.rating || 4).toFixed(1)}${UI.RATING_SCORE_SUFFIX} · ${u.price || '?'}${UI.PRICE_UNIT}`
+    : `${u.demand_count || 0}${UI.DEMAND_COUNT_SUFFIX}`;
   return `<div class="admin-row">
     <div class="admin-row-main">
       <div class="admin-row-line">
         <strong>${escHtml(u.username)}</strong>
-        ${u.banned ? `<span class="tag tag-danger">已封禁</span>` : ''}
+        ${u.banned ? `<span class="tag tag-danger">${UI.TAG_BANNED}</span>` : ''}
       </div>
-      <div class="admin-row-meta">${meta} · 注册于 ${fmtDateTime(u.created_at)}</div>
+      <div class="admin-row-meta">${meta} · ${UI.REGISTERED_AT_PREFIX}${fmtDateTime(u.created_at)}</div>
     </div>
     <div class="admin-row-actions">
       ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs" onclick="openTeacherModal(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
@@ -1455,7 +1455,7 @@ function renderAdminUserRow(u, role) {
 // 需求管理（移除走管理员通道，不受归属限制）
 async function loadAdminDemands() {
   const el = document.getElementById('admin-demands-list');
-  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const data = await api('/api/student/demands');
     const demands = data.demands || [];
@@ -1470,7 +1470,7 @@ async function loadAdminDemands() {
 async function loadAdminReviews() {
   const el = document.getElementById('admin-reviews-list');
   const status = document.getElementById('admin-reviews-status')?.value || '';
-  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const data = await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}${status ? `&status=${status}` : ''}`);
     const reviews = data.reviews || [];

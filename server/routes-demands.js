@@ -13,6 +13,7 @@ import { logEvent } from './log.js';
 import { notifyUser } from './notify.js';
 
 // 委婉通知文案：拒绝/退回时给对方一个体面的交代（科目名经 region-data 解码，年级不入库名故省略）
+// 模板本体在 core.js MSG（NOTIFY_PUSH_REJECT / NOTIFY_INTENT_REJECT），此处仅填 {subjects}
 function demandSubjectsText(d) {
   const R = globalThis.SUFE_REGIONS;
   let ids = [];
@@ -20,8 +21,8 @@ function demandSubjectsText(d) {
   const names = ids.map(id => R.subjectNames[id] || '').filter(Boolean).join('、');
   return names || '相关科目';
 }
-const pushRejectNote = d => `关于「${demandSubjectsText(d)}」的家教需求，对方老师近期时间较难排开，暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。`;
-const intentRejectNote = d => `关于「${demandSubjectsText(d)}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。`;
+const pushRejectNote = d => MSG.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
+const intentRejectNote = d => MSG.NOTIFY_INTENT_REJECT.replace('{subjects}', demandSubjectsText(d));
 
 export async function handleCreateDemand(db, body) {
   const { userId, demand: d } = body;
@@ -140,7 +141,7 @@ export async function handlePushDemand(db, body, req) {
   const user = await dbFindUserById(db, userId);
   if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
   const teacher = await dbFindUserById(db, teacherUserId);
-  if (!teacher || teacher.role !== 'teacher') return error('目标教师不存在', 404);
+  if (!teacher || teacher.role !== 'teacher') return error(MSG.TEACHER_NOT_FOUND, 404);
   const demand = await dbGetDemandById(db, demandId);
   if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
@@ -149,9 +150,9 @@ export async function handlePushDemand(db, body, req) {
     const id = await dbCreatePush(db, demandId, userId, teacherUserId);
     logEvent(db, { action: 'demand.push', actorUserId: userId, actorRole: 'student',
       entity: 'demand_push', entityId: id, detail: { teacherUserId, demandId }, req });
-    return json({ id, message: '需求已发送给老师，等待对方查看' }, 201);
+    return json({ id, message: MSG.PUSH_SUBMITTED }, 201);
   } catch (err) {
-    if (String(err?.message || err).includes('UNIQUE')) return error('该需求已发送给这位老师', 409);
+    if (String(err?.message || err).includes('UNIQUE')) return error(MSG.PUSH_DUPLICATE, 409);
     throw err;
   }
 }

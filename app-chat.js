@@ -40,10 +40,10 @@ function enterMyChats() {
     <div class="chats-shell" id="chats-shell">
       <aside class="chats-list-pane">
         <div class="chats-list-head">
-          <span class="chats-list-title">会话</span>
+          <span class="chats-list-title">${UI.CHAT_TITLE}</span>
           <span class="chats-list-count" id="chats-conv-count">--</span>
         </div>
-        <div class="conv-list" id="conv-list"><div class="empty-state empty-state--small"><p>加载中...</p></div></div>
+        <div class="conv-list" id="conv-list"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
       </aside>
       <section class="chat-pane" id="chat-pane">
         ${renderChatPlaceholder()}
@@ -63,7 +63,7 @@ async function loadConversations() {
     if (typeof setChatsBadge === 'function') setChatsBadge(chatsUnreadTotal()); // 同步侧边栏红点
   } catch (err) {
     const el = document.getElementById('conv-list');
-    if (el) el.innerHTML = `<div class="empty-state empty-state--small"><p>加载失败：${escHtml(err.message)}</p></div>`;
+    if (el) el.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
 }
 
@@ -76,7 +76,7 @@ function renderConvList() {
   const countEl = document.getElementById('chats-conv-count');
   if (countEl) countEl.textContent = String(chatConvList.length).padStart(2, '0');
   if (!chatConvList.length) {
-    el.innerHTML = '<div class="empty-state empty-state--small"><p>暂无沟通——同意教师试课意向后自动建立</p></div>';
+    el.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.CHAT_EMPTY_NO_CONVS}</p></div>`;
     return;
   }
   el.innerHTML = chatConvList.map(renderConvItem).join('');
@@ -87,7 +87,7 @@ function chatPeerOf(c) {
   const isTeacherViewer = state.user && state.user.role === 'teacher';
   return {
     name: isTeacherViewer ? c.student_name : c.teacher_name,
-    role: isTeacherViewer ? '学生' : '教师',
+    role: isTeacherViewer ? UI.ROLE_STUDENT : UI.ROLE_TEACHER,
   };
 }
 
@@ -109,17 +109,17 @@ async function markReadConv(convId) {
 function renderConvItem(c) {
   const peer = chatPeerOf(c);
   const me = state.user.id;
-  let preview = '还没有消息，先打个招呼吧';
+  let preview = UI.CHAT_EMPTY_NO_MESSAGES;
   if (c.last_kind && c.last_kind !== 'text') {
-    preview = (c.last_sender === me ? '我：' : '') + (c.last_kind === 'image' ? '[图片]' : '[文件]');
+    preview = (c.last_sender === me ? UI.CHAT_PREVIEW_ME_PREFIX : '') + (c.last_kind === 'image' ? UI.CHAT_PREVIEW_IMAGE : UI.CHAT_PREVIEW_FILE);
   } else if (c.last_body) {
-    preview = (c.last_sender === me ? '我：' : '') + c.last_body;
+    preview = (c.last_sender === me ? UI.CHAT_PREVIEW_ME_PREFIX : '') + c.last_body;
   }
   const time = fmtChatTime(c.last_at || c.created_at);
   return `<button type="button" class="conv-item${c.id === chatConvId ? ' active' : ''}" data-conv-id="${c.id}" onclick="openConversation(${c.id})">
     ${(c.unread_count || 0) > 0 ? `<span class="conv-unread-dot" data-unread-dot="${c.id}"></span>` : ''}
     <span class="conv-item-top">
-      <span class="conv-item-name">${escHtml(peer.name || '未知用户')}</span>
+      <span class="conv-item-name">${escHtml(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
       <span class="conv-item-role">${peer.role}</span>
       <span class="conv-item-time">${escHtml(time)}</span>
     </span>
@@ -167,7 +167,7 @@ async function openConversation(convId) {
     if (!box) return;
     box.innerHTML = msgs.length
       ? msgs.map((m, i) => renderChatBubble(m, i)).join('')
-      : '<div class="empty-state empty-state--small"><p>还没有消息，先打个招呼吧</p></div>';
+      : `<div class="empty-state empty-state--small"><p>${UI.CHAT_EMPTY_NO_MESSAGES}</p></div>`;
     chatLastMsgId = msgs.length ? msgs[msgs.length - 1].id : 0;
     chatScrollToBottom(false);
     markReadConv(convId); // 打开即已读：会话项与侧边栏红点点掉
@@ -179,7 +179,7 @@ async function openConversation(convId) {
   } catch (err) {
     if (chatConvId !== convId) return;
     const box = document.getElementById('chat-messages');
-    if (box) box.innerHTML = `<div class="empty-state empty-state--small"><p>加载失败：${escHtml(err.message)}</p></div>`;
+    if (box) box.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
 }
 
@@ -190,23 +190,23 @@ function renderChatFrame(conv) {
   const closed = conv && conv.status && conv.status !== 'active';
   return `
     <div class="chat-head">
-      <button type="button" class="chat-back" onclick="backToConvList()">&larr; 会话列表</button>
+      <button type="button" class="chat-back" onclick="backToConvList()">&larr; ${UI.CHAT_BACK_TO_LIST}</button>
       <div class="chat-head-main">
-        <span class="chat-peer-name">${escHtml(peer.name) || '未知用户'}</span>
+        <span class="chat-peer-name">${escHtml(peer.name) || UI.CHAT_UNKNOWN_USER}</span>
         <span class="chat-peer-tag">${peer.role}</span>
-        ${conv && conv.demand_id ? `<span class="chat-head-demand">需求 #${conv.demand_id}</span>` : ''}
+        ${conv && conv.demand_id ? `<span class="chat-head-demand">${UI.CHAT_DEMAND_PREFIX}${conv.demand_id}</span>` : ''}
       </div>
     </div>
-    <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small"><p>加载中...</p></div></div>
+    <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
     <div class="chat-input-bar${closed ? ' chat-input-bar--closed' : ''}">
       ${closed
-        ? '<p class="chat-closed-tip">该会话已关闭，不能再发送消息</p>'
-        : `<button type="button" class="chat-attach" onclick="chatTodo()">图片</button>
-           <button type="button" class="chat-attach" onclick="chatTodo()">文件</button>
+        ? `<p class="chat-closed-tip">${UI.CHAT_CLOSED_TIP}</p>`
+        : `<button type="button" class="chat-attach" onclick="chatTodo()">${UI.CHAT_ATTACH_IMAGE}</button>
+           <button type="button" class="chat-attach" onclick="chatTodo()">${UI.CHAT_ATTACH_FILE}</button>
            <textarea id="chat-input" class="form-input chat-textarea" rows="1"
-             placeholder="输入消息，Enter 发送，Shift+Enter 换行"
+             placeholder="${UI.CHAT_INPUT_PLACEHOLDER}"
              onkeydown="chatInputKeydown(event)" oninput="chatAutogrow(this)"></textarea>
-           <button type="button" class="btn btn-primary btn-sm chat-send" id="chat-send-btn" onclick="sendChatMessage()">发送</button>`}
+           <button type="button" class="btn btn-primary btn-sm chat-send" id="chat-send-btn" onclick="sendChatMessage()">${UI.CHAT_BTN_SEND}</button>`}
     </div>`;
 }
 
@@ -214,8 +214,8 @@ function renderChatFrame(conv) {
 function renderChatPlaceholder() {
   return `<div class="chat-placeholder">
     <span class="chat-placeholder-dots" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
-    <p class="chat-placeholder-title">选择左侧会话，开始沟通</p>
-    <p class="chat-placeholder-sub">同意试课意向后自动建立会话，消息每 4 秒自动刷新</p>
+    <p class="chat-placeholder-title">${UI.CHAT_PLACEHOLDER_TITLE}</p>
+    <p class="chat-placeholder-sub">${UI.CHAT_PLACEHOLDER_SUB}</p>
   </div>`;
 }
 
@@ -318,7 +318,7 @@ async function sendChatMessage() {
     showToast(err.message); // 失败时保留输入内容，便于重试
   } finally {
     chatSending = false;
-    if (btn) { btn.disabled = false; btn.textContent = '发送'; }
+    if (btn) { btn.disabled = false; btn.textContent = UI.CHAT_BTN_SEND; }
   }
 }
 
@@ -338,7 +338,7 @@ function chatAutogrow(ta) {
 
 // 图片 / 文件占位按钮：服务端 kind 暂未开放（501），前端先给预期提示
 function chatTodo() {
-  showToast('该功能即将开放，敬请期待');
+  showToast(UI.CHAT_TODO_TOAST);
 }
 
 // 移动端：从聊天窗返回会话列表（会话保持打开，轮询继续，预览照常刷新）

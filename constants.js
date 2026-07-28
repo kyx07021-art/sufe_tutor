@@ -179,8 +179,109 @@ window.APP_CONSTANTS = {
     // 成绩标签
     SCORE_UNIT: '分',
 
+    // 通用页面文案
+    LOADING: '加载中...',
+    OPTION_PLACEHOLDER: '请选择',
+    CONTACT_PLACEHOLDER: '手机号或邮箱',
+    VALIDATE_SELECT_PROVINCE: '请选择省份',
+
+    // 侧边栏页签标题
+    PAGE_MY_DEMANDS: '我的需求',
+    PAGE_BROWSE_TEACHERS: '浏览教师',
+    PAGE_MY_CHATS: '我的沟通',
+    PAGE_BROWSE_DEMANDS: '需求大厅',
+    PAGE_RESOURCE_SHARE: '资料共享',
+    PAGE_EDIT_PROFILE: '编辑自身信息',
+    PAGE_ADMIN_STATS: '统计',
+    PAGE_ADMIN_STUDENTS: '学生管理',
+    PAGE_ADMIN_TEACHERS: '教师管理',
+    PAGE_ADMIN_DEMANDS: '需求管理',
+    PAGE_ADMIN_REVIEWS: '评价管理',
+
+    // 需求表单
+    MODAL_TITLE_DEMAND_CREATE: '提交学生需求',
+    MODAL_TITLE_DEMAND_EDIT: '编辑学生需求',
+    HINT_SELECT_TARGET_SUBJECTS: '请先选择目标科目',
+    HINT_SELECT_PROVINCE_GRADE: '请先选择省份和年级',
+    HINT_SELECT_PROVINCE_GAOKAO: '请先选择省份（高考所在地），按该省政策填写高考成绩',
+    CONTACT_PARENT_PREFIX: '家长: ',
+    CONTACT_STUDENT_PREFIX: '学生: ',
+
+    // 学生处理教师意向
+    INTENT_STATUS_PENDING: '待处理',
+    INTENT_STATUS_ACCEPTED: '已同意',
+    INTENT_STATUS_REJECTED: '已拒绝',
+    EMPTY_NO_INTENTS: '暂无教师意向',
+    INTENT_ACCEPTED_TOAST: '已同意，可在「我的沟通」中开始对话',
+    INTENT_REJECTED_TOAST: '已拒绝该意向',
+
+    // 评价补充
+    REVIEW_MODAL_TITLE_PREFIX: '评价 ',
+    REVIEW_STATUS_AUDITING: '审核中',
+    REVIEW_REJECTED_HINT: '未通过，可修改后重新提交',
+    BTN_EDIT_REVIEW: '修改评价',
+    BTN_SUBMIT_REVIEW: '提交评价',
+
+    // 教师弹窗联系方式行
+    LABEL_WECHAT: '微信',
+    LABEL_EMAIL: '邮箱',
+
+    // 用户状态标签
+    TAG_BANNED: '已封禁',
+
+    // 沟通（聊天）
+    CHAT_TITLE: '会话',
+    CHAT_EMPTY_NO_CONVS: '暂无沟通——同意教师试课意向后自动建立',
+    CHAT_EMPTY_NO_MESSAGES: '还没有消息，先打个招呼吧',
+    CHAT_PREVIEW_ME_PREFIX: '我：',
+    CHAT_PREVIEW_IMAGE: '[图片]',
+    CHAT_PREVIEW_FILE: '[文件]',
+    CHAT_UNKNOWN_USER: '未知用户',
+    CHAT_BACK_TO_LIST: '会话列表',
+    CHAT_DEMAND_PREFIX: '需求 #',
+    CHAT_CLOSED_TIP: '该会话已关闭，不能再发送消息',
+    CHAT_ATTACH_IMAGE: '图片',
+    CHAT_ATTACH_FILE: '文件',
+    CHAT_INPUT_PLACEHOLDER: '输入消息，Enter 发送，Shift+Enter 换行',
+    CHAT_BTN_SEND: '发送',
+    CHAT_PLACEHOLDER_TITLE: '选择左侧会话，开始沟通',
+    CHAT_PLACEHOLDER_SUB: '同意试课意向后自动建立会话，消息每 4 秒自动刷新',
+    CHAT_TODO_TOAST: '该功能即将开放，敬请期待',
+
+    // 资料共享广场
+    POSTS_SEARCH_PLACEHOLDER: '搜索标题或正文',
+    POSTS_SORT_NEW: '最新优先',
+    POSTS_SORT_HOT: '最热优先',
+    BTN_CREATE_POST: '发布帖子',
+    POSTS_EMPTY: '还没有帖子，分享一份教学资料，帮到更多同行。',
+    POST_BTN_DELETE: '删除',
+    BTN_CONFIRM_DELETE: '确认删除',
+    POST_ANONYMOUS: '匿名',
+    POST_LIKE_ARIA: '点赞',
+    POST_LIKED_TOAST: '已点赞',
+    POST_UNLIKED_TOAST: '已取消点赞',
+    POST_MODAL_TITLE_CREATE: '发布帖子',
+    POST_LABEL_TITLE: '标题',
+    POST_TITLE_PLACEHOLDER: '一句话概括分享内容（不超过 60 字）',
+    POST_LABEL_BODY: '正文',
+    POST_MD_BOLD: '加粗',
+    POST_MD_IMAGE: '插入图片',
+    POST_BODY_PLACEHOLDER: '支持轻量 Markdown：## 大标题、### 小标题、**加粗**、插入图片（图片以本地文件嵌入）',
+    POST_PREVIEW_LABEL: '实时预览',
+    POST_PREVIEW_EMPTY: '暂无内容，预览将随输入实时更新',
+    POST_MD_BOLD_DEFAULT: '加粗文本',
+    POST_IMAGE_ONLY: '请选择图片文件',
+    POST_IMAGE_ALT: '图片',
+    POST_IMG_BLOCKED: '[图片：链接未放行，不予渲染]',
+    POST_TITLE_REQUIRED: '标题不能为空',
+    POST_PUBLISHING: '发布中',
+    POST_PUBLISHED: '发布成功',
+    BTN_PUBLISH: '发布',
+    POST_DELETE_TITLE: '删除帖子',
+    POST_DELETE_CONFIRM: '删除后不可恢复，点赞数据一并清空。确认删除这篇帖子？',
+
     // 通知信息
-    EMPTY_NO_NOTIFICATIONS: '暂无通知——当意向或推送被对方婉拒时，这里会温柔地告诉你。',
+    EMPTY_NO_NOTIFICATIONS: '暂无通知',
 
     // 账户设置
     SETTINGS_USERNAME: '账户用户名',
@@ -192,6 +293,48 @@ window.APP_CONSTANTS = {
     TOAST_COMING_SOON: '该功能暂未开放，敬请期待',
     BTN_LOGOUT: '退出登录',
     CONFIRM_LOGOUT: '确定要退出当前账户吗？',
+
+    // 表单标签与占位符
+    LABEL_PROVINCE: '省份',
+    LABEL_STUDENT_GRADE: '学生年级',
+    LABEL_STUDENT_GENDER: '学生性别',
+    LABEL_TARGET_SUBJECTS: '目标科目',
+    LABEL_MULTI_SUFFIX: '（可多选）',
+    LABEL_CURRENT_SCORES: '各科当前大概成绩',
+    LABEL_TEACHING_METHOD: '期望教学方式',
+    LABEL_ADDRESS: '地址',
+    ADDRESS_PLACEHOLDER: '上海市xx区xx路（精确门牌号请后续自行与教师沟通）',
+    LABEL_BUDGET: '预算区间（元/小时）',
+    PLACEHOLDER_MIN: '最低',
+    PLACEHOLDER_MAX: '最高',
+    LABEL_SUBMITTER: '提交者身份',
+    LABEL_PARENT_CONTACT: '家长联系方式',
+    LABEL_STUDENT_CONTACT: '学生联系方式',
+    LABEL_ADDITIONAL_INFO: '其他补充信息',
+    LABEL_RATING: '评分',
+    LABEL_REVIEW_CONTENT: '评价内容',
+    REVIEW_COMMENT_PLACEHOLDER: '请分享你的体验...',
+
+    // 教师弹窗 / 意向 / 需求卡区块
+    SECTION_SUBJECTS: '擅长科目',
+    SECTION_CONTACT: '联系方式',
+    SECTION_REVIEWS: '评价',
+    BTN_WRITE_REVIEW: '写评价',
+    BTN_VIEW: '查看',
+    BTN_AGREE: '同意',
+    INTENTS_TITLE: '试课意向',
+    MY_REVIEW_PREFIX: '你的评价：',
+    ADDRESS_PREFIX: '地址：',
+    ADDITIONAL_PREFIX: '补充：',
+
+    // 管理员面板补充
+    REGISTERED_AT_PREFIX: '注册于 ',
+    DEMAND_COUNT_SUFFIX: ' 条需求',
+    RATING_SCORE_SUFFIX: ' 分',
+
+    // 通用错误 / 结果
+    ERROR_REQUEST_FAILED: '请求失败',
+    POST_DELETED: '帖子已删除',
 
     // 管理员面板
     ADMIN_TOTAL_USERS: '总用户',

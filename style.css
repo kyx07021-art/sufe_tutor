@@ -479,15 +479,19 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .score-inline:focus { background-size: 100% 2px; }
 .score-max { font-size: .72rem; color: var(--muted); }
 
-/* 邀请码（管理员侧边栏底部）：邀请码盒 / 过期计时小字 / 复制按钮 上下三个平行块，
-   倒计时数字跳动不再影响任何元素宽度，布局零抽搐 */
+/* 邀请码（管理员侧边栏底部）：邀请码盒(左 2/3) + 复制按钮(右 1/3) 并排一行，
+   过期计时小字在下方左对齐；倒计时数字跳动只改自身文本，布局零抽搐 */
 .sidebar-invite { padding: 16px 10px 0; }
 .sidebar-invite-btn { width: 100%; }
 .invite-display { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; animation: fade-in .2s ease; }
-.invite-code-box { padding: 7px 9px; background: var(--sand-tint); text-align: center; }
+.invite-code-row { display: flex; align-items: stretch; gap: 6px; }
+.invite-code-box {
+  flex: 2 1 0; min-width: 0; padding: 7px 9px; background: var(--sand-tint);
+  display: flex; align-items: center; justify-content: center;
+}
 .invite-code-text { font-family: var(--mono); font-size: .85rem; font-weight: 700; letter-spacing: .12em; color: var(--ink); overflow-wrap: anywhere; }
-.invite-timer { font-size: .68rem; color: var(--warn-deep); font-weight: 700; text-align: center; min-height: 1em; }
-.invite-copy-btn { align-self: stretch; }
+.invite-timer { font-size: .68rem; color: var(--warn-deep); font-weight: 700; text-align: left; min-height: 1em; }
+.invite-copy-btn { flex: 1 1 0; }
 
 /* ============================================================
    Client 壳 — 可扩展侧边栏 + 页面区
@@ -535,15 +539,16 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .sidebar-close { display: none; margin: 8px 10px 0; padding: 10px 14px; color: var(--muted); font-size: .8rem; font-weight: 600; text-align: left; }
 .sidebar-close:hover { color: var(--ink); }
 
-/* 侧边栏底部装饰：主页同款细网格，底部实、向上渐隐，填充导航下方空白区 */
+/* 侧边栏底部装饰：主页同款细网格，占据侧边栏下 3/5 高度——
+   下部 2/3 实体（= 侧边栏 2/5 高），上部 1/3 渐隐淡出（至侧边栏 3/5 处收束） */
 .sidebar-deco-grid {
-  margin-top: auto; height: 170px; flex-shrink: 0; pointer-events: none;
+  margin-top: auto; height: 60%; flex-shrink: 0; pointer-events: none;
   background-image:
     linear-gradient(rgba(17,17,20,.07) 1px, transparent 1px),
     linear-gradient(90deg, rgba(17,17,20,.07) 1px, transparent 1px);
   background-size: 88px 88px;
-  -webkit-mask-image: linear-gradient(to top, #000, transparent);
-          mask-image: linear-gradient(to top, #000, transparent);
+  -webkit-mask-image: linear-gradient(to top, #000 66.7%, transparent 100%);
+          mask-image: linear-gradient(to top, #000 66.7%, transparent 100%);
 }
 
 /* 抽屉遮罩：仅移动端启用（见 Responsive） */

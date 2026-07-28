@@ -25,14 +25,14 @@ function enterResourceShare() {
   document.getElementById('posts-content').innerHTML = `
     <div class="posts-toolbar">
       <input type="search" id="posts-search" class="form-input posts-search"
-        placeholder="搜索标题或正文" oninput="postsSearchDebounced()">
+        placeholder="${UI.POSTS_SEARCH_PLACEHOLDER}" oninput="postsSearchDebounced()">
       <select id="posts-sort" class="form-select posts-sort" onchange="loadPosts()">
-        <option value="new">最新优先</option>
-        <option value="hot">最热优先</option>
+        <option value="new">${UI.POSTS_SORT_NEW}</option>
+        <option value="hot">${UI.POSTS_SORT_HOT}</option>
       </select>
-      ${isTeacher ? '<button type="button" class="btn btn-primary btn-sm" onclick="openPostEditor()">发布帖子</button>' : ''}
+      ${isTeacher ? `<button type="button" class="btn btn-primary btn-sm" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
     </div>
-    <div id="posts-list"><div class="empty-state"><p>加载中...</p></div></div>`;
+    <div id="posts-list"><div class="empty-state"><p>${UI.LOADING}</p></div></div>`;
   loadPosts();
 }
 
@@ -48,7 +48,7 @@ async function loadPosts() {
   const sort = document.getElementById('posts-sort')?.value || 'new';
   const el = document.getElementById('posts-list');
   if (!el) return; // 用户可能已切走页面
-  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const url = `/api/posts?sort=${sort}&userId=${state.user.id}` + (q ? `&q=${encodeURIComponent(q)}` : '');
     const data = await api(url);
@@ -56,7 +56,7 @@ async function loadPosts() {
     renderPosts();
   } catch (err) {
     const el2 = document.getElementById('posts-list');
-    if (el2) el2.innerHTML = `<div class="empty-state"><p>加载失败：${escHtml(err.message)}</p></div>`;
+    if (el2) el2.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
 }
 
@@ -64,7 +64,7 @@ function renderPosts() {
   const el = document.getElementById('posts-list');
   if (!el) return;
   if (!postsList.length) {
-    el.innerHTML = '<div class="empty-state"><p>还没有帖子，分享一份教学资料，帮到更多同行。</p></div>';
+    el.innerHTML = `<div class="empty-state"><p>${UI.POSTS_EMPTY}</p></div>`;
     return;
   }
   el.innerHTML = postsList.map(renderPostCard).join('');
@@ -79,16 +79,16 @@ function renderPostCard(p, i) {
   return `<div class="post-card" style="--i:${Math.min(i, 8)}">
     <div class="post-card-head">
       <h3 class="post-title">${escHtml(p.title)}</h3>
-      ${mine ? `<button type="button" class="post-del" onclick="postConfirmDelete(${p.id})">删除</button>` : ''}
+      ${mine ? `<button type="button" class="post-del" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}
     </div>
     <div class="post-meta">
-      <span class="post-author">${escHtml(p.username || '匿名')}</span>
+      <span class="post-author">${escHtml(p.username || UI.POST_ANONYMOUS)}</span>
       <span class="post-time">${escHtml(time)}</span>
     </div>
     ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > 80 ? '…' : ''}</p>` : ''}
     <div class="post-actions">
       <button type="button" class="post-like${p.liked ? ' liked' : ''}" data-id="${p.id}"
-        aria-pressed="${p.liked ? 'true' : 'false'}" aria-label="点赞" onclick="togglePostLike(${p.id})">
+        aria-pressed="${p.liked ? 'true' : 'false'}" aria-label="${UI.POST_LIKE_ARIA}" onclick="togglePostLike(${p.id})">
         <svg class="like-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"
           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
@@ -114,7 +114,7 @@ async function togglePostLike(id) {
       const cnt = btn.querySelector('.like-count');
       if (cnt) cnt.textContent = data.likeCount;
     }
-    showToast(data.liked ? '已点赞' : '已取消点赞');
+    showToast(data.liked ? UI.POST_LIKED_TOAST : UI.POST_UNLIKED_TOAST);
   } catch (err) {
     showToast(err.message);
   }
@@ -127,33 +127,33 @@ function openPostEditor() {
   // 防误触：点遮罩不关（编辑成本高，只能 ✕ / 取消关闭）
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>发布帖子</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.POST_MODAL_TITLE_CREATE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
-          <label class="form-label" for="post-title">标题 <span class="req">*</span></label>
-          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="一句话概括分享内容（不超过 60 字）">
+          <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE} <span class="req">*</span></label>
+          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.POST_TITLE_PLACEHOLDER}">
         </div>
         <div class="form-group">
-          <label class="form-label" for="post-body">正文</label>
+          <label class="form-label" for="post-body">${UI.POST_LABEL_BODY}</label>
           <div class="md-toolbar">
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn" onclick="mdWrap('bold')">加粗</button>
-            <button type="button" class="md-btn" onclick="pickPostImage()">插入图片</button>
+            <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
             <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="9"
-            placeholder="支持轻量 Markdown：## 大标题、### 小标题、**加粗**、插入图片（图片以本地文件嵌入）"
+            placeholder="${UI.POST_BODY_PLACEHOLDER}"
             oninput="updatePostPreview()"></textarea>
         </div>
         <div class="form-group">
-          <label class="form-label">实时预览</label>
+          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
           <div id="post-preview" class="md-preview"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
-          <button type="button" class="btn btn-primary" id="post-submit" onclick="submitPost()">发布</button>
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>
         </div>
       </div>
     </div>
@@ -184,7 +184,7 @@ function mdWrap(mode) {
       ta.value = ta.value.slice(0, start - 2) + sel + ta.value.slice(end + 2);
       ta.setSelectionRange(start - 2, start - 2 + sel.length);
     } else {
-      const inner = sel || '加粗文本';
+      const inner = sel || UI.POST_MD_BOLD_DEFAULT;
       ta.value = ta.value.slice(0, start) + '**' + inner + '**' + ta.value.slice(end);
       ta.setSelectionRange(start + 2, start + 2 + inner.length);
     }
@@ -219,7 +219,7 @@ function insertPostImage(input) {
   const file = input.files && input.files[0];
   input.value = ''; // 清空以便可再次选择同一文件
   if (!file) return;
-  if (!file.type.startsWith('image/')) { showToast('请选择图片文件'); return; }
+  if (!file.type.startsWith('image/')) { showToast(UI.POST_IMAGE_ONLY); return; }
   const reader = new FileReader();
   reader.onload = () => {
     const ta = document.getElementById('post-body');
@@ -229,7 +229,7 @@ function insertPostImage(input) {
     const after = ta.value.slice(pos);
     const sep1 = before && !before.endsWith('\n') ? '\n' : '';
     const sep2 = after && !after.startsWith('\n') ? '\n' : '';
-    ta.value = before + sep1 + `![图片](${reader.result})` + sep2 + after;
+    ta.value = before + sep1 + `![${UI.POST_IMAGE_ALT}](${reader.result})` + sep2 + after;
     ta.focus();
     updatePostPreview();
   };
@@ -241,7 +241,7 @@ function updatePostPreview() {
   const el = document.getElementById('post-preview');
   const ta = document.getElementById('post-body');
   if (!el || !ta) return;
-  el.innerHTML = mdRender(ta.value) || '<p class="md-preview-empty">暂无内容，预览将随输入实时更新</p>';
+  el.innerHTML = mdRender(ta.value) || `<p class="md-preview-empty">${UI.POST_PREVIEW_EMPTY}</p>`;
 }
 
 /**
@@ -259,7 +259,7 @@ function mdRender(src) {
     .replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (m, alt, url) =>
       (IMG_OK.test(url) && !/\s/.test(url))
         ? `<img src="${url}" alt="${alt}">`
-        : '<span class="md-img-blocked">[图片：链接未放行，不予渲染]</span>')
+        : `<span class="md-img-blocked">${UI.POST_IMG_BLOCKED}</span>`)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   const out = [];
   for (const line of escaped.split('\n')) {
@@ -282,24 +282,24 @@ async function submitPost() {
   const title = (titleEl.value || '').trim();
 
   if (!title) {
-    alertEl.innerHTML = '<div class="alert alert-error">标题不能为空</div>';
+    alertEl.innerHTML = `<div class="alert alert-error">${UI.POST_TITLE_REQUIRED}</div>`;
     titleEl.focus();
     return;
   }
   try {
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> 发布中';
+    btn.innerHTML = `<span class="spinner"></span> ${UI.POST_PUBLISHING}`;
     await api('/api/posts', {
       method: 'POST',
       body: { userId: state.user.id, title, bodyMd: bodyEl.value || '' },
     });
     closeModal();
-    showToast('发布成功');
+    showToast(UI.POST_PUBLISHED);
     loadPosts();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
     btn.disabled = false;
-    btn.textContent = '发布';
+    btn.textContent = UI.BTN_PUBLISH;
   }
 }
 
@@ -307,12 +307,12 @@ async function submitPost() {
 function postConfirmDelete(id) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal post-confirm-modal">
-      <div class="modal-header"><h2>删除帖子</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.POST_DELETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
-        <p class="text-sm post-confirm-text">删除后不可恢复，点赞数据一并清空。确认删除这篇帖子？</p>
+        <p class="text-sm post-confirm-text">${UI.POST_DELETE_CONFIRM}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
-          <button type="button" class="btn btn-danger" onclick="deletePost(${id})">确认删除</button>
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-danger" onclick="deletePost(${id})">${UI.BTN_CONFIRM_DELETE}</button>
         </div>
       </div>
     </div>
@@ -323,7 +323,7 @@ async function deletePost(id) {
   try {
     await api(`/api/posts/${id}`, { method: 'DELETE', body: { userId: state.user.id } });
     closeModal();
-    showToast('帖子已删除');
+    showToast(UI.POST_DELETED);
     loadPosts();
   } catch (err) {
     showToast(err.message);
