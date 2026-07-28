@@ -1160,20 +1160,23 @@ function renderDemandCard(d, opts = {}) {
   const budget = (d.budget_min || d.budget_max)
     ? `${d.budget_min||UI.BUDGET_NO_LIMIT}~${d.budget_max||UI.BUDGET_NO_LIMIT}${UI.BUDGET_UNIT_SUFFIX}` : UI.BUDGET_NEGOTIABLE;
 
-  // 平时成绩标签：等第制科目（mode:'grade'）只显示等第；分数制显示 分数/满分制；空值跳过
-  const scoresHtml = (d.current_scores||[]).map(cs => {
+  // 三行点号纯文字（同教师卡语言，行间细线分隔）：
+  // ① 基本信息：地区·年级·性别·提交者 ② 教学需求：线上/下·报价 ③ 需求科目和成绩：科目: 分数/分制（等第制直接显等第）
+  const infoBase = [provinceName, grade, gender, `${UI.SUBMITTER_PREFIX}${submitter}`].filter(Boolean).map(escHtml).join(' · ');
+  const infoDemandRow = [method, budget].filter(Boolean).map(escHtml).join(' · ');
+  const scoreItems = (d.current_scores||[]).map(cs => {
     const n = SUBJECTS.find(s=>s.id===cs.subject)?.name || cs.subject;
-    let val = '';
-    if (cs.grade || cs.mode === 'grade') val = cs.grade || '';
-    else if (cs.score !== '' && cs.score != null) val = `${cs.score}${UI.SCORE_UNIT}/${cs.scale}${UI.SCORE_SCALE_SUFFIX}`;
-    return val ? `<span class="tag">${n}: ${escHtml(val)}</span>` : '';
-  }).join('');
+    if (cs.grade || cs.mode === 'grade') return cs.grade ? `${n}: ${cs.grade}` : '';
+    if (cs.score !== '' && cs.score != null) return `${n}: ${cs.score}${UI.SCORE_UNIT}/${cs.scale}${UI.SCORE_SCALE_SUFFIX}`;
+    return '';
+  }).filter(Boolean);
+  const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
 
   return `<div class="list-card list-card--demand">
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar')}
     <div class="demand-card-main">
     <div class="list-card-header">
-      <span class="list-card-title">${(admin || push) && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
+      <span class="list-card-title">${escHtml(d.username || '')}</span>
       <span class="demand-card-tools">
         ${push ? `<span class="push-note-row">
           <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
@@ -1186,14 +1189,11 @@ function renderDemandCard(d, opts = {}) {
         ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
     </div>
-    <div class="list-card-body">
-      ${provinceName ? `<span class="tag tag-accent">${provinceName}</span>` : ''}
-      ${subjNames.map(n=>`<span class="tag tag-accent">${n}</span>`).join('')}
-      <span class="tag">${method}</span>
-      <span class="tag tag-warn">${budget}</span>
-      <span class="tag">${UI.SUBMITTER_PREFIX}${submitter}</span>
+    <div class="demand-info">
+      ${infoBase ? `<div class="demand-info-row">${infoBase}</div>` : ''}
+      ${infoDemandRow ? `<div class="demand-info-row">${infoDemandRow}</div>` : ''}
+      ${infoScores ? `<div class="demand-info-row">${infoScores}</div>` : ''}
     </div>
-    ${scoresHtml ? `<div class="list-card-detail" style="display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2);">${scoresHtml}</div>` : ''}
     ${d.address ? `<div class="list-card-detail">${UI.ADDRESS_PREFIX}${escHtml(d.address)}</div>` : ''}
     ${d.additional_info ? `<div class="list-card-detail">${UI.ADDITIONAL_PREFIX}${escHtml(d.additional_info)}</div>` : ''}
     <div class="demand-card-foot">
