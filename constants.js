@@ -188,7 +188,7 @@ globalThis.APP_CONSTANTS = {
     // 教师端浏览同行
     PAGE_BROWSE_TEACHERS_PEER_DESC: '查看同行的信息与评价',
 
-    // 聊天窗合同状态灰字行
+    // 聊天窗合同状态灰字行 / 合同事件气泡
     CHAT_CONTRACT_PENDING_SENT: '合同草案已发送，等待对方确认',
     CHAT_CONTRACT_PENDING_RECEIVED: '对方发来一份合同草案，请前往「我的合同」查看并确认',
     CHAT_CONTRACT_SIGNING_TODO: '草案已通过，请前往「我的合同」确认签约',
@@ -196,6 +196,9 @@ globalThis.APP_CONSTANTS = {
     CHAT_CONTRACT_SIGNED: '双方已完成签约',
     CHAT_BTN_DRAFT_CONTRACT: '起草合同',
     CHAT_PLUS_ARIA: '附件与合同',
+    CHAT_PREVIEW_CONTRACT: '[合同草案]',
+    CHAT_CONTRACT_BUBBLE_MINE: '你向对方发送了一份合同草案，可前往「我的合同」查看进度',
+    CHAT_CONTRACT_BUBBLE_OTHER: '对方向你发送了一份合同草案，请前往「我的合同」查看并确认',
 
     // 我的合同
     PAGE_MY_CONTRACTS: '我的合同',
@@ -205,13 +208,13 @@ globalThis.APP_CONSTANTS = {
     LABEL_CONTRACT_METHOD: '教学方式',
     LABEL_CONTRACT_PLAN: '教学方案',
     LABEL_CONTRACT_RATE: '约定时薪（元/小时）',
+    CONTRACT_PLAN_PLACEHOLDER: '描述教学目标、内容安排与上课节奏，发送后将按此信息生成正式合同',
     VALIDATE_CONTRACT_PLAN: '请填写教学方案',
     VALIDATE_CONTRACT_RATE: '请填写约定时薪',
     CONTRACT_STATUS_PENDING: '草案待确认',
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',
     CONTRACT_WAIT_DRAFT: '等待对方确认草案',
-    BTN_CONFIRM_DRAFT: '确认草案',
     BTN_SIGN: '确认签约',
     BTN_SIGN_WAITING: '等待对方确认签约',
     BTN_MODIFY_CONTRACT: '修改内容',
@@ -221,7 +224,6 @@ globalThis.APP_CONSTANTS = {
     CONFIRM_SIGN: '确认签约后不可单方撤销（测试版以二次确认代替短信验证）。确定确认签约吗？',
     CONFIRM_CANCEL_CONTRACT: '取消后合同删除并通知对方（会话保留）。确定取消签约吗？',
     CONTRACT_EMPTY_LIST: '暂无合同——可在「我的沟通」的聊天窗内起草',
-    CONTRACT_DRAFT_CONFIRMED_TOAST: '已确认草案，进入签约环节',
     CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',
     CONTRACT_CANCELLED_TOAST: '已取消签约',
     CONTRACT_SIGNED_TOAST: '签约完成',

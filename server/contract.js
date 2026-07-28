@@ -59,6 +59,7 @@ async function convOf(db, conversationId) {
 }
 const isParticipant = (conv, userId) => !!conv && (conv.student_user_id === userId || conv.teacher_user_id === userId);
 const otherSide = (conv, userId) => userId === conv.student_user_id ? conv.teacher_user_id : conv.student_user_id;
+const nameOf = (conv, userId) => userId === conv.student_user_id ? conv.student_name : conv.teacher_name;
 
 export async function dbGetContractByConv(db, conversationId) {
   return await dbGet(db, 'SELECT * FROM contracts WHERE conversation_id=? ORDER BY id DESC LIMIT 1', [conversationId]);
@@ -98,7 +99,10 @@ export async function handleCreateContract(db, body, req) {
      VALUES (?,?,?,?,?,?)`,
     [conversationId, userId, method, plan, rate, md]);
   const id = (res && res.meta && res.meta.last_row_id) || 0;
-  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_DRAFT_SENT);
+  // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
+  await dbRun(db, `INSERT INTO messages (conversation_id, sender_user_id, body, kind) VALUES (?,?,?,?)`,
+    [conversationId, userId, 'contract_draft', 'contract']);
+  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_DRAFT_SENT.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.create', actorUserId: userId, entity: 'contract', entityId: id,
     detail: { conversationId, method, rate }, req });
   return json({ id, message: MSG.CONTRACT_DRAFT_SENT_TOAST }, 201);
@@ -129,7 +133,7 @@ export async function handleConfirmDraft(db, contractId, body, req) {
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
 
   await dbRun(db, `UPDATE contracts SET status='signing', updated_at=datetime('now','localtime') WHERE id=?`, [contractId]);
-  await notifyUser(db, ct.drafter_user_id, MSG.CONTRACT_DRAFT_ACCEPTED);
+  await notifyUser(db, ct.drafter_user_id, MSG.CONTRACT_DRAFT_ACCEPTED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.confirm_draft', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
 }
@@ -142,20 +146,21 @@ export async function handleSignContract(db, contractId, body, req) {
   const userId = parseInt(body.userId);
   const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
-  if (ct.status !== 'signing') return error(MSG.CONTRACT_STATE_INVALID, 409);
+  // pending（收草案方直接确认签约，免去独立「确认草案」步骤）与 signing 均可签
+  if (ct.status !== 'pending' && ct.status !== 'signing') return error(MSG.CONTRACT_STATE_INVALID, 409);
   const conv = await convOf(db, ct.conversation_id);
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
   if (!(await verifySignOtp())) return error(MSG.CONTRACT_STATE_INVALID, 403);
 
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
-  await dbRun(db, `UPDATE contracts SET ${col}=1, updated_at=datetime('now','localtime') WHERE id=?`, [contractId]);
+  await dbRun(db, `UPDATE contracts SET ${col}=1, status='signing', updated_at=datetime('now','localtime') WHERE id=?`, [contractId]);
   const updated = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
   const both = !!(updated.drafter_confirmed && updated.other_confirmed);
   if (both) {
     await dbRun(db, `UPDATE contracts SET status='signed' WHERE id=?`, [contractId]);
     await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_SIGNED);
   } else {
-    await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_SIGN_WAITING);
+    await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_SIGN_WAITING.replace('{name}', nameOf(conv, userId)));
   }
   logEvent(db, { action: both ? 'contract.signed' : 'contract.sign_partial', actorUserId: userId,
     entity: 'contract', entityId: contractId, req });
@@ -167,7 +172,7 @@ export async function handleModifyContract(db, contractId, body, req) {
   const userId = parseInt(body.userId);
   const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
-  if (ct.status !== 'signing') return error(MSG.CONTRACT_STATE_INVALID, 409);
+  if (ct.status !== 'pending' && ct.status !== 'signing') return error(MSG.CONTRACT_STATE_INVALID, 409);
   const conv = await convOf(db, ct.conversation_id);
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
   const md = String(body.contractMd || '').slice(0, 30000);
@@ -176,7 +181,7 @@ export async function handleModifyContract(db, contractId, body, req) {
   await dbRun(db,
     `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, updated_at=datetime('now','localtime') WHERE id=?`,
     [md, contractId]);
-  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_MODIFIED);
+  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
 }
@@ -191,7 +196,7 @@ export async function handleCancelContract(db, contractId, body, req) {
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
 
   await dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
-  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_CANCELLED);
+  await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
 }

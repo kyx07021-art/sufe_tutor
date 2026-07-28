@@ -34,6 +34,7 @@ let chatSending = false;    // 发送中，防连点
 // 左栏会话列表 + 右栏聊天窗（未选中时占位）。每次进入都重置会话选中态并重建轮询。
 function enterMyChats() {
   stopChatPolling();
+  if (typeof setChatsBadge === 'function') setChatsBadge(0); // 点开瞬间红点即灭（轮询跳过当前页）
   document.getElementById('chats-content').innerHTML = `
     <div class="chats-shell" id="chats-shell">
       <aside class="chats-list-pane">
@@ -121,7 +122,9 @@ function renderConvItem(c) {
   const peer = chatPeerOf(c);
   const me = state.user.id;
   let preview = UI.CHAT_EMPTY_NO_MESSAGES;
-  if (c.last_kind && c.last_kind !== 'text') {
+  if (c.last_kind === 'contract') {
+    preview = UI.CHAT_PREVIEW_CONTRACT;
+  } else if (c.last_kind && c.last_kind !== 'text') {
     preview = (c.last_sender === me ? UI.CHAT_PREVIEW_ME_PREFIX : '') + (c.last_kind === 'image' ? UI.CHAT_PREVIEW_IMAGE : UI.CHAT_PREVIEW_FILE);
   } else if (c.last_body) {
     preview = (c.last_sender === me ? UI.CHAT_PREVIEW_ME_PREFIX : '') + c.last_body;
@@ -245,6 +248,14 @@ function renderChatPlaceholder() {
 // 单条消息气泡：自己靠右（墨底纸字），对方靠左（浅棕底墨字）
 function renderChatBubble(m, i) {
   const mine = state.user && m.sender_user_id === state.user.id;
+  // 合同事件系统气泡：独立淡紫块居中，文案按查看者区分（起草方 / 接收方）
+  if (m.kind === 'contract') {
+    const text = mine ? UI.CHAT_CONTRACT_BUBBLE_MINE : UI.CHAT_CONTRACT_BUBBLE_OTHER;
+    return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="--i:${Math.min(i || 0, 12)}">
+      <div class="chat-bubble chat-bubble--system">${escHtml(text)}</div>
+      <span class="chat-msg-time">${escHtml(fmtChatTime(m.created_at))}</span>
+    </div>`;
+  }
   return `<div class="chat-msg ${mine ? 'chat-msg--mine' : 'chat-msg--theirs'}" data-mid="${m.id}" style="--i:${Math.min(i || 0, 12)}">
     <div class="chat-bubble ${mine ? 'chat-bubble--mine' : 'chat-bubble--theirs'}">${escHtml(m.body)}</div>
     <span class="chat-msg-time">${escHtml(fmtChatTime(m.created_at))}</span>

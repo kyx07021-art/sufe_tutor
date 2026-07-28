@@ -764,10 +764,12 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .corner-dot { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 
 /* 通用展开容器：grid-rows 0fr→1fr 开合动效（筛选栏等统一走这套）。
-   内容须包在无内边距的 .drop-clip 内——带 padding 的子项在 0fr 态会泄漏高度 */
+   内容须包在无内边距的 .drop-clip 内——带 padding 的子项在 0fr 态会泄漏高度；
+   展开态放开 overflow，让内部自定义下拉面板能探出筛选栏（z-index 40 盖住下方卡片） */
 .drop-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .32s var(--ease-snap); }
 .drop-wrap.open { grid-template-rows: 1fr; }
 .drop-clip { overflow: hidden; min-height: 0; }
+.drop-wrap.open .drop-clip { overflow: visible; }
 
 /* 侧边栏「我的沟通」未读红点（语义圆点，全站唯一圆形元素之一） */
 .sidebar-dot { display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: var(--danger); }

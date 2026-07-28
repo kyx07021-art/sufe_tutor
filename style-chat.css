@@ -186,6 +186,11 @@
 .chat-contract-line { background: var(--paper); padding: 0 18px; }
 .chat-contract-line-text { padding: 7px 0; font-size: .72rem; color: var(--muted); text-align: center; letter-spacing: .02em; }
 
+/* ---------- 合同事件系统气泡：居中淡紫块（圆角随气泡惯例），区别于双方消息 ---------- */
+.chat-msg--system { align-self: center; align-items: center; max-width: 88%; }
+.chat-bubble--system { background: var(--accent-tint); color: var(--accent-deep); font-size: .78rem; text-align: center; }
+.chat-msg--system .chat-msg-time { text-align: center; }
+
 /* ---------- 加号弹层（附件 / 起草合同），发送键左侧 ---------- */
 .chat-plus-wrap { position: relative; flex-shrink: 0; }
 .chat-plus-btn {
@@ -216,7 +221,11 @@ textarea.chat-textarea {
   font-size: .88rem; line-height: 1.5;
 }
 
-.chat-send { min-width: 78px; flex-shrink: 0; }
+/* 发送键与加号键同高（40px），底栏 flex-end 下顶沿也齐平 */
+.chat-send {
+  min-width: 78px; flex-shrink: 0; height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
 /* 发送成功瞬间的弹跳微反馈 */
 @keyframes chat-send-pop {
   0%   { transform: scale(1); }

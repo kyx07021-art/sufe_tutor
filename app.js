@@ -358,21 +358,22 @@ async function refreshBadges() {
     ]);
     const chatUnread = (convData.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
     const notifUnread = (notifData.notifications || []).filter(n => !n.is_read).length;
-    setBadge('my-chats', chatUnread);
-    setBadge('notifications', notifUnread);
+    // 红点铁律：正在看的页签不写徽标——点开瞬间本地清零后，轮询不许把它再点亮
+    if (state.page !== 'my-chats') setBadge('my-chats', chatUnread);
+    if (state.page !== 'notifications') setBadge('notifications', notifUnread);
     if (state.user.role === 'teacher') {
       const pushData = await api(`/api/demand-pushes?teacherUserId=${state.user.id}`);
-      setBadge('browse-demands', (pushData.pushes || []).length);
+      if (state.page !== 'browse-demands') setBadge('browse-demands', (pushData.pushes || []).length);
       setBadge('my-demands', 0);
     } else if (state.user.role === 'student') {
       const demandData = await api(`/api/student/demands?userId=${state.user.id}`);
       setBadge('my-demands', (demandData.demands || []).filter(d => d.pending_intents > 0).length);
       setBadge('browse-demands', 0);
     } else { setBadge('browse-demands', 0); setBadge('my-demands', 0); }
-    // 我的合同红点：待我确认草案 / 待我确认签约的合同数（学生+教师）
+    // 我的合同红点：待我处理的合同数（学生+教师）
     if (state.user.role === 'student' || state.user.role === 'teacher') {
       const ctData = await api(`/api/contracts/my?userId=${state.user.id}`);
-      setBadge('my-contracts', (ctData.contracts || []).filter(contractActionable).length);
+      if (state.page !== 'my-contracts') setBadge('my-contracts', (ctData.contracts || []).filter(contractActionable).length);
     } else setBadge('my-contracts', 0);
   } catch { /* 静默，下一轮自愈 */ }
 }
@@ -1205,7 +1206,7 @@ async function loadBrowseDemands() {
     ]);
     const pushes = pData.pushes || [];
     const demands = dData.demands || [];
-    setBadge('browse-demands', pushes.length); // 进页即同步红点（轮询也会刷）
+    setBadge('browse-demands', 0); // 进页即视为已读；新推送由轮询在离开本页后重新点亮
     if (!pushes.length && !demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
     const pushDemandIds = new Set(pushes.map(p => p.id));
     const pinned = pushes.map(p => renderDemandCard(p, { push: p })).join('');
@@ -1298,6 +1299,7 @@ async function resolvePush(pushId, action) {
 // ============================================================
 async function enterNotifications() {
   const el = document.getElementById('notifications-content');
+  setBadge('notifications', 0); // 点开瞬间红点即灭（先于任何请求，轮询跳过当前页不复活）
   // 管理员独享「发通知」（系统广播）；其他角色隐藏
   const bb = document.getElementById('btn-broadcast-notif');
   if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
@@ -1315,7 +1317,6 @@ async function enterNotifications() {
     </div>`).join('');
     initReveals(el);
     if (list.some(n => !n.is_read)) {
-      setBadge('notifications', 0);
       api('/api/notifications/read', { method: 'POST', body: { userId: state.user.id } }).catch(() => {});
     }
   } catch (err) {
@@ -1445,13 +1446,14 @@ function openPostViewModal(postId) {
   </div>`;
 }
 
-async function adminDeletePost(postId) {
-  if (!confirm(UI.POST_DELETE_CONFIRM)) return;
-  try {
-    await api(`/api/posts/${postId}`, { method: 'DELETE', body: { userId: state.user.id, adminUsername: state.user.username } });
-    showToast(UI.POST_DELETED);
-    loadAdminPosts();
-  } catch (err) { showToast(err.message); }
+function adminDeletePost(postId) {
+  openConfirmModal(UI.POST_DELETE_CONFIRM, async () => {
+    try {
+      await api(`/api/posts/${postId}`, { method: 'DELETE', body: { userId: state.user.id, adminUsername: state.user.username } });
+      showToast(UI.POST_DELETED);
+      loadAdminPosts();
+    } catch (err) { showToast(err.message); }
+  });
 }
 
 // ============================================================
@@ -1470,6 +1472,7 @@ function contractActionable(c) {
 
 async function loadMyContracts() {
   const el = document.getElementById('my-contracts-list');
+  setBadge('my-contracts', 0); // 点开瞬间红点即灭（有待办由下一轮轮询在离开本页后重新点亮）
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const data = await api(`/api/contracts/my?userId=${state.user.id}`);
@@ -1492,22 +1495,22 @@ function renderContractCard(c) {
   const statusCls = c.status === 'signed' ? 'tag-ok' : c.status === 'signing' ? 'tag-warn' : 'tag-accent';
   const myConfirmed = iAmDrafter ? c.drafter_confirmed : c.other_confirmed;
 
-  let left = '';
-  if (c.status === 'pending') {
-    left = iAmDrafter
-      ? `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.CONTRACT_WAIT_DRAFT}</button>`
-      : `<button type="button" class="btn btn-accent btn-sm" onclick="confirmContractDraft(${c.id})">${UI.BTN_CONFIRM_DRAFT}</button>`;
-  } else if (c.status === 'signing') {
+  let left = '', right = '';
+  if (c.status === 'signed') {
+    left = `<button type="button" class="btn btn-outline btn-sm" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
+  } else if (c.status === 'pending' && iAmDrafter) {
+    // 起草方：等对方处理草案（对方直接看到三按钮，无独立「确认草案」环节）
+    left = `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.CONTRACT_WAIT_DRAFT}</button>`;
+    right = `<button type="button" class="btn btn-danger btn-sm" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
+  } else {
+    // pending 收草案方 / signing 双方：直接三按钮（确认签约 / 修改内容 / 查看合同）
     left = `${myConfirmed
         ? `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.BTN_SIGN_WAITING}</button>`
         : `<button type="button" class="btn btn-accent btn-sm" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
       <button type="button" class="btn btn-outline btn-sm" onclick="openContractModifyModal(${c.id})">${UI.BTN_MODIFY_CONTRACT}</button>
       <button type="button" class="btn btn-outline btn-sm" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
-  } else {
-    left = `<button type="button" class="btn btn-outline btn-sm" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
+    right = `<button type="button" class="btn btn-danger btn-sm" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
   }
-  const right = c.status !== 'signed'
-    ? `<button type="button" class="btn btn-danger btn-sm" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>` : '';
 
   return `<div class="list-card">
     <div class="list-card-header">
@@ -1526,23 +1529,38 @@ function renderContractCard(c) {
   </div>`;
 }
 
-// 确认草案（对方起草 → 我确认 → 进入签约环节）
-async function confirmContractDraft(contractId) {
-  try {
-    await api(`/api/contracts/${contractId}/confirm-draft`, { method: 'POST', body: { userId: state.user.id } });
-    showToast(UI.CONTRACT_DRAFT_CONFIRMED_TOAST);
-    loadMyContracts();
-  } catch (err) { showToast(err.message); }
+// 通用二次确认弹窗（全站禁止浏览器原生 confirm——必须走内置 modal 组件）
+let pendingConfirmAction = null;
+function openConfirmModal(message, action) {
+  pendingConfirmAction = action;
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:380px;">
+      <div class="modal-body">
+        <p style="margin-bottom:16px;">${message}</p>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-danger" onclick="runPendingConfirm()">${UI.BTN_CONFIRM}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function runPendingConfirm() {
+  closeModal();
+  const action = pendingConfirmAction;
+  pendingConfirmAction = null;
+  if (action) action();
 }
 
 // 确认签约：测试版二次确认代替短信验证（后端 verifySignOtp 预留接口）
-async function signContract(contractId) {
-  if (!confirm(UI.CONFIRM_SIGN)) return;
-  try {
-    const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: { userId: state.user.id } });
-    showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
-    loadMyContracts();
-  } catch (err) { showToast(err.message); }
+function signContract(contractId) {
+  openConfirmModal(UI.CONFIRM_SIGN, async () => {
+    try {
+      const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: { userId: state.user.id } });
+      showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
+      loadMyContracts();
+    } catch (err) { showToast(err.message); }
+  });
 }
 
 // 查看正式合同预览（Markdown 渲染，复用发帖组件的 mdRender）
@@ -1606,13 +1624,14 @@ async function submitContractModify(contractId) {
 }
 
 // 取消签约：二次确认 → 删合同 + 通知对方（后端），会话保留
-async function cancelContract(contractId) {
-  if (!confirm(UI.CONFIRM_CANCEL_CONTRACT)) return;
-  try {
-    await api(`/api/contracts/${contractId}`, { method: 'DELETE', body: { userId: state.user.id } });
-    showToast(UI.CONTRACT_CANCELLED_TOAST);
-    loadMyContracts();
-  } catch (err) { showToast(err.message); }
+function cancelContract(contractId) {
+  openConfirmModal(UI.CONFIRM_CANCEL_CONTRACT, async () => {
+    try {
+      await api(`/api/contracts/${contractId}`, { method: 'DELETE', body: { userId: state.user.id } });
+      showToast(UI.CONTRACT_CANCELLED_TOAST);
+      loadMyContracts();
+    } catch (err) { showToast(err.message); }
+  });
 }
 
 // 起草合同（聊天窗 + 号呼出）：教学方式 + 约定时薪 + 教学方案（md 编辑器）→ 发送另一方确认
@@ -1642,7 +1661,7 @@ function openContractDraftModal(convId) {
             <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
             <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
           </div>
-          <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.BROADCAST_BODY_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
+          <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.CONTRACT_PLAN_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>

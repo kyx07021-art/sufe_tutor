@@ -64,19 +64,19 @@ export const MSG = {
   // 头像
   AVATAR_INVALID: '头像数据无效（请上传 160px 内的图片）',
 
-  // 合同
+  // 合同（通知模板含 {name} 占位：通知不在聊天上下文，须给出具体用户名）
   CONTRACT_EXISTS: '该会话已存在进行中的合同',
   CONTRACT_NOT_FOUND: '合同不存在',
   CONTRACT_STATE_INVALID: '合同当前状态不允许该操作',
   CONTRACT_SELF_DRAFT: '草案由你起草，等待对方确认',
   CONTRACT_EMPTY: '合同内容不能为空',
-  CONTRACT_DRAFT_SENT: '对方向你发送了一份合同草案，请前往「我的合同」查看并确认',
+  CONTRACT_DRAFT_SENT: '「{name}」发来一份合同草案，请前往「我的合同」查看并确认',
   CONTRACT_DRAFT_SENT_TOAST: '合同草案已发送，等待对方确认',
-  CONTRACT_DRAFT_ACCEPTED: '对方已同意你的合同草案，请在「我的合同」内确认签约',
-  CONTRACT_SIGN_WAITING: '对方已确认签约，请在「我的合同」内完成你的确认',
-  CONTRACT_MODIFIED: '合同内容已被对方修改，签约确认已重置，请重新查看',
+  CONTRACT_DRAFT_ACCEPTED: '「{name}」已确认合同草案，请前往「我的合同」完成你的签约确认',
+  CONTRACT_SIGN_WAITING: '「{name}」已确认签约，请在「我的合同」内完成你的确认',
+  CONTRACT_MODIFIED: '「{name}」修改了合同内容，双方签约确认已重置，请重新查看',
   CONTRACT_SIGNED: '双方已完成签约，合作愉快！',
-  CONTRACT_CANCELLED: '对方已取消签约（会话仍保留）',
+  CONTRACT_CANCELLED: '「{name}」已取消签约（会话仍保留）',
   PROFILE_INCOMPLETE: '教师档案不完整：省份、年级、性别、擅长科目、报价均为必填，完善后才能提交试课意向',
   INTENT_SUBMITTED: '意向已提交',
   INTENT_NOT_FOUND: '意向不存在',

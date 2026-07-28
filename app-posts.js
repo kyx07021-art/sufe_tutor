@@ -33,6 +33,7 @@ function enterResourceShare() {
       ${isTeacher ? `<button type="button" class="btn btn-primary btn-sm" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
     </div>
     <div id="posts-list"><div class="empty-state"><p>${UI.LOADING}</p></div></div>`;
+  initCustomSelects(document.getElementById('posts-content')); // 工具条是动态渲染，须显式接线自定义下拉
   loadPosts();
 }
 
