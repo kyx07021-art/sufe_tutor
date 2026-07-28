@@ -231,6 +231,14 @@ globalThis.APP_CONSTANTS = {
     // 管理员：资料管理
     ADMIN_POSTS_EMPTY: '暂无帖子',
 
+    // 管理员：合同管理（网页测试用途，真实场景仅管理员可见）
+    PAGE_ADMIN_CONTRACTS: '合同管理',
+    PAGE_ADMIN_CONTRACTS_DESC: '查看全部合同，测试用移除',
+    ADMIN_CONTRACTS_EMPTY: '暂无合同',
+    BTN_REMOVE_CONTRACT: '移除合同',
+    CONFIRM_ADMIN_REMOVE_CONTRACT: '移除后合同彻底删除（操作留档保留）。确定移除该合同吗？',
+    ADMIN_CONTRACT_REMOVED_TOAST: '合同已移除',
+
     // 教师地址（选填，合规红线：不收详细门牌号）
     TEACHER_ADDRESS_PLACEHOLDER: '上海市xx区xx路（无需详细门牌号）',
 

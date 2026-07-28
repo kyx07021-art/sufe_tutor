@@ -14,7 +14,7 @@ const { SUBJECTS, STUDENT_GRADES,
 // ============================================================
 const state = { user: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], intentTeachers: [],
                 adminModalTeacher: null, myReviewOnModal: null,
-                myDemands: [], editingDemandId: null, adminPosts: [], myContracts: [],
+                myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
                 inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
 
 // ============================================================
@@ -56,6 +56,7 @@ const ROLE_PAGES = {
     { id: 'admin-demands',    label: UI.PAGE_ADMIN_DEMANDS,  desc: UI.PAGE_ADMIN_DEMANDS_DESC,  enter: loadAdminDemands },
     { id: 'admin-reviews',    label: UI.PAGE_ADMIN_REVIEWS,  desc: UI.PAGE_ADMIN_REVIEWS_DESC,  enter: loadAdminReviews },
     { id: 'admin-posts',      label: UI.PAGE_ADMIN_POSTS,    desc: UI.PAGE_ADMIN_POSTS_DESC,    enter: loadAdminPosts },
+    { id: 'admin-contracts',  label: UI.PAGE_ADMIN_CONTRACTS, desc: UI.PAGE_ADMIN_CONTRACTS_DESC, enter: loadAdminContracts },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
   ],
@@ -370,10 +371,20 @@ async function refreshBadges() {
       setBadge('my-demands', (demandData.demands || []).filter(d => d.pending_intents > 0).length);
       setBadge('browse-demands', 0);
     } else { setBadge('browse-demands', 0); setBadge('my-demands', 0); }
-    // 我的合同红点：待我处理的合同数（学生+教师）
+    // 我的合同红点：待我处理的合同数（学生+教师）；正停留在合同页则就地刷新列表（对方改动 ≤30s 可见）
     if (state.user.role === 'student' || state.user.role === 'teacher') {
       const ctData = await api(`/api/contracts/my?userId=${state.user.id}`);
-      if (state.page !== 'my-contracts') setBadge('my-contracts', (ctData.contracts || []).filter(contractActionable).length);
+      const contracts = ctData.contracts || [];
+      if (state.page === 'my-contracts') {
+        state.myContracts = contracts;
+        renderMyContractsList();
+      } else {
+        setBadge('my-contracts', contracts.filter(contractActionable).length);
+      }
+      // 聊天窗合同状态灰字行同步刷新
+      if (state.page === 'my-chats' && typeof chatConvId !== 'undefined' && chatConvId && typeof loadChatContract === 'function') {
+        loadChatContract(chatConvId);
+      }
     } else setBadge('my-contracts', 0);
   } catch { /* 静默，下一轮自愈 */ }
 }
@@ -498,7 +509,7 @@ function handleLogout() {
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询
   state.user = null; state.page = null;
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
-  state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.myContracts = [];
+  state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
   state.inviteTimerId = null; state.currentInviteCode = null;
   localStorage.removeItem('sufe_session');
   closeSidebar();
@@ -1477,12 +1488,19 @@ async function loadMyContracts() {
   try {
     const data = await api(`/api/contracts/my?userId=${state.user.id}`);
     state.myContracts = data.contracts || [];
-    if (!state.myContracts.length) { el.innerHTML = `<div class="empty-state"><p>${UI.CONTRACT_EMPTY_LIST}</p></div>`; return; }
-    el.innerHTML = state.myContracts.map(renderContractCard).join('');
-    initReveals(el);
+    renderMyContractsList();
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
+}
+
+// 合同列表渲染（进页加载与 30s 轮询就地刷新共用——对方改合同后不必退出重进）
+function renderMyContractsList() {
+  const el = document.getElementById('my-contracts-list');
+  if (!el) return;
+  if (!state.myContracts.length) { el.innerHTML = `<div class="empty-state"><p>${UI.CONTRACT_EMPTY_LIST}</p></div>`; return; }
+  el.innerHTML = state.myContracts.map(renderContractCard).join('');
+  initReveals(el);
 }
 
 function renderContractCard(c) {
@@ -1692,6 +1710,64 @@ async function submitContractDraft(convId) {
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
   }
+}
+
+// ============================================================
+// 管理员：合同管理（查看全部合同 + 测试用移除；全链路留档见后端 contract.* / admin.contract.*）
+// ============================================================
+async function loadAdminContracts() {
+  const el = document.getElementById('admin-contracts-list');
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
+  try {
+    const data = await api(`/api/admin/contracts?username=${encodeURIComponent(state.user.username)}`);
+    state.adminContracts = data.contracts || [];
+    if (!state.adminContracts.length) { el.innerHTML = `<div class="empty-state"><p>${UI.ADMIN_CONTRACTS_EMPTY}</p></div>`; return; }
+    el.innerHTML = state.adminContracts.map(renderAdminContractRow).join('');
+    initReveals(el);
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
+  }
+}
+
+function renderAdminContractRow(c) {
+  const statusText = c.status === 'pending' ? UI.CONTRACT_STATUS_PENDING
+    : c.status === 'signing' ? UI.CONTRACT_STATUS_SIGNING : UI.CONTRACT_STATUS_SIGNED;
+  const statusCls = c.status === 'signed' ? 'tag-ok' : c.status === 'signing' ? 'tag-warn' : 'tag-accent';
+  const methodName = TEACHING_METHODS.find(m => m.id === c.method)?.name || c.method;
+  return `<div class="admin-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line">
+        <strong>${escHtml(c.student_name)} × ${escHtml(c.teacher_name)}</strong>
+        <span class="tag ${statusCls}">${statusText}</span>
+      </div>
+      <div class="admin-row-meta">起草 ${escHtml(c.drafter_name)} · ${escHtml(methodName)} · ${c.hourly_rate}${UI.PRICE_UNIT} · ${fmtDateTime(c.updated_at)}</div>
+    </div>
+    <div class="admin-row-actions">
+      <button type="button" class="btn btn-outline btn-xs" onclick="adminViewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
+      <button type="button" class="btn btn-danger btn-xs" onclick="adminRemoveContract(${c.id})">${UI.BTN_REMOVE_CONTRACT}</button>
+    </div>
+  </div>`;
+}
+
+function adminViewContract(contractId) {
+  const c = state.adminContracts.find(x => x.id === contractId);
+  if (!c) return;
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body"><div class="md-preview">${mdRender(c.contract_md || '')}</div></div>
+    </div>
+  </div>`;
+}
+
+function adminRemoveContract(contractId) {
+  openConfirmModal(UI.CONFIRM_ADMIN_REMOVE_CONTRACT, async () => {
+    try {
+      await api(`/api/admin/contracts/${contractId}`, { method: 'DELETE', body: { username: state.user.username } });
+      showToast(UI.ADMIN_CONTRACT_REMOVED_TOAST);
+      loadAdminContracts();
+    } catch (err) { showToast(err.message); }
+  });
 }
 
 // ============================================================

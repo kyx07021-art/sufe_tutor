@@ -21,6 +21,7 @@ import { handleGetNotifications, handleMarkNotificationsRead } from './server/no
 import {
   handleCreateContract, handleGetContractByConv, handleGetMyContracts,
   handleConfirmDraft, handleSignContract, handleModifyContract, handleCancelContract,
+  handleAdminListContracts, handleAdminRemoveContract,
 } from './server/contract.js';
 import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
@@ -55,6 +56,9 @@ async function routeApi(db, p, method, body, url, req) {
     return await handleReviewAction(db, id, 'reject', body, req);
   }
   if (p === '/api/admin/users' && method === 'GET') return await handleAdminUsers(db, url);
+  if (p === '/api/admin/contracts' && method === 'GET') return await handleAdminListContracts(db, url);
+  const adminContractById = p.match(/^\/api\/admin\/contracts\/(\d+)$/);
+  if (adminContractById && method === 'DELETE') return await handleAdminRemoveContract(db, parseInt(adminContractById[1]), body, req);
   const userBan = p.match(/^\/api\/admin\/users\/(\d+)\/ban$/);
   if (userBan && method === 'POST') return await handleBanUser(db, parseInt(userBan[1]), body, req);
   const adminDemand = p.match(/^\/api\/admin\/demands\/(\d+)$/);

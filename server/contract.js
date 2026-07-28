@@ -5,7 +5,7 @@
  * 正式合同正文由 buildContractMd 按草案信息生成（Markdown，后期可换更正式的格式）；双方看到的是同一条记录。
  * 短信验证码环节未接入：verifySignOtp 预留接口，测试版以二次确认代替。
  */
-import { dbAll, dbGet, dbRun, json, error, MSG } from './core.js';
+import { dbAll, dbGet, dbRun, json, error, requireAdmin, MSG } from './core.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
 
@@ -178,11 +178,39 @@ export async function handleModifyContract(db, contractId, body, req) {
   const md = String(body.contractMd || '').slice(0, 30000);
   if (!md.trim()) return error(MSG.CONTRACT_EMPTY);
 
+  // 修改即回退到签约选择态：双方确认清零 + pending→signing，两边都回到 确认/修改/查看 三按钮
   await dbRun(db,
-    `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, updated_at=datetime('now','localtime') WHERE id=?`,
+    `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, status='signing', updated_at=datetime('now','localtime') WHERE id=?`,
     [md, contractId]);
   await notifyUser(db, otherSide(conv, userId), MSG.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
+  return json({ ok: true });
+}
+
+// GET /api/admin/contracts?username= —— 管理员查看全部合同（网页测试用途，真实场景仅管理员可见此页）
+export async function handleAdminListContracts(db, url) {
+  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+  const contracts = await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
+      us.username AS student_name, ut.username AS teacher_name, du.username AS drafter_name
+    FROM contracts ct
+    JOIN conversations c ON c.id = ct.conversation_id
+    JOIN users us ON us.id = c.student_user_id
+    JOIN users ut ON ut.id = c.teacher_user_id
+    JOIN users du ON du.id = ct.drafter_user_id
+    ORDER BY ct.updated_at DESC`);
+  return json({ contracts });
+}
+
+// DELETE /api/admin/contracts/:id { username } —— 管理员移除合同（测试用；合同全链路留档，删除记 admin.contract.remove）
+export async function handleAdminRemoveContract(db, contractId, body, req) {
+  const admin = await requireAdmin(db, body.username);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const ct = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [contractId]);
+  if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
+  await dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
+  logEvent(db, { action: 'admin.contract.remove', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'contract', entityId: contractId,
+    detail: { conversationId: ct.conversation_id, status: ct.status, drafterUserId: ct.drafter_user_id }, req });
   return json({ ok: true });
 }
 

@@ -95,7 +95,7 @@ export async function initDb(db) {
     db.prepare(`CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       conversation_id INTEGER NOT NULL, sender_user_id INTEGER NOT NULL,
-      kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file')),
+      kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract')),
       body TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
@@ -135,6 +135,27 @@ export async function initDb(db) {
   if (ctCols.length && !ctCols.some(c => c.name === 'conversation_id')) {
     await dbRun(db, 'DROP TABLE contracts');
     await dbRun(db, CONTRACTS_DDL);
+  }
+
+  // messages.kind CHECK 迁移：旧表三值约束不含 'contract'（合同系统气泡），
+  // 检测到即保数据换表（rename → 新建 → 拷贝 → 删旧 → 补索引）
+  const msgMeta = await dbGet(db, `SELECT sql FROM sqlite_master WHERE type='table' AND name='messages'`);
+  if (msgMeta && msgMeta.sql && !msgMeta.sql.includes("'contract'")) {
+    await db.batch([
+      db.prepare(`ALTER TABLE messages RENAME TO messages_old`),
+      db.prepare(`CREATE TABLE messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        conversation_id INTEGER NOT NULL, sender_user_id INTEGER NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract')),
+        body TEXT NOT NULL DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+        FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+      db.prepare(`INSERT INTO messages (id, conversation_id, sender_user_id, kind, body, created_at)
+        SELECT id, conversation_id, sender_user_id, kind, body, created_at FROM messages_old`),
+      db.prepare(`DROP TABLE messages_old`),
+      db.prepare(`CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, id)`),
+    ]);
   }
 
   // 一人一评唯一索引（幂等）；旧数据若有重复对则建不上，回落路由层成对检查，不阻塞启动
