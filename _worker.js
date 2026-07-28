@@ -21,14 +21,15 @@ import { handleGetNotifications, handleMarkNotificationsRead } from './server/no
 import {
   handleCreateContract, handleGetContractByConv, handleGetMyContracts,
   handleConfirmDraft, handleSignContract, handleModifyContract, handleCancelContract,
-  handleAdminListContracts, handleAdminRemoveContract,
+  handleAdminListContracts, handleAdminRemoveContract, handleVerifyContract,
+  initLedgerTable, bindLedgerDb,
 } from './server/contract.js';
 import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
   handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
-  handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminBroadcast,
+  handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
   handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
@@ -83,6 +84,8 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/admin/stats' && method === 'GET') return await handleAdminStats(db, url, req);
   if (p === '/api/admin/reviews' && method === 'GET') return await handleAdminReviews(db, url, req);
   if (p === '/api/admin/logs' && method === 'GET') return await handleAdminLogs(db, url, req);
+  const logDecrypt = p.match(/^\/api\/admin\/logs\/(\d+)\/decrypt$/);
+  if (logDecrypt && method === 'GET') return await handleAdminDecryptLog(db, parseInt(logDecrypt[1]), req);
   if (p.match(/^\/api\/admin\/reviews\/(\d+)\/approve$/) && method === 'POST') {
     const id = parseInt(p.match(/\/(\d+)\//)[1]);
     return await handleReviewAction(db, id, 'approve', body, req);
@@ -149,6 +152,8 @@ async function routeApi(db, p, method, body, url, req) {
       ? await handleSignContract(db, cid, body, req)
       : await handleConfirmDraft(db, cid, body, req);
   }
+  const contractVerify = p.match(/^\/api\/contracts\/(\d+)\/verify$/);
+  if (contractVerify && method === 'GET') return await handleVerifyContract(db, parseInt(contractVerify[1]), req);
   const contractById = p.match(/^\/api\/contracts\/(\d+)$/);
   if (contractById && method === 'PUT') return await handleModifyContract(db, parseInt(contractById[1]), body, req);
   if (contractById && method === 'DELETE') return await handleCancelContract(db, parseInt(contractById[1]), body, req);
@@ -214,11 +219,13 @@ export default {
       return env.ASSETS.fetch(request);
     }
 
-    // 首次请求时初始化数据库（业务库 + 可选独立留档库）
+    // 首次请求时初始化数据库（业务库 + 可选独立留档库 + 可选独立合同台账库）
     if (!env._dbInited) {
       await initDb(env.DB);
       if (env.LOG_DB) await initLogDb(env.LOG_DB);
       bindLogDb(env);
+      await initLedgerTable(env.LEDGER_DB || env.DB);
+      bindLedgerDb(env);
       env._dbInited = true;
     }
 

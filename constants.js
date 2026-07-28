@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.7.0',
+  APP_VERSION: '0.9.0',
 
   // ============================================================
   // 业务数据
@@ -226,6 +226,20 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_EMPTY: '合同内容不能为空',
     CONTRACT_PRICE_PLACEHOLDER: '如：150',
     ADMIN_CONTRACT_DRAFTER_PREFIX: '起草 ',
+    LABEL_CONTRACT_SCHEDULE: '授课时间',
+    CONTRACT_SCHEDULE_PLACEHOLDER: '自行描述，如：每周六 14:00-16:00，每次 2 小时',
+    LABEL_CONTRACT_LOCATION: '授课地点',
+    CONTRACT_LOCATION_PLACEHOLDER: '甲方常住处或双方另行约定的地点',
+    CONTRACT_LOCATION_NOTE: '出于隐私保护，授课地点请使用「甲方常住处」等模糊表述，勿将详细地址上传至平台。',
+    LABEL_CONTRACT_DEMAND: '对应需求',
+    CONTRACT_NO_DEMAND_OPTION: '不关联需求',
+    DEMAND_TAG_CONTRACTED: '已签约',
+    DEMAND_PREFIX: '需求 ',
+    BTN_VERIFY_LEDGER: '存证校验',
+    CONTRACT_LEDGER_VALID: '存证校验通过：合同文本与签署指纹一致',
+    CONTRACT_LEDGER_INVALID: '存证校验异常：文本与签署指纹不一致',
+    CONTRACT_LEDGER_ARCHIVED: '该合同已撤销，签署时的存证留档仍保留',
+    CONTRACT_LEDGER_NONE: '该合同暂无存证记录',
     CONTRACT_STATUS_PENDING: '草案待确认',
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',

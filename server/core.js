@@ -106,6 +106,7 @@ export const MSG = {
   REGISTER_SUCCESS: '注册成功',
   SERVER_ERROR: '服务器内部错误',
   RATE_LIMITED: '请求过于频繁，请稍后再试',
+  LOG_NOT_FOUND: '留档记录不存在',
 };
 
 // ============================================================

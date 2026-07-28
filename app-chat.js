@@ -635,6 +635,9 @@ function backToConvList() {
   if (shell) shell.classList.remove('chats-show-chat');
 }
 
+// 跨模块查当前会话（合同起草弹窗绑定会话需求用；经典脚本共享全局作用域）
+function chatConvById(id) { return chatConvList.find(c => c.id === id) || null; }
+
 // ============================================================
 // 小工具
 // ============================================================

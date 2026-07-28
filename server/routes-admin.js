@@ -13,7 +13,7 @@ import {
   dbUpdateReviewStatus, dbGetApprovedReviewStats, dbUpdateTeacherRating,
   dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage, mapTeacherProfileRow,
 } from './db.js';
-import { logEvent, queryLog } from './log.js';
+import { logEvent, queryLog, decryptLogEntry } from './log.js';
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 import { dbBroadcastNotification, notifyUser } from './notify.js';
 
@@ -165,6 +165,14 @@ export async function handleAdminLogs(db, url, req) {
   const f = Object.fromEntries(url.searchParams);
   const result = await queryLog(db, f);
   return json(result);
+}
+
+// GET /api/admin/logs/:id/decrypt —— 单条留档显式解密（列表检索已透明解密，此为按 id 定点取原文）
+export async function handleAdminDecryptLog(db, logId, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const entry = await decryptLogEntry(db, logId);
+  if (!entry) return error(MSG.LOG_NOT_FOUND, 404);
+  return json(entry);
 }
 
 // POST /api/feedbacks { kind, title, content } —— 全用户可提交（关于我们页「用户反馈」；身份凭令牌，防冒名）

@@ -309,7 +309,14 @@ export async function initDb(db) {
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"]]);
-  await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER']]);
+  await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"]]);
+
+  // 存量需求编号补发：按 id（生成顺序）依次取号，四位展示自 0001 起；已编号跳过（幂等）
+  const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');
+  for (const r of unnumbered) {
+    await dbRun(db, 'UPDATE student_demands SET display_id=(SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands) WHERE id=?', [r.id]);
+  }
   await ensureColumns(db, 'demand_intents', [
     ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
     ['resolved_at', 'DATETIME'],
@@ -435,11 +442,12 @@ export async function dbUpdateTeacherRating(db, teacherUserId, rating, count, su
 // ============================================================
 export async function dbCreateDemand(db, userId, demand) {
   // address_detail（详细门牌号）已因合规原因停用：不再收集、不再写入，列保留但恒为空
+  // display_id：对外需求编号（四位，按生成顺序自 0001 起），子查询取号保证顺序单调
   const result = await dbRun(db, `INSERT INTO student_demands
     (user_id,province,student_grade,student_gender,target_subjects,current_scores,
      teaching_method,address,budget_min,budget_max,
-     submitter_type,parent_contact,student_contact,additional_info)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+     submitter_type,parent_contact,student_contact,additional_info,display_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands))`, [
     userId, demand.province || '', demand.student_grade, demand.student_gender,
     JSON.stringify(demand.target_subjects), JSON.stringify(demand.current_scores),
     demand.teaching_method || 'offline', demand.address || '',
@@ -469,6 +477,7 @@ export function mapDemandRow(r) {
 
 export async function dbGetAllDemands(db, teacherUserId = null) {
   // 传 teacherUserId 时追加该教师在各需求上的意向状态（my_intent_status），供前端按钮三态渲染
+  // 广场只展示未签约需求：合同签署后 status='contracted' 的需求自动下架
   let sel = DEMANDS_SELECT, extra = '', params = [];
   if (teacherUserId) {
     sel = DEMANDS_SELECT.replace('COALESCE(ic.cnt, 0) AS intent_count',
@@ -476,7 +485,8 @@ export async function dbGetAllDemands(db, teacherUserId = null) {
     extra = ' LEFT JOIN demand_intents mi ON mi.demand_id=sd.id AND mi.teacher_user_id=?';
     params = [teacherUserId];
   }
-  const rows = await dbAll(db, sel + extra + ' ORDER BY sd.created_at DESC', params);
+  const rows = await dbAll(db, sel + extra +
+    ` WHERE (sd.status IS NULL OR sd.status <> 'contracted') ORDER BY sd.created_at DESC`, [...params]);
   return rows.map(mapDemandRow);
 }
 

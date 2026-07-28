@@ -1202,7 +1202,7 @@ function renderDemandCard(d, opts = {}) {
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar')}
     <div class="demand-card-main">
     <div class="list-card-header">
-      <span class="list-card-title">${escHtml(d.username || '')}</span>
+      <span class="list-card-title">${escHtml(d.username || '')}${d.status === 'contracted' ? ` <span class="tag tag-ok">${UI.DEMAND_TAG_CONTRACTED}</span>` : ''}</span>
       <span class="demand-card-tools">
         ${push ? `<span class="push-note-row">
           <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
@@ -1211,6 +1211,7 @@ function renderDemandCard(d, opts = {}) {
           <button type="button" class="btn btn-outline btn-xs" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
           <button type="button" class="btn btn-accent btn-xs" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
         </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${teacherIntentBtn}`}
+        ${d.display_id ? `<span class="demand-id-tag">#${String(d.display_id).padStart(4, '0')}</span>` : ''}
         ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
         ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
@@ -1568,7 +1569,8 @@ function renderContractCard(c) {
 
   let left = '', right = '';
   if (c.status === 'signed') {
-    left = `<button type="button" class="btn btn-outline btn-sm" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
+    left = `<button type="button" class="btn btn-outline btn-sm" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="verifyContractLedgerUi(${c.id})">${UI.BTN_VERIFY_LEDGER}</button>`;
   } else if (c.status === 'pending' && iAmDrafter) {
     // 起草方：等对方处理草案（对方直接看到三按钮，无独立「确认草案」环节）
     left = `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.CONTRACT_WAIT_DRAFT}</button>`;
@@ -1591,6 +1593,7 @@ function renderContractCard(c) {
     <div class="list-card-body">
       <span class="tag">${escHtml(methodName)}</span>
       <span class="tag tag-warn">${c.hourly_rate}${UI.PRICE_UNIT}</span>
+      ${c.demand_display_id ? `<span class="tag">${escHtml(UI.DEMAND_PREFIX)}#${String(c.demand_display_id).padStart(4, '0')}</span>` : ''}
       <span class="list-card-meta">${fmtDateTime(c.updated_at)}</span>
     </div>
     <div class="contract-actions">
@@ -1661,8 +1664,7 @@ function openContractModifyModal(contractId) {
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
-            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
+            <!-- 合同编辑器禁插图：合同正文须为纯文本条款 -->
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="12" oninput="updatePostPreview()">${escHtml(c.contract_md || '')}</textarea>
         </div>
@@ -1678,6 +1680,15 @@ function openContractModifyModal(contractId) {
     </div>
   </div>`;
   updatePostPreview();
+}
+
+// 存证校验：重算合同文本哈希对比签署时的台账指纹（后端 /api/contracts/:id/verify）
+async function verifyContractLedgerUi(contractId) {
+  try {
+    const data = await api(`/api/contracts/${contractId}/verify`);
+    showToast(!data.recorded ? UI.CONTRACT_LEDGER_NONE : data.archived ? UI.CONTRACT_LEDGER_ARCHIVED
+      : data.valid ? UI.CONTRACT_LEDGER_VALID : UI.CONTRACT_LEDGER_INVALID);
+  } catch (err) { showToast(err.message); }
 }
 
 async function submitContractModify(contractId) {
@@ -1705,18 +1716,45 @@ function cancelContract(contractId) {
   });
 }
 
-// 起草合同（聊天窗 + 号呼出）：教学方式 + 约定时薪 + 教学方案（md 编辑器）→ 发送另一方确认
-function openContractDraftModal(convId) {
+// 起草合同（聊天窗 + 号呼出）：先选对应需求 → 预载配置（科目/方式/预算）→ 教学方式 / 授课时间 /
+// 授课地点 / 约定时薪 / 教学方案（md 编辑器，合同文本禁插图）→ 发送另一方确认
+async function openContractDraftModal(convId) {
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-body"><p>${UI.LOADING}</p></div></div></div>`;
+  let demands = [];
+  try { const data = await api('/api/student/demands'); demands = data.demands || []; } catch { /* 拉取失败仍可起草（不绑需求） */ }
+  const conv = (typeof chatConvById === 'function') ? chatConvById(convId) : null;
+  // 学生可从自己的需求里选；教师只能绑会话自带需求（会话均由需求撮合而来）
+  const options = state.user.role === 'student'
+    ? demands.filter(d => d.user_id === state.user.id && d.status !== 'contracted')
+    : demands.filter(d => conv && d.id === conv.demand_id);
+  const preselect = (conv && options.find(d => d.id === conv.demand_id)) || options[0] || null;
+  window._contractDraftDemands = options; // 供 prefillContractFromDemand 取数
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
       <div class="modal-header"><h2>${UI.DRAFT_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="contract-alert"></div>
         <div class="form-group">
+          <label class="form-label">${UI.LABEL_CONTRACT_DEMAND}</label>
+          <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
+            <option value="">${UI.CONTRACT_NO_DEMAND_OPTION}</option>
+            ${options.map(d => `<option value="${d.id}"${preselect && d.id === preselect.id ? ' selected' : ''}>#${String(d.display_id || d.id).padStart(4, '0')} · ${escHtml((d.target_subjects || []).map(sid => SUBJECTS.find(s => s.id === sid)?.name || sid).join('、') || '—')}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_METHOD}</label>
           <select class="form-select" id="contract-method">
             ${TEACHING_METHODS.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
           </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.LABEL_CONTRACT_SCHEDULE}</label>
+          <input type="text" class="form-input" id="contract-schedule" maxlength="200" placeholder="${UI.CONTRACT_SCHEDULE_PLACEHOLDER}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.LABEL_CONTRACT_LOCATION}</label>
+          <input type="text" class="form-input" id="contract-location" maxlength="100" placeholder="${UI.CONTRACT_LOCATION_PLACEHOLDER}">
+          <div class="form-note-block">${UI.CONTRACT_LOCATION_NOTE}</div>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_RATE}</label>
@@ -1728,8 +1766,6 @@ function openContractDraftModal(convId) {
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
-            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.CONTRACT_PLAN_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
         </div>
@@ -1746,6 +1782,25 @@ function openContractDraftModal(convId) {
   </div>`;
   initCustomSelects(document.getElementById('contract-method') && document.getElementById('contract-method').closest('.modal'));
   updatePostPreview();
+  prefillContractFromDemand(); // 初始选中项的预载
+}
+
+// 起草预载：按所选需求填 教学方式 / 时薪（预算中值）/ 科目（写入方案首行）——仅填空白项，用户改过的不覆盖
+function prefillContractFromDemand() {
+  const sel = document.getElementById('contract-demand');
+  const d = (window._contractDraftDemands || []).find(x => String(x.id) === sel.value);
+  if (!d) return;
+  if (d.teaching_method) {
+    const mSel = document.getElementById('contract-method');
+    if (mSel && [...mSel.options].some(o => o.value === d.teaching_method)) { mSel.value = d.teaching_method; syncCustomSelectText(mSel); }
+  }
+  const rateEl = document.getElementById('contract-rate');
+  if (rateEl && !rateEl.value && (d.budget_min || d.budget_max)) {
+    rateEl.value = Math.round(((+d.budget_min || 0) + (+d.budget_max || 0)) / 2) || (+d.budget_max || +d.budget_min);
+  }
+  const plan = document.getElementById('post-body');
+  const subjLine = (d.target_subjects || []).map(sid => SUBJECTS.find(s => s.id === sid)?.name || sid).filter(Boolean).join('、');
+  if (plan && !plan.value.trim() && subjLine) { plan.value = `授课科目：${subjLine}\n\n`; updatePostPreview(); }
 }
 
 let contractDraftBusy = false; // 合同起草防双发（双击生成两份草案）
@@ -1760,7 +1815,10 @@ async function submitContractDraft(convId) {
   if (contractDraftBusy) return;
   contractDraftBusy = true;
   try {
-    const data = await api('/api/contracts', { method: 'POST', body: { userId: state.user.id, conversationId: convId, method, plan, hourlyRate: +rate } });
+    const schedule = (document.getElementById('contract-schedule').value || '').trim();
+    const location = (document.getElementById('contract-location').value || '').trim();
+    const demandId = parseInt(document.getElementById('contract-demand').value) || null;
+    const data = await api('/api/contracts', { method: 'POST', body: { userId: state.user.id, conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId } });
     closeModal();
     showToast(data.message || UI.CONTRACT_DRAFT_SENT_TOAST);
   } catch (err) {
