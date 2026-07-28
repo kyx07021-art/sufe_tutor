@@ -1,8 +1,10 @@
 /**
- * 前端常量 — 业务数据 + UI 文字
- * 与 _worker.js 顶部常量块保持同步
+ * 前端常量 — 业务数据 + UI 文字 + 系统通知模板
+ * 挂 globalThis：浏览器经典脚本（window）与 worker ESM import 两用（同 region-data.js），
+ * 服务端文案（婉拒通知等）亦统一在此维护，改文案只动这一个文件。
+ * API 错误消息常量另见 server/core.js MSG 块。
  */
-window.APP_CONSTANTS = {
+globalThis.APP_CONSTANTS = {
 
   // ============================================================
   // 业务数据
@@ -171,7 +173,11 @@ window.APP_CONSTANTS = {
     BTN_PUSH_ACCEPT: '确认试课意向',
     PUSH_SECTION_TITLE: '学生主动发给你的需求',
     PUSH_ACCEPTED_TOAST: '已确认，可在「我的沟通」开始对话',
-    PUSH_REJECTED_TOAST: '已婉拒，对方会收到通知',
+    PUSH_REJECTED_TOAST: '已谢绝',
+    // 系统通知模板（拒绝等节点发给对方的委婉通知；{subjects} 由服务端替换为科目名）
+    NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师近期时间较难排开，暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
+    NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。',
+    NOTIFY_SUBJECTS_FALLBACK: '相关科目',
 
     // 成绩标签
     SCORE_UNIT: '分',

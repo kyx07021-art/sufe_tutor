@@ -3,6 +3,7 @@
  */
 import { json, error, MSG } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
+import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
   dbFindUserById, dbCreateDemand, dbGetAllDemands, dbGetDemandsByUser,
   dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbCreateIntent, dbGetIntentTeachers,
@@ -13,16 +14,17 @@ import { logEvent } from './log.js';
 import { notifyUser } from './notify.js';
 
 // 委婉通知文案：拒绝/退回时给对方一个体面的交代（科目名经 region-data 解码，年级不入库名故省略）
-// 模板本体在 core.js MSG（NOTIFY_PUSH_REJECT / NOTIFY_INTENT_REJECT），此处仅填 {subjects}
+// 模板本体在 constants.js UI 块（NOTIFY_PUSH_REJECT / NOTIFY_INTENT_REJECT），此处仅填 {subjects}
 function demandSubjectsText(d) {
   const R = globalThis.SUFE_REGIONS;
+  const UI = globalThis.APP_CONSTANTS.UI;
   let ids = [];
   try { ids = d ? JSON.parse(d.target_subjects || '[]') : []; } catch { ids = []; }
   const names = ids.map(id => R.subjectNames[id] || '').filter(Boolean).join('、');
-  return names || '相关科目';
+  return names || UI.NOTIFY_SUBJECTS_FALLBACK;
 }
-const pushRejectNote = d => MSG.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
-const intentRejectNote = d => MSG.NOTIFY_INTENT_REJECT.replace('{subjects}', demandSubjectsText(d));
+const pushRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
+const intentRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_INTENT_REJECT.replace('{subjects}', demandSubjectsText(d));
 
 export async function handleCreateDemand(db, body) {
   const { userId, demand: d } = body;
