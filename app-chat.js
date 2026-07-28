@@ -579,10 +579,13 @@ async function chatSendAttachment(item) {
   const box = document.getElementById('chat-messages');
   if (box) {
     if (box.querySelector('.empty-state')) box.innerHTML = '';
-    box.insertAdjacentHTML('beforeend', renderChatBubble({
-      id: data.id || 0, sender_user_id: state.user.id, kind, body: item.dataUrl, name, created_at: chatNowStamp(),
-    }, 0));
-    chatScrollToBottom(true);
+    // 与轮询互为真相：在途 poll 可能先把这条拉回渲染，本地插入必须按 data-mid 去重（对齐文本路径）
+    if (!data.id || !box.querySelector(`.chat-msg[data-mid="${data.id}"]`)) {
+      box.insertAdjacentHTML('beforeend', renderChatBubble({
+        id: data.id || 0, sender_user_id: state.user.id, kind, body: item.dataUrl, name, created_at: chatNowStamp(),
+      }, 0));
+      chatScrollToBottom(true);
+    }
   }
   if (data.id && data.id > chatLastMsgId) chatLastMsgId = data.id;
   chatBumpConvPreview(convId, { body: '', kind, created_at: chatNowStamp(), sender_user_id: state.user.id });
