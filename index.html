@@ -296,6 +296,10 @@
               <label class="form-label">邮箱</label>
               <input type="email" class="form-input" id="profile-email" placeholder="选填">
             </div>
+            <div class="form-group">
+              <label class="form-label">个人简介</label>
+              <input type="text" class="form-input" id="profile-intro" maxlength="50" placeholder="一句话介绍自己，让学生更快了解你（选填，50 字内）">
+            </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary" id="profile-submit">保存</button>
             </div>
@@ -350,6 +354,12 @@
         <section class="client-page hidden" data-page="my-chats">
           <div class="page-header"><h2>我的沟通</h2></div>
           <div id="chats-content"><div class="empty-state"><p>加载中...</p></div></div>
+        </section>
+
+        <!-- 全角色：通知信息（拒绝/退回等节点的委婉提醒，源码 notify.js 推送维护） -->
+        <section class="client-page hidden" data-page="notifications">
+          <div class="page-header"><h2>通知信息</h2></div>
+          <div id="notifications-content"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
 
       </main>

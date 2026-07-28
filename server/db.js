@@ -8,6 +8,7 @@ import {
   ADMIN_USERNAMES, ADMIN_DEFAULT_PASSWORD, INITIAL_RATING,
 } from './core.js';
 import { initLogDb } from './log.js';
+import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
 
 // ============================================================
 // 数据库初始化 + 迁移
@@ -107,6 +108,16 @@ export async function initDb(db) {
       UNIQUE(post_id, user_id),
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // 学生主动把需求推送给指定教师（与 demand_intents 方向相反；pending 时置顶 + 红点）
+    db.prepare(`CREATE TABLE IF NOT EXISTS demand_pushes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      demand_id INTEGER NOT NULL, student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected')),
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      UNIQUE(demand_id, teacher_user_id),
+      FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
+      FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
   ]);
 
   // 一人一评唯一索引（幂等）；旧数据若有重复对则建不上，回落路由层成对检查，不阻塞启动
@@ -234,7 +245,7 @@ export async function initDb(db) {
   await initLogDb(db);
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
-  await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'demand_intents', [
     ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
@@ -245,6 +256,9 @@ export async function initDb(db) {
     ['student_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
     ['teacher_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
   ]);
+
+  // 通知表（独立模块 notify.js 提供建表与推送咽喉）
+  await initNotifyTable(db);
 }
 
 // 幂等加列迁移：PRAGMA 探测后再 ALTER（D1 无 ADD COLUMN IF NOT EXISTS）
@@ -320,12 +334,12 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 
   if (existing) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
-      price=?,wechat=?,email=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, userId]);
+      price=?,wechat=?,email=?,intro=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), userId]);
   } else {
-    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email)
-      VALUES (?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email]);
+    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, (profile.intro || '').slice(0, 50)]);
   }
 }
 
@@ -333,7 +347,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 export function mapTeacherProfileRow(p) {
   return {
     id: p.id, user_id: p.user_id, username: p.username,
-    province: p.province || '', grade: p.grade, gender: p.gender,
+    province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '',
     subjects: p.subjects ? JSON.parse(p.subjects) : [],
     gaokao_scores: p.gaokao_scores ? JSON.parse(p.gaokao_scores) : [],
     price: p.price || 0, wechat: p.wechat, email: p.email,
@@ -425,6 +439,44 @@ export async function dbUpdateDemand(db, id, d) {
 export async function dbDeleteDemand(db, id) {
   await dbRun(db, 'DELETE FROM demand_intents WHERE demand_id=?', [id]);
   await dbRun(db, 'DELETE FROM student_demands WHERE id=?', [id]);
+}
+
+// ============================================================
+// 需求主动推送（学生 → 指定教师）
+// ============================================================
+export async function dbCreatePush(db, demandId, studentUserId, teacherUserId) {
+  const r = await dbRun(db,
+    'INSERT INTO demand_pushes (demand_id,student_user_id,teacher_user_id) VALUES (?,?,?)',
+    [demandId, studentUserId, teacherUserId]);
+  return Number(r.meta.last_row_id);
+}
+
+// 某教师待处理推送（含需求全字段 + 学生用户名），供需求大厅置顶 + 红点计数
+export async function dbGetPendingPushesForTeacher(db, teacherUserId) {
+  const rows = await dbAll(db, `SELECT dp.id AS push_id, dp.status AS push_status, dp.created_at AS push_created_at,
+      sd.*, u.username
+    FROM demand_pushes dp
+    JOIN student_demands sd ON sd.id=dp.demand_id
+    JOIN users u ON u.id=sd.user_id
+    WHERE dp.teacher_user_id=? AND dp.status='pending'
+    ORDER BY dp.created_at DESC`, [teacherUserId]);
+  return rows.map(mapDemandRow); // push_* 字段随 rest 透传
+}
+
+export async function dbGetPushById(db, pushId) {
+  return await dbGet(db, 'SELECT * FROM demand_pushes WHERE id=?', [pushId]);
+}
+
+export async function dbResolvePush(db, pushId, status) {
+  await dbRun(db, 'UPDATE demand_pushes SET status=? WHERE id=?', [status, pushId]);
+}
+
+// 推送被教师确认：写一条「已接受」意向（复用学生端意向/会话视图）+ 由路由层建立会话
+export async function dbAcceptPushAsIntent(db, demandId, teacherUserId) {
+  await dbRun(db, `INSERT INTO demand_intents (demand_id,teacher_user_id,status,resolved_at)
+      VALUES (?,?,'accepted',datetime('now','localtime'))
+    ON CONFLICT(demand_id,teacher_user_id) DO UPDATE SET status='accepted', resolved_at=datetime('now','localtime')`,
+    [demandId, teacherUserId]);
 }
 
 // ============================================================

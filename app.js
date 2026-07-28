@@ -27,12 +27,14 @@ const ROLE_PAGES = {
     { id: 'my-demands',      label: '我的需求',     enter: loadMyDemands },
     { id: 'browse-teachers', label: '浏览教师',     enter: loadTeachers },
     { id: 'my-chats',        label: '我的沟通',     enter: () => enterMyChats() },
+    { id: 'notifications',   label: '通知信息',     enter: enterNotifications },
   ],
   teacher: [
     { id: 'browse-demands',  label: '需求大厅',     enter: loadBrowseDemands },
     { id: 'resource-share',  label: '资料共享',     enter: () => enterResourceShare() },
     { id: 'my-chats',        label: '我的沟通',     enter: () => enterMyChats() },
     { id: 'edit-profile',    label: '编辑自身信息', enter: initProfileForm },
+    { id: 'notifications',   label: '通知信息',     enter: enterNotifications },
   ],
   admin: [
     { id: 'admin-stats',    label: '统计',     enter: loadAdminStats },
@@ -40,6 +42,7 @@ const ROLE_PAGES = {
     { id: 'admin-teachers', label: '教师管理', enter: loadAdminTeachers },
     { id: 'admin-demands',  label: '需求管理', enter: loadAdminDemands },
     { id: 'admin-reviews',  label: '评价管理', enter: loadAdminReviews },
+    { id: 'notifications',  label: '通知信息', enter: enterNotifications },
   ],
 };
 
@@ -141,7 +144,7 @@ function enterClient(pageId) {
   renderSidebar();
   showView('client');
   selectPage(pageId || defaultPageFor());
-  startUnreadPoll(); // 登录后即开始未读红点慢轮询
+  startBadgePoll(); // 登录后即开始侧边栏红点慢轮询
 }
 
 function renderSidebar() {
@@ -156,7 +159,7 @@ function renderSidebar() {
   document.getElementById('sidebar-nav').innerHTML = pagesForRole().map((p, i) => `
     <button type="button" class="sidebar-item" data-page="${p.id}" onclick="selectPage('${p.id}')">
       <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span><span>${p.label}</span>
-      ${p.id === 'my-chats' ? '<span class="sidebar-dot hidden" id="sidebar-chats-dot" title="有新消息"></span>' : ''}
+      ${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}
     </button>`).join('');
   document.getElementById('sidebar-invite').classList.toggle('hidden', !isAdmin);
 }
@@ -179,33 +182,37 @@ function closeSidebar()  { document.body.classList.remove('sidebar-open'); }
 function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
 
 // ============================================================
-// 「我的沟通」未读红点：30s 慢轮询会话未读总数；app-chat 打开会话已读后
-// 也会回调 setChatsBadge 实时消点
+// 侧边栏红点徽标：未读会话 / 待处理推送(教师) / 未读通知，30s 慢轮询统一刷新；
+// 各模块（如 app-chat 打开会话已读）也可即时回调 setBadge 消点
 // ============================================================
-let unreadPollTimer = null;
+const BADGE_PAGES = ['my-chats', 'browse-demands', 'notifications'];
+let badgePollTimer = null;
 
-function setChatsBadge(total) {
-  const dot = document.getElementById('sidebar-chats-dot');
-  if (dot) dot.classList.toggle('hidden', !total);
+function setBadge(pageId, n) {
+  const dot = document.getElementById(`sidebar-${pageId}-dot`);
+  if (dot) dot.classList.toggle('hidden', !n);
 }
+function setChatsBadge(n) { setBadge('my-chats', n); } // 兼容 app-chat 既有调用名
 
-function startUnreadPoll() {
-  stopUnreadPoll();
-  refreshChatsBadge();
-  unreadPollTimer = setInterval(refreshChatsBadge, 30000);
-}
+function startBadgePoll() { stopBadgePoll(); refreshBadges(); badgePollTimer = setInterval(refreshBadges, 30000); }
+function stopBadgePoll() { if (badgePollTimer) { clearInterval(badgePollTimer); badgePollTimer = null; } BADGE_PAGES.forEach(p => setBadge(p, 0)); }
 
-function stopUnreadPoll() {
-  if (unreadPollTimer) { clearInterval(unreadPollTimer); unreadPollTimer = null; }
-}
-
-async function refreshChatsBadge() {
+async function refreshBadges() {
   if (!state.user) return;
   try {
-    const data = await api(`/api/conversations?userId=${state.user.id}`);
-    const total = (data.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
-    setChatsBadge(total);
-  } catch { /* 网络抖动静默，下一轮自愈 */ }
+    const [convData, notifData] = await Promise.all([
+      api(`/api/conversations?userId=${state.user.id}`),
+      api(`/api/notifications?userId=${state.user.id}`),
+    ]);
+    const chatUnread = (convData.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
+    const notifUnread = (notifData.notifications || []).filter(n => !n.is_read).length;
+    setBadge('my-chats', chatUnread);
+    setBadge('notifications', notifUnread);
+    if (state.user.role === 'teacher') {
+      const pushData = await api(`/api/demand-pushes?teacherUserId=${state.user.id}`);
+      setBadge('browse-demands', (pushData.pushes || []).length);
+    } else setBadge('browse-demands', 0);
+  } catch { /* 静默，下一轮自愈 */ }
 }
 
 
@@ -324,7 +331,7 @@ async function validateInviteAndRegister() {
 
 function handleLogout() {
   if (state.inviteTimerId) clearInterval(state.inviteTimerId);
-  stopUnreadPoll();
+  stopBadgePoll();
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询
   state.user = null; state.page = null;
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
@@ -633,30 +640,34 @@ function renderSubjectScoreRows(t) {
 function renderTeachers(teachers) {
   const el = document.getElementById('teachers-list');
   if (!teachers.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_TEACHERS}</p></div>`; return; }
+  const isStudent = state.user && state.user.role === 'student';
 
+  // 错落两栏卡：左 头像+用户名(可点查看详情)+星级；右 信息行1(黑稍大)+信息行2(成绩灰可换行)+方形发送需求按钮；简介独占底部一行
   el.innerHTML = teachers.map(t => {
     const grade = TEACHER_GRADES.find(g=>g.id===t.grade)?.name || t.grade || '';
     const gender = GENDERS.find(g=>g.id===t.gender)?.name || '';
     const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
-    const meta = [provName, grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
-    const rows = renderSubjectScoreRows(t);
-
+    const info1 = [provName, grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
+    const info2 = (t.gaokao_scores || []).map(gs => {
+      const s = SUBJECTS.find(x => x.id === gs.subject);
+      if (!s) return '';
+      return gs.score != null ? `${s.name}${gs.score}` : `${s.name}${gs.grade || ''}`;
+    }).filter(Boolean).join(' · ');
+    const initial = escHtml((t.username || '?').charAt(0).toUpperCase());
     return `<div class="list-card list-card--teacher">
-      <div class="teacher-card-main">
-        <div class="list-card-header">
-          <span class="list-card-title">${escHtml(t.username)}<span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating||4).toFixed(1)}</b></span></span>
-          <span class="list-card-meta">${meta}</span>
-        </div>
-        ${rows ? `<div class="subject-block"><div class="section-title">擅长科目</div>${rows}</div>` : ''}
-        <div class="list-card-contact">
-          ${t.wechat ? `<span>${UI.CONTACT_WECHAT_PREFIX}${escHtml(t.wechat)}</span>` : ''}
-          ${t.email ? `<span>${UI.CONTACT_EMAIL_PREFIX}${escHtml(t.email)}</span>` : ''}
-        </div>
-        <div class="list-card-actions">
-          <button type="button" class="btn btn-outline btn-sm" onclick="openTeacherModal(${t.user_id})">${UI.BTN_VIEW_DETAIL}</button>
+      <div class="tc-avatar" aria-hidden="true">${initial}</div>
+      <div class="tc-identity">
+        <span class="tc-username" onclick="openTeacherModal(${t.user_id})">${escHtml(t.username)}</span>
+        <span class="tc-rating">${renderStars(t.rating)}<b>${(t.rating||4).toFixed(1)}</b></span>
+      </div>
+      <div class="tc-right">
+        <div class="tc-info1">${escHtml(info1)}</div>
+        ${info2 ? `<div class="tc-info2">${escHtml(info2)}</div>` : ''}
+        <div class="tc-actions">
+          ${isStudent ? `<button type="button" class="tc-push-btn" onclick="openSendDemandModal(${t.user_id})">发送需求 <span class="arrow">→</span></button>` : ''}
         </div>
       </div>
-      <div class="teacher-photo" aria-hidden="true"></div>
+      ${t.intro ? `<div class="tc-intro" title="${escHtml(t.intro)}">${escHtml(t.intro)}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -924,6 +935,7 @@ async function adminReviewAction(reviewId, action, fromModal) {
 // ============================================================
 function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false } = opts;
+  const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
   const provinceName = (typeof SUFE_REGIONS !== 'undefined' && d.province) ? SUFE_REGIONS.provinceName(d.province) : '';
   const subjNames = (d.target_subjects||[]).map(id => SUBJECTS.find(s=>s.id===id)?.name || id);
   const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
@@ -946,10 +958,15 @@ function renderDemandCard(d, opts = {}) {
 
   return `<div class="list-card">
     <div class="list-card-header">
-      <span class="list-card-title">${admin && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
+      <span class="list-card-title">${(admin || push) && d.username ? escHtml(d.username) + ' · ' : ''}${grade} · ${gender}</span>
       <span class="demand-card-tools">
-        <span class="list-card-meta">${fmtDateTime(d.created_at)}</span>
-        ${teacherIntentBtn}
+        ${push ? `<span class="push-note-row">
+          <span class="push-pin-tag">主动发送</span>
+          <span class="list-card-meta">${fmtDateTime(push.push_created_at)}</span>
+          <span class="push-note-text">学生主动向你提交了需求</span>
+          <button type="button" class="btn btn-outline btn-xs" onclick="resolvePush(${push.push_id},'reject')">暂时没空</button>
+          <button type="button" class="btn btn-accent btn-xs" onclick="resolvePush(${push.push_id},'accept')">确认试课意向</button>
+        </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${teacherIntentBtn}`}
         ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
         ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
@@ -996,7 +1013,106 @@ async function loadDemandList(elId, { mine }) {
 }
 
 function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: true }); }
-function loadBrowseDemands() { return loadDemandList('demands-list',    { mine: false }); }
+
+// 教师需求大厅：普通需求 + 学生主动推送的待处理需求（置顶 + 特殊操作行）
+async function loadBrowseDemands() {
+  const el = document.getElementById('demands-list');
+  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  try {
+    const [dData, pData] = await Promise.all([
+      api(`/api/student/demands?teacherUserId=${state.user.id}`),
+      api(`/api/demand-pushes?teacherUserId=${state.user.id}`),
+    ]);
+    const pushes = pData.pushes || [];
+    const demands = dData.demands || [];
+    setBadge('browse-demands', pushes.length); // 进页即同步红点（轮询也会刷）
+    if (!pushes.length && !demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
+    const pushDemandIds = new Set(pushes.map(p => p.id));
+    const pinned = pushes.map(p => renderDemandCard(p, { push: p })).join('');
+    const normal = demands.filter(d => !pushDemandIds.has(d.id)).map(d => renderDemandCard(d, { teacher: true })).join('');
+    el.innerHTML = (pinned ? `<div class="section-title" style="margin-bottom:8px;">学生主动发给你的需求</div>${pinned}` : '') + normal;
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
+  }
+}
+
+// 学生把某条需求主动发给指定教师：弹窗列出自己的需求单选
+async function openSendDemandModal(teacherUserId) {
+  const t = state.allTeachers.find(x => x.user_id === teacherUserId);
+  const tName = t ? t.username : '该老师';
+  let demands = state.myDemands;
+  if (!demands.length) {
+    try { demands = (await api(`/api/student/demands?userId=${state.user.id}`)).demands || []; state.myDemands = demands; }
+    catch { demands = []; }
+  }
+  const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
+    const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade || '';
+    const subs = (d.target_subjects||[]).map(id=>SUBJECTS.find(s=>s.id===id)?.name||id).join('、');
+    const prov = (typeof SUFE_REGIONS !== 'undefined' && d.province) ? SUFE_REGIONS.provinceName(d.province) : '';
+    const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || '';
+    return `<label class="push-pick-item"><input type="radio" name="push-demand" value="${d.id}">
+      <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
+      <span class="push-pick-sub">${[prov, method].filter(Boolean).map(escHtml).join(' · ')}</span></span></label>`;
+  }).join('')}</div>` : '<p class="text-sm text-muted">你还没有需求，先去「我的需求」发布一条吧。</p>';
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header"><h2>把需求发给 ${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <p class="text-sm text-muted" style="margin-bottom:12px;">选一条需求发送给这位老师，对方会在需求大厅优先看到它。</p>
+        ${pickHtml}
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">取消</button>
+          <button type="button" class="btn btn-primary" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">发送</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function submitDemandPush(teacherUserId) {
+  const sel = document.querySelector('input[name="push-demand"]:checked');
+  if (!sel) { showToast('请先选择一条需求'); return; }
+  try {
+    const data = await api('/api/demand-pushes', { method: 'POST', body: { userId: state.user.id, teacherUserId, demandId: +sel.value } });
+    closeModal();
+    showToast(data.message || '需求已发送');
+  } catch (err) { showToast(err.message); }
+}
+
+// 教师处理学生主动推送：确认 = 建会话；拒绝 = 婉拒（学生收通知）
+async function resolvePush(pushId, action) {
+  try {
+    await api(`/api/demand-pushes/${pushId}/resolve`, { method: 'POST', body: { userId: state.user.id, action } });
+    showToast(action === 'accept' ? '已确认，可在「我的沟通」开始对话' : '已婉拒，对方会收到通知');
+    loadBrowseDemands();
+  } catch (err) { showToast(err.message); }
+}
+
+// ============================================================
+// 通知信息页（全角色）：进入即标记已读并消红点
+// ============================================================
+async function enterNotifications() {
+  const el = document.getElementById('notifications-content');
+  el.innerHTML = '<div class="empty-state"><p>加载中...</p></div>';
+  try {
+    const data = await api(`/api/notifications?userId=${state.user.id}`);
+    const list = data.notifications || [];
+    if (!list.length) { el.innerHTML = '<div class="empty-state"><p>暂无通知——当意向或推送被对方婉拒时，这里会温柔地告诉你。</p></div>'; return; }
+    el.innerHTML = list.map(n => `<div class="notif-item${n.is_read ? '' : ' unread'}">
+      <span class="notif-dot${n.is_read ? ' read' : ''}"></span>
+      <div class="notif-body">
+        <div class="notif-text">${escHtml(n.text)}</div>
+        <div class="notif-time">${fmtDateTime(n.created_at)}</div>
+      </div>
+    </div>`).join('');
+    if (list.some(n => !n.is_read)) {
+      setBadge('notifications', 0);
+      api('/api/notifications/read', { method: 'POST', body: { userId: state.user.id } }).catch(() => {});
+    }
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
+  }
+}
 
 // ============================================================
 // 模块3：试课意向（教师提交 / 学生在需求内展开处理）
@@ -1120,6 +1236,7 @@ async function loadProfile() {
       document.getElementById('profile-price').value = p.price || '';
       document.getElementById('profile-wechat').value = p.wechat || '';
       document.getElementById('profile-email').value = p.email || '';
+      document.getElementById('profile-intro').value = p.intro || '';
       if (p.subjects?.length) {
         p.subjects.forEach(id => {
           const cb = document.querySelector(`#profile-subjects input[value="${id}"]`);
@@ -1164,6 +1281,7 @@ async function handleSaveProfile(e) {
         price: +document.getElementById('profile-price').value || 0,
         wechat: document.getElementById('profile-wechat').value.trim(),
         email: document.getElementById('profile-email').value.trim(),
+        intro: document.getElementById('profile-intro').value.trim(),
       }},
     });
     alertEl.innerHTML = `<div class="alert alert-success">${UI.SUCCESS_PROFILE_SAVED}</div>`;

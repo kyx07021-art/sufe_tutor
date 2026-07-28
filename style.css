@@ -621,7 +621,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   background-repeat: no-repeat; background-position: center; background-size: 42px 42px;
   transition: background-color var(--t-base) var(--ease-out);
 }
-.list-card--teacher:hover .teacher-photo { background-color: var(--lilac-2); }
+/* 教师卡悬停聚焦动效已取消（信息展示卡保持静态、错落） */
 
 /* ============================================================
    Browse / List
@@ -657,13 +657,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   position: relative; overflow: hidden; isolation: isolate;
   transition: background-color var(--t-base) var(--ease-out);
 }
-.list-card::before {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-  background: var(--accent); transform: scaleY(0); transform-origin: top;
-  transition: transform var(--t-base) var(--ease-snap);
-}
-.list-card:hover { background: var(--field); }
-.list-card:hover::before { transform: scaleY(1); }
+/* 信息展示卡（教师/需求）取消悬停聚焦：移除左侧竖条与底色微变 */
 .list-card-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; gap: 12px; }
 .list-card-title { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; }
 .list-card-meta { font-size: .74rem; color: var(--muted); font-weight: 500; }
@@ -837,6 +831,86 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .filter-row { flex-direction: column; gap: 12px; }
   .admin-row { flex-direction: column; gap: 10px; }
 }
+
+/* ============================================================
+   教师卡重构：错落两栏（左 头像+身份+简介 · 右 信息两行+方形发送按钮）
+   参考卡片图，直角、大留白、左右错落；信息展示无悬停动效
+   ============================================================ */
+.list-card--teacher {
+  display: grid; grid-template-columns: 64px 1fr; column-gap: 22px; row-gap: 9px; align-items: start;
+}
+.tc-avatar {
+  grid-column: 1; grid-row: 1;
+  width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;
+  background: var(--paper-2); color: var(--ink);
+  font-family: var(--font); font-weight: 700; font-size: 1.7rem; letter-spacing: -.02em;
+}
+.tc-identity { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tc-username {
+  font-weight: 800; font-size: .92rem; color: var(--ink); cursor: pointer; letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tc-username:hover { text-decoration: underline; }
+.tc-rating { display: inline-flex; align-items: center; gap: 5px; }
+.tc-rating .stars { font-size: .76rem; }
+.tc-rating b { font-family: var(--mono); font-size: .7rem; color: var(--ink-3); }
+.tc-right {
+  grid-column: 2; grid-row: 1 / span 2;
+  display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 8px;
+}
+.tc-info1 { font-size: .92rem; font-weight: 700; color: var(--ink); line-height: 1.5; }
+.tc-info2 { font-size: .78rem; color: var(--muted); line-height: 1.7; max-width: 100%; }
+.tc-intro {
+  grid-column: 1 / span 2; grid-row: 3;
+  font-size: .8rem; color: var(--muted); line-height: 1.6;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tc-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+/* 方形「发送需求」按钮：呼应参考图 Model details 按钮位 */
+.tc-push-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; background: var(--paper-2); color: var(--ink);
+  font-size: .78rem; font-weight: 700; letter-spacing: .02em;
+  transition: background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
+}
+.tc-push-btn:hover { background: var(--ink); color: var(--paper); }
+.tc-push-btn .arrow { transition: transform var(--t-base) var(--ease-out); }
+.tc-push-btn:hover .arrow { transform: translateX(3px); }
+
+/* 教师端被推送需求的置顶卡：右侧 时间·说明·拒绝·确认 一行 */
+.push-note-row { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.push-note-text { font-size: .74rem; font-weight: 700; color: var(--accent-deep); }
+.push-pin-tag {
+  font-size: .62rem; font-weight: 700; letter-spacing: .05em; color: var(--white);
+  background: var(--accent-deep); padding: 2px 7px; margin-right: 2px;
+}
+
+/* ============================================================
+   通知信息列表
+   ============================================================ */
+.notif-item {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 16px; background: var(--white); border: 1px solid var(--border-light); margin-bottom: 8px;
+}
+.notif-item.unread { border-left: 3px solid var(--danger); }
+.notif-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-top: 7px; }
+.notif-dot.read { background: transparent; }
+.notif-body { flex: 1; min-width: 0; }
+.notif-text { font-size: .86rem; line-height: 1.65; color: var(--ink-3); }
+.notif-item.unread .notif-text { color: var(--ink); font-weight: 600; }
+.notif-time { font-family: var(--mono); font-size: .68rem; color: var(--muted); margin-top: 5px; }
+
+/* 发送需求弹窗：单选自己的需求 */
+.push-pick { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; }
+.push-pick-item {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
+  border: 1px solid var(--border-light); cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+.push-pick-item:hover { border-color: var(--faint); background: var(--field); }
+.push-pick-item input { margin-top: 3px; flex: 0 0 auto; }
+.push-pick-main { font-size: .86rem; font-weight: 700; color: var(--ink); }
+.push-pick-sub { font-size: .74rem; color: var(--muted); margin-top: 3px; }
 
 /* ---------- utilities ---------- */
 .hidden { display: none !important; }

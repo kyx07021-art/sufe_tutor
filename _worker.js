@@ -15,7 +15,9 @@ import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
   handleCreateIntent, handleGetIntents, handleResolveIntent,
+  handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from './server/routes-demands.js';
+import { handleGetNotifications, handleMarkNotificationsRead } from './server/notify.js';
 import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
@@ -73,6 +75,16 @@ async function routeApi(db, p, method, body, url, req) {
   if (intentMatch && method === 'GET') return await handleGetIntents(db, parseInt(intentMatch[1]));
   const intentResolve = p.match(/^\/api\/intents\/(\d+)\/resolve$/);
   if (intentResolve && method === 'POST') return await handleResolveIntent(db, parseInt(intentResolve[1]), body, req);
+
+  // 需求主动推送（学生 → 教师）+ 教师处理推送
+  if (p === '/api/demand-pushes' && method === 'POST') return await handlePushDemand(db, body, req);
+  if (p === '/api/demand-pushes' && method === 'GET') return await handleGetTeacherPushes(db, url);
+  const pushResolve = p.match(/^\/api\/demand-pushes\/(\d+)\/resolve$/);
+  if (pushResolve && method === 'POST') return await handleResolvePush(db, parseInt(pushResolve[1]), body, req);
+
+  // 通知信息（全角色侧边栏模块）
+  if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, url);
+  if (p === '/api/notifications/read' && method === 'POST') return await handleMarkNotificationsRead(db, body);
 
   // 站内沟通
   if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url);

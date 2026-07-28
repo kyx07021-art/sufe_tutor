@@ -7,8 +7,21 @@ import {
   dbFindUserById, dbCreateDemand, dbGetAllDemands, dbGetDemandsByUser,
   dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbCreateIntent, dbGetIntentTeachers,
   dbGetIntentWithDemand, dbResolveIntent, dbUpsertConversation, dbGetTeacherProfile,
+  dbCreatePush, dbGetPendingPushesForTeacher, dbGetPushById, dbResolvePush, dbAcceptPushAsIntent,
 } from './db.js';
 import { logEvent } from './log.js';
+import { notifyUser } from './notify.js';
+
+// 委婉通知文案：拒绝/退回时给对方一个体面的交代（科目名经 region-data 解码，年级不入库名故省略）
+function demandSubjectsText(d) {
+  const R = globalThis.SUFE_REGIONS;
+  let ids = [];
+  try { ids = d ? JSON.parse(d.target_subjects || '[]') : []; } catch { ids = []; }
+  const names = ids.map(id => R.subjectNames[id] || '').filter(Boolean).join('、');
+  return names || '相关科目';
+}
+const pushRejectNote = d => `关于「${demandSubjectsText(d)}」的家教需求，对方老师近期时间较难排开，暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。`;
+const intentRejectNote = d => `关于「${demandSubjectsText(d)}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。`;
 
 export async function handleCreateDemand(db, body) {
   const { userId, demand: d } = body;
@@ -108,9 +121,71 @@ export async function handleResolveIntent(db, intentId, body, req) {
   let conversationId = null;
   if (action === 'accept') {
     conversationId = await dbUpsertConversation(db, userId, intent.teacher_user_id, intent.demand_id);
+  } else {
+    // 学生拒绝教师意向 → 委婉通知教师
+    const d = await dbGetDemandById(db, intent.demand_id);
+    await notifyUser(db, intent.teacher_user_id, intentRejectNote(d));
   }
   logEvent(db, { action: `intent.${action}`, actorUserId: userId, actorRole: 'student',
     entity: 'intent', entityId: intentId,
     detail: { demandId: intent.demand_id, teacherUserId: intent.teacher_user_id, conversationId }, req });
   return json({ message: MSG.INTENT_RESOLVED, status, conversationId });
+}
+
+// ============================================================
+// 学生主动推送需求给指定教师 / 教师处理推送
+// ============================================================
+export async function handlePushDemand(db, body, req) {
+  const { userId, teacherUserId, demandId } = body;
+  const user = await dbFindUserById(db, userId);
+  if (!user || user.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const teacher = await dbFindUserById(db, teacherUserId);
+  if (!teacher || teacher.role !== 'teacher') return error('目标教师不存在', 404);
+  const demand = await dbGetDemandById(db, demandId);
+  if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (demand.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+
+  try {
+    const id = await dbCreatePush(db, demandId, userId, teacherUserId);
+    logEvent(db, { action: 'demand.push', actorUserId: userId, actorRole: 'student',
+      entity: 'demand_push', entityId: id, detail: { teacherUserId, demandId }, req });
+    return json({ id, message: '需求已发送给老师，等待对方查看' }, 201);
+  } catch (err) {
+    if (String(err?.message || err).includes('UNIQUE')) return error('该需求已发送给这位老师', 409);
+    throw err;
+  }
+}
+
+// 教师端：待处理推送列表（需求大厅置顶 + 红点计数同源）
+export async function handleGetTeacherPushes(db, url) {
+  const teacherUserId = parseInt(url.searchParams.get('teacherUserId'));
+  if (!teacherUserId) return error(MSG.LOGIN_REQUIRED);
+  const pushes = await dbGetPendingPushesForTeacher(db, teacherUserId);
+  return json({ pushes });
+}
+
+// 教师确认 / 拒绝推送。确认 = 写已接受意向 + 建会话；拒绝 = 仅标记 + 委婉通知学生
+export async function handleResolvePush(db, pushId, body, req) {
+  const { userId, action } = body;
+  if (!['accept', 'reject'].includes(action)) return error(MSG.INVALID_ROLE);
+  const user = await dbFindUserById(db, userId);
+  if (!user || user.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
+  const push = await dbGetPushById(db, pushId);
+  if (!push) return error(MSG.INTENT_NOT_FOUND, 404);
+  if (push.teacher_user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+  if (push.status !== 'pending') return error(MSG.INTENT_ALREADY_RESOLVED, 409);
+
+  if (action === 'accept') {
+    await dbResolvePush(db, pushId, 'accepted');
+    await dbAcceptPushAsIntent(db, push.demand_id, userId);
+    await dbUpsertConversation(db, push.student_user_id, userId, push.demand_id);
+  } else {
+    await dbResolvePush(db, pushId, 'rejected');
+    const d = await dbGetDemandById(db, push.demand_id);
+    await notifyUser(db, push.student_user_id, pushRejectNote(d));
+  }
+  logEvent(db, { action: `demand_push.${action}`, actorUserId: userId, actorRole: 'teacher',
+    entity: 'demand_push', entityId: pushId,
+    detail: { demandId: push.demand_id, studentUserId: push.student_user_id }, req });
+  return json({ message: 'ok', status: action === 'accept' ? 'accepted' : 'rejected' });
 }
