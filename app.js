@@ -100,8 +100,9 @@ window.addEventListener('resize', () => {
 // 卡片浮入（通知/需求/教师信息卡统一动效）：
 // 打开栏目即播、滚进视口再播；--reveal-delay 按序错峰，从下往上浮入。
 // ============================================================
+// 不 unobserve：卡片滚出视口即复位，滚回 / 再次切入模块时重新按序浮入（每次展示都播一遍）
 const revealObserver = ('IntersectionObserver' in window) ? new IntersectionObserver(es => {
-  es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('revealed'); revealObserver.unobserve(e.target); } });
+  es.forEach(e => e.target.classList.toggle('revealed', e.isIntersecting));
 }, { threshold: 0.06 }) : null;
 
 function initReveals(root) {

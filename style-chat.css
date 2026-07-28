@@ -21,7 +21,7 @@
 .chats-list-pane {
   display: flex; flex-direction: column;
   min-height: 0; /* 网格行内允许收缩，滚动交给 .conv-list */
-  background: var(--paper-2);
+  background: var(--paper); /* 绑定主题淡米：随 --paper 联动，选中块 --paper-3 深一档 */
 }
 
 .chats-list-head {
