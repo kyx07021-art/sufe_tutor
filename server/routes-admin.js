@@ -154,6 +154,27 @@ export async function handleAdminLogs(db, url) {
   return json(result);
 }
 
+// POST /api/feedbacks { userId, kind, content } —— 全用户可提交（关于我们页「反馈 Bug / 提出建议」）
+export async function handleCreateFeedback(db, body, req) {
+  const userId = parseInt(body.userId);
+  const kind = body.kind === 'bug' ? 'bug' : 'suggestion';
+  const content = String(body.content || '').trim().slice(0, 5000);
+  if (!userId) return error(MSG.LOGIN_REQUIRED);
+  if (!content) return error(MSG.BROADCAST_EMPTY);
+  const res = await dbRun(db, 'INSERT INTO feedbacks (user_id, kind, content) VALUES (?,?,?)', [userId, kind, content]);
+  logEvent(db, { action: 'feedback.create', actorUserId: userId, entity: 'feedback',
+    entityId: (res && res.meta && res.meta.last_row_id) || 0, detail: { kind, len: content.length }, req });
+  return json({ ok: true }, 201);
+}
+
+// GET /api/feedbacks?username= —— 管理员查看全部反馈（含提交者用户名）
+export async function handleAdminFeedbacks(db, url) {
+  if (!(await requireAdmin(db, url.searchParams.get('username')))) return error(MSG.ADMIN_ONLY, 403);
+  const feedbacks = await dbAll(db,
+    `SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id ORDER BY f.id DESC LIMIT 200`);
+  return json({ feedbacks });
+}
+
 // 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件：标题+正文，
 // 推送时标题加【系统通知】前缀）
 export async function handleAdminBroadcast(db, body, req) {

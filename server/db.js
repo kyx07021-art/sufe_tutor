@@ -127,6 +127,14 @@ export async function initDb(db) {
       FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
       FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // 用户反馈（关于我们页提交，管理员在「用户反馈」模块查看）
+    db.prepare(`CREATE TABLE IF NOT EXISTS feedbacks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'suggestion' CHECK(kind IN ('bug','suggestion')),
+      content TEXT NOT NULL,
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
   ]);
 
   // 合同表 schema 迁移：旧预留表（student/teacher 直连 + active/ended 状态）从未启用过，

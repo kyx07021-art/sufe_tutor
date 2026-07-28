@@ -701,6 +701,38 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .page-header h2 { font-size: 1.35rem; font-weight: 900; letter-spacing: -.02em; color: var(--ink); }
 
+/* 系统广播通知：标题加粗成行，正文另起一行灰小字（pre-wrap 保留换行） */
+.notif-broadcast-title { display: block; font-weight: 800; font-size: .84rem; color: var(--ink); line-height: 1.5; }
+.notif-broadcast-body { display: block; margin-top: 5px; font-size: .78rem; color: var(--ink-3); line-height: 1.65; white-space: pre-wrap; }
+
+/* 关于我们：logo 卡片同信息卡左区布局；用法块细线分隔；支持卡含反馈入口 */
+.about-card { display: flex; gap: 22px; align-items: flex-start; }
+.about-logo { width: 52px; height: 52px; gap: 7px; flex-shrink: 0; }
+.about-card-body { min-width: 0; }
+.about-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink); margin-bottom: 10px; }
+.about-text { font-size: .86rem; color: var(--ink-3); line-height: 1.75; }
+.about-card-block + .about-card-block { margin-top: 0; }
+.about-usage-item { padding: 13px 0; }
+.about-usage-item + .about-usage-item { border-top: 1px solid var(--paper-3); }
+.about-usage-title { font-size: .82rem; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
+.about-usage-text { font-size: .8rem; color: var(--ink-3); line-height: 1.7; }
+.about-support-lines { font-size: .82rem; color: var(--ink-3); line-height: 2; margin-bottom: 16px; }
+.about-feedback-btns { display: flex; gap: 10px; }
+
+/* 反馈弹窗：Bug / 建议切换式分段按钮（选中墨色实填） */
+.feedback-kind-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.feedback-kind-btn {
+  padding: 7px 18px; font-size: .8rem; font-weight: 700;
+  background: transparent; color: var(--muted); border: 1px solid var(--paper-3);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
+}
+.feedback-kind-btn:hover { color: var(--ink); border-color: var(--faint); }
+.feedback-kind-btn.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+
+/* 管理员反馈卡：Bug 左侧红色警示边 + 浅红底 */
+.feedback-card--bug { border-left: 3px solid var(--danger); background: var(--danger-tint); }
+.feedback-content { white-space: pre-wrap; }
+
 /* 合同卡按钮行：签约/修改/查看在左，取消签约在同行的页面另一侧 */
 .contract-actions { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .contract-actions-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

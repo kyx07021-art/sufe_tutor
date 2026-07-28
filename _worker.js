@@ -29,6 +29,7 @@ import {
   handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminBroadcast,
+  handleCreateFeedback, handleAdminFeedbacks,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 
@@ -59,6 +60,8 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/admin/contracts' && method === 'GET') return await handleAdminListContracts(db, url);
   const adminContractById = p.match(/^\/api\/admin\/contracts\/(\d+)$/);
   if (adminContractById && method === 'DELETE') return await handleAdminRemoveContract(db, parseInt(adminContractById[1]), body, req);
+  if (p === '/api/feedbacks' && method === 'POST') return await handleCreateFeedback(db, body, req);
+  if (p === '/api/feedbacks' && method === 'GET') return await handleAdminFeedbacks(db, url);
   const userBan = p.match(/^\/api\/admin\/users\/(\d+)\/ban$/);
   if (userBan && method === 'POST') return await handleBanUser(db, parseInt(userBan[1]), body, req);
   const adminDemand = p.match(/^\/api\/admin\/demands\/(\d+)$/);

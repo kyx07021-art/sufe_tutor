@@ -38,6 +38,7 @@ const ROLE_PAGES = {
     { id: 'my-contracts',     label: UI.PAGE_MY_CONTRACTS,    desc: UI.PAGE_MY_CONTRACTS_DESC,    enter: loadMyContracts },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   desc: UI.PAGE_NOTIFICATIONS_DESC,   enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
+    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: enterAbout },
   ],
   teacher: [
     { id: 'browse-demands',   label: UI.PAGE_BROWSE_DEMANDS,  desc: UI.PAGE_BROWSE_DEMANDS_DESC,  enter: loadBrowseDemands },
@@ -48,6 +49,7 @@ const ROLE_PAGES = {
     { id: 'edit-profile',     label: UI.PAGE_EDIT_PROFILE,    desc: UI.PAGE_EDIT_PROFILE_DESC,    enter: initProfileForm },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   desc: UI.PAGE_NOTIFICATIONS_DESC,   enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
+    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: enterAbout },
   ],
   admin: [
     { id: 'admin-stats',      label: UI.PAGE_ADMIN_STATS,    desc: UI.PAGE_ADMIN_STATS_DESC,    enter: loadAdminStats },
@@ -57,8 +59,10 @@ const ROLE_PAGES = {
     { id: 'admin-reviews',    label: UI.PAGE_ADMIN_REVIEWS,  desc: UI.PAGE_ADMIN_REVIEWS_DESC,  enter: loadAdminReviews },
     { id: 'admin-posts',      label: UI.PAGE_ADMIN_POSTS,    desc: UI.PAGE_ADMIN_POSTS_DESC,    enter: loadAdminPosts },
     { id: 'admin-contracts',  label: UI.PAGE_ADMIN_CONTRACTS, desc: UI.PAGE_ADMIN_CONTRACTS_DESC, enter: loadAdminContracts },
+    { id: 'admin-feedback',   label: UI.PAGE_ADMIN_FEEDBACK, desc: UI.PAGE_ADMIN_FEEDBACK_DESC, enter: loadAdminFeedback },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
+    { id: 'about',            label: UI.PAGE_ABOUT,          desc: UI.PAGE_ABOUT_DESC,          enter: enterAbout },
   ],
 };
 
@@ -1322,7 +1326,7 @@ async function enterNotifications() {
     el.innerHTML = list.map(n => `<div class="notif-item${n.is_read ? '' : ' unread'}">
       <span class="notif-dot${n.is_read ? ' read' : ''}"></span>
       <div class="notif-body">
-        <div class="notif-text">${escHtml(n.text)}</div>
+        <div class="notif-text">${renderNotifContent(n.text)}</div>
         <div class="notif-time">${fmtDateTime(n.created_at)}</div>
       </div>
     </div>`).join('');
@@ -1768,6 +1772,145 @@ function adminRemoveContract(contractId) {
       loadAdminContracts();
     } catch (err) { showToast(err.message); }
   });
+}
+
+// 系统广播通知拆成标题/正文两段（格式：【系统通知】标题\n正文）；其余通知单段
+function renderNotifContent(text) {
+  const t = String(text || '');
+  const prefix = '【系统通知】';
+  if (t.startsWith(prefix)) {
+    const nl = t.indexOf('\n');
+    const title = (nl === -1 ? t : t.slice(0, nl)).slice(prefix.length);
+    const body = nl === -1 ? '' : t.slice(nl + 1);
+    return `<span class="notif-broadcast-title">${prefix}${escHtml(title)}</span>
+      ${body ? `<span class="notif-broadcast-body">${escHtml(body)}</span>` : ''}`;
+  }
+  return escHtml(t);
+}
+
+// ============================================================
+// 关于我们（全角色）：三张白色卡片——我们是谁 / 平台基本用法 / 用户支持（反馈 Bug / 建议）
+// ============================================================
+function enterAbout() {
+  const usage = [
+    [UI.ABOUT_USAGE_1_TITLE, UI.ABOUT_USAGE_1_TEXT],
+    [UI.ABOUT_USAGE_2_TITLE, UI.ABOUT_USAGE_2_TEXT],
+    [UI.ABOUT_USAGE_3_TITLE, UI.ABOUT_USAGE_3_TEXT],
+    [UI.ABOUT_USAGE_4_TITLE, UI.ABOUT_USAGE_4_TEXT],
+  ].map(([t, x]) => `<div class="about-usage-item">
+      <div class="about-usage-title">${escHtml(t)}</div>
+      <p class="about-usage-text">${escHtml(x)}</p>
+    </div>`).join('');
+  document.getElementById('about-content').innerHTML = `
+    <div class="list-card about-card">
+      <div class="navbar-logo about-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+      <div class="about-card-body">
+        <h3 class="about-title">${UI.ABOUT_WHO_TITLE}</h3>
+        <p class="about-text">${escHtml(UI.ABOUT_WHO_TEXT)}</p>
+      </div>
+    </div>
+    <div class="list-card about-card-block">
+      <h3 class="about-title">${UI.ABOUT_USAGE_TITLE}</h3>
+      <div class="about-usage">${usage}</div>
+    </div>
+    <div class="list-card about-card-block">
+      <h3 class="about-title">${UI.ABOUT_SUPPORT_TITLE}</h3>
+      <div class="about-support-lines">
+        <div>${escHtml(UI.ABOUT_SUPPORT_OWNER)}</div>
+        <div>${escHtml(UI.ABOUT_SUPPORT_WECHAT)}</div>
+        <div>${escHtml(UI.ABOUT_SUPPORT_EMAIL)}</div>
+      </div>
+      <div class="about-feedback-btns">
+        <button type="button" class="btn btn-danger btn-sm" onclick="openFeedbackModal('bug')">${UI.BTN_FEEDBACK_BUG}</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="openFeedbackModal('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
+      </div>
+    </div>`;
+  initReveals(document.getElementById('about-content'));
+}
+
+// ---- 反馈弹窗：Bug / 建议切换 + 复用发帖 Markdown 编辑器 ----
+let feedbackKind = 'bug';
+function openFeedbackModal(kind) {
+  feedbackKind = kind === 'suggestion' ? 'suggestion' : 'bug';
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header"><h2 id="feedback-modal-title">${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-body">
+        <div id="post-alert"></div>
+        <div class="feedback-kind-row">
+          <button type="button" class="feedback-kind-btn${feedbackKind === 'bug' ? ' active' : ''}" data-kind="bug" onclick="switchFeedbackKind('bug')">${UI.BTN_FEEDBACK_BUG}</button>
+          <button type="button" class="feedback-kind-btn${feedbackKind === 'suggestion' ? ' active' : ''}" data-kind="suggestion" onclick="switchFeedbackKind('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.POST_LABEL_BODY}</label>
+          <div class="md-toolbar">
+            <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
+            <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
+            <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <button type="button" class="md-btn" onclick="pickPostImage()">${UI.POST_MD_IMAGE}</button>
+            <input type="file" id="post-image-file" accept="image/*" class="hidden" onchange="insertPostImage(this)">
+          </div>
+          <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${UI.FEEDBACK_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
+          <div id="post-preview" class="md-preview"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary" onclick="submitFeedback()">${UI.BTN_SEND}</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+  updatePostPreview();
+}
+
+function switchFeedbackKind(kind) {
+  feedbackKind = kind;
+  document.querySelectorAll('.feedback-kind-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+  const t = document.getElementById('feedback-modal-title');
+  if (t) t.textContent = kind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST;
+}
+
+async function submitFeedback() {
+  const content = (document.getElementById('post-body').value || '').trim();
+  const alertEl = document.getElementById('post-alert');
+  if (!content) { alertEl.innerHTML = `<div class="alert alert-error">${UI.FEEDBACK_EMPTY}</div>`; return; }
+  try {
+    await api('/api/feedbacks', { method: 'POST', body: { userId: state.user.id, kind: feedbackKind, content } });
+    closeModal();
+    showToast(UI.FEEDBACK_SENT_TOAST);
+  } catch (err) {
+    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+  }
+}
+
+// ============================================================
+// 管理员：用户反馈（Bug 卡片红色警示边，建议走常规强调色）
+// ============================================================
+async function loadAdminFeedback() {
+  const el = document.getElementById('admin-feedback-list');
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
+  try {
+    const data = await api(`/api/feedbacks?username=${encodeURIComponent(state.user.username)}`);
+    const list = data.feedbacks || [];
+    if (!list.length) { el.innerHTML = `<div class="empty-state"><p>${UI.ADMIN_FEEDBACK_EMPTY}</p></div>`; return; }
+    el.innerHTML = list.map(f => {
+      const isBug = f.kind === 'bug';
+      return `<div class="list-card feedback-card${isBug ? ' feedback-card--bug' : ''}">
+        <div class="list-card-header">
+          <span class="list-card-title">${escHtml(f.username)}</span>
+          <span class="tag ${isBug ? 'tag-danger' : 'tag-accent'}">${isBug ? UI.FEEDBACK_TAG_BUG : UI.FEEDBACK_TAG_SUGGEST}</span>
+        </div>
+        <div class="list-card-detail feedback-content">${escHtml(f.content)}</div>
+        <div class="list-card-meta" style="margin-top:8px;">${fmtDateTime(f.created_at)}</div>
+      </div>`;
+    }).join('');
+    initReveals(el);
+  } catch (err) {
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
+  }
 }
 
 // ============================================================
