@@ -198,10 +198,8 @@
             <span class="invite-timer" id="invite-code-timer"></span>
           </div>
         </div>
-        <!-- 用户信息：白色区块，id + 灰小字属性——固定栏底（运营文案脚注之上） -->
+        <!-- 用户信息：白色区块落地栏底（头像/id/属性 + 框内最下层运营脚注），内容由 renderSidebar 注入 -->
         <div class="sidebar-user" id="sidebar-user"></div>
-        <!-- 侧边栏最底部运营脚注（细黑体字，点击直达「关于我们」），文案由 renderSidebar 注入 -->
-        <button type="button" class="sidebar-footnote" id="sidebar-footnote" onclick="selectPage('about')"></button>
       </aside>
       <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 

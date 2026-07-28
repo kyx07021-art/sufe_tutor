@@ -304,16 +304,16 @@ function renderSidebar() {
   const u = state.user;
   const isAdmin = u.role === 'admin';
   const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
-  // 用户块置侧边栏最下方（白底）：最左头像 + id + 灰小字属性
+  // 用户块置侧边栏最下方（白底落地）：头像 + id + 灰小字属性，白框内最下层放运营脚注
   document.getElementById('sidebar-user').innerHTML = `
-    ${renderAvatarHtml(u.avatar, u.username, 'sidebar-user-avatar')}
-    <div class="sidebar-user-text">
-      <div class="sidebar-user-name">${escHtml(u.username)}</div>
-      <div class="sidebar-user-role">${roleLabel}</div>
-    </div>`;
-  // 栏底运营脚注：文案走常量，按钮名随 BTN_FEEDBACK 联动
-  const footnote = document.getElementById('sidebar-footnote');
-  if (footnote) footnote.textContent = UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK);
+    <div class="sidebar-user-top">
+      ${renderAvatarHtml(u.avatar, u.username, 'sidebar-user-avatar')}
+      <div class="sidebar-user-text">
+        <div class="sidebar-user-name">${escHtml(u.username)}</div>
+        <div class="sidebar-user-role">${roleLabel}</div>
+      </div>
+    </div>
+    <button type="button" class="sidebar-footnote" onclick="selectPage('about')">${escHtml(UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK))}</button>`;
   // 栏目 = 主页 entry 同款排布：亮紫序号 + 大字标题 + 选中展开简介；黑色选中块由 .sidebar-pill 滑动承担
   document.getElementById('sidebar-nav').innerHTML =
     `<span class="sidebar-pill" id="sidebar-pill" aria-hidden="true"></span>` +
@@ -345,9 +345,13 @@ function selectPage(pageId) {
   document.getElementById('client-main').scrollTop = 0;
 }
 
-function openSidebar()   { document.body.classList.add('sidebar-open'); }
-function closeSidebar()  { document.body.classList.remove('sidebar-open'); }
-function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
+// 侧边栏开合时选中黑块跟着宽度/高度过渡逐帧重绑（明确起点→终点，杜绝开闭间乱跳）
+function sidebarPillGlide() {
+  glidePill(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item', 380);
+}
+function openSidebar()   { document.body.classList.add('sidebar-open'); sidebarPillGlide(); }
+function closeSidebar()  { document.body.classList.remove('sidebar-open'); sidebarPillGlide(); }
+function toggleSidebar() { document.body.classList.toggle('sidebar-open'); sidebarPillGlide(); }
 
 // ============================================================
 // 侧边栏红点徽标：未读会话 / 待处理推送(教师) / 未读通知，30s 慢轮询统一刷新；

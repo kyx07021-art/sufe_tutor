@@ -172,8 +172,8 @@ globalThis.APP_CONSTANTS = {
     PUSH_SECTION_TITLE: '学生主动发给你的需求',
     PUSH_ACCEPTED_TOAST: '已确认，可在「我的沟通」开始对话',
     PUSH_REJECTED_TOAST: '已谢绝',
-    // 系统通知模板（拒绝等节点发给对方的委婉通知；{subjects} 由服务端替换为科目名）
-    NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师近期时间较难排开，暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
+    // 系统通知模板（拒绝等节点发给对方的通知；{subjects} 由服务端替换为科目名）
+    NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
     NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。',
     NOTIFY_SUBJECTS_FALLBACK: '相关科目',
 

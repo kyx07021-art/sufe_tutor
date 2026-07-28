@@ -654,35 +654,33 @@ textarea.form-input {
 .sidebar-item.active .sidebar-item-descwrap { grid-template-rows: 1fr; }
 .sidebar-item.active .sidebar-item-desc { color: var(--paper-ghost); padding-top: 6px; }
 
-/* 用户信息：写死在侧边栏盒底（静态 flex 末位，不参与滚动、不随内容变化位移）；
-   最左圆形头像 + 右侧 id/属性 */
+/* 用户信息：白框落地栏底（静态 flex 末位，不参与滚动、不随内容变化位移）；
+   上层头像 + id/属性，白框内最下层为运营脚注（细黑体小字，点击直达「关于我们」） */
 .sidebar-user {
   position: relative; z-index: 1; flex-shrink: 0;
-  display: flex; align-items: center; gap: 12px;
-  background: var(--white); padding: 13px 18px 15px;
+  display: flex; flex-direction: column;
+  background: var(--white); padding: 13px 18px 13px;
 }
+.sidebar-user-top { display: flex; align-items: center; gap: 12px; }
 .sidebar-user-avatar { width: 42px; height: 42px; font-size: 1.15rem; }
 .sidebar-user-text { min-width: 0; }
 .sidebar-user-name { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; overflow-wrap: anywhere; }
 .sidebar-user-role { margin-top: 3px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .1em; }
-
-.sidebar-close { display: none; margin: 8px 10px 6px; padding: 10px 14px; color: var(--muted); font-size: .8rem; font-weight: 600; text-align: left; }
-.sidebar-close:hover { color: var(--ink); }
-
-/* 侧边栏展开/收起箭头：仅移动端（≤860px）启用，见媒体查询 */
-.sidebar-expand-toggle { display: none; }
-
-/* 栏底运营脚注：细黑体小字，用户块整体上移两个行距为其让位；点击直达「关于我们」 */
-.sidebar-user { margin-bottom: 2.6em; }
 .sidebar-footnote {
-  position: relative; z-index: 1; flex-shrink: 0;
-  width: 100%; padding: 0 16px 12px;
+  width: 100%; margin-top: 11px; padding-top: 9px;
+  border-top: 1px solid rgba(17,17,20,.08);
   text-align: left; cursor: pointer;
   font-size: .62rem; line-height: 1.7; font-weight: 300; letter-spacing: .02em;
   color: rgba(17,17,20,.72);
   transition: color var(--t-fast) var(--ease-out);
 }
 .sidebar-footnote:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
+
+.sidebar-close { display: none; margin: 8px 10px 6px; padding: 10px 14px; color: var(--muted); font-size: .8rem; font-weight: 600; text-align: left; }
+.sidebar-close:hover { color: var(--ink); }
+
+/* 侧边栏展开/收起箭头：仅移动端（≤860px）启用，见媒体查询 */
+.sidebar-expand-toggle { display: none; }
 
 /* 侧边栏网格装饰：钉死在侧边栏盒底的背景层（内容在 .sidebar-scroll 内滚动，
    选项卡增宽退让完全不触碰它）；主页同款 44px 细网格，底部实、向上渐隐 */
@@ -1029,6 +1027,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
      顶部箭头（位置固定，旋转指向右/左）点一下向左呼出完整侧边栏覆盖内容，再点收起；
      选中新模块由 selectPage→closeSidebar 自动收起 */
   .client-shell { grid-template-columns: 64px 1fr; height: 100vh; height: 100dvh; }
+  .client-main { grid-column: 2; } /* 侧边栏转绝对定位后出流，内容区须显式钉在第 2 列 */
   .sidebar-expand-toggle {
     display: inline-flex; position: fixed; top: 8px; left: 14px; z-index: 160;
     width: 36px; height: 36px; align-items: center; justify-content: center;
@@ -1049,7 +1048,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .sidebar-item.active { padding: 13px 0; }
   .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote { display: none; }
   .sidebar-item-index { font-size: 1rem; }
-  .sidebar-user { padding: 10px 0; justify-content: center; margin-bottom: 0; }
+  .sidebar-user { padding: 10px 0; align-items: center; }
   .sidebar-user-avatar { width: 38px; height: 38px; font-size: 1.05rem; }
   .sidebar-close { display: none; }
   /* 展开形态：恢复完整布局（宽度宽度过渡，内容淡入） */
@@ -1060,21 +1059,24 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   body.sidebar-open .sidebar-user-text { display: block; }
   body.sidebar-open .sidebar-deco-grid { display: block; }
   body.sidebar-open .sidebar-item-index { font-size: 1.25rem; }
-  body.sidebar-open .sidebar-user { padding: 13px 18px 15px; justify-content: flex-start; margin-bottom: 2.6em; }
+  body.sidebar-open .sidebar-user { padding: 13px 18px; align-items: stretch; }
   body.sidebar-open .sidebar-footnote { display: block; }
   .sidebar-backdrop { display: block; }
   .client-main { padding: 20px 16px 40px; }
 
-  /* 信息卡紧凑化：头像大幅缩小，教师卡右区改左对齐堆叠，防元素堆叠 */
+  /* 信息卡紧凑化：头像大幅缩小；教师卡 id/评分/简介堆叠在头像下方压缩横向宽度，
+     右区信息两行占右侧；需求卡小头像 + 主体右移 */
   .list-card { padding: 14px 16px; }
-  .list-card--teacher { grid-template-columns: 44px 1fr; column-gap: 12px; row-gap: 6px; }
-  .tc-avatar { width: 44px; min-height: 44px; font-size: 1.2rem; grid-row: 1 / span 2; }
-  .tc-identity { flex-direction: row; align-items: center; gap: 8px; }
-  .tc-username { font-size: .92rem; }
-  .tc-right { grid-column: 2; grid-row: 2; align-items: flex-start; text-align: left; }
-  .tc-info1 { font-size: .82rem; }
-  .tc-info2 { font-size: .72rem; }
-  .tc-intro { grid-column: 1 / -1; grid-row: 3; white-space: normal; font-size: .74rem; }
+  .list-card--teacher { grid-template-columns: 56px 1fr; column-gap: 12px; row-gap: 5px; }
+  .tc-avatar { grid-column: 1; grid-row: 1; align-self: start; width: 56px; min-height: 56px; font-size: 1.4rem; }
+  .tc-identity { grid-column: 1; grid-row: 2; align-self: start; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .tc-username { font-size: .8rem; white-space: normal; }
+  .tc-rating .stars { font-size: .66rem; }
+  .tc-rating b { font-size: .62rem; }
+  .tc-right { grid-column: 2; grid-row: 1 / span 2; align-items: flex-start; text-align: left; }
+  .tc-info1 { font-size: .8rem; }
+  .tc-info2 { font-size: .7rem; }
+  .tc-intro { grid-column: 1 / -1; grid-row: 3; white-space: normal; font-size: .72rem; }
   .list-card--demand { gap: 12px; }
   .demand-avatar { width: 44px; height: 44px; font-size: 1.2rem; }
   .push-note-row { justify-content: flex-start; }
