@@ -476,11 +476,11 @@ function renderDemandModal(demand) {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">${UI.LABEL_PARENT_CONTACT} <span class="req">*</span></label>
+            <label class="form-label">${UI.LABEL_PARENT_CONTACT} <span class="req">*</span><span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span></label>
             <input type="text" class="form-input" id="d-parent-contact" placeholder="${UI.CONTACT_PLACEHOLDER}" required>
           </div>
           <div class="form-group">
-            <label class="form-label">${UI.LABEL_STUDENT_CONTACT} <span class="req">*</span></label>
+            <label class="form-label">${UI.LABEL_STUDENT_CONTACT} <span class="req">*</span><span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span></label>
             <input type="text" class="form-input" id="d-student-contact" placeholder="${UI.CONTACT_PLACEHOLDER}" required>
           </div>
           <div class="form-group">
@@ -811,10 +811,11 @@ function renderTeacherModal(t) {
           <span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating || 4).toFixed(1)}</b></span>
           <span class="list-card-meta">${meta}</span>
         </div>
+        ${provName ? `<div class="subject-block"><div class="section-title">${UI.SECTION_REGION}</div>
+          <div class="subject-row"><span>${escHtml(provName)}</span></div></div>` : ''}
         ${rows ? `<div class="subject-block"><div class="section-title">${UI.SECTION_SUBJECTS}</div>${rows}</div>` : ''}
         ${(t.wechat || t.email) ? `<div class="subject-block"><div class="section-title">${UI.SECTION_CONTACT}</div>
-          ${t.wechat ? `<div class="subject-row"><span>${UI.LABEL_WECHAT}</span><span class="subject-score">${escHtml(t.wechat)}</span></div>` : ''}
-          ${t.email ? `<div class="subject-row"><span>${UI.LABEL_EMAIL}</span><span class="subject-score">${escHtml(t.email)}</span></div>` : ''}
+          <p class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</p>
         </div>` : ''}
         <div class="subject-block" id="teacher-modal-reviews">
           <div class="section-title">${UI.SECTION_REVIEWS}</div>
@@ -1048,8 +1049,7 @@ function renderDemandCard(d, opts = {}) {
     ${d.additional_info ? `<div class="list-card-detail">${UI.ADDITIONAL_PREFIX}${escHtml(d.additional_info)}</div>` : ''}
     <div class="demand-card-foot">
       <div class="list-card-contact">
-        ${d.parent_contact ? `<span>${UI.CONTACT_PARENT_PREFIX}${escHtml(d.parent_contact)}</span>` : ''}
-        ${d.student_contact ? `<span>${UI.CONTACT_STUDENT_PREFIX}${escHtml(d.student_contact)}</span>` : ''}
+        <span class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>
       </div>
       ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="intent-caret" id="intent-caret-${d.id}">▾</span></button>` : ''}
     </div>
@@ -1328,6 +1328,14 @@ function initProfileForm() {
   subjEl.addEventListener('change', onTeacherSubjectsChange); // 擅长科目驱动高考填写组件按需加载
   // 高考成绩区改由省份驱动（app-region.js）：选省份后渲染锁定编辑器；科目勾选仅标记擅长科目
   document.getElementById('profile-gaokao-scores').innerHTML = `<p class="text-sm text-muted">${UI.HINT_SELECT_PROVINCE_GAOKAO}</p>`;
+  // 联系方式（微信/邮箱）标签注入「签约后向对方展示」小注（index.html 静态表单，文案统一走常量）
+  ['#profile-wechat', '#profile-email'].forEach(sel => {
+    const inp = document.querySelector(sel);
+    const lab = inp && inp.closest('.form-group') && inp.closest('.form-group').querySelector('.form-label');
+    if (lab && !lab.querySelector('.form-label-note')) {
+      lab.insertAdjacentHTML('beforeend', `<span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>`);
+    }
+  });
   loadProfile();
 }
 

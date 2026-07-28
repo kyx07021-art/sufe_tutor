@@ -123,8 +123,6 @@ globalThis.APP_CONSTANTS = {
 
     // 教师卡片 / 列表
     PRICE_UNIT: '元/h',
-    CONTACT_WECHAT_PREFIX: '微信: ',
-    CONTACT_EMAIL_PREFIX: '邮箱: ',
     BTN_VIEW_DETAIL: '查看详情 / 评价',
     LABEL_SELECT_HINT: '请先选择擅长科目',
     SCORE_LABEL: '满分：',
@@ -240,9 +238,9 @@ globalThis.APP_CONSTANTS = {
     BTN_EDIT_REVIEW: '修改评价',
     BTN_SUBMIT_REVIEW: '提交评价',
 
-    // 教师弹窗联系方式行
-    LABEL_WECHAT: '微信',
-    LABEL_EMAIL: '邮箱',
+    // 教师弹窗 / 联系方式
+    SECTION_REGION: '地区',
+    CONTACT_AFTER_SIGN_NOTE: '签约后向对方展示',
 
     // 用户状态标签
     TAG_BANNED: '已封禁',
