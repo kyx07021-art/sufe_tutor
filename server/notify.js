@@ -78,7 +78,7 @@ export async function handleAdminDeleteNotification(db, notifId, req) {
   if (!n) return json({ ok: true, count: 0 });
   const res = await dbRun(db, 'DELETE FROM notifications WHERE text=? AND created_at=?', [n.text, n.created_at]);
   const count = (res && res.meta && res.meta.changes) || 0;
-  logEvent(db, { action: 'admin.notification.delete', actorUserId: admin.id, actorUsername: admin.username,
+  await logEvent(db, { action: 'admin.notification.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'notification', entityId: notifId,
     detail: { batch: count, len: (n.text || '').length }, req });
   return json({ ok: true, count });

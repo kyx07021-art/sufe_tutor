@@ -33,7 +33,7 @@ export async function handleGenInvite(db, body, req) {
   const expiresAt = exp.toISOString();                       // 返前端：ISO 带 Z，new Date 解析无时区歧义
   const expiresAtDb = expiresAt.slice(0, 19).replace('T', ' '); // 入库：同 datetime('now','localtime') 格式（worker 上即 UTC），字符串比较才正确
   await dbCreateInviteCode(db, code, admin.id, expiresAtDb);
-  logEvent(db, { action: 'admin.invite.create', actorUserId: admin.id, actorUsername: admin.username,
+  await logEvent(db, { action: 'admin.invite.create', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'invite', entityId: code, detail: { expiresAt }, req });
   return json({ code, expiresAt });
 }
@@ -91,7 +91,7 @@ export async function handleReviewAction(db, reviewId, action, body, req) {
   if (action === 'approve' || (action === 'reject' && wasApproved)) {
     await recomputeTeacherRating(db, review.teacher_user_id);
   }
-  logEvent(db, { action: `admin.review.${action}`, actorUserId: admin.id, actorUsername: admin.username,
+  await logEvent(db, { action: `admin.review.${action}`, actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'review', entityId: reviewId,
     detail: { teacherUserId: review.teacher_user_id }, req });
   return json({ message: action === 'approve' ? MSG.REVIEW_APPROVED : MSG.REVIEW_REJECTED });
@@ -127,7 +127,7 @@ export async function handleBanUser(db, userId, body, req) {
 
   const banned = body.banned ? 1 : 0;
   await dbRun(db, 'UPDATE users SET banned=? WHERE id=?', [banned, userId]);
-  logEvent(db, { action: banned ? 'admin.ban' : 'admin.unban', actorUserId: admin.id,
+  await logEvent(db, { action: banned ? 'admin.ban' : 'admin.unban', actorUserId: admin.id,
     actorUsername: admin.username, actorRole: 'admin', entity: 'user', entityId: userId,
     detail: { targetUsername: target.username, targetRole: target.role, banned }, req });
   return json({ message: banned ? MSG.BANNED : MSG.UNBANNED, banned });
@@ -148,7 +148,7 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (existing.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求禁删（合同 demand_id 会悬空）
   await dbDeleteDemand(db, demandId);
-  logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
+  await logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'demand', entityId: demandId, req });
   return json({ message: MSG.DEMAND_DELETED });
 }
@@ -160,7 +160,7 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
   if (!review) return error(MSG.REVIEW_NOT_FOUND, 404);
   await dbDeleteReview(db, reviewId);
   if (review.status === 'approved') await recomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
-  logEvent(db, { action: 'admin.review.delete', actorUserId: admin.id, actorUsername: admin.username,
+  await logEvent(db, { action: 'admin.review.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'review', entityId: reviewId, req });
   return json({ message: MSG.REVIEW_DELETED });
 }
@@ -172,7 +172,7 @@ export async function handleAdminDeleteMessage(db, messageId, body, req) {
   const m = await dbGet(db, 'SELECT id, conversation_id, sender_user_id, kind FROM messages WHERE id=?', [messageId]);
   if (!m) return error(MSG.MESSAGE_NOT_FOUND, 404);
   await dbDeleteMessage(db, messageId);
-  logEvent(db, { action: 'admin.message.delete', actorUserId: admin.id, actorUsername: admin.username,
+  await logEvent(db, { action: 'admin.message.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'message', entityId: messageId,
     detail: { conversationId: m.conversation_id, senderUserId: m.sender_user_id, kind: m.kind }, req });
   return json({ ok: true });
@@ -204,7 +204,7 @@ export async function handleCreateFeedback(db, body, req) {
   const content = String(body.content || '').trim().slice(0, 5000);
   if (!content) return error(MSG.BROADCAST_EMPTY);
   const res = await dbRun(db, 'INSERT INTO feedbacks (user_id, kind, title, content) VALUES (?,?,?,?)', [userId, kind, title, content]);
-  logEvent(db, { action: 'feedback.create', actorUserId: userId, entity: 'feedback',
+  await logEvent(db, { action: 'feedback.create', actorUserId: userId, entity: 'feedback',
     entityId: (res && res.meta && res.meta.last_row_id) || 0, detail: { kind, title, len: content.length }, req });
   return json({ ok: true }, 201);
 }
@@ -226,7 +226,7 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
   if (f.status !== 'resolved') {
     await dbRun(db, `UPDATE feedbacks SET status='resolved' WHERE id=?`, [feedbackId]);
     await notifyUser(db, f.user_id, globalThis.APP_CONSTANTS.UI.FEEDBACK_RESOLVED);
-    logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
+    await logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'feedback', entityId: feedbackId, detail: { kind: f.kind }, req });
   }
   return json({ ok: true });
@@ -242,7 +242,7 @@ export async function handleAdminBroadcast(db, body, req) {
   if (!text) return error(MSG.BROADCAST_EMPTY);
   const message = title ? `${globalThis.APP_CONSTANTS.UI.NOTIFY_BROADCAST_PREFIX}${title}\n${text}` : text;
   const count = await dbBroadcastNotification(db, message);
-  logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
+  await logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: message.length }, req });
   return json({ ok: true, count });
 }

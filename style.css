@@ -721,10 +721,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .about-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink); margin-bottom: 10px; }
 .about-text { font-size: .86rem; color: var(--ink-3); line-height: 1.75; }
 .about-card-block + .about-card-block { margin-top: 0; }
-.about-usage-item { padding: 13px 0; }
-.about-usage-item + .about-usage-item { border-top: 1px solid var(--paper-3); }
-.about-usage-title { font-size: .82rem; font-weight: 800; color: var(--ink); margin-bottom: 4px; }
-.about-usage-text { font-size: .8rem; color: var(--ink-3); line-height: 1.7; }
 .about-support-lines { font-size: .82rem; color: var(--ink-3); line-height: 2; margin-bottom: 16px; }
 .about-feedback-btns { display: flex; gap: 10px; }
 /* 关于平台 · 安全与隐私保护：「小盾标 + 粗体小标题 + 一句白话」逐条，建立学生与家长的信任 */
@@ -869,19 +865,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
 /* 教师信息展示（卡片与弹窗共用）：无深色框；灰小标题 + 纵向极细分隔行 */
 .section-title { font-size: .72rem; font-weight: 700; color: var(--muted); letter-spacing: .08em; margin-bottom: 2px; }
-.subject-block { margin-top: 12px; }
-.subject-row {
-  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
-  padding: 6px 2px; font-size: .78rem; font-weight: 400; color: var(--ink);
-}
-.subject-row + .subject-row { border-top: 1px solid var(--line); }
-.subject-row .subject-score { color: var(--muted); font-size: .72rem; font-weight: 500; white-space: nowrap; }
-
-/* 星级紧跟姓名，不加框 */
-.teacher-rating { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; font-size: .8rem; color: var(--muted); }
-.teacher-rating b { font-weight: 800; color: var(--ink); }
-.teacher-headline { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.teacher-headline .teacher-rating { margin-left: 0; font-size: .9rem; }
 
 /* 教师卡悬停聚焦动效已取消（信息展示卡保持静态、错落） */
 
@@ -1224,7 +1207,6 @@ body.profile-panel-open .profile-panel { transform: none; }
 .profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: 3px 9px; border: 1px solid var(--line); font-size: .72rem; font-weight: 600; color: var(--ink); }
 .profile-rating { display: inline-flex; align-items: center; gap: 6px; }
 .profile-rating b { font-size: .8rem; }
-.profile-contact-note { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--paper-3); font-size: .7rem; color: var(--muted); }
 
 /* 卡片③：评价按钮三态（未签约灰禁 / 签约可写 / 已评价可改） */
 .profile-review-btn { margin-top: 10px; }
@@ -1306,14 +1288,12 @@ body.profile-panel-open .profile-panel { transform: none; }
   .demand-avatar { width: 40px; height: 40px; font-size: 1.05rem; margin: 0 0 10px; }
   .list-card-title { font-size: .95rem; }
   .demand-info-row { font-size: .76rem; padding: 7px 0; }
-  .push-note-row { justify-content: flex-start; }
 
   /* 移动端防横向溢出：卡片头部/工具区/推送行/底栏一律允许换行，杜绝被 .list-card 的
      overflow:hidden 裁切（表现为按钮/编号在右缘被切断）。标题可压缩，工具区独占整行自换行 */
   .list-card-header { flex-wrap: wrap; row-gap: 6px; }
   .list-card-title { min-width: 0; overflow-wrap: anywhere; }
   .demand-card-tools { width: 100%; flex-wrap: wrap; justify-content: flex-start; row-gap: 6px 10px; }
-  .push-note-row { width: 100%; }
   .demand-card-foot { row-gap: 8px; }
 }
 
@@ -1356,7 +1336,6 @@ body.profile-panel-open .profile-panel { transform: none; }
 .hidden { display: none !important; }
 .text-muted { color: var(--muted); }
 .text-sm { font-size: .8rem; }
-.mt-2 { margin-top: 8px; }
 .review-mine-note { margin-top: 8px; font-size: .74rem; color: var(--muted); }
 .sidebar-version { margin-top: 8px; font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; color: var(--ink-3); opacity: .45; text-align: right; } /* 侧边栏白卡底：小字版本号 */
 .demand-id-tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); } /* 需求卡右上角四位编号 */

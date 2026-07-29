@@ -94,7 +94,7 @@ export async function handleCreatePost(db, body, req) {
   const id = Number(result.meta.last_row_id);
 
   const author = await dbGet(db, 'SELECT username FROM users WHERE id=?', [userId]);
-  logEvent(db, {
+  await logEvent(db, {
     action: 'post.create', actorUserId: userId, actorUsername: author?.username || null,
     actorRole: user.role, entity: 'post', entityId: id, detail: { title }, req,
   });
@@ -131,7 +131,7 @@ export async function handleToggleLike(db, postId, body, req) {
     [postId, postId]);
   const row = await dbGet(db, 'SELECT like_count FROM posts WHERE id=?', [postId]);
 
-  logEvent(db, {
+  await logEvent(db, {
     action: liked ? 'post.like' : 'post.unlike', actorUserId: userId,
     actorRole: user.role, entity: 'post', entityId: postId, req,
   });
@@ -154,7 +154,7 @@ export async function handleDeletePost(db, postId, body, req) {
   if (user.id !== Number(post.user_id) && !admin) return error(PMSG.DELETE_FORBIDDEN, 403);
 
   await dbRun(db, 'DELETE FROM posts WHERE id=?', [postId]);
-  logEvent(db, {
+  await logEvent(db, {
     action: admin ? 'admin.post.delete' : 'post.delete',
     actorUserId: user.id, actorRole: admin ? 'admin' : user.role,
     entity: 'post', entityId: postId, detail: { title: post.title, ownerUserId: post.user_id }, req,

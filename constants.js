@@ -28,10 +28,6 @@ globalThis.APP_CONSTANTS = {
     { id: 'politics', name: '政治', maxScore: 100 },
   ],
 
-  ELECTIVE: ['physics','chemistry','biology','history','geography','politics'],
-
-  GRADE_LEVELS: ['A+','A','B+','B','B-','C+','C','C-','D','E'],
-
   STUDENT_GRADES: [
     {id:'p1',name:'小学一年级'},{id:'p2',name:'小学二年级'},{id:'p3',name:'小学三年级'},
     {id:'p4',name:'小学四年级'},{id:'p5',name:'小学五年级'},
@@ -46,9 +42,7 @@ globalThis.APP_CONSTANTS = {
   ],
 
   GENDERS: [{id:'male',name:'男'},{id:'female',name:'女'},{id:'nonbinary',name:'非二元'}],
-  SCORE_SCALES: [70, 100, 150],
   TEACHING_METHODS: [{id:'online',name:'线上'},{id:'offline',name:'线下'},{id:'both',name:'线上线下均可'}],
-  BUDGET_OPTIONS: [50,80,100,120,150,180,200,250,300,400,500],
 
   // ============================================================
   // UI 文字
@@ -113,7 +107,6 @@ globalThis.APP_CONSTANTS = {
 
     // 错误提示
     ERROR_LOAD_PREFIX: '加载失败: ',
-    ERROR_LOAD_REVIEWS: '加载评价失败',
     ERROR_GENERATE_INVITE: '生成失败: ',
 
     // 空状态
@@ -571,7 +564,6 @@ globalThis.APP_CONSTANTS = {
 
     // 教师弹窗 / 意向 / 需求卡区块
     SECTION_SUBJECTS: '擅长科目',
-    SECTION_CONTACT: '联系方式',
     SECTION_REVIEWS: '评价',
     BTN_WRITE_REVIEW: '写评价',
     BTN_VIEW: '查看',

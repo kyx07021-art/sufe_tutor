@@ -491,6 +491,7 @@ function chatUploadToServer(kind, dataUrl, name, onProgress) {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/uploads');
     xhr.setRequestHeader('Content-Type', 'application/json');
+    if (state.authToken) xhr.setRequestHeader('X-Auth-Token', state.authToken); // 裸 XHR 不继承 api() 的令牌头；缺此则上传恒 401（令牌化迁移漏网）
     xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.min(99, Math.round(e.loaded / e.total * 100))); };
     xhr.onload = () => {
       let data = {};
@@ -499,7 +500,7 @@ function chatUploadToServer(kind, dataUrl, name, onProgress) {
       else reject(new Error(data.error || ('HTTP ' + xhr.status)));
     };
     xhr.onerror = () => reject(new Error(UI.ERROR_REQUEST_FAILED));
-    xhr.send(JSON.stringify({ userId: state.user.id, kind, fileData: dataUrl, fileName: name }));
+    xhr.send(JSON.stringify({ kind, fileData: dataUrl, fileName: name })); // 身份一律凭令牌，移除自报 userId（服务端早已忽略）
   });
 }
 

@@ -20,8 +20,10 @@ const UIC = globalThis.APP_CONSTANTS.UI; // 接受/拒绝通知文案（constant
 function demandSubjectsText(d) {
   const R = globalThis.SUFE_REGIONS;
   const UI = globalThis.APP_CONSTANTS.UI;
-  let ids = [];
-  try { ids = d ? JSON.parse(d.target_subjects || '[]') : []; } catch { ids = []; }
+  // mapper 已将 target_subjects 反序列化为数组；旧路径偶为 JSON 串，故数组直用、串才解析（杜绝双重解析静默死亡/500）
+  const raw = d ? d.target_subjects : null;
+  let ids = Array.isArray(raw) ? raw : [];
+  if (!ids.length && typeof raw === 'string') { try { ids = JSON.parse(raw || '[]'); } catch { ids = []; } }
   const names = ids.map(id => R.subjectNames[id] || '').filter(Boolean).join('、');
   return names || UI.NOTIFY_SUBJECTS_FALLBACK;
 }
@@ -174,7 +176,7 @@ export async function handleResolveIntent(db, intentId, body, req) {
     const d = await dbGetDemandById(db, intent.demand_id);
     await notifyUser(db, intent.teacher_user_id, intentRejectNote(d));
   }
-  logEvent(db, { action: `intent.${action}`, actorUserId: userId, actorRole: 'student',
+  await logEvent(db, { action: `intent.${action}`, actorUserId: userId, actorRole: 'student',
     entity: 'intent', entityId: intentId,
     detail: { demandId: intent.demand_id, teacherUserId: intent.teacher_user_id, conversationId }, req });
   return json({ message: MSG.INTENT_RESOLVED, status, conversationId });
@@ -197,7 +199,7 @@ export async function handlePushDemand(db, body, req) {
 
   try {
     const id = await dbCreatePush(db, demandId, userId, teacherUserId);
-    logEvent(db, { action: 'demand.push', actorUserId: userId, actorRole: 'student',
+    await logEvent(db, { action: 'demand.push', actorUserId: userId, actorRole: 'student',
       entity: 'demand_push', entityId: id, detail: { teacherUserId, demandId }, req });
     return json({ id, message: MSG.PUSH_SUBMITTED }, 201);
   } catch (err) {
@@ -238,7 +240,7 @@ export async function handleResolvePush(db, pushId, body, req) {
     const d = await dbGetDemandById(db, push.demand_id);
     await notifyUser(db, push.student_user_id, pushRejectNote(d));
   }
-  logEvent(db, { action: `demand_push.${action}`, actorUserId: userId, actorRole: 'teacher',
+  await logEvent(db, { action: `demand_push.${action}`, actorUserId: userId, actorRole: 'teacher',
     entity: 'demand_push', entityId: pushId,
     detail: { demandId: push.demand_id, studentUserId: push.student_user_id }, req });
   return json({ message: 'ok', status: action === 'accept' ? 'accepted' : 'rejected' });

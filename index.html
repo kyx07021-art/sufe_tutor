@@ -14,6 +14,7 @@
   <link rel="stylesheet" href="/style-region.css">
   <link rel="stylesheet" href="/style-posts.css">
   <link rel="stylesheet" href="/style-chat.css">
+  <link rel="stylesheet" href="/glass.css">
   <noscript><style>.hand-part{opacity:.14!important;transform:none!important}.flow-field{opacity:.5!important}.eyebrow,.hero-title span,.stage-copy,.stage-kicker,.stage-note,.entry{opacity:1!important;transform:none!important}</style></noscript>
 
 </head>
@@ -476,6 +477,24 @@
       });
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(tick); else tick();
       setTimeout(fire, 2500);
+    })();
+  </script>
+  <script>
+    /* liquid glass 背景层 + 鼠标跟随发光圆（材质层，与业务逻辑解耦）。
+       光球/底板为 fixed 满屏背景；发光圆 mix-blend:screen 使停留区趋亮。rAF 节流跟随。 */
+    (function () {
+      var bg = document.createElement('div'); bg.className = 'lg-bg'; bg.setAttribute('aria-hidden', 'true');
+      bg.innerHTML = '<div class="lg-orb lg-orb--1"></div><div class="lg-orb lg-orb--2"></div><div class="lg-orb lg-orb--3"></div><div class="lg-orb lg-orb--4"></div><div class="lg-orb lg-orb--5"></div><div class="lg-plate"></div>';
+      document.body.insertBefore(bg, document.body.firstChild);
+      var glow = document.createElement('div'); glow.className = 'lg-mouseglow'; glow.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(glow);
+      var tx = -100, ty = -100, cx = -100, cy = -100, raf = 0;
+      function loop() { cx += (tx - cx) * .16; cy += (ty - cy) * .16; glow.style.transform = 'translate3d(' + cx + 'px,' + cy + 'px,0) translate(-50%,-50%)'; raf = requestAnimationFrame(loop); }
+      window.addEventListener('mousemove', function (e) { tx = e.clientX; ty = e.clientY; if (!raf) raf = requestAnimationFrame(loop); });
+      window.addEventListener('mouseout', function (e) { if (!e.relatedTarget) glow.style.opacity = '0'; });
+      window.addEventListener('mouseover', function () { glow.style.opacity = '.9'; });
+      if (window.matchMedia && window.matchMedia('(pointer:fine)').matches) raf = requestAnimationFrame(loop);
+      else glow.style.display = 'none'; // 触屏无鼠标，隐藏发光圆
     })();
   </script>
 </body>

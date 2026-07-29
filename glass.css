@@ -1,0 +1,275 @@
+/* ============================================================
+   LIQUID GLASS — 实验性玻璃拟态层（最后加载，覆盖扁平基线 style*.css）
+   设计原则：
+   · 统一毛玻璃接口 .lg-glass / .lg-glass--d{1|2|3}：层数=模糊+白度+折射厚度递增，
+     每片区域只取一档（避免「模糊完再模糊」的渲染地狱；多层观感交给 backdrop 自然合成）。
+   · 小圆角（10–14px，非大圆角）+ 顶部亮边 + 内折光 + 外浮影 = 玻璃厚度/折射感。
+   · 背景三层：第零层浅灰真底 → 第一层漂移弥散光球 → 第二层重模糊染色底板玻璃。
+   · 所有文字排版方案不动；只换材质。布局（grid/flex 骨架）不动。
+   ============================================================ */
+
+:root {
+  /* 玻璃圆角（小！） */
+  --lg-r-sm: 10px;
+  --lg-r:    13px;
+  --lg-r-lg: 16px;
+  /* 三层毛玻璃：blur / 白填充不透明度 / 折射厚度（外浮影强度） */
+  --lg-blur-1: 7px;   --lg-fill-1: rgba(255,255,255,.42);  --lg-lift-1: rgba(20,18,40,.10);
+  --lg-blur-2: 12px;  --lg-fill-2: rgba(255,255,255,.55);  --lg-lift-2: rgba(20,18,40,.14);
+  --lg-blur-3: 20px;  --lg-fill-3: rgba(255,255,255,.70);  --lg-lift-3: rgba(20,18,40,.20);
+  /* 玻璃高光边（顶亮→侧弱→底暗，模拟折射厚度） */
+  --lg-edge: linear-gradient(150deg, rgba(255,255,255,.9), rgba(255,255,255,.18) 38%, rgba(255,255,255,.06) 62%, rgba(255,255,255,.34));
+  /* 光球色相（沿用旧配色：淡紫 / 暖沙 / 冷灰 / 淡紫亮 / 米） */
+  --lg-orb-a: 150,138,210;  /* lilac/accent */
+  --lg-orb-b: 200,160,121;  /* sand */
+  --lg-orb-c: 150,150,170;  /* cool grey */
+  --lg-orb-d: 142,128,232;  /* accent-bright */
+  --lg-orb-e: 200,190,170;  /* warm paper */
+}
+
+/* ============================================================
+   第零层：浅灰真底（比原 --paper 更冷更浅，作玻璃背景色）
+   ============================================================ */
+html { background: #ECEAF0; }
+body { background: transparent; }
+
+/* 背景舞台：fixed 满屏，承载光球 + 染色底板；位于内容之下、真底之上 */
+.lg-bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
+/* 第一层：漂移弥散光球（实心大圆、亮度自标准灰发散、随机极慢漂动） */
+.lg-orb { position: absolute; border-radius: 50%; filter: blur(2px); will-change: transform; }
+.lg-orb--1 { width: 46vmax; height: 46vmax; left: -8vmax;  top: -10vmax; background: radial-gradient(circle at 50% 50%, rgba(var(--lg-orb-a),.85), rgba(var(--lg-orb-a),0) 66%); animation: lg-drift-1 42s ease-in-out infinite; }
+.lg-orb--2 { width: 40vmax; height: 40vmax; right: -6vmax; top: 4vmax;   background: radial-gradient(circle at 50% 50%, rgba(var(--lg-orb-b),.72), rgba(var(--lg-orb-b),0) 66%); animation: lg-drift-2 54s ease-in-out infinite; }
+.lg-orb--3 { width: 38vmax; height: 38vmax; left: 18vmax;  bottom: -14vmax; background: radial-gradient(circle at 50% 50%, rgba(var(--lg-orb-c),.66), rgba(var(--lg-orb-c),0) 68%); animation: lg-drift-3 61s ease-in-out infinite; }
+.lg-orb--4 { width: 30vmax; height: 30vmax; right: 22vmax; bottom: -8vmax; background: radial-gradient(circle at 50% 50%, rgba(var(--lg-orb-d),.7), rgba(var(--lg-orb-d),0) 68%); animation: lg-drift-4 48s ease-in-out infinite; }
+.lg-orb--5 { width: 34vmax; height: 34vmax; left: 40vmax;  top: 26vmax;  background: radial-gradient(circle at 50% 50%, rgba(var(--lg-orb-e),.74), rgba(var(--lg-orb-e),0) 68%); animation: lg-drift-5 57s ease-in-out infinite; }
+@keyframes lg-drift-1 { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(7vmax,5vmax) scale(1.08); } }
+@keyframes lg-drift-2 { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(-6vmax,6vmax) scale(1.1); } }
+@keyframes lg-drift-3 { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(5vmax,-6vmax) scale(1.06); } }
+@keyframes lg-drift-4 { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(-7vmax,-4vmax) scale(1.12); } }
+@keyframes lg-drift-5 { 0%,100%{ transform: translate(0,0) scale(1); } 50%{ transform: translate(-5vmax,7vmax) scale(1.07); } }
+/* 第二层：染色底板玻璃——重模糊把光球弥散成依稀可辨的色相，整体配色基本均匀 */
+.lg-plate {
+  position: absolute; inset: 0;
+  backdrop-filter: blur(30px) saturate(1.15); -webkit-backdrop-filter: blur(30px) saturate(1.15);
+  background:
+    linear-gradient(105deg, rgba(250,248,245,.40), rgba(250,248,245,.26) 50%, rgba(244,242,247,.40)), /* 极淡亮度 scrim：保证文字对比，玻璃浮于其上仍显通透 */
+    linear-gradient(105deg, rgba(216,212,221,.30), rgba(250,248,245,.14) 50%, rgba(231,227,247,.26)),
+    rgba(244,242,247,.22);
+}
+
+/* 鼠标跟随发光圆：screen 混合使停留区周围微微趋亮（而非一般圆那样加深）；比光球小一号 */
+.lg-mouseglow {
+  position: fixed; left: 0; top: 0; width: 300px; height: 300px; border-radius: 50%;
+  pointer-events: none; z-index: 9998; mix-blend-mode: screen; opacity: .9;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.5), rgba(231,227,247,.16) 42%, rgba(255,255,255,0) 70%);
+  transform: translate3d(-50%, -50%, 0) translate3d(-100px, -100px, 0);
+  transition: opacity .4s ease;
+}
+
+/* ============================================================
+   统一毛玻璃接口：层数 1/2/3（按钮 / 卡片 / 厚面板）
+   ============================================================ */
+.lg-glass {
+  -webkit-backdrop-filter: blur(var(--lg-blur-1)) saturate(1.25);
+  backdrop-filter: blur(var(--lg-blur-1)) saturate(1.25);
+  background: var(--lg-fill-1);
+  border: 1px solid transparent; border-image: var(--lg-edge) 1;
+  border-radius: var(--lg-r-sm);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.65), inset 0 -1px 0 rgba(255,255,255,.12), 0 4px 14px var(--lg-lift-1);
+}
+.lg-glass--d2 {
+  -webkit-backdrop-filter: blur(var(--lg-blur-2)) saturate(1.3);
+  backdrop-filter: blur(var(--lg-blur-2)) saturate(1.3);
+  background: var(--lg-fill-2);
+  border-radius: var(--lg-r);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.8), inset 0 -2px 6px rgba(255,255,255,.22), 0 10px 30px var(--lg-lift-2);
+}
+.lg-glass--d3 {
+  -webkit-backdrop-filter: blur(var(--lg-blur-3)) saturate(1.35);
+  backdrop-filter: blur(var(--lg-blur-3)) saturate(1.35);
+  background: var(--lg-fill-3);
+  border-radius: var(--lg-r-lg);
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.9), inset 0 -3px 10px rgba(255,255,255,.28), 0 16px 44px var(--lg-lift-3);
+}
+
+/* ============================================================
+   卡片玻璃化（教师卡 / 需求卡 / 关于卡 / 通知 / 帖子 / 统计 …）
+   卡片比背景更白一点 + 更强虚化，与漂移背景分离
+   ============================================================ */
+.list-card, .notif-item, .stat-card, .about-card, .about-card-block,
+.post-card, .admin-row, .feedback-card, .auth-card, .modal {
+  -webkit-backdrop-filter: blur(var(--lg-blur-2)) saturate(1.3);
+  backdrop-filter: blur(var(--lg-blur-2)) saturate(1.3);
+  background: linear-gradient(160deg, rgba(255,255,255,.84), rgba(255,255,255,.70));
+  border: 1px solid transparent !important; border-image: var(--lg-edge) 1;
+  border-radius: var(--lg-r);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.92), inset 0 -2px 6px rgba(255,255,255,.24), 0 10px 30px var(--lg-lift-2);
+  isolation: isolate;
+}
+/* 卡片内的次级边界块（输入暂存、意向盒等）= 再毛一层（薄） */
+.intents-box-inner, .chat-stage-item, .chat-stage-thumb {
+  -webkit-backdrop-filter: blur(var(--lg-blur-1)) saturate(1.2);
+  backdrop-filter: blur(var(--lg-blur-1)) saturate(1.2);
+  background: rgba(255,255,255,.4);
+  border-radius: var(--lg-r-sm);
+}
+
+/* ============================================================
+   按钮玻璃化 + 液态聚焦/点击动效
+   ============================================================ */
+.btn {
+  border-radius: var(--lg-r-sm);
+  -webkit-backdrop-filter: blur(var(--lg-blur-1)) saturate(1.3);
+  backdrop-filter: blur(var(--lg-blur-1)) saturate(1.3);
+  border: 1px solid transparent; border-image: var(--lg-edge) 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 3px 10px var(--lg-lift-1);
+  transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out), background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
+}
+/* 主/强调/危险：保留色相，但做成透光玻璃（叠色 + 模糊） */
+.btn-primary { background: linear-gradient(160deg, rgba(35,35,41,.92), rgba(17,17,20,.82)); }
+.btn-accent  { background: linear-gradient(160deg, rgba(142,128,232,.92), rgba(107,91,210,.86)); }
+.btn-danger  { background: linear-gradient(160deg, rgba(208,80,66,.9), rgba(155,44,44,.84)); }
+.btn-outline { background: rgba(255,255,255,.4); color: var(--ink); }
+.btn-ghost   { background: rgba(255,255,255,.18); }
+/* 液态悬停：整体微浮 + 高光边变亮 */
+.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: inset 0 1.5px 0 rgba(255,255,255,.85), 0 7px 18px var(--lg-lift-2); }
+/* 液态聚焦：向外扩散的柔光环 */
+.btn:focus-visible { outline: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 0 0 3px rgba(142,128,232,.4), 0 0 18px rgba(142,128,232,.45); }
+/* 液态点击：内凹 + 涟漪（::after 径向扩散） */
+.btn:active:not(:disabled) { transform: translateY(0) scale(.97); box-shadow: inset 0 2px 8px rgba(0,0,0,.22); }
+.btn::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.7), rgba(255,255,255,0) 70%);
+  transform: translate(-50%, -50%) scale(0); opacity: 0; z-index: -1;
+  transition: transform .5s var(--ease-out), opacity .6s var(--ease-out);
+}
+.btn:active::after { transform: translate(-50%, -50%) scale(28); opacity: .9; transition: 0s; }
+/* 原扁平擦除母题在玻璃态下退场，避免与液态动效打架 */
+.btn::before { display: none; }
+
+/* 文字链/下划线型可交互 → 重新变回玻璃小按钮（新主题原则：有按钮就要体现） */
+.btn-text-danger, .btn-link-inline, .sidebar-footnote, .credential-reupload, .label.btn-link-inline {
+  border-radius: var(--lg-r-sm);
+  -webkit-backdrop-filter: blur(var(--lg-blur-1)); backdrop-filter: blur(var(--lg-blur-1));
+  background: rgba(255,255,255,.34); border: 1px solid transparent; border-image: var(--lg-edge) 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5), 0 2px 8px var(--lg-lift-1);
+  padding: 6px 12px; text-decoration: none; display: inline-flex; align-items: center;
+}
+
+/* ============================================================
+   头像玻璃环（含不可点击头像）：厚度感折射边 + 内圈高光
+   ============================================================ */
+.avatar {
+  background: linear-gradient(160deg, rgba(255,255,255,.7), rgba(231,227,247,.5));
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.9), inset 0 -2px 5px rgba(255,255,255,.3), 0 3px 10px var(--lg-lift-1);
+  border: 1.5px solid rgba(255,255,255,.7);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.avatar--guest { background: rgba(255,255,255,.25); border: 1.5px dashed rgba(110,110,118,.6); box-shadow: none; }
+.avatar-btn .avatar--link, .avatar--link { box-shadow: inset 0 1.5px 0 rgba(255,255,255,.9), 0 3px 12px var(--lg-lift-2); }
+.avatar-btn:hover .avatar--link, .avatar-btn:focus-visible .avatar--link {
+  transform: scale(1.09); box-shadow: inset 0 1.5px 0 rgba(255,255,255,.95), 0 0 0 3px rgba(142,128,232,.4), 0 6px 18px var(--lg-lift-2);
+}
+
+/* ============================================================
+   对话气泡玻璃化（聊天唯一例外圆角 → 玻璃厚度）
+   ============================================================ */
+.chat-bubble {
+  -webkit-backdrop-filter: blur(var(--lg-blur-1)) saturate(1.25);
+  backdrop-filter: blur(var(--lg-blur-1)) saturate(1.25);
+  border: 1px solid transparent; border-image: var(--lg-edge) 1;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 4px 14px var(--lg-lift-1);
+}
+.chat-msg--me .chat-bubble { background: linear-gradient(160deg, rgba(142,128,232,.5), rgba(107,91,210,.34)); }
+.chat-msg--them .chat-bubble { background: rgba(255,255,255,.5); }
+.chat-bubble--system { background: rgba(231,227,247,.5); }
+/* 对话框内上传的文件 chip / 暂存缩略 */
+.chat-file-chip, .chat-stage-item, .chat-stage-thumb {
+  -webkit-backdrop-filter: blur(var(--lg-blur-1)); backdrop-filter: blur(var(--lg-blur-1));
+  background: rgba(255,255,255,.42); border: 1px solid transparent; border-image: var(--lg-edge) 1;
+  border-radius: var(--lg-r-sm); box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 3px 10px var(--lg-lift-1);
+}
+
+/* ============================================================
+   输入控件玻璃化
+   ============================================================ */
+.form-input, .form-textarea, .custom-select-trigger, .chat-input {
+  background: rgba(255,255,255,.4) !important;
+  border: 1px solid transparent !important; border-image: var(--lg-edge) 1;
+  border-radius: var(--lg-r-sm);
+  -webkit-backdrop-filter: blur(var(--lg-blur-1)); backdrop-filter: blur(var(--lg-blur-1));
+  box-shadow: inset 0 1px 3px rgba(20,18,40,.06);
+}
+.form-input:focus, .form-textarea:focus, .chat-input:focus {
+  box-shadow: inset 0 1px 3px rgba(20,18,40,.06), 0 0 0 3px rgba(142,128,232,.3);
+}
+
+/* ============================================================
+   下拉栏重做（自定义下拉 / 筛选面板）= 玻璃浮层
+   ============================================================ */
+.custom-select-panel, .chat-plus-pop {
+  background: linear-gradient(160deg, rgba(255,255,255,.78), rgba(255,255,255,.62));
+  -webkit-backdrop-filter: blur(var(--lg-blur-2)) saturate(1.3); backdrop-filter: blur(var(--lg-blur-2)) saturate(1.3);
+  border: 1px solid transparent; border-image: var(--lg-edge) 1;
+  border-radius: var(--lg-r); box-shadow: 0 14px 40px var(--lg-lift-3);
+}
+
+/* ============================================================
+   侧边栏 = 一整块毛玻璃组件，比右页更高一层（浮于漂移背景之上）
+   ============================================================ */
+.client-sidebar {
+  background: linear-gradient(180deg, rgba(255,255,255,.34), rgba(231,227,247,.22)) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.3); backdrop-filter: blur(18px) saturate(1.3);
+  border-right: 1px solid rgba(255,255,255,.5);
+  box-shadow: 8px 0 30px rgba(20,18,40,.12);
+  z-index: 5;
+}
+/* 黑色选中长方形 → 深紫可移动 liquid glass 卡 */
+.sidebar-pill {
+  background: linear-gradient(160deg, rgba(75,61,176,.9), rgba(54,42,128,.82)) !important;
+  border-radius: var(--lg-r);
+  border: 1px solid transparent; border-image: linear-gradient(150deg, rgba(190,180,255,.8), rgba(255,255,255,.12) 50%, rgba(142,128,232,.5)) 1;
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.5), 0 8px 22px rgba(54,42,128,.4);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  left: 8px; right: 8px;
+}
+/* 底部用户信息栏 → 较白的 liquid glass 卡 */
+.sidebar-user {
+  background: linear-gradient(160deg, rgba(255,255,255,.78), rgba(255,255,255,.6)) !important;
+  -webkit-backdrop-filter: blur(var(--lg-blur-2)) saturate(1.3); backdrop-filter: blur(var(--lg-blur-2)) saturate(1.3);
+  border-top: 1px solid rgba(255,255,255,.7);
+  box-shadow: inset 0 1.5px 0 rgba(255,255,255,.9), 0 -6px 20px rgba(20,18,40,.08);
+  margin: 8px; border-radius: var(--lg-r);
+}
+.sidebar-item:hover:not(.active) { background: rgba(255,255,255,.28); border-radius: var(--lg-r-sm); }
+
+/* 顶栏 / 落地页舞台：玻璃化（保留二分色相，转透光） */
+.navbar {
+  background: rgba(250,248,245,.55) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.25); backdrop-filter: blur(16px) saturate(1.25);
+  border-bottom: 1px solid rgba(255,255,255,.5);
+}
+body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg, rgba(250,248,245,.5) 0 50%, rgba(216,212,221,.5) 50% 100%) !important; }
+.landing-stage { background: transparent !important; }
+
+/* 弹窗遮罩：让玻璃浮于变暗的背景之上 */
+.modal-overlay { background: rgba(20,18,40,.34); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+
+/* 主内容区透明，露出固定背景 */
+.client-main { background: transparent !important; }
+.chats-shell { background: transparent !important; }
+.chats-list-pane { background: rgba(255,255,255,.18) !important; }
+.chat-head, .chat-input-bar { background: rgba(255,255,255,.3) !important; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+/* 标签 / 红点 / 角标：玻璃质感小药丸 */
+.tag, .conv-item-role, .chat-peer-tag, .push-pin-tag, .demand-id-tag, .device-current, .chat-head-signed, .conv-signed-tag {
+  border-radius: 999px;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+}
+
+/* 减弱动效偏好：停掉漂移与涟漪 */
+@media (prefers-reduced-motion: reduce) {
+  .lg-orb { animation: none !important; }
+  .btn::after { transition: none !important; }
+}

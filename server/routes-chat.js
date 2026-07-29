@@ -103,7 +103,7 @@ export async function handleSendMessage(db, convId, body, req) {
     if (!up || up.user_id !== userId) return error(MSG.CONVERSATION_NOT_FOUND, 404);
     const id = await dbCreateMessage(db, convId, userId, up.kind, up.body, up.name);
     await dbRun(db, 'DELETE FROM uploads WHERE id=?', [up.id]);
-    logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
+    await logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
       detail: { messageId: id, kind: up.kind, name: up.name, len: up.body.length }, req });
     return json({ id, kind: up.kind, name: up.name }, 201);
   }
@@ -124,7 +124,7 @@ export async function handleSendMessage(db, convId, body, req) {
   }
 
   const id = await dbCreateMessage(db, convId, userId, kind, content, name);
-  logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
+  await logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
     detail: { messageId: id, kind, name, len: content.length }, req }); // 不记 dataURL 本体
   return json({ id, message: 'ok' }, 201);
 }

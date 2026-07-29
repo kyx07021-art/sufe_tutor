@@ -32,7 +32,7 @@ export async function handleRegister(db, body, req) {
   const userId = await dbCreateUser(db, username, hash, salt, role);
   if (needsInvite) await dbUseInviteCode(db, inviteCode, userId);
   const authToken = await issueAuthToken(db, userId, deviceLabelFromUA(req && req.headers.get('user-agent')));
-  logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
+  await logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
     actorRole: role, entity: 'user', entityId: userId, detail: { role, via: needsInvite ? 'invite' : 'direct' }, req });
   return json({ user: { id: userId, username, role, avatar: '' }, authToken, message: MSG.REGISTER_SUCCESS });
 }
@@ -45,18 +45,18 @@ export async function handleLogin(db, body, req) {
 
   const user = await dbFindUserByUsername(db, username);
   if (!user || !(await verifyPassword(password, user.password_hash, user.salt))) {
-    logEvent(db, { action: 'auth.login.failed', actorUsername: username,
+    await logEvent(db, { action: 'auth.login.failed', actorUsername: username,
       entity: 'user', detail: { username }, req });
     return error(MSG.LOGIN_FAILED, 401);
   }
   if (user.banned) {
-    logEvent(db, { action: 'auth.login.banned', actorUserId: user.id, actorUsername: user.username,
+    await logEvent(db, { action: 'auth.login.banned', actorUserId: user.id, actorUsername: user.username,
       actorRole: user.role, entity: 'user', entityId: user.id, req });
     return error(MSG.ACCOUNT_BANNED, 403);
   }
   if (user.deactivated) return error(MSG.ACCOUNT_DEACTIVATED, 403);
   const authToken = await issueAuthToken(db, user.id, deviceLabelFromUA(req && req.headers.get('user-agent')));
-  logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
+  await logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, req });
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' }, authToken });
 }
@@ -95,7 +95,7 @@ export async function handleDeactivateAccount(db, body, req) {
   await dbRun(db, 'DELETE FROM uploads WHERE user_id=?', [me.id]);
   await dbRun(db, 'DELETE FROM post_likes WHERE user_id=?', [me.id]);
   await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [me.id]);
-  logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
+  await logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
     actorRole: me.role, entity: 'user', entityId: me.id, req });
   return json({ ok: true });
 }
@@ -114,7 +114,7 @@ export async function handleSaveAvatar(db, body, req) {
   const avatar = String(body.avatar || '');
   if (!avatar.startsWith('data:image/') || avatar.length > 20000) return error(MSG.AVATAR_INVALID);
   await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, me.id]);
-  logEvent(db, { action: 'user.avatar.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
+  await logEvent(db, { action: 'user.avatar.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ ok: true });
 }
 
@@ -137,7 +137,7 @@ export async function handleRevokeSession(db, body, req) {
   if (!token) return error(MSG.INVALID_PARAMS);
   const ok = await revokeSession(db, me.id, token);
   if (!ok) return error(MSG.SESSION_NOT_FOUND, 404);
-  logEvent(db, { action: 'auth.session.revoke', actorUserId: me.id, entity: 'user', entityId: me.id,
+  await logEvent(db, { action: 'auth.session.revoke', actorUserId: me.id, entity: 'user', entityId: me.id,
     detail: { self: token === req.headers.get('X-Auth-Token') }, req });
   return json({ ok: true, revokedSelf: token === req.headers.get('X-Auth-Token') });
 }
@@ -148,7 +148,7 @@ export async function handleLogout(db, req) {
   const me = await authUser(db, req);
   if (me) {
     await revokeSession(db, me.id, req.headers.get('X-Auth-Token'));
-    logEvent(db, { action: 'auth.logout', actorUserId: me.id, entity: 'user', entityId: me.id, req });
+    await logEvent(db, { action: 'auth.logout', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   }
   return json({ ok: true });
 }

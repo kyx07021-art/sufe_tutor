@@ -28,7 +28,7 @@ export async function handleCreateReview(db, body, req) {
     if (String(err?.message || err).includes('UNIQUE')) return error(MSG.REVIEW_EXISTS, 409); // 唯一索引兜底（并发双发）
     throw err;
   }
-  logEvent(db, { action: 'review.create', actorUserId: reviewerUserId, actorRole: 'student',
+  await logEvent(db, { action: 'review.create', actorUserId: reviewerUserId, actorRole: 'student',
     entity: 'review', entityId: id, detail: { teacherUserId, rating }, req });
   return json({ id, message: MSG.REVIEW_SUBMITTED });
 }
@@ -47,7 +47,7 @@ export async function handleUpdateReview(db, reviewId, body, req) {
   const reviewerUserId = me.id;
 
   await dbUpdateReview(db, reviewId, rating, comment.trim());
-  logEvent(db, { action: 'review.update', actorUserId: reviewerUserId, actorRole: 'student',
+  await logEvent(db, { action: 'review.update', actorUserId: reviewerUserId, actorRole: 'student',
     entity: 'review', entityId: reviewId, detail: { rating }, req });
   return json({ message: MSG.REVIEW_UPDATED });
 }

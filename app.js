@@ -456,7 +456,6 @@ function setBadge(pageId, n) {
   const dot = document.getElementById(`sidebar-${pageId}-dot`);
   if (dot) dot.classList.toggle('hidden', !n);
 }
-function setChatsBadge(n) { setBadge('my-chats', n); } // 已无调用方（app-chat 直接用 setBadge），留名防外部引用，下轮删
 
 function startBadgePoll() { stopBadgePoll(); refreshBadges(); badgePollTimer = setInterval(refreshBadges, 30000); }
 function stopBadgePoll() { if (badgePollTimer) { clearInterval(badgePollTimer); badgePollTimer = null; } BADGE_PAGES.forEach(p => setBadge(p, 0)); }
@@ -954,6 +953,7 @@ async function handleSubmitDemand(e) {
     closeModal();
     state.editingDemandId = null;
     showToast(isEdit ? UI.SUCCESS_DEMAND_UPDATED : UI.SUCCESS_DEMAND_SUBMITTED);
+    invalidate('demands'); // 提交/编辑后清需求缓存，防非本页提交致 state.myDemands 陈旧（编辑回填读它）
     if (state.page === 'my-demands') loadMyDemands();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
@@ -998,7 +998,7 @@ function renderTeacherCard(t) {
   return `<div class="list-card list-card--teacher">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
-        <span class="tc-username" onclick="openProfilePanel(${t.user_id})">${escHtml(t.username)}</span>
+        <span class="tc-username" onclick="openProfilePanel(${t.user_id})">${renderUsername(t.username)}</span>
         <span class="tc-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
         ${t.intro ? `<span class="tc-intro">${escHtml(t.intro)}</span>` : ''}
       </div>
@@ -1198,7 +1198,7 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
   const statusTag = r => DISP.reviewStatusTagHtml(r.status);
   const list = reviews.length ? reviews.map(r => `<div class="review-item">
       <div class="review-header">
-        <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)} ${reviewsData.admin ? statusTag(r) : ''}</span>
+        <span class="review-author">${renderUsername(r.reviewer_name || '')} ${renderStars(r.rating)} ${reviewsData.admin ? statusTag(r) : ''}</span>
         <span class="review-date">${fmtDateTime(r.created_at)}</span>
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
@@ -1338,6 +1338,7 @@ async function doBanUser(userId, banned) {
     await api(`/api/admin/users/${userId}/ban`, { method: 'POST', body: { username: state.user.username, banned } });
     closeModal();
     showToast(banned ? UI.SUCCESS_BANNED : UI.SUCCESS_UNBANNED);
+    invalidate('teachers'); // 封禁/解封后清教师缓存，防被封教师滞留浏览列表
     if (state.page === 'admin-students') loadAdminStudents();
     if (state.page === 'admin-teachers') loadAdminTeachers();
   } catch (err) {
@@ -2209,6 +2210,7 @@ async function submitContractDraft(convId) {
     const location = (document.getElementById('contract-location').value || '').trim();
     const demandId = parseInt(document.getElementById('contract-demand').value) || null;
     const data = await api('/api/contracts', { method: 'POST', body: { conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
+    invalidate('contracts'); // 新草案须即时可见，不等 30s 轮询
     closeModal();
     showToast(data.message || UI.CONTRACT_DRAFT_SENT_TOAST);
   } catch (err) {
@@ -2518,7 +2520,7 @@ function renderIntentTeacherRow(t, demandId) {
        <button type="button" class="btn btn-outline btn-xs" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
   return `<div class="admin-row">
     <div class="admin-row-main">
-      <div class="admin-row-line"><strong>${escHtml(t.username)}</strong> ${renderStars(t.rating)} ${tag}</div>
+      <div class="admin-row-line"><strong>${renderUsername(t.username)}</strong> ${renderStars(t.rating)} ${tag}</div>
       <div class="admin-row-meta">${[provName, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ')}</div>
     </div>
     <div class="admin-row-actions">${viewBtn}${actions}</div>
