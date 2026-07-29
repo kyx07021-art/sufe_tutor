@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.11.1',
+  APP_VERSION: '0.12.0',
 
   // ============================================================
   // 业务数据
@@ -234,6 +234,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_LOCATION_NOTE: '出于隐私保护，授课地点请使用「甲方常住处」等模糊表述，勿将详细地址上传至平台。',
     LABEL_CONTRACT_DEMAND: '对应需求',
     CONTRACT_NO_DEMAND_OPTION: '不关联需求',
+    CONTRACT_DEMANDS_LOAD_FAIL: '需求列表加载失败：可不关联需求直接起草，或刷新页面后重试。',
     DEMAND_TAG_CONTRACTED: '已签约',
     DEMAND_PREFIX: '需求 ',
     BTN_VERIFY_LEDGER: '存证校验',
@@ -384,6 +385,8 @@ globalThis.APP_CONSTANTS = {
     INTENT_STATUS_REJECTED: '已拒绝',
     EMPTY_NO_INTENTS: '暂无教师意向',
     INTENT_ACCEPTED_TOAST: '已同意，可在「我的沟通」中开始对话',
+    INTENT_ACCEPTED_NOTIFY: '学生已同意你的试课意向，会话已建立，请前往「我的沟通」查看详情',
+    PUSH_ACCEPTED_NOTIFY: '教师已确认你发送的需求，会话已建立，请前往「我的沟通」查看详情',
     INTENT_REJECTED_TOAST: '已拒绝该意向',
 
     // 评价补充

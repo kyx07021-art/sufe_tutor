@@ -21,6 +21,7 @@ let postsSearchTimer = null; // 搜索防抖定时器
 // 侧边栏项入口（ROLE_PAGES.teacher → enterResourceShare）：
 // 渲染工具条（搜索 / 排序 / 发布）+ 列表容器到 #posts-content，然后拉数据
 function enterResourceShare() {
+  clearTimeout(postsSearchTimer); // 清掉上一次停留时挂起的防抖回调，防切回瞬间打到隐藏页
   const isTeacher = state.user && state.user.role === 'teacher';
   document.getElementById('posts-content').innerHTML = `
     <div class="posts-toolbar">
@@ -44,7 +45,9 @@ function postsSearchDebounced() {
 }
 
 // 拉取帖子列表：sort / q 取自工具条；userId 传当前用户以取回 liked 标记
+let postsLoadSeq = 0; // 搜索/排序快速切换时，乱序到达的旧响应丢弃（末写胜防抖）
 async function loadPosts() {
+  const seq = ++postsLoadSeq;
   const q = (document.getElementById('posts-search')?.value || '').trim();
   const sort = document.getElementById('posts-sort')?.value || 'new';
   const el = document.getElementById('posts-list');
@@ -53,6 +56,7 @@ async function loadPosts() {
   try {
     const url = `/api/posts?sort=${sort}&userId=${state.user.id}` + (q ? `&q=${encodeURIComponent(q)}` : '');
     const data = await api(url);
+    if (seq !== postsLoadSeq) return; // 过期响应：已有更新的请求发出，丢弃
     postsList = data.posts || [];
     renderPosts();
   } catch (err) {
@@ -104,9 +108,12 @@ function renderPostCard(p, i) {
 // ============================================================
 // 点赞（就地更新按钮，避免整列重渲染重放入场动画）
 // ============================================================
+const postLikeSeq = {}; // 每帖独立序号：双击连发时乱序到达的旧响应丢弃，UI 态以最后一次为准
 async function togglePostLike(id) {
+  const seq = (postLikeSeq[id] = (postLikeSeq[id] || 0) + 1);
   try {
     const data = await api(`/api/posts/${id}/like`, { method: 'POST', body: { userId: state.user.id } });
+    if (postLikeSeq[id] !== seq) return; // 已有更新的点赞请求，丢弃过期响应
     const p = postsList.find(x => x.id === id);
     if (p) { p.liked = data.liked; p.like_count = data.likeCount; }
     const btn = document.querySelector(`#posts-list .post-like[data-id="${id}"]`);
@@ -324,6 +331,7 @@ async function deletePost(id) {
     loadPosts();
   } catch (err) {
     showToast(err.message);
+    if (/不存在/.test(err.message)) { closeModal(); loadPosts(); } // 帖子已被（管理员）删除：刷新列表消除陈旧卡片
   }
 }
 

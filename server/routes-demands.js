@@ -13,6 +13,8 @@ import {
 import { logEvent } from './log.js';
 import { notifyUser } from './notify.js';
 
+const UIC = globalThis.APP_CONSTANTS.UI; // 接受/拒绝通知文案（constants.js 收口）
+
 // 委婉通知文案：拒绝/退回时给对方一个体面的交代（科目名经 region-data 解码，年级不入库名故省略）
 // 模板本体在 constants.js UI 块（NOTIFY_PUSH_REJECT / NOTIFY_INTENT_REJECT），此处仅填 {subjects}
 function demandSubjectsText(d) {
@@ -68,6 +70,7 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (existing.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
+  if (existing.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求锁定，禁改（合同已绑定此需求）
 
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
@@ -83,6 +86,7 @@ export async function handleDeleteDemand(db, demandId, body, req) {
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (existing.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
+  if (existing.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求禁删（会使合同 demand_id 悬空）
 
   await dbDeleteDemand(db, demandId);
   return json({ message: MSG.DEMAND_DELETED });
@@ -93,7 +97,9 @@ export async function handleCreateIntent(db, demandId, body, req) {
   const me = await authUser(db, req);
   if (!me || me.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
   const userId = me.id;
-  if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+  const demand0 = await dbGetDemandById(db, demandId);
+  if (!demand0) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (demand0.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求停止接收意向（服务端硬门禁，不靠前端过滤）
 
   // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单，
   // 不完整由前端弹窗引导补档案（此处为硬把关，防绕过）
@@ -139,11 +145,14 @@ export async function handleResolveIntent(db, intentId, body, req) {
   if (intent.status !== 'pending') return error(MSG.INTENT_ALREADY_RESOLVED, 409);
 
   const status = action === 'accept' ? 'accepted' : 'rejected';
-  await dbResolveIntent(db, intentId, status);
+  if (!(await dbResolveIntent(db, intentId, status))) return error(MSG.INTENT_ALREADY_RESOLVED, 409); // 条件 UPDATE 赢家才继续，杜绝并发双通知
 
   let conversationId = null;
   if (action === 'accept') {
+    const dNow = await dbGetDemandById(db, intent.demand_id);
+    if (dNow && dNow.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已被别人签约 → 不再建会话
     conversationId = await dbUpsertConversation(db, userId, intent.teacher_user_id, intent.demand_id);
+    await notifyUser(db, intent.teacher_user_id, UIC.INTENT_ACCEPTED_NOTIFY);
   } else {
     // 学生拒绝教师意向 → 委婉通知教师
     const d = await dbGetDemandById(db, intent.demand_id);
@@ -168,6 +177,7 @@ export async function handlePushDemand(db, body, req) {
   const demand = await dbGetDemandById(db, demandId);
   if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
+  if (demand.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求不可再推送
 
   try {
     const id = await dbCreatePush(db, demandId, userId, teacherUserId);
@@ -202,11 +212,14 @@ export async function handleResolvePush(db, pushId, body, req) {
   if (push.status !== 'pending') return error(MSG.INTENT_ALREADY_RESOLVED, 409);
 
   if (action === 'accept') {
-    await dbResolvePush(db, pushId, 'accepted');
+    const dNow = await dbGetDemandById(db, push.demand_id);
+    if (dNow && dNow.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 陈旧置顶卡兜底：需求已签约不可再确认
+    if (!(await dbResolvePush(db, pushId, 'accepted'))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
     await dbAcceptPushAsIntent(db, push.demand_id, userId);
     await dbUpsertConversation(db, push.student_user_id, userId, push.demand_id);
+    await notifyUser(db, push.student_user_id, UIC.PUSH_ACCEPTED_NOTIFY);
   } else {
-    await dbResolvePush(db, pushId, 'rejected');
+    if (!(await dbResolvePush(db, pushId, 'rejected'))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
     const d = await dbGetDemandById(db, push.demand_id);
     await notifyUser(db, push.student_user_id, pushRejectNote(d));
   }

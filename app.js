@@ -206,14 +206,20 @@ const revealObserver = ('IntersectionObserver' in window) ? new IntersectionObse
   es.forEach(e => e.target.classList.toggle('revealed', e.isIntersecting));
 }, { threshold: 0.06 }) : null;
 
+const revealWatched = new Set(); // 观察中的节点登记簿：每次 initReveals 先释放已脱离 DOM 的旧节点（observer 从不 unobserve 会强引用分离树造成泄漏；重播动效行为不变）
 function initReveals(root) {
   if (!root) return;
+  if (revealObserver) {
+    for (const old of revealWatched) {
+      if (!old.isConnected) { revealObserver.unobserve(old); revealWatched.delete(old); }
+    }
+  }
   const items = [...root.querySelectorAll('.list-card, .notif-item, .post-card')];
   items.forEach((el, i) => {
     el.classList.add('reveal');
     el.style.setProperty('--reveal-delay', `${Math.min(i * 45, 360)}ms`);
   });
-  if (revealObserver) items.forEach(el => revealObserver.observe(el));
+  if (revealObserver) items.forEach(el => { revealObserver.observe(el); revealWatched.add(el); });
   else items.forEach(el => el.classList.add('revealed'));
 }
 
@@ -546,7 +552,10 @@ async function validateInviteAndRegister() {
 function handleLogout() {
   if (state.inviteTimerId) clearInterval(state.inviteTimerId);
   stopBadgePoll();
-  if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询
+  if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询（兼清暂存附件）
+  if (pushCooldownTimer) { clearInterval(pushCooldownTimer); pushCooldownTimer = null; }
+  pushCooldownUntil = 0; // 推送冷却不跨账号残留
+  pendingConfirmAction = null; window._contractDraftDemands = null; // 防上一账户的挂起确认/起草候选被新账户触发
   state.user = null; state.authToken = null; state.page = null;
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
   state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
@@ -1156,7 +1165,7 @@ async function adminReviewAction(reviewId, action, fromModal) {
     closeModal();
     if (fromModal && state.adminModalTeacher) {
       document.getElementById('modal-container').innerHTML = renderTeacherModal(state.adminModalTeacher);
-      loadTeacherReviewsAdmin(state.adminModalTeacher.user_id);
+      loadTeacherReviewsAdmin(state.adminModalTeacher.user_id, teacherModalSeq); // 带上当前弹窗序号，否则守卫必杀、评价栏永卡「加载中」
     } else if (state.page === 'admin-reviews') {
       loadAdminReviews();
     }
@@ -1220,8 +1229,8 @@ function renderDemandCard(d, opts = {}) {
           <button type="button" class="btn btn-accent btn-xs" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
         </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${teacherIntentBtn}`}
         ${d.display_id ? `<span class="demand-id-tag">#${String(d.display_id).padStart(4, '0')}</span>` : ''}
-        ${editable ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
-        ${admin ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
+        ${editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
+        ${admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
     </div>
     <div class="demand-info">
@@ -1279,7 +1288,7 @@ async function loadBrowseDemands() {
     ]);
     const pushes = pData.pushes || [];
     const demands = dData.demands || [];
-    setBadge('browse-demands', 0); // 进页即视为已读；新推送由轮询在离开本页后重新点亮
+    if (state.page === 'browse-demands') setBadge('browse-demands', 0); // 进页即视为已读；await 期间若已切走，不得掐灭轮询刚点亮的新推送红点
     if (!pushes.length && !demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
     const pushDemandIds = new Set(pushes.map(p => p.id));
     const pinned = pushes.map(p => renderDemandCard(p, { push: p })).join('');
@@ -1689,6 +1698,7 @@ function viewContract(contractId) {
 function openContractModifyModal(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
+  window._contractModifyUpdatedAt = c.updated_at; // 乐观锁版本：提交时带上，期间被对方改过则 409 强制重载
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
       <div class="modal-header"><h2>${UI.MODIFY_CONTRACT_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
@@ -1758,7 +1768,7 @@ async function submitContractModify(contractId) {
   const alertEl = document.getElementById('post-alert');
   if (!md) { alertEl.innerHTML = `<div class="alert alert-error">${UI.CONTRACT_EMPTY}</div>`; return; }
   try {
-    await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { userId: state.user.id, contractMd: md } });
+    await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { userId: state.user.id, contractMd: md, updatedAt: window._contractModifyUpdatedAt } });
     closeModal();
     showToast(UI.CONTRACT_MODIFIED_TOAST);
     loadMyContracts();
@@ -1782,20 +1792,21 @@ function cancelContract(contractId) {
 // 授课地点 / 约定时薪 / 教学方案（md 编辑器，合同文本禁插图）→ 发送另一方确认
 async function openContractDraftModal(convId) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-body"><p>${UI.LOADING}</p></div></div></div>`;
-  let demands = [];
-  try { const data = await api('/api/student/demands'); demands = data.demands || []; } catch { /* 拉取失败仍可起草（不绑需求） */ }
+  let demands = [], demandsFailed = false;
+  try { const data = await api('/api/student/demands'); demands = data.demands || []; } catch { demandsFailed = true; /* 拉取失败仍可起草（不绑需求），弹窗内明示 */ }
   const conv = (typeof chatConvById === 'function') ? chatConvById(convId) : null;
-  // 学生可从自己的需求里选；教师只能绑会话自带需求（会话均由需求撮合而来）
+  // 学生：自己全部 open 需求；教师：该会话学生方的全部 open 需求（同一师生对多需求共用一个会话，
+  // 不只限会话绑定那一条；绑到他人需求的越权由服务端归属硬校验拦截）
   const options = state.user.role === 'student'
     ? demands.filter(d => d.user_id === state.user.id && d.status !== 'contracted')
-    : demands.filter(d => conv && d.id === conv.demand_id);
+    : demands.filter(d => conv && d.user_id === conv.student_user_id && d.status !== 'contracted');
   const preselect = (conv && options.find(d => d.id === conv.demand_id)) || options[0] || null;
   window._contractDraftDemands = options; // 供 prefillContractFromDemand 取数
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
       <div class="modal-header"><h2>${UI.DRAFT_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
-        <div id="contract-alert"></div>
+        <div id="contract-alert">${demandsFailed ? `<div class="alert alert-error">${UI.CONTRACT_DEMANDS_LOAD_FAIL}</div>` : ''}</div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND}</label>
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
@@ -2221,6 +2232,7 @@ function initProfileForm() {
   subjEl.innerHTML = SUBJECTS.map(s=>`
     <label class="checkbox-item"><input type="checkbox" value="${s.id}">${s.name}</label>
   `).join('');
+  subjEl.removeEventListener('change', onTeacherSubjectsChange); // 静态节点每次进档案页都会初始化，先解绑防叠加（勾一次触发 N 遍）
   subjEl.addEventListener('change', onTeacherSubjectsChange); // 擅长科目驱动高考填写组件按需加载
   // 高考成绩区改由省份驱动（app-region.js）：选省份后渲染锁定编辑器；科目勾选仅标记擅长科目
   document.getElementById('profile-gaokao-scores').innerHTML = `<p class="text-sm text-muted">${UI.HINT_SELECT_PROVINCE_GAOKAO}</p>`;
@@ -2428,7 +2440,7 @@ async function loadAdminDemands() {
   const el = document.getElementById('admin-demands-list');
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
-    const data = await api('/api/student/demands');
+    const data = await api(`/api/admin/demands?username=${encodeURIComponent(state.user.username)}`); // 管理员全量端点（含已签约，广场端点排除 contracted）
     const demands = data.demands || [];
     if (!demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
     el.innerHTML = demands.map(d => renderDemandCard(d, { admin: true })).join('');

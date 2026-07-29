@@ -183,6 +183,11 @@ async function openConversation(convId) {
   try {
     const data = await api(`/api/conversations/${convId}/messages?userId=${state.user.id}`);
     if (chatConvId !== convId) return; // 用户已切走，丢弃过期响应
+    // 消息接口自带的会话快照校正列表缓存（demand_id 回填 / 状态变更等陈旧字段就地刷新）
+    if (data.conversation) {
+      const ex = chatConvList.find(c => c.id === convId);
+      if (ex) Object.assign(ex, data.conversation);
+    }
     const msgs = data.messages || [];
     const box = document.getElementById('chat-messages');
     if (!box) return;
@@ -216,7 +221,7 @@ function renderChatFrame(conv) {
       <div class="chat-head-main">
         <span class="chat-peer-name">${peer.name ? renderUsername(peer.name) : escHtml(UI.CHAT_UNKNOWN_USER)}</span>
         <span class="chat-peer-tag">${peer.role}</span>
-        ${conv && conv.demand_id ? `<span class="chat-head-demand">${UI.CHAT_DEMAND_PREFIX}${conv.demand_id}</span>` : ''}
+        ${conv && conv.demand_display_id ? `<span class="chat-head-demand">${UI.CHAT_DEMAND_PREFIX}${String(conv.demand_display_id).padStart(4, '0')}</span>` : ''}
       </div>
     </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
@@ -336,6 +341,9 @@ function chatStartPolling() {
 // 对外清理口：登出 / 切页等场景调用，干净终止定时器与会话状态
 function stopChatPolling() {
   if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
+  // 清未发送的暂存项：已上传的文件同步 best-effort 删服务器暂存区（防跨账号残留与孤儿堆积）
+  chatStaged.forEach(it => { if (it.uploadId && state.user) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: { userId: state.user.id } }).catch(() => {}); });
+  chatStaged = [];
   chatConvId = null;
   chatLastMsgId = 0;
   chatPollBusy = false;

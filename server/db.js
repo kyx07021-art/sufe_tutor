@@ -557,8 +557,10 @@ export async function dbGetPushById(db, pushId) {
   return await dbGet(db, 'SELECT * FROM demand_pushes WHERE id=?', [pushId]);
 }
 
+// 条件 UPDATE + changes 判定：并发双触发时仅一个请求 changes>0（赢家），副作用只由赢家执行
 export async function dbResolvePush(db, pushId, status) {
-  await dbRun(db, 'UPDATE demand_pushes SET status=? WHERE id=?', [status, pushId]);
+  const res = await dbRun(db, `UPDATE demand_pushes SET status=? WHERE id=? AND status='pending'`, [status, pushId]);
+  return !!(res && res.meta && res.meta.changes > 0);
 }
 
 // 推送被教师确认：写一条「已接受」意向（复用学生端意向/会话视图）+ 由路由层建立会话
@@ -598,9 +600,10 @@ export async function dbGetIntentWithDemand(db, intentId) {
 }
 
 export async function dbResolveIntent(db, intentId, status) {
-  await dbRun(db,
-    "UPDATE demand_intents SET status=?, resolved_at=datetime('now','localtime') WHERE id=?",
+  const res = await dbRun(db,
+    "UPDATE demand_intents SET status=?, resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'",
     [status, intentId]);
+  return !!(res && res.meta && res.meta.changes > 0); // 仅赢家（changes>0）执行建会话/通知等副作用
 }
 
 // ============================================================
@@ -739,6 +742,7 @@ export async function dbGetMyConversations(db, userId) {
   return await dbAll(db, `SELECT c.*,
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
+      sd.display_id AS demand_display_id,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
       lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id AND m.sender_user_id<>?
@@ -747,6 +751,7 @@ export async function dbGetMyConversations(db, userId) {
     FROM conversations c
     JOIN users us ON us.id=c.student_user_id
     JOIN users ut ON ut.id=c.teacher_user_id
+    LEFT JOIN student_demands sd ON sd.id=c.demand_id
     LEFT JOIN (
       SELECT m.conversation_id, m.body, m.kind, m.created_at, m.sender_user_id
       FROM messages m JOIN (SELECT conversation_id, MAX(id) AS mid FROM messages GROUP BY conversation_id) x

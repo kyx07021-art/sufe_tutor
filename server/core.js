@@ -74,6 +74,9 @@ export const MSG = {
   CONTRACT_EXISTS: '该会话已存在进行中的合同',
   CONTRACT_NOT_FOUND: '合同不存在',
   CONTRACT_STATE_INVALID: '合同当前状态不允许该操作',
+  CONTRACT_MODIFIED_CONFLICT: '合同已被对方修改，请关闭后重新打开查看最新版本',
+  DEMAND_CONTRACTED_CLOSED: '该需求已签约成交，已停止接收新意向',
+  DEMAND_CONTRACTED_LOCKED: '已签约的需求不可修改或删除',
   CONTRACT_SELF_DRAFT: '草案由你起草，等待对方确认',
   CONTRACT_EMPTY: '合同内容不能为空',
   // 合同各环节给用户的文案统一在 constants.js UI.CONTRACT_*（服务端经 globalThis 读取）

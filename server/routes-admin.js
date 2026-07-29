@@ -11,7 +11,7 @@ import {
   dbGetUserStats, dbGetCount, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbGetApprovedReviewStats, dbUpdateTeacherRating,
-  dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage, mapTeacherProfileRow,
+  dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage, mapTeacherProfileRow, mapDemandRow,
 } from './db.js';
 import { logEvent, queryLog, decryptLogEntry } from './log.js';
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
@@ -126,10 +126,20 @@ export async function handleBanUser(db, userId, body, req) {
   return json({ message: banned ? MSG.BANNED : MSG.UNBANNED, banned });
 }
 
+// GET /api/admin/demands —— 管理员全量需求（含已签约；广场端点恒定排除 contracted，管理员页需独立全量端点）
+export async function handleAdminDemands(db, url, req) {
+  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const rows = await dbAll(db,
+    `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id ORDER BY sd.created_at DESC LIMIT 300`);
+  return json({ demands: rows.map(mapDemandRow) });
+}
+
 export async function handleAdminDeleteDemand(db, demandId, body, req) {
   const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
-  if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+  const existing = await dbGetDemandById(db, demandId);
+  if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (existing.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求禁删（合同 demand_id 会悬空）
   await dbDeleteDemand(db, demandId);
   logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'demand', entityId: demandId, req });

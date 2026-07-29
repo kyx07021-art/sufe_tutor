@@ -29,7 +29,7 @@ import { handleCreateReview, handleGetReviews, handleUpdateReview } from './serv
 import {
   handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
-  handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
+  handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
   handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
@@ -96,6 +96,7 @@ async function routeApi(db, p, method, body, url, req) {
     return await handleReviewAction(db, id, 'reject', body, req);
   }
   if (p === '/api/admin/users' && method === 'GET') return await handleAdminUsers(db, url, req);
+  if (p === '/api/admin/demands' && method === 'GET') return await handleAdminDemands(db, url, req);
   if (p === '/api/admin/contracts' && method === 'GET') return await handleAdminListContracts(db, url, req);
   const adminContractById = p.match(/^\/api\/admin\/contracts\/(\d+)$/);
   if (adminContractById && method === 'DELETE') return await handleAdminRemoveContract(db, parseInt(adminContractById[1]), body, req);
