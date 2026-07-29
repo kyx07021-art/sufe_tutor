@@ -9,7 +9,7 @@
  *     encrypted=0 明文 JSON；加密后写密文并置 1，schema_v 随加密方案版本递增
  * - 敏感字段（口令/盐/验证码）写库前剔除，永不留明文
  */
-import { dbAll, dbGet, dbRun } from './core.js';
+import { dbAll, dbGet, dbRun, authUser } from './core.js';
 import { getSecret } from './secrets.js';
 
 // env.LOG_DB 存在时指向独立留档库；workerd 单实例内 env 稳定，模块级绑定安全
@@ -201,12 +201,17 @@ export async function logRequest(db, { method, path, body, status, req }) {
     } else {
       entity = last || null;
     }
-    const actorId = body && (body.userId ?? null);
-    const actorName = body && (body.username ?? null);
+    // 操作人身份只从令牌解析（防自报 body.userId/username 审计冒名）；无令牌则留空。
+    // 语义事件留档（logEvent 各业务调用点）本就走令牌解出的 id，不受此处影响
+    let actorId = null, actorName = null;
+    if (req && req.headers && req.headers.get('X-Auth-Token')) {
+      const actor = await authUser(db, req);
+      if (actor) { actorId = actor.id; actorName = actor.username; }
+    }
     await logEvent(db, {
       action: `http.${method}.${status < 400 ? 'ok' : 'err'}`,
-      actorUserId: typeof actorId === 'number' ? actorId : null,
-      actorUsername: typeof actorName === 'string' ? actorName : null,
+      actorUserId: actorId,
+      actorUsername: actorName,
       entity,
       entityId,
       detail: { method, path, status, body: body && Object.keys(body).length ? body : undefined },

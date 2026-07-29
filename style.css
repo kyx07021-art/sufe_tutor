@@ -1307,6 +1307,14 @@ body.profile-panel-open .profile-panel { transform: none; }
   .list-card-title { font-size: .95rem; }
   .demand-info-row { font-size: .76rem; padding: 7px 0; }
   .push-note-row { justify-content: flex-start; }
+
+  /* 移动端防横向溢出：卡片头部/工具区/推送行/底栏一律允许换行，杜绝被 .list-card 的
+     overflow:hidden 裁切（表现为按钮/编号在右缘被切断）。标题可压缩，工具区独占整行自换行 */
+  .list-card-header { flex-wrap: wrap; row-gap: 6px; }
+  .list-card-title { min-width: 0; overflow-wrap: anywhere; }
+  .demand-card-tools { width: 100%; flex-wrap: wrap; justify-content: flex-start; row-gap: 6px 10px; }
+  .push-note-row { width: 100%; }
+  .demand-card-foot { row-gap: 8px; }
 }
 
 /* 教师端被推送需求的置顶卡：右侧 时间·说明·拒绝·确认 一行 */
@@ -1377,4 +1385,16 @@ body.profile-panel-open .profile-panel { transform: none; }
   .hand-part { opacity: .14 !important; transform: none !important; }
   .flow-field { opacity: .5 !important; }
   .eyebrow, .hero-title span, .stage-copy, .stage-kicker, .stage-note, .entry { opacity: 1 !important; transform: none !important; }
+}
+
+/* ============================================================
+   移动端覆写兜底：置于文件最末，保证同特异性下晚于一切桌面基础规则
+   （.push-note-row 等基础定义在本文件靠后位置，曾压住中部媒体查询里的移动端覆写，
+     导致推送行右对齐溢出被裁切——此为层叠顺序根治）
+   ============================================================ */
+@media (max-width: 860px) {
+  .demand-card-tools { display: flex; }                 /* 块级 flex，消除 inline-flex + width:100% 的尺寸歧义 */
+  .push-note-row { display: flex; width: 100%; flex-wrap: wrap; justify-content: flex-start; }
+  .demand-card-foot .list-card-contact { min-width: 0; }
+  .demand-card-foot .drop-toggle { flex-shrink: 0; }
 }

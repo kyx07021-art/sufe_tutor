@@ -371,4 +371,11 @@ textarea.chat-textarea {
   .chat-msg { max-width: 84%; }
   .chat-head { padding: 10px 12px; }
   .chat-input-bar { padding: 10px 12px; }
+
+  /* 移动端聊天头部防溢出：名字+角色+签约+需求编号在窄屏换行，名字可压缩，
+     杜绝需求编号/对方信息按钮被顶出右缘 */
+  .chat-head { gap: 8px; }
+  .chat-head-main { flex-wrap: wrap; row-gap: 4px 8px; gap: 8px; }
+  .chat-peer-name { flex: 1 1 100%; } /* 名字独占一行（窄屏），标签/签约/需求编号落到第二行，杜绝顶出右缘 */
+  .chat-peer-tag, .chat-head-signed, .chat-head-demand { white-space: nowrap; }
 }

@@ -24,6 +24,7 @@ export const INITIAL_WEIGHT = 10;
 export const MSG = {
   // 验证错误
   USERNAME_LENGTH: '用户名长度需在 3-30 个字符之间',
+  USERNAME_INVALID: '用户名只能包含中文、字母、数字及 _ . - （3-30 个字符）',
   PASSWORD_LENGTH: '密码长度至少 6 个字符',
   INVALID_ROLE: '无效的用户角色',
   INVALID_PARAMS: '参数不合法',
@@ -93,6 +94,7 @@ export const MSG = {
   MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
   FILE_TOO_LARGE: '附件过大（上限约 500KB，图片会自动压缩）',
   FILE_TYPE_BLOCKED: '不支持的文件类型',
+  UPLOAD_STAGING_LIMIT: '暂存的待发送附件过多，请先发送或删除部分附件',
 
   // 评价
   RATING_RANGE: '评分需在1-5之间',
@@ -113,6 +115,7 @@ export const MSG = {
   // 通用
   REGISTER_SUCCESS: '注册成功',
   SERVER_ERROR: '服务器内部错误',
+  PAYLOAD_TOO_LARGE: '请求体过大',
   RATE_LIMITED: '请求过于频繁，请稍后再试',
   LOG_NOT_FOUND: '留档记录不存在',
 };

@@ -12,9 +12,12 @@ import { logEvent } from './log.js';
 const isParticipant = (conv, userId) =>
   conv && (conv.student_user_id === userId || conv.teacher_user_id === userId);
 
-// 文件类 dataURL 黑名单：html/svg 可投递钓鱼内容（现代浏览器阻断执行但仍可投递），一律拒收
-const fileDataBlocked = content =>
-  content.startsWith('data:text/html') || content.startsWith('data:image/svg');
+// 文件类 dataURL 黑名单：html/svg 可投递钓鱼内容（现代浏览器阻断执行但仍可投递），一律拒收。
+// 比较一律小写化（防 DATA:TEXT/HTML、Data:Image/SVG 大小写绕过）；对 image 与 file 两种 kind 同时生效
+const fileDataBlocked = content => {
+  const c = String(content).toLowerCase();
+  return c.startsWith('data:text/html') || c.startsWith('data:image/svg');
+};
 
 export async function handleGetConversations(db, url, req) {
   const me = await authUser(db, req);
@@ -65,8 +68,12 @@ export async function handleCreateUpload(db, body, req) {
   const content = String(body.fileData ?? '');
   const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
   if (!prefixOk || content.length > 700000) return error(MSG.FILE_TOO_LARGE);
-  if (kind === 'file' && fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED);
+  if (fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED); // svg/html 黑名单对图片同样生效
   const name = String(body.fileName ?? '').slice(0, 100);
+  // 暂存区配额自愈 + 上限：先清本人 30 分钟前的滞留暂存件，再按每人 12 件封顶（防弃传暂存填满库 / 刷大字段）
+  await dbRun(db, `DELETE FROM uploads WHERE user_id=? AND created_at < datetime('now','localtime','-30 minutes')`, [me.id]);
+  const staged = await dbGet(db, 'SELECT COUNT(*) AS cnt FROM uploads WHERE user_id=?', [me.id]);
+  if ((staged && staged.cnt || 0) >= 12) return error(MSG.UPLOAD_STAGING_LIMIT);
   const res = await dbRun(db, 'INSERT INTO uploads (user_id, kind, body, name) VALUES (?,?,?,?)', [me.id, kind, content, name]);
   return json({ id: (res && res.meta && res.meta.last_row_id) || 0 }, 201);
 }
@@ -110,7 +117,7 @@ export async function handleSendMessage(db, convId, body, req) {
     content = String(body.fileData ?? '');
     const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
     if (!prefixOk || content.length > 700000) return error(MSG.FILE_TOO_LARGE);
-    if (kind === 'file' && fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED);
+    if (fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED); // svg/html 黑名单对图片同样生效
     name = String(body.fileName ?? '').slice(0, 100);
   } else {
     return error(MSG.MESSAGE_TOO_LONG);

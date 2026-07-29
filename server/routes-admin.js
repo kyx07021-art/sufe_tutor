@@ -68,21 +68,28 @@ export async function handleAdminReviews(db, url, req) {
   return json({ reviews });
 }
 
+// 教师评分重算（评价通过/原已通过的评价被拒绝或删除时统一调用，口径与通过时一致）
+async function recomputeTeacherRating(db, teacherUserId) {
+  const stats = await dbGetApprovedReviewStats(db, teacherUserId);
+  const cnt = stats?.cnt || 0;
+  const sum = stats?.total || 0;
+  const rating = (INITIAL_RATING * INITIAL_WEIGHT + sum) / (INITIAL_WEIGHT + cnt);
+  await dbUpdateTeacherRating(db, teacherUserId, rating, cnt, sum);
+}
+
 export async function handleReviewAction(db, reviewId, action, body, req) {
   const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return error(MSG.REVIEW_NOT_FOUND);
 
+  const wasApproved = review.status === 'approved'; // 改动前的状态（status 在下方才被更新）
   const status = action === 'approve' ? 'approved' : 'rejected';
   await dbUpdateReviewStatus(db, reviewId, status);
 
-  if (action === 'approve') {
-    const stats = await dbGetApprovedReviewStats(db, review.teacher_user_id);
-    const cnt = stats?.cnt || 0;
-    const sum = stats?.total || 0;
-    const rating = (INITIAL_RATING * INITIAL_WEIGHT + sum) / (INITIAL_WEIGHT + cnt);
-    await dbUpdateTeacherRating(db, review.teacher_user_id, rating, cnt, sum);
+  // 通过 → 重算；拒绝一条「原已通过」的评价同样要重算（把已计入的评分摘掉）
+  if (action === 'approve' || (action === 'reject' && wasApproved)) {
+    await recomputeTeacherRating(db, review.teacher_user_id);
   }
   logEvent(db, { action: `admin.review.${action}`, actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'review', entityId: reviewId,
@@ -149,8 +156,10 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
 export async function handleAdminDeleteReview(db, reviewId, body, req) {
   const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
-  if (!(await dbGetReviewById(db, reviewId))) return error(MSG.REVIEW_NOT_FOUND, 404);
+  const review = await dbGetReviewById(db, reviewId);
+  if (!review) return error(MSG.REVIEW_NOT_FOUND, 404);
   await dbDeleteReview(db, reviewId);
+  if (review.status === 'approved') await recomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
   logEvent(db, { action: 'admin.review.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'review', entityId: reviewId, req });
   return json({ message: MSG.REVIEW_DELETED });

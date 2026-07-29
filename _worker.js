@@ -244,6 +244,10 @@ export default {
     const db = env.DB;
     let body = {};
     if (request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE') {
+      // JSON 体积炸弹防护：先看 Content-Length 廉价短路（在 json() 解析与重型路由之前），
+      // 超过约 1.1MB 一律 413，避免攻击者拿大 body 耗内存 / 绕过解析后限流
+      const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10);
+      if (contentLength > 1100000) return error(MSG.PAYLOAD_TOO_LARGE, 413);
       try { body = await request.json(); } catch { body = {}; }
     }
 

@@ -28,6 +28,16 @@ function demandSubjectsText(d) {
 const pushRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
 const intentRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_INTENT_REJECT.replace('{subjects}', demandSubjectsText(d));
 
+// 需求输入硬化：预算钳到 [0,99999] 且 max>=min；授课方式白名单（online/offline，非法值回落 offline）
+const clampBudget = v => { const n = Number(v); return Number.isFinite(n) ? Math.min(99999, Math.max(0, n)) : 0; };
+function sanitizeDemand(d) {
+  d.budget_min = clampBudget(d.budget_min);
+  d.budget_max = clampBudget(d.budget_max);
+  if (d.budget_max < d.budget_min) d.budget_max = d.budget_min; // 二者同时存在时保证 max>=min
+  d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
+  return d;
+}
+
 export async function handleCreateDemand(db, body, req) {
   const { demand: d } = body;
   const me = await authUser(db, req);
@@ -37,6 +47,7 @@ export async function handleCreateDemand(db, body, req) {
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
   if (d.province !== 'shanghai') d.teaching_method = 'online'; // 业务规则：非上海仅线上
+  sanitizeDemand(d);
 
   const id = await dbCreateDemand(db, userId, d);
   return json({ id, message: MSG.DEMAND_SUBMITTED });
@@ -83,6 +94,7 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
   if (d.province !== 'shanghai') d.teaching_method = 'online';
+  sanitizeDemand(d);
 
   await dbUpdateDemand(db, demandId, d);
   return json({ message: MSG.DEMAND_UPDATED });

@@ -214,9 +214,12 @@ export async function handleCreateContract(db, body, req) {
   const res = await dbRun(db,
     `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
         pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?
+     WHERE NOT EXISTS (SELECT 1 FROM contracts WHERE conversation_id=? AND status IN ('pending','signing'))`,
     [conversationId, userId, demandId, method, schedule, location, plan, rate, md,
-     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther]);
+     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther, conversationId]);
+  // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 existing 检查是快路径，此处是竞态闸门）
+  if (!(res && res.meta && res.meta.changes > 0)) return error(MSG.CONTRACT_EXISTS, 409);
   const id = (res && res.meta && res.meta.last_row_id) || 0;
   // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
   await dbRun(db, `INSERT INTO messages (conversation_id, sender_user_id, body, kind) VALUES (?,?,?,?)`,
@@ -278,30 +281,45 @@ export async function handleSignContract(db, contractId, body, req) {
   if (!(await verifySignOtp())) return error(MSG.CONTRACT_STATE_INVALID, 403);
 
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
-  await dbRun(db, `UPDATE contracts SET ${col}=1, status='signing', updated_at=datetime('now','localtime') WHERE id=?`, [contractId]);
+  // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
+  // 不产生任何改动；changes=0 方重读当前态幂等返回，不触发任何副作用
+  const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, status='signing', updated_at=datetime('now','localtime') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
+  if (!(flag && flag.meta && flag.meta.changes > 0)) {
+    const cur = await loadContractFor(db, contractId, userId, ['pending', 'signing', 'signed']);
+    if (cur.err) return cur.err;
+    return json({ ok: true, signed: cur.ct.status === 'signed' });
+  }
   const updated = await dbGetContractById(db, contractId);
   const both = !!(updated.drafter_confirmed && updated.other_confirmed);
   if (both) {
     // 条件 UPDATE 赢家模式：双方同时签约时仅一方 changes>0，台账/下架/通知/留档只由赢家执行（防双台账条目）
     const claim = await dbRun(db, `UPDATE contracts SET status='signed' WHERE id=? AND status='signing'`, [contractId]);
     if (claim && claim.meta && claim.meta.changes > 0) {
+    // 需求「抢占」条件 UPDATE：一份需求只允许一份合同签约成交，changes=0 = 已被别的合同抢先
+    // → 本次签约中止（合同回退 signing，不写台账/不通知/不自动拒绝），返已签约错误
+    if (updated.demand_id) {
+      const dm = await dbRun(db, `UPDATE student_demands SET status='contracted' WHERE id=? AND status<>'contracted'`, [updated.demand_id]);
+      if (!(dm && dm.meta && dm.meta.changes > 0)) {
+        await dbRun(db, `UPDATE contracts SET status='signing' WHERE id=?`, [contractId]);
+        return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
+      }
+    }
     // 存证入台账（独立保障库优先）：文本哈希 + 哈希链，撤销合同删活跃行时留档仍不可篡改地保留
     const contentHash = await ledgerRecord(db, contractId, updated.contract_md);
-    // 需求转「已签约」并自动下架广场；该需求上其余教师待处理意向与待处理推送由系统统一拒绝
+    // 需求自动下架广场；该需求上其余教师待处理意向与待处理推送由系统统一拒绝
     // （action=intent.auto_reject / demand_push.auto_reject，与用户手动拒绝在加密留档中区分）
     if (updated.demand_id) {
-      await dbRun(db, `UPDATE student_demands SET status='contracted' WHERE id=?`, [updated.demand_id]);
       const pending = await dbAll(db,
         `SELECT id, teacher_user_id FROM demand_intents WHERE demand_id=? AND status='pending'`, [updated.demand_id]);
       for (const it of pending) {
-        await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=?`, [it.id]);
+        await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
         logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
           detail: { demandId: updated.demand_id, teacherUserId: it.teacher_user_id, reason: 'demand_contracted' }, req });
       }
       const pendingPushes = await dbAll(db,
         `SELECT id, teacher_user_id FROM demand_pushes WHERE demand_id=? AND status='pending'`, [updated.demand_id]);
       for (const pp of pendingPushes) {
-        await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=?`, [pp.id]);
+        await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
         logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
           detail: { demandId: updated.demand_id, teacherUserId: pp.teacher_user_id, reason: 'demand_contracted' }, req });
       }
@@ -327,16 +345,19 @@ export async function handleModifyContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, ['pending', 'signing']);
   if (g.err) return g.err;
   const { ct, conv } = g;
-  // 乐观锁：客户端打开编辑器时的版本（updated_at）须与库内一致，否则对方刚改完 → 409 强制重载（防末写胜静默覆盖对方版本）
-  if (body.updatedAt && String(body.updatedAt) !== String(ct.updated_at)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409);
+  // 乐观锁版本号为必填：客户端打开编辑器时的 updated_at 须随请求带来，缺失即参数错误
+  if (!body.updatedAt) return error(MSG.INVALID_PARAMS, 400);
   const md = String(body.contractMd || '').slice(0, 30000);
   if (!md.trim()) return error(MSG.CONTRACT_EMPTY);
   if (md === ct.contract_md) return json({ ok: true, unchanged: true }); // 内容未变：幂等短路，不重置确认/不重发通知（防双触发重复通知）
 
-  // 修改即回退到签约选择态：双方确认清零 + pending→signing，两边都回到 确认/修改/查看 三按钮
-  await dbRun(db,
-    `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, status='signing', updated_at=datetime('now','localtime') WHERE id=?`,
-    [md, contractId]);
+  // 修改即回退到签约选择态：双方确认清零 + pending→signing，两边都回到 确认/修改/查看 三按钮。
+  // 乐观锁落 SQL WHERE：版本不符（对方刚改完）或状态已离开 pending/signing（已签约/被取消）→ changes=0 → 409 强制重载（也杜绝修改复活已签约合同）
+  const upd = await dbRun(db,
+    `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, status='signing', updated_at=datetime('now','localtime')
+     WHERE id=? AND updated_at=? AND status IN ('pending','signing')`,
+    [md, contractId, String(body.updatedAt)]);
+  if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409);
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });

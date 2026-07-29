@@ -602,7 +602,7 @@ async function handleLogin(e) {
 
     afterAuthSuccess();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
   } finally {
     btn.disabled = false; btn.textContent = UI.BTN_LOGIN;
   }
@@ -643,7 +643,7 @@ async function handleRegister(e) {
     try { sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, authToken: state.authToken })); } catch { /* ignore */ }
     afterAuthSuccess();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
   } finally {
     const btn = document.getElementById('register-submit');
     btn.disabled = false; btn.textContent = UI.BTN_REGISTER;
@@ -956,7 +956,7 @@ async function handleSubmitDemand(e) {
     showToast(isEdit ? UI.SUCCESS_DEMAND_UPDATED : UI.SUCCESS_DEMAND_SUBMITTED);
     if (state.page === 'my-demands') loadMyDemands();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
   } finally {
     const btn = document.getElementById('d-submit');
     if (btn) { btn.disabled = false; btn.textContent = isEdit ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND; }
@@ -1234,7 +1234,7 @@ function openReviewModal(teacherUserId, teacherName, editId) {
   const existing = editId ? state.myReviewOnModal : null;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + teacherName}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName)}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="review-alert"></div>
         <div class="form-group">
@@ -1286,7 +1286,7 @@ async function submitReview(teacherUserId, reviewId) {
     showToast(data.message || UI.SUCCESS_REVIEW_SUBMITTED);
     if (profilePanelShowing(teacherUserId)) openProfilePanel(teacherUserId); // 面板正展示该教师 → 评价卡片就地刷新（写/改后状态同步）
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
   } finally {
     reviewSubmitBusy = false;
   }
@@ -2641,7 +2641,7 @@ async function handleSaveProfile(e) {
     alertEl.innerHTML = `<div class="alert alert-success">${UI.SUCCESS_PROFILE_SAVED}</div>`;
     invalidate('teachers'); // 档案已变：清教师列表缓存，浏览页/个人信息面板/推送弹窗下次读取重拉新档
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
   } finally {
     const btn = document.getElementById('profile-submit');
     btn.disabled = false; btn.textContent = UI.BTN_SAVE;

@@ -10,6 +10,11 @@ import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
 export async function handleRegister(db, body, req) {
   const { username, password, role, inviteCode } = body;
   if (!username || username.length < 3 || username.length > 30) return error(MSG.USERNAME_LENGTH);
+  // 用户名字符集白名单（中文/字母/数字/_ . -），杜绝 control char / HTML 注入名进入全站 innerHTML
+  if (!/^[\p{Script=Han}A-Za-z0-9_.\-]{3,30}$/u.test(username)) return error(MSG.USERNAME_INVALID);
+  // 预留注销墓碑前缀：禁止注册与「已注销用户#id」同前缀的用户名（防冒充注销账户）
+  const tombPrefix = globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX;
+  if (tombPrefix && username.startsWith(tombPrefix)) return error(MSG.USERNAME_INVALID);
   if (!password || password.length < 6) return error(MSG.PASSWORD_LENGTH);
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
 
@@ -35,6 +40,8 @@ export async function handleRegister(db, body, req) {
 export async function handleLogin(db, body, req) {
   const { username, password } = body;
   if (!username || !password) return error(MSG.LOGIN_REQUIRED);
+  // 限定用户名长度上限：超长串直接早退，避免无谓的哈希查库 / PBKDF2 消耗（文案不变，仍为「用户名或密码错误」）
+  if (String(username).length > 60) return error(MSG.LOGIN_FAILED, 401);
 
   const user = await dbFindUserByUsername(db, username);
   if (!user || !(await verifyPassword(password, user.password_hash, user.salt))) {

@@ -12,7 +12,7 @@ import { logEvent } from './log.js';
 
 export async function handleCreateReview(db, body, req) {
   const { teacherUserId, rating, comment } = body;
-  if (!rating || rating < 1 || rating > 5) return error(MSG.RATING_RANGE);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return error(MSG.RATING_RANGE); // 拒绝 2.5 / "3.5" / NaN
   if (!comment || comment.trim().length < 2) return error(MSG.COMMENT_TOO_SHORT);
 
   const reviewer = await authUser(db, req);
@@ -21,7 +21,13 @@ export async function handleCreateReview(db, body, req) {
   if (!(await dbIsContracted(db, reviewerUserId, teacherUserId))) return error(MSG.REVIEW_CONTRACT_ONLY, 403);
   if (await dbGetReviewByPair(db, reviewerUserId, teacherUserId)) return error(MSG.REVIEW_EXISTS, 409);
 
-  const id = await dbCreateReview(db, teacherUserId, reviewerUserId, rating, comment.trim());
+  let id;
+  try {
+    id = await dbCreateReview(db, teacherUserId, reviewerUserId, rating, comment.trim());
+  } catch (err) {
+    if (String(err?.message || err).includes('UNIQUE')) return error(MSG.REVIEW_EXISTS, 409); // 唯一索引兜底（并发双发）
+    throw err;
+  }
   logEvent(db, { action: 'review.create', actorUserId: reviewerUserId, actorRole: 'student',
     entity: 'review', entityId: id, detail: { teacherUserId, rating }, req });
   return json({ id, message: MSG.REVIEW_SUBMITTED });
@@ -30,7 +36,7 @@ export async function handleCreateReview(db, body, req) {
 // 修改自己的评价（归属校验 + 重回待审核）
 export async function handleUpdateReview(db, reviewId, body, req) {
   const { rating, comment } = body;
-  if (!rating || rating < 1 || rating > 5) return error(MSG.RATING_RANGE);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) return error(MSG.RATING_RANGE); // 拒绝 2.5 / "3.5" / NaN
   if (!comment || comment.trim().length < 2) return error(MSG.COMMENT_TOO_SHORT);
 
   const me = await authUser(db, req);

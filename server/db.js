@@ -491,7 +491,9 @@ export async function dbGetAllTeachers(db, viewerId = null) {
     : '0 AS matched';
   const params = viewerId ? [viewerId, viewerId] : [];
   const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar, ${matchedSel}
-    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id ORDER BY tp.updated_at DESC`, params);
+    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id
+    WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0
+    ORDER BY tp.updated_at DESC`, params);
   return profiles.map(mapTeacherProfileRow);
 }
 
@@ -615,11 +617,13 @@ export async function dbResolvePush(db, pushId, status) {
   return !!(res && res.meta && res.meta.changes > 0);
 }
 
-// 推送被教师确认：写一条「已接受」意向（复用学生端意向/会话视图）+ 由路由层建立会话
+// 推送被教师确认：写一条「已接受」意向（复用学生端意向/会话视图）+ 由路由层建立会话。
+// DO UPDATE 覆写守卫：学生对意向的明确拒绝（status='rejected'）不可被推送确认静默撤销
 export async function dbAcceptPushAsIntent(db, demandId, teacherUserId) {
   await dbRun(db, `INSERT INTO demand_intents (demand_id,teacher_user_id,status,resolved_at)
       VALUES (?,?,'accepted',datetime('now','localtime'))
-    ON CONFLICT(demand_id,teacher_user_id) DO UPDATE SET status='accepted', resolved_at=datetime('now','localtime')`,
+    ON CONFLICT(demand_id,teacher_user_id) DO UPDATE SET status='accepted', resolved_at=datetime('now','localtime')
+      WHERE demand_intents.status <> 'rejected'`,
     [demandId, teacherUserId]);
 }
 

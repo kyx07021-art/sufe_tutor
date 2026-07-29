@@ -5,7 +5,7 @@
  *   双向匹配   公开档案 + 真实姓名 + 学信网截图（联系方式仍按「签约后展示」规则不下发）
  *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
  */
-import { json, error, authUser, MSG } from './core.js';
+import { json, error, dbGet, authUser, MSG } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetAllTeachers, dbIsMatched, dbIsContracted } from './db.js';
 
@@ -20,6 +20,11 @@ export async function handleGetProfile(db, url, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const targetId = parseInt(url.searchParams.get('userId')) || me.id;
+  // 被封禁且未注销的账户视同不存在（与 handleGetUserPublic 口径一致，不泄露封禁态）；本人不受影响（authUser 已拦封禁者）
+  if (targetId !== me.id) {
+    const target = await dbGet(db, 'SELECT banned, deactivated FROM users WHERE id=?', [targetId]);
+    if (target && target.banned && !target.deactivated) return error(MSG.USER_NOT_FOUND, 404);
+  }
   const profile = await dbGetTeacherProfile(db, targetId);
   if (!profile) return json({ profile: null });
   if (me.id === targetId) return json({ profile }); // 本人：全字段
@@ -33,7 +38,13 @@ export async function handleSaveProfile(db, body, req) {
   const { profile: p } = body;
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  if (me.role !== 'teacher') return error(MSG.NO_PERMISSION, 403); // 仅教师可建档案（防学生/管理员写 teacher_profiles）
   if (!p.province || !globalThis.SUFE_REGIONS.isValidProvince(p.province)) return error(MSG.PROVINCE_REQUIRED);
+  // 报价钳制：保留 null=未填语义（不转 0，档案完整性门槛据此拦截）；有值则夹到 [0,99999]，非法值回落未填
+  if (p.price != null) {
+    const n = Number(p.price);
+    p.price = Number.isFinite(n) ? Math.min(99999, Math.max(0, n)) : null;
+  }
   const credential = String(p.credential_image || '');
   if (credential && (!credential.startsWith('data:image/') || credential.length > CREDENTIAL_MAX)) return error(MSG.AVATAR_INVALID);
   await dbUpsertTeacherProfile(db, me.id, { ...p, credential_image: credential }); // 只能写自己的档案
