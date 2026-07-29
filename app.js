@@ -417,7 +417,8 @@ function invalidate(key) { const k = CACHE_KEYS[key]; if (k) state[k] = []; }
 async function loadInto(elId, fetcher, renderer, opts = {}) {
   const el = document.getElementById(elId);
   if (!el) return false;
-  const seq = opts.seqKey ? ++loadSeqs[opts.seqKey] : null;
+  // 计数器首用初始化：++undefined = NaN，而 NaN !== NaN 恒真 → 首次装载会被误判「乱序」而丢弃（帖子区永卡加载中的根因）
+  const seq = opts.seqKey ? (loadSeqs[opts.seqKey] = (loadSeqs[opts.seqKey] || 0) + 1) : null;
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     const data = await fetcher();
