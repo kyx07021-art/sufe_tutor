@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.12.0',
+  APP_VERSION: '0.12.1',
 
   // ============================================================
   // 业务数据
@@ -232,6 +232,22 @@ globalThis.APP_CONSTANTS = {
     LABEL_CONTRACT_LOCATION: '授课地点',
     CONTRACT_LOCATION_PLACEHOLDER: '甲方常住处或双方另行约定的地点',
     CONTRACT_LOCATION_NOTE: '出于隐私保护，授课地点请使用「甲方常住处」等模糊表述，勿将详细地址上传至平台。',
+    // 合同草案三要素：薪资结算方式 / 首次上课日期 / 试课薪资方案（选「其他」时展开文字输入）
+    LABEL_CONTRACT_PAY_METHOD: '薪资结算方式',
+    PAY_METHOD_PER_SESSION: '次付',
+    PAY_METHOD_WEEKLY: '周付',
+    PAY_METHOD_MONTHLY: '月付',
+    PAY_METHOD_OTHER: '其他',
+    CONTRACT_PAY_METHOD_OTHER_PLACEHOLDER: '请输入结算方式，如：每 10 次课结算一次',
+    VALIDATE_CONTRACT_PAY_METHOD_OTHER: '请输入具体的薪资结算方式',
+    LABEL_CONTRACT_FIRST_LESSON: '首次上课日期',
+    LABEL_CONTRACT_TRIAL_PAY: '试课薪资方案',
+    TRIAL_PAY_FIRST_FREE: '第一次试课免费',
+    TRIAL_PAY_FIRST_HOUR_FREE: '第一小时免费，第二小时收费',
+    TRIAL_PAY_NORMAL: '全程正常收费',
+    TRIAL_PAY_OTHER: '其他',
+    CONTRACT_TRIAL_PAY_OTHER_PLACEHOLDER: '请输入试课薪资方案',
+    VALIDATE_CONTRACT_TRIAL_PAY_OTHER: '请输入具体的试课薪资方案',
     LABEL_CONTRACT_DEMAND: '对应需求',
     CONTRACT_NO_DEMAND_OPTION: '不关联需求',
     CONTRACT_DEMANDS_LOAD_FAIL: '需求列表加载失败：可不关联需求直接起草，或刷新页面后重试。',
@@ -339,7 +355,7 @@ globalThis.APP_CONSTANTS = {
     // 通用页面文案
     LOADING: '加载中...',
     OPTION_PLACEHOLDER: '请选择',
-    CONTACT_PLACEHOLDER: '手机号或邮箱',
+    CONTACT_PLACEHOLDER: '手机邮箱',
     VALIDATE_SELECT_PROVINCE: '请选择省份',
 
     // 侧边栏页签标题
@@ -348,7 +364,8 @@ globalThis.APP_CONSTANTS = {
     PAGE_MY_CHATS: '我的沟通',
     PAGE_BROWSE_DEMANDS: '需求大厅',
     PAGE_RESOURCE_SHARE: '资料共享',
-    PAGE_EDIT_PROFILE: '编辑自身信息',
+    PAGE_EDIT_PROFILE: '个人资料',
+    PAGE_TITLE_EDIT_PROFILE: '编辑教师信息', // 教师资料页顶部大标题（index.html 静态占位，进页时按此注入）
     PAGE_ADMIN_STATS: '统计',
     PAGE_ADMIN_STUDENTS: '学生管理',
     PAGE_ADMIN_TEACHERS: '教师管理',

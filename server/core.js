@@ -26,6 +26,7 @@ export const MSG = {
   USERNAME_LENGTH: '用户名长度需在 3-30 个字符之间',
   PASSWORD_LENGTH: '密码长度至少 6 个字符',
   INVALID_ROLE: '无效的用户角色',
+  INVALID_PARAMS: '参数不合法',
   LOGIN_REQUIRED: '请输入用户名和密码',
   LOGIN_FAILED: '用户名或密码错误',
   USERNAME_TAKEN: '用户名已被注册',

@@ -24,6 +24,11 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   method TEXT NOT NULL DEFAULT 'online',
   plan TEXT NOT NULL DEFAULT '',
   hourly_rate INTEGER NOT NULL DEFAULT 0,
+  pay_method TEXT NOT NULL DEFAULT '',
+  pay_method_other TEXT NOT NULL DEFAULT '',
+  first_lesson_date TEXT NOT NULL DEFAULT '',
+  trial_pay TEXT NOT NULL DEFAULT '',
+  trial_pay_other TEXT NOT NULL DEFAULT '',
   contract_md TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','signing','signed')),
   drafter_confirmed INTEGER NOT NULL DEFAULT 0,
@@ -310,7 +315,9 @@ export async function initDb(db) {
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER']]);
-  await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"]]);
+  await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
+    ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
+    ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"]]);
 
   // 存量需求编号补发：按 id（生成顺序）依次取号，四位展示自 0001 起；已编号跳过（幂等）
   const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');

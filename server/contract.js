@@ -14,9 +14,14 @@ const UIC = globalThis.APP_CONSTANTS.UI;
 // 根据草案信息生成正式合同正文。条款要素依《民法典》第四百七十条一般条款拟定
 // （当事人/标的/数量质量/价款/履行期限地点方式/违约责任/争议解决），家教场景展开为九条。
 // 授课地点按隐私合规采用模糊表述（甲方常住处等），不收集详细门牌号。
-export function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo }) {
+// 薪资三要素（结算方式/首课日期/试课方案）由起草表单采集；选「其他」时带入用户自拟文字。
+export function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
   const methodName = method === 'offline' ? '线下授课' : '线上授课';
   const locationText = location || (method === 'offline' ? '甲方常住处或双方另行约定的地点' : '双方约定的线上课堂');
+  const PAY_METHOD_TEXT = { per_session: '次付（按次结算，每次课程结束后支付）', weekly: '周付（每周结算一次）', monthly: '月付（每月结算一次）' };
+  const TRIAL_PAY_TEXT = { first_free: '第一次试课免费', first_hour_free: '第一小时免费，第二小时起按约定时薪收费', normal: '试课全程正常收费' };
+  const payText = payMethod === 'other' ? (payMethodOther || '由双方另行约定') : (PAY_METHOD_TEXT[payMethod] || '由双方另行约定');
+  const trialText = trialPay === 'other' ? (trialPayOther || '由双方另行约定') : (TRIAL_PAY_TEXT[trialPay] || '由双方另行约定');
   return `# 家教服务合同
 
 **甲方（学生方）**：${studentName}
@@ -30,14 +35,16 @@ ${demandNo ? `**关联需求编号**：#${demandNo}
 
 1. 授课方式：${methodName}。
 2. 授课科目与内容：详见本合同第五条「教学方案」。
-3. 授课时间：${schedule || '由双方另行协商确定'}。
-4. 授课地点：${locationText}。
+3. 首次上课日期：${firstLessonDate || '由双方另行协商确定'}。
+4. 授课时间：${schedule || '由双方另行协商确定'}。
+5. 授课地点：${locationText}。
 
 ## 第二条 课时费与支付
 
 1. 约定时薪为每小时 **${rate}** 元（人民币）。
-2. 支付方式与结算周期（按次 / 周 / 月）由双方另行约定，甲方应按约定如期支付课时费用。
-3. 平台仅提供信息撮合与合同存证服务，不参与费用结算。
+2. 薪资结算方式：${payText}。甲方应按约定如期支付课时费用。
+3. 试课薪资方案：${trialText}。
+4. 平台仅提供信息撮合与合同存证服务，不参与费用结算。
 
 ## 第三条 甲方权利与义务
 
@@ -169,6 +176,14 @@ export async function handleCreateContract(db, body, req) {
   const rate = Math.max(0, parseInt(body.hourlyRate) || 0);
   const schedule = String(body.schedule || '').slice(0, 500);
   const location = String(body.location || '').slice(0, 200);
+  // 薪资三要素：白名单枚举 + 「其他」自拟文字；首课日期取 yyyy-mm-dd（date input 原值）
+  const payMethod = ['per_session', 'weekly', 'monthly', 'other'].includes(body.payMethod) ? body.payMethod : '';
+  const payMethodOther = payMethod === 'other' ? String(body.payMethodOther || '').trim().slice(0, 100) : '';
+  if (payMethod === 'other' && !payMethodOther) return error(MSG.INVALID_PARAMS, 400);
+  const firstLessonDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.firstLessonDate || '')) ? body.firstLessonDate : '';
+  const trialPay = ['first_free', 'first_hour_free', 'normal', 'other'].includes(body.trialPay) ? body.trialPay : '';
+  const trialPayOther = trialPay === 'other' ? String(body.trialPayOther || '').trim().slice(0, 100) : '';
+  if (trialPay === 'other' && !trialPayOther) return error(MSG.INVALID_PARAMS, 400);
   // 合同绑定需求：起草时显式选择（缺省回落到会话自带的需求）；
   // 后端硬校验：绑定的需求必须属于会话学生方（防越权绑他人需求），统一入口把关
   let demandId = parseInt(body.demandId) || conv.demand_id || null;
@@ -182,11 +197,14 @@ export async function handleCreateContract(db, body, req) {
   const md = buildContractMd({
     teacherName: conv.teacher_name, studentName: conv.student_name,
     method, schedule, location, plan, rate, createdAt: new Date().toISOString().slice(0, 10), demandNo,
+    payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
   });
   const res = await dbRun(db,
-    `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md)
-     VALUES (?,?,?,?,?,?,?,?,?)`,
-    [conversationId, userId, demandId, method, schedule, location, plan, rate, md]);
+    `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
+        pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [conversationId, userId, demandId, method, schedule, location, plan, rate, md,
+     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther]);
   const id = (res && res.meta && res.meta.last_row_id) || 0;
   // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
   await dbRun(db, `INSERT INTO messages (conversation_id, sender_user_id, body, kind) VALUES (?,?,?,?)`,

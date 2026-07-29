@@ -1434,7 +1434,7 @@ function enterAccountSettings() {
       ${row(UI.SETTINGS_EMAIL, UI.SETTINGS_UNBOUND, true)}
     </div>
     <button type="button" class="btn btn-danger settings-logout" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
-    <button type="button" class="btn-text-danger settings-deactivate" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>`;
+    ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
 }
 
 // 注销账户：两级确认（数据影响说明 → 最终危险确认）。后端抹单方数据、墓碑化用户名，
@@ -1834,6 +1834,34 @@ async function openContractDraftModal(convId) {
           <input type="number" class="form-input" id="contract-rate" min="0" step="1" placeholder="${UI.CONTRACT_PRICE_PLACEHOLDER}">
         </div>
         <div class="form-group">
+          <label class="form-label">${UI.LABEL_CONTRACT_PAY_METHOD}</label>
+          <select class="form-select" id="contract-pay-method" onchange="contractToggleOther('contract-pay-method','contract-pay-method-other-wrap')">
+            <option value="per_session">${UI.PAY_METHOD_PER_SESSION}</option>
+            <option value="weekly">${UI.PAY_METHOD_WEEKLY}</option>
+            <option value="monthly">${UI.PAY_METHOD_MONTHLY}</option>
+            <option value="other">${UI.PAY_METHOD_OTHER}</option>
+          </select>
+          <div class="form-other-wrap hidden" id="contract-pay-method-other-wrap">
+            <input type="text" class="form-input" id="contract-pay-method-other" maxlength="100" placeholder="${UI.CONTRACT_PAY_METHOD_OTHER_PLACEHOLDER}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.LABEL_CONTRACT_FIRST_LESSON}</label>
+          <input type="date" class="form-input" id="contract-first-lesson">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.LABEL_CONTRACT_TRIAL_PAY}</label>
+          <select class="form-select" id="contract-trial-pay" onchange="contractToggleOther('contract-trial-pay','contract-trial-pay-other-wrap')">
+            <option value="first_free">${UI.TRIAL_PAY_FIRST_FREE}</option>
+            <option value="first_hour_free">${UI.TRIAL_PAY_FIRST_HOUR_FREE}</option>
+            <option value="normal">${UI.TRIAL_PAY_NORMAL}</option>
+            <option value="other">${UI.TRIAL_PAY_OTHER}</option>
+          </select>
+          <div class="form-other-wrap hidden" id="contract-trial-pay-other-wrap">
+            <input type="text" class="form-input" id="contract-trial-pay-other" maxlength="100" placeholder="${UI.CONTRACT_TRIAL_PAY_OTHER_PLACEHOLDER}">
+          </div>
+        </div>
+        <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_PLAN}</label>
           <div class="md-toolbar">
             <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
@@ -1854,8 +1882,17 @@ async function openContractDraftModal(convId) {
     </div>
   </div>`;
   initCustomSelects(document.getElementById('contract-method') && document.getElementById('contract-method').closest('.modal'));
+  contractToggleOther('contract-pay-method', 'contract-pay-method-other-wrap');
+  contractToggleOther('contract-trial-pay', 'contract-trial-pay-other-wrap');
   updatePostPreview();
   prefillContractFromDemand(); // 初始选中项的预载
+}
+
+// 「其他」选项展开文字输入：自定义下拉点选会派发原生 change，统一由此函数切换显隐
+function contractToggleOther(selectId, wrapId) {
+  const sel = document.getElementById(selectId);
+  const wrap = document.getElementById(wrapId);
+  if (sel && wrap) wrap.classList.toggle('hidden', sel.value !== 'other');
 }
 
 // 起草预载：按所选需求填 教学方式 / 时薪（预算中值）/ 科目（写入方案首行）——仅填空白项，用户改过的不覆盖
@@ -1883,7 +1920,14 @@ async function submitContractDraft(convId) {
   const method = document.getElementById('contract-method').value;
   const rate = document.getElementById('contract-rate').value;
   const plan = (document.getElementById('post-body').value || '').trim();
+  const payMethod = document.getElementById('contract-pay-method').value;
+  const payMethodOther = payMethod === 'other' ? (document.getElementById('contract-pay-method-other').value || '').trim() : '';
+  const firstLessonDate = document.getElementById('contract-first-lesson').value || '';
+  const trialPay = document.getElementById('contract-trial-pay').value;
+  const trialPayOther = trialPay === 'other' ? (document.getElementById('contract-trial-pay-other').value || '').trim() : '';
   if (!rate || +rate <= 0) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_RATE}</div>`; return; }
+  if (payMethod === 'other' && !payMethodOther) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER}</div>`; return; }
+  if (trialPay === 'other' && !trialPayOther) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER}</div>`; return; }
   if (!plan) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_PLAN}</div>`; return; }
   if (contractDraftBusy) return;
   contractDraftBusy = true;
@@ -1891,7 +1935,7 @@ async function submitContractDraft(convId) {
     const schedule = (document.getElementById('contract-schedule').value || '').trim();
     const location = (document.getElementById('contract-location').value || '').trim();
     const demandId = parseInt(document.getElementById('contract-demand').value) || null;
-    const data = await api('/api/contracts', { method: 'POST', body: { userId: state.user.id, conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId } });
+    const data = await api('/api/contracts', { method: 'POST', body: { userId: state.user.id, conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
     closeModal();
     showToast(data.message || UI.CONTRACT_DRAFT_SENT_TOAST);
   } catch (err) {
@@ -2221,6 +2265,8 @@ async function resolveIntent(intentId, action, demandId) {
 // 教师档案编辑
 // ============================================================
 function initProfileForm() {
+  const pageTitle = document.getElementById('profile-page-title');
+  if (pageTitle) pageTitle.textContent = UI.PAGE_TITLE_EDIT_PROFILE; // 页头标题归口 constants（index.html 静态文本仅 JS 前的兜底）
   document.getElementById('profile-province-wrap').innerHTML =
     renderProvinceSelect('profile-province', '', 'onchange="onTeacherProvinceChange()"');
   const gradeEl = document.getElementById('profile-grade');
