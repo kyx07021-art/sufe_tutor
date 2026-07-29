@@ -763,13 +763,15 @@ export async function dbGetConversationById(db, id) {
   return await dbGet(db, 'SELECT * FROM conversations WHERE id=?', [id]);
 }
 
-// 我参与的会话列表（含对方用户名 + 最后一条消息预览）
+// 我参与的会话列表（含对方用户名 + 最后一条消息预览 + 签约状态）
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
+  // contracted：本会话存在已签约合同 → 会话项与聊天头显示「已签约」小卡
   return await dbAll(db, `SELECT c.*,
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       sd.display_id AS demand_display_id,
+      EXISTS(SELECT 1 FROM contracts ct WHERE ct.conversation_id=c.id AND ct.status='signed') AS contracted,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
       lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id AND m.sender_user_id<>?

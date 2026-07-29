@@ -137,6 +137,7 @@ function renderConvItem(c) {
     <span class="conv-item-top">
       <span class="conv-item-name">${renderUsername(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
       <span class="conv-item-role">${peer.role}</span>
+      ${c.contracted ? `<span class="conv-signed-tag">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
       <span class="conv-item-time">${escHtml(time)}</span>
     </span>
     <span class="conv-item-preview">${escHtml(preview)}</span>
@@ -222,6 +223,7 @@ function renderChatFrame(conv) {
       <div class="chat-head-main">
         <span class="chat-peer-name">${peer.name ? renderUsername(peer.name) : escHtml(UI.CHAT_UNKNOWN_USER)}</span>
         <span class="chat-peer-tag">${peer.role}</span>
+        ${conv && conv.contracted ? `<span class="chat-head-signed">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
         ${conv && conv.demand_display_id ? `<span class="chat-head-demand">${UI.CHAT_DEMAND_PREFIX}${String(conv.demand_display_id).padStart(4, '0')}</span>` : ''}
       </div>
       ${peer.id ? `<button type="button" class="chat-peer-profile-btn" title="${UI.PROFILE_PANEL_TITLE}" onclick="openProfilePanel(${peer.id})">

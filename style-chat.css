@@ -111,6 +111,21 @@
   transition: color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
 .chat-peer-profile-btn:hover { color: var(--ink); transform: translateY(-1px); }
+
+/* 会话项「已签约」绿色小卡：名字行角色标签之后，与个人信息面板的签约标记同色 */
+.conv-signed-tag {
+  flex-shrink: 0; align-self: center;
+  background: #187a4b; color: #fff;
+  font-size: .58rem; font-weight: 700; letter-spacing: .06em;
+  padding: 1.5px 5px; line-height: 1.4;
+}
+/* 聊天窗头部同款签约小卡（稍大一号适配头部字号） */
+.chat-head-signed {
+  flex-shrink: 0; align-self: center;
+  background: #187a4b; color: #fff;
+  font-size: .64rem; font-weight: 700; letter-spacing: .06em;
+  padding: 2px 7px;
+}
 .chat-peer-name {
   min-width: 0;
   font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
