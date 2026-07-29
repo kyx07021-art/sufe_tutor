@@ -981,11 +981,11 @@ function renderTeachers(teachers) {
 // 错落两栏卡：左 头像+用户名(可点查看详情)+星级；右 信息行1(黑稍大)+信息行2(成绩灰可换行)+方形发送需求按钮；简介独占底部一行
 function renderTeacherCard(t) {
   const isStudent = state.user && state.user.role === 'student';
-  const grade = TEACHER_GRADES.find(g=>g.id===t.grade)?.name || t.grade || '';
-  const gender = GENDERS.find(g=>g.id===t.gender)?.name || '';
+  const grade = DISP.teacherGradeName(t.grade) || t.grade || '';
+  const gender = DISP.genderName(t.gender);
   const provName = DISP.provinceName(t.province);
-  const info1 = [provName, grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
-  const info2 = (t.gaokao_scores || []).map(gs => `${DISP.subjectName(gs.subject)}${DISP.gaokaoCell(gs)}`).filter(Boolean).join(' · ');
+  const info1 = [provName, t.school, grade].filter(Boolean).join(' · '); // 粗体行：地区·学校·年级
+  const scoreLine = (t.gaokao_scores || []).map(gs => `${DISP.subjectName(gs.subject)}${DISP.gaokaoCell(gs)}`).filter(Boolean).join(' · ');
   return `<div class="list-card list-card--teacher">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
@@ -993,8 +993,10 @@ function renderTeacherCard(t) {
         <span class="tc-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
       </div>
       <div class="tc-right">
-        <div class="tc-info1">${escHtml(info1)}</div>
-        ${info2 ? `<div class="tc-info2">${escHtml(info2)}</div>` : ''}
+        ${info1 ? `<div class="tc-info1">${escHtml(info1)}</div>` : ''}
+        ${gender ? `<div class="tc-info2">${UI.LABEL_GENDER}：${escHtml(gender)}</div>` : ''}
+        ${t.price != null ? `<div class="tc-info2">${UI.LABEL_PRICE}：${escHtml(String(t.price))}${UI.PRICE_UNIT}</div>` : ''}
+        ${scoreLine ? `<div class="tc-info2">${escHtml(scoreLine)}</div>` : ''}
         <div class="tc-actions">
           ${isStudent ? renderPushBtn(t) : ''}
         </div>
@@ -1086,8 +1088,9 @@ async function openProfilePanel(userId) {
       if (seq !== profilePanelSeq) return;
     }
     state.myReviewOnModal = (reviewsData && reviewsData.mine) || null;
-    // ④ 双向匹配可见字段（真实姓名/学信网截图）：列表接口永不下发，仅匹配后定点取回并入缓存行（取过一次打标记，不重复请求）
-    if (isTeacher && t && t.matched && !t._matchedDetailLoaded) {
+    // ④ 私密字段（真实姓名/学信网截图/联系方式）：列表接口永不下发，仅本人或双向匹配后定点取回并入缓存行
+    // （取过一次打标记，不重复请求；签约时后端追加返回联系方式，兑现「签约后展示」）
+    if (isTeacher && t && (t.matched || (state.user && state.user.id === t.user_id)) && !t._matchedDetailLoaded) {
       try {
         const pd = await api(`/api/teacher/profile?userId=${userId}`);
         if (seq !== profilePanelSeq) return;
@@ -1124,48 +1127,57 @@ function renderProfilePanel(base, t, signed, reviewsData) {
       <div class="profile-id-role">${roleLabel}</div>
     </div>`;
   return cardId
-    + (base.role === 'teacher' ? renderProfileInfoCard(t) : '')
+    + (base.role === 'teacher' ? renderProfileInfoCard(t, signed) : '')
     + (base.role === 'teacher' && reviewsData ? renderProfileReviewsCard(reviewsData, t, signed) : '');
 }
 
 // 卡片②：教师资料账簿行 —— title 最左、信息自固定 px（CSS profile-row grid）处统一开始，逐项成行
-function renderProfileInfoCard(t) {
+// 信息卡「硬展示」：所有字段行常驻——有值显值，无值显占位（未填写 / 建立会话后展示 / 签约后展示），
+// 学生据此一眼判断教师资料完善度与信息的可见门槛（占位文案统一灰显）
+function renderProfileInfoCard(t, signed) {
   if (!t) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
-  const grade = DISP.teacherGradeName(t.grade);
-  const gender = DISP.genderName(t.gender);
-  const provName = DISP.provinceName(t.province);
-  const row = (k, v) => `<div class="profile-row"><span class="profile-row-k">${k}</span><span class="profile-row-v">${v}</span></div>`;
+  const isSelf = state.user && state.user.id === t.user_id;
+  const row = (k, cell) => `<div class="profile-row"><span class="profile-row-k">${k}</span><span class="profile-row-v${cell.muted ? ' profile-row-v--muted' : ''}">${cell.v}</span></div>`;
+  const cell = v => ({ v: escHtml(v) });
+  const empty = label => ({ v: escHtml(label), muted: true });
+  const plain = v => v ? cell(v) : empty(UI.PROFILE_FIELD_EMPTY); // 常规字段：空 → 未填写
+  const afterMatch = v => !t.matched ? empty(UI.PROFILE_FIELD_AFTER_MATCH) : plain(v); // 匹配门槛字段
+
   const subjTags = (t.subjects || []).map(sid => {
     const name = DISP.subjectName(sid);
     return name ? `<span class="profile-tag">${escHtml(name)}</span>` : '';
   }).join('');
   const gkRows = (t.gaokao_scores || []).map(gs => {
-    // 分数不带 scale：满分由省份赋分组件决定、行数据里本就不存（与教师卡 info2 同口径，直接显分数/等第）
+    // 分数不带 scale：满分由省份赋分组件决定、行数据里本就不存（与教师卡 scoreLine 同口径）
     const v = DISP.gaokaoCell(gs);
-    return v ? row(escHtml(DISP.subjectName(gs.subject)), escHtml(v)) : '';
+    return v ? row(escHtml(DISP.subjectName(gs.subject)), cell(v)) : '';
   }).join('');
-  // 双向匹配可见行：真实姓名直显；学信网截图「点击查看」开大图（数据由 openProfilePanel 匹配后定点取回）
-  const matchedRows = t.matched ? (
-    row(UI.LABEL_REAL_NAME, t.real_name ? escHtml(t.real_name) : '—')
-    + row(UI.LABEL_CREDENTIAL, t.credential_image
-      ? `<button type="button" class="btn btn-outline btn-xs" onclick="viewTeacherCredential(${t.user_id})">${UI.CREDENTIAL_VIEW}</button>`
-      : '—')
-  ) : '';
-  const hasAny = provName || t.school || grade || gender || t.price || t.address || t.intro || subjTags || gkRows || matchedRows;
-  if (!hasAny) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
+  // 联系方式：本人或已签约（且已取回值）→ 实际值；已取回但教师未填 → 未填写；否则 → 签约后展示
+  const hasContact = t.wechat || t.email;
+  const contact = (isSelf || signed)
+    ? (hasContact
+        ? cell([t.wechat ? `微信：${escHtml(t.wechat)}` : '', t.email ? `邮箱：${escHtml(t.email)}` : ''].filter(Boolean).join(' · '))
+        : empty(UI.PROFILE_FIELD_EMPTY))
+    : empty(UI.PROFILE_FIELD_AFTER_SIGN);
+  const credential = !t.matched ? empty(UI.PROFILE_FIELD_AFTER_MATCH)
+    : t.credential_image
+      ? { v: `<button type="button" class="btn btn-outline btn-xs" onclick="viewTeacherCredential(${t.user_id})">${UI.CREDENTIAL_VIEW}</button>` }
+      : empty(UI.PROFILE_FIELD_EMPTY);
+
   return `<div class="profile-card">
-    ${row(UI.LABEL_RATING, `<span class="profile-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>`)}
-    ${provName ? row(UI.SECTION_REGION, escHtml(provName)) : ''}
-    ${t.school ? row(UI.LABEL_SCHOOL, escHtml(t.school)) : ''}
-    ${grade ? row(UI.LABEL_GRADE, escHtml(grade)) : ''}
-    ${gender ? row(UI.LABEL_GENDER, escHtml(gender)) : ''}
-    ${t.price ? row(UI.LABEL_PRICE, escHtml(`${t.price}${UI.PRICE_UNIT}`)) : ''}
-    ${t.address ? row(UI.LABEL_ADDRESS, escHtml(t.address)) : ''}
-    ${subjTags ? row(UI.SECTION_SUBJECTS, subjTags) : ''}
-    ${gkRows}
-    ${t.intro ? row(UI.LABEL_INTRO, escHtml(t.intro)) : ''}
-    ${matchedRows}
-    ${(t.wechat || t.email) ? `<div class="profile-contact-note">${UI.CONTACT_AFTER_SIGN_NOTE}</div>` : ''}
+    ${row(UI.LABEL_RATING, { v: `<span class="profile-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>` })}
+    ${row(UI.SECTION_REGION, plain(DISP.provinceName(t.province)))}
+    ${row(UI.LABEL_SCHOOL, plain(t.school))}
+    ${row(UI.LABEL_GRADE, plain(DISP.teacherGradeName(t.grade)))}
+    ${row(UI.LABEL_GENDER, plain(DISP.genderName(t.gender)))}
+    ${row(UI.LABEL_PRICE, t.price != null ? cell(`${t.price}${UI.PRICE_UNIT}`) : empty(UI.PROFILE_FIELD_EMPTY))}
+    ${row(UI.LABEL_ADDRESS, plain(t.address))}
+    ${row(UI.SECTION_SUBJECTS, subjTags ? { v: subjTags } : empty(UI.PROFILE_FIELD_EMPTY))}
+    ${gkRows || row(UI.LABEL_GAOKAO_SCORES, empty(UI.PROFILE_FIELD_EMPTY))}
+    ${row(UI.LABEL_INTRO, plain(t.intro))}
+    ${row(UI.LABEL_REAL_NAME, afterMatch(t.real_name))}
+    ${row(UI.LABEL_CREDENTIAL, credential)}
+    ${row(UI.LABEL_CONTACT, contact)}
   </div>`;
 }
 

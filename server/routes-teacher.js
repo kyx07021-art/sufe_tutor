@@ -7,12 +7,15 @@
  */
 import { json, error, authUser, MSG } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
-import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetAllTeachers, dbIsMatched } from './db.js';
+import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetAllTeachers, dbIsMatched, dbIsContracted } from './db.js';
 
 // 学信网截图 dataURL 上限（前端已压缩至最长边 1000px，此处兜底防异常大串）
 const CREDENTIAL_MAX = 500000;
 
-// ?userId= 缺省 = 本人（编辑预填）；传他人 id：双向匹配返「公开档案 + 真实姓名 + 截图」，未匹配 403
+// ?userId= 缺省 = 本人（编辑预填）；传他人 id：
+//   未匹配 → 403（面板数据源是列表接口，不应走到这里）
+//   双向匹配 → 公开档案 + 真实姓名 + 学信网截图
+//   已签约   → 再追加联系方式（微信/邮箱，「签约后展示」规则的兑现层）
 export async function handleGetProfile(db, url, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
@@ -22,7 +25,8 @@ export async function handleGetProfile(db, url, req) {
   if (me.id === targetId) return json({ profile }); // 本人：全字段
   const { wechat, email, real_name, credential_image, ...publicPart } = profile;
   if (!(await dbIsMatched(db, me.id, targetId))) return error(MSG.NO_PERMISSION, 403);
-  return json({ profile: { ...publicPart, real_name, credential_image, matched: true } });
+  const signed = me.role === 'student' && (await dbIsContracted(db, me.id, targetId));
+  return json({ profile: { ...publicPart, real_name, credential_image, ...(signed ? { wechat, email } : {}), matched: true } });
 }
 
 export async function handleSaveProfile(db, body, req) {

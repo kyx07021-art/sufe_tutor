@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.15.0',
+  APP_VERSION: '0.15.1',
 
   // ============================================================
   // 业务数据
@@ -41,7 +41,7 @@ globalThis.APP_CONSTANTS = {
 
   TEACHER_GRADES: [
     {id:'freshman',name:'大一'},{id:'sophomore',name:'大二'},{id:'junior',name:'大三'},
-    {id:'senior',name:'大四'},{id:'master',name:'硕士'},{id:'phd',name:'博士'},{id:'graduated',name:'已毕业'},
+    {id:'senior',name:'大四'},{id:'master',name:'硕士'},{id:'phd',name:'博士'},
     {id:'graduated_bachelor',name:'本科学历 已毕业'},{id:'graduated_master',name:'硕士学历 已毕业'},{id:'graduated_phd',name:'博士学历 已毕业'},
   ],
 
@@ -300,6 +300,11 @@ globalThis.APP_CONSTANTS = {
     LABEL_SCHOOL: '学校',
     LABEL_REAL_NAME: '真实姓名',
     LABEL_CREDENTIAL: '学信网截图',
+    LABEL_CONTACT: '联系方式',
+    // 信息卡「硬展示」占位：字段不藏，学生据此判断教师资料完善度
+    PROFILE_FIELD_EMPTY: '未填写',
+    PROFILE_FIELD_AFTER_MATCH: '建立会话后展示',
+    PROFILE_FIELD_AFTER_SIGN: '签约后展示',
     CREDENTIAL_UPLOAD: '上传',
     CREDENTIAL_UPLOADED_VIEW: '已上传，点击查看',
     CREDENTIAL_VIEW: '点击查看',
