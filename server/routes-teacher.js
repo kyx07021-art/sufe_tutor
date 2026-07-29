@@ -5,11 +5,10 @@ import { json, error, authUser, MSG } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetAllTeachers } from './db.js';
 
-// 档案仅本人可读（含联系方式，供编辑表单预填）
+// 档案仅本人可读（含联系方式，供编辑表单预填；身份凭令牌）
 export async function handleGetProfile(db, url, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  if (parseInt(url.searchParams.get('userId')) !== me.id) return error(MSG.NO_PERMISSION, 403);
   const profile = await dbGetTeacherProfile(db, me.id);
   return json({ profile: profile || null });
 }

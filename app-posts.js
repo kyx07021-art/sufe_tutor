@@ -44,7 +44,7 @@ function postsSearchDebounced() {
   postsSearchTimer = setTimeout(() => loadPosts(), 350);
 }
 
-// 拉取帖子列表：sort / q 取自工具条；userId 传当前用户以取回 liked 标记
+// 拉取帖子列表：sort / q 取自工具条；liked 标记由后端凭令牌判定（访客恒 false）
 let postsLoadSeq = 0; // 搜索/排序快速切换时，乱序到达的旧响应丢弃（末写胜防抖）
 async function loadPosts() {
   const seq = ++postsLoadSeq;
@@ -54,7 +54,7 @@ async function loadPosts() {
   if (!el) return; // 用户可能已切走页面
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
-    const url = `/api/posts?sort=${sort}&userId=${state.user.id}` + (q ? `&q=${encodeURIComponent(q)}` : '');
+    const url = `/api/posts?sort=${sort}` + (q ? `&q=${encodeURIComponent(q)}` : '');
     const data = await api(url);
     if (seq !== postsLoadSeq) return; // 过期响应：已有更新的请求发出，丢弃
     postsList = data.posts || [];
@@ -113,7 +113,7 @@ async function togglePostLike(id) {
   if (!ensureAuth()) return; // 访客可浏览广场，点赞需登录
   const seq = (postLikeSeq[id] = (postLikeSeq[id] || 0) + 1);
   try {
-    const data = await api(`/api/posts/${id}/like`, { method: 'POST', body: { userId: state.user.id } });
+    const data = await api(`/api/posts/${id}/like`, { method: 'POST', body: {} });
     if (postLikeSeq[id] !== seq) return; // 已有更新的点赞请求，丢弃过期响应
     const p = postsList.find(x => x.id === id);
     if (p) { p.liked = data.liked; p.like_count = data.likeCount; }
@@ -297,7 +297,7 @@ async function submitPost() {
     btn.innerHTML = `<span class="spinner"></span> ${UI.POST_PUBLISHING}`;
     await api('/api/posts', {
       method: 'POST',
-      body: { userId: state.user.id, title, bodyMd: bodyEl.value || '' },
+      body: { title, bodyMd: bodyEl.value || '' },
     });
     closeModal();
     showToast(UI.POST_PUBLISHED);
@@ -327,7 +327,7 @@ function postConfirmDelete(id) {
 
 async function deletePost(id) {
   try {
-    await api(`/api/posts/${id}`, { method: 'DELETE', body: { userId: state.user.id } });
+    await api(`/api/posts/${id}`, { method: 'DELETE', body: {} });
     closeModal();
     showToast(UI.POST_DELETED);
     loadPosts();

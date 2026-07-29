@@ -35,12 +35,12 @@ function likeEscape(s) {
  * sort: new=created_at DESC（默认）；hot=like_count DESC, created_at DESC
  * section: 不传则不过滤（分区预留）；q: 对 title + body_md 做 LIKE 模糊匹配
  */
-export async function handleListPosts(db, url) {
+export async function handleListPosts(db, url, req) {
   const sort = url.searchParams.get('sort') === 'hot' ? 'hot' : 'new';
   const section = url.searchParams.get('section');
   const q = (url.searchParams.get('q') || '').trim();
-  const viewerId = parseInt(url.searchParams.get('userId'));
-  const hasViewer = Number.isFinite(viewerId);
+  const viewer = await authUser(db, req); // liked 标记凭令牌取本人点赞；访客列表照常公开、liked 恒 false
+  const hasViewer = !!viewer;
 
   const cond = [], params = [];
   if (section) { cond.push('p.section = ?'); params.push(section); }
@@ -58,7 +58,7 @@ export async function handleListPosts(db, url) {
   const likeJoin = hasViewer
     ? 'LEFT JOIN post_likes pl ON pl.post_id = p.id AND pl.user_id = ?' : '';
   const likeSel = hasViewer ? '(pl.id IS NOT NULL) AS liked' : '0 AS liked';
-  const bind = hasViewer ? [viewerId, ...params] : params;
+  const bind = hasViewer ? [viewer.id, ...params] : params;
 
   const rows = await dbAll(db,
     `SELECT p.id, p.user_id, p.section, p.title, p.body_md, p.like_count,
@@ -72,8 +72,8 @@ export async function handleListPosts(db, url) {
 }
 
 /**
- * POST /api/posts  body: { userId, title, bodyMd }
- * 校验教师角色（dbFindUserById）、title 非空且 ≤60、bodyMd ≤20000；
+ * POST /api/posts  body: { title, bodyMd }
+ * 身份凭令牌、校验教师角色；title 非空且 ≤60、bodyMd ≤20000；
  * section 恒 'plaza'；返回 { id, message }
  */
 export async function handleCreatePost(db, body, req) {

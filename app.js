@@ -13,7 +13,7 @@ const { SUBJECTS, STUDENT_GRADES,
 // 状态
 // ============================================================
 const state = { user: null, authToken: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], intentTeachers: [],
-                adminModalTeacher: null, myReviewOnModal: null, // adminModalTeacher 历史残留键，仅登出清零用，无读写方
+                myReviewOnModal: null,
                 myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
                 inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null,
                 guestRole: null, guestAuthMode: false }; // 访客模式：guestRole = 主页按钮进入时的角色；guestAuthMode = 正被 ensureAuth 导向登录页
@@ -404,7 +404,7 @@ function setBadge(pageId, n) {
   const dot = document.getElementById(`sidebar-${pageId}-dot`);
   if (dot) dot.classList.toggle('hidden', !n);
 }
-function setChatsBadge(n) { setBadge('my-chats', n); } // 兼容 app-chat 既有调用名
+function setChatsBadge(n) { setBadge('my-chats', n); } // 已无调用方（app-chat 直接用 setBadge），留名防外部引用，下轮删
 
 function startBadgePoll() { stopBadgePoll(); refreshBadges(); badgePollTimer = setInterval(refreshBadges, 30000); }
 function stopBadgePoll() { if (badgePollTimer) { clearInterval(badgePollTimer); badgePollTimer = null; } BADGE_PAGES.forEach(p => setBadge(p, 0)); }
@@ -413,8 +413,8 @@ async function refreshBadges() {
   if (!state.user) return;
   try {
     const [convData, notifData] = await Promise.all([
-      api(`/api/conversations?userId=${state.user.id}`),
-      api(`/api/notifications?userId=${state.user.id}`),
+      api('/api/conversations'),
+      api('/api/notifications'),
     ]);
     const chatUnread = (convData.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
     const notifUnread = (notifData.notifications || []).filter(n => !n.is_read).length;
@@ -422,11 +422,11 @@ async function refreshBadges() {
     if (state.page !== 'my-chats') setBadge('my-chats', chatUnread);
     if (state.page !== 'notifications') setBadge('notifications', notifUnread);
     if (state.user.role === 'teacher') {
-      const pushData = await api(`/api/demand-pushes?teacherUserId=${state.user.id}`);
+      const pushData = await api('/api/demand-pushes');
       if (state.page !== 'browse-demands') setBadge('browse-demands', (pushData.pushes || []).length);
       setBadge('my-demands', 0);
     } else if (state.user.role === 'student') {
-      const demandData = await api(`/api/student/demands?userId=${state.user.id}`);
+      const demandData = await api('/api/student/demands?scope=mine');
       setBadge('my-demands', (demandData.demands || []).filter(d => d.pending_intents > 0).length);
       setBadge('browse-demands', 0);
     } else {
@@ -440,7 +440,7 @@ async function refreshBadges() {
     }
     // 我的合同红点：待我处理的合同数（学生+教师）；正停留在合同页则就地刷新列表（对方改动 ≤30s 可见）
     if (state.user.role === 'student' || state.user.role === 'teacher') {
-      const ctData = await api(`/api/contracts/my?userId=${state.user.id}`);
+      const ctData = await api('/api/contracts/my');
       const contracts = ctData.contracts || [];
       if (state.page === 'my-contracts') {
         state.myContracts = contracts;
@@ -633,7 +633,7 @@ function handleLogout() {
   pendingConfirmAction = null; window._contractDraftDemands = null; // 防上一账户的挂起确认/起草候选被新账户触发
   state.user = null; state.authToken = null; state.page = null;
   state.guestRole = null; state.guestAuthMode = false; authReturnPage = null; closeProfilePanel();
-  state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
+  state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = [];
   state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
   state.inviteTimerId = null; state.currentInviteCode = null;
   localStorage.removeItem('sufe_session');
@@ -1049,7 +1049,7 @@ async function openProfilePanel(userId) {
       try {
         reviewsData = isAdminViewer
           ? { admin: true, reviews: (await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}&teacherUserId=${userId}`)).reviews || [] }
-          : await api(`/api/reviews?teacherUserId=${userId}&reviewerUserId=${state.user ? state.user.id : ''}`);
+          : await api(`/api/reviews?teacherUserId=${userId}`);
       } catch { reviewsData = { reviews: [] }; }
       if (seq !== profilePanelSeq) return;
     }
@@ -1213,8 +1213,8 @@ async function submitReview(teacherUserId, reviewId) {
 
   try {
     const data = reviewId
-      ? await api(`/api/reviews/${reviewId}`, { method: 'PUT', body: { reviewerUserId: state.user.id, rating, comment } })
-      : await api('/api/reviews', { method: 'POST', body: { teacherUserId, reviewerUserId: state.user.id, rating, comment } });
+      ? await api(`/api/reviews/${reviewId}`, { method: 'PUT', body: { rating, comment } })
+      : await api('/api/reviews', { method: 'POST', body: { teacherUserId, rating, comment } });
     closeModal();
     showToast(data.message || UI.SUCCESS_REVIEW_SUBMITTED);
     if (profilePanelShowing(teacherUserId)) openProfilePanel(teacherUserId); // 面板正展示该教师 → 评价卡片就地刷新（写/改后状态同步）
@@ -1250,7 +1250,7 @@ async function handleDeleteDemand(demandId, asAdmin) {
     if (asAdmin) {
       await api(`/api/admin/demands/${demandId}`, { method: 'DELETE', body: { username: state.user.username } });
     } else {
-      await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: { userId: state.user.id } });
+      await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: {} });
     }
     closeModal();
     showToast(UI.SUCCESS_DEMAND_DELETED);
@@ -1385,8 +1385,8 @@ async function loadDemandList(elId, { mine }) {
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
     // 教师大厅视角附带你自己的意向状态（my_intent_status），供按钮三态渲染
-    const url = mine ? `/api/student/demands?userId=${state.user.id}`
-                     : `/api/student/demands?teacherUserId=${state.user.id}`;
+    const url = mine ? '/api/student/demands?scope=mine'
+                     : '/api/student/demands?scope=for-teacher';
     const data = await api(url);
     const demands = data.demands || [];
     if (mine) {
@@ -1413,8 +1413,8 @@ async function loadBrowseDemands() {
   try {
     const isGuest = !state.user; // 访客教师可浏览公开需求列表；推送卡片与意向操作点了再走登录通路
     const [dData, pData] = await Promise.all([
-      api(isGuest ? '/api/student/demands' : `/api/student/demands?teacherUserId=${state.user.id}`),
-      isGuest ? Promise.resolve({ pushes: [] }) : api(`/api/demand-pushes?teacherUserId=${state.user.id}`),
+      api(isGuest ? '/api/student/demands' : '/api/student/demands?scope=for-teacher'),
+      isGuest ? Promise.resolve({ pushes: [] }) : api('/api/demand-pushes'),
     ]);
     const pushes = pData.pushes || [];
     const demands = dData.demands || [];
@@ -1437,7 +1437,7 @@ async function openSendDemandModal(teacherUserId) {
   const tName = t ? t.username : UI.PUSH_TEACHER_FALLBACK;
   // 每次现拉自己的需求（不用页内缓存）：签约可能在其他页发生，缓存会把已签约需求漏进候选
   let demands = [];
-  try { demands = (await api(`/api/student/demands?userId=${state.user.id}`)).demands || []; state.myDemands = demands; }
+  try { demands = (await api('/api/student/demands?scope=mine')).demands || []; state.myDemands = demands; }
   catch { demands = state.myDemands; }
   demands = demands.filter(d => d.status !== 'contracted'); // 已签约需求已成交，不可再推送
   const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
@@ -1491,7 +1491,7 @@ async function submitDemandPush(teacherUserId) {
   if (!sel) { showToast(UI.VALIDATE_SELECT_DEMAND); return; }
   if (pushCooldownLeft() > 0) { showToast(`${UI.PUSH_BTN_COOLDOWN} ${pushCooldownLeft()}s`); return; }
   try {
-    const data = await api('/api/demand-pushes', { method: 'POST', body: { userId: state.user.id, teacherUserId, demandId: +sel.value } });
+    const data = await api('/api/demand-pushes', { method: 'POST', body: { teacherUserId, demandId: +sel.value } });
     closeModal();
     startPushCooldown(60);
     showToast(data.message || UI.PUSH_SENT_FALLBACK);
@@ -1501,7 +1501,7 @@ async function submitDemandPush(teacherUserId) {
 // 教师处理学生主动推送：确认 = 建会话；拒绝 = 婉拒（学生收通知）
 async function resolvePush(pushId, action) {
   try {
-    await api(`/api/demand-pushes/${pushId}/resolve`, { method: 'POST', body: { userId: state.user.id, action } });
+    await api(`/api/demand-pushes/${pushId}/resolve`, { method: 'POST', body: { action } });
     showToast(action === 'accept' ? UI.PUSH_ACCEPTED_TOAST : UI.PUSH_REJECTED_TOAST);
     loadBrowseDemands();
   } catch (err) { showToast(err.message); }
@@ -1518,7 +1518,7 @@ async function enterNotifications() {
   if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
-    const data = await api(`/api/notifications?userId=${state.user.id}`);
+    const data = await api('/api/notifications');
     const list = data.notifications || [];
     if (!list.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_NOTIFICATIONS}</p></div>`; return; }
     el.innerHTML = list.map(n => `<div class="notif-item${n.is_read ? '' : ' unread'}">
@@ -1530,7 +1530,7 @@ async function enterNotifications() {
     </div>`).join('');
     initReveals(el);
     if (list.some(n => !n.is_read)) {
-      api('/api/notifications/read', { method: 'POST', body: { userId: state.user.id } }).catch(() => {});
+      api('/api/notifications/read', { method: 'POST', body: {} }).catch(() => {});
     }
   } catch (err) {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
@@ -1610,7 +1610,7 @@ function handleAvatarUpload(input) {
       cv.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, N, N);
       const url = cv.toDataURL('image/jpeg', 0.85);
       try {
-        await api('/api/user/avatar', { method: 'POST', body: { userId: state.user.id, avatar: url } });
+        await api('/api/user/avatar', { method: 'POST', body: { avatar: url } });
         state.user.avatar = url;
         showToast(UI.AVATAR_SAVED_TOAST);
         renderSidebar(); // 同步侧边栏底部头像（active 态按 state.page 重建）
@@ -1689,7 +1689,7 @@ function openPostViewModal(postId) {
 function adminDeletePost(postId) {
   openConfirmModal(UI.POST_DELETE_CONFIRM, async () => {
     try {
-      await api(`/api/posts/${postId}`, { method: 'DELETE', body: { userId: state.user.id, adminUsername: state.user.username } });
+      await api(`/api/posts/${postId}`, { method: 'DELETE', body: {} });
       showToast(UI.POST_DELETED);
       loadAdminPosts();
     } catch (err) { showToast(err.message); }
@@ -1715,7 +1715,7 @@ async function loadMyContracts() {
   setBadge('my-contracts', 0); // 点开瞬间红点即灭（有待办由下一轮轮询在离开本页后重新点亮）
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
-    const data = await api(`/api/contracts/my?userId=${state.user.id}`);
+    const data = await api('/api/contracts/my');
     state.myContracts = data.contracts || [];
     renderMyContractsList();
   } catch (err) {
@@ -1806,7 +1806,7 @@ function runPendingConfirm() {
 function signContract(contractId) {
   openConfirmModal(UI.CONFIRM_SIGN, async () => {
     try {
-      const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: { userId: state.user.id } });
+      const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: {} });
       showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
       loadMyContracts();
     } catch (err) { showToast(err.message); }
@@ -1899,7 +1899,7 @@ async function submitContractModify(contractId) {
   const alertEl = document.getElementById('post-alert');
   if (!md) { alertEl.innerHTML = `<div class="alert alert-error">${UI.CONTRACT_EMPTY}</div>`; return; }
   try {
-    await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { userId: state.user.id, contractMd: md, updatedAt: window._contractModifyUpdatedAt } });
+    await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, updatedAt: window._contractModifyUpdatedAt } });
     closeModal();
     showToast(UI.CONTRACT_MODIFIED_TOAST);
     loadMyContracts();
@@ -1912,7 +1912,7 @@ async function submitContractModify(contractId) {
 function cancelContract(contractId) {
   openConfirmModal(UI.CONFIRM_CANCEL_CONTRACT, async () => {
     try {
-      await api(`/api/contracts/${contractId}`, { method: 'DELETE', body: { userId: state.user.id } });
+      await api(`/api/contracts/${contractId}`, { method: 'DELETE', body: {} });
       showToast(UI.CONTRACT_CANCELLED_TOAST);
       loadMyContracts();
     } catch (err) { showToast(err.message); }
@@ -2066,7 +2066,7 @@ async function submitContractDraft(convId) {
     const schedule = (document.getElementById('contract-schedule').value || '').trim();
     const location = (document.getElementById('contract-location').value || '').trim();
     const demandId = parseInt(document.getElementById('contract-demand').value) || null;
-    const data = await api('/api/contracts', { method: 'POST', body: { userId: state.user.id, conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
+    const data = await api('/api/contracts', { method: 'POST', body: { conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
     closeModal();
     showToast(data.message || UI.CONTRACT_DRAFT_SENT_TOAST);
   } catch (err) {
@@ -2246,7 +2246,7 @@ async function submitFeedback() {
   if (!title) { alertEl.innerHTML = `<div class="alert alert-error">${UI.POST_TITLE_REQUIRED}</div>`; return; }
   if (!content) { alertEl.innerHTML = `<div class="alert alert-error">${UI.FEEDBACK_EMPTY}</div>`; return; }
   try {
-    await api('/api/feedbacks', { method: 'POST', body: { userId: state.user.id, kind: feedbackKind, title, content } });
+    await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
     closeModal();
     showToast(UI.FEEDBACK_SENT_TOAST);
   } catch (err) {
@@ -2304,7 +2304,7 @@ async function resolveAdminFeedback(feedbackId) {
 async function submitIntent(demandId) {
   if (!ensureAuth()) return; // 访客浏览需求大厅可看卡片，点意向即走登录通路
   try {
-    await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: { userId: state.user.id } });
+    await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: {} });
     showToast(UI.INTENT_SUBMITTED_TOAST);
     if (state.page === 'browse-demands') loadBrowseDemands(); // 按钮刷新为「意向已提交」态
   } catch (err) {
@@ -2387,7 +2387,7 @@ function renderIntentTeacherRow(t, demandId) {
 // 学生同意 / 拒绝意向；同意后自动建立会话，可前往「我的沟通」
 async function resolveIntent(intentId, action, demandId) {
   try {
-    await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { userId: state.user.id, action } });
+    await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { action } });
     showToast(action === 'accept' ? UI.INTENT_ACCEPTED_TOAST : UI.INTENT_REJECTED_TOAST);
     await refreshIntentsBox(demandId);
     loadMyDemands(); // 刷新意向计数（整列重渲染，意向栏回到收起态）
@@ -2429,12 +2429,12 @@ function initProfileForm() {
 
 async function loadProfile() {
   try {
-    const data = await api(`/api/teacher/profile?userId=${state.user.id}`);
+    const data = await api('/api/teacher/profile');
     if (data.profile) {
       const p = data.profile;
       document.getElementById('profile-grade').value = p.grade || '';
       document.getElementById('profile-gender').value = p.gender || '';
-      document.getElementById('profile-price').value = p.price || '';
+      document.getElementById('profile-price').value = p.price != null ? p.price : ''; // null = 未填报空；0 是合法报价须显示
       document.getElementById('profile-wechat').value = p.wechat || '';
       document.getElementById('profile-email').value = p.email || '';
       document.getElementById('profile-intro').value = p.intro || '';
@@ -2478,12 +2478,12 @@ async function handleSaveProfile(e) {
     const btn = document.getElementById('profile-submit');
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
     await api('/api/teacher/profile', {
-      method: 'POST', body: { userId: state.user.id, profile: {
+      method: 'POST', body: { profile: {
         province,
         grade: document.getElementById('profile-grade').value,
         gender: document.getElementById('profile-gender').value,
         subjects, gaokao_scores: gaokaoScores,
-        price: +document.getElementById('profile-price').value || 0,
+        price: document.getElementById('profile-price').value === '' ? null : +document.getElementById('profile-price').value, // 空 = 未填(null)，档案完整性门槛据此拦截；0 是合法报价
         wechat: document.getElementById('profile-wechat').value.trim(),
         email: document.getElementById('profile-email').value.trim(),
         intro: document.getElementById('profile-intro').value.trim(),

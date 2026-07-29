@@ -407,15 +407,23 @@ export async function dbGetAllInvites(db) {
 }
 
 // ============================================================
+// JSON 列反序列化单点：subjects / gaokao_scores / target_subjects / current_scores
+// 四列在库里是 JSON 字符串，出 db.js 一律经此函数变数组——容错（脏数据不炸全列表），
+// 调用方拿到的永远是数组，严禁在路由层再 JSON.parse（双重解析曾炸 500）
+// ============================================================
+function safeJsonArray(text) {
+  if (!text) return [];
+  try { const v = JSON.parse(text); return Array.isArray(v) ? v : []; }
+  catch { return []; }
+}
+
+// ============================================================
 // 教师档案
 // ============================================================
+// 本人档案（含联系方式，编辑预填用）：与教师列表共用 mapper，反序列化只此一条路径
 export async function dbGetTeacherProfile(db, userId) {
-  const profile = await dbGet(db, 'SELECT * FROM teacher_profiles WHERE user_id=?', [userId]);
-  if (profile) {
-    profile.subjects = profile.subjects ? JSON.parse(profile.subjects) : [];
-    profile.gaokao_scores = profile.gaokao_scores ? JSON.parse(profile.gaokao_scores) : [];
-  }
-  return profile;
+  const row = await dbGet(db, 'SELECT * FROM teacher_profiles WHERE user_id=?', [userId]);
+  return row ? mapTeacherProfileRow(row) : null;
 }
 
 export async function dbUpsertTeacherProfile(db, userId, profile) {
@@ -423,25 +431,28 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   const subjects = JSON.stringify(profile.subjects);
   const gaokao = JSON.stringify(profile.gaokao_scores);
 
+  const price = profile.price != null ? profile.price : null; // null = 未填报价（意向档案完整性门槛据此拦截，勿落 0）
   if (existing) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
       price=?,wechat=?,email=?,intro=?,address=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), userId]);
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), userId]);
   } else {
     await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro,address)
       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, profile.price||0, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100)]);
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100)]);
   }
 }
 
-// 教师行映射器：教师列表与需求意向教师列表共用，保证两处返回形状一致
+// 教师行映射器：教师列表 / 意向教师列表 / 本人档案共用，返回形状永远一致
+// （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
 export function mapTeacherProfileRow(p) {
   return {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
-    subjects: p.subjects ? JSON.parse(p.subjects) : [],
-    gaokao_scores: p.gaokao_scores ? JSON.parse(p.gaokao_scores) : [],
-    price: p.price || 0, wechat: p.wechat, email: p.email, avatar: p.avatar || '',
+    subjects: safeJsonArray(p.subjects),
+    gaokao_scores: safeJsonArray(p.gaokao_scores),
+    price: p.price != null ? p.price : null, // null = 未填报价（意向档案完整性门槛据此拦截，勿转 0）
+    wechat: p.wechat, email: p.email, avatar: p.avatar || '',
     rating: p.rating, rating_count: p.rating_count, updatedAt: p.updated_at,
   };
 }
@@ -491,8 +502,8 @@ export function mapDemandRow(r) {
   const { address_detail, ...rest } = r; // 合规：该字段不再向前端暴露
   return {
     ...rest,
-    target_subjects: JSON.parse(r.target_subjects || '[]'),
-    current_scores: JSON.parse(r.current_scores || '[]'),
+    target_subjects: safeJsonArray(r.target_subjects),
+    current_scores: safeJsonArray(r.current_scores),
   };
 }
 
@@ -516,8 +527,10 @@ export async function dbGetDemandsByUser(db, userId) {
   return rows.map(mapDemandRow);
 }
 
+// 单条需求也走 mapper（与列表同形状；调用方统一拿数组字段，裸行分叉已消灭）
 export async function dbGetDemandById(db, id) {
-  return await dbGet(db, 'SELECT * FROM student_demands WHERE id=?', [id]);
+  const row = await dbGet(db, 'SELECT * FROM student_demands WHERE id=?', [id]);
+  return row ? mapDemandRow(row) : null;
 }
 
 export async function dbUpdateDemand(db, id, d) {
@@ -716,7 +729,14 @@ export async function dbGetRecentUsers(db, limit = 8) {
 export async function dbGetRecentDemands(db, limit = 8) {
   const rows = await dbAll(db, `SELECT sd.id,sd.student_grade,sd.target_subjects,sd.created_at,u.username
     FROM student_demands sd JOIN users u ON sd.user_id=u.id ORDER BY sd.created_at DESC LIMIT ?`, [limit]);
-  return rows.map(d => ({ ...d, target_subjects: JSON.parse(d.target_subjects || '[]') }));
+  return rows.map(d => ({ ...d, target_subjects: safeJsonArray(d.target_subjects) }));
+}
+
+// ============================================================
+// 合同（纯数据层取行；状态机关口在 server/contract.js）
+// ============================================================
+export async function dbGetContractById(db, id) {
+  return await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [id]);
 }
 
 // ============================================================

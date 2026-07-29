@@ -4,10 +4,10 @@
  * 经典脚本：全部顶层全局函数 + 内联 onclick，与 app.js / app-posts.js 同一约定。
  * 仅依赖 app.js 提供的基础设施：state / api / escHtml / showToast。
  *
- * 数据来源（后端已上线）：
- *   GET  /api/conversations?userId=                          会话列表（含对方用户名 + 最后消息预览）
- *   GET  /api/conversations/:id/messages?userId=&sinceId=    消息（id 升序；sinceId=0 即全量）
- *   POST /api/conversations/:id/messages                     发送文本消息，返回 { id }
+ * 数据来源（后端已上线，身份一律凭 X-Auth-Token，无自报 userId 参数）：
+ *   GET  /api/conversations                          会话列表（含对方用户名 + 最后消息预览）
+ *   GET  /api/conversations/:id/messages?sinceId=    消息（id 升序；sinceId=0 即全量）
+ *   POST /api/conversations/:id/messages             发送文本消息，返回 { id }
  *
  * 轮询生命周期：
  *   openConversation() 拉完全量后 chatStartPolling() 挂 4s 定时器；
@@ -34,7 +34,7 @@ let chatSending = false;    // 发送中，防连点
 // 左栏会话列表 + 右栏聊天窗（未选中时占位）。每次进入都重置会话选中态并重建轮询。
 function enterMyChats() {
   stopChatPolling();
-  if (typeof setChatsBadge === 'function') setChatsBadge(0); // 点开瞬间红点即灭（轮询跳过当前页）
+  if (typeof setBadge === 'function') setBadge('my-chats', 0); // 点开瞬间红点即灭（轮询跳过当前页）
   document.getElementById('chats-content').innerHTML = `
     <div class="chats-shell" id="chats-shell">
       <aside class="chats-list-pane">
@@ -61,10 +61,10 @@ function enterMyChats() {
 // 拉取会话列表（服务端已按最后活跃时间倒序）
 async function loadConversations() {
   try {
-    const data = await api(`/api/conversations?userId=${state.user.id}`);
+    const data = await api('/api/conversations');
     chatConvList = data.conversations || [];
     renderConvList();
-    if (typeof setChatsBadge === 'function') setChatsBadge(chatsUnreadTotal()); // 同步侧边栏红点
+    if (typeof setBadge === 'function') setBadge('my-chats', chatsUnreadTotal()); // 同步侧边栏红点
   } catch (err) {
     const el = document.getElementById('conv-list');
     if (el) el.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
@@ -113,9 +113,9 @@ async function markReadConv(convId) {
   if (c) c.unread_count = 0;
   const dot = document.querySelector(`.conv-unread-dot[data-unread-dot="${convId}"]`);
   if (dot) dot.remove();
-  if (typeof setChatsBadge === 'function') setChatsBadge(chatsUnreadTotal());
+  if (typeof setBadge === 'function') setBadge('my-chats', chatsUnreadTotal());
   try {
-    await api(`/api/conversations/${convId}/read`, { method: 'POST', body: { userId: state.user.id } });
+    await api(`/api/conversations/${convId}/read`, { method: 'POST', body: {} });
   } catch { /* 静默 */ }
 }
 
@@ -174,7 +174,7 @@ async function openConversation(convId) {
   const pane = document.getElementById('chat-pane');
   if (!pane) return;
   // 切会话清空上一会话的暂存附件，已上传的文件同步从服务器暂存区删除
-  chatStaged.forEach(it => { if (it.uploadId) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: { userId: state.user.id } }).catch(() => {}); });
+  chatStaged.forEach(it => { if (it.uploadId) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {}); });
   chatStaged = [];
   const conv = chatConvList.find(c => c.id === convId);
   pane.innerHTML = renderChatFrame(conv);
@@ -182,7 +182,7 @@ async function openConversation(convId) {
   loadChatContract(convId); // 合同状态灰字行与消息并行加载
 
   try {
-    const data = await api(`/api/conversations/${convId}/messages?userId=${state.user.id}`);
+    const data = await api(`/api/conversations/${convId}/messages`);
     if (chatConvId !== convId) return; // 用户已切走，丢弃过期响应
     // 消息接口自带的会话快照校正列表缓存（demand_id 回填 / 状态变更等陈旧字段就地刷新）
     if (data.conversation) {
@@ -314,7 +314,7 @@ function chatLazyLoadAttachments() {
       if (chatConvId !== convId) return; // 会话已切走，丢弃
       const mid = el.dataset.attach;
       try {
-        const data = await api(`/api/conversations/${convId}/messages/${mid}/attachment?userId=${state.user.id}`);
+        const data = await api(`/api/conversations/${convId}/messages/${mid}/attachment`);
         if (chatConvId !== convId) return;
         el.innerHTML = renderChatMediaInner(el.dataset.attachKind, data.body || '', data.name || '');
         el.classList.remove('chat-bubble--loading');
@@ -348,7 +348,7 @@ function chatStartPolling() {
 function stopChatPolling() {
   if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
   // 清未发送的暂存项：已上传的文件同步 best-effort 删服务器暂存区（防跨账号残留与孤儿堆积）
-  chatStaged.forEach(it => { if (it.uploadId && state.user) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: { userId: state.user.id } }).catch(() => {}); });
+  chatStaged.forEach(it => { if (it.uploadId && state.user) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {}); });
   chatStaged = [];
   chatConvId = null;
   chatLastMsgId = 0;
@@ -361,7 +361,7 @@ async function chatPollTick() {
   const convId = chatConvId;
   chatPollBusy = true;
   try {
-    const data = await api(`/api/conversations/${convId}/messages?userId=${state.user.id}&sinceId=${chatLastMsgId}`);
+    const data = await api(`/api/conversations/${convId}/messages?sinceId=${chatLastMsgId}`);
     if (chatConvId !== convId) return; // 会话已切换，丢弃过期响应
     // 过滤掉 id 不大于已见的（防与发送后的本地追加竞态重复）
     const fresh = (data.messages || []).filter(m => m.id > chatLastMsgId);
@@ -410,7 +410,7 @@ async function sendChatMessage() {
       chatAutogrow(ta);
       const data = await api(`/api/conversations/${convId}/messages`, {
         method: 'POST',
-        body: { userId: state.user.id, body: text, kind: 'text' },
+        body: { body: text, kind: 'text' },
       });
       if (chatConvId !== convId) return;
       ta.focus();
@@ -545,7 +545,7 @@ function chatUnstage(id) {
   renderChatStage();
   if (it && it.uploadId) {
     // 已上传的文件同步从服务器暂存区删除（best effort）
-    api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: { userId: state.user.id } }).catch(() => {});
+    api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {});
   }
 }
 
@@ -583,7 +583,7 @@ async function chatSendAttachment(item) {
   const convId = chatConvId;
   const data = await api(`/api/conversations/${convId}/messages`, {
     method: 'POST',
-    body: { userId: state.user.id, uploadId: item.uploadId },
+    body: { uploadId: item.uploadId },
   });
   if (chatConvId !== convId) return; // 发送中切走会话：丢弃
   chatStaged = chatStaged.filter(it => it.id !== item.id);

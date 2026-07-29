@@ -5,7 +5,7 @@
  */
 import { json, error, dbGet, authUser, MSG } from './core.js';
 import {
-  dbFindUserById, dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
+  dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
   dbUpdateReview, dbIsContracted,
 } from './db.js';
 import { logEvent } from './log.js';
@@ -46,16 +46,12 @@ export async function handleUpdateReview(db, reviewId, body, req) {
   return json({ message: MSG.REVIEW_UPDATED });
 }
 
-// 公开列表（仅已通过）+ 请求者自己的评价（mine，任意状态，供「写评价/修改评价」判定）
+// 公开列表（仅已通过）+ 「我的评价」（mine：凭令牌取本人任意状态的私有态，供写/改评价判定；
+// 访客无令牌则 mine=null，公开列表照常可见）
 export async function handleGetReviews(db, url, req) {
   const teacherUserId = parseInt(url.searchParams.get('teacherUserId'));
-  const reviewerRaw = url.searchParams.get('reviewerUserId');
   const reviews = await dbGetApprovedReviews(db, teacherUserId);
-  // 「我的评价」（含待审/被拒私有态）仅限本人凭令牌查，防枚举他人私有评价
-  let mine = null;
-  if (reviewerRaw) {
-    const me = await authUser(db, req);
-    if (me && me.id === parseInt(reviewerRaw)) mine = await dbGetReviewByPair(db, me.id, teacherUserId);
-  }
+  const me = await authUser(db, req);
+  const mine = me ? await dbGetReviewByPair(db, me.id, teacherUserId) : null;
   return json({ reviews, mine });
 }

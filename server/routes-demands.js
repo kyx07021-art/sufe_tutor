@@ -45,32 +45,40 @@ export async function handleCreateDemand(db, body, req) {
 // 公开广场列表裁剪家长/学生联系方式（产品规则：签约后才向对方展示，后端硬把关不靠前端遮掩）
 const stripDemandContacts = list => list.map(({ parent_contact, student_contact, ...rest }) => rest);
 
+// 需求列表三视角，scope 显式选择（身份一律凭令牌，自报 id 的查询参数已废除）：
+//   （缺省）      公开广场：排除 contracted + 裁联系方式，访客可用
+//   scope=mine        我的需求：含联系方式，仅本人
+//   scope=for-teacher 教师大厅视角：每条附本人 my_intent_status（按钮三态用）
 export async function handleGetDemands(db, url, req) {
-  const raw = url.searchParams.get('userId');
-  if (raw) {
+  const scope = url.searchParams.get('scope') || '';
+  if (scope === 'mine') {
     const me = await authUser(db, req);
-    if (!me || me.id !== parseInt(raw)) return error(MSG.NO_PERMISSION, 403); // 只许查自己的需求（含联系方式）
+    if (!me) return error(MSG.LOGIN_REQUIRED, 401);
     return json({ demands: await dbGetDemandsByUser(db, me.id) });
   }
-  // 教师大厅视角可带 teacherUserId：每条需求附 my_intent_status（仅限本人视角，防探他人意向）
-  const tRaw = url.searchParams.get('teacherUserId');
-  let teacherId = null;
-  if (tRaw) {
+  if (scope === 'for-teacher') {
     const me = await authUser(db, req);
-    if (!me || me.id !== parseInt(tRaw)) return error(MSG.NO_PERMISSION, 403);
-    teacherId = me.id;
+    if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+    return json({ demands: stripDemandContacts(await dbGetAllDemands(db, me.id)) });
   }
-  return json({ demands: stripDemandContacts(await dbGetAllDemands(db, teacherId)) });
+  return json({ demands: stripDemandContacts(await dbGetAllDemands(db)) });
+}
+
+// 需求写操作关口：404 存在 → 403 归属 → 409 已签约锁定（update/delete 共用；服务端写入路径硬门禁）
+async function loadOwnedDemand(db, demandId, userId) {
+  const existing = await dbGetDemandById(db, demandId);
+  if (!existing) return { err: error(MSG.DEMAND_NOT_FOUND, 404) };
+  if (existing.user_id !== userId) return { err: error(MSG.NO_PERMISSION, 403) };
+  if (existing.status === 'contracted') return { err: error(MSG.DEMAND_CONTRACTED_LOCKED, 409) };
+  return { existing };
 }
 
 export async function handleUpdateDemand(db, demandId, body, req) {
   const { demand: d } = body;
   const me = await authUser(db, req);
   if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
-  const existing = await dbGetDemandById(db, demandId);
-  if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (existing.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
-  if (existing.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求锁定，禁改（合同已绑定此需求）
+  const g = await loadOwnedDemand(db, demandId, me.id); // 已签约需求锁定，禁改（合同已绑定此需求）
+  if (g.err) return g.err;
 
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
@@ -83,11 +91,8 @@ export async function handleUpdateDemand(db, demandId, body, req) {
 export async function handleDeleteDemand(db, demandId, body, req) {
   const me = await authUser(db, req);
   if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
-  const existing = await dbGetDemandById(db, demandId);
-  if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (existing.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
-  if (existing.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求禁删（会使合同 demand_id 悬空）
-
+  const g = await loadOwnedDemand(db, demandId, me.id); // 已签约需求禁删（会使合同 demand_id 悬空）
+  if (g.err) return g.err;
   await dbDeleteDemand(db, demandId);
   return json({ message: MSG.DEMAND_DELETED });
 }
@@ -102,8 +107,7 @@ export async function handleCreateIntent(db, demandId, body, req) {
   if (demand0.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求停止接收意向（服务端硬门禁，不靠前端过滤）
 
   // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单，
-  // 不完整由前端弹窗引导补档案（此处为硬把关，防绕过）
-  // 注意 dbGetTeacherProfile 已把 subjects/gaokao_scores 解析成数组，此处勿再 JSON.parse
+  // 不完整由前端弹窗引导补档案（此处为硬把关，防绕过）；价格 null = 未填（mapper 保留 null）
   const p = await dbGetTeacherProfile(db, userId);
   const subjectsOk = !!(p && Array.isArray(p.subjects) && p.subjects.length > 0);
   // price==null 才是未填（0 是合法报价）；其余必填项空串即不完整
@@ -190,11 +194,10 @@ export async function handlePushDemand(db, body, req) {
   }
 }
 
-// 教师端：待处理推送列表（需求大厅置顶 + 红点计数同源）
+// 教师端：本人的待处理推送列表（需求大厅置顶 + 红点计数同源；身份凭令牌）
 export async function handleGetTeacherPushes(db, url, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  if (parseInt(url.searchParams.get('teacherUserId')) !== me.id) return error(MSG.NO_PERMISSION, 403); // 只许查自己的推送
   const pushes = await dbGetPendingPushesForTeacher(db, me.id);
   return json({ pushes });
 }

@@ -186,7 +186,7 @@ async function routeApi(db, p, method, body, url, req) {
   if (reviewById && method === 'PUT') return await handleUpdateReview(db, parseInt(reviewById[1]), body, req);
 
   // 资料共享（模块2：section 字段预留分区，当前全在广场）
-  if (p === '/api/posts' && method === 'GET') return await handleListPosts(db, url);
+  if (p === '/api/posts' && method === 'GET') return await handleListPosts(db, url, req);
   if (p === '/api/posts' && method === 'POST') return await handleCreatePost(db, body, req);
   const postLike = p.match(/^\/api\/posts\/(\d+)\/like$/);
   if (postLike && method === 'POST') return await handleToggleLike(db, parseInt(postLike[1]), body, req);
