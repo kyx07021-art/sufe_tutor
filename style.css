@@ -1081,7 +1081,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .checkbox-grid { grid-template-columns: repeat(2, 1fr); }
   .modal { max-height: 92vh; }
   .list-card-contact { flex-direction: column; gap: 6px; }
-  .tc-intro { white-space: normal; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-row { flex-direction: column; gap: 12px; }
   .admin-row { flex-direction: column; gap: 10px; }
@@ -1095,9 +1094,12 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   display: grid; grid-template-columns: 108px 1fr auto; column-gap: 22px; row-gap: 3px; align-items: start;
 }
 .tc-avatar {
-  grid-column: 1; grid-row: 1 / span 3; align-self: stretch;
+  grid-column: 1; grid-row: 1; align-self: stretch;
   width: 108px; min-height: 108px; font-size: 2.6rem;
 }
+/* 卡片布局契约：grid 只定列骨架（头像/身份列/右信息列），列内堆叠顺序一律由
+   DOM 在 flex 流里决定——增删内容只动 renderTeacherCard 的模板，CSS 不做行级摆放
+   （简介曾作为独立 grid 行，右列变高即沉底，是为本契约要消灭的债） */
 
 /* 头像（全站共用）：圆形（全站直角语言的特例，同语义红点）；
    未上传 = id 首字符 + 米色底，上传图由 object-fit 居中铺满 */
@@ -1220,16 +1222,12 @@ body.profile-panel-open .profile-panel { transform: none; }
 .tc-rating .stars { font-size: .85rem; }
 .tc-rating b { font-family: var(--mono); font-size: .76rem; color: var(--ink-3); }
 .tc-right {
-  grid-column: 3; grid-row: 1 / span 2;
+  grid-column: 3; grid-row: 1;
   display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 8px;
 }
 .tc-info1 { font-size: .92rem; font-weight: 700; color: var(--ink); line-height: 1.5; }
 .tc-info2 { font-size: .78rem; color: var(--muted); line-height: 1.7; max-width: 100%; }
-.tc-intro {
-  grid-column: 2; grid-row: 2;
-  font-size: .8rem; color: var(--muted); line-height: 1.45; text-align: left;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+.tc-intro { font-size: .8rem; color: var(--muted); line-height: 1.5; text-align: left; overflow-wrap: anywhere; } /* identity 列 flex 子项：紧随星级，正常行距换行 */
 .tc-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 /* 方形「发送需求」按钮：呼应参考图 Model details 按钮位 */
 .tc-push-btn {
@@ -1246,22 +1244,23 @@ body.profile-panel-open .profile-panel { transform: none; }
 /* ============================================================
    窄屏（≤860px）信息卡：必须置于桌面尺寸规则之后（层叠顺序！桌面
    tc-* 规则在本块之前全部定义完，移动端覆写才能生效）
-   教师卡——头像缩小保持圆形，id/评分/简介堆叠头像下方，右区信息两行左对齐
+   教师卡——头像缩小保持圆形；身份块（id/评分/简介）整块通栏置底（简介
+   随身份块 flex 流堆叠、全宽自然换行）；右信息列与头像同行、左对齐
    需求卡——头像不再独占左半边，id 与三行信息在头像下方左对齐堆叠到卡片边缘
    ============================================================ */
 @media (max-width: 860px) {
   .list-card { padding: 14px 16px; }
 
-  .list-card--teacher { grid-template-columns: 56px 1fr; column-gap: 12px; row-gap: 5px; }
+  .list-card--teacher { grid-template-columns: 56px 1fr; column-gap: 12px; row-gap: 8px; }
   .tc-avatar { grid-column: 1; grid-row: 1; align-self: start; width: 56px; height: 56px; min-height: 0; font-size: 1.4rem; }
-  .tc-identity { grid-column: 1; grid-row: 2; align-self: start; flex-direction: column; align-items: flex-start; gap: 3px; }
+  .tc-identity { grid-column: 1 / -1; grid-row: 2; align-self: start; align-items: flex-start; gap: 3px; }
   .tc-username { font-size: .8rem; white-space: normal; }
   .tc-rating .stars { font-size: .66rem; }
   .tc-rating b { font-size: .62rem; }
-  .tc-right { grid-column: 2; grid-row: 1 / span 2; align-items: flex-start; text-align: left; }
+  .tc-intro { font-size: .72rem; }
+  .tc-right { grid-column: 2; grid-row: 1; align-items: flex-start; text-align: left; }
   .tc-info1 { font-size: .8rem; }
   .tc-info2 { font-size: .7rem; }
-  .tc-intro { grid-column: 1 / -1; grid-row: 3; white-space: normal; font-size: .72rem; }
 
   /* 发送需求按钮右对齐，消除与右区信息的小幅重叠 */
   .tc-actions { align-self: flex-end; }

@@ -991,6 +991,7 @@ function renderTeacherCard(t) {
       <div class="tc-identity">
         <span class="tc-username" onclick="openProfilePanel(${t.user_id})">${escHtml(t.username)}</span>
         <span class="tc-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
+        ${t.intro ? `<span class="tc-intro">${escHtml(t.intro)}</span>` : ''}
       </div>
       <div class="tc-right">
         ${info1 ? `<div class="tc-info1">${escHtml(info1)}</div>` : ''}
@@ -1001,7 +1002,6 @@ function renderTeacherCard(t) {
           ${isStudent ? renderPushBtn(t) : ''}
         </div>
       </div>
-      ${t.intro ? `<div class="tc-intro" title="${escHtml(t.intro)}">${escHtml(t.intro)}</div>` : ''}
     </div>`;
 }
 
