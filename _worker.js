@@ -17,7 +17,7 @@ import {
   handleCreateIntent, handleGetIntents, handleResolveIntent,
   handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from './server/routes-demands.js';
-import { handleGetNotifications, handleMarkNotificationsRead } from './server/notify.js';
+import { handleGetNotifications, handleMarkNotificationsRead, handleAdminDeleteNotification } from './server/notify.js';
 import {
   handleCreateContract, handleGetContractByConv, handleGetMyContracts,
   handleConfirmDraft, handleSignContract, handleModifyContract, handleCancelContract,
@@ -144,6 +144,8 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, url, req);
   if (p === '/api/notifications/read' && method === 'POST') return await handleMarkNotificationsRead(db, body, req);
   if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);
+  const notifDelete = p.match(/^\/api\/admin\/notifications\/(\d+)$/);
+  if (notifDelete && method === 'DELETE') return await handleAdminDeleteNotification(db, parseInt(notifDelete[1]), req);
 
   // 合同（起草 → 确认草案 → 确认签约 → signed；测试版短信验证预留）
   if (p === '/api/contracts' && method === 'POST') return await handleCreateContract(db, body, req);

@@ -8,7 +8,8 @@
  * 通知文案由业务方（routes-* 在拒绝/退回等节点）按场景拼装后传入，保持委婉语气。
  * 仅 import core.js（dbAll/dbGet/dbRun/json/error/MSG），不依赖 db.js，避免循环。
  */
-import { dbAll, dbRun, json, error, authUser, MSG } from './core.js';
+import { dbAll, dbGet, dbRun, json, error, authUser, requireAdmin, MSG } from './core.js';
+import { logEvent } from './log.js';
 
 // 建表（幂等）
 export async function initNotifyTable(db) {
@@ -66,4 +67,19 @@ export async function handleMarkNotificationsRead(db, body, req) {
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   await dbMarkNotificationsRead(db, me.id);
   return json({ ok: true });
+}
+
+// DELETE /api/admin/notifications/:id —— 删除一整批广播通知（广播 = 全体用户同文案同秒各插一行；
+// 传任一条的 id 即按「同文案 + 同秒」删全批；留档 admin.notification.delete）
+export async function handleAdminDeleteNotification(db, notifId, req) {
+  const admin = await requireAdmin(db, req);
+  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const n = await dbGet(db, 'SELECT id, text, created_at FROM notifications WHERE id=?', [notifId]);
+  if (!n) return json({ ok: true, count: 0 });
+  const res = await dbRun(db, 'DELETE FROM notifications WHERE text=? AND created_at=?', [n.text, n.created_at]);
+  const count = (res && res.meta && res.meta.changes) || 0;
+  logEvent(db, { action: 'admin.notification.delete', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'notification', entityId: notifId,
+    detail: { batch: count, len: (n.text || '').length }, req });
+  return json({ ok: true, count });
 }

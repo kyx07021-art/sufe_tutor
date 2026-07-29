@@ -486,12 +486,14 @@ function refreshAuthHeader() {
   p.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_SUB_GUEST : UI.AUTH_LOGIN_SUB;
 }
 
-// 登录页「返回」：访客回原客户端页面（取消登录），普通来路回落地页
+// 登录页「返回」：访客回客户端（取消登录）。注意：若原页面需登录，直接回去会被
+// selectPage 的 ensureAuth 立刻再拦回登录页（死循环）→ 需登录的页面一律回落访客默认浏览页
 function authGoBack() {
   if (state.guestAuthMode) {
     state.guestAuthMode = false;
     const back = authReturnPage; authReturnPage = null;
-    enterClient(back || undefined);
+    const cfg = back && pagesForRole().find(p => p.id === back);
+    enterClient(cfg && cfg.auth === false ? back : undefined);
     return;
   }
   showView('landing');
