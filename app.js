@@ -1101,7 +1101,8 @@ function renderProfileInfoCard(t) {
   const gkRows = (t.gaokao_scores || []).map(gs => {
     const s = SUBJECTS.find(x => x.id === gs.subject);
     if (!s) return '';
-    const v = gs.score != null ? `${gs.score}/${gs.scale}${UI.SCORE_SCALE_SUFFIX}` : (gs.grade || '');
+    // 分数不带 scale：满分由省份赋分组件决定、行数据里本就不存（与教师卡 info2 同口径，直接显分数/等第）
+    const v = gs.score != null ? String(gs.score) : (gs.grade || '');
     return v ? row(escHtml(s.name), escHtml(v)) : '';
   }).join('');
   const hasAny = provName || grade || gender || t.price || t.address || t.intro || subjTags || gkRows;
