@@ -244,11 +244,31 @@ export default {
     const db = env.DB;
     let body = {};
     if (request.method === 'POST' || request.method === 'PUT' || request.method === 'DELETE') {
-      // JSON 体积炸弹防护：先看 Content-Length 廉价短路（在 json() 解析与重型路由之前），
-      // 超过约 1.1MB 一律 413，避免攻击者拿大 body 耗内存 / 绕过解析后限流
-      const contentLength = parseInt(request.headers.get('Content-Length') || '0', 10);
-      if (contentLength > 1100000) return error(MSG.PAYLOAD_TOO_LARGE, 413);
-      try { body = await request.json(); } catch { body = {}; }
+      // JSON 体积炸弹防护：Content-Length 廉价短路 + 流式硬上限双保险。
+      // 仅看 Content-Length 会被 chunked 传输（无 CL 头）绕过 → 改用 reader 累积到上限+1 即 413，
+      // 不信任 header，避免攻击者用大 body 耗内存 / 在解析后限流之前打满
+      const BODY_LIMIT = 1100000;
+      const cl = parseInt(request.headers.get('Content-Length') || '0', 10);
+      if (cl > BODY_LIMIT) return error(MSG.PAYLOAD_TOO_LARGE, 413);
+      try {
+        const reader = request.body && request.body.getReader();
+        if (!reader) { body = await request.json(); }
+        else {
+          const chunks = []; let n = 0;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            n += value.byteLength;
+            if (n > BODY_LIMIT) { try { reader.cancel(); } catch { /* ignore */ } throw new Error('PAYLOAD_TOO_LARGE'); }
+            chunks.push(value);
+          }
+          const text = new TextDecoder().decode(await new Blob(chunks).arrayBuffer());
+          body = text ? JSON.parse(text) : {};
+        }
+      } catch (e) {
+        if (String(e && e.message) === 'PAYLOAD_TOO_LARGE') return error(MSG.PAYLOAD_TOO_LARGE, 413);
+        body = {}; // 其余解析失败（含非法 JSON）兜底空对象，交由路由校验
+      }
     }
 
     // 限流闸门（IP 取 CF-Connecting-IP；超限一律 429，细节不回显）

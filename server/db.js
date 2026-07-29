@@ -368,6 +368,13 @@ export async function initDb(db) {
 
   // 通知表（独立模块 notify.js 提供建表与推送咽喉）
   await initNotifyTable(db);
+
+  // 存量用户名消毒：注册白名单仅约束新注册，旧库若残留含 < > " ' 的用户名会命中各转义汇点，
+  // 一次性改名「用户#id#时间戳」（幂等：GLOB 不再匹配已消毒名；时间戳后缀保 UNIQUE）
+  const dirtyNames = await dbAll(db, `SELECT id FROM users WHERE username GLOB '*[<>"'']*'`);
+  for (const r of dirtyNames) {
+    await dbRun(db, `UPDATE users SET username=? WHERE id=?`, [`用户#${r.id}#${Date.now()}`, r.id]);
+  }
 }
 
 // 幂等加列迁移：PRAGMA 探测后再 ALTER（D1 无 ADD COLUMN IF NOT EXISTS）

@@ -178,7 +178,7 @@ function fmtDateTime(s) {
   if (!s) return '';
   const str = String(s);
   const d = new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(str) ? str.replace(' ', 'T') + 'Z' : str);
-  if (isNaN(d)) return str.slice(0, 16); // 解析失败：退回原串截断，不抛错
+  if (isNaN(d)) return escHtml(str.slice(0, 16)); // 解析失败：退回原串截断并转义（防未来攻击可控字段经此渲染）
   const p = n => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }

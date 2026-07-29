@@ -16,7 +16,8 @@ const isParticipant = (conv, userId) =>
 // 比较一律小写化（防 DATA:TEXT/HTML、Data:Image/SVG 大小写绕过）；对 image 与 file 两种 kind 同时生效
 const fileDataBlocked = content => {
   const c = String(content).toLowerCase();
-  return c.startsWith('data:text/html') || c.startsWith('data:image/svg');
+  return c.startsWith('data:text/html') || c.startsWith('data:image/svg')
+      || c.startsWith('data:application/xhtml+xml') || c.startsWith('data:text/xml') || c.startsWith('data:application/xml');
 };
 
 export async function handleGetConversations(db, url, req) {

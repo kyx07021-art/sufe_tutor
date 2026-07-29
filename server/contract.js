@@ -290,6 +290,7 @@ export async function handleSignContract(db, contractId, body, req) {
     return json({ ok: true, signed: cur.ct.status === 'signed' });
   }
   const updated = await dbGetContractById(db, contractId);
+  if (!updated) return error(MSG.CONTRACT_NOT_FOUND, 404); // 置位后对方并发撤销致行消失：干净 404，不抛 500
   const both = !!(updated.drafter_confirmed && updated.other_confirmed);
   if (both) {
     // 条件 UPDATE 赢家模式：双方同时签约时仅一方 changes>0，台账/下架/通知/留档只由赢家执行（防双台账条目）
@@ -300,7 +301,8 @@ export async function handleSignContract(db, contractId, body, req) {
     if (updated.demand_id) {
       const dm = await dbRun(db, `UPDATE student_demands SET status='contracted' WHERE id=? AND status<>'contracted'`, [updated.demand_id]);
       if (!(dm && dm.meta && dm.meta.changes > 0)) {
-        await dbRun(db, `UPDATE contracts SET status='signing' WHERE id=?`, [contractId]);
+        // 抢占失败回退：状态与双方确认标志一并清零，避免「双方都已确认却永远签不成」的死锁态
+        await dbRun(db, `UPDATE contracts SET status='signing', drafter_confirmed=0, other_confirmed=0, updated_at=datetime('now','localtime') WHERE id=? AND status='signing'`, [contractId]);
         return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
       }
     }

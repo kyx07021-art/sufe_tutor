@@ -302,7 +302,9 @@ function renderChatMediaInner(kind, body, name) {
   if (kind === 'image') {
     return `<img src="${escHtml(body)}" alt="${UI.CHAT_ATTACH_IMAGE}" loading="lazy" onclick="chatViewImage(this.src)">`;
   }
-  return `<a class="chat-file-chip" href="${escHtml(body)}" download="${escHtml(name || '')}">
+  // 客户端 scheme 自守：仅 data: 才作可下载 href（服务端已强制 data: 前缀，此为纵深防御，杜绝 javascript: 等）
+  const href = String(body || '').startsWith('data:') ? body : '#';
+  return `<a class="chat-file-chip" href="${escHtml(href)}" download="${escHtml(name || '')}">
     <span class="chat-file-name">${escHtml(name || UI.CHAT_FILE_FALLBACK)}</span>
     <span class="chat-file-dl">${UI.CHAT_DOWNLOAD}</span></a>`;
 }
