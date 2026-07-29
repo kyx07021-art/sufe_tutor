@@ -727,6 +727,20 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .about-usage-text { font-size: .8rem; color: var(--ink-3); line-height: 1.7; }
 .about-support-lines { font-size: .82rem; color: var(--ink-3); line-height: 2; margin-bottom: 16px; }
 .about-feedback-btns { display: flex; gap: 10px; }
+/* 关于平台 · 安全与隐私保护：「小盾标 + 粗体小标题 + 一句白话」逐条，建立学生与家长的信任 */
+.about-security-list { display: flex; flex-direction: column; margin-top: 14px; }
+.about-sec-item { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; }
+.about-sec-item + .about-sec-item { border-top: 1px solid var(--paper-3); }
+.about-sec-mark {
+  flex-shrink: 0; width: 22px; height: 22px; margin-top: 1px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-tint); color: var(--accent-deep);
+  font-size: .72rem; font-weight: 900; border-radius: 50%;
+}
+.about-sec-mark::before { content: '✓'; }
+.about-sec-body { min-width: 0; }
+.about-sec-title { display: block; font-size: .84rem; font-weight: 800; color: var(--ink); margin-bottom: 3px; }
+.about-sec-desc { font-size: .78rem; color: var(--ink-3); line-height: 1.7; margin: 0; }
 
 /* 反馈弹窗：Bug / 建议切换式分段按钮（选中墨色实填） */
 .feedback-kind-row { display: flex; gap: 8px; margin-bottom: 14px; }
@@ -1007,9 +1021,16 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .alert-success { background: var(--ok-tint); color: var(--ok-deep); border-left: 3px solid var(--ok-deep); }
 
 /* ---------- spinner ---------- */
-@keyframes spin { to { transform: rotate(360deg); } }
-.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.35); border-top-color: var(--white); border-radius: 50%; animation: spin .6s linear infinite; vertical-align: -2px; }
-.btn-outline .spinner, .btn-ghost .spinner { border-color: rgba(17,17,20,.25); border-top-color: var(--ink); }
+/* 加载中：三根有规律伸缩的纵向柱体（全站统一，非圆圈）。柱体取 currentColor 随环境文字色
+   自适应（深色按钮上偏白、浅底上偏墨）；liquid glass 阶段改 .loader 的 color 即可切毛玻璃强白 */
+@keyframes loader-bar { 0%,100% { transform: scaleY(.35); opacity: .5; } 50% { transform: scaleY(1); opacity: 1; } }
+.loader, .spinner { display: inline-flex; align-items: center; }
+.loader { height: 26px; gap: 6px; color: var(--accent-bright); }
+.spinner { height: 13px; gap: 3px; vertical-align: -2px; }
+.loader i, .spinner i { display: block; width: 4px; height: 100%; border-radius: 2px; background: currentColor; transform-origin: center; animation: loader-bar 1s ease-in-out infinite; }
+.spinner i { width: 3px; }
+.loader i:nth-child(2), .spinner i:nth-child(2) { animation-delay: .15s; }
+.loader i:nth-child(3), .spinner i:nth-child(3) { animation-delay: .3s; }
 
 /* ============================================================
    Responsive

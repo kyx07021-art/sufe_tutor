@@ -41,7 +41,7 @@ function enterMyChats() {
         <div class="chats-list-head">
           <span class="chats-list-title">${UI.CHAT_TITLE}</span>
         </div>
-        <div class="conv-list" id="conv-list"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
+        <div class="conv-list" id="conv-list"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
       </aside>
       <section class="chat-pane" id="chat-pane">
         ${renderChatPlaceholder()}
@@ -232,7 +232,7 @@ function renderChatFrame(conv) {
         </svg>
       </button>` : ''}
     </div>
-    <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
+    <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
     <div class="chat-drop-hint hidden" id="chat-drop-hint">${UI.CHAT_DROP_HINT}</div>
     <div class="chat-contract-line" id="chat-contract-line"></div>
     <div class="chat-stage hidden" id="chat-stage"></div>
@@ -397,7 +397,7 @@ async function sendChatMessage() {
 
   const btn = document.getElementById('chat-send-btn');
   chatSending = true;
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>'; }
   try {
     // 先逐个发暂存附件（成功一条移出暂存区），再发文字
     for (const it of staged) await chatSendAttachment(it);

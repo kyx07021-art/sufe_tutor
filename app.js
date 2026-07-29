@@ -414,12 +414,19 @@ const loadSeqs = {};
 // 下次读取（页面装载 / 红点轮询 / 个人信息面板）自然重拉——缓存只此一份，消灭「各缓存各自为政、永不失效」
 const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers' };
 function invalidate(key) { const k = CACHE_KEYS[key]; if (k) state[k] = []; }
+// 加载中组件（全站统一入口）：三根有规律伸缩的纵向柱体，非圆圈。
+// size='sm' 用于按钮 / 行内（取 .spinner 小号）；默认大号用于整块内容装载占位
+function loaderHtml(size) {
+  const cls = size === 'sm' ? 'spinner' : 'loader';
+  return `<span class="${cls}" role="status" aria-label="${UI.LOADING}"><i></i><i></i><i></i></span>`;
+}
+
 async function loadInto(elId, fetcher, renderer, opts = {}) {
   const el = document.getElementById(elId);
   if (!el) return false;
   // 计数器首用初始化：++undefined = NaN，而 NaN !== NaN 恒真 → 首次装载会被误判「乱序」而丢弃（帖子区永卡加载中的根因）
   const seq = opts.seqKey ? (loadSeqs[opts.seqKey] = (loadSeqs[opts.seqKey] || 0) + 1) : null;
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
     const data = await fetcher();
     if (seq != null && seq !== loadSeqs[opts.seqKey]) return false;
@@ -577,7 +584,7 @@ async function handleLogin(e) {
   const btn = document.getElementById('login-submit');
 
   try {
-    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${UI.LOADING_LOGIN}`;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span> ${UI.LOADING_LOGIN}`;
     const data = await api('/api/auth/login', { method: 'POST', body: { username, password } });
     state.user = data.user; state.authToken = data.authToken || null;
     alertEl.innerHTML = '';
@@ -623,7 +630,7 @@ async function handleRegister(e) {
 
   try {
     const btn = document.getElementById('register-submit');
-    btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> ${UI.LOADING_REGISTER}`;
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span> ${UI.LOADING_REGISTER}`;
     const body = { username, password, role };
     if (role === 'teacher' && state.validatedInviteCode) {
       body.inviteCode = state.validatedInviteCode;
@@ -938,7 +945,7 @@ async function handleSubmitDemand(e) {
 
   try {
     const btn = document.getElementById('d-submit');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>';
     if (isEdit) {
       await api(`/api/student/demands/${state.editingDemandId}`, { method: 'PUT', body: payload });
     } else {
@@ -1056,7 +1063,7 @@ async function openProfilePanel(userId) {
   const titleEl = document.getElementById('profile-panel-title');
   if (titleEl) titleEl.textContent = UI.PROFILE_PANEL_TITLE; // 标题归口 constants（静态文本仅 JS 前兜底）
   const body = document.getElementById('profile-panel-body');
-  body.innerHTML = `<div class="profile-loading"><p>${UI.LOADING}</p></div>`;
+  body.innerHTML = `<div class="profile-loading">${loaderHtml()}</div>`;
   try {
     // ① 基础名片：公开接口（用户名/角色/头像，墓碑用户名原样返回）
     const base = (await api(`/api/users/${userId}`)).user;
@@ -1453,7 +1460,7 @@ function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: 
 // 教师需求大厅：普通需求 + 学生主动推送的待处理需求（置顶 + 特殊操作行）
 async function loadBrowseDemands() {
   const el = document.getElementById('demands-list');
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
     const isGuest = !state.user; // 访客教师可浏览公开需求列表；推送卡片与意向操作点了再走登录通路
     const [dData, pData] = await Promise.all([
@@ -1611,7 +1618,7 @@ function enterAccountSettings() {
     <div class="settings-devices">
       <div class="settings-label">${UI.SETTINGS_DEVICES}</div>
       <div class="settings-hint">${UI.SETTINGS_DEVICES_HINT}</div>
-      <div id="settings-devices-list" class="settings-devices-list"><div class="text-muted">${UI.LOADING}</div></div>
+      <div id="settings-devices-list" class="settings-devices-list">${loaderHtml('sm')}</div>
     </div>
     <button type="button" class="btn btn-danger settings-logout" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
@@ -1629,7 +1636,7 @@ async function loadDeviceSessions() {
     const sessions = data.sessions || [];
     box.innerHTML = sessions.length
       ? sessions.map(renderDeviceRow).join('')
-      : `<div class="text-muted">${UI.LOADING}</div>`; // 至少有当前设备，空列表几乎不可能
+      : `${loaderHtml('sm')}`; // 至少有当前设备，空列表几乎不可能
   } catch {
     const b = document.getElementById('settings-devices-list');
     if (b && state.page === 'account-settings') b.innerHTML = `<div class="text-muted">${UI.ERROR_REQUEST_FAILED}</div>`;
@@ -1845,7 +1852,7 @@ function contractActionable(c) {
 async function loadMyContracts() {
   const el = document.getElementById('my-contracts-list');
   setBadge('my-contracts', 0); // 点开瞬间红点即灭（有待办由下一轮轮询在离开本页后重新点亮）
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
     const data = await api('/api/contracts/my');
     state.myContracts = data.contracts || [];
@@ -2057,7 +2064,7 @@ function cancelContract(contractId) {
 // 起草合同（聊天窗 + 号呼出）：先选对应需求 → 预载配置（科目/方式/预算）→ 教学方式 / 授课时间 /
 // 授课地点 / 约定时薪 / 教学方案（md 编辑器，合同文本禁插图）→ 发送另一方确认
 async function openContractDraftModal(convId) {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-body"><p>${UI.LOADING}</p></div></div></div>`;
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-body">${loaderHtml()}</div></div></div>`;
   let demands = [], demandsFailed = false;
   try { const data = await api('/api/student/demands'); demands = data.demands || []; } catch { demandsFailed = true; /* 拉取失败仍可起草（不绑需求），弹窗内明示 */ }
   const conv = (typeof chatConvById === 'function') ? chatConvById(convId) : null;
@@ -2293,6 +2300,11 @@ function enterAbout() {
       </div>
       <p class="about-flow-text">${escHtml(s)}</p>
     </div>`).join('');
+  // 安全与隐私保护：逐条「小盾标 + 粗体小标题 + 一句白话说明」（面向学生家长建立信任）
+  const secItems = UI.ABOUT_SECURITY_ITEMS.map(it => `<div class="about-sec-item">
+      <span class="about-sec-mark" aria-hidden="true"></span>
+      <div class="about-sec-body"><strong class="about-sec-title">${escHtml(it.t)}</strong><p class="about-sec-desc">${escHtml(it.d)}</p></div>
+    </div>`).join('');
   document.getElementById('about-content').innerHTML = `
     <div class="list-card about-card">
       <div class="navbar-logo about-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
@@ -2304,6 +2316,11 @@ function enterAbout() {
     <div class="list-card about-card-block">
       <h3 class="about-title">${UI.ABOUT_USAGE_TITLE}</h3>
       <div class="about-flow">${steps}</div>
+    </div>
+    <div class="list-card about-card-block">
+      <h3 class="about-title">${UI.ABOUT_SECURITY_TITLE}</h3>
+      <p class="about-text">${escHtml(UI.ABOUT_SECURITY_INTRO)}</p>
+      <div class="about-security-list">${secItems}</div>
     </div>
     <div class="list-card about-card-block">
       <h3 class="about-title">${UI.ABOUT_SUPPORT_TITLE}</h3>
@@ -2471,7 +2488,7 @@ async function refreshIntentsBox(demandId) {
   const box = document.getElementById(`intents-box-${demandId}`);
   if (!box) return;
   const inner = box.querySelector('.intents-box-inner') || box;
-  inner.innerHTML = `<div class="intents-box-content"><p class="text-sm text-muted">${UI.LOADING}</p></div>`;
+  inner.innerHTML = `<div class="intents-box-content">${loaderHtml()}</div>`;
   try {
     const data = await api(`/api/demands/${demandId}/intents`);
     const ts = data.teachers || [];
@@ -2604,7 +2621,7 @@ async function handleSaveProfile(e) {
 
   try {
     const btn = document.getElementById('profile-submit');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>';
     await api('/api/teacher/profile', {
       method: 'POST', body: { profile: {
         province,
@@ -2638,7 +2655,7 @@ async function generateInviteCode() {
   const btn = document.getElementById('gen-invite-btn');
   const display = document.getElementById('invite-code-display');
   try {
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>';
     const data = await api('/api/admin/invite', { method: 'POST', body: { username: state.user.username } });
     state.currentInviteCode = data;
     document.getElementById('invite-code-text').textContent = data.code;
@@ -2669,7 +2686,7 @@ function copyInviteCode() {
 // 结构上保留 stats-grid + 若干 admin-panel 板块，后期扩展统计数据直接加板块即可）
 async function loadAdminStats() {
   const el = document.getElementById('admin-stats-content');
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
     const statsData = await api(`/api/admin/stats?username=${encodeURIComponent(state.user.username)}`);
     const s = statsData.stats;

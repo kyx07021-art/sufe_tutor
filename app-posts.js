@@ -33,7 +33,7 @@ function enterResourceShare() {
       </select>
       ${isTeacher ? `<button type="button" class="btn btn-primary btn-sm" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
     </div>
-    <div id="posts-list"><div class="empty-state"><p>${UI.LOADING}</p></div></div>`;
+    <div id="posts-list"><div class="empty-state">${loaderHtml()}</div></div>`;
   initCustomSelects(document.getElementById('posts-content')); // 工具条是动态渲染，须显式接线自定义下拉
   loadPosts();
 }
@@ -276,7 +276,7 @@ async function submitPost() {
   }
   try {
     btn.disabled = true;
-    btn.innerHTML = `<span class="spinner"></span> ${UI.POST_PUBLISHING}`;
+    btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span> ${UI.POST_PUBLISHING}`;
     await api('/api/posts', {
       method: 'POST',
       body: { title, bodyMd: bodyEl.value || '' },
