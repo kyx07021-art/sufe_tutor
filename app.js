@@ -13,16 +13,22 @@ const { SUBJECTS, STUDENT_GRADES,
 // 状态
 // ============================================================
 const state = { user: null, authToken: null, view: 'landing', page: null, allTeachers: [], adminTeachers: [], intentTeachers: [],
-                adminModalTeacher: null, myReviewOnModal: null,
+                adminModalTeacher: null, myReviewOnModal: null, // adminModalTeacher 历史残留键，仅登出清零用，无读写方
                 myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
-                inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null };
+                inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null,
+                guestRole: null, guestAuthMode: false }; // 访客模式：guestRole = 主页按钮进入时的角色；guestAuthMode = 正被 ensureAuth 导向登录页
 
 // ============================================================
-// 头像组件（全站共用）：圆形，上传图片则居中裁切展示，未上传 = id 首字符 + 米色底
+// 头像组件（全站共用）：圆形，上传图片则居中裁切展示，未上传 = id 首字符 + 米色底。
+// profileUserId 有值 → 头像成为个人信息右栏入口（聚焦动效，stopPropagation 防穿透父级点击）
 // ============================================================
-function renderAvatarHtml(avatar, name, cls) {
-  if (avatar) return `<span class="avatar ${cls}"><img src="${escHtml(avatar)}" alt="" loading="lazy"></span>`;
-  return `<span class="avatar ${cls}" aria-hidden="true">${escHtml((name || '?').charAt(0).toUpperCase())}</span>`;
+function renderAvatarHtml(avatar, name, cls, profileUserId) {
+  const inner = avatar
+    ? `<img src="${escHtml(avatar)}" alt="" loading="lazy">`
+    : escHtml((name || '?').charAt(0).toUpperCase());
+  const span = `<span class="avatar ${cls}${profileUserId ? ' avatar--link' : ''}"${avatar ? '' : ' aria-hidden="true"'}>${inner}</span>`;
+  if (!profileUserId) return span;
+  return `<span class="avatar-btn" role="button" tabindex="0" title="${UI.PROFILE_PANEL_TITLE}" onclick="event.stopPropagation();openProfilePanel(${profileUserId})">${span}</span>`;
 }
 
 // ============================================================
@@ -33,23 +39,23 @@ function renderAvatarHtml(avatar, name, cls) {
 const ROLE_PAGES = {
   student: [
     { id: 'my-demands',       label: UI.PAGE_MY_DEMANDS,      desc: UI.PAGE_MY_DEMANDS_DESC,      enter: loadMyDemands },
-    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_DESC, enter: loadTeachers },
+    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_DESC, enter: loadTeachers, auth: false },
     { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        desc: UI.PAGE_MY_CHATS_DESC,        enter: () => enterMyChats() },
     { id: 'my-contracts',     label: UI.PAGE_MY_CONTRACTS,    desc: UI.PAGE_MY_CONTRACTS_DESC,    enter: loadMyContracts },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   desc: UI.PAGE_NOTIFICATIONS_DESC,   enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
-    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: enterAbout },
+    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: enterAbout, auth: false },
   ],
   teacher: [
-    { id: 'browse-demands',   label: UI.PAGE_BROWSE_DEMANDS,  desc: UI.PAGE_BROWSE_DEMANDS_DESC,  enter: loadBrowseDemands },
-    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_PEER_DESC, enter: loadTeachers },
-    { id: 'resource-share',   label: UI.PAGE_RESOURCE_SHARE,  desc: UI.PAGE_RESOURCE_SHARE_DESC,  enter: () => enterResourceShare() },
+    { id: 'browse-demands',   label: UI.PAGE_BROWSE_DEMANDS,  desc: UI.PAGE_BROWSE_DEMANDS_DESC,  enter: loadBrowseDemands, auth: false },
+    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_PEER_DESC, enter: loadTeachers, auth: false },
+    { id: 'resource-share',   label: UI.PAGE_RESOURCE_SHARE,  desc: UI.PAGE_RESOURCE_SHARE_DESC,  enter: () => enterResourceShare(), auth: false },
     { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        desc: UI.PAGE_MY_CHATS_DESC,        enter: () => enterMyChats() },
     { id: 'my-contracts',     label: UI.PAGE_MY_CONTRACTS,    desc: UI.PAGE_MY_CONTRACTS_DESC,    enter: loadMyContracts },
     { id: 'edit-profile',     label: UI.PAGE_EDIT_PROFILE,    desc: UI.PAGE_EDIT_PROFILE_DESC,    enter: initProfileForm },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   desc: UI.PAGE_NOTIFICATIONS_DESC,   enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
-    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: enterAbout },
+    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: enterAbout, auth: false },
   ],
   admin: [
     { id: 'admin-stats',      label: UI.PAGE_ADMIN_STATS,    desc: UI.PAGE_ADMIN_STATS_DESC,    enter: loadAdminStats },
@@ -62,7 +68,7 @@ const ROLE_PAGES = {
     { id: 'admin-feedback',   label: UI.PAGE_ADMIN_FEEDBACK, desc: UI.PAGE_ADMIN_FEEDBACK_DESC, enter: loadAdminFeedback },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
-    { id: 'about',            label: UI.PAGE_ABOUT,          desc: UI.PAGE_ABOUT_DESC,          enter: enterAbout },
+    { id: 'about',            label: UI.PAGE_ABOUT,          desc: UI.PAGE_ABOUT_DESC,          enter: enterAbout, auth: false },
   ],
 };
 
@@ -233,7 +239,11 @@ async function api(endpoint, options = {}) {
   if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
   const res = await fetch(endpoint, config);
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || UI.ERROR_REQUEST_FAILED);
+  if (!res.ok) {
+    // 401 兜底汇入登录通路：访客点了需身份的接口 / 令牌过期，都导向特制登录页（登录后自动返回原页面）
+    if (res.status === 401 && state.view === 'client') ensureAuth();
+    throw new Error(data.error || UI.ERROR_REQUEST_FAILED);
+  }
   return data;
 }
 
@@ -271,6 +281,7 @@ function showView(name) {
   const target = document.getElementById(`view-${name}`);
   if (target) target.classList.remove('hidden');
   state.view = name;
+  if (name === 'login') refreshAuthHeader(); // 登录页标题按来路切换（访客被导向 vs 主动登录）
   updateNavbar();
 }
 
@@ -294,10 +305,13 @@ function updateNavbar() {
 // 客户端壳：侧边栏 + 页面区（栏目由 ROLE_PAGES 配置驱动）
 // ------------------------------------------------------------
 function pagesForRole() {
-  return ROLE_PAGES[state.user.role] || [];
+  const role = state.user ? state.user.role : state.guestRole; // 访客以主页按钮所选角色看栏目
+  return ROLE_PAGES[role] || [];
 }
 
 function defaultPageFor() {
+  // 访客落在首个公开浏览页（先逛起来，需要身份时再由 ensureAuth 导向登录）；登录用户落第一栏
+  if (!state.user) return state.guestRole === 'teacher' ? 'browse-demands' : 'browse-teachers';
   return (pagesForRole()[0] || { id: 'my-demands' }).id;
 }
 
@@ -307,7 +321,7 @@ function enterClient(pageId) {
   // 刷新恢复：回到刷新前的页签（角色不匹配时回落默认页）
   const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId : defaultPageFor();
   selectPage(valid);
-  startBadgePoll(); // 登录后即开始侧边栏红点慢轮询
+  if (state.user) startBadgePoll(); // 红点轮询仅登录态开启（访客无个人数据可轮询）
 }
 
 // 当前页签持久化：刷新后回到原页
@@ -316,17 +330,26 @@ function storedPage() { try { return localStorage.getItem('sufe_page') || ''; } 
 
 function renderSidebar() {
   const u = state.user;
-  const isAdmin = u.role === 'admin';
-  const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
-  // 用户块置侧边栏最下方（白底落地）：头像 + id + 灰小字属性，白框内最下层放运营脚注
-  document.getElementById('sidebar-user').innerHTML = `
-    <div class="sidebar-user-top">
+  const isAdmin = u && u.role === 'admin';
+  // 用户块置侧边栏最下方（白底落地）：头像 + id + 灰小字属性，白框内最下层放运营脚注。
+  // 访客态显示「未登录」占位块，点击即走 ensureAuth 登录通路
+  const userBlock = u ? `
+    <button type="button" class="sidebar-user-top sidebar-user-btn" onclick="openProfilePanel(${u.id})" title="${UI.PROFILE_PANEL_TITLE}">
       ${renderAvatarHtml(u.avatar, u.username, 'sidebar-user-avatar')}
       <div class="sidebar-user-text">
         <div class="sidebar-user-name">${escHtml(u.username)}</div>
-        <div class="sidebar-user-role">${roleLabel}</div>
+        <div class="sidebar-user-role">${u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE}</div>
       </div>
-    </div>
+    </button>` : `
+    <button type="button" class="sidebar-user-top sidebar-user-btn" onclick="ensureAuth()">
+      <span class="avatar sidebar-user-avatar avatar--guest" aria-hidden="true">?</span>
+      <div class="sidebar-user-text">
+        <div class="sidebar-user-name sidebar-user-name--guest">${UI.GUEST_NOT_LOGGED_IN}</div>
+        <div class="sidebar-user-role">${UI.GUEST_TAP_TO_LOGIN}</div>
+      </div>
+    </button>`;
+  document.getElementById('sidebar-user').innerHTML = `
+    ${userBlock}
     <button type="button" class="sidebar-footnote" onclick="selectPage('about')">${escHtml(UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK))}</button>
     <div class="sidebar-version">v${APP_CONSTANTS.APP_VERSION}</div>`;
   // 栏目 = 主页 entry 同款排布：亮紫序号 + 大字标题 + 选中展开简介；黑色选中块由 .sidebar-pill 滑动承担
@@ -346,6 +369,7 @@ function renderSidebar() {
 }
 
 function selectPage(pageId) {
+  closeProfilePanel(); // 切页收起个人信息右栏
   document.querySelectorAll('#client-main .client-page').forEach(s =>
     s.classList.toggle('hidden', s.dataset.page !== pageId));
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b =>
@@ -356,6 +380,7 @@ function selectPage(pageId) {
   storePage(pageId); // 记住当前页签，刷新后回原页
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
+  if (cfg && cfg.auth !== false && !ensureAuth()) return; // 需要身份的页统一过登录通路（访客被导向特制登录页，登录后自动返回）
   if (cfg && cfg.enter) cfg.enter();
   closeSidebar();
   document.getElementById('client-main').scrollTop = 0;
@@ -435,6 +460,51 @@ async function refreshBadges() {
 // ============================================================
 // 认证
 // ============================================================
+
+// ------------------------------------------------------------
+// 登录通路（全站唯一）：一切需要真实用户信息的页面 / 操作都经 ensureAuth()。
+// 未登录 → 记下当前页 → 导向特制登录页（标题「登录以使用更多功能」）→ 登录/注册
+// 成功后 enterClient(authReturnPage) 自动回到原页面状态。
+// api() 层 401 兜底同样汇入此通路（令牌过期等同未登录）。
+// ------------------------------------------------------------
+let authReturnPage = null;
+
+function ensureAuth() {
+  if (state.user) return true;
+  authReturnPage = state.view === 'client' ? state.page : null;
+  state.guestAuthMode = true;
+  showView('login');
+  return false;
+}
+
+// 登录页标题按来路切换（index.html 静态文本仅作 JS 前兜底）
+function refreshAuthHeader() {
+  const h = document.getElementById('login-title');
+  const p = document.getElementById('login-subtitle');
+  if (!h || !p) return;
+  h.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_TITLE_GUEST : UI.AUTH_LOGIN_TITLE;
+  p.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_SUB_GUEST : UI.AUTH_LOGIN_SUB;
+}
+
+// 登录页「返回」：访客回原客户端页面（取消登录），普通来路回落地页
+function authGoBack() {
+  if (state.guestAuthMode) {
+    state.guestAuthMode = false;
+    const back = authReturnPage; authReturnPage = null;
+    enterClient(back || undefined);
+    return;
+  }
+  showView('landing');
+}
+
+// 登录 / 注册成功统一收口：清访客态 + 自动返回触发登录通路的那个页面
+function afterAuthSuccess() {
+  state.guestAuthMode = false;
+  state.guestRole = null;
+  const back = authReturnPage; authReturnPage = null;
+  enterClient(back || undefined); // 返回页与新角色不匹配时 enterClient 自然回落默认页
+}
+
 function switchRegisterRole(role) {
   document.getElementById('register-role').value = role;
   document.querySelectorAll('#register-role-tabs .role-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
@@ -446,7 +516,10 @@ function switchRegisterRole(role) {
 
 function handleFeatureClick(role) {
   if (state.user) { enterClient(); return; }
-  showView('login');
+  // 访客模式：主页按钮直达对应客户端先逛起来（用户信息栏显示「未登录」），
+  // 需要身份的操作经 ensureAuth 统一导向登录页
+  state.guestRole = role;
+  enterClient();
 }
 
 async function handleLogin(e) {
@@ -473,7 +546,7 @@ async function handleLogin(e) {
       localStorage.removeItem('sufe_session');
     }
 
-    enterClient();
+    afterAuthSuccess();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
   } finally {
@@ -514,7 +587,7 @@ async function handleRegister(e) {
     alertEl.innerHTML = '';
     // 注册即登录：会话存 sessionStorage（刷新保留，关标签即焚）
     try { sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, authToken: state.authToken })); } catch { /* ignore */ }
-    enterClient();
+    afterAuthSuccess();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
   } finally {
@@ -557,6 +630,7 @@ function handleLogout() {
   pushCooldownUntil = 0; // 推送冷却不跨账号残留
   pendingConfirmAction = null; window._contractDraftDemands = null; // 防上一账户的挂起确认/起草候选被新账户触发
   state.user = null; state.authToken = null; state.page = null;
+  state.guestRole = null; state.guestAuthMode = false; authReturnPage = null; closeProfilePanel();
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = []; state.adminModalTeacher = null;
   state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
   state.inviteTimerId = null; state.currentInviteCode = null;
@@ -854,17 +928,6 @@ async function loadTeachers() {
   }
 }
 
-// 科目 + 成绩纵向行（教师卡与教师弹窗共用）：灰小标题 + 极细分隔线，无框
-function renderSubjectScoreRows(t) {
-  return (t.subjects || []).map(sid => {
-    const s = SUBJECTS.find(x => x.id === sid);
-    if (!s) return '';
-    const gs = (t.gaokao_scores || []).find(x => x.subject === sid);
-    const val = gs ? (gs.score !== undefined ? `${gs.score} / ${s.maxScore}${UI.SCORE_UNIT}` : (gs.grade || '')) : '';
-    return `<div class="subject-row"><span>${s.name}</span><span class="subject-score">${val}</span></div>`;
-  }).join('');
-}
-
 function renderTeachers(teachers) {
   const el = document.getElementById('teachers-list');
   if (!teachers.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_TEACHERS}</p></div>`; return; }
@@ -882,9 +945,9 @@ function renderTeachers(teachers) {
       return gs.score != null ? `${s.name}${gs.score}` : `${s.name}${gs.grade || ''}`;
     }).filter(Boolean).join(' · ');
     return `<div class="list-card list-card--teacher">
-      ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
+      ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
-        <span class="tc-username" onclick="openTeacherModal(${t.user_id})">${escHtml(t.username)}</span>
+        <span class="tc-username" onclick="openProfilePanel(${t.user_id})">${escHtml(t.username)}</span>
         <span class="tc-rating">${renderStars(t.rating)}<b>${(t.rating||4).toFixed(1)}</b></span>
       </div>
       <div class="tc-right">
@@ -932,101 +995,164 @@ function applyFilters() {
 }
 
 // ============================================================
-// 教师信息弹窗 — 可复用组件（档案 + 高考成绩 + 联系方式 + 评价）
+// 个人信息右栏 — 取代旧教师详情弹窗的全站统一个人信息入口：
+//   桌面端：屏幕右侧 25vw 右栏（内容长可滚动）；移动端：定宽浮层 + 背景变暗。
+//   卡片①头像/用户名/角色（已签约显示绿色标记）；卡片②教师资料（账簿式：
+//   title 左对齐、信息自固定 px 处起，逐项成行）；卡片③评价（按钮三态：
+//   未签约灰禁 / 已签约写评价 / 已评价改评价）。教师卡片②③仅教师账户有。
+//   入口：全站头像（账户设置预览除外）/ 会话窗右上角人头肩线框 / 原教师详情按钮。
 // ============================================================
-async function openTeacherModal(userId) {
-  const t = state.allTeachers.find(x => x.user_id === userId) || state.adminTeachers.find(x => x.user_id === userId)
-         || state.intentTeachers.find(x => x.user_id === userId); // 意向列表里的教师也开得起来
-  if (!t) return;
-  state.adminModalTeacher = (state.user && state.user.role === 'admin') ? t : null;
-  document.getElementById('modal-container').innerHTML = renderTeacherModal(t);
-  const seq = ++teacherModalSeq; // 陈旧响应守卫：请求在途时弹窗被关/换了教师 → 响应丢弃（否则会写错教师的评价 id）
-  // 管理员：评价栏走管理端接口（全状态 + 逐条管理）
-  if (state.adminModalTeacher) { loadTeacherReviewsAdmin(userId, seq); return; }
+let profilePanelSeq = 0;      // 面板序号：异步回来时序号不符即丢弃（防换人/关闭后串号）
+let profilePanelUserId = null;
+
+function findCachedTeacher(userId) {
+  return state.allTeachers.find(x => x.user_id === userId)
+      || state.adminTeachers.find(x => x.user_id === userId)
+      || state.intentTeachers.find(x => x.user_id === userId) || null;
+}
+
+async function openProfilePanel(userId) {
+  const seq = ++profilePanelSeq;
+  profilePanelUserId = userId;
+  document.body.classList.add('profile-panel-open');
+  const titleEl = document.getElementById('profile-panel-title');
+  if (titleEl) titleEl.textContent = UI.PROFILE_PANEL_TITLE; // 标题归口 constants（静态文本仅 JS 前兜底）
+  const body = document.getElementById('profile-panel-body');
+  body.innerHTML = `<div class="profile-loading"><p>${UI.LOADING}</p></div>`;
   try {
-    // reviewerUserId 取回「我的评价」（mine，任意状态），供写评价/修改评价判定
-    const data = await api(`/api/reviews?teacherUserId=${userId}&reviewerUserId=${state.user ? state.user.id : ''}`);
-    if (seq !== teacherModalSeq) return;
-    state.myReviewOnModal = data.mine || null;
-    const el = document.getElementById('teacher-modal-reviews');
-    if (el) el.innerHTML = renderReviewItems(data.reviews || [], t, { mine: data.mine }); // 防竞态：弹窗已关则丢弃
-  } catch {
-    const el = document.getElementById('teacher-modal-reviews');
-    if (el) el.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_REVIEWS}</p>`;
+    // ① 基础名片：公开接口（用户名/角色/头像，墓碑用户名原样返回）
+    const base = (await api(`/api/users/${userId}`)).user;
+    if (seq !== profilePanelSeq) return;
+    const isTeacher = base.role === 'teacher';
+    // ② 教师档案：优先页内缓存，未命中现拉一次教师列表（公开接口，访客可用）
+    let t = null;
+    if (isTeacher) {
+      t = findCachedTeacher(userId);
+      if (!t) {
+        try { state.allTeachers = (await api('/api/teachers')).teachers || []; } catch { /* 无档案或网络抖动：卡片②空态 */ }
+        if (seq !== profilePanelSeq) return;
+        t = findCachedTeacher(userId);
+      }
+    }
+    // ③ 签约状态 + 评价（评价仅教师有；管理员看全状态管理视图）
+    let signed = false, reviewsData = null;
+    if (state.user) {
+      if (!state.myContracts.length) {
+        try { state.myContracts = (await api('/api/contracts/my')).contracts || []; } catch { /* 静默 */ }
+      }
+      signed = state.myContracts.some(c => c.status === 'signed' && (c.student_user_id === userId || c.teacher_user_id === userId));
+    }
+    if (isTeacher) {
+      const isAdminViewer = state.user && state.user.role === 'admin';
+      try {
+        reviewsData = isAdminViewer
+          ? { admin: true, reviews: (await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}&teacherUserId=${userId}`)).reviews || [] }
+          : await api(`/api/reviews?teacherUserId=${userId}&reviewerUserId=${state.user ? state.user.id : ''}`);
+      } catch { reviewsData = { reviews: [] }; }
+      if (seq !== profilePanelSeq) return;
+    }
+    state.myReviewOnModal = (reviewsData && reviewsData.mine) || null;
+    body.innerHTML = renderProfilePanel(base, t, signed, reviewsData);
+  } catch (err) {
+    if (seq !== profilePanelSeq) return;
+    body.innerHTML = `<div class="profile-loading"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
 }
 
-let teacherModalSeq = 0; // 教师弹窗序号：每开一次自增，异步回来后序号不符即丢弃陈旧响应
-
-async function loadTeacherReviewsAdmin(userId, seq) {
-  try {
-    const data = await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}&teacherUserId=${userId}`);
-    if (seq !== teacherModalSeq) return; // 弹窗已被换掉/关闭，丢弃
-    const el = document.getElementById('teacher-modal-reviews');
-    if (el) el.innerHTML = renderReviewItems(data.reviews || [], state.adminModalTeacher, { admin: true });
-  } catch {
-    const el = document.getElementById('teacher-modal-reviews');
-    if (el) el.innerHTML = `<p class="text-sm text-muted">${UI.ERROR_LOAD_REVIEWS}</p>`;
-  }
+function closeProfilePanel() {
+  profilePanelSeq++; // 在途响应作废
+  profilePanelUserId = null;
+  document.body.classList.remove('profile-panel-open');
 }
 
-function renderTeacherModal(t) {
+// 面板是否正打开且展示某用户（评价提交后据此就地刷新）
+function profilePanelShowing(userId) {
+  return document.body.classList.contains('profile-panel-open') && profilePanelUserId === userId;
+}
+
+function renderProfilePanel(base, t, signed, reviewsData) {
+  const roleLabel = base.role === 'student' ? UI.ROLE_STUDENT : base.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
+  const cardId = `<div class="profile-card profile-card--id">
+      <div class="profile-id-top">
+        ${renderAvatarHtml(base.avatar, base.username, 'profile-avatar')}
+        ${signed ? `<span class="profile-signed-tag">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
+      </div>
+      <div class="profile-id-name">${renderUsername(base.username)}</div>
+      <div class="profile-id-role">${roleLabel}</div>
+    </div>`;
+  return cardId
+    + (base.role === 'teacher' ? renderProfileInfoCard(t) : '')
+    + (base.role === 'teacher' && reviewsData ? renderProfileReviewsCard(reviewsData, t, signed) : '');
+}
+
+// 卡片②：教师资料账簿行 —— title 最左、信息自固定 px（CSS profile-row grid）处统一开始，逐项成行
+function renderProfileInfoCard(t) {
+  if (!t) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
   const grade = TEACHER_GRADES.find(g => g.id === t.grade)?.name || '';
   const gender = GENDERS.find(g => g.id === t.gender)?.name || '';
   const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
-  const meta = [provName, grade, gender, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
-  const rows = renderSubjectScoreRows(t);
-
-  return `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal">
-      <div class="modal-header"><h2>${escHtml(t.username)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <div class="teacher-headline">
-          <span class="teacher-rating">${renderStars(t.rating)}<b>${(t.rating || 4).toFixed(1)}</b></span>
-          <span class="list-card-meta">${meta}</span>
-        </div>
-        ${(provName || t.address) ? `<div class="subject-block"><div class="section-title">${UI.SECTION_REGION}</div>
-          ${provName ? `<div class="subject-row"><span>${escHtml(provName)}</span></div>` : ''}
-          ${t.address ? `<div class="subject-row"><span>${UI.LABEL_ADDRESS}</span><span class="subject-score">${escHtml(t.address)}</span></div>` : ''}
-        </div>` : ''}
-        ${rows ? `<div class="subject-block"><div class="section-title">${UI.SECTION_SUBJECTS}</div>${rows}</div>` : ''}
-        ${(t.wechat || t.email) ? `<div class="subject-block"><div class="section-title">${UI.SECTION_CONTACT}</div>
-          <p class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</p>
-        </div>` : ''}
-        <div class="subject-block" id="teacher-modal-reviews">
-          <div class="section-title">${UI.SECTION_REVIEWS}</div>
-          <p class="text-sm text-muted">${UI.LOADING}</p>
-        </div>
-      </div>
-    </div>
+  const row = (k, v) => `<div class="profile-row"><span class="profile-row-k">${k}</span><span class="profile-row-v">${v}</span></div>`;
+  const subjTags = (t.subjects || []).map(sid => {
+    const s = SUBJECTS.find(x => x.id === sid);
+    return s ? `<span class="profile-tag">${escHtml(s.name)}</span>` : '';
+  }).join('');
+  const gkRows = (t.gaokao_scores || []).map(gs => {
+    const s = SUBJECTS.find(x => x.id === gs.subject);
+    if (!s) return '';
+    const v = gs.score != null ? `${gs.score}/${gs.scale}${UI.SCORE_SCALE_SUFFIX}` : (gs.grade || '');
+    return v ? row(escHtml(s.name), escHtml(v)) : '';
+  }).join('');
+  const hasAny = provName || grade || gender || t.price || t.address || t.intro || subjTags || gkRows;
+  if (!hasAny) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
+  return `<div class="profile-card">
+    ${row(UI.LABEL_RATING, `<span class="profile-rating">${renderStars(t.rating)}<b>${(t.rating || 4).toFixed(1)}</b></span>`)}
+    ${provName ? row(UI.SECTION_REGION, escHtml(provName)) : ''}
+    ${grade ? row(UI.LABEL_GRADE, escHtml(grade)) : ''}
+    ${gender ? row(UI.LABEL_GENDER, escHtml(gender)) : ''}
+    ${t.price ? row(UI.LABEL_PRICE, escHtml(`${t.price}${UI.PRICE_UNIT}`)) : ''}
+    ${t.address ? row(UI.LABEL_ADDRESS, escHtml(t.address)) : ''}
+    ${subjTags ? row(UI.SECTION_SUBJECTS, subjTags) : ''}
+    ${gkRows}
+    ${t.intro ? row(UI.LABEL_INTRO, escHtml(t.intro)) : ''}
+    ${(t.wechat || t.email) ? `<div class="profile-contact-note">${UI.CONTACT_AFTER_SIGN_NOTE}</div>` : ''}
   </div>`;
 }
 
-function renderReviewItems(reviews, t, opts = {}) {
-  const { admin = false } = opts;
+// 卡片③：评价列表 + 评价按钮三态（学生视角：未签约灰禁 / 签约可写 / 已评价可改）
+function renderProfileReviewsCard(reviewsData, t, signed) {
+  const reviews = reviewsData.reviews || [];
+  const mine = reviewsData.mine || null;
+  const isStudentViewer = state.user && state.user.role === 'student';
   const statusTag = r => r.status === 'approved' ? `<span class="tag tag-ok">${UI.STATUS_APPROVED}</span>`
     : r.status === 'rejected' ? `<span class="tag tag-danger">${UI.STATUS_REJECTED}</span>`
     : `<span class="tag tag-warn">${UI.STATUS_PENDING}</span>`;
-  return `<div class="section-title">${UI.SECTION_REVIEWS} (${reviews.length})</div>
-    ${reviews.map(r => `<div class="review-item">
+  const list = reviews.length ? reviews.map(r => `<div class="review-item">
       <div class="review-header">
-        <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)} ${admin ? statusTag(r) : ''}</span>
+        <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)} ${reviewsData.admin ? statusTag(r) : ''}</span>
         <span class="review-date">${fmtDateTime(r.created_at)}</span>
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
-      ${admin ? `<div class="review-admin-actions">
+      ${reviewsData.admin ? `<div class="review-admin-actions">
         ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
         <button type="button" class="btn btn-outline btn-xs" onclick="adminReviewAction(${r.id},'reject',1)">${UI.BTN_REJECT}</button>` : ''}
         <button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
       </div>` : ''}
-    </div>`).join('')}
-    ${!reviews.length ? `<p class="text-sm text-muted">${UI.EMPTY_NO_REVIEWS}</p>` : ''}
-    ${!admin && state.user && state.user.role === 'student' ? (opts.mine ? `
-      <div class="review-mine-note">${UI.MY_REVIEW_PREFIX}${opts.mine.status === 'approved' ? UI.STATUS_APPROVED : opts.mine.status === 'rejected' ? UI.REVIEW_REJECTED_HINT : UI.REVIEW_STATUS_AUDITING}</div>
-      <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id}, null, ${opts.mine.id})">${UI.BTN_EDIT_REVIEW}</button>
-    ` : `
-      <button type="button" class="btn btn-outline btn-sm mt-2" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>
-    `) : ''}`;
+    </div>`).join('') : `<p class="profile-empty">${UI.EMPTY_NO_REVIEWS}</p>`;
+  let action = '';
+  if (!reviewsData.admin && isStudentViewer) {
+    action = mine ? `
+      <div class="review-mine-note">${UI.MY_REVIEW_PREFIX}${mine.status === 'approved' ? UI.STATUS_APPROVED : mine.status === 'rejected' ? UI.REVIEW_REJECTED_HINT : UI.REVIEW_STATUS_AUDITING}</div>
+      <button type="button" class="btn btn-outline btn-sm profile-review-btn" onclick="openReviewModal(${t.user_id}, null, ${mine.id})">${UI.BTN_EDIT_REVIEW}</button>`
+      : signed ? `
+      <button type="button" class="btn btn-primary btn-sm profile-review-btn" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>`
+      : `
+      <button type="button" class="btn btn-outline btn-sm profile-review-btn" disabled>${UI.BTN_WRITE_REVIEW}</button>
+      <p class="profile-review-hint">${UI.REVIEW_LOCKED_HINT}</p>`;
+  }
+  return `<div class="profile-card">
+    <div class="profile-card-title">${UI.SECTION_REVIEWS} (${reviews.length})</div>
+    ${list}${action}
+  </div>`;
 }
 
 // ============================================================
@@ -1088,6 +1214,7 @@ async function submitReview(teacherUserId, reviewId) {
       : await api('/api/reviews', { method: 'POST', body: { teacherUserId, reviewerUserId: state.user.id, rating, comment } });
     closeModal();
     showToast(data.message || UI.SUCCESS_REVIEW_SUBMITTED);
+    if (profilePanelShowing(teacherUserId)) openProfilePanel(teacherUserId); // 面板正展示该教师 → 评价卡片就地刷新（写/改后状态同步）
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
   } finally {
@@ -1163,9 +1290,8 @@ async function adminReviewAction(reviewId, action, fromModal) {
       showToast(action === 'approve' ? UI.SUCCESS_APPROVED : UI.SUCCESS_REJECTED);
     }
     closeModal();
-    if (fromModal && state.adminModalTeacher) {
-      document.getElementById('modal-container').innerHTML = renderTeacherModal(state.adminModalTeacher);
-      loadTeacherReviewsAdmin(state.adminModalTeacher.user_id, teacherModalSeq); // 带上当前弹窗序号，否则守卫必杀、评价栏永卡「加载中」
+    if (fromModal && profilePanelUserId) {
+      openProfilePanel(profilePanelUserId); // 个人信息面板内就地刷新（内部 seq 守卫丢弃在途旧响应）
     } else if (state.page === 'admin-reviews') {
       loadAdminReviews();
     }
@@ -1216,7 +1342,7 @@ function renderDemandCard(d, opts = {}) {
   const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
 
   return `<div class="list-card list-card--demand">
-    ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar')}
+    ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
     <div class="list-card-header">
       <span class="list-card-title">${renderUsername(d.username || '')}${d.status === 'contracted' ? ` <span class="tag tag-ok">${UI.DEMAND_TAG_CONTRACTED}</span>` : ''}</span>
@@ -1282,9 +1408,10 @@ async function loadBrowseDemands() {
   const el = document.getElementById('demands-list');
   el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
   try {
+    const isGuest = !state.user; // 访客教师可浏览公开需求列表；推送卡片与意向操作点了再走登录通路
     const [dData, pData] = await Promise.all([
-      api(`/api/student/demands?teacherUserId=${state.user.id}`),
-      api(`/api/demand-pushes?teacherUserId=${state.user.id}`),
+      api(isGuest ? '/api/student/demands' : `/api/student/demands?teacherUserId=${state.user.id}`),
+      isGuest ? Promise.resolve({ pushes: [] }) : api(`/api/demand-pushes?teacherUserId=${state.user.id}`),
     ]);
     const pushes = pData.pushes || [];
     const demands = dData.demands || [];
@@ -1302,6 +1429,7 @@ async function loadBrowseDemands() {
 
 // 学生把某条需求主动发给指定教师：弹窗列出自己的需求单选
 async function openSendDemandModal(teacherUserId) {
+  if (!ensureAuth()) return;
   const t = state.allTeachers.find(x => x.user_id === teacherUserId);
   const tName = t ? t.username : UI.PUSH_TEACHER_FALLBACK;
   // 每次现拉自己的需求（不用页内缓存）：签约可能在其他页发生，缓存会把已签约需求漏进候选
@@ -2060,6 +2188,7 @@ function enterAbout() {
 // ---- 反馈弹窗：Bug / 建议切换 + 复用发帖 Markdown 编辑器 ----
 let feedbackKind = 'bug';
 function openFeedbackModal(kind) {
+  if (!ensureAuth()) return;
   feedbackKind = kind === 'suggestion' ? 'suggestion' : 'bug';
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
@@ -2170,6 +2299,7 @@ async function resolveAdminFeedback(feedbackId) {
 // 模块3：试课意向（教师提交 / 学生在需求内展开处理）
 // ============================================================
 async function submitIntent(demandId) {
+  if (!ensureAuth()) return; // 访客浏览需求大厅可看卡片，点意向即走登录通路
   try {
     await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: { userId: state.user.id } });
     showToast(UI.INTENT_SUBMITTED_TOAST);
@@ -2218,7 +2348,7 @@ async function refreshIntentsBox(demandId) {
   try {
     const data = await api(`/api/demands/${demandId}/intents`);
     const ts = data.teachers || [];
-    // 缓存意向教师，供「查看」打开教师详情弹窗复用（openTeacherModal 第三数据源）
+    // 缓存意向教师，供个人信息面板复用（findCachedTeacher 第三数据源）
     ts.forEach(t => {
       state.intentTeachers = state.intentTeachers.filter(x => x.user_id !== t.user_id);
       state.intentTeachers.push(t);
@@ -2238,7 +2368,7 @@ function renderIntentTeacherRow(t, demandId) {
   const tag = st === 'accepted' ? `<span class="tag tag-ok">${UI.INTENT_STATUS_ACCEPTED}</span>`
     : st === 'rejected' ? `<span class="tag tag-danger">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn">${UI.INTENT_STATUS_PENDING}</span>`;
   const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
-  const viewBtn = `<button type="button" class="btn btn-outline btn-xs" onclick="openTeacherModal(${t.user_id})">${UI.BTN_VIEW}</button>`;
+  const viewBtn = `<button type="button" class="btn btn-outline btn-xs" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
   const actions = st === 'pending'
     ? `<button type="button" class="btn btn-accent btn-xs" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
        <button type="button" class="btn btn-outline btn-xs" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
@@ -2473,7 +2603,7 @@ function renderAdminUserRow(u, role) {
       <div class="admin-row-meta">${meta} · ${UI.REGISTERED_AT_PREFIX}${fmtDateTime(u.created_at)}</div>
     </div>
     <div class="admin-row-actions">
-      ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs" onclick="openTeacherModal(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
+      ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs" onclick="openProfilePanel(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
       ${u.banned
         ? `<button type="button" class="btn btn-outline btn-xs" onclick="confirmBanUser(${uid}, 0)">${UI.UNBAN}</button>`
         : `<button type="button" class="btn btn-danger btn-xs" onclick="confirmBanUser(${uid}, 1)">${UI.BAN}</button>`}

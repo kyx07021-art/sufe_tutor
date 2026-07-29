@@ -579,9 +579,9 @@ textarea.form-input {
    侧边栏（主页右半同款淡紫）与页面区（米色）仅以颜色为界：无边框线、无投影。
    栏目 hover/active 沿用全站竖条擦入母题（active = 常驻态）。
    ============================================================ */
-/* 顶天立地：内层无顶栏，壳占满视口；侧边栏宽 = 屏幕 1/5（下限 216px 防窄屏挤爆） */
+/* 顶天立地：内层无顶栏，壳占满视口；侧边栏宽 = 屏幕约 1/7.5（较旧版 20vw 收窄 1/3，下限 144px 防窄屏挤爆） */
 .client-shell {
-  display: grid; grid-template-columns: max(216px, 20vw) 1fr;
+  display: grid; grid-template-columns: max(144px, 13.3vw) 1fr;
   height: 100vh; height: 100dvh;
   overflow: hidden;
 }
@@ -609,15 +609,15 @@ textarea.form-input {
 }
 .sidebar-item {
   position: relative; z-index: 1; isolation: isolate;
-  display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 14px;
+  display: grid; grid-template-columns: auto 1fr; align-items: start; gap: 11px;
   width: 100%; text-align: left;
-  padding: 13px 22px;
+  padding: 13px 14px 13px 13px;
   color: var(--ink-3);
   transition: color var(--t-base) var(--ease-out), background-color var(--t-base) var(--ease-out),
               padding var(--t-slow) var(--ease-snap);
 }
 .sidebar-item:hover:not(.active) { background: var(--lilac-2); color: var(--ink); }
-.sidebar-item.active { color: var(--paper); padding: 21px 22px 24px; }
+.sidebar-item.active { color: var(--paper); padding: 21px 14px 24px 13px; }
 /* 序号：主页 entry 同款亮紫；选中时字号额外增大（黑块随之同步长高） */
 .sidebar-item-index {
   font-family: var(--font); font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em;
@@ -651,9 +651,13 @@ textarea.form-input {
 .sidebar-user {
   position: relative; z-index: 1; flex-shrink: 0;
   display: flex; flex-direction: column;
-  background: var(--white); padding: 13px 18px 13px;
+  background: var(--white); padding: 13px 13px;
 }
 .sidebar-user-top { display: flex; align-items: center; gap: 12px; }
+/* 用户块整体可点（登录态 → 个人信息右栏；访客态 → 登录通路）：button 复位为纯容器 */
+.sidebar-user-btn { width: 100%; background: none; border: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.sidebar-user-name--guest { color: var(--muted); font-weight: 700; }
+.avatar--guest { border: 1.5px dashed var(--muted); color: var(--muted); background: none; }
 .sidebar-user-avatar { width: 42px; height: 42px; font-size: 1.15rem; }
 .sidebar-user-text { min-width: 0; }
 .sidebar-user-name { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; overflow-wrap: anywhere; }
@@ -1033,7 +1037,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
     width: 64px; padding-top: 48px; /* 给顶部箭头让位 */
     transition: width .32s var(--ease-snap);
   }
-  body.sidebar-open .client-sidebar { width: 264px; }
+  body.sidebar-open .client-sidebar { width: 220px; }
   .sidebar-scroll { padding-top: 4px; }
   /* 窄栏形态：条目只剩居中数字（黑色选中块照常停留），标签/简介/邀请/网格隐藏，用户块只露头像 */
   .sidebar-nav { gap: 10px; }
@@ -1045,7 +1049,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .sidebar-user-avatar { width: 38px; height: 38px; font-size: 1.05rem; }
   .sidebar-close { display: none; }
   /* 展开形态：恢复完整布局（宽度宽度过渡，内容淡入） */
-  body.sidebar-open .sidebar-item { grid-template-columns: auto 1fr; justify-items: stretch; padding: 13px 22px; }
+  body.sidebar-open .sidebar-item { grid-template-columns: auto 1fr; justify-items: stretch; padding: 13px 14px; }
   body.sidebar-open .sidebar-item.active { padding: 17px 22px 19px; }
   body.sidebar-open .sidebar-item-body { display: flex; animation: fade-in .22s ease .08s both; }
   body.sidebar-open .sidebar-invite { display: block; }
@@ -1104,6 +1108,86 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   font-family: var(--font); font-weight: 700; letter-spacing: -.02em; user-select: none;
 }
 .avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* 头像入口（个人信息右栏）：聚焦动效 = 悬停放大 + 墨色描边环。
+   唯一豁免：账户设置的头像预览（settings-avatar 不加 avatar--link） */
+.avatar-btn { display: inline-flex; cursor: pointer; }
+.avatar--link { transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out); }
+.avatar-btn:hover .avatar--link,
+.avatar-btn:focus-visible .avatar--link { transform: scale(1.09); box-shadow: 0 0 0 3px rgba(17,17,20,.16); }
+
+/* ============================================================
+   个人信息右栏（openProfilePanel）：桌面端右侧 25vw 滑入，内容超长可滚动；
+   移动端定宽浮层 + 背景变暗。卡片白块直角、行间细线，账簿式对齐（title 最左、
+   信息自固定 px 处起）。z 150 低于弹窗(200)：评价表单弹窗可覆于其上。
+   ============================================================ */
+.profile-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 150;
+  width: max(300px, 25vw);
+  display: flex; flex-direction: column;
+  background: var(--paper);
+  border-left: 1px solid var(--line);
+  box-shadow: -14px 0 44px rgba(17,17,20,.13);
+  transform: translateX(105%);
+  transition: transform .34s var(--ease-snap);
+}
+body.profile-panel-open .profile-panel { transform: none; }
+.profile-panel-backdrop {
+  position: fixed; inset: 0; z-index: 145;
+  background: rgba(17,17,20,.42);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s var(--ease-out);
+  display: none; /* 桌面端右栏视作屏幕延伸，不暗背景；仅移动端启用 */
+}
+.profile-panel-head {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 18px 13px;
+  border-bottom: 1px solid var(--line);
+}
+.profile-panel-title { font-size: 1.02rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
+.profile-panel-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 16px 18px 30px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.profile-loading { padding: 44px 0; text-align: center; color: var(--muted); font-size: .85rem; }
+.profile-card { background: var(--white); border: 1px solid var(--line); padding: 16px; }
+.profile-card-title { margin-bottom: 10px; font-size: .78rem; font-weight: 800; letter-spacing: .05em; color: var(--ink); }
+.profile-empty { padding: 6px 0; font-size: .78rem; color: var(--muted); }
+
+/* 卡片①：头像 + 用户名 + 角色；已签约 → 头像右侧绿色小卡 */
+.profile-id-top { display: flex; align-items: center; gap: 12px; }
+.profile-avatar { width: 62px; height: 62px; font-size: 1.55rem; flex-shrink: 0; }
+.profile-signed-tag {
+  background: #187a4b; color: #fff;
+  font-size: .66rem; font-weight: 700; letter-spacing: .08em;
+  padding: 4px 9px;
+}
+.profile-id-name { margin-top: 12px; font-size: 1.12rem; font-weight: 800; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.profile-id-role { margin-top: 4px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .14em; }
+
+/* 卡片②：账簿行 —— title 最左，信息自固定 78px 处统一开始，逐项成行 */
+.profile-row { display: grid; grid-template-columns: 70px 1fr; column-gap: 10px; padding: 8px 0; border-top: 1px solid var(--paper-3); }
+.profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
+.profile-row-k { padding-top: 2px; font-size: .73rem; font-weight: 700; color: var(--muted); }
+.profile-row-v { font-size: .84rem; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
+.profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: 3px 9px; border: 1px solid var(--line); font-size: .72rem; font-weight: 600; color: var(--ink); }
+.profile-rating { display: inline-flex; align-items: center; gap: 6px; }
+.profile-rating b { font-size: .8rem; }
+.profile-contact-note { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--paper-3); font-size: .7rem; color: var(--muted); }
+
+/* 卡片③：评价按钮三态（未签约灰禁 / 签约可写 / 已评价可改） */
+.profile-review-btn { margin-top: 10px; }
+.profile-review-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.profile-review-hint { margin-top: 8px; font-size: .72rem; line-height: 1.5; color: var(--muted); }
+.profile-card .review-mine-note { margin-top: 10px; }
+
+/* 移动端：定宽浮层 + 背景变暗（桌面 25vw 在窄屏过窄，改固定 px） */
+@media (max-width: 860px) {
+  .profile-panel { width: min(86vw, 340px); box-shadow: -8px 0 30px rgba(17,17,20,.22); }
+  .profile-panel-backdrop { display: block; }
+  body.profile-panel-open .profile-panel-backdrop { opacity: 1; pointer-events: auto; }
+}
 
 /* 学生需求卡：头像占与教师卡同宽的左区，卡身整体右移 */
 .list-card--demand { display: flex; gap: 20px; align-items: flex-start; }

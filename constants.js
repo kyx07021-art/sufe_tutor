@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.12.1',
+  APP_VERSION: '0.13.0',
 
   // ============================================================
   // 业务数据
@@ -275,6 +275,25 @@ globalThis.APP_CONSTANTS = {
     DEACTIVATE_FINAL: '最终确认：注销后账户与个人数据不可恢复，确定继续吗？',
     DEACTIVATE_DONE_TOAST: '账户已注销',
     DEACTIVATED_USER_PREFIX: '已注销用户',
+
+    // 访客模式：主页按钮直达客户端（未登录态）；需要身份的操作统一经 ensureAuth 导向特制登录页，登录后自动返回原页面
+    GUEST_NOT_LOGGED_IN: '未登录',
+    GUEST_TAP_TO_LOGIN: '点击登录以使用全部功能',
+    AUTH_LOGIN_TITLE: '欢迎回来',
+    AUTH_LOGIN_SUB: '登录你的账户以继续使用',
+    AUTH_LOGIN_TITLE_GUEST: '登录以使用更多功能',
+    AUTH_LOGIN_SUB_GUEST: '登录后将自动返回你刚才所在的页面',
+
+    // 个人信息右栏（取代旧教师详情弹窗：卡片①身份②教师资料③评价；已签约绿色标记；账簿式对齐布局）
+    PROFILE_PANEL_TITLE: '个人信息',
+    PROFILE_SIGNED_TAG: '已签约',
+    PROFILE_EMPTY_TEACHER: '这位老师还没有填写资料',
+    REVIEW_LOCKED_HINT: '与这位老师签约后，即可写下你的评价',
+    LABEL_GRADE: '年级',
+    LABEL_GENDER: '性别',
+    LABEL_PRICE: '报价',
+    LABEL_INTRO: '简介',
+    LABEL_GAOKAO_SCORES: '高考成绩',
     CONTRACT_STATUS_PENDING: '草案待确认',
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',
@@ -361,11 +380,11 @@ globalThis.APP_CONSTANTS = {
     // 侧边栏页签标题
     PAGE_MY_DEMANDS: '我的需求',
     PAGE_BROWSE_TEACHERS: '浏览教师',
-    PAGE_MY_CHATS: '我的沟通',
+    PAGE_MY_CHATS: '我的会话',
     PAGE_BROWSE_DEMANDS: '需求大厅',
     PAGE_RESOURCE_SHARE: '资料共享',
     PAGE_EDIT_PROFILE: '个人资料',
-    PAGE_TITLE_EDIT_PROFILE: '编辑教师信息', // 教师资料页顶部大标题（index.html 静态占位，进页时按此注入）
+    PAGE_TITLE_EDIT_PROFILE: '编辑个人资料',
     PAGE_ADMIN_STATS: '统计',
     PAGE_ADMIN_STUDENTS: '学生管理',
     PAGE_ADMIN_TEACHERS: '教师管理',

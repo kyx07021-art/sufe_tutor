@@ -10,7 +10,7 @@
 import { initDb } from './server/db.js';
 import { json, error, MSG, bindCoreEnv } from './server/core.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
-import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount } from './server/routes-auth.js';
+import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
@@ -77,6 +77,8 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/auth/me' && method === 'GET') return await handleAuthMe(db, req);
   if (p === '/api/user/avatar' && method === 'POST') return await handleSaveAvatar(db, body, req);
   if (p === '/api/user/deactivate' && method === 'POST') return await handleDeactivateAccount(db, body, req);
+  const userPublic = p.match(/^\/api\/users\/(\d+)$/);
+  if (userPublic && method === 'GET') return await handleGetUserPublic(db, parseInt(userPublic[1]));
 
   // 管理员
   if (p === '/api/admin/check' && method === 'GET') return await handleAdminCheck(db, req);

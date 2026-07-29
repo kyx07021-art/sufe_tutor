@@ -97,6 +97,7 @@ function syncChatPill() {
 function chatPeerOf(c) {
   const isTeacherViewer = state.user && state.user.role === 'teacher';
   return {
+    id: isTeacherViewer ? c.student_user_id : c.teacher_user_id, // 个人信息右栏入口用
     name: isTeacherViewer ? c.student_name : c.teacher_name,
     role: isTeacherViewer ? UI.ROLE_STUDENT : UI.ROLE_TEACHER,
     avatar: isTeacherViewer ? c.student_avatar : c.teacher_avatar,
@@ -132,7 +133,7 @@ function renderConvItem(c) {
   const time = fmtChatTime(c.last_at || c.created_at);
   return `<button type="button" class="conv-item${c.id === chatConvId ? ' active' : ''}" data-conv-id="${c.id}" onclick="openConversation(${c.id})">
     ${(c.unread_count || 0) > 0 ? `<span class="conv-unread-dot" data-unread-dot="${c.id}"></span>` : ''}
-    ${renderAvatarHtml(peer.avatar, peer.name, 'conv-avatar')}
+    ${renderAvatarHtml(peer.avatar, peer.name, 'conv-avatar', peer.id)}
     <span class="conv-item-top">
       <span class="conv-item-name">${renderUsername(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
       <span class="conv-item-role">${peer.role}</span>
@@ -223,6 +224,11 @@ function renderChatFrame(conv) {
         <span class="chat-peer-tag">${peer.role}</span>
         ${conv && conv.demand_display_id ? `<span class="chat-head-demand">${UI.CHAT_DEMAND_PREFIX}${String(conv.demand_display_id).padStart(4, '0')}</span>` : ''}
       </div>
+      ${peer.id ? `<button type="button" class="chat-peer-profile-btn" title="${UI.PROFILE_PANEL_TITLE}" onclick="openProfilePanel(${peer.id})">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="3.6"/><path d="M4.6 19.4c1.6-3.3 4.2-5 7.4-5s5.8 1.7 7.4 5"/>
+        </svg>
+      </button>` : ''}
     </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small"><p>${UI.LOADING}</p></div></div>
     <div class="chat-drop-hint hidden" id="chat-drop-hint">${UI.CHAT_DROP_HINT}</div>

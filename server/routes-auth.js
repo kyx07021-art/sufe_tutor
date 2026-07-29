@@ -62,6 +62,14 @@ export async function handleCheckUsername(db, url) {
   return json(user ? { exists: true, role: user.role } : { exists: false });
 }
 
+// GET /api/users/:id —— 公开名片（个人信息右栏的兜底数据源）：仅用户名/角色/头像三件，
+// 墓碑用户名原样返回（前端灰斜体渲染）；被封禁且未注销的账户视同不存在（不透露封禁态）
+export async function handleGetUserPublic(db, userId) {
+  const user = await dbFindUserById(db, userId);
+  if (!user || (user.banned && !user.deactivated)) return error(MSG.USER_NOT_FOUND, 404);
+  return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' } });
+}
+
 // POST /api/user/deactivate —— 注销账户：用户名墓碑化（「已注销用户#id」，后缀避 UNIQUE 冲突）+
 // 凭证清空 + 单方关联数据全删（档案/通知/反馈/帖子/点赞/暂存附件）；需求/会话/合同/评价等
 // 双方数据保留，JOIN username 处自然显示墓碑。后期接入短信验证（confirmDangerOtp，现恒通过）

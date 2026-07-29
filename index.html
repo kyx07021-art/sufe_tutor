@@ -92,8 +92,8 @@
     <div class="auth-view hidden" id="view-login">
       <div class="auth-card">
         <div class="auth-header">
-          <h2>欢迎回来</h2>
-          <p>登录你的账户以继续使用</p>
+          <h2 id="login-title">欢迎回来</h2>
+          <p id="login-subtitle">登录你的账户以继续使用</p>
         </div>
         <div id="login-alert"></div>
         <form onsubmit="handleLogin(event)">
@@ -112,7 +112,7 @@
             <span>记住登录状态，下次自动登录</span>
           </label>
           <div class="form-actions">
-            <button type="button" class="btn btn-outline" onclick="showView('landing')">返回</button>
+            <button type="button" class="btn btn-outline" onclick="authGoBack()">返回</button>
             <button type="submit" class="btn btn-primary" id="login-submit">登录</button>
           </div>
         </form>
@@ -432,6 +432,16 @@
 
   <!-- Modal container -->
   <div id="modal-container"></div>
+
+  <!-- 个人信息右栏：桌面端右侧 25vw 滑入，移动端定宽浮层 + 背景变暗（app.js openProfilePanel 填充内容，标题按常量注入） -->
+  <div class="profile-panel-backdrop" onclick="closeProfilePanel()" aria-hidden="true"></div>
+  <aside class="profile-panel" id="profile-panel" aria-label="个人信息">
+    <div class="profile-panel-head">
+      <span class="profile-panel-title" id="profile-panel-title">个人信息</span>
+      <button type="button" class="btn btn-ghost btn-icon" onclick="closeProfilePanel()" aria-label="关闭">✕</button>
+    </div>
+    <div class="profile-panel-body" id="profile-panel-body"></div>
+  </aside>
 
   <script src="/constants.js"></script>
   <script src="/region-data.js"></script>

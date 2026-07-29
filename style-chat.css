@@ -102,7 +102,15 @@
   padding: 12px 18px;
   background: var(--paper); /* 与会话列表同底色，输入区亦 --paper，仅消息区点阵白 */
 }
-.chat-head-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.chat-head-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1; }
+/* 右上角人头肩线框：会话对方的个人信息右栏入口（悬停擦墨） */
+.chat-peer-profile-btn {
+  flex-shrink: 0; margin-left: auto;
+  background: none; border: none; padding: 5px; cursor: pointer;
+  color: var(--ink-3); display: inline-flex;
+  transition: color var(--t-fast) var(--ease-out), transform var(--t-fast) var(--ease-out);
+}
+.chat-peer-profile-btn:hover { color: var(--ink); transform: translateY(-1px); }
 .chat-peer-name {
   min-width: 0;
   font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);

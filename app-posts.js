@@ -110,6 +110,7 @@ function renderPostCard(p, i) {
 // ============================================================
 const postLikeSeq = {}; // 每帖独立序号：双击连发时乱序到达的旧响应丢弃，UI 态以最后一次为准
 async function togglePostLike(id) {
+  if (!ensureAuth()) return; // 访客可浏览广场，点赞需登录
   const seq = (postLikeSeq[id] = (postLikeSeq[id] || 0) + 1);
   try {
     const data = await api(`/api/posts/${id}/like`, { method: 'POST', body: { userId: state.user.id } });
@@ -133,6 +134,7 @@ async function togglePostLike(id) {
 // 发布弹窗（标题 + Markdown 工具条 + 实时预览）
 // ============================================================
 function openPostEditor() {
+  if (!ensureAuth()) return;
   // 防误触：点遮罩不关（编辑成本高，只能 ✕ / 取消关闭）
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
