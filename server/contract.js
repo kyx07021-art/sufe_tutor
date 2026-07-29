@@ -169,12 +169,14 @@ export async function handleCreateContract(db, body, req) {
   const rate = Math.max(0, parseInt(body.hourlyRate) || 0);
   const schedule = String(body.schedule || '').slice(0, 500);
   const location = String(body.location || '').slice(0, 200);
-  // 合同绑定需求：起草时显式选择（缺省回落到会话自带的需求）
-  const demandId = parseInt(body.demandId) || conv.demand_id || null;
+  // 合同绑定需求：起草时显式选择（缺省回落到会话自带的需求）；
+  // 后端硬校验：绑定的需求必须属于会话学生方（防越权绑他人需求），统一入口把关
+  let demandId = parseInt(body.demandId) || conv.demand_id || null;
   let demandNo = '';
   if (demandId) {
-    const dm = await dbGet(db, 'SELECT display_id FROM student_demands WHERE id=?', [demandId]);
-    if (dm && dm.display_id) demandNo = String(dm.display_id).padStart(4, '0');
+    const dm = await dbGet(db, 'SELECT user_id, display_id FROM student_demands WHERE id=?', [demandId]);
+    if (!dm || dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
+    if (dm.display_id) demandNo = String(dm.display_id).padStart(4, '0');
   }
   const md = buildContractMd({
     teacherName: conv.teacher_name, studentName: conv.student_name,

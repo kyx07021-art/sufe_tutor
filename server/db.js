@@ -317,6 +317,20 @@ export async function initDb(db) {
   for (const r of unnumbered) {
     await dbRun(db, 'UPDATE student_demands SET display_id=(SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands) WHERE id=?', [r.id]);
   }
+
+  // 存量会话需求绑定修复：旧会话 demand_id 为空 → 从已接受意向 / 已接受推送反查回填（幂等，仅填空不覆写）
+  await dbRun(db, `UPDATE conversations SET demand_id = (
+      SELECT di.demand_id FROM demand_intents di
+      WHERE di.teacher_user_id = conversations.teacher_user_id AND di.status='accepted' AND di.demand_id IS NOT NULL
+      ORDER BY di.id DESC LIMIT 1)
+    WHERE demand_id IS NULL AND EXISTS (
+      SELECT 1 FROM demand_intents di WHERE di.teacher_user_id = conversations.teacher_user_id AND di.status='accepted')`);
+  await dbRun(db, `UPDATE conversations SET demand_id = (
+      SELECT dp.demand_id FROM demand_pushes dp
+      WHERE dp.teacher_user_id = conversations.teacher_user_id AND dp.status='accepted' AND dp.demand_id IS NOT NULL
+      ORDER BY dp.id DESC LIMIT 1)
+    WHERE demand_id IS NULL AND EXISTS (
+      SELECT 1 FROM demand_pushes dp WHERE dp.teacher_user_id = conversations.teacher_user_id AND dp.status='accepted')`);
   await ensureColumns(db, 'demand_intents', [
     ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
     ['resolved_at', 'DATETIME'],
@@ -705,8 +719,13 @@ export async function dbUpsertConversation(db, studentUserId, teacherUserId, dem
     'INSERT OR IGNORE INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)',
     [studentUserId, teacherUserId, demandId || null]);
   const row = await dbGet(db,
-    'SELECT id FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
+    'SELECT id, demand_id FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
     [studentUserId, teacherUserId]);
+  // INSERT OR IGNORE 命中既有会话时不更新任何列——旧会话 demand_id 为空必须回填，
+  // 否则教师起草合同选不到需求（会话需求绑定丢失事故根因）
+  if (row && !row.demand_id && demandId) {
+    await dbRun(db, 'UPDATE conversations SET demand_id=? WHERE id=?', [demandId, row.id]);
+  }
   return row?.id || null;
 }
 

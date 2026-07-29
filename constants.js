@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.11.0',
+  APP_VERSION: '0.11.1',
 
   // ============================================================
   // 业务数据
@@ -165,6 +165,7 @@ globalThis.APP_CONSTANTS = {
     PUSH_MODAL_TITLE_PREFIX: '把需求发给 ',
     PUSH_MODAL_HINT: '选一条需求发送给这位老师，对方会在需求大厅优先看到它。',
     EMPTY_NO_MY_DEMANDS_SHORT: '你还没有需求，先去「我的需求」发布一条吧。',
+    PUSH_NO_AVAILABLE_DEMANDS: '暂无可发送的需求（已签约的需求会自动成交下架）。',
     BTN_SEND: '发送',
     VALIDATE_SELECT_DEMAND: '请先选择一条需求',
     PUSH_SENT_FALLBACK: '需求已发送',

@@ -1295,11 +1295,11 @@ async function loadBrowseDemands() {
 async function openSendDemandModal(teacherUserId) {
   const t = state.allTeachers.find(x => x.user_id === teacherUserId);
   const tName = t ? t.username : UI.PUSH_TEACHER_FALLBACK;
-  let demands = state.myDemands;
-  if (!demands.length) {
-    try { demands = (await api(`/api/student/demands?userId=${state.user.id}`)).demands || []; state.myDemands = demands; }
-    catch { demands = []; }
-  }
+  // 每次现拉自己的需求（不用页内缓存）：签约可能在其他页发生，缓存会把已签约需求漏进候选
+  let demands = [];
+  try { demands = (await api(`/api/student/demands?userId=${state.user.id}`)).demands || []; state.myDemands = demands; }
+  catch { demands = state.myDemands; }
+  demands = demands.filter(d => d.status !== 'contracted'); // 已签约需求已成交，不可再推送
   const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
     const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade || '';
     const subs = (d.target_subjects||[]).map(id=>SUBJECTS.find(s=>s.id===id)?.name||id).join('、');
@@ -1308,7 +1308,7 @@ async function openSendDemandModal(teacherUserId) {
     return `<label class="push-pick-item"><input type="radio" name="push-demand" value="${d.id}">
       <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
       <span class="push-pick-sub">${[prov, method].filter(Boolean).map(escHtml).join(' · ')}</span></span></label>`;
-  }).join('')}</div>` : `<p class="text-sm text-muted">${UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
+  }).join('')}</div>` : `<p class="text-sm text-muted">${state.myDemands.length ? UI.PUSH_NO_AVAILABLE_DEMANDS : UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal" style="max-width:480px;">
       <div class="modal-header"><h2>${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
