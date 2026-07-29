@@ -670,6 +670,7 @@ async function validateInviteAndRegister() {
 }
 
 function handleLogout() {
+  if (state.authToken) api('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {}); // 真登出：吊销当前会话（fire-and-forget，头部在 api 内同步取自未清的 state.authToken）
   if (state.inviteTimerId) clearInterval(state.inviteTimerId);
   stopBadgePoll();
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 模块4：登出即停聊天轮询（兼清暂存附件）
@@ -1607,8 +1608,52 @@ function enterAccountSettings() {
       ${row(UI.SETTINGS_PHONE, UI.SETTINGS_UNBOUND, true)}
       ${row(UI.SETTINGS_EMAIL, UI.SETTINGS_UNBOUND, true)}
     </div>
+    <div class="settings-devices">
+      <div class="settings-label">${UI.SETTINGS_DEVICES}</div>
+      <div class="settings-hint">${UI.SETTINGS_DEVICES_HINT}</div>
+      <div id="settings-devices-list" class="settings-devices-list"><div class="text-muted">${UI.LOADING}</div></div>
+    </div>
     <button type="button" class="btn btn-danger settings-logout" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
+  loadDeviceSessions();
+}
+
+// 登录设备管理：拉本人会话列表逐端展示（token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。
+// 页签已切走则丢弃结果（防异步串号，同教师弹窗评价教训）
+async function loadDeviceSessions() {
+  const box = document.getElementById('settings-devices-list');
+  if (!box) return;
+  try {
+    const data = await api('/api/auth/sessions');
+    if (state.page !== 'account-settings') return;
+    const sessions = data.sessions || [];
+    box.innerHTML = sessions.length
+      ? sessions.map(renderDeviceRow).join('')
+      : `<div class="text-muted">${UI.LOADING}</div>`; // 至少有当前设备，空列表几乎不可能
+  } catch {
+    const b = document.getElementById('settings-devices-list');
+    if (b && state.page === 'account-settings') b.innerHTML = `<div class="text-muted">${UI.ERROR_REQUEST_FAILED}</div>`;
+  }
+}
+function renderDeviceRow(s) {
+  const masked = '······' + String(s.token || '').slice(-6);
+  return `<div class="device-row">
+    <div class="device-info">
+      <div class="device-label">${escHtml(s.label || UI.DEVICE_UNKNOWN)}${s.current ? ` <span class="device-current">${UI.DEVICE_CURRENT}</span>` : ''}</div>
+      <div class="device-meta">${masked} · ${UI.DEVICE_LOGIN_AT}${fmtDateTime(s.created_at)}</div>
+    </div>
+    ${s.current ? '' : `<button type="button" class="btn btn-outline btn-xs" onclick="revokeDeviceSession('${s.token}')">${UI.BTN_DEVICE_LOGOUT}</button>`}
+  </div>`;
+}
+function revokeDeviceSession(token) {
+  openConfirmModal(UI.DEVICE_REVOKE_CONFIRM, async () => {
+    try {
+      const data = await api('/api/auth/sessions/revoke', { method: 'POST', body: { token } });
+      showToast(UI.DEVICE_REVOKE_DONE);
+      if (data.revokedSelf) { handleLogout(); return; } // 踢的是自己 → 本地登出
+      loadDeviceSessions();
+    } catch (err) { showToast(err.message); }
+  });
 }
 
 // 注销账户：两级确认（数据影响说明 → 最终危险确认）。后端抹单方数据、墓碑化用户名，
@@ -2463,7 +2508,7 @@ function renderIntentTeacherRow(t, demandId) {
   </div>`;
 }
 
-// 学生同意 / 拒绝意向；同意后自动建立会话，可前往「我的沟通」
+// 学生同意 / 拒绝意向；同意后自动建立会话，可前往「我的会话」
 async function resolveIntent(intentId, action, demandId) {
   try {
     await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { action } });

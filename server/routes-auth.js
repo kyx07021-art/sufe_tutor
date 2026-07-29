@@ -2,7 +2,7 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, dbRun, dbGet, issueAuthToken, authUser, confirmDangerOtp, MSG, INVITE_GATE_ENABLED } from './core.js';
+import { json, error, hashPassword, verifyPassword, dbRun, dbGet, issueAuthToken, authUser, confirmDangerOtp, deviceLabelFromUA, listSessions, revokeSession, MSG, INVITE_GATE_ENABLED } from './core.js';
 import { dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
@@ -26,7 +26,7 @@ export async function handleRegister(db, body, req) {
   const { hash, salt } = await hashPassword(password);
   const userId = await dbCreateUser(db, username, hash, salt, role);
   if (needsInvite) await dbUseInviteCode(db, inviteCode, userId);
-  const authToken = await issueAuthToken(db, userId);
+  const authToken = await issueAuthToken(db, userId, deviceLabelFromUA(req && req.headers.get('user-agent')));
   logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
     actorRole: role, entity: 'user', entityId: userId, detail: { role, via: needsInvite ? 'invite' : 'direct' }, req });
   return json({ user: { id: userId, username, role, avatar: '' }, authToken, message: MSG.REGISTER_SUCCESS });
@@ -48,7 +48,7 @@ export async function handleLogin(db, body, req) {
     return error(MSG.ACCOUNT_BANNED, 403);
   }
   if (user.deactivated) return error(MSG.ACCOUNT_DEACTIVATED, 403);
-  const authToken = await issueAuthToken(db, user.id);
+  const authToken = await issueAuthToken(db, user.id, deviceLabelFromUA(req && req.headers.get('user-agent')));
   logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, req });
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' }, authToken });
@@ -81,6 +81,7 @@ export async function handleDeactivateAccount(db, body, req) {
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
   await dbRun(db, `UPDATE users SET username=?, password_hash='', salt='', avatar='', banned=1, deactivated=1 WHERE id=?`,
     [tombstone, me.id]);
+  await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=?', [me.id]); // 注销即吊销全部设备的登录态
   await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [me.id]);
   await dbRun(db, 'DELETE FROM notifications WHERE user_id=?', [me.id]);
   await dbRun(db, 'DELETE FROM feedbacks WHERE user_id=?', [me.id]);
@@ -107,5 +108,40 @@ export async function handleSaveAvatar(db, body, req) {
   if (!avatar.startsWith('data:image/') || avatar.length > 20000) return error(MSG.AVATAR_INVALID);
   await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, me.id]);
   logEvent(db, { action: 'user.avatar.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
+  return json({ ok: true });
+}
+
+// 账户设置 · 登录设备管理：列出本人全部会话（新→旧），逐条标注 current 供前端区分「当前设备」。
+// token 整枚返回——属账户本人数据，前端凭此比对当前设备并发起逐端退登
+export async function handleListSessions(db, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const current = req.headers.get('X-Auth-Token');
+  const sessions = await listSessions(db, me.id);
+  return json({ sessions: sessions.map(s => ({ token: s.token, label: s.label, created_at: s.created_at, expires_at: s.expires_at, current: s.token === current })) });
+}
+
+// 逐端退登：删除本人名下指定会话；命中与否经 changes 判定。吊销的若是当前设备（踢自己），
+// 前端据 revokedSelf 随后本地登出
+export async function handleRevokeSession(db, body, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const token = String(body.token || '');
+  if (!token) return error(MSG.INVALID_PARAMS);
+  const ok = await revokeSession(db, me.id, token);
+  if (!ok) return error(MSG.SESSION_NOT_FOUND, 404);
+  logEvent(db, { action: 'auth.session.revoke', actorUserId: me.id, entity: 'user', entityId: me.id,
+    detail: { self: token === req.headers.get('X-Auth-Token') }, req });
+  return json({ ok: true, revokedSelf: token === req.headers.get('X-Auth-Token') });
+}
+
+// 退出登录：吊销当前会话（此前登出仅清本地、令牌 7 天内仍有效的软登出，改为真登出）。
+// fire-and-forget：即便令牌已失效也返回 ok，不阻断前端清理
+export async function handleLogout(db, req) {
+  const me = await authUser(db, req);
+  if (me) {
+    await revokeSession(db, me.id, req.headers.get('X-Auth-Token'));
+    logEvent(db, { action: 'auth.logout', actorUserId: me.id, entity: 'user', entityId: me.id, req });
+  }
   return json({ ok: true });
 }

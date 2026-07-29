@@ -47,6 +47,14 @@ export async function initDb(db) {
       role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
       banned INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT (datetime('now','localtime')))`),
+    // 登录设备（多端会话）：每枚登录令牌一行；账户设置「登录设备」逐端展示与退登。
+    // 身份解析 authUser 一律 JOIN 本表（core.js），users.auth_token 旧列仅作存量迁移来源
+    db.prepare(`CREATE TABLE IF NOT EXISTS auth_sessions (
+      token TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+      label TEXT NOT NULL DEFAULT '',
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      expires_at DATETIME NOT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS teacher_profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
       grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
@@ -322,6 +330,12 @@ export async function initDb(db) {
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
     ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"]]);
+
+  // 存量单令牌迁移：users.auth_token → auth_sessions（主键幂等，老登录不被踢下线）。
+  // 仅搬未过期且非空的旧令牌，label 记「历史登录设备」
+  await dbRun(db, `INSERT OR IGNORE INTO auth_sessions (token, user_id, label, expires_at)
+    SELECT auth_token, id, '历史登录设备', token_expires FROM users
+    WHERE auth_token IS NOT NULL AND auth_token != '' AND token_expires IS NOT NULL AND token_expires != ''`);
 
   // 存量需求编号补发：按 id（生成顺序）依次取号，四位展示自 0001 起；已编号跳过（幂等）
   const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');

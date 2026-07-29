@@ -10,7 +10,7 @@
 import { initDb } from './server/db.js';
 import { json, error, MSG, bindCoreEnv } from './server/core.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
-import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic } from './server/routes-auth.js';
+import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
@@ -75,6 +75,9 @@ async function routeApi(db, p, method, body, url, req) {
   if (p === '/api/auth/login' && method === 'POST') return await handleLogin(db, body, req);
   if (p === '/api/auth/check' && method === 'GET') return await handleCheckUsername(db, url);
   if (p === '/api/auth/me' && method === 'GET') return await handleAuthMe(db, req);
+  if (p === '/api/auth/logout' && method === 'POST') return await handleLogout(db, req);
+  if (p === '/api/auth/sessions' && method === 'GET') return await handleListSessions(db, req);
+  if (p === '/api/auth/sessions/revoke' && method === 'POST') return await handleRevokeSession(db, body, req);
   if (p === '/api/user/avatar' && method === 'POST') return await handleSaveAvatar(db, body, req);
   if (p === '/api/user/deactivate' && method === 'POST') return await handleDeactivateAccount(db, body, req);
   const userPublic = p.match(/^\/api\/users\/(\d+)$/);

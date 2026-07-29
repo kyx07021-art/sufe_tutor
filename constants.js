@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.15.3',
+  APP_VERSION: '0.15.4',
 
   // ============================================================
   // 业务数据
@@ -175,7 +175,7 @@ globalThis.APP_CONSTANTS = {
     BTN_PUSH_REJECT: '暂时没空',
     BTN_PUSH_ACCEPT: '确认试课意向',
     PUSH_SECTION_TITLE: '学生主动发给你的需求',
-    PUSH_ACCEPTED_TOAST: '已确认，可在「我的沟通」开始对话',
+    PUSH_ACCEPTED_TOAST: '已确认，可在「我的会话」开始对话',
     PUSH_REJECTED_TOAST: '已谢绝',
     // 系统通知模板（拒绝等节点发给对方的通知；{subjects} 由服务端替换为科目名）
     NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
@@ -322,7 +322,7 @@ globalThis.APP_CONSTANTS = {
     MODIFY_CONTRACT_TITLE: '修改合同内容',
     CONFIRM_SIGN: '确认签约后不可单方撤销（测试版以二次确认代替短信验证）。确定确认签约吗？',
     CONFIRM_CANCEL_CONTRACT: '取消后合同删除并通知对方（会话保留）。确定取消签约吗？',
-    CONTRACT_EMPTY_LIST: '暂无合同——可在「我的沟通」的聊天窗内起草',
+    CONTRACT_EMPTY_LIST: '暂无合同——可在「我的会话」的聊天窗内起草',
     CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',
     CONTRACT_CANCELLED_TOAST: '已取消签约',
     CONTRACT_SIGNED_TOAST: '签约完成',
@@ -436,9 +436,9 @@ globalThis.APP_CONSTANTS = {
     INTENT_STATUS_ACCEPTED: '已同意',
     INTENT_STATUS_REJECTED: '已拒绝',
     EMPTY_NO_INTENTS: '暂无教师意向',
-    INTENT_ACCEPTED_TOAST: '已同意，可在「我的沟通」中开始对话',
-    INTENT_ACCEPTED_NOTIFY: '学生已同意你的试课意向，会话已建立，请前往「我的沟通」查看详情',
-    PUSH_ACCEPTED_NOTIFY: '教师已确认你发送的需求，会话已建立，请前往「我的沟通」查看详情',
+    INTENT_ACCEPTED_TOAST: '已同意，可在「我的会话」中开始对话',
+    INTENT_ACCEPTED_NOTIFY: '学生已同意你的试课意向，会话已建立，请前往「我的会话」查看详情',
+    PUSH_ACCEPTED_NOTIFY: '教师已确认你发送的需求，会话已建立，请前往「我的会话」查看详情',
     INTENT_REJECTED_TOAST: '已拒绝该意向',
 
     // 评价补充
@@ -524,6 +524,15 @@ globalThis.APP_CONSTANTS = {
     TOAST_COMING_SOON: '该功能暂未开放，敬请期待',
     BTN_LOGOUT: '退出登录',
     CONFIRM_LOGOUT: '确定要退出当前账户吗？',
+    // 登录设备管理（账户设置）
+    SETTINGS_DEVICES: '登录设备',
+    SETTINGS_DEVICES_HINT: '以下是登录过此账户的设备，可让其他设备下线。',
+    DEVICE_CURRENT: '当前设备',
+    DEVICE_UNKNOWN: '未知设备',
+    DEVICE_LOGIN_AT: '登录于 ',
+    BTN_DEVICE_LOGOUT: '下线',
+    DEVICE_REVOKE_CONFIRM: '确定要让该设备退出登录吗？该设备上的会话将立即失效。',
+    DEVICE_REVOKE_DONE: '该设备已下线',
 
     // 表单标签与占位符
     LABEL_PROVINCE: '省份',

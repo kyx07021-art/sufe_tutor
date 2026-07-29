@@ -1,5 +1,5 @@
 /**
- * 我的沟通（学生 / 教师侧边栏「我的沟通」页，模块4）
+ * 我的会话（学生 / 教师侧边栏「我的会话」页，模块4）
  *
  * 经典脚本：全部顶层全局函数 + 内联 onclick，与 app.js / app-posts.js 同一约定。
  * 仅依赖 app.js 提供的基础设施：state / api / escHtml / showToast。

@@ -107,6 +107,9 @@ export const MSG = {
   REVIEW_REJECTED: '评价已拒绝',
   REVIEW_DELETED: '评价已删除',
 
+  // 登录设备（会话）
+  SESSION_NOT_FOUND: '该设备的登录状态不存在或已失效',
+
   // 通用
   REGISTER_SUCCESS: '注册成功',
   SERVER_ERROR: '服务器内部错误',
@@ -173,14 +176,15 @@ export function json(data, status = 200) {
 export function error(msg, status = 400) { return json({ error: msg }, status); }
 
 // ============================================================
-// 身份解析：全站一律凭 X-Auth-Token（登录签发，7 天有效，users.auth_token 存储，
+// 身份解析：全站一律凭 X-Auth-Token（登录签发，7 天有效，auth_sessions 多端会话表存储，
 // 过期按 UTC 比较——同全站 datetime 纪律）。body/query 里的 userId 只当前端回显用，
 // 服务端身份认定永远以令牌解出的用户为准（审计整改：自报 userId 可枚举冒名）
 // ============================================================
 export async function authUser(db, req) {
   const token = req && req.headers && req.headers.get('X-Auth-Token');
   if (!token) return null;
-  const u = await dbGet(db, 'SELECT id,username,role,avatar,banned,token_expires FROM users WHERE auth_token=?', [token]);
+  const u = await dbGet(db, `SELECT u.id,u.username,u.role,u.avatar,u.banned,s.expires_at AS token_expires
+    FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?`, [token]);
   if (!u || u.banned) return null;
   const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
   if (!exp || exp < Date.now()) return null;
@@ -205,12 +209,43 @@ export async function confirmDangerOtp(db, userId) {
   return true;
 }
 
-// 登录 / 注册签发令牌：48 位随机 hex（熵足够，无需 JWT 的无状态代价）
-export async function issueAuthToken(db, userId) {
+// 登录 / 注册签发令牌：48 位随机 hex（熵足够，无需 JWT 的无状态代价）。
+// 多端会话：每次登录写一行 auth_sessions（旧设备不被顶下线，账户设置可逐端退登）；
+// 签发前先清该用户过期会话，会话表天然不膨胀
+export async function issueAuthToken(db, userId, label) {
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
   const expires = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
-  await dbRun(db, 'UPDATE users SET auth_token=?, token_expires=? WHERE id=?', [token, expires, userId]);
+  await dbRun(db, `DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now','localtime')`, [userId]);
+  await dbRun(db, 'INSERT INTO auth_sessions (token, user_id, label, expires_at) VALUES (?,?,?,?)',
+    [token, userId, label || '', expires]);
   return token;
+}
+
+// 登录设备识别：由 User-Agent 生成可读标签（「Windows · Chrome」/「iPhone · Safari」），供账户设置展示
+export function deviceLabelFromUA(ua) {
+  const s = String(ua || '');
+  let os = '未知设备';
+  if (/iPad/i.test(s)) os = 'iPad';
+  else if (/iPhone/i.test(s)) os = 'iPhone';
+  else if (/Android/i.test(s)) os = 'Android';
+  else if (/Windows/i.test(s)) os = 'Windows';
+  else if (/Mac OS X|Macintosh/i.test(s)) os = 'macOS';
+  else if (/Linux/i.test(s)) os = 'Linux';
+  let br = '浏览器';
+  if (/Edg\//i.test(s)) br = 'Edge';
+  else if (/Firefox\//i.test(s)) br = 'Firefox';
+  else if (/Chrome\//i.test(s)) br = 'Chrome';
+  else if (/Safari\//i.test(s)) br = 'Safari';
+  return `${os} · ${br}`;
+}
+
+// 会话数据层：列出用户全部会话（新→旧）；撤销仅限本人名下（changes 判定是否命中）
+export async function listSessions(db, userId) {
+  return await dbAll(db, 'SELECT token, label, created_at, expires_at FROM auth_sessions WHERE user_id=? ORDER BY created_at DESC', [userId]);
+}
+export async function revokeSession(db, userId, token) {
+  const r = await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=? AND token=?', [userId, token]);
+  return !!(r && r.meta && r.meta.changes > 0);
 }
 
 // ============================================================
