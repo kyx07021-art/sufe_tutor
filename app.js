@@ -9,6 +9,9 @@
 const { SUBJECTS, STUDENT_GRADES,
         TEACHER_GRADES, GENDERS, TEACHING_METHODS, UI } = APP_CONSTANTS;
 
+// 统一显示层（app-display.js，本文件之前加载）：科目/角色/省名/星级/评分/状态 tag 等纯展示函数
+const DISP = globalThis.SUFE_DISPLAY;
+
 // ============================================================
 // 状态
 // ============================================================
@@ -291,7 +294,7 @@ function updateNavbar() {
   const el = document.getElementById('navbar-actions');
   if (state.user) {
     const u = state.user;
-    const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
+    const roleLabel = DISP.roleLabel(u.role);
     // 退出登录已迁至「账户设置」页底（含二次确认），导航栏只留身份标识
     el.innerHTML = `<div class="navbar-user">
       <span>${escHtml(u.username)}</span><span class="user-badge${u.role === 'admin' ? ' admin-badge' : ''}">${roleLabel}</span></div>`;
@@ -338,7 +341,7 @@ function renderSidebar() {
       ${renderAvatarHtml(u.avatar, u.username, 'sidebar-user-avatar')}
       <div class="sidebar-user-text">
         <div class="sidebar-user-name">${escHtml(u.username)}</div>
-        <div class="sidebar-user-role">${u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE}</div>
+        <div class="sidebar-user-role">${DISP.roleLabel(u.role)}</div>
       </div>
     </button>` : `
     <button type="button" class="sidebar-user-top sidebar-user-btn" onclick="ensureAuth()">
@@ -939,18 +942,14 @@ function renderTeachers(teachers) {
   el.innerHTML = teachers.map(t => {
     const grade = TEACHER_GRADES.find(g=>g.id===t.grade)?.name || t.grade || '';
     const gender = GENDERS.find(g=>g.id===t.gender)?.name || '';
-    const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
+    const provName = DISP.provinceName(t.province);
     const info1 = [provName, grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
-    const info2 = (t.gaokao_scores || []).map(gs => {
-      const s = SUBJECTS.find(x => x.id === gs.subject);
-      if (!s) return '';
-      return gs.score != null ? `${s.name}${gs.score}` : `${s.name}${gs.grade || ''}`;
-    }).filter(Boolean).join(' · ');
+    const info2 = (t.gaokao_scores || []).map(gs => `${DISP.subjectName(gs.subject)}${DISP.gaokaoCell(gs)}`).filter(Boolean).join(' · ');
     return `<div class="list-card list-card--teacher">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
         <span class="tc-username" onclick="openProfilePanel(${t.user_id})">${escHtml(t.username)}</span>
-        <span class="tc-rating">${renderStars(t.rating)}<b>${(t.rating||4).toFixed(1)}</b></span>
+        <span class="tc-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
       </div>
       <div class="tc-right">
         <div class="tc-info1">${escHtml(info1)}</div>
@@ -965,14 +964,8 @@ function renderTeachers(teachers) {
   initReveals(el);
 }
 
-function renderStars(rating) {
-  const r = rating || 4;
-  let html = '<span class="stars">';
-  for (let i = 1; i <= 5; i++) {
-    html += `<span class="star ${i <= Math.round(r) ? 'filled' : ''}">★</span>`;
-  }
-  return html + '</span>';
-}
+// 星级渲染统一走显示层（全局调用方多，保留 renderStars 名字作兼容别名）
+const renderStars = globalThis.SUFE_DISPLAY.starsHtml;
 
 function toggleFilters() {
   const open = document.getElementById('teacher-filters').classList.toggle('open'); // grid-rows 展开动效
@@ -1073,7 +1066,7 @@ function profilePanelShowing(userId) {
 }
 
 function renderProfilePanel(base, t, signed, reviewsData) {
-  const roleLabel = base.role === 'student' ? UI.ROLE_STUDENT : base.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
+  const roleLabel = DISP.roleLabel(base.role);
   const cardId = `<div class="profile-card profile-card--id">
       <div class="profile-id-top">
         ${renderAvatarHtml(base.avatar, base.username, 'profile-avatar')}
@@ -1092,23 +1085,21 @@ function renderProfileInfoCard(t) {
   if (!t) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
   const grade = TEACHER_GRADES.find(g => g.id === t.grade)?.name || '';
   const gender = GENDERS.find(g => g.id === t.gender)?.name || '';
-  const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
+  const provName = DISP.provinceName(t.province);
   const row = (k, v) => `<div class="profile-row"><span class="profile-row-k">${k}</span><span class="profile-row-v">${v}</span></div>`;
   const subjTags = (t.subjects || []).map(sid => {
-    const s = SUBJECTS.find(x => x.id === sid);
-    return s ? `<span class="profile-tag">${escHtml(s.name)}</span>` : '';
+    const name = DISP.subjectName(sid);
+    return name ? `<span class="profile-tag">${escHtml(name)}</span>` : '';
   }).join('');
   const gkRows = (t.gaokao_scores || []).map(gs => {
-    const s = SUBJECTS.find(x => x.id === gs.subject);
-    if (!s) return '';
     // 分数不带 scale：满分由省份赋分组件决定、行数据里本就不存（与教师卡 info2 同口径，直接显分数/等第）
-    const v = gs.score != null ? String(gs.score) : (gs.grade || '');
-    return v ? row(escHtml(s.name), escHtml(v)) : '';
+    const v = DISP.gaokaoCell(gs);
+    return v ? row(escHtml(DISP.subjectName(gs.subject)), escHtml(v)) : '';
   }).join('');
   const hasAny = provName || grade || gender || t.price || t.address || t.intro || subjTags || gkRows;
   if (!hasAny) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
   return `<div class="profile-card">
-    ${row(UI.LABEL_RATING, `<span class="profile-rating">${renderStars(t.rating)}<b>${(t.rating || 4).toFixed(1)}</b></span>`)}
+    ${row(UI.LABEL_RATING, `<span class="profile-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>`)}
     ${provName ? row(UI.SECTION_REGION, escHtml(provName)) : ''}
     ${grade ? row(UI.LABEL_GRADE, escHtml(grade)) : ''}
     ${gender ? row(UI.LABEL_GENDER, escHtml(gender)) : ''}
@@ -1126,9 +1117,7 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
   const reviews = reviewsData.reviews || [];
   const mine = reviewsData.mine || null;
   const isStudentViewer = state.user && state.user.role === 'student';
-  const statusTag = r => r.status === 'approved' ? `<span class="tag tag-ok">${UI.STATUS_APPROVED}</span>`
-    : r.status === 'rejected' ? `<span class="tag tag-danger">${UI.STATUS_REJECTED}</span>`
-    : `<span class="tag tag-warn">${UI.STATUS_PENDING}</span>`;
+  const statusTag = r => DISP.reviewStatusTagHtml(r.status);
   const list = reviews.length ? reviews.map(r => `<div class="review-item">
       <div class="review-header">
         <span class="review-author">${escHtml(r.reviewer_name || '')} ${renderStars(r.rating)} ${reviewsData.admin ? statusTag(r) : ''}</span>
@@ -1309,16 +1298,13 @@ async function adminReviewAction(reviewId, action, fromModal) {
 
 // 用户名展示：注销用户（用户名以「已注销用户」开头）灰斜体墓碑样式——
 // 双方数据（需求/会话/合同/评价）保留，但向其他用户明确表明该账户已注销
-function renderUsername(name) {
-  const s = String(name || '');
-  return s.startsWith(UI.DEACTIVATED_USER_PREFIX)
-    ? `<span class="username-deactivated">${escHtml(s)}</span>` : escHtml(s);
-}
+// 用户名墓碑渲染统一走显示层（调用方不动，保留 renderUsername 名字作兼容别名）
+const renderUsername = globalThis.SUFE_DISPLAY.usernameHtml;
 function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false } = opts;
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
-  const provinceName = (typeof SUFE_REGIONS !== 'undefined' && d.province) ? SUFE_REGIONS.provinceName(d.province) : '';
-  const subjNames = (d.target_subjects||[]).map(id => SUBJECTS.find(s=>s.id===id)?.name || id);
+  const provinceName = DISP.provinceName(d.province);
+  const subjNames = (d.target_subjects||[]).map(id => DISP.subjectName(id));
   const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
   const gender = GENDERS.find(g=>g.id===d.student_gender)?.name || '';
   const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
@@ -1336,12 +1322,7 @@ function renderDemandCard(d, opts = {}) {
   // ① 基本信息：地区·年级·性别·提交者 ② 教学需求：线上/下·报价 ③ 需求科目和成绩：科目: 分数/分制（等第制直接显等第）
   const infoBase = [provinceName, grade, gender, `${UI.SUBMITTER_PREFIX}${submitter}`].filter(Boolean).map(escHtml).join(' · ');
   const infoDemandRow = [method, budget].filter(Boolean).map(escHtml).join(' · ');
-  const scoreItems = (d.current_scores||[]).map(cs => {
-    const n = SUBJECTS.find(s=>s.id===cs.subject)?.name || cs.subject;
-    if (cs.grade || cs.mode === 'grade') return cs.grade ? `${n}: ${cs.grade}` : '';
-    if (cs.score !== '' && cs.score != null) return `${n}: ${cs.score}${UI.SCORE_UNIT}/${cs.scale}${UI.SCORE_SCALE_SUFFIX}`;
-    return '';
-  }).filter(Boolean);
+  const scoreItems = (d.current_scores||[]).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
   const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
 
   return `<div class="list-card list-card--demand">
@@ -1442,8 +1423,8 @@ async function openSendDemandModal(teacherUserId) {
   demands = demands.filter(d => d.status !== 'contracted'); // 已签约需求已成交，不可再推送
   const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
     const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade || '';
-    const subs = (d.target_subjects||[]).map(id=>SUBJECTS.find(s=>s.id===id)?.name||id).join('、');
-    const prov = (typeof SUFE_REGIONS !== 'undefined' && d.province) ? SUFE_REGIONS.provinceName(d.province) : '';
+    const subs = DISP.subjectNames(d.target_subjects);
+    const prov = DISP.provinceName(d.province);
     const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || '';
     return `<label class="push-pick-item"><input type="radio" name="push-demand" value="${d.id}">
       <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
@@ -1543,7 +1524,7 @@ async function enterNotifications() {
 // ============================================================
 function enterAccountSettings() {
   const u = state.user;
-  const roleLabel = u.role === 'student' ? UI.ROLE_STUDENT : u.role === 'teacher' ? UI.ROLE_TEACHER : UI.ADMIN_BADGE;
+  const roleLabel = DISP.roleLabel(u.role);
   const row = (label, value, modifiable) => `
     <div class="settings-row">
       <div><div class="settings-label">${label}</div><div class="settings-value">${value}</div></div>
@@ -1942,7 +1923,7 @@ async function openContractDraftModal(convId) {
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND}</label>
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
             <option value="">${UI.CONTRACT_NO_DEMAND_OPTION}</option>
-            ${options.map(d => `<option value="${d.id}"${preselect && d.id === preselect.id ? ' selected' : ''}>#${String(d.display_id || d.id).padStart(4, '0')} · ${escHtml((d.target_subjects || []).map(sid => SUBJECTS.find(s => s.id === sid)?.name || sid).join('、') || '—')}</option>`).join('')}
+            ${options.map(d => `<option value="${d.id}"${preselect && d.id === preselect.id ? ' selected' : ''}>#${String(d.display_id || d.id).padStart(4, '0')} · ${escHtml(DISP.subjectNames(d.target_subjects) || '—')}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -2040,7 +2021,7 @@ function prefillContractFromDemand() {
     rateEl.value = Math.round(((+d.budget_min || 0) + (+d.budget_max || 0)) / 2) || (+d.budget_max || +d.budget_min);
   }
   const plan = document.getElementById('post-body');
-  const subjLine = (d.target_subjects || []).map(sid => SUBJECTS.find(s => s.id === sid)?.name || sid).filter(Boolean).join('、');
+  const subjLine = DISP.subjectNames(d.target_subjects);
   if (plan && !plan.value.trim() && subjLine) { plan.value = `授课科目：${subjLine}\n\n`; updatePostPreview(); }
 }
 
@@ -2370,7 +2351,7 @@ function renderIntentTeacherRow(t, demandId) {
   const st = t.intent_status;
   const tag = st === 'accepted' ? `<span class="tag tag-ok">${UI.INTENT_STATUS_ACCEPTED}</span>`
     : st === 'rejected' ? `<span class="tag tag-danger">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn">${UI.INTENT_STATUS_PENDING}</span>`;
-  const provName = (typeof SUFE_REGIONS !== 'undefined' && t.province) ? SUFE_REGIONS.provinceName(t.province) : '';
+  const provName = DISP.provinceName(t.province);
   const viewBtn = `<button type="button" class="btn btn-outline btn-xs" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
   const actions = st === 'pending'
     ? `<button type="button" class="btn btn-accent btn-xs" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
@@ -2557,7 +2538,7 @@ async function loadAdminStats() {
       <div class="admin-panel">
         <h3>${UI.ADMIN_RECENT_USERS}</h3>
         ${s.recentUsers.map(u => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
-          <span><strong>${escHtml(u.username)}</strong> <span class="tag">${u.role==='student'?UI.ROLE_STUDENT:u.role==='teacher'?UI.ROLE_TEACHER:UI.ADMIN_BADGE}</span></span>
+          <span><strong>${escHtml(u.username)}</strong> <span class="tag">${DISP.roleLabel(u.role)}</span></span>
           <span class="text-muted">${fmtDateTime(u.created_at)}</span>
         </div>`).join('')}
       </div>
@@ -2565,7 +2546,7 @@ async function loadAdminStats() {
       <div class="admin-panel">
         <h3>${UI.ADMIN_RECENT_DEMANDS}</h3>
         ${s.recentDemands.map(d => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
-          <span><strong>${escHtml(d.username)}</strong> ${STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||''} ${d.target_subjects.map(id=>SUBJECTS.find(s=>s.id===id)?.name||'').join('、')}</span>
+          <span><strong>${escHtml(d.username)}</strong> ${STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||''} ${DISP.subjectNames(d.target_subjects)}</span>
           <span class="text-muted">${fmtDateTime(d.created_at)}</span>
         </div>`).join('')}
       </div>
@@ -2595,7 +2576,7 @@ function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-
 function renderAdminUserRow(u, role) {
   const uid = role === 'teacher' ? u.user_id : u.id;
   const meta = role === 'teacher'
-    ? `${TEACHER_GRADES.find(g => g.id === u.grade)?.name || '—'} · ${(u.rating || 4).toFixed(1)}${UI.RATING_SCORE_SUFFIX} · ${u.price || '?'}${UI.PRICE_UNIT}`
+    ? `${DISP.teacherGradeName(u.grade) || '—'} · ${DISP.ratingText(u.rating)}${UI.RATING_SCORE_SUFFIX} · ${u.price || '?'}${UI.PRICE_UNIT}`
     : `${u.demand_count || 0}${UI.DEMAND_COUNT_SUFFIX}`;
   return `<div class="admin-row">
     <div class="admin-row-main">
@@ -2644,9 +2625,7 @@ async function loadAdminReviews() {
 }
 
 function renderAdminReviewRow(r) {
-  const statusTag = r.status === 'approved' ? `<span class="tag tag-ok">${UI.STATUS_APPROVED}</span>`
-    : r.status === 'rejected' ? `<span class="tag tag-danger">${UI.STATUS_REJECTED}</span>`
-    : `<span class="tag tag-warn">${UI.STATUS_PENDING}</span>`;
+  const statusTag = DISP.reviewStatusTagHtml(r.status);
   return `<div class="admin-row">
     <div class="admin-row-main">
       <div class="admin-row-line">
