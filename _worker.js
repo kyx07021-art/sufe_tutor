@@ -118,7 +118,7 @@ async function routeApi(db, p, method, body, url, req) {
   // 教师
   if (p === '/api/teacher/profile' && method === 'GET') return await handleGetProfile(db, url, req);
   if (p === '/api/teacher/profile' && method === 'POST') return await handleSaveProfile(db, body, req);
-  if (p === '/api/teachers' && method === 'GET') return await handleGetTeachers(db);
+  if (p === '/api/teachers' && method === 'GET') return await handleGetTeachers(db, req);
 
   // 学生需求
   if (p === '/api/student/demands' && method === 'POST') return await handleCreateDemand(db, body, req);

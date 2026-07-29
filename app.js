@@ -1086,6 +1086,15 @@ async function openProfilePanel(userId) {
       if (seq !== profilePanelSeq) return;
     }
     state.myReviewOnModal = (reviewsData && reviewsData.mine) || null;
+    // ④ 双向匹配可见字段（真实姓名/学信网截图）：列表接口永不下发，仅匹配后定点取回并入缓存行（取过一次打标记，不重复请求）
+    if (isTeacher && t && t.matched && !t._matchedDetailLoaded) {
+      try {
+        const pd = await api(`/api/teacher/profile?userId=${userId}`);
+        if (seq !== profilePanelSeq) return;
+        if (pd.profile) Object.assign(t, { real_name: pd.profile.real_name || '', credential_image: pd.profile.credential_image || '' });
+      } catch { /* 未匹配后端 403：按不可见处理 */ }
+      t._matchedDetailLoaded = true;
+    }
     body.innerHTML = renderProfilePanel(base, t, signed, reviewsData);
   } catch (err) {
     if (seq !== profilePanelSeq) return;
@@ -1122,8 +1131,8 @@ function renderProfilePanel(base, t, signed, reviewsData) {
 // 卡片②：教师资料账簿行 —— title 最左、信息自固定 px（CSS profile-row grid）处统一开始，逐项成行
 function renderProfileInfoCard(t) {
   if (!t) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
-  const grade = TEACHER_GRADES.find(g => g.id === t.grade)?.name || '';
-  const gender = GENDERS.find(g => g.id === t.gender)?.name || '';
+  const grade = DISP.teacherGradeName(t.grade);
+  const gender = DISP.genderName(t.gender);
   const provName = DISP.provinceName(t.province);
   const row = (k, v) => `<div class="profile-row"><span class="profile-row-k">${k}</span><span class="profile-row-v">${v}</span></div>`;
   const subjTags = (t.subjects || []).map(sid => {
@@ -1135,11 +1144,19 @@ function renderProfileInfoCard(t) {
     const v = DISP.gaokaoCell(gs);
     return v ? row(escHtml(DISP.subjectName(gs.subject)), escHtml(v)) : '';
   }).join('');
-  const hasAny = provName || grade || gender || t.price || t.address || t.intro || subjTags || gkRows;
+  // 双向匹配可见行：真实姓名直显；学信网截图「点击查看」开大图（数据由 openProfilePanel 匹配后定点取回）
+  const matchedRows = t.matched ? (
+    row(UI.LABEL_REAL_NAME, t.real_name ? escHtml(t.real_name) : '—')
+    + row(UI.LABEL_CREDENTIAL, t.credential_image
+      ? `<button type="button" class="btn btn-outline btn-xs" onclick="viewTeacherCredential(${t.user_id})">${UI.CREDENTIAL_VIEW}</button>`
+      : '—')
+  ) : '';
+  const hasAny = provName || t.school || grade || gender || t.price || t.address || t.intro || subjTags || gkRows || matchedRows;
   if (!hasAny) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
   return `<div class="profile-card">
     ${row(UI.LABEL_RATING, `<span class="profile-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>`)}
     ${provName ? row(UI.SECTION_REGION, escHtml(provName)) : ''}
+    ${t.school ? row(UI.LABEL_SCHOOL, escHtml(t.school)) : ''}
     ${grade ? row(UI.LABEL_GRADE, escHtml(grade)) : ''}
     ${gender ? row(UI.LABEL_GENDER, escHtml(gender)) : ''}
     ${t.price ? row(UI.LABEL_PRICE, escHtml(`${t.price}${UI.PRICE_UNIT}`)) : ''}
@@ -1147,6 +1164,7 @@ function renderProfileInfoCard(t) {
     ${subjTags ? row(UI.SECTION_SUBJECTS, subjTags) : ''}
     ${gkRows}
     ${t.intro ? row(UI.LABEL_INTRO, escHtml(t.intro)) : ''}
+    ${matchedRows}
     ${(t.wechat || t.email) ? `<div class="profile-contact-note">${UI.CONTACT_AFTER_SIGN_NOTE}</div>` : ''}
   </div>`;
 }
@@ -1606,32 +1624,82 @@ function confirmDeactivateAccount() {
   });
 }
 
+// 图片压缩通用件：读文件 → canvas 缩放（square=居中取最大内切正方形 / 否则最长边等比缩放）→ JPEG dataURL。
+// 头像（160px 方）与学信网截图（最长边 1000px）共用
+function compressToDataURL(file, maxSide, quality, square) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(UI.CREDENTIAL_PICK_HINT));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error(UI.CREDENTIAL_PICK_HINT));
+      img.onload = () => {
+        let sx = 0, sy = 0, sw = img.width, sh = img.height, w, h;
+        if (square) { const side = Math.min(sw, sh); sx = (sw - side) / 2; sy = (sh - side) / 2; sw = sh = side; w = h = maxSide; }
+        else { const k = Math.min(1, maxSide / Math.max(sw, sh)); w = Math.round(sw * k); h = Math.round(sh * k); }
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// 通用大图查看器（聊天图片放大 / 学信网截图预览共用；点空白关闭）
+function openImageViewer(src) {
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+    <div class="modal image-viewer-modal">
+      <div class="modal-body"><img src="${escHtml(src)}" alt=""></div>
+    </div>
+  </div>`;
+}
+
 // 头像上传：居中取最大内切正方形缩放至 160px（圆形由 CSS border-radius 呈现），dataURL 落库
-function handleAvatarUpload(input) {
+async function handleAvatarUpload(input) {
   const file = input.files && input.files[0];
   if (!file) return;
   if (!file.type.startsWith('image/')) { showToast(UI.POST_IMAGE_ONLY); return; }
-  const reader = new FileReader();
-  reader.onload = () => {
-    const img = new Image();
-    img.onload = async () => {
-      const side = Math.min(img.width, img.height);
-      const N = 160;
-      const cv = document.createElement('canvas');
-      cv.width = cv.height = N;
-      cv.getContext('2d').drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, N, N);
-      const url = cv.toDataURL('image/jpeg', 0.85);
-      try {
-        await api('/api/user/avatar', { method: 'POST', body: { avatar: url } });
-        state.user.avatar = url;
-        showToast(UI.AVATAR_SAVED_TOAST);
-        renderSidebar(); // 同步侧边栏底部头像（active 态按 state.page 重建）
-        if (state.page === 'account-settings') enterAccountSettings(); // 刷新右侧预览
-      } catch (err) { showToast(err.message); }
-    };
-    img.src = reader.result;
-  };
-  reader.readAsDataURL(file);
+  try {
+    const url = await compressToDataURL(file, 160, 0.85, true);
+    await api('/api/user/avatar', { method: 'POST', body: { avatar: url } });
+    state.user.avatar = url;
+    showToast(UI.AVATAR_SAVED_TOAST);
+    renderSidebar(); // 同步侧边栏底部头像（active 态按 state.page 重建）
+    if (state.page === 'account-settings') enterAccountSettings(); // 刷新右侧预览
+  } catch (err) { showToast(err.message); }
+}
+
+// ------------------------------------------------------------
+// 学信网截图（教师档案页）：dataURL 暂存 _profileCredential，随档案一并提交（双向匹配后对方可见）。
+// 控件两态：未上传「上传」(label for 触发选文件)；已上传「已上传，点击查看」+「重新上传」
+// ------------------------------------------------------------
+let _profileCredential = null;
+function renderProfileCredentialCtl() {
+  const ctl = document.getElementById('profile-credential-ctl');
+  if (!ctl) return;
+  ctl.innerHTML = _profileCredential
+    ? `<button type="button" class="btn btn-outline btn-sm" onclick="viewProfileCredential()">${UI.CREDENTIAL_UPLOADED_VIEW}</button>
+       <label class="btn-link-inline" for="profile-credential-file">${UI.CREDENTIAL_REUPLOAD}</label>`
+    : `<label class="btn btn-outline btn-sm" for="profile-credential-file">${UI.CREDENTIAL_UPLOAD}</label>`;
+}
+async function handleCredentialPicked(input) {
+  const files = [...input.files]; input.value = ''; // FileList 是活引用，先拷贝再清（选文件无反应 bug 同款教训）
+  const file = files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { showToast(UI.POST_IMAGE_ONLY); return; }
+  try {
+    _profileCredential = await compressToDataURL(file, 1000, 0.8, false);
+    renderProfileCredentialCtl();
+  } catch (err) { showToast(err.message); }
+}
+function viewProfileCredential() { if (_profileCredential) openImageViewer(_profileCredential); }
+// 个人信息面板查看对方学信网截图（数据已按双向匹配门槛取回缓存于教师行）
+function viewTeacherCredential(userId) {
+  const t = findCachedTeacher(userId);
+  if (t && t.credential_image) openImageViewer(t.credential_image);
 }
 
 // 退出登录二次确认（确认类弹窗，保留点遮罩关闭）
@@ -2152,9 +2220,11 @@ function renderNotifContent(text) {
 }
 
 // ============================================================
-// 关于我们（全角色）：三张白色卡片——我们是谁 / 平台基本用法 / 用户支持（反馈 Bug / 建议）
+// 关于平台（全角色）：三张白色卡片——我们是谁 / 平台基本用法 / 用户支持（反馈 Bug / 建议）
 // ============================================================
 function enterAbout() {
+  const aboutTitle = document.getElementById('about-page-title');
+  if (aboutTitle) aboutTitle.textContent = UI.PAGE_ABOUT; // 页头标题归口 constants（静态文本仅 JS 前兜底）
   // 学生签约完整流程：纵向数字圆圈 + 细连线 + 每步一句话（无小标题/分隔线，流程图样式）
   const steps = [
     UI.ABOUT_FLOW_STEP_1, UI.ABOUT_FLOW_STEP_2, UI.ABOUT_FLOW_STEP_3, UI.ABOUT_FLOW_STEP_4, UI.ABOUT_FLOW_STEP_5,
@@ -2420,6 +2490,7 @@ function initProfileForm() {
     }
   });
   initCustomSelects(document.querySelector('.profile-form')); // 省份/年级/性别下拉统一换自定义组件
+  _profileCredential = null; renderProfileCredentialCtl(); // 学信网截图控件复位（loadProfile 按库内值重绘）
   loadProfile();
 }
 
@@ -2430,6 +2501,9 @@ async function loadProfile() {
       const p = data.profile;
       document.getElementById('profile-grade').value = p.grade || '';
       document.getElementById('profile-gender').value = p.gender || '';
+      document.getElementById('profile-school').value = p.school || '';
+      document.getElementById('profile-real-name').value = p.real_name || '';
+      _profileCredential = p.credential_image || null; renderProfileCredentialCtl();
       document.getElementById('profile-price').value = p.price != null ? p.price : ''; // null = 未填报空；0 是合法报价须显示
       document.getElementById('profile-wechat').value = p.wechat || '';
       document.getElementById('profile-email').value = p.email || '';
@@ -2484,6 +2558,9 @@ async function handleSaveProfile(e) {
         email: document.getElementById('profile-email').value.trim(),
         intro: document.getElementById('profile-intro').value.trim(),
         address: document.getElementById('profile-address').value.trim(),
+        school: document.getElementById('profile-school').value.trim(),
+        real_name: document.getElementById('profile-real-name').value.trim(),
+        credential_image: _profileCredential || '', // 截图 dataURL 暂存件随档案提交（空串 = 未上传/清空）
       }},
     });
     alertEl.innerHTML = `<div class="alert alert-success">${UI.SUCCESS_PROFILE_SAVED}</div>`;

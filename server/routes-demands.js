@@ -131,7 +131,7 @@ export async function handleGetIntents(db, demandId, req) {
   if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand.user_id !== me.id) return error(MSG.NO_PERMISSION, 403); // 仅需求所有者可见意向列表
   const teachers = (await dbGetIntentTeachers(db, demandId))
-    .map(({ wechat, email, ...rest }) => rest); // 联系方式签约前不下发
+    .map(({ wechat, email, real_name, credential_image, matched, ...rest }) => rest); // 联系方式签约后展示；真实姓名/学信网截图仅双向匹配后按档案端点定点取
   return json({ demandId, count: teachers.length, teachers });
 }
 

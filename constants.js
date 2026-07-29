@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.14.3',
+  APP_VERSION: '0.15.0',
 
   // ============================================================
   // 业务数据
@@ -42,6 +42,7 @@ globalThis.APP_CONSTANTS = {
   TEACHER_GRADES: [
     {id:'freshman',name:'大一'},{id:'sophomore',name:'大二'},{id:'junior',name:'大三'},
     {id:'senior',name:'大四'},{id:'master',name:'硕士'},{id:'phd',name:'博士'},{id:'graduated',name:'已毕业'},
+    {id:'graduated_bachelor',name:'本科学历 已毕业'},{id:'graduated_master',name:'硕士学历 已毕业'},{id:'graduated_phd',name:'博士学历 已毕业'},
   ],
 
   GENDERS: [{id:'male',name:'男'},{id:'female',name:'女'},{id:'nonbinary',name:'非二元'}],
@@ -294,6 +295,16 @@ globalThis.APP_CONSTANTS = {
     LABEL_PRICE: '报价',
     LABEL_INTRO: '简介',
     LABEL_GAOKAO_SCORES: '高考成绩',
+
+    // 教师档案扩展字段（学校公开；真实姓名/学信网截图仅双向匹配后可见）
+    LABEL_SCHOOL: '学校',
+    LABEL_REAL_NAME: '真实姓名',
+    LABEL_CREDENTIAL: '学信网截图',
+    CREDENTIAL_UPLOAD: '上传',
+    CREDENTIAL_UPLOADED_VIEW: '已上传，点击查看',
+    CREDENTIAL_VIEW: '点击查看',
+    CREDENTIAL_REUPLOAD: '重新上传',
+    CREDENTIAL_PICK_HINT: '请选择图片文件',
     CONTRACT_STATUS_PENDING: '草案待确认',
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',
@@ -322,12 +333,12 @@ globalThis.APP_CONSTANTS = {
     CONFIRM_ADMIN_REMOVE_CONTRACT: '移除后合同彻底删除（操作留档保留）。确定移除该合同吗？',
     ADMIN_CONTRACT_REMOVED_TOAST: '合同已移除',
 
-    // 关于我们（全角色，侧边栏末尾）
-    PAGE_ABOUT: '关于我们',
+    // 关于平台（全角色，侧边栏末尾；原名「关于我们」，改称更切合模块实际功能）
+    PAGE_ABOUT: '关于平台',
     PAGE_ABOUT_DESC: '平台介绍与用户支持',
-    ABOUT_FOOTNOTE: '网站初创，欢迎在「关于我们」-「{feedback}」中向我们提出优化建议。您说任何需求/设想，我们都尽力实现。',
+    ABOUT_FOOTNOTE: '网站初创，欢迎在「关于平台」-「{feedback}」中向我们提出优化建议。您说任何需求/设想，我们都尽力实现。',
     ABOUT_WHO_TITLE: '我们是谁',
-    ABOUT_WHO_TEXT: '我们是一群来自上海财经大学的学生，创立了这个零佣金家教信息共享平台。教师零佣金入驻，学生免费发布需求，没有中间商赚差价，师生直接对接，让每一次教学匹配都透明、高效。',
+    ABOUT_WHO_TEXT: '上财家教是由上海财经大学在校学生的家教团体运营的公益信息平台。我们的初衷很简单：为想做家教的同学（尤其是持有教师资格证的在校大学生与研究生）提供勤工俭学、社会实践的机会，也帮家长和同学直接对接合适的老师，中间不赚一分钱差价。平台不开展任何有偿培训业务，不向老师收取佣金，也不向家长学员收取任何中介费用。为响应国家「双减」政策，我们谢绝在职老师及校外培训机构注册与合作。',
     ABOUT_USAGE_TITLE: '平台基本用法',
     // 平台基本用法：学生签约完整流程（流程图五步，编号圆圈 + 连线展示）
     ABOUT_FLOW_STEP_1: '发布需求：填写年级、科目与预算，发布你的家教需求',

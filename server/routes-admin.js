@@ -185,7 +185,7 @@ export async function handleAdminDecryptLog(db, logId, req) {
   return json(entry);
 }
 
-// POST /api/feedbacks { kind, title, content } —— 全用户可提交（关于我们页「用户反馈」；身份凭令牌，防冒名）
+// POST /api/feedbacks { kind, title, content } —— 全用户可提交（关于平台页「用户反馈」；身份凭令牌，防冒名）
 export async function handleCreateFeedback(db, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);

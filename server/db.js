@@ -51,6 +51,7 @@ export async function initDb(db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
       grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
       price REAL DEFAULT 0, wechat TEXT, email TEXT,
+      school TEXT DEFAULT '', real_name TEXT DEFAULT '', credential_image TEXT DEFAULT '',
       rating REAL DEFAULT ${INITIAL_RATING},
       rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
       updated_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -146,7 +147,7 @@ export async function initDb(db) {
       name TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-    // 用户反馈（关于我们页提交，管理员在「用户反馈」模块查看，可标记已处理）
+    // 用户反馈（关于平台页提交，管理员在「用户反馈」模块查看，可标记已处理）
     db.prepare(`CREATE TABLE IF NOT EXISTS feedbacks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
@@ -315,7 +316,8 @@ export async function initDb(db) {
   await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['auth_token', "TEXT NOT NULL DEFAULT ''"], ['token_expires', "TEXT NOT NULL DEFAULT ''"], ['deactivated', 'INTEGER NOT NULL DEFAULT 0']]);
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
-  await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
+    ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER']]);
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
@@ -428,6 +430,13 @@ export async function dbGetTeacherProfile(db, userId) {
   return row ? mapTeacherProfileRow(row) : null;
 }
 
+// 双向匹配判定：两人间存在会话（意向被接受/推送被确认 = 建立联系）→ 真实姓名/学信网截图可见门槛
+export async function dbIsMatched(db, userIdA, userIdB) {
+  return !!(await dbGet(db,
+    'SELECT id FROM conversations WHERE (student_user_id=? AND teacher_user_id=?) OR (student_user_id=? AND teacher_user_id=?)',
+    [userIdA, userIdB, userIdB, userIdA]));
+}
+
 export async function dbUpsertTeacherProfile(db, userId, profile) {
   const existing = await dbGet(db, 'SELECT id FROM teacher_profiles WHERE user_id=?', [userId]);
   const subjects = JSON.stringify(profile.subjects);
@@ -436,12 +445,12 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   const price = profile.price != null ? profile.price : null; // null = 未填报价（意向档案完整性门槛据此拦截，勿落 0）
   if (existing) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
-      price=?,wechat=?,email=?,intro=?,address=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), userId]);
+      price=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), (profile.real_name || '').slice(0, 20), profile.credential_image || '', userId]);
   } else {
-    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro,address)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100)]);
+    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro,address,school,real_name,credential_image)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), (profile.real_name || '').slice(0, 20), profile.credential_image || '']);
   }
 }
 
@@ -451,17 +460,24 @@ export function mapTeacherProfileRow(p) {
   return {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
+    school: p.school || '', real_name: p.real_name || '', credential_image: p.credential_image || '',
     subjects: safeJsonArray(p.subjects),
     gaokao_scores: safeJsonArray(p.gaokao_scores),
     price: p.price != null ? p.price : null, // null = 未填报价（意向档案完整性门槛据此拦截，勿转 0）
     wechat: p.wechat, email: p.email, avatar: p.avatar || '',
-    rating: p.rating, rating_count: p.rating_count, updatedAt: p.updated_at,
+    rating: p.rating, rating_count: p.rating_count, matched: p.matched ? true : false, updatedAt: p.updated_at,
   };
 }
 
-export async function dbGetAllTeachers(db) {
-  const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar
-    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id ORDER BY tp.updated_at DESC`);
+// 教师广场列表；viewerId 有值（登录态）时附 matched 标记（双向匹配 = 与该教师已建立会话），
+// 前端据此决定是否拉取真实姓名/学信网截图等仅匹配可见字段
+export async function dbGetAllTeachers(db, viewerId = null) {
+  const matchedSel = viewerId
+    ? `EXISTS(SELECT 1 FROM conversations cv WHERE (cv.student_user_id=? AND cv.teacher_user_id=tp.user_id) OR (cv.student_user_id=tp.user_id AND cv.teacher_user_id=?)) AS matched`
+    : '0 AS matched';
+  const params = viewerId ? [viewerId, viewerId] : [];
+  const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar, ${matchedSel}
+    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id ORDER BY tp.updated_at DESC`, params);
   return profiles.map(mapTeacherProfileRow);
 }
 

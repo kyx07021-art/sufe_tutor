@@ -329,14 +329,8 @@ function chatLazyLoadAttachments() {
   }, 120);
 }
 
-// 图片消息点开看大图
-function chatViewImage(src) {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal chat-image-modal">
-      <div class="modal-body"><img src="${escHtml(src)}" alt="${UI.CHAT_ATTACH_IMAGE}"></div>
-    </div>
-  </div>`;
-}
+// 图片消息点开看大图（通用大图查看器在 app.js openImageViewer，学信网截图预览亦复用）
+function chatViewImage(src) { openImageViewer(src); }
 
 // ============================================================
 // 轮询：4s 拉增量（sinceId = 已见最大 id），追加并滚底

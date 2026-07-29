@@ -647,7 +647,7 @@ textarea.form-input {
 .sidebar-item.active .sidebar-item-desc { color: var(--paper-ghost); padding-top: 6px; }
 
 /* 用户信息：白框落地栏底（静态 flex 末位，不参与滚动、不随内容变化位移）；
-   上层头像 + id/属性，白框内最下层为运营脚注（细黑体小字，点击直达「关于我们」） */
+   上层头像 + id/属性，白框内最下层为运营脚注（细黑体小字，点击直达「关于平台」） */
 .sidebar-user {
   position: relative; z-index: 1; flex-shrink: 0;
   display: flex; flex-direction: column;
@@ -714,7 +714,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .notif-broadcast-title { display: block; font-weight: 800; font-size: .84rem; color: var(--ink); line-height: 1.5; }
 .notif-broadcast-body { display: block; margin-top: 5px; font-size: .78rem; color: var(--ink-3); line-height: 1.65; white-space: pre-wrap; }
 
-/* 关于我们：logo 卡片同信息卡左区布局；用法块细线分隔；支持卡含反馈入口 */
+/* 关于平台：logo 卡片同信息卡左区布局；用法块细线分隔；支持卡含反馈入口 */
 .about-card { display: flex; gap: 22px; align-items: flex-start; }
 .about-logo { width: 52px; height: 52px; gap: 7px; flex-shrink: 0; }
 .about-card-body { min-width: 0; }
@@ -1116,6 +1116,16 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .avatar-btn:hover .avatar--link,
 .avatar-btn:focus-visible .avatar--link { transform: scale(1.09); box-shadow: 0 0 0 3px rgba(17,17,20,.16); }
 
+/* 通用大图查看器（聊天图片放大 / 学信网截图预览共用，自 style-chat.css 迁入） */
+.image-viewer-modal { max-width: 92vw; width: auto; background: transparent; }
+.image-viewer-modal .modal-body { padding: 0; }
+.image-viewer-modal img { display: block; max-width: 88vw; max-height: 86vh; margin: 0 auto; }
+
+/* 教师档案页学信网截图控件：上传/查看按钮 + 内联「重新上传」小链 */
+.profile-credential-ctl { display: flex; align-items: center; gap: 12px; }
+.btn-link-inline { font-size: .74rem; color: var(--muted); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.btn-link-inline:hover { color: var(--ink); }
+
 /* ============================================================
    个人信息右栏（openProfilePanel）：桌面端右侧 25vw 滑入，内容超长可滚动；
    移动端定宽浮层 + 背景变暗。卡片白块直角、行间细线，账簿式对齐（title 最左、
@@ -1313,7 +1323,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 .settings-deactivate { margin-top: 14px; margin-left: 10px; }
 .username-deactivated { color: var(--muted); font-style: italic; } /* 已注销用户墓碑样式 */
 .danger-warn { font-size: .84rem; line-height: 1.75; color: var(--ink-3); } /* 危险操作弹窗的说明正文 */
-/* 关于我们：纵向流程图（编号圆圈 + 圆间细连线 + 右侧简述），连线 min-height 保底不过短 */
+/* 关于平台：纵向流程图（编号圆圈 + 圆间细连线 + 右侧简述），连线 min-height 保底不过短 */
 .about-flow { display: flex; flex-direction: column; padding: 4px 2px 0; }
 .about-flow-step { display: flex; gap: 14px; }
 .about-flow-rail { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
