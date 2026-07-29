@@ -2,7 +2,7 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, dbRun, issueAuthToken, authUser, confirmDangerOtp, MSG, INVITE_GATE_ENABLED } from './core.js';
+import { json, error, hashPassword, verifyPassword, dbRun, dbGet, issueAuthToken, authUser, confirmDangerOtp, MSG, INVITE_GATE_ENABLED } from './core.js';
 import { dbFindUserByUsername, dbFindUserById, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
@@ -65,7 +65,7 @@ export async function handleCheckUsername(db, url) {
 // GET /api/users/:id —— 公开名片（个人信息右栏的兜底数据源）：仅用户名/角色/头像三件，
 // 墓碑用户名原样返回（前端灰斜体渲染）；被封禁且未注销的账户视同不存在（不透露封禁态）
 export async function handleGetUserPublic(db, userId) {
-  const user = await dbFindUserById(db, userId);
+  const user = await dbGet(db, 'SELECT id, username, role, avatar, banned, deactivated FROM users WHERE id=?', [userId]);
   if (!user || (user.banned && !user.deactivated)) return error(MSG.USER_NOT_FOUND, 404);
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' } });
 }
