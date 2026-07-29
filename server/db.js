@@ -16,6 +16,8 @@ import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块
 // ============================================================
 // 数据库初始化 + 迁移
 // ============================================================
+// 数据层契约（详见 docs/architecture.md）：本文件是唯一写 SQL 的地方。
+// JSON 列经 safeJsonArray 单点容错反序列化，行经 mapXxxRow 出门——路由层零 JSON.parse。
 // 合同表 DDL（新 schema：一条会话一份合同，草案→签约状态机）
 const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

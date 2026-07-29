@@ -1,5 +1,11 @@
 /**
- * 上财家教平台 - 前端应用
+ * 上财家教平台 - 前端主模块（壳与状态层）
+ *
+ * 分层契约（详见 docs/architecture.md 搭积木指南）：
+ *   本文件 = 导航/侧边栏/登录通路(ensureAuth)/装载器(loadInto)/缓存协议(invalidate)/各页面 enter。
+ *   数据→展示文本一律走 app-display.js（SUFE_DISPLAY 纯函数），本文件不手写枚举映射。
+ *   列表装载一律走 loadInto（loading/空态/错误转义/浮入/乱序守卫），不手写四件套。
+ *   需要身份的页面/操作经 ensureAuth 唯一通路；子模块 app-chat/app-posts/app-region 可用本文件全局设施。
  */
 
 // ============================================================
@@ -395,6 +401,41 @@ function sidebarPillGlide() {
 }
 function closeSidebar()  { document.body.classList.remove('sidebar-open'); sidebarPillGlide(); }
 function toggleSidebar() { document.body.classList.toggle('sidebar-open'); sidebarPillGlide(); }
+
+// ============================================================
+// 统一装载器：loading → 取数 → 空态/渲染/浮入，错误转义统一（曾有一半 catch 分支漏 escHtml）。
+// seqKey 有值 → 内置乱序守卫（同 key 后发的请求到达后，先前在途响应一律丢弃）；
+// opts: { empty: 空态文案, pick: data→rows 提取器, reveal: 是否接入浮入(默认 true) }
+// 返回是否真正渲染了内容（切走页面/乱序丢弃时为 false，调用方据此决定是否做后续副作用）
+// ============================================================
+const loadSeqs = {};
+
+// 缓存失效协议：任何改变数据的动作成功后 invalidate(key) 置空对应缓存，
+// 下次读取（页面装载 / 红点轮询 / 个人信息面板）自然重拉——缓存只此一份，消灭「各缓存各自为政、永不失效」
+const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers' };
+function invalidate(key) { const k = CACHE_KEYS[key]; if (k) state[k] = []; }
+async function loadInto(elId, fetcher, renderer, opts = {}) {
+  const el = document.getElementById(elId);
+  if (!el) return false;
+  const seq = opts.seqKey ? ++loadSeqs[opts.seqKey] : null;
+  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
+  try {
+    const data = await fetcher();
+    if (seq != null && seq !== loadSeqs[opts.seqKey]) return false;
+    const rows = opts.pick ? opts.pick(data) : data;
+    const target = document.getElementById(elId);
+    if (!target) return false;
+    if (!rows || !rows.length) { target.innerHTML = `<div class="empty-state"><p>${opts.empty || ''}</p></div>`; return true; }
+    target.innerHTML = renderer(rows);
+    if (opts.reveal !== false && typeof initReveals === 'function') initReveals(target);
+    return true;
+  } catch (err) {
+    if (seq != null && seq !== loadSeqs[opts.seqKey]) return false;
+    const target = document.getElementById(elId);
+    if (target) target.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
+    return false;
+  }
+}
 
 // ============================================================
 // 侧边栏红点徽标：未读会话 / 待处理推送(教师) / 未读通知，30s 慢轮询统一刷新；
@@ -917,35 +958,35 @@ async function handleSubmitDemand(e) {
 // 浏览教师
 // ============================================================
 async function loadTeachers() {
-  const el = document.getElementById('teachers-list');
   // Populate subject filter
   const subjectFilter = document.getElementById('filter-subject');
   if (subjectFilter.options.length <= 1) {
     SUBJECTS.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; subjectFilter.appendChild(o); });
   }
 
-  try {
+  await loadInto('teachers-list', async () => {
     const data = await api('/api/teachers');
-    state.allTeachers = data.teachers || [];
-    renderTeachers(state.allTeachers);
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
-  }
+    state.allTeachers = data.teachers || []; // 先回写再判空渲染（保持原顺序）
+    return state.allTeachers;
+  }, teachers => teachers.map(renderTeacherCard).join(''), { empty: UI.EMPTY_NO_TEACHERS });
 }
 
 function renderTeachers(teachers) {
   const el = document.getElementById('teachers-list');
   if (!teachers.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_TEACHERS}</p></div>`; return; }
-  const isStudent = state.user && state.user.role === 'student';
+  el.innerHTML = teachers.map(renderTeacherCard).join('');
+  initReveals(el);
+}
 
-  // 错落两栏卡：左 头像+用户名(可点查看详情)+星级；右 信息行1(黑稍大)+信息行2(成绩灰可换行)+方形发送需求按钮；简介独占底部一行
-  el.innerHTML = teachers.map(t => {
-    const grade = TEACHER_GRADES.find(g=>g.id===t.grade)?.name || t.grade || '';
-    const gender = GENDERS.find(g=>g.id===t.gender)?.name || '';
-    const provName = DISP.provinceName(t.province);
-    const info1 = [provName, grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
-    const info2 = (t.gaokao_scores || []).map(gs => `${DISP.subjectName(gs.subject)}${DISP.gaokaoCell(gs)}`).filter(Boolean).join(' · ');
-    return `<div class="list-card list-card--teacher">
+// 错落两栏卡：左 头像+用户名(可点查看详情)+星级；右 信息行1(黑稍大)+信息行2(成绩灰可换行)+方形发送需求按钮；简介独占底部一行
+function renderTeacherCard(t) {
+  const isStudent = state.user && state.user.role === 'student';
+  const grade = TEACHER_GRADES.find(g=>g.id===t.grade)?.name || t.grade || '';
+  const gender = GENDERS.find(g=>g.id===t.gender)?.name || '';
+  const provName = DISP.provinceName(t.province);
+  const info1 = [provName, grade, gender, `${t.price||'?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ');
+  const info2 = (t.gaokao_scores || []).map(gs => `${DISP.subjectName(gs.subject)}${DISP.gaokaoCell(gs)}`).filter(Boolean).join(' · ');
+  return `<div class="list-card list-card--teacher">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
         <span class="tc-username" onclick="openProfilePanel(${t.user_id})">${escHtml(t.username)}</span>
@@ -960,8 +1001,6 @@ function renderTeachers(teachers) {
       </div>
       ${t.intro ? `<div class="tc-intro" title="${escHtml(t.intro)}">${escHtml(t.intro)}</div>` : ''}
     </div>`;
-  }).join('');
-  initReveals(el);
 }
 
 // 星级渲染统一走显示层（全局调用方多，保留 renderStars 名字作兼容别名）
@@ -1362,9 +1401,7 @@ function renderDemandCard(d, opts = {}) {
 }
 
 async function loadDemandList(elId, { mine }) {
-  const el = document.getElementById(elId);
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+  await loadInto(elId, async () => {
     // 教师大厅视角附带你自己的意向状态（my_intent_status），供按钮三态渲染
     const url = mine ? '/api/student/demands?scope=mine'
                      : '/api/student/demands?scope=for-teacher';
@@ -1374,15 +1411,9 @@ async function loadDemandList(elId, { mine }) {
       state.myDemands = demands; // 编辑回填的数据源
       setBadge('my-demands', demands.filter(d => d.pending_intents > 0).length); // 有待处理意向的需求数 → 侧栏红点
     }
-    if (!demands.length) {
-      el.innerHTML = `<div class="empty-state"><p>${mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS}</p></div>`;
-      return;
-    }
-    el.innerHTML = demands.map(d => renderDemandCard(d, { editable: mine, teacher: !mine })).join('');
-    initReveals(el);
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
-  }
+    return demands;
+  }, demands => demands.map(d => renderDemandCard(d, { editable: mine, teacher: !mine })).join(''),
+  { empty: mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS });
 }
 
 function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: true }); }
@@ -1407,7 +1438,7 @@ async function loadBrowseDemands() {
     el.innerHTML = (pinned ? `<div class="section-title" style="margin-bottom:8px;">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '') + normal;
     initReveals(el);
   } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
 }
 
@@ -1492,30 +1523,30 @@ async function resolvePush(pushId, action) {
 // 通知信息页（全角色）：进入即标记已读并消红点
 // ============================================================
 async function enterNotifications() {
-  const el = document.getElementById('notifications-content');
   setBadge('notifications', 0); // 点开瞬间红点即灭（先于任何请求，轮询跳过当前页不复活）
   // 管理员独享「发通知」（系统广播）；其他角色隐藏
   const bb = document.getElementById('btn-broadcast-notif');
   if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+  let list = [];
+  const rendered = await loadInto('notifications-content', async () => {
     const data = await api('/api/notifications');
-    const list = data.notifications || [];
-    if (!list.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_NOTIFICATIONS}</p></div>`; return; }
-    el.innerHTML = list.map(n => `<div class="notif-item${n.is_read ? '' : ' unread'}">
+    list = data.notifications || [];
+    return list;
+  }, rows => rows.map(renderNotifItem).join(''), { empty: UI.EMPTY_NO_NOTIFICATIONS });
+  // 渲染成功才批量标已读（切走/报错不清未读，留给下次进入）
+  if (rendered && list.some(n => !n.is_read)) {
+    api('/api/notifications/read', { method: 'POST', body: {} }).catch(() => {});
+  }
+}
+
+function renderNotifItem(n) {
+  return `<div class="notif-item${n.is_read ? '' : ' unread'}">
       <span class="notif-dot${n.is_read ? ' read' : ''}"></span>
       <div class="notif-body">
         <div class="notif-text">${renderNotifContent(n.text)}</div>
         <div class="notif-time">${fmtDateTime(n.created_at)}</div>
       </div>
-    </div>`).join('');
-    initReveals(el);
-    if (list.some(n => !n.is_read)) {
-      api('/api/notifications/read', { method: 'POST', body: {} }).catch(() => {});
-    }
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
-  }
+    </div>`;
 }
 
 // ============================================================
@@ -1622,17 +1653,11 @@ function confirmLogout() {
 // 管理员：资料管理（教师共享帖子：列表 / 全文查看 / 越权删除）
 // ============================================================
 async function loadAdminPosts() {
-  const el = document.getElementById('admin-posts-list');
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+  await loadInto('admin-posts-list', async () => {
     const data = await api('/api/posts');
-    state.adminPosts = data.posts || [];
-    if (!state.adminPosts.length) { el.innerHTML = `<div class="empty-state"><p>${UI.ADMIN_POSTS_EMPTY}</p></div>`; return; }
-    el.innerHTML = state.adminPosts.map(renderAdminPostRow).join('');
-    initReveals(el);
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
-  }
+    state.adminPosts = data.posts || []; // 全文查看弹窗的数据源
+    return state.adminPosts;
+  }, rows => rows.map(renderAdminPostRow).join(''), { empty: UI.ADMIN_POSTS_EMPTY });
 }
 
 function renderAdminPostRow(p) {
@@ -1789,6 +1814,7 @@ function signContract(contractId) {
     try {
       const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: {} });
       showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
+      invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
       loadMyContracts();
     } catch (err) { showToast(err.message); }
   });
@@ -1861,6 +1887,7 @@ function confirmRevokeContract(contractId) {
     try {
       await api(`/api/contracts/${contractId}/revoke`, { method: 'POST', body: {} });
       showToast(UI.CONTRACT_REVOKED_TOAST);
+      invalidate('contracts'); // 撤销后签约标记须消失
       loadMyContracts();
     } catch (err) { showToast(err.message); }
   });
@@ -1895,6 +1922,7 @@ function cancelContract(contractId) {
     try {
       await api(`/api/contracts/${contractId}`, { method: 'DELETE', body: {} });
       showToast(UI.CONTRACT_CANCELLED_TOAST);
+      invalidate('contracts');
       loadMyContracts();
     } catch (err) { showToast(err.message); }
   });
@@ -2061,17 +2089,11 @@ async function submitContractDraft(convId) {
 // 管理员：合同管理（查看全部合同 + 测试用移除；全链路留档见后端 contract.* / admin.contract.*）
 // ============================================================
 async function loadAdminContracts() {
-  const el = document.getElementById('admin-contracts-list');
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+  await loadInto('admin-contracts-list', async () => {
     const data = await api(`/api/admin/contracts?username=${encodeURIComponent(state.user.username)}`);
-    state.adminContracts = data.contracts || [];
-    if (!state.adminContracts.length) { el.innerHTML = `<div class="empty-state"><p>${UI.ADMIN_CONTRACTS_EMPTY}</p></div>`; return; }
-    el.innerHTML = state.adminContracts.map(renderAdminContractRow).join('');
-    initReveals(el);
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
-  }
+    state.adminContracts = data.contracts || []; // 查看/移除弹窗的数据源
+    return state.adminContracts;
+  }, rows => rows.map(renderAdminContractRow).join(''), { empty: UI.ADMIN_CONTRACTS_EMPTY });
 }
 
 function renderAdminContractRow(c) {
@@ -2239,17 +2261,14 @@ async function submitFeedback() {
 // 管理员：用户反馈（Bug 卡片红色警示边，建议走常规强调色）
 // ============================================================
 async function loadAdminFeedback() {
-  const el = document.getElementById('admin-feedback-list');
   setBadge('admin-feedback', 0); // 点开瞬间红点即灭（新反馈由轮询在离开本页后重新点亮）
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+  await loadInto('admin-feedback-list', async () => {
     const data = await api(`/api/feedbacks?username=${encodeURIComponent(state.user.username)}`);
-    const list = data.feedbacks || [];
-    if (!list.length) { el.innerHTML = `<div class="empty-state"><p>${UI.ADMIN_FEEDBACK_EMPTY}</p></div>`; return; }
-    el.innerHTML = list.map(f => {
-      const isBug = f.kind === 'bug';
-      const resolved = f.status === 'resolved';
-      return `<div class="list-card feedback-card${isBug ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
+    return data.feedbacks || [];
+  }, list => list.map(f => {
+    const isBug = f.kind === 'bug';
+    const resolved = f.status === 'resolved';
+    return `<div class="list-card feedback-card${isBug ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
         <div class="list-card-header">
           <span class="list-card-title">${escHtml(f.title || UI.BTN_FEEDBACK)}</span>
           <span class="feedback-tags">
@@ -2263,11 +2282,7 @@ async function loadAdminFeedback() {
           ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs" onclick="resolveAdminFeedback(${f.id})">${UI.BTN_MARK_RESOLVED}</button>`}
         </div>
       </div>`;
-    }).join('');
-    initReveals(el);
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
-  }
+  }).join(''), { empty: UI.ADMIN_FEEDBACK_EMPTY });
 }
 
 // 标记反馈已处理（后端通知提出者）
@@ -2343,7 +2358,7 @@ async function refreshIntentsBox(demandId) {
     inner.innerHTML = `<div class="intents-box-content">${content}</div>`;
     box.dataset.loaded = '1';
   } catch (err) {
-    inner.innerHTML = `<div class="intents-box-content"><p class="text-sm text-muted">${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
+    inner.innerHTML = `<div class="intents-box-content"><p class="text-sm text-muted">${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
 }
 
@@ -2472,6 +2487,7 @@ async function handleSaveProfile(e) {
       }},
     });
     alertEl.innerHTML = `<div class="alert alert-success">${UI.SUCCESS_PROFILE_SAVED}</div>`;
+    invalidate('teachers'); // 档案已变：清教师列表缓存，浏览页/个人信息面板/推送弹窗下次读取重拉新档
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
   } finally {
@@ -2552,23 +2568,18 @@ async function loadAdminStats() {
       </div>
     `;
   } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
+    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
 }
 
 // 学生 / 教师管理（封禁的账户无法登录）
 async function loadAdminUsers(role, elId) {
-  const el = document.getElementById(elId);
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+  await loadInto(elId, async () => {
     const data = await api(`/api/admin/users?username=${encodeURIComponent(state.user.username)}&role=${role}`);
     const users = data.users || [];
-    if (!users.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_USERS}</p></div>`; return; }
-    if (role === 'teacher') state.adminTeachers = users; // 教师详情弹窗的数据源
-    el.innerHTML = users.map(u => renderAdminUserRow(u, role)).join('');
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
-  }
+    if (role === 'teacher' && users.length) state.adminTeachers = users; // 教师详情弹窗的数据源（原口径：非空才回写）
+    return users;
+  }, users => users.map(u => renderAdminUserRow(u, role)).join(''), { empty: UI.EMPTY_NO_USERS, reveal: false });
 }
 function loadAdminStudents() { return loadAdminUsers('student', 'admin-students-list'); }
 function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-list'); }
@@ -2597,31 +2608,19 @@ function renderAdminUserRow(u, role) {
 
 // 需求管理（移除走管理员通道，不受归属限制）
 async function loadAdminDemands() {
-  const el = document.getElementById('admin-demands-list');
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+  await loadInto('admin-demands-list', async () => {
     const data = await api(`/api/admin/demands?username=${encodeURIComponent(state.user.username)}`); // 管理员全量端点（含已签约，广场端点排除 contracted）
-    const demands = data.demands || [];
-    if (!demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
-    el.innerHTML = demands.map(d => renderDemandCard(d, { admin: true })).join('');
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
-  }
+    return data.demands || [];
+  }, demands => demands.map(d => renderDemandCard(d, { admin: true })).join(''), { empty: UI.EMPTY_NO_DEMANDS, reveal: false });
 }
 
 // 评价管理（含审核：通过 / 拒绝 / 删除；可按状态过滤）
 async function loadAdminReviews() {
-  const el = document.getElementById('admin-reviews-list');
   const status = document.getElementById('admin-reviews-status')?.value || '';
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+  await loadInto('admin-reviews-list', async () => {
     const data = await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}${status ? `&status=${status}` : ''}`);
-    const reviews = data.reviews || [];
-    if (!reviews.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_REVIEWS}</p></div>`; return; }
-    el.innerHTML = reviews.map(renderAdminReviewRow).join('');
-  } catch (err) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${err.message}</p></div>`;
-  }
+    return data.reviews || [];
+  }, reviews => reviews.map(renderAdminReviewRow).join(''), { empty: UI.EMPTY_NO_REVIEWS, reveal: false });
 }
 
 function renderAdminReviewRow(r) {

@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.14.2',
+  APP_VERSION: '0.14.3',
 
   // ============================================================
   // 业务数据
@@ -281,7 +281,7 @@ globalThis.APP_CONSTANTS = {
     GUEST_TAP_TO_LOGIN: '点击登录以使用全部功能',
     AUTH_LOGIN_TITLE: '欢迎回来',
     AUTH_LOGIN_SUB: '登录你的账户以继续使用',
-    AUTH_LOGIN_TITLE_GUEST: '登录以使用更多功能',
+    AUTH_LOGIN_TITLE_GUEST: '登录以使用全部功能',
     AUTH_LOGIN_SUB_GUEST: '登录后将自动返回你刚才所在的页面',
 
     // 个人信息右栏（取代旧教师详情弹窗：卡片①身份②教师资料③评价；已签约绿色标记；账簿式对齐布局）

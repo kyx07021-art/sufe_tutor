@@ -45,35 +45,17 @@ function postsSearchDebounced() {
 }
 
 // 拉取帖子列表：sort / q 取自工具条；liked 标记由后端凭令牌判定（访客恒 false）
-let postsLoadSeq = 0; // 搜索/排序快速切换时，乱序到达的旧响应丢弃（末写胜防抖）
-async function loadPosts() {
-  const seq = ++postsLoadSeq;
-  const q = (document.getElementById('posts-search')?.value || '').trim();
-  const sort = document.getElementById('posts-sort')?.value || 'new';
-  const el = document.getElementById('posts-list');
-  if (!el) return; // 用户可能已切走页面
-  el.innerHTML = `<div class="empty-state"><p>${UI.LOADING}</p></div>`;
-  try {
+// 乱序守卫由 loadInto 的 seqKey:'posts' 接管（搜索/排序快速切换时旧响应丢弃）
+function loadPosts() {
+  return loadInto('posts-list', async () => {
+    const q = (document.getElementById('posts-search')?.value || '').trim();
+    const sort = document.getElementById('posts-sort')?.value || 'new';
     const url = `/api/posts?sort=${sort}` + (q ? `&q=${encodeURIComponent(q)}` : '');
     const data = await api(url);
-    if (seq !== postsLoadSeq) return; // 过期响应：已有更新的请求发出，丢弃
-    postsList = data.posts || [];
-    renderPosts();
-  } catch (err) {
-    const el2 = document.getElementById('posts-list');
-    if (el2) el2.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
-  }
-}
-
-function renderPosts() {
-  const el = document.getElementById('posts-list');
-  if (!el) return;
-  if (!postsList.length) {
-    el.innerHTML = `<div class="empty-state"><p>${UI.POSTS_EMPTY}</p></div>`;
-    return;
-  }
-  el.innerHTML = postsList.map(renderPostCard).join('');
-  if (typeof initReveals === 'function') initReveals(el); // 资料卡接入全站浮入管线
+    postsList = data.posts || []; // 渲染前同步：点赞就地更新依赖此数据源
+    return data;
+  }, rows => rows.map(renderPostCard).join(''),
+  { seqKey: 'posts', empty: UI.POSTS_EMPTY, pick: d => d.posts, reveal: true });
 }
 
 // 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 作者可删
