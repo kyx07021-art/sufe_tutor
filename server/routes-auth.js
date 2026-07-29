@@ -3,7 +3,7 @@
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
 import { json, error, hashPassword, verifyPassword, dbRun, dbGet, issueAuthToken, authUser, confirmDangerOtp, MSG, INVITE_GATE_ENABLED } from './core.js';
-import { dbFindUserByUsername, dbFindUserById, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
+import { dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
 
@@ -94,10 +94,9 @@ export async function handleDeactivateAccount(db, body, req) {
 
 // GET /api/auth/me —— 凭令牌取当前用户（刷新保活：前端持久化 token 后不再重放密码登录）
 export async function handleAuthMe(db, req) {
-  const me = await authUser(db, req);
+  const me = await authUser(db, req); // authUser 的 SELECT 已含 avatar，无需二次查询
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const full = await dbFindUserById(db, me.id);
-  return json({ user: { id: me.id, username: me.username, role: me.role, avatar: (full && full.avatar) || '' } });
+  return json({ user: { id: me.id, username: me.username, role: me.role, avatar: me.avatar || '' } });
 }
 
 // 账户设置：头像上传。前端已按居中最大内切圆裁成 160px dataURL，此处校验长度后落 users.avatar

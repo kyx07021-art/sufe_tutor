@@ -180,7 +180,7 @@ export function error(msg, status = 400) { return json({ error: msg }, status); 
 export async function authUser(db, req) {
   const token = req && req.headers && req.headers.get('X-Auth-Token');
   if (!token) return null;
-  const u = await dbGet(db, 'SELECT id,username,role,banned,token_expires FROM users WHERE auth_token=?', [token]);
+  const u = await dbGet(db, 'SELECT id,username,role,avatar,banned,token_expires FROM users WHERE auth_token=?', [token]);
   if (!u || u.banned) return null;
   const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
   if (!exp || exp < Date.now()) return null;
