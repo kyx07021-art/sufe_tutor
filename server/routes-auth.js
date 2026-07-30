@@ -2,8 +2,9 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, dbRun, dbGet, issueAuthToken, authUser, confirmDangerOtp, deviceLabelFromUA, listSessions, revokeSession, MSG, INVITE_GATE_ENABLED } from './core.js';
-import { dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode } from './db.js';
+import { json, error, hashPassword, verifyPassword, issueAuthToken, authUser, confirmDangerOtp, deviceLabelFromUA, listSessions, revokeSession, MSG, INVITE_GATE_ENABLED } from './core.js';
+import { dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
+  dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar } from './db.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
 
@@ -72,7 +73,7 @@ export async function handleCheckUsername(db, url) {
 // GET /api/users/:id —— 公开名片（个人信息右栏的兜底数据源）：仅用户名/角色/头像三件，
 // 墓碑用户名原样返回（前端灰斜体渲染）；被封禁且未注销的账户视同不存在（不透露封禁态）
 export async function handleGetUserPublic(db, userId) {
-  const user = await dbGet(db, 'SELECT id, username, role, avatar, banned, deactivated FROM users WHERE id=?', [userId]);
+  const user = await dbGetUserById(db, userId);
   if (!user || (user.banned && !user.deactivated)) return error(MSG.USER_NOT_FOUND, 404);
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' } });
 }
@@ -86,15 +87,8 @@ export async function handleDeactivateAccount(db, body, req) {
   if (me.role === 'admin') return error(MSG.NO_PERMISSION, 403); // 管理员禁止注销，防管理面板孤岛化
   if (!(await confirmDangerOtp(db, me.id))) return error(MSG.ACCOUNT_DEACTIVATED, 403);
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
-  await dbRun(db, `UPDATE users SET username=?, password_hash='', salt='', avatar='', banned=1, deactivated=1 WHERE id=?`,
-    [tombstone, me.id]);
-  await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=?', [me.id]); // 注销即吊销全部设备的登录态
-  await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [me.id]);
-  await dbRun(db, 'DELETE FROM notifications WHERE user_id=?', [me.id]);
-  await dbRun(db, 'DELETE FROM feedbacks WHERE user_id=?', [me.id]);
-  await dbRun(db, 'DELETE FROM uploads WHERE user_id=?', [me.id]);
-  await dbRun(db, 'DELETE FROM post_likes WHERE user_id=?', [me.id]);
-  await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [me.id]);
+  await dbDeactivateUser(db, me.id, tombstone);
+  await dbPurgeUserOwnedData(db, me.id); // 单方数据全删（会话/档案/通知/反馈/暂存/点赞/帖子）
   await logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
     actorRole: me.role, entity: 'user', entityId: me.id, req });
   return json({ ok: true });
@@ -113,7 +107,7 @@ export async function handleSaveAvatar(db, body, req) {
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const avatar = String(body.avatar || '');
   if (!avatar.startsWith('data:image/') || avatar.length > 20000) return error(MSG.AVATAR_INVALID);
-  await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, me.id]);
+  await dbUpdateUserAvatar(db, me.id, avatar);
   await logEvent(db, { action: 'user.avatar.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ ok: true });
 }

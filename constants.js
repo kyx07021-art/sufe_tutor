@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.16.0',
+  APP_VERSION: '0.16.1',
 
   // ============================================================
   // 业务数据
@@ -54,29 +54,31 @@ globalThis.APP_CONSTANTS = {
   //   glass.css 全部消费变量；模糊只允许出现在背景底板与浮层两处（性能铁律）。
   // ============================================================
   LG: {
-    radius: { sm: 9, md: 12, lg: 15 },   // 小圆角（小！不是大圆角）
-    edgeW: 5,                             // 玻璃缘厚度 px（≥5px 折射光带）
-    bg: { blur: 22, sat: 1.12 },          // 背景底板：全站唯一的重模糊（弥散光球）
+    radius: { sm: 9, md: 12, lg: 15 },   // 小圆角
+    ring: 10,                             // 折射缘宽 px（≥10px；卡片/浮层）
+    ringSm: 6,                            // 按钮/小件缘宽 px
+    bg: { blur: 16, sat: 1.12 },          // 背景底板：唯一重模糊（比上轮稍不毛）
     orbCrossSec: 60,                      // 光球横穿全屏约 60s
-    glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬鼠标）
+    glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬）
+    // 毛值 frost 仅驱动极小白调；tint/tintA=叠色。体填充刻意通透，按钮更透=透镜。
     mats: {
-      card:        { frost: 2,  tint: '255,255,255', tintA: .28 },  // 一般卡片
-      cardHi:      { frost: 3,  tint: '255,255,255', tintA: .36 },  // 通用卡片（更高毛值、更白）
-      button:      { frost: -4, tint: '255,255,255', tintA: .05 },  // 中性按钮=透镜（负毛值）
-      btnPrimary:  { frost: -3, tint: '26,24,32',    tintA: .84 },  // 墨色按钮
-      btnAccent:   { frost: -3, tint: '122,104,224', tintA: .80 },  // 紫色按钮
-      btnDanger:   { frost: -3, tint: '198,72,58',   tintA: .78 },  // 危险按钮
-      input:       { frost: 0,  tint: '255,255,255', tintA: .12 },  // 录入框
-      tag:         { frost: 0,  tint: '255,255,255', tintA: .26 },  // 标签药丸
-      stage:       { frost: 1,  tint: '255,255,255', tintA: .18 },  // 暂存区/文件chip
-      sidebar:     { frost: 6,  tint: '250,248,245', tintA: .26 },  // 侧栏整块玻璃
-      pill:        { frost: 5,  tint: '74,58,178',   tintA: .88 },  // 选中块（深紫玻璃）
-      user:        { frost: 4,  tint: '255,255,255', tintA: .42 },  // 底部用户白玻璃卡
-      overlay:     { frost: 13, tint: '255,255,255', tintA: .30 },  // 浮层（弹窗/下拉/个人栏）真模糊
-      bubbleMine:  { frost: 1,  tint: '150,138,230', tintA: .36 },  // 我的气泡（毛玻璃淡紫）
-      bubbleTheirs:{ frost: 1,  tint: '233,218,196', tintA: .40 },  // 对方气泡（毛玻璃淡米）
-      bubbleSys:   { frost: 1,  tint: '206,198,238', tintA: .34 },  // 系统气泡
-      chatList:    { frost: 4,  tint: '255,255,255', tintA: .16 },  // 会话列表栏背景
+      card:        { frost: 1,  tint: '255,255,255', tintA: .12 },  // 一般卡片
+      cardHi:      { frost: 2,  tint: '255,255,255', tintA: .16 },  // 通用卡片（通透）
+      button:      { frost: -3, tint: '255,255,255', tintA: .04 },  // 中性按钮=透镜（负毛值，比卡片更透）
+      btnPrimary:  { frost: -2, tint: '24,22,30',    tintA: .66 },  // 墨色玻璃按钮
+      btnAccent:   { frost: -2, tint: '122,104,224', tintA: .62 },  // 紫色玻璃按钮
+      btnDanger:   { frost: -2, tint: '198,72,58',   tintA: .60 },  // 危险玻璃按钮
+      input:       { frost: 0,  tint: '255,255,255', tintA: .08 },  // 录入框
+      tag:         { frost: 0,  tint: '255,255,255', tintA: .16 },  // 标签药丸
+      stage:       { frost: 0,  tint: '255,255,255', tintA: .12 },  // 暂存区/文件chip
+      sidebar:     { frost: 4,  tint: '250,248,245', tintA: .20 },  // 侧栏整块玻璃
+      pill:        { frost: 4,  tint: '74,58,178',   tintA: .80 },  // 选中块（深紫玻璃）
+      user:        { frost: 3,  tint: '255,255,255', tintA: .34 },  // 底部用户玻璃卡
+      overlay:     { frost: 12, tint: '255,255,255', tintA: .22 },  // 浮层（弹窗/下拉/个人栏）真模糊
+      bubbleMine:  { frost: 0,  tint: '150,138,230', tintA: .26 },  // 我的气泡（通透淡紫）
+      bubbleTheirs:{ frost: 0,  tint: '233,218,196', tintA: .30 },  // 对方气泡（通透淡米）
+      bubbleSys:   { frost: 0,  tint: '206,198,238', tintA: .24 },  // 系统气泡
+      chatList:    { frost: 3,  tint: '255,255,255', tintA: .12 },  // 会话列表栏背景
     },
   },
 

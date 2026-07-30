@@ -397,11 +397,44 @@ export async function dbFindUserById(db, id) {
   return await dbGet(db, 'SELECT id,role FROM users WHERE id=?', [id]);
 }
 
+// 用户卡片（公开名片 / 封禁态判定 / 管理员封禁 / 帖子作者留档共用）：固定列集，不含口令盐等凭证
+export async function dbGetUserById(db, id) {
+  return await dbGet(db, 'SELECT id, username, role, avatar, banned, deactivated FROM users WHERE id=?', [id]);
+}
+
 export async function dbCreateUser(db, username, hash, salt, role) {
   const result = await dbRun(db,
     'INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,?,?)',
     [username, hash, salt, role]);
   return Number(result.meta.last_row_id);
+}
+
+// 注销账户：用户名墓碑化 + 凭证清空 + 封禁/注销标记（墓碑全站展示 + 登录阻断）
+export async function dbDeactivateUser(db, userId, tombstone) {
+  await dbRun(db, `UPDATE users SET username=?, password_hash='', salt='', avatar='', banned=1, deactivated=1 WHERE id=?`,
+    [tombstone, userId]);
+}
+
+// 注销清理：单方数据全删（会话/档案/通知/反馈/暂存/点赞/帖子）；需求/会话/合同/评价等
+// 双方数据保留，JOIN username 处自然显示墓碑
+export async function dbPurgeUserOwnedData(db, userId) {
+  await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=?', [userId]); // 注销即吊销全部设备的登录态
+  await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM notifications WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM feedbacks WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM uploads WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM post_likes WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [userId]);
+}
+
+// 账户设置：头像更新
+export async function dbUpdateUserAvatar(db, userId, avatar) {
+  await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, userId]);
+}
+
+// 管理员封禁 / 解封
+export async function dbSetUserBanned(db, userId, banned) {
+  await dbRun(db, 'UPDATE users SET banned=? WHERE id=?', [banned, userId]);
 }
 
 // ============================================================
@@ -574,6 +607,13 @@ export async function dbGetDemandById(db, id) {
   return row ? mapDemandRow(row) : null;
 }
 
+// 管理员全量需求（含已签约；广场端点恒定排除 contracted，管理员页需独立全量端点）
+export async function dbGetAllDemandsAdmin(db) {
+  const rows = await dbAll(db,
+    `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id ORDER BY sd.created_at DESC LIMIT 300`);
+  return rows.map(mapDemandRow);
+}
+
 export async function dbUpdateDemand(db, id, d) {
   await dbRun(db, `UPDATE student_demands SET province=?,student_grade=?,student_gender=?,
     target_subjects=?,current_scores=?,teaching_method=?,address=?,address_detail='',
@@ -738,6 +778,107 @@ export async function dbGetApprovedReviewStats(db, teacherUserId) {
 }
 
 // ============================================================
+// 帖子（模块2：资料共享广场）
+// ============================================================
+// LIKE 通配符转义：让用户输入中的 % 与 _ 按字面匹配
+function likeEscape(s) {
+  return String(s).replace(/[\\%_]/g, c => '\\' + c);
+}
+
+// 帖子列表：LEFT JOIN users 取作者名；viewerId 有值时 LEFT JOIN post_likes 产出 liked 布尔，否则恒 0。
+// section 不传 = 不过滤（分区预留）；q 对 title + body_md 做 LIKE 模糊匹配；
+// sort: new=时间倒序（默认）；hot=like_count 倒序、同值时间倒序
+export async function dbListPosts(db, { section, q, viewerId, sort } = {}) {
+  const cond = [], params = [];
+  if (section) { cond.push('p.section = ?'); params.push(section); }
+  if (q) {
+    cond.push("(p.title LIKE ? ESCAPE '\\' OR p.body_md LIKE ? ESCAPE '\\')");
+    const w = '%' + likeEscape(q) + '%';
+    params.push(w, w);
+  }
+  const where = cond.length ? ' WHERE ' + cond.join(' AND ') : '';
+  const order = sort === 'hot'
+    ? 'p.like_count DESC, p.created_at DESC, p.id DESC'
+    : 'p.created_at DESC, p.id DESC';
+  const hasViewer = !!viewerId;
+  const likeJoin = hasViewer
+    ? 'LEFT JOIN post_likes pl ON pl.post_id = p.id AND pl.user_id = ?' : '';
+  const likeSel = hasViewer ? '(pl.id IS NOT NULL) AS liked' : '0 AS liked';
+  const bind = hasViewer ? [viewerId, ...params] : params;
+  const rows = await dbAll(db,
+    `SELECT p.id, p.user_id, p.section, p.title, p.body_md, p.like_count,
+            p.created_at, p.updated_at, u.username, ${likeSel}
+     FROM posts p
+     LEFT JOIN users u ON u.id = p.user_id
+     ${likeJoin}${where}
+     ORDER BY ${order}`, bind);
+  return rows.map(r => ({ ...r, liked: !!r.liked }));
+}
+
+export async function dbCreatePost(db, userId, title, bodyMd) {
+  const result = await dbRun(db,
+    "INSERT INTO posts (user_id, section, title, body_md) VALUES (?, 'plaza', ?, ?)",
+    [userId, title, bodyMd]);
+  return Number(result.meta.last_row_id);
+}
+
+export async function dbGetPostById(db, postId) {
+  return await dbGet(db, 'SELECT id, user_id, title FROM posts WHERE id=?', [postId]);
+}
+
+export async function dbGetPostLike(db, postId, userId) {
+  return await dbGet(db, 'SELECT id FROM post_likes WHERE post_id=? AND user_id=?', [postId, userId]);
+}
+
+export async function dbCreatePostLike(db, postId, userId) {
+  await dbRun(db, 'INSERT INTO post_likes (post_id, user_id) VALUES (?,?)', [postId, userId]);
+}
+
+export async function dbDeletePostLike(db, likeId) {
+  await dbRun(db, 'DELETE FROM post_likes WHERE id=?', [likeId]);
+}
+
+// 以 COUNT 为唯一事实源同步计数，杜绝 like_count 增减漂移
+export async function dbSyncPostLikeCount(db, postId) {
+  await dbRun(db,
+    'UPDATE posts SET like_count = (SELECT COUNT(*) FROM post_likes WHERE post_id=?) WHERE id=?',
+    [postId, postId]);
+}
+
+export async function dbGetPostLikeCount(db, postId) {
+  const row = await dbGet(db, 'SELECT like_count FROM posts WHERE id=?', [postId]);
+  return row?.like_count || 0;
+}
+
+// post_likes 由外键 ON DELETE CASCADE 连带清理，无需手工删
+export async function dbDeletePost(db, postId) {
+  await dbRun(db, 'DELETE FROM posts WHERE id=?', [postId]);
+}
+
+// ============================================================
+// 用户反馈（关于平台模块）
+// ============================================================
+export async function dbCreateFeedback(db, userId, kind, title, content) {
+  const res = await dbRun(db,
+    'INSERT INTO feedbacks (user_id, kind, title, content) VALUES (?,?,?,?)',
+    [userId, kind, title, content]);
+  return (res && res.meta && res.meta.last_row_id) || 0;
+}
+
+export async function dbGetFeedbacksAdmin(db) {
+  return await dbAll(db,
+    'SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id ORDER BY f.id DESC LIMIT 200');
+}
+
+export async function dbGetFeedbackById(db, feedbackId) {
+  return await dbGet(db, 'SELECT * FROM feedbacks WHERE id=?', [feedbackId]);
+}
+
+export async function dbResolveFeedback(db, feedbackId) {
+  await dbRun(db, `UPDATE feedbacks SET status='resolved' WHERE id=?`, [feedbackId]);
+}
+
+// ============================================================
 // 管理员统计
 // ============================================================
 export async function dbGetUserStats(db) {
@@ -776,10 +917,48 @@ export async function dbGetRecentDemands(db, limit = 8) {
 }
 
 // ============================================================
+// 管理员用户管理
+// ============================================================
+// 学生列表：LEFT JOIN 统计需求数
+export async function dbGetStudentUsersAdmin(db) {
+  return await dbAll(db, `SELECT u.id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
+    FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
+    WHERE u.role='student' GROUP BY u.id ORDER BY u.created_at DESC`);
+}
+
+// 教师列表：LEFT JOIN 档案（与教师广场同套 mapper，附 role/banned/created_at）
+export async function dbGetTeacherUsersAdmin(db) {
+  const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
+      tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.wechat, tp.email,
+      tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
+    FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
+    WHERE u.role='teacher' ORDER BY u.created_at DESC`);
+  return rows.map(r => ({ ...mapTeacherProfileRow(r), role: r.role, banned: r.banned, created_at: r.created_at }));
+}
+
+// ============================================================
 // 合同（纯数据层取行；状态机关口在 server/contract.js）
 // ============================================================
 export async function dbGetContractById(db, id) {
   return await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [id]);
+}
+
+// 一条会话至多一份进行中合同（起草查重 / 聊天窗合同状态行用）
+export async function dbGetContractByConv(db, conversationId) {
+  return await dbGet(db, 'SELECT * FROM contracts WHERE conversation_id=? ORDER BY id DESC LIMIT 1', [conversationId]);
+}
+
+// 我参与的合同列表（含双方用户名 + 需求编号，「我的合同」页用）
+export async function dbGetMyContracts(db, userId) {
+  return await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
+      us.username AS student_name, ut.username AS teacher_name, sd.display_id AS demand_display_id
+    FROM contracts ct
+    JOIN conversations c ON c.id = ct.conversation_id
+    JOIN users us ON us.id = c.student_user_id
+    JOIN users ut ON ut.id = c.teacher_user_id
+    LEFT JOIN student_demands sd ON sd.id = ct.demand_id
+    WHERE c.student_user_id = ? OR c.teacher_user_id = ?
+    ORDER BY ct.updated_at DESC`, [userId, userId]);
 }
 
 // ============================================================
@@ -855,6 +1034,11 @@ export async function dbCreateMessage(db, convId, senderUserId, kind, body, name
     'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name) VALUES (?,?,?,?,?)',
     [convId, senderUserId, kind, body, name]);
   return Number(result.meta.last_row_id);
+}
+
+// 管理员删除消息前置查询：取会话/发送者/类型供留档
+export async function dbGetMessageById(db, messageId) {
+  return await dbGet(db, 'SELECT id, conversation_id, sender_user_id, kind FROM messages WHERE id=?', [messageId]);
 }
 
 // 管理员删除单条消息（聊天内容管理）

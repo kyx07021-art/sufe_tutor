@@ -5,7 +5,12 @@
  * 当前不做分区过滤（不传 section 即查全部），也不写死单分区逻辑。
  * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete
  */
-import { json, error, authUser, dbAll, dbGet, dbRun } from './core.js';
+import { json, error, authUser } from './core.js';
+import {
+  dbListPosts, dbCreatePost, dbGetPostById, dbGetPostLike,
+  dbCreatePostLike, dbDeletePostLike, dbSyncPostLikeCount, dbGetPostLikeCount,
+  dbDeletePost, dbGetUserById,
+} from './db.js';
 import { logEvent } from './log.js';
 
 // ============================================================
@@ -24,14 +29,9 @@ const PMSG = {
   POST_DELETED: '帖子已删除',
 };
 
-// LIKE 通配符转义：让用户输入中的 % 与 _ 按字面匹配
-function likeEscape(s) {
-  return String(s).replace(/[\\%_]/g, c => '\\' + c);
-}
-
 /**
  * GET /api/posts?sort=new|hot&section=&q=&userId=
- * → { posts: [...] }，每条含 username（JOIN users）与 liked 布尔（传了 userId 时查 post_likes）
+ * → { posts: [...] }，每条含 username（JOIN users）与 liked 布尔（凭令牌查本人点赞）
  * sort: new=created_at DESC（默认）；hot=like_count DESC, created_at DESC
  * section: 不传则不过滤（分区预留）；q: 对 title + body_md 做 LIKE 模糊匹配
  */
@@ -40,35 +40,8 @@ export async function handleListPosts(db, url, req) {
   const section = url.searchParams.get('section');
   const q = (url.searchParams.get('q') || '').trim();
   const viewer = await authUser(db, req); // liked 标记凭令牌取本人点赞；访客列表照常公开、liked 恒 false
-  const hasViewer = !!viewer;
-
-  const cond = [], params = [];
-  if (section) { cond.push('p.section = ?'); params.push(section); }
-  if (q) {
-    cond.push("(p.title LIKE ? ESCAPE '\\' OR p.body_md LIKE ? ESCAPE '\\')");
-    const w = '%' + likeEscape(q) + '%';
-    params.push(w, w);
-  }
-  const where = cond.length ? ' WHERE ' + cond.join(' AND ') : '';
-  const order = sort === 'hot'
-    ? 'p.like_count DESC, p.created_at DESC, p.id DESC'
-    : 'p.created_at DESC, p.id DESC';
-
-  // 传了 userId：LEFT JOIN post_likes 产出 liked 布尔；未传则恒 0
-  const likeJoin = hasViewer
-    ? 'LEFT JOIN post_likes pl ON pl.post_id = p.id AND pl.user_id = ?' : '';
-  const likeSel = hasViewer ? '(pl.id IS NOT NULL) AS liked' : '0 AS liked';
-  const bind = hasViewer ? [viewer.id, ...params] : params;
-
-  const rows = await dbAll(db,
-    `SELECT p.id, p.user_id, p.section, p.title, p.body_md, p.like_count,
-            p.created_at, p.updated_at, u.username, ${likeSel}
-     FROM posts p
-     LEFT JOIN users u ON u.id = p.user_id
-     ${likeJoin}${where}
-     ORDER BY ${order}`, bind);
-
-  return json({ posts: rows.map(r => ({ ...r, liked: !!r.liked })) });
+  const posts = await dbListPosts(db, { section, q, viewerId: viewer ? viewer.id : null, sort });
+  return json({ posts });
 }
 
 /**
@@ -88,12 +61,9 @@ export async function handleCreatePost(db, body, req) {
   if (title.length > 60) return error(PMSG.TITLE_TOO_LONG);
   if (bodyMd.length > 20000) return error(PMSG.BODY_TOO_LONG);
 
-  const result = await dbRun(db,
-    "INSERT INTO posts (user_id, section, title, body_md) VALUES (?, 'plaza', ?, ?)",
-    [userId, title, bodyMd]);
-  const id = Number(result.meta.last_row_id);
+  const id = await dbCreatePost(db, userId, title, bodyMd);
 
-  const author = await dbGet(db, 'SELECT username FROM users WHERE id=?', [userId]);
+  const author = await dbGetUserById(db, userId);
   await logEvent(db, {
     action: 'post.create', actorUserId: userId, actorUsername: author?.username || null,
     actorRole: user.role, entity: 'post', entityId: id, detail: { title }, req,
@@ -111,31 +81,28 @@ export async function handleToggleLike(db, postId, body, req) {
   if (!user) return error(PMSG.LOGIN_REQUIRED, 401);
   const userId = user.id;
 
-  const post = await dbGet(db, 'SELECT id FROM posts WHERE id=?', [postId]);
+  const post = await dbGetPostById(db, postId);
   if (!post) return error(PMSG.POST_NOT_FOUND, 404);
 
-  const existing = await dbGet(db,
-    'SELECT id FROM post_likes WHERE post_id=? AND user_id=?', [postId, userId]);
+  const existing = await dbGetPostLike(db, postId, userId);
   let liked;
   if (existing) {
-    await dbRun(db, 'DELETE FROM post_likes WHERE id=?', [existing.id]);
+    await dbDeletePostLike(db, existing.id);
     liked = false;
   } else {
-    await dbRun(db, 'INSERT INTO post_likes (post_id, user_id) VALUES (?,?)', [postId, userId]);
+    await dbCreatePostLike(db, postId, userId);
     liked = true;
   }
 
   // 以 COUNT 为唯一事实源同步计数
-  await dbRun(db,
-    'UPDATE posts SET like_count = (SELECT COUNT(*) FROM post_likes WHERE post_id=?) WHERE id=?',
-    [postId, postId]);
-  const row = await dbGet(db, 'SELECT like_count FROM posts WHERE id=?', [postId]);
+  await dbSyncPostLikeCount(db, postId);
+  const likeCount = await dbGetPostLikeCount(db, postId);
 
   await logEvent(db, {
     action: liked ? 'post.like' : 'post.unlike', actorUserId: userId,
     actorRole: user.role, entity: 'post', entityId: postId, req,
   });
-  return json({ liked, likeCount: row?.like_count || 0 });
+  return json({ liked, likeCount });
 }
 
 /**
@@ -147,13 +114,13 @@ export async function handleDeletePost(db, postId, body, req) {
   const user = await authUser(db, req); // 身份凭令牌（曾凭自报 userId 可非管理员删他人帖）
   if (!user) return error(PMSG.LOGIN_REQUIRED, 401);
 
-  const post = await dbGet(db, 'SELECT id, user_id, title FROM posts WHERE id=?', [postId]);
+  const post = await dbGetPostById(db, postId);
   if (!post) return error(PMSG.POST_NOT_FOUND, 404);
   // 仅作者本人可删；管理员凭令牌越权删除（资料管理页）
   const admin = user.role === 'admin' ? user : null;
   if (user.id !== Number(post.user_id) && !admin) return error(PMSG.DELETE_FORBIDDEN, 403);
 
-  await dbRun(db, 'DELETE FROM posts WHERE id=?', [postId]);
+  await dbDeletePost(db, postId);
   await logEvent(db, {
     action: admin ? 'admin.post.delete' : 'post.delete',
     actorUserId: user.id, actorRole: admin ? 'admin' : user.role,

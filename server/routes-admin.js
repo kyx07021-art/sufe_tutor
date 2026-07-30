@@ -3,7 +3,7 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）
  */
 import {
-  json, error, requireAdmin, authUser, genCode, dbGet, dbRun, dbAll,
+  json, error, requireAdmin, authUser, genCode,
   INITIAL_RATING, INITIAL_WEIGHT, MSG,
 } from './core.js';
 import {
@@ -11,7 +11,10 @@ import {
   dbGetUserStats, dbGetCount, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbGetApprovedReviewStats, dbUpdateTeacherRating,
-  dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage, mapTeacherProfileRow, mapDemandRow,
+  dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage,
+  dbGetStudentUsersAdmin, dbGetTeacherUsersAdmin, dbGetUserById, dbSetUserBanned,
+  dbGetAllDemandsAdmin, dbGetMessageById,
+  dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback,
 } from './db.js';
 import { logEvent, queryLog, decryptLogEntry } from './log.js';
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
@@ -102,31 +105,21 @@ export async function handleAdminUsers(db, url, req) {
   const role = url.searchParams.get('role');
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
 
-  let users;
-  if (role === 'student') {
-    users = await dbAll(db, `SELECT u.id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
-      FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
-      WHERE u.role='student' GROUP BY u.id ORDER BY u.created_at DESC`);
-  } else {
-    const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
-        tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.wechat, tp.email,
-        tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
-      FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
-      WHERE u.role='teacher' ORDER BY u.created_at DESC`);
-    users = rows.map(r => ({ ...mapTeacherProfileRow(r), role: r.role, banned: r.banned, created_at: r.created_at }));
-  }
+  const users = role === 'student'
+    ? await dbGetStudentUsersAdmin(db)
+    : await dbGetTeacherUsersAdmin(db);
   return json({ users });
 }
 
 export async function handleBanUser(db, userId, body, req) {
   const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
-  const target = await dbGet(db, 'SELECT id,username,role FROM users WHERE id=?', [userId]);
+  const target = await dbGetUserById(db, userId);
   if (!target) return error(MSG.USER_NOT_FOUND, 404);
   if (target.role === 'admin') return error(MSG.NO_PERMISSION, 403);
 
   const banned = body.banned ? 1 : 0;
-  await dbRun(db, 'UPDATE users SET banned=? WHERE id=?', [banned, userId]);
+  await dbSetUserBanned(db, userId, banned);
   await logEvent(db, { action: banned ? 'admin.ban' : 'admin.unban', actorUserId: admin.id,
     actorUsername: admin.username, actorRole: 'admin', entity: 'user', entityId: userId,
     detail: { targetUsername: target.username, targetRole: target.role, banned }, req });
@@ -136,9 +129,8 @@ export async function handleBanUser(db, userId, body, req) {
 // GET /api/admin/demands —— 管理员全量需求（含已签约；广场端点恒定排除 contracted，管理员页需独立全量端点）
 export async function handleAdminDemands(db, url, req) {
   if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
-  const rows = await dbAll(db,
-    `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id ORDER BY sd.created_at DESC LIMIT 300`);
-  return json({ demands: rows.map(mapDemandRow) });
+  const demands = await dbGetAllDemandsAdmin(db);
+  return json({ demands });
 }
 
 export async function handleAdminDeleteDemand(db, demandId, body, req) {
@@ -169,7 +161,7 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
 export async function handleAdminDeleteMessage(db, messageId, body, req) {
   const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
-  const m = await dbGet(db, 'SELECT id, conversation_id, sender_user_id, kind FROM messages WHERE id=?', [messageId]);
+  const m = await dbGetMessageById(db, messageId);
   if (!m) return error(MSG.MESSAGE_NOT_FOUND, 404);
   await dbDeleteMessage(db, messageId);
   await logEvent(db, { action: 'admin.message.delete', actorUserId: admin.id, actorUsername: admin.username,
@@ -203,17 +195,16 @@ export async function handleCreateFeedback(db, body, req) {
   const title = String(body.title || '').trim().slice(0, 60);
   const content = String(body.content || '').trim().slice(0, 5000);
   if (!content) return error(MSG.BROADCAST_EMPTY);
-  const res = await dbRun(db, 'INSERT INTO feedbacks (user_id, kind, title, content) VALUES (?,?,?,?)', [userId, kind, title, content]);
+  const feedbackId = await dbCreateFeedback(db, userId, kind, title, content);
   await logEvent(db, { action: 'feedback.create', actorUserId: userId, entity: 'feedback',
-    entityId: (res && res.meta && res.meta.last_row_id) || 0, detail: { kind, title, len: content.length }, req });
+    entityId: feedbackId, detail: { kind, title, len: content.length }, req });
   return json({ ok: true }, 201);
 }
 
 // GET /api/feedbacks?username= —— 管理员查看全部反馈（含提交者用户名 + 处理状态）
 export async function handleAdminFeedbacks(db, url, req) {
   if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
-  const feedbacks = await dbAll(db,
-    `SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id ORDER BY f.id DESC LIMIT 200`);
+  const feedbacks = await dbGetFeedbacksAdmin(db);
   return json({ feedbacks });
 }
 
@@ -221,10 +212,10 @@ export async function handleAdminFeedbacks(db, url, req) {
 export async function handleResolveFeedback(db, feedbackId, body, req) {
   const admin = await requireAdmin(db, req);
   if (!admin) return error(MSG.ADMIN_ONLY, 403);
-  const f = await dbGet(db, 'SELECT * FROM feedbacks WHERE id=?', [feedbackId]);
+  const f = await dbGetFeedbackById(db, feedbackId);
   if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404);
   if (f.status !== 'resolved') {
-    await dbRun(db, `UPDATE feedbacks SET status='resolved' WHERE id=?`, [feedbackId]);
+    await dbResolveFeedback(db, feedbackId);
     await notifyUser(db, f.user_id, globalThis.APP_CONSTANTS.UI.FEEDBACK_RESOLVED);
     await logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'feedback', entityId: feedbackId, detail: { kind: f.kind }, req });

@@ -6,7 +6,7 @@
  * 短信验证码环节未接入：verifySignOtp 预留接口，测试版以二次确认代替。
  */
 import { dbAll, dbGet, dbRun, json, error, authUser, requireAdmin, confirmDangerOtp, MSG } from './core.js';
-import { dbGetContractById } from './db.js';
+import { dbGetContractById, dbGetContractByConv, dbGetMyContracts } from './db.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
@@ -143,10 +143,6 @@ const isParticipant = (conv, userId) => !!conv && (conv.student_user_id === user
 const otherSide = (conv, userId) => userId === conv.student_user_id ? conv.teacher_user_id : conv.student_user_id;
 const nameOf = (conv, userId) => userId === conv.student_user_id ? conv.student_name : conv.teacher_name;
 
-export async function dbGetContractByConv(db, conversationId) {
-  return await dbGet(db, 'SELECT * FROM contracts WHERE conversation_id=? ORDER BY id DESC LIMIT 1', [conversationId]);
-}
-
 // 合同操作公共关口：取合同行（404）→ 状态白名单（409）→ 会话带双方名 → 参与方校验（403）。
 // 六个状态机 handler 的前置检查收敛于此；失败返 { err: Response }，调用方一行 `if (g.err) return g.err;`
 async function loadContractFor(db, contractId, userId, statuses) {
@@ -156,18 +152,6 @@ async function loadContractFor(db, contractId, userId, statuses) {
   const conv = await convOf(db, ct.conversation_id);
   if (!isParticipant(conv, userId)) return { err: error(MSG.NO_PERMISSION, 403) };
   return { ct, conv };
-}
-
-export async function dbGetMyContracts(db, userId) {
-  return await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
-      us.username AS student_name, ut.username AS teacher_name, sd.display_id AS demand_display_id
-    FROM contracts ct
-    JOIN conversations c ON c.id = ct.conversation_id
-    JOIN users us ON us.id = c.student_user_id
-    JOIN users ut ON ut.id = c.teacher_user_id
-    LEFT JOIN student_demands sd ON sd.id = ct.demand_id
-    WHERE c.student_user_id = ? OR c.teacher_user_id = ?
-    ORDER BY ct.updated_at DESC`, [userId, userId]);
 }
 
 // ---- 路由 ----

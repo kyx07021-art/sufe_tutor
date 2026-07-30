@@ -5,9 +5,9 @@
  *   双向匹配   公开档案 + 真实姓名 + 学信网截图（联系方式仍按「签约后展示」规则不下发）
  *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
  */
-import { json, error, dbGet, authUser, MSG } from './core.js';
+import { json, error, authUser, MSG } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
-import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetAllTeachers, dbIsMatched, dbIsContracted } from './db.js';
+import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetAllTeachers, dbIsMatched, dbIsContracted, dbGetUserById } from './db.js';
 
 // 学信网截图 dataURL 上限（前端已压缩至最长边 1000px，此处兜底防异常大串）
 const CREDENTIAL_MAX = 500000;
@@ -22,7 +22,7 @@ export async function handleGetProfile(db, url, req) {
   const targetId = parseInt(url.searchParams.get('userId')) || me.id;
   // 被封禁且未注销的账户视同不存在（与 handleGetUserPublic 口径一致，不泄露封禁态）；本人不受影响（authUser 已拦封禁者）
   if (targetId !== me.id) {
-    const target = await dbGet(db, 'SELECT banned, deactivated FROM users WHERE id=?', [targetId]);
+    const target = await dbGetUserById(db, targetId);
     if (target && target.banned && !target.deactivated) return error(MSG.USER_NOT_FOUND, 404);
   }
   const profile = await dbGetTeacherProfile(db, targetId);

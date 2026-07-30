@@ -1,63 +1,45 @@
 /* ============================================================
-   LIQUID GLASS v2 — 统一材质层（最后加载，覆盖 style*.css 的扁平基线）
+   LIQUID GLASS v3 — 统一材质层（最后加载，覆盖 style*.css 扁平基线）
    ------------------------------------------------------------
-   性能铁律：高斯模糊(backdrop-filter)只允许出现在两处——
-     ① 背景底板 .lg-plate（全站唯一重模糊，把光球弥散成柔和底色）
-     ② 真正浮在锐利内容上的浮层（弹窗/下拉/个人信息栏/加号弹层）
-   前景一切卡片/按钮/头像/气泡/标签 = 半透明填充，【不】挂 backdrop-filter。
-   理由：底板已被重模糊，前景半透明叠其上，视觉即"磨砂"，且零逐元素重复合成
-   成本——这正是移动端侧边栏开闭不再卡顿的根因修复（上一版给几百个元素各挂
-   blur，侧边栏一动全部重模糊）。
-   玻璃缘：1px 圆角描边 + 多层 inset 折射光带（顶左亮→右下暗）。
-   【不再用 border-image】——border-image 无视 border-radius，正是上一版
-   "左上右下凸出白框直角/边缘侵入卡片"的根因。
-   浮层另加 SVG #lg-refract 位移滤镜做真实折射玻璃缘。
-   全部材质来自 constants.LG → :root 变量（index.html 注入），改玻璃观感只动 constants。
+   铁律（见 CLAUDE.md「前端视效/玻璃纪律」，违者必回归）：
+   · backdrop-filter 只准三处：① 背景底板 ② 浮层 ③ 折射缘环；卡片/按钮/气泡的「体」只许半透明填充。
+   · 绝不 blanket 设 position/display（逐成员核对基类）。本文件不给 fixed/absolute 元素加 relative。
+   · 改背景必带可读文字色；不把按钮行/细线行塞进卡片选择器组。
+   · 折射缘：桌面 = backdrop-filter:url(#lg-refract) 真折射（平滑位移贴图，随滚动变化）；
+     移动端 = 降级为清晰焦散渐变缘（保滚动帧率，不毛不锯齿）。
+   · 全部观感值收口 constants.LG → :root 变量；改玻璃只动 constants。
    ============================================================ */
 
 :root {
-  /* 兜底令牌（运行时被 constants.LG 注入覆盖） */
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
-  --lg-edge-w: 5px;
-  --lg-bg-blur: 22px; --lg-bg-sat: 1.12;
+  --lg-ring: 10px;        /* 卡片/浮层折射缘宽（≥10px） */
+  --lg-ring-sm: 6px;      /* 按钮/小件缘宽 */
+  --lg-bg-blur: 16px;     /* 底板：比上轮稍不毛 */
+  --lg-bg-sat: 1.12;
   --lg-orb-dur: 60s;
   --lg-glow-size: 230px; --lg-glow-op: .85;
-  /* 光球色相（沿用旧配色：淡紫/暖沙/冷灰/亮紫/米） */
   --lg-orb-a: 150,138,210; --lg-orb-b: 200,160,121; --lg-orb-c: 150,150,170;
   --lg-orb-d: 142,128,232; --lg-orb-e: 200,190,170;
-
-  /* 玻璃缘：外浮影 + 顶部高光发丝线 + 四边 ≥5px 折射光带 + 底部厚度阴影。
-     全部用 box-shadow（尊重 border-radius），顶左亮、右下暗 = 光源方向 + 厚度。 */
-  --glass-edge:
-    0 12px 32px -10px rgba(30,26,64,.20),
-    inset 0 0 0 1px rgba(255,255,255,.20),                              /* 四面内发光环：让"边"整圈可读 */
-    inset 0 1px 0 rgba(255,255,255,.95),
-    inset 0 var(--lg-edge-w) var(--lg-edge-w) calc(var(--lg-edge-w)*-1) rgba(255,255,255,.58),
-    inset var(--lg-edge-w) 0 var(--lg-edge-w) calc(var(--lg-edge-w)*-1) rgba(255,255,255,.30),
-    inset 0 calc(var(--lg-edge-w)*-1) var(--lg-edge-w) calc(var(--lg-edge-w)*-1) rgba(255,255,255,.18),
-    inset calc(var(--lg-edge-w)*-1) 0 var(--lg-edge-w) calc(var(--lg-edge-w)*-1) rgba(255,255,255,.14),
-    inset 0 calc(var(--lg-edge-w)*-2) calc(var(--lg-edge-w)*2.2) calc(var(--lg-edge-w)*-1.3) rgba(30,26,64,.10);
-  /* 轻量缘：按钮/气泡/小件用（折射带更收敛） */
-  --glass-edge-lite:
-    0 6px 18px -8px rgba(30,26,64,.16),
-    inset 0 1px 0 rgba(255,255,255,.85),
-    inset 0 3px 4px -3px rgba(255,255,255,.42),
-    inset 0 -3px 5px -3px rgba(30,26,64,.08);
-  --glass-rim: 1px solid rgba(255,255,255,.42);
-  --glass-rim-strong: 1px solid rgba(255,255,255,.6);
+  /* 缘内高光/厚度（box-shadow，廉价、尊重圆角，配通透体=玻璃感而非塑料感） */
+  --glass-rim:
+    0 12px 30px -12px rgba(30,26,64,.22),
+    inset 0 0 0 1px rgba(255,255,255,.50),
+    inset 0 0 0 2px rgba(255,255,255,.10),
+    inset 0 2px 7px rgba(255,255,255,.45),
+    inset 0 -3px 9px rgba(120,108,200,.10);
+  --glass-rim-sm:
+    0 6px 16px -8px rgba(30,26,64,.18),
+    inset 0 0 0 1px rgba(255,255,255,.55),
+    inset 0 1px 4px rgba(255,255,255,.4);
 }
 
-/* ---- 第零层：浅灰真底 ---- */
 html { background: #ECEAF0; }
 body { background: transparent; }
 
-/* ============================================================
-   背景舞台：光球横穿全屏（约 --lg-orb-dur）+ 重模糊染色底板
-   ============================================================ */
+/* ---- 背景舞台：光球横穿全屏 + 底板（唯一重模糊） ---- */
 .lg-bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
 .lg-orb {
-  position: absolute; left: -55vmax; border-radius: 50%; filter: blur(2px);
-  will-change: transform;
+  position: absolute; left: -55vmax; border-radius: 50%; filter: blur(2px); will-change: transform;
   animation-name: lg-cross; animation-timing-function: linear; animation-iteration-count: infinite;
 }
 .lg-orb--1 { width: 48vmax; height: 48vmax; top: -8vmax; background: radial-gradient(circle, rgba(var(--lg-orb-a),.8), rgba(var(--lg-orb-a),0) 66%); animation-duration: calc(var(--lg-orb-dur)*1.15); animation-delay: calc(var(--lg-orb-dur)*-0.08); }
@@ -65,301 +47,278 @@ body { background: transparent; }
 .lg-orb--3 { width: 38vmax; height: 38vmax; top: 55vmax; background: radial-gradient(circle, rgba(var(--lg-orb-c),.62), rgba(var(--lg-orb-c),0) 68%); animation-duration: calc(var(--lg-orb-dur)*1.3); animation-delay: calc(var(--lg-orb-dur)*-0.7); }
 .lg-orb--4 { width: 30vmax; height: 30vmax; top: 12vmax; background: radial-gradient(circle, rgba(var(--lg-orb-d),.66), rgba(var(--lg-orb-d),0) 68%); animation-duration: calc(var(--lg-orb-dur)*0.9);  animation-delay: calc(var(--lg-orb-dur)*-0.55); }
 .lg-orb--5 { width: 34vmax; height: 34vmax; top: 68vmax; background: radial-gradient(circle, rgba(var(--lg-orb-e),.7), rgba(var(--lg-orb-e),0) 68%); animation-duration: calc(var(--lg-orb-dur)*1.2); animation-delay: calc(var(--lg-orb-dur)*-0.25); }
-@keyframes lg-cross {
-  0%   { transform: translate3d(0, 0, 0); }
-  50%  { transform: translate3d(80vmax, 5vmax, 0); }
-  100% { transform: translate3d(160vmax, -3vmax, 0); }
-}
-/* 底板：唯一重模糊，把光球弥散成均匀柔和底色 + 极淡亮度 scrim 保文字对比 */
+@keyframes lg-cross { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(80vmax,5vmax,0)} 100%{transform:translate3d(160vmax,-3vmax,0)} }
 .lg-plate {
   position: absolute; inset: 0;
   -webkit-backdrop-filter: blur(var(--lg-bg-blur)) saturate(var(--lg-bg-sat));
   backdrop-filter: blur(var(--lg-bg-blur)) saturate(var(--lg-bg-sat));
   background:
-    linear-gradient(105deg, rgba(250,248,245,.38), rgba(250,248,245,.24) 50%, rgba(244,242,247,.38)),
-    linear-gradient(105deg, rgba(216,212,221,.26), rgba(250,248,245,.12) 50%, rgba(231,227,247,.24)),
-    rgba(244,242,247,.20);
+    linear-gradient(105deg, rgba(250,248,245,.34), rgba(250,248,245,.20) 50%, rgba(244,242,247,.34)),
+    linear-gradient(105deg, rgba(216,212,221,.22), rgba(250,248,245,.10) 50%, rgba(231,227,247,.20)),
+    rgba(244,242,247,.16);
 }
 
-/* ============================================================
-   鼠标跟随发光圆：screen 混合趋亮；无阻尼，位置由 JS 直接锁定
-   ============================================================ */
+/* ---- 鼠标发光圆：无阻尼，JS 直接锁定 ---- */
 .lg-mouseglow {
   position: fixed; left: 0; top: 0; width: var(--lg-glow-size); height: var(--lg-glow-size);
-  border-radius: 50%; pointer-events: none; z-index: 9998; mix-blend-mode: screen;
-  opacity: var(--lg-glow-op);
+  border-radius: 50%; pointer-events: none; z-index: 9998; mix-blend-mode: screen; opacity: var(--lg-glow-op);
   background: radial-gradient(circle, rgba(255,255,255,.5), rgba(231,227,247,.16) 42%, rgba(255,255,255,0) 70%);
   transform: translate3d(-50%,-50%,0) translate3d(-200px,-200px,0);
-  transition: opacity .35s ease; /* 只过渡显隐，位置无过渡（无阻尼） */
+  transition: opacity .35s ease;
 }
 
 /* ============================================================
-   浮层折射玻璃缘：SVG #lg-refract 位移滤镜令缘带真实弯曲折射。
-   用 mask 挖出 ≥edgeW 厚的渐变环，只作用于浮层（数量少、瞬时，性能可控）。
+   折射缘环 ::after —— 遮罩出 --ring 厚带。
+   桌面：backdrop-filter:url(#lg-refract) 真折射（透明填充，对底板只带 1px 模糊，随滚动变化）。
+   注意：只给「基类 static」的卡片/按钮加 position:relative；fixed/absolute 元素（modal/panel/下拉）
+   本身即是定位上下文，绝不在此再加 relative（否则打进文档流=回归）。
    ============================================================ */
+.btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button { position: relative; --ring: var(--lg-ring-sm); }
+.list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card,
+.auth-card, .feedback-card, .admin-row { --ring: var(--lg-ring); }
+
+/* 折射缘环 ::after（遮罩厚带）——仅按钮 + 浮层。卡片改用「透明边+background-clip」模型（见下），缘带纯净透到板。 */
+.btn::after, .tc-push-btn::after, .chat-send::after, .chat-plus-btn::after, .md-toolbar button::after,
 .modal::after, .custom-select-panel::after, .chat-plus-pop::after, .profile-panel::after {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: var(--lg-edge-w);
-  pointer-events: none; z-index: 5; opacity: .8;
-  background: linear-gradient(150deg, rgba(255,255,255,.9), rgba(255,255,255,.06) 38%, rgba(122,104,224,.4) 62%, rgba(255,255,255,.55));
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 4;
+  padding: var(--ring, 10px);
+  /* 透明填充——折射缘自身不上色，靠 backdrop 折射 + 内 rim 高光显形 */
+  background: transparent;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   mask-composite: exclude;
-  filter: url(#lg-refract);
+  -webkit-backdrop-filter: url(#lg-refract) blur(1px);
+  backdrop-filter: url(#lg-refract) blur(1px);
 }
-.modal, .custom-select-panel, .chat-plus-pop, .profile-panel { position: relative; }
 
 /* ============================================================
-   卡片：半透明 + 玻璃缘（无 backdrop-filter）。cardHi = 更高毛值、更白、更通透。
+   卡片：通透填充 + 玻璃 rim（体无 backdrop-filter）。
+   选择器只含真正的卡片——按钮行/细线行/信息行绝不入列。
    ============================================================ */
-.list-card, .notif-item, .stat-card, .about-card, .about-card-block,
-.post-card, .admin-row, .feedback-card, .auth-card, .device-row,
-.intent-teacher-row, .contract-actions, .profile-fact-row {
-  background: var(--m-cardHi-bg, rgba(255,255,255,.32));
-  border: var(--glass-rim);
+.list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card,
+.auth-card, .feedback-card, .admin-row {
+  background: var(--m-cardHi-bg, rgba(255,255,255,.14));
+  /* 透明边 = 折射缘带；background-clip 让填充内缩到 padding-box，缘带不被填充污染 → 纯折射底板 */
+  border: var(--ring) solid transparent;
+  background-clip: padding-box;
+  -webkit-backdrop-filter: url(#lg-refract) blur(1px);   /* 缘带对底板真折射；填充内缩故缘通透 */
+  backdrop-filter: url(#lg-refract) blur(1px);
   border-radius: var(--lg-r);
-  box-shadow: var(--glass-edge);
+  box-shadow: var(--glass-rim);
   isolation: isolate;
 }
 
 /* ============================================================
-   按钮：负毛值透镜（比所在区域更通透）+ 液态聚焦/点击动效。
-   统一可定制：所有按钮走 .btn，材质由 constants.LG.mats 驱动。
+   按钮：负毛值透镜（填充比所在卡片更透）+ 液态聚焦/点击 + 涟漪(::before)。
+   ::after 已被折射缘占用，涟漪改挂 ::before（覆盖基类擦除母题）。
    ============================================================ */
-.btn {
-  background: var(--m-button-bg, rgba(255,255,255,.14));
-  border: var(--glass-rim-strong);
-  border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-edge-lite);
+.btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button {
+  background: var(--m-button-bg, rgba(255,255,255,.05));
+  border: none; border-radius: var(--lg-r-sm);
+  box-shadow: var(--glass-rim-sm);
+  isolation: isolate; overflow: hidden;
   transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out),
               background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
 }
-.btn-primary { background: var(--m-btnPrimary-bg, rgba(26,24,32,.84)); color: #fff; }
-.btn-accent  { background: var(--m-btnAccent-bg, rgba(122,104,224,.8)); color: #fff; }
-.btn-danger  { background: var(--m-btnDanger-bg, rgba(198,72,58,.78)); color: #fff; }
-.btn-outline { background: var(--m-button-bg, rgba(255,255,255,.14)); color: var(--ink); }
-.btn-ghost   { background: var(--m-button-bg, rgba(255,255,255,.10)); }
-.btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 22px -8px rgba(30,26,64,.24), inset 0 1.5px 0 rgba(255,255,255,.9), inset 0 4px 6px -4px rgba(255,255,255,.5); }
-.btn:focus-visible { outline: none; box-shadow: var(--glass-edge-lite), 0 0 0 3px rgba(122,104,224,.42), 0 0 18px rgba(122,104,224,.45); }
-.btn:active:not(:disabled) { transform: translateY(0) scale(.97); box-shadow: inset 0 2px 8px rgba(30,26,64,.24); }
-.btn::after {
+.btn-primary, .chat-send { background: var(--m-btnPrimary-bg, rgba(24,22,30,.66)); color: #fff; }
+.btn-accent, .tc-push-btn { background: var(--m-btnAccent-bg, rgba(122,104,224,.62)); color: #fff; }
+.btn-danger { background: var(--m-btnDanger-bg, rgba(198,72,58,.60)); color: #fff; }
+.btn-outline { background: var(--m-button-bg, rgba(255,255,255,.06)); color: var(--ink); }
+.btn-ghost { background: var(--m-button-bg, rgba(255,255,255,.04)); }
+.btn:hover:not(:disabled), .tc-push-btn:hover:not(:disabled), .chat-plus-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -8px rgba(30,26,64,.26), inset 0 0 0 1px rgba(255,255,255,.7), inset 0 1px 5px rgba(255,255,255,.5); }
+.btn:focus-visible { outline: none; box-shadow: var(--glass-rim-sm), 0 0 0 3px rgba(122,104,224,.42), 0 0 16px rgba(122,104,224,.4); }
+.btn:active:not(:disabled) { transform: translateY(0) scale(.97); box-shadow: inset 0 2px 8px rgba(30,26,64,.26); }
+.btn::before, .tc-push-btn::before, .chat-send::before {
   content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%;
   background: radial-gradient(circle, rgba(255,255,255,.7), rgba(255,255,255,0) 70%);
-  transform: translate(-50%,-50%) scale(0); opacity: 0; z-index: -1;
+  transform: translate(-50%,-50%) scale(0); opacity: 0; z-index: 1;
   transition: transform .5s var(--ease-out), opacity .6s var(--ease-out);
 }
-.btn:active::after { transform: translate(-50%,-50%) scale(28); opacity: .9; transition: 0s; }
-.btn::before { display: none; } /* 旧扁平擦除母题退场 */
+.btn:active::before, .tc-push-btn:active::before, .chat-send:active::before { transform: translate(-50%,-50%) scale(26); opacity: .9; transition: 0s; }
 .btn:disabled { opacity: .55; }
-
-/* 扁平文字链 → 玻璃小按钮（不强制 display，显隐交给 style.css，避免覆盖移动端 display:none） */
+/* 扁平文字链 → 玻璃小按钮（不强制 display，显隐交 base，避免覆盖移动端 display:none） */
 .btn-text-danger, .btn-link-inline, .credential-reupload {
-  background: var(--m-button-bg, rgba(255,255,255,.14));
-  border: var(--glass-rim);
-  border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-edge-lite);
-  padding: 6px 12px; text-decoration: none;
+  background: var(--m-button-bg, rgba(255,255,255,.06)); border: none;
+  border-radius: var(--lg-r-sm); box-shadow: var(--glass-rim-sm); padding: 6px 12px; text-decoration: none;
 }
-
-/* 非 .btn 的可点击按钮统一玻璃化（"有按钮就要体现"：发送需求/发送/加号/编辑器工具/角色页签） */
-.tc-push-btn, .chat-plus-btn, .chat-send, .md-toolbar button {
-  background: var(--m-button-bg, rgba(255,255,255,.14));
-  border: var(--glass-rim-strong);
-  border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-edge-lite);
-}
-.tc-push-btn { background: var(--m-btnAccent-bg, rgba(122,104,224,.8)); color: #fff; }
-.chat-send { background: var(--m-btnPrimary-bg, rgba(26,24,32,.84)); color: #fff; }
-.md-toolbar button:hover, .chat-plus-btn:hover { box-shadow: var(--glass-edge-lite), 0 0 0 2px rgba(122,104,224,.3); }
-.role-tabs { background: var(--m-input-bg, rgba(255,255,255,.14)); border: var(--glass-rim); border-radius: var(--lg-r-sm); padding: 4px; }
-.role-tab.active { background: var(--m-pill-bg, rgba(74,58,178,.88)); color: #fff; border-radius: var(--lg-r-sm); }
+/* 登录角色页签：玻璃分段 */
+.role-tabs { background: var(--m-input-bg, rgba(255,255,255,.1)); border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-rim-sm); padding: 4px; }
+.role-tab.active { background: var(--m-pill-bg, rgba(74,58,178,.8)); color: #fff; border-radius: 7px; }
 
 /* ============================================================
-   头像：玻璃环（含不可点击头像）。无 backdrop-filter。
+   头像：玻璃环（含不可点击）。无 backdrop-filter。
    ============================================================ */
 .avatar {
-  background: linear-gradient(160deg, rgba(255,255,255,.7), rgba(231,227,247,.5));
-  border: 1.5px solid rgba(255,255,255,.7);
-  box-shadow: var(--glass-edge-lite);
+  background: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
+  border: 1.5px solid rgba(255,255,255,.7); box-shadow: var(--glass-rim-sm);
 }
-.avatar--guest { background: rgba(255,255,255,.2); border: 1.5px dashed rgba(110,110,118,.55); box-shadow: none; }
-.avatar--link, .avatar-btn .avatar--link { box-shadow: var(--glass-edge-lite); }
-.avatar-btn:hover .avatar--link, .avatar-btn:focus-visible .avatar--link {
-  transform: scale(1.09);
-  box-shadow: var(--glass-edge-lite), 0 0 0 3px rgba(122,104,224,.4);
-}
+.avatar--guest { background: rgba(255,255,255,.12); border: 1.5px dashed rgba(110,110,118,.5); box-shadow: none; }
+.avatar-btn:hover .avatar--link, .avatar-btn:focus-visible .avatar--link { transform: scale(1.09); box-shadow: var(--glass-rim-sm), 0 0 0 3px rgba(122,104,224,.4); }
 
 /* ============================================================
-   对话气泡：毛玻璃淡紫(我)/淡米(对方)/淡紫系统。无 backdrop-filter。
+   对话气泡：通透淡紫/淡米/淡紫系统 + 玻璃 rim（体无 backdrop-filter）。
    ============================================================ */
-.chat-bubble { border: var(--glass-rim); box-shadow: var(--glass-edge-lite); }
-.chat-bubble--mine   { background: var(--m-bubbleMine-bg, rgba(150,138,230,.36)); color: var(--ink); }
-.chat-bubble--theirs { background: var(--m-bubbleTheirs-bg, rgba(233,218,196,.4)); color: var(--ink); }
-.chat-bubble--system { background: var(--m-bubbleSys-bg, rgba(206,198,238,.34)); }
-
-/* 对话上传文件 chip / 暂存缩略 */
+.chat-bubble { border: none; box-shadow: var(--glass-rim-sm); }
+.chat-bubble--mine   { background: var(--m-bubbleMine-bg, rgba(150,138,230,.26)); color: var(--ink); }
+.chat-bubble--theirs { background: var(--m-bubbleTheirs-bg, rgba(233,218,196,.30)); color: var(--ink); }
+.chat-bubble--system { background: var(--m-bubbleSys-bg, rgba(206,198,238,.24)); }
 .chat-file-chip, .chat-stage-item, .chat-stage-thumb {
-  background: var(--m-stage-bg, rgba(255,255,255,.2));
-  border: var(--glass-rim);
-  border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-edge-lite);
+  background: var(--m-stage-bg, rgba(255,255,255,.14)); border: none;
+  border-radius: var(--lg-r-sm); box-shadow: var(--glass-rim-sm);
 }
 
 /* ============================================================
-   录入控件：半透明输入面（无 backdrop-filter）
+   录入控件：通透输入面
    ============================================================ */
 .form-input, .form-textarea, .custom-select-trigger, .chat-input, .filter-select {
-  background: var(--m-input-bg, rgba(255,255,255,.14)) !important;
-  border: var(--glass-rim) !important;
-  border-radius: var(--lg-r-sm);
-  box-shadow: inset 0 1px 3px rgba(30,26,64,.06);
+  background: var(--m-input-bg, rgba(255,255,255,.1)) !important;
+  border: none !important; border-radius: var(--lg-r-sm);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.4), inset 0 1px 3px rgba(30,26,64,.06);
 }
 .form-input:focus, .form-textarea:focus, .chat-input:focus, .filter-select:focus {
-  box-shadow: inset 0 1px 3px rgba(30,26,64,.06), 0 0 0 3px rgba(122,104,224,.3);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.5), 0 0 0 3px rgba(122,104,224,.3);
 }
 
 /* ============================================================
-   下拉栏 / 加号弹层：浮层玻璃（唯一允许 backdrop-filter 的前景件）
+   下拉 / 加号弹层：浮层玻璃（含真折射缘）。base 已 absolute，不加 relative。
    ============================================================ */
 .custom-select-panel, .chat-plus-pop {
-  background: var(--m-overlay-bg, rgba(255,255,255,.3));
-  -webkit-backdrop-filter: blur(var(--m-overlay-blur, 13px)) saturate(1.3);
-  backdrop-filter: blur(var(--m-overlay-blur, 13px)) saturate(1.3);
-  border: var(--glass-rim-strong);
-  border-radius: var(--lg-r);
-  box-shadow: var(--glass-edge);
+  background: var(--m-overlay-bg, rgba(255,255,255,.22));
+  -webkit-backdrop-filter: blur(var(--m-overlay-blur, 12px)) saturate(1.3);
+  backdrop-filter: blur(var(--m-overlay-blur, 12px)) saturate(1.3);
+  border: none; border-radius: var(--lg-r); box-shadow: var(--glass-rim);
 }
 
 /* ============================================================
-   侧边栏 = 一整块玻璃（半透明填充，无 backdrop-filter → 开闭不卡）。
-   选中块深紫玻璃；底部用户块白玻璃。
+   侧边栏 = 整块玻璃（体无 backdrop-filter → 开闭不卡）。
    ============================================================ */
 .client-sidebar {
-  background: var(--m-sidebar-bg, rgba(250,248,245,.26)) !important;
-  border-right: 1px solid rgba(255,255,255,.5);
-  box-shadow: 8px 0 30px rgba(30,26,64,.10);
-  z-index: 5;
+  background: var(--m-sidebar-bg, rgba(250,248,245,.2)) !important;
+  border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1); z-index: 5;
 }
 .sidebar-pill {
-  background: var(--m-pill-bg, rgba(74,58,178,.88)) !important;
-  border-radius: var(--lg-r);
-  border: 1px solid rgba(190,180,255,.55);
-  box-shadow: var(--glass-edge);
-  left: 8px; right: 8px;
+  background: var(--m-pill-bg, rgba(74,58,178,.8)) !important; border-radius: var(--lg-r);
+  border: none; box-shadow: var(--glass-rim); left: 8px; right: 8px;
 }
 .sidebar-user {
-  background: var(--m-user-bg, rgba(255,255,255,.42)) !important;
-  border: var(--glass-rim-strong);
-  border-radius: var(--lg-r);
-  box-shadow: var(--glass-edge-lite);
-  margin: 8px;
+  background: var(--m-user-bg, rgba(255,255,255,.34)) !important; border: none;
+  border-radius: var(--lg-r); box-shadow: var(--glass-rim-sm); margin: 8px;
 }
-.sidebar-item:hover:not(.active) { background: rgba(255,255,255,.26); border-radius: var(--lg-r-sm); }
+.sidebar-item:hover:not(.active) { background: rgba(255,255,255,.22); border-radius: var(--lg-r-sm); }
 
 /* ============================================================
-   会话栏：列表半透明背景 + 选中玻璃块 + 聚焦环；头/输入条半透明
+   会话栏：列表通透 + 选中玻璃块 + 聚焦环；聊天区/窗格去米底与点阵（覆盖 base 米色点阵）
    ============================================================ */
 .chats-shell { background: transparent !important; }
-.chats-list-pane { background: var(--m-chatList-bg, rgba(255,255,255,.16)) !important; }
-.conv-pill {
-  background: var(--m-card-bg, rgba(255,255,255,.3)) !important;
-  border: var(--glass-rim);
-  border-radius: var(--lg-r);
-  box-shadow: var(--glass-edge-lite);
-}
-.conv-item:hover:not(.active) { background: rgba(255,255,255,.2); border-radius: var(--lg-r); }
+.chats-list-pane { background: var(--m-chatList-bg, rgba(255,255,255,.12)) !important; }
+.chat-pane, .chat-messages { background: transparent !important; background-image: none !important; }
+.conv-pill { background: var(--m-card-bg, rgba(255,255,255,.22)) !important; border: none; border-radius: var(--lg-r); box-shadow: var(--glass-rim-sm); }
+.conv-item:hover:not(.active) { background: rgba(255,255,255,.18); border-radius: var(--lg-r); }
 .conv-item:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(122,104,224,.4); border-radius: var(--lg-r); }
-.chat-head, .chat-input-bar { background: rgba(255,255,255,.28) !important; }
+.chat-head, .chat-input-bar { background: rgba(255,255,255,.22) !important; }
 
 /* ============================================================
    顶栏 / 主区透明
    ============================================================ */
 .navbar {
-  background: rgba(250,248,245,.5) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+  background: rgba(250,248,245,.46) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2);
   border-bottom: 1px solid rgba(255,255,255,.5);
 }
-body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg, rgba(250,248,245,.46) 0 50%, rgba(216,212,221,.46) 50% 100%) !important; }
+body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg, rgba(250,248,245,.42) 0 50%, rgba(216,212,221,.42) 50% 100%) !important; }
 .landing-stage { background: transparent !important; }
 .client-main { background: transparent !important; }
 
 /* ============================================================
-   标签 / 角标：玻璃药丸
+   标签 / 角标：玻璃药丸（CSS 缘，无 backdrop-filter）。改背景必带可读文字色。
    ============================================================ */
-.tag, .conv-item-role, .chat-peer-tag, .push-pin-tag, .demand-id-tag,
-.device-current, .chat-head-signed, .conv-signed-tag {
-  background: var(--m-tag-bg, rgba(255,255,255,.26));
-  border: var(--glass-rim);
-  border-radius: 999px;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
+.tag, .conv-item-role, .chat-peer-tag, .push-pin-tag, .demand-id-tag, .device-current {
+  background: var(--m-tag-bg, rgba(255,255,255,.2)); border: none; border-radius: 999px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); color: var(--ink-2, #444);
+}
+/* 已签约绿标：绿玻璃 + 白字（保对比，绝不白底白字） */
+.conv-signed-tag, .chat-head-signed {
+  background: linear-gradient(160deg, rgba(24,122,75,.62), rgba(24,122,75,.46));
+  color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.4);
 }
 
 /* ============================================================
-   弹窗/浮窗：浮层玻璃 + 折射缘；内部不再每字段一个框，统一放背景上，
-   分隔细线增强。顶栏玻璃化。
+   弹窗：浮层玻璃 + 真折射缘。base 已 relative。
+   头栏 sticky + 近不透明磨砂底 + z-index，防滚动正文透入与标题混色。
    ============================================================ */
 .modal {
-  background: var(--m-overlay-bg, rgba(255,255,255,.3));
-  -webkit-backdrop-filter: blur(var(--m-overlay-blur, 13px)) saturate(1.3);
-  backdrop-filter: blur(var(--m-overlay-blur, 13px)) saturate(1.3);
-  border: var(--glass-rim-strong);
-  border-radius: var(--lg-r-lg);
-  box-shadow: var(--glass-edge);
+  background: var(--m-overlay-bg, rgba(255,255,255,.22));
+  -webkit-backdrop-filter: blur(var(--m-overlay-blur, 12px)) saturate(1.3);
+  backdrop-filter: blur(var(--m-overlay-blur, 12px)) saturate(1.3);
+  border: none; border-radius: var(--lg-r-lg); box-shadow: var(--glass-rim);
 }
 .modal-overlay { background: rgba(30,26,64,.32); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
-.modal-header { background: rgba(255,255,255,.24); border-bottom: 1.5px solid rgba(30,26,64,.14); }
-.form-group + .form-group { border-top: 1.5px solid rgba(30,26,64,.16); } /* 增强被弱化的分隔细线 */
+.modal-header {
+  background: rgba(250,248,245,.9) !important;
+  -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2);
+  border-bottom: 1.5px solid rgba(30,26,64,.14);
+  position: sticky; top: 0; z-index: 2;
+}
+/* 表单分隔细线增强（统一放背景上，不再每字段一框） */
+.form-group + .form-group { border-top: 1.5px solid rgba(30,26,64,.16); }
 .form-group { background: transparent; }
-/* 合同/正文直接放卡上：去掉 .md-preview 的虚线框 */
-.md-preview { border: var(--glass-rim); background: var(--m-input-bg, rgba(255,255,255,.14)); border-radius: var(--lg-r-sm); }
+.md-preview { border: none; background: var(--m-input-bg, rgba(255,255,255,.1)); border-radius: var(--lg-r-sm); box-shadow: inset 0 0 0 1px rgba(255,255,255,.4); }
 
 /* ============================================================
-   个人信息侧栏：整块浮层玻璃 + 内部卡片
+   个人信息侧栏：浮层玻璃 + 真折射缘。base 已 fixed——绝不在此设 position。
    ============================================================ */
 .profile-panel {
-  background: var(--m-overlay-bg, rgba(255,255,255,.3));
-  -webkit-backdrop-filter: blur(var(--m-overlay-blur, 13px)) saturate(1.3);
-  backdrop-filter: blur(var(--m-overlay-blur, 13px)) saturate(1.3);
-  border-left: 1px solid rgba(255,255,255,.55);
-  box-shadow: var(--glass-edge);
+  background: var(--m-overlay-bg, rgba(255,255,255,.22));
+  -webkit-backdrop-filter: blur(var(--m-overlay-blur, 12px)) saturate(1.3);
+  backdrop-filter: blur(var(--m-overlay-blur, 12px)) saturate(1.3);
+  border-left: 1px solid rgba(255,255,255,.55); box-shadow: var(--glass-rim);
 }
-.profile-panel-head { background: rgba(255,255,255,.22); border-bottom: 1.5px solid rgba(30,26,64,.14); }
-
-/* ============================================================
-   筛选栏：玻璃面板 + 玻璃开关
-   ============================================================ */
-.filter-panel { background: var(--m-card-bg, rgba(255,255,255,.28)); border: var(--glass-rim); border-radius: var(--lg-r); box-shadow: var(--glass-edge-lite); }
-.drop-toggle {
-  background: var(--m-button-bg, rgba(255,255,255,.14));
-  border: var(--glass-rim-strong);
-  border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-edge-lite);
+.profile-panel-head {
+  background: rgba(250,248,245,.86); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-bottom: 1.5px solid rgba(30,26,64,.14);
 }
 
 /* ============================================================
-   勾选框 / 分数制切换（等第↔分数页签）：玻璃化
+   筛选栏 + 勾选框 + 分数制页签
    ============================================================ */
-.checkbox-item {
-  background: var(--m-input-bg, rgba(255,255,255,.14));
-  border: var(--glass-rim);
-  border-radius: var(--lg-r-sm);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.5);
-}
-.checkbox-item:has(input:checked) {
-  background: var(--m-btnAccent-bg, rgba(122,104,224,.8));
-  color: #fff;
-  border-color: rgba(190,180,255,.6);
-  box-shadow: var(--glass-edge-lite);
-}
-.score-mode-tabs { background: var(--m-input-bg, rgba(255,255,255,.14)); border: var(--glass-rim); border-radius: var(--lg-r-sm); }
+.filter-panel { background: var(--m-card-bg, rgba(255,255,255,.2)); border: none; border-radius: var(--lg-r); box-shadow: var(--glass-rim-sm); }
+.drop-toggle { background: var(--m-button-bg, rgba(255,255,255,.06)); border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-rim-sm); }
+.checkbox-item { background: var(--m-input-bg, rgba(255,255,255,.1)); border: none; border-radius: var(--lg-r-sm); box-shadow: inset 0 0 0 1px rgba(255,255,255,.45); }
+.checkbox-item:has(input:checked) { background: var(--m-btnAccent-bg, rgba(122,104,224,.7)); color: #fff; box-shadow: var(--glass-rim-sm); }
+.score-mode-tabs { background: var(--m-input-bg, rgba(255,255,255,.1)); border: none; border-radius: var(--lg-r-sm); box-shadow: inset 0 0 0 1px rgba(255,255,255,.4); }
 .score-mode-tab { background: transparent; }
-.score-mode-tab.active { background: var(--m-pill-bg, rgba(74,58,178,.88)); color: #fff; }
+.score-mode-tab.active { background: var(--m-pill-bg, rgba(74,58,178,.8)); color: #fff; }
 .score-mode-tab + .score-mode-tab { border-left-color: rgba(255,255,255,.4); }
 
 /* ============================================================
-   减弱动效偏好：停光球漂移与按钮涟漪
+   移动端：折射缘降级为清晰焦散渐变（保滚动帧率）；其余玻璃观感保留。
+   缘仍 ≥ring 厚、清晰、不毛、不锯齿，只是不做 backdrop 位移。
    ============================================================ */
+@media (max-width: 860px) {
+  /* 移动端：卡片关掉真折射（保滚动帧率），缘改绘焦散渐变（透明/不毛/不锯齿） */
+  .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card,
+  .auth-card, .feedback-card, .admin-row {
+    position: relative; border: none; background-clip: border-box;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .list-card::before, .post-card::before, .about-card::before, .about-card-block::before,
+  .notif-item::before, .stat-card::before, .auth-card::before, .feedback-card::before, .admin-row::before {
+    content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 4;
+    padding: var(--ring);
+    background: linear-gradient(150deg, rgba(255,255,255,.7), rgba(255,255,255,.06) 40%, rgba(150,140,230,.28) 70%, rgba(255,255,255,.42));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+  }
+  /* 按钮缘同样降级 */
+  .btn::after, .tc-push-btn::after, .chat-send::after, .chat-plus-btn::after, .md-toolbar button::after {
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    background: linear-gradient(150deg, rgba(255,255,255,.7), rgba(255,255,255,.06) 40%, rgba(150,140,230,.28) 70%, rgba(255,255,255,.42));
+  }
+}
+
+/* 减弱动效偏好 */
 @media (prefers-reduced-motion: reduce) {
   .lg-orb { animation: none !important; }
-  .btn::after { transition: none !important; }
+  .btn::before, .tc-push-btn::before, .chat-send::before { transition: none !important; }
 }
