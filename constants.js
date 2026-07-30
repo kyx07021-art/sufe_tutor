@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.16.2',
+  APP_VERSION: '0.16.3',
 
   // ============================================================
   // 业务数据
@@ -56,15 +56,15 @@ globalThis.APP_CONSTANTS = {
   LG: {
     radius: { sm: 9, md: 12, lg: 15 },   // 小圆角
     edgeFade: 14,                         // 边缘渐隐宽 px：折射集中带（中心磨砂→边缘清晰弯曲的过渡区）
-    refractScale: 30,                     // 折射位移强度（SVG feDisplacementMap scale）
+    refractScale: 34,                     // 折射位移强度（SVG feDisplacementMap scale；clear-rim 上的折射唇）
     floatBlur: 12,                        // 浮层磨砂模糊 px（浮层 ::before 单独模糊；元素折射底不模糊）
-    bg: { blur: 16, sat: 1.12 },          // 背景底板：唯一重模糊
+    bg: { blur: 16, sat: 1.12 },          // 背景底板：唯一重模糊（背景毛蒙版照旧；穿透感靠卡片 clear-rim，不削弱底板）
     orbCrossSec: 60,                      // 光球横穿全屏约 60s
     glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬）
     // 毛值 frost 仅驱动极小白调；tint/tintA=叠色。体填充刻意通透，按钮更透=透镜。
     mats: {
-      card:        { frost: 1,  tint: '255,255,255', tintA: .12 },  // 一般卡片
-      cardHi:      { frost: 2,  tint: '255,255,255', tintA: .16 },  // 通用卡片（通透）
+      card:        { frost: 1,  tint: '255,255,255', tintA: .14 },  // 一般卡片：磨砂体（边缘 clear-rim 另给穿透）
+      cardHi:      { frost: 2,  tint: '255,255,255', tintA: .18 },  // 通用卡片：磨砂体
       button:      { frost: -3, tint: '255,255,255', tintA: .04 },  // 中性按钮=透镜（负毛值，比卡片更透）
       btnPrimary:  { frost: -2, tint: '24,22,30',    tintA: .66 },  // 墨色玻璃按钮
       btnAccent:   { frost: -2, tint: '122,104,224', tintA: .62 },  // 紫色玻璃按钮

@@ -27,12 +27,16 @@
   --lg-orb-a: 150,138,210; --lg-orb-b: 200,160,121; --lg-orb-c: 150,150,170;
   --lg-orb-d: 142,128,232; --lg-orb-e: 200,190,170;
   /* 外浮影 + 顶部一线高光（仅顶，非整圈相框） */
-  --glass-lift: 0 12px 30px -12px rgba(30,26,64,.22), inset 0 1px 0 rgba(255,255,255,.35);
-  --glass-lift-sm: 0 6px 16px -8px rgba(30,26,64,.18), inset 0 1px 0 rgba(255,255,255,.4);
-  /* 边缘渐隐遮罩（中心不透明、四边淡出 → 露出折射底） */
+  /* 外浮影 only——不加白色 inset 描边（白描边=塑料框；边缘通透交给 clear-rim 遮罩+折射唇） */
+  --glass-lift: 0 12px 30px -12px rgba(30,26,64,.22);
+  --glass-lift-sm: 0 6px 16px -8px rgba(30,26,64,.18);
+  /* 边缘=直达透明底色的 clear-rim：外圈完全无填充(透出背景，仅余折射唇)，再陡升到磨砂体；无白描边=无塑料框 */
   --edge-fade-mask:
-    linear-gradient(to right, transparent, #000 var(--lg-ef), #000 calc(100% - var(--lg-ef)), transparent),
-    linear-gradient(to bottom, transparent, #000 var(--lg-ef), #000 calc(100% - var(--lg-ef)), transparent);
+    linear-gradient(to right, transparent 0, transparent 5px, #000 9px, #000 calc(100% - 9px), transparent calc(100% - 5px), transparent 100%),
+    linear-gradient(to bottom, transparent 0, transparent 5px, #000 9px, #000 calc(100% - 9px), transparent calc(100% - 5px), transparent 100%);
+  --edge-fade-mask-sm:
+    linear-gradient(to right, transparent 0, transparent 3px, #000 6px, #000 calc(100% - 6px), transparent calc(100% - 3px), transparent 100%),
+    linear-gradient(to bottom, transparent 0, transparent 3px, #000 6px, #000 calc(100% - 6px), transparent calc(100% - 3px), transparent 100%);
 }
 
 html { background: #ECEAF0; }
@@ -62,25 +66,29 @@ body { background: transparent; }
 /* ============================================================
    曲面玻璃边缘 —— 共享 ::before（磨砂填充 + 四边渐隐遮罩）
    ============================================================ */
+/* 大块曲面：中心磨砂→四边渐隐露折射。卡/浮层用大渐隐；气泡用小渐隐。按钮/小件不在此列=实心填充(文字必读) */
 .list-card::before, .post-card::before, .about-card::before, .about-card-block::before,
 .notif-item::before, .stat-card::before, .auth-card::before, .feedback-card::before, .admin-row::before,
-.btn::before, .tc-push-btn::before, .chat-send::before, .chat-plus-btn::before, .md-toolbar button::before,
-.modal::before, .custom-select-panel::before, .chat-plus-pop::before, .profile-panel::before,
-.chat-bubble::before {
+.modal::before, .custom-select-panel::before, .chat-plus-pop::before, .profile-panel::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
   background: var(--g-fill);
   -webkit-mask-image: var(--edge-fade-mask); -webkit-mask-composite: source-in;
   mask-image: var(--edge-fade-mask); mask-composite: intersect;
+}
+.chat-bubble::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: var(--g-fill);
+  -webkit-mask-image: var(--edge-fade-mask-sm); -webkit-mask-composite: source-in;
+  mask-image: var(--edge-fade-mask-sm); mask-composite: intersect;
 }
 /* 浮层 ::before 额外模糊（磨砂体）；元素折射底不模糊 → 边缘清晰弯折 */
 .modal::before, .custom-select-panel::before, .chat-plus-pop::before, .profile-panel::before {
   -webkit-backdrop-filter: blur(var(--m-overlay-blur, 12px)) saturate(1.3); backdrop-filter: blur(var(--m-overlay-blur, 12px)) saturate(1.3);
 }
 
-/* 折射底（元素级）：无模糊=边缘清晰；不折射自身内容=不洇墨；非定位子元素=不跟滚 */
-/* 卡 / 按钮：基类 static，需 position:relative 供 ::before/::after 定位 */
-.list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row,
-.btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button {
+/* 折射底（元素级，仅大块曲面：卡/浮层）：无模糊=边缘清晰；不折射自身内容=不洇墨。
+   按钮/小件不用折射底——它们实心填充，文字必须落在实心底上，绝不渐隐/折射吃空 */
+.list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
   position: relative; isolation: isolate; background: none; border: none;
   -webkit-backdrop-filter: url(#lg-refract); backdrop-filter: url(#lg-refract);
 }
@@ -99,55 +107,41 @@ body { background: transparent; }
 }
 
 /* ============================================================
-   按钮 = 统一组件：变体只设 --g-fill / --g-btn-fg 两参数
+   按钮（glass 换肤）：base 已是统一参数化组件，glass 只设参数 + 圆角 + 外浮影 + 玻璃态叠层色。
+   填充实心（::before 在 base，无渐隐）→ 文字永远可读；不再需要"中和 base"的补丁块（base 已无散件）。
    ============================================================ */
 .btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button {
-  --g-fill: var(--m-button-bg, rgba(255,255,255,.05)); --g-btn-fg: var(--ink);
-  border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm);
-  color: var(--g-btn-fg); overflow: hidden;        /* 裁涟漪 */
-  transition: transform var(--t-fast) var(--ease-out), filter var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out);
+  --g-fill: var(--m-button-bg, rgba(255,255,255,.06)); --g-fg: var(--ink);
+  --g-lift: var(--glass-lift-sm); --g-ring: rgba(122,104,224,.55);
+  --g-hover: rgba(255,255,255,.16); --g-active: rgba(0,0,0,.14); --g-focusin: rgba(255,255,255,.18);
+  border-radius: var(--lg-r-sm);
 }
-.btn-primary, .chat-send { --g-fill: var(--m-btnPrimary-bg, rgba(24,22,30,.66)); --g-btn-fg: #fff; }
-.btn-accent, .tc-push-btn { --g-fill: var(--m-btnAccent-bg, rgba(122,104,224,.62)); --g-btn-fg: #fff; }
-.btn-danger { --g-fill: var(--m-btnDanger-bg, rgba(198,72,58,.60)); --g-btn-fg: #fff; }
-.btn-outline { --g-fill: var(--m-button-bg, rgba(255,255,255,.07)); --g-btn-fg: var(--ink); }
-.btn-ghost { --g-fill: var(--m-button-bg, rgba(255,255,255,.04)); --g-btn-fg: var(--ink); }
-.btn-intent-ok { --g-fill: rgba(24,122,75,.5); --g-btn-fg: #fff; }
-.btn-intent-wait { --g-fill: rgba(120,120,128,.34); --g-btn-fg: #fff; }
-/* 统一 hover/focus/active：filter 加深自身颜色（对所有变体一致），聚焦加环，绝不改 background/color 为墨/米/白 */
-.btn:hover:not(:disabled), .tc-push-btn:hover:not(:disabled), .chat-plus-btn:hover { filter: brightness(1.14) saturate(1.06); transform: translateY(-1px); }
-.btn:focus-visible, .tc-push-btn:focus-visible, .chat-plus-btn:focus-visible { filter: brightness(1.14); box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.55), 0 0 14px rgba(122,104,224,.4); outline: none; }
-.btn:active:not(:disabled), .tc-push-btn:active:not(:disabled) { filter: brightness(.9); transform: scale(.97); }
-.btn:disabled { opacity: .55; }
-/* 中和 base 的 per-variant hover/focus 背景/文字（聚焦变黑/变米/文字消失的根因） */
-.btn:hover, .btn:focus, .btn:focus-visible,
-.btn-primary:hover, .btn-primary:focus, .btn-primary:focus-visible,
-.btn-accent:hover, .btn-accent:focus, .btn-accent:focus-visible,
-.btn-danger:hover, .btn-danger:focus, .btn-danger:focus-visible,
-.btn-outline:hover, .btn-outline:focus, .btn-outline:focus-visible,
-.btn-ghost:hover, .btn-ghost:focus, .btn-ghost:focus-visible,
-.btn-intent-ok:hover, .btn-intent-ok:focus, .btn-intent-wait:hover, .btn-intent-wait:focus {
-  background: none; color: var(--g-btn-fg);
+.btn-primary, .chat-send { --g-fill: var(--m-btnPrimary-bg, rgba(24,22,30,.66)); --g-fg: #fff; }
+.btn-accent, .tc-push-btn { --g-fill: var(--m-btnAccent-bg, rgba(122,104,224,.62)); --g-fg: #fff; }
+.btn-danger { --g-fill: var(--m-btnDanger-bg, rgba(198,72,58,.60)); --g-fg: #fff; }
+.btn-outline { --g-fill: var(--m-button-bg, rgba(255,255,255,.10)); --g-fg: var(--ink); }
+.btn-ghost { --g-fill: var(--m-button-bg, rgba(255,255,255,.05)); --g-fg: var(--ink); }
+.btn-intent-ok { --g-fill: rgba(24,122,75,.5); --g-fg: #fff; }
+.btn-intent-wait { --g-fill: rgba(120,120,128,.34); --g-fg: #fff; }
+/* 非 .btn 的玻璃按钮：base 不含其结构，glass 补「与 base .btn 同模型」的结构+交互（仅参数化，非散件） */
+.tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button {
+  position: relative; overflow: hidden; isolation: isolate; background: none; border: none; color: var(--g-fg); cursor: pointer;
+  box-shadow: var(--g-lift); transition: box-shadow var(--t-base) var(--ease-out), transform var(--t-fast) var(--ease-out);
 }
-/* 涟漪挂 ::after（::before 已用作磨砂填充）；并中和 base 擦除母题在 hover/focus 的触发 */
-.btn::after, .tc-push-btn::after, .chat-send::after {
-  content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; z-index: 2; pointer-events: none;
-  background: radial-gradient(circle, rgba(255,255,255,.75), rgba(255,255,255,0) 70%);
-  transform: translate(-50%,-50%) scale(0); opacity: 0; transition: transform .5s var(--ease-out), opacity .6s var(--ease-out);
-}
-.btn:active::after, .tc-push-btn:active::after, .chat-send:active::after { transform: translate(-50%,-50%) scale(26); opacity: .9; transition: 0s; }
-.btn:hover::before, .btn:focus::before, .btn:focus-visible::before { transform: none; opacity: 1; } /* 保磨砂填充，禁 base 擦除位移 */
-/* 文字链按钮（非 .btn）：同样参数化 + 中和 */
+.tc-push-btn::before, .chat-send::before, .chat-plus-btn::before, .md-toolbar button::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--g-fill); }
+.tc-push-btn::after, .chat-send::after, .chat-plus-btn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; z-index: 1; pointer-events: none; background: radial-gradient(circle, rgba(255,255,255,.6), rgba(255,255,255,0) 70%); transform: translate(-50%,-50%) scale(0); opacity: 0; transition: transform .5s var(--ease-out), opacity .6s var(--ease-out); }
+.tc-push-btn:hover:not(:disabled), .chat-send:hover:not(:disabled), .chat-plus-btn:hover:not(:disabled), .md-toolbar button:hover:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-hover); transform: translateY(-1px); }
+.tc-push-btn:focus-visible, .chat-send:focus-visible, .chat-plus-btn:focus-visible, .md-toolbar button:focus-visible { outline: none; box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), 0 0 0 3px var(--g-ring); }
+.tc-push-btn:active:not(:disabled), .chat-send:active:not(:disabled), .chat-plus-btn:active:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-active); transform: scale(.97); }
+.tc-push-btn:active:not(:disabled)::after, .chat-send:active:not(:disabled)::after, .chat-plus-btn:active:not(:disabled)::after { transform: translate(-50%,-50%) scale(26); opacity: .85; transition: 0s; }
+/* 文字链按钮（非 .btn）：base 提供结构+交互，glass 只换参（结构对 .credential-reupload 由 base 一并补齐） */
 .btn-text-danger, .btn-link-inline, .credential-reupload {
-  --g-fill: var(--m-button-bg, rgba(255,255,255,.07)); --g-btn-fg: var(--ink);
-  position: relative; isolation: isolate; background: none; border: none; border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-lift-sm); color: var(--g-btn-fg); padding: 6px 12px; text-decoration: none; overflow: hidden;
-  transition: filter var(--t-fast) var(--ease-out);
+  --g-fill: var(--m-button-bg, rgba(255,255,255,.10)); --g-fg: var(--ink);
+  --g-lift: var(--glass-lift-sm); --g-ring: rgba(122,104,224,.5);
+  --g-hover: rgba(255,255,255,.16); --g-focusin: rgba(255,255,255,.18);
+  border-radius: var(--lg-r-sm); padding: 6px 12px;
 }
-.btn-text-danger { --g-fill: rgba(198,72,58,.5); --g-btn-fg: #fff; }
-.btn-text-danger:hover, .btn-link-inline:hover, .credential-reupload:hover { filter: brightness(1.14); }
-.btn-text-danger:focus-visible, .btn-link-inline:focus-visible, .credential-reupload:focus-visible { filter: brightness(1.14); box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.5); outline: none; }
-.btn-text-danger:hover, .btn-text-danger:focus, .btn-link-inline:hover, .btn-link-inline:focus { background: none; color: var(--g-btn-fg); }
+.btn-text-danger { --g-fill: rgba(198,72,58,.82); --g-fg: #fff; }  /* 实心红玻璃：白字必须落在红底上，绝不能 transparent */
 /* 登录角色分段 */
 .role-tabs { position: relative; isolation: isolate; background: none; border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm); padding: 4px; --g-fill: var(--m-input-bg, rgba(255,255,255,.1)); }
 .role-tabs::before { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: -1; background: var(--g-fill); }
@@ -191,7 +185,13 @@ body { background: transparent; }
 /* ============================================================
    侧边栏 / 会话栏 / 顶栏 / 主区
    ============================================================ */
-.client-sidebar { background: var(--m-sidebar-bg, rgba(250,248,245,.2)) !important; border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1); z-index: 5; }
+/* 桌面：半透明+下方模糊=磨砂玻璃列（静态无动画→一次模糊不卡）。
+   绝不在此设 z-index：移动端基类 z-index:150 必须保留，否则抽屉掉到遮罩(140)下被压灰=侧栏"透明" */
+.client-sidebar {
+  background: rgba(250,248,245,.5) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+  border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1);
+}
 .sidebar-pill { background: var(--m-pill-bg, rgba(74,58,178,.8)) !important; border-radius: var(--lg-r); border: none; box-shadow: var(--glass-lift); left: 8px; right: 8px; }
 .sidebar-user { background: var(--m-user-bg, rgba(255,255,255,.34)) !important; border: none; border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); margin: 8px; }
 .sidebar-item:hover:not(.active) { background: rgba(255,255,255,.22); border-radius: var(--lg-r-sm); }
@@ -229,6 +229,12 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row,
   .btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button,
   .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* 移动端抽屉：近不透明（叠在变暗页面上才读得清）；开合动画不加模糊，防逐帧重模糊=卡；遮罩调淡减"全屏灰化" */
+@media (max-width: 860px) {
+  .client-sidebar { background: rgba(244,242,247,.97) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .sidebar-backdrop { background: rgba(20,18,40,.25); }
 }
 
 @media (prefers-reduced-motion: reduce) {
