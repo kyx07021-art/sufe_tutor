@@ -194,7 +194,7 @@ body { background: transparent; }
    小件纯填充预设（标签 / 输入 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）——无折射无曲面，保性能
    ============================================================ */
 .chat-file-chip, .chat-stage-item, .chat-stage-thumb { background: var(--m-stage-bg, rgba(255,255,255,.14)); border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm); }
-.tag, .conv-item-role, .chat-peer-tag, .push-pin-tag, .demand-id-tag, .device-current, .profile-tag {
+.tag, .conv-item-role, .chat-peer-tag, .demand-id-tag, .device-current, .profile-tag {
   background: var(--m-tag-bg, rgba(255,255,255,.2)); border: none; border-radius: 999px; box-shadow: var(--glass-lift-sm); color: var(--ink-2, #444);
 }
 .conv-signed-tag, .chat-head-signed, .profile-signed-tag { background: linear-gradient(160deg, rgba(24,122,75,.62), rgba(24,122,75,.46)); color: #fff; box-shadow: var(--glass-lift-sm); border-radius: 999px; }
@@ -266,7 +266,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row,
   .posts-toolbar, .entry, .admin-panel,
   .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button,
-  .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .sidebar-pill, .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { -webkit-backdrop-filter: none; backdrop-filter: none; }
   .profile-card { --g-fill: rgba(255,255,255,.82); }
   .profile-card--id { --g-fill: rgba(255,255,255,.9); }
 }

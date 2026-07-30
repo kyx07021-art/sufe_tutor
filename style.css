@@ -35,9 +35,6 @@
   --accent-bright:#8E80E8;
   --accent-tint:  #E7E3F7;
 
-  --sand:      #C8A079;
-  --sand-deep: #8A5A2B;
-  --sand-tint: #EFE3D2;
 
   --warn-deep: #9A6A2A;
   --warn-tint: #F0E2CF;
@@ -67,8 +64,7 @@
   --mono: 'Space Mono', ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
 
   /* 兼容 app.js 内联样式引用的旧变量（取值已并入新色板） */
-  --s2: 8px; --s3: 12px; --s6: 24px;
-  --text-2: #34343b;
+  --s2: 8px; --s3: 12px;
   --border-light: rgba(17,17,20,.10);
 }
 
@@ -1352,7 +1348,6 @@ body.profile-panel-open .profile-panel { transform: none; }
 .about-flow-line { width: 1.5px; flex: 1; min-height: 28px; margin: 5px 0; background: var(--line); }
 .about-flow-text { margin: 4px 0 20px; font-size: .86rem; line-height: 1.65; color: var(--ink-3); }
 .about-flow-step:last-child .about-flow-text { margin-bottom: 2px; }
-.flex { display: flex; }
 
 /* ---------- 尊重减弱动效偏好 ---------- */
 @media (prefers-reduced-motion: reduce) {

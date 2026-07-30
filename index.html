@@ -488,7 +488,7 @@
        3) 内联 SVG 位移滤镜 #lg-refract：给浮层玻璃缘做真实折射（feDisplacementMap）。
        4) 鼠标跟随发光圆：mix-blend:screen 趋亮；无阻尼，mousemove 直接锁定位置。 */
     (function () {
-      var LG = (window.APP_CONSTANTS || {}).LG || { radius: {}, edgeW: 5, bg: {}, orbCrossSec: 60, glow: {}, mats: {} };
+      var LG = (window.APP_CONSTANTS || {}).LG || { radius: {}, bg: {}, orbCrossSec: 60, glow: {}, mats: {} };
       var st = document.documentElement.style;
       function set(k, v) { st.setProperty(k, v); }
       function f3(n) { return Math.round(n * 1000) / 1000; }
