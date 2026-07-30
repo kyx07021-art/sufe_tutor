@@ -34,8 +34,8 @@
   display: inline-flex;
   width: 172px;
   flex-shrink: 0;
-  border: 1.5px solid var(--ink);
-  background: transparent;
+  border: none; overflow: hidden;
+  background: var(--m-input-bg, rgba(255,255,255,.1)); border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm);
 }
 .score-mode-tab {
   flex: 1 1 50%;
@@ -49,9 +49,9 @@
   transition: background-color var(--t-fast) var(--ease-out),
               color var(--t-fast) var(--ease-out);
 }
-.score-mode-tab + .score-mode-tab { border-left: 1.5px solid var(--ink); }
-.score-mode-tab:not(.active):hover { background: var(--paper-2); }
-.score-mode-tab.active { background: var(--ink); color: var(--paper); }
+.score-mode-tab + .score-mode-tab { border-left: 1.5px solid rgba(255,255,255,.3); }
+.score-mode-tab:not(.active):hover { background: rgba(255,255,255,.14); }
+.score-mode-tab.active { background: var(--m-btnAccent-bg, rgba(122,104,224,.78)); color: #fff; }
 
 /* 页签面板：等第 pill / 分数输入，换行独占整行 */
 .score-mode-pane {
@@ -79,7 +79,7 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: var(--field);
+  background: var(--m-button-bg, rgba(255,255,255,.1));
   color: var(--ink-3);
   transition: background-color var(--t-fast) var(--ease-out),
               color var(--t-fast) var(--ease-out);
@@ -93,11 +93,11 @@
   transition: transform var(--t-base) var(--ease-snap);
 }
 .gk-first-pills .gk-pill:hover,
-.gk-track-pills .gk-pill:hover { background: var(--field-2); color: var(--ink); }
+.gk-track-pills .gk-pill:hover { background: rgba(255,255,255,.14); color: var(--ink); }
 .gk-first-pills .gk-pill:hover::before,
 .gk-track-pills .gk-pill:hover::before { transform: scaleY(1); }
 .gk-first-pills .gk-pill.selected,
-.gk-track-pills .gk-pill.selected { background: var(--ink); color: var(--paper); }
+.gk-track-pills .gk-pill.selected { background: var(--m-btnAccent-bg, rgba(122,104,224,.78)); color: #fff; }
 .gk-first-pills .gk-pill.selected::before,
 .gk-track-pills .gk-pill.selected::before { background: var(--accent-bright); transform: scaleY(1); }
 
