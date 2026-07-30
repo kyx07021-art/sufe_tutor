@@ -46,7 +46,7 @@ function renderContractCard(c) {
   const me = state.user.id;
   const iAmDrafter = c.drafter_user_id === me;
   const peerName = me === c.student_user_id ? c.teacher_name : c.student_name;
-  const methodName = TEACHING_METHODS.find(m => m.id === c.method)?.name || c.method;
+  const methodName = DISP.methodName(c.method) || c.method;
   const statusText = c.status === 'pending' ? UI.CONTRACT_STATUS_PENDING
     : c.status === 'signing' ? UI.CONTRACT_STATUS_SIGNING : UI.CONTRACT_STATUS_SIGNED;
   const statusCls = c.status === 'signed' ? 'tag-ok' : c.status === 'signing' ? 'tag-warn' : 'tag-accent';
@@ -331,7 +331,7 @@ function prefillContractFromDemand() {
   }
   const plan = document.getElementById('post-body');
   const subjLine = DISP.subjectNames(d.target_subjects);
-  if (plan && !plan.value.trim() && subjLine) { plan.value = `授课科目：${subjLine}\n\n`; updatePostPreview(); }
+  if (plan && !plan.value.trim() && subjLine) { plan.value = `${UI.CONTRACT_SUBJECT_LINE_PREFIX}${subjLine}\n\n`; updatePostPreview(); }
 }
 
 let contractDraftBusy = false; // 合同起草防双发（双击生成两份草案）

@@ -655,7 +655,7 @@ function chatConvById(id) { return chatConvList.find(c => c.id === id) || null; 
 
 // 时间显示：服务端存 UTC，统一过 fmtDateTime 转本地时区（'YYYY-MM-DD HH:MM'）
 function fmtChatTime(t) {
-  return typeof fmtDateTime === 'function' ? fmtDateTime(t) : (t ? String(t).slice(0, 16) : '');
+  return t ? fmtDateTime(t) : '';
 }
 
 // 即时时间戳（发送成功瞬间展示用，下一轮渲染被服务端时间取代）：

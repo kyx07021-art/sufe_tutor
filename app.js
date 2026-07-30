@@ -1165,7 +1165,7 @@ function renderProfileInfoCard(t, signed) {
   const hasContact = t.wechat || t.email;
   const contact = (isSelf || signed)
     ? (hasContact
-        ? cell([t.wechat ? `微信：${escHtml(t.wechat)}` : '', t.email ? `邮箱：${escHtml(t.email)}` : ''].filter(Boolean).join(' · '))
+        ? cell([t.wechat ? `${UI.CONTACT_PANEL_WECHAT_PREFIX}${escHtml(t.wechat)}` : '', t.email ? `${UI.CONTACT_PANEL_EMAIL_PREFIX}${escHtml(t.email)}` : ''].filter(Boolean).join(' · '))
         : empty(UI.PROFILE_FIELD_EMPTY))
     : empty(UI.PROFILE_FIELD_AFTER_SIGN);
   const credential = !t.matched ? empty(UI.PROFILE_FIELD_AFTER_MATCH)
@@ -1368,9 +1368,9 @@ function renderDemandCard(d, opts = {}) {
   const provinceName = DISP.provinceName(d.province);
   const subjNames = (d.target_subjects||[]).map(id => DISP.subjectName(id));
   const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
-  const gender = GENDERS.find(g=>g.id===d.student_gender)?.name || '';
+  const gender = DISP.genderName(d.student_gender);
   const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
-  const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || (TEACHING_METHODS.find(m=>m.id==='offline')||{name:''}).name;
+  const method = DISP.methodName(d.teaching_method) || DISP.methodName('offline');
   // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
   const teacherIntentBtn = !teacher ? ''
     : d.my_intent_status === 'accepted' ? `<button type="button" class="btn btn-sm btn-intent-ok" disabled>${UI.INTENT_ACCEPTED}</button>`
@@ -1492,7 +1492,7 @@ async function openSendDemandModal(teacherUserId) {
     const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade || '';
     const subs = DISP.subjectNames(d.target_subjects);
     const prov = DISP.provinceName(d.province);
-    const method = TEACHING_METHODS.find(m=>m.id===d.teaching_method)?.name || '';
+    const method = DISP.methodName(d.teaching_method);
     return `<label class="push-pick-item"><input type="radio" name="push-demand" value="${d.id}">
       <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
       <span class="push-pick-sub">${[prov, method].filter(Boolean).map(escHtml).join(' · ')}</span></span></label>`;

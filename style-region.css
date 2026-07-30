@@ -104,9 +104,6 @@
 /* 文理分科 pill 再放大一档，作为段落主操作 */
 .gk-track-pills .gk-pill { padding: 8px 26px; font-size: .84rem; font-weight: 700; }
 
-/* 教师端勾选网格：与科目行数对齐（再选 4 门 / 选考 6-7 门） */
-.gk-check-grid { margin-bottom: 12px; grid-template-columns: repeat(4, 1fr); }
-
 /* 21 档等第下拉：收窄宽度，保留 .form-select 的聚焦底条擦入 */
 .gk-grade-select {
   width: auto;
@@ -117,6 +114,5 @@
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 768px) {
-  .gk-check-grid { grid-template-columns: repeat(2, 1fr); }
   .score-mode-tabs { width: 152px; }
 }

@@ -20,7 +20,6 @@
 
 :root {
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
-  --lg-ef: 14px;                 /* 边缘渐隐宽：折射集中带 */
   --lg-bg-blur: 16px; --lg-bg-sat: 1.12;
   --lg-orb-dur: 60s;
   --lg-glow-size: 230px; --lg-glow-op: .85;
@@ -134,8 +133,8 @@ body { background: transparent; }
 .tc-push-btn:focus-visible, .chat-send:focus-visible, .chat-plus-btn:focus-visible, .md-toolbar button:focus-visible { outline: none; box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), 0 0 0 3px var(--g-ring); }
 .tc-push-btn:active:not(:disabled), .chat-send:active:not(:disabled), .chat-plus-btn:active:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-active); transform: scale(.97); }
 .tc-push-btn:active:not(:disabled)::after, .chat-send:active:not(:disabled)::after, .chat-plus-btn:active:not(:disabled)::after { transform: translate(-50%,-50%) scale(26); opacity: .85; transition: 0s; }
-/* 文字链按钮（非 .btn）：base 提供结构+交互，glass 只换参（结构对 .credential-reupload 由 base 一并补齐） */
-.btn-text-danger, .btn-link-inline, .credential-reupload {
+/* 文字链按钮（非 .btn）：base 提供结构+交互，glass 只换参 */
+.btn-text-danger, .btn-link-inline {
   --g-fill: var(--m-button-bg, rgba(255,255,255,.10)); --g-fg: var(--ink);
   --g-lift: var(--glass-lift-sm); --g-ring: rgba(122,104,224,.5);
   --g-hover: rgba(255,255,255,.16); --g-focusin: rgba(255,255,255,.18);
@@ -163,11 +162,11 @@ body { background: transparent; }
   background: var(--m-tag-bg, rgba(255,255,255,.2)); border: none; border-radius: 999px; box-shadow: var(--glass-lift-sm); color: var(--ink-2, #444);
 }
 .conv-signed-tag, .chat-head-signed { background: linear-gradient(160deg, rgba(24,122,75,.62), rgba(24,122,75,.46)); color: #fff; box-shadow: var(--glass-lift-sm); }
-.form-input, .form-textarea, .custom-select-trigger, .chat-input, .filter-select {
+.form-input, .custom-select-trigger, .chat-input, .filter-select {
   background: var(--m-input-bg, rgba(255,255,255,.1)) !important; border: none !important; border-radius: var(--lg-r-sm);
   box-shadow: var(--glass-lift-sm), inset 0 1px 3px rgba(30,26,64,.06);
 }
-.form-input:focus, .form-textarea:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.3); }
+.form-input:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.3); }
 .checkbox-item { background: var(--m-input-bg, rgba(255,255,255,.1)); border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm); }
 .checkbox-item:has(input:checked) { background: var(--m-btnAccent-bg, rgba(122,104,224,.7)); color: #fff; }
 .score-mode-tabs { background: var(--m-input-bg, rgba(255,255,255,.1)); border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm); }
@@ -180,7 +179,7 @@ body { background: transparent; }
 /* 下拉选项：去纯黑选中底（半透明紫），杜绝"黑洇进边缘" */
 .custom-option { border-radius: 8px; }
 .custom-option:hover { background: rgba(122,104,224,.16); }
-.custom-option.selected, .custom-option[aria-selected="true"], .custom-option.is-selected { background: rgba(122,104,224,.30); color: var(--ink); font-weight: 600; }
+.custom-option.selected { background: rgba(122,104,224,.30); color: var(--ink); font-weight: 600; }
 
 /* ============================================================
    侧边栏 / 会话栏 / 顶栏 / 主区

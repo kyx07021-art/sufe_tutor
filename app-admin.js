@@ -75,7 +75,7 @@ function renderAdminContractRow(c) {
   const statusText = c.status === 'pending' ? UI.CONTRACT_STATUS_PENDING
     : c.status === 'signing' ? UI.CONTRACT_STATUS_SIGNING : UI.CONTRACT_STATUS_SIGNED;
   const statusCls = c.status === 'signed' ? 'tag-ok' : c.status === 'signing' ? 'tag-warn' : 'tag-accent';
-  const methodName = TEACHING_METHODS.find(m => m.id === c.method)?.name || c.method;
+  const methodName = DISP.methodName(c.method) || c.method;
   return `<div class="admin-row">
     <div class="admin-row-main">
       <div class="admin-row-line">

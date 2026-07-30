@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.17.0',
+  APP_VERSION: '0.17.1',
 
   // ============================================================
   // 业务数据
@@ -55,9 +55,7 @@ globalThis.APP_CONSTANTS = {
   // ============================================================
   LG: {
     radius: { sm: 9, md: 12, lg: 15 },   // 小圆角
-    edgeFade: 14,                         // 边缘渐隐宽 px：折射集中带（中心磨砂→边缘清晰弯曲的过渡区）
     refractScale: 34,                     // 折射位移强度（SVG feDisplacementMap scale；clear-rim 上的折射唇）
-    floatBlur: 12,                        // 浮层磨砂模糊 px（浮层 ::before 单独模糊；元素折射底不模糊）
     bg: { blur: 16, sat: 1.12 },          // 背景底板：唯一重模糊（背景毛蒙版照旧；穿透感靠卡片 clear-rim，不削弱底板）
     orbCrossSec: 60,                      // 光球横穿全屏约 60s
     glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬）
@@ -72,7 +70,6 @@ globalThis.APP_CONSTANTS = {
       input:       { frost: 0,  tint: '255,255,255', tintA: .08 },  // 录入框
       tag:         { frost: 0,  tint: '255,255,255', tintA: .16 },  // 标签药丸
       stage:       { frost: 0,  tint: '255,255,255', tintA: .12 },  // 暂存区/文件chip
-      sidebar:     { frost: 4,  tint: '250,248,245', tintA: .20 },  // 侧栏整块玻璃
       pill:        { frost: 4,  tint: '74,58,178',   tintA: .80 },  // 选中块（深紫玻璃）
       user:        { frost: 3,  tint: '255,255,255', tintA: .34 },  // 底部用户玻璃卡
       overlay:     { frost: 12, tint: '255,255,255', tintA: .22 },  // 浮层（弹窗/下拉/个人栏）真模糊
@@ -500,6 +497,9 @@ globalThis.APP_CONSTANTS = {
     // 教师弹窗 / 联系方式
     SECTION_REGION: '地区',
     CONTACT_AFTER_SIGN_NOTE: '签约后展示联系方式',
+    CONTACT_PANEL_WECHAT_PREFIX: '微信：',
+    CONTACT_PANEL_EMAIL_PREFIX: '邮箱：',
+    CONTRACT_SUBJECT_LINE_PREFIX: '授课科目：',
 
     // 用户状态标签
     TAG_BANNED: '已封禁',

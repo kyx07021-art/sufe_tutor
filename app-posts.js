@@ -63,7 +63,7 @@ function renderPostCard(p, i) {
   const mine = state.user && p.user_id === state.user.id;
   const raw = String(p.body_md || '');
   const snippet = raw.slice(0, 80);
-  const time = typeof fmtDateTime === 'function' ? fmtDateTime(p.created_at) : String(p.created_at || '').slice(0, 16);
+  const time = p.created_at ? fmtDateTime(p.created_at) : '';
   return `<div class="post-card" style="--i:${Math.min(i, 8)}">
     <div class="post-card-head">
       <h3 class="post-title">${escHtml(p.title)}</h3>
