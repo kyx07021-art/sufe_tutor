@@ -20,6 +20,7 @@
 
 :root {
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
+  --lg-ef: 14px;                 /* 边缘渐隐宽：折射集中带 */
   --lg-bg-blur: 16px; --lg-bg-sat: 1.12;
   --lg-orb-dur: 60s;
   --lg-glow-size: 230px; --lg-glow-op: .85;
@@ -91,11 +92,20 @@ body { background: transparent; }
   position: relative; isolation: isolate; background: none; border: none;
   -webkit-backdrop-filter: url(#lg-refract); backdrop-filter: url(#lg-refract);
 }
-/* 浮层：基类已 fixed/absolute/relative —— 【禁】再设 position（否则打进文档流=掉页底/双滚动条/下拉撑高表单项） */
+/* 浮层：基类已 fixed/absolute/relative —— 【禁】再设 position（否则打进文档流=掉页底/双滚动条/下拉撑高表单项）。
+   浮层【不】用元素折射底：浮层常悬在深色遮罩上，元素级 backdrop-filter 在边缘会折出黑带=用户看到的「黑色折射」，
+   且磨砂体与折射带的硬交界=「镶嵌一圈玻璃」观感。磨砂体交给上面的 ::before 单独 blur，边缘=干净软渐隐，无黑带无镶嵌。 */
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
   isolation: isolate; background: none; border: none;
-  -webkit-backdrop-filter: url(#lg-refract); backdrop-filter: url(#lg-refract);
 }
+/* 个人信息右栏内部玻璃化：整栏磨砂由 ::before 给；内部卡片=半透明玻璃面（替代实心白卡），行间细线改透白。
+   桌面=玻璃（栏是亮屏延伸）；窄屏浮在暗遮罩上→卡片加重白底保 ink 文字对比。 */
+.profile-panel-head { border-bottom-color: rgba(255,255,255,.22); }
+.profile-card { background: rgba(255,255,255,.5); border: none; border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); padding: 14px 16px; }
+.profile-card--id { background: rgba(255,255,255,.62); }
+.profile-row { border-top-color: rgba(255,255,255,.28); }
+.profile-empty { color: var(--ink-3); }
+.profile-signed-tag { background: linear-gradient(160deg, rgba(24,122,75,.72), rgba(24,122,75,.5)); color: #fff; }
 
 /* ============================================================
    卡片
@@ -125,7 +135,7 @@ body { background: transparent; }
 /* 非 .btn 的玻璃按钮：base 不含其结构，glass 补「与 base .btn 同模型」的结构+交互（仅参数化，非散件） */
 .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button {
   position: relative; overflow: hidden; isolation: isolate; background: none; border: none; color: var(--g-fg); cursor: pointer;
-  box-shadow: var(--g-lift); transition: box-shadow var(--t-base) var(--ease-out), transform var(--t-fast) var(--ease-out);
+  box-shadow: var(--g-lift); transition: transform var(--t-fast) var(--ease-out), color var(--t-base) var(--ease-out);
 }
 .tc-push-btn::before, .chat-send::before, .chat-plus-btn::before, .md-toolbar button::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--g-fill); }
 .tc-push-btn::after, .chat-send::after, .chat-plus-btn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; z-index: 1; pointer-events: none; background: radial-gradient(circle, rgba(255,255,255,.6), rgba(255,255,255,0) 70%); transform: translate(-50%,-50%) scale(0); opacity: 0; transition: transform .5s var(--ease-out), opacity .6s var(--ease-out); }
@@ -133,14 +143,37 @@ body { background: transparent; }
 .tc-push-btn:focus-visible, .chat-send:focus-visible, .chat-plus-btn:focus-visible, .md-toolbar button:focus-visible { outline: none; box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), 0 0 0 3px var(--g-ring); }
 .tc-push-btn:active:not(:disabled), .chat-send:active:not(:disabled), .chat-plus-btn:active:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-active); transform: scale(.97); }
 .tc-push-btn:active:not(:disabled)::after, .chat-send:active:not(:disabled)::after, .chat-plus-btn:active:not(:disabled)::after { transform: translate(-50%,-50%) scale(26); opacity: .85; transition: 0s; }
-/* 文字链按钮（非 .btn）：base 提供结构+交互，glass 只换参 */
-.btn-text-danger, .btn-link-inline {
+/* 文字链按钮（非 .btn）：base 提供结构+交互，glass 只换参（结构对 .credential-reupload 由 base 一并补齐） */
+.btn-text-danger, .btn-link-inline, .credential-reupload {
   --g-fill: var(--m-button-bg, rgba(255,255,255,.10)); --g-fg: var(--ink);
   --g-lift: var(--glass-lift-sm); --g-ring: rgba(122,104,224,.5);
   --g-hover: rgba(255,255,255,.16); --g-focusin: rgba(255,255,255,.18);
   border-radius: var(--lg-r-sm); padding: 6px 12px;
 }
 .btn-text-danger { --g-fill: rgba(198,72,58,.82); --g-fg: #fff; }  /* 实心红玻璃：白字必须落在红底上，绝不能 transparent */
+/* 玻璃按钮质感：休息态叠顶部高光 inset，让按钮读出"凸起的玻璃面"而非扁平矩形/线框 */
+.btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button {
+  box-shadow: var(--g-lift), inset 0 1px 0 rgba(255,255,255,.32);
+}
+/* 焦点绝不能"看不出"：白缝+紫环双色环（任何填充/背景都显眼）；.sim-focus 与 :focus-visible 同声明，仅供截图核验像素 */
+.btn:focus-visible, .btn.sim-focus, .tc-push-btn:focus-visible, .tc-push-btn.sim-focus, .chat-send:focus-visible, .chat-send.sim-focus, .chat-plus-btn:focus-visible, .chat-plus-btn.sim-focus, .md-toolbar button:focus-visible, .md-toolbar button.sim-focus,
+.btn-link-inline:focus-visible, .btn-link-inline.sim-focus, .btn-text-danger:focus-visible, .btn-text-danger.sim-focus {
+  outline: none;
+  box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), inset 0 1px 0 rgba(255,255,255,.32), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
+}
+/* 筛选开关 / 下拉触发器同款焦点环 */
+.drop-toggle:focus-visible, .drop-toggle.sim-focus, .custom-select-trigger:focus-visible, .custom-select-trigger.sim-focus {
+  outline: none; border-radius: var(--lg-r-sm);
+  box-shadow: var(--glass-lift-sm), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring, rgba(122,104,224,.55));
+}
+/* 发送需求方形按钮：要"突出独立的玻璃按钮感"——更强渐变填充+抬升投影+顶部高光+圆角；hover 不再吞成纯墨块 */
+.tc-push-btn {
+  --g-fill: linear-gradient(160deg, rgba(122,104,224,.82), rgba(122,104,224,.52));
+  --g-fg: #fff; --g-lift: 0 9px 22px -9px rgba(74,58,178,.55);
+  border-radius: var(--lg-r); padding: 9px 18px;
+  box-shadow: var(--g-lift), inset 0 1px 0 rgba(255,255,255,.4);
+}
+.tc-push-btn:hover:not(:disabled) { background: none; color: #fff; box-shadow: var(--g-lift), inset 0 0 0 9999px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.4); }
 /* 登录角色分段 */
 .role-tabs { position: relative; isolation: isolate; background: none; border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm); padding: 4px; --g-fill: var(--m-input-bg, rgba(255,255,255,.1)); }
 .role-tabs::before { content: ''; position: absolute; inset: 0; border-radius: inherit; z-index: -1; background: var(--g-fill); }
@@ -162,11 +195,11 @@ body { background: transparent; }
   background: var(--m-tag-bg, rgba(255,255,255,.2)); border: none; border-radius: 999px; box-shadow: var(--glass-lift-sm); color: var(--ink-2, #444);
 }
 .conv-signed-tag, .chat-head-signed { background: linear-gradient(160deg, rgba(24,122,75,.62), rgba(24,122,75,.46)); color: #fff; box-shadow: var(--glass-lift-sm); }
-.form-input, .custom-select-trigger, .chat-input, .filter-select {
+.form-input, .form-textarea, .custom-select-trigger, .chat-input, .filter-select {
   background: var(--m-input-bg, rgba(255,255,255,.1)) !important; border: none !important; border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-lift-sm), inset 0 1px 3px rgba(30,26,64,.06);
+  box-shadow: var(--glass-lift-sm), inset 0 1px 3px rgba(30,26,64,.06), inset 0 1px 0 rgba(255,255,255,.3);
 }
-.form-input:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.3); }
+.form-input:focus, .form-textarea:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.3), inset 0 1px 0 rgba(255,255,255,.3); }
 .checkbox-item { background: var(--m-input-bg, rgba(255,255,255,.1)); border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm); }
 .checkbox-item:has(input:checked) { background: var(--m-btnAccent-bg, rgba(122,104,224,.7)); color: #fff; }
 .score-mode-tabs { background: var(--m-input-bg, rgba(255,255,255,.1)); border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm); }
@@ -179,7 +212,7 @@ body { background: transparent; }
 /* 下拉选项：去纯黑选中底（半透明紫），杜绝"黑洇进边缘" */
 .custom-option { border-radius: 8px; }
 .custom-option:hover { background: rgba(122,104,224,.16); }
-.custom-option.selected { background: rgba(122,104,224,.30); color: var(--ink); font-weight: 600; }
+.custom-option.selected, .custom-option[aria-selected="true"], .custom-option.is-selected { background: rgba(122,104,224,.30); color: var(--ink); font-weight: 600; }
 
 /* ============================================================
    侧边栏 / 会话栏 / 顶栏 / 主区
@@ -228,6 +261,9 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row,
   .btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button,
   .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  /* 窄屏个人信息卡浮在暗遮罩上：玻璃白底加重，保 ink 文字对比（桌面仍 .5 玻璃感） */
+  .profile-card { background: rgba(255,255,255,.82); }
+  .profile-card--id { background: rgba(255,255,255,.9); }
 }
 
 /* 移动端抽屉：近不透明（叠在变暗页面上才读得清）；开合动画不加模糊，防逐帧重模糊=卡；遮罩调淡减"全屏灰化" */
