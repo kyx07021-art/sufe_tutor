@@ -1,7 +1,7 @@
 /**
  * 路由模块：学生需求（增删改查）+ 需求意向
  */
-import { json, error, authUser, MSG, dbRun } from './core.js';
+import { json, error, authUser, MSG, STATUS, dbRun } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
@@ -52,6 +52,8 @@ export async function handleCreateDemand(db, body, req) {
   sanitizeDemand(d);
 
   const id = await dbCreateDemand(db, userId, d);
+  await logEvent(db, { action: 'demand.create', actorUserId: userId, actorRole: 'student',
+    entity: 'demand', entityId: id, detail: { province: d.province, method: d.teaching_method }, req });
   return json({ id, message: MSG.DEMAND_SUBMITTED });
 }
 
@@ -82,7 +84,7 @@ async function loadOwnedDemand(db, demandId, userId) {
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return { err: error(MSG.DEMAND_NOT_FOUND, 404) };
   if (existing.user_id !== userId) return { err: error(MSG.NO_PERMISSION, 403) };
-  if (existing.status === 'contracted') return { err: error(MSG.DEMAND_CONTRACTED_LOCKED, 409) };
+  if (existing.status === STATUS.CONTRACTED) return { err: error(MSG.DEMAND_CONTRACTED_LOCKED, 409) };
   return { existing };
 }
 
@@ -99,6 +101,8 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   sanitizeDemand(d);
 
   await dbUpdateDemand(db, demandId, d);
+  await logEvent(db, { action: 'demand.update', actorUserId: me.id, actorRole: 'student',
+    entity: 'demand', entityId: demandId, detail: { province: d.province, method: d.teaching_method }, req });
   return json({ message: MSG.DEMAND_UPDATED });
 }
 
@@ -108,6 +112,8 @@ export async function handleDeleteDemand(db, demandId, body, req) {
   const g = await loadOwnedDemand(db, demandId, me.id); // 已签约需求禁删（会使合同 demand_id 悬空）
   if (g.err) return g.err;
   await dbDeleteDemand(db, demandId);
+  await logEvent(db, { action: 'demand.delete', actorUserId: me.id, actorRole: 'student',
+    entity: 'demand', entityId: demandId, req });
   return json({ message: MSG.DEMAND_DELETED });
 }
 
@@ -119,11 +125,11 @@ export async function handleReopenDemand(db, demandId, body, req) {
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (existing.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
-  if (existing.status !== 'revoked') return error(MSG.DEMAND_STATE_INVALID, 409);
+  if (existing.status !== STATUS.REVOKED) return error(MSG.DEMAND_STATE_INVALID, 409);
   const claim = await dbRun(db, `UPDATE student_demands SET status='open' WHERE id=? AND status='revoked'`, [demandId]);
   if (!(claim && claim.meta && claim.meta.changes > 0)) return error(MSG.DEMAND_STATE_INVALID, 409);
   await logEvent(db, { action: 'demand.reopen', actorUserId: me.id, entity: 'demand', entityId: demandId,
-    detail: { from: 'revoked' }, req });
+    detail: { from: STATUS.REVOKED }, req });
   return json({ message: MSG.DEMAND_REOPENED });
 }
 
@@ -134,7 +140,7 @@ export async function handleCreateIntent(db, demandId, body, req) {
   const userId = me.id;
   const demand0 = await dbGetDemandById(db, demandId);
   if (!demand0) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (demand0.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求停止接收意向（服务端硬门禁，不靠前端过滤）
+  if (demand0.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求停止接收意向（服务端硬门禁，不靠前端过滤）
 
   // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单，
   // 不完整由前端弹窗引导补档案（此处为硬把关，防绕过）；价格 null = 未填（mapper 保留 null）
@@ -176,15 +182,15 @@ export async function handleResolveIntent(db, intentId, body, req) {
   const intent = await dbGetIntentWithDemand(db, intentId);
   if (!intent) return error(MSG.INTENT_NOT_FOUND, 404);
   if (intent.demand_owner !== userId) return error(MSG.NO_PERMISSION, 403);
-  if (intent.status !== 'pending') return error(MSG.INTENT_ALREADY_RESOLVED, 409);
+  if (intent.status !== STATUS.PENDING) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
 
-  const status = action === 'accept' ? 'accepted' : 'rejected';
+  const status = action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED;
   if (!(await dbResolveIntent(db, intentId, status))) return error(MSG.INTENT_ALREADY_RESOLVED, 409); // 条件 UPDATE 赢家才继续，杜绝并发双通知
 
   let conversationId = null;
   if (action === 'accept') {
     const dNow = await dbGetDemandById(db, intent.demand_id);
-    if (dNow && dNow.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已被别人签约 → 不再建会话
+    if (dNow && dNow.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已被别人签约 → 不再建会话
     conversationId = await dbUpsertConversation(db, userId, intent.teacher_user_id, intent.demand_id);
     await notifyUser(db, intent.teacher_user_id, UIC.INTENT_ACCEPTED_NOTIFY);
   } else {
@@ -211,7 +217,7 @@ export async function handlePushDemand(db, body, req) {
   const demand = await dbGetDemandById(db, demandId);
   if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
-  if (demand.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求不可再推送
+  if (demand.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求不可再推送
 
   try {
     const id = await dbCreatePush(db, demandId, userId, teacherUserId);
@@ -242,22 +248,22 @@ export async function handleResolvePush(db, pushId, body, req) {
   const push = await dbGetPushById(db, pushId);
   if (!push) return error(MSG.INTENT_NOT_FOUND, 404);
   if (push.teacher_user_id !== userId) return error(MSG.NO_PERMISSION, 403);
-  if (push.status !== 'pending') return error(MSG.INTENT_ALREADY_RESOLVED, 409);
+  if (push.status !== STATUS.PENDING) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
 
   if (action === 'accept') {
     const dNow = await dbGetDemandById(db, push.demand_id);
-    if (dNow && dNow.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 陈旧置顶卡兜底：需求已签约不可再确认
-    if (!(await dbResolvePush(db, pushId, 'accepted'))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
+    if (dNow && dNow.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 陈旧置顶卡兜底：需求已签约不可再确认
+    if (!(await dbResolvePush(db, pushId, STATUS.ACCEPTED))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
     await dbAcceptPushAsIntent(db, push.demand_id, userId);
     await dbUpsertConversation(db, push.student_user_id, userId, push.demand_id);
     await notifyUser(db, push.student_user_id, UIC.PUSH_ACCEPTED_NOTIFY);
   } else {
-    if (!(await dbResolvePush(db, pushId, 'rejected'))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
+    if (!(await dbResolvePush(db, pushId, STATUS.REJECTED))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
     const d = await dbGetDemandById(db, push.demand_id);
     await notifyUser(db, push.student_user_id, pushRejectNote(d));
   }
   await logEvent(db, { action: `demand_push.${action}`, actorUserId: userId, actorRole: 'teacher',
     entity: 'demand_push', entityId: pushId,
     detail: { demandId: push.demand_id, studentUserId: push.student_user_id }, req });
-  return json({ message: 'ok', status: action === 'accept' ? 'accepted' : 'rejected' });
+  return json({ message: 'ok', status: action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED });
 }

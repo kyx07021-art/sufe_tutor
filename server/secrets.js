@@ -15,10 +15,3 @@ export function getSecret(env, key) {
   const file = globalThis.APP_SECRETS || {};
   return file[key] != null ? file[key] : '';
 }
-
-// 列表型 secret：env 里是逗号分隔字符串（Worker Secrets 只能存字符串），本地文件可以是数组
-export function getSecretList(env, key) {
-  const v = getSecret(env, key);
-  if (Array.isArray(v)) return v;
-  return String(v || '').split(',').map(s => s.trim()).filter(Boolean);
-}

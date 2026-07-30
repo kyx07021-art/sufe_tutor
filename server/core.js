@@ -19,6 +19,25 @@ export const INVITE_GATE_ENABLED = false;
 export const INITIAL_WEIGHT = 10;
 
 // ============================================================
+// 业务状态常量：JS 比较/赋值处一律引这里；SQL 语句内的字面量保持原样不插常量（插值易错不值）
+// 值与数据库状态字面量逐字相同，改动即破坏兼容
+// ============================================================
+export const STATUS = {
+  OPEN: 'open',             // 需求开放中 / 反馈待处理
+  CONTRACTED: 'contracted', // 需求已签约下架
+  REVOKED: 'revoked',       // 需求合同已撤销（待所有者手动重开）
+  PENDING: 'pending',       // 意向/推送待处理 / 合同草案 / 评价待审核
+  ACCEPTED: 'accepted',     // 意向/推送已接受
+  REJECTED: 'rejected',     // 意向/推送已拒绝 / 评价已拒绝
+  SIGNING: 'signing',       // 合同待签约（双方确认中）
+  SIGNED: 'signed',         // 合同已签约（评价门槛 dbIsContracted 放行）
+  APPROVED: 'approved',     // 评价已通过
+  ACTIVE: 'active',         // 会话进行中
+  CLOSED: 'closed',         // 会话已关闭
+  RESOLVED: 'resolved',     // 反馈已处理
+};
+
+// ============================================================
 // 服务端消息常量
 // ============================================================
 export const MSG = {
@@ -200,6 +219,13 @@ export async function authUser(db, req) {
 export async function requireAdmin(db, req) {
   const u = await authUser(db, req);
   return u && u.role === 'admin' ? u : null;
+}
+
+// 管理员鉴权两行式合一：调用方先用 authUser 解令牌用户再传入。
+// 非管理员（含无令牌 / 令牌失效，authUser 返 null）→ 返 403 响应对象；通过 → 返 null。
+// 调用方统一 `const e = requireAdminOrError(u); if (e) return e;`，错误文案与状态码单点收口
+export function requireAdminOrError(user) {
+  return user && user.role === 'admin' ? null : error(MSG.ADMIN_ONLY, 403);
 }
 
 // ============================================================

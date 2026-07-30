@@ -8,6 +8,7 @@
 import { json, error, authUser, MSG } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetAllTeachers, dbIsMatched, dbIsContracted, dbGetUserById } from './db.js';
+import { logEvent } from './log.js';
 
 // 学信网截图 dataURL 上限（前端已压缩至最长边 1000px，此处兜底防异常大串）
 const CREDENTIAL_MAX = 500000;
@@ -48,6 +49,9 @@ export async function handleSaveProfile(db, body, req) {
   const credential = String(p.credential_image || '');
   if (credential && (!credential.startsWith('data:image/') || credential.length > CREDENTIAL_MAX)) return error(MSG.AVATAR_INVALID);
   await dbUpsertTeacherProfile(db, me.id, { ...p, credential_image: credential }); // 只能写自己的档案
+  // 留档不带 detail：档案含联系方式 / 真实姓名 / 学信网截图等敏感字段，不落留档库
+  await logEvent(db, { action: 'teacher.profile.save', actorUserId: me.id, actorRole: 'teacher',
+    entity: 'teacher_profile', entityId: me.id, req });
   return json({ message: MSG.PROFILE_SAVED });
 }
 

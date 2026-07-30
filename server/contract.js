@@ -5,8 +5,13 @@
  * 正式合同正文由 buildContractMd 按草案信息生成（Markdown，后期可换更正式的格式）；双方看到的是同一条记录。
  * 短信验证码环节未接入：verifySignOtp 预留接口，测试版以二次确认代替。
  */
-import { dbAll, dbGet, dbRun, json, error, authUser, requireAdmin, confirmDangerOtp, MSG } from './core.js';
-import { dbGetContractById, dbGetContractByConv, dbGetMyContracts } from './db.js';
+import { dbGet, dbRun, json, error, authUser, requireAdminOrError, confirmDangerOtp, MSG, STATUS } from './core.js';
+import {
+  dbGetContractById, dbGetContractByConv, dbGetMyContracts, dbGetAllContractsAdmin,
+  dbDeleteContract, dbDeleteContractMessages,
+  dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
+  dbGetPendingIntentsForDemand, dbGetPendingPushesForDemand,
+} from './db.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
@@ -16,7 +21,7 @@ const UIC = globalThis.APP_CONSTANTS.UI;
 // （当事人/标的/数量质量/价款/履行期限地点方式/违约责任/争议解决），家教场景展开为九条。
 // 授课地点按隐私合规采用模糊表述（甲方常住处等），不收集详细门牌号。
 // 薪资三要素（结算方式/首课日期/试课方案）由起草表单采集；选「其他」时带入用户自拟文字。
-export function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
+function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
   const methodName = method === 'offline' ? '线下授课' : '线上授课';
   const locationText = location || (method === 'offline' ? '甲方常住处或双方另行约定的地点' : '双方约定的线上课堂');
   const PAY_METHOD_TEXT = { per_session: '次付（按次结算，每次课程结束后支付）', weekly: '周付（每周结算一次）', monthly: '月付（每月结算一次）' };
@@ -121,24 +126,17 @@ async function ledgerRecord(db, contractId, contractMd) {
 }
 
 // 校验：重算当前合同文本哈希与台账记录比对（合同行被撤销时台账仍在，返回 archived 状态）
-export async function verifyContractLedger(db, contractId) {
+async function verifyContractLedger(db, contractId) {
   const row = await dbGet(getLedgerDb(db),
     'SELECT * FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1', [contractId]);
   if (!row) return { recorded: false };
-  const ct = await dbGet(db, 'SELECT contract_md FROM contracts WHERE id=?', [contractId]);
+  const ct = await dbGetContractById(db, contractId);
   if (!ct) return { recorded: true, archived: true, valid: null, contentHash: row.content_hash, prevHash: row.prev_hash, createdAt: row.created_at };
   const now = await sha256Hex(ct.contract_md);
   return { recorded: true, archived: false, valid: now === row.content_hash, contentHash: row.content_hash, prevHash: row.prev_hash, createdAt: row.created_at };
 }
 
-// ---- 数据层 ----
-async function convOf(db, conversationId) {
-  return await dbGet(db, `SELECT c.*, us.username AS student_name, ut.username AS teacher_name
-    FROM conversations c
-    JOIN users us ON us.id = c.student_user_id
-    JOIN users ut ON ut.id = c.teacher_user_id
-    WHERE c.id = ?`, [conversationId]);
-}
+// ---- 会话参与方判定 helper（会话行经 dbGetConversationWithNames 取，带双方用户名）----
 const isParticipant = (conv, userId) => !!conv && (conv.student_user_id === userId || conv.teacher_user_id === userId);
 const otherSide = (conv, userId) => userId === conv.student_user_id ? conv.teacher_user_id : conv.student_user_id;
 const nameOf = (conv, userId) => userId === conv.student_user_id ? conv.student_name : conv.teacher_name;
@@ -149,7 +147,7 @@ async function loadContractFor(db, contractId, userId, statuses) {
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return { err: error(MSG.CONTRACT_NOT_FOUND, 404) };
   if (!statuses.includes(ct.status)) return { err: error(MSG.CONTRACT_STATE_INVALID, 409) };
-  const conv = await convOf(db, ct.conversation_id);
+  const conv = await dbGetConversationWithNames(db, ct.conversation_id);
   if (!isParticipant(conv, userId)) return { err: error(MSG.NO_PERMISSION, 403) };
   return { ct, conv };
 }
@@ -162,7 +160,7 @@ export async function handleCreateContract(db, body, req) {
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const userId = me.id;
   const conversationId = parseInt(body.conversationId);
-  const conv = await convOf(db, conversationId);
+  const conv = await dbGetConversationWithNames(db, conversationId);
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
   const existing = await dbGetContractByConv(db, conversationId);
   if (existing) return error(MSG.CONTRACT_EXISTS, 409);
@@ -185,9 +183,9 @@ export async function handleCreateContract(db, body, req) {
   let demandId = parseInt(body.demandId) || conv.demand_id || null;
   let demandNo = '';
   if (demandId) {
-    const dm = await dbGet(db, 'SELECT user_id, status, display_id FROM student_demands WHERE id=?', [demandId]);
+    const dm = await dbGetDemandById(db, demandId);
     if (!dm || dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
-    if (dm.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求不可再绑新合同
+    if (dm.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求不可再绑新合同
     if (dm.display_id) demandNo = String(dm.display_id).padStart(4, '0');
   }
   const md = buildContractMd({
@@ -206,8 +204,7 @@ export async function handleCreateContract(db, body, req) {
   if (!(res && res.meta && res.meta.changes > 0)) return error(MSG.CONTRACT_EXISTS, 409);
   const id = (res && res.meta && res.meta.last_row_id) || 0;
   // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
-  await dbRun(db, `INSERT INTO messages (conversation_id, sender_user_id, body, kind) VALUES (?,?,?,?)`,
-    [conversationId, userId, 'contract_draft', 'contract']);
+  await dbCreateMessage(db, conversationId, userId, 'contract', 'contract_draft');
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_DRAFT_SENT.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.create', actorUserId: userId, entity: 'contract', entityId: id,
     detail: { conversationId, method, rate }, req });
@@ -220,7 +217,7 @@ export async function handleGetContractByConv(db, url, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const conversationId = parseInt(url.searchParams.get('conversationId'));
-  const conv = await convOf(db, conversationId);
+  const conv = await dbGetConversationWithNames(db, conversationId);
   if (!isParticipant(conv, me.id)) return error(MSG.NO_PERMISSION, 403);
   return json({ contract: (await dbGetContractByConv(db, conversationId)) || null });
 }
@@ -237,7 +234,7 @@ export async function handleConfirmDraft(db, contractId, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const userId = me.id;
-  const g = await loadContractFor(db, contractId, userId, ['pending']);
+  const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
   if (userId === ct.drafter_user_id) return error(MSG.CONTRACT_SELF_DRAFT, 409);
@@ -259,7 +256,7 @@ export async function handleSignContract(db, contractId, body, req) {
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const userId = me.id;
   // pending（收草案方直接确认签约，免去独立「确认草案」步骤）与 signing 均可签
-  const g = await loadContractFor(db, contractId, userId, ['pending', 'signing']);
+  const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
   if (!(await verifySignOtp())) return error(MSG.CONTRACT_STATE_INVALID, 403);
@@ -269,9 +266,9 @@ export async function handleSignContract(db, contractId, body, req) {
   // 不产生任何改动；changes=0 方重读当前态幂等返回，不触发任何副作用
   const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, status='signing', updated_at=datetime('now','localtime') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
   if (!(flag && flag.meta && flag.meta.changes > 0)) {
-    const cur = await loadContractFor(db, contractId, userId, ['pending', 'signing', 'signed']);
+    const cur = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
     if (cur.err) return cur.err;
-    return json({ ok: true, signed: cur.ct.status === 'signed' });
+    return json({ ok: true, signed: cur.ct.status === STATUS.SIGNED });
   }
   const updated = await dbGetContractById(db, contractId);
   if (!updated) return error(MSG.CONTRACT_NOT_FOUND, 404); // 置位后对方并发撤销致行消失：干净 404，不抛 500
@@ -295,15 +292,13 @@ export async function handleSignContract(db, contractId, body, req) {
     // 需求自动下架广场；该需求上其余教师待处理意向与待处理推送由系统统一拒绝
     // （action=intent.auto_reject / demand_push.auto_reject，与用户手动拒绝在加密留档中区分）
     if (updated.demand_id) {
-      const pending = await dbAll(db,
-        `SELECT id, teacher_user_id FROM demand_intents WHERE demand_id=? AND status='pending'`, [updated.demand_id]);
+      const pending = await dbGetPendingIntentsForDemand(db, updated.demand_id);
       for (const it of pending) {
         await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
         await logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
           detail: { demandId: updated.demand_id, teacherUserId: it.teacher_user_id, reason: 'demand_contracted' }, req });
       }
-      const pendingPushes = await dbAll(db,
-        `SELECT id, teacher_user_id FROM demand_pushes WHERE demand_id=? AND status='pending'`, [updated.demand_id]);
+      const pendingPushes = await dbGetPendingPushesForDemand(db, updated.demand_id);
       for (const pp of pendingPushes) {
         await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
         await logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
@@ -328,7 +323,7 @@ export async function handleModifyContract(db, contractId, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const userId = me.id;
-  const g = await loadContractFor(db, contractId, userId, ['pending', 'signing']);
+  const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
   // 乐观锁版本号为必填：客户端打开编辑器时的 updated_at 须随请求带来，缺失即参数错误
@@ -355,13 +350,13 @@ export async function handleModifyContract(db, contractId, body, req) {
 export async function handleRevokeContract(db, contractId, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const g = await loadContractFor(db, contractId, me.id, ['signed']); // 未签约的走取消流程
+  const g = await loadContractFor(db, contractId, me.id, [STATUS.SIGNED]); // 未签约的走取消流程
   if (g.err) return g.err;
   const { ct, conv } = g;
   if (!(await confirmDangerOtp(db, me.id))) return error(MSG.CONTRACT_STATE_INVALID, 403);
-  const del = await dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
+  const del = await dbDeleteContract(db, contractId);
   if (!(del && del.meta && del.meta.changes > 0)) return error(MSG.CONTRACT_NOT_FOUND, 404); // 并发双撤销仅赢家执行清理与通知
-  await dbRun(db, `DELETE FROM messages WHERE conversation_id=? AND kind='contract'`, [ct.conversation_id]);
+  await dbDeleteContractMessages(db, ct.conversation_id);
   // 需求标记为「合同已撤销」：不自动重开（防随意锁定/重开扰动），由需求所有者在「我的需求」手动重开
   if (ct.demand_id) await dbRun(db, `UPDATE student_demands SET status='revoked' WHERE id=? AND status='contracted'`, [ct.demand_id]);
   await notifyUser(db, otherSide(conv, me.id), UIC.CONTRACT_REVOKED_NOTIFY.replace('{name}', nameOf(conv, me.id)));
@@ -376,7 +371,7 @@ export async function handleVerifyContract(db, contractId, req) {
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
-  const conv = await convOf(db, ct.conversation_id);
+  const conv = await dbGetConversationWithNames(db, ct.conversation_id);
   const admin = me.role === 'admin';
   if (!admin && !isParticipant(conv, me.id)) return error(MSG.NO_PERMISSION, 403);
   return json(await verifyContractLedger(db, contractId));
@@ -384,25 +379,20 @@ export async function handleVerifyContract(db, contractId, req) {
 
 // GET /api/admin/contracts?username= —— 管理员查看全部合同（网页测试用途，真实场景仅管理员可见此页）
 export async function handleAdminListContracts(db, url, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
-  const contracts = await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
-      us.username AS student_name, ut.username AS teacher_name, du.username AS drafter_name
-    FROM contracts ct
-    JOIN conversations c ON c.id = ct.conversation_id
-    JOIN users us ON us.id = c.student_user_id
-    JOIN users ut ON ut.id = c.teacher_user_id
-    JOIN users du ON du.id = ct.drafter_user_id
-    ORDER BY ct.updated_at DESC`);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
+  const contracts = await dbGetAllContractsAdmin(db);
   return json({ contracts });
 }
 
 // DELETE /api/admin/contracts/:id { username } —— 管理员移除合同（测试用；合同全链路留档，删除记 admin.contract.remove）
 export async function handleAdminRemoveContract(db, contractId, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
-  await dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
+  await dbDeleteContract(db, contractId);
   await logEvent(db, { action: 'admin.contract.remove', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, status: ct.status, drafterUserId: ct.drafter_user_id }, req });
@@ -414,11 +404,11 @@ export async function handleCancelContract(db, contractId, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const userId = me.id;
-  const g = await loadContractFor(db, contractId, userId, ['pending', 'signing']);
+  const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { conv } = g;
 
-  const del = await dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
+  const del = await dbDeleteContract(db, contractId);
   if (!(del && del.meta && del.meta.changes > 0)) return json({ ok: true }); // 并发对方已先取消：赢家已通知，此处不重复副作用
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId, req });

@@ -510,7 +510,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 
 // 教师行映射器：教师列表 / 意向教师列表 / 本人档案共用，返回形状永远一致
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
-export function mapTeacherProfileRow(p) {
+function mapTeacherProfileRow(p) {
   return {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
@@ -564,7 +564,7 @@ export async function dbCreateDemand(db, userId, demand) {
 }
 
 // 需求列表统一查询：JOIN 用户名 + LEFT JOIN 聚合出意向计数（向后兼容的附加字段）
-export const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cnt, 0) AS intent_count,
+const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cnt, 0) AS intent_count,
     COALESCE(ic.pending, 0) AS pending_intents
   FROM student_demands sd JOIN users u ON sd.user_id=u.id
   LEFT JOIN (SELECT demand_id, COUNT(*) AS cnt,
@@ -572,7 +572,7 @@ export const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cn
     FROM demand_intents GROUP BY demand_id) ic
     ON ic.demand_id=sd.id`;
 
-export function mapDemandRow(r) {
+function mapDemandRow(r) {
   const { address_detail, ...rest } = r; // 合规：该字段不再向前端暴露
   return {
     ...rest,
@@ -664,6 +664,12 @@ export async function dbResolvePush(db, pushId, status) {
   return !!(res && res.meta && res.meta.changes > 0);
 }
 
+// 某需求的全部待处理推送（签约自动下架时系统批量拒绝用；逐条留档在调用方循环内）
+export async function dbGetPendingPushesForDemand(db, demandId) {
+  return await dbAll(db,
+    `SELECT id, teacher_user_id FROM demand_pushes WHERE demand_id=? AND status='pending'`, [demandId]);
+}
+
 // 推送被教师确认：写一条「已接受」意向（复用学生端意向/会话视图）+ 由路由层建立会话。
 // DO UPDATE 覆写守卫：学生对意向的明确拒绝（status='rejected'）不可被推送确认静默撤销
 export async function dbAcceptPushAsIntent(db, demandId, teacherUserId) {
@@ -707,6 +713,12 @@ export async function dbResolveIntent(db, intentId, status) {
     "UPDATE demand_intents SET status=?, resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'",
     [status, intentId]);
   return !!(res && res.meta && res.meta.changes > 0); // 仅赢家（changes>0）执行建会话/通知等副作用
+}
+
+// 某需求的全部待处理意向（签约自动下架时系统批量拒绝用；逐条留档在调用方循环内）
+export async function dbGetPendingIntentsForDemand(db, demandId) {
+  return await dbAll(db,
+    `SELECT id, teacher_user_id FROM demand_intents WHERE demand_id=? AND status='pending'`, [demandId]);
 }
 
 // ============================================================
@@ -961,6 +973,29 @@ export async function dbGetMyContracts(db, userId) {
     ORDER BY ct.updated_at DESC`, [userId, userId]);
 }
 
+// 管理员全量合同列表（含双方用户名 + 起草者用户名；管理员合同页用）
+export async function dbGetAllContractsAdmin(db) {
+  return await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
+      us.username AS student_name, ut.username AS teacher_name, du.username AS drafter_name
+    FROM contracts ct
+    JOIN conversations c ON c.id = ct.conversation_id
+    JOIN users us ON us.id = c.student_user_id
+    JOIN users ut ON ut.id = c.teacher_user_id
+    JOIN users du ON du.id = ct.drafter_user_id
+    ORDER BY ct.updated_at DESC`);
+}
+
+// 删除合同行。返回原生 result：调用方凭 meta.changes 判定赢家
+// （并发双撤销/双取消/管理员删除场景仅 changes>0 的一方执行通知/留档等副作用）
+export async function dbDeleteContract(db, contractId) {
+  return dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
+}
+
+// 清会话内的合同系统气泡（撤销合同步双方聊天窗；kind='contract' 仅合同事件消息）
+export async function dbDeleteContractMessages(db, conversationId) {
+  await dbRun(db, `DELETE FROM messages WHERE conversation_id=? AND kind='contract'`, [conversationId]);
+}
+
 // ============================================================
 // 会话与消息（模块4）
 // ============================================================
@@ -983,6 +1018,15 @@ export async function dbUpsertConversation(db, studentUserId, teacherUserId, dem
 
 export async function dbGetConversationById(db, id) {
   return await dbGet(db, 'SELECT * FROM conversations WHERE id=?', [id]);
+}
+
+// 会话行 + 双方用户名（合同模块的通知文案 / 对方判定 helper 共用；student_name/teacher_name 随行附带）
+export async function dbGetConversationWithNames(db, conversationId) {
+  return await dbGet(db, `SELECT c.*, us.username AS student_name, ut.username AS teacher_name
+    FROM conversations c
+    JOIN users us ON us.id = c.student_user_id
+    JOIN users ut ON ut.id = c.teacher_user_id
+    WHERE c.id = ?`, [conversationId]);
 }
 
 // 我参与的会话列表（含对方用户名 + 最后一条消息预览 + 签约状态）
@@ -1041,7 +1085,41 @@ export async function dbGetMessageById(db, messageId) {
   return await dbGet(db, 'SELECT id, conversation_id, sender_user_id, kind FROM messages WHERE id=?', [messageId]);
 }
 
+// 单条附件懒加载取 body（图片/文件大字段不随列表下发，气泡骨架渲染后逐条补载）
+export async function dbGetMessageAttachment(db, messageId, conversationId) {
+  return await dbGet(db, 'SELECT body, name FROM messages WHERE id=? AND conversation_id=?', [messageId, conversationId]);
+}
+
 // 管理员删除单条消息（聊天内容管理）
 export async function dbDeleteMessage(db, messageId) {
   return dbRun(db, 'DELETE FROM messages WHERE id=?', [messageId]);
+}
+
+// ============================================================
+// 聊天附件暂存区（uploads）：文件拖入/选中即真实上传至此（XHR 进度），
+// 发送时凭 uploadId 确认落入 messages 后删除暂存
+// ============================================================
+// 暂存配额自愈：清本人 30 分钟前的滞留暂存件（防弃传暂存填满库）
+export async function dbPurgeStaleUploads(db, userId) {
+  await dbRun(db, `DELETE FROM uploads WHERE user_id=? AND created_at < datetime('now','localtime','-30 minutes')`, [userId]);
+}
+
+// 本人当前暂存件数（每人 12 件封顶用）
+export async function dbCountUploads(db, userId) {
+  const row = await dbGet(db, 'SELECT COUNT(*) AS cnt FROM uploads WHERE user_id=?', [userId]);
+  return row?.cnt || 0;
+}
+
+export async function dbCreateUpload(db, userId, kind, body, name) {
+  const res = await dbRun(db, 'INSERT INTO uploads (user_id, kind, body, name) VALUES (?,?,?,?)',
+    [userId, kind, body, name]);
+  return (res && res.meta && res.meta.last_row_id) || 0;
+}
+
+export async function dbGetUpload(db, uploadId) {
+  return await dbGet(db, 'SELECT * FROM uploads WHERE id=?', [uploadId]);
+}
+
+export async function dbDeleteUpload(db, uploadId) {
+  await dbRun(db, 'DELETE FROM uploads WHERE id=?', [uploadId]);
 }

@@ -3,10 +3,10 @@
  * 规则：仅签约学生可评价（签约机制未上线，门禁经 dbIsContracted 预留接口）；
  *       每名学生对每名教师限一条，已有评价只能修改（修改后重回待审核）。
  */
-import { json, error, dbGet, authUser, MSG } from './core.js';
+import { json, error, authUser, MSG } from './core.js';
 import {
   dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
-  dbUpdateReview, dbIsContracted,
+  dbUpdateReview, dbIsContracted, dbGetReviewById,
 } from './db.js';
 import { logEvent } from './log.js';
 
@@ -41,7 +41,7 @@ export async function handleUpdateReview(db, reviewId, body, req) {
 
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const existing = await dbGet(db, 'SELECT * FROM reviews WHERE id=?', [reviewId]);
+  const existing = await dbGetReviewById(db, reviewId);
   if (!existing) return error(MSG.REVIEW_NOT_FOUND, 404);
   if (existing.reviewer_user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
   const reviewerUserId = me.id;

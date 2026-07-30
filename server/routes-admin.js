@@ -3,8 +3,8 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）
  */
 import {
-  json, error, requireAdmin, authUser, genCode,
-  INITIAL_RATING, INITIAL_WEIGHT, MSG,
+  json, error, requireAdmin, requireAdminOrError, authUser, genCode,
+  INITIAL_RATING, INITIAL_WEIGHT, MSG, STATUS,
 } from './core.js';
 import {
   dbCreateInviteCode, dbGetAllInvites,
@@ -28,8 +28,9 @@ export async function handleAdminCheck(db, req) {
 }
 
 export async function handleGenInvite(db, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
 
   const code = genCode(8);
   const exp = new Date(Date.now() + INVITE_VALIDITY_MS);
@@ -42,13 +43,15 @@ export async function handleGenInvite(db, body, req) {
 }
 
 export async function handleAdminInvites(db, url, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
   const invites = await dbGetAllInvites(db);
   return json({ invites });
 }
 
 export async function handleAdminStats(db, url, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
 
   const users = await dbGetUserStats(db) || { total:0, students:0, teachers:0 };
   const profiles = await dbGetCount(db, 'teacher_profiles');
@@ -64,7 +67,8 @@ export async function handleAdminStats(db, url, req) {
 }
 
 export async function handleAdminReviews(db, url, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
   const status = url.searchParams.get('status') || '';
   const teacherUserId = parseInt(url.searchParams.get('teacherUserId')) || 0;
   const reviews = await dbGetReviewsAdmin(db, { status, teacherUserId });
@@ -81,13 +85,14 @@ async function recomputeTeacherRating(db, teacherUserId) {
 }
 
 export async function handleReviewAction(db, reviewId, action, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return error(MSG.REVIEW_NOT_FOUND);
 
-  const wasApproved = review.status === 'approved'; // 改动前的状态（status 在下方才被更新）
-  const status = action === 'approve' ? 'approved' : 'rejected';
+  const wasApproved = review.status === STATUS.APPROVED; // 改动前的状态（status 在下方才被更新）
+  const status = action === 'approve' ? STATUS.APPROVED : STATUS.REJECTED;
   await dbUpdateReviewStatus(db, reviewId, status);
 
   // 通过 → 重算；拒绝一条「原已通过」的评价同样要重算（把已计入的评分摘掉）
@@ -101,7 +106,8 @@ export async function handleReviewAction(db, reviewId, action, body, req) {
 }
 
 export async function handleAdminUsers(db, url, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
   const role = url.searchParams.get('role');
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
 
@@ -112,8 +118,9 @@ export async function handleAdminUsers(db, url, req) {
 }
 
 export async function handleBanUser(db, userId, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const target = await dbGetUserById(db, userId);
   if (!target) return error(MSG.USER_NOT_FOUND, 404);
   if (target.role === 'admin') return error(MSG.NO_PERMISSION, 403);
@@ -128,17 +135,19 @@ export async function handleBanUser(db, userId, body, req) {
 
 // GET /api/admin/demands —— 管理员全量需求（含已签约；广场端点恒定排除 contracted，管理员页需独立全量端点）
 export async function handleAdminDemands(db, url, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
   const demands = await dbGetAllDemandsAdmin(db);
   return json({ demands });
 }
 
 export async function handleAdminDeleteDemand(db, demandId, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (existing.status === 'contracted') return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求禁删（合同 demand_id 会悬空）
+  if (existing.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求禁删（合同 demand_id 会悬空）
   await dbDeleteDemand(db, demandId);
   await logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'demand', entityId: demandId, req });
@@ -146,12 +155,13 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
 }
 
 export async function handleAdminDeleteReview(db, reviewId, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return error(MSG.REVIEW_NOT_FOUND, 404);
   await dbDeleteReview(db, reviewId);
-  if (review.status === 'approved') await recomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
+  if (review.status === STATUS.APPROVED) await recomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
   await logEvent(db, { action: 'admin.review.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'review', entityId: reviewId, req });
   return json({ message: MSG.REVIEW_DELETED });
@@ -159,8 +169,9 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
 
 // DELETE /api/admin/messages/:id —— 管理员删除单条聊天消息（留档 admin.message.delete）
 export async function handleAdminDeleteMessage(db, messageId, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const m = await dbGetMessageById(db, messageId);
   if (!m) return error(MSG.MESSAGE_NOT_FOUND, 404);
   await dbDeleteMessage(db, messageId);
@@ -172,7 +183,8 @@ export async function handleAdminDeleteMessage(db, messageId, body, req) {
 
 // 日志检索（action 前缀 / 操作人 / 实体 / 时间范围 / detail 模糊 / 分页）
 export async function handleAdminLogs(db, url, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
   const f = Object.fromEntries(url.searchParams);
   const result = await queryLog(db, f);
   return json(result);
@@ -180,7 +192,8 @@ export async function handleAdminLogs(db, url, req) {
 
 // GET /api/admin/logs/:id/decrypt —— 单条留档显式解密（列表检索已透明解密，此为按 id 定点取原文）
 export async function handleAdminDecryptLog(db, logId, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
   const entry = await decryptLogEntry(db, logId);
   if (!entry) return error(MSG.LOG_NOT_FOUND, 404);
   return json(entry);
@@ -203,18 +216,20 @@ export async function handleCreateFeedback(db, body, req) {
 
 // GET /api/feedbacks?username= —— 管理员查看全部反馈（含提交者用户名 + 处理状态）
 export async function handleAdminFeedbacks(db, url, req) {
-  if (!(await requireAdmin(db, req))) return error(MSG.ADMIN_ONLY, 403);
+  const e = requireAdminOrError(await authUser(db, req));
+  if (e) return e;
   const feedbacks = await dbGetFeedbacksAdmin(db);
   return json({ feedbacks });
 }
 
 // POST /api/feedbacks/:id/resolve { username } —— 管理员标记已处理，通知反馈提出者
 export async function handleResolveFeedback(db, feedbackId, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const f = await dbGetFeedbackById(db, feedbackId);
   if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404);
-  if (f.status !== 'resolved') {
+  if (f.status !== STATUS.RESOLVED) {
     await dbResolveFeedback(db, feedbackId);
     await notifyUser(db, f.user_id, globalThis.APP_CONSTANTS.UI.FEEDBACK_RESOLVED);
     await logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
@@ -226,8 +241,9 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
 // 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件：标题+正文，
 // 推送时标题加【系统通知】前缀）
 export async function handleAdminBroadcast(db, body, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const title = String(body.title || '').trim();
   const text = String(body.text || '').trim();
   if (!text) return error(MSG.BROADCAST_EMPTY);

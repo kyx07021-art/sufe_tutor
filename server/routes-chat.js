@@ -3,14 +3,24 @@
  * 消息内容按模块5要求全量留档（detail 含正文，走 logEvent 咽喉，后期统一加密）
  * 图片/文件：kind=image/file；暂存上传走 uploads 表，发送时凭 uploadId 落入会话
  */
-import { json, error, dbGet, dbRun, authUser, MSG } from './core.js';
+import { json, error, authUser, MSG, STATUS } from './core.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage, dbMarkConversationRead,
+  dbGetMessageAttachment,
+  dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbDeleteUpload,
 } from './db.js';
 import { logEvent } from './log.js';
 
 const isParticipant = (conv, userId) =>
   conv && (conv.student_user_id === userId || conv.teacher_user_id === userId);
+
+// 会话操作公共关口：取会话行 + 参与方校验（会话双方学生/教师）。
+// 不存在或非参与方统一 404（不向外透露会话存在性）；失败返 { err: Response }，成功返 { conv }
+async function loadConversationFor(db, conversationId, userId) {
+  const conv = await dbGetConversationById(db, conversationId);
+  if (!conv || !isParticipant(conv, userId)) return { err: error(MSG.CONVERSATION_NOT_FOUND, 404) };
+  return { conv };
+}
 
 // 文件类 dataURL 黑名单：html/svg 可投递钓鱼内容（现代浏览器阻断执行但仍可投递），一律拒收。
 // 比较一律小写化（防 DATA:TEXT/HTML、Data:Image/SVG 大小写绕过）；对 image 与 file 两种 kind 同时生效
@@ -31,8 +41,8 @@ export async function handleGetConversations(db, url, req) {
 export async function handleMarkRead(db, convId, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const conv = await dbGetConversationById(db, convId);
-  if (!conv || !isParticipant(conv, me.id)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  const g = await loadConversationFor(db, convId, me.id);
+  if (g.err) return g.err;
   await dbMarkConversationRead(db, convId, me.id);
   return json({ ok: true });
 }
@@ -41,11 +51,11 @@ export async function handleGetMessages(db, convId, url, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const sinceId = parseInt(url.searchParams.get('sinceId')) || 0;
-  const conv = await dbGetConversationById(db, convId);
-  if (!conv || !isParticipant(conv, me.id)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  const g = await loadConversationFor(db, convId, me.id);
+  if (g.err) return g.err;
 
   const messages = await dbGetMessages(db, convId, sinceId);
-  return json({ conversation: conv, messages });
+  return json({ conversation: g.conv, messages });
 }
 
 // GET /api/conversations/:cid/messages/:mid/attachment —— 单条附件懒加载
@@ -53,9 +63,9 @@ export async function handleGetMessages(db, convId, url, req) {
 export async function handleGetAttachment(db, convId, messageId, url, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const conv = await dbGetConversationById(db, convId);
-  if (!conv || !isParticipant(conv, me.id)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
-  const m = await dbGet(db, 'SELECT body, name FROM messages WHERE id=? AND conversation_id=?', [messageId, convId]);
+  const g = await loadConversationFor(db, convId, me.id);
+  if (g.err) return g.err;
+  const m = await dbGetMessageAttachment(db, messageId, convId);
   if (!m) return error(MSG.CONVERSATION_NOT_FOUND, 404);
   return json({ body: m.body, name: m.name || '' });
 }
@@ -72,20 +82,19 @@ export async function handleCreateUpload(db, body, req) {
   if (fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED); // svg/html 黑名单对图片同样生效
   const name = String(body.fileName ?? '').slice(0, 100);
   // 暂存区配额自愈 + 上限：先清本人 30 分钟前的滞留暂存件，再按每人 12 件封顶（防弃传暂存填满库 / 刷大字段）
-  await dbRun(db, `DELETE FROM uploads WHERE user_id=? AND created_at < datetime('now','localtime','-30 minutes')`, [me.id]);
-  const staged = await dbGet(db, 'SELECT COUNT(*) AS cnt FROM uploads WHERE user_id=?', [me.id]);
-  if ((staged && staged.cnt || 0) >= 12) return error(MSG.UPLOAD_STAGING_LIMIT);
-  const res = await dbRun(db, 'INSERT INTO uploads (user_id, kind, body, name) VALUES (?,?,?,?)', [me.id, kind, content, name]);
-  return json({ id: (res && res.meta && res.meta.last_row_id) || 0 }, 201);
+  await dbPurgeStaleUploads(db, me.id);
+  if ((await dbCountUploads(db, me.id)) >= 12) return error(MSG.UPLOAD_STAGING_LIMIT);
+  const id = await dbCreateUpload(db, me.id, kind, content, name);
+  return json({ id }, 201);
 }
 
 // DELETE /api/uploads/:id —— 移除暂存项（删已上传的文件，仅本人）
 export async function handleDeleteUpload(db, uploadId, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const u = await dbGet(db, 'SELECT id, user_id FROM uploads WHERE id=?', [uploadId]);
+  const u = await dbGetUpload(db, uploadId);
   if (!u || u.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
-  await dbRun(db, 'DELETE FROM uploads WHERE id=?', [uploadId]);
+  await dbDeleteUpload(db, uploadId);
   return json({ ok: true });
 }
 
@@ -94,16 +103,16 @@ export async function handleSendMessage(db, convId, body, req) {
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const userId = me.id;
   const { kind = 'text' } = body;
-  const conv = await dbGetConversationById(db, convId);
-  if (!conv || !isParticipant(conv, userId)) return error(MSG.CONVERSATION_NOT_FOUND, 404);
-  if (conv.status !== 'active') return error(MSG.NO_PERMISSION, 403);
+  const g = await loadConversationFor(db, convId, userId);
+  if (g.err) return g.err;
+  if (g.conv.status !== STATUS.ACTIVE) return error(MSG.NO_PERMISSION, 403);
 
   // 暂存附件确认入会话：凭 uploadId 取出已上传文件，落成消息后删除暂存
   if (body.uploadId) {
-    const up = await dbGet(db, 'SELECT * FROM uploads WHERE id=?', [parseInt(body.uploadId)]);
+    const up = await dbGetUpload(db, parseInt(body.uploadId));
     if (!up || up.user_id !== userId) return error(MSG.CONVERSATION_NOT_FOUND, 404);
     const id = await dbCreateMessage(db, convId, userId, up.kind, up.body, up.name);
-    await dbRun(db, 'DELETE FROM uploads WHERE id=?', [up.id]);
+    await dbDeleteUpload(db, up.id);
     await logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
       detail: { messageId: id, kind: up.kind, name: up.name, len: up.body.length }, req });
     return json({ id, kind: up.kind, name: up.name }, 201);

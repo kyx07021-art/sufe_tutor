@@ -8,7 +8,7 @@
  * 通知文案由业务方（routes-* 在拒绝/退回等节点）按场景拼装后传入，保持委婉语气。
  * 仅 import core.js（dbAll/dbGet/dbRun/json/error/MSG），不依赖 db.js，避免循环。
  */
-import { dbAll, dbGet, dbRun, json, error, authUser, requireAdmin, MSG } from './core.js';
+import { dbAll, dbGet, dbRun, json, error, authUser, requireAdminOrError, MSG } from './core.js';
 import { logEvent } from './log.js';
 
 // 建表（幂等）
@@ -43,13 +43,13 @@ export async function dbBroadcastNotification(db, text) {
   return (res && res.meta && res.meta.changes) || 0;
 }
 
-export async function dbGetNotifications(db, userId) {
+async function dbGetNotifications(db, userId) {
   return await dbAll(db,
     'SELECT * FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 200', [userId]);
 }
 
 // 进入通知页时一次标记全部已读
-export async function dbMarkNotificationsRead(db, userId) {
+async function dbMarkNotificationsRead(db, userId) {
   await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0', [userId]);
 }
 
@@ -72,8 +72,9 @@ export async function handleMarkNotificationsRead(db, body, req) {
 // DELETE /api/admin/notifications/:id —— 删除一整批广播通知（广播 = 全体用户同文案同秒各插一行；
 // 传任一条的 id 即按「同文案 + 同秒」删全批；留档 admin.notification.delete）
 export async function handleAdminDeleteNotification(db, notifId, req) {
-  const admin = await requireAdmin(db, req);
-  if (!admin) return error(MSG.ADMIN_ONLY, 403);
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
   const n = await dbGet(db, 'SELECT id, text, created_at FROM notifications WHERE id=?', [notifId]);
   if (!n) return json({ ok: true, count: 0 });
   const res = await dbRun(db, 'DELETE FROM notifications WHERE text=? AND created_at=?', [n.text, n.created_at]);
