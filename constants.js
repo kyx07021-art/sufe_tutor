@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.17.2',
+  APP_VERSION: '0.18.0',
 
   // ============================================================
   // 业务数据
@@ -55,7 +55,6 @@ globalThis.APP_CONSTANTS = {
   // ============================================================
   LG: {
     radius: { sm: 9, md: 12, lg: 15 },   // 小圆角
-    edgeFade: 14,                         // 边缘渐隐宽 px：折射集中带（中心磨砂→边缘清晰弯曲的过渡区）
     refractScale: 34,                     // 折射位移强度（SVG feDisplacementMap scale；clear-rim 上的折射唇）
     floatBlur: 12,                        // 浮层磨砂模糊 px（浮层 ::before 单独模糊；元素折射底不模糊）
     bg: { blur: 16, sat: 1.12 },          // 背景底板：唯一重模糊（背景毛蒙版照旧；穿透感靠卡片 clear-rim，不削弱底板）
