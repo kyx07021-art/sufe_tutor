@@ -12,7 +12,6 @@
   display: grid;
   grid-template-columns: 1fr 3fr;
   height: 100%;
-  background: var(--white);
 }
 
 /* ============================================================
@@ -21,7 +20,6 @@
 .chats-list-pane {
   display: flex; flex-direction: column;
   min-height: 0; /* 网格行内允许收缩，滚动交给 .conv-list */
-  background: var(--paper); /* 绑定主题淡米：随 --paper 联动，选中块 --paper-3 深一档 */
 }
 
 .chats-list-head {
@@ -43,7 +41,6 @@
 .conv-pill {
   position: absolute; left: 0; right: 0; top: 0;
   height: 0; opacity: 0;
-  background: var(--paper-3);
   z-index: 0;
 }
 
@@ -57,7 +54,6 @@
   padding: 13px 18px 14px;
   transition: color .26s ease, background-color .26s ease, padding .26s ease;
 }
-.conv-item:hover:not(.active) { background: var(--field); }
 .conv-item.active { padding: 16px 18px 17px; color: var(--ink); }
 
 /* 对方小头像：最左侧，纵跨名字行与预览行 */
@@ -74,7 +70,6 @@
 .conv-item-role {
   flex-shrink: 0; padding: 0 5px;
   font-size: .62rem; font-weight: 700; letter-spacing: .04em;
-  color: var(--muted); border: 1px solid var(--line);
 }
 .conv-item-time {
   flex-shrink: 0;
@@ -100,7 +95,6 @@
 .chat-head {
   display: flex; align-items: center; gap: 14px;
   padding: 12px 18px;
-  background: var(--paper); /* 与会话列表同底色，输入区亦 --paper，仅消息区点阵白 */
 }
 .chat-head-main { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1; }
 /* 右上角人头肩线框：会话对方的个人信息右栏入口（悬停擦墨） */
@@ -115,14 +109,12 @@
 /* 会话项「已签约」绿色小卡：名字行角色标签之后，与个人信息面板的签约标记同色 */
 .conv-signed-tag {
   flex-shrink: 0; align-self: center;
-  background: #187a4b; color: #fff;
   font-size: .58rem; font-weight: 700; letter-spacing: .06em;
   padding: 1.5px 5px; line-height: 1.4;
 }
 /* 聊天窗头部同款签约小卡（稍大一号适配头部字号） */
 .chat-head-signed {
   flex-shrink: 0; align-self: center;
-  background: #187a4b; color: #fff;
   font-size: .64rem; font-weight: 700; letter-spacing: .06em;
   padding: 2px 7px;
 }
@@ -133,7 +125,6 @@
 }
 .chat-peer-tag {
   flex-shrink: 0; padding: 2px 7px;
-  background: var(--accent-tint); color: var(--accent-deep);
   font-size: .64rem; font-weight: 700; letter-spacing: .04em;
 }
 .chat-head-demand {
@@ -145,13 +136,11 @@
 .chat-back {
   display: none; flex-shrink: 0;
   padding: 7px 10px;
-  background: var(--paper-2); color: var(--ink-3);
   font-size: .78rem; font-weight: 700;
   transition: background-color var(--t-fast) var(--ease-out),
               color var(--t-fast) var(--ease-out),
               transform var(--t-fast) var(--ease-out);
 }
-.chat-back:hover { background: var(--ink); color: var(--paper); }
 .chat-back:active { transform: translateX(-2px); transition-duration: 80ms; }
 
 /* ---------- 消息区：细点阵底纹 + 内部滚动 ---------- */
@@ -159,9 +148,6 @@
   flex: 1; overflow-y: auto; min-height: 0;
   display: flex; flex-direction: column; gap: 12px;
   padding: 20px 22px;
-  background-color: var(--white);
-  background-image: radial-gradient(rgba(17,17,20,.05) 1px, transparent 1.4px);
-  background-size: 22px 22px;
 }
 .chat-messages::-webkit-scrollbar { width: 6px; }
 .chat-messages::-webkit-scrollbar-track { background: transparent; }
@@ -190,8 +176,6 @@
   border-radius: 12px;
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.chat-bubble--mine  { background: var(--ink); color: var(--paper); }
-.chat-bubble--theirs { background: var(--sand-tint); color: var(--ink); }
 
 .chat-msg-time {
   margin-top: 4px;
@@ -202,7 +186,6 @@
 .chat-input-bar {
   display: flex; align-items: center; gap: 8px;
   padding: 12px 14px;
-  background: var(--paper);
 }
 
 /* ---------- 图片 / 文件消息 ---------- */
@@ -223,12 +206,12 @@
 .chat-attach-fail { font-size: .72rem; color: var(--danger-deep); padding: 4px 6px; }
 
 /* ---------- 发送前暂存区（输入框上方）：小圆角缩略 + 圆圈进度，处理完成才可发送 ---------- */
-.chat-stage { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 14px 0; background: var(--paper); }
+.chat-stage { display: flex; gap: 10px; flex-wrap: wrap; padding: 10px 14px 0; }
 .chat-stage-item { position: relative; display: flex; flex-direction: column; gap: 4px; animation: chat-pop .18s ease-out both; }
 .chat-stage-thumb {
   position: relative; width: 64px; height: 64px;
   display: flex; align-items: center; justify-content: center;
-  background: var(--field-2); border-radius: 8px; overflow: hidden;
+  border-radius: 8px; overflow: hidden;
 }
 .chat-stage-item--file .chat-stage-thumb { width: 118px; }
 .chat-stage-thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -241,11 +224,10 @@
 .chat-stage-del {
   position: absolute; top: -6px; right: -6px; z-index: 2;
   width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
-  background: var(--ink); color: var(--paper); border-radius: 50%;
+  border-radius: 50%;
   font-size: .6rem; line-height: 1;
   transition: background-color var(--t-fast) var(--ease-out);
 }
-.chat-stage-del:hover { background: var(--danger); }
 /* 圆圈进度条：SVG 环，dashoffset 由 JS 按进度写入 */
 .chat-stage-ring {
   position: absolute; inset: 0; margin: auto; width: 30px; height: 30px;
@@ -273,12 +255,12 @@
 .chat-actions .chat-send { height: 100%; min-width: 78px; }
 
 /* ---------- 合同状态灰字行（消息区与输入区之间） ---------- */
-.chat-contract-line { background: var(--paper); padding: 0 18px; }
+.chat-contract-line { padding: 0 18px; }
 .chat-contract-line-text { padding: 7px 0; font-size: .72rem; color: var(--muted); text-align: center; letter-spacing: .02em; }
 
 /* ---------- 合同事件系统气泡：居中淡紫块（圆角随气泡惯例），区别于双方消息 ---------- */
 .chat-msg--system { align-self: center; align-items: center; max-width: 88%; }
-.chat-bubble--system { background: var(--accent-tint); color: var(--accent-deep); font-size: .78rem; text-align: center; }
+.chat-bubble--system { font-size: .78rem; text-align: center; }
 .chat-msg--system .chat-msg-time { text-align: center; }
 
 /* ---------- 加号弹层（附件 / 起草合同），发送键左侧 ---------- */
@@ -288,23 +270,20 @@
 .chat-plus-btn {
   position: relative; width: 40px; height: 40px;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--field); color: var(--ink);
-  transition: background-color var(--t-fast, .16s) ease-out, color var(--t-fast, .16s) ease-out;
+  transition: color var(--t-fast, .16s) ease-out;
 }
-.chat-plus-btn:hover { background: var(--ink); color: var(--paper); }
 .plus-bar { position: absolute; width: 14px; height: 2px; background: currentColor; transition: transform .28s cubic-bezier(.16,1,.3,1); }
 .plus-v { transform: rotate(90deg); }
 .chat-plus-wrap.open .plus-v { transform: rotate(0deg); } /* 竖 bar 转水平，+ 变 − */
 .chat-plus-pop {
   position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 40;
   min-width: 140px; padding: 4px;
-  background: var(--white); border: 1px solid var(--paper-3);
   opacity: 0; visibility: hidden; transform: translateY(6px);
   transition: opacity .18s ease-out, transform .22s cubic-bezier(.16,1,.3,1), visibility 0s .22s;
 }
 .chat-plus-wrap.open .chat-plus-pop { opacity: 1; visibility: visible; transform: none; transition: opacity .18s ease-out, transform .22s cubic-bezier(.16,1,.3,1), visibility 0s 0s; }
 .chat-pop-item { display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: .84rem; color: var(--ink-3); cursor: pointer; transition: background-color .16s ease-out, color .16s ease-out; }
-.chat-pop-item:hover { background: var(--paper-2); color: var(--ink); }
+.chat-pop-item:hover { color: var(--ink); }
 
 textarea.chat-textarea {
   flex: 1; min-width: 0; width: auto;

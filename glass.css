@@ -67,26 +67,37 @@ body { background: transparent; }
    ============================================================ */
 /* SURFACE-STATIC：基类为 static 的件，由本组件提供定位上下文 + 透明面（::before 才能 inset 锚定） */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row,
-.profile-card, .chat-bubble, .role-tabs, .avatar, .avatar--link,
-.btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button {
+.profile-card, .chat-bubble, .role-tabs, .avatar, .avatar--link, .modal-header, .profile-panel-head, .sidebar-user,
+.chat-stage, .chat-back,
+.posts-toolbar, .post-like, .entry, .user-badge, .admin-badge, .invite-code-box, .about-sec-mark, .about-flow-dot,
+.feedback-kind-btn, .alert-error, .alert-success, .push-pick-item, .sidebar-toggle, .sidebar-expand-toggle, .admin-panel,
+.btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button {
   position: relative; isolation: isolate; background: none; border: none;
 }
 /* SURFACE-FLOAT：基类已 fixed/absolute —— 【禁】再设 position（否则掉页底/双滚动条/下拉撑高表单项） */
-.modal, .custom-select-panel, .chat-plus-pop, .profile-panel { isolation: isolate; background: none; border: none; }
+.modal, .custom-select-panel, .chat-plus-pop, .profile-panel, .sidebar-pill, .chat-stage-del, .toast { isolation: isolate; background: none; border: none; }
 
 /* ::before 主规则：填充 + 曲面遮罩(var) + 浮层磨砂(var)。一件规则覆盖全员；实心件 --g-mask:none 即关闭遮罩 */
 .list-card::before, .post-card::before, .about-card::before, .about-card-block::before, .notif-item::before, .stat-card::before, .auth-card::before, .feedback-card::before, .admin-row::before,
 .profile-card::before, .chat-bubble::before, .role-tabs::before, .avatar::before, .avatar--link::before,
-.modal::before, .custom-select-panel::before, .chat-plus-pop::before, .profile-panel::before,
-.btn::before, .tc-push-btn::before, .chat-send::before, .chat-plus-btn::before, .md-toolbar button::before {
+.modal::before, .custom-select-panel::before, .chat-plus-pop::before, .profile-panel::before, .toast::before,
+.chat-stage::before, .chat-back::before, .chat-stage-del::before,
+.posts-toolbar::before, .post-like::before, .entry::before, .user-badge::before, .admin-badge::before, .invite-code-box::before, .about-sec-mark::before, .about-flow-dot::before,
+.feedback-kind-btn::before, .alert-error::before, .alert-success::before, .push-pick-item::before, .sidebar-toggle::before, .sidebar-expand-toggle::before, .admin-panel::before,
+.btn::before, .tc-push-btn::before, .chat-send::before, .chat-plus-btn::before, label.md-btn::before, .md-toolbar button::before,
+.modal-header::before, .profile-panel-head::before, .sidebar-user::before, .sidebar-pill::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
   background: var(--g-fill);
   -webkit-mask-image: var(--g-mask, var(--edge-fade-mask)); -webkit-mask-composite: source-in;
   mask-image: var(--g-mask, var(--edge-fade-mask)); mask-composite: intersect;
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
 }
-/* REFRACT：仅悬在亮页上的卡片用元素折射（无模糊=边缘清晰弯折，不折射自身=不洇墨）。浮层/气泡/实心件不用 */
-.list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
+/* REFRACT：悬在亮页上的曲面件用元素折射（无模糊=边缘清晰弯折，不折射自身=不洇墨）。
+   含按钮/选中块——薄 rim 处填充淡出后露出折射底=玻璃边；浮层/气泡/小字件不用 */
+.list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row,
+.chat-back,
+.posts-toolbar, .entry, .admin-panel,
+.btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button, .sidebar-pill {
   -webkit-backdrop-filter: url(#lg-refract); backdrop-filter: url(#lg-refract);
 }
 
@@ -100,17 +111,21 @@ body { background: transparent; }
 .modal { border-radius: var(--lg-r-lg); }
 .custom-select-panel, .chat-plus-pop { border-radius: var(--lg-r); }
 .profile-panel { border-radius: var(--lg-r-lg); border-left: 1px solid rgba(255,255,255,.55); }
+/* 头栏=组件表面：半透填充+组件磨砂+mask 关（贴边不需曲面）；不再用 .86 实米取巧 */
+.modal-header, .profile-panel-head { --g-mask: none; --g-fill: rgba(250,248,245,.55); --g-frost: blur(10px) saturate(1.2); }
 .chat-bubble { --g-mask: var(--edge-fade-mask-sm); box-shadow: var(--glass-lift-sm); }
 .chat-bubble--mine { --g-fill: var(--m-bubbleMine-bg, rgba(150,138,230,.26)); color: var(--ink); }
 .chat-bubble--theirs { --g-fill: var(--m-bubbleTheirs-bg, rgba(233,218,196,.30)); color: var(--ink); }
-.chat-bubble--system { --g-fill: var(--m-bubbleSys-bg, rgba(206,198,238,.24)); }
+.chat-bubble--system { --g-fill: var(--m-bubbleSys-bg, rgba(206,198,238,.24)); color: var(--accent-deep); }
 .profile-card { --g-fill: rgba(255,255,255,.5); border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); padding: 14px 16px; }
 .profile-card--id { --g-fill: rgba(255,255,255,.62); }
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
 
 /* ---- 参数预设：实心件（--g-mask:none = 不走曲面遮罩，干净圆角填充，文字必读） ---- */
-.btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button {
-  --g-mask: none; --g-fill: var(--m-button-bg, rgba(255,255,255,.06)); --g-fg: var(--ink);
+.chat-back,
+.btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button {
+  --g-mask: var(--edge-fade-mask); --g-rim: 4px;   /* 薄曲面边+折射；4px 护住小按钮文字（验收盯 btn-xs 白字） */
+  --g-fill: var(--m-button-bg, rgba(255,255,255,.06)); --g-fg: var(--ink);
   --g-lift: var(--glass-lift-sm); --g-ring: rgba(122,104,224,.55);
   --g-hover: rgba(255,255,255,.16); --g-active: rgba(0,0,0,.14); --g-focusin: rgba(255,255,255,.18);
   border-radius: var(--lg-r-sm); color: var(--g-fg); cursor: pointer;
@@ -151,18 +166,25 @@ body { background: transparent; }
 /* ============================================================
    交互层（保留全部好动效：hover 抬升 / active 缩放+涟漪 / 焦点双色环 / 头像放大）
    ============================================================ */
-.tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button { overflow: hidden; }  /* 涟漪裁剪 */
+.tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button { overflow: hidden; }  /* 涟漪裁剪 */
 .tc-push-btn::after, .chat-send::after, .chat-plus-btn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; z-index: 1; pointer-events: none; background: radial-gradient(circle, rgba(255,255,255,.6), rgba(255,255,255,0) 70%); transform: translate(-50%,-50%) scale(0); opacity: 0; transition: transform .5s var(--ease-out), opacity .6s var(--ease-out); }
-.btn:hover:not(:disabled), .tc-push-btn:hover:not(:disabled), .chat-send:hover:not(:disabled), .chat-plus-btn:hover:not(:disabled), .md-toolbar button:hover:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-hover), inset 0 1px 0 rgba(255,255,255,.32); transform: translateY(-1px); }
+.btn:hover:not(:disabled), .tc-push-btn:hover:not(:disabled), .chat-send:hover:not(:disabled), .chat-plus-btn:hover:not(:disabled), label.md-btn:hover:not(:disabled), .md-toolbar button:hover:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-hover), inset 0 1px 0 rgba(255,255,255,.32); transform: translateY(-1px); }
 .btn:active:not(:disabled), .tc-push-btn:active:not(:disabled), .chat-send:active:not(:disabled), .chat-plus-btn:active:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-active); transform: scale(.97); }
 .btn:active:not(:disabled)::after, .tc-push-btn:active:not(:disabled)::after, .chat-send:active:not(:disabled)::after, .chat-plus-btn:active:not(:disabled)::after { transform: translate(-50%,-50%) scale(26); opacity: .85; transition: 0s; }
 /* 焦点双色环（白缝+紫环，任何填充/背景都显眼）；.sim-focus 同声明，仅供 headless 截图核验（headless 不绘 :focus-visible） */
-.btn:focus-visible, .btn.sim-focus, .tc-push-btn:focus-visible, .tc-push-btn.sim-focus, .chat-send:focus-visible, .chat-send.sim-focus, .chat-plus-btn:focus-visible, .chat-plus-btn.sim-focus, .md-toolbar button:focus-visible, .md-toolbar button.sim-focus,
+.chat-back:focus-visible, .chat-back.sim-focus,
+.btn:focus-visible, .btn.sim-focus, .tc-push-btn:focus-visible, .tc-push-btn.sim-focus, .chat-send:focus-visible, .chat-send.sim-focus, .chat-plus-btn:focus-visible, .chat-plus-btn.sim-focus, label.md-btn:focus-visible, label.md-btn.sim-focus, .md-toolbar button:focus-visible, .md-toolbar button.sim-focus,
 .btn-link-inline:focus-visible, .btn-link-inline.sim-focus, .btn-text-danger:focus-visible, .btn-text-danger.sim-focus {
   outline: none; box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), inset 0 1px 0 rgba(255,255,255,.32), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
 }
 .drop-toggle:focus-visible, .drop-toggle.sim-focus, .custom-select-trigger:focus-visible, .custom-select-trigger.sim-focus {
   outline: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring, rgba(122,104,224,.55));
+}
+/* 统一悬停叠层（非按钮控件）：模块表里各自的 paper/field 悬停漏色全删，悬停只此一处，用 --g-hover */
+.drop-toggle:hover, .custom-select-trigger:hover, .role-tab:not(.active):hover, .score-mode-tab:not(.active):hover,
+.chat-pop-item:hover, .chat-back:hover, .chat-plus-btn:hover:not(:disabled),
+.push-pick-item:hover, .sidebar-toggle:hover, .sidebar-expand-toggle:hover {
+  box-shadow: var(--glass-lift-sm), inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.16));
 }
 .avatar-btn:hover .avatar--link, .avatar-btn:focus-visible .avatar--link { transform: scale(1.09); box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.4); }
 
@@ -170,7 +192,7 @@ body { background: transparent; }
    小件纯填充预设（标签 / 输入 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）——无折射无曲面，保性能
    ============================================================ */
 .chat-file-chip, .chat-stage-item, .chat-stage-thumb { background: var(--m-stage-bg, rgba(255,255,255,.14)); border: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm); }
-.tag, .conv-item-role, .chat-peer-tag, .push-pin-tag, .demand-id-tag, .device-current {
+.tag, .conv-item-role, .chat-peer-tag, .push-pin-tag, .demand-id-tag, .device-current, .profile-tag {
   background: var(--m-tag-bg, rgba(255,255,255,.2)); border: none; border-radius: 999px; box-shadow: var(--glass-lift-sm); color: var(--ink-2, #444);
 }
 .conv-signed-tag, .chat-head-signed, .profile-signed-tag { background: linear-gradient(160deg, rgba(24,122,75,.62), rgba(24,122,75,.46)); color: #fff; box-shadow: var(--glass-lift-sm); }
@@ -201,51 +223,105 @@ body { background: transparent; }
    侧边栏 / 会话栏 / 顶栏 / 主区（整块磨砂 pane，非组件曲面件）
    ============================================================ */
 .client-sidebar {
-  background: rgba(250,248,245,.5) !important;
+  background: rgba(250,248,245,.5);
   -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
   border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1);
 }
-.sidebar-pill { background: var(--m-pill-bg, rgba(74,58,178,.8)) !important; border-radius: var(--lg-r); border: none; box-shadow: var(--glass-lift); left: 8px; right: 8px; }
-.sidebar-user { background: var(--m-user-bg, rgba(255,255,255,.34)) !important; border: none; border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); margin: 8px; }
-.sidebar-item:hover:not(.active) { background: rgba(255,255,255,.22); border-radius: var(--lg-r-sm); }
-.chats-shell { background: transparent !important; }
-.chats-list-pane { background: var(--m-chatList-bg, rgba(255,255,255,.12)) !important; }
-.chat-pane, .chat-messages { background: transparent !important; background-image: none !important; }
-.conv-pill { background: var(--m-card-bg, rgba(255,255,255,.22)) !important; border: none; border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); }
-.conv-item:hover:not(.active) { background: rgba(255,255,255,.18); border-radius: var(--lg-r); }
+.sidebar-pill { --g-fill: var(--m-pill-bg, rgba(74,58,178,.8)); --g-mask: var(--edge-fade-mask-sm); border-radius: var(--lg-r); box-shadow: var(--glass-lift); left: 8px; right: 8px; }
+.sidebar-user { --g-fill: var(--m-user-bg, rgba(255,255,255,.34)); --g-mask: var(--edge-fade-mask-sm); border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); margin: 8px; }
+.sidebar-item { border-radius: var(--lg-r-sm); }
+.sidebar-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.2)); }
+.chats-shell { background: transparent; }
+.chats-list-pane { background: var(--m-chatList-bg, rgba(255,255,255,.12)); }
+.chat-pane, .chat-messages { background: transparent; background-image: none; }
+.conv-pill { background: var(--m-card-bg, rgba(255,255,255,.22)); border: none; border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); }
+.conv-item { border-radius: var(--lg-r); }
+.conv-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.16)); }
 .conv-item:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(122,104,224,.4); border-radius: var(--lg-r); }
-.chat-head, .chat-input-bar { background: rgba(255,255,255,.22) !important; }
-.navbar { background: rgba(250,248,245,.46) !important; -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); border-bottom: 1px solid rgba(255,255,255,.5); }
-body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg, rgba(250,248,245,.42) 0 50%, rgba(216,212,221,.42) 50% 100%) !important; }
-.landing-stage { background: transparent !important; }
-.client-main { background: transparent !important; }
+.chat-head, .chat-input-bar { background: rgba(255,255,255,.22); }
+.chat-stage { --g-fill: rgba(255,255,255,.12); --g-mask: none; }
+.chat-stage-del { --g-mask: none; --g-fill: rgba(17,17,20,.62); --g-fg: #fff; --g-hover: rgba(198,72,58,.85); --g-lift: var(--glass-lift-sm); }
+.navbar { background: rgba(250,248,245,.46); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); border-bottom: 1px solid rgba(255,255,255,.5); }
+body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg, rgba(250,248,245,.42) 0 50%, rgba(216,212,221,.42) 50% 100%); }
+.landing-stage { background: transparent; }
+.client-main { background: transparent; }
 
 /* ============================================================
    浮层内部（头栏 sticky 近不透明磨砂 + body 内滚 → 边缘层不随滚）
    ============================================================ */
 .modal { display: flex; flex-direction: column; overflow: hidden; }
-.modal-header { flex: 0 0 auto; background: rgba(250,248,245,.86); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1.5px solid rgba(30,26,64,.14); position: relative; z-index: 2; }
+.modal-header { flex: 0 0 auto; border-bottom: 1.5px solid rgba(255,255,255,.22); position: relative; z-index: 2; }
 .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; position: relative; z-index: 1; }
 .modal-overlay { background: rgba(30,26,64,.32); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
 .form-group + .form-group { border-top: 1.5px solid rgba(30,26,64,.16); }
 .form-group { background: transparent; }
-.profile-panel-head { background: rgba(250,248,245,.86); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1.5px solid rgba(30,26,64,.14); }
 
 /* ============================================================
    移动端：关折射底（保帧率；::before 曲面渐隐仍在=清晰软边）；窄屏信息卡加重白底保对比
    ============================================================ */
 @media (max-width: 860px) {
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row,
-  .btn, .tc-push-btn, .chat-send, .chat-plus-btn, .md-toolbar button,
+  .posts-toolbar, .entry, .admin-panel,
+  .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button,
   .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { -webkit-backdrop-filter: none; backdrop-filter: none; }
   .profile-card { --g-fill: rgba(255,255,255,.82); }
   .profile-card--id { --g-fill: rgba(255,255,255,.9); }
 }
 @media (max-width: 860px) {
-  .client-sidebar { background: rgba(244,242,247,.97) !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .client-sidebar { background: rgba(244,242,247,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
   .sidebar-backdrop { background: rgba(20,18,40,.25); }
 }
 @media (prefers-reduced-motion: reduce) {
   .lg-orb { animation: none !important; }
   .btn::after, .tc-push-btn::after, .chat-send::after { transition: none !important; }
 }
+
+/* ============================================================
+   业务面参数预设（模块表颜色收口于此；结构登记见上方 SURFACE / ::before / REFRACT）
+   ============================================================ */
+/* 标签语义色（小件 element-bg 模式，修复"全 tag 同色"回归） */
+.tag-ok { background: rgba(24,122,75,.22); color: #187a4b; }
+.tag-danger { background: rgba(198,72,58,.20); color: var(--danger); }
+.tag-warn { background: rgba(154,106,42,.20); color: var(--warn-deep); }
+.tag-accent { background: rgba(122,104,224,.20); color: var(--accent-deep); }
+/* 反馈卡 Bug 红色警示（修复回归） */
+.feedback-card--bug { --g-fill: rgba(198,72,58,.12); border-left: 3px solid var(--danger); }
+
+/* 资料广场 */
+.posts-toolbar { --g-fill: rgba(255,255,255,.14); border-radius: var(--lg-r); box-shadow: var(--glass-lift); }
+.post-like { --g-mask: none; --g-fill: rgba(255,255,255,.10); --g-fg: var(--muted); --g-lift: var(--glass-lift-sm); border-radius: var(--lg-r-sm); }
+.post-like.liked { --g-fill: rgba(211,47,47,.16); --g-fg: var(--danger); }
+
+/* 主页入口块（实心墨玻璃；竖条母题迁 ::after 以让出 ::before 给玻璃填充） */
+.entry { --g-mask: none; --g-fill: var(--ink); --g-fg: var(--paper); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); border-radius: var(--lg-r); }
+
+/* 徽章 */
+.user-badge { --g-mask: none; --g-fill: var(--accent-tint); color: var(--accent-deep); }
+.admin-badge { --g-mask: none; --g-fill: var(--warn-tint); color: var(--warn-deep); }
+
+/* 邀请码盒 */
+.invite-code-box { --g-mask: none; --g-fill: rgba(255,255,255,.14); border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); }
+
+/* 关于平台：安全盾标 + 流程圆点（✓ 内容迁 ::after 以让出 ::before） */
+.about-sec-mark { --g-mask: none; --g-fill: var(--accent-tint); }
+.about-flow-dot { --g-mask: none; --g-fill: rgba(255,255,255,.85); border-radius: 50%; }
+
+/* 反馈类型分段按钮 */
+.feedback-kind-btn { --g-mask: none; --g-fill: rgba(255,255,255,.08); --g-fg: var(--ink-3); border-radius: var(--lg-r-sm); }
+.feedback-kind-btn.active { --g-fill: var(--ink); --g-fg: var(--paper); }
+
+/* 警示条（语义强填充 + 左色条） */
+.alert-error { --g-mask: none; --g-fill: rgba(198,72,58,.14); color: var(--danger-deep); border-left: 3px solid var(--danger); border-radius: var(--lg-r-sm); }
+.alert-success { --g-mask: none; --g-fill: rgba(24,122,75,.14); color: var(--ok-deep, #187a4b); border-left: 3px solid #187a4b; border-radius: var(--lg-r-sm); }
+
+/* 推送需求单选行 */
+.push-pick-item { --g-mask: none; --g-fill: rgba(255,255,255,.06); border-radius: var(--lg-r-sm); }
+
+/* 侧栏开关按钮 */
+.sidebar-toggle, .sidebar-expand-toggle { --g-mask: none; --g-fill: rgba(255,255,255,.14); border-radius: var(--lg-r-sm); }
+
+/* 管理面板 */
+.admin-panel { --g-fill: rgba(255,255,255,.14); border-radius: var(--lg-r); box-shadow: var(--glass-lift); }
+
+/* Toast（fixed 浮层，登记于 SURFACE-FLOAT；深色实心） */
+.toast { --g-mask: none; --g-fill: rgba(15,23,42,.92); --g-fg: #fff; color: #fff; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift); }
