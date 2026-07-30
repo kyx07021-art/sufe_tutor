@@ -13,7 +13,7 @@ import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
-  handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand,
+  handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand, handleReopenDemand,
   handleCreateIntent, handleGetIntents, handleResolveIntent,
   handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from './server/routes-demands.js';
@@ -129,6 +129,8 @@ async function routeApi(db, p, method, body, url, req) {
   const demandById = p.match(/^\/api\/student\/demands\/(\d+)$/);
   if (demandById && method === 'PUT') return await handleUpdateDemand(db, parseInt(demandById[1]), body, req);
   if (demandById && method === 'DELETE') return await handleDeleteDemand(db, parseInt(demandById[1]), body, req);
+  const demandReopen = p.match(/^\/api\/student\/demands\/(\d+)\/reopen$/);
+  if (demandReopen && method === 'POST') return await handleReopenDemand(db, parseInt(demandReopen[1]), body, req);
 
   // 需求意向
   const intentMatch = p.match(/^\/api\/demands\/(\d+)\/intents$/);

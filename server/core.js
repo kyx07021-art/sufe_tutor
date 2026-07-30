@@ -46,6 +46,8 @@ export const MSG = {
   DEMAND_NOT_FOUND: '需求不存在',
   DEMAND_UPDATED: '需求已更新',
   DEMAND_DELETED: '需求已删除',
+  DEMAND_REOPENED: '需求已重新开放',
+  DEMAND_STATE_INVALID: '当前需求状态不允许此操作',
   PROVINCE_REQUIRED: '请选择省份',
   TEACHER_ONLY: '仅教师可操作',
   ADMIN_ONLY: '仅管理员可操作',

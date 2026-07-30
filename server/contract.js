@@ -378,6 +378,8 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const del = await dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
   if (!(del && del.meta && del.meta.changes > 0)) return error(MSG.CONTRACT_NOT_FOUND, 404); // 并发双撤销仅赢家执行清理与通知
   await dbRun(db, `DELETE FROM messages WHERE conversation_id=? AND kind='contract'`, [ct.conversation_id]);
+  // 需求标记为「合同已撤销」：不自动重开（防随意锁定/重开扰动），由需求所有者在「我的需求」手动重开
+  if (ct.demand_id) await dbRun(db, `UPDATE student_demands SET status='revoked' WHERE id=? AND status='contracted'`, [ct.demand_id]);
   await notifyUser(db, otherSide(conv, me.id), UIC.CONTRACT_REVOKED_NOTIFY.replace('{name}', nameOf(conv, me.id)));
   await logEvent(db, { action: 'contract.revoke', actorUserId: me.id, entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, note: 'ledger_retained' }, req });

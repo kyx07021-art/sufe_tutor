@@ -1,7 +1,7 @@
 /**
  * 路由模块：学生需求（增删改查）+ 需求意向
  */
-import { json, error, authUser, MSG } from './core.js';
+import { json, error, authUser, MSG, dbRun } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
@@ -109,6 +109,22 @@ export async function handleDeleteDemand(db, demandId, body, req) {
   if (g.err) return g.err;
   await dbDeleteDemand(db, demandId);
   return json({ message: MSG.DEMAND_DELETED });
+}
+
+// POST /api/student/demands/:id/reopen —— 重开「合同已撤销」的需求（仅所有者；revoked→open 重回广场接收意向）
+// 撤销合同不自动重开（防锁定扰动），由此处手动触发；条件 UPDATE 赢家模式防并发双触发
+export async function handleReopenDemand(db, demandId, body, req) {
+  const me = await authUser(db, req);
+  if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
+  const existing = await dbGetDemandById(db, demandId);
+  if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (existing.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
+  if (existing.status !== 'revoked') return error(MSG.DEMAND_STATE_INVALID, 409);
+  const claim = await dbRun(db, `UPDATE student_demands SET status='open' WHERE id=? AND status='revoked'`, [demandId]);
+  if (!(claim && claim.meta && claim.meta.changes > 0)) return error(MSG.DEMAND_STATE_INVALID, 409);
+  await logEvent(db, { action: 'demand.reopen', actorUserId: me.id, entity: 'demand', entityId: demandId,
+    detail: { from: 'revoked' }, req });
+  return json({ message: MSG.DEMAND_REOPENED });
 }
 
 // --- 需求意向（后端骨架，前端 UI 下一轮接入） ---

@@ -180,7 +180,6 @@ async function openConversation(convId) {
   const conv = chatConvList.find(c => c.id === convId);
   pane.innerHTML = renderChatFrame(conv);
   chatBindDropzone(); // 拖入聊天区直接加入暂存区
-  loadChatContract(convId); // 合同状态灰字行与消息并行加载
 
   try {
     const data = await api(`/api/conversations/${convId}/messages`);
@@ -234,7 +233,6 @@ function renderChatFrame(conv) {
     </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
     <div class="chat-drop-hint hidden" id="chat-drop-hint">${UI.CHAT_DROP_HINT}</div>
-    <div class="chat-contract-line" id="chat-contract-line"></div>
     <div class="chat-stage hidden" id="chat-stage"></div>
     <div class="chat-input-bar${closed ? ' chat-input-bar--closed' : ''}">
       ${closed

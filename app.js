@@ -1408,7 +1408,7 @@ function renderDemandCard(d, opts = {}) {
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
     <div class="list-card-header">
-      <span class="list-card-title">${renderUsername(d.username || '')}${d.status === 'contracted' ? ` <span class="tag tag-ok">${UI.DEMAND_TAG_CONTRACTED}</span>` : ''}</span>
+      <span class="list-card-title">${renderUsername(d.username || '')}${d.status === 'contracted' ? ` <span class="tag tag-ok">${UI.DEMAND_TAG_CONTRACTED}</span>` : d.status === 'revoked' ? ` <span class="tag tag-warn">${UI.DEMAND_TAG_REVOKED}</span>` : ''}</span>
       <span class="demand-card-tools">
         ${push ? `<span class="push-note-row">
           <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
@@ -1418,7 +1418,8 @@ function renderDemandCard(d, opts = {}) {
           <button type="button" class="btn btn-accent btn-xs" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
         </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${teacherIntentBtn}`}
         ${d.display_id ? `<span class="demand-id-tag">#${String(d.display_id).padStart(4, '0')}</span>` : ''}
-        ${editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
+        ${editable && d.status === 'revoked' ? `<button type="button" class="btn btn-accent btn-sm" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
+          : editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
         ${admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
     </div>
@@ -1433,9 +1434,9 @@ function renderDemandCard(d, opts = {}) {
       <div class="list-card-contact">
         <span class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>
       </div>
-      ${editable ? `<button type="button" class="drop-toggle" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
+      ${editable && d.status !== 'revoked' ? `<button type="button" class="drop-toggle" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
     </div>
-    ${editable ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
+    ${editable && d.status !== 'revoked' ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
     </div>
   </div>`;
 }
@@ -1457,6 +1458,18 @@ async function loadDemandList(elId, { mine }) {
 }
 
 function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: true }); }
+
+// 重开「合同已撤销」的需求：revoked→open 重回广场接收意向（手动触发；后端把关所有者+状态）
+function reopenDemand(demandId) {
+  openConfirmModal(UI.CONFIRM_REOPEN_DEMAND, async () => {
+    try {
+      const data = await api(`/api/student/demands/${demandId}/reopen`, { method: 'POST', body: {} });
+      showToast(data.message || UI.DEMAND_REOPENED_TOAST);
+      invalidate('demands');
+      loadMyDemands();
+    } catch (err) { showToast(err.message); }
+  });
+}
 
 // 教师需求大厅：普通需求 + 学生主动推送的待处理需求（置顶 + 特殊操作行）
 async function loadBrowseDemands() {
@@ -1961,7 +1974,7 @@ function viewContract(contractId) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
-      <div class="modal-body"><div class="md-preview">${mdRender(c.contract_md || '')}</div></div>
+      <div class="modal-body contract-md">${mdRender(c.contract_md || '')}</div>
     </div>
   </div>`;
 }
@@ -2257,7 +2270,7 @@ function adminViewContract(contractId) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
       <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
-      <div class="modal-body"><div class="md-preview">${mdRender(c.contract_md || '')}</div></div>
+      <div class="modal-body contract-md">${mdRender(c.contract_md || '')}</div>
     </div>
   </div>`;
 }

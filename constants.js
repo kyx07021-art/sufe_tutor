@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.15.9',
+  APP_VERSION: '0.16.0',
 
   // ============================================================
   // 业务数据
@@ -43,6 +43,42 @@ globalThis.APP_CONSTANTS = {
 
   GENDERS: [{id:'male',name:'男'},{id:'female',name:'女'},{id:'nonbinary',name:'非二元'}],
   TEACHING_METHODS: [{id:'online',name:'线上'},{id:'offline',name:'线下'},{id:'both',name:'线上线下均可'}],
+
+  // ============================================================
+  // LIQUID GLASS 统一材质配置（改玻璃观感只动这里）
+  //   每支材质 mat = { frost, tint, tintA }：
+  //     frost  毛值：驱动高斯模糊 + 一点点白色调。正数=更毛，0=中性，
+  //            负数=比所在区域更通透（透镜感，按钮用）。
+  //     tint   配色 'r,g,b'；tintA 配色透明度 → 额外颜色叠加层。
+  //   运行时由 index.html 的注入器换算成 :root CSS 变量（--m-<名>-bg / -blur / -spec），
+  //   glass.css 全部消费变量；模糊只允许出现在背景底板与浮层两处（性能铁律）。
+  // ============================================================
+  LG: {
+    radius: { sm: 9, md: 12, lg: 15 },   // 小圆角（小！不是大圆角）
+    edgeW: 5,                             // 玻璃缘厚度 px（≥5px 折射光带）
+    bg: { blur: 22, sat: 1.12 },          // 背景底板：全站唯一的重模糊（弥散光球）
+    orbCrossSec: 60,                      // 光球横穿全屏约 60s
+    glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬鼠标）
+    mats: {
+      card:        { frost: 2,  tint: '255,255,255', tintA: .28 },  // 一般卡片
+      cardHi:      { frost: 3,  tint: '255,255,255', tintA: .36 },  // 通用卡片（更高毛值、更白）
+      button:      { frost: -4, tint: '255,255,255', tintA: .05 },  // 中性按钮=透镜（负毛值）
+      btnPrimary:  { frost: -3, tint: '26,24,32',    tintA: .84 },  // 墨色按钮
+      btnAccent:   { frost: -3, tint: '122,104,224', tintA: .80 },  // 紫色按钮
+      btnDanger:   { frost: -3, tint: '198,72,58',   tintA: .78 },  // 危险按钮
+      input:       { frost: 0,  tint: '255,255,255', tintA: .12 },  // 录入框
+      tag:         { frost: 0,  tint: '255,255,255', tintA: .26 },  // 标签药丸
+      stage:       { frost: 1,  tint: '255,255,255', tintA: .18 },  // 暂存区/文件chip
+      sidebar:     { frost: 6,  tint: '250,248,245', tintA: .26 },  // 侧栏整块玻璃
+      pill:        { frost: 5,  tint: '74,58,178',   tintA: .88 },  // 选中块（深紫玻璃）
+      user:        { frost: 4,  tint: '255,255,255', tintA: .42 },  // 底部用户白玻璃卡
+      overlay:     { frost: 13, tint: '255,255,255', tintA: .30 },  // 浮层（弹窗/下拉/个人栏）真模糊
+      bubbleMine:  { frost: 1,  tint: '150,138,230', tintA: .36 },  // 我的气泡（毛玻璃淡紫）
+      bubbleTheirs:{ frost: 1,  tint: '233,218,196', tintA: .40 },  // 对方气泡（毛玻璃淡米）
+      bubbleSys:   { frost: 1,  tint: '206,198,238', tintA: .34 },  // 系统气泡
+      chatList:    { frost: 4,  tint: '255,255,255', tintA: .16 },  // 会话列表栏背景
+    },
+  },
 
   // ============================================================
   // UI 文字
@@ -246,6 +282,10 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_NO_DEMAND_OPTION: '不关联需求',
     CONTRACT_DEMANDS_LOAD_FAIL: '需求列表加载失败：可不关联需求直接起草，或刷新页面后重试。',
     DEMAND_TAG_CONTRACTED: '已签约',
+    DEMAND_TAG_REVOKED: '合同已撤销',
+    BTN_REOPEN_DEMAND: '重开需求',
+    DEMAND_REOPENED_TOAST: '需求已重新开放',
+    CONFIRM_REOPEN_DEMAND: '重开后该需求将重新出现在需求大厅，再次接受教师意向。确定重开吗？',
     DEMAND_PREFIX: '需求 ',
     BTN_VERIFY_LEDGER: '存证校验',
     CONTRACT_LEDGER_VALID: '存证校验通过：合同文本与签署指纹一致',

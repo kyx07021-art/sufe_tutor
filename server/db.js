@@ -559,7 +559,7 @@ export async function dbGetAllDemands(db, teacherUserId = null) {
     params = [teacherUserId];
   }
   const rows = await dbAll(db, sel + extra +
-    ` WHERE (sd.status IS NULL OR sd.status <> 'contracted') ORDER BY sd.created_at DESC`, [...params]);
+    ` WHERE (sd.status IS NULL OR sd.status NOT IN ('contracted','revoked')) ORDER BY sd.created_at DESC`, [...params]);
   return rows.map(mapDemandRow);
 }
 
