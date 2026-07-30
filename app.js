@@ -2098,7 +2098,7 @@ async function loadProfile() {
       // 程序回填不派发 change：手动同步自定义下拉的触发器文字
       document.querySelectorAll('.profile-form select').forEach(syncCustomSelectText);
     }
-  } catch (err) { console.error(err); }
+  } catch (err) { console.error('loadProfile failed', err && err.message ? err.message : err); }
 }
 
 function pickGrade(el) {

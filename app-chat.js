@@ -400,7 +400,7 @@ async function sendChatMessage() {
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>'; }
   try {
     // 先逐个发暂存附件（成功一条移出暂存区），再发文字
-    for (const it of staged) await chatSendAttachment(it);
+    for (const it of staged) await chatSendAttachment(it, convId);
     if (text) {
       ta.value = '';
       chatAutogrow(ta);
@@ -576,8 +576,7 @@ function renderChatStage() {
 }
 
 // 发送单条附件 = 确认载入会话：数据已在上传阶段进服务器，这里只凭 uploadId 落成消息
-async function chatSendAttachment(item) {
-  const convId = chatConvId;
+async function chatSendAttachment(item, convId) {
   const data = await api(`/api/conversations/${convId}/messages`, {
     method: 'POST',
     body: { uploadId: item.uploadId },
