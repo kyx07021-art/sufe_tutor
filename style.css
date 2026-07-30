@@ -2,7 +2,7 @@
    上财家教平台 — 编辑式扁平设计语言
    参考图设计语言：暖白 / 淡紫灰二分、近黑实心直角、巨号 grotesque、
    em-dash 横线母题、细线网格 + 斜短线阵列、淡灰手部剪影作背景。
-   全页零投影、零圆角、零渐变标题、零玻璃拟态。
+   本文件为 base 结构层；现行视觉（圆角 / 投影 / 玻璃拟态）由 glass.css 覆盖，并非零。
    ============================================================ */
 
 :root {
@@ -822,8 +822,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 教师意向按钮状态：待处理灰 / 已建立联系绿（均禁用点击，opacity 不随 :disabled 衰减） */
 .btn-intent-wait, .btn-intent-ok { cursor: default; }
 .btn-intent-wait:disabled, .btn-intent-ok:disabled { opacity: 1; }
-.btn-intent-wait { --g-fill: var(--paper-2); --g-fg: var(--muted); }
-.btn-intent-ok { --g-fill: var(--ok-deep); --g-fg: var(--white); }
 
 /* 需求卡内嵌意向列表（模块3）：grid-rows 0fr→1fr 展开动效，内容淡入 */
 .intents-box { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .3s var(--ease-out); }
