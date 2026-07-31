@@ -52,12 +52,13 @@
   --g-scale: 1;
   --g-ring: rgba(122,104,224,.55);
   /* ---- 液体边缘高光（液态玻璃 v0.19）：玻璃体的珠圆玉润弯月。
-       画在 ::before 上、受 --g-mask 渐隐裁剪 → 靠边陡、向内缓的液体张力高光；
+       画在元素 box-shadow（与 --g-lift 合并），不受 ::before mask 裁剪 → 边缘高光清晰可见；
+       顶部亮带 + 底部淡反光 + 四边发丝线，靠边陡、向内缓的液体张力感。
        零 backdrop-filter（纯 box-shadow，合成线程零成本）。---- */
-  --g-liquid: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 1px rgba(255,255,255,.24),
-    inset 1px 0 0 rgba(255,255,255,.14), inset -1px 0 0 rgba(255,255,255,.14),
-    inset 0 0 0 1px rgba(255,255,255,.10);
-  --g-liquid-sm: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(255,255,255,.18), inset 0 0 0 1px rgba(255,255,255,.08);
+  --g-liquid: inset 0 1px 0 rgba(255,255,255,.65), inset 0 -1px 1px rgba(255,255,255,.30),
+    inset 1px 0 0 rgba(255,255,255,.18), inset -1px 0 0 rgba(255,255,255,.18),
+    inset 0 0 0 1px rgba(255,255,255,.14);
+  --g-liquid-sm: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(255,255,255,.22), inset 0 0 0 1px rgba(255,255,255,.10);
   /* 曲面边缘遮罩：1px 发丝高光边 + 靠边陡、靠本体缓的肩（斜率 .16R 处最陡，向内趋平）。无空护城河=无相框。
      四角加 radial 切圆（半径绑定 --g-r），与线性渐隐 intersect → 圆角件的渐隐四角贴合圆角，不再矩形框。 */
   --edge-fade-mask:
