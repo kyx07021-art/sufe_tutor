@@ -316,7 +316,9 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
   .sidebar-backdrop { background: rgba(20,18,40,.25); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lg-orb { animation: none !important; }
+  /* 光球动画关闭后负 delay 失效、36 个球会堆在屏幕外起点：纯装饰直接隐藏，避免左侧光球堆积 */
+  .lg-orb { display: none; }
+  .lg-mouseglow { display: none; }
   .glass--pressable::after { transition: none !important; }
 }
 
