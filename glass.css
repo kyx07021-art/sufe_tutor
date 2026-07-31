@@ -113,18 +113,11 @@ body { background: transparent; }
 /* ============================================================
    标准玻璃引擎 —— 三条主规则（结构只此一处；其余全是参数预设）
    ============================================================ */
-/* .glass：静态件由本组件提供定位上下文 + 透明面（::before 才能 inset 锚定） */
-.glass {
+/* .glass：静态件由本组件提供定位上下文 + 透明面（::before 才能 inset 锚定）。
+   position 用 :where() 降特异性到 0 —— 组件的自有定位（如 .profile-panel 的 fixed）永远胜出，
+   引擎只兜底「没设定位的玻璃件」。不再有「谁胜出靠加载顺序」的多方管理（用户纪律：删）。 */
+:where(.glass, .glass--float) {
   position: relative; isolation: isolate; background: none; border: none;
-  border-radius: var(--g-r, var(--lg-r-sm));
-  color: var(--g-fg, inherit);
-  box-shadow: var(--g-lift);
-  -webkit-backdrop-filter: var(--g-refract, none); backdrop-filter: var(--g-refract, none);
-  transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-base, .3s) var(--ease-out, ease);
-}
-/* .glass--float：基类已 fixed/absolute —— 【禁】再设 position（否则掉页底/双滚动条/下拉撑高表单项） */
-.glass--float {
-  isolation: isolate; background: none; border: none;
   border-radius: var(--g-r, var(--lg-r-sm));
   color: var(--g-fg, inherit);
   box-shadow: var(--g-lift);
