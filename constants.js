@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.18.3',
+  APP_VERSION: '0.18.4',
 
   // ============================================================
   // 业务数据
@@ -64,7 +64,7 @@ globalThis.APP_CONSTANTS = {
       card:        { frost: 1,  tint: '255,255,255', tintA: .14 },  // 一般卡片：磨砂体（边缘 clear-rim 另给穿透）
       cardHi:      { frost: 2,  tint: '255,255,255', tintA: .18 },  // 通用卡片：磨砂体
       button:      { frost: -3, tint: '255,255,255', tintA: .04 },  // 中性按钮=透镜（负毛值，比卡片更透）
-      btnPrimary:  { frost: -2, tint: '24,22,30',    tintA: .66 },  // 墨色玻璃按钮
+      btnPrimary:  { frost: -2, tint: '74,58,178',  tintA: .90 },  // 深紫玻璃按钮（全站主色；叠色提深→边缘渐隐同色透明，不发白）
       btnAccent:   { frost: -2, tint: '122,104,224', tintA: .62 },  // 紫色玻璃按钮
       btnDanger:   { frost: -2, tint: '198,72,58',   tintA: .60 },  // 危险玻璃按钮
       input:       { frost: 0,  tint: '255,255,255', tintA: .08 },  // 录入框

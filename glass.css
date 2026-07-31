@@ -126,7 +126,7 @@ body { background: transparent; }
 /* ---- 参数预设：实心件（--g-mask:none = 不走曲面遮罩，干净圆角填充，文字必读） ---- */
 .chat-back,
 .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button {
-  --g-mask: none;   /* 按钮实心：彩色按钮褪到背景=白边、遮罩方角戳角，故关遮罩，玻璃边交给 REFRACT */
+  --g-rim: 7px;    /* 按钮肩宽收紧：彩色填充已由 constants 提深，边缘走曲面遮罩渐隐成同色系透明玻璃边（白边根因是填充太浅，非遮罩本身；遮罩方角已验不戳出） */
   --g-fill: var(--m-button-bg, rgba(255,255,255,.06)); --g-fg: var(--ink);
   --g-lift: var(--glass-lift-sm); --g-ring: rgba(122,104,224,.55);
   --g-hover: rgba(255,255,255,.16); --g-active: rgba(0,0,0,.14); --g-focusin: rgba(255,255,255,.18);
