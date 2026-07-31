@@ -120,7 +120,8 @@ body { background: transparent; }
   position: relative; isolation: isolate; background: none; border: none;
   border-radius: var(--g-r, var(--lg-r-sm));
   color: var(--g-fg, inherit);
-  box-shadow: var(--g-lift);
+  /* 浮影 + 液体内高光合并：高光画在元素层（不受 ::before mask 裁剪），液态边缘清晰可见 */
+  box-shadow: var(--g-lift), var(--g-liquid, none);
   -webkit-backdrop-filter: var(--g-refract, none); backdrop-filter: var(--g-refract, none);
   transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-base, .3s) var(--ease-out, ease);
 }
@@ -130,7 +131,6 @@ body { background: transparent; }
 .glass::before, .glass--float::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
   background: var(--g-fill, rgba(255,255,255,.14));
-  box-shadow: var(--g-liquid, none);
   -webkit-mask-image: var(--g-mask, var(--edge-fade-mask)); -webkit-mask-composite: source-in;
   mask-image: var(--g-mask, var(--edge-fade-mask)); mask-composite: intersect;
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
@@ -139,7 +139,7 @@ body { background: transparent; }
    :where() 降特异性 → 组件自有 transform（.entry:hover/.post-like:active 等）天然胜出，
    引擎只兜底；组件未设 --g-raise/--g-scale 时 transform 为恒等变换，零干扰。 ---- */
 :where(.glass, .glass--float):hover:not(:disabled) {
-  box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-hover);
+  box-shadow: var(--g-lift), var(--g-liquid, none), inset 0 0 0 9999px var(--g-hover);
   transform: translateY(var(--g-raise));
 }
 :where(.glass, .glass--float):active:not(:disabled) {
@@ -148,7 +148,7 @@ body { background: transparent; }
 /* 焦点=外双色环；.sim-focus 同声明供 headless 截图 */
 :where(.glass, .glass--float):focus-visible,
 :where(.glass, .glass--float).sim-focus {
-  outline: none; box-shadow: var(--g-lift), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
+  outline: none; box-shadow: var(--g-lift), var(--g-liquid, none), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
 }
 /* ---- 涟漪（可交互实心件）：玻璃体 ::before 之上、内容之下 ---- */
 .glass--pressable { overflow: hidden; }
