@@ -36,8 +36,8 @@
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
   --lg-bg-blur: 6px;
   --lg-glow-size: 230px; --lg-glow-op: .85;
-  --lg-orb-a: 150,138,210; --lg-orb-b: 200,160,121; --lg-orb-c: 150,150,170;
-  --lg-orb-d: 142,128,232; --lg-orb-e: 200,190,170; --lg-orb-f: 168,150,224; --lg-orb-g: 196,176,150; --lg-orb-h: 150,168,196; --lg-orb-i: 184,150,210;
+  --lg-orb-a: 140,110,235; --lg-orb-b: 235,160,90; --lg-orb-c: 120,170,220;
+  --lg-orb-d: 170,90,230; --lg-orb-e: 90,190,160; --lg-orb-f: 230,120,200; --lg-orb-g: 240,180,80; --lg-orb-h: 110,130,235; --lg-orb-i: 220,140,60;
   --glass-lift: 0 12px 30px -12px rgba(30,26,64,.22);
   --glass-lift-sm: 0 6px 16px -8px rgba(30,26,64,.18);
   /* 交互参数默认值（缺省全有；组件类按需覆盖） */
@@ -46,19 +46,22 @@
   --g-raise: 0;
   --g-scale: 1;
   --g-ring: rgba(122,104,224,.55);
-  /* ---- 液体弯月（液态玻璃 v0.19.1 重做 · 基于社区还原研究 + backlog 教训「inset 阴影天然沿圆角」）：
-       元素层 inset box-shadow，仅上下两弧——上缘受光亮带（光源在上）+ 下缘液滴张力暗弧。
-       旧版四边发丝线 + 左右高光 = 相框，已删（用户纪律：弯月是「珠圆玉润」，不是边框）。
-       主体微毛 --g-frost 用 blur(1.5px)+saturate+brightness（研究推荐：微毛通透，折射感交给边缘而非高斯糊）。
-       零额外伪元素、零动态滤镜 → 静态零动画成本，60fps。 ---- */
+  /* ---- 液体边缘（液态玻璃 v0.19.2 · 基于真实还原研究，非拍脑袋）：
+       design.dev Liquid Glass 七层配方（2026 生成器实测）+ 上缘镜面高光归入填充（见卡族 --g-fill）：
+       上缘亮带(最亮 .70) + 发丝白边(.35) + 下缘张力暗弧 + 下缘微亮回边 + 整体内发光。
+       ——弯月本体是「填充里的径向镜面高光」，box-shadow 只做边缘微光；不再是多层薄弧（=细线）。 */
   --g-liquid:
-    inset 0 1px 0 rgba(255,255,255,.45),          /* 上缘发丝受光（仅顶部，非全周环） */
-    inset 0 6px 14px -6px rgba(255,255,255,.30),  /* 上缘光晕下漫（弯月主体） */
-    inset 0 -6px 12px -7px rgba(30,26,64,.20);    /* 下缘张力暗弧 */
+    inset 0 0 8px rgba(255,255,255,.10),       /* 整体内发光：玻璃厚度感 */
+    inset 0 4px 8px -4px rgba(30,26,64,.08),   /* 下缘张力暗弧 */
+    inset 0 -1px 1px rgba(255,255,255,.15),    /* 下缘微亮回边 */
+    inset 0 1px 1px rgba(255,255,255,.70),     /* 上缘亮带（弯月受光核心） */
+    inset 0 0 0 1px rgba(255,255,255,.35);     /* 发丝白边 */
   --g-liquid-sm:
-    inset 0 1px 0 rgba(255,255,255,.38),
-    inset 0 4px 9px -5px rgba(255,255,255,.24),
-    inset 0 -4px 8px -5px rgba(30,26,64,.16);
+    inset 0 0 5px rgba(255,255,255,.10),
+    inset 0 2px 4px -2px rgba(30,26,64,.10),
+    inset 0 -1px 1px rgba(255,255,255,.15),
+    inset 0 1px 1px rgba(255,255,255,.65),
+    inset 0 0 0 1px rgba(255,255,255,.32);
 }
 
 html { background: #ECEAF0; }
@@ -114,6 +117,7 @@ body { background: transparent; }
 .glass::before, .glass--float::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
   background: var(--g-fill, rgba(255,255,255,.14));
+  background-blend-mode: var(--g-blend, normal); /* 卡族设 screen：镜面层与主体层屏式混合，弯月浅底也发光 */
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
 }
 /* ---- 交互状态（状态不是层）：hover 抬升+染色 / active 缩放 / 焦点双色环。
@@ -145,12 +149,17 @@ body { background: transparent; }
 /* ============================================================
    参数预设：卡 / 浮层 / 气泡 / 信息栏卡（组件类只设参数）
    ============================================================ */
-/* 卡族 = 伪玻璃（液态玻璃 v0.19）：半透明填充 + 液体边缘高光，零 backdrop-filter ——
-   研究推荐（react-glass-rim + 社区还原）：主体微毛通透（blur 1.5px + saturate + brightness），
-   折射感由边缘弯月环呈现而非高斯糊；性能靠移动端降档兜底。 */
+/* 卡族 = 液态玻璃（v0.19.2 · 研究配方）：
+   填充 = top-weighted 径向（上缘镜面高光 .35 + 主体 .16→.05，弯月本体在此，非薄弧）
+   微毛 = blur(3px)+saturate(180%)+brightness(1.05)（研究：saturate 180% 是通透感关键，
+   旧 130% 把背景拉灰成雾感；blur 2-8px 为通透区间）
+   边缘 = design.dev 七层配方（见 --g-liquid） */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-  --g-fill: rgba(255,255,255,.12);
-  --g-frost: blur(1.5px) saturate(160%) brightness(1.06);
+  --g-fill:
+    radial-gradient(ellipse 110% 65% at 50% -15%, rgba(255,255,255,.38) 0%, rgba(255,255,255,0) 72%),
+    radial-gradient(ellipse 130% 90% at 50% 0%, rgba(255,255,255,.16) 0%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 100%);
+  --g-blend: screen; /* 镜面层 screen 混合 → 弯月在浅底也可见（design.dev 同法） */
+  --g-frost: blur(3px) saturate(180%) brightness(1.05);
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
@@ -169,27 +178,28 @@ body { background: transparent; }
 .profile-card { --g-fill: rgba(255,255,255,.5); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; }
 .profile-card--id { --g-fill: rgba(255,255,255,.62); }
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
-/* 按钮族 = 液态玻璃（v0.19）：透明染色透镜 + 微毛 + 弯月环。
-   基类统一：微毛 blur(1px)（研究推荐）、填充为低 alpha 白透镜（背景透出）、弯月环边缘、
-   hover 白染叠层。彩色语义由各变体的 --g-fill 低饱和 alpha 表达（染色玻璃：透明液态感 + 语义色）。
-   文字统一深色（透明底上白字不可读），与旧版高不透明白字视觉相反但正确。 */
+/* 按钮族 = 液态玻璃（v0.19.1）：透明染色透镜 + 微毛 + 弯月环。
+   基类统一：微毛 blur(1px)（研究推荐）、平透染色填充、弯月环边缘、hover 白染叠层。
+   ——白色光泽渐变已删：旧"高光按钮"的顶部白渐变与弯月上缘白对白，正是它盖住了液态边缘
+   （用户纪律：地下党/竞争删一方）。液体感交给弯月环，不再用渐变假装高光。
+   彩色语义由各变体的 --g-fill 低 alpha 表达（染色玻璃：透明液态感 + 语义色）。 */
 .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button, .chat-back, .btn-link-inline, .btn-text-danger {
-  --g-frost: blur(1px) saturate(150%) brightness(1.04);
+  --g-frost: blur(2px) saturate(180%) brightness(1.04);
   --g-liquid: var(--g-liquid-sm);
   --g-hover: rgba(255,255,255,.18); --g-raise: -1px; --g-scale: .97;
-  --g-fill: linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,0) 46%), rgba(255,255,255,.12);
+  --g-fill: rgba(255,255,255,.12);
 }
-.btn-primary, .chat-send { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 40%), rgba(74,58,178,.72); }
-.btn-accent { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.24), rgba(255,255,255,0) 40%), rgba(122,104,224,.62); }
-.btn-danger { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,0) 40%), rgba(198,72,58,.58); }
-.btn-intent-ok { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 40%), rgba(24,122,75,.66); }
-.btn-intent-wait { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0) 40%), rgba(120,120,128,.40); }
-.btn-outline { --g-fg: var(--ink); --g-fill: linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,0) 50%), rgba(255,255,255,.22); }
-.btn-ghost { --g-fg: var(--muted); --g-fill: linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,0) 50%), rgba(255,255,255,.08); }
-.btn-text-danger { --g-fg: var(--danger-deep, #b23a2c); --g-fill: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,0) 40%), rgba(198,72,58,.16); padding: 6px 12px; }
-.tc-push-btn { --g-fg: #fff; --g-r: var(--lg-r); padding: 9px 18px; --g-fill: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 40%), rgba(90,69,196,.72); --g-lift: 0 9px 22px -9px rgba(74,58,178,.45); }
-/* 侧栏选中块：实心件——深紫填充 + 圆角（无渐隐无折射） */
-.sidebar-pill { --g-fill: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 40%), rgba(74,58,178,.62); --g-fg: #fff; --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
+.btn-primary, .chat-send { --g-fg: #fff; --g-fill: rgba(74,58,178,.78); }
+.btn-accent { --g-fg: #fff; --g-fill: rgba(122,104,224,.68); }
+.btn-danger { --g-fg: #fff; --g-fill: rgba(198,72,58,.64); }
+.btn-intent-ok { --g-fg: #fff; --g-fill: rgba(24,122,75,.70); }
+.btn-intent-wait { --g-fg: #fff; --g-fill: rgba(120,120,128,.45); }
+.btn-outline { --g-fg: var(--ink); --g-fill: rgba(255,255,255,.24); }
+.btn-ghost { --g-fg: var(--muted); --g-fill: rgba(255,255,255,.10); }
+.btn-text-danger { --g-fg: var(--danger-deep, #b23a2c); --g-fill: rgba(198,72,58,.16); padding: 6px 12px; }
+.tc-push-btn { --g-fg: #fff; --g-r: var(--lg-r); padding: 9px 18px; --g-fill: rgba(90,69,196,.78); --g-lift: 0 9px 22px -9px rgba(74,58,178,.45); }
+/* 侧栏选中块：实心件——深紫填充 + 圆角 */
+.sidebar-pill { --g-fill: rgba(74,58,178,.66); --g-fg: #fff; --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
   --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
@@ -283,7 +293,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
    ============================================================ */
 @media (max-width: 860px) {
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-    --g-frost: blur(1px) saturate(150%) brightness(1.05);
+    --g-frost: blur(2px) saturate(180%) brightness(1.05);
   }
   .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { --g-frost: blur(6px); }
   .profile-card { --g-fill: rgba(255,255,255,.82); }
