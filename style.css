@@ -670,7 +670,7 @@ textarea.form-input {
 }
 body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
-.client-main { background: var(--paper); overflow-y: auto; padding: 28px clamp(20px, 4vw, 40px) 56px; }
+.client-main { background: transparent; overflow-y: auto; padding: 28px clamp(20px, 4vw, 40px) 56px; }
 .client-page { max-width: 920px; margin: 0 auto; animation: fade-in .2s ease; }
 /* 通栏页（我的会话）：三栏贴边零间隙，独占整高；沟通页自身负责内部布局 */
 .client-page--flush { max-width: none; margin: 0; height: 100%; animation: none; }
