@@ -175,9 +175,11 @@ body { background: transparent; }
 .profile-card { --g-fill: rgba(255,255,255,.5); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; }
 .profile-card--id { --g-fill: rgba(255,255,255,.62); }
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
-/* 按钮族：实心件——mask/refract/frost 全关 = 干净实心填充。
-   实心件走曲面遮罩会在渐隐带露出磨砂提亮（白边），故删渐隐/折射/磨砂 */
-  --g-mask: none; --g-refract: none; --g-frost: none;
+/* 按钮族：渐隐 + 折射唇 + 轻磨砂（blur 无 saturate）。
+   saturate 提亮已删，白边根因消失；恢复曲面渐隐与折射，磨砂只剩 blur 保通透。 */
+.btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button, .chat-back, .btn-link-inline, .btn-text-danger {
+  --g-frost: blur(3px);
+  --g-refract: url(#lg-refract);
   --g-hover: rgba(255,255,255,.12); --g-raise: -1px; --g-scale: .97;
 }
 .btn-primary, .chat-send { --g-fg: #fff; --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60));  }
