@@ -140,6 +140,7 @@ body { background: transparent; }
 .btn-outline { --g-fill: linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,0) 50%), rgba(255,255,255,.34); }
 .btn-ghost { --g-fg: var(--muted); --g-fill: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 50%), rgba(255,255,255,.16); }
 .btn-link-inline, .credential-reupload { --g-fill: linear-gradient(180deg, rgba(255,255,255,.24), rgba(255,255,255,0) 60%), rgba(255,255,255,.14); padding: 6px 12px; }
+.credential-reupload { --g-fg: var(--accent, #6b5ca5); }
 .btn-text-danger { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 46%), linear-gradient(160deg, #d65a48, #b23a2c); padding: 6px 12px; }
 .tc-push-btn { --g-fg: #fff; border-radius: var(--lg-r); padding: 9px 18px; --g-fill: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 46%), linear-gradient(160deg, #9480f0, #5a45c4); --g-lift: 0 9px 22px -9px rgba(74,58,178,.55); }
 /* 侧栏选中块：同引擎——深紫填充 + 同色内缘边 + 圆角 */

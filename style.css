@@ -139,9 +139,7 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
   /* 统一参数化按钮（刮骨整合）：变体只设 --g-fill / --g-fg；填充画在 ::before（实心，绝不渐隐→文字永远可读）；
      hover/focus/active 用 inset 0 0 0 9999px 叠层（对"颜色或渐变"填充都生效）+ --g-ring 聚焦环。
      无方向性擦除母题、无 per-variant hover 背景/文字色——散件归零，glass 层只覆盖参数即换肤。 */
-  --g-fill: var(--paper-2); --g-fg: var(--ink);
-  --g-lift: none; --g-ring: rgba(122,104,224,.55);
-  --g-hover: rgba(0,0,0,.08); --g-active: rgba(0,0,0,.16); --g-focusin: rgba(255,255,255,.14);
+  /* 视觉（填充/字色/浮影/环/交互叠层）一律住 glass.css 接口家；本层只配结构 */
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   padding: 11px 22px; font-weight: 600; font-size: .875rem; letter-spacing: .01em;
   line-height: 1.4; white-space: nowrap;
@@ -150,7 +148,6 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
   box-shadow: var(--g-lift);
   transition: transform var(--t-fast) var(--ease-out), color var(--t-base) var(--ease-out);
 }
-.btn::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--g-fill); }
 .btn::after {
   content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; z-index: 1; pointer-events: none;
   background: radial-gradient(circle, rgba(255,255,255,.6), rgba(255,255,255,0) 70%);
@@ -162,11 +159,7 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
 .btn:active:not(:disabled)::after { transform: translate(-50%,-50%) scale(26); opacity: .85; transition: 0s; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 /* 变体 = 仅参数（无 hover/无擦除/无背景重写） */
-.btn-primary { --g-fg: var(--paper); }
-.btn-accent  { --g-fg: var(--white); }
-.btn-outline { --g-fg: var(--ink); }
-.btn-ghost   { --g-fg: var(--muted); padding: 8px 12px; }
-.btn-danger  { --g-fg: var(--white); }
+.btn-ghost   { padding: 8px 12px; }
 .btn-sm { padding: 8px 14px; font-size: .8rem; }
 .btn-xs { padding: 4px 9px; font-size: .7rem; }
 .btn-icon { width: 36px; height: 36px; padding: 0; }
@@ -1119,17 +1112,11 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 教师档案页学信网截图控件：上传/查看按钮 + 内联「重新上传」小链 */
 .profile-credential-ctl { display: flex; align-items: center; gap: 12px; }
 .btn-link-inline, .credential-reupload {
-  --g-fill: transparent; --g-fg: var(--muted); --g-lift: none; --g-ring: rgba(122,104,224,.5);
-  --g-hover: rgba(0,0,0,.08); --g-focusin: rgba(255,255,255,.14);
   display: inline-flex; align-items: center; gap: 6px; position: relative; overflow: hidden; isolation: isolate;
-  background: none; border: none; border-radius: 0; color: var(--g-fg); cursor: pointer;
-  padding: 5px 10px; font-size: .74rem; text-decoration: none; box-shadow: var(--g-lift);
-  transition: box-shadow var(--t-base) var(--ease-out), transform var(--t-fast) var(--ease-out);
+  background: none; border: none; border-radius: 0; cursor: pointer;
+  padding: 5px 10px; font-size: .74rem; text-decoration: none;
+  transition: transform var(--t-fast) var(--ease-out);
 }
-.credential-reupload { --g-fg: var(--accent, #6b5ca5); }
-.btn-link-inline::before, .credential-reupload::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--g-fill); }
-.btn-link-inline:hover, .credential-reupload:hover { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-hover); }
-.btn-link-inline:focus-visible, .credential-reupload:focus-visible { outline: none; box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), 0 0 0 3px var(--g-ring); }
 
 /* ============================================================
    个人信息右栏（openProfilePanel）：桌面端右侧 25vw 滑入，内容超长可滚动；
@@ -1325,16 +1312,11 @@ body.profile-panel-open .profile-panel { transform: none; }
 .form-other-wrap { margin-top: 10px; } /* 下拉选「其他」时展开的文字输入行 */
 /* 低调危险操作（撤销合同/注销账户）：灰小字下划线，悬停转红——不显眼如日常功能 */
 .btn-text-danger {
-  --g-fill: transparent; --g-fg: var(--danger); --g-lift: none; --g-ring: rgba(198,72,58,.5);
-  --g-hover: rgba(0,0,0,.10); --g-focusin: rgba(255,255,255,.14);
   display: inline-flex; align-items: center; gap: 6px; position: relative; overflow: hidden; isolation: isolate;
-  background: none; border: none; border-radius: 0; color: var(--g-fg); cursor: pointer;
-  padding: 5px 10px; font-size: .72rem; text-decoration: none; box-shadow: var(--g-lift);
-  transition: box-shadow var(--t-base) var(--ease-out), transform var(--t-fast) var(--ease-out);
+  background: none; border: none; border-radius: 0; cursor: pointer;
+  padding: 5px 10px; font-size: .72rem; text-decoration: none;
+  transition: transform var(--t-fast) var(--ease-out);
 }
-.btn-text-danger::before { content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; background: var(--g-fill); }
-.btn-text-danger:hover { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-hover); }
-.btn-text-danger:focus-visible { outline: none; box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), 0 0 0 3px var(--g-ring); }
 .settings-deactivate { margin-top: 14px; margin-left: 10px; }
 .username-deactivated { color: var(--muted); font-style: italic; } /* 已注销用户墓碑样式 */
 .danger-warn { font-size: .84rem; line-height: 1.75; color: var(--ink-3); } /* 危险操作弹窗的说明正文 */
