@@ -28,7 +28,7 @@
      --g-hover   hover 染色叠层（默认透明=无反应）
      --g-raise   hover 抬升 px（默认 0）
      --g-scale   active 缩放（默认 1）
-     --g-ring    焦点环色（默认紫）
+     --g-ring    焦点环色（全站统一紫；组件如需定制可覆盖）
 
    交互 = 状态不是层：hover/active/focus-visible 全是同一元素的 box-shadow/transform。
    纪律见 CLAUDE.md「前端 liquid-glass / 视觉硬纪律」。
