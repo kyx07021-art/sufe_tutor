@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.18.19',
+  APP_VERSION: '0.18.20',
 
   // ============================================================
   // 业务数据
@@ -56,7 +56,7 @@ globalThis.APP_CONSTANTS = {
   LG: {
     radius: { sm: 9, md: 12, lg: 15 },   // 小圆角
     refractScale: 34,                     // 折射位移强度（SVG feDisplacementMap scale；clear-rim 上的折射唇）
-    bg: { blur: 6, sat: 1.12 },           // 背景底板：轻磨砂（让多而小的光球现形为柔形；可读性改由组件自带轻磨砂承担）
+    bg: { blur: 6 },           // 背景底板：轻磨砂（让多而小的光球现形为柔形；可读性改由组件自带轻磨砂承担）
     orbCrossSec: 60,                      // 光球横穿全屏约 60s
     glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬）
     // 毛值 frost 仅驱动极小白调；tint/tintA=叠色。体填充刻意通透，按钮更透=透镜。

@@ -1101,7 +1101,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
 /* 教师档案页学信网截图控件：上传/查看按钮 + 内联「重新上传」小链 */
 .profile-credential-ctl { display: flex; align-items: center; gap: 12px; }
-.btn-link-inline, .credential-reupload {
   display: inline-flex; align-items: center; gap: 6px; position: relative; overflow: hidden; isolation: isolate;
   background: none; border: none; border-radius: 0; cursor: pointer;
   padding: 5px 10px; font-size: .74rem; text-decoration: none;

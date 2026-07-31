@@ -32,7 +32,7 @@
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
   --g-rim: 15px;                 /* 曲面肩宽：卡/浮层边缘渐变带 */
   --g-rim-sm: 7px;               /* 气泡等小件的肩宽 */
-  --lg-bg-blur: 6px; --lg-bg-sat: 1.12;
+  --lg-bg-blur: 6px;
   --lg-orb-dur: 60s;
   --lg-glow-size: 230px; --lg-glow-op: .85;
   --lg-orb-a: 150,138,210; --lg-orb-b: 200,160,121; --lg-orb-c: 150,150,170;
@@ -86,7 +86,7 @@ body { background: transparent; }
 @keyframes lg-x3 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(84vmax,11vmax,0)} 100%{transform:translate3d(168vmax,2vmax,0)} }
 @keyframes lg-x4 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(78vmax,-6vmax,0)} 100%{transform:translate3d(160vmax,-11vmax,0)} }
 .lg-plate { position: absolute; inset: 0;
-  -webkit-backdrop-filter: blur(var(--lg-bg-blur)) saturate(var(--lg-bg-sat)); backdrop-filter: blur(var(--lg-bg-blur)) saturate(var(--lg-bg-sat));
+  -webkit-backdrop-filter: blur(var(--lg-bg-blur)) ; backdrop-filter: blur(var(--lg-bg-blur)) ;
   background: linear-gradient(105deg, rgba(250,248,245,.20), rgba(250,248,245,.10) 50%, rgba(244,242,247,.20)),
               linear-gradient(105deg, rgba(216,212,221,.12), rgba(250,248,245,.05) 50%, rgba(231,227,247,.12)), rgba(244,242,247,.08); }
 
@@ -117,7 +117,8 @@ body { background: transparent; }
   -webkit-backdrop-filter: var(--g-refract, none); backdrop-filter: var(--g-refract, none);
   transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-base, .3s) var(--ease-out, ease);
 }
-/* ::before 玻璃体：填充 + 曲面遮罩(var) + 磨砂(var)。z-index:-1 永远在内容之下 */
+/* ::before 玻璃体：填充 + 曲面遮罩(var) + 磨砂(var)。z-index:-1 永远在内容之下。
+   磨砂与填充共享同一 mask（单伪元素无法分层渐隐），渐隐带内 backdrop-filter 随 mask alpha 混合。 */
 .glass::before, .glass--float::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
   background: var(--g-fill, rgba(255,255,255,.14));
@@ -155,18 +156,18 @@ body { background: transparent; }
    参数预设：卡 / 浮层 / 气泡 / 信息栏卡（组件类只设参数）
    ============================================================ */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-  --g-fill: var(--m-cardHi-bg, rgba(255,255,255,.14)); --g-frost: blur(7px) saturate(1.15);
+  --g-fill: var(--m-cardHi-bg, rgba(255,255,255,.14)); --g-frost: blur(7px);
   --g-r: var(--lg-r); --g-lift: var(--glass-lift); --g-refract: url(#lg-refract);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
-  --g-fill: var(--m-overlay-bg, rgba(255,255,255,.22)); --g-frost: blur(var(--m-overlay-blur, 12px)) saturate(1.3);
+  --g-fill: var(--m-overlay-bg, rgba(255,255,255,.22)); --g-frost: blur(var(--m-overlay-blur, 12px));
   --g-lift: var(--glass-lift);
 }
 .modal { --g-r: var(--lg-r-lg); }
 .custom-select-panel, .chat-plus-pop { --g-r: var(--lg-r); }
 .profile-panel { --g-r: var(--lg-r-lg); }
 /* 头栏=组件表面：半透填充+组件磨砂+mask 关（贴边不需曲面） */
-.modal-header, .profile-panel-head { --g-mask: none; --g-fill: rgba(250,248,245,.55); --g-frost: blur(10px) saturate(1.2); }
+.modal-header, .profile-panel-head { --g-mask: none; --g-fill: rgba(250,248,245,.55); --g-frost: blur(10px); }
 .chat-bubble { --g-mask: var(--edge-fade-mask-sm); --g-lift: var(--glass-lift-sm); }
 .chat-bubble--mine { --g-fill: var(--m-bubbleMine-bg, rgba(150,138,230,.26)); --g-fg: var(--ink); }
 .chat-bubble--theirs { --g-fill: var(--m-bubbleTheirs-bg, rgba(233,218,196,.30)); --g-fg: var(--ink); }
@@ -174,24 +175,22 @@ body { background: transparent; }
 .profile-card { --g-fill: rgba(255,255,255,.5); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; }
 .profile-card--id { --g-fill: rgba(255,255,255,.62); }
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
-/* 按钮族（交互参数统一；遮罩走默认曲面渐隐=玻璃边；半透渐变+折射唇=玻璃缘） */
-.btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button, .chat-back, .btn-link-inline, .btn-text-danger, .credential-reupload {
+/* 按钮族：实心件——mask/refract/frost 全关 = 干净实心填充。
+   实心件走曲面遮罩会在渐隐带露出磨砂提亮（白边），故删渐隐/折射/磨砂 */
+  --g-mask: none; --g-refract: none; --g-frost: none;
   --g-hover: rgba(255,255,255,.12); --g-raise: -1px; --g-scale: .97;
-  --g-refract: url(#lg-refract);
 }
-.btn-primary, .chat-send { --g-fg: #fff; --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60)); --g-frost: blur(3px) saturate(1.15); }
+.btn-primary, .chat-send { --g-fg: #fff; --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60));  }
 .btn-accent { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 46%), linear-gradient(160deg, #9a85f0, #6d56d6); }
 .btn-danger { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 46%), linear-gradient(160deg, #d65a48, #b23a2c); }
 .btn-intent-ok { --g-fg: #fff; --g-fill: linear-gradient(160deg, rgba(24,122,75,.85), rgba(24,122,75,.66)); }
 .btn-intent-wait { --g-fg: #fff; --g-fill: linear-gradient(160deg, rgba(120,120,128,.5), rgba(120,120,128,.34)); }
 .btn-outline { --g-fill: linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,0) 50%), rgba(255,255,255,.34); }
 .btn-ghost { --g-fg: var(--muted); --g-fill: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 50%), rgba(255,255,255,.16); }
-.btn-link-inline, .credential-reupload { --g-fill: linear-gradient(180deg, rgba(255,255,255,.24), rgba(255,255,255,0) 60%), rgba(255,255,255,.14); padding: 6px 12px; }
-.credential-reupload { --g-fg: var(--accent, #6b5ca5); }
 .btn-text-danger { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 46%), linear-gradient(160deg, #d65a48, #b23a2c); padding: 6px 12px; }
 .tc-push-btn { --g-fg: #fff; --g-r: var(--lg-r); padding: 9px 18px; --g-fill: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 46%), linear-gradient(160deg, #9480f0, #5a45c4); --g-lift: 0 9px 22px -9px rgba(74,58,178,.55); }
-/* 侧栏选中块：同引擎——深紫填充 + 折射唇 + 圆角 */
-.sidebar-pill { --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60)); --g-frost: blur(3px) saturate(1.15); --g-fg: #fff; --g-r: var(--lg-r); --g-lift: var(--glass-lift); --g-refract: url(#lg-refract); }
+/* 侧栏选中块：实心件——深紫填充 + 圆角（无渐隐无折射） */
+.sidebar-pill { --g-mask: none; --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60)); --g-fg: #fff; --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
   --g-mask: none; --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
@@ -247,7 +246,7 @@ body { background: transparent; }
    ============================================================ */
 .client-sidebar {
   background: rgba(250,248,245,.5);
-  -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
   border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1);
 }
 .sidebar-user { --g-fill: var(--m-user-bg, rgba(255,255,255,.34)); --g-mask: var(--edge-fade-mask-sm); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); margin: 8px; }
@@ -263,7 +262,7 @@ body { background: transparent; }
 .chat-stage { --g-fill: rgba(255,255,255,.12); --g-mask: none; }
 .chat-head, .chat-input-bar { --g-mask: none; --g-fill: rgba(255,255,255,.22); }
 .chat-stage-del { --g-mask: none; --g-fill: rgba(74,58,178,.72); --g-fg: #fff; --g-hover: rgba(198,72,58,.85); --g-lift: var(--glass-lift-sm); }
-.navbar { background: rgba(250,248,245,.46); -webkit-backdrop-filter: blur(14px) saturate(1.2); backdrop-filter: blur(14px) saturate(1.2); border-bottom: 1px solid rgba(255,255,255,.5); }
+.navbar { background: rgba(250,248,245,.46); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(255,255,255,.5); }
 body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg, rgba(250,248,245,.42) 0 50%, rgba(216,212,221,.42) 50% 100%); }
 .landing-stage { background: transparent; }
 .client-main { background: transparent; }
@@ -312,7 +311,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 .post-like.liked { --g-fill: rgba(211,47,47,.16); --g-fg: var(--danger); }
 
 /* 主页入口块（实心墨玻璃；竖条母题迁 ::after 以让出 ::before 给玻璃填充） */
-.entry { --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60)); --g-frost: blur(3px) saturate(1.15); --g-fg: var(--paper); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); --g-refract: url(#lg-refract); }
+.entry { --g-mask: none; --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60)); --g-fg: var(--paper); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); }
 
 /* 徽章 */
 .user-badge { --g-mask: none; --g-fill: var(--accent-tint); --g-fg: var(--accent-deep); }
