@@ -1367,20 +1367,36 @@ async function adminReviewAction(reviewId, action, fromModal) {
 // 双方数据（需求/会话/合同/评价）保留，但向其他用户明确表明该账户已注销
 // 用户名墓碑渲染统一走显示层（调用方不动，保留 renderUsername 名字作兼容别名）
 const renderUsername = globalThis.SUFE_DISPLAY.usernameHtml;
-// 科目匹配度（运营建议 P3/B2）：教师视角下，用当前教师档案科目 ∩ 需求科目算匹配比例，
-// 显示「科目匹配 N%」标签——帮助教师快速判断「这单对不对口」，纯前端计算零后端改动。
-function matchDegree(mySubjects, demandSubjects) {
-  if (!Array.isArray(mySubjects) || !mySubjects.length || !Array.isArray(demandSubjects) || !demandSubjects.length) return null;
-  const overlap = demandSubjects.filter(s => mySubjects.includes(s)).length;
-  const degree = Math.round((overlap / demandSubjects.length) * 100);
-  return degree >= 100 ? 100 : degree; // 全部命中=100%，部分命中=百分比
+// 教师需求匹配度（运营建议 P3/B2 双向画像）：科目(权重60) + 区县(20) + 预算(20) 综合分，
+// 按可用维度归一化到 0-100——教师浏览需求时显示「匹配度 N%」，帮助快速判断对错口。纯前端计算零后端改动。
+function matchDegree(teacher, demand) {
+  if (!teacher) return null;
+  let score = 0, total = 0;
+  const tSubj = Array.isArray(teacher.subjects) ? teacher.subjects : [];
+  const dSubj = Array.isArray(demand.target_subjects) ? demand.target_subjects : [];
+  if (tSubj.length && dSubj.length) {
+    total += 60;
+    score += (dSubj.filter(s => tSubj.includes(s)).length / dSubj.length) * 60;
+  }
+  if (teacher.province && demand.province) {
+    total += 20;
+    if (teacher.province === demand.province) score += 20;
+  }
+  const price = teacher.price;
+  if (price != null && (demand.budget_min || demand.budget_max)) {
+    total += 20;
+    const inRange = (!demand.budget_min || price >= demand.budget_min) && (!demand.budget_max || price <= demand.budget_max);
+    if (inRange) score += 20;
+  }
+  if (!total) return null;
+  return Math.min(100, Math.round(score / total * 100));
 }
 function renderDemandCard(d, opts = {}) {
-  const { editable = false, admin = false, teacher = false, mySubjects = null } = opts;
+  const { editable = false, admin = false, teacher = false, myTeacher = null } = opts;
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
-  // 科目匹配度标签（教师视角、有教师档案科目时展示；需求卡右上角工具区）
-  const matchTag = (teacher && mySubjects && d.target_subjects && d.target_subjects.length)
-    ? (() => { const md = matchDegree(mySubjects, d.target_subjects); return md == null ? '' : `<span class="tag tag-match glass glass--solid">${UI.TAG_MATCH}${md}%</span>`; })()
+  // 匹配度徽章（教师视角 + 教师档案齐全时展示）
+  const matchTag = (teacher && myTeacher)
+    ? (() => { const md = matchDegree(myTeacher, d); return md == null ? '' : `<span class="tag tag-match glass glass--solid">${UI.TAG_MATCH}${md}%</span>`; })()
     : '';
   const provinceName = DISP.provinceName(d.province);
   const subjNames = (d.target_subjects||[]).map(id => DISP.subjectName(id));
@@ -1485,16 +1501,15 @@ async function loadBrowseDemands() {
     const demands = dData.demands || [];
     if (state.page === 'browse-demands') setBadge('browse-demands', 0); // 进页即视为已读；await 期间若已切走，不得掐灭轮询刚点亮的新推送红点
     if (!pushes.length && !demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
-    // 教师档案科目（匹配度标签用）：确保 allTeachers 已加载——直接进「浏览需求」页可能没拉过教师列表
+    // 教师档案（匹配度用）：确保 allTeachers 已加载——直接进「浏览需求」页可能没拉过教师列表
     if (!isGuest && state.user.role === 'teacher' && !state.allTeachers.length) {
-      try { state.allTeachers = (await api('/api/teachers')).teachers || []; } catch { /* 无档案或网络抖动：无匹配标签 */ }
+      try { state.allTeachers = (await api('/api/teachers')).teachers || []; } catch { /* 无档案或网络抖动：无匹配徽章 */ }
     }
-    // 当前教师档案科目（科目匹配度标签用）：登录教师 + 已填档案时才有
+    // 当前教师档案（匹配度徽章用）：登录教师 + 已填档案时才有
     const myTeacher = (!isGuest && state.user.role === 'teacher') ? state.allTeachers.find(t => t.user_id === state.user.id) : null;
-    const mySubjects = (myTeacher && Array.isArray(myTeacher.subjects)) ? myTeacher.subjects : null;
     const pushDemandIds = new Set(pushes.map(p => p.id));
-    const pinned = pushes.map(p => renderDemandCard(p, { push: p, teacher: true, mySubjects })).join('');
-    const normal = demands.filter(d => !pushDemandIds.has(d.id)).map(d => renderDemandCard(d, { teacher: true, mySubjects })).join('');
+    const pinned = pushes.map(p => renderDemandCard(p, { push: p, teacher: true, myTeacher })).join('');
+    const normal = demands.filter(d => !pushDemandIds.has(d.id)).map(d => renderDemandCard(d, { teacher: true, myTeacher })).join('');
     el.innerHTML = (pinned ? `<div class="section-title" style="margin-bottom:8px;">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '') + normal;
     initReveals(el);
   } catch (err) {
