@@ -329,7 +329,8 @@ export async function initDb(db, env = {}) {
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
-    ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"]]);
+    ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"],
+    ['verified', 'INTEGER NOT NULL DEFAULT 0']]); // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER']]);
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
@@ -549,6 +550,7 @@ function mapTeacherProfileRow(p) {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
     school: p.school || '', real_name: p.real_name || '', credential_image: p.credential_image || '',
+    verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
     subjects: safeJsonArray(p.subjects),
     gaokao_scores: safeJsonArray(p.gaokao_scores),
     price: p.price != null ? p.price : null, // null = 未填报价（意向档案完整性门槛据此拦截，勿转 0）
@@ -575,6 +577,11 @@ export async function dbUpdateTeacherRating(db, teacherUserId, rating, count, su
   await dbRun(db,
     'UPDATE teacher_profiles SET rating=?, rating_count=?, rating_sum=? WHERE user_id=?',
     [rating, count, sum, teacherUserId]);
+}
+
+// 学籍认证：管理员审核通过/撤销教师认证（运营建议——「真实可验证在校生」信任锚点）
+export async function dbSetTeacherVerified(db, userId, verified) {
+  await dbRun(db, 'UPDATE teacher_profiles SET verified=? WHERE user_id=?', [verified ? 1 : 0, userId]);
 }
 
 // ============================================================

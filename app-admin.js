@@ -271,17 +271,32 @@ function renderAdminUserRow(u, role) {
     <div class="admin-row-main">
       <div class="admin-row-line">
         <strong>${escHtml(u.username)}</strong>
+        ${u.verified ? `<span class="tag tag-ok glass glass--solid">${UI.VERIFIED_BADGE}</span>` : ''}
         ${u.banned ? `<span class="tag tag-danger glass glass--solid">${UI.TAG_BANNED}</span>` : ''}
       </div>
       <div class="admin-row-meta">${meta} · ${UI.REGISTERED_AT_PREFIX}${fmtDateTime(u.created_at)}</div>
     </div>
     <div class="admin-row-actions">
       ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openProfilePanel(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
+      ${role === 'teacher' && u.credential_image
+        ? (u.verified
+          ? `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="toggleTeacherVerify(${uid}, 0)">${UI.UNVERIFY}</button>`
+          : `<button type="button" class="btn btn-accent btn-xs glass glass--pressable" onclick="toggleTeacherVerify(${uid}, 1)">${UI.VERIFY_TEACHER}</button>`)
+        : ''}
       ${u.banned
         ? `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="confirmBanUser(${uid}, 0)">${UI.UNBAN}</button>`
         : `<button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="confirmBanUser(${uid}, 1)">${UI.BAN}</button>`}
     </div>
   </div>`;
+}
+
+// 学籍认证审核：管理员核对学信网截图后置 verified（运营建议——「真实可验证在校生」信任锚点）
+async function toggleTeacherVerify(userId, verified) {
+  try {
+    const data = await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified } });
+    showToast(verified ? UI.VERIFY_DONE : UI.UNVERIFY_DONE);
+    loadAdminTeachers();
+  } catch (err) { showToast(err.message); }
 }
 
 // ============================================================

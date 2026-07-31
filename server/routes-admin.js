@@ -12,7 +12,7 @@ import {
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,
   dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage,
-  dbGetStudentUsersAdmin, dbGetTeacherUsersAdmin, dbGetUserById, dbSetUserBanned,
+  dbGetStudentUsersAdmin, dbGetTeacherUsersAdmin, dbGetUserById, dbSetUserBanned, dbSetTeacherVerified,
   dbGetAllDemandsAdmin, dbGetMessageById,
   dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback,
 } from './db.js';
@@ -126,6 +126,22 @@ export async function handleBanUser(db, userId, body, req) {
     actorUsername: admin.username, actorRole: 'admin', entity: 'user', entityId: userId,
     detail: { targetUsername: target.username, targetRole: target.role, banned }, req });
   return json({ message: banned ? MSG.BANNED : MSG.UNBANNED, banned });
+}
+
+// POST /api/admin/teachers/:id/verify { verified } —— 学籍认证审核（运营建议：管理员核对学信网截图后置 1）
+export async function handleVerifyTeacher(db, userId, body, req) {
+  const admin = await authUser(db, req);
+  const e = requireAdminOrError(admin);
+  if (e) return e;
+  const target = await dbGetUserById(db, userId);
+  if (!target) return error(MSG.USER_NOT_FOUND, 404);
+  if (target.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
+  const verified = body.verified ? 1 : 0;
+  await dbSetTeacherVerified(db, userId, verified);
+  await logEvent(db, { action: verified ? 'admin.teacher.verify' : 'admin.teacher.unverify', actorUserId: admin.id,
+    actorUsername: admin.username, actorRole: 'admin', entity: 'user', entityId: userId,
+    detail: { targetUsername: target.username, verified }, req });
+  return json({ ok: true, verified });
 }
 
 // GET /api/admin/demands —— 管理员全量需求（含已签约；广场端点恒定排除 contracted，管理员页需独立全量端点）

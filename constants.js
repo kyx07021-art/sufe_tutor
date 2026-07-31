@@ -111,6 +111,10 @@ globalThis.APP_CONSTANTS = {
     BTN_CONFIRM: '确定',
     BAN: '封禁',
     UNBAN: '解封',
+    VERIFY_TEACHER: '认证',       // 学籍认证审核（管理端教师行按钮）
+    UNVERIFY: '撤认证',
+    VERIFY_DONE: '已通过学籍认证',
+    UNVERIFY_DONE: '已撤销学籍认证',
     BTN_GENERATE_INVITE: '生成邀请码',
     BTN_CANCEL: '取消',
 
@@ -562,6 +566,8 @@ globalThis.APP_CONSTANTS = {
     BTN_PUBLISH: '发布',
     BTN_CLOSE: '关闭',                 // 弹窗 ✕ 关闭按钮 aria-label
     A11Y_VIEW_PROFILE: '查看该用户资料',  // 可点用户名/头像 span 的 aria-label
+    VERIFIED_BADGE: '✓ 已认证',        // 学籍认证徽章（管理员审核学信网截图通过）
+    VERIFIED_TITLE: '已通过学籍认证',   // 徽章悬停提示
     POST_DELETE_TITLE: '删除帖子',
     POST_DELETE_CONFIRM: '删除后不可恢复，点赞数据一并清空。确认删除这篇帖子？',
 

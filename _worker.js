@@ -52,7 +52,7 @@ import {
   handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
-  handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage,
+  handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 
@@ -133,6 +133,8 @@ async function routeApi(db, p, method, body, url, req) {
   if (feedbackResolve && method === 'POST') return await handleResolveFeedback(db, parseInt(feedbackResolve[1]), body, req);
   const userBan = p.match(/^\/api\/admin\/users\/(\d+)\/ban$/);
   if (userBan && method === 'POST') return await handleBanUser(db, parseInt(userBan[1]), body, req);
+  const teacherVerify = p.match(/^\/api\/admin\/teachers\/(\d+)\/verify$/);
+  if (teacherVerify && method === 'POST') return await handleVerifyTeacher(db, parseInt(teacherVerify[1]), body, req);
   const adminDemand = p.match(/^\/api\/admin\/demands\/(\d+)$/);
   if (adminDemand && method === 'DELETE') return await handleAdminDeleteDemand(db, parseInt(adminDemand[1]), body, req);
   const adminReviewById = p.match(/^\/api\/admin\/reviews\/(\d+)$/);
