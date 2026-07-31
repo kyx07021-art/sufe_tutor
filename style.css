@@ -565,7 +565,7 @@ textarea.form-input {
 .sidebar-nav { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 16px; padding: 0; }
 .sidebar-pill {
   position: absolute; left: 0; right: 0; top: 0; height: 0; z-index: 0;
-  opacity: 0; background: var(--ink);
+  opacity: 0; /* 底色唯一主人 = glass.css --g-fill（旧 var(--ink) 黑底盖住玻璃紫，已删；竞争删一方） */
 }
 .sidebar-item {
   position: relative; z-index: 1; isolation: isolate;
@@ -1211,7 +1211,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 /* 方形「发送需求」按钮：呼应参考图 Model details 按钮位 */
 .tc-push-btn {
   display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 16px; color: var(--ink);
+  padding: 8px 16px;
   font-size: .78rem; font-weight: 700; letter-spacing: .02em;
   transition: background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
 }
@@ -1301,10 +1301,11 @@ body.profile-panel-open .profile-panel { transform: none; }
 .demand-id-tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); } /* 需求卡右上角四位编号 */
 .form-note-block { margin-top: 6px; font-size: .72rem; line-height: 1.5; color: var(--muted); } /* 表单字段下方灰字备注 */
 .form-other-wrap { margin-top: 10px; } /* 下拉选「其他」时展开的文字输入行 */
-/* 低调危险操作（撤销合同/注销账户）：灰小字下划线，悬停转红——不显眼如日常功能 */
+/* 低调危险操作（撤销合同/注销账户）：玻璃圆角小按钮 + 红色危险染色——圆角由 .glass 引擎统一
+   （旧 border-radius:0 与玻璃圆角竞争、方角胜出，已删；用户纪律：竞争删一方） */
 .btn-text-danger {
   display: inline-flex; align-items: center; gap: 6px; position: relative; overflow: hidden; isolation: isolate;
-  background: none; border: none; border-radius: 0; cursor: pointer;
+  background: none; border: none; cursor: pointer;
   padding: 5px 10px; font-size: .72rem; text-decoration: none;
   transition: transform var(--t-fast) var(--ease-out);
 }

@@ -51,17 +51,17 @@
        上缘亮带(最亮 .70) + 发丝白边(.35) + 下缘张力暗弧 + 下缘微亮回边 + 整体内发光。
        ——弯月本体是「填充里的径向镜面高光」，box-shadow 只做边缘微光；不再是多层薄弧（=细线）。 */
   --g-liquid:
-    inset 0 0 8px rgba(255,255,255,.10),       /* 整体内发光：玻璃厚度感 */
-    inset 0 4px 8px -4px rgba(30,26,64,.08),   /* 下缘张力暗弧 */
-    inset 0 -1px 1px rgba(255,255,255,.15),    /* 下缘微亮回边 */
-    inset 0 1px 1px rgba(255,255,255,.70),     /* 上缘亮带（弯月受光核心） */
-    inset 0 0 0 1px rgba(255,255,255,.35);     /* 发丝白边 */
+    inset 0 0 8px rgba(255,255,255,.12),       /* 整体内发光：玻璃厚度感 */
+    inset 0 4px 8px -4px rgba(30,26,64,.10),   /* 下缘张力暗弧 */
+    inset 0 -1px 1px rgba(255,255,255,.18),    /* 下缘微亮回边 */
+    inset 0 2px 2px -1px rgba(255,255,255,.72),/* 上缘亮带 2px（研究：大卡 1.5-2px，旧 1px 羞涩） */
+    inset 0 0 0 1px rgba(255,255,255,.45);     /* 发丝白边（研究大胆档 .38-.53） */
   --g-liquid-sm:
-    inset 0 0 5px rgba(255,255,255,.10),
-    inset 0 2px 4px -2px rgba(30,26,64,.10),
-    inset 0 -1px 1px rgba(255,255,255,.15),
-    inset 0 1px 1px rgba(255,255,255,.65),
-    inset 0 0 0 1px rgba(255,255,255,.32);
+    inset 0 0 5px rgba(255,255,255,.12),
+    inset 0 2px 4px -2px rgba(30,26,64,.12),
+    inset 0 -1px 1px rgba(255,255,255,.16),
+    inset 0 1px 1px rgba(255,255,255,.72),
+    inset 0 0 0 1px rgba(255,255,255,.40);
 }
 
 html { background: #ECEAF0; }
@@ -116,8 +116,13 @@ body { background: transparent; }
    液体弯月画在元素层 box-shadow（--g-liquid，沿圆角）——深/浅背景都可靠。 */
 .glass::before, .glass--float::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
-  background: var(--g-fill, rgba(255,255,255,.14));
-  background-blend-mode: var(--g-blend, normal); /* 卡族设 screen：镜面层与主体层屏式混合，弯月浅底也发光 */
+  /* 镜面弯月（design.dev 同法）：径向高光层 + 主体填充，默认 screen 混合 → 上缘发光弧。
+     峰值 .50 为「大胆」档（研究：0.35=明显 / 0.55=design.dev 大胆；旧 .30 是羞涩档，用户嫌玻璃感淡）。
+     全组件通用——紫色实心按钮也因此获得玻璃感。组件如需平面可设 --g-blend: normal。 */
+  background:
+    radial-gradient(ellipse 110% 65% at 50% -15%, rgba(255,255,255,.50) 0%, rgba(255,255,255,0) 72%),
+    var(--g-fill, rgba(255,255,255,.14));
+  background-blend-mode: var(--g-blend, screen);
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
 }
 /* ---- 交互状态（状态不是层）：hover 抬升+染色 / active 缩放 / 焦点双色环。
@@ -155,11 +160,8 @@ body { background: transparent; }
    旧 130% 把背景拉灰成雾感；blur 2-8px 为通透区间）
    边缘 = design.dev 七层配方（见 --g-liquid） */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-  --g-fill:
-    radial-gradient(ellipse 110% 65% at 50% -15%, rgba(255,255,255,.38) 0%, rgba(255,255,255,0) 72%),
-    radial-gradient(ellipse 130% 90% at 50% 0%, rgba(255,255,255,.16) 0%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 100%);
-  --g-blend: screen; /* 镜面层 screen 混合 → 弯月在浅底也可见（design.dev 同法） */
-  --g-frost: blur(3px) saturate(180%) brightness(1.05);
+  --g-fill: radial-gradient(ellipse 130% 90% at 50% 0%, rgba(255,255,255,.16) 0%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 100%);
+  --g-frost: blur(6px) saturate(180%) brightness(1.05);
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
@@ -184,7 +186,7 @@ body { background: transparent; }
    （用户纪律：地下党/竞争删一方）。液体感交给弯月环，不再用渐变假装高光。
    彩色语义由各变体的 --g-fill 低 alpha 表达（染色玻璃：透明液态感 + 语义色）。 */
 .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button, .chat-back, .btn-link-inline, .btn-text-danger {
-  --g-frost: blur(2px) saturate(180%) brightness(1.04);
+  --g-frost: blur(4px) saturate(180%) brightness(1.04);
   --g-liquid: var(--g-liquid-sm);
   --g-hover: rgba(255,255,255,.18); --g-raise: -1px; --g-scale: .97;
   --g-fill: rgba(255,255,255,.12);
@@ -197,9 +199,9 @@ body { background: transparent; }
 .btn-outline { --g-fg: var(--ink); --g-fill: rgba(255,255,255,.24); }
 .btn-ghost { --g-fg: var(--muted); --g-fill: rgba(255,255,255,.10); }
 .btn-text-danger { --g-fg: var(--danger-deep, #b23a2c); --g-fill: rgba(198,72,58,.16); padding: 6px 12px; }
-.tc-push-btn { --g-fg: #fff; --g-r: var(--lg-r); padding: 9px 18px; --g-fill: rgba(90,69,196,.78); --g-lift: 0 9px 22px -9px rgba(74,58,178,.45); }
+.tc-push-btn { --g-fg: #fff; --g-r: var(--lg-r); padding: 9px 18px; --g-fill: rgba(90,69,196,.68); --g-lift: 0 9px 22px -9px rgba(74,58,178,.45); }
 /* 侧栏选中块：实心件——深紫填充 + 圆角 */
-.sidebar-pill { --g-fill: rgba(74,58,178,.66); --g-fg: #fff; --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
+.sidebar-pill { --g-fill: rgba(74,58,178,.66); --g-frost: blur(4px) saturate(180%) brightness(1.04); --g-fg: #fff; --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
   --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
@@ -315,8 +317,8 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
    ============================================================ */
 /* 标签语义色（小件 element-bg 模式，修复"全 tag 同色"回归） */
 .tag-ok { background: rgba(24,122,75,.22); color: #187a4b; }
-/* 科目匹配度标签（运营建议：教师需求大厅显示「科目匹配 N%」）——绿色系，与 tag-ok 同族 */
-.tag-match { background: rgba(24,122,75,.18); color: #187a4b; font-weight: 700; }
+/* 科目匹配度徽章（运营建议：教师需求大厅显示「科目匹配 N%」）——实心绿底白字，醒目不可漏看 */
+.tag-match { background: linear-gradient(160deg, rgba(24,122,75,.9), rgba(24,122,75,.72)); color: #fff; font-weight: 800; padding: 4px 11px; letter-spacing: .02em; }
 .tag-danger { background: rgba(198,72,58,.20); color: var(--danger); }
 .tag-warn { background: rgba(154,106,42,.20); color: var(--warn-deep); }
 .tag-accent { background: rgba(122,104,224,.20); color: var(--accent-deep); }
@@ -329,7 +331,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 .post-like.liked { --g-fill: rgba(211,47,47,.16); --g-fg: var(--danger); }
 
 /* 主页入口块（实心墨玻璃；竖条母题迁 ::after 以让出 ::before 给玻璃填充） */
-.entry { --g-fill: linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,0) 40%), rgba(74,58,178,.58); --g-fg: var(--paper); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); }
+.entry { --g-fill: rgba(74,58,178,.62); --g-frost: blur(4px) saturate(180%) brightness(1.04); --g-fg: var(--paper); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); }
 
 /* 徽章 */
 .user-badge { --g-fill: var(--accent-tint); --g-fg: var(--accent-deep); }
