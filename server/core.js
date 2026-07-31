@@ -13,9 +13,9 @@
 // 评分系统（初始评分 + 权重，评价通过时做加权平均）
 export const INITIAL_RATING = 4.0;
 
-// 教师注册邀请码门控：内测期间休眠（免邀请码注册）；恢复时置 true，
-// 并同步前端 constants.js 的 INVITE_GATE_DORMANT 为 false
-export const INVITE_GATE_ENABLED = false;
+// 教师注册邀请码门控：开启状态（网安报告 F-05——教师开放注册属高危，注册必须凭管理员邀请码）。
+// 管理员在侧边栏「生成邀请码」签发；前端 constants.js INVITE_GATE_DORMANT 须同步为 false
+export const INVITE_GATE_ENABLED = true;
 export const INITIAL_WEIGHT = 10;
 
 // ============================================================
@@ -242,13 +242,15 @@ export async function confirmDangerOtp(db, userId) {
 
 // 登录 / 注册签发令牌：48 位随机 hex（熵足够，无需 JWT 的无状态代价）。
 // 多端会话：每次登录写一行 auth_sessions（旧设备不被顶下线，账户设置可逐端退登）；
-// 签发前先清该用户过期会话，会话表天然不膨胀
+// 签发前先清该用户过期会话，会话表天然不膨胀。
+// session_id：独立随机 id，对外设备管理唯一标识——token 只在请求头流动，永不进响应体（网安报告 F-04）
 export async function issueAuthToken(db, userId, label) {
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
+  const sessionId = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
   const expires = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
   await dbRun(db, `DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now','localtime')`, [userId]);
-  await dbRun(db, 'INSERT INTO auth_sessions (token, user_id, label, expires_at) VALUES (?,?,?,?)',
-    [token, userId, label || '', expires]);
+  await dbRun(db, 'INSERT INTO auth_sessions (token, session_id, user_id, label, expires_at) VALUES (?,?,?,?,?)',
+    [token, sessionId, userId, label || '', expires]);
   return token;
 }
 
@@ -270,12 +272,13 @@ export function deviceLabelFromUA(ua) {
   return `${os} · ${br}`;
 }
 
-// 会话数据层：列出用户全部会话（新→旧）；撤销仅限本人名下（changes 判定是否命中）
+// 会话数据层：列出用户全部会话（新→旧，current 标记由调用方据当前 token 计算传入）。
+// 绝不返回 token/session_id 之外的认证信息；token 仅作 current 判定用，不随响应下发（网安报告 F-04）
 export async function listSessions(db, userId) {
-  return await dbAll(db, 'SELECT token, label, created_at, expires_at FROM auth_sessions WHERE user_id=? ORDER BY created_at DESC', [userId]);
+  return await dbAll(db, 'SELECT session_id, label, created_at, expires_at FROM auth_sessions WHERE user_id=? ORDER BY created_at DESC', [userId]);
 }
-export async function revokeSession(db, userId, token) {
-  const r = await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=? AND token=?', [userId, token]);
+export async function revokeSession(db, userId, sessionId) {
+  const r = await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=? AND session_id=?', [userId, sessionId]);
   return !!(r && r.meta && r.meta.changes > 0);
 }
 

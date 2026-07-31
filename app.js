@@ -1649,19 +1649,20 @@ async function loadDeviceSessions() {
   }
 }
 function renderDeviceRow(s) {
-  const masked = '······' + String(s.token || '').slice(-6);
+  // 安全（F-04）：后端只返回 session_id，不再下发 token；掩码展示用 session_id 尾段（非认证信息）
+  const masked = '······' + String(s.session_id || '').slice(-6);
   return `<div class="device-row">
     <div class="device-info">
       <div class="device-label">${escHtml(s.label || UI.DEVICE_UNKNOWN)}${s.current ? ` <span class="device-current glass glass--solid">${UI.DEVICE_CURRENT}</span>` : ''}</div>
       <div class="device-meta">${masked} · ${UI.DEVICE_LOGIN_AT}${fmtDateTime(s.created_at)}</div>
     </div>
-    ${s.current ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="revokeDeviceSession('${s.token}')">${UI.BTN_DEVICE_LOGOUT}</button>`}
+    ${s.current ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="revokeDeviceSession('${s.session_id}')">${UI.BTN_DEVICE_LOGOUT}</button>`}
   </div>`;
 }
-function revokeDeviceSession(token) {
+function revokeDeviceSession(sessionId) {
   openConfirmModal(UI.DEVICE_REVOKE_CONFIRM, async () => {
     try {
-      const data = await api('/api/auth/sessions/revoke', { method: 'POST', body: { token } });
+      const data = await api('/api/auth/sessions/revoke', { method: 'POST', body: { sessionId } });
       showToast(UI.DEVICE_REVOKE_DONE);
       if (data.revokedSelf) { handleLogout(); return; } // 踢的是自己 → 本地登出
       loadDeviceSessions();

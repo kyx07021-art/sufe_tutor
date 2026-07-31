@@ -57,12 +57,10 @@ export async function handleCreateDemand(db, body, req) {
   return json({ id, message: MSG.DEMAND_SUBMITTED });
 }
 
-// 公开广场列表裁剪家长/学生联系方式（产品规则：签约后才向对方展示，后端硬把关不靠前端遮掩）
-const stripDemandContacts = list => list.map(({ parent_contact, student_contact, ...rest }) => rest);
-
-// 需求列表三视角，scope 显式选择（身份一律凭令牌，自报 id 的查询参数已废除）：
-//   （缺省）      公开广场：排除 contracted + 裁联系方式，访客可用
-//   scope=mine        我的需求：含联系方式，仅本人
+// 需求列表三视角，scope 显式选择（身份一律凭令牌，自报 id 的查询参数已废除）。
+// 联系方式脱敏已下沉到 db.js mapDemandRow 默认出口（单一强制点，任何出口都拿不到），此处不再重复裁剪：
+//   （缺省）      公开广场：排除 contracted，访客可用
+//   scope=mine        我的需求：含联系方式（mapDemandRowFull），仅本人
 //   scope=for-teacher 教师大厅视角：每条附本人 my_intent_status（按钮三态用）
 export async function handleGetDemands(db, url, req) {
   const scope = url.searchParams.get('scope') || '';
@@ -74,9 +72,9 @@ export async function handleGetDemands(db, url, req) {
   if (scope === 'for-teacher') {
     const me = await authUser(db, req);
     if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-    return json({ demands: stripDemandContacts(await dbGetAllDemands(db, me.id)) });
+    return json({ demands: await dbGetAllDemands(db, me.id) });
   }
-  return json({ demands: stripDemandContacts(await dbGetAllDemands(db)) });
+  return json({ demands: await dbGetAllDemands(db) });
 }
 
 // 需求写操作关口：404 存在 → 403 归属 → 409 已签约锁定（update/delete 共用；服务端写入路径硬门禁）
@@ -111,7 +109,8 @@ export async function handleDeleteDemand(db, demandId, body, req) {
   if (!me || me.role !== 'student') return error(MSG.STUDENT_ONLY, 403);
   const g = await loadOwnedDemand(db, demandId, me.id); // 已签约需求禁删（会使合同 demand_id 悬空）
   if (g.err) return g.err;
-  await dbDeleteDemand(db, demandId);
+  const ok = await dbDeleteDemand(db, demandId); // 数据层门禁：pending/signing 合同引用时拒绝（防悬空，F-03b）
+  if (!ok) return error(MSG.DEMAND_CONTRACTED_LOCKED, 409);
   await logEvent(db, { action: 'demand.delete', actorUserId: me.id, actorRole: 'student',
     entity: 'demand', entityId: demandId, req });
   return json({ message: MSG.DEMAND_DELETED });

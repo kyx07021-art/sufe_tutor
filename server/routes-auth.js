@@ -2,7 +2,7 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, hashPassword, verifyPassword, issueAuthToken, authUser, confirmDangerOtp, deviceLabelFromUA, listSessions, revokeSession, MSG, INVITE_GATE_ENABLED } from './core.js';
+import { json, error, dbGet, hashPassword, verifyPassword, issueAuthToken, authUser, confirmDangerOtp, deviceLabelFromUA, listSessions, revokeSession, MSG, INVITE_GATE_ENABLED } from './core.js';
 import { dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
   dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar } from './db.js';
 import { logEvent } from './log.js';
@@ -41,8 +41,8 @@ export async function handleRegister(db, body, req) {
 export async function handleLogin(db, body, req) {
   const { username, password } = body;
   if (!username || !password) return error(MSG.LOGIN_REQUIRED);
-  // 限定用户名长度上限：超长串直接早退，避免无谓的哈希查库 / PBKDF2 消耗（文案不变，仍为「用户名或密码错误」）
-  if (String(username).length > 60) return error(MSG.LOGIN_FAILED, 401);
+  // 限定用户名/密码长度上限：超长串直接早退，避免无谓的哈希查库 / PBKDF2 消耗（文案不变，仍为「用户名或密码错误」）
+  if (String(username).length > 60 || String(password).length > 72) return error(MSG.LOGIN_FAILED, 401);
 
   const user = await dbFindUserByUsername(db, username);
   if (!user || !(await verifyPassword(password, user.password_hash, user.salt))) {
@@ -88,7 +88,7 @@ export async function handleDeactivateAccount(db, body, req) {
   if (!(await confirmDangerOtp(db, me.id))) return error(MSG.ACCOUNT_DEACTIVATED, 403);
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
   await dbDeactivateUser(db, me.id, tombstone);
-  await dbPurgeUserOwnedData(db, me.id); // 单方数据全删（会话/档案/通知/反馈/暂存/点赞/帖子）
+  await dbPurgeUserOwnedData(db, me.id, me.role); // 按角色清理单方数据 + 匿名化本人聊天正文
   await logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
     actorRole: me.role, entity: 'user', entityId: me.id, req });
   return json({ ok: true });
@@ -113,27 +113,35 @@ export async function handleSaveAvatar(db, body, req) {
 }
 
 // 账户设置 · 登录设备管理：列出本人全部会话（新→旧），逐条标注 current 供前端区分「当前设备」。
-// token 整枚返回——属账户本人数据，前端凭此比对当前设备并发起逐端退登
+// 安全（网安报告 F-04）：只返回不可认证的 session_id + 设备标签 + 时间，token 永不进响应体；
+// current 判定：单独按当前请求 token 反查其 session_id，比对列表项
 export async function handleListSessions(db, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const current = req.headers.get('X-Auth-Token');
+  const currentRow = current ? await dbGet(db, 'SELECT session_id FROM auth_sessions WHERE user_id=? AND token=?', [me.id, current]) : null;
+  const currentId = currentRow?.session_id || '';
   const sessions = await listSessions(db, me.id);
-  return json({ sessions: sessions.map(s => ({ token: s.token, label: s.label, created_at: s.created_at, expires_at: s.expires_at, current: s.token === current })) });
+  return json({ sessions: sessions.map(s => ({ session_id: s.session_id, label: s.label, created_at: s.created_at, expires_at: s.expires_at, current: s.session_id === currentId })) });
 }
 
-// 逐端退登：删除本人名下指定会话；命中与否经 changes 判定。吊销的若是当前设备（踢自己），
-// 前端据 revokedSelf 随后本地登出
+// 逐端退登：按 session_id 吊销本人名下指定会话；命中与否经 changes 判定。吊销的若是当前设备（踢自己），
+// 前端据 revokedSelf 随后本地登出。安全：撤销接口收 session_id，服务端映射，token 不参与请求体
 export async function handleRevokeSession(db, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const token = String(body.token || '');
-  if (!token) return error(MSG.INVALID_PARAMS);
-  const ok = await revokeSession(db, me.id, token);
+  const sessionId = String(body.sessionId || '');
+  if (!sessionId) return error(MSG.INVALID_PARAMS);
+  // 先反查当前设备 session_id（撤销前，勿删后再查）
+  const curRow = req.headers.get('X-Auth-Token')
+    ? await dbGet(db, 'SELECT session_id FROM auth_sessions WHERE user_id=? AND token=?', [me.id, req.headers.get('X-Auth-Token')])
+    : null;
+  const ok = await revokeSession(db, me.id, sessionId);
   if (!ok) return error(MSG.SESSION_NOT_FOUND, 404);
+  const self = !!(curRow && curRow.session_id === sessionId);
   await logEvent(db, { action: 'auth.session.revoke', actorUserId: me.id, entity: 'user', entityId: me.id,
-    detail: { self: token === req.headers.get('X-Auth-Token') }, req });
-  return json({ ok: true, revokedSelf: token === req.headers.get('X-Auth-Token') });
+    detail: { self }, req });
+  return json({ ok: true, revokedSelf: self });
 }
 
 // 退出登录：吊销当前会话（此前登出仅清本地、令牌 7 天内仍有效的软登出，改为真登出）。

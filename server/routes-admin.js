@@ -4,13 +4,13 @@
  */
 import {
   json, error, requireAdmin, requireAdminOrError, authUser, genCode,
-  INITIAL_RATING, INITIAL_WEIGHT, MSG, STATUS,
+  MSG, STATUS,
 } from './core.js';
 import {
   dbCreateInviteCode, dbGetAllInvites,
   dbGetUserStats, dbGetCount, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
-  dbUpdateReviewStatus, dbGetApprovedReviewStats, dbUpdateTeacherRating,
+  dbUpdateReviewStatus, dbRecomputeTeacherRating,
   dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage,
   dbGetStudentUsersAdmin, dbGetTeacherUsersAdmin, dbGetUserById, dbSetUserBanned,
   dbGetAllDemandsAdmin, dbGetMessageById,
@@ -75,14 +75,8 @@ export async function handleAdminReviews(db, url, req) {
   return json({ reviews });
 }
 
-// 教师评分重算（评价通过/原已通过的评价被拒绝或删除时统一调用，口径与通过时一致）
-async function recomputeTeacherRating(db, teacherUserId) {
-  const stats = await dbGetApprovedReviewStats(db, teacherUserId);
-  const cnt = stats?.cnt || 0;
-  const sum = stats?.total || 0;
-  const rating = (INITIAL_RATING * INITIAL_WEIGHT + sum) / (INITIAL_WEIGHT + cnt);
-  await dbUpdateTeacherRating(db, teacherUserId, rating, cnt, sum);
-}
+// 教师评分重算（评价通过/原已通过的评价被拒绝或删除时统一调用）：口径下沉 db.js 共享（注销清理同款）
+// recomputeTeacherRating 即 dbRecomputeTeacherRating
 
 export async function handleReviewAction(db, reviewId, action, body, req) {
   const admin = await authUser(db, req);
@@ -97,7 +91,7 @@ export async function handleReviewAction(db, reviewId, action, body, req) {
 
   // 通过 → 重算；拒绝一条「原已通过」的评价同样要重算（把已计入的评分摘掉）
   if (action === 'approve' || (action === 'reject' && wasApproved)) {
-    await recomputeTeacherRating(db, review.teacher_user_id);
+    await dbRecomputeTeacherRating(db, review.teacher_user_id);
   }
   await logEvent(db, { action: `admin.review.${action}`, actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'review', entityId: reviewId,
@@ -148,7 +142,8 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (existing.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求禁删（合同 demand_id 会悬空）
-  await dbDeleteDemand(db, demandId);
+  const ok = await dbDeleteDemand(db, demandId); // 数据层门禁：pending/signing 合同引用时拒绝（防悬空，F-03b）
+  if (!ok) return error(MSG.DEMAND_CONTRACTED_LOCKED, 409);
   await logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'demand', entityId: demandId, req });
   return json({ message: MSG.DEMAND_DELETED });
@@ -161,7 +156,7 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return error(MSG.REVIEW_NOT_FOUND, 404);
   await dbDeleteReview(db, reviewId);
-  if (review.status === STATUS.APPROVED) await recomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
+  if (review.status === STATUS.APPROVED) await dbRecomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
   await logEvent(db, { action: 'admin.review.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'review', entityId: reviewId, req });
   return json({ message: MSG.REVIEW_DELETED });

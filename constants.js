@@ -6,12 +6,12 @@
  */
 globalThis.APP_CONSTANTS = {
 
-  // 教师注册邀请码门控：内测期间休眠（true = 免邀请码注册），与后端 core.js 的
-  // INVITE_GATE_ENABLED 同步切换
-  INVITE_GATE_DORMANT: true,
+  // 教师注册邀请码门控：已开启（false = 注册须凭邀请码，与后端 core.js INVITE_GATE_ENABLED 同步）
+  // 网安报告 F-05：教师开放注册属高危，注册必须经管理员签发邀请码
+  INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.18.21',
+  APP_VERSION: '0.18.22',
 
   // ============================================================
   // 业务数据

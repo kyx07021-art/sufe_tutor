@@ -115,24 +115,34 @@ export async function initLedgerTable(db) {
 const hexOf = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 const sha256Hex = text => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(hexOf);
 
-// 签署存证：记账 contract_id + 文本哈希 + 上一条哈希（链式，篡改任一历史条目都会断链）
+// 台账链哈希原文（网安报告 F-07）：content_hash 必须覆盖「正文 + contract_id + created_at + prev_hash」，
+// 否则拥有 DB 写权限者可重建整条台账而不被检出。正文哈希先取（防原文过长重复计算），再与元数据串成链。
+async function ledgerContentHash(contractId, contractMd, createdAt, prevHash) {
+  const bodyHash = await sha256Hex(contractMd);
+  return sha256Hex(`${bodyHash}|${contractId}|${createdAt}|${prevHash}`);
+}
+
+// 签署存证：记账 contract_id + 链式哈希（prev_hash 参与本条目哈希，篡改任一历史条目都会断链）
 async function ledgerRecord(db, contractId, contractMd) {
   const target = getLedgerDb(db);
   const prev = await dbGet(target, 'SELECT content_hash FROM contract_ledger ORDER BY id DESC LIMIT 1');
-  const content_hash = await sha256Hex(contractMd);
-  await dbRun(target, 'INSERT INTO contract_ledger (contract_id, content_hash, prev_hash) VALUES (?,?,?)',
-    [contractId, content_hash, prev ? prev.content_hash : 'GENESIS']);
+  const prevHash = prev ? prev.content_hash : 'GENESIS';
+  const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const content_hash = await ledgerContentHash(contractId, contractMd, createdAt, prevHash);
+  await dbRun(target, 'INSERT INTO contract_ledger (contract_id, content_hash, prev_hash, created_at) VALUES (?,?,?,?)',
+    [contractId, content_hash, prevHash, createdAt]);
   return content_hash;
 }
 
-// 校验：重算当前合同文本哈希与台账记录比对（合同行被撤销时台账仍在，返回 archived 状态）
+// 校验：重算当前合同文本 + 元数据哈希与台账记录比对（合同行被撤销时台账仍在，返回 archived 状态）。
+// 与 ledgerRecord 用同一条 hash 拼装规则，保证「存进去什么就校验什么」
 async function verifyContractLedger(db, contractId) {
   const row = await dbGet(getLedgerDb(db),
     'SELECT * FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1', [contractId]);
   if (!row) return { recorded: false };
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return { recorded: true, archived: true, valid: null, contentHash: row.content_hash, prevHash: row.prev_hash, createdAt: row.created_at };
-  const now = await sha256Hex(ct.contract_md);
+  const now = await ledgerContentHash(contractId, ct.contract_md, row.created_at, row.prev_hash);
   return { recorded: true, archived: false, valid: now === row.content_hash, contentHash: row.content_hash, prevHash: row.prev_hash, createdAt: row.created_at };
 }
 
@@ -274,19 +284,24 @@ export async function handleSignContract(db, contractId, body, req) {
   if (!updated) return error(MSG.CONTRACT_NOT_FOUND, 404); // 置位后对方并发撤销致行消失：干净 404，不抛 500
   const both = !!(updated.drafter_confirmed && updated.other_confirmed);
   if (both) {
-    // 条件 UPDATE 赢家模式：双方同时签约时仅一方 changes>0，台账/下架/通知/留档只由赢家执行（防双台账条目）
-    const claim = await dbRun(db, `UPDATE contracts SET status='signed' WHERE id=? AND status='signing'`, [contractId]);
-    if (claim && claim.meta && claim.meta.changes > 0) {
-    // 需求「抢占」条件 UPDATE：一份需求只允许一份合同签约成交，changes=0 = 已被别的合同抢先
-    // → 本次签约中止（合同回退 signing，不写台账/不通知/不自动拒绝），返已签约错误
+    let claimed = false;
     if (updated.demand_id) {
-      const dm = await dbRun(db, `UPDATE student_demands SET status='contracted' WHERE id=? AND status<>'contracted'`, [updated.demand_id]);
-      if (!(dm && dm.meta && dm.meta.changes > 0)) {
-        // 抢占失败回退：状态与双方确认标志一并清零，避免「双方都已确认却永远签不成」的死锁态
-        await dbRun(db, `UPDATE contracts SET status='signing', drafter_confirmed=0, other_confirmed=0, updated_at=datetime('now','localtime') WHERE id=? AND status='signing'`, [contractId]);
-        return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
-      }
+      // 原子签约（网安报告 F-03）：合同 signed 与需求 contracted 在同一 batch 事务内完成。
+      // 合同 UPDATE 带 NOT EXISTS 条件——需求已被任何合同签约（status='contracted'）时本合同不进入 signed，
+      // 抢占失败合同保持 signing（无回滚、无死锁），返回 410。杜绝「第二方签约 410 但合同已 signed」的线上事故。
+      const r = await db.batch([
+        db.prepare(`UPDATE contracts SET status='signed' WHERE id=? AND status='signing'
+          AND NOT EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='contracted')`).bind(contractId, updated.demand_id),
+        db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status<>'contracted'`).bind(updated.demand_id),
+      ]);
+      claimed = !!(r && r[0] && r[0].meta && r[0].meta.changes > 0);
+      if (!claimed) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
+    } else {
+      // 未绑定需求：纯合同签约，条件 UPDATE 赢家模式（双方同时签约仅一方 changes>0）
+      const claim = await dbRun(db, `UPDATE contracts SET status='signed' WHERE id=? AND status='signing'`, [contractId]);
+      claimed = !!(claim && claim.meta && claim.meta.changes > 0);
     }
+    if (claimed) {
     // 存证入台账（独立保障库优先）：文本哈希 + 哈希链，撤销合同删活跃行时留档仍不可篡改地保留
     const contentHash = await ledgerRecord(db, contractId, updated.contract_md);
     // 需求自动下架广场；该需求上其余教师待处理意向与待处理推送由系统统一拒绝

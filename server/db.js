@@ -5,11 +5,9 @@
  */
 import {
   dbAll, dbGet, dbRun, hashPassword,
-  INITIAL_RATING,
+  INITIAL_RATING, INITIAL_WEIGHT,
 } from './core.js';
-import '../secrets.js'; // 管理员配置抽离处（公测迁 Worker Secrets，见 docs/secrets-plan.md）
-
-const SEC = globalThis.APP_SECRETS || {};
+import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
 
@@ -39,7 +37,12 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   updated_at DATETIME DEFAULT (datetime('now','localtime')),
   FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`;
 
-export async function initDb(db) {
+// 管理员配置统一经 secrets 网关读取（env 优先，回落本地 secrets.js）；兼容 env 为逗号分隔串 / 文件为数组
+const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(s => s.trim()).filter(Boolean);
+
+export async function initDb(db, env = {}) {
+  const adminNames = adminNamesOf(getSecret(env, 'ADMIN_USERNAMES'));
+  const adminPassword = getSecret(env, 'ADMIN_DEFAULT_PASSWORD') || '';
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
@@ -228,7 +231,7 @@ export async function initDb(db) {
         created_at DATETIME DEFAULT (datetime('now','localtime')))`),
       db.prepare(`INSERT INTO users_new (id,username,password_hash,salt,role,banned,created_at)
         SELECT id,username,password_hash,salt,role,0,created_at FROM _users_old`),
-      db.prepare(`UPDATE users_new SET role='admin' WHERE username IN (${(SEC.ADMIN_USERNAMES || []).map(() => '?').join(',')})`).bind(...(SEC.ADMIN_USERNAMES || [])),
+      db.prepare(`UPDATE users_new SET role='admin' WHERE username IN (${adminNames.map(() => '?').join(',')})`).bind(...adminNames),
       db.prepare('ALTER TABLE users_new RENAME TO users'),
 
       db.prepare(`CREATE TABLE teacher_profiles_new (
@@ -307,11 +310,12 @@ export async function initDb(db) {
     db.prepare('DROP TABLE IF EXISTS _users_old'),
   ]);
 
-  // 种子管理员（独立 admin 角色；凭证取自 secrets.js，公测迁 Worker Secrets）
-  for (const name of (SEC.ADMIN_USERNAMES || [])) {
+  // 种子管理员（独立 admin 角色；凭证经 secrets 网关：env.Worker Secrets 优先，回落本地 secrets.js）
+  // 公测迁移后 getSecret 走 env，仓库明文文件失效（docs/secrets-plan.md）
+  for (const name of adminNames) {
     const existing = await dbGet(db, 'SELECT id FROM users WHERE username = ?', [name]);
     if (!existing) {
-      const { hash, salt } = await hashPassword(SEC.ADMIN_DEFAULT_PASSWORD || '');
+      const { hash, salt } = await hashPassword(adminPassword);
       await dbRun(db, 'INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,?,?)',
         [name, hash, salt, 'admin']);
     }
@@ -365,6 +369,10 @@ export async function initDb(db) {
     ['student_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
     ['teacher_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
   ]);
+  // 设备管理安全（网安报告 F-04）：auth_sessions 补 session_id 列并回填存量行——
+  // 存量会话无 session_id 则按 token 派生一次性回填（幂等），此后设备接口只暴露 session_id
+  await ensureColumns(db, 'auth_sessions', [['session_id', "TEXT NOT NULL DEFAULT ''"]]);
+  await dbRun(db, `UPDATE auth_sessions SET session_id = 's' || substr(token, 1, 16) WHERE session_id=''`);
 
   // 通知表（独立模块 notify.js 提供建表与推送咽喉）
   await initNotifyTable(db);
@@ -415,9 +423,19 @@ export async function dbDeactivateUser(db, userId, tombstone) {
     [tombstone, userId]);
 }
 
-// 注销清理：单方数据全删（会话/档案/通知/反馈/暂存/点赞/帖子）；需求/会话/合同/评价等
-// 双方数据保留，JOIN username 处自然显示墓碑
-export async function dbPurgeUserOwnedData(db, userId) {
+// 教师评分重算（评价通过 / 已通过评价被拒绝或删除时统一调用；注销清理同款口径，单点下沉于此）
+export async function dbRecomputeTeacherRating(db, teacherUserId) {
+  const stats = await dbGetApprovedReviewStats(db, teacherUserId);
+  const cnt = stats?.cnt || 0;
+  const sum = stats?.total || 0;
+  const rating = (INITIAL_RATING * INITIAL_WEIGHT + sum) / (INITIAL_WEIGHT + cnt);
+  await dbUpdateTeacherRating(db, teacherUserId, rating, cnt, sum);
+}
+
+// 注销清理：吊销全部登录态 + 单方数据全删；双方共享数据（会话/聊天/合同）匿名化本人侧后保留，
+// JOIN username 处自然显示墓碑。学生侧需求（含联系方式）/意向/推送/自写评价一律删除
+// （网安报告 F-06：原实现漏删学生侧表，敏感数据永久保留）。
+export async function dbPurgeUserOwnedData(db, userId, role) {
   await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=?', [userId]); // 注销即吊销全部设备的登录态
   await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM notifications WHERE user_id=?', [userId]);
@@ -425,6 +443,22 @@ export async function dbPurgeUserOwnedData(db, userId) {
   await dbRun(db, 'DELETE FROM uploads WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM post_likes WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [userId]);
+
+  if (role === 'student') {
+    // 学生侧：删自建需求（级联删意向/推送，含联系方式与地址）、删除本人对教师的评价并重算受影响教师评分
+    await dbRun(db, 'DELETE FROM student_demands WHERE user_id=?', [userId]);
+    await dbRun(db, 'DELETE FROM demand_pushes WHERE student_user_id=?', [userId]);
+    const myReviews = await dbAll(db, 'SELECT id, teacher_user_id FROM reviews WHERE reviewer_user_id=?', [userId]);
+    await dbRun(db, 'DELETE FROM reviews WHERE reviewer_user_id=?', [userId]);
+    for (const rv of myReviews) await dbRecomputeTeacherRating(db, rv.teacher_user_id);
+  } else if (role === 'teacher') {
+    // 教师侧：删其发出的意向/收到的推送；被评价记录保留（评价格局归学生，教师不可自删）
+    await dbRun(db, 'DELETE FROM demand_intents WHERE teacher_user_id=?', [userId]);
+    await dbRun(db, 'DELETE FROM demand_pushes WHERE teacher_user_id=?', [userId]);
+  }
+
+  // 匿名化本人发出的聊天正文（会话/合同行保留，正文清空 + 墓碑用户名显示，符合 F-06 保留分级）
+  await dbRun(db, `UPDATE messages SET body='' WHERE sender_user_id=? AND kind='text'`, [userId]);
 }
 
 // 账户设置：头像更新
@@ -572,13 +606,21 @@ const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cnt, 0) A
     FROM demand_intents GROUP BY demand_id) ic
     ON ic.demand_id=sd.id`;
 
+// 需求行默认脱敏出口：parent_contact/student_contact（产品规则：签约后才向对方展示，服务端硬把关）、
+// address_detail（详细门牌号，合规停用）一律在此剥除，任何走 mapper 的出口都拿不到联系方式。
+// 需要联系方式的场景（本人「我的需求」、管理员全量）显式用 mapDemandRowFull。
 function mapDemandRow(r) {
-  const { address_detail, ...rest } = r; // 合规：该字段不再向前端暴露
+  const { parent_contact, student_contact, address_detail, ...rest } = r;
   return {
     ...rest,
     target_subjects: safeJsonArray(r.target_subjects),
     current_scores: safeJsonArray(r.current_scores),
   };
+}
+
+// 含联系方式变体：仅「本人需求」与「管理员全量」两处显式调用（归属/角色已由调用方校验）
+function mapDemandRowFull(r) {
+  return { ...mapDemandRow(r), parent_contact: r.parent_contact || '', student_contact: r.student_contact || '' };
 }
 
 export async function dbGetAllDemands(db, teacherUserId = null) {
@@ -598,7 +640,7 @@ export async function dbGetAllDemands(db, teacherUserId = null) {
 
 export async function dbGetDemandsByUser(db, userId) {
   const rows = await dbAll(db, DEMANDS_SELECT + ' WHERE sd.user_id=? ORDER BY sd.created_at DESC', [userId]);
-  return rows.map(mapDemandRow);
+  return rows.map(mapDemandRowFull); // 本人「我的需求」：编辑回填需要联系方式
 }
 
 // 单条需求也走 mapper（与列表同形状；调用方统一拿数组字段，裸行分叉已消灭）
@@ -611,7 +653,7 @@ export async function dbGetDemandById(db, id) {
 export async function dbGetAllDemandsAdmin(db) {
   const rows = await dbAll(db,
     `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id ORDER BY sd.created_at DESC LIMIT 300`);
-  return rows.map(mapDemandRow);
+  return rows.map(mapDemandRowFull); // 管理员：管理端查看联系方式
 }
 
 export async function dbUpdateDemand(db, id, d) {
@@ -627,9 +669,15 @@ export async function dbUpdateDemand(db, id, d) {
   ]);
 }
 
+// 删除需求：数据层强制保护——只要存在 pending/signing/signed 合同引用该需求，即返回 false（调用方拒绝删除）。
+// 悬空 demand_id 曾导致签约 410 后合同仍 signed 的线上事故（网安报告 F-03b），此门禁在 db.js 单点收口。
 export async function dbDeleteDemand(db, id) {
+  const ref = await dbGet(db,
+    `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [id]);
+  if (ref) return false;
   await dbRun(db, 'DELETE FROM demand_intents WHERE demand_id=?', [id]);
   await dbRun(db, 'DELETE FROM student_demands WHERE id=?', [id]);
+  return true;
 }
 
 // ============================================================

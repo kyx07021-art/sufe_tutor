@@ -9,6 +9,28 @@
  */
 import { initDb } from './server/db.js';
 import { json, error, MSG, bindCoreEnv } from './server/core.js';
+
+// 统一安全响应头（网安报告 F-08）：HTTP 级 CSP（frame-ancestors 仅 HTTP 头生效，meta 无法表达）、
+// HSTS、Permissions-Policy、nosniff；敏感 API 追加 no-store 防浏览器缓存。
+// CSP 与页面 meta CSP 同源同策略（default-src 'self' + 内联脚本/样式为本站架构所需）。
+const SECURITY_HEADERS = {
+  'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+};
+const applySecurityHeaders = (res, path) => {
+  // 静态资源响应头只读（Cloudflare ASSETS），须先复制成可变 Response 再设头，否则 set 抛错 → 500
+  if (!path.startsWith('/api/')) {
+    res = new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers });
+  }
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.headers.set(k, v);
+  // 敏感 API 数据禁缓存（会话/合同/联系方式等）；静态资源保持默认可缓存
+  if (path.startsWith('/api/')) res.headers.set('Cache-Control', 'no-store');
+  return res;
+};
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
@@ -212,29 +234,32 @@ export default {
 
     // CORS preflight
     if (request.method === 'OPTIONS') {
-      return new Response(null, {
+      return applySecurityHeaders(new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type',
         },
-      });
+      }), p);
     }
 
     // 非 API 请求 → 静态文件。敏感路径一律 404：源码目录 server/、docs/、secrets.js（敏感配置）、
-    // 版本控制与构建残留（.git/、.wrangler/）、包清单（package*.json / node_modules/）
+    // 版本控制与构建残留（.git/、.wrangler/）、包清单（package*.json / node_modules/）、
+    // 配置残留（wrangler.toml / robots.txt / sitemap.xml，网安报告 F-01d 收口）
     if (!p.startsWith('/api/')) {
-      if (p.startsWith('/server/') || p.startsWith('/docs/') || p === '/secrets.js' ||
+      if (p.startsWith('/server/') || p.startsWith('/server') || p.startsWith('/docs/') ||
+          p === '/secrets.js' ||
           p.startsWith('/.git/') || p.startsWith('/.wrangler/') || p.startsWith('/node_modules/') ||
-          p === '/package.json' || p === '/package-lock.json' || p === '/gen_flow.js' || p.endsWith('.md')) {
-        return new Response('Not Found', { status: 404 });
+          p === '/package.json' || p === '/package-lock.json' || p === '/gen_flow.js' || p.endsWith('.md') ||
+          p === '/wrangler.toml' || p === '/robots.txt' || p === '/sitemap.xml') {
+        return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
-      return env.ASSETS.fetch(request);
+      return applySecurityHeaders(env.ASSETS.fetch(request), p);
     }
 
     // 首次请求时初始化数据库（业务库 + 可选独立留档库 + 可选独立合同台账库）
     if (!env._dbInited) {
-      await initDb(env.DB);
+      await initDb(env.DB, env); // 管理员配置经 secrets 网关读取（env.Worker Secrets 优先，回落本地文件）
       if (env.LOG_DB) await initLogDb(env.LOG_DB);
       bindLogDb(env);
       await initLedgerTable(env.LEDGER_DB || env.DB);
@@ -251,7 +276,7 @@ export default {
       // 不信任 header，避免攻击者用大 body 耗内存 / 在解析后限流之前打满
       const BODY_LIMIT = 1100000;
       const cl = parseInt(request.headers.get('Content-Length') || '0', 10);
-      if (cl > BODY_LIMIT) return error(MSG.PAYLOAD_TOO_LARGE, 413);
+      if (cl > BODY_LIMIT) return applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p);
       try {
         const reader = request.body && request.body.getReader();
         if (!reader) { body = await request.json(); }
@@ -268,25 +293,25 @@ export default {
           body = text ? JSON.parse(text) : {};
         }
       } catch (e) {
-        if (String(e && e.message) === 'PAYLOAD_TOO_LARGE') return error(MSG.PAYLOAD_TOO_LARGE, 413);
+        if (String(e && e.message) === 'PAYLOAD_TOO_LARGE') return applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p);
         body = {}; // 其余解析失败（含非法 JSON）兜底空对象，交由路由校验
       }
     }
 
     // 限流闸门（IP 取 CF-Connecting-IP；超限一律 429，细节不回显）
     const ip = request.headers.get('CF-Connecting-IP') || 'anon';
-    if (!rateGate(ip, p, request.method, body, Date.now())) return error(MSG.RATE_LIMITED, 429);
+    if (!rateGate(ip, p, request.method, body, Date.now())) return applySecurityHeaders(error(MSG.RATE_LIMITED, 429), p);
 
     try {
       const res = await routeApi(db, p, request.method, body, url, request);
       // 留档必须 await：workerd 在响应结束后掐断未完成的悬浮 Promise（加密咽喉链路较长，
       // 不 await 会导致留档被杀在途中——本批次线上 0 留档事故根因）
       await logRequest(db, { method: request.method, path: p, body, status: res.status, req: request });
-      return res;
+      return applySecurityHeaders(res, p);
     } catch (err) {
       console.error('API Error:', err); // 细节只留服务端日志
       await logRequest(db, { method: request.method, path: p, body, status: 500, req: request });
-      return error(MSG.SERVER_ERROR, 500); // 回显脱敏：不回传 err.message（防泄露表名/约束等内部信息）
+      return applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message（防泄露表名/约束等内部信息）
     }
   },
 };
