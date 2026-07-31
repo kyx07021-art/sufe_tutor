@@ -484,9 +484,9 @@
   <script>
     /* liquid glass 材质层（与业务逻辑解耦）：
        1) 把 constants.LG 统一配置换算成 :root CSS 变量（唯一令牌入口，改观感只动 constants）。
-       2) 背景三层：浅灰真底(html) → 漂移光球 → 重模糊染色底板（全站唯一重模糊，性能铁律）。
-       3) 内联 SVG 位移滤镜 #lg-refract：给浮层玻璃缘做真实折射（feDisplacementMap）。
-       4) 鼠标跟随发光圆：mix-blend:screen 趋亮；无阻尼，mousemove 直接锁定位置。 */
+       2) 背景三层：浅灰真底(html) → 漂移光球 → 轻磨砂染色底板（全站唯一真模糊，性能铁律）。
+       3) 36 个方向随机光球（数量×4）由 JS 生成 + 鼠标跟随发光圆（rAF 合帧）。
+          ——液态玻璃折射感由 glass.css 的 --g-liquid 边缘高光呈现，弃 SVG url() 折射（兼容/性能）。 */
     (function () {
       var LG = (window.APP_CONSTANTS || {}).LG || { radius: {}, bg: {}, orbCrossSec: 60, glow: {}, mats: {} };
       var st = document.documentElement.style;
@@ -514,19 +514,6 @@
         set('--m-' + k + '-bg', bg);
         set('--m-' + k + '-blur', blur + 'px');
       }
-      /* SVG 折射滤镜：feTurbulence 噪声 → 位移贴图，令浮层玻璃缘产生真实弯曲折射 */
-      var svgNS = 'http://www.w3.org/2000/svg';
-      var svg = document.createElementNS(svgNS, 'svg');
-      svg.setAttribute('aria-hidden', 'true');
-      svg.setAttribute('width', '0'); svg.setAttribute('height', '0');
-      svg.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
-      svg.innerHTML =
-        '<defs><filter id="lg-refract" x="-20%" y="-20%" width="140%" height="140%">' +
-        '<feTurbulence type="fractalNoise" baseFrequency="0.006 0.009" numOctaves="1" seed="7" result="n"/>' +  /* 低频=平滑大尺度位移，无锯齿 */
-        '<feGaussianBlur in="n" stdDeviation="4" result="nb"/>' +                                              /* 抹平噪声→连续折射场 */
-        '<feDisplacementMap in="SourceGraphic" in2="nb" scale="' + (LG.refractScale || 30) + '" xChannelSelector="R" yChannelSelector="G"/>' +
-        '</filter></defs>';
-      document.body.insertBefore(svg, document.body.firstChild);
       /* 背景舞台：36 个方向随机的光球（数量×4）+ 染色底板。
          光球由 JS 生成：随机方向组(6)、随机起始位置、随机尺寸、随机负 delay 错峰 →
          「像空气里的蒲公英」各向漂移 + 途中缓慢转向，肉眼无规律。 */
