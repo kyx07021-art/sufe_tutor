@@ -69,7 +69,7 @@ globalThis.APP_CONSTANTS = {
     // 毛值 frost 仅驱动极小白调；tint/tintA=叠色。体填充刻意通透，按钮更透=透镜。
     mats: {
       card:        { frost: 1,  tint: '255,255,255', tintA: .16 },  // 一般卡片：伪玻璃（半透白 + 液体高光）
-      cardHi:      { frost: 2,  tint: '255,255,255', tintA: .20 },  // 通用卡片：伪玻璃，略增不透明白保文字可读
+      cardHi:      { frost: 2,  tint: '255,255,255', tintA: .14 },  // 通用卡片：微毛通透（液态玻璃：边缘弯月承载液体感，主体轻透）
       button:      { frost: -3, tint: '255,255,255', tintA: .04 },  // 中性按钮=透镜（负毛值，比卡片更透）
       btnPrimary:  { frost: -2, tint: '74,58,178',  tintA: .90 },  // 深紫玻璃按钮（全站主色；叠色提深→边缘渐隐同色透明，不发白）
       btnAccent:   { frost: -2, tint: '122,104,224', tintA: .62 },  // 紫色玻璃按钮

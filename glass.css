@@ -51,14 +51,15 @@
   --g-raise: 0;
   --g-scale: 1;
   --g-ring: rgba(122,104,224,.55);
-  /* ---- 液体边缘高光（液态玻璃 v0.19）：玻璃体的珠圆玉润弯月。
-       画在元素 box-shadow（与 --g-lift 合并），不受 ::before mask 裁剪 → 边缘高光清晰可见；
-       顶部亮带 + 底部淡反光 + 四边发丝线，靠边陡、向内缓的液体张力感。
-       零 backdrop-filter（纯 box-shadow，合成线程零成本）。---- */
-  --g-liquid: inset 0 1px 0 rgba(255,255,255,.65), inset 0 -1px 1px rgba(255,255,255,.30),
-    inset 1px 0 0 rgba(255,255,255,.18), inset -1px 0 0 rgba(255,255,255,.18),
-    inset 0 0 0 1px rgba(255,255,255,.14);
-  --g-liquid-sm: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -1px 0 rgba(255,255,255,.22), inset 0 0 0 1px rgba(255,255,255,.10);
+  /* ---- 液体边缘（液态玻璃 v0.19 · 基于社区还原研究 + backlog 教训「inset 阴影天然沿圆角」）：
+       液体弯月 = 元素层多层 inset box-shadow（不受玻璃体 mask 裁剪，深/浅背景都可靠）：
+       ① 上缘宽亮带（光源在上）② 下缘暗区（液滴张力：底部收暗）③ 四边发丝线。
+       主体微毛 --g-frost 用 blur(1.5px)+saturate+brightness（研究推荐：微毛通透，折射感交给边缘而非高斯糊）。
+       零额外伪元素、零动态滤镜 → 静态零动画成本，60fps。 ---- */
+  --g-liquid: inset 0 2px 0 rgba(255,255,255,.72), inset 0 -3px 6px rgba(30,26,64,.18),
+    inset 2px 0 0 rgba(255,255,255,.16), inset -2px 0 0 rgba(255,255,255,.16),
+    inset 0 0 0 1px rgba(255,255,255,.20);
+  --g-liquid-sm: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 4px rgba(30,26,64,.14), inset 0 0 0 1px rgba(255,255,255,.12);
   /* 曲面边缘遮罩：1px 发丝高光边 + 靠边陡、靠本体缓的肩（斜率 .16R 处最陡，向内趋平）。无空护城河=无相框。
      四角加 radial 切圆（半径绑定 --g-r），与线性渐隐 intersect → 圆角件的渐隐四角贴合圆角，不再矩形框。 */
   --edge-fade-mask:
@@ -126,9 +127,8 @@ body { background: transparent; }
   -webkit-backdrop-filter: var(--g-refract, none); backdrop-filter: var(--g-refract, none);
   transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-base, .3s) var(--ease-out, ease);
 }
-/* ::before 玻璃体：填充 + 曲面遮罩(var) + 磨砂(var) + 液体边缘高光(var)。z-index:-1 永远在内容之下。
-   磨砂与填充共享同一 mask（单伪元素无法分层渐隐），渐隐带内 backdrop-filter 随 mask alpha 混合。
-   液体高光（--g-liquid）画在玻璃体边缘、受 mask 渐隐 → 珠圆玉润弯月（液态玻璃 v0.19）。 */
+/* ::before 玻璃体：填充 + 曲面遮罩(var) + 磨砂(var)。z-index:-1 永远在内容之下。
+   液体弯月高光在元素层 box-shadow（--g-liquid，沿圆角、不受本 mask 裁剪）——深/浅背景都可靠。 */
 .glass::before, .glass--float::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
   background: var(--g-fill, rgba(255,255,255,.14));
@@ -166,10 +166,11 @@ body { background: transparent; }
    参数预设：卡 / 浮层 / 气泡 / 信息栏卡（组件类只设参数）
    ============================================================ */
 /* 卡族 = 伪玻璃（液态玻璃 v0.19）：半透明填充 + 液体边缘高光，零 backdrop-filter ——
-   玻璃感由「透出下方光球背景 + 边缘弯月」呈现，同屏几十卡也零滤镜成本（60fps 铁律）。
-   需要承载更多信息时（如浮层/详情）单独提升 --g-frost 毛值即可，参数化不收口。 */
+   研究推荐（react-glass-rim + 社区还原）：主体微毛通透（blur 1.5px + saturate + brightness），
+   折射感由边缘弯月环呈现而非高斯糊；性能靠移动端降档兜底。 */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-  --g-fill: var(--m-cardHi-bg, rgba(255,255,255,.18)); --g-frost: none;
+  --g-fill: var(--m-cardHi-bg, rgba(255,255,255,.12));
+  --g-frost: blur(1.5px) saturate(160%) brightness(1.06);
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
@@ -188,12 +189,12 @@ body { background: transparent; }
 .profile-card { --g-fill: rgba(255,255,255,.5); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; }
 .profile-card--id { --g-fill: rgba(255,255,255,.62); }
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
-/* 按钮族 = 液态玻璃（v0.19）：无色透明透镜 + 染色 tint。
-   基类统一：零 backdrop-filter（伪玻璃）、填充为低 alpha 白透镜（背景透出）、液体边缘高光、
+/* 按钮族 = 液态玻璃（v0.19）：透明染色透镜 + 微毛 + 弯月环。
+   基类统一：微毛 blur(1px)（研究推荐）、填充为低 alpha 白透镜（背景透出）、弯月环边缘、
    hover 白染叠层。彩色语义由各变体的 --g-fill 低饱和 alpha 表达（染色玻璃：透明液态感 + 语义色）。
    文字统一深色（透明底上白字不可读），与旧版高不透明白字视觉相反但正确。 */
 .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button, .chat-back, .btn-link-inline, .btn-text-danger {
-  --g-frost: none;
+  --g-frost: blur(1px) saturate(150%) brightness(1.04);
   --g-liquid: var(--g-liquid-sm);
   --g-hover: rgba(255,255,255,.18); --g-raise: -1px; --g-scale: .97;
   --g-fill: linear-gradient(180deg, rgba(255,255,255,.30), rgba(255,255,255,0) 46%), rgba(255,255,255,.12);
@@ -298,9 +299,12 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 .form-group { background: transparent; }
 
 /* ============================================================
-   移动端：真玻璃浮层降毛值（保帧率；伪玻璃卡零成本不受影响）；窄屏信息卡加重白底保对比
+   移动端：卡片微毛降档（blur 1.5→1px，列表页几十卡保帧率）+ 浮层降毛 + 信息卡加重白底保对比
    ============================================================ */
 @media (max-width: 860px) {
+  .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
+    --g-frost: blur(1px) saturate(150%) brightness(1.05);
+  }
   .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { --g-frost: blur(6px); }
   .profile-card { --g-fill: rgba(255,255,255,.82); }
   .profile-card--id { --g-fill: rgba(255,255,255,.9); }
