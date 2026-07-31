@@ -321,6 +321,8 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
    ============================================================ */
 /* 标签语义色（小件 element-bg 模式，修复"全 tag 同色"回归） */
 .tag-ok { background: rgba(24,122,75,.22); color: #187a4b; }
+/* 科目匹配度标签（运营建议：教师需求大厅显示「科目匹配 N%」）——绿色系，与 tag-ok 同族 */
+.tag-match { background: rgba(24,122,75,.18); color: #187a4b; font-weight: 700; }
 .tag-danger { background: rgba(198,72,58,.20); color: var(--danger); }
 .tag-warn { background: rgba(154,106,42,.20); color: var(--warn-deep); }
 .tag-accent { background: rgba(122,104,224,.20); color: var(--accent-deep); }

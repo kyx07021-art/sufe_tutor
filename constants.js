@@ -285,6 +285,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_DEMANDS_LOAD_FAIL: '需求列表加载失败：可不关联需求直接起草，或刷新页面后重试。',
     DEMAND_TAG_CONTRACTED: '已签约',
     DEMAND_TAG_REVOKED: '合同已撤销',
+    TAG_MATCH: '科目匹配 ',
     BTN_REOPEN_DEMAND: '重开需求',
     DEMAND_REOPENED_TOAST: '需求已重新开放',
     CONFIRM_REOPEN_DEMAND: '重开后该需求将重新出现在需求大厅，再次接受教师意向。确定重开吗？',
