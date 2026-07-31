@@ -3,8 +3,10 @@
 > 这是可执行的工作清单，带精确行号，供会话接力用。规则在 `../CLAUDE.md`，进度看 git。
 > 每项注明状态：✅ 已上线 / 🟡 醒着核对后做（跨文件/改契约/视觉，盲改易回归）/ 已判定不改。
 
-## 已完成（本轮 2026-07-31，v0.18.4–0.18.11）
-- ✅ **v0.18.11 玻璃组件真正统一（推翻下面两条早期"元素自绘/外发光"做法）**：按钮+`.sidebar-pill` 不再是特例，= 卡的填色变体——与卡共用引擎 `::before` 填充 + 标准曲面遮罩 `--edge-fade-mask` + REFRACT 折射；per-variant **只设 `--g-fill`/`--g-fg`**。删光所有特例：元素自绘 `--g-body`/`--g-edge`、外同色光晕、`--g-mask:none`、`backdrop-filter:none`、每列表 `::before` box-shadow、内缘 `--g-rim` 参数全删；圆角回归引擎默认（SURFACE-STATIC 加 `border-radius:var(--lg-r-sm)`，因 base `.btn{border-radius:0}` 会吃掉圆角）。净 +19/−39（减法）。纪律写入 CLAUDE.md：best-part-is-no-part，只完善底层接口、禁开特例。本地 g18 三栈（白卡/彩卡/侧栏）截图验：圆角回来、渐变边回来、无外发光、文字可读。
+## 已完成（本轮 2026-07-31，v0.18.4–0.18.12）
+- ✅ **v0.18.12 玻璃组件真正统一（最终定稿，推翻 0.18.11 的"标准曲面遮罩"思路）**：统一渲染模型 = **body 填充 + 同色内斜边（inset box-shadow）画在 `::before`**（z1，在元素 background 之上、文字之下）；元素只设 `background`/`border-radius`/`color`/`--g-fg`。**玻璃边=内斜边**（顶 inset 白高光 + 底 inset 同色深阴影=朝内同色渐变边），外缘=元素自身 border-radius 裁剪（锋利圆角、与轮廓半径严格一致、不可能泛白）。删光特例：元素自绘宝石体+外发光、`--g-mask:none`、透明渐隐曲面遮罩全删；frosted 面 `--g-frost` 也在 `::before`。本地 g20 四栈（白/彩/侧栏/弹窗磨砂+2.2x 圆角放大）截图验：白底无白晕、圆角对齐、磨砂在、文字可读。净 +58/−65。
+- ⚠️ 已被 0.18.12 推翻（教训）：0.18.11 想用"标准曲面遮罩 `--edge-fade-mask`+REFRACT"统一——但正交渐隐遮罩**圆角 mismatch**（褪隐按方框边算、对不齐圆角弧）且**白卡上褪向白=白边**，sidebar-pill/chat-send/entry 仍看着没渐变边。也试过 `mask-composite` 轮廓环+逐选择器 `round` 半径，太脆、浏览器支持差。**正解=inset 阴影**（天然沿 border-radius、无遮罩几何）。
+- ⚠️ 已被 0.18.11/12 推翻（教训，勿照做）：v0.18.5 曾用"元素自绘宝石体+外同色光晕 box-shadow+`--g-mask:none`"治白边——给按钮单开渲染路径的特例，用户连续打回（"渐变边没了/做成外发光了/圆角没了/没统一"）。"文字可读性所以要实色不能渐隐"是伪命题（文字在 padding 中心，边缘只动空 rim）。
 - ⚠️ 已被 0.18.11 推翻（留作教训，勿照做）：v0.18.5 曾用"元素自绘宝石体+外同色光晕 box-shadow+`--g-mask:none`"治白边——那是给按钮单开渲染路径的特例，用户连续打回（"渐变边没了/做成外发光了/圆角没了/没统一"）。白边真因=**填充太浅**，非遮罩本身；深填充+标准遮罩=同色肩，不是白边。"文字可读性所以要实色不能渐隐"是伪命题（文字在 padding 中心，边缘渐隐只动空 rim）。
 - ✅ 光球：更小(约一半)+更多(9)+方向各异(4 keyframe)，底板磨砂 16→6 让球现形为柔形；卡片补 `--g-frost:blur(7px)` 保可读（glass.css + index.html 注入器 DOM + constants bg.blur）。
 - ✅ base style.css 清理：删按钮变体死 `--g-fill`、`.tc-push-btn:hover{background:ink}` 黑悬停；`.stat-card` 左竖条 `::before`→`::after`（修被 glass 填充盖没）。
