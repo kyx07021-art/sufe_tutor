@@ -73,6 +73,7 @@ export async function initDb(db, env = {}) {
       target_subjects TEXT NOT NULL, current_scores TEXT NOT NULL,
       teaching_method TEXT NOT NULL DEFAULT 'offline',
       address TEXT DEFAULT '', address_detail TEXT DEFAULT '',
+      expected_time TEXT DEFAULT '',   /* 期望开课时间（运营 P3.1：纯文本，撮合参考） */
       budget_min REAL DEFAULT 0, budget_max REAL DEFAULT 0,
       submitter_type TEXT NOT NULL, parent_contact TEXT NOT NULL,
       student_contact TEXT NOT NULL, additional_info TEXT DEFAULT '',
@@ -331,7 +332,7 @@ export async function initDb(db, env = {}) {
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
     ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"],
     ['verified', 'INTEGER NOT NULL DEFAULT 0']]); // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
-  await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER']]);
+  await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"]]);
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
     ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"]]);
@@ -592,12 +593,12 @@ export async function dbCreateDemand(db, userId, demand) {
   // display_id：对外需求编号（四位，按生成顺序自 0001 起），子查询取号保证顺序单调
   const result = await dbRun(db, `INSERT INTO student_demands
     (user_id,province,student_grade,student_gender,target_subjects,current_scores,
-     teaching_method,address,budget_min,budget_max,
+     teaching_method,address,expected_time,budget_min,budget_max,
      submitter_type,parent_contact,student_contact,additional_info,display_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands))`, [
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands))`, [
     userId, demand.province || '', demand.student_grade, demand.student_gender,
     JSON.stringify(demand.target_subjects), JSON.stringify(demand.current_scores),
-    demand.teaching_method || 'offline', demand.address || '',
+    demand.teaching_method || 'offline', demand.address || '', demand.expected_time || '',
     demand.budget_min || 0, demand.budget_max || 0,
     demand.submitter_type, demand.parent_contact, demand.student_contact, demand.additional_info || '',
   ]);
@@ -665,12 +666,12 @@ export async function dbGetAllDemandsAdmin(db) {
 
 export async function dbUpdateDemand(db, id, d) {
   await dbRun(db, `UPDATE student_demands SET province=?,student_grade=?,student_gender=?,
-    target_subjects=?,current_scores=?,teaching_method=?,address=?,address_detail='',
+    target_subjects=?,current_scores=?,teaching_method=?,address=?,expected_time=?,address_detail='',
     budget_min=?,budget_max=?,submitter_type=?,parent_contact=?,student_contact=?,
     additional_info=? WHERE id=?`, [
     d.province || '', d.student_grade, d.student_gender,
     JSON.stringify(d.target_subjects), JSON.stringify(d.current_scores),
-    d.teaching_method || 'offline', d.address || '',
+    d.teaching_method || 'offline', d.address || '', d.expected_time || '',
     d.budget_min || 0, d.budget_max || 0,
     d.submitter_type, d.parent_contact, d.student_contact, d.additional_info || '', id,
   ]);

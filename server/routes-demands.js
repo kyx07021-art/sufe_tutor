@@ -37,6 +37,7 @@ function sanitizeDemand(d) {
   d.budget_max = clampBudget(d.budget_max);
   if (d.budget_max < d.budget_min) d.budget_max = d.budget_min; // 二者同时存在时保证 max>=min
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
+  d.expected_time = (typeof d.expected_time === 'string' ? d.expected_time : '').slice(0, 50); // P3.1 期望开课时间，限长
   return d;
 }
 

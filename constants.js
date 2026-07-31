@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.4',
+  APP_VERSION: '0.19.5',
 
   // ============================================================
   // 业务数据
@@ -585,6 +585,8 @@ globalThis.APP_CONSTANTS = {
     LABEL_BUDGET: '预算区间（元/小时）',
     PLACEHOLDER_MIN: '最低',
     PLACEHOLDER_MAX: '最高',
+    LABEL_EXPECTED_TIME: '期望开课时间',   // 运营 P3.1：纯文本，撮合参考
+    EXPECTED_TIME_PLACEHOLDER: '如：工作日晚上 / 周末全天 / 周三下午',
     LABEL_SUBMITTER: '提交者身份',
     LABEL_PARENT_CONTACT: '家长联系方式',
     LABEL_STUDENT_CONTACT: '学生联系方式',
