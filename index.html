@@ -24,7 +24,7 @@
     <!-- Navbar -->
     <nav class="navbar">
       <div class="container">
-        <button type="button" class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="切换侧边栏"><span></span><span></span><span></span></button>
+        <button type="button" class="sidebar-toggle glass" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="切换侧边栏"><span></span><span></span><span></span></button>
         <div class="navbar-brand" onclick="goHome()" style="cursor:pointer;">
           <div class="navbar-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           <div>
@@ -33,8 +33,8 @@
           </div>
         </div>
         <div class="navbar-actions" id="navbar-actions">
-          <button class="btn btn-ghost" onclick="showView('login')">登录</button>
-          <button class="btn btn-primary btn-sm" onclick="showView('register')">注册</button>
+          <button class="btn btn-ghost glass glass--pressable" onclick="showView('login')">登录</button>
+          <button class="btn btn-primary btn-sm glass glass--pressable" onclick="showView('register')">注册</button>
         </div>
       </div>
     </nav>
@@ -63,7 +63,7 @@
           <div class="stage-right">
             <p class="stage-kicker">零佣金撮合 · 师生直接对接 · 信息透明</p>
             <div class="entry-list">
-              <button class="entry" onclick="handleFeatureClick('student')">
+              <button class="entry glass" onclick="handleFeatureClick('student')">
                 <span class="entry-index">01</span>
                 <span class="entry-body">
                   <span class="entry-title">我要找家教</span>
@@ -71,7 +71,7 @@
                 </span>
                 <span class="entry-arrow" aria-hidden="true">→</span>
               </button>
-              <button class="entry" onclick="handleFeatureClick('teacher')">
+              <button class="entry glass" onclick="handleFeatureClick('teacher')">
                 <span class="entry-index">02</span>
                 <span class="entry-body">
                   <span class="entry-title">我要做家教</span>
@@ -91,7 +91,7 @@
 
     <!-- Login -->
     <div class="auth-view hidden" id="view-login">
-      <div class="auth-card">
+      <div class="auth-card glass">
         <div class="auth-header">
           <h2 id="login-title">欢迎回来</h2>
           <p id="login-subtitle">登录你的账户以继续使用</p>
@@ -113,8 +113,8 @@
             <span>记住登录状态，下次自动登录</span>
           </label>
           <div class="form-actions">
-            <button type="button" class="btn btn-outline" onclick="authGoBack()">返回</button>
-            <button type="submit" class="btn btn-primary" id="login-submit">登录</button>
+            <button type="button" class="btn btn-outline glass glass--pressable" onclick="authGoBack()">返回</button>
+            <button type="submit" class="btn btn-primary glass glass--pressable" id="login-submit">登录</button>
           </div>
         </form>
         <div class="auth-footer">还没有账户？<a href="#" onclick="showView('register');return false;">立即注册</a></div>
@@ -123,13 +123,13 @@
 
     <!-- Register -->
     <div class="auth-view hidden" id="view-register">
-      <div class="auth-card">
+      <div class="auth-card glass">
         <div class="auth-header">
           <h2>创建账户</h2>
           <p>注册后即可使用平台全部功能</p>
         </div>
         <div id="register-alert"></div>
-        <div class="role-tabs" id="register-role-tabs">
+        <div class="role-tabs glass" id="register-role-tabs">
           <button class="role-tab active" data-role="student" onclick="switchRegisterRole('student')">我是学生</button>
           <button class="role-tab" data-role="teacher" onclick="switchRegisterRole('teacher')">我是教师</button>
         </div>
@@ -148,8 +148,8 @@
             <input type="password" class="form-input" id="register-password2" placeholder="再次输入密码" required>
           </div>
           <div class="form-actions">
-            <button type="button" class="btn btn-outline" onclick="showView('landing')">返回</button>
-            <button type="submit" class="btn btn-primary" id="register-submit">注册</button>
+            <button type="button" class="btn btn-outline glass glass--pressable" onclick="showView('landing')">返回</button>
+            <button type="submit" class="btn btn-primary glass glass--pressable" id="register-submit">注册</button>
           </div>
         </form>
         <div class="auth-footer">已有账户？<a href="#" onclick="showView('login');return false;">立即登录</a></div>
@@ -158,7 +158,7 @@
 
     <!-- Invite Gate -->
     <div class="auth-view hidden" id="view-invite-gate">
-      <div class="auth-card">
+      <div class="auth-card glass">
         <div style="text-align:center;">
           <h2>需要邀请码</h2>
           <p class="text-muted text-sm" style="margin-bottom:22px;">教师注册需要先验证邀请码。请输入管理员提供的邀请码，验证通过后再填写注册信息。邀请码有效期 5 分钟且仅限一人使用。</p>
@@ -169,8 +169,8 @@
           <input type="text" class="form-input" id="invite-code-input" placeholder="请输入 8 位邀请码" style="text-align:center;letter-spacing:0.15em;font-weight:600;">
         </div>
         <div class="form-actions">
-          <button type="button" class="btn btn-outline" onclick="showView('landing')">返回</button>
-          <button type="button" class="btn btn-primary" onclick="validateInviteAndRegister()">验证</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="showView('landing')">返回</button>
+          <button type="button" class="btn btn-primary glass glass--pressable" onclick="validateInviteAndRegister()">验证</button>
         </div>
       </div>
     </div>
@@ -179,7 +179,7 @@
     <div class="client-shell hidden" id="view-client">
       <aside class="client-sidebar" id="client-sidebar">
         <!-- 移动端窄栏顶部展开/收起箭头（桌面隐藏；位置固定不随展开移动，旋转指向右/左） -->
-        <button type="button" class="sidebar-expand-toggle" onclick="toggleSidebar()" aria-label="展开或收起侧边栏">
+        <button type="button" class="sidebar-expand-toggle glass" onclick="toggleSidebar()" aria-label="展开或收起侧边栏">
           <svg class="expand-caret" width="12" height="8" viewBox="0 0 12 8" fill="none" aria-hidden="true"><path d="M2 1l4 4 4-4" stroke="currentColor" stroke-width="1.8"/></svg>
         </button>
         <!-- 装饰网格：钉死在栏盒底的背景层，与任何内容流无关 -->
@@ -191,18 +191,18 @@
         </div>
         <!-- 管理员：邀请码（仅 admin 可见，由 renderSidebar 控制显隐）——固定栏底 -->
         <div class="sidebar-invite hidden" id="sidebar-invite">
-          <button type="button" class="btn btn-primary btn-sm sidebar-invite-btn" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
+          <button type="button" class="btn btn-primary btn-sm sidebar-invite-btn glass glass--pressable" onclick="generateInviteCode()" id="gen-invite-btn">生成邀请码</button>
           <!-- 邀请码(左 2/3)与复制按钮(右 1/3)左右并排，过期计时小字在下方左对齐，倒计时跳动不撑行 -->
           <div class="invite-display hidden" id="invite-code-display">
             <div class="invite-code-row">
-              <div class="invite-code-box"><span class="invite-code-text" id="invite-code-text"></span></div>
-              <button type="button" class="btn btn-outline btn-xs invite-copy-btn" onclick="copyInviteCode()">复制</button>
+              <div class="invite-code-box glass"><span class="invite-code-text" id="invite-code-text"></span></div>
+              <button type="button" class="btn btn-outline btn-xs invite-copy-btn glass glass--pressable" onclick="copyInviteCode()">复制</button>
             </div>
             <span class="invite-timer" id="invite-code-timer"></span>
           </div>
         </div>
         <!-- 用户信息：白色区块落地栏底（头像/id/属性 + 框内最下层运营脚注），内容由 renderSidebar 注入 -->
-        <div class="sidebar-user" id="sidebar-user"></div>
+        <div class="sidebar-user glass" id="sidebar-user"></div>
       </aside>
       <div class="sidebar-backdrop" id="sidebar-backdrop" onclick="closeSidebar()"></div>
 
@@ -212,7 +212,7 @@
         <section class="client-page hidden" data-page="my-demands">
           <div class="page-header">
             <h2>我的需求</h2>
-            <button class="btn btn-primary btn-sm" onclick="openDemandModal()">+ 新建需求</button>
+            <button class="btn btn-primary btn-sm glass glass--pressable" onclick="openDemandModal()">+ 新建需求</button>
           </div>
           <div class="browse-list" id="my-demands-list"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
@@ -221,11 +221,11 @@
         <section class="client-page hidden" data-page="browse-teachers">
           <div class="page-header">
             <h2>教师信息</h2>
-            <button type="button" class="drop-toggle" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
+            <button type="button" class="drop-toggle glass glass--solid" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
           </div>
           <div class="drop-wrap" id="teacher-filters">
           <div class="drop-clip">
-          <div class="filter-panel">
+          <div class="filter-panel glass glass--solid">
             <div class="filter-row">
               <div class="filter-group">
                 <label class="filter-label">性别</label>
@@ -339,7 +339,7 @@
               <input type="text" class="form-input" id="profile-intro" maxlength="50" placeholder="一句话介绍自己，让学生更快了解你（选填，50 字内）">
             </div>
             <div class="form-actions">
-              <button type="submit" class="btn btn-primary" id="profile-submit">保存</button>
+              <button type="submit" class="btn btn-primary glass glass--pressable" id="profile-submit">保存</button>
             </div>
           </form>
         </section>
@@ -429,7 +429,7 @@
           <div class="page-header">
             <h2>通知信息</h2>
             <!-- 管理员：全体系统通知广播（仅 admin 可见，enterNotifications 控制显隐） -->
-            <button type="button" class="btn btn-primary btn-sm hidden" id="btn-broadcast-notif" onclick="openBroadcastModal()">发通知</button>
+            <button type="button" class="btn btn-primary btn-sm hidden glass glass--pressable" id="btn-broadcast-notif" onclick="openBroadcastModal()">发通知</button>
           </div>
           <div id="notifications-content"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
@@ -450,10 +450,10 @@
 
   <!-- 个人信息右栏：桌面端右侧 25vw 滑入，移动端定宽浮层 + 背景变暗（app.js openProfilePanel 填充内容，标题按常量注入） -->
   <div class="profile-panel-backdrop" onclick="closeProfilePanel()" aria-hidden="true"></div>
-  <aside class="profile-panel" id="profile-panel" aria-label="个人信息">
-    <div class="profile-panel-head">
+  <aside class="profile-panel glass glass--float" id="profile-panel" aria-label="个人信息">
+    <div class="profile-panel-head glass">
       <span class="profile-panel-title" id="profile-panel-title">个人信息</span>
-      <button type="button" class="btn btn-ghost btn-icon" onclick="closeProfilePanel()" aria-label="关闭">✕</button>
+      <button type="button" class="btn btn-ghost btn-icon glass glass--pressable" onclick="closeProfilePanel()" aria-label="关闭">✕</button>
     </div>
     <div class="profile-panel-body" id="profile-panel-body"></div>
   </aside>

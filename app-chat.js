@@ -82,7 +82,7 @@ function renderConvList() {
     return;
   }
   // 选中滑块（米色大色块）始终是首个子元素，glidePill/syncPillOnce 以它为指示块
-  el.innerHTML = '<span class="conv-pill" id="conv-pill" aria-hidden="true"></span>' +
+  el.innerHTML = '<span class="conv-pill glass glass--solid" id="conv-pill" aria-hidden="true"></span>' +
     chatConvList.map(renderConvItem).join('');
   syncChatPill(); // 全量重渲染后条目刚布局完，pill 立即归位（无滑动）
 }
@@ -136,8 +136,8 @@ function renderConvItem(c) {
     ${renderAvatarHtml(peer.avatar, peer.name, 'conv-avatar', peer.id)}
     <span class="conv-item-top">
       <span class="conv-item-name">${renderUsername(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
-      <span class="conv-item-role">${peer.role}</span>
-      ${c.contracted ? `<span class="conv-signed-tag">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
+      <span class="conv-item-role glass glass--solid">${peer.role}</span>
+      ${c.contracted ? `<span class="conv-signed-tag glass glass--solid">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
       <span class="conv-item-time">${escHtml(time)}</span>
     </span>
     <span class="conv-item-preview">${escHtml(preview)}</span>
@@ -217,12 +217,12 @@ function renderChatFrame(conv) {
   const peer = conv ? chatPeerOf(conv) : { name: '', role: '' };
   const closed = conv && conv.status && conv.status !== 'active';
   return `
-    <div class="chat-head">
-      <button type="button" class="chat-back" onclick="backToConvList()">&larr; ${UI.CHAT_BACK_TO_LIST}</button>
+    <div class="chat-head glass">
+      <button type="button" class="chat-back glass" onclick="backToConvList()">&larr; ${UI.CHAT_BACK_TO_LIST}</button>
       <div class="chat-head-main">
         <span class="chat-peer-name">${peer.name ? renderUsername(peer.name) : escHtml(UI.CHAT_UNKNOWN_USER)}</span>
-        <span class="chat-peer-tag">${peer.role}</span>
-        ${conv && conv.contracted ? `<span class="chat-head-signed">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
+        <span class="chat-peer-tag glass glass--solid">${peer.role}</span>
+        ${conv && conv.contracted ? `<span class="chat-head-signed glass glass--solid">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
         ${conv && conv.demand_display_id ? `<span class="chat-head-demand">${UI.CHAT_DEMAND_PREFIX}${String(conv.demand_display_id).padStart(4, '0')}</span>` : ''}
       </div>
       ${peer.id ? `<button type="button" class="chat-peer-profile-btn" title="${UI.PROFILE_PANEL_TITLE}" onclick="openProfilePanel(${peer.id})">
@@ -233,8 +233,8 @@ function renderChatFrame(conv) {
     </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
     <div class="chat-drop-hint hidden" id="chat-drop-hint">${UI.CHAT_DROP_HINT}</div>
-    <div class="chat-stage hidden" id="chat-stage"></div>
-    <div class="chat-input-bar${closed ? ' chat-input-bar--closed' : ''}">
+    <div class="chat-stage hidden glass" id="chat-stage"></div>
+    <div class="chat-input-bar glass${closed ? ' chat-input-bar--closed' : ''}">
       ${closed
         ? `<p class="chat-closed-tip">${UI.CHAT_CLOSED_TIP}</p>`
         : `<textarea id="chat-input" class="form-input chat-textarea" rows="1"
@@ -242,18 +242,18 @@ function renderChatFrame(conv) {
              onkeydown="chatInputKeydown(event)" oninput="chatAutogrow(this)"></textarea>
            <div class="chat-actions">
              <div class="chat-plus-wrap" id="chat-plus-wrap">
-               <div class="chat-plus-pop">
+               <div class="chat-plus-pop glass glass--float">
                  <label class="chat-pop-item" for="chat-image-input" onclick="closeChatPlus()">${UI.CHAT_ATTACH_IMAGE}</label>
                  <label class="chat-pop-item" for="chat-file-input" onclick="closeChatPlus()">${UI.CHAT_ATTACH_FILE}</label>
                  <button type="button" class="chat-pop-item" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
                </div>
                <input type="file" id="chat-image-input" accept="image/*" class="sr-file-input" onchange="chatOnImagePicked(this)">
                <input type="file" id="chat-file-input" class="sr-file-input" onchange="chatOnFilePicked(this)">
-               <button type="button" class="chat-plus-btn" aria-label="${UI.CHAT_PLUS_ARIA}" onclick="toggleChatPlus()">
+               <button type="button" class="chat-plus-btn glass glass--pressable" aria-label="${UI.CHAT_PLUS_ARIA}" onclick="toggleChatPlus()">
                  <span class="plus-bar plus-h"></span><span class="plus-bar plus-v"></span>
                </button>
              </div>
-             <button type="button" class="btn btn-primary btn-sm chat-send" id="chat-send-btn" onclick="sendChatMessage()">${UI.CHAT_BTN_SEND}</button>
+             <button type="button" class="btn btn-primary btn-sm chat-send glass glass--pressable" id="chat-send-btn" onclick="sendChatMessage()">${UI.CHAT_BTN_SEND}</button>
            </div>`}
     </div>`;
 }
@@ -278,21 +278,21 @@ function renderChatBubble(m, i) {
   if (m.kind === 'contract') {
     const text = mine ? UI.CHAT_CONTRACT_BUBBLE_MINE : UI.CHAT_CONTRACT_BUBBLE_OTHER;
     return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble chat-bubble--system">${escHtml(text)}</div>${time}</div>`;
+      <div class="chat-bubble chat-bubble--system glass">${escHtml(text)}</div>${time}</div>`;
   }
   // 图片 / 文件消息：列表接口不下发 dataURL 本体（性能），先渲染骨架占位，
   // 页面可操作后由 chatLazyLoadAttachments 逐条补载真实内容
   if (m.kind === 'image' || m.kind === 'file') {
     const inner = m.body
       ? renderChatMediaInner(m.kind, m.body, m.name)
-      : `<div class="chat-bubble ${skin} chat-bubble--media chat-bubble--loading" data-attach="${m.id}" data-attach-kind="${m.kind}">${chatStageRing(30)}</div>`;
+      : `<div class="chat-bubble glass ${skin} chat-bubble--media chat-bubble--loading" data-attach="${m.id}" data-attach-kind="${m.kind}">${chatStageRing(30)}</div>`;
     const bubble = m.body
-      ? `<div class="chat-bubble ${skin} chat-bubble--media">${inner}</div>`
+      ? `<div class="chat-bubble glass ${skin} chat-bubble--media">${inner}</div>`
       : inner;
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">${bubble}${time}</div>`;
   }
   return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
-    <div class="chat-bubble ${skin}">${escHtml(m.body)}</div>${time}</div>`;
+    <div class="chat-bubble glass ${skin}">${escHtml(m.body)}</div>${time}</div>`;
 }
 
 // 图片缩略（点开放大）/ 文件 chip（dataURL 直接 download）
@@ -302,7 +302,7 @@ function renderChatMediaInner(kind, body, name) {
   }
   // 客户端 scheme 自守：仅 data: 才作可下载 href（服务端已强制 data: 前缀，此为纵深防御，杜绝 javascript: 等）
   const href = String(body || '').startsWith('data:') ? body : '#';
-  return `<a class="chat-file-chip" href="${escHtml(href)}" download="${escHtml(name || '')}">
+  return `<a class="chat-file-chip glass glass--solid" href="${escHtml(href)}" download="${escHtml(name || '')}">
     <span class="chat-file-name">${escHtml(name || UI.CHAT_FILE_FALLBACK)}</span>
     <span class="chat-file-dl">${UI.CHAT_DOWNLOAD}</span></a>`;
 }
@@ -567,10 +567,10 @@ function renderChatStage() {
       ? `<img src="${escHtml(it.dataUrl)}" alt="${UI.CHAT_ATTACH_IMAGE}">`
       : `<span class="chat-stage-file"><span class="chat-stage-ext">${escHtml(chatFileExt(it.name))}</span></span>`;
     const nameRow = it.kind === 'file' ? `<span class="chat-stage-name">${escHtml(it.name)}</span>` : '';
-    return `<div class="chat-stage-item${it.kind === 'file' ? ' chat-stage-item--file' : ''}">
-      <div class="chat-stage-thumb">${media}${it.ready ? '' : chatStageRing(it.progress)}</div>
+    return `<div class="chat-stage-item glass glass--solid${it.kind === 'file' ? ' chat-stage-item--file' : ''}">
+      <div class="chat-stage-thumb glass glass--solid">${media}${it.ready ? '' : chatStageRing(it.progress)}</div>
       ${nameRow}
-      <button type="button" class="chat-stage-del" onclick="chatUnstage(${it.id})" aria-label="${UI.BTN_CANCEL}">✕</button>
+      <button type="button" class="chat-stage-del glass glass--float" onclick="chatUnstage(${it.id})" aria-label="${UI.BTN_CANCEL}">✕</button>
     </div>`;
   }).join('');
 }

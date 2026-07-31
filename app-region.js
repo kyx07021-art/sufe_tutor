@@ -332,7 +332,7 @@ function buildStudentSubjectsHtml(provinceId, gradeId) {
   const ids = R.subjectsFor(provinceId, gradeId);
   if (!ids || !ids.length) return `<p class="text-sm text-muted">${UI.REGION_HINT_NO_SUBJECTS}</p>`;
   return ids.map(sid =>
-    `<label class="checkbox-item"><input type="checkbox" value="${escHtml(sid)}">${escHtml(R.subjectNames[sid] || sid)}</label>`
+    `<label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(sid)}">${escHtml(R.subjectNames[sid] || sid)}</label>`
   ).join('');
 }
 
@@ -377,9 +377,9 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
     // 有等第制 → 左右页签 + 两面板（默认激活等第制）
     return `<div class="score-row region-score-row" data-score-subject="${sidE}">
       <span class="score-subject">${escHtml(name)}</span>
-      <div class="score-mode-tabs">
-        <button type="button" class="score-mode-tab active" data-mode="grade" onclick="switchScoreMode(this)">${UI.REGION_TAB_GRADE}</button>
-        <button type="button" class="score-mode-tab" data-mode="score" onclick="switchScoreMode(this)">${UI.REGION_TAB_SCORE}</button>
+      <div class="score-mode-tabs glass glass--solid">
+        <button type="button" class="score-mode-tab active glass glass--solid" data-mode="grade" onclick="switchScoreMode(this)">${UI.REGION_TAB_GRADE}</button>
+        <button type="button" class="score-mode-tab glass glass--solid" data-mode="score" onclick="switchScoreMode(this)">${UI.REGION_TAB_SCORE}</button>
       </div>
       <div class="score-mode-pane" data-mode="grade">
         <div class="grade-selector" data-sg-subject="${sidE}">

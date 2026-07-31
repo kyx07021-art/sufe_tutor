@@ -24,14 +24,14 @@ function enterResourceShare() {
   clearTimeout(postsSearchTimer); // 清掉上一次停留时挂起的防抖回调，防切回瞬间打到隐藏页
   const isTeacher = state.user && state.user.role === 'teacher';
   document.getElementById('posts-content').innerHTML = `
-    <div class="posts-toolbar">
+    <div class="posts-toolbar glass">
       <input type="search" id="posts-search" class="form-input posts-search"
         placeholder="${UI.POSTS_SEARCH_PLACEHOLDER}" oninput="postsSearchDebounced()">
       <select id="posts-sort" class="form-select posts-sort" onchange="loadPosts()">
         <option value="new">${UI.POSTS_SORT_NEW}</option>
         <option value="hot">${UI.POSTS_SORT_HOT}</option>
       </select>
-      ${isTeacher ? `<button type="button" class="btn btn-primary btn-sm" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
+      ${isTeacher ? `<button type="button" class="btn btn-primary btn-sm glass glass--pressable" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
     </div>
     <div id="posts-list"><div class="empty-state">${loaderHtml()}</div></div>`;
   initCustomSelects(document.getElementById('posts-content')); // 工具条是动态渲染，须显式接线自定义下拉
@@ -64,7 +64,7 @@ function renderPostCard(p, i) {
   const raw = String(p.body_md || '');
   const snippet = raw.slice(0, 80);
   const time = p.created_at ? fmtDateTime(p.created_at) : '';
-  return `<div class="post-card" style="--i:${Math.min(i, 8)}">
+  return `<div class="post-card glass" style="--i:${Math.min(i, 8)}">
     <div class="post-card-head">
       <h3 class="post-title">${escHtml(p.title)}</h3>
       ${mine ? `<button type="button" class="post-del" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}
@@ -75,7 +75,7 @@ function renderPostCard(p, i) {
     </div>
     ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > 80 ? '…' : ''}</p>` : ''}
     <div class="post-actions">
-      <button type="button" class="post-like${p.liked ? ' liked' : ''}" data-id="${p.id}"
+      <button type="button" class="post-like glass${p.liked ? ' liked' : ''}" data-id="${p.id}"
         aria-pressed="${p.liked ? 'true' : 'false'}" aria-label="${UI.POST_LIKE_ARIA}" onclick="togglePostLike(${p.id})">
         <svg class="like-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"
           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -119,8 +119,8 @@ function openPostEditor() {
   if (!ensureAuth()) return;
   // 防误触：点遮罩不关（编辑成本高，只能 ✕ / 取消关闭）
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header"><h2>${UI.POST_MODAL_TITLE_CREATE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${UI.POST_MODAL_TITLE_CREATE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
@@ -131,10 +131,10 @@ function openPostEditor() {
         <div class="form-group">
           <label class="form-label" for="post-body">${UI.POST_LABEL_BODY}</label>
           <div class="md-toolbar">
-            <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
-            <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
             <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="9"
@@ -143,11 +143,11 @@ function openPostEditor() {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview"></div>
+          <div id="post-preview" class="md-preview glass glass--solid"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary glass glass--pressable" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>
         </div>
       </div>
     </div>
@@ -270,7 +270,7 @@ async function submitPost() {
   const title = (titleEl.value || '').trim();
 
   if (!title) {
-    alertEl.innerHTML = `<div class="alert alert-error">${UI.POST_TITLE_REQUIRED}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${UI.POST_TITLE_REQUIRED}</div>`;
     titleEl.focus();
     return;
   }
@@ -285,7 +285,7 @@ async function submitPost() {
     showToast(UI.POST_PUBLISHED);
     loadPosts();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
     btn.disabled = false;
     btn.textContent = UI.BTN_PUBLISH;
   }
@@ -294,13 +294,13 @@ async function submitPost() {
 // 删除二次确认（自写小弹窗，模式同 app.js 的 confirmDanger，但不调用它以免耦合）
 function postConfirmDelete(id) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal post-confirm-modal">
-      <div class="modal-header"><h2>${UI.POST_DELETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal post-confirm-modal glass glass--float">
+      <div class="modal-header glass"><h2>${UI.POST_DELETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm post-confirm-text">${UI.POST_DELETE_CONFIRM}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger" onclick="deletePost(${id})">${UI.BTN_CONFIRM_DELETE}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-danger glass glass--pressable" onclick="deletePost(${id})">${UI.BTN_CONFIRM_DELETE}</button>
         </div>
       </div>
     </div>
@@ -334,8 +334,8 @@ function updateTitleCount() {
 // ============================================================
 function openBroadcastModal() {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header"><h2>${UI.BROADCAST_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${UI.BROADCAST_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
@@ -346,10 +346,10 @@ function openBroadcastModal() {
         <div class="form-group">
           <label class="form-label">${UI.POST_LABEL_BODY}</label>
           <div class="md-toolbar">
-            <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
-            <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
             <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="7"
@@ -358,11 +358,11 @@ function openBroadcastModal() {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview"></div>
+          <div id="post-preview" class="md-preview glass glass--solid"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary glass glass--pressable" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>
         </div>
       </div>
     </div>
@@ -375,8 +375,8 @@ async function submitBroadcast() {
   const title = (document.getElementById('post-title').value || '').trim();
   const text = (document.getElementById('post-body').value || '').trim();
   const alertEl = document.getElementById('post-alert');
-  if (!title) { alertEl.innerHTML = `<div class="alert alert-error">${UI.POST_TITLE_REQUIRED}</div>`; return; }
-  if (!text) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_BROADCAST_EMPTY}</div>`; return; }
+  if (!title) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.POST_TITLE_REQUIRED}</div>`; return; }
+  if (!text) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_BROADCAST_EMPTY}</div>`; return; }
   const btn = document.getElementById('broadcast-submit');
   btn.disabled = true;
   try {
@@ -386,7 +386,7 @@ async function submitBroadcast() {
     showToast(UI.BROADCAST_SENT_TOAST);
     if (state.page === 'notifications') enterNotifications(); // 自己也收一条，列表即时刷新
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
     btn.disabled = false;
   }
 }

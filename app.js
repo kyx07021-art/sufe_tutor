@@ -35,7 +35,7 @@ function renderAvatarHtml(avatar, name, cls, profileUserId) {
   const inner = avatar
     ? `<img src="${escHtml(avatar)}" alt="" loading="lazy">`
     : escHtml((name || '?').charAt(0).toUpperCase());
-  const span = `<span class="avatar ${cls}${profileUserId ? ' avatar--link' : ''}"${avatar ? '' : ' aria-hidden="true"'}>${inner}</span>`;
+  const span = `<span class="avatar glass ${cls}${profileUserId ? ' avatar--link' : ''}"${avatar ? '' : ' aria-hidden="true"'}>${inner}</span>`;
   if (!profileUserId) return span;
   return `<span class="avatar-btn" role="button" tabindex="0" title="${UI.PROFILE_PANEL_TITLE}" onclick="event.stopPropagation();openProfilePanel(${profileUserId})">${span}</span>`;
 }
@@ -116,7 +116,7 @@ function buildCustomSelectPanel(sel) {
   const wrap = sel.closest('.custom-select');
   if (!wrap) return;
   wrap.querySelector('.custom-select-panel').innerHTML = [...sel.options].map(o =>
-    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
+    `<button type="button" class="custom-option glass glass--solid${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
   syncCustomSelectText(sel);
 }
 
@@ -312,10 +312,10 @@ function updateNavbar() {
     const roleLabel = DISP.roleLabel(u.role);
     // 退出登录已迁至「账户设置」页底（含二次确认），导航栏只留身份标识
     el.innerHTML = `<div class="navbar-user">
-      <span>${escHtml(u.username)}</span><span class="user-badge${u.role === 'admin' ? ' admin-badge' : ''}">${roleLabel}</span></div>`;
+      <span>${escHtml(u.username)}</span><span class="user-badge glass${u.role === 'admin' ? ' admin-badge glass' : ''}">${roleLabel}</span></div>`;
   } else {
-    el.innerHTML = `<button class="btn btn-ghost" onclick="showView('login')">${UI.NAV_LOGIN}</button>
-      <button class="btn btn-primary btn-sm" onclick="showView('register')">${UI.NAV_REGISTER}</button>`;
+    el.innerHTML = `<button class="btn btn-ghost glass glass--pressable" onclick="showView('login')">${UI.NAV_LOGIN}</button>
+      <button class="btn btn-primary btn-sm glass glass--pressable" onclick="showView('register')">${UI.NAV_REGISTER}</button>`;
   }
 }
 
@@ -360,7 +360,7 @@ function renderSidebar() {
       </div>
     </button>` : `
     <button type="button" class="sidebar-user-top sidebar-user-btn" onclick="ensureAuth()">
-      <span class="avatar sidebar-user-avatar avatar--guest" aria-hidden="true">?</span>
+      <span class="avatar sidebar-user-avatar avatar--guest glass" aria-hidden="true">?</span>
       <div class="sidebar-user-text">
         <div class="sidebar-user-name sidebar-user-name--guest">${UI.GUEST_NOT_LOGGED_IN}</div>
         <div class="sidebar-user-role">${UI.GUEST_TAP_TO_LOGIN}</div>
@@ -372,7 +372,7 @@ function renderSidebar() {
     <div class="sidebar-version">v${APP_CONSTANTS.APP_VERSION}</div>`;
   // 栏目 = 主页 entry 同款排布：亮紫序号 + 大字标题 + 选中展开简介；黑色选中块由 .sidebar-pill 滑动承担
   document.getElementById('sidebar-nav').innerHTML =
-    `<span class="sidebar-pill" id="sidebar-pill" aria-hidden="true"></span>` +
+    `<span class="sidebar-pill glass glass--float" id="sidebar-pill" aria-hidden="true"></span>` +
     pagesForRole().map((p, i) => `
     <button type="button" class="sidebar-item${p.id === state.page ? ' active' : ''}" data-page="${p.id}" onclick="selectPage('${p.id}')">
       <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(2, '0')}</span>
@@ -610,7 +610,7 @@ async function handleLogin(e) {
 
     afterAuthSuccess();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   } finally {
     btn.disabled = false; btn.textContent = UI.BTN_LOGIN;
   }
@@ -625,12 +625,12 @@ async function handleRegister(e) {
   const alertEl = document.getElementById('register-alert');
 
   if (password !== password2) {
-    alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_PASSWORD_MISMATCH}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_PASSWORD_MISMATCH}</div>`;
     return;
   }
   if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
     if (!state.validatedInviteCode) {
-      alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_INVITE_FIRST}</div>`;
+      alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_INVITE_FIRST}</div>`;
       showView('invite-gate');
       return;
     }
@@ -651,7 +651,7 @@ async function handleRegister(e) {
     try { sessionStorage.setItem('sufe_session', JSON.stringify({ user: state.user, authToken: state.authToken })); } catch { /* ignore */ }
     afterAuthSuccess();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   } finally {
     const btn = document.getElementById('register-submit');
     btn.disabled = false; btn.textContent = UI.BTN_REGISTER;
@@ -662,18 +662,18 @@ async function validateInviteAndRegister() {
   const code = document.getElementById('invite-code-input').value.trim();
   const alertEl = document.getElementById('invite-gate-alert');
 
-  if (!code) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_INVITE_REQUIRED}</div>`; return; }
+  if (!code) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_INVITE_REQUIRED}</div>`; return; }
 
   // 先验证邀请码有效性（发一个假注册请求不如直接存下来，在真正注册时一起验证）
   // 这里只做格式校验，真正的验证在注册时进行
   if (code.length !== 8) {
-    alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_INVITE_LENGTH}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_INVITE_LENGTH}</div>`;
     return;
   }
 
   // 保存验证过的邀请码，跳转到注册表单
   state.validatedInviteCode = code;
-  alertEl.innerHTML = `<div class="alert alert-success">${UI.SUCCESS_INVITE_CONFIRMED}</div>`;
+  alertEl.innerHTML = `<div class="alert alert-success glass">${UI.SUCCESS_INVITE_CONFIRMED}</div>`;
 
   // 等一秒让用户看到成功提示，然后跳转到注册页
   setTimeout(() => {
@@ -718,8 +718,8 @@ function closeModal() { document.getElementById('modal-container').innerHTML = '
 
 function renderDemandModal(demand) {
   return `<div class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header"><h2>${demand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE}</h2><button class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${demand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE}</h2><button class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
@@ -743,7 +743,7 @@ function renderDemandModal(demand) {
           <div class="form-group">
             <label class="form-label">${UI.LABEL_TARGET_SUBJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
             <div class="checkbox-grid" id="d-subjects">${SUBJECTS.map(s=>`
-              <label class="checkbox-item"><input type="checkbox" value="${s.id}">${s.name}</label>
+              <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${s.id}">${s.name}</label>
             `).join('')}</div>
           </div>
           <div class="form-group" id="d-scores-wrap">
@@ -790,9 +790,9 @@ function renderDemandModal(demand) {
             <textarea class="form-input" id="d-info" rows="3" placeholder="${UI.DEMAND_INFO_PLACEHOLDER}"></textarea>
           </div>
           <div class="modal-footer">
-            ${demand ? `<button type="button" class="btn btn-danger btn-sm modal-footer-start" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
-            <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-            <button type="submit" class="btn btn-primary" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
+            ${demand ? `<button type="button" class="btn btn-danger btn-sm modal-footer-start glass glass--pressable" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
+            <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+            <button type="submit" class="btn btn-primary glass glass--pressable" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
           </div>
         </form>
       </div>
@@ -929,9 +929,9 @@ async function handleSubmitDemand(e) {
   e.preventDefault();
   const alertEl = document.getElementById('demand-alert');
   const province = document.getElementById('d-province').value;
-  if (!province) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
+  if (!province) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
   const subjects = [...document.querySelectorAll('#d-subjects input:checked')].map(cb => cb.value);
-  if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
+  if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
 
   const scores = collectStudentScores();
 
@@ -965,7 +965,7 @@ async function handleSubmitDemand(e) {
     invalidate('demands'); // 提交/编辑后清需求缓存，防非本页提交致 state.myDemands 陈旧（编辑回填读它）
     if (state.page === 'my-demands') loadMyDemands();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   } finally {
     const btn = document.getElementById('d-submit');
     if (btn) { btn.disabled = false; btn.textContent = isEdit ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND; }
@@ -1004,7 +1004,7 @@ function renderTeacherCard(t) {
   const provName = DISP.provinceName(t.province);
   const info1 = [provName, t.school, grade].filter(Boolean).join(' · '); // 粗体行：地区·学校·年级
   const scoreLine = (t.gaokao_scores || []).map(gs => `${DISP.subjectName(gs.subject)}${DISP.gaokaoCell(gs)}`).filter(Boolean).join(' · ');
-  return `<div class="list-card list-card--teacher">
+  return `<div class="list-card list-card--teacher glass">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
         <span class="tc-username" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openProfilePanel(${t.user_id})">${renderUsername(t.username)}</span>
@@ -1136,10 +1136,10 @@ function profilePanelShowing(userId) {
 
 function renderProfilePanel(base, t, signed, reviewsData) {
   const roleLabel = DISP.roleLabel(base.role);
-  const cardId = `<div class="profile-card profile-card--id">
+  const cardId = `<div class="profile-card profile-card--id glass">
       <div class="profile-id-top">
         ${renderAvatarHtml(base.avatar, base.username, 'profile-avatar')}
-        ${signed ? `<span class="profile-signed-tag">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
+        ${signed ? `<span class="profile-signed-tag glass glass--solid">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
       </div>
       <div class="profile-id-name">${renderUsername(base.username)}</div>
       <div class="profile-id-role">${roleLabel}</div>
@@ -1153,7 +1153,7 @@ function renderProfilePanel(base, t, signed, reviewsData) {
 // 信息卡「硬展示」：所有字段行常驻——有值显值，无值显占位（未填写 / 建立会话后展示 / 签约后展示），
 // 学生据此一眼判断教师资料完善度与信息的可见门槛（占位文案统一灰显）
 function renderProfileInfoCard(t, signed) {
-  if (!t) return `<div class="profile-card"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
+  if (!t) return `<div class="profile-card glass"><p class="profile-empty">${UI.PROFILE_EMPTY_TEACHER}</p></div>`;
   const isSelf = state.user && state.user.id === t.user_id;
   const row = (k, cell) => `<div class="profile-row"><span class="profile-row-k">${k}</span><span class="profile-row-v${cell.muted ? ' profile-row-v--muted' : ''}">${cell.v}</span></div>`;
   const cell = v => ({ v: escHtml(v) });
@@ -1163,7 +1163,7 @@ function renderProfileInfoCard(t, signed) {
 
   const subjTags = (t.subjects || []).map(sid => {
     const name = DISP.subjectName(sid);
-    return name ? `<span class="profile-tag">${escHtml(name)}</span>` : '';
+    return name ? `<span class="profile-tag glass glass--solid">${escHtml(name)}</span>` : '';
   }).join('');
   const gkRows = (t.gaokao_scores || []).map(gs => {
     // 分数不带 scale：满分由省份赋分组件决定、行数据里本就不存（与教师卡 scoreLine 同口径）
@@ -1179,10 +1179,10 @@ function renderProfileInfoCard(t, signed) {
     : empty(UI.PROFILE_FIELD_AFTER_SIGN);
   const credential = !t.matched ? empty(UI.PROFILE_FIELD_AFTER_MATCH)
     : t.credential_image
-      ? { v: `<button type="button" class="btn btn-outline btn-xs" onclick="viewTeacherCredential(${t.user_id})">${UI.CREDENTIAL_VIEW}</button>` }
+      ? { v: `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="viewTeacherCredential(${t.user_id})">${UI.CREDENTIAL_VIEW}</button>` }
       : empty(UI.PROFILE_FIELD_EMPTY);
 
-  return `<div class="profile-card">
+  return `<div class="profile-card glass">
     ${row(UI.LABEL_RATING, { v: `<span class="profile-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>` })}
     ${row(UI.SECTION_REGION, plain(DISP.provinceName(t.province)))}
     ${row(UI.LABEL_SCHOOL, plain(t.school))}
@@ -1212,23 +1212,23 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
       ${reviewsData.admin ? `<div class="review-admin-actions">
-        ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
-        <button type="button" class="btn btn-outline btn-xs" onclick="adminReviewAction(${r.id},'reject',1)">${UI.BTN_REJECT}</button>` : ''}
-        <button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
+        ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
+        <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',1)">${UI.BTN_REJECT}</button>` : ''}
+        <button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
       </div>` : ''}
     </div>`).join('') : `<p class="profile-empty">${UI.EMPTY_NO_REVIEWS}</p>`;
   let action = '';
   if (!reviewsData.admin && isStudentViewer) {
     action = mine ? `
       <div class="review-mine-note">${UI.MY_REVIEW_PREFIX}${mine.status === 'approved' ? UI.STATUS_APPROVED : mine.status === 'rejected' ? UI.REVIEW_REJECTED_HINT : UI.REVIEW_STATUS_AUDITING}</div>
-      <button type="button" class="btn btn-outline btn-sm profile-review-btn" onclick="openReviewModal(${t.user_id}, null, ${mine.id})">${UI.BTN_EDIT_REVIEW}</button>`
+      <button type="button" class="btn btn-outline btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id}, null, ${mine.id})">${UI.BTN_EDIT_REVIEW}</button>`
       : signed ? `
-      <button type="button" class="btn btn-primary btn-sm profile-review-btn" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>`
+      <button type="button" class="btn btn-primary btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>`
       : `
-      <button type="button" class="btn btn-outline btn-sm profile-review-btn" disabled>${UI.BTN_WRITE_REVIEW}</button>
+      <button type="button" class="btn btn-outline btn-sm profile-review-btn glass glass--pressable" disabled>${UI.BTN_WRITE_REVIEW}</button>
       <p class="profile-review-hint">${UI.REVIEW_LOCKED_HINT}</p>`;
   }
-  return `<div class="profile-card">
+  return `<div class="profile-card glass">
     <div class="profile-card-title">${UI.SECTION_REVIEWS} (${reviews.length})</div>
     ${list}${action}
   </div>`;
@@ -1242,8 +1242,8 @@ function openReviewModal(teacherUserId, teacherName, editId) {
   teacherName = teacherName ?? (state.allTeachers.find(x => x.user_id === teacherUserId)?.username || '');
   const existing = editId ? state.myReviewOnModal : null;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header"><h2>${existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName)}</h2><button class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName)}</h2><button class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="review-alert"></div>
         <div class="form-group">
@@ -1258,8 +1258,8 @@ function openReviewModal(teacherUserId, teacherName, editId) {
           <textarea class="form-input" id="review-comment" rows="4" placeholder="${UI.REVIEW_COMMENT_PLACEHOLDER}">${existing ? escHtml(existing.comment) : ''}</textarea>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button class="btn btn-primary" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_REVIEW}</button>
+          <button class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button class="btn btn-primary glass glass--pressable" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_REVIEW}</button>
         </div>
       </div>
     </div>
@@ -1282,8 +1282,8 @@ async function submitReview(teacherUserId, reviewId) {
   const comment = document.getElementById('review-comment').value.trim();
   const alertEl = document.getElementById('review-alert');
 
-  if (!rating) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_RATING}</div>`; return; }
-  if (comment.length < 2) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_COMMENT_TOO_SHORT}</div>`; return; }
+  if (!rating) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_RATING}</div>`; return; }
+  if (comment.length < 2) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_COMMENT_TOO_SHORT}</div>`; return; }
   if (reviewSubmitBusy) return;
   reviewSubmitBusy = true;
 
@@ -1295,7 +1295,7 @@ async function submitReview(teacherUserId, reviewId) {
     showToast(data.message || UI.SUCCESS_REVIEW_SUBMITTED);
     if (profilePanelShowing(teacherUserId)) openProfilePanel(teacherUserId); // 面板正展示该教师 → 评价卡片就地刷新（写/改后状态同步）
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   } finally {
     reviewSubmitBusy = false;
   }
@@ -1304,13 +1304,13 @@ async function submitReview(teacherUserId, reviewId) {
 // 通用危险操作二次确认（onConfirm 仅由内部以数字 id 拼装全局函数调用串）
 function confirmDanger(title, text, onConfirm) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal" style="max-width:400px;">
-      <div class="modal-header"><h2>${title}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float" style="max-width:400px;">
+      <div class="modal-header glass"><h2>${title}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm" style="color:var(--ink-3);">${text}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger" onclick="${onConfirm}">${UI.BTN_CONFIRM}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-danger glass glass--pressable" onclick="${onConfirm}">${UI.BTN_CONFIRM}</button>
         </div>
       </div>
     </div>
@@ -1382,10 +1382,10 @@ function renderDemandCard(d, opts = {}) {
   const method = DISP.methodName(d.teaching_method) || DISP.methodName('offline');
   // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
   const teacherIntentBtn = !teacher ? ''
-    : d.my_intent_status === 'accepted' ? `<button type="button" class="btn btn-sm btn-intent-ok" disabled>${UI.INTENT_ACCEPTED}</button>`
-    : d.my_intent_status === 'pending'  ? `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.INTENT_PENDING}</button>`
-    : d.my_intent_status === 'rejected' ? `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.INTENT_REJECTED}</button>`
-    : `<button type="button" class="btn btn-outline btn-sm" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
+    : d.my_intent_status === 'accepted' ? `<button type="button" class="btn btn-sm btn-intent-ok glass glass--pressable" disabled>${UI.INTENT_ACCEPTED}</button>`
+    : d.my_intent_status === 'pending'  ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
+    : d.my_intent_status === 'rejected' ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
+    : `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
   const budget = (d.budget_min || d.budget_max)
     ? `${d.budget_min||UI.BUDGET_NO_LIMIT}~${d.budget_max||UI.BUDGET_NO_LIMIT}${UI.BUDGET_UNIT_SUFFIX}` : UI.BUDGET_NEGOTIABLE;
 
@@ -1396,23 +1396,23 @@ function renderDemandCard(d, opts = {}) {
   const scoreItems = (d.current_scores||[]).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
   const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
 
-  return `<div class="list-card list-card--demand">
+  return `<div class="list-card list-card--demand glass">
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
     <div class="list-card-header">
-      <span class="list-card-title">${renderUsername(d.username || '')}${d.status === 'contracted' ? ` <span class="tag tag-ok">${UI.DEMAND_TAG_CONTRACTED}</span>` : d.status === 'revoked' ? ` <span class="tag tag-warn">${UI.DEMAND_TAG_REVOKED}</span>` : ''}</span>
+      <span class="list-card-title">${renderUsername(d.username || '')}${d.status === 'contracted' ? ` <span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>` : d.status === 'revoked' ? ` <span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : ''}</span>
       <span class="demand-card-tools">
         ${push ? `<span class="push-note-row">
           <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
           <span class="list-card-meta">${fmtDateTime(push.push_created_at)}</span>
           <span class="push-note-text">${UI.PUSH_NOTE_TEXT}</span>
-          <button type="button" class="btn btn-outline btn-xs" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
-          <button type="button" class="btn btn-accent btn-xs" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
+          <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
+          <button type="button" class="btn btn-accent btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
         </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${teacherIntentBtn}`}
-        ${d.display_id ? `<span class="demand-id-tag">#${String(d.display_id).padStart(4, '0')}</span>` : ''}
-        ${editable && d.status === 'revoked' ? `<button type="button" class="btn btn-accent btn-sm" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
-          : editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
-        ${admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
+        ${d.display_id ? `<span class="demand-id-tag glass glass--solid">#${String(d.display_id).padStart(4, '0')}</span>` : ''}
+        ${editable && d.status === 'revoked' ? `<button type="button" class="btn btn-accent btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
+          : editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
+        ${admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
     </div>
     <div class="demand-info">
@@ -1426,7 +1426,7 @@ function renderDemandCard(d, opts = {}) {
       <div class="list-card-contact">
         <span class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>
       </div>
-      ${editable && d.status !== 'revoked' ? `<button type="button" class="drop-toggle" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
+      ${editable && d.status !== 'revoked' ? `<button type="button" class="drop-toggle glass glass--solid" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
     </div>
     ${editable && d.status !== 'revoked' ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
     </div>
@@ -1502,19 +1502,19 @@ async function openSendDemandModal(teacherUserId) {
     const subs = DISP.subjectNames(d.target_subjects);
     const prov = DISP.provinceName(d.province);
     const method = DISP.methodName(d.teaching_method);
-    return `<label class="push-pick-item"><input type="radio" name="push-demand" value="${d.id}">
+    return `<label class="push-pick-item glass"><input type="radio" name="push-demand" value="${d.id}">
       <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
       <span class="push-pick-sub">${[prov, method].filter(Boolean).map(escHtml).join(' · ')}</span></span></label>`;
   }).join('')}</div>` : `<p class="text-sm text-muted">${state.myDemands.length ? UI.PUSH_NO_AVAILABLE_DEMANDS : UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal" style="max-width:480px;">
-      <div class="modal-header"><h2>${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float" style="max-width:480px;">
+      <div class="modal-header glass"><h2>${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm text-muted" style="margin-bottom:12px;">${UI.PUSH_MODAL_HINT}</p>
         ${pickHtml}
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary glass glass--pressable" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>
         </div>
       </div>
     </div>
@@ -1527,8 +1527,8 @@ function pushCooldownLeft() { return Math.max(0, Math.ceil((pushCooldownUntil - 
 function renderPushBtn(t) {
   const left = pushCooldownLeft();
   return left > 0
-    ? `<button type="button" class="tc-push-btn" disabled>${UI.PUSH_BTN_COOLDOWN} ${left}s</button>`
-    : `<button type="button" class="tc-push-btn" onclick="openSendDemandModal(${t.user_id})">${UI.BTN_PUSH_DEMAND} <span class="arrow">→</span></button>`;
+    ? `<button type="button" class="tc-push-btn glass glass--pressable" disabled>${UI.PUSH_BTN_COOLDOWN} ${left}s</button>`
+    : `<button type="button" class="tc-push-btn glass glass--pressable" onclick="openSendDemandModal(${t.user_id})">${UI.BTN_PUSH_DEMAND} <span class="arrow">→</span></button>`;
 }
 function startPushCooldown(seconds) {
   pushCooldownUntil = Date.now() + seconds * 1000;
@@ -1585,7 +1585,7 @@ async function enterNotifications() {
 }
 
 function renderNotifItem(n) {
-  return `<div class="notif-item${n.is_read ? '' : ' unread'}">
+  return `<div class="notif-item glass${n.is_read ? '' : ' unread'}">
       <span class="notif-dot${n.is_read ? ' read' : ''}"></span>
       <div class="notif-body">
         <div class="notif-text">${renderNotifContent(n.text)}</div>
@@ -1604,13 +1604,13 @@ function enterAccountSettings() {
   const row = (label, value, modifiable) => `
     <div class="settings-row">
       <div><div class="settings-label">${label}</div><div class="settings-value">${value}</div></div>
-      ${modifiable ? `<button type="button" class="btn btn-outline btn-sm" onclick="showToast('${UI.TOAST_COMING_SOON}')">${UI.BTN_MODIFY}</button>` : ''}
+      ${modifiable ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="showToast('${UI.TOAST_COMING_SOON}')">${UI.BTN_MODIFY}</button>` : ''}
     </div>`;
   document.getElementById('account-settings-content').innerHTML = `
     <div class="settings-row settings-row--avatar">
       <div>
         <div class="settings-label">${UI.SETTINGS_AVATAR}</div>
-        <label class="btn btn-outline btn-sm" for="avatar-file">${UI.BTN_UPLOAD_AVATAR}</label>
+        <label class="btn btn-outline btn-sm glass glass--pressable" for="avatar-file">${UI.BTN_UPLOAD_AVATAR}</label>
         <input type="file" id="avatar-file" accept="image/*" class="sr-file-input" onchange="handleAvatarUpload(this)">
       </div>
       ${renderAvatarHtml(u.avatar, u.username, 'settings-avatar')}
@@ -1626,8 +1626,8 @@ function enterAccountSettings() {
       <div class="settings-hint">${UI.SETTINGS_DEVICES_HINT}</div>
       <div id="settings-devices-list" class="settings-devices-list">${loaderHtml('sm')}</div>
     </div>
-    <button type="button" class="btn btn-danger settings-logout" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
-    ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
+    <button type="button" class="btn btn-danger settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
+    ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate glass" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
   loadDeviceSessions();
 }
 
@@ -1652,10 +1652,10 @@ function renderDeviceRow(s) {
   const masked = '······' + String(s.token || '').slice(-6);
   return `<div class="device-row">
     <div class="device-info">
-      <div class="device-label">${escHtml(s.label || UI.DEVICE_UNKNOWN)}${s.current ? ` <span class="device-current">${UI.DEVICE_CURRENT}</span>` : ''}</div>
+      <div class="device-label">${escHtml(s.label || UI.DEVICE_UNKNOWN)}${s.current ? ` <span class="device-current glass glass--solid">${UI.DEVICE_CURRENT}</span>` : ''}</div>
       <div class="device-meta">${masked} · ${UI.DEVICE_LOGIN_AT}${fmtDateTime(s.created_at)}</div>
     </div>
-    ${s.current ? '' : `<button type="button" class="btn btn-outline btn-xs" onclick="revokeDeviceSession('${s.token}')">${UI.BTN_DEVICE_LOGOUT}</button>`}
+    ${s.current ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="revokeDeviceSession('${s.token}')">${UI.BTN_DEVICE_LOGOUT}</button>`}
   </div>`;
 }
 function revokeDeviceSession(token) {
@@ -1673,13 +1673,13 @@ function revokeDeviceSession(token) {
 // 双方数据保留；成功后清本地会话回落地页（同登出）。
 function openDeactivateModal() {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal" style="max-width:430px;">
-      <div class="modal-header"><h2>${UI.BTN_DEACTIVATE_ACCOUNT}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float" style="max-width:430px;">
+      <div class="modal-header glass"><h2>${UI.BTN_DEACTIVATE_ACCOUNT}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="danger-warn">${UI.DEACTIVATE_WARN}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="confirmDeactivateAccount()">${UI.BTN_CONTINUE_DANGER}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
+          <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="confirmDeactivateAccount()">${UI.BTN_CONTINUE_DANGER}</button>
         </div>
       </div>
     </div>
@@ -1722,7 +1722,7 @@ function compressToDataURL(file, maxSide, quality, square) {
 // 通用大图查看器（聊天图片放大 / 学信网截图预览共用；点空白关闭）
 function openImageViewer(src) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal image-viewer-modal">
+    <div class="modal image-viewer-modal glass glass--float">
       <div class="modal-body"><img src="${escHtml(src)}" alt=""></div>
     </div>
   </div>`;
@@ -1752,9 +1752,9 @@ function renderProfileCredentialCtl() {
   const ctl = document.getElementById('profile-credential-ctl');
   if (!ctl) return;
   ctl.innerHTML = _profileCredential
-    ? `<button type="button" class="btn btn-outline btn-sm" onclick="viewProfileCredential()">${UI.CREDENTIAL_UPLOADED_VIEW}</button>
-       <label class="btn-link-inline" for="profile-credential-file">${UI.CREDENTIAL_REUPLOAD}</label>`
-    : `<label class="btn btn-outline btn-sm" for="profile-credential-file">${UI.CREDENTIAL_UPLOAD}</label>`;
+    ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewProfileCredential()">${UI.CREDENTIAL_UPLOADED_VIEW}</button>
+       <label class="btn-link-inline glass" for="profile-credential-file">${UI.CREDENTIAL_REUPLOAD}</label>`
+    : `<label class="btn btn-outline btn-sm glass glass--pressable" for="profile-credential-file">${UI.CREDENTIAL_UPLOAD}</label>`;
 }
 async function handleCredentialPicked(input) {
   const files = [...input.files]; input.value = ''; // FileList 是活引用，先拷贝再清（选文件无反应 bug 同款教训）
@@ -1776,12 +1776,12 @@ function viewTeacherCredential(userId) {
 // 退出登录二次确认（确认类弹窗，保留点遮罩关闭）
 function confirmLogout() {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal" style="max-width:380px;">
+    <div class="modal glass glass--float" style="max-width:380px;">
       <div class="modal-body">
         <p style="margin-bottom:16px;">${UI.CONFIRM_LOGOUT}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger" onclick="closeModal();handleLogout()">${UI.BTN_LOGOUT}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-danger glass glass--pressable" onclick="closeModal();handleLogout()">${UI.BTN_LOGOUT}</button>
         </div>
       </div>
     </div>
@@ -1793,12 +1793,12 @@ let pendingConfirmAction = null;
 function openConfirmModal(message, action) {
   pendingConfirmAction = action;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal" style="max-width:380px;">
+    <div class="modal glass glass--float" style="max-width:380px;">
       <div class="modal-body">
         <p style="margin-bottom:16px;">${message}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger" onclick="runPendingConfirm()">${UI.BTN_CONFIRM}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-danger glass glass--pressable" onclick="runPendingConfirm()">${UI.BTN_CONFIRM}</button>
         </div>
       </div>
     </div>
@@ -1839,34 +1839,34 @@ function enterAbout() {
     UI.ABOUT_FLOW_STEP_1, UI.ABOUT_FLOW_STEP_2, UI.ABOUT_FLOW_STEP_3, UI.ABOUT_FLOW_STEP_4, UI.ABOUT_FLOW_STEP_5,
   ].map((s, i, arr) => `<div class="about-flow-step">
       <div class="about-flow-rail">
-        <span class="about-flow-dot">${i + 1}</span>
+        <span class="about-flow-dot glass">${i + 1}</span>
         ${i < arr.length - 1 ? '<span class="about-flow-line"></span>' : ''}
       </div>
       <p class="about-flow-text">${escHtml(s)}</p>
     </div>`).join('');
   // 安全与隐私保护：逐条「小盾标 + 粗体小标题 + 一句白话说明」（面向学生家长建立信任）
   const secItems = UI.ABOUT_SECURITY_ITEMS.map(it => `<div class="about-sec-item">
-      <span class="about-sec-mark" aria-hidden="true"></span>
+      <span class="about-sec-mark glass" aria-hidden="true"></span>
       <div class="about-sec-body"><strong class="about-sec-title">${escHtml(it.t)}</strong><p class="about-sec-desc">${escHtml(it.d)}</p></div>
     </div>`).join('');
   document.getElementById('about-content').innerHTML = `
-    <div class="list-card about-card">
+    <div class="list-card about-card glass">
       <div class="navbar-logo about-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
       <div class="about-card-body">
         <h3 class="about-title">${UI.ABOUT_WHO_TITLE}</h3>
         <p class="about-text">${escHtml(UI.ABOUT_WHO_TEXT)}</p>
       </div>
     </div>
-    <div class="list-card about-card-block">
+    <div class="list-card about-card-block glass">
       <h3 class="about-title">${UI.ABOUT_USAGE_TITLE}</h3>
       <div class="about-flow">${steps}</div>
     </div>
-    <div class="list-card about-card-block">
+    <div class="list-card about-card-block glass">
       <h3 class="about-title">${UI.ABOUT_SECURITY_TITLE}</h3>
       <p class="about-text">${escHtml(UI.ABOUT_SECURITY_INTRO)}</p>
       <div class="about-security-list">${secItems}</div>
     </div>
-    <div class="list-card about-card-block">
+    <div class="list-card about-card-block glass">
       <h3 class="about-title">${UI.ABOUT_SUPPORT_TITLE}</h3>
       <div class="about-support-lines">
         <div>${escHtml(UI.ABOUT_SUPPORT_OWNER)}</div>
@@ -1874,7 +1874,7 @@ function enterAbout() {
         <div>${escHtml(UI.ABOUT_SUPPORT_EMAIL)}</div>
       </div>
       <div class="about-feedback-btns">
-        <button type="button" class="btn btn-outline btn-sm" onclick="openFeedbackModal('suggestion')">${UI.BTN_FEEDBACK}</button>
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openFeedbackModal('suggestion')">${UI.BTN_FEEDBACK}</button>
       </div>
     </div>`;
   initReveals(document.getElementById('about-content'));
@@ -1886,8 +1886,8 @@ function openFeedbackModal(kind) {
   if (!ensureAuth()) return;
   feedbackKind = kind === 'suggestion' ? 'suggestion' : 'bug';
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header"><h2 id="feedback-modal-title">${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2 id="feedback-modal-title">${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
@@ -1896,27 +1896,27 @@ function openFeedbackModal(kind) {
           <span class="title-count" id="post-title-count">0/60</span>
         </div>
         <div class="feedback-kind-row">
-          <button type="button" class="feedback-kind-btn${feedbackKind === 'bug' ? ' active' : ''}" data-kind="bug" onclick="switchFeedbackKind('bug')">${UI.BTN_FEEDBACK_BUG}</button>
-          <button type="button" class="feedback-kind-btn${feedbackKind === 'suggestion' ? ' active' : ''}" data-kind="suggestion" onclick="switchFeedbackKind('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
+          <button type="button" class="feedback-kind-btn glass${feedbackKind === 'bug' ? ' active' : ''}" data-kind="bug" onclick="switchFeedbackKind('bug')">${UI.BTN_FEEDBACK_BUG}</button>
+          <button type="button" class="feedback-kind-btn glass${feedbackKind === 'suggestion' ? ' active' : ''}" data-kind="suggestion" onclick="switchFeedbackKind('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_LABEL_BODY}</label>
           <div class="md-toolbar">
-            <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
-            <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <label class="md-btn" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
             <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${UI.FEEDBACK_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview"></div>
+          <div id="post-preview" class="md-preview glass glass--solid"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary" onclick="submitFeedback()">${UI.BTN_SEND}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>
         </div>
       </div>
     </div>
@@ -1935,14 +1935,14 @@ async function submitFeedback() {
   const title = (document.getElementById('post-title').value || '').trim();
   const content = (document.getElementById('post-body').value || '').trim();
   const alertEl = document.getElementById('post-alert');
-  if (!title) { alertEl.innerHTML = `<div class="alert alert-error">${UI.POST_TITLE_REQUIRED}</div>`; return; }
-  if (!content) { alertEl.innerHTML = `<div class="alert alert-error">${UI.FEEDBACK_EMPTY}</div>`; return; }
+  if (!title) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.POST_TITLE_REQUIRED}</div>`; return; }
+  if (!content) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.FEEDBACK_EMPTY}</div>`; return; }
   try {
     await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
     closeModal();
     showToast(UI.FEEDBACK_SENT_TOAST);
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   }
 }
 
@@ -1964,13 +1964,13 @@ async function submitIntent(demandId) {
 // 档案不完整：拦截提交并引导去补档案（后端同样把关，弹窗只是更友好的引导）
 function showProfileIncompleteModal() {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal" style="max-width:420px;">
-      <div class="modal-header"><h2>${UI.PROFILE_INCOMPLETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float" style="max-width:420px;">
+      <div class="modal-header glass"><h2>${UI.PROFILE_INCOMPLETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm" style="color:var(--ink-3);line-height:1.7;">${UI.PROFILE_INCOMPLETE_HINT}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_LATER}</button>
-          <button type="button" class="btn btn-primary" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_LATER}</button>
+          <button type="button" class="btn btn-primary glass glass--pressable" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>
         </div>
       </div>
     </div>
@@ -2016,14 +2016,14 @@ async function refreshIntentsBox(demandId) {
 
 function renderIntentTeacherRow(t, demandId) {
   const st = t.intent_status;
-  const tag = st === 'accepted' ? `<span class="tag tag-ok">${UI.INTENT_STATUS_ACCEPTED}</span>`
-    : st === 'rejected' ? `<span class="tag tag-danger">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn">${UI.INTENT_STATUS_PENDING}</span>`;
+  const tag = st === 'accepted' ? `<span class="tag tag-ok glass glass--solid">${UI.INTENT_STATUS_ACCEPTED}</span>`
+    : st === 'rejected' ? `<span class="tag tag-danger glass glass--solid">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn glass glass--solid">${UI.INTENT_STATUS_PENDING}</span>`;
   const provName = DISP.provinceName(t.province);
-  const viewBtn = `<button type="button" class="btn btn-outline btn-xs" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
+  const viewBtn = `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
   const actions = st === 'pending'
-    ? `<button type="button" class="btn btn-accent btn-xs" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
-       <button type="button" class="btn btn-outline btn-xs" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
-  return `<div class="admin-row">
+    ? `<button type="button" class="btn btn-accent btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
+       <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
+  return `<div class="admin-row glass">
     <div class="admin-row-main">
       <div class="admin-row-line"><strong>${renderUsername(t.username)}</strong> ${renderStars(t.rating)} ${tag}</div>
       <div class="admin-row-meta">${[provName, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ')}</div>
@@ -2057,7 +2057,7 @@ function initProfileForm() {
 
   const subjEl = document.getElementById('profile-subjects');
   subjEl.innerHTML = SUBJECTS.map(s=>`
-    <label class="checkbox-item"><input type="checkbox" value="${s.id}">${s.name}</label>
+    <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${s.id}">${s.name}</label>
   `).join('');
   subjEl.removeEventListener('change', onTeacherSubjectsChange); // 静态节点每次进档案页都会初始化，先解绑防叠加（勾一次触发 N 遍）
   subjEl.addEventListener('change', onTeacherSubjectsChange); // 擅长科目驱动高考填写组件按需加载
@@ -2119,9 +2119,9 @@ async function handleSaveProfile(e) {
   e.preventDefault();
   const alertEl = document.getElementById('profile-alert');
   const province = document.getElementById('profile-province').value;
-  if (!province) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
+  if (!province) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
   const subjects = [...document.querySelectorAll('#profile-subjects input:checked')].map(cb=>cb.value);
-  if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
+  if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
 
   // 省份锁定组件的收集函数（app-region.js），输出与旧 gaokao_scores 形状兼容
   const gaokaoScores = collectTeacherGaokao();
@@ -2145,10 +2145,10 @@ async function handleSaveProfile(e) {
         credential_image: _profileCredential || '', // 截图 dataURL 暂存件随档案提交（空串 = 未上传/清空）
       }},
     });
-    alertEl.innerHTML = `<div class="alert alert-success">${UI.SUCCESS_PROFILE_SAVED}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-success glass">${UI.SUCCESS_PROFILE_SAVED}</div>`;
     invalidate('teachers'); // 档案已变：清教师列表缓存，浏览页/个人信息面板/推送弹窗下次读取重拉新档
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   } finally {
     const btn = document.getElementById('profile-submit');
     btn.disabled = false; btn.textContent = UI.BTN_SAVE;
@@ -2160,7 +2160,7 @@ async function handleSaveProfile(e) {
 // ============================================================
 function showToast(msg) {
   const toast = document.createElement('div');
-  toast.className = 'toast';
+  toast.className = 'toast glass glass--float';
   toast.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 24px;font-size:0.875rem;font-weight:500;z-index:300;animation:fadeUp 0.3s ease;';
   toast.textContent = msg;
   document.body.appendChild(toast);

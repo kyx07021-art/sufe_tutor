@@ -54,32 +54,32 @@ function renderContractCard(c) {
 
   let left = '', right = '';
   if (c.status === 'signed') {
-    left = `<button type="button" class="btn btn-outline btn-sm" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
-      <button type="button" class="btn btn-ghost btn-sm" onclick="verifyContractLedgerUi(${c.id})">${UI.BTN_VERIFY_LEDGER}</button>`;
-    right = `<button type="button" class="btn-text-danger" onclick="openRevokeContractModal(${c.id})">${UI.BTN_REVOKE_CONTRACT}</button>`; // 撤销入口刻意低调
+    left = `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
+      <button type="button" class="btn btn-ghost btn-sm glass glass--pressable" onclick="verifyContractLedgerUi(${c.id})">${UI.BTN_VERIFY_LEDGER}</button>`;
+    right = `<button type="button" class="btn-text-danger glass" onclick="openRevokeContractModal(${c.id})">${UI.BTN_REVOKE_CONTRACT}</button>`; // 撤销入口刻意低调
   } else if (c.status === 'pending' && iAmDrafter) {
     // 起草方：等对方处理草案（对方直接看到三按钮，无独立「确认草案」环节）
-    left = `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.CONTRACT_WAIT_DRAFT}</button>`;
-    right = `<button type="button" class="btn btn-danger btn-sm" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
+    left = `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.CONTRACT_WAIT_DRAFT}</button>`;
+    right = `<button type="button" class="btn btn-danger btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
   } else {
     // pending 收草案方 / signing 双方：直接三按钮（确认签约 / 修改内容 / 查看合同）
     left = `${myConfirmed
-        ? `<button type="button" class="btn btn-sm btn-intent-wait" disabled>${UI.BTN_SIGN_WAITING}</button>`
-        : `<button type="button" class="btn btn-accent btn-sm" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
-      <button type="button" class="btn btn-outline btn-sm" onclick="openContractModifyModal(${c.id})">${UI.BTN_MODIFY_CONTRACT}</button>
-      <button type="button" class="btn btn-outline btn-sm" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
-    right = `<button type="button" class="btn btn-danger btn-sm" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
+        ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.BTN_SIGN_WAITING}</button>`
+        : `<button type="button" class="btn btn-accent btn-sm glass glass--pressable" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
+      <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openContractModifyModal(${c.id})">${UI.BTN_MODIFY_CONTRACT}</button>
+      <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
+    right = `<button type="button" class="btn btn-danger btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
   }
 
-  return `<div class="list-card">
+  return `<div class="list-card glass">
     <div class="list-card-header">
       <span class="list-card-title">${renderUsername(peerName)}</span>
-      <span class="tag ${statusCls}">${statusText}</span>
+      <span class="tag glass glass--solid ${statusCls}">${statusText}</span>
     </div>
     <div class="list-card-body">
-      <span class="tag">${escHtml(methodName)}</span>
-      <span class="tag tag-warn">${c.hourly_rate}${UI.PRICE_UNIT}</span>
-      ${c.demand_display_id ? `<span class="tag">${escHtml(UI.DEMAND_PREFIX)}#${String(c.demand_display_id).padStart(4, '0')}</span>` : ''}
+      <span class="tag glass glass--solid">${escHtml(methodName)}</span>
+      <span class="tag tag-warn glass glass--solid">${c.hourly_rate}${UI.PRICE_UNIT}</span>
+      ${c.demand_display_id ? `<span class="tag glass glass--solid">${escHtml(UI.DEMAND_PREFIX)}#${String(c.demand_display_id).padStart(4, '0')}</span>` : ''}
       <span class="list-card-meta">${fmtDateTime(c.updated_at)}</span>
     </div>
     <div class="contract-actions">
@@ -106,8 +106,8 @@ function viewContract(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal">
-      <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body contract-md">${mdRender(c.contract_md || '')}</div>
     </div>
   </div>`;
@@ -119,27 +119,27 @@ function openContractModifyModal(contractId) {
   if (!c) return;
   window._contractModifyUpdatedAt = c.updated_at; // 乐观锁版本：提交时带上，期间被对方改过则 409 强制重载
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header"><h2>${UI.MODIFY_CONTRACT_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${UI.MODIFY_CONTRACT_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_PLAN}</label>
           <div class="md-toolbar">
-            <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
-            <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
             <!-- 合同编辑器禁插图：合同正文须为纯文本条款 -->
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="12" oninput="updatePostPreview()">${escHtml(c.contract_md || '')}</textarea>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview"></div>
+          <div id="post-preview" class="md-preview glass glass--solid"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary" onclick="submitContractModify(${c.id})">${UI.BTN_SAVE}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary glass glass--pressable" onclick="submitContractModify(${c.id})">${UI.BTN_SAVE}</button>
         </div>
       </div>
     </div>
@@ -151,13 +151,13 @@ function openContractModifyModal(contractId) {
 // 第二级复用 openConfirmModal 危险确认。活跃库抹除合同，签署台账与加密留档保留。
 function openRevokeContractModal(contractId) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal" style="max-width:430px;">
-      <div class="modal-header"><h2>${UI.REVOKE_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float" style="max-width:430px;">
+      <div class="modal-header glass"><h2>${UI.REVOKE_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="danger-warn">${UI.REVOKE_CONTRACT_WARN}</p>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
-          <button type="button" class="btn btn-outline btn-sm" onclick="confirmRevokeContract(${contractId})">${UI.BTN_CONTINUE_DANGER}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
+          <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="confirmRevokeContract(${contractId})">${UI.BTN_CONTINUE_DANGER}</button>
         </div>
       </div>
     </div>
@@ -186,14 +186,14 @@ async function verifyContractLedgerUi(contractId) {
 async function submitContractModify(contractId) {
   const md = (document.getElementById('post-body').value || '').trim();
   const alertEl = document.getElementById('post-alert');
-  if (!md) { alertEl.innerHTML = `<div class="alert alert-error">${UI.CONTRACT_EMPTY}</div>`; return; }
+  if (!md) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.CONTRACT_EMPTY}</div>`; return; }
   try {
     await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, updatedAt: window._contractModifyUpdatedAt } });
     closeModal();
     showToast(UI.CONTRACT_MODIFIED_TOAST);
     loadMyContracts();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   }
 }
 
@@ -212,7 +212,7 @@ function cancelContract(contractId) {
 // 起草合同（聊天窗 + 号呼出）：先选对应需求 → 预载配置（科目/方式/预算）→ 教学方式 / 授课时间 /
 // 授课地点 / 约定时薪 / 教学方案（md 编辑器，合同文本禁插图）→ 发送另一方确认
 async function openContractDraftModal(convId) {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-body">${loaderHtml()}</div></div></div>`;
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"><div class="modal glass glass--float"><div class="modal-body">${loaderHtml()}</div></div></div>`;
   let demands = [], demandsFailed = false;
   try { const data = await api('/api/student/demands'); demands = data.demands || []; } catch { demandsFailed = true; /* 拉取失败仍可起草（不绑需求），弹窗内明示 */ }
   const conv = (typeof chatConvById === 'function') ? chatConvById(convId) : null;
@@ -224,10 +224,10 @@ async function openContractDraftModal(convId) {
   const preselect = (conv && options.find(d => d.id === conv.demand_id)) || options[0] || null;
   window._contractDraftDemands = options; // 供 prefillContractFromDemand 取数
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal">
-      <div class="modal-header"><h2>${UI.DRAFT_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${UI.DRAFT_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
-        <div id="contract-alert">${demandsFailed ? `<div class="alert alert-error">${UI.CONTRACT_DEMANDS_LOAD_FAIL}</div>` : ''}</div>
+        <div id="contract-alert">${demandsFailed ? `<div class="alert alert-error glass">${UI.CONTRACT_DEMANDS_LOAD_FAIL}</div>` : ''}</div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND}</label>
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
@@ -285,19 +285,19 @@ async function openContractDraftModal(convId) {
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_PLAN}</label>
           <div class="md-toolbar">
-            <button type="button" class="md-btn" onclick="mdWrap('h2')">H2</button>
-            <button type="button" class="md-btn" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.CONTRACT_PLAN_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview"></div>
+          <div id="post-preview" class="md-preview glass glass--solid"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn btn-primary glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>
         </div>
       </div>
     </div>
@@ -346,10 +346,10 @@ async function submitContractDraft(convId) {
   const firstLessonDate = document.getElementById('contract-first-lesson').value || '';
   const trialPay = document.getElementById('contract-trial-pay').value;
   const trialPayOther = trialPay === 'other' ? (document.getElementById('contract-trial-pay-other').value || '').trim() : '';
-  if (!rate || +rate <= 0) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_RATE}</div>`; return; }
-  if (payMethod === 'other' && !payMethodOther) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER}</div>`; return; }
-  if (trialPay === 'other' && !trialPayOther) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER}</div>`; return; }
-  if (!plan) { alertEl.innerHTML = `<div class="alert alert-error">${UI.VALIDATE_CONTRACT_PLAN}</div>`; return; }
+  if (!rate || +rate <= 0) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_RATE}</div>`; return; }
+  if (payMethod === 'other' && !payMethodOther) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER}</div>`; return; }
+  if (trialPay === 'other' && !trialPayOther) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER}</div>`; return; }
+  if (!plan) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_PLAN}</div>`; return; }
   if (contractDraftBusy) return;
   contractDraftBusy = true;
   try {
@@ -361,7 +361,7 @@ async function submitContractDraft(convId) {
     closeModal();
     showToast(data.message || UI.CONTRACT_DRAFT_SENT_TOAST);
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   } finally {
     contractDraftBusy = false;
   }

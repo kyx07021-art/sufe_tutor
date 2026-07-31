@@ -148,15 +148,6 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
   box-shadow: var(--g-lift);
   transition: transform var(--t-fast) var(--ease-out), color var(--t-base) var(--ease-out);
 }
-.btn::after {
-  content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; z-index: 1; pointer-events: none;
-  background: radial-gradient(circle, rgba(255,255,255,.6), rgba(255,255,255,0) 70%);
-  transform: translate(-50%,-50%) scale(0); opacity: 0; transition: transform .5s var(--ease-out), opacity .6s var(--ease-out);
-}
-.btn:hover:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-hover); transform: translateY(-1px); }
-.btn:focus-visible { outline: none; box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), 0 0 0 3px var(--g-ring); }
-.btn:active:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-active); transform: scale(.97); }
-.btn:active:not(:disabled)::after { transform: translate(-50%,-50%) scale(26); opacity: .85; transition: 0s; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 /* 变体 = 仅参数（无 hover/无擦除/无背景重写） */
 .btn-ghost   { padding: 8px 12px; }
@@ -338,7 +329,6 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
 
 /* 角色切换：纯灰文字，选中加深 + 下划条在二者间滑动 */
 .role-tabs { position: relative; display: flex; margin-bottom: 28px; }
-.role-tabs::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--paper-3); }
 .role-tabs::after {
   content: ''; position: absolute; left: 0; bottom: 0; width: 50%; height: 2px;
   background: var(--ink); transition: transform var(--t-base) var(--ease-snap);

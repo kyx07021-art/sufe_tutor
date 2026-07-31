@@ -19,7 +19,7 @@ async function loadAdminPosts() {
 }
 
 function renderAdminPostRow(p) {
-  return `<div class="admin-row">
+  return `<div class="admin-row glass">
     <div class="admin-row-main">
       <div class="admin-row-line">
         <strong>${escHtml(p.title)}</strong>
@@ -29,8 +29,8 @@ function renderAdminPostRow(p) {
       <div class="admin-row-meta">${fmtDateTime(p.created_at)}</div>
     </div>
     <div class="admin-row-actions">
-      <button type="button" class="btn btn-outline btn-xs" onclick="openPostViewModal(${p.id})">${UI.BTN_VIEW}</button>
-      <button type="button" class="btn btn-danger btn-xs" onclick="adminDeletePost(${p.id})">${UI.BTN_REMOVE}</button>
+      <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openPostViewModal(${p.id})">${UI.BTN_VIEW}</button>
+      <button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="adminDeletePost(${p.id})">${UI.BTN_REMOVE}</button>
     </div>
   </div>`;
 }
@@ -40,11 +40,11 @@ function openPostViewModal(postId) {
   const p = state.adminPosts.find(x => x.id === postId);
   if (!p) return;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal">
-      <div class="modal-header"><h2>${escHtml(p.title)}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${escHtml(p.title)}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm text-muted" style="margin-bottom:12px;">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
-        <div class="md-preview">${mdRender(p.body_md || '')}</div>
+        <div class="md-preview glass glass--solid">${mdRender(p.body_md || '')}</div>
       </div>
     </div>
   </div>`;
@@ -76,17 +76,17 @@ function renderAdminContractRow(c) {
     : c.status === 'signing' ? UI.CONTRACT_STATUS_SIGNING : UI.CONTRACT_STATUS_SIGNED;
   const statusCls = c.status === 'signed' ? 'tag-ok' : c.status === 'signing' ? 'tag-warn' : 'tag-accent';
   const methodName = DISP.methodName(c.method) || c.method;
-  return `<div class="admin-row">
+  return `<div class="admin-row glass">
     <div class="admin-row-main">
       <div class="admin-row-line">
         <strong>${escHtml(c.student_name)} × ${escHtml(c.teacher_name)}</strong>
-        <span class="tag ${statusCls}">${statusText}</span>
+        <span class="tag glass glass--solid ${statusCls}">${statusText}</span>
       </div>
       <div class="admin-row-meta">${UI.ADMIN_CONTRACT_DRAFTER_PREFIX}${escHtml(c.drafter_name)} · ${escHtml(methodName)} · ${c.hourly_rate}${UI.PRICE_UNIT} · ${fmtDateTime(c.updated_at)}</div>
     </div>
     <div class="admin-row-actions">
-      <button type="button" class="btn btn-outline btn-xs" onclick="adminViewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
-      <button type="button" class="btn btn-danger btn-xs" onclick="adminRemoveContract(${c.id})">${UI.BTN_REMOVE_CONTRACT}</button>
+      <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminViewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
+      <button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="adminRemoveContract(${c.id})">${UI.BTN_REMOVE_CONTRACT}</button>
     </div>
   </div>`;
 }
@@ -95,8 +95,8 @@ function adminViewContract(contractId) {
   const c = state.adminContracts.find(x => x.id === contractId);
   if (!c) return;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal">
-      <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
+    <div class="modal glass glass--float">
+      <div class="modal-header glass"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body contract-md">${mdRender(c.contract_md || '')}</div>
     </div>
   </div>`;
@@ -123,18 +123,18 @@ async function loadAdminFeedback() {
   }, list => list.map(f => {
     const isBug = f.kind === 'bug';
     const resolved = f.status === 'resolved';
-    return `<div class="list-card feedback-card${isBug ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
+    return `<div class="list-card glass feedback-card${isBug ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
         <div class="list-card-header">
           <span class="list-card-title">${escHtml(f.title || UI.BTN_FEEDBACK)}</span>
           <span class="feedback-tags">
-            <span class="tag ${isBug ? 'tag-danger' : 'tag-accent'}">${isBug ? UI.FEEDBACK_TAG_BUG : UI.FEEDBACK_TAG_SUGGEST}</span>
-            <span class="tag ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.FEEDBACK_STATUS_RESOLVED : UI.FEEDBACK_STATUS_OPEN}</span>
+            <span class="tag glass glass--solid ${isBug ? 'tag-danger' : 'tag-accent'}">${isBug ? UI.FEEDBACK_TAG_BUG : UI.FEEDBACK_TAG_SUGGEST}</span>
+            <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.FEEDBACK_STATUS_RESOLVED : UI.FEEDBACK_STATUS_OPEN}</span>
           </span>
         </div>
         <div class="list-card-detail feedback-content">${escHtml(f.content)}</div>
         <div class="feedback-foot">
           <span class="list-card-meta">${escHtml(f.username)} · ${fmtDateTime(f.created_at)}</span>
-          ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs" onclick="resolveAdminFeedback(${f.id})">${UI.BTN_MARK_RESOLVED}</button>`}
+          ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveAdminFeedback(${f.id})">${UI.BTN_MARK_RESOLVED}</button>`}
         </div>
       </div>`;
   }).join(''), { empty: UI.ADMIN_FEEDBACK_EMPTY });
@@ -217,25 +217,25 @@ async function loadAdminStats() {
 
     el.innerHTML = `
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-value blue">${s.users.total}</div><div class="stat-label">${UI.ADMIN_TOTAL_USERS}</div></div>
-        <div class="stat-card"><div class="stat-value green">${s.users.students}</div><div class="stat-label">${UI.ADMIN_STUDENTS}</div></div>
-        <div class="stat-card"><div class="stat-value blue">${s.users.teachers}</div><div class="stat-label">${UI.ADMIN_TEACHERS}</div></div>
-        <div class="stat-card"><div class="stat-value amber">${s.demands}</div><div class="stat-label">${UI.ADMIN_DEMANDS}</div></div>
-        <div class="stat-card"><div class="stat-value blue">${s.profiles}</div><div class="stat-label">${UI.ADMIN_PROFILES}</div></div>
-        <div class="stat-card"><div class="stat-value green">${s.reviews.approved}</div><div class="stat-label">${UI.ADMIN_REVIEWS_APPROVED}</div></div>
-        <div class="stat-card"><div class="stat-value amber">${s.reviews.pending}</div><div class="stat-label">${UI.ADMIN_REVIEWS_PENDING}</div></div>
-        <div class="stat-card"><div class="stat-value red">${s.invites.used||0}</div><div class="stat-label">${UI.ADMIN_INVITES_USED}</div></div>
+        <div class="stat-card glass"><div class="stat-value blue">${s.users.total}</div><div class="stat-label">${UI.ADMIN_TOTAL_USERS}</div></div>
+        <div class="stat-card glass"><div class="stat-value green">${s.users.students}</div><div class="stat-label">${UI.ADMIN_STUDENTS}</div></div>
+        <div class="stat-card glass"><div class="stat-value blue">${s.users.teachers}</div><div class="stat-label">${UI.ADMIN_TEACHERS}</div></div>
+        <div class="stat-card glass"><div class="stat-value amber">${s.demands}</div><div class="stat-label">${UI.ADMIN_DEMANDS}</div></div>
+        <div class="stat-card glass"><div class="stat-value blue">${s.profiles}</div><div class="stat-label">${UI.ADMIN_PROFILES}</div></div>
+        <div class="stat-card glass"><div class="stat-value green">${s.reviews.approved}</div><div class="stat-label">${UI.ADMIN_REVIEWS_APPROVED}</div></div>
+        <div class="stat-card glass"><div class="stat-value amber">${s.reviews.pending}</div><div class="stat-label">${UI.ADMIN_REVIEWS_PENDING}</div></div>
+        <div class="stat-card glass"><div class="stat-value red">${s.invites.used||0}</div><div class="stat-label">${UI.ADMIN_INVITES_USED}</div></div>
       </div>
 
-      <div class="admin-panel">
+      <div class="admin-panel glass">
         <h3>${UI.ADMIN_RECENT_USERS}</h3>
         ${s.recentUsers.map(u => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
-          <span><strong>${escHtml(u.username)}</strong> <span class="tag">${DISP.roleLabel(u.role)}</span></span>
+          <span><strong>${escHtml(u.username)}</strong> <span class="tag glass glass--solid">${DISP.roleLabel(u.role)}</span></span>
           <span class="text-muted">${fmtDateTime(u.created_at)}</span>
         </div>`).join('')}
       </div>
 
-      <div class="admin-panel">
+      <div class="admin-panel glass">
         <h3>${UI.ADMIN_RECENT_DEMANDS}</h3>
         ${s.recentDemands.map(d => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
           <span><strong>${escHtml(d.username)}</strong> ${STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||''} ${DISP.subjectNames(d.target_subjects)}</span>
@@ -267,19 +267,19 @@ function renderAdminUserRow(u, role) {
   const meta = role === 'teacher'
     ? `${DISP.teacherGradeName(u.grade) || '—'} · ${DISP.ratingText(u.rating)}${UI.RATING_SCORE_SUFFIX} · ${u.price || '?'}${UI.PRICE_UNIT}`
     : `${u.demand_count || 0}${UI.DEMAND_COUNT_SUFFIX}`;
-  return `<div class="admin-row">
+  return `<div class="admin-row glass">
     <div class="admin-row-main">
       <div class="admin-row-line">
         <strong>${escHtml(u.username)}</strong>
-        ${u.banned ? `<span class="tag tag-danger">${UI.TAG_BANNED}</span>` : ''}
+        ${u.banned ? `<span class="tag tag-danger glass glass--solid">${UI.TAG_BANNED}</span>` : ''}
       </div>
       <div class="admin-row-meta">${meta} · ${UI.REGISTERED_AT_PREFIX}${fmtDateTime(u.created_at)}</div>
     </div>
     <div class="admin-row-actions">
-      ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs" onclick="openProfilePanel(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
+      ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openProfilePanel(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
       ${u.banned
-        ? `<button type="button" class="btn btn-outline btn-xs" onclick="confirmBanUser(${uid}, 0)">${UI.UNBAN}</button>`
-        : `<button type="button" class="btn btn-danger btn-xs" onclick="confirmBanUser(${uid}, 1)">${UI.BAN}</button>`}
+        ? `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="confirmBanUser(${uid}, 0)">${UI.UNBAN}</button>`
+        : `<button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="confirmBanUser(${uid}, 1)">${UI.BAN}</button>`}
     </div>
   </div>`;
 }
@@ -307,7 +307,7 @@ async function loadAdminReviews() {
 
 function renderAdminReviewRow(r) {
   const statusTag = DISP.reviewStatusTagHtml(r.status);
-  return `<div class="admin-row">
+  return `<div class="admin-row glass">
     <div class="admin-row-main">
       <div class="admin-row-line">
         <strong>${escHtml(r.teacher_name || '')}</strong>
@@ -318,9 +318,9 @@ function renderAdminReviewRow(r) {
       <div class="admin-row-meta">${fmtDateTime(r.created_at)}</div>
     </div>
     <div class="admin-row-actions">
-      ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs" onclick="adminReviewAction(${r.id},'approve',0)">${UI.BTN_APPROVE}</button>
-      <button type="button" class="btn btn-outline btn-xs" onclick="adminReviewAction(${r.id},'reject',0)">${UI.BTN_REJECT}</button>` : ''}
-      <button type="button" class="btn btn-danger btn-xs" onclick="confirmDeleteReview(${r.id},0)">${UI.BTN_DELETE_REVIEW}</button>
+      ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',0)">${UI.BTN_APPROVE}</button>
+      <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',0)">${UI.BTN_REJECT}</button>` : ''}
+      <button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},0)">${UI.BTN_DELETE_REVIEW}</button>
     </div>
   </div>`;
 }
