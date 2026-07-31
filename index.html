@@ -499,12 +499,11 @@
             set('--lg-orb-dur', (LG.orbCrossSec || 60) + 's');
       set('--lg-glow-size', (LG.glow.size || 230) + 'px');
       set('--lg-glow-op', LG.glow.opacity != null ? LG.glow.opacity : .85);
-      /* 每支材质 → --m-<名>-bg / -blur。frost 毛值 = 高斯模糊(仅浮层用) + 白调；tint/tintA = 叠色。
-         负毛值(按钮) → blur=0、白调=0 → 比所在区域更通透的透镜。 */
+      /* 每支材质 → --m-<名>-bg（填充渐变：顶部反光带 + 白调 + tint 叠色）。tint/tintA = 叠色。
+         frost 毛值仅浮层(overlay)驱动真磨砂 blur——唯一消费 blur 的材质，其余不生成 -blur 死变量。 */
       var M = LG.mats || {};
       for (var k in M) {
         var m = M[k], frost = m.frost || 0, a = m.tintA || 0;
-        var blur = Math.max(0, frost);
         var w = Math.min(.85, Math.max(0, .10 + frost * .045));            // 白调随正毛值
         var sheen = f3(Math.min(.6, .08 + .34 * (1 - a)));                  // 顶部薄光带=玻璃反光（叠色越深越弱）
         var bg =
@@ -512,8 +511,8 @@
           'linear-gradient(155deg, rgba(255,255,255,' + f3(Math.min(.9, w + .10)) + '), rgba(255,255,255,' + f3(w) + ')),' +
           'rgba(' + m.tint + ',' + f3(a) + ')';
         set('--m-' + k + '-bg', bg);
-        set('--m-' + k + '-blur', blur + 'px');
       }
+      set('--m-overlay-blur', (Math.max(0, (M.overlay && M.overlay.frost) || 0)) + 'px'); // 浮层真磨砂 blur（唯一消费点）
       /* 背景舞台：36 个方向随机的光球（数量×4）+ 染色底板。
          光球由 JS 生成：随机方向组(6)、随机起始位置、随机尺寸、随机负 delay 错峰 →
          「像空气里的蒲公英」各向漂移 + 途中缓慢转向，肉眼无规律。 */
