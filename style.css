@@ -162,11 +162,11 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
 .btn:active:not(:disabled)::after { transform: translate(-50%,-50%) scale(26); opacity: .85; transition: 0s; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 /* 变体 = 仅参数（无 hover/无擦除/无背景重写） */
-.btn-primary { --g-fill: var(--ink); --g-fg: var(--paper); }
-.btn-accent  { --g-fill: var(--accent); --g-fg: var(--white); }
-.btn-outline { --g-fill: var(--paper-2); --g-fg: var(--ink); }
-.btn-ghost   { --g-fill: transparent; --g-fg: var(--muted); padding: 8px 12px; }
-.btn-danger  { --g-fill: var(--danger); --g-fg: var(--white); }
+.btn-primary { --g-fg: var(--paper); }
+.btn-accent  { --g-fg: var(--white); }
+.btn-outline { --g-fg: var(--ink); }
+.btn-ghost   { --g-fg: var(--muted); padding: 8px 12px; }
+.btn-danger  { --g-fg: var(--white); }
 .btn-sm { padding: 8px 14px; font-size: .8rem; }
 .btn-xs { padding: 4px 9px; font-size: .7rem; }
 .btn-icon { width: 36px; height: 36px; padding: 0; }
@@ -912,7 +912,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    ============================================================ */
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
 .stat-card { padding: 20px; position: relative; overflow: hidden; }
-.stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--paper-3); }
+.stat-card::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--paper-3); z-index: 1; }
 .stat-card .stat-value { font-family: var(--font); font-size: 1.9rem; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
 .stat-card .stat-label { font-size: .72rem; color: var(--muted); font-weight: 600; margin-top: 8px; letter-spacing: .03em; }
 .stat-card .stat-value.blue  { color: var(--accent-deep); }
@@ -1237,7 +1237,7 @@ body.profile-panel-open .profile-panel { transform: none; }
   font-size: .78rem; font-weight: 700; letter-spacing: .02em;
   transition: background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
 }
-.tc-push-btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+/* 悬停外观由 glass.css 统一（宝石体+同色光晕+提亮叠层）；此处不再重写 background，旧 var(--ink) 黑底已删 */
 .tc-push-btn:disabled { opacity: .55; cursor: default; }
 .tc-push-btn .arrow { transition: transform var(--t-base) var(--ease-out); }
 .tc-push-btn:hover:not(:disabled) .arrow { transform: translateX(3px); }
