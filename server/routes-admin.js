@@ -214,11 +214,11 @@ export async function handleCreateFeedback(db, body, req) {
   return json({ ok: true }, 201);
 }
 
-// GET /api/feedbacks?username= —— 管理员查看全部反馈（含提交者用户名 + 处理状态）
+// GET /api/feedbacks?status= —— 管理员查看反馈（含提交者用户名 + 处理状态；status 可选过滤，下推 db 层）
 export async function handleAdminFeedbacks(db, url, req) {
   const e = requireAdminOrError(await authUser(db, req));
   if (e) return e;
-  const feedbacks = await dbGetFeedbacksAdmin(db);
+  const feedbacks = await dbGetFeedbacksAdmin(db, url.searchParams.get('status') || '');
   return json({ feedbacks });
 }
 

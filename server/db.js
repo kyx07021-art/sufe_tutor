@@ -877,9 +877,12 @@ export async function dbCreateFeedback(db, userId, kind, title, content) {
   return (res && res.meta && res.meta.last_row_id) || 0;
 }
 
-export async function dbGetFeedbacksAdmin(db) {
+export async function dbGetFeedbacksAdmin(db, status) {
+  // 可选 status 下推过滤（白名单，防注入）；不传则返回全部，向后兼容
+  const where = (status === 'pending' || status === 'resolved') ? ' WHERE f.status=?' : '';
+  const params = where ? [status] : [];
   return await dbAll(db,
-    'SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id ORDER BY f.id DESC LIMIT 200');
+    'SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id' + where + ' ORDER BY f.id DESC LIMIT 200', params);
 }
 
 export async function dbGetFeedbackById(db, feedbackId) {
