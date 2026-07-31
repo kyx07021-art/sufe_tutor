@@ -527,15 +527,44 @@
         '<feDisplacementMap in="SourceGraphic" in2="nb" scale="' + (LG.refractScale || 30) + '" xChannelSelector="R" yChannelSelector="G"/>' +
         '</filter></defs>';
       document.body.insertBefore(svg, document.body.firstChild);
-      /* 背景舞台：光球 + 染色底板 */
+      /* 背景舞台：36 个方向随机的光球（数量×4）+ 染色底板。
+         光球由 JS 生成：随机方向组(6)、随机起始位置、随机尺寸、随机负 delay 错峰 →
+         「像空气里的蒲公英」各向漂移 + 途中缓慢转向，肉眼无规律。 */
       var bgEl = document.createElement('div'); bgEl.className = 'lg-bg'; bgEl.setAttribute('aria-hidden', 'true');
-      bgEl.innerHTML = '<div class="lg-orb lg-orb--1"></div><div class="lg-orb lg-orb--2"></div><div class="lg-orb lg-orb--3"></div><div class="lg-orb lg-orb--4"></div><div class="lg-orb lg-orb--5"></div><div class="lg-orb lg-orb--6"></div><div class="lg-orb lg-orb--7"></div><div class="lg-orb lg-orb--8"></div><div class="lg-orb lg-orb--9"></div><div class="lg-plate"></div>';
+      var ORB_COLORS = ['--lg-orb-a', '--lg-orb-b', '--lg-orb-c', '--lg-orb-d', '--lg-orb-e', '--lg-orb-f', '--lg-orb-g', '--lg-orb-h', '--lg-orb-i'];
+      var orbHtml = '';
+      var DUR = LG.orbCrossSec || 60;
+      /* 性能：桌面 36 个光球（数量×4）；低端移动端降到 12 个保 60fps（光球是装饰，数量可降不可糊） */
+      var ORB_N = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) ? 12 : 36;
+      for (var oi = 0; oi < ORB_N; oi++) {
+        var dir = oi % 6;                              // 6 方向组循环分配，保证均匀
+        var size = (7 + (oi * 37) % 16).toFixed(0);    // 7–22vmax 伪随机尺寸
+        var left = (-(2 + (oi * 53) % 22)).toFixed(0); // 左侧或右侧进屏幕（正负交错）
+        var top = ((oi * 71) % 100).toFixed(0);        // 垂直铺开
+        var op = (.50 + ((oi * 29) % 25) / 100).toFixed(2); // 0.50–0.74 透明度
+        var delay = (-((oi * 31) % 1000) / 100 * DUR).toFixed(1); // 负 delay 错峰，起跑点各异
+        var dur = (DUR * (.8 + ((oi * 17) % 60) / 100)).toFixed(1);
+        var color = ORB_COLORS[(oi * 5) % ORB_COLORS.length];
+        orbHtml += '<div class="lg-orb lg-orb--dir' + dir + '" style="width:' + size + 'vmax;height:' + size +
+          'vmax;left:' + left + 'vmax;top:' + top + 'vmax;background:radial-gradient(circle,rgba(var(' + color +
+          '),' + op + '),rgba(var(' + color + '),0) 66%);animation-duration:' + dur + 's;animation-delay:' + delay + 's"></div>';
+      }
+      bgEl.innerHTML = orbHtml + '<div class="lg-plate"></div>';
       document.body.insertBefore(bgEl, document.body.firstChild);
-      /* 鼠标发光圆：无阻尼，紧咬鼠标 */
+      /* 鼠标发光圆：rAF 合帧紧咬鼠标。
+         直接写 style.transform 会在 mousemove 事件洪峰时每帧多次重算样式（掉帧源）；
+         改为「mousemove 只存最新坐标，rAF 每帧至多写一次」→ 每帧一次合成，60fps 上限内不掉帧。
+         will-change: transform 让该层在合成线程独立，position:fixed 不动布局。 */
       var glow = document.createElement('div'); glow.className = 'lg-mouseglow'; glow.setAttribute('aria-hidden', 'true');
       document.body.appendChild(glow);
+      var gx = -200, gy = -200, glowRafPending = false;
+      function glowWrite() {
+        glowRafPending = false;
+        glow.style.transform = 'translate3d(' + gx + 'px,' + gy + 'px,0) translate(-50%,-50%)';
+      }
       window.addEventListener('mousemove', function (e) {
-        glow.style.transform = 'translate3d(' + e.clientX + 'px,' + e.clientY + 'px,0) translate(-50%,-50%)';
+        gx = e.clientX; gy = e.clientY;
+        if (!glowRafPending) { glowRafPending = true; requestAnimationFrame(glowWrite); } /* 合帧：同帧多次 move 只写一次 */
       }, { passive: true });
       window.addEventListener('mouseout', function (e) { if (!e.relatedTarget) glow.style.opacity = '0'; });
       window.addEventListener('mouseover', function () { glow.style.opacity = String(getComputedStyle(document.documentElement).getPropertyValue('--lg-glow-op') || '.85'); });

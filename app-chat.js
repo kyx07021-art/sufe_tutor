@@ -621,24 +621,6 @@ function toggleChatPlus() { document.getElementById('chat-plus-wrap').classList.
 function closeChatPlus() { const w = document.getElementById('chat-plus-wrap'); if (w) w.classList.remove('open'); }
 function chatPlusDraft() { closeChatPlus(); if (chatConvId) openContractDraftModal(chatConvId); }
 
-// 合同状态灰字行：随会话加载，按 草案/签约/已签 + 是否起草方 + 我方是否已确认 取文案
-function contractLineText(c) {
-  const iAmDrafter = c.drafter_user_id === state.user.id;
-  const myConfirmed = iAmDrafter ? c.drafter_confirmed : c.other_confirmed;
-  if (c.status === 'pending') return iAmDrafter ? UI.CHAT_CONTRACT_PENDING_SENT : UI.CHAT_CONTRACT_PENDING_RECEIVED;
-  if (c.status === 'signing') return myConfirmed ? UI.CHAT_CONTRACT_SIGNING_WAIT : UI.CHAT_CONTRACT_SIGNING_TODO;
-  return UI.CHAT_CONTRACT_SIGNED;
-}
-async function loadChatContract(convId) {
-  const el = document.getElementById('chat-contract-line');
-  if (!el) return;
-  try {
-    const data = await api(`/api/contracts?conversationId=${convId}`);
-    if (chatConvId !== convId) return; // 会话已切走，丢弃过期响应
-    el.innerHTML = data.contract ? `<p class="chat-contract-line-text">${escHtml(contractLineText(data.contract))}</p>` : '';
-  } catch { /* 静默 */ }
-}
-
 // 移动端：从聊天窗返回会话列表（会话保持打开，轮询继续，预览照常刷新）
 function backToConvList() {
   const shell = document.getElementById('chats-shell');

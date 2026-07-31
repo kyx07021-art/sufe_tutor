@@ -5,7 +5,7 @@
  * 当前不做分区过滤（不传 section 即查全部），也不写死单分区逻辑。
  * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete
  */
-import { json, error, authUser } from './core.js';
+import { json, error, authUser, MSG } from './core.js';
 import {
   dbListPosts, dbCreatePost, dbGetPostById, dbGetPostLike,
   dbCreatePostLike, dbDeletePostLike, dbSyncPostLikeCount, dbGetPostLikeCount,
@@ -14,20 +14,18 @@ import {
 import { logEvent } from './log.js';
 
 // ============================================================
-// 本模块消息常量（自持，不改 core.js 的 MSG）
+// 本模块消息常量：仅保留帖子业务专属文案（标题/正文长度、删除权限、发布/删除结果）。
+// 通用错误（登录/角色/不存在）一律复用 core.js MSG，避免文案第三来源（CLAUDE.md 纪律）
 // ============================================================
 const PMSG = {
-  LOGIN_REQUIRED: '请先登录',
-  USER_NOT_FOUND: '用户不存在',
-  TEACHER_ONLY: '仅教师可发布帖子',
   TITLE_REQUIRED: '标题不能为空',
   TITLE_TOO_LONG: '标题不能超过 60 个字符',
   BODY_TOO_LONG: '正文不能超过 20000 个字符',
-  POST_NOT_FOUND: '帖子不存在',
   DELETE_FORBIDDEN: '仅作者本人可删除该帖子',
   POST_PUBLISHED: '发布成功',
   POST_DELETED: '帖子已删除',
 };
+// 注：帖子不存在改复用 MSG.USER_NOT_FOUND（core.js 无帖子专属「不存在」文案，避免新增第三来源）
 
 /**
  * GET /api/posts?sort=new|hot&section=&q=&userId=
@@ -51,12 +49,12 @@ export async function handleListPosts(db, url, req) {
  */
 export async function handleCreatePost(db, body, req) {
   const user = await authUser(db, req); // 身份凭令牌（曾凭自报 userId 可冒名教师发帖）
-  if (!user) return error(PMSG.LOGIN_REQUIRED, 401);
+  if (!user) return error(MSG.LOGIN_REQUIRED, 401);
   const userId = user.id;
   const title = String(body.title || '').trim();
   const bodyMd = String(body.bodyMd || '');
 
-  if (user.role !== 'teacher') return error(PMSG.TEACHER_ONLY, 403);
+  if (user.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
   if (!title) return error(PMSG.TITLE_REQUIRED);
   if (title.length > 60) return error(PMSG.TITLE_TOO_LONG);
   if (bodyMd.length > 20000) return error(PMSG.BODY_TOO_LONG);
@@ -78,11 +76,11 @@ export async function handleCreatePost(db, body, req) {
  */
 export async function handleToggleLike(db, postId, body, req) {
   const user = await authUser(db, req); // 身份凭令牌（曾凭自报 userId 可用他人 id 点赞）
-  if (!user) return error(PMSG.LOGIN_REQUIRED, 401);
+  if (!user) return error(MSG.LOGIN_REQUIRED, 401);
   const userId = user.id;
 
   const post = await dbGetPostById(db, postId);
-  if (!post) return error(PMSG.POST_NOT_FOUND, 404);
+  if (!post) return error(MSG.POST_NOT_FOUND, 404);
 
   const existing = await dbGetPostLike(db, postId, userId);
   let liked;
@@ -112,10 +110,10 @@ export async function handleToggleLike(db, postId, body, req) {
  */
 export async function handleDeletePost(db, postId, body, req) {
   const user = await authUser(db, req); // 身份凭令牌（曾凭自报 userId 可非管理员删他人帖）
-  if (!user) return error(PMSG.LOGIN_REQUIRED, 401);
+  if (!user) return error(MSG.LOGIN_REQUIRED, 401);
 
   const post = await dbGetPostById(db, postId);
-  if (!post) return error(PMSG.POST_NOT_FOUND, 404);
+  if (!post) return error(MSG.USER_NOT_FOUND, 404);
   // 仅作者本人可删；管理员凭令牌越权删除（资料管理页）
   const admin = user.role === 'admin' ? user : null;
   if (user.id !== Number(post.user_id) && !admin) return error(PMSG.DELETE_FORBIDDEN, 403);

@@ -66,25 +66,25 @@
 html { background: #ECEAF0; }
 body { background: transparent; }
 
-/* ---- 背景舞台：多而小、方向各异的光球 + 轻磨砂底板（球现形为柔形，组件自带轻磨砂保可读） ---- */
+/* ---- 背景舞台：多而小、方向随机的光球 + 轻磨砂底板（球现形为柔形，组件自带轻磨砂保可读）。
+   36 个光球由 index.html 的 JS 动态生成（随机分配 6 个方向组 + 起始位置 + 负 delay），
+   CSS 只提供 6 个「方向各异 + 逐渐转向」的 keyframes（像空气中的蒲公英：不只向右，各向漂移）。 ---- */
 .lg-bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
 .lg-orb { position: absolute; border-radius: 50%; filter: blur(2px); will-change: transform;
   animation-timing-function: linear; animation-iteration-count: infinite; }
-/* 尺寸约为旧版一半、数量增至 9、起始/方向各异 */
-.lg-orb--1 { width: 24vmax; height: 24vmax; left: -30vmax; top: -6vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-a),.80), rgba(var(--lg-orb-a),0) 66%); animation-name: lg-x1; animation-duration: calc(var(--lg-orb-dur)*1.15); animation-delay: calc(var(--lg-orb-dur)*-0.08); }
-.lg-orb--2 { width: 20vmax; height: 20vmax; left: -26vmax; top: 34vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-b),.70), rgba(var(--lg-orb-b),0) 66%); animation-name: lg-x2; animation-duration: calc(var(--lg-orb-dur)*1.0);  animation-delay: calc(var(--lg-orb-dur)*-0.42); }
-.lg-orb--3 { width: 19vmax; height: 19vmax; left: -25vmax; top: 62vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-c),.62), rgba(var(--lg-orb-c),0) 68%); animation-name: lg-x3; animation-duration: calc(var(--lg-orb-dur)*1.3);  animation-delay: calc(var(--lg-orb-dur)*-0.70); }
-.lg-orb--4 { width: 15vmax; height: 15vmax; left: -21vmax; top: 14vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-d),.66), rgba(var(--lg-orb-d),0) 68%); animation-name: lg-x4; animation-duration: calc(var(--lg-orb-dur)*0.9);  animation-delay: calc(var(--lg-orb-dur)*-0.55); }
-.lg-orb--5 { width: 17vmax; height: 17vmax; left: -23vmax; top: 78vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-e),.70), rgba(var(--lg-orb-e),0) 68%); animation-name: lg-x1; animation-duration: calc(var(--lg-orb-dur)*1.2);  animation-delay: calc(var(--lg-orb-dur)*-0.25); }
-.lg-orb--6 { width: 13vmax; height: 13vmax; left: -19vmax; top: 4vmax;   background: radial-gradient(circle, rgba(var(--lg-orb-f),.62), rgba(var(--lg-orb-f),0) 66%); animation-name: lg-x3; animation-duration: calc(var(--lg-orb-dur)*1.45); animation-delay: calc(var(--lg-orb-dur)*-0.88); }
-.lg-orb--7 { width: 12vmax; height: 12vmax; left: -18vmax; top: 48vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-g),.58), rgba(var(--lg-orb-g),0) 66%); animation-name: lg-x2; animation-duration: calc(var(--lg-orb-dur)*1.1);  animation-delay: calc(var(--lg-orb-dur)*-0.33); }
-.lg-orb--8 { width: 14vmax; height: 14vmax; left: -20vmax; top: 26vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-h),.60), rgba(var(--lg-orb-h),0) 68%); animation-name: lg-x4; animation-duration: calc(var(--lg-orb-dur)*1.35); animation-delay: calc(var(--lg-orb-dur)*-0.62); }
-.lg-orb--9 { width: 11vmax; height: 11vmax; left: -17vmax; top: 88vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-i),.56), rgba(var(--lg-orb-i),0) 66%); animation-name: lg-x1; animation-duration: calc(var(--lg-orb-dur)*1.55); animation-delay: calc(var(--lg-orb-dur)*-0.15); }
-/* 方向各异：横向为主轴，纵向漂移正负不同 = 看似随机 */
-@keyframes lg-x1 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(82vmax,7vmax,0)} 100%{transform:translate3d(165vmax,-4vmax,0)} }
-@keyframes lg-x2 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(80vmax,-9vmax,0)} 100%{transform:translate3d(162vmax,5vmax,0)} }
-@keyframes lg-x3 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(84vmax,11vmax,0)} 100%{transform:translate3d(168vmax,2vmax,0)} }
-@keyframes lg-x4 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(78vmax,-6vmax,0)} 100%{transform:translate3d(160vmax,-11vmax,0)} }
+/* 6 个方向组：主位移向不同象限 + 途中 rotate 缓慢转向（由 0° 旋至 ±n°，回程对称）→ 蒲公英式随机 */
+.lg-orb--dir0 { animation-name: lg-d0; }
+.lg-orb--dir1 { animation-name: lg-d1; }
+.lg-orb--dir2 { animation-name: lg-d2; }
+.lg-orb--dir3 { animation-name: lg-d3; }
+.lg-orb--dir4 { animation-name: lg-d4; }
+.lg-orb--dir5 { animation-name: lg-d5; }
+@keyframes lg-d0 { 0%{transform:translate3d(0,0,0) rotate(0)} 50%{transform:translate3d(82vmax,-16vmax,0) rotate(14deg)} 100%{transform:translate3d(165vmax,-4vmax,0) rotate(0)} }
+@keyframes lg-d1 { 0%{transform:translate3d(0,0,0) rotate(0)} 50%{transform:translate3d(78vmax,22vmax,0) rotate(-18deg)} 100%{transform:translate3d(160vmax,10vmax,0) rotate(0)} }
+@keyframes lg-d2 { 0%{transform:translate3d(0,0,0) rotate(0)} 50%{transform:translate3d(-80vmax,12vmax,0) rotate(16deg)} 100%{transform:translate3d(-162vmax,-6vmax,0) rotate(0)} }
+@keyframes lg-d3 { 0%{transform:translate3d(0,0,0) rotate(0)} 50%{transform:translate3d(-84vmax,-18vmax,0) rotate(-14deg)} 100%{transform:translate3d(-168vmax,8vmax,0) rotate(0)} }
+@keyframes lg-d4 { 0%{transform:translate3d(0,0,0) rotate(0)} 50%{transform:translate3d(76vmax,-26vmax,0) rotate(20deg)} 100%{transform:translate3d(158vmax,-14vmax,0) rotate(0)} }
+@keyframes lg-d5 { 0%{transform:translate3d(0,0,0) rotate(0)} 50%{transform:translate3d(-78vmax,26vmax,0) rotate(-20deg)} 100%{transform:translate3d(-160vmax,12vmax,0) rotate(0)} }
 .lg-plate { position: absolute; inset: 0;
   -webkit-backdrop-filter: blur(var(--lg-bg-blur)) ; backdrop-filter: blur(var(--lg-bg-blur)) ;
   background: linear-gradient(105deg, rgba(250,248,245,.20), rgba(250,248,245,.10) 50%, rgba(244,242,247,.20)),
@@ -93,6 +93,7 @@ body { background: transparent; }
 /* ---- 鼠标发光圆：无阻尼 ---- */
 .lg-mouseglow { position: fixed; left: 0; top: 0; width: var(--lg-glow-size); height: var(--lg-glow-size);
   border-radius: 50%; pointer-events: none; z-index: 9998; mix-blend-mode: screen; opacity: var(--lg-glow-op);
+  will-change: transform; /* 独立合成层：rAF 写 transform 不触发重排，合帧到 60fps */
   background: radial-gradient(circle, rgba(255,255,255,.5), rgba(231,227,247,.16) 42%, rgba(255,255,255,0) 70%);
   transform: translate3d(-50%,-50%,0) translate3d(-200px,-200px,0); transition: opacity .35s ease; }
 

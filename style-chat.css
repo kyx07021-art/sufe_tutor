@@ -254,10 +254,6 @@
 .chat-actions .chat-plus-btn { height: 100%; width: 40px; }
 .chat-actions .chat-send { height: 100%; min-width: 78px; }
 
-/* ---------- 合同状态灰字行（消息区与输入区之间） ---------- */
-.chat-contract-line { padding: 0 18px; }
-.chat-contract-line-text { padding: 7px 0; font-size: .72rem; color: var(--muted); text-align: center; letter-spacing: .02em; }
-
 /* ---------- 合同事件系统气泡：居中淡紫块（圆角随气泡惯例），区别于双方消息 ---------- */
 .chat-msg--system { align-self: center; align-items: center; max-width: 88%; }
 .chat-bubble--system { font-size: .78rem; text-align: center; }

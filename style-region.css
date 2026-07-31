@@ -51,7 +51,7 @@
 }
 .score-mode-tab + .score-mode-tab { border-left: 1.5px solid rgba(255,255,255,.3); }
 .score-mode-tab:not(.active):hover { background: rgba(255,255,255,.14); }
-.score-mode-tab.active { background: var(--m-btnAccent-bg, rgba(122,104,224,.78)); color: #fff; }
+.score-mode-tab.active { color: #fff; } /* 背景画在 glass ::before（glass.css 单点 --g-fill），此处仅文字色 */
 
 /* 页签面板：等第 pill / 分数输入，换行独占整行 */
 .score-mode-pane {

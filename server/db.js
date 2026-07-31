@@ -680,6 +680,12 @@ export async function dbDeleteDemand(db, id) {
   return true;
 }
 
+// 需求重开（revoked→open）：条件 UPDATE 赢家模式，返回是否命中（防并发双触发）
+export async function dbReopenDemand(db, id) {
+  const r = await dbRun(db, `UPDATE student_demands SET status='open' WHERE id=? AND status='revoked'`, [id]);
+  return !!(r && r.meta && r.meta.changes > 0);
+}
+
 // ============================================================
 // 需求主动推送（学生 → 指定教师）
 // ============================================================

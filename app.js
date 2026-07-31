@@ -508,10 +508,6 @@ async function refreshBadges() {
       } else {
         setBadge('my-contracts', contracts.filter(contractActionable).length);
       }
-      // 聊天窗合同状态灰字行同步刷新
-      if (state.page === 'my-chats' && typeof chatConvId !== 'undefined' && chatConvId && typeof loadChatContract === 'function') {
-        loadChatContract(chatConvId);
-      }
     } else setBadge('my-contracts', 0);
   } catch { /* 静默，下一轮自愈 */ }
 }

@@ -3,7 +3,7 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）
  */
 import {
-  json, error, requireAdmin, requireAdminOrError, authUser, genCode,
+  json, error, requireAdminOrError, authUser, genCode,
   MSG, STATUS,
 } from './core.js';
 import {
@@ -24,7 +24,8 @@ import { dbBroadcastNotification, notifyUser } from './notify.js';
 const INVITE_VALIDITY_MS = 5 * 60 * 1000;
 
 export async function handleAdminCheck(db, req) {
-  return json({ isAdmin: !!(await requireAdmin(db, req)) });
+  const admin = await authUser(db, req);
+  return json({ isAdmin: !requireAdminOrError(admin) });
 }
 
 export async function handleGenInvite(db, body, req) {

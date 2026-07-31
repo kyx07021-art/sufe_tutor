@@ -6,7 +6,7 @@
 
 // ============================================================
 // 敏感信息已抽离至根目录 secrets.js（公测迁 Worker Secrets，见 docs/secrets-plan.md）
-// 管理员种子读 globalThis.APP_SECRETS；管理员鉴权一律走 requireAdmin 令牌机制，
+// 管理员种子经 secrets 网关；管理员鉴权一律走 requireAdminOrError 令牌机制，
 // 「知道管理员用户名」不再等于「能执行管理员操作」
 // ============================================================
 
@@ -213,12 +213,6 @@ export async function authUser(db, req) {
   const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
   if (!exp || exp < Date.now()) return null;
   return u;
-}
-
-// 管理员校验 = 令牌用户 + role='admin'
-export async function requireAdmin(db, req) {
-  const u = await authUser(db, req);
-  return u && u.role === 'admin' ? u : null;
 }
 
 // 管理员鉴权两行式合一：调用方先用 authUser 解令牌用户再传入。

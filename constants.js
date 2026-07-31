@@ -16,6 +16,14 @@ globalThis.APP_CONSTANTS = {
   // ============================================================
   // 业务数据
   // ============================================================
+  // 状态枚举：与后端 server/core.js STATUS 逐字对齐（前端比较/赋值统一引这里，禁止散落硬编码字面量）。
+  // 改动值会破坏 SQL 兼容，两端必须同步
+  STATUS: {
+    OPEN: 'open', CONTRACTED: 'contracted', REVOKED: 'revoked', PENDING: 'pending',
+    ACCEPTED: 'accepted', REJECTED: 'rejected', SIGNING: 'signing', SIGNED: 'signed',
+    APPROVED: 'approved', ACTIVE: 'active', CLOSED: 'closed', RESOLVED: 'resolved',
+  },
+
   SUBJECTS: [
     { id: 'chinese', name: '语文', maxScore: 150 },
     { id: 'math', name: '数学', maxScore: 150 },
@@ -232,12 +240,7 @@ globalThis.APP_CONSTANTS = {
     // 教师端浏览同行
     PAGE_BROWSE_TEACHERS_PEER_DESC: '查看同行的信息与评价',
 
-    // 聊天窗合同状态灰字行 / 合同事件气泡
-    CHAT_CONTRACT_PENDING_SENT: '合同草案已发送，等待对方确认',
-    CHAT_CONTRACT_PENDING_RECEIVED: '对方发来一份合同草案，请前往「我的合同」查看并确认',
-    CHAT_CONTRACT_SIGNING_TODO: '草案已通过，请前往「我的合同」确认签约',
-    CHAT_CONTRACT_SIGNING_WAIT: '等待对方确认签约',
-    CHAT_CONTRACT_SIGNED: '双方已完成签约',
+    // 合同事件气泡（灰字行死特性已删，气泡文案保留）
     CHAT_BTN_DRAFT_CONTRACT: '起草合同',
     CHAT_PLUS_ARIA: '附件与合同',
     CHAT_PREVIEW_CONTRACT: '[合同草案]',

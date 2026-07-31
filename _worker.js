@@ -21,14 +21,14 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
 };
+// API 响应统一加安全头（F-08）：HTTP 级 CSP（frame-ancestors 仅 HTTP 头生效）、HSTS、
+// nosniff、Permissions-Policy、no-store。仅 API 走此函数——server 构造的标准 Response 头可写；
+// 静态资源（ASSETS）在 wrangler 里返回非标准对象（无 headers/clone），改由 Pages `_headers`
+// 文件加静态层安全头（Cloudflare 原生机制，不经 worker，见仓库根 _headers），二者互不纠缠。
 const applySecurityHeaders = (res, path) => {
-  // 静态资源响应头只读（Cloudflare ASSETS），须先复制成可变 Response 再设头，否则 set 抛错 → 500
-  if (!path.startsWith('/api/')) {
-    res = new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers });
-  }
+  if (!path.startsWith('/api/')) return res;
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.headers.set(k, v);
-  // 敏感 API 数据禁缓存（会话/合同/联系方式等）；静态资源保持默认可缓存
-  if (path.startsWith('/api/')) res.headers.set('Cache-Control', 'no-store');
+  res.headers.set('Cache-Control', 'no-store'); // 敏感 API 数据禁浏览器缓存
   return res;
 };
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
@@ -234,7 +234,7 @@ export default {
 
     // CORS preflight
     if (request.method === 'OPTIONS') {
-      return applySecurityHeaders(new Response(null, {
+      return await applySecurityHeaders(new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
@@ -252,9 +252,9 @@ export default {
           p.startsWith('/.git/') || p.startsWith('/.wrangler/') || p.startsWith('/node_modules/') ||
           p === '/package.json' || p === '/package-lock.json' || p === '/gen_flow.js' || p.endsWith('.md') ||
           p === '/wrangler.toml' || p === '/robots.txt' || p === '/sitemap.xml') {
-        return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
+        return await applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
-      return applySecurityHeaders(env.ASSETS.fetch(request), p);
+      return await applySecurityHeaders(env.ASSETS.fetch(request), p);
     }
 
     // 首次请求时初始化数据库（业务库 + 可选独立留档库 + 可选独立合同台账库）
@@ -276,7 +276,7 @@ export default {
       // 不信任 header，避免攻击者用大 body 耗内存 / 在解析后限流之前打满
       const BODY_LIMIT = 1100000;
       const cl = parseInt(request.headers.get('Content-Length') || '0', 10);
-      if (cl > BODY_LIMIT) return applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p);
+      if (cl > BODY_LIMIT) return await applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p);
       try {
         const reader = request.body && request.body.getReader();
         if (!reader) { body = await request.json(); }
@@ -293,25 +293,25 @@ export default {
           body = text ? JSON.parse(text) : {};
         }
       } catch (e) {
-        if (String(e && e.message) === 'PAYLOAD_TOO_LARGE') return applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p);
+        if (String(e && e.message) === 'PAYLOAD_TOO_LARGE') return await applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p);
         body = {}; // 其余解析失败（含非法 JSON）兜底空对象，交由路由校验
       }
     }
 
     // 限流闸门（IP 取 CF-Connecting-IP；超限一律 429，细节不回显）
     const ip = request.headers.get('CF-Connecting-IP') || 'anon';
-    if (!rateGate(ip, p, request.method, body, Date.now())) return applySecurityHeaders(error(MSG.RATE_LIMITED, 429), p);
+    if (!rateGate(ip, p, request.method, body, Date.now())) return await applySecurityHeaders(error(MSG.RATE_LIMITED, 429), p);
 
     try {
       const res = await routeApi(db, p, request.method, body, url, request);
       // 留档必须 await：workerd 在响应结束后掐断未完成的悬浮 Promise（加密咽喉链路较长，
       // 不 await 会导致留档被杀在途中——本批次线上 0 留档事故根因）
       await logRequest(db, { method: request.method, path: p, body, status: res.status, req: request });
-      return applySecurityHeaders(res, p);
+      return await applySecurityHeaders(res, p);
     } catch (err) {
       console.error('API Error:', err); // 细节只留服务端日志
       await logRequest(db, { method: request.method, path: p, body, status: 500, req: request });
-      return applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message（防泄露表名/约束等内部信息）
+      return await applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message（防泄露表名/约束等内部信息）
     }
   },
 };
