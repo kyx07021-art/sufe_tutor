@@ -74,7 +74,8 @@ html { font-size: 16px; -webkit-font-smoothing: antialiased; text-rendering: opt
 body {
   font-family: var(--font);
   color: var(--text);
-  background: var(--paper);
+  /* body 背景唯一主人 = glass.css（transparent，让玻璃舞台透出）；此处不再设色，
+     旧 --paper 底曾与 glass.css 抢 body 背景、靠加载顺序决定谁盖住光球——已删（用户纪律：竞争删一方）。 */
   line-height: 1.6;
   min-height: 100vh;
   letter-spacing: .005em;

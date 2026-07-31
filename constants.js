@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.0',
+  APP_VERSION: '0.19.1',
 
   // ============================================================
   // 业务数据
@@ -53,38 +53,16 @@ globalThis.APP_CONSTANTS = {
   TEACHING_METHODS: [{id:'online',name:'线上'},{id:'offline',name:'线下'},{id:'both',name:'线上线下均可'}],
 
   // ============================================================
-  // LIQUID GLASS 统一材质配置（改玻璃观感只动这里）
-  //   每支材质 mat = { frost, tint, tintA }：
-  //     frost  毛值：驱动高斯模糊 + 一点点白色调。正数=更毛，0=中性，
-  //            负数=比所在区域更通透（透镜感，按钮用）。
-  //     tint   配色 'r,g,b'；tintA 配色透明度 → 额外颜色叠加层。
-  //   运行时由 index.html 的注入器换算成 :root CSS 变量（--m-<名>-bg / -blur / -spec），
-  //   glass.css 全部消费变量；模糊只允许出现在背景底板与浮层两处（性能铁律）。
+  // LIQUID GLASS 统一观感配置（改玻璃观感只动这里）
+  //   材质注入器已连根拔除（0.19.1）：玻璃填充一律住 glass.css 的 --g-fill，
+  //   单源单一——不再有 JS 并行系统覆盖组件填充（用户纪律：竞争/覆盖→删一方）。
+  //   此处只留背景舞台几何参数（光球漂移 / 鼠标发光圆）。
   // ============================================================
   LG: {
     radius: { sm: 9, md: 12, lg: 15 },   // 小圆角
     bg: { blur: 6 },           // 背景底板：轻磨砂（让多而小的光球现形为柔形；可读性改由组件自带轻磨砂承担）
     orbCrossSec: 60,                      // 光球横穿全屏约 60s
     glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬）
-    // 毛值 frost 仅驱动极小白调；tint/tintA=叠色。体填充刻意通透，按钮更透=透镜。
-    mats: {
-      card:        { frost: 1,  tint: '255,255,255', tintA: .16 },  // 一般卡片：伪玻璃（半透白 + 液体高光）
-      cardHi:      { frost: 2,  tint: '255,255,255', tintA: .14 },  // 通用卡片：微毛通透（液态玻璃：边缘弯月承载液体感，主体轻透）
-      button:      { frost: -3, tint: '255,255,255', tintA: .04 },  // 中性按钮=透镜（负毛值，比卡片更透）
-      btnPrimary:  { frost: -2, tint: '74,58,178',  tintA: .90 },  // 深紫玻璃按钮（全站主色；叠色提深→边缘渐隐同色透明，不发白）
-      btnAccent:   { frost: -2, tint: '122,104,224', tintA: .62 },  // 紫色玻璃按钮
-      btnDanger:   { frost: -2, tint: '198,72,58',   tintA: .60 },  // 危险玻璃按钮
-      input:       { frost: 0,  tint: '255,255,255', tintA: .08 },  // 录入框
-      tag:         { frost: 0,  tint: '255,255,255', tintA: .16 },  // 标签药丸
-      stage:       { frost: 0,  tint: '255,255,255', tintA: .12 },  // 暂存区/文件chip
-      pill:        { frost: 4,  tint: '74,58,178',   tintA: .80 },  // 选中块（深紫玻璃）
-      user:        { frost: 3,  tint: '255,255,255', tintA: .34 },  // 底部用户玻璃卡
-      overlay:     { frost: 12, tint: '255,255,255', tintA: .22 },  // 浮层（弹窗/下拉/个人栏）真模糊
-      bubbleMine:  { frost: 0,  tint: '150,138,230', tintA: .26 },  // 我的气泡（通透淡紫）
-      bubbleTheirs:{ frost: 0,  tint: '233,218,196', tintA: .30 },  // 对方气泡（通透淡米）
-      bubbleSys:   { frost: 0,  tint: '206,198,238', tintA: .24 },  // 系统气泡
-      chatList:    { frost: 3,  tint: '255,255,255', tintA: .12 },  // 会话列表栏背景
-    },
   },
 
   // ============================================================

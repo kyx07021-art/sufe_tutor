@@ -1485,6 +1485,10 @@ async function loadBrowseDemands() {
     const demands = dData.demands || [];
     if (state.page === 'browse-demands') setBadge('browse-demands', 0); // 进页即视为已读；await 期间若已切走，不得掐灭轮询刚点亮的新推送红点
     if (!pushes.length && !demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
+    // 教师档案科目（匹配度标签用）：确保 allTeachers 已加载——直接进「浏览需求」页可能没拉过教师列表
+    if (!isGuest && state.user.role === 'teacher' && !state.allTeachers.length) {
+      try { state.allTeachers = (await api('/api/teachers')).teachers || []; } catch { /* 无档案或网络抖动：无匹配标签 */ }
+    }
     // 当前教师档案科目（科目匹配度标签用）：登录教师 + 已填档案时才有
     const myTeacher = (!isGuest && state.user.role === 'teacher') ? state.allTeachers.find(t => t.user_id === state.user.id) : null;
     const mySubjects = (myTeacher && Array.isArray(myTeacher.subjects)) ? myTeacher.subjects : null;

@@ -35,7 +35,7 @@
   width: 172px;
   flex-shrink: 0;
   border: none; overflow: hidden;
-  background: var(--m-input-bg, rgba(255,255,255,.1)); border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm);
+  background: rgba(255,255,255,.1); border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm);
 }
 .score-mode-tab {
   flex: 1 1 50%;
@@ -79,7 +79,7 @@
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  background: var(--m-button-bg, rgba(255,255,255,.1));
+  background: rgba(255,255,255,.1);
   color: var(--ink-3);
   transition: background-color var(--t-fast) var(--ease-out),
               color var(--t-fast) var(--ease-out);
@@ -97,7 +97,7 @@
 .gk-first-pills .gk-pill:hover::before,
 .gk-track-pills .gk-pill:hover::before { transform: scaleY(1); }
 .gk-first-pills .gk-pill.selected,
-.gk-track-pills .gk-pill.selected { background: var(--m-btnAccent-bg, rgba(122,104,224,.78)); color: #fff; }
+.gk-track-pills .gk-pill.selected { background: rgba(122,104,224,.78); color: #fff; }
 .gk-first-pills .gk-pill.selected::before,
 .gk-track-pills .gk-pill.selected::before { background: var(--accent-bright); transform: scaleY(1); }
 
