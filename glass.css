@@ -132,7 +132,7 @@ body { background: transparent; }
 .profile-card { --g-fill: rgba(255,255,255,.5); border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); padding: 14px 16px; }
 .profile-card--id { --g-fill: rgba(255,255,255,.62); }
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
-.btn-primary, .chat-send { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 46%), linear-gradient(160deg, #8b73ec, #5a45c4); }
+.btn-primary, .chat-send { --g-fg: #fff; --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60)); --g-frost: blur(3px) saturate(1.15); }
 .btn-accent { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 46%), linear-gradient(160deg, #9a85f0, #6d56d6); }
 .btn-danger { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 46%), linear-gradient(160deg, #d65a48, #b23a2c); }
 .btn-intent-ok { --g-fg: #fff; --g-fill: linear-gradient(160deg, rgba(24,122,75,.85), rgba(24,122,75,.66)); }
@@ -143,7 +143,7 @@ body { background: transparent; }
 .btn-text-danger { --g-fg: #fff; --g-fill: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 46%), linear-gradient(160deg, #d65a48, #b23a2c); padding: 6px 12px; }
 .tc-push-btn { --g-fg: #fff; border-radius: var(--lg-r); padding: 9px 18px; --g-fill: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 46%), linear-gradient(160deg, #9480f0, #5a45c4); --g-lift: 0 9px 22px -9px rgba(74,58,178,.55); }
 /* 侧栏选中块：同引擎——深紫填充 + 同色内缘边 + 圆角 */
-.sidebar-pill { --g-fill: linear-gradient(180deg, rgba(255,255,255,.2), rgba(255,255,255,0) 46%), linear-gradient(160deg, #8b73ec, #5a45c4); --g-fg: #fff; border-radius: var(--lg-r); box-shadow: var(--glass-lift); }
+.sidebar-pill { --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60)); --g-frost: blur(3px) saturate(1.15); --g-fg: #fff; border-radius: var(--lg-r); box-shadow: var(--glass-lift); }
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
   --g-mask: none; --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
@@ -216,14 +216,6 @@ body { background: transparent; }
   -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2);
   border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1);
 }
-.sidebar-pill {
-  /* 元素自绘宝石 + 外同色光晕（条目背景透明→光晕透出=选中块同色玻璃边，z0 在条目下、白字仍落在不透明宝石上） */
-  left: 0; right: 0;
-  --g-mask: none; -webkit-backdrop-filter: none; backdrop-filter: none;
-  background: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 46%), linear-gradient(160deg, #8b73ec, #5a45c4);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), inset 0 -7px 12px -7px rgba(40,28,110,.55), 0 8px 20px -8px rgba(74,58,178,.5), 0 0 18px -2px rgba(122,104,224,.5);
-}
-.sidebar-pill::before { background: none; }
 .sidebar-user { --g-fill: var(--m-user-bg, rgba(255,255,255,.34)); --g-mask: var(--edge-fade-mask-sm); border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); margin: 8px; }
 .sidebar-item { border-radius: var(--lg-r-sm); }
 .sidebar-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.2)); }
@@ -289,7 +281,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 .post-like.liked { --g-fill: rgba(211,47,47,.16); --g-fg: var(--danger); }
 
 /* 主页入口块（实心墨玻璃；竖条母题迁 ::after 以让出 ::before 给玻璃填充） */
-.entry { --g-mask: none; --g-fill: linear-gradient(160deg, rgba(74,58,178,.85), rgba(122,104,224,.62)); --g-fg: var(--paper); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); border-radius: var(--lg-r); }
+.entry { --g-fill: linear-gradient(160deg, rgba(74,58,178,.80), rgba(90,69,196,.60)); --g-frost: blur(3px) saturate(1.15); --g-fg: var(--paper); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); border-radius: var(--lg-r); }
 
 /* 徽章 */
 .user-badge { --g-mask: none; --g-fill: var(--accent-tint); color: var(--accent-deep); }
