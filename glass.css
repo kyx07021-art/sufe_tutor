@@ -123,38 +123,39 @@ body { background: transparent; }
 .profile-card--id { --g-fill: rgba(255,255,255,.62); }
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
 
-/* ---- 参数预设：实心件（--g-mask:none = 不走曲面遮罩，干净圆角填充，文字必读） ---- */
-.chat-back,
-.btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button {
-  --g-rim: 7px;    /* 按钮肩宽收紧：彩色填充已由 constants 提深，边缘走曲面遮罩渐隐成同色系透明玻璃边（白边根因是填充太浅，非遮罩本身；遮罩方角已验不戳出） */
-  --g-fill: var(--m-button-bg, rgba(255,255,255,.06)); --g-fg: var(--ink);
-  --g-lift: var(--glass-lift-sm); --g-ring: rgba(122,104,224,.55);
-  --g-hover: rgba(255,255,255,.16); --g-active: rgba(0,0,0,.14); --g-focusin: rgba(255,255,255,.18);
+/* ---- 实心控件（按钮族）：元素自绘，禁用 ::before 填充与元素折射 ----
+   原因：::before 在 z-index:-1 会盖住元素自身的 inset 高光/深度/悬停/焦点叠层（画了却看不见）；
+   实心件不需遮罩/磨砂。边缘"同色系透明"软边 = 外同色光晕（box-shadow 天然沿 border-radius，
+   四角与元素半径一致、绝不发白）；正交 linear-gradient 遮罩在白卡上必透出白边+四角错位，故 --g-mask:none。
+   颜色只住此处预设（glass 参数层）。frosted/masked 表面（卡/浮层/气泡）仍走 ::before，见上。 */
+.chat-back, .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button,
+.btn-text-danger, .btn-link-inline, .credential-reupload {
+  --g-mask: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  /* 中性默认：兜底所有按钮，保证 --g-body/--g-edge 永远有值 */
+  --g-fg: var(--ink);
+  --g-body: linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,0) 52%), rgba(255,255,255,.14);
+  --g-edge: inset 0 1px 0 rgba(255,255,255,.5), 0 6px 16px -8px rgba(30,26,64,.28), 0 0 0 .5px rgba(255,255,255,.42);
+  --g-hover: rgba(255,255,255,.16); --g-active: rgba(0,0,0,.10); --g-focusin: rgba(255,255,255,.18); --g-ring: rgba(122,104,224,.55);
   border-radius: var(--lg-r-sm); color: var(--g-fg); cursor: pointer;
-  box-shadow: var(--g-lift), inset 0 1px 0 rgba(255,255,255,.32);
+  background: var(--g-body); box-shadow: var(--g-edge);
   transition: transform var(--t-fast) var(--ease-out), color var(--t-base) var(--ease-out);
 }
-.btn-primary, .chat-send { --g-fill: var(--m-btnPrimary-bg, rgba(74,58,178,.82)); --g-fg: #fff; }
-.btn-accent { --g-fill: var(--m-btnAccent-bg, rgba(122,104,224,.62)); --g-fg: #fff; }
-.btn-danger { --g-fill: var(--m-btnDanger-bg, rgba(198,72,58,.60)); --g-fg: #fff; }
-.btn-outline { --g-fill: var(--m-button-bg, rgba(255,255,255,.10)); --g-fg: var(--ink); }
-.btn-ghost { --g-fill: var(--m-button-bg, rgba(255,255,255,.05)); --g-fg: var(--ink); }
-.btn-intent-ok { --g-fill: rgba(24,122,75,.5); --g-fg: #fff; }
-.btn-intent-wait { --g-fill: rgba(120,120,128,.34); --g-fg: #fff; }
-.btn-text-danger, .btn-link-inline, .credential-reupload {
-  --g-mask: none; --g-fill: var(--m-button-bg, rgba(255,255,255,.10)); --g-fg: var(--ink);
-  --g-lift: var(--glass-lift-sm); --g-ring: rgba(122,104,224,.5);
-  --g-hover: rgba(255,255,255,.16); --g-focusin: rgba(255,255,255,.18);
-  border-radius: var(--lg-r-sm); padding: 6px 12px; box-shadow: var(--g-lift), inset 0 1px 0 rgba(255,255,255,.32);
-}
-.btn-text-danger { --g-fill: rgba(198,72,58,.82); --g-fg: #fff; }  /* 实心红玻璃：白字必落红底，绝不 transparent */
-/* 发送需求：突出独立玻璃按钮——渐变填充+抬升投影+顶高光+圆角；hover 不吞成纯墨块 */
-.tc-push-btn {
-  --g-fill: linear-gradient(160deg, rgba(122,104,224,.82), rgba(122,104,224,.52)); --g-fg: #fff;
-  --g-lift: 0 9px 22px -9px rgba(74,58,178,.55); border-radius: var(--lg-r); padding: 9px 18px;
-  box-shadow: var(--g-lift), inset 0 1px 0 rgba(255,255,255,.4);
-}
-.tc-push-btn:hover:not(:disabled) { background: none; color: #fff; box-shadow: var(--g-lift), inset 0 0 0 9999px rgba(255,255,255,.16), inset 0 1px 0 rgba(255,255,255,.4); }
+/* 禁用按钮族 ::before 填充：让元素 inset 高光/悬停/焦点叠层可见（否则被 z-1 的 ::before 盖住） */
+.chat-back::before, .btn::before, .tc-push-btn::before, .chat-send::before, .chat-plus-btn::before, label.md-btn::before, .md-toolbar button::before,
+.btn-text-danger::before, .btn-link-inline::before, .credential-reupload::before { background: none; }
+.btn-ghost { --g-fg: var(--muted); --g-body: linear-gradient(180deg, rgba(255,255,255,.34), rgba(255,255,255,0) 52%), rgba(255,255,255,.05); --g-edge: inset 0 1px 0 rgba(255,255,255,.4), 0 0 0 .5px rgba(255,255,255,.3); }
+.btn-outline { --g-body: linear-gradient(180deg, rgba(255,255,255,.42), rgba(255,255,255,0) 52%), rgba(255,255,255,.10); }
+.btn-link-inline, .credential-reupload { --g-body: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 60%), rgba(255,255,255,.06); --g-edge: 0 0 0 .5px rgba(255,255,255,.3); padding: 6px 12px; }
+/* 主色宝石：顶高光 + 底内阴影深度 + 外落影 + 外同色光晕（光晕=同色系透明边，沿圆角、不发白） */
+.btn-primary, .chat-send { --g-fg: #fff; --g-body: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 46%), linear-gradient(160deg, #8b73ec, #5a45c4); --g-edge: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -7px 12px -7px rgba(40,28,110,.6), 0 9px 22px -7px rgba(74,58,178,.6), 0 0 20px -2px rgba(122,104,224,.5); }
+.btn-accent { --g-fg: #fff; --g-body: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 46%), linear-gradient(160deg, #9a85f0, #6d56d6); --g-edge: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -7px 12px -7px rgba(60,44,150,.5), 0 9px 22px -7px rgba(122,104,224,.55), 0 0 20px -2px rgba(140,122,236,.5); }
+.btn-danger { --g-fg: #fff; --g-body: linear-gradient(180deg, rgba(255,255,255,.26), rgba(255,255,255,0) 46%), linear-gradient(160deg, #d65a48, #b23a2c); --g-edge: inset 0 1px 0 rgba(255,255,255,.4), inset 0 -7px 12px -7px rgba(120,30,20,.55), 0 9px 22px -7px rgba(198,72,58,.55), 0 0 18px -2px rgba(198,72,58,.45); }
+.btn-intent-ok { --g-fg: #fff; --g-body: linear-gradient(160deg, rgba(24,122,75,.85), rgba(24,122,75,.66)); --g-edge: inset 0 1px 0 rgba(255,255,255,.3), 0 6px 14px -7px rgba(24,122,75,.5); }
+.btn-intent-wait { --g-fg: #fff; --g-body: linear-gradient(160deg, rgba(120,120,128,.5), rgba(120,120,128,.34)); --g-edge: inset 0 1px 0 rgba(255,255,255,.2); }
+.btn-text-danger { --g-fg: #fff; --g-body: linear-gradient(180deg, rgba(255,255,255,.22), rgba(255,255,255,0) 46%), linear-gradient(160deg, #d65a48, #b23a2c); --g-edge: inset 0 1px 0 rgba(255,255,255,.35), 0 6px 14px -7px rgba(198,72,58,.5), 0 0 14px -3px rgba(198,72,58,.4); padding: 6px 12px; }
+/* 发送需求（教师卡 CTA：大圆角 + 更强光晕） */
+.tc-push-btn { --g-fg: #fff; border-radius: var(--lg-r); padding: 9px 18px; --g-body: linear-gradient(180deg, rgba(255,255,255,.3), rgba(255,255,255,0) 46%), linear-gradient(160deg, #9480f0, #5a45c4); --g-edge: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -8px 14px -8px rgba(40,28,110,.6), 0 11px 26px -8px rgba(74,58,178,.65), 0 0 26px -2px rgba(122,104,224,.6); }
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
   --g-mask: none; --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
@@ -170,15 +171,11 @@ body { background: transparent; }
    ============================================================ */
 .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button { overflow: hidden; }  /* 涟漪裁剪 */
 .tc-push-btn::after, .chat-send::after, .chat-plus-btn::after { content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; z-index: 1; pointer-events: none; background: radial-gradient(circle, rgba(255,255,255,.6), rgba(255,255,255,0) 70%); transform: translate(-50%,-50%) scale(0); opacity: 0; transition: transform .5s var(--ease-out), opacity .6s var(--ease-out); }
-.btn:hover:not(:disabled), .tc-push-btn:hover:not(:disabled), .chat-send:hover:not(:disabled), .chat-plus-btn:hover:not(:disabled), label.md-btn:hover:not(:disabled), .md-toolbar button:hover:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-hover), inset 0 1px 0 rgba(255,255,255,.32); transform: translateY(-1px); }
-.btn:active:not(:disabled), .tc-push-btn:active:not(:disabled), .chat-send:active:not(:disabled), .chat-plus-btn:active:not(:disabled) { box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-active); transform: scale(.97); }
+.btn:hover:not(:disabled), .tc-push-btn:hover:not(:disabled), .chat-send:hover:not(:disabled), .chat-plus-btn:hover:not(:disabled), label.md-btn:hover:not(:disabled), .md-toolbar button:hover:not(:disabled), .chat-back:hover:not(:disabled), .btn-link-inline:hover, .btn-text-danger:hover { background: var(--g-body); box-shadow: var(--g-edge), inset 0 0 0 9999px var(--g-hover); transform: translateY(-1px); }
+.btn:active:not(:disabled), .tc-push-btn:active:not(:disabled), .chat-send:active:not(:disabled), .chat-plus-btn:active:not(:disabled), .chat-back:active:not(:disabled) { background: var(--g-body); box-shadow: var(--g-edge), inset 0 0 0 9999px var(--g-active); transform: scale(.97); }
 .btn:active:not(:disabled)::after, .tc-push-btn:active:not(:disabled)::after, .chat-send:active:not(:disabled)::after, .chat-plus-btn:active:not(:disabled)::after { transform: translate(-50%,-50%) scale(26); opacity: .85; transition: 0s; }
-/* 焦点双色环（白缝+紫环，任何填充/背景都显眼）；.sim-focus 同声明，仅供 headless 截图核验（headless 不绘 :focus-visible） */
-.chat-back:focus-visible, .chat-back.sim-focus,
-.btn:focus-visible, .btn.sim-focus, .tc-push-btn:focus-visible, .tc-push-btn.sim-focus, .chat-send:focus-visible, .chat-send.sim-focus, .chat-plus-btn:focus-visible, .chat-plus-btn.sim-focus, label.md-btn:focus-visible, label.md-btn.sim-focus, .md-toolbar button:focus-visible, .md-toolbar button.sim-focus,
-.btn-link-inline:focus-visible, .btn-link-inline.sim-focus, .btn-text-danger:focus-visible, .btn-text-danger.sim-focus {
-  outline: none; box-shadow: var(--g-lift), inset 0 0 0 9999px var(--g-focusin), inset 0 1px 0 rgba(255,255,255,.32), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
-}
+/* 焦点双色环（白缝+紫环）；.sim-focus 同声明供 headless 截图核验（headless 不绘 :focus-visible） */
+.chat-back:focus-visible, .chat-back.sim-focus, .btn:focus-visible, .btn.sim-focus, .tc-push-btn:focus-visible, .tc-push-btn.sim-focus, .chat-send:focus-visible, .chat-send.sim-focus, .chat-plus-btn:focus-visible, .chat-plus-btn.sim-focus, label.md-btn:focus-visible, label.md-btn.sim-focus, .md-toolbar button:focus-visible, .md-toolbar button.sim-focus, .btn-link-inline:focus-visible, .btn-link-inline.sim-focus, .btn-text-danger:focus-visible, .btn-text-danger.sim-focus { outline: none; box-shadow: var(--g-edge), inset 0 0 0 9999px var(--g-focusin), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring); }
 .drop-toggle:focus-visible, .drop-toggle.sim-focus, .custom-select-trigger:focus-visible, .custom-select-trigger.sim-focus {
   outline: none; border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring, rgba(122,104,224,.55));
 }
