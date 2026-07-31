@@ -22,11 +22,11 @@
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
   --g-rim: 15px;                 /* 曲面肩宽：卡/浮层边缘渐变带 */
   --g-rim-sm: 7px;               /* 气泡等小件的肩宽 */
-  --lg-bg-blur: 16px; --lg-bg-sat: 1.12;
+  --lg-bg-blur: 6px; --lg-bg-sat: 1.12;
   --lg-orb-dur: 60s;
   --lg-glow-size: 230px; --lg-glow-op: .85;
   --lg-orb-a: 150,138,210; --lg-orb-b: 200,160,121; --lg-orb-c: 150,150,170;
-  --lg-orb-d: 142,128,232; --lg-orb-e: 200,190,170;
+  --lg-orb-d: 142,128,232; --lg-orb-e: 200,190,170; --lg-orb-f: 168,150,224; --lg-orb-g: 196,176,150; --lg-orb-h: 150,168,196; --lg-orb-i: 184,150,210;
   --glass-lift: 0 12px 30px -12px rgba(30,26,64,.22);
   --glass-lift-sm: 0 6px 16px -8px rgba(30,26,64,.18);
   /* 曲面边缘遮罩：1px 发丝高光边 + 靠边陡、靠本体缓的肩（斜率 .16R 处最陡，向内趋平）。无空护城河=无相框 */
@@ -41,20 +41,29 @@
 html { background: #ECEAF0; }
 body { background: transparent; }
 
-/* ---- 背景舞台：光球横穿 + 底板（唯一重模糊） ---- */
+/* ---- 背景舞台：多而小、方向各异的光球 + 轻磨砂底板（球现形为柔形，组件自带轻磨砂保可读） ---- */
 .lg-bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
-.lg-orb { position: absolute; left: -55vmax; border-radius: 50%; filter: blur(2px); will-change: transform;
-  animation-name: lg-cross; animation-timing-function: linear; animation-iteration-count: infinite; }
-.lg-orb--1 { width: 48vmax; height: 48vmax; top: -8vmax; background: radial-gradient(circle, rgba(var(--lg-orb-a),.8), rgba(var(--lg-orb-a),0) 66%); animation-duration: calc(var(--lg-orb-dur)*1.15); animation-delay: calc(var(--lg-orb-dur)*-0.08); }
-.lg-orb--2 { width: 40vmax; height: 40vmax; top: 30vmax; background: radial-gradient(circle, rgba(var(--lg-orb-b),.7), rgba(var(--lg-orb-b),0) 66%); animation-duration: calc(var(--lg-orb-dur)*1.0);  animation-delay: calc(var(--lg-orb-dur)*-0.42); }
-.lg-orb--3 { width: 38vmax; height: 38vmax; top: 55vmax; background: radial-gradient(circle, rgba(var(--lg-orb-c),.62), rgba(var(--lg-orb-c),0) 68%); animation-duration: calc(var(--lg-orb-dur)*1.3); animation-delay: calc(var(--lg-orb-dur)*-0.7); }
-.lg-orb--4 { width: 30vmax; height: 30vmax; top: 12vmax; background: radial-gradient(circle, rgba(var(--lg-orb-d),.66), rgba(var(--lg-orb-d),0) 68%); animation-duration: calc(var(--lg-orb-dur)*0.9);  animation-delay: calc(var(--lg-orb-dur)*-0.55); }
-.lg-orb--5 { width: 34vmax; height: 34vmax; top: 68vmax; background: radial-gradient(circle, rgba(var(--lg-orb-e),.7), rgba(var(--lg-orb-e),0) 68%); animation-duration: calc(var(--lg-orb-dur)*1.2); animation-delay: calc(var(--lg-orb-dur)*-0.25); }
-@keyframes lg-cross { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(80vmax,5vmax,0)} 100%{transform:translate3d(160vmax,-3vmax,0)} }
+.lg-orb { position: absolute; border-radius: 50%; filter: blur(2px); will-change: transform;
+  animation-timing-function: linear; animation-iteration-count: infinite; }
+/* 尺寸约为旧版一半、数量增至 9、起始/方向各异 */
+.lg-orb--1 { width: 24vmax; height: 24vmax; left: -30vmax; top: -6vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-a),.80), rgba(var(--lg-orb-a),0) 66%); animation-name: lg-x1; animation-duration: calc(var(--lg-orb-dur)*1.15); animation-delay: calc(var(--lg-orb-dur)*-0.08); }
+.lg-orb--2 { width: 20vmax; height: 20vmax; left: -26vmax; top: 34vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-b),.70), rgba(var(--lg-orb-b),0) 66%); animation-name: lg-x2; animation-duration: calc(var(--lg-orb-dur)*1.0);  animation-delay: calc(var(--lg-orb-dur)*-0.42); }
+.lg-orb--3 { width: 19vmax; height: 19vmax; left: -25vmax; top: 62vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-c),.62), rgba(var(--lg-orb-c),0) 68%); animation-name: lg-x3; animation-duration: calc(var(--lg-orb-dur)*1.3);  animation-delay: calc(var(--lg-orb-dur)*-0.70); }
+.lg-orb--4 { width: 15vmax; height: 15vmax; left: -21vmax; top: 14vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-d),.66), rgba(var(--lg-orb-d),0) 68%); animation-name: lg-x4; animation-duration: calc(var(--lg-orb-dur)*0.9);  animation-delay: calc(var(--lg-orb-dur)*-0.55); }
+.lg-orb--5 { width: 17vmax; height: 17vmax; left: -23vmax; top: 78vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-e),.70), rgba(var(--lg-orb-e),0) 68%); animation-name: lg-x1; animation-duration: calc(var(--lg-orb-dur)*1.2);  animation-delay: calc(var(--lg-orb-dur)*-0.25); }
+.lg-orb--6 { width: 13vmax; height: 13vmax; left: -19vmax; top: 4vmax;   background: radial-gradient(circle, rgba(var(--lg-orb-f),.62), rgba(var(--lg-orb-f),0) 66%); animation-name: lg-x3; animation-duration: calc(var(--lg-orb-dur)*1.45); animation-delay: calc(var(--lg-orb-dur)*-0.88); }
+.lg-orb--7 { width: 12vmax; height: 12vmax; left: -18vmax; top: 48vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-g),.58), rgba(var(--lg-orb-g),0) 66%); animation-name: lg-x2; animation-duration: calc(var(--lg-orb-dur)*1.1);  animation-delay: calc(var(--lg-orb-dur)*-0.33); }
+.lg-orb--8 { width: 14vmax; height: 14vmax; left: -20vmax; top: 26vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-h),.60), rgba(var(--lg-orb-h),0) 68%); animation-name: lg-x4; animation-duration: calc(var(--lg-orb-dur)*1.35); animation-delay: calc(var(--lg-orb-dur)*-0.62); }
+.lg-orb--9 { width: 11vmax; height: 11vmax; left: -17vmax; top: 88vmax;  background: radial-gradient(circle, rgba(var(--lg-orb-i),.56), rgba(var(--lg-orb-i),0) 66%); animation-name: lg-x1; animation-duration: calc(var(--lg-orb-dur)*1.55); animation-delay: calc(var(--lg-orb-dur)*-0.15); }
+/* 方向各异：横向为主轴，纵向漂移正负不同 = 看似随机 */
+@keyframes lg-x1 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(82vmax,7vmax,0)} 100%{transform:translate3d(165vmax,-4vmax,0)} }
+@keyframes lg-x2 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(80vmax,-9vmax,0)} 100%{transform:translate3d(162vmax,5vmax,0)} }
+@keyframes lg-x3 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(84vmax,11vmax,0)} 100%{transform:translate3d(168vmax,2vmax,0)} }
+@keyframes lg-x4 { 0%{transform:translate3d(0,0,0)} 50%{transform:translate3d(78vmax,-6vmax,0)} 100%{transform:translate3d(160vmax,-11vmax,0)} }
 .lg-plate { position: absolute; inset: 0;
   -webkit-backdrop-filter: blur(var(--lg-bg-blur)) saturate(var(--lg-bg-sat)); backdrop-filter: blur(var(--lg-bg-blur)) saturate(var(--lg-bg-sat));
-  background: linear-gradient(105deg, rgba(250,248,245,.34), rgba(250,248,245,.20) 50%, rgba(244,242,247,.34)),
-              linear-gradient(105deg, rgba(216,212,221,.22), rgba(250,248,245,.10) 50%, rgba(231,227,247,.20)), rgba(244,242,247,.16); }
+  background: linear-gradient(105deg, rgba(250,248,245,.20), rgba(250,248,245,.10) 50%, rgba(244,242,247,.20)),
+              linear-gradient(105deg, rgba(216,212,221,.12), rgba(250,248,245,.05) 50%, rgba(231,227,247,.12)), rgba(244,242,247,.08); }
 
 /* ---- 鼠标发光圆：无阻尼 ---- */
 .lg-mouseglow { position: fixed; left: 0; top: 0; width: var(--lg-glow-size); height: var(--lg-glow-size);
@@ -105,7 +114,7 @@ body { background: transparent; }
 
 /* ---- 参数预设：卡 / 浮层 / 气泡 / 信息栏卡 ---- */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-  --g-fill: var(--m-cardHi-bg, rgba(255,255,255,.14)); border-radius: var(--lg-r); box-shadow: var(--glass-lift);
+  --g-fill: var(--m-cardHi-bg, rgba(255,255,255,.14)); --g-frost: blur(7px) saturate(1.15); border-radius: var(--lg-r); box-shadow: var(--glass-lift);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
   --g-fill: var(--m-overlay-bg, rgba(255,255,255,.22)); --g-frost: blur(var(--m-overlay-blur, 12px)) saturate(1.3); box-shadow: var(--glass-lift);
