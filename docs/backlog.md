@@ -3,9 +3,9 @@
 > 这是可执行的工作清单，带精确行号，供会话接力用。规则在 `../CLAUDE.md`，进度看 git。
 > 每项注明状态：✅ 已上线 / 🟡 醒着核对后做（跨文件/改契约/视觉，盲改易回归）/ 已判定不改。
 
-## 已完成（本轮 2026-07-31，v0.18.4–0.18.9）
-- ✅ 主按钮黑→紫 + 白边/四角错位根除：按钮族改**元素自绘**（宝石体+外同色光晕 box-shadow），`::before` 填充与元素折射禁用，`--g-mask:none`（glass.css 按钮块）。白边真因=alpha 渐隐遮罩在白卡上透白+四角错位；同色边只能靠 box-shadow 光晕（沿 border-radius）。
-- ✅ 侧栏选中块同色玻璃边：`.sidebar-pill` 改元素自绘宝石+光晕（glass.css；条目背景透明→光晕透出，z0 在条目下、白字仍落不透明宝石上）。
+## 已完成（本轮 2026-07-31，v0.18.4–0.18.11）
+- ✅ **v0.18.11 玻璃组件真正统一（推翻下面两条早期"元素自绘/外发光"做法）**：按钮+`.sidebar-pill` 不再是特例，= 卡的填色变体——与卡共用引擎 `::before` 填充 + 标准曲面遮罩 `--edge-fade-mask` + REFRACT 折射；per-variant **只设 `--g-fill`/`--g-fg`**。删光所有特例：元素自绘 `--g-body`/`--g-edge`、外同色光晕、`--g-mask:none`、`backdrop-filter:none`、每列表 `::before` box-shadow、内缘 `--g-rim` 参数全删；圆角回归引擎默认（SURFACE-STATIC 加 `border-radius:var(--lg-r-sm)`，因 base `.btn{border-radius:0}` 会吃掉圆角）。净 +19/−39（减法）。纪律写入 CLAUDE.md：best-part-is-no-part，只完善底层接口、禁开特例。本地 g18 三栈（白卡/彩卡/侧栏）截图验：圆角回来、渐变边回来、无外发光、文字可读。
+- ⚠️ 已被 0.18.11 推翻（留作教训，勿照做）：v0.18.5 曾用"元素自绘宝石体+外同色光晕 box-shadow+`--g-mask:none`"治白边——那是给按钮单开渲染路径的特例，用户连续打回（"渐变边没了/做成外发光了/圆角没了/没统一"）。白边真因=**填充太浅**，非遮罩本身；深填充+标准遮罩=同色肩，不是白边。"文字可读性所以要实色不能渐隐"是伪命题（文字在 padding 中心，边缘渐隐只动空 rim）。
 - ✅ 光球：更小(约一半)+更多(9)+方向各异(4 keyframe)，底板磨砂 16→6 让球现形为柔形；卡片补 `--g-frost:blur(7px)` 保可读（glass.css + index.html 注入器 DOM + constants bg.blur）。
 - ✅ base style.css 清理：删按钮变体死 `--g-fill`、`.tc-push-btn:hover{background:ink}` 黑悬停；`.stat-card` 左竖条 `::before`→`::after`（修被 glass 填充盖没）。
 - ✅ server 反馈列表 `status` 过滤下推 `dbGetFeedbacksAdmin(db,status)`（白名单，向后兼容）+ 路由接线。
@@ -22,4 +22,4 @@
 - **B2 `.form-select` v 箭头 background-image**（style.css:437-441）：非死代码，是无 JS 兜底（select 被 initCustomSelects 隐藏仅 JS 跑时；JS 挂时原生 select 仍需箭头），保留。
 
 ## 视觉实验（用户同意概念，需截图调参到美丽再上线）
-- **vivid「clear-over-vivid」宝石按钮**：本轮按钮已用"元素自绘宝石+同色光晕"达成彩色玻璃观感，无需 backdrop 垫层即可；若要进一步"折射弯折自有 vivid 渐变"的宝石感，可在按钮正后方垫同形不透明 vivid 层、按钮毛度≈0（backdrop-filter 无法跳层，自有 background 不被折射，故需垫层）。只出截图原型，给用户看再定推不推全站。
+- **vivid「clear-over-vivid」宝石按钮**：✅ 彩色玻璃观感已由 0.18.11 的统一达成（按钮=填色卡 + 标准遮罩 + 折射），**无需**元素自绘或 backdrop 垫层。若用户进一步要"折射去弯折一块自有 vivid 渐变"的宝石感，才需正后方垫同形不透明 vivid 层、按钮毛度≈0（backdrop-filter 无法跳层，自有 background 不被折射，故需垫层）——此为可选增强，只出截图原型，给用户看再定推不推全站；**不要**为它再给按钮开特例渲染路径（违 best-part-is-no-part）。
