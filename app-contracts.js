@@ -107,7 +107,7 @@ function viewContract(contractId) {
   if (!c) return;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body contract-md">${mdRender(c.contract_md || '')}</div>
     </div>
   </div>`;
@@ -120,7 +120,7 @@ function openContractModifyModal(contractId) {
   window._contractModifyUpdatedAt = c.updated_at; // 乐观锁版本：提交时带上，期间被对方改过则 409 强制重载
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${UI.MODIFY_CONTRACT_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.MODIFY_CONTRACT_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
@@ -152,7 +152,7 @@ function openContractModifyModal(contractId) {
 function openRevokeContractModal(contractId) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal" style="max-width:430px;">
-      <div class="modal-header"><h2>${UI.REVOKE_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.REVOKE_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="danger-warn">${UI.REVOKE_CONTRACT_WARN}</p>
         <div class="modal-footer">
@@ -225,7 +225,7 @@ async function openContractDraftModal(convId) {
   window._contractDraftDemands = options; // 供 prefillContractFromDemand 取数
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${UI.DRAFT_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.DRAFT_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="contract-alert">${demandsFailed ? `<div class="alert alert-error">${UI.CONTRACT_DEMANDS_LOAD_FAIL}</div>` : ''}</div>
         <div class="form-group">

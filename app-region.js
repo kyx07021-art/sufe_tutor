@@ -154,7 +154,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
         html += `<div class="gaokao-row"><span class="subject-name">${UI.REGION_FIRST_SUBJECT_LABEL}${firstChecked.length > 1 ? UI.REGION_FIRST_TWO_HINT : ''}</span>
           <div class="gk-pill-group gk-first-pills" data-gk-role="first">
             ${firstChecked.map(sid => `<span class="grade-option gk-pill ${sid === firstSel ? 'selected' : ''}"
-              data-gk-first="${escHtml(sid)}" onclick="pickGkPill(this)">${escHtml(names[sid] || sid)}</span>`).join('')}
+              data-gk-first="${escHtml(sid)}" role="button" tabindex="0" onclick="pickGkPill(this)">${escHtml(names[sid] || sid)}</span>`).join('')}
           </div>
           <input type="number" class="score-inline" data-gk-role="first-score" data-gk-type="score"
             value="${gkVal(firstEx.score)}" placeholder="${UI.REGION_SCORE_PLACEHOLDER}" min="0" max="100">
@@ -167,7 +167,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
           <span class="subject-name">${escHtml(names[sid] || sid)}</span>
           <div class="grade-selector" data-gk-subject="${escHtml(sid)}">
             ${gs.levels.map(lv => `<span class="grade-option ${ex.grade === lv.id ? 'selected' : ''}"
-              data-grade="${escHtml(lv.id)}" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
+              data-grade="${escHtml(lv.id)}" role="button" tabindex="0" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
           </div></div>`;
       }).join('');
     }
@@ -196,7 +196,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
         } else if (usePills) {
           ctl = `<div class="grade-selector" data-gk-subject="${escHtml(sid)}">
             ${gs.levels.map(lv => `<span class="grade-option ${ex.grade === lv.id ? 'selected' : ''}"
-              data-grade="${escHtml(lv.id)}" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
+              data-grade="${escHtml(lv.id)}" role="button" tabindex="0" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
           </div>`;
         } else if (gs && gs.type === 'grade') {
           ctl = `<select class="form-select gk-grade-select" data-gk-subject="${escHtml(sid)}">
@@ -383,7 +383,7 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
       </div>
       <div class="score-mode-pane" data-mode="grade">
         <div class="grade-selector" data-sg-subject="${sidE}">
-          ${levels.map(lv => `<span class="grade-option" data-grade="${escHtml(lv.id)}" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
+          ${levels.map(lv => `<span class="grade-option" data-grade="${escHtml(lv.id)}" role="button" tabindex="0" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
         </div>
       </div>
       <div class="score-mode-pane hidden" data-mode="score">${inputPane}

@@ -41,7 +41,7 @@ function openPostViewModal(postId) {
   if (!p) return;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div class="modal-header"><h2>${escHtml(p.title)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${escHtml(p.title)}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm text-muted" style="margin-bottom:12px;">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
         <div class="md-preview">${mdRender(p.body_md || '')}</div>
@@ -96,7 +96,7 @@ function adminViewContract(contractId) {
   if (!c) return;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal">
-      <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body contract-md">${mdRender(c.contract_md || '')}</div>
     </div>
   </div>`;

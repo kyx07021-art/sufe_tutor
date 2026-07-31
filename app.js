@@ -164,6 +164,15 @@ document.addEventListener('click', e => {
   }
   if (!e.target.closest('.custom-select')) closeAllCustomSelects();
 });
+// 键盘可达：非 button 的 [role=button]（如头像/用户名/等第 pill 等 span 控件）用 Enter/Space 触发其 onclick，补齐 a11y
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+  const t = e.target;
+  if (t && t.getAttribute && t.getAttribute('role') === 'button' && t.tagName !== 'BUTTON' && t.hasAttribute('onclick')) {
+    e.preventDefault();
+    t.click();
+  }
+});
 
 // 内联 onclick 里插值的字符串参数一律过此函数，防引号击穿
 function escHtml(s) {
@@ -710,7 +719,7 @@ function closeModal() { document.getElementById('modal-container').innerHTML = '
 function renderDemandModal(demand) {
   return `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${demand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${demand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE}</h2><button class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
@@ -998,7 +1007,7 @@ function renderTeacherCard(t) {
   return `<div class="list-card list-card--teacher">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
-        <span class="tc-username" onclick="openProfilePanel(${t.user_id})">${renderUsername(t.username)}</span>
+        <span class="tc-username" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openProfilePanel(${t.user_id})">${renderUsername(t.username)}</span>
         <span class="tc-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
         ${t.intro ? `<span class="tc-intro">${escHtml(t.intro)}</span>` : ''}
       </div>
@@ -1234,7 +1243,7 @@ function openReviewModal(teacherUserId, teacherName, editId) {
   const existing = editId ? state.myReviewOnModal : null;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName)}</h2><button class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName)}</h2><button class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="review-alert"></div>
         <div class="form-group">
@@ -1296,7 +1305,7 @@ async function submitReview(teacherUserId, reviewId) {
 function confirmDanger(title, text, onConfirm) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal" style="max-width:400px;">
-      <div class="modal-header"><h2>${title}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${title}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm" style="color:var(--ink-3);">${text}</p>
         <div class="modal-footer">
@@ -1499,7 +1508,7 @@ async function openSendDemandModal(teacherUserId) {
   }).join('')}</div>` : `<p class="text-sm text-muted">${state.myDemands.length ? UI.PUSH_NO_AVAILABLE_DEMANDS : UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal" style="max-width:480px;">
-      <div class="modal-header"><h2>${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm text-muted" style="margin-bottom:12px;">${UI.PUSH_MODAL_HINT}</p>
         ${pickHtml}
@@ -1665,7 +1674,7 @@ function revokeDeviceSession(token) {
 function openDeactivateModal() {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal" style="max-width:430px;">
-      <div class="modal-header"><h2>${UI.BTN_DEACTIVATE_ACCOUNT}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.BTN_DEACTIVATE_ACCOUNT}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="danger-warn">${UI.DEACTIVATE_WARN}</p>
         <div class="modal-footer">
@@ -1878,7 +1887,7 @@ function openFeedbackModal(kind) {
   feedbackKind = kind === 'suggestion' ? 'suggestion' : 'bug';
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2 id="feedback-modal-title">${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2 id="feedback-modal-title">${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
@@ -1956,7 +1965,7 @@ async function submitIntent(demandId) {
 function showProfileIncompleteModal() {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal" style="max-width:420px;">
-      <div class="modal-header"><h2>${UI.PROFILE_INCOMPLETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.PROFILE_INCOMPLETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm" style="color:var(--ink-3);line-height:1.7;">${UI.PROFILE_INCOMPLETE_HINT}</p>
         <div class="modal-footer">

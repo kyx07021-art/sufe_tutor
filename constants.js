@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.18.8',
+  APP_VERSION: '0.18.9',
 
   // ============================================================
   // 业务数据
@@ -557,6 +557,8 @@ globalThis.APP_CONSTANTS = {
     POST_PUBLISHING: '发布中',
     POST_PUBLISHED: '发布成功',
     BTN_PUBLISH: '发布',
+    BTN_CLOSE: '关闭',                 // 弹窗 ✕ 关闭按钮 aria-label
+    A11Y_VIEW_PROFILE: '查看该用户资料',  // 可点用户名/头像 span 的 aria-label
     POST_DELETE_TITLE: '删除帖子',
     POST_DELETE_CONFIRM: '删除后不可恢复，点赞数据一并清空。确认删除这篇帖子？',
 

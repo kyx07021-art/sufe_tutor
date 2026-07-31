@@ -120,7 +120,7 @@ function openPostEditor() {
   // 防误触：点遮罩不关（编辑成本高，只能 ✕ / 取消关闭）
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${UI.POST_MODAL_TITLE_CREATE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.POST_MODAL_TITLE_CREATE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
@@ -295,7 +295,7 @@ async function submitPost() {
 function postConfirmDelete(id) {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
     <div class="modal post-confirm-modal">
-      <div class="modal-header"><h2>${UI.POST_DELETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.POST_DELETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <p class="text-sm post-confirm-text">${UI.POST_DELETE_CONFIRM}</p>
         <div class="modal-footer">
@@ -335,7 +335,7 @@ function updateTitleCount() {
 function openBroadcastModal() {
   document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
     <div class="modal">
-      <div class="modal-header"><h2>${UI.BROADCAST_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" onclick="closeModal()">✕</button></div>
+      <div class="modal-header"><h2>${UI.BROADCAST_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
       <div class="modal-body">
         <div id="post-alert"></div>
         <div class="form-group">
