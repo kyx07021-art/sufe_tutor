@@ -74,6 +74,14 @@
 - 🟡 **验收备注·弯月可见化混入收口**：v0.19.8 收口提交内夹带视觉改动（卡 fill .35/暗弧 .40/新月带），后续 v0.19.9/10 独立迭代到「填充弧单机制+卡族 --g-sheen:none」。不破坏收口规则，但收口提交不纯粹。
 - ✅ **弯月浅底隐形实证诊断（2026-08-01，v0.19.12 已按主方向修）**：卡族弯月在浅底不可见。根因：①白弧配浅底零对比；②渐变峰值 `at 50% -5%` 被裁在上缘外，可见区只剩 ~.45 窄条；③下缘暗弧太淡。**已修**：峰值移入卡内（`at 50% 4%`，.90 全幅可见）+ 下缘暗弧加深加锐（.55 + 16px）。弯月单一机制（填充弧），sheen/blend 整条已删（v0.19.10）。
 
+## ✅ v0.19.38 三审计推迟项（2026-08-01 主会话整合；v0.19.40 清毕——用户授权"自己全修"，已全部落地并 32/32 测试通过）
+- ✅ **B1 log.js ↔ fieldcrypto.js 加密逻辑 ~90% 重复**：AES 原语（b64ToBytes/bytesToB64/aesKeyFromB64/encryptAes/decryptAes）收敛进 fieldcrypto.js 导出，log.js 只留 LOG_ENCRYPT_KEY 派生与 encrypted 语义；补 test/log-crypto.test.js（log 层薄壳：encrypted 标记/无密钥回落/密钥轮换，5 用例）。
+- ✅ **B3 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎** → 合并 dbGetTeachers(db, {adminView, viewerId})，两调用点（routes-teacher/routes-admin）已切。
+- ✅ **B4 dbGetAllDemands / dbGetAllDemandsAdmin** → 合并 dbGetDemands(db, {admin, cursor, teacherUserId})，调用点含测试（admin-demands-pagination 6 用例）全切。
+- 🟡 **B5 db 统计函数群同构 → 已判定不改**：三个统计函数是各自独立的 3~5 行查询（表/条件/输出键全不同），参数化=造泛型 SQL 构建器（加新物非删旧物）；dbGetRecentUsers/Demands 同构度更低（JOIN+JSON 映射差异）。按 C8/C12/B2 先例保留。
+- ✅ **C4 意向教师联系方式剥除点** → 内收进 dbGetIntentTeachers 出口（mapper 出口剥私密字段契约），routes-demands.js handleGetIntents 不再二次剥。
+- ✅ **C3b 合同创建端需求存在校验**：`!dm → 404 DEMAND_NOT_FOUND`（此前并入 403 NO_PERMISSION）；INSERT 守卫加 `(? IS NULL OR EXISTS(SELECT 1 FROM student_demands WHERE id=?))` 原子堵 SELECT→INSERT 竞态窗口，changes=0 时判别报 404/409 不误报。
+
 ## 🟡 醒着核对后做（高风险重构，勿凌晨盲改）
 - ✅ **C1 弹窗壳跨文件重复**：modal-header 模板 ×17 + 可点遮罩 ×11 → 已抽 `openModal({title,titleId,body,footer,closable,cls,style,bodyCls})` 单源（v0.19.15-16），20/20 弹窗迁移完毕，手写模板清零，渲染结构与原模板逐字节一致。**mdToolbarHtml 未抽**（发帖/广播/合同编辑三处 md-toolbar 留 body 内，低危可后续）。
 - ✅ **C2 前后端错误码体系（定向版 v0.19.8）**：`error()` 加可选 `code` 参数（向后兼容），档案不完整 → `PROFILE_INCOMPLETE`、帖子删除不存在 → `POST_NOT_FOUND`；前端 api 封装把 `code` 挂到抛出的 Error，两处脆分支改按 code 判定（保留 MSG 兜底）。其余 error 路径暂未全覆盖，可续。

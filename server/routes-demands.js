@@ -5,7 +5,7 @@ import { json, error, authUser, MSG, STATUS } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
-  dbFindUserById, dbCreateDemand, dbGetAllDemands, dbGetDemandsByUser,
+  dbFindUserById, dbCreateDemand, dbGetDemands, dbGetDemandsByUser,
   dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbReopenDemand, dbCreateIntent, dbGetIntentTeachers,
   dbGetIntentWithDemand, dbResolveIntent, dbUpsertConversation, dbGetTeacherProfile,
   dbCreatePush, dbGetPendingPushesForTeacher, dbGetPushById, dbResolvePush, dbAcceptPushAsIntent,
@@ -72,9 +72,9 @@ export async function handleGetDemands(db, url, req) {
   if (scope === 'for-teacher') {
     const me = await authUser(db, req);
     if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-    return json({ demands: await dbGetAllDemands(db, me.id) });
+    return json({ demands: await dbGetDemands(db, { teacherUserId: me.id }) });
   }
-  return json({ demands: await dbGetAllDemands(db) });
+  return json({ demands: await dbGetDemands(db) });
 }
 
 // 需求写操作关口：404 存在 → 403 归属 → 409 已签约锁定（update/delete 共用；服务端写入路径硬门禁）
@@ -164,8 +164,7 @@ export async function handleGetIntents(db, demandId, req) {
   const demand = await dbGetDemandById(db, demandId);
   if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand.user_id !== me.id) return error(MSG.NO_PERMISSION, 403); // 仅需求所有者可见意向列表
-  const teachers = (await dbGetIntentTeachers(db, demandId))
-    .map(({ wechat, email, real_name, credential_image, matched, ...rest }) => rest); // 联系方式签约后展示；真实姓名/学信网截图仅双向匹配后按档案端点定点取
+  const teachers = await dbGetIntentTeachers(db, demandId);
   return json({ demandId, count: teachers.length, teachers });
 }
 

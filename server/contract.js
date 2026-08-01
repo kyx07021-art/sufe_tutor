@@ -236,7 +236,8 @@ export async function handleCreateContract(db, body, req) {
   let demandNo = '';
   if (demandId) {
     const dm = await dbGetDemandById(db, demandId);
-    if (!dm || dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
+    if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404); // F-03b：需求已删（删除端有原子守卫，此处是创建端复核；INSERT 守卫再堵 SELECT→INSERT 竞态窗口）
+    if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
     if (dm.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求不可再绑新合同
     if (dm.display_id) demandNo = String(dm.display_id).padStart(4, '0');
   }
@@ -249,11 +250,16 @@ export async function handleCreateContract(db, body, req) {
     `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
         pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other)
      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?
-     WHERE NOT EXISTS (SELECT 1 FROM contracts WHERE conversation_id=? AND status IN ('pending','signing'))`,
+     WHERE NOT EXISTS (SELECT 1 FROM contracts WHERE conversation_id=? AND status IN ('pending','signing'))
+       AND (? IS NULL OR EXISTS (SELECT 1 FROM student_demands WHERE id=?))`,
     [conversationId, userId, demandId, method, schedule, location, plan, rate, md,
-     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther, conversationId]);
-  // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 existing 检查是快路径，此处是竞态闸门）
-  if (!(res && res.meta && res.meta.changes > 0)) return error(MSG.CONTRACT_EXISTS, 409);
+     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther, conversationId, demandId, demandId]);
+  // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 existing 检查是快路径，此处是竞态闸门）；
+  // 附加需求存在守卫：SELECT→INSERT 窗口内需求被并发删除则同样 changes=0，判别后报 404（不误报 409）
+  if (!(res && res.meta && res.meta.changes > 0)) {
+    if (demandId && !(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+    return error(MSG.CONTRACT_EXISTS, 409);
+  }
   const id = (res && res.meta && res.meta.last_row_id) || 0;
   // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
   await dbCreateMessage(db, conversationId, userId, 'contract', 'contract_draft');

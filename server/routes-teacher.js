@@ -7,7 +7,7 @@
  */
 import { json, error, authUser, MSG } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
-import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetAllTeachers, dbIsMatched, dbIsContracted, dbGetUserById } from './db.js';
+import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById } from './db.js';
 import { logEvent } from './log.js';
 
 // 学信网截图 dataURL 上限（前端已压缩至最长边 1000px，此处兜底防异常大串）
@@ -59,7 +59,7 @@ export async function handleSaveProfile(db, body, req) {
 // /api/teacher/profile 定点取）永不下发列表；登录态附 matched 标记供前端判定可见性
 export async function handleGetTeachers(db, req) {
   const me = await authUser(db, req);
-  const teachers = (await dbGetAllTeachers(db, me ? me.id : null))
+  const teachers = (await dbGetTeachers(db, { viewerId: me ? me.id : null }))
     .map(({ wechat, email, real_name, credential_image, ...rest }) => rest);
   return json({ teachers });
 }

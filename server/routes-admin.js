@@ -12,8 +12,8 @@ import {
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,
   dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage,
-  dbGetStudentUsersAdmin, dbGetTeacherUsersAdmin, dbGetUserById, dbSetUserBanned, dbSetTeacherVerified,
-  dbGetAllDemandsAdmin, dbGetMessageById,
+  dbGetStudentUsersAdmin, dbGetTeachers, dbGetUserById, dbSetUserBanned, dbSetTeacherVerified,
+  dbGetDemands, dbGetMessageById,
   dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback,
 } from './db.js';
 import { logEvent, queryLog, decryptLogEntry } from './log.js';
@@ -96,7 +96,7 @@ export async function handleAdminUsers(db, url, req) {
 
   const users = role === 'student'
     ? await dbGetStudentUsersAdmin(db)
-    : await dbGetTeacherUsersAdmin(db);
+    : await dbGetTeachers(db, { adminView: true });
   return json({ users });
 }
 
@@ -137,7 +137,7 @@ export async function handleAdminDemands(db, url, req) {
   const e = requireAdminOrError(await authUser(db, req));
   if (e) return e;
   // 网安报告 F-09：keyset 游标分页（db.js），返回 { demands, nextCursor }，前端 nextCursor 翻页
-  return json(await dbGetAllDemandsAdmin(db, url.searchParams.get('cursor') || null));
+  return json(await dbGetDemands(db, { admin: true, cursor: url.searchParams.get('cursor') || null }));
 }
 
 export async function handleAdminDeleteDemand(db, demandId, body, req) {

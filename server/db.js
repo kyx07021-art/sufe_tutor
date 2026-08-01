@@ -596,9 +596,19 @@ async function mapTeacherProfileRow(p) {
   };
 }
 
-// 教师广场列表；viewerId 有值（登录态）时附 matched 标记（双向匹配 = 与该教师已建立会话），
-// 前端据此决定是否拉取真实姓名/学信网截图等仅匹配可见字段
-export async function dbGetAllTeachers(db, viewerId = null) {
+// 教师列表统一出口（v0.19.40 合并 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎）：
+// 广场视图（默认）：viewerId 有值（登录态）时附 matched 标记（双向匹配 = 与该教师已建立会话），
+//   前端据此决定是否拉取真实姓名/学信网截图等仅匹配可见字段；
+// adminView：管理端教师管理列表——LEFT JOIN（无档案教师也显示）+ 附 role/banned/created_at
+export async function dbGetTeachers(db, { adminView = false, viewerId = null } = {}) {
+  if (adminView) {
+    const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
+        tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.wechat, tp.email,
+        tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
+      FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
+      WHERE u.role='teacher' ORDER BY u.created_at DESC`);
+    return await Promise.all(rows.map(async r => ({ ...(await mapTeacherProfileRow(r)), role: r.role, banned: r.banned, created_at: r.created_at })));
+  }
   const matchedSel = viewerId
     ? `EXISTS(SELECT 1 FROM conversations cv WHERE (cv.student_user_id=? AND cv.teacher_user_id=tp.user_id) OR (cv.student_user_id=tp.user_id AND cv.teacher_user_id=?)) AS matched`
     : '0 AS matched';
@@ -672,9 +682,34 @@ async function mapDemandRowFull(r) {
   return { ...mapDemandRow(r), parent_contact: parentContact || '', student_contact: studentContact || '' };
 }
 
-export async function dbGetAllDemands(db, teacherUserId = null) {
-  // 传 teacherUserId 时追加该教师在各需求上的意向状态（my_intent_status），供前端按钮三态渲染
-  // 广场只展示未签约需求：合同签署后 status='contracted' 的需求自动下架
+// 需求列表统一出口（v0.19.40 合并 dbGetAllDemands / dbGetAllDemandsAdmin）：
+// 广场（默认）：status NOT IN (contracted,revoked)，传 teacherUserId 时附该教师的意向状态
+// （my_intent_status，供前端按钮三态渲染）；admin：管理员全量（含已签约，管理端查看联系方式）
+export async function dbGetDemands(db, { admin = false, cursor = null, teacherUserId = null } = {}) {
+  if (admin) {
+    // 网安报告 F-09：LIMIT 300 硬截断 → keyset 游标分页（created_at,id 复合倒序；游标=末行编码，
+    // 前端以 nextCursor 翻页）。LIMIT 取 51 判 hasMore，不额外查询
+    const PAGE = 50;
+    const params = [];
+    let where = '';
+    if (cursor) {
+      const [cCreated, cId] = String(cursor).split('|');
+      if (cCreated && cId) {
+        where = ' WHERE (sd.created_at < ? OR (sd.created_at = ? AND sd.id < ?))';
+        params.push(cCreated, cCreated, parseInt(cId, 10) || 0);
+      }
+    }
+    const rows = await dbAll(db,
+      `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id${where}
+       ORDER BY sd.created_at DESC, sd.id DESC LIMIT ${PAGE + 1}`, params);
+    const hasMore = rows.length > PAGE;
+    const page = hasMore ? rows.slice(0, PAGE) : rows;
+    const last = page.length ? page[page.length - 1] : null;
+    return {
+      demands: await Promise.all(page.map(mapDemandRowFull)), // 管理员：管理端查看联系方式；F-06 解密为 async
+      nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
+    };
+  }
   let sel = DEMANDS_SELECT, extra = '', params = [];
   if (teacherUserId) {
     sel = DEMANDS_SELECT.replace('COALESCE(ic.cnt, 0) AS intent_count',
@@ -682,6 +717,7 @@ export async function dbGetAllDemands(db, teacherUserId = null) {
     extra = ' LEFT JOIN demand_intents mi ON mi.demand_id=sd.id AND mi.teacher_user_id=?';
     params = [teacherUserId];
   }
+  // 广场只展示未签约需求：合同签署后 status='contracted' 的需求自动下架
   const rows = await dbAll(db, sel + extra +
     ` WHERE (sd.status IS NULL OR sd.status NOT IN ('contracted','revoked')) ORDER BY sd.created_at DESC`, [...params]);
   return rows.map(mapDemandRow);
@@ -696,32 +732,6 @@ export async function dbGetDemandsByUser(db, userId) {
 export async function dbGetDemandById(db, id) {
   const row = await dbGet(db, 'SELECT * FROM student_demands WHERE id=?', [id]);
   return row ? mapDemandRow(row) : null;
-}
-
-// 管理员全量需求（含已签约；广场端点恒定排除 contracted，管理员页需独立全量端点）
-// 网安报告 F-09：LIMIT 300 硬截断 → keyset 游标分页（created_at,id 复合倒序；游标=末行编码，
-// 前端以 nextCursor 翻页）。LIMIT 取 51 判 hasMore，不额外查询
-export async function dbGetAllDemandsAdmin(db, cursor = null) {
-  const PAGE = 50;
-  const params = [];
-  let where = '';
-  if (cursor) {
-    const [cCreated, cId] = String(cursor).split('|');
-    if (cCreated && cId) {
-      where = ' WHERE (sd.created_at < ? OR (sd.created_at = ? AND sd.id < ?))';
-      params.push(cCreated, cCreated, parseInt(cId, 10) || 0);
-    }
-  }
-  const rows = await dbAll(db,
-    `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id${where}
-     ORDER BY sd.created_at DESC, sd.id DESC LIMIT ${PAGE + 1}`, params);
-  const hasMore = rows.length > PAGE;
-  const page = hasMore ? rows.slice(0, PAGE) : rows;
-  const last = page.length ? page[page.length - 1] : null;
-  return {
-    demands: await Promise.all(page.map(mapDemandRowFull)), // 管理员：管理端查看联系方式；F-06 解密为 async
-    nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
-  };
 }
 
 export async function dbUpdateDemand(db, id, d) {
@@ -824,10 +834,12 @@ export async function dbGetIntentTeachers(db, demandId) {
     LEFT JOIN teacher_profiles tp ON tp.user_id=di.teacher_user_id
     WHERE di.demand_id=? ORDER BY di.created_at DESC`, [demandId]);
   // 附加意向自身字段（id/状态/时间），供学生端同意/拒绝按钮使用
-  return await Promise.all(rows.map(async r => ({
+  // 出口剥私密字段（mapper 出口剥私密字段契约，v0.19.40 自路由层内收）：
+  // 联系方式签约后展示；真实姓名/学信网截图仅双向匹配后按档案端点定点取
+  return (await Promise.all(rows.map(async r => ({
     ...(await mapTeacherProfileRow(r)),
     intent_id: r.intent_id, intent_status: r.intent_status, intent_created_at: r.intent_created_at,
-  })));
+  })))).map(({ wechat, email, real_name, credential_image, matched, ...rest }) => rest);
 }
 
 export async function dbGetIntentWithDemand(db, intentId) {
@@ -1067,16 +1079,6 @@ export async function dbGetStudentUsersAdmin(db) {
   return await dbAll(db, `SELECT u.id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
     FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
     WHERE u.role='student' GROUP BY u.id ORDER BY u.created_at DESC`);
-}
-
-// 教师列表：LEFT JOIN 档案（与教师广场同套 mapper，附 role/banned/created_at）
-export async function dbGetTeacherUsersAdmin(db) {
-  const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
-      tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.wechat, tp.email,
-      tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
-    FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
-    WHERE u.role='teacher' ORDER BY u.created_at DESC`);
-  return await Promise.all(rows.map(async r => ({ ...(await mapTeacherProfileRow(r)), role: r.role, banned: r.banned, created_at: r.created_at })));
 }
 
 // ============================================================

@@ -7,7 +7,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dbGetAllDemandsAdmin } from '../server/db.js';
+import { dbGetDemands } from '../server/db.js';
 
 function fakeDb(rowFactory) {
   const calls = [];
@@ -41,7 +41,7 @@ function makeRow(id, createdAt) {
 
 test('无 cursor：倒序无 WHERE、LIMIT 51', async () => {
   const db = fakeDb(() => []);
-  await dbGetAllDemandsAdmin(db);
+  await dbGetDemands(db, { admin: true });
   const { sql, params } = db.calls[0];
   assert.ok(!/WHERE/.test(sql), '首屏无 WHERE');
   assert.ok(/ORDER BY sd\.created_at DESC, sd\.id DESC/.test(sql), '复合倒序键');
@@ -51,7 +51,7 @@ test('无 cursor：倒序无 WHERE、LIMIT 51', async () => {
 
 test('有 cursor：复合条件 (created_at,id) 下推 SQL', async () => {
   const db = fakeDb(() => []);
-  await dbGetAllDemandsAdmin(db, '2026-07-01 00:00:00|42');
+  await dbGetDemands(db, { admin: true, cursor: '2026-07-01 00:00:00|42' });
   const { sql, params } = db.calls[0];
   assert.ok(/sd\.created_at < \? OR \(sd\.created_at = \? AND sd\.id < \?\)/.test(sql), 'keyset 复合条件');
   assert.deepEqual(params, ['2026-07-01 00:00:00', '2026-07-01 00:00:00', 42]);
@@ -60,7 +60,7 @@ test('有 cursor：复合条件 (created_at,id) 下推 SQL', async () => {
 test('51 行 → 返回 50 + hasMore + nextCursor 编码', async () => {
   const rows = Array.from({ length: 51 }, (_, i) => makeRow(100 - i, `2026-06-01 0${i}:00:00`));
   const db = fakeDb(() => rows);
-  const out = await dbGetAllDemandsAdmin(db);
+  const out = await dbGetDemands(db, { admin: true });
   assert.equal(out.demands.length, 50);
   const last = rows[49];
   assert.equal(out.nextCursor, `${last.created_at}|${last.id}`);
@@ -68,14 +68,14 @@ test('51 行 → 返回 50 + hasMore + nextCursor 编码', async () => {
 
 test('50 行 → nextCursor=null（到尾）', async () => {
   const rows = Array.from({ length: 50 }, (_, i) => makeRow(100 - i, `2026-06-01 0${i}:00:00`));
-  const out = await dbGetAllDemandsAdmin(fakeDb(() => rows));
+  const out = await dbGetDemands(fakeDb(() => rows), { admin: true });
   assert.equal(out.demands.length, 50);
   assert.equal(out.nextCursor, null);
 });
 
 test('mapper 出口：mapDemandRow 剥联系方式与门牌；Full 解密回填', async () => {
   const rows = [makeRow(1, '2026-06-01 00:00:00')];
-  const out = await dbGetAllDemandsAdmin(fakeDb(() => rows)); // Full 路径（管理员）
+  const out = await dbGetDemands(fakeDb(() => rows), { admin: true }); // Full 路径（管理员）
   const d = out.demands[0];
   assert.equal(d.parent_contact, '13800138000', 'Full 解密回填');
   assert.equal(d.student_contact, '13900139000');
@@ -84,7 +84,7 @@ test('mapper 出口：mapDemandRow 剥联系方式与门牌；Full 解密回填'
 });
 
 test('空表 → 空列表 + nextCursor=null', async () => {
-  const out = await dbGetAllDemandsAdmin(fakeDb(() => []));
+  const out = await dbGetDemands(fakeDb(() => []), { admin: true });
   assert.deepEqual(out.demands, []);
   assert.equal(out.nextCursor, null);
 });

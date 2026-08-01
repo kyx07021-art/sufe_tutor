@@ -11,6 +11,7 @@
  */
 import { dbAll, dbGet, dbRun, authUser } from './core.js';
 import { getSecret } from './secrets.js';
+import { aesKeyFromB64, encryptAes, decryptAes } from './fieldcrypto.js'; // AES 原语收敛处（v0.19.40）
 
 // env.LOG_DB 存在时指向独立留档库；workerd 单实例内 env 稳定，模块级绑定安全
 let LOG_DB_OVERRIDE = null;
@@ -27,52 +28,39 @@ function getLogDb(fallbackDb) {
 }
 
 // ============================================================
-// detail 加密（AES-GCM-256，每行随机 12B IV；密文格式 enc:v1:<iv_b64>:<ct_b64>）
+// detail 加密（AES-GCM-256，每行随机 12B IV；密文格式 enc:v1:<iv_b64>:<ct_b64>，
+// 原语实现收在 fieldcrypto.js，此处只留 LOG_ENCRYPT_KEY 派生与 encrypted 语义）
 // 密钥经 secrets 网关（Worker Secrets 优先，回落 secrets.js）；取不到密钥时明文落库
 // （encrypted=0），内测兼容老库与未配置环境。schema_v：明文=1，加密=2
 // ============================================================
 const LOG_SCHEMA_V = 2;
 let KEY_PROMISE = null;
-const b64ToBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-const bytesToB64 = bytes => btoa(String.fromCharCode(...bytes));
 
 function logKey() {
   if (!KEY_PROMISE) {
     KEY_PROMISE = (async () => {
-      try {
-        const raw = String(getSecret(LOG_ENV, 'LOG_ENCRYPT_KEY') || '');
-        if (!raw) return null;
-        return await crypto.subtle.importKey('raw', b64ToBytes(raw), 'AES-GCM', false, ['encrypt', 'decrypt']);
-      } catch { return null; }
+      const raw = String(getSecret(LOG_ENV, 'LOG_ENCRYPT_KEY') || '');
+      if (!raw) return null;
+      return aesKeyFromB64(raw);
     })();
   }
   return KEY_PROMISE;
 }
 
-async function encryptDetail(json) {
+// 导出供 node --test 回归（test/log-crypto.test.js），语义不变
+export async function encryptDetail(json) {
   if (json === null || json === undefined) return { text: null, encrypted: 0 };
   const key = await logKey();
   if (!key) return { text: json, encrypted: 0 };
-  try {
-    const iv = crypto.getRandomValues(new Uint8Array(12));
-    const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(json));
-    return { text: `enc:v1:${bytesToB64(iv)}:${bytesToB64(new Uint8Array(ct))}`, encrypted: 1 };
-  } catch {
-    return { text: json, encrypted: 0 }; // 加密失败退明文：留档完整优先于机密性
-  }
+  const ct = await encryptAes(key, json);
+  return ct ? { text: ct, encrypted: 1 } : { text: json, encrypted: 0 }; // 加密失败退明文：留档完整优先于机密性
 }
 
-async function decryptDetail(text) {
+export async function decryptDetail(text) {
   if (typeof text !== 'string' || !text.startsWith('enc:v1:')) return text; // 老明文行原样放行
   const key = await logKey();
   if (!key) return '[encrypted]';
-  try {
-    const parts = text.split(':');
-    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBytes(parts[2]) }, key, b64ToBytes(parts[3]));
-    return new TextDecoder().decode(pt);
-  } catch {
-    return '[undecryptable]'; // 密钥轮换后的历史密文：标记不可解，不抛错
-  }
+  return decryptAes(key, text);
 }
 
 // 单条显式解密（GET /api/admin/logs/:id/decrypt 用）
