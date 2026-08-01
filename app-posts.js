@@ -293,18 +293,13 @@ async function submitPost() {
 
 // 删除二次确认（自写小弹窗，模式同 app.js 的 confirmDanger，但不调用它以免耦合）
 function postConfirmDelete(id) {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal post-confirm-modal glass glass--float">
-      <div class="modal-header glass"><h2>${UI.POST_DELETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <p class="text-sm post-confirm-text">${UI.POST_DELETE_CONFIRM}</p>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="deletePost(${id})">${UI.BTN_CONFIRM_DELETE}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title: UI.POST_DELETE_TITLE,
+    cls: 'post-confirm-modal',
+    body: `<p class="text-sm post-confirm-text">${UI.POST_DELETE_CONFIRM}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="deletePost(${id})">${UI.BTN_CONFIRM_DELETE}</button>`,
+  });
 }
 
 async function deletePost(id) {

@@ -39,15 +39,11 @@ function renderAdminPostRow(p) {
 function openPostViewModal(postId) {
   const p = state.adminPosts.find(x => x.id === postId);
   if (!p) return;
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${escHtml(p.title)}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <p class="text-sm text-muted" style="margin-bottom:12px;">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
-        <div class="md-preview glass glass--solid">${mdRender(p.body_md || '')}</div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title: escHtml(p.title),
+    body: `<p class="text-sm text-muted" style="margin-bottom:12px;">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
+        <div class="md-preview glass glass--solid">${mdRender(p.body_md || '')}</div>`,
+  });
 }
 
 function adminDeletePost(postId) {
@@ -94,12 +90,11 @@ function renderAdminContractRow(c) {
 function adminViewContract(contractId) {
   const c = state.adminContracts.find(x => x.id === contractId);
   if (!c) return;
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body contract-md">${mdRender(c.contract_md || '')}</div>
-    </div>
-  </div>`;
+  openModal({
+    title: UI.BTN_VIEW_CONTRACT,
+    bodyCls: 'contract-md',
+    body: `${mdRender(c.contract_md || '')}`,
+  });
 }
 
 function adminRemoveContract(contractId) {

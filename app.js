@@ -714,6 +714,30 @@ function openDemandModal(demandId) {
 }
 function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
 
+// ============================================================
+// C1 弹窗壳单源：overlay + modal + header + body（+ 可选 footer）
+// 渲染结构与原手写模板逐字节一致——title 传 null 则无头栏（image-viewer 等）；
+// closable 控制点遮罩关闭；cls/style 透传自定义类与内联样式；bodyCls 透传 body 类。
+// ============================================================
+function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '' } = {}) {
+  const clickable = closable ? ' onclick="if(event.target===this)closeModal()"' : '';
+  const header = title != null
+    ? `<div class="modal-header glass"><h2${titleId ? ` id="${titleId}"` : ''}>${title}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>`
+    : '';
+  const clsAttr = cls ? ` ${cls}` : '';
+  const styleAttr = style ? ` style="${style}"` : '';
+  const bodyClsAttr = bodyCls ? ` ${bodyCls}` : '';
+  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"${clickable}>
+    <div class="modal glass glass--float${clsAttr}"${styleAttr}>
+      ${header}
+      <div class="modal-body${bodyClsAttr}">
+        ${body}
+        ${footer ? `<div class="modal-footer">${footer}</div>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderDemandModal(demand) {
   return `<div class="modal-overlay">
     <div class="modal glass glass--float">
@@ -1307,18 +1331,13 @@ async function submitReview(teacherUserId, reviewId) {
 
 // 通用危险操作二次确认（onConfirm 仅由内部以数字 id 拼装全局函数调用串）
 function confirmDanger(title, text, onConfirm) {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float" style="max-width:400px;">
-      <div class="modal-header glass"><h2>${title}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <p class="text-sm" style="color:var(--ink-3);">${text}</p>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="${onConfirm}">${UI.BTN_CONFIRM}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title,
+    style: 'max-width:400px;',
+    body: `<p class="text-sm" style="color:var(--ink-3);">${text}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="${onConfirm}">${UI.BTN_CONFIRM}</button>`,
+  });
 }
 
 function confirmDeleteDemand(demandId, asAdmin) {
@@ -1712,18 +1731,13 @@ function revokeDeviceSession(sessionId) {
 // 注销账户：两级确认（数据影响说明 → 最终危险确认）。后端抹单方数据、墓碑化用户名，
 // 双方数据保留；成功后清本地会话回落地页（同登出）。
 function openDeactivateModal() {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float" style="max-width:430px;">
-      <div class="modal-header glass"><h2>${UI.BTN_DEACTIVATE_ACCOUNT}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <p class="danger-warn">${UI.DEACTIVATE_WARN}</p>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
-          <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="confirmDeactivateAccount()">${UI.BTN_CONTINUE_DANGER}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title: UI.BTN_DEACTIVATE_ACCOUNT,
+    style: 'max-width:430px;',
+    body: `<p class="danger-warn">${UI.DEACTIVATE_WARN}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
+          <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="confirmDeactivateAccount()">${UI.BTN_CONTINUE_DANGER}</button>`,
+  });
 }
 function confirmDeactivateAccount() {
   openConfirmModal(UI.DEACTIVATE_FINAL, async () => {
@@ -1761,11 +1775,11 @@ function compressToDataURL(file, maxSide, quality, square) {
 
 // 通用大图查看器（聊天图片放大 / 学信网截图预览共用；点空白关闭）
 function openImageViewer(src) {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal image-viewer-modal glass glass--float">
-      <div class="modal-body"><img src="${escHtml(src)}" alt=""></div>
-    </div>
-  </div>`;
+  openModal({
+    title: null,
+    cls: 'image-viewer-modal',
+    body: `<img src="${escHtml(src)}" alt="">`,
+  });
 }
 
 // 头像上传：居中取最大内切正方形缩放至 160px（圆形由 CSS border-radius 呈现），dataURL 落库
@@ -1815,34 +1829,26 @@ function viewTeacherCredential(userId) {
 
 // 退出登录二次确认（确认类弹窗，保留点遮罩关闭）
 function confirmLogout() {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float" style="max-width:380px;">
-      <div class="modal-body">
-        <p style="margin-bottom:16px;">${UI.CONFIRM_LOGOUT}</p>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="closeModal();handleLogout()">${UI.BTN_LOGOUT}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title: null,
+    style: 'max-width:380px;',
+    body: `<p style="margin-bottom:16px;">${UI.CONFIRM_LOGOUT}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="closeModal();handleLogout()">${UI.BTN_LOGOUT}</button>`,
+  });
 }
 
 // 通用二次确认弹窗（全站禁止浏览器原生 confirm——必须走内置 modal 组件）
 let pendingConfirmAction = null;
 function openConfirmModal(message, action) {
   pendingConfirmAction = action;
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float" style="max-width:380px;">
-      <div class="modal-body">
-        <p style="margin-bottom:16px;">${message}</p>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="runPendingConfirm()">${UI.BTN_CONFIRM}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title: null,
+    style: 'max-width:380px;',
+    body: `<p style="margin-bottom:16px;">${message}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="runPendingConfirm()">${UI.BTN_CONFIRM}</button>`,
+  });
 }
 function runPendingConfirm() {
   closeModal();
@@ -2003,18 +2009,13 @@ async function submitIntent(demandId) {
 
 // 档案不完整：拦截提交并引导去补档案（后端同样把关，弹窗只是更友好的引导）
 function showProfileIncompleteModal() {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float" style="max-width:420px;">
-      <div class="modal-header glass"><h2>${UI.PROFILE_INCOMPLETE_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <p class="text-sm" style="color:var(--ink-3);line-height:1.7;">${UI.PROFILE_INCOMPLETE_HINT}</p>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_LATER}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title: UI.PROFILE_INCOMPLETE_TITLE,
+    style: 'max-width:420px;',
+    body: `<p class="text-sm" style="color:var(--ink-3);line-height:1.7;">${UI.PROFILE_INCOMPLETE_HINT}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_LATER}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>`,
+  });
 }
 
 // 展开 / 收起某条需求的意向列表（学生端）：grid-rows 动效 + ▾ 翻转，首次展开才拉数据

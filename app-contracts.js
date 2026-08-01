@@ -105,12 +105,11 @@ function signContract(contractId) {
 function viewContract(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${UI.BTN_VIEW_CONTRACT}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body contract-md">${mdRender(c.contract_md || '')}</div>
-    </div>
-  </div>`;
+  openModal({
+    title: UI.BTN_VIEW_CONTRACT,
+    bodyCls: 'contract-md',
+    body: `${mdRender(c.contract_md || '')}`,
+  });
 }
 
 // 修改合同内容：复用发帖组件的 Markdown 编辑器（同套 id，弹窗互斥）
@@ -150,18 +149,13 @@ function openContractModifyModal(contractId) {
 // 撤销已签约合同：两级确认。第一级告知法律后果与数据影响（不显眼，防误触），
 // 第二级复用 openConfirmModal 危险确认。活跃库抹除合同，签署台账与加密留档保留。
 function openRevokeContractModal(contractId) {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
-    <div class="modal glass glass--float" style="max-width:430px;">
-      <div class="modal-header glass"><h2>${UI.REVOKE_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <p class="danger-warn">${UI.REVOKE_CONTRACT_WARN}</p>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
-          <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="confirmRevokeContract(${contractId})">${UI.BTN_CONTINUE_DANGER}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title: UI.REVOKE_MODAL_TITLE,
+    style: 'max-width:430px;',
+    body: `<p class="danger-warn">${UI.REVOKE_CONTRACT_WARN}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
+          <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="confirmRevokeContract(${contractId})">${UI.BTN_CONTINUE_DANGER}</button>`,
+  });
 }
 function confirmRevokeContract(contractId) {
   openConfirmModal(UI.REVOKE_CONTRACT_FINAL, async () => {
@@ -212,7 +206,7 @@ function cancelContract(contractId) {
 // 起草合同（聊天窗 + 号呼出）：先选对应需求 → 预载配置（科目/方式/预算）→ 教学方式 / 授课时间 /
 // 授课地点 / 约定时薪 / 教学方案（md 编辑器，合同文本禁插图）→ 发送另一方确认
 async function openContractDraftModal(convId) {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"><div class="modal glass glass--float"><div class="modal-body">${loaderHtml()}</div></div></div>`;
+  openModal({ title: null, closable: false, body: `${loaderHtml()}` });
   let demands = [], demandsFailed = false;
   try { const data = await api('/api/student/demands'); demands = data.demands || []; } catch { demandsFailed = true; /* 拉取失败仍可起草（不绑需求），弹窗内明示 */ }
   const conv = (typeof chatConvById === 'function') ? chatConvById(convId) : null;
