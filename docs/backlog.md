@@ -3,7 +3,8 @@
 > 这是可执行的工作清单，带精确行号，供会话接力用。规则在 `../CLAUDE.md`，进度看 git。
 > 每项注明状态：✅ 已上线 / 🟡 醒着核对后做（跨文件/改契约/视觉，盲改易回归）/ 已判定不改。
 
-## 已完成（本轮 2026-07-31，v0.18.4–0.18.13）
+## 已完成（本轮 2026-07-31，v0.18.4–0.18.13 + 玻璃 v0.19.6/7）
+- ✅ **v0.19.6/7 玻璃根因修复全量落地并推送（a32642a）**：S1 根因——液态弯月/ hover 白洗/ 语义色条全被 `::before` 盖住（元素 inset 阴影错层），已把表面阴影迁入 `::before`（元素层只留外浮影 + 焦点环），新增 `--g-surface` 语义色条变量、下缘暗弧加强（浅底可见，实测 -32）；连带清 S2（score-mode-tabs 双底双影删 :38 直写）、S3（role-tab 文字色去重）、S6（tag 语义色走 `--g-fill`）、S7（entry 死 `--g-fg` 删除）、S8（avatar 边框单源）。按钮族白化（`--g-fill: transparent` 标准玻璃）。**复核遗留**：S4（gk-pill 手卷）/ S5（navbar 多源）未处理；S11-S13 用户新增待办（见下方 G6-G8）。
 - ✅ **v0.18.13 修复 0.18.12 线上事故（两个根因）**：① master `::before` 改回 `z-index:-1`（0.18.12 误设 z-index:1 → 磨砂糊到卡片**自己**内容=整卡发虚、填充盖住按钮文字=文字消失）；填充留元素自身 background，z-1 层只画斜边+磨砂+浮影。② **style.css 残留旧 `::before { background: var(--g-fill) }`**（基类 `--g-fill: var(--paper-2)` 奶油色）= 两文件不同步：z-1 伪元素奶油填充盖住 glass 新元素紫填充 → 按钮泛白、白字不可见；删 3 处残留 + 3 处死 `--g-fill` 定义。另：实心按钮/选中块移出 REFRACT（opaque 填充被 `feDisplacementMap` 吞 → 泛白）；清死 `--g-mask`/`--edge-fade-mask`/`--g-rim`；订正 CLAUDE.md 过期规则。**g21 harness 先以修复前 CSS 复现线上事故（卡内文字糊+按钮文字没）证明 harness 可信，再验证修复后白/彩双栈全锐利、按钮紫底白字+玻璃斜边。** 净 glass.css −2.5KB、style.css 删死填充。
 - ⚠️ **0.18.12 线上事故复盘（教训，勿照做 z-index:1）**：z-index:1 的 `::before` 在内容之上 → frosted 卡的 `--g-frost` 糊到卡自己内容、`background:var(--g-body)`（变量不存在→透明）让填充缺位；叠加 style.css 旧 `::before` 奶油填充 → 用户看到"整卡发虚+按钮文字消失+按钮/侧栏像没接入"。**g20 误报通过的原因**：harness 没有"卡片内按钮/卡片正文"组合场景，且没肉眼逐块看卡内文字锐利度。**教训**：①玻璃层叠改动 harness 必含 frosted 卡+卡内正文+卡内按钮+弹窗头栏+气泡+选中块，截图逐块看文字；②填充层在 `::before`↔元素间搬迁时，grep 清全部 css 的旧 `--g-fill` 读+写，杜绝两文件不同步；③harness 必注入线上 `#lg-refract` SVG，否则 `backdrop-filter:url()` 在 headless 行为异常、填充判断失真。
 - ✅ **v0.18.12 玻璃组件真正统一（最终定稿，推翻 0.18.11 的"标准曲面遮罩"思路）**：统一渲染模型 = **body 填充 + 同色内斜边（inset box-shadow）画在 `::before`**（z1，在元素 background 之上、文字之下）；元素只设 `background`/`border-radius`/`color`/`--g-fg`。**玻璃边=内斜边**（顶 inset 白高光 + 底 inset 同色深阴影=朝内同色渐变边），外缘=元素自身 border-radius 裁剪（锋利圆角、与轮廓半径严格一致、不可能泛白）。删光特例：元素自绘宝石体+外发光、`--g-mask:none`、透明渐隐曲面遮罩全删；frosted 面 `--g-frost` 也在 `::before`。本地 g20 四栈（白/彩/侧栏/弹窗磨砂+2.2x 圆角放大）截图验：白底无白晕、圆角对齐、磨砂在、文字可读。净 +58/−65。
@@ -14,6 +15,54 @@
 - ✅ base style.css 清理：删按钮变体死 `--g-fill`、`.tc-push-btn:hover{background:ink}` 黑悬停；`.stat-card` 左竖条 `::before`→`::after`（修被 glass 填充盖没）。
 - ✅ server 反馈列表 `status` 过滤下推 `dbGetFeedbacksAdmin(db,status)`（白名单，向后兼容）+ 路由接线。
 - ✅ a11y：全局 keydown 激活 `[role=button]` 非 button 元素；可点 span（tc-username / grade-option pickGrade|pickGkPill）补 `role=button tabindex=0`；弹窗 ✕ 补 `aria-label=BTN_CLOSE`；新增常量 `BTN_CLOSE`/`A11Y_VIEW_PROFILE`。
+
+## 🟡 玻璃收口：回归「组件=参数」硬规则（S1/S2/S3/S6/S7/S8 已修 v0.19.7）
+> 原则（用户拍板）：**玻璃件外观只准写 `--g-*` 参数，元素 `background`/`box-shadow` 直写即违规=屎**；逐条迁回参数、删直写，引擎自动接管。依据/状态：根目录《玻璃系统竞态分析.md》（S1 根因+S2/S3/S6/S7/S8 已修复推送，a32642a）。
+- ✅ **G1 `.score-mode-tabs` 双底双影**（style-region.css:38 直写 background/border-radius/box-shadow 顶掉引擎）→ 已删 :38 直写，交还引擎（a32642a）。
+- 🟡 **G2 gk-pill 手卷第二套玻璃**（style-region.css:72-105 直写背景/hover/selected + `::before` 竖条；style.css:511 `grade-option.selected` 另有「选中」语义）→ 挂 `.glass glass--solid` 走引擎（竖条迁 ::after），或与 grade-option.selected 合并单点。
+- 🟡 **G3 navbar 背景 2 文件 5 处**（style.css:101/106/981 + glass.css:286/287）→ 收口 glass.css 单点（landing 渐变走 :has），删 style.css 竞争方。
+- **G4 `.glass--solid` 命名与行为不符**（glass.css:229 只关磨砂，不关 sheen/填充）→ 已判定：低危，补注释或改名可排队，不盲改。
+- **G5 sidebar-item/conv-item 手卷 hover**（glass.css:275/281 inset 直写；非 glass 件、元素 inset 可见=合理例外）→ 已判定：保留+注释，不并入引擎。
+- 🔴 **G6 tc-push-btn 紫色浮光残留**（glass.css:210 `--g-lift: 0 9px 22px -9px rgba(74,58,178,.45)` 下偏紫投影；v0.19.7 白化按钮时漏改 lift）→ 删紫色 lift，交还中性 `--glass-lift-sm`。用户发现，全文件唯一常驻紫投影（已扫确认）。
+- 🟡 **G7 侧栏 active 白字变色残留**（style.css:587 `.sidebar-item.active .sidebar-item-index { color:#fff }` + 607 `desc { color: var(--paper-ghost) }`——为适配旧紫卡的白字，卡白化后白字不可见）→ 删白字，交还深色（base `--ink` 系）。用户发现。
+- 🟡 **G8 首页上边栏删除**（landing 时 navbar 左右分色 `paper|lilac`；index.html:25-42 navbar 结构 + style.css:100-106/981 + glass.css:286-287）→ 删 landing 视图 navbar，logo+登录/注册按钮直接坐入 landing-stage 底板。用户要求，需醒着核对布局。
+
+> ——— 第二轮全站审查（2026-08-01，三只读代理并行扫 style.css / style-chat+posts / glass.css，结论主会话已核）———
+
+### 🔴 实变旁路 → 合并成参数（--g-*）
+- 🔴 **G9 conv-pill 直写 background 被 ::before 盖死**（glass.css:279 `background:rgba(255,255,255,.22)` + `box-shadow`；挂 `glass--solid`，app-chat.js:85）→ 改 `--g-fill:rgba(255,255,255,.22)` 删直写；引擎默认填充(.14)+sheen 实际在渲染，"米色大色块"注释已失真。
+- 🔴 **G10 score-mode-tab.active 白字白底跨文件打架**（glass.css:239 `--g-fill:.22白`+`--g-fg:var(--ink)` 被 style-region.css:54 `color:#fff` 压死 → 实为白字坐白填充低对比）→ 定单源：style-region 删 color 改走 `--g-fg`，或 glass 删 `--g-fg` 交还 style-region；style-region.css:53 hover 直写一并迁 `--g-hover`。
+- 🔴 **G11 device-current 药丸变 2px 方角**（style.css:755-756 直写 `border:1px solid currentColor`+`border-radius:2px`，盖过 glass.css:232 `--g-r:999px`）→ 删直写，交还 `--g-r`/`--g-surface`。
+- 🟡 **G12 profile-panel 外浮影硬编码**（style.css:1122 `box-shadow:-14px 0 44px rgba(17,17,20,.13)` + media 1179 `.22`）→ 改 `--g-lift`。
+- 🟡 **G13 avatar--link 悬停焦点环直写**（style.css:1095 `box-shadow:0 0 0 3px rgba(17,17,20,.16)` 盖过引擎 `--g-lift`+`--g-ring`）→ 走 `--g-ring`。
+- 🟡 **G14 notif-item.unread 语义条直写**（style.css:1275 `border-left:3px solid var(--danger)` 盖掉引擎 border:none）→ 仿 glass.css:335 feedback-card--bug 改 `--g-surface:inset 3px 0 0 var(--danger)`。
+- 🟡 **G15 about-sec-mark 实变圆**（style.css:694 `border-radius:50%` 直写；glass 件 glass.css:353 未设 --g-r）→ 改 `--g-r:50%`。
+- 🟡 **G16 chat 三处圆角旁路**（style-chat.css:176 `.chat-bubble{12px}` / 214 `.chat-stage-thumb{8px}` / 227 `.chat-stage-del{50%}`）→ 改 `--g-r`。
+- 🟢 **G17 custom-option 圆角旁路**（glass.css:243 `border-radius:8px`）→ `--g-r:8px`。
+
+### 🟡 竞态死代码 → 删 style.css 一方（glass 后加载必胜，style 侧已是死代码）
+- 🔴 **G18 实 bug·登记簿聚焦下划线失效**（glass.css:252 `background:` shorthand 重置 background-image → style.css:403-407 下划线 linear-gradient 被吃）→ glass.css 252 拆 longhand `background-color`，或下划线迁 `::after`。
+- 🔴 **G19 实 bug·筛选下拉 v 箭头消失**（style.css:844-850 `background-image:url(svg)` 被 glass.css:252 shorthand 重置；对照 backlog B2 已判 form-select 箭头为"无 JS 兜底"保留——filter-select 需核对同类处理）→ 同上拆 longhand 或迁 ::after。
+- 🟡 **G20 landing-stage 二分底色死**（style.css:170/980 渐变被 glass.css:288 `background:transparent` 胜 → 光球舞台透出；与 G8 联动核对是否设计意图，删或恢复需定）。
+- 🟡 **G21 navbar 三处死代码**（style.css:101-102 平底 / 107 landing 渐变 / 981 media，全被 glass.css:286/287 胜）→ 并入 G8 一起删。
+- 🟡 **G22 pane 族死代码**（style.css:550 `.client-sidebar{background:lilac}` / 931 modal-overlay / 657 sidebar-backdrop / 375 form-group border-top / 1162 profile-row / 1137 profile-panel-head，被 glass.css 268/297/314/298/262/261 胜）→ 删。
+- 🟡 **G23 entry 悬停位移死**（style.css:281/284 `transform:translateX(3px)` 被引擎 (0,2,0) 后加载恒等变换盖掉；glass.css:134 注释"组件自有 transform 天然胜出"对 (0,2,0) 级选择器不成立）→ 删直写或引擎让位。
+- 🟢 **G24 form 透明声明死**（style.css:397 form-input/form-select `background-color:transparent` + 438 custom-select-trigger）→ 删。
+
+### 🔴 孤儿残留 → 旧染色按钮连根删时漏删的类名（删，不补）
+- 🔴 **G25 btn-primary/danger/accent 模板类名残留**（v0.19.6 c7c00c8 已删染色按钮预设 `.btn-primary{--g-fill:ink;--g-fg:paper}` 等，但模板/JS 仍引用 40+ 处：app.js、app-admin.js、app-contracts.js、app-chat.js、app-posts.js、index.html，现成死类名吃引擎默认白填充）→ 从模板/JS 连根删类名。用户定性：删染色没删干净，**不补预设**。
+- 🔴 **G26 badge-verified 类名残留**（app.js:1012 挂 `glass glass--solid`，CSS 无任何定义——旧染色徽标残留，现吃引擎默认填充+sheen）→ 删类名，外观交还 `glass--solid`。若"已验证"徽标样式仍要保留，另走 `--g-*` 参数，不补染色。
+
+### 🟢 清理 / 文档（低危）
+- 🟡 **G27 glass--solid 漏关 sheen**（glass.css:229 只关磨砂不关 sheen，实心小件被顶部白高光提亮，违引擎 124-125 自述"小控件关 sheen"）→ 补 `--g-sheen:none`。
+- 🟢 **G28 死 background-color transition ×6**（style-chat.css:55/229/140-142/281 + style-posts.css:69-72/95-97）→ 删。
+- 🟢 **G29 引擎覆盖缺口 ×3**（textarea.chat-textarea:284 / input.posts-search:14 / textarea.post-body-input:106 非 glass 直写）→ 挂 glass 走引擎 or 注释豁免。
+- 🟢 **G30 冗余 background:transparent ×5**（style.css:471 checkbox-item / 705 feedback-kind-btn / 784 drop-toggle / 1098 image-viewer-modal / 620 avatar--guest）→ 删。
+- 🟢 **G31 glass 件 border-color 无效直写**（style.css:708-709 feedback-kind-btn:hover/.active——引擎 border:none 无宽不显形）→ 删。
+- 🟢 **G32 引擎契约注释缺参数**（glass.css:20-31 头注释参数清单缺已实现且在用的 `--g-sheen`/`--g-blend`）→ 补注释。
+- 🟢 **G33 score-mode-tab 分隔线双源**（glass.css:240 border-left-color vs style-region.css:52 全量 border-left）→ 收口单源。
+
+✅ **已核实无需动作**：style.css 无 ::before 内容伪元素（竖条全在 ::after，与引擎玻璃体零冲突）；头像 border 直写（glass.css:216/218）为无参数通道的合理例外（S8 已判保留）；sidebar-item/conv-item 手卷 hover（G5）保留。
 
 ## 🟡 醒着核对后做（高风险重构，勿凌晨盲改）
 - **C1 弹窗壳跨文件重复**：modal-header 模板 ×17（app.js:713,1237,1299,1502,1668,1881,1959；app-contracts.js:110,123,155,228；app-admin.js:44,99；app-posts.js:123,298,338）+ 可点遮罩 ×11 + md-toolbar ×5 → 抽 `openModal({title,body,footer,closable})` + `mdToolbarHtml()`。**风险**：每个弹窗有自己的 form id / 动态标题 / 自定义 class / footer 按钮接线；抽壳若错会炸全站弹窗。建议逐个迁移+逐个截图/手测验证。
