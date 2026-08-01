@@ -1158,7 +1158,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 .profile-id-top { display: flex; align-items: center; gap: 12px; }
 .profile-avatar { width: 62px; height: 62px; font-size: 1.55rem; flex-shrink: 0; }
 .profile-signed-tag {
-
+  margin-left: 6px; /* 与头像拉开（gap 12px 之上再补，视觉上稍稍靠右） */
   font-size: .66rem; font-weight: 700; letter-spacing: .08em;
   padding: 4px 9px;
 }
