@@ -440,12 +440,15 @@ textarea.form-input {
 .custom-select-panel {
   position: fixed; z-index: 300; /* 挂 body + fixed + 顶层 z：脱离玻璃 isolation 堆叠上下文（v0.19.25 架构债根治，left/top/width 由 JS 定位） */
   margin-top: 6px; padding: 4px;
-  /* 面板不滚：玻璃体住面板元素自身（backdrop-filter 在滚动容器上会失效=白色不透明，v0.19.32 根因），滚动交内部透明通道 */
-  opacity: 0; visibility: hidden; transform: translateY(-6px);
+  /* 面板不滚：玻璃体住面板元素自身，滚动交内部透明通道。
+     动画走纯 transform（v0.19.33 复刻 profile-panel 路径）——Chromium bug 983252：
+     backdrop-filter + opacity 动画同元素 → 磨砂渲染失效=白色不透明（v0.19.32 白板真根因，
+     v0.19.32 的"滚动容器失效"判断是错的） */
+  opacity: 1; visibility: hidden; transform: translateY(-6px);
   transform-origin: top center;
-  transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s .22s;
+  transition: transform .22s var(--ease-snap), visibility 0s .22s;
 }
-.custom-select-panel.open { opacity: 1; visibility: visible; transform: none; transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s 0s; }
+.custom-select-panel.open { visibility: visible; transform: none; transition: transform .22s var(--ease-snap), visibility 0s 0s; }
 /* 透明滚动通道：无背景无玻璃类无边框——选项透在面板玻璃上滚，磨砂钉住不跟滚 */
 .custom-select-list { max-height: 256px; overflow-y: auto; }
 .custom-select-list::-webkit-scrollbar { width: 6px; }
@@ -941,7 +944,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .modal-body { padding: 20px 24px 24px; }
 .modal-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; }
 .modal-footer-start { margin-right: auto; }
-@keyframes modal-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+/* v0.19.33：去 opacity 帧——Chromium bug 983252：元素自身 backdrop-filter + opacity 动画 → backdrop 渲染失效（毛玻璃变白板）。
+   纯 transform 动画（profile-panel 路径）不触发，modal 复刻之 */
+@keyframes modal-in { from { transform: translateY(18px); } to { transform: translateY(0); } }
 
 /* 星级输入 */
 .star-rating-input { flex: 1; display: flex; justify-content: flex-end; gap: 4px; font-size: 1.5rem; cursor: pointer; }

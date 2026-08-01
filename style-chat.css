@@ -272,10 +272,12 @@
 .chat-plus-pop {
   position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 40;
   min-width: 140px; padding: 4px;
-  opacity: 0; visibility: hidden; transform: translateY(6px);
-  transition: opacity .18s ease-out, transform .22s cubic-bezier(.16,1,.3,1), visibility 0s .22s;
+  /* v0.19.33 去 opacity 动画：Chromium bug 983252（backdrop-filter + opacity 动画 → 磨砂失效=白板），
+     纯 transform 路径（同 profile-panel/下拉面板） */
+  opacity: 1; visibility: hidden; transform: translateY(6px);
+  transition: transform .22s cubic-bezier(.16,1,.3,1), visibility 0s .22s;
 }
-.chat-plus-wrap.open .chat-plus-pop { opacity: 1; visibility: visible; transform: none; transition: opacity .18s ease-out, transform .22s cubic-bezier(.16,1,.3,1), visibility 0s 0s; }
+.chat-plus-wrap.open .chat-plus-pop { visibility: visible; transform: none; transition: transform .22s cubic-bezier(.16,1,.3,1), visibility 0s 0s; }
 .chat-pop-item { display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: .84rem; color: var(--ink-3); cursor: pointer; transition: color .16s ease-out; } /* G28：background-color 死 */
 .chat-pop-item:hover { color: var(--ink); }
 
