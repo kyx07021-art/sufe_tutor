@@ -104,7 +104,7 @@ function initCustomSelects(root) {
     trigger.setAttribute('onclick', 'toggleCustomSelect(this.closest(".custom-select"))');
     trigger.innerHTML = `<span class="custom-select-text"></span><span class="drop-caret">${CARET_SVG}</span>`;
     const panel = document.createElement('div');
-    panel.className = 'custom-select-panel'; // 挂 body：脱离玻璃祖先 isolation 堆叠上下文（v0.19.25）；无 glass 类=无 ::before 衬底（衬底随滚动是 bug，v0.19.28 自身实填充 --g-paper）
+    panel.className = 'custom-select-panel glass glass--float'; // 挂 body：脱离玻璃祖先 isolation 堆叠上下文（v0.19.25）；玻璃体在固定层，内容在内部 .custom-select-list 滚动（v0.19.29 修正：衬底不随滚动，且不脱离引擎）
     panel._wrap = wrap; // 选项点击经面板回找容器（面板已不在 wrap 内）
     wrap._customPanel = panel;
     document.body.appendChild(panel);
@@ -120,8 +120,8 @@ function buildCustomSelectPanel(sel) {
   if (!wrap) return;
   const panel = wrap._customPanel;
   if (!panel) return;
-  panel.innerHTML = [...sel.options].map(o =>
-    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
+  panel.innerHTML = `<div class="custom-select-list">${[...sel.options].map(o =>
+    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('')}</div>`;
   syncCustomSelectText(sel);
 }
 

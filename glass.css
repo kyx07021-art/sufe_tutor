@@ -185,7 +185,7 @@ body { background: transparent; }
 }
 .modal { --g-r: var(--lg-r-lg); }
 .custom-select-panel, .chat-plus-pop { --g-r: var(--lg-r); }
-/* 下拉面板：自身实填充（--g-paper），不再用 ::before 玻璃衬底——衬底在滚动容器里会随内容滚动（v0.19.28 去 glass 类，见 style.css） */
+/* 下拉面板：玻璃体走引擎（--g-fill: var(--g-paper)），滚动在内部 .custom-select-list——玻璃体固定层不随内容滚动（v0.19.29） */
 .profile-panel { --g-r: var(--lg-r-lg); }
 /* 头栏=玻璃上的玻璃：透（填充 .16，比浮窗更透）——旧 .55 近实白条把表头钉死，已按用户层级改透 */
 .modal-header, .profile-panel-head { --g-fill: rgba(255,255,255,.16); --g-frost: var(--g-f-header, blur(4px)); }
