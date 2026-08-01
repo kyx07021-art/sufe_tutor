@@ -117,11 +117,10 @@ function openContractModifyModal(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
   window._contractModifyUpdatedAt = c.updated_at; // 乐观锁版本：提交时带上，期间被对方改过则 409 强制重载
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${UI.MODIFY_CONTRACT_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <div id="post-alert"></div>
+  openModal({
+    title: `${UI.MODIFY_CONTRACT_TITLE}`,
+    closable: false,
+    body: `<div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_PLAN}</label>
           <div class="md-toolbar">
@@ -135,14 +134,10 @@ function openContractModifyModal(contractId) {
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
           <div id="post-preview" class="md-preview glass glass--solid"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="submitContractModify(${c.id})">${UI.BTN_SAVE}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+        </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="submitContractModify(${c.id})">${UI.BTN_SAVE}</button>`,
+  });
   updatePostPreview();
 }
 
@@ -217,11 +212,10 @@ async function openContractDraftModal(convId) {
     : demands.filter(d => conv && d.user_id === conv.student_user_id && d.status !== 'contracted');
   const preselect = (conv && options.find(d => d.id === conv.demand_id)) || options[0] || null;
   window._contractDraftDemands = options; // 供 prefillContractFromDemand 取数
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${UI.DRAFT_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <div id="contract-alert">${demandsFailed ? `<div class="alert alert-error glass">${UI.CONTRACT_DEMANDS_LOAD_FAIL}</div>` : ''}</div>
+  openModal({
+    title: `${UI.DRAFT_MODAL_TITLE}`,
+    closable: false,
+    body: `<div id="contract-alert">${demandsFailed ? `<div class="alert alert-error glass">${UI.CONTRACT_DEMANDS_LOAD_FAIL}</div>` : ''}</div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND}</label>
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
@@ -288,14 +282,10 @@ async function openContractDraftModal(convId) {
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
           <div id="post-preview" class="md-preview glass glass--solid"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+        </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>`,
+  });
   initCustomSelects(document.getElementById('contract-method') && document.getElementById('contract-method').closest('.modal'));
   contractToggleOther('contract-pay-method', 'contract-pay-method-other-wrap');
   contractToggleOther('contract-trial-pay', 'contract-trial-pay-other-wrap');

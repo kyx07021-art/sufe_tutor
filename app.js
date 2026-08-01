@@ -708,7 +708,7 @@ function handleLogout() {
 function openDemandModal(demandId) {
   state.editingDemandId = demandId || null;
   const demand = demandId ? state.myDemands.find(d => d.id === demandId) : null;
-  document.getElementById('modal-container').innerHTML = renderDemandModal(demand);
+  openModal({ title: demand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE, body: renderDemandModal(demand) });
   initDemandForm(demand ? demand.province : null);
   if (demand) prefillDemandForm(demand);
 }
@@ -739,11 +739,7 @@ function openModal({ title, titleId = '', body = '', footer = '', closable = tru
 }
 
 function renderDemandModal(demand) {
-  return `<div class="modal-overlay">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${demand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE}</h2><button class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <div id="demand-alert"></div>
+  return `<div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
           <div class="form-group">
             <label class="form-label">${UI.LABEL_PROVINCE} <span class="req">*</span></label>
@@ -820,10 +816,7 @@ function renderDemandModal(demand) {
             <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
             <button type="submit" class="btn glass glass--pressable" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
           </div>
-        </form>
-      </div>
-    </div>
-  </div>`;
+        </form>`;
 }
 
 function initDemandForm(selectedProvince) {
@@ -1269,11 +1262,9 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
 function openReviewModal(teacherUserId, teacherName, editId) {
   teacherName = teacherName ?? (state.allTeachers.find(x => x.user_id === teacherUserId)?.username || '');
   const existing = editId ? state.myReviewOnModal : null;
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName)}</h2><button class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <div id="review-alert"></div>
+  openModal({
+    title: existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName),
+    body: `<div id="review-alert"></div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_RATING} <span class="req">*</span></label>
           <div class="star-rating-input" id="review-stars">
@@ -1284,14 +1275,10 @@ function openReviewModal(teacherUserId, teacherName, editId) {
         <div class="form-group">
           <label class="form-label">${UI.LABEL_REVIEW_CONTENT} <span class="req">*</span></label>
           <textarea class="form-input" id="review-comment" rows="4" placeholder="${UI.REVIEW_COMMENT_PLACEHOLDER}">${existing ? escHtml(existing.comment) : ''}</textarea>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button class="btn glass glass--pressable" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_REVIEW}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+        </div>`,
+    footer: `<button class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button class="btn glass glass--pressable" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_REVIEW}</button>`,
+  });
   if (existing) setReviewStars(existing.rating); // 星星高亮回填
 }
 
@@ -1564,19 +1551,15 @@ async function openSendDemandModal(teacherUserId) {
       <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
       <span class="push-pick-sub">${[prov, method].filter(Boolean).map(escHtml).join(' · ')}</span></span></label>`;
   }).join('')}</div>` : `<p class="text-sm text-muted">${state.myDemands.length ? UI.PUSH_NO_AVAILABLE_DEMANDS : UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal glass glass--float" style="max-width:480px;">
-      <div class="modal-header glass"><h2>${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <p class="text-sm text-muted" style="margin-bottom:12px;">${UI.PUSH_MODAL_HINT}</p>
-        ${pickHtml}
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+  openModal({
+    title: `${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}`,
+    style: 'max-width:480px;',
+    closable: false,
+    body: `<p class="text-sm text-muted" style="margin-bottom:12px;">${UI.PUSH_MODAL_HINT}</p>
+        ${pickHtml}`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>`,
+  });
 }
 
 // 推送限流：每分钟限发一条。发送后全部「发送需求」按钮变灰 + 秒级倒计时
@@ -1931,11 +1914,11 @@ let feedbackKind = 'bug';
 function openFeedbackModal(kind) {
   if (!ensureAuth()) return;
   feedbackKind = kind === 'suggestion' ? 'suggestion' : 'bug';
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2 id="feedback-modal-title">${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <div id="post-alert"></div>
+  openModal({
+    title: `${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}`,
+    titleId: 'feedback-modal-title',
+    closable: false,
+    body: `<div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
           <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.FEEDBACK_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
@@ -1959,14 +1942,10 @@ function openFeedbackModal(kind) {
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
           <div id="post-preview" class="md-preview glass glass--solid"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+        </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>`,
+  });
   updatePostPreview();
 }
 

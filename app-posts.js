@@ -118,11 +118,10 @@ async function togglePostLike(id) {
 function openPostEditor() {
   if (!ensureAuth()) return;
   // 防误触：点遮罩不关（编辑成本高，只能 ✕ / 取消关闭）
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${UI.POST_MODAL_TITLE_CREATE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <div id="post-alert"></div>
+  openModal({
+    title: `${UI.POST_MODAL_TITLE_CREATE}`,
+    closable: false,
+    body: `<div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE} <span class="req">*</span></label>
           <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.POST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
@@ -144,14 +143,10 @@ function openPostEditor() {
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
           <div id="post-preview" class="md-preview glass glass--solid"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+        </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>`,
+  });
   updatePostPreview();
   document.getElementById('post-title').focus();
 }
@@ -328,11 +323,10 @@ function updateTitleCount() {
 // 管理员系统通知广播：复用发帖组件的 Markdown 编辑器（同一套 ID，弹窗互斥不冲突）
 // ============================================================
 function openBroadcastModal() {
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay">
-    <div class="modal glass glass--float">
-      <div class="modal-header glass"><h2>${UI.BROADCAST_MODAL_TITLE}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>
-      <div class="modal-body">
-        <div id="post-alert"></div>
+  openModal({
+    title: `${UI.BROADCAST_MODAL_TITLE}`,
+    closable: false,
+    body: `<div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
           <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.BROADCAST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
@@ -354,14 +348,10 @@ function openBroadcastModal() {
         <div class="form-group">
           <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
           <div id="post-preview" class="md-preview glass glass--solid"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>
-        </div>
-      </div>
-    </div>
-  </div>`;
+        </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>`,
+  });
   updatePostPreview();
   document.getElementById('post-body').focus();
 }

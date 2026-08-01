@@ -75,7 +75,7 @@
 - 🟡 **弯月浅底隐形实证诊断（2026-08-01）**：卡族弯月（glass.css:168 填充弧 + --g-liquid 下缘暗弧）在浅底 #ECEAF0 上不可见。已用本机 Chrome headless 渲染排除"被盖住"：洋红标记证明 ::before 完整绘制卡面；同一渐变放深底清晰显形为亮弧月牙；纯白 .90 平铺在浅底可见。根因：①白弧配浅底零对比（弯月本体是白，页面是浅紫灰）；②渐变峰值 `at 50% -5%` 在卡上缘外 5% 被裁，可见区只剩 ~.45-.50 窄条；③下缘暗弧（浅底可见的那半）alpha .40 + 22px 模糊太淡。方向待用户拍板：高光峰值移入卡内 + 暗弧加深加锐，或弯月只留给深底件。
 
 ## 🟡 醒着核对后做（高风险重构，勿凌晨盲改）
-- **C1 弹窗壳跨文件重复**：modal-header 模板 ×17（app.js:713,1237,1299,1502,1668,1881,1959；app-contracts.js:110,123,155,228；app-admin.js:44,99；app-posts.js:123,298,338）+ 可点遮罩 ×11 + md-toolbar ×5 → 抽 `openModal({title,body,footer,closable})` + `mdToolbarHtml()`。**风险**：每个弹窗有自己的 form id / 动态标题 / 自定义 class / footer 按钮接线；抽壳若错会炸全站弹窗。建议逐个迁移+逐个截图/手测验证。
+- ✅ **C1 弹窗壳跨文件重复**：modal-header 模板 ×17 + 可点遮罩 ×11 → 已抽 `openModal({title,titleId,body,footer,closable,cls,style,bodyCls})` 单源（v0.19.15-16），20/20 弹窗迁移完毕，手写模板清零，渲染结构与原模板逐字节一致。**mdToolbarHtml 未抽**（发帖/广播/合同编辑三处 md-toolbar 留 body 内，低危可后续）。
 - ✅ **C2 前后端错误码体系（定向版 v0.19.8）**：`error()` 加可选 `code` 参数（向后兼容），档案不完整 → `PROFILE_INCOMPLETE`、帖子删除不存在 → `POST_NOT_FOUND`；前端 api 封装把 `code` 挂到抛出的 Error，两处脆分支改按 code 判定（保留 MSG 兜底）。其余 error 路径暂未全覆盖，可续。
 
 ## 已判定不改（保留，附理由）
