@@ -183,6 +183,7 @@ body { background: transparent; }
 }
 .modal { --g-r: var(--lg-r-lg); }
 .custom-select-panel, .chat-plus-pop { --g-r: var(--lg-r); }
+.custom-select-panel { --g-fill: rgba(255,255,255,.62); } /* 面板=明确可读玻璃面板（浮层族 .34 太透，选项像悬空文字；v0.19.25 挂 body 后玻璃体真渲染） */
 .profile-panel { --g-r: var(--lg-r-lg); }
 /* 头栏=玻璃上的玻璃：透（填充 .16，比浮窗更透）——旧 .55 近实白条把表头钉死，已按用户层级改透 */
 .modal-header, .profile-panel-head { --g-fill: rgba(255,255,255,.16); --g-frost: var(--g-f-header, blur(4px)); }

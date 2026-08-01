@@ -104,8 +104,11 @@ function initCustomSelects(root) {
     trigger.setAttribute('onclick', 'toggleCustomSelect(this.closest(".custom-select"))');
     trigger.innerHTML = `<span class="custom-select-text"></span><span class="drop-caret">${CARET_SVG}</span>`;
     const panel = document.createElement('div');
-    panel.className = 'custom-select-panel';
-    wrap.append(trigger, panel);
+    panel.className = 'custom-select-panel glass glass--float'; // 挂 body：脱离玻璃祖先 isolation 堆叠上下文（v0.19.25 架构债根治）
+    panel._wrap = wrap; // 选项点击经面板回找容器（面板已不在 wrap 内）
+    wrap._customPanel = panel;
+    document.body.appendChild(panel);
+    wrap.append(trigger);
     buildCustomSelectPanel(sel);
     // 选项被动态重填（省份/年级等 innerHTML 重写）时自动重建面板
     new MutationObserver(() => buildCustomSelectPanel(sel)).observe(sel, { childList: true });
@@ -115,7 +118,9 @@ function initCustomSelects(root) {
 function buildCustomSelectPanel(sel) {
   const wrap = sel.closest('.custom-select');
   if (!wrap) return;
-  wrap.querySelector('.custom-select-panel').innerHTML = [...sel.options].map(o =>
+  const panel = wrap._customPanel;
+  if (!panel) return;
+  panel.innerHTML = [...sel.options].map(o =>
     `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
   syncCustomSelectText(sel);
 }
@@ -127,18 +132,37 @@ function syncCustomSelectText(sel) {
   const o = sel.options[sel.selectedIndex];
   text.textContent = o ? o.textContent : '';
   text.classList.toggle('custom-select-empty', !sel.value);
-  wrap.querySelectorAll('.custom-option').forEach(b => b.classList.toggle('selected', b.dataset.value === sel.value));
+  const panel = wrap._customPanel;
+  if (panel) panel.querySelectorAll('.custom-option').forEach(b => b.classList.toggle('selected', b.dataset.value === sel.value));
 }
 
 function toggleCustomSelect(wrap) {
   if (!wrap) return;
   const wasOpen = wrap.classList.contains('open');
   closeAllCustomSelects();
-  if (!wasOpen) wrap.classList.add('open');
+  if (!wasOpen) {
+    positionCustomSelectPanel(wrap);
+    wrap.classList.add('open');
+    if (wrap._customPanel) wrap._customPanel.classList.add('open');
+  }
 }
 function closeAllCustomSelects() {
-  document.querySelectorAll('.custom-select.open').forEach(w => w.classList.remove('open'));
+  document.querySelectorAll('.custom-select.open').forEach(w => {
+    w.classList.remove('open');
+    if (w._customPanel) w._customPanel.classList.remove('open');
+  });
 }
+// 面板挂 body 后 fixed 定位：以触发器 rect 计算坐标（脱离堆叠上下文，永不被卡片盖住）
+function positionCustomSelectPanel(wrap) {
+  const panel = wrap._customPanel, trig = wrap.querySelector('.custom-select-trigger');
+  if (!panel || !trig) return;
+  const r = trig.getBoundingClientRect();
+  panel.style.left = `${r.left}px`;
+  panel.style.top = `${r.bottom + 6}px`;
+  panel.style.width = `${r.width}px`;
+}
+// 滚动即收起（fixed 面板不跟随滚动；capture 捕获所有滚动容器）
+document.addEventListener('scroll', () => closeAllCustomSelects(), { capture: true, passive: true });
 // 兜底自愈：任何动态插入的 select 自动包装为自定义下拉（防移动端弹出原生选择器），
 // 只处理尚未包装的，避免重复构建干扰已打开的面板
 const selectSweepObserver = new MutationObserver(() => {
@@ -150,7 +174,8 @@ selectSweepObserver.observe(document.documentElement, { childList: true, subtree
 document.addEventListener('click', e => {
   const opt = e.target.closest('.custom-option');
   if (opt) {
-    const wrap = opt.closest('.custom-select');
+    const panel = opt.closest('.custom-select-panel');
+    const wrap = panel && panel._wrap;
     const sel = wrap && wrap.querySelector('select');
     if (sel) {
       if (sel.value !== opt.dataset.value) {
@@ -158,11 +183,12 @@ document.addEventListener('click', e => {
         sel.dispatchEvent(new Event('change', { bubbles: true }));
       }
       wrap.classList.remove('open');
+      if (wrap._customPanel) wrap._customPanel.classList.remove('open');
       syncCustomSelectText(sel);
     }
     return;
   }
-  if (!e.target.closest('.custom-select')) closeAllCustomSelects();
+  if (!e.target.closest('.custom-select') && !e.target.closest('.custom-select-panel')) closeAllCustomSelects();
 });
 // 键盘可达：非 button 的 [role=button]（如头像/用户名/等第 pill 等 span 控件）用 Enter/Space 触发其 onclick，补齐 a11y
 document.addEventListener('keydown', e => {

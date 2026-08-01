@@ -438,16 +438,15 @@ textarea.form-input {
 .custom-select-trigger .drop-caret { color: var(--faint); flex-shrink: 0; transition: transform .28s var(--ease-snap), color var(--t-fast) var(--ease-out); }
 .custom-select.open .drop-caret { transform: rotate(180deg); color: var(--ink); }
 .custom-select-panel {
-  position: absolute; top: 100%; left: 0; right: 0; z-index: 40;
+  position: fixed; z-index: 300; /* 挂 body + fixed + 顶层 z：脱离玻璃 isolation 堆叠上下文（v0.19.25 架构债根治，left/top/width 由 JS 定位） */
   margin-top: 6px; padding: 4px;
-
 
   max-height: 264px; overflow-y: auto;
   opacity: 0; visibility: hidden; transform: translateY(-6px);
   transform-origin: top center;
   transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s .22s;
 }
-.custom-select.open .custom-select-panel { opacity: 1; visibility: visible; transform: none; transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s 0s; }
+.custom-select-panel.open { opacity: 1; visibility: visible; transform: none; transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s 0s; }
 .custom-select-panel::-webkit-scrollbar { width: 6px; }
 .custom-select-panel::-webkit-scrollbar-thumb { background: var(--paper-3); }
 .custom-option {
