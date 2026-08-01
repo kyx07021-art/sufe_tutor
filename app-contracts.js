@@ -60,15 +60,15 @@ function renderContractCard(c) {
   } else if (c.status === 'pending' && iAmDrafter) {
     // 起草方：等对方处理草案（对方直接看到三按钮，无独立「确认草案」环节）
     left = `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.CONTRACT_WAIT_DRAFT}</button>`;
-    right = `<button type="button" class="btn btn-danger btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
+    right = `<button type="button" class="btn btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
   } else {
     // pending 收草案方 / signing 双方：直接三按钮（确认签约 / 修改内容 / 查看合同）
     left = `${myConfirmed
         ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.BTN_SIGN_WAITING}</button>`
-        : `<button type="button" class="btn btn-accent btn-sm glass glass--pressable" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
+        : `<button type="button" class="btn btn-sm glass glass--pressable" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
       <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openContractModifyModal(${c.id})">${UI.BTN_MODIFY_CONTRACT}</button>
       <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
-    right = `<button type="button" class="btn btn-danger btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
+    right = `<button type="button" class="btn btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
   }
 
   return `<div class="list-card glass">
@@ -139,7 +139,7 @@ function openContractModifyModal(contractId) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary glass glass--pressable" onclick="submitContractModify(${c.id})">${UI.BTN_SAVE}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="submitContractModify(${c.id})">${UI.BTN_SAVE}</button>
         </div>
       </div>
     </div>
@@ -297,7 +297,7 @@ async function openContractDraftModal(convId) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>
         </div>
       </div>
     </div>

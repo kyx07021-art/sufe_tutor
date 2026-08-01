@@ -253,7 +253,7 @@ function renderChatFrame(conv) {
                  <span class="plus-bar plus-h"></span><span class="plus-bar plus-v"></span>
                </button>
              </div>
-             <button type="button" class="btn btn-primary btn-sm chat-send glass glass--pressable" id="chat-send-btn" onclick="sendChatMessage()">${UI.CHAT_BTN_SEND}</button>
+             <button type="button" class="btn btn-sm chat-send glass glass--pressable" id="chat-send-btn" onclick="sendChatMessage()">${UI.CHAT_BTN_SEND}</button>
            </div>`}
     </div>`;
 }

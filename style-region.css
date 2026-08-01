@@ -50,8 +50,9 @@
               color var(--t-fast) var(--ease-out);
 }
 .score-mode-tab + .score-mode-tab { border-left: 1.5px solid rgba(255,255,255,.3); }
-.score-mode-tab:not(.active):hover { background: rgba(255,255,255,.14); }
-.score-mode-tab.active { color: #fff; } /* 背景画在 glass ::before（glass.css 单点 --g-fill），此处仅文字色 */
+.score-mode-tab:not(.active):hover { --g-hover: rgba(255,255,255,.14); } /* G10：hover 直写迁 --g-hover（画在玻璃体上） */
+/* G10：active 文字色走引擎 --g-fg（glass.css 单点 var(--ink)），删 style-region 白字覆盖（白字坐白底=不可读） */
+.score-mode-tab.active { }
 
 /* 页签面板：等第 pill / 分数输入，换行独占整行 */
 .score-mode-pane {

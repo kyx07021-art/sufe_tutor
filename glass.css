@@ -28,6 +28,8 @@
      --g-raise   hover 抬升 px（默认 0）
      --g-scale   active 缩放（默认 1）
      --g-ring    焦点环色（全站统一紫；组件如需定制可覆盖）
+     --g-sheen   上缘镜面高光（默认开；按钮族/实心件显式 none）G32 补注
+     --g-blend   高光与填充的混合模式（默认 screen；按钮族改 normal）G32 补注
 
    交互 = 状态不是层：hover/active/focus-visible 全是同一元素的 box-shadow/transform。
    0.19.1：材质注入器 / 曲面遮罩 --g-mask / 折射 --g-refract 连根拔除——填充唯一源是 --g-fill。
@@ -54,15 +56,15 @@
        ——弯月本体是「填充里的径向镜面高光」，box-shadow 只做边缘微光；不再是多层薄弧（=细线）。 */
   --g-liquid:
     inset 0 0 8px rgba(255,255,255,.12),       /* 整体内发光：玻璃厚度感 */
-    inset 0 10px 16px -9px rgba(30,26,64,.26), /* 下缘张力暗弧（弯月在浅底的可见主体：液滴收底必明显） */
+    inset 0 12px 22px -10px rgba(30,26,64,.40),/* 下缘张力暗弧（弯月在浅底的可见主体：液滴收底必明显，加厚加强） */
     inset 0 -1px 1px rgba(255,255,255,.22),    /* 下缘微亮回边 */
-    inset 0 2px 2px -1px rgba(255,255,255,.80),/* 上缘亮带 2px（受光，深底/彩底上明显） */
+    inset 0 6px 8px -4px rgba(255,255,255,.85),/* 上缘新月亮带（受光，浅底可见的高光弧） */
     inset 0 0 0 1px rgba(255,255,255,.48);     /* 发丝白边 */
   --g-liquid-sm:
     inset 0 0 5px rgba(255,255,255,.12),
-    inset 0 6px 10px -6px rgba(30,26,64,.22),  /* 下缘张力暗弧（小件同样要明显） */
+    inset 0 8px 14px -8px rgba(30,26,64,.34),  /* 下缘张力暗弧（小件同样要明显） */
     inset 0 -1px 1px rgba(255,255,255,.18),
-    inset 0 1px 1px rgba(255,255,255,.78),
+    inset 0 4px 5px -3px rgba(255,255,255,.85),/* 上缘新月亮带 */
     inset 0 0 0 1px rgba(255,255,255,.44);
 }
 
@@ -124,7 +126,7 @@ body { background: transparent; }
      注意：sheen 只适合大表面——小控件（按钮/气泡等）上它占上半 = 老式上缘高光，故按钮族显式设 --g-sheen:none。
      --g-sheen 可关（none），--g-blend 可改（normal）。 */
   background:
-    var(--g-sheen, radial-gradient(ellipse 110% 65% at 50% -15%, rgba(255,255,255,.50) 0%, rgba(255,255,255,0) 72%)),
+    var(--g-sheen, radial-gradient(ellipse 110% 65% at 50% -15%, rgba(255,255,255,.62) 0%, rgba(255,255,255,0) 70%)),
     var(--g-fill, rgba(255,255,255,.14));
   background-blend-mode: var(--g-blend, screen);
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
@@ -168,7 +170,7 @@ body { background: transparent; }
    旧 130% 把背景拉灰成雾感；blur 2-8px 为通透区间）
    边缘 = design.dev 七层配方（见 --g-liquid） */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-  --g-fill: radial-gradient(ellipse 130% 90% at 50% 0%, rgba(255,255,255,.16) 0%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 100%);
+  --g-fill: radial-gradient(ellipse 130% 90% at 50% 0%, rgba(255,255,255,.35) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.05) 100%);
   --g-frost: var(--g-f-card, blur(6px) saturate(180%) brightness(1.05));
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
@@ -207,7 +209,7 @@ body { background: transparent; }
 .btn-outline { --g-fg: var(--ink); }
 .btn-ghost { --g-fg: var(--muted); }
 .btn-text-danger { --g-fg: var(--danger-deep, #b23a2c); padding: 6px 12px; }
-.tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: 0 9px 22px -9px rgba(74,58,178,.45); }
+.tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: var(--glass-lift-sm); } /* G6：删全文件唯一常驻紫投影（v0.19.7 白化漏改），交还中性 lift */
 /* 侧栏选中块=标准玻璃（去紫块） */
 .sidebar-pill { --g-fill: rgba(255,255,255,.24); --g-frost: var(--g-f-pill, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
@@ -226,7 +228,7 @@ body { background: transparent; }
    ============================================================ */
 /* 实心小件修饰：关遮罩 / 磨砂 / 折射 = 干净圆角填充，零额外性能。
    液体边缘高光保留（--g-liquid 默认开启）——实心件同样需要珠圆玉润的液态感 */
-.glass--solid { --g-frost: none; }
+.glass--solid { --g-frost: none; --g-sheen: none; } /* G27：实心小件补关 sheen（违引擎 124-125 自述"小控件关 sheen"） */
 .chat-file-chip, .chat-stage-item, .chat-stage-thumb { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .tag, .conv-item-role, .chat-peer-tag, .demand-id-tag, .device-current, .profile-tag {
   --g-fill: rgba(255,255,255,.2); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2, #444);
@@ -237,10 +239,10 @@ body { background: transparent; }
 .score-mode-tabs { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .score-mode-tab { --g-fill: transparent; }
 .score-mode-tab.active { --g-fill: rgba(255,255,255,.22); --g-fg: var(--ink); }
-.score-mode-tab + .score-mode-tab { border-left-color: rgba(255,255,255,.4); }
+/* G33：分隔线单源在 style-region.css（.score-mode-tab + .score-mode-tab 全量 border-left），引擎不再管结构边框 */
 .filter-panel { --g-fill: rgba(255,255,255,.2); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 .drop-toggle { --g-fill: rgba(255,255,255,.07); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.custom-option { border-radius: 8px; }
+.custom-option { --g-r: 8px; } /* G17：圆角走参数 */
 .custom-option:hover { --g-fill: rgba(122,104,224,.16); }
 .custom-option.selected { --g-fill: rgba(122,104,224,.30); --g-fg: var(--ink); font-weight: 600; }
 .md-preview { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
@@ -249,8 +251,10 @@ body { background: transparent; }
    输入控件（input/select/textarea）——替换元素不吃 ::before，
    填充只能画在元素自身，无法走引擎。硬约束，非特例。
    ============================================================ */
-.form-input, .form-textarea, .custom-select-trigger, .chat-input, .filter-select {
-  background: rgba(255,255,255,.1); border: none; border-radius: var(--lg-r-sm);
+.form-input, .form-textarea, .custom-select-trigger, .chat-input, .filter-select,
+.chat-textarea, .posts-search, .post-body-input { /* G29：补三处引擎覆盖缺口（聊天输入/广场搜索/正文） */
+  background-color: rgba(255,255,255,.1); border: none; border-radius: var(--lg-r-sm);
+  /* G18/G19：background shorthand 会重置 background-image，吃掉 style.css 的聚焦下划线/下拉 v 箭头 → 拆 longhand background-color */
   /* 替换元素补液体边缘：无法走 ::before，用 box-shadow 叠内高光（液态 v0.19，与 --g-liquid 视觉同源） */
   box-shadow: var(--glass-lift-sm), inset 0 1px 3px rgba(30,26,64,.06), inset 0 0 0 1px rgba(255,255,255,.18), inset 0 1px 0 rgba(255,255,255,.4);
 }
@@ -258,8 +262,8 @@ body { background: transparent; }
 .form-input:focus, .form-textarea:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.3), inset 0 1px 0 rgba(255,255,255,.3); }
 
 /* 信息栏内部行线（卡片已玻璃化，行线改透白） */
-.profile-panel-head { border-bottom-color: rgba(255,255,255,.22); }
-.profile-row { border-top-color: rgba(255,255,255,.28); }
+.profile-panel-head { border-bottom: 1px solid rgba(255,255,255,.22); } /* G22：分隔线单源迁此（含宽/样式，style.css 删直写） */
+.profile-row { border-top: 1px solid rgba(255,255,255,.28); } /* G22：同上 */
 .profile-empty { color: var(--ink-3); }
 
 /* ============================================================
@@ -276,7 +280,7 @@ body { background: transparent; }
 .chats-shell { background: transparent; }
 .chats-list-pane { background: rgba(255,255,255,.12); }
 .chat-pane, .chat-messages { background: transparent; background-image: none; }
-.conv-pill { background: rgba(255,255,255,.22); border: none; border-radius: var(--lg-r); box-shadow: var(--glass-lift-sm); }
+.conv-pill { --g-fill: rgba(255,255,255,.22); --g-lift: var(--glass-lift-sm); } /* G9：直写 background/box-shadow 被 ::before 盖死 → 交还 --g-fill/--g-lift 参数 */
 .conv-item { border-radius: var(--lg-r); }
 .conv-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.16)); }
 .conv-item:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(122,104,224,.4); border-radius: var(--lg-r); }
@@ -350,7 +354,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 .invite-code-box { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 
 /* 关于平台：安全盾标 + 流程圆点（✓ 内容迁 ::after 以让出 ::before） */
-.about-sec-mark { --g-fill: var(--accent-tint); }
+.about-sec-mark { --g-fill: var(--accent-tint); --g-r: 50%; } /* G15：实变圆走参数 */
 .about-flow-dot { --g-fill: rgba(255,255,255,.85); --g-r: 50%; }
 
 /* 反馈类型分段按钮 */

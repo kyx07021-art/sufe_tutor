@@ -67,9 +67,8 @@ select.posts-sort {
   color: var(--muted);
   font-size: .78rem; font-weight: 700; letter-spacing: .02em;
   transition: color var(--t-base) var(--ease-out),
-              background-color var(--t-base) var(--ease-out),
               border-color var(--t-base) var(--ease-out),
-              transform var(--t-fast) var(--ease-out);
+              transform var(--t-fast) var(--ease-out); /* G28：background-color 死 */
 }
 .post-like .like-icon { flex-shrink: 0; transition: fill var(--t-base) var(--ease-out), stroke var(--t-base) var(--ease-out); }
 .post-like .like-count { font-family: var(--mono); font-size: .74rem; }
@@ -92,9 +91,8 @@ select.posts-sort {
 .md-btn {
   padding: 5px 12px;
   font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .04em;
-  transition: background-color var(--t-fast) var(--ease-out),
-              color var(--t-fast) var(--ease-out),
-              transform var(--t-fast) var(--ease-out);
+  transition: color var(--t-fast) var(--ease-out),
+              transform var(--t-fast) var(--ease-out); /* G28：background-color 死 */
 }
 .md-btn:active { transform: translateY(1px); }
 label.md-btn { display: inline-block; cursor: pointer; } /* 插图按钮是原生 label（唤起文件框），补内联块与指针 */

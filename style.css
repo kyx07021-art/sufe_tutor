@@ -278,10 +278,9 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
   background: var(--accent-bright); transform: scaleY(0); transform-origin: top;
   transition: transform var(--t-base) var(--ease-snap); z-index: 1;
 }
-.entry:hover { transform: translateX(3px); }
+/* G23：.entry:hover/:active 的 transform 直写被引擎 (0,2,0) 后加载恒等变换盖掉=死代码，删（悬停由引擎 --g-hover 白洗接管） */
 .entry:hover::after, .entry:focus-visible::after { transform: scaleY(1); }
 .entry:focus-visible { outline-color: var(--accent-bright); }
-.entry:active { transform: translateX(3px) scale(.995); transition-duration: 80ms; }
 .entry-index { font-family: var(--font); font-size: 1.5rem; font-weight: 700; color: var(--accent-bright); letter-spacing: -.02em; }
 .entry-body { display: flex; flex-direction: column; gap: 3px; }
 .entry-title { font-size: 1.18rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
@@ -372,7 +371,7 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
   margin-bottom: 0; padding: 15px 0;
 }
 /* 细米线只用于项与项之间：首项之前不出现（条件段落自带顶线保持连续） */
-.form-group + .form-group, #d-address-section + .form-group { border-top: 1px solid var(--paper-3); }
+#d-address-section + .form-group { border-top: 1px solid var(--paper-3); } /* G22：.form-group + .form-group 部分被 glass.css:298 胜，删 */
 #d-address-section { border-top: 1px solid var(--paper-3); }
 /* 右侧录入控件撑满剩余宽度（省份选择包裹层 / 成绩区 / 预算行等） */
 .form-group > span[id$="-wrap"], .form-group > div { flex: 1 1 0; min-width: 0; }
@@ -394,7 +393,6 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 .form-input, .form-select {
   flex: 1; min-width: 0; width: auto;
   padding: 8px 2px; border: none; outline: none;
-  background-color: transparent;
   font-size: .92rem; color: var(--text); caret-color: var(--accent);
   text-align: left; /* 录入内容一律左对齐 */
 }
@@ -435,7 +433,7 @@ textarea.form-input {
 .custom-select-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   width: 100%; padding: 8px 2px;
-  background: transparent; cursor: pointer;
+  cursor: pointer;
   font-size: .92rem; color: var(--text); text-align: left;
   transition: color var(--t-fast) var(--ease-out);
 }
@@ -468,7 +466,7 @@ textarea.form-input {
 .checkbox-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .checkbox-item {
   display: flex; align-items: center; gap: 8px; padding: 8px 10px;
-  background: transparent; cursor: pointer; font-size: .8rem; font-weight: 500; color: var(--muted);
+  cursor: pointer; font-size: .8rem; font-weight: 500; color: var(--muted);
   transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
 }
 .checkbox-item:hover { color: var(--ink); }
@@ -547,11 +545,10 @@ textarea.form-input {
 }
 
 .client-sidebar {
-  background: var(--lilac);
   display: flex; flex-direction: column;
   position: relative; overflow: hidden; /* 滚动交给内层 .sidebar-scroll，背景网格不随之动 */
   isolation: isolate;
-}
+} /* G22：background:var(--lilac) 被 glass.css 玻璃条胜，删 */
 .sidebar-scroll {
   position: relative; z-index: 1;
   flex: 1; min-height: 0;
@@ -584,7 +581,7 @@ textarea.form-input {
   line-height: 1.2; color: var(--accent-bright);
   transition: font-size var(--t-slow) var(--ease-snap);
 }
-.sidebar-item.active .sidebar-item-index { font-size: 1.6rem; color: #fff; }
+.sidebar-item.active .sidebar-item-index { font-size: 1.6rem; } /* G7：删白字（适配旧紫卡），交还 base 亮紫 */
 .sidebar-item-body { display: flex; flex-direction: column; min-width: 0; }
 .sidebar-item-label {
   display: flex; align-items: center;
@@ -604,7 +601,7 @@ textarea.form-input {
   transition: color var(--t-base) var(--ease-out), padding var(--t-slow) var(--ease-snap);
 }
 .sidebar-item.active .sidebar-item-descwrap { grid-template-rows: 1fr; }
-.sidebar-item.active .sidebar-item-desc { color: var(--paper-ghost); padding-top: 6px; }
+.sidebar-item.active .sidebar-item-desc { color: var(--ink-2); padding-top: 6px; } /* G7：白字交还深色（卡已白化） */
 
 /* 用户信息：白框落地栏底（静态 flex 末位，不参与滚动、不随内容变化位移）；
    上层头像 + id/属性，白框内最下层为运营脚注（细黑体小字，点击直达「关于平台」） */
@@ -617,7 +614,7 @@ textarea.form-input {
 /* 用户块整体可点（登录态 → 个人信息右栏；访客态 → 登录通路）：button 复位为纯容器 */
 .sidebar-user-btn { width: 100%; background: none; border: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .sidebar-user-name--guest { color: var(--muted); font-weight: 700; }
-.avatar--guest { color: var(--muted); background: none; } /* S8：边框唯一主人 = glass.css（同特异性靠加载序定生死的竞争已删一方） */
+.avatar--guest { color: var(--muted); } /* S8/G30：边框唯一主人 = glass.css；元素 background none 与引擎 .glass 基类重复，删 */
 .sidebar-user-avatar { width: 42px; height: 42px; font-size: 1.15rem; }
 .sidebar-user-text { min-width: 0; }
 .sidebar-user-name { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; overflow-wrap: anywhere; }
@@ -654,10 +651,10 @@ textarea.form-input {
 
 /* 抽屉遮罩：仅移动端启用（见 Responsive） */
 .sidebar-backdrop {
-  position: fixed; inset: 0; z-index: 140; background: rgba(17,17,20,.4);
+  position: fixed; inset: 0; z-index: 140;
   opacity: 0; pointer-events: none; transition: opacity var(--t-base) var(--ease-out);
   display: none;
-}
+} /* G22：background 移动端被 glass.css:314 胜（桌面端 display:none），删 */
 body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
 .client-main { background: transparent; overflow-y: auto; padding: 28px clamp(20px, 4vw, 40px) 56px; }
@@ -702,11 +699,11 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .feedback-kind-row { display: flex; gap: 8px; margin-bottom: 14px; }
 .feedback-kind-btn {
   padding: 7px 18px; font-size: .8rem; font-weight: 700;
-  background: transparent; color: var(--muted);
-  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
+  color: var(--muted);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
-.feedback-kind-btn:hover { color: var(--ink); border-color: var(--faint); }
-.feedback-kind-btn.active { color: var(--ink); border-color: var(--ink); }
+.feedback-kind-btn:hover { color: var(--ink); } /* G31：border-color 在引擎 border:none 下不显形，删 */
+.feedback-kind-btn.active { color: var(--ink); }
 
 /* 管理员反馈卡：Bug 左侧红色警示边 + 浅红底；已处理整卡淡出 */
 .feedback-card--resolved { opacity: .62; }
@@ -752,8 +749,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .device-label { font-size: .86rem; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .device-current {
   font-size: .62rem; font-weight: 700; letter-spacing: .05em; color: var(--accent, #6b5ca5);
-  border: 1px solid currentColor; padding: 1px 6px; border-radius: 2px;
-}
+  padding: 1px 6px;
+} /* G11：删直写 border/border-radius，交还引擎 --g-r:999px 药丸 */
 .device-meta { font-size: .72rem; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
 
 /* 汉堡按钮：桌面隐藏；≤860px 且处于壳内时由 body:has 启用 */
@@ -781,7 +778,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   position: relative;
   display: inline-flex; align-items: center; gap: 8px;
   padding: 7px 12px;
-  background: transparent; color: var(--ink-3);
+  color: var(--ink-3);
   font-size: .8rem; font-weight: 700; letter-spacing: .01em;
   transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
 }
@@ -928,10 +925,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    Modal — 白实心直角，墨色顶条，无毛玻璃
    ============================================================ */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(17,17,20,.55);
+  position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
   z-index: 200; animation: fade-in .2s ease; padding: 20px;
-}
+} /* G22：background 被 glass.css:297 毛玻璃胜，删 */
 .modal {
   width: 100%; max-width: 580px;
   max-height: 86vh; overflow-y: auto; position: relative;
@@ -1092,10 +1089,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .avatar-btn { display: inline-flex; cursor: pointer; }
 .avatar--link { transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out); }
 .avatar-btn:hover .avatar--link,
-.avatar-btn:focus-visible .avatar--link { transform: scale(1.09); box-shadow: 0 0 0 3px rgba(17,17,20,.16); }
+.avatar-btn:focus-visible .avatar--link { transform: scale(1.09); box-shadow: 0 0 0 3px var(--g-ring); } /* G13：焦点环直写走引擎 --g-ring */
 
 /* 通用大图查看器（聊天图片放大 / 学信网截图预览共用，自 style-chat.css 迁入） */
-.image-viewer-modal { max-width: 92vw; width: auto; background: transparent; }
+.image-viewer-modal { max-width: 92vw; width: auto; } /* G30：background 与 .modal 玻璃体重复，删 */
 .image-viewer-modal .modal-body { padding: 0; }
 .image-viewer-modal img { display: block; max-width: 88vw; max-height: 86vh; margin: 0 auto; }
 
@@ -1119,7 +1116,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   width: max(300px, 25vw);
   display: flex; flex-direction: column;
 
-  box-shadow: -14px 0 44px rgba(17,17,20,.13);
+  --g-lift: -14px 0 44px rgba(17,17,20,.13); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
   transition: transform .34s var(--ease-snap);
 }
@@ -1134,8 +1131,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 .profile-panel-head {
   flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
   padding: 15px 18px 13px;
-  border-bottom: 1px solid var(--line);
-}
+} /* G22：分隔线单源迁 glass.css（含宽/样式），此处删直写 */
 .profile-panel-title { font-size: 1.02rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
 .profile-panel-body {
   flex: 1; min-height: 0; overflow-y: auto;
@@ -1159,7 +1155,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 .profile-id-role { margin-top: 4px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .14em; }
 
 /* 卡片②：账簿行 —— title 最左，信息自固定 78px 处统一开始，逐项成行 */
-.profile-row { display: grid; grid-template-columns: 70px 1fr; column-gap: 10px; padding: 8px 0; border-top: 1px solid var(--paper-3); }
+.profile-row { display: grid; grid-template-columns: 70px 1fr; column-gap: 10px; padding: 8px 0; } /* G22：分隔线单源迁 glass.css */
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
 .profile-row-k { padding-top: 2px; font-size: .73rem; font-weight: 700; color: var(--muted); }
 .profile-row-v { font-size: .84rem; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
@@ -1176,7 +1172,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 
 /* 移动端：定宽浮层 + 背景变暗（桌面 25vw 在窄屏过窄，改固定 px） */
 @media (max-width: 860px) {
-  .profile-panel { width: min(86vw, 340px); box-shadow: -8px 0 30px rgba(17,17,20,.22); }
+  .profile-panel { width: min(86vw, 340px); --g-lift: -8px 0 30px rgba(17,17,20,.22); } /* G12：外浮影走引擎参数 */
   .profile-panel-backdrop { display: block; }
   body.profile-panel-open .profile-panel-backdrop { opacity: 1; pointer-events: auto; }
 }
@@ -1272,7 +1268,7 @@ body.profile-panel-open .profile-panel { transform: none; }
   display: flex; gap: 12px; align-items: flex-start;
   padding: 14px 16px; margin-bottom: 8px;
 }
-.notif-item.unread { border-left: 3px solid var(--danger); }
+.notif-item.unread { --g-surface: inset 3px 0 0 var(--danger); } /* G14：语义条走 --g-surface（border-left 被引擎 border:none 吃，必用参数） */
 .notif-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-top: 7px; }
 .notif-dot.read { background: transparent; }
 .notif-body { flex: 1; min-width: 0; }

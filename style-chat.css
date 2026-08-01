@@ -52,7 +52,7 @@
   width: 100%; text-align: left;
   margin: 0 0 6px;
   padding: 13px 18px 14px;
-  transition: color .26s ease, background-color .26s ease, padding .26s ease;
+  transition: color .26s ease, padding .26s ease; /* G28：background-color 由引擎 --g-fill 接管，死 */
 }
 .conv-item.active { padding: 16px 18px 17px; color: var(--ink); }
 
@@ -137,9 +137,8 @@
   display: none; flex-shrink: 0;
   padding: 7px 10px;
   font-size: .78rem; font-weight: 700;
-  transition: background-color var(--t-fast) var(--ease-out),
-              color var(--t-fast) var(--ease-out),
-              transform var(--t-fast) var(--ease-out);
+  transition: color var(--t-fast) var(--ease-out),
+              transform var(--t-fast) var(--ease-out); /* G28：background-color 死 */
 }
 .chat-back:active { transform: translateX(-2px); transition-duration: 80ms; }
 
@@ -173,7 +172,7 @@
 .chat-bubble {
   padding: 10px 14px;
   font-size: .88rem; line-height: 1.62;
-  border-radius: 12px;
+  --g-r: 12px; /* G16：圆角走参数 */
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 
@@ -211,7 +210,7 @@
 .chat-stage-thumb {
   position: relative; width: 64px; height: 64px;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 8px; overflow: hidden;
+  --g-r: 8px; overflow: hidden; /* G16：圆角走参数 */
 }
 .chat-stage-item--file .chat-stage-thumb { width: 118px; }
 .chat-stage-thumb img { width: 100%; height: 100%; object-fit: cover; }
@@ -224,10 +223,9 @@
 .chat-stage-del {
   position: absolute; top: -6px; right: -6px; z-index: 2;
   width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
+  --g-r: 50%; /* G16：圆角走参数 */
   font-size: .6rem; line-height: 1;
-  transition: background-color var(--t-fast) var(--ease-out);
-}
+} /* G28：transition 只含 background-color（引擎 --g-fill 接管）死，删 */
 /* 圆圈进度条：SVG 环，dashoffset 由 JS 按进度写入 */
 .chat-stage-ring {
   position: absolute; inset: 0; margin: auto; width: 30px; height: 30px;
@@ -278,7 +276,7 @@
   transition: opacity .18s ease-out, transform .22s cubic-bezier(.16,1,.3,1), visibility 0s .22s;
 }
 .chat-plus-wrap.open .chat-plus-pop { opacity: 1; visibility: visible; transform: none; transition: opacity .18s ease-out, transform .22s cubic-bezier(.16,1,.3,1), visibility 0s 0s; }
-.chat-pop-item { display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: .84rem; color: var(--ink-3); cursor: pointer; transition: background-color .16s ease-out, color .16s ease-out; }
+.chat-pop-item { display: block; width: 100%; text-align: left; padding: 8px 12px; font-size: .84rem; color: var(--ink-3); cursor: pointer; transition: color .16s ease-out; } /* G28：background-color 死 */
 .chat-pop-item:hover { color: var(--ink); }
 
 textarea.chat-textarea {

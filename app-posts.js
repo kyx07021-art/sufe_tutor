@@ -31,7 +31,7 @@ function enterResourceShare() {
         <option value="new">${UI.POSTS_SORT_NEW}</option>
         <option value="hot">${UI.POSTS_SORT_HOT}</option>
       </select>
-      ${isTeacher ? `<button type="button" class="btn btn-primary btn-sm glass glass--pressable" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
+      ${isTeacher ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
     </div>
     <div id="posts-list"><div class="empty-state">${loaderHtml()}</div></div>`;
   initCustomSelects(document.getElementById('posts-content')); // 工具条是动态渲染，须显式接线自定义下拉
@@ -147,7 +147,7 @@ function openPostEditor() {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary glass glass--pressable" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>
+          <button type="button" class="btn glass glass--pressable" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>
         </div>
       </div>
     </div>
@@ -300,7 +300,7 @@ function postConfirmDelete(id) {
         <p class="text-sm post-confirm-text">${UI.POST_DELETE_CONFIRM}</p>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger glass glass--pressable" onclick="deletePost(${id})">${UI.BTN_CONFIRM_DELETE}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="deletePost(${id})">${UI.BTN_CONFIRM_DELETE}</button>
         </div>
       </div>
     </div>
@@ -362,7 +362,7 @@ function openBroadcastModal() {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary glass glass--pressable" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>
+          <button type="button" class="btn glass glass--pressable" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>
         </div>
       </div>
     </div>

@@ -315,7 +315,7 @@ function updateNavbar() {
       <span>${escHtml(u.username)}</span><span class="user-badge glass${u.role === 'admin' ? ' admin-badge glass' : ''}">${roleLabel}</span></div>`;
   } else {
     el.innerHTML = `<button class="btn btn-ghost glass glass--pressable" onclick="showView('login')">${UI.NAV_LOGIN}</button>
-      <button class="btn btn-primary btn-sm glass glass--pressable" onclick="showView('register')">${UI.NAV_REGISTER}</button>`;
+      <button class="btn btn-sm glass glass--pressable" onclick="showView('register')">${UI.NAV_REGISTER}</button>`;
   }
 }
 
@@ -790,9 +790,9 @@ function renderDemandModal(demand) {
             <textarea class="form-input" id="d-info" rows="3" placeholder="${UI.DEMAND_INFO_PLACEHOLDER}"></textarea>
           </div>
           <div class="modal-footer">
-            ${demand ? `<button type="button" class="btn btn-danger btn-sm modal-footer-start glass glass--pressable" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
+            ${demand ? `<button type="button" class="btn btn-sm modal-footer-start glass glass--pressable" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
             <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-            <button type="submit" class="btn btn-primary glass glass--pressable" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
+            <button type="submit" class="btn glass glass--pressable" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
           </div>
         </form>
       </div>
@@ -1009,7 +1009,7 @@ function renderTeacherCard(t) {
   return `<div class="list-card list-card--teacher glass">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
-        <span class="tc-username" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openProfilePanel(${t.user_id})">${renderUsername(t.username)}${t.verified ? ` <span class="badge-verified glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}</span>
+        <span class="tc-username" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openProfilePanel(${t.user_id})">${renderUsername(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}</span>
         <span class="tc-rating">${renderStars(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
         ${t.intro ? `<span class="tc-intro">${escHtml(t.intro)}</span>` : ''}
       </div>
@@ -1214,9 +1214,9 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
       ${reviewsData.admin ? `<div class="review-admin-actions">
-        ${r.status === 'pending' ? `<button type="button" class="btn btn-accent btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
+        ${r.status === 'pending' ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
         <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',1)">${UI.BTN_REJECT}</button>` : ''}
-        <button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
+        <button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
       </div>` : ''}
     </div>`).join('') : `<p class="profile-empty">${UI.EMPTY_NO_REVIEWS}</p>`;
   let action = '';
@@ -1225,7 +1225,7 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
       <div class="review-mine-note">${UI.MY_REVIEW_PREFIX}${mine.status === 'approved' ? UI.STATUS_APPROVED : mine.status === 'rejected' ? UI.REVIEW_REJECTED_HINT : UI.REVIEW_STATUS_AUDITING}</div>
       <button type="button" class="btn btn-outline btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id}, null, ${mine.id})">${UI.BTN_EDIT_REVIEW}</button>`
       : signed ? `
-      <button type="button" class="btn btn-primary btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>`
+      <button type="button" class="btn btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>`
       : `
       <button type="button" class="btn btn-outline btn-sm profile-review-btn glass glass--pressable" disabled>${UI.BTN_WRITE_REVIEW}</button>
       <p class="profile-review-hint">${UI.REVIEW_LOCKED_HINT}</p>`;
@@ -1261,7 +1261,7 @@ function openReviewModal(teacherUserId, teacherName, editId) {
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button class="btn btn-primary glass glass--pressable" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_REVIEW}</button>
+          <button class="btn glass glass--pressable" onclick="submitReview(${teacherUserId}, ${existing ? existing.id : 0})">${existing ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_REVIEW}</button>
         </div>
       </div>
     </div>
@@ -1312,7 +1312,7 @@ function confirmDanger(title, text, onConfirm) {
         <p class="text-sm" style="color:var(--ink-3);">${text}</p>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger glass glass--pressable" onclick="${onConfirm}">${UI.BTN_CONFIRM}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="${onConfirm}">${UI.BTN_CONFIRM}</button>
         </div>
       </div>
     </div>
@@ -1438,12 +1438,12 @@ function renderDemandCard(d, opts = {}) {
           <span class="list-card-meta">${fmtDateTime(push.push_created_at)}</span>
           <span class="push-note-text">${UI.PUSH_NOTE_TEXT}</span>
           <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
-          <button type="button" class="btn btn-accent btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
+          <button type="button" class="btn btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
         </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${teacherIntentBtn}`}
         ${d.display_id ? `<span class="demand-id-tag glass glass--solid">#${String(d.display_id).padStart(4, '0')}</span>` : ''}
-        ${editable && d.status === 'revoked' ? `<button type="button" class="btn btn-accent btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
+        ${editable && d.status === 'revoked' ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
           : editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
-        ${admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-danger btn-xs glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
+        ${admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
       </span>
     </div>
     <div class="demand-info">
@@ -1551,7 +1551,7 @@ async function openSendDemandModal(teacherUserId) {
         ${pickHtml}
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary glass glass--pressable" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>
+          <button type="button" class="btn glass glass--pressable" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>
         </div>
       </div>
     </div>
@@ -1663,7 +1663,7 @@ function enterAccountSettings() {
       <div class="settings-hint">${UI.SETTINGS_DEVICES_HINT}</div>
       <div id="settings-devices-list" class="settings-devices-list">${loaderHtml('sm')}</div>
     </div>
-    <button type="button" class="btn btn-danger settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
+    <button type="button" class="btn settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate glass" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
   loadDeviceSessions();
 }
@@ -1819,7 +1819,7 @@ function confirmLogout() {
         <p style="margin-bottom:16px;">${UI.CONFIRM_LOGOUT}</p>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger glass glass--pressable" onclick="closeModal();handleLogout()">${UI.BTN_LOGOUT}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="closeModal();handleLogout()">${UI.BTN_LOGOUT}</button>
         </div>
       </div>
     </div>
@@ -1836,7 +1836,7 @@ function openConfirmModal(message, action) {
         <p style="margin-bottom:16px;">${message}</p>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-danger glass glass--pressable" onclick="runPendingConfirm()">${UI.BTN_CONFIRM}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="runPendingConfirm()">${UI.BTN_CONFIRM}</button>
         </div>
       </div>
     </div>
@@ -1954,7 +1954,7 @@ function openFeedbackModal(kind) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn btn-primary glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>
         </div>
       </div>
     </div>
@@ -2008,7 +2008,7 @@ function showProfileIncompleteModal() {
         <p class="text-sm" style="color:var(--ink-3);line-height:1.7;">${UI.PROFILE_INCOMPLETE_HINT}</p>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_LATER}</button>
-          <button type="button" class="btn btn-primary glass glass--pressable" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>
         </div>
       </div>
     </div>
@@ -2059,7 +2059,7 @@ function renderIntentTeacherRow(t, demandId) {
   const provName = DISP.provinceName(t.province);
   const viewBtn = `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
   const actions = st === 'pending'
-    ? `<button type="button" class="btn btn-accent btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
+    ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
        <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
   return `<div class="admin-row glass">
     <div class="admin-row-main">
