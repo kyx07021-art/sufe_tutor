@@ -272,20 +272,14 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
   transition: background-color var(--t-base) var(--ease-out), transform var(--t-base) var(--ease-snap);
   opacity: 0;
 }
-.entry::after {
-  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-  background: var(--accent-bright); transform: scaleY(0); transform-origin: top;
-  transition: transform var(--t-base) var(--ease-snap); z-index: 1;
-}
-/* G23：.entry:hover/:active 的 transform 直写被引擎 (0,2,0) 后加载恒等变换盖掉=死代码，删（悬停由引擎 --g-hover 白洗接管） */
-.entry:hover::after, .entry:focus-visible::after { transform: scaleY(1); }
-.entry:focus-visible { outline-color: var(--accent-bright); }
+/* 入口块：紫条已连根拔（悬停/聚焦左竖条是老效果，用户定性删）；悬停=箭头微动+整钮上浮（--g-raise） */
+.entry:focus-visible { outline-color: var(--accent-bright); transform: translateY(var(--g-raise, -1px)); }
 .entry-index { font-family: var(--font); font-size: 1.5rem; font-weight: 700; color: var(--accent-bright); letter-spacing: -.02em; }
 .entry-body { display: flex; flex-direction: column; gap: 3px; }
 .entry-title { font-size: 1.18rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
-.entry-desc { font-size: .8rem; color: var(--paper-ghost); line-height: 1.4; }
+.entry-desc { font-size: .8rem; color: var(--ink-2); line-height: 1.4; } /* 简介小字白→深（原 --paper-ghost 近白不可读） */
 .entry-arrow { font-size: 1.4rem; color: var(--ink); transition: transform var(--t-base) var(--ease-snap), color var(--t-base) var(--ease-out); }
-.entry:hover .entry-arrow { transform: translateX(6px); color: var(--accent-bright); }
+.entry:hover .entry-arrow, .entry:focus-visible .entry-arrow { transform: translateX(6px); color: var(--accent-bright); }
 
 .stage-note {
   margin-top: 22px; font-size: .78rem; color: var(--muted); letter-spacing: .03em;

@@ -342,7 +342,7 @@ body { background: transparent; }
 .post-like.liked { --g-fill: rgba(211,47,47,.16); --g-fg: var(--danger); }
 
 /* 主页入口块（实心墨玻璃；竖条母题迁 ::after 以让出 ::before 给玻璃填充） */
-.entry { --g-fill: rgba(255,255,255,.14); --g-frost: var(--g-f-entry, blur(4px) saturate(180%) brightness(1.04)); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); } /* S7：--g-fg 死变量已删——文字色唯一主人 = style.css .entry { color } */
+.entry { --g-fill: rgba(255,255,255,.14); --g-frost: var(--g-f-entry, blur(4px) saturate(180%) brightness(1.04)); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); --g-raise: -1px; } /* S7：--g-fg 死变量已删——文字色唯一主人 = style.css .entry { color }；--g-raise 悬停上浮同别的按钮 */
 
 /* 徽章 */
 .user-badge { --g-fill: var(--accent-tint); --g-fg: var(--accent-deep); }
