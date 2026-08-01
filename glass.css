@@ -339,7 +339,9 @@ body { background: transparent; }
 .tag-warn { --g-fill: rgba(154,106,42,.20); color: var(--warn-deep); }
 .tag-accent { --g-fill: rgba(122,104,224,.20); color: var(--accent-deep); }
 /* 反馈卡 Bug 红色警示 */
-.feedback-card--bug { --g-fill: rgba(198,72,58,.12); --g-surface: inset 3px 0 0 var(--danger); }
+/* 反馈 bug 卡：--g-surface 左红条连根拔（v0.19.21 用户定性没必要）——CSS 变量继承会把红条传给卡内所有 glass 子组件(tag/按钮)，
+   语义条只应设在不含 glass 子组件的组件上（如 alert 提示条） */
+.feedback-card--bug { --g-fill: rgba(198,72,58,.12); }
 
 /* 资料广场 */
 .posts-toolbar { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
