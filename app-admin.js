@@ -297,11 +297,26 @@ async function toggleTeacherVerify(userId, verified) {
 // ============================================================
 // 管理员：需求管理（移除走管理员通道，不受归属限制）
 // ============================================================
-async function loadAdminDemands() {
-  await loadInto('admin-demands-list', async () => {
-    const data = await api(`/api/admin/demands?username=${encodeURIComponent(state.user.username)}`); // 管理员全量端点（含已签约，广场端点排除 contracted）
-    return data.demands || [];
-  }, demands => demands.map(d => renderDemandCard(d, { admin: true })).join(''), { empty: UI.EMPTY_NO_DEMANDS, reveal: false });
+// 网安报告 F-09：全量端点改 keyset 游标分页 → 首次 loadAdminDemands() 全量重载，
+// 有 nextCursor 时按钮追加加载下一页；reset=false 追加页
+let adminDemandsCursor = null;
+let adminDemandsAll = [];
+async function loadAdminDemands(reset = true) {
+  const el = document.getElementById('admin-demands-list');
+  if (!el) return;
+  if (reset) { adminDemandsCursor = null; adminDemandsAll = []; el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`; }
+  try {
+    const qs = adminDemandsCursor ? `?cursor=${encodeURIComponent(adminDemandsCursor)}` : '';
+    const data = await api(`/api/admin/demands${qs}`);
+    adminDemandsAll = adminDemandsAll.concat(data.demands || []);
+    adminDemandsCursor = data.nextCursor || null;
+    if (!adminDemandsAll.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
+    el.innerHTML = adminDemandsAll.map(d => renderDemandCard(d, { admin: true })).join('') +
+      (adminDemandsCursor ? `<div class="list-more-row"><button type="button" class="btn btn-outline glass glass--pressable" onclick="loadAdminDemands(false)">${UI.BTN_LOAD_MORE}</button></div>` : '');
+  } catch (err) {
+    if (reset) el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
+    else showToast(err.message);
+  }
 }
 
 // ============================================================

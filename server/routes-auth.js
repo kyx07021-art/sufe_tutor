@@ -2,7 +2,7 @@
  * 路由模块：认证（注册 / 登录）
  * 注册与登录结果（成功 / 失败 / 被封禁）发语义日志 auth.*
  */
-import { json, error, dbGet, hashPassword, verifyPassword, issueAuthToken, authUser, confirmDangerOtp, deviceLabelFromUA, listSessions, revokeSession, MSG, INVITE_GATE_ENABLED } from './core.js';
+import { json, error, dbGet, dbRun, hashPassword, verifyPassword, issueAuthToken, authUser, confirmDangerOtp, issueCapToken, tokenDigest, deviceLabelFromUA, listSessions, revokeSession, MSG, INVITE_GATE_ENABLED } from './core.js';
 import { dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
   dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar } from './db.js';
 import { logEvent } from './log.js';
@@ -85,7 +85,7 @@ export async function handleDeactivateAccount(db, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   if (me.role === 'admin') return error(MSG.NO_PERMISSION, 403); // 管理员禁止注销，防管理面板孤岛化
-  if (!(await confirmDangerOtp(db, me.id))) return error(MSG.ACCOUNT_DEACTIVATED, 403);
+  if (!(await confirmDangerOtp(db, me.id, body))) return error(MSG.REAUTH_FAILED, 403);
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
   await dbDeactivateUser(db, me.id, tombstone);
   await dbPurgeUserOwnedData(db, me.id, me.role); // 按角色清理单方数据 + 匿名化本人聊天正文
@@ -119,7 +119,7 @@ export async function handleListSessions(db, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const current = req.headers.get('X-Auth-Token');
-  const currentRow = current ? await dbGet(db, 'SELECT session_id FROM auth_sessions WHERE user_id=? AND token=?', [me.id, current]) : null;
+  const currentRow = current ? await dbGet(db, 'SELECT session_id FROM auth_sessions WHERE user_id=? AND token_hash=?', [me.id, await tokenDigest(current)]) : null;
   const currentId = currentRow?.session_id || '';
   const sessions = await listSessions(db, me.id);
   return json({ sessions: sessions.map(s => ({ session_id: s.session_id, label: s.label, created_at: s.created_at, expires_at: s.expires_at, current: s.session_id === currentId })) });
@@ -134,7 +134,7 @@ export async function handleRevokeSession(db, body, req) {
   if (!sessionId) return error(MSG.INVALID_PARAMS);
   // 先反查当前设备 session_id（撤销前，勿删后再查）
   const curRow = req.headers.get('X-Auth-Token')
-    ? await dbGet(db, 'SELECT session_id FROM auth_sessions WHERE user_id=? AND token=?', [me.id, req.headers.get('X-Auth-Token')])
+    ? await dbGet(db, 'SELECT session_id FROM auth_sessions WHERE user_id=? AND token_hash=?', [me.id, await tokenDigest(req.headers.get('X-Auth-Token'))])
     : null;
   const ok = await revokeSession(db, me.id, sessionId);
   if (!ok) return error(MSG.SESSION_NOT_FOUND, 404);
@@ -145,12 +145,32 @@ export async function handleRevokeSession(db, body, req) {
 }
 
 // 退出登录：吊销当前会话（此前登出仅清本地、令牌 7 天内仍有效的软登出，改为真登出）。
+// 按 token_hash 删当前令牌行（曾误把明文 token 当 session_id 传 revokeSession，恒删 0 行的真登出失效 bug）
 // fire-and-forget：即便令牌已失效也返回 ok，不阻断前端清理
 export async function handleLogout(db, req) {
   const me = await authUser(db, req);
   if (me) {
-    await revokeSession(db, me.id, req.headers.get('X-Auth-Token'));
+    const cur = req.headers.get('X-Auth-Token');
+    if (cur) await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=? AND token_hash=?', [me.id, await tokenDigest(cur)]);
     await logEvent(db, { action: 'auth.logout', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   }
   return json({ ok: true });
+}
+
+// POST /api/auth/re-auth —— 危险操作二次认证（网安报告 F-05）：已登录用户输入当前密码 → 校验通过
+// 签发一次性 capToken（core.js issueCapToken，5 分钟 TTL），危险接口凭 capToken 放行。
+// 密码错返 403 而非 401（前端 api() 对 401 统一弹登录页，会误踢已登录用户）
+export async function handleReAuth(db, body, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const password = String((body && body.password) || '');
+  if (!password || password.length > 72) return error(MSG.LOGIN_FAILED, 403); // 长度上限早退，防无谓 PBKDF2
+  const u = await dbFindUserByUsername(db, me.username);
+  if (!u || !(await verifyPassword(password, u.password_hash, u.salt))) {
+    await logEvent(db, { action: 'auth.reauth.failed', actorUserId: me.id, entity: 'user', entityId: me.id, req });
+    return error(MSG.LOGIN_FAILED, 403);
+  }
+  const capToken = issueCapToken(me.id);
+  await logEvent(db, { action: 'auth.reauth.success', actorUserId: me.id, entity: 'user', entityId: me.id, req });
+  return json({ capToken });
 }

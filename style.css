@@ -916,6 +916,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .admin-row .review-text { font-size: .8rem; color: var(--ink-3); line-height: 1.5; }
 .admin-row-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
 
+/* 管理员需求分页「加载更多」（网安报告 F-09 keyset 游标翻页） */
+.list-more-row { display: flex; justify-content: center; padding: 10px 0 2px; }
+
 /* 教师详情弹窗内评价的管理操作 */
 .review-admin-actions { display: flex; gap: 6px; margin-top: 8px; }
 
@@ -928,12 +931,15 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .modal-overlay {
   position: fixed; inset: 0;
   display: flex; align-items: center; justify-content: center;
-  z-index: 200; animation: fade-in .2s ease; padding: 20px;
-} /* G22：background 被 glass.css:297 毛玻璃胜，删 */
+  z-index: 200; padding: 20px;
+} /* G22：background 被 glass.css:297 毛玻璃胜，删；v0.19.37：fade-in opacity 帧连根删——
+    overlay 是 .modal 的祖先，opacity 动画期间整子树合成 → modal 的 backdrop-filter 采样失效（Chromium 983252，
+    v0.19.33 只改了 modal 自身的动画没改 overlay）→ 弹窗打开前 0.2s 是白板=「不毛」第一印象。
+    删动画后与 profile-panel 路径同构：无 opacity 帧，backdrop 全程正常采样 */
 .modal {
   width: 100%; max-width: 580px;
   max-height: 86vh; overflow-y: auto; position: relative;
-  animation: modal-in .32s var(--ease-snap) both;
+  animation: modal-in .32s var(--ease-snap); /* v0.19.37：删 both——终态 transform 归 none，合成层释放（同 profile-panel 路径） */
 }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -945,7 +951,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .modal-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; }
 .modal-footer-start { margin-right: auto; }
 /* v0.19.33：去 opacity 帧——Chromium bug 983252：元素自身 backdrop-filter + opacity 动画 → backdrop 渲染失效（毛玻璃变白板）。
-   纯 transform 动画（profile-panel 路径）不触发，modal 复刻之 */
+   纯 transform 动画（profile-panel 路径）不触发，modal 复刻之
+   v0.19.37：删 fill both——动画结束后 transform 不再常驻 translateY(0)，合成层释放，backdrop 回普通渲染路径；
+   与 profile-panel 的 transition（终态归 none）完全同构 */
 @keyframes modal-in { from { transform: translateY(18px); } to { transform: translateY(0); } }
 
 /* 星级输入 */

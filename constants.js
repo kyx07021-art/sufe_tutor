@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.36',
+  APP_VERSION: '0.19.37',
 
   // ============================================================
   // 业务数据
@@ -109,6 +109,7 @@ globalThis.APP_CONSTANTS = {
     UNVERIFY_DONE: '已撤销学籍认证',
     BTN_GENERATE_INVITE: '生成邀请码',
     BTN_CANCEL: '取消',
+    BTN_LOAD_MORE: '加载更多',      // 管理员需求分页（网安报告 F-09：keyset 游标翻页）
 
     // 加载状态
     LOADING_LOGIN: '登录中...',
@@ -307,6 +308,8 @@ globalThis.APP_CONSTANTS = {
     DEACTIVATE_WARN: '注销后：你的教师档案、发布的帖子与点赞、反馈、通知等仅与你一人相关的数据将被永久删除；需求、会话、合同、评价等涉及双方的数据会保留，但你的用户名将显示为「已注销用户」。此操作不可恢复。',
     DEACTIVATE_FINAL: '最终确认：注销后账户与个人数据不可恢复，确定继续吗？',
     DEACTIVATE_DONE_TOAST: '账户已注销',
+    REAUTH_PASSWORD_LABEL: '当前密码',
+    REAUTH_PASSWORD_HINT: '输入当前密码以确认此操作',
     DEACTIVATED_USER_PREFIX: '已注销用户',
 
     // 访客模式：主页按钮直达客户端（未登录态）；需要身份的操作统一经 ensureAuth 导向特制登录页，登录后自动返回原页面

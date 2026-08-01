@@ -8,6 +8,7 @@ import {
   INITIAL_RATING, INITIAL_WEIGHT,
 } from './core.js';
 import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
+import { encryptField, decryptField, bindFieldEnv } from './fieldcrypto.js'; // 敏感字段加密（网安报告 F-06）
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
 
@@ -41,6 +42,7 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
 const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(s => s.trim()).filter(Boolean);
 
 export async function initDb(db, env = {}) {
+  bindFieldEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
   const adminNames = adminNamesOf(getSecret(env, 'ADMIN_USERNAMES'));
   const adminPassword = getSecret(env, 'ADMIN_DEFAULT_PASSWORD') || '';
   await db.batch([
@@ -50,14 +52,21 @@ export async function initDb(db, env = {}) {
       role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
       banned INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT (datetime('now','localtime')))`),
-    // 登录设备（多端会话）：每枚登录令牌一行；账户设置「登录设备」逐端展示与退登。
-    // 身份解析 authUser 一律 JOIN 本表（core.js），users.auth_token 旧列仅作存量迁移来源
+    // 登录设备（多端会话）：每枚登录令牌一行；身份解析 authUser 一律 JOIN 本表（core.js）。
+    // 网安报告 F-04：主键 token_hash（SHA-256 摘要），令牌明文永不落库；session_id 独立随机 id 供设备管理展示
     db.prepare(`CREATE TABLE IF NOT EXISTS auth_sessions (
-      token TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+      token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+      session_id TEXT NOT NULL DEFAULT '',
       label TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       expires_at DATETIME NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // 限流持久化表（网安报告 F-09）：登录/注册/密码重认证/三振/封禁低频键落此，跨实例生效；
+    // 读写全在 _worker.js rateGate（SQL 内同口径 localtime 比较），此处只管建表
+    db.prepare(`CREATE TABLE IF NOT EXISTS rate_limits (
+      bucket TEXT PRIMARY KEY,
+      n INTEGER NOT NULL DEFAULT 0,
+      reset_at DATETIME NOT NULL)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS teacher_profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
       grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
@@ -311,14 +320,37 @@ export async function initDb(db, env = {}) {
     db.prepare('DROP TABLE IF EXISTS _users_old'),
   ]);
 
+  // 令牌摘要化迁移（网安报告 F-04）：旧库 auth_sessions 存 token 明文（token 主键）——
+  // 探测到旧结构即 DROP 重建为 token_hash 主键，语义 = 吊销全部历史会话（存量明文令牌连根清除，
+  // 所有已登录设备需重新登录；auth_sessions 无子表引用，安全）。新库无 token 列，探测不命中，跳过
+  const authCols = await dbAll(db, 'PRAGMA table_info(auth_sessions)');
+  if (authCols.some(c => c.name === 'token')) {
+    await db.batch([
+      db.prepare('DROP TABLE auth_sessions'),
+      db.prepare(`CREATE TABLE auth_sessions (
+        token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
+        session_id TEXT NOT NULL DEFAULT '',
+        label TEXT NOT NULL DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        expires_at DATETIME NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    ]);
+  }
+
   // 种子管理员（独立 admin 角色；凭证经 secrets 网关：env.Worker Secrets 优先，回落本地 secrets.js）
-  // 公测迁移后 getSecret 走 env，仓库明文文件失效（docs/secrets-plan.md）
+  // 网安报告 F-01：upsert 语义——存在且密码哈希与当前种子不同则更新（管理员在环境变量里轮换密码
+  // 即生效，生产管理员口令可脱离仓库明文；「知道仓库凭据」不再等于「能接管生产」）
   for (const name of adminNames) {
-    const existing = await dbGet(db, 'SELECT id FROM users WHERE username = ?', [name]);
+    const existing = await dbGet(db, 'SELECT id, password_hash FROM users WHERE username = ?', [name]);
     if (!existing) {
       const { hash, salt } = await hashPassword(adminPassword);
       await dbRun(db, 'INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,?,?)',
         [name, hash, salt, 'admin']);
+    } else if (adminPassword) {
+      const { hash, salt } = await hashPassword(adminPassword);
+      if (hash !== existing.password_hash) {
+        await dbRun(db, 'UPDATE users SET password_hash=?, salt=? WHERE id=?', [hash, salt, existing.id]);
+      }
     }
   }
 
@@ -326,7 +358,10 @@ export async function initDb(db, env = {}) {
   await initLogDb(db);
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
-  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['auth_token', "TEXT NOT NULL DEFAULT ''"], ['token_expires', "TEXT NOT NULL DEFAULT ''"], ['deactivated', 'INTEGER NOT NULL DEFAULT 0']]);
+  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['deactivated', 'INTEGER NOT NULL DEFAULT 0']]);
+  // 旧单令牌残留清空（网安报告 F-04：auth_token/token_expires 列已无读者，清值缩泄露面；列本身因
+  // 生产库 ALTER DROP COLUMN 有风险保留不动，仅不再被任何代码读写）
+  await dbRun(db, `UPDATE users SET auth_token='', token_expires='' WHERE auth_token != '' OR token_expires != ''`);
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
@@ -336,12 +371,6 @@ export async function initDb(db, env = {}) {
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
     ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"]]);
-
-  // 存量单令牌迁移：users.auth_token → auth_sessions（主键幂等，老登录不被踢下线）。
-  // 仅搬未过期且非空的旧令牌，label 记「历史登录设备」
-  await dbRun(db, `INSERT OR IGNORE INTO auth_sessions (token, user_id, label, expires_at)
-    SELECT auth_token, id, '历史登录设备', token_expires FROM users
-    WHERE auth_token IS NOT NULL AND auth_token != '' AND token_expires IS NOT NULL AND token_expires != ''`);
 
   // 存量需求编号补发：按 id（生成顺序）依次取号，四位展示自 0001 起；已编号跳过（幂等）
   const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');
@@ -371,10 +400,8 @@ export async function initDb(db, env = {}) {
     ['student_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
     ['teacher_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
   ]);
-  // 设备管理安全（网安报告 F-04）：auth_sessions 补 session_id 列并回填存量行——
-  // 存量会话无 session_id 则按 token 派生一次性回填（幂等），此后设备接口只暴露 session_id
-  await ensureColumns(db, 'auth_sessions', [['session_id', "TEXT NOT NULL DEFAULT ''"]]);
-  await dbRun(db, `UPDATE auth_sessions SET session_id = 's' || substr(token, 1, 16) WHERE session_id=''`);
+  // 设备管理安全（网安报告 F-04）：auth_sessions.session_id 已入 DDL 与重建迁移，设备接口只暴露
+  // session_id、token 永不进响应体（旧表经上方 DROP 重建后自然带列，无需回填迁移）
 
   // 通知表（独立模块 notify.js 提供建表与推送咽喉）
   await initNotifyTable(db);
@@ -517,7 +544,7 @@ function safeJsonArray(text) {
 // 本人档案（含联系方式，编辑预填用）：与教师列表共用 mapper，反序列化只此一条路径
 export async function dbGetTeacherProfile(db, userId) {
   const row = await dbGet(db, 'SELECT * FROM teacher_profiles WHERE user_id=?', [userId]);
-  return row ? mapTeacherProfileRow(row) : null;
+  return row ? await mapTeacherProfileRow(row) : null;
 }
 
 // 双向匹配判定：两人间存在会话（意向被接受/推送被确认 = 建立联系）→ 真实姓名/学信网截图可见门槛
@@ -531,31 +558,39 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   const existing = await dbGet(db, 'SELECT id FROM teacher_profiles WHERE user_id=?', [userId]);
   const subjects = JSON.stringify(profile.subjects);
   const gaokao = JSON.stringify(profile.gaokao_scores);
+  // 网安报告 F-06：wechat/email/real_name 加密落库（D1 泄露/备份不暴露教师私密信息；real_name 截断先于加密）
+  const [wechat, email, realName] = await Promise.all([
+    encryptField(profile.wechat || ''), encryptField(profile.email || ''), encryptField((profile.real_name || '').slice(0, 20)),
+  ]);
 
   const price = profile.price != null ? profile.price : null; // null = 未填报价（意向档案完整性门槛据此拦截，勿落 0）
   if (existing) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
       price=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), (profile.real_name || '').slice(0, 20), profile.credential_image || '', userId]);
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, profile.credential_image || '', userId]);
   } else {
     await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro,address,school,real_name,credential_image)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, profile.wechat, profile.email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), (profile.real_name || '').slice(0, 20), profile.credential_image || '']);
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, profile.credential_image || '']);
   }
 }
 
 // 教师行映射器：教师列表 / 意向教师列表 / 本人档案共用，返回形状永远一致
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
-function mapTeacherProfileRow(p) {
+// 网安报告 F-06：wechat/email/real_name 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
+async function mapTeacherProfileRow(p) {
+  const [wechat, email, realName] = await Promise.all([
+    decryptField(p.wechat), decryptField(p.email), decryptField(p.real_name),
+  ]);
   return {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
-    school: p.school || '', real_name: p.real_name || '', credential_image: p.credential_image || '',
+    school: p.school || '', real_name: realName || '', credential_image: p.credential_image || '',
     verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
     subjects: safeJsonArray(p.subjects),
     gaokao_scores: safeJsonArray(p.gaokao_scores),
     price: p.price != null ? p.price : null, // null = 未填报价（意向档案完整性门槛据此拦截，勿转 0）
-    wechat: p.wechat, email: p.email, avatar: p.avatar || '',
+    wechat, email, avatar: p.avatar || '',
     rating: p.rating, rating_count: p.rating_count, matched: p.matched ? true : false, updatedAt: p.updated_at,
   };
 }
@@ -571,7 +606,7 @@ export async function dbGetAllTeachers(db, viewerId = null) {
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id
     WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0
     ORDER BY tp.updated_at DESC`, params);
-  return profiles.map(mapTeacherProfileRow);
+  return await Promise.all(profiles.map(mapTeacherProfileRow)); // F-06：mapper 解密为 async
 }
 
 export async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {
@@ -591,6 +626,8 @@ export async function dbSetTeacherVerified(db, userId, verified) {
 export async function dbCreateDemand(db, userId, demand) {
   // address_detail（详细门牌号）已因合规原因停用：不再收集、不再写入，列保留但恒为空
   // display_id：对外需求编号（四位，按生成顺序自 0001 起），子查询取号保证顺序单调
+  // 网安报告 F-06：parent_contact/student_contact 加密落库（联系方式是需求最高敏字段）
+  const [parentContact, studentContact] = await Promise.all([encryptField(demand.parent_contact), encryptField(demand.student_contact)]);
   const result = await dbRun(db, `INSERT INTO student_demands
     (user_id,province,student_grade,student_gender,target_subjects,current_scores,
      teaching_method,address,expected_time,budget_min,budget_max,
@@ -600,7 +637,7 @@ export async function dbCreateDemand(db, userId, demand) {
     JSON.stringify(demand.target_subjects), JSON.stringify(demand.current_scores),
     demand.teaching_method || 'offline', demand.address || '', demand.expected_time || '',
     demand.budget_min || 0, demand.budget_max || 0,
-    demand.submitter_type, demand.parent_contact, demand.student_contact, demand.additional_info || '',
+    demand.submitter_type, parentContact, studentContact, demand.additional_info || '',
   ]);
   return Number(result.meta.last_row_id);
 }
@@ -626,9 +663,11 @@ function mapDemandRow(r) {
   };
 }
 
-// 含联系方式变体：仅「本人需求」与「管理员全量」两处显式调用（归属/角色已由调用方校验）
-function mapDemandRowFull(r) {
-  return { ...mapDemandRow(r), parent_contact: r.parent_contact || '', student_contact: r.student_contact || '' };
+// 含联系方式变体：仅「本人需求」与「管理员全量」两处显式调用（归属/角色已由调用方校验）。
+// 网安报告 F-06：联系方式加密列，出门即解密（调用方均为 async）
+async function mapDemandRowFull(r) {
+  const [parentContact, studentContact] = await Promise.all([decryptField(r.parent_contact), decryptField(r.student_contact)]);
+  return { ...mapDemandRow(r), parent_contact: parentContact || '', student_contact: studentContact || '' };
 }
 
 export async function dbGetAllDemands(db, teacherUserId = null) {
@@ -648,7 +687,7 @@ export async function dbGetAllDemands(db, teacherUserId = null) {
 
 export async function dbGetDemandsByUser(db, userId) {
   const rows = await dbAll(db, DEMANDS_SELECT + ' WHERE sd.user_id=? ORDER BY sd.created_at DESC', [userId]);
-  return rows.map(mapDemandRowFull); // 本人「我的需求」：编辑回填需要联系方式
+  return await Promise.all(rows.map(mapDemandRowFull)); // 本人「我的需求」：编辑回填需要联系方式；F-06 解密为 async
 }
 
 // 单条需求也走 mapper（与列表同形状；调用方统一拿数组字段，裸行分叉已消灭）
@@ -658,13 +697,34 @@ export async function dbGetDemandById(db, id) {
 }
 
 // 管理员全量需求（含已签约；广场端点恒定排除 contracted，管理员页需独立全量端点）
-export async function dbGetAllDemandsAdmin(db) {
+// 网安报告 F-09：LIMIT 300 硬截断 → keyset 游标分页（created_at,id 复合倒序；游标=末行编码，
+// 前端以 nextCursor 翻页）。LIMIT 取 51 判 hasMore，不额外查询
+export async function dbGetAllDemandsAdmin(db, cursor = null) {
+  const PAGE = 50;
+  const params = [];
+  let where = '';
+  if (cursor) {
+    const [cCreated, cId] = String(cursor).split('|');
+    if (cCreated && cId) {
+      where = ' WHERE (sd.created_at < ? OR (sd.created_at = ? AND sd.id < ?))';
+      params.push(cCreated, cCreated, parseInt(cId, 10) || 0);
+    }
+  }
   const rows = await dbAll(db,
-    `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id ORDER BY sd.created_at DESC LIMIT 300`);
-  return rows.map(mapDemandRowFull); // 管理员：管理端查看联系方式
+    `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id${where}
+     ORDER BY sd.created_at DESC, sd.id DESC LIMIT ${PAGE + 1}`, params);
+  const hasMore = rows.length > PAGE;
+  const page = hasMore ? rows.slice(0, PAGE) : rows;
+  const last = page.length ? page[page.length - 1] : null;
+  return {
+    demands: await Promise.all(page.map(mapDemandRowFull)), // 管理员：管理端查看联系方式；F-06 解密为 async
+    nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
+  };
 }
 
 export async function dbUpdateDemand(db, id, d) {
+  // 网安报告 F-06：联系方式加密落库（与 dbCreateDemand 同款加密）
+  const [parentContact, studentContact] = await Promise.all([encryptField(d.parent_contact), encryptField(d.student_contact)]);
   await dbRun(db, `UPDATE student_demands SET province=?,student_grade=?,student_gender=?,
     target_subjects=?,current_scores=?,teaching_method=?,address=?,expected_time=?,address_detail='',
     budget_min=?,budget_max=?,submitter_type=?,parent_contact=?,student_contact=?,
@@ -673,7 +733,7 @@ export async function dbUpdateDemand(db, id, d) {
     JSON.stringify(d.target_subjects), JSON.stringify(d.current_scores),
     d.teaching_method || 'offline', d.address || '', d.expected_time || '',
     d.budget_min || 0, d.budget_max || 0,
-    d.submitter_type, d.parent_contact, d.student_contact, d.additional_info || '', id,
+    d.submitter_type, parentContact, studentContact, d.additional_info || '', id,
   ]);
 }
 
@@ -760,8 +820,10 @@ export async function dbGetIntentTeachers(db, demandId) {
     LEFT JOIN teacher_profiles tp ON tp.user_id=di.teacher_user_id
     WHERE di.demand_id=? ORDER BY di.created_at DESC`, [demandId]);
   // 附加意向自身字段（id/状态/时间），供学生端同意/拒绝按钮使用
-  return rows.map(r => ({ ...mapTeacherProfileRow(r),
-    intent_id: r.intent_id, intent_status: r.intent_status, intent_created_at: r.intent_created_at }));
+  return await Promise.all(rows.map(async r => ({
+    ...(await mapTeacherProfileRow(r)),
+    intent_id: r.intent_id, intent_status: r.intent_status, intent_created_at: r.intent_created_at,
+  })));
 }
 
 export async function dbGetIntentWithDemand(db, intentId) {
@@ -1010,7 +1072,7 @@ export async function dbGetTeacherUsersAdmin(db) {
       tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
     FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
     WHERE u.role='teacher' ORDER BY u.created_at DESC`);
-  return rows.map(r => ({ ...mapTeacherProfileRow(r), role: r.role, banned: r.banned, created_at: r.created_at }));
+  return await Promise.all(rows.map(async r => ({ ...(await mapTeacherProfileRow(r)), role: r.role, banned: r.banned, created_at: r.created_at })));
 }
 
 // ============================================================

@@ -89,11 +89,11 @@ function renderContractCard(c) {
   </div>`;
 }
 
-// 确认签约：测试版二次确认代替短信验证（后端 verifySignOtp 预留接口）
+// 确认签约：危险操作二次认证（网安报告 F-05，原 verifySignOtp 恒通过已废除）——密码重认证换 capToken
 function signContract(contractId) {
-  openConfirmModal(UI.CONFIRM_SIGN, async () => {
+  reAuthModal(UI.CONFIRM_SIGN, async capToken => {
     try {
-      const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: {} });
+      const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: { capToken } });
       showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
       invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
       loadMyContracts();
@@ -153,9 +153,10 @@ function openRevokeContractModal(contractId) {
   });
 }
 function confirmRevokeContract(contractId) {
-  openConfirmModal(UI.REVOKE_CONTRACT_FINAL, async () => {
+  // 撤销=危险操作（网安报告 F-05）：密码重认证换 capToken（原 confirmDangerOtp 恒通过已废除）
+  reAuthModal(UI.REVOKE_CONTRACT_FINAL, async capToken => {
     try {
-      await api(`/api/contracts/${contractId}/revoke`, { method: 'POST', body: {} });
+      await api(`/api/contracts/${contractId}/revoke`, { method: 'POST', body: { capToken } });
       showToast(UI.CONTRACT_REVOKED_TOAST);
       invalidate('contracts'); // 撤销后签约标记须消失
       loadMyContracts();

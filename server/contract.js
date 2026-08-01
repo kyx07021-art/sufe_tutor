@@ -5,7 +5,7 @@
  * 正式合同正文由 buildContractMd 按草案信息生成（Markdown，后期可换更正式的格式）；双方看到的是同一条记录。
  * 短信验证码环节未接入：verifySignOtp 预留接口，测试版以二次确认代替。
  */
-import { dbGet, dbRun, json, error, authUser, requireAdminOrError, confirmDangerOtp, MSG, STATUS } from './core.js';
+import { dbGet, dbAll, dbRun, json, error, authUser, requireAdminOrError, confirmDangerOtp, MSG, STATUS } from './core.js';
 import {
   dbGetContractById, dbGetContractByConv, dbGetMyContracts, dbGetAllContractsAdmin,
   dbDeleteContract, dbDeleteContractMessages,
@@ -110,6 +110,16 @@ export async function initLedgerTable(db) {
     content_hash TEXT NOT NULL,
     prev_hash TEXT NOT NULL DEFAULT '',
     created_at DATETIME DEFAULT (datetime('now','localtime')))`);
+  // 网安报告 F-07 幂等补列（PRAGMA 探测，仿 log.js 就地迁移；contract.js 不可 import db.js 的
+  // ensureColumns——db.js→contract.js 已存在 import 方向，反向即循环）：seq 全链序号 + body_hash
+  // 正文哈希分解值（content_hash 输入之一，独立落列供审计交叉验证）
+  const info = await dbAll(db, 'PRAGMA table_info(contract_ledger)');
+  const have = new Set(info.map(c => c.name));
+  if (!have.has('seq')) await dbRun(db, 'ALTER TABLE contract_ledger ADD COLUMN seq INTEGER');
+  if (!have.has('body_hash')) await dbRun(db, "ALTER TABLE contract_ledger ADD COLUMN body_hash TEXT NOT NULL DEFAULT ''");
+  // 存量行 seq 按 id 序（即入链序）回填；历史条目正文已不在库内（合同可被修改），body_hash 保持空串，
+  // 校验时仅做链结构（GENESIS + prev 连续性）——中间条目被篡改即断链，正文重放限最新条目
+  await dbRun(db, `UPDATE contract_ledger SET seq=(SELECT COUNT(*) FROM contract_ledger c2 WHERE c2.id<=contract_ledger.id) WHERE seq IS NULL`);
 }
 
 const hexOf = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
@@ -122,28 +132,61 @@ async function ledgerContentHash(contractId, contractMd, createdAt, prevHash) {
   return sha256Hex(`${bodyHash}|${contractId}|${createdAt}|${prevHash}`);
 }
 
-// 签署存证：记账 contract_id + 链式哈希（prev_hash 参与本条目哈希，篡改任一历史条目都会断链）
+// 签署存证：记账 contract_id + 链式哈希（prev_hash 参与本条目哈希，篡改任一历史条目都会断链）。
+// 网安报告 F-07 原子化：prev 取数、seq 取号与插入同一条 INSERT 内完成，并把 JS 侧已见的 prev 回带
+// 作 WHERE 条件——并发记账时分叉方（库内 prev 已变）changes=0，重读重算重试，杜绝同 prev 双挂
 async function ledgerRecord(db, contractId, contractMd) {
   const target = getLedgerDb(db);
-  const prev = await dbGet(target, 'SELECT content_hash FROM contract_ledger ORDER BY id DESC LIMIT 1');
-  const prevHash = prev ? prev.content_hash : 'GENESIS';
+  const bodyHash = await sha256Hex(contractMd);
   const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
-  const content_hash = await ledgerContentHash(contractId, contractMd, createdAt, prevHash);
-  await dbRun(target, 'INSERT INTO contract_ledger (contract_id, content_hash, prev_hash, created_at) VALUES (?,?,?,?)',
-    [contractId, content_hash, prevHash, createdAt]);
-  return content_hash;
+  for (let i = 0; i < 3; i++) {
+    const prev = await dbGet(target, 'SELECT content_hash FROM contract_ledger ORDER BY id DESC LIMIT 1');
+    const prevHash = prev ? prev.content_hash : 'GENESIS';
+    const contentHash = await ledgerContentHash(contractId, contractMd, createdAt, prevHash);
+    const r = await dbRun(target, `INSERT INTO contract_ledger (contract_id, content_hash, prev_hash, seq, body_hash, created_at)
+      SELECT ?, ?, COALESCE((SELECT content_hash FROM contract_ledger ORDER BY id DESC LIMIT 1),'GENESIS'),
+             COALESCE((SELECT MAX(seq) FROM contract_ledger),0)+1, ?, ?
+      WHERE COALESCE((SELECT content_hash FROM contract_ledger ORDER BY id DESC LIMIT 1),'GENESIS') = ?`,
+      [contractId, contentHash, bodyHash, createdAt, prevHash]);
+    if (r.meta.changes > 0) return contentHash;
+  }
+  throw new Error('ledger insert retry exhausted'); // 3 次仍未抢到链尾：台账写入失败让请求 500，绝不静默断链
 }
 
-// 校验：重算当前合同文本 + 元数据哈希与台账记录比对（合同行被撤销时台账仍在，返回 archived 状态）。
+// 全链遍历校验（网安报告 F-07，纯函数可注入测试）：链头 GENESIS + 相邻 prev_hash 连续性 + seq 单调。
+// 历史条目正文不在库内（合同可被修改多版），篡改任一历史条目 content_hash 即与后续 prev_hash 断链被检出；
+// 最新条目正文可重放（opts 带当前正文时），合同已撤销（archived，无正文）只做链结构校验
+export async function verifyChain(rows, opts = {}) {
+  const headValid = rows.length ? rows[0].prev_hash === 'GENESIS' : false;
+  let linksValid = true, seqValid = true;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i].prev_hash !== rows[i - 1].content_hash) linksValid = false;
+    if (rows[i].seq != null && rows[i - 1].seq != null && rows[i].seq !== rows[i - 1].seq + 1) seqValid = false;
+  }
+  let lastRehashValid = null;
+  if (rows.length && !opts.archived && opts.contractId != null && opts.contractMd != null) {
+    const last = rows[rows.length - 1];
+    lastRehashValid = (await ledgerContentHash(opts.contractId, opts.contractMd, last.created_at, last.prev_hash)) === last.content_hash;
+  }
+  return { headValid, linksValid, seqValid, lastRehashValid, ok: headValid && linksValid && seqValid };
+}
+
+// 校验：全链遍历（链头 + 连续性 + 最新条目正文重放）。合同行被撤销时台账仍在，返回 archived 状态。
 // 与 ledgerRecord 用同一条 hash 拼装规则，保证「存进去什么就校验什么」
 async function verifyContractLedger(db, contractId) {
-  const row = await dbGet(getLedgerDb(db),
-    'SELECT * FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1', [contractId]);
-  if (!row) return { recorded: false };
+  const rows = await dbAll(getLedgerDb(db),
+    'SELECT id, contract_id, content_hash, prev_hash, seq, body_hash, created_at FROM contract_ledger WHERE contract_id=? ORDER BY id ASC', [contractId]);
+  if (!rows.length) return { recorded: false };
   const ct = await dbGetContractById(db, contractId);
-  if (!ct) return { recorded: true, archived: true, valid: null, contentHash: row.content_hash, prevHash: row.prev_hash, createdAt: row.created_at };
-  const now = await ledgerContentHash(contractId, ct.contract_md, row.created_at, row.prev_hash);
-  return { recorded: true, archived: false, valid: now === row.content_hash, contentHash: row.content_hash, prevHash: row.prev_hash, createdAt: row.created_at };
+  const archived = !ct;
+  const chain = await verifyChain(rows, archived ? {} : { contractId, contractMd: ct.contract_md });
+  const last = rows[rows.length - 1];
+  return {
+    recorded: true, archived,
+    valid: chain.ok && chain.lastRehashValid !== false, // archived 无正文可重放（lastRehashValid=null），以链结构为准
+    entries: rows.length, headValid: chain.headValid, linksValid: chain.linksValid, seqValid: chain.seqValid,
+    contentHash: last.content_hash, prevHash: last.prev_hash, createdAt: last.created_at,
+  };
 }
 
 // ---- 会话参与方判定 helper（会话行经 dbGetConversationWithNames 取，带双方用户名）----
@@ -257,9 +300,6 @@ export async function handleConfirmDraft(db, contractId, body, req) {
   return json({ ok: true });
 }
 
-// 短信验证码预留：测试版恒通过，接入 SMS 后在此校验 code（docs/sms-plan.md）
-async function verifySignOtp(/* db, userId, code */) { return true; }
-
 // POST /api/contracts/:id/sign —— 确认签约；双方都确认后 status→signed
 export async function handleSignContract(db, contractId, body, req) {
   const me = await authUser(db, req);
@@ -269,7 +309,8 @@ export async function handleSignContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
-  if (!(await verifySignOtp())) return error(MSG.CONTRACT_STATE_INVALID, 403);
+  // 危险操作二次认证（网安报告 F-05）：签约须凭 re-auth 换发的一次性 capToken（原恒通过）
+  if (!(await confirmDangerOtp(db, userId, body))) return error(MSG.REAUTH_FAILED, 403);
 
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
@@ -368,7 +409,7 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, me.id, [STATUS.SIGNED]); // 未签约的走取消流程
   if (g.err) return g.err;
   const { ct, conv } = g;
-  if (!(await confirmDangerOtp(db, me.id))) return error(MSG.CONTRACT_STATE_INVALID, 403);
+  if (!(await confirmDangerOtp(db, me.id, body))) return error(MSG.REAUTH_FAILED, 403); // 二次认证（F-05）
   const del = await dbDeleteContract(db, contractId);
   if (!(del && del.meta && del.meta.changes > 0)) return error(MSG.CONTRACT_NOT_FOUND, 404); // 并发双撤销仅赢家执行清理与通知
   await dbDeleteContractMessages(db, ct.conversation_id);

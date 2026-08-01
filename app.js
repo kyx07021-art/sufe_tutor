@@ -1771,9 +1771,10 @@ function openDeactivateModal() {
   });
 }
 function confirmDeactivateAccount() {
-  openConfirmModal(UI.DEACTIVATE_FINAL, async () => {
+  // 危险操作二次认证（网安报告 F-05）：后端 OTP 恒通过已废除，注销须密码重认证换 capToken
+  reAuthModal(UI.DEACTIVATE_FINAL, async capToken => {
     try {
-      await api('/api/user/deactivate', { method: 'POST', body: {} });
+      await api('/api/user/deactivate', { method: 'POST', body: { capToken } });
       showToast(UI.DEACTIVATE_DONE_TOAST);
       setTimeout(handleLogout, 800); // 让用户看到提示再退
     } catch (err) { showToast(err.message); }
@@ -1886,6 +1887,45 @@ function runPendingConfirm() {
   const action = pendingConfirmAction;
   pendingConfirmAction = null;
   if (action) action();
+}
+
+// 危险操作二次认证弹窗（网安报告 F-05）：确认文案 + 当前密码输入 → /api/auth/re-auth 换一次性
+// capToken（5 分钟）→ 执行动作。密码错（403）就地提示，不踢登录（api() 对 401 才弹登录页）
+let reAuthAction = null;
+function reAuthModal(message, action) {
+  reAuthAction = action;
+  openModal({
+    title: null,
+    style: 'max-width:380px;',
+    body: `<p style="margin-bottom:14px;">${message}</p>
+      <div class="form-group" style="border:none;">
+        <label class="form-label">${UI.REAUTH_PASSWORD_LABEL} <span class="req">*</span></label>
+        <input type="password" class="form-input" id="reauth-password" placeholder="${UI.REAUTH_PASSWORD_HINT}" autocomplete="current-password" onkeydown="if(event.key==='Enter')runReAuth()">
+        <p class="form-hint" id="reauth-err" style="color:var(--danger);display:none;"></p>
+      </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+      <button type="button" class="btn glass glass--pressable" onclick="runReAuth()">${UI.BTN_CONFIRM}</button>`,
+  });
+  setTimeout(() => { const i = document.getElementById('reauth-password'); if (i) i.focus(); }, 50);
+}
+async function runReAuth() {
+  const input = document.getElementById('reauth-password');
+  const errEl = document.getElementById('reauth-err');
+  if (!input || !errEl) return;
+  const password = input.value;
+  if (!password) { errEl.textContent = UI.REAUTH_PASSWORD_HINT; errEl.style.display = 'block'; input.focus(); return; }
+  try {
+    const r = await api('/api/auth/re-auth', { method: 'POST', body: { password } });
+    const action = reAuthAction;
+    reAuthAction = null;
+    closeModal();
+    if (action) await action(r.capToken);
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+    input.value = '';
+    input.focus();
+  }
 }
 
 

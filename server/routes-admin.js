@@ -148,8 +148,8 @@ export async function handleVerifyTeacher(db, userId, body, req) {
 export async function handleAdminDemands(db, url, req) {
   const e = requireAdminOrError(await authUser(db, req));
   if (e) return e;
-  const demands = await dbGetAllDemandsAdmin(db);
-  return json({ demands });
+  // 网安报告 F-09：keyset 游标分页（db.js），返回 { demands, nextCursor }，前端 nextCursor 翻页
+  return json(await dbGetAllDemandsAdmin(db, url.searchParams.get('cursor') || null));
 }
 
 export async function handleAdminDeleteDemand(db, demandId, body, req) {

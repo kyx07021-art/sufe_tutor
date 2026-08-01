@@ -135,6 +135,7 @@ export const MSG = {
 
   // 通用
   REGISTER_SUCCESS: '注册成功',
+  REAUTH_FAILED: '密码错误，请重新输入后再试',
   SERVER_ERROR: '服务器内部错误',
   PAYLOAD_TOO_LARGE: '请求体过大',
   RATE_LIMITED: '请求过于频繁，请稍后再试',
@@ -208,7 +209,7 @@ export async function authUser(db, req) {
   const token = req && req.headers && req.headers.get('X-Auth-Token');
   if (!token) return null;
   const u = await dbGet(db, `SELECT u.id,u.username,u.role,u.avatar,u.banned,s.expires_at AS token_expires
-    FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token=?`, [token]);
+    FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?`, [await tokenDigest(token)]);
   if (!u || u.banned) return null;
   const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
   if (!exp || exp < Date.now()) return null;
@@ -223,28 +224,47 @@ export function requireAdminOrError(user) {
 }
 
 // ============================================================
-// 危险操作 OTP 校验咽喉（注销账户 / 撤销合同等不可逆操作执行前统一过此关）
-// 内测期短信未接入 → 恒通过；公测激活后改为向绑定手机发验证码并校验
-// （密钥经 secrets 网关，流程见 docs/sms-plan.md），业务调用方零改动
+// 危险操作二次认证咽喉（注销账户 / 撤销合同等不可逆操作执行前统一过此关）
+// 网安报告 F-05：原「OTP 恒通过」改为真实二次认证——前端危险操作弹窗收集当前密码，
+// POST /api/auth/re-auth 校验后签发一次性 capToken（5 分钟、每用户仅一枚、命中即删），
+// 危险接口凭 capToken 放行。密码错绝不返 401（前端 api() 对 401 自动弹登录页踢用户），统一 403
 // ============================================================
-let BOUND_ENV = null;
-export function bindCoreEnv(env) { BOUND_ENV = env; }
-export async function confirmDangerOtp(db, userId) {
-  void db; void userId; void BOUND_ENV; // BOUND_ENV 激活后取 SMS 密钥用
-  return true;
+const CAPS = new Map(); // userId → { token, exp }（内存 Map：单枚、短寿、无持久价值）
+const CAP_TTL = 5 * 60 * 1000;
+export function issueCapToken(userId) {
+  const now = Date.now();
+  for (const [uid, c] of CAPS) if (c.exp < now) CAPS.delete(uid); // 惰性清过期，Map 不膨胀
+  const t = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
+  CAPS.set(userId, { token: t, exp: now + CAP_TTL });
+  return t;
+}
+export async function confirmDangerOtp(db, userId, body) {
+  void db;
+  const c = CAPS.get(userId);
+  if (!c) return false;
+  const got = String((body && body.capToken) || '');
+  CAPS.delete(userId); // 一次性：无论校验成败皆失效
+  return c.exp >= Date.now() && got === c.token;
+}
+
+// 令牌摘要化（网安报告 F-04）：auth_sessions 只存 SHA-256(token)，令牌明文永不落库。
+// 登录/注册签发仍回传明文令牌供请求头使用，库内仅存哈希可比对
+export async function tokenDigest(token) {
+  return bufToHex(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token)));
 }
 
 // 登录 / 注册签发令牌：48 位随机 hex（熵足够，无需 JWT 的无状态代价）。
 // 多端会话：每次登录写一行 auth_sessions（旧设备不被顶下线，账户设置可逐端退登）；
 // 签发前先清该用户过期会话，会话表天然不膨胀。
 // session_id：独立随机 id，对外设备管理唯一标识——token 只在请求头流动，永不进响应体（网安报告 F-04）
+// 库内只存 token_hash（网安报告 F-04：DB 泄露/备份不含令牌明文，无法重放登录）
 export async function issueAuthToken(db, userId, label) {
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
   const sessionId = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
   const expires = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
   await dbRun(db, `DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now','localtime')`, [userId]);
-  await dbRun(db, 'INSERT INTO auth_sessions (token, session_id, user_id, label, expires_at) VALUES (?,?,?,?,?)',
-    [token, sessionId, userId, label || '', expires]);
+  await dbRun(db, 'INSERT INTO auth_sessions (token_hash, session_id, user_id, label, expires_at) VALUES (?,?,?,?,?)',
+    [await tokenDigest(token), sessionId, userId, label || '', expires]);
   return token;
 }
 
