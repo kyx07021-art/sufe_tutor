@@ -101,11 +101,14 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   padding: 14px 0;
   position: sticky; top: 0; z-index: 100;
 } /* G3：背景/border 单源 glass.css（286/287），此处删死直写 */
-body:has(#view-landing:not(.hidden)) .navbar {
-  border-bottom-color: transparent; /* G3：landing 渐变已归 glass.css:287，此处只留边线透明 */
+/* G8：landing 视图无上边栏——navbar 隐藏，logo+登录/注册由 .stage-nav 浮在舞台顶 */
+body:has(#view-landing:not(.hidden)) .navbar { display: none; }
+.stage-nav {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px clamp(20px, 4vw, 40px);
 }
-/* 主页：品牌组与登录/注册分置屏幕两侧（容器解除 max-width 收窄） */
-body:has(#view-landing:not(.hidden)) .navbar .container { max-width: none; }
+.stage-nav-actions { display: flex; align-items: center; gap: 12px; }
 /* 内层客户端：顶栏退场，侧边栏顶天立地（移动端恢复顶栏供汉堡开合抽屉） */
 body:has(#view-client:not(.hidden)) .navbar { display: none; }
 .navbar .container { display: flex; align-items: center; justify-content: space-between; min-height: 36px; }
@@ -162,10 +165,9 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
   position: relative;
   flex: 1;
   display: flex;
-  min-height: calc(100vh - var(--nav-h));
+  min-height: 100vh; min-height: 100dvh; /* G8：navbar 已从 landing 移除，舞台独占满屏 */
   overflow: hidden;
-  background: linear-gradient(90deg, var(--paper) 0 50%, var(--lilac) 50% 100%);
-}
+} /* G20：二分底色死（glass.css:291 透明舞台胜，光球透出=设计意图），删直写 */
 
 /* 装饰层：右半细线网格 */
 .stage-deco-grid {
@@ -971,10 +973,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 @media (max-width: 860px) {
   /* 上下半区写死两等分行：下半区组件顶沿钉死在 50% 分界线，不再越界到上半区 */
   .stage-grid { flex: 1; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); align-content: stretch; gap: 0; padding-block: 0; }
-  .landing-stage { flex-direction: column; background: linear-gradient(180deg, var(--paper) 0 50%, var(--lilac) 50% 100%); min-height: calc(100vh - var(--nav-h) - 48px); min-height: calc(100dvh - var(--nav-h) - 48px); }
-  body:has(#view-landing:not(.hidden)) .navbar { border-bottom-color: var(--line); } /* G3：media 背景死（glass.css:287 胜），只留边线色 */
+  .landing-stage { flex-direction: column; min-height: 100dvh; } /* G8/G20：media 二分底色/减 nav 高度死代码删 */
+  .stage-nav { padding: 14px 16px; } /* G8：移动端浮顶导航收窄 */
   .stage-left, .stage-right { max-width: 100%; margin-left: 0; min-height: 0; overflow: hidden; }
-  .stage-left { padding: clamp(28px, 5vh, 56px) 0 clamp(14px, 3vh, 28px); }
+  .stage-left { padding: clamp(72px, 12vh, 96px) 0 clamp(14px, 3vh, 28px); } /* 顶部让出浮导航 */
   .stage-right { padding: clamp(20px, 4vh, 44px) 0 clamp(14px, 3vh, 32px); }
   .stage-deco-grid { display: none; }
   .landing-footer { position: static; border-top: 1px solid var(--line); margin-top: 0; }

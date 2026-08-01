@@ -287,8 +287,7 @@ body { background: transparent; }
 .chat-head, .chat-input-bar { --g-fill: rgba(255,255,255,.22); }
 .chat-stage-del { --g-fill: rgba(255,255,255,.18); --g-fg: var(--danger-deep, #b23a2c); --g-hover: rgba(198,72,58,.2); --g-lift: var(--glass-lift-sm); }
 .navbar { background: rgba(250,248,245,.52); -webkit-backdrop-filter: var(--g-f-nav, blur(8px)); backdrop-filter: var(--g-f-nav, blur(8px)); border-bottom: 1px solid rgba(255,255,255,.5); } /* 液态玻璃 v0.19：近不透明玻璃条，blur 降档 */
-body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg, rgba(250,248,245,.42) 0 50%, rgba(216,212,221,.42) 50% 100%); }
-.landing-stage { background: transparent; }
+.landing-stage { background: transparent; } /* G8：landing navbar 已隐藏，其 landing 渐变规则整条删除 */
 .client-main { background: transparent; }
 
 /* ============================================================

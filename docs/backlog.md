@@ -25,7 +25,7 @@
 - **G5 sidebar-item/conv-item 手卷 hover**（glass.css:275/281 inset 直写；非 glass 件、元素 inset 可见=合理例外）→ 已判定：保留+注释，不并入引擎。
 - ✅ **G6 tc-push-btn 紫色浮光残留**（glass.css:210 `--g-lift: 0 9px 22px -9px rgba(74,58,178,.45)` 下偏紫投影；v0.19.7 白化按钮时漏改 lift）→ 删紫色 lift，交还中性 `--glass-lift-sm`。用户发现，全文件唯一常驻紫投影（已扫确认）。
 - ✅ **G7 侧栏 active 白字变色残留**（style.css:587 `.sidebar-item.active .sidebar-item-index { color:#fff }` + 607 `desc { color: var(--paper-ghost) }`——为适配旧紫卡的白字，卡白化后白字不可见）→ 删白字，交还深色（base `--ink` 系）。用户发现。
-- 🟡 **G8 首页上边栏删除**（landing 时 navbar 左右分色 `paper|lilac`；index.html:25-42 navbar 结构 + style.css:100-106/981 + glass.css:286-287）→ 删 landing 视图 navbar，logo+登录/注册按钮直接坐入 landing-stage 底板。用户要求，需醒着核对布局。
+- ✅ **G8 首页上边栏删除**（landing 时 navbar 左右分色 `paper|lilac`）→ 已删：landing 时 navbar `display:none`，logo+登录/注册由 .stage-nav 浮在舞台顶；glass.css:290 landing 渐变、style.css:107/111/981 死规则整条删。
 
 > ——— 第二轮全站审查（2026-08-01，三只读代理并行扫 style.css / style-chat+posts / glass.css，结论主会话已核）———
 
@@ -43,7 +43,7 @@
 ### 🟡 竞态死代码 → 删 style.css 一方（glass 后加载必胜，style 侧已是死代码）
 - ✅ **G18 实 bug·登记簿聚焦下划线失效**（glass.css:252 `background:` shorthand 重置 background-image → style.css:403-407 下划线 linear-gradient 被吃）→ glass.css 252 拆 longhand `background-color`，或下划线迁 `::after`。
 - ✅ **G19 实 bug·筛选下拉 v 箭头消失**（style.css:844-850 `background-image:url(svg)` 被 glass.css:252 shorthand 重置；对照 backlog B2 已判 form-select 箭头为"无 JS 兜底"保留——filter-select 需核对同类处理）→ 同上拆 longhand 或迁 ::after。
-- 🟡 **G20 landing-stage 二分底色死**（style.css:170/980 渐变被 glass.css:288 `background:transparent` 胜 → 光球舞台透出；与 G8 联动核对是否设计意图，删或恢复需定）。
+- ✅ **G20 landing-stage 二分底色死**（style.css:170/980 渐变被 glass.css `background:transparent` 胜）→ 已删：设计意图=光球舞台透出，舞台改 min-height:100dvh（G8 顺带）。
 - ✅ **G21 navbar 三处死代码**（style.css:101-102 平底 / 107 landing 渐变 / 981 media，全被 glass.css:286/287 胜）→ 已删（G3 收口 6ad7935 顺带完成，本项修正翻 ✅）。
 - ✅ **G22 pane 族死代码**（style.css:550 `.client-sidebar{background:lilac}` / 931 modal-overlay / 657 sidebar-backdrop / 375 form-group border-top / 1162 profile-row / 1137 profile-panel-head，被 glass.css 268/297/314/298/262/261 胜）→ 删。
 - ✅ **G23 entry 悬停位移死**（style.css:281/284 `transform:translateX(3px)` 被引擎 (0,2,0) 后加载恒等变换盖掉；glass.css:134 注释"组件自有 transform 天然胜出"对 (0,2,0) 级选择器不成立）→ 删直写或引擎让位。
