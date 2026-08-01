@@ -116,11 +116,11 @@ body { background: transparent; }
    液体弯月画在元素层 box-shadow（--g-liquid，沿圆角）——深/浅背景都可靠。 */
 .glass::before, .glass--float::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
-  /* 镜面弯月（design.dev 同法）：径向高光层 + 主体填充，默认 screen 混合 → 上缘发光弧。
-     峰值 .50 为「大胆」档（研究：0.35=明显 / 0.55=design.dev 大胆；旧 .30 是羞涩档，用户嫌玻璃感淡）。
-     全组件通用——紫色实心按钮也因此获得玻璃感。组件如需平面可设 --g-blend: normal。 */
+  /* 镜面弯月（design.dev 同法）：径向高光层 + 主体填充，默认 screen 混合 → 大表面（卡/浮窗）上缘发光弧。
+     注意：sheen 只适合大表面——小控件（按钮/气泡等）上它占上半 = 老式上缘高光，故按钮族显式设 --g-sheen:none。
+     --g-sheen 可关（none），--g-blend 可改（normal）。 */
   background:
-    radial-gradient(ellipse 110% 65% at 50% -15%, rgba(255,255,255,.50) 0%, rgba(255,255,255,0) 72%),
+    var(--g-sheen, radial-gradient(ellipse 110% 65% at 50% -15%, rgba(255,255,255,.50) 0%, rgba(255,255,255,0) 72%)),
     var(--g-fill, rgba(255,255,255,.14));
   background-blend-mode: var(--g-blend, screen);
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
@@ -161,18 +161,20 @@ body { background: transparent; }
    边缘 = design.dev 七层配方（见 --g-liquid） */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
   --g-fill: radial-gradient(ellipse 130% 90% at 50% 0%, rgba(255,255,255,.16) 0%, rgba(255,255,255,.08) 50%, rgba(255,255,255,.04) 100%);
-  --g-frost: blur(6px) saturate(180%) brightness(1.05);
+  --g-frost: var(--g-f-card, blur(6px) saturate(180%) brightness(1.05));
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
-  --g-fill: rgba(255,255,255,.22); --g-frost: blur(12px);
+  /* 浮窗=毛玻璃「纸面」：blur 16 重毛 + 填充 .34 让内容可读（用户层级：容器毛，控件透——
+     旧 .22+blur12 太透，浮窗像透明贴片看不清内容） */
+  --g-fill: rgba(255,255,255,.34); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
   --g-lift: var(--glass-lift);
 }
 .modal { --g-r: var(--lg-r-lg); }
 .custom-select-panel, .chat-plus-pop { --g-r: var(--lg-r); }
 .profile-panel { --g-r: var(--lg-r-lg); }
-/* 头栏=组件表面：半透填充+组件磨砂+mask 关（贴边不需曲面） */
-.modal-header, .profile-panel-head { --g-fill: rgba(250,248,245,.55); --g-frost: blur(8px); } /* 液态 v0.19：头栏=近不透明玻璃条，blur 与顶栏同档 */
+/* 头栏=玻璃上的玻璃：透（填充 .16，比浮窗更透）——旧 .55 近实白条把表头钉死，已按用户层级改透 */
+.modal-header, .profile-panel-head { --g-fill: rgba(255,255,255,.16); --g-frost: var(--g-f-header, blur(4px)); }
 .chat-bubble { --g-lift: var(--glass-lift-sm); --g-liquid: var(--g-liquid-sm); }
 .chat-bubble--mine { --g-fill: rgba(150,138,230,.26); --g-fg: var(--ink); }
 .chat-bubble--theirs { --g-fill: rgba(233,218,196,.30); --g-fg: var(--ink); }
@@ -186,22 +188,20 @@ body { background: transparent; }
    （用户纪律：地下党/竞争删一方）。液体感交给弯月环，不再用渐变假装高光。
    彩色语义由各变体的 --g-fill 低 alpha 表达（染色玻璃：透明液态感 + 语义色）。 */
 .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button, .chat-back, .btn-link-inline, .btn-text-danger {
-  --g-frost: blur(4px) saturate(180%) brightness(1.04);
+  --g-frost: var(--g-f-btn, blur(4px) saturate(180%) brightness(1.04));
   --g-liquid: var(--g-liquid-sm);
+  --g-sheen: none; /* 按钮=小控件：关镜面高光层，去老式上缘高光（用户层级：控件透，只留透色+边缘线） */
   --g-hover: rgba(255,255,255,.18); --g-raise: -1px; --g-scale: .97;
   --g-fill: rgba(255,255,255,.12);
 }
-.btn-primary, .chat-send { --g-fg: #fff; --g-fill: rgba(74,58,178,.78); }
-.btn-accent { --g-fg: #fff; --g-fill: rgba(122,104,224,.68); }
-.btn-danger { --g-fg: #fff; --g-fill: rgba(198,72,58,.64); }
-.btn-intent-ok { --g-fg: #fff; --g-fill: rgba(24,122,75,.70); }
-.btn-intent-wait { --g-fg: #fff; --g-fill: rgba(120,120,128,.45); }
-.btn-outline { --g-fg: var(--ink); --g-fill: rgba(255,255,255,.24); }
-.btn-ghost { --g-fg: var(--muted); --g-fill: rgba(255,255,255,.10); }
-.btn-text-danger { --g-fg: var(--danger-deep, #b23a2c); --g-fill: rgba(198,72,58,.16); padding: 6px 12px; }
-.tc-push-btn { --g-fg: #fff; --g-r: var(--lg-r); padding: 9px 18px; --g-fill: rgba(90,69,196,.68); --g-lift: 0 9px 22px -9px rgba(74,58,178,.45); }
-/* 侧栏选中块：实心件——深紫填充 + 圆角 */
-.sidebar-pill { --g-fill: rgba(74,58,178,.66); --g-frost: blur(4px) saturate(180%) brightness(1.04); --g-fg: #fff; --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
+/* 按钮=标准玻璃（用户指令：别管好不好看，先接入标准玻璃——去自定义紫/彩填充，统一白透镜+深字）。
+   语义色已斩，全部继承 .btn 基类白透镜；hover/涟漪/边缘由引擎兜底。 */
+.btn-outline { --g-fg: var(--ink); --g-fill: rgba(255,255,255,.18); }
+.btn-ghost { --g-fg: var(--muted); --g-fill: rgba(255,255,255,.06); }
+.btn-text-danger { --g-fg: var(--danger-deep, #b23a2c); --g-fill: rgba(255,255,255,.10); padding: 6px 12px; }
+.tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-fill: rgba(255,255,255,.18); --g-lift: 0 9px 22px -9px rgba(74,58,178,.45); }
+/* 侧栏选中块=标准玻璃（去紫块） */
+.sidebar-pill { --g-fill: rgba(255,255,255,.24); --g-frost: var(--g-f-pill, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
   --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
@@ -210,7 +210,7 @@ body { background: transparent; }
 .avatar--guest { --g-fill: rgba(255,255,255,.12); border: 1.5px dashed rgba(110,110,118,.5); --g-lift: none; }
 /* 分段控件（实心遮罩） */
 .role-tabs { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); padding: 4px; }
-.role-tab.active { background: rgba(74,58,178,.8); color: #fff; border-radius: 7px; }
+.role-tab.active { background: rgba(255,255,255,.22); color: var(--ink); border-radius: 7px; }
 
 /* ============================================================
    实心小件预设（标签 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）
@@ -228,7 +228,7 @@ body { background: transparent; }
 .checkbox-item:has(input:checked) { --g-fill: rgba(122,104,224,.7); --g-fg: #fff; }
 .score-mode-tabs { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .score-mode-tab { --g-fill: transparent; }
-.score-mode-tab.active { --g-fill: rgba(74,58,178,.8); --g-fg: #fff; }
+.score-mode-tab.active { --g-fill: rgba(255,255,255,.22); --g-fg: var(--ink); }
 .score-mode-tab + .score-mode-tab { border-left-color: rgba(255,255,255,.4); }
 .filter-panel { --g-fill: rgba(255,255,255,.2); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 .drop-toggle { --g-fill: rgba(255,255,255,.07); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
@@ -259,7 +259,7 @@ body { background: transparent; }
    ============================================================ */
 .client-sidebar {
   background: rgba(250,248,245,.56);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); /* 液态玻璃 v0.19：近不透明玻璃条，blur 降档保帧率 */
+  -webkit-backdrop-filter: var(--g-f-side, blur(8px)); backdrop-filter: var(--g-f-side, blur(8px)); /* 近不透明玻璃条，blur 由 constants.LG.frosts.side 定 */
   border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1);
 }
 .sidebar-user { --g-fill: rgba(255,255,255,.34); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); margin: 8px; }
@@ -275,7 +275,7 @@ body { background: transparent; }
 .chat-stage { --g-fill: rgba(255,255,255,.12); }
 .chat-head, .chat-input-bar { --g-fill: rgba(255,255,255,.22); }
 .chat-stage-del { --g-fill: rgba(74,58,178,.72); --g-fg: #fff; --g-hover: rgba(198,72,58,.85); --g-lift: var(--glass-lift-sm); }
-.navbar { background: rgba(250,248,245,.52); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,.5); } /* 液态玻璃 v0.19：近不透明玻璃条，blur 降档 */
+.navbar { background: rgba(250,248,245,.52); -webkit-backdrop-filter: var(--g-f-nav, blur(8px)); backdrop-filter: var(--g-f-nav, blur(8px)); border-bottom: 1px solid rgba(255,255,255,.5); } /* 液态玻璃 v0.19：近不透明玻璃条，blur 降档 */
 body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg, rgba(250,248,245,.42) 0 50%, rgba(216,212,221,.42) 50% 100%); }
 .landing-stage { background: transparent; }
 .client-main { background: transparent; }
@@ -295,9 +295,9 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
    ============================================================ */
 @media (max-width: 860px) {
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-    --g-frost: blur(2px) saturate(180%) brightness(1.05);
+    --g-frost: var(--g-f-cardM, blur(4px) saturate(180%) brightness(1.05));
   }
-  .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { --g-frost: blur(6px); }
+  .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { --g-frost: var(--g-f-modalM, blur(6px)); }
   .profile-card { --g-fill: rgba(255,255,255,.82); }
   .profile-card--id { --g-fill: rgba(255,255,255,.9); }
 }
@@ -331,7 +331,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 .post-like.liked { --g-fill: rgba(211,47,47,.16); --g-fg: var(--danger); }
 
 /* 主页入口块（实心墨玻璃；竖条母题迁 ::after 以让出 ::before 给玻璃填充） */
-.entry { --g-fill: rgba(74,58,178,.62); --g-frost: blur(4px) saturate(180%) brightness(1.04); --g-fg: var(--paper); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); }
+.entry { --g-fill: rgba(255,255,255,.14); --g-frost: var(--g-f-entry, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-sheen: none; --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); }
 
 /* 徽章 */
 .user-badge { --g-fill: var(--accent-tint); --g-fg: var(--accent-deep); }
@@ -346,7 +346,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 
 /* 反馈类型分段按钮 */
 .feedback-kind-btn { --g-fill: rgba(255,255,255,.08); --g-fg: var(--ink-3); --g-r: var(--lg-r-sm); }
-.feedback-kind-btn.active { --g-fill: rgba(122,104,224,.82); --g-fg: #fff; }
+.feedback-kind-btn.active { --g-fill: rgba(255,255,255,.22); --g-fg: var(--ink); }
 
 /* 警示条（语义强填充 + 左色条） */
 .alert-error { --g-fill: rgba(198,72,58,.14); --g-fg: var(--danger-deep); --g-lift: inset 3px 0 0 var(--danger); --g-r: var(--lg-r-sm); }
@@ -361,5 +361,5 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 /* 管理面板 */
 .admin-panel { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 
-/* Toast（fixed 浮层，登记于 .glass--float；深色实心） */
-.toast { --g-fill: rgba(15,23,42,.92); --g-fg: #fff; color: #fff; --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); }
+/* Toast（fixed 浮层，登记于 .glass--float）——标准玻璃：浅透镜 + 深字（不搞深色特殊） */
+.toast { --g-fill: rgba(255,255,255,.30); --g-fg: var(--ink); color: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); }

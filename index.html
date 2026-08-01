@@ -489,7 +489,7 @@
           + 36 个方向随机光球（数量×4）由 JS 生成 + 鼠标跟随发光圆（rAF 合帧）。
           ——液态玻璃折射感由 glass.css 的 --g-liquid 边缘高光呈现，弃 SVG url() 折射（兼容/性能）。 */
     (function () {
-      var LG = (window.APP_CONSTANTS || {}).LG || { radius: {}, bg: {}, orbCrossSec: 60, glow: {} };
+      var LG = (window.APP_CONSTANTS || {}).LG || { radius: {}, bg: {}, orbCrossSec: 60, glow: {}, frosts: {} };
       var st = document.documentElement.style;
       function set(k, v) { st.setProperty(k, v); }
       function f3(n) { return Math.round(n * 1000) / 1000; }
@@ -499,6 +499,12 @@
       set('--lg-bg-blur', (LG.bg.blur || 16) + 'px');
       set('--lg-glow-size', (LG.glow.size || 230) + 'px');
       set('--lg-glow-op', LG.glow.opacity != null ? LG.glow.opacity : .85);
+      /* 毛度配置（constants.LG.frosts）→ --g-f-* 变量，glass.css 消费（改观感只动 constants）。 */
+      var F = LG.frosts || {};
+      var FALL = { card: 'blur(6px) saturate(180%) brightness(1.05)', cardM: 'blur(4px) saturate(180%) brightness(1.05)',
+        modal: 'blur(16px) saturate(180%) brightness(1.04)', modalM: 'blur(6px)', header: 'blur(4px)', btn: 'blur(4px) saturate(180%) brightness(1.04)',
+        entry: 'blur(4px) saturate(180%) brightness(1.04)', pill: 'blur(4px) saturate(180%) brightness(1.04)', nav: 'blur(8px)', side: 'blur(8px)' };
+      for (var fk in FALL) set('--g-f-' + fk, F[fk] || FALL[fk]);
       /* 背景舞台：36 个方向随机的光球（数量×4）+ 染色底板。
          光球由 JS 生成：随机方向组(6)、随机起始位置、随机尺寸、随机负 delay 错峰 →
          「像空气里的蒲公英」各向漂移 + 途中缓慢转向，肉眼无规律。 */

@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.5',
+  APP_VERSION: '0.19.6',
 
   // ============================================================
   // 业务数据
@@ -56,13 +56,27 @@ globalThis.APP_CONSTANTS = {
   // LIQUID GLASS 统一观感配置（改玻璃观感只动这里）
   //   材质注入器已连根拔除（0.19.1）：玻璃填充一律住 glass.css 的 --g-fill，
   //   单源单一——不再有 JS 并行系统覆盖组件填充（用户纪律：竞争/覆盖→删一方）。
-  //   此处只留背景舞台几何参数（光球漂移 / 鼠标发光圆）。
+  //   毛度（frost）0.19.6 收进本配置：改观感只动 constants，注入器换算 --g-f-* 变量。
+  //   层级纪律（用户）：容器（浮窗/卡）毛 = 可读纸面；控件（表头/按钮/选项卡）透 = 玻璃上的玻璃。
   // ============================================================
   LG: {
     radius: { sm: 9, md: 12, lg: 15 },   // 小圆角
     bg: { blur: 6 },           // 背景底板：轻磨砂（让多而小的光球现形为柔形；可读性改由组件自带轻磨砂承担）
     orbCrossSec: 60,                      // 光球横穿全屏约 60s
     glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬）
+    // 组件毛度统一配置（改观感只动这里）：容器毛 / 控件透
+    frosts: {
+      card:   'blur(6px) saturate(180%) brightness(1.05)',   // 卡片=可读纸面（毛）
+      cardM:  'blur(4px) saturate(180%) brightness(1.05)',   // 移动端降档
+      modal:  'blur(16px) saturate(180%) brightness(1.04)',  // 浮窗=重毛纸面（内容可读）
+      modalM: 'blur(6px)',                                   // 移动端浮窗降档
+      header: 'blur(4px)',                                   // 浮窗表头=透（玻璃上的玻璃）
+      btn:    'blur(4px) saturate(180%) brightness(1.04)',   // 按钮=透色透镜
+      entry:  'blur(4px) saturate(180%) brightness(1.04)',   // 主页大按钮=透
+      pill:   'blur(4px) saturate(180%) brightness(1.04)',   // 侧栏选中块=透
+      nav:    'blur(8px)',                                   // 顶栏
+      side:   'blur(8px)',                                   // 侧边栏
+    },
   },
 
   // ============================================================
