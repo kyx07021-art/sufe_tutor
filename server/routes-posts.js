@@ -113,7 +113,7 @@ export async function handleDeletePost(db, postId, body, req) {
   if (!user) return error(MSG.LOGIN_REQUIRED, 401);
 
   const post = await dbGetPostById(db, postId);
-  if (!post) return error(MSG.USER_NOT_FOUND, 404);
+  if (!post) return error(MSG.USER_NOT_FOUND, 404, 'POST_NOT_FOUND');
   // 仅作者本人可删；管理员凭令牌越权删除（资料管理页）
   const admin = user.role === 'admin' ? user : null;
   if (user.id !== Number(post.user_id) && !admin) return error(PMSG.DELETE_FORBIDDEN, 403);

@@ -197,7 +197,7 @@ export function json(data, status = 200) {
   });
 }
 
-export function error(msg, status = 400) { return json({ error: msg }, status); }
+export function error(msg, status = 400, code) { return json({ error: msg, code }, status); }
 
 // ============================================================
 // 身份解析：全站一律凭 X-Auth-Token（登录签发，7 天有效，auth_sessions 多端会话表存储，

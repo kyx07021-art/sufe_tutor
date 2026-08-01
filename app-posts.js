@@ -315,7 +315,7 @@ async function deletePost(id) {
     loadPosts();
   } catch (err) {
     showToast(err.message);
-    if (/不存在/.test(err.message)) { closeModal(); loadPosts(); } // 帖子已被（管理员）删除：刷新列表消除陈旧卡片
+    if (err.code === 'POST_NOT_FOUND' || /不存在/.test(err.message)) { closeModal(); loadPosts(); } // C2：帖子已被（管理员）删除：按 code 判定，刷新列表消除陈旧卡片
   }
 }
 

@@ -147,7 +147,7 @@ export async function handleCreateIntent(db, demandId, body, req) {
   const subjectsOk = !!(p && Array.isArray(p.subjects) && p.subjects.length > 0);
   // price==null 才是未填（0 是合法报价）；其余必填项空串即不完整
   if (!p || !p.province || !p.grade || !p.gender || !subjectsOk || p.price == null) {
-    return error(MSG.PROFILE_INCOMPLETE, 403);
+    return error(MSG.PROFILE_INCOMPLETE, 403, 'PROFILE_INCOMPLETE');
   }
 
   try {

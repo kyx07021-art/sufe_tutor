@@ -260,7 +260,9 @@ async function api(endpoint, options = {}) {
   if (!res.ok) {
     // 401 兜底汇入登录通路：访客点了需身份的接口 / 令牌过期，都导向特制登录页（登录后自动返回原页面）
     if (res.status === 401 && state.view === 'client') ensureAuth();
-    throw new Error(data.error || UI.ERROR_REQUEST_FAILED);
+    const e = new Error(data.error || UI.ERROR_REQUEST_FAILED);
+    e.code = data.code; // C2：后端 error() 带稳定 code，前端按 code 分支（不脆耦合中文 MSG）
+    throw e;
   }
   return data;
 }
@@ -1994,7 +1996,7 @@ async function submitIntent(demandId) {
     showToast(UI.INTENT_SUBMITTED_TOAST);
     if (state.page === 'browse-demands') loadBrowseDemands(); // 按钮刷新为「意向已提交」态
   } catch (err) {
-    if (String(err.message).includes('档案不完整')) { showProfileIncompleteModal(); return; }
+    if (err.code === 'PROFILE_INCOMPLETE' || String(err.message).includes('档案不完整')) { showProfileIncompleteModal(); return; }
     showToast(err.message);
   }
 }

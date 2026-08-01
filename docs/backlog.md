@@ -66,7 +66,8 @@
 
 ## 🟡 醒着核对后做（高风险重构，勿凌晨盲改）
 - **C1 弹窗壳跨文件重复**：modal-header 模板 ×17（app.js:713,1237,1299,1502,1668,1881,1959；app-contracts.js:110,123,155,228；app-admin.js:44,99；app-posts.js:123,298,338）+ 可点遮罩 ×11 + md-toolbar ×5 → 抽 `openModal({title,body,footer,closable})` + `mdToolbarHtml()`。**风险**：每个弹窗有自己的 form id / 动态标题 / 自定义 class / footer 按钮接线；抽壳若错会炸全站弹窗。建议逐个迁移+逐个截图/手测验证。
-- **C2 前后端错误码体系**：app.js:1950 `.includes('档案不完整')`、app-posts.js:318 `/不存在/` 等用中文 MSG 做分支（脆耦合）→ 后端 `error()` 带稳定 `code`，前端 `switch(code)`。**风险**：改后端响应形状+前端判定，需全链路核对。
+- ✅ **C2 前后端错误码体系（定向版 v0.19.8）**：`error()` 加可选 `code` 参数（向后兼容），档案不完整 → `PROFILE_INCOMPLETE`、帖子删除不存在 → `POST_NOT_FOUND`；前端 api 封装把 `code` 挂到抛出的 Error，两处脆分支改按 code 判定（保留 MSG 兜底）。其余 error 路径暂未全覆盖，可续。
+- **C1 弹窗壳跨文件重复**：modal-header 模板 ×17 + 可点遮罩 ×11 + md-toolbar ×5 → 抽 `openModal()`。**风险**：每个弹窗有自己的 form id / 动态标题 / 自定义 class；抽壳若错会炸全站弹窗。建议逐个迁移验证，**排队醒着核对**。
 
 ## 已判定不改（保留，附理由）
 - **C8 `role-tabs::after`**：非孤儿，是 base 滑动下划线指示器；glass `.role-tab.active` 胶囊是叠加态，不替代下划线。删了会丢激活下划线。
