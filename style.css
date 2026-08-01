@@ -508,7 +508,7 @@ textarea.form-input {
   cursor: pointer; transition: all var(--t-fast); font-weight: 600;
 } /* G2：background 交还引擎（玻璃体在元素自身），删元素直写 */
 .grade-option:hover { color: var(--ink); }
-.grade-option.selected { --g-fill: var(--ink); color: var(--white); } /* G2：选中底走 --g-fill */
+.grade-option.selected { color: var(--white); } /* v0.19.43 选中底单源 glass.css（--g-fill: var(--accent)），删此重复 */
 .score-inline {
   width: 70px; padding: 4px 8px; border: none;
   background-color: transparent;

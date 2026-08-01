@@ -87,7 +87,7 @@ export async function handleGetUserPublic(db, userId) {
 
 // POST /api/user/deactivate —— 注销账户：用户名墓碑化（「已注销用户#id」，后缀避 UNIQUE 冲突）+
 // 凭证清空 + 单方关联数据全删（档案/通知/反馈/帖子/点赞/暂存附件）；需求/会话/合同/评价等
-// 双方数据保留，JOIN username 处自然显示墓碑。后期接入短信验证（confirmDangerOtp，现恒通过）
+// 双方数据保留，JOIN username 处自然显示墓碑。危险操作二次认证 = 密码换 5 分钟一次性 capToken（短信通道见 sms-auth.dormant.js）
 export async function handleDeactivateAccount(db, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);

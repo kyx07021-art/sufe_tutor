@@ -380,7 +380,7 @@ export async function handleModifyContract(db, contractId, body, req) {
 
 // POST /api/contracts/:id/revoke —— 撤销已签约合同（仅限双方已约定终止的场景，前端 2 次确认 + 法律后果提示）：
 // 活跃库抹掉合同行与合同气泡；签署台账与加密留档保留（不可篡改的历史凭证）；通知对方。
-// 后期接入短信验证（confirmDangerOtp，现恒通过）
+// 危险操作二次认证 = 密码换 5 分钟一次性 capToken（confirmDangerOtp 真实现；短信通道见 sms-auth.dormant.js）
 export async function handleRevokeContract(db, contractId, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);

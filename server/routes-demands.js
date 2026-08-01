@@ -133,7 +133,7 @@ export async function handleReopenDemand(db, demandId, body, req) {
   return json({ message: MSG.DEMAND_REOPENED });
 }
 
-// --- 需求意向（后端骨架，前端 UI 下一轮接入） ---
+// --- 需求意向（前端四态按钮 UI 已接入，my_intent_status 三态 + 撤销重提） ---
 export async function handleCreateIntent(db, demandId, body, req) {
   const me = await authUser(db, req);
   if (!me || me.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);

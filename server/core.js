@@ -126,7 +126,7 @@ export const MSG = {
   COMMENT_TOO_SHORT: '评价内容太短',
   STUDENT_REVIEW_ONLY: '仅学生可发表评价',
   REVIEW_SUBMITTED: '评价已提交，等待管理员审核',
-  REVIEW_CONTRACT_ONLY: '评价仅限与该教师签约的学生（签约功能即将上线）',
+  REVIEW_CONTRACT_ONLY: '评价仅限与该教师签约的学生',
   REVIEW_EXISTS: '你已评价过该教师，只能修改原评价',
   REVIEW_UPDATED: '评价已更新，重新进入审核',
   REVIEW_NOT_FOUND: '评价不存在',

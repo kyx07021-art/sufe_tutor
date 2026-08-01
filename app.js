@@ -1034,7 +1034,7 @@ async function handleSubmitDemand(e) {
     invalidate('demands'); // 提交/编辑后清需求缓存，防非本页提交致 state.myDemands 陈旧（编辑回填读它）
     if (state.page === 'my-demands') loadMyDemands();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
+    showToast(err.message); // v0.19.43 长表单滚到底部提交：错误条在浮窗顶部不可见，改 Toast
   } finally {
     const btn = document.getElementById('d-submit');
     if (btn) { btn.disabled = false; btn.textContent = isEdit ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND; }
@@ -2256,7 +2256,7 @@ async function handleSaveProfile(e) {
     alertEl.innerHTML = `<div class="alert alert-success glass">${UI.SUCCESS_PROFILE_SAVED}</div>`;
     invalidate('teachers'); // 档案已变：清教师列表缓存，浏览页/个人信息面板/推送弹窗下次读取重拉新档
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
+    showToast(err.message); // v0.19.43 档案长表单底部提交：门牌号预警等错误改 Toast，避免被滚动淹没
   } finally {
     const btn = document.getElementById('profile-submit');
     btn.disabled = false; btn.textContent = UI.BTN_SAVE;

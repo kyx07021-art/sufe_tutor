@@ -38,8 +38,9 @@
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
   --lg-bg-blur: 6px;
   --lg-glow-size: 230px; --lg-glow-op: .85;
-  --lg-orb-a: 140,110,235; --lg-orb-b: 235,160,90; --lg-orb-c: 120,170,220;
-  --lg-orb-d: 170,90,230; --lg-orb-e: 90,190,160; --lg-orb-f: 230,120,200; --lg-orb-g: 240,180,80; --lg-orb-h: 110,130,235; --lg-orb-i: 220,140,60;
+  /* v0.19.43 淡雅化：九色提亮度压饱和（向白靠拢），配合透明度下调，不再辣眼睛 */
+  --lg-orb-a: 176,156,240; --lg-orb-b: 240,200,150; --lg-orb-c: 172,202,235;
+  --lg-orb-d: 202,148,240; --lg-orb-e: 152,212,190; --lg-orb-f: 240,176,222; --lg-orb-g: 244,208,150; --lg-orb-h: 164,174,240; --lg-orb-i: 234,186,132;
   --glass-lift: 0 12px 30px -12px rgba(30,26,64,.22);
   --glass-lift-sm: 0 6px 16px -8px rgba(30,26,64,.18);
   /* 交互参数默认值（缺省全有；组件类按需覆盖） */
@@ -241,11 +242,11 @@ body { background: transparent; }
 .checkbox-item:has(input:checked) { --g-fill: rgba(122,104,224,.7); --g-fg: #fff; }
 /* G2：成绩/首选/文理单选 pill 统一挂引擎玻璃（原 style-region 手卷第二套删，竖条迁 ::after；文字色单源 style.css） */
 .grade-option { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.grade-option.selected { --g-fill: var(--ink); }
+.grade-option.selected { --g-fill: var(--accent); } /* v0.19.43 与科目勾选/页签统一：选中一律品牌紫（原墨底黑） */
 .gk-pill { --g-r: var(--lg-r); --g-hover: rgba(255,255,255,.14); }
 .score-mode-tabs { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .score-mode-tab { --g-fill: transparent; }
-.score-mode-tab.active { --g-fill: rgba(255,255,255,.22); --g-fg: var(--ink); }
+.score-mode-tab.active { --g-fill: var(--accent); --g-fg: #fff; } /* v0.19.43 与等第 pill/科目勾选统一品牌紫（原白透看不清） */
 /* G33：分隔线单源在 style-region.css（.score-mode-tab + .score-mode-tab 全量 border-left），引擎不再管结构边框 */
 .filter-panel { --g-fill: rgba(255,255,255,.2); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 .drop-toggle { --g-fill: rgba(255,255,255,.07); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }

@@ -530,14 +530,14 @@
       var ORB_N = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) ? 12 : 36;
       for (var oi = 0; oi < ORB_N; oi++) {
         var dir = oi % 6;                              // 6 方向组循环分配，保证均匀
-        var size = (7 + (oi * 37) % 16).toFixed(0);    // 7–22vmax 伪随机尺寸
+        var size = (10 + (oi * 37) % 19).toFixed(0);   // 10–28vmax 伪随机尺寸（v0.19.43 加大）
         /* 进场边随运动方向：右移球(d0/d1/d4)从屏左侧进场，左移球(d2/d3/d5)从屏右侧进场——
            之前全部负 left，左移球从屏外左漂向更屏外左、永不可见，观感只剩向右漂。 */
         var left = (dir === 2 || dir === 3 || dir === 5)
           ? (100 + (2 + (oi * 53) % 22)).toFixed(0)   // 左移球：屏右侧进场，向左横穿
           : (-(2 + (oi * 53) % 22)).toFixed(0);        // 右移球：屏左侧进场，向右横穿
         var top = ((oi * 71) % 100).toFixed(0);        // 垂直铺开
-        var op = (.62 + ((oi * 29) % 25) / 100).toFixed(2); // 0.62–0.86 透明度（研究：背景高饱和彩球，玻璃才显形）
+        var op = (.52 + ((oi * 29) % 22) / 100).toFixed(2); // 0.52–0.73 透明度（v0.19.43 淡雅：降饱和降透明度，不再辣眼睛）
         var delay = (-((oi * 31) % 1000) / 100 * DUR).toFixed(1); // 负 delay 错峰，起跑点各异
         var dur = (DUR * (.8 + ((oi * 17) % 60) / 100)).toFixed(1);
         var color = ORB_COLORS[(oi * 5) % ORB_COLORS.length];
