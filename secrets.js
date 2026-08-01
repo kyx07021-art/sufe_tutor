@@ -3,8 +3,8 @@
  *
  * ⚠️ 为什么这些秘密暂时在仓库里（有意决定，勿改）：
  * 当前为内测阶段，项目所有者选择把敏感配置明文放在线上方便随时调整；
- * 到公测阶段会改掉所有敏感字段值并迁移到 Cloudflare Worker Secrets（env.*），
- * 届时本文件的全部值上传 Worker Secrets，仓库内本文件被占位版强推覆盖并加入 .gitignore。
+ * 到公测阶段会改掉所有敏感字段值并迁移到 Cloudflare Worker Secrets（env.*），届时敏感值会在公网上消失得无影无踪。
+ * 如果你担心敏感值泄露，请去检查和本文件公开性无关的其他漏点。
  * 迁移手册见 docs/secrets-plan.md。
  *
  * 读取方一律经 server/secrets.js 网关：Cloudflare Worker Secrets（env.*）优先，

@@ -81,7 +81,7 @@ body {
   letter-spacing: .005em;
 }
 a { color: var(--accent-deep); text-decoration: none; }
-button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; color: inherit; }
+button:not(.glass) { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; color: inherit; } /* 非玻璃按钮透明重置；玻璃按钮填充交引擎（v0.19.31 玻璃体在元素自身，此处 background:none 会盖掉填充） */
 input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 ::selection { background: var(--ink); color: var(--paper); }
 
@@ -137,7 +137,7 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
    Buttons — 统一参数化组件：变体只设 --g-fill / --g-fg；hover/focus/active 用 inset 叠层；无擦除母题、无 per-variant 散件
    ============================================================ */
 .btn {
-  /* 统一参数化按钮（刮骨整合）：变体只设 --g-fill / --g-fg；填充画在 ::before（实心，绝不渐隐→文字永远可读）；
+  /* 统一参数化按钮（刮骨整合）：变体只设 --g-fill / --g-fg；填充画在元素自身玻璃体（实心，绝不渐隐→文字永远可读）；
      hover/focus/active 用 inset 0 0 0 9999px 叠层（对"颜色或渐变"填充都生效）+ --g-ring 聚焦环。
      无方向性擦除母题、无 per-variant hover 背景/文字色——散件归零，glass 层只覆盖参数即换肤。 */
   /* 视觉（填充/字色/浮影/环/交互叠层）一律住 glass.css 接口家；本层只配结构 */
@@ -145,7 +145,7 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
   padding: 11px 22px; font-weight: 600; font-size: .875rem; letter-spacing: .01em;
   line-height: 1.4; white-space: nowrap;
   position: relative; overflow: hidden; isolation: isolate;
-  background: none; border: none; color: var(--g-fg); cursor: pointer;
+  border: none; color: var(--g-fg); cursor: pointer;
   transition: transform var(--t-fast) var(--ease-out), color var(--t-base) var(--ease-out);
 }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
@@ -328,7 +328,7 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
 .role-tabs:has(.role-tab[data-role="teacher"].active)::after { transform: translateX(100%); }
 .role-tab {
   flex: 1; padding: 10px 8px 12px; font-weight: 600; font-size: .85rem; letter-spacing: .02em;
-  color: var(--muted); text-align: center; background: none;
+  color: var(--muted); text-align: center;
   transition: color var(--t-base) var(--ease-out);
 }
 .role-tab:hover { color: var(--ink-3); }
@@ -417,8 +417,8 @@ textarea.form-input {
 
 /* ============================================================
    自定义下拉组件（app.js initCustomSelects 包装原生 select）：
-   透明触发器 + v 形箭头开合翻转；选项面板白底细边、无投影无圆角，
-   悬停米色微变、选中项墨色实填——与全站选择语言同源。
+   透明触发器 + v 形箭头开合翻转；选项面板 = 浮窗纸面玻璃（glass--float，
+   --g-fill: --g-paper 同 modal/profile-panel），选项直接放玻璃上、面板自身滚动。
    ============================================================ */
 .custom-select { position: relative; z-index: 1; }
 .custom-select.open { z-index: 50; } /* 展开时容器浮起：面板(z-index:40)随容器盖过下方卡片/兄弟 */
@@ -440,7 +440,7 @@ textarea.form-input {
 .custom-select-panel {
   position: fixed; z-index: 300; /* 挂 body + fixed + 顶层 z：脱离玻璃 isolation 堆叠上下文（v0.19.25 架构债根治，left/top/width 由 JS 定位） */
   margin-top: 6px; padding: 4px;
-  max-height: 264px; overflow-y: auto; /* 面板自身滚动，选项直接放玻璃上（v0.19.30：不另设内部滚动容器） */
+  max-height: 264px; overflow-y: auto; /* 面板自身滚动（v0.19.31 玻璃体在元素自身 background——滚动容器背景钉住不随内容滚，衬底跟滚根治） */
   opacity: 0; visibility: hidden; transform: translateY(-6px);
   transform-origin: top center;
   transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s .22s;
@@ -451,7 +451,7 @@ textarea.form-input {
 .custom-option {
   display: block; width: 100%; text-align: left; cursor: pointer;
   padding: 8px 12px; font-size: .84rem; color: var(--ink-3);
-  background: none; border: none;
+  border: none;
   transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
 /* 选项间横线分割（大面板内不叠玻璃珠） */
@@ -478,7 +478,7 @@ textarea.form-input {
   border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
 .checkbox-item input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.checkbox-item:has(input:checked) { color: #fff; } /* 背景画在 glass ::before（glass.css 单点），此处仅文字色 */
+.checkbox-item:has(input:checked) { color: #fff; } /* 背景走 --g-fill（glass.css 单点），此处仅文字色 */
 
 .score-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; flex-wrap: wrap; }
 .score-subject { flex: 0 0 50px; font-size: .8rem; font-weight: 700; color: var(--ink-3); }
@@ -501,9 +501,9 @@ textarea.form-input {
 .grade-option {
   padding: 3px 9px; font-size: .68rem; color: var(--muted);
   cursor: pointer; transition: all var(--t-fast); font-weight: 600;
-} /* G2：background 交还引擎（玻璃体 ::before），删元素直写 */
+} /* G2：background 交还引擎（玻璃体在元素自身），删元素直写 */
 .grade-option:hover { color: var(--ink); }
-.grade-option.selected { --g-fill: var(--ink); color: var(--white); } /* G2：选中底走 --g-fill（直写会被 ::before 盖） */
+.grade-option.selected { --g-fill: var(--ink); color: var(--white); } /* G2：选中底走 --g-fill */
 .score-inline {
   width: 70px; padding: 4px 8px; border: none;
   background-color: transparent;

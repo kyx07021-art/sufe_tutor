@@ -12,17 +12,18 @@
 
    层模型（自底向上）：
      ① 全局舞台（lg-bg 光球+底板，页面级）
-     ② 玻璃体 ::before（z-index:-1：填充 --g-fill + 磨砂 --g-frost + 表面阴影 --g-liquid / --g-surface / --g-hover）
+     ② 玻璃体 = 元素自身（v0.19.31 删 ::before 层：background 天然在内容之下、box-shadow 在背景之上，
+       无需 z-index:-1 伪元素——①滚动容器内玻璃不随内容滚（下拉面板衬底跟滚根治）
+       ②替换元素 input 也能吃引擎 ③全站少一层伪元素）
      ③ 内容（元素自身 DOM）
-     ④ 元素层 box-shadow：外浮影 --g-lift + 焦点环 --g-ring
-       （表面 inset 阴影绝不画在元素层——会被 ② 盖住，v0.19.6 修复根因）
+     ④ 交互叠加：hover 白洗 inset / 焦点环 --g-ring（box-shadow 同层叠加，顺序在玻璃阴影之后）
 
    参数接口（组件类只设这些，缺省全有默认值）：
      --g-fill    玻璃体填充（色/渐变）
      --g-fg      前景文字色（默认继承）
      --g-r       圆角（默认 --lg-r-sm）
      --g-lift    浮影 box-shadow（默认 --glass-lift-sm）
-     --g-frost   磨砂（::before 的 backdrop-filter；默认 none）
+     --g-frost   磨砂（元素自身 backdrop-filter；默认 none）
      --g-liquid  液体弯月边缘（默认上下两弧；需要纯平面时组件显式设 none）
      --g-hover   hover 染色叠层（默认透明=无反应）
      --g-raise   hover 抬升 px（默认 0）
@@ -47,7 +48,7 @@
   --g-raise: 0;
   --g-scale: 1;
   --g-ring: rgba(122,104,224,.55);
-  /* 表面 inset 阴影（语义色条等，画在 ::before 之上，见层模型②）。
+  /* 表面 inset 阴影（语义色条等，叠在玻璃填充上）。
      默认用「无痕零阴影」占位而非 none——box-shadow 语法是 none | <shadow>#，列表项混入 none 整条非法，
      浏览器会整条回退成 none（v0.19.7 起弯月/发丝/暗弧/hover白洗全线断线的根因，v0.19.17 修） */
   --g-surface: inset 0 0 0 0 transparent;
@@ -110,48 +111,41 @@ body { background: transparent; }
 /* ============================================================
    标准玻璃引擎 —— 三条主规则（结构只此一处；其余全是参数预设）
    ============================================================ */
-/* .glass：静态件由本组件提供定位上下文 + 透明面（::before 才能 inset 锚定）。
+/* .glass：玻璃体 = 元素自身（v0.19.31 删 ::before 层——背景天然在内容之下，阴影在背景之上，
+   无需伪元素隔层；滚动容器内玻璃不随内容滚，替换元素 input 也能吃引擎）。
    position 用 :where() 降特异性到 0 —— 组件的自有定位（如 .profile-panel 的 fixed）永远胜出，
    引擎只兜底「没设定位的玻璃件」。不再有「谁胜出靠加载顺序」的多方管理（用户纪律：删）。 */
 :where(.glass, .glass--float) {
-  position: relative; isolation: isolate; background: none; border: none;
+  position: relative; isolation: isolate; border: none;
   border-radius: var(--g-r, var(--lg-r-sm));
   color: var(--g-fg, inherit);
-  /* 外浮影在元素层（::before 的外阴影会被 overflow:hidden 裁掉，故 lift 只能住元素层）；
-     表面阴影（弯月/语义条/hover 白洗）归 ::before，见下方玻璃体规则 */
-  box-shadow: var(--g-lift);
-  transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-base, .3s) var(--ease-out, ease);
-}
-/* ::before 玻璃体 = 玻璃表面：填充 + 磨砂 + 表面阴影。z-index:-1 永远在内容之下。
-   液体弯月 / 语义色条 / hover 白洗全住这里——元素层 inset 阴影会被本层盖住（v0.19.6 修复根因）。 */
-.glass::before, .glass--float::before {
-  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
-  box-shadow: var(--g-liquid, none), var(--g-surface, none);
-  /* 玻璃表面 = 填充单层：弯月本体住 --g-fill 的径向高光里（文档：上缘镜面高光归入填充），
-     无独立 sheen 层 / 无 blend——v0.19.10 连根删，避免第二个月亮抢戏 */
+  /* 玻璃表面单层：填充（弯月本体住 --g-fill 的径向高光里）+ 磨砂 + 浮影 + 液体边缘 + 语义条。
+     box-shadow 列表禁止混入 none（v0.19.17 教训）——故 --g-lift/--g-surface 默认均为透明占位 */
   background: var(--g-fill, rgba(255,255,255,.14));
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
+  box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none);
+  transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-base, .3s) var(--ease-out, ease);
 }
-/* ---- 交互状态（状态不是层）：hover 抬升+染色 / active 缩放 / 焦点双色环。
+/* ---- 交互状态（状态不是层）：hover 抬升+白洗 / active 缩放 / 焦点双色环。
    :where() 降特异性 → 组件自有 transform（.entry:hover/.post-like:active 等）天然胜出，
    引擎只兜底；组件未设 --g-raise/--g-scale 时 transform 为恒等变换，零干扰。 ---- */
 :where(.glass, .glass--float):hover:not(:disabled) {
-  box-shadow: var(--g-lift);
+  /* 白洗 inset 叠在玻璃阴影之后（--g-hover 默认 transparent=无感） */
+  box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none), inset 0 0 0 9999px var(--g-hover);
   transform: translateY(var(--g-raise));
-}
-/* hover 白洗叠在玻璃表面上（inset 阴影在元素层会被 ::before 盖住，必须住 ::before；--g-hover 默认 transparent=无感） */
-:where(.glass, .glass--float):hover:not(:disabled)::before {
-  box-shadow: var(--g-liquid, none), var(--g-surface, none), inset 0 0 0 9999px var(--g-hover);
 }
 :where(.glass, .glass--float):active:not(:disabled) {
   transform: translateY(var(--g-raise)) scale(var(--g-scale));
 }
-/* 焦点=外双色环；.sim-focus 同声明供 headless 截图 */
+/* 焦点=外双色环（液体边缘保留，focus+hover 白洗共存）；.sim-focus 同声明供 headless 截图 */
 :where(.glass, .glass--float):focus-visible,
 :where(.glass, .glass--float).sim-focus {
-  outline: none; box-shadow: var(--g-lift), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
+  outline: none;
+  box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none),
+    inset 0 0 0 9999px var(--g-hover),
+    0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
 }
-/* ---- 涟漪（可交互实心件）：玻璃体 ::before 之上、内容之下 ---- */
+/* ---- 涟漪（可交互实心件）：玻璃体之上、内容之下 ---- */
 .glass--pressable { overflow: hidden; }
 .glass--pressable::after {
   content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%;
@@ -220,18 +214,18 @@ body { background: transparent; }
   --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
   border: 1.5px solid rgba(255,255,255,.7); --g-r: 50%; --g-lift: var(--glass-lift-sm);
 }
-.avatar--guest { --g-fill: rgba(255,255,255,.12); border: 1.5px dashed rgba(110,110,118,.5); --g-lift: none; }
+.avatar--guest { --g-fill: rgba(255,255,255,.12); border: 1.5px dashed rgba(110,110,118,.5); --g-lift: 0 0 0 0 transparent; } /* 无浮影用透明占位（none 混入 box-shadow 列表整条非法，v0.19.17 教训） */
 /* 分段控件（实心遮罩） */
 .role-tabs { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); padding: 4px; }
 .role-tab.active { background: rgba(255,255,255,.22); border-radius: 7px; } /* active 文字色由 style.css 单源（.role-tab.active color） */
 
 /* ============================================================
    实心小件预设（标签 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）
-   ——走引擎但 mask/frost/refract 全关 = 纯填充（.glass--solid 修饰 + 引擎参数）
+   ——走引擎但磨砂全关 = 纯填充（.glass--solid 修饰 + 引擎参数）
    ============================================================ */
-/* 实心小件修饰：关遮罩 / 磨砂 / 折射 = 干净圆角填充，零额外性能。
+/* 实心小件修饰：关磨砂 = 干净圆角填充，零额外性能。
    液体边缘高光保留（--g-liquid 默认开启）——实心件同样需要珠圆玉润的液态感 */
-.glass--solid { --g-frost: none; } /* 实心小件：关磨砂 = 干净圆角填充（sheen 层已随 v0.19.10 整条删除） */
+.glass--solid { --g-frost: none; } /* 实心小件：关磨砂 = 干净圆角填充 */
 .chat-file-chip, .chat-stage-item, .chat-stage-thumb { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .tag, .conv-item-role, .chat-peer-tag, .demand-id-tag, .device-current, .profile-tag {
   --g-fill: rgba(255,255,255,.2); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2, #444);
@@ -254,14 +248,14 @@ body { background: transparent; }
 .md-preview { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 
 /* ============================================================
-   输入控件（input/select/textarea）——替换元素不吃 ::before，
-   填充只能画在元素自身，无法走引擎。硬约束，非特例。
+   输入控件（input/select/textarea）——不带 glass 类，不走引擎；
+   直写与引擎视觉同源（白染填充 + 液体边缘内高光）。非玻璃件，非特例。
    ============================================================ */
 .form-input, .form-textarea, .custom-select-trigger, .chat-input, .filter-select,
 .chat-textarea, .posts-search, .post-body-input { /* G29：补三处引擎覆盖缺口（聊天输入/广场搜索/正文） */
   background-color: rgba(255,255,255,.1); border: none; border-radius: var(--lg-r-sm);
   /* G18/G19：background shorthand 会重置 background-image，吃掉 style.css 的聚焦下划线/下拉 v 箭头 → 拆 longhand background-color */
-  /* 替换元素补液体边缘：无法走 ::before，用 box-shadow 叠内高光（液态 v0.19，与 --g-liquid 视觉同源） */
+  /* 液体边缘内高光（与 --g-liquid 视觉同源） */
   box-shadow: var(--glass-lift-sm), inset 0 1px 3px rgba(30,26,64,.06), inset 0 0 0 1px rgba(255,255,255,.18), inset 0 1px 0 rgba(255,255,255,.4);
 }
 .form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: 12px; padding-right: 12px; }
@@ -332,8 +326,7 @@ body { background: transparent; }
 /* ============================================================
    业务面参数预设（模块表颜色收口于此；结构登记见上方引擎）
    ============================================================ */
-/* 标签语义色：走 --g-fill（画在 ::before 玻璃体上）——元素 background 会被 ::before 盖住（v0.19.6 层模型②），
-   必须用 --g-fill 让语义色显形 */
+/* 标签语义色：走 --g-fill（画在元素自身玻璃体上，v0.19.31 层模型单层） */
 .tag-ok { --g-fill: rgba(24,122,75,.22); color: #187a4b; }
 /* 科目匹配度徽章（运营建议：教师需求大厅显示「匹配度 N%」）——实心绿底白字，醒目不可漏看 */
 .tag-match { --g-fill: linear-gradient(160deg, rgba(24,122,75,.9), rgba(24,122,75,.72)); color: #fff; font-weight: 800; padding: 4px 11px; letter-spacing: .02em; }
@@ -350,7 +343,7 @@ body { background: transparent; }
 .post-like { --g-fill: rgba(255,255,255,.10); --g-fg: var(--muted); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r-sm); }
 .post-like.liked { --g-fill: rgba(211,47,47,.16); --g-fg: var(--danger); }
 
-/* 主页入口块（实心墨玻璃；竖条母题迁 ::after 以让出 ::before 给玻璃填充） */
+/* 主页入口块（实心墨玻璃；竖条母题住 ::after，玻璃填充住元素自身） */
 .entry { --g-fill: rgba(255,255,255,.14); --g-frost: var(--g-f-entry, blur(4px) saturate(180%) brightness(1.04)); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); --g-raise: -1px; } /* S7：--g-fg 死变量已删——文字色唯一主人 = style.css .entry { color }；--g-raise 悬停上浮同别的按钮 */
 
 /* 徽章 */
@@ -360,7 +353,7 @@ body { background: transparent; }
 /* 邀请码盒 */
 .invite-code-box { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 
-/* 关于平台：安全盾标 + 流程圆点（✓ 内容迁 ::after 以让出 ::before） */
+/* 关于平台：安全盾标 + 流程圆点（✓ 内容住 ::after） */
 .about-sec-mark { --g-fill: var(--accent-tint); --g-r: 50%; } /* G15：实变圆走参数 */
 .about-flow-dot { --g-fill: rgba(255,255,255,.85); --g-r: 50%; }
 

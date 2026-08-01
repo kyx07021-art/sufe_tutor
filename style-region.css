@@ -73,7 +73,7 @@
 .gk-pill-group { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .gk-pill { padding: 5px 16px; font-size: .78rem; }
 
-/* G2：首选/文理 pill 底/影/hover 交还引擎（--g-fill/--g-lift/--g-hover），竖条迁 ::after（::before 让给玻璃体） */
+/* G2：首选/文理 pill 底/影/hover 交还引擎（--g-fill/--g-lift/--g-hover），竖条住 ::after（玻璃体在元素自身） */
 .gk-first-pills .gk-pill,
 .gk-track-pills .gk-pill { position: relative; overflow: hidden; }
 .gk-first-pills .gk-pill::after,
