@@ -241,7 +241,10 @@ function initReveals(root) {
   const items = [...root.querySelectorAll('.list-card, .notif-item, .post-card')];
   items.forEach((el, i) => {
     el.classList.add('reveal');
-    el.style.setProperty('--reveal-delay', `${Math.min(i * 45, 360)}ms`);
+    // 80ms 基底延迟 + 强制布局：给 ::before 的 backdrop-filter 合成层暖机，
+    // 防"文字先出、磨砂提亮层后弹"的灰→艳闪烁（v0.19.17）
+    void el.offsetHeight;
+    el.style.setProperty('--reveal-delay', `${80 + Math.min(i * 45, 360)}ms`);
   });
   if (revealObserver) items.forEach(el => { revealObserver.observe(el); revealWatched.add(el); });
   else items.forEach(el => el.classList.add('revealed'));

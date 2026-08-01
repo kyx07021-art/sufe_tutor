@@ -47,7 +47,10 @@
   --g-raise: 0;
   --g-scale: 1;
   --g-ring: rgba(122,104,224,.55);
-  --g-surface: none; /* 表面 inset 阴影（语义色条等，画在 ::before 之上，见层模型②） */
+  /* 表面 inset 阴影（语义色条等，画在 ::before 之上，见层模型②）。
+     默认用「无痕零阴影」占位而非 none——box-shadow 语法是 none | <shadow>#，列表项混入 none 整条非法，
+     浏览器会整条回退成 none（v0.19.7 起弯月/发丝/暗弧/hover白洗全线断线的根因，v0.19.17 修） */
+  --g-surface: inset 0 0 0 0 transparent;
   /* ---- 液体边缘（液态玻璃 v0.19.2 · 基于真实还原研究，非拍脑袋）：
        design.dev Liquid Glass 七层配方（2026 生成器实测）+ 上缘镜面高光归入填充（见卡族 --g-fill）：
        上缘亮带(最亮 .70) + 发丝白边(.35) + 下缘张力暗弧 + 下缘微亮回边 + 整体内发光。
