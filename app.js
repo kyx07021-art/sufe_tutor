@@ -116,7 +116,7 @@ function buildCustomSelectPanel(sel) {
   const wrap = sel.closest('.custom-select');
   if (!wrap) return;
   wrap.querySelector('.custom-select-panel').innerHTML = [...sel.options].map(o =>
-    `<button type="button" class="custom-option glass glass--solid${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
+    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
   syncCustomSelectText(sel);
 }
 

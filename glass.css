@@ -246,9 +246,8 @@ body { background: transparent; }
 /* G33：分隔线单源在 style-region.css（.score-mode-tab + .score-mode-tab 全量 border-left），引擎不再管结构边框 */
 .filter-panel { --g-fill: rgba(255,255,255,.2); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 .drop-toggle { --g-fill: rgba(255,255,255,.07); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.custom-option { --g-r: 8px; } /* G17：圆角走参数 */
-.custom-option:hover { --g-fill: rgba(122,104,224,.16); }
-.custom-option.selected { --g-fill: rgba(122,104,224,.30); --g-fg: var(--ink); font-weight: 600; }
+/* 下拉选项：非 glass 件（面板是大玻璃，选项间横线分割——用户定性：不要一串独立玻璃珠）。
+   hover/selected 背景直写为合理例外（同 sidebar-item 手卷 hover） */
 .md-preview { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 
 /* ============================================================

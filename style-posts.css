@@ -10,6 +10,7 @@
   gap: var(--s3);
   padding: var(--s3) 14px;
   margin-bottom: 16px;
+  position: relative; z-index: 1; /* 下拉面板提升：glass isolation 把面板 z-index 困在祖先内，祖先 z-index:auto 被下方卡片盖住 */
 }
 input.posts-search {
   flex: 1 1 220px; min-width: 0; width: auto;

@@ -420,7 +420,8 @@ textarea.form-input {
    透明触发器 + v 形箭头开合翻转；选项面板白底细边、无投影无圆角，
    悬停米色微变、选中项墨色实填——与全站选择语言同源。
    ============================================================ */
-.custom-select { position: relative; }
+.custom-select { position: relative; z-index: 1; }
+.custom-select.open { z-index: 50; } /* 展开时容器浮起：面板(z-index:40)随容器盖过下方卡片/兄弟 */
 .form-group .custom-select, .filter-group .custom-select { flex: 1 1 0; min-width: 0; width: 100%; }
 .gaokao-row .custom-select { flex: 1; min-width: 110px; }
 .custom-select-trigger {
@@ -440,6 +441,7 @@ textarea.form-input {
   position: absolute; top: 100%; left: 0; right: 0; z-index: 40;
   margin-top: 6px; padding: 4px;
 
+
   max-height: 264px; overflow-y: auto;
   opacity: 0; visibility: hidden; transform: translateY(-6px);
   transform-origin: top center;
@@ -451,9 +453,13 @@ textarea.form-input {
 .custom-option {
   display: block; width: 100%; text-align: left; cursor: pointer;
   padding: 8px 12px; font-size: .84rem; color: var(--ink-3);
+  background: none; border: none;
   transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
-.custom-option:hover { color: var(--ink); }
+/* 选项间横线分割（大面板内不叠玻璃珠） */
+.custom-option + .custom-option { border-top: 1px solid rgba(30,26,64,.07); }
+.custom-option:hover { background: rgba(122,104,224,.07); color: var(--ink); }
+.custom-option.selected { background: rgba(122,104,224,.13); color: var(--ink); font-weight: 600; }
 
 
 .checkbox-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
