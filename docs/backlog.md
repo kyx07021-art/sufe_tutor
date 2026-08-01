@@ -74,6 +74,15 @@
 - 🟡 **验收备注·弯月可见化混入收口**：v0.19.8 收口提交内夹带视觉改动（卡 fill .35/暗弧 .40/新月带），后续 v0.19.9/10 独立迭代到「填充弧单机制+卡族 --g-sheen:none」。不破坏收口规则，但收口提交不纯粹。
 - ✅ **弯月浅底隐形实证诊断（2026-08-01，v0.19.12 已按主方向修）**：卡族弯月在浅底不可见。根因：①白弧配浅底零对比；②渐变峰值 `at 50% -5%` 被裁在上缘外，可见区只剩 ~.45 窄条；③下缘暗弧太淡。**已修**：峰值移入卡内（`at 50% 4%`，.90 全幅可见）+ 下缘暗弧加深加锐（.55 + 16px）。弯月单一机制（填充弧），sheen/blend 整条已删（v0.19.10）。
 
+## ✅ #54 网安复审（security 插件技能 + 三并行只读审计 agent；v0.19.41 清毕，34/34 测试通过，公告已发）
+- ✅ **合同取消竞态（A 级）**：handleCancelContract 原先无条件 DELETE，与「对方刚翻 signed」竞态 → dbDeleteContract 加可选 statuses 守卫（仅删 pending/signing），changes=0 时判别：行仍在 = 状态已翻 → 409 CONTRACT_CANCEL_SIGNED_BLOCKED（须走撤销合同）；行不在 = 并发已删 → 幂等 200。管理员路径保持无条件删。
+- ✅ **签约后联系方式丢失（前端真 bug）**：后端 /api/teacher/profile 签约时返回 wechat/email，前端 app.js 只 Object.assign 了 real_name/credential_image，联系方式被丢 → 补并 wechat/email，签约学生可见实际值。
+- ✅ **log.js 脱敏补键**：SENSITIVE_KEYS += real_name/credential_image/phone/mobile/tel；sanitize 循环跳过 __proto__ 键（JSON.parse 自有键可走原型污染路径）；test/log-sanitize.test.js +2 用例（含 JSON.parse 构造的 __proto__ 真实路径）。
+- ✅ **svg 上传一律拒收**：routes-auth.js 头像 / routes-teacher.js 学信网截图补 `startsWith('data:image/svg')` 拒绝（矢量可内嵌脚本）；app-posts.js mdRender IMG_OK 改 `/^(https?:\/\/|data:image\/(?!svg))/i`。全站图像路径口径统一：只放行位图。
+- ✅ **门牌号服务端守卫（审计中）**：ADDRESS_GUARD 单源常量进 core.js，拦「两位以上数字+号(非号线)/号楼/室/栋/单元/门牌」；sanitizeDemand（需求创建/更新）+ handleSaveProfile（教师档案）双写入点校验，违者回 ADDRESS_TOO_DETAILED（前端 alert 正常展示）。需求 address 顺带限长 100。
+- ✅ **删 .liquidglass_backup/**：68K 未 git 跟踪的可部署遗留备份（constants/glass 双文件），连根删除。
+- 🟡 **已判定不改（记录）**：secrets.js 明文密钥 = 本地开发位（部署 secrets 已配置，公测前轮换）；gh keyring token 失效 → PAT 保留在 .git/config（给用户建议：gh auth login 重配 credential helper 或续 PAT）；token localStorage + unsafe-inline CSP = 架构选择；404/403 枚举差异低价值；capToken 每隔离区缓存 = 可用性取舍。
+
 ## ✅ v0.19.38 三审计推迟项（2026-08-01 主会话整合；v0.19.40 清毕——用户授权"自己全修"，已全部落地并 32/32 测试通过）
 - ✅ **B1 log.js ↔ fieldcrypto.js 加密逻辑 ~90% 重复**：AES 原语（b64ToBytes/bytesToB64/aesKeyFromB64/encryptAes/decryptAes）收敛进 fieldcrypto.js 导出，log.js 只留 LOG_ENCRYPT_KEY 派生与 encrypted 语义；补 test/log-crypto.test.js（log 层薄壳：encrypted 标记/无密钥回落/密钥轮换，5 用例）。
 - ✅ **B3 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎** → 合并 dbGetTeachers(db, {adminView, viewerId})，两调用点（routes-teacher/routes-admin）已切。
