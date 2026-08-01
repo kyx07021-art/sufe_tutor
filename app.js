@@ -1458,7 +1458,7 @@ function renderDemandCard(d, opts = {}) {
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
   // 匹配度徽章（教师视角 + 教师档案齐全时展示）
   const matchTag = (teacher && myTeacher)
-    ? (() => { const md = matchDegree(myTeacher, d); return md == null ? '' : `<span class="tag tag-match glass glass--solid">${UI.TAG_MATCH}${md}%</span>`; })()
+    ? (() => { const md = matchDegree(myTeacher, d); return md == null ? '' : ` <span class="tag tag-match glass glass--solid">${UI.TAG_MATCH}${md}%</span>`; })()
     : '';
   const provinceName = DISP.provinceName(d.province);
   const subjNames = (d.target_subjects||[]).map(id => DISP.subjectName(id));
