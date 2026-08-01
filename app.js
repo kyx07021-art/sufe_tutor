@@ -1095,9 +1095,10 @@ function renderTeacherCard(t) {
 // 星级渲染统一走显示层（全局调用方多，保留 renderStars 名字作兼容别名）
 const renderStars = globalThis.SUFE_DISPLAY.starsHtml;
 
-function toggleFilters() {
-  const open = document.getElementById('teacher-filters').classList.toggle('open'); // grid-rows 展开动效
-  const btn = document.getElementById('filter-toggle-btn');
+// v0.19.46 参数化：教师块默认参数不变；通知页筛选面板同组件复用（index.html 传 id）
+function toggleFilters(id = 'teacher-filters', btnId = 'filter-toggle-btn') {
+  const open = document.getElementById(id).classList.toggle('open'); // grid-rows 展开动效
+  const btn = document.getElementById(btnId);
   if (btn) btn.classList.toggle('open', open); // v 形箭头翻转
 }
 
@@ -1486,15 +1487,26 @@ function matchDetailHtml(t, d, md) {
   </div>`;
 }
 
-// 点击开关 + 外部点击 / Esc 关闭（同一时刻至多一张，数据在渲染时存 window._matchDetail）
+// 点击开关 + 外部点击 / Esc / 滚动关闭（同一时刻至多一张）。
+// v0.19.46 数据从缓存重建（按按钮 data-id 找需求 + state.allTeachers 找本人档案）——
+// 原 window._matchDetail 单槽被最后一张卡渲染覆盖：多 tag 时点谁都显示最后一张的数据
 let _matchDetailOpen = false;
+let _browseDemands = []; // 教师需求大厅当前列表（含置顶推送卡），showMatchDetail 的按 id 取数源
 function showMatchDetail(btn) {
-  const data = window._matchDetail;
-  if (!data || !data.teacher || !data.demand) return;
+  const d = _browseDemands.find(x => x.id === +btn.dataset.id);
+  const t = state.allTeachers.find(x => x.user_id === state.user.id);
+  if (!d || !t) return;
   if (_matchDetailOpen) { closeMatchDetail(); return; }
-  const md = matchDegree(data.teacher, data.demand);
+  const md = matchDegree(t, d);
   if (md == null) return;
-  btn.insertAdjacentHTML('afterend', matchDetailHtml(data.teacher, data.demand, md));
+  btn.insertAdjacentHTML('afterend', matchDetailHtml(t, d, md));
+  // 锚定按钮下方（fixed 定位脱离卡内 isolation/overflow，同 custom-select 面板模式）；
+  // 锚点丢失（列表刷新）时查不到直接关，不留孤儿卡
+  const card = btn.nextElementSibling;
+  if (!card || !card.classList.contains('match-detail')) return;
+  const r = btn.getBoundingClientRect();
+  card.style.left = `${r.left}px`;
+  card.style.top = `${r.bottom + 6}px`;
   _matchDetailOpen = true;
 }
 function closeMatchDetail() {
@@ -1507,13 +1519,16 @@ document.addEventListener('click', e => {
   if (!e.target.closest('.match-detail') && !e.target.closest('.tag-match')) closeMatchDetail();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMatchDetail(); });
+// 滚动即收起（fixed 不跟随滚动，同 custom-select 面板模式；capture 捕获所有滚动容器）
+document.addEventListener('scroll', () => { if (_matchDetailOpen) closeMatchDetail(); },
+  { capture: true, passive: true });
 
 function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false, myTeacher = null } = opts;
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
   // 匹配度徽章（教师视角 + 教师档案齐全时展示）：v0.19.45 变按钮，点击呼出明细悬浮卡
   const matchTag = (teacher && myTeacher)
-    ? (() => { const md = matchDegree(myTeacher, d); if (md == null) return ''; window._matchDetail = { teacher: myTeacher, demand: d }; return `<button type="button" class="tag tag-match glass glass--solid" onclick="showMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${md}%</button>`; })()
+    ? (() => { const md = matchDegree(myTeacher, d); if (md == null) return ''; return `<button type="button" class="tag tag-match glass glass--solid" data-id="${d.id}" onclick="showMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${md}%</button>`; })()
     : '';
   const provinceName = DISP.provinceName(d.province);
   const subjNames = (d.target_subjects||[]).map(id => DISP.subjectName(id));
@@ -1617,6 +1632,7 @@ async function loadBrowseDemands() {
     ]);
     const pushes = pData.pushes || [];
     const demands = dData.demands || [];
+    _browseDemands = [...pushes, ...demands]; // 匹配度明细取数源（push 置顶卡与普通卡同库）
     if (state.page === 'browse-demands') setBadge('browse-demands', 0); // 进页即视为已读；await 期间若已切走，不得掐灭轮询刚点亮的新推送红点
     if (!pushes.length && !demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
     // 教师档案（匹配度用）：确保 allTeachers 已加载——直接进「浏览需求」页可能没拉过教师列表
@@ -1711,19 +1727,36 @@ async function resolvePush(pushId, action) {
 // ============================================================
 // 通知信息页（全角色）：进入即标记已读并消红点
 // ============================================================
+// v0.19.46 屏蔽筛选：全量列表驻留模块级，过滤只动渲染层（select 值随 DOM 保留，重进页面续用）
+let _notifList = [];
+function isBroadcastNotif(text) { return String(text || '').startsWith(UI.NOTIFY_BROADCAST_PREFIX); }
+function filterNotifRows(rows) {
+  const block = document.getElementById('notif-block-mode')?.value === 'block-broadcast';
+  return block ? rows.filter(n => !isBroadcastNotif(n.text)) : rows;
+}
+function applyNotifFilter() { // 筛选 onchange：同步重渲染，不重新请求
+  const el = document.getElementById('notifications-content');
+  if (!el || !_notifList.length) return;
+  const shown = filterNotifRows(_notifList);
+  el.innerHTML = shown.length ? shown.map(renderNotifItem).join('')
+    : `<div class="empty-state"><p>${escHtml(UI.NOTIF_FILTER_EMPTY)}</p></div>`;
+}
 async function enterNotifications() {
   setBadge('notifications', 0); // 点开瞬间红点即灭（先于任何请求，轮询跳过当前页不复活）
   // 管理员独享「发通知」（系统广播）；其他角色隐藏
   const bb = document.getElementById('btn-broadcast-notif');
   if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
-  let list = [];
   const rendered = await loadInto('notifications-content', async () => {
     const data = await api('/api/notifications');
-    list = data.notifications || [];
-    return list;
-  }, rows => rows.map(renderNotifItem).join(''), { empty: UI.EMPTY_NO_NOTIFICATIONS });
+    _notifList = data.notifications || [];
+    return _notifList;
+  }, rows => {
+    const shown = filterNotifRows(rows);
+    if (!shown.length) return `<div class="empty-state"><p>${escHtml(UI.NOTIF_FILTER_EMPTY)}</p></div>`;
+    return shown.map(renderNotifItem).join('');
+  }, { empty: UI.EMPTY_NO_NOTIFICATIONS });
   // 渲染成功才批量标已读（切走/报错不清未读，留给下次进入）
-  if (rendered && list.some(n => !n.is_read)) {
+  if (rendered && _notifList.some(n => !n.is_read)) {
     api('/api/notifications/read', { method: 'POST', body: {} }).catch(() => {});
   }
 }

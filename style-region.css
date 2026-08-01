@@ -45,9 +45,9 @@
   letter-spacing: .06em;
   text-align: center;
   color: var(--ink);
-  background: transparent;
-  transition: background-color var(--t-fast) var(--ease-out),
-              color var(--t-fast) var(--ease-out);
+  /* v0.19.46 删手绘 background: transparent —— 特异性 0,1,0 锁死引擎 --g-fill 绘制（:where 主规则零特异性），
+     active 紫底一直不显示的根因；背景交还引擎（同 G2 模式） */
+  transition: color var(--t-fast) var(--ease-out);
 }
 .score-mode-tab + .score-mode-tab { border-left: 1.5px solid rgba(255,255,255,.3); }
 .score-mode-tab:not(.active):hover { --g-hover: rgba(255,255,255,.14); } /* G10：hover 直写迁 --g-hover（画在玻璃体上） */

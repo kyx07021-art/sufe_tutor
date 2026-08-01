@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.45',
+  APP_VERSION: '0.19.46',
 
   // ============================================================
   // 业务数据
@@ -580,6 +580,7 @@ globalThis.APP_CONSTANTS = {
 
     // 通知信息
     EMPTY_NO_NOTIFICATIONS: '暂无通知',
+    NOTIF_FILTER_EMPTY: '没有符合条件的通知', /* v0.19.46 通知页屏蔽筛选后空态（控件文案与教师块同模式静态硬编码） */
 
     // 账户设置
     SETTINGS_USERNAME: '账户用户名',

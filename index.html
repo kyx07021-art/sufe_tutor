@@ -442,8 +442,25 @@
         <section class="client-page hidden" data-page="notifications">
           <div class="page-header">
             <h2>通知信息</h2>
+            <!-- 筛选组件复用教师块的 drop-wrap/filter-panel（v0.19.46：单一「屏蔽设置」项，展示所有/屏蔽系统通知） -->
+            <button type="button" class="drop-toggle glass glass--solid" id="notif-filter-toggle-btn" onclick="toggleFilters('notif-filters','notif-filter-toggle-btn')">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
             <!-- 管理员：全体系统通知广播（仅 admin 可见，enterNotifications 控制显隐） -->
             <button type="button" class="btn btn-sm hidden glass glass--pressable" id="btn-broadcast-notif" onclick="openBroadcastModal()">发通知</button>
+          </div>
+          <div class="drop-wrap" id="notif-filters">
+            <div class="drop-clip">
+              <div class="filter-panel glass glass--solid">
+                <div class="filter-row">
+                  <div class="filter-group">
+                    <label class="filter-label">屏蔽设置</label>
+                    <select class="filter-select" id="notif-block-mode" onchange="applyNotifFilter()">
+                      <option value="">展示所有</option>
+                      <option value="block-broadcast">屏蔽系统通知</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
           <div id="notifications-content"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
