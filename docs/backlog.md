@@ -19,8 +19,8 @@
 ## 🟡 玻璃收口：回归「组件=参数」硬规则（S1/S2/S3/S6/S7/S8 已修 v0.19.7）
 > 原则（用户拍板）：**玻璃件外观只准写 `--g-*` 参数，元素 `background`/`box-shadow` 直写即违规=屎**；逐条迁回参数、删直写，引擎自动接管。依据/状态：根目录《玻璃系统竞态分析.md》（S1 根因+S2/S3/S6/S7/S8 已修复推送，a32642a）。
 - ✅ **G1 `.score-mode-tabs` 双底双影**（style-region.css:38 直写 background/border-radius/box-shadow 顶掉引擎）→ 已删 :38 直写，交还引擎（a32642a）。
-- 🟡 **G2 gk-pill 手卷第二套玻璃**（style-region.css:72-105 直写背景/hover/selected + `::before` 竖条；style.css:511 `grade-option.selected` 另有「选中」语义）→ 挂 `.glass glass--solid` 走引擎（竖条迁 ::after），或与 grade-option.selected 合并单点。
-- 🟡 **G3 navbar 背景 2 文件 5 处**（style.css:101/106/981 + glass.css:286/287）→ 收口 glass.css 单点（landing 渐变走 :has），删 style.css 竞争方。
+- ✅ **G2 gk-pill 手卷第二套玻璃**（style-region.css:72-105 直写背景/hover/selected + `::before` 竖条；style.css:511 `grade-option.selected` 另有「选中」语义）→ 挂 `.glass glass--solid` 走引擎（竖条迁 ::after），或与 grade-option.selected 合并单点。
+- ✅ **G3 navbar 背景 2 文件 5 处**（style.css:101/106/981 + glass.css:286/287）→ 收口 glass.css 单点（landing 渐变走 :has），删 style.css 竞争方。
 - **G4 `.glass--solid` 命名与行为不符**（glass.css:229 只关磨砂，不关 sheen/填充）→ 已判定：低危，补注释或改名可排队，不盲改。
 - **G5 sidebar-item/conv-item 手卷 hover**（glass.css:275/281 inset 直写；非 glass 件、元素 inset 可见=合理例外）→ 已判定：保留+注释，不并入引擎。
 - ✅ **G6 
