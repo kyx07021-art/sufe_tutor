@@ -5,7 +5,7 @@
  *   双向匹配   公开档案 + 真实姓名 + 学信网截图（联系方式仍按「签约后展示」规则不下发）
  *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
  */
-import { json, error, authUser, MSG } from './core.js';
+import { json, error, authUser, MSG, ADDRESS_GUARD } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById } from './db.js';
 import { logEvent } from './log.js';
@@ -47,7 +47,9 @@ export async function handleSaveProfile(db, body, req) {
     p.price = Number.isFinite(n) ? Math.min(99999, Math.max(0, n)) : null;
   }
   const credential = String(p.credential_image || '');
-  if (credential && (!credential.startsWith('data:image/') || credential.length > CREDENTIAL_MAX)) return error(MSG.AVATAR_INVALID);
+  // svg 一律拒绝：矢量可内嵌脚本，且头像/证件路径统一不放行 svg（与 routes-auth.js 头像口径一致）
+  if (credential && (!credential.startsWith('data:image/') || credential.startsWith('data:image/svg') || credential.length > CREDENTIAL_MAX)) return error(MSG.AVATAR_INVALID);
+  if (ADDRESS_GUARD.test(p.address || '')) return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号不收集
   await dbUpsertTeacherProfile(db, me.id, { ...p, credential_image: credential }); // 只能写自己的档案
   // 留档不带 detail：档案含联系方式 / 真实姓名 / 学信网截图等敏感字段，不落留档库
   await logEvent(db, { action: 'teacher.profile.save', actorUserId: me.id, actorRole: 'teacher',

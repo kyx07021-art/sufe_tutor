@@ -237,7 +237,7 @@ function updatePostPreview() {
  */
 function mdRender(src) {
   const escaped = escHtml(String(src ?? ''));
-  const IMG_OK = /^(https?:|data:image\/)/i;
+  const IMG_OK = /^(https?:\/\/|data:image\/(?!svg))/i; // 外链/位图放行；svg 可内嵌脚本，一律不渲染
   const inline = s => s
     .replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (m, alt, url) =>
       (IMG_OK.test(url) && !/\s/.test(url))

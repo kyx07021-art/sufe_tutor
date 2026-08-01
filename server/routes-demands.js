@@ -1,7 +1,7 @@
 /**
  * 路由模块：学生需求（增删改查）+ 需求意向
  */
-import { json, error, authUser, MSG, STATUS } from './core.js';
+import { json, error, authUser, MSG, STATUS, ADDRESS_GUARD } from './core.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
@@ -37,6 +37,8 @@ function sanitizeDemand(d) {
   if (d.budget_max < d.budget_min) d.budget_max = d.budget_min; // 二者同时存在时保证 max>=min
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
   d.expected_time = (typeof d.expected_time === 'string' ? d.expected_time : '').slice(0, 50); // P3.1 期望开课时间，限长
+  d.address = (typeof d.address === 'string' ? d.address : '').slice(0, 100); // 授课区域限长；门牌级表述按 ADDRESS_GUARD 拒绝
+  if (ADDRESS_GUARD.test(d.address)) return null; // 合规红线：详细门牌号不收集（调用方据此回 ADDRESS_TOO_DETAILED）
   return d;
 }
 
@@ -49,7 +51,7 @@ export async function handleCreateDemand(db, body, req) {
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
   if (d.province !== 'shanghai') d.teaching_method = 'online'; // 业务规则：非上海仅线上
-  sanitizeDemand(d);
+  if (!sanitizeDemand(d)) return error(MSG.ADDRESS_TOO_DETAILED);
 
   const id = await dbCreateDemand(db, userId, d);
   await logEvent(db, { action: 'demand.create', actorUserId: userId, actorRole: 'student',
@@ -96,7 +98,7 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
   if (d.province !== 'shanghai') d.teaching_method = 'online';
-  sanitizeDemand(d);
+  if (!sanitizeDemand(d)) return error(MSG.ADDRESS_TOO_DETAILED);
 
   await dbUpdateDemand(db, demandId, d);
   await logEvent(db, { action: 'demand.update', actorUserId: me.id, actorRole: 'student',

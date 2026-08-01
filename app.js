@@ -1181,7 +1181,7 @@ async function openProfilePanel(userId) {
       try {
         const pd = await api(`/api/teacher/profile?userId=${userId}`);
         if (seq !== profilePanelSeq) return;
-        if (pd.profile) Object.assign(t, { real_name: pd.profile.real_name || '', credential_image: pd.profile.credential_image || '' });
+        if (pd.profile) Object.assign(t, { real_name: pd.profile.real_name || '', credential_image: pd.profile.credential_image || '', wechat: pd.profile.wechat || '', email: pd.profile.email || '' }); // 签约后后端追加返回联系方式，此处一并并入缓存行
       } catch { /* 未匹配后端 403：按不可见处理 */ }
       t._matchedDetailLoaded = true;
     }

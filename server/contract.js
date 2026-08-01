@@ -442,8 +442,12 @@ export async function handleCancelContract(db, contractId, body, req) {
   if (g.err) return g.err;
   const { conv } = g;
 
-  const del = await dbDeleteContract(db, contractId);
-  if (!(del && del.meta && del.meta.changes > 0)) return json({ ok: true }); // 并发对方已先取消：赢家已通知，此处不重复副作用
+  // 状态条件删除做并发守卫：load 之后翻到 signed/revoked 的行拒删（签约后不可再取消，须走撤销合同）
+  const del = await dbDeleteContract(db, contractId, [STATUS.PENDING, STATUS.SIGNING]);
+  if (!(del && del.meta && del.meta.changes > 0)) {
+    if (await dbGetContractById(db, contractId)) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409); // 行仍在：状态已翻，非「并发已删」
+    return json({ ok: true }); // 行已不在：并发对方已先取消，赢家已通知，此处不重复副作用
+  }
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });

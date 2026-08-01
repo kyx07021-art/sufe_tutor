@@ -13,6 +13,10 @@
 // 评分系统（初始评分 + 权重，评价通过时做加权平均）
 export const INITIAL_RATING = 4.0;
 
+// 合规红线「不收集详细门牌号」的服务端兜底：区块/地标级表述放行，门牌级（xx号楼 / xx室 / xx栋 / xx号门）拒绝。
+// 刻意排除「号线」避免误伤地铁站描述（如 12号线附近）；「xx号」仅两位以上数字视为门牌（一位数如「3号」太模糊，不拦）。
+export const ADDRESS_GUARD = /(?:[0-9０-９]{2,}号(?!线)|[0-9０-９]+(?:号楼|室|栋|单元|门牌))/;
+
 // 教师注册邀请码门控：开启状态（网安报告 F-05——教师开放注册属高危，注册必须凭管理员邀请码）。
 // 管理员在侧边栏「生成邀请码」签发；前端 constants.js INVITE_GATE_DORMANT 须同步为 false
 export const INVITE_GATE_ENABLED = true;
@@ -66,6 +70,7 @@ export const MSG = {
   DEMAND_REOPENED: '需求已重新开放',
   DEMAND_STATE_INVALID: '当前需求状态不允许此操作',
   PROVINCE_REQUIRED: '请选择省份',
+  ADDRESS_TOO_DETAILED: '地址请用「区/路」级别的模糊表述，请勿填写详细门牌号（如 xx号楼 / xx室 / xx号门）',
   TEACHER_ONLY: '仅教师可操作',
   ADMIN_ONLY: '仅管理员可操作',
   USER_NOT_FOUND: '用户不存在',
@@ -93,6 +98,7 @@ export const MSG = {
 
   // 合同（通知模板含 {name} 占位：通知不在聊天上下文，须给出具体用户名）
   CONTRACT_EXISTS: '该会话已存在进行中的合同',
+  CONTRACT_CANCEL_SIGNED_BLOCKED: '对方已确认签约，无法再取消签约；如要结束合作请双方协商后走「撤销合同」',
   CONTRACT_NOT_FOUND: '合同不存在',
   CONTRACT_STATE_INVALID: '合同当前状态不允许该操作',
   CONTRACT_MODIFIED_CONFLICT: '合同已被对方修改，请关闭后重新打开查看最新版本',

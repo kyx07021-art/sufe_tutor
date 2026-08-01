@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitize } from '../server/log.js';
 
-const SENSITIVE = ['password', 'passwd', 'salt', 'secret', 'token', 'verifyCode', 'fileData', 'avatar', 'body', 'contact', 'wechat', 'email'];
+const SENSITIVE = ['password', 'passwd', 'salt', 'secret', 'token', 'verifyCode', 'fileData', 'avatar', 'body', 'contact', 'wechat', 'email', 'real_name', 'credential_image', 'phone', 'mobile', 'tel'];
 
 test('全部敏感键脱敏，普通键保留', () => {
   const input = { password: 'x', name: '正常字段', title: '标题' };
@@ -39,6 +39,22 @@ test('深度 >4 截断为 [deep]（防循环引用爆栈）', () => {
   for (let i = 0; i < 6; i++) { cur.child = {}; cur = cur.child; }
   // depth 从 0 计，第 6 层（depth 5）截断：root.child×5 后为 [deep]
   assert.equal(sanitize(root).child.child.child.child.child, '[deep]');
+});
+
+test('私密身份键脱敏（真实姓名/学信网截图/电话——含嵌套）', () => {
+  const out = sanitize({ profile: { real_name: '张三', credential_image: 'data:image/png;base64,xxx', phone: '13800000000' } });
+  assert.equal(out.profile.real_name, '[redacted]');
+  assert.equal(out.profile.credential_image, '[redacted]');
+  assert.equal(out.profile.phone, '[redacted]');
+});
+
+test('__proto__ 键跳过，不改原型（原型污染防护）', () => {
+  // JSON.parse 才能造出「自有可枚举」的 __proto__ 键（字面量写法只会改原型，走不到此路径）
+  const input = JSON.parse('{"normal":"ok","__proto__":{"polluted":true}}');
+  const out = sanitize(input);
+  assert.equal(out.normal, 'ok');
+  assert.equal(out.polluted, undefined);
+  assert.equal({}.polluted, undefined);
 });
 
 test('null/undefined/标量/数组空原样', () => {

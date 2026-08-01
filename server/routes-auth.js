@@ -113,7 +113,8 @@ export async function handleSaveAvatar(db, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const avatar = String(body.avatar || '');
-  if (!avatar.startsWith('data:image/') || avatar.length > 20000) return error(MSG.AVATAR_INVALID);
+  // svg 一律拒绝：矢量可内嵌脚本，渲染路径的图片统一只放行位图
+  if (!avatar.startsWith('data:image/') || avatar.startsWith('data:image/svg') || avatar.length > 20000) return error(MSG.AVATAR_INVALID);
   await dbUpdateUserAvatar(db, me.id, avatar);
   await logEvent(db, { action: 'user.avatar.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ ok: true });

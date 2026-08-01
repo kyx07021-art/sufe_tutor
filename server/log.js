@@ -117,7 +117,7 @@ export async function initLogDb(db) {
 
 // 敏感键剔除：口令 / 盐 / 验证码 / 正文大字段（聊天正文、附件 dataURL、头像）/ 联系方式绝不落明文档
 // （detail 加密见 logEvent 咽喉；此处是通用兜底留档 request body 的第一道脱敏）
-const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email/i;
+const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email|real_name|credential_image|phone|mobile|tel/i;
 // 导出供 node --test 回归（test/log-sanitize.test.js），语义不变
 export function sanitize(value, depth = 0) {
   if (value === null || value === undefined) return value;
@@ -126,6 +126,7 @@ export function sanitize(value, depth = 0) {
   if (Array.isArray(value)) return value.map(v => sanitize(v, depth + 1));
   const out = {};
   for (const [k, v] of Object.entries(value)) {
+    if (k === '__proto__') continue; // 原型污染键不入 out 对象（Object.entries 枚举到 __proto__ 时 out[k]= 会改原型）
     if (SENSITIVE_KEYS.test(k)) { out[k] = '[redacted]'; continue; }
     out[k] = sanitize(v, depth + 1);
   }

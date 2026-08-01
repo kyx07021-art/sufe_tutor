@@ -1118,10 +1118,13 @@ export async function dbGetAllContractsAdmin(db) {
     ORDER BY ct.updated_at DESC`);
 }
 
-// 删除合同行。返回原生 result：调用方凭 meta.changes 判定赢家
+// 删除合同行。statuses 非空时仅删该状态集内的行（取消签约的并发守卫：翻到 signed/revoked 的行拒删）。
+// 返回原生 result：调用方凭 meta.changes 判定赢家
 // （并发双撤销/双取消/管理员删除场景仅 changes>0 的一方执行通知/留档等副作用）
-export async function dbDeleteContract(db, contractId) {
-  return dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
+export async function dbDeleteContract(db, contractId, statuses = null) {
+  if (!statuses || !statuses.length) return dbRun(db, 'DELETE FROM contracts WHERE id=?', [contractId]);
+  const q = statuses.map(() => '?').join(',');
+  return dbRun(db, `DELETE FROM contracts WHERE id=? AND status IN (${q})`, [contractId, ...statuses]);
 }
 
 // 清会话内的合同系统气泡（撤销合同步双方聊天窗；kind='contract' 仅合同事件消息）
