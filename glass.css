@@ -176,9 +176,9 @@ body { background: transparent; }
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
-  /* 浮窗=毛玻璃「纸面」：blur 16 重毛 + 填充 .34 让内容可读（用户层级：容器毛，控件透——
-     旧 .22+blur12 太透，浮窗像透明贴片看不清内容） */
-  --g-fill: rgba(255,255,255,.34); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
+  /* 浮窗=毛玻璃「纸面」：blur 24 重毛 + 填充 .56 不透字（v0.19.27 反思：透字真因是填充 .34 透出 66% 背景，
+     blur 只模糊形状不挡亮度；用户层级：容器毛=可读纸面，控件透=玻璃上的玻璃） */
+  --g-fill: rgba(255,255,255,.56); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
   --g-lift: var(--glass-lift);
 }
 .modal { --g-r: var(--lg-r-lg); }
