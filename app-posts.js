@@ -366,7 +366,7 @@ async function submitBroadcast() {
   btn.disabled = true;
   try {
     // 服务端给标题加【系统通知】前缀后群发
-    await api('/api/notifications/broadcast', { method: 'POST', body: { username: state.user.username, title, text } });
+    await api('/api/notifications/broadcast', { method: 'POST', body: { title, text } });
     closeModal();
     showToast(UI.BROADCAST_SENT_TOAST);
     if (state.page === 'notifications') enterNotifications(); // 自己也收一条，列表即时刷新

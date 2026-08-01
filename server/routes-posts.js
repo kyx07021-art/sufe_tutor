@@ -28,7 +28,7 @@ const PMSG = {
 // 注：帖子不存在改复用 MSG.USER_NOT_FOUND（core.js 无帖子专属「不存在」文案，避免新增第三来源）
 
 /**
- * GET /api/posts?sort=new|hot&section=&q=&userId=
+ * GET /api/posts?sort=new|hot&section=&q=
  * → { posts: [...] }，每条含 username（JOIN users）与 liked 布尔（凭令牌查本人点赞）
  * sort: new=created_at DESC（默认）；hot=like_count DESC, created_at DESC
  * section: 不传则不过滤（分区预留）；q: 对 title + body_md 做 LIKE 模糊匹配
@@ -70,7 +70,7 @@ export async function handleCreatePost(db, body, req) {
 }
 
 /**
- * POST /api/posts/:id/like  body: { userId }
+ * POST /api/posts/:id/like
  * 有则删、无则插（UNIQUE(post_id,user_id) 兜底），再用 COUNT 回写 posts.like_count，杜绝计数漂移
  * → { liked, likeCount }
  */
@@ -80,7 +80,7 @@ export async function handleToggleLike(db, postId, body, req) {
   const userId = user.id;
 
   const post = await dbGetPostById(db, postId);
-  if (!post) return error(MSG.POST_NOT_FOUND, 404);
+  if (!post) return error(MSG.USER_NOT_FOUND, 404, 'POST_NOT_FOUND');
 
   const existing = await dbGetPostLike(db, postId, userId);
   let liked;
@@ -104,7 +104,7 @@ export async function handleToggleLike(db, postId, body, req) {
 }
 
 /**
- * DELETE /api/posts/:id  body: { userId }
+ * DELETE /api/posts/:id
  * 仅作者本人可删：帖子不存在 → 404；非作者 → 403。
  * post_likes 由外键 ON DELETE CASCADE 连带清理，无需手工删。
  */

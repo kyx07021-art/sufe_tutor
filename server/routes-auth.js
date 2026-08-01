@@ -31,7 +31,14 @@ export async function handleRegister(db, body, req) {
 
   const { hash, salt } = await hashPassword(password);
   const userId = await dbCreateUser(db, username, hash, salt, role);
-  if (needsInvite) await dbUseInviteCode(db, inviteCode, userId);
+  if (needsInvite) {
+    // 原子消费（赢家模式）：并发双注册同码仅一方 changes>0；输家回滚刚建的用户拒绝注册
+    const consumed = await dbUseInviteCode(db, inviteCode, userId);
+    if (!consumed) {
+      await dbRun(db, 'DELETE FROM users WHERE id=?', [userId]);
+      return error(MSG.INVITE_INVALID, 409);
+    }
+  }
   const authToken = await issueAuthToken(db, userId, deviceLabelFromUA(req && req.headers.get('user-agent')));
   await logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
     actorRole: role, entity: 'user', entityId: userId, detail: { role, via: needsInvite ? 'invite' : 'direct' }, req });
@@ -85,7 +92,7 @@ export async function handleDeactivateAccount(db, body, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   if (me.role === 'admin') return error(MSG.NO_PERMISSION, 403); // 管理员禁止注销，防管理面板孤岛化
-  if (!(await confirmDangerOtp(db, me.id, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(me.id, body))) return error(MSG.REAUTH_FAILED, 403);
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
   await dbDeactivateUser(db, me.id, tombstone);
   await dbPurgeUserOwnedData(db, me.id, me.role); // 按角色清理单方数据 + 匿名化本人聊天正文

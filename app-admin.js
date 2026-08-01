@@ -61,7 +61,7 @@ function adminDeletePost(postId) {
 // ============================================================
 async function loadAdminContracts() {
   await loadInto('admin-contracts-list', async () => {
-    const data = await api(`/api/admin/contracts?username=${encodeURIComponent(state.user.username)}`);
+    const data = await api(`/api/admin/contracts`);
     state.adminContracts = data.contracts || []; // 查看/移除弹窗的数据源
     return state.adminContracts;
   }, rows => rows.map(renderAdminContractRow).join(''), { empty: UI.ADMIN_CONTRACTS_EMPTY });
@@ -100,7 +100,7 @@ function adminViewContract(contractId) {
 function adminRemoveContract(contractId) {
   openConfirmModal(UI.CONFIRM_ADMIN_REMOVE_CONTRACT, async () => {
     try {
-      await api(`/api/admin/contracts/${contractId}`, { method: 'DELETE', body: { username: state.user.username } });
+      await api(`/api/admin/contracts/${contractId}`, { method: 'DELETE' });
       showToast(UI.ADMIN_CONTRACT_REMOVED_TOAST);
       loadAdminContracts();
     } catch (err) { showToast(err.message); }
@@ -113,7 +113,7 @@ function adminRemoveContract(contractId) {
 async function loadAdminFeedback() {
   setBadge('admin-feedback', 0); // 点开瞬间红点即灭（新反馈由轮询在离开本页后重新点亮）
   await loadInto('admin-feedback-list', async () => {
-    const data = await api(`/api/feedbacks?username=${encodeURIComponent(state.user.username)}`);
+    const data = await api(`/api/feedbacks`);
     return data.feedbacks || [];
   }, list => list.map(f => {
     const isBug = f.kind === 'bug';
@@ -138,7 +138,7 @@ async function loadAdminFeedback() {
 // 标记反馈已处理（后端通知提出者）
 async function resolveAdminFeedback(feedbackId) {
   try {
-    await api(`/api/feedbacks/${feedbackId}/resolve`, { method: 'POST', body: { username: state.user.username } });
+    await api(`/api/feedbacks/${feedbackId}/resolve`, { method: 'POST' });
     showToast(UI.FEEDBACK_RESOLVED_TOAST);
     loadAdminFeedback();
   } catch (err) { showToast(err.message); }
@@ -153,7 +153,7 @@ function confirmBanUser(userId, banned) {
 
 async function doBanUser(userId, banned) {
   try {
-    await api(`/api/admin/users/${userId}/ban`, { method: 'POST', body: { username: state.user.username, banned } });
+    await api(`/api/admin/users/${userId}/ban`, { method: 'POST', body: { banned } });
     closeModal();
     showToast(banned ? UI.SUCCESS_BANNED : UI.SUCCESS_UNBANNED);
     invalidate('teachers'); // 封禁/解封后清教师缓存，防被封教师滞留浏览列表
@@ -172,7 +172,7 @@ async function generateInviteCode() {
   const display = document.getElementById('invite-code-display');
   try {
     btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>';
-    const data = await api('/api/admin/invite', { method: 'POST', body: { username: state.user.username } });
+    const data = await api('/api/admin/invite', { method: 'POST' });
     state.currentInviteCode = data;
     document.getElementById('invite-code-text').textContent = data.code;
     display.classList.remove('hidden');
@@ -207,7 +207,7 @@ async function loadAdminStats() {
   const el = document.getElementById('admin-stats-content');
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
-    const statsData = await api(`/api/admin/stats?username=${encodeURIComponent(state.user.username)}`);
+    const statsData = await api(`/api/admin/stats`);
     const s = statsData.stats;
 
     el.innerHTML = `
@@ -248,7 +248,7 @@ async function loadAdminStats() {
 // ============================================================
 async function loadAdminUsers(role, elId) {
   await loadInto(elId, async () => {
-    const data = await api(`/api/admin/users?username=${encodeURIComponent(state.user.username)}&role=${role}`);
+    const data = await api(`/api/admin/users?role=${role}`);
     const users = data.users || [];
     if (role === 'teacher' && users.length) state.adminTeachers = users; // 教师详情弹窗的数据源（原口径：非空才回写）
     return users;
@@ -325,7 +325,7 @@ async function loadAdminDemands(reset = true) {
 async function loadAdminReviews() {
   const status = document.getElementById('admin-reviews-status')?.value || '';
   await loadInto('admin-reviews-list', async () => {
-    const data = await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}${status ? `&status=${status}` : ''}`);
+    const data = await api(`/api/admin/reviews${status ? `&status=${status}` : ''}`);
     return data.reviews || [];
   }, reviews => reviews.map(renderAdminReviewRow).join(''), { empty: UI.EMPTY_NO_REVIEWS, reveal: false });
 }

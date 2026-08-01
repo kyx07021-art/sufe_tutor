@@ -20,10 +20,9 @@ const UIC = globalThis.APP_CONSTANTS.UI; // 接受/拒绝通知文案（constant
 function demandSubjectsText(d) {
   const R = globalThis.SUFE_REGIONS;
   const UI = globalThis.APP_CONSTANTS.UI;
-  // mapper 已将 target_subjects 反序列化为数组；旧路径偶为 JSON 串，故数组直用、串才解析（杜绝双重解析静默死亡/500）
+  // mapper 已将 target_subjects 反序列化为数组（safeJsonArray 单点），路由层零 JSON.parse（CLAUDE.md 纪律）
   const raw = d ? d.target_subjects : null;
-  let ids = Array.isArray(raw) ? raw : [];
-  if (!ids.length && typeof raw === 'string') { try { ids = JSON.parse(raw || '[]'); } catch { ids = []; } }
+  const ids = Array.isArray(raw) ? raw : [];
   const names = ids.map(id => R.subjectNames[id] || '').filter(Boolean).join('、');
   return names || UI.NOTIFY_SUBJECTS_FALLBACK;
 }

@@ -22,7 +22,7 @@ export function bindLogDb(env) {
   KEY_PROMISE = null; // env 变更 → 密钥重派生
 }
 
-export function getLogDb(fallbackDb) {
+function getLogDb(fallbackDb) {
   return LOG_DB_OVERRIDE || fallbackDb;
 }
 

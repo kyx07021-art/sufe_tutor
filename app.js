@@ -543,7 +543,7 @@ async function refreshBadges() {
       setBadge('browse-demands', 0); setBadge('my-demands', 0);
       // 管理员用户反馈红点：未处理条数
       try {
-        const fbData = await api(`/api/feedbacks?username=${encodeURIComponent(state.user.username)}`);
+        const fbData = await api(`/api/feedbacks`);
         const openFb = (fbData.feedbacks || []).filter(f => f.status !== 'resolved').length;
         if (state.page !== 'admin-feedback') setBadge('admin-feedback', openFb);
       } catch { /* 静默，下一轮自愈 */ }
@@ -1004,7 +1004,7 @@ async function handleSubmitDemand(e) {
   const scores = collectStudentScores();
 
   const isEdit = !!state.editingDemandId;
-  const payload = { userId: state.user.id, demand: {
+  const payload = { demand: {
     province,
     student_grade: document.getElementById('d-grade').value,
     student_gender: document.getElementById('d-gender').value,
@@ -1169,7 +1169,7 @@ async function openProfilePanel(userId) {
       const isAdminViewer = state.user && state.user.role === 'admin';
       try {
         reviewsData = isAdminViewer
-          ? { admin: true, reviews: (await api(`/api/admin/reviews?username=${encodeURIComponent(state.user.username)}&teacherUserId=${userId}`)).reviews || [] }
+          ? { admin: true, reviews: (await api(`/api/admin/reviews?teacherUserId=${userId}`)).reviews || [] }
           : await api(`/api/reviews?teacherUserId=${userId}`);
       } catch { reviewsData = { reviews: [] }; }
       if (seq !== profilePanelSeq) return;
@@ -1382,7 +1382,7 @@ function confirmDeleteDemand(demandId, asAdmin) {
 async function handleDeleteDemand(demandId, asAdmin) {
   try {
     if (asAdmin) {
-      await api(`/api/admin/demands/${demandId}`, { method: 'DELETE', body: { username: state.user.username } });
+      await api(`/api/admin/demands/${demandId}`, { method: 'DELETE' });
     } else {
       await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: {} });
     }
@@ -1404,10 +1404,10 @@ function confirmDeleteReview(reviewId, fromModal) {
 async function adminReviewAction(reviewId, action, fromModal) {
   try {
     if (action === 'delete') {
-      await api(`/api/admin/reviews/${reviewId}`, { method: 'DELETE', body: { username: state.user.username } });
+      await api(`/api/admin/reviews/${reviewId}`, { method: 'DELETE' });
       showToast(UI.REVIEW_DELETED);
     } else {
-      await api(`/api/admin/reviews/${reviewId}/${action}`, { method: 'POST', body: { username: state.user.username } });
+      await api(`/api/admin/reviews/${reviewId}/${action}`, { method: 'POST' });
       showToast(action === 'approve' ? UI.SUCCESS_APPROVED : UI.SUCCESS_REJECTED);
     }
     closeModal();

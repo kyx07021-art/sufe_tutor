@@ -221,6 +221,8 @@ export async function initDb(db, env = {}) {
   //   ② 按"父先于子"建新表并改名回终名，数据从 _*_old 全量拷贝
   //   ③ 先子后父删 _*_old
   // 幂等守卫：检查 sqlite_master 里 users 表定义是否已含 'admin'。
+  // 列序不变量：下方 INSERT ... SELECT * 依赖旧表列序与新表 DDL 逐列一致——此迁移必须先于 ensureColumns 补列执行，
+  // 若某表先被补列，列序错位将导致整批迁移失败，故补列一律只能加在迁移完成之后。
   const meta = await dbGet(db, "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'");
   if (meta && !meta.sql.includes("'admin'")) {
     await db.batch([
@@ -427,7 +429,9 @@ async function ensureColumns(db, table, cols) {
 // 用户
 // ============================================================
 export async function dbFindUserByUsername(db, username) {
-  return await dbGet(db, 'SELECT * FROM users WHERE username=?', [username]);
+  // 显式列集：凭证列（password_hash/salt）仅登录/重认证出层，其余列不随裸行外溢
+  return await dbGet(db,
+    'SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE username=?', [username]);
 }
 
 export async function dbFindUserById(db, id) {
@@ -510,9 +514,11 @@ export async function dbFindValidInviteCode(db, code) {
 }
 
 export async function dbUseInviteCode(db, code, userId) {
-  await dbRun(db,
-    "UPDATE invite_codes SET used_by=?, used_at=datetime('now','localtime') WHERE code=?",
+  // 赢家模式：并发双注册同码时仅 changes>0 的一方消费成功（防一枚码两人用，调用方回滚输家）
+  const r = await dbRun(db,
+    "UPDATE invite_codes SET used_by=?, used_at=datetime('now','localtime') WHERE code=? AND used_by IS NULL",
     [userId, code]);
+  return !!(r && r.meta && r.meta.changes > 0);
 }
 
 export async function dbCreateInviteCode(db, code, adminId, expiresAt) {
@@ -521,11 +527,6 @@ export async function dbCreateInviteCode(db, code, adminId, expiresAt) {
     [code, adminId, expiresAt]);
 }
 
-export async function dbGetAllInvites(db) {
-  return await dbAll(db, `SELECT ic.*, u1.username as creator_name, u2.username as used_by_name
-    FROM invite_codes ic LEFT JOIN users u1 ON ic.created_by=u1.id
-    LEFT JOIN users u2 ON ic.used_by=u2.id ORDER BY ic.created_at DESC`);
-}
 
 // ============================================================
 // JSON 列反序列化单点：subjects / gaokao_scores / target_subjects / current_scores
@@ -609,7 +610,7 @@ export async function dbGetAllTeachers(db, viewerId = null) {
   return await Promise.all(profiles.map(mapTeacherProfileRow)); // F-06：mapper 解密为 async
 }
 
-export async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {
+async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {
   await dbRun(db,
     'UPDATE teacher_profiles SET rating=?, rating_count=?, rating_sum=? WHERE user_id=?',
     [rating, count, sum, teacherUserId]);
@@ -655,6 +656,7 @@ const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cnt, 0) A
 // address_detail（详细门牌号，合规停用）一律在此剥除，任何走 mapper 的出口都拿不到联系方式。
 // 需要联系方式的场景（本人「我的需求」、管理员全量）显式用 mapDemandRowFull。
 function mapDemandRow(r) {
+  // 警示：...rest 透传 student_demands 全部其余列——未来新增敏感列必须在此显式剥除，否则默认外泄
   const { parent_contact, student_contact, address_detail, ...rest } = r;
   return {
     ...rest,
@@ -740,11 +742,13 @@ export async function dbUpdateDemand(db, id, d) {
 // 删除需求：数据层强制保护——只要存在 pending/signing/signed 合同引用该需求，即返回 false（调用方拒绝删除）。
 // 悬空 demand_id 曾导致签约 410 后合同仍 signed 的线上事故（网安报告 F-03b），此门禁在 db.js 单点收口。
 export async function dbDeleteDemand(db, id) {
-  const ref = await dbGet(db,
-    `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [id]);
-  if (ref) return false;
+  // 原子守卫（替代 check-then-delete）：DELETE 携带 NOT EXISTS(活跃合同引用)，
+  // 并发起草窗口内合同先落库则本删除不命中→false，杜绝悬空 demand_id（F-03b）
+  const r = await dbRun(db,
+    `DELETE FROM student_demands WHERE id=? AND NOT EXISTS (
+      SELECT 1 FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed'))`, [id, id]);
+  if (!(r && r.meta && r.meta.changes > 0)) return false;
   await dbRun(db, 'DELETE FROM demand_intents WHERE demand_id=?', [id]);
-  await dbRun(db, 'DELETE FROM student_demands WHERE id=?', [id]);
   return true;
 }
 
@@ -908,7 +912,7 @@ export async function dbGetReviewById(db, reviewId) {
   return await dbGet(db, 'SELECT * FROM reviews WHERE id=?', [reviewId]);
 }
 
-export async function dbGetApprovedReviewStats(db, teacherUserId) {
+async function dbGetApprovedReviewStats(db, teacherUserId) {
   return await dbGet(db, `SELECT COUNT(*) as cnt, COALESCE(SUM(rating),0) as total
     FROM reviews WHERE teacher_user_id=? AND status='approved'`, [teacherUserId]);
 }

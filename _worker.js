@@ -41,15 +41,15 @@ import {
 } from './server/routes-demands.js';
 import { handleGetNotifications, handleMarkNotificationsRead, handleAdminDeleteNotification } from './server/notify.js';
 import {
-  handleCreateContract, handleGetContractByConv, handleGetMyContracts,
-  handleConfirmDraft, handleSignContract, handleModifyContract, handleCancelContract,
+  handleCreateContract, handleGetMyContracts,
+  handleSignContract, handleModifyContract, handleCancelContract,
   handleAdminListContracts, handleAdminRemoveContract, handleVerifyContract, handleRevokeContract,
   initLedgerTable, bindLedgerDb,
 } from './server/contract.js';
 import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
-  handleAdminCheck, handleGenInvite, handleAdminInvites, handleAdminStats,
+  handleGenInvite, handleAdminStats,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
   handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
@@ -143,9 +143,7 @@ async function routeApi(db, p, method, body, url, req) {
   if (userPublic && method === 'GET') return await handleGetUserPublic(db, parseInt(userPublic[1]));
 
   // 管理员
-  if (p === '/api/admin/check' && method === 'GET') return await handleAdminCheck(db, req);
   if (p === '/api/admin/invite' && method === 'POST') return await handleGenInvite(db, body, req);
-  if (p === '/api/admin/invites' && method === 'GET') return await handleAdminInvites(db, url, req);
   if (p === '/api/admin/stats' && method === 'GET') return await handleAdminStats(db, url, req);
   if (p === '/api/admin/reviews' && method === 'GET') return await handleAdminReviews(db, url, req);
   if (p === '/api/admin/logs' && method === 'GET') return await handleAdminLogs(db, url, req);
@@ -213,17 +211,11 @@ async function routeApi(db, p, method, body, url, req) {
   const notifDelete = p.match(/^\/api\/admin\/notifications\/(\d+)$/);
   if (notifDelete && method === 'DELETE') return await handleAdminDeleteNotification(db, parseInt(notifDelete[1]), req);
 
-  // 合同（起草 → 确认草案 → 确认签约 → signed；测试版短信验证预留）
+  // 合同（起草 → 确认签约 → signed；测试版短信验证预留）
   if (p === '/api/contracts' && method === 'POST') return await handleCreateContract(db, body, req);
-  if (p === '/api/contracts' && method === 'GET') return await handleGetContractByConv(db, url, req);
   if (p === '/api/contracts/my' && method === 'GET') return await handleGetMyContracts(db, url, req);
-  const contractAction = p.match(/^\/api\/contracts\/(\d+)\/(confirm-draft|sign)$/);
-  if (contractAction && method === 'POST') {
-    const cid = parseInt(contractAction[1]);
-    return contractAction[2] === 'sign'
-      ? await handleSignContract(db, cid, body, req)
-      : await handleConfirmDraft(db, cid, body, req);
-  }
+  const contractSign = p.match(/^\/api\/contracts\/(\d+)\/sign$/);
+  if (contractSign && method === 'POST') return await handleSignContract(db, parseInt(contractSign[1]), body, req);
   const contractVerify = p.match(/^\/api\/contracts\/(\d+)\/verify$/);
   if (contractVerify && method === 'GET') return await handleVerifyContract(db, parseInt(contractVerify[1]), req);
   const contractRevoke = p.match(/^\/api\/contracts\/(\d+)\/revoke$/);

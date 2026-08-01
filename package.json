@@ -7,6 +7,6 @@
   "scripts": {
     "dev": "npx wrangler pages dev . --d1 DB --compatibility-date 2024-01-01",
     "deploy": "npx wrangler pages deploy . --project-name sufe-tutor",
-    "test": "node --test test/"
+    "test": "node --test \"test/*.test.js\""
   }
 }

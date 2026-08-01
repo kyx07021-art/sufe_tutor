@@ -23,7 +23,6 @@ export const INITIAL_WEIGHT = 10;
 // 值与数据库状态字面量逐字相同，改动即破坏兼容
 // ============================================================
 export const STATUS = {
-  OPEN: 'open',             // 需求开放中 / 反馈待处理
   CONTRACTED: 'contracted', // 需求已签约下架
   REVOKED: 'revoked',       // 需求合同已撤销（待所有者手动重开）
   PENDING: 'pending',       // 意向/推送待处理 / 合同草案 / 评价待审核
@@ -33,7 +32,6 @@ export const STATUS = {
   SIGNED: 'signed',         // 合同已签约（评价门槛 dbIsContracted 放行）
   APPROVED: 'approved',     // 评价已通过
   ACTIVE: 'active',         // 会话进行中
-  CLOSED: 'closed',         // 会话已关闭
   RESOLVED: 'resolved',     // 反馈已处理
 };
 
@@ -238,8 +236,7 @@ export function issueCapToken(userId) {
   CAPS.set(userId, { token: t, exp: now + CAP_TTL });
   return t;
 }
-export async function confirmDangerOtp(db, userId, body) {
-  void db;
+export async function confirmDangerOtp(userId, body) {
   const c = CAPS.get(userId);
   if (!c) return false;
   const got = String((body && body.capToken) || '');

@@ -5,7 +5,7 @@
  * 正式合同正文由 buildContractMd 按草案信息生成（Markdown，后期可换更正式的格式）；双方看到的是同一条记录。
  * 短信验证码环节未接入：verifySignOtp 预留接口，测试版以二次确认代替。
  */
-import { dbGet, dbAll, dbRun, json, error, authUser, requireAdminOrError, confirmDangerOtp, MSG, STATUS } from './core.js';
+import { dbGet, dbAll, dbRun, json, error, authUser, requireAdminOrError, confirmDangerOtp, bufToHex, MSG, STATUS } from './core.js';
 import {
   dbGetContractById, dbGetContractByConv, dbGetMyContracts, dbGetAllContractsAdmin,
   dbDeleteContract, dbDeleteContractMessages,
@@ -122,8 +122,7 @@ export async function initLedgerTable(db) {
   await dbRun(db, `UPDATE contract_ledger SET seq=(SELECT COUNT(*) FROM contract_ledger c2 WHERE c2.id<=contract_ledger.id) WHERE seq IS NULL`);
 }
 
-const hexOf = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-const sha256Hex = text => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(hexOf);
+const sha256Hex = text => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(bufToHex);
 
 // 台账链哈希原文（网安报告 F-07）：content_hash 必须覆盖「正文 + contract_id + created_at + prev_hash」，
 // 否则拥有 DB 写权限者可重建整条台账而不被检出。正文哈希先取（防原文过长重复计算），再与元数据串成链。
@@ -264,40 +263,11 @@ export async function handleCreateContract(db, body, req) {
   return json({ id, message: UIC.CONTRACT_DRAFT_SENT_TOAST }, 201);
 }
 
-// GET /api/contracts?conversationId= → { contract }（聊天窗据此渲染合同状态灰字行）
-// 合同全文敏感：仅会话参与方凭令牌可读（曾零鉴权可枚举 conversationId 读全站合同）
-export async function handleGetContractByConv(db, url, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const conversationId = parseInt(url.searchParams.get('conversationId'));
-  const conv = await dbGetConversationWithNames(db, conversationId);
-  if (!isParticipant(conv, me.id)) return error(MSG.NO_PERMISSION, 403);
-  return json({ contract: (await dbGetContractByConv(db, conversationId)) || null });
-}
-
 // GET /api/contracts/my → { contracts }（身份凭令牌）
 export async function handleGetMyContracts(db, url, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   return json({ contracts: await dbGetMyContracts(db, me.id) });
-}
-
-// POST /api/contracts/:id/confirm-draft —— 对方确认草案 → 进入 signing（正式合同待双方确认签约）
-export async function handleConfirmDraft(db, contractId, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  const userId = me.id;
-  const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING]);
-  if (g.err) return g.err;
-  const { ct, conv } = g;
-  if (userId === ct.drafter_user_id) return error(MSG.CONTRACT_SELF_DRAFT, 409);
-
-  // 条件 UPDATE 赢家模式：并发双确认仅 changes>0 的一方发通知
-  const claim = await dbRun(db, `UPDATE contracts SET status='signing', updated_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [contractId]);
-  if (!(claim && claim.meta && claim.meta.changes > 0)) return error(MSG.CONTRACT_STATE_INVALID, 409);
-  await notifyUser(db, ct.drafter_user_id, UIC.CONTRACT_DRAFT_ACCEPTED.replace('{name}', nameOf(conv, userId)));
-  await logEvent(db, { action: 'contract.confirm_draft', actorUserId: userId, entity: 'contract', entityId: contractId, req });
-  return json({ ok: true });
 }
 
 // POST /api/contracts/:id/sign —— 确认签约；双方都确认后 status→signed
@@ -310,7 +280,7 @@ export async function handleSignContract(db, contractId, body, req) {
   if (g.err) return g.err;
   const { ct, conv } = g;
   // 危险操作二次认证（网安报告 F-05）：签约须凭 re-auth 换发的一次性 capToken（原恒通过）
-  if (!(await confirmDangerOtp(db, userId, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(userId, body))) return error(MSG.REAUTH_FAILED, 403);
 
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
@@ -350,13 +320,15 @@ export async function handleSignContract(db, contractId, body, req) {
     if (updated.demand_id) {
       const pending = await dbGetPendingIntentsForDemand(db, updated.demand_id);
       for (const it of pending) {
-        await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
+        const r = await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
+        if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
         await logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
           detail: { demandId: updated.demand_id, teacherUserId: it.teacher_user_id, reason: 'demand_contracted' }, req });
       }
       const pendingPushes = await dbGetPendingPushesForDemand(db, updated.demand_id);
       for (const pp of pendingPushes) {
-        await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
+        const r = await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
+        if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
         await logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
           detail: { demandId: updated.demand_id, teacherUserId: pp.teacher_user_id, reason: 'demand_contracted' }, req });
       }
@@ -409,7 +381,7 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, me.id, [STATUS.SIGNED]); // 未签约的走取消流程
   if (g.err) return g.err;
   const { ct, conv } = g;
-  if (!(await confirmDangerOtp(db, me.id, body))) return error(MSG.REAUTH_FAILED, 403); // 二次认证（F-05）
+  if (!(await confirmDangerOtp(me.id, body))) return error(MSG.REAUTH_FAILED, 403); // 二次认证（F-05）
   const del = await dbDeleteContract(db, contractId);
   if (!(del && del.meta && del.meta.changes > 0)) return error(MSG.CONTRACT_NOT_FOUND, 404); // 并发双撤销仅赢家执行清理与通知
   await dbDeleteContractMessages(db, ct.conversation_id);

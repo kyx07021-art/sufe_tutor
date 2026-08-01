@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.37',
+  APP_VERSION: '0.19.38',
 
   // ============================================================
   // 业务数据
@@ -218,7 +218,6 @@ globalThis.APP_CONSTANTS = {
     FEEDBACK_RESOLVED: '你提交的反馈已被关注并处理。感谢你帮助我们做得更好，如有其他问题欢迎随时反馈！',
     CONTRACT_DRAFT_SENT: '「{name}」发来一份合同草案，请前往「我的合同」查看并确认',
     CONTRACT_DRAFT_SENT_TOAST: '合同草案已发送，等待对方确认',
-    CONTRACT_DRAFT_ACCEPTED: '「{name}」已确认合同草案，请前往「我的合同」完成你的签约确认',
     CONTRACT_SIGN_WAITING: '「{name}」已确认签约，请在「我的合同」内完成你的确认',
     CONTRACT_MODIFIED: '「{name}」修改了合同内容，双方签约确认已重置，请重新查看',
     CONTRACT_SIGNED: '双方已完成签约，合作愉快！',

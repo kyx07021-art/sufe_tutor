@@ -7,7 +7,7 @@ import {
   MSG, STATUS,
 } from './core.js';
 import {
-  dbCreateInviteCode, dbGetAllInvites,
+  dbCreateInviteCode,
   dbGetUserStats, dbGetCount, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,
@@ -23,11 +23,6 @@ import { dbBroadcastNotification, notifyUser } from './notify.js';
 // 邀请码有效期
 const INVITE_VALIDITY_MS = 5 * 60 * 1000;
 
-export async function handleAdminCheck(db, req) {
-  const admin = await authUser(db, req);
-  return json({ isAdmin: !requireAdminOrError(admin) });
-}
-
 export async function handleGenInvite(db, body, req) {
   const admin = await authUser(db, req);
   const e = requireAdminOrError(admin);
@@ -41,13 +36,6 @@ export async function handleGenInvite(db, body, req) {
   await logEvent(db, { action: 'admin.invite.create', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'invite', entityId: code, detail: { expiresAt }, req });
   return json({ code, expiresAt });
-}
-
-export async function handleAdminInvites(db, url, req) {
-  const e = requireAdminOrError(await authUser(db, req));
-  if (e) return e;
-  const invites = await dbGetAllInvites(db);
-  return json({ invites });
 }
 
 export async function handleAdminStats(db, url, req) {
