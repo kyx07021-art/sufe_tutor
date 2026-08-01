@@ -1500,10 +1500,12 @@ function showMatchDetail(btn) {
   const md = matchDegree(t, d);
   if (md == null) return;
   btn.insertAdjacentHTML('afterend', matchDetailHtml(t, d, md));
-  // 锚定按钮下方（fixed 定位脱离卡内 isolation/overflow，同 custom-select 面板模式）；
-  // 锚点丢失（列表刷新）时查不到直接关，不留孤儿卡
   const card = btn.nextElementSibling;
   if (!card || !card.classList.contains('match-detail')) return;
+  // v0.19.47 挂 body（custom-select 面板完整模式）：.list-card 常驻 backdrop-filter（--g-f-card 微毛），
+  // Chrome 中它是 fixed 后代的 containing block——不挂 body 则 fixed 实际仍相对卡：定位偏移/被 overflow:hidden 切/图层困卡内，
+  // 上版只改 CSS 没改挂载点，正是「还是老样子」的根因
+  document.body.appendChild(card);
   const r = btn.getBoundingClientRect();
   card.style.left = `${r.left}px`;
   card.style.top = `${r.bottom + 6}px`;
