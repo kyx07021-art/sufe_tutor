@@ -227,7 +227,22 @@ window.addEventListener('resize', () => {
 // ============================================================
 // 不 unobserve：卡片滚出视口即复位，滚回 / 再次切入模块时重新按序浮入（每次展示都播一遍）
 const revealObserver = ('IntersectionObserver' in window) ? new IntersectionObserver(es => {
-  es.forEach(e => e.target.classList.toggle('revealed', e.isIntersecting));
+  es.forEach(e => {
+    if (e.isIntersecting) {
+      // 预热 backdrop-filter 合成层：opacity 0.01（非 0 强制合成路径）渲染一帧让 saturate 滤镜完成 backdrop 采样，
+      // 下一帧再播浮入——消除"先灰后艳"（v0.19.17 的 force layout 只预热了布局，合成器没预热）
+      const el = e.target;
+      el.style.transition = 'none';
+      el.style.opacity = '0.01';
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.style.transition = '';
+        el.style.opacity = '';
+        el.classList.add('revealed');
+      }));
+    } else {
+      e.target.classList.remove('revealed');
+    }
+  });
 }, { threshold: 0.06 }) : null;
 
 const revealWatched = new Set(); // 观察中的节点登记簿：每次 initReveals 先释放已脱离 DOM 的旧节点（observer 从不 unobserve 会强引用分离树造成泄漏；重播动效行为不变）
