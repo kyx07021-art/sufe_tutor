@@ -3,14 +3,14 @@
 #   - HTML 的 HTTP 级 CSP（frame-ancestors 'none' 防点击劫持，meta CSP 无法表达此指令）
 #   - HSTS / X-Content-Type-Options / Referrer-Policy 全站覆盖
 # 注意：此文件与页面 meta CSP 同源同策略；CSP 内 script-src 'unsafe-inline' 为本站内联 onclick 架构所需
-# Pages _headers 匹配规则：相对根路径 + 通配符；SPA 仅 index.html 一个 HTML 文档，CSP 只挂它
+# Pages _headers 匹配规则：相对根路径 + 通配符；SPA 仅 index.html 一个 HTML 文档。
+# v0.19.35（网安报告 F-08）：规则从 /index.html 改 /*——生产首页是 "/" 的 SPA 回退，
+# 只挂 /index.html 时根路径与未知 SPA 路径裸奔；/* 统一覆盖根路径、SPA 回退与静态资源
 
 /*
   X-Content-Type-Options: nosniff
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Referrer-Policy: strict-origin-when-cross-origin
-
-/index.html
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()

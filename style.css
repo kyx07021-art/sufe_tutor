@@ -1126,7 +1126,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 body.profile-panel-open .profile-panel { transform: none; }
 .profile-panel-backdrop {
   position: fixed; inset: 0; z-index: 145;
-  background: rgba(17,17,20,.42);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=浮窗自灰），只留虚化 */
   opacity: 0; pointer-events: none;
   transition: opacity .3s var(--ease-out);
   display: none; /* 桌面端右栏视作屏幕延伸，不暗背景；仅移动端启用 */

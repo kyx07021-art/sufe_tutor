@@ -55,7 +55,10 @@
   /* 浮层纸面填充单点（v0.19.28 起）：modal / profile-panel / 下拉面板复用同一配置。
      v0.19.34 用户指示调透明：.68 纸面在亮背景上=白色不透明观感（backdrop 渲染正常但视觉无差），
      .38 透镜式=背后形状透出模糊=真玻璃感；modal 有暗遮罩垫底，.38 依然显实可读（实测像素） */
-  --g-paper: rgba(255,255,255,.38);
+  /* v0.19.35 层级白值（用户指示）：玻璃每叠一层白 alpha 就累积更白，人眼舒适色调范围窄——
+     层级越高白值越低；浮层不直接坐底板，白值只留"一点点"（.38→.22）；
+     内层玻璃（header 等）更低（.08），坐 pane 上的小件微降。高斯模糊一律保留。 */
+  --g-paper: rgba(255,255,255,.22);
   /* ---- 液体边缘（液态玻璃 v0.19.2 · 基于真实还原研究，非拍脑袋）：
        design.dev Liquid Glass 七层配方（2026 生成器实测）+ 上缘镜面高光归入填充（见卡族 --g-fill）：
        上缘亮带(最亮 .70) + 发丝白边(.35) + 下缘张力暗弧 + 下缘微亮回边 + 整体内发光。
@@ -184,14 +187,14 @@ body { background: transparent; }
 /* 下拉面板：玻璃体在面板元素自身（--g-fill: var(--g-paper)），滚动在内部 .custom-select-list 透明通道——
    磨砂不随内容滚（v0.19.32：backdrop-filter 在滚动容器上失效=白板根因，故玻璃体与滚动分离） */
 .profile-panel { --g-r: var(--lg-r-lg); }
-/* 头栏=玻璃上的玻璃：透（填充 .16，比浮窗更透）——旧 .55 近实白条把表头钉死，已按用户层级改透 */
-.modal-header, .profile-panel-head { --g-fill: rgba(255,255,255,.16); --g-frost: var(--g-f-header, blur(4px)); }
+/* 头栏=玻璃上的玻璃（浮层内层，层级白值最底）：白 .08 更透，毛度补强 blur(12px) 保滚动可读（v0.19.35 层级白值） */
+.modal-header, .profile-panel-head { --g-fill: rgba(255,255,255,.08); --g-frost: var(--g-f-header, blur(12px)); }
 .chat-bubble { --g-lift: var(--glass-lift-sm); --g-liquid: var(--g-liquid-sm); }
 .chat-bubble--mine { --g-fill: rgba(150,138,230,.26); --g-fg: var(--ink); }
 .chat-bubble--theirs { --g-fill: rgba(233,218,196,.30); --g-fg: var(--ink); }
 .chat-bubble--system { --g-fill: rgba(206,198,238,.24); --g-fg: var(--accent-deep); }
-.profile-card { --g-fill: rgba(255,255,255,.5); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; }
-.profile-card--id { --g-fill: rgba(255,255,255,.62); }
+.profile-card { --g-fill: rgba(255,255,255,.32); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .5→.32 */
+.profile-card--id { --g-fill: rgba(255,255,255,.44); } /* v0.19.35 同上 .62→.44 */
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
 /* 按钮族 = 液态玻璃（v0.19.1）：透明染色透镜 + 微毛 + 弯月环。
    基类统一：微毛 blur(1px)（研究推荐）、平透染色填充、弯月环边缘、hover 白染叠层。
@@ -211,7 +214,7 @@ body { background: transparent; }
 .btn-text-danger { --g-fg: var(--danger-deep, #b23a2c); padding: 6px 12px; }
 .tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: var(--glass-lift-sm); } /* G6：删全文件唯一常驻紫投影（v0.19.7 白化漏改），交还中性 lift */
 /* 侧栏选中块=标准玻璃（去紫块） */
-.sidebar-pill { --g-fill: rgba(255,255,255,.24); --g-frost: var(--g-f-pill, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
+.sidebar-pill { --g-fill: rgba(255,255,255,.2); --g-frost: var(--g-f-pill, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-r: var(--lg-r); --g-lift: var(--glass-lift); } /* v0.19.35 层级白值：坐侧栏 L2，微降 */
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
   --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
@@ -277,13 +280,13 @@ body { background: transparent; }
   -webkit-backdrop-filter: var(--g-f-side, blur(8px)); backdrop-filter: var(--g-f-side, blur(8px)); /* 近不透明玻璃条，blur 由 constants.LG.frosts.side 定 */
   border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1);
 }
-.sidebar-user { --g-fill: rgba(255,255,255,.34); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); margin: 8px; }
+.sidebar-user { --g-fill: rgba(255,255,255,.26); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); margin: 8px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .34→.26 */
 .sidebar-item { border-radius: var(--lg-r-sm); }
 .sidebar-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.2)); }
 .chats-shell { background: transparent; }
 .chats-list-pane { background: rgba(255,255,255,.12); }
 .chat-pane, .chat-messages { background: transparent; background-image: none; }
-.conv-pill { --g-fill: rgba(255,255,255,.22); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r); } /* G9+G34：直写交还参数（G34 补回 --g-r，防圆角从 12px 回落到引擎默认 9px） */
+.conv-pill { --g-fill: rgba(255,255,255,.18); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r); } /* G9+G34：直写交还参数（G34 补回 --g-r，防圆角从 12px 回落到引擎默认 9px）；v0.19.35 层级白值：坐会话列表 pane 上的 L2 */
 .conv-item { border-radius: var(--lg-r); }
 .conv-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.16)); }
 .conv-item:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(122,104,224,.4); border-radius: var(--lg-r); }
@@ -300,7 +303,7 @@ body { background: transparent; }
 .modal { display: flex; flex-direction: column; overflow: hidden; }
 .modal-header { flex: 0 0 auto; border-bottom: 1.5px solid rgba(255,255,255,.22); position: relative; z-index: 2; }
 .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; position: relative; z-index: 1; }
-.modal-overlay { background: rgba(30,26,64,.45); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); } /* v0.19.28：遮罩压暗同 profile-panel-backdrop 思路——背后暗，纸面才显实 */
+.modal-overlay { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); } /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=表单浮窗自灰；只虚化不加深），虚化保留 */
 .form-group + .form-group { border-top: 1.5px solid rgba(30,26,64,.16); }
 .form-group { background: transparent; }
 
@@ -312,8 +315,8 @@ body { background: transparent; }
     --g-frost: var(--g-f-cardM, blur(4px) saturate(180%) brightness(1.05));
   }
   .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { --g-frost: var(--g-f-modalM, blur(6px)); }
-  .profile-card { --g-fill: rgba(255,255,255,.82); }
-  .profile-card--id { --g-fill: rgba(255,255,255,.9); }
+  .profile-card { --g-fill: rgba(255,255,255,.62); } /* v0.19.35 层级白值：移动端侧栏近纯白底，卡不需 .82 叠白 */
+  .profile-card--id { --g-fill: rgba(255,255,255,.75); }
 }
 @media (max-width: 860px) {
   .client-sidebar { background: rgba(244,242,247,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -377,5 +380,5 @@ body { background: transparent; }
 /* 管理面板 */
 .admin-panel { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 
-/* Toast（fixed 浮层，登记于 .glass--float）——标准玻璃：浅透镜 + 深字（不搞深色特殊） */
-.toast { --g-fill: rgba(255,255,255,.30); --g-fg: var(--ink); color: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); }
+/* Toast（fixed 浮层，登记于 .glass--float）——标准玻璃：浅透镜 + 深字（不搞深色特殊）；v0.19.35 层级白值：浮层降 .30→.22 */
+.toast { --g-fill: rgba(255,255,255,.22); --g-fg: var(--ink); color: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); }

@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.34',
+  APP_VERSION: '0.19.35',
 
   // ============================================================
   // 业务数据
@@ -70,7 +70,7 @@ globalThis.APP_CONSTANTS = {
       cardM:  'blur(4px) saturate(180%) brightness(1.05)',   // 移动端降档
       modal:  'blur(24px) saturate(180%) brightness(1.04)',  // 浮窗=重毛纸面（内容可读；v0.19.23 blur 16→24，透底下文字）
       modalM: 'blur(6px)',                                   // 移动端浮窗降档
-      header: 'blur(4px)',                                   // 浮窗表头=透（玻璃上的玻璃）
+      header: 'blur(12px)',                                  // 浮窗表头=透（玻璃上的玻璃；v0.19.35 白值降 .08 后毛度补强，滚动可读）
       btn:    'blur(4px) saturate(180%) brightness(1.04)',   // 按钮=透色透镜
       entry:  'blur(4px) saturate(180%) brightness(1.04)',   // 主页大按钮=透
       pill:   'blur(4px) saturate(180%) brightness(1.04)',   // 侧栏选中块=透
