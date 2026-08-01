@@ -440,13 +440,11 @@ textarea.form-input {
 .custom-select-panel {
   position: fixed; z-index: 300; /* 挂 body + fixed + 顶层 z：脱离玻璃 isolation 堆叠上下文（v0.19.25 架构债根治，left/top/width 由 JS 定位） */
   margin-top: 6px; padding: 4px;
-  /* 玻璃体由引擎提供（glass glass--float + 浮层族 --g-fill: var(--g-paper)）；滚动在内部 .custom-select-list——
-     玻璃体固定层不随内容滚动（v0.19.29 修正 v0.19.28 的 background 直写脱离引擎） */
+  max-height: 264px; overflow-y: auto; /* 面板自身滚动，选项直接放玻璃上（v0.19.30：不另设内部滚动容器） */
   opacity: 0; visibility: hidden; transform: translateY(-6px);
   transform-origin: top center;
   transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s .22s;
 }
-.custom-select-list { max-height: 264px; overflow-y: auto; }
 .custom-select-panel.open { opacity: 1; visibility: visible; transform: none; transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s 0s; }
 .custom-select-panel::-webkit-scrollbar { width: 6px; }
 .custom-select-panel::-webkit-scrollbar-thumb { background: var(--paper-3); }

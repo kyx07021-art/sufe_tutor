@@ -120,8 +120,9 @@ function buildCustomSelectPanel(sel) {
   if (!wrap) return;
   const panel = wrap._customPanel;
   if (!panel) return;
-  panel.innerHTML = `<div class="custom-select-list">${[...sel.options].map(o =>
-    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('')}</div>`;
+  // 选项直接放玻璃面板上（面板自身滚动；玻璃体即衬底，不另分层）
+  panel.innerHTML = [...sel.options].map(o =>
+    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
   syncCustomSelectText(sel);
 }
 
