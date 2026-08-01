@@ -153,7 +153,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
         const firstEx = exOf(firstSel);
         html += `<div class="gaokao-row"><span class="subject-name">${UI.REGION_FIRST_SUBJECT_LABEL}${firstChecked.length > 1 ? UI.REGION_FIRST_TWO_HINT : ''}</span>
           <div class="gk-pill-group gk-first-pills" data-gk-role="first">
-            ${firstChecked.map(sid => `<span class="grade-option gk-pill ${sid === firstSel ? 'selected' : ''}"
+            ${firstChecked.map(sid => `<span class="grade-option gk-pill glass glass--solid ${sid === firstSel ? 'selected' : ''}"
               data-gk-first="${escHtml(sid)}" role="button" tabindex="0" onclick="pickGkPill(this)">${escHtml(names[sid] || sid)}</span>`).join('')}
           </div>
           <input type="number" class="score-inline" data-gk-role="first-score" data-gk-type="score"
@@ -166,7 +166,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
         return `<div class="gaokao-row" data-gk-check-row="${escHtml(sid)}">
           <span class="subject-name">${escHtml(names[sid] || sid)}</span>
           <div class="grade-selector" data-gk-subject="${escHtml(sid)}">
-            ${gs.levels.map(lv => `<span class="grade-option ${ex.grade === lv.id ? 'selected' : ''}"
+            ${gs.levels.map(lv => `<span class="grade-option glass glass--solid ${ex.grade === lv.id ? 'selected' : ''}"
               data-grade="${escHtml(lv.id)}" role="button" tabindex="0" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
           </div></div>`;
       }).join('');
@@ -195,7 +195,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
             <span class="score-max">/ ${max}</span><span class="region-max-note">${UI.REGION_STANDARD_SCORE_NOTE}</span>`;
         } else if (usePills) {
           ctl = `<div class="grade-selector" data-gk-subject="${escHtml(sid)}">
-            ${gs.levels.map(lv => `<span class="grade-option ${ex.grade === lv.id ? 'selected' : ''}"
+            ${gs.levels.map(lv => `<span class="grade-option glass glass--solid ${ex.grade === lv.id ? 'selected' : ''}"
               data-grade="${escHtml(lv.id)}" role="button" tabindex="0" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
           </div>`;
         } else if (gs && gs.type === 'grade') {
@@ -227,7 +227,7 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
     html += `<div class="gaokao-section">
       <div class="gaokao-row">
         <div class="gk-pill-group gk-track-pills">
-          ${Object.keys(tracks).map(tk => `<span class="grade-option gk-pill ${tk === curTrack ? 'selected' : ''}"
+          ${Object.keys(tracks).map(tk => `<span class="grade-option gk-pill glass glass--solid ${tk === curTrack ? 'selected' : ''}"
             data-gk-track="${escHtml(tk)}" onclick="pickGkTrack(this)">${escHtml(trackLabel[tk] || tk)}</span>`).join('')}
         </div>
       </div>
@@ -383,7 +383,7 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
       </div>
       <div class="score-mode-pane" data-mode="grade">
         <div class="grade-selector" data-sg-subject="${sidE}">
-          ${levels.map(lv => `<span class="grade-option" data-grade="${escHtml(lv.id)}" role="button" tabindex="0" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
+          ${levels.map(lv => `<span class="grade-option glass glass--solid" data-grade="${escHtml(lv.id)}" role="button" tabindex="0" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}
         </div>
       </div>
       <div class="score-mode-pane hidden" data-mode="score">${inputPane}

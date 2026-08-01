@@ -74,33 +74,21 @@
 .gk-pill-group { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 .gk-pill { padding: 5px 16px; font-size: .78rem; }
 
-/* 首选科目 / 文理分科 pill：竖条 hover 母题，selected = 墨底白字 + 常驻竖条 */
+/* G2：首选/文理 pill 底/影/hover 交还引擎（--g-fill/--g-lift/--g-hover），竖条迁 ::after（::before 让给玻璃体） */
 .gk-first-pills .gk-pill,
-.gk-track-pills .gk-pill {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  background: rgba(255,255,255,.1);
-  color: var(--ink-3);
-  transition: background-color var(--t-fast) var(--ease-out),
-              color var(--t-fast) var(--ease-out);
-}
-.gk-first-pills .gk-pill::before,
-.gk-track-pills .gk-pill::before {
+.gk-track-pills .gk-pill { position: relative; overflow: hidden; }
+.gk-first-pills .gk-pill::after,
+.gk-track-pills .gk-pill::after {
   content: '';
   position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
   background: var(--accent);
   transform: scaleY(0); transform-origin: top;
   transition: transform var(--t-base) var(--ease-snap);
 }
-.gk-first-pills .gk-pill:hover,
-.gk-track-pills .gk-pill:hover { background: rgba(255,255,255,.14); color: var(--ink); }
-.gk-first-pills .gk-pill:hover::before,
-.gk-track-pills .gk-pill:hover::before { transform: scaleY(1); }
-.gk-first-pills .gk-pill.selected,
-.gk-track-pills .gk-pill.selected { background: rgba(122,104,224,.78); color: #fff; }
-.gk-first-pills .gk-pill.selected::before,
-.gk-track-pills .gk-pill.selected::before { background: var(--accent-bright); transform: scaleY(1); }
+.gk-first-pills .gk-pill:hover::after,
+.gk-track-pills .gk-pill:hover::after { transform: scaleY(1); }
+.gk-first-pills .gk-pill.selected::after,
+.gk-track-pills .gk-pill.selected::after { background: var(--accent-bright); transform: scaleY(1); }
 
 /* 文理分科 pill 再放大一档，作为段落主操作 */
 .gk-track-pills .gk-pill { padding: 8px 26px; font-size: .84rem; font-weight: 700; }

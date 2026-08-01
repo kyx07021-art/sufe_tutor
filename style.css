@@ -98,14 +98,11 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
    Navbar — 扁平；落地页时延续二分背景到顶
    ============================================================ */
 .navbar {
-  background: var(--paper);
-  border-bottom: 1px solid var(--line);
   padding: 14px 0;
   position: sticky; top: 0; z-index: 100;
-}
+} /* G3：背景/border 单源 glass.css（286/287），此处删死直写 */
 body:has(#view-landing:not(.hidden)) .navbar {
-  background: linear-gradient(90deg, var(--paper) 0 50%, var(--lilac) 50% 100%);
-  border-bottom-color: transparent;
+  border-bottom-color: transparent; /* G3：landing 渐变已归 glass.css:287，此处只留边线透明 */
 }
 /* 主页：品牌组与登录/注册分置屏幕两侧（容器解除 max-width 收窄） */
 body:has(#view-landing:not(.hidden)) .navbar .container { max-width: none; }
@@ -502,11 +499,11 @@ textarea.form-input {
 .gaokao-row .subject-name { flex: 0 0 44px; font-size: .8rem; font-weight: 700; color: var(--ink-3); }
 .grade-selector { display: flex; flex-wrap: wrap; gap: 4px; }
 .grade-option {
-  padding: 3px 9px; background: transparent; font-size: .68rem; color: var(--muted);
+  padding: 3px 9px; font-size: .68rem; color: var(--muted);
   cursor: pointer; transition: all var(--t-fast); font-weight: 600;
-}
+} /* G2：background 交还引擎（玻璃体 ::before），删元素直写 */
 .grade-option:hover { color: var(--ink); }
-.grade-option.selected { background: var(--ink); color: var(--white); }
+.grade-option.selected { --g-fill: var(--ink); color: var(--white); } /* G2：选中底走 --g-fill（直写会被 ::before 盖） */
 .score-inline {
   width: 70px; padding: 4px 8px; border: none;
   background-color: transparent;
@@ -975,7 +972,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   /* 上下半区写死两等分行：下半区组件顶沿钉死在 50% 分界线，不再越界到上半区 */
   .stage-grid { flex: 1; grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); align-content: stretch; gap: 0; padding-block: 0; }
   .landing-stage { flex-direction: column; background: linear-gradient(180deg, var(--paper) 0 50%, var(--lilac) 50% 100%); min-height: calc(100vh - var(--nav-h) - 48px); min-height: calc(100dvh - var(--nav-h) - 48px); }
-  body:has(#view-landing:not(.hidden)) .navbar { background: var(--paper); border-bottom-color: var(--line); }
+  body:has(#view-landing:not(.hidden)) .navbar { border-bottom-color: var(--line); } /* G3：media 背景死（glass.css:287 胜），只留边线色 */
   .stage-left, .stage-right { max-width: 100%; margin-left: 0; min-height: 0; overflow: hidden; }
   .stage-left { padding: clamp(28px, 5vh, 56px) 0 clamp(14px, 3vh, 28px); }
   .stage-right { padding: clamp(20px, 4vh, 44px) 0 clamp(14px, 3vh, 32px); }
