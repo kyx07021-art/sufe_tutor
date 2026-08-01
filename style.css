@@ -81,7 +81,7 @@ body {
   letter-spacing: .005em;
 }
 a { color: var(--accent-deep); text-decoration: none; }
-button:not(.glass) { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; color: inherit; } /* 非玻璃按钮透明重置；玻璃按钮填充交引擎（v0.19.31 玻璃体在元素自身，此处 background:none 会盖掉填充） */
+:where(button:not(.glass)) { cursor: pointer; border: none; background: none; font-family: inherit; font-size: inherit; color: inherit; } /* 非玻璃按钮透明重置。:where 特异性 0：组件类自带 font-size/color（如 .sidebar-footnote .62rem）永远胜出，不被重置打回继承；玻璃按钮填充交引擎（v0.19.32 修复 0.19.31 用 button:not(.glass) 提权到 0,1,1 反超组件类的回归） */
 input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 ::selection { background: var(--ink); color: var(--paper); }
 
@@ -440,14 +440,16 @@ textarea.form-input {
 .custom-select-panel {
   position: fixed; z-index: 300; /* 挂 body + fixed + 顶层 z：脱离玻璃 isolation 堆叠上下文（v0.19.25 架构债根治，left/top/width 由 JS 定位） */
   margin-top: 6px; padding: 4px;
-  max-height: 264px; overflow-y: auto; /* 面板自身滚动（v0.19.31 玻璃体在元素自身 background——滚动容器背景钉住不随内容滚，衬底跟滚根治） */
+  /* 面板不滚：玻璃体住面板元素自身（backdrop-filter 在滚动容器上会失效=白色不透明，v0.19.32 根因），滚动交内部透明通道 */
   opacity: 0; visibility: hidden; transform: translateY(-6px);
   transform-origin: top center;
   transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s .22s;
 }
 .custom-select-panel.open { opacity: 1; visibility: visible; transform: none; transition: opacity .18s var(--ease-out), transform .22s var(--ease-snap), visibility 0s 0s; }
-.custom-select-panel::-webkit-scrollbar { width: 6px; }
-.custom-select-panel::-webkit-scrollbar-thumb { background: var(--paper-3); }
+/* 透明滚动通道：无背景无玻璃类无边框——选项透在面板玻璃上滚，磨砂钉住不跟滚 */
+.custom-select-list { max-height: 256px; overflow-y: auto; }
+.custom-select-list::-webkit-scrollbar { width: 6px; }
+.custom-select-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
 .custom-option {
   display: block; width: 100%; text-align: left; cursor: pointer;
   padding: 8px 12px; font-size: .84rem; color: var(--ink-3);

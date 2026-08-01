@@ -120,9 +120,9 @@ function buildCustomSelectPanel(sel) {
   if (!wrap) return;
   const panel = wrap._customPanel;
   if (!panel) return;
-  // 选项直接放玻璃面板上（面板自身滚动；玻璃体在元素自身背景，滚动钉住）
-  panel.innerHTML = [...sel.options].map(o =>
-    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('');
+  // 选项放透明滚动层（v0.19.32）：玻璃体在面板元素上（磨砂生效），滚动通道纯透明无衬底——字透在玻璃上滚
+  panel.innerHTML = `<div class="custom-select-list">${[...sel.options].map(o =>
+    `<button type="button" class="custom-option${o.value === sel.value ? ' selected' : ''}" data-value="${escHtml(o.value)}">${escHtml(o.textContent)}</button>`).join('')}</div>`;
   syncCustomSelectText(sel);
 }
 

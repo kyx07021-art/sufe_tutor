@@ -1,0 +1,33 @@
+{
+    "env": {
+        "CLAUDE_CODE_DISABLE_1M_CONTEXT": "1",
+        "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "300000",
+        "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "85"
+    },
+    "permissions": {
+        "additionalDirectories": ["C:\\Users\\Lenovo\\Desktop\\尼采家教v2"],
+        "allow": [
+            "Bash(git push)",
+            "Bash(push-retry.sh)",
+            "Bash(git add *)",
+            "Bash(git commit *)",
+            "Bash(git status *)",
+            "Bash(git log *)",
+            "Bash(git diff *)",
+            "Bash(git show *)",
+            "Bash(git checkout *)",
+            "Bash(git reset *)",
+            "Bash(git stash *)",
+            "Bash(curl *)",
+            "Bash(node *)",
+            "Bash(rm -f /tmp/*)",
+            "Bash(ls *)",
+            "Bash(cp *)",
+            "Bash(sed *)",
+            "Bash(grep *)",
+            "Bash(wc *)",
+            "Bash(bash \"C:\\Users\\Lenovo\\Desktop\\尼采家教v2\\代码仓库\\push-retry.sh\")",
+            "Bash(bash /c/Users/Lenovo/Desktop/尼采家教v2/代码仓库/push-retry.sh)"
+        ]
+    }
+}

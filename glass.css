@@ -179,7 +179,8 @@ body { background: transparent; }
 }
 .modal { --g-r: var(--lg-r-lg); }
 .custom-select-panel, .chat-plus-pop { --g-r: var(--lg-r); }
-/* 下拉面板：玻璃体走引擎（--g-fill: var(--g-paper)），滚动在内部 .custom-select-list——玻璃体固定层不随内容滚动（v0.19.29） */
+/* 下拉面板：玻璃体在面板元素自身（--g-fill: var(--g-paper)），滚动在内部 .custom-select-list 透明通道——
+   磨砂不随内容滚（v0.19.32：backdrop-filter 在滚动容器上失效=白板根因，故玻璃体与滚动分离） */
 .profile-panel { --g-r: var(--lg-r-lg); }
 /* 头栏=玻璃上的玻璃：透（填充 .16，比浮窗更透）——旧 .55 近实白条把表头钉死，已按用户层级改透 */
 .modal-header, .profile-panel-head { --g-fill: rgba(255,255,255,.16); --g-frost: var(--g-f-header, blur(4px)); }
