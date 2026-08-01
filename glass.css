@@ -54,13 +54,13 @@
        ——弯月本体是「填充里的径向镜面高光」，box-shadow 只做边缘微光；不再是多层薄弧（=细线）。 */
   --g-liquid:
     inset 0 0 8px rgba(255,255,255,.12),       /* 整体内发光：玻璃厚度感 */
-    inset 0 12px 22px -10px rgba(30,26,64,.40),/* 下缘张力暗弧（浅底可见的暗弯月：液滴收底必明显） */
+    inset 0 12px 16px -10px rgba(30,26,64,.55),/* 下缘张力暗弧（浅底可见的暗弯月：加深加锐——用户诊断③：原 .40+22px 太淡） */
     inset 0 -1px 1px rgba(255,255,255,.22),    /* 下缘微亮回边 */
     inset 0 2px 2px -1px rgba(255,255,255,.80),/* 上缘亮带 2px（细边缘微光，弯月本体在填充，不抢） */
     inset 0 0 0 1px rgba(255,255,255,.48);     /* 发丝白边 */
   --g-liquid-sm:
     inset 0 0 5px rgba(255,255,255,.12),
-    inset 0 8px 14px -8px rgba(30,26,64,.34),  /* 下缘张力暗弧（小件同样要明显） */
+    inset 0 8px 12px -8px rgba(30,26,64,.45),  /* 下缘张力暗弧（小件同样加深加锐） */
     inset 0 -1px 1px rgba(255,255,255,.18),
     inset 0 1px 1px rgba(255,255,255,.78),     /* 上缘细亮线 */
     inset 0 0 0 1px rgba(255,255,255,.44);
@@ -164,8 +164,9 @@ body { background: transparent; }
    旧 130% 把背景拉灰成雾感；blur 2-8px 为通透区间）
    边缘 = design.dev 七层配方（见 --g-liquid） */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-  /* 弯月本体：填充里的锐利新月弧（设计.dev 同法——中心亮弧 + 两侧自然收暗），浅底可见靠 .90 高光 + 快速衰减 */
-  --g-fill: radial-gradient(ellipse 120% 55% at 50% -5%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.45) 18%, rgba(255,255,255,.14) 36%, rgba(255,255,255,.06) 60%, rgba(255,255,255,.04) 100%);
+  /* 弯月本体：填充里的锐利新月弧。峰值 at 50% 4% 移入卡内（原 -5% 峰值被裁在上缘外，可见区只剩 ~.45 窄条——用户诊断②），
+     浅底可见靠 .90 峰值进卡 + 快速衰减；下缘暗弧（浅底可见的那半）在 --g-liquid 加深加锐 */
+  --g-fill: radial-gradient(ellipse 120% 55% at 50% 4%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.45) 18%, rgba(255,255,255,.14) 36%, rgba(255,255,255,.06) 60%, rgba(255,255,255,.04) 100%);
   --g-frost: var(--g-f-card, blur(6px) saturate(180%) brightness(1.05));
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
