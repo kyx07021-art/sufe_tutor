@@ -617,7 +617,7 @@ textarea.form-input {
 /* 用户块整体可点（登录态 → 个人信息右栏；访客态 → 登录通路）：button 复位为纯容器 */
 .sidebar-user-btn { width: 100%; background: none; border: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .sidebar-user-name--guest { color: var(--muted); font-weight: 700; }
-.avatar--guest { border: 1.5px dashed var(--muted); color: var(--muted); background: none; }
+.avatar--guest { color: var(--muted); background: none; } /* S8：边框唯一主人 = glass.css（同特异性靠加载序定生死的竞争已删一方） */
 .sidebar-user-avatar { width: 42px; height: 42px; font-size: 1.15rem; }
 .sidebar-user-text { min-width: 0; }
 .sidebar-user-name { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; overflow-wrap: anywhere; }

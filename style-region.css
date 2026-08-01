@@ -30,12 +30,12 @@
 /* ---------- 学生端：等第制 / 分数制页签 ---------- */
 
 /* 左右对半分 pill 组：直角、墨色描边，active = 墨底白字 */
+/* S2 修复：删手绘背景/圆角/阴影（双底双影顶掉引擎）——底/影交还引擎（glass.css --g-fill/--g-r/--g-lift） */
 .score-mode-tabs {
   display: inline-flex;
   width: 172px;
   flex-shrink: 0;
   border: none; overflow: hidden;
-  background: rgba(255,255,255,.1); border-radius: var(--lg-r-sm); box-shadow: var(--glass-lift-sm);
 }
 .score-mode-tab {
   flex: 1 1 50%;
