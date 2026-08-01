@@ -1075,7 +1075,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    未上传 = id 首字符 + 米色底，上传图由 object-fit 居中铺满 */
 .avatar {
   display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  border-radius: 50%; overflow: hidden;
+  overflow: hidden; /* G35：圆角交还引擎 --g-r:50%（glass.css:210），删潜伏直写 */
   color: var(--ink);
   font-family: var(--font); font-weight: 700; letter-spacing: -.02em; user-select: none;
 }
@@ -1309,7 +1309,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 .about-flow { display: flex; flex-direction: column; padding: 4px 2px 0; }
 .about-flow-step { display: flex; gap: 14px; }
 .about-flow-rail { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
-.about-flow-dot { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: .78rem; font-weight: 700; color: var(--ink); }
+.about-flow-dot { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: .78rem; font-weight: 700; color: var(--ink); } /* G35：圆角交还引擎 --g-r:50%（glass.css:356） */
 .about-flow-line { width: 1.5px; flex: 1; min-height: 28px; margin: 5px 0; background: var(--line); }
 .about-flow-text { margin: 4px 0 20px; font-size: .86rem; line-height: 1.65; color: var(--ink-3); }
 .about-flow-step:last-child .about-flow-text { margin-bottom: 2px; }

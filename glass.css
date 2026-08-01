@@ -278,7 +278,7 @@ body { background: transparent; }
 .chats-shell { background: transparent; }
 .chats-list-pane { background: rgba(255,255,255,.12); }
 .chat-pane, .chat-messages { background: transparent; background-image: none; }
-.conv-pill { --g-fill: rgba(255,255,255,.22); --g-lift: var(--glass-lift-sm); } /* G9：直写 background/box-shadow 被 ::before 盖死 → 交还 --g-fill/--g-lift 参数 */
+.conv-pill { --g-fill: rgba(255,255,255,.22); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r); } /* G9+G34：直写交还参数（G34 补回 --g-r，防圆角从 12px 回落到引擎默认 9px） */
 .conv-item { border-radius: var(--lg-r); }
 .conv-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.16)); }
 .conv-item:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(122,104,224,.4); border-radius: var(--lg-r); }

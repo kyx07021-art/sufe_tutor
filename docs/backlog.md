@@ -44,7 +44,7 @@
 - ✅ **G18 
 - ✅ **G19 
 - 🟡 **G20 landing-stage 二分底色死**（style.css:170/980 渐变被 glass.css:288 `background:transparent` 胜 → 光球舞台透出；与 G8 联动核对是否设计意图，删或恢复需定）。
-- 🟡 **G21 navbar 三处死代码**（style.css:101-102 平底 / 107 landing 渐变 / 981 media，全被 glass.css:286/287 胜）→ 并入 G8 一起删。
+- ✅ **G21 navbar 三处死代码**（style.css:101-102 平底 / 107 landing 渐变 / 981 media，全被 glass.css:286/287 胜）→ 已删（G3 收口 6ad7935 顺带完成，本项修正翻 ✅）。
 - ✅ **G22 
 - ✅ **G23 
 - ✅ **G24 
@@ -64,10 +64,18 @@
 
 ✅ **已核实无需动作**：style.css 无 ::before 内容伪元素（竖条全在 ::after，与引擎玻璃体零冲突）；头像 border 直写（glass.css:216/218）为无参数通道的合理例外（S8 已判保留）；sidebar-item/conv-item 手卷 hover（G5）保留。
 
+> ——— 第三轮复核（2026-08-01，主会话验收 v0.19.8 收口提交 a8a20d5+6ad7935）———
+
+- ✅ **G34 conv-pill 圆角回归**（glass.css:281：G9 删 `border-radius:var(--lg-r)` 直写时没补参数 → 吃引擎默认 9px，原 12px，会话 pill 变方）→ 已补 `--g-r: var(--lg-r)`。
+- ✅ **G35 avatar/about-flow-dot 潜伏圆角直写**（style.css:1078 `.avatar{border-radius:50%}` + 1312 `.about-flow-dot{border-radius:50%}`——值与引擎 `--g-r:50%` 一致无视觉差，但直写占位，将来改 --g-r 不生效）→ 已删直写交还参数。
+- ✅ **G36 G10 空块残留**（style-region.css:55 `.score-mode-tab.active { }` 删白字后留空壳）→ 已删。
+- ✅ **G21 状态修正**：6ad7935 已删 navbar 三处背景直写（style.css:101-102/107/981），实际已完成 → 翻 ✅。
+- 🟡 **验收备注·G29 外观新增**：chat-textarea/posts-search/post-body-input 由 glass.css:253 输入组接管（背景/圆角/内高光），从透明变玻璃输入框——计划内但属外观新增；已核原文件仅布局属性（padding/min-height/font），无属性冲突。
+- 🟡 **验收备注·弯月可见化混入收口**：v0.19.8 收口提交内夹带视觉改动（卡 fill .35/暗弧 .40/新月带），后续 v0.19.9/10 独立迭代到「填充弧单机制+卡族 --g-sheen:none」。不破坏收口规则，但收口提交不纯粹。
+
 ## 🟡 醒着核对后做（高风险重构，勿凌晨盲改）
 - **C1 弹窗壳跨文件重复**：modal-header 模板 ×17（app.js:713,1237,1299,1502,1668,1881,1959；app-contracts.js:110,123,155,228；app-admin.js:44,99；app-posts.js:123,298,338）+ 可点遮罩 ×11 + md-toolbar ×5 → 抽 `openModal({title,body,footer,closable})` + `mdToolbarHtml()`。**风险**：每个弹窗有自己的 form id / 动态标题 / 自定义 class / footer 按钮接线；抽壳若错会炸全站弹窗。建议逐个迁移+逐个截图/手测验证。
 - ✅ **C2 前后端错误码体系（定向版 v0.19.8）**：`error()` 加可选 `code` 参数（向后兼容），档案不完整 → `PROFILE_INCOMPLETE`、帖子删除不存在 → `POST_NOT_FOUND`；前端 api 封装把 `code` 挂到抛出的 Error，两处脆分支改按 code 判定（保留 MSG 兜底）。其余 error 路径暂未全覆盖，可续。
-- **C1 弹窗壳跨文件重复**：modal-header 模板 ×17 + 可点遮罩 ×11 + md-toolbar ×5 → 抽 `openModal()`。**风险**：每个弹窗有自己的 form id / 动态标题 / 自定义 class；抽壳若错会炸全站弹窗。建议逐个迁移验证，**排队醒着核对**。
 
 ## 已判定不改（保留，附理由）
 - **C8 `role-tabs::after`**：非孤儿，是 base 滑动下划线指示器；glass `.role-tab.active` 胶囊是叠加态，不替代下划线。删了会丢激活下划线。
