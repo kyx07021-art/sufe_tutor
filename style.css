@@ -890,8 +890,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    Admin Dashboard
    ============================================================ */
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
-.stat-card { padding: 20px; position: relative; overflow: hidden; }
-.stat-card::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--paper-3); z-index: 1; }
+.stat-card { padding: 20px; position: relative; overflow: hidden; } /* 左 3px 米色竖条(旧设计残留)已删：stat-card::after 在玻璃卡上成米色边缘 */
 .stat-card .stat-value { font-family: var(--font); font-size: 1.9rem; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
 .stat-card .stat-label { font-size: .72rem; color: var(--muted); font-weight: 600; margin-top: 8px; letter-spacing: .03em; }
 .stat-card .stat-value.blue  { color: var(--accent-deep); }
