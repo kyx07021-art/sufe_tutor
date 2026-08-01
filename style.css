@@ -440,6 +440,10 @@ textarea.form-input {
 .custom-select-panel {
   position: fixed; z-index: 300; /* 挂 body + fixed + 顶层 z：脱离玻璃 isolation 堆叠上下文（v0.19.25 架构债根治，left/top/width 由 JS 定位） */
   margin-top: 6px; padding: 4px;
+  /* v0.19.28：面板自身实填充（--g-paper 单点复用），不用 ::before 玻璃衬底（衬底在滚动容器里随内容滚动=bug） */
+  background: var(--g-paper, rgba(255,255,255,.68));
+  border-radius: var(--lg-r);
+  box-shadow: var(--glass-lift);
 
   max-height: 264px; overflow-y: auto;
   opacity: 0; visibility: hidden; transform: translateY(-6px);

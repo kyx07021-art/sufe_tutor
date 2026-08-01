@@ -51,6 +51,8 @@
      默认用「无痕零阴影」占位而非 none——box-shadow 语法是 none | <shadow>#，列表项混入 none 整条非法，
      浏览器会整条回退成 none（v0.19.7 起弯月/发丝/暗弧/hover白洗全线断线的根因，v0.19.17 修） */
   --g-surface: inset 0 0 0 0 transparent;
+  /* 浮层纸面填充单点（v0.19.28）：modal / profile-panel / 下拉面板复用同一配置——实填充可读纸面，不透底下文字 */
+  --g-paper: rgba(255,255,255,.68);
   /* ---- 液体边缘（液态玻璃 v0.19.2 · 基于真实还原研究，非拍脑袋）：
        design.dev Liquid Glass 七层配方（2026 生成器实测）+ 上缘镜面高光归入填充（见卡族 --g-fill）：
        上缘亮带(最亮 .70) + 发丝白边(.35) + 下缘张力暗弧 + 下缘微亮回边 + 整体内发光。
@@ -176,14 +178,14 @@ body { background: transparent; }
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
-  /* 浮窗=毛玻璃「纸面」：blur 24 重毛 + 填充 .56 不透字（v0.19.27 反思：透字真因是填充 .34 透出 66% 背景，
-     blur 只模糊形状不挡亮度；用户层级：容器毛=可读纸面，控件透=玻璃上的玻璃） */
-  --g-fill: rgba(255,255,255,.56); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
+  /* 浮窗=毛玻璃「纸面」：blur 24 重毛 + 纸面填充 --g-paper 单点（v0.19.28 三件复用同一配置；
+     透字真因=填充太透+遮罩太亮，blur 只模糊形状不挡亮度。用户层级：容器毛=可读纸面，控件透=玻璃上的玻璃） */
+  --g-fill: var(--g-paper); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
   --g-lift: var(--glass-lift);
 }
 .modal { --g-r: var(--lg-r-lg); }
 .custom-select-panel, .chat-plus-pop { --g-r: var(--lg-r); }
-.custom-select-panel { --g-fill: rgba(255,255,255,.62); } /* 面板=明确可读玻璃面板（浮层族 .34 太透，选项像悬空文字；v0.19.25 挂 body 后玻璃体真渲染） */
+/* 下拉面板：自身实填充（--g-paper），不再用 ::before 玻璃衬底——衬底在滚动容器里会随内容滚动（v0.19.28 去 glass 类，见 style.css） */
 .profile-panel { --g-r: var(--lg-r-lg); }
 /* 头栏=玻璃上的玻璃：透（填充 .16，比浮窗更透）——旧 .55 近实白条把表头钉死，已按用户层级改透 */
 .modal-header, .profile-panel-head { --g-fill: rgba(255,255,255,.16); --g-frost: var(--g-f-header, blur(4px)); }
@@ -301,7 +303,7 @@ body { background: transparent; }
 .modal { display: flex; flex-direction: column; overflow: hidden; }
 .modal-header { flex: 0 0 auto; border-bottom: 1.5px solid rgba(255,255,255,.22); position: relative; z-index: 2; }
 .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; position: relative; z-index: 1; }
-.modal-overlay { background: rgba(30,26,64,.32); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
+.modal-overlay { background: rgba(30,26,64,.45); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); } /* v0.19.28：遮罩压暗同 profile-panel-backdrop 思路——背后暗，纸面才显实 */
 .form-group + .form-group { border-top: 1.5px solid rgba(30,26,64,.16); }
 .form-group { background: transparent; }
 
