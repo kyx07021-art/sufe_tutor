@@ -170,7 +170,8 @@ body { background: transparent; }
    旧 130% 把背景拉灰成雾感；blur 2-8px 为通透区间）
    边缘 = design.dev 七层配方（见 --g-liquid） */
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
-  --g-fill: radial-gradient(ellipse 130% 90% at 50% 0%, rgba(255,255,255,.35) 0%, rgba(255,255,255,.16) 50%, rgba(255,255,255,.05) 100%);
+  /* 弯月本体：顶部锐利新月弧（设计.dev 同法——中心亮弧 + 两侧自然收暗），浅底可见靠 .90 高光 + 快速衰减 */
+  --g-fill: radial-gradient(ellipse 120% 55% at 50% -5%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.45) 18%, rgba(255,255,255,.14) 36%, rgba(255,255,255,.06) 60%, rgba(255,255,255,.04) 100%);
   --g-frost: var(--g-f-card, blur(6px) saturate(180%) brightness(1.05));
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
