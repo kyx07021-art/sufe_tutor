@@ -303,7 +303,10 @@ body { background: transparent; }
 .modal { display: flex; flex-direction: column; overflow: hidden; }
 .modal-header { flex: 0 0 auto; border-bottom: 1.5px solid rgba(255,255,255,.22); position: relative; z-index: 2; }
 .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; position: relative; z-index: 1; }
-.modal-overlay { -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); } /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=表单浮窗自灰；只虚化不加深），虚化保留 */
+/* v0.19.36：overlay 预模糊连根删——modal 隔着 blur(4px) 层看原画面=糊上加糊、形状对比弱=显不毛；
+   profile-panel 直接坐原画面（形状清晰、模糊对比强=显毛），删后 modal 与 profile-panel 同款毛感
+   （用户："表单浮窗不够毛，把个人信息栏面板的配置扔给它"）。顺带消除 overlay 自身
+   backdrop-filter + fade-in opacity 动画的 Chromium 983252 失效隐患（v0.19.33 只修了 modal 没修 overlay） */
 .form-group + .form-group { border-top: 1.5px solid rgba(30,26,64,.16); }
 .form-group { background: transparent; }
 
