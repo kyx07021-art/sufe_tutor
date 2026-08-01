@@ -1453,12 +1453,67 @@ function matchDegree(teacher, demand) {
   if (!total) return null;
   return Math.min(100, Math.round(score / total * 100));
 }
+
+// 匹配度明细悬浮卡（v0.19.45）：分项对齐 matchDegree 口径——科目 60（命中比例）/ 区域 20（同省）/ 预算 20（报价在区间内），
+// 缺数据维度不计分并明示。毛度同浮窗纸面（glass.css .match-detail 参数，modal 同级）
+function matchDetailHtml(t, d, md) {
+  const tSubj = Array.isArray(t.subjects) ? t.subjects : [];
+  const dSubj = Array.isArray(d.target_subjects) ? d.target_subjects : [];
+  const hit = dSubj.filter(s => tSubj.includes(s)).length;
+  const subjOn = tSubj.length > 0 && dSubj.length > 0;
+  const subjScore = subjOn ? Math.round(hit / dSubj.length * 60) : null;
+  const regionOn = !!(t.province && d.province);
+  const regionScore = regionOn ? (t.province === d.province ? 20 : 0) : null;
+  const budgetOn = t.price != null && (d.budget_min || d.budget_max);
+  const budgetScore = budgetOn
+    ? ((!d.budget_min || t.price >= d.budget_min) && (!d.budget_max || t.price <= d.budget_max) ? 20 : 0) : null;
+  const bar = (s, max) => `<div class="match-bar${s === 0 ? ' match-bar--zero' : ''}"><i style="width:${s == null ? 0 : Math.round(s / max * 100)}%"></i></div>`;
+  const row = (k, s, max, hint) => `<div class="match-row">
+    <span class="match-row-top"><span class="match-row-k">${k}</span><span class="match-row-s${s == null ? ' match-row-s--skip' : ''}">${s == null ? UI.MATCH_DIM_SKIP : s + '/' + max}</span></span>
+    ${bar(s, max)}
+    <span class="match-row-hint">${hint}</span>
+  </div>`;
+  const subjHint = subjOn ? UI.MATCH_SUBJECT_HIT.replace('{hit}', hit).replace('{total}', dSubj.length) : UI.MATCH_DIM_SKIP;
+  const regionHint = !regionOn ? UI.MATCH_DIM_SKIP : (regionScore === 20 ? UI.MATCH_REGION_HIT.replace('{name}', escHtml(DISP.provinceName(d.province))) : UI.MATCH_REGION_MISS);
+  const budgetHint = !budgetOn ? UI.MATCH_DIM_SKIP : (budgetScore === 20 ? UI.MATCH_BUDGET_HIT : UI.MATCH_BUDGET_MISS);
+  return `<div class="match-detail glass glass--float" role="dialog" aria-label="${UI.MATCH_DETAIL_TITLE}">
+    <div class="match-detail-head"><span class="match-detail-pct">${md}%</span><span class="match-detail-title">${UI.MATCH_DETAIL_TITLE}</span></div>
+    <p class="match-detail-sub">${UI.MATCH_DETAIL_SUB}</p>
+    ${row(UI.MATCH_ITEM_SUBJECT, subjScore, 60, subjHint)}
+    ${row(UI.MATCH_ITEM_REGION, regionScore, 20, regionHint)}
+    ${row(UI.MATCH_ITEM_BUDGET, budgetScore, 20, budgetHint)}
+    <p class="match-note">${UI.MATCH_NOTE}</p>
+  </div>`;
+}
+
+// 点击开关 + 外部点击 / Esc 关闭（同一时刻至多一张，数据在渲染时存 window._matchDetail）
+let _matchDetailOpen = false;
+function showMatchDetail(btn) {
+  const data = window._matchDetail;
+  if (!data || !data.teacher || !data.demand) return;
+  if (_matchDetailOpen) { closeMatchDetail(); return; }
+  const md = matchDegree(data.teacher, data.demand);
+  if (md == null) return;
+  btn.insertAdjacentHTML('afterend', matchDetailHtml(data.teacher, data.demand, md));
+  _matchDetailOpen = true;
+}
+function closeMatchDetail() {
+  const card = document.querySelector('.match-detail');
+  if (card) card.remove();
+  _matchDetailOpen = false;
+}
+document.addEventListener('click', e => {
+  if (!_matchDetailOpen) return;
+  if (!e.target.closest('.match-detail') && !e.target.closest('.tag-match')) closeMatchDetail();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMatchDetail(); });
+
 function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false, myTeacher = null } = opts;
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
-  // 匹配度徽章（教师视角 + 教师档案齐全时展示）
+  // 匹配度徽章（教师视角 + 教师档案齐全时展示）：v0.19.45 变按钮，点击呼出明细悬浮卡
   const matchTag = (teacher && myTeacher)
-    ? (() => { const md = matchDegree(myTeacher, d); return md == null ? '' : `<span class="tag tag-match glass glass--solid">${UI.TAG_MATCH}${md}%</span>`; })()
+    ? (() => { const md = matchDegree(myTeacher, d); if (md == null) return ''; window._matchDetail = { teacher: myTeacher, demand: d }; return `<button type="button" class="tag tag-match glass glass--solid" onclick="showMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${md}%</button>`; })()
     : '';
   const provinceName = DISP.provinceName(d.province);
   const subjNames = (d.target_subjects||[]).map(id => DISP.subjectName(id));

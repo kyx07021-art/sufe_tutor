@@ -340,6 +340,8 @@ body { background: transparent; }
 .tag-ok { --g-fill: rgba(24,122,75,.22); color: #187a4b; }
 /* 科目匹配度徽章（运营建议：教师需求大厅显示「匹配度 N%」）——实心绿底白字，醒目不可漏看 */
 .tag-match { margin-left: 6px; /* v0.19.44 与用户名拉开（空格 4px 太紧，改可靠 margin，与已签约 tag 同手感） */ --g-fill: linear-gradient(160deg, rgba(24,122,75,.9), rgba(24,122,75,.72)); color: #fff; font-weight: 800; padding: 4px 11px; letter-spacing: .02em; }
+/* v0.19.45 匹配度明细悬浮卡：纸面同浮窗三件套（modal 毛度 = 填写资料浮窗同级），玻璃体在元素自身 */
+.match-detail { --g-fill: var(--g-paper); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04)); --g-r: var(--lg-r-lg); --g-lift: var(--glass-lift); }
 .tag-danger { --g-fill: rgba(198,72,58,.20); color: var(--danger); }
 .tag-warn { --g-fill: rgba(154,106,42,.20); color: var(--warn-deep); }
 .tag-accent { --g-fill: rgba(122,104,224,.20); color: var(--accent-deep); }

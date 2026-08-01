@@ -862,6 +862,34 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   display: inline-flex; align-items: center; padding: 3px 10px;
   font-size: .72rem; font-weight: 600; color: var(--ink-3); letter-spacing: .01em;
 }
+/* v0.19.45 匹配度 tag 按钮化：承接 .tag 造型 + 引擎焦点环（focus 动效），hover 提示 */
+button.tag { cursor: pointer; border: none; font-family: inherit; }
+
+/* 匹配度明细悬浮卡：跟随需求卡右上角呼出（.list-card 已 relative），毛度同浮窗纸面 */
+.match-detail {
+  position: absolute; right: 10px; top: 44px; z-index: 5;
+  width: min(300px, calc(100% - 20px));
+  padding: 14px 16px 12px;
+  animation: match-detail-in .18s var(--ease-out);
+}
+@keyframes match-detail-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: none; }
+}
+.match-detail-head { display: flex; align-items: baseline; gap: 8px; }
+.match-detail-pct { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; color: var(--accent-deep); }
+.match-detail-title { font-size: .78rem; font-weight: 700; letter-spacing: .06em; color: var(--ink); }
+.match-detail-sub { margin: 2px 0 10px; font-size: .72rem; color: var(--muted); }
+.match-row + .match-row { margin-top: 8px; }
+.match-row-top { display: flex; justify-content: space-between; align-items: baseline; font-size: .74rem; }
+.match-row-k { font-weight: 700; color: var(--ink); }
+.match-row-s { font-weight: 800; color: var(--accent-deep); }
+.match-row-s--skip { font-weight: 600; color: var(--muted); font-size: .68rem; }
+.match-bar { margin-top: 3px; height: 4px; border-radius: 999px; background: rgba(255,255,255,.25); overflow: hidden; }
+.match-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); }
+.match-bar--zero i { background: rgba(255,255,255,.35); }
+.match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
+.match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.22); font-size: .66rem; line-height: 1.5; color: var(--muted); }
 
 
 

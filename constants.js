@@ -11,7 +11,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.44',
+  APP_VERSION: '0.19.45',
 
   // ============================================================
   // 业务数据
@@ -282,6 +282,19 @@ globalThis.APP_CONSTANTS = {
     DEMAND_TAG_CONTRACTED: '已签约',
     DEMAND_TAG_REVOKED: '合同已撤销',
     TAG_MATCH: '匹配度 ',
+    TAG_MATCH_TITLE: '点击查看匹配度明细',
+    MATCH_DETAIL_TITLE: '匹配度明细',
+    MATCH_DETAIL_SUB: '根据你的教师档案与这条需求自动计算',
+    MATCH_ITEM_SUBJECT: '科目匹配',
+    MATCH_ITEM_REGION: '区域匹配',
+    MATCH_ITEM_BUDGET: '预算匹配',
+    MATCH_SUBJECT_HIT: '命中 {hit}/{total} 门需求科目',
+    MATCH_REGION_HIT: '同省（{name}），区域吻合',
+    MATCH_REGION_MISS: '省份不符，区域不匹配',
+    MATCH_BUDGET_HIT: '报价在需求预算区间内',
+    MATCH_BUDGET_MISS: '报价超出需求预算区间',
+    MATCH_DIM_SKIP: '该项缺数据，未计入',
+    MATCH_NOTE: '计分口径：科目 60 分（命中需求科目的比例）+ 区域 20 分（同省）+ 预算 20 分（报价在区间内）。缺数据的维度不计分，总分按有效维度归一化到 100。',
     BTN_REOPEN_DEMAND: '重开需求',
     DEMAND_REOPENED_TOAST: '需求已重新开放',
     CONFIRM_REOPEN_DEMAND: '重开后该需求将重新出现在需求大厅，再次接受教师意向。确定重开吗？',
