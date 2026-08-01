@@ -12,9 +12,10 @@
 
    层模型（自底向上）：
      ① 全局舞台（lg-bg 光球+底板，页面级）
-     ② 玻璃体 ::before（z-index:-1：填充 --g-fill + 磨砂 --g-frost）
+     ② 玻璃体 ::before（z-index:-1：填充 --g-fill + 磨砂 --g-frost + 表面阴影 --g-liquid / --g-surface / --g-hover）
      ③ 内容（元素自身 DOM）
-     ④ 交互状态 + 液体弯月（同元素 box-shadow：--g-liquid / --g-hover / --g-raise / --g-scale / --g-ring）
+     ④ 元素层 box-shadow：外浮影 --g-lift + 焦点环 --g-ring
+       （表面 inset 阴影绝不画在元素层——会被 ② 盖住，v0.19.6 修复根因）
 
    参数接口（组件类只设这些，缺省全有默认值）：
      --g-fill    玻璃体填充（色/渐变）
@@ -46,22 +47,23 @@
   --g-raise: 0;
   --g-scale: 1;
   --g-ring: rgba(122,104,224,.55);
+  --g-surface: none; /* 表面 inset 阴影（语义色条等，画在 ::before 之上，见层模型②） */
   /* ---- 液体边缘（液态玻璃 v0.19.2 · 基于真实还原研究，非拍脑袋）：
        design.dev Liquid Glass 七层配方（2026 生成器实测）+ 上缘镜面高光归入填充（见卡族 --g-fill）：
        上缘亮带(最亮 .70) + 发丝白边(.35) + 下缘张力暗弧 + 下缘微亮回边 + 整体内发光。
        ——弯月本体是「填充里的径向镜面高光」，box-shadow 只做边缘微光；不再是多层薄弧（=细线）。 */
   --g-liquid:
     inset 0 0 8px rgba(255,255,255,.12),       /* 整体内发光：玻璃厚度感 */
-    inset 0 4px 8px -4px rgba(30,26,64,.10),   /* 下缘张力暗弧 */
-    inset 0 -1px 1px rgba(255,255,255,.18),    /* 下缘微亮回边 */
-    inset 0 2px 2px -1px rgba(255,255,255,.72),/* 上缘亮带 2px（研究：大卡 1.5-2px，旧 1px 羞涩） */
-    inset 0 0 0 1px rgba(255,255,255,.45);     /* 发丝白边（研究大胆档 .38-.53） */
+    inset 0 10px 16px -9px rgba(30,26,64,.26), /* 下缘张力暗弧（弯月在浅底的可见主体：液滴收底必明显） */
+    inset 0 -1px 1px rgba(255,255,255,.22),    /* 下缘微亮回边 */
+    inset 0 2px 2px -1px rgba(255,255,255,.80),/* 上缘亮带 2px（受光，深底/彩底上明显） */
+    inset 0 0 0 1px rgba(255,255,255,.48);     /* 发丝白边 */
   --g-liquid-sm:
     inset 0 0 5px rgba(255,255,255,.12),
-    inset 0 2px 4px -2px rgba(30,26,64,.12),
-    inset 0 -1px 1px rgba(255,255,255,.16),
-    inset 0 1px 1px rgba(255,255,255,.72),
-    inset 0 0 0 1px rgba(255,255,255,.40);
+    inset 0 6px 10px -6px rgba(30,26,64,.22),  /* 下缘张力暗弧（小件同样要明显） */
+    inset 0 -1px 1px rgba(255,255,255,.18),
+    inset 0 1px 1px rgba(255,255,255,.78),
+    inset 0 0 0 1px rgba(255,255,255,.44);
 }
 
 html { background: #ECEAF0; }
@@ -108,14 +110,16 @@ body { background: transparent; }
   position: relative; isolation: isolate; background: none; border: none;
   border-radius: var(--g-r, var(--lg-r-sm));
   color: var(--g-fg, inherit);
-  /* 浮影 + 液体弯月合并：弯月画在元素层（不受玻璃体裁剪），液态边缘清晰可见 */
-  box-shadow: var(--g-lift), var(--g-liquid, none);
+  /* 外浮影在元素层（::before 的外阴影会被 overflow:hidden 裁掉，故 lift 只能住元素层）；
+     表面阴影（弯月/语义条/hover 白洗）归 ::before，见下方玻璃体规则 */
+  box-shadow: var(--g-lift);
   transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-base, .3s) var(--ease-out, ease);
 }
-/* ::before 玻璃体：填充 + 磨砂。z-index:-1 永远在内容之下。
-   液体弯月画在元素层 box-shadow（--g-liquid，沿圆角）——深/浅背景都可靠。 */
+/* ::before 玻璃体 = 玻璃表面：填充 + 磨砂 + 表面阴影。z-index:-1 永远在内容之下。
+   液体弯月 / 语义色条 / hover 白洗全住这里——元素层 inset 阴影会被本层盖住（v0.19.6 修复根因）。 */
 .glass::before, .glass--float::before {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  box-shadow: var(--g-liquid, none), var(--g-surface, none);
   /* 镜面弯月（design.dev 同法）：径向高光层 + 主体填充，默认 screen 混合 → 大表面（卡/浮窗）上缘发光弧。
      注意：sheen 只适合大表面——小控件（按钮/气泡等）上它占上半 = 老式上缘高光，故按钮族显式设 --g-sheen:none。
      --g-sheen 可关（none），--g-blend 可改（normal）。 */
@@ -129,8 +133,12 @@ body { background: transparent; }
    :where() 降特异性 → 组件自有 transform（.entry:hover/.post-like:active 等）天然胜出，
    引擎只兜底；组件未设 --g-raise/--g-scale 时 transform 为恒等变换，零干扰。 ---- */
 :where(.glass, .glass--float):hover:not(:disabled) {
-  box-shadow: var(--g-lift), var(--g-liquid, none), inset 0 0 0 9999px var(--g-hover);
+  box-shadow: var(--g-lift);
   transform: translateY(var(--g-raise));
+}
+/* hover 白洗叠在玻璃表面上（inset 阴影在元素层会被 ::before 盖住，必须住 ::before；--g-hover 默认 transparent=无感） */
+:where(.glass, .glass--float):hover:not(:disabled)::before {
+  box-shadow: var(--g-liquid, none), var(--g-surface, none), inset 0 0 0 9999px var(--g-hover);
 }
 :where(.glass, .glass--float):active:not(:disabled) {
   transform: translateY(var(--g-raise)) scale(var(--g-scale));
@@ -138,7 +146,7 @@ body { background: transparent; }
 /* 焦点=外双色环；.sim-focus 同声明供 headless 截图 */
 :where(.glass, .glass--float):focus-visible,
 :where(.glass, .glass--float).sim-focus {
-  outline: none; box-shadow: var(--g-lift), var(--g-liquid, none), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
+  outline: none; box-shadow: var(--g-lift), 0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
 }
 /* ---- 涟漪（可交互实心件）：玻璃体 ::before 之上、内容之下 ---- */
 .glass--pressable { overflow: hidden; }
@@ -210,7 +218,7 @@ body { background: transparent; }
 .avatar--guest { --g-fill: rgba(255,255,255,.12); border: 1.5px dashed rgba(110,110,118,.5); --g-lift: none; }
 /* 分段控件（实心遮罩） */
 .role-tabs { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); padding: 4px; }
-.role-tab.active { background: rgba(255,255,255,.22); color: var(--ink); border-radius: 7px; }
+.role-tab.active { background: rgba(255,255,255,.22); border-radius: 7px; } /* active 文字色由 style.css 单源（.role-tab.active color） */
 
 /* ============================================================
    实心小件预设（标签 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）
@@ -323,7 +331,7 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 .tag-warn { background: rgba(154,106,42,.20); color: var(--warn-deep); }
 .tag-accent { background: rgba(122,104,224,.20); color: var(--accent-deep); }
 /* 反馈卡 Bug 红色警示 */
-.feedback-card--bug { --g-fill: rgba(198,72,58,.12); --g-lift: var(--glass-lift), inset 3px 0 0 var(--danger); }
+.feedback-card--bug { --g-fill: rgba(198,72,58,.12); --g-surface: inset 3px 0 0 var(--danger); }
 
 /* 资料广场 */
 .posts-toolbar { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
@@ -349,8 +357,8 @@ body:has(#view-landing:not(.hidden)) .navbar { background: linear-gradient(90deg
 .feedback-kind-btn.active { --g-fill: rgba(255,255,255,.22); --g-fg: var(--ink); }
 
 /* 警示条（语义强填充 + 左色条） */
-.alert-error { --g-fill: rgba(198,72,58,.14); --g-fg: var(--danger-deep); --g-lift: inset 3px 0 0 var(--danger); --g-r: var(--lg-r-sm); }
-.alert-success { --g-fill: rgba(24,122,75,.14); --g-fg: var(--ok-deep, #187a4b); --g-lift: inset 3px 0 0 #187a4b; --g-r: var(--lg-r-sm); }
+.alert-error { --g-fill: rgba(198,72,58,.14); --g-fg: var(--danger-deep); --g-surface: inset 3px 0 0 var(--danger); --g-r: var(--lg-r-sm); }
+.alert-success { --g-fill: rgba(24,122,75,.14); --g-fg: var(--ok-deep, #187a4b); --g-surface: inset 3px 0 0 #187a4b; --g-r: var(--lg-r-sm); }
 
 /* 推送需求单选行 */
 .push-pick-item { --g-fill: rgba(255,255,255,.06); --g-r: var(--lg-r-sm); }
