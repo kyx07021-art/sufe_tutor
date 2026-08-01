@@ -161,8 +161,11 @@ function positionCustomSelectPanel(wrap) {
   panel.style.top = `${r.bottom + 6}px`;
   panel.style.width = `${r.width}px`;
 }
-// 滚动即收起（fixed 面板不跟随滚动；capture 捕获所有滚动容器）
-document.addEventListener('scroll', () => closeAllCustomSelects(), { capture: true, passive: true });
+// 滚动即收起（fixed 面板不跟随滚动；capture 捕获所有滚动容器，但面板自身滚动除外——否则一滚面板就收）
+document.addEventListener('scroll', e => {
+  if (e.target.closest && e.target.closest('.custom-select-panel')) return;
+  closeAllCustomSelects();
+}, { capture: true, passive: true });
 // 兜底自愈：任何动态插入的 select 自动包装为自定义下拉（防移动端弹出原生选择器），
 // 只处理尚未包装的，避免重复构建干扰已打开的面板
 const selectSweepObserver = new MutationObserver(() => {
