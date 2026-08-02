@@ -495,7 +495,10 @@ textarea.form-input {
 .form-group > textarea.form-input { flex-basis: 100%; order: 2; }
 .form-group > .md-toolbar { flex-basis: 100%; order: 3; margin-top: 10px; }
 
-.profile-form { max-width: 640px; margin: 0 auto; padding: 8px; }
+/* 定位上下文：档案页复用聊天区 .sr-file-input（absolute 1px 透明文件框）时，
+   无此上下文则其 containing block 直落 ICB——脱离 main/壳的 overflow 裁剪，
+   把 document 撑出第二条滚动条（v0.19.48 根因：profile-credential-file absolute 撑高 html） */
+.profile-form { position: relative; max-width: 640px; margin: 0 auto; padding: 8px; }
 
 /* 教师档案内联成绩 */
 .gaokao-section { margin-bottom: 18px; }
