@@ -465,9 +465,9 @@
           <div id="notifications-content"><div class="empty-state"><p>加载中...</p></div></div>
         </section>
 
-        <!-- 全角色：账户设置（展示账户绑定信息；退出登录在页底 + 二次确认） -->
+        <!-- 全角色：设置（外观主题区 + 账户信息区；退出登录在页底 + 二次确认） -->
         <section class="client-page hidden" data-page="account-settings">
-          <div class="page-header"><h2>账户设置</h2></div>
+          <div class="page-header"><h2>设置</h2></div>
           <div id="account-settings-content"></div>
         </section>
 
@@ -510,6 +510,36 @@
       });
       if (document.fonts && document.fonts.ready) document.fonts.ready.then(tick); else tick();
       setTimeout(fire, 2500);
+    })();
+  </script>
+  <script>
+    /* 主题注入（v0.19.49）：全站颜色单源 = constants.THEME。
+       偏好存 localStorage 'sufe_theme'（light|dark|system，缺省 system）；
+       首帧前同步执行把 THEME[主题] 全部 setProperty 到 <html>（本脚本在 body 底部同步跑，
+       CSS 首帧渲染必在其后 → 无 FOUC 闪烁）；system 时监听 prefers-color-scheme 实时跟随系统。
+       同时设 colorScheme 让原生滚动条/表单控件/自动填充随主题变暗（调研：matchMedia + color-scheme 接口）。 */
+    (function () {
+      var THEME = (window.APP_CONSTANTS || {}).THEME || { light: {}, dark: {} };
+      var THEME_KEY = 'sufe_theme';
+      function themeIsDark(pref) {
+        return pref === 'dark' || (pref !== 'light' &&
+          window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      }
+      function themeApply() {
+        var pref = localStorage.getItem(THEME_KEY) || 'system';
+        var dark = themeIsDark(pref);
+        var root = document.documentElement;
+        root.dataset.theme = dark ? 'dark' : 'light';
+        root.style.colorScheme = dark ? 'dark' : 'light';
+        var vars = dark ? THEME.dark : THEME.light;
+        for (var k in vars) root.style.setProperty(k, vars[k]);
+        return pref;
+      }
+      window.__applyTheme = themeApply; /* app.js 主题切换按钮共用同一单点 */
+      themeApply();
+      if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+        if ((localStorage.getItem(THEME_KEY) || 'system') === 'system') themeApply(); /* 跟随系统时实时切换 */
+      });
     })();
   </script>
   <script>

@@ -35,6 +35,8 @@
    ============================================================ */
 
 :root {
+  /* 颜色单源（v0.19.49）：以下颜色值仅作无 JS 时的亮色兜底，日常渲染由 constants.THEME
+     注入覆盖（index.html 主题脚本 setProperty 到 <html>）；暗色配色改 constants.THEME.dark */
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
   --lg-bg-blur: 6px;
   --lg-glow-size: 230px; --lg-glow-op: .85;
@@ -80,7 +82,7 @@
     inset 0 0 0 1px rgba(255,255,255,.34);      /* 发丝白边 */
 }
 
-html { background: #ECEAF0; }
+html { background: var(--g-bg, #ECEAF0); } /* 底色 token 化（v0.19.49），暗色由 constants.THEME 注入 */
 body { background: transparent; }
 
 /* ---- 背景舞台：多而小、方向随机的光球 + 轻磨砂底板（球现形为柔形，组件自带轻磨砂保可读）。
@@ -104,14 +106,13 @@ body { background: transparent; }
 @keyframes lg-d5 { 0%{transform:translate3d(0,0,0) rotate(0)} 50%{transform:translate3d(-78vmax,26vmax,0) rotate(-20deg)} 100%{transform:translate3d(-160vmax,12vmax,0) rotate(0)} }
 .lg-plate { position: absolute; inset: 0;
   -webkit-backdrop-filter: blur(var(--lg-bg-blur)) ; backdrop-filter: blur(var(--lg-bg-blur)) ;
-  background: linear-gradient(105deg, rgba(250,248,245,.20), rgba(250,248,245,.10) 50%, rgba(244,242,247,.20)),
-              linear-gradient(105deg, rgba(216,212,221,.12), rgba(250,248,245,.05) 50%, rgba(231,227,247,.12)), rgba(244,242,247,.08); }
+  background: var(--g-plate); } /* 底板染色 token 化（v0.19.49），暗色由 constants.THEME 注入 */
 
 /* ---- 鼠标发光圆：无阻尼 ---- */
 .lg-mouseglow { position: fixed; left: 0; top: 0; width: var(--lg-glow-size); height: var(--lg-glow-size);
   border-radius: 50%; pointer-events: none; z-index: 9998; mix-blend-mode: screen; opacity: var(--lg-glow-op);
   will-change: transform; /* 独立合成层：rAF 写 transform 不触发重排，合帧到 60fps */
-  background: radial-gradient(circle, rgba(255,255,255,.5), rgba(231,227,247,.16) 42%, rgba(255,255,255,0) 70%);
+  background: var(--g-glow); /* 发光圆 token 化（v0.19.49），暗色改紫光由 constants.THEME 注入 */
   transform: translate3d(-50%,-50%,0) translate3d(-200px,-200px,0); transition: opacity .35s ease; }
 
 /* ============================================================
@@ -127,7 +128,7 @@ body { background: transparent; }
   color: var(--g-fg, inherit);
   /* 玻璃表面单层：填充（弯月本体住 --g-fill 的径向高光里）+ 磨砂 + 浮影 + 液体边缘 + 语义条。
      box-shadow 列表禁止混入 none（v0.19.17 教训）——故 --g-lift/--g-surface 默认均为透明占位 */
-  background: var(--g-fill, rgba(255,255,255,.14));
+  background: var(--g-fill, var(--g-fill-mid));
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
   box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none);
   transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-base, .3s) var(--ease-out, ease);
@@ -149,14 +150,14 @@ body { background: transparent; }
   outline: none;
   box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none),
     inset 0 0 0 9999px var(--g-hover),
-    0 0 0 2px rgba(255,255,255,.95), 0 0 0 4px var(--g-ring);
+    0 0 0 2px var(--g-ring-halo), 0 0 0 4px var(--g-ring);
 }
 /* ---- 涟漪（可交互实心件）：玻璃体之上、内容之下 ---- */
 .glass--pressable { overflow: hidden; }
 .glass--pressable::after {
   content: ''; position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%;
   z-index: 0; pointer-events: none;
-  background: radial-gradient(circle, rgba(255,255,255,.6), rgba(255,255,255,0) 70%);
+  background: radial-gradient(circle, var(--g-ripple), rgba(255,255,255,0) 70%);
   transform: translate(-50%,-50%) scale(0); opacity: 0;
   transition: transform .5s var(--ease-out, ease), opacity .6s var(--ease-out, ease);
 }
@@ -173,7 +174,7 @@ body { background: transparent; }
 .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
   /* 弯月本体：填充里的锐利新月弧。峰值 at 50% 4% 移入卡内（原 -5% 峰值被裁在上缘外，可见区只剩 ~.45 窄条——用户诊断②），
      浅底可见靠 .90 峰值进卡 + 快速衰减；下缘暗弧（浅底可见的那半）在 --g-liquid 加深加锐 */
-  --g-fill: radial-gradient(ellipse 120% 55% at 50% 4%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.45) 18%, rgba(255,255,255,.14) 36%, rgba(255,255,255,.06) 60%, rgba(255,255,255,.04) 100%);
+  --g-fill: var(--g-card-fill);
   --g-frost: var(--g-f-card, blur(6px) saturate(180%) brightness(1.05));
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
@@ -189,13 +190,13 @@ body { background: transparent; }
    磨砂不随内容滚（v0.19.32：backdrop-filter 在滚动容器上失效=白板根因，故玻璃体与滚动分离） */
 .profile-panel { --g-r: var(--lg-r-lg); }
 /* 头栏=玻璃上的玻璃（浮层内层，层级白值最底）：白 .08 更透，毛度补强 blur(12px) 保滚动可读（v0.19.35 层级白值） */
-.modal-header, .profile-panel-head { --g-fill: rgba(255,255,255,.08); --g-frost: var(--g-f-header, blur(12px)); }
+.modal-header, .profile-panel-head { --g-fill: var(--g-header-fill); --g-frost: var(--g-f-header, blur(12px)); }
 .chat-bubble { --g-lift: var(--glass-lift-sm); --g-liquid: var(--g-liquid-sm); }
-.chat-bubble--mine { --g-fill: rgba(150,138,230,.26); --g-fg: var(--ink); }
-.chat-bubble--theirs { --g-fill: rgba(233,218,196,.30); --g-fg: var(--ink); }
-.chat-bubble--system { --g-fill: rgba(206,198,238,.24); --g-fg: var(--accent-deep); }
-.profile-card { --g-fill: rgba(255,255,255,.32); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .5→.32 */
-.profile-card--id { --g-fill: rgba(255,255,255,.44); } /* v0.19.35 同上 .62→.44 */
+.chat-bubble--mine { --g-fill: var(--g-bubble-mine); --g-fg: var(--ink); }
+.chat-bubble--theirs { --g-fill: var(--g-bubble-theirs); --g-fg: var(--ink); }
+.chat-bubble--system { --g-fill: var(--g-bubble-system); --g-fg: var(--accent-deep); }
+.profile-card { --g-fill: var(--g-card-strong); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .5→.32 */
+.profile-card--id { --g-fill: var(--g-card-id); } /* v0.19.35 同上 .62→.44 */
 .profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
 /* 按钮族 = 液态玻璃（v0.19.1）：透明染色透镜 + 微毛 + 弯月环。
    基类统一：微毛 blur(1px)（研究推荐）、平透染色填充、弯月环边缘、hover 白染叠层。
@@ -206,25 +207,25 @@ body { background: transparent; }
   --g-frost: var(--g-f-btn, blur(4px) saturate(180%) brightness(1.04));
   --g-liquid: var(--g-liquid-sm);
   --g-fill: transparent; /* 白按钮=标准玻璃：不需要填充层，磨砂(frost)+液态边(edge)+深字定义它（用户："现在它需要填充吗？"） */
-  --g-hover: rgba(255,255,255,.18); --g-raise: -1px; --g-scale: .97;
+  --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97;
 }
 /* 按钮=标准玻璃（用户指令：别管好不好看，先接入标准玻璃——去自定义紫/彩填充）。
    全部透明磨砂透镜 + 深字；hover/涟漪/边缘由引擎兜底。 */
 .btn-outline { --g-fg: var(--ink); }
 .btn-ghost { --g-fg: var(--muted); }
-.btn-text-danger { --g-fg: var(--danger-deep, #b23a2c); padding: 6px 12px; }
+.btn-text-danger { --g-fg: var(--danger-deep, #9B2C2C); padding: 6px 12px; }
 .tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: var(--glass-lift-sm); } /* G6：删全文件唯一常驻紫投影（v0.19.7 白化漏改），交还中性 lift */
 /* 侧栏选中块=标准玻璃（去紫块） */
-.sidebar-pill { --g-fill: rgba(255,255,255,.2); --g-frost: var(--g-f-pill, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-r: var(--lg-r); --g-lift: var(--glass-lift); } /* v0.19.35 层级白值：坐侧栏 L2，微降 */
+.sidebar-pill { --g-fill: var(--g-fill-strong); --g-frost: var(--g-f-pill, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-r: var(--lg-r); --g-lift: var(--glass-lift); } /* v0.19.35 层级白值：坐侧栏 L2，微降 */
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
-  --g-fill: linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32));
-  border: 1.5px solid rgba(255,255,255,.7); --g-r: 50%; --g-lift: var(--glass-lift-sm);
+  --g-fill: var(--g-avatar-fill);
+  border: 1.5px solid var(--g-avatar-border); --g-r: 50%; --g-lift: var(--glass-lift-sm);
 }
-.avatar--guest { --g-fill: rgba(255,255,255,.12); border: 1.5px dashed rgba(110,110,118,.5); --g-lift: 0 0 0 0 transparent; } /* 无浮影用透明占位（none 混入 box-shadow 列表整条非法，v0.19.17 教训） */
+.avatar--guest { --g-fill: var(--g-avatar-fill-ghost); border: 1.5px dashed var(--g-avatar-border-ghost); --g-lift: 0 0 0 0 transparent; } /* 无浮影用透明占位（none 混入 box-shadow 列表整条非法，v0.19.17 教训） */
 /* 分段控件（实心遮罩） */
-.role-tabs { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); padding: 4px; }
-.role-tab.active { background: rgba(255,255,255,.22); border-radius: 7px; } /* active 文字色由 style.css 单源（.role-tab.active color） */
+.role-tabs { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); padding: 4px; }
+.role-tab.active { background: var(--g-fill-strong); border-radius: 7px; } /* active 文字色由 style.css 单源（.role-tab.active color） */
 
 /* ============================================================
    实心小件预设（标签 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）
@@ -233,26 +234,26 @@ body { background: transparent; }
 /* 实心小件修饰：关磨砂 = 干净圆角填充，零额外性能。
    液体边缘高光保留（--g-liquid 默认开启）——实心件同样需要珠圆玉润的液态感 */
 .glass--solid { --g-frost: none; } /* 实心小件：关磨砂 = 干净圆角填充 */
-.chat-file-chip, .chat-stage-item, .chat-stage-thumb { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.chat-file-chip, .chat-stage-item, .chat-stage-thumb { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .tag, .conv-item-role, .chat-peer-tag, .demand-id-tag, .device-current, .profile-tag {
-  --g-fill: rgba(255,255,255,.2); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2, #444);
+  --g-fill: var(--g-fill-strong); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2);
 }
-.conv-signed-tag, .chat-head-signed, .profile-signed-tag { --g-fill: linear-gradient(160deg, rgba(24,122,75,.62), rgba(24,122,75,.46)); --g-fg: #fff; --g-lift: var(--glass-lift-sm); --g-r: 999px; }
-.checkbox-item { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.checkbox-item:has(input:checked) { --g-fill: rgba(122,104,224,.7); --g-fg: #fff; }
+.conv-signed-tag, .chat-head-signed, .profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; }
+.checkbox-item { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.checkbox-item:has(input:checked) { --g-fill: var(--g-accent-fill-strong); --g-fg: var(--white); }
 /* G2：成绩/首选/文理单选 pill 统一挂引擎玻璃（原 style-region 手卷第二套删，竖条迁 ::after；文字色单源 style.css） */
-.grade-option { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.grade-option { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .grade-option.selected { --g-fill: var(--accent); } /* v0.19.43 与科目勾选/页签统一：选中一律品牌紫（原墨底黑） */
-.gk-pill { --g-r: var(--lg-r); --g-hover: rgba(255,255,255,.14); }
-.score-mode-tabs { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.gk-pill { --g-r: var(--lg-r); --g-hover: var(--g-hover-wash); }
+.score-mode-tabs { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .score-mode-tab { --g-fill: transparent; }
-.score-mode-tab.active { --g-fill: var(--accent); --g-fg: #fff; } /* v0.19.43 与等第 pill/科目勾选统一品牌紫（原白透看不清） */
+.score-mode-tab.active { --g-fill: var(--accent); --g-fg: var(--white); } /* v0.19.43 与等第 pill/科目勾选统一品牌紫（原白透看不清） */
 /* G33：分隔线单源在 style-region.css（.score-mode-tab + .score-mode-tab 全量 border-left），引擎不再管结构边框 */
-.filter-panel { --g-fill: rgba(255,255,255,.2); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
-.drop-toggle { --g-fill: rgba(255,255,255,.07); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.filter-panel { --g-fill: var(--g-fill-strong); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
+.drop-toggle { --g-fill: var(--g-fill-faint); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 /* 下拉选项：非 glass 件（面板是大玻璃，选项间横线分割——用户定性：不要一串独立玻璃珠）。
    hover/selected 背景直写为合理例外（同 sidebar-item 手卷 hover） */
-.md-preview { --g-fill: rgba(255,255,255,.1); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.md-preview { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 
 /* ============================================================
    输入控件（input/select/textarea）——不带 glass 类，不走引擎；
@@ -260,41 +261,41 @@ body { background: transparent; }
    ============================================================ */
 .form-input, .form-textarea, .custom-select-trigger, .chat-input, .filter-select,
 .chat-textarea, .posts-search, .post-body-input { /* G29：补三处引擎覆盖缺口（聊天输入/广场搜索/正文） */
-  background-color: rgba(255,255,255,.1); border: none; border-radius: var(--lg-r-sm);
+  background-color: var(--g-fill-weak); border: none; border-radius: var(--lg-r-sm);
   /* G18/G19：background shorthand 会重置 background-image，吃掉 style.css 的聚焦下划线/下拉 v 箭头 → 拆 longhand background-color */
   /* 液体边缘内高光（与 --g-liquid 视觉同源） */
-  box-shadow: var(--glass-lift-sm), inset 0 1px 3px rgba(30,26,64,.06), inset 0 0 0 1px rgba(255,255,255,.18), inset 0 1px 0 rgba(255,255,255,.4);
+  box-shadow: var(--glass-lift-sm), inset 0 1px 3px var(--g-inset-shadow), inset 0 0 0 1px var(--g-inset-edge-soft), inset 0 1px 0 var(--g-inset-edge);
 }
 .form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: 12px; padding-right: 12px; }
-.form-input:focus, .form-textarea:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px rgba(122,104,224,.3), inset 0 1px 0 rgba(255,255,255,.3); }
+.form-input:focus, .form-textarea:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px var(--g-focus-soft), inset 0 1px 0 var(--g-input-focus-edge); }
 
 /* 信息栏内部行线（卡片已玻璃化，行线改透白） */
-.profile-panel-head { border-bottom: 1px solid rgba(255,255,255,.22); } /* G22：分隔线单源迁此（含宽/样式，style.css 删直写） */
-.profile-row { border-top: 1px solid rgba(255,255,255,.28); } /* G22：同上 */
+.profile-panel-head { border-bottom: 1px solid var(--g-line-soft); } /* G22：分隔线单源迁此（含宽/样式，style.css 删直写） */
+.profile-row { border-top: 1px solid var(--g-line-row); } /* G22：同上 */
 .profile-empty { color: var(--ink-3); }
 
 /* ============================================================
    侧边栏 / 会话栏 / 顶栏 / 主区（整块磨砂 pane，非组件曲面件）
    ============================================================ */
 .client-sidebar {
-  background: rgba(250,248,245,.56);
+  background: var(--g-sidebar-bg);
   -webkit-backdrop-filter: var(--g-f-side, blur(8px)); backdrop-filter: var(--g-f-side, blur(8px)); /* 近不透明玻璃条，blur 由 constants.LG.frosts.side 定 */
-  border-right: 1px solid rgba(255,255,255,.5); box-shadow: 8px 0 30px rgba(30,26,64,.1);
+  border-right: 1px solid var(--g-line-pane); box-shadow: var(--g-pane-shadow);
 }
-.sidebar-user { --g-fill: rgba(255,255,255,.26); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); margin: 8px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .34→.26 */
+.sidebar-user { --g-fill: var(--g-sideuser-fill); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); margin: 8px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .34→.26 */
 .sidebar-item { border-radius: var(--lg-r-sm); }
-.sidebar-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.2)); }
+.sidebar-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, var(--g-hover-wash)); }
 .chats-shell { background: transparent; }
-.chats-list-pane { background: rgba(255,255,255,.12); }
+.chats-list-pane { background: var(--g-pane-fill); }
 .chat-pane, .chat-messages { background: transparent; background-image: none; }
-.conv-pill { --g-fill: rgba(255,255,255,.18); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r); } /* G9+G34：直写交还参数（G34 补回 --g-r，防圆角从 12px 回落到引擎默认 9px）；v0.19.35 层级白值：坐会话列表 pane 上的 L2 */
+.conv-pill { --g-fill: var(--g-fill-strong); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r); } /* G9+G34：直写交还参数（G34 补回 --g-r，防圆角从 12px 回落到引擎默认 9px）；v0.19.35 层级白值：坐会话列表 pane 上的 L2 */
 .conv-item { border-radius: var(--lg-r); }
-.conv-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, rgba(255,255,255,.16)); }
-.conv-item:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(122,104,224,.4); border-radius: var(--lg-r); }
-.chat-stage { --g-fill: rgba(255,255,255,.12); }
-.chat-head, .chat-input-bar { --g-fill: rgba(255,255,255,.22); }
-.chat-stage-del { --g-fill: rgba(255,255,255,.18); --g-fg: var(--danger-deep, #b23a2c); --g-hover: rgba(198,72,58,.2); --g-lift: var(--glass-lift-sm); }
-.navbar { background: rgba(250,248,245,.52); -webkit-backdrop-filter: var(--g-f-nav, blur(8px)); backdrop-filter: var(--g-f-nav, blur(8px)); border-bottom: 1px solid rgba(255,255,255,.5); } /* 液态玻璃 v0.19：近不透明玻璃条，blur 降档 */
+.conv-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, var(--g-hover-wash)); }
+.conv-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--g-focus-soft); border-radius: var(--lg-r); }
+.chat-stage { --g-fill: var(--g-pane-fill); }
+.chat-head, .chat-input-bar { --g-fill: var(--g-fill-strong); }
+.chat-stage-del { --g-fill: var(--g-fill-strong); --g-fg: var(--danger-deep, #9B2C2C); --g-hover: var(--g-danger-fill); --g-lift: var(--glass-lift-sm); }
+.navbar { background: var(--g-navbar-bg); -webkit-backdrop-filter: var(--g-f-nav, blur(8px)); backdrop-filter: var(--g-f-nav, blur(8px)); border-bottom: 1px solid var(--g-line-pane); } /* 液态玻璃 v0.19：近不透明玻璃条，blur 降档 */
 .landing-stage { background: transparent; } /* G8：landing navbar 已隐藏，其 landing 渐变规则整条删除 */
 .client-main { background: transparent; }
 
@@ -302,13 +303,13 @@ body { background: transparent; }
    浮层内部（头栏 sticky 近不透明磨砂 + body 内滚 → 边缘层不随滚）
    ============================================================ */
 .modal { display: flex; flex-direction: column; overflow: hidden; }
-.modal-header { flex: 0 0 auto; border-bottom: 1.5px solid rgba(255,255,255,.22); position: relative; z-index: 2; }
+.modal-header { flex: 0 0 auto; border-bottom: 1.5px solid var(--g-line-soft); position: relative; z-index: 2; }
 .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; position: relative; z-index: 1; }
 /* v0.19.36：overlay 预模糊连根删——modal 隔着 blur(4px) 层看原画面=糊上加糊、形状对比弱=显不毛；
    profile-panel 直接坐原画面（形状清晰、模糊对比强=显毛），删后 modal 与 profile-panel 同款毛感
    （用户："表单浮窗不够毛，把个人信息栏面板的配置扔给它"）。顺带消除 overlay 自身
    backdrop-filter + fade-in opacity 动画的 Chromium 983252 失效隐患（v0.19.33 只修了 modal 没修 overlay） */
-.form-group + .form-group { border-top: 1.5px solid rgba(30,26,64,.16); }
+.form-group + .form-group { border-top: 1.5px solid var(--g-line-dark); }
 .form-group { background: transparent; }
 
 /* ============================================================
@@ -319,12 +320,12 @@ body { background: transparent; }
     --g-frost: var(--g-f-cardM, blur(4px) saturate(180%) brightness(1.05));
   }
   .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { --g-frost: var(--g-f-modalM, blur(6px)); }
-  .profile-card { --g-fill: rgba(255,255,255,.62); } /* v0.19.35 层级白值：移动端侧栏近纯白底，卡不需 .82 叠白 */
-  .profile-card--id { --g-fill: rgba(255,255,255,.75); }
+  .profile-card { --g-fill: var(--g-card-strong-m); } /* v0.19.35 层级白值：移动端侧栏近纯白底，卡不需 .82 叠白（token 化 v0.19.49） */
+  .profile-card--id { --g-fill: var(--g-card-id-m); }
 }
 @media (max-width: 860px) {
-  .client-sidebar { background: rgba(244,242,247,.97); -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .sidebar-backdrop { background: rgba(20,18,40,.25); }
+  .client-sidebar { background: var(--g-sidebar-bg-m); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .sidebar-backdrop { background: var(--g-sidebar-backdrop); }
 }
 @media (prefers-reduced-motion: reduce) {
   /* 光球动画关闭后负 delay 失效、36 个球会堆在屏幕外起点：纯装饰直接隐藏，避免左侧光球堆积 */
@@ -337,54 +338,54 @@ body { background: transparent; }
    业务面参数预设（模块表颜色收口于此；结构登记见上方引擎）
    ============================================================ */
 /* 标签语义色：走 --g-fill（画在元素自身玻璃体上，v0.19.31 层模型单层） */
-.tag-ok { --g-fill: rgba(24,122,75,.22); color: #187a4b; }
+.tag-ok { --g-fill: var(--g-ok-fill); color: var(--g-ok-fg); }
 /* 科目匹配度徽章（运营建议：教师需求大厅显示「匹配度 N%」）——实心绿底白字，醒目不可漏看 */
-.tag-match { margin-left: 6px; /* v0.19.44 与用户名拉开（空格 4px 太紧，改可靠 margin，与已签约 tag 同手感） */ --g-fill: linear-gradient(160deg, rgba(24,122,75,.9), rgba(24,122,75,.72)); color: #fff; font-weight: 800; padding: 4px 11px; letter-spacing: .02em; }
+.tag-match { margin-left: 6px; /* v0.19.44 与用户名拉开（空格 4px 太紧，改可靠 margin，与已签约 tag 同手感） */ --g-fill: var(--g-ok-solid); color: var(--white); font-weight: 800; padding: 4px 11px; letter-spacing: .02em; }
 /* v0.19.45 匹配度明细悬浮卡：纸面同浮窗三件套（modal 毛度 = 填写资料浮窗同级），玻璃体在元素自身 */
 .match-detail { --g-fill: var(--g-paper); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04)); --g-r: var(--lg-r-lg); --g-lift: var(--glass-lift); }
-.tag-danger { --g-fill: rgba(198,72,58,.20); color: var(--danger); }
-.tag-warn { --g-fill: rgba(154,106,42,.20); color: var(--warn-deep); }
-.tag-accent { --g-fill: rgba(122,104,224,.20); color: var(--accent-deep); }
+.tag-danger { --g-fill: var(--g-danger-fill); color: var(--danger); }
+.tag-warn { --g-fill: var(--g-warn-fill); color: var(--warn-deep); }
+.tag-accent { --g-fill: var(--g-accent-fill); color: var(--accent-deep); }
 /* 反馈卡 Bug 红色警示 */
 /* 反馈 bug 卡：--g-surface 左红条连根拔（v0.19.21 用户定性没必要）——CSS 变量继承会把红条传给卡内所有 glass 子组件(tag/按钮)，
    语义条只应设在不含 glass 子组件的组件上（如 alert 提示条） */
-.feedback-card--bug { --g-fill: rgba(198,72,58,.12); }
+.feedback-card--bug { --g-fill: var(--g-danger-fill-soft); }
 
 /* 资料广场 */
-.posts-toolbar { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
-.post-like { --g-fill: rgba(255,255,255,.10); --g-fg: var(--muted); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r-sm); }
-.post-like.liked { --g-fill: rgba(211,47,47,.16); --g-fg: var(--danger); }
+.posts-toolbar { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
+.post-like { --g-fill: var(--g-fill-weak); --g-fg: var(--muted); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r-sm); }
+.post-like.liked { --g-fill: var(--g-like-fill); --g-fg: var(--danger); }
 
 /* 主页入口块（实心墨玻璃；竖条母题住 ::after，玻璃填充住元素自身） */
-.entry { --g-fill: rgba(255,255,255,.14); --g-frost: var(--g-f-entry, blur(4px) saturate(180%) brightness(1.04)); --g-hover: rgba(255,255,255,.12); --g-lift: var(--glass-lift); --g-r: var(--lg-r); --g-raise: -1px; } /* S7：--g-fg 死变量已删——文字色唯一主人 = style.css .entry { color }；--g-raise 悬停上浮同别的按钮 */
+.entry { --g-fill: var(--g-fill-mid); --g-frost: var(--g-f-entry, blur(4px) saturate(180%) brightness(1.04)); --g-hover: var(--g-hover-wash); --g-lift: var(--glass-lift); --g-r: var(--lg-r); --g-raise: -1px; } /* S7：--g-fg 死变量已删——文字色唯一主人 = style.css .entry { color }；--g-raise 悬停上浮同别的按钮 */
 
 /* 徽章 */
 .user-badge { --g-fill: var(--accent-tint); --g-fg: var(--accent-deep); }
 .admin-badge { --g-fill: var(--warn-tint); --g-fg: var(--warn-deep); }
 
 /* 邀请码盒 */
-.invite-code-box { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
+.invite-code-box { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 
 /* 关于平台：安全盾标 + 流程圆点（✓ 内容住 ::after） */
 .about-sec-mark { --g-fill: var(--accent-tint); --g-r: 50%; } /* G15：实变圆走参数 */
-.about-flow-dot { --g-fill: rgba(255,255,255,.85); --g-r: 50%; }
+.about-flow-dot { --g-fill: var(--g-flow-dot); --g-r: 50%; }
 
 /* 反馈类型分段按钮 */
-.feedback-kind-btn { --g-fill: rgba(255,255,255,.08); --g-fg: var(--ink-3); --g-r: var(--lg-r-sm); }
-.feedback-kind-btn.active { --g-fill: rgba(255,255,255,.22); --g-fg: var(--ink); }
+.feedback-kind-btn { --g-fill: var(--g-fill-faint); --g-fg: var(--ink-3); --g-r: var(--lg-r-sm); }
+.feedback-kind-btn.active { --g-fill: var(--g-fill-strong); --g-fg: var(--ink); }
 
 /* 警示条（语义强填充 + 左色条） */
-.alert-error { --g-fill: rgba(198,72,58,.14); --g-fg: var(--danger-deep); --g-surface: inset 3px 0 0 var(--danger); --g-r: var(--lg-r-sm); }
-.alert-success { --g-fill: rgba(24,122,75,.14); --g-fg: var(--ok-deep, #187a4b); --g-surface: inset 3px 0 0 #187a4b; --g-r: var(--lg-r-sm); }
+.alert-error { --g-fill: var(--g-danger-fill-soft); --g-fg: var(--danger-deep); --g-surface: inset 3px 0 0 var(--danger); --g-r: var(--lg-r-sm); }
+.alert-success { --g-fill: var(--g-ok-fill); --g-fg: var(--ok-deep); --g-surface: inset 3px 0 0 var(--g-ok-fg); --g-r: var(--lg-r-sm); }
 
 /* 推送需求单选行 */
-.push-pick-item { --g-fill: rgba(255,255,255,.06); --g-r: var(--lg-r-sm); }
+.push-pick-item { --g-fill: var(--g-fill-faint); --g-r: var(--lg-r-sm); }
 
 /* 侧栏开关按钮 */
-.sidebar-toggle, .sidebar-expand-toggle { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r-sm); }
+.sidebar-toggle, .sidebar-expand-toggle { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r-sm); }
 
 /* 管理面板 */
-.admin-panel { --g-fill: rgba(255,255,255,.14); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
+.admin-panel { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 
 /* Toast（fixed 浮层，登记于 .glass--float）——标准玻璃：浅透镜 + 深字（不搞深色特殊）；v0.19.35 层级白值：浮层降 .30→.22 */
-.toast { --g-fill: rgba(255,255,255,.22); --g-fg: var(--ink); color: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); }
+.toast { --g-fill: var(--g-fill-strong); --g-fg: var(--ink); color: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); }

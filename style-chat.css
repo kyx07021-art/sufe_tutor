@@ -232,7 +232,7 @@
   transform: rotate(-90deg); pointer-events: none;
 }
 .chat-stage-ring circle { fill: none; stroke-width: 3; }
-.chat-stage-ring .ring-track { stroke: rgba(17,17,20,.16); }
+.chat-stage-ring .ring-track { stroke: var(--g-line-dark); }
 .chat-stage-ring .ring-bar { stroke: var(--accent-bright); stroke-linecap: round; transition: stroke-dashoffset .18s linear; }
 .chat-stage-thumb:has(.chat-stage-ring) img,
 .chat-stage-thumb:has(.chat-stage-ring) .chat-stage-file { opacity: .45; }
@@ -243,7 +243,7 @@
   position: absolute; inset: 0; z-index: 30; pointer-events: none;
   display: flex; align-items: center; justify-content: center;
   outline: 2px dashed var(--accent); outline-offset: -10px;
-  background: rgba(142,128,232,.08);
+  background: var(--g-accent-fill-soft);
   font-size: .8rem; font-weight: 700; color: var(--accent-deep); letter-spacing: .04em;
 }
 

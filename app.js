@@ -1785,7 +1785,22 @@ function enterAccountSettings() {
       <div><div class="settings-label">${label}</div><div class="settings-value">${value}</div></div>
       ${modifiable ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="showToast('${UI.TOAST_COMING_SOON}')">${UI.BTN_MODIFY}</button>` : ''}
     </div>`;
+  // 外观主题三项：选中态按 localStorage 现值标注，点按走 setThemePref 即时切换
+  const themePref = localStorage.getItem('sufe_theme') || 'system';
+  const themeOpts = [['light', UI.THEME_LIGHT], ['dark', UI.THEME_DARK], ['system', UI.THEME_SYSTEM]].map(([k, label]) =>
+    `<button type="button" class="theme-opt glass glass--pressable${themePref === k ? ' theme-opt--on' : ''}" data-pref="${k}" onclick="setThemePref('${k}')">${label}</button>`).join('');
   document.getElementById('account-settings-content').innerHTML = `
+    <div class="settings-section-title">${UI.SETTINGS_APPEARANCE_TITLE}</div>
+    <div class="settings-list">
+      <div class="settings-row">
+        <div>
+          <div class="settings-label">${UI.SETTINGS_THEME_LABEL}</div>
+          <div class="settings-hint">${UI.SETTINGS_THEME_HINT}</div>
+        </div>
+        <div class="theme-opts">${themeOpts}</div>
+      </div>
+    </div>
+    <div class="settings-section-title">${UI.SETTINGS_ACCOUNT_TITLE}</div>
     <div class="settings-row settings-row--avatar">
       <div>
         <div class="settings-label">${UI.SETTINGS_AVATAR}</div>
@@ -1808,6 +1823,24 @@ function enterAccountSettings() {
     <button type="button" class="btn settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate glass" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
   loadDeviceSessions();
+}
+
+// 外观主题点按：写 localStorage → 主题脚本重算 → 切当前页按钮选中态（主题立即生效，无需刷新）
+function setThemePref(pref) {
+  localStorage.setItem('sufe_theme', pref);
+  if (window.__applyTheme) window.__applyTheme();
+  document.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('theme-opt--on', b.dataset.pref === pref));
+}
+
+// 新手引导：内测政策小浮窗（确认按钮关掉；本机无登录记录时启动弹出，也可在「关于平台」重温）
+function openOnboarding() {
+  const policyItems = UI.ONBOARD_POLICY.map(p => `<div class="onboard-policy-item"><span class="about-sec-mark glass" aria-hidden="true"></span><p>${escHtml(p)}</p></div>`).join('');
+  openModal({
+    title: UI.ONBOARD_TITLE,
+    closable: false,
+    body: `<p class="onboard-intro">${escHtml(UI.ONBOARD_INTRO)}</p><div class="onboard-policy">${policyItems}</div>`,
+    footer: `<button type="button" class="btn btn-primary glass glass--pressable" onclick="closeModal()">${UI.ONBOARD_CONFIRM}</button>`,
+  });
 }
 
 // 登录设备管理：拉本人会话列表逐端展示（token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。
@@ -2067,6 +2100,7 @@ function enterAbout() {
     <div class="list-card about-card-block glass">
       <h3 class="about-title">${UI.ABOUT_USAGE_TITLE}</h3>
       <div class="about-flow">${steps}</div>
+      <div class="about-flow-revisit"><button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openOnboarding()">${UI.ONBOARD_REVISIT_BTN}</button></div>
     </div>
     <div class="list-card about-card-block glass">
       <h3 class="about-title">${UI.ABOUT_SECURITY_TITLE}</h3>
@@ -2403,4 +2437,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件
   showView('landing');
+  // 新手引导：本机无任何登录记录（localStorage/sessionStorage 均空）时首访弹出
+  if (!localStorage.getItem('sufe_session') && !sessionStorage.getItem('sufe_session')) openOnboarding();
 });

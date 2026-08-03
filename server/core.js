@@ -17,9 +17,9 @@ export const INITIAL_RATING = 4.0;
 // 刻意排除「号线」避免误伤地铁站描述（如 12号线附近）；「xx号」仅两位以上数字视为门牌（一位数如「3号」太模糊，不拦）。
 export const ADDRESS_GUARD = /(?:[0-9０-９]{2,}号(?!线)|[0-9０-９]+(?:号楼|室|栋|单元|门牌))/;
 
-// 教师注册邀请码门控：开启状态（网安报告 F-05——教师开放注册属高危，注册必须凭管理员邀请码）。
-// 管理员在侧边栏「生成邀请码」签发；前端 constants.js INVITE_GATE_DORMANT 须同步为 false
-export const INVITE_GATE_ENABLED = true;
+// 教师注册邀请码门控：休眠状态（false = 内测期间教师免邀请码直接注册）。
+// 网安报告 F-05——教师开放注册属高危；公测前如需恢复，置回 true 并同步前端 constants.js INVITE_GATE_DORMANT 为 false
+export const INVITE_GATE_ENABLED = false;
 export const INITIAL_WEIGHT = 10;
 
 // ============================================================

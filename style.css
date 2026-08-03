@@ -174,8 +174,8 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
   position: absolute; top: 0; right: 0; width: 50%; height: 100%;
   pointer-events: none; z-index: 0;
   background-image:
-    linear-gradient(rgba(17,17,20,.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(17,17,20,.07) 1px, transparent 1px);
+    linear-gradient(var(--g-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--g-grid) 1px, transparent 1px);
   background-size: 88px 88px;
   -webkit-mask-image: linear-gradient(135deg, transparent, #000 28%, #000 72%, transparent);
           mask-image: linear-gradient(135deg, transparent, #000 28%, #000 72%, transparent);
@@ -460,9 +460,9 @@ textarea.form-input {
   transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
 /* 选项间横线分割（大面板内不叠玻璃珠） */
-.custom-option + .custom-option { border-top: 1px solid rgba(30,26,64,.07); }
-.custom-option:hover { background: rgba(122,104,224,.07); color: var(--ink); }
-.custom-option.selected { background: rgba(122,104,224,.13); color: var(--ink); font-weight: 600; }
+.custom-option + .custom-option { border-top: 1px solid var(--g-option-line); }
+.custom-option:hover { background: var(--g-option-hover); color: var(--ink); }
+.custom-option.selected { background: var(--g-option-sel); color: var(--ink); font-weight: 600; }
 
 
 .checkbox-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -483,7 +483,7 @@ textarea.form-input {
   border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg);
 }
 .checkbox-item input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.checkbox-item:has(input:checked) { color: #fff; } /* 背景走 --g-fill（glass.css 单点），此处仅文字色 */
+.checkbox-item:has(input:checked) { color: var(--white); } /* 背景走 --g-fill（glass.css 单点），此处仅文字色 */
 
 .score-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; flex-wrap: wrap; }
 .score-subject { flex: 0 0 50px; font-size: .8rem; font-weight: 700; color: var(--ink-3); }
@@ -626,10 +626,10 @@ textarea.form-input {
 .sidebar-user-role { margin-top: 3px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .1em; }
 .sidebar-footnote {
   width: 100%; margin-top: 11px; padding-top: 9px;
-  border-top: 1px solid rgba(17,17,20,.08);
+  border-top: 1px solid var(--g-line-dark);
   text-align: left; cursor: pointer;
   font-size: .62rem; line-height: 1.7; font-weight: 300; letter-spacing: .02em;
-  color: rgba(17,17,20,.72);
+  color: var(--g-foot-text);
   transition: color var(--t-fast) var(--ease-out);
 }
 .sidebar-footnote:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
@@ -647,8 +647,8 @@ textarea.form-input {
   height: 46%; min-height: 150px;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(17,17,20,.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(17,17,20,.07) 1px, transparent 1px);
+    linear-gradient(var(--g-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--g-grid) 1px, transparent 1px);
   background-size: 44px 44px;
   -webkit-mask-image: linear-gradient(to top, #000 55%, transparent 100%);
           mask-image: linear-gradient(to top, #000 55%, transparent 100%);
@@ -683,6 +683,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .about-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink); margin-bottom: 10px; }
 .about-text { font-size: .86rem; color: var(--ink-3); line-height: 1.75; }
 .about-card-block + .about-card-block { margin-top: 0; }
+/* 平台基本用法卡底部：重温新手引导按钮（v0.19.49） */
+.about-flow-revisit { margin-top: 16px; }
 .about-support-lines { font-size: .82rem; color: var(--ink-3); line-height: 2; margin-bottom: 16px; }
 .about-feedback-btns { display: flex; gap: 10px; }
 /* 关于平台 · 安全与隐私保护：「小盾标 + 粗体小标题 + 一句白话」逐条，建立学生与家长的信任 */
@@ -741,6 +743,19 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .settings-row--avatar .settings-label { margin-bottom: 9px; }
 .settings-avatar { width: 88px; height: 88px; font-size: 2.2rem; }
 .settings-logout { margin-top: 36px; }
+/* 设置页区段大标题（v0.19.49 外观设置/账户信息两区；与 about-title 同语言） */
+.settings-section-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink); margin: 4px 0 6px; }
+.settings-section-title + .settings-section-title { margin-top: 34px; } /* 外观区与账户区间距 */
+/* 外观主题三项：复用玻璃按钮，选中态走引擎 --g-fill 参数（accent-tint 底 + accent-deep 字） */
+.theme-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.theme-opt { padding: 7px 14px; font-size: .78rem; font-weight: 700; color: var(--muted); }
+.theme-opt--on { --g-fill: var(--accent-tint); color: var(--accent-deep); }
+/* 新手引导浮窗（v0.19.49）：内测政策小盾标逐条，同关于页安全区语言 */
+.onboard-intro { font-size: .88rem; color: var(--ink-3); line-height: 1.75; margin-bottom: 12px; }
+.onboard-policy { display: flex; flex-direction: column; }
+.onboard-policy-item { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; }
+.onboard-policy-item + .onboard-policy-item { border-top: 1px solid var(--line); }
+.onboard-policy-item p { font-size: .82rem; color: var(--ink-3); line-height: 1.65; }
 /* 登录设备管理：延续登记簿细线分项风格 */
 .settings-devices { padding: 20px 2px 4px; border-top: 1px solid var(--line); }
 .settings-hint { font-size: .72rem; color: var(--muted); margin: -1px 0 10px; }
@@ -753,7 +768,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .device-info { min-width: 0; }
 .device-label { font-size: .86rem; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
 .device-current {
-  font-size: .62rem; font-weight: 700; letter-spacing: .05em; color: var(--accent, #6b5ca5);
+  font-size: .62rem; font-weight: 700; letter-spacing: .05em; color: var(--accent, #6B5BD2);
   padding: 1px 6px;
 } /* G11：删直写 border/border-radius，交还引擎 --g-r:999px 药丸 */
 .device-meta { font-size: .72rem; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
@@ -890,11 +905,11 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 .match-row-k { font-weight: 700; color: var(--ink); }
 .match-row-s { font-weight: 800; color: var(--accent-deep); }
 .match-row-s--skip { font-weight: 600; color: var(--muted); font-size: .68rem; }
-.match-bar { margin-top: 3px; height: 4px; border-radius: 999px; background: rgba(255,255,255,.25); overflow: hidden; }
+.match-bar { margin-top: 3px; height: 4px; border-radius: 999px; background: var(--g-bar-soft); overflow: hidden; }
 .match-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); }
-.match-bar--zero i { background: rgba(255,255,255,.35); }
+.match-bar--zero i { background: var(--g-bar-strong); }
 .match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
-.match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.22); font-size: .66rem; line-height: 1.5; color: var(--muted); }
+.match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--g-line-soft); font-size: .66rem; line-height: 1.5; color: var(--muted); }
 
 
 
@@ -1160,7 +1175,7 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
   width: max(300px, 25vw);
   display: flex; flex-direction: column;
 
-  --g-lift: -14px 0 44px rgba(17,17,20,.13); /* G12：外浮影走引擎参数 */
+  --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
   transition: transform .34s var(--ease-snap);
 }
@@ -1216,7 +1231,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 
 /* 移动端：定宽浮层 + 背景变暗（桌面 25vw 在窄屏过窄，改固定 px） */
 @media (max-width: 860px) {
-  .profile-panel { width: min(86vw, 340px); --g-lift: -8px 0 30px rgba(17,17,20,.22); } /* G12：外浮影走引擎参数 */
+  .profile-panel { width: min(86vw, 340px); --g-lift: -8px 0 30px var(--g-panel-lift-m); } /* G12：外浮影走引擎参数 */
   .profile-panel-backdrop { display: block; }
   body.profile-panel-open .profile-panel-backdrop { opacity: 1; pointer-events: auto; }
 }

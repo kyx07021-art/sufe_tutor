@@ -6,12 +6,13 @@
  */
 globalThis.APP_CONSTANTS = {
 
-  // 教师注册邀请码门控：已开启（false = 注册须凭邀请码，与后端 core.js INVITE_GATE_ENABLED 同步）
-  // 网安报告 F-05：教师开放注册属高危，注册必须经管理员签发邀请码
-  INVITE_GATE_DORMANT: false,
+  // 教师注册邀请码门控：休眠中（true = 门控沉睡，教师注册免邀请码直接提交；与后端 core.js INVITE_GATE_ENABLED 同步）
+  // 内测期间沉默：简易注册、无需邀请码（v0.19.49 用户指令）；公测前如需恢复，置回 false 并同步后端开关
+  // 网安报告 F-05：教师开放注册属高危，恢复门控时注册必须经管理员签发邀请码
+  INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.19.48',
+  APP_VERSION: '0.19.49',
 
   // ============================================================
   // 业务数据
@@ -76,6 +77,208 @@ globalThis.APP_CONSTANTS = {
       pill:   'blur(4px) saturate(180%) brightness(1.04)',   // 侧栏选中块=透
       nav:    'blur(8px)',                                   // 顶栏
       side:   'blur(8px)',                                   // 侧边栏
+    },
+  },
+
+  // ============================================================
+  // 主题（外观设置，v0.19.49）：全站颜色单源——改配色只动这里
+  //   结构：key = CSS 变量名（含 --），value = 颜色值。
+  //   light 为亮色全量（= 原 CSS :root 值，向后兼容兜底）；dark 只列与亮色的差异键。
+  //   注入：index.html 底部脚本读偏好（localStorage 'sufe_theme'：light/dark/system 缺省 system）
+  //   把 THEME[主题] 全部 setProperty 到 <html> 内联样式（首帧前同步执行，无 FOUC）；
+  //   system 时监听 prefers-color-scheme 实时跟随系统。CSS :root 里的同名变量仅为
+  //   无 JS 时的亮色兜底，日常渲染永远被本注入覆盖。
+  //   光球九色（--lg-orb-*）为 RGB 三元组（供 rgba(var(--lg-orb-*),op) 组合），暗色沿用亮色值。
+  //   移动端覆盖值（--g-card-strong-m 等）由 glass.css @media 引用本 token。
+  // ============================================================
+  THEME: {
+    light: {
+      // ---- 语义色（style.css :root 原值） ----
+      '--paper': '#FAF8F5', '--paper-2': '#F1EEE9', '--paper-3': '#E3DFD8',
+      '--lilac': '#D8D4DD', '--lilac-2': '#CFCBD6',
+      '--ink': '#111114', '--ink-2': '#232329', '--ink-3': '#34343B',
+      '--text': '#16161A', '--muted': '#6E6E76', '--faint': '#9A9AA2',
+      '--white': '#FFFFFF', '--field': '#F3F0EB', '--field-2': '#EBE7E1',
+      '--paper-ghost': 'rgba(250,248,245,.62)',
+      '--accent': '#6B5BD2', '--accent-deep': '#4B3DB0', '--accent-bright': '#8E80E8', '--accent-tint': '#E7E3F7',
+      '--warn-deep': '#9A6A2A', '--warn-tint': '#F0E2CF',
+      '--danger': '#C0392B', '--danger-deep': '#9B2C2C', '--danger-tint': '#F7E7E7',
+      '--ok-deep': '#2E6B3A', '--ok-tint': '#E7EFE7',
+      '--star': '#B5841F', '--star-empty': '#C9C4BD',
+      '--line': 'rgba(17,17,20,.12)', '--border-light': 'rgba(17,17,20,.10)',
+      // ---- 背景舞台 ----
+      '--g-bg': '#ECEAF0',                       // html 页面底
+      '--g-plate': 'linear-gradient(105deg, rgba(250,248,245,.20), rgba(250,248,245,.10) 50%, rgba(244,242,247,.20)), linear-gradient(105deg, rgba(216,212,221,.12), rgba(250,248,245,.05) 50%, rgba(231,227,247,.12)), rgba(244,242,247,.08)',
+      '--g-glow': 'radial-gradient(circle, rgba(255,255,255,.5), rgba(231,227,247,.16) 42%, rgba(255,255,255,0) 70%)', // 鼠标发光圆
+      '--g-grid': 'rgba(17,17,20,.07)',          // 网格装饰线
+      // ---- 玻璃白档（组件填充：faint→strong 递进） ----
+      '--g-fill-faint': 'rgba(255,255,255,.07)',   // 微透：极弱面/内层玻璃/分隔行 hover
+      '--g-fill-weak': 'rgba(255,255,255,.10)',    // 透：输入控件/分段容器/未选小件
+      '--g-fill-mid': 'rgba(255,255,255,.14)',     // 中：入口块/工具栏/普通玻璃件
+      '--g-fill-strong': 'rgba(255,255,255,.20)',  // 强：标签/选中态/侧栏选中块
+      '--g-card-fill': 'radial-gradient(ellipse 120% 55% at 50% 4%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.45) 18%, rgba(255,255,255,.14) 36%, rgba(255,255,255,.06) 60%, rgba(255,255,255,.04) 100%)', // 卡族弯月径向
+      '--g-card-strong': 'rgba(255,255,255,.32)',  // 信息卡强面（坐侧栏 L2）
+      '--g-card-id': 'rgba(255,255,255,.44)',      // 信息卡身份卡
+      '--g-card-strong-m': 'rgba(255,255,255,.62)',// 移动端信息卡
+      '--g-card-id-m': 'rgba(255,255,255,.75)',    // 移动端身份卡
+      '--g-sideuser-fill': 'rgba(255,255,255,.26)',// 侧栏用户块
+      '--g-pane-fill': 'rgba(255,255,255,.12)',    // 会话列表 pane/暂存区
+      '--g-header-fill': 'rgba(255,255,255,.08)',  // 浮窗头栏（玻璃上的玻璃）
+      '--g-hover-wash': 'rgba(255,255,255,.18)',   // hover 白洗叠层
+      '--g-avatar-fill': 'linear-gradient(160deg, rgba(255,255,255,.5), rgba(231,227,247,.32))', // 头像玻璃面
+      '--g-avatar-border': 'rgba(255,255,255,.7)',
+      '--g-avatar-fill-ghost': 'rgba(255,255,255,.12)', // 访客头像
+      '--g-avatar-border-ghost': 'rgba(110,110,118,.5)',
+      '--g-flow-dot': 'rgba(255,255,255,.85)',     // 关于页流程编号圆点
+      // ---- 液体边缘（弯月：上缘亮带 + 发丝白边 + 柔光下泄 + 折射细影 + 内发光） ----
+      '--g-liquid': 'inset 0 0 8px rgba(255,255,255,.10), inset 0 4px 8px -4px rgba(30,26,64,.08), inset 0 3px 3px -1px rgba(255,255,255,.85), inset 0 5px 16px -6px rgba(255,255,255,.18), inset 0 0 0 1px rgba(255,255,255,.40)',
+      '--g-liquid-sm': 'inset 0 0 5px rgba(255,255,255,.10), inset 0 4px 6px -4px rgba(30,26,64,.08), inset 0 2px 2px -1px rgba(255,255,255,.75), inset 0 3px 10px -4px rgba(255,255,255,.15), inset 0 0 0 1px rgba(255,255,255,.34)',
+      // ---- 浮影 ----
+      '--glass-lift': '0 12px 30px -12px rgba(30,26,64,.22)',
+      '--glass-lift-sm': '0 6px 16px -8px rgba(30,26,64,.18)',
+      '--g-pane-shadow': '8px 0 30px rgba(30,26,64,.1)',  // 侧栏右侧投影
+      '--g-panel-lift': 'rgba(17,17,20,.13)',      // 右栏面板外浮影（桌面）
+      '--g-panel-lift-m': 'rgba(17,17,20,.22)',    // 右栏面板外浮影（移动端）
+      // ---- 线条 ----
+      '--g-line-soft': 'rgba(255,255,255,.22)',    // 浮窗头栏底/面板分隔
+      '--g-line-row': 'rgba(255,255,255,.28)',     // 面板信息行分隔
+      '--g-line-pane': 'rgba(255,255,255,.5)',     // 侧栏/顶栏边缘高光
+      '--g-line-dark': 'rgba(30,26,64,.16)',       // 表单组分隔（暗色线）
+      '--g-option-line': 'rgba(30,26,64,.07)',     // 下拉选项分隔
+      '--g-seg-line': 'rgba(255,255,255,.3)',      // 分段控件内部分隔
+      '--g-foot-text': 'rgba(17,17,20,.72)',       // 侧栏脚注弱字
+      // ---- 焦点 / 涟漪 ----
+      '--g-ring': 'rgba(122,104,224,.55)',         // 焦点外环
+      '--g-focus-soft': 'rgba(122,104,224,.35)',   // 焦点内环（输入/会话项）
+      '--g-ring-halo': 'rgba(255,255,255,.95)',    // 焦点白色外晕
+      '--g-ripple': 'rgba(255,255,255,.6)',        // 按钮涟漪
+      // ---- 输入控件 ----
+      '--g-inset-shadow': 'rgba(30,26,64,.06)',    // 输入内阴影
+      '--g-inset-edge': 'rgba(255,255,255,.4)',    // 输入上缘亮边
+      '--g-inset-edge-soft': 'rgba(255,255,255,.18)', // 输入白描边
+      '--g-input-focus-edge': 'rgba(255,255,255,.3)',// 输入聚焦上缘
+      // ---- 语义填充（标签/警示/实心件） ----
+      '--g-ok-fill': 'rgba(24,122,75,.22)', '--g-ok-fg': '#187a4b',
+      '--g-ok-solid': 'linear-gradient(160deg, rgba(24,122,75,.9), rgba(24,122,75,.72))', // 已签约实心 tag
+      '--g-danger-fill': 'rgba(198,72,58,.20)',
+      '--g-danger-fill-soft': 'rgba(198,72,58,.14)', // 警示条/bug 卡
+      '--g-warn-fill': 'rgba(154,106,42,.20)',
+      '--g-accent-fill': 'rgba(122,104,224,.20)',
+      '--g-accent-fill-soft': 'rgba(142,128,232,.08)', // 聊天拖入虚线罩
+      '--g-accent-fill-strong': 'rgba(122,104,224,.7)', // 勾选选中
+      '--g-like-fill': 'rgba(211,47,47,.16)',      // 帖子点赞态
+      // ---- 气泡 ----
+      '--g-bubble-mine': 'rgba(150,138,230,.26)',
+      '--g-bubble-theirs': 'rgba(233,218,196,.30)',
+      '--g-bubble-system': 'rgba(206,198,238,.24)',
+      // ---- 大块 pane ----
+      '--g-sidebar-bg': 'rgba(250,248,245,.56)',
+      '--g-sidebar-bg-m': 'rgba(244,242,247,.97)', // 移动端侧栏近不透明
+      '--g-navbar-bg': 'rgba(250,248,245,.52)',
+      '--g-paper': 'rgba(255,255,255,.22)',        // 浮层纸面
+      '--g-sidebar-backdrop': 'rgba(20,18,40,.25)', // 移动端侧栏遮罩
+      // ---- 下拉选项 / 匹配条 ----
+      '--g-option-hover': 'rgba(122,104,224,.07)',
+      '--g-option-sel': 'rgba(122,104,224,.13)',
+      '--g-bar-soft': 'rgba(255,255,255,.25)',     // 匹配条底轨
+      '--g-bar-strong': 'rgba(255,255,255,.35)',   // 匹配条空值段
+      // ---- 光球（淡雅化 RGB 三元组；暗色沿用） ----
+      '--lg-orb-a': '176,156,240', '--lg-orb-b': '240,200,150', '--lg-orb-c': '172,202,235',
+      '--lg-orb-d': '202,148,240', '--lg-orb-e': '152,212,190', '--lg-orb-f': '240,176,222',
+      '--lg-orb-g': '244,208,150', '--lg-orb-h': '164,174,240', '--lg-orb-i': '234,186,132',
+    },
+    // 暗色：深蓝紫灰底（避纯黑）+ 低白玻璃 + 提亮语义色 + 深影（调研配方：暗玻璃用低 alpha 白 + 白边缘光）
+    dark: {
+      // ---- 语义色（深底浅字，4.5:1 对比达标） ----
+      '--paper': '#0E0C14', '--paper-2': '#14121C', '--paper-3': '#1A1825',
+      '--lilac': '#17151F', '--lilac-2': '#1D1A28',
+      '--ink': '#ECEAF4', '--ink-2': '#CFCDD9', '--ink-3': '#A9A6B6',
+      '--text': '#ECEAF4', '--muted': '#8F8C9D', '--faint': '#6B6878',
+      '--white': '#FFFFFF', '--field': '#15131D', '--field-2': '#1D1A27',
+      '--paper-ghost': 'rgba(14,12,20,.62)',
+      '--accent': '#8E80E8', '--accent-deep': '#A99BF5', '--accent-bright': '#A99BF5', '--accent-tint': 'rgba(142,128,232,.18)',
+      '--warn-deep': '#D4A64F', '--warn-tint': 'rgba(212,166,79,.16)',
+      '--danger': '#E05A4A', '--danger-deep': '#FF7A6A', '--danger-tint': 'rgba(224,90,74,.16)',
+      '--ok-deep': '#55B26B', '--ok-tint': 'rgba(85,178,107,.16)',
+      '--star': '#E2B84C', '--star-empty': '#4A4856',
+      '--line': 'rgba(255,255,255,.10)', '--border-light': 'rgba(255,255,255,.08)',
+      // ---- 背景舞台 ----
+      '--g-bg': '#0E0C14',
+      '--g-plate': 'linear-gradient(105deg, rgba(28,24,44,.50), rgba(16,14,26,.40) 50%, rgba(30,26,48,.50)), linear-gradient(105deg, rgba(40,34,62,.35), rgba(12,10,20,.25) 50%, rgba(48,40,72,.35)), rgba(20,18,30,.55)',
+      '--g-glow': 'radial-gradient(circle, rgba(142,128,232,.45), rgba(99,86,196,.16) 42%, rgba(255,255,255,0) 70%)',
+      '--g-grid': 'rgba(255,255,255,.06)',
+      // ---- 玻璃白档（低白玻璃：透出深底 + 白边缘光） ----
+      '--g-fill-faint': 'rgba(255,255,255,.05)',
+      '--g-fill-weak': 'rgba(255,255,255,.07)',
+      '--g-fill-mid': 'rgba(255,255,255,.10)',
+      '--g-fill-strong': 'rgba(255,255,255,.14)',
+      '--g-card-fill': 'radial-gradient(ellipse 120% 55% at 50% 4%, rgba(255,255,255,.32) 0%, rgba(255,255,255,.14) 18%, rgba(255,255,255,.07) 36%, rgba(255,255,255,.04) 60%, rgba(255,255,255,.03) 100%)',
+      '--g-card-strong': 'rgba(255,255,255,.22)',
+      '--g-card-id': 'rgba(255,255,255,.30)',
+      '--g-card-strong-m': 'rgba(255,255,255,.30)',
+      '--g-card-id-m': 'rgba(255,255,255,.40)',
+      '--g-sideuser-fill': 'rgba(255,255,255,.18)',
+      '--g-pane-fill': 'rgba(255,255,255,.08)',
+      '--g-header-fill': 'rgba(255,255,255,.06)',
+      '--g-hover-wash': 'rgba(255,255,255,.10)',
+      '--g-avatar-fill': 'linear-gradient(160deg, rgba(255,255,255,.28), rgba(231,227,247,.16))',
+      '--g-avatar-border': 'rgba(255,255,255,.35)',
+      '--g-avatar-fill-ghost': 'rgba(255,255,255,.08)',
+      '--g-avatar-border-ghost': 'rgba(255,255,255,.22)',
+      // --g-flow-dot 暗色沿用（实心白点 + 深字，对比依旧达标）
+      // ---- 液体边缘（亮带降档，发丝边保留——暗玻璃的灵魂） ----
+      '--g-liquid': 'inset 0 0 8px rgba(255,255,255,.05), inset 0 4px 8px -4px rgba(0,0,0,.25), inset 0 3px 3px -1px rgba(255,255,255,.45), inset 0 5px 16px -6px rgba(255,255,255,.10), inset 0 0 0 1px rgba(255,255,255,.22)',
+      '--g-liquid-sm': 'inset 0 0 5px rgba(255,255,255,.05), inset 0 4px 6px -4px rgba(0,0,0,.25), inset 0 2px 2px -1px rgba(255,255,255,.38), inset 0 3px 10px -4px rgba(255,255,255,.08), inset 0 0 0 1px rgba(255,255,255,.18)',
+      // ---- 浮影（深影） ----
+      '--glass-lift': '0 12px 30px -12px rgba(0,0,0,.55)',
+      '--glass-lift-sm': '0 6px 16px -8px rgba(0,0,0,.5)',
+      '--g-pane-shadow': '8px 0 30px rgba(0,0,0,.4)',
+      '--g-panel-lift': 'rgba(0,0,0,.45)',
+      '--g-panel-lift-m': 'rgba(0,0,0,.5)',
+      // ---- 线条（反转为浅线） ----
+      '--g-line-soft': 'rgba(255,255,255,.12)',
+      '--g-line-row': 'rgba(255,255,255,.14)',
+      '--g-line-pane': 'rgba(255,255,255,.12)',
+      '--g-line-dark': 'rgba(255,255,255,.10)',
+      '--g-option-line': 'rgba(255,255,255,.08)',
+      '--g-seg-line': 'rgba(255,255,255,.14)',
+      '--g-foot-text': 'rgba(255,255,255,.72)',
+      // ---- 焦点 / 涟漪 ----
+      '--g-ring': 'rgba(139,124,232,.8)',
+      '--g-focus-soft': 'rgba(139,124,232,.45)',
+      '--g-ring-halo': 'rgba(255,255,255,.3)',
+      '--g-ripple': 'rgba(255,255,255,.35)',
+      // ---- 输入控件 ----
+      '--g-inset-shadow': 'rgba(0,0,0,.4)',
+      '--g-inset-edge': 'rgba(255,255,255,.22)',
+      '--g-inset-edge-soft': 'rgba(255,255,255,.1)',
+      '--g-input-focus-edge': 'rgba(255,255,255,.14)',
+      // ---- 语义填充（提亮一档，深底上保持可读） ----
+      '--g-ok-fill': 'rgba(66,160,102,.28)', '--g-ok-fg': '#58C48A',
+      '--g-ok-solid': 'linear-gradient(160deg, rgba(56,152,94,.95), rgba(56,152,94,.75))',
+      '--g-danger-fill': 'rgba(224,90,74,.24)',
+      '--g-danger-fill-soft': 'rgba(224,90,74,.16)',
+      '--g-warn-fill': 'rgba(212,166,79,.22)',
+      '--g-accent-fill': 'rgba(139,124,232,.26)',
+      '--g-accent-fill-soft': 'rgba(139,124,232,.12)',
+      '--g-accent-fill-strong': 'rgba(139,124,232,.8)',
+      '--g-like-fill': 'rgba(224,90,74,.20)',
+      // ---- 气泡 ----
+      '--g-bubble-mine': 'rgba(150,138,230,.32)',
+      '--g-bubble-theirs': 'rgba(233,218,196,.14)',
+      '--g-bubble-system': 'rgba(206,198,238,.20)',
+      // ---- 大块 pane ----
+      '--g-sidebar-bg': 'rgba(18,16,26,.72)',
+      '--g-sidebar-bg-m': 'rgba(26,23,37,.97)',
+      '--g-navbar-bg': 'rgba(18,16,26,.68)',
+      '--g-paper': 'rgba(24,22,34,.62)',
+      '--g-sidebar-backdrop': 'rgba(0,0,0,.5)',
+      // ---- 下拉选项 / 匹配条 ----
+      '--g-option-hover': 'rgba(139,124,232,.14)',
+      '--g-option-sel': 'rgba(139,124,232,.24)',
+      '--g-bar-soft': 'rgba(255,255,255,.18)',
+      '--g-bar-strong': 'rgba(255,255,255,.26)',
+      // --lg-orb-* 暗色沿用亮色（淡雅化三元组在深底上即柔光）
     },
   },
 
@@ -175,7 +378,7 @@ globalThis.APP_CONSTANTS = {
 
     // 页面栏目
     PAGE_NOTIFICATIONS: '通知信息',
-    PAGE_ACCOUNT_SETTINGS: '账户设置',
+    PAGE_ACCOUNT_SETTINGS: '设置',
 
     // 登录页用户名实时角色提示
     HINT_ROLE_STUDENT: '学生账户',
@@ -482,7 +685,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_REVIEWS_DESC: '评价审核与删除',
     PAGE_ADMIN_POSTS_DESC: '管理教师共享的资料帖子',
     PAGE_NOTIFICATIONS_DESC: '意向与推送的处理进展',
-    PAGE_ACCOUNT_SETTINGS_DESC: '账户信息与退出登录',
+    PAGE_ACCOUNT_SETTINGS_DESC: '外观主题与账户信息',
 
     // 需求表单
     MODAL_TITLE_DEMAND_CREATE: '提交学生需求',
@@ -582,7 +785,14 @@ globalThis.APP_CONSTANTS = {
     EMPTY_NO_NOTIFICATIONS: '暂无通知',
     NOTIF_FILTER_EMPTY: '没有符合条件的通知', /* v0.19.46 通知页屏蔽筛选后空态（控件文案与教师块同模式静态硬编码） */
 
-    // 账户设置
+    // 账户设置（设置页：外观设置区 + 账户信息区）
+    SETTINGS_APPEARANCE_TITLE: '外观设置',
+    SETTINGS_THEME_LABEL: '外观主题',
+    SETTINGS_THEME_HINT: '选择界面外观风格，「跟随系统」会自动适配系统的黑夜模式',
+    THEME_LIGHT: '亮色',
+    THEME_DARK: '暗色',
+    THEME_SYSTEM: '跟随系统',
+    SETTINGS_ACCOUNT_TITLE: '账户信息',
     SETTINGS_USERNAME: '账户用户名',
     SETTINGS_ROLE: '账户角色',
     SETTINGS_PHONE: '电话',
@@ -601,6 +811,17 @@ globalThis.APP_CONSTANTS = {
     BTN_DEVICE_LOGOUT: '下线',
     DEVICE_REVOKE_CONFIRM: '确定要让该设备退出登录吗？该设备上的会话将立即失效。',
     DEVICE_REVOKE_DONE: '该设备已下线',
+
+    // 新手引导（无登录记录时自动弹出；关于页「平台基本用法」底部可重温）
+    ONBOARD_TITLE: '欢迎来到上财家教',
+    ONBOARD_INTRO: '这里是学生与家教老师直接对接的信息平台，零佣金、不收费。当前为内测阶段：',
+    ONBOARD_POLICY: [
+      '注册很简单：学生与教师都可直接注册，无需邀请码',
+      '内测数据：公测开始后，全部账号与数据将被清空',
+      '现在就试试：发布需求、浏览教师、提交试课意向，有疑问随时在「关于平台」反馈',
+    ],
+    ONBOARD_CONFIRM: '知道了',
+    ONBOARD_REVISIT_BTN: '重温新手引导',
 
     // 表单标签与占位符
     LABEL_PROVINCE: '省份',
