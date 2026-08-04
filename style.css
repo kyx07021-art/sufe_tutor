@@ -1359,7 +1359,7 @@ body.profile-panel-open .profile-panel { transform: none; }
 .text-sm { font-size: .8rem; }
 .review-mine-note { margin-top: 8px; font-size: .74rem; color: var(--muted); }
 .sidebar-version { margin-top: 8px; font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; color: var(--ink-3); opacity: .45; text-align: right; } /* 侧边栏白卡底：小字版本号 */
-.demand-id-tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); } /* 需求卡右上角四位编号 */
+.demand-id-tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); margin-left: 6px; } /* v0.20.0 编号从气泡挪出，与时间标记同排（时间右侧） */
 .form-note-block { margin-top: 6px; font-size: .72rem; line-height: 1.5; color: var(--muted); } /* 表单字段下方灰字备注 */
 .form-other-wrap { margin-top: 10px; } /* 下拉选「其他」时展开的文字输入行 */
 /* 低调危险操作（撤销合同/注销账户）：玻璃圆角小按钮 + 红色危险染色——圆角由 .glass 引擎统一

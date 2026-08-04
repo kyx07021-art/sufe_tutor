@@ -1528,6 +1528,8 @@ document.addEventListener('scroll', () => { if (_matchDetailOpen) closeMatchDeta
 function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false, myTeacher = null } = opts;
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
+  // 需求编号（#0004 四位）：v0.20.0 从小气泡挪出，直接跟在时间标记右侧（与时间同排的普通文本）
+  const idTag = d.display_id ? `<span class="demand-id-tag">#${String(d.display_id).padStart(4, '0')}</span>` : '';
   // 匹配度徽章（教师视角 + 教师档案齐全时展示）：v0.19.45 变按钮，点击呼出明细悬浮卡
   const matchTag = (teacher && myTeacher)
     ? (() => { const md = matchDegree(myTeacher, d); if (md == null) return ''; return `<button type="button" class="tag tag-match glass glass--solid" data-id="${d.id}" onclick="showMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${md}%</button>`; })()
@@ -1563,12 +1565,11 @@ function renderDemandCard(d, opts = {}) {
       <span class="demand-card-tools">
         ${push ? `<span class="push-note-row">
           <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
-          <span class="list-card-meta">${fmtDateTime(push.push_created_at)}</span>
+          <span class="list-card-meta">${fmtDateTime(push.push_created_at)}</span>${idTag}
           <span class="push-note-text">${UI.PUSH_NOTE_TEXT}</span>
           <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
           <button type="button" class="btn btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
-        </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${teacherIntentBtn}`}
-        ${d.display_id ? `<span class="demand-id-tag glass glass--solid">#${String(d.display_id).padStart(4, '0')}</span>` : ''}
+        </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${idTag}${teacherIntentBtn}`}
         ${editable && d.status === 'revoked' ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
           : editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
         ${admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}

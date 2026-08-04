@@ -235,7 +235,7 @@ body { background: transparent; }
    液体边缘高光保留（--g-liquid 默认开启）——实心件同样需要珠圆玉润的液态感 */
 .glass--solid { --g-frost: none; } /* 实心小件：关磨砂 = 干净圆角填充 */
 .chat-file-chip, .chat-stage-item, .chat-stage-thumb { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.tag, .conv-item-role, .chat-peer-tag, .demand-id-tag, .device-current, .profile-tag {
+.tag, .conv-item-role, .chat-peer-tag, .device-current, .profile-tag {
   --g-fill: var(--g-fill-strong); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2);
 }
 .conv-signed-tag, .chat-head-signed, .profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; }
