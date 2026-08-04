@@ -743,9 +743,15 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .settings-row--avatar .settings-label { margin-bottom: 9px; }
 .settings-avatar { width: 88px; height: 88px; font-size: 2.2rem; }
 .settings-logout { margin-top: 36px; }
-/* 设置页区段大标题（v0.19.49 外观设置/账户信息两区；与 about-title 同语言） */
-.settings-section-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink); margin: 4px 0 6px; }
-.settings-section-title + .settings-section-title { margin-top: 34px; } /* 外观区与账户区间距 */
+/* 设置页区段大标题（外观设置/账户信息两区；与 about-title 同语言）：
+   子标题下方加分割线、上方不加；后续子标题与上一个设置项之间用大间距分区（~ 命中非相邻兄弟） */
+.settings-section-title {
+  font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
+  padding-bottom: 10px;
+  margin: 2px 0 14px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-section-title ~ .settings-section-title { margin-top: 36px; } /* 外观区与账户区间距 */
 /* 外观主题三项：复用玻璃按钮，选中态走引擎 --g-fill 参数（accent-tint 底 + accent-deep 字） */
 .theme-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .theme-opt { padding: 7px 14px; font-size: .78rem; font-weight: 700; color: var(--muted); }
