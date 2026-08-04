@@ -732,8 +732,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 }
 .reveal.revealed { opacity: 1; transform: translateY(0); }
 
-/* 账户设置：细线分隔的设置行（无白框），灰小标签 + 值 + 右侧修改按钮 */
-.settings-list { border-bottom: 1px solid var(--line); }
+/* 账户设置：细线分隔的设置行（无白框），灰小标签 + 值 + 右侧修改按钮。
+   v0.20.0 删列表底部线：区边界统一由子标题 border-bottom 承担，列表自身不划线（否则单设置项区出现孤线） */
 .settings-row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 15px 2px; border-top: 1px solid var(--line);
@@ -754,6 +754,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   border-bottom: 1px solid var(--line);
 }
 .settings-section-title ~ .settings-section-title { margin-top: 36px; } /* 外观区与账户区间距 */
+/* 区首项贴标题线：每区第一个设置项无上边线，行间线从第二项起（与头像行 border-top:none 同模式，防标题下双线） */
+.settings-section-title + * > .settings-row:first-child,
+.settings-section-title + .settings-row { border-top: none; }
 /* 外观主题三项：复用玻璃按钮，选中态走引擎 --g-fill 参数（accent-tint 底 + accent-deep 字） */
 .theme-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .theme-opt { padding: 7px 14px; font-size: .78rem; font-weight: 700; color: var(--muted); }
