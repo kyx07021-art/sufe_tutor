@@ -111,6 +111,7 @@ globalThis.APP_CONSTANTS = {
       '--g-plate': 'linear-gradient(105deg, rgba(250,248,245,.20), rgba(250,248,245,.10) 50%, rgba(244,242,247,.20)), linear-gradient(105deg, rgba(216,212,221,.12), rgba(250,248,245,.05) 50%, rgba(231,227,247,.12)), rgba(244,242,247,.08)',
       '--g-glow': 'radial-gradient(circle, rgba(255,255,255,.5), rgba(231,227,247,.16) 42%, rgba(255,255,255,0) 70%)', // 鼠标发光圆
       '--g-grid': 'rgba(17,17,20,.07)',          // 网格装饰线
+      '--g-autofill': '#FFFFFF',                 // 浏览器自动填充抹蓝底用底色（dark 换暗玻璃色，v0.20.0）
       // ---- 玻璃白档（组件填充：faint→strong 递进） ----
       '--g-fill-faint': 'rgba(255,255,255,.07)',   // 微透：极弱面/内层玻璃/分隔行 hover
       '--g-fill-weak': 'rgba(255,255,255,.10)',    // 透：输入控件/分段容器/未选小件
@@ -207,6 +208,7 @@ globalThis.APP_CONSTANTS = {
       '--g-plate': 'linear-gradient(105deg, rgba(28,24,44,.50), rgba(16,14,26,.40) 50%, rgba(30,26,48,.50)), linear-gradient(105deg, rgba(40,34,62,.35), rgba(12,10,20,.25) 50%, rgba(48,40,72,.35)), rgba(20,18,30,.55)',
       '--g-glow': 'radial-gradient(circle, rgba(142,128,232,.45), rgba(99,86,196,.16) 42%, rgba(255,255,255,0) 70%)',
       '--g-grid': 'rgba(255,255,255,.06)',
+      '--g-autofill': '#211F2B',
       // ---- 玻璃白档（低白玻璃：透出深底 + 白边缘光） ----
       '--g-fill-faint': 'rgba(255,255,255,.05)',
       '--g-fill-weak': 'rgba(255,255,255,.07)',
