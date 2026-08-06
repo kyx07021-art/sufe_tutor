@@ -306,8 +306,16 @@ async function api(endpoint, options = {}) {
   const res = await fetch(endpoint, config);
   const data = await res.json();
   if (!res.ok) {
-    // 401 兜底汇入登录通路：访客点了需身份的接口 / 令牌过期，都导向特制登录页（登录后自动返回原页面）
-    if (res.status === 401 && state.view === 'client') ensureAuth();
+    // 401 兜底：带令牌仍被拒 = 会话已死（7 天过期 / 多端被顶号清会话），必须清本地登录态并汇入登录通路，
+    // 否则内存里 state.user 还在、ensureAuth 放行，页面只剩一句「加载失败」假装还登录着
+    if (res.status === 401) {
+      if (state.authToken) {
+        state.authToken = null; state.user = null;
+        try { localStorage.removeItem('sufe_session'); } catch {}
+        try { sessionStorage.removeItem('sufe_session'); } catch {}
+      }
+      if (state.view === 'client') ensureAuth(); // user 已清空 → 这次真的会进登录页
+    }
     const e = new Error(data.error || UI.ERROR_REQUEST_FAILED);
     e.code = data.code; // C2：后端 error() 带稳定 code，前端按 code 分支（不脆耦合中文 MSG）
     throw e;

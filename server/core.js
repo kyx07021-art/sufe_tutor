@@ -265,7 +265,7 @@ export async function issueAuthToken(db, userId, label) {
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
   const sessionId = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
   const expires = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
-  await dbRun(db, `DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now','localtime')`, [userId]);
+  await dbRun(db, `DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now')`, [userId]);
   await dbRun(db, 'INSERT INTO auth_sessions (token_hash, session_id, user_id, label, expires_at) VALUES (?,?,?,?,?)',
     [await tokenDigest(token), sessionId, userId, label || '', expires]);
   return token;
