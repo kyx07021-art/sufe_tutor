@@ -450,7 +450,7 @@ textarea.form-input {
   transform-origin: top center;
   transition: transform .22s var(--ease-snap), visibility 0s .22s;
 }
-.custom-select-panel.open { visibility: visible; transform: none; transition: transform .22s var(--ease-snap), visibility 0s 0s; }
+.custom-select-panel.open { visibility: visible; transform: none; transition: none; } /* 983252：frost+transform 过渡冻结，改瞬开瞬关 */
 /* 透明滚动通道：无背景无玻璃类无边框——选项透在面板玻璃上滚，磨砂钉住不跟滚 */
 .custom-select-list { max-height: 256px; overflow-y: auto; }
 .custom-select-list::-webkit-scrollbar { width: 6px; }
@@ -1191,7 +1191,9 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 
   --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
-  transition: transform .16s var(--ease-snap);
+  /* Chromium 983252：带 backdrop-filter(--g-frost) 的元素做 transform 过渡会被冻结到下次重绘=「鼠标挪开才动」。
+     信息栏改瞬开瞬关、去动画保点击即关（弹窗 0.19.33 同根因已去 opacity 动画；custom-select-panel 同修） */
+  transition: none;
 }
 body.profile-panel-open .profile-panel { transform: none; }
 .profile-panel-backdrop {
