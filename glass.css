@@ -191,16 +191,6 @@ body { background: transparent; }
 .profile-panel { --g-r: var(--lg-r-lg); }
 /* 头栏=玻璃上的玻璃（浮层内层，层级白值最底）：白 .08 更透，毛度补强 blur(12px) 保滚动可读（v0.19.35 层级白值） */
 .modal-header, .profile-panel-head { --g-fill: var(--g-header-fill); --g-frost: var(--g-f-header, blur(12px)); }
-/* v0.20.7 解耦（用户指示：删耦合不是删动画）：个人信息栏子树全部去 backdrop-filter——
-   transform 出入动画所在树内任何 backdrop-filter（本体 blur16/头 blur12/面板内按钮 blur4）
-   都会触发 Chromium 983252 族重绘失效=残留帧（点击不关/动画卡住）。观感用更实填充替代：
-   面板 --g-panel-fill（明暗令牌），头栏 var(--paper) 实色纸面，卡片保留 .90 峰值白填充。 */
-.profile-panel { --g-fill: var(--g-panel-fill, rgba(255,255,255,.72)); }
-.profile-panel, .profile-panel *, .profile-panel ::before, .profile-panel ::after {
-  --g-frost: none !important;
-  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
-}
-.profile-panel-head { --g-fill: var(--paper); } /* 无 blur 头栏：实色纸面令牌，明暗随主题 */
 .chat-bubble { --g-lift: var(--glass-lift-sm); --g-liquid: var(--g-liquid-sm); }
 .chat-bubble--mine { --g-fill: var(--g-bubble-mine); --g-fg: var(--ink); }
 .chat-bubble--theirs { --g-fill: var(--g-bubble-theirs); --g-fg: var(--ink); }
