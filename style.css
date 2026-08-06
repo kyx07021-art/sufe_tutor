@@ -1191,7 +1191,7 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 
   --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
-  transition: transform .34s var(--ease-snap);
+  transition: transform .16s var(--ease-snap);
 }
 body.profile-panel-open .profile-panel { transform: none; }
 .profile-panel-backdrop {

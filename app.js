@@ -617,6 +617,7 @@ function authGoBack() {
 function afterAuthSuccess() {
   state.guestAuthMode = false;
   state.guestRole = null;
+  localStorage.setItem('sufe_returning', '1'); // 本设备已登录过 → 首访新手引导不再弹
   const back = authReturnPage; authReturnPage = null;
   enterClient(back || undefined); // 返回页与新角色不匹配时 enterClient 自然回落默认页
 }
@@ -1848,7 +1849,8 @@ function openOnboarding() {
     title: UI.ONBOARD_TITLE,
     closable: false,
     body: `<p class="onboard-intro">${escHtml(UI.ONBOARD_INTRO)}</p><div class="onboard-policy">${policyItems}</div>`,
-    footer: `<button type="button" class="btn btn-primary glass glass--pressable" onclick="closeModal()">${UI.ONBOARD_CONFIRM}</button>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="openUsageGuide()">${UI.USAGE_GUIDE_BTN}</button>
+      <button type="button" class="btn btn-primary glass glass--pressable" onclick="closeModal()">${UI.ONBOARD_CONFIRM}</button>`,
   });
 }
 
@@ -2444,7 +2446,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.removeItem('sufe_session'); // 过期 / 旧版含密码格式：一并清理
     }
   } catch {
-    localStorage.removeItem('sufe_session'); // 令牌失效清理
+    // 令牌真正失效由 api() 的 401 处理统一清理（0.20.1）；网络抖动不删会话，否则下次访问变「首次」、新手引导重弹
   }
   try {
     const sess = JSON.parse(sessionStorage.getItem('sufe_session'));
@@ -2459,10 +2461,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       sessionStorage.removeItem('sufe_session'); // 旧版含密码格式：清理
     }
   } catch {
-    sessionStorage.removeItem('sufe_session'); // 令牌失效清理
+    // 同 localStorage：网络抖动不删，仅 401 由 api() 清理
   }
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件
   showView('landing');
-  // 新手引导：本机无任何登录记录（localStorage/sessionStorage 均空）时首访弹出
-  if (!localStorage.getItem('sufe_session') && !sessionStorage.getItem('sufe_session')) openOnboarding();
+  // 新手引导：仅「本设备从未打开过」弹一次（sufe_returning 常驻标记，登录/注册也写；会话过期/自动登录失败不再重弹）
+  if (!localStorage.getItem('sufe_returning')) {
+    localStorage.setItem('sufe_returning', '1');
+    openOnboarding();
+  }
 });
