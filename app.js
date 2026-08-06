@@ -1134,6 +1134,11 @@ function applyFilters() {
 //   title 左对齐、信息自固定 px 处起，逐项成行）；卡片③评价（按钮三态：
 //   未签约灰禁 / 已签约写评价 / 已评价改评价）。教师卡片②③仅教师账户有。
 //   入口：全站头像（账户设置预览除外）/ 会话窗右上角人头肩线框 / 原教师详情按钮。
+//   开闭状态管理（0.20.8 解耦重写）：JS 只切 body.profile-panel-open 类 + 作废在途异步；
+//   动画、原子隐藏、时序全由 CSS 呈现层负责，JS 不写任何内联样式。
+//   病灶回顾：0.20.5~0.20.7 曾在 close 里写 p.style.visibility='hidden'（JS 直接篡改绘制状态
+//   与 CSS transition 耦合）→ 动画被瞬间压死 =「收回去瞬间消失」；0.20.7 又误删 backdrop-filter
+//   治耦合，观感崩。本轮把状态与动画彻底分离，两者不再互相干涉。
 // ============================================================
 let profilePanelSeq = 0;      // 面板序号：异步回来时序号不符即丢弃（防换人/关闭后串号）
 let profilePanelUserId = null;
@@ -1147,9 +1152,7 @@ function findCachedTeacher(userId) {
 async function openProfilePanel(userId) {
   const seq = ++profilePanelSeq;
   profilePanelUserId = userId;
-  document.body.classList.add('profile-panel-open');
-  const pnl = document.getElementById('profile-panel');
-  if (pnl) pnl.style.visibility = ''; // 清原子隐藏（close 写入的内联），交还类规则控制
+  document.body.classList.add('profile-panel-open'); // 唯一状态写入；动画/可见性交 CSS
   const titleEl = document.getElementById('profile-panel-title');
   if (titleEl) titleEl.textContent = UI.PROFILE_PANEL_TITLE; // 标题归口 constants（静态文本仅 JS 前兜底）
   const body = document.getElementById('profile-panel-body');
@@ -1204,14 +1207,13 @@ async function openProfilePanel(userId) {
   }
 }
 
-// 个人信息栏关闭（0.20.5 连根重写）：单点函数 + 程序化绑定（无内联 onclick，杜绝「叉没接上」断线）。
-// 关闭 = 状态置空（防竞态重开）+ 类移除 + 元素原子隐藏（visibility 绘制级开关，不依赖合成器重绘，杜绝「鼠标挪开才消失」）
+// 个人信息栏关闭：状态管理单点。只移除 body 类，动画与原子隐藏全由 CSS 呈现层完成
+//（0.20.8 解耦：旧版 JS 内联 style.visibility 与 CSS transition 耦合，动画被瞬间压死——0.20.5~0.20.7 病灶）。
+// 防竞态：seq 作废在途异步（迟到的 open 渲染/重开直接丢弃）；userId 置空防「就地刷新重开」拉回面板。
 function closeProfilePanel() {
-  profilePanelSeq++; // 在途异步响应作废：关掉后任何迟到的 open 渲染/重开直接丢弃
-  profilePanelUserId = null; // 竞态防护：两处「就地刷新重开」（1369/1424）都检查此值，置空后不可能把面板拉回来
-  document.body.classList.remove('profile-panel-open'); // 遮罩随类关
-  const p = document.getElementById('profile-panel');
-  if (p) p.style.visibility = 'hidden';
+  profilePanelSeq++;
+  profilePanelUserId = null;
+  document.body.classList.remove('profile-panel-open'); // 关闭动画 + 结束后原子隐藏全交 CSS
 }
 
 // 关闭按钮 + 遮罩：程序化绑定（不写内联 onclick）

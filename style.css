@@ -1191,12 +1191,16 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 
   --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
-  visibility: hidden; /* 原子隐藏（0.20.5 起）：关闭不依赖合成器重绘（983252 残留帧免疫），点击即关 */
-  transition: none; /* 关闭=瞬关；打开动画由下方 open 态规则提供（0.20.6 恢复入栏滑入） */
+  visibility: hidden;
+  /* 开闭动画（0.20.8 解耦重写）：JS 只切 body.profile-panel-open 类，时序全在此层，两态互不耦合。
+     base = 关闭态：transform 滑出 .3s 全程可见，visibility 延迟 .3s 才翻转 hidden
+     —— 既保住滑出动画，又在结束后原子隐藏（983252 残留帧兜底，不依赖合成器重绘）。
+     旧版（0.20.5~0.20.7）由 JS 内联 style.visibility 立即隐藏 → 动画被压死 =「收回去瞬间消失」。 */
+  transition: transform .3s var(--ease-snap), visibility 0s .3s;
 }
 body.profile-panel-open .profile-panel {
   transform: none; visibility: visible;
-  transition: transform .3s var(--ease-snap), visibility .3s; /* 入栏滑入动画；出栏回到 base 的 transition:none=瞬关 */
+  transition: transform .3s var(--ease-snap), visibility 0s; /* 打开：visibility 即时可见，transform 滑入 .3s */
 }
 .profile-panel-backdrop {
   position: fixed; inset: 0; z-index: 145;
