@@ -686,9 +686,14 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .about-text { font-size: .86rem; color: var(--ink-3); line-height: 1.75; }
 .about-card-block + .about-card-block { margin-top: 0; }
 /* 平台基本用法卡底部：重温新手引导按钮（v0.19.49） */
-.about-flow-revisit { margin-top: 16px; }
+.about-flow-revisit { margin-top: 16px; display: flex; gap: 10px; }
 .about-support-lines { font-size: .82rem; color: var(--ink-3); line-height: 2; margin-bottom: 16px; }
 .about-feedback-btns { display: flex; gap: 10px; }
+/* 详细用法介绍浮窗：分区标题 + 段落，行距舒适 */
+.usage-guide { display: flex; flex-direction: column; gap: 14px; }
+.usage-guide-section { display: flex; flex-direction: column; gap: 6px; }
+.usage-guide-title { font-size: .92rem; font-weight: 800; letter-spacing: .02em; color: var(--ink); }
+.usage-guide-text { font-size: .82rem; line-height: 1.75; color: var(--ink-2, #444); }
 /* 关于平台 · 安全与隐私保护：「小盾标 + 粗体小标题 + 一句白话」逐条，建立学生与家长的信任 */
 .about-security-list { display: flex; flex-direction: column; margin-top: 14px; }
 .about-sec-item { display: flex; gap: 12px; align-items: flex-start; padding: 11px 0; }

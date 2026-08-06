@@ -1852,6 +1852,20 @@ function openOnboarding() {
   });
 }
 
+// 详细用法介绍：关于页「平台基本用法」底部呼出的完整使用说明浮窗（复用 openModal；文案单源 constants）
+function openUsageGuide() {
+  const sections = UI.USAGE_GUIDE_SECTIONS.map(s => `
+      <div class="usage-guide-section">
+        <h4 class="usage-guide-title">${escHtml(s.t)}</h4>
+        ${s.p.map(p => `<p class="usage-guide-text">${escHtml(p)}</p>`).join('')}
+      </div>`).join('');
+  openModal({
+    title: UI.USAGE_GUIDE_TITLE,
+    body: `<div class="usage-guide">${sections}</div>`,
+    footer: `<button type="button" class="btn btn-primary glass glass--pressable" onclick="closeModal()">${UI.ONBOARD_CONFIRM}</button>`,
+  });
+}
+
 // 登录设备管理：拉本人会话列表逐端展示（token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。
 // 页签已切走则丢弃结果（防异步串号，同教师弹窗评价教训）
 async function loadDeviceSessions() {
@@ -2109,7 +2123,10 @@ function enterAbout() {
     <div class="list-card about-card-block glass">
       <h3 class="about-title">${UI.ABOUT_USAGE_TITLE}</h3>
       <div class="about-flow">${steps}</div>
-      <div class="about-flow-revisit"><button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openOnboarding()">${UI.ONBOARD_REVISIT_BTN}</button></div>
+      <div class="about-flow-revisit">
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openUsageGuide()">${UI.USAGE_GUIDE_BTN}</button>
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openOnboarding()">${UI.ONBOARD_REVISIT_BTN}</button>
+      </div>
     </div>
     <div class="list-card about-card-block glass">
       <h3 class="about-title">${UI.ABOUT_SECURITY_TITLE}</h3>
