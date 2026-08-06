@@ -1191,12 +1191,12 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 
   --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
-  visibility: hidden; /* 原子隐藏（0.20.5 起）：关闭不依赖合成器重绘（983252 残留帧免疫），点击即关 */
-  transition: none; /* 关闭=瞬关；打开动画由下方 open 态规则提供（0.20.6 恢复入栏滑入） */
+  visibility: hidden; /* 原子隐藏兜底（983252 残留帧免疫），随过渡结束翻转 */
+  transition: transform .3s var(--ease-snap), visibility .3s; /* 出入动画都在（0.20.7 子树去 backdrop-filter 解耦后，关闭动画回归且不再冻结） */
 }
 body.profile-panel-open .profile-panel {
   transform: none; visibility: visible;
-  transition: transform .3s var(--ease-snap), visibility .3s; /* 入栏滑入动画；出栏回到 base 的 transition:none=瞬关 */
+  transition: transform .3s var(--ease-snap), visibility .3s;
 }
 .profile-panel-backdrop {
   position: fixed; inset: 0; z-index: 145;

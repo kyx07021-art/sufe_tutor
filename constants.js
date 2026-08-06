@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.20.6',
+  APP_VERSION: '0.20.7',
 
   // ============================================================
   // 业务数据
@@ -140,6 +140,7 @@ globalThis.APP_CONSTANTS = {
       '--g-pane-shadow': '8px 0 30px rgba(30,26,64,.1)',  // 侧栏右侧投影
       '--g-panel-lift': 'rgba(17,17,20,.13)',      // 右栏面板外浮影（桌面）
       '--g-panel-lift-m': 'rgba(17,17,20,.22)',    // 右栏面板外浮影（移动端）
+      '--g-panel-fill': 'rgba(255,255,255,.72)',   // 右栏面板实填充（v0.20.7 去 backdrop-filter 解耦 983252 后替代毛玻璃观感）
       // ---- 线条 ----
       '--g-line-soft': 'rgba(255,255,255,.22)',    // 浮窗头栏底/面板分隔
       '--g-line-row': 'rgba(255,255,255,.28)',     // 面板信息行分隔
@@ -237,6 +238,7 @@ globalThis.APP_CONSTANTS = {
       '--g-pane-shadow': '8px 0 30px rgba(0,0,0,.4)',
       '--g-panel-lift': 'rgba(0,0,0,.45)',
       '--g-panel-lift-m': 'rgba(0,0,0,.5)',
+      '--g-panel-fill': 'rgba(24,22,34,.88)',      // 右栏面板实填充（暗色）
       // ---- 线条（反转为浅线） ----
       '--g-line-soft': 'rgba(255,255,255,.12)',
       '--g-line-row': 'rgba(255,255,255,.14)',
