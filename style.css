@@ -1191,11 +1191,13 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 
   --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
-  visibility: hidden; /* 983252 变体：带 backdrop-filter 的 fixed 层 transform 失效后可能不重绘=残留上一帧「鼠标挪开才消失」。
-     visibility 是绘制级原子开关，不依赖合成器重绘失效；transition:none 瞬开瞬关保点击即关 */
-  transition: none;
+  visibility: hidden; /* 原子隐藏（0.20.5 起）：关闭不依赖合成器重绘（983252 残留帧免疫），点击即关 */
+  transition: none; /* 关闭=瞬关；打开动画由下方 open 态规则提供（0.20.6 恢复入栏滑入） */
 }
-body.profile-panel-open .profile-panel { transform: none; visibility: visible; }
+body.profile-panel-open .profile-panel {
+  transform: none; visibility: visible;
+  transition: transform .3s var(--ease-snap), visibility .3s; /* 入栏滑入动画；出栏回到 base 的 transition:none=瞬关 */
+}
 .profile-panel-backdrop {
   position: fixed; inset: 0; z-index: 145;
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=浮窗自灰），只留虚化 */
