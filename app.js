@@ -1148,6 +1148,8 @@ async function openProfilePanel(userId) {
   const seq = ++profilePanelSeq;
   profilePanelUserId = userId;
   document.body.classList.add('profile-panel-open');
+  const pnl = document.getElementById('profile-panel');
+  if (pnl) pnl.style.visibility = ''; // 清原子隐藏（close 写入的内联），交还类规则控制
   const titleEl = document.getElementById('profile-panel-title');
   if (titleEl) titleEl.textContent = UI.PROFILE_PANEL_TITLE; // 标题归口 constants（静态文本仅 JS 前兜底）
   const body = document.getElementById('profile-panel-body');
@@ -1202,11 +1204,23 @@ async function openProfilePanel(userId) {
   }
 }
 
+// 个人信息栏关闭（0.20.5 连根重写）：单点函数 + 程序化绑定（无内联 onclick，杜绝「叉没接上」断线）。
+// 关闭 = 状态置空（防竞态重开）+ 类移除 + 元素原子隐藏（visibility 绘制级开关，不依赖合成器重绘，杜绝「鼠标挪开才消失」）
 function closeProfilePanel() {
-  profilePanelSeq++; // 在途响应作废
-  profilePanelUserId = null;
-  document.body.classList.remove('profile-panel-open');
+  profilePanelSeq++; // 在途异步响应作废：关掉后任何迟到的 open 渲染/重开直接丢弃
+  profilePanelUserId = null; // 竞态防护：两处「就地刷新重开」（1369/1424）都检查此值，置空后不可能把面板拉回来
+  document.body.classList.remove('profile-panel-open'); // 遮罩随类关
+  const p = document.getElementById('profile-panel');
+  if (p) p.style.visibility = 'hidden';
 }
+
+// 关闭按钮 + 遮罩：程序化绑定（不写内联 onclick）
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('profile-panel-close');
+  if (btn) btn.addEventListener('click', closeProfilePanel);
+  const bd = document.getElementById('profile-panel-backdrop');
+  if (bd) bd.addEventListener('click', closeProfilePanel);
+});
 
 // 面板是否正打开且展示某用户（评价提交后据此就地刷新）
 function profilePanelShowing(userId) {

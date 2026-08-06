@@ -1191,11 +1191,11 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 
   --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
-  /* Chromium 983252：带 backdrop-filter(--g-frost) 的元素做 transform 过渡会被冻结到下次重绘=「鼠标挪开才动」。
-     信息栏改瞬开瞬关、去动画保点击即关（弹窗 0.19.33 同根因已去 opacity 动画；custom-select-panel 同修） */
+  visibility: hidden; /* 983252 变体：带 backdrop-filter 的 fixed 层 transform 失效后可能不重绘=残留上一帧「鼠标挪开才消失」。
+     visibility 是绘制级原子开关，不依赖合成器重绘失效；transition:none 瞬开瞬关保点击即关 */
   transition: none;
 }
-body.profile-panel-open .profile-panel { transform: none; }
+body.profile-panel-open .profile-panel { transform: none; visibility: visible; }
 .profile-panel-backdrop {
   position: fixed; inset: 0; z-index: 145;
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=浮窗自灰），只留虚化 */

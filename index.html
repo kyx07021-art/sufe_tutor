@@ -480,11 +480,11 @@
   <div id="modal-container"></div>
 
   <!-- 个人信息右栏：桌面端右侧 25vw 滑入，移动端定宽浮层 + 背景变暗（app.js openProfilePanel 填充内容，标题按常量注入） -->
-  <div class="profile-panel-backdrop" onclick="closeProfilePanel()" aria-hidden="true"></div>
+  <div class="profile-panel-backdrop" id="profile-panel-backdrop" aria-hidden="true"></div>
   <aside class="profile-panel glass glass--float" id="profile-panel" aria-label="个人信息">
     <div class="profile-panel-head glass">
       <span class="profile-panel-title" id="profile-panel-title">个人信息</span>
-      <button type="button" class="btn btn-ghost btn-icon glass glass--pressable" onclick="closeProfilePanel()" aria-label="关闭">✕</button>
+      <button type="button" class="btn btn-ghost btn-icon glass glass--pressable" id="profile-panel-close" aria-label="关闭">✕</button>
     </div>
     <div class="profile-panel-body" id="profile-panel-body"></div>
   </aside>
