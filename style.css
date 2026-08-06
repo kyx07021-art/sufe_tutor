@@ -1191,17 +1191,22 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 
   --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
   transform: translateX(105%);
-  visibility: hidden;
-  /* 开闭动画（0.20.8 解耦重写）：JS 只切 body.profile-panel-open 类，时序全在此层，两态互不耦合。
-     base = 关闭态：transform 滑出 .3s 全程可见，visibility 延迟 .3s 才翻转 hidden
-     —— 既保住滑出动画，又在结束后原子隐藏（983252 残留帧兜底，不依赖合成器重绘）。
-     旧版（0.20.5~0.20.7）由 JS 内联 style.visibility 立即隐藏 → 动画被压死 =「收回去瞬间消失」。 */
-  transition: transform .3s var(--ease-snap), visibility 0s .3s;
+  visibility: hidden; /* 原子隐藏由类状态决定：open 可见，动画结束 JS 移除类回此态 */
 }
 body.profile-panel-open .profile-panel {
-  transform: none; visibility: visible;
-  transition: transform .3s var(--ease-snap), visibility 0s; /* 打开：visibility 即时可见，transform 滑入 .3s */
+  transform: none;
+  visibility: visible;
+  /* 入栏动画：纯 transform keyframes，与 modal-in 同构（v0.19.33 经验：bdf 子树下纯 transform
+     animation 正常、opacity 帧才触发 983252）。0.20.8 用 transition 双向，用户在端 transform 冻结
+     （报「0.3s 原地消失」= transform 首帧卡死 + visibility 延迟生效）→ 改 animation 复刻 modal 可行路径。
+     关闭：JS 加 body.profile-panel-closing 播 panel-out，animationend 后移除类回 base。 */
+  animation: panel-in .3s var(--ease-snap);
 }
+body.profile-panel-closing .profile-panel {
+  animation: panel-out .3s var(--ease-snap) forwards; /* 出栏：纯 transform；forwards 保持屏外终态至类移除 */
+}
+@keyframes panel-in { from { transform: translateX(105%); } to { transform: none; } }
+@keyframes panel-out { from { transform: none; } to { transform: translateX(105%); } }
 .profile-panel-backdrop {
   position: fixed; inset: 0; z-index: 145;
   -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=浮窗自灰），只留虚化 */

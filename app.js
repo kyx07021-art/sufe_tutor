@@ -1152,6 +1152,7 @@ function findCachedTeacher(userId) {
 async function openProfilePanel(userId) {
   const seq = ++profilePanelSeq;
   profilePanelUserId = userId;
+  document.body.classList.remove('profile-panel-closing'); // 取消在途关闭动画（快速重开）
   document.body.classList.add('profile-panel-open'); // 唯一状态写入；动画/可见性交 CSS
   const titleEl = document.getElementById('profile-panel-title');
   if (titleEl) titleEl.textContent = UI.PROFILE_PANEL_TITLE; // 标题归口 constants（静态文本仅 JS 前兜底）
@@ -1207,13 +1208,26 @@ async function openProfilePanel(userId) {
   }
 }
 
-// 个人信息栏关闭：状态管理单点。只移除 body 类，动画与原子隐藏全由 CSS 呈现层完成
-//（0.20.8 解耦：旧版 JS 内联 style.visibility 与 CSS transition 耦合，动画被瞬间压死——0.20.5~0.20.7 病灶）。
-// 防竞态：seq 作废在途异步（迟到的 open 渲染/重开直接丢弃）；userId 置空防「就地刷新重开」拉回面板。
+// 个人信息栏关闭（0.20.9）：JS 只做状态管理——加 closing 类触发 CSS 滑出动画（纯 transform，
+// 与 modal 同构，用户端不冻结），动画结束（animationend）后移除类回 base（屏外 + 原子隐藏）。
+// 状态层与呈现层仅通过「类 + 动画事件」通信，JS 零样式操作。防竞态：seq 作废在途异步；
+// userId 置空防「就地刷新重开」；finish 用 seqAt 快照防重开后旧收尾误清。
 function closeProfilePanel() {
-  profilePanelSeq++;
+  const seqAt = ++profilePanelSeq;
   profilePanelUserId = null;
-  document.body.classList.remove('profile-panel-open'); // 关闭动画 + 结束后原子隐藏全交 CSS
+  const bodyCls = document.body.classList;
+  const pnl = document.getElementById('profile-panel');
+  bodyCls.add('profile-panel-closing');
+  const finish = () => {
+    if (seqAt !== profilePanelSeq) return; // 期间重新打开/再关闭：新流程自管类
+    bodyCls.remove('profile-panel-closing');
+    bodyCls.remove('profile-panel-open');
+    if (pnl) pnl.removeEventListener('animationend', finish);
+  };
+  if (pnl) {
+    pnl.addEventListener('animationend', finish, { once: true });
+    setTimeout(finish, 600); // 兜底：动画未触发/被中断也必收尾
+  }
 }
 
 // 关闭按钮 + 遮罩：程序化绑定（不写内联 onclick）
