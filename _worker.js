@@ -13,6 +13,7 @@ import { json, error, parseBody } from './server/util.js';
 import { MSG } from './server/constants.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './server/security.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
+import { readCacheGet, readCachePut, readCacheClearAll } from './server/cache.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
@@ -227,8 +228,25 @@ export default {
     }
 
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
+    // 公开读缓存（v0.22.5）：无 per-user 上下文的列表 GET 短 TTL（server/cache.js）；
+    // 命中即返（~1ms 内存），写操作成功统一 readCacheClearAll 失效
+    const isCacheableRead = request.method === 'GET' && (
+      (p === '/api/student/demands' && !url.searchParams.get('scope')) ||
+      p === '/api/teachers' || p === '/api/posts'
+    );
+    const readKey = p + url.search;
+    if (isCacheableRead) {
+      const hit = readCacheGet(readKey);
+      if (hit !== null) return applySecurityHeaders(json(hit), p);
+    }
     try {
       const res = await routeApi(db, p, request.method, body, url, request);
+      // 回填公开读缓存（clone 读体不影响原响应）；写操作成功清空读缓存（最简不漏）
+      if (isCacheableRead && res.status === 200) {
+        try { readCachePut(readKey, await res.clone().json()); } catch { /* 回填失败不影响响应 */ }
+      } else if (request.method !== 'GET' && res.status < 400) {
+        readCacheClearAll();
+      }
       // 留档必须 await：workerd 在响应结束后掐断未完成的悬浮 Promise（加密咽喉链路较长，
       // 不 await 会导致留档被杀在途中——本批次线上 0 留档事故根因）。
       // logRequest 兼作本请求全部留档的统一落库点（B4：业务 logEvent 队列 + 本条访问留档一次 batch）

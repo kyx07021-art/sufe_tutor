@@ -109,3 +109,12 @@
 - 管理员列表分页：评价/反馈/合同管理端列表加 keyset 游标（dbGetDemands admin 已有先例）
 - admin 统计页 loadAdminStats 对响应字段做可选链兜底（s.users?.total）
 - dbGetDemandById 单条/列表出口形状已对齐 mapper，跨出口契约注释待补
+
+## 🟡 性能优化备忘（2026-08-07，v0.22.5 SW+读缓存已落地后的其余杠杆）
+> 用户方向：服务器 ~190ms 但网页数秒，小站应压进百毫秒级甚至近零加载。已落地：v0.22.3 留档去读流量、v0.22.4 两个渲染 bug、v0.22.5 Service Worker（静态+公开读缓存）+ server/cache.js 公开读短 TTL。以下为暂缓的其余想法（未做，按优先级）：
+
+- **构建步骤 + 内容哈希文件名 + 长 immutable Cache-Control**（根治首访与 SW 部署陈旧）：当前资产无哈希、`must-revalidate` 每次全量重验（慢路径 23 资产 × ~300ms）。哈希化后浏览器/CDN 长缓存、部署即换 URL 无陈旧。**代价：引入构建步骤，动"零构建"哲学——需用户拍板。**
+- **JS 合并/内联关键资产**：18 个 JS 文件在 ~300ms RTT 路径上是 6 并发的往返乘数；共享层合并或内联首屏关键件可砍半请求数。
+- **Early Hints preload / HTTP/3**：pages.dev 已自动开启 Early Hints；可补 `Link: </app-shell.js>; rel=preload` 等头加速首屏关键资源。
+- **Cloudflare China Network（Cosmic）**：根治"客户端→边缘"跨洋延迟（上海用户当前 ~300ms+ 路径），需 ICP 备案 + 企业版，暂不可行，备忘。
+- **日志保留期定期清理**：v0.22.3 后留档已 -96%，但长尾仍线性增长（~45MB/年）；可加保留期删除任务（如 90 天）。

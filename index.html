@@ -631,5 +631,14 @@
       if (!(window.matchMedia && window.matchMedia('(pointer:fine)').matches)) glow.style.display = 'none';
     })();
   </script>
+  <!-- Service Worker（v0.22.5 性能层）：静态资产 + 公开读请求本地缓存，重复访问近零加载。
+       页面交互后再注册，不抢占首屏；失败静默（SW 不可用时走纯网络，无副作用） -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('/sw.js').catch(function () { /* 静默：SW 不可用不影响主流程 */ });
+      });
+    }
+  </script>
 </body>
 </html>
