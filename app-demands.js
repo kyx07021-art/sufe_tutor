@@ -344,7 +344,8 @@ function matchDegree(teacher, demand) {
     total += W.region;
     if (teacher.province === demand.province) score += W.region;
   }
-  const price = teacher.price;
+  // R2-13：匹配度逻辑暂不修改，用最低报价代表，未来扩展区间重叠
+  const price = teacher.price_min;
   if (price != null && (demand.budget_min || demand.budget_max)) {
     total += W.budget;
     const inRange = (!demand.budget_min || price >= demand.budget_min) && (!demand.budget_max || price <= demand.budget_max);
@@ -364,9 +365,10 @@ function matchDetailHtml(t, d, md) {
   const subjScore = subjOn ? Math.round(hit / dSubj.length * 60) : null;
   const regionOn = !!(t.province && d.province);
   const regionScore = regionOn ? (t.province === d.province ? 20 : 0) : null;
-  const budgetOn = t.price != null && (d.budget_min || d.budget_max);
+  // R2-13：明细与 matchDegree 同口径，用最低报价代表（区间重叠未来扩展）
+  const budgetOn = t.price_min != null && (d.budget_min || d.budget_max);
   const budgetScore = budgetOn
-    ? ((!d.budget_min || t.price >= d.budget_min) && (!d.budget_max || t.price <= d.budget_max) ? 20 : 0) : null;
+    ? ((!d.budget_min || t.price_min >= d.budget_min) && (!d.budget_max || t.price_min <= d.budget_max) ? 20 : 0) : null;
   const bar = (s, max) => `<div class="match-bar${s === 0 ? ' match-bar--zero' : ''}"><i style="width:${s == null ? 0 : Math.round(s / max * 100)}%"></i></div>`;
   const row = (k, s, max, hint) => `<div class="match-row">
     <span class="match-row-top"><span class="match-row-k">${k}</span><span class="match-row-s${s == null ? ' match-row-s--skip' : ''}">${s == null ? UI.MATCH_DIM_SKIP : s + '/' + max}</span></span>
@@ -724,10 +726,12 @@ function renderIntentTeacherRow(t, demandId) {
   const actions = st === 'pending'
     ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
        <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
+  // R2-5 报价区间（未填显 ? 占位，同旧单值口径）
+  const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT) || '?';
   return `<div class="admin-row glass">
     <div class="admin-row-main">
       <div class="admin-row-line"><strong>${DISP.usernameHtml(t.username)}</strong> ${DISP.starsHtml(t.rating)} ${tag}</div>
-      <div class="admin-row-meta">${[provName, `${t.price || '?'}${UI.PRICE_UNIT}`].filter(Boolean).join(' · ')}</div>
+      <div class="admin-row-meta">${[provName, priceLine].filter(Boolean).join(' · ')}</div>
     </div>
     <div class="admin-row-actions">${viewBtn}${actions}</div>
   </div>`;

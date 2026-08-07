@@ -36,6 +36,20 @@
     genderName(id) { return enumName(C().GENDERS, id, ''); },
     teacherGradeName(id) { return enumName(C().TEACHER_GRADES, id, ''); },
     methodName(id) { return enumName(C().TEACHING_METHODS, id, ''); },
+    personalityTagName(id) { return enumName(C().PERSONALITY_TAGS, id, ''); }, // R2-3 性格关键词名
+    nonacademicProjectName(id) { return enumName(C().NONACADEMIC_PROJECTS, id, ''); }, // R2-4 非学科项目名
+
+    // R2-5 报价区间展示（教师卡/资料卡/意向行复用）：min==max 折叠为单值（存量单报价迁移与固定价
+    // 都显示「150元/h」而非「150~150元/h」）；只有 min → min元/h起；只有 max → 至max元/h；都没值 → ''
+    priceRangeText(min, max, unitSuffix) {
+      const unit = unitSuffix || '';
+      const hasMin = min != null && min !== '';
+      const hasMax = max != null && max !== '';
+      if (hasMin && hasMax) return min === max ? `${min}${unit}` : `${min}~${max}${unit}`;
+      if (hasMin) return `${min}${unit}起`;
+      if (hasMax) return `至${max}${unit}`;
+      return '';
+    },
 
     // 省名：包掉全站防御式 `typeof SUFE_REGIONS !== 'undefined'` 探测
     provinceName(code) {

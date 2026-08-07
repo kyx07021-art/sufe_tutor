@@ -403,6 +403,23 @@ function pickGrade(el) {
   el.classList.add('selected');
 }
 
+// tag-pick 多选 pill 通用切换（R2-3 性格关键词 / R2-4 非学科项目共用）：
+// 复用勾选框语义但不显示勾选框——渲染成 pill 按钮，点击切换 .selected（选中态紫色）；
+// 超出 max 拒绝并 toast 提示；max<=0 = 不设上限（非学科项目用）
+function toggleTagPick(el, containerId, max) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const nowSelected = !el.classList.contains('selected');
+  if (nowSelected && max && max > 0) {
+    const count = container.querySelectorAll('.tag-pick.selected').length;
+    if (count >= max) {
+      showToast((UI.TAG_PICK_LIMIT || '最多选 {max} 个').replace('{max}', max));
+      return;
+    }
+  }
+  el.classList.toggle('selected', nowSelected);
+}
+
 // ============================================================
 // 确认/二次认证弹窗原语（全站禁止浏览器原生 confirm）
 // ============================================================

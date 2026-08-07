@@ -6,7 +6,7 @@
  * 无业务逻辑、无跨模块状态；是各层公共依赖的「最底层」。
  * 响应构造带 CORS 头（CORS_HEADERS 单源自 constants.js，预检与 json() 同源）。
  */
-import { CORS_HEADERS, LIMITS } from './constants.js';
+import { CORS_HEADERS, LIMITS, MSG } from './constants.js';
 
 // ============================================================
 // 响应构造
@@ -90,6 +90,32 @@ export async function parseBody(request) {
     if (e && e.status === 413) throw e;
     return {}; // 其余解析失败（含非法 JSON）兜底空对象，交由路由校验
   }
+}
+
+// ============================================================
+// 结构化时间段校验（v0.25.0 需求一）：库内 JSON
+// [{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}] 白名单式校验。
+// 设计不拟合当前周制输入：type 判别符为未来扩展（月日 + 时间等）留位，未知 type 一律拒绝。
+// 需求档案（expected_time）与教师档案（time_slots）共用；空串合法（时间非必填）。
+// 返回 { value } 或 { error: MSG }。导出供路由与 test/time-slots.test.js 单测。
+// ============================================================
+const TIME_SLOT_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+export function sanitizeTimeSlots(raw) {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (!s) return { value: '' };
+  let arr;
+  try { arr = JSON.parse(s); } catch { return { error: MSG.INVALID_TIME_SLOTS }; }
+  if (!Array.isArray(arr)) return { error: MSG.INVALID_TIME_SLOTS };
+  if (arr.length > LIMITS.TIME_SLOTS_MAX) return { error: MSG.INVALID_TIME_SLOTS };
+  for (const it of arr) {
+    if (!it || typeof it !== 'object') return { error: MSG.INVALID_TIME_SLOTS };
+    if (it.type !== 'week') return { error: MSG.INVALID_TIME_SLOTS };
+    if (!Number.isInteger(it.dow) || it.dow < 1 || it.dow > 7) return { error: MSG.INVALID_TIME_SLOTS };
+    if (typeof it.start !== 'string' || !TIME_SLOT_RE.test(it.start)) return { error: MSG.INVALID_TIME_SLOTS };
+    if (typeof it.end !== 'string' || !TIME_SLOT_RE.test(it.end)) return { error: MSG.INVALID_TIME_SLOTS };
+    if (it.start >= it.end) return { error: MSG.INVALID_TIME_SLOTS }; // 同日段结束须晚于开始
+  }
+  return { value: JSON.stringify(arr).slice(0, LIMITS.DEMAND_TIME_MAX) };
 }
 
 // ============================================================

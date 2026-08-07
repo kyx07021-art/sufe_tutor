@@ -1347,6 +1347,23 @@ body.profile-panel-closing .profile-panel {
 .profile-rating { display: inline-flex; align-items: center; gap: 6px; }
 .profile-rating b { font-size: .8rem; }
 
+/* R2-3/R2-4 性格关键词 / 非学科项目 tag-pick pill：复用勾选框语义但不显示勾选框，
+   默认玻璃底（.glass 引擎），选中态品牌紫填充（--g-fill: var(--accent)，同 .grade-option.selected 口径） */
+.tag-pick {
+  display: inline-block; margin: 0 6px 6px 0; padding: 4px 12px;
+  font-size: .74rem; font-weight: 600; color: var(--ink-2);
+  cursor: pointer; --g-r: 999px; /* 药丸：覆盖引擎默认圆角，玻璃体按此渲染 */
+  transition: color var(--t-fast) var(--ease-out);
+}
+.tag-pick:hover { color: var(--ink); }
+.tag-pick.selected { color: var(--white); --g-fill: var(--accent); }
+
+/* R2-4 非学科项目报价行：项目名(左) + min~max 区间(右，复用预算区间布局) */
+.nonacademic-price-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.na-project-name { flex: 0 0 88px; font-size: .8rem; font-weight: 600; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.na-range { flex: 1; display: flex; gap: 8px; align-items: center; min-width: 0; }
+.na-range .form-input { flex: 1; min-width: 0; }
+
 /* 卡片③：评价按钮三态（未签约灰禁 / 签约可写 / 已评价可改） */
 .profile-review-btn { margin-top: 10px; }
 .profile-review-btn[disabled] { opacity: .45; cursor: not-allowed; }

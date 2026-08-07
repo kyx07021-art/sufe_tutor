@@ -4,7 +4,7 @@
  *       db（数据层）、log（留档）、notify（通知）。身份一律凭令牌（requireUser）。
  * 关口模式：requireUser → 归属校验 → 状态机（条件 UPDATE 赢家）→ 副作用（logEvent/notifyUser）。
  */
-import { json, error } from './util.js';
+import { json, error, sanitizeTimeSlots } from './util.js';
 import { requireUser } from './security.js';
 import { MSG, STATUS, ADDRESS_GUARD, LIMITS } from './constants.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
@@ -48,28 +48,6 @@ function sanitizeDemand(d) {
   }
   if (ADDRESS_GUARD.test(d.address)) return null; // 合规红线：详细门牌号不收集（调用方回 ADDRESS_TOO_DETAILED）
   return d;
-}
-
-// v0.25.0 结构化期望开课时间：库内 JSON [{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}]。
-// 设计不拟合当前周制输入：type 判别符为未来扩展（月日 + 时间等）留位，未知 type 一律拒绝。
-// 返回 { value } 或 { error: MSG }；空串合法（时间非必填）。导出供 test/time-slots.test.js 单测。
-const TIME_SLOT_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
-export function sanitizeTimeSlots(raw) {
-  const s = typeof raw === 'string' ? raw.trim() : '';
-  if (!s) return { value: '' };
-  let arr;
-  try { arr = JSON.parse(s); } catch { return { error: MSG.INVALID_TIME_SLOTS }; }
-  if (!Array.isArray(arr)) return { error: MSG.INVALID_TIME_SLOTS };
-  if (arr.length > LIMITS.TIME_SLOTS_MAX) return { error: MSG.INVALID_TIME_SLOTS };
-  for (const it of arr) {
-    if (!it || typeof it !== 'object') return { error: MSG.INVALID_TIME_SLOTS };
-    if (it.type !== 'week') return { error: MSG.INVALID_TIME_SLOTS };
-    if (!Number.isInteger(it.dow) || it.dow < 1 || it.dow > 7) return { error: MSG.INVALID_TIME_SLOTS };
-    if (typeof it.start !== 'string' || !TIME_SLOT_RE.test(it.start)) return { error: MSG.INVALID_TIME_SLOTS };
-    if (typeof it.end !== 'string' || !TIME_SLOT_RE.test(it.end)) return { error: MSG.INVALID_TIME_SLOTS };
-    if (it.start >= it.end) return { error: MSG.INVALID_TIME_SLOTS }; // 同日段结束须晚于开始
-  }
-  return { value: JSON.stringify(arr).slice(0, LIMITS.DEMAND_TIME_MAX) };
 }
 
 export async function handleCreateDemand(db, body, req) {
@@ -182,10 +160,11 @@ export async function handleCreateIntent(db, demandId, body, req) {
   if (!demand0) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand0.status === STATUS.CONTRACTED || demand0.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求停止接收意向（服务端硬门禁；撤销后须重开）
 
-  // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单；price==null 才是未填（0 是合法报价）
+  // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单；price_min==null 才是未填（0 是合法报价）
+  // R2-5：报价区间化后完整性按最低报价判定（price_min），price 单值列已停写
   const p = await dbGetTeacherProfile(db, userId);
   const subjectsOk = !!(p && Array.isArray(p.subjects) && p.subjects.length > 0);
-  if (!p || !p.province || !p.grade || !p.gender || !subjectsOk || p.price == null) {
+  if (!p || !p.province || !p.grade || !p.gender || !subjectsOk || p.price_min == null) {
     return error(MSG.PROFILE_INCOMPLETE, 403, 'PROFILE_INCOMPLETE');
   }
 

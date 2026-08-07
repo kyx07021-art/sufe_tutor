@@ -324,8 +324,32 @@
               <div id="profile-gaokao-scores"><p class="text-sm text-muted">请先选择擅长科目</p></div>
             </div>
             <div class="form-group">
-              <label class="form-label">报价（元/小时）<span class="req">*</span></label>
-              <input type="number" class="form-input" id="profile-price" placeholder="如：150" min="0" required>
+              <label class="form-label" id="profile-label-price">报价区间（元/小时）<span class="req">*</span></label>
+              <div style="display:flex;gap:var(--s3);align-items:center;">
+                <input type="number" class="form-input" id="profile-price-min" placeholder="最低" min="0" step="1" style="flex:1;" required>
+                <span class="text-muted">~</span>
+                <input type="number" class="form-input" id="profile-price-max" placeholder="最高" min="0" step="1" style="flex:1;">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="profile-label-method">授课方式</label>
+              <select class="form-select" id="profile-teaching-method"><option value="">请选择</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="profile-label-time">可授课时间段</label>
+              <div id="profile-time-slots" class="time-slots"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="profile-label-personality">性格关键词</label>
+              <div id="profile-personality-tags"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="profile-label-nonacademic">擅长非学科类项目</label>
+              <div id="profile-nonacademic"></div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" id="profile-label-nonacademic-prices">非学科类项目报价</label>
+              <div id="profile-nonacademic-prices"></div>
             </div>
             <div class="form-group">
               <label class="form-label">地址</label>

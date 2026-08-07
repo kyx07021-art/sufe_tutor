@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.1',
+  APP_VERSION: '0.25.2',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -39,6 +39,7 @@ globalThis.APP_CONSTANTS = {
     REVIEW_COMMENT_MIN: 2,                // 评价最少字数
     DISPLAY_ID_PAD: 4,                    // 需求编号补零位数
     TIME_SLOTS_MAX: 8,                    // 结构化时间组件条数上限（与 server LIMITS.TIME_SLOTS_MAX 对齐）
+    PERSONALITY_TAGS_MAX: 3,              // 性格关键词上限（R2-3，前端 toggleTagPick 与服务端兜底同用）
     SIDEBAR_INDEX_PAD: 2,                 // 侧边栏序号补零位数
     POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
     MATCH_WEIGHT: { subject: 60, region: 20, budget: 20 },     // 教师匹配度权重（合计 100）
@@ -653,6 +654,15 @@ globalThis.APP_CONSTANTS = {
     LABEL_REAL_NAME: '真实姓名',
     LABEL_CREDENTIAL: '学信网截图',
     LABEL_CONTACT: '联系方式',
+    // 教师档案扩展（R2-5/R2-1/R2-2/R2-3/R2-4）：报价区间 / 可授课时间段 / 授课方式 / 性格关键词 / 非学科项目
+    LABEL_PRICE_RANGE: '报价区间（元/小时）',
+    LABEL_TEACHING_METHOD_PROFILE: '授课方式',
+    LABEL_TIME_SLOTS: '可授课时间段',
+    LABEL_PERSONALITY_TAGS: '性格关键词',
+    PERSONALITY_TAGS_HINT: '（最多 {max} 个）', // {max} 由调用方以 CONFIG.PERSONALITY_TAGS_MAX 替换（防双处维护）
+    TAG_PICK_LIMIT: '最多选 {max} 个',
+    LABEL_NONACADEMIC_PROJECTS: '擅长非学科类项目',
+    LABEL_NONACADEMIC_PRICES: '非学科类项目报价',
     // 信息卡「硬展示」占位：字段不藏，学生据此判断教师资料完善度
     PROFILE_FIELD_EMPTY: '未填写',
     PROFILE_FIELD_AFTER_MATCH: '建立会话后展示',

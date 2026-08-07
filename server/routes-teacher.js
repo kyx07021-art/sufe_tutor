@@ -6,10 +6,11 @@
  *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
  * 依赖：util / security（requireUser）/ constants（校验文案/限额/门牌守卫）/ db / log。
  */
-import { json, error } from './util.js';
+import { json, error, sanitizeTimeSlots } from './util.js';
 import { authUser, requireUser } from './security.js';
 import { MSG, ADDRESS_GUARD, LIMITS } from './constants.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
+import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（PERSONALITY_TAGS/NONACADEMIC_PROJECTS 白名单单源，与前端共用）
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById } from './db.js';
 import { logEvent } from './log.js';
 
@@ -42,11 +43,63 @@ export async function handleSaveProfile(db, body, req) {
   if (err) return err;
   if (me.role !== 'teacher') return error(MSG.NO_PERMISSION, 403); // 仅教师可建档案（防学生/管理员写 teacher_profiles）
   if (!p.province || !globalThis.SUFE_REGIONS.isValidProvince(p.province)) return error(MSG.PROVINCE_REQUIRED);
-  // 报价钳制：保留 null=未填语义（不转 0，档案完整性门槛据此拦截）；有值则夹到 [0, LIMITS.BUDGET_MAX]
-  if (p.price != null) {
-    const n = Number(p.price);
-    p.price = Number.isFinite(n) ? Math.min(LIMITS.BUDGET_MAX, Math.max(0, n)) : null;
+
+  // R2-5 报价区间化：price_min/price_max 各自钳制，保留 null=未填语义（不转 0，完整性门槛据此拦截）；
+  // 有值夹到 [0, LIMITS.BUDGET_MAX]；max < min 时以 min 为准（同 sanitizeDemand 预算口径）
+  const clampPrice = v => {
+    if (v === '' || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.min(LIMITS.BUDGET_MAX, Math.max(0, n)) : null;
+  };
+  p.price_min = clampPrice(p.price_min);
+  p.price_max = clampPrice(p.price_max);
+  if (p.price_max != null && p.price_min != null && p.price_max < p.price_min) p.price_max = p.price_min;
+
+  // R2-1 可授课时间段：与需求 expected_time 同格式、同一 sanitizeTimeSlots 校验（可选，空串合法）
+  const ts = sanitizeTimeSlots(p.time_slots);
+  if (ts.error) return error(ts.error);
+  p.time_slots = ts.value;
+
+  // R2-2 授课方式：白名单读 TEACHING_METHODS 单源（与前端 constants 同源，改 id 服务端不静默失配），非法值回退 ''（未填）
+  const methodSet = new Set(((globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.TEACHING_METHODS) || []).map(m => m.id));
+  p.teaching_method = methodSet.has(p.teaching_method) ? p.teaching_method : '';
+
+  // R2-3 性格关键词：数组、<=PERSONALITY_TAGS_MAX、每项在白名单（服务端经 APP_CONSTANTS 读，与前端同源）
+  const P = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.PERSONALITY_TAGS) || [];
+  const personalitySet = new Set(P.map(t => t.id));
+  const personalityMax = (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.PERSONALITY_TAGS_MAX) || 3;
+  if (p.personality_tags != null) {
+    if (!Array.isArray(p.personality_tags)) return error(MSG.INVALID_PARAMS);
+    if (p.personality_tags.length > personalityMax) return error(MSG.PERSONALITY_TAGS_TOO_MANY);
+    p.personality_tags = [...new Set(p.personality_tags.filter(id => typeof id === 'string' && personalitySet.has(id)))];
+  } else {
+    p.personality_tags = [];
   }
+
+  // R2-4 擅长非学科类项目 + 报价：projects 白名单去重；prices 每项 project 须在 projects 内、
+  // 价格数字且 min<=max、钳制 [0, BUDGET_MAX]
+  const N = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.NONACADEMIC_PROJECTS) || [];
+  const nonacademicSet = new Set(N.map(x => x.id));
+  if (p.nonacademic_projects != null) {
+    if (!Array.isArray(p.nonacademic_projects)) return error(MSG.INVALID_PARAMS);
+    p.nonacademic_projects = [...new Set(p.nonacademic_projects.filter(id => typeof id === 'string' && nonacademicSet.has(id)))];
+  } else {
+    p.nonacademic_projects = [];
+  }
+  if (p.nonacademic_prices != null) {
+    if (!Array.isArray(p.nonacademic_prices)) return error(MSG.INVALID_PARAMS);
+    const sel = new Set(p.nonacademic_projects);
+    p.nonacademic_prices = p.nonacademic_prices
+      .filter(it => it && typeof it === 'object' && typeof it.project === 'string' && sel.has(it.project))
+      .map(it => {
+        const min = clampPrice(it.price_min);
+        const max = clampPrice(it.price_max);
+        return { project: it.project, price_min: min, price_max: (max != null && min != null && max < min) ? min : max };
+      });
+  } else {
+    p.nonacademic_prices = [];
+  }
+
   const credential = String(p.credential_image || '');
   // svg 一律拒绝：矢量可内嵌脚本（与 routes-auth 头像口径一致；上限单源 LIMITS.CREDENTIAL_MAX_BYTES）
   if (credential && (!credential.startsWith('data:image/') || credential.startsWith('data:image/svg') || credential.length > LIMITS.CREDENTIAL_MAX_BYTES)) return error(MSG.AVATAR_INVALID);

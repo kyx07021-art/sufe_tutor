@@ -81,8 +81,10 @@ async function migrateLegacyRoles(db, adminNames) {
       ddl: `CREATE TABLE teacher_profiles_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
         grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
-        price REAL DEFAULT 0, wechat TEXT, email TEXT,
+        price REAL DEFAULT 0, price_min REAL, price_max REAL, wechat TEXT, email TEXT,
         school TEXT DEFAULT '', real_name TEXT DEFAULT '', credential_image TEXT DEFAULT '',
+        time_slots TEXT DEFAULT '', teaching_method TEXT DEFAULT '',
+        personality_tags TEXT DEFAULT '', nonacademic_projects TEXT DEFAULT '', nonacademic_prices TEXT DEFAULT '',
         rating REAL DEFAULT ${INITIAL_RATING},
         rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
         updated_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -200,8 +202,10 @@ export async function initDb(db, env = {}) {
     db.prepare(`CREATE TABLE IF NOT EXISTS teacher_profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
       grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
-      price REAL DEFAULT 0, wechat TEXT, email TEXT,
+      price REAL DEFAULT 0, price_min REAL, price_max REAL, wechat TEXT, email TEXT,
       school TEXT DEFAULT '', real_name TEXT DEFAULT '', credential_image TEXT DEFAULT '',
+      time_slots TEXT DEFAULT '', teaching_method TEXT DEFAULT '',
+      personality_tags TEXT DEFAULT '', nonacademic_projects TEXT DEFAULT '', nonacademic_prices TEXT DEFAULT '',
       rating REAL DEFAULT ${INITIAL_RATING},
       rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
       updated_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -404,7 +408,14 @@ export async function initDb(db, env = {}) {
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
     ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"],
-    ['verified', 'INTEGER NOT NULL DEFAULT 0']]); // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
+    ['verified', 'INTEGER NOT NULL DEFAULT 0'], // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
+    ['price_min', 'REAL'], ['price_max', 'REAL'], // R2-5 报价区间化（可空，null=未填；不落 DEFAULT 0）
+    ['time_slots', "TEXT DEFAULT ''"], ['teaching_method', "TEXT DEFAULT ''"], // R2-1 可授课时间段 / R2-2 授课方式
+    ['personality_tags', "TEXT DEFAULT ''"], ['nonacademic_projects', "TEXT DEFAULT ''"], ['nonacademic_prices', "TEXT DEFAULT ''"] // R2-3 性格关键词 / R2-4 非学科项目+报价
+  ]);
+  // R2-5 存量教师单报价转区间（幂等）：price 列保留不动（重建表不值当），仅按旧价回填 min==max，
+  // 防档案完整性门槛（price_min==null）误拦历史教师接单。price 列此后不再写入。
+  await dbRun(db, `UPDATE teacher_profiles SET price_min=price, price_max=price WHERE price_min IS NULL AND price IS NOT NULL`);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"],
     ['intent_locked', 'INTEGER NOT NULL DEFAULT 0']]); // 意向单接受锁：并发 accept 抢占（防同需求双 accepted 意向）
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
@@ -640,15 +651,32 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
     encryptField((profile.real_name || '').slice(0, 20)), encryptField(profile.credential_image || ''),
   ]);
 
-  const price = profile.price != null ? profile.price : null; // null = 未填报价（意向档案完整性门槛据此拦截，勿落 0）
+  // R2-5 报价区间化：price_min/price_max 保留 null=未填语义（完整性门槛据此拦截，勿落 0）；0 是合法报价
+  const priceMin = profile.price_min != null ? profile.price_min : null;
+  const priceMax = profile.price_max != null ? profile.price_max : null;
+  const timeSlots = profile.time_slots || ''; // R2-1 结构化时间段 JSON（空串 = 未填）
+  const teachingMethod = profile.teaching_method || ''; // R2-2 授课方式白名单（routes 已校验）
+  const personalityTags = JSON.stringify(Array.isArray(profile.personality_tags) ? profile.personality_tags : []); // R2-3 JSON 数组
+  const nonacademicProjects = JSON.stringify(Array.isArray(profile.nonacademic_projects) ? profile.nonacademic_projects : []); // R2-4 JSON 数组
+  const nonacademicPrices = JSON.stringify(Array.isArray(profile.nonacademic_prices) ? profile.nonacademic_prices : []); // R2-4 JSON 数组
+
+  // price 列保留 = price_min 同步镜像（v0.25.2 审计修复）：INSERT/UPDATE 显式写 price=priceMin，
+  // 防新行吃 DEFAULT 0 后，被存量回填 `WHERE price_min IS NULL AND price IS NOT NULL` 误抓成「报价 0」。
+  // 语义：price 为只读残留（历史迁移用），业务读写一律走 price_min/price_max。
   if (existing) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
-      price=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage, userId]);
+      price=?,price_min=?,price_max=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,
+      time_slots=?,teaching_method=?,personality_tags=?,nonacademic_projects=?,nonacademic_prices=?,
+      updated_at=datetime('now','localtime') WHERE user_id=?`,
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage,
+        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, userId]);
   } else {
-    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro,address,school,real_name,credential_image)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage]);
+    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,
+        price,price_min,price_max,wechat,email,intro,address,school,real_name,credential_image,
+        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage,
+        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices]);
   }
 }
 
@@ -671,7 +699,16 @@ async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) 
     verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
     subjects: safeJsonArray(p.subjects),
     gaokao_scores: safeJsonArray(p.gaokao_scores),
-    price: p.price != null ? p.price : null, // null = 未填报价（意向档案完整性门槛据此拦截，勿转 0）
+    // R2-5 报价区间化：price_min/price_max 保留 null=未填（完整性门槛据此拦截）；price 保留供历史兼容，前端不再用
+    price_min: p.price_min != null ? p.price_min : null,
+    price_max: p.price_max != null ? p.price_max : null,
+    price: p.price != null ? p.price : null,
+    // R2-1/R2-2/R2-3/R2-4：教师档案扩展字段
+    time_slots: p.time_slots || '',
+    teaching_method: p.teaching_method || '',
+    personality_tags: safeJsonArray(p.personality_tags),
+    nonacademic_projects: safeJsonArray(p.nonacademic_projects),
+    nonacademic_prices: safeJsonArray(p.nonacademic_prices),
     wechat, email, avatar: p.avatar || '',
     rating: p.rating, rating_count: p.rating_count, matched: p.matched ? true : false, updatedAt: p.updated_at,
   };
@@ -684,7 +721,9 @@ async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) 
 export async function dbGetTeachers(db, { adminView = false, viewerId = null } = {}) {
   if (adminView) {
     const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
-        tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.wechat, tp.email,
+        tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.price_min, tp.price_max,
+        tp.wechat, tp.email, tp.time_slots, tp.teaching_method,
+        tp.personality_tags, tp.nonacademic_projects, tp.nonacademic_prices,
         tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
       FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
       WHERE u.role='teacher' ORDER BY u.created_at DESC`);

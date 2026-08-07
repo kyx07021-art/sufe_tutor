@@ -338,7 +338,7 @@ function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-
 function renderAdminUserRow(u, role) {
   const uid = role === 'teacher' ? u.user_id : u.id;
   const meta = role === 'teacher'
-    ? `${DISP.teacherGradeName(u.grade) || '—'} · ${DISP.ratingText(u.rating)}${UI.RATING_SCORE_SUFFIX} · ${u.price != null ? u.price : '?'}${UI.PRICE_UNIT}`
+    ? `${DISP.teacherGradeName(u.grade) || '—'} · ${DISP.ratingText(u.rating)}${UI.RATING_SCORE_SUFFIX} · ${DISP.priceRangeText(u.price_min, u.price_max, UI.PRICE_UNIT) || '?'}` // R2-5 报价区间
     : `${u.demand_count || 0}${UI.DEMAND_COUNT_SUFFIX}`;
   return `<div class="admin-row glass">
     <div class="admin-row-main">

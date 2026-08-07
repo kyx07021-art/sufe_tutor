@@ -262,12 +262,34 @@ function enterAbout() {
 function initProfileForm() {
   const pageTitle = document.getElementById('profile-page-title');
   if (pageTitle) pageTitle.textContent = UI.PAGE_TITLE_EDIT_PROFILE; // 页头标题归口 constants（index.html 静态文本仅 JS 前的兜底）
+  // 新扩展字段的 label 归口 constants（index.html 静态文本仅 JS 前的兜底；保留 .req 星号）
+  const setProfileLabel = (id, text) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const req = el.querySelector('.req');
+    el.textContent = text;
+    if (req) el.appendChild(req);
+  };
+  setProfileLabel('profile-label-price', UI.LABEL_PRICE_RANGE);
+  setProfileLabel('profile-label-method', UI.LABEL_TEACHING_METHOD_PROFILE);
+  setProfileLabel('profile-label-time', UI.LABEL_TIME_SLOTS);
+  setProfileLabel('profile-label-personality', UI.LABEL_PERSONALITY_TAGS + UI.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX));
+  setProfileLabel('profile-label-nonacademic', UI.LABEL_NONACADEMIC_PROJECTS);
+  setProfileLabel('profile-label-nonacademic-prices', UI.LABEL_NONACADEMIC_PRICES);
+  const priceMinEl = document.getElementById('profile-price-min');
+  const priceMaxEl = document.getElementById('profile-price-max');
+  if (priceMinEl) priceMinEl.placeholder = UI.PLACEHOLDER_MIN; // 复用预算区间布局文案
+  if (priceMaxEl) priceMaxEl.placeholder = UI.PLACEHOLDER_MAX;
+
   document.getElementById('profile-province-wrap').innerHTML =
     renderProvinceSelect('profile-province', '', 'onchange="onTeacherProvinceChange()"');
   const gradeEl = document.getElementById('profile-grade');
   gradeEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + TEACHER_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
   const genderEl = document.getElementById('profile-gender');
   genderEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + GENDERS.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  // R2-2 授课方式：白名单选项（online/offline/both），placeholder 占位走常量
+  const methodEl = document.getElementById('profile-teaching-method');
+  methodEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + TEACHING_METHODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
 
   const subjEl = document.getElementById('profile-subjects');
   subjEl.innerHTML = SUBJECTS.map(s=>`
@@ -277,6 +299,16 @@ function initProfileForm() {
   subjEl.addEventListener('change', onTeacherSubjectsChange); // 擅长科目驱动高考填写组件按需加载
   // 高考成绩区改由省份驱动（app-region.js）：选省份后渲染锁定编辑器；科目勾选仅标记擅长科目
   document.getElementById('profile-gaokao-scores').innerHTML = `<p class="text-sm text-muted">${UI.HINT_SELECT_PROVINCE_GAOKAO}</p>`;
+
+  // R2-1 可授课时间段：复用结构化时间组件（renderTimeSlotContainerHtml 只含「+ 新建时间段」行）
+  document.getElementById('profile-time-slots').innerHTML = renderTimeSlotContainerHtml();
+  // R2-3 性格关键词 tag-pick（最多 PERSONALITY_TAGS_MAX 个，超限 toggleTagPick 内部 toast）
+  document.getElementById('profile-personality-tags').innerHTML = PERSONALITY_TAGS.map(tag =>
+    `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(tag.id)}" onclick="toggleTagPick(this, 'profile-personality-tags', ${CONFIG.PERSONALITY_TAGS_MAX})">${escHtml(tag.name)}</button>`).join('');
+  // R2-4 擅长非学科类项目 tag-pick（无上限；勾选驱动下方报价行重建，toggleNonacademicPick 接在线点）
+  document.getElementById('profile-nonacademic').innerHTML = NONACADEMIC_PROJECTS.map(proj =>
+    `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(proj.id)}" onclick="toggleNonacademicPick(this)">${escHtml(proj.name)}</button>`).join('');
+
   // 联系方式（微信/邮箱）标签注入「签约后向对方展示」小注（index.html 静态表单，文案统一走常量）
   ['#profile-wechat', '#profile-email'].forEach(sel => {
     const inp = document.querySelector(sel);
@@ -285,9 +317,64 @@ function initProfileForm() {
       lab.insertAdjacentHTML('beforeend', `<span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>`);
     }
   });
-  initCustomSelects(document.querySelector('.profile-form')); // 省份/年级/性别下拉统一换自定义组件
+  initCustomSelects(document.querySelector('.profile-form')); // 省份/年级/性别/授课方式下拉统一换自定义组件
   _profileCredential = null; renderProfileCredentialCtl(); // 学信网截图控件复位（loadProfile 按库内值重绘）
   loadProfile();
+}
+
+// R2-4 非学科项目勾选切换：tag-pick 切换 + 重建报价行（增量增删，保留已填输入）
+function toggleNonacademicPick(el) {
+  toggleTagPick(el, 'profile-nonacademic', 0);
+  rebuildNonacademicPrices();
+}
+
+// 非学科项目报价行 HTML（项目名 + min~max 两个 number，样式复用预算区间布局）
+function renderNonacademicPriceRow(proj) {
+  return `<div class="nonacademic-price-row" data-project="${escHtml(proj.id)}">
+    <span class="na-project-name">${escHtml(proj.name)}</span>
+    <span class="na-range">
+      <input type="number" class="form-input na-price-min" placeholder="${escHtml(UI.PLACEHOLDER_MIN)}" min="0" step="1">
+      <span class="text-muted">~</span>
+      <input type="number" class="form-input na-price-max" placeholder="${escHtml(UI.PLACEHOLDER_MAX)}" min="0" step="1">
+    </span>
+  </div>`;
+}
+
+// R2-4 重建非学科报价行：按当前勾选的项目增量增删行，已存在行不动（保留已填输入）
+function rebuildNonacademicPrices() {
+  const box = document.getElementById('profile-nonacademic-prices');
+  if (!box) return;
+  const selected = [...document.querySelectorAll('#profile-nonacademic .tag-pick.selected')].map(b => b.dataset.id);
+  box.querySelectorAll('.nonacademic-price-row').forEach(row => {
+    if (!selected.includes(row.dataset.project)) row.remove(); // 取消勾选 → 移除对应行
+  });
+  selected.forEach(pid => {
+    const exists = [...box.querySelectorAll('.nonacademic-price-row')].some(row => row.dataset.project === pid);
+    if (exists) return;
+    const proj = NONACADEMIC_PROJECTS.find(x => x.id === pid);
+    if (proj) box.insertAdjacentHTML('beforeend', renderNonacademicPriceRow(proj)); // 新增勾选 → 追加报价行
+  });
+}
+
+// R2-3 收集性格关键词选中 id 数组
+function collectPersonalityTags() {
+  return [...document.querySelectorAll('#profile-personality-tags .tag-pick.selected')].map(b => b.dataset.id);
+}
+
+// R2-4 收集非学科项目选中 id 数组 + 对应报价（仅保留至少有一端报价的行）
+function collectNonacademicProjects() {
+  return [...document.querySelectorAll('#profile-nonacademic .tag-pick.selected')].map(b => b.dataset.id);
+}
+function collectNonacademicPrices() {
+  return [...document.querySelectorAll('#profile-nonacademic-prices .nonacademic-price-row')].map(row => {
+    const minInp = row.querySelector('.na-price-min');
+    const maxInp = row.querySelector('.na-price-max');
+    return {
+      project: row.dataset.project,
+      price_min: minInp && minInp.value !== '' ? +minInp.value : null,
+      price_max: maxInp && maxInp.value !== '' ? +maxInp.value : null,
+    };
+  }).filter(it => it.price_min != null || it.price_max != null);
 }
 
 async function loadProfile() {
@@ -300,7 +387,36 @@ async function loadProfile() {
       document.getElementById('profile-school').value = p.school || '';
       document.getElementById('profile-real-name').value = p.real_name || '';
       _profileCredential = p.credential_image || null; renderProfileCredentialCtl();
-      document.getElementById('profile-price').value = p.price != null ? p.price : ''; // null = 未填报空；0 是合法报价须显示
+      // R2-5 报价区间：null = 未填报空；0 是合法报价须显示
+      document.getElementById('profile-price-min').value = p.price_min != null ? p.price_min : '';
+      document.getElementById('profile-price-max').value = p.price_max != null ? p.price_max : '';
+      // R2-2 授课方式
+      document.getElementById('profile-teaching-method').value = p.teaching_method || '';
+      // R2-1 可授课时间段（结构化 JSON 回填组件行；旧纯文本忽略）
+      prefillTimeSlots(document.getElementById('profile-time-slots'), p.time_slots || '');
+      // R2-3 性格关键词回填选中（遍历比对 data-id，勿用属性选择器插值——escJsStr 是 onclick 双层上下文转义，
+      // 对 CSS 选择器语义不匹配；白名单 id 安全但避免坏味道，v0.25.2 审计修）
+      const pickById = (containerId, pid) => {
+        const el = document.getElementById(containerId);
+        if (!el) return null;
+        return [...el.querySelectorAll('.tag-pick')].find(b => b.dataset.id === pid) || null;
+      };
+      (p.personality_tags || []).forEach(id => {
+        const btn = pickById('profile-personality-tags', id);
+        if (btn) btn.classList.add('selected');
+      });
+      // R2-4 非学科项目回填勾选 + 重建报价行 + 回填报价
+      (p.nonacademic_projects || []).forEach(id => {
+        const btn = pickById('profile-nonacademic', id);
+        if (btn) btn.classList.add('selected');
+      });
+      rebuildNonacademicPrices();
+      (p.nonacademic_prices || []).forEach(item => {
+        const row = [...document.querySelectorAll('#profile-nonacademic-prices .nonacademic-price-row')].find(r => r.dataset.project === item.project);
+        if (!row) return;
+        if (item.price_min != null) row.querySelector('.na-price-min').value = item.price_min;
+        if (item.price_max != null) row.querySelector('.na-price-max').value = item.price_max;
+      });
       document.getElementById('profile-wechat').value = p.wechat || '';
       document.getElementById('profile-email').value = p.email || '';
       document.getElementById('profile-intro').value = p.intro || '';
@@ -332,6 +448,12 @@ async function handleSaveProfile(e) {
   const subjects = [...document.querySelectorAll('#profile-subjects input:checked')].map(cb=>cb.value);
   if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
 
+  // R2-1 可授课时间段：前端先过 validateTimeSlots（半填/起止颠倒就地拦截），再收集序列化
+  const timeSlotsContainer = document.getElementById('profile-time-slots');
+  const tsErr = validateTimeSlots(timeSlotsContainer);
+  if (tsErr) { alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(tsErr)}</div>`; return; }
+  const timeSlots = collectTimeSlots(timeSlotsContainer);
+
   // 省份锁定组件的收集函数（app-region.js），输出与旧 gaokao_scores 形状兼容
   const gaokaoScores = collectTeacherGaokao();
 
@@ -344,7 +466,14 @@ async function handleSaveProfile(e) {
         grade: document.getElementById('profile-grade').value,
         gender: document.getElementById('profile-gender').value,
         subjects, gaokao_scores: gaokaoScores,
-        price: document.getElementById('profile-price').value === '' ? null : +document.getElementById('profile-price').value, // 空 = 未填(null)，档案完整性门槛据此拦截；0 是合法报价
+        // R2-5 报价区间：空 = 未填(null)，档案完整性门槛按 price_min 拦截；0 是合法报价
+        price_min: document.getElementById('profile-price-min').value === '' ? null : +document.getElementById('profile-price-min').value,
+        price_max: document.getElementById('profile-price-max').value === '' ? null : +document.getElementById('profile-price-max').value,
+        time_slots: JSON.stringify(timeSlots), // R2-1
+        teaching_method: document.getElementById('profile-teaching-method').value, // R2-2
+        personality_tags: collectPersonalityTags(), // R2-3
+        nonacademic_projects: collectNonacademicProjects(), // R2-4
+        nonacademic_prices: collectNonacademicPrices(), // R2-4
         wechat: document.getElementById('profile-wechat').value.trim(),
         email: document.getElementById('profile-email').value.trim(),
         intro: document.getElementById('profile-intro').value.trim(),

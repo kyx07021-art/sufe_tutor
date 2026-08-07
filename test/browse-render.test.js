@@ -50,7 +50,7 @@ test('loadBrowseDemands 首次调用即渲染需求卡（乱序守卫首用初�
         pending_intents: 0, intent_count: 0 }] };
       if (url.includes('demand-pushes')) return { pushes: [] };
       if (url.includes('/api/teachers')) return { teachers: [
-        { user_id: 38, username: 'kkkk', subjects: ['english'], province: 'guangdong', price: 150, rating: 4, avatar: '' } ] };
+        { user_id: 38, username: 'kkkk', subjects: ['english'], province: 'guangdong', price_min: 150, price_max: 150, rating: 4, avatar: '' } ] };
       return {};
     };
     state.user = { id: 38, username: 'kkkk', role: 'teacher' };

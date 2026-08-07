@@ -1,14 +1,15 @@
 /**
  * 结构化期望开课时间服务端校验回归（v0.25.0 需求一）
  *
- * sanitizeTimeSlots（server/routes-demands.js 导出）：库内 JSON
+ * sanitizeTimeSlots（server/util.js 导出，v0.25.x 从 routes-demands.js 迁入；需求 expected_time
+ * 与教师档案 time_slots 共用同一实现）：库内 JSON
  * [{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}] 白名单式校验。
  * 守卫 bug 类别：非 JSON/非数组入库、越界 dow、非法时刻、结束早于开始、
  * 条数超限、未知 type（未来扩展如月日+时间未实现前一律拒绝）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeTimeSlots } from '../server/routes-demands.js';
+import { sanitizeTimeSlots } from '../server/util.js';
 
 const slot = (dow, start, end) => JSON.stringify([{ type: 'week', dow, start, end }]);
 const ok = r => !r.error && typeof r.value === 'string';
