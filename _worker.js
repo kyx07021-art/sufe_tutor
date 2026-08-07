@@ -228,11 +228,12 @@ export default {
     }
 
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
-    // 公开读缓存（v0.22.5）：无 per-user 上下文的列表 GET 短 TTL（server/cache.js）；
+    // 公开读缓存（v0.22.5）：仅缓存「与令牌完全无关」的公开读——目前只有无 scope 的需求广场
+    //（handleGetDemands 无 scope 路径不碰 authUser）。/api/teachers 的 matched、/api/posts 的
+    // liked 均按令牌随用户变化，共享缓存会把 A 的标记泄露给 B（网安评审），一律不缓存。
     // 命中即返（~1ms 内存），写操作成功统一 readCacheClearAll 失效
     const isCacheableRead = request.method === 'GET' && (
-      (p === '/api/student/demands' && !url.searchParams.get('scope')) ||
-      p === '/api/teachers' || p === '/api/posts'
+      p === '/api/student/demands' && !url.searchParams.get('scope')
     );
     const readKey = p + url.search;
     if (isCacheableRead) {

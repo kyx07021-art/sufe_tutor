@@ -56,10 +56,10 @@ const isStatic = u => u.origin === self.location.origin && (
   /\.(js|css|svg|png|jpe?g|webp|ico)$/.test(u.pathname)
 );
 
-// 公开读 API（无 per-user 参数）——与 server/cache.js 同边界
+// 公开读 API（与令牌完全无关）——与 server/cache.js 同边界。
+// /api/teachers 的 matched、/api/posts 的 liked 按令牌随用户变化，SW 缓存会服务陈旧标记，一律不缓存。
 const isPublicRead = u => u.origin === self.location.origin && (
-  (u.pathname === '/api/student/demands' && !u.searchParams.get('scope')) ||
-  u.pathname === '/api/teachers' || u.pathname === '/api/posts'
+  u.pathname === '/api/student/demands' && !u.searchParams.get('scope')
 );
 
 self.addEventListener('fetch', (e) => {
