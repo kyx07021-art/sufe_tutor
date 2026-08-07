@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.0',
+  APP_VERSION: '0.25.1',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -96,6 +96,20 @@ globalThis.APP_CONSTANTS = {
   WEEKDAYS: [
     {id:1,name:'周一'},{id:2,name:'周二'},{id:3,name:'周三'},{id:4,name:'周四'},
     {id:5,name:'周五'},{id:6,name:'周六'},{id:7,name:'周日'},
+  ],
+  // 性格关键词（R2-3）：教师档案 tag 白名单（id 英文小写、name 中文），服务端经本数组校验
+  PERSONALITY_TAGS: [
+    {id:'patience',name:'耐心'},{id:'strict',name:'严格'},{id:'humorous',name:'幽默'},
+    {id:'gentle',name:'温柔'},{id:'logical',name:'逻辑清晰'},{id:'friendly',name:'亲和力强'},
+    {id:'responsible',name:'认真负责'},{id:'methodical',name:'有方法'},{id:'spoken',name:'口语标准'},
+    {id:'motivating',name:'善于鼓励'},
+  ],
+  // 擅长非学科类项目（R2-4）：非学科类项目白名单（id 英文小写、name 中文）
+  NONACADEMIC_PROJECTS: [
+    {id:'music',name:'乐器/音乐'},{id:'vocal',name:'声乐'},{id:'painting',name:'绘画'},
+    {id:'dance',name:'舞蹈'},{id:'calligraphy',name:'书法'},{id:'chess',name:'棋类'},
+    {id:'code',name:'编程/机器人'},{id:'sports',name:'体育/运动'},{id:'speech',name:'演讲主持'},
+    {id:'language',name:'语言口语'},
   ],
 
   // ============================================================
