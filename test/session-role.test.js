@@ -49,18 +49,21 @@ test('按角色会话分键：学生/教师互不覆盖；清当前角色保留�
   assert.equal(vm.runInContext(`loadSession('teacher')`, ctx).authToken, 'tea-token', '教师会话应保留');
 });
 
-test('loadSession 无角色参数：按 sufe_last_role 恢复（页面自动登录用）', () => {
+test('loadSession 无角色参数：按 sufe_last_role 恢复（v0.24.1 后由主页角色按钮触发）', () => {
   const ctx = makeCtx();
   vm.runInContext(`state.user = { id: 2, role: 'teacher' }; state.authToken = 't'; saveSession(false);`, ctx);
   const s = vm.runInContext(`loadSession()`, ctx);
   assert.equal(s && s.authToken, 't', '应恢复上次使用角色（teacher）的会话');
 });
 
-test('clearSession 无角色参数 = 全清（含 last_role 标记）', () => {
+test('clearSession 无角色参数 = 空操作（v0.24.2 审计：不误删他角色会话）', () => {
   const ctx = makeCtx();
   vm.runInContext(`state.user = { id: 1, role: 'student' }; state.authToken = 'a'; saveSession(true);`, ctx);
   vm.runInContext(`state.user = { id: 2, role: 'teacher' }; state.authToken = 'b'; saveSession(true);`, ctx);
-  vm.runInContext(`clearSession()`, ctx);
-  assert.equal(vm.runInContext(`loadSession()`, ctx), null, '全清后任何角色都不应可恢复');
-  assert.equal(vm.runInContext(`loadSession('teacher')`, ctx), null);
+  vm.runInContext(`clearSession()`, ctx); // 401 兜底在角色切换（state.user 为空）曾以 '' 走此路径
+  assert.equal(vm.runInContext(`loadSession('student')`, ctx).authToken, 'a', '学生记住会话应保留');
+  assert.equal(vm.runInContext(`loadSession('teacher')`, ctx).authToken, 'b', '教师记住会话应保留');
+  vm.runInContext(`clearSession('student')`, ctx); // 显式清角色仍正常工作
+  assert.equal(vm.runInContext(`loadSession('student')`, ctx), null, '显式角色清理应生效');
+  assert.equal(vm.runInContext(`loadSession('teacher')`, ctx).authToken, 'b', '他角色不受影响');
 });

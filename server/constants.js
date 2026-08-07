@@ -114,6 +114,8 @@ export const MSG = {
   CONTRACT_NOT_FOUND: '合同不存在',
   CONTRACT_STATE_INVALID: '合同当前状态不允许该操作',
   CONTRACT_MODIFIED_CONFLICT: '合同已被对方修改，请关闭后重新打开查看最新版本',
+  SIGNING_ALREADY_RESPONDED: '该签约请求已处理，请勿重复操作',
+  SIGNING_ALREADY_PENDING: '该会话已有待处理的签约请求，请等待对方确认后再发起',
   DEMAND_CONTRACTED_CLOSED: '该需求已签约成交，已停止接收新意向',
   DEMAND_CONTRACTED_LOCKED: '已签约的需求不可修改或删除',
 

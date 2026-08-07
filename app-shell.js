@@ -10,7 +10,7 @@
  *   - 统一装载器 loadInto（loading/空态/错误转义/浮入/乱序守卫 四件套，禁止手写）
  *   - 红点徽标慢轮询（30s，全角色；各模块也可即时 setBadge 消点）
  *   - 通知信息页（全角色）
- *   - DOMContentLoaded 初始化（自动登录恢复 + 落地 + 新手引导）
+ *   - DOMContentLoaded 初始化（落地页恒为入口 + 新手引导；v0.24.1 删自动登录）
  */
 const VIEWS = ['landing', 'login', 'register', 'invite-gate', 'client'];
 
@@ -97,7 +97,7 @@ function defaultPageFor() {
 function enterClient(pageId) {
   renderSidebar();
   showView('client');
-  // 刷新恢复：回到刷新前的页签（角色不匹配时回落默认页）
+  // v0.24.1 删自动登录后刷新必落落地页（无 storedPage 恢复），pageId 仅登录/切角色回跳时传入
   const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId : defaultPageFor();
   // v0.24.0：不阻塞登录——默认页签立即渲染（自身走正常加载），
   // 其余模块数据此刻开始后台并行预取（fire-and-forget），用户在页面里待着时就已全部就绪；

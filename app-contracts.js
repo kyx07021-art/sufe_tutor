@@ -120,9 +120,13 @@ function viewContract(contractId) {
   openModal({
     title: UI.BTN_VIEW_CONTRACT,
     bodyCls: 'contract-md',
-    body: `${mdRender(c.contract_md || '')}`,
+    // v0.24.2 审计：查看合同去除平台内部标记行（`<!-- 业务条款结束…-->`），业务+法律条款照常显示
+    body: `${mdRender(stripContractMarker(c.contract_md || ''))}`,
   });
 }
+
+// 去除平台内部「业务条款结束」标记行（HTML 注释经 escHtml 后以文本泄漏到合同查看渲染）
+const stripContractMarker = (md) => String(md || '').replace(/<!--\s*业务条款结束[^\n]*\n?/g, '');
 
 // 修改合同内容：复用发帖组件的 Markdown 编辑器（同套 id，弹窗互斥）
 function openContractModifyModal(contractId) {
@@ -143,7 +147,7 @@ function openContractModifyModal(contractId) {
             <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="12">${escHtml(splitContractBiz(c.contract_md))}</textarea>
-          <p class="text-muted text-sm" style="margin-top:6px;">仅可修改业务条款，法律条款不可修改</p>
+          <p class="text-muted text-sm contract-modify-hint">${UI.CONTRACT_MODIFY_BIZ_HINT}</p>
         </div>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitContractModify(${c.id})">${UI.BTN_SAVE}</button>`,
@@ -187,12 +191,20 @@ async function submitContractModify(contractId) {
   const alertEl = document.getElementById('post-alert');
   if (!md) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.CONTRACT_EMPTY}</div>`; return; }
   try {
-    await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: window._contractModifyVersion } });
+    const data = await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: window._contractModifyVersion } });
     closeModal();
-    showToast(UI.CONTRACT_MODIFIED_TOAST);
+    if (!(data && data.unchanged)) showToast(UI.CONTRACT_MODIFIED_TOAST); // v0.24.2 审计：未改动不误导「已同步需重新确认」
     invalidate('contracts'); // v0.23.1 审计 M5：否则 loadMyContracts 命中旧正文
     loadMyContracts();
   } catch (err) {
+    // v0.24.2 审计：409 乐观锁冲突后刷新本地版本号（否则重复保存恒 409，只能关弹窗重开）
+    if (err.code === 'CONTRACT_MODIFIED_CONFLICT') {
+      try {
+        const fresh = await api('/api/contracts/my');
+        const c = (fresh.contracts || []).find(x => x.id === contractId);
+        if (c && c.version != null) window._contractModifyVersion = c.version;
+      } catch { /* 刷新失败静默，用户可关弹窗重开 */ }
+    }
     alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   }
 }
@@ -224,7 +236,7 @@ function openSigningModal(convId) {
     title: UI.SIGNING_MODAL_TITLE,
     closable: false,
     body: `<div id="post-alert"></div>
-        <p class="text-sm text-muted" style="margin-bottom:12px;">${UI.SIGNING_MODAL_HINT}</p>
+        <p class="text-sm text-muted signing-modal-hint">${UI.SIGNING_MODAL_HINT}</p>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_PRICE} <span class="req">*</span></label>
           <input type="number" id="signing-price" class="form-input" min="0" step="1" placeholder="${UI.SIGNING_PRICE_PLACEHOLDER}">

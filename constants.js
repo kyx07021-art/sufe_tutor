@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.24.1',
+  APP_VERSION: '0.24.2',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -489,6 +489,8 @@ globalThis.APP_CONSTANTS = {
     CHAT_BTN_DRAFT_CONTRACT: '起草合同',
     CHAT_PLUS_ARIA: '附件与合同',
     CHAT_PREVIEW_CONTRACT: '[合同草案]',
+    CHAT_PREVIEW_SIGNING_REQ: '[签约请求]',   // v0.24.2 审计：签约消息曾落入「非 text → [文件]」误导分支
+    CHAT_PREVIEW_SIGNING_RESP: '[签约回应]',
     CHAT_CONTRACT_BUBBLE_MINE: '你向对方发送了一份合同草案，可前往「我的合同」查看进度',
     CHAT_CONTRACT_BUBBLE_OTHER: '对方向你发送了一份合同草案，请前往「我的合同」查看并确认',
 
@@ -501,6 +503,8 @@ globalThis.APP_CONSTANTS = {
     SIGNING_REQUEST_SENT_TOAST: '签约请求已发送',
     SIGNING_CONFIRMED: '对方已确认签约请求',
     SIGNING_REJECTED: '对方已拒绝此次签约请求',
+    SIGNING_MY_CONFIRMED: '你已确认签约请求',      // v0.24.2 审计：回应方视角（原气泡/toast 恒显「对方已…」颠倒）
+    SIGNING_MY_REJECTED: '你已拒绝此次签约请求',
     SIGNING_MODAL_TITLE: '发起签约',
     SIGNING_MODAL_HINT: '确认报价、时间与授课方式后发送，由对方确认',
     LABEL_SIGNING_PRICE: '报价（元/小时）',
@@ -648,6 +652,7 @@ globalThis.APP_CONSTANTS = {
     BTN_VIEW_CONTRACT: '查看合同',
     BTN_CANCEL_CONTRACT: '取消签约',
     MODIFY_CONTRACT_TITLE: '修改合同内容',
+    CONTRACT_MODIFY_BIZ_HINT: '仅可修改业务条款，法律条款不可修改',   // v0.24.2 审计：单源收口（曾硬编码中文 + 内联样式）
     CONFIRM_SIGN: '确认签约后不可单方撤销（测试版以二次确认代替短信验证）。确定确认签约吗？',
     CONFIRM_CANCEL_CONTRACT: '取消后合同删除并通知对方（会话保留）。确定取消签约吗？',
     CONTRACT_EMPTY_LIST: '暂无合同——可在「我的会话」的聊天窗内起草',
@@ -845,7 +850,6 @@ globalThis.APP_CONSTANTS = {
     POST_MD_BOLD: '加粗',
     POST_MD_IMAGE: '插入图片',
     POST_BODY_PLACEHOLDER: '支持轻量 Markdown：## 大标题、### 小标题、**加粗**、插入图片（图片以本地文件嵌入）',
-    POST_PREVIEW_LABEL: '实时预览',
     POST_PREVIEW_TITLE: '预览效果',           // v0.24.0：实时预览连根删，改按钮+独立浮窗
     POST_PREVIEW_BTN: '预览效果',
     POST_PREVIEW_EMPTY: '暂无内容，点击「预览效果」查看渲染结果',

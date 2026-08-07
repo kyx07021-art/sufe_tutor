@@ -52,7 +52,7 @@ function openUsageGuide() {
   });
 }
 
-/** 初始化入口：首访才弹；本设备标记常驻（登录/注册也写），会话过期/自动登录失败不再重弹 */
+/** 初始化入口：首访才弹；本设备标记常驻（登录/注册也写），访客落地也按标记不弹（v0.24.1 已无自动登录） */
 function showOnboardingIfNeeded() {
   if (isReturning()) return;
   setReturning();

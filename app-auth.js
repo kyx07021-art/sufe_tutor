@@ -82,9 +82,8 @@ function switchRegisterRole(role) {
 }
 
 function handleFeatureClick(role) {
-  // v0.23.1 主页双按钮按角色分流：同角色已登录直进；否则恢复该角色「上次登录」已存会话，
-  // 无记录则进入该角色访客预览。彻底告别「登录过学生就永远进学生端」
-  if (state.user && state.user.role === role) { enterClient(); return; }
+  // v0.23.1 主页双按钮按角色分流：恢复该角色「上次登录」已存会话，无记录则进入该角色访客预览。
+  // v0.24.1 删自动登录后落地页恒为访客态（state.user 恒 null），原「同角色已登录直进」分支已不可达（死代码已删）
   const saved = loadSession(role);
   if (saved && saved.authToken) { switchToRole(role, saved); return; }
   enterRolePreview(role);
@@ -98,8 +97,11 @@ function switchToRole(role, saved) {
     state.user = data.user;
     saveSession(saved.source === 'local'); // 保活刷新该角色会话（按 state.user.role 落键）
     enterClient();
-  }).catch(() => {
+  }).catch((err) => {
     state.authToken = null;
+    // v0.24.2 审计：死令牌只清目标角色会话（401 兜底在 state.user 为空时曾以 '' 误删全部角色会话）；
+    // 网络抖动不删会话——令牌仍可恢复，下次点角色按钮再校验
+    if (err && err.code !== 'NETWORK_ERROR') clearSession(role);
     enterRolePreview(role); // 令牌失效：回落该角色访客预览
   });
 }

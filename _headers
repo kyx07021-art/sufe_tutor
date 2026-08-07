@@ -15,6 +15,3 @@
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
-# Service Worker 脚本不得缓存：浏览器需每次导航检查 sw.js 更新（部署后尽快切新版本）
-/sw.js
-  Cache-Control: no-cache

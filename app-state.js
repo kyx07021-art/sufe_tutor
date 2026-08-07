@@ -56,7 +56,7 @@ function invalidate(key) {
 // 会话持久化（令牌；绝不存明文密码）
 // v0.23.1 按角色分键：sufe_session_<role>——主页双按钮分别导向上次登录的学生/教师账户，
 // 登出/401 只清当前角色（另一角色会话保留，供下次按角色恢复）。sufe_last_role 记上次使用角色，
-// 无角色参数 loadSession() 按它恢复（页面自动登录）
+// 无角色参数 loadSession() 按它恢复（v0.24.1 删自动登录后，恢复仅由主页角色按钮触发）
 // ============================================================
 const ROLES = ['student', 'teacher', 'admin'];
 const sessionKey = role => `sufe_session_${role || ''}`;
@@ -134,16 +134,10 @@ function loadSession(role) {
 }
 
 function clearSession(role) {
-  if (role) {
-    try { localStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
-    try { sessionStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
-    return;
-  }
-  for (const r of ROLES) {
-    try { localStorage.removeItem(sessionKey(r)); } catch { /* ignore */ }
-    try { sessionStorage.removeItem(sessionKey(r)); } catch { /* ignore */ }
-  }
-  try { localStorage.removeItem('sufe_last_role'); } catch { /* ignore */ }
+  if (!role) return; // v0.24.2 审计：空角色不再清全量——401 兜底在 switchToRole（state.user 为空）曾以 '' 误删
+  // 所有角色会话（另一角色有效记住会话被静默抹掉）。登录/登出路径均显式传角色，无合法全量清理调用方
+  try { localStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
+  try { sessionStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
 }
 
 // ============================================================

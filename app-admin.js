@@ -114,7 +114,7 @@ function adminViewContract(contractId) {
   openModal({
     title: UI.BTN_VIEW_CONTRACT,
     bodyCls: 'contract-md',
-    body: `${mdRender(c.contract_md || '')}`,
+    body: `${mdRender((c.contract_md || '').replace(/<!--\s*业务条款结束[^\n]*\n?/g, ''))}`, // v0.24.2：同学生端去除内部标记行
   });
 }
 

@@ -125,7 +125,7 @@
           </div>
           <label class="remember-me">
             <input type="checkbox" id="login-remember">
-            <span>记住登录状态，下次自动登录</span>
+            <span>记住登录状态，下次免输密码</span>
           </label>
           <div class="form-actions">
             <button type="button" class="btn btn-outline glass glass--pressable" onclick="authGoBack()">返回</button>
@@ -636,10 +636,22 @@
   <!-- v0.24.1：Service Worker 连根拔除（删除优先于增加）。SW cache-first 服务陈旧/混合资产，
        每次发版后桌面端加载/登录异常（移动端无陈旧 SW 一切正常，佐证根因）。Pages 静态资源带
        max-age=0 + must-revalidate + ETag，浏览器 HTTP 缓存发版后自动重验取新——SW 冗余且有害。
-       一次性自愈：发现旧 SW/旧缓存 → 清除并整页刷新一次，桌面端立即落在干净状态（sessionStorage 防重复刷新）。 -->
+       一次性自愈：发现旧 SW/旧缓存 → 清除并整页刷新一次，桌面端立即落在干净状态。
+       v0.24.2 审计加固：全部存储访问 try/catch（隐私模式不炸）；标记写入 sessionStorage+localStorage
+       双通道，任一致即防重复刷新（杜绝存储可读不可写 + 删除被拒时的刷新死循环）。 -->
   <script>
     (function () {
-      if (sessionStorage.getItem('sufe_sw_cleanup_done')) return; // 本会话已清理过，防重复刷新
+      function markDone() {
+        try { sessionStorage.setItem('sufe_sw_cleanup_done', '1'); return true; } catch (e) {}
+        try { localStorage.setItem('sufe_sw_cleanup_done', '1'); return true; } catch (e) {}
+        return false; // 双通道都不可写：放弃刷新（宁可本页暂不干净，也不刷新死循环）
+      }
+      function isDone() {
+        try { if (sessionStorage.getItem('sufe_sw_cleanup_done')) return true; } catch (e) {}
+        try { if (localStorage.getItem('sufe_sw_cleanup_done')) return true; } catch (e) {}
+        return false;
+      }
+      if (isDone()) return; // 本会话已清理过，防重复刷新
       var found = false;
       var tasks = [];
       if ('serviceWorker' in navigator) {
@@ -660,10 +672,7 @@
         }).catch(function () {}));
       }
       Promise.all(tasks).then(function () {
-        if (found) {
-          try { sessionStorage.setItem('sufe_sw_cleanup_done', '1'); } catch (e) {}
-          location.reload(); // 清完立刻整页刷新：当前页可能已被陈旧资产污染
-        }
+        if (found && markDone()) location.reload(); // 清完立刻整页刷新：当前页可能已被陈旧资产污染
       }).catch(function () {});
     })();
   </script>

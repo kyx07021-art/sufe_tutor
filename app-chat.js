@@ -133,6 +133,9 @@ function renderConvItem(c) {
   let preview = UI.CHAT_EMPTY_NO_MESSAGES;
   if (c.last_kind === 'contract') {
     preview = UI.CHAT_PREVIEW_CONTRACT;
+  } else if (c.last_kind === 'signing_request' || c.last_kind === 'signing_response') {
+    // v0.24.2 审计：签约消息曾落入「非 text → [文件]」分支，新功能主入口被误标
+    preview = c.last_kind === 'signing_request' ? UI.CHAT_PREVIEW_SIGNING_REQ : UI.CHAT_PREVIEW_SIGNING_RESP;
   } else if (c.last_kind && c.last_kind !== 'text') {
     preview = (c.last_sender === me ? UI.CHAT_PREVIEW_ME_PREFIX : '') + (c.last_kind === 'image' ? UI.CHAT_PREVIEW_IMAGE : UI.CHAT_PREVIEW_FILE);
   } else if (c.last_body) {
@@ -322,10 +325,13 @@ function renderChatBubble(m, i) {
       </div>${time}</div>`;
   }
   // v0.24.0 签约回应系统气泡（对方确认/拒绝后落一条，在途会话实时刷新）
+  // v0.24.2 审计：视角修正——回应方看到「你已…」，发起方看到「对方已…」（原恒显「对方已…」颠倒）
   if (m.kind === 'signing_response') {
     let r = {};
     try { r = JSON.parse(m.body || '{}'); } catch { /* 兜底 */ }
-    const text = r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED;
+    const text = mine
+      ? (r.accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED)
+      : (r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED);
     return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble chat-bubble--system glass">${escHtml(text)}</div>${time}</div>`;
   }
@@ -690,7 +696,7 @@ async function respondSigning(signingId, accept) {
       if (status) status.textContent = text;
       else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = text; el.appendChild(p); }
     });
-    showToast(accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED);
+    showToast(accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED); // v0.24.2：回应方视角（原「对方已…」颠倒）
   } catch (err) { showToast(err.message); }
 }
 

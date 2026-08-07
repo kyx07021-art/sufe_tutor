@@ -372,11 +372,15 @@ export async function handleModifyContract(db, contractId, body, req) {
   const ver = parseInt(body.version);
   if (!Number.isInteger(ver)) return error(MSG.INVALID_PARAMS, 400);
   // v0.24.0：修改弹窗只放出业务条款——提交的 md 即新业务部分，法律条款由服务端固定重拼（不可修改）
-  const md = String(body.contractMd || '').slice(0, 30000);
-  if (!md.trim()) return error(UIC.CONTRACT_EMPTY); // 用户可见文案单源 constants.js
-  const oldBiz = (ct.contract_md || '').split(CONTRACT_BUSINESS_END)[0].trim(); // 旧业务部分（留痕 diff 基线）
-  if (md.trim() === oldBiz) return json({ ok: true, unchanged: true }); // 业务未变：幂等短路，不重置确认/不重发通知
-  const fullMd = contractWithLegal(md); // 业务 + 固定法律条款
+  // v0.24.2：剥离提交内容中可能残留的标记及之后内容（前端 textarea 只放业务段，防御非前端客户端塞整段/重复提交）
+  const md = String(body.contractMd || '').slice(0, 30000).split(CONTRACT_BUSINESS_END)[0].trim();
+  if (!md) return error(UIC.CONTRACT_EMPTY); // 用户可见文案单源 constants.js
+  // 旧格式合同（v0.24.0 前起草、正文无标记）：整段即业务，不再追加法律块——否则旧法律条款被当业务
+  // 重拼，出现两份法律条款且旧条款从此落入可编辑区，破坏「法律条款不可修改」承诺
+  const oldHasMarker = (ct.contract_md || '').includes(CONTRACT_BUSINESS_END);
+  const oldBiz = (oldHasMarker ? (ct.contract_md || '').split(CONTRACT_BUSINESS_END)[0] : (ct.contract_md || '')).trim(); // 旧业务部分（留痕 diff 基线）
+  if (md === oldBiz) return json({ ok: true, unchanged: true }); // 业务未变：幂等短路，不重置确认/不重发通知
+  const fullMd = oldHasMarker ? contractWithLegal(md) : md; // 新格式：业务+固定法律条款；旧格式：保持原文本不重拼
 
   // 修改即回退到签约选择态：双方确认清零 + signing（双方重新确认）；prev_business 留痕供前端 diff 高亮；
   // 乐观锁落 SQL WHERE（version 精确匹配）
@@ -384,7 +388,7 @@ export async function handleModifyContract(db, contractId, body, req) {
     `UPDATE contracts SET contract_md=?, prev_business=?, drafter_confirmed=0, other_confirmed=0, status='signing', version=version+1, updated_at=datetime('now','localtime')
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
     [await encryptField(fullMd), oldBiz, contractId, ver]); // N-05：合同正文加密落库
-  if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409);
+  if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409, 'CONTRACT_MODIFIED_CONFLICT'); // v0.24.2：带稳定 code 供前端刷新版本号
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });

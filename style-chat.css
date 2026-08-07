@@ -262,6 +262,10 @@
 /* 合同卡「等待对方确认/签署」灰字（v0.24.0：无外套组件的不可交互提示，替代按钮） */
 .contract-wait-text { font-size: .72rem; font-weight: 600; }
 
+/* v0.24.2 审计：修改合同/发起签约浮窗提示行（原内联样式收口为类，JS 零内联样式铁律） */
+.contract-modify-hint { margin-top: 6px; }
+.signing-modal-hint { margin-bottom: 12px; }
+
 /* ---------- 加号弹层（附件 / 起草合同），发送键左侧 ---------- */
 .chat-plus-wrap { position: relative; flex-shrink: 0; }
 /* 隐藏文件选择框：禁用 display:none（iOS 无法程序化触发），1px 透明离屏占位 */
