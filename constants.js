@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.24.2',
+  APP_VERSION: '0.24.3',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -652,7 +652,10 @@ globalThis.APP_CONSTANTS = {
     BTN_VIEW_CONTRACT: '查看合同',
     BTN_CANCEL_CONTRACT: '取消签约',
     MODIFY_CONTRACT_TITLE: '修改合同内容',
+    CONTRACT_VIEW_DIFF_TITLE: '查看合同 · 本次改动',   // v0.24.3：修改过的合同查看时标题带改动提示
     CONTRACT_MODIFY_BIZ_HINT: '仅可修改业务条款，法律条款不可修改',   // v0.24.2 审计：单源收口（曾硬编码中文 + 内联样式）
+    CONTRACT_DIFF_HINT: '本次修改的改动处已高亮：绿色=新增，红色删除线=移除；法律条款未改动。', // v0.24.3 diff 视图
+    CONTRACT_DIFF_EMPTY: '未检测到文本改动',
     CONFIRM_SIGN: '确认签约后不可单方撤销（测试版以二次确认代替短信验证）。确定确认签约吗？',
     CONFIRM_CANCEL_CONTRACT: '取消后合同删除并通知对方（会话保留）。确定取消签约吗？',
     CONTRACT_EMPTY_LIST: '暂无合同——可在「我的会话」的聊天窗内起草',

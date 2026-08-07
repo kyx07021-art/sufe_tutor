@@ -342,7 +342,7 @@ export async function handleSignContract(db, contractId, body, req) {
     // v0.24.0 合同文档与需求签约状态彻底解耦：文档 signed 不再触碰 student_demands
     // （需求签约关系由「发起签约」signing.js 的签约请求确认驱动）。条件 UPDATE 赢家模式——
     // 双方同时签约仅一方 changes>0，防并发双副作用
-    const claim = await dbRun(db, `UPDATE contracts SET status='signed', version=version+1 WHERE id=? AND status='signing'`, [contractId]);
+    const claim = await dbRun(db, `UPDATE contracts SET status='signed', prev_business=NULL, version=version+1 WHERE id=? AND status='signing'`, [contractId]); // v0.24.3：签署确认后清空留痕（对齐 db.js:414 注释意图，diff 仅存于重新确认窗口期）
     if (claim && claim.meta && claim.meta.changes > 0) {
       // 存证入台账（独立保障库优先）：文本哈希 + 哈希链，撤销合同删活跃行时留档仍不可篡改地保留
       const contentHash = await ledgerRecord(db, contractId, updated.contract_md);

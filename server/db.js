@@ -1239,7 +1239,10 @@ export async function dbGetAllContractsAdmin(db) {
     JOIN users ut ON ut.id = c.teacher_user_id
     JOIN users du ON du.id = ct.drafter_user_id
     ORDER BY ct.updated_at DESC`);
-  for (const r of rows) r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
+  for (const r of rows) {
+    r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
+    if (r.prev_business) r.prev_business = await decryptField(r.prev_business); // v0.24.3：与 dbGetMyContracts 同口径，管理员改动对比可用
+  }
   return rows;
 }
 

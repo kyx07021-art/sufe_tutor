@@ -266,6 +266,17 @@
 .contract-modify-hint { margin-top: 6px; }
 .signing-modal-hint { margin-bottom: 12px; }
 
+/* ---------- 合同改动 diff 视图（v0.24.3 改动留痕+高亮） ---------- */
+.contract-diff-head { font-size: .76rem; color: var(--text-muted, inherit); margin-bottom: 6px; }
+.contract-diff { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--g-paper, transparent); }
+.diff-line { display: flex; gap: 8px; padding: 3px 10px; font-size: .8rem; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
+.diff-line + .diff-line { border-top: 1px solid rgba(17,17,20,.05); }
+.diff-sign { flex: 0 0 14px; text-align: center; user-select: none; color: var(--text-muted, inherit); }
+.diff-same { color: var(--text-muted, inherit); }
+.diff-add { background: var(--ok-tint, transparent); color: var(--ok-deep); }
+.diff-del { background: var(--danger-tint, transparent); color: var(--danger-deep); text-decoration: line-through; }
+.contract-diff-divider { margin: 14px 0; border-top: 1px dashed var(--line); }
+
 /* ---------- 加号弹层（附件 / 起草合同），发送键左侧 ---------- */
 .chat-plus-wrap { position: relative; flex-shrink: 0; }
 /* 隐藏文件选择框：禁用 display:none（iOS 无法程序化触发），1px 透明离屏占位 */

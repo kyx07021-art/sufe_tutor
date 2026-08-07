@@ -117,16 +117,35 @@ function signContract(contractId) {
 function viewContract(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
+  // v0.24.3 改动留痕+高亮：修改过的合同（prev_business 非空）先渲染改动 diff 块，再显示当前全文。
+  // prev_business 为上次业务条款（服务端留痕，签署确认后清空）——diff 仅存在于重新确认窗口期
+  const diffHtml = c.prev_business ? renderContractDiff(c.prev_business, splitContractBiz(c.contract_md || '')) : '';
   openModal({
-    title: UI.BTN_VIEW_CONTRACT,
+    title: diffHtml ? UI.CONTRACT_VIEW_DIFF_TITLE : UI.BTN_VIEW_CONTRACT,
     bodyCls: 'contract-md',
-    // v0.24.2 审计：查看合同去除平台内部标记行（`<!-- 业务条款结束…-->`），业务+法律条款照常显示
-    body: `${mdRender(stripContractMarker(c.contract_md || ''))}`,
+    body: `${diffHtml ? `<div class="contract-diff-head">${escHtml(UI.CONTRACT_DIFF_HINT)}</div>
+        <div class="contract-diff">${diffHtml}</div>
+        <div class="contract-diff-divider"></div>` : ''}
+      ${mdRender(stripContractMarker(c.contract_md || ''))}`,
   });
 }
 
 // 去除平台内部「业务条款结束」标记行（HTML 注释经 escHtml 后以文本泄漏到合同查看渲染）
 const stripContractMarker = (md) => String(md || '').replace(/<!--\s*业务条款结束[^\n]*\n?/g, '');
+
+// v0.24.3 合同改动 diff 渲染：prev（上次业务条款）→ current（当前业务条款）行级 LCS 对比。
+// 复用 app-display.diffLines（纯函数）；escHtml 由 app-ui 提供（本文件加载序在其后）。
+// 返回 diff HTML（绿=新增 / 红删除线=移除 / 普通=未变）；无实际改动返回空串
+function renderContractDiff(prev, current) {
+  const ops = (typeof DISP !== 'undefined' && DISP.diffLines) ? DISP.diffLines(prev, current) : [];
+  const changed = ops.some(o => o.t !== 'same');
+  if (!changed) return '';
+  return ops.map(o => {
+    const cls = o.t === 'del' ? 'diff-line diff-del' : o.t === 'add' ? 'diff-line diff-add' : 'diff-line diff-same';
+    const sign = o.t === 'del' ? '−' : o.t === 'add' ? '+' : ' ';
+    return `<div class="${cls}"><span class="diff-sign">${sign}</span><span>${escHtml(o.text) || '&nbsp;'}</span></div>`;
+  }).join('');
+}
 
 // 修改合同内容：复用发帖组件的 Markdown 编辑器（同套 id，弹窗互斥）
 function openContractModifyModal(contractId) {

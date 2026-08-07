@@ -94,6 +94,31 @@
       return s.startsWith(UI().DEACTIVATED_USER_PREFIX)
         ? `<span class="username-deactivated">${esc(s)}</span>` : esc(s);
     },
+
+    // 行级 diff（v0.24.3 合同改动高亮）：oldText/newText 按行 LCS 分类，
+    // 返回 ops：[{ t: 'same'|'del'|'add', text }]。纯函数、零 DOM。
+    diffLines(oldText, newText) {
+      const splitLines = t => (t == null || t === '') ? [] : String(t).split('\n'); // 空文本 = 0 行（'' split 会给单空行）
+      const a = splitLines(oldText);
+      const b = splitLines(newText);
+      const n = a.length, m = b.length;
+      const dp = Array.from({ length: n + 1 }, () => new Int32Array(m + 1));
+      for (let i = n - 1; i >= 0; i--) {
+        for (let j = m - 1; j >= 0; j--) {
+          dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+        }
+      }
+      const ops = [];
+      let i = 0, j = 0;
+      while (i < n && j < m) {
+        if (a[i] === b[j]) { ops.push({ t: 'same', text: a[i] }); i++; j++; }
+        else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ t: 'del', text: a[i] }); i++; }
+        else { ops.push({ t: 'add', text: b[j] }); j++; }
+      }
+      while (i < n) { ops.push({ t: 'del', text: a[i] }); i++; }
+      while (j < m) { ops.push({ t: 'add', text: b[j] }); j++; }
+      return ops;
+    },
   };
 
   globalThis.SUFE_DISPLAY = D;
