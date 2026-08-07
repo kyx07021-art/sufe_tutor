@@ -10,6 +10,7 @@
     "test": "node --test \"test/*.test.js\""
   },
   "devDependencies": {
-    "jsdom": "^30.0.1"
+    "jsdom": "^30.0.1",
+    "playwright": "^1.62.1"
   }
 }

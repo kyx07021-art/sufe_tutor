@@ -729,12 +729,16 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .contract-actions-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* 卡片浮入：通知/需求/教师信息卡统一动效（app.js initReveals 注入 .reveal 与错峰延迟） */
+/* 修复（v0.22.3）：transition 只在 .reveal.revealed 上——隐藏（加 .reveal）必须瞬时，
+   否则过渡 + --reveal-delay 会把卡片停在可见态造成「闪出→消失→再出现」（浏览器实测复现） */
 .reveal {
   opacity: 0; transform: translateY(18px);
+}
+.reveal.revealed {
+  opacity: 1; transform: translateY(0);
   transition: opacity .55s var(--ease-out) var(--reveal-delay, 0s),
               transform .55s var(--ease-snap) var(--reveal-delay, 0s);
 }
-.reveal.revealed { opacity: 1; transform: translateY(0); }
 
 /* 账户设置：细线分隔的设置行（无白框），灰小标签 + 值 + 右侧修改按钮。
    v0.20.0 删列表底部线：区边界统一由子标题 border-bottom 承担，列表自身不划线（否则单设置项区出现孤线） */

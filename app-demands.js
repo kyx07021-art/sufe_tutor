@@ -518,7 +518,10 @@ function reopenDemand(demandId) {
 
 // 教师需求大厅：普通需求 + 学生主动推送的待处理需求（置顶 + 特殊操作行）
 async function loadBrowseDemands() {
-  const seq = ++loadSeqs['browse-demands']; // 乱序守卫：快速进出页签时丢弃过期响应
+  // 乱序守卫：快速进出页签时丢弃过期响应。
+  // 计数器首用须 || 0 初始化——++undefined=NaN，而 NaN !== NaN 恒真会把首次渲染误判为过期而丢弃
+  //（loadInto 同款坑注释见 app-shell.js；此处在 v0.21.0 起因漏初始化致需求大厅恒不渲染）
+  const seq = (loadSeqs['browse-demands'] = (loadSeqs['browse-demands'] || 0) + 1);
   const el = document.getElementById('demands-list');
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
