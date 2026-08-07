@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.23.1',
+  APP_VERSION: '0.24.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -496,6 +496,32 @@ globalThis.APP_CONSTANTS = {
     PAGE_MY_CONTRACTS: '我的合同',
     PAGE_MY_CONTRACTS_DESC: '合同草案确认与正式签约',
     DRAFT_MODAL_TITLE: '起草合同',
+    // v0.24.0 发起签约（极简签约流：加号栏「发起签约」→ 会话内签约请求气泡 → 对方确认/拒绝）
+    SIGNING_REQUEST_SENT: '对方向你发送了签约请求',
+    SIGNING_REQUEST_SENT_TOAST: '签约请求已发送',
+    SIGNING_CONFIRMED: '对方已确认签约请求',
+    SIGNING_REJECTED: '对方已拒绝此次签约请求',
+    SIGNING_MODAL_TITLE: '发起签约',
+    SIGNING_MODAL_HINT: '确认报价、时间与授课方式后发送，由对方确认',
+    LABEL_SIGNING_PRICE: '报价（元/小时）',
+    LABEL_SIGNING_SCHEDULE: '授课时间（自然语言）',
+    LABEL_SIGNING_METHOD: '授课方式',
+    SIGNING_PRICE_PLACEHOLDER: '例如 150',
+    SIGNING_SCHEDULE_PLACEHOLDER: '例如 每周六下午 14:00-16:00',
+    SIGNING_METHOD_ONLINE: '线上授课',
+    SIGNING_METHOD_OFFLINE: '线下授课',
+    BTN_SIGNING_SEND: '发送签约请求',
+    CHAT_SIGNING_REQUEST_TITLE: '对方向你发送了签约请求',   // 气泡标题（对方视角）
+    CHAT_SIGNING_MINE_TITLE: '你向对方发送了签约请求',       // 气泡标题（发起者视角）
+    CHAT_SIGNING_PRICE: '报价',
+    CHAT_SIGNING_SCHEDULE: '时间',
+    CHAT_SIGNING_METHOD: '方式',
+    BTN_SIGNING_CONFIRM: '确认签约',
+    BTN_SIGNING_REJECT: '拒绝',
+    SIGNING_CONFIRMED_TEXT: '已确认签约',
+    SIGNING_REJECTED_TEXT: '已拒绝此次签约请求',
+    VALIDATE_SIGNING_PRICE: '请填写有效报价',
+    VALIDATE_SIGNING_SCHEDULE: '请填写授课时间',
     LABEL_CONTRACT_METHOD: '教学方式',
     LABEL_CONTRACT_PLAN: '教学方案',
     LABEL_CONTRACT_RATE: '约定时薪（元/小时）',
@@ -820,7 +846,9 @@ globalThis.APP_CONSTANTS = {
     POST_MD_IMAGE: '插入图片',
     POST_BODY_PLACEHOLDER: '支持轻量 Markdown：## 大标题、### 小标题、**加粗**、插入图片（图片以本地文件嵌入）',
     POST_PREVIEW_LABEL: '实时预览',
-    POST_PREVIEW_EMPTY: '暂无内容，预览将随输入实时更新',
+    POST_PREVIEW_TITLE: '预览效果',           // v0.24.0：实时预览连根删，改按钮+独立浮窗
+    POST_PREVIEW_BTN: '预览效果',
+    POST_PREVIEW_EMPTY: '暂无内容，点击「预览效果」查看渲染结果',
     POST_MD_BOLD_DEFAULT: '加粗文本',
     POST_IMAGE_ONLY: '请选择图片文件',
     POST_IMAGE_ALT: '图片',

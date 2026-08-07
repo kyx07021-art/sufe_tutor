@@ -70,13 +70,13 @@ function renderContractCard(c) {
       <button type="button" class="btn btn-ghost btn-sm glass glass--pressable" onclick="verifyContractLedgerUi(${c.id})">${UI.BTN_VERIFY_LEDGER}</button>`;
     right = `<button type="button" class="btn-text-danger glass" onclick="openRevokeContractModal(${c.id})">${UI.BTN_REVOKE_CONTRACT}</button>`; // 撤销入口刻意低调
   } else if (c.status === 'pending' && iAmDrafter) {
-    // 起草方：等对方处理草案（对方直接看到三按钮，无独立「确认草案」环节）
-    left = `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.CONTRACT_WAIT_DRAFT}</button>`;
+    // 起草方：等对方处理草案（v0.24.0 签署流简化后新合同不产生此态，仅兼容历史 pending）
+    left = `<span class="contract-wait-text text-muted">${UI.CONTRACT_WAIT_DRAFT}</span>`;
     right = `<button type="button" class="btn btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
   } else {
-    // pending 收草案方 / signing 双方：直接三按钮（确认签约 / 修改内容 / 查看合同）
+    // pending 收草案方 / signing 双方：确认签约（已确认则灰字提示等待对方）+ 修改内容 + 查看合同
     left = `${myConfirmed
-        ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.BTN_SIGN_WAITING}</button>`
+        ? `<span class="contract-wait-text text-muted">${UI.BTN_SIGN_WAITING}</span>`
         : `<button type="button" class="btn btn-sm glass glass--pressable" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
       <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openContractModifyModal(${c.id})">${UI.BTN_MODIFY_CONTRACT}</button>
       <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
@@ -140,17 +140,14 @@ function openContractModifyModal(contractId) {
             <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
             <!-- 合同编辑器禁插图：合同正文须为纯文本条款 -->
+            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
           </div>
-          <textarea id="post-body" class="form-input post-body-input" rows="12" oninput="updatePostPreview()">${escHtml(c.contract_md || '')}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview glass glass--solid"></div>
+          <textarea id="post-body" class="form-input post-body-input" rows="12">${escHtml(splitContractBiz(c.contract_md))}</textarea>
+          <p class="text-muted text-sm" style="margin-top:6px;">仅可修改业务条款，法律条款不可修改</p>
         </div>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitContractModify(${c.id})">${UI.BTN_SAVE}</button>`,
   });
-  updatePostPreview();
 }
 
 // 撤销已签约合同：两级确认。第一级告知法律后果与数据影响（不显眼，防误触），
@@ -210,6 +207,56 @@ function cancelContract(contractId) {
       loadMyContracts();
     } catch (err) { showToast(err.message); }
   });
+}
+
+// v0.24.0 合同修改只放出业务条款：法律条款由服务端固定重拼（不可修改）。
+// 标记前缀与 server/contract.js CONTRACT_BUSINESS_END 一致
+const CONTRACT_BIZ_END = '<!-- 业务条款结束';
+function splitContractBiz(md) {
+  return String(md || '').split(CONTRACT_BIZ_END)[0].trim();
+}
+
+// v0.24.0 发起签约（极简签约流，加号栏呼出）：只确认报价 / 时间（自然语言）/ 教学方式线上或线下，
+// 发送后会话内出现「对方向你发送了签约请求」气泡，由对方确认或拒绝（见 app-chat.js 气泡渲染）
+function openSigningModal(convId) {
+  if (!ensureAuth()) return;
+  openModal({
+    title: UI.SIGNING_MODAL_TITLE,
+    closable: false,
+    body: `<div id="post-alert"></div>
+        <p class="text-sm text-muted" style="margin-bottom:12px;">${UI.SIGNING_MODAL_HINT}</p>
+        <div class="form-group">
+          <label class="form-label">${UI.LABEL_SIGNING_PRICE} <span class="req">*</span></label>
+          <input type="number" id="signing-price" class="form-input" min="0" step="1" placeholder="${UI.SIGNING_PRICE_PLACEHOLDER}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.LABEL_SIGNING_SCHEDULE} <span class="req">*</span></label>
+          <input type="text" id="signing-schedule" class="form-input" maxlength="200" placeholder="${UI.SIGNING_SCHEDULE_PLACEHOLDER}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.LABEL_SIGNING_METHOD}</label>
+          <select id="signing-method" class="form-select">
+            <option value="online">${UI.SIGNING_METHOD_ONLINE}</option>
+            <option value="offline" selected>${UI.SIGNING_METHOD_OFFLINE}</option>
+          </select>
+        </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="submitSigning(${convId})">${UI.BTN_SIGNING_SEND}</button>`,
+  });
+  initCustomSelects(document.getElementById('signing-method') && document.getElementById('signing-method').closest('.modal'));
+}
+
+async function submitSigning(convId) {
+  const price = +document.getElementById('signing-price').value || 0;
+  const schedule = (document.getElementById('signing-schedule').value || '').trim();
+  const method = document.getElementById('signing-method').value;
+  if (price <= 0) { showToast(UI.VALIDATE_SIGNING_PRICE); return; }
+  if (!schedule) { showToast(UI.VALIDATE_SIGNING_SCHEDULE); return; }
+  try {
+    await api(`/api/conversations/${convId}/signing`, { method: 'POST', body: { price, schedule, method } });
+    closeModal();
+    showToast(UI.SIGNING_REQUEST_SENT_TOAST);
+  } catch (err) { showToast(err.message); }
 }
 
 // 起草合同（聊天窗 + 号呼出）：先选对应需求 → 预载配置（科目/方式/预算）→ 教学方式 / 授课时间 /
@@ -290,12 +337,9 @@ async function openContractDraftModal(convId) {
             <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
           </div>
-          <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.CONTRACT_PLAN_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview glass glass--solid"></div>
+          <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.CONTRACT_PLAN_PLACEHOLDER}"></textarea>
         </div>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>`,
@@ -303,7 +347,6 @@ async function openContractDraftModal(convId) {
   initCustomSelects(document.getElementById('contract-method') && document.getElementById('contract-method').closest('.modal'));
   contractToggleOther('contract-pay-method', 'contract-pay-method-other-wrap');
   contractToggleOther('contract-trial-pay', 'contract-trial-pay-other-wrap');
-  updatePostPreview();
   prefillContractFromDemand(); // 初始选中项的预载
 }
 
@@ -329,7 +372,7 @@ function prefillContractFromDemand() {
   }
   const plan = document.getElementById('post-body');
   const subjLine = DISP.subjectNames(d.target_subjects);
-  if (plan && !plan.value.trim() && subjLine) { plan.value = `${UI.CONTRACT_SUBJECT_LINE_PREFIX}${subjLine}\n\n`; updatePostPreview(); }
+  if (plan && !plan.value.trim() && subjLine) { plan.value = `${UI.CONTRACT_SUBJECT_LINE_PREFIX}${subjLine}\n\n`; }
 }
 
 let contractDraftBusy = false; // 合同起草防双发（双击生成两份草案）

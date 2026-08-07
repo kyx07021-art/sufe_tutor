@@ -45,7 +45,7 @@ async function loadTeachers() {
     state.allTeachers = data.teachers || []; // 先回写再判空渲染（保持原顺序）
     return state.allTeachers;
   }, teachers => teachers.map(renderTeacherCard).join(''),
-    { empty: UI.EMPTY_NO_TEACHERS, peek: () => dhPeek('/api/teachers') });
+    { empty: UI.EMPTY_NO_TEACHERS, peek: () => dhReady('/api/teachers') });
 }
 
 function renderTeachers(teachers) {

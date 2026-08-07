@@ -22,10 +22,18 @@ function ensureAuth() {
 
 // 登录页标题按来路切换（index.html 静态文本仅作 JS 前兜底）。
 // v0.23.1：预览端触发登录时按客户端类型提示「请登录教师/学生账户」
+// v0.24.0：登录表单用户名按当前客户端角色预填（拉该角色上次登录记录）——
+// 学生端预填学生账户、教师端预填教师账户，不再串号
 function refreshAuthHeader() {
   const h = document.getElementById('login-title');
   const p = document.getElementById('login-subtitle');
   if (!h || !p) return;
+  const u = document.getElementById('login-username');
+  if (u) {
+    const saved = state.guestRole ? loadSession(state.guestRole) : loadSession();
+    const name = saved && saved.user ? saved.user.username : '';
+    u.value = name; // 覆盖浏览器自动填充的异角色账密（密码无法按角色预填：绝不存明文密码）
+  }
   if (state.guestAuthMode && state.guestRole === 'teacher') {
     h.textContent = UI.AUTH_LOGIN_TITLE_TEACHER;
     p.textContent = UI.AUTH_LOGIN_SUB_TEACHER;

@@ -262,6 +262,7 @@ function renderChatFrame(conv) {
                <div class="chat-plus-pop glass glass--float">
                  <label class="chat-pop-item" for="chat-image-input" onclick="closeChatPlus()">${UI.CHAT_ATTACH_IMAGE}</label>
                  <label class="chat-pop-item" for="chat-file-input" onclick="closeChatPlus()">${UI.CHAT_ATTACH_FILE}</label>
+                 <button type="button" class="chat-pop-item" onclick="chatPlusSigning()">${UI.SIGNING_MODAL_TITLE}</button> <!-- v0.24.0 发起签约（极简签约流） -->
                  <button type="button" class="chat-pop-item" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
                </div>
                <input type="file" id="chat-image-input" accept="image/*" class="sr-file-input" onchange="chatOnImagePicked(this)">
@@ -294,6 +295,37 @@ function renderChatBubble(m, i) {
   // 合同事件系统气泡：独立淡紫块居中，文案按查看者区分（起草方 / 接收方）
   if (m.kind === 'contract') {
     const text = mine ? UI.CHAT_CONTRACT_BUBBLE_MINE : UI.CHAT_CONTRACT_BUBBLE_OTHER;
+    return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
+      <div class="chat-bubble chat-bubble--system glass">${escHtml(text)}</div>${time}</div>`;
+  }
+  // v0.24.0 发起签约气泡（极简签约流）：报价/时间/方式三条信息 + 底部确认/拒绝按钮；
+  // 对方回应后气泡变灰、按钮消失为无组件小灰字（data-signing-id 供 respondSigning 就地刷新）
+  if (m.kind === 'signing_request') {
+    let s = {};
+    try { s = JSON.parse(m.body || '{}'); } catch { /* 坏 body 兜底为空 */ }
+    const recipient = !mine; // 接收方（非消息发送者）可确认/拒绝
+    const price = Number(s.price) || 0;
+    const methodName = s.method === 'online' ? UI.SIGNING_METHOD_ONLINE : UI.SIGNING_METHOD_OFFLINE;
+    const pending = s.status === 'pending';
+    const done = s.status === 'signed' ? UI.SIGNING_CONFIRMED_TEXT : (s.status === 'rejected' ? UI.SIGNING_REJECTED_TEXT : '');
+    return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
+      <div class="chat-bubble chat-bubble--system glass signing-bubble${done ? ' signing-bubble--done' : ''}" data-signing-id="${s.id}">
+        <div class="signing-bubble-title">${mine ? UI.CHAT_SIGNING_MINE_TITLE : UI.CHAT_SIGNING_REQUEST_TITLE}</div>
+        <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_PRICE}</span><b>${price} ${UI.PRICE_UNIT}/小时</b></div>
+        <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(String(s.schedule || ''))}</b></div>
+        <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>
+        ${pending && recipient ? `<div class="signing-bubble-actions">
+          <button type="button" class="btn btn-sm glass glass--pressable" onclick="respondSigning(${s.id}, true)">${UI.BTN_SIGNING_CONFIRM}</button>
+          <button type="button" class="btn btn-sm btn-outline glass glass--pressable" onclick="respondSigning(${s.id}, false)">${UI.BTN_SIGNING_REJECT}</button>
+        </div>` : ''}
+        ${done ? `<p class="signing-bubble-status">${done}</p>` : ''}
+      </div>${time}</div>`;
+  }
+  // v0.24.0 签约回应系统气泡（对方确认/拒绝后落一条，在途会话实时刷新）
+  if (m.kind === 'signing_response') {
+    let r = {};
+    try { r = JSON.parse(m.body || '{}'); } catch { /* 兜底 */ }
+    const text = r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED;
     return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble chat-bubble--system glass">${escHtml(text)}</div>${time}</div>`;
   }
@@ -638,10 +670,29 @@ function chatBindDropzone() {
   });
 }
 
-// ---------- 加号弹层（附件 + 起草合同）----------
+// ---------- 加号弹层（附件 + 发起签约 + 起草合同）----------
 function toggleChatPlus() { document.getElementById('chat-plus-wrap').classList.toggle('open'); }
 function closeChatPlus() { const w = document.getElementById('chat-plus-wrap'); if (w) w.classList.remove('open'); }
 function chatPlusDraft() { closeChatPlus(); if (chatConvId) openContractDraftModal(chatConvId); }
+function chatPlusSigning() { closeChatPlus(); if (chatConvId) openSigningModal(chatConvId); }
+
+// v0.24.0 回应签约请求：确认/拒绝。成功后就地把请求气泡变灰 + 按钮消失为小灰字
+// （服务端已更新原气泡 body 为终态并落 signing_response 响应气泡，轮询也会拉到）
+async function respondSigning(signingId, accept) {
+  try {
+    await api(`/api/signing-requests/${signingId}/respond`, { method: 'POST', body: { accept } });
+    document.querySelectorAll(`[data-signing-id="${signingId}"]`).forEach(el => {
+      el.classList.add('signing-bubble--done');
+      const actions = el.querySelector('.signing-bubble-actions');
+      if (actions) actions.remove();
+      const status = el.querySelector('.signing-bubble-status');
+      const text = accept ? UI.SIGNING_CONFIRMED_TEXT : UI.SIGNING_REJECTED_TEXT;
+      if (status) status.textContent = text;
+      else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = text; el.appendChild(p); }
+    });
+    showToast(accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED);
+  } catch (err) { showToast(err.message); }
+}
 
 // 移动端：从聊天窗返回会话列表（会话保持打开，轮询继续，预览照常刷新）
 function backToConvList() {

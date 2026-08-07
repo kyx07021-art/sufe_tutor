@@ -65,7 +65,7 @@ function loadPosts() {
     postsList = data.posts || []; // 渲染前同步：点赞就地更新依赖此数据源
     return data;
   }, rows => rows.map(renderPostCard).join(''),
-  { seqKey: 'posts', empty: UI.POSTS_EMPTY, pick: d => d.posts, reveal: true, peek: () => dhPeek(url) });
+  { seqKey: 'posts', empty: UI.POSTS_EMPTY, pick: d => d.posts, reveal: true, peek: () => dhReady(url) });
 }
 
 // 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 作者可删
@@ -145,19 +145,14 @@ function openPostEditor() {
             <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
             <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
             <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
+            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0：实时预览删，改按钮+浮窗 -->
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="9"
-            placeholder="${UI.POST_BODY_PLACEHOLDER}"
-            oninput="updatePostPreview()"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview glass glass--solid"></div>
+            placeholder="${UI.POST_BODY_PLACEHOLDER}"></textarea>
         </div>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>`,
   });
-  updatePostPreview();
   document.getElementById('post-title').focus();
 }
 
@@ -204,7 +199,6 @@ function mdWrap(mode) {
     ta.setSelectionRange(lineStart, lineStart + newBlock.length);
   }
   ta.focus();
-  updatePostPreview();
 }
 
 // 图片 → FileReader 读成 dataURL → 在光标处插入 ![图片](dataURL)，并独占一行
@@ -224,23 +218,14 @@ function insertPostImage(input) {
     const sep2 = after && !after.startsWith('\n') ? '\n' : '';
     ta.value = before + sep1 + `![${UI.POST_IMAGE_ALT}](${reader.result})` + sep2 + after;
     ta.focus();
-    updatePostPreview();
   };
   reader.readAsDataURL(file);
-}
-
-// 实时预览：textarea oninput → mdRender
-function updatePostPreview() {
-  const el = document.getElementById('post-preview');
-  const ta = document.getElementById('post-body');
-  if (!el || !ta) return;
-  el.innerHTML = mdRender(ta.value) || `<p class="md-preview-empty">${UI.POST_PREVIEW_EMPTY}</p>`;
 }
 
 /**
  * 轻量 markdown-lite 渲染器（自研，零依赖）
  * 安全策略：先 escHtml 全转义（任何注入文本已失效），再逐行识别语法。
- * 规则：'### ' → h4；'## ' → h3；**x** → strong；
+ * 规则：'#'×1~6 → h1~h6（v0.24.0 全支持）；**x** → strong；
  *       ![alt](url) → <img>，url 仅放行 http(s): 与 data:image 前缀且不含空白，
  *       其余（含 javascript: 等伪协议）占位不渲染；其余非空行包 <p>，空行跳过。
  * 返回 HTML 字符串。
@@ -257,11 +242,22 @@ function mdRender(src) {
   const out = [];
   for (const line of escaped.split('\n')) {
     if (!line.trim()) continue;
-    if (line.startsWith('### ')) out.push(`<h4>${inline(line.slice(4))}</h4>`);
-    else if (line.startsWith('## ')) out.push(`<h3>${inline(line.slice(3))}</h3>`);
+    const head = line.match(/^(#{1,6})\s+(.*)$/); // v0.24.0：1~6 级标题全支持
+    if (head) out.push(`<h${head[1].length}>${inline(head[2])}</h${head[1].length}>`);
     else out.push(`<p>${inline(line)}</p>`);
   }
   return out.join('');
+}
+
+/** v0.24.0：「预览效果」按钮 → 独立浮窗展示 markdown 解析结果（实时预览连根删） */
+function openPostPreview() {
+  const ta = document.getElementById('post-body');
+  const html = ta ? mdRender(ta.value) : '';
+  openModal({
+    title: UI.POST_PREVIEW_TITLE,
+    bodyCls: 'contract-md',
+    body: html || `<p class="md-preview-empty">${UI.POST_PREVIEW_EMPTY}</p>`,
+  });
 }
 
 // ============================================================
@@ -352,19 +348,14 @@ function openBroadcastModal() {
             <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
             <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
             <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
+            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="7"
-            placeholder="${UI.BROADCAST_BODY_PLACEHOLDER}"
-            oninput="updatePostPreview()"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview glass glass--solid"></div>
+            placeholder="${UI.BROADCAST_BODY_PLACEHOLDER}"></textarea>
         </div>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>`,
   });
-  updatePostPreview();
   document.getElementById('post-body').focus();
 }
 
@@ -418,17 +409,13 @@ function openFeedbackModal(kind) {
             <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
             <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
             <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
+            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
           </div>
-          <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${UI.FEEDBACK_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
-          <div id="post-preview" class="md-preview glass glass--solid"></div>
+          <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${UI.FEEDBACK_PLACEHOLDER}"></textarea>
         </div>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>`,
   });
-  updatePostPreview();
 }
 
 function switchFeedbackKind(kind) {

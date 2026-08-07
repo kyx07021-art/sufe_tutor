@@ -199,9 +199,8 @@ export async function handleResolveIntent(db, intentId, body, req) {
 
   const dNow = await dbGetDemandById(db, intent.demand_id);
   if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已撤销需求不可接受意向（须先重开）
-  if (action === 'accept' && !(await dbLockDemandIntent(db, intent.demand_id))) {
-    return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 并发另一 accept 已抢占 → 本需求已达成
-  }
+  // v0.24.0 删屎逻辑：接受意向不再锁需求（dbLockDemandIntent 移除）——一条需求允许任意多会话并存，
+  // 仅当某会话「发起签约」成功签约时才自动拒绝其余（见 signing.js）
 
   const status = action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED;
   if (!(await dbResolveIntent(db, intentId, status))) return error(MSG.INTENT_ALREADY_RESOLVED, 409); // 条件 UPDATE 赢家才继续，杜绝并发双通知
@@ -270,7 +269,8 @@ export async function handleResolvePush(db, pushId, body, req) {
   if (action === 'accept') {
     const dNow = await dbGetDemandById(db, push.demand_id);
     if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求不可再确认
-    if (!(await dbLockDemandIntent(db, push.demand_id))) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求级单接受锁：并发意向/推送接受仅一方赢（网安审计：曾绕过此锁产生双会话）
+    // v0.24.0 删屎逻辑：确认推送不再锁需求（dbLockDemandIntent 移除）——一条需求允许多会话并存，
+    // 仅「发起签约」成功签约时才自动拒绝其余（见 signing.js）
     if (!(await dbResolvePush(db, pushId, STATUS.ACCEPTED))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
     await dbAcceptPushAsIntent(db, push.demand_id, userId);
     await dbUpsertConversation(db, push.student_user_id, userId, push.demand_id);

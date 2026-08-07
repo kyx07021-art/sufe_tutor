@@ -87,6 +87,11 @@ test('versionDomainOf：合同系三域（contracts + demands + chat 气泡）�
   assert.deepEqual(versionDomainOf('/api/admin/contracts/5'), ['contracts', 'demands', 'admin']);
 });
 
+test('versionDomainOf：发起签约（创建/回应）归 contracts+chat+demands（v0.24.0）', () => {
+  assert.deepEqual(versionDomainOf('/api/conversations/5/signing'), ['contracts', 'chat', 'demands']);
+  assert.deepEqual(versionDomainOf('/api/signing-requests/7/respond'), ['contracts', 'chat', 'demands']);
+});
+
 test('versionDomainOf：教师/封禁/核验连带 admin；帖子/通知/反馈归属', () => {
   assert.deepEqual(versionDomainOf('/api/teacher/profile'), ['teachers']);
   assert.deepEqual(versionDomainOf('/api/admin/teachers/5/verify'), ['teachers', 'admin']);

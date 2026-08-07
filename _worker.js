@@ -37,6 +37,7 @@ import {
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
+import { handleCreateSigning, handleRespondSigning } from './server/signing.js';
 
 // API 分发：纯路由，无副作用（留档在 fetch 层统一包裹）。
 // :id 路径统一经 idMatch 抽取（正则只写一次，杜绝 approve/reject 双 match 旧写法）
@@ -138,6 +139,12 @@ async function routeApi(db, p, method, body, url, req) {
   const contractById = idMatch(p, /^\/api\/contracts\/(\d+)$/);
   if (contractById && method === 'PUT') return await handleModifyContract(db, contractById, body, req);
   if (contractById && method === 'DELETE') return await handleCancelContract(db, contractById, body, req);
+
+  // 发起签约（v0.24.0 极简签约流：加号栏「发起签约」→ 会话内签约请求气泡 → 对方确认/拒绝）
+  const convSigning = idMatch(p, /^\/api\/conversations\/(\d+)\/signing$/);
+  if (convSigning && method === 'POST') return await handleCreateSigning(db, { ...body, conversationId: convSigning }, req);
+  const signingRespond = idMatch(p, /^\/api\/signing-requests\/(\d+)\/respond$/);
+  if (signingRespond && method === 'POST') return await handleRespondSigning(db, signingRespond, body, req);
 
   // 站内沟通
   if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url, req);

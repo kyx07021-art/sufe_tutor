@@ -249,6 +249,19 @@
 .chat-bubble--system { font-size: .78rem; text-align: center; }
 .chat-msg--system .chat-msg-time { text-align: center; }
 
+/* ---------- v0.24.0 发起签约气泡（极简签约流）：三条信息 + 确认/拒绝；回应后变灰为小灰字 ---------- */
+.signing-bubble { max-width: 300px; text-align: left; padding: 12px 14px; }
+.signing-bubble-title { font-weight: 700; font-size: .8rem; margin-bottom: 8px; }
+.signing-bubble-row { display: flex; justify-content: space-between; gap: 12px; font-size: .78rem; padding: 2px 0; }
+.signing-bubble-row span { color: var(--muted); flex-shrink: 0; }
+.signing-bubble-row b { font-weight: 600; text-align: right; word-break: break-all; }
+.signing-bubble-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: center; }
+.signing-bubble-status { margin: 8px 0 0; font-size: .72rem; color: var(--muted); text-align: center; }
+.signing-bubble--done { opacity: .55; } /* 已回应：气泡整体变灰 */
+
+/* 合同卡「等待对方确认/签署」灰字（v0.24.0：无外套组件的不可交互提示，替代按钮） */
+.contract-wait-text { font-size: .72rem; font-weight: 600; }
+
 /* ---------- 加号弹层（附件 / 起草合同），发送键左侧 ---------- */
 .chat-plus-wrap { position: relative; flex-shrink: 0; }
 /* 隐藏文件选择框：禁用 display:none（iOS 无法程序化触发），1px 透明离屏占位 */

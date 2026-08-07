@@ -77,6 +77,11 @@ export function versionDomainOf(pathname) {
   // 附件暂存（拖入未发送，私有不入会话）——真正入会话由发消息路径 bump chat（审计 m2）
   if (p === '/api/uploads' || /^\/api\/uploads\/\d+$/.test(p)) return [];
 
+  // 发起签约（v0.24.0 极简签约流）：创建/回应签约请求——合同域 + 聊天气泡 + 需求
+  // （确认后需求 contracted 并自动拒绝其余意向/推送，均属低频不构成放大）
+  if (/^\/api\/conversations\/\d+\/signing$/.test(p) ||
+      /^\/api\/signing-requests\/\d+\/respond$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.CHAT, DOMAINS.DEMANDS];
+
   // 聊天系（高频写隔离：只 bump chat 域，不扰动其它域）
   if (/^\/api\/conversations\/\d+\/messages$/.test(p)) return [DOMAINS.CHAT];
 

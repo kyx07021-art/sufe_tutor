@@ -514,7 +514,7 @@ async function loadDemandList(elId, { mine }) {
     }
     return demands;
   }, demands => demands.map(d => renderDemandCard(d, { editable: mine, teacher: !mine })).join(''),
-  { empty: mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS, peek: () => dhPeek(url) });
+  { empty: mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS, peek: () => dhReady(url) });
 }
 
 function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: true }); }

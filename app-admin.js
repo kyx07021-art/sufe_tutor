@@ -33,7 +33,7 @@ async function loadAdminPosts() {
     state.adminPosts = data.posts || []; // 全文查看弹窗的数据源
     return state.adminPosts;
   }, rows => rows.map(renderAdminPostRow).join(''),
-    { empty: UI.ADMIN_POSTS_EMPTY, peek: () => dhPeek('/api/posts') });
+    { empty: UI.ADMIN_POSTS_EMPTY, peek: () => dhReady('/api/posts') });
 }
 
 function renderAdminPostRow(p) {
@@ -85,7 +85,7 @@ async function loadAdminContracts() {
     state.adminContracts = data.contracts || []; // 查看/移除弹窗的数据源
     return state.adminContracts;
   }, rows => rows.map(renderAdminContractRow).join(''),
-    { empty: UI.ADMIN_CONTRACTS_EMPTY, peek: () => dhPeek('/api/admin/contracts') });
+    { empty: UI.ADMIN_CONTRACTS_EMPTY, peek: () => dhReady('/api/admin/contracts') });
 }
 
 function renderAdminContractRow(c) {
@@ -324,7 +324,7 @@ async function loadAdminUsers(role, elId) {
     if (role === 'teacher') state.adminTeachers = users; // 空数组也回写：封禁最后一个教师后旧缓存不滞留 // 教师详情弹窗的数据源（原口径：非空才回写）
     return users;
   }, users => users.map(u => renderAdminUserRow(u, role)).join(''),
-    { empty: UI.EMPTY_NO_USERS, reveal: false, peek: () => dhPeek(url) });
+    { empty: UI.EMPTY_NO_USERS, reveal: false, peek: () => dhReady(url) });
 }
 function loadAdminStudents() { return loadAdminUsers('student', 'admin-students-list'); }
 function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-list'); }
@@ -404,7 +404,7 @@ async function loadAdminReviews() {
     const data = await dhGet(url, { domain: 'admin' }); // v0.23.0 静默数据层
     return data.reviews || [];
   }, reviews => reviews.map(renderAdminReviewRow).join(''),
-    { empty: UI.EMPTY_NO_REVIEWS, reveal: false, peek: () => dhPeek(url) });
+    { empty: UI.EMPTY_NO_REVIEWS, reveal: false, peek: () => dhReady(url) });
 }
 
 function renderAdminReviewRow(r) {

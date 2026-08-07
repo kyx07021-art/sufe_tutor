@@ -84,7 +84,35 @@ function loadSessionForRole(role) {
     const s = JSON.parse(sessionStorage.getItem(k));
     if (s && s.authToken) return { ...s, source: 'session' };
   } catch { /* ignore */ }
-  return null;
+  // v0.24.0 旧键迁移：v0.23.1 改按角色分键前，会话存单一键 sufe_session——
+  // 若该键里的用户角色匹配，迁移到角色键（否则老用户全部自动登录失效变访客）
+  return loadLegacyAndMigrate(role);
+}
+
+/** 旧版单会话键（sufe_session）→ 迁移到 sufe_session_<role>；role 传入时仅角色匹配才迁移 */
+function loadLegacyAndMigrate(role) {
+  const migrate = (storage, isLocal) => {
+    try {
+      const raw = storage.getItem('sufe_session');
+      if (!raw) return null;
+      const saved = JSON.parse(raw);
+      if (!(saved && saved.authToken && saved.user && saved.user.role)) {
+        try { storage.removeItem('sufe_session'); } catch { /* ignore */ }
+        return null;
+      }
+      if (role && saved.user.role !== role) return null; // 角色不匹配：留给同角色读取时迁移
+      if (isLocal && !(saved.expires > Date.now())) {
+        try { storage.removeItem('sufe_session'); } catch { /* ignore */ }
+        return null;
+      }
+      storage.setItem(sessionKey(saved.user.role), JSON.stringify(saved)); // 迁移落角色键
+      try { storage.removeItem('sufe_session'); } catch { /* ignore */ }
+      if (!role) { try { storage.setItem('sufe_last_role', saved.user.role); } catch { /* ignore */ } }
+      return { ...saved, source: isLocal ? 'local' : 'session' };
+    } catch { /* ignore */ }
+    return null;
+  };
+  return migrate(localStorage, true) || migrate(sessionStorage, false);
 }
 
 /** 读取持久化会话：带 role 读该角色；不带 role 按上次使用角色（sufe_last_role）读，
@@ -102,7 +130,7 @@ function loadSession(role) {
     const s = loadSessionForRole(r);
     if (s) return s;
   }
-  return null;
+  return loadLegacyAndMigrate(); // 兜底：旧键任意角色（v0.24.0 迁移）
 }
 
 function clearSession(role) {

@@ -42,6 +42,12 @@ function dhPeek(endpoint) {
   return e.data;
 }
 
+/** 数据就绪判定：缓存命中或请求在途 → 跳过 loader（页面打开即预取，用户首访模块时
+ *  预取仍在途也不闪转圈，fetcher 走 dhGet 共享在途请求，微任务内即渲染） */
+function dhReady(endpoint) {
+  return dhPeek(endpoint) !== null || dhInflight.has(endpoint);
+}
+
 /** 主读取口：缓存命中即返；miss 发请求并缓存；并发同 key 共享在途请求（forceRefresh 绕过缓存） */
 async function dhGet(endpoint, { domain = 'misc', forceRefresh = false } = {}) {
   if (!forceRefresh) {
@@ -107,6 +113,18 @@ const DH_PREFETCH = {
     ['/api/admin/contracts', 'contracts'], // 合同数据归 contracts 域：合同变动（含学生/教师侧签约）一并静默重拉
     ['/api/posts', 'posts'],               // 资料管理页同教师广场端点，归 posts 域
     ['/api/feedbacks', 'admin'],
+  ],
+  // v0.24.0：访客（未登录预览）也预取公开数据——进入网页瞬间静默加载所有内容，
+  // 与所在模块无关；版本探测同步启用保持公开列表新鲜
+  'student-guest': [
+    ['/api/student/demands', 'demands'], // 需求广场（公开，无 scope）
+    ['/api/teachers', 'teachers'],
+    ['/api/posts?sort=new', 'posts'],
+  ],
+  'teacher-guest': [
+    ['/api/student/demands', 'demands'],
+    ['/api/teachers', 'teachers'],
+    ['/api/posts?sort=new', 'posts'],
   ],
 };
 

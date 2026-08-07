@@ -99,14 +99,21 @@ function enterClient(pageId) {
   showView('client');
   // 刷新恢复：回到刷新前的页签（角色不匹配时回落默认页）
   const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId : defaultPageFor();
+  // v0.24.0：不阻塞登录——默认页签立即渲染（自身走正常加载），
+  // 其余模块数据此刻开始后台并行预取（fire-and-forget），用户在页面里待着时就已全部就绪；
+  // 预取在途时点进某模块由 dhReady 跳过 loader 闪屏，读取完即显示
   selectPage(valid);
   if (state.user) {
     startBadgePoll(); // 红点轮询仅登录态开启（访客无个人数据可轮询）
-    // v0.23.0 静默数据层：登录态开启 8s 版本探测 + 按角色静默预取各 tab 默认视图。
-    // dhPrefetch allSettled 静默失败——预取绝不卡任何页面，切 tab 时缓存 miss 自动回退按需加载
     startVersionProbe();
     dhPrefetch(state.user.role);
+  } else if (state.guestRole) {
+    // v0.24.0：访客预览也开启版本探测 + 静默预取公开数据（与所在模块无关）
+    startVersionProbe();
+    dhPrefetch(state.guestRole === 'teacher' ? 'teacher-guest' : 'student-guest');
   }
+  closeSidebar();
+  document.getElementById('client-main').scrollTop = 0;
 }
 
 function renderSidebar() {
@@ -311,7 +318,7 @@ async function enterNotifications() {
     const shown = filterNotifRows(rows);
     if (!shown.length) return `<div class="empty-state"><p>${escHtml(UI.NOTIF_FILTER_EMPTY)}</p></div>`;
     return shown.map(renderNotifItem).join('');
-  }, { empty: UI.EMPTY_NO_NOTIFICATIONS, peek: () => dhPeek('/api/notifications') });
+  }, { empty: UI.EMPTY_NO_NOTIFICATIONS, peek: () => dhReady('/api/notifications') });
   // 渲染成功才批量标已读（切走/报错不清未读，留给下次进入）
   if (rendered && _notifList.some(n => !n.is_read)) {
     api('/api/notifications/read', { method: 'POST', body: {} })

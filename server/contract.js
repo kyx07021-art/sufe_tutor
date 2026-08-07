@@ -21,65 +21,34 @@ import {
   dbGetContractById, dbGetContractByConv, dbGetMyContracts, dbGetAllContractsAdmin,
   dbDeleteContract, dbDeleteContractMessages,
   dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
-  dbGetPendingIntentsForDemand, dbGetPendingPushesForDemand,
 } from './db.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
 const UIC = globalThis.APP_CONSTANTS.UI;
 
-// 根据草案信息生成正式合同正文。条款要素依《民法典》第四百七十条一般条款拟定
-// （当事人/标的/数量质量/价款/履行期限地点方式/违约责任/争议解决），家教场景展开为九条。
+// 根据草案信息生成正式合同正文。条款要素依《民法典》第四百七十条一般条款拟定。
+// v0.24.0 拆分：业务条款（服务内容/课时费/教学方案，可由双方协商修改）与法律条款
+// （权利义务/违约责任/变更解除/争议解决/生效存证，平台固定不可修改）用唯一注释标记分隔——
+// 修改弹窗只放出业务部分，服务端保存时重新拼接固定法律部分（前后端同一常量收口）。
 // 授课地点按隐私合规采用模糊表述（甲方常住处等），不收集详细门牌号。
 // 薪资三要素（结算方式/首课日期/试课方案）由起草表单采集；选「其他」时带入用户自拟文字。
-function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
-  const methodName = method === 'offline' ? '线下授课' : '线上授课';
-  const locationText = location || (method === 'offline' ? '甲方常住处或双方另行约定的地点' : '双方约定的线上课堂');
-  const PAY_METHOD_TEXT = { per_session: '次付（按次结算，每次课程结束后支付）', weekly: '周付（每周结算一次）', monthly: '月付（每月结算一次）' };
-  const TRIAL_PAY_TEXT = { first_free: '第一次试课免费', first_hour_free: '第一小时免费，第二小时起按约定时薪收费', normal: '试课全程正常收费' };
-  const payText = payMethod === 'other' ? (payMethodOther || '由双方另行约定') : (PAY_METHOD_TEXT[payMethod] || '由双方另行约定');
-  const trialText = trialPay === 'other' ? (trialPayOther || '由双方另行约定') : (TRIAL_PAY_TEXT[trialPay] || '由双方另行约定');
-  return `# 家教服务合同
+export const CONTRACT_BUSINESS_END = '<!-- 业务条款结束，以下法律条款由平台固定，不可修改 -->';
 
-**甲方（学生方）**：${studentName}
-**乙方（教师方）**：${teacherName}
-${demandNo ? `**关联需求编号**：#${demandNo}
-` : ''}**签署日期**：${createdAt || ''}
-
-甲乙双方本着平等、自愿、诚实信用的原则，依照《中华人民共和国民法典》及相关法律法规，经友好协商，就家教服务事宜达成如下协议：
-
-## 第一条 服务内容与授课安排
-
-1. 授课方式：${methodName}。
-2. 授课科目与内容：详见本合同第五条「教学方案」。
-3. 首次上课日期：${firstLessonDate || '由双方另行协商确定'}。
-4. 授课时间：${schedule || '由双方另行协商确定'}。
-5. 授课地点：${locationText}。
-
-## 第二条 课时费与支付
-
-1. 约定时薪为每小时 **${rate}** 元（人民币）。
-2. 薪资结算方式：${payText}。甲方应按约定如期支付课时费用。
-3. 试课薪资方案：${trialText}。
-4. 平台仅提供信息撮合与合同存证服务，不参与费用结算。
-
-## 第三条 甲方权利与义务
+// 法律条款部分（不可修改；服务端保存合同时重新拼接此块）
+const LEGAL_CLAUSES = `## 第四条 甲方权利与义务
 
 1. 有权要求乙方按照约定的内容与时间安排授课，并对教学质量进行监督；
 2. 应按约定支付课时费，并为授课提供必要的学习条件与配合；
 3. 如需调整课程安排，应提前与乙方协商并达成一致；
 4. 对通过平台获取的教师个人信息，仅用于本次家教服务目的，不得向第三方泄露。
 
-## 第四条 乙方权利与义务
+## 第五条 乙方权利与义务
 
 1. 有权按约定获取课时报酬；
 2. 应按约定认真备课、授课，保证教学质量；
 3. 如需调整课程安排，应提前与甲方协商并达成一致；
 4. 对授课过程中知悉的学生个人信息与学习情况予以保密，不得向第三方泄露。
-
-## 第五条 教学方案
-
-${plan || '（未填写）'}
 
 ## 第六条 课程调整、补课与违约责任
 
@@ -101,8 +70,49 @@ ${plan || '（未填写）'}
 
 ---
 
-甲方确认：＿＿＿＿＿＿＿＿    乙方确认：＿＿＿＿＿＿＿＿
-`;
+甲方确认：＿＿＿＿＿＿＿＿    乙方确认：＿＿＿＿＿＿＿＿`;
+
+/** 业务部分 + 标记 + 固定法律部分 → 完整合同正文（v0.24.0） */
+export function contractWithLegal(businessMd) {
+  const biz = String(businessMd || '').trim();
+  return `${biz}\n\n${CONTRACT_BUSINESS_END}\n\n${LEGAL_CLAUSES}`;
+}
+
+function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
+  const methodName = method === 'offline' ? '线下授课' : '线上授课';
+  const locationText = location || (method === 'offline' ? '甲方常住处或双方另行约定的地点' : '双方约定的线上课堂');
+  const PAY_METHOD_TEXT = { per_session: '次付（按次结算，每次课程结束后支付）', weekly: '周付（每周结算一次）', monthly: '月付（每月结算一次）' };
+  const TRIAL_PAY_TEXT = { first_free: '第一次试课免费', first_hour_free: '第一小时免费，第二小时起按约定时薪收费', normal: '试课全程正常收费' };
+  const payText = payMethod === 'other' ? (payMethodOther || '由双方另行约定') : (PAY_METHOD_TEXT[payMethod] || '由双方另行约定');
+  const trialText = trialPay === 'other' ? (trialPayOther || '由双方另行约定') : (TRIAL_PAY_TEXT[trialPay] || '由双方另行约定');
+  const biz = `# 家教服务合同
+
+**甲方（学生方）**：${studentName}
+**乙方（教师方）**：${teacherName}
+${demandNo ? `**关联需求编号**：#${demandNo}
+` : ''}**签署日期**：${createdAt || ''}
+
+甲乙双方本着平等、自愿、诚实信用的原则，依照《中华人民共和国民法典》及相关法律法规，经友好协商，就家教服务事宜达成如下协议：
+
+## 第一条 服务内容与授课安排
+
+1. 授课方式：${methodName}。
+2. 授课科目与内容：详见本合同第三条「教学方案」。
+3. 首次上课日期：${firstLessonDate || '由双方另行协商确定'}。
+4. 授课时间：${schedule || '由双方另行协商确定'}。
+5. 授课地点：${locationText}。
+
+## 第二条 课时费与支付
+
+1. 约定时薪为每小时 **${rate}** 元（人民币）。
+2. 薪资结算方式：${payText}。甲方应按约定如期支付课时费用。
+3. 试课薪资方案：${trialText}。
+4. 平台仅提供信息撮合与合同存证服务，不参与费用结算。
+
+## 第三条 教学方案
+
+${plan || '（未填写）'}`;
+  return contractWithLegal(biz);
 }
 
 // ============================================================
@@ -268,9 +278,11 @@ export async function handleCreateContract(db, body, req) {
   });
   const mdEnc = await encryptField(md); // 网安 N-05：合同正文加密落库（读点经 db.js 解密，台账哈希走明文）
   const res = await dbRun(db,
+    // v0.24.0 签署流简化：创建即置 drafter_confirmed=1 + status='signing'——
+    // 发送后发起方直接已签署，不再「等待对方确认草案」，对方签署即双方达成 signed
     `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
-        pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other)
-     SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?
+        pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other, drafter_confirmed, status)
+     SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?, 1, 'signing'
      WHERE NOT EXISTS (SELECT 1 FROM contracts WHERE conversation_id=? AND status IN ('pending','signing'))
        AND (? IS NULL OR EXISTS (SELECT 1 FROM student_demands WHERE id=?))`,
     [conversationId, userId, demandId, method, schedule, location, plan, rate, mdEnc,
@@ -327,44 +339,13 @@ export async function handleSignContract(db, contractId, body, req) {
   if (!updated) return error(MSG.CONTRACT_NOT_FOUND, 404); // 置位后对方并发撤销致行消失：干净 404，不抛 500
   const both = !!(updated.drafter_confirmed && updated.other_confirmed);
   if (both) {
-    let claimed = false;
-    if (updated.demand_id) {
-      // 原子签约（网安报告 F-03）：合同 signed 与需求 contracted 在同一 batch 事务内完成。
-      // 合同 UPDATE 带 NOT EXISTS 条件——需求已被签约（contracted）或已撤销（revoked，须先手动重开）
-      // 时本合同不进入 signed，抢占失败合同保持 signing（无回滚、无死锁），返回 410
-      const r = await db.batch([
-        db.prepare(`UPDATE contracts SET status='signed', version=version+1 WHERE id=? AND status='signing'
-          AND NOT EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status IN ('contracted','revoked'))`).bind(contractId, updated.demand_id),
-        db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`).bind(updated.demand_id),
-      ]);
-      claimed = !!(r && r[0] && r[0].meta && r[0].meta.changes > 0);
-      if (!claimed) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
-    } else {
-      // 未绑定需求：纯合同签约，条件 UPDATE 赢家模式（双方同时签约仅一方 changes>0）
-      const claim = await dbRun(db, `UPDATE contracts SET status='signed', version=version+1 WHERE id=? AND status='signing'`, [contractId]);
-      claimed = !!(claim && claim.meta && claim.meta.changes > 0);
-    }
-    if (claimed) {
+    // v0.24.0 合同文档与需求签约状态彻底解耦：文档 signed 不再触碰 student_demands
+    // （需求签约关系由「发起签约」signing.js 的签约请求确认驱动）。条件 UPDATE 赢家模式——
+    // 双方同时签约仅一方 changes>0，防并发双副作用
+    const claim = await dbRun(db, `UPDATE contracts SET status='signed', version=version+1 WHERE id=? AND status='signing'`, [contractId]);
+    if (claim && claim.meta && claim.meta.changes > 0) {
       // 存证入台账（独立保障库优先）：文本哈希 + 哈希链，撤销合同删活跃行时留档仍不可篡改地保留
       const contentHash = await ledgerRecord(db, contractId, updated.contract_md);
-      // 需求自动下架广场；该需求上其余教师待处理意向与待处理推送由系统统一拒绝
-      // （action=intent.auto_reject / demand_push.auto_reject，与用户手动拒绝在加密留档中区分）
-      if (updated.demand_id) {
-        const pending = await dbGetPendingIntentsForDemand(db, updated.demand_id);
-        for (const it of pending) {
-          const r = await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
-          if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
-          await logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
-            detail: { demandId: updated.demand_id, teacherUserId: it.teacher_user_id, reason: 'demand_contracted' }, req });
-        }
-        const pendingPushes = await dbGetPendingPushesForDemand(db, updated.demand_id);
-        for (const pp of pendingPushes) {
-          const r = await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
-          if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
-          await logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
-            detail: { demandId: updated.demand_id, teacherUserId: pp.teacher_user_id, reason: 'demand_contracted' }, req });
-        }
-      }
       await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGNED);
       // 留档保存合同原文（detailMax 放宽，加密后落库；撤销合同后仍可凭留档还原缔约内容）
       await logEvent(db, { action: 'contract.signed', actorUserId: userId, entity: 'contract', entityId: contractId,
@@ -390,15 +371,19 @@ export async function handleModifyContract(db, contractId, body, req) {
   const { ct, conv } = g;
   const ver = parseInt(body.version);
   if (!Number.isInteger(ver)) return error(MSG.INVALID_PARAMS, 400);
+  // v0.24.0：修改弹窗只放出业务条款——提交的 md 即新业务部分，法律条款由服务端固定重拼（不可修改）
   const md = String(body.contractMd || '').slice(0, 30000);
   if (!md.trim()) return error(UIC.CONTRACT_EMPTY); // 用户可见文案单源 constants.js
-  if (md === ct.contract_md) return json({ ok: true, unchanged: true }); // 内容未变：幂等短路，不重置确认/不重发通知（防双触发重复通知）
+  const oldBiz = (ct.contract_md || '').split(CONTRACT_BUSINESS_END)[0].trim(); // 旧业务部分（留痕 diff 基线）
+  if (md.trim() === oldBiz) return json({ ok: true, unchanged: true }); // 业务未变：幂等短路，不重置确认/不重发通知
+  const fullMd = contractWithLegal(md); // 业务 + 固定法律条款
 
-  // 修改即回退到签约选择态：双方确认清零 + pending→signing；乐观锁落 SQL WHERE（version 精确匹配）
+  // 修改即回退到签约选择态：双方确认清零 + signing（双方重新确认）；prev_business 留痕供前端 diff 高亮；
+  // 乐观锁落 SQL WHERE（version 精确匹配）
   const upd = await dbRun(db,
-    `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, status='signing', version=version+1, updated_at=datetime('now','localtime')
+    `UPDATE contracts SET contract_md=?, prev_business=?, drafter_confirmed=0, other_confirmed=0, status='signing', version=version+1, updated_at=datetime('now','localtime')
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
-    [await encryptField(md), contractId, ver]); // N-05：合同正文加密落库
+    [await encryptField(fullMd), oldBiz, contractId, ver]); // N-05：合同正文加密落库
   if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409);
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
@@ -418,9 +403,7 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const del = await dbDeleteContract(db, contractId);
   if (!(del && del.meta && del.meta.changes > 0)) return error(MSG.CONTRACT_NOT_FOUND, 404); // 并发双撤销仅赢家执行清理与通知
   await dbDeleteContractMessages(db, ct.conversation_id);
-  // 需求标记为「合同已撤销」：不自动重开（防随意锁定/重开扰动），由需求所有者在「我的需求」手动重开。
-  // 同步复位意向锁 intent_locked=0：撤销后该需求不再处于签约争夺，重开后即可重新接受意向
-  if (ct.demand_id) await dbRun(db, `UPDATE student_demands SET status='revoked', intent_locked=0 WHERE id=? AND status='contracted'`, [ct.demand_id]);
+  // v0.24.0 合同文档与需求解耦：撤销文档不再把需求置回 revoked（需求签约状态由签约请求驱动）
   await notifyUser(db, otherSide(conv, me.id), UIC.CONTRACT_REVOKED_NOTIFY.replace('{name}', nameOf(conv, me.id)));
   await logEvent(db, { action: 'contract.revoke', actorUserId: me.id, entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, note: 'ledger_retained' }, req });
@@ -456,10 +439,7 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
   await dbDeleteContract(db, contractId);
   // 网安审计 N-11：删除的是 signed 合同时，其绑定的需求已被置 contracted（签约时原子完成），
   // 合同删除后无「撤销」可走，需求会永久滞留 contracted（不可见、不可 reopen）——此处同撤销合同
-  // 口径把需求置回 revoked，并复位意向锁，由所有者手动重开重回广场
-  if (ct.status === STATUS.SIGNED && ct.demand_id) {
-    await dbRun(db, `UPDATE student_demands SET status='revoked', intent_locked=0 WHERE id=? AND status='contracted'`, [ct.demand_id]);
-  }
+  // v0.24.0 合同文档与需求解耦：删除文档不再把需求置回 revoked（需求签约状态由签约请求驱动）
   await logEvent(db, { action: 'admin.contract.remove', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, status: ct.status, drafterUserId: ct.drafter_user_id, demandId: ct.demand_id }, req });
@@ -481,10 +461,8 @@ export async function handleCancelContract(db, contractId, body, req) {
     if (await dbGetContractById(db, contractId)) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409); // 行仍在：状态已翻，非「并发已删」
     return json({ ok: true }); // 行已不在：并发对方已先取消，赢家已通知，此处不重复副作用
   }
-  // 网安审计 N-10：取消合同（pending/signing 阶段撮合未成）后，若该需求此前有被接受意向
-  // （intent_locked=1），复位意向锁——否则需求在广场显示 open 却永远无法再接受意向（业务 DoS）。
-  // 需求状态保持 open（撮合未成仍在广场）；仅复位意向锁让其可继续被接受
-  if (ct.demand_id) await dbRun(db, `UPDATE student_demands SET intent_locked=0 WHERE id=? AND intent_locked=1`, [ct.demand_id]);
+  // v0.24.0 合同文档与需求解耦：取消文档不再复位需求意向锁（intent_locked 机制已随
+  // 「会话不锁需求」删除——routes-demands.js 移除 dbLockDemandIntent）；需求状态保持 open
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, demandId: ct.demand_id }, req });

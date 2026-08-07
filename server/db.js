@@ -11,6 +11,7 @@ import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优�
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
 import { initVersionTable } from './version.js'; // 数据版本戳表建表（v0.23.0 静默数据层，仅借 init）
+import { initSigningTable } from './signing.js'; // 发起签约请求表建表（v0.24.0 极简签约流，仅借 init）
 import { initDangerCaps } from './danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
 
 // ============================================================
@@ -317,16 +318,16 @@ export async function initDb(db, env = {}) {
     await dbRun(db, CONTRACTS_DDL);
   }
 
-  // messages.kind CHECK 迁移：旧表三值约束不含 'contract'（合同系统气泡），
-  // 检测到即保数据换表（rename → 新建 → 拷贝 → 删旧 → 补索引）
+  // messages.kind CHECK 迁移：约束缺 'contract'（合同气泡）→ v0.24.0 再补 'signing_request'/'signing_response'
+  // （发起签约气泡与响应），检测到缺任一即保数据换表（rename → 新建 → 拷贝 → 删旧 → 补索引）
   const msgMeta = await dbGet(db, `SELECT sql FROM sqlite_master WHERE type='table' AND name='messages'`);
-  if (msgMeta && msgMeta.sql && !msgMeta.sql.includes("'contract'")) {
+  if (msgMeta && msgMeta.sql && !(msgMeta.sql.includes("'contract'") && msgMeta.sql.includes("'signing_request'"))) {
     await db.batch([
       db.prepare(`ALTER TABLE messages RENAME TO messages_old`),
       db.prepare(`CREATE TABLE messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         conversation_id INTEGER NOT NULL, sender_user_id INTEGER NOT NULL,
-        kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract')),
+        kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract','signing_request','signing_response')),
         body TEXT NOT NULL DEFAULT '',
         created_at DATETIME DEFAULT (datetime('now','localtime')),
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
@@ -409,7 +410,8 @@ export async function initDb(db, env = {}) {
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
     ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"],
-    ['version', 'INTEGER NOT NULL DEFAULT 0']]); // 合同乐观锁版本（秒级 updated_at 不可靠，修同秒双改互相覆盖）
+    ['version', 'INTEGER NOT NULL DEFAULT 0'], // 合同乐观锁版本（秒级 updated_at 不可靠，修同秒双改互相覆盖）
+    ['prev_business', 'TEXT']]); // v0.24.0 改动留痕：上次业务条款（前端 diff 高亮；签署确认后清空）
 
   // 存量需求编号补发：按 id（生成顺序）依次取号，四位展示自 0001 起；已编号跳过（幂等）
   const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');
@@ -464,6 +466,8 @@ export async function initDb(db, env = {}) {
   await initNotifyTable(db);
   // 数据版本戳表（v0.23.0 静默数据层：客户端 8s 探测版本，只重拉变化域）
   await initVersionTable(db);
+  // 发起签约请求表（v0.24.0 极简签约流：确认签约关系；需求-会话解耦后唯一「签约才拒其他」的触发点）
+  await initSigningTable(db);
   // 危险操作二次认证 capToken 表（独立模块 danger-ops.js 提供签发/校验；D1 持久化跨实例一致，网安审计 N-02）
   await initDangerCaps(db);
 
@@ -993,11 +997,14 @@ export async function dbUpdateReview(db, reviewId, rating, comment) {
   if (wasApproved && teacherUserId) await dbRecomputeTeacherRating(db, teacherUserId);
 }
 
-// 签约门槛查询：该师生会话存在 status='signed' 的合同即放行评价
+// 签约门槛查询：该师生会话存在已签约合同（文档或 v0.24.0 发起签约请求）即放行评价
 export async function dbIsContracted(db, studentUserId, teacherUserId) {
   return !!(await dbGet(db,
-    `SELECT ct.id FROM contracts ct JOIN conversations c ON c.id = ct.conversation_id
-     WHERE c.student_user_id=? AND c.teacher_user_id=? AND ct.status='signed' LIMIT 1`,
+    `SELECT 1 FROM conversations c
+     WHERE c.student_user_id=? AND c.teacher_user_id=?
+       AND (EXISTS(SELECT 1 FROM contracts ct WHERE ct.conversation_id=c.id AND ct.status='signed')
+         OR EXISTS(SELECT 1 FROM signing_requests sr WHERE sr.conversation_id=c.id AND sr.status='signed'))
+     LIMIT 1`,
     [studentUserId, teacherUserId]));
 }
 
@@ -1215,7 +1222,10 @@ export async function dbGetMyContracts(db, userId) {
     LEFT JOIN student_demands sd ON sd.id = ct.demand_id
     WHERE c.student_user_id = ? OR c.teacher_user_id = ?
     ORDER BY ct.updated_at DESC`, [userId, userId]);
-  for (const r of rows) r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
+  for (const r of rows) {
+    r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
+    if (r.prev_business) r.prev_business = await decryptField(r.prev_business); // v0.24.0 留痕 diff 基线
+  }
   return rows;
 }
 
@@ -1290,7 +1300,8 @@ export async function dbGetMyConversations(db, userId) {
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       sd.display_id AS demand_display_id,
-      EXISTS(SELECT 1 FROM contracts ct WHERE ct.conversation_id=c.id AND ct.status='signed') AS contracted,
+      EXISTS(SELECT 1 FROM contracts ct WHERE ct.conversation_id=c.id AND ct.status='signed')
+        OR EXISTS(SELECT 1 FROM signing_requests sr WHERE sr.conversation_id=c.id AND sr.status='signed') AS contracted,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
       lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id AND m.sender_user_id<>?
