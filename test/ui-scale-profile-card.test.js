@@ -1,0 +1,178 @@
+/**
+ * 需求六·前端表现试验 单测（node:vm 模拟浏览器经典脚本全局）
+ *
+ * 覆盖：
+ *   - item5 UI 大小滑块纯逻辑：uiScaleClamp 钳制 [80,100]/非数回默认；getUiScale 读 localStorage；
+ *     setUiScale 写 localStorage + 应用 --ui-scale CSS 变量；uiScaleFillPct 填充百分比（80→0%、100→100%）。
+ *   - item1/2 教师资料卡分组渲染：renderProfileInfoCard 输出四组大 title 且顺序正确、
+ *     评分行顶置、个人简介挪入「基本资料」组、分组内条目顺序、条目行无分隔线相关类；
+ *   - item3 私密资料项两行式：真实姓名/学信网截图锁定态显「建立会话后展示」灰字提示，
+ *     联系方式锁定态显「签约后展示联系方式」灰字提示（.profile-row-note）。
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+function makeCtx() {
+  const dom = new JSDOM('<!DOCTYPE html><html><head></head><body></body></html>', {
+    url: 'http://localhost/', pretendToBeVisual: true,
+  });
+  const w = dom.window;
+  return {
+    ctx: vm.createContext({
+      window: w, document: w.document,
+      getComputedStyle: w.getComputedStyle.bind(w),
+      localStorage: w.localStorage, sessionStorage: w.sessionStorage,
+      console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
+      clearTimeout: globalThis.clearTimeout, setInterval: globalThis.setInterval,
+      clearInterval: globalThis.clearInterval, Request: globalThis.Request,
+      MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
+      Image: class { set src(v) { this._s = v; } },
+      requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
+      matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+    }),
+    dom,
+  };
+}
+
+// 共享脚本加载序（同 index.html）：constants → region-data → app-display → app-state → app-api →
+// app-datahub → app-anim → app-ui → app-demands → app-teachers（app-teachers 依赖 match 系列）
+const FILES = ['constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
+  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-demands.js', 'app-teachers.js'];
+function loadCommon(ctx) {
+  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+}
+
+// ---- item5 UI 大小滑块纯逻辑 ----
+test('uiScaleClamp：80~100 钳制、非数/超界回默认 100', () => {
+  const { ctx } = makeCtx(); loadCommon(ctx);
+  assert.equal(vm.runInContext('uiScaleClamp(90)', ctx), 90);
+  assert.equal(vm.runInContext('uiScaleClamp(60)', ctx), 80, '低于下限钳到 80');
+  assert.equal(vm.runInContext('uiScaleClamp(120)', ctx), 100, '高于上限钳到 100');
+  assert.equal(vm.runInContext('uiScaleClamp("abc")', ctx), 100, '非数字回默认 100');
+  assert.equal(vm.runInContext('uiScaleClamp(85.6)', ctx), 86, '四舍五入整数');
+});
+
+test('getUiScale：localStorage 现值；无值回默认；非法值钳制', () => {
+  const { ctx } = makeCtx(); loadCommon(ctx);
+  assert.equal(vm.runInContext('getUiScale()', ctx), 100, '未存 → 默认 100');
+  vm.runInContext("localStorage.setItem('sufe_ui_scale', '85')", ctx);
+  assert.equal(vm.runInContext('getUiScale()', ctx), 85, '读现值 85');
+  vm.runInContext("localStorage.setItem('sufe_ui_scale', '999')", ctx);
+  assert.equal(vm.runInContext('getUiScale()', ctx), 100, '非法 999 钳到 100');
+});
+
+test('setUiScale：写 localStorage + 应用 --ui-scale 系数，返回钳制值', () => {
+  const { ctx, dom } = makeCtx(); loadCommon(ctx);
+  const ret = vm.runInContext('setUiScale(80)', ctx);
+  assert.equal(ret, 80);
+  assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '80');
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.800');
+  const ret2 = vm.runInContext('setUiScale(120)', ctx);
+  assert.equal(ret2, 100, '超界钳到 100');
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '1.000');
+});
+
+test('uiScaleFillPct：80→0%、100→100%、90→50%', () => {
+  const { ctx } = makeCtx(); loadCommon(ctx);
+  assert.equal(vm.runInContext('uiScaleFillPct(80)', ctx), '0.0');
+  assert.equal(vm.runInContext('uiScaleFillPct(100)', ctx), '100.0');
+  assert.equal(vm.runInContext('uiScaleFillPct(90)', ctx), '50.0');
+});
+
+// ---- item1/2/3 教师资料卡分组渲染 ----
+function seedProfileFixtures(ctx) {
+  vm.runInContext(`
+    state.user = { id: 999, role: 'student' };
+    const PROF_T = { user_id: 1, rating: 4.5, province: 'shanghai', school: '上海财经大学',
+      grade: 'freshman', gender: 'male', address: '上海市杨浦区', teaching_method: 'online',
+      time_slots: [{ type: 'week', dow: 1, start: '18:00', end: '20:00' }],
+      personality_tags: ['patience'], intro: '认真负责', subjects: ['math'],
+      graduation_year: 2020, gaokao_scores: [{ subject: 'math', score: 135 }],
+      price_min: 150, price_max: 180,
+      nonacademic_projects: ['music'], nonacademic_prices: [{ project: 'music', price_min: 100, price_max: 120 }],
+      real_name: '', credential_image: '', wechat: '', email: '', matched: false };
+    window.PROF_T = PROF_T;
+    window.PROF_HTML = renderProfileInfoCard(PROF_T, false);
+  `, ctx);
+}
+
+test('资料卡渲染：四组大 title 顺序正确 + 评分行顶置 + 简介在基本资料组', () => {
+  const { ctx } = makeCtx(); loadCommon(ctx); seedProfileFixtures(ctx);
+  const html = vm.runInContext('window.PROF_HTML', ctx);
+  const gTitles = ['基本资料', '学科类资料', '非学科类资料', '私密资料'];
+  const idx = gTitles.map(t => html.indexOf(t));
+  assert.ok(idx.every(i => i !== -1), '四个分组 title 都在');
+  assert.ok(idx[0] < idx[1] && idx[1] < idx[2] && idx[2] < idx[3], '分组 title 按 基本→学科→非学科→私密 顺序');
+  // 评分行顶置（在第一个分组 title 之前）
+  assert.ok(html.indexOf('评分') < idx[0], '评分行在「基本资料」title 之前');
+  // 个人简介挪入基本资料组：简介行出现在「学科类资料」title 之前
+  assert.ok(html.indexOf('简介') < idx[1], '个人简介在「学科类资料」之前（已挪上边）');
+  // 分组内条目顺序：地区在年级前、年级在学校前（按需求六 item2 列序）
+  assert.ok(html.indexOf('地区') < html.indexOf('年级') && html.indexOf('年级') < html.indexOf('学校'), '基本资料条目顺序 地区→年级→学校');
+});
+
+test('资料卡渲染：私密资料项两行式灰字提示（item3）', () => {
+  const { ctx } = makeCtx(); loadCommon(ctx); seedProfileFixtures(ctx);
+  const html = vm.runInContext('window.PROF_HTML', ctx);
+  // 锁定态（未匹配/未签约）→ 灰字提示 profile-row-note
+  assert.ok(html.includes('profile-row-note'), '存在 .profile-row-note 两行式提示');
+  assert.ok(html.includes('建立会话后展示'), '真实姓名/学信网截图锁定态提示「建立会话后展示」');
+  assert.ok(html.includes('签约后展示联系方式'), '联系方式锁定态提示「签约后展示联系方式」');
+  // 私密组三行都在「私密资料」title 之后
+  const privIdx = html.indexOf('私密资料');
+  ['真实姓名', '学信网截图', '联系方式'].forEach(l => {
+    assert.ok(html.indexOf(l) > privIdx, `${l} 属于私密资料组`);
+  });
+});
+
+test('资料卡渲染：条目无分隔线类、解锁态联系方式显示值+灰字提示', () => {
+  const { ctx } = makeCtx(); loadCommon(ctx); seedProfileFixtures(ctx);
+  vm.runInContext(`
+    state.user = { id: 1, role: 'teacher' };  // 本人视角 → 联系方式解锁
+    window.PROF_T.wechat = 'wx_abc';
+    window.PROF_T.matched = true;
+    window.PROF_HTML2 = renderProfileInfoCard(window.PROF_T, false);
+  `, ctx);
+  const html = vm.runInContext('window.PROF_HTML2', ctx);
+  assert.ok(html.includes('微信：wx_abc'), '解锁态显示联系方式实际值');
+  assert.ok(html.includes('签约后展示联系方式'), '值下方仍带灰字提示（两行式）');
+  const rowCount = (html.match(/class="profile-row"/g) || []).length;
+  assert.ok(rowCount > 0, '资料行以 .profile-row 渲染');
+  // 去分隔线验证：JS 渲染层不再输出任何分隔线相关类/token
+  assert.ok(!html.includes('g-line-row'), '渲染不引用 g-line-row 分隔线 token');
+});
+
+// ---- item5 设置页滑块集成（渲染 + 拖动实时生效 + 持久化） ----
+const FILES_WITH_PAGES = [...FILES, 'app-pages.js'];
+function seedSettingsPage(ctx) {
+  vm.runInContext(`
+    loadDeviceSessions = () => {};  // 桩掉异步拉设备（本测试只验滑块）
+    const el = document.createElement('div'); el.id = 'account-settings-content';
+    document.body.appendChild(el);
+    state.user = { id: 1, username: 'u', role: 'teacher', avatar: '' };
+    enterAccountSettings();
+    window.SLIDER = document.querySelector('.ui-scale-slider');
+    window.SLIDER_ROW = document.querySelector('.ui-scale-row');
+  `, ctx);
+}
+
+test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、数值标签与 localStorage', () => {
+  const { ctx, dom } = makeCtx();
+  for (const f of FILES_WITH_PAGES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  seedSettingsPage(ctx);
+  assert.equal(vm.runInContext('window.SLIDER.min', ctx), '80', '滑块下限 80');
+  assert.equal(vm.runInContext('window.SLIDER.max', ctx), '100', '滑块上限 100');
+  assert.equal(vm.runInContext('window.SLIDER.step', ctx), '1', '步进 1（级差最小）');
+  assert.equal(vm.runInContext('window.SLIDER.value', ctx), '100', '默认现值 100');
+  assert.ok(vm.runInContext('!!window.SLIDER_ROW', ctx), '滑块行独立类 .ui-scale-row 存在（防作用域污染）');
+  // 拖动到 85
+  vm.runInContext(`window.SLIDER.value = '85'; setUiScaleFromSlider(window.SLIDER);`, ctx);
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.850', '--ui-scale 实时更新');
+  assert.equal(vm.runInContext("document.getElementById('ui-scale-val').textContent", ctx), '85%', '数值标签更新');
+  assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '85', 'localStorage 持久化');
+  // 刷新等价：getUiScale 从 localStorage 读回 85
+  assert.equal(vm.runInContext('getUiScale()', ctx), 85, '刷新后按 localStorage 现值应用');
+});

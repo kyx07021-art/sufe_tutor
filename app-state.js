@@ -148,6 +148,43 @@ function isReturning() { try { return !!localStorage.getItem('sufe_returning'); 
 function setReturning() { try { localStorage.setItem('sufe_returning', '1'); } catch { /* ignore */ } }
 
 // ============================================================
+// 需求六·item5：UI 大小滑块（纯客户端，参照 setThemePref 模式）
+//   值存 localStorage CONFIG.UI_SCALE_KEY（'sufe_ui_scale'，80~100，100=现状）；
+//   首帧由 index.html 内联脚本把现值换算 --ui-scale 系数注入 <html>（无 FOUC）；
+//   滑块经 setUiScale 即时重算 --ui-scale（documentElement 上），全站 CSS calc() 消费，不走服务器。
+//   纯函数独立暴露供 jsdom 单测（钳制/读写/填充百分比）。
+// ============================================================
+function uiScaleClamp(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return CONFIG.UI_SCALE_DEFAULT;
+  return Math.min(CONFIG.UI_SCALE_MAX, Math.max(CONFIG.UI_SCALE_MIN, Math.round(n)));
+}
+function getUiScale() {
+  let v = CONFIG.UI_SCALE_DEFAULT;
+  try {
+    const raw = parseInt(localStorage.getItem(CONFIG.UI_SCALE_KEY), 10);
+    if (!isNaN(raw)) v = raw;
+  } catch { /* 存储被禁：回默认 */ }
+  return uiScaleClamp(v);
+}
+function applyUiScale(v) {
+  const c = uiScaleClamp(v);
+  document.documentElement.style.setProperty('--ui-scale', (c / 100).toFixed(3));
+  return c;
+}
+function setUiScale(v) {
+  const c = uiScaleClamp(v);
+  try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
+  return applyUiScale(c);
+}
+// 滑块填充百分比（80→0%、100→100%），供设置页轨道填充渐变
+function uiScaleFillPct(v) {
+  const c = uiScaleClamp(v);
+  const span = CONFIG.UI_SCALE_MAX - CONFIG.UI_SCALE_MIN;
+  return ((c - CONFIG.UI_SCALE_MIN) / span * 100).toFixed(1);
+}
+
+// ============================================================
 // 登出复位注册表：领域模块登记自身的模块级残留清理
 // ============================================================
 const logoutResets = [];

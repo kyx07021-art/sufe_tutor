@@ -53,6 +53,11 @@
 
   --nav-h: 64px;
 
+  /* 需求六·item1：教师资料卡条目纵向间距（CONFIG.PROFILE_ROW_GAP 由 index.html 注入覆盖；此处为无 JS 兜底） */
+  --profile-row-gap: 22px;
+  /* 需求六·item5：UI 大小滑块比例系数（1=现状；80%~100% → 0.8~1.0，由 index.html 首帧注入覆盖） */
+  --ui-scale: 1;
+
   --t-fast: 160ms;
   --t-base: 260ms;
   --t-slow: 420ms;
@@ -70,7 +75,9 @@
 
 /* ---------- reset ---------- */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+/* 需求六·item5：根字号挂 --ui-scale 系数（默认 1）。全站 rem 字号/rem 尺寸随滑块整体缩放（正文/标题/小字），
+   px 尺寸走下方各组件 calc()。卡片与页面框架（list-card/client-page/container 等）不挂系数 = 框架不变。 */
+html { font-size: calc(16px * var(--ui-scale, 1)); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 body {
   font-family: var(--font);
   color: var(--text);
@@ -142,7 +149,7 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
      无方向性擦除母题、无 per-variant hover 背景/文字色——散件归零，glass 层只覆盖参数即换肤。 */
   /* 视觉（填充/字色/浮影/环/交互叠层）一律住 glass.css 接口家；本层只配结构 */
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 11px 22px; font-weight: 600; font-size: .875rem; letter-spacing: .01em;
+  padding: calc(11px * var(--ui-scale, 1)) calc(22px * var(--ui-scale, 1)); font-weight: 600; font-size: .875rem; letter-spacing: .01em; /* 需求六·item5：按钮尺寸随滑块 */
   line-height: 1.4; white-space: nowrap;
   position: relative; overflow: hidden; isolation: isolate;
   border: none; color: var(--g-fg); cursor: pointer;
@@ -150,10 +157,10 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
 }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 /* 变体 = 仅参数（无 hover/无擦除/无背景重写） */
-.btn-ghost   { padding: 8px 12px; }
-.btn-sm { padding: 8px 14px; font-size: .8rem; }
-.btn-xs { padding: 4px 9px; font-size: .7rem; }
-.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn-ghost   { padding: calc(8px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); }
+.btn-sm { padding: calc(8px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); font-size: .8rem; }
+.btn-xs { padding: calc(4px * var(--ui-scale, 1)) calc(9px * var(--ui-scale, 1)); font-size: .7rem; }
+.btn-icon { width: calc(36px * var(--ui-scale, 1)); height: calc(36px * var(--ui-scale, 1)); padding: 0; }
 label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）补指针手型 */
 
 /* ============================================================
@@ -387,7 +394,7 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 
 .form-input, .form-select {
   flex: 1; min-width: 0; width: auto;
-  padding: 8px 2px; border: none; outline: none;
+  padding: calc(8px * var(--ui-scale, 1)) 2px; border: none; outline: none; /* 需求六·item5：输入框尺寸随滑块 */
   font-size: .92rem; color: var(--text); caret-color: var(--accent);
   text-align: left; /* 录入内容一律左对齐 */
 }
@@ -414,7 +421,7 @@ textarea.form-input {
   background-color: currentColor;
   -webkit-mask: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 3px center / 12px 8px;
   mask: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 3px center / 12px 8px;
-  padding-right: 24px;
+  padding-right: calc(24px * var(--ui-scale, 1));
 }
 
 /* ============================================================
@@ -428,7 +435,7 @@ textarea.form-input {
 .gaokao-row .custom-select { flex: 1; min-width: 110px; }
 .custom-select-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  width: 100%; padding: 8px 2px;
+  width: 100%; padding: calc(8px * var(--ui-scale, 1)) 2px; /* 需求六·item5：下拉触发器尺寸随滑块 */
   cursor: pointer;
   font-size: .92rem; color: var(--text); text-align: left;
   transition: color var(--t-fast) var(--ease-out);
@@ -456,7 +463,7 @@ textarea.form-input {
 .custom-select-list { max-height: 256px; overflow-y: auto; }
 .custom-option {
   display: block; width: 100%; text-align: left; cursor: pointer;
-  padding: 8px 12px; font-size: .84rem; color: var(--ink-3);
+  padding: calc(8px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); font-size: .84rem; color: var(--ink-3); /* 需求六·item5：下拉选项随滑块 */
   border: none;
   transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
@@ -472,17 +479,17 @@ textarea.form-input {
    ============================================================ */
 .time-slots { display: flex; flex-direction: column; gap: 6px; width: 100%; }
 .time-slot { display: flex; align-items: center; gap: 8px; }
-.time-slot .custom-select { flex: 0 0 96px; } /* 星期下拉栏定宽 */
+.time-slot .custom-select { flex: 0 0 calc(96px * var(--ui-scale, 1)); } /* 星期下拉栏定宽（随滑块） */
 .time-range { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; } /* 起止时间对（桌面与删除按钮共享一行） */
 .time-field {
   position: relative; flex: 1; min-width: 0;
   display: flex; align-items: center; justify-content: center; gap: 1px;
-  padding: 6px 2px 6px 12px;
+  padding: calc(6px * var(--ui-scale, 1)) 2px calc(6px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); /* 需求六·item5：时间栏随滑块 */
   background-color: var(--g-fill-weak);
   border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-lift-sm), inset 0 1px 3px var(--g-inset-shadow), inset 0 0 0 1px var(--g-inset-edge-soft), inset 0 1px 0 var(--g-inset-edge);
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm); /* 需求六·item4：与表单控件同款标准玻璃边缘（删淡化） */
 }
-.time-field:focus-within { box-shadow: var(--glass-lift-sm), 0 0 0 3px var(--g-focus-soft), inset 0 1px 0 var(--g-input-focus-edge); }
+.time-field:focus-within { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
 .time-field input {
   width: 26px; border: none; outline: none; background: transparent;
   text-align: center; font-size: .92rem; color: var(--text); caret-color: var(--accent); padding: 0;
@@ -516,7 +523,7 @@ textarea.form-input {
 .time-pick-panel .custom-select-list { max-height: 320px; }
 .time-slot-tilde { color: var(--faint); font-size: .9rem; flex: 0 0 auto; }
 .time-slot-del {
-  flex: 0 0 auto; width: 24px; height: 24px; border: none; cursor: pointer;
+  flex: 0 0 auto; width: calc(24px * var(--ui-scale, 1)); height: calc(24px * var(--ui-scale, 1)); border: none; cursor: pointer; /* 需求六·item5：删除钮随滑块 */
   display: flex; align-items: center; justify-content: center;
   font-size: .95rem; color: var(--muted); background: transparent; border-radius: 50%;
   transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
@@ -525,11 +532,11 @@ textarea.form-input {
 /* 「+ 新建时间段」行：默认在首条组件位置；新增组件插到它前，它即自然落位新组件正下方 */
 .time-slots-add { display: flex; align-items: center; gap: 8px; }
 .time-add-btn {
-  flex: 0 0 auto; width: 36px; height: 36px; border: none; cursor: pointer; /* v0.25.1：与时间组件本体等高的圆角正方形（原 26px 过小） */
+  flex: 0 0 auto; width: calc(36px * var(--ui-scale, 1)); height: calc(36px * var(--ui-scale, 1)); border: none; cursor: pointer; /* v0.25.1：与时间组件本体等高的圆角正方形（原 26px 过小）；需求六·item5 随滑块 */
   display: flex; align-items: center; justify-content: center;
   font-size: 1.15rem; line-height: 1; color: var(--accent);
   background-color: var(--g-fill-weak); border-radius: var(--lg-r-sm);
-  box-shadow: var(--glass-lift-sm), inset 0 1px 3px var(--g-inset-shadow), inset 0 0 0 1px var(--g-inset-edge-soft), inset 0 1px 0 var(--g-inset-edge);
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm); /* 需求六·item4：与表单控件同款标准玻璃边缘（删淡化） */
   transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
 .time-add-btn:hover { background: var(--g-option-hover); }
@@ -554,14 +561,14 @@ textarea.form-input {
 
 .checkbox-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .checkbox-item {
-  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  display: flex; align-items: center; gap: 8px; padding: calc(8px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：勾选件尺寸随滑块 */
   cursor: pointer; font-size: .8rem; font-weight: 500; color: var(--muted);
   transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
 }
 .checkbox-item:hover { color: var(--ink); }
 .checkbox-item input[type="checkbox"] {
   appearance: none; -webkit-appearance: none;
-  width: 15px; height: 15px; border: 2px solid var(--faint); background: transparent;
+  width: calc(15px * var(--ui-scale, 1)); height: calc(15px * var(--ui-scale, 1)); border: 2px solid var(--faint); background: transparent;
   cursor: pointer; transition: all var(--t-fast); flex-shrink: 0; position: relative; margin: 0;
 }
 .checkbox-item input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
@@ -594,13 +601,13 @@ textarea.form-input {
 .gaokao-row .subject-name { flex: 0 0 44px; font-size: .8rem; font-weight: 700; color: var(--ink-3); }
 .grade-selector { display: flex; flex-wrap: wrap; gap: 4px; }
 .grade-option {
-  padding: 3px 9px; font-size: .68rem; color: var(--muted);
+  padding: calc(3px * var(--ui-scale, 1)) calc(9px * var(--ui-scale, 1)); font-size: .68rem; color: var(--muted); /* 需求六·item5：等第/年级 pill 随滑块 */
   cursor: pointer; transition: all var(--t-fast); font-weight: 600;
 } /* G2：background 交还引擎（玻璃体在元素自身），删元素直写 */
 .grade-option:hover { color: var(--ink); }
 .grade-option.selected { color: var(--white); } /* v0.19.43 选中底单源 glass.css（--g-fill: var(--accent)），删此重复 */
 .score-inline {
-  width: 70px; padding: 4px 8px; border: none;
+  width: calc(70px * var(--ui-scale, 1)); padding: calc(4px * var(--ui-scale, 1)) calc(8px * var(--ui-scale, 1)); border: none; /* 需求六·item5：赋分输入框随滑块 */
   background-color: transparent;
   background-image: linear-gradient(var(--ink), var(--ink));
   background-repeat: no-repeat; background-position: left bottom; background-size: 100% 1.5px;
@@ -631,7 +638,7 @@ textarea.form-input {
    ============================================================ */
 /* 顶天立地：内层无顶栏，壳占满视口；侧边栏宽 = 屏幕约 1/7.5（较旧版 20vw 收窄 1/3，下限 144px 防窄屏挤爆） */
 .client-shell {
-  display: grid; grid-template-columns: max(144px, 13.3vw) 1fr;
+  display: grid; grid-template-columns: max(calc(144px * var(--ui-scale, 1)), calc(13.3vw * var(--ui-scale, 1))) 1fr; /* 需求六·item5：侧边栏宽度随滑块（v0.25.9 审计修复：13.3vw 也乘系数——桌面端旧式被 vw 项压制导致滑块无效） */
   height: 100vh; height: 100dvh;
   overflow: hidden;
 }
@@ -711,14 +718,14 @@ textarea.form-input {
 .sidebar-user {
   position: relative; z-index: 1; flex-shrink: 0;
   display: flex; flex-direction: column;
-  padding: 13px 13px;
+  padding: calc(13px * var(--ui-scale, 1)) calc(13px * var(--ui-scale, 1)); /* 需求六·item5：用户信息区高度随滑块 */
 }
 .sidebar-user-top { display: flex; align-items: center; gap: 12px; }
 /* 用户块整体可点（登录态 → 个人信息右栏；访客态 → 登录通路）：button 复位为纯容器 */
 .sidebar-user-btn { width: 100%; background: none; border: none; padding: 0; text-align: left; cursor: pointer; font: inherit; color: inherit; }
 .sidebar-user-name--guest { color: var(--muted); font-weight: 700; }
 .avatar--guest { color: var(--muted); } /* S8/G30：边框唯一主人 = glass.css；元素 background none 与引擎 .glass 基类重复，删 */
-.sidebar-user-avatar { width: 42px; height: 42px; font-size: 1.15rem; }
+.sidebar-user-avatar { width: calc(42px * var(--ui-scale, 1)); height: calc(42px * var(--ui-scale, 1)); font-size: 1.15rem; } /* 需求六·item5：头像随滑块 */
 .sidebar-user-text { min-width: 0; }
 .sidebar-user-name { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; overflow-wrap: anywhere; }
 .sidebar-user-role { margin-top: 3px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .1em; }
@@ -734,7 +741,7 @@ textarea.form-input {
 
 /* 个人信息栏「重温新手引导」小按钮（v0.25 需求三：多步引导入口；管理员不渲染） */
 .sidebar-revisit-btn {
-  width: 100%; margin-top: 9px; padding: 6px 10px;
+  width: 100%; margin-top: 9px; padding: calc(6px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：重温引导按钮随滑块 */
   background: var(--g-fill-weak); border: 1px solid var(--g-line-dark);
   border-radius: var(--lg-r-sm); text-align: center; cursor: pointer;
   font-size: .72rem; font-weight: 600; letter-spacing: .05em; color: var(--ink-2);
@@ -876,8 +883,55 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .settings-section-title + .settings-row { border-top: none; }
 /* 外观主题三项：复用玻璃按钮，选中态走引擎 --g-fill 参数（accent-tint 底 + accent-deep 字） */
 .theme-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.theme-opt { padding: 7px 14px; font-size: .78rem; font-weight: 700; color: var(--muted); }
+.theme-opt { padding: calc(7px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); font-size: .78rem; font-weight: 700; color: var(--muted); } /* 需求六·item5：外观主题按钮随滑块 */
 .theme-opt--on { --g-fill: var(--accent-tint); color: var(--accent-deep); }
+
+/* ============================================================
+   需求六·item5 UI 大小滑块（liquid glass 风格，独立类名防作用域污染）——
+   方案参考（2026-08 web 调研，CLAUDE.md「新机制先上网查」铁律）：
+     - 原生 <input type=range> + ::-webkit/moz-slider-* 伪元素定制轨道/拇指（纯 CSS 玻璃，
+       无 JS 重绘，保持键盘/读屏可达性）——来源：educative.io CSS Design Patterns Glass Range Slider、
+       CSS Glassmorphism Generator 实现综述；
+     - 轨道半透明玻璃底 + 品牌紫填充渐变（--ui-fill 由 JS 写 CSS 变量）+ 液体边缘 --g-liquid-sm
+       （复用本站玻璃 token，与表单控件同视觉同源）；
+     - 拇指 = 弯月径向玻璃珠（--g-card-fill + --g-liquid-sm + 白描边）。
+     交互：原生 input 拖动即与手部 x 轴同步（滑块本体不随 --ui-scale 缩放，保证任何 UI 大小时可抓取）。
+   ============================================================ */
+.ui-scale-row { align-items: center; }
+.ui-scale-control { display: flex; align-items: center; gap: 12px; flex: 0 1 240px; min-width: 0; }
+.ui-scale-slider {
+  -webkit-appearance: none; appearance: none;
+  flex: 1; min-width: 0; height: 8px; margin: 0;
+  border: none; border-radius: 999px; background: transparent;
+  cursor: pointer;
+}
+.ui-scale-slider::-webkit-slider-runnable-track {
+  height: 8px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) var(--ui-fill, 100%), var(--g-fill-weak) var(--ui-fill, 100%));
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm);
+}
+.ui-scale-slider::-moz-range-track {
+  height: 8px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) var(--ui-fill, 100%), var(--g-fill-weak) var(--ui-fill, 100%));
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm);
+}
+.ui-scale-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  margin-top: -6px; /* 垂直居中在 8px 轨道上 */
+  background: var(--g-card-fill), var(--g-fill-strong);
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), inset 0 0 0 1px var(--g-avatar-border);
+  cursor: grab; transition: box-shadow var(--t-fast) var(--ease-out);
+}
+.ui-scale-slider::-moz-range-thumb {
+  width: 20px; height: 20px; border: none; border-radius: 50%;
+  background: var(--g-card-fill), var(--g-fill-strong);
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), inset 0 0 0 1px var(--g-avatar-border);
+  cursor: grab;
+}
+.ui-scale-slider:active::-webkit-slider-thumb { box-shadow: var(--glass-lift-sm), 0 0 0 3px var(--g-focus-soft), inset 0 0 0 1px var(--g-avatar-border); }
+.ui-scale-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.ui-scale-val { flex: 0 0 auto; font-size: .82rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; min-width: 38px; text-align: right; }
 /* 新手引导浮窗（v0.19.49）：内测政策小盾标逐条，同关于页安全区语言 */
 .onboard-intro { font-size: .88rem; color: var(--ink-3); line-height: 1.75; margin-bottom: 12px; }
 .onboard-policy { display: flex; flex-direction: column; }
@@ -925,7 +979,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .drop-toggle {
   position: relative;
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 7px 12px;
+  padding: calc(7px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); /* 需求六·item5：下拉开关随滑块 */
   color: var(--ink-3);
   font-size: .8rem; font-weight: 700; letter-spacing: .01em;
   transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
@@ -982,7 +1036,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .filter-group { flex: 1; min-width: 120px; }
 .filter-label { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: .03em; }
 .filter-select {
-  width: 100%; padding: 8px 24px 8px 2px; border: none; outline: none;
+  width: 100%; padding: calc(8px * var(--ui-scale, 1)) calc(24px * var(--ui-scale, 1)) calc(8px * var(--ui-scale, 1)) 2px; border: none; outline: none; /* 需求六·item5：筛选下拉尺寸随滑块 */
   background-color: currentColor; /* v0.20.0 箭头 mask+currentColor 随主题变 */
   -webkit-mask: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 3px center / 10px 6px;
   mask: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 3px center / 10px 6px;
@@ -1000,14 +1054,14 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .list-card-body { display: flex; flex-wrap: wrap; gap: 7px; }
 
 .tag {
-  display: inline-flex; align-items: center; padding: 3px 10px;
+  display: inline-flex; align-items: center; padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：tag 尺寸随滑块 */
   font-size: .72rem; font-weight: 600; color: var(--ink-3); letter-spacing: .01em;
 }
 /* 需求五·item1 匹配度标准按钮：从 tag 升级按钮，按分值三色遮罩（阈值单源 CONFIG.MATCH_COLOR_HIGH/MID）。
    三色 = 染色玻璃（--g-fill 低 alpha 语义色，字色对应深色），玻璃/涟漪/焦点环由 glass 引擎提供 */
 .match-btn {
   display: inline-flex; align-items: center; gap: 2px;
-  padding: 4px 10px; font-size: .72rem; font-weight: 800; letter-spacing: .02em;
+  padding: calc(4px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 800; letter-spacing: .02em; /* 需求六·item5：匹配度按钮随滑块 */
   position: relative; cursor: pointer; border: none; font-family: inherit;
 }
 .match-btn--hi  { --g-fill: var(--g-ok-fill);     color: var(--g-ok-fg); }
@@ -1416,19 +1470,27 @@ body.profile-panel-closing .profile-panel {
 .profile-id-role { margin-top: 4px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .14em; }
 
 /* 卡片②：账簿行 —— title 最左，信息自固定 78px 处统一开始，逐项成行 */
-.profile-row { display: grid; grid-template-columns: 70px 1fr; column-gap: 10px; padding: 8px 0; } /* G22：分隔线单源迁 glass.css */
-.profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
+/* 需求六·item1：条目小 title 由纵向居中改向上对齐（align-items: start = 对齐头部而非垂直居中）；
+   行间距由 --profile-row-gap 承担（去分隔线后多拉空隙，值单源 CONFIG.PROFILE_ROW_GAP）。 */
+.profile-row { display: grid; grid-template-columns: calc(70px * var(--ui-scale, 1)) 1fr; column-gap: 10px; padding: calc(var(--profile-row-gap, 22px) / 2) 0; align-items: start; } /* 需求六·item5：title 列宽随滑块（防大字换行） */
 .profile-row-k { padding-top: 2px; font-size: .73rem; font-weight: 700; color: var(--muted); }
 .profile-row-v { font-size: .84rem; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
 .profile-row-v--muted { color: var(--muted); font-size: .78rem; } /* 占位态：未填写 / 建立会话后展示 / 签约后展示 */
-.profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: 3px 9px; font-size: .72rem; font-weight: 600; color: var(--ink); }
+/* 需求六·item2：资料卡分组大 title —— 占满横向空位分隔不同类型资料（去行分隔线后的段分隔） */
+.profile-group-title {
+  margin: 18px 0 2px;
+  font-size: .8rem; font-weight: 900; letter-spacing: .05em; color: var(--ink);
+}
+/* 需求六·item3：私密资料项两行式灰字小提示（黑字值下方一行灰字，如「签约后展示联系方式」） */
+.profile-row-note { display: block; margin-top: 2px; font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: calc(3px * var(--ui-scale, 1)) calc(9px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 600; color: var(--ink); } /* 需求六·item5：资料卡 tag 随滑块 */
 .profile-rating { display: inline-flex; align-items: center; gap: 6px; }
 .profile-rating b { font-size: .8rem; }
 
 /* R2-3/R2-4 性格关键词 / 非学科项目 tag-pick pill：复用勾选框语义但不显示勾选框，
    默认玻璃底（.glass 引擎），选中态品牌紫填充（--g-fill: var(--accent)，同 .grade-option.selected 口径） */
 .tag-pick {
-  display: inline-block; margin: 0 6px 6px 0; padding: 4px 12px;
+  display: inline-block; margin: 0 6px 6px 0; padding: calc(4px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); /* 需求六·item5：关键词 tag 随滑块 */
   font-size: .74rem; font-weight: 600; color: var(--ink-2);
   cursor: pointer; --g-r: 999px; /* 药丸：覆盖引擎默认圆角，玻璃体按此渲染 */
   transition: color var(--t-fast) var(--ease-out);
@@ -1650,6 +1712,8 @@ body.profile-panel-closing .profile-panel {
   .na-project-name { flex: none; }
   /* 需求四·4b（item7 纵向排布）：账户设置行窄屏改纵向——标签/值在上、操作按钮在下左对齐，杜绝右侧按钮被顶出 */
   .settings-row:not(.settings-row--avatar) { flex-direction: column; align-items: flex-start; gap: 6px; }
+  /* 需求六·item5（v0.25.9 审计修复）：UI 大小滑块窄屏列向布局下 flex-basis 240px 落到主轴变控件盒高度——改定宽全宽（同 v0.25.1 复合组件隔离教训：布局值随容器方向泄漏） */
+  .ui-scale-control { flex: none; width: 100%; }
 }
 
 /* 细滚动条合并组（v0.21.0：browse-list/conv-list/chat-messages/md-preview/custom-select-list 五处同款收一组）。

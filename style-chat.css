@@ -225,9 +225,9 @@
 }
 
 /* ---------- 加号 + 发送同层：固定高度簇，两按钮高度由簇统一决定，杜绝 px 级错位 ---------- */
-.chat-actions { display: flex; align-items: stretch; gap: 8px; flex-shrink: 0; height: 40px; }
-.chat-actions .chat-plus-btn { height: 100%; width: 40px; }
-.chat-actions .chat-send { height: 100%; min-width: 78px; }
+.chat-actions { display: flex; align-items: stretch; gap: 8px; flex-shrink: 0; height: calc(40px * var(--ui-scale, 1)); }
+.chat-actions .chat-plus-btn { height: 100%; width: calc(40px * var(--ui-scale, 1)); }
+.chat-actions .chat-send { height: 100%; min-width: calc(78px * var(--ui-scale, 1)); }
 
 /* ---------- 合同事件系统气泡：居中淡紫块（圆角随气泡惯例），区别于双方消息 ---------- */
 .chat-msg--system { align-self: center; align-items: center; max-width: 88%; }
@@ -288,14 +288,14 @@
 
 textarea.chat-textarea {
   flex: 1; min-width: 0; width: auto;
-  resize: none; min-height: 40px; max-height: 120px;
-  padding: 9px 12px;
+  resize: none; min-height: calc(40px * var(--ui-scale, 1)); max-height: calc(120px * var(--ui-scale, 1)); /* 需求六·item5：聊天输入框随滑块 */
+  padding: calc(9px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1));
   font-size: .88rem; line-height: 1.5;
 }
 
 /* 发送键与加号键同高（40px），底栏 flex-end 下顶沿也齐平 */
 .chat-send {
-  min-width: 78px; flex-shrink: 0; height: 40px;
+  min-width: calc(78px * var(--ui-scale, 1)); flex-shrink: 0; height: calc(40px * var(--ui-scale, 1)); /* 需求六·item5：发送键随滑块 */
   display: inline-flex; align-items: center; justify-content: center;
 }
 /* 发送成功瞬间的弹跳微反馈 */

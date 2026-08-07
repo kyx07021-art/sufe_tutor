@@ -579,6 +579,22 @@
     })();
   </script>
   <script>
+    /* 需求六·item5：UI 大小滑块 —— 首帧前把 localStorage 'sufe_ui_scale'（80~100）换算成 --ui-scale
+       系数（0.8~1.0）注入 <html>，与主题注入同款「无 FOUC」；纯客户端不走服务器。
+       设置页滑块经 app-state.setUiScale 走同一 applyUiScale 单点（本脚本只做首帧应用 + 定义现值读取）。 */
+    (function () {
+      var C = (window.APP_CONSTANTS || {}).CONFIG || {};
+      var MIN = C.UI_SCALE_MIN != null ? C.UI_SCALE_MIN : 80;
+      var MAX = C.UI_SCALE_MAX != null ? C.UI_SCALE_MAX : 100;
+      var DEF = C.UI_SCALE_DEFAULT != null ? C.UI_SCALE_DEFAULT : 100;
+      var KEY = C.UI_SCALE_KEY || 'sufe_ui_scale';
+      var v = DEF;
+      try { var raw = parseInt(localStorage.getItem(KEY), 10); if (!isNaN(raw)) v = raw; } catch (e) {}
+      v = Math.min(MAX, Math.max(MIN, v));
+      document.documentElement.style.setProperty('--ui-scale', (v / 100).toFixed(3));
+    })();
+  </script>
+  <script>
     /* liquid glass 背景舞台（0.19.1：材质注入器已连根拔除——玻璃填充唯一源是 glass.css 的
        --g-fill，本脚本不再覆盖组件外观，只做两件事）：
        1) 把 constants.LG 几何参数换算成 :root CSS 变量（圆角 / 底板磨砂 / 发光圆尺寸）。
@@ -587,9 +603,12 @@
           ——液态玻璃折射感由 glass.css 的 --g-liquid 边缘高光呈现，弃 SVG url() 折射（兼容/性能）。 */
     (function () {
       var LG = (window.APP_CONSTANTS || {}).LG || { radius: {}, bg: {}, orbCrossSec: 60, glow: {}, frosts: {} };
+      var C = (window.APP_CONSTANTS || {}).CONFIG || {};
       var st = document.documentElement.style;
       function set(k, v) { st.setProperty(k, v); }
       function f3(n) { return Math.round(n * 1000) / 1000; }
+      /* 需求六·item1：教师资料卡行间距单源 CONFIG.PROFILE_ROW_GAP → --profile-row-gap（style.css 默认 22px 仅兜底） */
+      set('--profile-row-gap', (C.PROFILE_ROW_GAP || 22) + 'px');
       set('--lg-r-sm', (LG.radius.sm || 9) + 'px');
       set('--lg-r', (LG.radius.md || 12) + 'px');
       set('--lg-r-lg', (LG.radius.lg || 15) + 'px');

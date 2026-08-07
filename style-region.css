@@ -71,7 +71,7 @@
 
 /* pill 容器；pill 本身复用 .grade-option，.gk-pill 放大字号与内边距 */
 .gk-pill-group { display: inline-flex; flex-wrap: wrap; gap: 6px; }
-.gk-pill { padding: 5px 16px; font-size: .78rem; }
+.gk-pill { padding: calc(5px * var(--ui-scale, 1)) calc(16px * var(--ui-scale, 1)); font-size: .78rem; } /* 需求六·item5：赋分 pill 随滑块 */
 
 /* G2：首选/文理 pill 底/影/hover 交还引擎（--g-fill/--g-lift/--g-hover），竖条住 ::after（玻璃体在元素自身） */
 .gk-first-pills .gk-pill,
@@ -90,15 +90,15 @@
 .gk-track-pills .gk-pill.selected::after { background: var(--accent-bright); transform: scaleY(1); }
 
 /* 文理分科 pill 再放大一档，作为段落主操作 */
-.gk-track-pills .gk-pill { padding: 8px 26px; font-size: .84rem; font-weight: 700; }
+.gk-track-pills .gk-pill { padding: calc(8px * var(--ui-scale, 1)) calc(26px * var(--ui-scale, 1)); font-size: .84rem; font-weight: 700; } /* 需求六·item5：文理分科 pill 随滑块 */
 
 /* 教师端勾选网格：与科目行数对齐（再选 4 门 / 选考 6-7 门） */
 
 /* 21 档等第下拉：收窄宽度，保留 .form-select 的聚焦底条擦入 */
 .gk-grade-select {
   width: auto;
-  min-width: 190px;
-  padding: 7px 34px 7px 10px;
+  min-width: calc(190px * var(--ui-scale, 1));
+  padding: calc(7px * var(--ui-scale, 1)) calc(34px * var(--ui-scale, 1)) calc(7px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：等第下拉随滑块 */
   font-size: .8rem;
 }
 

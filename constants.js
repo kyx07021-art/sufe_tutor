@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.8',
+  APP_VERSION: '0.25.9',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -60,6 +60,9 @@ globalThis.APP_CONSTANTS = {
     MODAL_W_SEND: '480px', MODAL_W_DEACTIVATE: '430px', MODAL_W_PROFILE_HINT: '420px',
     TOUR_TARGET_TIMEOUT_MS: 3000,         // 新手引导：目标未挂载 rAF 轮询超时，超时自动跳过该步
     TOUR_GAP_PX: 16,                      // 新手引导：文字气泡与亮区间距（JS 定位用）
+    PROFILE_ROW_GAP: 22,                  // 需求六·item1：教师资料卡条目纵向间距 px（去分隔线后拉大空隙，防相邻条目粘连难读）
+    UI_SCALE_MIN: 80, UI_SCALE_MAX: 100, UI_SCALE_DEFAULT: 100, UI_SCALE_STEP: 1, // 需求六·item5：UI 大小滑块范围/步进（百分比；100=现状）
+    UI_SCALE_KEY: 'sufe_ui_scale',        // 需求六·item5：UI 大小偏好 localStorage 键（参照 setThemePref 的 sufe_theme 模式）
   },
 
   // ============================================================
@@ -216,7 +219,6 @@ globalThis.APP_CONSTANTS = {
       '--g-panel-lift-m': 'rgba(17,17,20,.22)',    // 右栏面板外浮影（移动端）
       // ---- 线条 ----
       '--g-line-soft': 'rgba(255,255,255,.22)',    // 浮窗头栏底/面板分隔
-      '--g-line-row': 'rgba(255,255,255,.28)',     // 面板信息行分隔
       '--g-line-pane': 'rgba(255,255,255,.5)',     // 侧栏/顶栏边缘高光
       '--g-line-dark': 'rgba(30,26,64,.16)',       // 表单组分隔（暗色线）
       '--g-option-line': 'rgba(30,26,64,.07)',     // 下拉选项分隔
@@ -228,10 +230,7 @@ globalThis.APP_CONSTANTS = {
       '--g-ring-halo': 'rgba(255,255,255,.95)',    // 焦点白色外晕
       '--g-ripple': 'rgba(255,255,255,.6)',        // 按钮涟漪
       // ---- 输入控件 ----
-      '--g-inset-shadow': 'rgba(30,26,64,.06)',    // 输入内阴影
-      '--g-inset-edge': 'rgba(255,255,255,.4)',    // 输入上缘亮边
-      '--g-inset-edge-soft': 'rgba(255,255,255,.18)', // 输入白描边
-      '--g-input-focus-edge': 'rgba(255,255,255,.3)',// 输入聚焦上缘
+      // 需求六·item4：--g-inset-* 输入淡化 token 连根删（表单控件改用标准 --g-liquid-sm 边缘）
       // ---- 语义填充（标签/警示/实心件） ----
       '--g-ok-fill': 'rgba(24,122,75,.22)', '--g-ok-fg': '#187a4b',
       '--g-ok-solid': 'linear-gradient(160deg, rgba(24,122,75,.9), rgba(24,122,75,.72))', // 已签约实心 tag
@@ -314,7 +313,6 @@ globalThis.APP_CONSTANTS = {
       '--g-panel-lift-m': 'rgba(0,0,0,.5)',
       // ---- 线条（反转为浅线） ----
       '--g-line-soft': 'rgba(255,255,255,.12)',
-      '--g-line-row': 'rgba(255,255,255,.14)',
       '--g-line-pane': 'rgba(255,255,255,.12)',
       '--g-line-dark': 'rgba(255,255,255,.10)',
       '--g-option-line': 'rgba(255,255,255,.08)',
@@ -326,10 +324,7 @@ globalThis.APP_CONSTANTS = {
       '--g-ring-halo': 'rgba(255,255,255,.3)',
       '--g-ripple': 'rgba(255,255,255,.35)',
       // ---- 输入控件 ----
-      '--g-inset-shadow': 'rgba(0,0,0,.4)',
-      '--g-inset-edge': 'rgba(255,255,255,.22)',
-      '--g-inset-edge-soft': 'rgba(255,255,255,.1)',
-      '--g-input-focus-edge': 'rgba(255,255,255,.14)',
+      // 需求六·item4：--g-inset-* 输入淡化 token 连根删（表单控件改用标准 --g-liquid-sm 边缘）
       // ---- 语义填充（提亮一档，深底上保持可读） ----
       '--g-ok-fill': 'rgba(66,160,102,.28)', '--g-ok-fg': '#58C48A',
       '--g-ok-solid': 'linear-gradient(160deg, rgba(56,152,94,.95), rgba(56,152,94,.75))',
@@ -707,6 +702,11 @@ globalThis.APP_CONSTANTS = {
     PROFILE_FIELD_EMPTY: '未填写',
     PROFILE_FIELD_AFTER_MATCH: '建立会话后展示',
     PROFILE_FIELD_AFTER_SIGN: '签约后展示',
+    // 需求六·item2：资料卡分组大 title（去分隔线后占满横向空位分隔不同类型资料；单源，改文案只动这里）
+    PROFILE_SECTION_BASIC: '基本资料',
+    PROFILE_SECTION_ACADEMIC: '学科类资料',
+    PROFILE_SECTION_NONACADEMIC: '非学科类资料',
+    PROFILE_SECTION_PRIVATE: '私密资料',
     CREDENTIAL_UPLOAD: '上传',
     CREDENTIAL_UPLOADED_VIEW: '已上传，点击查看',
     CREDENTIAL_VIEW: '点击查看',
@@ -975,6 +975,8 @@ globalThis.APP_CONSTANTS = {
     SETTINGS_APPEARANCE_TITLE: '外观设置',
     SETTINGS_THEME_LABEL: '外观主题',
     SETTINGS_THEME_HINT: '选择界面外观风格，「跟随系统」会自动适配系统的黑夜模式',
+    SETTINGS_UI_SCALE_LABEL: 'UI大小',
+    SETTINGS_UI_SCALE_HINT: '调整界面文字、按钮与输入组件的整体大小（80%~100%，默认 100%）',
     THEME_LIGHT: '亮色',
     THEME_DARK: '暗色',
     THEME_SYSTEM: '跟随系统',

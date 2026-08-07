@@ -45,6 +45,9 @@ function enterAccountSettings() {
   const themePref = getThemePref();
   const themeOpts = [['light', UI.THEME_LIGHT], ['dark', UI.THEME_DARK], ['system', UI.THEME_SYSTEM]].map(([k, label]) =>
     `<button type="button" class="theme-opt glass glass--pressable${themePref === k ? ' theme-opt--on' : ''}" data-pref="${k}" onclick="setThemePref('${k}')">${label}</button>`).join('');
+  // 需求六·item5：UI 大小滑块现值/轨道填充百分比（进页按 localStorage 现值应用；滑块一边滑一边变）
+  const uiScaleVal = getUiScale();
+  const uiScaleFill = uiScaleFillPct(uiScaleVal);
   // 需求四·4b：两区对调——账户信息在上、外观在下（原外观在前账户在后；头像行相对账户标题位置不变）
   document.getElementById('account-settings-content').innerHTML = `
     <div class="settings-section-title">${UI.SETTINGS_ACCOUNT_TITLE}</div>
@@ -71,6 +74,16 @@ function enterAccountSettings() {
         </div>
         <div class="theme-opts">${themeOpts}</div>
       </div>
+      <div class="settings-row ui-scale-row">
+        <div>
+          <div class="settings-label">${UI.SETTINGS_UI_SCALE_LABEL}</div>
+          <div class="settings-hint">${UI.SETTINGS_UI_SCALE_HINT}</div>
+        </div>
+        <div class="ui-scale-control">
+          <input type="range" class="ui-scale-slider" min="${CONFIG.UI_SCALE_MIN}" max="${CONFIG.UI_SCALE_MAX}" step="${CONFIG.UI_SCALE_STEP}" value="${uiScaleVal}" style="--ui-fill:${uiScaleFill}%;" oninput="setUiScaleFromSlider(this)" aria-label="${UI.SETTINGS_UI_SCALE_LABEL}">
+          <span class="ui-scale-val" id="ui-scale-val">${uiScaleVal}%</span>
+        </div>
+      </div>
     </div>
     <div class="settings-devices">
       <div class="settings-label">${UI.SETTINGS_DEVICES}</div>
@@ -87,6 +100,15 @@ function setThemePref(pref) {
   localStorage.setItem('sufe_theme', pref);
   if (window.__applyTheme) window.__applyTheme();
   document.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('theme-opt--on', b.dataset.pref === pref));
+}
+
+// 需求六·item5：UI 大小滑块拖动——setUiScale 写 localStorage + 重算 --ui-scale（页面实时变），
+// 同步轨道填充渐变（--ui-fill）与数值标签；纯客户端不走服务器。
+function setUiScaleFromSlider(el) {
+  const v = setUiScale(+el.value);
+  const valEl = document.getElementById('ui-scale-val');
+  if (valEl) valEl.textContent = v + '%';
+  el.style.setProperty('--ui-fill', uiScaleFillPct(v) + '%');
 }
 
 // 登录设备管理：拉本人会话列表逐端展示（token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。
@@ -315,14 +337,21 @@ function initProfileForm() {
   document.getElementById('profile-nonacademic').innerHTML = NONACADEMIC_PROJECTS.map(proj =>
     `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(proj.id)}" onclick="toggleNonacademicPick(this)">${escHtml(proj.name)}</button>`).join('');
 
-  // 联系方式（微信/邮箱）标签注入「签约后向对方展示」小注（index.html 静态表单，文案统一走常量）
-  ['#profile-wechat', '#profile-email'].forEach(sel => {
+  // 需求六·item3：私密资料项 title 提示方式统一为「两行式」——黑字 label + 灰字小注 form-label-note。
+  // 联系方式 →「签约后展示联系方式」；真实姓名/学信网截图 →「建立会话后展示」（与资料卡私密项同口径）。
+  const profileNoteLabels = [
+    ['#profile-wechat', UI.CONTACT_AFTER_SIGN_NOTE],
+    ['#profile-email', UI.CONTACT_AFTER_SIGN_NOTE],
+    ['#profile-real-name', UI.PROFILE_FIELD_AFTER_MATCH],
+    ['#profile-credential-file', UI.PROFILE_FIELD_AFTER_MATCH],
+  ];
+  for (const [sel, text] of profileNoteLabels) {
     const inp = document.querySelector(sel);
     const lab = inp && inp.closest('.form-group') && inp.closest('.form-group').querySelector('.form-label');
     if (lab && !lab.querySelector('.form-label-note')) {
-      lab.insertAdjacentHTML('beforeend', `<span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>`);
+      lab.insertAdjacentHTML('beforeend', `<span class="form-label-note">${escHtml(text)}</span>`);
     }
-  });
+  }
   initCustomSelects(document.querySelector('.profile-form')); // 省份/年级/性别/授课方式下拉统一换自定义组件
   _profileCredential = null; renderProfileCredentialCtl(); // 学信网截图控件复位（loadProfile 按库内值重绘）
   loadProfile();

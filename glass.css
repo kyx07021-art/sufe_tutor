@@ -197,7 +197,6 @@ body { background: transparent; }
 .chat-bubble--system { --g-fill: var(--g-bubble-system); --g-fg: var(--accent-deep); }
 .profile-card { --g-fill: var(--g-card-strong); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .5→.32 */
 .profile-card--id { --g-fill: var(--g-card-id); } /* v0.19.35 同上 .62→.44 */
-.profile-card > .profile-row:first-child { border-top: none; padding-top: 2px; }
 /* 按钮族 = 液态玻璃（v0.19.1）：透明染色透镜 + 微毛 + 弯月环。
    基类统一：微毛 blur(1px)（研究推荐）、平透染色填充、弯月环边缘、hover 白染叠层。
    ——白色光泽渐变已删：旧"高光按钮"的顶部白渐变与弯月上缘白对白，正是它盖住了液态边缘
@@ -263,15 +262,17 @@ body { background: transparent; }
 .chat-textarea, .posts-search, .post-body-input { /* G29：补三处引擎覆盖缺口（聊天输入/广场搜索/正文） */
   background-color: var(--g-fill-weak); border: none; border-radius: var(--lg-r-sm);
   /* G18/G19：background shorthand 会重置 background-image，吃掉 style.css 的聚焦下划线/下拉 v 箭头 → 拆 longhand background-color */
-  /* 液体边缘内高光（与 --g-liquid 视觉同源） */
-  box-shadow: var(--glass-lift-sm), inset 0 1px 3px var(--g-inset-shadow), inset 0 0 0 1px var(--g-inset-edge-soft), inset 0 1px 0 var(--g-inset-edge);
+  /* 需求六·item4：删玻璃感淡化（原 --g-inset-edge-soft 白描边 .18 比标准 --g-liquid 发丝边 .40 淡，影响可见性），
+     直接用标准玻璃小件边缘 --g-liquid-sm（同 .chat-bubble）。若实测可读性明显变差，回滚为原 inset 配方即可。 */
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm);
 }
-.form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: 12px; padding-right: 12px; }
-.form-input:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px var(--g-focus-soft), inset 0 1px 0 var(--g-input-focus-edge); }
+.form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(12px * var(--ui-scale, 1)); } /* 需求六·item5：输入控件水平内边距随滑块 */
+.form-input:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
 
-/* 信息栏内部行线（卡片已玻璃化，行线改透白） */
+/* 信息栏内部行线（卡片已玻璃化，行线改透白）。
+   G22：分隔线单源迁此。需求六·item1：.profile-row 顶部分隔线连根删（教师资料卡去所有分隔线），
+   行间距改由 style.css .profile-row 的 --profile-row-gap 承担——本规则只剩面板头栏线，名称保留。 */
 .profile-panel-head { border-bottom: 1px solid var(--g-line-soft); } /* G22：分隔线单源迁此（含宽/样式，style.css 删直写） */
-.profile-row { border-top: 1px solid var(--g-line-row); } /* G22：同上 */
 .profile-empty { color: var(--ink-3); }
 
 /* ============================================================
