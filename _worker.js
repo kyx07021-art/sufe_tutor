@@ -14,6 +14,7 @@ import { MSG } from './server/constants.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './server/security.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { readCacheGet, readCachePut, readCacheClearAll } from './server/cache.js';
+import { tokenDigest } from './server/crypto.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
@@ -228,15 +229,18 @@ export default {
     }
 
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
-    // 公开读缓存（v0.22.5）：仅缓存「与令牌完全无关」的公开读——目前只有无 scope 的需求广场
-    //（handleGetDemands 无 scope 路径不碰 authUser）。/api/teachers 的 matched、/api/posts 的
-    // liked 均按令牌随用户变化，共享缓存会把 A 的标记泄露给 B（网安评审），一律不缓存。
-    // 命中即返（~1ms 内存），写操作成功统一 readCacheClearAll 失效
+    // 读缓存（v0.22.8）：列表 GET 短 TTL 内存缓存，键 = 身份:路径:查询（server/cache.js）。
+    // 身份 = 令牌 SHA-256 摘要分桶——per-token 数据（教师 matched、帖子 liked、需求 intent 状态）
+    // 只在本身份桶内命中，跨用户零泄露（替代 v0.22.6 共享缓存泄风险的「一律不缓存」，
+    // 安全前提下重拿回速度）；访客归 anon 桶。写操作成功统一 readCacheClearAll 失效。
     const isCacheableRead = request.method === 'GET' && (
-      p === '/api/student/demands' && !url.searchParams.get('scope')
+      p === '/api/student/demands' || p === '/api/teachers' || p === '/api/posts'
     );
-    const readKey = p + url.search;
+    let readKey = null;
     if (isCacheableRead) {
+      const authToken = request.headers.get('X-Auth-Token') || '';
+      const identity = authToken ? await tokenDigest(authToken) : 'anon';
+      readKey = `${identity}:${p}${url.search}`;
       const hit = readCacheGet(readKey);
       if (hit !== null) return applySecurityHeaders(json(hit), p);
     }
@@ -258,5 +262,14 @@ export default {
       await logRequest(db, { method: request.method, path: p, body, status: 500, req: request, durationMs: Date.now() - t0 });
       return applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message
     }
+  },
+  // D1 保活（v0.22.8，性能杠杆）：wrangler.toml [triggers] 每 5 分钟触发本 handler，
+  // 对业务/留档/台账三库轻查询 SELECT 1，避免 D1 空闲冷启动（首击 4-6s 唤醒）。
+  // 冷启动伤害最重的是 per-token 列表页（无读缓存覆盖），保活后恢复百毫秒级。
+  async scheduled(event, env, ctx) {
+    const ping = db => (db ? db.prepare('SELECT 1').run().catch(() => {}) : Promise.resolve());
+    try {
+      await Promise.all([ping(env.DB), ping(env.LOG_DB), ping(env.LEDGER_DB)]);
+    } catch { /* 保活失败静默，不影响主流程 */ }
   },
 };

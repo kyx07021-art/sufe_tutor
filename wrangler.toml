@@ -1,0 +1,6 @@
+name = "sufe-tutor"
+
+# D1 保活 cron（v0.22.8）：每 5 分钟触发 _worker.js 的 scheduled handler 对三库 SELECT 1，
+# 避免 D1 空闲冷启动（首击 4-6s 唤醒）——冷启动伤害最重的正是 per-token 列表页
+[triggers]
+crons = ["*/5 * * * *"]

@@ -243,13 +243,18 @@ async function refreshBadges() {
         if (state.page !== 'admin-feedback') setBadge('admin-feedback', openFb);
       } catch { /* 静默，下一轮自愈 */ }
     }
-    // 我的合同红点：待我处理的合同数；正停留在合同页则就地刷新列表（对方改动 ≤30s 可见）
+    // 我的合同红点：待我处理的合同数；正停留在合同页则就地刷新列表（对方改动 ≤30s 可见）。
+    // v0.22.8：列表签名未变不整列重渲——原实现每 30s 轮询即使数据没变也 innerHTML 重写整列 + initReveals
     if (state.user.role === 'student' || state.user.role === 'teacher') {
       const ctData = await api('/api/contracts/my');
       const contracts = ctData.contracts || [];
       if (state.page === 'my-contracts') {
-        state.myContracts = contracts;
-        if (typeof renderMyContractsList === 'function') renderMyContractsList();
+        const sig = contracts.map(c => `${c.id}:${c.status}`).join(',');
+        if (sig !== _lastContractSig) {
+          _lastContractSig = sig;
+          state.myContracts = contracts;
+          if (typeof renderMyContractsList === 'function') renderMyContractsList();
+        }
       } else {
         setBadge('my-contracts', contracts.filter(c => typeof contractActionable === 'function' && contractActionable(c)).length);
       }
@@ -261,6 +266,7 @@ async function refreshBadges() {
 // 通知信息页（全角色）：进入即标记已读并消红点；屏蔽筛选只动渲染层
 // ============================================================
 let _notifList = [];
+let _lastContractSig = ''; // 合同列表渲染签名（v0.22.8：30s 轮询数据未变不整列重渲）
 function isBroadcastNotif(text) { return String(text || '').startsWith(UI.NOTIFY_BROADCAST_PREFIX); }
 function filterNotifRows(rows) {
   const block = document.getElementById('notif-block-mode')?.value === 'block-broadcast';
@@ -317,8 +323,8 @@ function renderNotifContent(text) {
   return escHtml(t);
 }
 
-// 登出复位：通知列表缓存清空（防上一账户的通知残留）
-registerLogoutReset(() => { _notifList = []; });
+// 登出复位：通知列表缓存 + 合同渲染签名清空（防上一账户残留）
+registerLogoutReset(() => { _notifList = []; _lastContractSig = ''; });
 
 // ============================================================
 // 初始化（DOMContentLoaded）：自动登录恢复 → 落地 → 新手引导。
@@ -336,8 +342,21 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     } catch (err) {
       // 令牌真正失效由 api() 的 401 处理统一清理；网络抖动不删会话（0.20.1 决策）。
-      // 网络错误捕获环节 3/4：断线时弹明确提示（不删会话，恢复后下次自动登录）
-      if (err && err.code === 'NETWORK_ERROR' && typeof showToast === 'function') showToast(UI.NETWORK_ERROR);
+      // v0.22.8：SW 版本迁移窗口的首屏请求可能瞬断——NETWORK_ERROR 重试一次再放弃，
+      // 避免部署升级后自动登录被打掉（曾表现为「版本更新后要重新登录」）
+      if (err && err.code === 'NETWORK_ERROR') {
+        await new Promise(r => setTimeout(r, 1000));
+        try {
+          const data = await api('/api/auth/me');
+          state.user = data.user;
+          saveSession(saved.source === 'local');
+          enterClient(storedPage());
+          return;
+        } catch (e2) {
+          // 网络错误捕获环节 3/4：重试仍断线才弹提示（不删会话，恢复后下次自动登录）
+          if (e2 && e2.code === 'NETWORK_ERROR' && typeof showToast === 'function') showToast(UI.NETWORK_ERROR);
+        }
+      }
     }
   }
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件

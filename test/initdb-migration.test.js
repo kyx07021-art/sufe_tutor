@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import {
   initDb, dbUpsertTeacherProfile, dbGetTeacherProfile, dbGetContractById,
-  dbCreateMessage, dbGetMessageAttachment,
+  dbCreateMessage, dbGetMessageAttachment, dbGetTeachers,
 } from '../server/db.js';
 import { dbRun } from '../server/util.js';
 import { issueAuthToken, getSessionByToken } from '../server/session.js';
@@ -374,4 +374,38 @@ test('登录限流：第 9 次超限 429（authRateBatch D1 计数）', async ()
   assert.equal(last.status, 401); // 前 8 次计数≤8 仍放行
   const ninth = await handleLogin(db, { username: 'admin_sufe', password: 'wrong' }, req);
   assert.equal(ninth.status, 429); // 第 9 次计数 9>8 → 超限
+});
+
+test('dbGetTeachers：广场列表一律裁剪私密字段，管理端全量可见（v0.22.8 数据最小化）', async () => {
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('stu1','h','s','student'),('t1','h','s','teacher')").run();
+  const stu = raw.prepare("SELECT id FROM users WHERE username='stu1'").get().id;
+  const tea = raw.prepare("SELECT id FROM users WHERE username='t1'").get().id;
+  await dbUpsertTeacherProfile(db, tea, { province: 'shanghai', grade: '', gender: '', subjects: ['数学'], gaokao_scores: [], price: 100, wechat: 'wx_test', email: 'e@t.com', intro: '', address: '', school: '', real_name: '实名甲', credential_image: 'data:image/png;base64,CRED123' });
+  // 确认确实加密落库（裁剪后才有效验意义）
+  const stored = raw.prepare('SELECT wechat FROM teacher_profiles WHERE user_id=?').get(tea);
+  assert.ok(String(stored.wechat).startsWith('enc:v1:'), 'wechat 应加密落库');
+
+  // 访客（无 viewerId）：私密字段全部裁剪为空
+  const guestList = await dbGetTeachers(db, {});
+  assert.equal(guestList[0].wechat, '', '访客视图 wechat 应裁剪');
+  assert.equal(guestList[0].email, '', '访客视图 email 应裁剪');
+  assert.equal(guestList[0].real_name, '', '访客视图 real_name 应裁剪');
+  assert.equal(guestList[0].credential_image, '', '访客视图 credential_image 应裁剪');
+
+  // 已双向匹配的登录学生（存在会话）：列表仍裁剪（私密字段只经 /api/teacher/profile 定点取回）
+  raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(stu, tea);
+  const matchedList = await dbGetTeachers(db, { viewerId: stu });
+  assert.equal(matchedList[0].wechat, '', '匹配视图列表 wechat 仍裁剪');
+  assert.equal(matchedList[0].credential_image, '', '匹配视图列表 credential_image 仍裁剪');
+  assert.equal(matchedList[0].matched, true, '匹配标记照常下发（前端门控显示用）');
+
+  // 管理端：wechat/email 解密可见（管理端 SQL 本就不 SELECT real_name/credential_image，
+  // 管理视图该两字段恒空——既有 admin 查询形态，非本裁剪引入；管理员核验凭证走独立入口）
+  const adminList = await dbGetTeachers(db, { adminView: true });
+  const row = adminList.find(t => t.user_id === tea);
+  assert.equal(row.wechat, 'wx_test', '管理端应解密看到 wechat');
+  assert.equal(row.email, 'e@t.com', '管理端应解密看到 email');
 });

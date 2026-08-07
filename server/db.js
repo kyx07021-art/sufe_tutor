@@ -443,6 +443,22 @@ export async function initDb(db, env = {}) {
   // 设备管理安全（网安报告 F-04）：auth_sessions.session_id 已入 DDL 与重建迁移，设备接口只暴露
   // session_id、token 永不进响应体（旧表经上方 DROP 重建后自然带列，无需回填迁移）
 
+  // 热点查询索引（v0.22.8，查询优化杠杆）：幂等 CREATE INDEX IF NOT EXISTS。
+  // 必须置于全部换表迁移 + ensureColumns 之后——迁移重建表不继承旧索引、后补列（demand_intents.status、
+  // users.deactivated）在此前尚不存在，早建会 no such column（实证踩坑）。依据审计：
+  // 教师列表 matched EXISTS 走 teacher 前置、需求聚合子查询走 demand 前置、分页 ORDER BY 走复合等。
+  await db.batch([
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_conv_teacher ON conversations(teacher_user_id, student_user_id)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_demands_created ON student_demands(created_at, id)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_demands_user ON student_demands(user_id)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_intents_demand_status ON demand_intents(demand_id, status)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_contracts_conv ON contracts(conversation_id)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_contracts_demand ON contracts(demand_id)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_tp_updated ON teacher_profiles(updated_at)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, banned, deactivated)'),
+    db.prepare('CREATE INDEX IF NOT EXISTS idx_pushes_teacher ON demand_pushes(teacher_user_id, status)'),
+  ]);
+
   // 通知表（独立模块 notify.js 提供建表与推送咽喉）
   await initNotifyTable(db);
   // 危险操作二次认证 capToken 表（独立模块 danger-ops.js 提供签发/校验；D1 持久化跨实例一致，网安审计 N-02）
@@ -633,10 +649,14 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
 // 网安报告 F-06：wechat/email/real_name 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
 // 网安 N-05：credential_image 同款加密列，出门解密
-async function mapTeacherProfileRow(p) {
-  const [wechat, email, realName, credentialImage] = await Promise.all([
-    decryptField(p.wechat), decryptField(p.email), decryptField(p.real_name), decryptField(p.credential_image),
-  ]);
+// v0.22.8 数据最小化：private:false 时私密字段不解密、置空——广场列表非匹配行（viewerId 缺省或未匹配）
+// 一律裁剪，服务端硬把关（前端仅按 matched/signed 门控显示，但数据此前已随列表发给所有人）
+async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) {
+  const [wechat, email, realName, credentialImage] = includePrivate
+    ? await Promise.all([
+        decryptField(p.wechat), decryptField(p.email), decryptField(p.real_name), decryptField(p.credential_image),
+      ])
+    : ['', '', '', ''];
   return {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
@@ -671,7 +691,11 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id
     WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0
     ORDER BY tp.updated_at DESC`, params);
-  return await Promise.all(profiles.map(mapTeacherProfileRow)); // F-06：mapper 解密为 async
+  // v0.22.8：广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
+  // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经
+  // /api/teacher/profile 定点取回（该端点按 本人/双向匹配 门控，未匹配 403）。
+  // 收益：列表免逐行 AES 解密 + payload 瘦身（含 base64 学信网截图）+ 数据最小化。
+  return await Promise.all(profiles.map(p => mapTeacherProfileRow(p, { private: false })));
 }
 
 async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {

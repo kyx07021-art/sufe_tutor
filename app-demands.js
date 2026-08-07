@@ -526,20 +526,21 @@ async function loadBrowseDemands() {
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
     const isGuest = !state.user; // 访客教师可浏览公开需求列表；推送卡片与意向操作点了再走登录通路
-    const [dData, pData] = await Promise.all([
+    // v0.22.8：教师档案并入同一批并行取数——原逻辑在需求+推送之后串行等 /api/teachers，
+    // 教师首访大厅被第三个 RTT 卡住渲染（审计热点①）
+    const needTeachers = !isGuest && state.user.role === 'teacher' && !state.allTeachers.length;
+    const [dData, pData, tData] = await Promise.all([
       api(isGuest ? '/api/student/demands' : '/api/student/demands?scope=for-teacher'),
       isGuest ? Promise.resolve({ pushes: [] }) : api('/api/demand-pushes'),
+      needTeachers ? api('/api/teachers').catch(() => null) : Promise.resolve(null), // 教师档案失败不阻塞需求列表
     ]);
+    if (needTeachers && tData && Array.isArray(tData.teachers)) state.allTeachers = tData.teachers;
     const pushes = pData.pushes || [];
     const demands = dData.demands || [];
     _browseDemands = [...pushes, ...demands]; // 匹配度明细取数源（push 置顶卡与普通卡同库）
     if (state.page === 'browse-demands') setBadge('browse-demands', 0); // 进页即视为已读；await 期间若已切走，不得掐灭轮询刚点亮的新推送红点
     if (seq !== loadSeqs['browse-demands']) return; // 过期响应不渲染
     if (!pushes.length && !demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
-    // 教师档案（匹配度用）：确保 allTeachers 已加载——直接进「浏览需求」页可能没拉过教师列表
-    if (!isGuest && state.user.role === 'teacher' && !state.allTeachers.length) {
-      try { state.allTeachers = (await api('/api/teachers')).teachers || []; } catch { /* 无档案或网络抖动：无匹配徽章 */ }
-    }
     // 当前教师档案（匹配度徽章用）：登录教师 + 已填档案时才有
     const myTeacher = (!isGuest && state.user.role === 'teacher') ? state.allTeachers.find(t => t.user_id === state.user.id) : null;
     const pushDemandIds = new Set(pushes.map(p => p.id));

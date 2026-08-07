@@ -75,10 +75,11 @@ function initReveals(root) {
   const items = [...root.querySelectorAll('.list-card, .notif-item, .post-card')];
   items.forEach((el, i) => {
     el.classList.add('reveal');
-    void el.offsetHeight; // 强制布局：给 ::before 的 backdrop-filter 合成层暖机（v0.19.17）
     el.style.setProperty('--reveal-delay',
       `${CONFIG.REVEAL_DELAY_BASE + Math.min(i * CONFIG.REVEAL_DELAY_STEP, CONFIG.REVEAL_DELAY_MAX)}ms`);
   });
+  void root.offsetHeight; // v0.22.8：一次布局读统一提交全部卡片的隐藏态（原逐卡 offsetHeight 是
+  // 列表渲染期强制重排热点——50 卡 = 50 次同步布局；CSS 变量写入本就零布局，读完一次即够）
   if (revealObserver) items.forEach(el => { revealObserver.observe(el); revealWatched.add(el); });
   else items.forEach(el => el.classList.add('revealed'));
 }

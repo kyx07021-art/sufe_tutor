@@ -24,7 +24,7 @@
  */
 const CACHE_PREFIX = 'sufe-v';
 const API_CACHE = 'sufe-api';
-const API_TTL_MS = 30000; // 公开读 API 缓存 TTL，与 server/cache.js CACHE_TTL_MS 对齐
+const API_TTL_MS = 30000; // 公开读 API 缓存 TTL（浏览器侧独立口径；服务端 per-user 缓存 TTL 更短、写后全清，两者不须对齐）
 
 let VERSION = 'unknown';
 async function currentVersion() {
