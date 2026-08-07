@@ -2,7 +2,7 @@
  * 资料共享广场（教师侧边栏「资料共享」页，模块2）
  *
  * 经典脚本：全部顶层全局函数 + 内联 onclick，与 app.js 同一约定。
- * 仅依赖 app.js 提供的基础设施：state / api / escHtml / showToast / closeModal；
+ * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / closeModal / loaderHtml / loadInto / initCustomSelects；
  * 删除确认弹窗自写（postConfirmDelete），不调用 app.js 的 confirmDanger，避免跨模块耦合。
  * mdRender 为自研轻量 markdown-lite：先 escHtml 全转义再逐行识别语法，不引任何外部库。
  * section 恒 'plaza'，当前不做分区 UI（接口已预留 section 参数）。
@@ -373,5 +373,70 @@ async function submitBroadcast() {
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
     btn.disabled = false;
+  }
+}
+
+// ============================================================
+// 用户反馈（关于平台页 Bug/建议提交）：复用发帖组件的 Markdown 编辑器（同一套 ID，弹窗互斥不冲突）
+// —— 与发帖/广播同为「内容提交」领域，并入本模块（原在 app.js，功能相近合并）
+// ============================================================
+let feedbackKind = 'bug';
+function openFeedbackModal(kind) {
+  if (!ensureAuth()) return;
+  feedbackKind = kind === 'suggestion' ? 'suggestion' : 'bug';
+  openModal({
+    title: `${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}`,
+    titleId: 'feedback-modal-title',
+    closable: false,
+    body: `<div id="post-alert"></div>
+        <div class="form-group">
+          <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
+          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.FEEDBACK_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
+          <span class="title-count" id="post-title-count">0/60</span>
+        </div>
+        <div class="feedback-kind-row">
+          <button type="button" class="feedback-kind-btn glass${feedbackKind === 'bug' ? ' active' : ''}" data-kind="bug" onclick="switchFeedbackKind('bug')">${UI.BTN_FEEDBACK_BUG}</button>
+          <button type="button" class="feedback-kind-btn glass${feedbackKind === 'suggestion' ? ' active' : ''}" data-kind="suggestion" onclick="switchFeedbackKind('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.POST_LABEL_BODY}</label>
+          <div class="md-toolbar">
+            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
+            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+            <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
+          </div>
+          <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${UI.FEEDBACK_PLACEHOLDER}" oninput="updatePostPreview()"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">${UI.POST_PREVIEW_LABEL}</label>
+          <div id="post-preview" class="md-preview glass glass--solid"></div>
+        </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>`,
+  });
+  updatePostPreview();
+}
+
+function switchFeedbackKind(kind) {
+  feedbackKind = kind;
+  document.querySelectorAll('.feedback-kind-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+  const t = document.getElementById('feedback-modal-title');
+  if (t) t.textContent = kind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST;
+}
+
+async function submitFeedback() {
+  const title = (document.getElementById('post-title').value || '').trim();
+  const content = (document.getElementById('post-body').value || '').trim();
+  const alertEl = document.getElementById('post-alert');
+  if (!title) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.POST_TITLE_REQUIRED}</div>`; return; }
+  if (!content) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.FEEDBACK_EMPTY}</div>`; return; }
+  try {
+    await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
+    closeModal();
+    showToast(UI.FEEDBACK_SENT_TOAST);
+  } catch (err) {
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
   }
 }

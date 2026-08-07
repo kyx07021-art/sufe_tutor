@@ -1,74 +1,34 @@
 /**
- * 模块5：全流程日志留档系统
+ * 留档咽喉（目标分层：日志留档）—— 全流程审计留档 单点
  *
- * 设计原则（后期加密改造只碰这一个文件 = 咽喉节点）：
- * - 单一入口：一切业务事件经 logEvent() 落库；路由层另由 logRequest() 对所有 API 往来做通用兜底留档
- * - 独立留档库：优先写 env.LOG_DB（仪表板 Settings → Bindings 绑定 LOG_DB 即启用独立库），未绑定回落业务库
- * - 留档失败绝不影响业务（内部 try/catch 吞掉）
- * - schema_v / encrypted 两列为后期批量加密预留：
- *     encrypted=0 明文 JSON；加密后写密文并置 1，schema_v 随加密方案版本递增
- * - 敏感字段（口令/盐/验证码）写库前剔除，永不留明文
+ * 设计原则（后期加密改造只碰咽喉 = 本文件 + server/crypto.js）：
+ *   - 单一入口：一切业务事件经 logEvent() 落库；路由层另由 logRequest() 对所有 API 往来兜底留档
+ *   - 独立留档库：优先写 env.LOG_DB（仪表板绑定即启用），未绑定回落业务库
+ *   - 留档失败绝不影响业务（内部 try/catch 吞掉）
+ *   - 加密：detail 经 crypto.js encryptDetail（AES-GCM-256，密钥 LOG_ENCRYPT_KEY 单源自 secrets 网关）；
+ *     敏感键（口令/盐/验证码/联系方式）写库前 sanitize 剔除，永不留明文
+ *   - schema_v / encrypted 两列为加密方案版本预留（明文=1，加密=2）
+ *
+ * 依赖方向：util（db 薄封装 + ensureColumns）/ security（authUser）/ crypto（detail 加密）。
+ * 不依赖 db.js（避免循环）。
  */
-import { dbAll, dbGet, dbRun, authUser } from './core.js';
-import { getSecret } from './secrets.js';
-import { aesKeyFromB64, encryptAes, decryptAes } from './fieldcrypto.js'; // AES 原语收敛处（v0.19.40）
+import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
+import { authUser } from './security.js';
+import { bindCryptoEnv, encryptDetail, decryptDetail } from './crypto.js';
+import { LIMITS } from './constants.js';
+
+const LOG_SCHEMA_V = 2; // detail 加密方案版本（明文=1，加密=2；schema_v 列随加密版本递增）
 
 // env.LOG_DB 存在时指向独立留档库；workerd 单实例内 env 稳定，模块级绑定安全
 let LOG_DB_OVERRIDE = null;
-let LOG_ENV = null;
 
 export function bindLogDb(env) {
   LOG_DB_OVERRIDE = env.LOG_DB || null;
-  LOG_ENV = env;
-  KEY_PROMISE = null; // env 变更 → 密钥重派生
+  bindCryptoEnv(env); // 加密密钥随 env 刷新（crypto.js 单点派生缓存；测试/初始化同走此路径）
 }
 
 function getLogDb(fallbackDb) {
   return LOG_DB_OVERRIDE || fallbackDb;
-}
-
-// ============================================================
-// detail 加密（AES-GCM-256，每行随机 12B IV；密文格式 enc:v1:<iv_b64>:<ct_b64>，
-// 原语实现收在 fieldcrypto.js，此处只留 LOG_ENCRYPT_KEY 派生与 encrypted 语义）
-// 密钥经 secrets 网关（Worker Secrets 优先，回落 secrets.js）；取不到密钥时明文落库
-// （encrypted=0），内测兼容老库与未配置环境。schema_v：明文=1，加密=2
-// ============================================================
-const LOG_SCHEMA_V = 2;
-let KEY_PROMISE = null;
-
-function logKey() {
-  if (!KEY_PROMISE) {
-    KEY_PROMISE = (async () => {
-      const raw = String(getSecret(LOG_ENV, 'LOG_ENCRYPT_KEY') || '');
-      if (!raw) return null;
-      return aesKeyFromB64(raw);
-    })();
-  }
-  return KEY_PROMISE;
-}
-
-// 导出供 node --test 回归（test/log-crypto.test.js），语义不变
-export async function encryptDetail(json) {
-  if (json === null || json === undefined) return { text: null, encrypted: 0 };
-  const key = await logKey();
-  if (!key) return { text: json, encrypted: 0 };
-  const ct = await encryptAes(key, json);
-  return ct ? { text: ct, encrypted: 1 } : { text: json, encrypted: 0 }; // 加密失败退明文：留档完整优先于机密性
-}
-
-export async function decryptDetail(text) {
-  if (typeof text !== 'string' || !text.startsWith('enc:v1:')) return text; // 老明文行原样放行
-  const key = await logKey();
-  if (!key) return '[encrypted]';
-  return decryptAes(key, text);
-}
-
-// 单条显式解密（GET /api/admin/logs/:id/decrypt 用）
-export async function decryptLogEntry(db, logId) {
-  const r = await dbGet(getLogDb(db), 'SELECT * FROM activity_log WHERE id=?', [logId]);
-  if (!r) return null;
-  r.detail = await decryptDetail(r.detail);
-  return r;
 }
 
 // 建表（业务库回落场景由 initDb 调用；独立库场景由 worker 初始化时调用）
@@ -92,11 +52,8 @@ export async function initLogDb(db) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_log_actor ON activity_log(actor_user_id, ts)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_log_entity ON activity_log(entity, entity_id)'),
   ]);
-  // 幂等补列：CREATE IF NOT EXISTS 不会升级已存在的旧表。线上老留档表的列状态未知，
-  // INSERT 显式列出全部 11 列，缺一即全体静默失败——故把 INSERT 用到的列全部探测补齐
-  // （db.js↔log.js 循环依赖，不能复用 db.js 的 ensureColumns，就地实现）
-  const names = (await dbAll(db, 'PRAGMA table_info(activity_log)')).map(c => c.name);
-  const backfill = [
+  // 幂等补列：CREATE IF NOT EXISTS 不会升级旧表，INSERT 用到列全部探测补齐（ensureColumns 单源）
+  await ensureColumns(db, 'activity_log', [
     ['schema_v', 'INTEGER NOT NULL DEFAULT 1'],
     ['encrypted', 'INTEGER NOT NULL DEFAULT 0'],
     ['actor_user_id', 'INTEGER'],
@@ -107,18 +64,12 @@ export async function initLogDb(db) {
     ['detail', 'TEXT'],
     ['req_ip', 'TEXT'],
     ['req_ua', 'TEXT'],
-  ];
-  for (const [col, decl] of backfill) {
-    if (!names.includes(col)) {
-      try { await dbRun(db, `ALTER TABLE activity_log ADD COLUMN ${col} ${decl}`); } catch { /* ignore */ }
-    }
-  }
+  ]);
 }
 
-// 敏感键剔除：口令 / 盐 / 验证码 / 正文大字段（聊天正文、附件 dataURL、头像）/ 联系方式绝不落明文档
-// （detail 加密见 logEvent 咽喉；此处是通用兜底留档 request body 的第一道脱敏）
+// 敏感键剔除：口令 / 盐 / 验证码 / 正文大字段 / 联系方式绝不落明文档（第一道脱敏；detail 加密在 crypto.js）
 const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email|real_name|credential_image|phone|mobile|tel/i;
-// 导出供 node --test 回归（test/log-sanitize.test.js），语义不变
+/** 导出供 node --test 回归（test/log-sanitize.test.js），语义不变 */
 export function sanitize(value, depth = 0) {
   if (value === null || value === undefined) return value;
   if (typeof value !== 'object') return value;
@@ -126,29 +77,63 @@ export function sanitize(value, depth = 0) {
   if (Array.isArray(value)) return value.map(v => sanitize(v, depth + 1));
   const out = {};
   for (const [k, v] of Object.entries(value)) {
-    if (k === '__proto__') continue; // 原型污染键不入 out 对象（Object.entries 枚举到 __proto__ 时 out[k]= 会改原型）
+    if (k === '__proto__') continue; // 原型污染键不入 out（防 out[k]= 改原型）
     if (SENSITIVE_KEYS.test(k)) { out[k] = '[redacted]'; continue; }
     out[k] = sanitize(v, depth + 1);
   }
   return out;
 }
 
-function detailToJson(detail, maxLen = 4096) {
+// 截断标记：内联进截断后的合法 JSON（对象插 "_truncated" 键 / 数组插字符串元素）
+const TRUNC_MARK = '…[truncated]';
+
+// 超长 detail 截断为合法 JSON（对象/数组保结构、标量退化为字符串摘要）。
+// 原实现假定序列化结果是 '}' 结尾对象，数组/字符串会拼出非法 JSON（潜伏缺陷，已修）
+function truncateJsonString(s, maxLen) {
+  const cut = s.slice(0, maxLen);
+  // 切点前最后一个「字符串外的结构边界」（, { [）：保证截断处是一个完整值之后
+  let boundary = -1, inStr = false, esc = false;
+  for (let i = 0; i < cut.length; i++) {
+    const c = cut[i];
+    if (esc) { esc = false; continue; }
+    if (c === '\\') { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (!inStr && (c === ',' || c === '{' || c === '[')) boundary = i;
+  }
+  const head = boundary >= 0 ? cut.slice(0, boundary + 1).replace(/[,\s]+$/, '') : '';
+  if (!head) return JSON.stringify(String(s).slice(0, maxLen) + TRUNC_MARK); // 标量：字符串摘要（恒合法）
+  // 未闭合开括号栈（跳过字符串字面量）
+  const stack = [];
+  for (let i = 0; i < head.length; i++) {
+    const c = head[i];
+    if (c === '"') { i++; while (i < head.length && (head[i] !== '"' || head[i - 1] === '\\')) i++; }
+    else if (c === '{' || c === '[') stack.push(c);
+    else if (c === '}' || c === ']') stack.pop();
+  }
+  if (!stack.length) return head + JSON.stringify(TRUNC_MARK);
+  const lastOpen = stack[stack.length - 1];
+  const member = lastOpen === '{' ? `,"_truncated":${JSON.stringify(TRUNC_MARK)}` : `,${JSON.stringify(TRUNC_MARK)}`;
+  const closers = stack.slice().reverse().map(c => c === '{' ? '}' : ']').join('');
+  return head + member + closers;
+}
+
+function detailToJson(detail, maxLen = LIMITS.LOG_DETAIL_MAX) {
   if (detail === null || detail === undefined) return null;
   try {
-    let s = JSON.stringify(sanitize(detail));
-    if (s && s.length > maxLen) s = s.slice(0, maxLen) + '"…[truncated]"}';
-    return s;
-  } catch {
-    return null;
-  }
+    const s = JSON.stringify(sanitize(detail));
+    if (!s) return null;
+    if (s.length <= maxLen) return s;
+    return truncateJsonString(s, maxLen);
+  } catch { return null; }
 }
 
 /**
  * 语义事件留档（业务代码调用点）
- * @param db      当前业务库（仅用于回落；绑定 LOG_DB 后实际写入独立库）
- * @param ev      { action, actorUserId, actorUsername, actorRole, entity, entityId, detail, req }
+ * @param db  当前业务库（仅用于回落；绑定 LOG_DB 后实际写入独立库）
+ * @param ev  { action, actorUserId, actorUsername, actorRole, entity, entityId, detail, detailMax?, req }
  *   action 命名约定：'<域>.<动作>'，如 auth.login.success / demand.create / admin.ban
+ *   detail 为可序列化对象；超 detailMax（缺省 LIMITS.LOG_DETAIL_MAX）自动截断为合法 JSON（恒含截断标记）。
+ *   detailMax 供正文大字段场景（如 contract.signed 存合同原文）放宽截断
  */
 export async function logEvent(db, ev) {
   try {
@@ -167,22 +152,29 @@ export async function logEvent(db, ev) {
       ev.entityId !== undefined && ev.entityId !== null ? String(ev.entityId) : null,
       d.text,
       ev.req ? (ev.req.headers.get('CF-Connecting-IP') || '') : '',
-      ev.req ? (ev.req.headers.get('User-Agent') || '').slice(0, 200) : '',
+      ev.req ? (ev.req.headers.get('User-Agent') || '').slice(0, LIMITS.DEVICE_UA_MAX) : '',
     ]);
   } catch (err) {
     console.error('logEvent failed (swallowed):', err?.message || err);
   }
 }
 
+// 单条显式解密（GET /api/admin/logs/:id/decrypt 用；backoffice 审计接口）
+export async function decryptLogEntry(db, logId) {
+  const r = await dbGet(getLogDb(db), 'SELECT * FROM activity_log WHERE id=?', [logId]);
+  if (!r) return null;
+  r.detail = await decryptDetail(r.detail);
+  return r;
+}
+
 /**
- * 通用请求留档（路由层对每一次 API 往来兜底，保证"全量"）
- * status >= 400 的失败请求同样留档（失败尝试也是审计所需）
+ * 通用请求留档（路由层对每一次 API 往来兜底，保证「全量」；status>=400 失败请求同样留档）
  */
 export async function logRequest(db, { method, path, body, status, req }) {
   if (path === '/api/health') return; // 探活流量不留档，减噪
   try {
     // 从路径抽取实体与实体 id：/api/student/demands/42 → entity=demands, id=42
-    const segs = path.split('/').filter(Boolean); // ['api','student','demands','42']
+    const segs = path.split('/').filter(Boolean);
     let entity = null, entityId = null;
     const last = segs[segs.length - 1];
     if (/^\d+$/.test(last)) {
@@ -191,8 +183,8 @@ export async function logRequest(db, { method, path, body, status, req }) {
     } else {
       entity = last || null;
     }
-    // 操作人身份只从令牌解析（防自报 body.userId/username 审计冒名）；无令牌则留空。
-    // 语义事件留档（logEvent 各业务调用点）本就走令牌解出的 id，不受此处影响
+    // 操作人身份只从令牌解析（防自报 body.userId/username 审计冒名）；无令牌留空。
+    // 语义留档（logEvent 各业务调用点）本就走令牌解出的 id，不受此处影响
     let actorId = null, actorName = null;
     if (req && req.headers && req.headers.get('X-Auth-Token')) {
       const actor = await authUser(db, req);
@@ -211,10 +203,10 @@ export async function logRequest(db, { method, path, body, status, req }) {
 }
 
 /**
- * 日志检索（管理端接口用）
- * 支持：action 前缀（如 'auth.'）、actorUsername、entity、entityId、since/until（ISO 或 SQLite 时间串）、q（detail 模糊）、分页
+ * 日志检索（backoffice 审计接口用）
+ * 支持：action 前缀、actorUsername、entity、entityId、since/until、q（detail 模糊）、分页
  * detail 返回前一律透明解密（老明文行原样放行）；q 检索因 detail 为密文改走
- * 「其他条件过量取 500 条 → 解密 → JS 过滤 → JS 分页」
+ * 「其他条件过量取 LOG_QUERY_MAX 条 → 解密 → JS 过滤 → JS 分页」
  */
 export async function queryLog(db, f = {}) {
   const target = getLogDb(db);
@@ -227,12 +219,12 @@ export async function queryLog(db, f = {}) {
   if (f.since) { cond.push('ts >= ?'); params.push(f.since); }
   if (f.until) { cond.push('ts <= ?'); params.push(f.until); }
   let limit = parseInt(f.limit) || 100;
-  if (limit > 500) limit = 500;
+  if (limit > LIMITS.LOG_QUERY_MAX) limit = LIMITS.LOG_QUERY_MAX;
   const offset = parseInt(f.offset) || 0;
   const where = cond.length ? ' WHERE ' + cond.join(' AND ') : '';
 
   if (f.q) {
-    const pool = await dbAll(target, `SELECT * FROM activity_log${where} ORDER BY id DESC LIMIT 500`, params);
+    const pool = await dbAll(target, `SELECT * FROM activity_log${where} ORDER BY id DESC LIMIT ${LIMITS.LOG_QUERY_MAX}`, params);
     for (const r of pool) r.detail = await decryptDetail(r.detail);
     const hit = pool.filter(r => String(r.detail || '').includes(f.q));
     return { rows: hit.slice(offset, offset + limit), total: hit.length, limit, offset };

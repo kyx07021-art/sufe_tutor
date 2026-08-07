@@ -438,7 +438,8 @@ textarea.form-input {
 .custom-select-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .custom-select-empty { color: var(--faint); }
 .custom-select-trigger .drop-caret { color: var(--faint); flex-shrink: 0; transition: transform .28s var(--ease-snap), color var(--t-fast) var(--ease-out); }
-.custom-select.open .drop-caret { transform: rotate(180deg); color: var(--ink); }
+.custom-select.open .drop-caret, 
+.custom-select.open .drop-caret { color: var(--ink); }
 .custom-select-panel {
   position: fixed; z-index: 300; /* 挂 body + fixed + 顶层 z：脱离玻璃 isolation 堆叠上下文（v0.19.25 架构债根治，left/top/width 由 JS 定位） */
   margin-top: 6px; padding: 4px;
@@ -453,8 +454,6 @@ textarea.form-input {
 .custom-select-panel.open { visibility: visible; transform: none; transition: none; } /* 983252：frost+transform 过渡冻结，改瞬开瞬关 */
 /* 透明滚动通道：无背景无玻璃类无边框——选项透在面板玻璃上滚，磨砂钉住不跟滚 */
 .custom-select-list { max-height: 256px; overflow-y: auto; }
-.custom-select-list::-webkit-scrollbar { width: 6px; }
-.custom-select-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
 .custom-option {
   display: block; width: 100%; text-align: left; cursor: pointer;
   padding: 8px 12px; font-size: .84rem; color: var(--ink-3);
@@ -820,7 +819,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 }
 .drop-toggle:hover { color: var(--ink); }
 .drop-caret { display: inline-flex; transition: transform .28s var(--ease-snap); }
-.drop-toggle.open .drop-caret { transform: rotate(180deg); }
+
 /* 开关右上角红点：待处理意向等未读标记 */
 .corner-dot { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
 
@@ -862,10 +861,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    ============================================================ */
 /* 壳内列表容器：滚动由 .client-main 承担 */
 .browse-list { padding-right: 6px; }
-.browse-list::-webkit-scrollbar { width: 6px; }
-.browse-list::-webkit-scrollbar-track { background: transparent; }
-.browse-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
-.browse-list::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
 
 /* 筛选面板（.drop-wrap 内：margin 会在收起态泄漏高度，间距改由内边距承担） */
 .filter-panel { margin-bottom: 0; padding: 18px; }
@@ -925,6 +921,19 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 .match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
 .match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--g-line-soft); font-size: .66rem; line-height: 1.5; color: var(--muted); }
 
+/* Toast（全站轻提示）：定位/入场/退场全在 CSS 呈现层（v0.21.0 重构：原 JS 内联 cssText 且 fadeUp 关键帧缺失，
+   入场动画实为坏引用——下沉 CSS 后按既定意图生效）。JS 只增删节点 + 切 .toast--out 退场类 */
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  padding: 12px 24px; font-size: 0.875rem; font-weight: 500; z-index: 300;
+  animation: fadeUp .3s var(--ease-snap) both;
+  transition: opacity .3s ease;
+}
+.toast--out { opacity: 0; }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%); }
+}
 
 
 
@@ -1423,3 +1432,10 @@ body.profile-panel-closing .profile-panel {
   .demand-card-foot .list-card-contact { min-width: 0; }
   .demand-card-foot .drop-toggle { flex-shrink: 0; }
 }
+
+/* 细滚动条合并组（v0.21.0：browse-list/conv-list/chat-messages/md-preview/custom-select-list 五处同款收一组）。
+   组 A 四容器带 thumb hover；custom-select-list 原无 hover，保持原行为单独列 */
+.browse-list::-webkit-scrollbar, .conv-list::-webkit-scrollbar, .chat-messages::-webkit-scrollbar, .md-preview::-webkit-scrollbar, .custom-select-list::-webkit-scrollbar { width: 6px; }
+.browse-list::-webkit-scrollbar-track, .conv-list::-webkit-scrollbar-track, .chat-messages::-webkit-scrollbar-track, .md-preview::-webkit-scrollbar-track, .custom-select-list::-webkit-scrollbar-track { background: transparent; }
+.browse-list::-webkit-scrollbar-thumb, .conv-list::-webkit-scrollbar-thumb, .chat-messages::-webkit-scrollbar-thumb, .md-preview::-webkit-scrollbar-thumb, .custom-select-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
+.browse-list::-webkit-scrollbar-thumb:hover, .conv-list::-webkit-scrollbar-thumb:hover, .chat-messages::-webkit-scrollbar-thumb:hover, .md-preview::-webkit-scrollbar-thumb:hover { background: var(--faint); }

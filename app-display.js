@@ -9,7 +9,7 @@
  * 挂载风格同 region-data.js：IIFE + globalThis 赋值，浏览器经典脚本与 worker 两用。
  */
 (function () {
-  // HTML 转义（与 app.js escHtml 同语义：&<>"' 五字符），本文件自持，不依赖 app.js
+  // HTML 转义（与 app-ui.js escHtml 同语义：&<>"' 五字符），本文件自持，不依赖 app-ui
   function esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c =>
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

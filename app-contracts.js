@@ -2,7 +2,7 @@
  * 上财家教平台 - 合同模块（学生+教师）
  *
  * 职责：我的合同列表 / 合同卡片渲染 / 签约·修改·撤销·取消 / 合同起草（聊天窗呼出）/ 存证校验。
- * 本文件在 app.js 之后加载，可安全调用 app.js 全局设施（api/state/UI/loadInto/invalidate/escHtml 等）。
+ * 本文件在共享层（app-state/app-api/app-anim/app-ui）之后加载，可安全调用全局设施（api/state/UI/loadInto/invalidate/escHtml/mdRender 等）。
  * 函数一律保持 function 声明式（内联 onclick 靠它挂全局）。
  */
 
@@ -73,7 +73,7 @@ function renderContractCard(c) {
 
   return `<div class="list-card glass">
     <div class="list-card-header">
-      <span class="list-card-title">${renderUsername(peerName)}</span>
+      <span class="list-card-title">${DISP.usernameHtml(peerName)}</span>
       <span class="tag glass glass--solid ${statusCls}">${statusText}</span>
     </div>
     <div class="list-card-body">
@@ -116,7 +116,7 @@ function viewContract(contractId) {
 function openContractModifyModal(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
-  window._contractModifyUpdatedAt = c.updated_at; // 乐观锁版本：提交时带上，期间被对方改过则 409 强制重载
+  window._contractModifyVersion = c.version != null ? c.version : 0; // 乐观锁版本：提交时带上，期间被对方改过则 409 强制重载（后端 v0.21.0 起用自增 version，秒级 updated_at 已弃用）
   openModal({
     title: `${UI.MODIFY_CONTRACT_TITLE}`,
     closable: false,
@@ -178,7 +178,7 @@ async function submitContractModify(contractId) {
   const alertEl = document.getElementById('post-alert');
   if (!md) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.CONTRACT_EMPTY}</div>`; return; }
   try {
-    await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, updatedAt: window._contractModifyUpdatedAt } });
+    await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: window._contractModifyVersion } });
     closeModal();
     showToast(UI.CONTRACT_MODIFIED_TOAST);
     loadMyContracts();

@@ -4,8 +4,8 @@
  * 经典脚本（非模块），全部为顶层全局函数（声明提升，可被内联 onclick 直接引用）。
  * 依赖（index.html 中的加载顺序）：
  *   1. region-data.js —— 提供 globalThis.SUFE_REGIONS（地区数据单源）
- *   2. app.js         —— 提供 escHtml（插值转义）；本文件的 collect 结果与
- *                        app.js 现存 gaokao_scores / current_scores 形状兼容
+ *   2. app-ui.js       —— 提供 escHtml（插值转义）；本文件的 collect 结果与
+ *                        app-pages.js 现存 gaokao_scores / current_scores 形状兼容
  *   UI 文案：constants.js 的 UI 常量经 app.js 顶层 const 解构为全域词法绑定，
  *            本文件与 app-posts / app-chat 同样裸引 UI.*（勿重复 const，会撞声明）
  *   3. app-region.js  —— 本文件

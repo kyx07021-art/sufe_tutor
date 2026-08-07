@@ -1,11 +1,12 @@
 /**
- * B1 收敛回归 —— log.js detail 加密语义（encrypted 标记 / 无密钥回落 / 密钥轮换）：
- * 原语实现已在 fieldcrypto.js 由 crypto.test.js 全量覆盖，此处只验 log 层薄壳语义。
- * 注意 bindLogDb 重置模块级密钥缓存，同进程内测试串行依赖，勿并行用例。
+ * B1 收敛回归 —— detail 加密语义（encrypted 标记 / 无密钥回落 / 密钥轮换）：
+ * 原语实现已在 server/crypto.js 由 crypto.test.js 全量覆盖，此处只验 log 薄壳语义。
+ * 注意 bindLogDb 经 bindCryptoEnv 重置模块级密钥缓存，同进程内测试串行依赖，勿并行用例。
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bindLogDb, encryptDetail, decryptDetail } from '../server/log.js';
+import { bindLogDb } from '../server/log.js';
+import { encryptDetail, decryptDetail } from '../server/crypto.js';
 
 const KEY_A = Buffer.from('k'.repeat(32)).toString('base64'); // 32B → AES-256
 const KEY_B = Buffer.from('j'.repeat(32)).toString('base64');

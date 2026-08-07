@@ -2,10 +2,13 @@
  * 路由模块：资料共享广场（帖子列表 / 发布 / 点赞切换 / 删除）
  *
  * section 字段恒透传 'plaza'：表结构与接口均支持 section 参数（未来分区 UI 的架构预留），
- * 当前不做分区过滤（不传 section 即查全部），也不写死单分区逻辑。
- * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete
+ * 当前不做分区过滤（不传 section 即查全部）。
+ * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete / admin.post.delete
+ * 安全补丁已并入主线：身份一律凭令牌（曾凭自报 userId 可冒名/越权）、管理员判定单点。
  */
-import { json, error, authUser, MSG } from './core.js';
+import { json, error } from './util.js';
+import { authUser, requireUser, requireAdminOrError } from './security.js';
+import { MSG, LIMITS } from './constants.js';
 import {
   dbListPosts, dbCreatePost, dbGetPostById, dbGetPostLike,
   dbCreatePostLike, dbDeletePostLike, dbSyncPostLikeCount, dbGetPostLikeCount,
@@ -13,10 +16,7 @@ import {
 } from './db.js';
 import { logEvent } from './log.js';
 
-// ============================================================
-// 本模块消息常量：仅保留帖子业务专属文案（标题/正文长度、删除权限、发布/删除结果）。
-// 通用错误（登录/角色/不存在）一律复用 core.js MSG，避免文案第三来源（CLAUDE.md 纪律）
-// ============================================================
+// 本模块消息常量：仅保留帖子业务专属文案；通用错误一律复用 MSG（文案单源纪律）
 const PMSG = {
   TITLE_REQUIRED: '标题不能为空',
   TITLE_TOO_LONG: '标题不能超过 60 个字符',
@@ -25,7 +25,6 @@ const PMSG = {
   POST_PUBLISHED: '发布成功',
   POST_DELETED: '帖子已删除',
 };
-// 注：帖子不存在改复用 MSG.USER_NOT_FOUND（core.js 无帖子专属「不存在」文案，避免新增第三来源）
 
 /**
  * GET /api/posts?sort=new|hot&section=&q=
@@ -44,20 +43,19 @@ export async function handleListPosts(db, url, req) {
 
 /**
  * POST /api/posts  body: { title, bodyMd }
- * 身份凭令牌、校验教师角色；title 非空且 ≤60、bodyMd ≤20000；
+ * 身份凭令牌、校验教师角色；title 非空且 ≤LIMITS.TITLE_MAX、bodyMd ≤LIMITS.POST_BODY_MAX；
  * section 恒 'plaza'；返回 { id, message }
  */
 export async function handleCreatePost(db, body, req) {
-  const user = await authUser(db, req); // 身份凭令牌（曾凭自报 userId 可冒名教师发帖）
-  if (!user) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user, err } = await requireUser(db, req, 'teacher'); // 身份凭令牌 + 角色门（曾凭自报 userId 可冒名教师发帖）
+  if (err) return err;
   const userId = user.id;
   const title = String(body.title || '').trim();
   const bodyMd = String(body.bodyMd || '');
 
-  if (user.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
   if (!title) return error(PMSG.TITLE_REQUIRED);
-  if (title.length > 60) return error(PMSG.TITLE_TOO_LONG);
-  if (bodyMd.length > 20000) return error(PMSG.BODY_TOO_LONG);
+  if (title.length > LIMITS.TITLE_MAX) return error(PMSG.TITLE_TOO_LONG);
+  if (bodyMd.length > LIMITS.POST_BODY_MAX) return error(PMSG.BODY_TOO_LONG);
 
   const id = await dbCreatePost(db, userId, title, bodyMd);
 
@@ -75,12 +73,12 @@ export async function handleCreatePost(db, body, req) {
  * → { liked, likeCount }
  */
 export async function handleToggleLike(db, postId, body, req) {
-  const user = await authUser(db, req); // 身份凭令牌（曾凭自报 userId 可用他人 id 点赞）
-  if (!user) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user, err } = await requireUser(db, req); // 身份凭令牌（曾凭自报 userId 可用他人 id 点赞）
+  if (err) return err;
   const userId = user.id;
 
   const post = await dbGetPostById(db, postId);
-  if (!post) return error(MSG.USER_NOT_FOUND, 404, 'POST_NOT_FOUND');
+  if (!post) return error(MSG.POST_NOT_FOUND, 404, 'POST_NOT_FOUND');
 
   const existing = await dbGetPostLike(db, postId, userId);
   let liked;
@@ -105,23 +103,22 @@ export async function handleToggleLike(db, postId, body, req) {
 
 /**
  * DELETE /api/posts/:id
- * 仅作者本人可删：帖子不存在 → 404；非作者 → 403。
+ * 仅作者本人可删；管理员凭令牌越权删除（资料管理页）——管理员判定走 requireAdminOrError 单点。
  * post_likes 由外键 ON DELETE CASCADE 连带清理，无需手工删。
  */
 export async function handleDeletePost(db, postId, body, req) {
-  const user = await authUser(db, req); // 身份凭令牌（曾凭自报 userId 可非管理员删他人帖）
-  if (!user) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user, err } = await requireUser(db, req); // 身份凭令牌（曾凭自报 userId 可非管理员删他人帖）
+  if (err) return err;
 
   const post = await dbGetPostById(db, postId);
-  if (!post) return error(MSG.USER_NOT_FOUND, 404, 'POST_NOT_FOUND');
-  // 仅作者本人可删；管理员凭令牌越权删除（资料管理页）
-  const admin = user.role === 'admin' ? user : null;
-  if (user.id !== Number(post.user_id) && !admin) return error(PMSG.DELETE_FORBIDDEN, 403);
+  if (!post) return error(MSG.POST_NOT_FOUND, 404, 'POST_NOT_FOUND');
+  const isAdmin = requireAdminOrError(user) === null; // 管理员判定单点
+  if (user.id !== Number(post.user_id) && !isAdmin) return error(PMSG.DELETE_FORBIDDEN, 403); // 非作者且非管理员 → 拒
 
   await dbDeletePost(db, postId);
   await logEvent(db, {
-    action: admin ? 'admin.post.delete' : 'post.delete',
-    actorUserId: user.id, actorRole: admin ? 'admin' : user.role,
+    action: isAdmin ? 'admin.post.delete' : 'post.delete',
+    actorUserId: user.id, actorRole: isAdmin ? 'admin' : user.role,
     entity: 'post', entityId: postId, detail: { title: post.title, ownerUserId: post.user_id }, req,
   });
   return json({ message: PMSG.POST_DELETED });

@@ -489,15 +489,26 @@
     <div class="profile-panel-body" id="profile-panel-body"></div>
   </aside>
 
+  <!-- 加载序分层（v0.21.0 重构）：基础数据 → 显示层 → 共享层（状态/API/动画/外观/引导）→ 领域层 → 壳层（ROLE_PAGES 引用领域函数，必须最后）→ 认证层。
+       共享层 const 全局词法绑定（UI/state/DISP 等）由 app-state.js 定义，此后各模块裸引；调整顺序先动 app-state.js -->
   <script src="/constants.js"></script>
   <script src="/region-data.js"></script>
   <script src="/app-display.js"></script>
-  <script src="/app.js"></script>
+  <script src="/app-state.js"></script>
+  <script src="/app-api.js"></script>
+  <script src="/app-anim.js"></script>
+  <script src="/app-ui.js"></script>
+  <script src="/app-onboard.js"></script>
   <script src="/app-region.js"></script>
   <script src="/app-posts.js"></script>
   <script src="/app-chat.js"></script>
   <script src="/app-contracts.js"></script>
   <script src="/app-admin.js"></script>
+  <script src="/app-demands.js"></script>
+  <script src="/app-teachers.js"></script>
+  <script src="/app-pages.js"></script>
+  <script src="/app-shell.js"></script>
+  <script src="/app-auth.js"></script>
   <script>
     /* 入场动效门控：等两张蒙版图 + 字体就绪后给 <html> 加 .site-ready，
        避免"网页没加载好动画就播完"；2.5s 兜底防卡住。每次回到主页由 display 切换重排重放动画。 */
@@ -557,15 +568,14 @@
       set('--lg-r-sm', (LG.radius.sm || 9) + 'px');
       set('--lg-r', (LG.radius.md || 12) + 'px');
       set('--lg-r-lg', (LG.radius.lg || 15) + 'px');
-      set('--lg-bg-blur', (LG.bg.blur || 16) + 'px');
+      set('--lg-bg-blur', (LG.bg.blur != null ? LG.bg.blur : 6) + 'px'); // 单源 constants（原 ||16 陈旧）
       set('--lg-glow-size', (LG.glow.size || 230) + 'px');
       set('--lg-glow-op', LG.glow.opacity != null ? LG.glow.opacity : .85);
-      /* 毛度配置（constants.LG.frosts）→ --g-f-* 变量，glass.css 消费（改观感只动 constants）。 */
+      /* 毛度配置（constants.LG.frosts）→ --g-f-* 变量，glass.css 消费（改观感只动 constants）。
+         v0.21.0：删除陈旧 FALL 兜底字面量（modal blur 16 vs 24 曾与 constants 分叉）——键缺失时由
+         glass.css 的 var(--g-f-*, ...) 回退兜底，此处不再维护第二份数值 */
       var F = LG.frosts || {};
-      var FALL = { card: 'blur(6px) saturate(180%) brightness(1.05)', cardM: 'blur(4px) saturate(180%) brightness(1.05)',
-        modal: 'blur(16px) saturate(180%) brightness(1.04)', modalM: 'blur(6px)', header: 'blur(4px)', btn: 'blur(4px) saturate(180%) brightness(1.04)',
-        entry: 'blur(4px) saturate(180%) brightness(1.04)', pill: 'blur(4px) saturate(180%) brightness(1.04)', nav: 'blur(8px)', side: 'blur(8px)' };
-      for (var fk in FALL) set('--g-f-' + fk, F[fk] || FALL[fk]);
+      for (var fk in F) set('--g-f-' + fk, F[fk]);
       /* 背景舞台：36 个方向随机的光球（数量×4）+ 染色底板。
          光球由 JS 生成：随机方向组(6)、随机起始位置、随机尺寸、随机负 delay 错峰 →
          「像空气里的蒲公英」各向漂移 + 途中缓慢转向，肉眼无规律。 */

@@ -2,22 +2,57 @@
  * 前端常量 — 业务数据 + UI 文字 + 系统通知模板
  * 挂 globalThis：浏览器经典脚本（window）与 worker ESM import 两用（同 region-data.js），
  * 服务端文案（婉拒通知等）亦统一在此维护，改文案只动这一个文件。
- * API 错误消息常量另见 server/core.js MSG 块。
+ * API 错误消息常量另见 server/constants.js MSG 块。
  */
 globalThis.APP_CONSTANTS = {
 
-  // 教师注册邀请码门控：休眠中（true = 门控沉睡，教师注册免邀请码直接提交；与后端 core.js INVITE_GATE_ENABLED 同步）
+  // 教师注册邀请码门控：休眠中（true = 门控沉睡，教师注册免邀请码直接提交；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
   // 内测期间沉默：简易注册、无需邀请码（v0.19.49 用户指令）；公测前如需恢复，置回 false 并同步后端开关
   // 网安报告 F-05：教师开放注册属高危，恢复门控时注册必须经管理员签发邀请码
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.20.9',
+  APP_VERSION: '0.21.0',
+
+  // ============================================================
+  // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
+  // 与 server/constants.js 中对应键注释对齐——改值两处核对。前端模块禁止散落裸数字，一律引本块）
+  // ============================================================
+  CONFIG: {
+    TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过期判定；服务端签发同值 server/constants.js SECURITY.TOKEN_TTL_MS）
+    BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）
+    CHAT_POLL_MS: 4000,                   // 聊天轮询间隔
+    CHAT_SLIDE_DELAY_MS: 120,             // 会话滑动懒加载/自动增高延迟
+    CHAT_BUBBLE_DELAY_MS: 12,             // 气泡错峰
+    CHAT_FILE_MAX_BYTES: 500 * 1024,      // 前端图片压缩上限（后端 FILE_MAX_BYTES 700000 兜底）
+    BADGE_POLL_MS: 30000,                 // 红点慢轮询
+    PUSH_COOLDOWN_SEC: 60,                // 需求推送限流
+    LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
+    POSTS_SEARCH_DEBOUNCE_MS: 350,        // 帖子搜索防抖
+    INVITE_CODE_LEN: 8,                   // 邀请码长度（与后端 LIMITS 同值）
+    AVATAR_SIDE: 160, AVATAR_QUALITY: 0.85,
+    CREDENTIAL_SIDE: 1000, CREDENTIAL_QUALITY: 0.8,
+    REVIEW_COMMENT_MIN: 2,                // 评价最少字数
+    DISPLAY_ID_PAD: 4,                    // 需求编号补零位数
+    SIDEBAR_INDEX_PAD: 2,                 // 侧边栏序号补零位数
+    POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
+    MATCH_WEIGHT: { subject: 60, region: 20, budget: 20 },     // 教师匹配度权重（合计 100）
+    MATCH_MAX: 100,
+    MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px
+    GLIDE_MS: 460, SIDEBAR_GLIDE_MS: 380, // 选中块滑动动画时长
+    PANEL_CLOSE_TIMEOUT_MS: 600,          // 个人信息栏关闭兜底
+    TOAST_MS: 2500, TOAST_FADE_MS: 300,   // Toast 时长
+    REVEAL_DELAY_BASE: 80, REVEAL_DELAY_STEP: 45, REVEAL_DELAY_MAX: 360, // 卡片浮入错峰
+    REAUTH_FOCUS_MS: 50,                  // 二次认证弹窗聚焦延迟
+    REOPEN_DELAY_MS: 800,                 // 邀请码确认→注册跳转 / 注销→登出延迟
+    MODAL_W_CONFIRM: '380px',             // 确认类弹窗宽度（散落 380/400/420/430/480 收敛）
+    MODAL_W_SEND: '480px', MODAL_W_DEACTIVATE: '430px', MODAL_W_PROFILE_HINT: '420px',
+  },
 
   // ============================================================
   // 业务数据
   // ============================================================
-  // 状态枚举：与后端 server/core.js STATUS 逐字对齐（前端比较/赋值统一引这里，禁止散落硬编码字面量）。
+  // 状态枚举：与后端 server/constants.js STATUS 逐字对齐（前端比较/赋值统一引这里，禁止散落硬编码字面量）。
   // 改动值会破坏 SQL 兼容，两端必须同步
   STATUS: {
     OPEN: 'open', CONTRACTED: 'contracted', REVOKED: 'revoked', PENDING: 'pending',
@@ -227,7 +262,7 @@ globalThis.APP_CONSTANTS = {
       '--g-avatar-border': 'rgba(255,255,255,.35)',
       '--g-avatar-fill-ghost': 'rgba(255,255,255,.08)',
       '--g-avatar-border-ghost': 'rgba(255,255,255,.22)',
-      // --g-flow-dot 暗色沿用（实心白点 + 深字，对比依旧达标）
+      '--g-flow-dot': 'rgba(255,255,255,.85)', // 关于页流程编号圆点（暗色首载缺键曾致圆点失显，补显式定义）
       // ---- 液体边缘（亮带降档，发丝边保留——暗玻璃的灵魂） ----
       '--g-liquid': 'inset 0 0 8px rgba(255,255,255,.05), inset 0 4px 8px -4px rgba(0,0,0,.25), inset 0 3px 3px -1px rgba(255,255,255,.45), inset 0 5px 16px -6px rgba(255,255,255,.10), inset 0 0 0 1px rgba(255,255,255,.22)',
       '--g-liquid-sm': 'inset 0 0 5px rgba(255,255,255,.05), inset 0 4px 6px -4px rgba(0,0,0,.25), inset 0 2px 2px -1px rgba(255,255,255,.38), inset 0 3px 10px -4px rgba(255,255,255,.08), inset 0 0 0 1px rgba(255,255,255,.18)',
@@ -824,6 +859,7 @@ globalThis.APP_CONSTANTS = {
       '想了解更多功能：到「关于平台」→「平台基本用法」，查看「详细用法介绍」',
     ],
     ONBOARD_CONFIRM: '知道了',
+    ONBOARD_CONFIRM_LOGIN: '知道了，去登录',
     ONBOARD_REVISIT_BTN: '重温新手引导',
     // 详细用法介绍（关于页「平台基本用法」底部按钮呼出的完整使用说明浮窗；文案单源）
     USAGE_GUIDE_BTN: '详细用法介绍',

@@ -2,7 +2,7 @@
  * 我的会话（学生 / 教师侧边栏「我的会话」页，模块4）
  *
  * 经典脚本：全部顶层全局函数 + 内联 onclick，与 app.js / app-posts.js 同一约定。
- * 仅依赖 app.js 提供的基础设施：state / api / escHtml / showToast。
+ * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / loaderHtml / setBadge / syncPillOnce / glidePill（app-state/app-api/app-anim/app-ui 先行加载）。
  *
  * 数据来源（后端已上线，身份一律凭 X-Auth-Token，无自报 userId 参数）：
  *   GET  /api/conversations                          会话列表（含对方用户名 + 最后消息预览）
@@ -135,7 +135,7 @@ function renderConvItem(c) {
     ${(c.unread_count || 0) > 0 ? `<span class="conv-unread-dot" data-unread-dot="${c.id}"></span>` : ''}
     ${renderAvatarHtml(peer.avatar, peer.name, 'conv-avatar', peer.id)}
     <span class="conv-item-top">
-      <span class="conv-item-name">${renderUsername(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
+      <span class="conv-item-name">${DISP.usernameHtml(peer.name || UI.CHAT_UNKNOWN_USER)}</span>
       <span class="conv-item-role glass glass--solid">${peer.role}</span>
       ${c.contracted ? `<span class="conv-signed-tag glass glass--solid">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
       <span class="conv-item-time">${escHtml(time)}</span>
@@ -160,6 +160,16 @@ function chatBumpConvPreview(convId, lastMsg) {
 // ============================================================
 // 右栏：打开会话 / 渲染聊天窗
 // ============================================================
+// 清空暂存附件：abort 在途上传 + 已上传的同步删服务器暂存区（修：原只处理已拿到 uploadId 的项，
+// 上传中 XHR 不中止、完成后在服务器残留孤儿附件——切会话/登出/跨账号切换尤甚）
+function chatAbortStagedUploads() {
+  chatStaged.forEach(it => {
+    if (it._xhr) { it._xhr.abort(); it._aborted = true; } // 在途：中断，防完成回调把 uploadId 写进孤儿项
+    if (it.uploadId) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {}); // 已上传：best-effort 删
+  });
+  chatStaged = [];
+}
+
 async function openConversation(convId) {
   closeChatPlus();            // 切会话先收拢加号弹层
   stopChatPolling();          // 清掉上一段会话的定时器与状态
@@ -174,9 +184,8 @@ async function openConversation(convId) {
 
   const pane = document.getElementById('chat-pane');
   if (!pane) return;
-  // 切会话清空上一会话的暂存附件，已上传的文件同步从服务器暂存区删除
-  chatStaged.forEach(it => { if (it.uploadId) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {}); });
-  chatStaged = [];
+  // 切会话清空上一会话的暂存附件（含在途上传 abort）
+  chatAbortStagedUploads();
   const conv = chatConvList.find(c => c.id === convId);
   pane.innerHTML = renderChatFrame(conv);
   chatBindDropzone(); // 拖入聊天区直接加入暂存区
@@ -220,7 +229,7 @@ function renderChatFrame(conv) {
     <div class="chat-head glass">
       <button type="button" class="chat-back glass" onclick="backToConvList()">&larr; ${UI.CHAT_BACK_TO_LIST}</button>
       <div class="chat-head-main">
-        <span class="chat-peer-name">${peer.name ? renderUsername(peer.name) : escHtml(UI.CHAT_UNKNOWN_USER)}</span>
+        <span class="chat-peer-name">${peer.name ? DISP.usernameHtml(peer.name) : escHtml(UI.CHAT_UNKNOWN_USER)}</span>
         <span class="chat-peer-tag glass glass--solid">${peer.role}</span>
         ${conv && conv.contracted ? `<span class="chat-head-signed glass glass--solid">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
         ${conv && conv.demand_display_id ? `<span class="chat-head-demand">${UI.CHAT_DEMAND_PREFIX}${String(conv.demand_display_id).padStart(4, '0')}</span>` : ''}
@@ -343,9 +352,8 @@ function chatStartPolling() {
 // 对外清理口：登出 / 切页等场景调用，干净终止定时器与会话状态
 function stopChatPolling() {
   if (chatPollTimer) { clearInterval(chatPollTimer); chatPollTimer = null; }
-  // 清未发送的暂存项：已上传的文件同步 best-effort 删服务器暂存区（防跨账号残留与孤儿堆积）
-  chatStaged.forEach(it => { if (it.uploadId && state.user) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {}); });
-  chatStaged = [];
+  // 清未发送的暂存项：在途上传 abort + 已上传 best-effort 删（防跨账号残留与孤儿堆积）
+  chatAbortStagedUploads();
   chatConvId = null;
   chatLastMsgId = 0;
   chatPollBusy = false;
@@ -486,21 +494,23 @@ function chatStageFiles(files) {
 
 // 进暂存区 = 真实上传服务器：进度圈即 XHR 上传字节进度（肉眼可见的真实进度）；
 // 传完拿到 uploadId 变为可发送——发送按钮只是「确认载入会话」，不再传数据
-function chatUploadToServer(kind, dataUrl, name, onProgress) {
+function chatUploadToServer(item, dataUrl, onProgress) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    item._xhr = xhr; // 挂到暂存项：切会话/登出时可 abort（防孤儿附件）
     xhr.open('POST', '/api/uploads');
     xhr.setRequestHeader('Content-Type', 'application/json');
     if (state.authToken) xhr.setRequestHeader('X-Auth-Token', state.authToken); // 裸 XHR 不继承 api() 的令牌头；缺此则上传恒 401（令牌化迁移漏网）
     xhr.upload.onprogress = e => { if (e.lengthComputable) onProgress(Math.min(99, Math.round(e.loaded / e.total * 100))); };
     xhr.onload = () => {
+      item._xhr = null; // 完成即摘牌
       let data = {};
       try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
       if (xhr.status >= 200 && xhr.status < 300) resolve(data);
       else reject(new Error(data.error || ('HTTP ' + xhr.status)));
     };
-    xhr.onerror = () => reject(new Error(UI.ERROR_REQUEST_FAILED));
-    xhr.send(JSON.stringify({ kind, fileData: dataUrl, fileName: name })); // 身份一律凭令牌，移除自报 userId（服务端早已忽略）
+    xhr.onerror = () => { item._xhr = null; reject(new Error(UI.ERROR_REQUEST_FAILED)); };
+    xhr.send(JSON.stringify({ kind: item.kind, fileData: dataUrl, fileName: item.name })); // 身份一律凭令牌，移除自报 userId（服务端早已忽略）
   });
 }
 
@@ -508,12 +518,14 @@ async function chatDoUpload(item, dataUrl) {
   item.dataUrl = dataUrl;
   renderChatStage(); // 图片缩略先亮（本地数据），进度圈开始转真实上传进度
   try {
-    const data = await chatUploadToServer(item.kind, dataUrl, item.name, p => { item.progress = p; renderChatStage(); });
+    const data = await chatUploadToServer(item, dataUrl, p => { item.progress = p; renderChatStage(); });
+    if (item._aborted) return; // 上传期间会话已切换/登出：不把 uploadId 写进孤儿项（服务器残留由 abort 的请求自行终结）
     item.uploadId = data.id;
     item.progress = 100;
     item.ready = true;
     renderChatStage();
   } catch (err) {
+    if (item._aborted) return; // abort 触发的错误不算失败：项已被清空，不弹错
     chatUnstage(item.id);
     showToast(err.message);
   }

@@ -1,11 +1,22 @@
 /**
- * 合同模块（测试版签约链路）：
- *   起草草案(聊天窗+) → 对方确认草案 → 「我的合同」预览正式合同 → 双方确认签约 → signed（评价门槛 dbIsContracted 随之放行）
+ * 合同模块（测试版签约链路）—— 合同状态机 + 存证台账（覆写域，CLAUDE.md 有意决定：台账 SQL 自持本模块）
+ *   起草草案(聊天窗+) → 对方确认草案 → 「我的合同」预览正式合同 → 双方确认签约 → signed（评价门槛随之放行）
  *   任一阶段可取消签约（删合同 + 通知对方，会话保留）；signing 阶段任意一方可改合同（重置双方确认，实时同步）。
- * 正式合同正文由 buildContractMd 按草案信息生成（Markdown，后期可换更正式的格式）；双方看到的是同一条记录。
- * 短信验证码环节未接入：verifySignOtp 预留接口，测试版以二次确认代替。
+ * 正式合同正文由 buildContractMd 按草案信息生成（Markdown）；双方看到的是同一条记录。
+ * 短信验证码环节未接入：verifySignOtp 预留，测试版以二次确认代替（二次认证走 session.confirmDangerOtp）。
+ *
+ * 安全补丁已并入主线：
+ *   F-03  签约与需求下架同 batch 原子；NOT EXISTS 防第二方签约；删需求原子守卫
+ *   F-05  签约/撤销危险操作须 capToken 二次认证
+ *   F-07  存证台账哈希链（GENESIS + prev 连续性 + seq），篡改任何历史条目即断链
+ *   本版修复：台账幂等（签约后 500 重试可补记）；revoked 需求不可绕过「手动重开」再签约；
+ *   合同修改乐观锁改 version 整数（秒级 updated_at 同秒双改互相覆盖的缺陷）。
  */
-import { dbGet, dbAll, dbRun, json, error, authUser, requireAdminOrError, confirmDangerOtp, bufToHex, MSG, STATUS } from './core.js';
+import { dbGet, dbAll, dbRun, json, error, ensureColumns } from './util.js';
+import { requireUser, requireAdmin, requireAdminOrError } from './security.js';
+import { bufToHex } from './crypto.js';
+import { confirmDangerOtp } from './session.js';
+import { MSG, STATUS } from './constants.js';
 import {
   dbGetContractById, dbGetContractByConv, dbGetMyContracts, dbGetAllContractsAdmin,
   dbDeleteContract, dbDeleteContractMessages,
@@ -98,6 +109,7 @@ ${plan || '（未填写）'}
 // 合同存证台账（独立于活跃库的「保障库」）：签署即存 文本 SHA-256 + 哈希链（prev_hash），
 // 任一环节被改动都能校验出来。绑定 env.LEDGER_DB 即启用独立台账库，未绑定回落业务库
 // （同 LOG_DB 模式：仪表板 Settings → Bindings 绑定即生效）。
+// 覆写域：台账建表/插入/校验 SQL 自持本模块（CLAUDE.md 有意决定），不重复于 db.js
 // ============================================================
 let LEDGER_OVERRIDE = null;
 export function bindLedgerDb(env) { LEDGER_OVERRIDE = (env && env.LEDGER_DB) || null; }
@@ -110,16 +122,15 @@ export async function initLedgerTable(db) {
     content_hash TEXT NOT NULL,
     prev_hash TEXT NOT NULL DEFAULT '',
     created_at DATETIME DEFAULT (datetime('now','localtime')))`);
-  // 网安报告 F-07 幂等补列（PRAGMA 探测，仿 log.js 就地迁移；contract.js 不可 import db.js 的
-  // ensureColumns——db.js→contract.js 已存在 import 方向，反向即循环）：seq 全链序号 + body_hash
-  // 正文哈希分解值（content_hash 输入之一，独立落列供审计交叉验证）
-  const info = await dbAll(db, 'PRAGMA table_info(contract_ledger)');
-  const have = new Set(info.map(c => c.name));
-  if (!have.has('seq')) await dbRun(db, 'ALTER TABLE contract_ledger ADD COLUMN seq INTEGER');
-  if (!have.has('body_hash')) await dbRun(db, "ALTER TABLE contract_ledger ADD COLUMN body_hash TEXT NOT NULL DEFAULT ''");
-  // 存量行 seq 按 id 序（即入链序）回填；历史条目正文已不在库内（合同可被修改），body_hash 保持空串，
-  // 校验时仅做链结构（GENESIS + prev 连续性）——中间条目被篡改即断链，正文重放限最新条目
-  await dbRun(db, `UPDATE contract_ledger SET seq=(SELECT COUNT(*) FROM contract_ledger c2 WHERE c2.id<=contract_ledger.id) WHERE seq IS NULL`);
+  // 网安报告 F-07 幂等补列（ensureColumns 单源自 util.js——不再受 db.js→contract.js 循环依赖约束）：
+  // seq 全链序号 + body_hash 正文哈希分解值（content_hash 输入之一，独立落列供审计交叉验证）
+  await ensureColumns(db, 'contract_ledger', [
+    ['seq', 'INTEGER'],
+    ['body_hash', "TEXT NOT NULL DEFAULT ''"],
+  ]);
+  // 存量行 seq 按「同合同内 id 序」回填（单合同独立链的序号）；历史条目正文已不在库内（合同可被修改），
+  // body_hash 保持空串，校验时仅做链结构（GENESIS + prev 连续性）——中间条目被篡改即断链，正文重放限最新条目
+  await dbRun(db, `UPDATE contract_ledger SET seq=(SELECT COUNT(*) FROM contract_ledger c2 WHERE c2.contract_id=contract_ledger.contract_id AND c2.id<=contract_ledger.id) WHERE seq IS NULL`);
 }
 
 const sha256Hex = text => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(bufToHex);
@@ -132,22 +143,30 @@ async function ledgerContentHash(contractId, contractMd, createdAt, prevHash) {
 }
 
 // 签署存证：记账 contract_id + 链式哈希（prev_hash 参与本条目哈希，篡改任一历史条目都会断链）。
+// 单合同独立链：prev/seq 均按 contract_id 过滤，每份合同的台账是一条以 GENESIS 为根的独立链——
+// 与 verifyContractLedger（按合同取行）和 verifyChain（链头须 GENESIS）的语义一致。
+// （原实现误接「全局末条」为 prev：第二份合同起的条目 prev_hash 非 GENESIS，verify 恒 invalid，已修）
 // 网安报告 F-07 原子化：prev 取数、seq 取号与插入同一条 INSERT 内完成，并把 JS 侧已见的 prev 回带
-// 作 WHERE 条件——并发记账时分叉方（库内 prev 已变）changes=0，重读重算重试，杜绝同 prev 双挂
+// 作 WHERE 条件——并发记账时分叉方（库内 prev 已变）changes=0，重读重算重试，杜绝同 prev 双挂。
+// 幂等：同合同同正文已记账则直接返回既有 hash（签约后 500 的重试可安全补记，绝不重复挂链）
 async function ledgerRecord(db, contractId, contractMd) {
   const target = getLedgerDb(db);
   const bodyHash = await sha256Hex(contractMd);
   const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   for (let i = 0; i < 3; i++) {
-    const prev = await dbGet(target, 'SELECT content_hash FROM contract_ledger ORDER BY id DESC LIMIT 1');
+    const prev = await dbGet(target, 'SELECT content_hash FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1', [contractId]);
     const prevHash = prev ? prev.content_hash : 'GENESIS';
     const contentHash = await ledgerContentHash(contractId, contractMd, createdAt, prevHash);
     const r = await dbRun(target, `INSERT INTO contract_ledger (contract_id, content_hash, prev_hash, seq, body_hash, created_at)
-      SELECT ?, ?, COALESCE((SELECT content_hash FROM contract_ledger ORDER BY id DESC LIMIT 1),'GENESIS'),
-             COALESCE((SELECT MAX(seq) FROM contract_ledger),0)+1, ?, ?
-      WHERE COALESCE((SELECT content_hash FROM contract_ledger ORDER BY id DESC LIMIT 1),'GENESIS') = ?`,
-      [contractId, contentHash, bodyHash, createdAt, prevHash]);
+      SELECT ?, ?, COALESCE((SELECT content_hash FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1),'GENESIS'),
+             COALESCE((SELECT MAX(seq) FROM contract_ledger WHERE contract_id=?),0)+1, ?, ?
+      WHERE COALESCE((SELECT content_hash FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1),'GENESIS') = ?
+        AND NOT EXISTS (SELECT 1 FROM contract_ledger WHERE contract_id=? AND content_hash=?)`,
+      [contractId, contentHash, contractId, contractId, bodyHash, createdAt, contractId, prevHash, contractId, contentHash]);
     if (r.meta.changes > 0) return contentHash;
+    // changes=0 可能是「抢链尾失败」或「已存在」——区分：已存在则直接返回既有 hash
+    const dup = await dbGet(target, 'SELECT content_hash FROM contract_ledger WHERE contract_id=? AND content_hash=?', [contractId, contentHash]);
+    if (dup) return dup.content_hash;
   }
   throw new Error('ledger insert retry exhausted'); // 3 次仍未抢到链尾：台账写入失败让请求 500，绝不静默断链
 }
@@ -206,10 +225,10 @@ async function loadContractFor(db, contractId, userId, statuses) {
 
 // ---- 路由 ----
 
-// POST /api/contracts { userId, conversationId, method, plan, hourlyRate } —— 起草并发送给另一方
+// POST /api/contracts { conversationId, method, plan, hourlyRate, ... } —— 起草并发送给另一方
 export async function handleCreateContract(db, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err: authErr } = await requireUser(db, req);
+  if (authErr) return authErr;
   const userId = me.id;
   const conversationId = parseInt(body.conversationId);
   const conv = await dbGetConversationWithNames(db, conversationId);
@@ -236,9 +255,10 @@ export async function handleCreateContract(db, body, req) {
   let demandNo = '';
   if (demandId) {
     const dm = await dbGetDemandById(db, demandId);
-    if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404); // F-03b：需求已删（删除端有原子守卫，此处是创建端复核；INSERT 守卫再堵 SELECT→INSERT 竞态窗口）
+    if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404); // F-03b：需求已删（创建端复核；INSERT 守卫再堵 SELECT→INSERT 竞态窗口）
     if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
-    if (dm.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求不可再绑新合同
+    // 已签约（contracted）或已撤销（revoked，须先手动重开）的需求不可再绑新合同
+    if (dm.status === STATUS.CONTRACTED || dm.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
     if (dm.display_id) demandNo = String(dm.display_id).padStart(4, '0');
   }
   const md = buildContractMd({
@@ -271,30 +291,35 @@ export async function handleCreateContract(db, body, req) {
 
 // GET /api/contracts/my → { contracts }（身份凭令牌）
 export async function handleGetMyContracts(db, url, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
   return json({ contracts: await dbGetMyContracts(db, me.id) });
 }
 
 // POST /api/contracts/:id/sign —— 确认签约；双方都确认后 status→signed
 export async function handleSignContract(db, contractId, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err: authErr } = await requireUser(db, req);
+  if (authErr) return authErr;
   const userId = me.id;
   // pending（收草案方直接确认签约，免去独立「确认草案」步骤）与 signing 均可签
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
-  // 危险操作二次认证（网安报告 F-05）：签约须凭 re-auth 换发的一次性 capToken（原恒通过）
+  // 危险操作二次认证（网安报告 F-05）：签约须凭 re-auth 换发的一次性 capToken
   if (!(await confirmDangerOtp(userId, body))) return error(MSG.REAUTH_FAILED, 403);
 
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
-  // 不产生任何改动；changes=0 方重读当前态幂等返回，不触发任何副作用
-  const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, status='signing', updated_at=datetime('now','localtime') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
+  // 不产生任何改动；changes=0 方重读当前态幂等返回，不触发任何副作用。version 同步递增（乐观锁）
+  const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, status='signing', version=version+1, updated_at=datetime('now','localtime') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
   if (!(flag && flag.meta && flag.meta.changes > 0)) {
     const cur = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
     if (cur.err) return cur.err;
+    if (cur.ct.status === STATUS.SIGNED) {
+      // 上一轮已签约但台账写入失败（500）后的重试：幂等补记存证（网安报告 F-07：绝不静默断链）
+      try { await ledgerRecord(db, contractId, cur.ct.contract_md); }
+      catch (e) { console.error('contract ledger backfill failed:', e && e.message); }
+    }
     return json({ ok: true, signed: cur.ct.status === STATUS.SIGNED });
   }
   const updated = await dbGetContractById(db, contractId);
@@ -304,18 +329,18 @@ export async function handleSignContract(db, contractId, body, req) {
     let claimed = false;
     if (updated.demand_id) {
       // 原子签约（网安报告 F-03）：合同 signed 与需求 contracted 在同一 batch 事务内完成。
-      // 合同 UPDATE 带 NOT EXISTS 条件——需求已被任何合同签约（status='contracted'）时本合同不进入 signed，
-      // 抢占失败合同保持 signing（无回滚、无死锁），返回 410。杜绝「第二方签约 410 但合同已 signed」的线上事故。
+      // 合同 UPDATE 带 NOT EXISTS 条件——需求已被签约（contracted）或已撤销（revoked，须先手动重开）
+      // 时本合同不进入 signed，抢占失败合同保持 signing（无回滚、无死锁），返回 410
       const r = await db.batch([
-        db.prepare(`UPDATE contracts SET status='signed' WHERE id=? AND status='signing'
-          AND NOT EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='contracted')`).bind(contractId, updated.demand_id),
-        db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status<>'contracted'`).bind(updated.demand_id),
+        db.prepare(`UPDATE contracts SET status='signed', version=version+1 WHERE id=? AND status='signing'
+          AND NOT EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status IN ('contracted','revoked'))`).bind(contractId, updated.demand_id),
+        db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`).bind(updated.demand_id),
       ]);
       claimed = !!(r && r[0] && r[0].meta && r[0].meta.changes > 0);
       if (!claimed) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
     } else {
       // 未绑定需求：纯合同签约，条件 UPDATE 赢家模式（双方同时签约仅一方 changes>0）
-      const claim = await dbRun(db, `UPDATE contracts SET status='signed' WHERE id=? AND status='signing'`, [contractId]);
+      const claim = await dbRun(db, `UPDATE contracts SET status='signed', version=version+1 WHERE id=? AND status='signing'`, [contractId]);
       claimed = !!(claim && claim.meta && claim.meta.changes > 0);
     }
     if (claimed) {
@@ -352,26 +377,27 @@ export async function handleSignContract(db, contractId, body, req) {
   return json({ ok: true, signed: both });
 }
 
-// PUT /api/contracts/:id { contractMd } —— 修改正式合同：重置双方确认，实时同步给另一边
+// PUT /api/contracts/:id { contractMd, version } —— 修改正式合同：重置双方确认，实时同步给另一边
+// 乐观锁用自增 version 整数（原秒级 updated_at 同秒双改互相覆盖，已修）：客户端打开编辑器时的
+// version 须随请求带来，缺失即参数错误；版本不符或状态已离开 pending/signing → 409 强制重载
 export async function handleModifyContract(db, contractId, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err: authErr } = await requireUser(db, req);
+  if (authErr) return authErr;
   const userId = me.id;
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
-  // 乐观锁版本号为必填：客户端打开编辑器时的 updated_at 须随请求带来，缺失即参数错误
-  if (!body.updatedAt) return error(MSG.INVALID_PARAMS, 400);
+  const ver = parseInt(body.version);
+  if (!Number.isInteger(ver)) return error(MSG.INVALID_PARAMS, 400);
   const md = String(body.contractMd || '').slice(0, 30000);
-  if (!md.trim()) return error(MSG.CONTRACT_EMPTY);
+  if (!md.trim()) return error(UIC.CONTRACT_EMPTY); // 用户可见文案单源 constants.js
   if (md === ct.contract_md) return json({ ok: true, unchanged: true }); // 内容未变：幂等短路，不重置确认/不重发通知（防双触发重复通知）
 
-  // 修改即回退到签约选择态：双方确认清零 + pending→signing，两边都回到 确认/修改/查看 三按钮。
-  // 乐观锁落 SQL WHERE：版本不符（对方刚改完）或状态已离开 pending/signing（已签约/被取消）→ changes=0 → 409 强制重载（也杜绝修改复活已签约合同）
+  // 修改即回退到签约选择态：双方确认清零 + pending→signing；乐观锁落 SQL WHERE（version 精确匹配）
   const upd = await dbRun(db,
-    `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, status='signing', updated_at=datetime('now','localtime')
-     WHERE id=? AND updated_at=? AND status IN ('pending','signing')`,
-    [md, contractId, String(body.updatedAt)]);
+    `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, status='signing', version=version+1, updated_at=datetime('now','localtime')
+     WHERE id=? AND version=? AND status IN ('pending','signing')`,
+    [md, contractId, ver]);
   if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409);
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
@@ -380,10 +406,10 @@ export async function handleModifyContract(db, contractId, body, req) {
 
 // POST /api/contracts/:id/revoke —— 撤销已签约合同（仅限双方已约定终止的场景，前端 2 次确认 + 法律后果提示）：
 // 活跃库抹掉合同行与合同气泡；签署台账与加密留档保留（不可篡改的历史凭证）；通知对方。
-// 危险操作二次认证 = 密码换 5 分钟一次性 capToken（confirmDangerOtp 真实现；短信通道见 sms-auth.dormant.js）
+// 危险操作二次认证 = 密码换 5 分钟一次性 capToken（confirmDangerOtp 真实现）
 export async function handleRevokeContract(db, contractId, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err: authErr } = await requireUser(db, req);
+  if (authErr) return authErr;
   const g = await loadContractFor(db, contractId, me.id, [STATUS.SIGNED]); // 未签约的走取消流程
   if (g.err) return g.err;
   const { ct, conv } = g;
@@ -401,29 +427,28 @@ export async function handleRevokeContract(db, contractId, body, req) {
 
 // GET /api/contracts/:id/verify —— 存证校验：重算文本哈希对比台账（仅会话参与方与管理员可用）
 export async function handleVerifyContract(db, contractId, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err: authErr } = await requireUser(db, req);
+  if (authErr) return authErr;
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
   const conv = await dbGetConversationWithNames(db, ct.conversation_id);
-  const admin = me.role === 'admin';
-  if (!admin && !isParticipant(conv, me.id)) return error(MSG.NO_PERMISSION, 403);
+  const isAdmin = requireAdminOrError(me) === null; // 管理员判定单点
+  if (!isAdmin && !isParticipant(conv, me.id)) return error(MSG.NO_PERMISSION, 403);
   return json(await verifyContractLedger(db, contractId));
 }
 
-// GET /api/admin/contracts?username= —— 管理员查看全部合同（网页测试用途，真实场景仅管理员可见此页）
+// GET /api/admin/contracts —— 管理员查看全部合同
 export async function handleAdminListContracts(db, url, req) {
-  const e = requireAdminOrError(await authUser(db, req));
-  if (e) return e;
+  const { err } = await requireAdmin(db, req);
+  if (err) return err;
   const contracts = await dbGetAllContractsAdmin(db);
   return json({ contracts });
 }
 
-// DELETE /api/admin/contracts/:id { username } —— 管理员移除合同（测试用；合同全链路留档，删除记 admin.contract.remove）
+// DELETE /api/admin/contracts/:id —— 管理员移除合同（测试用；合同全链路留档，删除记 admin.contract.remove）
 export async function handleAdminRemoveContract(db, contractId, body, req) {
-  const admin = await authUser(db, req);
-  const e = requireAdminOrError(admin);
-  if (e) return e;
+  const { admin, err } = await requireAdmin(db, req);
+  if (err) return err;
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
   await dbDeleteContract(db, contractId);
@@ -435,8 +460,8 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
 
 // DELETE /api/contracts/:id —— 取消签约：删合同 + 通知对方；会话保留
 export async function handleCancelContract(db, contractId, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err: authErr } = await requireUser(db, req);
+  if (authErr) return authErr;
   const userId = me.id;
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;

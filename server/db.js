@@ -1,14 +1,13 @@
 /**
- * 数据访问层 — 全部 SQL 操作封装于此
- * 路由处理函数只调用这些函数，不直接写 SQL（initDb 除外）
- * 换数据库时只需重写本文件
+ * 数据访问层 — 业务数据表 SQL 收敛于此（路由层只调用 dbXxx，不直接写业务 SQL）
+ * 有意决定（CLAUDE.md）：日志表建表/插入在 server/log.js，通知表在 server/notify.js，
+ * 合同状态机与台账 SQL 在 server/contract.js——各模块自持其表域，不在本文件重复。
+ * 换数据库时业务层只需重写本文件（咽喉层 util.js 的 dbAll/dbGet/dbRun 为通用封装）。
  */
-import {
-  dbAll, dbGet, dbRun, hashPassword,
-  INITIAL_RATING, INITIAL_WEIGHT,
-} from './core.js';
+import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
+import { hashPassword, encryptField, decryptField, bindCryptoEnv } from './crypto.js'; // 密码哈希/敏感字段加密（网安报告 F-06）
+import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS } from './constants.js';
 import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
-import { encryptField, decryptField, bindFieldEnv } from './fieldcrypto.js'; // 敏感字段加密（网安报告 F-06）
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
 
@@ -34,6 +33,7 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','signing','signed')),
   drafter_confirmed INTEGER NOT NULL DEFAULT 0,
   other_confirmed INTEGER NOT NULL DEFAULT 0,
+  version INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT (datetime('now','localtime')),
   updated_at DATETIME DEFAULT (datetime('now','localtime')),
   FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`;
@@ -42,7 +42,7 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
 const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(s => s.trim()).filter(Boolean);
 
 export async function initDb(db, env = {}) {
-  bindFieldEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
+  bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
   const adminNames = adminNamesOf(getSecret(env, 'ADMIN_USERNAMES'));
   const adminPassword = getSecret(env, 'ADMIN_DEFAULT_PASSWORD') || '';
   await db.batch([
@@ -52,7 +52,7 @@ export async function initDb(db, env = {}) {
       role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
       banned INTEGER NOT NULL DEFAULT 0,
       created_at DATETIME DEFAULT (datetime('now','localtime')))`),
-    // 登录设备（多端会话）：每枚登录令牌一行；身份解析 authUser 一律 JOIN 本表（core.js）。
+    // 登录设备（多端会话）：每枚登录令牌一行；身份解析 authUser 一律 JOIN 本表（server/security.js）。
     // 网安报告 F-04：主键 token_hash（SHA-256 摘要），令牌明文永不落库；session_id 独立随机 id 供设备管理展示
     db.prepare(`CREATE TABLE IF NOT EXISTS auth_sessions (
       token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
@@ -62,7 +62,7 @@ export async function initDb(db, env = {}) {
       expires_at DATETIME NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     // 限流持久化表（网安报告 F-09）：登录/注册/密码重认证/三振/封禁低频键落此，跨实例生效；
-    // 读写全在 _worker.js rateGate（SQL 内同口径 localtime 比较），此处只管建表
+    // 读写全在 server/security.js rateGate（SQL 内同口径 localtime 比较），此处只管建表
     db.prepare(`CREATE TABLE IF NOT EXISTS rate_limits (
       bucket TEXT PRIMARY KEY,
       n INTEGER NOT NULL DEFAULT 0,
@@ -361,18 +361,24 @@ export async function initDb(db, env = {}) {
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
   await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['deactivated', 'INTEGER NOT NULL DEFAULT 0']]);
-  // 旧单令牌残留清空（网安报告 F-04：auth_token/token_expires 列已无读者，清值缩泄露面；列本身因
-  // 生产库 ALTER DROP COLUMN 有风险保留不动，仅不再被任何代码读写）
-  await dbRun(db, `UPDATE users SET auth_token='', token_expires='' WHERE auth_token != '' OR token_expires != ''`);
+  // 旧单令牌残留清空（网安报告 F-04：auth_token/token_expires 列已无读者，清值缩泄露面）。
+  // 列仅存于历史库、不在任何 DDL（旧 schema 迁移残留）；全新库无这两列，须先 PRAGMA 探测再执行，
+  // 否则 initDb 在全新 D1 上必抛 no such column（曾致初始化永久失败、全站 500 的 CRITICAL 缺陷）
+  const userCols = (await dbAll(db, 'PRAGMA table_info(users)')).map(c => c.name);
+  if (userCols.includes('auth_token')) {
+    await dbRun(db, `UPDATE users SET auth_token='', token_expires='' WHERE auth_token != '' OR token_expires != ''`);
+  }
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
     ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"],
     ['verified', 'INTEGER NOT NULL DEFAULT 0']]); // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
-  await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"]]);
+  await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"],
+    ['intent_locked', 'INTEGER NOT NULL DEFAULT 0']]); // 意向单接受锁：并发 accept 抢占（防同需求双 accepted 意向）
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
-    ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"]]);
+    ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"],
+    ['version', 'INTEGER NOT NULL DEFAULT 0']]); // 合同乐观锁版本（秒级 updated_at 不可靠，修同秒双改互相覆盖）
 
   // 存量需求编号补发：按 id（生成顺序）依次取号，四位展示自 0001 起；已编号跳过（幂等）
   const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');
@@ -380,6 +386,12 @@ export async function initDb(db, env = {}) {
     await dbRun(db, 'UPDATE student_demands SET display_id=(SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands) WHERE id=?', [r.id]);
   }
 
+  // 意向状态列先行补齐：下方「存量会话需求绑定修复」回填引用 di.status，须先建列再回填——
+  // 否则全新 D1 上 initDb 在 prepare 阶段即报 no such column（曾致全新库初始化失败的 CRITICAL 缺陷）
+  await ensureColumns(db, 'demand_intents', [
+    ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
+    ['resolved_at', 'DATETIME'],
+  ]);
   // 存量会话需求绑定修复：旧会话 demand_id 为空 → 从已接受意向 / 已接受推送反查回填（幂等，仅填空不覆写）
   await dbRun(db, `UPDATE conversations SET demand_id = (
       SELECT di.demand_id FROM demand_intents di
@@ -393,10 +405,6 @@ export async function initDb(db, env = {}) {
       ORDER BY dp.id DESC LIMIT 1)
     WHERE demand_id IS NULL AND EXISTS (
       SELECT 1 FROM demand_pushes dp WHERE dp.teacher_user_id = conversations.teacher_user_id AND dp.status='accepted')`);
-  await ensureColumns(db, 'demand_intents', [
-    ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
-    ['resolved_at', 'DATETIME'],
-  ]);
   // 会话已读游标（红点未读用：双方各自一个，指向自己已读到的最大消息 id）
   await ensureColumns(db, 'conversations', [
     ['student_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
@@ -413,15 +421,6 @@ export async function initDb(db, env = {}) {
   const dirtyNames = await dbAll(db, `SELECT id FROM users WHERE username GLOB '*[<>"'']*'`);
   for (const r of dirtyNames) {
     await dbRun(db, `UPDATE users SET username=? WHERE id=?`, [`用户#${r.id}#${Date.now()}`, r.id]);
-  }
-}
-
-// 幂等加列迁移：PRAGMA 探测后再 ALTER（D1 无 ADD COLUMN IF NOT EXISTS）
-async function ensureColumns(db, table, cols) {
-  const info = await dbAll(db, `PRAGMA table_info(${table})`);
-  const have = new Set(info.map(c => c.name));
-  for (const [name, ddl] of cols) {
-    if (!have.has(name)) await dbRun(db, `ALTER TABLE ${table} ADD COLUMN ${name} ${ddl}`);
   }
 }
 
@@ -687,9 +686,8 @@ async function mapDemandRowFull(r) {
 // （my_intent_status，供前端按钮三态渲染）；admin：管理员全量（含已签约，管理端查看联系方式）
 export async function dbGetDemands(db, { admin = false, cursor = null, teacherUserId = null } = {}) {
   if (admin) {
-    // 网安报告 F-09：LIMIT 300 硬截断 → keyset 游标分页（created_at,id 复合倒序；游标=末行编码，
-    // 前端以 nextCursor 翻页）。LIMIT 取 51 判 hasMore，不额外查询
-    const PAGE = 50;
+    // 网安报告 F-09：keyset 游标分页（created_at,id 复合倒序；游标=末行编码，前端以 nextCursor 翻页）。
+    // LIMIT 取 PAGE_HAS_MORE 判 hasMore，不额外查询；页大小单源自 constants.LIMITS
     const params = [];
     let where = '';
     if (cursor) {
@@ -701,9 +699,9 @@ export async function dbGetDemands(db, { admin = false, cursor = null, teacherUs
     }
     const rows = await dbAll(db,
       `SELECT sd.*, u.username, u.avatar FROM student_demands sd JOIN users u ON u.id=sd.user_id${where}
-       ORDER BY sd.created_at DESC, sd.id DESC LIMIT ${PAGE + 1}`, params);
-    const hasMore = rows.length > PAGE;
-    const page = hasMore ? rows.slice(0, PAGE) : rows;
+       ORDER BY sd.created_at DESC, sd.id DESC LIMIT ${LIMITS.PAGE_HAS_MORE}`, params);
+    const hasMore = rows.length > LIMITS.PAGE_SIZE;
+    const page = hasMore ? rows.slice(0, LIMITS.PAGE_SIZE) : rows;
     const last = page.length ? page[page.length - 1] : null;
     return {
       demands: await Promise.all(page.map(mapDemandRowFull)), // 管理员：管理端查看联系方式；F-06 解密为 async
@@ -758,13 +756,20 @@ export async function dbDeleteDemand(db, id) {
     `DELETE FROM student_demands WHERE id=? AND NOT EXISTS (
       SELECT 1 FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed'))`, [id, id]);
   if (!(r && r.meta && r.meta.changes > 0)) return false;
-  await dbRun(db, 'DELETE FROM demand_intents WHERE demand_id=?', [id]);
+  // demand_intents 经外键 ON DELETE CASCADE 级联清理，无需显式删（原冗余 DELETE 已删，避免误导读者以为级联不存在）
   return true;
 }
 
 // 需求重开（revoked→open）：条件 UPDATE 赢家模式，返回是否命中（防并发双触发）
 export async function dbReopenDemand(db, id) {
   const r = await dbRun(db, `UPDATE student_demands SET status='open' WHERE id=? AND status='revoked'`, [id]);
+  return !!(r && r.meta && r.meta.changes > 0);
+}
+
+// 需求意向单接受锁：条件 UPDATE 抢占（intent_locked 0→1），赢家才继续。
+// 防并发 accept 两条意向产生双 accepted + 双会话（审计发现的聚合不变量缺口）
+export async function dbLockDemandIntent(db, demandId) {
+  const r = await dbRun(db, `UPDATE student_demands SET intent_locked=1 WHERE id=? AND intent_locked=0`, [demandId]);
   return !!(r && r.meta && r.meta.changes > 0);
 }
 
@@ -874,8 +879,8 @@ export async function dbCreateReview(db, teacherUserId, reviewerUserId, rating, 
 export async function dbGetApprovedReviews(db, teacherUserId) {
   return await dbAll(db, `SELECT r.*, u.username as reviewer_name
     FROM reviews r JOIN users u ON r.reviewer_user_id=u.id
-    WHERE r.teacher_user_id=? AND r.status='approved' ORDER BY r.created_at DESC`,
-    [teacherUserId]);
+    WHERE r.teacher_user_id=? AND r.status='approved' ORDER BY r.created_at DESC LIMIT 200`,
+    [teacherUserId]); // 防全表返回（面板滚动查看；单教师 200 条上限足够）
 }
 
 // 某学生对某教师的自有评价（任意状态；「已有评价只能修改」与编辑回填用）
@@ -1018,8 +1023,9 @@ export async function dbCreateFeedback(db, userId, kind, title, content) {
 }
 
 export async function dbGetFeedbacksAdmin(db, status) {
-  // 可选 status 下推过滤（白名单，防注入）；不传则返回全部，向后兼容
-  const where = (status === 'pending' || status === 'resolved') ? ' WHERE f.status=?' : '';
+  // 可选 status 下推过滤（白名单，防注入）；不传则返回全部。
+  // feedbacks.status 合法值仅 'open'/'resolved'（曾误用 'pending' 致「未处理」过滤恒空，已修）
+  const where = (status === 'open' || status === 'resolved') ? ' WHERE f.status=?' : '';
   const params = where ? [status] : [];
   return await dbAll(db,
     'SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id' + where + ' ORDER BY f.id DESC LIMIT 200', params);
@@ -1061,11 +1067,11 @@ export async function dbGetInviteStats(db) {
     FROM invite_codes`);
 }
 
-export async function dbGetRecentUsers(db, limit = 8) {
+export async function dbGetRecentUsers(db, limit = LIMITS.RECENT_LIMIT) {
   return await dbAll(db, 'SELECT id,username,role,created_at FROM users ORDER BY created_at DESC LIMIT ?', [limit]);
 }
 
-export async function dbGetRecentDemands(db, limit = 8) {
+export async function dbGetRecentDemands(db, limit = LIMITS.RECENT_LIMIT) {
   const rows = await dbAll(db, `SELECT sd.id,sd.student_grade,sd.target_subjects,sd.created_at,u.username
     FROM student_demands sd JOIN users u ON sd.user_id=u.id ORDER BY sd.created_at DESC LIMIT ?`, [limit]);
   return rows.map(d => ({ ...d, target_subjects: safeJsonArray(d.target_subjects) }));
@@ -1169,7 +1175,9 @@ export async function dbGetConversationWithNames(db, conversationId) {
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
   // contracted：本会话存在已签约合同 → 会话项与聊天头显示「已签约」小卡
-  return await dbAll(db, `SELECT c.*,
+  // 显式列集（不用 c.*）：双方已读游标（student_last_read_id/teacher_last_read_id）不下发，
+  // 避免向对方暴露己方已读位置（低敏信息泄露面收口）
+  return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.demand_id, c.status, c.created_at,
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       sd.display_id AS demand_display_id,
@@ -1200,7 +1208,7 @@ export async function dbMarkConversationRead(db, convId, userId) {
     WHERE id=?`, [userId, convId, userId, convId, convId]);
 }
 
-export async function dbGetMessages(db, convId, sinceId = 0, limit = 100) {
+export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_LIMIT) {
   // 图片/文件消息不在列表查询里下发 dataURL 本体（大字段懒加载，走 attachment 接口）
   return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.name, m.created_at,
       CASE WHEN m.kind IN ('image','file') THEN '' ELSE m.body END AS body,
@@ -1235,9 +1243,10 @@ export async function dbDeleteMessage(db, messageId) {
 // 聊天附件暂存区（uploads）：文件拖入/选中即真实上传至此（XHR 进度），
 // 发送时凭 uploadId 确认落入 messages 后删除暂存
 // ============================================================
-// 暂存配额自愈：清本人 30 分钟前的滞留暂存件（防弃传暂存填满库）
+// 暂存配额自愈：清本人滞留暂存件（窗口单源自 constants.LIMITS，防弃传暂存填满库）
 export async function dbPurgeStaleUploads(db, userId) {
-  await dbRun(db, `DELETE FROM uploads WHERE user_id=? AND created_at < datetime('now','localtime','-30 minutes')`, [userId]);
+  await dbRun(db, `DELETE FROM uploads WHERE user_id=? AND created_at < datetime('now','localtime', ?)`,
+    [userId, LIMITS.STALE_UPLOAD_WINDOW]);
 }
 
 // 本人当前暂存件数（每人 12 件封顶用）

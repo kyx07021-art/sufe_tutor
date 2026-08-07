@@ -259,7 +259,7 @@ body { background: transparent; }
    输入控件（input/select/textarea）——不带 glass 类，不走引擎；
    直写与引擎视觉同源（白染填充 + 液体边缘内高光）。非玻璃件，非特例。
    ============================================================ */
-.form-input, .form-textarea, .custom-select-trigger, .chat-input, .filter-select,
+.form-input, .custom-select-trigger, .chat-input, .filter-select,
 .chat-textarea, .posts-search, .post-body-input { /* G29：补三处引擎覆盖缺口（聊天输入/广场搜索/正文） */
   background-color: var(--g-fill-weak); border: none; border-radius: var(--lg-r-sm);
   /* G18/G19：background shorthand 会重置 background-image，吃掉 style.css 的聚焦下划线/下拉 v 箭头 → 拆 longhand background-color */
@@ -267,7 +267,7 @@ body { background: transparent; }
   box-shadow: var(--glass-lift-sm), inset 0 1px 3px var(--g-inset-shadow), inset 0 0 0 1px var(--g-inset-edge-soft), inset 0 1px 0 var(--g-inset-edge);
 }
 .form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: 12px; padding-right: 12px; }
-.form-input:focus, .form-textarea:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px var(--g-focus-soft), inset 0 1px 0 var(--g-input-focus-edge); }
+.form-input:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), 0 0 0 3px var(--g-focus-soft), inset 0 1px 0 var(--g-input-focus-edge); }
 
 /* 信息栏内部行线（卡片已玻璃化，行线改透白） */
 .profile-panel-head { border-bottom: 1px solid var(--g-line-soft); } /* G22：分隔线单源迁此（含宽/样式，style.css 删直写） */

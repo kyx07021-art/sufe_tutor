@@ -109,9 +109,6 @@ textarea.post-body-input { min-height: 200px; font-size: .86rem; line-height: 1.
   min-height: 64px; max-height: 240px; overflow-y: auto;
   padding: 12px 14px;
 }
-.md-preview::-webkit-scrollbar { width: 6px; }
-.md-preview::-webkit-scrollbar-track { background: transparent; }
-.md-preview::-webkit-scrollbar-thumb { background: var(--paper-3); }
 .md-preview h3 {
   font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink);
   margin: 10px 0 4px;

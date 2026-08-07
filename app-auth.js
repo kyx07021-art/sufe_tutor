@@ -1,0 +1,194 @@
+/**
+ * 认证流程（目标分层：壳与主流程下游）—— 登录通路 / 注册 / 登录 / 登出 / 访客模式
+ *
+ * 登录通路（全站唯一）：一切需要真实用户信息的页面/操作都经 ensureAuth()。
+ * 未登录 → 记下当前页 → 导向特制登录页（标题「登录以使用更多功能」）→ 登录/注册
+ * 成功后 afterAuthSuccess → enterClient(authReturnPage) 自动回到原页面状态。
+ * api() 层 401 兜底同样汇入此通路（令牌过期等同未登录）。
+ *
+ * 会话持久化收敛到 app-state saveSession/clearSession（绝不存明文密码）；
+ * 登出经 runLogoutResets() 统一清理各领域模块登记的模块级残留。
+ */
+let authReturnPage = null;
+let loginCheckTimer = null, loginCheckSeq = 0;
+
+function ensureAuth() {
+  if (state.user) return true;
+  authReturnPage = state.view === 'client' ? state.page : null;
+  state.guestAuthMode = true;
+  showView('login');
+  return false;
+}
+
+// 登录页标题按来路切换（index.html 静态文本仅作 JS 前兜底）
+function refreshAuthHeader() {
+  const h = document.getElementById('login-title');
+  const p = document.getElementById('login-subtitle');
+  if (!h || !p) return;
+  h.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_TITLE_GUEST : UI.AUTH_LOGIN_TITLE;
+  p.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_SUB_GUEST : UI.AUTH_LOGIN_SUB;
+}
+
+// 登录页「返回」：访客回客户端（取消登录）。注意：若原页面需登录，直接回去会被
+// selectPage 的 ensureAuth 立刻再拦回登录页（死循环）→ 需登录的页面一律回落访客默认浏览页
+function authGoBack() {
+  if (state.guestAuthMode) {
+    state.guestAuthMode = false;
+    const back = authReturnPage; authReturnPage = null;
+    const cfg = back && pagesForRole().find(p => p.id === back);
+    enterClient(cfg && cfg.auth === false ? back : undefined);
+    return;
+  }
+  showView('landing');
+}
+
+// 登录 / 注册成功统一收口：清访客态 + 本机已登录标记 + 自动返回触发登录通路的那个页面
+function afterAuthSuccess() {
+  state.guestAuthMode = false;
+  state.guestRole = null;
+  setReturning(); // 本设备已登录过 → 首访新手引导不再弹
+  const back = authReturnPage; authReturnPage = null;
+  enterClient(back || undefined); // 返回页与新角色不匹配时 enterClient 自然回落默认页
+}
+
+function switchRegisterRole(role) {
+  document.getElementById('register-role').value = role;
+  document.querySelectorAll('#register-role-tabs .role-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
+  // 教师注册：门控休眠期（内测）直接填表；恢复后先验证邀请码再填表
+  if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
+    showView('invite-gate');
+  }
+}
+
+function handleFeatureClick(role) {
+  if (state.user) { enterClient(); return; }
+  // 访客模式：主页按钮直达对应客户端先逛起来（用户信息栏显示「未登录」），
+  // 需要身份的操作经 ensureAuth 统一导向登录页
+  state.guestRole = role;
+  enterClient();
+}
+
+// ------------------------------------------------------------
+// 登录页：用户名输入实时查角色（命中现有账户时输入框下方灰字提示）
+// ------------------------------------------------------------
+function checkLoginUsernameDebounced() {
+  clearTimeout(loginCheckTimer);
+  loginCheckTimer = setTimeout(checkLoginUsername, CONFIG.LOGIN_CHECK_DEBOUNCE_MS);
+}
+
+async function checkLoginUsername() {
+  const hint = document.getElementById('login-username-hint');
+  const name = document.getElementById('login-username').value.trim();
+  const seq = ++loginCheckSeq;
+  if (!name || !hint) { if (hint) hint.textContent = ''; return; }
+  try {
+    const data = await api(`/api/auth/check?username=${encodeURIComponent(name)}`);
+    if (seq !== loginCheckSeq) return; // 过期响应丢弃，防输入快于请求时的乱序
+    hint.textContent = !data.exists ? ''
+      : data.role === 'teacher' ? UI.HINT_ROLE_TEACHER
+      : data.role === 'student' ? UI.HINT_ROLE_STUDENT : UI.HINT_ROLE_ADMIN;
+  } catch { /* 网络抖动：静默不给提示 */ }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const alertEl = document.getElementById('login-alert');
+  const btn = document.getElementById('login-submit');
+
+  try {
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span> ${UI.LOADING_LOGIN}`;
+    const data = await api('/api/auth/login', { method: 'POST', body: { username, password } });
+    state.user = data.user; state.authToken = data.authToken || null;
+    alertEl.innerHTML = '';
+    saveSession(document.getElementById('login-remember').checked); // 会话持久化（绝不存明文密码）
+    afterAuthSuccess();
+  } catch (err) {
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = UI.BTN_LOGIN;
+  }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const username = document.getElementById('register-username').value.trim();
+  const password = document.getElementById('register-password').value;
+  const password2 = document.getElementById('register-password2').value;
+  const role = document.getElementById('register-role').value;
+  const alertEl = document.getElementById('register-alert');
+
+  if (password !== password2) {
+    alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_PASSWORD_MISMATCH}</div>`;
+    return;
+  }
+  if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
+    if (!state.validatedInviteCode) {
+      alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_INVITE_FIRST}</div>`;
+      showView('invite-gate');
+      return;
+    }
+  }
+
+  try {
+    const btn = document.getElementById('register-submit');
+    btn.disabled = true; btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span> ${UI.LOADING_REGISTER}`;
+    const body = { username, password, role };
+    if (role === 'teacher' && state.validatedInviteCode) body.inviteCode = state.validatedInviteCode;
+    const data = await api('/api/auth/register', { method: 'POST', body });
+    state.user = data.user; state.authToken = data.authToken || null;
+    if (role === 'teacher') state.validatedInviteCode = null; // 请求成功后清（网络失败保留，重试免重验；原提前清空致失败即需重验）
+    alertEl.innerHTML = '';
+    saveSession(false); // 注册即登录：会话存 sessionStorage（刷新保留，关标签即焚）
+    afterAuthSuccess();
+  } catch (err) {
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
+  } finally {
+    const btn = document.getElementById('register-submit');
+    btn.disabled = false; btn.textContent = UI.BTN_REGISTER;
+  }
+}
+
+async function validateInviteAndRegister() {
+  const code = document.getElementById('invite-code-input').value.trim();
+  const alertEl = document.getElementById('invite-gate-alert');
+
+  if (!code) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_INVITE_REQUIRED}</div>`; return; }
+
+  // 这里只做格式校验，真正的验证在注册时进行
+  if (code.length !== CONFIG.INVITE_CODE_LEN) {
+    alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_INVITE_LENGTH}</div>`; // 8 位
+    return;
+  }
+
+  // 保存验证过的邀请码，跳转到注册表单
+  state.validatedInviteCode = code;
+  alertEl.innerHTML = `<div class="alert alert-success glass">${UI.SUCCESS_INVITE_CONFIRMED}</div>`;
+
+  // 等一秒让用户看到成功提示，然后跳转到注册页
+  setTimeout(() => {
+    document.getElementById('register-role').value = 'teacher';
+    document.querySelectorAll('#register-role-tabs .role-tab').forEach(t =>
+      t.classList.toggle('active', t.dataset.role === 'teacher'));
+    showView('register');
+  }, CONFIG.REOPEN_DELAY_MS);
+}
+
+function handleLogout() {
+  if (state.authToken) api('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {}); // 真登出：吊销当前会话（fire-and-forget）
+  stopBadgePoll();
+  if (typeof stopChatPolling === 'function') stopChatPolling(); // 登出即停聊天轮询（兼清暂存附件）
+  runLogoutResets(); // 各领域模块登记的模块级残留清理（推送冷却/匹配卡/挂起确认/通知缓存/档案截图等）
+  window._contractDraftDemands = null; // 防上一账户的起草候选被新账户触发
+  state.user = null; state.authToken = null; state.page = null;
+  state.guestRole = null; state.guestAuthMode = false; authReturnPage = null;
+  closeProfilePanel(); // 内部 seq 作废在途（panel 状态复位由 app-teachers 的 logout reset 兜底）
+  state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = [];
+  state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
+  state.inviteTimerId = null; state.currentInviteCode = null; state.validatedInviteCode = null; // 邀请码随账号清（曾漏清）
+  clearSession();
+  try { localStorage.removeItem('sufe_page'); } catch { /* ignore */ }
+  closeSidebar();
+  showView('landing');
+}

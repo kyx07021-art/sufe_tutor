@@ -31,10 +31,6 @@
 }
 
 .conv-list { position: relative; flex: 1; overflow-y: auto; min-height: 0; padding: 10px 0 16px; }
-.conv-list::-webkit-scrollbar { width: 6px; }
-.conv-list::-webkit-scrollbar-track { background: transparent; }
-.conv-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
-.conv-list::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
 /* 选中滑块：会话项背后的米色大色块。top / height / opacity 全由
    app.js syncPillOnce / glidePill 逐帧写入，自身不带任何过渡 */
@@ -148,10 +144,6 @@
   display: flex; flex-direction: column; gap: 12px;
   padding: 20px 22px;
 }
-.chat-messages::-webkit-scrollbar { width: 6px; }
-.chat-messages::-webkit-scrollbar-track { background: transparent; }
-.chat-messages::-webkit-scrollbar-thumb { background: var(--paper-3); }
-.chat-messages::-webkit-scrollbar-thumb:hover { background: var(--faint); }
 
 /* 气泡入场：比网站其他区域更灵动 —— 轻升 + 微缩放开场；--i 由渲染处注入做轻量错峰 */
 @keyframes chat-pop {

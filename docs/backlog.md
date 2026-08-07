@@ -103,3 +103,9 @@
 
 ## 视觉实验（用户同意概念，需截图调参到美丽再上线）
 - **vivid「clear-over-vivid」宝石按钮**：✅ 彩色玻璃观感已由 0.18.11 的统一达成（按钮=填色卡 + 标准遮罩 + 折射），**无需**元素自绘或 backdrop 垫层。若用户进一步要"折射去弯折一块自有 vivid 渐变"的宝石感，才需正后方垫同形不透明 vivid 层、按钮毛度≈0（backdrop-filter 无法跳层，自有 background 不被折射，故需垫层）——此为可选增强，只出截图原型，给用户看再定推不推全站；**不要**为它再给按钮开特例渲染路径（违 best-part-is-no-part）。
+
+## v0.21.0 全局重构后待办（2026-08-07 审计遗留，低危）
+- 前端 z-index 阶梯 / 860 断点 token 化（style.css :root 定义 --z-* / --bp-*，各文件统一引用；当前数值一致仅散落）
+- 管理员列表分页：评价/反馈/合同管理端列表加 keyset 游标（dbGetDemands admin 已有先例）
+- admin 统计页 loadAdminStats 对响应字段做可选链兜底（s.users?.total）
+- dbGetDemandById 单条/列表出口形状已对齐 mapper，跨出口契约注释待补

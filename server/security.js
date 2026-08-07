@@ -1,0 +1,158 @@
+/**
+ * 网安咽喉（目标分层：网安咽喉）—— 身份解析 / 权限守卫 / 限流 / CORS / 安全响应头 单点
+ *
+ * 收敛自：server/core.js 的身份部分（authUser/requireAdminOrError）+ _worker.js 的
+ * 限流（rateGate 及内存/D1 双写）、CORS 预检、安全响应头。
+ *
+ * 守卫用法（替代散落各路由的 45 处内联样板）：
+ *   const { user: me, err } = await requireUser(db, req, 'student'); if (err) return err;
+ *   const { admin, err } = await requireAdmin(db, req);             if (err) return err;
+ *
+ * 限流双路径（同一 RATE_LIMITS 配置）：
+ *   - 高频键（全局/写/探测，每请求必查）留内存 per-isolate best-effort——实例重启即清零自愈；
+ *   - 低频危险键（登录/注册/重认证/三振/封禁）落 D1 rate_limits 表，跨实例生效、重启不清零。
+ *   - 三振窗口语义内存与 D1 一致（strike.windowMs 内满 strike.count 次 → 封 block.windowMs）。
+ */
+import { dbGet, dbRun, error } from './util.js';
+import { tokenDigest } from './crypto.js';
+import { MSG, RATE_LIMITS, SECURITY_HEADERS, CORS_HEADERS } from './constants.js';
+
+// ============================================================
+// 身份解析：全站一律凭 X-Auth-Token（登录签发，TTL 见 constants.SECURITY.TOKEN_TTL_MS，
+// 过期按 UTC 比较——同全站 datetime 纪律）。body/query 里的 userId 只当前端回显用，
+// 服务端身份认定永远以令牌解出的用户为准（审计整改：自报 userId 可枚举冒名）
+// ============================================================
+export async function authUser(db, req) {
+  const token = req && req.headers && req.headers.get('X-Auth-Token');
+  if (!token) return null;
+  const u = await dbGet(db, `SELECT u.id,u.username,u.role,u.avatar,u.banned,s.expires_at AS token_expires
+    FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?`, [await tokenDigest(token)]);
+  if (!u || u.banned) return null;
+  const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
+  if (!exp || exp < Date.now()) return null;
+  return u;
+}
+
+/** 管理员判定两行式合一：非管理员（含无令牌/令牌失效）→ 403 响应；通过 → null */
+export function requireAdminOrError(user) {
+  return user && user.role === 'admin' ? null : error(MSG.ADMIN_ONLY, 403);
+}
+
+/**
+ * 组合式守卫：解析令牌用户 → 可选角色门 → 返回 { user } 或 { err }。
+ * @param db   D1 绑定
+ * @param req  Request（取 X-Auth-Token 头）
+ * @param role 可选 'student' | 'teacher' | 'admin'；指定时角色不符返回对应 403
+ */
+export async function requireUser(db, req, role) {
+  const user = await authUser(db, req);
+  if (!user) return { err: error(MSG.LOGIN_REQUIRED, 401) };
+  if (role && user.role !== role) {
+    const msg = role === 'admin' ? MSG.ADMIN_ONLY : role === 'student' ? MSG.STUDENT_ONLY : MSG.TEACHER_ONLY;
+    return { err: error(msg, 403) };
+  }
+  return { user };
+}
+
+/** 管理员组合式守卫：返回 { admin } 或 { err }（requireUser 的 role='admin' 别名） */
+export async function requireAdmin(db, req) {
+  const { user: admin, err } = await requireUser(db, req, 'admin');
+  return { admin, err };
+}
+
+// ============================================================
+// 限流（网安报告 F-09：内存 Map 单实例化 → 混合持久化）
+// ============================================================
+const RL = { hits: new Map(), strikes: new Map(), blocked: new Map() };
+
+const rlSweep = now => {
+  if (RL.hits.size < RATE_LIMITS.sweepSize) return;
+  for (const [k, v] of RL.hits) if (v.reset < now) RL.hits.delete(k);
+  for (const [k, until] of RL.blocked) if (until < now) RL.blocked.delete(k);
+};
+
+// 内存命中计数：窗口内 +1，返回是否未超限
+const rlBump = (key, limit, windowMs, now) => {
+  let e = RL.hits.get(key);
+  if (!e || e.reset < now) { e = { n: 0, reset: now + windowMs }; RL.hits.set(key, e); }
+  return ++e.n <= limit;
+};
+
+// 内存三振（与 D1 rlStrikeD1 同窗口语义：strike.windowMs 内满 strike.count 次 → 封 block.windowMs）
+const rlStrike = (ip, now) => {
+  let s = RL.strikes.get(ip);
+  if (!s || s.reset < now) s = { n: 0, reset: now + RATE_LIMITS.strike.windowMs };
+  s.n += 1;
+  if (s.n >= RATE_LIMITS.strike.count) {
+    RL.blocked.set(ip, now + RATE_LIMITS.block.windowMs);
+    RL.strikes.delete(ip);
+  } else {
+    RL.strikes.set(ip, s);
+  }
+};
+
+// D1 原子计数：单条 UPSERT（窗口内 +1 / 过期重置为 1），窗口与比较全在 SQL 内同口径
+const rlBumpD1 = async (db, key, limit, windowMs) => {
+  const mod = '+' + Math.round(windowMs / 1000) + ' seconds';
+  await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
+    ON CONFLICT(bucket) DO UPDATE SET
+      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
+      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`
+    , [key, mod]).catch(() => {});
+  await dbRun(db, "DELETE FROM rate_limits WHERE reset_at < datetime('now','localtime','-1 day')").catch(() => {});
+  const row = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [key]);
+  return !row || row.n <= limit;
+};
+
+// D1 三振封禁（跨实例持久）：strike.windowMs 窗口计数，满 strike.count 次写 block 行
+const rlStrikeD1 = async (db, ip) => {
+  const w = '+' + Math.round(RATE_LIMITS.strike.windowMs / 1000) + ' seconds';
+  const b = '+' + Math.round(RATE_LIMITS.block.windowMs / 1000) + ' seconds';
+  await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
+    ON CONFLICT(bucket) DO UPDATE SET
+      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
+      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`
+    , [`strike:${ip}`, w]).catch(() => {});
+  const st = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [`strike:${ip}`]);
+  if (st && st.n >= RATE_LIMITS.strike.count) {
+    await dbRun(db, "INSERT OR REPLACE INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))", [`block:${ip}`, b]).catch(() => {});
+    await dbRun(db, 'DELETE FROM rate_limits WHERE bucket=?', [`strike:${ip}`]).catch(() => {});
+  }
+};
+
+/**
+ * 限流闸门（_worker 每请求调用；超限一律 429，细节不回显）。
+ * 高频键走内存（最热路径零额外延迟），登录/注册/重认证/封禁走 D1（跨实例生效）。
+ * 用户名探测走内存软限制，不记三振。
+ */
+export async function rateGate(ip, p, method, body, now, db) {
+  rlSweep(now);
+  if ((RL.blocked.get(ip) || 0) > now) return false;
+  if (!rlBump(`g:${ip}`, RATE_LIMITS.global.limit, RATE_LIMITS.global.windowMs, now)) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
+  if (method !== 'GET' && p.startsWith('/api/') && !rlBump(`w:${ip}`, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, now)) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
+  if (p === '/api/auth/login' || p === '/api/auth/register' || p === '/api/auth/re-auth') {
+    const blk = await dbGet(db, "SELECT 1 AS b FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')", [`block:${ip}`]);
+    if (blk) return false;
+    if (p === '/api/auth/login' && !(await rlBumpD1(db, `l:${ip}:${String((body && body.username) || '').toLowerCase()}`, RATE_LIMITS.login.limit, RATE_LIMITS.login.windowMs))) { await rlStrikeD1(db, ip); return false; }
+    if (p === '/api/auth/register' && !(await rlBumpD1(db, `r:${ip}`, RATE_LIMITS.register.limit, RATE_LIMITS.register.windowMs))) { await rlStrikeD1(db, ip); return false; }
+    if (p === '/api/auth/re-auth' && !(await rlBumpD1(db, `ra:${ip}`, RATE_LIMITS.reauth.limit, RATE_LIMITS.reauth.windowMs))) { await rlStrikeD1(db, ip); return false; }
+  }
+  if (p === '/api/auth/check' && !rlBump(`c:${ip}`, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, now)) return false;
+  return true;
+}
+
+// ============================================================
+// CORS 预检 + 安全响应头
+// ============================================================
+/** CORS 预检响应（头单源自 constants.CORS_HEADERS） */
+export function corsPreflight() {
+  return new Response(null, { headers: CORS_HEADERS });
+}
+
+/** API 响应统一加安全头 + no-store（仅 /api/* 生效；静态层由 _headers 承担） */
+export function applySecurityHeaders(res, path) {
+  if (!path.startsWith('/api/')) return res;
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.headers.set(k, v);
+  res.headers.set('Cache-Control', 'no-store');
+  return res;
+}

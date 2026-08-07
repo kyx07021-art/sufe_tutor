@@ -1,9 +1,13 @@
 /**
  * 路由模块：站内沟通（会话列表 / 消息轮询 / 发送 / 附件暂存上传）
- * 消息内容按模块5要求全量留档（detail 含正文，走 logEvent 咽喉，后期统一加密）
- * 图片/文件：kind=image/file；暂存上传走 uploads 表，发送时凭 uploadId 落入会话
+ * 消息内容按模块5要求全量留档（detail 含正文元数据，走 logEvent 咽喉；dataURL 本体不落 detail）
+ * 图片/文件：kind=image/file；暂存上传走 uploads 表，发送时凭 uploadId 落入会话。
+ * 安全补丁已并入主线：svg/html dataURL 黑名单（防钓鱼投递）、附件体积上限、暂存配额自愈+封顶、
+ * 参与方 404 不泄露会话存在性。限额全部单源 constants.LIMITS。
  */
-import { json, error, authUser, MSG, STATUS } from './core.js';
+import { json, error } from './util.js';
+import { requireUser } from './security.js';
+import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage, dbMarkConversationRead,
   dbGetMessageAttachment,
@@ -31,16 +35,16 @@ const fileDataBlocked = content => {
 };
 
 export async function handleGetConversations(db, url, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
   const conversations = await dbGetMyConversations(db, me.id);
   return json({ conversations });
 }
 
 // 标记已读：我的已读游标推到该会话最新一条（红点点掉即消的后端支撑）
 export async function handleMarkRead(db, convId, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
   const g = await loadConversationFor(db, convId, me.id);
   if (g.err) return g.err;
   await dbMarkConversationRead(db, convId, me.id);
@@ -48,8 +52,8 @@ export async function handleMarkRead(db, convId, body, req) {
 }
 
 export async function handleGetMessages(db, convId, url, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
   const sinceId = parseInt(url.searchParams.get('sinceId')) || 0;
   const g = await loadConversationFor(db, convId, me.id);
   if (g.err) return g.err;
@@ -61,8 +65,8 @@ export async function handleGetMessages(db, convId, url, req) {
 // GET /api/conversations/:cid/messages/:mid/attachment —— 单条附件懒加载
 // （列表接口不下发图片/文件的 dataURL 本体，前端先渲染骨架，页面可操作后逐条补载）
 export async function handleGetAttachment(db, convId, messageId, url, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
   const g = await loadConversationFor(db, convId, me.id);
   if (g.err) return g.err;
   const m = await dbGetMessageAttachment(db, messageId, convId);
@@ -73,25 +77,25 @@ export async function handleGetAttachment(db, convId, messageId, url, req) {
 // POST /api/uploads —— 文件进入暂存区即真实上传（前端 XHR upload.onprogress = 本请求进度），
 // 只暂存不入会话；发送时凭 uploadId 确认落入会话
 export async function handleCreateUpload(db, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
   const kind = body.kind === 'image' ? 'image' : 'file';
   const content = String(body.fileData ?? '');
   const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
-  if (!prefixOk || content.length > 700000) return error(MSG.FILE_TOO_LARGE);
+  if (!prefixOk || content.length > LIMITS.FILE_MAX_BYTES) return error(MSG.FILE_TOO_LARGE);
   if (fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED); // svg/html 黑名单对图片同样生效
-  const name = String(body.fileName ?? '').slice(0, 100);
-  // 暂存区配额自愈 + 上限：先清本人 30 分钟前的滞留暂存件，再按每人 12 件封顶（防弃传暂存填满库 / 刷大字段）
+  const name = String(body.fileName ?? '').slice(0, LIMITS.FILE_NAME_MAX);
+  // 暂存区配额自愈 + 上限：先清本人滞留暂存件（窗口见 LIMITS.STALE_UPLOAD_WINDOW），再按每人封顶（防弃传暂存填满库 / 刷大字段）
   await dbPurgeStaleUploads(db, me.id);
-  if ((await dbCountUploads(db, me.id)) >= 12) return error(MSG.UPLOAD_STAGING_LIMIT);
+  if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return error(MSG.UPLOAD_STAGING_LIMIT);
   const id = await dbCreateUpload(db, me.id, kind, content, name);
   return json({ id }, 201);
 }
 
 // DELETE /api/uploads/:id —— 移除暂存项（删已上传的文件，仅本人）
 export async function handleDeleteUpload(db, uploadId, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
   const u = await dbGetUpload(db, uploadId);
   if (!u || u.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
   await dbDeleteUpload(db, uploadId);
@@ -99,8 +103,8 @@ export async function handleDeleteUpload(db, uploadId, body, req) {
 }
 
 export async function handleSendMessage(db, convId, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
   const userId = me.id;
   const { kind = 'text' } = body;
   const g = await loadConversationFor(db, convId, userId);
@@ -122,13 +126,13 @@ export async function handleSendMessage(db, convId, body, req) {
   let content = '', name = '';
   if (kind === 'text') {
     content = String(body.body ?? '').trim();
-    if (!content || content.length > 2000) return error(MSG.MESSAGE_TOO_LONG);
+    if (!content || content.length > LIMITS.MESSAGE_MAX_LEN) return error(MSG.MESSAGE_TOO_LONG);
   } else if (kind === 'image' || kind === 'file') {
     content = String(body.fileData ?? '');
     const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
-    if (!prefixOk || content.length > 700000) return error(MSG.FILE_TOO_LARGE);
+    if (!prefixOk || content.length > LIMITS.FILE_MAX_BYTES) return error(MSG.FILE_TOO_LARGE);
     if (fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED); // svg/html 黑名单对图片同样生效
-    name = String(body.fileName ?? '').slice(0, 100);
+    name = String(body.fileName ?? '').slice(0, LIMITS.FILE_NAME_MAX);
   } else {
     return error(MSG.MESSAGE_TOO_LONG);
   }

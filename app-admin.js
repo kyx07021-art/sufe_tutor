@@ -3,7 +3,7 @@
  *
  * 职责：管理员各子页装载器（统计/用户/需求/评价审核/资料管理/合同管理/用户反馈）/
  *       邀请码签发与计时 / 封禁解封 / 越权删帖 / 反馈标记处理。
- * 本文件在 app.js 之后加载，可安全调用 app.js 全局设施（api/state/UI/loadInto/escHtml/showToast 等）。
+ * 本文件在共享层（app-state/app-api/app-anim/app-ui）之后加载，可安全调用全局设施（api/state/UI/loadInto/escHtml/showToast 等）。
  * 函数一律保持 function 声明式（内联 onclick 靠它挂全局）。
  */
 
@@ -250,7 +250,7 @@ async function loadAdminUsers(role, elId) {
   await loadInto(elId, async () => {
     const data = await api(`/api/admin/users?role=${role}`);
     const users = data.users || [];
-    if (role === 'teacher' && users.length) state.adminTeachers = users; // 教师详情弹窗的数据源（原口径：非空才回写）
+    if (role === 'teacher') state.adminTeachers = users; // 空数组也回写：封禁最后一个教师后旧缓存不滞留 // 教师详情弹窗的数据源（原口径：非空才回写）
     return users;
   }, users => users.map(u => renderAdminUserRow(u, role)).join(''), { empty: UI.EMPTY_NO_USERS, reveal: false });
 }
@@ -260,7 +260,7 @@ function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-
 function renderAdminUserRow(u, role) {
   const uid = role === 'teacher' ? u.user_id : u.id;
   const meta = role === 'teacher'
-    ? `${DISP.teacherGradeName(u.grade) || '—'} · ${DISP.ratingText(u.rating)}${UI.RATING_SCORE_SUFFIX} · ${u.price || '?'}${UI.PRICE_UNIT}`
+    ? `${DISP.teacherGradeName(u.grade) || '—'} · ${DISP.ratingText(u.rating)}${UI.RATING_SCORE_SUFFIX} · ${u.price != null ? u.price : '?'}${UI.PRICE_UNIT}`
     : `${u.demand_count || 0}${UI.DEMAND_COUNT_SUFFIX}`;
   return `<div class="admin-row glass">
     <div class="admin-row-main">
@@ -325,7 +325,8 @@ async function loadAdminDemands(reset = true) {
 async function loadAdminReviews() {
   const status = document.getElementById('admin-reviews-status')?.value || '';
   await loadInto('admin-reviews-list', async () => {
-    const data = await api(`/api/admin/reviews${status ? `&status=${status}` : ''}`);
+    // 修：原用 &status 开头（无 ? 前缀，服务端无法解析，按状态过滤失效）→ 改 ?status
+    const data = await api(`/api/admin/reviews${status ? `?status=${status}` : ''}`);
     return data.reviews || [];
   }, reviews => reviews.map(renderAdminReviewRow).join(''), { empty: UI.EMPTY_NO_REVIEWS, reveal: false });
 }
@@ -337,7 +338,7 @@ function renderAdminReviewRow(r) {
       <div class="admin-row-line">
         <strong>${escHtml(r.teacher_name || '')}</strong>
         <span class="text-muted">←</span> ${escHtml(r.reviewer_name || '')}
-        ${renderStars(r.rating)} ${statusTag}
+        ${DISP.starsHtml(r.rating)} ${statusTag}
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
       <div class="admin-row-meta">${fmtDateTime(r.created_at)}</div>
