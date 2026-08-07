@@ -7,6 +7,7 @@
  */
 import { json, error } from './util.js';
 import { requireUser } from './security.js';
+import { encryptField, decryptField } from './crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage, dbMarkConversationRead,
@@ -73,7 +74,7 @@ export async function handleGetAttachment(db, convId, messageId, url, req) {
   if (g.err) return g.err;
   const m = await dbGetMessageAttachment(db, messageId, convId);
   if (!m) return error(MSG.CONVERSATION_NOT_FOUND, 404);
-  return json({ body: m.body, name: m.name || '' });
+  return json({ body: await decryptField(m.body), name: m.name || '' }); // N-05：附件密文出门解密
 }
 
 // POST /api/uploads —— 文件进入暂存区即真实上传（前端 XHR upload.onprogress = 本请求进度），
@@ -90,7 +91,9 @@ export async function handleCreateUpload(db, body, req) {
   // 暂存区配额自愈 + 上限：先清本人滞留暂存件（窗口见 LIMITS.STALE_UPLOAD_WINDOW），再按每人封顶（防弃传暂存填满库 / 刷大字段）
   await dbPurgeStaleUploads(db, me.id);
   if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return error(MSG.UPLOAD_STAGING_LIMIT); // 快路径
-  const id = await dbCreateUpload(db, me.id, kind, content, name); // 条件 INSERT 原子化：0 = 并发已满配额（TOCTOU 缺口补）
+  // 网安 N-05：附件 dataURL 加密落库（暂存区与消息正文同口径；发送落消息时密文原样搬移，不再二次加密）
+  const contentEnc = await encryptField(content);
+  const id = await dbCreateUpload(db, me.id, kind, contentEnc, name); // 条件 INSERT 原子化：0 = 并发已满配额（TOCTOU 缺口补）
   if (!id) return error(MSG.UPLOAD_STAGING_LIMIT);
   return json({ id }, 201);
 }
@@ -140,8 +143,10 @@ export async function handleSendMessage(db, convId, body, req) {
     return error(MSG.MESSAGE_TOO_LONG);
   }
 
+  const rawLen = content.length;
+  if (kind === 'image' || kind === 'file') content = await encryptField(content); // N-05：附件 dataURL 加密落库
   const id = await dbCreateMessage(db, convId, userId, kind, content, name);
   await logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
-    detail: { messageId: id, kind, name, len: content.length }, req }); // 不记 dataURL 本体
+    detail: { messageId: id, kind, name, len: rawLen }, req }); // 不记 dataURL 本体
   return json({ id, message: 'ok' }, 201);
 }

@@ -187,6 +187,7 @@ export const LIMITS = {
   MSG_LIMIT: 100,          // 消息拉取上限
   RECENT_LIMIT: 8,         // 统计近 N 条
   NOTIF_LIST_MAX: 200,     // 通知列表上限
+  PUBLIC_LIST_MAX: 200,    // 公开列表（需求广场/帖子）上限（网安 N-04：匿名全量拉取封顶）
   STALE_UPLOAD_WINDOW: '-30 minutes', // 暂存附件清理窗口
 };
 

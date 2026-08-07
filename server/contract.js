@@ -14,7 +14,7 @@
  */
 import { dbGet, dbAll, dbRun, json, error, ensureColumns } from './util.js';
 import { requireUser, requireAdmin, requireAdminOrError } from './security.js';
-import { bufToHex } from './crypto.js';
+import { bufToHex, encryptField } from './crypto.js';
 import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
 import { MSG, STATUS } from './constants.js';
 import {
@@ -266,13 +266,14 @@ export async function handleCreateContract(db, body, req) {
     method, schedule, location, plan, rate, createdAt: new Date().toISOString().slice(0, 10), demandNo,
     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
   });
+  const mdEnc = await encryptField(md); // 网安 N-05：合同正文加密落库（读点经 db.js 解密，台账哈希走明文）
   const res = await dbRun(db,
     `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
         pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other)
      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?
      WHERE NOT EXISTS (SELECT 1 FROM contracts WHERE conversation_id=? AND status IN ('pending','signing'))
        AND (? IS NULL OR EXISTS (SELECT 1 FROM student_demands WHERE id=?))`,
-    [conversationId, userId, demandId, method, schedule, location, plan, rate, md,
+    [conversationId, userId, demandId, method, schedule, location, plan, rate, mdEnc,
      payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther, conversationId, demandId, demandId]);
   // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 existing 检查是快路径，此处是竞态闸门）；
   // 附加需求存在守卫：SELECT→INSERT 窗口内需求被并发删除则同样 changes=0，判别后报 404（不误报 409）
@@ -397,7 +398,7 @@ export async function handleModifyContract(db, contractId, body, req) {
   const upd = await dbRun(db,
     `UPDATE contracts SET contract_md=?, drafter_confirmed=0, other_confirmed=0, status='signing', version=version+1, updated_at=datetime('now','localtime')
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
-    [md, contractId, ver]);
+    [await encryptField(md), contractId, ver]); // N-05：合同正文加密落库
   if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409);
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });

@@ -15,11 +15,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import {
+  initDb, dbUpsertTeacherProfile, dbGetTeacherProfile, dbGetContractById,
+  dbCreateMessage, dbGetMessageAttachment,
+} from '../server/db.js';
+import { dbRun } from '../server/util.js';
 import { issueAuthToken, getSessionByToken } from '../server/session.js';
 import { handleAdminDeleteNotification } from '../server/notify.js';
 import { handleLogout } from '../server/routes-auth.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest, encryptField, decryptField } from '../server/crypto.js';
 
 // node:sqlite → D1 形状薄封装
 function d1Shim(raw) {
@@ -255,4 +259,36 @@ test('登出清理 danger_caps：孤儿行随登出删除', async () => {
   assert.equal(res.status, 200);
   const left = db.prepare('SELECT COUNT(*) AS n FROM danger_caps').first().n;
   assert.equal(left, 0, '登出后该会话 capToken 应被清理');
+});
+
+test('N-05 加密列：合同正文/学信网截图/附件 写加密读解密、老明文行原样放行', async () => {
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  db.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('stu1','h','s','student'),('t1','h','s','teacher')").run();
+  const stu = db.prepare("SELECT id FROM users WHERE username='stu1'").first().id;
+  const tea = db.prepare("SELECT id FROM users WHERE username='t1'").first().id;
+  db.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(stu, tea);
+  const conv = db.prepare('SELECT id FROM conversations LIMIT 1').first().id;
+
+  // 学信网截图：写入加密、出门解密
+  await dbUpsertTeacherProfile(db, tea, { province: '', grade: '', gender: '', subjects: ['数学'], gaokao_scores: [], price: null, wechat: '', email: '', intro: '', address: '', school: '', real_name: '', credential_image: 'data:image/png;base64,CRED123' });
+  const storedCred = db.prepare('SELECT credential_image FROM teacher_profiles WHERE user_id=?').first(tea);
+  assert.ok(storedCred.credential_image.startsWith('enc:v1:'), 'credential_image 应加密落库');
+  const prof = await dbGetTeacherProfile(db, tea);
+  assert.equal(prof.credential_image, 'data:image/png;base64,CRED123');
+
+  // 合同正文：加密写 → 读解密；老明文行原样放行（decryptField 向后兼容）
+  await dbRun(db, 'INSERT INTO contracts (conversation_id, drafter_user_id, contract_md) VALUES (?,?,?)', [conv, tea, await encryptField('合同正文X')]);
+  const cid = db.prepare('SELECT id FROM contracts ORDER BY id DESC LIMIT 1').first().id;
+  assert.equal((await dbGetContractById(db, cid)).contract_md, '合同正文X');
+  await dbRun(db, 'INSERT INTO contracts (conversation_id, drafter_user_id, contract_md) VALUES (?,?,?)', [conv, tea, '老明文合同']);
+  const oldCid = db.prepare("SELECT id FROM contracts WHERE contract_md='老明文合同'").first().id;
+  assert.equal((await dbGetContractById(db, oldCid)).contract_md, '老明文合同', '老明文合同行应原样放行');
+
+  // 附件：消息正文加密落库、读侧 decryptField 还原（route 层解密等价的往返验证）
+  const mid = await dbCreateMessage(db, conv, tea, 'image', await encryptField('data:image/png;base64,ATT'), 'a.png');
+  const att = await dbGetMessageAttachment(db, mid, conv);
+  assert.ok(att.body.startsWith('enc:v1:'), '附件正文应加密落库');
+  assert.equal(await decryptField(att.body), 'data:image/png;base64,ATT');
 });

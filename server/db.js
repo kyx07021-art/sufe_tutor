@@ -514,8 +514,11 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
   await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [userId]);
 
   if (role === 'student') {
-    // 学生侧：删自建需求（级联删意向/推送，含联系方式与地址）、删除本人对教师的评价并重算受影响教师评分
-    await dbRun(db, 'DELETE FROM student_demands WHERE user_id=?', [userId]);
+    // 学生侧：删自建需求（级联删意向/推送，含联系方式与地址）。
+    // 网安 N-12：已签约（contracted）需求不删、置 revoked 保留行——否则合同 demand_id 悬空（裸 INTEGER 无 FK）
+    await dbRun(db, `DELETE FROM student_demands WHERE user_id=? AND status <> ?`, [userId, STATUS.CONTRACTED]);
+    await dbRun(db, `UPDATE student_demands SET status=? WHERE user_id=? AND status=?`, [STATUS.REVOKED, userId, STATUS.CONTRACTED]);
+    // 删除本人对教师的评价并重算受影响教师评分
     await dbRun(db, 'DELETE FROM demand_pushes WHERE student_user_id=?', [userId]);
     const myReviews = await dbAll(db, 'SELECT id, teacher_user_id FROM reviews WHERE reviewer_user_id=?', [userId]);
     await dbRun(db, 'DELETE FROM reviews WHERE reviewer_user_id=?', [userId]);
@@ -599,33 +602,36 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   const subjects = JSON.stringify(profile.subjects);
   const gaokao = JSON.stringify(profile.gaokao_scores);
   // 网安报告 F-06：wechat/email/real_name 加密落库（D1 泄露/备份不暴露教师私密信息；real_name 截断先于加密）
-  const [wechat, email, realName] = await Promise.all([
-    encryptField(profile.wechat || ''), encryptField(profile.email || ''), encryptField((profile.real_name || '').slice(0, 20)),
+  // 网安 N-05：credential_image（学信网截图 dataURL）同款加密——D1 泄露/备份不暴露证件图
+  const [wechat, email, realName, credentialImage] = await Promise.all([
+    encryptField(profile.wechat || ''), encryptField(profile.email || ''),
+    encryptField((profile.real_name || '').slice(0, 20)), encryptField(profile.credential_image || ''),
   ]);
 
   const price = profile.price != null ? profile.price : null; // null = 未填报价（意向档案完整性门槛据此拦截，勿落 0）
   if (existing) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
       price=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, profile.credential_image || '', userId]);
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage, userId]);
   } else {
     await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price,wechat,email,intro,address,school,real_name,credential_image)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, profile.credential_image || '']);
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, price, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage]);
   }
 }
 
 // 教师行映射器：教师列表 / 意向教师列表 / 本人档案共用，返回形状永远一致
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
 // 网安报告 F-06：wechat/email/real_name 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
+// 网安 N-05：credential_image 同款加密列，出门解密
 async function mapTeacherProfileRow(p) {
-  const [wechat, email, realName] = await Promise.all([
-    decryptField(p.wechat), decryptField(p.email), decryptField(p.real_name),
+  const [wechat, email, realName, credentialImage] = await Promise.all([
+    decryptField(p.wechat), decryptField(p.email), decryptField(p.real_name), decryptField(p.credential_image),
   ]);
   return {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
-    school: p.school || '', real_name: realName || '', credential_image: p.credential_image || '',
+    school: p.school || '', real_name: realName || '', credential_image: credentialImage || '',
     verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
     subjects: safeJsonArray(p.subjects),
     gaokao_scores: safeJsonArray(p.gaokao_scores),
@@ -755,9 +761,10 @@ export async function dbGetDemands(db, { admin = false, cursor = null, teacherUs
     extra = ' LEFT JOIN demand_intents mi ON mi.demand_id=sd.id AND mi.teacher_user_id=?';
     params = [teacherUserId];
   }
-  // 广场只展示未签约需求：合同签署后 status='contracted' 的需求自动下架
+  // 广场只展示未签约需求：合同签署后 status='contracted' 的需求自动下架；匿名全量拉取封顶（网安 N-04）
   const rows = await dbAll(db, sel + extra +
-    ` WHERE (sd.status IS NULL OR sd.status NOT IN ('contracted','revoked')) ORDER BY sd.created_at DESC`, [...params]);
+    ` WHERE (sd.status IS NULL OR sd.status NOT IN ('contracted','revoked')) ORDER BY sd.created_at DESC LIMIT ?`,
+    [...params, LIMITS.PUBLIC_LIST_MAX]);
   return rows.map(mapDemandRow);
 }
 
@@ -1022,7 +1029,7 @@ export async function dbListPosts(db, { section, q, viewerId, sort } = {}) {
      FROM posts p
      LEFT JOIN users u ON u.id = p.user_id
      ${likeJoin}${where}
-     ORDER BY ${order}`, bind);
+     ORDER BY ${order} LIMIT ?`, [...bind, LIMITS.PUBLIC_LIST_MAX]);
   return rows.map(r => ({ ...r, liked: !!r.liked }));
 }
 
@@ -1102,7 +1109,10 @@ export async function dbGetUserStats(db) {
     SUM(CASE WHEN role='teacher' THEN 1 ELSE 0 END) as teachers FROM users`);
 }
 
+// 网安审计 N-17：表名白名单映射（消除调用方拼表名进 SQL 的注入形状；未知表返回 0 不炸）
+const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1 };
 export async function dbGetCount(db, table) {
+  if (!COUNT_TABLES[table]) return 0;
   const row = await dbGet(db, `SELECT COUNT(*) as cnt FROM ${table}`);
   return row?.cnt || 0;
 }
@@ -1144,18 +1154,23 @@ export async function dbGetStudentUsersAdmin(db) {
 // ============================================================
 // 合同（纯数据层取行；状态机关口在 server/contract.js）
 // ============================================================
+// 网安 N-05：contract_md 加密列，出门即解密（写点加密在 server/contract.js；老明文行经 decryptField 原样放行）
 export async function dbGetContractById(db, id) {
-  return await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [id]);
+  const row = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [id]);
+  if (row) row.contract_md = await decryptField(row.contract_md);
+  return row;
 }
 
 // 一条会话至多一份进行中合同（起草查重 / 聊天窗合同状态行用）
 export async function dbGetContractByConv(db, conversationId) {
-  return await dbGet(db, 'SELECT * FROM contracts WHERE conversation_id=? ORDER BY id DESC LIMIT 1', [conversationId]);
+  const row = await dbGet(db, 'SELECT * FROM contracts WHERE conversation_id=? ORDER BY id DESC LIMIT 1', [conversationId]);
+  if (row) row.contract_md = await decryptField(row.contract_md);
+  return row;
 }
 
 // 我参与的合同列表（含双方用户名 + 需求编号，「我的合同」页用）
 export async function dbGetMyContracts(db, userId) {
-  return await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
+  const rows = await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
       us.username AS student_name, ut.username AS teacher_name, sd.display_id AS demand_display_id
     FROM contracts ct
     JOIN conversations c ON c.id = ct.conversation_id
@@ -1164,11 +1179,13 @@ export async function dbGetMyContracts(db, userId) {
     LEFT JOIN student_demands sd ON sd.id = ct.demand_id
     WHERE c.student_user_id = ? OR c.teacher_user_id = ?
     ORDER BY ct.updated_at DESC`, [userId, userId]);
+  for (const r of rows) r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
+  return rows;
 }
 
 // 管理员全量合同列表（含双方用户名 + 起草者用户名；管理员合同页用）
 export async function dbGetAllContractsAdmin(db) {
-  return await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
+  const rows = await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,
       us.username AS student_name, ut.username AS teacher_name, du.username AS drafter_name
     FROM contracts ct
     JOIN conversations c ON c.id = ct.conversation_id
@@ -1176,6 +1193,8 @@ export async function dbGetAllContractsAdmin(db) {
     JOIN users ut ON ut.id = c.teacher_user_id
     JOIN users du ON du.id = ct.drafter_user_id
     ORDER BY ct.updated_at DESC`);
+  for (const r of rows) r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
+  return rows;
 }
 
 // 删除合同行。statuses 非空时仅删该状态集内的行（取消签约的并发守卫：翻到 signed/revoked 的行拒删）。

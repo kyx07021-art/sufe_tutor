@@ -64,7 +64,13 @@ export async function handleLogin(db, body, req) {
   if (String(username).length > LIMITS.LOGIN_USERNAME_MAX || String(password).length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.LOGIN_FAILED, 401);
 
   const user = await dbFindUserByUsername(db, username);
-  if (!user || !(await verifyPassword(password, user.password_hash, user.salt))) {
+  if (!user) {
+    await hashPassword(password); // 网安 N-18：哑 PBKDF2 抹平「用户名不存在」与「密码错误」的响应时序差
+    await logEvent(db, { action: 'auth.login.failed', actorUsername: username,
+      entity: 'user', detail: { username }, req });
+    return error(MSG.LOGIN_FAILED, 401);
+  }
+  if (!(await verifyPassword(password, user.password_hash, user.salt))) {
     await logEvent(db, { action: 'auth.login.failed', actorUsername: username,
       entity: 'user', detail: { username }, req });
     return error(MSG.LOGIN_FAILED, 401);

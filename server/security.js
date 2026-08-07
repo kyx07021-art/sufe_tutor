@@ -91,53 +91,73 @@ const rlStrike = (ip, now) => {
   }
 };
 
-// D1 原子计数：单条 UPSERT（窗口内 +1 / 过期重置为 1），窗口与比较全在 SQL 内同口径
-const rlBumpD1 = async (db, key, limit, windowMs) => {
-  const mod = '+' + Math.round(windowMs / 1000) + ' seconds';
-  await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
-    ON CONFLICT(bucket) DO UPDATE SET
-      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
-      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`
-    , [key, mod]).catch(() => {});
-  await dbRun(db, "DELETE FROM rate_limits WHERE reset_at < datetime('now','localtime','-1 day')").catch(() => {});
-  const row = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [key]);
-  return !row || row.n <= limit;
+// 双写限流：内存 + D1 各自独立计数，两者都放行才算过。
+//  - D1 失败（写/读抛错）→ 只以内存为准（降级不 fail-open，网安 N-06）
+//  - 写/用户名探测/登录/注册/重认证全部双写 → 跨实例生效（网安 N-08；原仅登录/注册/重认证走 D1）
+const rlDual = async (db, memLimit, memWindow, d1Key, d1Limit, d1Window, now) => {
+  if (!rlBump(`m:${d1Key}`, memLimit, memWindow, now)) return false;
+  try {
+    const mod = '+' + Math.round(d1Window / 1000) + ' seconds';
+    await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
+      ON CONFLICT(bucket) DO UPDATE SET
+        n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
+        reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`,
+      [d1Key, mod]);
+    const row = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [d1Key]);
+    if (!row || row.n > d1Limit) return false;
+  } catch { /* D1 异常：内存限流兜底（上方 rlBump 已判定），不 fail-open */ }
+  return true;
 };
 
-// D1 三振封禁（跨实例持久）：strike.windowMs 窗口计数，满 strike.count 次写 block 行
+// rate_limits 过期行清理节流（每分钟至多一次；N-07 桶已按 IP 上界，清理仅兜底）
+let lastRateCleanup = 0;
+const maybeCleanRateLimits = async (db, now) => {
+  if (now - lastRateCleanup < 60000) return;
+  lastRateCleanup = now;
+  await dbRun(db, "DELETE FROM rate_limits WHERE reset_at < datetime('now','localtime','-1 day')").catch(() => {});
+};
+
+// D1 三振封禁（跨实例持久）：strike.windowMs 窗口计数，满 strike.count 次写 block 行。
+// D1 异常不阻断请求（内存三振已生效），网安 N-06 同口径
 const rlStrikeD1 = async (db, ip) => {
-  const w = '+' + Math.round(RATE_LIMITS.strike.windowMs / 1000) + ' seconds';
-  const b = '+' + Math.round(RATE_LIMITS.block.windowMs / 1000) + ' seconds';
-  await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
-    ON CONFLICT(bucket) DO UPDATE SET
-      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
-      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`
-    , [`strike:${ip}`, w]).catch(() => {});
-  const st = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [`strike:${ip}`]);
-  if (st && st.n >= RATE_LIMITS.strike.count) {
-    await dbRun(db, "INSERT OR REPLACE INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))", [`block:${ip}`, b]).catch(() => {});
-    await dbRun(db, 'DELETE FROM rate_limits WHERE bucket=?', [`strike:${ip}`]).catch(() => {});
-  }
+  try {
+    const w = '+' + Math.round(RATE_LIMITS.strike.windowMs / 1000) + ' seconds';
+    const b = '+' + Math.round(RATE_LIMITS.block.windowMs / 1000) + ' seconds';
+    await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
+      ON CONFLICT(bucket) DO UPDATE SET
+        n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
+        reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`,
+      [`strike:${ip}`, w]);
+    const st = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [`strike:${ip}`]);
+    if (st && st.n >= RATE_LIMITS.strike.count) {
+      await dbRun(db, "INSERT OR REPLACE INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))", [`block:${ip}`, b]);
+      await dbRun(db, 'DELETE FROM rate_limits WHERE bucket=?', [`strike:${ip}`]);
+    }
+  } catch { /* 内存三振已生效；D1 失败不阻断 */ }
 };
 
 /**
  * 限流闸门（_worker 每请求调用；超限一律 429，细节不回显）。
- * 高频键走内存（最热路径零额外延迟），登录/注册/重认证/封禁走 D1（跨实例生效）。
- * 用户名探测走内存软限制，不记三振。
+ * 全局限流走内存（最热路径零额外延迟）；写/探测/登录/注册/重认证走内存+D1 双写（跨实例生效、D1 失败降级内存）。
+ * 登录桶按 IP 计数（网安 N-07：原按 IP+用户名，攻击者随机用户名可无限建桶撑爆 rate_limits；body 不再参与键构造）。
+ * 用户名探测为软限制，不记三振。
  */
 export async function rateGate(ip, p, method, body, now, db) {
   rlSweep(now);
+  await maybeCleanRateLimits(db, now);
   if ((RL.blocked.get(ip) || 0) > now) return false;
   if (!rlBump(`g:${ip}`, RATE_LIMITS.global.limit, RATE_LIMITS.global.windowMs, now)) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
-  if (method !== 'GET' && p.startsWith('/api/') && !rlBump(`w:${ip}`, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, now)) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
-  if (p === '/api/auth/login' || p === '/api/auth/register' || p === '/api/auth/re-auth') {
-    const blk = await dbGet(db, "SELECT 1 AS b FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')", [`block:${ip}`]);
-    if (blk) return false;
-    if (p === '/api/auth/login' && !(await rlBumpD1(db, `l:${ip}:${String((body && body.username) || '').toLowerCase()}`, RATE_LIMITS.login.limit, RATE_LIMITS.login.windowMs))) { await rlStrikeD1(db, ip); return false; }
-    if (p === '/api/auth/register' && !(await rlBumpD1(db, `r:${ip}`, RATE_LIMITS.register.limit, RATE_LIMITS.register.windowMs))) { await rlStrikeD1(db, ip); return false; }
-    if (p === '/api/auth/re-auth' && !(await rlBumpD1(db, `ra:${ip}`, RATE_LIMITS.reauth.limit, RATE_LIMITS.reauth.windowMs))) { await rlStrikeD1(db, ip); return false; }
+  if (method !== 'GET' && p.startsWith('/api/')) {
+    if (!(await rlDual(db, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, `w:${ip}`, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, now))) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
   }
-  if (p === '/api/auth/check' && !rlBump(`c:${ip}`, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, now)) return false;
+  if (p === '/api/auth/login' || p === '/api/auth/register' || p === '/api/auth/re-auth') {
+    const blk = await dbGet(db, "SELECT 1 AS b FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')", [`block:${ip}`]).catch(() => null);
+    if (blk) return false;
+    const cfg = p === '/api/auth/login' ? RATE_LIMITS.login : p === '/api/auth/register' ? RATE_LIMITS.register : RATE_LIMITS.reauth;
+    const key = p === '/api/auth/login' ? `l:${ip}` : p === '/api/auth/register' ? `r:${ip}` : `ra:${ip}`;
+    if (!(await rlDual(db, cfg.limit, cfg.windowMs, key, cfg.limit, cfg.windowMs, now))) { await rlStrikeD1(db, ip); return false; }
+  }
+  if (p === '/api/auth/check' && !(await rlDual(db, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, `c:${ip}`, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, now))) return false;
   return true;
 }
 
