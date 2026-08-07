@@ -38,6 +38,7 @@ import {
   handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
+import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
 
 // API 分发：纯路由，无副作用（留档在 fetch 层统一包裹）。
 // :id 路径统一经 idMatch 抽取（正则只写一次，杜绝 approve/reject 双 match 旧写法）
@@ -170,11 +171,14 @@ async function routeApi(db, p, method, body, url, req) {
   // 健康检查
   if (p === '/api/health') return json({ status: 'ok', timestamp: new Date().toISOString() });
 
+  // 数据版本戳（v0.23.0 静默数据层）：客户端 8s 轮询探测；廉价单表读，无需鉴权（计数器无敏感性）
+  if (p === '/api/data-version' && method === 'GET') return await handleGetDataVersion(db);
+
   return error('Not Found', 404);
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     let p = url.pathname;
     try { p = decodeURIComponent(p); } catch { /* 非法编码保持原样 */ } // 防 %73erver 式编码绕过路径前缀检查
@@ -251,6 +255,10 @@ export default {
         try { readCachePut(readKey, await res.clone().json()); } catch { /* 回填失败不影响响应 */ }
       } else if (request.method !== 'GET' && res.status < 400) {
         readCacheClearAll();
+        // 数据版本戳（v0.23.0 静默数据层）：同一写咽喉 bump 受影响域。waitUntil 包裹——
+        // workerd 会掐断未完成的悬浮 Promise；版本戳失败静默（bumpVersions 内吞错），不影响主业务
+        const domains = versionDomainOf(p);
+        if (domains.length) ctx.waitUntil(bumpVersions(env.DB, domains));
       }
       // 留档必须 await：workerd 在响应结束后掐断未完成的悬浮 Promise（加密咽喉链路较长，
       // 不 await 会导致留档被杀在途中——本批次线上 0 留档事故根因）。

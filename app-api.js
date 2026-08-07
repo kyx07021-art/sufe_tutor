@@ -59,6 +59,10 @@ async function api(endpoint, options = {}) {
       if (state.authToken) {
         state.authToken = null; state.user = null;
         clearSession();
+        // v0.23.0 静默数据层：401 会话失效即清会话缓存 + 停版本探测（此路径不走 runLogoutResets，
+        // 不清理会让旧账户的缓存残留到新账户登录后被读到——浏览器内存跨会话泄数据）
+        if (typeof dhInvalidateAll === 'function') dhInvalidateAll();
+        if (typeof stopVersionProbe === 'function') stopVersionProbe();
       }
       if (state.view === 'client' && typeof ensureAuth === 'function') ensureAuth(); // user 已清空 → 这次真的会进登录页
     }

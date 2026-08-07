@@ -32,7 +32,7 @@ function makeCtx() {
 test('loadBrowseDemands 首次调用即渲染需求卡（乱序守卫首用初始化回归）', async () => {
   const { ctx, dom } = makeCtx();
   for (const f of ['constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-    'app-anim.js', 'app-ui.js', 'app-demands.js']) {
+    'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-demands.js']) {
     vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
   }
   // stub app-shell 依赖 + mock api（教师视角）

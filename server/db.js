@@ -10,6 +10,7 @@ import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS } from './constants.js';
 import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
+import { initVersionTable } from './version.js'; // 数据版本戳表建表（v0.23.0 静默数据层，仅借 init）
 import { initDangerCaps } from './danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
 
 // ============================================================
@@ -461,6 +462,8 @@ export async function initDb(db, env = {}) {
 
   // 通知表（独立模块 notify.js 提供建表与推送咽喉）
   await initNotifyTable(db);
+  // 数据版本戳表（v0.23.0 静默数据层：客户端 8s 探测版本，只重拉变化域）
+  await initVersionTable(db);
   // 危险操作二次认证 capToken 表（独立模块 danger-ops.js 提供签发/校验；D1 持久化跨实例一致，网安审计 N-02）
   await initDangerCaps(db);
 

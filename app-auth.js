@@ -47,6 +47,10 @@ function afterAuthSuccess() {
   state.guestAuthMode = false;
   state.guestRole = null;
   setReturning(); // 本设备已登录过 → 首访新手引导不再弹
+  // v0.23.0 静默数据层：登录/注册成功即清会话缓存——访客浏览期缓存的 anon 视角数据
+  // （teachers.matched / posts.liked / demands.my_intent_status）是 per-user 的，不清理会
+  // 被新身份读到（dhPeek 命中旧身份缓存）。清理后 enterClient 的预取为当前身份现拉
+  if (typeof dhInvalidateAll === 'function') dhInvalidateAll();
   const back = authReturnPage; authReturnPage = null;
   enterClient(back || undefined); // 返回页与新角色不匹配时 enterClient 自然回落默认页
 }

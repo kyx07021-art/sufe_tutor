@@ -47,15 +47,15 @@ function postsSearchDebounced() {
 // 拉取帖子列表：sort / q 取自工具条；liked 标记由后端凭令牌判定（访客恒 false）
 // 乱序守卫由 loadInto 的 seqKey:'posts' 接管（搜索/排序快速切换时旧响应丢弃）
 function loadPosts() {
+  const q = (document.getElementById('posts-search')?.value || '').trim();
+  const sort = document.getElementById('posts-sort')?.value || 'new';
+  const url = `/api/posts?sort=${sort}` + (q ? `&q=${encodeURIComponent(q)}` : '');
   return loadInto('posts-list', async () => {
-    const q = (document.getElementById('posts-search')?.value || '').trim();
-    const sort = document.getElementById('posts-sort')?.value || 'new';
-    const url = `/api/posts?sort=${sort}` + (q ? `&q=${encodeURIComponent(q)}` : '');
-    const data = await api(url);
+    const data = await dhGet(url, { domain: 'posts' }); // v0.23.0 静默数据层
     postsList = data.posts || []; // 渲染前同步：点赞就地更新依赖此数据源
     return data;
   }, rows => rows.map(renderPostCard).join(''),
-  { seqKey: 'posts', empty: UI.POSTS_EMPTY, pick: d => d.posts, reveal: true });
+  { seqKey: 'posts', empty: UI.POSTS_EMPTY, pick: d => d.posts, reveal: true, peek: () => dhPeek(url) });
 }
 
 // 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 作者可删

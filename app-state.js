@@ -37,9 +37,14 @@ const loadSeqs = {};
 // 缓存协议
 // ============================================================
 const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers' };
+// v0.23.0 静默数据层：写操作失效必须同时清会话数据层对应域缓存（加载器经 dhGet 读缓存，
+// 只清 state 镜像会导致 dhGet 继续服务旧数据）。域映射与 app-datahub DH_PREFETCH 的域口径一致
+const CACHE_DOMAINS = { teachers: 'teachers', contracts: 'contracts', demands: 'demands', intentTeachers: 'teachers' };
 function invalidate(key) {
   const k = CACHE_KEYS[key];
   if (k) state[k] = [];
+  const d = CACHE_DOMAINS[key];
+  if (d && typeof dhInvalidateDomain === 'function') dhInvalidateDomain(d);
 }
 
 // ============================================================

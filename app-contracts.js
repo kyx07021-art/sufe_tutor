@@ -23,9 +23,12 @@ function contractActionable(c) {
 async function loadMyContracts() {
   const el = document.getElementById('my-contracts-list');
   setBadge('my-contracts', 0); // 点开瞬间红点即灭（有待办由下一轮轮询在离开本页后重新点亮）
+  // v0.23.0 静默数据层：缓存命中直出（dhGet 瞬时返缓存，同帧完成不闪 loader）
+  const cached = dhPeek('/api/contracts/my');
+  if (cached !== null) { state.myContracts = cached.contracts || []; renderMyContractsList(); return; }
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
-    const data = await api('/api/contracts/my');
+    const data = await dhGet('/api/contracts/my', { domain: 'contracts' });
     state.myContracts = data.contracts || [];
     renderMyContractsList();
   } catch (err) {

@@ -100,7 +100,13 @@ function enterClient(pageId) {
   // 刷新恢复：回到刷新前的页签（角色不匹配时回落默认页）
   const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId : defaultPageFor();
   selectPage(valid);
-  if (state.user) startBadgePoll(); // 红点轮询仅登录态开启（访客无个人数据可轮询）
+  if (state.user) {
+    startBadgePoll(); // 红点轮询仅登录态开启（访客无个人数据可轮询）
+    // v0.23.0 静默数据层：登录态开启 8s 版本探测 + 按角色静默预取各 tab 默认视图。
+    // dhPrefetch allSettled 静默失败——预取绝不卡任何页面，切 tab 时缓存 miss 自动回退按需加载
+    startVersionProbe();
+    dhPrefetch(state.user.role);
+  }
 }
 
 function renderSidebar() {
@@ -177,7 +183,11 @@ async function loadInto(elId, fetcher, renderer, opts = {}) {
   if (!el) return false;
   // 计数器首用初始化：++undefined = NaN，而 NaN !== NaN 恒真 → 首次装载会被误判「乱序」而丢弃
   const seq = opts.seqKey ? (loadSeqs[opts.seqKey] = (loadSeqs[opts.seqKey] || 0) + 1) : null;
-  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
+  // v0.23.0 静默数据层：会话缓存命中 → 跳过 loader 闪烁直出（切 tab 秒开）。
+  // 仍走 fetcher（dhGet 瞬时返回缓存）以同步模块级镜像（state.*），保证跨功能查找与渲染一致；
+  // 缓存 miss/过期 → 正常 loader + 按需加载
+  const cachedHit = typeof opts.peek === 'function' && opts.peek() != null;
+  if (!cachedHit) el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
     const data = await fetcher();
     if (seq != null && seq !== loadSeqs[opts.seqKey]) return false;
@@ -217,9 +227,11 @@ function stopBadgePoll() { if (badgePollTimer) { clearInterval(badgePollTimer); 
 async function refreshBadges() {
   if (!state.user) return;
   try {
+    // v0.23.0 静默数据层：徽标轮询改走会话数据层统一出口——与 tab 加载共享同一份缓存（单请求源），
+    // 版本探测使缓存 ≤8s 新鲜，徽标天然跟得上数据变化
     const [convData, notifData] = await Promise.all([
-      api('/api/conversations'),
-      api('/api/notifications'),
+      dhGet('/api/conversations', { domain: 'chat' }),
+      dhGet('/api/notifications', { domain: 'notifications' }),
     ]);
     const chatUnread = (convData.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
     const notifUnread = (notifData.notifications || []).filter(n => !n.is_read).length;
@@ -227,18 +239,18 @@ async function refreshBadges() {
     if (state.page !== 'my-chats') setBadge('my-chats', chatUnread);
     if (state.page !== 'notifications') setBadge('notifications', notifUnread);
     if (state.user.role === 'teacher') {
-      const pushData = await api('/api/demand-pushes');
+      const pushData = await dhGet('/api/demand-pushes', { domain: 'demands' });
       if (state.page !== 'browse-demands') setBadge('browse-demands', (pushData.pushes || []).length);
       setBadge('my-demands', 0);
     } else if (state.user.role === 'student') {
-      const demandData = await api('/api/student/demands?scope=mine');
+      const demandData = await dhGet('/api/student/demands?scope=mine', { domain: 'demands' });
       setBadge('my-demands', (demandData.demands || []).filter(d => d.pending_intents > 0).length);
       setBadge('browse-demands', 0);
     } else {
       setBadge('browse-demands', 0); setBadge('my-demands', 0);
       // 管理员用户反馈红点：未处理条数
       try {
-        const fbData = await api(`/api/feedbacks`);
+        const fbData = await dhGet(`/api/feedbacks`, { domain: 'admin' });
         const openFb = (fbData.feedbacks || []).filter(f => f.status !== 'resolved').length;
         if (state.page !== 'admin-feedback') setBadge('admin-feedback', openFb);
       } catch { /* 静默，下一轮自愈 */ }
@@ -246,7 +258,7 @@ async function refreshBadges() {
     // 我的合同红点：待我处理的合同数；正停留在合同页则就地刷新列表（对方改动 ≤30s 可见）。
     // v0.22.8：列表签名未变不整列重渲——原实现每 30s 轮询即使数据没变也 innerHTML 重写整列 + initReveals
     if (state.user.role === 'student' || state.user.role === 'teacher') {
-      const ctData = await api('/api/contracts/my');
+      const ctData = await dhGet('/api/contracts/my', { domain: 'contracts' });
       const contracts = ctData.contracts || [];
       if (state.page === 'my-contracts') {
         const sig = contracts.map(c => `${c.id}:${c.status}`).join(',');
@@ -285,17 +297,26 @@ async function enterNotifications() {
   const bb = document.getElementById('btn-broadcast-notif');
   if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
   const rendered = await loadInto('notifications-content', async () => {
-    const data = await api('/api/notifications');
+    const data = await dhGet('/api/notifications', { domain: 'notifications' }); // v0.23.0 静默数据层
     _notifList = data.notifications || [];
     return _notifList;
   }, rows => {
     const shown = filterNotifRows(rows);
     if (!shown.length) return `<div class="empty-state"><p>${escHtml(UI.NOTIF_FILTER_EMPTY)}</p></div>`;
     return shown.map(renderNotifItem).join('');
-  }, { empty: UI.EMPTY_NO_NOTIFICATIONS });
+  }, { empty: UI.EMPTY_NO_NOTIFICATIONS, peek: () => dhPeek('/api/notifications') });
   // 渲染成功才批量标已读（切走/报错不清未读，留给下次进入）
   if (rendered && _notifList.some(n => !n.is_read)) {
-    api('/api/notifications/read', { method: 'POST', body: {} }).catch(() => {});
+    api('/api/notifications/read', { method: 'POST', body: {} })
+      .then(() => {
+        // v0.23.0 静默数据层：翻转会话缓存里的 is_read——徽标轮询读的是 datahub 缓存
+        //（_notifList 与缓存同数组引用），不翻的话 30s 轮询读到旧 is_read 会把刚灭的红点亮回来
+        if (typeof dhPeek === 'function') {
+          const cached = dhPeek('/api/notifications');
+          if (cached && cached.notifications) cached.notifications.forEach(n => { n.is_read = 1; });
+        }
+      })
+      .catch(() => {});
   }
 }
 

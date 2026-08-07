@@ -61,7 +61,7 @@ function enterMyChats() {
 // 拉取会话列表（服务端已按最后活跃时间倒序）
 async function loadConversations() {
   try {
-    const data = await api('/api/conversations');
+    const data = await dhGet('/api/conversations', { domain: 'chat' }); // v0.23.0 静默数据层
     chatConvList = data.conversations || [];
     renderConvList();
     if (typeof setBadge === 'function') setBadge('my-chats', chatsUnreadTotal()); // 同步侧边栏红点

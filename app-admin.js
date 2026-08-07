@@ -12,10 +12,11 @@
 // ============================================================
 async function loadAdminPosts() {
   await loadInto('admin-posts-list', async () => {
-    const data = await api('/api/posts');
+    const data = await dhGet('/api/posts', { domain: 'posts' }); // v0.23.0 静默数据层（与教师资料广场同端点同域）
     state.adminPosts = data.posts || []; // 全文查看弹窗的数据源
     return state.adminPosts;
-  }, rows => rows.map(renderAdminPostRow).join(''), { empty: UI.ADMIN_POSTS_EMPTY });
+  }, rows => rows.map(renderAdminPostRow).join(''),
+    { empty: UI.ADMIN_POSTS_EMPTY, peek: () => dhPeek('/api/posts') });
 }
 
 function renderAdminPostRow(p) {
@@ -61,10 +62,12 @@ function adminDeletePost(postId) {
 // ============================================================
 async function loadAdminContracts() {
   await loadInto('admin-contracts-list', async () => {
-    const data = await api(`/api/admin/contracts`);
+    // v0.23.0 静默数据层：管理端合同列表归 contracts 域——合同变动（含学生/教师侧签约）一并静默重拉
+    const data = await dhGet('/api/admin/contracts', { domain: 'contracts' });
     state.adminContracts = data.contracts || []; // 查看/移除弹窗的数据源
     return state.adminContracts;
-  }, rows => rows.map(renderAdminContractRow).join(''), { empty: UI.ADMIN_CONTRACTS_EMPTY });
+  }, rows => rows.map(renderAdminContractRow).join(''),
+    { empty: UI.ADMIN_CONTRACTS_EMPTY, peek: () => dhPeek('/api/admin/contracts') });
 }
 
 function renderAdminContractRow(c) {
@@ -113,7 +116,7 @@ function adminRemoveContract(contractId) {
 async function loadAdminFeedback() {
   setBadge('admin-feedback', 0); // 点开瞬间红点即灭（新反馈由轮询在离开本页后重新点亮）
   await loadInto('admin-feedback-list', async () => {
-    const data = await api(`/api/feedbacks`);
+    const data = await dhGet('/api/feedbacks', { domain: 'admin' }); // v0.23.0 静默数据层
     return data.feedbacks || [];
   }, list => list.map(f => {
     const isBug = f.kind === 'bug';
@@ -207,7 +210,7 @@ async function loadAdminStats() {
   const el = document.getElementById('admin-stats-content');
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
-    const statsData = await api(`/api/admin/stats`);
+    const statsData = await dhGet('/api/admin/stats', { domain: 'admin' }); // v0.23.0 静默数据层
     const s = statsData.stats;
 
     // 网安审计 N-14：统计数值本应都是数字，但防御性转义（服务端异常/未来字段改文案时防存储型 XSS）
@@ -293,12 +296,14 @@ function setTrafficRange(r) { _trafficRange = r; loadAdminTraffic(); }
 // 管理员：学生 / 教师管理（封禁的账户无法登录）
 // ============================================================
 async function loadAdminUsers(role, elId) {
+  const url = `/api/admin/users?role=${role}`;
   await loadInto(elId, async () => {
-    const data = await api(`/api/admin/users?role=${role}`);
+    const data = await dhGet(url, { domain: 'admin' }); // v0.23.0 静默数据层
     const users = data.users || [];
     if (role === 'teacher') state.adminTeachers = users; // 空数组也回写：封禁最后一个教师后旧缓存不滞留 // 教师详情弹窗的数据源（原口径：非空才回写）
     return users;
-  }, users => users.map(u => renderAdminUserRow(u, role)).join(''), { empty: UI.EMPTY_NO_USERS, reveal: false });
+  }, users => users.map(u => renderAdminUserRow(u, role)).join(''),
+    { empty: UI.EMPTY_NO_USERS, reveal: false, peek: () => dhPeek(url) });
 }
 function loadAdminStudents() { return loadAdminUsers('student', 'admin-students-list'); }
 function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-list'); }
@@ -370,11 +375,13 @@ async function loadAdminDemands(reset = true) {
 // ============================================================
 async function loadAdminReviews() {
   const status = document.getElementById('admin-reviews-status')?.value || '';
+  const url = `/api/admin/reviews${status ? `?status=${status}` : ''}`;
   await loadInto('admin-reviews-list', async () => {
     // 修：原用 &status 开头（无 ? 前缀，服务端无法解析，按状态过滤失效）→ 改 ?status
-    const data = await api(`/api/admin/reviews${status ? `?status=${status}` : ''}`);
+    const data = await dhGet(url, { domain: 'admin' }); // v0.23.0 静默数据层
     return data.reviews || [];
-  }, reviews => reviews.map(renderAdminReviewRow).join(''), { empty: UI.EMPTY_NO_REVIEWS, reveal: false });
+  }, reviews => reviews.map(renderAdminReviewRow).join(''),
+    { empty: UI.EMPTY_NO_REVIEWS, reveal: false, peek: () => dhPeek(url) });
 }
 
 function renderAdminReviewRow(r) {

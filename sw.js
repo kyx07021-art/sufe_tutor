@@ -40,7 +40,7 @@ const ASSETS = [
   '/', '/index.html',
   '/style.css', '/glass.css', '/style-region.css', '/style-posts.css', '/style-chat.css',
   '/constants.js', '/region-data.js',
-  '/app-display.js', '/app-state.js', '/app-api.js', '/app-anim.js', '/app-ui.js', '/app-onboard.js',
+  '/app-display.js', '/app-state.js', '/app-api.js', '/app-datahub.js', '/app-anim.js', '/app-ui.js', '/app-onboard.js',
   '/app-region.js', '/app-posts.js', '/app-chat.js', '/app-contracts.js', '/app-admin.js', '/app-chart.js',
   '/app-demands.js', '/app-teachers.js', '/app-pages.js', '/app-shell.js', '/app-auth.js',
 ];

@@ -487,11 +487,11 @@ function renderDemandCard(d, opts = {}) {
 }
 
 async function loadDemandList(elId, { mine }) {
+  // 教师大厅视角附带你自己的意向状态（my_intent_status），供按钮三态渲染
+  const url = mine ? '/api/student/demands?scope=mine'
+                   : '/api/student/demands?scope=for-teacher';
   await loadInto(elId, async () => {
-    // 教师大厅视角附带你自己的意向状态（my_intent_status），供按钮三态渲染
-    const url = mine ? '/api/student/demands?scope=mine'
-                     : '/api/student/demands?scope=for-teacher';
-    const data = await api(url);
+    const data = await dhGet(url, { domain: 'demands' }); // v0.23.0 静默数据层
     const demands = data.demands || [];
     if (mine) {
       state.myDemands = demands; // 编辑回填的数据源
@@ -499,7 +499,7 @@ async function loadDemandList(elId, { mine }) {
     }
     return demands;
   }, demands => demands.map(d => renderDemandCard(d, { editable: mine, teacher: !mine })).join(''),
-  { empty: mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS });
+  { empty: mine ? UI.EMPTY_NO_MY_DEMANDS : UI.EMPTY_NO_DEMANDS, peek: () => dhPeek(url) });
 }
 
 function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: true }); }
@@ -530,9 +530,10 @@ async function loadBrowseDemands() {
     // 教师首访大厅被第三个 RTT 卡住渲染（审计热点①）
     const needTeachers = !isGuest && state.user.role === 'teacher' && !state.allTeachers.length;
     const [dData, pData, tData] = await Promise.all([
-      api(isGuest ? '/api/student/demands' : '/api/student/demands?scope=for-teacher'),
-      isGuest ? Promise.resolve({ pushes: [] }) : api('/api/demand-pushes'),
-      needTeachers ? api('/api/teachers').catch(() => null) : Promise.resolve(null), // 教师档案失败不阻塞需求列表
+      // v0.23.0 静默数据层：三路走会话缓存（命中即返，miss 再发请求；预取已填缓存则零网络）
+      dhGet(isGuest ? '/api/student/demands' : '/api/student/demands?scope=for-teacher', { domain: 'demands' }),
+      isGuest ? Promise.resolve({ pushes: [] }) : dhGet('/api/demand-pushes', { domain: 'demands' }),
+      needTeachers ? dhGet('/api/teachers', { domain: 'teachers' }).catch(() => null) : Promise.resolve(null), // 教师档案失败不阻塞需求列表
     ]);
     if (needTeachers && tData && Array.isArray(tData.teachers)) state.allTeachers = tData.teachers;
     const pushes = pData.pushes || [];

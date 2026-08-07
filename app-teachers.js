@@ -41,10 +41,11 @@ async function loadTeachers() {
   }
 
   await loadInto('teachers-list', async () => {
-    const data = await api('/api/teachers');
+    const data = await dhGet('/api/teachers', { domain: 'teachers' }); // v0.23.0 静默数据层
     state.allTeachers = data.teachers || []; // 先回写再判空渲染（保持原顺序）
     return state.allTeachers;
-  }, teachers => teachers.map(renderTeacherCard).join(''), { empty: UI.EMPTY_NO_TEACHERS });
+  }, teachers => teachers.map(renderTeacherCard).join(''),
+    { empty: UI.EMPTY_NO_TEACHERS, peek: () => dhPeek('/api/teachers') });
 }
 
 function renderTeachers(teachers) {
@@ -145,7 +146,7 @@ async function openProfilePanel(userId) {
     if (isTeacher) {
       t = findCachedTeacher(userId);
       if (!t) {
-        try { state.allTeachers = (await api('/api/teachers')).teachers || []; } catch { /* 无档案或网络抖动：卡片②空态 */ }
+        try { state.allTeachers = (await dhGet('/api/teachers', { domain: 'teachers' })).teachers || []; } catch { /* 无档案或网络抖动：卡片②空态 */ }
         if (seq !== profilePanelSeq) return;
         t = findCachedTeacher(userId);
       }
@@ -154,7 +155,7 @@ async function openProfilePanel(userId) {
     let signed = false, reviewsData = null;
     if (state.user) {
       if (!state.myContracts.length) {
-        try { state.myContracts = (await api('/api/contracts/my')).contracts || []; } catch { /* 静默 */ }
+        try { state.myContracts = (await dhGet('/api/contracts/my', { domain: 'contracts' })).contracts || []; } catch { /* 静默 */ }
       }
       signed = state.myContracts.some(c => c.status === 'signed' && (c.student_user_id === userId || c.teacher_user_id === userId));
     }
