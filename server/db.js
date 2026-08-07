@@ -760,9 +760,10 @@ export async function dbDeleteDemand(db, id) {
   return true;
 }
 
-// 需求重开（revoked→open）：条件 UPDATE 赢家模式，返回是否命中（防并发双触发）
+// 需求重开（revoked→open）：条件 UPDATE 赢家模式，返回是否命中（防并发双触发）。
+// 同时复位意向锁 intent_locked（网安审计：锁只置位不复位，撤销→重开→重收意向流程会永久断裂）
 export async function dbReopenDemand(db, id) {
-  const r = await dbRun(db, `UPDATE student_demands SET status='open' WHERE id=? AND status='revoked'`, [id]);
+  const r = await dbRun(db, `UPDATE student_demands SET status='open', intent_locked=0 WHERE id=? AND status='revoked'`, [id]);
   return !!(r && r.meta && r.meta.changes > 0);
 }
 

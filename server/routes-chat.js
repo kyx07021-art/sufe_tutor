@@ -59,7 +59,9 @@ export async function handleGetMessages(db, convId, url, req) {
   if (g.err) return g.err;
 
   const messages = await dbGetMessages(db, convId, sinceId);
-  return json({ conversation: g.conv, messages });
+  // 已读游标不下发（db.js 自述契约）：双方 last_read_id 属隐私，剥除再回传
+  const { student_last_read_id, teacher_last_read_id, ...convPub } = g.conv;
+  return json({ conversation: convPub, messages });
 }
 
 // GET /api/conversations/:cid/messages/:mid/attachment —— 单条附件懒加载

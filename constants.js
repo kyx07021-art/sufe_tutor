@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.21.0',
+  APP_VERSION: '0.21.1',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -388,6 +388,10 @@ globalThis.APP_CONSTANTS = {
     // 错误提示
     ERROR_LOAD_PREFIX: '加载失败: ',
     ERROR_GENERATE_INVITE: '生成失败: ',
+    // 网络连接失败统一文案（api()/XHR/自动登录共用；fetch 抛 TypeError/连接被拒/超时等一律归此，
+    // 前端据此弹明确提示，杜绝「Failed to fetch」这类英文裸错误）
+    NETWORK_ERROR: '网络连接失败，请检查网络后重试',
+    NETWORK_ERROR_AUTH: '无法连接服务器，登录未完成，请检查网络后重试',
 
     // 空状态
     EMPTY_NO_TEACHERS: '暂无教师信息',

@@ -173,6 +173,16 @@ function openImageViewer(src) {
   });
 }
 
+// 图片加载失败统一兜底（capture 捕获全部 img error）：头像/缩略图/聊天图/预览图破碎不显示裂图
+// （网络断线或源被删时静默隐藏，不弹错不打断页面）。网络错误捕获环节 4/4
+document.addEventListener('error', e => {
+  const t = e.target;
+  if (t && t.tagName === 'IMG' && t.closest &&
+      (t.closest('.avatar, .image-viewer-modal, .chat-bubble, .md-preview, .post-card, .conv-item'))) {
+    t.style.visibility = 'hidden';
+  }
+}, true);
+
 // ============================================================
 // 等第 pill 单选（全站共享：教师档案/学生成绩/高考赋分组件均用 .grade-option，选中互斥）
 // ============================================================

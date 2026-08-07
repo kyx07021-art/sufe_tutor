@@ -509,7 +509,7 @@ function chatUploadToServer(item, dataUrl, onProgress) {
       if (xhr.status >= 200 && xhr.status < 300) resolve(data);
       else reject(new Error(data.error || ('HTTP ' + xhr.status)));
     };
-    xhr.onerror = () => { item._xhr = null; reject(new Error(UI.ERROR_REQUEST_FAILED)); };
+    xhr.onerror = () => { item._xhr = null; const e = new Error(UI.NETWORK_ERROR); e.code = 'NETWORK_ERROR'; reject(e); }; // 网络错误捕获环节 4/4：上传断线明确文案
     xhr.send(JSON.stringify({ kind: item.kind, fileData: dataUrl, fileName: item.name })); // 身份一律凭令牌，移除自报 userId（服务端早已忽略）
   });
 }

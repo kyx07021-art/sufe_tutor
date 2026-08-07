@@ -330,8 +330,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       saveSession(saved.source === 'local'); // 保活：刷新持久化中的 user 快照（记住我仍写 local）
       enterClient(storedPage()); // 回到刷新前的页签
       return;
-    } catch {
-      // 令牌真正失效由 api() 的 401 处理统一清理；网络抖动不删会话（0.20.1 决策）
+    } catch (err) {
+      // 令牌真正失效由 api() 的 401 处理统一清理；网络抖动不删会话（0.20.1 决策）。
+      // 网络错误捕获环节 3/4：断线时弹明确提示（不删会话，恢复后下次自动登录）
+      if (err && err.code === 'NETWORK_ERROR' && typeof showToast === 'function') showToast(UI.NETWORK_ERROR);
     }
   }
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件

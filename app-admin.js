@@ -233,7 +233,7 @@ async function loadAdminStats() {
       <div class="admin-panel glass">
         <h3>${UI.ADMIN_RECENT_DEMANDS}</h3>
         ${s.recentDemands.map(d => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
-          <span><strong>${escHtml(d.username)}</strong> ${STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||''} ${DISP.subjectNames(d.target_subjects)}</span>
+          <span><strong>${escHtml(d.username)}</strong> ${escHtml(STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||'')} ${escHtml(DISP.subjectNames(d.target_subjects))}</span>
           <span class="text-muted">${fmtDateTime(d.created_at)}</span>
         </div>`).join('')}
       </div>

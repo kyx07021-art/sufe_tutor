@@ -34,6 +34,9 @@ const intentRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_INTENT_REJECT.r
 
 // 需求输入硬化：预算钳到 [0, LIMITS.BUDGET_MAX] 且 max>=min；授课方式白名单；地址门牌级按 ADDRESS_GUARD 拒绝
 const clampBudget = v => { const n = Number(v); return Number.isFinite(n) ? Math.min(LIMITS.BUDGET_MAX, Math.max(0, n)) : 0; };
+// 目标科目白名单过滤（网安审计：target_subjects 未校验即原样入库，DISP.subjectNames 对未知科目回显原值 →
+// 学生账号可注入 <img onerror> 触发管理员统计页存储型 XSS。此处只放行已知科目 id，注入串被丢弃）
+const validSubjectIds = new Set((globalThis.APP_CONSTANTS.SUBJECTS || []).map(s => s.id));
 function sanitizeDemand(d) {
   d.budget_min = clampBudget(d.budget_min);
   d.budget_max = clampBudget(d.budget_max);
@@ -41,6 +44,9 @@ function sanitizeDemand(d) {
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
   d.expected_time = (typeof d.expected_time === 'string' ? d.expected_time : '').slice(0, LIMITS.DEMAND_TIME_MAX);
   d.address = (typeof d.address === 'string' ? d.address : '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
+  if (Array.isArray(d.target_subjects)) {
+    d.target_subjects = d.target_subjects.filter(sid => typeof sid === 'string' && validSubjectIds.has(sid));
+  }
   if (ADDRESS_GUARD.test(d.address)) return null; // 合规红线：详细门牌号不收集（调用方回 ADDRESS_TOO_DETAILED）
   return d;
 }
@@ -56,6 +62,7 @@ export async function handleCreateDemand(db, body, req) {
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
   if (d.province !== 'shanghai') d.teaching_method = 'online'; // 业务规则：非上海仅线上
   if (!sanitizeDemand(d)) return error(MSG.ADDRESS_TOO_DETAILED);
+  if (!d.target_subjects || !d.target_subjects.length) return error(MSG.INVALID_PARAMS); // 白名单过滤后为空：无有效科目
 
   const id = await dbCreateDemand(db, userId, d);
   await logEvent(db, { action: 'demand.create', actorUserId: userId, actorRole: 'student',
@@ -104,6 +111,7 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
   if (d.province !== 'shanghai') d.teaching_method = 'online';
   if (!sanitizeDemand(d)) return error(MSG.ADDRESS_TOO_DETAILED);
+  if (!d.target_subjects || !d.target_subjects.length) return error(MSG.INVALID_PARAMS); // 白名单过滤后为空
 
   await dbUpdateDemand(db, demandId, d);
   await logEvent(db, { action: 'demand.update', actorUserId: me.id, actorRole: 'student',
@@ -145,7 +153,7 @@ export async function handleCreateIntent(db, demandId, body, req) {
   const userId = me.id;
   const demand0 = await dbGetDemandById(db, demandId);
   if (!demand0) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (demand0.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求停止接收意向（服务端硬门禁）
+  if (demand0.status === STATUS.CONTRACTED || demand0.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求停止接收意向（服务端硬门禁；撤销后须重开）
 
   // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单；price==null 才是未填（0 是合法报价）
   const p = await dbGetTeacherProfile(db, userId);
@@ -189,7 +197,7 @@ export async function handleResolveIntent(db, intentId, body, req) {
   if (intent.status !== STATUS.PENDING) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
 
   const dNow = await dbGetDemandById(db, intent.demand_id);
-  if (!dNow || dNow.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
+  if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已撤销需求不可接受意向（须先重开）
   if (action === 'accept' && !(await dbLockDemandIntent(db, intent.demand_id))) {
     return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 并发另一 accept 已抢占 → 本需求已达成
   }
@@ -224,7 +232,7 @@ export async function handlePushDemand(db, body, req) {
   const demand = await dbGetDemandById(db, demandId);
   if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
-  if (demand.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约需求不可再推送
+  if (demand.status === STATUS.CONTRACTED || demand.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求不可再推送
 
   try {
     const id = await dbCreatePush(db, demandId, userId, teacherUserId);
@@ -259,7 +267,7 @@ export async function handleResolvePush(db, pushId, body, req) {
 
   if (action === 'accept') {
     const dNow = await dbGetDemandById(db, push.demand_id);
-    if (!dNow || dNow.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已签约不可再确认
+    if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求不可再确认
     if (!(await dbResolvePush(db, pushId, STATUS.ACCEPTED))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
     await dbAcceptPushAsIntent(db, push.demand_id, userId);
     await dbUpsertConversation(db, push.student_user_id, userId, push.demand_id);
