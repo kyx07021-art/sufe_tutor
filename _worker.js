@@ -176,8 +176,9 @@ export default {
     let p = url.pathname;
     try { p = decodeURIComponent(p); } catch { /* 非法编码保持原样 */ } // 防 %73erver 式编码绕过路径前缀检查
 
-    // CORS preflight（网安咽喉单点）
+    // CORS preflight（网安咽喉单点）：仅对 /api/ 路径应答——非 API 敏感路径的 OPTIONS 一律 404（网安审计：曾绕过敏感路径黑名单）
     if (request.method === 'OPTIONS') {
+      if (!p.startsWith('/api/')) return new Response('Not Found', { status: 404 });
       return applySecurityHeaders(corsPreflight(), p);
     }
 
@@ -189,7 +190,8 @@ export default {
           p === '/secrets.js' ||
           p.startsWith('/.git/') || p.startsWith('/.wrangler/') || p.startsWith('/node_modules/') ||
           p === '/package.json' || p === '/package-lock.json' || p.endsWith('.md') ||
-          p === '/wrangler.toml' || p === '/robots.txt' || p === '/sitemap.xml') {
+          p === '/wrangler.toml' || p === '/robots.txt' || p === '/sitemap.xml' ||
+          p.startsWith('/.claude/') || p.startsWith('/.github/') || p === '/.claude' || p === '/.github') { // 本地配置/CI 目录不入静态面（网安审计）
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
       return applySecurityHeaders(env.ASSETS.fetch(request), p);

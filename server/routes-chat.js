@@ -89,8 +89,9 @@ export async function handleCreateUpload(db, body, req) {
   const name = String(body.fileName ?? '').slice(0, LIMITS.FILE_NAME_MAX);
   // 暂存区配额自愈 + 上限：先清本人滞留暂存件（窗口见 LIMITS.STALE_UPLOAD_WINDOW），再按每人封顶（防弃传暂存填满库 / 刷大字段）
   await dbPurgeStaleUploads(db, me.id);
-  if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return error(MSG.UPLOAD_STAGING_LIMIT);
-  const id = await dbCreateUpload(db, me.id, kind, content, name);
+  if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return error(MSG.UPLOAD_STAGING_LIMIT); // 快路径
+  const id = await dbCreateUpload(db, me.id, kind, content, name); // 条件 INSERT 原子化：0 = 并发已满配额（TOCTOU 缺口补）
+  if (!id) return error(MSG.UPLOAD_STAGING_LIMIT);
   return json({ id }, 201);
 }
 

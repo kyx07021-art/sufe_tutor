@@ -27,7 +27,7 @@ export async function handleRegister(db, body, req) {
   // 预留注销墓碑前缀：禁止注册与「已注销用户#id」同前缀的用户名（防冒充注销账户）
   const tombPrefix = globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX;
   if (tombPrefix && username.startsWith(tombPrefix)) return error(MSG.USERNAME_INVALID);
-  if (!password || password.length < LIMITS.PASSWORD_MIN) return error(MSG.PASSWORD_LENGTH);
+  if (!password || password.length < LIMITS.PASSWORD_MIN || password.length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.PASSWORD_LENGTH); // 上限防 PBKDF2 CPU 放大（与登录同口径）
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
 
   // 教师邀请码门控：内测期间休眠（INVITE_GATE_ENABLED=false 时教师免邀请码注册）

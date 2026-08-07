@@ -777,11 +777,13 @@ export async function dbLockDemandIntent(db, demandId) {
 // ============================================================
 // 需求主动推送（学生 → 指定教师）
 // ============================================================
+// 推送创建原子化（网安审计 TOCTOU：同 dbCreateIntent，仅当需求 status='open' 才插入；changes=0 返回 0）
 export async function dbCreatePush(db, demandId, studentUserId, teacherUserId) {
   const r = await dbRun(db,
-    'INSERT INTO demand_pushes (demand_id,student_user_id,teacher_user_id) VALUES (?,?,?)',
-    [demandId, studentUserId, teacherUserId]);
-  return Number(r.meta.last_row_id);
+    `INSERT INTO demand_pushes (demand_id, student_user_id, teacher_user_id)
+     SELECT ?, ?, ? FROM student_demands WHERE id=? AND status='open'`,
+    [demandId, studentUserId, teacherUserId, demandId]);
+  return (r && r.meta && r.meta.changes > 0) ? Number(r.meta.last_row_id) : 0;
 }
 
 // 某教师待处理推送（含需求全字段 + 学生用户名），供需求大厅置顶 + 红点计数
@@ -825,11 +827,15 @@ export async function dbAcceptPushAsIntent(db, demandId, teacherUserId) {
 // ============================================================
 // 意向
 // ============================================================
+// 意向创建原子化（网安审计 TOCTOU：路由层先查需求状态再 INSERT 存在窗口——查询与插入之间需求被签约/撤销，
+// 意向会落在已关闭需求上。改为条件 INSERT：仅当需求 status='open' 才插入，changes=0 即需求非开放，
+// 调用方据返回 0 判定 410）。UNIQUE(demand_id, teacher_user_id) 冲突仍抛错由路由转 409
 export async function dbCreateIntent(db, demandId, teacherUserId) {
   const result = await dbRun(db,
-    'INSERT INTO demand_intents (demand_id, teacher_user_id) VALUES (?,?)',
-    [demandId, teacherUserId]);
-  return Number(result.meta.last_row_id);
+    `INSERT INTO demand_intents (demand_id, teacher_user_id)
+     SELECT ?, ? FROM student_demands WHERE id=? AND status='open'`,
+    [demandId, teacherUserId, demandId]);
+  return (result && result.meta && result.meta.changes > 0) ? Number(result.meta.last_row_id) : 0;
 }
 
 export async function dbGetIntentTeachers(db, demandId) {
@@ -1256,10 +1262,14 @@ export async function dbCountUploads(db, userId) {
   return row?.cnt || 0;
 }
 
+// 上传创建原子化（网安审计 TOCTOU：配额 check-then-act 有窗口——并发上传可越过 LIMITS.UPLOAD_STAGING_MAX。
+// 改为条件 INSERT：仅当本人暂存件数 < 上限才插入，changes=0 即超配额，调用方据返回 0 判定 413）
 export async function dbCreateUpload(db, userId, kind, body, name) {
-  const res = await dbRun(db, 'INSERT INTO uploads (user_id, kind, body, name) VALUES (?,?,?,?)',
-    [userId, kind, body, name]);
-  return (res && res.meta && res.meta.last_row_id) || 0;
+  const res = await dbRun(db,
+    `INSERT INTO uploads (user_id, kind, body, name)
+     SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM uploads WHERE user_id=?) < ${LIMITS.UPLOAD_STAGING_MAX}`,
+    [userId, kind, body, name, userId]);
+  return (res && res.meta && res.meta.changes > 0) ? Number(res.meta.last_row_id) : 0;
 }
 
 export async function dbGetUpload(db, uploadId) {

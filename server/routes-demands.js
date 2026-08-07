@@ -83,7 +83,7 @@ export async function handleGetDemands(db, url, req) {
     return json({ demands: await dbGetDemandsByUser(db, me.id) });
   }
   if (scope === 'for-teacher') {
-    const { user: me, err } = await requireUser(db, req);
+    const { user: me, err } = await requireUser(db, req, 'teacher'); // 角色门（网安审计：曾只验登录，学生可冒充教师视角）
     if (err) return err;
     return json({ demands: await dbGetDemands(db, { teacherUserId: me.id }) });
   }
@@ -163,7 +163,8 @@ export async function handleCreateIntent(db, demandId, body, req) {
   }
 
   try {
-    const id = await dbCreateIntent(db, demandId, userId);
+    const id = await dbCreateIntent(db, demandId, userId); // 条件 INSERT 原子化：0 = 检查与插入之间需求被签/撤
+    if (!id) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
     return json({ id, message: MSG.INTENT_SUBMITTED }, 201);
   } catch (err2) {
     if (String(err2?.message || err2).includes('UNIQUE')) return error(MSG.INTENT_DUPLICATE, 409);
@@ -228,14 +229,15 @@ export async function handlePushDemand(db, body, req) {
   if (err) return err;
   const userId = me.id;
   const teacher = await dbFindUserById(db, teacherUserId);
-  if (!teacher || teacher.role !== 'teacher') return error(MSG.TEACHER_NOT_FOUND, 404);
+  if (!teacher || teacher.role !== 'teacher' || teacher.banned || teacher.deactivated) return error(MSG.TEACHER_NOT_FOUND, 404); // 封禁/注销教师不可被推送（网安审计）
   const demand = await dbGetDemandById(db, demandId);
   if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand.user_id !== userId) return error(MSG.NO_PERMISSION, 403);
   if (demand.status === STATUS.CONTRACTED || demand.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求不可再推送
 
   try {
-    const id = await dbCreatePush(db, demandId, userId, teacherUserId);
+    const id = await dbCreatePush(db, demandId, userId, teacherUserId); // 条件 INSERT 原子化：0 = 需求已非开放
+    if (!id) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
     await logEvent(db, { action: 'demand.push', actorUserId: userId, actorRole: 'student',
       entity: 'demand_push', entityId: id, detail: { teacherUserId, demandId }, req });
     return json({ id, message: MSG.PUSH_SUBMITTED }, 201);
@@ -268,6 +270,7 @@ export async function handleResolvePush(db, pushId, body, req) {
   if (action === 'accept') {
     const dNow = await dbGetDemandById(db, push.demand_id);
     if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求不可再确认
+    if (!(await dbLockDemandIntent(db, push.demand_id))) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求级单接受锁：并发意向/推送接受仅一方赢（网安审计：曾绕过此锁产生双会话）
     if (!(await dbResolvePush(db, pushId, STATUS.ACCEPTED))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
     await dbAcceptPushAsIntent(db, push.demand_id, userId);
     await dbUpsertConversation(db, push.student_user_id, userId, push.demand_id);
