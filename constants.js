@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.22.0',
+  APP_VERSION: '0.22.1',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -25,6 +25,7 @@ globalThis.APP_CONSTANTS = {
     CHAT_SLIDE_DELAY_MS: 120,             // 会话滑动懒加载/自动增高延迟
     CHAT_BUBBLE_DELAY_MS: 12,             // 气泡错峰
     CHAT_FILE_MAX_BYTES: 500 * 1024,      // 前端图片压缩上限（后端 FILE_MAX_BYTES 700000 兜底）
+    CHAT_IMG_MAX_SIDE: 900, CHAT_IMG_QUALITY: 0.82, // 聊天图片最长边/JPEG 质量（控制 D1 单元格体积）
     BADGE_POLL_MS: 30000,                 // 红点慢轮询
     PUSH_COOLDOWN_SEC: 60,                // 需求推送限流
     LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
@@ -139,6 +140,7 @@ globalThis.APP_CONSTANTS = {
       '--warn-deep': '#9A6A2A', '--warn-tint': '#F0E2CF',
       '--danger': '#C0392B', '--danger-deep': '#9B2C2C', '--danger-tint': '#F7E7E7',
       '--ok-deep': '#2E6B3A', '--ok-tint': '#E7EFE7',
+      '--chart-traffic': '#6B5BD2', '--chart-latency': '#2E6B3A', // 流量监测图表系列色（亮色主题，经 dataviz 校验）
       '--star': '#B5841F', '--star-empty': '#C9C4BD',
       '--line': 'rgba(17,17,20,.12)', '--border-light': 'rgba(17,17,20,.10)',
       // ---- 背景舞台 ----
@@ -236,6 +238,7 @@ globalThis.APP_CONSTANTS = {
       '--warn-deep': '#D4A64F', '--warn-tint': 'rgba(212,166,79,.16)',
       '--danger': '#E05A4A', '--danger-deep': '#FF7A6A', '--danger-tint': 'rgba(224,90,74,.16)',
       '--ok-deep': '#55B26B', '--ok-tint': 'rgba(85,178,107,.16)',
+      '--chart-traffic': '#8E80E8', '--chart-latency': '#46A05E', // 流量监测图表系列色（暗色主题，经 dataviz 校验）
       '--star': '#E2B84C', '--star-empty': '#4A4856',
       '--line': 'rgba(255,255,255,.10)', '--border-light': 'rgba(255,255,255,.08)',
       // ---- 背景舞台 ----
@@ -634,7 +637,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ABOUT_DESC: '平台介绍与用户支持',
     ABOUT_FOOTNOTE: '网站初创，欢迎在「关于平台」-「{feedback}」中向我们提出优化建议。您说任何需求/设想，我们都尽力实现。',
     ABOUT_WHO_TITLE: '我们是谁',
-    ABOUT_WHO_TEXT: '上财家教是由上海财经大学在校学生的家教团体运营的公益信息平台。我们的初衷很简单：为想做家教的同学（尤其是持有教师资格证的在校大学生与研究生）提供勤工俭学、社会实践的机会，也帮家长和同学直接对接合适的老师，中间不赚一分钱差价。平台不开展任何有偿培训业务，不向老师收取佣金，也不向家长学员收取任何中介费用。为响应国家「双减」政策，我们谢绝在职老师及校外培训机构注册与合作。',
+    ABOUT_WHO_TEXT: '经途·伴学信息门户是由上海财经大学在校学生的家教团体运营的公益信息平台。我们的初衷很简单：为想做家教的同学（尤其是持有教师资格证的在校大学生与研究生）提供勤工俭学、社会实践的机会，也帮家长和同学直接对接合适的老师，中间不赚一分钱差价。平台不开展任何有偿培训业务，不向老师收取佣金，也不向家长学员收取任何中介费用。为响应国家「双减」政策，我们谢绝在职老师及校外培训机构注册与合作。',
     ABOUT_USAGE_TITLE: '平台基本用法',
     // 平台基本用法：学生签约完整流程（流程图五步，编号圆圈 + 连线展示）
     ABOUT_FLOW_STEP_1: '发布需求：填写年级、科目与预算，发布你的家教需求',
@@ -706,6 +709,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_EDIT_PROFILE: '个人资料',
     PAGE_TITLE_EDIT_PROFILE: '编辑个人资料',
     PAGE_ADMIN_STATS: '统计',
+    PAGE_ADMIN_TRAFFIC: '流量监测',
     PAGE_ADMIN_STUDENTS: '学生管理',
     PAGE_ADMIN_TEACHERS: '教师管理',
     PAGE_ADMIN_DEMANDS: '需求管理',
@@ -720,6 +724,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_RESOURCE_SHARE_DESC: '与同行共享教学资源',
     PAGE_EDIT_PROFILE_DESC: '完善个人档案与高考成绩',
     PAGE_ADMIN_STATS_DESC: '平台运行数据总览',
+    PAGE_ADMIN_TRAFFIC_DESC: '站点流量与平均延迟',
     PAGE_ADMIN_STUDENTS_DESC: '学生账户与封禁管理',
     PAGE_ADMIN_TEACHERS_DESC: '教师账户与封禁管理',
     PAGE_ADMIN_DEMANDS_DESC: '全平台需求管理',
@@ -855,7 +860,7 @@ globalThis.APP_CONSTANTS = {
     DEVICE_REVOKE_DONE: '该设备已下线',
 
     // 新手引导（无登录记录时自动弹出；关于页「平台基本用法」底部可重温）
-    ONBOARD_TITLE: '欢迎来到上财家教',
+    ONBOARD_TITLE: '欢迎来到经途·伴学信息门户',
     ONBOARD_INTRO: '这里是学生与家教老师直接对接的信息平台，零佣金、不收费。当前为内测阶段：',
     ONBOARD_POLICY: [
       '注册很简单：学生与教师都可直接注册，无需邀请码',
@@ -942,6 +947,12 @@ globalThis.APP_CONSTANTS = {
     ADMIN_REVIEWS_PENDING: '待审评价',
     ADMIN_INVITES_USED: '已用邀请码',
     ADMIN_RECENT_USERS: '最近注册用户',
+    TRAFFIC_TITLE: '站点总流量',
+    TRAFFIC_LATENCY_TITLE: '平均延迟',
+    TRAFFIC_RANGE_24H: '24小时',
+    TRAFFIC_RANGE_7D: '近7天',
+    TRAFFIC_RANGE_30D: '近30天',
+    TRAFFIC_HINT: '口径：请求数 = 服务端访问留档（http.*）；平均延迟 = 服务端处理耗时（v0.22.0 起记录，历史时段无数据）',
     ADMIN_RECENT_DEMANDS: '最近需求',
     BTN_APPROVE: '通过',
     BTN_REJECT: '拒绝',

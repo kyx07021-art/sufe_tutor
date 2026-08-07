@@ -1,5 +1,5 @@
 /**
- * 上财家教平台 - 管理员面板模块
+ * 经途·伴学信息门户 - 管理员面板模块
  *
  * 职责：管理员各子页装载器（统计/用户/需求/评价审核/资料管理/合同管理/用户反馈）/
  *       邀请码签发与计时 / 封禁解封 / 越权删帖 / 反馈标记处理。
@@ -244,6 +244,50 @@ async function loadAdminStats() {
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
 }
+
+// 流量监测（v0.22.1）：站点总流量 + 平均延迟。范围切换 + 独立图表组件（app-chart.js）渲染。
+// 口径见 UI.TRAFFIC_HINT；接口 /api/admin/traffic 由服务端聚合 activity_log。
+let _trafficRange = '24h';
+async function loadAdminTraffic() {
+  const el = document.getElementById('admin-traffic-content');
+  if (!el) return;
+  const render = async () => {
+    el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
+    try {
+      const d = await api(`/api/admin/traffic?range=${_trafficRange}`);
+      const ranges = [['24h', UI.TRAFFIC_RANGE_24H], ['7d', UI.TRAFFIC_RANGE_7D], ['30d', UI.TRAFFIC_RANGE_30D]];
+      el.innerHTML = `
+        <div class="traffic-range glass glass--solid">${ranges.map(([r, label]) =>
+          `<button type="button" class="traffic-range-btn${r === _trafficRange ? ' on' : ''}" data-range="${r}" onclick="setTrafficRange('${r}')">${label}</button>`).join('')}
+        </div>
+        <p class="text-muted" style="font-size:.78rem;margin:0 0 10px;">${UI.TRAFFIC_HINT}</p>
+        <div id="traffic-chart-req"></div>
+        <div id="traffic-chart-lat"></div>`;
+      renderGlassLineChart(document.getElementById('traffic-chart-req'), {
+        title: UI.TRAFFIC_TITLE,
+        colorVar: '--chart-traffic',
+        data: d.buckets.map(b => ({ label: b.label, value: b.requests })),
+        unit: d.unit,
+        baselineAtZero: true,
+        statFmt: total => `合计 ${Number(total).toLocaleString('zh-CN')} 次`,
+      });
+      renderGlassLineChart(document.getElementById('traffic-chart-lat'), {
+        title: UI.TRAFFIC_LATENCY_TITLE,
+        colorVar: '--chart-latency',
+        data: d.buckets.map(b => ({ label: b.label, value: b.avgMs })),
+        unit: d.unit,
+        baselineAtZero: false,
+        valueFmt: v => (v == null ? '—' : `${Math.round(v)} ms`),
+        statFmt: (total, n) => (n ? `样本 ${n} 桶` : ''),
+      });
+    } catch (err) {
+      el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
+    }
+  };
+  render();
+}
+// 范围切换（内联 onclick 挂全局，重新拉取并渲染）
+function setTrafficRange(r) { _trafficRange = r; loadAdminTraffic(); }
 
 // ============================================================
 // 管理员：学生 / 教师管理（封禁的账户无法登录）

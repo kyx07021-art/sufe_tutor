@@ -238,6 +238,17 @@ export async function logRequest(db, { method, path, body, status, req, duration
   } catch { /* 兜底中的兜底：静默 */ }
 }
 
+// 流量监测（v0.22.1）：按时间桶聚合 http.* 访问留档的请求数与平均耗时。
+// unit: 'hour'（24h 用）| 'day'（7d/30d 用）；duration_ms 为 v0.22.0 起记录，历史桶 avg 为 null
+const TRAFFIC_BUCKET_FMT = { hour: '%Y-%m-%d %H:00', day: '%Y-%m-%d' };
+export async function dbGetTrafficBuckets(db, unit, fromTs) {
+  const fmt = TRAFFIC_BUCKET_FMT[unit] || TRAFFIC_BUCKET_FMT.hour; // 白名单内插值，无注入面
+  return await dbAll(db,
+    `SELECT strftime('${fmt}', ts) AS bucket, COUNT(*) AS requests, ROUND(AVG(duration_ms), 1) AS avg_ms
+     FROM activity_log WHERE action LIKE 'http.%' AND ts >= ?
+     GROUP BY bucket ORDER BY bucket`, [fromTs]);
+}
+
 /**
  * 日志检索（backoffice 审计接口用）
  * 支持：action 前缀、actorUsername、entity、entityId、since/until、q（detail 模糊）、分页

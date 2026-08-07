@@ -16,7 +16,7 @@ import {
   dbGetDemands, dbGetMessageById,
   dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback,
 } from './db.js';
-import { logEvent, queryLog, decryptLogEntry } from './log.js';
+import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from './log.js';
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 import { dbBroadcastNotification, notifyUser } from './notify.js';
 
@@ -51,6 +51,41 @@ export async function handleAdminStats(db, url, req) {
     stats: { users, profiles, demands, reviews, invites, recentUsers, recentDemands }
   });
 }
+
+// 流量监测（v0.22.1）：站点总流量 + 平均延迟。
+// 口径：activity_log 中 http.* 访问留档 = 服务端实际处理的请求；流量 = 每桶请求数；
+// 平均延迟 = AVG(duration_ms)（v0.22.0 起记录，历史桶为 null）。范围白名单 24h/7d/30d，空桶补零。
+export async function handleAdminTraffic(db, url, req) {
+  const { err } = await requireAdmin(db, req);
+  if (err) return err;
+  const range = ['24h', '7d', '30d'].includes(String(url.searchParams.get('range') || '')) ? url.searchParams.get('range') : '24h';
+  const unit = range === '24h' ? 'hour' : 'day';
+  const n = range === '24h' ? 24 : range === '7d' ? 7 : 30;
+  const now = new Date();
+  // 从整点/整天边界起算 n 个完整桶（首桶不满的截断不出现）
+  const from = unit === 'hour'
+    ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() - (n - 1)))
+    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (n - 1)));
+  const fromTs = from.toISOString().slice(0, 19).replace('T', ' ');
+  const rows = await dbGetTrafficBuckets(db, unit, fromTs);
+  const map = new Map(rows.map(r => [r.bucket, r]));
+  const step = unit === 'hour' ? 3600 * 1000 : 24 * 3600 * 1000;
+  const buckets = [];
+  for (let i = 0; i < n; i++) {
+    const t = from.getTime() + i * step;
+    const label = fmtTrafficBucket(t, unit);
+    const row = map.get(label);
+    buckets.push({ label, requests: row ? Number(row.requests) : 0, avgMs: row && row.avg_ms != null ? Number(row.avg_ms) : null });
+  }
+  return json({ range, unit, buckets });
+}
+// 与 SQL strftime 输出同格式（UTC，'YYYY-MM-DD HH:00' / 'YYYY-MM-DD'）
+const fmtTrafficBucket = (t, unit) => {
+  const d = new Date(t);
+  const p = x => String(x).padStart(2, '0');
+  const day = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
+  return unit === 'hour' ? `${day} ${p(d.getUTCHours())}:00` : day;
+};
 
 export async function handleAdminReviews(db, url, req) {
   const { err } = await requireAdmin(db, req);

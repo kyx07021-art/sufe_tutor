@@ -1439,3 +1439,31 @@ body.profile-panel-closing .profile-panel {
 .browse-list::-webkit-scrollbar-track, .conv-list::-webkit-scrollbar-track, .chat-messages::-webkit-scrollbar-track, .md-preview::-webkit-scrollbar-track, .custom-select-list::-webkit-scrollbar-track { background: transparent; }
 .browse-list::-webkit-scrollbar-thumb, .conv-list::-webkit-scrollbar-thumb, .chat-messages::-webkit-scrollbar-thumb, .md-preview::-webkit-scrollbar-thumb, .custom-select-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
 .browse-list::-webkit-scrollbar-thumb:hover, .conv-list::-webkit-scrollbar-thumb:hover, .chat-messages::-webkit-scrollbar-thumb:hover, .md-preview::-webkit-scrollbar-thumb:hover { background: var(--faint); }
+
+/* ============ 图表组件（app-chart.js，独立玻璃 SVG 面积折线图）============ */
+.chart-glass { padding: 18px 16px 12px; margin-bottom: 14px; }
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+.chart-title { font-weight: 700; font-size: .95rem; letter-spacing: .02em; }
+.chart-stat { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--chart-color, var(--accent)); font-size: .9rem; }
+.chart-plot { position: relative; }
+.chart-svg { display: block; width: 100%; height: auto; }
+.chart-svg .chart-grid line { stroke: var(--line); stroke-width: 1; }
+.chart-svg .chart-axis-y text, .chart-svg .chart-axis-x text { fill: var(--muted); font-size: 11px; }
+.chart-line { fill: none; stroke: var(--chart-color, var(--accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.chart-end-dot, .chart-crosshair-dot { fill: var(--chart-color, var(--accent)); stroke: var(--paper); stroke-width: 2; }
+.chart-crosshair-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.chart-tooltip { position: absolute; pointer-events: none; background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: .78rem; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--glass-lift-sm); z-index: 5; }
+.chart-tooltip strong { font-size: .9rem; font-variant-numeric: tabular-nums; }
+.chart-tooltip span { color: var(--muted); }
+.chart-empty { padding: 28px 0; text-align: center; color: var(--muted); font-size: .85rem; }
+.chart-table { margin-top: 10px; font-size: .78rem; }
+.chart-table summary { color: var(--muted); cursor: pointer; user-select: none; }
+.chart-table table { width: 100%; margin-top: 6px; border-collapse: collapse; }
+.chart-table th, .chart-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.chart-table th { color: var(--muted); font-weight: 600; }
+.chart-table tbody tr:last-child td { border-bottom: none; }
+
+/* 流量监测页：范围切换 */
+.traffic-range { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 12px; }
+.traffic-range-btn { padding: 6px 14px; border-radius: 8px; font-size: .8rem; color: var(--muted); background: transparent; border: none; cursor: pointer; }
+.traffic-range-btn.on { background: var(--accent-tint); color: var(--accent-deep); font-weight: 700; }

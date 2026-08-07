@@ -1,5 +1,5 @@
 /**
- * 上财家教平台 - 合同模块（学生+教师）
+ * 经途·伴学信息门户 - 合同模块（学生+教师）
  *
  * 职责：我的合同列表 / 合同卡片渲染 / 签约·修改·撤销·取消 / 合同起草（聊天窗呼出）/ 存证校验。
  * 本文件在共享层（app-state/app-api/app-anim/app-ui）之后加载，可安全调用全局设施（api/state/UI/loadInto/invalidate/escHtml/mdRender 等）。

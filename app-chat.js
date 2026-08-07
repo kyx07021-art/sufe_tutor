@@ -209,7 +209,7 @@ async function openConversation(convId) {
     if (msgs.some(m => (m.kind === 'image' || m.kind === 'file') && !m.body)) chatLazyLoadAttachments(); // 骨架占位延迟补载
     markReadConv(convId); // 打开即已读：会话项与侧边栏红点点掉
     chatStartPolling();
-    if (window.innerWidth > 860) { // 移动端不自动聚焦，避免键盘弹出遮挡
+    if (window.innerWidth > CONFIG.BREAKPOINT_MOBILE) { // 移动端不自动聚焦，避免键盘弹出遮挡
       const ta = document.getElementById('chat-input');
       if (ta) ta.focus();
     }
@@ -337,7 +337,7 @@ function chatLazyLoadAttachments() {
         el.innerHTML = `<span class="chat-attach-fail">${UI.CHAT_ATTACH_FAIL}</span>`;
       }
     }
-  }, 120);
+  }, CONFIG.CHAT_SLIDE_DELAY_MS);
 }
 
 // 图片消息点开看大图（通用大图查看器在 app-ui openImageViewer，学信网截图预览亦复用）
@@ -482,7 +482,7 @@ function chatStageFiles(files) {
       reader.onerror = () => { chatUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
       reader.readAsDataURL(f);
     } else {
-      if (f.size > 500 * 1024) { showToast(UI.CHAT_FILE_TOO_LARGE); return; }
+      if (f.size > CONFIG.CHAT_FILE_MAX_BYTES) { showToast(UI.CHAT_FILE_TOO_LARGE); return; }
       item.kind = 'file';
       chatStaged.push(item);
       renderChatStage();
@@ -533,18 +533,18 @@ async function chatDoUpload(item, dataUrl) {
   }
 }
 
-// 图片压缩：最长边缩至 900px 内，jpeg .82 落 dataURL（控制 D1 单元格体积）
+// 图片压缩：最长边缩至 CONFIG.CHAT_IMG_MAX_SIDE 内，jpeg CHAT_IMG_QUALITY 落 dataURL（控制 D1 单元格体积）
 function chatShrinkImage(src, cb) {
   const img = new Image();
   img.onload = () => {
-    const MAX = 900;
+    const MAX = CONFIG.CHAT_IMG_MAX_SIDE;
     const scale = Math.min(1, MAX / Math.max(img.width, img.height));
     const w = Math.max(1, Math.round(img.width * scale));
     const h = Math.max(1, Math.round(img.height * scale));
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
     cv.getContext('2d').drawImage(img, 0, 0, w, h);
-    cb(cv.toDataURL('image/jpeg', 0.82));
+    cb(cv.toDataURL('image/jpeg', CONFIG.CHAT_IMG_QUALITY));
   };
   img.onerror = () => showToast(UI.CHAT_FILE_TOO_LARGE);
   img.src = src;

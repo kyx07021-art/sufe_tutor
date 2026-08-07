@@ -1,5 +1,5 @@
 /**
- * 上财家教信息共享平台 - Cloudflare Pages Worker 入口（编排层）
+ * 经途·伴学信息门户 - Cloudflare Pages Worker 入口（编排层）
  * 本文件只做编排：CORS 预检 → 静态回退 → 初始化 → 体积闸门 → 限流 → 路由分发 → 留档包装。
  * 限流（security.rateGate）、CORS/安全头（security.*）、请求体解析（util.parseBody）、
  * 身份守卫（security.requireUser/requireAdmin）均为咽喉层实现，本文件不承载业务策略。
@@ -30,7 +30,7 @@ import {
 import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
-  handleGenInvite, handleAdminStats,
+  handleGenInvite, handleAdminStats, handleAdminTraffic,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
   handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
@@ -62,6 +62,7 @@ async function routeApi(db, p, method, body, url, req) {
   // 管理员
   if (p === '/api/admin/invite' && method === 'POST') return await handleGenInvite(db, body, req);
   if (p === '/api/admin/stats' && method === 'GET') return await handleAdminStats(db, url, req);
+  if (p === '/api/admin/traffic' && method === 'GET') return await handleAdminTraffic(db, url, req);
   if (p === '/api/admin/reviews' && method === 'GET') return await handleAdminReviews(db, url, req);
   if (p === '/api/admin/logs' && method === 'GET') return await handleAdminLogs(db, url, req);
   const logDecrypt = idMatch(p, /^\/api\/admin\/logs\/(\d+)\/decrypt$/);

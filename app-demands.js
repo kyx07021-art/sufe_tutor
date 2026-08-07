@@ -328,20 +328,21 @@ function matchDegree(teacher, demand) {
   if (!teacher) return null;
   let score = 0, total = 0;
   const tSubj = Array.isArray(teacher.subjects) ? teacher.subjects : [];
+  const W = CONFIG.MATCH_WEIGHT; // 权重单源 constants CONFIG（科目 60 + 区县 20 + 预算 20）
   const dSubj = Array.isArray(demand.target_subjects) ? demand.target_subjects : [];
   if (tSubj.length && dSubj.length) {
-    total += 60;
-    score += (dSubj.filter(s => tSubj.includes(s)).length / dSubj.length) * 60;
+    total += W.subject;
+    score += (dSubj.filter(s => tSubj.includes(s)).length / dSubj.length) * W.subject;
   }
   if (teacher.province && demand.province) {
-    total += 20;
-    if (teacher.province === demand.province) score += 20;
+    total += W.region;
+    if (teacher.province === demand.province) score += W.region;
   }
   const price = teacher.price;
   if (price != null && (demand.budget_min || demand.budget_max)) {
-    total += 20;
+    total += W.budget;
     const inRange = (!demand.budget_min || price >= demand.budget_min) && (!demand.budget_max || price <= demand.budget_max);
-    if (inRange) score += 20;
+    if (inRange) score += W.budget;
   }
   if (!total) return null;
   return Math.min(100, Math.round(score / total * 100));
@@ -633,7 +634,7 @@ async function submitIntent(demandId) {
     showToast(UI.INTENT_SUBMITTED_TOAST);
     if (state.page === 'browse-demands') loadBrowseDemands(); // 按钮刷新为「意向已提交」态
   } catch (err) {
-    if (err.code === 'PROFILE_INCOMPLETE' || String(err.message).includes('档案不完整')) { showProfileIncompleteModal(); return; }
+    if (err.code === 'PROFILE_INCOMPLETE') { showProfileIncompleteModal(); return; } // 按稳定 code 分支，勿比对中文文案
     showToast(err.message);
   }
 }

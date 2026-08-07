@@ -23,7 +23,7 @@ import { dbRun } from '../server/util.js';
 import { issueAuthToken, getSessionByToken } from '../server/session.js';
 import { handleAdminDeleteNotification } from '../server/notify.js';
 import { handleLogout, handleLogin } from '../server/routes-auth.js';
-import { logRequest } from '../server/log.js';
+import { logRequest, dbGetTrafficBuckets } from '../server/log.js';
 import { tokenDigest, encryptField, decryptField } from '../server/crypto.js';
 
 // node:sqlite → D1 形状薄封装
@@ -325,6 +325,26 @@ test('登录链路 3 次往返架构：限流+取用户同批、会话批、留�
   assert.ok(actions.some(a => a.startsWith('auth.login.')), '业务留档已落（auth.login.*）');
   assert.ok(actions.some(a => a.startsWith('http.')), '访问留档已落（http.<METHOD>.*）');
   assert.equal(logs[0].duration_ms, 123, 'duration_ms 已记录（D 可观测性）');
+});
+
+test('流量监测聚合：dbGetTrafficBuckets 按桶统计请求数与平均耗时', async () => {
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await dbRun(db, `INSERT INTO activity_log (ts, action, duration_ms) VALUES
+    ('2026-08-07 07:10:00', 'http.GET.ok', 50),
+    ('2026-08-07 07:30:00', 'http.POST.ok', 150),
+    ('2026-08-07 08:05:00', 'http.GET.ok', 100),
+    ('2026-08-07 07:20:00', 'auth.login.success', NULL)`); // 业务留档不计入
+  const hourly = await dbGetTrafficBuckets(db, 'hour', '2026-08-07 07:00:00');
+  const b07 = hourly.find(b => b.bucket === '2026-08-07 07:00');
+  assert.equal(b07.requests, 2);
+  assert.equal(b07.avg_ms, 100); // (50+150)/2，NULL duration 不影响
+  const b08 = hourly.find(b => b.bucket === '2026-08-07 08:00');
+  assert.equal(b08.requests, 1);
+  assert.equal(b08.avg_ms, 100);
+  const daily = await dbGetTrafficBuckets(db, 'day', '2026-08-07');
+  assert.equal(daily[0].requests, 3);
 });
 
 test('登录限流：第 9 次超限 429（authRateBatch D1 计数）', async () => {

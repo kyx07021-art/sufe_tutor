@@ -62,7 +62,7 @@ function loadPosts() {
 function renderPostCard(p, i) {
   const mine = state.user && p.user_id === state.user.id;
   const raw = String(p.body_md || '');
-  const snippet = raw.slice(0, 80);
+  const snippet = raw.slice(0, CONFIG.POST_SNIPPET);
   const time = p.created_at ? fmtDateTime(p.created_at) : '';
   return `<div class="post-card glass" style="--i:${Math.min(i, 8)}">
     <div class="post-card-head">
@@ -73,7 +73,7 @@ function renderPostCard(p, i) {
       <span class="post-author">${DISP.usernameHtml(p.username || UI.POST_ANONYMOUS)}</span>
       <span class="post-time">${escHtml(time)}</span>
     </div>
-    ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > 80 ? '…' : ''}</p>` : ''}
+    ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > CONFIG.POST_SNIPPET ? '…' : ''}</p>` : ''}
     <div class="post-actions">
       <button type="button" class="post-like glass${p.liked ? ' liked' : ''}" data-id="${p.id}"
         aria-pressed="${p.liked ? 'true' : 'false'}" aria-label="${UI.POST_LIKE_ARIA}" onclick="togglePostLike(${p.id})">
@@ -315,9 +315,9 @@ function updateTitleCount() {
   const inp = document.getElementById('post-title');
   const el = document.getElementById('post-title-count');
   if (!inp || !el) return;
-  if (inp.value.length > 60) inp.value = inp.value.slice(0, 60);
-  el.textContent = `${inp.value.length}/60`;
-  el.classList.toggle('over', inp.value.length > 55);
+  if (inp.value.length > CONFIG.POST_TITLE_MAX) inp.value = inp.value.slice(0, CONFIG.POST_TITLE_MAX);
+  el.textContent = `${inp.value.length}/${CONFIG.POST_TITLE_MAX}`;
+  el.classList.toggle('over', inp.value.length > CONFIG.POST_TITLE_WARN);
 }
 
 // 管理员系统通知广播：复用发帖组件的 Markdown 编辑器（同一套 ID，弹窗互斥不冲突）
