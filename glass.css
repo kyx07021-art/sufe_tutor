@@ -341,10 +341,12 @@ body { background: transparent; }
    ============================================================ */
 /* 标签语义色：走 --g-fill（画在元素自身玻璃体上，v0.19.31 层模型单层） */
 .tag-ok { --g-fill: var(--g-ok-fill); color: var(--g-ok-fg); }
-/* 科目匹配度徽章（运营建议：教师需求大厅显示「匹配度 N%」）——实心绿底白字，醒目不可漏看 */
-.tag-match { margin-left: 6px; /* v0.19.44 与用户名拉开（空格 4px 太紧，改可靠 margin，与已签约 tag 同手感） */ --g-fill: var(--g-ok-solid); color: var(--white); font-weight: 800; padding: 4px 11px; letter-spacing: .02em; }
+/* 需求五·item1：匹配度按钮语义标记（明细卡关闭判定用）；造型走 style.css .match-btn--* 三色遮罩，玻璃参数同按钮 */
+.tag-match { margin-left: 6px; }
 /* v0.19.45 匹配度明细悬浮卡：纸面同浮窗三件套（modal 毛度 = 填写资料浮窗同级），玻璃体在元素自身 */
 .match-detail { --g-fill: var(--g-paper); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04)); --g-r: var(--lg-r-lg); --g-lift: var(--glass-lift); }
+/* 需求五·item5 学生端逐需求明细卡：比教师端单卡略宽（容纳多需求条目） */
+.match-detail--teacher { width: min(340px, calc(100vw - 24px)); }
 .tag-danger { --g-fill: var(--g-danger-fill); color: var(--danger); }
 .tag-warn { --g-fill: var(--g-warn-fill); color: var(--warn-deep); }
 .tag-accent { --g-fill: var(--g-accent-fill); color: var(--accent-deep); }

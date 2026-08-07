@@ -28,6 +28,8 @@
 //   DISP.starsHtml / usernameHtml / subjectName / roleLabel / provinceName /
 //   genderName / teacherGradeName / gaokaoCell / ratingText / reviewStatusTagHtml（app-display.js）
 //   loadInto()（app-shell）；renderPushBtn()（app-demands）、loadAdminReviews()（app-admin）
+//   需求五：matchDegree/matchDims/matchRowsHtml/matchLevel（app-demands，本文件之后即加载）——
+//   学生端教师匹配度与教师端需求匹配度共用同一五维算法与明细卡开关（_matchDetailOpen/closeMatchDetail）
 // ============================================================
 
 // ============================================================
@@ -42,7 +44,11 @@ async function loadTeachers() {
 
   await loadInto('teachers-list', async () => {
     const data = await dhGet('/api/teachers', { domain: 'teachers' }); // v0.23.0 静默数据层
-    state.allTeachers = data.teachers || []; // 先回写再判空渲染（保持原顺序）
+    state.allTeachers = data.teachers || []; // 先回写再判空渲染
+    // 需求五·item5/6：学生看教师列表 → 对全部「活跃未匹配需求」逐一算匹配度、取最高值，默认按匹配度从高到低排序；
+    // 教师看教师 / 访客 → 不参与匹配度（保持服务端原序）
+    await attachStudentMatch(state.allTeachers);
+    sortTeachersByMatch(state.allTeachers);
     return state.allTeachers;
   }, teachers => teachers.map(renderTeacherCard).join(''),
     { empty: UI.EMPTY_NO_TEACHERS, peek: () => dhReady('/api/teachers') });
@@ -51,8 +57,40 @@ async function loadTeachers() {
 function renderTeachers(teachers) {
   const el = document.getElementById('teachers-list');
   if (!teachers.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_TEACHERS}</p></div>`; return; }
+  sortTeachersByMatch(teachers); // 筛选后仍按匹配度排（匹配度数据随教师对象保留在 _matchForStudent）
   el.innerHTML = teachers.map(renderTeacherCard).join('');
   initReveals(el);
+}
+
+// 需求五·item5：学生端教师匹配度。对该学生所有 status='open'（活跃未匹配）需求逐条算 matchDegree，
+// 取最高值作卡片徽章，并把逐需求明细（按匹配度降序）挂到教师行 _matchForStudent 供明细卡渲染。
+// 非学生 / 无开放需求 → 不挂（卡上不显示匹配度、不参与排序）。
+async function attachStudentMatch(teachers) {
+  if (!state.user || state.user.role !== 'student') return;
+  for (const t of teachers) delete t._matchForStudent; // v0.25.8 审计修复：先清旧匹配——开放需求归零/更换后不残留过期徽章与过期排序（缓存对象同引用复用）
+  let demands = [];
+  try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands' })).demands || []; }
+  catch { demands = []; }
+  const open = demands.filter(d => d.status === STATUS.OPEN);
+  if (!open.length) return;
+  for (const t of teachers) {
+    const items = open
+      .map(d => ({ d, md: matchDegree(t, d) }))
+      .filter(x => x.md != null)
+      .sort((a, b) => b.md - a.md);
+    if (items.length) t._matchForStudent = { md: items[0].md, items };
+  }
+}
+
+// 需求五·item6：学生看教师列表按「最高匹配度」从高到低排；无匹配度数据（教师看教师/访客/无开放需求）保持原序不排。
+function sortTeachersByMatch(teachers) {
+  if (!teachers.length) return;
+  if (!teachers.some(t => t._matchForStudent)) return; // 无学生匹配语境：不排序（教师看教师走服务端原序）
+  teachers.sort((a, b) => {
+    const am = a._matchForStudent ? a._matchForStudent.md : -1;
+    const bm = b._matchForStudent ? b._matchForStudent.md : -1;
+    return bm - am;
+  });
 }
 
 // 错落两栏卡：左 头像+用户名(可点查看详情)+星级；右 信息行1(黑稍大)+信息行2(成绩灰可换行)+方形发送需求按钮；简介独占底部一行
@@ -67,11 +105,16 @@ function renderTeacherCard(t) {
   const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT);
   const methodLine = DISP.methodName(t.teaching_method);
   const timeLine = DISP.expectedTimeText(t.time_slots);
+  // 需求五·item5：学生端教师卡匹配度徽章（最高匹配值，三色按 matchLevel）——点击呼出逐需求明细
+  const matchBtn = t._matchForStudent
+    ? `<button type="button" class="tag-match match-btn match-btn--${matchLevel(t._matchForStudent.md)} glass glass--pressable" data-id="${t.user_id}" onclick="showTeacherMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${t._matchForStudent.md}%${UI.TAG_MATCH_HINT}</button>`
+    : '';
   return `<div class="list-card list-card--teacher glass">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
       <div class="tc-identity">
         <span class="tc-username" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openProfilePanel(${t.user_id})">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}</span>
         <span class="tc-rating">${DISP.starsHtml(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
+        ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
         ${t.intro ? `<span class="tc-intro">${escHtml(t.intro)}</span>` : ''}
       </div>
       <div class="tc-right">
@@ -109,6 +152,41 @@ function applyFilters() {
     return true;
   });
   renderTeachers(filtered);
+}
+
+// 需求五·item5：学生端教师匹配度明细卡（同一时刻至多一张，与教师端明细共用 _matchDetailOpen/closeMatchDetail）。
+// 逐需求列出五维明细，从高到低排；每条开头粗体【需求#xxxx · 主要信息】匹配度：xx%」。
+function showTeacherMatchDetail(btn) {
+  const t = state.allTeachers.find(x => x.user_id === +btn.dataset.id);
+  if (!t || !t._matchForStudent) return;
+  if (_matchDetailOpen) { closeMatchDetail(); return; }
+  btn.insertAdjacentHTML('afterend', studentMatchDetailHtml(t));
+  const card = btn.nextElementSibling;
+  if (!card || !card.classList.contains('match-detail')) return;
+  document.body.appendChild(card); // 挂 body：与教师端同因（.list-card backdrop-filter 会困住 fixed 后代）
+  const r = btn.getBoundingClientRect();
+  card.style.left = `${r.left}px`;
+  card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
+  // 条目区高度上限单源 CONFIG.MATCH_DETAIL_MAX_HEIGHT（几何锚定同 MAX_MATCH_DETAIL_OFFSET 的 JS 内联先例）
+  const list = card.querySelector('.match-t-list');
+  if (list) list.style.maxHeight = `${CONFIG.MATCH_DETAIL_MAX_HEIGHT}px`;
+  _matchDetailOpen = true;
+}
+
+function studentMatchDetailHtml(t) {
+  const m = t._matchForStudent;
+  const note = matchNoteHtml(); // 权重插值单点（app-demands.js，与教师端明细卡共用）
+  const entries = m.items.map(({ d, md }) => {
+    // 头行格式（需求五·item5 钉死）：【需求#xxxx · <·号分隔的主要信息> 匹配度：xx%】——粗体一整行
+    const head = `<div class="match-t-head"><b class="match-t-head-main">${UI.MATCH_T_BRACKET_L}${UI.MATCH_T_DEMAND_PREFIX}${escHtml(DISP.demandOptionText(d))} ${UI.MATCH_T_PCT}${md}%${UI.MATCH_T_BRACKET_R}</b></div>`;
+    return `<div class="match-t-item glass glass--solid">${head}${matchRowsHtml(matchDims(t, d))}</div>`;
+  }).join('');
+  return `<div class="match-detail match-detail--teacher glass glass--float" role="dialog" aria-label="${UI.MATCH_T_TITLE}">
+    <div class="match-detail-head"><span class="match-detail-pct">${m.md}%</span><span class="match-detail-title">${UI.MATCH_T_TITLE}</span></div>
+    <p class="match-detail-sub">${UI.MATCH_TEACHER_DETAIL_SUB}</p>
+    <div class="match-t-list">${entries}</div>
+    <p class="match-note">${note}</p>
+  </div>`;
 }
 
 // ============================================================

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.7',
+  APP_VERSION: '0.25.8',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -43,8 +43,12 @@ globalThis.APP_CONSTANTS = {
     GRAD_YEAR_MIN: 1980, GRAD_YEAR_MAX: 2030, // 教师毕业年份可填范围（R2-12，服务端钳制同值）
     SIDEBAR_INDEX_PAD: 2,                 // 侧边栏序号补零位数
     POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
-    MATCH_WEIGHT: { subject: 60, region: 20, budget: 20 },     // 教师匹配度权重（合计 100）
+    MATCH_WEIGHT: { subject: 45, region: 15, budget: 15, personality: 15, gender: 10 },     // 教师匹配度权重（合计 100；需求五并入性格/性别，科目仍为主权重）
     MATCH_MAX: 100,
+    MATCH_COLOR_HIGH: 80,                 // 匹配度按钮三色阈值：≥80 绿（hi）
+    MATCH_COLOR_MID: 60,                  // 60-79 黄（mid），<60 红（lo）
+    GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
+    MATCH_DETAIL_MAX_HEIGHT: 320,         // 学生端匹配度明细卡内需求条目区高度上限 px（条目多滚动）
     MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px
     GLIDE_MS: 460, SIDEBAR_GLIDE_MS: 380, // 选中块滑动动画时长
     PANEL_CLOSE_TIMEOUT_MS: 600,          // 个人信息栏关闭兜底
@@ -599,19 +603,35 @@ globalThis.APP_CONSTANTS = {
     DEMAND_TAG_CONTRACTED: '已签约',
     DEMAND_TAG_REVOKED: '合同已撤销',
     TAG_MATCH: '匹配度 ',
+    TAG_MATCH_HINT: ' · 点击展开明细',
     TAG_MATCH_TITLE: '点击查看匹配度明细',
     MATCH_DETAIL_TITLE: '匹配度明细',
     MATCH_DETAIL_SUB: '根据你的教师档案与这条需求自动计算',
     MATCH_ITEM_SUBJECT: '科目匹配',
+    MATCH_ITEM_PERSONALITY: '性格匹配',
     MATCH_ITEM_REGION: '区域匹配',
     MATCH_ITEM_BUDGET: '预算匹配',
+    MATCH_ITEM_GENDER: '性别匹配',
     MATCH_SUBJECT_HIT: '命中 {hit}/{total} 门需求科目',
     MATCH_REGION_HIT: '同省（{name}），区域吻合',
     MATCH_REGION_MISS: '省份不符，区域不匹配',
     MATCH_BUDGET_HIT: '报价在需求预算区间内',
     MATCH_BUDGET_MISS: '报价超出需求预算区间',
+    MATCH_PERSONALITY_HIT: '命中 {hit}/{total} 个偏好性格',
+    MATCH_PERSONALITY_MISS: '教师性格与偏好无重合',
+    MATCH_GENDER_ANY: '需求不限性别',
+    MATCH_GENDER_HIT: '性别符合需求偏好',
+    MATCH_GENDER_MISS: '性别不符需求偏好',
+    MATCH_GENDER_UNDISCLOSED: '教师未透露性别，明确偏好折半计分',
     MATCH_DIM_SKIP: '该项缺数据，未计入',
-    MATCH_NOTE: '计分口径：科目 60 分（命中需求科目的比例）+ 区域 20 分（同省）+ 预算 20 分（报价在区间内）。缺数据的维度不计分，总分按有效维度归一化到 100。',
+    MATCH_NOTE: '计分口径：科目 {subject} 分（命中需求科目的比例）+ 区域 {region} 分（同省）+ 预算 {budget} 分（报价在区间内）+ 性格 {personality} 分（偏好性格重合比例）+ 性别 {gender} 分（偏好性别吻合）。缺数据的维度不计分，总分按有效维度归一化到 100。',
+    // 学生端教师匹配度明细（需求五）：多需求逐条比对，条目区限高滚动
+    MATCH_T_TITLE: '教师匹配度明细',
+    MATCH_TEACHER_DETAIL_SUB: '根据你的活跃需求与该教师档案自动计算，按匹配度从高到低展示',
+    MATCH_T_PCT: '匹配度：',
+    MATCH_T_DEMAND_PREFIX: '需求',       // 明细头「需求#xxxx」前缀（需求五·item5 格式）
+    MATCH_T_BRACKET_L: '【',
+    MATCH_T_BRACKET_R: '】',
     BTN_REOPEN_DEMAND: '重开需求',
     DEMAND_REOPENED_TOAST: '需求已重新开放',
     CONFIRM_REOPEN_DEMAND: '重开后该需求将重新出现在需求大厅，再次接受教师意向。确定重开吗？',

@@ -1003,8 +1003,16 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   display: inline-flex; align-items: center; padding: 3px 10px;
   font-size: .72rem; font-weight: 600; color: var(--ink-3); letter-spacing: .01em;
 }
-/* v0.19.45 匹配度 tag 按钮化：承接 .tag 造型 + 引擎焦点环（focus 动效），hover 提示 */
-button.tag { cursor: pointer; border: none; font-family: inherit; }
+/* 需求五·item1 匹配度标准按钮：从 tag 升级按钮，按分值三色遮罩（阈值单源 CONFIG.MATCH_COLOR_HIGH/MID）。
+   三色 = 染色玻璃（--g-fill 低 alpha 语义色，字色对应深色），玻璃/涟漪/焦点环由 glass 引擎提供 */
+.match-btn {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: 4px 10px; font-size: .72rem; font-weight: 800; letter-spacing: .02em;
+  position: relative; cursor: pointer; border: none; font-family: inherit;
+}
+.match-btn--hi  { --g-fill: var(--g-ok-fill);     color: var(--g-ok-fg); }
+.match-btn--mid { --g-fill: var(--g-warn-fill);   color: var(--warn-deep); }
+.match-btn--lo  { --g-fill: var(--g-danger-fill); color: var(--danger); }
 
 /* 匹配度明细悬浮卡：fixed + 顶层 z（同 .custom-select-panel 的 v0.19.25 架构债先例）——
    absolute+卡内 z-index 会被 .list-card 的 isolation 压层、被 overflow:hidden 切边（v0.19.45 教训），
@@ -1033,6 +1041,12 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
 .match-bar--zero i { background: var(--g-bar-strong); }
 .match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
 .match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--g-line-soft); font-size: .66rem; line-height: 1.5; color: var(--muted); }
+
+/* 需求五·item5 学生端逐需求明细：条目区限高滚动（max-height 由 JS 以 CONFIG.MATCH_DETAIL_MAX_HEIGHT 注入，单源） */
+.match-t-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.match-t-item { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); padding: 8px 10px; }
+.match-t-head { margin-bottom: 6px; }
+.match-t-head-main { display: block; font-size: .74rem; font-weight: 800; color: var(--ink); line-height: 1.5; }
 
 /* Toast（全站轻提示）：定位/入场/退场全在 CSS 呈现层（v0.21.0 重构：原 JS 内联 cssText 且 fadeUp 关键帧缺失，
    入场动画实为坏引用——下沉 CSS 后按既定意图生效）。JS 只增删节点 + 切 .toast--out 退场类 */
@@ -1472,6 +1486,7 @@ body.profile-panel-closing .profile-panel {
 }
 .tc-username:hover { text-decoration: underline; }
 .tc-rating { display: inline-flex; align-items: center; gap: 6px; }
+.tc-match { display: inline-flex; } /* 学生端教师卡匹配度按钮独立行（需求五·item5）：不进 .tc-username 防 ellipsis 裁剪 */
 .tc-rating .stars { font-size: .85rem; }
 .tc-rating b { font-family: var(--mono); font-size: .76rem; color: var(--ink-3); }
 .tc-right {

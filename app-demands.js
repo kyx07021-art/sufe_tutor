@@ -3,8 +3,10 @@
  *
  * 职责：
  *   1. 需求弹窗表单：创建/编辑（renderDemandModal + initDemandForm + 成绩回填 + 提交 handleSubmitDemand）
- *   2. 匹配度 + 需求卡：matchDegree/matchDetailHtml/showMatchDetail/closeMatchDetail/renderDemandCard
- *      （学生「我的需求」与教师「需求大厅」共用渲染，教师视角带匹配度徽章与意向按钮）
+ *   2. 匹配度 + 需求卡：genderMatchScore/matchDims/matchDegree/matchLevel/matchRowsHtml/matchDetailHtml/
+ *      showMatchDetail/closeMatchDetail/renderDemandCard
+ *      （学生「我的需求」与教师「需求大厅」共用渲染，教师视角带匹配度徽章与意向按钮；
+ *       需求五五维匹配：科目/性格/区域/预算/性别，权重与阈值单源 constants CONFIG；学生端教师列表匹配度复用本组函数）
  *   3. 需求列表/推送：loadDemandList/loadMyDemands/reopenDemand/loadBrowseDemands、
  *      openSendDemandModal + pushCooldown 限流倒计时 + submitDemandPush/resolvePush
  *   4. 意向：submitIntent/showProfileIncompleteModal/toggleDemandIntents/refreshIntentsBox/
@@ -417,44 +419,24 @@ async function handleDeleteDemand(demandId, asAdmin) {
 // 需求卡与列表（学生「我的需求」与教师「需求大厅」共用渲染）
 // ============================================================
 
-// 用户名展示：注销用户（用户名以「已注销用户」开头）灰斜体墓碑样式——
-// 双方数据（需求/会话/合同/评价）保留，但向其他用户明确表明该账户已注销
-// 教师需求匹配度（运营建议 P3/B2 双向画像）：科目(权重60) + 区县(20) + 预算(20) 综合分，
-// 按可用维度归一化到 0-100——教师浏览需求时显示「匹配度 N%」，帮助快速判断对错口。纯前端计算零后端改动。
-function matchDegree(teacher, demand) {
-  if (!teacher) return null;
-  let score = 0, total = 0;
-  // R2-b 科目维度按需求类型分流：academic → 教师擅长科目 subjects；nonacademic → 教师非学科项目 nonacademic_projects
-  const type = demand && demand.target_type === DEMAND_TYPES.NONACADEMIC ? DEMAND_TYPES.NONACADEMIC : DEMAND_TYPES.ACADEMIC;
-  const tSubj = type === DEMAND_TYPES.NONACADEMIC
-    ? (Array.isArray(teacher.nonacademic_projects) ? teacher.nonacademic_projects : [])
-    : (Array.isArray(teacher.subjects) ? teacher.subjects : []);
-  const W = CONFIG.MATCH_WEIGHT; // 权重单源 constants CONFIG（科目 60 + 区县 20 + 预算 20）
-  const dSubj = Array.isArray(demand.target_subjects) ? demand.target_subjects : [];
-  if (tSubj.length && dSubj.length) {
-    total += W.subject;
-    score += (dSubj.filter(s => tSubj.includes(s)).length / dSubj.length) * W.subject;
-  }
-  // R2 注释：性格/性别匹配分在需求五扩展（此轮只注释不实现）
-  if (teacher.province && demand.province) {
-    total += W.region;
-    if (teacher.province === demand.province) score += W.region;
-  }
-  // R2-13：匹配度逻辑暂不修改，用最低报价代表，未来扩展区间重叠
-  const price = teacher.price_min;
-  if (price != null && (demand.budget_min || demand.budget_max)) {
-    total += W.budget;
-    const inRange = (!demand.budget_min || price >= demand.budget_min) && (!demand.budget_max || price <= demand.budget_max);
-    if (inRange) score += W.budget;
-  }
-  if (!total) return null;
-  return Math.min(100, Math.round(score / total * 100));
+// 需求五·性别匹配分（R2-10 偏好性别）：
+//   需求偏好 ''=均可 → 100（任何教师）；明确 male/female 与教师一致 → 100、相反 → 0；
+//   教师不愿透露（nonbinary）或未填性别 → 明确偏好折半（CONFIG.GENDER_MATCH_UNDISCLOSED=50），均可仍 100。
+//   口径：教师未填性别与「不愿透露」同等对待——需求方明确性别偏好时，未披露方无法证明符合，折半而非归零（避免「没填就罚 0」过苛）。
+function genderMatchScore(pref, teacherGender) {
+  if (!pref) return 100;
+  if (!teacherGender || teacherGender === 'nonbinary') return CONFIG.GENDER_MATCH_UNDISCLOSED;
+  return teacherGender === pref ? 100 : 0;
 }
 
-// 匹配度明细悬浮卡（v0.19.45）：分项对齐 matchDegree 口径——科目 60（命中比例）/ 区域 20（同省）/ 预算 20（报价在区间内），
-// 缺数据维度不计分并明示。毛度同浮窗纸面（glass.css .match-detail 参数，modal 同级）
-function matchDetailHtml(t, d, md) {
-  // R2-b 同 matchDegree 口径：科目维度按需求类型分流（academic → subjects；nonacademic → nonacademic_projects）
+// 五维分项统一计算（需求五：科目/性格/区域/预算/性别）。权重单源 constants CONFIG.MATCH_WEIGHT。
+// 返回每维 { label, score, max, hint }：score 为该维加权得分（0..max，缺数据维 = null 不计入总分）。
+// matchDegree 与明细卡（教师视角/学生逐需求）共用本函数——口径单点，杜绝总分与明细分叉。
+// 缺数据口径：科目/区域/预算需双方都有值才计；性格仅需求有偏好才计（无偏好 = 无约束，维度不适用）；
+// 性别恒计（需求偏好默认 ''=均可，总有定义）。
+function matchDims(t, d) {
+  const W = CONFIG.MATCH_WEIGHT;
+  // R2-b 科目维度按需求类型分流：academic → 教师擅长科目 subjects；nonacademic → 教师非学科项目 nonacademic_projects
   const type = d && d.target_type === DEMAND_TYPES.NONACADEMIC ? DEMAND_TYPES.NONACADEMIC : DEMAND_TYPES.ACADEMIC;
   const tSubj = type === DEMAND_TYPES.NONACADEMIC
     ? (Array.isArray(t.nonacademic_projects) ? t.nonacademic_projects : [])
@@ -462,29 +444,94 @@ function matchDetailHtml(t, d, md) {
   const dSubj = Array.isArray(d.target_subjects) ? d.target_subjects : [];
   const hit = dSubj.filter(s => tSubj.includes(s)).length;
   const subjOn = tSubj.length > 0 && dSubj.length > 0;
-  const subjScore = subjOn ? Math.round(hit / dSubj.length * 60) : null;
+  const subjScore = subjOn ? hit / dSubj.length * W.subject : null;
+
+  // R5-2 性格匹配：重合 tag 数 / 需求偏好数 归一 0-100 → 加权。需求无偏好则维度不适用（不计分不计权重）；
+  // 教师无性格 tag 且需求有偏好 → 重合 0（教师一条偏好都满足不了）。
+  const prefTags = Array.isArray(d.preferred_personality_tags) ? d.preferred_personality_tags : [];
+  const tPersonality = Array.isArray(t.personality_tags) ? t.personality_tags : [];
+  const pHit = prefTags.filter(tag => tPersonality.includes(tag)).length;
+  const personalityOn = prefTags.length > 0;
+  const personalityScore = personalityOn ? pHit / prefTags.length * W.personality : null;
+
   const regionOn = !!(t.province && d.province);
-  const regionScore = regionOn ? (t.province === d.province ? 20 : 0) : null;
-  // R2-13：明细与 matchDegree 同口径，用最低报价代表（区间重叠未来扩展）
+  const regionScore = regionOn ? (t.province === d.province ? W.region : 0) : null;
+
+  // R2-13：匹配度用最低报价代表（区间重叠未来扩展）
   const budgetOn = t.price_min != null && (d.budget_min || d.budget_max);
   const budgetScore = budgetOn
-    ? ((!d.budget_min || t.price_min >= d.budget_min) && (!d.budget_max || t.price_min <= d.budget_max) ? 20 : 0) : null;
+    ? ((!d.budget_min || t.price_min >= d.budget_min) && (!d.budget_max || t.price_min <= d.budget_max) ? W.budget : 0) : null;
+
+  const prefGender = d.preferred_teacher_gender || '';
+  const gScore = genderMatchScore(prefGender, t.gender);
+  const genderScore = gScore / 100 * W.gender;
+  const genderHint = !prefGender ? UI.MATCH_GENDER_ANY
+    : gScore === CONFIG.GENDER_MATCH_UNDISCLOSED ? UI.MATCH_GENDER_UNDISCLOSED
+    : gScore === 100 ? UI.MATCH_GENDER_HIT : UI.MATCH_GENDER_MISS;
+
+  return [
+    { key: 'subject', label: UI.MATCH_ITEM_SUBJECT, score: subjScore, max: W.subject,
+      hint: subjOn ? UI.MATCH_SUBJECT_HIT.replace('{hit}', hit).replace('{total}', dSubj.length) : UI.MATCH_DIM_SKIP },
+    { key: 'personality', label: UI.MATCH_ITEM_PERSONALITY, score: personalityScore, max: W.personality,
+      hint: !personalityOn ? UI.MATCH_DIM_SKIP : (pHit > 0 ? UI.MATCH_PERSONALITY_HIT.replace('{hit}', pHit).replace('{total}', prefTags.length) : UI.MATCH_PERSONALITY_MISS) },
+    { key: 'region', label: UI.MATCH_ITEM_REGION, score: regionScore, max: W.region,
+      hint: !regionOn ? UI.MATCH_DIM_SKIP : (regionScore === W.region ? UI.MATCH_REGION_HIT.replace('{name}', escHtml(DISP.provinceName(d.province))) : UI.MATCH_REGION_MISS) },
+    { key: 'budget', label: UI.MATCH_ITEM_BUDGET, score: budgetScore, max: W.budget,
+      hint: !budgetOn ? UI.MATCH_DIM_SKIP : (budgetScore === W.budget ? UI.MATCH_BUDGET_HIT : UI.MATCH_BUDGET_MISS) },
+    { key: 'gender', label: UI.MATCH_ITEM_GENDER, score: genderScore, max: W.gender, hint: genderHint },
+  ];
+}
+
+// 教师需求匹配度（运营建议 P3/B2 双向画像）：科目/性格/区域/预算/性别五维加权，
+// 按可用维度归一化到 0-100——教师浏览需求显示「匹配度 N%」，学生看教师取各活跃需求最高值。纯前端计算零后端改动。
+function matchDegree(teacher, demand) {
+  if (!teacher || !demand) return null;
+  const dims = matchDims(teacher, demand);
+  let score = 0, total = 0;
+  for (const dim of dims) {
+    if (dim.score == null) continue; // 缺数据维不计
+    total += dim.max;
+    score += Math.min(dim.max, dim.score);
+  }
+  if (!total) return null;
+  return Math.min(CONFIG.MATCH_MAX, Math.round(score / total * 100));
+}
+
+// 匹配度按钮三色等级（需求五·item1）：阈值单源 CONFIG.MATCH_COLOR_*，≥HIGH 绿 / ≥MID 黄 / 其余红
+function matchLevel(md) {
+  if (md >= CONFIG.MATCH_COLOR_HIGH) return 'hi';
+  if (md >= CONFIG.MATCH_COLOR_MID) return 'mid';
+  return 'lo';
+}
+
+// 五维明细行渲染（教师视角明细卡 / 学生逐需求明细共用）；score 为加权得分（null=跳过），max 为该维权重
+function matchRowsHtml(dims) {
   const bar = (s, max) => `<div class="match-bar${s === 0 ? ' match-bar--zero' : ''}"><i style="width:${s == null ? 0 : Math.round(s / max * 100)}%"></i></div>`;
   const row = (k, s, max, hint) => `<div class="match-row">
-    <span class="match-row-top"><span class="match-row-k">${k}</span><span class="match-row-s${s == null ? ' match-row-s--skip' : ''}">${s == null ? UI.MATCH_DIM_SKIP : s + '/' + max}</span></span>
+    <span class="match-row-top"><span class="match-row-k">${k}</span><span class="match-row-s${s == null ? ' match-row-s--skip' : ''}">${s == null ? UI.MATCH_DIM_SKIP : Math.round(s) + '/' + max}</span></span>
     ${bar(s, max)}
     <span class="match-row-hint">${hint}</span>
   </div>`;
-  const subjHint = subjOn ? UI.MATCH_SUBJECT_HIT.replace('{hit}', hit).replace('{total}', dSubj.length) : UI.MATCH_DIM_SKIP;
-  const regionHint = !regionOn ? UI.MATCH_DIM_SKIP : (regionScore === 20 ? UI.MATCH_REGION_HIT.replace('{name}', escHtml(DISP.provinceName(d.province))) : UI.MATCH_REGION_MISS);
-  const budgetHint = !budgetOn ? UI.MATCH_DIM_SKIP : (budgetScore === 20 ? UI.MATCH_BUDGET_HIT : UI.MATCH_BUDGET_MISS);
+  return dims.map(dim => row(dim.label, dim.score, dim.max, dim.hint)).join('');
+}
+
+// 权重说明文案插值单点（v0.25.8 审计修复，教师端/学生端明细卡共用）：MATCH_NOTE 权重插值收敛一处防双写漂移
+function matchNoteHtml() {
+  const W = CONFIG.MATCH_WEIGHT;
+  return UI.MATCH_NOTE
+    .replace('{subject}', W.subject).replace('{region}', W.region).replace('{budget}', W.budget)
+    .replace('{personality}', W.personality).replace('{gender}', W.gender);
+}
+
+// 匹配度明细悬浮卡（v0.19.45 起）：分项对齐 matchDegree 口径（matchDims 单点），
+// 缺数据维度不计分并明示。毛度同浮窗纸面（glass.css .match-detail 参数，modal 同级）
+function matchDetailHtml(t, d, md) {
+  const note = matchNoteHtml();
   return `<div class="match-detail glass glass--float" role="dialog" aria-label="${UI.MATCH_DETAIL_TITLE}">
     <div class="match-detail-head"><span class="match-detail-pct">${md}%</span><span class="match-detail-title">${UI.MATCH_DETAIL_TITLE}</span></div>
     <p class="match-detail-sub">${UI.MATCH_DETAIL_SUB}</p>
-    ${row(UI.MATCH_ITEM_SUBJECT, subjScore, 60, subjHint)}
-    ${row(UI.MATCH_ITEM_REGION, regionScore, 20, regionHint)}
-    ${row(UI.MATCH_ITEM_BUDGET, budgetScore, 20, budgetHint)}
-    <p class="match-note">${UI.MATCH_NOTE}</p>
+    ${matchRowsHtml(matchDims(t, d))}
+    <p class="match-note">${note}</p>
   </div>`;
 }
 
@@ -523,7 +570,7 @@ function showMatchDetail(btn) {
   document.body.appendChild(card);
   const r = btn.getBoundingClientRect();
   card.style.left = `${r.left}px`;
-  card.style.top = `${r.bottom + 6}px`;
+  card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
   _matchDetailOpen = true;
 }
 function closeMatchDetail() {
@@ -545,9 +592,10 @@ function renderDemandCard(d, opts = {}) {
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
   // 需求编号（#0004 四位）：v0.20.0 从小气泡挪出，直接跟在时间标记右侧（与时间同排的普通文本）
   const idTag = d.display_id ? `<span class="demand-id-tag">#${String(d.display_id).padStart(4, '0')}</span>` : '';
-  // 匹配度徽章（教师视角 + 教师档案齐全时展示）：v0.19.45 变按钮，点击呼出明细悬浮卡
+  // 匹配度徽章（教师视角 + 教师档案齐全时展示）：需求五·item1 升级标准按钮，按分值三色遮罩（matchLevel），
+  // 点击呼出明细悬浮卡（沿用 .tag-match 作关闭判定的语义标记，造型走 .match-btn--*）
   const matchTag = (teacher && myTeacher)
-    ? (() => { const md = matchDegree(myTeacher, d); if (md == null) return ''; return `<button type="button" class="tag tag-match glass glass--solid" data-id="${d.id}" onclick="showMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${md}%</button>`; })()
+    ? (() => { const md = (d._md !== undefined) ? d._md : matchDegree(myTeacher, d); if (md == null) return ''; return `<button type="button" class="tag-match match-btn match-btn--${matchLevel(md)} glass glass--pressable" data-id="${d.id}" onclick="showMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${md}%${UI.TAG_MATCH_HINT}</button>`; })()
     : '';
   const provinceName = DISP.provinceName(d.province);
   // R2-b 类型徽章：学科 / 非学科（标题行紧邻用户名左侧展示；「非最终方案，待调整整体排版」见 CLAUDE.md R2-8）
@@ -673,7 +721,14 @@ async function loadBrowseDemands() {
     const myTeacher = (!isGuest && state.user.role === 'teacher') ? state.allTeachers.find(t => t.user_id === state.user.id) : null;
     const pushDemandIds = new Set(pushes.map(p => p.id));
     const pinned = pushes.map(p => renderDemandCard(p, { push: p, teacher: true, myTeacher })).join('');
-    const normal = demands.filter(d => !pushDemandIds.has(d.id)).map(d => renderDemandCard(d, { teacher: true, myTeacher })).join('');
+    // 需求五·item6：教师大厅普通需求默认按匹配度从高到低排序（推送卡仍置顶——学生主动推送是更强意向，不被排序打散）；
+    // 匹配度为 null 的需求（教师档案缺数据）沉底。排序与筛选/搜索串行应用：筛选在服务端已过滤，此处只排渲染序。
+    const normalDemands = demands.filter(d => !pushDemandIds.has(d.id));
+    const mdOf = {};
+    // v0.25.8 审计修复：_md 挂需求对象供 renderDemandCard 徽章复用（预计算一次，避免排序后渲染再算一遍）
+    if (myTeacher) for (const d of normalDemands) { const m = matchDegree(myTeacher, d); mdOf[d.id] = m; d._md = m; }
+    normalDemands.sort((a, b) => (mdOf[b.id] ?? -1) - (mdOf[a.id] ?? -1));
+    const normal = normalDemands.map(d => renderDemandCard(d, { teacher: true, myTeacher })).join('');
     if (seq !== loadSeqs['browse-demands']) return; // 内层 await（拉教师档案）期间再进页：过期响应不渲染
     el.innerHTML = (pinned ? `<div class="section-title" style="margin-bottom:8px;">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '') + normal;
     initReveals(el);
