@@ -25,9 +25,13 @@
   }
 
   const D = {
-    // 科目名：查无返 sid 本身
+    // 科目名：SUBJECTS 命中优先；查无兜底 region-data subjectNames（浙江技术等小众选科——不在全局
+    // SUBJECTS 池但教师/学生科目池会按省份注入）；再无返 sid 本身
     subjectName(sid) {
-      return enumName(C().SUBJECTS, sid, sid);
+      const hit = enumName(C().SUBJECTS, sid, null);
+      if (hit !== null) return hit;
+      const R = globalThis.SUFE_REGIONS;
+      return (R && R.subjectNames && R.subjectNames[sid]) || sid;
     },
     // 科目名数组 join '、'（空数组 join 天然返 ''）
     subjectNames(ids) {
@@ -43,6 +47,10 @@
     methodName(id) { return enumName(C().TEACHING_METHODS, id, ''); },
     personalityTagName(id) { return enumName(C().PERSONALITY_TAGS, id, ''); }, // R2-3 性格关键词名
     nonacademicProjectName(id) { return enumName(C().NONACADEMIC_PROJECTS, id, ''); }, // R2-4 非学科项目名
+    // R2-12 毕业年份展示：非空年份 → 「xxx年」，null/空 → ''（资料卡条目动态加载渲染层判断，单点映射防内联拼接）
+    graduationYearText(year) {
+      return (year != null && year !== '') ? `${year}${(C().UI || {}).GRAD_YEAR_SUFFIX || '年'}` : '';
+    },
 
     // R2-b 需求目标名按类型分流单点映射（需求卡/推送列表/管理端统计/合同流共用，消灭散落三元）：
     //   academic → SUBJECTS 科目名；nonacademic → NONACADEMIC_PROJECTS 项目名；未知 id 查无返 ''

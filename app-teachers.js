@@ -265,6 +265,8 @@ const PROFILE_CARD_ITEMS = [
   { key: 'region', label: UI.SECTION_REGION, render: h => h.plain(DISP.provinceName(h.t.province)) },
   { key: 'school', label: UI.LABEL_SCHOOL, render: h => h.plain(h.t.school) },
   { key: 'grade', label: UI.LABEL_GRADE, render: h => h.plain(DISP.teacherGradeName(h.t.grade)) },
+  // R2-12 毕业年份（有值才展示，无值整行跳过；决定该教师高考赋分按哪套政策）
+  { key: 'graduationYear', label: UI.LABEL_GRADUATION_YEAR, render: h => h.t.graduation_year != null ? h.cell(DISP.graduationYearText(h.t.graduation_year)) : '' },
   { key: 'gender', label: UI.LABEL_GENDER, render: h => h.plain(DISP.genderName(h.t.gender)) },
   { key: 'address', label: UI.LABEL_ADDRESS, render: h => h.plain(h.t.address) }, // 授课区域（保留既有行）
   // R2-5 报价区间（未填显占位，与教师卡 priceRangeText 同口径）

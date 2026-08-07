@@ -171,6 +171,7 @@ export const LIMITS = {
   ADDRESS_FIELD_MAX: 100,  // 授课区域
   DEMAND_TIME_MAX: 2000,   // 期望开课时间（v0.25.0 起存结构化时间段 JSON，多条组件需更长容量）
   TIME_SLOTS_MAX: 8,       // 结构化时间段条数上限（与前端 CONFIG.TIME_SLOTS_MAX 对齐）
+  GRAD_YEAR_MIN: 1980, GRAD_YEAR_MAX: 2030, // 教师毕业年份范围（R2-12，与前端 CONFIG 同值）
   BUDGET_MAX: 99999,       // 预算/报价钳制上限
   AVATAR_MAX_BYTES: 20000, // 头像 dataURL
   CREDENTIAL_MAX_BYTES: 500000, // 学信网截图 dataURL

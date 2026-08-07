@@ -312,6 +312,11 @@
               <input type="text" class="form-input" id="profile-school" maxlength="30" placeholder="如：上海财经大学（选填）">
             </div>
             <div class="form-group">
+              <!-- 毕业年份：initProfileForm 里 setProfileLabel 归口文案（index.html 静态文本仅 JS 前兜底） -->
+              <label class="form-label" id="profile-label-graduation-year">毕业年份</label>
+              <input type="number" class="form-input" id="profile-graduation-year" min="1980" max="2030" step="1" placeholder="如 2020（留空按最新政策）">
+            </div>
+            <div class="form-group">
               <label class="form-label">性别 <span class="req">*</span></label>
               <select class="form-select" id="profile-gender" required><option value="">请选择</option></select>
             </div>

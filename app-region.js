@@ -18,8 +18,10 @@
  *   #profile-province        省份下拉容器：innerHTML = renderProvinceSelect(
  *                            'profile-province', 已选省id, 'onchange="onTeacherProvinceChange()"')
  *   #profile-gaokao-scores   高考政策编辑器挂载点（index.html 已有该容器）：
- *                            innerHTML = renderTeacherGaokaoEditor(provinceId, existing)
- *                            existing 即档案里的 gaokao_scores 数组，组件内部自行回填
+ *                            innerHTML = renderTeacherGaokaoEditor(provinceId, graduationYear, existing)
+ *                            graduationYear 即毕业年份（空 = 按最新政策；有值 = 按改革批次回退，
+ *                            如浙江 2022 年前毕业用 21 档旧制）；existing 即档案里的 gaokao_scores
+ *                            数组，组件内部自行回填。毕业年份输入 #profile-graduation-year 联动。
  *   收集：collectTeacherGaokao() → [{subject, score} | {subject, grade}]
  *         （对旧版编辑器 HTML 同样可收集，data 属性保持同名）
  *   联动：首选科目 pill / 再选科目勾选 / 文理切换均由组件内联 onclick 自处理，
@@ -56,12 +58,13 @@ function gkVal(v) {
   return escHtml(v === undefined || v === null ? '' : String(v));
 }
 
-// 解析省份高考政策。region-data.js 中把第三至五批省份登记为 {}（空对象为 truthy，
-// 不会落到 DEFAULT_POLICY 分支），policyOf 对这类省份返回无 type 的空壳；
-// 按数据文件注释，这类省份缺省即「3+1+2 + 全国统一五等级赋分（standard5）」。
-function regionResolvePolicy(provinceId) {
+// 解析省份高考政策。year 为教师毕业年份（可空：学生端/未填 → 恒最新政策），
+// policyOf 内部按改革批次回退到该教师当年实际政策。region-data.js 中把第三至五批省份
+// 登记为 {}（空对象 truthy，policyOf 的空壳分支给出 DEFAULT_POLICY）；
+// 此处保留兜底纯属防御，policyOf 恒返回带 type 的完整形状。
+function regionResolvePolicy(provinceId, year) {
   const R = globalThis.SUFE_REGIONS;
-  const pol = R.policyOf(provinceId);
+  const pol = R.policyOf(provinceId, year);
   if (pol && pol.type) return pol;
   return {
     ...R.policies['3+1+2'],
@@ -70,6 +73,20 @@ function regionResolvePolicy(provinceId) {
     gradeSystemId: 'standard5',
     extraElective: null,
   };
+}
+
+// 读取档案表单「毕业年份」输入：严格四位数字，与服务端同口径钳制到 [CONFIG.GRAD_YEAR_MIN, MAX]
+// （网安 L3 修复：之前 [1950,2050] 与服务端 [1980,2030] 不一致 → 实时渲染与保存重载可能 schema 跳变；
+//  现钳制一致 → 1979 实时渲染 1980 政策 = 保存后重载政策）；非四位（空/小数/异常）→ undefined 按最新
+function currentGradYear() {
+  const el = document.getElementById('profile-graduation-year');
+  if (!el) return undefined;
+  const v = String(el.value).trim();
+  if (!/^\d{4}$/.test(v)) return undefined;
+  const C = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG) || {};
+  const min = C.GRAD_YEAR_MIN != null ? C.GRAD_YEAR_MIN : 1980;
+  const max = C.GRAD_YEAR_MAX != null ? C.GRAD_YEAR_MAX : 2030;
+  return Math.min(max, Math.max(min, +v));
 }
 
 // 教师端主科段落（三种政策都含语数外原始分，/150）。
@@ -119,8 +136,10 @@ function regionLockNote(provinceId) {
 // ------------------------------------------------------------
 
 // 按省份政策分三支渲染：3+1+2 / 3+3 / 传统文理。
+// graduationYear：教师毕业年份（空/undefined = 未填 → 按最新政策渲染；有值 → 按改革批次
+//   回退到该教师当年实际政策，如浙江 2020 年毕业 → 21 档旧制、2023 年毕业 → 20 区间新制）。
 // existing： gaokao_scores 数组（[{subject, score} | {subject, grade}]），内部自动回填。
-function renderTeacherGaokaoEditor(provinceId, existing) {
+function renderTeacherGaokaoEditor(provinceId, graduationYear, existing) {
   const R = globalThis.SUFE_REGIONS;
   const names = R.subjectNames;
   const list = Array.isArray(existing) ? existing : [];
@@ -133,8 +152,15 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
     return `<p class="text-sm text-muted">${UI.REGION_HINT_PICK_PROVINCE}</p>`;
   }
 
-  const pol = regionResolvePolicy(provinceId);
+  const pol = regionResolvePolicy(provinceId, graduationYear || undefined);
   let html = '';
+  // R2-12/H1 存量旧档成绩在当前政策下无匹配（如浙江 L 档 vs 20 区间 I 档）→ 顶部横幅警告，防静默丢失。
+  // 保存拦截另在 handleSaveProfile（app-pages）用同款 gaokaoPolicyMismatchCount 复检
+  const mismatches = gaokaoPolicyMismatchCount(pol, list);
+  if (mismatches > 0) {
+    html += `<div class="alert alert-warn glass gaokao-mismatch-warn">${escHtml(
+      UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches).replace('{year}', graduationYear ? String(graduationYear) : '（未填）'))}</div>`;
+  }
 
   // 主科原始分（三分支共有，仅渲染勾选的擅长主科）
   html += gkMainSection(pol.main.filter(sid => checked.has(sid)), exOf);
@@ -246,12 +272,35 @@ function renderTeacherGaokaoEditor(provinceId, existing) {
 }
 
 // 省份下拉变化：读 #profile-province 值，整体重渲编辑器（跨政策不保留旧输入）
+// R2-12/M3 教师擅长科目池 = SUBJECTS + 该省政策 extraElective（浙江技术）。省份变更时重建，保留既有勾选；
+// 离开浙江移除技术（技术仅浙江 7 选 3 含，服务端不加白名单限制——subjects 列透传，显示经 DISP.subjectName 兜底）。
+function teacherSubjectPool(provinceId) {
+  const base = [...(globalThis.APP_CONSTANTS.SUBJECTS || [])];
+  if (provinceId) {
+    const pol = globalThis.SUFE_REGIONS.policyOf(provinceId);
+    const extra = pol && pol.extraElective;
+    if (extra && !base.some(s => s.id === extra)) {
+      const nm = (globalThis.SUFE_REGIONS.subjectNames || {})[extra];
+      base.push({ id: extra, name: nm || extra });
+    }
+  }
+  return base;
+}
+function rebuildTeacherSubjects(provinceId) {
+  const el = document.getElementById('profile-subjects');
+  if (!el) return;
+  const checked = new Set([...el.querySelectorAll('input:checked')].map(cb => cb.value));
+  el.innerHTML = teacherSubjectPool(provinceId).map(s => `
+    <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(s.id)}"${checked.has(s.id) ? ' checked' : ''}>${escHtml(s.name)}</label>`).join('');
+}
+
 function onTeacherProvinceChange() {
   const sel = document.getElementById('profile-province');
   const el = document.getElementById('profile-gaokao-scores');
   if (!sel || !el) return;
-  el.innerHTML = renderTeacherGaokaoEditor(sel.value, []);
-  if (typeof initCustomSelects === 'function') initCustomSelects(el); // 等第下拉（21 档省份）换自定义组件
+  rebuildTeacherSubjects(sel.value); // M3：切省份同步科目池（浙江加技术，离开移除）
+  el.innerHTML = renderTeacherGaokaoEditor(sel.value, currentGradYear(), []);
+  if (typeof initCustomSelects === 'function') initCustomSelects(el); // 等第下拉（档位多省份）换自定义组件
 }
 
 // 擅长科目勾选变化：按新勾选集重渲编辑器。先收集当前输入作为 existing 回填，
@@ -261,8 +310,14 @@ function onTeacherSubjectsChange() {
   const el = document.getElementById('profile-gaokao-scores');
   if (!el) return;
   const existing = collectTeacherGaokao();
-  el.innerHTML = renderTeacherGaokaoEditor(sel ? sel.value : '', existing);
+  el.innerHTML = renderTeacherGaokaoEditor(sel ? sel.value : '', currentGradYear(), existing);
   if (typeof initCustomSelects === 'function') initCustomSelects(el); // 重建后的等第下拉换自定义组件
+}
+
+// R2-12 毕业年份变更实时重渲：与科目变更同逻辑（currentGradYear 读最新年份，existing 保留已填成绩；
+// 浙江教师改年份 → 21 档旧制/20 区间新制即时切换，无需保存重载）。挂 #profile-graduation-year change（app-pages）
+function onTeacherGradYearChange() {
+  onTeacherSubjectsChange();
 }
 
 // 单选 pill 通用切换（首选科目 / 文理分科共用 .gk-pill-group 容器）
@@ -286,6 +341,18 @@ function pickGkTrack(el) {
 // 收集教师端编辑器输入 → [{subject, score} | {subject, grade}]
 // 与现存 gaokao_scores 形状兼容；隐藏行（未勾选 / 非当前 track）一律跳过。
 // data 属性与旧版 updateGaokaoScores 生成的 HTML 同名，旧编辑器亦可收集。
+
+// R2-12/H1 存量成绩与当前政策失配检测：等第制政策下列出的 grade 不在当前 levels 内的条数
+// （分数制 score 条目恒匹配；old 政策无 gradeSystem 恒匹配）。编辑器横幅与保存拦截共用，
+// 防旧档成绩（如浙江 21 档 L 系列）在 20 区间新制下保存时被静默清空。
+function gaokaoPolicyMismatchCount(pol, gaokaoList) {
+  if (!pol || !Array.isArray(gaokaoList) || !gaokaoList.length) return 0;
+  const gs = pol.gradeSystem;
+  if (!gs || gs.type !== 'grade' || !gs.levels || !gs.levels.length) return 0;
+  const ids = new Set(gs.levels.map(lv => lv.id));
+  return gaokaoList.filter(x => x && x.grade != null && x.grade !== '' && !ids.has(x.grade)).length;
+}
+
 function collectTeacherGaokao() {
   const root = document.getElementById('profile-gaokao-scores');
   const out = [];

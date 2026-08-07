@@ -63,7 +63,7 @@ async function seed(db, raw) {
 }
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 const baseProfile = { province: 'shanghai', grade: 'freshman', gender: 'male', subjects: ['math'], gaokao_scores: [] };
-const rowOf = (raw, tea) => raw.prepare('SELECT price_min, price_max, time_slots, teaching_method, personality_tags, nonacademic_projects, nonacademic_prices FROM teacher_profiles WHERE user_id=?').get(tea);
+const rowOf = (raw, tea) => raw.prepare('SELECT price_min, price_max, time_slots, teaching_method, personality_tags, nonacademic_projects, nonacademic_prices, graduation_year FROM teacher_profiles WHERE user_id=?').get(tea);
 
 test('报价区间钳制：负值/超上限夹到 [0,BUDGET_MAX]，max<min 以 min 为准，null=未填保留', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -132,6 +132,33 @@ test('性格关键词：超限 400、白名单过滤、非数组拒绝', async (
   // 非数组 → 400
   r = await handleSaveProfile(db, { profile: { ...baseProfile, personality_tags: 'patience' } }, reqOf(token));
   assert.equal(r.status, 400, '非数组应拒绝');
+});
+
+test('毕业年份（R2-12）：空/null 合法入库为 null；整数钳制 [1980,2030]；非法回空串落 null', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, tea } = await seed(db, raw);
+  // 空 / null → null（未填 = 前端按最新政策渲染）
+  let r = await handleSaveProfile(db, { profile: { ...baseProfile, graduation_year: null } }, reqOf(token));
+  assert.equal(r.status, 200);
+  assert.equal(rowOf(raw, tea).graduation_year, null, 'null 合法（按最新政策）');
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, graduation_year: '' } }, reqOf(token));
+  assert.equal(r.status, 200);
+  assert.equal(rowOf(raw, tea).graduation_year, null, '空串合法（按最新政策）');
+  // 合法整数 → 原样入库
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, graduation_year: 2020 } }, reqOf(token));
+  assert.equal(r.status, 200);
+  assert.equal(rowOf(raw, tea).graduation_year, 2020, '整数年份入库');
+  // 超上限 / 低下限 → 钳制到 [1980,2030]
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, graduation_year: 2050 } }, reqOf(token));
+  assert.equal(rowOf(raw, tea).graduation_year, 2030, '超上限钳到 2030');
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, graduation_year: 1970 } }, reqOf(token));
+  assert.equal(rowOf(raw, tea).graduation_year, 1980, '低下限钳到 1980');
+  // 非整数 / 非数字 → 回 '' → 落库 null
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, graduation_year: 2020.5 } }, reqOf(token));
+  assert.equal(r.status, 200);
+  assert.equal(rowOf(raw, tea).graduation_year, null, '非整数回空串→落库 null');
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, graduation_year: 'abc' } }, reqOf(token));
+  assert.equal(rowOf(raw, tea).graduation_year, null, '非数字回空串→落库 null');
 });
 
 test('非学科项目：白名单去重、报价钳制、project 不在 projects 内剔除、min>max 钳制', async () => {

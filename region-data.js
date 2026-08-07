@@ -9,6 +9,15 @@
  * 各省细则微调只需改本文件一个位置。
  */
 (function () {
+  // 浙江 2022 年 1 月选考起新制的 20 个赋分区间（赋分后区间，非固定卷面分区间）：
+  // 卷面分按人数比例动态划分后等比例换算到区间内，1 分一档。
+  // 边界来源（web 核实 2026-08-08）：浙江省教育考试院《关于进一步做好学考选考工作的通知》
+  //   https://www.zjzs.net/art/2021/2/26/art_46_4843.html 及公开报道——第1区间 100-97、第2区间
+  //   96-94 … 第20区间 42-40；第 2~20 区间各宽 3 分，第 1 区间宽 4 分（原第 1、2 等级合并）。
+  const ZJ20_RANGES = [
+    [100, 97], [96, 94], [93, 91], [90, 88], [87, 85], [84, 82], [81, 79], [78, 76], [75, 73], [72, 70],
+    [69, 67], [66, 64], [63, 61], [60, 58], [57, 55], [54, 52], [51, 49], [48, 46], [45, 43], [42, 40],
+  ];
   const R = {
     // 31 个省级地区（id 为拼音，入库用它；name 用于展示）
     provinces: [
@@ -52,7 +61,7 @@
     provincePolicy: {
       // 3+3（第一、二批）
       shanghai: { policy: '3+3', gradeSystem: 'shanghai' },
-      zhejiang: { policy: '3+3', gradeSystem: 'zhejiang', extraElective: 'technology' }, // 浙江 7 选 3 含技术
+      zhejiang: { policy: '3+3', gradeSystem: 'zhejiang20', extraElective: 'technology' }, // 浙江 7 选 3 含技术；2022 选考起 20 区间新制
       beijing:  { policy: '3+3', gradeSystem: 'beijing' },
       tianjin:  { policy: '3+3', gradeSystem: 'beijing' },   // 与北京同框架：21 档 3 分一段
       shandong: { policy: '3+3', gradeSystem: 'shandong' },
@@ -68,6 +77,20 @@
     },
     DEFAULT_POLICY: { policy: '3+1+2', gradeSystem: 'standard5' },
 
+    // 各省新高考改革首考年（教师按毕业年份倒推其当年实际政策；未登记省份恒为传统文理）。
+    // 3+3：上海/浙江 2017，京津鲁琼 2020。3+1+2：第三批 2021 八省、第四批 2024 七省、第五批 2025 八省。
+    reformFirstYear: {
+      shanghai: 2017, zhejiang: 2017,
+      beijing: 2020, tianjin: 2020, shandong: 2020, hainan: 2020,
+      hebei: 2021, liaoning: 2021, jiangsu: 2021, fujian: 2021, hubei: 2021, hunan: 2021, guangdong: 2021, chongqing: 2021,
+      heilongjiang: 2024, jilin: 2024, anhui: 2024, jiangxi: 2024, guizhou: 2024, guangxi: 2024, gansu: 2024,
+      shanxi: 2025, neimenggu: 2025, henan: 2025, sichuan: 2025, yunnan: 2025, shaanxi: 2025, qinghai: 2025, ningxia: 2025,
+    },
+    // 浙江 20 赋分区间起用年：官方通知「2022 年 1 月选考科目考试起」改 20 区间（web 核实，来源见文件头
+    // ZJ20_RANGES 注释）。2022 年 1 月选考由 2022 届（2019 级）高三参加 → 2022 届毕业即新制，
+    // 故毕业年 ≥ 2022 用 20 区间、≤ 2021 用 21 档旧制（架构审计 M2 修正：原记 2023 错位一年）
+    zhejiang20Year: 2022,
+
     // 赋分制档位（type=grade 提供等级选项；type=standard 按分数录入并标注标准分）
     gradeSystems: {
       // 3+1+2 再选科目统一框架：A-E 五等级等比例转换
@@ -81,12 +104,18 @@
       // 上海：11 等第 × 3 分，70-40（选考满分 70，总分 660）
       shanghai: {
         type: 'grade', label: '上海等第制（满分 70）', max: 70,
-        levels: ['A+', 'A', 'B+', 'B', 'C+', 'C', 'D+', 'D', 'E'].map((g, i) => ({ id: g, name: g + '（' + (70 - i * 3) + '分）' })),
+        levels: ['A+', 'A', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'E'].map((g, i) => ({ id: g, name: g + '（' + (70 - i * 3) + '分）' })),
       },
-      // 浙江：21 档，3 分一段（100→40）
-      zhejiang: {
-        type: 'grade', label: '浙江 21 档（100-40）',
+      // 浙江 21 档（历史档，2022.1 选考前的旧制，3 分一段 100→40）：仅 2017-2022 高考毕业的教师使用
+      zhejiang21: {
+        type: 'grade', label: '浙江 21 档（100-40）· 2022 前旧制',
         levels: Array.from({ length: 21 }, (_, i) => ({ id: 'L' + (i + 1), name: '第' + (i + 1) + '档（' + (100 - i * 3) + '分）' })),
+      },
+      // 浙江 20 赋分区间（2022.1 选考起新制，2023 高考即此制）：区间内 1 分一档等比例转换。
+      // 边界见文件头 ZJ20_RANGES（web 核实来源浙江教育考试院通知，注释在常量旁）。
+      zhejiang20: {
+        type: 'grade', label: '浙江 20 区间（100-40）· 2022 起',
+        levels: ZJ20_RANGES.map(([hi, lo], i) => ({ id: 'I' + (i + 1), name: '第' + (i + 1) + '区间（' + hi + '-' + lo + '）' })),
       },
       // 北京 / 天津：21 档，3 分一段（100→40）
       beijing: {
@@ -129,16 +158,34 @@
     provinceName(id) { const p = this.provinces.find(x => x.id === id); return p ? p.name : (id || ''); },
     isValidProvince(id) { return this.provinces.some(p => p.id === id); },
 
-    policyOf(provinceId) {
+    // 年份感知政策解析：无 year（学生端/最新）→ 最新政策；有 year（教师毕业年份）→ 按改革批次回退
+    // 到该教师当年高考实际执行的政策（改革前 → 传统文理原始分；浙江 2017-2022 → 21 档旧制）。
+    policyOf(provinceId, year) {
       const cfg = this.provincePolicy[provinceId];
+      if (year != null && cfg) {
+        const firstYear = this.reformFirstYear[provinceId];
+        if (firstYear && year < firstYear) {
+          // 改革首考年之前毕业 → 传统文理（原始分，gradeSystem null）
+          return this._buildPolicy('old', null, null);
+        }
+        // 浙江：改革后但 2022 选考新制前（2017~2022 高考）→ 21 档旧制
+        if (cfg.policy === '3+3' && provinceId === 'zhejiang' && year < this.zhejiang20Year) {
+          return this._buildPolicy('3+3', 'zhejiang21', cfg.extraElective || null);
+        }
+      }
       // 空 {} 登记 = 缺省配置（3+1+2 + standard5）：空对象 truthy，必须显式判定 policy 字段
       const eff = (cfg && cfg.policy) ? cfg : this.DEFAULT_POLICY;
-      const p = this.policies[eff.policy];
+      return this._buildPolicy(eff.policy, eff.gradeSystem || null, eff.extraElective || null);
+    },
+
+    // 组装政策返回形状（gradeSystem 反查 + type/gradeSystemId/extraElective 归一）
+    _buildPolicy(policyId, gradeSystemId, extraElective) {
+      const p = this.policies[policyId];
       return {
-        ...p, type: eff.policy,
-        gradeSystem: eff.gradeSystem ? this.gradeSystems[eff.gradeSystem] : null,
-        gradeSystemId: eff.gradeSystem || null,
-        extraElective: eff.extraElective || null,
+        ...p, type: policyId,
+        gradeSystem: gradeSystemId ? this.gradeSystems[gradeSystemId] : null,
+        gradeSystemId: gradeSystemId || null,
+        extraElective: extraElective || null,
       };
     },
 

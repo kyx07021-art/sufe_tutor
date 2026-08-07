@@ -276,10 +276,14 @@ function initProfileForm() {
   setProfileLabel('profile-label-personality', UI.LABEL_PERSONALITY_TAGS + UI.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX));
   setProfileLabel('profile-label-nonacademic', UI.LABEL_NONACADEMIC_PROJECTS);
   setProfileLabel('profile-label-nonacademic-prices', UI.LABEL_NONACADEMIC_PRICES);
+  setProfileLabel('profile-label-graduation-year', UI.LABEL_GRADUATION_YEAR); // R2-12 毕业年份
   const priceMinEl = document.getElementById('profile-price-min');
   const priceMaxEl = document.getElementById('profile-price-max');
   if (priceMinEl) priceMinEl.placeholder = UI.PLACEHOLDER_MIN; // 复用预算区间布局文案
   if (priceMaxEl) priceMaxEl.placeholder = UI.PLACEHOLDER_MAX;
+  const gradYearEl = document.getElementById('profile-graduation-year');
+  if (gradYearEl) gradYearEl.placeholder = UI.GRAD_YEAR_PLACEHOLDER; // R2-12 毕业年份占位文案
+  if (gradYearEl) gradYearEl.addEventListener('change', onTeacherGradYearChange); // R2-12 改年份实时重渲赋分组件（网安 L4 修复：注释声明的联动补接线）
 
   document.getElementById('profile-province-wrap').innerHTML =
     renderProvinceSelect('profile-province', '', 'onchange="onTeacherProvinceChange()"');
@@ -292,8 +296,9 @@ function initProfileForm() {
   methodEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + TEACHING_METHODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
 
   const subjEl = document.getElementById('profile-subjects');
-  subjEl.innerHTML = SUBJECTS.map(s=>`
-    <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${s.id}">${s.name}</label>
+  // R2-12/M3 科目池走省感知 teacherSubjectPool（初始无省份 = 基础 9 科；选浙江后 onTeacherProvinceChange 重建加技术）
+  subjEl.innerHTML = teacherSubjectPool('').map(s=>
+    `<label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(s.id)}">${escHtml(s.name)}</label>
   `).join('');
   subjEl.removeEventListener('change', onTeacherSubjectsChange); // 静态节点每次进档案页都会初始化，先解绑防叠加（勾一次触发 N 遍）
   subjEl.addEventListener('change', onTeacherSubjectsChange); // 擅长科目驱动高考填写组件按需加载
@@ -385,6 +390,8 @@ async function loadProfile() {
       document.getElementById('profile-grade').value = p.grade || '';
       document.getElementById('profile-gender').value = p.gender || '';
       document.getElementById('profile-school').value = p.school || '';
+      // R2-12 毕业年份回填（决定高考赋分按哪套政策渲染）
+      document.getElementById('profile-graduation-year').value = p.graduation_year || '';
       document.getElementById('profile-real-name').value = p.real_name || '';
       _profileCredential = p.credential_image || null; renderProfileCredentialCtl();
       // R2-5 报价区间：null = 未填报空；0 是合法报价须显示
@@ -421,9 +428,13 @@ async function loadProfile() {
       document.getElementById('profile-email').value = p.email || '';
       document.getElementById('profile-intro').value = p.intro || '';
       document.getElementById('profile-address').value = p.address || '';
+      // 先重建省感知科目池（浙江教师回填时技术科目 checkbox 需存在），再按 id 勾选
+      if (p.province) rebuildTeacherSubjects(p.province);
       if (p.subjects?.length) {
         p.subjects.forEach(id => {
-          const cb = document.querySelector(`#profile-subjects input[value="${id}"]`);
+          // 遍历比对 value，勿用属性选择器插值（v0.25.3 网安 L3 同款教训）
+          const cb = [...(document.getElementById('profile-subjects') || { querySelectorAll: () => [] }).querySelectorAll('input')]
+            .find(x => x.value === id);
           if (cb) cb.checked = true;
         });
       }
@@ -431,7 +442,7 @@ async function loadProfile() {
       if (p.province) {
         document.getElementById('profile-province').value = p.province;
         document.getElementById('profile-gaokao-scores').innerHTML =
-          renderTeacherGaokaoEditor(p.province, p.gaokao_scores || []);
+          renderTeacherGaokaoEditor(p.province, p.graduation_year, p.gaokao_scores || []);
         initCustomSelects(document.getElementById('profile-gaokao-scores'));
       }
       // 程序回填不派发 change：手动同步自定义下拉的触发器文字
@@ -456,6 +467,19 @@ async function handleSaveProfile(e) {
 
   // 省份锁定组件的收集函数（app-region.js），输出与旧 gaokao_scores 形状兼容
   const gaokaoScores = collectTeacherGaokao();
+  // R2-12/H1 保存拦截：存量旧档成绩（如浙江 21 档 L 系列）在当前政策下无匹配 → 阻断保存并提示填毕业年份，
+  // 防静默丢数据（编辑器顶部横幅同款检测已显示，此处复检兜底）
+  const gradYearVal = (document.getElementById('profile-graduation-year')?.value || '').trim();
+  const polForSave = (() => {
+    const R = globalThis.SUFE_REGIONS;
+    return R.policyOf(province, /^\d{4}$/.test(gradYearVal) ? +gradYearVal : undefined);
+  })();
+  const mismatches = gaokaoPolicyMismatchCount(polForSave, gaokaoScores);
+  if (mismatches > 0) {
+    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(
+      UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches).replace('{year}', gradYearVal ? gradYearVal : '（未填）'))}</div>`;
+    return;
+  }
 
   try {
     const btn = document.getElementById('profile-submit');
@@ -479,6 +503,12 @@ async function handleSaveProfile(e) {
         intro: document.getElementById('profile-intro').value.trim(),
         address: document.getElementById('profile-address').value.trim(),
         school: document.getElementById('profile-school').value.trim(),
+        // R2-12 毕业年份：严格四位数字（与服务端钳制 [1980,2030]、currentGradYear 同口径）；
+        // 非四位（空/小数/异常）→ null 未填按最新政策；不发 Math.round 中间值（网安 L3 一致性修复）
+        graduation_year: (() => {
+          const v = (document.getElementById('profile-graduation-year')?.value || '').trim();
+          return /^\d{4}$/.test(v) ? +v : null;
+        })(),
         real_name: document.getElementById('profile-real-name').value.trim(),
         credential_image: _profileCredential || '', // 截图 dataURL 暂存件随档案提交（空串 = 未上传/清空）
       }},

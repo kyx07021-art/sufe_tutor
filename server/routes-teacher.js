@@ -55,6 +55,18 @@ export async function handleSaveProfile(db, body, req) {
   p.price_max = clampPrice(p.price_max);
   if (p.price_max != null && p.price_min != null && p.price_max < p.price_min) p.price_max = p.price_min;
 
+  // R2-12 毕业年份：空/null 合法（null=未填，前端按最新政策渲染赋分组件）；否则须为严格四位数字
+  // （网安 L1：拒 Number() 宽松强转——' '→1980、'0x7e4'→2020、[2020]→2020、true→1980 等误写），
+  // 钳制到 [1980, 2030]（同前端 CONFIG.GRAD_YEAR_MIN/MAX 单源值）；非法回 ''（db 层归一 null）。
+  const clampGradYear = v => {
+    if (v === '' || v == null) return null;
+    const s = typeof v === 'number' && Number.isInteger(v) ? String(v) : v;
+    if (typeof s !== 'string' || !/^\d{4}$/.test(s)) return '';
+    const n = +s;
+    return Math.min(LIMITS.GRAD_YEAR_MAX, Math.max(LIMITS.GRAD_YEAR_MIN, n));
+  };
+  p.graduation_year = clampGradYear(p.graduation_year);
+
   // R2-1 可授课时间段：与需求 expected_time 同格式、同一 sanitizeTimeSlots 校验（可选，空串合法）
   const ts = sanitizeTimeSlots(p.time_slots);
   if (ts.error) return error(ts.error);

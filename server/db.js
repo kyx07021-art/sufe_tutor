@@ -85,6 +85,7 @@ async function migrateLegacyRoles(db, adminNames) {
         school TEXT DEFAULT '', real_name TEXT DEFAULT '', credential_image TEXT DEFAULT '',
         time_slots TEXT DEFAULT '', teaching_method TEXT DEFAULT '',
         personality_tags TEXT DEFAULT '', nonacademic_projects TEXT DEFAULT '', nonacademic_prices TEXT DEFAULT '',
+        graduation_year INTEGER,
         rating REAL DEFAULT ${INITIAL_RATING},
         rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
         updated_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -209,6 +210,7 @@ export async function initDb(db, env = {}) {
       school TEXT DEFAULT '', real_name TEXT DEFAULT '', credential_image TEXT DEFAULT '',
       time_slots TEXT DEFAULT '', teaching_method TEXT DEFAULT '',
       personality_tags TEXT DEFAULT '', nonacademic_projects TEXT DEFAULT '', nonacademic_prices TEXT DEFAULT '',
+      graduation_year INTEGER,
       rating REAL DEFAULT ${INITIAL_RATING},
       rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
       updated_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -417,7 +419,8 @@ export async function initDb(db, env = {}) {
     ['verified', 'INTEGER NOT NULL DEFAULT 0'], // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
     ['price_min', 'REAL'], ['price_max', 'REAL'], // R2-5 报价区间化（可空，null=未填；不落 DEFAULT 0）
     ['time_slots', "TEXT DEFAULT ''"], ['teaching_method', "TEXT DEFAULT ''"], // R2-1 可授课时间段 / R2-2 授课方式
-    ['personality_tags', "TEXT DEFAULT ''"], ['nonacademic_projects', "TEXT DEFAULT ''"], ['nonacademic_prices', "TEXT DEFAULT ''"] // R2-3 性格关键词 / R2-4 非学科项目+报价
+    ['personality_tags', "TEXT DEFAULT ''"], ['nonacademic_projects', "TEXT DEFAULT ''"], ['nonacademic_prices', "TEXT DEFAULT ''"], // R2-3 性格关键词 / R2-4 非学科项目+报价
+    ['graduation_year', 'INTEGER'] // R2-12 毕业年份（可空；null=未填按最新政策，非 null 决定教师当年赋分政策）
   ]);
   // R2-5 存量教师单报价转区间（幂等）：price 列保留不动（重建表不值当），仅按旧价回填 min==max，
   // 防档案完整性门槛（price_min==null）误拦历史教师接单。price 列此后不再写入。
@@ -669,6 +672,8 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   const personalityTags = JSON.stringify(Array.isArray(profile.personality_tags) ? profile.personality_tags : []); // R2-3 JSON 数组
   const nonacademicProjects = JSON.stringify(Array.isArray(profile.nonacademic_projects) ? profile.nonacademic_projects : []); // R2-4 JSON 数组
   const nonacademicPrices = JSON.stringify(Array.isArray(profile.nonacademic_prices) ? profile.nonacademic_prices : []); // R2-4 JSON 数组
+  // R2-12 毕业年份：''/null/非法（routes 已回 ''）一律归一为 null 落库（null = 未填，按最新政策）
+  const gradYear = profile.graduation_year != null && profile.graduation_year !== '' ? profile.graduation_year : null;
 
   // price 列保留 = price_min 同步镜像（v0.25.2 审计修复）：INSERT/UPDATE 显式写 price=priceMin，
   // 防新行吃 DEFAULT 0 后，被存量回填 `WHERE price_min IS NULL AND price IS NOT NULL` 误抓成「报价 0」。
@@ -677,16 +682,17 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
       price=?,price_min=?,price_max=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,
       time_slots=?,teaching_method=?,personality_tags=?,nonacademic_projects=?,nonacademic_prices=?,
+      graduation_year=?,
       updated_at=datetime('now','localtime') WHERE user_id=?`,
       [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage,
-        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, userId]);
+        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, userId]);
   } else {
     await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,
         price,price_min,price_max,wechat,email,intro,address,school,real_name,credential_image,
-        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage,
-        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices]);
+        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear]);
   }
 }
 
@@ -719,6 +725,10 @@ async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) 
     personality_tags: safeJsonArray(p.personality_tags),
     nonacademic_projects: safeJsonArray(p.nonacademic_projects),
     nonacademic_prices: safeJsonArray(p.nonacademic_prices),
+    // R2-12 毕业年份（null = 未填，前端按最新政策渲染赋分组件）。
+    // 网安审计 M1 决策：公开模式不裁剪——毕业年份仅能粗推成人教师年龄（远弱于联系方式/门牌），
+    // 且是学生判断「该教师高考分按哪套政策」的必读信息（2c 需求），刻意公开；不仿 real_name 门控。
+    graduation_year: p.graduation_year != null ? p.graduation_year : null,
     wechat, email, avatar: p.avatar || '',
     rating: p.rating, rating_count: p.rating_count, matched: p.matched ? true : false, updatedAt: p.updated_at,
   };
@@ -734,6 +744,7 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
         tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.price_min, tp.price_max,
         tp.wechat, tp.email, tp.time_slots, tp.teaching_method,
         tp.personality_tags, tp.nonacademic_projects, tp.nonacademic_prices,
+        tp.graduation_year,
         tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
       FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
       WHERE u.role='teacher' ORDER BY u.created_at DESC`);
