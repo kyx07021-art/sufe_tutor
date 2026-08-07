@@ -225,15 +225,17 @@ export default {
       return applySecurityHeaders(error(MSG.RATE_LIMITED, 429), p);
     }
 
+    const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
     try {
       const res = await routeApi(db, p, request.method, body, url, request);
       // 留档必须 await：workerd 在响应结束后掐断未完成的悬浮 Promise（加密咽喉链路较长，
-      // 不 await 会导致留档被杀在途中——本批次线上 0 留档事故根因）
-      await logRequest(db, { method: request.method, path: p, body, status: res.status, req: request });
+      // 不 await 会导致留档被杀在途中——本批次线上 0 留档事故根因）。
+      // logRequest 兼作本请求全部留档的统一落库点（B4：业务 logEvent 队列 + 本条访问留档一次 batch）
+      await logRequest(db, { method: request.method, path: p, body, status: res.status, req: request, durationMs: Date.now() - t0 });
       return applySecurityHeaders(res, p);
     } catch (err) {
       console.error('API Error:', err); // 细节只留服务端日志
-      await logRequest(db, { method: request.method, path: p, body, status: 500, req: request });
+      await logRequest(db, { method: request.method, path: p, body, status: 500, req: request, durationMs: Date.now() - t0 });
       return applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message
     }
   },

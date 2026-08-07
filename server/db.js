@@ -459,10 +459,19 @@ export async function initDb(db, env = {}) {
 // ============================================================
 // 用户
 // ============================================================
+// 显式列集：凭证列（password_hash/salt）仅登录/重认证出层，其余列不随裸行外溢
+const USER_BY_USERNAME_SQL = 'SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE username=?';
+
 export async function dbFindUserByUsername(db, username) {
-  // 显式列集：凭证列（password_hash/salt）仅登录/重认证出层，其余列不随裸行外溢
-  return await dbGet(db,
-    'SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE username=?', [username]);
+  return await dbGet(db, USER_BY_USERNAME_SQL, [username]);
+}
+
+// B1：认证路由限流同批的用户查询语句（与 dbFindUserByUsername 同 SQL 单源；供 authRateBatch 的附加查询）
+export function dbUserLookupStmt(db, username) {
+  return db.prepare(USER_BY_USERNAME_SQL).bind(username);
+}
+export function dbUsernameExistsStmt(db, username) {
+  return db.prepare('SELECT id FROM users WHERE username=?').bind(username);
 }
 
 export async function dbFindUserById(db, id) {

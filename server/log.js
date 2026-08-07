@@ -64,6 +64,7 @@ export async function initLogDb(db) {
     ['detail', 'TEXT'],
     ['req_ip', 'TEXT'],
     ['req_ua', 'TEXT'],
+    ['duration_ms', 'INTEGER'], // 请求耗时（D 可观测性：logRequest 写入，可 SQL 直查慢请求）
   ]);
 }
 
@@ -128,33 +129,63 @@ function detailToJson(detail, maxLen = LIMITS.LOG_DETAIL_MAX) {
   } catch { return null; }
 }
 
+// 请求级留档收集（B4：WeakMap 键 req，避免污染 Request 对象；并发请求天然隔离）
+const pendingLogs = new WeakMap();
+function collectLog(req, row) {
+  let rows = pendingLogs.get(req);
+  if (!rows) { rows = []; pendingLogs.set(req, rows); }
+  rows.push(row);
+}
+
+const LOG_INSERT_SQL = `INSERT INTO activity_log
+  (schema_v, encrypted, actor_user_id, actor_username, actor_role, action, entity, entity_id, detail, req_ip, req_ua, duration_ms)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`;
+async function writeLogRow(target, row) {
+  await dbRun(target, LOG_INSERT_SQL, [
+    row.schema_v, row.encrypted, row.actor_user_id, row.actor_username, row.actor_role,
+    row.action, row.entity, row.entity_id, row.detail, row.req_ip, row.req_ua, row.duration_ms ?? null,
+  ]);
+}
+/** 收尾统一落库：本请求全部业务留档 + 访问留档一次 batch（1 次往返；失败静默不阻断响应） */
+async function flushPendingLogs(target, req) {
+  const rows = req ? pendingLogs.get(req) : null;
+  if (!rows || !rows.length) return;
+  pendingLogs.delete(req);
+  await target.batch(rows.map(r => target.prepare(LOG_INSERT_SQL).bind(
+    r.schema_v, r.encrypted, r.actor_user_id, r.actor_username, r.actor_role, r.action,
+    r.entity, r.entity_id, r.detail, r.req_ip, r.req_ua, r.duration_ms ?? null)));
+}
+
 /**
  * 语义事件留档（业务代码调用点）
  * @param db  当前业务库（仅用于回落；绑定 LOG_DB 后实际写入独立库）
- * @param ev  { action, actorUserId, actorUsername, actorRole, entity, entityId, detail, detailMax?, req }
+ * @param ev  { action, actorUserId, actorUsername, actorRole, entity, entityId, detail, detailMax?, durationMs?, req }
  *   action 命名约定：'<域>.<动作>'，如 auth.login.success / demand.create / admin.ban
  *   detail 为可序列化对象；超 detailMax（缺省 LIMITS.LOG_DETAIL_MAX）自动截断为合法 JSON（恒含截断标记）。
  *   detailMax 供正文大字段场景（如 contract.signed 存合同原文）放宽截断
+ * 架构（B4：留档 1 次往返）：带 req 的调用不立即落库，行挂到请求级队列（WeakMap 键 req），
+ *   由 logRequest 在响应收尾统一 batch 落库（本请求全部业务留档 + 访问留档一次往返）；
+ *   无 req（测试/系统事件）直接落，语义不变。
  */
 export async function logEvent(db, ev) {
   try {
-    const target = getLogDb(db);
     const d = await encryptDetail(detailToJson(ev.detail, ev.detailMax)); // 正文加密后落库（无密钥环境退明文）
-    await dbRun(target, `INSERT INTO activity_log
-      (schema_v, encrypted, actor_user_id, actor_username, actor_role, action, entity, entity_id, detail, req_ip, req_ua)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`, [
-      d.encrypted ? LOG_SCHEMA_V : 1,
-      d.encrypted,
-      ev.actorUserId ?? null,
-      ev.actorUsername ?? null,
-      ev.actorRole ?? null,
-      ev.action,
-      ev.entity ?? null,
-      ev.entityId !== undefined && ev.entityId !== null ? String(ev.entityId) : null,
-      d.text,
-      ev.req ? (ev.req.headers.get('CF-Connecting-IP') || '') : '',
-      ev.req ? (ev.req.headers.get('User-Agent') || '').slice(0, LIMITS.DEVICE_UA_MAX) : '',
-    ]);
+    const row = {
+      schema_v: d.encrypted ? LOG_SCHEMA_V : 1,
+      encrypted: d.encrypted,
+      actor_user_id: ev.actorUserId ?? null,
+      actor_username: ev.actorUsername ?? null,
+      actor_role: ev.actorRole ?? null,
+      action: ev.action,
+      entity: ev.entity ?? null,
+      entity_id: ev.entityId !== undefined && ev.entityId !== null ? String(ev.entityId) : null,
+      detail: d.text,
+      req_ip: ev.req ? (ev.req.headers.get('CF-Connecting-IP') || '') : '',
+      req_ua: ev.req ? (ev.req.headers.get('User-Agent') || '').slice(0, LIMITS.DEVICE_UA_MAX) : '',
+      duration_ms: ev.durationMs ?? null,
+    };
+    if (ev.req && typeof ev.req === 'object') { collectLog(ev.req, row); return; }
+    await writeLogRow(getLogDb(db), row);
   } catch (err) {
     console.error('logEvent failed (swallowed):', err?.message || err);
   }
@@ -170,8 +201,10 @@ export async function decryptLogEntry(db, logId) {
 
 /**
  * 通用请求留档（路由层对每一次 API 往来兜底，保证「全量」；status>=400 失败请求同样留档）
+ * B4：本函数是留档收尾点——业务 logEvent（请求级队列）与本条访问留档在此一次 batch 落库。
+ * D：detail 与 duration_ms 列记录请求耗时，可 SQL 直查慢请求（活动日志库）。
  */
-export async function logRequest(db, { method, path, body, status, req }) {
+export async function logRequest(db, { method, path, body, status, req, durationMs }) {
   if (path === '/api/health') return; // 探活流量不留档，减噪
   try {
     // 从路径抽取实体与实体 id：/api/student/demands/42 → entity=demands, id=42
@@ -197,9 +230,11 @@ export async function logRequest(db, { method, path, body, status, req }) {
       actorUsername: actorName,
       entity,
       entityId,
-      detail: { method, path, status, body: body && Object.keys(body).length ? body : undefined },
+      durationMs,
+      detail: { method, path, status, durationMs, body: body && Object.keys(body).length ? body : undefined },
       req,
     });
+    await flushPendingLogs(getLogDb(db), req);
   } catch { /* 兜底中的兜底：静默 */ }
 }
 

@@ -22,7 +22,8 @@ import {
 import { dbRun } from '../server/util.js';
 import { issueAuthToken, getSessionByToken } from '../server/session.js';
 import { handleAdminDeleteNotification } from '../server/notify.js';
-import { handleLogout } from '../server/routes-auth.js';
+import { handleLogout, handleLogin } from '../server/routes-auth.js';
+import { logRequest } from '../server/log.js';
 import { tokenDigest, encryptField, decryptField } from '../server/crypto.js';
 
 // node:sqlite → D1 形状薄封装
@@ -52,8 +53,17 @@ function d1Shim(raw) {
     async batch(stmts) {
       raw.exec('BEGIN');
       try {
-        for (const s of stmts) s._exec();
+        const out = [];
+        for (const s of stmts) {
+          if (/^\s*(SELECT|PRAGMA|WITH|EXPLAIN)/i.test(s._sql)) {
+            out.push({ results: raw.prepare(s._sql).all(...s._params) });
+          } else {
+            const info = raw.prepare(s._sql).run(...s._params);
+            out.push({ meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } });
+          }
+        }
         raw.exec('COMMIT');
+        return out; // 与 D1 db.batch 一致：逐条返回 {results}/{meta}
       } catch (e) {
         try { raw.exec('ROLLBACK'); } catch { /* ignore */ }
         throw e;
@@ -291,4 +301,40 @@ test('N-05 加密列：合同正文/学信网截图/附件 写加密读解密、
   const att = await dbGetMessageAttachment(db, mid, conv);
   assert.ok(att.body.startsWith('enc:v1:'), '附件正文应加密落库');
   assert.equal(await decryptField(att.body), 'data:image/png;base64,ATT');
+});
+
+test('登录链路 3 次往返架构：限流+取用户同批、会话批、留档统一落', async () => {
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const req = new Request('https://t.test', { method: 'POST', headers: { 'CF-Connecting-IP': '1.2.3.4', 'Content-Type': 'application/json' } });
+
+  const ok = await handleLogin(db, { username: 'admin_sufe', password: 'test-pw-123' }, req);
+  assert.equal(ok.status, 200);
+  assert.ok((await ok.json()).authToken);
+  const bad = await handleLogin(db, { username: 'admin_sufe', password: 'wrong' }, req);
+  assert.equal(bad.status, 401);
+  const noUser = await handleLogin(db, { username: 'ghost_user', password: 'x' }, req);
+  assert.equal(noUser.status, 401);
+  // 会话批（DELETE 过期 + INSERT）已生效：仅成功那次建了会话
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM auth_sessions').first().n, 1);
+  // 收尾统一落库：与线上同款——logRequest 用同一 req，把业务留档 + 访问留档一次 batch 落出
+  await logRequest(db, { method: 'POST', path: '/api/auth/login', body: { username: 'admin_sufe' }, status: 200, req, durationMs: 123 });
+  const logs = db.prepare('SELECT action, duration_ms FROM activity_log ORDER BY id DESC LIMIT 6').all().results;
+  const actions = logs.map(l => l.action);
+  assert.ok(actions.some(a => a.startsWith('auth.login.')), '业务留档已落（auth.login.*）');
+  assert.ok(actions.some(a => a.startsWith('http.')), '访问留档已落（http.<METHOD>.*）');
+  assert.equal(logs[0].duration_ms, 123, 'duration_ms 已记录（D 可观测性）');
+});
+
+test('登录限流：第 9 次超限 429（authRateBatch D1 计数）', async () => {
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const req = new Request('https://t.test', { method: 'POST', headers: { 'CF-Connecting-IP': '9.9.9.9' } });
+  let last;
+  for (let i = 0; i < 8; i++) last = await handleLogin(db, { username: 'admin_sufe', password: 'wrong' }, req);
+  assert.equal(last.status, 401); // 前 8 次计数≤8 仍放行
+  const ninth = await handleLogin(db, { username: 'admin_sufe', password: 'wrong' }, req);
+  assert.equal(ninth.status, 429); // 第 9 次计数 9>8 → 超限
 });

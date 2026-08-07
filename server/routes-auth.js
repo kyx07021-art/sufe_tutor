@@ -6,7 +6,7 @@
  */
 import { json, error, deviceLabelFromUA } from './util.js';
 import { hashPassword, verifyPassword, tokenDigest } from './crypto.js';
-import { authUser, requireUser } from './security.js';
+import { authUser, requireUser, authRateBatch, authRateBlock } from './security.js';
 import {
   issueAuthToken, listSessions, revokeSession,
   getSessionByToken, revokeToken,
@@ -16,6 +16,7 @@ import { MSG, INVITE_GATE_ENABLED, LIMITS } from './constants.js';
 import {
   dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
   dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbDeleteUser,
+  dbUserLookupStmt, dbUsernameExistsStmt,
 } from './db.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
@@ -31,6 +32,14 @@ export async function handleRegister(db, body, req) {
   if (!password || password.length < LIMITS.PASSWORD_MIN || password.length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.PASSWORD_LENGTH); // 上限防 PBKDF2 CPU 放大（与登录同口径）
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
 
+  // B1：限流（封禁查+写限流+注册限流）与用户名占用查同批一次往返（1 次 D1）；D1 异常由 fetch 层兜 500，不 fail-open
+  const ip = req.headers.get('CF-Connecting-IP') || 'anon';
+  const gate = authRateBatch(db, ip, 'register', [dbUsernameExistsStmt(db, username)]);
+  const results = await db.batch(gate.stmts);
+  if (gate.verdict(results)) { await authRateBlock(db, ip); return error(MSG.RATE_LIMITED, 429); }
+  const takenRow = gate.extra(results)[0];
+  if (takenRow && takenRow.results && takenRow.results.length) return error(MSG.USERNAME_TAKEN);
+
   // 教师邀请码门控：内测期间休眠（INVITE_GATE_ENABLED=false 时教师免邀请码注册）
   const needsInvite = role === 'teacher' && INVITE_GATE_ENABLED;
   if (needsInvite) {
@@ -38,8 +47,6 @@ export async function handleRegister(db, body, req) {
     const code = await dbFindValidInviteCode(db, inviteCode);
     if (!code) return error(MSG.INVITE_INVALID);
   }
-
-  if (await dbFindUserByUsername(db, username)) return error(MSG.USERNAME_TAKEN);
 
   const { hash, salt } = await hashPassword(password);
   const userId = await dbCreateUser(db, username, hash, salt, role);
@@ -63,7 +70,14 @@ export async function handleLogin(db, body, req) {
   // 限定用户名/密码长度上限：超长串直接早退，避免无谓的哈希查库 / PBKDF2 消耗（文案不变，仍为「用户名或密码错误」）
   if (String(username).length > LIMITS.LOGIN_USERNAME_MAX || String(password).length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.LOGIN_FAILED, 401);
 
-  const user = await dbFindUserByUsername(db, username);
+  // B1：限流（封禁查+写限流+登录限流）与取用户同批一次往返（登录 10 次 D1 → 此步 1 次）；D1 异常由 fetch 层兜 500
+  const ip = req.headers.get('CF-Connecting-IP') || 'anon';
+  const gate = authRateBatch(db, ip, 'login', [dbUserLookupStmt(db, username)]);
+  const results = await db.batch(gate.stmts);
+  if (gate.verdict(results)) { await authRateBlock(db, ip); return error(MSG.RATE_LIMITED, 429); }
+  const userRow = gate.extra(results)[0];
+  const user = userRow && userRow.results ? userRow.results[0] : null;
+
   if (!user) {
     await hashPassword(password); // 网安 N-18：哑 PBKDF2 抹平「用户名不存在」与「密码错误」的响应时序差
     await logEvent(db, { action: 'auth.login.failed', actorUsername: username,
@@ -190,7 +204,14 @@ export async function handleReAuth(db, body, req) {
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
   const password = String((body && body.password) || '');
   if (!password || password.length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.LOGIN_FAILED, 403); // 长度上限早退，防无谓 PBKDF2
-  const u = await dbFindUserByUsername(db, me.username);
+
+  // B1：限流与取用户同批一次往返（原限流 5 次 D1 → 1 次）
+  const ip = req.headers.get('CF-Connecting-IP') || 'anon';
+  const gate = authRateBatch(db, ip, 'reauth', [dbUserLookupStmt(db, me.username)]);
+  const results = await db.batch(gate.stmts);
+  if (gate.verdict(results)) { await authRateBlock(db, ip); return error(MSG.RATE_LIMITED, 429); }
+  const uRow = gate.extra(results)[0];
+  const u = uRow && uRow.results ? uRow.results[0] : null;
   if (!u || !(await verifyPassword(password, u.password_hash, u.salt))) {
     await logEvent(db, { action: 'auth.reauth.failed', actorUserId: me.id, entity: 'user', entityId: me.id, req });
     return error(MSG.LOGIN_FAILED, 403);

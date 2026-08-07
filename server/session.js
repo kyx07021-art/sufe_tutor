@@ -21,24 +21,22 @@ import { SECURITY } from './constants.js';
 // ============================================================
 // 会话签发 / 吊销
 // ============================================================
-/** 签发前清理该用户全部过期会话（幂等；issueAuthToken 隐式调用，调用方无需关心） */
-export async function purgeExpiredSessions(db, userId) {
-  await dbRun(db, `DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now')`, [userId]);
-}
-
 /**
  * 签发登录令牌（多端会话）：
  * @param userId 用户 id
  * @param label  设备标签（deviceLabelFromUA 产物，账户设置展示）
  * @returns 明文令牌（仅此一处回传；库内只存摘要）
+ * B3：清该用户过期会话 + 写入新会话 一次 db.batch（1 次往返；原子）
  */
 export async function issueAuthToken(db, userId, label) {
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
   const sessionId = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
   const expires = new Date(Date.now() + SECURITY.TOKEN_TTL_MS).toISOString().slice(0, 19).replace('T', ' ');
-  await purgeExpiredSessions(db, userId);
-  await dbRun(db, 'INSERT INTO auth_sessions (token_hash, session_id, user_id, label, expires_at) VALUES (?,?,?,?,?)',
-    [await tokenDigest(token), sessionId, userId, label || '', expires]);
+  await db.batch([
+    db.prepare(`DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now')`).bind(userId),
+    db.prepare('INSERT INTO auth_sessions (token_hash, session_id, user_id, label, expires_at) VALUES (?,?,?,?,?)')
+      .bind(await tokenDigest(token), sessionId, userId, label || '', expires),
+  ]);
   return token;
 }
 

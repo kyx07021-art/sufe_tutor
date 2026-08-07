@@ -138,8 +138,10 @@ const rlStrikeD1 = async (db, ip) => {
 
 /**
  * 限流闸门（_worker 每请求调用；超限一律 429，细节不回显）。
- * 全局限流走内存（最热路径零额外延迟）；写/探测/登录/注册/重认证走内存+D1 双写（跨实例生效、D1 失败降级内存）。
- * 登录桶按 IP 计数（网安 N-07：原按 IP+用户名，攻击者随机用户名可无限建桶撑爆 rate_limits；body 不再参与键构造）。
+ * 全局限流走内存（最热路径零额外延迟）；写/用户名探测走内存+D1 双写（跨实例生效、D1 失败降级内存）。
+ * 认证路由（login/register/reauth）的写+认证限流已下沉到路由内 authRateBatch（与取数同批 1 次往返），
+ * 此处只留全局内存闸（B1：把登录路径的 D1 往返从 5 次砍到路由批内的 1 次）。
+ * 登录桶按 IP 计数（网安 N-07：原按 IP+用户名，攻击者随机用户名可无限建桶撑爆 rate_limits）。
  * 用户名探测为软限制，不记三振。
  */
 export async function rateGate(ip, p, method, body, now, db) {
@@ -147,18 +149,56 @@ export async function rateGate(ip, p, method, body, now, db) {
   await maybeCleanRateLimits(db, now);
   if ((RL.blocked.get(ip) || 0) > now) return false;
   if (!rlBump(`g:${ip}`, RATE_LIMITS.global.limit, RATE_LIMITS.global.windowMs, now)) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
+  if (p === '/api/auth/login' || p === '/api/auth/register' || p === '/api/auth/re-auth') return true; // 认证限流由路由批承担
   if (method !== 'GET' && p.startsWith('/api/')) {
     if (!(await rlDual(db, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, `w:${ip}`, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, now))) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
   }
-  if (p === '/api/auth/login' || p === '/api/auth/register' || p === '/api/auth/re-auth') {
-    const blk = await dbGet(db, "SELECT 1 AS b FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')", [`block:${ip}`]).catch(() => null);
-    if (blk) return false;
-    const cfg = p === '/api/auth/login' ? RATE_LIMITS.login : p === '/api/auth/register' ? RATE_LIMITS.register : RATE_LIMITS.reauth;
-    const key = p === '/api/auth/login' ? `l:${ip}` : p === '/api/auth/register' ? `r:${ip}` : `ra:${ip}`;
-    if (!(await rlDual(db, cfg.limit, cfg.windowMs, key, cfg.limit, cfg.windowMs, now))) { await rlStrikeD1(db, ip); return false; }
-  }
   if (p === '/api/auth/check' && !(await rlDual(db, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, `c:${ip}`, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, now))) return false;
   return true;
+}
+
+// ============================================================
+// 认证路由组合限流（B1）：封禁查 + 写限流 + 认证限流 + 调用方附加查询 一次 db.batch（1 次往返）。
+// 用法：const gate = authRateBatch(db, ip, 'login', [extraStmt]);
+//      let r; try { r = await db.batch(gate.stmts); } catch { return 429; }  // D1 异常保守拒绝
+//      if (gate.verdict(r)) { await authRateBlock(db, ip); return 429; }
+//      const extra = gate.extra(r);  // 附加查询结果（第 0 项对应 extraStmts[0]）
+// ============================================================
+const AUTH_LIMIT_KEYS = { login: 'l', register: 'r', reauth: 'ra' };
+const rateUpsert = (db, key, windowMs) =>
+  db.prepare(`INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
+    ON CONFLICT(bucket) DO UPDATE SET
+      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
+      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`)
+    .bind(key, '+' + Math.round(windowMs / 1000) + ' seconds');
+
+export function authRateBatch(db, ip, kind, extraStmts = []) {
+  const cfg = RATE_LIMITS[kind];
+  const authKey = `${AUTH_LIMIT_KEYS[kind]}:${ip}`;
+  const base = 5; // [block, wUp, wSel, aUp, aSel] 五个基础语句索引
+  return {
+    stmts: [
+      db.prepare("SELECT 1 AS b FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')").bind(`block:${ip}`),
+      rateUpsert(db, `w:${ip}`, RATE_LIMITS.write.windowMs),
+      db.prepare('SELECT n FROM rate_limits WHERE bucket=?').bind(`w:${ip}`),
+      rateUpsert(db, authKey, cfg.windowMs),
+      db.prepare('SELECT n FROM rate_limits WHERE bucket=?').bind(authKey),
+      ...extraStmts,
+    ],
+    verdict(results) {
+      const blk = results[0] && results[0].results && results[0].results.length ? 1 : 0;
+      const wN = results[2] && results[2].results && results[2].results[0] ? results[2].results[0].n : 0;
+      const aN = results[4] && results[4].results && results[4].results[0] ? results[4].results[0].n : 0;
+      return blk || wN > RATE_LIMITS.write.limit || aN > cfg.limit;
+    },
+    extra(results) { return results.slice(base); },
+  };
+}
+
+/** 认证限流超限的三振封禁（内存 + D1 跨实例，同 rateGate 的 global/write 路径） */
+export async function authRateBlock(db, ip) {
+  rlStrike(ip, Date.now());
+  await rlStrikeD1(db, ip);
 }
 
 // ============================================================
