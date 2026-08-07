@@ -238,7 +238,7 @@ body { background: transparent; }
 .tag, .conv-item-role, .chat-peer-tag, .device-current, .profile-tag {
   --g-fill: var(--g-fill-strong); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2);
 }
-.conv-signed-tag, .chat-head-signed, .profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; }
+.profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; }
 .checkbox-item { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .checkbox-item:has(input:checked) { --g-fill: var(--g-accent-fill-strong); --g-fg: var(--white); }
 /* G2：成绩/首选/文理单选 pill 统一挂引擎玻璃（原 style-region 手卷第二套删，竖条迁 ::after；文字色单源 style.css） */

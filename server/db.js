@@ -1364,16 +1364,40 @@ export async function dbGetConversationWithNames(db, conversationId) {
     WHERE c.id = ?`, [conversationId]);
 }
 
+// 会话可绑定需求下拉单源（需求四·第2/3条：发起签约 / 起草合同共用）：
+//   phase='signing'   会话学生方「开放」需求（可发起签约）
+//   phase='contract'  会话学生方「已签约」需求（签约确认后可起草合同；已绑进行中/已签合同的需求除外；
+//                     且须由本会话教师促成签约——v0.25.6 收紧：被别教师 signed 签约驱动的需求不列出，
+//                     防跨会话绑别教师签成的需求起草合同；同对师生换会话的 contracted 需求仍可列出）
+// 归属硬约束：只取会话学生方（sd.user_id = c.student_user_id），师生身份由路由层参与方校验保证；
+// 出口走 mapDemandRow（剥联系方式，师生双方均不可在绑定下拉里看到学生联系方式）
+export async function dbGetConversationBindableDemands(db, conversationId, phase) {
+  const cond = phase === 'contract'
+    ? `AND sd.status='contracted'
+       AND NOT EXISTS (SELECT 1 FROM contracts ct WHERE ct.demand_id=sd.id AND ct.status IN ('pending','signing','signed'))
+       AND NOT EXISTS (SELECT 1 FROM signing_requests sr JOIN conversations c2 ON c2.id=sr.conversation_id
+            WHERE sr.demand_id=sd.id AND sr.status='signed' AND c2.teacher_user_id != c.teacher_user_id)`
+    : `AND sd.status='open'`;
+  const rows = await dbAll(db, `
+    SELECT sd.*, u.username
+    FROM student_demands sd
+    JOIN users u ON u.id=sd.user_id
+    JOIN conversations c ON c.id=?
+    WHERE sd.user_id=c.student_user_id ${cond}
+    ORDER BY sd.created_at DESC, sd.id DESC`, [conversationId]);
+  return rows.map(mapDemandRow);
+}
+
 // 我参与的会话列表（含对方用户名 + 最后一条消息预览 + 签约状态）
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
-  // contracted：本会话存在已签约合同 → 会话项与聊天头显示「已签约」小卡
+  // contracted：本会话已确认签约（signed 签约请求或 signed 合同）——需求四·第1条聊天窗不再展示
+  // 「已签约」tag，但保留该字段供「签约确认后背景灰字提示」判定（.chat-sign-tip 显隐）
   // 显式列集（不用 c.*）：双方已读游标（student_last_read_id/teacher_last_read_id）不下发，
   // 避免向对方暴露己方已读位置（低敏信息泄露面收口）
   return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.demand_id, c.status, c.created_at,
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
-      sd.display_id AS demand_display_id,
       EXISTS(SELECT 1 FROM contracts ct WHERE ct.conversation_id=c.id AND ct.status='signed')
         OR EXISTS(SELECT 1 FROM signing_requests sr WHERE sr.conversation_id=c.id AND sr.status='signed') AS contracted,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
@@ -1384,7 +1408,6 @@ export async function dbGetMyConversations(db, userId) {
     FROM conversations c
     JOIN users us ON us.id=c.student_user_id
     JOIN users ut ON ut.id=c.teacher_user_id
-    LEFT JOIN student_demands sd ON sd.id=c.demand_id
     LEFT JOIN (
       SELECT m.conversation_id, m.body, m.kind, m.created_at, m.sender_user_id
       FROM messages m JOIN (SELECT conversation_id, MAX(id) AS mid FROM messages GROUP BY conversation_id) x

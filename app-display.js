@@ -102,6 +102,18 @@
       return (rating || 4).toFixed(1);
     },
 
+    // 需求下拉选项文本（需求四·第2/3条：发起签约 / 起草合同下拉单源复用）：
+    //   #编号 · 目标名（科目/非学科项目） · 预算区间
+    //   预算仅当 min/max 任一 > 0 时展示（默认 0 的需求不凑数）；纯函数返回明文，转义由调用方 escHtml
+    demandOptionText(d) {
+      const u = UI();
+      const id = String(d.display_id || d.id).padStart(4, '0');
+      const name = D.demandTargetNames(d.target_subjects, d.target_type) || '—';
+      const hasBudget = (d.budget_min > 0) || (d.budget_max > 0);
+      const price = hasBudget ? D.priceRangeText(d.budget_min, d.budget_max, u.PRICE_UNIT) : '';
+      return ['#' + id, name, price].filter(Boolean).join(' · ');
+    },
+
     // 需求 current_scores 单项展示：
     //   等第制（cs.grade 或 cs.mode==='grade'）→ "科目: 等第"（无 grade 返 ''）
     //   分数制 → "科目: 分数分/满分分制"；空值返 ''

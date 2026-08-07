@@ -27,7 +27,7 @@ import {
   handleAdminListContracts, handleAdminRemoveContract, handleVerifyContract, handleRevokeContract,
   initLedgerTable, bindLedgerDb,
 } from './server/contract.js';
-import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
+import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleGetConversationBindableDemands, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
   handleGenInvite, handleAdminStats, handleAdminTraffic,
@@ -143,6 +143,8 @@ async function routeApi(db, p, method, body, url, req) {
   // 发起签约（v0.24.0 极简签约流：加号栏「发起签约」→ 会话内签约请求气泡 → 对方确认/拒绝）
   const convSigning = idMatch(p, /^\/api\/conversations\/(\d+)\/signing$/);
   if (convSigning && method === 'POST') return await handleCreateSigning(db, { ...body, conversationId: convSigning }, req);
+  const convBindableDemands = idMatch(p, /^\/api\/conversations\/(\d+)\/bindable-demands$/);
+  if (convBindableDemands && method === 'GET') return await handleGetConversationBindableDemands(db, convBindableDemands, url, req);
   const signingRespond = idMatch(p, /^\/api\/signing-requests\/(\d+)\/respond$/);
   if (signingRespond && method === 'POST') return await handleRespondSigning(db, signingRespond, body, req);
 

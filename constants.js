@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.5',
+  APP_VERSION: '0.25.6',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -536,7 +536,12 @@ globalThis.APP_CONSTANTS = {
     SIGNING_MY_CONFIRMED: '你已确认签约请求',      // v0.24.2 审计：回应方视角（原气泡/toast 恒显「对方已…」颠倒）
     SIGNING_MY_REJECTED: '你已拒绝此次签约请求',
     SIGNING_MODAL_TITLE: '发起签约',
-    SIGNING_MODAL_HINT: '确认报价、时间与授课方式后发送，由对方确认',
+    SIGNING_MODAL_HINT: '选择需求、确认报价、时间与授课方式后发送，由对方确认', // 需求四·第2条：发起签约绑定需求
+    SIGNING_DEMAND_LABEL: '选择需求',
+    SIGNING_DEMAND_PLACEHOLDER: '请选择要签约的需求',
+    VALIDATE_SIGNING_DEMAND: '请选择要签约的需求',
+    SIGNING_NO_DEMAND_HINT: '暂无开放的需求可签约，请先发布需求',
+    SIGNING_DEMANDS_LOAD_FAIL: '需求列表加载失败，请刷新页面后重试。',
     LABEL_SIGNING_PRICE: '报价（元/小时）',
     LABEL_SIGNING_SCHEDULE: '授课时间（自然语言）',
     LABEL_SIGNING_METHOD: '授课方式',
@@ -587,8 +592,10 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_TRIAL_PAY_OTHER_PLACEHOLDER: '请输入试课薪资方案',
     VALIDATE_CONTRACT_TRIAL_PAY_OTHER: '请输入具体的试课薪资方案',
     LABEL_CONTRACT_DEMAND: '对应需求',
-    CONTRACT_NO_DEMAND_OPTION: '不关联需求',
-    CONTRACT_DEMANDS_LOAD_FAIL: '需求列表加载失败：可不关联需求直接起草，或刷新页面后重试。',
+    CONTRACT_DEMANDS_SIGNED_HINT: '仅已签约需求可继续签合同——先在会话内「发起签约」并由对方确认', // 需求四·第3条
+    CONTRACT_REQUIRE_SIGNED: '请选择已签约需求',
+    CONTRACT_DEMANDS_EMPTY: '暂无已签约需求可起草合同',
+    CONTRACT_DEMANDS_LOAD_FAIL: '需求列表加载失败，请刷新页面后重试。',
     DEMAND_TAG_CONTRACTED: '已签约',
     DEMAND_TAG_REVOKED: '合同已撤销',
     TAG_MATCH: '匹配度 ',
@@ -861,8 +868,8 @@ globalThis.APP_CONSTANTS = {
     CHAT_PREVIEW_FILE: '[文件]',
     CHAT_UNKNOWN_USER: '未知用户',
     CHAT_BACK_TO_LIST: '会话列表',
-    CHAT_DEMAND_PREFIX: '需求 #',
     CHAT_CLOSED_TIP: '该会话已关闭，不能再发送消息',
+    CHAT_SIGN_TIP: '已与对方确认签约，建议起草并签订正式合同以加强契约有效性。', // 需求四·第4条：签约确认后会话背景灰字
     CHAT_ATTACH_IMAGE: '图片',
     CHAT_ATTACH_FILE: '文件',
     CHAT_INPUT_PLACEHOLDER: '输入消息',

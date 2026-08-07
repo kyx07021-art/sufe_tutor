@@ -259,18 +259,25 @@ export async function handleCreateContract(db, body, req) {
   const trialPay = ['first_free', 'first_hour_free', 'normal', 'other'].includes(body.trialPay) ? body.trialPay : '';
   const trialPayOther = trialPay === 'other' ? String(body.trialPayOther || '').trim().slice(0, 100) : '';
   if (trialPay === 'other' && !trialPayOther) return error(MSG.INVALID_PARAMS, 400);
-  // 合同绑定需求：起草时显式选择（缺省回落到会话自带的需求）；
-  // 后端硬校验：绑定的需求必须属于会话学生方（防越权绑他人需求），统一入口把关
-  let demandId = parseInt(body.demandId) || conv.demand_id || null;
-  let demandNo = '';
-  if (demandId) {
-    const dm = await dbGetDemandById(db, demandId);
-    if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404); // F-03b：需求已删（创建端复核；INSERT 守卫再堵 SELECT→INSERT 竞态窗口）
-    if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
-    // 已签约（contracted）或已撤销（revoked，须先手动重开）的需求不可再绑新合同
-    if (dm.status === STATUS.CONTRACTED || dm.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
-    if (dm.display_id) demandNo = String(dm.display_id).padStart(4, '0');
-  }
+  // 需求四·第3条：起草合同必须绑定「已签约」需求（发起签约确认 → demand contracted 后才可起草合同）。
+  // v0.25.6 审计收紧：服务端强制 demandId，无 conv.demand_id 回落（会话与需求已解耦，同 signing 路径门禁）。
+  // 归属硬校验：需求必须属于会话学生方（防越权绑他人需求）；状态须 contracted；一条需求只允许一份合同
+  // （进行中/已签均不可再绑，前端下拉亦已过滤，服务端统一入口把关防并发窗口）。
+  // 签约成交方校验（教师方口径）：contracted 需求若由「别教师」的 signed 签约驱动，本会话不得绑它起草合同
+  // （同对师生换会话可放行；另一教师签成的需求不可抢绑——签约成交方与合同缔结方必须同一教师）
+  const demandId = Number(body.demandId);
+  if (!Number.isInteger(demandId) || demandId <= 0) return error(MSG.DEMAND_NOT_SIGNED, 410); // 起草合同必须选已签约需求
+  const dm = await dbGetDemandById(db, demandId);
+  if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404); // F-03b：需求已删（创建端复核；INSERT 守卫再堵 SELECT→INSERT 竞态窗口）
+  if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
+  if (dm.status !== STATUS.CONTRACTED) return error(MSG.DEMAND_NOT_SIGNED, 410);
+  const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [demandId]);
+  if (dc) return error(MSG.DEMAND_CONTRACT_EXISTS, 409);
+  const crossSigned = await dbGet(db, `SELECT sr.id FROM signing_requests sr
+    JOIN conversations c ON c.id=sr.conversation_id
+    WHERE sr.demand_id=? AND sr.status='signed' AND c.teacher_user_id != ? LIMIT 1`, [demandId, conv.teacher_user_id]);
+  if (crossSigned) return error(MSG.DEMAND_NOT_SIGNED, 410);
+  let demandNo = dm.display_id ? String(dm.display_id).padStart(4, '0') : '';
   const md = buildContractMd({
     teacherName: conv.teacher_name, studentName: conv.student_name,
     method, schedule, location, plan, rate, createdAt: new Date().toISOString().slice(0, 10), demandNo,
@@ -284,13 +291,19 @@ export async function handleCreateContract(db, body, req) {
         pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other, drafter_confirmed, status)
      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?, 1, 'signing'
      WHERE NOT EXISTS (SELECT 1 FROM contracts WHERE conversation_id=? AND status IN ('pending','signing'))
-       AND (? IS NULL OR EXISTS (SELECT 1 FROM student_demands WHERE id=?))`,
+       AND NOT EXISTS (SELECT 1 FROM contracts ct2 WHERE ct2.demand_id=? AND ct2.status IN ('pending','signing','signed'))
+       AND EXISTS (SELECT 1 FROM student_demands WHERE id=? AND status='contracted')
+       AND NOT EXISTS (SELECT 1 FROM signing_requests sr JOIN conversations c2 ON c2.id=sr.conversation_id
+            WHERE sr.demand_id=? AND sr.status='signed' AND c2.teacher_user_id != ?)`,
     [conversationId, userId, demandId, method, schedule, location, plan, rate, mdEnc,
-     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther, conversationId, demandId, demandId]);
+     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
+     conversationId, demandId, demandId, demandId, conv.teacher_user_id]);
   // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 existing 检查是快路径，此处是竞态闸门）；
-  // 附加需求存在守卫：SELECT→INSERT 窗口内需求被并发删除则同样 changes=0，判别后报 404（不误报 409）
+  // 附加守卫：需求已被并发绑合同（另一会话）或需求被并发删除则同样 changes=0，判别后报对应用户可读错误
   if (!(res && res.meta && res.meta.changes > 0)) {
-    if (demandId && !(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+    if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+    const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [demandId]);
+    if (dc) return error(MSG.DEMAND_CONTRACT_EXISTS, 409);
     return error(MSG.CONTRACT_EXISTS, 409);
   }
   const id = (res && res.meta && res.meta.last_row_id) || 0;

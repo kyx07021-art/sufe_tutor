@@ -247,15 +247,30 @@ function splitContractBiz(md) {
   return String(md || '').split(CONTRACT_BIZ_END)[0].trim();
 }
 
-// v0.24.0 发起签约（极简签约流，加号栏呼出）：只确认报价 / 时间（自然语言）/ 教学方式线上或线下，
+// v0.24.0 发起签约（极简签约流，加号栏呼出）：需求四·第2条加「选择需求」下拉（会话学生方开放需求，
+// 每项 #编号 · 目标名 · 预算），再确认报价 / 时间（自然语言）/ 教学方式线上或线下，
 // 发送后会话内出现「对方向你发送了签约请求」气泡，由对方确认或拒绝（见 app-chat.js 气泡渲染）
-function openSigningModal(convId) {
+async function openSigningModal(convId) {
   if (!ensureAuth()) return;
+  openModal({ title: UI.SIGNING_MODAL_TITLE, closable: false, body: `<div class="empty-state">${loaderHtml()}</div>` });
+  let demands = [], demandsFailed = false;
+  try { const data = await api(`/api/conversations/${convId}/bindable-demands?phase=signing`); demands = data.demands || []; }
+  catch { demandsFailed = true; }
   openModal({
     title: UI.SIGNING_MODAL_TITLE,
     closable: false,
     body: `<div id="post-alert"></div>
         <p class="text-sm text-muted signing-modal-hint">${UI.SIGNING_MODAL_HINT}</p>
+        <div class="form-group">
+          <label class="form-label">${UI.SIGNING_DEMAND_LABEL} <span class="req">*</span></label>
+          <select class="form-select" id="signing-demand">
+            ${demands.length
+              ? `<option value="">${UI.SIGNING_DEMAND_PLACEHOLDER}</option>` +
+                demands.map(d => `<option value="${d.id}">${escHtml(DISP.demandOptionText(d))}</option>`).join('')
+              : `<option value="" disabled>${UI.SIGNING_NO_DEMAND_HINT}</option>`}
+          </select>
+          ${demandsFailed ? `<p class="text-sm text-muted">${UI.SIGNING_DEMANDS_LOAD_FAIL}</p>` : ''}
+        </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_PRICE} <span class="req">*</span></label>
           <input type="number" id="signing-price" class="form-input" min="0" step="1" placeholder="${UI.SIGNING_PRICE_PLACEHOLDER}">
@@ -278,41 +293,43 @@ function openSigningModal(convId) {
 }
 
 async function submitSigning(convId) {
+  const demandId = parseInt(document.getElementById('signing-demand').value) || null;
   const price = +document.getElementById('signing-price').value || 0;
   const schedule = (document.getElementById('signing-schedule').value || '').trim();
   const method = document.getElementById('signing-method').value;
+  if (!demandId) { showToast(UI.VALIDATE_SIGNING_DEMAND); return; } // 需求四·第2条：每次签约绑定一份需求
   if (price <= 0) { showToast(UI.VALIDATE_SIGNING_PRICE); return; }
   if (!schedule) { showToast(UI.VALIDATE_SIGNING_SCHEDULE); return; }
   try {
-    await api(`/api/conversations/${convId}/signing`, { method: 'POST', body: { price, schedule, method } });
+    await api(`/api/conversations/${convId}/signing`, { method: 'POST', body: { demandId, price, schedule, method } });
     closeModal();
     showToast(UI.SIGNING_REQUEST_SENT_TOAST);
   } catch (err) { showToast(err.message); }
 }
 
-// 起草合同（聊天窗 + 号呼出）：先选对应需求 → 预载配置（科目/方式/预算）→ 教学方式 / 授课时间 /
-// 授课地点 / 约定时薪 / 教学方案（md 编辑器，合同文本禁插图）→ 发送另一方确认
+// 起草合同（聊天窗 + 号呼出）：需求四·第3条——入口始终可打开，但只能选「已签约」需求继续
+// （发起签约确认 → demand contracted 后才可起草；前端下拉只列已签约需求，服务端同款门禁）。
+// 先选对应需求 → 预载配置（科目/方式/预算）→ 教学方式 / 授课时间 / 授课地点 / 约定时薪 /
+// 教学方案（md 编辑器，合同文本禁插图）→ 发送另一方确认
 async function openContractDraftModal(convId) {
   openModal({ title: null, closable: false, body: `${loaderHtml()}` });
   let demands = [], demandsFailed = false;
-  try { const data = await api('/api/student/demands'); demands = data.demands || []; } catch { demandsFailed = true; /* 拉取失败仍可起草（不绑需求），弹窗内明示 */ }
+  try { const data = await api(`/api/conversations/${convId}/bindable-demands?phase=contract`); demands = data.demands || []; }
+  catch { demandsFailed = true; /* 拉取失败则下拉空 + 前端 demandId 必选校验拦截起草，弹窗内明示 */ }
   const conv = (typeof chatConvById === 'function') ? chatConvById(convId) : null;
-  // 学生：自己全部 open 需求；教师：该会话学生方的全部 open 需求（同一师生对多需求共用一个会话，
-  // 不只限会话绑定那一条；绑到他人需求的越权由服务端归属硬校验拦截）
-  const options = state.user.role === 'student'
-    ? demands.filter(d => d.user_id === state.user.id && d.status !== 'contracted')
-    : demands.filter(d => conv && d.user_id === conv.student_user_id && d.status !== 'contracted');
-  const preselect = (conv && options.find(d => d.id === conv.demand_id)) || options[0] || null;
-  window._contractDraftDemands = options; // 供 prefillContractFromDemand 取数
+  const preselect = (conv && demands.find(d => d.id === conv.demand_id)) || demands[0] || null;
+  window._contractDraftDemands = demands; // 供 prefillContractFromDemand 取数
   openModal({
     title: `${UI.DRAFT_MODAL_TITLE}`,
     closable: false,
     body: `<div id="contract-alert">${demandsFailed ? `<div class="alert alert-error glass">${UI.CONTRACT_DEMANDS_LOAD_FAIL}</div>` : ''}</div>
         <div class="form-group">
-          <label class="form-label">${UI.LABEL_CONTRACT_DEMAND}</label>
+          <label class="form-label">${UI.LABEL_CONTRACT_DEMAND} <span class="req">*</span></label>
+          <p class="text-sm text-muted contract-demand-hint">${UI.CONTRACT_DEMANDS_SIGNED_HINT}</p>
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
-            <option value="">${UI.CONTRACT_NO_DEMAND_OPTION}</option>
-            ${options.map(d => `<option value="${d.id}"${preselect && d.id === preselect.id ? ' selected' : ''}>#${String(d.display_id || d.id).padStart(4, '0')} · ${escHtml(DISP.demandTargetNames(d.target_subjects, d.target_type) || '—')}</option>`).join('')}
+            ${demands.length
+              ? demands.map(d => `<option value="${d.id}"${preselect && d.id === preselect.id ? ' selected' : ''}>${escHtml(DISP.demandOptionText(d))}</option>`).join('')
+              : `<option value="" disabled>${UI.CONTRACT_DEMANDS_EMPTY}</option>`}
           </select>
         </div>
         <div class="form-group">
@@ -418,6 +435,8 @@ async function submitContractDraft(convId) {
   const firstLessonDate = document.getElementById('contract-first-lesson').value || '';
   const trialPay = document.getElementById('contract-trial-pay').value;
   const trialPayOther = trialPay === 'other' ? (document.getElementById('contract-trial-pay-other').value || '').trim() : '';
+  const demandId = parseInt(document.getElementById('contract-demand').value) || null;
+  if (!demandId) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.CONTRACT_REQUIRE_SIGNED}</div>`; return; } // 需求四·第3条：只能选已签约需求
   if (!rate || +rate <= 0) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_RATE}</div>`; return; }
   if (payMethod === 'other' && !payMethodOther) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER}</div>`; return; }
   if (trialPay === 'other' && !trialPayOther) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER}</div>`; return; }
@@ -427,7 +446,6 @@ async function submitContractDraft(convId) {
   try {
     const schedule = (document.getElementById('contract-schedule').value || '').trim();
     const location = (document.getElementById('contract-location').value || '').trim();
-    const demandId = parseInt(document.getElementById('contract-demand').value) || null;
     const data = await api('/api/contracts', { method: 'POST', body: { conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
     invalidate('contracts'); // 新草案须即时可见，不等 30s 轮询
     closeModal();

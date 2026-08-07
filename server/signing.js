@@ -19,8 +19,10 @@
  *     重开会话渲染终态）；kind='signing_response'：body = JSON {requestId, accept}（在途会话实时刷新）。
  *   回应时更新原气泡 body 的 status（终态）并落一条响应气泡。
  *
- * 路由：POST /api/conversations/:id/signing {price, schedule, method} 发起
- *       POST /api/signing-requests/:id/respond {accept}               确认/拒绝
+ * 路由：POST /api/conversations/:id/signing {demandId, price, schedule, method} 发起
+ *       POST /api/signing-requests/:id/respond {accept}                             确认/拒绝
+ * 需求四·第2条：发起签约显式绑定需求（body.demandId，前端「选择需求」下拉单选）；
+ * 归属校验 = 需求必须属于会话学生方、状态 open（非 contracted/revoked）。
  */
 import { dbGet, dbRun, json, error } from './util.js';
 import { requireUser } from './security.js';
@@ -72,12 +74,18 @@ export async function handleCreateSigning(db, body, req) {
   if (!schedule) return error(MSG.INVALID_PARAMS, 400); // 时间（自然语言）必填
   const method = body.method === 'online' ? 'online' : 'offline'; // 线上/线下
 
-  // 会话所绑需求须为 open（已签约/撤销的需求不可再发起签约）
-  const demandId = conv.demand_id || null;
-  if (demandId) {
-    const dm = await dbGetDemandById(db, demandId);
-    if (!dm || dm.status === STATUS.CONTRACTED || dm.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
-  }
+  // 需求四·第2条：发起签约必须显式选择需求（body.demandId，前端下拉单选必选）。
+  // v0.25.6 审计收紧：服务端强制 demandId，无 conv.demand_id 回落——会话与需求已解耦（4a），
+  // 缺省回落会产生 demand_id=NULL 的无需求签约，绕过「每次签约绑定一份需求」门禁
+  // （空需求签约经 respond 确认直接 signed，评价门槛对无需求关系放行）。
+  // 归属硬校验：需求必须属于会话学生方（学生发自己的 / 教师发会话学生方的需求，防越权绑他人需求）；
+  // 状态须 open（已签约/已撤销的需求不可再发起签约，签约确认后需求由 handleRespondSigning 置 contracted）
+  const demandId = Number(body.demandId);
+  if (!Number.isInteger(demandId) || demandId <= 0) return error(MSG.INVALID_PARAMS, 400);
+  const dm = await dbGetDemandById(db, demandId);
+  if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
+  if (dm.status !== STATUS.OPEN) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
   // 同会话 pending 去重：已有待处理的签约请求则拒绝（防同会话堆积多条 pending 气泡、逐条确认变多签）
   const dup = await dbGet(db, `SELECT id FROM signing_requests WHERE conversation_id=? AND status='pending' LIMIT 1`, [conversationId]);
   if (dup) return error(MSG.SIGNING_ALREADY_PENDING, 409);
@@ -124,36 +132,41 @@ export async function handleRespondSigning(db, signingId, body, req) {
   // 赢家模式 + 需求态守卫：确认签约须需求仍 open（同需求多会话并存下，若另一会话已签约成交则拒绝——
   // 否则两条签约请求都可置 signed，形成「一条需求绑定多份签约」，dbIsContracted 对两对师生都放行）；
   // 拒绝不需要需求守卫。需求被撤销/删除后同样拦下（需求不复 open）
-  let up;
+  // v0.25.6 审计修复：sr 置 signed 与需求置 contracted 两条 UPDATE 拆句执行存在 TOCTOU——同需求两会话
+  // 并发双确认时，两次 sr UPDATE 都可能在各自执行时刻看到需求仍 open 而双双 signed（评价门槛双开）。
+  // 改 db.batch 包同一事务原子执行：D1 batch 隐式单事务串行化写，后到的批事务 EXISTS(open) 守卫失败
+  // → changes=0 → 410。auto-reject 副作用仍只由需求收缩赢家（results[1].changes>0）驱动。
+  let demandContracted = false;
   if (accept && sr.demand_id) {
-    up = await dbRun(db, `UPDATE signing_requests SET status='signed', responded_at=datetime('now','localtime')
-      WHERE id=? AND status='pending'
-      AND EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='open')`, [signingId, sr.demand_id]);
-    if (!(up && up.meta && up.meta.changes > 0)) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已非 open（已回应由上行守卫拦）
+    const results = await db.batch([
+      db.prepare(`UPDATE signing_requests SET status='signed', responded_at=datetime('now','localtime')
+        WHERE id=? AND status='pending'
+        AND EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='open')`).bind(signingId, sr.demand_id),
+      db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`).bind(sr.demand_id),
+    ]);
+    if (!(results[0] && results[0].meta && results[0].meta.changes > 0)) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已非 open（已回应由上行守卫拦）
+    demandContracted = !!(results[1] && results[1].meta && results[1].meta.changes > 0);
   } else {
-    up = await dbRun(db, `UPDATE signing_requests SET status=?, responded_at=datetime('now','localtime')
+    const up = await dbRun(db, `UPDATE signing_requests SET status=?, responded_at=datetime('now','localtime')
       WHERE id=? AND status='pending'`, [newStatus, signingId]);
     if (!(up && up.meta && up.meta.changes > 0)) return error(MSG.SIGNING_ALREADY_RESPONDED, 409); // 赢家模式
   }
 
-  // 确认签约：需求原子置 contracted（WHERE open），并自动拒绝其余待处理意向/推送
-  if (accept && sr.demand_id) {
-    const dm = await dbRun(db, `UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`, [sr.demand_id]);
-    if (dm && dm.meta && dm.meta.changes > 0) {
-      const pending = await dbGetPendingIntentsForDemand(db, sr.demand_id);
-      for (const it of pending) {
-        const r = await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
-        if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
-        await logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
-          detail: { demandId: sr.demand_id, teacherUserId: it.teacher_user_id, reason: 'signing_confirmed' }, req });
-      }
-      const pendingPushes = await dbGetPendingPushesForDemand(db, sr.demand_id);
-      for (const pp of pendingPushes) {
-        const r = await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
-        if (!(r && r.meta && r.meta.changes > 0)) continue;
-        await logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
-          detail: { demandId: sr.demand_id, teacherUserId: pp.teacher_user_id, reason: 'signing_confirmed' }, req });
-      }
+  // 确认签约且需求收缩成功（赢家）：自动拒绝其余待处理意向/推送（整段副作用只由需求收缩赢家驱动，杜绝双通知双台账）
+  if (demandContracted) {
+    const pending = await dbGetPendingIntentsForDemand(db, sr.demand_id);
+    for (const it of pending) {
+      const r = await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
+      if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
+      await logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
+        detail: { demandId: sr.demand_id, teacherUserId: it.teacher_user_id, reason: 'signing_confirmed' }, req });
+    }
+    const pendingPushes = await dbGetPendingPushesForDemand(db, sr.demand_id);
+    for (const pp of pendingPushes) {
+      const r = await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
+      if (!(r && r.meta && r.meta.changes > 0)) continue;
+      await logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
+        detail: { demandId: sr.demand_id, teacherUserId: pp.teacher_user_id, reason: 'signing_confirmed' }, req });
     }
   }
 

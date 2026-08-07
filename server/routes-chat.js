@@ -11,7 +11,7 @@ import { encryptField, decryptField } from './crypto.js'; // 附件 dataURL 加�
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbCreateMessage, dbMarkConversationRead,
-  dbGetMessageAttachment,
+  dbGetMessageAttachment, dbGetConversationBindableDemands,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbDeleteUpload,
 } from './db.js';
 import { logEvent } from './log.js';
@@ -63,6 +63,18 @@ export async function handleGetMessages(db, convId, url, req) {
   // 已读游标不下发（db.js 自述契约）：双方 last_read_id 属隐私，剥除再回传
   const { student_last_read_id, teacher_last_read_id, ...convPub } = g.conv;
   return json({ conversation: convPub, messages });
+}
+
+// GET /api/conversations/:id/bindable-demands?phase=signing|contract —— 会话可绑定需求下拉单源
+// （需求四·第2/3条：发起签约列「开放」需求、起草合同列「已签约」需求；归属 = 会话学生方，
+// 参与方校验 + db.js 归属约束双关，防越权拉他人需求）
+export async function handleGetConversationBindableDemands(db, convId, url, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const g = await loadConversationFor(db, convId, me.id);
+  if (g.err) return g.err;
+  const phase = url.searchParams.get('phase') === 'contract' ? 'contract' : 'signing';
+  return json({ demands: await dbGetConversationBindableDemands(db, convId, phase) });
 }
 
 // GET /api/conversations/:cid/messages/:mid/attachment —— 单条附件懒加载

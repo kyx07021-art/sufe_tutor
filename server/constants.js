@@ -120,6 +120,8 @@ export const MSG = {
   SIGNING_ALREADY_PENDING: '该会话已有待处理的签约请求，请等待对方确认后再发起',
   DEMAND_CONTRACTED_CLOSED: '该需求已签约成交，已停止接收新意向',
   DEMAND_CONTRACTED_LOCKED: '已签约的需求不可修改或删除',
+  DEMAND_NOT_SIGNED: '该需求尚未确认签约，无法起草合同', // 需求四·第3条：起草合同只能绑已签约需求
+  DEMAND_CONTRACT_EXISTS: '该需求已关联合同，不可重复起草', // 需求四·第3条：一条需求一份合同
 
   // 沟通
   CONVERSATION_NOT_FOUND: '会话不存在',
