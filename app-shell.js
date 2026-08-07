@@ -163,7 +163,6 @@ function selectPage(pageId) {
   // 黑色选中块滑向新栏目；展开/退让动效由 CSS 承担，rAF 追逐保证严格同步
   glidePill(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
   state.page = pageId;
-  storePage(pageId); // 记住当前页签，刷新后回原页
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
   if (cfg && cfg.auth !== false && !ensureAuth()) return; // 需要身份的页统一过登录通路
@@ -362,38 +361,12 @@ function renderNotifContent(text) {
 registerLogoutReset(() => { _notifList = []; _lastContractSig = ''; });
 
 // ============================================================
-// 初始化（DOMContentLoaded）：自动登录恢复 → 落地 → 新手引导。
-// 令牌持久化后不再重放密码；网络抖动不删会话（否则下次访问变「首次」、新手引导重弹）
+// 初始化（DOMContentLoaded）：落地页恒为入口 → 新手引导。
+// v0.24.1：删除「进主页即自动登录」——主页双按钮按角色恢复/登录（handleFeatureClick），
+// 未经用户选择客户端类型绝不进客户端（曾表现为通过链接点进主页直接登录进客户端）。
+// 会话不再首屏验证：点击角色按钮时 switchToRole 才调 /api/auth/me 校验令牌。
 // ============================================================
-document.addEventListener('DOMContentLoaded', async () => {
-  const saved = loadSession();
-  if (saved) {
-    state.authToken = saved.authToken;
-    try {
-      const data = await api('/api/auth/me');
-      state.user = data.user;
-      saveSession(saved.source === 'local'); // 保活：刷新持久化中的 user 快照（记住我仍写 local）
-      enterClient(storedPage()); // 回到刷新前的页签
-      return;
-    } catch (err) {
-      // 令牌真正失效由 api() 的 401 处理统一清理；网络抖动不删会话（0.20.1 决策）。
-      // v0.22.8：SW 版本迁移窗口的首屏请求可能瞬断——NETWORK_ERROR 重试一次再放弃，
-      // 避免部署升级后自动登录被打掉（曾表现为「版本更新后要重新登录」）
-      if (err && err.code === 'NETWORK_ERROR') {
-        await new Promise(r => setTimeout(r, 1000));
-        try {
-          const data = await api('/api/auth/me');
-          state.user = data.user;
-          saveSession(saved.source === 'local');
-          enterClient(storedPage());
-          return;
-        } catch (e2) {
-          // 网络错误捕获环节 3/4：重试仍断线才弹提示（不删会话，恢复后下次自动登录）
-          if (e2 && e2.code === 'NETWORK_ERROR' && typeof showToast === 'function') showToast(UI.NETWORK_ERROR);
-        }
-      }
-    }
-  }
+document.addEventListener('DOMContentLoaded', () => {
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件
   showView('landing');
   showOnboardingIfNeeded();

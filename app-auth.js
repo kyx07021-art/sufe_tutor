@@ -242,7 +242,6 @@ function handleLogout() {
   state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
   state.inviteTimerId = null; state.currentInviteCode = null; state.validatedInviteCode = null; // 邀请码随账号清（曾漏清）
   clearSession(role); // v0.23.1：只清当前角色会话——另一角色会话保留，供主页按角色分流恢复
-  try { localStorage.removeItem('sufe_page'); } catch { /* ignore */ }
   closeSidebar();
   showView('landing');
 }

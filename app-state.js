@@ -149,8 +149,6 @@ function clearSession(role) {
 // ============================================================
 // 偏好/标记存取（全部 try/catch，防隐私模式抛异常）
 // ============================================================
-function storePage(pageId) { try { localStorage.setItem('sufe_page', pageId); } catch { /* ignore */ } }
-function storedPage() { try { return localStorage.getItem('sufe_page') || ''; } catch { return ''; } }
 function getThemePref() { try { return localStorage.getItem('sufe_theme') || 'system'; } catch { return 'system'; } }
 function isReturning() { try { return !!localStorage.getItem('sufe_returning'); } catch { return false; } }
 function setReturning() { try { localStorage.setItem('sufe_returning', '1'); } catch { /* ignore */ } }
