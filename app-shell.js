@@ -137,6 +137,7 @@ function renderSidebar() {
     </button>`;
   document.getElementById('sidebar-user').innerHTML = `
     ${userBlock}
+    ${isAdmin ? '' : `<button type="button" class="sidebar-revisit-btn" onclick="startOnboardingTour()">${escHtml(UI.ONBOARD_REVISIT_BTN)}</button>`}
     <button type="button" class="sidebar-footnote" onclick="selectPage('about')">${escHtml(UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK))}</button>
     <div class="sidebar-version">v${APP_CONSTANTS.APP_VERSION}</div>`;
   document.getElementById('sidebar-nav').innerHTML =

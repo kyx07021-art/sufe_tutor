@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.4',
+  APP_VERSION: '0.25.5',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -54,6 +54,8 @@ globalThis.APP_CONSTANTS = {
     REOPEN_DELAY_MS: 800,                 // 邀请码确认→注册跳转 / 注销→登出延迟
     MODAL_W_CONFIRM: '380px',             // 确认类弹窗宽度（散落 380/400/420/430/480 收敛）
     MODAL_W_SEND: '480px', MODAL_W_DEACTIVATE: '430px', MODAL_W_PROFILE_HINT: '420px',
+    TOUR_TARGET_TIMEOUT_MS: 3000,         // 新手引导：目标未挂载 rAF 轮询超时，超时自动跳过该步
+    TOUR_GAP_PX: 16,                      // 新手引导：文字气泡与亮区间距（JS 定位用）
   },
 
   // ============================================================
@@ -943,18 +945,39 @@ globalThis.APP_CONSTANTS = {
     DEVICE_REVOKE_CONFIRM: '确定要让该设备退出登录吗？该设备上的会话将立即失效。',
     DEVICE_REVOKE_DONE: '该设备已下线',
 
-    // 新手引导（无登录记录时自动弹出；关于页「平台基本用法」底部可重温）
+    // 新手引导（无登录记录时自动弹出；侧边栏个人信息栏与「关于平台」均可重温）
     ONBOARD_TITLE: '欢迎来到经途·伴学信息门户',
-    ONBOARD_INTRO: '这里是学生与家教老师直接对接的信息平台，零佣金、不收费。当前为内测阶段：',
+    // v0.25 需求三：主页首访浮窗简化——聚焦核心特点 + 最基本流程（避免理解疲劳）；
+    // 详细用法浮窗 USAGE_GUIDE_SECTIONS 不变，想深入了解随时可开
+    ONBOARD_INTRO: '欢迎来到经途·伴学信息门户——学生与家教老师直接对接，零佣金、不收费。',
     ONBOARD_POLICY: [
-      '注册很简单：学生与教师都可直接注册，无需邀请码',
-      '内测数据：公测开始后，全部账号与数据将被清空',
-      '现在就试试：发布需求、浏览教师、提交试课意向，有疑问随时在「关于平台」反馈',
-      '想了解更多功能：到「关于平台」→「平台基本用法」，查看「详细用法介绍」',
+      '学生：发布需求 → 浏览教师 → 匹配后站内沟通',
+      '教师：浏览需求 → 提交试课意向 → 匹配后站内沟通',
+      '匹配成功后在「我的会话」沟通上课细节，到「我的合同」正式签约',
+      '当前为内测阶段，公测后账号与数据将被清空；更多细节见「详细用法介绍」',
     ],
     ONBOARD_CONFIRM: '知道了',
     ONBOARD_CONFIRM_LOGIN: '知道了，去登录',
     ONBOARD_REVISIT_BTN: '重温新手引导',
+    // 新手引导多步走（需求三）：独立可交互层，亮区点击进入下一步；文案单源
+    TOUR_SKIP: '跳过',
+    TOUR_ARIA_LABEL: '新手引导', // 引导层 role=dialog aria-label（网安 M2/a11y）
+    TOUR_STEP_BROWSE_DEMANDS: '需求大厅：学生发布的家教需求都在这里，可筛选浏览、提交试课意向。点击标签继续。',
+    TOUR_STEP_BROWSE_TEACHERS_PEER: '教师同行：查看其他教师的信息与评价，参考同行如何展示自己。',
+    TOUR_STEP_BROWSE_TEACHERS: '教师广场：浏览全部教师，可按科目、报价、评分筛选，点开查看详情与评价。',
+    TOUR_STEP_RESOURCE_SHARE: '资料共享：教师之间分享与浏览教学资源的区域。',
+    TOUR_STEP_MY_CHATS: '我的会话：与匹配成功的师生在线沟通，可发送图片与文件。',
+    TOUR_STEP_MY_CONTRACTS: '我的合同：确认合同草案、正式签约，保障双方权益。',
+    TOUR_STEP_EDIT_PROFILE: '个人资料：完善你的档案与高考成绩，学生据此了解你。点击进入查看表单。',
+    TOUR_STEP_PROFILE_FORM: '这是你的教师资料表单：省份、科目、报价、可授课时间、性格关键词等都在这里填写。点击任意位置继续。',
+    TOUR_STEP_NOTIFICATIONS: '通知信息：展示试课意向、需求推送等处理进展。',
+    TOUR_STEP_ACCOUNT_SETTINGS: '设置：切换外观主题、管理账户信息与登录设备。',
+    TOUR_STEP_ABOUT: '关于平台：平台理念、基本用法、安全隐私说明与反馈通道。',
+    TOUR_STEP_MY_DEMANDS: '我的需求：发布与管理你的家教需求，教师的试课意向会出现在这里。点击标签进入。',
+    TOUR_STEP_NEW_DEMAND_BTN: '点击「新建需求」打开发布表单，填写科目、预算等信息。',
+    TOUR_STEP_NEW_DEMAND_MODAL: '这是需求发布表单：填写信息后发布，教师就能看到你的需求。点击表单区域自动关闭。',
+    TOUR_STEP_GUEST_LOGIN: '点击下方个人信息栏可登录或注册，登录后即可使用全部功能。',
+    TOUR_STEP_USER_BAR: '个人信息栏：点击头像查看个人信息；底部「重温新手引导」可重新观看导引，退出登录也在这里。',
     // 详细用法介绍（关于页「平台基本用法」底部按钮呼出的完整使用说明浮窗；文案单源）
     USAGE_GUIDE_BTN: '详细用法介绍',
     USAGE_GUIDE_TITLE: '详细用法介绍',

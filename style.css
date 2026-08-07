@@ -721,6 +721,16 @@ textarea.form-input {
 }
 .sidebar-footnote:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
 
+/* 个人信息栏「重温新手引导」小按钮（v0.25 需求三：多步引导入口；管理员不渲染） */
+.sidebar-revisit-btn {
+  width: 100%; margin-top: 9px; padding: 6px 10px;
+  background: var(--g-fill-weak); border: 1px solid var(--g-line-dark);
+  border-radius: var(--lg-r-sm); text-align: center; cursor: pointer;
+  font-size: .72rem; font-weight: 600; letter-spacing: .05em; color: var(--ink-2);
+  transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+.sidebar-revisit-btn:hover { background: var(--g-hover-wash); color: var(--ink); }
+
 .sidebar-close { display: none; margin: 8px 10px 6px; padding: 10px 14px; color: var(--muted); font-size: .8rem; font-weight: 600; text-align: left; }
 .sidebar-close:hover { color: var(--ink); }
 
@@ -1117,6 +1127,45 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
    与 profile-panel 的 transition（终态归 none）完全同构 */
 @keyframes modal-in { from { transform: translateY(18px); } to { transform: translateY(0); } }
 
+/* ============================================================
+   新手引导多步走（v0.25 需求三）：全屏灰化 + 亮区洞 + 文字气泡
+   层高纪律：z-index 400 覆盖 modal(200) / profile-panel(150) / 侧栏遮罩(140) / navbar(100)。
+   JS 只切类 + transform 定位亮区；压暗由 .tour-hole 的 box-shadow 承担（真孔透视，目标可点）。
+   毛玻璃纪律：气泡是 backdrop-filter 子树，入场用纯 transform animation（复刻 modal-in），
+   禁 transition（Chromium 983252 冻结首帧）。类名独立 .tour- 前缀防作用域后代选择器污染。
+   ============================================================ */
+.tour-overlay {
+  position: fixed; inset: 0; z-index: 400;
+  background: transparent; /* 压暗交给 .tour-hole 的 box-shadow，蒙层自身透明只做点击拦截 */
+}
+.tour-hole {
+  position: fixed; left: 0; top: 0; z-index: 2; /* 高于 .tour-bubble-pos(1)：极端重叠时点亮的仍是洞（H1 兜底） */
+  width: 0; height: 0; opacity: 0;
+  border-radius: var(--lg-r);
+  pointer-events: none; /* 隐藏态不挡点击 */
+}
+.tour-hole--show {
+  opacity: 1; pointer-events: auto; /* 亮区可点：引擎透传真实点击给目标本体 */
+  box-shadow: 0 0 0 200vmax rgba(17, 17, 20, .55); /* 200vmax 恒盖满视口（含对角），洞内透明透视目标 */
+}
+.tour-bubble-pos { position: fixed; left: 0; top: 0; z-index: 1; } /* 亮区洞之下：极端重叠时点亮的仍是洞（H1 兜底） */
+/* 气泡玻璃观感直接用 CSS 变量（同 .modal 预设配方），不套 .glass 基类——基类带
+   transform transition + hover 抬升，对 backdrop-filter 子树有 983252 冻结风险；
+   纯 transform animation 入场（复刻 modal-in），禁 transition */
+.tour-bubble {
+  position: relative;
+  width: min(300px, calc(100vw - 32px));
+  padding: 14px 16px;
+  border-radius: var(--lg-r);
+  background: var(--g-paper);
+  -webkit-backdrop-filter: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
+  backdrop-filter: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
+  box-shadow: var(--glass-lift), var(--g-liquid, none);
+  animation: modal-in .32s var(--ease-snap); /* 纯 transform，复刻 modal-in（983252 安全路径） */
+}
+.tour-bubble-text { font-size: .85rem; line-height: 1.7; color: var(--ink-2); margin-bottom: 10px; }
+.tour-skip-btn { margin-left: auto; display: block; }
+
 /* 星级输入 */
 .star-rating-input { flex: 1; display: flex; justify-content: flex-end; gap: 4px; font-size: 1.5rem; cursor: pointer; }
 .star-rating-input .star-btn { color: var(--star-empty); transition: color var(--t-fast); background: none; border: none; cursor: pointer; padding: 0; }
@@ -1188,7 +1237,7 @@ button.tag { cursor: pointer; border: none; font-family: inherit; }
   .sidebar-nav { gap: 10px; }
   .sidebar-item { grid-template-columns: 1fr; justify-items: center; padding: 11px 0; }
   .sidebar-item.active { padding: 13px 0; }
-  .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote { display: none; }
+  .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote, .sidebar-revisit-btn { display: none; } /* 网安 L8：64px 窄侧栏隐藏重温按钮（否则溢出） */
   .sidebar-item-index { font-size: 1rem; }
   .sidebar-user { padding: 10px 0; align-items: center; }
   .sidebar-user-avatar { width: 38px; height: 38px; font-size: 1.05rem; }

@@ -234,7 +234,7 @@ function enterAbout() {
       <div class="about-flow">${steps}</div>
       <div class="about-flow-revisit">
         <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openUsageGuide()">${UI.USAGE_GUIDE_BTN}</button>
-        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openOnboarding()">${UI.ONBOARD_REVISIT_BTN}</button>
+        ${state.user && state.user.role === 'admin' ? '' : `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="startOnboardingTour()">${UI.ONBOARD_REVISIT_BTN}</button>`} <!-- 网安 L6：admin 不引导，按钮与侧栏一致隐藏（防死按钮） -->
       </div>
     </div>
     <div class="list-card about-card-block glass">
