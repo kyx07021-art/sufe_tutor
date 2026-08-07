@@ -1,0 +1,217 @@
+/**
+ * 结构化时间组件前端回归（v0.25.0 需求一）
+ *
+ * 在真实 index.html DOM + 全脚本 vm 沙箱中验证组件行为（app-ui.js 提供）：
+ *   渲染（容器/行结构）→ 新建/删除/上移 → 收集 → 校验（半填/范围）→ 回填（含旧纯文本忽略）
+ *   → 条数上限 → 编辑限制（guardTimeKey/guardTimeBeforeInput/onTimeInput/clampTime/applyTimePick）。
+ *
+ * 跨 realm 归一化：组件返回值原型属沙箱域，deepEqual 判不等 → JSON 序列化还原（同 diff-lines.test.js）。
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+const FILES = [
+  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
+  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-onboard.js', 'app-region.js',
+  'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
+  'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
+];
+
+function makeCtx() {
+  const html = readFileSync('./index.html', 'utf8')
+    .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
+  const dom = new JSDOM(html, {
+    url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
+  });
+  const w = dom.window;
+  const ctx = vm.createContext({
+    window: w, document: w.document,
+    getComputedStyle: w.getComputedStyle.bind(w),
+    localStorage: w.localStorage, sessionStorage: w.sessionStorage,
+    console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
+    clearTimeout: globalThis.clearTimeout, setInterval: globalThis.setInterval,
+    clearInterval: globalThis.clearInterval, Request: globalThis.Request,
+    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
+    Image: class { set src(v) { this._s = v; } },
+    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
+    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+  });
+  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  const fns = vm.runInContext(`({
+    renderTimeSlotContainerHtml, renderTimeSlotRowHtml, addTimeSlot, removeTimeSlot,
+    collectTimeSlots, validateTimeSlots, prefillTimeSlots, guardTimeKey, guardTimeBeforeInput,
+    onTimeInput, clampTime, applyTimePick,
+  })`, ctx);
+  return { dom, fns };
+}
+
+function mount(doc) {
+  const container = doc.createElement('div');
+  container.className = 'time-slots';
+  doc.body.appendChild(container);
+  return container;
+}
+
+test('时间组件：空容器 + 新建/删除/上移', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  const container = mount(doc);
+  container.innerHTML = fns.renderTimeSlotContainerHtml();
+
+  assert.equal(container.querySelectorAll('.time-slot').length, 0, '初始无组件');
+  assert.ok(container.querySelector('.time-add-btn'), '有 + 按钮');
+  assert.equal(container.querySelector('.time-add-label').textContent, '新建时间段');
+
+  fns.addTimeSlot(container.querySelector('.time-add-btn'));
+  assert.equal(container.querySelectorAll('.time-slot').length, 1, '新建后 1 条');
+  // + 行在新组件正下方（流内：紧随其后）
+  const addRow = container.querySelector('.time-slots-add');
+  assert.equal(addRow.previousElementSibling.classList.contains('time-slot'), true, '+ 行紧邻新组件下方');
+
+  // 空组件三栏：星期下拉占位 + 起止灰字占位 + 删除按钮
+  const row = container.querySelector('.time-slot');
+  assert.equal(row.querySelector('.slot-dow').value, '');
+  assert.equal(row.querySelector('.time-field[data-time-role="start"] .time-field-ghost').textContent, '开始时间');
+  assert.equal(row.querySelector('.time-field[data-time-role="end"] .time-field-ghost').textContent, '结束时间');
+  assert.ok(row.querySelector('.time-slot-del'), '有删除按钮');
+
+  fns.addTimeSlot(container.querySelector('.time-add-btn'));
+  assert.equal(container.querySelectorAll('.time-slot').length, 2);
+  fns.removeTimeSlot(container.querySelector('.time-slot-del')); // 删第一条
+  const remain = container.querySelector('.time-slot');
+  assert.equal(container.querySelectorAll('.time-slot').length, 1, '删除后剩 1 条');
+  assert.equal(remain.querySelector('.slot-dow').value, '', '下方组件上移（原第二条仍是空）');
+});
+
+test('时间组件：收集与校验', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  const container = mount(doc);
+  container.innerHTML = fns.renderTimeSlotContainerHtml();
+  fns.addTimeSlot(container.querySelector('.time-add-btn'));
+  const row = container.querySelector('.time-slot');
+  const hhS = row.querySelector('.time-field[data-time-role="start"] .slot-time-hh');
+  const mmS = row.querySelector('.time-field[data-time-role="start"] .slot-time-mm');
+  const hhE = row.querySelector('.time-field[data-time-role="end"] .slot-time-hh');
+  const mmE = row.querySelector('.time-field[data-time-role="end"] .slot-time-mm');
+
+  // 空行：通过校验、收集为空
+  assert.equal(fns.validateTimeSlots(container), '');
+  assert.deepEqual(JSON.parse(JSON.stringify(fns.collectTimeSlots(container))), []);
+
+  // 半填（有星期无时间）：校验报不完整
+  row.querySelector('.slot-dow').value = '1';
+  assert.equal(fns.validateTimeSlots(container), '请补全时间段（星期与起止时间），或删除不完整的时间段');
+
+  // 填完整：通过并收集为结构化对象
+  hhS.value = '18'; mmS.value = '30'; hhE.value = '20'; mmE.value = '0';
+  assert.equal(fns.validateTimeSlots(container), '');
+  assert.deepEqual(JSON.parse(JSON.stringify(fns.collectTimeSlots(container))),
+    [{ type: 'week', dow: 1, start: '18:30', end: '20:00' }]);
+
+  // 结束早于开始：报范围错误
+  hhE.value = '17';
+  assert.equal(fns.validateTimeSlots(container), '时间段的结束时间需晚于开始时间');
+});
+
+test('时间组件：回填（结构化 JSON / 旧纯文本忽略）与上限', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  const container = mount(doc);
+  container.innerHTML = fns.renderTimeSlotContainerHtml();
+
+  // 旧纯文本（非 JSON）：不建行
+  fns.prefillTimeSlots(container, '工作日晚上');
+  assert.equal(container.querySelectorAll('.time-slot').length, 0, '旧纯文本忽略');
+
+  const raw = JSON.stringify([
+    { type: 'week', dow: 3, start: '18:00', end: '21:00' },
+    { type: 'week', dow: 7, start: '09:00', end: '11:00' },
+  ]);
+  fns.prefillTimeSlots(container, raw);
+  assert.equal(container.querySelectorAll('.time-slot').length, 2, '回填 2 行');
+  const r0 = container.querySelectorAll('.time-slot')[0];
+  assert.equal(r0.querySelector('.slot-dow').value, '3');
+  assert.equal(r0.querySelector('.time-field[data-time-role="start"] .slot-time-hh').value, '18');
+  assert.equal(r0.querySelector('.time-field[data-time-role="start"] .slot-time-mm').value, '00');
+  assert.equal(r0.querySelector('.time-field[data-time-role="end"] .slot-time-hh').value, '21');
+  assert.ok(r0.querySelector('.time-field[data-time-role="start"]').classList.contains('has-value'), '有值时间栏隐藏灰字');
+
+  // 条数上限：回填 8 条后 + 按钮置灰，再点不新增
+  const many = Array.from({ length: 8 }, (_, i) => ({ type: 'week', dow: (i % 7) + 1, start: '10:00', end: '11:00' }));
+  const container2 = mount(doc);
+  container2.innerHTML = fns.renderTimeSlotContainerHtml();
+  fns.prefillTimeSlots(container2, JSON.stringify(many));
+  assert.equal(container2.querySelectorAll('.time-slot').length, 8);
+  assert.equal(container2.querySelector('.time-add-btn').disabled, true, '达上限置灰');
+  fns.addTimeSlot(container2.querySelector('.time-add-btn'));
+  assert.equal(container2.querySelectorAll('.time-slot').length, 8, '超上限不再新增');
+});
+
+test('时间组件：编辑限制（禁删除/禁粘贴/禁非数字，允许数字/导航/复制）', () => {
+  const { dom, fns } = makeCtx();
+  const w = dom.window;
+  const inp = w.document.createElement('input');
+  inp.className = 'slot-time-hh';
+  w.document.body.appendChild(inp);
+
+  const keyEv = (init) => new w.KeyboardEvent('keydown', { cancelable: true, bubbles: true, ...init });
+  const prevented = (ev) => { fns.guardTimeKey(ev); return ev.defaultPrevented; };
+
+  assert.equal(prevented(keyEv({ key: 'Backspace' })), true, 'Backspace 拦截');
+  assert.equal(prevented(keyEv({ key: 'Delete' })), true, 'Delete 拦截');
+  assert.equal(prevented(keyEv({ key: 'v', ctrlKey: true })), true, 'Ctrl+V 拦截');
+  assert.equal(prevented(keyEv({ key: 'x', ctrlKey: true })), true, 'Ctrl+X 拦截');
+  assert.equal(prevented(keyEv({ key: 'a' })), true, '字母 a 拦截');
+  assert.equal(prevented(keyEv({ key: '5' })), false, '数字放行');
+  assert.equal(prevented(keyEv({ key: 'Tab' })), false, 'Tab 放行');
+  assert.equal(prevented(keyEv({ key: 'ArrowLeft' })), false, '方向键放行');
+  assert.equal(prevented(keyEv({ key: 'c', ctrlKey: true })), false, 'Ctrl+C 放行（复制）');
+  assert.equal(prevented(keyEv({ key: 'a', ctrlKey: true })), false, 'Ctrl+A 放行（全选本侧）');
+
+  // beforeinput 兜底（IME/移动端）：删除/黏贴/拖入拦截，纯数字插入放行
+  const mkBefore = (inputType, data) => ({ inputType, data, _p: false, preventDefault() { this._p = true; } });
+  const before = (it, data) => { const m = mkBefore(it, data); fns.guardTimeBeforeInput(m); return m._p; };
+  assert.equal(before('deleteContentBackward', null), true, '删除拦截');
+  assert.equal(before('deleteByCut', null), true, '剪切拦截');
+  assert.equal(before('insertFromPaste', 'abc'), true, '黏贴拦截');
+  assert.equal(before('insertFromDrop', '18'), true, '拖入拦截');
+  assert.equal(before('insertText', 'a'), true, '非数字插入拦截');
+  assert.equal(before('insertText', '5'), false, '数字插入放行');
+  assert.equal(before('insertText', '123'), false, '多数字符串由 oninput 裁剪');
+});
+
+test('时间组件：输入清洗与钳制（onTimeInput/clampTime/applyTimePick）', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  const container = mount(doc);
+  container.innerHTML = fns.renderTimeSlotContainerHtml();
+  fns.addTimeSlot(container.querySelector('.time-add-btn'));
+  const row = container.querySelector('.time-slot');
+  const hh = row.querySelector('.time-field[data-time-role="start"] .slot-time-hh');
+  const mm = row.querySelector('.time-field[data-time-role="start"] .slot-time-mm');
+
+  hh.value = '1a2b'; fns.onTimeInput(hh);
+  assert.equal(hh.value, '12', 'input 清洗只留数字');
+  hh.value = '123'; fns.onTimeInput(hh);
+  assert.equal(hh.value, '12', 'input 至多两位');
+  mm.value = '0'; fns.onTimeInput(mm);
+  assert.equal(mm.value, '0');
+
+  hh.value = '9'; fns.clampTime(hh);
+  assert.equal(hh.value, '09', 'blur 补零');
+  hh.value = '25'; fns.clampTime(hh);
+  assert.equal(hh.value, '23', '时钳制 23');
+  mm.value = '75'; fns.clampTime(mm);
+  assert.equal(mm.value, '59', '分钳制 59');
+
+  // 整点下拉选中：写回 HH + :00
+  const sel = row.querySelector('.time-pick-select');
+  sel.value = '18:00';
+  fns.applyTimePick(sel);
+  assert.equal(hh.value, '18');
+  assert.equal(mm.value, '00');
+});

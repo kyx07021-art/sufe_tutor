@@ -70,7 +70,7 @@ function loaderHtml(size) {
 // 开合状态与 fixed 定位在 app-anim.js；本文件只管 DOM 构建与文字同步
 // ============================================================
 function initCustomSelects(root) {
-  (root || document).querySelectorAll('select.form-select, select.filter-select').forEach(sel => {
+  (root || document).querySelectorAll('select.form-select, select.filter-select, select.time-pick-select').forEach(sel => {
     if (sel.dataset.customized) { buildCustomSelectPanel(sel); return; } // 已包装：仅重建选项
     sel.dataset.customized = '1';
     const wrap = document.createElement('div');
@@ -85,6 +85,7 @@ function initCustomSelects(root) {
     trigger.innerHTML = `<span class="custom-select-text"></span><span class="drop-caret">${CARET_SVG}</span>`;
     const panel = document.createElement('div');
     panel.className = 'custom-select-panel glass glass--float'; // 挂 body：脱离玻璃祖先 isolation 堆叠上下文
+    if (sel.classList.contains('time-pick-select')) panel.classList.add('time-pick-panel'); // 整点面板：定宽类（面板挂 body，后代选择器够不着）
     panel._wrap = wrap; // 选项点击经面板回找容器（面板已不在 wrap 内）
     wrap._customPanel = panel;
     document.body.appendChild(panel);
@@ -120,10 +121,206 @@ function syncCustomSelectText(sel) {
 // 兜底自愈：任何动态插入的 select 自动包装为自定义下拉（防移动端弹出原生选择器），
 // 只处理尚未包装的，避免重复构建干扰已打开的面板
 const selectSweepObserver = new MutationObserver(() => {
-  document.querySelectorAll('select.form-select:not([data-customized]), select.filter-select:not([data-customized])')
+  document.querySelectorAll('select.form-select:not([data-customized]), select.filter-select:not([data-customized]), select.time-pick-select:not([data-customized])')
     .forEach(sel => initCustomSelects(sel.closest('.modal') || sel.parentElement));
 });
 selectSweepObserver.observe(document.documentElement, { childList: true, subtree: true });
+
+// ============================================================
+// 结构化时间组件（v0.25.0 需求一）：期望开课 / 可授课时间段
+// 纵向多条组件（无分隔线、组件间空几 px 缝隙），行内 = 星期下拉 + 起止时间栏 + 删除按钮；
+// 容器底部「+ 新建时间段」行在流内自然落位（新增组件插到它前面，它即闪现到新组件正下方）。
+// 时间栏 = 文本框 + 内部靠右小 v（整点下拉 00:00~23:00）+ 严格编辑限制：
+//   冒号两侧是两个独立数字框（天然只能拉选一边，无法整段拉选）；禁黏贴/禁 delete/backspace/
+//   禁非数字、最多两位、左≤23 右≤59（输入拦截 + blur 钳制双保险）。
+// 存储格式（不拟合当前周制，未来扩展 type）：[{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}]
+// 接口（全局函数，内联事件可直接引用）：renderTimeSlotContainerHtml / addTimeSlot /
+//   removeTimeSlot / collectTimeSlots / validateTimeSlots / prefillTimeSlots
+// ============================================================
+
+/** 一条时间组件行 HTML（slot 缺省 = 空组件；各子件均无 id，按容器内 class 寻址，多容器共存不冲突） */
+function renderTimeSlotRowHtml(slot) {
+  slot = slot || {};
+  const dow = slot.dow || '';
+  const dowOpts = WEEKDAYS.map(w => `<option value="${w.id}"${w.id === dow ? ' selected' : ''}>${w.name}</option>`).join('');
+  const sh = typeof slot.start === 'string' && slot.start.includes(':') ? slot.start.split(':')[0] : '';
+  const sm = typeof slot.start === 'string' && slot.start.includes(':') ? slot.start.split(':')[1] : '';
+  const eh = typeof slot.end === 'string' && slot.end.includes(':') ? slot.end.split(':')[0] : '';
+  const em = typeof slot.end === 'string' && slot.end.includes(':') ? slot.end.split(':')[1] : '';
+  return `<select class="form-select slot-dow"><option value="">${UI.SLOT_DOW_PLACEHOLDER}</option>${dowOpts}</select>
+    <div class="time-range">
+      ${timeFieldHtml('start', sh, sm)}
+      <span class="time-slot-tilde">~</span>
+      ${timeFieldHtml('end', eh, em)}
+    </div>
+    <button type="button" class="time-slot-del" aria-label="${UI.TIME_DEL_ARIA}" title="${UI.TIME_DEL_ARIA}" onclick="removeTimeSlot(this)">✕</button>`;
+}
+
+/** 单个时间栏（role: start|end）：文本框 + 内部靠右小 v；灰字占位由 .time-field-ghost 承载 */
+function timeFieldHtml(role, hh, mm) {
+  const ghost = role === 'start' ? UI.SLOT_TIME_START_GHOST : UI.SLOT_TIME_END_GHOST;
+  const filled = (hh || mm) ? ' has-value' : '';
+  const hourOptions = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`)
+    .map(t => `<option value="${t}"${t === (hh ? `${hh}:00` : '') ? ' selected' : ''}>${t}</option>`).join('');
+  const guarded = 'onkeydown="guardTimeKey(event)" onbeforeinput="guardTimeBeforeInput(event)" oninput="onTimeInput(this)" onblur="clampTime(this)" onpaste="return false" ondrop="return false"';
+  return `<div class="time-field${filled}" data-time-role="${role}">
+    <span class="time-field-ghost">${ghost}</span>
+    <input type="text" class="slot-time-hh" inputmode="numeric" maxlength="2" value="${escHtml(hh)}" aria-label="时" autocomplete="off" spellcheck="false" ${guarded}>
+    <span class="time-colon">:</span>
+    <input type="text" class="slot-time-mm" inputmode="numeric" maxlength="2" value="${escHtml(mm)}" aria-label="分" autocomplete="off" spellcheck="false" ${guarded}>
+    <div class="custom-select time-picker">
+      <select class="time-pick-select" onchange="applyTimePick(this)" aria-label="${UI.TIME_PICKER_ARIA}">${hourOptions}</select>
+    </div>
+  </div>`;
+}
+
+/** 时间组件容器 HTML（默认空：仅「+ 新建时间段」行，落位于首条组件将处的位置） */
+function renderTimeSlotContainerHtml() {
+  return `<div class="time-slots-add">
+    <button type="button" class="time-add-btn" aria-label="${UI.SLOT_ADD_LABEL}" onclick="addTimeSlot(this)">+</button>
+    <span class="time-add-label">${UI.SLOT_ADD_LABEL}</span>
+  </div>`;
+}
+
+/** 新建时间段：往容器插入一条空组件，+ 行自然下移到它正下方 */
+function addTimeSlot(btn) {
+  const container = btn.closest('.time-slots');
+  if (!container) return;
+  const count = container.querySelectorAll('.time-slot').length;
+  if (count >= CONFIG.TIME_SLOTS_MAX) return; // 达上限：不再新建（按钮已置灰）
+  const row = document.createElement('div');
+  row.className = 'time-slot';
+  row.innerHTML = renderTimeSlotRowHtml(null);
+  container.insertBefore(row, container.querySelector('.time-slots-add'));
+  if (count + 1 >= CONFIG.TIME_SLOTS_MAX) setAddDisabled(container, true);
+}
+
+/** 删除该时间段：行移除，下方组件（含 + 行）自然上移一格 */
+function removeTimeSlot(btn) {
+  const row = btn.closest('.time-slot');
+  if (!row) return;
+  const container = row.closest('.time-slots');
+  row.remove();
+  if (container) setAddDisabled(container, false);
+}
+
+function setAddDisabled(container, disabled) {
+  const b = container.querySelector('.time-add-btn');
+  if (b) b.disabled = disabled;
+}
+
+/** 整点下拉选中：写回对应时间栏（整点 → 分位补 00） */
+function applyTimePick(sel) {
+  const field = sel.closest('.time-field');
+  if (!field || !sel.value) return;
+  const parts = sel.value.split(':');
+  const hhInp = field.querySelector('.slot-time-hh');
+  const mmInp = field.querySelector('.slot-time-mm');
+  if (hhInp) hhInp.value = parts[0] || '';
+  if (mmInp) mmInp.value = parts[1] || '00';
+  refreshTimeField(field);
+}
+
+// --- 时间栏编辑限制（只许老老实实编辑时间） ---
+
+/** 键盘拦截：禁 delete/backspace/非数字/粘贴剪切组合键；允许数字、导航键、Ctrl+A/C（复制/全选本侧） */
+function guardTimeKey(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey) {
+    const k = (e.key || '').toLowerCase();
+    if (k === 'a' || k === 'c') return; // 复制/全选（只作用于冒号单侧，无碍整体约束）
+    e.preventDefault(); return;        // 其余组合键（含 Ctrl+V/X、Ctrl+Backspace 等）一律拦截
+  }
+  if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); return; } // 禁任何删除
+  if (['Tab', 'Enter', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
+  if (e.key.length === 1 && !/[0-9]/.test(e.key)) e.preventDefault(); // 单字符非数字拦截
+}
+
+/** beforeinput 兜底（IME/移动端虚拟键盘不走 keydown）：拦截删除/黏贴/拖入与非数字插入 */
+function guardTimeBeforeInput(e) {
+  const t = e.inputType || '';
+  if (t.indexOf('delete') === 0 || t === 'deleteByCut' || t === 'deleteByDrag') { e.preventDefault(); return; }
+  if (t === 'insertFromPaste' || t === 'insertFromDrop') { e.preventDefault(); return; }
+  if (t === 'insertText' && e.data != null && !/^[0-9]+$/.test(e.data)) e.preventDefault(); // 多数字符串由 oninput 裁剪
+}
+
+/** input 兜底：只留数字、至多两位（IME/移动端最终防线） */
+function onTimeInput(inp) {
+  const v = inp.value.replace(/[^0-9]/g, '').slice(0, 2);
+  if (inp.value !== v) inp.value = v;
+  refreshTimeField(inp.closest('.time-field'));
+}
+
+/** blur 钳制：补零到两位 + 范围钳制（时≤23、分≤59） */
+function clampTime(inp) {
+  const isHh = inp.classList.contains('slot-time-hh');
+  let v = inp.value.replace(/[^0-9]/g, '');
+  if (v !== '') {
+    let n = Math.min(isHh ? 23 : 59, Math.max(0, +v));
+    inp.value = String(n).padStart(2, '0');
+  }
+  refreshTimeField(inp.closest('.time-field'));
+}
+
+function refreshTimeField(field) {
+  if (!field) return;
+  const hh = (field.querySelector('.slot-time-hh') || {}).value || '';
+  const mm = (field.querySelector('.slot-time-mm') || {}).value || '';
+  field.classList.toggle('has-value', !!(hh || mm));
+}
+
+/** 读时间栏：全空 → ''；半填 → null；完整 → 'HH:MM'（补零） */
+function readTimeField(field) {
+  if (!field) return '';
+  const hh = (field.querySelector('.slot-time-hh') || {}).value || '';
+  const mm = (field.querySelector('.slot-time-mm') || {}).value || '';
+  if (!hh && !mm) return '';
+  if (!hh || !mm) return null;
+  return `${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
+}
+
+/** 校验容器：返回错误文案，'' = 通过（全空行跳过；半填/缺起止/结束早于开始均报错） */
+function validateTimeSlots(container) {
+  if (!container) return '';
+  for (const row of container.querySelectorAll('.time-slot')) {
+    const dow = row.querySelector('.slot-dow').value;
+    const start = readTimeField(row.querySelector('.time-field[data-time-role="start"]'));
+    const end = readTimeField(row.querySelector('.time-field[data-time-role="end"]'));
+    if (!dow && !start && !end) continue; // 全空行：忽略（纯新增的空脚手架）
+    if (!dow || !start || !end) return UI.VALIDATE_TIME_SLOT_INCOMPLETE;
+    if (start >= end) return UI.VALIDATE_TIME_SLOT_RANGE;
+  }
+  return '';
+}
+
+/** 收集容器 → [{type:'week',dow,start,end}]（空行/不完整行剔除；调用方应先过 validateTimeSlots） */
+function collectTimeSlots(container) {
+  const out = [];
+  if (!container) return out;
+  container.querySelectorAll('.time-slot').forEach(row => {
+    const dow = row.querySelector('.slot-dow').value;
+    const start = readTimeField(row.querySelector('.time-field[data-time-role="start"]'));
+    const end = readTimeField(row.querySelector('.time-field[data-time-role="end"]'));
+    if (!dow || !start || !end) return;
+    out.push({ type: 'week', dow: +dow, start, end });
+  });
+  return out;
+}
+
+/** 回填容器：按存储 JSON（旧纯文本原样忽略）重建组件行 */
+function prefillTimeSlots(container, raw) {
+  if (!container) return;
+  let slots = [];
+  if (raw) {
+    try { const p = JSON.parse(raw); if (Array.isArray(p)) slots = p.filter(s => s && typeof s === 'object' && s.type === 'week'); } catch { slots = []; }
+  }
+  slots.forEach(s => {
+    const row = document.createElement('div');
+    row.className = 'time-slot';
+    row.innerHTML = renderTimeSlotRowHtml({ dow: s.dow, start: s.start, end: s.end });
+    container.insertBefore(row, container.querySelector('.time-slots-add'));
+  });
+  setAddDisabled(container, slots.length >= CONFIG.TIME_SLOTS_MAX);
+}
 
 // ============================================================
 // 弹窗壳单源：overlay + modal + header + body（+ 可选 footer）。

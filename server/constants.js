@@ -72,6 +72,7 @@ export const MSG = {
   DEMAND_DELETED: '需求已删除',
   DEMAND_REOPENED: '需求已重新开放',
   DEMAND_STATE_INVALID: '当前需求状态不允许此操作',
+  INVALID_TIME_SLOTS: '期望开课时间格式不正确', // v0.25.0 结构化时间段：JSON 结构/范围校验失败
   PROVINCE_REQUIRED: '请选择省份',
   ADDRESS_TOO_DETAILED: '地址请用「区/路」级别的模糊表述，请勿填写详细门牌号（如 xx号楼 / xx室 / xx号门）',
   TEACHER_ONLY: '仅教师可操作',
@@ -167,7 +168,8 @@ export const LIMITS = {
   TITLE_MAX: 60,           // 帖子/反馈标题
   SCHOOL_MAX: 30, INTRO_MAX: 50, REAL_NAME_MAX: 20,
   ADDRESS_FIELD_MAX: 100,  // 授课区域
-  DEMAND_TIME_MAX: 50,     // 期望开课时间
+  DEMAND_TIME_MAX: 2000,   // 期望开课时间（v0.25.0 起存结构化时间段 JSON，多条组件需更长容量）
+  TIME_SLOTS_MAX: 8,       // 结构化时间段条数上限（与前端 CONFIG.TIME_SLOTS_MAX 对齐）
   BUDGET_MAX: 99999,       // 预算/报价钳制上限
   AVATAR_MAX_BYTES: 20000, // 头像 dataURL
   CREDENTIAL_MAX_BYTES: 500000, // 学信网截图 dataURL

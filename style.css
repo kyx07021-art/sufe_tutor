@@ -465,6 +465,85 @@ textarea.form-input {
 .custom-option:hover { background: var(--g-option-hover); color: var(--ink); }
 .custom-option.selected { background: var(--g-option-sel); color: var(--ink); font-weight: 600; }
 
+/* ============================================================
+   结构化时间组件（v0.25.0 需求一）：期望开课 / 可授课时间段
+   纵向多条组件、无分隔线、组件间空几 px 缝隙；行内 = 星期下拉 + 起止时间栏 + 删除按钮。
+   时间栏 = 文本框外观 + 内部靠右小 v（整点下拉），冒号两侧独立数字框。
+   ============================================================ */
+.time-slots { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.time-slot { display: flex; align-items: center; gap: 8px; }
+.time-slot .custom-select { flex: 0 0 96px; } /* 星期下拉栏定宽 */
+.time-range { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; } /* 起止时间对（桌面与删除按钮共享一行） */
+.time-field {
+  position: relative; flex: 1; min-width: 0;
+  display: flex; align-items: center; justify-content: center; gap: 1px;
+  padding: 6px 2px 6px 12px;
+  background-color: var(--g-fill-weak);
+  border-radius: var(--lg-r-sm);
+  box-shadow: var(--glass-lift-sm), inset 0 1px 3px var(--g-inset-shadow), inset 0 0 0 1px var(--g-inset-edge-soft), inset 0 1px 0 var(--g-inset-edge);
+}
+.time-field:focus-within { box-shadow: var(--glass-lift-sm), 0 0 0 3px var(--g-focus-soft), inset 0 1px 0 var(--g-input-focus-edge); }
+.time-field input {
+  width: 26px; border: none; outline: none; background: transparent;
+  text-align: center; font-size: .92rem; color: var(--text); caret-color: var(--accent); padding: 0;
+}
+.time-field input::selection { background: var(--accent); color: #fff; }
+.time-colon { color: var(--muted); font-size: .92rem; flex: 0 0 auto; }
+.time-field-ghost {
+  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  text-align: center;
+  font-size: .78rem; color: var(--faint); pointer-events: none; white-space: nowrap;
+  transition: opacity var(--t-fast) var(--ease-out);
+}
+.time-field.has-value .time-field-ghost { opacity: 0; }
+/* 内部整点下拉：只显小 v（隐藏文字段），触发器去玻璃底（小 v 无独立组件框） */
+.time-field .time-picker .custom-select-trigger {
+  width: auto; gap: 0; padding: 3px 3px; margin-left: 2px;
+  background-color: transparent; box-shadow: none; border-radius: 0;
+  color: var(--faint); font-size: inherit;
+}
+.time-field .time-picker .custom-select-trigger:hover { color: var(--ink); }
+.time-field .time-picker .custom-select-text { display: none; }
+/* 整点面板挂 body（脱离 .time-field），面板类由 initCustomSelects 按 select.time-pick-select 加 */
+.time-pick-panel { min-width: 104px; }
+.time-pick-panel .custom-select-list { max-height: 320px; }
+.time-slot-tilde { color: var(--faint); font-size: .9rem; flex: 0 0 auto; }
+.time-slot-del {
+  flex: 0 0 auto; width: 24px; height: 24px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .95rem; color: var(--muted); background: transparent; border-radius: 50%;
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+.time-slot-del:hover { background: var(--g-option-hover); color: var(--danger); }
+/* 「+ 新建时间段」行：默认在首条组件位置；新增组件插到它前，它即自然落位新组件正下方 */
+.time-slots-add { display: flex; align-items: center; gap: 8px; }
+.time-add-btn {
+  flex: 0 0 auto; width: 26px; height: 26px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.15rem; line-height: 1; color: var(--accent);
+  background-color: var(--g-fill-weak); border-radius: var(--lg-r-sm);
+  box-shadow: var(--glass-lift-sm), inset 0 1px 3px var(--g-inset-shadow), inset 0 0 0 1px var(--g-inset-edge-soft), inset 0 1px 0 var(--g-inset-edge);
+  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+.time-add-btn:hover { background: var(--g-option-hover); }
+.time-add-btn:disabled { opacity: .45; cursor: default; }
+.time-add-label { font-size: .78rem; color: var(--faint); letter-spacing: .02em; }
+
+/* 窄屏（≤860px）结构化时间组件：纵向排布——星期 + 删除按钮一行，起止时间段独占一行。
+   窄屏 form-group 控件区仅剩 ~170px，一行五件必挤爆；双行排布让时间段全宽展开。
+   order 只在移动端生效（桌面保持 DOM 序 [星期][时间段][删除]） */
+@media (max-width: 860px) {
+  .time-slot { flex-wrap: wrap; row-gap: 6px; }
+  .time-slot .custom-select { order: 1; flex: 1 1 0; }
+  .time-slot-del { order: 2; margin-left: auto; }
+  .time-range { order: 3; flex: 1 1 100%; }
+  /* 时间栏内容最小宽（两个数字框 + 冒号 + 小 v）在 ~170px 控件区内会溢出 82px 字段——
+     紧凑化：数字框收窄、小 v 贴得更近（桌面宽度充裕不受影响） */
+  .time-field { padding: 6px 1px 6px 8px; }
+  .time-field input { width: 21px; font-size: .86rem; }
+  .time-field .time-picker .custom-select-trigger { padding: 3px 2px; margin-left: 0; }
+}
+
 
 .checkbox-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .checkbox-item {

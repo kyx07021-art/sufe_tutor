@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.24.3',
+  APP_VERSION: '0.25.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -38,6 +38,7 @@ globalThis.APP_CONSTANTS = {
     CREDENTIAL_SIDE: 1000, CREDENTIAL_QUALITY: 0.8,
     REVIEW_COMMENT_MIN: 2,                // 评价最少字数
     DISPLAY_ID_PAD: 4,                    // 需求编号补零位数
+    TIME_SLOTS_MAX: 8,                    // 结构化时间组件条数上限（与 server LIMITS.TIME_SLOTS_MAX 对齐）
     SIDEBAR_INDEX_PAD: 2,                 // 侧边栏序号补零位数
     POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
     MATCH_WEIGHT: { subject: 60, region: 20, budget: 20 },     // 教师匹配度权重（合计 100）
@@ -91,6 +92,11 @@ globalThis.APP_CONSTANTS = {
 
   GENDERS: [{id:'male',name:'男'},{id:'female',name:'女'},{id:'nonbinary',name:'非二元'}],
   TEACHING_METHODS: [{id:'online',name:'线上'},{id:'offline',name:'线下'},{id:'both',name:'线上线下均可'}],
+  // 结构化时间组件（v0.25.0）：期望开课/可授课时间段的下拉枚举（1=周一 … 7=周日）
+  WEEKDAYS: [
+    {id:1,name:'周一'},{id:2,name:'周二'},{id:3,name:'周三'},{id:4,name:'周四'},
+    {id:5,name:'周五'},{id:6,name:'周六'},{id:7,name:'周日'},
+  ],
 
   // ============================================================
   // LIQUID GLASS 统一观感配置（改玻璃观感只动这里）
@@ -949,8 +955,15 @@ globalThis.APP_CONSTANTS = {
     LABEL_BUDGET: '预算区间（元/小时）',
     PLACEHOLDER_MIN: '最低',
     PLACEHOLDER_MAX: '最高',
-    LABEL_EXPECTED_TIME: '期望开课时间',   // 运营 P3.1：纯文本，撮合参考
-    EXPECTED_TIME_PLACEHOLDER: '如：工作日晚上 / 周末全天 / 周三下午',
+    LABEL_EXPECTED_TIME: '期望开课时间',   // v0.25.0 结构化：文本输入 → 多条时间组件（周次+时段 JSON 落库）
+    SLOT_ADD_LABEL: '新建时间段',
+    SLOT_DOW_PLACEHOLDER: '选择星期',
+    SLOT_TIME_START_GHOST: '开始时间',
+    SLOT_TIME_END_GHOST: '结束时间',
+    TIME_PICKER_ARIA: '选择整点时间',
+    TIME_DEL_ARIA: '删除该时间段',
+    VALIDATE_TIME_SLOT_INCOMPLETE: '请补全时间段（星期与起止时间），或删除不完整的时间段',
+    VALIDATE_TIME_SLOT_RANGE: '时间段的结束时间需晚于开始时间',
     LABEL_SUBMITTER: '提交者身份',
     LABEL_PARENT_CONTACT: '家长联系方式',
     LABEL_STUDENT_CONTACT: '学生联系方式',

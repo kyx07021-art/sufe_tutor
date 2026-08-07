@@ -91,7 +91,7 @@ function renderDemandModal(demand) {
           </div>
           <div class="form-group">
             <label class="form-label">${UI.LABEL_EXPECTED_TIME}</label>
-            <input type="text" class="form-input" id="d-expected-time" placeholder="${UI.EXPECTED_TIME_PLACEHOLDER}">
+            <div id="d-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div>
           </div>
           <div class="form-divider"></div>
           <div class="form-group">
@@ -148,7 +148,7 @@ function prefillDemandForm(d) {
   document.getElementById('d-method').value = d.teaching_method || 'offline';
   toggleAddressField();
   document.getElementById('d-address').value        = d.address || '';
-  document.getElementById('d-expected-time').value  = d.expected_time || '';
+  prefillTimeSlots(document.getElementById('d-time-slots'), d.expected_time || '');
   document.getElementById('d-budget-min').value = d.budget_min || '';
   document.getElementById('d-budget-max').value = d.budget_max || '';
   document.getElementById('d-submitter').value      = d.submitter_type || 'parent';
@@ -254,6 +254,11 @@ async function handleSubmitDemand(e) {
 
   const scores = collectStudentScores();
 
+  // v0.25.0 结构化期望时间：校验（半填/缺起止/结束早于开始）通过后收集为 [{type:'week',...}] JSON
+  const timeErr = validateTimeSlots(document.getElementById('d-time-slots'));
+  if (timeErr) { alertEl.innerHTML = `<div class="alert alert-error glass">${timeErr}</div>`; return; }
+  const timeSlots = collectTimeSlots(document.getElementById('d-time-slots'));
+
   const isEdit = !!state.editingDemandId;
   const payload = { demand: {
     province,
@@ -262,7 +267,7 @@ async function handleSubmitDemand(e) {
     target_subjects: subjects, current_scores: scores,
     teaching_method: document.getElementById('d-method').value,
     address: document.getElementById('d-address').value.trim(),
-    expected_time: document.getElementById('d-expected-time').value.trim(),
+    expected_time: timeSlots.length ? JSON.stringify(timeSlots) : '',
     budget_min: +document.getElementById('d-budget-min').value,
     budget_max: +document.getElementById('d-budget-max').value,
     submitter_type: document.getElementById('d-submitter').value,
@@ -460,7 +465,7 @@ function renderDemandCard(d, opts = {}) {
   // 三行点号纯文字（同教师卡语言，行间细线分隔）：
   // ① 基本信息：地区·年级·性别·提交者 ② 教学需求：线上/下·报价 ③ 需求科目和成绩：科目: 分数/分制（等第制直接显等第）
   const infoBase = [provinceName, grade, gender, `${UI.SUBMITTER_PREFIX}${submitter}`].filter(Boolean).map(escHtml).join(' · ');
-  const timeStr = d.expected_time ? `${UI.LABEL_EXPECTED_TIME}：${d.expected_time}` : '';
+  const timeStr = d.expected_time ? `${UI.LABEL_EXPECTED_TIME}：${DISP.expectedTimeText(d.expected_time)}` : '';
   const infoDemandRow = [method, budget, timeStr].filter(Boolean).map(escHtml).join(' · ');
   const scoreItems = (d.current_scores||[]).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
   const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');

@@ -79,6 +79,25 @@
       return gs.score != null ? String(gs.score) : (gs.grade || '');
     },
 
+    // 期望开课时间显示（v0.25.0 结构化时间组件）：库内存 JSON 数组
+    // [{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}]，解析为「周一 18:00-20:00」逗号列表；
+    // 旧数据（纯文本）原样透传。未来扩展 type（如月日 + 时间）时在此按类型分支展开。
+    expectedTimeText(raw) {
+      if (!raw) return '';
+      let arr = null;
+      try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch { arr = null; }
+      if (!arr) return String(raw); // 非 JSON = 历史纯文本，原样展示
+      const days = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.WEEKDAYS) || [];
+      const texts = arr
+        .filter(s => s && typeof s === 'object' && s.type === 'week')
+        .map(s => {
+          const day = (days.find(d => d.id === s.dow) || {}).name || '';
+          const range = (typeof s.start === 'string' && typeof s.end === 'string') ? `${s.start}-${s.end}` : '';
+          return [day, range].filter(Boolean).join(' ');
+        }).filter(Boolean);
+      return texts.join('、');
+    },
+
     // 审核状态三色 tag；其他状态返 ''
     reviewStatusTagHtml(status) {
       const u = UI();

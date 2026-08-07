@@ -42,13 +42,34 @@ function sanitizeDemand(d) {
   d.budget_max = clampBudget(d.budget_max);
   if (d.budget_max < d.budget_min) d.budget_max = d.budget_min;
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
-  d.expected_time = (typeof d.expected_time === 'string' ? d.expected_time : '').slice(0, LIMITS.DEMAND_TIME_MAX);
   d.address = (typeof d.address === 'string' ? d.address : '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
   if (Array.isArray(d.target_subjects)) {
     d.target_subjects = d.target_subjects.filter(sid => typeof sid === 'string' && validSubjectIds.has(sid));
   }
   if (ADDRESS_GUARD.test(d.address)) return null; // 合规红线：详细门牌号不收集（调用方回 ADDRESS_TOO_DETAILED）
   return d;
+}
+
+// v0.25.0 结构化期望开课时间：库内 JSON [{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}]。
+// 设计不拟合当前周制输入：type 判别符为未来扩展（月日 + 时间等）留位，未知 type 一律拒绝。
+// 返回 { value } 或 { error: MSG }；空串合法（时间非必填）。导出供 test/time-slots.test.js 单测。
+const TIME_SLOT_RE = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+export function sanitizeTimeSlots(raw) {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  if (!s) return { value: '' };
+  let arr;
+  try { arr = JSON.parse(s); } catch { return { error: MSG.INVALID_TIME_SLOTS }; }
+  if (!Array.isArray(arr)) return { error: MSG.INVALID_TIME_SLOTS };
+  if (arr.length > LIMITS.TIME_SLOTS_MAX) return { error: MSG.INVALID_TIME_SLOTS };
+  for (const it of arr) {
+    if (!it || typeof it !== 'object') return { error: MSG.INVALID_TIME_SLOTS };
+    if (it.type !== 'week') return { error: MSG.INVALID_TIME_SLOTS };
+    if (!Number.isInteger(it.dow) || it.dow < 1 || it.dow > 7) return { error: MSG.INVALID_TIME_SLOTS };
+    if (typeof it.start !== 'string' || !TIME_SLOT_RE.test(it.start)) return { error: MSG.INVALID_TIME_SLOTS };
+    if (typeof it.end !== 'string' || !TIME_SLOT_RE.test(it.end)) return { error: MSG.INVALID_TIME_SLOTS };
+    if (it.start >= it.end) return { error: MSG.INVALID_TIME_SLOTS }; // 同日段结束须晚于开始
+  }
+  return { value: JSON.stringify(arr).slice(0, LIMITS.DEMAND_TIME_MAX) };
 }
 
 export async function handleCreateDemand(db, body, req) {
@@ -61,6 +82,9 @@ export async function handleCreateDemand(db, body, req) {
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
   if (d.province !== 'shanghai') d.teaching_method = 'online'; // 业务规则：非上海仅线上
+  const ts = sanitizeTimeSlots(d.expected_time);
+  if (ts.error) return error(ts.error);
+  d.expected_time = ts.value;
   if (!sanitizeDemand(d)) return error(MSG.ADDRESS_TOO_DETAILED);
   if (!d.target_subjects || !d.target_subjects.length) return error(MSG.INVALID_PARAMS); // 白名单过滤后为空：无有效科目
 
@@ -110,6 +134,9 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
   if (d.province !== 'shanghai') d.teaching_method = 'online';
+  const ts = sanitizeTimeSlots(d.expected_time);
+  if (ts.error) return error(ts.error);
+  d.expected_time = ts.value;
   if (!sanitizeDemand(d)) return error(MSG.ADDRESS_TOO_DETAILED);
   if (!d.target_subjects || !d.target_subjects.length) return error(MSG.INVALID_PARAMS); // 白名单过滤后为空
 
