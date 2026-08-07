@@ -6,7 +6,7 @@
  *   1. region-data.js —— 提供 globalThis.SUFE_REGIONS（地区数据单源）
  *   2. app-ui.js       —— 提供 escHtml（插值转义）；本文件的 collect 结果与
  *                        app-pages.js 现存 gaokao_scores / current_scores 形状兼容
- *   UI 文案：constants.js 的 UI 常量经 app.js 顶层 const 解构为全域词法绑定，
+ *   UI 文案：constants.js 的 UI 常量经 app-state.js 顶层 const 解构为全域词法绑定，
  *            本文件与 app-posts / app-chat 同样裸引 UI.*（勿重复 const，会撞声明）
  *   3. app-region.js  —— 本文件
  *   样式：style-region.css 需在 style.css 之后引入（paddle 类依赖层叠覆盖顺序）
@@ -17,23 +17,23 @@
  * 教师端（档案页）：
  *   #profile-province        省份下拉容器：innerHTML = renderProvinceSelect(
  *                            'profile-province', 已选省id, 'onchange="onTeacherProvinceChange()"')
- *   #profile-gaokao-scores   高考政策编辑器挂载点（app.js 已有该容器）：
+ *   #profile-gaokao-scores   高考政策编辑器挂载点（index.html 已有该容器）：
  *                            innerHTML = renderTeacherGaokaoEditor(provinceId, existing)
  *                            existing 即档案里的 gaokao_scores 数组，组件内部自行回填
  *   收集：collectTeacherGaokao() → [{subject, score} | {subject, grade}]
- *         （对 app.js 旧版编辑器 HTML 同样可收集，data 属性保持同名）
+ *         （对旧版编辑器 HTML 同样可收集，data 属性保持同名）
  *   联动：首选科目 pill / 再选科目勾选 / 文理切换均由组件内联 onclick 自处理，
  *         主会话无需额外接线；省份变化走 onTeacherProvinceChange()
  *
  * 学生端（需求弹窗）：
  *   #d-province              省份下拉容器：innerHTML = renderProvinceSelect(
  *                            'd-province', 已选省id, 'onchange="主会话联动函数()"')
- *   #d-grade                 年级下拉（app.js 已有）
- *   #d-subjects              目标科目容器（app.js 已有，其本身就是 .checkbox-grid）：
+ *   #d-grade                 年级下拉（index.html 已有）
+ *   #d-subjects              目标科目容器（index.html 已有，其本身就是 .checkbox-grid）：
  *                            innerHTML = buildStudentSubjectsHtml(provinceId, gradeId)
  *                            （返回值是 label 列表，不含外层 grid 容器）
  *                            change 监听由主会话挂到 #d-subjects 上（事件冒泡可捕获）
- *   #d-scores                成绩行容器（app.js 已有）：
+ *   #d-scores                成绩行容器（index.html 已有）：
  *                            innerHTML = buildStudentScoreRows(provinceId, gradeId, 勾选的科目id数组)
  *                            页签默认激活「等第制」；回填分数制旧数据时，主会话先对
  *                            对应行调 switchScoreMode(该行的 [data-mode="score"] 页签) 再填值
@@ -284,7 +284,7 @@ function pickGkTrack(el) {
 }
 
 // 收集教师端编辑器输入 → [{subject, score} | {subject, grade}]
-// 与 app.js 现存 gaokao_scores 形状兼容；隐藏行（未勾选 / 非当前 track）一律跳过。
+// 与现存 gaokao_scores 形状兼容；隐藏行（未勾选 / 非当前 track）一律跳过。
 // data 属性与旧版 updateGaokaoScores 生成的 HTML 同名，旧编辑器亦可收集。
 function collectTeacherGaokao() {
   const root = document.getElementById('profile-gaokao-scores');

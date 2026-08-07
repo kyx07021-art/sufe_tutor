@@ -21,6 +21,19 @@ function escHtml(s) {
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+/**
+ * 转义「嵌入双引号 HTML 属性内的单引号 JS 字符串字面量」：onclick="fn('${escJsStr(v)}')"。
+ * 注意不能复用 escHtml——HTML 解析属性时会把 &amp;#39; 等实体解码回原字符，值含 ' 时 onclick 的
+ * JS 字符串即被截断（SyntaxError）。本函数按双层上下文分别转义：\\ 与 ' 走 JS 字符串转义，
+ * & 与 " 走 HTML 属性实体（" 不转义会提前终结双引号属性）。两者叠加后任意字符值恒安全。
+ */
+function escJsStr(v) {
+  return String(v ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/[&"]/g, c => ({ '&': '&amp;', '"': '&quot;' }[c]));
+}
+
 /** 全站时间显示统一入口：后端存 UTC（'YYYY-MM-DD HH:MM:SS' 视作 UTC 或 ISO 串），转浏览器本地时区 */
 function fmtDateTime(s) {
   if (!s) return '';

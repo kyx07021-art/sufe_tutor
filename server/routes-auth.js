@@ -4,18 +4,18 @@
  * 依赖：util（响应构造/UA 标签）、crypto（口令哈希/令牌摘要）、session（令牌签发/会话管理）、
  *       security（身份解析）、constants（校验文案/限额）。
  */
-import { json, error, dbGet, dbRun, deviceLabelFromUA } from './util.js';
+import { json, error, deviceLabelFromUA } from './util.js';
 import { hashPassword, verifyPassword, tokenDigest } from './crypto.js';
 import { authUser, requireUser } from './security.js';
 import {
   issueAuthToken, listSessions, revokeSession,
   getSessionByToken, revokeToken,
 } from './session.js';
-import { issueCapToken, confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
+import { issueCapToken, confirmDangerOtp, clearDangerCaps, clearDangerCapsForSession } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）+ capToken 清理
 import { MSG, INVITE_GATE_ENABLED, LIMITS } from './constants.js';
 import {
   dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
-  dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar,
+  dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbDeleteUser,
 } from './db.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
@@ -47,7 +47,7 @@ export async function handleRegister(db, body, req) {
     // 原子消费（赢家模式）：并发双注册同码仅一方 changes>0；输家回滚刚建的用户拒绝注册
     const consumed = await dbUseInviteCode(db, inviteCode, userId);
     if (!consumed) {
-      await dbRun(db, 'DELETE FROM users WHERE id=?', [userId]);
+      await dbDeleteUser(db, userId); // 回滚刚建的用户（数据层单点，路由不直写 SQL）
       return error(MSG.INVITE_INVALID, 409);
     }
   }
@@ -108,6 +108,7 @@ export async function handleDeactivateAccount(db, body, req) {
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
   await dbDeactivateUser(db, me.id, tombstone);
   await dbPurgeUserOwnedData(db, me.id, me.role); // 按角色清理单方数据 + 匿名化本人聊天正文
+  await clearDangerCaps(db, me.id); // 注销即清全部 capToken（防 danger_caps 孤儿行残留）
   await logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
     actorRole: me.role, entity: 'user', entityId: me.id, req });
   return json({ ok: true });
@@ -154,6 +155,7 @@ export async function handleRevokeSession(db, body, req) {
   const curRow = await getSessionByToken(db, me.id, req.headers.get('X-Auth-Token'));
   const ok = await revokeSession(db, me.id, sessionId);
   if (!ok) return error(MSG.SESSION_NOT_FOUND, 404);
+  await clearDangerCapsForSession(db, me.id, sessionId); // 逐端退登同步清该会话 capToken（孤儿行清理）
   const self = !!(curRow && curRow.session_id === sessionId);
   await logEvent(db, { action: 'auth.session.revoke', actorUserId: me.id, entity: 'user', entityId: me.id,
     detail: { self }, req });
@@ -165,7 +167,10 @@ export async function handleRevokeSession(db, body, req) {
 export async function handleLogout(db, req) {
   const me = await authUser(db, req);
   if (me) {
-    await revokeToken(db, me.id, req.headers.get('X-Auth-Token'));
+    const token = req.headers.get('X-Auth-Token');
+    const row = await getSessionByToken(db, me.id, token); // 吊销前先反查 session_id（清 capToken 用）
+    await revokeToken(db, me.id, token);
+    if (row) await clearDangerCapsForSession(db, me.id, row.session_id); // 登出同步清该会话 capToken
     await logEvent(db, { action: 'auth.logout', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   }
   return json({ ok: true });

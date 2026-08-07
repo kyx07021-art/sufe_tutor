@@ -84,3 +84,15 @@ export async function confirmDangerOtp(db, req, body) {
     [sessionId, await tokenDigest(got)]).catch(() => ({ meta: { changes: 0 } }));
   return !!(r && r.meta && r.meta.changes > 0);
 }
+
+/** 清理用户全部 capToken（注销账户时调用，防孤儿残留行；最佳努力，失败不阻断注销） */
+export async function clearDangerCaps(db, userId) {
+  if (!userId) return;
+  await dbRun(db, 'DELETE FROM danger_caps WHERE user_id=?', [userId]).catch(() => {});
+}
+
+/** 清理指定会话的 capToken（退出登录/逐端退登时调用；会话已吊销则校验恒败，行属孤儿） */
+export async function clearDangerCapsForSession(db, userId, sessionId) {
+  if (!userId || !sessionId) return;
+  await dbRun(db, 'DELETE FROM danger_caps WHERE user_id=? AND session_id=?', [userId, sessionId]).catch(() => {});
+}

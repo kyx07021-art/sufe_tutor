@@ -1,9 +1,9 @@
 /**
  * 资料共享广场（教师侧边栏「资料共享」页，模块2）
  *
- * 经典脚本：全部顶层全局函数 + 内联 onclick，与 app.js 同一约定。
+ * 经典脚本：全部顶层全局函数 + 内联 onclick（全站同一约定）。
  * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / closeModal / loaderHtml / loadInto / initCustomSelects；
- * 删除确认弹窗自写（postConfirmDelete），不调用 app.js 的 confirmDanger，避免跨模块耦合。
+ * 删除确认弹窗自写（postConfirmDelete），不调用共享层 confirmDanger，避免跨模块耦合。
  * mdRender 为自研轻量 markdown-lite：先 escHtml 全转义再逐行识别语法，不引任何外部库。
  * section 恒 'plaza'，当前不做分区 UI（接口已预留 section 参数）。
  */
@@ -70,7 +70,7 @@ function renderPostCard(p, i) {
       ${mine ? `<button type="button" class="post-del" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}
     </div>
     <div class="post-meta">
-      <span class="post-author">${globalThis.SUFE_DISPLAY.usernameHtml(p.username || UI.POST_ANONYMOUS)}</span>
+      <span class="post-author">${DISP.usernameHtml(p.username || UI.POST_ANONYMOUS)}</span>
       <span class="post-time">${escHtml(time)}</span>
     </div>
     ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > 80 ? '…' : ''}</p>` : ''}
@@ -286,7 +286,7 @@ async function submitPost() {
   }
 }
 
-// 删除二次确认（自写小弹窗，模式同 app.js 的 confirmDanger，但不调用它以免耦合）
+// 删除二次确认（自写小弹窗，模式同共享层 confirmDanger，但不调用它以免耦合）
 function postConfirmDelete(id) {
   openModal({
     title: UI.POST_DELETE_TITLE,
@@ -378,7 +378,7 @@ async function submitBroadcast() {
 
 // ============================================================
 // 用户反馈（关于平台页 Bug/建议提交）：复用发帖组件的 Markdown 编辑器（同一套 ID，弹窗互斥不冲突）
-// —— 与发帖/广播同为「内容提交」领域，并入本模块（原在 app.js，功能相近合并）
+// —— 与发帖/广播同为「内容提交」领域，并入本模块（功能相近合并）
 // ============================================================
 let feedbackKind = 'bug';
 function openFeedbackModal(kind) {

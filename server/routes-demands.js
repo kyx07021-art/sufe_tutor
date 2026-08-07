@@ -249,7 +249,7 @@ export async function handlePushDemand(db, body, req) {
 
 // 教师端：本人的待处理推送列表（需求大厅置顶 + 红点计数同源；身份凭令牌）
 export async function handleGetTeacherPushes(db, url, req) {
-  const { user: me, err } = await requireUser(db, req);
+  const { user: me, err } = await requireUser(db, req, 'teacher'); // 教师角色门（同 handleResolvePush，防学生空探）
   if (err) return err;
   const pushes = await dbGetPendingPushesForTeacher(db, me.id);
   return json({ pushes });

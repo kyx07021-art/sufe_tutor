@@ -27,7 +27,7 @@
 //   closeModal()、openImageViewer()、confirmDanger()（app-ui.js）
 //   DISP.starsHtml / usernameHtml / subjectName / roleLabel / provinceName /
 //   genderName / teacherGradeName / gaokaoCell / ratingText / reviewStatusTagHtml（app-display.js）
-//   loadInto()（app-shell）；renderPushBtn()、loadAdminReviews()（app.js 其余领域）
+//   loadInto()（app-shell）；renderPushBtn()（app-demands）、loadAdminReviews()（app-admin）
 // ============================================================
 
 // ============================================================

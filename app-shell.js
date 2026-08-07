@@ -199,7 +199,10 @@ async function loadInto(elId, fetcher, renderer, opts = {}) {
 // 侧边栏红点徽标：未读会话 / 待处理推送(教师) / 未读通知 / 待处理意向(学生) / 待我处理合同 / 未处理反馈(admin)，
 // 30s 慢轮询统一刷新；各模块也可即时 setBadge 消点
 // ============================================================
-const BADGE_PAGES = ['my-chats', 'browse-demands', 'notifications', 'my-contracts', 'admin-feedback'];
+// 修复：原缺 'my-demands'——学生「我的需求」待处理意向红点四条 setBadge 写入全空转（dot 元素永不渲染）。
+// 此清单 = 允许挂红点的页面 id，须与 ROLE_PAGES 的 id 一致（教师/管理员的 my-demands 不在其角色页表，
+// 元素不渲染，setBadge 对 null 静默返回，无副作用）
+const BADGE_PAGES = ['my-chats', 'browse-demands', 'my-demands', 'notifications', 'my-contracts', 'admin-feedback'];
 let badgePollTimer = null;
 
 function setBadge(pageId, n) {

@@ -176,8 +176,6 @@ function prefillStudentScores(scores) {
   document.querySelectorAll('#demand-form select').forEach(syncCustomSelectText);
 }
 
-// checkbox state is now handled by pure CSS (:checked + :has)
-
 function toggleAddressField() {
   const method = document.getElementById('d-method').value;
   const section = document.getElementById('d-address-section');

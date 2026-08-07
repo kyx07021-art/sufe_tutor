@@ -26,7 +26,7 @@
 //   app-onboard：openOnboarding、openUsageGuide
 //   app-region：renderProvinceSelect、onTeacherProvinceChange、
 //     onTeacherSubjectsChange、renderTeacherGaokaoEditor、collectTeacherGaokao
-//   app.js（留驻全局）：handleLogout、renderSidebar、openFeedbackModal
+//   handleLogout（app-auth）、renderSidebar（app-shell）、openFeedbackModal（app-posts）
 // ============================================================
 
 // ============================================================
@@ -39,7 +39,7 @@ function enterAccountSettings() {
   const row = (label, value, modifiable) => `
     <div class="settings-row">
       <div><div class="settings-label">${label}</div><div class="settings-value">${value}</div></div>
-      ${modifiable ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="showToast('${UI.TOAST_COMING_SOON}')">${UI.BTN_MODIFY}</button>` : ''}
+      ${modifiable ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="showToast('${escJsStr(UI.TOAST_COMING_SOON)}')">${UI.BTN_MODIFY}</button>` : ''}
     </div>`;
   // 外观主题三项：选中态按 localStorage 现值标注，点按走 setThemePref 即时切换
   const themePref = getThemePref();
@@ -113,7 +113,7 @@ function renderDeviceRow(s) {
       <div class="device-label">${escHtml(s.label || UI.DEVICE_UNKNOWN)}${s.current ? ` <span class="device-current glass glass--solid">${UI.DEVICE_CURRENT}</span>` : ''}</div>
       <div class="device-meta">${masked} · ${UI.DEVICE_LOGIN_AT}${fmtDateTime(s.created_at)}</div>
     </div>
-    ${s.current ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="revokeDeviceSession('${escHtml(s.session_id)}')">${UI.BTN_DEVICE_LOGOUT}</button>`}
+    ${s.current ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="revokeDeviceSession('${escJsStr(s.session_id)}')">${UI.BTN_DEVICE_LOGOUT}</button>`}
   </div>`;
 }
 function revokeDeviceSession(sessionId) {

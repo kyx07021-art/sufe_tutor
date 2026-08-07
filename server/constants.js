@@ -116,7 +116,6 @@ export const MSG = {
   CONTRACT_MODIFIED_CONFLICT: '合同已被对方修改，请关闭后重新打开查看最新版本',
   DEMAND_CONTRACTED_CLOSED: '该需求已签约成交，已停止接收新意向',
   DEMAND_CONTRACTED_LOCKED: '已签约的需求不可修改或删除',
-  CONTRACT_SELF_DRAFT: '草案由你起草，等待对方确认',
 
   // 沟通
   CONVERSATION_NOT_FOUND: '会话不存在',
@@ -129,7 +128,6 @@ export const MSG = {
   // 评价
   RATING_RANGE: '评分需在1-5之间',
   COMMENT_TOO_SHORT: '评价内容太短',
-  STUDENT_REVIEW_ONLY: '仅学生可发表评价',
   REVIEW_SUBMITTED: '评价已提交，等待管理员审核',
   REVIEW_CONTRACT_ONLY: '评价仅限与该教师签约的学生',
   REVIEW_EXISTS: '你已评价过该教师，只能修改原评价',

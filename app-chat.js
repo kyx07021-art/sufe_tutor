@@ -1,7 +1,7 @@
 /**
  * 我的会话（学生 / 教师侧边栏「我的会话」页，模块4）
  *
- * 经典脚本：全部顶层全局函数 + 内联 onclick，与 app.js / app-posts.js 同一约定。
+ * 经典脚本：全部顶层全局函数 + 内联 onclick（全站同一约定）。
  * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / loaderHtml / setBadge / syncPillOnce / glidePill（app-state/app-api/app-anim/app-ui 先行加载）。
  *
  * 数据来源（后端已上线，身份一律凭 X-Auth-Token，无自报 userId 参数）：
@@ -87,8 +87,8 @@ function renderConvList() {
   syncChatPill(); // 全量重渲染后条目刚布局完，pill 立即归位（无滑动）
 }
 
-// 共享滑块同步口（app.js syncPillOnce 的本页封装）。
-// app.js 的全局 window resize 处理会在本函数存在时调用它，缩放时选中块即时重对齐。
+// 共享滑块同步口（app-anim syncPillOnce 的本页封装）。
+// app-anim 的全局 window resize 处理会在本函数存在时调用它，缩放时选中块即时重对齐。
 function syncChatPill() {
   syncPillOnce(document.getElementById('conv-pill'), document.getElementById('conv-list'), '.conv-item');
 }
@@ -340,7 +340,7 @@ function chatLazyLoadAttachments() {
   }, 120);
 }
 
-// 图片消息点开看大图（通用大图查看器在 app.js openImageViewer，学信网截图预览亦复用）
+// 图片消息点开看大图（通用大图查看器在 app-ui openImageViewer，学信网截图预览亦复用）
 function chatViewImage(src) { openImageViewer(src); }
 
 // ============================================================

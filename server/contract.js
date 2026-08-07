@@ -344,31 +344,31 @@ export async function handleSignContract(db, contractId, body, req) {
       claimed = !!(claim && claim.meta && claim.meta.changes > 0);
     }
     if (claimed) {
-    // 存证入台账（独立保障库优先）：文本哈希 + 哈希链，撤销合同删活跃行时留档仍不可篡改地保留
-    const contentHash = await ledgerRecord(db, contractId, updated.contract_md);
-    // 需求自动下架广场；该需求上其余教师待处理意向与待处理推送由系统统一拒绝
-    // （action=intent.auto_reject / demand_push.auto_reject，与用户手动拒绝在加密留档中区分）
-    if (updated.demand_id) {
-      const pending = await dbGetPendingIntentsForDemand(db, updated.demand_id);
-      for (const it of pending) {
-        const r = await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
-        if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
-        await logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
-          detail: { demandId: updated.demand_id, teacherUserId: it.teacher_user_id, reason: 'demand_contracted' }, req });
+      // 存证入台账（独立保障库优先）：文本哈希 + 哈希链，撤销合同删活跃行时留档仍不可篡改地保留
+      const contentHash = await ledgerRecord(db, contractId, updated.contract_md);
+      // 需求自动下架广场；该需求上其余教师待处理意向与待处理推送由系统统一拒绝
+      // （action=intent.auto_reject / demand_push.auto_reject，与用户手动拒绝在加密留档中区分）
+      if (updated.demand_id) {
+        const pending = await dbGetPendingIntentsForDemand(db, updated.demand_id);
+        for (const it of pending) {
+          const r = await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
+          if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
+          await logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
+            detail: { demandId: updated.demand_id, teacherUserId: it.teacher_user_id, reason: 'demand_contracted' }, req });
+        }
+        const pendingPushes = await dbGetPendingPushesForDemand(db, updated.demand_id);
+        for (const pp of pendingPushes) {
+          const r = await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
+          if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
+          await logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
+            detail: { demandId: updated.demand_id, teacherUserId: pp.teacher_user_id, reason: 'demand_contracted' }, req });
+        }
       }
-      const pendingPushes = await dbGetPendingPushesForDemand(db, updated.demand_id);
-      for (const pp of pendingPushes) {
-        const r = await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
-        if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
-        await logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
-          detail: { demandId: updated.demand_id, teacherUserId: pp.teacher_user_id, reason: 'demand_contracted' }, req });
-      }
-    }
-    await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGNED);
-    // 留档保存合同原文（detailMax 放宽，加密后落库；撤销合同后仍可凭留档还原缔约内容）
-    await logEvent(db, { action: 'contract.signed', actorUserId: userId, entity: 'contract', entityId: contractId,
-      detail: { conversationId: updated.conversation_id, demandId: updated.demand_id, contentHash, contractMd: updated.contract_md },
-      detailMax: 60000, req });
+      await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGNED);
+      // 留档保存合同原文（detailMax 放宽，加密后落库；撤销合同后仍可凭留档还原缔约内容）
+      await logEvent(db, { action: 'contract.signed', actorUserId: userId, entity: 'contract', entityId: contractId,
+        detail: { conversationId: updated.conversation_id, demandId: updated.demand_id, contentHash, contractMd: updated.contract_md },
+        detailMax: 60000, req });
     }
   } else {
     await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGN_WAITING.replace('{name}', nameOf(conv, userId)));

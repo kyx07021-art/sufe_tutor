@@ -1,7 +1,7 @@
 /**
  * 统一显示层（纯函数）——消灭散落在各模块的重复展示逻辑
  *
- * 加载序：constants.js → region-data.js → app-display.js → app.js → ...（见 index.html）
+ * 加载序：constants.js → region-data.js → app-display.js → 共享层/领域层/壳（见 index.html）
  * 依赖 globalThis.APP_CONSTANTS（SUBJECTS/GENDERS/TEACHER_GRADES/TEACHING_METHODS/UI）
  * 与 globalThis.SUFE_REGIONS——两者均在本文件之前加载；函数内取用（不在顶层解构，防加载序脆弱）。
  *
@@ -25,7 +25,7 @@
   }
 
   const D = {
-    // 科目名：查无返 sid 本身（对齐 app.js 旧 `SUBJECTS.find(...)?.name || id` 口径）
+    // 科目名：查无返 sid 本身
     subjectName(sid) {
       return enumName(C().SUBJECTS, sid, sid);
     },
@@ -49,7 +49,7 @@
       return role === 'student' ? u.ROLE_STUDENT : role === 'teacher' ? u.ROLE_TEACHER : u.ADMIN_BADGE;
     },
 
-    // 星级：5 颗星 span.star.filled，rating 缺省按 4（搬自 app.js renderStars，输出逐字一致）
+    // 星级：5 颗星 span.star.filled，rating 缺省按 4
     starsHtml(rating) {
       const r = rating || 4;
       let html = '<span class="stars">';
@@ -63,7 +63,7 @@
       return (rating || 4).toFixed(1);
     },
 
-    // 需求 current_scores 单项展示（对齐 app.js renderDemandCard scoreItems 口径）：
+    // 需求 current_scores 单项展示：
     //   等第制（cs.grade 或 cs.mode==='grade'）→ "科目: 等第"（无 grade 返 ''）
     //   分数制 → "科目: 分数分/满分分制"；空值返 ''
     demandScoreCell(cs) {
@@ -88,7 +88,7 @@
       return '';
     },
 
-    // 用户名墓碑渲染：注销用户前缀 → 灰斜体 span，否则普通转义（搬自 app.js renderUsername）
+    // 用户名墓碑渲染：注销用户前缀 → 灰斜体 span，否则普通转义
     usernameHtml(name) {
       const s = String(name || '');
       return s.startsWith(UI().DEACTIVATED_USER_PREFIX)

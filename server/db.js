@@ -42,10 +42,137 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
 // 管理员配置统一经 secrets 网关读取（env 优先，回落本地 secrets.js）；兼容 env 为逗号分隔串 / 文件为数组
 const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(s => s.trim()).filter(Boolean);
 
+// 一次性遗留迁移：users 的 role 扩展支持 admin + 新增 banned 列（含子表同步重建）。
+// D1 强制开启外键且不可关闭，DROP 被引用表会失败，故用「改名腾位」策略：
+//   ① 旧表整体改名为 _*_old（SQLite 自动同步改写旧表间的 FK 引用）
+//   ② 建当前形状新表并改名回终名，数据从 _*_old 拷贝（列交集）
+//   ③ 先子后父删 _*_old
+// 必须由 initDb 在初始建表【之前】调用：若初始 batch 先建出 auth_sessions/conversations 等子表，
+// 本迁移改名 users 时会把它们的 FK 一并改写指向 _users_old，随后 _users_old 被删 → 子表 FK 悬空，
+// 任何 INSERT 报 no such table: _users_old（实证复现）。迁移在前则子表直接引用迁移后的最终表。
+// 幂等守卫：users 定义已含 'admin' 即跳过（全新库/已迁移库零开销）。
+// 网安审计 N-19：旧表可能经历次 ensureColumns 比迁移 DDL 多/少列，逐表取「新旧列交集」显式列名拷贝，
+// 缺列/多列均不炸；更老库缺失的表跳过、由初始 batch 按当前形状补建；补列仍由后续 ensureColumns 统一补齐。
+async function migrateLegacyRoles(db, adminNames) {
+  const meta = await dbGet(db, "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'");
+  if (!meta || meta.sql.includes("'admin'")) return;
+
+  const exists = async t => !!(await dbGet(db, "SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name=?", [t]));
+  const oldColsOf = async t => (await dbAll(db, `PRAGMA table_info(${t})`)).map(c => c.name);
+  const sharedCols = (old, fresh) => fresh.filter(c => old.includes(c));
+
+  // 迁移目标（父先于子）：新表 DDL 与初始 batch 当前形状一致；cols 用于交集拷贝
+  const T = [
+    {
+      t: 'users',
+      cols: ['id', 'username', 'password_hash', 'salt', 'role', 'banned', 'created_at'],
+      ddl: `CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL, salt TEXT NOT NULL,
+        role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
+        banned INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT (datetime('now','localtime')))`,
+    },
+    {
+      t: 'teacher_profiles',
+      cols: ['id', 'user_id', 'grade', 'gender', 'subjects', 'gaokao_scores', 'price', 'wechat', 'email', 'school', 'real_name', 'credential_image', 'rating', 'rating_count', 'rating_sum', 'updated_at'],
+      ddl: `CREATE TABLE teacher_profiles_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
+        grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
+        price REAL DEFAULT 0, wechat TEXT, email TEXT,
+        school TEXT DEFAULT '', real_name TEXT DEFAULT '', credential_image TEXT DEFAULT '',
+        rating REAL DEFAULT ${INITIAL_RATING},
+        rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
+        updated_at DATETIME DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`,
+    },
+    {
+      t: 'student_demands',
+      cols: ['id', 'user_id', 'student_grade', 'student_gender', 'target_subjects', 'current_scores', 'teaching_method', 'address', 'address_detail', 'expected_time', 'budget_min', 'budget_max', 'submitter_type', 'parent_contact', 'student_contact', 'additional_info', 'created_at'],
+      ddl: `CREATE TABLE student_demands_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+        student_grade TEXT NOT NULL, student_gender TEXT NOT NULL,
+        target_subjects TEXT NOT NULL, current_scores TEXT NOT NULL,
+        teaching_method TEXT NOT NULL DEFAULT 'offline',
+        address TEXT DEFAULT '', address_detail TEXT DEFAULT '',
+        expected_time TEXT DEFAULT '',
+        budget_min REAL DEFAULT 0, budget_max REAL DEFAULT 0,
+        submitter_type TEXT NOT NULL, parent_contact TEXT NOT NULL,
+        student_contact TEXT NOT NULL, additional_info TEXT DEFAULT '',
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`,
+    },
+    {
+      t: 'reviews',
+      cols: ['id', 'teacher_user_id', 'reviewer_user_id', 'rating', 'comment', 'status', 'created_at', 'reviewed_at', 'reviewed_by'],
+      ddl: `CREATE TABLE reviews_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, teacher_user_id INTEGER NOT NULL,
+        reviewer_user_id INTEGER NOT NULL, rating INTEGER NOT NULL CHECK(rating>=1 AND rating<=5),
+        comment TEXT NOT NULL, status TEXT DEFAULT 'pending'
+          CHECK(status IN ('pending','approved','rejected')),
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        reviewed_at DATETIME, reviewed_by INTEGER,
+        FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
+    },
+    {
+      t: 'invite_codes',
+      cols: ['code', 'created_by', 'created_at', 'expires_at', 'used_by', 'used_at'],
+      ddl: `CREATE TABLE invite_codes_new (
+        code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        expires_at DATETIME NOT NULL, used_by INTEGER DEFAULT NULL,
+        used_at DATETIME DEFAULT NULL,
+        FOREIGN KEY (created_by) REFERENCES users(id),
+        FOREIGN KEY (used_by) REFERENCES users(id))`,
+    },
+    {
+      t: 'demand_intents',
+      cols: ['id', 'demand_id', 'teacher_user_id', 'created_at'],
+      ddl: `CREATE TABLE demand_intents_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        demand_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        UNIQUE(demand_id, teacher_user_id),
+        FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
+        FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
+    },
+  ];
+
+  // 先查存在性 + 旧表列交集（PRAGMA 均在 batch 前执行）
+  const ready = [];
+  for (const p of T) {
+    if (!(await exists(p.t))) continue;
+    const old = await oldColsOf(p.t);
+    const cols = sharedCols(old, p.cols).join(',');
+    ready.push({ ...p, cols });
+  }
+  if (!ready.length) return;
+
+  const stmts = [];
+  for (const p of ready) {
+    stmts.push(db.prepare(`ALTER TABLE ${p.t} RENAME TO _${p.t}_old`));
+    stmts.push(db.prepare(p.ddl));
+    if (p.cols) stmts.push(db.prepare(`INSERT INTO ${p.t}_new (${p.cols}) SELECT ${p.cols} FROM _${p.t}_old`));
+    if (p.t === 'users' && adminNames.length) {
+      stmts.push(db.prepare(`UPDATE users_new SET role='admin' WHERE username IN (${adminNames.map(() => '?').join(',')})`).bind(...adminNames));
+    }
+    stmts.push(db.prepare(`ALTER TABLE ${p.t}_new RENAME TO ${p.t}`));
+  }
+  // ③ 清旧（先子后父：逆序删，父表最后）
+  for (const p of [...ready].reverse()) stmts.push(db.prepare(`DROP TABLE _${p.t}_old`));
+
+  await db.batch(stmts);
+}
+
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
   const adminNames = adminNamesOf(getSecret(env, 'ADMIN_USERNAMES'));
   const adminPassword = getSecret(env, 'ADMIN_DEFAULT_PASSWORD') || '';
+  // 遗留角色迁移必须先于初始建表执行：若在初始 batch 之后跑，新建子表（auth_sessions/conversations…）
+  // 的 FK 会在改名腾位时被改写指向 _*_old，随后 _*_old 被删 → 子表 FK 悬空，全站 INSERT 报
+  // no such table（实证复现）。迁移在前时子表直接引用迁移后的最终表，从根上规避。
+  await migrateLegacyRoles(db, adminNames);
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
@@ -215,104 +342,6 @@ export async function initDb(db, env = {}) {
     await dbRun(db, 'CREATE UNIQUE INDEX IF NOT EXISTS idx_reviews_reviewer_teacher ON reviews(reviewer_user_id, teacher_user_id)');
   } catch { /* 旧重复数据：跳过索引 */ }
 
-  // 一次性迁移：users 的 role 扩展支持 admin + 新增 banned 列。
-  // D1 强制开启外键且不可关闭，DROP 被引用表会失败，故用"改名腾位"策略，
-  // 每一步都单独满足外键约束（生产环境的原子 batch 可一次完成，本地逐句执行也安全）：
-  //   ① 旧表整体改名为 _*_old（SQLite 自动同步改写旧表间的 FK 引用）
-  //   ② 按"父先于子"建新表并改名回终名，数据从 _*_old 全量拷贝
-  //   ③ 先子后父删 _*_old
-  // 幂等守卫：检查 sqlite_master 里 users 表定义是否已含 'admin'。
-  // 列序不变量：下方 INSERT ... SELECT * 依赖旧表列序与新表 DDL 逐列一致——此迁移必须先于 ensureColumns 补列执行，
-  // 若某表先被补列，列序错位将导致整批迁移失败，故补列一律只能加在迁移完成之后。
-  const meta = await dbGet(db, "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'");
-  if (meta && !meta.sql.includes("'admin'")) {
-    await db.batch([
-      // ① 腾位
-      db.prepare('ALTER TABLE users RENAME TO _users_old'),
-      db.prepare('ALTER TABLE teacher_profiles RENAME TO _teacher_profiles_old'),
-      db.prepare('ALTER TABLE student_demands RENAME TO _student_demands_old'),
-      db.prepare('ALTER TABLE reviews RENAME TO _reviews_old'),
-      db.prepare('ALTER TABLE invite_codes RENAME TO _invite_codes_old'),
-      db.prepare('ALTER TABLE demand_intents RENAME TO _demand_intents_old'),
-
-      // ② 新 users：建 → 拷贝 → 管理员升级 → 改回终名（此后子表 FK 即可引用 users）
-      db.prepare(`CREATE TABLE users_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL, salt TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
-        banned INTEGER NOT NULL DEFAULT 0,
-        created_at DATETIME DEFAULT (datetime('now','localtime')))`),
-      db.prepare(`INSERT INTO users_new (id,username,password_hash,salt,role,banned,created_at)
-        SELECT id,username,password_hash,salt,role,0,created_at FROM _users_old`),
-      db.prepare(`UPDATE users_new SET role='admin' WHERE username IN (${adminNames.map(() => '?').join(',')})`).bind(...adminNames),
-      db.prepare('ALTER TABLE users_new RENAME TO users'),
-
-      db.prepare(`CREATE TABLE teacher_profiles_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
-        grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
-        price REAL DEFAULT 0, wechat TEXT, email TEXT,
-        rating REAL DEFAULT ${INITIAL_RATING},
-        rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
-        updated_at DATETIME DEFAULT (datetime('now','localtime')),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-      db.prepare(`INSERT INTO teacher_profiles_new SELECT * FROM _teacher_profiles_old`),
-      db.prepare('ALTER TABLE teacher_profiles_new RENAME TO teacher_profiles'),
-
-      db.prepare(`CREATE TABLE student_demands_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
-        student_grade TEXT NOT NULL, student_gender TEXT NOT NULL,
-        target_subjects TEXT NOT NULL, current_scores TEXT NOT NULL,
-        teaching_method TEXT NOT NULL DEFAULT 'offline',
-        address TEXT DEFAULT '', address_detail TEXT DEFAULT '',
-        budget_min REAL DEFAULT 0, budget_max REAL DEFAULT 0,
-        submitter_type TEXT NOT NULL, parent_contact TEXT NOT NULL,
-        student_contact TEXT NOT NULL, additional_info TEXT DEFAULT '',
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-      db.prepare(`INSERT INTO student_demands_new SELECT * FROM _student_demands_old`),
-      db.prepare('ALTER TABLE student_demands_new RENAME TO student_demands'),
-
-      db.prepare(`CREATE TABLE reviews_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT, teacher_user_id INTEGER NOT NULL,
-        reviewer_user_id INTEGER NOT NULL, rating INTEGER NOT NULL CHECK(rating>=1 AND rating<=5),
-        comment TEXT NOT NULL, status TEXT DEFAULT 'pending'
-          CHECK(status IN ('pending','approved','rejected')),
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
-        reviewed_at DATETIME, reviewed_by INTEGER,
-        FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-      db.prepare(`INSERT INTO reviews_new SELECT * FROM _reviews_old`),
-      db.prepare('ALTER TABLE reviews_new RENAME TO reviews'),
-
-      db.prepare(`CREATE TABLE invite_codes_new (
-        code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
-        expires_at DATETIME NOT NULL, used_by INTEGER DEFAULT NULL,
-        used_at DATETIME DEFAULT NULL,
-        FOREIGN KEY (created_by) REFERENCES users(id),
-        FOREIGN KEY (used_by) REFERENCES users(id))`),
-      db.prepare(`INSERT INTO invite_codes_new SELECT * FROM _invite_codes_old`),
-      db.prepare('ALTER TABLE invite_codes_new RENAME TO invite_codes'),
-
-      db.prepare(`CREATE TABLE demand_intents_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        demand_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
-        UNIQUE(demand_id, teacher_user_id),
-        FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
-        FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-      db.prepare(`INSERT INTO demand_intents_new SELECT * FROM _demand_intents_old`),
-      db.prepare('ALTER TABLE demand_intents_new RENAME TO demand_intents'),
-
-      // ③ 清旧（先子后父；_*_old 已无任何表引用）
-      db.prepare('DROP TABLE _demand_intents_old'),
-      db.prepare('DROP TABLE _invite_codes_old'),
-      db.prepare('DROP TABLE _reviews_old'),
-      db.prepare('DROP TABLE _student_demands_old'),
-      db.prepare('DROP TABLE _teacher_profiles_old'),
-      db.prepare('DROP TABLE _users_old'),
-    ]);
-  }
   // 迁移残留清理（IF EXISTS 恒安全；兜底任何半途状态遗留下的 _*_old）
   await db.batch([
     db.prepare('DROP TABLE IF EXISTS _demand_intents_old'),
@@ -450,6 +479,11 @@ export async function dbCreateUser(db, username, hash, salt, role) {
     'INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,?,?)',
     [username, hash, salt, role]);
   return Number(result.meta.last_row_id);
+}
+
+// 注册邀请码消费输家的回滚：删除刚建的用户（子表 FK 均 ON DELETE CASCADE，无需逐表清）
+export async function dbDeleteUser(db, userId) {
+  await dbRun(db, 'DELETE FROM users WHERE id=?', [userId]);
 }
 
 // 注销账户：用户名墓碑化 + 凭证清空 + 封禁/注销标记（墓碑全站展示 + 登录阻断）

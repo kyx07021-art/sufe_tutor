@@ -6,7 +6,7 @@
  *   notifyUser(db, userId, text)  推送一条（咽喉：吞错不影响业务，截断 200 字）
  *   handleGetNotifications / handleMarkNotificationsRead  路由
  * 通知文案由业务方（routes-* 在拒绝/退回等节点）按场景拼装后传入，保持委婉语气。
- * 依赖方向：util（db 薄封装 + 响应构造）/ security（authUser/requireAdminOrError）/ log（留档）。
+ * 依赖方向：util（db 薄封装 + 响应构造）/ security（authUser/requireAdmin）/ log（留档）。
  * 不依赖 db.js，避免循环。
  *
  * 广播批删（管理员）：广播一次为全体用户各插一行，同批共享 batch_id；
@@ -14,7 +14,7 @@
  * 历史行 / 单点推送无 batch_id，按 id 单删。
  */
 import { dbAll, dbGet, dbRun, json, error, genCode, ensureColumns } from './util.js';
-import { authUser, requireAdminOrError } from './security.js';
+import { authUser, requireAdmin } from './security.js';
 import { MSG, LIMITS } from './constants.js';
 import { logEvent } from './log.js';
 
