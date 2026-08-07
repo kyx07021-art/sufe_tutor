@@ -45,17 +45,8 @@ function enterAccountSettings() {
   const themePref = getThemePref();
   const themeOpts = [['light', UI.THEME_LIGHT], ['dark', UI.THEME_DARK], ['system', UI.THEME_SYSTEM]].map(([k, label]) =>
     `<button type="button" class="theme-opt glass glass--pressable${themePref === k ? ' theme-opt--on' : ''}" data-pref="${k}" onclick="setThemePref('${k}')">${label}</button>`).join('');
+  // 需求四·4b：两区对调——账户信息在上、外观在下（原外观在前账户在后；头像行相对账户标题位置不变）
   document.getElementById('account-settings-content').innerHTML = `
-    <div class="settings-section-title">${UI.SETTINGS_APPEARANCE_TITLE}</div>
-    <div class="settings-list">
-      <div class="settings-row">
-        <div>
-          <div class="settings-label">${UI.SETTINGS_THEME_LABEL}</div>
-          <div class="settings-hint">${UI.SETTINGS_THEME_HINT}</div>
-        </div>
-        <div class="theme-opts">${themeOpts}</div>
-      </div>
-    </div>
     <div class="settings-section-title">${UI.SETTINGS_ACCOUNT_TITLE}</div>
     <div class="settings-row settings-row--avatar">
       <div>
@@ -70,6 +61,16 @@ function enterAccountSettings() {
       ${row(UI.SETTINGS_ROLE, roleLabel, false)}
       ${row(UI.SETTINGS_PHONE, UI.SETTINGS_UNBOUND, true)}
       ${row(UI.SETTINGS_EMAIL, UI.SETTINGS_UNBOUND, true)}
+    </div>
+    <div class="settings-section-title">${UI.SETTINGS_APPEARANCE_TITLE}</div>
+    <div class="settings-list">
+      <div class="settings-row">
+        <div>
+          <div class="settings-label">${UI.SETTINGS_THEME_LABEL}</div>
+          <div class="settings-hint">${UI.SETTINGS_THEME_HINT}</div>
+        </div>
+        <div class="theme-opts">${themeOpts}</div>
+      </div>
     </div>
     <div class="settings-devices">
       <div class="settings-label">${UI.SETTINGS_DEVICES}</div>

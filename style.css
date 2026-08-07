@@ -694,6 +694,17 @@ textarea.form-input {
 }
 .sidebar-item.active .sidebar-item-descwrap { grid-template-rows: 1fr; }
 .sidebar-item.active .sidebar-item-desc { color: var(--ink-2); padding-top: 6px; } /* G7：白字交还深色（卡已白化） */
+/* 侧边栏模块「i」信息按钮（需求四·4b）：小圆 i，标题右侧不远处；JS 只切类，无内联样式 */
+.sidebar-item-info {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-left: 7px;
+  font-size: .58rem; font-weight: 800; line-height: 1;
+  border-radius: 50%; border: 1px solid var(--faint);
+  color: var(--ink-3); cursor: pointer; user-select: none;
+  transition: color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
+}
+.sidebar-item-info:hover { color: var(--ink); border-color: var(--muted); }
+.sidebar-item-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* 用户信息：白框落地栏底（静态 flex 末位，不参与滚动、不随内容变化位移）；
    上层头像 + id/属性，白框内最下层为运营脚注（细黑体小字，点击直达「关于平台」） */
@@ -768,6 +779,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 #client-main:has(.client-page--flush:not(.hidden)) { padding: 0; overflow: hidden; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .page-header h2 { font-size: 1.35rem; font-weight: 900; letter-spacing: -.02em; color: var(--ink); }
+/* 页头右侧操作按钮组（通知页：屏蔽系统通知 + 发通知）：整体右对齐，窄屏自然换行 */
+.page-header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* 系统广播通知：标题加粗成行，正文另起一行灰小字（pre-wrap 保留换行） */
 .notif-broadcast-title { display: block; font-weight: 800; font-size: .84rem; color: var(--ink); line-height: 1.5; }
@@ -1529,6 +1542,18 @@ body.profile-panel-closing .profile-panel {
 /* ============================================================
    通知信息列表
    ============================================================ */
+/* 屏蔽系统通知按钮（需求四·4b）：标准按钮样式，无特殊颜色遮罩；
+   选中态 = 前置小圆点（CSS ::before，非 √ 符号），颜色与未选中一致，像素级干净。
+   未选中时圆点宽 0（不占位、文字居中与标准按钮一致）；选中时 7px 圆点 + 8px 间距展开 */
+.notif-block-btn { gap: 0; }
+.notif-block-btn::before {
+  content: ''; display: inline-block; flex: 0 0 auto;
+  width: 0; height: 7px; border-radius: 50%;
+  background: var(--ok-deep);
+  transition: width var(--t-fast) var(--ease-out), margin-right var(--t-fast) var(--ease-out);
+}
+.notif-block-btn--on::before { width: 7px; margin-right: 8px; }
+
 .notif-item {
   display: flex; gap: 12px; align-items: flex-start;
   padding: 14px 16px; margin-bottom: 8px;
@@ -1573,6 +1598,7 @@ body.profile-panel-closing .profile-panel {
 .settings-deactivate { margin-top: 14px; margin-left: 10px; }
 .username-deactivated { color: var(--muted); font-style: italic; } /* 已注销用户墓碑样式 */
 .danger-warn { font-size: .84rem; line-height: 1.75; color: var(--ink-3); } /* 危险操作弹窗的说明正文 */
+.module-info-text { font-size: .86rem; line-height: 1.8; color: var(--ink-3); } /* 侧边栏模块「i」信息浮窗正文 */
 /* 关于平台：纵向流程图（编号圆圈 + 圆间细连线 + 右侧简述），连线 min-height 保底不过短 */
 .about-flow { display: flex; flex-direction: column; padding: 4px 2px 0; }
 .about-flow-step { display: flex; gap: 14px; }
@@ -1601,6 +1627,14 @@ body.profile-panel-closing .profile-panel {
   .push-note-row { display: flex; width: 100%; flex-wrap: wrap; justify-content: flex-start; }
   .demand-card-foot .list-card-contact { min-width: 0; }
   .demand-card-foot .drop-toggle { flex-shrink: 0; }
+  /* 需求四·4b：试课意向行移动端整行纵向排布——用户名+星级一行、状态 tag 独立一行在用户名下方 */
+  .intent-row-line { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .intent-row-user { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  /* 需求四·4b（item7 纵向排布）：非学科项目报价行窄屏改纵向——项目名独占一行，两个报价输入全宽铺开 */
+  .nonacademic-price-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .na-project-name { flex: none; }
+  /* 需求四·4b（item7 纵向排布）：账户设置行窄屏改纵向——标签/值在上、操作按钮在下左对齐，杜绝右侧按钮被顶出 */
+  .settings-row:not(.settings-row--avatar) { flex-direction: column; align-items: flex-start; gap: 6px; }
 }
 
 /* 细滚动条合并组（v0.21.0：browse-list/conv-list/chat-messages/md-preview/custom-select-list 五处同款收一组）。

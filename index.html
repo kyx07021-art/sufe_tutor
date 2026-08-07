@@ -478,30 +478,17 @@
         <section class="client-page hidden" data-page="notifications">
           <div class="page-header">
             <h2>通知信息</h2>
-            <!-- 筛选组件复用教师块的 drop-wrap/filter-panel（v0.19.46：单一「屏蔽设置」项，展示所有/屏蔽系统通知） -->
-            <button type="button" class="drop-toggle glass glass--solid" id="notif-filter-toggle-btn" onclick="toggleFilters('notif-filters','notif-filter-toggle-btn')">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
-            <!-- 管理员：全体系统通知广播（仅 admin 可见，enterNotifications 控制显隐） -->
-            <button type="button" class="btn btn-sm hidden glass glass--pressable" id="btn-broadcast-notif" onclick="openBroadcastModal()">发通知</button>
-          </div>
-          <div class="drop-wrap" id="notif-filters">
-            <div class="drop-clip">
-              <div class="filter-panel glass glass--solid">
-                <div class="filter-row">
-                  <div class="filter-group">
-                    <label class="filter-label">屏蔽设置</label>
-                    <select class="filter-select" id="notif-block-mode" onchange="applyNotifFilter()">
-                      <option value="">展示所有</option>
-                      <option value="block-broadcast">屏蔽系统通知</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <span class="page-header-actions">
+              <!-- 需求四·4b：屏蔽系统通知从筛选下拉连根删，改右上角标准按钮（localStorage 持久化，纯客户端） -->
+              <button type="button" class="btn btn-sm glass glass--pressable notif-block-btn" id="btn-notif-block" onclick="toggleNotifBlock()">屏蔽系统通知</button>
+              <!-- 管理员：全体系统通知广播（仅 admin 可见，enterNotifications 控制显隐） -->
+              <button type="button" class="btn btn-sm hidden glass glass--pressable" id="btn-broadcast-notif" onclick="openBroadcastModal()">发通知</button>
+            </span>
           </div>
           <div id="notifications-content"><div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div></div>
         </section>
 
-        <!-- 全角色：设置（外观主题区 + 账户信息区；退出登录在页底 + 二次确认） -->
+        <!-- 全角色：设置（账户信息区 + 外观主题区；退出登录在页底 + 二次确认） -->
         <section class="client-page hidden" data-page="account-settings">
           <div class="page-header"><h2>设置</h2></div>
           <div id="account-settings-content"></div>

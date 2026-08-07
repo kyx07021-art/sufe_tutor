@@ -825,6 +825,8 @@ async function refreshIntentsBox(demandId) {
 
 function renderIntentTeacherRow(t, demandId) {
   const st = t.intent_status;
+  // 需求四·4b：用户名+星级包 intent-row-user、状态 tag 独立——移动端整行纵向排布，
+  // tag 恒置于用户名下方（不与用户名同行）；桌面保持现状
   const tag = st === 'accepted' ? `<span class="tag tag-ok glass glass--solid">${UI.INTENT_STATUS_ACCEPTED}</span>`
     : st === 'rejected' ? `<span class="tag tag-danger glass glass--solid">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn glass glass--solid">${UI.INTENT_STATUS_PENDING}</span>`;
   const provName = escHtml(DISP.provinceName(t.province)); // 网安审计 N-15：province 未知名回显原 id，防注入
@@ -836,7 +838,9 @@ function renderIntentTeacherRow(t, demandId) {
   const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT) || '?';
   return `<div class="admin-row glass">
     <div class="admin-row-main">
-      <div class="admin-row-line"><strong>${DISP.usernameHtml(t.username)}</strong> ${DISP.starsHtml(t.rating)} ${tag}</div>
+      <div class="admin-row-line intent-row-line">
+        <span class="intent-row-user"><strong>${DISP.usernameHtml(t.username)}</strong> ${DISP.starsHtml(t.rating)}</span>${tag}
+      </div>
       <div class="admin-row-meta">${[provName, priceLine].filter(Boolean).join(' · ')}</div>
     </div>
     <div class="admin-row-actions">${viewBtn}${actions}</div>

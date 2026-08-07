@@ -146,13 +146,26 @@ function renderSidebar() {
     <button type="button" class="sidebar-item${p.id === state.page ? ' active' : ''}" data-page="${p.id}" onclick="selectPage('${p.id}')">
       <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(CONFIG.SIDEBAR_INDEX_PAD, '0')}</span>
       <span class="sidebar-item-body">
-        <span class="sidebar-item-label">${p.label}</span>
+        <span class="sidebar-item-label">
+          <span>${p.label}</span><span class="sidebar-item-info" role="button" tabindex="0" aria-label="${UI.MODULE_INFO_TIP}" title="${UI.MODULE_INFO_TIP}" onclick="event.stopPropagation();openModuleInfo('${p.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();openModuleInfo('${p.id}')}">i</span>
+        </span>
         <span class="sidebar-item-descwrap"><span class="sidebar-item-desc">${p.desc || ''}</span></span>
       </span>
       ${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}
     </button>`).join('');
   document.getElementById('sidebar-invite').classList.toggle('hidden', !isAdmin);
   syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
+}
+
+// 侧边栏模块「i」信息按钮（需求四·4b）：点开标准信息浮窗，文案单源 constants UI.MODULE_INFO
+function openModuleInfo(pageId) {
+  const cfg = pagesForRole().find(p => p.id === pageId);
+  const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
+  if (!info) return;
+  openModal({
+    title: escHtml(cfg ? cfg.label : ''),
+    body: `<p class="module-info-text">${escHtml(info)}</p>`,
+  });
 }
 
 function selectPage(pageId) {
@@ -282,40 +295,53 @@ async function refreshBadges() {
 }
 
 // ============================================================
-// 通知信息页（全角色）：进入即标记已读并消红点；屏蔽筛选只动渲染层
+// 通知信息页（全角色）：进入即标记已读并消红点；屏蔽系统通知为纯客户端偏好（localStorage），只动渲染层
 // ============================================================
 let _notifList = [];
 let _lastContractSig = ''; // 合同列表渲染签名（v0.22.8：30s 轮询数据未变不整列重渲）
-// v0.23.1 审计 M1：探测刷新替换缓存数组后重挂 _notifList——屏蔽筛选与已读翻转依赖同引用
+// v0.23.1 审计 M1：探测刷新替换缓存数组后重挂 _notifList——屏蔽过滤与已读翻转依赖同引用
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('notifications', () => {
     const c = dhPeek('/api/notifications');
     if (c && c.notifications) _notifList = c.notifications;
   });
 }
-function isBroadcastNotif(text) { return String(text || '').startsWith(UI.NOTIFY_BROADCAST_PREFIX); }
-function filterNotifRows(rows) {
-  const block = document.getElementById('notif-block-mode')?.value === 'block-broadcast';
-  return block ? rows.filter(n => !isBroadcastNotif(n.text)) : rows;
-}
-function applyNotifFilter() { // 筛选 onchange：同步重渲染，不重新请求
+// 屏蔽系统通知偏好：纯客户端、跨会话持久化（键名 sufe_block_broadcast，布尔；同 setThemePref 存取模式）
+// 广播判定单点（需求四·4b 重构后收敛回来：屏蔽按钮过滤 + 进页渲染两处共用，NOTIFY_BROADCAST_PREFIX 前缀单源）
+function isBroadcastNotif(n) { return String(n.text || '').startsWith(UI.NOTIFY_BROADCAST_PREFIX); }
+function notifBlockOn() { try { return localStorage.getItem('sufe_block_broadcast') === '1'; } catch { return false; } }
+function setNotifBlock(v) { try { localStorage.setItem('sufe_block_broadcast', v ? '1' : '0'); } catch { /* 存储被禁：本次不持久 */ } }
+function renderNotifList() { // 复用渲染逻辑：按偏好过滤 _notifList 即时重排，不重新请求
   const el = document.getElementById('notifications-content');
   if (!el || !_notifList.length) return;
-  const shown = filterNotifRows(_notifList);
+  const shown = notifBlockOn() ? _notifList.filter(n => !isBroadcastNotif(n)) : _notifList;
   el.innerHTML = shown.length ? shown.map(renderNotifItem).join('')
     : `<div class="empty-state"><p>${escHtml(UI.NOTIF_FILTER_EMPTY)}</p></div>`;
+}
+function syncNotifBlockBtn() { // 按偏好同步按钮文字与选中态（颜色不变，选中态 = 前置小圆点）
+  const btn = document.getElementById('btn-notif-block');
+  if (!btn) return;
+  const on = notifBlockOn();
+  btn.classList.toggle('notif-block-btn--on', on);
+  btn.textContent = on ? UI.NOTIF_BLOCK_ON : UI.NOTIF_BLOCK_OFF;
+}
+function toggleNotifBlock() { // 按钮切换：写偏好 + 同步按钮态 + 即时重排列表
+  setNotifBlock(!notifBlockOn());
+  syncNotifBlockBtn();
+  renderNotifList();
 }
 async function enterNotifications() {
   setBadge('notifications', 0); // 点开瞬间红点即灭（先于任何请求，轮询跳过当前页不复活）
   // 管理员独享「发通知」（系统广播）；其他角色隐藏
   const bb = document.getElementById('btn-broadcast-notif');
   if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
+  syncNotifBlockBtn(); // 进页按持久化偏好标按钮态
   const rendered = await loadInto('notifications-content', async () => {
     const data = await dhGet('/api/notifications', { domain: 'notifications' }); // v0.23.0 静默数据层
     _notifList = data.notifications || [];
     return _notifList;
   }, rows => {
-    const shown = filterNotifRows(rows);
+    const shown = notifBlockOn() ? rows.filter(n => !isBroadcastNotif(n)) : rows;
     if (!shown.length) return `<div class="empty-state"><p>${escHtml(UI.NOTIF_FILTER_EMPTY)}</p></div>`;
     return shown.map(renderNotifItem).join('');
   }, { empty: UI.EMPTY_NO_NOTIFICATIONS, peek: () => dhReady('/api/notifications') });

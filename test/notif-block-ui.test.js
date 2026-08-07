@@ -1,0 +1,206 @@
+/**
+ * 需求四·4b 回归：屏蔽系统通知按钮重做（item5）+ 设置页两区颠倒（item8）+ 侧边栏模块 i 信息按钮（item9）
+ *
+ * 在真实 index.html DOM + 全脚本 vm 沙箱中验证（同 onboarding-tour.test.js）：
+ *   - 通知页右上角标准按钮：默认全显；点按隐藏广播通知并持久化 localStorage；
+ *     再点恢复；屏蔽后全为广播 → 空态；
+ *   - 进通知页按持久化偏好自动应用过滤并同步按钮态；
+ *   - 侧边栏每个模块渲染「i」信息按钮，点击打开标准信息浮窗（内容来自 constants UI.MODULE_INFO）；
+ *   - 设置页两区颠倒：账户信息在上、外观在下；
+ *   - 会话列表「会话」title 专属类在位。
+ *
+ * 沙箱细节同 onboarding-tour.test.js：内联 onclick 在 jsdom window 作用域解析函数名，
+ * 需把沙箱函数桥接到 window（toggleNotifBlock / openModuleInfo / enterNotifications 等）。
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
+import { readFileSync } from 'node:fs';
+import vm from 'node:vm';
+
+const FILES = [
+  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
+  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-onboard.js', 'app-region.js',
+  'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
+  'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
+];
+
+const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
+
+function makeCtx({ notifRows = [], demandRows = [] } = {}) {
+  const html = readFileSync('./index.html', 'utf8')
+    .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
+  const dom = new JSDOM(html, {
+    url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
+  });
+  const w = dom.window;
+  const ctx = vm.createContext({
+    window: w, document: w.document,
+    getComputedStyle: w.getComputedStyle.bind(w),
+    localStorage: w.localStorage, sessionStorage: w.sessionStorage,
+    console,
+    fetch: async (url, opts = {}) => {
+      const u = String(url);
+      if (u === '/api/notifications') return { ok: true, status: 200, json: async () => ({ notifications: notifRows }) };
+      if (u.includes('/api/student/demands')) return { ok: true, status: 200, json: async () => ({ demands: demandRows }) };
+      if (/\/api\/demands\/\d+\/intents$/.test(u)) return { ok: true, status: 200, json: async () => ({ teachers: [{ user_id: 38, username: 'kkkk', rating: 4, avatar: '', province: 'guangdong', price_min: 150, price_max: 150, intent_status: 'accepted', intent_id: 5 }] }) };
+      return { ok: true, status: 200, json: async () => ({}) }; // 已读上报 / 会话 / 设备会话等一律空对象
+    },
+    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
+    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
+    Request: globalThis.Request, AbortController: globalThis.AbortController,
+    performance: globalThis.performance,
+    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
+    Image: class { set src(v) { this._s = v; } },
+    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
+    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+  });
+  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  // 桥接内联 onclick 引用的全局函数到 jsdom window（vm 沙箱与 jsdom window 是两个 realm）
+  vm.runInContext(`
+    ['showView','renderSidebar','selectPage','ensureAuth','toggleNotifBlock','openModuleInfo',
+     'enterNotifications','enterAccountSettings','enterMyChats','closeModal','toggleDemandIntents'].forEach(function (k) {
+      if (typeof globalThis[k] === 'function') window[k] = globalThis[k];
+    });
+  `, ctx);
+  const UI = vm.runInContext('UI', ctx);
+  return { dom, ctx, UI };
+}
+
+/** 等 jsdom DOMContentLoaded 跑完，再进客户端（sufe_returning 屏蔽首访浮窗） */
+async function setup(ctx, { user = null, guestRole = null } = {}) {
+  vm.runInContext(`try { localStorage.setItem('sufe_returning', '1'); } catch (e) {}`, ctx);
+  await tick(30);
+  const userStr = user ? JSON.stringify(user) : 'null';
+  const guestStr = JSON.stringify(guestRole);
+  vm.runInContext(`state.user = ${userStr}; state.guestRole = ${guestStr}; renderSidebar(); showView('client');`, ctx);
+}
+
+const BROADCAST = '【系统通知】';
+const rows = [
+  { id: 1, text: `${BROADCAST}维护公告\n今晚维护`, is_read: 1, created_at: '2026-08-08 10:00:00' },
+  { id: 2, text: '关于「数学」的需求，学生已选择其他老师', is_read: 0, created_at: '2026-08-08 09:00:00' },
+  { id: 3, text: `${BROADCAST}新版本上线`, is_read: 0, created_at: '2026-08-08 08:00:00' },
+  { id: 4, text: '你的意向已被学生同意', is_read: 0, created_at: '2026-08-08 07:00:00' },
+];
+
+test('item5 屏蔽系统通知按钮：默认全显，点按隐藏广播并持久化，再点恢复', async () => {
+  const { dom, ctx } = makeCtx({ notifRows: rows });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'notifications'; enterNotifications()`, ctx);
+  await tick();
+  assert.equal(doc.querySelectorAll('.notif-item').length, 4, '默认展示全部 4 条');
+  const btn = doc.getElementById('btn-notif-block');
+  assert.ok(btn, '屏蔽按钮在位');
+  assert.equal(btn.textContent, '屏蔽系统通知', '默认文案');
+  assert.equal(btn.classList.contains('notif-block-btn--on'), false, '默认未选中');
+
+  btn.click(); // 屏蔽
+  await tick();
+  assert.equal(doc.querySelectorAll('.notif-item').length, 2, '屏蔽后只显非广播 2 条');
+  assert.equal(btn.textContent, '已屏蔽系统通知', '选中文案');
+  assert.equal(btn.classList.contains('notif-block-btn--on'), true, '选中态类');
+  assert.equal(vm.runInContext(`localStorage.getItem('sufe_block_broadcast')`, ctx), '1', '偏好持久化');
+
+  btn.click(); // 恢复
+  await tick();
+  assert.equal(doc.querySelectorAll('.notif-item').length, 4, '恢复后全显');
+  assert.equal(btn.textContent, '屏蔽系统通知', '恢复文案');
+  assert.equal(vm.runInContext(`localStorage.getItem('sufe_block_broadcast')`, ctx), '0', '偏好已清除');
+});
+
+test('item5 屏蔽后全为广播 → 空态文案（NOTIF_FILTER_EMPTY）', async () => {
+  const { dom, ctx, UI } = makeCtx({ notifRows: [
+    { id: 1, text: `${BROADCAST}维护公告`, is_read: 1, created_at: '2026-08-08 10:00:00' },
+    { id: 2, text: `${BROADCAST}新版本上线`, is_read: 1, created_at: '2026-08-08 08:00:00' },
+  ] });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'notifications'; enterNotifications()`, ctx);
+  await tick();
+  assert.equal(doc.querySelectorAll('.notif-item').length, 2, '未屏蔽时 2 条广播都显示');
+  doc.getElementById('btn-notif-block').click();
+  await tick();
+  assert.equal(doc.querySelectorAll('.notif-item').length, 0, '屏蔽后广播全隐');
+  assert.ok(doc.getElementById('notifications-content').textContent.includes(UI.NOTIF_FILTER_EMPTY), '显示空态文案');
+});
+
+test('item5 进通知页按 localStorage 偏好应用过滤并同步按钮态（跨会话持久化）', async () => {
+  const { dom, ctx } = makeCtx({ notifRows: rows });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  vm.runInContext(`localStorage.setItem('sufe_block_broadcast', '1')`, ctx);
+  await vm.runInContext(`state.page = 'notifications'; enterNotifications()`, ctx);
+  await tick();
+  assert.equal(doc.querySelectorAll('.notif-item').length, 2, '屏蔽偏好进页只显非广播');
+  assert.equal(doc.getElementById('btn-notif-block').textContent, '已屏蔽系统通知', '按钮为选中态');
+});
+
+test('item9 侧边栏每个模块渲染「i」信息按钮，点击打开信息浮窗（文案单源 constants）', async () => {
+  const { dom, ctx } = makeCtx();
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  const pageCount = vm.runInContext(`ROLE_PAGES.student.length`, ctx);
+  const infos = doc.querySelectorAll('.sidebar-item-info');
+  assert.equal(infos.length, pageCount, `每个模块一个 i 按钮（${pageCount}）`);
+  infos[0].click(); // 我的需求
+  assert.ok(doc.querySelector('#modal-container .modal-overlay'), '信息浮窗打开');
+  assert.equal(doc.querySelector('#modal-container .modal-header h2').textContent, '我的需求', '浮窗标题 = 模块名');
+  const bodyText = doc.querySelector('#modal-container .modal-body').textContent;
+  assert.ok(bodyText.length > 10, '浮窗含白话介绍正文');
+  const info = vm.runInContext(`UI.MODULE_INFO['my-demands']`, ctx);
+  assert.ok(bodyText.includes(info.slice(0, 8)), '正文来自 constants UI.MODULE_INFO');
+  // 所有模块都有介绍文案（防漏配；跨 realm 数组用 length 断言避免原型不匹配）
+  const missing = vm.runInContext(
+    `Object.values(ROLE_PAGES).flat().filter(p => !UI.MODULE_INFO[p.id]).map(p => p.id)`, ctx);
+  assert.equal(missing.length, 0, `每个 ROLE_PAGES 模块都配了介绍文案（缺失：${missing.join(',') || '无'}）`);
+});
+
+test('item9 会话列表「会话」title 专属类在位（放大后的标题）', async () => {
+  const { dom, ctx } = makeCtx();
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'my-chats'; enterMyChats()`, ctx);
+  const title = doc.querySelector('.chats-list-title');
+  assert.ok(title, '会话 title 元素在位');
+  assert.equal(title.textContent, '会话', '文案 = UI.CHAT_TITLE');
+});
+
+test('item6 意向行结构：用户名+星级包 intent-row-user、状态 tag 独立（移动端 CSS 据此纵向排布）', async () => {
+  const { dom, ctx } = makeCtx({ demandRows: [{
+    id: 7, user_id: 39, username: '学生A', student_grade: 'senior1', student_gender: 'female',
+    target_subjects: ['math'], current_scores: [], teaching_method: 'offline', address: '杨浦区',
+    province: 'shanghai', budget_min: 0, budget_max: 0, status: 'open', display_id: 7,
+    intent_locked: 0, my_intent_status: '', avatar: '', created_at: '2026-08-07 04:27:09',
+    pending_intents: 1, intent_count: 1,
+  }] });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'my-demands'; loadMyDemands()`, ctx);
+  await tick(60);
+  const toggle = doc.getElementById('intent-toggle-7');
+  assert.ok(toggle, '意向开关在位');
+  toggle.click();
+  await tick(60);
+  const line = doc.querySelector('.intent-row-line');
+  assert.ok(line, '意向行带 intent-row-line 专属类');
+  assert.ok(line.querySelector('.intent-row-user strong'), '用户名在 intent-row-user 内');
+  assert.ok(line.querySelector('.intent-row-user .stars') || line.querySelector('.intent-row-user b'), '星级在 intent-row-user 内');
+  const tag = line.querySelector('.tag');
+  assert.ok(tag, '状态 tag 在位');
+  assert.equal(tag.textContent, '已同意', 'mock 意向为 accepted → 已同意');
+  assert.equal(line.lastElementChild, tag, 'tag 是意向行末子元素（独立成行，置用户名下方）');
+});
+
+test('item8 设置页两区颠倒：账户信息在上、外观在下', async () => {
+  const { dom, ctx } = makeCtx();
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'account-settings'; enterAccountSettings()`, ctx);
+  const titles = [...doc.querySelectorAll('.settings-section-title')].map(e => e.textContent);
+  assert.deepEqual(titles, ['账户信息', '外观设置'], '账户区在前、外观区在后');
+  // 主题选中态刷新依赖元素 id 而非顺序，确认主题选项仍渲染
+  assert.equal(doc.querySelectorAll('.theme-opt').length, 3, '外观主题三项仍在');
+  assert.equal(doc.querySelectorAll('.settings-row').length >= 4, true, '账户行（头像/用户名/角色/电话/邮箱）在位');
+});
