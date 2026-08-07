@@ -8,6 +8,9 @@
  *   - 网络错误统一识别：fetch 抛错（断线/被拒/超时/DNS）与非 JSON 响应（网关 502/代理错误页）
  *     一律归为 UI.NETWORK_ERROR（code='NETWORK_ERROR'）——前端据此弹明确中文提示，
  *     杜绝「Failed to fetch」英文裸错误。调用方 catch 里不用再判断英文消息。
+ *   - fetch 挂死保护（v0.22.7）：无超时 fetch 在停滞 SW/异常网络下永不 settle——登录按钮
+ *     「永远加载中」即此形态。AbortController 按 CONFIG.API_TIMEOUT_MS 超时中止，归入网络错误，
+ *     调用方 finally 正常收口，不再无限转圈。
  *   - 业务错误统一抛 { message, code }（code = 后端 error() 稳定错误码）
  *
  * 依赖：state（app-state）、UI（constants）、clearSession（app-state）、ensureAuth（app-auth，运行时解析）。
@@ -18,15 +21,21 @@ async function api(endpoint, options = {}) {
   const config = { ...options, headers };
   if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT_MS);
+  config.signal = controller.signal;
+
   let res;
   try {
     res = await fetch(endpoint, config);
   } catch {
     // 网络层失败：fetch 对断线/被拒/超时/DNS 抛 TypeError 等 → 统一明确文案（网络错误捕获环节 1/4）
+    clearTimeout(timer);
     const e = new Error(UI.NETWORK_ERROR);
     e.code = 'NETWORK_ERROR';
     throw e;
   }
+  clearTimeout(timer); // fetch 已 settle，超时保护使命完成
 
   let data = {};
   try {
