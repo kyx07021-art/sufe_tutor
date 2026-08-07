@@ -53,3 +53,20 @@ test('api()：正常响应不受超时影响', async () => {
   const data = await vm.runInContext(`api('/api/auth/me')`, ctx);
   assert.deepEqual(data, { hello: 1 });
 });
+
+test('api()：响应头已回但 body 流停滞（fetch 解析后 res.json 永挂）同样被超时掐断（v0.22.9 盲区）', async () => {
+  const ctx = makeCtx({
+    // fetch 立即解析返回 200 + 永不结束的 body 流 → res.json() 永久挂起
+    fetchImpl: async () => new Response(new ReadableStream({ start() {} }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+  });
+  vm.runInContext('CONFIG.API_TIMEOUT_MS = 200;', ctx);
+  const t0 = Date.now();
+  let err = null;
+  try {
+    await vm.runInContext(`api('/api/auth/me')`, ctx);
+  } catch (e) { err = e; }
+  const elapsed = Date.now() - t0;
+  assert.ok(err, 'body 停滞应被超时掐断而非永久转圈');
+  assert.equal(err.code, 'NETWORK_ERROR', '应归网络错误');
+  assert.ok(elapsed < 3000, `应约在超时阈值收口（实测 ${elapsed}ms）`);
+});

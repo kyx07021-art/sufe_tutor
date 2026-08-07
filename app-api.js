@@ -9,8 +9,10 @@
  *     一律归为 UI.NETWORK_ERROR（code='NETWORK_ERROR'）——前端据此弹明确中文提示，
  *     杜绝「Failed to fetch」英文裸错误。调用方 catch 里不用再判断英文消息。
  *   - fetch 挂死保护（v0.22.7）：无超时 fetch 在停滞 SW/异常网络下永不 settle——登录按钮
- *     「永远加载中」即此形态。AbortController 按 CONFIG.API_TIMEOUT_MS 超时中止，归入网络错误，
- *     调用方 finally 正常收口，不再无限转圈。
+ *     「永远加载中」即此形态。超时归入网络错误，调用方 finally 正常收口，不再无限转圈。
+ *   - v0.22.9 修正盲区：超时覆盖「fetch + 响应体读取」全程（竞速计时器，而非仅 AbortController——
+ *     实证 abort 信号在 fetch 解析后不会传播到 res.json()，body 流停滞会永久挂起）。服务端
+ *     若已回响应头但 body 停滞（如 logRequest 写库卡住），现仍会被超时掐断并归网络错误。
  *   - 业务错误统一抛 { message, code }（code = 后端 error() 稳定错误码）
  *
  * 依赖：state（app-state）、UI（constants）、clearSession（app-state）、ensureAuth（app-auth，运行时解析）。
@@ -21,31 +23,34 @@ async function api(endpoint, options = {}) {
   const config = { ...options, headers };
   if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
 
+  // 挂死保护：AbortController 掐断 fetch；竞速计时器兜底 body 读取停滞（v0.22.9 覆盖全程）。
+  // 超时统一归网络错误，请求不再无限转圈。
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CONFIG.API_TIMEOUT_MS);
   config.signal = controller.signal;
+  const timeoutErr = new Error(UI.NETWORK_ERROR);
+  timeoutErr.code = 'NETWORK_ERROR';
+  let timer = null;
 
-  let res;
+  let res, data = {};
   try {
-    res = await fetch(endpoint, config);
-  } catch {
-    // 网络层失败：fetch 对断线/被拒/超时/DNS 抛 TypeError 等 → 统一明确文案（网络错误捕获环节 1/4）
+    data = await Promise.race([
+      (async () => {
+        res = await fetch(endpoint, config);
+        return await res.json();
+      })(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => { controller.abort(); reject(timeoutErr); }, CONFIG.API_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (err) {
     clearTimeout(timer);
+    if (err === timeoutErr) throw timeoutErr; // 整段请求超时（fetch 或 body 停滞）
+    // fetch/body 读取失败：断线/被拒/超时/DNS/网关非 JSON → 统一明确文案（网络错误捕获环节 1/4 + 2/4）
     const e = new Error(UI.NETWORK_ERROR);
     e.code = 'NETWORK_ERROR';
     throw e;
   }
-  clearTimeout(timer); // fetch 已 settle，超时保护使命完成
-
-  let data = {};
-  try {
-    data = await res.json();
-  } catch {
-    // 非 JSON 响应：网关 502/代理错误页等 → 按服务端不可达处理（网络错误捕获环节 2/4）
-    const e = new Error(UI.NETWORK_ERROR);
-    e.code = 'NETWORK_ERROR';
-    throw e;
-  }
+  clearTimeout(timer); // 请求全程已 settle（fetch + body 读取），超时保护使命完成
 
   if (!res.ok) {
     // 401 兜底：带令牌仍被拒 = 会话已死（过期/多端顶号），必须清本地登录态并汇入登录通路，
