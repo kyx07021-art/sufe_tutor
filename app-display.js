@@ -34,10 +34,27 @@
       return (ids || []).map(id => D.subjectName(id)).join('、');
     },
     genderName(id) { return enumName(C().GENDERS, id, ''); },
+    // R2-11 需求侧学生性别展示：'' = 不愿透露（默认）与历史 'nonbinary'（需求表单已无此选项）一律视同未填、
+    // 不展示文字（卡上 .filter(Boolean) 自然省略）；教师侧性别 GENDERS 沿用不变，仍走 genderName
+    demandStudentGenderName(id) {
+      return (id === 'nonbinary' || !id) ? '' : D.genderName(id);
+    },
     teacherGradeName(id) { return enumName(C().TEACHER_GRADES, id, ''); },
     methodName(id) { return enumName(C().TEACHING_METHODS, id, ''); },
     personalityTagName(id) { return enumName(C().PERSONALITY_TAGS, id, ''); }, // R2-3 性格关键词名
     nonacademicProjectName(id) { return enumName(C().NONACADEMIC_PROJECTS, id, ''); }, // R2-4 非学科项目名
+
+    // R2-b 需求目标名按类型分流单点映射（需求卡/推送列表/管理端统计/合同流共用，消灭散落三元）：
+    //   academic → SUBJECTS 科目名；nonacademic → NONACADEMIC_PROJECTS 项目名；未知 id 查无返 ''
+    demandTargetName(id, type) {
+      return type === (C().DEMAND_TYPES || {}).NONACADEMIC ? D.nonacademicProjectName(id) : D.subjectName(id);
+    },
+    demandTargetNameList(ids, type) {
+      return (ids || []).map(id => D.demandTargetName(id, type)).filter(Boolean);
+    },
+    demandTargetNames(ids, type) {
+      return D.demandTargetNameList(ids, type).join('、');
+    },
 
     // R2-5 报价区间展示（教师卡/资料卡/意向行复用）：min==max 折叠为单值（存量单报价迁移与固定价
     // 都显示「150元/h」而非「150~150元/h」）；只有 min → min元/h起；只有 max → 至max元/h；都没值 → ''

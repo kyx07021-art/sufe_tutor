@@ -151,7 +151,7 @@ test('时间组件：回填（结构化 JSON / 旧纯文本忽略）与上限', 
   assert.equal(container2.querySelectorAll('.time-slot').length, 8, '超上限不再新增');
 });
 
-test('时间组件：编辑限制（禁删除/禁粘贴/禁非数字，允许数字/导航/复制）', () => {
+test('时间组件：编辑限制（v0.25.3 允许自由删除；禁粘贴/禁非数字，允许数字/导航/复制）', () => {
   const { dom, fns } = makeCtx();
   const w = dom.window;
   const inp = w.document.createElement('input');
@@ -161,8 +161,10 @@ test('时间组件：编辑限制（禁删除/禁粘贴/禁非数字，允许数
   const keyEv = (init) => new w.KeyboardEvent('keydown', { cancelable: true, bubbles: true, ...init });
   const prevented = (ev) => { fns.guardTimeKey(ev); return ev.defaultPrevented; };
 
-  assert.equal(prevented(keyEv({ key: 'Backspace' })), true, 'Backspace 拦截');
-  assert.equal(prevented(keyEv({ key: 'Delete' })), true, 'Delete 拦截');
+  // v0.25.3：自由逐位删除放行（用户指令——数字删到空再重打，冒号独立元素天然碰不到）
+  assert.equal(prevented(keyEv({ key: 'Backspace' })), false, 'Backspace 放行');
+  assert.equal(prevented(keyEv({ key: 'Delete' })), false, 'Delete 放行');
+  assert.equal(prevented(keyEv({ key: 'Backspace', ctrlKey: true })), false, 'Ctrl+Backspace 放行（清空本侧）');
   assert.equal(prevented(keyEv({ key: 'v', ctrlKey: true })), true, 'Ctrl+V 拦截');
   assert.equal(prevented(keyEv({ key: 'x', ctrlKey: true })), true, 'Ctrl+X 拦截');
   assert.equal(prevented(keyEv({ key: 'a' })), true, '字母 a 拦截');
@@ -172,16 +174,44 @@ test('时间组件：编辑限制（禁删除/禁粘贴/禁非数字，允许数
   assert.equal(prevented(keyEv({ key: 'c', ctrlKey: true })), false, 'Ctrl+C 放行（复制）');
   assert.equal(prevented(keyEv({ key: 'a', ctrlKey: true })), false, 'Ctrl+A 放行（全选本侧）');
 
-  // beforeinput 兜底（IME/移动端）：删除/黏贴/拖入拦截，纯数字插入放行
+  // beforeinput 兜底（IME/移动端）：删除放行（同 keydown 口径）；黏贴/拖入/非数字插入拦截
   const mkBefore = (inputType, data) => ({ inputType, data, _p: false, preventDefault() { this._p = true; } });
   const before = (it, data) => { const m = mkBefore(it, data); fns.guardTimeBeforeInput(m); return m._p; };
-  assert.equal(before('deleteContentBackward', null), true, '删除拦截');
-  assert.equal(before('deleteByCut', null), true, '剪切拦截');
+  assert.equal(before('deleteContentBackward', null), false, '删除放行（IME/移动端虚拟键盘）');
+  assert.equal(before('deleteByCut', null), false, '剪切（拖拽）删除放行');
   assert.equal(before('insertFromPaste', 'abc'), true, '黏贴拦截');
   assert.equal(before('insertFromDrop', '18'), true, '拖入拦截');
   assert.equal(before('insertText', 'a'), true, '非数字插入拦截');
   assert.equal(before('insertText', '5'), false, '数字插入放行');
   assert.equal(before('insertText', '123'), false, '多数字符串由 oninput 裁剪');
+});
+
+test('时间组件：v0.25.3 空栏藏冒号（has-value 状态链 + CSS 规则在位）', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  const container = mount(doc);
+  container.innerHTML = fns.renderTimeSlotContainerHtml();
+  fns.addTimeSlot(container.querySelector('.time-add-btn'));
+  const field = container.querySelector('.time-field[data-time-role="start"]');
+  const hh = field.querySelector('.slot-time-hh');
+  const mm = field.querySelector('.slot-time-mm');
+  assert.ok(field.querySelector('.time-colon'), '冒号元素在栏内（hh 与 mm 之间）');
+
+  // 初始空：无 has-value → CSS 规则把冒号藏起
+  assert.equal(field.classList.contains('has-value'), false, '空栏无 has-value');
+  // 填值 → has-value 出现（冒号显示）
+  hh.value = '18'; mm.value = '00'; fns.onTimeInput(hh); fns.onTimeInput(mm);
+  assert.equal(field.classList.contains('has-value'), true, '有值后 has-value 出现');
+  // 删空 → has-value 消失（冒号隐藏），可继续自由改写
+  hh.value = ''; mm.value = ''; fns.onTimeInput(hh); fns.onTimeInput(mm);
+  assert.equal(field.classList.contains('has-value'), false, '删空后 has-value 消失');
+  // 半填（只填一边）也算有值 → 冒号显示
+  hh.value = '1'; fns.onTimeInput(hh);
+  assert.equal(field.classList.contains('has-value'), true, '半填也算有值，冒号保留');
+
+  // CSS 规则回归：`.time-field:not(.has-value) .time-colon` 必须藏在 style.css（删了会复现空栏冒号）
+  const css = readFileSync('./style.css', 'utf8');
+  assert.match(css, /\.time-field:not\(\.has-value\) \.time-colon\s*\{\s*visibility:\s*hidden/, 'style.css 空栏冒号隐藏规则在位');
 });
 
 test('时间组件：输入清洗与钳制（onTimeInput/clampTime/applyTimePick）', () => {

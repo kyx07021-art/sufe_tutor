@@ -312,7 +312,7 @@ async function openContractDraftModal(convId) {
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND}</label>
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
             <option value="">${UI.CONTRACT_NO_DEMAND_OPTION}</option>
-            ${options.map(d => `<option value="${d.id}"${preselect && d.id === preselect.id ? ' selected' : ''}>#${String(d.display_id || d.id).padStart(4, '0')} · ${escHtml(DISP.subjectNames(d.target_subjects) || '—')}</option>`).join('')}
+            ${options.map(d => `<option value="${d.id}"${preselect && d.id === preselect.id ? ' selected' : ''}>#${String(d.display_id || d.id).padStart(4, '0')} · ${escHtml(DISP.demandTargetNames(d.target_subjects, d.target_type) || '—')}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -402,7 +402,7 @@ function prefillContractFromDemand() {
     rateEl.value = Math.round(((+d.budget_min || 0) + (+d.budget_max || 0)) / 2) || (+d.budget_max || +d.budget_min);
   }
   const plan = document.getElementById('post-body');
-  const subjLine = DISP.subjectNames(d.target_subjects);
+  const subjLine = DISP.demandTargetNames(d.target_subjects, d.target_type); // R2-b 合同详情按需求类型显示目标名
   if (plan && !plan.value.trim() && subjLine) { plan.value = `${UI.CONTRACT_SUBJECT_LINE_PREFIX}${subjLine}\n\n`; }
 }
 

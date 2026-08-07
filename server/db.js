@@ -103,6 +103,9 @@ async function migrateLegacyRoles(db, adminNames) {
         budget_min REAL DEFAULT 0, budget_max REAL DEFAULT 0,
         submitter_type TEXT NOT NULL, parent_contact TEXT NOT NULL,
         student_contact TEXT NOT NULL, additional_info TEXT DEFAULT '',
+        target_type TEXT NOT NULL DEFAULT 'academic',
+        preferred_personality_tags TEXT NOT NULL DEFAULT '[]',
+        preferred_teacher_gender TEXT NOT NULL DEFAULT '',
         created_at DATETIME DEFAULT (datetime('now','localtime')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`,
     },
@@ -220,6 +223,9 @@ export async function initDb(db, env = {}) {
       budget_min REAL DEFAULT 0, budget_max REAL DEFAULT 0,
       submitter_type TEXT NOT NULL, parent_contact TEXT NOT NULL,
       student_contact TEXT NOT NULL, additional_info TEXT DEFAULT '',
+      target_type TEXT NOT NULL DEFAULT 'academic',
+      preferred_personality_tags TEXT NOT NULL DEFAULT '[]',
+      preferred_teacher_gender TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS reviews (
@@ -417,7 +423,11 @@ export async function initDb(db, env = {}) {
   // 防档案完整性门槛（price_min==null）误拦历史教师接单。price 列此后不再写入。
   await dbRun(db, `UPDATE teacher_profiles SET price_min=price, price_max=price WHERE price_min IS NULL AND price IS NOT NULL`);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"],
-    ['intent_locked', 'INTEGER NOT NULL DEFAULT 0']]); // 意向单接受锁：并发 accept 抢占（防同需求双 accepted 意向）
+    ['intent_locked', 'INTEGER NOT NULL DEFAULT 0'], // 意向单接受锁：并发 accept 抢占（防同需求双 accepted 意向）
+    // R2-b 需求侧扩充：需求类型（学科/非学科）/ 偏好老师性格 / 偏好老师性别
+    ['target_type', "TEXT NOT NULL DEFAULT 'academic'"],
+    ['preferred_personality_tags', "TEXT NOT NULL DEFAULT '[]'"],
+    ['preferred_teacher_gender', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
     ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"],
@@ -766,13 +776,18 @@ export async function dbCreateDemand(db, userId, demand) {
   const result = await dbRun(db, `INSERT INTO student_demands
     (user_id,province,student_grade,student_gender,target_subjects,current_scores,
      teaching_method,address,expected_time,budget_min,budget_max,
-     submitter_type,parent_contact,student_contact,additional_info,display_id)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands))`, [
+     submitter_type,parent_contact,student_contact,additional_info,display_id,
+     target_type,preferred_personality_tags,preferred_teacher_gender)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands),
+      ?,?,?)`, [
     userId, demand.province || '', demand.student_grade, demand.student_gender,
     JSON.stringify(demand.target_subjects), JSON.stringify(demand.current_scores),
     demand.teaching_method || 'offline', demand.address || '', demand.expected_time || '',
     demand.budget_min || 0, demand.budget_max || 0,
     demand.submitter_type, parentContact, studentContact, demand.additional_info || '',
+    demand.target_type || 'academic',
+    JSON.stringify(Array.isArray(demand.preferred_personality_tags) ? demand.preferred_personality_tags : []),
+    demand.preferred_teacher_gender || '',
   ]);
   return Number(result.meta.last_row_id);
 }
@@ -796,6 +811,8 @@ function mapDemandRow(r) {
     ...rest,
     target_subjects: safeJsonArray(r.target_subjects),
     current_scores: safeJsonArray(r.current_scores),
+    // R2-b：偏好老师性格 JSON 列单点反序列化（target_type/preferred_teacher_gender 随 rest 透传）
+    preferred_personality_tags: safeJsonArray(r.preferred_personality_tags),
   };
 }
 
@@ -864,12 +881,15 @@ export async function dbUpdateDemand(db, id, d) {
   await dbRun(db, `UPDATE student_demands SET province=?,student_grade=?,student_gender=?,
     target_subjects=?,current_scores=?,teaching_method=?,address=?,expected_time=?,address_detail='',
     budget_min=?,budget_max=?,submitter_type=?,parent_contact=?,student_contact=?,
-    additional_info=? WHERE id=?`, [
+    additional_info=?,target_type=?,preferred_personality_tags=?,preferred_teacher_gender=? WHERE id=?`, [
     d.province || '', d.student_grade, d.student_gender,
     JSON.stringify(d.target_subjects), JSON.stringify(d.current_scores),
     d.teaching_method || 'offline', d.address || '', d.expected_time || '',
     d.budget_min || 0, d.budget_max || 0,
-    d.submitter_type, parentContact, studentContact, d.additional_info || '', id,
+    d.submitter_type, parentContact, studentContact, d.additional_info || '',
+    d.target_type || 'academic',
+    JSON.stringify(Array.isArray(d.preferred_personality_tags) ? d.preferred_personality_tags : []),
+    d.preferred_teacher_gender || '', id,
   ]);
 }
 
@@ -1218,7 +1238,8 @@ export async function dbGetRecentUsers(db, limit = LIMITS.RECENT_LIMIT) {
 }
 
 export async function dbGetRecentDemands(db, limit = LIMITS.RECENT_LIMIT) {
-  const rows = await dbAll(db, `SELECT sd.id,sd.student_grade,sd.target_subjects,sd.created_at,u.username
+  // R2-b：含 target_type，管理端统计「最近需求」按学科/非学科显示对应目标名
+  const rows = await dbAll(db, `SELECT sd.id,sd.student_grade,sd.target_subjects,sd.target_type,sd.created_at,u.username
     FROM student_demands sd JOIN users u ON sd.user_id=u.id ORDER BY sd.created_at DESC LIMIT ?`, [limit]);
   return rows.map(d => ({ ...d, target_subjects: safeJsonArray(d.target_subjects) }));
 }

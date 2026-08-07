@@ -31,17 +31,62 @@
 // ============================================================
 // 需求弹窗（创建 / 编辑）：表单模板 + 初始化 + 回填 + 提交
 // ============================================================
-function openDemandModal(demandId) {
+async function openDemandModal(demandId) {
   state.editingDemandId = demandId || null;
   const demand = demandId ? state.myDemands.find(d => d.id === demandId) : null;
-  openModal({ title: demand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE, body: renderDemandModal(demand) });
-  initDemandForm(demand ? demand.province : null);
-  if (demand) prefillDemandForm(demand);
+  // R2-b：编辑分支先异步拉最新需求（scope=mine）再回填——不依赖 state.myDemands 镜像
+  // （签约/推送等可能在别页改动需求，陈旧镜像会让编辑表单回填旧值）。拉取失败回落旧缓存。
+  let editDemand = demand || null;
+  if (demandId) {
+    // 竞态快照：await 期间若用户开了别的弹窗/切页，弹窗区内容变化 → 丢弃过期回填不覆盖
+    const modalBefore = document.getElementById('modal-container').innerHTML;
+    try {
+      invalidate('demands'); // 编辑强制拉最新（不走 60s TTL 缓存，避免读到与 state.myDemands 相同的镜像）
+      const data = await dhGet('/api/student/demands?scope=mine', { domain: 'demands' });
+      if (state.editingDemandId !== demandId) return; // 竞态守卫①：用户已点开其他需求/新建
+      if (document.getElementById('modal-container').innerHTML !== modalBefore) return; // 竞态守卫②：弹窗区被其他交互占用
+      if (data && Array.isArray(data.demands)) {
+        state.myDemands = data.demands; // 同步镜像源（与 dhOnDomainRefresh 重挂同款，编辑回填源防游离旧数组）
+        editDemand = data.demands.find(x => x.id === demandId) || demand;
+      }
+    } catch {
+      if (state.editingDemandId !== demandId || document.getElementById('modal-container').innerHTML !== modalBefore) return;
+      editDemand = demand;
+    }
+  }
+  openModal({ title: editDemand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE, body: renderDemandModal(editDemand) });
+  initDemandForm(editDemand ? editDemand.province : null);
+  if (editDemand) prefillDemandForm(editDemand);
+}
+
+// R2-b 需求类型分段切换：学科 / 非学科。JS 只切 .active/.hidden 类（零内联样式），样式在 style.css
+function switchDemandType(btn) {
+  setDemandType(btn.dataset.type);
+}
+function setDemandType(type) {
+  const isAc = type !== DEMAND_TYPES.NONACADEMIC;
+  const tabs = document.getElementById('d-type-tabs');
+  if (tabs) tabs.querySelectorAll('.demand-type-tab').forEach(t => t.classList.toggle('active', t.dataset.type === type));
+  const ac = document.getElementById('d-section-academic');
+  const na = document.getElementById('d-section-nonacademic');
+  if (ac) ac.classList.toggle('hidden', !isAc);
+  if (na) na.classList.toggle('hidden', isAc);
 }
 
 function renderDemandModal(demand) {
+  // R2-b 学生性别选项：'' = 不愿透露（默认，视同未填）+ GENDERS 男/女；
+  // GENDERS 教师侧（含 nonbinary）沿用不变，此处仅表单专用构造（单源注释见 constants.js）
+  const studentGenders = [{ id: '', name: UI.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'nonbinary')];
+  const prefGenders = GENDERS.filter(g => g.id !== 'nonbinary'); // 偏好老师性别：不限('') + 男/女
   return `<div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
+          <div class="form-group">
+            <!-- R2-8 学科/非学科分段切换：非最终方案，待调整整体排版（tag 区分顶上，后续随需求二排版整体改） -->
+            <div class="demand-type-tabs glass glass--solid" id="d-type-tabs">
+              <button type="button" class="demand-type-tab glass glass--solid active" data-type="academic" onclick="switchDemandType(this)">${UI.LABEL_TYPE_ACADEMIC}</button>
+              <button type="button" class="demand-type-tab glass glass--solid" data-type="nonacademic" onclick="switchDemandType(this)">${UI.LABEL_TYPE_NONACADEMIC}</button>
+            </div>
+          </div>
           <div class="form-group">
             <label class="form-label">${UI.LABEL_PROVINCE} <span class="req">*</span></label>
             <span id="d-province-wrap"></span>
@@ -54,20 +99,41 @@ function renderDemandModal(demand) {
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">${UI.LABEL_STUDENT_GENDER} <span class="req">*</span></label>
-            <select class="form-select" id="d-gender" required>
-              <option value="">${UI.OPTION_PLACEHOLDER}</option>${GENDERS.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
+            <label class="form-label">${UI.LABEL_STUDENT_GENDER}</label>
+            <select class="form-select" id="d-gender">
+              ${studentGenders.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
             </select>
           </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_TARGET_SUBJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
-            <div class="checkbox-grid" id="d-subjects">${SUBJECTS.map(s=>`
-              <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${s.id}">${s.name}</label>
-            `).join('')}</div>
+          <div class="demand-section" id="d-section-academic">
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_TARGET_SUBJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
+              <div class="checkbox-grid" id="d-subjects">${SUBJECTS.map(s=>`
+                <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${s.id}">${s.name}</label>
+              `).join('')}</div>
+            </div>
+            <div class="form-group" id="d-scores-wrap">
+              <label class="form-label">${UI.LABEL_CURRENT_SCORES}</label>
+              <div id="d-scores"><p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p></div>
+            </div>
           </div>
-          <div class="form-group" id="d-scores-wrap">
-            <label class="form-label">${UI.LABEL_CURRENT_SCORES}</label>
-            <div id="d-scores"><p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p></div>
+          <div class="demand-section hidden" id="d-section-nonacademic">
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_NONACADEMIC_PROJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
+              <div class="checkbox-grid" id="d-nonacademic">${NONACADEMIC_PROJECTS.map(p=>`
+                <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${p.id}">${p.name}</label>
+              `).join('')}</div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${UI.LABEL_PREFERRED_PERSONALITY}${UI.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
+            <div id="d-personality-tags">${PERSONALITY_TAGS.map(tag=>
+              `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(tag.id)}" onclick="toggleTagPick(this, 'd-personality-tags', ${CONFIG.PERSONALITY_TAGS_MAX})">${escHtml(tag.name)}</button>`).join('')}</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">${UI.LABEL_PREFERRED_GENDER}</label>
+            <select class="form-select" id="d-pref-gender">
+              <option value="">${UI.OPTION_PREF_GENDER_ANY}</option>${prefGenders.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label">${UI.LABEL_TEACHING_METHOD} <span class="req">*</span></label>
@@ -138,13 +204,29 @@ function prefillDemandForm(d) {
   onDemandProvinceChange(); // 锁线上约束 + 建科目池（科目池还需年级，下行补）
   document.getElementById('d-grade').value  = d.student_grade || '';
   updateDemandSubjects();
-  document.getElementById('d-gender').value = d.student_gender || '';
-  (d.target_subjects || []).forEach(sid => {
-    const cb = document.querySelector(`#d-subjects input[value="${sid}"]`);
-    if (cb) cb.checked = true;
+  // R2-b：先按类型激活对应区块，再回填该类型的 target 勾选
+  setDemandType(d.target_type === DEMAND_TYPES.NONACADEMIC ? DEMAND_TYPES.NONACADEMIC : DEMAND_TYPES.ACADEMIC);
+  document.getElementById('d-gender').value = d.student_gender || ''; // '' = 不愿透露（prefill 兼容旧数据 undefined）
+  // 回填勾选用遍历比对 value，勿用属性选择器插值（网安 L3：历史恶意 sid 含 " ] 会让 querySelector
+  // 抛 SyntaxError 打不开编辑浮窗；v0.25.2 教师档案回填同款教训——pickById 遍历替代）
+  const checkById = (containerId, pid) => {
+    const el = document.getElementById(containerId);
+    if (!el) return null;
+    return [...el.querySelectorAll('input')].find(cb => cb.value === pid) || null;
+  };
+  if (d.target_type === DEMAND_TYPES.NONACADEMIC) {
+    (d.target_subjects || []).forEach(sid => { const cb = checkById('d-nonacademic', sid); if (cb) cb.checked = true; });
+  } else {
+    (d.target_subjects || []).forEach(sid => { const cb = checkById('d-subjects', sid); if (cb) cb.checked = true; });
+    updateDemandScores();
+    prefillStudentScores(d.current_scores || []);
+  }
+  // R2-b 偏好性格 / 偏好老师性别回填
+  (d.preferred_personality_tags || []).forEach(id => {
+    const btn = [...document.querySelectorAll('#d-personality-tags .tag-pick')].find(b => b.dataset.id === id);
+    if (btn) btn.classList.add('selected');
   });
-  updateDemandScores();
-  prefillStudentScores(d.current_scores || []);
+  document.getElementById('d-pref-gender').value = d.preferred_teacher_gender || '';
   document.getElementById('d-method').value = d.teaching_method || 'offline';
   toggleAddressField();
   document.getElementById('d-address').value        = d.address || '';
@@ -155,6 +237,8 @@ function prefillDemandForm(d) {
   document.getElementById('d-parent-contact').value = d.parent_contact || '';
   document.getElementById('d-student-contact').value = d.student_contact || '';
   document.getElementById('d-info').value           = d.additional_info || '';
+  // 程序回填不派发 change：手动同步全部自定义下拉的触发器文字（prefillStudentScores 已同步学科分支，此处两分支兜底）
+  document.querySelectorAll('#demand-form select').forEach(syncCustomSelectText);
 }
 
 // 平时成绩回填：等第数据→点等级 pill（页签默认等第制）；分数数据→先切分数制页签再填值
@@ -249,10 +333,14 @@ async function handleSubmitDemand(e) {
   const alertEl = document.getElementById('demand-alert');
   const province = document.getElementById('d-province').value;
   if (!province) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
-  const subjects = [...document.querySelectorAll('#d-subjects input:checked')].map(cb => cb.value);
+  // R2-b 需求类型 + 按类型收集目标（学科 → #d-subjects；非学科 → #d-nonacademic）
+  const type = document.querySelector('#d-type-tabs .demand-type-tab.active').dataset.type;
+  const targetSel = type === DEMAND_TYPES.NONACADEMIC ? '#d-nonacademic input:checked' : '#d-subjects input:checked';
+  const subjects = [...document.querySelectorAll(targetSel)].map(cb => cb.value);
   if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
 
-  const scores = collectStudentScores();
+  const scores = type === DEMAND_TYPES.NONACADEMIC ? [] : collectStudentScores(); // 非学科无成绩概念
+  const prefTags = [...document.querySelectorAll('#d-personality-tags .tag-pick.selected')].map(b => b.dataset.id);
 
   // v0.25.0 结构化期望时间：校验（半填/缺起止/结束早于开始）通过后收集为 [{type:'week',...}] JSON
   const timeErr = validateTimeSlots(document.getElementById('d-time-slots'));
@@ -262,9 +350,12 @@ async function handleSubmitDemand(e) {
   const isEdit = !!state.editingDemandId;
   const payload = { demand: {
     province,
+    target_type: type,
     student_grade: document.getElementById('d-grade').value,
     student_gender: document.getElementById('d-gender').value,
     target_subjects: subjects, current_scores: scores,
+    preferred_personality_tags: prefTags,
+    preferred_teacher_gender: document.getElementById('d-pref-gender').value,
     teaching_method: document.getElementById('d-method').value,
     address: document.getElementById('d-address').value.trim(),
     expected_time: timeSlots.length ? JSON.stringify(timeSlots) : '',
@@ -333,13 +424,18 @@ async function handleDeleteDemand(demandId, asAdmin) {
 function matchDegree(teacher, demand) {
   if (!teacher) return null;
   let score = 0, total = 0;
-  const tSubj = Array.isArray(teacher.subjects) ? teacher.subjects : [];
+  // R2-b 科目维度按需求类型分流：academic → 教师擅长科目 subjects；nonacademic → 教师非学科项目 nonacademic_projects
+  const type = demand && demand.target_type === DEMAND_TYPES.NONACADEMIC ? DEMAND_TYPES.NONACADEMIC : DEMAND_TYPES.ACADEMIC;
+  const tSubj = type === DEMAND_TYPES.NONACADEMIC
+    ? (Array.isArray(teacher.nonacademic_projects) ? teacher.nonacademic_projects : [])
+    : (Array.isArray(teacher.subjects) ? teacher.subjects : []);
   const W = CONFIG.MATCH_WEIGHT; // 权重单源 constants CONFIG（科目 60 + 区县 20 + 预算 20）
   const dSubj = Array.isArray(demand.target_subjects) ? demand.target_subjects : [];
   if (tSubj.length && dSubj.length) {
     total += W.subject;
     score += (dSubj.filter(s => tSubj.includes(s)).length / dSubj.length) * W.subject;
   }
+  // R2 注释：性格/性别匹配分在需求五扩展（此轮只注释不实现）
   if (teacher.province && demand.province) {
     total += W.region;
     if (teacher.province === demand.province) score += W.region;
@@ -358,7 +454,11 @@ function matchDegree(teacher, demand) {
 // 匹配度明细悬浮卡（v0.19.45）：分项对齐 matchDegree 口径——科目 60（命中比例）/ 区域 20（同省）/ 预算 20（报价在区间内），
 // 缺数据维度不计分并明示。毛度同浮窗纸面（glass.css .match-detail 参数，modal 同级）
 function matchDetailHtml(t, d, md) {
-  const tSubj = Array.isArray(t.subjects) ? t.subjects : [];
+  // R2-b 同 matchDegree 口径：科目维度按需求类型分流（academic → subjects；nonacademic → nonacademic_projects）
+  const type = d && d.target_type === DEMAND_TYPES.NONACADEMIC ? DEMAND_TYPES.NONACADEMIC : DEMAND_TYPES.ACADEMIC;
+  const tSubj = type === DEMAND_TYPES.NONACADEMIC
+    ? (Array.isArray(t.nonacademic_projects) ? t.nonacademic_projects : [])
+    : (Array.isArray(t.subjects) ? t.subjects : []);
   const dSubj = Array.isArray(d.target_subjects) ? d.target_subjects : [];
   const hit = dSubj.filter(s => tSubj.includes(s)).length;
   const subjOn = tSubj.length > 0 && dSubj.length > 0;
@@ -450,9 +550,14 @@ function renderDemandCard(d, opts = {}) {
     ? (() => { const md = matchDegree(myTeacher, d); if (md == null) return ''; return `<button type="button" class="tag tag-match glass glass--solid" data-id="${d.id}" onclick="showMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${md}%</button>`; })()
     : '';
   const provinceName = DISP.provinceName(d.province);
-  const subjNames = (d.target_subjects||[]).map(id => DISP.subjectName(id));
+  // R2-b 类型徽章：学科 / 非学科（标题行紧邻用户名左侧展示；「非最终方案，待调整整体排版」见 CLAUDE.md R2-8）
+  const typeBadge = `<span class="tag tag-accent glass glass--solid">${d.target_type === DEMAND_TYPES.NONACADEMIC ? UI.BADGE_TYPE_NONACADEMIC : UI.BADGE_TYPE_ACADEMIC}</span> `;
+  // R2-b 目标名按类型分流（DISP.demandTargetNameList 单点映射）：非学科显示项目名、学科显示科目名
+  const subjNames = DISP.demandTargetNameList(d.target_subjects, d.target_type);
   const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
-  const gender = DISP.genderName(d.student_gender);
+  // R2-11 学生性别 '' = 不愿透露 与历史 nonbinary 一律视同未填：demandStudentGenderName 返回 ''，
+  // 下方 .filter(Boolean) 自然省略不展示（网安 L2：存量 nonbinary 不再显示「非二元」）
+  const gender = DISP.demandStudentGenderName(d.student_gender);
   const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
   const method = DISP.methodName(d.teaching_method) || DISP.methodName('offline');
   // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
@@ -476,7 +581,7 @@ function renderDemandCard(d, opts = {}) {
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
     <div class="list-card-header">
-      <span class="list-card-title">${DISP.usernameHtml(d.username || '')}${matchTag}${d.status === 'contracted' ? ` <span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>` : d.status === 'revoked' ? ` <span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : ''}</span>
+      <span class="list-card-title">${DISP.usernameHtml(d.username || '')}${typeBadge}${matchTag}${d.status === 'contracted' ? ` <span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>` : d.status === 'revoked' ? ` <span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : ''}</span>
       <span class="demand-card-tools">
         ${push ? `<span class="push-note-row">
           <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
@@ -590,7 +695,8 @@ async function openSendDemandModal(teacherUserId) {
   demands = demands.filter(d => d.status !== 'contracted'); // 已签约需求已成交，不可再推送
   const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
     const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade || '';
-    const subs = DISP.subjectNames(d.target_subjects);
+    // R2-b：推送选择列表的「最有区分度核心信息」——非学科需求显示项目名，学科需求显示科目名
+    const subs = DISP.demandTargetNames(d.target_subjects, d.target_type);
     const prov = DISP.provinceName(d.province);
     const method = DISP.methodName(d.teaching_method);
     return `<label class="push-pick-item glass"><input type="radio" name="push-demand" value="${d.id}">

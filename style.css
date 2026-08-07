@@ -489,6 +489,8 @@ textarea.form-input {
 }
 .time-field input::selection { background: var(--accent); color: #fff; }
 .time-colon { color: var(--muted); font-size: .92rem; flex: 0 0 auto; }
+/* v0.25.3：未选时间（两侧数字都空）时藏起冒号，只剩灰字占位——visibility 保留占位空间，填入时冒号原位出现无位移 */
+.time-field:not(.has-value) .time-colon { visibility: hidden; }
 .time-field-ghost {
   position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
   text-align: center;
@@ -1357,6 +1359,20 @@ body.profile-panel-closing .profile-panel {
 }
 .tag-pick:hover { color: var(--ink); }
 .tag-pick.selected { color: var(--white); --g-fill: var(--accent); }
+
+/* R2-b 需求类型分段切换：学科/非学科 两个 tab（新建需求表单顶部）。
+   玻璃容器 + 内层 tab（同 score-mode-tabs 口径：容器弱填充、选中 tab 品牌紫实心）。
+   JS 只切 .active/.hidden 类，零内联样式 */
+.demand-type-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 2px;
+  --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.demand-type-tab {
+  flex: 1; padding: 8px 12px; border: none; cursor: pointer; font-family: inherit;
+  font-size: .8rem; font-weight: 600; color: var(--muted); text-align: center;
+  --g-fill: transparent; border-radius: var(--lg-r-sm);
+  transition: color var(--t-fast) var(--ease-out);
+}
+.demand-type-tab:hover { color: var(--ink); }
+.demand-type-tab.active { color: var(--white); --g-fill: var(--accent); }
 
 /* R2-4 非学科项目报价行：项目名(左) + min~max 区间(右，复用预算区间布局) */
 .nonacademic-price-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }

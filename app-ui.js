@@ -223,22 +223,24 @@ function applyTimePick(sel) {
 
 // --- 时间栏编辑限制（只许老老实实编辑时间） ---
 
-/** 键盘拦截：禁 delete/backspace/非数字/粘贴剪切组合键；允许数字、导航键、Ctrl+A/C（复制/全选本侧） */
+/** 键盘拦截：允许数字、导航键、复制/全选（Ctrl/Cmd+A/C）、自由逐位删除（Backspace/Delete）；
+ *  拦截其余组合键（含 Ctrl+V/X）与单字符非数字插入。
+ *  v0.25.3：放开 Backspace/Delete（用户指令）——之前「两位数字不能删、又不让打第三字」没法自行改写；
+ *  冒号是独立元素（.time-colon），删数字天然碰不到它，无需再把删除当风险拦掉。 */
 function guardTimeKey(e) {
+  if (e.key === 'Backspace' || e.key === 'Delete') return; // 自由删改本侧数字（含 Ctrl+Backspace 清空）
   if (e.ctrlKey || e.metaKey || e.altKey) {
     const k = (e.key || '').toLowerCase();
     if (k === 'a' || k === 'c') return; // 复制/全选（只作用于冒号单侧，无碍整体约束）
-    e.preventDefault(); return;        // 其余组合键（含 Ctrl+V/X、Ctrl+Backspace 等）一律拦截
+    e.preventDefault(); return;        // 其余组合键（含 Ctrl+V/X）一律拦截
   }
-  if (e.key === 'Backspace' || e.key === 'Delete') { e.preventDefault(); return; } // 禁任何删除
   if (['Tab', 'Enter', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
   if (e.key.length === 1 && !/[0-9]/.test(e.key)) e.preventDefault(); // 单字符非数字拦截
 }
 
-/** beforeinput 兜底（IME/移动端虚拟键盘不走 keydown）：拦截删除/黏贴/拖入与非数字插入 */
+/** beforeinput 兜底（IME/移动端虚拟键盘不走 keydown）：拦截黏贴/拖入与非数字插入；删除放行（同 keydown 口径） */
 function guardTimeBeforeInput(e) {
   const t = e.inputType || '';
-  if (t.indexOf('delete') === 0 || t === 'deleteByCut' || t === 'deleteByDrag') { e.preventDefault(); return; }
   if (t === 'insertFromPaste' || t === 'insertFromDrop') { e.preventDefault(); return; }
   if (t === 'insertText' && e.data != null && !/^[0-9]+$/.test(e.data)) e.preventDefault(); // 多数字符串由 oninput 裁剪
 }

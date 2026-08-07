@@ -21,12 +21,20 @@ import { notifyUser } from './notify.js';
 
 const UIC = globalThis.APP_CONSTANTS.UI; // 接受/拒绝通知文案（constants.js 收口）
 
-// 委婉通知文案：拒绝/退回时给对方一个体面的交代（科目名经 region-data 解码）
+// 委婉通知文案：拒绝/退回时给对方一个体面的交代（科目名经 region-data 解码；
+// R2-b 非学科需求显示 NONACADEMIC_PROJECTS 项目名，未知 id 回退通用文案）
 function demandSubjectsText(d) {
   const R = globalThis.SUFE_REGIONS;
   const UI = globalThis.APP_CONSTANTS.UI;
+  const AC = globalThis.APP_CONSTANTS;
   const ids = Array.isArray(d && d.target_subjects) ? d.target_subjects : [];
-  const names = ids.map(id => R.subjectNames[id] || '').filter(Boolean).join('、');
+  const names = ids.map(id => {
+    if (d && d.target_type === (globalThis.APP_CONSTANTS.DEMAND_TYPES || {}).NONACADEMIC) {
+      const p = (AC.NONACADEMIC_PROJECTS || []).find(x => x.id === id);
+      return p ? p.name : '';
+    }
+    return R.subjectNames[id] || '';
+  }).filter(Boolean).join('、');
   return names || UI.NOTIFY_SUBJECTS_FALLBACK;
 }
 const pushRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
@@ -34,18 +42,54 @@ const intentRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_INTENT_REJECT.r
 
 // 需求输入硬化：预算钳到 [0, LIMITS.BUDGET_MAX] 且 max>=min；授课方式白名单；地址门牌级按 ADDRESS_GUARD 拒绝
 const clampBudget = v => { const n = Number(v); return Number.isFinite(n) ? Math.min(LIMITS.BUDGET_MAX, Math.max(0, n)) : 0; };
-// 目标科目白名单过滤（网安审计：target_subjects 未校验即原样入库，DISP.subjectNames 对未知科目回显原值 →
-// 学生账号可注入 <img onerror> 触发管理员统计页存储型 XSS。此处只放行已知科目 id，注入串被丢弃）
-const validSubjectIds = new Set((globalThis.APP_CONSTANTS.SUBJECTS || []).map(s => s.id));
+// 需求类型白名单（R2-b）：academic 学科 / nonacademic 非学科，非法回退 academic（静默不拒需求）。
+// 取值单源 constants DEMAND_TYPES（与前端同文件，禁止散落字面量）
+const TARGET_TYPES = (() => {
+  const DT = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.DEMAND_TYPES) || {};
+  return [DT.ACADEMIC || 'academic', DT.NONACADEMIC || 'nonacademic'];
+})();
+// 学生性别白名单（R2-11）：'' = 不愿透露（需求侧合法空串，default）；male/female/nonbinary 兼容存量数据
+const DEMAND_GENDERS = new Set(['', 'male', 'female', 'nonbinary']);
+// 偏好老师性别白名单（R2-b）：'' = 不限 / male / female
+const PREFERRED_GENDERS = new Set(['', 'male', 'female']);
+// 目标 id 白名单按需求类型分流（网安审计：target_subjects 未校验即原样入库，DISP.subjectNames 对未知科目回显原值 →
+// 学生账号可注入 <img onerror> 触发管理员统计页存储型 XSS。academic → SUBJECTS；nonacademic → NONACADEMIC_PROJECTS）
+function targetIdSetForType(type) {
+  const AC = globalThis.APP_CONSTANTS || {};
+  const list = type === (AC.DEMAND_TYPES || {}).NONACADEMIC ? (AC.NONACADEMIC_PROJECTS || []) : (AC.SUBJECTS || []);
+  return new Set(list.map(x => x.id));
+}
 function sanitizeDemand(d) {
   d.budget_min = clampBudget(d.budget_min);
   d.budget_max = clampBudget(d.budget_max);
   if (d.budget_max < d.budget_min) d.budget_max = d.budget_min;
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
   d.address = (typeof d.address === 'string' ? d.address : '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
+  // R2-b 需求类型：白名单，非法回退 'academic'
+  d.target_type = TARGET_TYPES.includes(d.target_type) ? d.target_type : 'academic';
+  // 目标科目/项目按类型分流白名单过滤，注入串被丢弃；去重 + 按池大小封顶（网安 M1：防重复 id
+  // 铺量放大存储与广场列表响应体积 DoS）；非数组（字符串等）强制归空数组（网安 L1，与教师侧口径一致）
+  const idSet = targetIdSetForType(d.target_type);
   if (Array.isArray(d.target_subjects)) {
-    d.target_subjects = d.target_subjects.filter(sid => typeof sid === 'string' && validSubjectIds.has(sid));
+    d.target_subjects = [...new Set(d.target_subjects.filter(sid => typeof sid === 'string' && idSet.has(sid)))].slice(0, idSet.size);
+  } else {
+    d.target_subjects = [];
   }
+  // 非学科需求无成绩概念：current_scores 强制置空
+  if (d.target_type === (globalThis.APP_CONSTANTS.DEMAND_TYPES || {}).NONACADEMIC) d.current_scores = [];
+  // R2-b 偏好老师性格：数组、≤PERSONALITY_TAGS_MAX、白名单、去重。
+  // 门禁语义：需求侧刻意「静默回退/静默截断」不拒绝整个需求（与 routes-teacher 档案侧的 400 拒绝不同——
+  // 需求创建是用户高频动作，超限偏好不值得打回整张表单；测试 demand-type-guard.test.js 钉死该语义）
+  const P = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.PERSONALITY_TAGS) || [];
+  const personalitySet = new Set(P.map(t => t.id));
+  const personalityMax = (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.PERSONALITY_TAGS_MAX) || 3;
+  if (!Array.isArray(d.preferred_personality_tags)) d.preferred_personality_tags = [];
+  d.preferred_personality_tags = [...new Set(d.preferred_personality_tags
+    .filter(id => typeof id === 'string' && personalitySet.has(id)))].slice(0, personalityMax);
+  // R2-b 偏好老师性别：白名单 ['','male','female']，非法回退 ''（不限）
+  d.preferred_teacher_gender = PREFERRED_GENDERS.has(d.preferred_teacher_gender) ? d.preferred_teacher_gender : '';
+  // R2-11 学生性别：白名单 ['','male','female','nonbinary']，非法回退 ''（'' = 不愿透露）
+  d.student_gender = DEMAND_GENDERS.has(d.student_gender) ? d.student_gender : '';
   if (ADDRESS_GUARD.test(d.address)) return null; // 合规红线：详细门牌号不收集（调用方回 ADDRESS_TOO_DETAILED）
   return d;
 }

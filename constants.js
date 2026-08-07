@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.2',
+  APP_VERSION: '0.25.3',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -91,6 +91,8 @@ globalThis.APP_CONSTANTS = {
     {id:'graduated_bachelor',name:'本科学历 已毕业'},{id:'graduated_master',name:'硕士学历 已毕业'},{id:'graduated_phd',name:'博士学历 已毕业'},
   ],
 
+  // 教师侧性别（含 nonbinary，资料/筛选沿用不变）；学生需求侧性别由表单在 app-demands.js 构造：
+  // '' = 不愿透露（R2-11 默认，视同未填）+ GENDERS 男/女（nonbinary 不参与学生侧选项）
   GENDERS: [{id:'male',name:'男'},{id:'female',name:'女'},{id:'nonbinary',name:'非二元'}],
   TEACHING_METHODS: [{id:'online',name:'线上'},{id:'offline',name:'线下'},{id:'both',name:'线上线下均可'}],
   // 结构化时间组件（v0.25.0）：期望开课/可授课时间段的下拉枚举（1=周一 … 7=周日）
@@ -112,6 +114,10 @@ globalThis.APP_CONSTANTS = {
     {id:'code',name:'编程/机器人'},{id:'sports',name:'体育/运动'},{id:'speech',name:'演讲主持'},
     {id:'language',name:'语言口语'},
   ],
+
+  // 需求类型（R2-b）：student_demands.target_type 取值单源（状态字面量铁律同 STATUS）。
+  // 学科 / 非学科 双表单的分流判断与服务端白名单都从这读，禁止散落 'academic'/'nonacademic' 字面量
+  DEMAND_TYPES: { ACADEMIC: 'academic', NONACADEMIC: 'nonacademic' },
 
   // ============================================================
   // LIQUID GLASS 统一观感配置（改玻璃观感只动这里）
@@ -972,6 +978,17 @@ globalThis.APP_CONSTANTS = {
     LABEL_STUDENT_GENDER: '学生性别',
     LABEL_TARGET_SUBJECTS: '目标科目',
     LABEL_MULTI_SUFFIX: '（可多选）',
+    // 需求类型分段切换（R2-b）：学科 / 非学科 标签与需求卡类型徽章
+    LABEL_TYPE_ACADEMIC: '学科辅导',
+    LABEL_TYPE_NONACADEMIC: '非学科培养',
+    BADGE_TYPE_ACADEMIC: '学科',
+    BADGE_TYPE_NONACADEMIC: '非学科',
+    // 需求偏好（R2-b）：偏好老师性格 / 偏好老师性别
+    LABEL_PREFERRED_PERSONALITY: '偏好老师性格',
+    LABEL_PREFERRED_GENDER: '偏好老师性别',
+    // 学生性别（R2-11）：'' = 不愿透露（默认，资料卡视同未填不展示）；男/女沿用 GENDERS 文案
+    OPTION_GENDER_NOT_SAY: '不愿透露',
+    OPTION_PREF_GENDER_ANY: '不限',
     LABEL_CURRENT_SCORES: '各科当前大概成绩',
     LABEL_TEACHING_METHOD: '期望教学方式',
     LABEL_ADDRESS: '地址',
