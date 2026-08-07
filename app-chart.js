@@ -185,13 +185,14 @@
     function xLabels(data, u, W, pad) {
       const step = data.length <= 8 ? 1 : Math.ceil(data.length / 6);
       const fmtL = d => {
-        if (u === 'hour') return d.label.slice(11, 16);
-        return d.label.slice(5); // 'MM-DD'
+        const L = String((d && d.label) || ''); // 防御：label 缺失/非串不炸整图
+        if (u === 'hour') return L.slice(11, 16);
+        return L.slice(5); // 'MM-DD'
       };
       const out = [];
       for (let i = 0; i < data.length; i += step) {
         const x = pad.l + (data.length <= 1 ? (W - pad.l - pad.r) / 2 : ((W - pad.l - pad.r) * i) / (data.length - 1));
-        out.push(`<text x="${x}" y="${height - 8}" text-anchor="middle">${esc(fmtL(data[i].label))}</text>`);
+        out.push(`<text x="${x}" y="${height - 8}" text-anchor="middle">${esc(fmtL(data[i]))}</text>`);
       }
       return out.join('');
     }
