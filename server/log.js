@@ -2,7 +2,8 @@
  * 留档咽喉（目标分层：日志留档）—— 全流程审计留档 单点
  *
  * 设计原则（后期加密改造只碰咽喉 = 本文件 + server/crypto.js）：
- *   - 单一入口：一切业务事件经 logEvent() 落库；路由层另由 logRequest() 对所有 API 往来兜底留档
+ *   - 单一入口：一切业务事件经 logEvent() 落库；路由层另由 logRequest() 对写操作与失败请求兜底留档
+ *     （读/轮询流量不入留档——非用户动作，无审计价值，全量记会撑爆留档库）
  *   - 独立留档库：优先写 env.LOG_DB（仪表板绑定即启用），未绑定回落业务库
  *   - 留档失败绝不影响业务（内部 try/catch 吞掉）
  *   - 加密：detail 经 crypto.js encryptDetail（AES-GCM-256，密钥 LOG_ENCRYPT_KEY 单源自 secrets 网关）；
@@ -206,6 +207,10 @@ export async function decryptLogEntry(db, logId) {
  */
 export async function logRequest(db, { method, path, body, status, req, durationMs }) {
   if (path === '/api/health') return; // 探活流量不留档，减噪
+  // 访问留档只记「有审计意义的请求」：写操作（非 GET）与失败请求（status>=400）。
+  // 成功 GET（列表读取、徽标轮询、用户名探测、附件拉取等）不入留档——它们不是用户动作，
+  // 全量记会以百倍速度撑爆留档库且无审计价值（流量页口径见 constants UI.TRAFFIC_HINT）。
+  if (method === 'GET' && status < 400) return;
   try {
     // 从路径抽取实体与实体 id：/api/student/demands/42 → entity=demands, id=42
     const segs = path.split('/').filter(Boolean);

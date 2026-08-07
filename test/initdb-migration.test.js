@@ -327,6 +327,23 @@ test('登录链路 3 次往返架构：限流+取用户同批、会话批、留�
   assert.equal(logs[0].duration_ms, 123, 'duration_ms 已记录（D 可观测性）');
 });
 
+test('访问留档只记写操作与失败请求：成功 GET（列表/轮询/探测）不入留档', async () => {
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const mk = m => new Request('https://t.test', { method: m, headers: { 'CF-Connecting-IP': '1.1.1.1' } });
+  // 成功 GET（徽标轮询/用户名探测/列表）一律不留档
+  await logRequest(db, { method: 'GET', path: '/api/notifications', status: 200, req: mk('GET') });
+  await logRequest(db, { method: 'GET', path: '/api/auth/check?username=x', status: 200, req: mk('GET') });
+  await logRequest(db, { method: 'GET', path: '/api/student/demands', status: 200, req: mk('GET') });
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM activity_log').first().n, 0, '成功 GET 不应产生留档行');
+  // 写操作与失败请求留档
+  await logRequest(db, { method: 'POST', path: '/api/auth/login', status: 200, req: mk('POST'), durationMs: 55 });
+  await logRequest(db, { method: 'GET', path: '/api/student/demands/999', status: 404, req: mk('GET') });
+  const rows = db.prepare('SELECT action FROM activity_log ORDER BY id').all().results;
+  assert.deepEqual(rows.map(r => r.action), ['http.POST.ok', 'http.GET.err']);
+});
+
 test('流量监测聚合：dbGetTrafficBuckets 按桶统计请求数与平均耗时', async () => {
   const raw = rawOf();
   const db = d1Shim(raw);

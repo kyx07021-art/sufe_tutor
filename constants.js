@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.22.2',
+  APP_VERSION: '0.22.3',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -952,7 +952,7 @@ globalThis.APP_CONSTANTS = {
     TRAFFIC_RANGE_24H: '24小时',
     TRAFFIC_RANGE_7D: '近7天',
     TRAFFIC_RANGE_30D: '近30天',
-    TRAFFIC_HINT: '口径：请求数 = 服务端访问留档（http.*）；平均延迟 = 服务端处理耗时（v0.22.0 起记录，历史时段无数据）',
+    TRAFFIC_HINT: '口径：仅统计写操作与失败请求（读/轮询流量不入留档）；平均延迟 = 服务端处理耗时（v0.22.0 起记录，历史时段无数据）',
     ADMIN_RECENT_DEMANDS: '最近需求',
     BTN_APPROVE: '通过',
     BTN_REJECT: '拒绝',

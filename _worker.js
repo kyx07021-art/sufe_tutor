@@ -6,7 +6,7 @@
  *
  * 绑定: env.DB = D1 业务库；env.LOG_DB = 可选独立留档库；env.LEDGER_DB = 可选独立合同台账库
  * 安全: server/ 与 docs/ 目录随静态资源上传但在此统一 404，防源码公开访问
- * 留档: routeApi 的每次应答经 logRequest 通用兜底留档
+ * 留档: routeApi 的应答经 logRequest 留档——仅写操作与失败请求（读/轮询流量不入留档，见 log.js）
  */
 import { initDb } from './server/db.js';
 import { json, error, parseBody } from './server/util.js';

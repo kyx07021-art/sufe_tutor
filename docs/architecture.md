@@ -14,7 +14,7 @@
   server/security.js   网安咽喉：authUser / requireUser / requireAdmin 守卫 / 限流（内存+D1 双写）/ CORS / 安全头
   server/session.js    账户凭证：issueAuthToken / capToken / listSessions / revokeSession / getSessionByToken
   server/db.js         数据层：业务表 SQL 唯一。JSON 列 safeJsonArray 单点反序列化，行经 mapXxxRow 出门
-  server/log.js        留档咽喉 logEvent（detail 加密透明）+ logRequest 兜底 + queryLog 检索
+  server/log.js        留档咽喉 logEvent（detail 加密透明）+ logRequest（写操作/失败请求留档，读流量不入）+ queryLog 检索
   server/notify.js     通知咽喉 notifyUser（吞错不碍业务）+ 广播 + 批删
   server/contract.js   合同状态机 + 存证台账（哈希链，覆写域：台账 SQL 自持本模块，CLAUDE.md 有意决定）
   server/routes-*.js   业务逻辑：requireUser 守卫 → 归属/状态门禁 → 数据层 → logEvent/notifyUser 副作用
