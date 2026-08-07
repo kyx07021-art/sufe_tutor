@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.23.0',
+  APP_VERSION: '0.23.1',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -109,7 +109,7 @@ globalThis.APP_CONSTANTS = {
       card:   'blur(6px) saturate(180%) brightness(1.05)',   // 卡片=可读纸面（毛）
       cardM:  'blur(4px) saturate(180%) brightness(1.05)',   // 移动端降档
       modal:  'blur(24px) saturate(180%) brightness(1.04)',  // 浮窗=重毛纸面（内容可读；v0.19.23 blur 16→24，透底下文字）
-      modalM: 'blur(6px)',                                   // 移动端浮窗降档
+      // 注：无 modalM——v0.23.1 起移动端浮窗与桌面共用 modal（同屏 1-2 件，不构成帧率风险；用户指示统一）
       header: 'blur(12px)',                                  // 浮窗表头=透（玻璃上的玻璃；v0.19.35 白值降 .08 后毛度补强，滚动可读）
       btn:    'blur(4px) saturate(180%) brightness(1.04)',   // 按钮=透色透镜
       entry:  'blur(4px) saturate(180%) brightness(1.04)',   // 主页大按钮=透
@@ -581,6 +581,11 @@ globalThis.APP_CONSTANTS = {
     AUTH_LOGIN_SUB: '登录你的账户以继续使用',
     AUTH_LOGIN_TITLE_GUEST: '登录以使用全部功能',
     AUTH_LOGIN_SUB_GUEST: '登录后将自动返回你刚才所在的页面',
+    // v0.23.1：主页双按钮按角色分流，预览端触发登录时按客户端类型提示
+    AUTH_LOGIN_TITLE_TEACHER: '请登录教师账户',
+    AUTH_LOGIN_SUB_TEACHER: '登录后将进入教师端',
+    AUTH_LOGIN_TITLE_STUDENT: '请登录学生账户',
+    AUTH_LOGIN_SUB_STUDENT: '登录后将进入学生端',
 
     // 个人信息右栏（取代旧教师详情弹窗：卡片①身份②教师资料③评价；已签约绿色标记；账簿式对齐布局）
     PROFILE_PANEL_TITLE: '个人信息',

@@ -197,3 +197,66 @@ test('startVersionProbe 立即建基线；stopVersionProbe 安全', async () => 
   assert.ok(calls.includes('/api/data-version'), '启动即探测建基线');
   vm.runInContext('stopVersionProbe()', ctx); // 幂等：重复 stop 不炸
 });
+
+test('dhOnDomainRefresh：探测刷新后重挂函数执行、别名指向新缓存数组（审计 M1）', async () => {
+  let alias = null;
+  const { impl, routes } = makeFetch();
+  routes.set('/api/teachers', { teachers: [{ user_id: 1, name: 'v1' }] });
+  const ctx = makeCtx({ fetchImpl: impl });
+  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
+  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  // 注册重挂：刷新后从缓存取新数组写进别名
+  vm.runInContext(`
+    dhOnDomainRefresh('teachers', () => {
+      const c = dhPeek('/api/teachers');
+      alias = c ? c.teachers : null;
+    });
+  `, ctx);
+  routes.set('/api/teachers', { teachers: [{ user_id: 1, name: 'v2' }] }); // 服务端数据变化
+  await vm.runInContext(`dhRefreshDomain('teachers')`, ctx);
+  assert.equal(vm.runInContext('alias[0].name', ctx), 'v2', '重挂后别名应指向新缓存数组');
+});
+
+test('dhGet 会话代次：登出后（dhInvalidateAll）在途请求回落后不写入缓存（审计 m1）', async () => {
+  let resolveFn;
+  const calls = [];
+  const ctx = makeCtx({ fetchImpl: (url) => { calls.push(String(url)); return new Promise(r => { resolveFn = r; }); } });
+  const p = vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx); // 在途
+  vm.runInContext('dhInvalidateAll()', ctx); // 会话切换
+  resolveFn({ ok: true, status: 200, json: async () => ({ teachers: [{ id: 1 }] }) });
+  await p;
+  assert.equal(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '旧账户数据不得残留进缓存');
+});
+
+test('dhProbeTick：域刷新失败保留旧基线，下轮重试（审计 m5）', async () => {
+  const { impl, calls, routes } = makeFetch();
+  routes.set('/api/student/demands?scope=mine', { demands: [{ id: 1 }] });
+  routes.set('/api/data-version', { versions: { demands: 1 } });
+  const ctx = makeCtx({ fetchImpl: impl });
+  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
+  await vm.runInContext(`dhGet('/api/student/demands?scope=mine', { domain: 'demands' })`, ctx);
+  await vm.runInContext('dhProbeTick()', ctx); // 基线 {demands:1}
+  const n0 = calls.filter(u => u.includes('/api/student/demands?scope=mine')).length;
+
+  routes.set('/api/data-version', { versions: { demands: 2 } });
+  routes.set('/api/student/demands?scope=mine', new Error('刷新失败')); // 域刷新失败
+  await vm.runInContext('dhProbeTick()', ctx);
+  routes.set('/api/student/demands?scope=mine', { demands: [{ id: 1 }] }); // 恢复
+  await vm.runInContext('dhProbeTick()', ctx);
+  assert.equal(calls.filter(u => u.includes('/api/student/demands?scope=mine')).length, n0 + 2,
+    '失败那轮后基线保留，恢复后仍会重拉一次');
+});
+
+test('dhProbeTick：getVersions 全域补零后首写 0→1 触发重拉（审计 m1）', async () => {
+  const { impl, calls, routes } = makeFetch();
+  routes.set('/api/teachers', { teachers: [] });
+  routes.set('/api/data-version', { versions: { demands: 0, teachers: 0 } });
+  const ctx = makeCtx({ fetchImpl: impl });
+  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
+  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  await vm.runInContext('dhProbeTick()', ctx); // 基线 {teachers:0}
+  const n0 = calls.filter(u => u === '/api/teachers').length;
+  routes.set('/api/data-version', { versions: { demands: 0, teachers: 1 } }); // 全站首条教师相关写
+  await vm.runInContext('dhProbeTick()', ctx);
+  assert.equal(calls.filter(u => u === '/api/teachers').length, n0 + 1, '0→1 应触发重拉');
+});

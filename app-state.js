@@ -36,10 +36,15 @@ const loadSeqs = {};
 // ============================================================
 // 缓存协议
 // ============================================================
-const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers' };
+const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers', posts: 'adminPosts' };
 // v0.23.0 静默数据层：写操作失效必须同时清会话数据层对应域缓存（加载器经 dhGet 读缓存，
-// 只清 state 镜像会导致 dhGet 继续服务旧数据）。域映射与 app-datahub DH_PREFETCH 的域口径一致
-const CACHE_DOMAINS = { teachers: 'teachers', contracts: 'contracts', demands: 'demands', intentTeachers: 'teachers' };
+// 只清 state 镜像会导致 dhGet 继续服务旧数据）。域映射与 app-datahub DH_PREFETCH 的域口径一致。
+// v0.23.1 审计 M1/M5：补 posts/notifications/admin 域——发布/删除帖子、广播、管理员操作写后重载
+// 必须清数据层缓存，否则命中写前旧数据（新帖不出现/已删项闪回）
+const CACHE_DOMAINS = {
+  teachers: 'teachers', contracts: 'contracts', demands: 'demands', intentTeachers: 'teachers',
+  posts: 'posts', notifications: 'notifications', admin: 'admin',
+};
 function invalidate(key) {
   const k = CACHE_KEYS[key];
   if (k) state[k] = [];
@@ -49,35 +54,68 @@ function invalidate(key) {
 
 // ============================================================
 // 会话持久化（令牌；绝不存明文密码）
+// v0.23.1 按角色分键：sufe_session_<role>——主页双按钮分别导向上次登录的学生/教师账户，
+// 登出/401 只清当前角色（另一角色会话保留，供下次按角色恢复）。sufe_last_role 记上次使用角色，
+// 无角色参数 loadSession() 按它恢复（页面自动登录）
 // ============================================================
+const ROLES = ['student', 'teacher', 'admin'];
+const sessionKey = role => `sufe_session_${role || ''}`;
+
 function saveSession(remember) {
+  const role = state.user ? state.user.role : '';
   const payload = { user: state.user, authToken: state.authToken };
-  try { sessionStorage.setItem('sufe_session', JSON.stringify(payload)); } catch { /* 存储被禁：本次不持久 */ }
+  try { sessionStorage.setItem(sessionKey(role), JSON.stringify(payload)); } catch { /* 存储被禁：本次不持久 */ }
   if (remember) {
-    try { localStorage.setItem('sufe_session', JSON.stringify({ ...payload, expires: Date.now() + CONFIG.TOKEN_TTL_MS })); } catch { /* ignore */ }
+    try { localStorage.setItem(sessionKey(role), JSON.stringify({ ...payload, expires: Date.now() + CONFIG.TOKEN_TTL_MS })); } catch { /* ignore */ }
   } else {
-    try { localStorage.removeItem('sufe_session'); } catch { /* ignore */ }
+    try { localStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
   }
+  if (role) { try { localStorage.setItem('sufe_last_role', role); } catch { /* ignore */ } }
 }
 
-/** 读取持久化会话：localStorage（记住我）优先，sessionStorage 兜底；
- *  返回 { user, authToken, source: 'local'|'session' } 或 null（过期/旧格式 local 顺手清理） */
-function loadSession() {
+function loadSessionForRole(role) {
+  const k = sessionKey(role);
   try {
-    const saved = JSON.parse(localStorage.getItem('sufe_session'));
+    const saved = JSON.parse(localStorage.getItem(k));
     if (saved && saved.authToken && saved.expires > Date.now()) return { ...saved, source: 'local' };
-    if (saved) { try { localStorage.removeItem('sufe_session'); } catch { /* ignore */ } } // 过期/旧版含密码格式：清理
+    if (saved) { try { localStorage.removeItem(k); } catch { /* ignore */ } } // 过期/旧版含密码格式：清理
   } catch { /* ignore */ }
   try {
-    const s = JSON.parse(sessionStorage.getItem('sufe_session'));
+    const s = JSON.parse(sessionStorage.getItem(k));
     if (s && s.authToken) return { ...s, source: 'session' };
   } catch { /* ignore */ }
   return null;
 }
 
-function clearSession() {
-  try { localStorage.removeItem('sufe_session'); } catch { /* ignore */ }
-  try { sessionStorage.removeItem('sufe_session'); } catch { /* ignore */ }
+/** 读取持久化会话：带 role 读该角色；不带 role 按上次使用角色（sufe_last_role）读，
+ *  无标记回落任一可用会话（旧存储迁移）。返回 { user, authToken, source } 或 null */
+function loadSession(role) {
+  if (role) return loadSessionForRole(role);
+  try {
+    const last = localStorage.getItem('sufe_last_role');
+    if (last && ROLES.includes(last)) {
+      const s = loadSessionForRole(last);
+      if (s) return s;
+    }
+  } catch { /* ignore */ }
+  for (const r of ROLES) {
+    const s = loadSessionForRole(r);
+    if (s) return s;
+  }
+  return null;
+}
+
+function clearSession(role) {
+  if (role) {
+    try { localStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
+    try { sessionStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
+    return;
+  }
+  for (const r of ROLES) {
+    try { localStorage.removeItem(sessionKey(r)); } catch { /* ignore */ }
+    try { sessionStorage.removeItem(sessionKey(r)); } catch { /* ignore */ }
+  }
+  try { localStorage.removeItem('sufe_last_role'); } catch { /* ignore */ }
 }
 
 // ============================================================

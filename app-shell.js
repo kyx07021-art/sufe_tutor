@@ -279,6 +279,13 @@ async function refreshBadges() {
 // ============================================================
 let _notifList = [];
 let _lastContractSig = ''; // 合同列表渲染签名（v0.22.8：30s 轮询数据未变不整列重渲）
+// v0.23.1 审计 M1：探测刷新替换缓存数组后重挂 _notifList——屏蔽筛选与已读翻转依赖同引用
+if (typeof dhOnDomainRefresh === 'function') {
+  dhOnDomainRefresh('notifications', () => {
+    const c = dhPeek('/api/notifications');
+    if (c && c.notifications) _notifList = c.notifications;
+  });
+}
 function isBroadcastNotif(text) { return String(text || '').startsWith(UI.NOTIFY_BROADCAST_PREFIX); }
 function filterNotifRows(rows) {
   const block = document.getElementById('notif-block-mode')?.value === 'block-broadcast';

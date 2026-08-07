@@ -36,6 +36,15 @@ async function loadMyContracts() {
   }
 }
 
+// v0.23.1 审计 M6：探测刷新替换缓存数组后重挂 state.myContracts——徽标轮询就地刷新
+// （_lastContractSig 重渲）与跨功能读取依赖镜像，不重挂则展示旧合同状态
+if (typeof dhOnDomainRefresh === 'function') {
+  dhOnDomainRefresh('contracts', () => {
+    const c = dhPeek('/api/contracts/my');
+    if (c && c.contracts) state.myContracts = c.contracts;
+  });
+}
+
 // 合同列表渲染（进页加载与 30s 轮询就地刷新共用——对方改合同后不必退出重进）
 function renderMyContractsList() {
   const el = document.getElementById('my-contracts-list');
@@ -184,6 +193,7 @@ async function submitContractModify(contractId) {
     await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: window._contractModifyVersion } });
     closeModal();
     showToast(UI.CONTRACT_MODIFIED_TOAST);
+    invalidate('contracts'); // v0.23.1 审计 M5：否则 loadMyContracts 命中旧正文
     loadMyContracts();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;

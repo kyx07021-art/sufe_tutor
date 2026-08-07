@@ -17,6 +17,7 @@ import { dbAll, dbGet, dbRun, json, error, genCode, ensureColumns } from './util
 import { authUser, requireAdmin } from './security.js';
 import { MSG, LIMITS } from './constants.js';
 import { logEvent } from './log.js';
+import { bumpVersions } from './version.js'; // v0.23.1 审计 M2：通知插入统一 bump notifications 域
 
 // 建表（幂等；batch_id 为广播批标识，旧表经 ensureColumns 补列）
 export async function initNotifyTable(db) {
@@ -38,6 +39,9 @@ export async function notifyUser(db, userId, text) {
   try {
     await dbRun(db, 'INSERT INTO notifications (user_id, text) VALUES (?,?)',
       [userId, String(text).slice(0, LIMITS.NOTIF_TEXT_MAX)]);
+    // v0.23.1 审计 M2：通知插入即 bump notifications 域——所有业务方（意向/推送/合同/反馈等）
+    // 的逐用户通知都经此咽喉，对端客户端 8s 内静默重拉红点。低频，不成放大；失败静默不影响主业务
+    await bumpVersions(db, ['notifications']);
   } catch (e) {
     console.warn('notify failed:', e && e.message);
   }

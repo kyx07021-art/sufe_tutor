@@ -57,12 +57,13 @@ async function api(endpoint, options = {}) {
     // 否则内存里 state.user 还在、ensureAuth 放行，页面只剩一句「加载失败」假装还登录着
     if (res.status === 401) {
       if (state.authToken) {
+        const role = state.user ? state.user.role : ''; // v0.23.1：只清该角色会话，另一角色保留
         state.authToken = null; state.user = null;
-        clearSession();
-        // v0.23.0 静默数据层：401 会话失效即清会话缓存 + 停版本探测（此路径不走 runLogoutResets，
-        // 不清理会让旧账户的缓存残留到新账户登录后被读到——浏览器内存跨会话泄数据）
-        if (typeof dhInvalidateAll === 'function') dhInvalidateAll();
-        if (typeof stopVersionProbe === 'function') stopVersionProbe();
+        clearSession(role);
+        // v0.23.0/v0.23.1 静默数据层：401 会话失效统一走 runLogoutResets——与登出同口径，
+        // 清会话缓存 + 停版本探测（datahub 自注册）+ 各领域模块级数组残留（_notifList/
+        // chatConvList/state.myDemands 等），防旧账户数据残留到新账户登录后被读到
+        if (typeof runLogoutResets === 'function') runLogoutResets();
       }
       if (state.view === 'client' && typeof ensureAuth === 'function') ensureAuth(); // user 已清空 → 这次真的会进登录页
     }

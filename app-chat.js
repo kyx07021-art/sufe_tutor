@@ -21,6 +21,14 @@
 // ============================================================
 let chatConvId = null;      // 当前打开的会话 id（null = 未选中任何会话）
 let chatConvList = [];      // 已加载的会话列表（收发后就地更新预览，避免整列重拉）
+// v0.23.1 审计 M1：探测刷新替换缓存数组后重挂别名——markReadConv/收发预览的就地变更
+// 依赖「chatConvList === 缓存数组同引用」，不重挂则变更落在游离旧数组、红点复亮
+if (typeof dhOnDomainRefresh === 'function') {
+  dhOnDomainRefresh('chat', () => {
+    const c = dhPeek('/api/conversations');
+    if (c && c.conversations) chatConvList = c.conversations;
+  });
+}
 let chatPollTimer = null;   // 轮询定时器（setInterval 句柄）
 let chatLastMsgId = 0;      // 已见最大消息 id，作轮询 sinceId
 let chatPollBusy = false;   // 上一次轮询未返回时跳过本 tick，防请求叠加

@@ -7,6 +7,23 @@
  * 函数一律保持 function 声明式（内联 onclick 靠它挂全局）。
  */
 
+// v0.23.1 审计 M6：探测刷新替换缓存数组后重挂管理端镜像——全文查看/移除弹窗与教师详情
+// 的数据源，不重挂则展示旧数据（自愈但误导）
+if (typeof dhOnDomainRefresh === 'function') {
+  dhOnDomainRefresh('admin', () => {
+    const t = dhPeek('/api/admin/users?role=teacher');
+    if (t && t.users) state.adminTeachers = t.users;
+  });
+  dhOnDomainRefresh('contracts', () => {
+    const c = dhPeek('/api/admin/contracts');
+    if (c && c.contracts) state.adminContracts = c.contracts;
+  });
+  dhOnDomainRefresh('posts', () => {
+    const c = dhPeek('/api/posts');
+    if (c && c.posts) state.adminPosts = c.posts;
+  });
+}
+
 // ============================================================
 // 管理员：资料管理（教师共享帖子：列表 / 全文查看 / 越权删除）
 // ============================================================
@@ -52,6 +69,7 @@ function adminDeletePost(postId) {
     try {
       await api(`/api/posts/${postId}`, { method: 'DELETE', body: {} });
       showToast(UI.POST_DELETED);
+      invalidate('posts'); // v0.23.1 审计 M1：否则 loadAdminPosts 命中旧列表，被删帖闪回
       loadAdminPosts();
     } catch (err) { showToast(err.message); }
   });
@@ -105,6 +123,7 @@ function adminRemoveContract(contractId) {
     try {
       await api(`/api/admin/contracts/${contractId}`, { method: 'DELETE' });
       showToast(UI.ADMIN_CONTRACT_REMOVED_TOAST);
+      invalidate('contracts'); // v0.23.1 审计 M5：否则 loadAdminContracts 命中旧列表
       loadAdminContracts();
     } catch (err) { showToast(err.message); }
   });
@@ -143,6 +162,7 @@ async function resolveAdminFeedback(feedbackId) {
   try {
     await api(`/api/feedbacks/${feedbackId}/resolve`, { method: 'POST' });
     showToast(UI.FEEDBACK_RESOLVED_TOAST);
+    invalidate('admin'); // v0.23.1 审计 M5：否则 loadAdminFeedback 命中旧列表
     loadAdminFeedback();
   } catch (err) { showToast(err.message); }
 }
@@ -160,6 +180,7 @@ async function doBanUser(userId, banned) {
     closeModal();
     showToast(banned ? UI.SUCCESS_BANNED : UI.SUCCESS_UNBANNED);
     invalidate('teachers'); // 封禁/解封后清教师缓存，防被封教师滞留浏览列表
+    invalidate('admin'); // v0.23.1 审计 M3：admin 用户列表也是缓存，不清则封禁状态滞留 60s
     if (state.page === 'admin-students') loadAdminStudents();
     if (state.page === 'admin-teachers') loadAdminTeachers();
   } catch (err) {
@@ -341,6 +362,8 @@ async function toggleTeacherVerify(userId, verified) {
   try {
     const data = await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified } });
     showToast(verified ? UI.VERIFY_DONE : UI.UNVERIFY_DONE);
+    invalidate('admin'); // v0.23.1 审计 M3：admin 教师列表缓存不清则核验状态滞留
+    invalidate('teachers'); // 教师列表 verified 徽章同步刷新
     loadAdminTeachers();
   } catch (err) { showToast(err.message); }
 }

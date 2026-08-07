@@ -313,13 +313,15 @@ body { background: transparent; }
 .form-group { background: transparent; }
 
 /* ============================================================
-   移动端：卡片微毛降档（blur 1.5→1px，列表页几十卡保帧率）+ 浮层降毛 + 信息卡加重白底保对比
+   移动端：卡片微毛降档（blur 6→4px，列表页几十卡保帧率）+ 信息卡加重白底保对比。
+   浮层（modal/下拉面板/聊天+菜单/个人信息右栏）与桌面共用 --g-f-modal，不做移动端降档——
+   同屏仅 1-2 件浮层，blur(24px) 不构成帧率风险（v0.23.1 用户指示统一；
+   此前 modalM blur(6px) 去 saturate/brightness 致移动端浮窗「不毛、不透白、透背景」）
    ============================================================ */
 @media (max-width: 860px) {
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
     --g-frost: var(--g-f-cardM, blur(4px) saturate(180%) brightness(1.05));
   }
-  .modal, .custom-select-panel, .chat-plus-pop, .profile-panel { --g-frost: var(--g-f-modalM, blur(6px)); }
   .profile-card { --g-fill: var(--g-card-strong-m); } /* v0.19.35 层级白值：移动端侧栏近纯白底，卡不需 .82 叠白（token 化 v0.19.49） */
   .profile-card--id { --g-fill: var(--g-card-id-m); }
 }

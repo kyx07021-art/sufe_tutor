@@ -127,6 +127,15 @@ function findCachedTeacher(userId) {
       || state.intentTeachers.find(x => x.user_id === userId) || null;
 }
 
+// v0.23.1 审计 M6：探测刷新替换缓存数组后重挂 state.allTeachers——openProfilePanel/
+// findCachedTeacher 等跨功能读取依赖镜像，不重挂则展示旧价格/旧认证（自愈但误导）
+if (typeof dhOnDomainRefresh === 'function') {
+  dhOnDomainRefresh('teachers', () => {
+    const c = dhPeek('/api/teachers');
+    if (c && c.teachers) state.allTeachers = c.teachers;
+  });
+}
+
 async function openProfilePanel(userId) {
   const seq = ++profilePanelSeq;
   profilePanelUserId = userId;
@@ -403,6 +412,8 @@ async function adminReviewAction(reviewId, action, fromModal) {
       showToast(action === 'approve' ? UI.SUCCESS_APPROVED : UI.SUCCESS_REJECTED);
     }
     closeModal();
+    invalidate('admin'); // v0.23.1 审计 M5：评价审核改管理端评价列表 + 教师评分（teachers）
+    invalidate('teachers');
     if (fromModal && profilePanelUserId) {
       openProfilePanel(profilePanelUserId); // 个人信息面板内就地刷新（内部 seq 守卫丢弃在途旧响应）
     } else if (state.page === 'admin-reviews') {

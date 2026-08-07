@@ -12,7 +12,16 @@
 // 模块内状态
 // ============================================================
 let postsList = [];          // 当前已加载的帖子（点赞后本地同步的数据源）
+let postsUrl = '/api/posts?sort=new'; // 最近一次加载的帖子 URL（探测刷新后按它重挂 postsList）
 let postsSearchTimer = null; // 搜索防抖定时器
+// v0.23.1 审计 M1：探测刷新替换缓存数组后重挂别名——点赞就地变更（togglePostLike 改 postsList）
+// 依赖「postsList === 缓存数组同引用」，不重挂则点赞态被缓存旧值弹回
+if (typeof dhOnDomainRefresh === 'function') {
+  dhOnDomainRefresh('posts', () => {
+    const c = dhPeek(postsUrl);
+    if (c && c.posts) postsList = c.posts;
+  });
+}
 
 // ============================================================
 // 页面入口与列表加载
@@ -50,6 +59,7 @@ function loadPosts() {
   const q = (document.getElementById('posts-search')?.value || '').trim();
   const sort = document.getElementById('posts-sort')?.value || 'new';
   const url = `/api/posts?sort=${sort}` + (q ? `&q=${encodeURIComponent(q)}` : '');
+  postsUrl = url; // 记录最近 URL，探测刷新后按其重挂 postsList（审计 M1）
   return loadInto('posts-list', async () => {
     const data = await dhGet(url, { domain: 'posts' }); // v0.23.0 静默数据层
     postsList = data.posts || []; // 渲染前同步：点赞就地更新依赖此数据源
@@ -278,6 +288,7 @@ async function submitPost() {
     });
     closeModal();
     showToast(UI.POST_PUBLISHED);
+    invalidate('posts'); // v0.23.1 审计 M1：写后清数据层缓存，否则 loadPosts 命中旧列表新帖不出现
     loadPosts();
   } catch (err) {
     alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
@@ -302,6 +313,7 @@ async function deletePost(id) {
     await api(`/api/posts/${id}`, { method: 'DELETE', body: {} });
     closeModal();
     showToast(UI.POST_DELETED);
+    invalidate('posts'); // v0.23.1 审计 M1：否则被删帖子从缓存闪回
     loadPosts();
   } catch (err) {
     showToast(err.message);

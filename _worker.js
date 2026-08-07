@@ -13,8 +13,6 @@ import { json, error, parseBody } from './server/util.js';
 import { MSG } from './server/constants.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './server/security.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
-import { readCacheGet, readCachePut, readCacheClearAll } from './server/cache.js';
-import { tokenDigest } from './server/crypto.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import {
@@ -233,30 +231,15 @@ export default {
     }
 
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
-    // 读缓存（v0.22.8）：列表 GET 短 TTL 内存缓存，键 = 身份:路径:查询（server/cache.js）。
-    // 身份 = 令牌 SHA-256 摘要分桶——per-token 数据（教师 matched、帖子 liked、需求 intent 状态）
-    // 只在本身份桶内命中，跨用户零泄露（替代 v0.22.6 共享缓存泄风险的「一律不缓存」，
-    // 安全前提下重拿回速度）；访客归 anon 桶。写操作成功统一 readCacheClearAll 失效。
-    const isCacheableRead = request.method === 'GET' && (
-      p === '/api/student/demands' || p === '/api/teachers' || p === '/api/posts'
-    );
-    let readKey = null;
-    if (isCacheableRead) {
-      const authToken = request.headers.get('X-Auth-Token') || '';
-      const identity = authToken ? await tokenDigest(authToken) : 'anon';
-      readKey = `${identity}:${p}${url.search}`;
-      const hit = readCacheGet(readKey);
-      if (hit !== null) return applySecurityHeaders(json(hit), p);
-    }
     try {
       const res = await routeApi(db, p, request.method, body, url, request);
-      // 回填公开读缓存（clone 读体不影响原响应）；写操作成功清空读缓存（最简不漏）
-      if (isCacheableRead && res.status === 200) {
-        try { readCachePut(readKey, await res.clone().json()); } catch { /* 回填失败不影响响应 */ }
-      } else if (request.method !== 'GET' && res.status < 400) {
-        readCacheClearAll();
-        // 数据版本戳（v0.23.0 静默数据层）：同一写咽喉 bump 受影响域。waitUntil 包裹——
-        // workerd 会掐断未完成的悬浮 Promise；版本戳失败静默（bumpVersions 内吞错），不影响主业务
+      // 数据版本戳（v0.23.0 静默数据层）：写操作成功在写咽喉 bump 受影响域。
+      // waitUntil 包裹——workerd 会掐断未完成的悬浮 Promise；版本戳失败静默
+      // （bumpVersions 内吞错），不影响主业务。
+      // 会话缓存已整体迁至客户端（app-datahub.js）：服务端读缓存（v0.22.5/8 按身份分桶）
+      // 随 v0.23.0 删除——同身份重复读由客户端缓存覆盖（60s TTL + 8s 版本探测刷新），
+      // per-user 数据在浏览器侧天然按会话隔离，跨用户零泄露面更小。
+      if (request.method !== 'GET' && res.status < 400) {
         const domains = versionDomainOf(p);
         if (domains.length) ctx.waitUntil(bumpVersions(env.DB, domains));
       }

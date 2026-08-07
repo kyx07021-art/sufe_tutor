@@ -11,7 +11,8 @@
  *  - 导航（整页）：network-first（HTML 恒取最新），离线回落缓存。
  *  - 静态资产（js/css/svg/图片）：cache-first + 后台刷新（stale-while-revalidate）。
  *  - 公开读 API（仅无 scope 需求广场）：TTL 内命中即返 + 后台刷新，过期走网络并回填。
- *    与 server/cache.js 同一安全边界——带 scope/viewerId 等 per-user 参数的读不缓存。
+ *    安全边界——带 scope/viewerId 等 per-user 参数的读不缓存（会话数据层 app-datahub.js
+ *    负责 per-user 读的客户端缓存，二者分层不重叠）。
  *  - 任何非 GET /api 请求（写操作）：清空 API 缓存（防客户端读到旧数据）。
  *  - /api/admin/* 等敏感/管理端请求一律走网络，不缓存。
  *
@@ -66,7 +67,7 @@ const isStatic = u => u.origin === self.location.origin && (
   /\.(js|css|svg|png|jpe?g|webp|ico)$/.test(u.pathname)
 );
 
-// 公开读 API（与令牌完全无关）——与 server/cache.js 同边界。
+// 公开读 API（与令牌完全无关）——仅无 scope 需求广场。
 // /api/teachers 的 matched、/api/posts 的 liked 按令牌随用户变化，SW 缓存会服务陈旧标记，一律不缓存。
 const isPublicRead = u => u.origin === self.location.origin && (
   u.pathname === '/api/student/demands' && !u.searchParams.get('scope')

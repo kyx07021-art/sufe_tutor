@@ -17,7 +17,7 @@
  *     若落全局/多域会造成所有客户端重拉重列表（放大效应，按域拆的意义）；
  *   - 合同系同时 bump contracts + demands（合同状态改变需求可见性/状态）；
  *   - 计数器全局共享（非 per-user），无敏感性；客户端只对自身已缓存的域重拉，跨用户零影响。
- * 挂点：_worker.js 写咽喉（readCacheClearAll 旁边），一个插入点覆盖全站写路径。
+ * 挂点：_worker.js 写咽喉（非 GET 成功响应统一分支），一个插入点覆盖全站写路径。
  */
 import { dbAll, dbRun, json } from './util.js';
 
@@ -39,15 +39,18 @@ async function bumpDomain(db, domain) {
      ON CONFLICT(domain) DO UPDATE SET counter = counter + 1`, [domain]);
 }
 
-/** 写咽喉调用：版本戳失败绝不影响主业务，静默吞错（同上限流清缓存同纪律） */
+/** 写咽喉调用：版本戳失败绝不影响主业务；逐域容错——单域失败不 abort 其余域（审计 m5） */
 export async function bumpVersions(db, domains) {
   if (!domains || !domains.length) return;
-  try { for (const d of domains) await bumpDomain(db, d); }
-  catch (e) { console.warn('bumpVersion failed:', e && e.message); }
+  for (const d of domains) {
+    try { await bumpDomain(db, d); }
+    catch (e) { console.warn('bumpVersion failed:', d, e && e.message); }
+  }
 }
 
+/** 恒返回全部域、未 bump 的补 0——客户端基线即有键，0→1 首次写入才能正确触发重拉（审计 m1） */
 export async function getVersions(db) {
-  const versions = {};
+  const versions = { demands: 0, teachers: 0, posts: 0, contracts: 0, chat: 0, notifications: 0, admin: 0 };
   const rows = await dbAll(db, 'SELECT domain, counter FROM data_versions');
   for (const r of rows) versions[r.domain] = r.counter;
   return versions;
@@ -58,46 +61,70 @@ export async function handleGetDataVersion(db) {
   return json({ versions: await getVersions(db) });
 }
 
-/** 写路径 → 受影响数据域（可多域）。纯函数，路径与 _worker.js routeApi 一一对应，勿加未注册路由 */
+/**
+ * 写路径 → 受影响数据域（可多域）。纯函数，路径与 _worker.js routeApi 一一对应，勿加未注册路由。
+ * 审计修正（v0.23.1）：管理员跨域连带 bump、意向/推送接受建会话连带 chat、合同落聊天气泡连带 chat、
+ * 注销清内容连带多域；附件暂存不 bump（私有不入会话，发消息路径才 bump chat）。
+ */
 export function versionDomainOf(pathname) {
   const p = pathname || '';
 
-  // 不 bump：不改变任何用户可见列表数据的写（认证/个人设置/个人游标/评价/邀请码）
-  if (p.startsWith('/api/auth/') || p.startsWith('/api/user/') ||
-      p === '/api/notifications/read' || p === '/api/admin/invite' ||
-      p.startsWith('/api/reviews') ||
+  // 不 bump：不改变任何用户可见列表数据的写（认证/个人游标/待审核评价/邀请码）
+  if (p.startsWith('/api/auth/') || p === '/api/notifications/read' ||
+      p === '/api/admin/invite' || p.startsWith('/api/reviews') ||
       /^\/api\/conversations\/\d+\/read$/.test(p)) return [];
 
-  // 聊天系（高频写隔离：只 bump chat 域，不扰动其它域）
-  if (/^\/api\/conversations\/\d+\/messages$/.test(p) ||
-      p === '/api/uploads' || /^\/api\/uploads\/\d+$/.test(p)) return [DOMAINS.CHAT];
+  // 附件暂存（拖入未发送，私有不入会话）——真正入会话由发消息路径 bump chat（审计 m2）
+  if (p === '/api/uploads' || /^\/api\/uploads\/\d+$/.test(p)) return [];
 
-  // 需求系（学生需求 CRUD/重开、意向、推送）
+  // 聊天系（高频写隔离：只 bump chat 域，不扰动其它域）
+  if (/^\/api\/conversations\/\d+\/messages$/.test(p)) return [DOMAINS.CHAT];
+
+  // 需求系（学生需求 CRUD/重开、意向创建、推送创建）
   if (p === '/api/student/demands' || p === '/api/demand-pushes' ||
       /^\/api\/student\/demands\/\d+(\/reopen)?$/.test(p) ||
-      /^\/api\/demands\/\d+\/intents$/.test(p) ||
-      /^\/api\/intents\/\d+\/resolve$/.test(p) ||
-      /^\/api\/demand-pushes\/\d+\/resolve$/.test(p)) return [DOMAINS.DEMANDS];
+      /^\/api\/demands\/\d+\/intents$/.test(p)) return [DOMAINS.DEMANDS];
 
-  // 合同系：双域（合同状态同时影响需求可见性/状态）
-  if (p === '/api/contracts' ||
-      /^\/api\/contracts\/\d+(\/(sign|revoke))?$/.test(p) ||
-      /^\/api\/admin\/contracts\/\d+$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.DEMANDS];
+  // 意向/推送处理：accept 会建会话（dbUpsertConversation）→ 连带 chat；低频，不构成高频写放大（审计 M2）
+  if (/^\/api\/intents\/\d+\/resolve$/.test(p) ||
+      /^\/api\/demand-pushes\/\d+\/resolve$/.test(p)) return [DOMAINS.DEMANDS, DOMAINS.CHAT];
 
-  // 教师系（档案保存、管理员核验、封禁——封禁影响教师列表可见性）
-  if (p === '/api/teacher/profile' ||
-      /^\/api\/admin\/teachers\/\d+\/verify$/.test(p) ||
-      /^\/api\/admin\/users\/\d+\/ban$/.test(p)) return [DOMAINS.TEACHERS];
+  // 合同系：合同状态改变需求可见性 + 聊天窗落合同气泡 → 三域（审计 M2）
+  if (p === '/api/contracts' || /^\/api\/contracts\/\d+(\/(sign|revoke))?$/.test(p))
+    return [DOMAINS.CONTRACTS, DOMAINS.DEMANDS, DOMAINS.CHAT];
+
+  // 管理员删除合同：合同+需求+管理端列表
+  if (/^\/api\/admin\/contracts\/\d+$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.DEMANDS, DOMAINS.ADMIN];
+
+  // 教师系（档案保存 / 管理员核验 / 封禁——封禁改教师列表可见性 + 管理端用户列表）
+  if (p === '/api/teacher/profile') return [DOMAINS.TEACHERS];
+  if (/^\/api\/admin\/teachers\/\d+\/verify$/.test(p)) return [DOMAINS.TEACHERS, DOMAINS.ADMIN];
+  if (/^\/api\/admin\/users\/\d+\/ban$/.test(p)) return [DOMAINS.TEACHERS, DOMAINS.ADMIN];
 
   // 帖子系（发布、点赞、删除）
   if (p === '/api/posts' || /^\/api\/posts\/\d+(\/like)?$/.test(p)) return [DOMAINS.POSTS];
 
-  // 通知系（广播、删除广播批）
+  // 通知系（广播、删除广播批；逐用户通知由 notifyUser 咽喉统一 bump notifications）
   if (p === '/api/notifications/broadcast' || /^\/api\/admin\/notifications\/\d+$/.test(p)) return [DOMAINS.NOTIFICATIONS];
 
-  // 管理系兜底（反馈提交/处理 + 其余 admin 写：审核、删帖/删需求/删消息/删评价等）
-  if (p === '/api/feedbacks' || /^\/api\/feedbacks\/\d+\/resolve$/.test(p) ||
-      p.startsWith('/api/admin/')) return [DOMAINS.ADMIN];
+  // 管理端评价审核/删除：改教师评分（teachers）+ 管理端评价列表（admin）（审计 M1）
+  if (/^\/api\/admin\/reviews\/\d+(\/approve|\/reject)?$/.test(p)) return [DOMAINS.ADMIN, DOMAINS.TEACHERS];
+
+  // 管理端删需求：需求广场（demands）+ 管理端列表（admin）（审计 M1）
+  if (/^\/api\/admin\/demands\/\d+$/.test(p)) return [DOMAINS.ADMIN, DOMAINS.DEMANDS];
+
+  // 管理端删聊天消息：会话消息（chat）+ 管理端（admin）（审计 M1）
+  if (/^\/api\/admin\/messages\/\d+$/.test(p)) return [DOMAINS.ADMIN, DOMAINS.CHAT];
+
+  // 反馈（提交/处理）：管理端反馈列表（admin；处理还会 notifyUser → notifications 由咽喉 bump）
+  if (p === '/api/feedbacks' || /^\/api\/feedbacks\/\d+\/resolve$/.test(p)) return [DOMAINS.ADMIN];
+
+  // 管理系兜底（其余 admin 写）
+  if (p.startsWith('/api/admin/')) return [DOMAINS.ADMIN];
+
+  // 用户侧：注销清空本人内容（教师列表消失/需求/帖子删除）→ 多域；头像进教师卡片（审计 m4）
+  if (p === '/api/user/deactivate') return [DOMAINS.TEACHERS, DOMAINS.DEMANDS, DOMAINS.POSTS];
+  if (p === '/api/user/avatar') return [DOMAINS.TEACHERS];
 
   return [];
 }

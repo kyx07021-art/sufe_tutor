@@ -20,13 +20,22 @@ function ensureAuth() {
   return false;
 }
 
-// 登录页标题按来路切换（index.html 静态文本仅作 JS 前兜底）
+// 登录页标题按来路切换（index.html 静态文本仅作 JS 前兜底）。
+// v0.23.1：预览端触发登录时按客户端类型提示「请登录教师/学生账户」
 function refreshAuthHeader() {
   const h = document.getElementById('login-title');
   const p = document.getElementById('login-subtitle');
   if (!h || !p) return;
-  h.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_TITLE_GUEST : UI.AUTH_LOGIN_TITLE;
-  p.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_SUB_GUEST : UI.AUTH_LOGIN_SUB;
+  if (state.guestAuthMode && state.guestRole === 'teacher') {
+    h.textContent = UI.AUTH_LOGIN_TITLE_TEACHER;
+    p.textContent = UI.AUTH_LOGIN_SUB_TEACHER;
+  } else if (state.guestAuthMode && state.guestRole === 'student') {
+    h.textContent = UI.AUTH_LOGIN_TITLE_STUDENT;
+    p.textContent = UI.AUTH_LOGIN_SUB_STUDENT;
+  } else {
+    h.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_TITLE_GUEST : UI.AUTH_LOGIN_TITLE;
+    p.textContent = state.guestAuthMode ? UI.AUTH_LOGIN_SUB_GUEST : UI.AUTH_LOGIN_SUB;
+  }
 }
 
 // 登录页「返回」：访客回客户端（取消登录）。注意：若原页面需登录，直接回去会被
@@ -65,11 +74,43 @@ function switchRegisterRole(role) {
 }
 
 function handleFeatureClick(role) {
-  if (state.user) { enterClient(); return; }
-  // 访客模式：主页按钮直达对应客户端先逛起来（用户信息栏显示「未登录」），
-  // 需要身份的操作经 ensureAuth 统一导向登录页
+  // v0.23.1 主页双按钮按角色分流：同角色已登录直进；否则恢复该角色「上次登录」已存会话，
+  // 无记录则进入该角色访客预览。彻底告别「登录过学生就永远进学生端」
+  if (state.user && state.user.role === role) { enterClient(); return; }
+  const saved = loadSession(role);
+  if (saved && saved.authToken) { switchToRole(role, saved); return; }
+  enterRolePreview(role);
+}
+
+// 切换到目标角色：先清当前运行时（保留其已存会话，供下次切回），再校验目标角色令牌
+function switchToRole(role, saved) {
+  exitCurrentIdentity();
+  state.authToken = saved.authToken;
+  api('/api/auth/me').then(data => {
+    state.user = data.user;
+    saveSession(saved.source === 'local'); // 保活刷新该角色会话（按 state.user.role 落键）
+    enterClient();
+  }).catch(() => {
+    state.authToken = null;
+    enterRolePreview(role); // 令牌失效：回落该角色访客预览
+  });
+}
+
+// 进入目标角色访客预览（未登录态，用户信息栏显示「未登录」）
+function enterRolePreview(role) {
+  exitCurrentIdentity();
   state.guestRole = role;
+  state.guestAuthMode = false;
   enterClient();
+}
+
+// 清当前运行时身份（登出/切换共用）：停轮询 + 领域残留 + 会话缓存；不删已存会话记录
+function exitCurrentIdentity() {
+  stopBadgePoll();
+  if (typeof stopChatPolling === 'function') stopChatPolling();
+  if (typeof runLogoutResets === 'function') runLogoutResets();
+  state.user = null; state.authToken = null;
+  state.guestRole = null; state.guestAuthMode = false;
 }
 
 // ------------------------------------------------------------
@@ -180,6 +221,7 @@ async function validateInviteAndRegister() {
 }
 
 function handleLogout() {
+  const role = state.user ? state.user.role : ''; // v0.23.1：记当前角色，只清该角色会话
   if (state.authToken) api('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {}); // 真登出：吊销当前会话（fire-and-forget）
   stopBadgePoll();
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 登出即停聊天轮询（兼清暂存附件）
@@ -191,7 +233,7 @@ function handleLogout() {
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = [];
   state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
   state.inviteTimerId = null; state.currentInviteCode = null; state.validatedInviteCode = null; // 邀请码随账号清（曾漏清）
-  clearSession();
+  clearSession(role); // v0.23.1：只清当前角色会话——另一角色会话保留，供主页按角色分流恢复
   try { localStorage.removeItem('sufe_page'); } catch { /* ignore */ }
   closeSidebar();
   showView('landing');

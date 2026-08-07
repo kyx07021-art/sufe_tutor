@@ -309,6 +309,7 @@ async function handleDeleteDemand(demandId, asAdmin) {
     closeModal();
     showToast(UI.SUCCESS_DEMAND_DELETED);
     state.myDemands = state.myDemands.filter(d => d.id !== demandId);
+    invalidate('demands'); // v0.23.1 审计 M2：否则 loadMyDemands/loadBrowseDemands 命中缓存，已删需求闪回
     if (asAdmin) { if (state.page === 'admin-demands') loadAdminDemands(); }
     else if (state.page === 'my-demands') loadMyDemands();
   } catch (err) {
@@ -385,6 +386,20 @@ function matchDetailHtml(t, d, md) {
 // 原 window._matchDetail 单槽被最后一张卡渲染覆盖：多 tag 时点谁都显示最后一张的数据
 let _matchDetailOpen = false;
 let _browseDemands = []; // 教师需求大厅当前列表（含置顶推送卡），showMatchDetail 的按 id 取数源
+// v0.23.1 审计 M1/m5：探测刷新替换缓存数组后重挂镜像（state.myDemands 编辑回填源、
+// _browseDemands 匹配度明细取数源）——不重挂则就地变更/取数作用在游离旧数组上
+if (typeof dhOnDomainRefresh === 'function') {
+  dhOnDomainRefresh('demands', () => {
+    const mine = dhPeek('/api/student/demands?scope=mine');
+    if (mine && mine.demands) state.myDemands = mine.demands;
+    const plaza = dhPeek(state.user && state.user.role === 'teacher'
+      ? '/api/student/demands?scope=for-teacher' : '/api/student/demands');
+    const pushes = dhPeek('/api/demand-pushes');
+    if (plaza && plaza.demands) {
+      _browseDemands = [...(pushes && pushes.pushes ? pushes.pushes : []), ...plaza.demands];
+    }
+  });
+}
 function showMatchDetail(btn) {
   const d = _browseDemands.find(x => x.id === +btn.dataset.id);
   const t = state.allTeachers.find(x => x.user_id === state.user.id);
@@ -625,6 +640,8 @@ async function resolvePush(pushId, action) {
   try {
     await api(`/api/demand-pushes/${pushId}/resolve`, { method: 'POST', body: { action } });
     showToast(action === 'accept' ? UI.PUSH_ACCEPTED_TOAST : UI.PUSH_REJECTED_TOAST);
+    invalidate('demands'); // v0.23.1 审计 M2：否则已处理推送卡从缓存滞留
+    if (action === 'accept') invalidate('chat'); // accept 建会话：切到 my-chats 立即见新会话
     loadBrowseDemands();
   } catch (err) { showToast(err.message); }
 }
@@ -637,6 +654,7 @@ async function submitIntent(demandId) {
   try {
     await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: {} });
     showToast(UI.INTENT_SUBMITTED_TOAST);
+    invalidate('demands'); // v0.23.1 审计 M2：否则按钮仍显示「提交意向」，操作看似无效
     if (state.page === 'browse-demands') loadBrowseDemands(); // 按钮刷新为「意向已提交」态
   } catch (err) {
     if (err.code === 'PROFILE_INCOMPLETE') { showProfileIncompleteModal(); return; } // 按稳定 code 分支，勿比对中文文案
@@ -715,6 +733,8 @@ async function resolveIntent(intentId, action, demandId) {
   try {
     await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { action } });
     showToast(action === 'accept' ? UI.INTENT_ACCEPTED_TOAST : UI.INTENT_REJECTED_TOAST);
+    invalidate('demands'); // v0.23.1 审计 M2：否则意向计数/状态不刷新
+    if (action === 'accept') invalidate('chat'); // accept 建会话：切到 my-chats 立即见新会话
     await refreshIntentsBox(demandId);
     loadMyDemands(); // 刷新意向计数（整列重渲染，意向栏回到收起态）
   } catch (err) { showToast(err.message); }
