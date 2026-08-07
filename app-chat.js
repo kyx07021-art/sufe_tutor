@@ -306,6 +306,8 @@ function renderChatBubble(m, i) {
 
 // 图片缩略（点开放大）/ 文件 chip（dataURL 直接 download）
 function renderChatMediaInner(kind, body, name) {
+  // 网安审计 N-03：发送方注销后附件本体被服务端清空（body=''），此处占位而非渲染死链接/空图
+  if (!body) return `<span class="chat-attach-fail">${UI.CHAT_ATTACH_REMOVED}</span>`;
   if (kind === 'image') {
     return `<img src="${escHtml(body)}" alt="${UI.CHAT_ATTACH_IMAGE}" loading="lazy" onclick="chatViewImage(this.src)">`;
   }

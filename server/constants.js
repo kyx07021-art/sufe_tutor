@@ -16,7 +16,9 @@
 // ============================================================
 export const INITIAL_RATING = 4.0;   // 新教师初始评分（评价通过时做加权平均）
 export const INITIAL_WEIGHT = 10;    // 初始评分权重
-export const INVITE_GATE_ENABLED = false; // 教师注册邀请码门控：false = 内测免邀请码（网安报告 F-05；公测恢复置 true 并同步前端 INVITE_GATE_DORMANT 为 false）
+export const INVITE_GATE_ENABLED = false; // 教师注册邀请码门控。内测期有意沉默（false=教师免邀请码直接注册）：当前为内测阶段，
+// 开放注册便于产品验证与教师侧体验，非遗漏（网安报告 F-05 曾要求邀请码门控，内测后有意关闭）。
+// 公测上线前必须置回 true，并同步把前端 constants.js 的 INVITE_GATE_DORMANT 改为 false，届时此处注释同步删除。
 
 // 合规红线「不收集详细门牌号」的服务端兜底：区块/地标级表述放行，门牌级拒绝。
 // 刻意排除「号线」避免误伤地铁站描述（如 12号线附近）；「xx号」仅两位以上数字视为门牌

@@ -8,9 +8,10 @@ import { json, error, dbGet, dbRun, deviceLabelFromUA } from './util.js';
 import { hashPassword, verifyPassword, tokenDigest } from './crypto.js';
 import { authUser, requireUser } from './security.js';
 import {
-  issueAuthToken, issueCapToken, confirmDangerOtp, listSessions, revokeSession,
+  issueAuthToken, listSessions, revokeSession,
   getSessionByToken, revokeToken,
 } from './session.js';
+import { issueCapToken, confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
 import { MSG, INVITE_GATE_ENABLED, LIMITS } from './constants.js';
 import {
   dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
@@ -98,12 +99,12 @@ export async function handleGetUserPublic(db, userId) {
 
 // POST /api/user/deactivate —— 注销账户：用户名墓碑化（「已注销用户#id」，后缀避 UNIQUE 冲突）+
 // 凭证清空 + 单方关联数据全删（档案/通知/反馈/帖子/点赞/暂存附件）；需求/会话/合同/评价等
-// 双方数据保留，JOIN username 处自然显示墓碑。危险操作二次认证 = 密码换 5 分钟一次性 capToken（session.issueCapToken）
+// 双方数据保留，JOIN username 处自然显示墓碑。危险操作二次认证 = 密码换 5 分钟一次性 capToken（danger-ops.issueCapToken）
 export async function handleDeactivateAccount(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   if (me.role === 'admin') return error(MSG.NO_PERMISSION, 403); // 管理员禁止注销，防管理面板孤岛化
-  if (!(await confirmDangerOtp(me.id, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
   await dbDeactivateUser(db, me.id, tombstone);
   await dbPurgeUserOwnedData(db, me.id, me.role); // 按角色清理单方数据 + 匿名化本人聊天正文
@@ -171,7 +172,7 @@ export async function handleLogout(db, req) {
 }
 
 // POST /api/auth/re-auth —— 危险操作二次认证（网安报告 F-05）：已登录用户输入当前密码 → 校验通过
-// 签发一次性 capToken（session.issueCapToken，TTL 见 constants.SECURITY），危险接口凭 capToken 放行。
+// 签发一次性 capToken（danger-ops.issueCapToken，TTL 见 constants.SECURITY），危险接口凭 capToken 放行。
 // 密码错返 403 而非 401（前端 api() 对 401 统一弹登录页，会误踢已登录用户）
 export async function handleReAuth(db, body, req) {
   const me = await authUser(db, req);
@@ -183,7 +184,7 @@ export async function handleReAuth(db, body, req) {
     await logEvent(db, { action: 'auth.reauth.failed', actorUserId: me.id, entity: 'user', entityId: me.id, req });
     return error(MSG.LOGIN_FAILED, 403);
   }
-  const capToken = issueCapToken(me.id);
+  const capToken = await issueCapToken(db, req);
   await logEvent(db, { action: 'auth.reauth.success', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ capToken });
 }

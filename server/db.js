@@ -6,10 +6,11 @@
  */
 import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
 import { hashPassword, encryptField, decryptField, bindCryptoEnv } from './crypto.js'; // 密码哈希/敏感字段加密（网安报告 F-06）
-import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS } from './constants.js';
+import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS } from './constants.js';
 import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
+import { initDangerCaps } from './danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
 
 // ============================================================
 // 数据库初始化 + 迁移
@@ -415,6 +416,8 @@ export async function initDb(db, env = {}) {
 
   // 通知表（独立模块 notify.js 提供建表与推送咽喉）
   await initNotifyTable(db);
+  // 危险操作二次认证 capToken 表（独立模块 danger-ops.js 提供签发/校验；D1 持久化跨实例一致，网安审计 N-02）
+  await initDangerCaps(db);
 
   // 存量用户名消毒：注册白名单仅约束新注册，旧库若残留含 < > " ' 的用户名会命中各转义汇点，
   // 一次性改名「用户#id#时间戳」（幂等：GLOB 不再匹配已消毒名；时间戳后缀保 UNIQUE）
@@ -489,8 +492,11 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
     await dbRun(db, 'DELETE FROM demand_pushes WHERE teacher_user_id=?', [userId]);
   }
 
-  // 匿名化本人发出的聊天正文（会话/合同行保留，正文清空 + 墓碑用户名显示，符合 F-06 保留分级）
-  await dbRun(db, `UPDATE messages SET body='' WHERE sender_user_id=? AND kind='text'`, [userId]);
+  // 匿名化本人发出的聊天正文与附件（会话/合同行保留，正文清空 + 墓碑用户名显示，符合 F-06 保留分级）。
+  // 网安审计 N-03：image/file 消息的 dataURL 本体（最高 700KB）与文件名同样清空——原只清 kind='text'，
+  // 注销者历史照片/文件会永久留在库中、可被会话对方经 attachment 接口无限期下载。
+  // contract 类型的合同事件气泡无隐私本体（body 为固定事件标记），保留以供聊天窗事件展示。
+  await dbRun(db, `UPDATE messages SET body='', name='' WHERE sender_user_id=? AND kind IN ('text','image','file')`, [userId]);
 }
 
 // 账户设置：头像更新
@@ -897,10 +903,17 @@ export async function dbGetReviewByPair(db, reviewerUserId, teacherUserId) {
 }
 
 // 修改评价：重置为待审核（内容变更须重审）
+// 网安审计 N-09：若原评价已通过（评分已计入教师 rating_sum/count），修改时立即摘除旧贡献——
+// 否则「通过→改→被管理员拒绝」路径下 wasApproved=false 不再重算，教师评分永久残留旧版本贡献。
+// 摘除 = 对本评价落 pending 后重算该教师评分（重算只统计 approved 评价，旧贡献自然出局）。
 export async function dbUpdateReview(db, reviewId, rating, comment) {
+  const existing = await dbGetReviewById(db, reviewId);
+  const teacherUserId = existing && existing.teacher_user_id;
+  const wasApproved = !!(existing && existing.status === STATUS.APPROVED);
   await dbRun(db,
     'UPDATE reviews SET rating=?, comment=?, status=\'pending\', reviewed_at=NULL, reviewed_by=NULL WHERE id=?',
     [rating, comment, reviewId]);
+  if (wasApproved && teacherUserId) await dbRecomputeTeacherRating(db, teacherUserId);
 }
 
 // 签约门槛查询：该师生会话存在 status='signed' 的合同即放行评价

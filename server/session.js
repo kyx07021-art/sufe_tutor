@@ -1,7 +1,7 @@
 /**
- * 账户凭证管理层（目标分层：账户凭证管理）—— 登录会话 / 一次性危险操作凭证 单点
+ * 账户凭证管理层（目标分层：账户凭证管理）—— 登录会话 单点
  *
- * 收敛自：server/core.js 的 issueAuthToken / CAPS（capToken）/ listSessions / revokeSession，
+ * 收敛自：server/core.js 的 issueAuthToken / listSessions / revokeSession，
  * 并补 getSessionByToken / revokeToken 两个助手（routes-auth 三处内联反查收敛于此）。
  *
  * 令牌契约（网安报告 F-04）：
@@ -10,8 +10,9 @@
  *   - session_id 独立随机 id，对外设备管理唯一标识；token 永不进响应体。
  *   - 签发前清该用户过期会话（purgeExpiredSessions），会话表天然不膨胀。
  *
- * capToken（网安报告 F-05）：注销/撤销合同等不可逆操作执行前，密码重认证换 5 分钟一次性
- * 凭证（内存 Map 单枚短寿，命中即删）。
+ * 危险操作二次认证（capToken）已迁独立模块 server/danger-ops.js（D1 持久化、会话绑定、
+ * 命中即删——跨 Cloudflare 多 isolate 全局一致；原 per-isolate 内存 Map 在分布式下会
+ * 间歇性失效，网安审计 N-02）。
  */
 import { dbAll, dbGet, dbRun } from './util.js';
 import { bufToHex, tokenDigest } from './crypto.js';
@@ -63,27 +64,4 @@ export async function listSessions(db, userId) {
 export async function revokeSession(db, userId, sessionId) {
   const r = await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=? AND session_id=?', [userId, sessionId]);
   return !!(r && r.meta && r.meta.changes > 0);
-}
-
-// ============================================================
-// 危险操作二次认证（capToken：5 分钟、每用户仅一枚、命中即删）
-// ============================================================
-const CAPS = new Map(); // userId → { token, exp }（内存 Map：单枚、短寿、无持久价值）
-
-/** 签发一次性 capToken（先惰性清过期，Map 不膨胀） */
-export function issueCapToken(userId) {
-  const now = Date.now();
-  for (const [uid, c] of CAPS) if (c.exp < now) CAPS.delete(uid);
-  const t = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
-  CAPS.set(userId, { token: t, exp: now + SECURITY.ONE_TIME_TTL_MS });
-  return t;
-}
-
-/** 校验 capToken：无论成败皆失效（一次性）。密码错绝不返 401（前端对 401 踢登录页），统一由调用方返 403 */
-export async function confirmDangerOtp(userId, body) {
-  const c = CAPS.get(userId);
-  if (!c) return false;
-  const got = String((body && body.capToken) || '');
-  CAPS.delete(userId);
-  return c.exp >= Date.now() && got === c.token;
 }

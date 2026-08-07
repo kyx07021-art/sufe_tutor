@@ -3,7 +3,7 @@
  *   起草草案(聊天窗+) → 对方确认草案 → 「我的合同」预览正式合同 → 双方确认签约 → signed（评价门槛随之放行）
  *   任一阶段可取消签约（删合同 + 通知对方，会话保留）；signing 阶段任意一方可改合同（重置双方确认，实时同步）。
  * 正式合同正文由 buildContractMd 按草案信息生成（Markdown）；双方看到的是同一条记录。
- * 短信验证码环节未接入：verifySignOtp 预留，测试版以二次确认代替（二次认证走 session.confirmDangerOtp）。
+ * 短信验证码环节未接入：verifySignOtp 预留，测试版以二次确认代替（二次认证走 danger-ops.confirmDangerOtp）。
  *
  * 安全补丁已并入主线：
  *   F-03  签约与需求下架同 batch 原子；NOT EXISTS 防第二方签约；删需求原子守卫
@@ -15,7 +15,7 @@
 import { dbGet, dbAll, dbRun, json, error, ensureColumns } from './util.js';
 import { requireUser, requireAdmin, requireAdminOrError } from './security.js';
 import { bufToHex } from './crypto.js';
-import { confirmDangerOtp } from './session.js';
+import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
 import { MSG, STATUS } from './constants.js';
 import {
   dbGetContractById, dbGetContractByConv, dbGetMyContracts, dbGetAllContractsAdmin,
@@ -306,7 +306,7 @@ export async function handleSignContract(db, contractId, body, req) {
   if (g.err) return g.err;
   const { ct, conv } = g;
   // 危险操作二次认证（网安报告 F-05）：签约须凭 re-auth 换发的一次性 capToken
-  if (!(await confirmDangerOtp(userId, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
 
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
@@ -413,7 +413,7 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, me.id, [STATUS.SIGNED]); // 未签约的走取消流程
   if (g.err) return g.err;
   const { ct, conv } = g;
-  if (!(await confirmDangerOtp(me.id, body))) return error(MSG.REAUTH_FAILED, 403); // 二次认证（F-05）
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403); // 二次认证（F-05）
   const del = await dbDeleteContract(db, contractId);
   if (!(del && del.meta && del.meta.changes > 0)) return error(MSG.CONTRACT_NOT_FOUND, 404); // 并发双撤销仅赢家执行清理与通知
   await dbDeleteContractMessages(db, ct.conversation_id);
@@ -453,9 +453,15 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
   await dbDeleteContract(db, contractId);
+  // 网安审计 N-11：删除的是 signed 合同时，其绑定的需求已被置 contracted（签约时原子完成），
+  // 合同删除后无「撤销」可走，需求会永久滞留 contracted（不可见、不可 reopen）——此处同撤销合同
+  // 口径把需求置回 revoked，并复位意向锁，由所有者手动重开重回广场
+  if (ct.status === STATUS.SIGNED && ct.demand_id) {
+    await dbRun(db, `UPDATE student_demands SET status='revoked', intent_locked=0 WHERE id=? AND status='contracted'`, [ct.demand_id]);
+  }
   await logEvent(db, { action: 'admin.contract.remove', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'contract', entityId: contractId,
-    detail: { conversationId: ct.conversation_id, status: ct.status, drafterUserId: ct.drafter_user_id }, req });
+    detail: { conversationId: ct.conversation_id, status: ct.status, drafterUserId: ct.drafter_user_id, demandId: ct.demand_id }, req });
   return json({ ok: true });
 }
 
@@ -466,7 +472,7 @@ export async function handleCancelContract(db, contractId, body, req) {
   const userId = me.id;
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
-  const { conv } = g;
+  const { ct, conv } = g;
 
   // 状态条件删除做并发守卫：load 之后翻到 signed/revoked 的行拒删（签约后不可再取消，须走撤销合同）
   const del = await dbDeleteContract(db, contractId, [STATUS.PENDING, STATUS.SIGNING]);
@@ -474,7 +480,12 @@ export async function handleCancelContract(db, contractId, body, req) {
     if (await dbGetContractById(db, contractId)) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409); // 行仍在：状态已翻，非「并发已删」
     return json({ ok: true }); // 行已不在：并发对方已先取消，赢家已通知，此处不重复副作用
   }
+  // 网安审计 N-10：取消合同（pending/signing 阶段撮合未成）后，若该需求此前有被接受意向
+  // （intent_locked=1），复位意向锁——否则需求在广场显示 open 却永远无法再接受意向（业务 DoS）。
+  // 需求状态保持 open（撮合未成仍在广场）；仅复位意向锁让其可继续被接受
+  if (ct.demand_id) await dbRun(db, `UPDATE student_demands SET intent_locked=0 WHERE id=? AND intent_locked=1`, [ct.demand_id]);
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
-  await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId, req });
+  await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId,
+    detail: { conversationId: ct.conversation_id, demandId: ct.demand_id }, req });
   return json({ ok: true });
 }

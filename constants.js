@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.21.2',
+  APP_VERSION: '0.21.3',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -783,6 +783,7 @@ globalThis.APP_CONSTANTS = {
     CHAT_STAGE_WAIT: '请等待文件处理完成再发送',
     CHAT_DROP_HINT: '松开加入发送',
     CHAT_ATTACH_FAIL: '附件加载失败',
+    CHAT_ATTACH_REMOVED: '附件已被发送方移除',
     CHAT_PLACEHOLDER_TITLE: '选择左侧会话，开始沟通',
     CHAT_PLACEHOLDER_SUB: '同意试课意向后自动建立会话，消息每 4 秒自动刷新',
 
