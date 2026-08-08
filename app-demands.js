@@ -69,7 +69,7 @@ function switchDemandType(btn) {
 function setDemandType(type) {
   const isAc = type !== DEMAND_TYPES.NONACADEMIC;
   const tabs = document.getElementById('d-type-tabs');
-  if (tabs) tabs.querySelectorAll('.demand-type-tab').forEach(t => t.classList.toggle('active', t.dataset.type === type));
+  if (tabs) tabs.querySelectorAll('.seg-tab').forEach(t => t.classList.toggle('active', t.dataset.type === type));
   const ac = document.getElementById('d-section-academic');
   const na = document.getElementById('d-section-nonacademic');
   if (ac) ac.classList.toggle('hidden', !isAc);
@@ -84,10 +84,10 @@ function renderDemandModal(demand) {
   return `<div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
           <div class="form-group">
-            <!-- R2-8 学科/非学科分段切换：非最终方案，待调整整体排版（tag 区分顶上，后续随需求二排版整体改） -->
-            <div class="demand-type-tabs glass glass--solid" id="d-type-tabs">
-              <button type="button" class="demand-type-tab glass glass--solid active" data-type="academic" onclick="switchDemandType(this)">${UI.LABEL_TYPE_ACADEMIC}</button>
-              <button type="button" class="demand-type-tab glass glass--solid" data-type="nonacademic" onclick="switchDemandType(this)">${UI.LABEL_TYPE_NONACADEMIC}</button>
+            <!-- R2-8 学科/非学科分段切换：标准分段控件 .seg-tabs（v0.25.20 需求二） -->
+            <div class="demand-type-tabs seg-tabs glass glass--solid" id="d-type-tabs">
+              <button type="button" class="seg-tab glass active" data-type="academic" onclick="switchDemandType(this)">${UI.LABEL_TYPE_ACADEMIC}</button>
+              <button type="button" class="seg-tab glass" data-type="nonacademic" onclick="switchDemandType(this)">${UI.LABEL_TYPE_NONACADEMIC}</button>
             </div>
           </div>
           <div class="form-group">
@@ -252,7 +252,7 @@ function prefillStudentScores(scores) {
       const pill = [...row.querySelectorAll('.grade-option')].find(p => p.dataset.grade === cs.grade);
       if (pill) pickGrade(pill);
     } else if (cs.score !== '' && cs.score != null) {
-      const tab = row.querySelector('.score-mode-tab[data-mode="score"]');
+      const tab = row.querySelector('.seg-tab[data-mode="score"]');
       if (tab) switchScoreMode(tab);
       const inp = row.querySelector('input[data-sg-subject]');
       if (inp) inp.value = cs.score;
@@ -336,7 +336,7 @@ async function handleSubmitDemand(e) {
   const province = document.getElementById('d-province').value;
   if (!province) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_PROVINCE); return; }
   // R2-b 需求类型 + 按类型收集目标（学科 → #d-subjects；非学科 → #d-nonacademic）
-  const type = document.querySelector('#d-type-tabs .demand-type-tab.active').dataset.type;
+  const type = document.querySelector('#d-type-tabs .seg-tab.active').dataset.type;
   const targetSel = type === DEMAND_TYPES.NONACADEMIC ? '#d-nonacademic input:checked' : '#d-subjects input:checked';
   const subjects = [...document.querySelectorAll(targetSel)].map(cb => cb.value);
   if (!subjects.length) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_SUBJECT); return; }

@@ -144,9 +144,9 @@
           <p>注册后即可使用平台全部功能</p>
         </div>
         <div id="register-alert"></div>
-        <div class="role-tabs glass" id="register-role-tabs">
-          <button class="role-tab active" data-role="student" onclick="switchRegisterRole('student')">我是学生</button>
-          <button class="role-tab" data-role="teacher" onclick="switchRegisterRole('teacher')">我是教师</button>
+        <div class="seg-tabs seg-tabs--role glass glass--solid" id="register-role-tabs">
+          <button type="button" class="seg-tab glass active" data-role="student" onclick="switchRegisterRole('student')">我是学生</button>
+          <button type="button" class="seg-tab glass" data-role="teacher" onclick="switchRegisterRole('teacher')">我是教师</button>
         </div>
         <form onsubmit="handleRegister(event)">
           <input type="hidden" id="register-role" value="student">

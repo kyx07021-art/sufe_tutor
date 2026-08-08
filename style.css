@@ -328,21 +328,10 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
 .auth-header h2 { font-size: 1.6rem; font-weight: 900; letter-spacing: -.02em; margin-bottom: 6px; color: var(--ink); }
 .auth-header p { font-size: .85rem; color: var(--muted); }
 
-/* 角色切换：纯灰文字，选中加深 + 下划条在二者间滑动 */
-.role-tabs { position: relative; display: flex; margin-bottom: 28px; }
-.role-tabs::after {
-  content: ''; position: absolute; left: 0; bottom: 0; width: 50%; height: 2px;
-  background: var(--accent); transition: transform var(--t-base) var(--ease-snap); /* v0.20.0 墨色改品牌紫：暗色下 --ink 提亮成白条违和 */
-}
-.role-tabs:has(.role-tab[data-role="teacher"].active)::after { transform: translateX(100%); }
-.role-tab {
-  flex: 1; padding: 10px 8px 12px; font-weight: 600; font-size: .85rem; letter-spacing: .02em;
-  color: var(--muted); text-align: center;
-  transition: color var(--t-base) var(--ease-out);
-}
-.role-tab:hover { color: var(--ink-3); }
-.role-tab.active { color: var(--ink); font-weight: 700; }
-.role-tab:focus-visible { outline-offset: 4px; }
+/* 角色切换（v0.25.20 需求二）：下划条形态连根删，收编标准分段控件 .seg-tabs（glass.css 单点）。
+   登录页专属：下边距 + 内衬随 UI 滑块 */
+.seg-tabs--role { margin-bottom: 24px; }
+.seg-tabs--role .seg-tab { padding: calc(9px * var(--ui-scale, 1)) 8px; font-size: .85rem; letter-spacing: .02em; }
 
 .auth-footer { text-align: center; margin-top: 26px; font-size: .8rem; color: var(--muted); }
 .auth-footer a { font-weight: 700; color: var(--accent-deep); }
@@ -830,15 +819,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .about-sec-title { display: block; font-size: .84rem; font-weight: 800; color: var(--ink); margin-bottom: 3px; }
 .about-sec-desc { font-size: .78rem; color: var(--ink-3); line-height: 1.7; margin: 0; }
 
-/* 反馈弹窗：Bug / 建议切换式分段按钮（选中墨色实填） */
-.feedback-kind-row { display: flex; gap: 8px; margin-bottom: 14px; }
-.feedback-kind-btn {
-  padding: 7px 18px; font-size: .8rem; font-weight: 700;
-  color: var(--muted);
-  transition: background-color var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
-}
-.feedback-kind-btn:hover { color: var(--ink); } /* G31：border-color 在引擎 border:none 下不显形，删 */
-.feedback-kind-btn.active { color: var(--ink); }
+/* 反馈弹窗：Bug / 建议切换式分段按钮（v0.25.20 需求二：旧类连根删，收编标准分段控件 .seg-tabs） */
+.feedback-kind-row { margin-bottom: 14px; }
+.feedback-kind-row .seg-tab { padding: 7px 18px; font-size: .8rem; font-weight: 700; flex: 0 0 auto; }
 
 /* 管理员反馈卡：Bug 左侧红色警示边 + 浅红底；已处理整卡淡出 */
 .feedback-card--resolved { opacity: .62; }
@@ -1564,19 +1547,9 @@ body.profile-panel-closing .profile-panel {
 .tag-pick:hover { color: var(--ink); }
 .tag-pick.selected { color: var(--white); --g-fill: var(--accent); }
 
-/* R2-b 需求类型分段切换：学科/非学科 两个 tab（新建需求表单顶部）。
-   玻璃容器 + 内层 tab（同 score-mode-tabs 口径：容器弱填充、选中 tab 品牌紫实心）。
+/* R2-b 需求类型分段切换（v0.25.20 需求二）：旧类连根删，收编标准分段控件 .seg-tabs（glass.css 单点）。
    JS 只切 .active/.hidden 类，零内联样式 */
-.demand-type-tabs { display: flex; gap: 4px; padding: 4px; margin-bottom: 2px;
-  --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.demand-type-tab {
-  flex: 1; padding: 8px 12px; border: none; cursor: pointer; font-family: inherit;
-  font-size: .8rem; font-weight: 600; color: var(--muted); text-align: center;
-  --g-fill: transparent; border-radius: var(--lg-r-sm);
-  transition: color var(--t-fast) var(--ease-out);
-}
-.demand-type-tab:hover { color: var(--ink); }
-.demand-type-tab.active { color: var(--white); --g-fill: var(--accent); }
+.demand-type-tabs { margin-bottom: 2px; }
 
 /* R2-4 非学科项目报价行：项目名(左) + min~max 区间(右，复用预算区间布局) */
 .nonacademic-price-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -1829,7 +1802,6 @@ body.profile-panel-closing .profile-panel {
 .chart-table th { color: var(--muted); font-weight: 600; }
 .chart-table tbody tr:last-child td { border-bottom: none; }
 
-/* 流量监测页：范围切换 */
-.traffic-range { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 12px; }
-.traffic-range-btn { padding: 6px 14px; border-radius: 8px; font-size: .8rem; color: var(--muted); background: transparent; border: none; cursor: pointer; }
-.traffic-range-btn.on { background: var(--accent-tint); color: var(--accent-deep); font-weight: 700; }
+/* 流量监测页：范围切换（v0.25.20 需求二：旧类连根删，收编标准分段控件 .seg-tabs） */
+.traffic-range { margin-bottom: 12px; }
+.traffic-range .seg-tab { padding: 6px 14px; font-size: .8rem; }

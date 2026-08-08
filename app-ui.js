@@ -443,6 +443,17 @@ function checkboxItemsHtml(items, checkedIds) {
     `<label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(String(it.id))}"${checked.has(String(it.id)) ? ' checked' : ''}>${escHtml(it.name)}</label>`).join('');
 }
 
+/** 标准分段控件（v0.25.20 需求二·美化，iOS 26 Liquid Glass 分段控件口径——上网调研参考：
+    容器微透灰底 + 选项间 gap（删分隔线），选中项=白色抬升药丸（白底+墨字+字重 700+轻浮影）。
+    统一收编原 6 处散装分段（role-tabs/demand-type-tabs/score-mode-tabs/traffic-range/feedback-kind-btn）。
+    items=[{ key, label, onclick }]；activeKey 初始选中；onclick 为字符串表达式（内联 onclick 约定，
+    key 经 escJsStr 转义防引号击穿）。返回 <div class="seg-tabs glass glass--solid"> + <button class="seg-tab"> 组。
+    切换逻辑由调用方自建（classList.toggle('active') 同现有约定），本壳只管统一视觉与构造。 */
+function segTabsHtml(items, activeKey) {
+  return `<div class="seg-tabs glass glass--solid">${items.map(it =>
+    `<button type="button" class="seg-tab glass${String(it.key) === String(activeKey) ? ' active' : ''}" data-key="${escHtml(String(it.key))}" onclick="${it.onclick}">${escHtml(it.label)}</button>`).join('')}</div>`;
+}
+
 // ============================================================
 // 等第 pill 单选（全站共享：教师档案/学生成绩/高考赋分组件均用 .grade-option，选中互斥）
 // ============================================================

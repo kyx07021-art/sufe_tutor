@@ -389,9 +389,9 @@ function openFeedbackModal(kind) {
           <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.FEEDBACK_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
           <span class="title-count" id="post-title-count">0/60</span>
         </div>
-        <div class="feedback-kind-row">
-          <button type="button" class="feedback-kind-btn glass${feedbackKind === 'bug' ? ' active' : ''}" data-kind="bug" onclick="switchFeedbackKind('bug')">${UI.BTN_FEEDBACK_BUG}</button>
-          <button type="button" class="feedback-kind-btn glass${feedbackKind === 'suggestion' ? ' active' : ''}" data-kind="suggestion" onclick="switchFeedbackKind('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
+        <div class="feedback-kind-row seg-tabs glass glass--solid">
+          <button type="button" class="seg-tab glass${feedbackKind === 'bug' ? ' active' : ''}" data-kind="bug" onclick="switchFeedbackKind('bug')">${UI.BTN_FEEDBACK_BUG}</button>
+          <button type="button" class="seg-tab glass${feedbackKind === 'suggestion' ? ' active' : ''}" data-kind="suggestion" onclick="switchFeedbackKind('suggestion')">${UI.BTN_FEEDBACK_SUGGEST}</button>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_LABEL_BODY}</label>
@@ -412,7 +412,7 @@ function openFeedbackModal(kind) {
 
 function switchFeedbackKind(kind) {
   feedbackKind = kind;
-  document.querySelectorAll('.feedback-kind-btn').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
+  document.querySelectorAll('.feedback-kind-row .seg-tab').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
   const t = document.getElementById('feedback-modal-title');
   if (t) t.textContent = kind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST;
 }

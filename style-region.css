@@ -28,30 +28,10 @@
 }
 
 /* ---------- 学生端：等第制 / 分数制页签 ---------- */
-
-/* 左右对半分 pill 组：直角、墨色描边，active = 墨底白字 */
-/* S2 修复：删手绘背景/圆角/阴影（双底双影顶掉引擎）——底/影交还引擎（glass.css --g-fill/--g-r/--g-lift） */
-.score-mode-tabs {
-  display: inline-flex;
-  width: 172px;
-  flex-shrink: 0;
-  border: none; overflow: hidden;
-}
-.score-mode-tab {
-  flex: 1 1 50%;
-  padding: 5px 0;
-  font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-align: center;
-  color: var(--ink);
-  /* v0.19.46 删手绘 background: transparent —— 特异性 0,1,0 锁死引擎 --g-fill 绘制（:where 主规则零特异性），
-     active 紫底一直不显示的根因；背景交还引擎（同 G2 模式） */
-  transition: color var(--t-fast) var(--ease-out);
-}
-.score-mode-tab + .score-mode-tab { border-left: 1.5px solid var(--g-seg-line); }
-.score-mode-tab:not(.active):hover { --g-hover: var(--g-hover-wash); } /* G10：hover 直写迁 --g-hover（画在玻璃体上） */
-/* G10/G36：active 文字色走引擎 --g-fg（glass.css 单点 var(--ink)）；空块已删 */
+/* v0.25.20 需求二：收编到标准分段控件 .seg-tabs/.seg-tab（glass.css 单点）——本文件只留宽度变体
+   （成绩行内嵌需定宽，其余分段控件默认自适应）。分隔线删（新组件用 gap），hover 走引擎。 */
+.seg-tabs--score { display: inline-flex; width: 172px; flex-shrink: 0; }
+.seg-tabs--score .seg-tab { flex: 1 1 50%; padding: 5px 0; font-size: .72rem; font-weight: 700; letter-spacing: .06em; }
 
 /* 页签面板：等第 pill / 分数输入，换行独占整行 */
 .score-mode-pane {
@@ -104,5 +84,5 @@
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 768px) {
-  .score-mode-tabs { width: 152px; }
+  .seg-tabs--score { width: 152px; }
 }

@@ -60,15 +60,15 @@ test('需求表单 type 切换：学科/非学科区块显隐（JS 切类）', (
   assert.equal(ac.classList.contains('hidden'), false, '初始学科区块可见');
   assert.equal(na.classList.contains('hidden'), true, '初始非学科区块隐藏');
 
-  fns.switchDemandType(doc.querySelector('.demand-type-tab[data-type="nonacademic"]'));
+  fns.switchDemandType(doc.querySelector('#d-type-tabs .seg-tab[data-type="nonacademic"]'));
   assert.equal(ac.classList.contains('hidden'), true, '切到非学科后学科隐藏');
   assert.equal(na.classList.contains('hidden'), false, '切到非学科后非学科可见');
-  assert.equal(doc.querySelector('.demand-type-tab.active').dataset.type, 'nonacademic', 'tab 选中态切换');
+  assert.equal(doc.querySelector('#d-type-tabs .seg-tab.active').dataset.type, 'nonacademic', 'tab 选中态切换');
 
-  fns.switchDemandType(doc.querySelector('.demand-type-tab[data-type="academic"]'));
+  fns.switchDemandType(doc.querySelector('#d-type-tabs .seg-tab[data-type="academic"]'));
   assert.equal(ac.classList.contains('hidden'), false, '切回学科恢复');
   assert.equal(na.classList.contains('hidden'), true);
-  assert.equal(doc.querySelector('.demand-type-tab.active').dataset.type, 'academic');
+  assert.equal(doc.querySelector('#d-type-tabs .seg-tab.active').dataset.type, 'academic');
 });
 
 test('需求表单偏好性格 tag-pick：全量渲染、上限 3、超限 toast', () => {

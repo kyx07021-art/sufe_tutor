@@ -440,9 +440,9 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
     // 有等第制 → 左右页签 + 两面板（默认激活等第制）
     return `<div class="score-row region-score-row" data-score-subject="${sidE}">
       <span class="score-subject">${escHtml(name)}</span>
-      <div class="score-mode-tabs glass glass--solid">
-        <button type="button" class="score-mode-tab active glass glass--solid" data-mode="grade" onclick="switchScoreMode(this)">${UI.REGION_TAB_GRADE}</button>
-        <button type="button" class="score-mode-tab glass glass--solid" data-mode="score" onclick="switchScoreMode(this)">${UI.REGION_TAB_SCORE}</button>
+      <div class="seg-tabs seg-tabs--score glass glass--solid">
+        <button type="button" class="seg-tab active glass" data-mode="grade" onclick="switchScoreMode(this)">${UI.REGION_TAB_GRADE}</button>
+        <button type="button" class="seg-tab glass" data-mode="score" onclick="switchScoreMode(this)">${UI.REGION_TAB_SCORE}</button>
       </div>
       <div class="score-mode-pane" data-mode="grade">
         <div class="grade-selector" data-sg-subject="${sidE}">
@@ -459,7 +459,7 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
 function switchScoreMode(btn) {
   const row = btn.closest('.score-row');
   if (!row) return;
-  row.querySelectorAll('.score-mode-tab').forEach(t => t.classList.toggle('active', t === btn));
+  row.querySelectorAll('.seg-tab').forEach(t => t.classList.toggle('active', t === btn));
   row.querySelectorAll('.score-mode-pane').forEach(p => p.classList.toggle('hidden', p.dataset.mode !== btn.dataset.mode));
 }
 
@@ -473,7 +473,7 @@ function collectStudentScores() {
   if (!root) return out;
   root.querySelectorAll('.region-score-row').forEach(row => {
     const sid = row.dataset.scoreSubject;
-    const activeTab = row.querySelector('.score-mode-tab.active');
+    const activeTab = row.querySelector('.seg-tab.active');
     const mode = activeTab ? activeTab.dataset.mode : 'score';
     if (mode === 'grade') {
       const sel = row.querySelector('.grade-option.selected');

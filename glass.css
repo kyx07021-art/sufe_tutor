@@ -224,9 +224,20 @@ body { background: transparent; }
   border: 1.5px solid var(--g-avatar-border); --g-r: 50%; --g-lift: var(--glass-lift-sm);
 }
 .avatar--guest { --g-fill: var(--g-avatar-fill-ghost); border: 1.5px dashed var(--g-avatar-border-ghost); --g-lift: 0 0 0 0 transparent; } /* 无浮影用透明占位（none 混入 box-shadow 列表整条非法，v0.19.17 教训） */
-/* 分段控件（实心遮罩） */
-.role-tabs { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); padding: 4px; }
-.role-tab.active { background: var(--g-fill-strong); border-radius: 7px; } /* active 文字色由 style.css 单源（.role-tab.active color） */
+/* 分段控件（v0.25.20 需求二·标准分段控件，iOS 26 Liquid Glass 分段口径——上网调研：
+   容器微透灰底 + 选项间 gap（删分隔线），选中项=白色抬升药丸（白底+墨字+字重 700+轻浮影）。
+   统一收编原 6 处散装分段（role-tabs/demand-type-tabs/score-mode-tabs/traffic-range/feedback-kind-btn），
+   JS 只切 .active 类；旧类名选择器全删，零兼容层（CLAUDE.md 不保留向后兼容）。
+   hover 白洗/焦点环由引擎兜底（--g-hover 未设则不染，保持简洁）。 */
+.seg-tabs { display: flex; gap: 4px; padding: 4px; --g-fill: var(--g-fill-faint); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
+.seg-tab {
+  flex: 1; padding: calc(7px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); /* 需求六·item5：随滑块 */
+  font-size: .8rem; font-weight: 600; color: var(--muted); text-align: center;
+  --g-fill: transparent; --g-r: calc(var(--lg-r-sm) * 1.1);
+  transition: color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
+}
+.seg-tab:hover { color: var(--ink); }
+.seg-tab.active { color: var(--ink); font-weight: 700; --g-fill: var(--g-fill-strong); --g-lift: 0 2px 10px -3px rgba(30,26,64,.18); } /* iOS 26 选中抬升药丸：白底高亮 + 轻浮影 */
 
 /* ============================================================
    实心小件预设（标签 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）
@@ -246,10 +257,8 @@ body { background: transparent; }
 .grade-option { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .grade-option.selected { --g-fill: var(--accent); } /* v0.19.43 与科目勾选/页签统一：选中一律品牌紫（原墨底黑）；文字色单源 style.css（base/hover/selected 三态同处） */
 .gk-pill { --g-r: var(--lg-r); --g-hover: var(--g-hover-wash); }
-.score-mode-tabs { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.score-mode-tab { --g-fill: transparent; }
-.score-mode-tab.active { --g-fill: var(--accent); --g-fg: var(--white); } /* v0.19.43 与等第 pill/科目勾选统一品牌紫（原白透看不清） */
-/* G33：分隔线单源在 style-region.css（.score-mode-tab + .score-mode-tab 全量 border-left），引擎不再管结构边框 */
+/* v0.25.20 需求二：score-mode-tabs 旧类连根删，收编到标准分段控件 .seg-tabs（见本文件分段控件区）；
+   style-region.css 只留 .seg-tabs--score 宽度变体。零兼容层。 */
 .filter-panel { --g-fill: var(--g-fill-strong); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 .drop-toggle { --g-fill: var(--g-fill-faint); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 /* 下拉选项：非 glass 件（面板是大玻璃，选项间横线分割——用户定性：不要一串独立玻璃珠）。
@@ -382,9 +391,7 @@ body { background: transparent; }
 .about-sec-mark { --g-fill: var(--accent-tint); --g-r: 50%; } /* G15：实变圆走参数 */
 .about-flow-dot { --g-fill: var(--g-flow-dot); --g-r: 50%; }
 
-/* 反馈类型分段按钮 */
-.feedback-kind-btn { --g-fill: var(--g-fill-faint); --g-fg: var(--ink-3); --g-r: var(--lg-r-sm); }
-.feedback-kind-btn.active { --g-fill: var(--g-fill-strong); --g-fg: var(--ink); }
+/* 反馈类型分段按钮（v0.25.20 需求二：旧类连根删，收编标准分段控件 .seg-tabs） */
 
 /* 警示条（语义强填充 + 左色条） */
 .alert-error { --g-fill: var(--g-danger-fill-soft); --g-fg: var(--danger-deep); --g-surface: inset 3px 0 0 var(--danger); --g-r: var(--lg-r-sm); }

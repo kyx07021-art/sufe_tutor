@@ -74,7 +74,7 @@ function afterAuthSuccess() {
 
 function switchRegisterRole(role) {
   document.getElementById('register-role').value = role;
-  document.querySelectorAll('#register-role-tabs .role-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
+  document.querySelectorAll('#register-role-tabs .seg-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
   // 教师注册：门控休眠期（内测）直接填表；恢复后先验证邀请码再填表
   if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
     showView('invite-gate');
@@ -224,7 +224,7 @@ async function validateInviteAndRegister() {
   // 等一秒让用户看到成功提示，然后跳转到注册页
   setTimeout(() => {
     document.getElementById('register-role').value = 'teacher';
-    document.querySelectorAll('#register-role-tabs .role-tab').forEach(t =>
+    document.querySelectorAll('#register-role-tabs .seg-tab').forEach(t =>
       t.classList.toggle('active', t.dataset.role === 'teacher'));
     showView('register');
   }, CONFIG.REOPEN_DELAY_MS);
