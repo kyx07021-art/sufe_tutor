@@ -579,8 +579,8 @@
     })();
   </script>
   <script>
-    /* 需求六·item5：UI 大小滑块 —— 首帧前把 localStorage 'sufe_ui_scale'（80~100）换算成 --ui-scale
-       系数（0.8~1.0）注入 <html>，与主题注入同款「无 FOUC」；纯客户端不走服务器。
+    /* 需求六·item5：UI 大小滑块 —— 首帧前把 localStorage 'sufe_ui_scale'（范围 CONFIG.UI_SCALE_MIN/MAX）换算成
+       --ui-scale 系数注入 <html>，与主题注入同款「无 FOUC」；纯客户端不走服务器。
        设置页滑块经 app-state.setUiScale 走同一 applyUiScale 单点（本脚本只做首帧应用 + 定义现值读取）。 */
     (function () {
       var C = (window.APP_CONSTANTS || {}).CONFIG || {};

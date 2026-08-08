@@ -44,6 +44,16 @@ function fmtDateTime(s) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+/** 仅日期（YYYY-MM-DD）：需求卡片等「日内时间无意义」场景（v0.25.12 反馈） */
+function fmtDate(s) {
+  if (!s) return '';
+  const str = String(s);
+  const d = new Date(/^\d{4}-\d{2}-\d{2}/.test(str) ? str.replace(' ', 'T') + 'Z' : str);
+  if (isNaN(d)) return escHtml(str.slice(0, 10));
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 // ============================================================
 // 头像组件（全站共用）：圆形，上传图片则居中裁切展示，未上传 = id 首字符 + 米色底。
 // profileUserId 有值 → 头像成为个人信息右栏入口（聚焦动效，stopPropagation 防穿透父级点击）

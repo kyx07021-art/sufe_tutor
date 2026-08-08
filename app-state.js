@@ -169,7 +169,7 @@ function setReturning() { try { localStorage.setItem('sufe_returning', '1'); } c
 
 // ============================================================
 // 需求六·item5：UI 大小滑块（纯客户端，参照 setThemePref 模式）
-//   值存 localStorage CONFIG.UI_SCALE_KEY（'sufe_ui_scale'，80~100，100=现状）；
+//   值存 localStorage CONFIG.UI_SCALE_KEY（'sufe_ui_scale'，范围见 CONFIG.UI_SCALE_MIN/MAX，100=现状）；
 //   首帧由 index.html 内联脚本把现值换算 --ui-scale 系数注入 <html>（无 FOUC）；
 //   滑块经 setUiScale 即时重算 --ui-scale（documentElement 上），全站 CSS calc() 消费，不走服务器。
 //   纯函数独立暴露供 jsdom 单测（钳制/读写/填充百分比）。

@@ -109,12 +109,14 @@ function renderTeacherCard(t) {
   const matchBtn = t._matchForStudent
     ? `<button type="button" class="tag-match match-btn match-btn--${matchLevel(t._matchForStudent.md)} glass glass--pressable" data-id="${t.user_id}" onclick="showTeacherMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${t._matchForStudent.md}%${UI.TAG_MATCH_HINT}</button>`
     : '';
-  return `<div class="list-card list-card--teacher glass">
-      ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar', t.user_id)}
+  return `<div class="list-card list-card--teacher glass" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openTeacherCard(event, ${t.user_id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProfilePanel(${t.user_id});}">
+      ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">
-        <span class="tc-username" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openProfilePanel(${t.user_id})">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}</span>
+        <span class="tc-name-row"> <!-- v0.25.12（反馈 #93）：匹配度按钮与用户名同行（PC），移动端独占一行 -->
+          <span class="tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}</span>
+          ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
+        </span>
         <span class="tc-rating">${DISP.starsHtml(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
-        ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
         ${t.intro ? `<span class="tc-intro">${escHtml(t.intro)}</span>` : ''}
       </div>
       <div class="tc-right">
@@ -129,6 +131,13 @@ function renderTeacherCard(t) {
         </div>
       </div>
     </div>`;
+}
+
+// v0.25.12（反馈：教师卡整卡可点进入资料右栏）：卡片自身可点击/可聚焦；
+// 内嵌交互（按钮/匹配度/推送操作）不误触——命中即短路，不冒泡打开资料栏
+function openTeacherCard(e, userId) {
+  if (e.target.closest('button, .tag-match, .tc-actions')) return;
+  openProfilePanel(userId);
 }
 
 // v0.19.46 参数化：教师块默认参数不变；通知页筛选面板同组件复用（index.html 传 id）

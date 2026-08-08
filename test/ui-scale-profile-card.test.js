@@ -46,40 +46,51 @@ function loadCommon(ctx) {
 }
 
 // ---- item5 UI 大小滑块纯逻辑 ----
-test('uiScaleClamp：80~100 钳制、非数/超界回默认 100', () => {
+test('uiScaleClamp：按 CONFIG 上下限钳制、非数/超界回默认（v0.25.12 上限 120）', () => {
   const { ctx } = makeCtx(); loadCommon(ctx);
+  const min = vm.runInContext('CONFIG.UI_SCALE_MIN', ctx);
+  const max = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
+  const def = vm.runInContext('CONFIG.UI_SCALE_DEFAULT', ctx);
   assert.equal(vm.runInContext('uiScaleClamp(90)', ctx), 90);
-  assert.equal(vm.runInContext('uiScaleClamp(60)', ctx), 80, '低于下限钳到 80');
-  assert.equal(vm.runInContext('uiScaleClamp(120)', ctx), 100, '高于上限钳到 100');
-  assert.equal(vm.runInContext('uiScaleClamp("abc")', ctx), 100, '非数字回默认 100');
+  assert.equal(vm.runInContext(`uiScaleClamp(${min - 10})`, ctx), min, `低于下限钳到 ${min}`);
+  assert.equal(vm.runInContext(`uiScaleClamp(${max + 10})`, ctx), max, `高于上限钳到 ${max}`);
+  assert.equal(vm.runInContext(`uiScaleClamp(${max})`, ctx), max, `上限 ${max} 本身合法`);
+  assert.equal(vm.runInContext('uiScaleClamp("abc")', ctx), def, '非数字回默认');
   assert.equal(vm.runInContext('uiScaleClamp(85.6)', ctx), 86, '四舍五入整数');
 });
 
 test('getUiScale：localStorage 现值；无值回默认；非法值钳制', () => {
   const { ctx } = makeCtx(); loadCommon(ctx);
-  assert.equal(vm.runInContext('getUiScale()', ctx), 100, '未存 → 默认 100');
+  const def = vm.runInContext('CONFIG.UI_SCALE_DEFAULT', ctx);
+  const max = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
+  assert.equal(vm.runInContext('getUiScale()', ctx), def, '未存 → 默认');
   vm.runInContext("localStorage.setItem('sufe_ui_scale', '85')", ctx);
   assert.equal(vm.runInContext('getUiScale()', ctx), 85, '读现值 85');
   vm.runInContext("localStorage.setItem('sufe_ui_scale', '999')", ctx);
-  assert.equal(vm.runInContext('getUiScale()', ctx), 100, '非法 999 钳到 100');
+  assert.equal(vm.runInContext('getUiScale()', ctx), max, `非法 999 钳到上限 ${max}`);
 });
 
 test('setUiScale：写 localStorage + 应用 --ui-scale 系数，返回钳制值', () => {
   const { ctx, dom } = makeCtx(); loadCommon(ctx);
-  const ret = vm.runInContext('setUiScale(80)', ctx);
-  assert.equal(ret, 80);
-  assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '80');
-  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.800');
-  const ret2 = vm.runInContext('setUiScale(120)', ctx);
-  assert.equal(ret2, 100, '超界钳到 100');
-  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '1.000');
+  const min = vm.runInContext('CONFIG.UI_SCALE_MIN', ctx);
+  const max = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
+  const ret = vm.runInContext(`setUiScale(${min})`, ctx);
+  assert.equal(ret, min);
+  assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), String(min));
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), (min / 100).toFixed(3));
+  const ret2 = vm.runInContext(`setUiScale(${max + 5})`, ctx);
+  assert.equal(ret2, max, `超界钳到上限 ${max}`);
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), (max / 100).toFixed(3));
 });
 
-test('uiScaleFillPct：80→0%、100→100%、90→50%', () => {
+test('uiScaleFillPct：min→0%、max→100%、中点→50%', () => {
   const { ctx } = makeCtx(); loadCommon(ctx);
-  assert.equal(vm.runInContext('uiScaleFillPct(80)', ctx), '0.0');
-  assert.equal(vm.runInContext('uiScaleFillPct(100)', ctx), '100.0');
-  assert.equal(vm.runInContext('uiScaleFillPct(90)', ctx), '50.0');
+  const min = vm.runInContext('CONFIG.UI_SCALE_MIN', ctx);
+  const max = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
+  const mid = Math.round((min + max) / 2);
+  assert.equal(vm.runInContext(`uiScaleFillPct(${min})`, ctx), '0.0');
+  assert.equal(vm.runInContext(`uiScaleFillPct(${max})`, ctx), '100.0');
+  assert.equal(vm.runInContext(`uiScaleFillPct(${mid})`, ctx), '50.0');
 });
 
 // ---- item1/2/3 教师资料卡分组渲染 ----
@@ -163,11 +174,16 @@ test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、
   const { ctx, dom } = makeCtx();
   for (const f of FILES_WITH_PAGES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
   seedSettingsPage(ctx);
-  assert.equal(vm.runInContext('window.SLIDER.min', ctx), '80', '滑块下限 80');
-  assert.equal(vm.runInContext('window.SLIDER.max', ctx), '100', '滑块上限 100');
+  const sliderMin = vm.runInContext('CONFIG.UI_SCALE_MIN', ctx);
+  const sliderMax = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
+  assert.equal(vm.runInContext('window.SLIDER.min', ctx), String(sliderMin), '滑块下限 = CONFIG.UI_SCALE_MIN');
+  assert.equal(vm.runInContext('window.SLIDER.max', ctx), String(sliderMax), '滑块上限 = CONFIG.UI_SCALE_MAX（v0.25.12 为 120）');
   assert.equal(vm.runInContext('window.SLIDER.step', ctx), '1', '步进 1（级差最小）');
   assert.equal(vm.runInContext('window.SLIDER.value', ctx), '100', '默认现值 100');
   assert.ok(vm.runInContext('!!window.SLIDER_ROW', ctx), '滑块行独立类 .ui-scale-row 存在（防作用域污染）');
+  // 拖到上限 120：--ui-scale 应 = 1.200
+  vm.runInContext(`window.SLIDER.value = '${sliderMax}'; setUiScaleFromSlider(window.SLIDER);`, ctx);
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), (sliderMax / 100).toFixed(3), '拖到上限 --ui-scale 同步（1.2x）');
   // 拖动到 85
   vm.runInContext(`window.SLIDER.value = '85'; setUiScaleFromSlider(window.SLIDER);`, ctx);
   assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.850', '--ui-scale 实时更新');

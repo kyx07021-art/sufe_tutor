@@ -18,7 +18,7 @@
  * 依赖的共享全局：
  *   state / UI / SUBJECTS / STUDENT_GRADES / GENDERS / TEACHING_METHODS / DISP（app-state）
  *   api()（app-api）；showToast()/initReveals()（app-anim）
- *   escHtml()/fmtDateTime()/loaderHtml()/renderAvatarHtml()/openModal()/closeModal()/
+ *   escHtml()/fmtDateTime()/fmtDate()/loaderHtml()/renderAvatarHtml()/openModal()/closeModal()/
  *   confirm()（v0.25.10：原 openConfirmModal/confirmDanger/reAuthModal 三原语合并）/initCustomSelects()/
  *   syncCustomSelectText()/CARET_SVG/pickGrade（app-ui）
  *   renderProvinceSelect()/regionLockNote()/buildStudentSubjectsHtml()/buildStudentScoreRows()/
@@ -615,6 +615,15 @@ function renderDemandCard(d, opts = {}) {
     : d.my_intent_status === 'pending'  ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
     : d.my_intent_status === 'rejected' ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
     : `<button type="button" class="btn btn-outline btn-sm glass glass--pressable btn-intent-cta" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
+  // v0.25.12（反馈 #92）：推送需求操作按钮与提交意向统一 btn-sm 尺寸（原 btn-xs 是没复用组件的败笔），
+  // 与说明文案一并下沉到底栏右下角
+  const pushActions = !teacher || !push ? '' : `
+      <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
+      <button type="button" class="btn btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>`;
+  // 学生/管理员侧卡片操作（编辑/重开/下架）同归底栏右下角（统一 btn-sm）
+  const ownerActions = (editable && d.status === 'revoked' ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
+    : editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : '')
+    + (admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
   const budget = (d.budget_min || d.budget_max)
     ? `${d.budget_min||UI.BUDGET_NO_LIMIT}~${d.budget_max||UI.BUDGET_NO_LIMIT}${UI.BUDGET_UNIT_SUFFIX}` : UI.BUDGET_NEGOTIABLE;
 
@@ -632,16 +641,7 @@ function renderDemandCard(d, opts = {}) {
     <div class="list-card-header">
       <span class="list-card-title">${DISP.usernameHtml(d.username || '')}${typeBadge}${matchTag}${d.status === 'contracted' ? ` <span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>` : d.status === 'revoked' ? ` <span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : ''}</span>
       <span class="demand-card-tools">
-        ${push ? `<span class="push-note-row">
-          <span class="push-pin-tag">${UI.PUSH_TAG_ACTIVE}</span>
-          <span class="list-card-meta">${fmtDateTime(push.push_created_at)}</span>${idTag}
-          <span class="push-note-text">${UI.PUSH_NOTE_TEXT}</span>
-          <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
-          <button type="button" class="btn btn-xs glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>
-        </span>` : `<span class="list-card-meta">${fmtDateTime(d.created_at)}</span>${idTag}${teacherIntentBtn}`}
-        ${editable && d.status === 'revoked' ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
-          : editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : ''}
-        ${admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : ''}
+        <span class="list-card-meta">${push ? fmtDate(push.push_created_at) : fmtDate(d.created_at)}</span>${idTag}
       </span>
     </div>
     <div class="demand-info">
@@ -653,9 +653,12 @@ function renderDemandCard(d, opts = {}) {
     ${d.additional_info ? `<div class="list-card-detail">${UI.ADDITIONAL_PREFIX}${escHtml(d.additional_info)}</div>` : ''}
     <div class="demand-card-foot">
       <div class="list-card-contact">
-        <span class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>
+        ${push ? `<span class="push-note-text">${UI.PUSH_NOTE_TEXT}</span>` : `<span class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>`}
       </div>
-      ${editable && d.status !== 'revoked' ? `<button type="button" class="drop-toggle glass glass--solid" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
+      <div class="demand-card-actions">
+        ${teacher ? (push ? pushActions : teacherIntentBtn) : ''}${ownerActions}
+        ${editable && d.status !== 'revoked' ? `<button type="button" class="drop-toggle glass glass--solid" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
+      </div>
     </div>
     ${editable && d.status !== 'revoked' ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
     </div>

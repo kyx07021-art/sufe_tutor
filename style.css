@@ -705,7 +705,7 @@ textarea.form-input {
    selectPage 幂等注入 .page-header h2 后；小圆 i，垂直居中对齐标题行 */
 .page-header-info {
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px; margin-left: 8px;
+  width: 18px; height: 18px; /* margin-left 删：v0.25.12 间距交给 .page-header-title 组 gap */
   font-size: .66rem; font-weight: 800; line-height: 1; font-style: italic;
   border-radius: 50%; border: 1px solid var(--faint);
   color: var(--ink-3); cursor: pointer; user-select: none; vertical-align: middle;
@@ -777,6 +777,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 #client-main:has(.client-page--flush:not(.hidden)) { padding: 0; overflow: hidden; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .page-header h2 { font-size: 1.35rem; font-weight: 900; letter-spacing: -.02em; color: var(--ink); }
+/* v0.25.12（反馈 #89）：标题 + i 按钮同组靠左（.page-header 为 space-between，i 直接插 h2 后会被顶到最右） */
+.page-header-title { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 /* 页头右侧操作按钮组（通知页：屏蔽系统通知 + 发通知）：整体右对齐，窄屏自然换行 */
 .page-header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
@@ -967,6 +969,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
 }
 .demand-card-foot .list-card-contact { margin-top: 0; padding-top: 0; border-top: none; }
+/* v0.25.12（反馈 #92）：卡片操作按钮统一右下角、独占底栏右侧（与左侧说明文案同排） */
+.demand-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; min-width: 0; }
 
 /* 统一下拉开关：透明底 + 右侧 v 形箭头（展开翻转 180°），
    替换试课意向 / 筛选等一切「展开/收起栏目」按钮 */
@@ -1043,7 +1047,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   position: relative; overflow: hidden; isolation: isolate;
 }
 .list-card-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; gap: 12px; }
-.list-card-title { font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; }
+/* v0.25.12（反馈 #93/#94）：标题行改 inline-flex + gap——匹配度按钮 PC 同行、移动端独占一行；
+   gap 统一元素间距（学科/非学科 tag 与用户名不再紧贴） */
+.list-card-title { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; }
 .list-card-meta { font-size: .74rem; color: var(--muted); font-weight: 500; }
 .list-card-body { display: flex; flex-wrap: wrap; gap: 7px; }
 
@@ -1236,7 +1242,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   width: min(300px, calc(100vw - 32px));
   padding: 14px 16px;
   border-radius: var(--lg-r);
-  background: var(--g-paper);
+  /* v0.25.12（反馈：压暗灰底上的玻璃会透灰）——灰底上玻璃必须额外提亮：
+     标准 --g-paper（.22）叠 200vmax 暗影上发灰，换 --g-paper-bright 高不透明白面 */
+  background: var(--g-paper-bright, var(--g-paper));
   -webkit-backdrop-filter: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
   backdrop-filter: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
   box-shadow: var(--glass-lift), var(--g-liquid, none);
@@ -1249,7 +1257,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   position: fixed; top: 14px; right: 14px; z-index: 5;
   padding: 8px 14px;
   border: 1px solid var(--g-line-dark); border-radius: var(--lg-r-sm);
-  background: var(--g-paper);
+  background: var(--g-paper-bright, var(--g-paper)); /* v0.25.12：压暗灰底上的玻璃提亮（同气泡） */
   font-size: .78rem; font-weight: 700; letter-spacing: .04em; color: var(--ink-2);
   cursor: pointer;
   transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
@@ -1376,6 +1384,11 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .list-card--teacher {
   display: grid; grid-template-columns: 108px 1fr auto; column-gap: 22px; row-gap: 3px; align-items: start;
 }
+/* v0.25.12（反馈：教师卡整卡可点 + 聚焦效果复用标准组件）：
+   交互语言同 conv-item——hover 毛玻璃洗白（--g-hover-wash 引擎标准）、:focus-visible 标准焦点环 */
+.list-card--teacher { cursor: pointer; }
+.list-card--teacher:hover { box-shadow: inset 0 0 0 9999px var(--g-hover, var(--g-hover-wash)); }
+.list-card--teacher:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--g-focus-soft); border-radius: var(--lg-r); }
 .tc-avatar {
   grid-column: 1; grid-row: 1; align-self: stretch;
   width: 108px; min-height: 108px; font-size: 2.6rem;
@@ -1486,9 +1499,15 @@ body.profile-panel-closing .profile-panel {
 .profile-row-v--muted { color: var(--muted); font-size: .78rem; } /* 占位态：未填写 / 建立会话后展示 / 签约后展示 */
 /* 需求六·item2：资料卡分组大 title —— 占满横向空位分隔不同类型资料（去行分隔线后的段分隔） */
 .profile-group-title {
-  margin: 18px 0 2px;
-  font-size: .8rem; font-weight: 900; letter-spacing: .05em; color: var(--ink);
-}
+  margin: 22px 0 10px;
+  font-size: 1.08rem; font-weight: 900; letter-spacing: .04em; color: var(--ink);
+} /* v0.25.12（反馈 #98 补账）：大标题必须明显大于字段标签（原 .8rem 与小标题同号是败笔）——
+   分组层级交给标题字号 + 字重，不再依赖字段间分割线 */
+/* 编辑页组内：分割线去净（分组由大标题承担）、字段标签组内向上对齐（align-items:center 会把标签
+   垂直居中在高度较高的控件旁，多行网格/成绩区下视觉悬空） */
+.profile-form .form-group + .form-group { border-top: none; }
+.profile-form .form-group { align-items: flex-start; }
+.profile-form .form-label { padding-top: calc(8px * var(--ui-scale, 1)); }
 /* 需求六·item3：私密资料项两行式灰字小提示（黑字值下方一行灰字，如「签约后展示联系方式」） */
 .profile-row-note { display: block; margin-top: 2px; font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
 .profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: calc(3px * var(--ui-scale, 1)) calc(9px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 600; color: var(--ink); } /* 需求六·item5：资料卡 tag 随滑块 */
@@ -1551,12 +1570,12 @@ body.profile-panel-closing .profile-panel {
 
 .tc-identity { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; align-self: start; } /* 顶对齐：简介紧随星级，不随右列高度居中留白 */
 .tc-username {
-  font-weight: 800; font-size: 1.08rem; color: var(--ink); cursor: pointer; letter-spacing: -.01em;
+  font-weight: 800; font-size: 1.08rem; color: var(--ink); letter-spacing: -.01em;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
-.tc-username:hover { text-decoration: underline; }
+} /* v0.25.12：可点性移交整卡（.list-card--teacher 聚焦效果），用户名不再单独可点/下划线 */
 .tc-rating { display: inline-flex; align-items: center; gap: 6px; }
-.tc-match { display: inline-flex; } /* 学生端教师卡匹配度按钮独立行（需求五·item5）：不进 .tc-username 防 ellipsis 裁剪 */
+.tc-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; } /* v0.25.12（反馈 #93/#94）：用户名+匹配度同行 + 间距 */
+.tc-match { display: inline-flex; } /* 匹配度按钮不进 .tc-username 防 ellipsis 裁剪（需求五·item5） */
 .tc-rating .stars { font-size: .85rem; }
 .tc-rating b { font-family: var(--mono); font-size: .76rem; color: var(--ink-3); }
 .tc-right {
@@ -1608,21 +1627,21 @@ body.profile-panel-closing .profile-panel {
   .list-card-title { font-size: .95rem; }
   .demand-info-row { font-size: .76rem; padding: 7px 0; }
 
-  /* 移动端防横向溢出：卡片头部/工具区/推送行/底栏一律允许换行，杜绝被 .list-card 的
+  /* 移动端防横向溢出：卡片头部/工具区/底栏一律允许换行，杜绝被 .list-card 的
      overflow:hidden 裁切（表现为按钮/编号在右缘被切断）。标题可压缩，工具区独占整行自换行 */
   .list-card-header { flex-wrap: wrap; row-gap: 6px; }
   .list-card-title { min-width: 0; overflow-wrap: anywhere; }
   .demand-card-tools { width: 100%; flex-wrap: wrap; justify-content: flex-start; row-gap: 6px 10px; }
   .demand-card-foot { row-gap: 8px; }
+  /* v0.25.12（反馈 #93）：匹配度按钮移动端独占一行（需求/教师卡统一） */
+  .list-card-title .tag-match,
+  .tc-name-row .tag-match { flex-basis: 100%; margin-left: 0; }
 }
 
 /* 教师端被推送需求的置顶卡：右侧 时间·说明·拒绝·确认 一行 */
-.push-note-row { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+/* v0.25.12（反馈 #90/#92）：「主动发送」方边 tag 连根删；push-note-row 壳连根删——
+   说明文案与操作按钮下沉到卡片底栏（.demand-card-actions / .list-card-contact） */
 .push-note-text { font-size: .74rem; font-weight: 700; color: var(--accent-deep); }
-.push-pin-tag {
-  font-size: .62rem; font-weight: 700; letter-spacing: .05em; color: var(--white);
-  background: var(--accent-deep); padding: 2px 7px; margin-right: 2px;
-}
 
 /* ============================================================
    通知信息列表
@@ -1683,7 +1702,16 @@ body.profile-panel-closing .profile-panel {
 .settings-deactivate { margin-top: 14px; margin-left: 10px; }
 .username-deactivated { color: var(--muted); font-style: italic; } /* 已注销用户墓碑样式 */
 .danger-warn { font-size: .84rem; line-height: 1.75; color: var(--ink-3); } /* 危险操作弹窗的说明正文 */
-.module-info-text { font-size: .86rem; line-height: 1.8; color: var(--ink-3); } /* 侧边栏模块「i」信息浮窗正文 */
+/* v0.25.12（反馈 #95）：模块介绍浮窗 = 结构化 Markdown（复用 mdRender）+ 加宽占大半个页面 */
+.module-info-modal { max-width: 640px; }
+.module-info-md { font-size: .86rem; line-height: 1.75; color: var(--ink-3); }
+.module-info-md h2 {
+  font-size: 1.02rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
+  margin: 18px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--g-line-soft);
+}
+.module-info-md h2:first-child { margin-top: 0; }
+.module-info-md p { margin: 6px 0; overflow-wrap: anywhere; }
+.module-info-md strong { color: var(--ink); font-weight: 800; }
 /* 关于平台：纵向流程图（编号圆圈 + 圆间细连线 + 右侧简述），连线 min-height 保底不过短 */
 .about-flow { display: flex; flex-direction: column; padding: 4px 2px 0; }
 .about-flow-step { display: flex; gap: 14px; }
@@ -1709,7 +1737,6 @@ body.profile-panel-closing .profile-panel {
    ============================================================ */
 @media (max-width: 860px) {
   .demand-card-tools { display: flex; }                 /* 块级 flex，消除 inline-flex + width:100% 的尺寸歧义 */
-  .push-note-row { display: flex; width: 100%; flex-wrap: wrap; justify-content: flex-start; }
   .demand-card-foot .list-card-contact { min-width: 0; }
   .demand-card-foot .drop-toggle { flex-shrink: 0; }
   /* 需求四·4b：试课意向行移动端整行纵向排布——用户名+星级一行、状态 tag 独立一行在用户名下方 */

@@ -162,9 +162,13 @@ function openModuleInfo(pageId) {
   const cfg = pagesForRole().find(p => p.id === pageId);
   const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
   if (!info) return;
+  // v0.25.12（反馈 #95）：介绍改为结构化 Markdown（## 小标题 + 段落 + **加粗**），
+  // 复用 app-posts 的 mdRender（escHtml 先转义安全）；弹窗加宽（占大半个页面），整页滚动
   openModal({
     title: escHtml(cfg ? cfg.label : ''),
-    body: `<p class="module-info-text">${escHtml(info)}</p>`,
+    cls: 'module-info-modal',
+    bodyCls: 'module-info-md',
+    body: mdRender(info),
   });
 }
 
@@ -186,8 +190,22 @@ function injectPageHeaderInfo(pageId) {
   btn.textContent = 'i';
   btn.addEventListener('click', e => { e.stopPropagation(); openModuleInfo(pageId); });
   btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); openModuleInfo(pageId); } });
+  // v0.25.12（反馈 #89）：h2 与 i 必须同组靠左——.page-header 是 space-between，直接 after(h2)
+  // 会把 i 顶到最右。包进 .page-header-title 组（幂等：已包裹则复用），组 gap 统一间距
   const h2 = hdr.querySelector('h2');
-  if (h2) h2.after(btn); else hdr.appendChild(btn);
+  if (h2) {
+    const p = h2.parentNode;
+    let group = p && p.classList && p.classList.contains('page-header-title') ? p : null;
+    if (!group) {
+      group = document.createElement('span');
+      group.className = 'page-header-title';
+      h2.parentNode.insertBefore(group, h2);
+      group.appendChild(h2);
+    }
+    group.appendChild(btn);
+  } else {
+    hdr.appendChild(btn);
+  }
 }
 
 function selectPage(pageId) {

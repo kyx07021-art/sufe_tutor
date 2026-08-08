@@ -151,9 +151,12 @@ test('页面顶部 title 旁「i」信息按钮：selectPage 注入、幂等、�
   assert.ok(doc.querySelector('#modal-container .modal-overlay'), '信息浮窗打开');
   assert.equal(doc.querySelector('#modal-container .modal-header h2').textContent, '我的需求', '浮窗标题 = 模块名');
   const bodyText = doc.querySelector('#modal-container .modal-body').textContent;
-  assert.ok(bodyText.length > 10, '浮窗含白话介绍正文');
+  assert.ok(bodyText.length > 50, '结构化介绍内容可观');
+  // v0.25.12（反馈 #95）：介绍是 Markdown 渲染（## 小标题 + 段落），正文文本不含 '## ' 语法
+  assert.ok(bodyText.includes('这是什么'), '渲染出 Markdown 小标题（这是什么）');
+  assert.ok(!bodyText.includes('## '), 'Markdown 语法已解析，不残留原文标记');
   const infoText = vm.runInContext(`UI.MODULE_INFO['my-demands']`, ctx);
-  assert.ok(bodyText.includes(infoText.slice(0, 8)), '正文来自 constants UI.MODULE_INFO');
+  assert.ok(infoText.startsWith('## '), 'constants 源文案为结构化 Markdown');
   // 所有模块都有介绍文案（防漏配；跨 realm 数组用 length 断言避免原型不匹配）
   const missing = vm.runInContext(
     `Object.values(ROLE_PAGES).flat().filter(p => !UI.MODULE_INFO[p.id]).map(p => p.id)`, ctx);

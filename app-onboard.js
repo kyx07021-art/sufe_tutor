@@ -110,7 +110,7 @@ function _tourMount() {
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', UI.TOUR_ARIA_LABEL || '新手引导');
   overlay.innerHTML = '<div class="tour-hole"></div><div class="tour-bubble-pos"></div>'
-    + `<button type="button" class="tour-global-skip" onclick="skipTour()">${escHtml(UI.TOUR_SKIP_GLOBAL)}</button>`;
+    + `<button type="button" class="tour-global-skip" onclick="event.stopPropagation();skipTour()">${escHtml(UI.TOUR_SKIP_GLOBAL)}</button>`;
   document.body.appendChild(overlay);
   _tourEls = {
     overlay,
@@ -118,7 +118,9 @@ function _tourMount() {
     pos: overlay.querySelector('.tour-bubble-pos'),
     bubble: null,
   };
-  _tourEls.hole.addEventListener('click', _tourHoleClick);
+  // v0.25.12（反馈 #97）：整层任意点击推进——点击监听挂 overlay（覆盖全屏含亮区），
+  // 不再要求「点在亮区」、不再有亮区几何判定（_tourHoleClick 连根删）
+  overlay.addEventListener('click', _tourOverlayClick);
   // 网安 M2：引导期间对 AT 隐藏底层内容（aria-hidden；不用 inert——inert 会连程序化 .click() 一起禁掉，破坏亮区透传）
   const appRoot = document.getElementById('app');
   if (appRoot) appRoot.setAttribute('aria-hidden', 'true');
@@ -225,24 +227,18 @@ function _tourNext() {
   _tourStartStep();
 }
 
-/** 亮区点击：执行 onAdvance（closeModal 等）→ 透传点击给元素本体 → next() */
-function _tourHoleClick(e) {
+/** v0.25.12（反馈 #97）：整层任意点击推进——不再要求「点在亮区」。
+ *  卡死根治：目标不存在（空大厅/需求全签/异步未加载）时点任意处照样进入下一步；
+ *  原「点在亮区的几何判定」与 M1 漂移守卫逻辑连根删（布局错位不再拦截步进，简化交互模型）。
+ *  每次推进仍执行步动作（onAdvance + 目标存在则透传真实点击），引导中的真实交互照常发生。 */
+function _tourOverlayClick(e) {
   e.preventDefault();
   e.stopPropagation();
+  if (e.target.closest && e.target.closest('.tour-global-skip')) return; // 跳过按钮自身处理（inline stopPropagation 双保险）
   const step = _tourSteps[_tourIdx];
   if (!step) return;
-  // 网安 M1：布局漂移守卫——异步内容加载（图片/表单重渲）会使亮区视觉位置与目标实际位置错位。
-  // 点击坐标落在目标当前边框盒外 = 漂移 → 重定位亮区且本次不推进（防把用户点击转发给错位后的目标本体）
-  const targetEl = _tourResolve(step);
-  if (targetEl) {
-    const r = targetEl.getBoundingClientRect();
-    if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) {
-      _tourPlace(targetEl);
-      return;
-    }
-  }
   if (_tourIdx >= _tourSteps.length - 1) {
-    // 末步：先收尾再透传——登录/资料栏步会跳走，不能留蒙层挡新视图
+    // 末步：先收尾再执行动作——登录/资料栏步会跳走，不能留蒙层挡新视图
     _tourCleanup();
     _tourAdvanceAction(step);
     return;

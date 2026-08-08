@@ -77,7 +77,7 @@ function enterAccountSettings() {
       <div class="settings-row ui-scale-row">
         <div>
           <div class="settings-label">${UI.SETTINGS_UI_SCALE_LABEL}</div>
-          <div class="settings-hint">${UI.SETTINGS_UI_SCALE_HINT}</div>
+          <div class="settings-hint">${UI.SETTINGS_UI_SCALE_HINT.replace('{min}', CONFIG.UI_SCALE_MIN).replace('{max}', CONFIG.UI_SCALE_MAX).replace('{def}', CONFIG.UI_SCALE_DEFAULT)}</div>
         </div>
         <div class="ui-scale-control">
           <input type="range" class="ui-scale-slider" min="${CONFIG.UI_SCALE_MIN}" max="${CONFIG.UI_SCALE_MAX}" step="${CONFIG.UI_SCALE_STEP}" value="${uiScaleVal}" style="--ui-fill:${uiScaleFill}%;" oninput="setUiScaleFromSlider(this)" aria-label="${UI.SETTINGS_UI_SCALE_LABEL}">
