@@ -41,6 +41,13 @@ window.addEventListener('resize', () => {
   syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
   if (typeof syncChatPill === 'function') syncChatPill();
 });
+// v0.25.25 UI 大小滑块（需求六·item5）：--ui-scale 变化改 rem 字号 → 卡片高度变化，
+// 但指示块 top/height 是 JS 测的 px，resize 事件不覆盖滑块路径——由 app-state setUiScale 发
+// sufe:ui-scale 事件触发同样重对齐（含沟通页会话选中块）。分层：state 发 → anim 收。
+window.addEventListener('sufe:ui-scale', () => {
+  syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
+  if (typeof syncChatPill === 'function') syncChatPill();
+});
 
 // ============================================================
 // 卡片浮入（通知/需求/教师信息卡统一动效）：打开栏目即播、滚进视口再播；

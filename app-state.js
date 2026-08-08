@@ -197,7 +197,12 @@ function applyUiScale(v) {
 function setUiScale(v) {
   const c = uiScaleClamp(v);
   try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
-  return applyUiScale(c);
+  const r = applyUiScale(c);
+  // 布局联动（v0.25.25）：--ui-scale 变化会改 rem 字号 → 侧边栏/会话条卡片高度变化，
+  // 但指示块几何是 app-anim syncPillOnce 测的 px，须即时重对齐。状态层只发事件，动画层收
+  // （app-anim 监听 sufe:ui-scale 同 resize 口径；分层：state 发 → anim 收，互不引用）。
+  try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* 存储/事件禁用兜底 */ }
+  return r;
 }
 // 滑块填充百分比（80→0%、100→100%），供设置页轨道填充渐变；
 // 审计修复：min==max 时除零得 Infinity，防御性回 100
