@@ -157,3 +157,25 @@ test('设置页渲染页面风格二档；setStylePref 切选中态，不影响�
   await vm.runInContext(`setStylePref('liquid')`, ctx);
   assert.equal(doc.querySelector('.style-opt--on').dataset.pref, 'liquid', '切回液态选中态同步');
 });
+
+// #164（v0.25.72）：平面简约改白色系——浅色主题纯白底/纸，深色保持暗；flat 包覆盖基底 token
+test('平面简约白色系：#164 flat 基底覆盖 + 主题提供 --flat-*（浅白深暗）', () => {
+  const { ctx } = makeCtx();
+  const light = vm.runInContext('APP_CONSTANTS.THEME.light', ctx);
+  const dark = vm.runInContext('APP_CONSTANTS.THEME.dark', ctx);
+  const flatTokens = vm.runInContext('APP_CONSTANTS.STYLE_PACKS.flat.tokens', ctx);
+  // 浅色主题：flat 专用底/纸为纯白
+  assert.equal(light['--flat-bg'], '#FFFFFF', '浅色 flat 页面底纯白');
+  assert.equal(light['--flat-paper'], '#FFFFFF', '浅色 flat 纸面纯白');
+  assert.ok(light['--flat-paper-2'] && light['--flat-paper-3'], '浅色 flat 灰阶纸面在位');
+  // 深色主题：flat 保持暗色系（非白色）
+  assert.ok(dark['--flat-bg'].startsWith('#') && dark['--flat-bg'] !== '#FFFFFF', '深色 flat 底保持暗色');
+  // flat 包覆盖基底 token：下游 var(--paper)/var(--g-bg) 全随变白系
+  assert.equal(flatTokens['--g-bg'], 'var(--flat-bg)', 'flat 包覆盖页面底');
+  assert.equal(flatTokens['--paper'], 'var(--flat-paper)', 'flat 包覆盖纸面');
+  assert.equal(flatTokens['--line'], 'var(--flat-line)', 'flat 包覆盖线条');
+  assert.equal(flatTokens['--g-plate'], 'var(--g-bg)', '底板引用 g-bg（现为纯白）');
+  // 液态包零覆盖（白系只属于 flat）
+  const liquidTokens = vm.runInContext('APP_CONSTANTS.STYLE_PACKS.liquid.tokens', ctx);
+  assert.equal(liquidTokens['--g-bg'], undefined, '液态包不动 --g-bg');
+});
