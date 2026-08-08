@@ -701,17 +701,18 @@ textarea.form-input {
 }
 .sidebar-item.active .sidebar-item-descwrap { grid-template-rows: 1fr; }
 .sidebar-item.active .sidebar-item-desc { color: var(--ink-2); padding-top: 6px; } /* G7：白字交还深色（卡已白化） */
-/* 侧边栏模块「i」信息按钮（需求四·4b）：小圆 i，标题右侧不远处；JS 只切类，无内联样式 */
-.sidebar-item-info {
+/* 页面顶部 title 旁「i」信息按钮（v0.25.10 用户反馈：加小 i 的地方是页面内顶上 title 旁边，不是侧边栏内）：
+   selectPage 幂等注入 .page-header h2 后；小圆 i，垂直居中对齐标题行 */
+.page-header-info {
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  width: 15px; height: 15px; margin-left: 7px;
-  font-size: .58rem; font-weight: 800; line-height: 1;
+  width: 18px; height: 18px; margin-left: 8px;
+  font-size: .66rem; font-weight: 800; line-height: 1; font-style: italic;
   border-radius: 50%; border: 1px solid var(--faint);
-  color: var(--ink-3); cursor: pointer; user-select: none;
+  color: var(--ink-3); cursor: pointer; user-select: none; vertical-align: middle;
   transition: color var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out);
 }
-.sidebar-item-info:hover { color: var(--ink); border-color: var(--muted); }
-.sidebar-item-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.page-header-info:hover { color: var(--ink); border-color: var(--muted); }
+.page-header-info:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* 用户信息：白框落地栏底（静态 flex 末位，不参与滚动、不随内容变化位移）；
    上层头像 + id/属性，白框内最下层为运营脚注（细黑体小字，点击直达「关于平台」） */
@@ -738,16 +739,6 @@ textarea.form-input {
   transition: color var(--t-fast) var(--ease-out);
 }
 .sidebar-footnote:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; }
-
-/* 个人信息栏「重温新手引导」小按钮（v0.25 需求三：多步引导入口；管理员不渲染） */
-.sidebar-revisit-btn {
-  width: 100%; margin-top: 9px; padding: calc(6px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：重温引导按钮随滑块 */
-  background: var(--g-fill-weak); border: 1px solid var(--g-line-dark);
-  border-radius: var(--lg-r-sm); text-align: center; cursor: pointer;
-  font-size: .72rem; font-weight: 600; letter-spacing: .05em; color: var(--ink-2);
-  transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
-}
-.sidebar-revisit-btn:hover { background: var(--g-hover-wash); color: var(--ink); }
 
 .sidebar-close { display: none; margin: 8px 10px 6px; padding: 10px 14px; color: var(--muted); font-size: .8rem; font-weight: 600; text-align: left; }
 .sidebar-close:hover { color: var(--ink); }
@@ -912,20 +903,23 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 }
 .ui-scale-slider::-moz-range-track {
   height: 8px; border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent) var(--ui-fill, 100%), var(--g-fill-weak) var(--ui-fill, 100%));
-  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm);
+  /* v0.25.10 用户反馈：空轨从透明白改中性深线（--g-line-dark）+ 发丝边——UI 大小拉到 80% 时
+     --ui-fill=0% 全轨为空段，原透明白叠加近白玻璃卡上不可辨；中性线任意填充率下都可见 */
+  background: linear-gradient(90deg, var(--accent) var(--ui-fill, 100%), var(--g-line-dark) var(--ui-fill, 100%));
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), inset 0 0 0 1px var(--g-line-dark);
 }
 .ui-scale-slider::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
   width: 20px; height: 20px; border-radius: 50%;
   margin-top: -6px; /* 垂直居中在 8px 轨道上 */
-  background: var(--g-card-fill), var(--g-fill-strong);
+  /* v0.25.10：拖动球改淡紫（--g-slider-thumb 单源 THEME light/dark）——原白玻璃珠在 80% 空轨上白对白不可辨 */
+  background: var(--g-slider-thumb, var(--g-card-fill)), var(--g-fill-strong);
   box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), inset 0 0 0 1px var(--g-avatar-border);
   cursor: grab; transition: box-shadow var(--t-fast) var(--ease-out);
 }
 .ui-scale-slider::-moz-range-thumb {
   width: 20px; height: 20px; border: none; border-radius: 50%;
-  background: var(--g-card-fill), var(--g-fill-strong);
+  background: var(--g-slider-thumb, var(--g-card-fill)), var(--g-fill-strong);
   box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), inset 0 0 0 1px var(--g-avatar-border);
   cursor: grab;
 }
@@ -1091,7 +1085,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .match-row-s { font-weight: 800; color: var(--accent-deep); }
 .match-row-s--skip { font-weight: 600; color: var(--muted); font-size: .68rem; }
 .match-bar { margin-top: 3px; height: 4px; border-radius: 999px; background: var(--g-bar-soft); overflow: hidden; }
-.match-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); }
+.match-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); box-shadow: inset 0 0 0 1px rgba(122,104,224,.35); } /* v0.25.10：填充加发丝边，低分/纸面上可辨 */
 .match-bar--zero i { background: var(--g-bar-strong); }
 .match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
 .match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--g-line-soft); font-size: .66rem; line-height: 1.5; color: var(--muted); }
@@ -1182,7 +1176,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    ============================================================ */
 .modal-overlay {
   position: fixed; inset: 0;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; overflow-y: auto; /* v0.25.10（反馈 #82）：整页滚动上移到 overlay（去表头独立层后模态不再内滚）；
+    .modal 用 margin:auto 居中——内容高于视口时 auto margin 归零、从顶部自然滚动 */
   z-index: 200; padding: 20px;
 } /* G22：background 被 glass.css:297 毛玻璃胜，删；v0.19.37：fade-in opacity 帧连根删——
     overlay 是 .modal 的祖先，opacity 动画期间整子树合成 → modal 的 backdrop-filter 采样失效（Chromium 983252，
@@ -1190,18 +1185,19 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
     删动画后与 profile-panel 路径同构：无 opacity 帧，backdrop 全程正常采样 */
 .modal {
   width: 100%; max-width: 580px;
-  max-height: 86vh; overflow-y: auto; position: relative;
+  margin: auto; position: relative; /* v0.25.10：max-height/内滚已删——滚动交 overlay */
   animation: modal-in .32s var(--ease-snap); /* v0.19.37：删 both——终态 transform 归 none，合成层释放（同 profile-panel 路径） */
 }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 22px 24px 16px;
-  position: sticky; top: 0; z-index: 1;
-}
+} /* v0.25.10（反馈 #82）：去独立玻璃层/分隔线/sticky——标题直接坐弹窗顶端，整页滚动，无内滚通道 */
 .modal-header h2 { font-size: 1.15rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
 .modal-body { padding: 20px 24px 24px; }
 .modal-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; }
 .modal-footer-start { margin-right: auto; }
+/* 确认弹窗正文（confirm() 原语）：统一间距，表头无独立层后正文自然流 */
+.confirm-msg { margin: 0 0 16px; }
 /* v0.19.33：去 opacity 帧——Chromium bug 983252：元素自身 backdrop-filter + opacity 动画 → backdrop 渲染失效（毛玻璃变白板）。
    纯 transform 动画（profile-panel 路径）不触发，modal 复刻之
    v0.19.37：删 fill both——动画结束后 transform 不再常驻 translateY(0)，合成层释放，backdrop 回普通渲染路径；
@@ -1220,7 +1216,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   background: transparent; /* 压暗交给 .tour-hole 的 box-shadow，蒙层自身透明只做点击拦截 */
 }
 .tour-hole {
-  position: fixed; left: 0; top: 0; z-index: 2; /* 高于 .tour-bubble-pos(1)：极端重叠时点亮的仍是洞（H1 兜底） */
+  position: fixed; left: 0; top: 0; z-index: 2;
   width: 0; height: 0; opacity: 0;
   border-radius: var(--lg-r);
   pointer-events: none; /* 隐藏态不挡点击 */
@@ -1229,7 +1225,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   opacity: 1; pointer-events: auto; /* 亮区可点：引擎透传真实点击给目标本体 */
   box-shadow: 0 0 0 200vmax rgba(17, 17, 20, .55); /* 200vmax 恒盖满视口（含对角），洞内透明透视目标 */
 }
-.tour-bubble-pos { position: fixed; left: 0; top: 0; z-index: 1; } /* 亮区洞之下：极端重叠时点亮的仍是洞（H1 兜底） */
+/* 气泡层高于亮区洞（z 3 > 2）：否则会被洞的 200vmax box-shadow 压暗成「被灰化层压住」（需求三·3 bug 根因）。
+   pointer-events:none 让点击穿过气泡：与洞重叠时仍点到洞（H1 兜底），不重叠时落到 overlay 点击拦截层。 */
+.tour-bubble-pos { position: fixed; left: 0; top: 0; z-index: 3; pointer-events: none; }
 /* 气泡玻璃观感直接用 CSS 变量（同 .modal 预设配方），不套 .glass 基类——基类带
    transform transition + hover 抬升，对 backdrop-filter 子树有 983252 冻结风险；
    纯 transform animation 入场（复刻 modal-in），禁 transition */
@@ -1244,8 +1242,19 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   box-shadow: var(--glass-lift), var(--g-liquid, none);
   animation: modal-in .32s var(--ease-snap); /* 纯 transform，复刻 modal-in（983252 安全路径） */
 }
-.tour-bubble-text { font-size: .85rem; line-height: 1.7; color: var(--ink-2); margin-bottom: 10px; }
-.tour-skip-btn { margin-left: auto; display: block; }
+.tour-bubble-text { font-size: .85rem; line-height: 1.7; color: var(--ink-2); }
+/* 右上角全局「跳过引导」按钮（需求三·6）：引导全程常亮，z 高于一切（overlay 内最高），
+   固定定位右上角不随页面滚动；纯客户端跳转，无毛玻璃子树动画风险 */
+.tour-global-skip {
+  position: fixed; top: 14px; right: 14px; z-index: 5;
+  padding: 8px 14px;
+  border: 1px solid var(--g-line-dark); border-radius: var(--lg-r-sm);
+  background: var(--g-paper);
+  font-size: .78rem; font-weight: 700; letter-spacing: .04em; color: var(--ink-2);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
+}
+.tour-global-skip:hover { background: var(--g-hover-wash); color: var(--ink); }
 
 /* 星级输入 */
 .star-rating-input { flex: 1; display: flex; justify-content: flex-end; gap: 4px; font-size: 1.5rem; cursor: pointer; }
@@ -1318,7 +1327,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .sidebar-nav { gap: 10px; }
   .sidebar-item { grid-template-columns: 1fr; justify-items: center; padding: 11px 0; }
   .sidebar-item.active { padding: 13px 0; }
-  .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote, .sidebar-revisit-btn { display: none; } /* 网安 L8：64px 窄侧栏隐藏重温按钮（否则溢出） */
+  .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote { display: none; }
   .sidebar-item-index { font-size: 1rem; }
   .sidebar-user { padding: 10px 0; align-items: center; }
   .sidebar-user-avatar { width: 38px; height: 38px; font-size: 1.05rem; }
@@ -1354,7 +1363,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   .hero-title { font-size: clamp(36px, 11vw, 52px); }
   .auth-card { padding: 32px 24px; }
   .checkbox-grid { grid-template-columns: repeat(2, 1fr); }
-  .modal { max-height: 92vh; }
   .list-card-contact { flex-direction: column; gap: 6px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-row { flex-direction: column; gap: 12px; }

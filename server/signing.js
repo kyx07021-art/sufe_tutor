@@ -24,7 +24,7 @@
  * 需求四·第2条：发起签约显式绑定需求（body.demandId，前端「选择需求」下拉单选）；
  * 归属校验 = 需求必须属于会话学生方、状态 open（非 contracted/revoked）。
  */
-import { dbGet, dbRun, json, error } from './util.js';
+import { dbGet, dbRun, json, error, isDemandActive } from './util.js';
 import { requireUser } from './security.js';
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
@@ -85,7 +85,7 @@ export async function handleCreateSigning(db, body, req) {
   const dm = await dbGetDemandById(db, demandId);
   if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
-  if (dm.status !== STATUS.OPEN) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
+  if (!isDemandActive(dm.status)) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求活跃统一谓词（v0.25.10）
   // 同会话 pending 去重：已有待处理的签约请求则拒绝（防同会话堆积多条 pending 气泡、逐条确认变多签）
   const dup = await dbGet(db, `SELECT id FROM signing_requests WHERE conversation_id=? AND status='pending' LIMIT 1`, [conversationId]);
   if (dup) return error(MSG.SIGNING_ALREADY_PENDING, 409);

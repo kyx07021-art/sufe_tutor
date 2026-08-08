@@ -81,25 +81,36 @@ let _tourSteps = [];
 let _tourIdx = 0;
 let _tourEls = null; // { overlay, hole, pos, bubble }
 
-/** 解析步骤目标元素：未挂载 / 在 .hidden 祖先内（display:none）→ null（引擎等待或跳过） */
+/** 解析步骤目标元素：未挂载 / 在 .hidden 祖先内（display:none）→ null（引擎等待或跳过）。
+ *  closeModal 步指向弹窗本体 .modal（而非全屏 .modal-overlay）：若指向全屏 overlay，
+ *  亮区 = 整个视口 → box-shadow 的压暗被推到屏幕外，背景灰化全消失（需求三·2 bug 根因）。
+ *  自定义下拉：原生 select 被 initCustomSelects 包进 .custom-select 并加 .hidden——
+ *  亮区改指可见的 .custom-select-trigger（点击即开下拉，真实交互照常发生）。 */
 function _tourResolve(step) {
   const t = step.target || {};
   let el = null;
   if (t.page) el = document.querySelector(`#sidebar-nav .sidebar-item[data-page="${t.page}"]`);
   else if (t.sel) el = document.querySelector(t.sel);
-  else if (t.closeModal) el = document.querySelector('#modal-container .modal-overlay');
+  else if (t.closeModal) el = document.querySelector('#modal-container .modal-overlay .modal');
   else if (t.self) el = document.querySelector('#sidebar-user .sidebar-user-top');
+  if (el && el.classList.contains('hidden') && el.matches('select') && el.closest('.custom-select')) {
+    const trig = el.closest('.custom-select').querySelector('.custom-select-trigger');
+    if (trig) el = trig;
+  }
   return el && !el.closest('.hidden') ? el : null;
 }
 
-/** 挂载引导层 DOM：overlay 常驻（点击拦截），hole/bubble 每步重建定位 */
+/** 挂载引导层 DOM：overlay 常驻（点击拦截），hole/bubble 每步重建定位。
+ *  右上角全局「跳过引导」按钮随层挂载、随层拆除（需求三·6）：固定定位、z 高于一切，
+ *  引导全程常亮；文案单源 constants UI.TOUR_SKIP_GLOBAL。 */
 function _tourMount() {
   const overlay = document.createElement('div');
   overlay.className = 'tour-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
   overlay.setAttribute('aria-label', UI.TOUR_ARIA_LABEL || '新手引导');
-  overlay.innerHTML = '<div class="tour-hole"></div><div class="tour-bubble-pos"></div>';
+  overlay.innerHTML = '<div class="tour-hole"></div><div class="tour-bubble-pos"></div>'
+    + `<button type="button" class="tour-global-skip" onclick="skipTour()">${escHtml(UI.TOUR_SKIP_GLOBAL)}</button>`;
   document.body.appendChild(overlay);
   _tourEls = {
     overlay,
@@ -118,9 +129,9 @@ function _tourMount() {
  *  玻璃观感由 .tour-bubble 自身用 CSS 变量承担（同 .modal 预设配方）。 */
 function _tourShowBubble(text) {
   const pos = _tourEls.pos;
+  // 气泡内不再有「跳过」按钮（需求三·4 连根删：推进只靠点亮区/白区，跳过统一走右上角全局按钮）
   pos.innerHTML = `<div class="tour-bubble">
     <p class="tour-bubble-text">${escHtml(text)}</p>
-    <button type="button" class="btn btn-ghost btn-xs tour-skip-btn" onclick="skipTour()">${escHtml(UI.TOUR_SKIP)}</button>
   </div>`;
   _tourEls.bubble = pos.querySelector('.tour-bubble');
 }
@@ -143,7 +154,7 @@ function _tourHideHole() {
 
 /** 气泡落位：目标旁（右→左→下→上），**永不与亮区重叠**（架构审计 H1：此前兜底钳制会把气泡压到亮区正上方，
  *  移动端贴边目标点「亮区」实际点到气泡 → 步进失效）。最后兜底贴视口底（亮区通常在上方）；
- *  另 style.css 中 .tour-hole z 高于 .tour-bubble-pos，即使极小视口重叠，点亮的仍是洞。 */
+ *  另 .tour-bubble-pos z 高于 .tour-hole 但 pointer-events:none——即使极小视口重叠，点击仍穿透到洞。 */
 function _tourPlaceBubble(rect) {
   const pos = _tourEls.pos;
   const gap = CONFIG.TOUR_GAP_PX || 16;
@@ -303,7 +314,7 @@ function runTour(nameOrSteps) {
   _tourStartStep();
 }
 
-/** 气泡「跳过」按钮：整个引导收尾 */
+/** 跳过引导：右上角全局按钮 + Esc 统一收尾（需求三·6：跳过入口全局常亮，这才是跳过按钮的正确用法） */
 function skipTour() { _tourCleanup(); }
 
 /**
@@ -321,82 +332,215 @@ function startOnboardingTour() {
 
 // ============================================================
 // 五份引导脚本（需求三：主页老浮窗 / 教师·学生·登录前·登录后）
-// 每个选项卡介绍拆成独立组件函数，按脚本顺序拼接 → 追加新功能 = 加一个函数并插入对应脚本
+// 每个模块的步骤拆成独立组件函数（每模块 ≥3 次交互，真实探进页面转一圈），
+// 按脚本顺序拼接 → 追加新功能 = 加一个函数并插入对应脚本。
+// 访客脚本只引导可见模块（不点会走登录通路的按钮）；登录后脚本引导角色全部模块。
 // ============================================================
 
-/** 需求大厅（教师） */
-function tourStepBrowseDemands()      { return { target: { page: 'browse-demands' },   text: UI.TOUR_STEP_BROWSE_DEMANDS }; }
-/** 教师同行（教师浏览教师） */
-function tourStepBrowseTeachersPeer() { return { target: { page: 'browse-teachers' },  text: UI.TOUR_STEP_BROWSE_TEACHERS_PEER }; }
-/** 教师广场（学生浏览教师） */
-function tourStepBrowseTeachers()     { return { target: { page: 'browse-teachers' },  text: UI.TOUR_STEP_BROWSE_TEACHERS }; }
-/** 资料共享（教师） */
-function tourStepResourceShare()      { return { target: { page: 'resource-share' },   text: UI.TOUR_STEP_RESOURCE_SHARE }; }
-/** 我的会话 */
-function tourStepMyChats()            { return { target: { page: 'my-chats' },         text: UI.TOUR_STEP_MY_CHATS }; }
-/** 我的合同 */
-function tourStepMyContracts()        { return { target: { page: 'my-contracts' },     text: UI.TOUR_STEP_MY_CONTRACTS }; }
-/** 个人资料（教师编辑档案页签） */
-function tourStepEditProfile()        { return { target: { page: 'edit-profile' },     text: UI.TOUR_STEP_EDIT_PROFILE }; }
-/** 教师资料表单（页面内元素） */
-function tourStepProfileForm()        { return { target: { sel: '.profile-form' },     text: UI.TOUR_STEP_PROFILE_FORM }; }
-/** 通知信息 */
-function tourStepNotifications()      { return { target: { page: 'notifications' },    text: UI.TOUR_STEP_NOTIFICATIONS }; }
-/** 设置 */
-function tourStepAccountSettings()    { return { target: { page: 'account-settings' }, text: UI.TOUR_STEP_ACCOUNT_SETTINGS }; }
-/** 关于平台 */
-function tourStepAbout()              { return { target: { page: 'about' },            text: UI.TOUR_STEP_ABOUT }; }
-/** 我的需求（学生） */
-function tourStepMyDemands()          { return { target: { page: 'my-demands' },       text: UI.TOUR_STEP_MY_DEMANDS }; }
-/** 新建需求按钮（页面内元素） */
-function tourStepNewDemandBtn()       { return { target: { sel: '#btn-new-demand' },   text: UI.TOUR_STEP_NEW_DEMAND_BTN }; }
-/** 需求发布表单弹窗（点后自动关闭） */
-function tourStepNewDemandModal()     { return { target: { closeModal: true },         text: UI.TOUR_STEP_NEW_DEMAND_MODAL }; }
-/** 访客末步：个人信息栏去登录/注册 */
-function tourStepGuestLogin()         { return { target: { self: true },               text: UI.TOUR_STEP_GUEST_LOGIN }; }
-/** 登录用户末步：个人信息栏 */
-function tourStepUserBar()            { return { target: { self: true },               text: UI.TOUR_STEP_USER_BAR }; }
+// ---- 需求大厅（教师）----
+function tourStepBrowseDemands()    { return { module: 'browse-demands', target: { page: 'browse-demands' }, text: UI.TOUR_STEP_BROWSE_DEMANDS }; }
+function tourStepDemandList()       { return { module: 'browse-demands', target: { sel: '#demands-list' },   text: UI.TOUR_STEP_DEMAND_LIST }; }
+function tourStepDemandCard()       { return { module: 'browse-demands', target: { sel: '#demands-list .list-card--demand' }, text: UI.TOUR_STEP_DEMAND_CARD }; }
+function tourStepDemandIntentBtn()  { return { module: 'browse-demands', target: { sel: '#demands-list .btn-intent-cta' },   text: UI.TOUR_STEP_DEMAND_INTENT_BTN }; }
+function tourStepDemandIdTag()      { return { module: 'browse-demands', target: { sel: '#demands-list .demand-id-tag' },     text: UI.TOUR_STEP_DEMAND_ID_TAG }; }
+
+// ---- 浏览教师（教师广场 / 教师同行）----
+function tourStepBrowseTeachers()     { return { module: 'browse-teachers', target: { page: 'browse-teachers' }, text: UI.TOUR_STEP_BROWSE_TEACHERS }; }
+function tourStepBrowseTeachersPeer() { return { module: 'browse-teachers', target: { page: 'browse-teachers' }, text: UI.TOUR_STEP_BROWSE_TEACHERS_PEER }; }
+function tourStepTeachersList()       { return { module: 'browse-teachers', target: { sel: '#teachers-list' },   text: UI.TOUR_STEP_TEACHERS_LIST }; }
+function tourStepFilterToggle()       { return { module: 'browse-teachers', target: { sel: '#filter-toggle-btn' }, text: UI.TOUR_STEP_FILTER_TOGGLE }; }
+function tourStepFilterSubject()      { return { module: 'browse-teachers', target: { sel: '#filter-subject' },  text: UI.TOUR_STEP_FILTER_SUBJECT }; }
+function tourStepTeacherUsername()    { return { module: 'browse-teachers', target: { sel: '#teachers-list .tc-username' }, text: UI.TOUR_STEP_TEACHER_USERNAME }; }
+function tourStepProfileClose()       { return { module: 'browse-teachers', target: { sel: '#profile-panel-close' }, text: UI.TOUR_STEP_PROFILE_CLOSE }; }
+function tourStepTeacherPushBtn()     { return { module: 'browse-teachers', target: { sel: '#teachers-list .tc-push-btn' }, text: UI.TOUR_STEP_TEACHER_PUSH_BTN }; }
+function tourStepPushModal()          { return { module: 'browse-teachers', target: { closeModal: true }, text: UI.TOUR_STEP_PUSH_MODAL }; }
+
+// ---- 资料共享（教师）----
+function tourStepResourceShare()  { return { module: 'resource-share', target: { page: 'resource-share' }, text: UI.TOUR_STEP_RESOURCE_SHARE }; }
+function tourStepPostsList()      { return { module: 'resource-share', target: { sel: '#posts-list' },     text: UI.TOUR_STEP_POSTS_LIST }; }
+function tourStepPostsSearch()    { return { module: 'resource-share', target: { sel: '#posts-search' },   text: UI.TOUR_STEP_POSTS_SEARCH }; }
+function tourStepPostsSort()      { return { module: 'resource-share', target: { sel: '#posts-sort' },     text: UI.TOUR_STEP_POSTS_SORT }; }
+function tourStepPostsCreate()    { return { module: 'resource-share', target: { sel: '#posts-content .posts-create-btn' }, text: UI.TOUR_STEP_POSTS_CREATE }; }
+function tourStepPostsModal()     { return { module: 'resource-share', target: { closeModal: true }, text: UI.TOUR_STEP_POSTS_MODAL }; }
+
+// ---- 我的会话 ----
+function tourStepMyChats()       { return { module: 'my-chats', target: { page: 'my-chats' }, text: UI.TOUR_STEP_MY_CHATS }; }
+function tourStepConvItem()      { return { module: 'my-chats', target: { sel: '#conv-list .conv-item' }, text: UI.TOUR_STEP_CONV_ITEM }; }
+function tourStepChatMessages()  { return { module: 'my-chats', target: { sel: '#chat-messages' }, text: UI.TOUR_STEP_CHAT_MESSAGES }; }
+function tourStepChatSend()      { return { module: 'my-chats', target: { sel: '#chat-send-btn' }, text: UI.TOUR_STEP_CHAT_SEND }; }
+function tourStepChatPlus()      { return { module: 'my-chats', target: { sel: '.chat-plus-btn' }, text: UI.TOUR_STEP_CHAT_PLUS }; }
+
+// ---- 我的合同 ----
+function tourStepMyContracts()     { return { module: 'my-contracts', target: { page: 'my-contracts' }, text: UI.TOUR_STEP_MY_CONTRACTS }; }
+function tourStepContractsList()   { return { module: 'my-contracts', target: { sel: '#my-contracts-list' }, text: UI.TOUR_STEP_CONTRACTS_LIST }; }
+function tourStepContractCard()    { return { module: 'my-contracts', target: { sel: '#my-contracts-list .list-card' }, text: UI.TOUR_STEP_CONTRACT_CARD }; }
+function tourStepContractActions() { return { module: 'my-contracts', target: { sel: '#my-contracts-list .contract-actions' }, text: UI.TOUR_STEP_CONTRACT_ACTIONS }; }
+
+// ---- 个人资料（教师编辑档案）----
+function tourStepEditProfile()      { return { module: 'edit-profile', target: { page: 'edit-profile' }, text: UI.TOUR_STEP_EDIT_PROFILE }; }
+function tourStepProfileForm()      { return { module: 'edit-profile', target: { sel: '.profile-form' }, text: UI.TOUR_STEP_PROFILE_FORM }; }
+function tourStepProfileSubjects()  { return { module: 'edit-profile', target: { sel: '#profile-subjects' }, text: UI.TOUR_STEP_PROFILE_SUBJECTS }; }
+function tourStepProfilePrice()     { return { module: 'edit-profile', target: { sel: '#profile-price-min' }, text: UI.TOUR_STEP_PROFILE_PRICE }; }
+function tourStepProfileSubmit()    { return { module: 'edit-profile', target: { sel: '#profile-submit' }, text: UI.TOUR_STEP_PROFILE_SUBMIT }; }
+
+// ---- 通知 ----
+function tourStepNotifications() { return { module: 'notifications', target: { page: 'notifications' }, text: UI.TOUR_STEP_NOTIFICATIONS }; }
+function tourStepNotifList()     { return { module: 'notifications', target: { sel: '#notifications-content' }, text: UI.TOUR_STEP_NOTIF_LIST }; }
+function tourStepNotifItem()     { return { module: 'notifications', target: { sel: '.notif-item' }, text: UI.TOUR_STEP_NOTIF_ITEM }; }
+function tourStepNotifBlock()    { return { module: 'notifications', target: { sel: '#btn-notif-block' }, text: UI.TOUR_STEP_NOTIF_BLOCK }; }
+
+// ---- 设置 ----
+function tourStepAccountSettings()     { return { module: 'account-settings', target: { page: 'account-settings' }, text: UI.TOUR_STEP_ACCOUNT_SETTINGS }; }
+function tourStepSettingsAccount()     { return { module: 'account-settings', target: { sel: '.settings-row--avatar' }, text: UI.TOUR_STEP_SETTINGS_ACCOUNT }; }
+function tourStepSettingsTheme()       { return { module: 'account-settings', target: { sel: '.theme-opt' }, text: UI.TOUR_STEP_SETTINGS_THEME }; }
+function tourStepSettingsUiScale()     { return { module: 'account-settings', target: { sel: '.ui-scale-slider' }, text: UI.TOUR_STEP_SETTINGS_UI_SCALE }; }
+function tourStepSettingsLogout()      { return { module: 'account-settings', target: { sel: '.settings-logout' }, text: UI.TOUR_STEP_SETTINGS_LOGOUT }; }
+function tourStepSettingsLogoutModal() { return { module: 'account-settings', target: { closeModal: true }, text: UI.TOUR_STEP_SETTINGS_LOGOUT_MODAL }; }
+
+// ---- 关于平台 ----
+function tourStepAbout()          { return { module: 'about', target: { page: 'about' }, text: UI.TOUR_STEP_ABOUT }; }
+function tourStepAboutWho()       { return { module: 'about', target: { sel: '.about-card' }, text: UI.TOUR_STEP_ABOUT_WHO }; }
+function tourStepAboutFlow()      { return { module: 'about', target: { sel: '.about-flow' }, text: UI.TOUR_STEP_ABOUT_FLOW }; }
+function tourStepAboutSecurity()  { return { module: 'about', target: { sel: '.about-security-list' }, text: UI.TOUR_STEP_ABOUT_SECURITY }; }
+function tourStepAboutFeedback()  { return { module: 'about', target: { sel: '.about-feedback-btns' }, text: UI.TOUR_STEP_ABOUT_FEEDBACK }; }
+
+// ---- 我的需求（学生）----
+function tourStepMyDemands()      { return { module: 'my-demands', target: { page: 'my-demands' }, text: UI.TOUR_STEP_MY_DEMANDS }; }
+function tourStepMyDemandsList()  { return { module: 'my-demands', target: { sel: '#my-demands-list' }, text: UI.TOUR_STEP_MY_DEMANDS_LIST }; }
+function tourStepIntentToggle()   { return { module: 'my-demands', target: { sel: '#my-demands-list .drop-toggle' }, text: UI.TOUR_STEP_INTENT_TOGGLE }; }
+function tourStepNewDemandBtn()   { return { module: 'my-demands', target: { sel: '#btn-new-demand' }, text: UI.TOUR_STEP_NEW_DEMAND_BTN }; }
+function tourStepNewDemandModal() { return { module: 'my-demands', target: { closeModal: true }, text: UI.TOUR_STEP_NEW_DEMAND_MODAL }; }
+
+// ---- 末步（不计入模块统计）----
+function tourStepGuestLogin()     { return { module: 'end', target: { self: true }, text: UI.TOUR_STEP_GUEST_LOGIN }; }
+function tourStepUserBar()        { return { module: 'end', target: { self: true }, text: UI.TOUR_STEP_USER_BAR }; }
 
 const TOUR_SCRIPTS = {
-  // 教师登录前：可访问区域 + 末步引导登录
+  // 教师登录前：可访问区域（需求大厅 / 教师同行 / 资料共享 / 关于）+ 末步引导登录
   teacherGuest: () => [
     tourStepBrowseDemands(),
+    tourStepDemandList(),
+    tourStepDemandCard(),
+    tourStepDemandIdTag(),
     tourStepBrowseTeachersPeer(),
+    tourStepTeachersList(),
+    tourStepFilterToggle(),
+    tourStepTeacherUsername(),
+    tourStepProfileClose(),
     tourStepResourceShare(),
+    tourStepPostsList(),
+    tourStepPostsSearch(),
+    tourStepPostsSort(),
     tourStepAbout(),
+    tourStepAboutWho(),
+    tourStepAboutFlow(),
+    tourStepAboutSecurity(),
+    tourStepAboutFeedback(),
     tourStepGuestLogin(),
   ],
-  // 学生登录前
+  // 学生登录前：教师广场 / 关于 + 末步引导登录
   studentGuest: () => [
     tourStepBrowseTeachers(),
+    tourStepTeachersList(),
+    tourStepFilterToggle(),
+    tourStepFilterSubject(),
+    tourStepTeacherUsername(),
+    tourStepProfileClose(),
     tourStepAbout(),
+    tourStepAboutWho(),
+    tourStepAboutFlow(),
+    tourStepAboutSecurity(),
+    tourStepAboutFeedback(),
     tourStepGuestLogin(),
   ],
-  // 教师登录后：逐个栏目 + 资料表单 + 末步个人信息栏
+  // 教师登录后：全部模块逐个深入 + 末步个人信息栏
   teacherUser: () => [
     tourStepBrowseDemands(),
+    tourStepDemandList(),
+    tourStepDemandCard(),
+    tourStepDemandIntentBtn(),
+    tourStepDemandIdTag(),
     tourStepBrowseTeachersPeer(),
+    tourStepTeachersList(),
+    tourStepFilterToggle(),
+    tourStepTeacherUsername(),
+    tourStepProfileClose(),
     tourStepResourceShare(),
+    tourStepPostsList(),
+    tourStepPostsSearch(),
+    tourStepPostsSort(),
+    tourStepPostsCreate(),
+    tourStepPostsModal(),
     tourStepMyChats(),
+    tourStepConvItem(),
+    tourStepChatMessages(),
+    tourStepChatSend(),
+    tourStepChatPlus(),
     tourStepMyContracts(),
+    tourStepContractsList(),
+    tourStepContractCard(),
+    tourStepContractActions(),
     tourStepEditProfile(),
     tourStepProfileForm(),
+    tourStepProfileSubjects(),
+    tourStepProfilePrice(),
+    tourStepProfileSubmit(),
     tourStepNotifications(),
+    tourStepNotifList(),
+    tourStepNotifItem(),
+    tourStepNotifBlock(),
     tourStepAccountSettings(),
+    tourStepSettingsAccount(),
+    tourStepSettingsTheme(),
+    tourStepSettingsUiScale(),
+    tourStepSettingsLogout(),
+    tourStepSettingsLogoutModal(),
     tourStepAbout(),
+    tourStepAboutWho(),
+    tourStepAboutFlow(),
+    tourStepAboutSecurity(),
+    tourStepAboutFeedback(),
     tourStepUserBar(),
   ],
-  // 学生登录后：我的需求 → 新建需求 → 弹窗收尾，再逐个栏目 + 末步个人信息栏
+  // 学生登录后：我的需求（深入新建表单）→ 教师广场（深入发需求）→ 其余模块 + 末步个人信息栏
   studentUser: () => [
     tourStepMyDemands(),
+    tourStepMyDemandsList(),
+    tourStepIntentToggle(),
     tourStepNewDemandBtn(),
     tourStepNewDemandModal(),
     tourStepBrowseTeachers(),
+    tourStepTeachersList(),
+    tourStepFilterToggle(),
+    tourStepFilterSubject(),
+    tourStepTeacherUsername(),
+    tourStepProfileClose(),
+    tourStepTeacherPushBtn(),
+    tourStepPushModal(),
     tourStepMyChats(),
+    tourStepConvItem(),
+    tourStepChatMessages(),
+    tourStepChatSend(),
+    tourStepChatPlus(),
     tourStepMyContracts(),
+    tourStepContractsList(),
+    tourStepContractCard(),
+    tourStepContractActions(),
     tourStepNotifications(),
+    tourStepNotifList(),
+    tourStepNotifItem(),
+    tourStepNotifBlock(),
     tourStepAccountSettings(),
+    tourStepSettingsAccount(),
+    tourStepSettingsTheme(),
+    tourStepSettingsUiScale(),
+    tourStepSettingsLogout(),
+    tourStepSettingsLogoutModal(),
     tourStepAbout(),
+    tourStepAboutWho(),
+    tourStepAboutFlow(),
+    tourStepAboutSecurity(),
+    tourStepAboutFeedback(),
     tourStepUserBar(),
   ],
 };

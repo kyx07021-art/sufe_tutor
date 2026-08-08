@@ -102,6 +102,14 @@
       return (rating || 4).toFixed(1);
     },
 
+    // 需求「活跃」统一谓词（用户反馈 2026-08-08）：业务逻辑判断需求可否操作（主动推送/收意向/发起签约）
+    // 一律走这里，取代散落的状态字面量比较。active == status==='open'——contracted（已签约成交）与
+    // revoked（已撤销未重开）均非活跃。需求对象（服务端 mapDemandRow 出口）或纯 status 值都可传入。
+    demandIsActive(d) {
+      const status = typeof d === 'string' ? d : (d && d.status);
+      return status === (C().STATUS || {}).OPEN;
+    },
+
     // 需求下拉选项文本（需求四·第2/3条：发起签约 / 起草合同下拉单源复用）：
     //   #编号 · 目标名（科目/非学科项目） · 预算区间
     //   预算仅当 min/max 任一 > 0 时展示（默认 0 的需求不凑数）；纯函数返回明文，转义由调用方 escHtml

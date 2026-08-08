@@ -21,8 +21,8 @@
 //   app-api：api
 //   app-anim：showToast、initReveals
 //   app-ui：escHtml、fmtDateTime、renderAvatarHtml、loaderHtml、openModal、
-//     closeModal、openImageViewer、compressToDataURL、openConfirmModal、
-//     reAuthModal、initCustomSelects、syncCustomSelectText
+//     closeModal、openImageViewer、compressToDataURL、confirm（v0.25.10 三原语合并）、
+//     initCustomSelects、syncCustomSelectText
 //   app-onboard：openOnboarding、openUsageGuide
 //   app-region：renderProvinceSelect、onTeacherProvinceChange、
 //     onTeacherSubjectsChange、renderTeacherGaokaoEditor、collectTeacherGaokao
@@ -140,14 +140,14 @@ function renderDeviceRow(s) {
   </div>`;
 }
 function revokeDeviceSession(sessionId) {
-  openConfirmModal(UI.DEVICE_REVOKE_CONFIRM, async () => {
+  confirm({ message: UI.DEVICE_REVOKE_CONFIRM, onConfirm: async () => {
     try {
       const data = await api('/api/auth/sessions/revoke', { method: 'POST', body: { sessionId } });
       showToast(UI.DEVICE_REVOKE_DONE);
       if (data.revokedSelf) { handleLogout(); return; } // 踢的是自己 → 本地登出
       loadDeviceSessions();
     } catch (err) { showToast(err.message); }
-  });
+  }});
 }
 
 // 注销账户：两级确认（数据影响说明 → 最终危险确认）。后端抹单方数据、墓碑化用户名，
@@ -163,13 +163,13 @@ function openDeactivateModal() {
 }
 function confirmDeactivateAccount() {
   // 危险操作二次认证（网安报告 F-05）：后端 OTP 恒通过已废除，注销须密码重认证换 capToken
-  reAuthModal(UI.DEACTIVATE_FINAL, async capToken => {
+  confirm({ message: UI.DEACTIVATE_FINAL, needReAuth: true, onConfirm: async capToken => {
     try {
       await api('/api/user/deactivate', { method: 'POST', body: { capToken } });
       showToast(UI.DEACTIVATE_DONE_TOAST);
       setTimeout(handleLogout, CONFIG.REOPEN_DELAY_MS); // 让用户看到提示再退
     } catch (err) { showToast(err.message); }
-  });
+  }});
 }
 
 // 头像上传：居中取最大内切正方形缩放至 160px（圆形由 CSS border-radius 呈现），dataURL 落库
@@ -282,7 +282,32 @@ function enterAbout() {
 // ============================================================
 // 教师档案编辑
 // ============================================================
+// v0.25.10 用户反馈（「教师端个人资料页没有前端试验改动」）：需求六的分组大 title 只做了右栏资料卡，
+// 编辑页（.profile-form）没做——这里按四组在对应字段前注入 .profile-group-title（文案单源 PROFILE_SECTION_*）。
+// 组序/首字段索引与 index.html 编辑页静态字段顺序强耦合，加字段时同步核对。
+function groupProfileForm() {
+  const form = document.querySelector('.profile-form');
+  if (!form || form.querySelector('.profile-group-title')) return; // 幂等（切页重建 DOM 前不重复插）
+  const groups = [
+    { title: UI.PROFILE_SECTION_BASIC,       firstIndex: 0 },  // 省份/年级/学校/毕业年份/性别
+    { title: UI.PROFILE_SECTION_ACADEMIC,    firstIndex: 5 },  // 科目/成绩/报价/方式/时间段/性格
+    { title: UI.PROFILE_SECTION_NONACADEMIC, firstIndex: 11 }, // 非学科项目/报价
+    { title: UI.PROFILE_SECTION_PRIVATE,     firstIndex: 13 }, // 地址/微信/邮箱/真实姓名/学信网截图
+  ];
+  const rows = form.querySelectorAll('.form-group');
+  // 逆序插入（先插后面的组，避免索引漂移）
+  for (const g of [...groups].reverse()) {
+    const target = rows[g.firstIndex];
+    if (!target) continue;
+    const div = document.createElement('div');
+    div.className = 'profile-group-title';
+    div.textContent = g.title;
+    target.parentNode.insertBefore(div, target);
+  }
+}
+
 function initProfileForm() {
+  groupProfileForm(); // v0.25.10：编辑页四组大 title（需求六版式补齐到个人资料编辑表单）
   const pageTitle = document.getElementById('profile-page-title');
   if (pageTitle) pageTitle.textContent = UI.PAGE_TITLE_EDIT_PROFILE; // 页头标题归口 constants（index.html 静态文本仅 JS 前的兜底）
   // 新扩展字段的 label 归口 constants（index.html 静态文本仅 JS 前的兜底；保留 .req 星号）

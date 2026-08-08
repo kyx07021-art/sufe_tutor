@@ -65,14 +65,14 @@ function openPostViewModal(postId) {
 }
 
 function adminDeletePost(postId) {
-  openConfirmModal(UI.POST_DELETE_CONFIRM, async () => {
+  confirm({ message: UI.POST_DELETE_CONFIRM, onConfirm: async () => {
     try {
       await api(`/api/posts/${postId}`, { method: 'DELETE', body: {} });
       showToast(UI.POST_DELETED);
       invalidate('posts'); // v0.23.1 审计 M1：否则 loadAdminPosts 命中旧列表，被删帖闪回
       loadAdminPosts();
     } catch (err) { showToast(err.message); }
-  });
+  }});
 }
 
 // ============================================================
@@ -125,14 +125,14 @@ function adminViewContract(contractId) {
 }
 
 function adminRemoveContract(contractId) {
-  openConfirmModal(UI.CONFIRM_ADMIN_REMOVE_CONTRACT, async () => {
+  confirm({ message: UI.CONFIRM_ADMIN_REMOVE_CONTRACT, onConfirm: async () => {
     try {
       await api(`/api/admin/contracts/${contractId}`, { method: 'DELETE' });
       showToast(UI.ADMIN_CONTRACT_REMOVED_TOAST);
       invalidate('contracts'); // v0.23.1 审计 M5：否则 loadAdminContracts 命中旧列表
       loadAdminContracts();
     } catch (err) { showToast(err.message); }
-  });
+  }});
 }
 
 // ============================================================
@@ -177,7 +177,7 @@ async function resolveAdminFeedback(feedbackId) {
 // 管理员：封禁 / 解封用户
 // ============================================================
 function confirmBanUser(userId, banned) {
-  confirmDanger(banned ? UI.BAN : UI.UNBAN, banned ? UI.CONFIRM_BAN : UI.CONFIRM_UNBAN, `doBanUser(${userId}, ${banned})`);
+  confirm({ title: banned ? UI.BAN : UI.UNBAN, message: banned ? UI.CONFIRM_BAN : UI.CONFIRM_UNBAN, onConfirm: () => doBanUser(userId, banned) });
 }
 
 async function doBanUser(userId, banned) {

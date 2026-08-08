@@ -18,8 +18,9 @@
  * 依赖的共享全局：
  *   state / UI / SUBJECTS / STUDENT_GRADES / GENDERS / TEACHING_METHODS / DISP（app-state）
  *   api()（app-api）；showToast()/initReveals()（app-anim）
- *   escHtml()/fmtDateTime()/loaderHtml()/renderAvatarHtml()/openModal()/closeModal()/confirmDanger()/
- *   openConfirmModal()/initCustomSelects()/syncCustomSelectText()/CARET_SVG/pickGrade（app-ui）
+ *   escHtml()/fmtDateTime()/loaderHtml()/renderAvatarHtml()/openModal()/closeModal()/
+ *   confirm()（v0.25.10：原 openConfirmModal/confirmDanger/reAuthModal 三原语合并）/initCustomSelects()/
+ *   syncCustomSelectText()/CARET_SVG/pickGrade（app-ui）
  *   renderProvinceSelect()/regionLockNote()/buildStudentSubjectsHtml()/buildStudentScoreRows()/
  *   collectStudentScores()/switchScoreMode（app-region）
  *   invalidate()/registerLogoutReset()（app-state）；openProfilePanel（app-teachers，运行时全局）
@@ -120,7 +121,7 @@ function renderDemandModal(demand) {
           </div>
           <div class="demand-section hidden" id="d-section-nonacademic">
             <div class="form-group">
-              <label class="form-label">${UI.LABEL_NONACADEMIC_PROJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
+              <label class="form-label">${UI.LABEL_TARGET_PROJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
               <div class="checkbox-grid" id="d-nonacademic">${NONACADEMIC_PROJECTS.map(p=>`
                 <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${p.id}">${p.name}</label>
               `).join('')}</div>
@@ -394,7 +395,7 @@ async function handleSubmitDemand(e) {
 // 删除需求（学生撤销 / 管理员下架）
 // ============================================================
 function confirmDeleteDemand(demandId, asAdmin) {
-  confirmDanger(UI.BTN_DELETE_DEMAND, UI.CONFIRM_DELETE_DEMAND, `handleDeleteDemand(${demandId}, ${asAdmin ? 1 : 0})`);
+  confirm({ title: UI.BTN_DELETE_DEMAND, message: UI.CONFIRM_DELETE_DEMAND, onConfirm: () => handleDeleteDemand(demandId, asAdmin ? 1 : 0) });
 }
 
 async function handleDeleteDemand(demandId, asAdmin) {
@@ -613,7 +614,7 @@ function renderDemandCard(d, opts = {}) {
     : d.my_intent_status === 'accepted' ? `<button type="button" class="btn btn-sm btn-intent-ok glass glass--pressable" disabled>${UI.INTENT_ACCEPTED}</button>`
     : d.my_intent_status === 'pending'  ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
     : d.my_intent_status === 'rejected' ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
-    : `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
+    : `<button type="button" class="btn btn-outline btn-sm glass glass--pressable btn-intent-cta" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
   const budget = (d.budget_min || d.budget_max)
     ? `${d.budget_min||UI.BUDGET_NO_LIMIT}~${d.budget_max||UI.BUDGET_NO_LIMIT}${UI.BUDGET_UNIT_SUFFIX}` : UI.BUDGET_NEGOTIABLE;
 
@@ -681,14 +682,14 @@ function loadMyDemands()     { return loadDemandList('my-demands-list', { mine: 
 
 // 重开「合同已撤销」的需求：revoked→open 重回广场接收意向（手动触发；后端把关所有者+状态）
 function reopenDemand(demandId) {
-  openConfirmModal(UI.CONFIRM_REOPEN_DEMAND, async () => {
+  confirm({ message: UI.CONFIRM_REOPEN_DEMAND, onConfirm: async () => {
     try {
       const data = await api(`/api/student/demands/${demandId}/reopen`, { method: 'POST', body: {} });
       showToast(data.message || UI.DEMAND_REOPENED_TOAST);
       invalidate('demands');
       loadMyDemands();
     } catch (err) { showToast(err.message); }
-  });
+  }});
 }
 
 // 教师需求大厅：普通需求 + 学生主动推送的待处理需求（置顶 + 特殊操作行）
@@ -747,7 +748,7 @@ async function openSendDemandModal(teacherUserId) {
   let demands = [];
   try { demands = (await api('/api/student/demands?scope=mine')).demands || []; state.myDemands = demands; }
   catch { demands = state.myDemands; }
-  demands = demands.filter(d => d.status !== 'contracted'); // 已签约需求已成交，不可再推送
+  demands = demands.filter(d => DISP.demandIsActive(d)); // 需求活跃统一谓词（v0.25.10：==='open'——revoked 未重开需求亦不可推送，此前宽松口径把 revoked 漏进候选成死路按钮）
   const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
     const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade || '';
     // R2-b：推送选择列表的「最有区分度核心信息」——非学科需求显示项目名，学科需求显示科目名
@@ -819,6 +820,23 @@ async function resolvePush(pushId, action) {
 // ============================================================
 async function submitIntent(demandId) {
   if (!ensureAuth()) return; // 访客浏览需求大厅可看卡片，点意向即走登录通路
+  // v0.25.10 用户反馈：二次确认防海投——先弹确认浮窗（含需求核心信息），确认后才真正提交
+  const d = _browseDemands.find(x => x.id === demandId);
+  const demandDesc = d
+    ? `${DISP.demandTargetNames(d.target_subjects, d.target_type) || '—'} · ${UI.DEMAND_PREFIX}#${String(d.display_id || d.id).padStart(4, '0')}`
+    : '';
+  openModal({
+    title: UI.INTENT_CONFIRM_TITLE,
+    style: 'max-width:400px;',
+    body: `<p class="text-sm" style="line-height:1.7;">${UI.INTENT_CONFIRM_HINT.replace('{demand}', escHtml(demandDesc))}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+          <button type="button" class="btn glass glass--pressable" onclick="doSubmitIntent(${demandId})">${UI.BTN_CONFIRM_INTENT}</button>`,
+  });
+}
+
+// 试课意向实际提交（二次确认通过后）：先关确认浮窗再 POST，成功后按钮刷新为「意向已提交」态
+async function doSubmitIntent(demandId) {
+  closeModal();
   try {
     await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: {} });
     showToast(UI.INTENT_SUBMITTED_TOAST);

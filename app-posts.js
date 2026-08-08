@@ -3,7 +3,7 @@
  *
  * 经典脚本：全部顶层全局函数 + 内联 onclick（全站同一约定）。
  * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / closeModal / loaderHtml / loadInto / initCustomSelects；
- * 删除确认弹窗自写（postConfirmDelete），不调用共享层 confirmDanger，避免跨模块耦合。
+ * 删除确认复用共享 confirm() 原语（v0.25.10 反馈 #82 合并，原自写 postConfirmDelete 小弹窗已连根删）。
  * mdRender 为自研轻量 markdown-lite：先 escHtml 全转义再逐行识别语法，不引任何外部库。
  * section 恒 'plaza'，当前不做分区 UI（接口已预留 section 参数）。
  */
@@ -40,7 +40,7 @@ function enterResourceShare() {
         <option value="new">${UI.POSTS_SORT_NEW}</option>
         <option value="hot">${UI.POSTS_SORT_HOT}</option>
       </select>
-      ${isTeacher ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
+      ${isTeacher ? `<button type="button" class="btn btn-sm glass glass--pressable posts-create-btn" onclick="openPostEditor()">${UI.BTN_CREATE_POST}</button>` : ''}
     </div>
     <div id="posts-list"><div class="empty-state">${loaderHtml()}</div></div>`;
   initCustomSelects(document.getElementById('posts-content')); // 工具条是动态渲染，须显式接线自定义下拉
@@ -293,15 +293,9 @@ async function submitPost() {
   }
 }
 
-// 删除二次确认（自写小弹窗，模式同共享层 confirmDanger，但不调用它以免耦合）
+// 删除二次确认：薄封装复用共享 confirm() 原语（v0.25.10 反馈 #82 合并，连根删自写小弹窗）
 function postConfirmDelete(id) {
-  openModal({
-    title: UI.POST_DELETE_TITLE,
-    cls: 'post-confirm-modal',
-    body: `<p class="text-sm post-confirm-text">${UI.POST_DELETE_CONFIRM}</p>`,
-    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="deletePost(${id})">${UI.BTN_CONFIRM_DELETE}</button>`,
-  });
+  confirm({ title: UI.POST_DELETE_TITLE, message: UI.POST_DELETE_CONFIRM, okText: UI.BTN_CONFIRM_DELETE, onConfirm: () => deletePost(id) });
 }
 
 async function deletePost(id) {

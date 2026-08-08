@@ -332,8 +332,10 @@ function prefillTimeSlots(container, raw) {
 // ============================================================
 function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '' } = {}) {
   const clickable = closable ? ' onclick="if(event.target===this)closeModal()"' : '';
+  // v0.25.10（反馈 #82）：去独立玻璃表头——header 不再独占玻璃层/分隔线，
+  // 标题直接坐弹窗顶端（毛玻璃归属整窗 .modal，表头只是自然流首行），整页滚动在 .modal-overlay
   const header = title != null
-    ? `<div class="modal-header glass"><h2${titleId ? ` id="${titleId}"` : ''}>${title}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>`
+    ? `<div class="modal-header"><h2${titleId ? ` id="${titleId}"` : ''}>${title}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>`
     : '';
   const clsAttr = cls ? ` ${cls}` : '';
   const styleAttr = style ? ` style="${style}"` : '';
@@ -423,59 +425,44 @@ function toggleTagPick(el, containerId, max) {
 }
 
 // ============================================================
-// 确认/二次认证弹窗原语（全站禁止浏览器原生 confirm）
+// 确认/二次认证弹窗原语（全站禁止浏览器原生 confirm）。
+// v0.25.10（反馈 #82）：原 openConfirmModal / confirmDanger / reAuthModal 三套
+// 自建弹窗 + app-posts 自写 postConfirmDelete 是四处造轮子，合并为单一 confirm()：
+//   confirm({ title, message, needReAuth, okText, onConfirm })
+//   - needReAuth=false：普通二次确认；动作必须传闭包 onConfirm（禁字符串拼装）
+//   - needReAuth=true ：危险操作二次认证（网安 F-05）——当前密码 → /api/auth/re-auth
+//     换一次性 capToken（5 分钟）→ onConfirm(capToken)；密码错（403）就地提示不踢登录
+//   - okText 覆盖确认按钮文案（默认 UI.BTN_CONFIRM）
+// 视觉统一走 openModal：表头放弹窗顶端、整页滚动
 // ============================================================
 let pendingConfirmAction = null;
 let reAuthAction = null;
 
-/** 通用二次确认弹窗：message + 确认/取消（动作闭包，禁字符串拼装 onConfirm） */
-function openConfirmModal(message, action) {
-  pendingConfirmAction = action;
+function confirm({ title = null, message = '', needReAuth = false, okText = UI.BTN_CONFIRM, onConfirm } = {}) {
+  const footer = `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+      <button type="button" class="btn glass glass--pressable" onclick="${needReAuth ? 'runReAuth()' : 'runPendingConfirm()'}">${okText}</button>`;
+  const body = needReAuth
+    ? `<p class="confirm-msg">${message}</p>
+      <div class="form-group" style="border:none;">
+        <label class="form-label">${UI.REAUTH_PASSWORD_LABEL} <span class="req">*</span></label>
+        <input type="password" class="form-input" id="reauth-password" placeholder="${UI.REAUTH_PASSWORD_HINT}" autocomplete="current-password" onkeydown="if(event.key==='Enter')runReAuth()">
+        <p class="form-hint" id="reauth-err" style="color:var(--danger);display:none;"></p>
+      </div>`
+    : `<p class="confirm-msg">${message}</p>`;
+  if (needReAuth) reAuthAction = onConfirm; else pendingConfirmAction = onConfirm;
   openModal({
-    title: null,
+    title,
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
-    body: `<p style="margin-bottom:16px;">${message}</p>`,
-    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="runPendingConfirm()">${UI.BTN_CONFIRM}</button>`,
+    body,
+    footer,
   });
+  if (needReAuth) setTimeout(() => { const i = document.getElementById('reauth-password'); if (i) i.focus(); }, CONFIG.REAUTH_FOCUS_MS);
 }
 function runPendingConfirm() {
   closeModal();
   const action = pendingConfirmAction;
   pendingConfirmAction = null;
   if (action) action();
-}
-
-/** 通用危险操作二次确认：title/正文/确认动作（onConfirm 由调用方以数字 id 拼装全局函数调用串） */
-function confirmDanger(title, text, onConfirm) {
-  openModal({
-    title,
-    style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
-    body: `<p class="text-sm" style="color:var(--ink-3);">${text}</p>`,
-    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="${onConfirm}">${UI.BTN_CONFIRM}</button>`,
-  });
-}
-
-/**
- * 危险操作二次认证弹窗（网安报告 F-05）：确认文案 + 当前密码输入 → /api/auth/re-auth 换一次性
- * capToken（5 分钟）→ 执行动作。密码错（403）就地提示，不踢登录（api() 对 401 才弹登录页）
- */
-function reAuthModal(message, action) {
-  reAuthAction = action;
-  openModal({
-    title: null,
-    style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
-    body: `<p style="margin-bottom:14px;">${message}</p>
-      <div class="form-group" style="border:none;">
-        <label class="form-label">${UI.REAUTH_PASSWORD_LABEL} <span class="req">*</span></label>
-        <input type="password" class="form-input" id="reauth-password" placeholder="${UI.REAUTH_PASSWORD_HINT}" autocomplete="current-password" onkeydown="if(event.key==='Enter')runReAuth()">
-        <p class="form-hint" id="reauth-err" style="color:var(--danger);display:none;"></p>
-      </div>`,
-    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-      <button type="button" class="btn glass glass--pressable" onclick="runReAuth()">${UI.BTN_CONFIRM}</button>`,
-  });
-  setTimeout(() => { const i = document.getElementById('reauth-password'); if (i) i.focus(); }, CONFIG.REAUTH_FOCUS_MS);
 }
 async function runReAuth() {
   const input = document.getElementById('reauth-password');

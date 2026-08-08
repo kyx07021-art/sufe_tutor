@@ -24,7 +24,7 @@
 //   state、UI、SUBJECTS、DISP、invalidate()、registerLogoutReset()（app-state.js）
 //   api()（app-api.js）；showToast()、initReveals()（app-anim.js）
 //   escHtml()、fmtDateTime()、loaderHtml()、renderAvatarHtml()、openModal()、
-//   closeModal()、openImageViewer()、confirmDanger()（app-ui.js）
+//   closeModal()、openImageViewer()、confirm()（app-ui.js，v0.25.10 合并原 confirmDanger）
 //   DISP.starsHtml / usernameHtml / subjectName / roleLabel / provinceName /
 //   genderName / teacherGradeName / gaokaoCell / ratingText / reviewStatusTagHtml（app-display.js）
 //   loadInto()（app-shell）；renderPushBtn()（app-demands）、loadAdminReviews()（app-admin）
@@ -71,7 +71,7 @@ async function attachStudentMatch(teachers) {
   let demands = [];
   try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands' })).demands || []; }
   catch { demands = []; }
-  const open = demands.filter(d => d.status === STATUS.OPEN);
+  const open = demands.filter(d => DISP.demandIsActive(d)); // 需求活跃统一谓词（用户反馈 2026-08-08：==='open'，contracted/revoked 均非活跃）
   if (!open.length) return;
   for (const t of teachers) {
     const items = open
@@ -572,7 +572,7 @@ async function submitReview(teacherUserId, reviewId) {
 }
 
 function confirmDeleteReview(reviewId, fromModal) {
-  confirmDanger(UI.BTN_DELETE_REVIEW, UI.CONFIRM_DELETE_REVIEW, `adminReviewAction(${reviewId},'delete',${fromModal})`);
+  confirm({ title: UI.BTN_DELETE_REVIEW, message: UI.CONFIRM_DELETE_REVIEW, onConfirm: () => adminReviewAction(reviewId, 'delete', fromModal) });
 }
 
 // action: approve / reject / delete；fromModal: 是否从教师详情弹窗内触发（决定刷新哪里）

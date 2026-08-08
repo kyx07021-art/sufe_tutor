@@ -137,7 +137,6 @@ function renderSidebar() {
     </button>`;
   document.getElementById('sidebar-user').innerHTML = `
     ${userBlock}
-    ${isAdmin ? '' : `<button type="button" class="sidebar-revisit-btn" onclick="startOnboardingTour()">${escHtml(UI.ONBOARD_REVISIT_BTN)}</button>`}
     <button type="button" class="sidebar-footnote" onclick="selectPage('about')">${escHtml(UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK))}</button>
     <div class="sidebar-version">v${APP_CONSTANTS.APP_VERSION}</div>`;
   document.getElementById('sidebar-nav').innerHTML =
@@ -147,7 +146,7 @@ function renderSidebar() {
       <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(CONFIG.SIDEBAR_INDEX_PAD, '0')}</span>
       <span class="sidebar-item-body">
         <span class="sidebar-item-label">
-          <span>${p.label}</span><span class="sidebar-item-info" role="button" tabindex="0" aria-label="${UI.MODULE_INFO_TIP}" title="${UI.MODULE_INFO_TIP}" onclick="event.stopPropagation();openModuleInfo('${p.id}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();event.stopPropagation();openModuleInfo('${p.id}')}">i</span>
+          <span>${p.label}</span>
         </span>
         <span class="sidebar-item-descwrap"><span class="sidebar-item-desc">${p.desc || ''}</span></span>
       </span>
@@ -157,7 +156,8 @@ function renderSidebar() {
   syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
 }
 
-// 侧边栏模块「i」信息按钮（需求四·4b）：点开标准信息浮窗，文案单源 constants UI.MODULE_INFO
+// 页面顶部 title 旁「i」信息按钮（用户反馈 2026-08-08：加小 i 的地方是页面内顶上 title 的旁边，不是侧边栏内）：
+// selectPage 按当前页幂等注入到 .page-header，点开标准信息浮窗，文案单源 constants UI.MODULE_INFO。
 function openModuleInfo(pageId) {
   const cfg = pagesForRole().find(p => p.id === pageId);
   const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
@@ -166,6 +166,28 @@ function openModuleInfo(pageId) {
     title: escHtml(cfg ? cfg.label : ''),
     body: `<p class="module-info-text">${escHtml(info)}</p>`,
   });
+}
+
+/** 页头 i 按钮注入（v0.25.10）：selectPage 切页汇聚点调用，按 pageId 定位当前页 .page-header 幂等插入。
+ *  my-chats 页头被 .client-page--flush 隐藏（标题由聊天页自有区渲染），跳过注入。 */
+function injectPageHeaderInfo(pageId) {
+  const old = document.querySelector('.page-header-info');
+  if (old) old.remove();
+  const hdr = document.querySelector('#client-main .client-page:not(.hidden) .page-header');
+  if (!hdr || pageId === 'my-chats') return;
+  const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
+  if (!info) return;
+  const btn = document.createElement('span');
+  btn.className = 'page-header-info';
+  btn.setAttribute('role', 'button');
+  btn.setAttribute('tabindex', '0');
+  btn.setAttribute('aria-label', UI.MODULE_INFO_TIP);
+  btn.setAttribute('title', UI.MODULE_INFO_TIP);
+  btn.textContent = 'i';
+  btn.addEventListener('click', e => { e.stopPropagation(); openModuleInfo(pageId); });
+  btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); openModuleInfo(pageId); } });
+  const h2 = hdr.querySelector('h2');
+  if (h2) h2.after(btn); else hdr.appendChild(btn);
 }
 
 function selectPage(pageId) {
@@ -180,6 +202,7 @@ function selectPage(pageId) {
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
   if (cfg && cfg.auth !== false && !ensureAuth()) return; // 需要身份的页统一过登录通路
+  injectPageHeaderInfo(pageId); // v0.25.10：页面顶部 title 旁 i 按钮（侧边栏内的已删）
   if (cfg && cfg.enter) cfg.enter();
   closeSidebar();
   document.getElementById('client-main').scrollTop = 0;

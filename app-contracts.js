@@ -103,14 +103,14 @@ function renderContractCard(c) {
 
 // 确认签约：危险操作二次认证（网安报告 F-05，原 verifySignOtp 恒通过已废除）——密码重认证换 capToken
 function signContract(contractId) {
-  reAuthModal(UI.CONFIRM_SIGN, async capToken => {
+  confirm({ message: UI.CONFIRM_SIGN, needReAuth: true, onConfirm: async capToken => {
     try {
       const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: { capToken } });
       showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
       invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
       loadMyContracts();
     } catch (err) { showToast(err.message); }
-  });
+  }});
 }
 
 // 查看正式合同预览（Markdown 渲染，复用发帖组件的 mdRender）
@@ -174,7 +174,7 @@ function openContractModifyModal(contractId) {
 }
 
 // 撤销已签约合同：两级确认。第一级告知法律后果与数据影响（不显眼，防误触），
-// 第二级复用 openConfirmModal 危险确认。活跃库抹除合同，签署台账与加密留档保留。
+// 第二级 confirm() 危险确认（needReAuth 密码换 capToken）。活跃库抹除合同，签署台账与加密留档保留。
 function openRevokeContractModal(contractId) {
   openModal({
     title: UI.REVOKE_MODAL_TITLE,
@@ -186,14 +186,14 @@ function openRevokeContractModal(contractId) {
 }
 function confirmRevokeContract(contractId) {
   // 撤销=危险操作（网安报告 F-05）：密码重认证换 capToken（原 confirmDangerOtp 恒通过已废除）
-  reAuthModal(UI.REVOKE_CONTRACT_FINAL, async capToken => {
+  confirm({ message: UI.REVOKE_CONTRACT_FINAL, needReAuth: true, onConfirm: async capToken => {
     try {
       await api(`/api/contracts/${contractId}/revoke`, { method: 'POST', body: { capToken } });
       showToast(UI.CONTRACT_REVOKED_TOAST);
       invalidate('contracts'); // 撤销后签约标记须消失
       loadMyContracts();
     } catch (err) { showToast(err.message); }
-  });
+  }});
 }
 
 // 存证校验：重算合同文本哈希对比签署时的台账指纹（后端 /api/contracts/:id/verify）
@@ -230,14 +230,14 @@ async function submitContractModify(contractId) {
 
 // 取消签约：二次确认 → 删合同 + 通知对方（后端），会话保留
 function cancelContract(contractId) {
-  openConfirmModal(UI.CONFIRM_CANCEL_CONTRACT, async () => {
+  confirm({ message: UI.CONFIRM_CANCEL_CONTRACT, onConfirm: async () => {
     try {
       await api(`/api/contracts/${contractId}`, { method: 'DELETE', body: {} });
       showToast(UI.CONTRACT_CANCELLED_TOAST);
       invalidate('contracts');
       loadMyContracts();
     } catch (err) { showToast(err.message); }
-  });
+  }});
 }
 
 // v0.24.0 合同修改只放出业务条款：法律条款由服务端固定重拼（不可修改）。

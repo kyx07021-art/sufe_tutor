@@ -189,8 +189,9 @@ body { background: transparent; }
 /* 下拉面板：玻璃体在面板元素自身（--g-fill: var(--g-paper)），滚动在内部 .custom-select-list 透明通道——
    磨砂不随内容滚（v0.19.32：backdrop-filter 在滚动容器上失效=白板根因，故玻璃体与滚动分离） */
 .profile-panel { --g-r: var(--lg-r-lg); }
-/* 头栏=玻璃上的玻璃（浮层内层，层级白值最底）：白 .08 更透，毛度补强 blur(12px) 保滚动可读（v0.19.35 层级白值） */
-.modal-header, .profile-panel-head { --g-fill: var(--g-header-fill); --g-frost: var(--g-f-header, blur(12px)); }
+/* 头栏=玻璃上的玻璃（浮层内层，层级白值最底）：白 .08 更透，毛度补强 blur(12px) 保滚动可读（v0.19.35 层级白值）
+   v0.25.10（反馈 #82）：modal 去独立表头层（标题直坐弹窗顶端），.modal-header 不再吃该配方，仅侧栏 profile-panel 头栏保留 */
+.profile-panel-head { --g-fill: var(--g-header-fill); --g-frost: var(--g-f-header, blur(12px)); }
 .chat-bubble { --g-lift: var(--glass-lift-sm); --g-liquid: var(--g-liquid-sm); }
 .chat-bubble--mine { --g-fill: var(--g-bubble-mine); --g-fg: var(--ink); }
 .chat-bubble--theirs { --g-fill: var(--g-bubble-theirs); --g-fg: var(--ink); }
@@ -269,6 +270,13 @@ body { background: transparent; }
 .form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(12px * var(--ui-scale, 1)); } /* 需求六·item5：输入控件水平内边距随滑块 */
 .form-input:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
 
+/* v0.25.10 用户反馈（签约/起草弹窗「选择需求」下拉比其他下拉薄一大截）：.form-select 此前漏在控件族
+   选择器外——无玻璃边缘、水平内边距仅 2px（文字贴边显薄条）。补齐玻璃边缘 + 12px 左内边距（右留箭头位 24px）。
+   注意：background 保持 style.css 的 currentColor（mask 箭头染色用），不能并入上面的 background-color 规则
+   ——mask 会把 background 局限在箭头 10x6 区域，覆盖 currentColor 会让箭头变透明白不可见。 */
+.form-select { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm); padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(24px * var(--ui-scale, 1)); }
+.form-select:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
+
 /* 信息栏内部行线（卡片已玻璃化，行线改透白）。
    G22：分隔线单源迁此。需求六·item1：.profile-row 顶部分隔线连根删（教师资料卡去所有分隔线），
    行间距改由 style.css .profile-row 的 --profile-row-gap 承担——本规则只剩面板头栏线，名称保留。 */
@@ -301,11 +309,9 @@ body { background: transparent; }
 .client-main { background: transparent; }
 
 /* ============================================================
-   浮层内部（头栏 sticky 近不透明磨砂 + body 内滚 → 边缘层不随滚）
+   弹窗整页滚动（v0.25.10 反馈 #82）：去独立玻璃表头与内滚通道——
+   滚动上移到 .modal-overlay（style.css），表头/正文自然流，无 sticky、无 border-bottom
    ============================================================ */
-.modal { display: flex; flex-direction: column; overflow: hidden; }
-.modal-header { flex: 0 0 auto; border-bottom: 1.5px solid var(--g-line-soft); position: relative; z-index: 2; }
-.modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; position: relative; z-index: 1; }
 /* v0.19.36：overlay 预模糊连根删——modal 隔着 blur(4px) 层看原画面=糊上加糊、形状对比弱=显不毛；
    profile-panel 直接坐原画面（形状清晰、模糊对比强=显毛），删后 modal 与 profile-panel 同款毛感
    （用户："表单浮窗不够毛，把个人信息栏面板的配置扔给它"）。顺带消除 overlay 自身

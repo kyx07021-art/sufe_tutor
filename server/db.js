@@ -868,9 +868,10 @@ export async function dbGetDemands(db, { admin = false, cursor = null, teacherUs
     extra = ' LEFT JOIN demand_intents mi ON mi.demand_id=sd.id AND mi.teacher_user_id=?';
     params = [teacherUserId];
   }
-  // 广场只展示未签约需求：合同签署后 status='contracted' 的需求自动下架；匿名全量拉取封顶（网安 N-04）
+  // 广场只展示活跃需求（v0.25.10 用户反馈：统一口径 status='open'——此前排除式 NOT IN ('contracted','revoked')
+  // 会把未来新增状态/NULL 当活跃，与 dbCreatePush/dbCreateIntent 的原子守卫（WHERE status='open'）口径漂移）
   const rows = await dbAll(db, sel + extra +
-    ` WHERE (sd.status IS NULL OR sd.status NOT IN ('contracted','revoked')) ORDER BY sd.created_at DESC LIMIT ?`,
+    ` WHERE sd.status='open' ORDER BY sd.created_at DESC LIMIT ?`,
     [...params, LIMITS.PUBLIC_LIST_MAX]);
   return rows.map(mapDemandRow);
 }

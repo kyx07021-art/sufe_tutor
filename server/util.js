@@ -6,7 +6,7 @@
  * 无业务逻辑、无跨模块状态；是各层公共依赖的「最底层」。
  * 响应构造带 CORS 头（CORS_HEADERS 单源自 constants.js，预检与 json() 同源）。
  */
-import { CORS_HEADERS, LIMITS, MSG } from './constants.js';
+import { CORS_HEADERS, LIMITS, MSG, STATUS } from './constants.js';
 
 // ============================================================
 // 响应构造
@@ -44,6 +44,15 @@ export async function dbGet(db, sql, params = []) {
 /** 写操作 → D1 run 结果（meta.changes 供赢家模式判定） */
 export async function dbRun(db, sql, params = []) {
   return await db.prepare(sql).bind(...params).run();
+}
+
+/**
+ * 需求「活跃」统一谓词（v0.25.10 用户反馈）：业务路由判断需求可否操作（签约/意向/推送）一律走这里，
+ * active == status==='open'（contracted 已成交 / revoked 已撤销未重开均非活跃）。
+ * SQL 层字面量维持既有惯例（constants.js 头部注释），JS 判断层收敛到本函数。
+ */
+export function isDemandActive(status) {
+  return status === STATUS.OPEN;
 }
 
 /**

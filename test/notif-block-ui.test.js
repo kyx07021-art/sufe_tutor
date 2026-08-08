@@ -137,20 +137,23 @@ test('item5 进通知页按 localStorage 偏好应用过滤并同步按钮态（
   assert.equal(doc.getElementById('btn-notif-block').textContent, '已屏蔽系统通知', '按钮为选中态');
 });
 
-test('item9 侧边栏每个模块渲染「i」信息按钮，点击打开信息浮窗（文案单源 constants）', async () => {
+test('页面顶部 title 旁「i」信息按钮：selectPage 注入、幂等、点击打开浮窗（文案单源 constants）', async () => {
   const { dom, ctx } = makeCtx();
   const doc = dom.window.document;
   await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
-  const pageCount = vm.runInContext(`ROLE_PAGES.student.length`, ctx);
-  const infos = doc.querySelectorAll('.sidebar-item-info');
-  assert.equal(infos.length, pageCount, `每个模块一个 i 按钮（${pageCount}）`);
-  infos[0].click(); // 我的需求
+  // 用户反馈（2026-08-08）：i 按钮位置是「页面内顶上 title 的旁边」，侧边栏内已删——selectPage 按当前页注入页头
+  await vm.runInContext(`selectPage('my-demands')`, ctx);
+  const info = doc.querySelector('#client-main .client-page:not(.hidden) .page-header .page-header-info');
+  assert.ok(info, '页头 title 旁 i 按钮已注入');
+  assert.equal(doc.querySelectorAll('.page-header-info').length, 1, '切页后幂等，只一个 i 按钮');
+  assert.equal(doc.querySelectorAll('.sidebar-item-info').length, 0, '侧边栏内 i 按钮已连根删');
+  info.click();
   assert.ok(doc.querySelector('#modal-container .modal-overlay'), '信息浮窗打开');
   assert.equal(doc.querySelector('#modal-container .modal-header h2').textContent, '我的需求', '浮窗标题 = 模块名');
   const bodyText = doc.querySelector('#modal-container .modal-body').textContent;
   assert.ok(bodyText.length > 10, '浮窗含白话介绍正文');
-  const info = vm.runInContext(`UI.MODULE_INFO['my-demands']`, ctx);
-  assert.ok(bodyText.includes(info.slice(0, 8)), '正文来自 constants UI.MODULE_INFO');
+  const infoText = vm.runInContext(`UI.MODULE_INFO['my-demands']`, ctx);
+  assert.ok(bodyText.includes(infoText.slice(0, 8)), '正文来自 constants UI.MODULE_INFO');
   // 所有模块都有介绍文案（防漏配；跨 realm 数组用 length 断言避免原型不匹配）
   const missing = vm.runInContext(
     `Object.values(ROLE_PAGES).flat().filter(p => !UI.MODULE_INFO[p.id]).map(p => p.id)`, ctx);
