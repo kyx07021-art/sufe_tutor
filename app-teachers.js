@@ -253,10 +253,21 @@ function findCachedTeacher(userId) {
 
 // v0.23.1 审计 M6：探测刷新替换缓存数组后重挂 state.allTeachers——openProfilePanel/
 // findCachedTeacher 等跨功能读取依赖镜像，不重挂则展示旧价格/旧认证（自愈但误导）
+// v0.25.30 注销残留修复：探针刷新只刷缓存不碰 DOM（v0.23.0 设计取舍），教师列表已打开时
+// 旧卡（含已注销教师）会一直挂着直到切 tab。重挂同时按现有筛选/排序控件重渲染当前页。
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('teachers', () => {
     const c = dhPeek('/api/teachers');
     if (c && c.teachers) state.allTeachers = c.teachers;
+    if (state.page === 'browse-teachers' && typeof attachStudentMatch === 'function') {
+      attachStudentMatch(state.allTeachers) // 异步先算匹配徽章/排序语境（非学生早退，async 恒返 Promise）
+        .then(() => {
+          const matchOpt = document.getElementById('opt-sort-match');
+          if (matchOpt) matchOpt.style.display = state.allTeachers.some(t => t._matchForStudent) ? '' : 'none';
+          if (state.page === 'browse-teachers') applyFilters(); // 读当前控件值，保用户筛选/排序选择
+        })
+        .catch(() => { /* 网络抖动：保留当前渲染，下轮探针再试 */ });
+    }
   });
 }
 
