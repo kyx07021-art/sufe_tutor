@@ -125,6 +125,7 @@ function signContract(contractId) {
   openModal({
     title: UI.SIGN_MODAL_TITLE,
     closable: false, // 表单/阅读类：点遮罩不关，防误触丢阅读进度
+    cls: 'modal--wide', // 需求三十一：签署前通读全文拓宽
     body: `<div class="contract-md contract-sign-scroll" id="contract-sign-scroll" onscroll="onContractSignScroll()">${mdRender(stripContractMarker(c.contract_md || ''))}</div>
       <p class="contract-sign-disclose text-sm text-muted">${escHtml(UI.SIGN_MODAL_DISCLOSE.replace('{username}', (state.user && state.user.username) || ''))}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
@@ -187,6 +188,7 @@ function viewContract(contractId) {
   const diffHtml = c.prev_business ? renderContractDiff(c.prev_business, splitContractBiz(c.contract_md || '')) : '';
   openModal({
     title: diffHtml ? UI.CONTRACT_VIEW_DIFF_TITLE : UI.BTN_VIEW_CONTRACT,
+    cls: 'modal--wide', // 需求三十一：合同正文长文拓宽
     bodyCls: 'contract-md',
     body: `${diffHtml ? `<div class="contract-diff-head">${escHtml(UI.CONTRACT_DIFF_HINT)}</div>
         <div class="contract-diff glass glass--solid">${diffHtml}</div>
@@ -277,6 +279,7 @@ async function verifyContractLedgerUi(contractId) {
     const rows = data.entryList || [];
     openModal({
       title: UI.CONTRACT_VERIFY_PANEL_TITLE,
+      cls: 'modal--wide', // 需求三十一：存证明细长文拓宽
       bodyCls: 'contract-md',
       body: `<p class="contract-verify-verdict ${data.valid ? 'contract-verify--ok' : 'contract-verify--bad'}">${escHtml(verdict)}</p>
         <div class="contract-verify-grid">

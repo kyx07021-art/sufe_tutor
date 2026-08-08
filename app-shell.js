@@ -163,10 +163,10 @@ function openModuleInfo(pageId) {
   const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
   if (!info) return;
   // v0.25.12（反馈 #95）：介绍改为结构化 Markdown（## 小标题 + 段落 + **加粗**），
-  // 复用 app-posts 的 mdRender（escHtml 先转义安全）；弹窗加宽（占大半个页面），整页滚动
+  // 复用 app-posts 的 mdRender（escHtml 先转义安全）；v0.25.48（需求三十一）文本浮窗统一走 modal--wide
   openModal({
     title: escHtml(cfg ? cfg.label : ''),
-    cls: 'module-info-modal',
+    cls: 'modal--wide',
     bodyCls: 'module-info-md',
     body: mdRender(info),
   });

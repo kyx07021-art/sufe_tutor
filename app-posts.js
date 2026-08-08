@@ -255,6 +255,7 @@ function openPostPreview() {
   const html = ta ? mdRender(ta.value) : '';
   openModal({
     title: UI.POST_PREVIEW_TITLE,
+    cls: 'modal--wide', // 需求三十一：md 预览长文拓宽
     bodyCls: 'contract-md',
     body: html || `<p class="md-preview-empty">${UI.POST_PREVIEW_EMPTY}</p>`,
   });

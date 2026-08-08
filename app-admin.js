@@ -59,6 +59,7 @@ function openPostViewModal(postId) {
   if (!p) return;
   openModal({
     title: escHtml(p.title),
+    cls: 'modal--wide', // 需求三十一：管理端全文阅读拓宽
     body: `<p class="text-sm text-muted modal-sub-info">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
         <div class="md-preview glass glass--solid">${mdRender(p.body_md || '')}</div>`,
   });
@@ -116,6 +117,7 @@ function adminViewContract(contractId) {
     ? renderContractDiff(c.prev_business, (c.contract_md || '').split('<!-- 业务条款结束')[0].trim()) : '';
   openModal({
     title: diffHtml ? UI.CONTRACT_VIEW_DIFF_TITLE : UI.BTN_VIEW_CONTRACT,
+    cls: 'modal--wide', // 需求三十一：管理端合同全文拓宽
     bodyCls: 'contract-md',
     body: `${diffHtml ? `<div class="contract-diff-head">${escHtml(UI.CONTRACT_DIFF_HINT)}</div>
         <div class="contract-diff">${diffHtml}</div>

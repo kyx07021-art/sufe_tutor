@@ -388,7 +388,7 @@ function openPolicyModal(key) {
   const isPrivacy = key === UI.POLICY_FILE_PRIVACY;
   const name = isPrivacy ? UI.AGREE_LINK_PRIVACY : UI.AGREE_LINK_AGREEMENT;
   const file = isPrivacy ? UI.POLICY_FILE_PRIVACY : UI.POLICY_FILE_AGREEMENT;
-  openModal({ title: name, bodyCls: 'contract-md policy-md', body: `<div class="policy-body">${loaderHtml()}</div>` });
+  openModal({ title: name, cls: 'modal--wide', bodyCls: 'contract-md policy-md', body: `<div class="policy-body">${loaderHtml()}</div>` }); // 需求三十一：文本浮窗拓宽
   fetch(`/${file}.md`)
     .then(r => { if (!r.ok) throw new Error(UI.POLICY_LOAD_FAIL); return r.text(); })
     .then(md => {

@@ -58,6 +58,7 @@ function openUsageGuide() {
       </div>`).join('');
   openModal({
     title: UI.USAGE_GUIDE_TITLE,
+    cls: 'modal--wide', // 需求三十一：文本浮窗拓宽（长文介绍更舒适）
     body: `<div class="usage-guide">${sections}</div>`,
     footer: `<button type="button" class="btn glass glass--pressable" onclick="closeModal()">${UI.ONBOARD_CONFIRM}</button>`,
   });

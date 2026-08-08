@@ -1273,6 +1273,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   width: 100%; max-width: 580px;
   margin: auto; position: relative; /* v0.25.10：max-height/内滚已删——滚动交 overlay */
   animation: modal-in .32s var(--ease-snap); /* v0.19.37：删 both——终态 transform 归 none，合成层释放（同 profile-panel 路径） */
+  /* 需求三十一（v0.25.48）：纯文本浮窗拓宽——长文阅读舒适（政策/合同/使用指南/预览等文本浮窗 opt-in）；
+     width:100% 保证移动端仍受视口约束（max-width 只提升上限，窄屏天然不触发），不担心过宽 */
   /* v0.25.39（反馈 U4）：表单浮窗灰化背景 + 弹窗矩形切透明——大扩散阴影把压暗推到弹窗四周，
      弹窗自身为透明孔（页面不压暗、玻璃直接坐清晰画面），与新手引导遮罩同款真孔透视；
      阴影列表沿用引擎三件套（lift/liquid/surface），尾部追加 200vmax 压暗，覆盖所有 openModal 弹窗。
@@ -1280,6 +1282,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
      玻璃.css 后载且特异性 0,2,0）否则会盖掉本压暗、悬停弹窗即闪去灰化（审计发现） */
   box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none), 0 0 0 200vmax var(--g-modal-dim, rgba(17, 17, 20, .42));
 }
+/* 需求三十一（v0.25.48）：纯文本浮窗拓宽（opt-in 类）——政策/合同/使用指南/预览等长文阅读更舒适；
+   移动端由 width:100% 兜住视口（max-width 只提上限，窄屏天然不触发），不会过宽 */
+#modal-container .modal.modal--wide { max-width: 760px; }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 22px 24px 16px;
@@ -1806,8 +1811,8 @@ body.profile-panel-closing .profile-panel {
 .settings-deactivate { margin-top: 14px; margin-left: 10px; }
 .username-deactivated { color: var(--muted); font-style: italic; } /* 已注销用户墓碑样式 */
 .danger-warn { font-size: .84rem; line-height: 1.75; color: var(--ink-3); } /* 危险操作弹窗的说明正文 */
-/* v0.25.12（反馈 #95）：模块介绍浮窗 = 结构化 Markdown（复用 mdRender）+ 加宽占大半个页面 */
-.module-info-modal { max-width: 640px; }
+/* v0.25.12（反馈 #95）：模块介绍浮窗 = 结构化 Markdown（复用 mdRender）。
+   v0.25.48（需求三十一）：加宽统一走 modal--wide，旧专用加宽类死规则已删 */
 .module-info-md { font-size: .86rem; line-height: 1.75; color: var(--ink-3); }
 .module-info-md h2 {
   font-size: 1.02rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
