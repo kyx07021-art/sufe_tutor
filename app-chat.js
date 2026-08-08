@@ -348,27 +348,28 @@ function renderChatBubble(m, i) {
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble glass ${skin}">${escHtml(text)}</div>${time}</div>`;
   }
-  // 图片 / 文件消息：列表接口不下发 dataURL 本体（性能），先渲染骨架占位，
-  // 页面可操作后由 chatLazyLoadAttachments 逐条补载真实内容
+  // 图片 / 文件消息：列表接口不下发 dataURL 本体（性能）；v0.25.36 图片带缩略图（thumb）预载
+  // 立即展示、点开拉原图；无缩略图（文件/历史图片）先渲染骨架，由 chatLazyLoadAttachments 补载
   if (m.kind === 'image' || m.kind === 'file') {
-    const inner = m.body
-      ? renderChatMediaInner(m.kind, m.body, m.name)
+    // v0.25.36 修正：媒体内容（thumb/全图/文件卡）一律包气泡 div；仅两者皆空才走骨架占位
+    const media = (m.body || m.thumb)
+      ? `<div class="chat-bubble glass ${skin} chat-bubble--media">${renderChatMediaInner(m.kind, m.body, m.name, m.thumb, m.id)}</div>`
       : `<div class="chat-bubble glass ${skin} chat-bubble--media chat-bubble--loading" data-attach="${m.id}" data-attach-kind="${m.kind}">${chatStageRing(30)}</div>`;
-    const bubble = m.body
-      ? `<div class="chat-bubble glass ${skin} chat-bubble--media">${inner}</div>`
-      : inner;
-    return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">${bubble}${time}</div>`;
+    return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">${media}${time}</div>`;
   }
   return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
     <div class="chat-bubble glass ${skin}">${escHtml(m.body)}</div>${time}</div>`;
 }
 
-// 图片缩略（点开放大）/ 文件卡片（v0.25.34 拍平进气泡，去 glass-in-glass 套娃；dataURL 直接 download）
-function renderChatMediaInner(kind, body, name) {
+// 图片（v0.25.36 缩略图预载，点开拉原图）/ 文件卡片（v0.25.34 拍平进气泡，去 glass-in-glass 套娃；dataURL 直接 download）
+function renderChatMediaInner(kind, body, name, thumb, mid) {
   // 网安审计 N-03：发送方注销后附件本体被服务端清空（body=''），此处占位而非渲染死链接/空图
-  if (!body) return `<span class="chat-attach-fail">${UI.CHAT_ATTACH_REMOVED}</span>`;
+  if (!body && !thumb) return `<span class="chat-attach-fail">${UI.CHAT_ATTACH_REMOVED}</span>`;
   if (kind === 'image') {
-    return `<img src="${escHtml(body)}" alt="${UI.CHAT_ATTACH_IMAGE}" loading="lazy" onclick="chatViewImage(this.src)">`;
+    // body=全图（本人刚发/历史懒加载已补载）→ data-full 标记，点击直开大图；
+    // 否则展示 thumb（列表预载），点击 chatOpenImage 经 attachment 接口拉原图
+    const full = body ? ' data-full="1"' : '';
+    return `<img src="${escHtml(thumb || body || '')}" alt="${UI.CHAT_ATTACH_IMAGE}" loading="lazy" data-mid="${escHtml(String(mid || ''))}"${full} onclick="chatOpenImage(${Number(mid) || 0}, this)">`;
   }
   // 客户端 scheme 自守：仅 data: 才作可下载 href（服务端已强制 data: 前缀，此为纵深防御，杜绝 javascript: 等）
   const href = String(body || '').startsWith('data:') ? body : '#';
@@ -422,8 +423,19 @@ function chatLazyLoadAttachments() {
   }, CONFIG.CHAT_SLIDE_DELAY_MS);
 }
 
-// 图片消息点开看大图（通用大图查看器在 app-ui openImageViewer，学信网截图预览亦复用）
-function chatViewImage(src) { openImageViewer(src); }
+// v0.25.36 点开图片：缩略图（无 data-full）→ 拉原图后开大图并把气泡 src 升级为原图（二次点击直开）；
+// 已带原图（本人刚发/历史懒加载，data-full=1）→ 直开。大图查看器通用件在 app-ui openImageViewer。
+async function chatOpenImage(mid, img) {
+  if (img && img.dataset.full === '1') { openImageViewer(img.src); return; }
+  const convId = chatConvId;
+  if (!convId || !mid) { showToast(UI.CHAT_ATTACH_FAIL); return; }
+  try {
+    const data = await api(`/api/conversations/${convId}/messages/${mid}/attachment`);
+    if (!data.body) { showToast(UI.CHAT_ATTACH_FAIL); return; } // 注销方附件清空/取不到
+    if (img) { img.dataset.full = '1'; img.src = data.body; }
+    openImageViewer(data.body);
+  } catch { showToast(UI.CHAT_ATTACH_FAIL); }
+}
 
 // ============================================================
 // 轮询：4s 拉增量（sinceId = 已见最大 id），追加并滚底
@@ -561,7 +573,7 @@ function chatStageFiles(files) {
       chatStaged.push(item);
       renderChatStage();
       const reader = new FileReader();
-      reader.onload = () => chatShrinkImage(reader.result, url => chatDoUpload(item, url)); // 先本地压缩再传
+      reader.onload = () => chatShrinkImage(reader.result, (url, thumb) => chatDoUpload(item, url, thumb)); // 先本地压缩+出缩略图再传
       reader.onerror = () => { chatUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
       reader.readAsDataURL(f);
     } else {
@@ -595,12 +607,13 @@ function chatUploadToServer(item, dataUrl, onProgress) {
       else reject(new Error(data.error || ('HTTP ' + xhr.status)));
     };
     xhr.onerror = () => { item._xhr = null; const e = new Error(UI.NETWORK_ERROR); e.code = 'NETWORK_ERROR'; reject(e); }; // 网络错误捕获环节 4/4：上传断线明确文案
-    xhr.send(JSON.stringify({ kind: item.kind, fileData: dataUrl, fileName: item.name })); // 身份一律凭令牌，移除自报 userId（服务端早已忽略）
+    xhr.send(JSON.stringify({ kind: item.kind, fileData: dataUrl, fileName: item.name, thumb: item.thumb || '' })); // v0.25.36 缩略图随传；身份一律凭令牌，移除自报 userId（服务端早已忽略）
   });
 }
 
-async function chatDoUpload(item, dataUrl) {
+async function chatDoUpload(item, dataUrl, thumbUrl) {
   item.dataUrl = dataUrl;
+  item.thumb = thumbUrl || ''; // v0.25.36 缩略图随暂存项保存，发送时随 uploadId 落库
   renderChatStage(); // 图片缩略先亮（本地数据），进度圈开始转真实上传进度
   try {
     const data = await chatUploadToServer(item, dataUrl, p => { item.progress = p; renderChatStage(); });
@@ -616,7 +629,8 @@ async function chatDoUpload(item, dataUrl) {
   }
 }
 
-// 图片压缩：最长边缩至 CONFIG.CHAT_IMG_MAX_SIDE 内，jpeg CHAT_IMG_QUALITY 落 dataURL（控制 D1 单元格体积）
+// 图片压缩 + 缩略图（v0.25.36）：最长边缩至 CONFIG.CHAT_IMG_MAX_SIDE 内出全图，再缩至
+// CHAT_IMG_THUMB_SIDE 出缩略图（预载展示、点开拉原图）。一次 onload 双画布（复用同一压缩源）。
 function chatShrinkImage(src, cb) {
   const img = new Image();
   img.onload = () => {
@@ -627,7 +641,15 @@ function chatShrinkImage(src, cb) {
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
     cv.getContext('2d').drawImage(img, 0, 0, w, h);
-    cb(cv.toDataURL('image/jpeg', CONFIG.CHAT_IMG_QUALITY));
+    const full = cv.toDataURL('image/jpeg', CONFIG.CHAT_IMG_QUALITY);
+    const TS = CONFIG.CHAT_IMG_THUMB_SIDE;
+    const ts = Math.min(1, TS / Math.max(w, h));
+    const tw = Math.max(1, Math.round(w * ts));
+    const th = Math.max(1, Math.round(h * ts));
+    const tcv = document.createElement('canvas');
+    tcv.width = tw; tcv.height = th;
+    tcv.getContext('2d').drawImage(cv, 0, 0, tw, th);
+    cb(full, tcv.toDataURL('image/jpeg', CONFIG.CHAT_IMG_THUMB_QUALITY));
   };
   img.onerror = () => showToast(UI.CHAT_FILE_TOO_LARGE);
   img.src = src;

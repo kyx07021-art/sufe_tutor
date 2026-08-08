@@ -415,7 +415,8 @@ export async function initDb(db, env = {}) {
     await dbRun(db, `UPDATE users SET auth_token='', token_expires='' WHERE auth_token != '' OR token_expires != ''`);
   }
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
-  await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"]]);
+  await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"], ['thumb', "TEXT NOT NULL DEFAULT ''"]]); // v0.25.36 图片缩略图列
+  await ensureColumns(db, 'uploads', [['thumb', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
     ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"],
     ['verified', 'INTEGER NOT NULL DEFAULT 0'], // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
@@ -1435,18 +1436,20 @@ export async function dbMarkConversationRead(db, convId, userId) {
 }
 
 export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_LIMIT) {
-  // 图片/文件消息不在列表查询里下发 dataURL 本体（大字段懒加载，走 attachment 接口）
+  // 图片/文件消息不在列表查询里下发 dataURL 本体（大字段懒加载，走 attachment 接口）；
+  // v0.25.36 缩略图随列表下发（小字段）：thumb 列（加密）由路由层解密；图片无缩略图（历史数据）回 ''
   return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.name, m.created_at,
       CASE WHEN m.kind IN ('image','file') THEN '' ELSE m.body END AS body,
+      CASE WHEN m.kind='image' THEN m.thumb ELSE '' END AS thumb,
       u.username AS sender_name
     FROM messages m JOIN users u ON u.id=m.sender_user_id
     WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
 }
 
-export async function dbCreateMessage(db, convId, senderUserId, kind, body, name = '') {
+export async function dbCreateMessage(db, convId, senderUserId, kind, body, name = '', thumb = '') { // v0.25.36 缩略图随消息落库
   const result = await dbRun(db,
-    'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name) VALUES (?,?,?,?,?)',
-    [convId, senderUserId, kind, body, name]);
+    'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb) VALUES (?,?,?,?,?,?)',
+    [convId, senderUserId, kind, body, name, thumb]);
   return Number(result.meta.last_row_id);
 }
 
@@ -1483,11 +1486,11 @@ export async function dbCountUploads(db, userId) {
 
 // 上传创建原子化（网安审计 TOCTOU：配额 check-then-act 有窗口——并发上传可越过 LIMITS.UPLOAD_STAGING_MAX。
 // 改为条件 INSERT：仅当本人暂存件数 < 上限才插入，changes=0 即超配额，调用方据返回 0 判定 413）
-export async function dbCreateUpload(db, userId, kind, body, name) {
+export async function dbCreateUpload(db, userId, kind, body, name, thumb = '') { // v0.25.36 缩略图随传
   const res = await dbRun(db,
-    `INSERT INTO uploads (user_id, kind, body, name)
-     SELECT ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM uploads WHERE user_id=?) < ${LIMITS.UPLOAD_STAGING_MAX}`,
-    [userId, kind, body, name, userId]);
+    `INSERT INTO uploads (user_id, kind, body, name, thumb)
+     SELECT ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM uploads WHERE user_id=?) < ${LIMITS.UPLOAD_STAGING_MAX}`,
+    [userId, kind, body, name, thumb, userId]);
   return (res && res.meta && res.meta.changes > 0) ? Number(res.meta.last_row_id) : 0;
 }
 

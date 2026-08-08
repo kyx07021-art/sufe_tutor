@@ -43,6 +43,7 @@ function makeCtx() {
     console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
     clearTimeout: globalThis.clearTimeout, setInterval: globalThis.setInterval,
     clearInterval: globalThis.clearInterval, Request: globalThis.Request,
+    AbortController: globalThis.AbortController, // api() 的挂死保护构造器在 try 外，缺则 fetch 恒抛
     MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     Image: class { set src(v) { this._s = v; } },
     requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
@@ -82,8 +83,8 @@ test('文件消息：拍平卡片无嵌套玻璃，含扩展名徽标 + 人性�
 
 test('图片消息：气泡内 img 直铺（无 chip 嵌套）', () => {
   const { ctx } = makeCtx();
-  const html = vm.runInContext(`renderChatMediaInner('image', 'data:image/jpeg;base64,xxx', 'a.jpg')`, ctx);
-  assert.ok(html.includes('<img') && html.includes('chatViewImage'), '图片直接铺在气泡内');
+  const html = vm.runInContext(`renderChatMediaInner('image', 'data:image/jpeg;base64,xxx', 'a.jpg', '', 9)`, ctx);
+  assert.ok(html.includes('<img') && html.includes('chatOpenImage'), '图片直接铺在气泡内，点击走 chatOpenImage');
   assert.ok(!html.includes('chat-file-chip') && !html.includes('chat-file'), '图片无文件卡片嵌套');
 });
 
@@ -100,4 +101,66 @@ test('系统气泡仍走 system 类（中性胶囊）', () => {
   vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
   const html = vm.runInContext(`renderChatBubble(${JSON.stringify({ kind: 'contract', sender_user_id: 1, id: 1, created_at: '2026-08-08 12:00:00', body: '' })}, 0)`, ctx);
   assert.ok(html.includes('chat-bubble--system'), '系统事件气泡为 system 类（中性胶囊）');
+});
+
+// ============ v0.25.36 图片缩略图：预载立即展示、点开加载大图 ============
+
+test('图片带缩略图：渲染 thumb 直接展示（非骨架），点击走 chatOpenImage 拉原图', () => {
+  const { ctx } = makeCtx();
+  const html = vm.runInContext(`renderChatMediaInner('image', '', 'a.jpg', 'data:image/jpeg;base64,THUMB', 42)`, ctx);
+  assert.ok(html.includes('data:image/jpeg;base64,THUMB'), '缩略图即 src（预载立即展示）');
+  assert.ok(html.includes('chatOpenImage(42, this)'), '点击走 chatOpenImage 拉原图');
+  assert.ok(!html.includes('data-full'), '缩略图无 data-full 标记（非原图）');
+  assert.ok(!html.includes('chat-bubble--loading'), '非骨架占位');
+});
+
+test('图片带全图（本人刚发/懒加载补载）：data-full 标记，点击直开大图', () => {
+  const { ctx } = makeCtx();
+  const html = vm.runInContext(`renderChatMediaInner('image', 'data:image/jpeg;base64,FULL', 'a.jpg', '', 42)`, ctx);
+  assert.ok(html.includes('data-full="1"'), '已带全图标记 data-full');
+  assert.ok(html.includes('data:image/jpeg;base64,FULL'), 'src 为全图');
+});
+
+test('renderChatBubble：image 消息带 thumb → 直接渲染图片（不进骨架懒加载）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`state.user = { id: 2, role: 'teacher', username: '乙' }`, ctx);
+  const html = vm.runInContext(`renderChatBubble(${JSON.stringify({ kind: 'image', sender_user_id: 1, id: 42, created_at: '2026-08-08 12:00:00', thumb: 'data:image/jpeg;base64,THUMB', body: '' })}, 0)`, ctx);
+  assert.ok(html.includes('chat-bubble--media'), '媒体气泡');
+  assert.ok(html.includes('THUMB') && !html.includes('chat-bubble--loading'), '缩略图直接展示、无加载骨架');
+});
+
+test('chatOpenImage：已带全图（data-full）→ 直开大图查看器；缩略图 → 拉原图后开', async () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`
+    state.user = { id: 1, role: 'teacher', username: '甲' };
+    chatConvId = 9;
+    window._viewed = [];
+    openImageViewer = (src) => { window._viewed.push(src); };
+  `, ctx);
+  // data-full → 直开当前 src
+  const fullImg = vm.runInContext(`(() => {
+    const img = document.createElement('img');
+    img.dataset.full = '1'; img.src = 'data:image/jpeg;base64,FULL';
+    return img;
+  })()`, ctx);
+  // 通过 vm 传入：构造一个真实 DOM img 并驱动
+  vm.runInContext(`
+    window._fullImg = null;
+    (() => { const img = document.createElement('img'); img.dataset.full = '1'; img.src = 'data:image/jpeg;base64,FULL'; window._fullImg = img; })();
+  `, ctx);
+  await vm.runInContext('chatOpenImage(42, window._fullImg)', ctx);
+  assert.deepEqual(Array.from(vm.runInContext('window._viewed', ctx)), ['data:image/jpeg;base64,FULL'], 'data-full 直开大图');
+  // 缩略图 → fetch attachment 取原图后开 + 气泡 src 升级（override vm 全局 fetch 返回附件）
+  vm.runInContext(`
+    fetch = async (url) => {
+      if (String(url).includes('/attachment')) return { ok: true, status: 200, json: async () => ({ body: 'data:image/jpeg;base64,FULL' }) };
+      return { ok: true, status: 200, json: async () => ({}) };
+    };
+    window._thumbImg = null;
+    (() => { const img = document.createElement('img'); img.src = 'data:image/jpeg;base64,THUMB'; window._thumbImg = img; })();
+  `, ctx);
+  await vm.runInContext('chatOpenImage(42, window._thumbImg)', ctx);
+  assert.deepEqual(Array.from(vm.runInContext('window._viewed', ctx)), ['data:image/jpeg;base64,FULL', 'data:image/jpeg;base64,FULL'],
+    '缩略图点击：拉原图后开大图');
+  assert.equal(vm.runInContext('window._thumbImg.dataset.full', ctx), '1', '气泡 src 升级为原图（二次点击直开）');
 });

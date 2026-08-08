@@ -180,6 +180,7 @@ export const LIMITS = {
   // 沟通
   MESSAGE_MAX_LEN: 2000,   // 单条消息
   FILE_MAX_BYTES: 700000,  // 附件 dataURL（约 500KB 图片压缩后）
+  THUMB_MAX_BYTES: 20000,  // 聊天图片缩略图 dataURL 上限（v0.25.36；128px JPEG 约 3-8KB）
   FILE_NAME_MAX: 100,      // 附件文件名
   UPLOAD_STAGING_MAX: 12,  // 暂存附件件数
   // 内容

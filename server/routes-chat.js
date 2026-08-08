@@ -60,6 +60,10 @@ export async function handleGetMessages(db, convId, url, req) {
   if (g.err) return g.err;
 
   const messages = await dbGetMessages(db, convId, sinceId);
+  // v0.25.36 缩略图加密落库，出门解密（附件大字段仍懒加载走 attachment 接口，thumb 小字段随列表）
+  for (const m of messages) {
+    if (m.thumb) { try { m.thumb = await decryptField(m.thumb); } catch { m.thumb = ''; } }
+  }
   // 已读游标不下发（db.js 自述契约）：双方 last_read_id 属隐私，剥除再回传
   const { student_last_read_id, teacher_last_read_id, ...convPub } = g.conv;
   return json({ conversation: convPub, messages });
@@ -99,13 +103,18 @@ export async function handleCreateUpload(db, body, req) {
   const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
   if (!prefixOk || content.length > LIMITS.FILE_MAX_BYTES) return error(MSG.FILE_TOO_LARGE);
   if (fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED); // svg/html 黑名单对图片同样生效
+  // v0.25.36 缩略图（仅图片携带）：data:image 前缀 + 小体积钳制（防刷大字段）+ 黑名单同款拦截
+  const thumbRaw = kind === 'image' ? String(body.thumb ?? '') : '';
+  if (thumbRaw && (!thumbRaw.startsWith('data:image/') || thumbRaw.length > LIMITS.THUMB_MAX_BYTES)) return error(MSG.FILE_TOO_LARGE);
+  if (thumbRaw && fileDataBlocked(thumbRaw)) return error(MSG.FILE_TYPE_BLOCKED);
   const name = String(body.fileName ?? '').slice(0, LIMITS.FILE_NAME_MAX);
   // 暂存区配额自愈 + 上限：先清本人滞留暂存件（窗口见 LIMITS.STALE_UPLOAD_WINDOW），再按每人封顶（防弃传暂存填满库 / 刷大字段）
   await dbPurgeStaleUploads(db, me.id);
   if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return error(MSG.UPLOAD_STAGING_LIMIT); // 快路径
-  // 网安 N-05：附件 dataURL 加密落库（暂存区与消息正文同口径；发送落消息时密文原样搬移，不再二次加密）
+  // 网安 N-05：附件 dataURL 加密落库（暂存区与消息正文同口径；发送落消息时密文原样搬移，不再二次加密）；缩略图同款加密
   const contentEnc = await encryptField(content);
-  const id = await dbCreateUpload(db, me.id, kind, contentEnc, name); // 条件 INSERT 原子化：0 = 并发已满配额（TOCTOU 缺口补）
+  const thumbEnc = thumbRaw ? await encryptField(thumbRaw) : '';
+  const id = await dbCreateUpload(db, me.id, kind, contentEnc, name, thumbEnc); // 条件 INSERT 原子化：0 = 并发已满配额（TOCTOU 缺口补）
   if (!id) return error(MSG.UPLOAD_STAGING_LIMIT);
   return json({ id }, 201);
 }
@@ -133,7 +142,7 @@ export async function handleSendMessage(db, convId, body, req) {
   if (body.uploadId) {
     const up = await dbGetUpload(db, parseInt(body.uploadId));
     if (!up || up.user_id !== userId) return error(MSG.CONVERSATION_NOT_FOUND, 404);
-    const id = await dbCreateMessage(db, convId, userId, up.kind, up.body, up.name);
+    const id = await dbCreateMessage(db, convId, userId, up.kind, up.body, up.name, up.thumb); // v0.25.36 缩略图随消息落库
     await dbDeleteUpload(db, up.id);
     await logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
       detail: { messageId: id, kind: up.kind, name: up.name, len: up.body.length }, req });
