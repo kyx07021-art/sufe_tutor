@@ -462,9 +462,11 @@ async function submitBroadcast() {
 let feedbackKind = 'bug';
 function openFeedbackModal(kind) {
   if (!ensureAuth()) return;
-  feedbackKind = kind === 'suggestion' ? 'suggestion' : 'bug';
+  // #165（v0.25.73）：投诉通道——kind 白名单扩 complaint
+  feedbackKind = (kind === 'bug' || kind === 'complaint') ? kind : 'suggestion';
+  const feedbackPlaceholder = feedbackKind === 'complaint' ? UI.FEEDBACK_COMPLAINT_PLACEHOLDER : UI.FEEDBACK_PLACEHOLDER;
   openModal({
-    title: `${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST}`,
+    title: `${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : feedbackKind === 'complaint' ? UI.FEEDBACK_MODAL_TITLE_COMPLAINT : UI.FEEDBACK_MODAL_TITLE_SUGGEST}`,
     titleId: 'feedback-modal-title',
     closable: false,
     body: `<div id="post-alert"></div>
@@ -476,7 +478,16 @@ function openFeedbackModal(kind) {
         ${segTabsHtml([
           { key: 'bug', label: UI.BTN_FEEDBACK_BUG, onclick: "switchFeedbackKind('bug')" },
           { key: 'suggestion', label: UI.BTN_FEEDBACK_SUGGEST, onclick: "switchFeedbackKind('suggestion')" },
+          { key: 'complaint', label: UI.BTN_COMPLAINT, onclick: "switchFeedbackKind('complaint')" },
         ], feedbackKind, { containerClass: 'feedback-kind-row', attr: 'kind' })}
+        <div class="form-group${feedbackKind === 'complaint' ? '' : ' hidden'}" id="feedback-subject-row">
+          <label class="form-label" for="feedback-subject">${UI.FEEDBACK_COMPLAINT_SUBJECT_LABEL}</label>
+          <select id="feedback-subject" class="form-select" aria-label="${UI.FEEDBACK_COMPLAINT_SUBJECT_LABEL}">
+            <option value="teacher" selected>${UI.FEEDBACK_COMPLAINT_SUBJECT_TEACHER}</option>
+            <option value="student">${UI.FEEDBACK_COMPLAINT_SUBJECT_STUDENT}</option>
+            <option value="platform">${UI.FEEDBACK_COMPLAINT_SUBJECT_PLATFORM}</option>
+          </select>
+        </div>
         <div class="form-group">
           <label class="form-label">${UI.POST_LABEL_BODY}</label>
           <div class="md-toolbar">
@@ -487,7 +498,7 @@ function openFeedbackModal(kind) {
             <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
             <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
           </div>
-          <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${UI.FEEDBACK_PLACEHOLDER}"></textarea>
+          <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${feedbackPlaceholder}"></textarea>
         </div>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>`,
@@ -498,7 +509,11 @@ function switchFeedbackKind(kind) {
   feedbackKind = kind;
   document.querySelectorAll('.feedback-kind-row .seg-tab').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
   const t = document.getElementById('feedback-modal-title');
-  if (t) t.textContent = kind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST;
+  if (t) t.textContent = kind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : kind === 'complaint' ? UI.FEEDBACK_MODAL_TITLE_COMPLAINT : UI.FEEDBACK_MODAL_TITLE_SUGGEST;
+  const subj = document.getElementById('feedback-subject-row');
+  if (subj) subj.classList.toggle('hidden', kind !== 'complaint'); // 投诉对象行仅投诉档显示
+  const ph = document.getElementById('post-body');
+  if (ph) ph.placeholder = kind === 'complaint' ? UI.FEEDBACK_COMPLAINT_PLACEHOLDER : UI.FEEDBACK_PLACEHOLDER;
 }
 
 async function submitFeedback() {
@@ -507,11 +522,58 @@ async function submitFeedback() {
   const alertEl = document.getElementById('post-alert');
   if (!title) { alertEl.innerHTML = alertHtml('error', UI.POST_TITLE_REQUIRED); return; }
   if (!content) { alertEl.innerHTML = alertHtml('error', UI.FEEDBACK_EMPTY); return; }
+  // #165：投诉档须带对象（非投诉恒空；服务端白名单二次把关）
+  const subject = feedbackKind === 'complaint'
+    ? (document.getElementById('feedback-subject')?.value || '')
+    : '';
+  if (feedbackKind === 'complaint' && !['teacher', 'student', 'platform'].includes(subject)) {
+    alertEl.innerHTML = alertHtml('error', UI.FEEDBACK_COMPLAINT_SUBJECT_REQUIRED);
+    return;
+  }
   try {
-    await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
+    await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content, subject } });
     closeModal();
-    showToast(UI.FEEDBACK_SENT_TOAST);
+    showToast(feedbackKind === 'complaint' ? UI.FEEDBACK_COMPLAINT_SENT_TOAST : UI.FEEDBACK_SENT_TOAST);
   } catch (err) {
     alertEl.innerHTML = alertHtml('error', err.message);
+  }
+}
+
+// #165（v0.25.73）：我的反馈与投诉——GET /api/feedbacks/mine 渲染浮窗
+// 类型 tag 走 DISP.feedbackKindName、投诉对象走 DISP.feedbackSubjectName（显示映射单源）；
+// 正文走 mdRender 排版（反馈内容支持轻量 Markdown）；空态 UI.MY_FEEDBACK_EMPTY。
+async function openMyFeedback() {
+  if (!ensureAuth()) return;
+  openModal({
+    title: UI.MY_FEEDBACK_TITLE,
+    cls: 'modal--wide',
+    bodyCls: 'my-feedback-body',
+    body: `<div class="my-feedback-list">${loaderHtml()}</div>`,
+  });
+  try {
+    const data = await api('/api/feedbacks/mine', { method: 'GET' });
+    const list = data.feedbacks || [];
+    const bodyEl = document.querySelector('#modal-container .my-feedback-list');
+    if (!bodyEl) return; // 浮窗已被关闭
+    if (!list.length) { bodyEl.innerHTML = `<div class="empty-state">${UI.MY_FEEDBACK_EMPTY}</div>`; return; }
+    bodyEl.innerHTML = list.map(f => {
+      const resolved = f.status === 'resolved';
+      const subject = DISP.feedbackSubjectName(f.subject);
+      return `<div class="list-card glass my-feedback-card">
+          <div class="list-card-header">
+            <span class="list-card-title">${escHtml(f.title || '')}</span>
+            <span class="feedback-tags">
+              <span class="tag glass glass--solid ${f.kind === 'bug' ? 'tag-danger' : f.kind === 'complaint' ? 'tag-warn' : 'tag-accent'}">${escHtml(DISP.feedbackKindName(f.kind))}</span>
+              ${subject ? `<span class="tag glass glass--solid tag-ok">${escHtml(subject)}</span>` : ''}
+              <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.FEEDBACK_STATUS_RESOLVED : UI.FEEDBACK_STATUS_OPEN}</span>
+            </span>
+          </div>
+          ${f.content ? `<div class="list-card-detail feedback-content md-preview md-preview--full">${mdRender(f.content) || ''}</div>` : ''}
+          <div class="feedback-foot"><span class="list-card-meta">${fmtDateTime(f.created_at)}</span></div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    const bodyEl = document.querySelector('#modal-container .my-feedback-list');
+    if (bodyEl) bodyEl.innerHTML = `<div class="empty-state">${escHtml(err.message)}</div>`;
   }
 }

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.72',
+  APP_VERSION: '0.25.73',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1336,13 +1336,28 @@ globalThis.APP_CONSTANTS = {
     FEEDBACK_PLACEHOLDER: '详细描述你遇到的问题或建议（支持轻量 Markdown）',
     FEEDBACK_EMPTY: '反馈内容不能为空',
     FEEDBACK_SENT_TOAST: '反馈已提交，感谢你的声音',
+    // #165（v0.25.73）：投诉通道全链路
+    BTN_COMPLAINT: '投诉',
+    BTN_MY_FEEDBACK: '我的反馈',
+    FEEDBACK_MODAL_TITLE_COMPLAINT: '提交投诉',
+    FEEDBACK_COMPLAINT_SUBJECT_LABEL: '投诉对象',
+    FEEDBACK_COMPLAINT_SUBJECT_TEACHER: '教师',
+    FEEDBACK_COMPLAINT_SUBJECT_STUDENT: '学生',
+    FEEDBACK_COMPLAINT_SUBJECT_PLATFORM: '平台服务',
+    FEEDBACK_COMPLAINT_SUBJECT_REQUIRED: '请选择投诉对象',
+    FEEDBACK_COMPLAINT_PLACEHOLDER: '请描述投诉对象与具体问题、发生时间（支持轻量 Markdown）',
+    FEEDBACK_COMPLAINT_SENT_TOAST: '投诉已提交，我们会尽快核实处理',
+    FEEDBACK_COMPLAINT_RESOLVED: '你的投诉已被受理并处理。感谢你的信任，如有其他问题欢迎随时反馈。',
+    MY_FEEDBACK_TITLE: '我的反馈与投诉',
+    MY_FEEDBACK_EMPTY: '还没有提交过反馈或投诉',
 
     // 管理员：用户反馈
     PAGE_ADMIN_FEEDBACK: '用户反馈',
-    PAGE_ADMIN_FEEDBACK_DESC: '查看并处理用户提交的 Bug 与建议',
+    PAGE_ADMIN_FEEDBACK_DESC: '查看并处理用户提交的 Bug、建议与投诉',
     ADMIN_FEEDBACK_EMPTY: '暂无用户反馈',
     FEEDBACK_TAG_BUG: 'Bug',
     FEEDBACK_TAG_SUGGEST: '建议',
+    FEEDBACK_TAG_COMPLAINT: '投诉',
     FEEDBACK_STATUS_OPEN: '未处理',
     FEEDBACK_STATUS_RESOLVED: '已处理',
     BTN_MARK_RESOLVED: '标记已处理',

@@ -34,7 +34,7 @@ import {
   handleGenInvite, handleAdminStats, handleAdminTraffic,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
-  handleCreateFeedback, handleAdminFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
+  handleCreateFeedback, handleAdminFeedbacks, handleMyFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
@@ -80,6 +80,7 @@ async function routeApi(db, p, method, body, url, req, env) {
   const adminContractById = idMatch(p, /^\/api\/admin\/contracts\/(\d+)$/);
   if (adminContractById && method === 'DELETE') return await handleAdminRemoveContract(db, adminContractById, body, req);
   if (p === '/api/feedbacks' && method === 'POST') return await handleCreateFeedback(db, body, req);
+  if (p === '/api/feedbacks/mine' && method === 'GET') return await handleMyFeedbacks(db, req); // #165：我的反馈/投诉
   if (p === '/api/feedbacks' && method === 'GET') return await handleAdminFeedbacks(db, url, req);
   const feedbackResolve = idMatch(p, /^\/api\/feedbacks\/(\d+)\/resolve$/);
   if (feedbackResolve && method === 'POST') return await handleResolveFeedback(db, feedbackResolve, body, req);

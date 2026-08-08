@@ -146,13 +146,15 @@ async function loadAdminFeedback() {
     const data = await dhGet('/api/feedbacks', { domain: 'admin' }); // v0.23.0 静默数据层
     return data.feedbacks || [];
   }, list => list.map(f => {
-    const isBug = f.kind === 'bug';
     const resolved = f.status === 'resolved';
-    return `<div class="list-card glass feedback-card${isBug ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
+    const kindTagCls = f.kind === 'bug' ? 'tag-danger' : f.kind === 'complaint' ? 'tag-warn' : 'tag-accent'; // #165：投诉走警示色
+    const subject = DISP.feedbackSubjectName(f.subject); // 非投诉恒 ''
+    return `<div class="list-card glass feedback-card${f.kind === 'bug' ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
         <div class="list-card-header">
           <span class="list-card-title">${escHtml(f.title || UI.BTN_FEEDBACK)}</span>
           <span class="feedback-tags">
-            <span class="tag glass glass--solid ${isBug ? 'tag-danger' : 'tag-accent'}">${isBug ? UI.FEEDBACK_TAG_BUG : UI.FEEDBACK_TAG_SUGGEST}</span>
+            <span class="tag glass glass--solid ${kindTagCls}">${escHtml(DISP.feedbackKindName(f.kind))}</span>
+            ${subject ? `<span class="tag glass glass--solid tag-ok">${escHtml(subject)}</span>` : ''}
             <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.FEEDBACK_STATUS_RESOLVED : UI.FEEDBACK_STATUS_OPEN}</span>
           </span>
         </div>

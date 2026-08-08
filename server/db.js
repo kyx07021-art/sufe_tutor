@@ -317,7 +317,8 @@ export async function initDb(db, env = {}) {
     db.prepare(`CREATE TABLE IF NOT EXISTS feedbacks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
-      kind TEXT NOT NULL DEFAULT 'suggestion' CHECK(kind IN ('bug','suggestion')),
+      kind TEXT NOT NULL DEFAULT 'suggestion' CHECK(kind IN ('bug','suggestion','complaint')),
+      subject TEXT NOT NULL DEFAULT '', /* #165（v0.25.73）：投诉对象（teacher/student/platform），非投诉恒空 */
       title TEXT NOT NULL DEFAULT '',
       content TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
@@ -357,6 +358,27 @@ export async function initDb(db, env = {}) {
         SELECT id, conversation_id, sender_user_id, kind, body, created_at FROM messages_old`),
       db.prepare(`DROP TABLE messages_old`),
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, id)`),
+    ]);
+  }
+
+  // feedbacks.kind CHECK 迁移（#165 v0.25.73）：约束缺 'complaint'（投诉通道）→ 保数据换表
+  const fbMeta = await dbGet(db, `SELECT sql FROM sqlite_master WHERE type='table' AND name='feedbacks'`);
+  if (fbMeta && fbMeta.sql && !fbMeta.sql.includes("'complaint'")) {
+    await db.batch([
+      db.prepare('ALTER TABLE feedbacks RENAME TO feedbacks_old'),
+      db.prepare(`CREATE TABLE feedbacks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'suggestion' CHECK(kind IN ('bug','suggestion','complaint')),
+        subject TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+      db.prepare(`INSERT INTO feedbacks (id, user_id, kind, title, content, status, created_at)
+        SELECT id, user_id, kind, title, content, status, created_at FROM feedbacks_old`),
+      db.prepare('DROP TABLE feedbacks_old'),
     ]);
   }
 
@@ -422,7 +444,8 @@ export async function initDb(db, env = {}) {
   if (userCols.includes('auth_token')) {
     await dbRun(db, `UPDATE users SET auth_token='', token_expires='' WHERE auth_token != '' OR token_expires != ''`);
   }
-  await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"]]);
+  await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"],
+    ['subject', "TEXT NOT NULL DEFAULT ''"]]); // #165：投诉对象列（补列兜底）
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"], ['thumb', "TEXT NOT NULL DEFAULT ''"]]); // v0.25.36 图片缩略图列
   await ensureColumns(db, 'uploads', [['thumb', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
@@ -1244,11 +1267,16 @@ export async function dbDeletePost(db, postId) {
 // ============================================================
 // 用户反馈（关于平台模块）
 // ============================================================
-export async function dbCreateFeedback(db, userId, kind, title, content) {
+export async function dbCreateFeedback(db, userId, kind, title, content, subject = '') {
   const res = await dbRun(db,
-    'INSERT INTO feedbacks (user_id, kind, title, content) VALUES (?,?,?,?)',
-    [userId, kind, title, content]);
+    'INSERT INTO feedbacks (user_id, kind, title, content, subject) VALUES (?,?,?,?,?)',
+    [userId, kind, title, content, subject]);
   return (res && res.meta && res.meta.last_row_id) || 0;
+}
+
+// #165（v0.25.73）：我的反馈/投诉列表——用户侧状态跟踪闭环（本人可见，无他人数据）
+export async function dbGetFeedbacksByUser(db, userId) {
+  return await dbAll(db, 'SELECT * FROM feedbacks WHERE user_id=? ORDER BY id DESC LIMIT 100', [userId]);
 }
 
 export async function dbGetFeedbacksAdmin(db, status) {

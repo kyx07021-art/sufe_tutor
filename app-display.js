@@ -188,6 +188,23 @@
       return D.isDeactivated(name) ? `<span class="tag-deactivated">${esc(UI().PEER_DEACTIVATED_TAG || '一方已注销')}</span>` : '';
     },
 
+    // #165（v0.25.73）：反馈类型 → 文案（bug/投诉/建议 三分支；单源 constants）
+    feedbackKindName(kind) {
+      const u = UI();
+      if (kind === 'bug') return u.FEEDBACK_TAG_BUG;
+      if (kind === 'complaint') return u.FEEDBACK_TAG_COMPLAINT;
+      return u.FEEDBACK_TAG_SUGGEST;
+    },
+
+    // #165（v0.25.73）：投诉对象 → 文案；非投诉恒 ''（subject 服务端已白名单，前端兜底防脏数据）
+    feedbackSubjectName(subject) {
+      const u = UI();
+      if (subject === 'teacher') return u.FEEDBACK_COMPLAINT_SUBJECT_TEACHER;
+      if (subject === 'student') return u.FEEDBACK_COMPLAINT_SUBJECT_STUDENT;
+      if (subject === 'platform') return u.FEEDBACK_COMPLAINT_SUBJECT_PLATFORM;
+      return '';
+    },
+
     // 行级 diff（v0.24.3 合同改动高亮）：oldText/newText 按行 LCS 分类，
     // 返回 ops：[{ t: 'same'|'del'|'add', text }]。纯函数、零 DOM。
     diffLines(oldText, newText) {

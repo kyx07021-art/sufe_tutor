@@ -356,6 +356,8 @@ function enterAbout() {
       </div>
       <div class="about-feedback-btns">
         <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openFeedbackModal('suggestion')">${UI.BTN_FEEDBACK}</button>
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openFeedbackModal('complaint')">${UI.BTN_COMPLAINT}</button>
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openMyFeedback()">${UI.BTN_MY_FEEDBACK}</button>
       </div>
     </div>`;
   initReveals(document.getElementById('about-content'));

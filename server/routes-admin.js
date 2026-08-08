@@ -14,7 +14,7 @@ import {
   dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage,
   dbGetStudentUsersAdmin, dbGetTeachers, dbGetUserById, dbSetUserBanned, dbSetTeacherVerified,
   dbGetDemands, dbGetMessageById,
-  dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback,
+  dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbGetFeedbacksByUser,
 } from './db.js';
 import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from './log.js';
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
@@ -228,14 +228,23 @@ export async function handleCreateFeedback(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   const userId = me.id;
-  const kind = body.kind === 'bug' ? 'bug' : 'suggestion';
+  // #165（v0.25.73）：投诉通道——kind 白名单扩 complaint；投诉对象白名单（teacher/student/platform），非投诉恒空
+  const kind = (body.kind === 'bug' || body.kind === 'complaint') ? body.kind : 'suggestion';
+  const subject = (kind === 'complaint' && ['teacher', 'student', 'platform'].includes(body.subject)) ? body.subject : '';
   const title = String(body.title || '').trim().slice(0, LIMITS.TITLE_MAX);
   const content = String(body.content || '').trim().slice(0, LIMITS.FEEDBACK_BODY_MAX);
   if (!content) return error(MSG.FEEDBACK_EMPTY); // 反馈场景文案（原误用广播文案 BROADCAST_EMPTY，已修）
-  const feedbackId = await dbCreateFeedback(db, userId, kind, title, content);
+  const feedbackId = await dbCreateFeedback(db, userId, kind, title, content, subject);
   await logEvent(db, { action: 'feedback.create', actorUserId: userId, entity: 'feedback',
     entityId: feedbackId, detail: { kind, title, len: content.length }, req });
   return json({ ok: true }, 201);
+}
+
+// #165（v0.25.73）：我的反馈/投诉——用户侧闭环（仅本人数据；GET /api/feedbacks/mine）
+export async function handleMyFeedbacks(db, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  return json({ feedbacks: await dbGetFeedbacksByUser(db, me.id) });
 }
 
 // GET /api/feedbacks?status= —— 管理员查看反馈（含提交者用户名 + 处理状态；status 可选过滤，下推 db 层）
@@ -254,7 +263,11 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
   if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404);
   if (f.status !== STATUS.RESOLVED) {
     await dbResolveFeedback(db, feedbackId);
-    await notifyUser(db, f.user_id, globalThis.APP_CONSTANTS.UI.FEEDBACK_RESOLVED);
+    // #165：投诉受理回执单独特文案；Bug/建议走通用文案
+    const text = f.kind === 'complaint'
+      ? globalThis.APP_CONSTANTS.UI.FEEDBACK_COMPLAINT_RESOLVED
+      : globalThis.APP_CONSTANTS.UI.FEEDBACK_RESOLVED;
+    await notifyUser(db, f.user_id, text);
     await logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'feedback', entityId: feedbackId, detail: { kind: f.kind }, req });
   }
