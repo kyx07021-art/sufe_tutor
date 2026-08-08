@@ -236,7 +236,16 @@
         <section class="client-page hidden" data-page="browse-teachers">
           <div class="page-header">
             <h2>教师信息</h2>
-            <button type="button" class="drop-toggle glass glass--solid" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
+            <div class="page-header-actions">
+              <!-- v0.25.29 排序控件：默认排序不再强制（匹配度排序是可选，非学生/无匹配数据时自动隐藏该选项） -->
+              <select class="filter-select filter-select-auto" id="teacher-sort" onchange="applyFilters()" aria-label="教师排序">
+                <option value="default">默认排序</option>
+                <option value="match" id="opt-sort-match" style="display:none">匹配度最高</option>
+                <option value="rating">评分最高</option>
+                <option value="price">报价最低</option>
+              </select>
+              <button type="button" class="drop-toggle glass glass--solid" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
+            </div>
           </div>
           <div class="drop-wrap" id="teacher-filters">
           <div class="drop-clip">
@@ -273,6 +282,28 @@
                   <option value="4.5">4.5+</option>
                   <option value="4.0">4.0+</option>
                   <option value="3.5">3.5+</option>
+                </select>
+              </div>
+            </div>
+            <!-- v0.25.29 新资料项筛选：授课方式 / 可授课时间（结构化时间段，星期） / 认证状态 -->
+            <div class="filter-row">
+              <div class="filter-group">
+                <label class="filter-label">授课方式</label>
+                <select class="filter-select" id="filter-method" onchange="applyFilters()">
+                  <option value="">不限</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">可授课时间</label>
+                <select class="filter-select" id="filter-day" onchange="applyFilters()">
+                  <option value="">不限</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label">认证状态</label>
+                <select class="filter-select" id="filter-verified" onchange="applyFilters()">
+                  <option value="">不限</option>
+                  <option value="1">已认证</option>
                 </select>
               </div>
             </div>

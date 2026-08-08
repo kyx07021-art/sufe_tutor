@@ -203,9 +203,9 @@ test('学生端教师列表：逐需求取最高匹配值、明细降序、排�
   const lo = vm.runInContext('T_LOW._matchForStudent', ctx);
   assert.equal(lo.md, 75, 'T低最高匹配 75');
 
-  // 排序：T高(100) 在前、T低(75) 在后（Array.from 剥 vm realm 数组原型，deepEqual 才可严格比较）
-  vm.runInContext('sortTeachersByMatch([T_HIGH, T_LOW])', ctx);
-  assert.deepEqual(Array.from(vm.runInContext('[T_HIGH.user_id, T_LOW.user_id]', ctx)), [1, 2], '默认按最高匹配度降序');
+  // 排序（v0.25.29 排序控件）：匹配度模式 T高(100) 在前、T低(75) 在后（Array.from 剥 vm realm 数组原型）
+  vm.runInContext("sortTeachers([T_HIGH, T_LOW], 'match')", ctx);
+  assert.deepEqual(Array.from(vm.runInContext('[T_HIGH.user_id, T_LOW.user_id]', ctx)), [1, 2], '匹配度模式按最高匹配度降序');
 
   // 卡徽章：三色类 + 文案（插入 DOM 供明细卡测试取按钮）
   vm.runInContext(`document.getElementById('teachers-list').innerHTML = renderTeacherCard(T_HIGH) + renderTeacherCard(T_LOW)`, ctx);
@@ -299,7 +299,7 @@ test('教师看教师：不参与匹配度（无 _matchForStudent 不排序）',
   loadCommon(ctx);
   ctx.A = { user_id: 1, username: '甲', avatar: '', rating: 5, grade: 'senior', province: 'shanghai' };
   ctx.B = { user_id: 2, username: '乙', avatar: '', rating: 4, grade: 'junior', province: 'beijing' };
-  vm.runInContext('sortTeachersByMatch([A, B])', ctx);
+  vm.runInContext("sortTeachers([A, B], 'match')", ctx);
   assert.deepEqual(Array.from(vm.runInContext('[A.user_id, B.user_id]', ctx)), [1, 2], '无学生匹配语境保持原序');
   const html = vm.runInContext('renderTeacherCard(A)', ctx);
   assert.ok(!html.includes('match-btn'), '教师看教师卡无匹配度按钮');

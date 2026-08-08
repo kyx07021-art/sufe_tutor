@@ -41,23 +41,33 @@ async function loadTeachers() {
   if (subjectFilter.options.length <= 1) {
     SUBJECTS.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; subjectFilter.appendChild(o); });
   }
+  // v0.25.29 新资料项筛选选项单源（WEEKDAYS / TEACHING_METHODS）：授课方式 + 可授课星期
+  const methodFilter = document.getElementById('filter-method');
+  if (methodFilter && methodFilter.options.length <= 1) {
+    TEACHING_METHODS.forEach(m => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.name; methodFilter.appendChild(o); });
+  }
+  const dayFilter = document.getElementById('filter-day');
+  if (dayFilter && dayFilter.options.length <= 1) {
+    WEEKDAYS.forEach(d => { const o = document.createElement('option'); o.value = d.id; o.textContent = d.name; dayFilter.appendChild(o); });
+  }
 
   await loadInto('teachers-list', async () => {
     const data = await dhGet('/api/teachers', { domain: 'teachers' }); // v0.23.0 静默数据层
     state.allTeachers = data.teachers || []; // 先回写再判空渲染
-    // 需求五·item5/6：学生看教师列表 → 对全部「活跃未匹配需求」逐一算匹配度、取最高值，默认按匹配度从高到低排序；
-    // 教师看教师 / 访客 → 不参与匹配度（保持服务端原序）
+    // 需求五·item5/6：学生看教师列表 → 对全部「活跃未匹配需求」逐一算匹配度、取最高值；
+    // v0.25.29 匹配度排序不再是强制默认——排序控件（含「默认排序」）由用户选择，仅当学生且确有匹配数据时展示「匹配度最高」选项
     await attachStudentMatch(state.allTeachers);
-    sortTeachersByMatch(state.allTeachers);
+    const matchOpt = document.getElementById('opt-sort-match');
+    if (matchOpt) matchOpt.style.display = state.allTeachers.some(t => t._matchForStudent) ? '' : 'none';
     return state.allTeachers;
-  }, teachers => teachers.map(renderTeacherCard).join(''),
+  }, teachers => { sortTeachers(teachers); return teachers.map(renderTeacherCard).join(''); },
     { empty: UI.EMPTY_NO_TEACHERS, peek: () => dhReady('/api/teachers') });
 }
 
 function renderTeachers(teachers) {
   const el = document.getElementById('teachers-list');
   if (!teachers.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_TEACHERS}</p></div>`; return; }
-  sortTeachersByMatch(teachers); // 筛选后仍按匹配度排（匹配度数据随教师对象保留在 _matchForStudent）
+  sortTeachers(teachers); // 按当前排序控件（默认=服务器原序，不强制）
   el.innerHTML = teachers.map(renderTeacherCard).join('');
   initReveals(el);
 }
@@ -82,15 +92,26 @@ async function attachStudentMatch(teachers) {
   }
 }
 
-// 需求五·item6：学生看教师列表按「最高匹配度」从高到低排；无匹配度数据（教师看教师/访客/无开放需求）保持原序不排。
-function sortTeachersByMatch(teachers) {
+// v0.25.29 排序控件（替代 v0.25.8 强制匹配度排序）：默认排序=服务器原序（不强制展示），
+// 可选 匹配度最高（仅学生且有数据时选项可见，无数据自动回落原序）/ 评分最高 / 报价最低。
+function teacherSortMode() {
+  const el = document.getElementById('teacher-sort');
+  return el ? el.value : 'default';
+}
+function sortTeachers(teachers, mode = teacherSortMode()) {
   if (!teachers.length) return;
-  if (!teachers.some(t => t._matchForStudent)) return; // 无学生匹配语境：不排序（教师看教师走服务端原序）
-  teachers.sort((a, b) => {
-    const am = a._matchForStudent ? a._matchForStudent.md : -1;
-    const bm = b._matchForStudent ? b._matchForStudent.md : -1;
-    return bm - am;
-  });
+  if (mode === 'match') {
+    if (!teachers.some(t => t._matchForStudent)) return; // 无匹配语境：不排序（走服务端原序）
+    teachers.sort((a, b) => {
+      const am = a._matchForStudent ? a._matchForStudent.md : -1;
+      const bm = b._matchForStudent ? b._matchForStudent.md : -1;
+      return bm - am;
+    });
+    return;
+  }
+  if (mode === 'rating') { teachers.sort((a, b) => (b.rating || 0) - (a.rating || 0)); return; }
+  if (mode === 'price') { teachers.sort((a, b) => (a.price_min == null ? Infinity : a.price_min) - (b.price_min == null ? Infinity : b.price_min)); return; }
+  // default：保持服务端原序
 }
 
 // 错落两栏卡：左 头像+用户名(可点查看详情)+星级；右 信息行1(黑稍大)+信息行2(成绩灰可换行)+方形发送需求按钮；简介独占底部一行
@@ -152,15 +173,29 @@ function applyFilters() {
   const subject = document.getElementById('filter-subject').value;
   const maxPrice = +document.getElementById('filter-price').value || Infinity;
   const minRating = +document.getElementById('filter-rating').value || 0;
+  const method = document.getElementById('filter-method').value;      // v0.25.29 新资料项：授课方式
+  const day = document.getElementById('filter-day').value;            // v0.25.29 新资料项：可授课星期
+  const verified = document.getElementById('filter-verified').value;  // v0.25.29 新资料项：认证状态
 
   const filtered = state.allTeachers.filter(t => {
     if (gender && t.gender !== gender) return false;
     if (subject && !(t.subjects||[]).includes(subject)) return false;
     if (t.price_min != null && t.price_min > maxPrice) return false; // R2-5 按最低报价过滤（未填报价不限价）
     if ((t.rating||4) < minRating) return false;
+    if (method && t.teaching_method !== method) return false;                    // v0.25.29
+    if (day && !hasDaySlot(t.time_slots, +day)) return false;                    // v0.25.29
+    if (verified && !t.verified) return false;                                   // v0.25.29
     return true;
   });
   renderTeachers(filtered);
+}
+
+// v0.25.29：结构化时间段 JSON 判星期命中（历史纯文本数据不参与星期筛选）
+function hasDaySlot(raw, dow) {
+  let arr = null;
+  try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch { arr = null; }
+  if (!arr) return false;
+  return arr.some(s => s && typeof s === 'object' && s.type === 'week' && s.dow === dow);
 }
 
 // 需求五·item5：学生端教师匹配度明细卡（同一时刻至多一张，与教师端明细共用 _matchDetailOpen/closeMatchDetail）。
