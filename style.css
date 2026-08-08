@@ -1158,6 +1158,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .tag {
   display: inline-flex; align-items: center; padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：tag 尺寸随滑块 */
   font-size: .72rem; font-weight: 600; color: var(--ink-3); letter-spacing: .01em;
+  white-space: nowrap; /* #159（v0.25.67）：原子 pill 永不碎行——长标签保持整体形状（chat-peer-tag 同款先例），
+     换行由外层 flex-wrap 整粒承接，杜绝单个 pill 断成两行 */
 }
 /* 需求五·item1 匹配度标准按钮：从 tag 升级按钮，按分值三色遮罩（阈值单源 CONFIG.MATCH_COLOR_HIGH/MID）。
    三色 = 染色玻璃（--g-fill 低 alpha 语义色，字色对应深色），玻璃/涟漪/焦点环由 glass 引擎提供 */
@@ -1618,8 +1620,8 @@ body.profile-panel-closing .profile-panel {
 .profile-avatar { width: 62px; height: 62px; font-size: 1.55rem; flex-shrink: 0; }
 .profile-signed-tag {
   margin-left: 6px; /* 与头像拉开（gap 12px 之上再补，视觉上稍稍靠右） */
-  font-size: .66rem; font-weight: 700; letter-spacing: .08em;
-  padding: 4px 9px;
+  font-size: .72rem; font-weight: 700; letter-spacing: .05em; /* #159（v0.25.67）：实心高强调规格对齐 tag 族（原 .66rem/4px 9px → 30px 高小字，与 24px pill 族脱节） */
+  padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：已签约 tag 随滑块 */
 }
 .profile-id-name { margin-top: 12px; font-size: 1.12rem; font-weight: 800; letter-spacing: -.01em; overflow-wrap: anywhere; }
 .profile-id-role { margin-top: 4px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .14em; }
@@ -1661,7 +1663,7 @@ body.profile-panel-closing .profile-panel {
 .profile-form .form-label { padding-top: calc(8px * var(--ui-scale, 1)); }
 /* 需求六·item3：私密资料项两行式灰字小提示（黑字值下方一行灰字，如「签约后展示联系方式」） */
 .profile-row-note { display: block; margin-top: 2px; font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
-.profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: calc(3px * var(--ui-scale, 1)) calc(9px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 600; color: var(--ink); } /* 需求六·item5：资料卡 tag 随滑块 */
+.profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 600; color: var(--ink); } /* 需求六·item5：资料卡 tag 随滑块 */ /* #159（v0.25.67）：横 padding 对齐 .tag 基类 */
 .profile-rating { display: inline-flex; align-items: center; gap: 6px; }
 .profile-rating b { font-size: .8rem; }
 

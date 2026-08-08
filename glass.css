@@ -260,6 +260,7 @@ body { background: transparent; }
 .tag, .conv-item-role, .chat-peer-tag, .device-current, .profile-tag {
   --g-fill: var(--g-fill-strong); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2);
   --g-border: none; /* 实心小件 opt-out：flat 描边不落 pill/tag */
+  white-space: nowrap; /* #159（v0.25.67）：原子 pill 家族统一不换行——长标签保持整粒（chat-peer-tag 原已有，收口到家族单点） */
 }
 .profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; --g-border: none; }
 /* v0.25.24 需求一·复选框：选中态告别「整块亮紫 + 白字」——白字压 .7 alpha 紫底仅 2.62:1 对比（连 WCAG AA 都不达），
@@ -383,6 +384,12 @@ body { background: transparent; }
 .match-detail { --g-fill: var(--g-paper); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04)); --g-r: var(--lg-r-lg); --g-lift: var(--glass-lift); }
 /* 需求五·item5 学生端逐需求明细卡：比教师端单卡略宽（容纳多需求条目） */
 .match-detail--teacher { width: min(340px, calc(100vw - 24px)); }
+/* #159（v0.25.67）：状态语义 tag 加状态点（hue 匹配 currentColor，6px 圆点）——ok/warn/danger 均为状态语义
+   （已签约/待处理/已驳回/进行中/待审核…），点随字色自动同色，零模板改动；accent 是类型/中性语义（学科辅导/草稿）不加点 */
+.tag-ok::before, .tag-warn::before, .tag-danger::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; opacity: .9; margin-right: 6px; flex: 0 0 auto;
+}
 .tag-danger { --g-fill: var(--g-danger-fill); color: var(--danger); }
 .tag-warn { --g-fill: var(--g-warn-fill); color: var(--warn-deep); }
 .tag-accent { --g-fill: var(--g-accent-fill); color: var(--accent-deep); }
