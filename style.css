@@ -1788,8 +1788,22 @@ body.profile-panel-closing .profile-panel {
 .notif-item {
   display: flex; gap: 12px; align-items: flex-start;
   padding: 14px 16px; margin-bottom: 8px;
+  position: relative; overflow: hidden; /* #151：供未读呼吸遮罩定位并裁切到卡片圆角 */
 }
-.notif-item.unread { --g-surface: inset 3px 0 0 var(--danger); } /* G14：语义条走 --g-surface（border-left 被引擎 border:none 吃，必用参数） */
+/* #151（v0.25.59）：未读提醒由左侧红竖线改为整卡呼吸遮罩——危险色洗底淡入淡出（红点+加粗文字保留作
+   静态锚点）；点击消除（markNotifRead）去掉 .unread 后遮罩随伪元素消失。::after 带 pointer-events:none，
+   点击仍落在卡片本体；reduced-motion 由全站统一规则压到 1ms（style.css 底部）。 */
+.notif-item.unread::after {
+  content: ''; position: absolute; inset: 0;
+  background: var(--danger);
+  opacity: 0;
+  animation: notif-breathe 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes notif-breathe {
+  0%, 100% { opacity: 0; }
+  50% { opacity: .13; }
+}
 .notif-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-top: 7px; }
 .notif-dot.read { background: transparent; }
 .notif-body { flex: 1; min-width: 0; }

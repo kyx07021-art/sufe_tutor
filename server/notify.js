@@ -4,7 +4,7 @@
  * 设计：本模块自持建表 + 推送咽喉 + 数据层 + 路由 handler，外部只通过
  *   initNotifyTable(db)  建表（由 db.js 的 initDb 调一次）
  *   notifyUser(db, userId, text)  推送一条（咽喉：吞错不影响业务，截断 200 字）
- *   handleGetNotifications / handleMarkNotificationsRead  路由
+ *   handleGetNotifications / handleMarkNotificationRead  路由（#151：单条已读取代批量全读）
  * 通知文案由业务方（routes-* 在拒绝/退回等节点）按场景拼装后传入，保持委婉语气。
  * 依赖方向：util（db 薄封装 + 响应构造）/ security（authUser/requireAdmin）/ log（留档）。
  * 不依赖 db.js，避免循环。
@@ -65,9 +65,9 @@ async function dbGetNotifications(db, userId) {
     `SELECT * FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT ${LIMITS.NOTIF_LIST_MAX}`, [userId]);
 }
 
-// 进入通知页时一次标记全部已读
-async function dbMarkNotificationsRead(db, userId) {
-  await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0', [userId]);
+// 单条标记已读（#151：未读持久到点击消除；归属硬约束——只翻本人的通知行，跨用户调用静默 0 行）
+async function dbMarkNotificationRead(db, notifId, userId) {
+  await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE id=? AND user_id=? AND is_read=0', [notifId, userId]);
 }
 
 // GET /api/notifications → { notifications }（含 is_read，前端据此显示未读圆点；身份凭令牌）
@@ -78,11 +78,13 @@ export async function handleGetNotifications(db, req) {
   return json({ notifications });
 }
 
-// POST /api/notifications/read → 全部已读（身份凭令牌）
-export async function handleMarkNotificationsRead(db, body, req) {
+// POST /api/notifications/:id/read → 单条已读（#151 取代原批量全读；纯个人游标，不 bump 版本域）
+export async function handleMarkNotificationRead(db, notifId, req) {
   const me = await authUser(db, req);
   if (!me) return error(MSG.LOGIN_REQUIRED, 401);
-  await dbMarkNotificationsRead(db, me.id);
+  const id = /^\d+$/.test(String(notifId)) ? Number(notifId) : 0;
+  if (!id) return error(MSG.INVALID_PARAMS, 400);
+  await dbMarkNotificationRead(db, id, me.id);
   return json({ ok: true });
 }
 

@@ -27,13 +27,14 @@ const FILES = [
 
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
-function makeCtx({ notifRows = [], demandRows = [] } = {}) {
+function makeCtx({ notifRows = [], demandRows = [], failRead = false } = {}) {
   const html = readFileSync('./index.html', 'utf8')
     .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
   const dom = new JSDOM(html, {
     url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
   });
   const w = dom.window;
+  const fetched = []; // #151：记录 fetch 调用（断言「进入不再批量全读 / 点击上报单条」）
   const ctx = vm.createContext({
     window: w, document: w.document,
     getComputedStyle: w.getComputedStyle.bind(w),
@@ -41,6 +42,8 @@ function makeCtx({ notifRows = [], demandRows = [] } = {}) {
     console,
     fetch: async (url, opts = {}) => {
       const u = String(url);
+      fetched.push({ u, method: (opts && opts.method) || 'GET' });
+      if (/\/api\/notifications\/\d+\/read$/.test(u) && failRead) return { ok: false, status: 500, json: async () => ({ error: 'server down' }) };
       if (u === '/api/notifications') return { ok: true, status: 200, json: async () => ({ notifications: notifRows }) };
       if (u.includes('/api/student/demands')) return { ok: true, status: 200, json: async () => ({ demands: demandRows }) };
       if (/\/api\/demands\/\d+\/intents$/.test(u)) return { ok: true, status: 200, json: async () => ({ teachers: [{ user_id: 38, username: 'kkkk', rating: 4, avatar: '', province: 'guangdong', price_min: 150, price_max: 150, intent_status: 'accepted', intent_id: 5 }] }) };
@@ -59,12 +62,13 @@ function makeCtx({ notifRows = [], demandRows = [] } = {}) {
   // 桥接内联 onclick 引用的全局函数到 jsdom window（vm 沙箱与 jsdom window 是两个 realm）
   vm.runInContext(`
     ['showView','renderSidebar','selectPage','ensureAuth','toggleNotifBlock','openModuleInfo',
-     'enterNotifications','enterAccountSettings','enterMyChats','closeModal','toggleDemandIntents'].forEach(function (k) {
+     'enterNotifications','enterAccountSettings','enterMyChats','closeModal','toggleDemandIntents',
+     'markNotifRead'].forEach(function (k) {
       if (typeof globalThis[k] === 'function') window[k] = globalThis[k];
     });
   `, ctx);
   const UI = vm.runInContext('UI', ctx);
-  return { dom, ctx, UI };
+  return { dom, ctx, UI, fetched };
 }
 
 /** 等 jsdom DOMContentLoaded 跑完，再进客户端（sufe_returning 屏蔽首访浮窗） */
@@ -209,4 +213,63 @@ test('item8 设置页两区颠倒：账户信息在上、外观在下', async ()
   // 主题选中态刷新依赖元素 id 而非顺序，确认主题选项仍渲染
   assert.equal(doc.querySelectorAll('.theme-opt').length, 3, '外观主题三项仍在');
   assert.equal(doc.querySelectorAll('.settings-row').length >= 4, true, '账户行（头像/用户名/角色/电话/邮箱）在位');
+});
+
+// #151（v0.25.59）：未读提醒由左红竖线改为整卡呼吸遮罩；点击/键盘消除——单条标记已读
+test('#151 未读项渲染呼吸遮罩与点击消除入口；已读项无交互', async () => {
+  const { dom, ctx } = makeCtx({ notifRows: rows });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'notifications'; enterNotifications()`, ctx);
+  await tick();
+  const unread = doc.querySelectorAll('.notif-item.unread');
+  assert.equal(unread.length, 3, '3 条未读项带 unread 类（呼吸遮罩）');
+  const first = unread[0];
+  assert.ok(first.getAttribute('data-id'), '未读项带 data-id 供 markNotifRead 定位');
+  assert.ok((first.getAttribute('onclick') || '').includes('markNotifRead('), '未读项可点击消除');
+  assert.equal(first.getAttribute('role'), 'button', '未读项键盘可达');
+  assert.equal(first.querySelector('.notif-dot').classList.contains('read'), false, '未读红点保留');
+  const readItem = doc.querySelector('.notif-item:not(.unread)');
+  assert.ok(readItem, '有已读项');
+  assert.equal(readItem.getAttribute('onclick'), null, '已读项无点击消除入口');
+});
+
+test('#151 点击未读项 → 单条已读上报 + 遮罩/红点就地消除', async () => {
+  const { dom, ctx, fetched } = makeCtx({ notifRows: rows });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'notifications'; enterNotifications()`, ctx);
+  await tick();
+  const reads = fetched.filter(f => f.u.startsWith('/api/notifications/') && f.u.endsWith('/read'));
+  assert.equal(reads.length, 0, '进入通知页不再批量全读上报');
+  const target = doc.querySelector('.notif-item.unread');
+  const id = target.getAttribute('data-id');
+  target.click();
+  await tick(); await tick(); // 等异步 API 回包
+  assert.ok(fetched.some(f => f.u === `/api/notifications/${id}/read` && f.method === 'POST'), '点击上报单条已读');
+  assert.equal(target.classList.contains('unread'), false, '遮罩就地消除');
+  assert.equal(target.querySelector('.notif-dot').classList.contains('read'), true, '红点消除');
+  assert.equal(target.getAttribute('onclick'), null, '已读后交互属性移除');
+});
+
+test('#151 呼吸遮罩样式在位（style.css 含 keyframes 与 .unread::after，左竖线已删）', () => {
+  const css = readFileSync('./style.css', 'utf8');
+  assert.ok(css.includes('@keyframes notif-breathe'), '呼吸遮罩关键帧在位');
+  assert.ok(css.includes('.notif-item.unread::after'), '未读遮罩伪元素规则在位');
+  assert.ok(!css.includes('.notif-item.unread { --g-surface: inset 3px 0 0 var(--danger);'),
+    '左侧红竖线提醒已删（#151 取代）');
+});
+
+test('#151 单条已读上报失败 → 回滚：遮罩与点击入口恢复（可重试）', async () => {
+  const { dom, ctx } = makeCtx({ notifRows: rows, failRead: true });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'notifications'; enterNotifications()`, ctx);
+  await tick();
+  const target = doc.querySelector('.notif-item.unread');
+  target.click();
+  await tick(); await tick(); // 等失败回包
+  assert.equal(target.classList.contains('unread'), true, '失败回滚：遮罩恢复');
+  assert.equal(target.querySelector('.notif-dot').classList.contains('read'), false, '红点恢复');
+  assert.ok((target.getAttribute('onclick') || '').includes('markNotifRead('), '失败回滚：点击入口恢复可重试');
 });

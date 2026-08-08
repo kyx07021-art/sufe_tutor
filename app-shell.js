@@ -344,7 +344,8 @@ async function refreshBadges() {
 }
 
 // ============================================================
-// 通知信息页（全角色）：进入即标记已读并消红点；屏蔽系统通知为纯客户端偏好（localStorage），只动渲染层
+// 通知信息页（全角色）：#151 起未读持久到点击消除（markNotifRead 单条已读，不再进入即批量全读）；
+// 屏蔽系统通知为纯客户端偏好（localStorage），只动渲染层
 // ============================================================
 let _notifList = [];
 let _lastContractSig = ''; // 合同列表渲染签名（v0.22.8：30s 轮询数据未变不整列重渲）
@@ -385,7 +386,7 @@ async function enterNotifications() {
   const bb = document.getElementById('btn-broadcast-notif');
   if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
   syncNotifBlockBtn(); // 进页按持久化偏好标按钮态
-  const rendered = await loadInto('notifications-content', async () => {
+  await loadInto('notifications-content', async () => {
     const data = await dhGet('/api/notifications', { domain: 'notifications' }); // v0.23.0 静默数据层
     _notifList = data.notifications || [];
     return _notifList;
@@ -394,29 +395,58 @@ async function enterNotifications() {
     if (!shown.length) return `<div class="empty-state"><p>${escHtml(UI.NOTIF_FILTER_EMPTY)}</p></div>`;
     return shown.map(renderNotifItem).join('');
   }, { empty: UI.EMPTY_NO_NOTIFICATIONS, peek: () => dhReady('/api/notifications') });
-  // 渲染成功才批量标已读（切走/报错不清未读，留给下次进入）
-  if (rendered && _notifList.some(n => !n.is_read)) {
-    api('/api/notifications/read', { method: 'POST', body: {} })
-      .then(() => {
-        // v0.23.0 静默数据层：翻转会话缓存里的 is_read——徽标轮询读的是 datahub 缓存
-        //（_notifList 与缓存同数组引用），不翻的话 30s 轮询读到旧 is_read 会把刚灭的红点亮回来
-        if (typeof dhPeek === 'function') {
-          const cached = dhPeek('/api/notifications');
-          if (cached && cached.notifications) cached.notifications.forEach(n => { n.is_read = 1; });
-        }
-      })
-      .catch(() => {});
-  }
+  // #151：不再进入即批量全读——未读持久到单条点击消除（markNotifRead），徽标在离开本页后由轮询反映余量
 }
 
 function renderNotifItem(n) {
-  return `<div class="notif-item glass${n.is_read ? '' : ' unread'}">
+  const id = /^\d+$/.test(String(n.id)) ? String(n.id) : '';
+  // #151（v0.25.59）：未读通知可点击/键盘消除——data-id 供 markNotifRead 精确定位；已读项无交互
+  const interact = n.is_read ? '' :
+    ` role="button" tabindex="0" aria-label="${escHtml(UI.NOTIF_READ_ARIA)}" onclick="markNotifRead('${id}')" onkeydown="notifKeyRead(event, '${id}')"`;
+  return `<div class="notif-item glass${n.is_read ? '' : ' unread'}" data-id="${id}"${interact}>
       <span class="notif-dot${n.is_read ? ' read' : ''}"></span>
       <div class="notif-body">
         <div class="notif-text">${renderNotifContent(n.text)}</div>
         <div class="notif-time">${fmtDateTime(n.created_at)}</div>
       </div>
     </div>`;
+}
+
+// #151（v0.25.59）：未读通知呼吸遮罩点击消除——单条标记已读。本地先翻（_notifList 与 datahub 缓存
+// 同数组引用，徽标/屏蔽重排即时一致），成功后服务端落库；失败回滚。服务端不 bump 版本域
+// （纯个人游标，与旧批量已读同口径），客户端翻缓存即全站一致。
+async function markNotifRead(id) {
+  if (!/^\d+$/.test(String(id || ''))) return;
+  const item = _notifList.find(n => String(n.id) === String(id));
+  if (!item || item.is_read) return;
+  const el = document.querySelector(`.notif-item[data-id="${id}"]`);
+  item.is_read = 1;
+  if (el) applyNotifReadVisual(el, true);
+  try {
+    await api(`/api/notifications/${id}/read`, { method: 'POST', body: {} });
+  } catch {
+    item.is_read = 0;
+    if (el) applyNotifReadVisual(el, false);
+  }
+}
+function notifKeyRead(e, id) {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); markNotifRead(id); }
+}
+function applyNotifReadVisual(el, read) {
+  el.classList.toggle('unread', !read);
+  const dot = el.querySelector('.notif-dot');
+  if (dot) dot.classList.toggle('read', read);
+  const id = el.getAttribute('data-id') || '';
+  if (read) {
+    el.removeAttribute('role'); el.removeAttribute('tabindex');
+    el.removeAttribute('aria-label'); el.removeAttribute('onclick'); el.removeAttribute('onkeydown');
+  } else if (id) { // 失败回滚：恢复未读态同时重挂交互属性，否则遮罩回来但不能再点击
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', UI.NOTIF_READ_ARIA);
+    el.setAttribute('onclick', `markNotifRead('${id}')`);
+    el.setAttribute('onkeydown', `notifKeyRead(event, '${id}')`);
+  }
 }
 
 // 系统广播通知拆成标题/正文两段（格式：【系统通知】标题\n正文）；其余通知单段

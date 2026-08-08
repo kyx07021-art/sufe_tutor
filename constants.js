@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.58',
+  APP_VERSION: '0.25.59',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1503,6 +1503,7 @@ globalThis.APP_CONSTANTS = {
     // 通知信息
     EMPTY_NO_NOTIFICATIONS: '暂无通知',
     NOTIF_FILTER_EMPTY: '没有符合条件的通知', /* v0.19.46 通知页屏蔽系统通知后空态 */
+    NOTIF_READ_ARIA: '标记该条通知已读',     // #151（v0.25.59）：未读通知呼吸遮罩 + 点击消除（键盘可达）
     NOTIF_BLOCK_OFF: '屏蔽系统通知',        // 需求四·4b：通知页右上角屏蔽按钮两态（localStorage 持久化，纯客户端）
     NOTIF_BLOCK_ON: '已屏蔽系统通知',
 
@@ -1606,7 +1607,7 @@ globalThis.APP_CONSTANTS = {
     TOUR_STEP_PROFILE_SUBMIT: '填完点「保存」，资料就更新了。越完整越容易被选中。',
     // —— 通知 ——
     TOUR_STEP_NOTIFICATIONS: '通知信息：试课意向、需求推送、合同进展都汇总在这。点击进入。',
-    TOUR_STEP_NOTIF_LIST: '通知列表：每条通知写着处理进展，进入页面自动标已读。',
+    TOUR_STEP_NOTIF_LIST: '通知列表：每条通知写着处理进展，点击未读通知即可标为已读。', // #151：进页不再自动全读
     TOUR_STEP_NOTIF_ITEM: '一条通知：展示内容与时间；红点代表未读。',
     TOUR_STEP_NOTIF_BLOCK: '右上角「屏蔽系统通知」：不想看系统广播点一下，再点恢复。',
     // —— 设置 ——

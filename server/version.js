@@ -11,7 +11,7 @@
  * 让「数据库有更新 → 客户端静默拉一次」成立，而不引入 WebSocket/DO（架构红线，CLAUDE.md）。
  *
  * 域划分语义（核心决策，勿轻改）：
- *   - 纯认证/个人游标路径（/api/auth/*、markRead、notifications/read、avatar、deactivate、
+ *   - 纯认证/个人游标路径（/api/auth/*、markRead、notifications/:id/read、avatar、deactivate、
  *     reviews、invite）一律不 bump——它们不改变任何用户可见的列表数据；
  *   - 聊天系只被「发消息/传附件」bump，且只落 chat 域——聊天是高频写，
  *     若落全局/多域会造成所有客户端重拉重列表（放大效应，按域拆的意义）；
@@ -70,7 +70,8 @@ export function versionDomainOf(pathname) {
   const p = pathname || '';
 
   // 不 bump：不改变任何用户可见列表数据的写（认证/个人游标/待审核评价/邀请码）
-  if (p.startsWith('/api/auth/') || p === '/api/notifications/read' ||
+  // #151：单条通知已读取代批量全读（同为纯个人游标不 bump）
+  if (p.startsWith('/api/auth/') || /^\/api\/notifications\/\d+\/read$/.test(p) ||
       p === '/api/admin/invite' || p.startsWith('/api/reviews') ||
       /^\/api\/conversations\/\d+\/read$/.test(p)) return [];
 

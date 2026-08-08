@@ -20,7 +20,7 @@ import {
   handleCreateIntent, handleGetIntents, handleResolveIntent,
   handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from './server/routes-demands.js';
-import { handleGetNotifications, handleMarkNotificationsRead, handleAdminDeleteNotification } from './server/notify.js';
+import { handleGetNotifications, handleMarkNotificationRead, handleAdminDeleteNotification } from './server/notify.js';
 import {
   handleCreateContract, handleGetMyContracts,
   handleSignContract, handleModifyContract, handleCancelContract,
@@ -122,7 +122,8 @@ async function routeApi(db, p, method, body, url, req, env) {
 
   // 通知信息（全角色侧边栏模块）
   if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, req);
-  if (p === '/api/notifications/read' && method === 'POST') return await handleMarkNotificationsRead(db, body, req);
+  const notifRead = idMatch(p, /^\/api\/notifications\/(\d+)\/read$/); // #151 单条已读（取代批量全读）
+  if (notifRead && method === 'POST') return await handleMarkNotificationRead(db, notifRead[1], req);
   if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);
   const notifDelete = idMatch(p, /^\/api\/admin\/notifications\/(\d+)$/);
   if (notifDelete && method === 'DELETE') return await handleAdminDeleteNotification(db, notifDelete, req);

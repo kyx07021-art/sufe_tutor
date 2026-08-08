@@ -56,7 +56,7 @@ const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA for
 
 test('versionDomainOf：纯认证/个人游标/待审核评价/邀请码不 bump', () => {
   for (const p of ['/api/auth/login', '/api/auth/register', '/api/auth/logout', '/api/auth/re-auth',
-    '/api/auth/sessions/revoke', '/api/notifications/read', '/api/conversations/5/read',
+    '/api/auth/sessions/revoke', '/api/notifications/5/read', '/api/conversations/5/read',
     '/api/reviews', '/api/reviews/5', '/api/admin/invite']) {
     assert.deepEqual(versionDomainOf(p), [], `${p} 不应 bump`);
   }
