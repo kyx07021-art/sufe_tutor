@@ -391,12 +391,6 @@ function renderChatMediaInner(kind, body, name, thumb, mid) {
   </div>`;
 }
 
-// 文件扩展名徽标（前 4 字符大写；无扩展名兜底 FILE）
-function chatFileExt(name) {
-  const m = /\.([a-zA-Z0-9]{1,6})$/.exec(String(name || ''));
-  return m ? m[1].toUpperCase().slice(0, 4) : 'FILE';
-}
-
 // 人性化文件大小（dataURL 长度 → 字节；base64 按 3/4 换算，非 base64 按原始长度）
 function chatFileSize(dataUrl) {
   try {

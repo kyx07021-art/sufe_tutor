@@ -71,7 +71,7 @@ export async function initLogDb(db) {
 
 // 敏感键剔除：口令 / 盐 / 验证码 / 正文大字段 / 联系方式 / 需求地址信息绝不落明文档
 // （第一道脱敏；detail 加密在 crypto.js。网安 N-16：补 address/additional_info——自由文本可能手填电话/门牌）
-const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email|real_name|credential_image|phone|mobile|tel|address|info/i;
+const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email|real_name|credential_image|phone|mobile|tel|address|info|thumb/i; // thumb：聊天缩略图 dataURL 不进留档（2026-08-09 审计 F-3）
 /** 导出供 node --test 回归（test/log-sanitize.test.js），语义不变 */
 export function sanitize(value, depth = 0) {
   if (value === null || value === undefined) return value;

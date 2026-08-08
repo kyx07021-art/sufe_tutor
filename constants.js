@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.73',
+  APP_VERSION: '0.25.74',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -513,7 +513,6 @@ globalThis.APP_CONSTANTS = {
     // 验证提示
     VALIDATE_PASSWORD_MISMATCH: '两次密码不一致',
     // 需求三十（v0.25.47）：注册须勾选同意用户协议/隐私政策（两行轻量勾选 + md 浮窗展示全文）
-    AGREE_PREFIX: '我已阅读并同意',
     AGREE_LINK_AGREEMENT: '用户协议',
     AGREE_LINK_PRIVACY: '隐私政策',
     AGREE_REQUIRED: '请先勾选同意用户协议与隐私政策',
@@ -936,7 +935,6 @@ globalThis.APP_CONSTANTS = {
     // 网络连接失败统一文案（api()/XHR/自动登录共用；fetch 抛 TypeError/连接被拒/超时等一律归此，
     // 前端据此弹明确提示，杜绝「Failed to fetch」这类英文裸错误）
     NETWORK_ERROR: '网络连接失败，请检查网络后重试',
-    NETWORK_ERROR_AUTH: '无法连接服务器，登录未完成，请检查网络后重试',
 
     // 空状态
     EMPTY_NO_TEACHERS: '暂无教师信息',
@@ -1206,7 +1204,6 @@ globalThis.APP_CONSTANTS = {
     DEMAND_SORT_MATCH: '匹配度最高',
     DEMAND_SORT_NEWEST: '最新发布',
     DEMAND_SORT_BUDGET: '预算从低到高',
-    DEMAND_FILTER_BTN: '筛选',
     DEMAND_FILTER_ALL: '全部',
     DEMAND_FILTER_EMPTY: '没有符合筛选条件的需求',
 
@@ -1234,7 +1231,6 @@ globalThis.APP_CONSTANTS = {
     // 信息卡「硬展示」占位：字段不藏，学生据此判断教师资料完善度
     PROFILE_FIELD_EMPTY: '未填写',
     PROFILE_FIELD_AFTER_MATCH: '建立会话后展示',
-    PROFILE_FIELD_AFTER_SIGN: '签约后展示',
     // 需求六·item2：资料卡分组大 title（去分隔线后占满横向空位分隔不同类型资料；单源，改文案只动这里）
     PROFILE_SECTION_BASIC: '基本资料',
     PROFILE_SECTION_ACADEMIC: '学科类资料',
@@ -1258,7 +1254,6 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_VIEW_DIFF_TITLE: '查看合同 · 本次改动',   // v0.24.3：修改过的合同查看时标题带改动提示
     CONTRACT_MODIFY_BIZ_HINT: '仅可修改业务条款，法律条款不可修改',   // v0.24.2 审计：单源收口（曾硬编码中文 + 内联样式）
     CONTRACT_DIFF_HINT: '本次修改的改动处已高亮：绿色=新增，红色删除线=移除；法律条款未改动。', // v0.24.3 diff 视图
-    CONTRACT_DIFF_EMPTY: '未检测到文本改动',
     SIGN_MODAL_TITLE: '开始签约',
     SIGN_READ_HINT: '请阅读合同全文并滚动到底部，{secs} 秒后方可确认', // {secs} 渲染时填 CONFIG.CONTRACT_SIGN_READ_SECONDS（数字单源）
     SIGN_READY_HINT: '已阅读完毕，可确认签约',

@@ -172,6 +172,8 @@ export const LIMITS = {
   RATING_MIN: 1, RATING_MAX: 5,
   TITLE_MAX: 60,           // 帖子/反馈标题
   SCHOOL_MAX: 30, INTRO_MAX: 50, REAL_NAME_MAX: 20,
+  CONTACT_MAX: 50,         // 联系方式（wechat/email/家长/学生电话）
+  ADDITIONAL_INFO_MAX: 500, // 需求补充说明（自由文本，2026-08-09 审计 F-1 补上限 + ADDRESS_GUARD）
   ADDRESS_FIELD_MAX: 100,  // 授课区域
   DEMAND_TIME_MAX: 2000,   // 期望开课时间（v0.25.0 起存结构化时间段 JSON，多条组件需更长容量）
   TIME_SLOTS_MAX: 8,       // 结构化时间段条数上限（与前端 CONFIG.TIME_SLOTS_MAX 对齐）

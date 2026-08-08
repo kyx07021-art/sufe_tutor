@@ -118,3 +118,43 @@
 - **Early Hints preload / HTTP/3**：pages.dev 已自动开启 Early Hints；可补 `Link: </app-shell.js>; rel=preload` 等头加速首屏关键资源。
 - **Cloudflare China Network（Cosmic）**：根治"客户端→边缘"跨洋延迟（上海用户当前 ~300ms+ 路径），需 ICP 备案 + 企业版，暂不可行，备忘。
 - **日志保留期定期清理**：v0.22.3 后留档已 -96%，但长尾仍线性增长（~45MB/年）；可加保留期删除任务（如 90 天）。
+
+## 2026-08-09 收尾全量审计遗留（代码/网安/架构三审计；关键+高危已随 v0.25.74 修掉，以下为系统性重构项）
+
+### A1 前端状态字面量绕过 STATUS 常量（架构#2）
+app-chat.js:248,325-326,340 / app-contracts.js:62-99 / app-demands.js:613-662,969-970 / app-teachers.js:308,540,548 散落 `'active'/'contracted'/'pending'/'signed'/'rejected'` 裸字面量；后端全走 STATUS.*。改引 STATUS.*（app-state.js:20 已解构为全局词法绑定）。
+
+### A2 显示映射重复，应收口 app-display.js（架构#4 / 代码#5）
+- 学生年级 id→名：app-admin.js:272（无 `|| id` 兜底，口径不一）/ app-demands.js:605,819 → 增 `DISP.studentGradeName(id)`
+- 需求编号 padStart(4,'0')：app-contracts.js:94 / app-demands.js:594（裸 # 无 UI.DEMAND_PREFIX）/ :892（带前缀，口径不一）→ 增 `DISP.demandIdText(d)`
+- 需求卡预算行：app-demands.js:626-627 自造第三套口径 → `DISP.demandBudgetText(d)`
+- 反馈 kind→CSS 类三元：app-admin.js:150 / app-posts.js:566 → 增 `DISP.feedbackKindCls(kind)`
+- 合同 status→文案+类：app-admin.js:93-94 / app-contracts.js:62-63 → 增 `DISP.contractStatusMeta(status)`
+
+### A3 routes-posts.js 本地 PMSG 文案单源违规（架构#3）
+PMSG 的 TITLE_REQUIRED/POST_PUBLISHED/POST_DELETED 与 constants UI 逐字重复 → 删 PMSG，改读 globalThis.APP_CONSTANTS.UI。
+
+### A4 CONFIG 孤儿常量（代码#3 / 架构#5）
+7 常量已定义但调用点用裸数字：CHAT_POLL_MS(app-chat.js:453)、CHAT_BUBBLE_DELAY_MS(:302)、POSTS_SEARCH_DEBOUNCE_MS(app-posts.js:53)、PUSH_COOLDOWN_SEC(app-demands.js:868)、REVIEW_COMMENT_MIN(app-teachers.js:611)、PANEL_CLOSE_TIMEOUT_MS(:355)、DISPLAY_ID_PAD(app-display.js:122)。调用点改引 CONFIG.*，或按删除优先删常量。
+
+### A5 signing.js 手写 SQL 绕过 db.js mapper（代码#6）
+signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原生 UPDATE/DELETE messages；:143-148 batch 手写 UPDATE student_demands → 收进 db.js mapper（自持表域：contract.js/signing.js 直连共享业务表需 db.js 头部注释补记）。
+
+### A6 跨文件重复工具收口（代码#7）
+- `new Date().toISOString().slice(0,19).replace('T',' ')` 4 份（contract.js:214/danger-ops.js:61/routes-admin.js:69/session.js:42）→ server/util.js toDbTime()
+- rate_limits upsert SQL 3 遍 + `'+N seconds'` 换算（security.js rlDual/rlStrikeD1/rateUpsert）→ 复用 rateUpsert
+- UNIQUE 冲突判定 `String(err?.message).includes('UNIQUE')` 3 遍（routes-demands.js:222/296、routes-reviews.js:32）→ server/util.js isUniqueConflict(err)
+- app-posts 发帖/广播/反馈三弹窗 md 编辑器模板重复 → app-ui 抽 mdEditorHtml() 壳（同 alertHtml/segTabsHtml 收编模式）
+
+### A7 硬编码文案 / 内联样式 / 魔法数字（代码#8-10 / 架构#6,10-13）
+- 图表缺省 `暂无数据/折线图/数据明细/时间`（app-chart.js）、存证 `链头/连续性/序号/#CD/条`（app-contracts.js）、流量 `合计 X 次/样本 N 桶/ms`（app-admin.js）、`（平面简约下强制隐藏）`（app-pages.js:95）、发帖 maxlength=60 三处（app-posts.js，updateTitleCount 用 CONFIG 而模板裸数字）→ 收 constants UI/CONFIG
+- 内联样式：app-demands.js:510 width%、:922 color、app-teachers.js:61/270 style.display、index.html 多处、app-ui.js:516 visibility → 改类
+- 服务端裸数字：contract.js:299-309/462 长度上限、signing.js:75 slice(0,200)、routes-teacher.js:144 GAOKAO_SCORE_MAX=300、db.js 723/746/753 切片未引 LIMITS、security.js 60000/'-1 day'/base=5、session.js/danger-ops.js 令牌字节数 → 收 LIMITS/SECURITY
+
+### A8 杂项
+- app-pages.js:624/app-region.js:161 GAOKAO_POLICY_MISMATCH_WARN 只有 {n} 占位符，`.replace('{year}',…)` 空操作、`（未填）` 兜底死 + 硬编码中文 → 修占位符语义或删兜底
+- 主题偏好键 'sufe_theme' 裸字面量（app-pages.js:167/app-state.js:166）+ 写路径绕过 app-state → CONFIG.THEME_KEY + app-state 写访问器
+- app-contracts.js:201,333 与 server/contract.js:36 业务条款结束标记跨层双写 → 前端基于本地常量拼接正则
+- app-posts.js:392 `err.code==='POST_NOT_FOUND' || /不存在/.test(err.message)` 依赖人类文案 → 只认 err.code
+- db.js 头部注释补 signing.js 自持表域约定
+- app-ui.js:588 `(UI.TAG_PICK_LIMIT || '最多选 {max} 个')` 兜底与 constants 重复 → 删兜底

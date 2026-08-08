@@ -164,7 +164,11 @@ export async function handleSaveProfile(db, body, req) {
   const credential = String(p.credential_image || '');
   // svg 一律拒绝：矢量可内嵌脚本（与 routes-auth 头像口径一致；上限单源 LIMITS.CREDENTIAL_MAX_BYTES）
   if (credential && (!credential.startsWith('data:image/') || credential.startsWith('data:image/svg') || credential.length > LIMITS.CREDENTIAL_MAX_BYTES)) return error(MSG.AVATAR_INVALID);
-  if (ADDRESS_GUARD.test(p.address || '')) return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号不收集
+  // 2026-08-09 审计 F-1/F-4：自由文本（intro/school）同守门牌红线；联系方式统一截断（db 层仅 real_name/intro/address/school 有切片）
+  if (ADDRESS_GUARD.test(p.address || '') || ADDRESS_GUARD.test(p.intro || '') || ADDRESS_GUARD.test(p.school || ''))
+    return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号不收集
+  if (typeof p.wechat === 'string') p.wechat = p.wechat.slice(0, LIMITS.CONTACT_MAX);
+  if (typeof p.email === 'string') p.email = p.email.slice(0, LIMITS.CONTACT_MAX);
   await dbUpsertTeacherProfile(db, me.id, { ...p, credential_image: credential }); // 只能写自己的档案
   // 留档不带 detail：档案含联系方式 / 真实姓名 / 学信网截图等敏感字段，不落留档库
   await logEvent(db, { action: 'teacher.profile.save', actorUserId: me.id, actorRole: 'teacher',

@@ -99,3 +99,27 @@ test('未认证 → 401', async () => {
   const r = await handleMarkNotificationRead(db, 1, reqOf('no-token'));
   assert.equal(r.status, 401);
 });
+
+// 2026-08-09 收尾审计回归：idMatch 下标残留曾致单条已读路由恒 400（notifRead[1] 对数字取下标=undefined），
+// 单测直接调 handler 传合法 id 所以全绿。此处穿透 routeApi 全路径接线，堵死同类回归。
+test('routeApi 全路径：POST /api/notifications/:id/read → 200 且翻转本人已读', async () => {
+  const { routeApi } = await import('../_worker.js');
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { a, aToken } = await seed(db, raw);
+  const nA = raw.prepare('SELECT id FROM notifications WHERE user_id=? ORDER BY id LIMIT 1').get(a).id;
+  const url = new URL(`http://x/api/notifications/${nA}/read`);
+  const r = await routeApi(db, `/api/notifications/${nA}/read`, 'POST', {}, url, reqOf(aToken), {});
+  assert.equal(r.status, 200, '路由接线正常（曾恒 400）');
+  assert.equal(raw.prepare('SELECT is_read FROM notifications WHERE id=?').get(nA).is_read, 1, '已读翻转');
+  const r2 = await routeApi(db, '/api/notifications/999999/read', 'POST', {}, url, reqOf(aToken), {});
+  assert.equal(r2.status, 200, '不存在的 id 幂等 ok');
+});
+
+test('routeApi 全路径：未认证 POST 单条已读 → 401', async () => {
+  const { routeApi } = await import('../_worker.js');
+  const raw = rawOf(); const db = d1Shim(raw);
+  await seed(db, raw);
+  const url = new URL('http://x/api/notifications/1/read');
+  const r = await routeApi(db, '/api/notifications/1/read', 'POST', {}, url, reqOf('bad'), {});
+  assert.equal(r.status, 401, '未认证被拒');
+});

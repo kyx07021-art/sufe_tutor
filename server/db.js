@@ -997,11 +997,6 @@ export async function dbReopenDemand(db, id) {
 
 // 需求意向单接受锁：条件 UPDATE 抢占（intent_locked 0→1），赢家才继续。
 // 防并发 accept 两条意向产生双 accepted + 双会话（审计发现的聚合不变量缺口）
-export async function dbLockDemandIntent(db, demandId) {
-  const r = await dbRun(db, `UPDATE student_demands SET intent_locked=1 WHERE id=? AND intent_locked=0`, [demandId]);
-  return !!(r && r.meta && r.meta.changes > 0);
-}
-
 // ============================================================
 // 需求主动推送（学生 → 指定教师）
 // ============================================================

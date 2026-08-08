@@ -11,7 +11,7 @@ import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省�
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
   dbFindUserById, dbCreateDemand, dbGetDemands, dbGetDemandsByUser,
-  dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbReopenDemand, dbLockDemandIntent,
+  dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbReopenDemand,
   dbCreateIntent, dbGetIntentTeachers, dbGetIntentWithDemand, dbResolveIntent,
   dbUpsertConversation, dbGetTeacherProfile,
   dbCreatePush, dbGetPendingPushesForTeacher, dbGetPushById, dbResolvePush, dbAcceptPushAsIntent,
@@ -65,6 +65,10 @@ function sanitizeDemand(d) {
   if (d.budget_max < d.budget_min) d.budget_max = d.budget_min;
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
   d.address = (typeof d.address === 'string' ? d.address : '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
+  // 2026-08-09 审计 F-1/F-4：补充说明是自由文本——上限截断 + 与 address 同款门牌守卫（合规红线不因字段绕行）
+  d.additional_info = (typeof d.additional_info === 'string' ? d.additional_info : '').slice(0, LIMITS.ADDITIONAL_INFO_MAX);
+  d.parent_contact = (typeof d.parent_contact === 'string' ? d.parent_contact : '').slice(0, LIMITS.CONTACT_MAX);
+  d.student_contact = (typeof d.student_contact === 'string' ? d.student_contact : '').slice(0, LIMITS.CONTACT_MAX);
   // R2-b 需求类型：白名单，非法回退 'academic'
   d.target_type = TARGET_TYPES.includes(d.target_type) ? d.target_type : 'academic';
   // 目标科目/项目按类型分流白名单过滤，注入串被丢弃；去重 + 按池大小封顶（网安 M1：防重复 id
@@ -90,7 +94,7 @@ function sanitizeDemand(d) {
   d.preferred_teacher_gender = PREFERRED_GENDERS.has(d.preferred_teacher_gender) ? d.preferred_teacher_gender : '';
   // R2-11 学生性别：白名单 ['','male','female','nonbinary']，非法回退 ''（'' = 不愿透露）
   d.student_gender = DEMAND_GENDERS.has(d.student_gender) ? d.student_gender : '';
-  if (ADDRESS_GUARD.test(d.address)) return null; // 合规红线：详细门牌号不收集（调用方回 ADDRESS_TOO_DETAILED）
+  if (ADDRESS_GUARD.test(d.address) || ADDRESS_GUARD.test(d.additional_info)) return null; // 合规红线：详细门牌号不收集（调用方回 ADDRESS_TOO_DETAILED；补充说明同守）
   return d;
 }
 

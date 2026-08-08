@@ -118,7 +118,10 @@ const maybeCleanRateLimits = async (db, now) => {
 };
 
 // D1 三振封禁（跨实例持久）：strike.windowMs 窗口计数，满 strike.count 次写 block 行。
-// D1 异常不阻断请求（内存三振已生效），网安 N-06 同口径
+// D1 异常不阻断请求（内存三振已生效），网安 N-06 同口径。
+// 2026-08-09 审计：本函数只被 authRateBlock 调用（认证路径的 block 行由 authRateBatch 读取 → 跨实例生效）；
+// rateGate 的非认证路径三振此前也写 D1 block 行但无人读取（纯开销），已改纯内存（热路径零 D1 往返，
+// 非认证写面已有 rlDual 的 D1 写限流兜底，跨实例硬封禁仅认证路径需要）。
 const rlStrikeD1 = async (db, ip) => {
   try {
     const w = '+' + Math.round(RATE_LIMITS.strike.windowMs / 1000) + ' seconds';
@@ -148,10 +151,10 @@ export async function rateGate(ip, p, method, body, now, db) {
   rlSweep(now);
   await maybeCleanRateLimits(db, now);
   if ((RL.blocked.get(ip) || 0) > now) return false;
-  if (!rlBump(`g:${ip}`, RATE_LIMITS.global.limit, RATE_LIMITS.global.windowMs, now)) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
+  if (!rlBump(`g:${ip}`, RATE_LIMITS.global.limit, RATE_LIMITS.global.windowMs, now)) { rlStrike(ip, now); return false; } // 非认证路径内存三振（D1 行无人读，不写）
   if (p === '/api/auth/login' || p === '/api/auth/register' || p === '/api/auth/re-auth') return true; // 认证限流由路由批承担
   if (method !== 'GET' && p.startsWith('/api/')) {
-    if (!(await rlDual(db, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, `w:${ip}`, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, now))) { rlStrike(ip, now); await rlStrikeD1(db, ip); return false; }
+    if (!(await rlDual(db, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, `w:${ip}`, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, now))) { rlStrike(ip, now); return false; } // 同上：内存三振即可
   }
   if (p === '/api/auth/check' && !(await rlDual(db, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, `c:${ip}`, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, now))) return false;
   return true;

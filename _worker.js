@@ -47,7 +47,7 @@ function idMatch(p, pattern) {
   return m ? parseInt(m[1], 10) : null;
 }
 
-async function routeApi(db, p, method, body, url, req, env) {
+export async function routeApi(db, p, method, body, url, req, env) { // 导出供测试穿透路由接线（2026-08-09 审计：曾因 idMatch 下标残留致单条已读恒 400 而单测未覆盖）
   // 认证
   if (p === '/api/auth/register' && method === 'POST') return await handleRegister(db, body, req);
   if (p === '/api/auth/login' && method === 'POST') return await handleLogin(db, body, req);
@@ -127,7 +127,7 @@ async function routeApi(db, p, method, body, url, req, env) {
   // 通知信息（全角色侧边栏模块）
   if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, req);
   const notifRead = idMatch(p, /^\/api\/notifications\/(\d+)\/read$/); // #151 单条已读（取代批量全读）
-  if (notifRead && method === 'POST') return await handleMarkNotificationRead(db, notifRead[1], req);
+  if (notifRead && method === 'POST') return await handleMarkNotificationRead(db, notifRead, req); // 2026-08-09 审计：#151 曾误传 notifRead[1]（idMatch 已返回数字，取下标恒 undefined → 恒 400，单条已读线上失效）
   if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);
   const notifDelete = idMatch(p, /^\/api\/admin\/notifications\/(\d+)$/);
   if (notifDelete && method === 'DELETE') return await handleAdminDeleteNotification(db, notifDelete, req);
@@ -224,6 +224,9 @@ export default {
     // 版本控制与构建残留（.git/、.wrangler/）、包清单（package*.json / node_modules/）、
     // 配置残留（wrangler.toml / robots.txt / sitemap.xml，网安报告 F-01d 收口）
     if (!p.startsWith('/api/')) {
+      // 路径遍历纵深防御（2026-08-09 审计 F-2）：点段一律 404——线上 CDN 边缘已拒（实测 400），
+      // worker 侧再加一道，防未来边缘规范化行为变化后 server/ 源码泄露（p 此处已 decodeURIComponent）
+      if (p.includes('..')) return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       if (p.startsWith('/server/') || p.startsWith('/server') || p.startsWith('/docs/') ||
           p === '/secrets.js' ||
           p.startsWith('/.git/') || p.startsWith('/.wrangler/') || p.startsWith('/node_modules/') ||

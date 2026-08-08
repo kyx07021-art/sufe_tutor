@@ -33,10 +33,6 @@
       const R = globalThis.SUFE_REGIONS;
       return (R && R.subjectNames && R.subjectNames[sid]) || sid;
     },
-    // 科目名数组 join '、'（空数组 join 天然返 ''）
-    subjectNames(ids) {
-      return (ids || []).map(id => D.subjectName(id)).join('、');
-    },
     // 性别显示单点：不愿透露（undeclared）与历史 ''/nonbinary 一律视同未填 → 不展示文字
     // （资料卡/详情/筛选 .filter(Boolean) 自然省略该行）；仅明确男/女才出字。
     genderName(id) {

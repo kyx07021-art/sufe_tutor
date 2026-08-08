@@ -5,7 +5,7 @@
  *       security（身份解析）、constants（校验文案/限额）。
  */
 import { json, error, deviceLabelFromUA } from './util.js';
-import { hashPassword, verifyPassword, tokenDigest } from './crypto.js';
+import { hashPassword, verifyPassword } from './crypto.js';
 import { authUser, requireUser, authRateBatch, authRateBlock } from './security.js';
 import {
   issueAuthToken, listSessions, revokeSession,

@@ -1,0 +1,112 @@
+/**
+ * 2026-08-09 收尾审计 F-1/F-4：门牌号合规红线不得被自由文本字段绕行
+ *  - 需求 additional_info：含详细门牌 → 整单 400（与 address 同守）；正常文本 201 且截断到 ADDITIONAL_INFO_MAX
+ *  - 教师档案 intro/school：含门牌 → 400（此前仅 address 有守卫）
+ *  - 联系方式长度：wechat/email 超 CONTACT_MAX 截断（此前无上限，可塞 MB 级）
+ *  - 需求 parent_contact/student_contact 同款截断
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
+import { initDb } from '../server/db.js';
+import { tokenDigest, decryptField } from '../server/crypto.js';
+import { handleCreateDemand } from '../server/routes-demands.js';
+import { handleSaveProfile } from '../server/routes-teacher.js';
+
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+
+function d1Shim(raw) {
+  return {
+    prepare(sql) {
+      const st = {
+        _sql: sql, _params: [],
+        bind(...p) { st._params = p; return st; },
+        all(...p) { return { results: raw.prepare(st._sql).all(...(p.length ? p : st._params)) }; },
+        first(...p) { return raw.prepare(st._sql).get(...(p.length ? p : st._params)) ?? undefined; },
+        run(...p) {
+          const info = raw.prepare(st._sql).run(...(p.length ? p : st._params));
+          return { meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } };
+        },
+      };
+      return st;
+    },
+    async batch(stmts) {
+      raw.exec('BEGIN');
+      try {
+        const out = [];
+        for (const s of stmts) {
+          if (/^\s*(SELECT|PRAGMA|WITH|EXPLAIN)/i.test(s._sql)) out.push({ results: raw.prepare(s._sql).all(...s._params) });
+          else { const info = raw.prepare(s._sql).run(...s._params); out.push({ meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } }); }
+        }
+        raw.exec('COMMIT');
+        return out;
+      } catch (e) { try { raw.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+    },
+  };
+}
+const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
+const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
+
+async function seed(db, raw) {
+  await initDb(db, ENV);
+  raw.exec(`INSERT INTO users (username,password_hash,salt,role) VALUES ('stu','h','s','student'),('tea','h','s','teacher')`);
+  const idOf = name => raw.prepare("SELECT id FROM users WHERE username=?").get(name).id;
+  const mkToken = async name => {
+    const token = `${name}-token`;
+    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
+      .run(await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00');
+    return token;
+  };
+  return { stuToken: await mkToken('stu'), teaToken: await mkToken('tea') };
+}
+
+const baseDemand = {
+  province: 'shanghai', student_grade: 'senior1', student_gender: 'female',
+  target_subjects: ['math'], current_scores: [], teaching_method: 'offline',
+  address: '杨浦区', submitter_type: 'self', parent_contact: '13800000000',
+  student_contact: '13800000000', additional_info: '',
+};
+
+test('F-1 需求补充说明含门牌号 → 整单 400（与 address 同守）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { stuToken } = await seed(db, raw);
+  const r = await handleCreateDemand(db, { demand: { ...baseDemand, additional_info: '家住静安区5号楼303室' } }, reqOf(stuToken));
+  assert.equal(r.status, 400, '门牌进补充说明被拒');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM student_demands').get().c, 0, '无任何需求落库');
+});
+
+test('F-1 需求补充说明正常文本 → 201 + 超长截断到 ADDITIONAL_INFO_MAX', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { stuToken } = await seed(db, raw);
+  const ok = await handleCreateDemand(db, { demand: { ...baseDemand, additional_info: '希望老师耐心一些，孩子基础一般' } }, reqOf(stuToken));
+  assert.equal(ok.status, 200, '正常补充说明放行');
+  const long = await handleCreateDemand(db, { demand: { ...baseDemand, additional_info: '文'.repeat(2000) } }, reqOf(stuToken));
+  assert.equal(long.status, 200);
+  const row = raw.prepare('SELECT additional_info FROM student_demands ORDER BY id DESC LIMIT 1').get();
+  assert.ok(row.additional_info.length <= 500, `补充说明截断到 500（实 ${row.additional_info.length}）`);
+});
+
+test('F-1 教师 intro/school 含门牌号 → 400（此前仅 address 有守卫）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { teaToken } = await seed(db, raw);
+  const base = { province: 'shanghai', price_min: 150, price_max: 200 };
+  for (const [field, val] of [['intro', '家在8号楼702室'], ['school', '某某学院3号楼']]) {
+    const r = await handleSaveProfile(db, { profile: { ...base, [field]: val } }, reqOf(teaToken));
+    assert.equal(r.status, 400, `${field} 门牌被拒`);
+  }
+});
+
+test('F-4 联系方式超长截断：wechat/email ≤ CONTACT_MAX、parent/student_contact ≤ CONTACT_MAX', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { teaToken, stuToken } = await seed(db, raw);
+  // 测试环境无 FIELD_ENC_KEY → encryptField fail-open 存明文，可直接断言落库长度（routes 层 slice 先于 db）
+  const pw = await handleSaveProfile(db, { profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, wechat: 'w'.repeat(300), email: 'e'.repeat(300) } }, reqOf(teaToken));
+  assert.equal(pw.status, 200);
+  const row = raw.prepare('SELECT wechat, email FROM teacher_profiles').get();
+  assert.equal((await decryptField(row.wechat)).length, 50, 'wechat 截断到 CONTACT_MAX');
+  assert.equal((await decryptField(row.email)).length, 50, 'email 截断到 CONTACT_MAX');
+  const dc = await handleCreateDemand(db, { demand: { ...baseDemand, parent_contact: '1'.repeat(300), student_contact: '2'.repeat(300) } }, reqOf(stuToken));
+  assert.equal(dc.status, 200, '超长联系方式不拒（截断语义）');
+  const drow = raw.prepare('SELECT parent_contact FROM student_demands ORDER BY id DESC LIMIT 1').get();
+  assert.equal((await decryptField(drow.parent_contact)).length, 50, 'parent_contact 截断到 CONTACT_MAX');
+});
