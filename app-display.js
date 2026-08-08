@@ -177,6 +177,17 @@
         ? `<span class="username-deactivated">${esc(s)}</span>` : esc(s);
     },
 
+    // v0.25.42（注销幽灵数据）：对端姓名是否已注销（墓碑前缀命中）
+    isDeactivated(name) {
+      return String(name || '').startsWith(UI().DEACTIVATED_USER_PREFIX);
+    },
+
+    // v0.25.42：涉事双方数据（会话/需求/合同/评价等）的对端姓名旁追加「一方已注销」tag——
+    // 对方已注销但数据仍保留的场景，明确告知本端对方账户状态。非注销返 ''
+    deactivatedTag(name) {
+      return D.isDeactivated(name) ? `<span class="tag-deactivated">${esc(UI().PEER_DEACTIVATED_TAG || '一方已注销')}</span>` : '';
+    },
+
     // 行级 diff（v0.24.3 合同改动高亮）：oldText/newText 按行 LCS 分类，
     // 返回 ops：[{ t: 'same'|'del'|'add', text }]。纯函数、零 DOM。
     diffLines(oldText, newText) {

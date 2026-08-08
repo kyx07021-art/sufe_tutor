@@ -386,6 +386,8 @@ body { background: transparent; }
 .tag-danger { --g-fill: var(--g-danger-fill); color: var(--danger); }
 .tag-warn { --g-fill: var(--g-warn-fill); color: var(--warn-deep); }
 .tag-accent { --g-fill: var(--g-accent-fill); color: var(--accent-deep); }
+/* v0.25.42（注销幽灵数据）：一方已注销 tag——中性弱玻璃 + 灰字，注销是状态中性信息不惊扰（同 .post-like 弱面族） */
+.tag-deactivated { --g-fill: var(--g-fill-weak); color: var(--muted); }
 /* 反馈卡 Bug 红色警示 */
 /* 反馈 bug 卡：--g-surface 左红条连根拔（v0.19.21 用户定性没必要）——CSS 变量继承会把红条传给卡内所有 glass 子组件(tag/按钮)，
    语义条只应设在不含 glass 子组件的组件上（如 alert 提示条） */

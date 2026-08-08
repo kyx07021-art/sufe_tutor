@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.41',
+  APP_VERSION: '0.25.42',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -762,6 +762,8 @@ globalThis.APP_CONSTANTS = {
     REAUTH_PASSWORD_LABEL: '当前密码',
     REAUTH_PASSWORD_HINT: '输入当前密码以确认此操作',
     DEACTIVATED_USER_PREFIX: '已注销用户',
+    // v0.25.42：涉事双方数据（会话/需求/合同/评价等）对端展示的注销提示 tag
+    PEER_DEACTIVATED_TAG: '一方已注销',
 
     // 访客模式：主页按钮直达客户端（未登录态）；需要身份的操作统一经 ensureAuth 导向特制登录页，登录后自动返回原页面
     GUEST_NOT_LOGGED_IN: '未登录',

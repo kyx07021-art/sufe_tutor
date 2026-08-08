@@ -80,7 +80,7 @@ function renderPostCard(p, i) {
       ${mine ? `<button type="button" class="post-del" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}
     </div>
     <div class="post-meta">
-      <span class="post-author">${DISP.usernameHtml(p.username || UI.POST_ANONYMOUS)}</span>
+      <span class="post-author">${DISP.usernameHtml(p.username || UI.POST_ANONYMOUS)}${DISP.deactivatedTag(p.username)}</span>
       <span class="post-time">${escHtml(time)}</span>
     </div>
     ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > CONFIG.POST_SNIPPET ? '…' : ''}</p>` : ''}

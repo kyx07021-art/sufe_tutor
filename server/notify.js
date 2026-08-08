@@ -55,7 +55,8 @@ export async function dbBroadcastNotification(db, text) {
   const t = String(text || '').trim().slice(0, LIMITS.BROADCAST_TEXT_MAX);
   if (!t) return 0;
   const batchId = genCode(8);
-  const res = await dbRun(db, 'INSERT INTO notifications (user_id, text, batch_id) SELECT id, ?, ? FROM users', [t, batchId]);
+  // v0.25.41：已注销用户不收广播（否则 purge 后再广播会为墓碑用户补插幽灵通知）
+  const res = await dbRun(db, 'INSERT INTO notifications (user_id, text, batch_id) SELECT id, ?, ? FROM users WHERE deactivated=0', [t, batchId]);
   return (res && res.meta && res.meta.changes) || 0;
 }
 

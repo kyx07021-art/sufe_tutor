@@ -85,7 +85,7 @@ function renderContractCard(c) {
 
   return `<div class="list-card glass">
     <div class="list-card-header">
-      <span class="list-card-title">${DISP.usernameHtml(peerName)}</span>
+      <span class="list-card-title">${DISP.usernameHtml(peerName)}${DISP.deactivatedTag(peerName)}</span>
       <span class="tag glass glass--solid ${statusCls}">${statusText}</span>
     </div>
     <div class="list-card-body">

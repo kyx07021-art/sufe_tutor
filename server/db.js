@@ -599,6 +599,22 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
     await dbRun(db, 'DELETE FROM demand_pushes WHERE teacher_user_id=?', [userId]);
   }
 
+  // v0.25.41（注销幽灵数据）：发起方的待处理签约请求收束为「已拒绝」终态——行 + 会话内气泡同步终态。
+  // 不能 DELETE：气泡自包含（kind='signing_request' 渲染自 body JSON），行删了气泡仍显 pending 按钮、
+  // 接收方点击必 404 死按钮（死签约请求）；也不可留 pending：注销者永不可回应、对方永远悬着。
+  // 置 rejected = 单方 offer 收走（offer 作历史双方协商记录保留），气泡终态灰字「已拒绝此次签约请求」。
+  const myPendingSignings = await dbAll(db,
+    'SELECT id, message_id, price, schedule, method FROM signing_requests WHERE initiator_user_id=? AND status=?',
+    [userId, STATUS.PENDING]);
+  for (const sr of myPendingSignings) {
+    await dbRun(db, `UPDATE signing_requests SET status=?, responded_at=datetime('now','localtime') WHERE id=? AND status=?`,
+      [STATUS.REJECTED, sr.id, STATUS.PENDING]);
+    if (sr.message_id) {
+      await dbRun(db, 'UPDATE messages SET body=? WHERE id=?',
+        [JSON.stringify({ id: sr.id, price: sr.price, schedule: sr.schedule, method: sr.method, status: STATUS.REJECTED }), sr.message_id]);
+    }
+  }
+
   // 匿名化本人发出的聊天正文与附件（会话/合同行保留，正文清空 + 墓碑用户名显示，符合 F-06 保留分级）。
   // 网安审计 N-03：image/file 消息的 dataURL 本体（最高 700KB）与文件名同样清空——原只清 kind='text'，
   // 注销者历史照片/文件会永久留在库中、可被会话对方经 attachment 接口无限期下载。
@@ -884,8 +900,9 @@ export async function dbGetDemands(db, { admin = false, cursor = null, teacherUs
   }
   // 广场只展示活跃需求（v0.25.10 用户反馈：统一口径 status='open'——此前排除式 NOT IN ('contracted','revoked')
   // 会把未来新增状态/NULL 当活跃，与 dbCreatePush/dbCreateIntent 的原子守卫（WHERE status='open'）口径漂移）
+  // v0.25.41（注销幽灵数据）：广场门控——已注销用户数据严禁入场（不依赖 purge 完整性，双保险）
   const rows = await dbAll(db, sel + extra +
-    ` WHERE sd.status='open' ORDER BY sd.created_at DESC LIMIT ?`,
+    ` WHERE sd.status='open' AND u.deactivated=0 ORDER BY sd.created_at DESC LIMIT ?`,
     [...params, LIMITS.PUBLIC_LIST_MAX]);
   return rows.map(mapDemandRow);
 }
@@ -965,7 +982,7 @@ export async function dbGetPendingPushesForTeacher(db, teacherUserId) {
     FROM demand_pushes dp
     JOIN student_demands sd ON sd.id=dp.demand_id
     JOIN users u ON u.id=sd.user_id
-    WHERE dp.teacher_user_id=? AND dp.status='pending'
+    WHERE dp.teacher_user_id=? AND dp.status='pending' AND u.deactivated=0 -- v0.25.41 门控：已注销学生推送不进场
     ORDER BY dp.created_at DESC`, [teacherUserId]);
   return rows.map(mapDemandRow); // push_* 字段随 rest 透传
 }
@@ -1016,7 +1033,8 @@ export async function dbGetIntentTeachers(db, demandId) {
     FROM demand_intents di
     JOIN users u ON u.id=di.teacher_user_id
     LEFT JOIN teacher_profiles tp ON tp.user_id=di.teacher_user_id
-    WHERE di.demand_id=? ORDER BY di.created_at DESC`, [demandId]);
+    WHERE di.demand_id=? AND u.deactivated=0 -- v0.25.41 门控：已注销教师意向不进场
+    ORDER BY di.created_at DESC`, [demandId]);
   // 附加意向自身字段（id/状态/时间），供学生端同意/拒绝按钮使用
   // 出口剥私密字段（mapper 出口剥私密字段契约，v0.19.40 自路由层内收）：
   // 联系方式签约后展示；真实姓名/学信网截图仅双向匹配后按档案端点定点取
@@ -1056,9 +1074,13 @@ export async function dbCreateReview(db, teacherUserId, reviewerUserId, rating, 
 }
 
 export async function dbGetApprovedReviews(db, teacherUserId) {
+  // v0.25.41 门控：已注销评价者/被评教师的数据不对外（教师注销后评价行保留留档，但不再经此公开出口）
   return await dbAll(db, `SELECT r.*, u.username as reviewer_name
     FROM reviews r JOIN users u ON r.reviewer_user_id=u.id
-    WHERE r.teacher_user_id=? AND r.status='approved' ORDER BY r.created_at DESC LIMIT 200`,
+    WHERE r.teacher_user_id=? AND r.status='approved'
+      AND u.deactivated=0
+      AND EXISTS (SELECT 1 FROM users u2 WHERE u2.id=r.teacher_user_id AND u2.deactivated=0)
+    ORDER BY r.created_at DESC LIMIT 200`,
     [teacherUserId]); // 防全表返回（面板滚动查看；单教师 200 条上限足够）
 }
 
@@ -1136,6 +1158,8 @@ function likeEscape(s) {
 // sort: new=时间倒序（默认）；hot=like_count 倒序、同值时间倒序
 export async function dbListPosts(db, { section, q, viewerId, sort } = {}) {
   const cond = [], params = [];
+  // v0.25.41（注销幽灵数据）：广场门控——已注销用户帖子严禁入场（LEFT JOIN 下该条件等效丢弃墓碑作者行）
+  cond.push('u.deactivated = 0');
   if (section) { cond.push('p.section = ?'); params.push(section); }
   if (q) {
     cond.push("(p.title LIKE ? ESCAPE '\\' OR p.body_md LIKE ? ESCAPE '\\')");

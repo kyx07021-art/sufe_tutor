@@ -372,7 +372,7 @@ function renderProfilePanel(base, t, signed, reviewsData) {
         ${renderAvatarHtml(base.avatar, base.username, 'profile-avatar')}
         ${signed ? `<span class="profile-signed-tag glass glass--solid">${UI.PROFILE_SIGNED_TAG}</span>` : ''}
       </div>
-      <div class="profile-id-name">${DISP.usernameHtml(base.username)}</div>
+      <div class="profile-id-name">${DISP.usernameHtml(base.username)}${DISP.deactivatedTag(base.username)}</div>
       <div class="profile-id-role">${roleLabel}</div>
     </div>`;
   return cardId
@@ -528,7 +528,7 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
   const statusTag = r => DISP.reviewStatusTagHtml(r.status);
   const list = reviews.length ? reviews.map(r => `<div class="review-item">
       <div class="review-header">
-        <span class="review-author">${DISP.usernameHtml(r.reviewer_name || '')} ${DISP.starsHtml(r.rating)} ${reviewsData.admin ? statusTag(r) : ''}</span>
+        <span class="review-author">${DISP.usernameHtml(r.reviewer_name || '')}${DISP.deactivatedTag(r.reviewer_name)} ${DISP.starsHtml(r.rating)} ${reviewsData.admin ? statusTag(r) : ''}</span>
         <span class="review-date">${fmtDateTime(r.created_at)}</span>
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
