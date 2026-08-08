@@ -258,7 +258,10 @@ function renderChatFrame(conv) {
         </svg>
       </button>` : ''}
     </div>
-    <div class="chat-sign-tip glass glass--solid${conv && conv.contracted ? '' : ' hidden'}" id="chat-sign-tip">${UI.CHAT_SIGN_TIP}</div>
+    <div class="chat-sign-tip glass glass--solid${conv && conv.contracted ? '' : ' hidden'}" id="chat-sign-tip">
+      <span class="chat-sign-text">${UI.CHAT_SIGN_TIP}</span>
+      <button type="button" class="btn btn-sm glass glass--pressable" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
+    </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
     <div class="chat-drop-hint hidden" id="chat-drop-hint">${UI.CHAT_DROP_HINT}</div>
     <div class="chat-stage hidden glass" id="chat-stage"></div>

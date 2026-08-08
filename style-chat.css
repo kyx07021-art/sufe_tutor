@@ -344,16 +344,18 @@ textarea.chat-textarea {
 .chat-input-bar--closed { justify-content: center; }
 .chat-closed-tip { padding: 6px 0; font-size: .8rem; color: var(--muted); }
 
-/* 需求四·第4条：签约确认后会话背景灰字提示条（JS 只切 hidden 类显隐，文案单源 UI.CHAT_SIGN_TIP）
-   v0.25.19 审计 G-07：接入引擎（app-chat.js 挂 glass glass--solid）——background 迁 --g-fill；
-   全宽条零圆角/零浮影/零液体边保视觉不变；border-bottom 为结构线保留 */
+/* 需求四·第4条 + v0.25.55 需求四十七重构：签约确认后会话内的「建议起草合同」提醒卡片。
+   原实现为整宽细条（padding 6px、0.78rem 灰字居中、无任何动作入口）——低可见性、无引导；
+   重构为居中玻璃卡片：文案 + 「起草合同」按钮（直达 chatPlusDraft，复用 CHAT_BTN_DRAFT_CONTRACT 文案单源）。
+   窄屏 flex-wrap 让按钮换行落到文案下方。JS 仍只切 hidden 类显隐。 */
 .chat-sign-tip {
-  padding: 6px 14px;
-  font-size: .78rem; line-height: 1.5; color: var(--muted);
-  text-align: center;
-  --g-fill: var(--g-fill-faint); --g-r: 0; --g-lift: 0 0 0 0 transparent; --g-liquid: 0 0 0 0 transparent;
-  border-bottom: 1px solid var(--line);
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  width: fit-content; max-width: min(90%, 560px); margin: 8px auto;
+  padding: 9px 10px 9px 16px;
+  font-size: .8rem; line-height: 1.5; color: var(--muted);
+  --g-fill: var(--g-fill-weak);
 }
+.chat-sign-tip .chat-sign-text { flex: 1 1 auto; min-width: 200px; } /* 文案占主位，按钮靠右；窄屏换行 */
 
 /* ---------- 未选中会话占位：品牌四圆点呼吸 ---------- */
 .chat-placeholder {
