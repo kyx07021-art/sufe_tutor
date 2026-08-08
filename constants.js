@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.63',
+  APP_VERSION: '0.25.64',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -64,7 +64,7 @@ globalThis.APP_CONSTANTS = {
     TOUR_TARGET_TIMEOUT_MS: 3000,         // 新手引导：目标未挂载 rAF 轮询超时，超时自动跳过该步
     TOUR_GAP_PX: 16,                      // 新手引导：文字气泡与亮区间距（JS 定位用）
     TOUR_SCROLL_BAND_LO: 0.3, TOUR_SCROLL_BAND_HI: 0.7, // 需求五十四：新手引导滚动后目标中心须落容器可视区竖带（比例）
-    PROFILE_ROW_GAP: 22,                  // 需求六·item1：教师资料卡条目纵向间距 px（去分隔线后拉大空隙，防相邻条目粘连难读）
+    PROFILE_ROW_GAP: 11,                  // 需求六·item1：教师资料卡条目纵向间距 px；#156（v0.25.64）行距压半 22→11
     FILTER_ROW_GAP: 16,                   // 需求五（v0.25.44）：筛选面板多排下拉栏之间的纵向空隙 px（上下两排不能零空隙紧贴）
     UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_DEFAULT: 100, UI_SCALE_STEP: 1, // 需求六·item5：UI 大小滑块范围/步进（百分比；100=现状；v0.25.12 上限扩到 120）
     UI_SCALE_KEY: 'sufe_ui_scale',        // 需求六·item5：UI 大小偏好 localStorage 键（参照 setThemePref 的 sufe_theme 模式）

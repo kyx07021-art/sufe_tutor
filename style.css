@@ -1570,7 +1570,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    ============================================================ */
 .profile-panel {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 150;
-  width: max(300px, 25vw);
+  width: min(max(330px, 30vw), 460px); /* #156（v0.25.64）：PC 资料卡加宽（原 25vw→30vw），460px 上限防超大屏过宽；移动端 @media 覆盖不受影响 */
   display: flex; flex-direction: column;
 
   --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
@@ -1633,7 +1633,7 @@ body.profile-panel-closing .profile-panel {
 .profile-row-v--muted { color: var(--muted); font-size: .78rem; } /* 占位态：未填写 / 建立会话后展示 / 签约后展示 */
 /* 需求六·item2：资料卡分组大 title —— 占满横向空位分隔不同类型资料（去行分隔线后的段分隔） */
 .profile-group-title {
-  margin: 22px 0 10px;
+  margin: 14px 0 8px; /* #156（v0.25.64）：组标题行距压紧（原 22px 0 10px） */
   margin-left: -8px; /* v0.25.12（反馈）：大标题左凸——左对齐线突出来，不与字段标签共用同一条左对齐线
     （.profile-form 内边距 8px，负 margin 把标题顶到表单最左缘；字段保持 +8px 缩进） */
   font-size: 1.08rem; font-weight: 900; letter-spacing: .04em; color: var(--ink);
@@ -1657,7 +1657,7 @@ body.profile-panel-closing .profile-panel {
 /* 编辑页组内：分割线去净（分组由大标题承担）、字段标签组内向上对齐（align-items:center 会把标签
    垂直居中在高度较高的控件旁，多行网格/成绩区下视觉悬空） */
 .profile-form .form-group + .form-group { border-top: none; }
-.profile-form .form-group { align-items: flex-start; }
+.profile-form .form-group { align-items: flex-start; padding: 8px 0; } /* #156（v0.25.64）：表单压紧——组行距 15px→8px（去横线后无需大空隙） */
 .profile-form .form-label { padding-top: calc(8px * var(--ui-scale, 1)); }
 /* 需求六·item3：私密资料项两行式灰字小提示（黑字值下方一行灰字，如「签约后展示联系方式」） */
 .profile-row-note { display: block; margin-top: 2px; font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }

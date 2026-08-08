@@ -192,3 +192,13 @@ test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、
   // 刷新等价：getUiScale 从 localStorage 读回 85
   assert.equal(vm.runInContext('getUiScale()', ctx), 85, '刷新后按 localStorage 现值应用');
 });
+
+// #156（v0.25.64）：资料项行距压半 + PC资料卡加宽 + 表单去横线压紧（CSS+常量在位）
+test('#156 资料紧凑化：行距压半 / PC资料卡加宽 / 表单压紧', () => {
+  const css = readFileSync('./style.css', 'utf8');
+  const constants = readFileSync('./constants.js', 'utf8');
+  assert.ok(constants.includes('PROFILE_ROW_GAP: 11'), '资料卡条目行距压半（22→11）');
+  assert.ok(css.includes('min(max(330px, 30vw), 460px)'), 'PC 资料卡加宽（30vw，460px 上限）');
+  assert.ok(css.includes('align-items: flex-start; padding: 8px 0;'), '编辑表单组行距压紧（15→8px）');
+  assert.ok(css.includes('margin: 14px 0 8px;'), '组标题行距压紧（22→14px）');
+});
