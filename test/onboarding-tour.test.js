@@ -479,7 +479,7 @@ test('会话 + 号功能栏：四个项目逐一聚焦介绍（pass:false 不透
   });
 });
 
-test('滚动架构：视口外目标自动滚入再定位；已可见目标不滚（jsdom 打桩验证）', async () => {
+test('滚动架构：视口外目标自动滚入再定位；中心在 30%~70% 带内不滚；贴边可见也滚入中带（jsdom 打桩）', async () => {
   const { ctx } = makeCtx();
   vm.runInContext(`
     window.__scrolled = 0;
@@ -493,14 +493,22 @@ test('滚动架构：视口外目标自动滚入再定位；已可见目标不�
   `, ctx);
   vm.runInContext('_tourScrollToEl(document.getElementById("scroll-far"))', ctx);
   assert.equal(vm.runInContext('window.__scrolled', ctx), 1, '视口外目标被滚入');
-  // 已完全可见目标 → 不滚（侧栏/常驻元素天然命中，防无谓跳页）
+  // 中心在 30%~70% 带内且完全可见 → 不滚（侧栏/常驻元素天然命中，防无谓跳页）
   vm.runInContext(`
     const t2 = document.createElement('div'); t2.id = 'scroll-near';
-    Object.defineProperty(t2, 'getBoundingClientRect', { value: () => ({ top: 10, left: 10, bottom: 100, right: 200, width: 190, height: 90 }) });
+    Object.defineProperty(t2, 'getBoundingClientRect', { value: () => ({ top: 300, left: 10, bottom: 390, right: 200, width: 190, height: 90 }) });
     document.body.appendChild(t2);
   `, ctx);
   vm.runInContext('_tourScrollToEl(document.getElementById("scroll-near"))', ctx);
-  assert.equal(vm.runInContext('window.__scrolled', ctx), 1, '已可见目标不重复滚动');
+  assert.equal(vm.runInContext('window.__scrolled', ctx), 1, '带内可见目标不重复滚动');
+  // 需求五十四：完全可见但中心贴视口顶（7%）→ 仍滚入中带（+1 → 2）
+  vm.runInContext(`
+    const t3 = document.createElement('div'); t3.id = 'scroll-edge';
+    Object.defineProperty(t3, 'getBoundingClientRect', { value: () => ({ top: 10, left: 10, bottom: 100, right: 200, width: 190, height: 90 }) });
+    document.body.appendChild(t3);
+  `, ctx);
+  vm.runInContext('_tourScrollToEl(document.getElementById("scroll-edge"))', ctx);
+  assert.equal(vm.runInContext('window.__scrolled', ctx), 2, '贴边可见目标也滚入中带（30%~70% 硬性要求）');
 });
 
 test('动画稳定化：目标祖先链动画运行中 → 延迟到动画结束才定位亮区（修卡屏幕外）', async () => {

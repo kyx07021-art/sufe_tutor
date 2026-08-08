@@ -162,14 +162,38 @@ function _tourHideHole() {
 //   动画：资料栏/modal 滑入中的 getBoundingClientRect 是中间帧几何，亮区/气泡会卡屏幕外——
 //   _tourAnimating 等祖先链动画结束（含 transition，getAnimations 一并返回）再定位，最长 2s 防永动动画卡死。
 
-/** 目标滚入视口：已完全可见则跳过（防无谓跳页）；instant 滚动防平滑动画与亮区几何竞态 */
+/** 最近可滚动祖先 = 该目标的滚动视口（主内容区 .client-main 内滚、侧栏 .sidebar-scroll 内滚，非窗口）。
+ *  带宽判据须用容器自身高度，不能用 window.innerHeight（容器在视口内有偏移/不等高）。 */
+function _tourScrollViewport(el) {
+  for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+    if (n === document.documentElement || n === document.scrollingElement || n === document.body) break;
+    try {
+      const st = getComputedStyle(n);
+      if (/(auto|scroll|overlay)/.test(st.overflowY) && n.clientHeight > 0) return n;
+    } catch (err) { /* 忽略 */ }
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
+/** 目标滚入滚动容器中带（需求五十四 v0.25.62）：滚动须让目标中心落在容器可视区 30%~70% 竖带。
+ *  判据从「完全可见即跳过」收紧为「中心在 30%~70% 且完全可见才跳过」——贴边可见（顶部/底部边缘）
+ *  也要滚入中带，亮区不压在容器边缘；block:'center' 居中落点（容器边缘不可居中时尽力即可）。
+ *  instant 滚动防平滑动画与亮区几何竞态。 */
 function _tourScrollToEl(el) {
   if (!el || typeof el.scrollIntoView !== 'function') return; // jsdom 无 scrollIntoView（测试零开销）
   const r = el.getBoundingClientRect();
   if (r.width <= 0 || r.height <= 0) return; // 未布局，跳过
   const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
-  const vh = window.innerHeight || document.documentElement.clientHeight || 768;
-  if (r.top >= 0 && r.left >= 0 && r.bottom <= vh && r.right <= vw) return;
+  const vp = _tourScrollViewport(el);
+  const vr = vp.getBoundingClientRect();
+  const vh = vp.clientHeight || window.innerHeight || 768;
+  const top = r.top - vr.top; // 目标在滚动容器内的相对位置
+  const center = top + (r.bottom - r.top) / 2;
+  const bandLo = CONFIG.TOUR_SCROLL_BAND_LO || 0.3;
+  const bandHi = CONFIG.TOUR_SCROLL_BAND_HI || 0.7;
+  const inBand = center >= vh * bandLo && center <= vh * bandHi;
+  const visible = r.top >= vr.top && r.left >= 0 && r.bottom <= vr.top + vh && r.right <= vw;
+  if (inBand && visible) return;
   try { el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' }); } catch (err) { /* 不阻断步进 */ }
 }
 
