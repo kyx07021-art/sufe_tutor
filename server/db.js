@@ -1314,13 +1314,8 @@ export async function dbGetContractById(db, id) {
   return row;
 }
 
-// 一条会话至多一份进行中合同（起草查重 / 聊天窗合同状态行用）
-export async function dbGetContractByConv(db, conversationId) {
-  const row = await dbGet(db, 'SELECT * FROM contracts WHERE conversation_id=? ORDER BY id DESC LIMIT 1', [conversationId]);
-  if (row) row.contract_md = await decryptField(row.contract_md);
-  return row;
-}
-
+// v0.25.57 需求四十九：dbGetContractByConv 已连根拔——会话级查任意状态合同过宽（把已拒绝/已撤销历史合同
+// 当「进行中」，阻塞重新起草）；「一条需求一份合同」由需求级门禁（status IN pending/signing/signed）把关。
 // 我参与的合同列表（含双方用户名 + 需求编号，「我的合同」页用）
 export async function dbGetMyContracts(db, userId) {
   const rows = await dbAll(db, `SELECT ct.*, c.student_user_id, c.teacher_user_id,

@@ -18,7 +18,7 @@ import { bufToHex, encryptField } from './crypto.js';
 import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
 import { MSG, STATUS } from './constants.js';
 import {
-  dbGetContractById, dbGetContractByConv, dbGetMyContracts, dbGetAllContractsAdmin,
+  dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin,
   dbDeleteContract, dbDeleteContractMessages,
   dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
 } from './db.js';
@@ -294,8 +294,6 @@ export async function handleCreateContract(db, body, req) {
   const conversationId = parseInt(body.conversationId);
   const conv = await dbGetConversationWithNames(db, conversationId);
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
-  const existing = await dbGetContractByConv(db, conversationId);
-  if (existing) return error(MSG.CONTRACT_EXISTS, 409);
 
   const method = body.method === 'offline' ? 'offline' : 'online';
   const plan = String(body.plan || '').slice(0, 20000);
@@ -340,24 +338,27 @@ export async function handleCreateContract(db, body, req) {
   const res = await dbRun(db,
     // v0.25.32 加固：发起方不再自动确认（原 drafter_confirmed=1 自动「已签约」）——起草后双方
     // 各自走「读合同→滚到底+待够时长→二次确认→密码最终确认」显式签署，双方确认才 signed
+    // v0.25.57 需求四十九：删会话级「已存在进行中的合同」限制（连根拔）——会话级查任意状态合同
+    // 会把已拒绝/已撤销的历史合同也算「进行中」，阻塞重新起草；需求级门禁（ct2 只认 pending/signing/
+    // signed）才是「一条需求一份合同」的正确闸门。会话只绑一条需求，需求级门禁天然覆盖会话级。
     `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
         pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other, drafter_confirmed, status)
      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?, 0, 'signing'
-     WHERE NOT EXISTS (SELECT 1 FROM contracts WHERE conversation_id=? AND status IN ('pending','signing'))
-       AND NOT EXISTS (SELECT 1 FROM contracts ct2 WHERE ct2.demand_id=? AND ct2.status IN ('pending','signing','signed'))
+     WHERE NOT EXISTS (SELECT 1 FROM contracts ct2 WHERE ct2.demand_id=? AND ct2.status IN ('pending','signing','signed'))
        AND EXISTS (SELECT 1 FROM student_demands WHERE id=? AND status='contracted')
        AND NOT EXISTS (SELECT 1 FROM signing_requests sr JOIN conversations c2 ON c2.id=sr.conversation_id
             WHERE sr.demand_id=? AND sr.status='signed' AND c2.teacher_user_id != ?)`,
     [conversationId, userId, demandId, method, schedule, location, plan, rate, mdEnc,
      payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
-     conversationId, demandId, demandId, demandId, conv.teacher_user_id]);
-  // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 existing 检查是快路径，此处是竞态闸门）；
+     demandId, demandId, demandId, conv.teacher_user_id]);
+  // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 demandId 门禁是快路径，此处是竞态闸门）；
   // 附加守卫：需求已被并发绑合同（另一会话）或需求被并发删除则同样 changes=0，判别后报对应用户可读错误
   if (!(res && res.meta && res.meta.changes > 0)) {
     if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
     const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [demandId]);
     if (dc) return error(MSG.DEMAND_CONTRACT_EXISTS, 409);
-    return error(MSG.CONTRACT_EXISTS, 409);
+    // 剩余竞态：需求状态被并发改（非 contracted）或成交方被并发换教师——均为「该需求不可绑本合同」
+    return error(MSG.DEMAND_NOT_SIGNED, 410);
   }
   const id = (res && res.meta && res.meta.last_row_id) || 0;
   if (id > 0) {

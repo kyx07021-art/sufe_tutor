@@ -112,7 +112,8 @@ export const MSG = {
   POST_NOT_FOUND: '帖子不存在',
 
   // 合同（通知模板含 {name} 占位；用户可见合同文案在 constants.js UI.CONTRACT_*，本块只留校验/状态语义）
-  CONTRACT_EXISTS: '该会话已存在进行中的合同',
+  // v0.25.57 需求四十九：CONTRACT_EXISTS（该会话已存在进行中的合同）已连根拔——会话级查任意状态合同过宽，
+  // 阻塞已拒绝/已撤销后的重新起草；「一条需求一份合同」由 DEMAND_CONTRACT_EXISTS 需求级门禁把关。
   CONTRACT_CANCEL_SIGNED_BLOCKED: '对方已确认签约，无法再取消签约；如要结束合作请双方协商后走「撤销合同」',
   CONTRACT_NOT_FOUND: '合同不存在',
   CONTRACT_STATE_INVALID: '合同当前状态不允许该操作',

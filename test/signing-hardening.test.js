@@ -149,7 +149,7 @@ test('确认签约后同需求再发起签约被拒（410）', async () => {
 test('起草合同：无 demandId → 410；open 需求 → 410（须已签约）；contracted → 201', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { t1Token, d1, d2 } = await seed(db, raw);
-  // 无 demandId → 410（conv 尚无合同，走 demandId 门禁；会话已有合同时由 CONTRACT_EXISTS 先行 409）
+  // 无 demandId → 410（v0.25.57 需求四十九后仅走 demandId 门禁——旧会话级 CONTRACT_EXISTS 已连根拔）
   const noId = contractBody(1, d2); noId.demandId = undefined;
   const r0 = await handleCreateContract(db, noId, reqOf(t1Token));
   assert.equal(r0.status, 410, '起草合同必须选已签约需求');
@@ -184,6 +184,29 @@ test('起草合同：同需求重复起草 → 409（一条需求一份合同）
   assert.equal((await handleCreateContract(db, contractBody(1, d2), reqOf(t1Token))).status, 201);
   const r2 = await handleCreateContract(db, contractBody(1, d2), reqOf(t1Token));
   assert.equal(r2.status, 409, '一条需求只允许一份合同');
+});
+
+// 需求四十九（v0.25.57）：会话级「已存在进行中的合同」（CONTRACT_EXISTS）连根拔。
+// 合同表 CHECK 只许 pending/signing/signed、取消/撤销皆删行 → 会话级检查实践上纯冗余（找不到
+// 残留合同），但会把「同会话只能有一份合同」强加在「一条需求一份合同」业务规则之上——同会话对
+// 另一已签约需求起草第二份合同被误拦。删会话级检查后，需求级门禁（status IN pending/signing/signed）
+// 是唯一闸门：一条需求一份合同，同会话可按需求持有多份合同。
+test('需求四十九：同会话可对另一已签约需求起草合同；同一需求仍只一份', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1, t1Token, d2 } = await seed(db, raw);
+  // 再建一份 s1 的已签约需求 d3（同会话起草第二份合同的场景）
+  raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
+    VALUES (?,?,?,?,?,?,?,?,'contracted')`).run(s1, 'senior1', 'female', '["math"]', '[]', 'self', '13800000000', '13800000000');
+  const d3 = raw.prepare('SELECT id FROM student_demands ORDER BY id DESC LIMIT 1').get().id;
+  // C1 起草绑 d2 → 201
+  assert.equal((await handleCreateContract(db, contractBody(1, d2), reqOf(t1Token))).status, 201, '首次起草成功');
+  // 同会话再起草绑 d3 → 旧代码 409（会话级已存在合同），新代码 201（需求级一份一份门禁）
+  const r2 = await handleCreateContract(db, contractBody(1, d3), reqOf(t1Token));
+  assert.equal(r2.status, 201, '同会话可对另一已签约需求起草（会话级限制已连根拔）');
+  // 同一需求 d3 重复起草 → 需求级门禁仍拦
+  const r3 = await handleCreateContract(db, contractBody(1, d3), reqOf(t1Token));
+  assert.equal(r3.status, 409, '同一需求仍只一份合同');
+  assert.equal((await r3.json()).error, '该需求已关联合同，不可重复起草', '报需求级文案');
 });
 
 // ============ 5. v0.25.32 签约加固：发起方不自动确认 ============
