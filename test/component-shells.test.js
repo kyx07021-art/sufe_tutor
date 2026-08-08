@@ -94,3 +94,27 @@ test('positionFloatCard：锚定 btn 下缘 + listEl 高度上限单源 CONFIG',
   assert.equal(card.style.top, `${100 + offset}px`, '锚定：bottom + MAX_MATCH_DETAIL_OFFSET');
   assert.equal(list.style.maxHeight, `${maxH}px`, 'listEl 高度上限单源 CONFIG');
 });
+
+test('positionFloatCard：右缘钳制——移动端按钮贴右时卡片强制右对齐屏幕边缘（v0.25.26）', () => {
+  const { ctx, dom } = makeCtx();
+  const btn = dom.window.document.createElement('button');
+  const card = dom.window.document.createElement('div');
+  dom.window.document.body.append(btn, card);
+  // 桩：iPhone 宽 375、卡片宽 300、按钮贴右（left=300）→ 默认左对齐会伸出右缘（300+300>375-8）
+  vm.runInContext(`
+    btn.getBoundingClientRect = () => ({ left: 300, bottom: 100, top: 80, width: 80, height: 20 });
+    Object.defineProperty(card, 'offsetWidth', { get: () => 300, configurable: true });
+    Object.defineProperty(document.documentElement, 'clientWidth', { get: () => 375, configurable: true });
+    positionFloatCard(btn, card);
+  `, Object.assign(ctx, { btn, card }));
+  const m = vm.runInContext('CONFIG.MATCH_DETAIL_EDGE_MARGIN', ctx);
+  assert.equal(card.style.left, `${375 - 300 - m}px`, '右缘越界 → 钳到右对齐屏幕边缘（vw-w-margin）');
+  assert.equal(card.style.top, `${100 + vm.runInContext('CONFIG.MAX_MATCH_DETAIL_OFFSET', ctx)}px`, '锚定逻辑不受钳制影响');
+
+  // 反例：按钮在左半（left=20），右缘不越界 → 保持左对齐
+  vm.runInContext(`
+    btn.getBoundingClientRect = () => ({ left: 20, bottom: 200 });
+    positionFloatCard(btn, card);
+  `, Object.assign(ctx, { btn, card }));
+  assert.equal(card.style.left, '20px', '右缘未越界 → 保持左对齐');
+});

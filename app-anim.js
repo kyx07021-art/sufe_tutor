@@ -138,7 +138,15 @@ function positionCustomSelectPanel(wrap) {
 function positionFloatCard(btn, card, listEl) {
   if (!btn || !card) return;
   const r = btn.getBoundingClientRect();
-  card.style.left = `${r.left}px`;
+  const vw = document.documentElement.clientWidth;
+  const w = card.offsetWidth;
+  const m = CONFIG.MATCH_DETAIL_EDGE_MARGIN;
+  // v0.25.26 移动端右缘钳制（用户反馈：匹配度明细卡超出屏幕右边）：默认左对齐按钮下，
+  // 卡片右缘越界（按钮贴右 / 窄屏）时强制右对齐屏幕边缘——left 同时钳最小边距，双向杜绝溢出。
+  // w/vw 未就绪（0：jsdom/隐藏态/测量失败）时跳过钳制回退左对齐，防退化环境误钳。
+  let left = r.left;
+  if (w > 0 && vw > 0 && left + w > vw - m) left = Math.max(vw - w - m, m);
+  card.style.left = `${left}px`;
   card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
   if (listEl) listEl.style.maxHeight = `${CONFIG.MATCH_DETAIL_MAX_HEIGHT}px`;
 }

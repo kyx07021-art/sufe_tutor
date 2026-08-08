@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.25',
+  APP_VERSION: '0.25.26',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -50,6 +50,7 @@ globalThis.APP_CONSTANTS = {
     GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（undeclared/历史 nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
     MATCH_DETAIL_MAX_HEIGHT: 320,         // 学生端匹配度明细卡内需求条目区高度上限 px（条目多滚动）
     MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px
+    MATCH_DETAIL_EDGE_MARGIN: 8,          // 匹配明细卡距屏幕左右缘最小边距 px（v0.25.26 移动端右缘钳制）
     GLIDE_MS: 460, SIDEBAR_GLIDE_MS: 380, // 选中块滑动动画时长
     PANEL_CLOSE_TIMEOUT_MS: 600,          // 个人信息栏关闭兜底
     TOAST_MS: 2500, TOAST_FADE_MS: 300,   // Toast 时长
