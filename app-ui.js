@@ -351,7 +351,9 @@ function prefillTimeSlots(container, raw) {
 // ============================================================
 // 弹窗壳单源：overlay + modal + header + body（+ 可选 footer）。
 // 渲染结构与原手写模板逐字节一致——title 传 null 则无头栏（image-viewer 等）；
-// closable 控制点遮罩关闭；cls/style 透传自定义类与内联样式；bodyCls 透传 body 类。
+// closable 配置「点击界外区域是否便捷关闭」：默认 true 点遮罩即关；表单类一律传 false
+// （仅 ✕/取消按钮关闭，防误触丢输入——发帖/签约/需求/反馈/广播同口径）。
+// cls/style 透传自定义类与内联样式；bodyCls 透传 body 类。
 // 开合动画在 CSS（modal-in），JS 只增删 #modal-container 内容
 // ============================================================
 function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '' } = {}) {
@@ -527,6 +529,8 @@ function confirm({ title = null, message = '', needReAuth = false, okText = UI.B
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
     body,
     footer,
+    // v0.25.31 重认证（密码输入）属表单类：点遮罩不关，防误触丢已输入密码；普通确认保留点遮罩快捷关闭
+    closable: !needReAuth,
   });
   if (needReAuth) setTimeout(() => { const i = document.getElementById('reauth-password'); if (i) i.focus(); }, CONFIG.REAUTH_FOCUS_MS);
 }

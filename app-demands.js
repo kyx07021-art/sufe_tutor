@@ -57,7 +57,8 @@ async function openDemandModal(demandId) {
       editDemand = demand;
     }
   }
-  openModal({ title: editDemand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE, body: renderDemandModal(editDemand) });
+  // v0.25.31 需求表单点遮罩不关（编辑成本高，防误触丢输入；仅 ✕/取消关闭，与发帖/签约表单同口径）
+  openModal({ title: editDemand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE, body: renderDemandModal(editDemand), closable: false });
   initDemandForm(editDemand ? editDemand.province : null);
   if (editDemand) prefillDemandForm(editDemand);
 }
