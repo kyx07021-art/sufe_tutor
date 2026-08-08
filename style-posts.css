@@ -147,6 +147,26 @@ textarea.post-body-input { min-height: calc(200px * var(--ui-scale, 1)); font-si
 /* #161（v0.25.69）：详情浮窗正文用 md-preview 排版但放开高度封顶（浮窗整体在 overlay 滚动，无需内滚） */
 .md-preview--full { max-height: none; }
 
+/* #162（v0.25.70）：markdown 列表/引用/行内代码排版（解析器新增块级+行内语法） */
+.md-preview ul, .md-preview ol { margin: 4px 0 4px 6px; padding-left: 18px; }
+.md-preview ul { list-style: disc; }
+.md-preview ol { list-style: decimal; }
+.md-preview li { font-size: .84rem; line-height: 1.7; color: var(--ink-3); margin: 1px 0; overflow-wrap: anywhere; }
+.md-preview li::marker { color: var(--muted); }
+.md-preview blockquote {
+  margin: 6px 0; padding: 4px 12px;
+  border-left: 3px solid var(--accent-tint, rgba(122,104,224,.3));
+  color: var(--ink-3); font-size: .84rem; line-height: 1.7;
+}
+.md-preview blockquote p { margin: 2px 0; }
+.md-preview code {
+  font-family: var(--mono); font-size: .78em;
+  padding: 1px 5px; border-radius: 5px;
+  background: var(--g-fill-weak, rgba(255,255,255,.5));
+  color: var(--accent-deep, #4B3DB0);
+  overflow-wrap: anywhere;
+}
+
 /* 未放行图片的占位标记 */
 .md-img-blocked {
   display: inline-block; padding: 1px 8px; margin: 0 2px;
