@@ -166,18 +166,27 @@ function renderTimeSlotRowHtml(slot) {
     <button type="button" class="time-slot-del" aria-label="${UI.TIME_DEL_ARIA}" title="${UI.TIME_DEL_ARIA}" onclick="removeTimeSlot(this)">✕</button>`;
 }
 
-/** 单个时间栏（role: start|end）：文本框 + 内部靠右小 v；灰字占位由 .time-field-ghost 承载 */
+/** 单个时间栏（role: start|end）：文本框 + 内部靠右小 v；灰字占位由 .time-field-ghost 承载。
+ *  v0.25.27 空栏冒号恒显：hh/冒号/mm 包进 .time-hms（relative 锚点），ghost 拆两半
+ *  「开始|时间」以 flex 居中于 .time-hms——hh/mm 等宽对称，冒号恰在 .time-hms 中心，
+ *  ghost 两半之间的间隙（style.css gap）正好落在冒号上，整体观感「开始:时间」零魔法偏移。
+ *  （v0.25.3 曾藏冒号，用户反馈打字党困惑：位置提示消失；改回恒显 + 灰字让位。） */
 function timeFieldHtml(role, hh, mm) {
   const ghost = role === 'start' ? UI.SLOT_TIME_START_GHOST : UI.SLOT_TIME_END_GHOST;
   const filled = (hh || mm) ? ' has-value' : '';
+  // 灰字占位拆两半（固定四字文案如「开始时间」→「开始」+「时间」，间隙留给冒号；half 取 ceil 防奇数）
+  const half = Math.ceil(ghost.length / 2);
+  const ghostHtml = `<span class="time-field-ghost"><span>${escHtml(ghost.slice(0, half))}</span><span>${escHtml(ghost.slice(half))}</span></span>`;
   const hourOptions = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`)
     .map(t => `<option value="${t}"${t === (hh ? `${hh}:00` : '') ? ' selected' : ''}>${t}</option>`).join('');
   const guarded = 'onkeydown="guardTimeKey(event)" onbeforeinput="guardTimeBeforeInput(event)" oninput="onTimeInput(this)" onblur="clampTime(this)" onpaste="return false" ondrop="return false"';
   return `<div class="time-field${filled}" data-time-role="${role}">
-    <span class="time-field-ghost">${ghost}</span>
-    <input type="text" class="slot-time-hh" inputmode="numeric" maxlength="2" value="${escHtml(hh)}" aria-label="时" autocomplete="off" spellcheck="false" ${guarded}>
-    <span class="time-colon">:</span>
-    <input type="text" class="slot-time-mm" inputmode="numeric" maxlength="2" value="${escHtml(mm)}" aria-label="分" autocomplete="off" spellcheck="false" ${guarded}>
+    <div class="time-hms">
+      ${ghostHtml}
+      <input type="text" class="slot-time-hh" inputmode="numeric" maxlength="2" value="${escHtml(hh)}" aria-label="时" autocomplete="off" spellcheck="false" ${guarded}>
+      <span class="time-colon">:</span>
+      <input type="text" class="slot-time-mm" inputmode="numeric" maxlength="2" value="${escHtml(mm)}" aria-label="分" autocomplete="off" spellcheck="false" ${guarded}>
+    </div>
     <div class="custom-select time-picker">
       <select class="time-pick-select" onchange="applyTimePick(this)" aria-label="${UI.TIME_PICKER_ARIA}">${hourOptions}</select>
     </div>

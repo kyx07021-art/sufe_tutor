@@ -186,7 +186,7 @@ test('时间组件：编辑限制（v0.25.3 允许自由删除；禁粘贴/禁�
   assert.equal(before('insertText', '123'), false, '多数字符串由 oninput 裁剪');
 });
 
-test('时间组件：v0.25.3 空栏藏冒号（has-value 状态链 + CSS 规则在位）', () => {
+test('时间组件：v0.25.27 空栏冒号恒显 + 灰字占位拆两半夹冒号', () => {
   const { dom, fns } = makeCtx();
   const doc = dom.window.document;
   const container = mount(doc);
@@ -196,22 +196,31 @@ test('时间组件：v0.25.3 空栏藏冒号（has-value 状态链 + CSS 规则�
   const hh = field.querySelector('.slot-time-hh');
   const mm = field.querySelector('.slot-time-mm');
   assert.ok(field.querySelector('.time-colon'), '冒号元素在栏内（hh 与 mm 之间）');
+  assert.ok(field.querySelector('.time-hms'), 'hh/冒号/mm 包进 .time-hms 锚点（ghost 居中于它）');
+  assert.ok(field.querySelector('.time-hms .time-colon'), '冒号位于 .time-hms 组内');
 
-  // 初始空：无 has-value → CSS 规则把冒号藏起
+  // ghost 拆两半：空栏灰字「开始 时间」，两半之间留间隙容纳恒显冒号（观感「开始:时间」）
+  const ghost = field.querySelector('.time-field-ghost');
+  assert.equal(ghost.textContent, '开始时间', 'ghost 整体文案不变（拆开仅结构）');
+  const halves = ghost.querySelectorAll(':scope > span');
+  assert.equal(halves.length, 2, 'ghost 拆成两半');
+  assert.equal(halves[0].textContent, '开始', '前半「开始」');
+  assert.equal(halves[1].textContent, '时间', '后半「时间」');
+  assert.ok(field.querySelector('.time-hms .time-colon'), '冒号仍在组内供间隙容纳');
+
+  // has-value 状态链仍生效：空栏无 → 填值有 → 删空无 → 半填有（控制 ghost 淡出 + 冒号变色）
   assert.equal(field.classList.contains('has-value'), false, '空栏无 has-value');
-  // 填值 → has-value 出现（冒号显示）
   hh.value = '18'; mm.value = '00'; fns.onTimeInput(hh); fns.onTimeInput(mm);
   assert.equal(field.classList.contains('has-value'), true, '有值后 has-value 出现');
-  // 删空 → has-value 消失（冒号隐藏），可继续自由改写
   hh.value = ''; mm.value = ''; fns.onTimeInput(hh); fns.onTimeInput(mm);
   assert.equal(field.classList.contains('has-value'), false, '删空后 has-value 消失');
-  // 半填（只填一边）也算有值 → 冒号显示
   hh.value = '1'; fns.onTimeInput(hh);
-  assert.equal(field.classList.contains('has-value'), true, '半填也算有值，冒号保留');
+  assert.equal(field.classList.contains('has-value'), true, '半填也算有值');
 
-  // CSS 规则回归：`.time-field:not(.has-value) .time-colon` 必须藏在 style.css（删了会复现空栏冒号）
+  // CSS 回归：v0.25.3 的「空栏藏冒号」规则必须已删（用户反转：冒号恒显，灰字让位）
   const css = readFileSync('./style.css', 'utf8');
-  assert.match(css, /\.time-field:not\(\.has-value\) \.time-colon\s*\{\s*visibility:\s*hidden/, 'style.css 空栏冒号隐藏规则在位');
+  assert.ok(!/\.time-field:not\(\.has-value\) \.time-colon\s*\{\s*visibility:\s*hidden/.test(css), '旧「空栏冒号隐藏」规则已删（冒号恒显）');
+  assert.match(css, /\.time-hms\s*\{/, 'style.css .time-hms 锚点规则在位');
 });
 
 test('时间组件：输入清洗与钳制（onTimeInput/clampTime/applyTimePick）', () => {
