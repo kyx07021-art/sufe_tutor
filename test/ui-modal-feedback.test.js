@@ -67,13 +67,13 @@ test('U3：已存 gender=male 正确回填；空/缺失 gender 默认「不愿�
 
 test('U4：.modal 大扩散阴影压暗（弹窗矩形为透明孔），主题双端定义 --g-modal-dim', () => {
   const css = readFileSync('./style.css', 'utf8');
-  const modalRule = css.split('.modal {')[1] || '';
-  assert.ok(modalRule.split('}')[0].includes('200vmax var(--g-modal-dim'), '.modal 挂 200vmax 压暗（弹窗四周灰化、弹窗自身透明孔）');
+  const modalRule = css.split('#modal-container .modal {')[1] || '';
+  assert.ok(modalRule.split('}')[0].includes('200vmax var(--g-modal-dim'), '弹窗挂 200vmax 压暗（四周灰化、弹窗自身透明孔）');
+  // id 前缀提特异性：玻璃引擎 hover 规则（0,2,0，后载）不得盖掉压暗——悬停弹窗不得闪去灰化（审计发现）
+  assert.ok(modalRule.split('}')[0].includes('var(--g-lift)'), '引擎浮影保留（三件套 + 压暗同列表）');
   const { ctx } = makeCtx();
   assert.ok(vm.runInContext('APP_CONSTANTS.THEME.light["--g-modal-dim"]', ctx), '浅色主题定义压暗色');
   assert.ok(vm.runInContext('APP_CONSTANTS.THEME.dark["--g-modal-dim"]', ctx), '深色主题定义压暗色');
-  // 弹窗仍走引擎三件套阴影（不破坏玻璃浮影）
-  assert.ok(modalRule.split('}')[0].includes('var(--g-lift)'), '引擎浮影保留');
 });
 
 // ============ 工具 ============

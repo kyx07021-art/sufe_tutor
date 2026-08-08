@@ -1235,13 +1235,15 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
     overlay 是 .modal 的祖先，opacity 动画期间整子树合成 → modal 的 backdrop-filter 采样失效（Chromium 983252，
     v0.19.33 只改了 modal 自身的动画没改 overlay）→ 弹窗打开前 0.2s 是白板=「不毛」第一印象。
     删动画后与 profile-panel 路径同构：无 opacity 帧，backdrop 全程正常采样 */
-.modal {
+#modal-container .modal {
   width: 100%; max-width: 580px;
   margin: auto; position: relative; /* v0.25.10：max-height/内滚已删——滚动交 overlay */
   animation: modal-in .32s var(--ease-snap); /* v0.19.37：删 both——终态 transform 归 none，合成层释放（同 profile-panel 路径） */
   /* v0.25.39（反馈 U4）：表单浮窗灰化背景 + 弹窗矩形切透明——大扩散阴影把压暗推到弹窗四周，
      弹窗自身为透明孔（页面不压暗、玻璃直接坐清晰画面），与新手引导遮罩同款真孔透视；
-     阴影列表沿用引擎三件套（lift/liquid/surface），尾部追加 200vmax 压暗，覆盖所有 openModal 弹窗 */
+     阴影列表沿用引擎三件套（lift/liquid/surface），尾部追加 200vmax 压暗，覆盖所有 openModal 弹窗。
+     #modal-container 前缀提特异性（id>class）：玻璃引擎 hover 规则（.glass:hover box-shadow，
+     玻璃.css 后载且特异性 0,2,0）否则会盖掉本压暗、悬停弹窗即闪去灰化（审计发现） */
   box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none), 0 0 0 200vmax var(--g-modal-dim, rgba(17, 17, 20, .42));
 }
 .modal-header {
