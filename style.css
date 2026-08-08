@@ -1338,17 +1338,22 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    ============================================================ */
 .tour-overlay {
   position: fixed; inset: 0; z-index: 400;
-  background: transparent; /* 压暗交给 .tour-hole 的 box-shadow，蒙层自身透明只做点击拦截 */
+  /* 需求五十三（v0.25.61）：遮罩常置——引导全程恒有压暗底（原压暗仅靠洞的 box-shadow，
+     洞隐藏时闪回亮屏）。洞区经此底仍剩 .28 压暗（目标 72% 亮度），与洞外叠加总压暗拉开对比形成聚光。 */
+  background: rgba(17, 17, 20, .28);
 }
 .tour-hole {
   position: fixed; left: 0; top: 0; z-index: 2;
   width: 0; height: 0; opacity: 0;
   border-radius: var(--lg-r);
   pointer-events: none; /* 隐藏态不挡点击 */
+  /* 需求五十三：亮区延时——遮罩先落，亮区延迟淡入（洞无 backdrop-filter，opacity transition 无 983252 风险） */
+  transition: opacity .26s ease-out .16s;
 }
 .tour-hole--show {
   opacity: 1; pointer-events: auto; /* 亮区可点：引擎透传真实点击给目标本体 */
-  box-shadow: 0 0 0 200vmax rgba(17, 17, 20, .55); /* 200vmax 恒盖满视口（含对角），洞内透明透视目标 */
+  box-shadow: 0 0 0 200vmax rgba(17, 17, 20, .4); /* 200vmax 恒盖满视口（含对角），洞内透明透视目标；
+     总压暗 = overlay .28 + 洞外 .4 ≈ .57（与原 .55 同量级），洞内仅 .28 保持聚光对比 */
 }
 /* 气泡层高于亮区洞（z 3 > 2）：否则会被洞的 200vmax box-shadow 压暗成「被灰化层压住」（需求三·3 bug 根因）。
    pointer-events:none 让点击穿过气泡：与洞重叠时仍点到洞（H1 兜底），不重叠时落到 overlay 点击拦截层。 */
@@ -1368,6 +1373,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   backdrop-filter: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
   box-shadow: var(--glass-lift), var(--g-liquid, none);
   animation: modal-in .32s var(--ease-snap); /* 纯 transform，复刻 modal-in（983252 安全路径） */
+  /* 需求五十三：气泡随亮区延迟入场——backwards 使延迟期持 from 态，动画结束后不留 fill（同 v0.19.37 删 both 的理由） */
+  animation-delay: .18s;
+  animation-fill-mode: backwards;
 }
 .tour-bubble-text { font-size: .85rem; line-height: 1.7; color: var(--ink-2); }
 /* 右上角全局「跳过引导」按钮（需求三·6）：引导全程常亮，z 高于一切（overlay 内最高），
@@ -1382,6 +1390,12 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
 .tour-global-skip:hover { background: var(--g-hover-wash); color: var(--ink); }
+
+/* 需求五十三：减弱动效下亮区/气泡的延迟归零（全局规则只压 duration，transition/animation-delay 需显式清） */
+@media (prefers-reduced-motion: reduce) {
+  .tour-hole { transition-delay: 0s; }
+  .tour-bubble { animation-delay: 0s; }
+}
 
 /* 星级输入 */
 .star-rating-input { flex: 1; display: flex; justify-content: flex-end; gap: 4px; font-size: 1.5rem; cursor: pointer; }

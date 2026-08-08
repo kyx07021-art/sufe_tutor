@@ -521,3 +521,17 @@ test('动画稳定化：目标祖先链动画运行中 → 延迟到动画结束
   await tick(60); // rAF 后再查：动画结束 → 定位
   assert.ok(doc.querySelector('.tour-hole--show'), '动画结束后亮区定位');
 });
+
+// 需求五十三（v0.25.61）：遮罩常置 + 亮区延时——overlay 恒压暗底（步骤间/目标等待不再闪回亮屏）、
+// 亮区延迟淡入、气泡随亮区延迟入场、reduced-motion 归零延迟
+test('需求五十三：遮罩常置 + 亮区延时（CSS 在位）', () => {
+  const css = readFileSync('./style.css', 'utf8');
+  assert.ok(css.includes('.tour-overlay {') && css.includes('rgba(17, 17, 20, .28)'),
+    'overlay 常置压暗底（遮罩全程恒在）');
+  assert.ok(css.includes('transition: opacity .26s ease-out .16s'),
+    '亮区延迟淡入（洞 opacity transition）');
+  assert.ok(css.includes('animation-delay: .18s') && css.includes('animation-fill-mode: backwards'),
+    '气泡随亮区延迟入场');
+  assert.ok(css.includes('.tour-hole { transition-delay: 0s; }'),
+    'reduced-motion 归零亮区延迟');
+});
