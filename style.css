@@ -152,7 +152,7 @@ body:has(#view-client:not(.hidden)) .navbar { display: none; }
   padding: calc(11px * var(--ui-scale, 1)) calc(22px * var(--ui-scale, 1)); font-weight: 600; font-size: .875rem; letter-spacing: .01em; /* 需求六·item5：按钮尺寸随滑块 */
   line-height: 1.4; white-space: nowrap;
   position: relative; overflow: hidden; isolation: isolate;
-  border: none; color: var(--g-fg); cursor: pointer;
+  border: var(--g-border, none); color: var(--g-fg); cursor: pointer; /* --g-border 语义 token（需求八·item4 flat 发丝描边）；液态回落 none 等价原值 */
   transition: transform var(--t-fast) var(--ease-out), color var(--t-base) var(--ease-out);
 }
 .btn:disabled { opacity: .45; cursor: not-allowed; }

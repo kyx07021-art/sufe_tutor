@@ -14,14 +14,14 @@
  */
 function getStylePref() {
   let p = 'liquid';
-  try { const v = localStorage.getItem('sufe_style'); if (v === 'flat') p = v; } catch (e) {}
+  try { const v = localStorage.getItem(CONFIG.STYLE_KEY || 'sufe_style'); if (v === 'flat') p = v; } catch (e) {}
   return p;
 }
 
 // 页面风格点按：写 localStorage → 调首绘单点应用（data-style + token 覆盖 + 光球定档）→ 切设置页按钮选中态
 function setStylePref(pref) {
   const p = pref === 'flat' ? 'flat' : 'liquid';
-  try { localStorage.setItem('sufe_style', p); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ }
+  try { localStorage.setItem(CONFIG.STYLE_KEY || 'sufe_style', p); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ }
   if (window.__applyPageStyle) window.__applyPageStyle();
   document.querySelectorAll('.style-opt').forEach(b => b.classList.toggle('style-opt--on', b.dataset.pref === p));
 }

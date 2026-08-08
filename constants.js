@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.22',
+  APP_VERSION: '0.25.23',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -64,6 +64,8 @@ globalThis.APP_CONSTANTS = {
     PROFILE_ROW_GAP: 22,                  // 需求六·item1：教师资料卡条目纵向间距 px（去分隔线后拉大空隙，防相邻条目粘连难读）
     UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_DEFAULT: 100, UI_SCALE_STEP: 1, // 需求六·item5：UI 大小滑块范围/步进（百分比；100=现状；v0.25.12 上限扩到 120）
     UI_SCALE_KEY: 'sufe_ui_scale',        // 需求六·item5：UI 大小偏好 localStorage 键（参照 setThemePref 的 sufe_theme 模式）
+    STYLE_KEY: 'sufe_style',              // 需求八·item4：页面风格偏好 localStorage 键（liquid/flat）
+    ORB_KEY: 'sufe_orb',                  // 需求八·item3：背景光球偏好 localStorage 键（vivid/elegant/hidden）
   },
 
   // ============================================================
@@ -199,7 +201,8 @@ globalThis.APP_CONSTANTS = {
         '--g-card-strong': 'var(--paper-2)', '--g-card-id': 'var(--paper-3)',
         '--g-card-strong-m': 'var(--paper-2)', '--g-card-id-m': 'var(--paper-3)',
         '--g-header-fill': 'var(--paper-2)',
-        '--g-sideuser-fill': 'var(--paper-2)', '--g-pane-fill': 'var(--paper-2)',
+        '--g-sideuser-fill': 'var(--paper-2)',
+        '--g-pane-fill': 'var(--paper-3)',    // 会话 pane 比选中 pill 深一档（pill paper-2 浮起，选中态可辨）
         '--g-sidebar-bg': 'var(--paper)', '--g-sidebar-bg-m': 'var(--paper)', '--g-navbar-bg': 'var(--paper)',
         '--g-avatar-fill': 'var(--paper-3)', '--g-avatar-fill-ghost': 'var(--paper-3)',
         '--g-avatar-border': 'var(--line)', '--g-avatar-border-ghost': 'var(--line)',
@@ -208,6 +211,14 @@ globalThis.APP_CONSTANTS = {
         '--g-accent-fill-strong': 'var(--accent)', // 勾选选中 → 纯品牌紫
         '--g-flow-dot': 'var(--ink-2)',
         '--g-ok-solid': 'var(--ok-deep)',
+        // ---- 表面发丝描边（审计 H1/H2：平面无阴影无磨砂，靠描边定义表面边界；
+        //      引擎 base border: var(--g-border, none)；.btn 同源；实心小件 .seg-tab/.tag 等 opt-out 不带边） ----
+        '--g-border': '1px solid var(--line)',
+        // ---- 线条族 → 墨线（半透明白线在不透明纸面上不可见） ----
+        '--g-line-soft': 'var(--line)', '--g-line-pane': 'var(--line)', '--g-line-dark': 'var(--line)',
+        '--g-seg-line': 'var(--line)', '--g-option-line': 'var(--line)', '--g-foot-text': 'var(--muted)',
+        // ---- 下拉高亮 → 品牌浅紫（半透明紫在不透明纸面上过淡） ----
+        '--g-option-hover': 'var(--accent-tint)', '--g-option-sel': 'var(--accent-tint)',
         // ---- 投影/液体边缘 → 透明占位（box-shadow 列表禁 none 混入，v0.19.17 教训） ----
         '--glass-lift': '0 0 0 0 transparent', '--glass-lift-sm': '0 0 0 0 transparent',
         '--g-liquid': '0 0 0 0 transparent', '--g-liquid-sm': '0 0 0 0 transparent',

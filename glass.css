@@ -123,7 +123,7 @@ body { background: transparent; }
    position 用 :where() 降特异性到 0 —— 组件的自有定位（如 .profile-panel 的 fixed）永远胜出，
    引擎只兜底「没设定位的玻璃件」。不再有「谁胜出靠加载顺序」的多方管理（用户纪律：删）。 */
 :where(.glass, .glass--float) {
-  position: relative; isolation: isolate; border: none;
+  position: relative; isolation: isolate; border: var(--g-border, none); /* 需求八·item4：flat 包发丝描边语义 token（液态无描边）；组件自有 border（如 .avatar）更高特异性天然胜出 */
   border-radius: var(--g-r, var(--lg-r-sm));
   color: var(--g-fg, inherit);
   /* 玻璃表面单层：填充（弯月本体住 --g-fill 的径向高光里）+ 磨砂 + 浮影 + 液体边缘 + 语义条。
@@ -215,6 +215,9 @@ body { background: transparent; }
 .btn-outline { --g-fg: var(--ink); }
 .btn-ghost { --g-fg: var(--muted); }
 .btn-text-danger { --g-fg: var(--danger-deep, #9B2C2C); padding: 6px 12px; }
+/* 需求八·item4：平面简约下文字链按钮保持文字语义（不实心不描边），与实心按钮区分层级 */
+[data-style="flat"] .btn-link-inline,
+[data-style="flat"] .btn-text-danger { --g-btn-fill: transparent; --g-border: none; }
 .tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: var(--glass-lift-sm); } /* G6：删全文件唯一常驻紫投影（v0.19.7 白化漏改），交还中性 lift */
 /* 侧栏选中块=标准玻璃（去紫块） */
 .sidebar-pill { --g-fill: var(--g-fill-strong); --g-frost: var(--g-f-pill, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-r: var(--lg-r); --g-lift: var(--glass-lift); } /* v0.19.35 层级白值：坐侧栏 L2，微降 */
@@ -234,6 +237,7 @@ body { background: transparent; }
   flex: 1; padding: calc(7px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); /* 需求六·item5：随滑块 */
   font-size: .8rem; font-weight: 600; color: var(--muted); text-align: center;
   --g-fill: transparent; --g-r: calc(var(--lg-r-sm) * 1.1);
+  --g-border: none; /* 实心小件 opt-out：flat 发丝描边不落在分段项上（gap 已分隔，描边回退成方框） */
   transition: color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
 }
 .seg-tab:hover { color: var(--ink); }
@@ -249,12 +253,13 @@ body { background: transparent; }
 .chat-file-chip, .chat-stage-item, .chat-stage-thumb { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .tag, .conv-item-role, .chat-peer-tag, .device-current, .profile-tag {
   --g-fill: var(--g-fill-strong); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2);
+  --g-border: none; /* 实心小件 opt-out：flat 描边不落 pill/tag */
 }
-.profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; }
-.checkbox-item { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; --g-border: none; }
+.checkbox-item { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); --g-border: none; }
 .checkbox-item:has(input:checked) { --g-fill: var(--g-accent-fill-strong); --g-fg: var(--white); }
 /* G2：成绩/首选/文理单选 pill 统一挂引擎玻璃（原 style-region 手卷第二套删，竖条迁 ::after；文字色单源 style.css） */
-.grade-option { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.grade-option { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); --g-border: none; }
 .grade-option.selected { --g-fill: var(--accent); } /* v0.19.43 与科目勾选/页签统一：选中一律品牌紫（原墨底黑）；文字色单源 style.css（base/hover/selected 三态同处） */
 .gk-pill { --g-r: var(--lg-r); --g-hover: var(--g-hover-wash); }
 /* v0.25.20 需求二：score-mode-tabs 旧类连根删，收编到标准分段控件 .seg-tabs（见本文件分段控件区）；

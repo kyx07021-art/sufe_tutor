@@ -92,7 +92,7 @@ function enterAccountSettings() {
       <div class="settings-row">
         <div>
           <div class="settings-label">${UI.SETTINGS_ORB_LABEL}</div>
-          <div class="settings-hint">${UI.SETTINGS_ORB_HINT}</div>
+          <div class="settings-hint">${UI.SETTINGS_ORB_HINT}${stylePref === 'flat' ? '（平面简约下强制隐藏）' : ''}</div>
         </div>
         <div class="orb-opts">${orbOpts}</div>
       </div>
@@ -117,19 +117,23 @@ function enterAccountSettings() {
   loadDeviceSessions();
 }
 
-// 外观主题点按：写 localStorage → 主题脚本重算 → 切当前页按钮选中态（主题立即生效，无需刷新）
+// 外观主题点按：写 localStorage → 主题脚本重算 → 切当前页按钮选中态（主题立即生效，无需刷新）。
+// v0.25.23 审计：存储 try/catch（隐私模式铁律）+ 末尾重跑页面风格单点（flat 包 token 覆盖在主题之上，防被主题冲掉）。
 function setThemePref(pref) {
-  localStorage.setItem('sufe_theme', pref);
+  try { localStorage.setItem('sufe_theme', pref); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ }
   if (window.__applyTheme) window.__applyTheme();
+  if (window.__applyPageStyle) window.__applyPageStyle();
   document.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('theme-opt--on', b.dataset.pref === pref));
 }
 
 // 需求八·item3 背景光球外观点按：写 localStorage → 重生成背景光球（index.html 首绘 IIFE 暴露的
 // window.__applyOrbs 单点，可重入切档）→ 切当前页按钮选中态（背景立即生效，无需刷新）。
+// v0.25.23 审计：写入白名单钳制（与 setStylePref 对称；读取方白名单回落，写入不过滤则语义分叉）。
 function setOrbPref(pref) {
-  try { localStorage.setItem('sufe_orb', pref); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ }
+  const o = (pref === 'elegant' || pref === 'hidden') ? pref : 'vivid';
+  try { localStorage.setItem(CONFIG.ORB_KEY || 'sufe_orb', o); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ }
   if (window.__applyOrbs) window.__applyOrbs();
-  document.querySelectorAll('.orb-opt').forEach(b => b.classList.toggle('orb-opt--on', b.dataset.pref === pref));
+  document.querySelectorAll('.orb-opt').forEach(b => b.classList.toggle('orb-opt--on', b.dataset.pref === o));
 }
 
 // 需求六·item5：UI 大小滑块拖动——setUiScale 写 localStorage + 重算 --ui-scale（页面实时变），

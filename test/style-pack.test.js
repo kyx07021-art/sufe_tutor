@@ -92,16 +92,41 @@ test('setStylePref(flat)：data-style + token 注入 + 光球定档 hidden', () 
   assert.equal(orbCount(ctx), 0, '平面简约强制光球隐藏');
 });
 
-test('setStylePref(liquid)：data-style=liquid + token 全清（防残留）+ 光球交还用户偏好', () => {
+test('setStylePref(liquid)：data-style=liquid + 包 token 全清（防残留）+ 光球交还用户偏好', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`setStylePref('flat')`, ctx);
   assert.equal(orbCount(ctx), 0, 'flat 下光球隐藏');
   vm.runInContext(`setStylePref('liquid')`, ctx);
   assert.equal(vm.runInContext(`document.documentElement.dataset.style`, ctx), 'liquid', 'data-style=liquid');
-  assert.equal(rootVar(ctx, '--g-f-card'), '', 'flat 覆盖已清除（回落 THEME/LG 默认）');
-  assert.equal(rootVar(ctx, '--g-paper'), '', '纸面覆盖已清除');
-  assert.equal(rootVar(ctx, '--glass-lift'), '', '投影覆盖已清除');
+  /* v0.25.23 审计修复：清包 key 后重跑 __applyTheme/__applyLg 恢复主题内联值——
+     故 liquid 下 --g-paper/--glass-lift 应等于 THEME.light 现值，而非空 */
+  const lightPaper = vm.runInContext(`window.APP_CONSTANTS.THEME.light['--g-paper']`, ctx);
+  const lightLift = vm.runInContext(`window.APP_CONSTANTS.THEME.light['--glass-lift']`, ctx);
+  assert.equal(rootVar(ctx, '--g-paper'), lightPaper, 'flat→liquid 恢复主题 --g-paper 内联值（审计 #1）');
+  assert.equal(rootVar(ctx, '--glass-lift'), lightLift, 'flat→liquid 恢复主题 --glass-lift 内联值');
+  assert.equal(rootVar(ctx, '--g-f-card'), '', 'flat 磨砂覆盖已清（jsdom LG fallback frosts 空，生产回落 LG.frosts 值）');
   assert.equal(orbCount(ctx), 36, '液态玻璃交还用户光球偏好（默认鲜艳 36）');
+});
+
+test('主题↔外观包互不冲掉（审计 #1）：flat 下切主题 token 仍在；flat→liquid 恢复当前主题内联值', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`try { localStorage.setItem('sufe_theme', 'dark'); } catch (e) {} setThemePref('dark')`, ctx);
+  assert.equal(vm.runInContext(`document.documentElement.dataset.theme`, ctx), 'dark', 'dark 主题生效');
+  const darkPaper = vm.runInContext(`window.APP_CONSTANTS.THEME.dark['--g-paper']`, ctx);
+  assert.equal(rootVar(ctx, '--g-paper'), darkPaper, 'dark --g-paper 已注入');
+
+  vm.runInContext(`setStylePref('flat')`, ctx);
+  assert.equal(rootVar(ctx, '--g-f-card'), 'none', 'flat 磨砂 none');
+  assert.equal(rootVar(ctx, '--g-paper'), 'var(--paper)', 'flat 纸面覆盖在 dark 之上');
+
+  vm.runInContext(`try { localStorage.setItem('sufe_theme', 'light'); } catch (e) {} setThemePref('light')`, ctx);
+  assert.equal(rootVar(ctx, '--g-f-card'), 'none', '切主题后 flat 磨砂仍 none（不被主题冲掉）');
+  assert.equal(rootVar(ctx, '--g-paper'), 'var(--paper)', '切主题后 flat 纸面仍覆盖');
+
+  vm.runInContext(`setStylePref('liquid')`, ctx);
+  const lightPaper = vm.runInContext(`window.APP_CONSTANTS.THEME.light['--g-paper']`, ctx);
+  assert.equal(rootVar(ctx, '--g-paper'), lightPaper, 'flat→liquid 恢复当前（light）主题内联值，不回落样式表');
+  assert.equal(vm.runInContext(`document.documentElement.dataset.theme`, ctx), 'light', '主题仍为 light');
 });
 
 test('平面简约期间 setOrbPref 保存偏好但光球保持隐藏；切回液态恢复', () => {

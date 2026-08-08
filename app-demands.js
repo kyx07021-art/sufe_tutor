@@ -84,11 +84,11 @@ function renderDemandModal(demand) {
   return `<div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
           <div class="form-group">
-            <!-- R2-8 学科/非学科分段切换：标准分段控件 .seg-tabs（v0.25.20 需求二） -->
-            <div class="demand-type-tabs seg-tabs glass glass--solid" id="d-type-tabs">
-              <button type="button" class="seg-tab glass active" data-type="academic" onclick="switchDemandType(this)">${UI.LABEL_TYPE_ACADEMIC}</button>
-              <button type="button" class="seg-tab glass" data-type="nonacademic" onclick="switchDemandType(this)">${UI.LABEL_TYPE_NONACADEMIC}</button>
-            </div>
+            <!-- R2-8 学科/非学科分段切换：标准分段控件 .seg-tabs（v0.25.20 需求二；v0.25.23 审计：构造走 segTabsHtml 壳） -->
+            ${segTabsHtml([
+              { key: DEMAND_TYPES.ACADEMIC, label: UI.LABEL_TYPE_ACADEMIC, onclick: 'switchDemandType(this)' },
+              { key: DEMAND_TYPES.NONACADEMIC, label: UI.LABEL_TYPE_NONACADEMIC, onclick: 'switchDemandType(this)' },
+            ], DEMAND_TYPES.ACADEMIC, { containerClass: 'demand-type-tabs', containerId: 'd-type-tabs', attr: 'type' })}
           </div>
           <div class="form-group">
             <label class="form-label">${UI.LABEL_PROVINCE} <span class="req">*</span></label>

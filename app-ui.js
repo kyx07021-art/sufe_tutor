@@ -445,13 +445,19 @@ function checkboxItemsHtml(items, checkedIds) {
 
 /** 标准分段控件（v0.25.20 需求二·美化，iOS 26 Liquid Glass 分段控件口径——上网调研参考：
     容器微透灰底 + 选项间 gap（删分隔线），选中项=白色抬升药丸（白底+墨字+字重 700+轻浮影）。
-    统一收编原 6 处散装分段（role-tabs/demand-type-tabs/score-mode-tabs/traffic-range/feedback-kind-btn）。
+    CSS 层统一收编原 6 处散装分段（role-tabs/demand-type-tabs/score-mode-tabs/traffic-range/feedback-kind-btn），
+    JS 构造走本壳（v0.25.23 审计：角色分段在 index.html 静态标记，其余 4 处 JS 站点收编）。
     items=[{ key, label, onclick }]；activeKey 初始选中；onclick 为字符串表达式（内联 onclick 约定，
-    key 经 escJsStr 转义防引号击穿）。返回 <div class="seg-tabs glass glass--solid"> + <button class="seg-tab"> 组。
+    key 经 escHtml 转义）；opts={ containerClass, containerId, attr }——attr 决定 data-* 属性名
+    （各站 JS 选择器依赖 data-type/data-mode/data-kind/data-range，须保留）。
+    返回 <div class="seg-tabs glass glass--solid"> + <button class="seg-tab"> 组。
     切换逻辑由调用方自建（classList.toggle('active') 同现有约定），本壳只管统一视觉与构造。 */
-function segTabsHtml(items, activeKey) {
-  return `<div class="seg-tabs glass glass--solid">${items.map(it =>
-    `<button type="button" class="seg-tab glass${String(it.key) === String(activeKey) ? ' active' : ''}" data-key="${escHtml(String(it.key))}" onclick="${it.onclick}">${escHtml(it.label)}</button>`).join('')}</div>`;
+function segTabsHtml(items, activeKey, opts = {}) {
+  const attr = opts.attr || 'key';
+  const cls = opts.containerClass ? ' ' + opts.containerClass : '';
+  const id = opts.containerId ? ` id="${escHtml(opts.containerId)}"` : '';
+  return `<div class="seg-tabs glass glass--solid${cls}"${id}>${items.map(it =>
+    `<button type="button" class="seg-tab glass${String(it.key) === String(activeKey) ? ' active' : ''}" data-${attr}="${escHtml(String(it.key))}" onclick="${it.onclick}">${escHtml(it.label)}</button>`).join('')}</div>`;
 }
 
 // ============================================================

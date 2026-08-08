@@ -287,9 +287,7 @@ async function loadAdminTraffic() {
       const d = await api(`/api/admin/traffic?range=${_trafficRange}`);
       const ranges = [['24h', UI.TRAFFIC_RANGE_24H], ['7d', UI.TRAFFIC_RANGE_7D], ['30d', UI.TRAFFIC_RANGE_30D]];
       el.innerHTML = `
-        <div class="traffic-range seg-tabs glass glass--solid">${ranges.map(([r, label]) =>
-          `<button type="button" class="seg-tab glass${r === _trafficRange ? ' active' : ''}" data-range="${r}" onclick="setTrafficRange('${r}')">${label}</button>`).join('')}
-        </div>
+        ${segTabsHtml(ranges.map(([r, label]) => ({ key: r, label, onclick: `setTrafficRange('${r}')` })), _trafficRange, { containerClass: 'traffic-range', attr: 'range' })}
         <p class="text-muted traffic-hint">${UI.TRAFFIC_HINT}</p>
         <div id="traffic-chart-req"></div>
         <div id="traffic-chart-lat"></div>`;

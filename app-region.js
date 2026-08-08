@@ -440,10 +440,10 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
     // 有等第制 → 左右页签 + 两面板（默认激活等第制）
     return `<div class="score-row region-score-row" data-score-subject="${sidE}">
       <span class="score-subject">${escHtml(name)}</span>
-      <div class="seg-tabs seg-tabs--score glass glass--solid">
-        <button type="button" class="seg-tab active glass" data-mode="grade" onclick="switchScoreMode(this)">${UI.REGION_TAB_GRADE}</button>
-        <button type="button" class="seg-tab glass" data-mode="score" onclick="switchScoreMode(this)">${UI.REGION_TAB_SCORE}</button>
-      </div>
+      ${segTabsHtml([
+        { key: 'grade', label: UI.REGION_TAB_GRADE, onclick: 'switchScoreMode(this)' },
+        { key: 'score', label: UI.REGION_TAB_SCORE, onclick: 'switchScoreMode(this)' },
+      ], 'grade', { containerClass: 'seg-tabs--score', attr: 'mode' })}
       <div class="score-mode-pane" data-mode="grade">
         <div class="grade-selector" data-sg-subject="${sidE}">
           ${levels.map(lv => `<span class="grade-option glass glass--solid" data-grade="${escHtml(lv.id)}" role="button" tabindex="0" onclick="pickGrade(this)">${escHtml(lv.name)}</span>`).join('')}

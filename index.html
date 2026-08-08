@@ -555,14 +555,17 @@
        CSS 首帧渲染必在其后 → 无 FOUC 闪烁）；system 时监听 prefers-color-scheme 实时跟随系统。
        同时设 colorScheme 让原生滚动条/表单控件/自动填充随主题变暗（调研：matchMedia + color-scheme 接口）。 */
     (function () {
-      var THEME = (window.APP_CONSTANTS || {}).THEME || { light: {}, dark: {} };
       var THEME_KEY = 'sufe_theme';
       function themeIsDark(pref) {
         return pref === 'dark' || (pref !== 'light' &&
           window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
       }
       function themeApply() {
-        var pref = localStorage.getItem(THEME_KEY) || 'system';
+        /* THEME 每次现读 window.APP_CONSTANTS（v0.25.23 审计：与页面风格 IIFE 同款——jsdom 两 realm 测试
+           桥接后可实时拿到真主题；生产首绘前即就绪；构造时捕获会锁死空兜底） */
+        var THEME = (window.APP_CONSTANTS || {}).THEME || { light: {}, dark: {} };
+        var pref = 'system';
+        try { pref = localStorage.getItem(THEME_KEY) || 'system'; } catch (e) {} /* 存储被禁（隐私模式）安全回落 */
         var dark = themeIsDark(pref);
         var root = document.documentElement;
         root.dataset.theme = dark ? 'dark' : 'light';
@@ -574,7 +577,9 @@
       window.__applyTheme = themeApply; /* app-pages.js 主题切换按钮共用同一单点 */
       themeApply();
       if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-        if ((localStorage.getItem(THEME_KEY) || 'system') === 'system') themeApply(); /* 跟随系统时实时切换 */
+        var pref = 'system';
+        try { pref = localStorage.getItem(THEME_KEY) || 'system'; } catch (e) {}
+        if (pref === 'system') themeApply(); /* 跟随系统时实时切换 */
       });
     })();
   </script>
@@ -597,33 +602,40 @@
   <script>
     /* 页面风格注入（需求八·item4 外观包）：首帧前把偏好（localStorage 'sufe_style'，liquid 缺省）：
        1) <html data-style="liquid|flat">（光球档位协调 + 调试钩子）；
-       2) 把 STYLE_PACKS[pref].tokens 全部 setProperty 到 <html>（内联样式覆盖在 THEME 之上——
-          主题也是内联 setProperty，同机制必然压过 stylesheet，故外观包一律走 JS 注入，不写 CSS 块）；
-          切回默认包时清空全部外观包 key 再应用，防残留。
+       2) 外观包 = 语义 token 增量，应用次序（审计修复 v0.25.23）：
+          清空全部包 key（遍历全包防残留）→ 恢复主题内联值（__applyTheme：清 key 会连带删掉与包同名的
+          主题 token，不恢复则 dark 下 flat→liquid 退回亮色）→ 恢复 LG 基础几何（__applyLg：frost/blur
+          与包同 key）→ 应用当前包 token → __applyOrbs（光球定档）。
+         光球 IIFE（后于本脚本）注入 --g-f-* / --lg-bg-blur 基础值，其末尾会再调本单点让包 token 最后落地
+         ——保证「刷新进 flat」与「点按进 flat」同源。
        与主题注入同款「无 FOUC」；window.__applyPageStyle = app-style.js 设置切换共用单点。
        本脚本必须先于光球脚本运行（applyOrbs 读 data-style 定档）。 */
     (function () {
-      var KEY = 'sufe_style';
       function stylePref() {
+        /* 解析逻辑与 app-style.js getStylePref 双份：内联首绘脚本跑在经典 window 无法 import app-*.js
+           （jsdom 两 realm 实证），键经 CONFIG.STYLE_KEY 单源，白名单与模块版一致，勿分叉 */
+        var KEY = ((window.APP_CONSTANTS || {}).CONFIG || {}).STYLE_KEY || 'sufe_style';
         var p = 'liquid';
         try { var v = localStorage.getItem(KEY); if (v === 'flat') p = v; } catch (e) {}
         return p;
       }
       function pageStyleApply() {
         /* PACKS 每次现读 window.APP_CONSTANTS（jsdom 两 realm 测试桥接后可实时拿到真包；生产首绘前即就绪） */
-        var PACKS = (window.APP_CONSTANTS || {}).STYLE_PACKS || { liquid: { tokens: {} }, flat: { tokens: {} } };
+        var PACKS = (window.APP_CONSTANTS || {}).STYLE_PACKS || {};
         var root = document.documentElement;
         var p = stylePref();
         root.dataset.style = p;
         var pack = PACKS[p] || {};
         var toks = pack.tokens || {};
-        /* 清空全部外观包 key（含他包残留），再应用当前包 */
+        /* 清空全部外观包 key（遍历全包，勿硬编码包名——加新包时自动覆盖） */
         var all = {};
-        for (var a in (PACKS.liquid || {}).tokens || {}) all[a] = 1;
-        for (var b in (PACKS.flat || {}).tokens || {}) all[b] = 1;
+        for (var pk in PACKS) { var pt = (PACKS[pk] || {}).tokens || {}; for (var k in pt) all[k] = 1; }
         for (var c in all) root.style.removeProperty(c);
+        /* 恢复主题内联值 → 恢复 LG 基础几何 → 叠当前包 token（次序关键，见 IIFE 头注释） */
+        if (window.__applyTheme) window.__applyTheme();
+        if (window.__applyLg) window.__applyLg();
         for (var t in toks) root.style.setProperty(t, toks[t]);
-        if (window.__applyOrbs) window.__applyOrbs(); /* 光球档位：orbMode 读 data-style（flat → hidden）；首绘时 __applyOrbs 尚不存在，跳过由光球脚本自行定档 */
+        if (window.__applyOrbs) window.__applyOrbs(); /* 首绘时 __applyOrbs 尚不存在，跳过由光球脚本自行定档 */
         return p;
       }
       window.__applyPageStyle = pageStyleApply;
@@ -647,19 +659,26 @@
       var st = document.documentElement.style;
       function set(k, v) { st.setProperty(k, v); }
       function f3(n) { return Math.round(n * 1000) / 1000; }
-      /* 需求六·item1：教师资料卡行间距单源 CONFIG.PROFILE_ROW_GAP → --profile-row-gap（style.css 默认 22px 仅兜底） */
-      set('--profile-row-gap', (C.PROFILE_ROW_GAP || 22) + 'px');
-      set('--lg-r-sm', (LG.radius.sm || 9) + 'px');
-      set('--lg-r', (LG.radius.md || 12) + 'px');
-      set('--lg-r-lg', (LG.radius.lg || 15) + 'px');
-      set('--lg-bg-blur', (LG.bg.blur != null ? LG.bg.blur : 6) + 'px'); // 单源 constants（原 ||16 陈旧）
-      set('--lg-glow-size', (LG.glow.size || 230) + 'px');
-      set('--lg-glow-op', LG.glow.opacity != null ? LG.glow.opacity : .85);
-      /* 毛度配置（constants.LG.frosts）→ --g-f-* 变量，glass.css 消费（改观感只动 constants）。
-         v0.21.0：删除陈旧 FALL 兜底字面量（modal blur 16 vs 24 曾与 constants 分叉）——键缺失时由
-         glass.css 的 var(--g-f-*, ...) 回退兜底，此处不再维护第二份数值 */
-      var F = LG.frosts || {};
-      for (var fk in F) set('--g-f-' + fk, F[fk]);
+      /* LG 基础几何注入（v0.25.23 审计：抽出为 window.__applyLg 单点）。
+         外观包 pageStyleApply 清包 key 会连带删掉与包同名的 --g-f-* / --lg-bg-blur 内联值，
+         恢复几何必须先重跑本函数再叠包 token。首绘本 IIFE 调用一次，页面风格单点也会调用。 */
+      function applyLg() {
+        /* 需求六·item1：教师资料卡行间距单源 CONFIG.PROFILE_ROW_GAP → --profile-row-gap（style.css 默认 22px 仅兜底） */
+        set('--profile-row-gap', (C.PROFILE_ROW_GAP || 22) + 'px');
+        set('--lg-r-sm', (LG.radius.sm || 9) + 'px');
+        set('--lg-r', (LG.radius.md || 12) + 'px');
+        set('--lg-r-lg', (LG.radius.lg || 15) + 'px');
+        set('--lg-bg-blur', (LG.bg.blur != null ? LG.bg.blur : 6) + 'px'); // 单源 constants（原 ||16 陈旧）
+        set('--lg-glow-size', (LG.glow.size || 230) + 'px');
+        set('--lg-glow-op', LG.glow.opacity != null ? LG.glow.opacity : .85);
+        /* 毛度配置（constants.LG.frosts）→ --g-f-* 变量，glass.css 消费（改观感只动 constants）。
+           v0.21.0：删除陈旧 FALL 兜底字面量（modal blur 16 vs 24 曾与 constants 分叉）——键缺失时由
+           glass.css 的 var(--g-f-*, ...) 回退兜底，此处不再维护第二份数值 */
+        var F = LG.frosts || {};
+        for (var fk in F) set('--g-f-' + fk, F[fk]);
+      }
+      window.__applyLg = applyLg;
+      applyLg();
       /* 背景舞台：方向随机的光球（数量×4）+ 染色底板。
          光球由 JS 生成：随机方向组(6)、随机起始位置、随机尺寸、随机负 delay 错峰 →
          「像空气里的蒲公英」各向漂移 + 途中缓慢转向，肉眼无规律。
@@ -678,10 +697,15 @@
       var glow = document.createElement('div'); glow.className = 'lg-mouseglow'; glow.setAttribute('aria-hidden', 'true');
       document.body.appendChild(glow);
       function orbMode() {
-        /* 需求八·item4 外观包协调：平面简约（data-style=flat）强制光球隐藏；液态玻璃交还用户光球偏好 */
-        if (document.documentElement.dataset.style === 'flat') return 'hidden';
+        /* 需求八·item4 外观包协调（审计 v0.25.23：由 STYLE_PACKS[style].orb 数据驱动，非硬编码）：
+           包声明档位优先（flat → hidden）；无声明（liquid）交还用户光球偏好 */
+        var PACKS = (window.APP_CONSTANTS || {}).STYLE_PACKS || {};
+        var pkg = PACKS[document.documentElement.dataset.style];
+        if (pkg && pkg.orb) return pkg.orb;
+        /* 白名单与 app-state getOrbPref 一致（两 realm 无法复用，键经 CONFIG.ORB_KEY 单源） */
+        var KEY = ((window.APP_CONSTANTS || {}).CONFIG || {}).ORB_KEY || 'sufe_orb';
         var m = 'vivid';
-        try { var v = localStorage.getItem('sufe_orb'); if (v === 'elegant' || v === 'hidden') m = v; } catch (e) {}
+        try { var v = localStorage.getItem(KEY); if (v === 'elegant' || v === 'hidden') m = v; } catch (e) {}
         return m;
       }
       function applyOrbs() {
@@ -729,6 +753,10 @@
       }, { passive: true });
       window.addEventListener('mouseout', function (e) { if (!e.relatedTarget) glow.style.opacity = '0'; });
       window.addEventListener('mouseover', function () { glow.style.opacity = String(getComputedStyle(document.documentElement).getPropertyValue('--lg-glow-op') || '.85'); });
+      /* v0.25.23 审计：本 IIFE 注入的 --g-f-* / --lg-bg-blur 基础值可能覆盖 flat 包的 none/0px，
+         末尾重跑页面风格单点（清 key → 恢复主题 → 恢复几何 → 叠包 token）让包覆盖最后落地——
+         「刷新进 flat」与「点按进 flat」同源。 */
+      if (window.__applyPageStyle) window.__applyPageStyle();
     })();
   </script>
   <!-- v0.24.1：Service Worker 连根拔除（删除优先于增加）。SW cache-first 服务陈旧/混合资产，
