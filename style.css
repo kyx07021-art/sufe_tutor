@@ -392,8 +392,10 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 #d-address-section { border-top: 1px solid var(--paper-3); }
 /* 右侧录入控件撑满剩余宽度（省份选择包裹层 / 成绩区 / 预算行等） */
 .form-group > span[id$="-wrap"], .form-group > div { flex: 1 1 0; min-width: 0; }
-/* 辅助内容（角色提示/地区提醒等）独占整行，排在项下方 */
-.form-group > .login-username-hint, .form-group > [id$="-note"] { flex-basis: 100%; margin-top: -4px; }
+/* 辅助内容（角色提示/地区提醒等）独占整行，排在项下方。
+   v0.25.50（需求七·第143条）：.form-group-note 并入该接口——form-group 内尾部灰字提示若
+   不独占整行，会以 flex:0 1 auto 与控件同排抢宽（起草/签约浮窗时间组件被提示行挤到 ~63px 塌零叠字）。 */
+.form-group > .login-username-hint, .form-group > [id$="-note"], .form-group > .form-group-note { flex-basis: 100%; margin-top: -4px; }
 
 /* 登录页：用户名命中现有账户时的灰字角色提示（固定占位防表单跳动） */
 .login-username-hint { min-height: 17px; margin-top: 5px; font-size: .74rem; color: var(--muted); letter-spacing: .02em; }
@@ -512,7 +514,7 @@ textarea.form-input {
 .time-field input::selection { background: var(--accent); color: #fff; }
 /* 时/分/冒号组：relative 锚点，ghost 的 inset:0 精确居中于本组（hh/mm 等宽对称 → 冒号=组中心）。
    v0.25.27 空栏冒号恒显：冒号不再隐藏（打字党可见结构），灰字占位让位夹住它 */
-.time-hms { position: relative; display: flex; align-items: center; justify-content: center; gap: 1px; min-width: 0; }
+.time-hms { position: relative; display: flex; align-items: center; justify-content: center; gap: 1px; } /* v0.25.50（需求七·第143条）：去 min-width:0——hms 默认 min-width:auto（内容下限），时/分输入框永不塌零叠字 */
 .time-colon { color: var(--faint); font-size: .92rem; flex: 0 0 auto; } /* 空态与灰字同色（融进「开始:时间」观感） */
 .time-field.has-value .time-colon { color: var(--muted); } /* 填入后变实色 */
 .time-field-ghost {

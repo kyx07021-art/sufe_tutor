@@ -367,7 +367,7 @@ async function openSigningModal(convId) {
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_SCHEDULE} <span class="req">*</span></label>
           <div id="signing-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件 -->
-          <p class="text-sm text-muted signing-modal-hint">${UI.SIGNING_TIME_HINT}</p>
+          <p class="text-sm text-muted signing-modal-hint form-group-note">${UI.SIGNING_TIME_HINT}</p>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_METHOD}</label>
@@ -458,7 +458,7 @@ async function openContractDraftModal(convId) {
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_SCHEDULE}</label>
           <div id="contract-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件 -->
-          <p class="text-sm text-muted contract-modify-hint">${UI.CONTRACT_TIME_HINT}</p>
+          <p class="text-sm text-muted contract-modify-hint form-group-note">${UI.CONTRACT_TIME_HINT}</p>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_LOCATION}</label>
