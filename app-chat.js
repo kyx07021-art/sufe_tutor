@@ -306,7 +306,8 @@ function renderChatBubble(m, i) {
   const time = `<span class="chat-msg-time">${escHtml(fmtChatTime(m.created_at))}</span>`;
   const side = mine ? 'chat-msg--mine' : 'chat-msg--theirs';
   const skin = mine ? 'chat-bubble--mine' : 'chat-bubble--theirs';
-  // 合同事件系统气泡：独立淡紫块居中，文案按查看者区分（起草方 / 接收方）
+  // 合同事件系统气泡：独立中性灰胶囊居中（v0.25.34 去淡紫、v0.25.56 需求四十八提可见度），
+  // 文案按查看者区分（起草方 / 接收方）
   if (m.kind === 'contract') {
     const text = mine ? UI.CHAT_CONTRACT_BUBBLE_MINE : UI.CHAT_CONTRACT_BUBBLE_OTHER;
     return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">

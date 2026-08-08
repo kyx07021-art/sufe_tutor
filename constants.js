@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.55',
+  APP_VERSION: '0.25.56',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -339,7 +339,7 @@ globalThis.APP_CONSTANTS = {
       // 接收方=中性近实白（发丝描边在 style-chat.css 补，白泡在浅底上立得住）、系统=中性低对比胶囊（去第三色相）
       '--g-bubble-mine': '#E9E5FB',
       '--g-bubble-theirs': '#FFFFFF',
-      '--g-bubble-system': 'rgba(17,17,20,.055)',
+      '--g-bubble-system': 'rgba(17,17,20,.10)', // v0.25.56 需求四十八：合同草案通知改明显灰色气泡（原 .055 在浅纸上几乎不可见）
       // ---- 大块 pane ----
       '--g-sidebar-bg': 'rgba(250,248,245,.56)',
       '--g-sidebar-bg-m': 'rgba(244,242,247,.97)', // 移动端侧栏近不透明
@@ -441,7 +441,7 @@ globalThis.APP_CONSTANTS = {
       // v0.25.34 深色同口径：发送方=品牌紫降饱和近实（WhatsApp #005C4B 同思路）、接收方=中性深灰（Telegram #262626）、系统=中性低对比
       '--g-bubble-mine': '#3A3468',
       '--g-bubble-theirs': '#262431',
-      '--g-bubble-system': 'rgba(255,255,255,.10)',
+      '--g-bubble-system': 'rgba(255,255,255,.14)', // v0.25.56 需求四十八：暗色同步提可见度
       // ---- 大块 pane ----
       '--g-sidebar-bg': 'rgba(18,16,26,.72)',
       '--g-sidebar-bg-m': 'rgba(26,23,37,.97)',

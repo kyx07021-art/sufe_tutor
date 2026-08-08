@@ -59,7 +59,10 @@ test('主题气泡 token：浅/深两套近实色，系统为低对比中性（�
   // 浅色：mine/theirs 为近实 hex（alpha≈1），非低 alpha rgba；system 低对比中性
   assert.match(vm.runInContext('APP_CONSTANTS.THEME.light["--g-bubble-mine"]', ctx), /^#/, '浅色 mine 近实色 hex（非半透明）');
   assert.match(vm.runInContext('APP_CONSTANTS.THEME.light["--g-bubble-theirs"]', ctx), /^#/, '浅色 theirs 近实白 hex');
-  assert.match(vm.runInContext('APP_CONSTANTS.THEME.light["--g-bubble-system"]', ctx), /rgba\(17,17,20/, '浅色 system 中性低对比');
+  assert.match(vm.runInContext('APP_CONSTANTS.THEME.light["--g-bubble-system"]', ctx), /rgba\(17,17,20/, '浅色 system 中性灰');
+  // 需求四十八（v0.25.56）：合同草案通知改明显灰色气泡——alpha 从 .055 提到 .10，浅纸上可辨
+  const sysAlpha = vm.runInContext('APP_CONSTANTS.THEME.light["--g-bubble-system"]', ctx).match(/\.(\d+)\)/);
+  assert.ok(sysAlpha && +('0.' + sysAlpha[1]) >= 0.09, '浅色 system 气泡 alpha ≥ .09（明显灰色，非不可见淡染）');
   // 深色：mine/theirs 为近实 hex
   assert.match(vm.runInContext('APP_CONSTANTS.THEME.dark["--g-bubble-mine"]', ctx), /^#/, '深色 mine 品牌紫降饱和近实');
   assert.match(vm.runInContext('APP_CONSTANTS.THEME.dark["--g-bubble-theirs"]', ctx), /^#/, '深色 theirs 中性深灰近实');
