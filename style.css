@@ -1398,9 +1398,12 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .list-card--teacher { cursor: pointer; }
 .list-card--teacher:hover { box-shadow: inset 0 0 0 9999px var(--g-hover, var(--g-hover-wash)); }
 .list-card--teacher:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--g-focus-soft); border-radius: var(--lg-r); }
+/* v0.25.17（反馈：教师卡头像变椭圆）：框定固定正方形 108×108——此前 min-height + align-self:stretch，
+   卡片行高超过 108（右信息列多行）即被拉伸成椭圆；改 height 定高 + align-self:start 顶对齐。
+   外观即按钮组件版样式（.avatar glass 圆形、--g-r:50% 引擎圆角），只是无聚焦/交互（avatar-btn 已去） */
 .tc-avatar {
-  grid-column: 1; grid-row: 1; align-self: stretch;
-  width: 108px; min-height: 108px; font-size: 2.6rem;
+  grid-column: 1; grid-row: 1; align-self: start;
+  width: 108px; height: 108px; font-size: 2.6rem;
 }
 /* 卡片布局契约：grid 只定列骨架（头像/身份列/右信息列），列内堆叠顺序一律由
    DOM 在 flex 流里决定——增删内容只动 renderTeacherCard 的模板，CSS 不做行级摆放
