@@ -366,8 +366,7 @@ async function openSigningModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_SCHEDULE} <span class="req">*</span></label>
-          <div id="signing-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件 -->
-          <p class="text-sm text-muted signing-modal-hint form-group-note">${UI.SIGNING_TIME_HINT}</p>
+          <div id="signing-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件；需求四十四：提示行已删（与「+ 新建时间段」文案重复） -->
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_METHOD}</label>
@@ -457,8 +456,7 @@ async function openContractDraftModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_SCHEDULE}</label>
-          <div id="contract-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件 -->
-          <p class="text-sm text-muted contract-modify-hint form-group-note">${UI.CONTRACT_TIME_HINT}</p>
+          <div id="contract-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件；需求四十四：提示行已删（与「+ 新建时间段」文案重复） -->
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_LOCATION}</label>

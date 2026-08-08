@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.51',
+  APP_VERSION: '0.25.52',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1043,7 +1043,6 @@ globalThis.APP_CONSTANTS = {
     LABEL_SIGNING_SCHEDULE: '授课时间（每周固定时间段）', // v0.25.35 复用结构化时间组件（非自然语言文本框）
     LABEL_SIGNING_METHOD: '授课方式',
     SIGNING_PRICE_PLACEHOLDER: '例如 150',
-    SIGNING_TIME_HINT: '选择每周可授课时间段（可多段）；切换需求自动预填',
     SIGNING_METHOD_ONLINE: '线上授课',
     SIGNING_METHOD_OFFLINE: '线下授课',
     BTN_SIGNING_SEND: '发送签约请求',
@@ -1072,7 +1071,6 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_PRICE_PLACEHOLDER: '如：150',
     ADMIN_CONTRACT_DRAFTER_PREFIX: '起草 ',
     LABEL_CONTRACT_SCHEDULE: '授课时间（每周固定时间段）', // v0.25.35 复用结构化时间组件
-    CONTRACT_TIME_HINT: '选择每周可授课时间段（可多段）；切换需求自动预填',
     LABEL_CONTRACT_LOCATION: '授课地点',
     CONTRACT_LOCATION_PLACEHOLDER: '甲方常住处或双方另行约定的地点',
     CONTRACT_LOCATION_NOTE: '出于隐私保护，授课地点请使用「甲方常住处」等模糊表述，勿将详细地址上传至平台。',
