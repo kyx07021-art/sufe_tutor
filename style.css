@@ -578,6 +578,28 @@ textarea.form-input {
   .time-field .time-picker .custom-select-trigger { padding: 3px 2px; margin-left: 0; }
 }
 
+/* ============================================================
+   分段日期输入（v0.25.53 需求四十五·首次上课日期）：复用 .time-field 玻璃面
+   （--g-fill-weak/圆角/阴影/聚焦环），仅叠 3 段输入 + 分隔连字符 + 居中灰字占位。
+   类名独立（seg-*），不碰 .time-field 时间专用子件（.time-hms/.time-colon/.time-picker）。
+   ============================================================ */
+.seg-date { padding: 6px 12px; } /* 无整点下拉小 v：左右对称内边距 */
+.seg-hms { position: relative; display: flex; align-items: center; justify-content: center; gap: 1px; } /* ghost 锚点 */
+.seg-ghost {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .78rem; color: var(--faint); pointer-events: none; white-space: nowrap;
+  transition: opacity var(--t-fast) var(--ease-out);
+}
+.time-field.has-value .seg-ghost { opacity: 0; }
+.seg-date .seg-year { width: 34px; } /* 4 位年份段比 2 位时/分/月/日段宽 */
+.seg-sep { color: var(--faint); font-size: .92rem; flex: 0 0 auto; }
+/* 窄屏（≤860px）分段日期紧凑化：年份 4 位收窄、内边距对称收紧（须在基础规则之后，同特异性后到胜） */
+@media (max-width: 860px) {
+  .seg-date { padding: 6px 8px; }
+  .seg-date .seg-year { width: 27px; }
+}
+
 
 .checkbox-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .checkbox-item {

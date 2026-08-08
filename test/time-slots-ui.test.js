@@ -42,8 +42,8 @@ function makeCtx() {
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
   const fns = vm.runInContext(`({
     renderTimeSlotContainerHtml, renderTimeSlotRowHtml, addTimeSlot, removeTimeSlot,
-    collectTimeSlots, validateTimeSlots, prefillTimeSlots, guardTimeKey, guardTimeBeforeInput,
-    onTimeInput, clampTime, applyTimePick,
+    collectTimeSlots, validateTimeSlots, prefillTimeSlots, guardSegmentKey, guardSegmentBeforeInput,
+    onSegmentInput, clampSegment, applyTimePick,
   })`, ctx);
   return { dom, fns };
 }
@@ -159,7 +159,7 @@ test('时间组件：编辑限制（v0.25.3 允许自由删除；禁粘贴/禁�
   w.document.body.appendChild(inp);
 
   const keyEv = (init) => new w.KeyboardEvent('keydown', { cancelable: true, bubbles: true, ...init });
-  const prevented = (ev) => { fns.guardTimeKey(ev); return ev.defaultPrevented; };
+  const prevented = (ev) => { fns.guardSegmentKey(ev); return ev.defaultPrevented; };
 
   // v0.25.3：自由逐位删除放行（用户指令——数字删到空再重打，冒号独立元素天然碰不到）
   assert.equal(prevented(keyEv({ key: 'Backspace' })), false, 'Backspace 放行');
@@ -176,7 +176,7 @@ test('时间组件：编辑限制（v0.25.3 允许自由删除；禁粘贴/禁�
 
   // beforeinput 兜底（IME/移动端）：删除放行（同 keydown 口径）；黏贴/拖入/非数字插入拦截
   const mkBefore = (inputType, data) => ({ inputType, data, _p: false, preventDefault() { this._p = true; } });
-  const before = (it, data) => { const m = mkBefore(it, data); fns.guardTimeBeforeInput(m); return m._p; };
+  const before = (it, data) => { const m = mkBefore(it, data); fns.guardSegmentBeforeInput(m); return m._p; };
   assert.equal(before('deleteContentBackward', null), false, '删除放行（IME/移动端虚拟键盘）');
   assert.equal(before('deleteByCut', null), false, '剪切（拖拽）删除放行');
   assert.equal(before('insertFromPaste', 'abc'), true, '黏贴拦截');
@@ -210,11 +210,11 @@ test('时间组件：v0.25.27 空栏冒号恒显 + 灰字占位拆两半夹冒�
 
   // has-value 状态链仍生效：空栏无 → 填值有 → 删空无 → 半填有（控制 ghost 淡出 + 冒号变色）
   assert.equal(field.classList.contains('has-value'), false, '空栏无 has-value');
-  hh.value = '18'; mm.value = '00'; fns.onTimeInput(hh); fns.onTimeInput(mm);
+  hh.value = '18'; mm.value = '00'; fns.onSegmentInput(hh); fns.onSegmentInput(mm);
   assert.equal(field.classList.contains('has-value'), true, '有值后 has-value 出现');
-  hh.value = ''; mm.value = ''; fns.onTimeInput(hh); fns.onTimeInput(mm);
+  hh.value = ''; mm.value = ''; fns.onSegmentInput(hh); fns.onSegmentInput(mm);
   assert.equal(field.classList.contains('has-value'), false, '删空后 has-value 消失');
-  hh.value = '1'; fns.onTimeInput(hh);
+  hh.value = '1'; fns.onSegmentInput(hh);
   assert.equal(field.classList.contains('has-value'), true, '半填也算有值');
 
   // CSS 回归：v0.25.3 的「空栏藏冒号」规则必须已删（用户反转：冒号恒显，灰字让位）
@@ -223,7 +223,7 @@ test('时间组件：v0.25.27 空栏冒号恒显 + 灰字占位拆两半夹冒�
   assert.match(css, /\.time-hms\s*\{/, 'style.css .time-hms 锚点规则在位');
 });
 
-test('时间组件：输入清洗与钳制（onTimeInput/clampTime/applyTimePick）', () => {
+test('时间组件：输入清洗与钳制（onSegmentInput/clampSegment/applyTimePick）', () => {
   const { dom, fns } = makeCtx();
   const doc = dom.window.document;
   const container = mount(doc);
@@ -233,18 +233,18 @@ test('时间组件：输入清洗与钳制（onTimeInput/clampTime/applyTimePick
   const hh = row.querySelector('.time-field[data-time-role="start"] .slot-time-hh');
   const mm = row.querySelector('.time-field[data-time-role="start"] .slot-time-mm');
 
-  hh.value = '1a2b'; fns.onTimeInput(hh);
+  hh.value = '1a2b'; fns.onSegmentInput(hh);
   assert.equal(hh.value, '12', 'input 清洗只留数字');
-  hh.value = '123'; fns.onTimeInput(hh);
+  hh.value = '123'; fns.onSegmentInput(hh);
   assert.equal(hh.value, '12', 'input 至多两位');
-  mm.value = '0'; fns.onTimeInput(mm);
+  mm.value = '0'; fns.onSegmentInput(mm);
   assert.equal(mm.value, '0');
 
-  hh.value = '9'; fns.clampTime(hh);
+  hh.value = '9'; fns.clampSegment(hh);
   assert.equal(hh.value, '09', 'blur 补零');
-  hh.value = '25'; fns.clampTime(hh);
+  hh.value = '25'; fns.clampSegment(hh);
   assert.equal(hh.value, '23', '时钳制 23');
-  mm.value = '75'; fns.clampTime(mm);
+  mm.value = '75'; fns.clampSegment(mm);
   assert.equal(mm.value, '59', '分钳制 59');
 
   // 整点下拉选中：写回 HH + :00

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.52',
+  APP_VERSION: '0.25.53',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1083,6 +1083,14 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_PAY_METHOD_OTHER_PLACEHOLDER: '请输入结算方式，如：每 10 次课结算一次',
     VALIDATE_CONTRACT_PAY_METHOD_OTHER: '请输入具体的薪资结算方式',
     LABEL_CONTRACT_FIRST_LESSON: '首次上课日期',
+    // 需求四十五（v0.25.53）：分段日期输入（年-月-日，复用底层段输入原语）——灰字占位 + 每段 aria
+    SEG_DATE_GHOST: '选择日期',
+    SEG_YEAR_ARIA: '年',
+    SEG_MONTH_ARIA: '月',
+    SEG_DAY_ARIA: '日',
+    SEG_HOUR_ARIA: '时',
+    SEG_MINUTE_ARIA: '分',
+    VALIDATE_CONTRACT_FIRST_LESSON_INCOMPLETE: '请完整填写首次上课日期（年/月/日）',
     LABEL_CONTRACT_TRIAL_PAY: '试课薪资方案',
     TRIAL_PAY_FIRST_FREE: '第一次试课免费',
     TRIAL_PAY_FIRST_HOUR_FREE: '第一小时免费，第二小时收费',

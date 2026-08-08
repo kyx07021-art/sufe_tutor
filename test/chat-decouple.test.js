@@ -206,7 +206,7 @@ test('submitContractDraft：未选已签约需求被校验拦截', async () => {
         <input id="contract-rate" value="150"><select id="contract-method"><option value="online">线上</option></select>
         <input id="contract-pay-method" value="per_session"><div id="contract-pay-method-other-wrap" class="hidden"></div>
         <input id="contract-trial-pay" value="first_free"><div id="contract-trial-pay-other-wrap" class="hidden"></div>
-        <input id="contract-first-lesson">
+        <div id="contract-first-lesson-field"></div>
         <textarea id="post-body">方案</textarea>
       </div></div>\`;
   `, ctx);

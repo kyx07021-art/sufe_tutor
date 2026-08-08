@@ -481,7 +481,7 @@ async function openContractDraftModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_FIRST_LESSON}</label>
-          <input type="date" class="form-input" id="contract-first-lesson">
+          ${dateFieldHtml()} <!-- 需求四十五（v0.25.53）：分段日期输入（年-月-日），复用底层段输入原语，空=由双方另行协商 -->
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_TRIAL_PAY}</label>
@@ -552,7 +552,7 @@ async function submitContractDraft(convId) {
   const plan = (document.getElementById('post-body').value || '').trim();
   const payMethod = document.getElementById('contract-pay-method').value;
   const payMethodOther = payMethod === 'other' ? (document.getElementById('contract-pay-method-other').value || '').trim() : '';
-  const firstLessonDate = document.getElementById('contract-first-lesson').value || '';
+  const firstLessonDateRaw = readDateField(document.getElementById('contract-first-lesson-field'));
   const trialPay = document.getElementById('contract-trial-pay').value;
   const trialPayOther = trialPay === 'other' ? (document.getElementById('contract-trial-pay-other').value || '').trim() : '';
   const demandId = parseInt(document.getElementById('contract-demand').value) || null;
@@ -563,6 +563,8 @@ async function submitContractDraft(convId) {
   if (!plan) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_PLAN); return; }
   const tsErr = validateTimeSlots(document.getElementById('contract-time-slots'));
   if (tsErr) { alertEl.innerHTML = alertHtml('error', tsErr); return; } // v0.25.35 结构化时间校验（空=可协商，不强制）
+  if (firstLessonDateRaw === null) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_FIRST_LESSON_INCOMPLETE); return; } // 需求四十五：日期半填拦截（空=另行协商合法）
+  const firstLessonDate = firstLessonDateRaw; // '' 或 'YYYY-MM-DD'（readDateField 已按真实日历钳制）
   if (contractDraftBusy) return;
   contractDraftBusy = true;
   try {

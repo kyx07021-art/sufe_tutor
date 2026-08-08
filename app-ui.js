@@ -170,7 +170,9 @@ function renderTimeSlotRowHtml(slot) {
  *  v0.25.27 空栏冒号恒显：hh/冒号/mm 包进 .time-hms（relative 锚点），ghost 拆两半
  *  「开始|时间」以 flex 居中于 .time-hms——hh/mm 等宽对称，冒号恰在 .time-hms 中心，
  *  ghost 两半之间的间隙（style.css gap）正好落在冒号上，整体观感「开始:时间」零魔法偏移。
- *  （v0.25.3 曾藏冒号，用户反馈打字党困惑：位置提示消失；改回恒显 + 灰字让位。） */
+ *  （v0.25.3 曾藏冒号，用户反馈打字党困惑：位置提示消失；改回恒显 + 灰字让位。）
+ *  v0.25.53（需求四十五）：段输入改用底层原语 segInputAttrs（通用守卫 + data-* 段配置），
+ *  DOM 类名/结构不变；冒号/整点下拉为时间专用件保留在本函数。 */
 function timeFieldHtml(role, hh, mm) {
   const ghost = role === 'start' ? UI.SLOT_TIME_START_GHOST : UI.SLOT_TIME_END_GHOST;
   const filled = (hh || mm) ? ' has-value' : '';
@@ -179,13 +181,14 @@ function timeFieldHtml(role, hh, mm) {
   const ghostHtml = `<span class="time-field-ghost"><span>${escHtml(ghost.slice(0, half))}</span><span>${escHtml(ghost.slice(half))}</span></span>`;
   const hourOptions = Array.from({ length: 24 }, (_, i) => `${String(i).padStart(2, '0')}:00`)
     .map(t => `<option value="${t}"${t === (hh ? `${hh}:00` : '') ? ' selected' : ''}>${t}</option>`).join('');
-  const guarded = 'onkeydown="guardTimeKey(event)" onbeforeinput="guardTimeBeforeInput(event)" oninput="onTimeInput(this)" onblur="clampTime(this)" onpaste="return false" ondrop="return false"';
+  const hhAttrs = segInputAttrs({ maxLen: 2, max: 23, min: 0, pad: 2, label: UI.SEG_HOUR_ARIA, cls: 'slot-time-hh', value: hh });
+  const mmAttrs = segInputAttrs({ maxLen: 2, max: 59, min: 0, pad: 2, label: UI.SEG_MINUTE_ARIA, cls: 'slot-time-mm', value: mm });
   return `<div class="time-field${filled}" data-time-role="${role}">
     <div class="time-hms">
       ${ghostHtml}
-      <input type="text" class="slot-time-hh" inputmode="numeric" maxlength="2" value="${escHtml(hh)}" aria-label="时" autocomplete="off" spellcheck="false" ${guarded}>
+      <input ${hhAttrs}>
       <span class="time-colon">:</span>
-      <input type="text" class="slot-time-mm" inputmode="numeric" maxlength="2" value="${escHtml(mm)}" aria-label="分" autocomplete="off" spellcheck="false" ${guarded}>
+      <input ${mmAttrs}>
     </div>
     <div class="custom-select time-picker">
       <select class="time-pick-select" onchange="applyTimePick(this)" aria-label="${UI.TIME_PICKER_ARIA}">${hourOptions}</select>
@@ -237,20 +240,31 @@ function applyTimePick(sel) {
   const mmInp = field.querySelector('.slot-time-mm');
   if (hhInp) hhInp.value = parts[0] || '';
   if (mmInp) mmInp.value = parts[1] || '00';
-  refreshTimeField(field);
+  refreshSegmentField(field);
 }
 
-// --- 时间栏编辑限制（只许老老实实编辑时间） ---
+// ============================================================
+// 底层数字段输入原语（v0.25.53 需求四十五·抽象）：时间(时:分) 与 日期(年-月-日) 同族共用。
+// 由 guardTimeKey/onTimeInput/clampTime/refreshTimeField 泛化（改名）而来：段配置走元素 data-* 属性
+// （data-maxlen/data-max/data-min/data-pad），守卫不再写死时间语义。冒号、整点下拉、时段校验等
+// 时间专用件不并入（见 timeFieldHtml / validateTimeSlots）；日期特有件（真实日历校验）见段末。
+// ============================================================
+
+/** 单段输入框属性串（时间/日期两字段同用）：数字键盘 + 长度/范围/补零走 data-* + 三层防线内联守卫。
+ *  spec: { maxLen, max, min, pad, label, cls, value, extra }——extra 覆盖 onblur（如日期日段日历校验） */
+function segInputAttrs(spec) {
+  return `type="text" class="seg-input ${spec.cls || ''}" inputmode="numeric" maxlength="${spec.maxLen}" value="${escHtml(spec.value || '')}" aria-label="${spec.label}" data-maxlen="${spec.maxLen}" data-max="${spec.max}" data-min="${spec.min || 0}" data-pad="${spec.pad || 2}" autocomplete="off" spellcheck="false" onkeydown="guardSegmentKey(event)" onbeforeinput="guardSegmentBeforeInput(event)" oninput="onSegmentInput(this)" onblur="${spec.extra || 'clampSegment(this)'}" onpaste="return false" ondrop="return false"`;
+}
 
 /** 键盘拦截：允许数字、导航键、复制/全选（Ctrl/Cmd+A/C）、自由逐位删除（Backspace/Delete）；
- *  拦截其余组合键（含 Ctrl+V/X）与单字符非数字插入。
+ *  拦截其余组合键（含 Ctrl+V/X）与单字符非数字插入。段无关（时间/日期同用）。
  *  v0.25.3：放开 Backspace/Delete（用户指令）——之前「两位数字不能删、又不让打第三字」没法自行改写；
- *  冒号是独立元素（.time-colon），删数字天然碰不到它，无需再把删除当风险拦掉。 */
-function guardTimeKey(e) {
+ *  分隔符是独立元素，删数字天然碰不到它，无需再把删除当风险拦掉。 */
+function guardSegmentKey(e) {
   if (e.key === 'Backspace' || e.key === 'Delete') return; // 自由删改本侧数字（含 Ctrl+Backspace 清空）
   if (e.ctrlKey || e.metaKey || e.altKey) {
     const k = (e.key || '').toLowerCase();
-    if (k === 'a' || k === 'c') return; // 复制/全选（只作用于冒号单侧，无碍整体约束）
+    if (k === 'a' || k === 'c') return; // 复制/全选（只作用于分隔符单侧，无碍整体约束）
     e.preventDefault(); return;        // 其余组合键（含 Ctrl+V/X）一律拦截
   }
   if (['Tab', 'Enter', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
@@ -258,41 +272,107 @@ function guardTimeKey(e) {
 }
 
 /** beforeinput 兜底（IME/移动端虚拟键盘不走 keydown）：拦截黏贴/拖入与非数字插入；删除放行（同 keydown 口径） */
-function guardTimeBeforeInput(e) {
+function guardSegmentBeforeInput(e) {
   const t = e.inputType || '';
   if (t === 'insertFromPaste' || t === 'insertFromDrop') { e.preventDefault(); return; }
   if (t === 'insertText' && e.data != null && !/^[0-9]+$/.test(e.data)) e.preventDefault(); // 多数字符串由 oninput 裁剪
 }
 
-/** input 兜底：只留数字、至多两位（IME/移动端最终防线） */
-function onTimeInput(inp) {
-  const v = inp.value.replace(/[^0-9]/g, '').slice(0, 2);
+/** input 兜底：只留数字、按 data-maxlen 截位（IME/移动端最终防线；时间 2 位、日期 年4/月2/日2） */
+function onSegmentInput(inp) {
+  const len = +(inp.dataset.maxlen) || 2;
+  const v = inp.value.replace(/[^0-9]/g, '').slice(0, len);
   if (inp.value !== v) inp.value = v;
-  refreshTimeField(inp.closest('.time-field'));
+  refreshSegmentField(inp.closest('.time-field'));
 }
 
-/** blur 钳制：补零到两位 + 范围钳制（时≤23、分≤59） */
-function clampTime(inp) {
-  const isHh = inp.classList.contains('slot-time-hh');
+/** blur 钳制：按 data-max/data-min 范围 + data-pad 补零（时间 时≤23/分≤59；日期 年9999/月12/日31）。
+ *  年份段由 clampYear 专用（不补零，见段末）；日段由 clampDateDay 追加真实月末钳制。 */
+function clampSegment(inp) {
+  const max = +(inp.dataset.max) || 9999;
+  const min = +(inp.dataset.min) || 0;
+  const pad = +(inp.dataset.pad) || 2;
   let v = inp.value.replace(/[^0-9]/g, '');
   if (v !== '') {
-    let n = Math.min(isHh ? 23 : 59, Math.max(0, +v));
-    inp.value = String(n).padStart(2, '0');
+    let n = Math.min(max, Math.max(min, +v));
+    inp.value = String(n).padStart(pad, '0');
   }
-  refreshTimeField(inp.closest('.time-field'));
+  refreshSegmentField(inp.closest('.time-field'));
 }
 
-function refreshTimeField(field) {
+/** 容器灰字显隐：任一段有值 → has-value（对应 ghost 渐隐） */
+function refreshSegmentField(field) {
   if (!field) return;
-  const hh = (field.querySelector('.slot-time-hh') || {}).value || '';
-  const mm = (field.querySelector('.slot-time-mm') || {}).value || '';
-  field.classList.toggle('has-value', !!(hh || mm));
+  const filled = [...field.querySelectorAll('.seg-input')].some(i => i.value);
+  field.classList.toggle('has-value', filled);
+}
+
+// --- 日期段（首次上课日期）扩展：真实日历校验（防 2/31、4/31 之类经服务端 regex 漏网入库） ---
+
+/** 年份段 blur 钳制：只做范围（1-9999），不补零——年份无前导零语义（「25」不得变「0025」） */
+function clampYear(inp) {
+  let v = inp.value.replace(/[^0-9]/g, '');
+  if (v !== '') {
+    const n = Math.min(9999, Math.max(1, +v));
+    inp.value = String(n);
+  }
+  refreshSegmentField(inp.closest('.time-field'));
+}
+
+/** 年月天数（new Date(y, m, 0) = 第 m 月的最后一天；闰年由 Date 内建处理） */
+function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+
+/** 日段 blur 钳制：先通用钳制（1-31），再按已填年/月钳到真实月末（2026-02-31 → 02-28） */
+function clampDateDay(inp) {
+  clampSegment(inp);
+  const field = inp.closest('.time-field');
+  if (!field || !inp.value) return;
+  const year = +(field.querySelector('.seg-year').value || '0');
+  const month = +(field.querySelector('.seg-month').value || '0');
+  if (!year || !month) return; // 年月未填齐：日段暂按 data-max(31) 上限
+  const dim = daysInMonth(year, month);
+  const d = +inp.value;
+  if (d > dim) { inp.value = String(dim).padStart(2, '0'); refreshSegmentField(field); }
+}
+
+/** 日期段容器 HTML（首次上课日期，v0.25.53）：年-月-日 三段 + 分隔连字符 + 居中灰字占位。
+ *  value: 'YYYY-MM-DD' 或 ''。复用 .time-field 玻璃面（.seg-field 修饰），序列化契约 YYYY-MM-DD。 */
+function dateFieldHtml(value) {
+  const [y, m, d] = (value || '').split('-');
+  const filled = (y || m || d) ? ' has-value' : '';
+  return `<div class="time-field seg-field seg-date${filled}" id="contract-first-lesson-field">
+    <div class="seg-hms">
+      <span class="seg-ghost">${escHtml(UI.SEG_DATE_GHOST)}</span>
+      <input ${segInputAttrs({ maxLen: 4, max: 9999, min: 1, pad: 4, label: UI.SEG_YEAR_ARIA, cls: 'seg-year', value: y, extra: 'clampYear(this)' })}>
+      <span class="seg-sep">-</span>
+      <input ${segInputAttrs({ maxLen: 2, max: 12, min: 1, pad: 2, label: UI.SEG_MONTH_ARIA, cls: 'seg-month', value: m })}>
+      <span class="seg-sep">-</span>
+      <input ${segInputAttrs({ maxLen: 2, max: 31, min: 1, pad: 2, label: UI.SEG_DAY_ARIA, cls: 'seg-day', value: d, extra: 'clampDateDay(this)' })}>
+    </div>
+  </div>`;
+}
+
+/** 日期字段读：全空 → ''（= 由双方另行协商）；半填/年份不足四位 → null（调用方拦截）；
+ *  完整 → 真实日历回验钳制后的 'YYYY-MM-DD'（如 2026-02-31 → 2026-02-28）。 */
+function readDateField(field) {
+  if (!field) return '';
+  const segs = [...field.querySelectorAll('.seg-input')];
+  const vals = segs.map(i => i.value);
+  if (vals.every(v => !v)) return '';
+  if (vals.some(v => !v)) return null;
+  const yRaw = vals[0], mRaw = vals[1], dRaw = vals[2];
+  if (yRaw.length < 4) return null; // 年份必须完整四位（拒绝「25 → 0025」的歧义）
+  const y = Math.min(9999, Math.max(1, +yRaw));
+  const m = Math.min(12, Math.max(1, +mRaw));
+  const dim = daysInMonth(y, m);
+  const d = Math.min(dim, Math.max(1, +dRaw));
+  return `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
 /** 读时间栏：全空 → ''；半填 → null；完整 → 'HH:MM'（补零 + 范围钳制）。
  *  v0.25.15 审计修复：此前不钳制——用户填 99:00 不触发 blur 直接提交时，validateTimeSlots 的
  *  start<end 串比会放行非法时间（99:00>18:00），落服务端才被 sanitizeTimeSlots 正则拒；现读时即钳
- *  （时≤23、分≤59，同 clampTime blur 口径），前端拦截与收集值双一致。 */
+ *  （时≤23、分≤59，同 clampSegment blur 口径），前端拦截与收集值双一致。 */
 function readTimeField(field) {
   if (!field) return '';
   const hhRaw = (field.querySelector('.slot-time-hh') || {}).value || '';
