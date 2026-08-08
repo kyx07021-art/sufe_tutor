@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.70',
+  APP_VERSION: '0.25.71',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1545,6 +1545,15 @@ globalThis.APP_CONSTANTS = {
     CONFIRM_LOGOUT: '确定要退出当前账户吗？',
     // 登录设备管理（账户设置）
     SETTINGS_DEVICES: '登录设备',
+    // #163（v0.25.71）：隐私设置——访客可见性控制
+    SETTINGS_PRIVACY_TITLE: '隐私设置',
+    SETTINGS_PRIVACY_ON: '允许',
+    SETTINGS_PRIVACY_OFF: '关闭',
+    SETTINGS_PRIVACY_PROFILE_LABEL: '允许访客浏览我的教师档案',
+    SETTINGS_PRIVACY_PROFILE_HINT: '关闭后，未登录的游客看不到你的资料卡，仅登录用户可见',
+    SETTINGS_PRIVACY_DEMAND_LABEL: '允许访客浏览我的需求',
+    SETTINGS_PRIVACY_DEMAND_HINT: '关闭后，未登录的游客看不到你发布的需求，仅登录用户可见',
+    SETTINGS_PRIVACY_SAVED: '隐私设置已保存',
     SETTINGS_DEVICES_HINT: '以下是登录过此账户的设备，可让其他设备下线。',
     DEVICE_CURRENT: '当前设备',
     DEVICE_UNKNOWN: '未知设备',

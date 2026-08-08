@@ -323,6 +323,12 @@ export async function initDb(db, env = {}) {
       status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS user_settings (
+      user_id INTEGER PRIMARY KEY,
+      allow_guest_profile INTEGER NOT NULL DEFAULT 1, /* #163（v0.25.71）：访客可见性——教师档案对未登录游客可见 */
+      allow_guest_demand INTEGER NOT NULL DEFAULT 1,  /* #163：需求对未登录游客可见 */
+      updated_at DATETIME DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`), /* #163：隐私设置大层级——无行=全默认可见（COALESCE 1） */
   ]);
 
   // 合同表 schema 迁移：旧预留表（student/teacher 直连 + active/ended 状态）从未启用过，
@@ -784,9 +790,12 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
     ? `EXISTS(SELECT 1 FROM conversations cv WHERE (cv.student_user_id=? AND cv.teacher_user_id=tp.user_id) OR (cv.student_user_id=tp.user_id AND cv.teacher_user_id=?)) AS matched`
     : '0 AS matched';
   const params = viewerId ? [viewerId, viewerId] : [];
+  // #163（v0.25.71）：访客可见性——游客只看 allow_guest_profile=1 的教师（无 user_settings 行=默认可见）
+  const joinUs = viewerId ? '' : ' LEFT JOIN user_settings us ON us.user_id=tp.user_id';
+  const privWhere = viewerId ? '' : ' AND COALESCE(us.allow_guest_profile, 1) = 1';
   const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar, ${matchedSel}
-    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id
-    WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0
+    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id${joinUs}
+    WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0${privWhere}
     ORDER BY tp.updated_at DESC`, params);
   // v0.22.8：广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
   // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经
@@ -867,7 +876,7 @@ async function mapDemandRowFull(r) {
 // 需求列表统一出口（v0.19.40 合并 dbGetAllDemands / dbGetAllDemandsAdmin）：
 // 广场（默认）：status NOT IN (contracted,revoked)，传 teacherUserId 时附该教师的意向状态
 // （my_intent_status，供前端按钮三态渲染）；admin：管理员全量（含已签约，管理端查看联系方式）
-export async function dbGetDemands(db, { admin = false, cursor = null, teacherUserId = null } = {}) {
+export async function dbGetDemands(db, { admin = false, cursor = null, teacherUserId = null, forGuest = false } = {}) {
   if (admin) {
     // 网安报告 F-09：keyset 游标分页（created_at,id 复合倒序；游标=末行编码，前端以 nextCursor 翻页）。
     // LIMIT 取 PAGE_HAS_MORE 判 hasMore，不额外查询；页大小单源自 constants.LIMITS
@@ -891,18 +900,22 @@ export async function dbGetDemands(db, { admin = false, cursor = null, teacherUs
       nextCursor: hasMore && last ? `${last.created_at}|${last.id}` : null,
     };
   }
-  let sel = DEMANDS_SELECT, extra = '', params = [];
+  let sel = DEMANDS_SELECT, extra = '', params = [], where = ` WHERE sd.status='open' AND u.deactivated=0`;
   if (teacherUserId) {
     sel = DEMANDS_SELECT.replace('COALESCE(ic.cnt, 0) AS intent_count',
       'COALESCE(ic.cnt, 0) AS intent_count, mi.status AS my_intent_status');
     extra = ' LEFT JOIN demand_intents mi ON mi.demand_id=sd.id AND mi.teacher_user_id=?';
     params = [teacherUserId];
   }
+  // #163（v0.25.71）：访客可见性——未登录游客只看 allow_guest_demand=1 的需求（无 user_settings 行=默认可见）
+  if (forGuest) {
+    extra += ' LEFT JOIN user_settings us ON us.user_id=sd.user_id';
+    where += ' AND COALESCE(us.allow_guest_demand, 1) = 1';
+  }
   // 广场只展示活跃需求（v0.25.10 用户反馈：统一口径 status='open'——此前排除式 NOT IN ('contracted','revoked')
   // 会把未来新增状态/NULL 当活跃，与 dbCreatePush/dbCreateIntent 的原子守卫（WHERE status='open'）口径漂移）
   // v0.25.41（注销幽灵数据）：广场门控——已注销用户数据严禁入场（不依赖 purge 完整性，双保险）
-  const rows = await dbAll(db, sel + extra +
-    ` WHERE sd.status='open' AND u.deactivated=0 ORDER BY sd.created_at DESC LIMIT ?`,
+  const rows = await dbAll(db, sel + extra + where + ' ORDER BY sd.created_at DESC LIMIT ?',
     [...params, LIMITS.PUBLIC_LIST_MAX]);
   return rows.map(mapDemandRow);
 }
@@ -1525,4 +1538,31 @@ export async function dbGetUpload(db, uploadId) {
 
 export async function dbDeleteUpload(db, uploadId) {
   await dbRun(db, 'DELETE FROM uploads WHERE id=?', [uploadId]);
+}
+
+// ============================================================
+// 隐私设置（#163 v0.25.71）：访客可见性控制
+// user_settings 无行 = 全默认可见（COALESCE 1）；upsert 单点写
+// ============================================================
+export async function dbGetPrivacySettings(db, userId) {
+  const row = await dbGet(db,
+    'SELECT allow_guest_profile, allow_guest_demand FROM user_settings WHERE user_id=?', [userId]);
+  return {
+    allowGuestProfile: row ? row.allow_guest_profile : 1,
+    allowGuestDemand: row ? row.allow_guest_demand : 1,
+  };
+}
+
+// 显式传 0 才关（=== 0 → 0，其余一律 1）；两字段任一缺失保持原值（undefined 走原值）
+export async function dbSetPrivacySettings(db, userId, { allowGuestProfile, allowGuestDemand } = {}) {
+  const cur = await dbGetPrivacySettings(db, userId);
+  const p = allowGuestProfile === 0 ? 0 : (allowGuestProfile === undefined ? cur.allowGuestProfile : 1);
+  const d = allowGuestDemand === 0 ? 0 : (allowGuestDemand === undefined ? cur.allowGuestDemand : 1);
+  await dbRun(db, `INSERT INTO user_settings (user_id, allow_guest_profile, allow_guest_demand, updated_at)
+    VALUES (?, ?, ?, datetime('now','localtime'))
+    ON CONFLICT(user_id) DO UPDATE SET
+      allow_guest_profile=excluded.allow_guest_profile,
+      allow_guest_demand=excluded.allow_guest_demand,
+      updated_at=excluded.updated_at`, [userId, p, d]);
+  return dbGetPrivacySettings(db, userId);
 }

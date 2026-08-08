@@ -5,7 +5,7 @@
  * 关口模式：requireUser → 归属校验 → 状态机（条件 UPDATE 赢家）→ 副作用（logEvent/notifyUser）。
  */
 import { json, error, sanitizeTimeSlots } from './util.js';
-import { requireUser } from './security.js';
+import { authUser, requireUser } from './security.js';
 import { MSG, STATUS, ADDRESS_GUARD, LIMITS } from './constants.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
@@ -133,7 +133,9 @@ export async function handleGetDemands(db, url, req) {
     if (err) return err;
     return json({ demands: await dbGetDemands(db, { teacherUserId: me.id }) });
   }
-  return json({ demands: await dbGetDemands(db) });
+  // #163（v0.25.71）：默认视图同时服务登录学生与游客——游客（无令牌）只见 allow_guest_demand=1 的需求
+  const me = await authUser(db, req);
+  return json({ demands: await dbGetDemands(db, { forGuest: !me }) });
 }
 
 // 需求写操作关口：404 存在 → 403 归属 → 409 已签约锁定（update/delete 共用；服务端写入路径硬门禁）

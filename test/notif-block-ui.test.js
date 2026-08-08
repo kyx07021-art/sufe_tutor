@@ -209,7 +209,7 @@ test('item8 设置页两区颠倒：账户信息在上、外观在下', async ()
   await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
   await vm.runInContext(`state.page = 'account-settings'; enterAccountSettings()`, ctx);
   const titles = [...doc.querySelectorAll('.settings-section-title')].map(e => e.textContent);
-  assert.deepEqual(titles, ['账户信息', '外观设置'], '账户区在前、外观区在后');
+  assert.deepEqual(titles, ['账户信息', '外观设置', '隐私设置'], '账户区在前、外观区在后、隐私区收尾（#163 新增）');
   // 主题选中态刷新依赖元素 id 而非顺序，确认主题选项仍渲染
   assert.equal(doc.querySelectorAll('.theme-opt').length, 3, '外观主题三项仍在');
   assert.equal(doc.querySelectorAll('.settings-row').length >= 4, true, '账户行（头像/用户名/角色/电话/邮箱）在位');

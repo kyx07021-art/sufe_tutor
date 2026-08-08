@@ -15,6 +15,7 @@ import { rateGate, corsPreflight, applySecurityHeaders } from './server/security
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
+import { handleGetPrivacySettings, handleSetPrivacySettings } from './server/routes-settings.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand, handleReopenDemand,
   handleCreateIntent, handleGetIntents, handleResolveIntent,
@@ -94,6 +95,8 @@ async function routeApi(db, p, method, body, url, req, env) {
   if (adminMessageById && method === 'DELETE') return await handleAdminDeleteMessage(db, adminMessageById, body, req);
 
   // 教师
+  if (p === '/api/privacy-settings' && method === 'GET') return await handleGetPrivacySettings(db, req);
+  if (p === '/api/privacy-settings' && method === 'POST') return await handleSetPrivacySettings(db, body, req);
   if (p === '/api/teacher/profile' && method === 'GET') return await handleGetProfile(db, url, req);
   if (p === '/api/teacher/profile' && method === 'POST') return await handleSaveProfile(db, body, req);
   if (p === '/api/teachers' && method === 'GET') return await handleGetTeachers(db, req);

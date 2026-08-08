@@ -107,6 +107,10 @@ function enterAccountSettings() {
         </div>
       </div>
     </div>
+    <div class="settings-section-title">${UI.SETTINGS_PRIVACY_TITLE}</div>
+    <div class="settings-list">
+      <div id="privacy-settings-list"><div class="empty-state empty-state--small"><p>${loaderHtml('sm')}</p></div></div>
+    </div>
     <div class="settings-devices">
       <div class="settings-label">${UI.SETTINGS_DEVICES}</div>
       <div class="settings-hint">${UI.SETTINGS_DEVICES_HINT}</div>
@@ -115,6 +119,46 @@ function enterAccountSettings() {
     <button type="button" class="btn settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate glass" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
   loadDeviceSessions();
+  loadPrivacySettings(); // #163：进页异步读本人访客可见性设置（无行=默认允许）
+}
+
+// #163（v0.25.71）：隐私设置——访客可见性。教师看档案开关、学生看需求开关（各自仅一个相关项）。
+async function loadPrivacySettings() {
+  const el = document.getElementById('privacy-settings-list');
+  if (!el) return;
+  try {
+    const d = await api('/api/privacy-settings');
+    const isTeacher = state.user.role === 'teacher';
+    const row = (field, cur, label, hint) => `
+      <div class="settings-row">
+        <div>
+          <div class="settings-label">${label}</div>
+          <div class="settings-hint">${hint}</div>
+        </div>
+        <div class="theme-opts privacy-opts" data-field="${field}">
+          <button type="button" class="theme-opt glass glass--pressable${cur === 1 ? ' theme-opt--on' : ''}" data-val="1" onclick="setPrivacyField('${field}', 1)">${UI.SETTINGS_PRIVACY_ON}</button>
+          <button type="button" class="theme-opt glass glass--pressable${cur === 0 ? ' theme-opt--on' : ''}" data-val="0" onclick="setPrivacyField('${field}', 0)">${UI.SETTINGS_PRIVACY_OFF}</button>
+        </div>
+      </div>`;
+    el.innerHTML = isTeacher
+      ? row('allowGuestProfile', d.allowGuestProfile, UI.SETTINGS_PRIVACY_PROFILE_LABEL, UI.SETTINGS_PRIVACY_PROFILE_HINT)
+      : row('allowGuestDemand', d.allowGuestDemand, UI.SETTINGS_PRIVACY_DEMAND_LABEL, UI.SETTINGS_PRIVACY_DEMAND_HINT);
+  } catch (err) {
+    el.innerHTML = `<div class="settings-hint">${escHtml(err.message)}</div>`;
+  }
+}
+
+// #163：点按开关 → POST 写 → 就地切选中态；失败回读服务端现值（不盲信本地）
+async function setPrivacyField(field, value) {
+  try {
+    await api('/api/privacy-settings', { method: 'POST', body: { [field]: value } });
+    const opts = document.querySelector(`#privacy-settings-list .privacy-opts[data-field="${field}"]`);
+    if (opts) opts.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('theme-opt--on', Number(b.dataset.val) === value));
+    showToast(UI.SETTINGS_PRIVACY_SAVED);
+  } catch (err) {
+    showToast(err.message);
+    loadPrivacySettings(); // 失败：回读服务端现值还原
+  }
 }
 
 // 外观主题点按：写 localStorage → 主题脚本重算 → 切当前页按钮选中态（主题立即生效，无需刷新）。

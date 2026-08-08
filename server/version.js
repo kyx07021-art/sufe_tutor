@@ -104,6 +104,7 @@ export function versionDomainOf(pathname) {
 
   // 教师系（档案保存 / 管理员核验 / 封禁——封禁改教师列表可见性 + 管理端用户列表）
   if (p === '/api/teacher/profile') return [DOMAINS.TEACHERS];
+  if (p === '/api/privacy-settings') return [DOMAINS.TEACHERS, DOMAINS.DEMANDS]; // #163：隐私写改访客可见性，教师/需求两域都刷新
   if (/^\/api\/admin\/teachers\/\d+\/verify$/.test(p)) return [DOMAINS.TEACHERS, DOMAINS.ADMIN];
   if (/^\/api\/admin\/users\/\d+\/ban$/.test(p)) return [DOMAINS.TEACHERS, DOMAINS.ADMIN];
 
