@@ -284,6 +284,10 @@ function enterAbout() {
       <div class="about-card-body">
         <h3 class="about-title">${UI.ABOUT_WHO_TITLE}</h3>
         <p class="about-text">${escHtml(UI.ABOUT_WHO_TEXT)}</p>
+        <div class="about-funds">
+          <h4 class="about-funds-title">${UI.ABOUT_FUNDS_TITLE}</h4>
+          <p class="about-funds-text">${escHtml(UI.ABOUT_FUNDS_TEXT)}</p>
+        </div>
       </div>
     </div>
     <div class="list-card about-card-block glass">

@@ -43,7 +43,7 @@ function openOnboarding() {
   openModal({
     title: UI.ONBOARD_TITLE,
     closable: false,
-    body: `<p class="onboard-intro">${escHtml(UI.ONBOARD_INTRO)}</p><div class="onboard-policy">${policyItems}</div>`,
+    body: `<p class="onboard-intro">${escHtml(UI.ONBOARD_INTRO)}</p><div class="onboard-policy">${policyItems}</div><p class="funds-note onboard-funds">${escHtml(UI.FUNDS_NOTE_SHORT)}</p>`, // 需求四（v0.25.44）：首访即明示平台不走资金（不并入 policy 保精简）
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="openUsageGuide()">${UI.USAGE_GUIDE_BTN}</button>
       ${primary}`,
   });

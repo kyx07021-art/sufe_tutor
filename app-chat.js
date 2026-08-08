@@ -334,6 +334,7 @@ function renderChatBubble(m, i) {
           <button type="button" class="btn btn-sm btn-outline glass glass--pressable" onclick="respondSigning(${signingId}, false)">${UI.BTN_SIGNING_REJECT}</button>
         </div>` : ''}
         ${done ? `<p class="signing-bubble-status">${done}</p>` : ''}
+        <p class="signing-bubble-funds">${UI.FUNDS_NOTE_SHORT}</p>
       </div>${time}</div>`;
   }
   // v0.24.0 签约回应气泡（对方确认/拒绝后落一条，在途会话实时刷新）

@@ -269,6 +269,8 @@
 .signing-bubble-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: center; }
 .signing-bubble-status { margin: 8px 0 0; font-size: .72rem; color: var(--muted); text-align: center; }
 .signing-bubble--done { opacity: .55; } /* 已回应：气泡整体变灰 */
+/* 需求四（v0.25.44）：签约气泡底部资金声明（报价触点的平台责任撇清，小字不喧宾夺主） */
+.signing-bubble-funds { margin: 8px 0 0; padding-top: 7px; border-top: 1px dashed var(--g-line-row); font-size: .68rem; color: var(--muted); text-align: center; }
 
 /* 合同卡「等待对方确认/签署」灰字（v0.24.0：无外套组件的不可交互提示，替代按钮） */
 .contract-wait-text { font-size: .72rem; font-weight: 600; }

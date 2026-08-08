@@ -372,7 +372,8 @@ async function openSigningModal(convId) {
             <option value="online">${UI.SIGNING_METHOD_ONLINE}</option>
             <option value="offline" selected>${UI.SIGNING_METHOD_OFFLINE}</option>
           </select>
-        </div>`,
+        </div>
+        <p class="funds-note">${UI.FUNDS_NOTE}</p>`, <!-- 需求四（v0.25.44）：报价资金触点明示平台不走资金 -->
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitSigning(${convId})">${UI.BTN_SIGNING_SEND}</button>`,
   });
@@ -502,7 +503,8 @@ async function openContractDraftModal(convId) {
             <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.CONTRACT_PLAN_PLACEHOLDER}"></textarea>
-        </div>`,
+        </div>
+        <p class="funds-note">${UI.FUNDS_NOTE}</p>`, <!-- 需求四（v0.25.44）：时薪资金触点明示平台不走资金 -->
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>`,
   });
