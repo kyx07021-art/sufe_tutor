@@ -353,9 +353,11 @@ function renderChatBubble(m, i) {
   // 立即展示、点开拉原图；无缩略图（文件/历史图片）先渲染骨架，由 chatLazyLoadAttachments 补载
   if (m.kind === 'image' || m.kind === 'file') {
     // v0.25.36 修正：媒体内容（thumb/全图/文件卡）一律包气泡 div；仅两者皆空才走骨架占位
+    // v0.25.49（需求六）：文件卡与图片分流——图片全出血无内衬，文件卡带圆角内衬（.chat-bubble--file）
+    const mediaCls = m.kind === 'file' ? ' chat-bubble--file' : '';
     const media = (m.body || m.thumb)
-      ? `<div class="chat-bubble glass ${skin} chat-bubble--media">${renderChatMediaInner(m.kind, m.body, m.name, m.thumb, m.id)}</div>`
-      : `<div class="chat-bubble glass ${skin} chat-bubble--media chat-bubble--loading" data-attach="${m.id}" data-attach-kind="${m.kind}">${chatStageRing(30)}</div>`;
+      ? `<div class="chat-bubble glass ${skin} chat-bubble--media${mediaCls}">${renderChatMediaInner(m.kind, m.body, m.name, m.thumb, m.id)}</div>`
+      : `<div class="chat-bubble glass ${skin} chat-bubble--media${mediaCls} chat-bubble--loading" data-attach="${m.id}" data-attach-kind="${m.kind}">${chatStageRing(30)}</div>`;
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">${media}${time}</div>`;
   }
   return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">

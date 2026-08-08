@@ -172,17 +172,20 @@
 /* 图片即气泡：无边框无内边距，圆角由气泡 --g-r + overflow:hidden 裁剪（WhatsApp 2026 无框媒体同口径） */
 .chat-bubble--media { padding: 0; overflow: hidden; }
 .chat-bubble--media img { display: block; max-width: 240px; max-height: 320px; cursor: zoom-in; border-radius: 0; }
+/* 需求六（v0.25.49）：文件卡与图片分流——文件卡带圆角内衬（内容不再戳出圆角外），图片保持全出血 */
+.chat-bubble--file { padding: 10px 12px; }
 /* 接收方中性气泡发丝描边（浅色白泡在浅底上立得住；color-mix 引 --ink 深浅主题自适应） */
 .chat-bubble--theirs { border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent); }
-/* 文件消息：自成一格卡片拍平进气泡（去 glass-in-glass 套娃）——单表面直接铺内容，无嵌套玻璃 */
-.chat-file { display: flex; align-items: center; gap: 10px; min-width: 190px; max-width: 260px; }
+/* 文件消息：自成一格卡片拍平进气泡（去 glass-in-glass 套娃）——单表面直接铺内容，无嵌套玻璃。
+   卡片随内容收缩（width: fit-content）：文件名 ellipsis 截断，下载按钮紧随其后，中间不再空一大截 */
+.chat-file { display: flex; align-items: center; gap: 10px; width: fit-content; max-width: 260px; }
 .chat-file-icon {
   flex: 0 0 38px; width: 38px; height: 38px; border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
   font-family: var(--mono); font-size: .6rem; font-weight: 700; letter-spacing: .03em;
   color: var(--accent-deep); background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
-.chat-file-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-file-info { min-width: 0; max-width: 160px; display: flex; flex-direction: column; gap: 2px; }
 .chat-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: .82rem; }
 .chat-file-size { font-size: .68rem; color: var(--muted); font-family: var(--mono); }
 .chat-file-dl {
@@ -195,7 +198,7 @@
 /* 附件懒加载骨架：与成图同尺寸的占位块 + 部分进度圈暗示加载中 */
 .chat-bubble--loading { display: flex; align-items: center; justify-content: center; }
 .chat-bubble--loading[data-attach-kind="image"] { width: 96px; height: 96px; }
-.chat-bubble--loading[data-attach-kind="file"] { width: 170px; height: 48px; }
+.chat-bubble--loading[data-attach-kind="file"] { width: 220px; height: 58px; } /* v0.25.49：随新文件卡尺寸（内衬 10/12 + 图标 38） */
 .chat-bubble--loading .chat-stage-ring { position: static; transform: none; width: 26px; height: 26px; }
 .chat-bubble--loading .ring-bar { stroke: var(--faint); animation: chat-ring-pulse 1.4s ease-in-out infinite; }
 @keyframes chat-ring-pulse { 0%, 100% { opacity: .35; } 50% { opacity: .9; } }
