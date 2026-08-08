@@ -101,15 +101,67 @@ function renderContractCard(c) {
   </div>`;
 }
 
-// 确认签约：危险操作二次认证（网安报告 F-05，原 verifySignOtp 恒通过已废除）——密码重认证换 capToken
+// 开始签约（v0.25.32 加固）：读合同全文 → 滚动到底 + 待够时长（CONFIG.CONTRACT_SIGN_READ_SECONDS）
+// 解锁确认 → 二次确认 → 密码最终确认（危险操作二次认证，原 verifySignOtp 恒通过已废除；后期改短信验证码）。
+// 时间状态放 window 侧（_signing*），防模块闭包与 openModal 重建 #modal-container 时状态丢失。
 function signContract(contractId) {
-  confirm({ message: UI.CONFIRM_SIGN, needReAuth: true, onConfirm: async capToken => {
-    try {
-      const data = await api(`/api/contracts/${contractId}/sign`, { method: 'POST', body: { capToken } });
-      showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
-      invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
-      loadMyContracts();
-    } catch (err) { showToast(err.message); }
+  const c = state.myContracts.find(x => x.id === contractId);
+  if (!c) return;
+  window._signingContractId = contractId;
+  window._signingElapsed = false;
+  window._signingScrolled = false;
+  openModal({
+    title: UI.SIGN_MODAL_TITLE,
+    closable: false, // 表单/阅读类：点遮罩不关，防误触丢阅读进度
+    body: `<div class="contract-md contract-sign-scroll" id="contract-sign-scroll" onscroll="onContractSignScroll()">${mdRender(stripContractMarker(c.contract_md || ''))}</div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+      <span class="text-sm text-muted contract-sign-hint" id="contract-sign-hint">${signReadHint()}</span>
+      <button type="button" id="contract-sign-btn" class="btn glass glass--pressable" disabled onclick="confirmSignContract()">${UI.SIGN_READ_DONE_BTN}</button>`,
+  });
+  // 待够时长解锁；先按当前滚态初始化一次（短合同无溢出视同已到底，仍需待够时长）
+  window._signingTimer = setTimeout(() => { window._signingElapsed = true; updateSignBtnState(); },
+    CONFIG.CONTRACT_SIGN_READ_SECONDS * 1000);
+  setTimeout(onContractSignScroll, 0);
+}
+
+// 阅读时长提示文案（数字单源：CONFIG 渲染进 SIGN_READ_HINT 的 {secs}）
+function signReadHint() {
+  return UI.SIGN_READ_HINT.replace('{secs}', String(CONFIG.CONTRACT_SIGN_READ_SECONDS));
+}
+
+// 滚动到底判定：无溢出（短合同）视同已到底；有溢出须触底（容差 CONFIG.CONTRACT_SIGN_SCROLL_EPS）
+function onContractSignScroll() {
+  const el = document.getElementById('contract-sign-scroll');
+  if (!el) return;
+  const overflow = el.scrollHeight - el.clientHeight;
+  window._signingScrolled = overflow <= CONFIG.CONTRACT_SIGN_SCROLL_EPS
+    || (el.scrollHeight - el.scrollTop - el.clientHeight) <= CONFIG.CONTRACT_SIGN_SCROLL_EPS;
+  updateSignBtnState();
+}
+
+// 确认按钮使能：滚动到底 && 待够时长 双条件；提示同步两态
+function updateSignBtnState() {
+  const btn = document.getElementById('contract-sign-btn');
+  if (!btn) return;
+  const ready = window._signingElapsed && window._signingScrolled;
+  btn.disabled = !ready;
+  const hint = document.getElementById('contract-sign-hint');
+  if (hint) hint.textContent = ready ? UI.SIGN_READY_HINT : signReadHint();
+}
+
+// 确认按钮 → 二次确认 → 密码最终确认（needReAuth 换 capToken）→ POST 签约
+function confirmSignContract() {
+  const id = window._signingContractId;
+  clearTimeout(window._signingTimer);
+  confirm({ message: UI.CONFIRM_SIGN_TWICE, onConfirm: () => {
+    confirm({ message: UI.CONFIRM_SIGN_FINAL, needReAuth: true, onConfirm: async capToken => {
+      try {
+        const data = await api(`/api/contracts/${id}/sign`, { method: 'POST', body: { capToken } });
+        showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
+        invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
+        loadMyContracts();
+      } catch (err) { showToast(err.message); }
+    }});
   }});
 }
 

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.31',
+  APP_VERSION: '0.25.32',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -67,6 +67,8 @@ globalThis.APP_CONSTANTS = {
     UI_SCALE_KEY: 'sufe_ui_scale',        // 需求六·item5：UI 大小偏好 localStorage 键（参照 setThemePref 的 sufe_theme 模式）
     STYLE_KEY: 'sufe_style',              // 需求八·item4：页面风格偏好 localStorage 键（liquid/flat）
     ORB_KEY: 'sufe_orb',                  // 需求八·item3：背景光球偏好 localStorage 键（vivid/elegant/hidden）
+    CONTRACT_SIGN_READ_SECONDS: 30,       // 签约加固：合同确认前须滚动到底 + 待够此时长（秒）（v0.25.32）
+    CONTRACT_SIGN_SCROLL_EPS: 2,          // 签约加固：判定「滚到底」的底部容差 px（无溢出短合同视同已到底）
   },
 
   // ============================================================
@@ -818,7 +820,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',
     CONTRACT_WAIT_DRAFT: '等待对方确认草案',
-    BTN_SIGN: '确认签约',
+    BTN_SIGN: '开始签约',                 // v0.25.32：确认签约 → 开始签约（先读合同+待够时长）
     BTN_SIGN_WAITING: '等待对方确认签约',
     BTN_MODIFY_CONTRACT: '修改内容',
     BTN_VIEW_CONTRACT: '查看合同',
@@ -828,7 +830,12 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_MODIFY_BIZ_HINT: '仅可修改业务条款，法律条款不可修改',   // v0.24.2 审计：单源收口（曾硬编码中文 + 内联样式）
     CONTRACT_DIFF_HINT: '本次修改的改动处已高亮：绿色=新增，红色删除线=移除；法律条款未改动。', // v0.24.3 diff 视图
     CONTRACT_DIFF_EMPTY: '未检测到文本改动',
-    CONFIRM_SIGN: '确认签约后不可单方撤销（测试版以二次确认代替短信验证）。确定确认签约吗？',
+    SIGN_MODAL_TITLE: '开始签约',
+    SIGN_READ_HINT: '请阅读合同全文并滚动到底部，{secs} 秒后方可确认', // {secs} 渲染时填 CONFIG.CONTRACT_SIGN_READ_SECONDS（数字单源）
+    SIGN_READY_HINT: '已阅读完毕，可确认签约',
+    SIGN_READ_DONE_BTN: '我已阅读并确认签约',
+    CONFIRM_SIGN_TWICE: '确认签约后合同即生效、不可单方撤销。你确定已仔细阅读并确认这份合同吗？',
+    CONFIRM_SIGN_FINAL: '请输入账户密码，完成最终确认（后期接入短信验证码）',
     CONFIRM_CANCEL_CONTRACT: '取消后合同删除并通知对方（会话保留）。确定取消签约吗？',
     CONTRACT_EMPTY_LIST: '暂无合同——可在「我的会话」的聊天窗内起草',
     CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',

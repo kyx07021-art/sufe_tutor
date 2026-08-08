@@ -285,11 +285,11 @@ export async function handleCreateContract(db, body, req) {
   });
   const mdEnc = await encryptField(md); // 网安 N-05：合同正文加密落库（读点经 db.js 解密，台账哈希走明文）
   const res = await dbRun(db,
-    // v0.24.0 签署流简化：创建即置 drafter_confirmed=1 + status='signing'——
-    // 发送后发起方直接已签署，不再「等待对方确认草案」，对方签署即双方达成 signed
+    // v0.25.32 加固：发起方不再自动确认（原 drafter_confirmed=1 自动「已签约」）——起草后双方
+    // 各自走「读合同→滚到底+待够时长→二次确认→密码最终确认」显式签署，双方确认才 signed
     `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
         pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other, drafter_confirmed, status)
-     SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?, 1, 'signing'
+     SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?, 0, 'signing'
      WHERE NOT EXISTS (SELECT 1 FROM contracts WHERE conversation_id=? AND status IN ('pending','signing'))
        AND NOT EXISTS (SELECT 1 FROM contracts ct2 WHERE ct2.demand_id=? AND ct2.status IN ('pending','signing','signed'))
        AND EXISTS (SELECT 1 FROM student_demands WHERE id=? AND status='contracted')

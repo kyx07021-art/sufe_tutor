@@ -186,6 +186,19 @@ test('起草合同：同需求重复起草 → 409（一条需求一份合同）
   assert.equal(r2.status, 409, '一条需求只允许一份合同');
 });
 
+// ============ 5. v0.25.32 签约加固：发起方不自动确认 ============
+
+test('v0.25.32 加固：起草合同后发起方不自动确认（drafter_confirmed=0），须双方显式签署', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1Token, d2 } = await seed(db, raw);
+  const r = await handleCreateContract(db, contractBody(1, d2), reqOf(t1Token));
+  assert.equal(r.status, 201, '已签约（contracted）需求可起草合同');
+  const row = raw.prepare('SELECT drafter_confirmed, other_confirmed, status FROM contracts').get();
+  assert.equal(row.drafter_confirmed, 0, '发起方不自动置为已确认（原 drafter_confirmed=1 自动已签约）');
+  assert.equal(row.other_confirmed, 0, '对方同样未确认');
+  assert.equal(row.status, 'signing', '状态为待签约：双方各自确认后才 signed');
+});
+
 // ============ 4. bindable-demands phase=contract 别教师过滤 ============
 
 test('会话列表不再返回 demand_display_id（4a 解耦删字段）；contracted 保留供灰字提示', async () => {
