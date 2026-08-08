@@ -304,3 +304,47 @@ test('教师看教师：不参与匹配度（无 _matchForStudent 不排序）',
   const html = vm.runInContext('renderTeacherCard(A)', ctx);
   assert.ok(!html.includes('match-btn'), '教师看教师卡无匹配度按钮');
 });
+
+// #155（v0.25.63）：学生无开放需求 → 教师卡匹配度位置渲染小灰字提示（不再空白）
+test('学生端教师匹配：无开放需求 → 匹配度位置小灰字提示；有需求/教师视角不显', async () => {
+  const { ctx } = makeCtx('<!DOCTYPE html><html><body><div id="teachers-list"></div></body></html>');
+  loadCommon(ctx);
+  ctx.T1 = {
+    user_id: 1, username: 'T1', subjects: ['math'], province: 'shanghai', price_min: 150,
+    personality_tags: [], gender: 'male', avatar: '', rating: 5,
+  };
+  // 学生仅已签约需求 → 无开放需求 → 小灰字
+  vm.runInContext(`
+    state.user = { id: 50, username: '学生S', role: 'student' };
+    state.allTeachers = [T1];
+    dhGet = async (url) => {
+      if (url.includes('scope=mine')) return { demands: [
+        { id: 11, display_id: 7, status: 'contracted' },
+      ] };
+      return {};
+    };
+  `, ctx);
+  await vm.runInContext('attachStudentMatch([T1])', ctx);
+  assert.equal(vm.runInContext('_studentOpenDemand', ctx), false, '无开放需求标志为 false');
+  const html = vm.runInContext('renderTeacherCard(T1)', ctx);
+  assert.ok(html.includes('tc-match--hint'), '匹配度位置渲染小灰字提示');
+  assert.ok(html.includes('发布需求后展示匹配度'), '提示文案（单源 UI.TAG_MATCH_NO_DEMAND）');
+  assert.ok(!html.includes('match-btn--'), '无匹配徽章');
+  // 有开放需求但无可匹配数据 → 仍无小灰字（仅无需求时提示）
+  vm.runInContext(`
+    dhGet = async (url) => {
+      if (url.includes('scope=mine')) return { demands: [
+        { id: 12, display_id: 8, status: 'open' },
+      ] };
+      return {};
+    };
+  `, ctx);
+  await vm.runInContext('attachStudentMatch([T1])', ctx);
+  assert.equal(vm.runInContext('_studentOpenDemand', ctx), true, '有开放需求标志为 true');
+  assert.ok(!vm.runInContext('renderTeacherCard(T1)', ctx).includes('tc-match--hint'), '有开放需求不显示小灰字');
+  // 教师视角 → 不显示学生匹配度提示
+  vm.runInContext(`state.user = { id: 60, username: 'T2', role: 'teacher' }`, ctx);
+  await vm.runInContext('attachStudentMatch([T1])', ctx);
+  assert.equal(vm.runInContext('_studentOpenDemand', ctx), false, '非学生标志复位');
+  assert.ok(!vm.runInContext('renderTeacherCard(T1)', ctx).includes('tc-match--hint'), '教师视角不显示');
+});

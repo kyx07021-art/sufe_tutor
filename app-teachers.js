@@ -72,16 +72,19 @@ function renderTeachers(teachers) {
   initReveals(el);
 }
 
+let _studentOpenDemand = false; // #155（v0.25.63）：学生是否有开放需求——无需求时匹配度位置显示小灰字提示
+
 // 需求五·item5：学生端教师匹配度。对该学生所有 status='open'（活跃未匹配）需求逐条算 matchDegree，
 // 取最高值作卡片徽章，并把逐需求明细（按匹配度降序）挂到教师行 _matchForStudent 供明细卡渲染。
-// 非学生 / 无开放需求 → 不挂（卡上不显示匹配度、不参与排序）。
+// 非学生 / 无开放需求 → 不挂（卡上不显示匹配度、不参与排序）；无开放需求时匹配度位置渲染小灰字。
 async function attachStudentMatch(teachers) {
-  if (!state.user || state.user.role !== 'student') return;
+  if (!state.user || state.user.role !== 'student') { _studentOpenDemand = false; return; }
   for (const t of teachers) delete t._matchForStudent; // v0.25.8 审计修复：先清旧匹配——开放需求归零/更换后不残留过期徽章与过期排序（缓存对象同引用复用）
   let demands = [];
   try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands' })).demands || []; }
   catch { demands = []; }
   const open = demands.filter(d => DISP.demandIsActive(d)); // 需求活跃统一谓词（用户反馈 2026-08-08：==='open'，contracted/revoked 均非活跃）
+  _studentOpenDemand = open.length > 0;
   if (!open.length) return;
   for (const t of teachers) {
     const items = open
@@ -127,9 +130,10 @@ function renderTeacherCard(t) {
   const methodLine = DISP.methodName(t.teaching_method);
   const timeLine = DISP.expectedTimeText(t.time_slots);
   // 需求五·item5：学生端教师卡匹配度徽章（最高匹配值，三色按 matchLevel）——点击呼出逐需求明细
+  // #155（v0.25.63）：学生无开放需求 → 匹配度位置渲染小灰字提示（不再空白）
   const matchBtn = t._matchForStudent
     ? `<button type="button" class="tag-match match-btn match-btn--${matchLevel(t._matchForStudent.md)} glass glass--pressable" data-id="${t.user_id}" onclick="showTeacherMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${t._matchForStudent.md}%${UI.TAG_MATCH_HINT}</button>`
-    : '';
+    : (isStudent && !_studentOpenDemand ? `<span class="tc-match--hint">${escHtml(UI.TAG_MATCH_NO_DEMAND)}</span>` : '');
   return `<div class="list-card list-card--teacher glass" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openTeacherCard(event, ${t.user_id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProfilePanel(${t.user_id});}">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">

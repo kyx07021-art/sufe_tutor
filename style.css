@@ -1717,6 +1717,7 @@ body.profile-panel-closing .profile-panel {
 .tc-rating { display: inline-flex; align-items: center; gap: 6px; }
 .tc-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; } /* v0.25.12（反馈 #93/#94）：用户名+匹配度同行 + 间距 */
 .tc-match { display: inline-flex; } /* 匹配度按钮不进 .tc-username 防 ellipsis 裁剪（需求五·item5） */
+.tc-match--hint { font-size: .72rem; color: var(--muted); } /* #155（v0.25.63）：学生无开放需求时匹配度位置小灰字提示 */
 .tc-rating .stars { font-size: .85rem; }
 .tc-rating b { font-family: var(--mono); font-size: .76rem; color: var(--ink-3); }
 .tc-right {

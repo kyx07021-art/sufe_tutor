@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.62',
+  APP_VERSION: '0.25.63',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1109,6 +1109,7 @@ globalThis.APP_CONSTANTS = {
     TAG_MATCH: '匹配度 ',
     TAG_MATCH_HINT: ' · 点击展开明细',
     TAG_MATCH_TITLE: '点击查看匹配度明细',
+    TAG_MATCH_NO_DEMAND: '发布需求后展示匹配度', // #155（v0.25.63）：学生无开放需求时匹配度位置小灰字提示
     MATCH_DETAIL_TITLE: '匹配度明细',
     MATCH_DETAIL_SUB: '根据你的教师档案与这条需求自动计算',
     MATCH_ITEM_SUBJECT: '科目匹配',
