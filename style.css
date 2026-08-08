@@ -1079,6 +1079,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 筛选面板（.drop-wrap 内：margin 会在收起态泄漏高度，间距改由内边距承担） */
 .filter-panel { margin-bottom: 0; padding: 18px; }
 .filter-row { display: flex; gap: 16px; flex-wrap: wrap; }
+/* 需求五（v0.25.44）：筛选面板多排下拉栏之间的纵向空隙——上下两排不能零空隙紧贴（用户实证）。
+   空隙值单源 CONFIG.FILTER_ROW_GAP → --filter-row-gap（index.html applyLg 注入；此处 16px 仅无 JS 兜底） */
+.filter-panel .filter-row + .filter-row { margin-top: var(--filter-row-gap, 16px); }
 .filter-group { flex: 1; min-width: 120px; }
 .filter-label { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: .03em; }
 .filter-select {

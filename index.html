@@ -696,6 +696,8 @@
       function applyLg() {
         /* 需求六·item1：教师资料卡行间距单源 CONFIG.PROFILE_ROW_GAP → --profile-row-gap（style.css 默认 22px 仅兜底） */
         set('--profile-row-gap', (C.PROFILE_ROW_GAP || 22) + 'px');
+        /* 需求五（v0.25.44）：筛选面板多排下拉栏纵向空隙单源 CONFIG.FILTER_ROW_GAP → --filter-row-gap（style.css 默认 16px 仅兜底） */
+        set('--filter-row-gap', (C.FILTER_ROW_GAP || 16) + 'px');
         set('--lg-r-sm', (LG.radius.sm || 9) + 'px');
         set('--lg-r', (LG.radius.md || 12) + 'px');
         set('--lg-r-lg', (LG.radius.lg || 15) + 'px');
