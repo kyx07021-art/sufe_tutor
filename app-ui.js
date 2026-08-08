@@ -357,6 +357,7 @@ function prefillTimeSlots(container, raw) {
 // 开合动画在 CSS（modal-in），JS 只增删 #modal-container 内容
 // ============================================================
 function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '' } = {}) {
+  closeHostOverlays(document.getElementById('modal-container')); // v0.25.43 附属树：换弹窗前先级联关旧弹窗的子覆盖层
   const clickable = closable ? ' onclick="if(event.target===this)closeModal()"' : '';
   // v0.25.10（反馈 #82）：去独立玻璃表头——header 不再独占玻璃层/分隔线，
   // 标题直接坐弹窗顶端（毛玻璃归属整窗 .modal，表头只是自然流首行），整页滚动在 .modal-overlay
@@ -376,7 +377,10 @@ function openModal({ title, titleId = '', body = '', footer = '', closable = tru
     </div>
   </div>`;
 }
-function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
+function closeModal() {
+  closeHostOverlays(document.getElementById('modal-container')); // v0.25.43 附属树：关父组件先级联关子覆盖层（下拉面板等），防幽灵组件残留
+  document.getElementById('modal-container').innerHTML = '';
+}
 
 // ============================================================
 // 图片压缩通用件：读文件 → canvas 缩放（square=居中取最大内切正方形 / 否则最长边等比缩放）→ JPEG dataURL。

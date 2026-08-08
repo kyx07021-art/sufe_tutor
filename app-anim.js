@@ -10,6 +10,8 @@
  *   - 卡片浮入（revealObserver/initReveals，错峰延迟单源 CONFIG）
  *   - Toast（创建节点 → CSS 类定位/入场 → 定时切退场类 → 移除）
  *   - 自定义下拉开闭（toggleCustomSelect/closeAllCustomSelects/positionCustomSelectPanel + 全局监听）
+ *   - 浮窗附属树（v0.25.43 需求三）：registerOverlay/closeHostOverlays——body 附属覆盖层登记到宿主，
+ *     宿主关闭级联关子（浮窗内下拉关浮窗后成幽灵组件的根治）
  *   - 通用交互监听（[role=button] 键盘可达 a11y）
  *
  * 依赖：state/DISP/UI/CONFIG（app-state 词法绑定）、DISP（app-display）；运行时引用 app-ui 的组件。
@@ -117,6 +119,12 @@ function toggleCustomSelect(wrap) {
     positionCustomSelectPanel(wrap);
     wrap.classList.add('open');
     if (wrap._customPanel) wrap._customPanel.classList.add('open');
+    // v0.25.43（需求三）：浮窗内下拉 → 登记到宿主弹窗容器；宿主关闭级联关本面板（防幽灵组件）
+    const host = wrap.closest('#modal-container');
+    if (host) registerOverlay(host, () => {
+      wrap.classList.remove('open');
+      if (wrap._customPanel) wrap._customPanel.classList.remove('open');
+    }, wrap);
   }
 }
 function closeAllCustomSelects() {
@@ -124,6 +132,31 @@ function closeAllCustomSelects() {
     w.classList.remove('open');
     if (w._customPanel) w._customPanel.classList.remove('open');
   });
+}
+
+// ============================================================
+// 浮窗附属树（v0.25.43 需求三）：body 附属覆盖层登记到宿主，宿主关闭级联关子
+// 背景：下拉面板/悬浮卡等 fixed 覆盖层挂 body 逃逸玻璃 isolation 裁剪（v0.19.25 架构债），
+// 但脱离触发组件 DOM 子树后「关父组件」天然不级联——浮窗内呼出下拉、关浮窗后面板仍挂 body
+// 成幽灵组件（用户实证）。机制：宿主要关闭时 closeHostOverlays(host) 逐个关子覆盖层。
+// 标准接口：registerOverlay(host, closeFn, keyEl)——任何 future 覆盖层组件走此口登记；
+// 宿主自身在销毁/关闭点调 closeHostOverlays(host)（如 openModal/closeModal）。
+// 幂等：同一 keyEl 对同一宿主只登记一次（重复 toggle 不叠加）。
+// 页面级覆盖层（无宿主）不登记——由全局滚动/点击/Escape 监听管理。
+// ============================================================
+const _overlayHosts = new WeakMap(); // host(可关闭容器) → Set<closeFn>
+function registerOverlay(host, closeFn, keyEl) {
+  if (!host || typeof closeFn !== 'function') return;
+  if (keyEl && keyEl._overlayHost === host) return; // 同宿主幂等
+  if (!_overlayHosts.has(host)) _overlayHosts.set(host, new Set());
+  _overlayHosts.get(host).add(closeFn);
+  if (keyEl) keyEl._overlayHost = host;
+}
+function closeHostOverlays(host) {
+  if (!host) return;
+  const set = _overlayHosts.get(host);
+  if (set) set.forEach(fn => { try { fn(); } catch (e) { console.warn('overlay close failed:', e && e.message); } });
+  _overlayHosts.delete(host); // 宿主已清，登记即失效（弱引用的 DOM 宿主被销毁后自然回收）
 }
 function positionCustomSelectPanel(wrap) {
   const panel = wrap._customPanel, trig = wrap.querySelector('.custom-select-trigger');
