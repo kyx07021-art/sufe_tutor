@@ -68,15 +68,31 @@ function loadPosts() {
   { seqKey: 'posts', empty: UI.POSTS_EMPTY, pick: d => d.posts, reveal: true, peek: () => dhReady(url) });
 }
 
-// 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 作者可删
+// #161（v0.25.69）：点赞 pill 组件（列表卡 + 详情浮窗共用）——#160 复选逻辑单点
+function likePillHtml(p) {
+  return `<label class="post-like glass" data-id="${p.id}"> <!-- #160（v0.25.68）：点赞接复选框逻辑——liked 态骑原生
+    checkbox checked（同 .checkbox-item 的 :has(input:checked) 单源），告别自定义 .liked 类 + aria-pressed 手管；
+    原生翻转即乐观即时反馈，服务端返回后以 data.liked 收敛，失败回滚到点前态 -->
+    <input type="checkbox"${p.liked ? ' checked' : ''} aria-label="${UI.POST_LIKE_ARIA}" onchange="togglePostLike(${p.id}, this)">
+    <svg class="like-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"
+      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+    </svg>
+    <span class="like-count">${p.like_count || 0}</span>
+  </label>`;
+}
+
+// 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 作者可删。
+// #161（v0.25.69）：整卡可点击查看全文浮窗——卡 onclick 统一接管，点赞/删除内部控件用 closest 守卫不透传；
+// 标题转 button（键盘焦点 + Enter/Space 原生 click 冒泡到卡），正文摘要过长时点击即看全文。
 function renderPostCard(p, i) {
   const mine = state.user && p.user_id === state.user.id;
   const raw = String(p.body_md || '');
   const snippet = raw.slice(0, CONFIG.POST_SNIPPET);
   const time = p.created_at ? fmtDateTime(p.created_at) : '';
-  return `<div class="post-card glass" style="--i:${Math.min(i, 8)}">
+  return `<div class="post-card glass" style="--i:${Math.min(i, 8)}" onclick="postCardClick(event, ${p.id})">
     <div class="post-card-head">
-      <h3 class="post-title">${escHtml(p.title)}</h3>
+      <button type="button" class="post-title" aria-label="${UI.POST_VIEW_ARIA}">${escHtml(p.title)}</button>
       ${mine ? `<button type="button" class="post-del" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}
     </div>
     <div class="post-meta">
@@ -85,18 +101,36 @@ function renderPostCard(p, i) {
     </div>
     ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > CONFIG.POST_SNIPPET ? '…' : ''}</p>` : ''}
     <div class="post-actions">
-      <label class="post-like glass" data-id="${p.id}"> <!-- #160（v0.25.68）：点赞接复选框逻辑——liked 态骑原生
-        checkbox checked（同 .checkbox-item 的 :has(input:checked) 单源），告别自定义 .liked 类 + aria-pressed 手管；
-        原生翻转即乐观即时反馈，服务端返回后以 data.liked 收敛，失败回滚到点前态 -->
-        <input type="checkbox"${p.liked ? ' checked' : ''} aria-label="${UI.POST_LIKE_ARIA}" onchange="togglePostLike(${p.id}, this)">
-        <svg class="like-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"
-          fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
-        </svg>
-        <span class="like-count">${p.like_count || 0}</span>
-      </label>
+      ${likePillHtml(p)}
     </div>
   </div>`;
+}
+
+// #161（v0.25.69）：帖子卡点击守卫——点赞/删除等内部控件点击不透传（事件从控件冒泡上来，closest 命中即返回）
+function postCardClick(event, id) {
+  if (!event || (event.target.closest && event.target.closest('.post-like, .post-del'))) return;
+  openPostDetail(id);
+}
+
+// #161（v0.25.69）：帖子全文浮窗——列表 payload 已含完整 body_md（列表只截 80 字摘要），直接本地渲染零网络；
+// 正文走 .md-preview 排版（--full 放开高度封顶，浮窗整体在 overlay 滚动），点赞 pill 与列表卡共用组件
+function openPostDetail(id) {
+  const p = postsList.find(x => x.id === id);
+  if (!p) return;
+  const mine = state.user && p.user_id === state.user.id;
+  const time = p.created_at ? fmtDateTime(p.created_at) : '';
+  openModal({
+    title: escHtml(p.title),
+    cls: 'modal--wide', // 长文拓宽（同 md 预览）
+    bodyCls: 'md-preview md-preview--full',
+    body: `
+      <div class="post-meta">
+        <span class="post-author">${DISP.usernameHtml(p.username || UI.POST_ANONYMOUS)}${DISP.deactivatedTag(p.username)}</span>
+        <span class="post-time">${escHtml(time)}</span>
+      </div>
+      <div class="post-detail-body">${mdRender(p.body_md) || `<p>${UI.POST_PREVIEW_EMPTY}</p>`}</div>`,
+    footer: `<div class="post-detail-foot">${likePillHtml(p)}${mine ? `<button type="button" class="btn btn-text-danger glass glass--pressable" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}</div>`,
+  });
 }
 
 // ============================================================
@@ -116,13 +150,13 @@ async function togglePostLike(id, input) {
     if (postLikeSeq[id] !== seq) return; // 已有更新的点赞请求，丢弃过期响应
     const p = postsList.find(x => x.id === id);
     if (p) { p.liked = data.liked; p.like_count = data.likeCount; }
-    const label = document.querySelector(`#posts-list .post-like[data-id="${id}"]`);
-    if (label) {
+    // #161（v0.25.69）：同步全部 .post-like（列表卡 + 详情浮窗），不限于 #posts-list
+    document.querySelectorAll(`.post-like[data-id="${id}"]`).forEach(label => {
       const box = label.querySelector('input[type="checkbox"]');
       if (box) box.checked = data.liked; // 服务端为准：并发对端取消/失败兜底由这里收敛
       const cnt = label.querySelector('.like-count');
       if (cnt) cnt.textContent = data.likeCount;
-    }
+    });
     showToast(data.liked ? UI.POST_LIKED_TOAST : UI.POST_UNLIKED_TOAST);
   } catch (err) {
     if (postLikeSeq[id] !== seq) return; // 过期请求的错误不覆盖新请求的 UI 态

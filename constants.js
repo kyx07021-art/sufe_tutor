@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.68',
+  APP_VERSION: '0.25.69',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1483,6 +1483,7 @@ globalThis.APP_CONSTANTS = {
     BTN_CONFIRM_DELETE: '确认删除',
     POST_ANONYMOUS: '匿名',
     POST_LIKE_ARIA: '点赞',
+    POST_VIEW_ARIA: '查看帖子全文', // #161（v0.25.69）：帖子标题按钮（点击卡片查看全文）
     POST_LIKED_TOAST: '已点赞',
     POST_UNLIKED_TOAST: '已取消点赞',
     POST_MODAL_TITLE_CREATE: '发布帖子',

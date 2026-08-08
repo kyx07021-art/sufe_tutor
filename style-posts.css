@@ -22,10 +22,13 @@ select.posts-sort {
 }
 
 /* ---------- 帖子卡 ---------- */
-/* 悬停聚焦动效已取消（信息展示卡统一静态）；入场动效统一走全站 .reveal 浮入管线 */
+/* #161（v0.25.69）：卡片可点击查看全文——交互卡，悬停走引擎 hover 洗 + cursor 指针（原「统一静态」对交互卡放开）；
+   入场动效统一走全站 .reveal 浮入管线 */
 .post-card {
   position: relative; overflow: hidden; isolation: isolate;
   padding: 18px 20px 14px;
+  cursor: pointer;
+  --g-hover: var(--g-hover-wash); /* 引擎标准悬停白洗（glass.css），非新动效 */
 }
 .post-card + .post-card { margin-top: 12px; }
 
@@ -35,6 +38,9 @@ select.posts-sort {
 .post-title {
   font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em;
   line-height: 1.35; color: var(--ink); overflow-wrap: anywhere;
+  /* #161（v0.25.69）：标题转 button 承载键盘焦点/Enter 激活，样式还原为文本外观 */
+  border: none; background: none; padding: 0; margin: 0; font-family: inherit;
+  text-align: left; cursor: pointer; width: auto;
 }
 
 /* 作者 + 时间：时间走等宽字，em-dash 分隔呼应全站横线母题 */
@@ -86,6 +92,10 @@ select.posts-sort {
 .post-like:active { transform: scale(.94); transition-duration: 80ms; }
 .post-like:has(input:checked) .like-icon { fill: var(--danger); stroke: var(--danger); } /* 文字色单源 glass.css（--g-fg: var(--danger)） */
 
+/* #161（v0.25.69）：详情浮窗 footer——点赞 pill 与删除分居两侧 */
+.post-detail-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-light); }
+.post-detail-body { margin-top: 10px; }
+
 /* 作者自删：低调文字按钮，悬停转危险红 + 细下划线 */
 .post-del {
   flex-shrink: 0; padding: 2px 4px;
@@ -133,6 +143,9 @@ textarea.post-body-input { min-height: calc(200px * var(--ui-scale, 1)); font-si
   border: 1px solid var(--border-light);
 }
 .md-preview-empty { font-size: .78rem; color: var(--faint); }
+
+/* #161（v0.25.69）：详情浮窗正文用 md-preview 排版但放开高度封顶（浮窗整体在 overlay 滚动，无需内滚） */
+.md-preview--full { max-height: none; }
 
 /* 未放行图片的占位标记 */
 .md-img-blocked {
