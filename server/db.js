@@ -908,7 +908,10 @@ export async function dbGetDemands(db, { admin = false, cursor = null, teacherUs
 }
 
 export async function dbGetDemandsByUser(db, userId) {
-  const rows = await dbAll(db, DEMANDS_SELECT + ' WHERE sd.user_id=? ORDER BY sd.created_at DESC', [userId]);
+  // #157（v0.25.65）：我的需求已签约沉底——contract 需求不再与开放需求按时间穿插，
+  // 活跃需求优先（可按创建时间排），已签约的堆列表最下；revoked 仍可重开，归活跃侧。
+  const rows = await dbAll(db, DEMANDS_SELECT +
+    ` WHERE sd.user_id=? ORDER BY CASE WHEN sd.status='contracted' THEN 1 ELSE 0 END, sd.created_at DESC`, [userId]);
   return await Promise.all(rows.map(mapDemandRowFull)); // 本人「我的需求」：编辑回填需要联系方式；F-06 解密为 async
 }
 

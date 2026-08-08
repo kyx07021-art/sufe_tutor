@@ -13,7 +13,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import { initDb, dbGetDemandsByUser } from '../server/db.js';
 import { handleCreateSigning, handleRespondSigning } from '../server/signing.js';
 import { handleGetConversationBindableDemands } from '../server/routes-chat.js';
 import { tokenDigest } from '../server/crypto.js';
@@ -206,4 +206,17 @@ test('发起签约：通知文案带发送者用户名（教师发起 → 学生
   const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(s1);
   assert.ok(notif, '学生收到通知');
   assert.ok(notif.text.includes('「t1」'), `通知含发送者用户名（实际：${notif.text}）`);
+});
+
+// #157（v0.25.65）：我的需求排序——已签约沉底（开放/已撤销按时间在前，revoked 可重开归活跃侧）
+test('我的需求排序：已签约沉底，开放/已撤销在前（#157）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1 } = await seed(db, raw); // d1 open、d2 contracted、d3 revoked（同秒插入）
+  const rows = await dbGetDemandsByUser(db, s1);
+  const statuses = rows.map(r => r.status);
+  const idx = {};
+  statuses.forEach((s, i) => { idx[s] = i; });
+  assert.ok(idx['contracted'] > idx['open'], '已签约需求沉底（不再与开放需求按时间穿插）');
+  assert.ok(idx['contracted'] > idx['revoked'], '已签约需求排在已撤销之后（revoked 可重开归活跃侧）');
+  assert.equal(statuses.filter(s => s === 'open').length, 1, '仅本人需求');
 });
