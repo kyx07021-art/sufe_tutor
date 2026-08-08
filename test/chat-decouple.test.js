@@ -173,17 +173,25 @@ test('submitSigning：未选需求被校验拦截，不发起请求；选中后�
     document.getElementById('modal-container').innerHTML = \`
       <div class="modal"><div class="modal-body">
         <select class="form-select" id="signing-demand"><option value="">请选择</option><option value="7">#0007</option></select>
-        <input id="signing-price" value="150"><input id="signing-schedule" value="每周六"><select id="signing-method"><option value="offline" selected>线下</option></select>
+        <input id="signing-price" value="150"><select id="signing-method"><option value="offline" selected>线下</option></select>
+        <div id="signing-time-slots" class="time-slots">
+          <div class="time-slot">
+            <select class="slot-dow"><option value="1">周一</option></select>
+            <div class="time-field" data-time-role="start"><input class="slot-time-hh" value="18"><input class="slot-time-mm" value="00"></div>
+            <div class="time-field" data-time-role="end"><input class="slot-time-hh" value="20"><input class="slot-time-mm" value="00"></div>
+          </div>
+        </div>
       </div></div>\`;
   `, ctx);
   // 未选需求
   await vm.runInContext('submitSigning(1)', ctx);
   assert.ok(String(dom.window.__toast || '').includes('需求'), '未选需求应提示校验');
   assert.equal(dom.window.__posted, undefined, '未选需求不应发请求');
-  // 选中后携带 demandId
+  // 选中后携带 demandId（v0.25.35 时间组件已预填一行，schedule 格式化后非空）
   await vm.runInContext(`document.getElementById('signing-demand').value = '7'; submitSigning(1)`, ctx);
   assert.ok(dom.window.__posted, '选中需求后应发请求');
   assert.equal(dom.window.__posted.body.demandId, 7, '请求体携带 demandId');
+  assert.ok(String(dom.window.__posted.body.schedule || '').includes('周一'), 'schedule 为格式化时间段');
 });
 
 test('submitContractDraft：未选已签约需求被校验拦截', async () => {

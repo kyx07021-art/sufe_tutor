@@ -308,6 +308,7 @@ async function openSigningModal(convId) {
   let demands = [], demandsFailed = false;
   try { const data = await api(`/api/conversations/${convId}/bindable-demands?phase=signing`); demands = data.demands || []; }
   catch { demandsFailed = true; }
+  window._signingDemands = demands; // 供 prefillSigningTimeSlots 按所选需求预填时间段
   openModal({
     title: UI.SIGNING_MODAL_TITLE,
     closable: false,
@@ -315,7 +316,7 @@ async function openSigningModal(convId) {
         <p class="text-sm text-muted signing-modal-hint">${UI.SIGNING_MODAL_HINT}</p>
         <div class="form-group">
           <label class="form-label">${UI.SIGNING_DEMAND_LABEL} <span class="req">*</span></label>
-          <select class="form-select" id="signing-demand">
+          <select class="form-select" id="signing-demand" onchange="prefillSigningTimeSlots()">
             ${demands.length
               ? `<option value="">${UI.SIGNING_DEMAND_PLACEHOLDER}</option>` +
                 demands.map(d => `<option value="${d.id}">${escHtml(DISP.demandOptionText(d))}</option>`).join('')
@@ -329,7 +330,8 @@ async function openSigningModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_SCHEDULE} <span class="req">*</span></label>
-          <input type="text" id="signing-schedule" class="form-input" maxlength="200" placeholder="${UI.SIGNING_SCHEDULE_PLACEHOLDER}">
+          <div id="signing-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件 -->
+          <p class="text-sm text-muted signing-modal-hint">${UI.SIGNING_TIME_HINT}</p>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_METHOD}</label>
@@ -344,13 +346,34 @@ async function openSigningModal(convId) {
   initCustomSelects(document.getElementById('signing-method') && document.getElementById('signing-method').closest('.modal'));
 }
 
+// v0.25.35 签约/草拟共用：收集时间组件 → 人类可读 schedule 串（结构化 slots 经 DISP.expectedTimeText
+// 格式化为「周一 18:00-20:00、周三 16:00-18:00」；空 → ''；半填/起止颠倒由 validateTimeSlots 先行拦截）
+function collectScheduleText(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return '';
+  const slots = collectTimeSlots(container);
+  return slots.length ? DISP.expectedTimeText(JSON.stringify(slots)) : '';
+}
+
+// 发起签约：切换需求 → 按其 expected_time 预填时间组件（仅容器为空时预填，用户改过的不覆盖）
+function prefillSigningTimeSlots() {
+  const sel = document.getElementById('signing-demand');
+  if (!sel) return;
+  const d = (window._signingDemands || []).find(x => String(x.id) === String(sel.value));
+  const container = document.getElementById('signing-time-slots');
+  if (!d || !container || container.querySelectorAll('.time-slot').length) return;
+  prefillTimeSlots(container, d.expected_time || '');
+}
+
 async function submitSigning(convId) {
   const demandId = parseInt(document.getElementById('signing-demand').value) || null;
   const price = +document.getElementById('signing-price').value || 0;
-  const schedule = (document.getElementById('signing-schedule').value || '').trim();
+  const tsErr = validateTimeSlots(document.getElementById('signing-time-slots'));
+  const schedule = collectScheduleText('signing-time-slots');
   const method = document.getElementById('signing-method').value;
   if (!demandId) { showToast(UI.VALIDATE_SIGNING_DEMAND); return; } // 需求四·第2条：每次签约绑定一份需求
   if (price <= 0) { showToast(UI.VALIDATE_SIGNING_PRICE); return; }
+  if (tsErr) { showToast(tsErr); return; } // v0.25.35 结构化时间校验（半填/起止颠倒就地拦截）
   if (!schedule) { showToast(UI.VALIDATE_SIGNING_SCHEDULE); return; }
   try {
     await api(`/api/conversations/${convId}/signing`, { method: 'POST', body: { demandId, price, schedule, method } });
@@ -397,7 +420,8 @@ async function openContractDraftModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_SCHEDULE}</label>
-          <input type="text" class="form-input" id="contract-schedule" maxlength="200" placeholder="${UI.CONTRACT_SCHEDULE_PLACEHOLDER}">
+          <div id="contract-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件 -->
+          <p class="text-sm text-muted contract-modify-hint">${UI.CONTRACT_TIME_HINT}</p>
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_LOCATION}</label>
@@ -478,6 +502,9 @@ function prefillContractFromDemand() {
   const plan = document.getElementById('post-body');
   const subjLine = DISP.demandTargetNames(d.target_subjects, d.target_type); // R2-b 合同详情按需求类型显示目标名
   if (plan && !plan.value.trim() && subjLine) { plan.value = `${UI.CONTRACT_SUBJECT_LINE_PREFIX}${subjLine}\n\n`; }
+  // v0.25.35 授课时间段：按需求 expected_time 预填时间组件（仅未填时，用户改过的不覆盖）
+  const ts = document.getElementById('contract-time-slots');
+  if (ts && !ts.querySelectorAll('.time-slot').length) prefillTimeSlots(ts, d.expected_time || '');
 }
 
 let contractDraftBusy = false; // 合同起草防双发（双击生成两份草案）
@@ -498,10 +525,12 @@ async function submitContractDraft(convId) {
   if (payMethod === 'other' && !payMethodOther) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER); return; }
   if (trialPay === 'other' && !trialPayOther) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER); return; }
   if (!plan) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_PLAN); return; }
+  const tsErr = validateTimeSlots(document.getElementById('contract-time-slots'));
+  if (tsErr) { alertEl.innerHTML = alertHtml('error', tsErr); return; } // v0.25.35 结构化时间校验（空=可协商，不强制）
   if (contractDraftBusy) return;
   contractDraftBusy = true;
   try {
-    const schedule = (document.getElementById('contract-schedule').value || '').trim();
+    const schedule = collectScheduleText('contract-time-slots');
     const location = (document.getElementById('contract-location').value || '').trim();
     const data = await api('/api/contracts', { method: 'POST', body: { conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
     invalidate('contracts'); // 新草案须即时可见，不等 30s 轮询
