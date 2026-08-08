@@ -178,10 +178,27 @@ async function routeApi(db, p, method, body, url, req) {
   // 健康检查
   if (p === '/api/health') return json({ status: 'ok', timestamp: new Date().toISOString() });
 
+  // D1 保活（v0.25.16）：Pages 无原生 cron，由独立保活 Worker 的 cron 每 5 分钟打本端点，
+  // 对业务/留档/台账三库 SELECT 1 保持唤醒（等效 scheduled handler 的保活逻辑）。纯读、无敏感数据。
+  if (p === '/api/keepalive' && method === 'GET') {
+    await keepD1Warm(env);
+    return json({ status: 'ok' });
+  }
+
   // 数据版本戳（v0.23.0 静默数据层）：客户端 8s 轮询探测；廉价单表读，无需鉴权（计数器无敏感性）
   if (p === '/api/data-version' && method === 'GET') return await handleGetDataVersion(db);
 
   return error('Not Found', 404);
+}
+
+// D1 保活（v0.22.8 + v0.25.16 重构单点）：对业务/留档/台账三库轻查询 SELECT 1，避免空闲冷启动
+// （首击 4-6s 唤醒；冷启动伤害最重的是 per-token 列表页）。调用方：① scheduled 事件——Pages 无原生
+// cron 触发器，wrangler.toml [triggers] 对 Pages 不生效（2026 实测 API/CLI 均无法注册，见会话），
+// 由独立保活 Worker（keepalive-worker/，wrangler cron 触发）打 /api/keepalive 代为唤醒；
+// ② /api/keepalive 路由。保活失败静默，不影响主流程。
+function keepD1Warm(env) {
+  const ping = db => (db ? db.prepare('SELECT 1').run().catch(() => {}) : Promise.resolve());
+  return Promise.all([ping(env.DB), ping(env.LOG_DB), ping(env.LEDGER_DB)]).catch(() => {});
 }
 
 export default {
@@ -263,13 +280,10 @@ export default {
       return applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message
     }
   },
-  // D1 保活（v0.22.8，性能杠杆）：wrangler.toml [triggers] 每 5 分钟触发本 handler，
-  // 对业务/留档/台账三库轻查询 SELECT 1，避免 D1 空闲冷启动（首击 4-6s 唤醒）。
-  // 冷启动伤害最重的是 per-token 列表页（无读缓存覆盖），保活后恢复百毫秒级。
+  // D1 保活（v0.22.8 + v0.25.16）：逻辑收敛到 keepD1Warm 单点（与 /api/keepalive 路由共用）。
+  // Pages 无原生 cron 触发，本 handler 实际由独立保活 Worker 的 cron 打 /api/keepalive 代为驱动；
+  // 保留 scheduled 入口以兼容未来 Workers 直部署场景。
   async scheduled(event, env, ctx) {
-    const ping = db => (db ? db.prepare('SELECT 1').run().catch(() => {}) : Promise.resolve());
-    try {
-      await Promise.all([ping(env.DB), ping(env.LOG_DB), ping(env.LEDGER_DB)]);
-    } catch { /* 保活失败静默，不影响主流程 */ }
+    await keepD1Warm(env);
   },
 };
