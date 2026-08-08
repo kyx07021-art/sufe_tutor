@@ -184,3 +184,26 @@ test('确认签约：需求状态 open → contracted，签约请求置 signed',
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'contracted', '确认签约后需求置 contracted');
   assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=?').get(srId).status, 'signed', '签约请求置 signed');
 });
+
+// #152（v0.25.60）：发起签约通知带上发送者用户名——原模板无 {name} 占位 + nameOf 取错边，
+// 通知恒为无身份标识的「对方向你发送了签约请求」
+test('发起签约：通知文案带发送者用户名（学生发起 → 教师收到「s1」）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1, s1Token, d1 } = await seed(db, raw);
+  const r = await handleCreateSigning(db, signBody(d1), reqOf(s1Token));
+  assert.equal(r.status, 201);
+  const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(t1);
+  assert.ok(notif, '教师收到通知');
+  assert.ok(notif.text.includes('「s1」'), `通知含发送者用户名（实际：${notif.text}）`);
+  assert.ok(notif.text.includes('向你发送了签约请求'), '文案语义完整');
+});
+
+test('发起签约：通知文案带发送者用户名（教师发起 → 学生收到「t1」）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1, t1Token, d1 } = await seed(db, raw);
+  const r = await handleCreateSigning(db, signBody(d1), reqOf(t1Token));
+  assert.equal(r.status, 201);
+  const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(s1);
+  assert.ok(notif, '学生收到通知');
+  assert.ok(notif.text.includes('「t1」'), `通知含发送者用户名（实际：${notif.text}）`);
+});

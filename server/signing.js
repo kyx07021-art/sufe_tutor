@@ -37,7 +37,9 @@ import '../constants.js';
 const UIC = globalThis.APP_CONSTANTS.UI;
 
 const otherSide = (conv, userId) => (conv.student_user_id === userId ? conv.teacher_user_id : conv.student_user_id);
-const nameOf = (conv, userId) => (conv.student_user_id === userId ? conv.teacher_name : conv.student_name);
+// #152（v0.25.60）：通知文案插发送者姓名——nameOf 返回发起方（当前操作者）的用户名（原镜像 otherSide
+// 取对方姓名，模板又无 {name} 占位，replace 死调用 + 文案恒为无身份标识的「对方」）
+const nameOf = (conv, userId) => (conv.student_user_id === userId ? conv.student_name : conv.teacher_name);
 
 export async function initSigningTable(db) {
   await dbRun(db, `CREATE TABLE IF NOT EXISTS signing_requests (

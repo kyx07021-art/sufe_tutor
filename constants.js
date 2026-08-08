@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.59',
+  APP_VERSION: '0.25.60',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1026,7 +1026,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_MY_CONTRACTS_DESC: '合同草案确认与正式签约',
     DRAFT_MODAL_TITLE: '起草合同',
     // v0.24.0 发起签约（极简签约流：加号栏「发起签约」→ 会话内签约请求气泡 → 对方确认/拒绝）
-    SIGNING_REQUEST_SENT: '对方向你发送了签约请求',
+    SIGNING_REQUEST_SENT: '「{name}」向你发送了签约请求', // #152（v0.25.60）：通知带发送者用户名（原「对方」无身份标识）
     SIGNING_REQUEST_SENT_TOAST: '签约请求已发送',
     SIGNING_CONFIRMED: '对方已确认签约请求',
     SIGNING_REJECTED: '对方已拒绝此次签约请求',
