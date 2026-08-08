@@ -46,7 +46,7 @@ function idMatch(p, pattern) {
   return m ? parseInt(m[1], 10) : null;
 }
 
-async function routeApi(db, p, method, body, url, req) {
+async function routeApi(db, p, method, body, url, req, env) {
   // 认证
   if (p === '/api/auth/register' && method === 'POST') return await handleRegister(db, body, req);
   if (p === '/api/auth/login' && method === 'POST') return await handleLogin(db, body, req);
@@ -197,8 +197,10 @@ async function routeApi(db, p, method, body, url, req) {
 // 由独立保活 Worker（keepalive-worker/，wrangler cron 触发）打 /api/keepalive 代为唤醒；
 // ② /api/keepalive 路由。保活失败静默，不影响主流程。
 function keepD1Warm(env) {
-  const ping = db => (db ? db.prepare('SELECT 1').run().catch(() => {}) : Promise.resolve());
-  return Promise.all([ping(env.DB), ping(env.LOG_DB), ping(env.LEDGER_DB)]).catch(() => {});
+  try {
+    const ping = db => (db ? db.prepare('SELECT 1').run().catch(() => {}) : Promise.resolve());
+    return Promise.all([ping(env.DB), ping(env.LOG_DB), ping(env.LEDGER_DB)]).catch(() => {});
+  } catch { return Promise.resolve(); } // 绑定缺失/同步抛错全兜底：保活失败静默，绝不影响主流程
 }
 
 export default {
@@ -258,7 +260,7 @@ export default {
 
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
     try {
-      const res = await routeApi(db, p, request.method, body, url, request);
+      const res = await routeApi(db, p, request.method, body, url, request, env); // env 供保活等需多绑定端点
       // 数据版本戳（v0.23.0 静默数据层）：写操作成功在写咽喉 bump 受影响域。
       // waitUntil 包裹——workerd 会掐断未完成的悬浮 Promise；版本戳失败静默
       // （bumpVersions 内吞错），不影响主业务。
