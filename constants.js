@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.21',
+  APP_VERSION: '0.25.22',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -163,6 +163,63 @@ globalThis.APP_CONSTANTS = {
       pill:   'blur(4px) saturate(180%) brightness(1.04)',   // 侧栏选中块=透
       nav:    'blur(8px)',                                   // 顶栏
       side:   'blur(8px)',                                   // 侧边栏
+    },
+  },
+
+  // ============================================================
+  // 外观包（需求八·item4 页面风格）：每份外观包 = 语义 token 增量 + 特殊效果协调。
+  // 架构（上网调研：语义 token 分层 + [data-style][data-theme] 正交维度，lombokcss 实证）：
+  //   玻璃引擎组件一律只消费语义 token（--g-fill/--g-frost/--g-lift…），外观包只 remap 语义层——
+  //   liquid 零覆盖（等价现状）；flat 把半透明玻璃面→不透明纸面、磨砂/投影/液体边缘→none/透明、
+  //   光球档位→hidden（orbMode 读 data-style 协调）。切换 = JS setProperty 换 token 组，零组件改动。
+  //   值引用主题语义色（var(--paper) 等）→ 深浅主题自适应；键全量清空再应用，防残留。
+  //   index.html 内联 IIFE 首绘应用（无 FOUC）；app-style.js 提供设置接口。
+  // ============================================================
+  STYLE_PACKS: {
+    liquid: {
+      // 液态玻璃：默认外观包，零 token 覆盖（等价现状）
+      tokens: {},
+    },
+    flat: {
+      orb: 'hidden', // 特殊效果协调：平面简约强制光球隐藏（orbMode 读 <html data-style>）
+      tokens: {
+        // ---- 磨砂/底板虚化 → 全关（backdrop-filter 归零 = 平面关键） ----
+        '--g-f-card': 'none', '--g-f-cardM': 'none', '--g-f-modal': 'none', '--g-f-header': 'none',
+        '--g-f-btn': 'none', '--g-f-entry': 'none', '--g-f-pill': 'none', '--g-f-nav': 'none', '--g-f-side': 'none',
+        '--lg-bg-blur': '0px',
+        // ---- 表面填充 → 不透明（引用主题语义色，深浅自适应） ----
+        '--g-plate': 'var(--g-bg)',           // 底板渐变 → 纯底色（无光球无磨砂即纯净底）
+        '--g-paper': 'var(--paper)',          // 浮窗/面板 → 不透明纸面
+        '--g-paper-bright': 'var(--paper)',
+        '--g-fill-strong': 'var(--paper-2)',  // 标签/选中态/侧栏选中块
+        '--g-fill-weak': 'var(--paper-2)',    // 输入控件/勾选/分段容器
+        '--g-fill-faint': 'var(--paper-3)',   // 微透面 → 最浅纸面
+        '--g-fill-mid': 'var(--paper-2)',
+        '--g-card-fill': 'var(--paper)',      // 卡族弯月径向 → 纯纸面
+        '--g-card-strong': 'var(--paper-2)', '--g-card-id': 'var(--paper-3)',
+        '--g-card-strong-m': 'var(--paper-2)', '--g-card-id-m': 'var(--paper-3)',
+        '--g-header-fill': 'var(--paper-2)',
+        '--g-sideuser-fill': 'var(--paper-2)', '--g-pane-fill': 'var(--paper-2)',
+        '--g-sidebar-bg': 'var(--paper)', '--g-sidebar-bg-m': 'var(--paper)', '--g-navbar-bg': 'var(--paper)',
+        '--g-avatar-fill': 'var(--paper-3)', '--g-avatar-fill-ghost': 'var(--paper-3)',
+        '--g-avatar-border': 'var(--line)', '--g-avatar-border-ghost': 'var(--line)',
+        '--g-btn-fill': 'var(--g-fill-weak)',   // 按钮透明透镜 → 不透明纸面（防平面模式按钮隐形）
+        '--g-bubble-mine': 'var(--accent-tint)', '--g-bubble-theirs': 'var(--paper-2)', '--g-bubble-system': 'var(--lilac-2)',
+        '--g-accent-fill-strong': 'var(--accent)', // 勾选选中 → 纯品牌紫
+        '--g-flow-dot': 'var(--ink-2)',
+        '--g-ok-solid': 'var(--ok-deep)',
+        // ---- 投影/液体边缘 → 透明占位（box-shadow 列表禁 none 混入，v0.19.17 教训） ----
+        '--glass-lift': '0 0 0 0 transparent', '--glass-lift-sm': '0 0 0 0 transparent',
+        '--g-liquid': '0 0 0 0 transparent', '--g-liquid-sm': '0 0 0 0 transparent',
+        '--g-pane-shadow': '0 0 0 0 transparent',
+        '--g-panel-lift': 'transparent', '--g-panel-lift-m': 'transparent',
+        '--g-seg-lift': '0 0 0 0 transparent',       // 分段选中浮影别名（glass.css 漏网点改造）
+        '--g-panel-backdrop-blur': 'none',           // 右栏遮罩虚化别名（style.css 漏网点改造）
+        // ---- hover 白洗 → 中性灰洗（深浅底通用；白洗在不透明纸面上不可见） ----
+        '--g-hover-wash': 'rgba(120,120,132,.12)',
+        // ---- 匹配条空轨/填充段 ----
+        '--g-bar-soft': 'var(--paper-3)', '--g-bar-strong': 'var(--accent-tint)',
+      },
     },
   },
 
@@ -999,6 +1056,9 @@ globalThis.APP_CONSTANTS = {
     SETTINGS_THEME_HINT: '选择界面外观风格，「跟随系统」会自动适配系统的黑夜模式',
     SETTINGS_UI_SCALE_LABEL: 'UI大小',
     SETTINGS_UI_SCALE_HINT: '调整界面文字、按钮与输入组件的整体大小（{min}%~{max}%，默认 {def}%）', // {min}/{max}/{def} 渲染时填 CONFIG.UI_SCALE_MIN/MAX/DEFAULT（数字单源，禁散落硬编码）
+    SETTINGS_STYLE_LABEL: '页面风格',
+    SETTINGS_STYLE_HINT: '整站视觉风格：液态玻璃（毛玻璃+光影）／平面简约（纯色无磨砂，更轻快）',
+    STYLE_LIQUID: '液态玻璃', STYLE_FLAT: '平面简约',
     SETTINGS_ORB_LABEL: '背景光球',
     SETTINGS_ORB_HINT: '背景漂移光球的显示效果：鲜艳=彩色柔光，淡雅=若有若无，隐藏=纯净底色',
     ORB_MODE_VIVID: '鲜艳', ORB_MODE_ELEGANT: '淡雅', ORB_MODE_HIDDEN: '隐藏',

@@ -521,6 +521,7 @@
   <script src="/app-datahub.js"></script>
   <script src="/app-anim.js"></script>
   <script src="/app-ui.js"></script>
+  <script src="/app-style.js"></script>
   <script src="/app-onboard.js"></script>
   <script src="/app-region.js"></script>
   <script src="/app-posts.js"></script>
@@ -594,6 +595,42 @@
     })();
   </script>
   <script>
+    /* 页面风格注入（需求八·item4 外观包）：首帧前把偏好（localStorage 'sufe_style'，liquid 缺省）：
+       1) <html data-style="liquid|flat">（光球档位协调 + 调试钩子）；
+       2) 把 STYLE_PACKS[pref].tokens 全部 setProperty 到 <html>（内联样式覆盖在 THEME 之上——
+          主题也是内联 setProperty，同机制必然压过 stylesheet，故外观包一律走 JS 注入，不写 CSS 块）；
+          切回默认包时清空全部外观包 key 再应用，防残留。
+       与主题注入同款「无 FOUC」；window.__applyPageStyle = app-style.js 设置切换共用单点。
+       本脚本必须先于光球脚本运行（applyOrbs 读 data-style 定档）。 */
+    (function () {
+      var KEY = 'sufe_style';
+      function stylePref() {
+        var p = 'liquid';
+        try { var v = localStorage.getItem(KEY); if (v === 'flat') p = v; } catch (e) {}
+        return p;
+      }
+      function pageStyleApply() {
+        /* PACKS 每次现读 window.APP_CONSTANTS（jsdom 两 realm 测试桥接后可实时拿到真包；生产首绘前即就绪） */
+        var PACKS = (window.APP_CONSTANTS || {}).STYLE_PACKS || { liquid: { tokens: {} }, flat: { tokens: {} } };
+        var root = document.documentElement;
+        var p = stylePref();
+        root.dataset.style = p;
+        var pack = PACKS[p] || {};
+        var toks = pack.tokens || {};
+        /* 清空全部外观包 key（含他包残留），再应用当前包 */
+        var all = {};
+        for (var a in (PACKS.liquid || {}).tokens || {}) all[a] = 1;
+        for (var b in (PACKS.flat || {}).tokens || {}) all[b] = 1;
+        for (var c in all) root.style.removeProperty(c);
+        for (var t in toks) root.style.setProperty(t, toks[t]);
+        if (window.__applyOrbs) window.__applyOrbs(); /* 光球档位：orbMode 读 data-style（flat → hidden）；首绘时 __applyOrbs 尚不存在，跳过由光球脚本自行定档 */
+        return p;
+      }
+      window.__applyPageStyle = pageStyleApply;
+      pageStyleApply();
+    })();
+  </script>
+  <script>
     /* liquid glass 背景舞台（0.19.1：材质注入器已连根拔除——玻璃填充唯一源是 glass.css 的
        --g-fill，本脚本不再覆盖组件外观，只做两件事）：
        1) 把 constants.LG 几何参数换算成 :root CSS 变量（圆角 / 底板磨砂 / 发光圆尺寸）。
@@ -641,6 +678,8 @@
       var glow = document.createElement('div'); glow.className = 'lg-mouseglow'; glow.setAttribute('aria-hidden', 'true');
       document.body.appendChild(glow);
       function orbMode() {
+        /* 需求八·item4 外观包协调：平面简约（data-style=flat）强制光球隐藏；液态玻璃交还用户光球偏好 */
+        if (document.documentElement.dataset.style === 'flat') return 'hidden';
         var m = 'vivid';
         try { var v = localStorage.getItem('sufe_orb'); if (v === 'elegant' || v === 'hidden') m = v; } catch (e) {}
         return m;

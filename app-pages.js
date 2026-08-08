@@ -45,6 +45,10 @@ function enterAccountSettings() {
   const themePref = getThemePref();
   const themeOpts = [['light', UI.THEME_LIGHT], ['dark', UI.THEME_DARK], ['system', UI.THEME_SYSTEM]].map(([k, label]) =>
     `<button type="button" class="theme-opt glass glass--pressable${themePref === k ? ' theme-opt--on' : ''}" data-pref="${k}" onclick="setThemePref('${k}')">${label}</button>`).join('');
+  // 需求八·item4 页面风格（外观包）：液态玻璃/平面简约，走 app-style.js 模块接口
+  const stylePref = getStylePref();
+  const styleOpts = [['liquid', UI.STYLE_LIQUID], ['flat', UI.STYLE_FLAT]].map(([k, label]) =>
+    `<button type="button" class="style-opt glass glass--pressable${stylePref === k ? ' style-opt--on' : ''}" data-pref="${k}" onclick="setStylePref('${k}')">${label}</button>`).join('');
   // 需求八·item3 背景光球三档：选中态按 localStorage 现值标注，点按走 setOrbPref 即时重生成背景
   const orbPref = getOrbPref();
   const orbOpts = [['vivid', UI.ORB_MODE_VIVID], ['elegant', UI.ORB_MODE_ELEGANT], ['hidden', UI.ORB_MODE_HIDDEN]].map(([k, label]) =>
@@ -77,6 +81,13 @@ function enterAccountSettings() {
           <div class="settings-hint">${UI.SETTINGS_THEME_HINT}</div>
         </div>
         <div class="theme-opts">${themeOpts}</div>
+      </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-label">${UI.SETTINGS_STYLE_LABEL}</div>
+          <div class="settings-hint">${UI.SETTINGS_STYLE_HINT}</div>
+        </div>
+        <div class="style-opts">${styleOpts}</div>
       </div>
       <div class="settings-row">
         <div>

@@ -873,9 +873,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 外观主题三项：复用玻璃按钮，选中态走引擎 --g-fill 参数（accent-tint 底 + accent-deep 字）
    v0.25.19 审计 G-09：补按钮族交互三参数（--g-hover 白洗/--g-raise 抬升/--g-scale 缩放），
    与同族按钮交互语言一致；不整组并入按钮族以免吃掉选中态自设 --g-fill */
-.theme-opts, .orb-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.theme-opt, .orb-opt { padding: calc(7px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); font-size: .78rem; font-weight: 700; color: var(--muted); --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97; } /* 需求六·item5：外观主题按钮随滑块；需求八·item3：光球三档同款设置 chooser */
-.theme-opt--on, .orb-opt--on { --g-fill: var(--accent-tint); color: var(--accent-deep); }
+.theme-opts, .orb-opts, .style-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.theme-opt, .orb-opt, .style-opt { padding: calc(7px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); font-size: .78rem; font-weight: 700; color: var(--muted); --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97; } /* 需求六·item5：外观主题按钮随滑块；需求八·item3/4：光球三档、页面风格同款设置 chooser */
+.theme-opt--on, .orb-opt--on, .style-opt--on { --g-fill: var(--accent-tint); color: var(--accent-deep); }
 
 /* ============================================================
    需求六·item5 UI 大小滑块（liquid glass 风格，独立类名防作用域污染）——
@@ -1464,7 +1464,7 @@ body.profile-panel-closing .profile-panel {
 @keyframes panel-out { from { transform: none; } to { transform: translateX(105%); } }
 .profile-panel-backdrop {
   position: fixed; inset: 0; z-index: 145;
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=浮窗自灰），只留虚化 */
+  -webkit-backdrop-filter: var(--g-panel-backdrop-blur, blur(4px)); backdrop-filter: var(--g-panel-backdrop-blur, blur(4px)); /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=浮窗自灰），只留虚化；--g-panel-backdrop-blur 语义别名（需求八·item4 flat 包覆盖为 none） */
   opacity: 0; pointer-events: none;
   transition: opacity .3s var(--ease-out);
   display: none; /* 桌面端右栏视作屏幕延伸，不暗背景；仅移动端启用 */

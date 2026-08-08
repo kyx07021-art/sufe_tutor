@@ -38,9 +38,9 @@ function makeCtx() {
 }
 
 // 共享脚本加载序（同 index.html）：constants → region-data → app-display → app-state → app-api →
-// app-datahub → app-anim → app-ui → app-demands → app-teachers（app-teachers 依赖 match 系列）
+// app-datahub → app-anim → app-ui → app-style → app-demands → app-teachers（app-teachers 依赖 match 系列）
 const FILES = ['constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-demands.js', 'app-teachers.js'];
+  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-style.js', 'app-demands.js', 'app-teachers.js'];
 function loadCommon(ctx) {
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
 }

@@ -207,7 +207,7 @@ body { background: transparent; }
 .btn, .tc-push-btn, .chat-send, .chat-plus-btn, label.md-btn, .md-toolbar button, .chat-back, .btn-link-inline, .btn-text-danger {
   --g-frost: var(--g-f-btn, blur(4px) saturate(180%) brightness(1.04));
   --g-liquid: var(--g-liquid-sm);
-  --g-fill: transparent; /* 白按钮=标准玻璃：不需要填充层，磨砂(frost)+液态边(edge)+深字定义它（用户："现在它需要填充吗？"） */
+  --g-fill: var(--g-btn-fill, transparent); /* 白按钮=标准玻璃：不需要填充层，磨砂(frost)+液态边(edge)+深字定义它（用户："现在它需要填充吗？"）；--g-btn-fill 语义别名（需求八·item4 flat 包覆盖为不透明纸面，防平面模式按钮隐形） */
   --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97;
 }
 /* 按钮=标准玻璃（用户指令：别管好不好看，先接入标准玻璃——去自定义紫/彩填充）。
@@ -237,7 +237,7 @@ body { background: transparent; }
   transition: color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
 }
 .seg-tab:hover { color: var(--ink); }
-.seg-tab.active { color: var(--ink); font-weight: 700; --g-fill: var(--g-fill-strong); --g-lift: 0 2px 10px -3px rgba(30,26,64,.18); } /* iOS 26 选中抬升药丸：白底高亮 + 轻浮影 */
+.seg-tab.active { color: var(--ink); font-weight: 700; --g-fill: var(--g-fill-strong); --g-lift: var(--g-seg-lift, 0 2px 10px -3px rgba(30,26,64,.18)); } /* iOS 26 选中抬升药丸：白底高亮 + 轻浮影；--g-seg-lift 语义别名（需求八·item4 flat 包覆盖） */
 
 /* ============================================================
    实心小件预设（标签 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）
