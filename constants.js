@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.23',
+  APP_VERSION: '0.25.24',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -208,7 +208,6 @@ globalThis.APP_CONSTANTS = {
         '--g-avatar-border': 'var(--line)', '--g-avatar-border-ghost': 'var(--line)',
         '--g-btn-fill': 'var(--g-fill-weak)',   // 按钮透明透镜 → 不透明纸面（防平面模式按钮隐形）
         '--g-bubble-mine': 'var(--accent-tint)', '--g-bubble-theirs': 'var(--paper-2)', '--g-bubble-system': 'var(--lilac-2)',
-        '--g-accent-fill-strong': 'var(--accent)', // 勾选选中 → 纯品牌紫
         '--g-flow-dot': 'var(--ink-2)',
         '--g-ok-solid': 'var(--ok-deep)',
         // ---- 表面发丝描边（审计 H1/H2：平面无阴影无磨砂，靠描边定义表面边界；
@@ -317,7 +316,6 @@ globalThis.APP_CONSTANTS = {
       '--g-warn-fill': 'rgba(154,106,42,.20)',
       '--g-accent-fill': 'rgba(122,104,224,.20)',
       '--g-accent-fill-soft': 'rgba(142,128,232,.08)', // 聊天拖入虚线罩
-      '--g-accent-fill-strong': 'rgba(122,104,224,.7)', // 勾选选中
       '--g-like-fill': 'rgba(211,47,47,.16)',      // 帖子点赞态
       // ---- 气泡 ----
       '--g-bubble-mine': 'rgba(150,138,230,.26)',
@@ -413,7 +411,6 @@ globalThis.APP_CONSTANTS = {
       '--g-warn-fill': 'rgba(212,166,79,.22)',
       '--g-accent-fill': 'rgba(139,124,232,.26)',
       '--g-accent-fill-soft': 'rgba(139,124,232,.12)',
-      '--g-accent-fill-strong': 'rgba(139,124,232,.8)',
       '--g-like-fill': 'rgba(224,90,74,.20)',
       // ---- 气泡 ----
       '--g-bubble-mine': 'rgba(150,138,230,.32)',

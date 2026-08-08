@@ -256,11 +256,19 @@ body { background: transparent; }
   --g-border: none; /* 实心小件 opt-out：flat 描边不落 pill/tag */
 }
 .profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; --g-border: none; }
-.checkbox-item { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); --g-border: none; }
-.checkbox-item:has(input:checked) { --g-fill: var(--g-accent-fill-strong); --g-fg: var(--white); }
+/* v0.25.24 需求一·复选框：选中态告别「整块亮紫 + 白字」——白字压 .7 alpha 紫底仅 2.62:1 对比（连 WCAG AA 都不达），
+   且双重亮紫（整 pill + 内方框）正是用户定性「恐怖的亮紫色」。上网调研（MD3 filter-chip / Carbon / Accor 三源）收敛：
+   选中 = 软紫 tint + 1.5px 紫环 + 墨字 三重提示（WCAG 1.4.1 不靠颜色单独传状态 / 1.4.3 墨字过 4.5:1），
+   饱和紫只保留在小方框勾选位（行业唯一公认允许饱和的位置）。文字色走引擎 --g-fg（style.css 不再直写 color）。 */
+.checkbox-item { --g-fg: var(--muted); --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); --g-border: none; }
+.checkbox-item:hover { --g-fg: var(--ink); }
+.checkbox-item:has(input:checked) {
+  --g-fill: var(--accent-tint); --g-fg: var(--ink); /* 软紫 tint（同 .theme-opt--on / 下拉选中一族）+ 墨字 */
+  --g-lift: var(--glass-lift-sm), 0 0 0 1.5px var(--g-ring); /* 选中紫环 = 非颜色提示；box-shadow 叠列表，零布局位移 */
+}
 /* G2：成绩/首选/文理单选 pill 统一挂引擎玻璃（原 style-region 手卷第二套删，竖条迁 ::after；文字色单源 style.css） */
 .grade-option { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); --g-border: none; }
-.grade-option.selected { --g-fill: var(--accent); } /* v0.19.43 与科目勾选/页签统一：选中一律品牌紫（原墨底黑）；文字色单源 style.css（base/hover/selected 三态同处） */
+.grade-option.selected { --g-fill: var(--accent-tint); --g-lift: var(--glass-lift-sm), 0 0 0 1.5px var(--g-ring); } /* v0.25.24 与勾选/标签统一：软紫 tint + 紫环（原整块品牌紫，同口径归树） */
 .gk-pill { --g-r: var(--lg-r); --g-hover: var(--g-hover-wash); }
 /* v0.25.20 需求二：score-mode-tabs 旧类连根删，收编到标准分段控件 .seg-tabs（见本文件分段控件区）；
    style-region.css 只留 .seg-tabs--score 宽度变体。零兼容层。 */

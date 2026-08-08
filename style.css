@@ -551,10 +551,12 @@ textarea.form-input {
 .checkbox-grid { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .checkbox-item {
   display: flex; align-items: center; gap: 8px; padding: calc(8px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：勾选件尺寸随滑块 */
-  cursor: pointer; font-size: .8rem; font-weight: 500; color: var(--muted);
+  cursor: pointer; font-size: .8rem; font-weight: 500;
   transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
 }
-.checkbox-item:hover { color: var(--ink); }
+/* v0.25.24 文字色走引擎 --g-fg 单点（base=--muted / hover=--ink / checked=--ink，glass.css 定义）。
+   v0.25.19 注释曾宣告收敛，但 style.css 残留 color: var(--muted) 特异性(0,1,0) 压过 :where(.glass) 的
+   color: var(--g-fg)(0,0,0)，导致选中态实际是「灰字压紫底」——本次连根删净真正落地。 */
 .checkbox-item input[type="checkbox"] {
   appearance: none; -webkit-appearance: none;
   width: calc(15px * var(--ui-scale, 1)); height: calc(15px * var(--ui-scale, 1)); border: 2px solid var(--faint); background: transparent;
@@ -563,10 +565,20 @@ textarea.form-input {
 .checkbox-item input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
 .checkbox-item input[type="checkbox"]:checked::after {
   content: ''; position: absolute; left: 3px; top: 0; width: 5px; height: 9px;
-  border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg);
+  border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg); transform-origin: center;
+  animation: check-pop .18s var(--ease-out); /* 勾选弹入：纯 transform+opacity 关键帧（非玻璃子树无 backdrop-filter，transition 亦安全） */
 }
 .checkbox-item input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-/* v0.25.19 审计 G-08：文字色双源收敛——color 直写删净，统一走引擎 --g-fg（glass.css :has(input:checked) 设 --g-fg: var(--white)） */
+@keyframes check-pop {
+  from { opacity: 0; transform: rotate(45deg) scale(.35); }
+  to { opacity: 1; transform: rotate(45deg) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .checkbox-item input[type="checkbox"]:checked::after { animation: none; } /* 关入场动画，保留终态对勾（选中提示本身是信息） */
+}
+@media (forced-colors: active) {
+  .checkbox-item input[type="checkbox"] { appearance: auto; } /* 高对比模式还原原生控件（白勾用 border 画法在 HCM 下不可见） */
+}
 
 .score-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; flex-wrap: wrap; }
 .score-subject { flex: 0 0 50px; font-size: .8rem; font-weight: 700; color: var(--ink-3); }
@@ -607,7 +619,7 @@ textarea.form-input {
   cursor: pointer; transition: all var(--t-fast); font-weight: 600;
 } /* G2：background 交还引擎（玻璃体在元素自身），删元素直写 */
 .grade-option:hover { color: var(--ink); }
-.grade-option.selected { color: var(--white); } /* v0.19.43 选中底单源 glass.css（--g-fill: var(--accent)）；文字色 style.css 单源（base/hover/selected 三态同处） */
+.grade-option.selected { color: var(--ink); } /* v0.25.24 选中底单源 glass.css（软紫 tint + 紫环，同勾选/标签口径）；文字色 style.css 单源（base/hover/selected 三态同处） */
 .score-inline {
   width: calc(70px * var(--ui-scale, 1)); padding: calc(4px * var(--ui-scale, 1)) calc(8px * var(--ui-scale, 1)); border: none; /* 需求六·item5：赋分输入框随滑块 */
   background-color: transparent;
@@ -1537,7 +1549,7 @@ body.profile-panel-closing .profile-panel {
 .profile-rating b { font-size: .8rem; }
 
 /* R2-3/R2-4 性格关键词 / 非学科项目 tag-pick pill：复用勾选框语义但不显示勾选框，
-   默认玻璃底（.glass 引擎），选中态品牌紫填充（--g-fill: var(--accent)，同 .grade-option.selected 口径） */
+   默认玻璃底（.glass 引擎），选中态软紫 tint + 紫环（v0.25.24 同勾选/grade-option 口径归树，原整块品牌紫删） */
 .tag-pick {
   display: inline-block; margin: 0 6px 6px 0; padding: calc(4px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); /* 需求六·item5：关键词 tag 随滑块 */
   font-size: .74rem; font-weight: 600; color: var(--ink-2);
@@ -1545,7 +1557,7 @@ body.profile-panel-closing .profile-panel {
   transition: color var(--t-fast) var(--ease-out);
 }
 .tag-pick:hover { color: var(--ink); }
-.tag-pick.selected { color: var(--white); --g-fill: var(--accent); }
+.tag-pick.selected { color: var(--ink); --g-fill: var(--accent-tint); --g-lift: var(--glass-lift-sm), 0 0 0 1.5px var(--g-ring); } /* v0.25.24 软紫 tint + 紫环 + 墨字（原整块品牌紫 + 白字） */
 
 /* R2-b 需求类型分段切换（v0.25.20 需求二）：旧类连根删，收编标准分段控件 .seg-tabs（glass.css 单点）。
    JS 只切 .active/.hidden 类，零内联样式 */
