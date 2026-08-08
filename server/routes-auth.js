@@ -19,7 +19,6 @@ import {
   dbUserLookupStmt, dbUsernameExistsStmt,
 } from './db.js';
 import { logEvent } from './log.js';
-import { anonymizeContractPartyNames } from './contract.js'; // v0.25.42：注销时匿名化涉事合同正文中的本人用户名（墓碑兜底，防对方经合同正文读到真实用户名）
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
 
 export async function handleRegister(db, body, req) {
@@ -126,13 +125,11 @@ export async function handleDeactivateAccount(db, body, req) {
   if (err) return err;
   if (me.role === 'admin') return error(MSG.NO_PERMISSION, 403); // 管理员禁止注销，防管理面板孤岛化
   if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
-  const origName = me.username; // 墓碑化前捕获原始用户名（匿名化涉事合同正文需要）
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
   await dbDeactivateUser(db, me.id, tombstone);
   await dbPurgeUserOwnedData(db, me.id, me.role); // 按角色清理单方数据 + 匿名化本人聊天正文
-  // v0.25.42：合同是双方数据保留，但正文嵌的是起草/签署时的原始用户名——墓碑只改了 users.username，
-  // 合同正文里的原名仍可被对方读到，须一并匿名化为墓碑（业务头 + 第十条签署记录，追加台账入链）
-  await anonymizeContractPartyNames(db, me.id, origName, me.role === 'student');
+  // v0.25.46 返工：合同正文一字不碰（签署后不可修改是合同的立身之本）——注销不改 contract_md，
+  // 对端「一方已注销」tag 由前端 JOIN users 墓碑名自然呈现（合同是双方数据，对方本就知道本人用户名）
   await clearDangerCaps(db, me.id); // 注销即清全部 capToken（防 danger_caps 孤儿行残留）
   await logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
     actorRole: me.role, entity: 'user', entityId: me.id, req });

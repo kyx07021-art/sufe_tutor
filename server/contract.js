@@ -14,7 +14,7 @@
  */
 import { dbGet, dbAll, dbRun, json, error, ensureColumns } from './util.js';
 import { requireUser, requireAdmin, requireAdminOrError } from './security.js';
-import { bufToHex, encryptField, decryptField } from './crypto.js';
+import { bufToHex, encryptField } from './crypto.js';
 import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
 import { MSG, STATUS } from './constants.js';
 import {
@@ -123,31 +123,9 @@ function rebuildFullMd(ct, conv) {
   });
 }
 
-// v0.25.41（注销幽灵数据）：注销时把涉事合同正文中的本人用户名匿名化为墓碑。
-// 合同是双方数据保留，但正文嵌入的是起草时/签署时的原始用户名（业务头「**甲方（学生方）**：原名」+
-// 第十条签署记录「**原名**（平台账号：原名）」）——不匿名化则对方可经合同正文读到已注销用户真实用户名，
-// 墓碑机制被绕过。台账 append-only：重写后的正文追加一条哈希入链（verify 重放当前正文仍通过），原链完整保留。
-// origName：注销前的原始用户名（dbDeactivateUser 墓碑化前捕获）；isStudent：本人在会话中的角色（甲方/乙方）。
-export async function anonymizeContractPartyNames(db, userId, origName, isStudent) {
-  const tomb = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${userId}`;
-  const label = isStudent ? '甲方（学生方）' : '乙方（教师方）';
-  const escRe = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re1 = new RegExp(`(\\*\\*${label}\\*\\*：)[^\\n\\r]+`, 'g');   // 业务头内联名
-  const re2 = new RegExp(`(\\*\\*${escRe(origName)}\\*\\*（平台账号：)${escRe(origName)}(）)`, 'g'); // 签署记录
-  const rows = await dbAll(db, `SELECT ct.id, ct.contract_md, ct.prev_business
-    FROM contracts ct JOIN conversations c ON c.id=ct.conversation_id
-    WHERE ${isStudent ? 'c.student_user_id' : 'c.teacher_user_id'}=?`, [userId]);
-  for (const row of rows) {
-    const md = await decryptField(row.contract_md || '');
-    if (!md || !md.includes(origName)) continue;
-    const next = md.replace(re1, `$1${tomb}`).replace(re2, `**${tomb}**（平台账号：${tomb}$2`);
-    if (next === md) continue;
-    const pb = row.prev_business ? String(await decryptField(row.prev_business)).replace(re1, `$1${tomb}`) : null;
-    await dbRun(db, `UPDATE contracts SET contract_md=?, prev_business=?, updated_at=datetime('now','localtime') WHERE id=?`,
-      [await encryptField(next), pb ? await encryptField(pb) : null, row.id]); // prev_business NULL 保持「无留痕基线」语义
-    try { await ledgerRecord(db, row.id, next); } catch (e) { console.error('contract anonymize ledger failed:', e && e.message); }
-  }
-}
+// v0.25.46 返工（合同不可修改性原则）：曾在此处匿名化注销用户名的合同正文修改逻辑已整体删除。
+// 铁律：合同正文一个字都不许碰（签署后不可修改是合同的立身之本，存证哈希链亦不容重写）。
+// 注销用户名处理只走前端「一方已注销」tag（对端姓名 JOIN users 自然显示墓碑），不改 contract_md。
 
 function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
   const methodName = method === 'offline' ? '线下授课' : '线上授课';

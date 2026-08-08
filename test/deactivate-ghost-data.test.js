@@ -10,8 +10,9 @@
  *     dbGetApprovedReviews 全部加 u.deactivated=0；广播通知不带已注销用户。
  *   purge 收束：注销时删尽单方数据；发起方待处理签约请求收束为「已拒绝」终态（行 + 会话气泡
  *     同步终态，防接收方死按钮 404——不能 DELETE，气泡自包含渲染 body JSON）。
- *   合同正文匿名化：anonymizeContractPartyNames 把涉事合同业务头（**甲方（学生方）**：原名）与
- *     第十条签署记录（**原名**（平台账号：原名））替换为墓碑，追加一条台账入链（verify 仍通过）。
+ *   合同不可修改性铁律（v0.25.46 返工）：合同正文一个字都不许碰——注销绝不改写 contract_md
+ *     （业务头/第十条签署记录保持原文，台账不追加）；对端「一方已注销」tag 由前端 JOIN users
+ *     墓碑名自然呈现（合同是双方数据，对方本就知道本人用户名，无真实隐私增益，改文却毁存证）。
  *   前端 tag：DISP.isDeactivated / deactivatedTag，七个对端姓名面（会话项/聊天头/合同卡/需求卡/
  *     帖子卡/资料面板/评价卡）追加「一方已注销」中性灰 tag。
  */
@@ -25,7 +26,7 @@ import {
   initDb, dbGetDemands, dbListPosts, dbDeactivateUser, dbPurgeUserOwnedData, dbGetContractById,
 } from '../server/db.js';
 import {
-  initLedgerTable, handleCreateContract, handleSignContract, handleVerifyContract, anonymizeContractPartyNames,
+  initLedgerTable, handleCreateContract, handleSignContract, handleVerifyContract,
 } from '../server/contract.js';
 import { handleDeactivateAccount } from '../server/routes-auth.js';
 import { tokenDigest } from '../server/crypto.js';
@@ -164,12 +165,12 @@ test('注销 purge：活跃需求删除、已签约需求转 revoked、意向/�
 });
 
 // ============================================================
-// 服务端：合同正文匿名化——业务头 + 第十条签署记录 → 墓碑，台账入链不破
+// 服务端：合同不可修改性铁律（v0.25.46 返工）——注销一个字都不许碰合同正文
 // ============================================================
 
-test('合同正文匿名化：业务头与签署记录原名替换为墓碑，台账追加入链且 verify 通过', async () => {
+test('合同不可修改性：注销不改 contract_md（业务头/签署记录保持原文），台账不追加，verify 仍通过', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1, s2, t1, d1, s1S, t1S } = await seed(raw, db);
+  const { s1, t1, d1, s1S, t1S } = await seed(raw, db);
   assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
   await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId) }, reqOf(t1S.token));
   await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId) }, reqOf(s1S.token));
@@ -177,38 +178,35 @@ test('合同正文匿名化：业务头与签署记录原名替换为墓碑，�
   assert.ok(before.contract_md.includes('s1'), '签署前正文含学生原始用户名');
   const ledgerBefore = raw.prepare('SELECT COUNT(*) AS c FROM contract_ledger WHERE contract_id=1').get().c;
 
-  // s1 注销：匿名化涉事合同正文（s1 在会话中是学生方 = 甲方）
-  await anonymizeContractPartyNames(db, s1, 's1', true);
+  // 注销 s1（墓碑 + purge）——合同正文必须一字不动
+  await dbDeactivateUser(db, s1, `已注销用户#${s1}`);
+  await dbPurgeUserOwnedData(db, s1, 'student');
 
   const after = await dbGetContractById(db, 1);
-  assert.ok(!after.contract_md.includes('s1'), '正文不再含学生原始用户名');
-  assert.ok(after.contract_md.includes(`已注销用户#${s1}`), '业务头甲方名替换为墓碑');
-  assert.ok(after.contract_md.includes(`已注销用户#${s1}**（平台账号：已注销用户#${s1}`), '第十条签署记录平台账号同替换');
-  assert.ok(after.contract_md.includes('t1'), '对方（未注销）用户名不受影响');
+  assert.equal(after.contract_md, before.contract_md, '注销后合同正文逐字不变（不可修改性铁律）');
+  assert.equal(after.prev_business, before.prev_business, 'prev_business 留痕不变');
+  assert.equal(after.updated_at, before.updated_at, 'updated_at 不被注销触碰');
   const ledgerAfter = raw.prepare('SELECT COUNT(*) AS c FROM contract_ledger WHERE contract_id=1').get().c;
-  assert.equal(ledgerAfter, ledgerBefore + 1, '匿名化追加一条台账入链');
+  assert.equal(ledgerAfter, ledgerBefore, '注销不追加台账（正文没变，无新哈希）');
   const v = await handleVerifyContract(db, 1, reqOf(t1S.token));
   assert.equal(v.status, 200);
   const data = await v.json();
-  assert.equal(data.valid, true, '哈希链校验仍通过（重放当前正文）');
+  assert.equal(data.valid, true, '哈希链校验通过');
 });
 
-// ============================================================
-// 服务端：注销接口端到端——capToken 二次认证 + 合同匿名化联动
-// ============================================================
-
-test('handleDeactivateAccount 端到端：注销后涉事合同正文匿名化（含签署记录）', async () => {
+test('handleDeactivateAccount 端到端：注销后合同正文逐字不变（一字不碰）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, d1, s1S, t1S } = await seed(raw, db);
   assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
   await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId) }, reqOf(t1S.token));
   await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId) }, reqOf(s1S.token));
+  const before = await dbGetContractById(db, 1);
   const cap = await capOf(raw, 's1', s1S.sessionId);
   const res = await handleDeactivateAccount(db, { capToken: cap }, reqOf(s1S.token));
   assert.equal(res.status, 200);
   const ct = await dbGetContractById(db, 1);
-  assert.ok(!ct.contract_md.includes('s1'), '注销即匿名化合同正文');
-  assert.ok(ct.contract_md.includes(`已注销用户#${s1}`), '正文替换为墓碑');
+  assert.equal(ct.contract_md, before.contract_md, '注销接口不碰合同正文');
+  assert.ok(ct.contract_md.includes('s1'), '正文仍含原始用户名（对端本就知晓，合同不可修改）');
 });
 
 // ============================================================
