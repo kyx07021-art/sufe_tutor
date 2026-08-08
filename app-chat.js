@@ -311,6 +311,7 @@ function renderChatBubble(m, i) {
   }
   // v0.24.0 发起签约气泡（极简签约流）：报价/时间/方式三条信息 + 底部确认/拒绝按钮；
   // 对方回应后气泡变灰、按钮消失为无组件小灰字（data-signing-id 供 respondSigning 就地刷新）
+  // v0.25.33 重构：细长居中系统条 → 对应用户（发起方）一侧的大气泡，与普通消息同皮肤同对齐
   if (m.kind === 'signing_request') {
     let s = {};
     try { s = JSON.parse(m.body || '{}'); } catch { /* 坏 body 兜底为空 */ }
@@ -322,8 +323,8 @@ function renderChatBubble(m, i) {
     const signingId = /^\d+$/.test(String(s.id || '')) ? String(s.id) : '';
     const pending = s.status === 'pending';
     const done = s.status === 'signed' ? UI.SIGNING_CONFIRMED_TEXT : (s.status === 'rejected' ? UI.SIGNING_REJECTED_TEXT : '');
-    return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble chat-bubble--system glass signing-bubble${done ? ' signing-bubble--done' : ''}" data-signing-id="${escHtml(signingId)}">
+    return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
+      <div class="chat-bubble glass ${skin} signing-bubble${done ? ' signing-bubble--done' : ''}" data-signing-id="${escHtml(signingId)}">
         <div class="signing-bubble-title">${mine ? UI.CHAT_SIGNING_MINE_TITLE : UI.CHAT_SIGNING_REQUEST_TITLE}</div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_PRICE}</span><b>${price} ${UI.PRICE_UNIT}/小时</b></div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(String(s.schedule || ''))}</b></div>
@@ -335,16 +336,17 @@ function renderChatBubble(m, i) {
         ${done ? `<p class="signing-bubble-status">${done}</p>` : ''}
       </div>${time}</div>`;
   }
-  // v0.24.0 签约回应系统气泡（对方确认/拒绝后落一条，在途会话实时刷新）
+  // v0.24.0 签约回应气泡（对方确认/拒绝后落一条，在途会话实时刷新）
   // v0.24.2 审计：视角修正——回应方看到「你已…」，发起方看到「对方已…」（原恒显「对方已…」颠倒）
+  // v0.25.33 重构：与签约请求同口径——对齐回应方一侧（sender=回应方），风格统一
   if (m.kind === 'signing_response') {
     let r = {};
     try { r = JSON.parse(m.body || '{}'); } catch { /* 兜底 */ }
     const text = mine
       ? (r.accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED)
       : (r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED);
-    return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble chat-bubble--system glass">${escHtml(text)}</div>${time}</div>`;
+    return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
+      <div class="chat-bubble glass ${skin}">${escHtml(text)}</div>${time}</div>`;
   }
   // 图片 / 文件消息：列表接口不下发 dataURL 本体（性能），先渲染骨架占位，
   // 页面可操作后由 chatLazyLoadAttachments 逐条补载真实内容
