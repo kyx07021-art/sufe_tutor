@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.37',
+  APP_VERSION: '0.25.38',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1163,7 +1163,7 @@ globalThis.APP_CONSTANTS = {
     TOUR_STEP_TEACHERS_LIST: '教师列表：每张卡片显示地区、学校、年级、报价区间、可授课时间。',
     TOUR_STEP_FILTER_TOGGLE: '「筛选」按钮：按科目、报价上限、最低评分过滤教师。',
     TOUR_STEP_FILTER_SUBJECT: '选科目、报价等条件，列表会即时筛选；清空条件就看全部。',
-    TOUR_STEP_TEACHER_USERNAME: '点老师的名字，打开右侧资料栏看成绩、评价和联系方式规则。',
+    TOUR_STEP_TEACHER_USERNAME: '点老师的名片卡片（整卡可点），打开右侧资料栏看成绩、评价和联系方式规则。',
     TOUR_STEP_PROFILE_CLOSE: '点右上角 ✕ 关闭资料栏，回到列表。',
     TOUR_STEP_TEACHER_PUSH_BTN: '「发送需求」按钮：把你的需求直接发给这位老师。',
     TOUR_STEP_PUSH_MODAL: '选一条你的需求发送过去，老师确认后自动开启会话。点击关闭。',
@@ -1179,7 +1179,12 @@ globalThis.APP_CONSTANTS = {
     TOUR_STEP_CONV_ITEM: '左侧是会话列表，每个会话对应一位师生。点一个打开聊天窗。',
     TOUR_STEP_CHAT_MESSAGES: '这里是聊天记录，消息约每 4 秒自动刷新，交流都会留档。',
     TOUR_STEP_CHAT_SEND: '底部输入框打字，点「发送」；也支持图片和文件。',
-    TOUR_STEP_CHAT_PLUS: '点这个 + 号：发起签约意向、起草合同都在这里。',
+    TOUR_STEP_CHAT_PLUS: '点这个 + 号，唤出功能栏；下面的每一项都介绍一下。',
+    // —— v0.25.38（反馈 #130）：+ 号功能栏项目逐个聚焦介绍 ——
+    TOUR_STEP_CHAT_PLUS_IMAGE: '「图片」：把截图、错题照片直接发进会话，点开可看大图。',
+    TOUR_STEP_CHAT_PLUS_FILE: '「文件」：教案、资料 PDF 也能发——选文件后随消息发送。',
+    TOUR_STEP_CHAT_PLUS_SIGNING: '「发起签约」：谈妥了就在这里发起签约意向，对方确认后进入合同流程。',
+    TOUR_STEP_CHAT_PLUS_DRAFT: '「起草合同」：签约确认后，在这里起草正式合同条款发给对方。',
     // —— 我的合同 ——
     TOUR_STEP_MY_CONTRACTS: '我的合同：谈妥上课细节后，在这走正式签约，保障双方权益。点击进入。',
     TOUR_STEP_CONTRACTS_LIST: '合同列表：每张卡片对应一份合同，带状态标签（待确认 / 签署中 / 已签）。',

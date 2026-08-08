@@ -389,3 +389,135 @@ test('主页首访浮窗简化：ONBOARD_POLICY 精简且聚焦基本流程', ()
   assert.ok(bodyText.includes('教师：浏览需求'), '简化文案含教师基本流程');
   assert.ok(bodyText.includes('我的会话'), '简化文案提到站内沟通/签约');
 });
+
+// ============ v0.25.38 引导架构升级：点击拦截 + 整卡亮区 + 功能栏介绍 + 滚动/动画稳定化 ============
+
+/** 教师导向需求大厅（渲染出「提交试课意向」按钮） */
+async function setupTeacherDemands(ctx) {
+  vm.runInContext(`
+    state.user = { id: 3, role: 'teacher', username: '张老师' };
+    renderSidebar(); showView('client'); selectPage('browse-demands');
+  `, ctx);
+  await tick(60);
+}
+
+test('点击拦截（pass:false）：提交试课意向/屏蔽系统通知不透传真实请求', async () => {
+  const { dom, ctx, fns } = makeCtx();
+  const doc = dom.window.document;
+  await setupClient(ctx, { guestRole: 'teacher' });
+  await setupTeacherDemands(ctx);
+  // 打桩真实请求入口（vm 全局 + jsdom window 双桥，覆盖内联 onclick 路径）
+  vm.runInContext(`
+    window.__intentCalls = 0; window.__notifBlockCalls = 0;
+    submitIntent = function () { window.__intentCalls++; };
+    toggleNotifBlock = function () { window.__notifBlockCalls++; };
+    try { window.submitIntent = submitIntent; window.toggleNotifBlock = toggleNotifBlock; } catch (e) {}
+  `, ctx);
+  // 意向步骤（pass:false）：点亮区推进，但真实按钮不被点击
+  fns.runTour([
+    { module: 'x', target: { sel: '#demands-list .btn-intent-cta' }, text: '试课意向', pass: false },
+    { module: 'x', target: { page: 'about' }, text: '之后' },
+  ]);
+  await waitFor(() => doc.querySelector('.tour-hole--show'));
+  doc.querySelector('.tour-hole').click();
+  await tick(20);
+  assert.equal(vm.runInContext('window.__intentCalls', ctx), 0, 'pass:false 不触发 submitIntent');
+  // 对照：透传步骤仍真实点击（打开/切换页面类保留）
+  doc.querySelector('.tour-hole').click(); // about tab
+  await tick(20);
+  assert.equal(vm.runInContext('state.page', ctx), 'about', '透传步骤仍真实切页');
+});
+
+test('点击拦截：屏蔽系统通知步骤（pass:false）不透传开关', async () => {
+  const { dom, ctx, fns } = makeCtx();
+  const doc = dom.window.document;
+  await setupClient(ctx, { user: { role: 'teacher', id: 3, username: 't', avatar: '' } });
+  vm.runInContext(`
+    selectPage('notifications');
+  `, ctx);
+  await tick(60);
+  vm.runInContext(`
+    window.__notifBlockCalls = 0;
+    toggleNotifBlock = function () { window.__notifBlockCalls++; };
+    try { window.toggleNotifBlock = toggleNotifBlock; } catch (e) {}
+  `, ctx);
+  fns.runTour([
+    { module: 'notifications', target: { sel: '#btn-notif-block' }, text: '屏蔽通知', pass: false },
+    { module: 'notifications', target: { page: 'about' }, text: '之后' },
+  ]);
+  await waitFor(() => doc.querySelector('.tour-hole--show'));
+  doc.querySelector('.tour-hole').click();
+  await tick(20);
+  assert.equal(vm.runInContext('window.__notifBlockCalls', ctx), 0, '屏蔽系统通知不透传（真实偏好开关）');
+});
+
+test('教师名字步骤：target 为整卡（可点性移交整卡），亮区覆盖整卡', async () => {
+  const { ctx, fns, UI } = makeCtx();
+  const step = fns.TOUR_SCRIPTS.teacherGuest().find(s => s.text === UI.TOUR_STEP_TEACHER_USERNAME);
+  assert.ok(step, '教师名字步骤存在');
+  assert.equal(step.target.sel, '#teachers-list .list-card--teacher', '亮区指整卡而非用户名文本');
+  // 解析结果确为整卡元素（先渲染教师列表页）
+  await setupClient(ctx, { guestRole: 'student' });
+  vm.runInContext(`selectPage('browse-teachers');`, ctx);
+  await tick(80);
+  const resolved = vm.runInContext(`(() => { const el = _tourResolve(${JSON.stringify(step)}); return el ? el.className : null; })()`, ctx);
+  assert.ok(resolved && String(resolved).includes('list-card--teacher'), '解析到整卡元素（实际: ' + resolved + '）');
+});
+
+test('会话 + 号功能栏：四个项目逐一聚焦介绍（pass:false 不透传）', async () => {
+  const { ctx, fns, UI } = makeCtx();
+  const steps = fns.TOUR_SCRIPTS.teacherUser();
+  const idx = steps.findIndex(s => s.text === UI.TOUR_STEP_CHAT_PLUS);
+  assert.ok(idx >= 0, '存在 + 号步骤');
+  const items = steps.slice(idx + 1, idx + 5);
+  assert.equal(items.length, 4, '+ 号后接四个功能栏项目步骤');
+  const texts = [UI.TOUR_STEP_CHAT_PLUS_IMAGE, UI.TOUR_STEP_CHAT_PLUS_FILE, UI.TOUR_STEP_CHAT_PLUS_SIGNING, UI.TOUR_STEP_CHAT_PLUS_DRAFT];
+  items.forEach((s, i) => {
+    assert.equal(s.text, texts[i], `第 ${i + 1} 项文案`);
+    assert.equal(s.pass, false, '功能栏项目不透传（真实点击开弹窗/文件选择器）');
+    assert.equal(s.target.sel, `.chat-plus-pop .chat-pop-item:nth-child(${i + 1})`, '选择器指向第 N 个项目');
+  });
+});
+
+test('滚动架构：视口外目标自动滚入再定位；已可见目标不滚（jsdom 打桩验证）', async () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`
+    window.__scrolled = 0;
+    window.Element.prototype.scrollIntoView = function () { window.__scrolled++; };
+  `, ctx);
+  // 视口外目标 → 滚入（__scrolled +1）
+  vm.runInContext(`
+    const t1 = document.createElement('div'); t1.id = 'scroll-far';
+    Object.defineProperty(t1, 'getBoundingClientRect', { value: () => ({ top: 3000, left: 0, bottom: 3100, right: 120, width: 120, height: 100 }) });
+    document.body.appendChild(t1);
+  `, ctx);
+  vm.runInContext('_tourScrollToEl(document.getElementById("scroll-far"))', ctx);
+  assert.equal(vm.runInContext('window.__scrolled', ctx), 1, '视口外目标被滚入');
+  // 已完全可见目标 → 不滚（侧栏/常驻元素天然命中，防无谓跳页）
+  vm.runInContext(`
+    const t2 = document.createElement('div'); t2.id = 'scroll-near';
+    Object.defineProperty(t2, 'getBoundingClientRect', { value: () => ({ top: 10, left: 10, bottom: 100, right: 200, width: 190, height: 90 }) });
+    document.body.appendChild(t2);
+  `, ctx);
+  vm.runInContext('_tourScrollToEl(document.getElementById("scroll-near"))', ctx);
+  assert.equal(vm.runInContext('window.__scrolled', ctx), 1, '已可见目标不重复滚动');
+});
+
+test('动画稳定化：目标祖先链动画运行中 → 延迟到动画结束才定位亮区（修卡屏幕外）', async () => {
+  const { dom, ctx } = makeCtx();
+  const doc = dom.window.document;
+  await setupClient(ctx, { guestRole: 'student' });
+  // 打桩：目标自身 getAnimations 首查运行中、之后空 → 亮区应先隐藏、rAF 后再定位
+  vm.runInContext(`
+    window.__animQueries = 0;
+    const t = document.createElement('div'); t.id = 'anim-target';
+    t.getAnimations = function () { window.__animQueries++; return window.__animQueries === 1 ? [{ playState: 'running' }] : []; };
+    Object.defineProperty(t, 'getBoundingClientRect', { value: () => ({ top: 20, left: 20, bottom: 80, right: 200, width: 180, height: 60 }) });
+    document.body.appendChild(t);
+  `, ctx);
+  vm.runInContext('runTour([{ module: "x", target: { sel: "#anim-target" }, text: "动画目标" }])', ctx);
+  assert.equal(vm.runInContext('window.__animQueries', ctx), 1, '首次检查检测到动画（进入等待）');
+  assert.equal(doc.querySelector('.tour-hole--show'), null, '动画运行中：亮区不定位（避免中间帧几何卡屏幕外）');
+  await tick(60); // rAF 后再查：动画结束 → 定位
+  assert.ok(doc.querySelector('.tour-hole--show'), '动画结束后亮区定位');
+});

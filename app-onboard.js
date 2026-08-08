@@ -154,6 +154,54 @@ function _tourHideHole() {
   _tourEls.hole.classList.remove('tour-hole--show');
 }
 
+// ---- v0.25.38 就位稳定化（架构修复：反馈 #129/#131/#132，对滚动/动画不做特例）----
+// 每个步骤统一走「先滚出目标 → 等入场动画结束 → 再定位亮区」：
+//   滚动：目标在默认展示范围之外时（报价区间/保存/设置页后半/反馈通道等），先通知页面层滚进来再打洞——
+//   支持 step.scrollTo 选填绑定页面元素（缺省滚目标本身）；已完全在视口内的目标不滚（侧栏等天然命中）。
+//   动画：资料栏/modal 滑入中的 getBoundingClientRect 是中间帧几何，亮区/气泡会卡屏幕外——
+//   _tourAnimating 等祖先链动画结束（含 transition，getAnimations 一并返回）再定位，最长 2s 防永动动画卡死。
+
+/** 目标滚入视口：已完全可见则跳过（防无谓跳页）；instant 滚动防平滑动画与亮区几何竞态 */
+function _tourScrollToEl(el) {
+  if (!el || typeof el.scrollIntoView !== 'function') return; // jsdom 无 scrollIntoView（测试零开销）
+  const r = el.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0) return; // 未布局，跳过
+  const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+  const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+  if (r.top >= 0 && r.left >= 0 && r.bottom <= vh && r.right <= vw) return;
+  try { el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' }); } catch (err) { /* 不阻断步进 */ }
+}
+
+/** 目标或其祖先链是否有运行中的动画/过渡（入场动画竞态根因） */
+function _tourAnimating(el) {
+  if (!el || typeof el.getAnimations !== 'function') return false;
+  for (let n = el; n && n !== document.body; n = n.parentElement) {
+    try { if (n.getAnimations().some(a => a.playState === 'running')) return true; } catch (err) { /* 忽略 */ }
+  }
+  return false;
+}
+
+/** 就位定位（稳定化）：滚入视口 → 等入场动画结束 → 定位亮区。
+ *  常见路径（目标已稳定、无动画）同步定位——零额外帧，测试与交互即时；
+ *  仅当目标祖先链有运行中的动画/过渡（资料栏/modal 滑入中）才进入 rAF 等待（最长 2s 防永动动画卡死）。
+ *  scrollIntoView 同步触发布局，滚后立即 getBoundingClientRect 即最终几何，无需等 scroll 事件。 */
+function _tourPlaceStable(step) {
+  const el = _tourResolve(step);
+  if (!el) { _tourHideHole(); return; }
+  const scrollEl = (step.scrollTo ? document.querySelector(step.scrollTo) : null) || el;
+  _tourScrollToEl(scrollEl);
+  if (!_tourAnimating(el) && !_tourAnimating(scrollEl)) { _tourPlace(el); return; }
+  const deadline = Date.now() + 2000; // 动画最长等 2s，防永动动画卡死亮区
+  const tick = () => {
+    if (!_tourActive) return;
+    const cur = _tourResolve(step);
+    if (!cur) { _tourHideHole(); return; }
+    if (Date.now() < deadline && (_tourAnimating(cur) || _tourAnimating(scrollEl))) { requestAnimationFrame(tick); return; }
+    _tourPlace(cur);
+  };
+  requestAnimationFrame(tick);
+}
+
 /** 气泡落位：目标旁（右→左→下→上），**永不与亮区重叠**（架构审计 H1：此前兜底钳制会把气泡压到亮区正上方，
  *  移动端贴边目标点「亮区」实际点到气泡 → 步进失效）。最后兜底贴视口底（亮区通常在上方）；
  *  另 .tour-bubble-pos z 高于 .tour-hole 但 pointer-events:none——即使极小视口重叠，点击仍穿透到洞。 */
@@ -199,7 +247,7 @@ function _tourStartStep() {
     if (!step) { _tourCleanup(); return; }
     _tourShowBubble(step.text);
     const el = _tourResolve(step);
-    if (el) { _tourPlace(el); return; }
+    if (el) { _tourPlaceStable(step); return; } // v0.25.38：滚入视口 + 等入场动画后才定位（架构修复）
     _tourHideHole();
     const waitStep = _tourIdx;
     const start = Date.now();
@@ -208,7 +256,7 @@ function _tourStartStep() {
       if (!_tourInClientView()) { _tourCleanup(); return; } // 等待中视图切走 → 收尾
       if (Date.now() - start > CONFIG.TOUR_TARGET_TIMEOUT_MS) { _tourNext(); return; }
       const found = _tourResolve(_tourSteps[_tourIdx]);
-      if (found) { _tourPlace(found); return; }
+      if (found) { _tourPlaceStable(_tourSteps[_tourIdx]); return; }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -248,7 +296,9 @@ function _tourOverlayClick(e) {
   _tourStartStep();
 }
 
-/** 执行当前步的副作用：onAdvance + 透传真实点击（closeModal 步不透传，onAdvance 已关） */
+/** 执行当前步的副作用：onAdvance + 透传真实点击（closeModal 步不透传，onAdvance 已关）。
+ *  v0.25.38（反馈 #127）点击拦截：step.pass===false 不透传真实点击——
+ *  有些穿透是为了打开/切换页面（保留），提交/开关类真实请求（试课意向/屏蔽系统通知/保存等）该拦的拦。 */
 function _tourAdvanceAction(step) {
   const t = step.target || {};
   if (t.closeModal) {
@@ -257,6 +307,7 @@ function _tourAdvanceAction(step) {
     return;
   }
   if (typeof step.onAdvance === 'function') step.onAdvance();
+  if (step.pass === false) return; // 点击拦截：只讲解推进，不发真实请求
   const el = _tourResolve(step);
   if (el) { try { el.click(); } catch (err) { /* 目标不可点不阻断步进 */ } }
 }
@@ -344,7 +395,8 @@ function startOnboardingTour() {
 function tourStepBrowseDemands()    { return { module: 'browse-demands', target: { page: 'browse-demands' }, text: UI.TOUR_STEP_BROWSE_DEMANDS }; }
 function tourStepDemandList()       { return { module: 'browse-demands', target: { sel: '#demands-list' },   text: UI.TOUR_STEP_DEMAND_LIST }; }
 function tourStepDemandCard()       { return { module: 'browse-demands', target: { sel: '#demands-list .list-card--demand' }, text: UI.TOUR_STEP_DEMAND_CARD }; }
-function tourStepDemandIntentBtn()  { return { module: 'browse-demands', target: { sel: '#demands-list .btn-intent-cta' },   text: UI.TOUR_STEP_DEMAND_INTENT_BTN }; }
+// v0.25.38（反馈 #127）：「提交试课意向」= 真实提交请求，点击拦截不透传（只讲解推进）
+function tourStepDemandIntentBtn()  { return { module: 'browse-demands', target: { sel: '#demands-list .btn-intent-cta' },   text: UI.TOUR_STEP_DEMAND_INTENT_BTN, pass: false }; }
 function tourStepDemandIdTag()      { return { module: 'browse-demands', target: { sel: '#demands-list .demand-id-tag' },     text: UI.TOUR_STEP_DEMAND_ID_TAG }; }
 
 // ---- 浏览教师（教师广场 / 教师同行）----
@@ -353,7 +405,8 @@ function tourStepBrowseTeachersPeer() { return { module: 'browse-teachers', targ
 function tourStepTeachersList()       { return { module: 'browse-teachers', target: { sel: '#teachers-list' },   text: UI.TOUR_STEP_TEACHERS_LIST }; }
 function tourStepFilterToggle()       { return { module: 'browse-teachers', target: { sel: '#filter-toggle-btn' }, text: UI.TOUR_STEP_FILTER_TOGGLE }; }
 function tourStepFilterSubject()      { return { module: 'browse-teachers', target: { sel: '#filter-subject' },  text: UI.TOUR_STEP_FILTER_SUBJECT }; }
-function tourStepTeacherUsername()    { return { module: 'browse-teachers', target: { sel: '#teachers-list .tc-username' }, text: UI.TOUR_STEP_TEACHER_USERNAME }; }
+// v0.25.38（反馈 #128）：可点性在整卡（.list-card--teacher 承载点击），亮区改指整卡而非用户名文本
+function tourStepTeacherUsername()    { return { module: 'browse-teachers', target: { sel: '#teachers-list .list-card--teacher' }, text: UI.TOUR_STEP_TEACHER_USERNAME }; }
 function tourStepProfileClose()       { return { module: 'browse-teachers', target: { sel: '#profile-panel-close' }, text: UI.TOUR_STEP_PROFILE_CLOSE }; }
 function tourStepTeacherPushBtn()     { return { module: 'browse-teachers', target: { sel: '#teachers-list .tc-push-btn' }, text: UI.TOUR_STEP_TEACHER_PUSH_BTN }; }
 function tourStepPushModal()          { return { module: 'browse-teachers', target: { closeModal: true }, text: UI.TOUR_STEP_PUSH_MODAL }; }
@@ -372,6 +425,12 @@ function tourStepConvItem()      { return { module: 'my-chats', target: { sel: '
 function tourStepChatMessages()  { return { module: 'my-chats', target: { sel: '#chat-messages' }, text: UI.TOUR_STEP_CHAT_MESSAGES }; }
 function tourStepChatSend()      { return { module: 'my-chats', target: { sel: '#chat-send-btn' }, text: UI.TOUR_STEP_CHAT_SEND }; }
 function tourStepChatPlus()      { return { module: 'my-chats', target: { sel: '.chat-plus-btn' }, text: UI.TOUR_STEP_CHAT_PLUS }; }
+// v0.25.38（反馈 #130）：+ 号唤出功能栏后逐个介绍项目——真实点击会发请求/开弹窗/文件选择器，一律拦截不透传
+function tourStepChatPlusItem(i, text) { return { module: 'my-chats', target: { sel: `.chat-plus-pop .chat-pop-item:nth-child(${i})` }, text, pass: false }; }
+const tourStepChatPlusImage   = () => tourStepChatPlusItem(1, UI.TOUR_STEP_CHAT_PLUS_IMAGE);
+const tourStepChatPlusFile    = () => tourStepChatPlusItem(2, UI.TOUR_STEP_CHAT_PLUS_FILE);
+const tourStepChatPlusSigning = () => tourStepChatPlusItem(3, UI.TOUR_STEP_CHAT_PLUS_SIGNING);
+const tourStepChatPlusDraft   = () => tourStepChatPlusItem(4, UI.TOUR_STEP_CHAT_PLUS_DRAFT);
 
 // ---- 我的合同 ----
 function tourStepMyContracts()     { return { module: 'my-contracts', target: { page: 'my-contracts' }, text: UI.TOUR_STEP_MY_CONTRACTS }; }
@@ -384,13 +443,15 @@ function tourStepEditProfile()      { return { module: 'edit-profile', target: {
 function tourStepProfileForm()      { return { module: 'edit-profile', target: { sel: '.profile-form' }, text: UI.TOUR_STEP_PROFILE_FORM }; }
 function tourStepProfileSubjects()  { return { module: 'edit-profile', target: { sel: '#profile-subjects' }, text: UI.TOUR_STEP_PROFILE_SUBJECTS }; }
 function tourStepProfilePrice()     { return { module: 'edit-profile', target: { sel: '#profile-price-min' }, text: UI.TOUR_STEP_PROFILE_PRICE }; }
-function tourStepProfileSubmit()    { return { module: 'edit-profile', target: { sel: '#profile-submit' }, text: UI.TOUR_STEP_PROFILE_SUBMIT }; }
+// v0.25.38：「保存」= 真实提交请求，点击拦截不透传；默认滚动架构自动把按钮滚进视口（反馈 #131）
+function tourStepProfileSubmit()    { return { module: 'edit-profile', target: { sel: '#profile-submit' }, text: UI.TOUR_STEP_PROFILE_SUBMIT, pass: false }; }
 
 // ---- 通知 ----
 function tourStepNotifications() { return { module: 'notifications', target: { page: 'notifications' }, text: UI.TOUR_STEP_NOTIFICATIONS }; }
 function tourStepNotifList()     { return { module: 'notifications', target: { sel: '#notifications-content' }, text: UI.TOUR_STEP_NOTIF_LIST }; }
 function tourStepNotifItem()     { return { module: 'notifications', target: { sel: '.notif-item' }, text: UI.TOUR_STEP_NOTIF_ITEM }; }
-function tourStepNotifBlock()    { return { module: 'notifications', target: { sel: '#btn-notif-block' }, text: UI.TOUR_STEP_NOTIF_BLOCK }; }
+// v0.25.38（反馈 #127）：「屏蔽系统通知」= 真实偏好开关 + 请求，点击拦截不透传
+function tourStepNotifBlock()    { return { module: 'notifications', target: { sel: '#btn-notif-block' }, text: UI.TOUR_STEP_NOTIF_BLOCK, pass: false }; }
 
 // ---- 设置 ----
 function tourStepAccountSettings()     { return { module: 'account-settings', target: { page: 'account-settings' }, text: UI.TOUR_STEP_ACCOUNT_SETTINGS }; }
@@ -479,6 +540,10 @@ const TOUR_SCRIPTS = {
     tourStepChatMessages(),
     tourStepChatSend(),
     tourStepChatPlus(),
+    tourStepChatPlusImage(),
+    tourStepChatPlusFile(),
+    tourStepChatPlusSigning(),
+    tourStepChatPlusDraft(),
     tourStepMyContracts(),
     tourStepContractsList(),
     tourStepContractCard(),
@@ -525,6 +590,10 @@ const TOUR_SCRIPTS = {
     tourStepChatMessages(),
     tourStepChatSend(),
     tourStepChatPlus(),
+    tourStepChatPlusImage(),
+    tourStepChatPlusFile(),
+    tourStepChatPlusSigning(),
+    tourStepChatPlusDraft(),
     tourStepMyContracts(),
     tourStepContractsList(),
     tourStepContractCard(),
