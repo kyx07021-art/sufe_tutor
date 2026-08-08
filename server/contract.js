@@ -68,14 +68,59 @@ const LEGAL_CLAUSES = `## 第四条 甲方权利与义务
 
 本合同自双方在平台内确认签约后生效，双方账户内各存一份，内容相同。平台对签署时的合同文本及其数字指纹（SHA-256）进行独立留档，供任一方事后校验文本一致性。
 
+双方约定：以平台账号登录、签署时密码二次确认、服务端签署时间戳以及全文内容哈希存证，共同构成本合同电子签署的可靠条件（《中华人民共和国电子签名法》第十三条第二款），与手写签名或盖章具有同等法律效力。
+
 ---
 
-甲方确认：＿＿＿＿＿＿＿＿    乙方确认：＿＿＿＿＿＿＿＿`;
+`;
+
+// 第十条 签署记录由 buildSignatureBlock 动态生成并内嵌合同正文末尾（随每次签署重拼，
+// 修改/重拼时位于法律条款之后自动丢弃重建，见 rebuildFullMd）——不含占位符，避免显式空占位
 
 /** 业务部分 + 标记 + 固定法律部分 → 完整合同正文（v0.24.0） */
 export function contractWithLegal(businessMd) {
   const biz = String(businessMd || '').trim();
   return `${biz}\n\n${CONTRACT_BUSINESS_END}\n\n${LEGAL_CLAUSES}`;
+}
+
+// 第十条 签署记录（v0.25.37 签署合规）：把「谁签/何时签」落进合同正文本身。
+// mdRender 仅支持 # 标题 + **加粗**，模板只允许这两种语法；不自引用原始哈希——
+// 区块内只放合同流水号 #CD{id}，原始 SHA-256 经 /api/contracts/:id/verify 在存证校验面板展示
+// （避免「先有哈希才生成正文」的自引用循环）。platform 账号 = 平台用户名（无独立昵称字段）。
+// 留痕四要素闭环：身份（账号登录 + 密码二次确认）+ 意愿（阅读确认流）+ 时间（signed_at）+ 内容（哈希链）
+export function buildSignatureBlock({ studentName, teacherName, studentSignedAt = '', teacherSignedAt = '', contractId }) {
+  const partyLine = (name, signedAt) => signedAt
+    ? `**${name}**（平台账号：${name}）\n签署状态：已签署　签署时间：${signedAt}`
+    : `**${name}**（平台账号：${name}）\n签署状态：待签署`;
+  const flowNo = contractId ? `#CD${String(contractId).padStart(6, '0')}` : '';
+  return `
+
+## 第十条 签署记录
+
+双方确认：以下签署人已通过本人平台账号完成实名登录，并凭本人密码二次确认表达签署意愿；平台服务端记录签署时间并留存全文指纹，作为本合同的电子签署凭证。
+
+**甲方（学生方）**：
+${partyLine(studentName, studentSignedAt)}
+
+**乙方（教师方）**：
+${partyLine(teacherName, teacherSignedAt)}
+
+平台存证：本合同全文 SHA-256 指纹已纳入防篡改存证链${flowNo ? `（存证流水号 ${flowNo}）` : ''}，任一方可随时通过平台「存证校验」核对文本一致性。`;
+}
+
+// 重拼完整正文（业务 + 法律 + 第十条 签署记录）：
+// 旧签名区块位于法律条款之后，以「当前业务部分」重拼时被自动丢弃、按当前签署态重建——
+// 修改（PUT 清 signed_at）与每次签署共用此函数，保证 contract_md 始终反映最新签署状态。
+// 旧格式合同（v0.24.0 前无标记）不重拼（同 handleModifyContract 的旧格式保护，防法律条款双份）
+function rebuildFullMd(ct, conv) {
+  const md = String(ct.contract_md || '');
+  if (!md.includes(CONTRACT_BUSINESS_END)) return md;
+  const biz = md.split(CONTRACT_BUSINESS_END)[0].trim();
+  return contractWithLegal(biz) + buildSignatureBlock({
+    studentName: conv.student_name, teacherName: conv.teacher_name,
+    studentSignedAt: ct.drafter_signed_at || '', teacherSignedAt: ct.other_signed_at || '',
+    contractId: ct.id,
+  });
 }
 
 function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
@@ -214,6 +259,8 @@ async function verifyContractLedger(db, contractId) {
     valid: chain.ok && chain.lastRehashValid !== false, // archived 无正文可重放（lastRehashValid=null），以链结构为准
     entries: rows.length, headValid: chain.headValid, linksValid: chain.linksValid, seqValid: chain.seqValid,
     contentHash: last.content_hash, prevHash: last.prev_hash, createdAt: last.created_at,
+    // v0.25.37 签署合规：逐条台账明细（序号 + 记档时间）供前端存证校验面板展示签署历史
+    entryList: rows.map(r => ({ seq: r.seq, createdAt: r.created_at })),
   };
 }
 
@@ -284,6 +331,8 @@ export async function handleCreateContract(db, body, req) {
     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
   });
   const mdEnc = await encryptField(md); // 网安 N-05：合同正文加密落库（读点经 db.js 解密，台账哈希走明文）
+  // v0.25.37 签署合规：插入时正文不含签署记录（流水号须先有 id），拿到 id 后回写完整正文——
+  // 第十条 签署记录显示双方「待签署」；自愈：回写失败不影响签署（每次签署都会重拼正文）
   const res = await dbRun(db,
     // v0.25.32 加固：发起方不再自动确认（原 drafter_confirmed=1 自动「已签约」）——起草后双方
     // 各自走「读合同→滚到底+待够时长→二次确认→密码最终确认」显式签署，双方确认才 signed
@@ -307,6 +356,14 @@ export async function handleCreateContract(db, body, req) {
     return error(MSG.CONTRACT_EXISTS, 409);
   }
   const id = (res && res.meta && res.meta.last_row_id) || 0;
+  if (id > 0) {
+    const fullMd = md + buildSignatureBlock({
+      studentName: conv.student_name, teacherName: conv.teacher_name,
+      studentSignedAt: '', teacherSignedAt: '', contractId: id,
+    });
+    await dbRun(db, `UPDATE contracts SET contract_md=? WHERE id=? AND status='signing'`,
+      [await encryptField(fullMd), id]);
+  }
   // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
   await dbCreateMessage(db, conversationId, userId, 'contract', 'contract_draft');
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_DRAFT_SENT.replace('{name}', nameOf(conv, userId)));
@@ -335,9 +392,11 @@ export async function handleSignContract(db, contractId, body, req) {
   if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
 
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
+  const signedCol = userId === ct.drafter_user_id ? 'drafter_signed_at' : 'other_signed_at';
   // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
   // 不产生任何改动；changes=0 方重读当前态幂等返回，不触发任何副作用。version 同步递增（乐观锁）
-  const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, status='signing', version=version+1, updated_at=datetime('now','localtime') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
+  // v0.25.37 签署合规：同句置位 signed_at（服务端时间戳，UTC SQLite 格式），签名区块据此渲染
+  const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, ${signedCol}=datetime('now','localtime'), status='signing', version=version+1, updated_at=datetime('now','localtime') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
   if (!(flag && flag.meta && flag.meta.changes > 0)) {
     const cur = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
     if (cur.err) return cur.err;
@@ -351,23 +410,32 @@ export async function handleSignContract(db, contractId, body, req) {
   const updated = await dbGetContractById(db, contractId);
   if (!updated) return error(MSG.CONTRACT_NOT_FOUND, 404); // 置位后对方并发撤销致行消失：干净 404，不抛 500
   const both = !!(updated.drafter_confirmed && updated.other_confirmed);
+  // 重拼正文（第十条 签署记录内嵌签署人/时间）回写：version 乐观锁——
+  // 并发双签时仅最后落定者的正文生效（版本已被抢跑的旧正文 changes=0 丢弃），杜绝旧签名块覆盖新状态
+  const signedMd = rebuildFullMd(updated, conv);
+  await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
+    [await encryptField(signedMd), contractId, updated.version]);
+  // 每次签署都落台账（v0.25.37）：正文已内嵌签署人/时间，content_hash 自然覆盖「谁签/何时签」；
+  // 幂等（同正文 NOT EXISTS 去重）——并发双签双方同正文只挂一条，签约后 500 重试可安全补记
+  let contentHash = '';
+  try { contentHash = await ledgerRecord(db, contractId, signedMd); }
+  catch (e) { console.error('contract ledger failed:', e && e.message); }
   if (both) {
     // v0.24.0 合同文档与需求签约状态彻底解耦：文档 signed 不再触碰 student_demands
     // （需求签约关系由「发起签约」signing.js 的签约请求确认驱动）。条件 UPDATE 赢家模式——
     // 双方同时签约仅一方 changes>0，防并发双副作用
     const claim = await dbRun(db, `UPDATE contracts SET status='signed', prev_business=NULL, version=version+1 WHERE id=? AND status='signing'`, [contractId]); // v0.24.3：签署确认后清空留痕（对齐 db.js:414 注释意图，diff 仅存于重新确认窗口期）
     if (claim && claim.meta && claim.meta.changes > 0) {
-      // 存证入台账（独立保障库优先）：文本哈希 + 哈希链，撤销合同删活跃行时留档仍不可篡改地保留
-      const contentHash = await ledgerRecord(db, contractId, updated.contract_md);
       await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGNED);
       // 留档保存合同原文（detailMax 放宽，加密后落库；撤销合同后仍可凭留档还原缔约内容）
       await logEvent(db, { action: 'contract.signed', actorUserId: userId, entity: 'contract', entityId: contractId,
-        detail: { conversationId: updated.conversation_id, demandId: updated.demand_id, contentHash, contractMd: updated.contract_md },
+        detail: { conversationId: updated.conversation_id, demandId: updated.demand_id, contentHash, contractMd: signedMd },
         detailMax: 60000, req });
     }
   } else {
     await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGN_WAITING.replace('{name}', nameOf(conv, userId)));
-    await logEvent(db, { action: 'contract.sign_partial', actorUserId: userId, entity: 'contract', entityId: contractId, req });
+    await logEvent(db, { action: 'contract.sign_partial', actorUserId: userId, entity: 'contract', entityId: contractId,
+      detail: { signedBy: userId, contentHash, contractMd: signedMd }, detailMax: 60000, req });
   }
   return json({ ok: true, signed: both });
 }
@@ -393,12 +461,20 @@ export async function handleModifyContract(db, contractId, body, req) {
   const oldHasMarker = (ct.contract_md || '').includes(CONTRACT_BUSINESS_END);
   const oldBiz = (oldHasMarker ? (ct.contract_md || '').split(CONTRACT_BUSINESS_END)[0] : (ct.contract_md || '')).trim(); // 旧业务部分（留痕 diff 基线）
   if (md === oldBiz) return json({ ok: true, unchanged: true }); // 业务未变：幂等短路，不重置确认/不重发通知
-  const fullMd = oldHasMarker ? contractWithLegal(md) : md; // 新格式：业务+固定法律条款；旧格式：保持原文本不重拼
+  // 新格式：业务+固定法律条款+第十条 签署记录（v0.25.37 全部待签署——修改即回退签约选择态）；
+  // 旧格式：保持原文本不重拼（无标记则无签署记录，历史合同语义不变）
+  const fullMd = oldHasMarker
+    ? contractWithLegal(md) + buildSignatureBlock({
+        studentName: conv.student_name, teacherName: conv.teacher_name,
+        studentSignedAt: '', teacherSignedAt: '', contractId,
+      })
+    : md;
 
-  // 修改即回退到签约选择态：双方确认清零 + signing（双方重新确认）；prev_business 留痕供前端 diff 高亮；
-  // 乐观锁落 SQL WHERE（version 精确匹配）
+  // 修改即回退到签约选择态：双方确认清零 + 签署时间清零 + signing（双方重新确认）；
+  // prev_business 留痕供前端 diff 高亮；乐观锁落 SQL WHERE（version 精确匹配）
   const upd = await dbRun(db,
-    `UPDATE contracts SET contract_md=?, prev_business=?, drafter_confirmed=0, other_confirmed=0, status='signing', version=version+1, updated_at=datetime('now','localtime')
+    `UPDATE contracts SET contract_md=?, prev_business=?, drafter_confirmed=0, other_confirmed=0,
+       drafter_signed_at='', other_signed_at='', status='signing', version=version+1, updated_at=datetime('now','localtime')
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
     [await encryptField(fullMd), oldBiz, contractId, ver]); // N-05：合同正文加密落库
   if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409, 'CONTRACT_MODIFIED_CONFLICT'); // v0.24.2：带稳定 code 供前端刷新版本号

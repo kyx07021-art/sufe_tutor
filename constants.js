@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.36',
+  APP_VERSION: '0.25.37',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -845,6 +845,18 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',
     CONTRACT_CANCELLED_TOAST: '已取消签约',
     CONTRACT_SIGNED_TOAST: '签约完成',
+
+    // v0.25.37 签署合规：签名区块内嵌正文 + 每次签署落台账 + signed_at 列
+    CONTRACT_SIGN_DONE_BOTH: '双方已签署',                    // 已签约合同卡副标
+    CONTRACT_PARTY_SIGNED_A: '甲方已签',                     // 签署进度（甲方=学生方）
+    CONTRACT_PARTY_PENDING_A: '甲方待签',
+    CONTRACT_PARTY_SIGNED_B: '乙方已签',                     // 签署进度（乙方=教师方）
+    CONTRACT_PARTY_PENDING_B: '乙方待签',
+    SIGN_MODAL_DISCLOSE: '你将以平台账号「{username}」电子签署本合同：实名登录 + 密码二次确认即构成可靠电子签名，签署后合同即生效。', // 签署弹窗前置告知
+    CONTRACT_VERIFY_PANEL_TITLE: '存证校验',                  // toast 升级小面板
+    CONTRACT_VERIFY_HASH: '当前指纹',
+    CONTRACT_VERIFY_ENTRIES: '台账条目',
+    CONTRACT_VERIFY_FLOW: '存证流水号',
 
     // 管理员：资料管理
     ADMIN_POSTS_EMPTY: '暂无帖子',

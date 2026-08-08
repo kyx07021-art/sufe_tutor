@@ -862,6 +862,20 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 }
 .contract-sign-hint { margin-right: auto; line-height: 1.4; }
 
+/* v0.25.37 签署合规：合同卡签署进度、签署弹窗前置告知、存证校验小面板 */
+.contract-sign-progress { margin-top: 10px; margin-bottom: 0; line-height: 1.5; }
+.contract-sign-progress:not(.text-muted) { color: var(--g-ok-fg, var(--ok)); }
+.contract-sign-disclose { margin-top: 10px; margin-bottom: 0; line-height: 1.6; padding: 0 2px; }
+.contract-verify-verdict { margin: 0 0 12px; font-weight: 600; line-height: 1.6; }
+.contract-verify--ok { color: var(--g-ok-fg, var(--ok)); }
+.contract-verify--bad { color: var(--danger); }
+.contract-verify-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.contract-verify-row { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; font-size: .88rem; line-height: 1.6; }
+.contract-verify-row code { word-break: break-all; max-width: 62%; text-align: right; }
+.contract-verify-hash { font-size: .78rem; }
+.contract-verify-list { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--g-border, rgba(255,255,255,.1)); }
+.contract-verify-entry { display: flex; justify-content: space-between; gap: 14px; font-size: .84rem; color: var(--muted); line-height: 1.6; }
+
 /* 卡片浮入：通知/需求/教师信息卡统一动效（app.js initReveals 注入 .reveal 与错峰延迟） */
 /* 修复（v0.22.3）：transition 只在 .reveal.revealed 上——隐藏（加 .reveal）必须瞬时，
    否则过渡 + --reveal-delay 会把卡片停在可见态造成「闪出→消失→再出现」（浏览器实测复现） */

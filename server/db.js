@@ -36,6 +36,8 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','signing','signed')),
   drafter_confirmed INTEGER NOT NULL DEFAULT 0,
   other_confirmed INTEGER NOT NULL DEFAULT 0,
+  drafter_signed_at TEXT NOT NULL DEFAULT '',
+  other_signed_at TEXT NOT NULL DEFAULT '',
   version INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT (datetime('now','localtime')),
   updated_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -438,7 +440,10 @@ export async function initDb(db, env = {}) {
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
     ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"],
     ['version', 'INTEGER NOT NULL DEFAULT 0'], // 合同乐观锁版本（秒级 updated_at 不可靠，修同秒双改互相覆盖）
-    ['prev_business', 'TEXT']]); // v0.24.0 改动留痕：上次业务条款（前端 diff 高亮；签署确认后清空）
+    ['prev_business', 'TEXT'], // v0.24.0 改动留痕：上次业务条款（前端 diff 高亮；签署确认后清空）
+    // v0.25.37 签署合规：双方签署时间（空=未签；UTC SQLite 时间戳），签名区块内嵌正文据此渲染
+    ['drafter_signed_at', "TEXT NOT NULL DEFAULT ''"],
+    ['other_signed_at', "TEXT NOT NULL DEFAULT ''"]]);
 
   // 存量需求编号补发：按 id（生成顺序）依次取号，四位展示自 0001 起；已编号跳过（幂等）
   const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');

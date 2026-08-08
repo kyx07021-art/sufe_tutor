@@ -94,11 +94,23 @@ function renderContractCard(c) {
       ${c.demand_display_id ? `<span class="tag glass glass--solid">${escHtml(UI.DEMAND_PREFIX)}#${String(c.demand_display_id).padStart(4, '0')}</span>` : ''}
       <span class="list-card-meta">${fmtDateTime(c.updated_at)}</span>
     </div>
+    ${c.status === 'signing'
+      ? `<p class="contract-sign-progress text-sm text-muted">${contractSignProgress(c)}</p>`
+      : c.status === 'signed'
+        ? `<p class="contract-sign-progress text-sm">${escHtml(UI.CONTRACT_SIGN_DONE_BOTH)}</p>`
+        : ''}
     <div class="contract-actions">
       <div class="contract-actions-left">${left}</div>
       ${right}
     </div>
   </div>`;
+}
+
+// v0.25.37 签署合规：甲方/乙方（学生/教师）各自签署进度——confirmed 标志按 drafter 归属映射到两方
+function contractSignProgress(c) {
+  const studentSigned = (c.drafter_user_id === c.student_user_id ? c.drafter_confirmed : c.other_confirmed) ? 1 : 0;
+  const teacherSigned = (c.drafter_user_id === c.teacher_user_id ? c.drafter_confirmed : c.other_confirmed) ? 1 : 0;
+  return `${studentSigned ? UI.CONTRACT_PARTY_SIGNED_A : UI.CONTRACT_PARTY_PENDING_A} · ${teacherSigned ? UI.CONTRACT_PARTY_SIGNED_B : UI.CONTRACT_PARTY_PENDING_B}`;
 }
 
 // 开始签约（v0.25.32 加固）：读合同全文 → 滚动到底 + 待够时长（CONFIG.CONTRACT_SIGN_READ_SECONDS）
@@ -113,7 +125,8 @@ function signContract(contractId) {
   openModal({
     title: UI.SIGN_MODAL_TITLE,
     closable: false, // 表单/阅读类：点遮罩不关，防误触丢阅读进度
-    body: `<div class="contract-md contract-sign-scroll" id="contract-sign-scroll" onscroll="onContractSignScroll()">${mdRender(stripContractMarker(c.contract_md || ''))}</div>`,
+    body: `<div class="contract-md contract-sign-scroll" id="contract-sign-scroll" onscroll="onContractSignScroll()">${mdRender(stripContractMarker(c.contract_md || ''))}</div>
+      <p class="contract-sign-disclose text-sm text-muted">${escHtml(UI.SIGN_MODAL_DISCLOSE.replace('{username}', (state.user && state.user.username) || ''))}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
       <span class="text-sm text-muted contract-sign-hint" id="contract-sign-hint">${signReadHint()}</span>
       <button type="button" id="contract-sign-btn" class="btn glass glass--pressable" disabled onclick="confirmSignContract()">${UI.SIGN_READ_DONE_BTN}</button>`,
@@ -248,12 +261,32 @@ function confirmRevokeContract(contractId) {
   }});
 }
 
-// 存证校验：重算合同文本哈希对比签署时的台账指纹（后端 /api/contracts/:id/verify）
+// 存证校验（v0.25.37 toast 升级小面板）：重算合同文本哈希对比签署时的台账指纹（后端 /verify），
+// 展示当前指纹、台账条目数与各条记档时间（签署历史）——哈希链由服务端校验并回传各环节结果
 async function verifyContractLedgerUi(contractId) {
   try {
     const data = await api(`/api/contracts/${contractId}/verify`);
-    showToast(!data.recorded ? UI.CONTRACT_LEDGER_NONE : data.archived ? UI.CONTRACT_LEDGER_ARCHIVED
-      : data.valid ? UI.CONTRACT_LEDGER_VALID : UI.CONTRACT_LEDGER_INVALID);
+    if (!data.recorded) { showToast(UI.CONTRACT_LEDGER_NONE); return; }
+    const verdict = data.archived ? UI.CONTRACT_LEDGER_ARCHIVED
+      : data.valid ? UI.CONTRACT_LEDGER_VALID : UI.CONTRACT_LEDGER_INVALID;
+    const chainBits = [
+      `${data.headValid ? '✓' : '✗'}链头`,
+      `${data.linksValid ? '✓' : '✗'}连续性`,
+      `${data.seqValid ? '✓' : '✗'}序号`,
+    ].join('　');
+    const rows = data.entryList || [];
+    openModal({
+      title: UI.CONTRACT_VERIFY_PANEL_TITLE,
+      bodyCls: 'contract-md',
+      body: `<p class="contract-verify-verdict ${data.valid ? 'contract-verify--ok' : 'contract-verify--bad'}">${escHtml(verdict)}</p>
+        <div class="contract-verify-grid">
+          <div class="contract-verify-row"><span class="text-muted">${escHtml(UI.CONTRACT_VERIFY_FLOW)}</span><code>#CD${String(contractId).padStart(6, '0')}</code></div>
+          <div class="contract-verify-row"><span class="text-muted">${escHtml(UI.CONTRACT_VERIFY_HASH)}</span><code class="contract-verify-hash">${escHtml(data.contentHash)}</code></div>
+          <div class="contract-verify-row"><span class="text-muted">${escHtml(UI.CONTRACT_VERIFY_ENTRIES)}</span><span>${data.entries} 条 · ${escHtml(chainBits)}</span></div>
+        </div>
+        ${rows.length ? `<div class="contract-verify-list">${rows.map(e =>
+          `<div class="contract-verify-entry"><span>#${e.seq == null ? '?' : e.seq}</span><span>${fmtDateTime(e.createdAt)}</span></div>`).join('')}</div>` : ''}`,
+    });
   } catch (err) { showToast(err.message); }
 }
 
