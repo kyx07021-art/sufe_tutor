@@ -194,6 +194,7 @@ export async function initDb(db, env = {}) {
       token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
       session_id TEXT NOT NULL DEFAULT '',
       label TEXT NOT NULL DEFAULT '',
+      device_id TEXT NOT NULL DEFAULT '', /* v0.25.11：设备去重键（浏览器档案持久 id；'' = 无设备标识的老客户端/脚本，不受部分唯一索引约束） */
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       expires_at DATETIME NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
@@ -377,6 +378,7 @@ export async function initDb(db, env = {}) {
         token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
         session_id TEXT NOT NULL DEFAULT '',
         label TEXT NOT NULL DEFAULT '',
+        device_id TEXT NOT NULL DEFAULT '',
         created_at DATETIME DEFAULT (datetime('now','localtime')),
         expires_at DATETIME NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
@@ -469,6 +471,12 @@ export async function initDb(db, env = {}) {
   ]);
   // 设备管理安全（网安报告 F-04）：auth_sessions.session_id 已入 DDL 与重建迁移，设备接口只暴露
   // session_id、token 永不进响应体（旧表经上方 DROP 重建后自然带列，无需回填迁移）
+  // v0.25.11 设备去重：老库补 device_id 列（新库 DDL 已带）。列补齐后建部分唯一索引——
+  // 同一 (user, device) 至多一行活跃会话（issueAuthToken UPSERT 复用行）；device_id=''（无标识的
+  // 老客户端/curl 脚本）不受约束，保持历史多行行为。旧数据 device_id 全空，无冲突，建索引安全
+  await ensureColumns(db, 'auth_sessions', [['device_id', "TEXT NOT NULL DEFAULT ''"]]);
+  await dbRun(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_user_device
+    ON auth_sessions(user_id, device_id) WHERE device_id != ''`);
 
   // 热点查询索引（v0.22.8，查询优化杠杆）：幂等 CREATE INDEX IF NOT EXISTS。
   // 必须置于全部换表迁移 + ensureColumns 之后——迁移重建表不继承旧索引、后补列（demand_intents.status、

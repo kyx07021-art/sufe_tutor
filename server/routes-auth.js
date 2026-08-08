@@ -58,7 +58,7 @@ export async function handleRegister(db, body, req) {
       return error(MSG.INVITE_INVALID, 409);
     }
   }
-  const authToken = await issueAuthToken(db, userId, deviceLabelFromUA(req && req.headers.get('user-agent')));
+  const authToken = await issueAuthToken(db, userId, deviceLabelFromUA(req && req.headers.get('user-agent')), body.deviceId);
   await logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
     actorRole: role, entity: 'user', entityId: userId, detail: { role, via: needsInvite ? 'invite' : 'direct' }, req });
   return json({ user: { id: userId, username, role, avatar: '' }, authToken, message: MSG.REGISTER_SUCCESS });
@@ -95,7 +95,7 @@ export async function handleLogin(db, body, req) {
     return error(MSG.ACCOUNT_BANNED, 403);
   }
   if (user.deactivated) return error(MSG.ACCOUNT_DEACTIVATED, 403);
-  const authToken = await issueAuthToken(db, user.id, deviceLabelFromUA(req && req.headers.get('user-agent')));
+  const authToken = await issueAuthToken(db, user.id, deviceLabelFromUA(req && req.headers.get('user-agent')), body.deviceId);
   await logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, req });
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' }, authToken });

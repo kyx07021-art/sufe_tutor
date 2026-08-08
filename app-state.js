@@ -140,6 +140,26 @@ function clearSession(role) {
   try { sessionStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
 }
 
+// 设备标识（v0.25.11 设备会话去重）：浏览器档案级持久 id——同一浏览器所有窗口/标签共享，
+// 登录/注册随请求上传，服务端按 (user, device) 复用同一会话行（不再每次登录堆一行「设备」）。
+// localStorage 按「源×浏览器档案」隔离：无痕/不同 Edge 档案/手机各自独立设备，语义正确。
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem('sufe_device_id');
+    if (!id || !/^[0-9a-f]{32}$/.test(id)) {
+      const b = new Uint8Array(16);
+      if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === 'function') {
+        globalThis.crypto.getRandomValues(b);
+      } else { // 非浏览器/旧环境兜底（仅身份标签非凭证，可降级）
+        for (let i = 0; i < 16; i++) b[i] = Math.floor(Math.random() * 256);
+      }
+      id = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem('sufe_device_id', id);
+    }
+    return id;
+  } catch { return ''; } // 存储被禁（隐私模式等）：无设备标识 → 服务端回落旧 INSERT 行为
+}
+
 // ============================================================
 // 偏好/标记存取（全部 try/catch，防隐私模式抛异常）
 // ============================================================

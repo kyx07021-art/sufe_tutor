@@ -154,7 +154,7 @@ async function handleLogin(e) {
 
   try {
     btn.disabled = true; btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span> ${UI.LOADING_LOGIN}`;
-    const data = await api('/api/auth/login', { method: 'POST', body: { username, password } });
+    const data = await api('/api/auth/login', { method: 'POST', body: { username, password, deviceId: getDeviceId() } });
     state.user = data.user; state.authToken = data.authToken || null;
     alertEl.innerHTML = '';
     saveSession(document.getElementById('login-remember').checked); // 会话持久化（绝不存明文密码）
@@ -189,7 +189,7 @@ async function handleRegister(e) {
   try {
     const btn = document.getElementById('register-submit');
     btn.disabled = true; btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span> ${UI.LOADING_REGISTER}`;
-    const body = { username, password, role };
+    const body = { username, password, role, deviceId: getDeviceId() };
     if (role === 'teacher' && state.validatedInviteCode) body.inviteCode = state.validatedInviteCode;
     const data = await api('/api/auth/register', { method: 'POST', body });
     state.user = data.user; state.authToken = data.authToken || null;

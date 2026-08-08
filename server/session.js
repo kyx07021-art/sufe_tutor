@@ -23,20 +23,39 @@ import { SECURITY } from './constants.js';
 // ============================================================
 /**
  * 签发登录令牌（多端会话）：
- * @param userId 用户 id
- * @param label  设备标签（deviceLabelFromUA 产物，账户设置展示）
+ * @param userId   用户 id
+ * @param label    设备标签（deviceLabelFromUA 产物，账户设置展示）
+ * @param deviceId 浏览器档案持久 id（前端 localStorage 生成；'' = 老客户端/脚本无标识）
  * @returns 明文令牌（仅此一处回传；库内只存摘要）
  * B3：清该用户过期会话 + 写入新会话 一次 db.batch（1 次往返；原子）
+ *
+ * v0.25.11 设备去重（用户反馈「一堆 Edge 登录记录」根因修复）：
+ *   原来「设备」=「登录事件」——每次登录（新窗口/新标签/重登）都插一行，账户设置里堆成山。
+ *   现在「设备」=「浏览器档案」：带合法 deviceId 时按 (user_id, device_id) UPSERT 复用同一行——
+ *   session_id 稳定、token_hash/label/expires_at 刷新。同一浏览器反复登录只占一行；
+ *   无痕/不同浏览器档案/手机各自一行。无 deviceId 回落旧 INSERT（device_id=''，部分唯一索引不约束）。
+ *   语义：一个设备一个活跃会话——同设备重登会顶掉旧令牌（另一窗口旧会话收到 401 重登，符合「设备管理」心智）。
  */
-export async function issueAuthToken(db, userId, label) {
+export async function issueAuthToken(db, userId, label, deviceId) {
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
   const sessionId = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
   const expires = new Date(Date.now() + SECURITY.TOKEN_TTL_MS).toISOString().slice(0, 19).replace('T', ' ');
-  await db.batch([
+  const digest = await tokenDigest(token);
+  const dev = typeof deviceId === 'string' && /^[0-9a-f]{32}$/.test(deviceId) ? deviceId : '';
+  const stmts = [
     db.prepare(`DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now')`).bind(userId),
-    db.prepare('INSERT INTO auth_sessions (token_hash, session_id, user_id, label, expires_at) VALUES (?,?,?,?,?)')
-      .bind(await tokenDigest(token), sessionId, userId, label || '', expires),
-  ]);
+  ];
+  if (dev) {
+    stmts.push(db.prepare(`INSERT INTO auth_sessions (token_hash, session_id, user_id, label, device_id, expires_at)
+      VALUES (?,?,?,?,?,?)
+      ON CONFLICT(user_id, device_id) WHERE device_id != '' DO UPDATE SET
+        token_hash=excluded.token_hash, label=excluded.label, expires_at=excluded.expires_at`)
+      .bind(digest, sessionId, userId, label || '', dev, expires));
+  } else {
+    stmts.push(db.prepare('INSERT INTO auth_sessions (token_hash, session_id, user_id, label, expires_at) VALUES (?,?,?,?,?)')
+      .bind(digest, sessionId, userId, label || '', expires));
+  }
+  await db.batch(stmts);
   return token;
 }
 
