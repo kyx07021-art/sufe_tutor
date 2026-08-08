@@ -327,7 +327,36 @@
 
         <!-- 教师：需求大厅 -->
         <section class="client-page hidden" data-page="browse-demands">
-          <div class="page-header"><h2>需求大厅</h2></div>
+          <div class="page-header">
+            <h2>需求大厅</h2>
+            <div class="page-header-actions">
+              <!-- #158（v0.25.66）：需求大厅排序（默认匹配度最高，选项由 initDemandControls 填充）+ 筛选 -->
+              <select class="filter-select filter-select-auto" id="demand-sort" onchange="applyDemandControls()" aria-label="需求排序"></select>
+              <button type="button" class="drop-toggle glass glass--solid" id="demand-filter-toggle-btn" onclick="toggleDemandFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
+            </div>
+          </div>
+          <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">
+            <div class="filter-row">
+              <div class="filter-group">
+                <label class="filter-label" id="demand-filter-subject-label"></label>
+                <select class="filter-select" id="demand-filter-subject" onchange="applyDemandControls()"></select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label" id="demand-filter-grade-label"></label>
+                <select class="filter-select" id="demand-filter-grade" onchange="applyDemandControls()"></select>
+              </div>
+            </div>
+            <div class="filter-row">
+              <div class="filter-group">
+                <label class="filter-label" id="demand-filter-method-label"></label>
+                <select class="filter-select" id="demand-filter-method" onchange="applyDemandControls()"></select>
+              </div>
+              <div class="filter-group">
+                <label class="filter-label" id="demand-filter-province-label"></label>
+                <select class="filter-select" id="demand-filter-province" onchange="applyDemandControls()"></select>
+              </div>
+            </div>
+          </div>
           <div class="browse-list" id="demands-list">
             <div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div>
           </div>

@@ -541,6 +541,7 @@ function matchDetailHtml(t, d, md) {
 // 原 window._matchDetail 单槽被最后一张卡渲染覆盖：多 tag 时点谁都显示最后一张的数据
 let _matchDetailOpen = false;
 let _browseDemands = []; // 教师需求大厅当前列表（含置顶推送卡），showMatchDetail 的按 id 取数源
+let _browsePushes = [], _browseNormal = []; // #158（v0.25.66）：排序/筛选控件变更时本地重渲的数据源（取数缓存命中零网络）
 // v0.23.1 审计 M1/m5：探测刷新替换缓存数组后重挂镜像（state.myDemands 编辑回填源、
 // _browseDemands 匹配度明细取数源）——不重挂则就地变更/取数作用在游离旧数组上
 if (typeof dhOnDomainRefresh === 'function') {
@@ -716,28 +717,92 @@ async function loadBrowseDemands() {
     const pushes = pData.pushes || [];
     const demands = dData.demands || [];
     _browseDemands = [...pushes, ...demands]; // 匹配度明细取数源（push 置顶卡与普通卡同库）
+    _browsePushes = pushes; _browseNormal = demands; // #158：控件变更本地重渲数据源
     if (state.page === 'browse-demands') setBadge('browse-demands', 0); // 进页即视为已读；await 期间若已切走，不得掐灭轮询刚点亮的新推送红点
     if (seq !== loadSeqs['browse-demands']) return; // 过期响应不渲染
     if (!pushes.length && !demands.length) { el.innerHTML = `<div class="empty-state"><p>${UI.EMPTY_NO_DEMANDS}</p></div>`; return; }
-    // 当前教师档案（匹配度徽章用）：登录教师 + 已填档案时才有
-    const myTeacher = (!isGuest && state.user.role === 'teacher') ? state.allTeachers.find(t => t.user_id === state.user.id) : null;
-    const pushDemandIds = new Set(pushes.map(p => p.id));
-    const pinned = pushes.map(p => renderDemandCard(p, { push: p, teacher: true, myTeacher })).join('');
-    // 需求五·item6：教师大厅普通需求默认按匹配度从高到低排序（推送卡仍置顶——学生主动推送是更强意向，不被排序打散）；
-    // 匹配度为 null 的需求（教师档案缺数据）沉底。排序与筛选/搜索串行应用：筛选在服务端已过滤，此处只排渲染序。
-    const normalDemands = demands.filter(d => !pushDemandIds.has(d.id));
-    const mdOf = {};
-    // v0.25.8 审计修复：_md 挂需求对象供 renderDemandCard 徽章复用（预计算一次，避免排序后渲染再算一遍）
-    if (myTeacher) for (const d of normalDemands) { const m = matchDegree(myTeacher, d); mdOf[d.id] = m; d._md = m; }
-    normalDemands.sort((a, b) => (mdOf[b.id] ?? -1) - (mdOf[a.id] ?? -1));
-    const normal = normalDemands.map(d => renderDemandCard(d, { teacher: true, myTeacher })).join('');
-    if (seq !== loadSeqs['browse-demands']) return; // 内层 await（拉教师档案）期间再进页：过期响应不渲染
-    el.innerHTML = (pinned ? `<div class="section-title spacer-sm">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '') + normal;
-    initReveals(el);
+    initDemandControls(); // #158：排序/筛选下拉选项与标签（幂等；自定义下拉面板由 MutationObserver 自动重建）
+    renderBrowseDemands(pushes, demands); // 筛选 + 排序（默认匹配度最高）+ 推送置顶
   } catch (err) {
     if (seq !== loadSeqs['browse-demands']) return; // 过期请求的错误不覆盖新列表
     el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
+}
+
+// #158（v0.25.66）：需求大厅排序 + 筛选控件（教师端默认匹配度最高）
+function initDemandControls() {
+  const sort = document.getElementById('demand-sort');
+  if (sort && !sort.options.length) {
+    sort.innerHTML = `<option value="match" selected>${UI.DEMAND_SORT_MATCH}</option>
+      <option value="newest">${UI.DEMAND_SORT_NEWEST}</option>
+      <option value="budget">${UI.DEMAND_SORT_BUDGET}</option>`;
+  }
+  const fill = (id, opts) => {
+    const el = document.getElementById(id);
+    if (!el || el.options.length > 1) return; // 已填充；自定义下拉面板由 initCustomSelects 的 MutationObserver 自动重建
+    el.innerHTML = `<option value="">${UI.DEMAND_FILTER_ALL}</option>` + opts.map(o =>
+      `<option value="${escHtml(o.value)}">${escHtml(o.label)}</option>`).join('');
+  };
+  fill('demand-filter-subject', SUBJECTS.map(s => ({ value: s.id, label: s.name })));
+  fill('demand-filter-grade', STUDENT_GRADES.map(g => ({ value: g.id, label: g.name })));
+  fill('demand-filter-method', TEACHING_METHODS.map(m => ({ value: m.id, label: m.name })));
+  fill('demand-filter-province', (globalThis.SUFE_REGIONS.provinces || []).map(p => ({ value: p.id, label: p.name })));
+  // 标签单源（index.html 静态文本仅 JS 前兜底）
+  const lbl = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  lbl('demand-filter-subject-label', UI.LABEL_SUBJECT);
+  lbl('demand-filter-grade-label', UI.LABEL_GRADE);
+  lbl('demand-filter-method-label', UI.LABEL_TEACHING_METHOD_PROFILE);
+  lbl('demand-filter-province-label', UI.LABEL_PROVINCE);
+}
+function toggleDemandFilters() {
+  const p = document.getElementById('demand-filter-panel');
+  if (p) p.classList.toggle('hidden');
+}
+function demandSortMode() {
+  const el = document.getElementById('demand-sort');
+  return el ? el.value : 'match';
+}
+// 控件变更：本地重渲（取数缓存命中零网络），不重拉 loader
+function applyDemandControls() {
+  if (state.page !== 'browse-demands') return;
+  renderBrowseDemands(_browsePushes, _browseNormal);
+}
+
+// 教师需求大厅渲染（loadBrowseDemands 取数后与 applyDemandControls 共用）：
+// 推送置顶 + 普通需求筛选（科目/年级/方式/省份）+ 排序（默认匹配度最高，最新/预算可选）
+function renderBrowseDemands(pushes, demands) {
+  const el = document.getElementById('demands-list');
+  if (!el) return;
+  const isGuest = !state.user;
+  const myTeacher = (!isGuest && state.user && state.user.role === 'teacher')
+    ? state.allTeachers.find(t => t.user_id === state.user.id) : null;
+  const pushDemandIds = new Set(pushes.map(p => p.id));
+  const pinned = pushes.map(p => renderDemandCard(p, { push: p, teacher: true, myTeacher })).join('');
+  // 筛选（单值精确匹配；科目命中任一即可）
+  const gv = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  const fSubj = gv('demand-filter-subject'), fGrade = gv('demand-filter-grade');
+  const fMethod = gv('demand-filter-method'), fProv = gv('demand-filter-province');
+  const filterActive = fSubj || fGrade || fMethod || fProv;
+  let normalDemands = demands.filter(d => {
+    if (pushDemandIds.has(d.id)) return false;
+    if (fSubj && !(d.target_subjects || []).includes(fSubj)) return false;
+    if (fGrade && d.student_grade !== fGrade) return false;
+    if (fMethod && d.teaching_method !== fMethod) return false;
+    if (fProv && d.province !== fProv) return false;
+    return true;
+  });
+  // v0.25.8 审计修复：_md 挂需求对象供 renderDemandCard 徽章复用（预计算一次，避免排序后渲染再算一遍）
+  const mdOf = {};
+  if (myTeacher) for (const d of normalDemands) { const m = matchDegree(myTeacher, d); mdOf[d.id] = m; d._md = m; }
+  const mode = demandSortMode();
+  if (mode === 'newest') normalDemands.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  else if (mode === 'budget') normalDemands.sort((a, b) => (a.budget_min ?? Infinity) - (b.budget_min ?? Infinity));
+  else normalDemands.sort((a, b) => (mdOf[b.id] ?? -1) - (mdOf[a.id] ?? -1)); // 匹配度最高（默认；无档案沉底）
+  const normal = normalDemands.map(d => renderDemandCard(d, { teacher: true, myTeacher })).join('');
+  el.innerHTML = (pinned ? `<div class="section-title spacer-sm">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '')
+    + normal
+    + (filterActive && !normalDemands.length ? `<div class="empty-state empty-state--small"><p>${escHtml(UI.DEMAND_FILTER_EMPTY)}</p></div>` : '');
+  initReveals(el);
 }
 
 // 学生把某条需求主动发给指定教师：弹窗列出自己的需求单选

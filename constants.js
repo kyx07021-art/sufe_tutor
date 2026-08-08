@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.65',
+  APP_VERSION: '0.25.66',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1191,6 +1191,14 @@ globalThis.APP_CONSTANTS = {
     LABEL_PRICE: '报价',
     LABEL_INTRO: '简介',
     LABEL_GAOKAO_SCORES: '高考成绩',
+    LABEL_SUBJECT: '科目', // #158（v0.25.66）：需求大厅筛选标签
+    // #158（v0.25.66）：需求大厅排序 + 筛选（教师端默认匹配度最高）
+    DEMAND_SORT_MATCH: '匹配度最高',
+    DEMAND_SORT_NEWEST: '最新发布',
+    DEMAND_SORT_BUDGET: '预算从低到高',
+    DEMAND_FILTER_BTN: '筛选',
+    DEMAND_FILTER_ALL: '全部',
+    DEMAND_FILTER_EMPTY: '没有符合筛选条件的需求',
 
     // 教师档案扩展字段（学校公开；真实姓名/学信网截图仅双向匹配后可见）
     LABEL_SCHOOL: '学校',
