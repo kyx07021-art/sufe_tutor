@@ -1784,13 +1784,6 @@ body.profile-panel-closing .profile-panel {
   .ui-scale-control { flex: none; width: 100%; }
 }
 
-/* 细滚动条合并组（v0.21.0：browse-list/conv-list/chat-messages/md-preview/custom-select-list 五处同款收一组）。
-   组 A 四容器带 thumb hover；custom-select-list 原无 hover，保持原行为单独列 */
-.browse-list::-webkit-scrollbar, .conv-list::-webkit-scrollbar, .chat-messages::-webkit-scrollbar, .md-preview::-webkit-scrollbar, .custom-select-list::-webkit-scrollbar { width: 6px; }
-.browse-list::-webkit-scrollbar-track, .conv-list::-webkit-scrollbar-track, .chat-messages::-webkit-scrollbar-track, .md-preview::-webkit-scrollbar-track, .custom-select-list::-webkit-scrollbar-track { background: transparent; }
-.browse-list::-webkit-scrollbar-thumb, .conv-list::-webkit-scrollbar-thumb, .chat-messages::-webkit-scrollbar-thumb, .md-preview::-webkit-scrollbar-thumb, .custom-select-list::-webkit-scrollbar-thumb { background: var(--paper-3); }
-.browse-list::-webkit-scrollbar-thumb:hover, .conv-list::-webkit-scrollbar-thumb:hover, .chat-messages::-webkit-scrollbar-thumb:hover, .md-preview::-webkit-scrollbar-thumb:hover { background: var(--faint); }
-
 /* ============ 图表组件（app-chart.js，独立玻璃 SVG 面积折线图）============ */
 .chart-glass { padding: 18px 16px 12px; margin-bottom: 14px; }
 .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }

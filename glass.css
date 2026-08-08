@@ -51,6 +51,11 @@
   --g-raise: 0;
   --g-scale: 1;
   --g-ring: rgba(122,104,224,.55);
+  /* 内生滚动条 token 兜底（v0.25.28；日常由 constants.THEME 注入覆盖，flat 包再叠） */
+  --g-scroll-size: 8px;
+  --g-scroll-thumb: rgba(122,104,224,.38);
+  --g-scroll-thumb-strong: rgba(122,104,224,.58);
+  --g-scroll-thumb-active: rgba(122,104,224,.72);
   /* 表面 inset 阴影（语义色条等，叠在玻璃填充上）。
      默认用「无痕零阴影」占位而非 none——box-shadow 语法是 none | <shadow>#，列表项混入 none 整条非法，
      浏览器会整条回退成 none（v0.19.7 起弯月/发丝/暗弧/hover白洗全线断线的根因，v0.19.17 修） */
@@ -422,3 +427,35 @@ body { background: transparent; }
 
 /* Toast（fixed 浮层，登记于 .glass--float）——标准玻璃：浅透镜 + 深字（不搞深色特殊）；v0.19.35 层级白值：浮层降 .30→.22 */
 .toast { --g-fill: var(--g-fill-strong); --g-fg: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); } /* v0.25.19 审计 G-08：color 冗余删净，文字色单源 --g-fg */
+
+/* ============================================================
+   内生滚动条组件（v0.25.28）：全站统一，替代所有默认滚动条
+   —— 加入玻璃引擎前端树：--g-scroll-* 语义 token 单源（constants THEME + flat 包），
+      组件只消费 token；液态 = 半透明紫玻璃滑块，平面 = 墨色发丝细条（材质随外观包，几何同一）
+   铁律（上网调研收敛）：
+     ① 永不彻底隐藏（scrollbar-width:none / display:none 禁——可发现性红线，W3C CSS Scrollbars 规范）；
+        恒可见细条 + hover/active 增亮（webkit 伪元素无 transition——WebKit bug 69927/104412，跳色）
+     ② 跨引擎：Chrome 121+ 标准属性非 auto 会覆盖 ::-webkit-scrollbar 伪元素——
+        @supports 守卫内把标准属性复位 auto 让伪元素掌权；Firefox 走标准属性（细+双色）
+     ③ iOS Safari 忽略定制 → 原生 overlay 自动隐藏，优雅降级不破坏
+   ============================================================ */
+/* Firefox + 无 webkit 引擎：细双色（scrollbar-color 只认 thumb/track；用 strong 档保可见） */
+@supports not selector(::-webkit-scrollbar) {
+  * { scrollbar-width: thin; scrollbar-color: var(--g-scroll-thumb-strong) transparent; }
+}
+/* Chromium/Safari 抛光路径：标准属性复位 auto → webkit 伪元素掌权 */
+@supports selector(::-webkit-scrollbar) {
+  * { scrollbar-width: auto; scrollbar-color: auto; }
+  ::-webkit-scrollbar { width: var(--g-scroll-size); height: var(--g-scroll-size); }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--g-scroll-thumb);
+    border-radius: 999px;           /* 胶囊：webkit 圆角钳制 width/2，999px 保证满圆 */
+    border: 1px solid transparent;
+    background-clip: padding-box;   /* 发丝内缩 = 悬浮胶囊（与轨道/边缘留 1px 距） */
+    min-height: 24px; min-width: 24px; /* 长页不缩成不可用短条（Roselli 基线） */
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--g-scroll-thumb-strong); }
+  ::-webkit-scrollbar-thumb:active { background: var(--g-scroll-thumb-active); }
+  ::-webkit-scrollbar-corner { background: transparent; }
+}

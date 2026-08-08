@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.27',
+  APP_VERSION: '0.25.28',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -230,6 +230,12 @@ globalThis.APP_CONSTANTS = {
         '--g-hover-wash': 'rgba(120,120,132,.12)',
         // ---- 匹配条空轨/填充段 ----
         '--g-bar-soft': 'var(--paper-3)', '--g-bar-strong': 'var(--accent-tint)',
+        // ---- 内生滚动条（v0.25.28）：平面 = 墨色发丝细条（color-mix 引主题 ink，深浅自适应；
+        //       无磨砂无投影，材质与液态包的半透明紫玻璃区分；宽度收窄到 6px 更纤） ----
+        '--g-scroll-size': '6px',
+        '--g-scroll-thumb': 'color-mix(in srgb, var(--ink) 20%, transparent)',
+        '--g-scroll-thumb-strong': 'color-mix(in srgb, var(--ink) 34%, transparent)',
+        '--g-scroll-thumb-active': 'color-mix(in srgb, var(--ink) 46%, transparent)',
       },
     },
   },
@@ -318,6 +324,11 @@ globalThis.APP_CONSTANTS = {
       '--g-accent-fill': 'rgba(122,104,224,.20)',
       '--g-accent-fill-soft': 'rgba(142,128,232,.08)', // 聊天拖入虚线罩
       '--g-like-fill': 'rgba(211,47,47,.16)',      // 帖子点赞态
+      // ---- 内生滚动条（v0.25.28，全站统一组件；--g-scroll-* 语义 token，材质随外观包，几何同一） ----
+      '--g-scroll-size': '8px',                    // 滚动条 hit 区宽（液态）
+      '--g-scroll-thumb': 'rgba(122,104,224,.38)', // 静置滑块：半透明紫玻璃
+      '--g-scroll-thumb-strong': 'rgba(122,104,224,.58)', // hover 增亮（webkit 伪元素无 transition，跳色）
+      '--g-scroll-thumb-active': 'rgba(122,104,224,.72)', // 按压
       // ---- 气泡 ----
       '--g-bubble-mine': 'rgba(150,138,230,.26)',
       '--g-bubble-theirs': 'rgba(233,218,196,.30)',
@@ -413,6 +424,11 @@ globalThis.APP_CONSTANTS = {
       '--g-accent-fill': 'rgba(139,124,232,.26)',
       '--g-accent-fill-soft': 'rgba(139,124,232,.12)',
       '--g-like-fill': 'rgba(224,90,74,.20)',
+      // ---- 内生滚动条（v0.25.28）----
+      '--g-scroll-size': '8px',
+      '--g-scroll-thumb': 'rgba(255,255,255,.26)', // 暗面低白玻璃滑块
+      '--g-scroll-thumb-strong': 'rgba(255,255,255,.4)',
+      '--g-scroll-thumb-active': 'rgba(255,255,255,.52)',
       // ---- 气泡 ----
       '--g-bubble-mine': 'rgba(150,138,230,.32)',
       '--g-bubble-theirs': 'rgba(233,218,196,.14)',
