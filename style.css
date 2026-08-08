@@ -605,15 +605,14 @@ textarea.form-input {
 .gaokao-section { margin-bottom: 18px; padding-top: 4px; } /* padding-top：与上方设置项的体面空隙 */
 .gaokao-section h4 { font-size: .8rem; font-weight: 700; color: var(--ink-3); margin-bottom: 14px; }
 .gaokao-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-/* v0.25.12（反馈 #102）：高考成绩/等第下的科目名 = 比「教师年级」类设置项更低一层的子标题——
-   字号/字重/色阶下探（.72rem/600/muted < .form-label 的 .8rem/700/ink-3）；
-   定宽列 + text-align:right → 各科目名右缘对齐同一条假想线（输入控件的左对齐线）；
-   margin-right 补足与输入控件间的体面空隙。输入控件仍在控制列内左对齐（随滑块）。 */
+/* v0.25.41（反馈 #137）：科目名 = 左对齐子标题（标题区）——从选项区摘出往左挪，
+   不再定宽右贴输入控件（原 v0.25.12「右缘对齐假想线」设计被否）：定宽列 + 左对齐，
+   名右缘与选项区左缘之间保持体面空隙（列宽 + 行 flex gap 承担），各科目名形成干净左列。
+   字重取子标题口径（.78rem/700/ink-2）：略低于 .form-label 但高于选项文字，可读性优先 */
 .gaokao-row .subject-name, .score-row .score-subject {
-  flex: 0 0 56px; min-width: 0;
-  text-align: right;
-  font-size: .72rem; font-weight: 600; color: var(--muted);
-  margin-right: 6px;
+  flex: 0 0 52px; min-width: 0;
+  text-align: left;
+  font-size: .78rem; font-weight: 700; color: var(--ink-2);
 }
 .grade-selector { display: flex; flex-wrap: wrap; gap: 4px; }
 .grade-option {
