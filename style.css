@@ -336,6 +336,32 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
 .auth-footer { text-align: center; margin-top: 26px; font-size: .8rem; color: var(--muted); }
 .auth-footer a { font-weight: 700; color: var(--accent-deep); }
 
+/* 需求三十（v0.25.47）：注册页用户协议/隐私政策两行轻量勾选——复用 .checkbox-item 同款勾选视觉，
+   文本右侧文档名高亮为链接（点击浮窗看全文）；两行间留 10px 空隙，压住「轻量不喧宾」 */
+.agree-row { display: flex; align-items: center; gap: 9px; margin-top: 10px; font-size: .8rem; font-weight: 500; cursor: pointer; }
+.agree-row + .agree-row { margin-top: 8px; }
+.agree-check {
+  appearance: none; -webkit-appearance: none;
+  width: calc(15px * var(--ui-scale, 1)); height: calc(15px * var(--ui-scale, 1)); border: 2px solid var(--faint); background: transparent;
+  cursor: pointer; transition: all var(--t-fast); flex-shrink: 0; position: relative; margin: 0;
+}
+.agree-check:checked { background: var(--accent); border-color: var(--accent); }
+.agree-check:checked::after {
+  content: ''; position: absolute; left: 3px; top: 0; width: 5px; height: 9px;
+  border: solid var(--white); border-width: 0 2px 2px 0; transform: rotate(45deg); transform-origin: center;
+  animation: check-pop .18s var(--ease-out);
+}
+.agree-check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.agree-text { color: var(--ink-3); }
+.agree-link { font-weight: 700; color: var(--accent-deep); text-decoration: underline; text-underline-offset: 2px; }
+.agree-link:hover { color: var(--accent); }
+/* 协议/政策浮窗正文：长文排印（标题分级 + 段距拉开 + 行高加高，纯文本阅读舒适） */
+.policy-body { line-height: 1.9; }
+.policy-body h2 { font-size: 1.15rem; font-weight: 900; color: var(--ink); margin: 18px 0 8px; }
+.policy-body h3 { font-size: .95rem; font-weight: 800; color: var(--ink-2); margin: 14px 0 6px; }
+.policy-body p { margin: 0 0 8px; font-size: .86rem; color: var(--ink-3); }
+.policy-body strong { color: var(--ink); }
+
 /* 浏览器自动填充的蓝底抹掉：录入区底色 = 浮窗底色（v0.20.0 改走 --g-autofill 主题键，暗色下不再白底） */
 input:-webkit-autofill, input:-webkit-autofill:hover, input:-webkit-autofill:focus,
 textarea:-webkit-autofill, textarea:-webkit-autofill:focus {

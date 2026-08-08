@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.46',
+  APP_VERSION: '0.25.47',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -501,6 +501,14 @@ globalThis.APP_CONSTANTS = {
 
     // 验证提示
     VALIDATE_PASSWORD_MISMATCH: '两次密码不一致',
+    // 需求三十（v0.25.47）：注册须勾选同意用户协议/隐私政策（两行轻量勾选 + md 浮窗展示全文）
+    AGREE_PREFIX: '我已阅读并同意',
+    AGREE_LINK_AGREEMENT: '用户协议',
+    AGREE_LINK_PRIVACY: '隐私政策',
+    AGREE_REQUIRED: '请先勾选同意用户协议与隐私政策',
+    POLICY_LOAD_FAIL: '协议内容加载失败，请稍后重试或刷新页面',
+    POLICY_FILE_AGREEMENT: 'user_agreement',
+    POLICY_FILE_PRIVACY: 'privacy_policy',
     VALIDATE_INVITE_FIRST: '请先验证邀请码',
     VALIDATE_INVITE_REQUIRED: '请输入邀请码',
     VALIDATE_INVITE_LENGTH: '邀请码应为 8 位字符',

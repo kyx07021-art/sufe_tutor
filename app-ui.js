@@ -382,6 +382,25 @@ function closeModal() {
   document.getElementById('modal-container').innerHTML = '';
 }
 
+// 需求三十（v0.25.47）：用户协议/隐私政策 md 浮窗——静态 .md fetch → mdRender 渲染（复用 markdown 解析器）。
+// key 单源 constants UI.POLICY_FILE_AGREEMENT/PRIVACY；标题取 UI.AGREE_LINK_*。加载失败显示灰字兜底。
+function openPolicyModal(key) {
+  const isPrivacy = key === UI.POLICY_FILE_PRIVACY;
+  const name = isPrivacy ? UI.AGREE_LINK_PRIVACY : UI.AGREE_LINK_AGREEMENT;
+  const file = isPrivacy ? UI.POLICY_FILE_PRIVACY : UI.POLICY_FILE_AGREEMENT;
+  openModal({ title: name, bodyCls: 'contract-md policy-md', body: `<div class="policy-body">${loaderHtml()}</div>` });
+  fetch(`/${file}.md`)
+    .then(r => { if (!r.ok) throw new Error(UI.POLICY_LOAD_FAIL); return r.text(); })
+    .then(md => {
+      const box = document.querySelector('#modal-container .modal-body .policy-body');
+      if (box) box.innerHTML = mdRender(md);
+    })
+    .catch(() => {
+      const box = document.querySelector('#modal-container .modal-body .policy-body');
+      if (box) box.innerHTML = `<p class="text-sm text-muted">${escHtml(UI.POLICY_LOAD_FAIL)}</p>`;
+    });
+}
+
 // ============================================================
 // 图片压缩通用件：读文件 → canvas 缩放（square=居中取最大内切正方形 / 否则最长边等比缩放）→ JPEG dataURL。
 // 头像（AVATAR_SIDE 方）与学信网截图（CREDENTIAL_SIDE 最长边）共用

@@ -50,6 +50,7 @@ export const MSG = {
   USERNAME_INVALID: '用户名只能包含中文、字母、数字及 _ . - （3-30 个字符）',
   PASSWORD_LENGTH: '密码长度至少 6 个字符',
   INVALID_ROLE: '无效的用户角色',
+  AGREE_REQUIRED: '注册须同意用户协议与隐私政策', // 需求三十（v0.25.47）：服务端强校验，前端勾选双保险
   INVALID_ACTION: '无效的操作',
   INVALID_PARAMS: '参数不合法',
   LOGIN_REQUIRED: '请输入用户名和密码',

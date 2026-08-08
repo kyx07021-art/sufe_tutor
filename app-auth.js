@@ -178,6 +178,13 @@ async function handleRegister(e) {
     alertEl.innerHTML = alertHtml('error', UI.VALIDATE_PASSWORD_MISMATCH);
     return;
   }
+  // 需求三十（v0.25.47）：注册须勾选同意用户协议与隐私政策（两行轻量勾选；服务端同款强校验，双保险）
+  const agreeAgreement = document.getElementById('agree-agreement') && document.getElementById('agree-agreement').checked;
+  const agreePrivacy = document.getElementById('agree-privacy') && document.getElementById('agree-privacy').checked;
+  if (!agreeAgreement || !agreePrivacy) {
+    alertEl.innerHTML = alertHtml('error', UI.AGREE_REQUIRED);
+    return;
+  }
   if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
     if (!state.validatedInviteCode) {
       alertEl.innerHTML = alertHtml('error', UI.VALIDATE_INVITE_FIRST);
@@ -189,7 +196,7 @@ async function handleRegister(e) {
   try {
     const btn = document.getElementById('register-submit');
     btnLoading(btn, UI.LOADING_REGISTER);
-    const body = { username, password, role, deviceId: getDeviceId() };
+    const body = { username, password, role, deviceId: getDeviceId(), agreeAgreement, agreePrivacy };
     if (role === 'teacher' && state.validatedInviteCode) body.inviteCode = state.validatedInviteCode;
     const data = await api('/api/auth/register', { method: 'POST', body });
     state.user = data.user; state.authToken = data.authToken || null;

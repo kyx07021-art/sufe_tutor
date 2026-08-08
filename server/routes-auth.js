@@ -31,6 +31,11 @@ export async function handleRegister(db, body, req) {
   if (tombPrefix && username.startsWith(tombPrefix)) return error(MSG.USERNAME_INVALID);
   if (!password || password.length < LIMITS.PASSWORD_MIN || password.length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.PASSWORD_LENGTH); // 上限防 PBKDF2 CPU 放大（与登录同口径）
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
+  // 需求三十（v0.25.47）：注册必须同意用户协议与隐私政策（服务端强校验——前端勾选可被构造请求绕过，
+  // 平台合规红线，不同意即拒绝注册，不建任何账户）
+  const agreeAgreement = body.agreeAgreement === true || body.agreeAgreement === 1 || body.agreeAgreement === 'true';
+  const agreePrivacy = body.agreePrivacy === true || body.agreePrivacy === 1 || body.agreePrivacy === 'true';
+  if (!agreeAgreement || !agreePrivacy) return error(MSG.AGREE_REQUIRED, 400);
 
   // B1：限流（封禁查+写限流+注册限流）与用户名占用查同批一次往返（1 次 D1）；D1 异常由 fetch 层兜 500，不 fail-open
   const ip = req.headers.get('CF-Connecting-IP') || 'anon';

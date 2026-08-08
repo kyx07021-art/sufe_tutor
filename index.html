@@ -162,6 +162,15 @@
             <label class="form-label">确认密码 <span class="req">*</span></label>
             <input type="password" class="form-input" id="register-password2" placeholder="再次输入密码" required>
           </div>
+          <!-- 需求三十：注册须同意用户协议与隐私政策（两行轻量勾选，点击文档名浮窗看全文；文案与静态壳同款硬编码） -->
+          <label class="agree-row">
+            <input type="checkbox" id="agree-agreement" class="agree-check">
+            <span class="agree-text">我已阅读并同意<a href="#" class="agree-link" onclick="event.preventDefault();openPolicyModal('user_agreement')">用户协议</a></span>
+          </label>
+          <label class="agree-row">
+            <input type="checkbox" id="agree-privacy" class="agree-check">
+            <span class="agree-text">我已阅读并同意<a href="#" class="agree-link" onclick="event.preventDefault();openPolicyModal('privacy_policy')">隐私政策</a></span>
+          </label>
           <div class="form-actions">
             <button type="button" class="btn btn-outline glass glass--pressable" onclick="showView('landing')">返回</button>
             <button type="submit" class="btn glass glass--pressable" id="register-submit">注册</button>
