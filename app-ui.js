@@ -382,23 +382,14 @@ function closeModal() {
   document.getElementById('modal-container').innerHTML = '';
 }
 
-// 需求三十（v0.25.47）：用户协议/隐私政策 md 浮窗——静态 .md fetch → mdRender 渲染（复用 markdown 解析器）。
-// key 单源 constants UI.POLICY_FILE_AGREEMENT/PRIVACY；标题取 UI.AGREE_LINK_*。加载失败显示灰字兜底。
+// 需求三十（v0.25.47）+ v0.25.51 修正：用户协议/隐私政策浮窗——policy 全文硬编码在 constants
+// UI.POLICY_AGREEMENT/PRIVACY（单源原则），mdRender 同步渲染，无网络依赖。
+// key 单源 constants UI.POLICY_KEY_AGREEMENT/PRIVACY（index.html 注册勾选行 onclick 传入）；标题取 UI.AGREE_LINK_*。
 function openPolicyModal(key) {
-  const isPrivacy = key === UI.POLICY_FILE_PRIVACY;
+  const isPrivacy = key === UI.POLICY_KEY_PRIVACY;
   const name = isPrivacy ? UI.AGREE_LINK_PRIVACY : UI.AGREE_LINK_AGREEMENT;
-  const file = isPrivacy ? UI.POLICY_FILE_PRIVACY : UI.POLICY_FILE_AGREEMENT;
-  openModal({ title: name, cls: 'modal--wide', bodyCls: 'contract-md policy-md', body: `<div class="policy-body">${loaderHtml()}</div>` }); // 需求三十一：文本浮窗拓宽
-  fetch(`/${file}.md`)
-    .then(r => { if (!r.ok) throw new Error(UI.POLICY_LOAD_FAIL); return r.text(); })
-    .then(md => {
-      const box = document.querySelector('#modal-container .modal-body .policy-body');
-      if (box) box.innerHTML = mdRender(md);
-    })
-    .catch(() => {
-      const box = document.querySelector('#modal-container .modal-body .policy-body');
-      if (box) box.innerHTML = `<p class="text-sm text-muted">${escHtml(UI.POLICY_LOAD_FAIL)}</p>`;
-    });
+  const md = isPrivacy ? UI.POLICY_PRIVACY : UI.POLICY_AGREEMENT;
+  openModal({ title: name, cls: 'modal--wide', bodyCls: 'contract-md policy-md', body: `<div class="policy-body">${mdRender(md)}</div>` }); // 需求三十一：文本浮窗拓宽
 }
 
 // ============================================================

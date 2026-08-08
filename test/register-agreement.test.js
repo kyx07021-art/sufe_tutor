@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 import { DatabaseSync } from 'node:sqlite';
@@ -100,19 +100,23 @@ test('服务端：双同意 → 注册成功', async () => {
   assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM users WHERE username='u_ok'").get().c, 1, '双同意才建账户');
 });
 
-// ============ 协议/隐私政策文件 ============
+// ============ 协议/隐私政策内容（v0.25.51：硬编码进 constants，替代独立 .md 静态文件） ============
+// 曾以独立 .md fetch：_worker.js 静态回退拦截一切 .md（防 docs/ 泄露）→ 生产 404「协议内容加载失败」。
+// 改 constants 直渲（单源原则：用户可见文案只在 constants.js）。.md 文件已删，不再依赖静态服务。
 
-test('用户协议/隐私政策 md 文件就位（下划线文件名）且为有效 markdown', () => {
-  assert.ok(existsSync('./user_agreement.md'), 'user_agreement.md 存在');
-  assert.ok(existsSync('./privacy_policy.md'), 'privacy_policy.md 存在');
-  const agr = readFileSync('./user_agreement.md', 'utf8');
-  const priv = readFileSync('./privacy_policy.md', 'utf8');
-  assert.ok(agr.startsWith('# '), '用户协议有 H1 标题');
-  assert.ok(agr.includes('## '), '用户协议有 H2 分节');
-  assert.ok(agr.includes('**'), '用户协议含加粗强调');
-  assert.ok(agr.includes('纯信息撮合服务平台'), '协议含平台定位条款');
-  assert.ok(priv.startsWith('# '), '隐私政策有 H1 标题');
-  assert.ok(priv.includes('个人信息保护法'), '隐私政策援引法律');
+test('用户协议/隐私政策全文硬编码进 constants 且为 mdRender 可渲染语法', async () => {
+  const { ctx } = makeCtx();
+  const UI = vm.runInContext('window.APP_CONSTANTS.UI', ctx);
+  assert.ok(UI.POLICY_AGREEMENT.startsWith('# 经世知途家教信息平台用户协议'), '用户协议有 H1 标题');
+  assert.ok(UI.POLICY_AGREEMENT.includes('## 一、总则'), '用户协议有 H2 分节');
+  assert.ok(UI.POLICY_AGREEMENT.includes('**'), '用户协议含加粗强调');
+  assert.ok(UI.POLICY_AGREEMENT.includes('纯信息撮合服务平台'), '协议含平台定位条款');
+  assert.ok(UI.POLICY_PRIVACY.startsWith('# 经世知途家教信息平台隐私政策'), '隐私政策有 H1 标题');
+  assert.ok(UI.POLICY_PRIVACY.includes('个人信息保护法'), '隐私政策援引法律');
+  // 无 fetch 依赖的接口：key 常量 + 内容常量齐备（POLICY_FILE_* 旧接口已删）
+  assert.equal(UI.POLICY_KEY_AGREEMENT, 'user_agreement', 'key 接口与 index.html 一致');
+  assert.equal(UI.POLICY_KEY_PRIVACY, 'privacy_policy', 'key 接口与 index.html 一致');
+  assert.equal(UI.POLICY_LOAD_FAIL, undefined, '旧加载失败兜底文案已删（不再有 fetch 失败路径）');
 });
 
 // ============ 前端：注册表单两行轻量勾选 ============
@@ -160,28 +164,30 @@ test('前端：勾选后 handleRegister 携带同意标志发起注册', async (
   assert.ok(body && body.agreePrivacy === true, '请求带 agreePrivacy=true');
 });
 
-// ============ 前端：openPolicyModal 浮窗渲染 md ============
+// ============ 前端：openPolicyModal 浮窗渲染 md（v0.25.51：常量直渲，无 fetch） ============
 
-test('openPolicyModal 拉取 md 并渲染进浮窗（复用 mdRender）', async () => {
+test('openPolicyModal 直接渲染 constants 政策全文（无 fetch、无加载失败路径）', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`
     // 抑制首访新手引导自动弹窗（jsdom DOMContentLoaded 异步触发会覆盖被测浮窗）：置 returning + 清现有弹窗
     localStorage.setItem('sufe_returning', '1');
     closeModal();
+    window.__fetchCalls = 0;
     const _origFetch = fetch;
-    fetch = async (url) => {
-      if (String(url).includes('user_agreement.md')) return { ok: true, text: async () => '# 测试协议\\n## 第一条\\n条款内容' };
-      return { ok: true, json: async () => ({}) };
-    };
+    fetch = async () => { window.__fetchCalls++; return { ok: true, json: async () => ({}) }; };
     openPolicyModal('user_agreement');
   `, ctx);
-  await new Promise(r => setTimeout(r, 30));
   const html = vm.runInContext('document.getElementById("modal-container").innerHTML', ctx);
   assert.ok(html.includes('modal'), '浮窗已打开');
   assert.ok(html.includes('用户协议'), '浮窗标题为用户协议');
-  // mdRender 输出：H1 标题 + H2 + 段落
   const bodyHtml = vm.runInContext('document.querySelector("#modal-container .policy-body").innerHTML', ctx);
-  assert.ok(bodyHtml.includes('<h1>测试协议</h1>'), 'md H1 渲染');
-  assert.ok(bodyHtml.includes('<h2>第一条</h2>'), 'md H2 渲染');
-  assert.ok(bodyHtml.includes('<p>条款内容</p>'), 'md 段落渲染');
+  assert.ok(bodyHtml.includes('<h1>经世知途家教信息平台用户协议</h1>'), '协议 H1 渲染（常量全文）');
+  assert.ok(bodyHtml.includes('<h2>一、总则</h2>'), '协议 H2 渲染');
+  assert.ok(bodyHtml.includes('<p>'), '协议段落渲染');
+  assert.equal(vm.runInContext('window.__fetchCalls', ctx), 0, '不再发起任何 fetch（政策离线可用）');
+  // 隐私政策同款
+  vm.runInContext('closeModal(); openPolicyModal(\'privacy_policy\');', ctx);
+  const privHtml = vm.runInContext('document.querySelector("#modal-container .policy-body").innerHTML', ctx);
+  assert.ok(privHtml.includes('<h1>经世知途家教信息平台隐私政策</h1>'), '隐私政策 H1 渲染');
+  assert.ok(privHtml.includes('个人信息保护法'), '隐私政策正文在');
 });
