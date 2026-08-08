@@ -480,7 +480,9 @@ async function loadProfile() {
     if (data.profile) {
       const p = data.profile;
       document.getElementById('profile-grade').value = p.grade || '';
-      document.getElementById('profile-gender').value = p.gender || 'undeclared'; // ''/历史值 → 默认「不愿透露」
+      // v0.25.39（反馈 U3）：按 GENDERS 白名单消毒——历史值（''/nonbinary 等旧枚举）不在选项中时
+      // 一律回落默认「不愿透露」（未消毒则 value 落空 → selectedIndex=-1 → 自定义下拉触发器文字为空、塌成细条）
+      document.getElementById('profile-gender').value = GENDERS.some(x => x.id === p.gender) ? p.gender : 'undeclared';
       document.getElementById('profile-school').value = p.school || '';
       // R2-12 毕业年份回填（决定高考赋分按哪套政策渲染）
       document.getElementById('profile-graduation-year').value = p.graduation_year || '';

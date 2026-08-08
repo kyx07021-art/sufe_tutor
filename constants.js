@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.38',
+  APP_VERSION: '0.25.39',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -212,7 +212,7 @@ globalThis.APP_CONSTANTS = {
         '--g-avatar-border': 'var(--line)', '--g-avatar-border-ghost': 'var(--line)',
         '--g-btn-fill': 'var(--g-fill-weak)',   // 按钮透明透镜 → 不透明纸面（防平面模式按钮隐形）
         // v0.25.34 气泡不设 flat 特例：theme 近实值（#E9E5FB/#FFFFFF）液态平面同源，材质差异已由零投影/零液体边承担
-        '--g-flow-dot': 'var(--ink-2)',
+        '--g-flow-dot': 'var(--paper-3)', // v0.25.39（反馈 U2）：圆点填纸面（与 ink 数字反色），修平面下数字/圆圈同色不可见
         '--g-ok-solid': 'var(--ok-deep)',
         // ---- 表面发丝描边（审计 H1/H2：平面无阴影无磨砂，靠描边定义表面边界；
         //      引擎 base border: var(--g-border, none)；.btn 同源；实心小件 .seg-tab/.tag 等 opt-out 不带边） ----
@@ -304,6 +304,7 @@ globalThis.APP_CONSTANTS = {
       '--g-pane-shadow': '8px 0 30px rgba(30,26,64,.1)',  // 侧栏右侧投影
       '--g-panel-lift': 'rgba(17,17,20,.13)',      // 右栏面板外浮影（桌面）
       '--g-panel-lift-m': 'rgba(17,17,20,.22)',    // 右栏面板外浮影（移动端）
+      '--g-modal-dim': 'rgba(17,17,20,.42)',       // v0.25.39（反馈 U4）：表单浮窗灰化背景（弹窗矩形切透明，走 .modal 大扩散阴影）
       // ---- 线条 ----
       '--g-line-soft': 'rgba(255,255,255,.22)',    // 浮窗头栏底/面板分隔
       '--g-line-pane': 'rgba(255,255,255,.5)',     // 侧栏/顶栏边缘高光
@@ -406,6 +407,7 @@ globalThis.APP_CONSTANTS = {
       '--g-pane-shadow': '8px 0 30px rgba(0,0,0,.4)',
       '--g-panel-lift': 'rgba(0,0,0,.45)',
       '--g-panel-lift-m': 'rgba(0,0,0,.5)',
+      '--g-modal-dim': 'rgba(0,0,0,.55)',          // 暗色页上压暗加深（浅色值在暗底上不可感）
       // ---- 线条（反转为浅线） ----
       '--g-line-soft': 'rgba(255,255,255,.12)',
       '--g-line-pane': 'rgba(255,255,255,.12)',

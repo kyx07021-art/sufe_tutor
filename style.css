@@ -835,7 +835,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 
 /* 反馈弹窗：Bug / 建议切换式分段按钮（v0.25.20 需求二：旧类连根删，收编标准分段控件 .seg-tabs） */
 .feedback-kind-row { margin-bottom: 14px; }
-.feedback-kind-row .seg-tab { padding: 7px 18px; font-size: .8rem; font-weight: 700; flex: 0 0 auto; }
+/* v0.25.39（反馈 U1）：flex 一律交给组件契约 .seg-tab{flex:1}（等宽撑满整栏）——
+   原 flex:0 0 auto 覆写组件自适应契约，按钮挤在栏左不撑满横向空间（组件内部不统一的根因） */
+.feedback-kind-row .seg-tab { padding: 7px 18px; font-size: .8rem; font-weight: 700; }
 
 /* 管理员反馈卡：Bug 左侧红色警示边 + 浅红底；已处理整卡淡出 */
 .feedback-card--resolved { opacity: .62; }
@@ -1237,6 +1239,10 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   width: 100%; max-width: 580px;
   margin: auto; position: relative; /* v0.25.10：max-height/内滚已删——滚动交 overlay */
   animation: modal-in .32s var(--ease-snap); /* v0.19.37：删 both——终态 transform 归 none，合成层释放（同 profile-panel 路径） */
+  /* v0.25.39（反馈 U4）：表单浮窗灰化背景 + 弹窗矩形切透明——大扩散阴影把压暗推到弹窗四周，
+     弹窗自身为透明孔（页面不压暗、玻璃直接坐清晰画面），与新手引导遮罩同款真孔透视；
+     阴影列表沿用引擎三件套（lift/liquid/surface），尾部追加 200vmax 压暗，覆盖所有 openModal 弹窗 */
+  box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none), 0 0 0 200vmax var(--g-modal-dim, rgba(17, 17, 20, .42));
 }
 .modal-header {
   display: flex; align-items: center; justify-content: space-between;
