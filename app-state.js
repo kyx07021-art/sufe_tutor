@@ -164,6 +164,8 @@ function getDeviceId() {
 // 偏好/标记存取（全部 try/catch，防隐私模式抛异常）
 // ============================================================
 function getThemePref() { try { return localStorage.getItem('sufe_theme') || 'system'; } catch { return 'system'; } }
+// 需求八·item3 背景光球外观（vivid 鲜艳=elegant 淡雅=hidden 隐藏；缺省鲜艳=当前效果）
+function getOrbPref() { try { const v = localStorage.getItem('sufe_orb'); return (v === 'elegant' || v === 'hidden') ? v : 'vivid'; } catch { return 'vivid'; } }
 function isReturning() { try { return !!localStorage.getItem('sufe_returning'); } catch { return false; } }
 function setReturning() { try { localStorage.setItem('sufe_returning', '1'); } catch { /* ignore */ } }
 

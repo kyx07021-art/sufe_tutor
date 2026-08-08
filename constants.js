@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.20',
+  APP_VERSION: '0.25.21',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -142,6 +142,14 @@ globalThis.APP_CONSTANTS = {
     radius: { sm: 9, md: 12, lg: 15 },   // 小圆角
     bg: { blur: 6 },           // 背景底板：轻磨砂（让多而小的光球现形为柔形；可读性改由组件自带轻磨砂承担）
     orbCrossSec: 60,                      // 光球横穿全屏约 60s
+    // 需求八·item3 背景光球三档（外观设置「背景光球外观」：鲜艳=当前效果 / 淡雅=柔化 / 隐藏=零光球）。
+    //   count 桌面光球数；countCoarse 低端移动端数（指针粗→减量保帧）；opMin/opMax 透明度区间；
+    //   sizeMin/sizeMax 尺寸区间（vmax）。index.html 首绘 IIFE 读取本配置生成，几何参数单源（禁散落裸数字）。
+    orbModes: {
+      vivid:   { count: 36, countCoarse: 12, opMin: .52, opMax: .73, sizeMin: 10, sizeMax: 28 },  // 当前效果
+      elegant: { count: 24, countCoarse: 8,  opMin: .13, opMax: .26, sizeMin: 8,  sizeMax: 18 },  // 若有若无
+      hidden:  { count: 0, countCoarse: 0 },                                                       // 纯净底
+    },
     glow: { size: 230, opacity: .85 },    // 鼠标跟随发光圆（无阻尼紧咬）
     // 组件毛度统一配置（改观感只动这里）：容器毛 / 控件透
     frosts: {
@@ -991,6 +999,9 @@ globalThis.APP_CONSTANTS = {
     SETTINGS_THEME_HINT: '选择界面外观风格，「跟随系统」会自动适配系统的黑夜模式',
     SETTINGS_UI_SCALE_LABEL: 'UI大小',
     SETTINGS_UI_SCALE_HINT: '调整界面文字、按钮与输入组件的整体大小（{min}%~{max}%，默认 {def}%）', // {min}/{max}/{def} 渲染时填 CONFIG.UI_SCALE_MIN/MAX/DEFAULT（数字单源，禁散落硬编码）
+    SETTINGS_ORB_LABEL: '背景光球',
+    SETTINGS_ORB_HINT: '背景漂移光球的显示效果：鲜艳=彩色柔光，淡雅=若有若无，隐藏=纯净底色',
+    ORB_MODE_VIVID: '鲜艳', ORB_MODE_ELEGANT: '淡雅', ORB_MODE_HIDDEN: '隐藏',
     THEME_LIGHT: '亮色',
     THEME_DARK: '暗色',
     THEME_SYSTEM: '跟随系统',

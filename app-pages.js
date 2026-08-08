@@ -45,6 +45,10 @@ function enterAccountSettings() {
   const themePref = getThemePref();
   const themeOpts = [['light', UI.THEME_LIGHT], ['dark', UI.THEME_DARK], ['system', UI.THEME_SYSTEM]].map(([k, label]) =>
     `<button type="button" class="theme-opt glass glass--pressable${themePref === k ? ' theme-opt--on' : ''}" data-pref="${k}" onclick="setThemePref('${k}')">${label}</button>`).join('');
+  // 需求八·item3 背景光球三档：选中态按 localStorage 现值标注，点按走 setOrbPref 即时重生成背景
+  const orbPref = getOrbPref();
+  const orbOpts = [['vivid', UI.ORB_MODE_VIVID], ['elegant', UI.ORB_MODE_ELEGANT], ['hidden', UI.ORB_MODE_HIDDEN]].map(([k, label]) =>
+    `<button type="button" class="orb-opt glass glass--pressable${orbPref === k ? ' orb-opt--on' : ''}" data-pref="${k}" onclick="setOrbPref('${k}')">${label}</button>`).join('');
   // 需求六·item5：UI 大小滑块现值/轨道填充百分比（进页按 localStorage 现值应用；滑块一边滑一边变）
   const uiScaleVal = getUiScale();
   const uiScaleFill = uiScaleFillPct(uiScaleVal);
@@ -74,6 +78,13 @@ function enterAccountSettings() {
         </div>
         <div class="theme-opts">${themeOpts}</div>
       </div>
+      <div class="settings-row">
+        <div>
+          <div class="settings-label">${UI.SETTINGS_ORB_LABEL}</div>
+          <div class="settings-hint">${UI.SETTINGS_ORB_HINT}</div>
+        </div>
+        <div class="orb-opts">${orbOpts}</div>
+      </div>
       <div class="settings-row ui-scale-row">
         <div>
           <div class="settings-label">${UI.SETTINGS_UI_SCALE_LABEL}</div>
@@ -100,6 +111,14 @@ function setThemePref(pref) {
   localStorage.setItem('sufe_theme', pref);
   if (window.__applyTheme) window.__applyTheme();
   document.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('theme-opt--on', b.dataset.pref === pref));
+}
+
+// 需求八·item3 背景光球外观点按：写 localStorage → 重生成背景光球（index.html 首绘 IIFE 暴露的
+// window.__applyOrbs 单点，可重入切档）→ 切当前页按钮选中态（背景立即生效，无需刷新）。
+function setOrbPref(pref) {
+  try { localStorage.setItem('sufe_orb', pref); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ }
+  if (window.__applyOrbs) window.__applyOrbs();
+  document.querySelectorAll('.orb-opt').forEach(b => b.classList.toggle('orb-opt--on', b.dataset.pref === pref));
 }
 
 // 需求六·item5：UI 大小滑块拖动——setUiScale 写 localStorage + 重算 --ui-scale（页面实时变），

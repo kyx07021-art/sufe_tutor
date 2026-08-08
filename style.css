@@ -873,9 +873,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 外观主题三项：复用玻璃按钮，选中态走引擎 --g-fill 参数（accent-tint 底 + accent-deep 字）
    v0.25.19 审计 G-09：补按钮族交互三参数（--g-hover 白洗/--g-raise 抬升/--g-scale 缩放），
    与同族按钮交互语言一致；不整组并入按钮族以免吃掉选中态自设 --g-fill */
-.theme-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.theme-opt { padding: calc(7px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); font-size: .78rem; font-weight: 700; color: var(--muted); --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97; } /* 需求六·item5：外观主题按钮随滑块 */
-.theme-opt--on { --g-fill: var(--accent-tint); color: var(--accent-deep); }
+.theme-opts, .orb-opts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.theme-opt, .orb-opt { padding: calc(7px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); font-size: .78rem; font-weight: 700; color: var(--muted); --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97; } /* 需求六·item5：外观主题按钮随滑块；需求八·item3：光球三档同款设置 chooser */
+.theme-opt--on, .orb-opt--on { --g-fill: var(--accent-tint); color: var(--accent-deep); }
 
 /* ============================================================
    需求六·item5 UI 大小滑块（liquid glass 风格，独立类名防作用域污染）——

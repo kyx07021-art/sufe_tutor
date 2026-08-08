@@ -601,7 +601,11 @@
           + 36 个方向随机光球（数量×4）由 JS 生成 + 鼠标跟随发光圆（rAF 合帧）。
           ——液态玻璃折射感由 glass.css 的 --g-liquid 边缘高光呈现，弃 SVG url() 折射（兼容/性能）。 */
     (function () {
-      var LG = (window.APP_CONSTANTS || {}).LG || { radius: {}, bg: {}, orbCrossSec: 60, glow: {}, frosts: {} };
+      /* LG 兜底镜像 constants（仅 jsdom/异常环境无 APP_CONSTANTS 时生效；生产单源 constants.js，改数值两处同步） */
+      var LG = (window.APP_CONSTANTS || {}).LG || { radius: {}, bg: {}, orbCrossSec: 60, glow: {}, frosts: {},
+        orbModes: { vivid: { count: 36, countCoarse: 12, opMin: .52, opMax: .73, sizeMin: 10, sizeMax: 28 },
+                    elegant: { count: 24, countCoarse: 8, opMin: .13, opMax: .26, sizeMin: 8, sizeMax: 18 },
+                    hidden: { count: 0, countCoarse: 0 } } };
       var C = (window.APP_CONSTANTS || {}).CONFIG || {};
       var st = document.documentElement.style;
       function set(k, v) { st.setProperty(k, v); }
@@ -619,40 +623,62 @@
          glass.css 的 var(--g-f-*, ...) 回退兜底，此处不再维护第二份数值 */
       var F = LG.frosts || {};
       for (var fk in F) set('--g-f-' + fk, F[fk]);
-      /* 背景舞台：36 个方向随机的光球（数量×4）+ 染色底板。
+      /* 背景舞台：方向随机的光球（数量×4）+ 染色底板。
          光球由 JS 生成：随机方向组(6)、随机起始位置、随机尺寸、随机负 delay 错峰 →
-         「像空气里的蒲公英」各向漂移 + 途中缓慢转向，肉眼无规律。 */
+         「像空气里的蒲公英」各向漂移 + 途中缓慢转向，肉眼无规律。
+         需求八·item3 背景光球三档（鲜艳/淡雅/隐藏）：几何参数单源 constants LG.orbModes；
+         applyOrbs 可重入（切档清旧球重建），暴露 window.__applyOrbs 供外观设置即时切换。
+         隐藏档连球都不生成（而非 display:none 遮）——CSS prefers-reduced-motion 仍兜底隐藏。 */
       var bgEl = document.createElement('div'); bgEl.className = 'lg-bg'; bgEl.setAttribute('aria-hidden', 'true');
-      var ORB_COLORS = ['--lg-orb-a', '--lg-orb-b', '--lg-orb-c', '--lg-orb-d', '--lg-orb-e', '--lg-orb-f', '--lg-orb-g', '--lg-orb-h', '--lg-orb-i'];
-      var orbHtml = '';
-      var DUR = LG.orbCrossSec || 60;
-      /* 性能：桌面 36 个光球（数量×4）；低端移动端降到 12 个保 60fps（光球是装饰，数量可降不可糊） */
-      var ORB_N = (window.matchMedia && window.matchMedia('(pointer:coarse)').matches) ? 12 : 36;
-      for (var oi = 0; oi < ORB_N; oi++) {
-        var dir = oi % 6;                              // 6 方向组循环分配，保证均匀
-        var size = (10 + (oi * 37) % 19).toFixed(0);   // 10–28vmax 伪随机尺寸（v0.19.43 加大）
-        /* 进场边随运动方向：右移球(d0/d1/d4)从屏左侧进场，左移球(d2/d3/d5)从屏右侧进场——
-           之前全部负 left，左移球从屏外左漂向更屏外左、永不可见，观感只剩向右漂。 */
-        var left = (dir === 2 || dir === 3 || dir === 5)
-          ? (100 + (2 + (oi * 53) % 22)).toFixed(0)   // 左移球：屏右侧进场，向左横穿
-          : (-(2 + (oi * 53) % 22)).toFixed(0);        // 右移球：屏左侧进场，向右横穿
-        var top = ((oi * 71) % 100).toFixed(0);        // 垂直铺开
-        var op = (.52 + ((oi * 29) % 22) / 100).toFixed(2); // 0.52–0.73 透明度（v0.19.43 淡雅：降饱和降透明度，不再辣眼睛）
-        var delay = (-((oi * 31) % 1000) / 100 * DUR).toFixed(1); // 负 delay 错峰，起跑点各异
-        var dur = (DUR * (.8 + ((oi * 17) % 60) / 100)).toFixed(1);
-        var color = ORB_COLORS[(oi * 5) % ORB_COLORS.length];
-        orbHtml += '<div class="lg-orb lg-orb--dir' + dir + '" style="width:' + size + 'vmax;height:' + size +
-          'vmax;left:' + left + 'vmax;top:' + top + 'vmax;background:radial-gradient(circle,rgba(var(' + color +
-          '),' + op + '),rgba(var(' + color + '),0) 66%);animation-duration:' + dur + 's;animation-delay:' + delay + 's"></div>';
-      }
-      bgEl.innerHTML = orbHtml + '<div class="lg-plate"></div>';
+      bgEl.innerHTML = '<div class="lg-plate"></div>';
       document.body.insertBefore(bgEl, document.body.firstChild);
+      var ORB_COLORS = ['--lg-orb-a', '--lg-orb-b', '--lg-orb-c', '--lg-orb-d', '--lg-orb-e', '--lg-orb-f', '--lg-orb-g', '--lg-orb-h', '--lg-orb-i'];
+      var finePointer = !!(window.matchMedia && window.matchMedia('(pointer:fine)').matches);
       /* 鼠标发光圆：rAF 合帧紧咬鼠标。
          直接写 style.transform 会在 mousemove 事件洪峰时每帧多次重算样式（掉帧源）；
          改为「mousemove 只存最新坐标，rAF 每帧至多写一次」→ 每帧一次合成，60fps 上限内不掉帧。
          will-change: transform 让该层在合成线程独立，position:fixed 不动布局。 */
       var glow = document.createElement('div'); glow.className = 'lg-mouseglow'; glow.setAttribute('aria-hidden', 'true');
       document.body.appendChild(glow);
+      function orbMode() {
+        var m = 'vivid';
+        try { var v = localStorage.getItem('sufe_orb'); if (v === 'elegant' || v === 'hidden') m = v; } catch (e) {}
+        return m;
+      }
+      function applyOrbs() {
+        bgEl.querySelectorAll('.lg-orb').forEach(function (n) { n.remove(); });
+        var mode = orbMode();
+        /* 兜底链：档位缺失 → 鲜艳 → 空（不炸，纯装饰 0 个最安全） */
+        var cfg = ((LG.orbModes || {})[mode] || (LG.orbModes || {}).vivid || {});
+        /* 性能：桌面 count 个；低端移动端 countCoarse 个保 60fps（光球是装饰，数量可降不可糊） */
+        var coarse = !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
+        var ORB_N = coarse ? (cfg.countCoarse != null ? cfg.countCoarse : cfg.count) : (cfg.count || 0);
+        var DUR = LG.orbCrossSec || 60;
+        var orbHtml = '';
+        var sizeSpan = cfg.sizeMax - cfg.sizeMin, opSpan = cfg.opMax - cfg.opMin;
+        for (var oi = 0; oi < ORB_N; oi++) {
+          var dir = oi % 6;                              // 6 方向组循环分配，保证均匀
+          var size = (cfg.sizeMin + (oi * 37) % (sizeSpan + 1)).toFixed(0);   // 尺寸区间伪随机（vmax）
+          /* 进场边随运动方向：右移球(d0/d1/d4)从屏左侧进场，左移球(d2/d3/d5)从屏右侧进场——
+             之前全部负 left，左移球从屏外左漂向更屏外左、永不可见，观感只剩向右漂。 */
+          var left = (dir === 2 || dir === 3 || dir === 5)
+            ? (100 + (2 + (oi * 53) % 22)).toFixed(0)   // 左移球：屏右侧进场，向左横穿
+            : (-(2 + (oi * 53) % 22)).toFixed(0);        // 右移球：屏左侧进场，向右横穿
+          var top = ((oi * 71) % 100).toFixed(0);        // 垂直铺开
+          var op = (cfg.opMin + ((oi * 29) % 22) / 21 * opSpan).toFixed(2); // 档内透明度区间伪随机
+          var delay = (-((oi * 31) % 1000) / 100 * DUR).toFixed(1); // 负 delay 错峰，起跑点各异
+          var dur = (DUR * (.8 + ((oi * 17) % 60) / 100)).toFixed(1);
+          var color = ORB_COLORS[(oi * 5) % ORB_COLORS.length];
+          orbHtml += '<div class="lg-orb lg-orb--dir' + dir + '" style="width:' + size + 'vmax;height:' + size +
+            'vmax;left:' + left + 'vmax;top:' + top + 'vmax;background:radial-gradient(circle,rgba(var(' + color +
+            '),' + op + '),rgba(var(' + color + '),0) 66%);animation-duration:' + dur + 's;animation-delay:' + delay + 's"></div>';
+        }
+        bgEl.insertAdjacentHTML('afterbegin', orbHtml);
+        /* 鼠标光与光球同档：隐藏档不显示；粗指针（触屏）无鼠标事件本就隐藏 */
+        glow.style.display = (mode === 'hidden' || !finePointer) ? 'none' : '';
+      }
+      applyOrbs();
+      window.__applyOrbs = applyOrbs; /* app-pages.js setOrbPref 共用同一单点 */
       var gx = -200, gy = -200, glowRafPending = false;
       function glowWrite() {
         glowRafPending = false;
@@ -664,7 +690,6 @@
       }, { passive: true });
       window.addEventListener('mouseout', function (e) { if (!e.relatedTarget) glow.style.opacity = '0'; });
       window.addEventListener('mouseover', function () { glow.style.opacity = String(getComputedStyle(document.documentElement).getPropertyValue('--lg-glow-op') || '.85'); });
-      if (!(window.matchMedia && window.matchMedia('(pointer:fine)').matches)) glow.style.display = 'none';
     })();
   </script>
   <!-- v0.24.1：Service Worker 连根拔除（删除优先于增加）。SW cache-first 服务陈旧/混合资产，
