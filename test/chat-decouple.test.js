@@ -58,6 +58,25 @@ const baseConv = (extra = {}) => ({
   ...extra,
 });
 
+test('会话模块 title 旁 i 信息按钮（需求四·10 自查补漏：聊天自绘 title 也挂 i）', () => {
+  const { ctx, dom } = makeCtx();
+  vm.runInContext(`
+    state.user = { id: 39, role: 'student' };
+    api = async () => ({ conversations: [] });
+    enterMyChats();
+  `, ctx);
+  const group = dom.window.document.querySelector('.chats-list-title-group');
+  assert.ok(group, '会话 title 分组 .chats-list-title-group 存在');
+  assert.ok(group.querySelector('.chats-list-title'), '分组含「会话」title');
+  const info = group.querySelector('.page-header-info');
+  assert.ok(info, '分组内挂 i 信息按钮（复用 createModuleInfoBtn）');
+  assert.equal(info.textContent, 'i');
+  info.click();
+  const modal = dom.window.document.querySelector('#modal-container .modal');
+  assert.ok(modal, '点击 i 应打开标准信息浮窗（openModuleInfo）');
+  assert.ok(modal.textContent.includes('会话'), '浮窗含该模块介绍文案');
+});
+
 test('renderChatFrame：不再含需求编号与「已签约」tag，含签约灰字提示条', () => {
   const { ctx, dom } = makeCtx();
   vm.runInContext(`

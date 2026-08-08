@@ -47,7 +47,9 @@ function enterMyChats() {
     <div class="chats-shell" id="chats-shell">
       <aside class="chats-list-pane">
         <div class="chats-list-head">
-          <span class="chats-list-title">${UI.CHAT_TITLE}</span>
+          <span class="chats-list-title-group">
+            <span class="chats-list-title">${UI.CHAT_TITLE}</span>
+          </span>
         </div>
         <div class="conv-list" id="conv-list"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
       </aside>
@@ -55,6 +57,11 @@ function enterMyChats() {
         ${renderChatPlaceholder()}
       </section>
     </div>`;
+  // 需求四·10：会话 title 旁挂 i 信息按钮（复用 app-shell createModuleInfoBtn，运行期可用）
+  const titleGroup = document.querySelector('.chats-list-title-group');
+  if (titleGroup && typeof createModuleInfoBtn === 'function') {
+    titleGroup.appendChild(createModuleInfoBtn('my-chats'));
+  }
   // 加号弹层「点外面关闭」：全局只绑一次（切页重建 shell 不影响 document 级监听）
   if (!window._chatPlusBound) {
     window._chatPlusBound = true;

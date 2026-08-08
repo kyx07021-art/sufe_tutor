@@ -30,6 +30,10 @@
 .chats-list-title {
   font-size: 1.1rem; font-weight: 800; letter-spacing: .02em; color: var(--ink);
 }
+/* 需求四·10：会话 title 与 i 信息按钮同组靠左（.chats-list-head 是 space-between，须包组防顶右） */
+.chats-list-title-group {
+  display: inline-flex; align-items: center; gap: 8px; min-width: 0;
+}
 
 .conv-list { position: relative; flex: 1; overflow-y: auto; min-height: 0; padding: 10px 0 16px; }
 

@@ -1673,16 +1673,16 @@ body.profile-panel-closing .profile-panel {
    通知信息列表
    ============================================================ */
 /* 屏蔽系统通知按钮（需求四·4b）：标准按钮样式，无特殊颜色遮罩；
-   选中态 = 前置小圆点（CSS ::before，非 √ 符号），颜色与未选中一致，像素级干净。
-   未选中时圆点宽 0（不占位、文字居中与标准按钮一致）；选中时 7px 圆点 + 8px 间距展开 */
+   选中态 = 前置小勾（SVG 描边勾，非 √ 文本符号），颜色走 currentColor=--ok-deep 单源，按钮字色不变。
+   未选中时勾宽 0（不占位、文字居中与标准按钮一致）；选中时 12px 勾 + 8px 间距展开（宽度过渡即显勾） */
 .notif-block-btn { gap: 0; }
 .notif-block-btn::before {
   content: ''; display: inline-block; flex: 0 0 auto;
-  width: 0; height: 7px; border-radius: 50%;
-  background: var(--ok-deep);
+  width: 0; height: 12px; color: var(--ok-deep);
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.5 L5 9.5 L10 3' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/contain no-repeat;
   transition: width var(--t-fast) var(--ease-out), margin-right var(--t-fast) var(--ease-out);
 }
-.notif-block-btn--on::before { width: 7px; margin-right: 8px; }
+.notif-block-btn--on::before { width: 12px; margin-right: 8px; }
 
 .notif-item {
   display: flex; gap: 12px; align-items: flex-start;
@@ -1792,7 +1792,7 @@ body.profile-panel-closing .profile-panel {
 .chart-plot { position: relative; }
 .chart-svg { display: block; width: 100%; height: auto; }
 .chart-svg .chart-grid line { stroke: var(--line); stroke-width: 1; }
-.chart-svg .chart-axis-y text, .chart-svg .chart-axis-x text { fill: var(--muted); font-size: 11px; }
+.chart-svg .chart-axis-y text, .chart-svg .chart-axis-x text { fill: var(--muted); font-size: calc(11px * var(--ui-scale, 1)); } /* 需求六·item5 自查补漏：坐标轴字号随 UI 滑块 */
 .chart-line { fill: none; stroke: var(--chart-color, var(--accent)); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .chart-end-dot, .chart-crosshair-dot { fill: var(--chart-color, var(--accent)); stroke: var(--paper); stroke-width: 2; }
 .chart-crosshair-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }

@@ -172,15 +172,10 @@ function openModuleInfo(pageId) {
   });
 }
 
-/** 页头 i 按钮注入（v0.25.10）：selectPage 切页汇聚点调用，按 pageId 定位当前页 .page-header 幂等插入。
- *  my-chats 页头被 .client-page--flush 隐藏（标题由聊天页自有区渲染），跳过注入。 */
-function injectPageHeaderInfo(pageId) {
-  const old = document.querySelector('.page-header-info');
-  if (old) old.remove();
-  const hdr = document.querySelector('#client-main .client-page:not(.hidden) .page-header');
-  if (!hdr || pageId === 'my-chats') return;
-  const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
-  if (!info) return;
+/** i 信息按钮构造（v0.25.14 复用单源）：模块 title 旁小圆 i，带 a11y（Enter/Space 同开），
+ *  点开标准信息浮窗（openModuleInfo）。聊天自绘 title（.chats-list-title）由 enterMyChats 复用本构造，
+ *  页面级 i 由 injectPageHeaderInfo 复用——两处共用同一外观/交互，免维护两套。 */
+function createModuleInfoBtn(pageId) {
   const btn = document.createElement('span');
   btn.className = 'page-header-info';
   btn.setAttribute('role', 'button');
@@ -190,6 +185,19 @@ function injectPageHeaderInfo(pageId) {
   btn.textContent = 'i';
   btn.addEventListener('click', e => { e.stopPropagation(); openModuleInfo(pageId); });
   btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); openModuleInfo(pageId); } });
+  return btn;
+}
+
+/** 页头 i 按钮注入（v0.25.10）：selectPage 切页汇聚点调用，按 pageId 定位当前页 .page-header 幂等插入。
+ *  my-chats 页头被 .client-page--flush 隐藏（标题由聊天页自有区渲染，见 enterMyChats），跳过注入。 */
+function injectPageHeaderInfo(pageId) {
+  const old = document.querySelector('.page-header-info');
+  if (old) old.remove();
+  const hdr = document.querySelector('#client-main .client-page:not(.hidden) .page-header');
+  if (!hdr || pageId === 'my-chats') return;
+  const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
+  if (!info) return;
+  const btn = createModuleInfoBtn(pageId);
   // v0.25.12（反馈 #89）：h2 与 i 必须同组靠左——.page-header 是 space-between，直接 after(h2)
   // 会把 i 顶到最右。包进 .page-header-title 组（幂等：已包裹则复用），组 gap 统一间距
   const h2 = hdr.querySelector('h2');
