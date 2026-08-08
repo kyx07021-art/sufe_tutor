@@ -103,15 +103,28 @@ test('matchDegree 性格：全中更高（2/2 偏好命中 → 78，高于基础
   assert.equal(vm.runInContext('matchDegree({ ...TEACHER, personality_tags: ["patience", "strict"] }, DEMAND)', ctx), 78);
 });
 
-test('genderMatchScore 单点口径', async () => {
+test('genderMatchScore 单点口径（undeclared 同 nonbinary 未披露）', async () => {
   const { ctx } = makeCtx();
   loadCommon(ctx);
   assert.equal(vm.runInContext('genderMatchScore("", "male")', ctx), 100);
   assert.equal(vm.runInContext('genderMatchScore("", "nonbinary")', ctx), 100);
+  assert.equal(vm.runInContext('genderMatchScore("", "undeclared")', ctx), 100, '需求均可 + 不愿透露 → 100');
   assert.equal(vm.runInContext('genderMatchScore("male", "male")', ctx), 100);
   assert.equal(vm.runInContext('genderMatchScore("male", "female")', ctx), 0);
   assert.equal(vm.runInContext('genderMatchScore("male", "nonbinary")', ctx), 50);
+  assert.equal(vm.runInContext('genderMatchScore("male", "undeclared")', ctx), 50, '明确偏好 + 教师不愿透露 → 折半');
   assert.equal(vm.runInContext('genderMatchScore("female", "")', ctx), 50);
+});
+
+test('DISP.genderName：undeclared/非binary/空 一律不显字，仅男/女出字', async () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx);
+  assert.equal(vm.runInContext('DISP.genderName("undeclared")', ctx), '', '不愿透露 → 不展示');
+  assert.equal(vm.runInContext('DISP.genderName("nonbinary")', ctx), '', '历史 nonbinary → 不展示');
+  assert.equal(vm.runInContext('DISP.genderName("")', ctx), '', '空 → 不展示');
+  assert.equal(vm.runInContext('DISP.genderName("male")', ctx), '男');
+  assert.equal(vm.runInContext('DISP.genderName("female")', ctx), '女');
+  assert.equal(vm.runInContext('DISP.demandStudentGenderName("undeclared")', ctx), '', '需求侧同口径');
 });
 
 test('matchLevel 三色阈值', async () => {

@@ -37,11 +37,15 @@
     subjectNames(ids) {
       return (ids || []).map(id => D.subjectName(id)).join('、');
     },
-    genderName(id) { return enumName(C().GENDERS, id, ''); },
-    // R2-11 需求侧学生性别展示：'' = 不愿透露（默认）与历史 'nonbinary'（需求表单已无此选项）一律视同未填、
-    // 不展示文字（卡上 .filter(Boolean) 自然省略）；教师侧性别 GENDERS 沿用不变，仍走 genderName
+    // 性别显示单点：不愿透露（undeclared）与历史 ''/nonbinary 一律视同未填 → 不展示文字
+    // （资料卡/详情/筛选 .filter(Boolean) 自然省略该行）；仅明确男/女才出字。
+    genderName(id) {
+      if (!id || id === 'undeclared' || id === 'nonbinary') return '';
+      return enumName(C().GENDERS, id, '');
+    },
+    // R2-11 需求侧学生性别展示：与教师侧同一口径（'' = 不愿透露 默认、'undeclared'/'nonbinary' 历史值）
     demandStudentGenderName(id) {
-      return (id === 'nonbinary' || !id) ? '' : D.genderName(id);
+      return D.genderName(id);
     },
     teacherGradeName(id) { return enumName(C().TEACHER_GRADES, id, ''); },
     methodName(id) { return enumName(C().TEACHING_METHODS, id, ''); },

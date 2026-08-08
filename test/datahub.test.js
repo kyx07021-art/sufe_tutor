@@ -247,6 +247,26 @@ test('dhProbeTick：域刷新失败保留旧基线，下轮重试（审计 m5）
     '失败那轮后基线保留，恢复后仍会重拉一次');
 });
 
+test('dhCheckAppVersion：版本变化 → 强清缓存并覆写版本号；同版本 → 不动（v0.25.12 发版强清）', async () => {
+  const store = new Map();
+  const ctx = makeCtx({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: async () => ({ teachers: [] }) }) });
+  ctx.localStorage = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
+  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
+  const cur = vm.runInContext('String(APP_CONSTANTS.APP_VERSION)', ctx);
+  vm.runInContext('dhCheckAppVersion()', ctx); // boot 时 localStorage 未注入已静默跳过；此调用落版本基线
+  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  assert.notEqual(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '先有缓存数据');
+  // 模拟发版：localStorage 版本为旧版本 → 强清缓存 + 覆写新版本号
+  vm.runInContext(`localStorage.setItem(DH_VERSION_KEY, '0.0.0')`, ctx);
+  vm.runInContext('dhCheckAppVersion()', ctx);
+  assert.equal(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '版本变化 → 整体作废缓存');
+  assert.equal(vm.runInContext('localStorage.getItem(DH_VERSION_KEY)', ctx), cur, '清后覆写为当前版本号');
+  // 同版本再查 → 不再误清
+  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  vm.runInContext('dhCheckAppVersion()', ctx);
+  assert.notEqual(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '同版本不误清');
+});
+
 test('dhProbeTick：getVersions 全域补零后首写 0→1 触发重拉（审计 m1）', async () => {
   const { impl, calls, routes } = makeFetch();
   routes.set('/api/teachers', { teachers: [] });

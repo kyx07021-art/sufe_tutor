@@ -33,6 +33,8 @@ let dhProbeTimer = null;
 let dhEpoch = 0;
 // 缓存键数上限：搜索变体等键只增不减，超过淘汰最旧（审计 m2）
 const DH_MAX_KEYS = 40;
+// 上次运行的应用版本（localStorage）：版本校验基线，见 dhCheckAppVersion
+const DH_VERSION_KEY = 'sufe_app_version';
 
 /** 同步窥探：缓存命中且未过保底 TTL 返回 data，否则 null（供 loadInto 决定跳过 loader 直出） */
 function dhPeek(endpoint) {
@@ -78,10 +80,27 @@ function dhInvalidateDomain(domain) {
   for (const [k, v] of dhCache) if (v.domain === domain) dhCache.delete(k);
 }
 
-/** 全量清空（登出/换账号/401）；会话代次推进使在途请求不再写入旧账户数据 */
+/** 全量清空（登出/换账号/401/发版）；会话代次推进使在途请求不再写入旧账户数据 */
 function dhInvalidateAll() {
   dhCache.clear();
   dhEpoch++;
+}
+
+/** 版本更新强清缓存（v0.25.12 反馈：「版本更新之后强行清洗缓存」，简单粗暴）。
+ *  机制：localStorage 记上次运行版本；与 APP_CONSTANTS.APP_VERSION 不一致（发版/回滚）
+ *  → dhInvalidateAll 整体作废（清空缓存 + 推进代次，在途旧数据丢弃）→ 覆写新版本号。
+ *  调用点：① 模块加载时（boot 落版本基线）；② 每次版本探测 tick（运行中的标签页
+ *  发版后 8s 内自愈——旧代码会话里缓存的旧形态数据不泄入新版本渲染）。
+ *  与 dhProbeTick（数据版本域计数）分工：探测管「数据变了」，本校验管「代码变了」；
+ *  两者都住在 app-datahub 单点，不散落别处。 */
+function dhCheckAppVersion() {
+  try {
+    const cur = String((globalThis.APP_CONSTANTS || {}).APP_VERSION || '');
+    if (!cur) return;
+    const prev = localStorage.getItem(DH_VERSION_KEY);
+    if (prev && prev !== cur) dhInvalidateAll(); // 版本切换：会话缓存整体作废（数据形态可能不兼容）
+    localStorage.setItem(DH_VERSION_KEY, cur);
+  } catch { /* 存储不可用：跳过版本校验 */ }
 }
 
 /**
@@ -162,6 +181,7 @@ async function dhProbeTick() {
   if (typeof document !== 'undefined' && document.hidden) return; // 标签页隐藏：不探测不重拉
   dhProbeBusy = true;
   try {
+    dhCheckAppVersion(); // 发版探测：版本变了 → 整体作废缓存（运行中标签页 8s 内自愈）
     let versions;
     try { versions = (await api('/api/data-version')).versions || {}; }
     catch { return; } // 探测失败静默，保留上次基线（不误触发全量重拉）
@@ -202,3 +222,6 @@ if (typeof document !== 'undefined') {
 if (typeof registerLogoutReset === 'function') {
   registerLogoutReset(() => { stopVersionProbe(); dhInvalidateAll(); });
 }
+
+// boot：立即落版本基线（新开页面缓存本为空，作废是 no-op，纯记版本）
+dhCheckAppVersion();

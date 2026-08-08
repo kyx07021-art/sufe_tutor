@@ -595,10 +595,19 @@ textarea.form-input {
 .profile-form { position: relative; max-width: 640px; margin: 0 auto; padding: 8px; }
 
 /* 教师档案内联成绩 */
-.gaokao-section { margin-bottom: 18px; }
+.gaokao-section { margin-bottom: 18px; padding-top: 4px; } /* padding-top：与上方设置项的体面空隙 */
 .gaokao-section h4 { font-size: .8rem; font-weight: 700; color: var(--ink-3); margin-bottom: 14px; }
 .gaokao-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-.gaokao-row .subject-name { flex: 0 0 44px; font-size: .8rem; font-weight: 700; color: var(--ink-3); }
+/* v0.25.12（反馈 #102）：高考成绩/等第下的科目名 = 比「教师年级」类设置项更低一层的子标题——
+   字号/字重/色阶下探（.72rem/600/muted < .form-label 的 .8rem/700/ink-3）；
+   定宽列 + text-align:right → 各科目名右缘对齐同一条假想线（输入控件的左对齐线）；
+   margin-right 补足与输入控件间的体面空隙。输入控件仍在控制列内左对齐（随滑块）。 */
+.gaokao-row .subject-name, .score-row .score-subject {
+  flex: 0 0 56px; min-width: 0;
+  text-align: right;
+  font-size: .72rem; font-weight: 600; color: var(--muted);
+  margin-right: 6px;
+}
 .grade-selector { display: flex; flex-wrap: wrap; gap: 4px; }
 .grade-option {
   padding: calc(3px * var(--ui-scale, 1)) calc(9px * var(--ui-scale, 1)); font-size: .68rem; color: var(--muted); /* 需求六·item5：等第/年级 pill 随滑块 */
@@ -1500,9 +1509,26 @@ body.profile-panel-closing .profile-panel {
 /* 需求六·item2：资料卡分组大 title —— 占满横向空位分隔不同类型资料（去行分隔线后的段分隔） */
 .profile-group-title {
   margin: 22px 0 10px;
+  margin-left: -8px; /* v0.25.12（反馈）：大标题左凸——左对齐线突出来，不与字段标签共用同一条左对齐线
+    （.profile-form 内边距 8px，负 margin 把标题顶到表单最左缘；字段保持 +8px 缩进） */
   font-size: 1.08rem; font-weight: 900; letter-spacing: .04em; color: var(--ink);
-} /* v0.25.12（反馈 #98 补账）：大标题必须明显大于字段标签（原 .8rem 与小标题同号是败笔）——
-   分组层级交给标题字号 + 字重，不再依赖字段间分割线 */
+}
+/* ============================================================
+   教师资料卡排版（编辑页 .profile-form）样式与组件规则（v0.25.12，复用前必读）：
+   1. 分组标题 .profile-group-title（基本信息/学科/非学科/私密四区，app-pages.groupProfileForm
+      按 .form-group 索引逆序注入，幂等）：
+      - 字号 1.08rem 且字重 900 —— 必须明显大于字段标签 .form-label（0.8rem/700），
+        「大标题 ≠ 小标题」的层级靠字号+字重，不许同号（前车之鉴：0.8rem 同号被否）；
+      - margin-left: -8px 左凸：标题左对齐线突出来，不与字段标签共用同一条左线；
+      - 分组层级由标题承担 → 组内不再用分割线。
+   2. 组内分割线：.profile-form .form-group + .form-group { border-top: none } ——
+      全局 .form-group + .form-group 的细线被覆盖，分组视觉完全交给大标题。
+   3. 字段标签向上对齐：.profile-form .form-group { align-items: flex-start } +
+      .form-label { padding-top: 8px } —— 默认 align-items:center 会让标签垂直居中在
+      高控件（多行网格/成绩区/textarea）旁，视觉悬空；改顶对齐。
+   4. 复用约束：以上三条只作用域 .profile-form（编辑页），别把「去分割线/顶对齐」误用到
+      登录/注册等紧凑表单（它们仍需细线分隔与垂直居中）。
+   ============================================================ */
 /* 编辑页组内：分割线去净（分组由大标题承担）、字段标签组内向上对齐（align-items:center 会把标签
    垂直居中在高度较高的控件旁，多行网格/成绩区下视觉悬空） */
 .profile-form .form-group + .form-group { border-top: none; }

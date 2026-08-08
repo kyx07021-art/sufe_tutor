@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.12',
+  APP_VERSION: '0.25.13',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -47,7 +47,7 @@ globalThis.APP_CONSTANTS = {
     MATCH_MAX: 100,
     MATCH_COLOR_HIGH: 80,                 // 匹配度按钮三色阈值：≥80 绿（hi）
     MATCH_COLOR_MID: 60,                  // 60-79 黄（mid），<60 红（lo）
-    GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
+    GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（undeclared/历史 nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
     MATCH_DETAIL_MAX_HEIGHT: 320,         // 学生端匹配度明细卡内需求条目区高度上限 px（条目多滚动）
     MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px
     GLIDE_MS: 460, SIDEBAR_GLIDE_MS: 380, // 选中块滑动动画时长
@@ -101,9 +101,10 @@ globalThis.APP_CONSTANTS = {
     {id:'graduated_bachelor',name:'本科学历 已毕业'},{id:'graduated_master',name:'硕士学历 已毕业'},{id:'graduated_phd',name:'博士学历 已毕业'},
   ],
 
-  // 教师侧性别（含 nonbinary，资料/筛选沿用不变）；学生需求侧性别由表单在 app-demands.js 构造：
-  // '' = 不愿透露（R2-11 默认，视同未填）+ GENDERS 男/女（nonbinary 不参与学生侧选项）
-  GENDERS: [{id:'male',name:'男'},{id:'female',name:'女'},{id:'nonbinary',name:'非二元'}],
+  // 教师侧性别（资料/筛选沿用）；学生需求侧性别由表单在 app-demands.js 构造。
+  // undeclared = 不愿透露（默认选项，视同未填，展示层统一不显文字；吸收历史 ''/nonbinary 语义）。
+  // 顺序即默认：不愿透露排首位，教师资料下拉默认选中它。学生侧以 '' 表示不愿透露，剔除 undeclared。
+  GENDERS: [{id:'undeclared',name:'不愿透露'},{id:'male',name:'男'},{id:'female',name:'女'}],
   TEACHING_METHODS: [{id:'online',name:'线上'},{id:'offline',name:'线下'},{id:'both',name:'线上线下均可'}],
   // 结构化时间组件（v0.25.0）：期望开课/可授课时间段的下拉枚举（1=周一 … 7=周日）
   WEEKDAYS: [

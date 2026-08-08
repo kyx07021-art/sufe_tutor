@@ -337,8 +337,9 @@ function initProfileForm() {
     renderProvinceSelect('profile-province', '', 'onchange="onTeacherProvinceChange()"');
   const gradeEl = document.getElementById('profile-grade');
   gradeEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + TEACHER_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  // 性别下拉：无 placeholder——GENDERS 首位即「不愿透露」默认选中（见 constants GENDERS 注释）
   const genderEl = document.getElementById('profile-gender');
-  genderEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + GENDERS.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  genderEl.innerHTML = GENDERS.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
   // R2-2 授课方式：白名单选项（online/offline/both），placeholder 占位走常量
   const methodEl = document.getElementById('profile-teaching-method');
   methodEl.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>` + TEACHING_METHODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('');
@@ -443,7 +444,7 @@ async function loadProfile() {
     if (data.profile) {
       const p = data.profile;
       document.getElementById('profile-grade').value = p.grade || '';
-      document.getElementById('profile-gender').value = p.gender || '';
+      document.getElementById('profile-gender').value = p.gender || 'undeclared'; // ''/历史值 → 默认「不愿透露」
       document.getElementById('profile-school').value = p.school || '';
       // R2-12 毕业年份回填（决定高考赋分按哪套政策渲染）
       document.getElementById('profile-graduation-year').value = p.graduation_year || '';
@@ -543,7 +544,7 @@ async function handleSaveProfile(e) {
       method: 'POST', body: { profile: {
         province,
         grade: document.getElementById('profile-grade').value,
-        gender: document.getElementById('profile-gender').value,
+        gender: document.getElementById('profile-gender').value || 'undeclared', // 表单缺省回落「不愿透露」
         subjects, gaokao_scores: gaokaoScores,
         // R2-5 报价区间：空 = 未填(null)，档案完整性门槛按 price_min 拦截；0 是合法报价
         price_min: document.getElementById('profile-price-min').value === '' ? null : +document.getElementById('profile-price-min').value,

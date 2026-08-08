@@ -78,9 +78,9 @@ function setDemandType(type) {
 
 function renderDemandModal(demand) {
   // R2-b 学生性别选项：'' = 不愿透露（默认，视同未填）+ GENDERS 男/女；
-  // GENDERS 教师侧（含 nonbinary）沿用不变，此处仅表单专用构造（单源注释见 constants.js）
-  const studentGenders = [{ id: '', name: UI.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'nonbinary')];
-  const prefGenders = GENDERS.filter(g => g.id !== 'nonbinary'); // 偏好老师性别：不限('') + 男/女
+  // GENDERS 教师侧含 undeclared 默认（学生侧以 '' 表示不愿透露，剔除 undeclared 与历史 nonbinary）
+  const studentGenders = [{ id: '', name: UI.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary')];
+  const prefGenders = GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary'); // 偏好老师性别：不限('') + 男/女
   return `<div id="demand-alert"></div>
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
           <div class="form-group">
@@ -422,11 +422,11 @@ async function handleDeleteDemand(demandId, asAdmin) {
 
 // 需求五·性别匹配分（R2-10 偏好性别）：
 //   需求偏好 ''=均可 → 100（任何教师）；明确 male/female 与教师一致 → 100、相反 → 0；
-//   教师不愿透露（nonbinary）或未填性别 → 明确偏好折半（CONFIG.GENDER_MATCH_UNDISCLOSED=50），均可仍 100。
+//   教师不愿透露（undeclared，含历史 nonbinary/未填）→ 明确偏好折半（CONFIG.GENDER_MATCH_UNDISCLOSED=50），均可仍 100。
 //   口径：教师未填性别与「不愿透露」同等对待——需求方明确性别偏好时，未披露方无法证明符合，折半而非归零（避免「没填就罚 0」过苛）。
 function genderMatchScore(pref, teacherGender) {
   if (!pref) return 100;
-  if (!teacherGender || teacherGender === 'nonbinary') return CONFIG.GENDER_MATCH_UNDISCLOSED;
+  if (!teacherGender || teacherGender === 'undeclared' || teacherGender === 'nonbinary') return CONFIG.GENDER_MATCH_UNDISCLOSED;
   return teacherGender === pref ? 100 : 0;
 }
 
