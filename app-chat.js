@@ -363,7 +363,7 @@ function renderChatBubble(m, i) {
     <div class="chat-bubble glass ${skin}">${escHtml(m.body)}</div>${time}</div>`;
 }
 
-// 图片缩略（点开放大）/ 文件 chip（dataURL 直接 download）
+// 图片缩略（点开放大）/ 文件卡片（v0.25.34 拍平进气泡，去 glass-in-glass 套娃；dataURL 直接 download）
 function renderChatMediaInner(kind, body, name) {
   // 网安审计 N-03：发送方注销后附件本体被服务端清空（body=''），此处占位而非渲染死链接/空图
   if (!body) return `<span class="chat-attach-fail">${UI.CHAT_ATTACH_REMOVED}</span>`;
@@ -372,9 +372,32 @@ function renderChatMediaInner(kind, body, name) {
   }
   // 客户端 scheme 自守：仅 data: 才作可下载 href（服务端已强制 data: 前缀，此为纵深防御，杜绝 javascript: 等）
   const href = String(body || '').startsWith('data:') ? body : '#';
-  return `<a class="chat-file-chip glass glass--solid" href="${escHtml(href)}" download="${escHtml(name || '')}">
-    <span class="chat-file-name">${escHtml(name || UI.CHAT_FILE_FALLBACK)}</span>
-    <span class="chat-file-dl">${UI.CHAT_DOWNLOAD}</span></a>`;
+  return `<div class="chat-file">
+    <span class="chat-file-icon">${escHtml(chatFileExt(name))}</span>
+    <span class="chat-file-info">
+      <span class="chat-file-name">${escHtml(name || UI.CHAT_FILE_FALLBACK)}</span>
+      <span class="chat-file-size">${chatFileSize(body)}</span>
+    </span>
+    <a class="chat-file-dl" href="${escHtml(href)}" download="${escHtml(name || '')}">${UI.CHAT_DOWNLOAD}</a>
+  </div>`;
+}
+
+// 文件扩展名徽标（前 4 字符大写；无扩展名兜底 FILE）
+function chatFileExt(name) {
+  const m = /\.([a-zA-Z0-9]{1,6})$/.exec(String(name || ''));
+  return m ? m[1].toUpperCase().slice(0, 4) : 'FILE';
+}
+
+// 人性化文件大小（dataURL 长度 → 字节；base64 按 3/4 换算，非 base64 按原始长度）
+function chatFileSize(dataUrl) {
+  try {
+    const s = String(dataUrl || '');
+    const b64Idx = s.indexOf(';base64,');
+    const bytes = b64Idx >= 0 ? Math.round((s.length - b64Idx - 8) * 3 / 4) : s.length;
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(2)} MB`;
+  } catch { return ''; }
 }
 
 // 附件懒加载：消息区渲染完（页面可操作）后延迟补载骨架占位的真实 dataURL

@@ -130,7 +130,7 @@
 /* ---------- 消息区：细点阵底纹 + 内部滚动 ---------- */
 .chat-messages {
   flex: 1; overflow-y: auto; min-height: 0;
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 6px; /* v0.25.34：同发送者组内紧排（主流 6-8px），换人由下方 margin 拉开 */
   padding: 20px 22px;
 }
 
@@ -149,11 +149,11 @@
 .chat-msg--mine  { align-self: flex-end;   align-items: flex-end; }
 .chat-msg--theirs { align-self: flex-start; align-items: flex-start; }
 
-/* 气泡 —— 全站零圆角的唯一例外（12px） */
+/* 气泡 —— 全站零圆角的唯一例外；v0.25.34 主圆角 12→16px（iMessage/新 WhatsApp 大圆角语言下沿） */
 .chat-bubble {
   padding: 10px 14px;
   font-size: .88rem; line-height: 1.62;
-  --g-r: 12px; /* G16：圆角走参数 */
+  --g-r: 16px; /* G16：圆角走参数 */
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 
@@ -168,12 +168,28 @@
   padding: 12px 14px;
 }
 
-/* ---------- 图片 / 文件消息 ---------- */
-.chat-bubble--media { padding: 5px; }
-.chat-bubble--media img { display: block; max-width: 240px; max-height: 320px; border-radius: 8px; cursor: zoom-in; }
-.chat-file-chip { display: inline-flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; padding: 5px 4px; }
-.chat-file-name { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: .82rem; }
-.chat-file-dl { flex-shrink: 0; font-size: .66rem; font-weight: 700; letter-spacing: .04em; border: 1px solid currentColor; padding: 2px 9px; }
+/* ---------- 图片 / 文件消息（v0.25.34 调研重构） ---------- */
+/* 图片即气泡：无边框无内边距，圆角由气泡 --g-r + overflow:hidden 裁剪（WhatsApp 2026 无框媒体同口径） */
+.chat-bubble--media { padding: 0; overflow: hidden; }
+.chat-bubble--media img { display: block; max-width: 240px; max-height: 320px; cursor: zoom-in; border-radius: 0; }
+/* 接收方中性气泡发丝描边（浅色白泡在浅底上立得住；color-mix 引 --ink 深浅主题自适应） */
+.chat-bubble--theirs { border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent); }
+/* 文件消息：自成一格卡片拍平进气泡（去 glass-in-glass 套娃）——单表面直接铺内容，无嵌套玻璃 */
+.chat-file { display: flex; align-items: center; gap: 10px; min-width: 190px; max-width: 260px; }
+.chat-file-icon {
+  flex: 0 0 38px; width: 38px; height: 38px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: .6rem; font-weight: 700; letter-spacing: .03em;
+  color: var(--accent-deep); background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.chat-file-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.chat-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: .82rem; }
+.chat-file-size { font-size: .68rem; color: var(--muted); font-family: var(--mono); }
+.chat-file-dl {
+  flex-shrink: 0; font-size: .68rem; font-weight: 700; letter-spacing: .03em;
+  color: var(--accent-deep); border: 1px solid currentColor; border-radius: 999px; padding: 3px 11px;
+  text-decoration: none; white-space: nowrap;
+}
 /* 大图查看器样式已迁至 style.css .image-viewer-modal（聊天图片/学信网截图预览共用） */
 
 /* 附件懒加载骨架：与成图同尺寸的占位块 + 部分进度圈暗示加载中 */
@@ -235,14 +251,18 @@
 .chat-actions .chat-plus-btn { height: 100%; width: calc(40px * var(--ui-scale, 1)); }
 .chat-actions .chat-send { height: 100%; min-width: calc(78px * var(--ui-scale, 1)); }
 
-/* ---------- 合同事件系统气泡：居中淡紫块（圆角随气泡惯例），区别于双方消息 ---------- */
-.chat-msg--system { align-self: center; align-items: center; max-width: 88%; }
+/* ---------- 系统事件气泡：居中中性胶囊（v0.25.34 去淡紫第三色相，圆角胶囊在 glass.css） ---------- */
+.chat-msg--system { align-self: center; align-items: center; max-width: 88%; margin: 10px 0; } /* 上下留白，区别于左右内容泡 */
 .chat-bubble--system { font-size: .78rem; text-align: center; }
 .chat-msg--system .chat-msg-time { text-align: center; }
 
+/* v0.25.34 间距：同发送者组内 6px（gap），换人/换说话人拉开到 ~18px（主流 16-20px） */
+.chat-msg--mine + .chat-msg--theirs,
+.chat-msg--theirs + .chat-msg--mine { margin-top: 12px; }
+
 /* ---------- v0.24.0 发起签约气泡（极简签约流）：三条信息 + 确认/拒绝；回应后变灰为小灰字 ---------- */
-.signing-bubble { max-width: 300px; text-align: left; padding: 12px 14px; }
-.signing-bubble-title { font-weight: 700; font-size: .8rem; margin-bottom: 8px; }
+.signing-bubble { max-width: 300px; text-align: left; padding: 12px 14px; border-left: 3px solid var(--accent); } /* v0.25.34 单条品牌色条：签约卡片身份，不新增色相 */
+.signing-bubble-title { font-weight: 700; font-size: .8rem; margin-bottom: 8px; color: var(--accent-deep); }
 .signing-bubble-row { display: flex; justify-content: space-between; gap: 12px; font-size: .78rem; padding: 2px 0; }
 .signing-bubble-row span { color: var(--muted); flex-shrink: 0; }
 .signing-bubble-row b { font-weight: 600; text-align: right; word-break: break-all; }

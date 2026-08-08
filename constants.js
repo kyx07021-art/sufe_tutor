@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.33',
+  APP_VERSION: '0.25.34',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -210,7 +210,7 @@ globalThis.APP_CONSTANTS = {
         '--g-avatar-fill': 'var(--paper-3)', '--g-avatar-fill-ghost': 'var(--paper-3)',
         '--g-avatar-border': 'var(--line)', '--g-avatar-border-ghost': 'var(--line)',
         '--g-btn-fill': 'var(--g-fill-weak)',   // 按钮透明透镜 → 不透明纸面（防平面模式按钮隐形）
-        '--g-bubble-mine': 'var(--accent-tint)', '--g-bubble-theirs': 'var(--paper-2)', '--g-bubble-system': 'var(--lilac-2)',
+        // v0.25.34 气泡不设 flat 特例：theme 近实值（#E9E5FB/#FFFFFF）液态平面同源，材质差异已由零投影/零液体边承担
         '--g-flow-dot': 'var(--ink-2)',
         '--g-ok-solid': 'var(--ok-deep)',
         // ---- 表面发丝描边（审计 H1/H2：平面无阴影无磨砂，靠描边定义表面边界；
@@ -332,9 +332,11 @@ globalThis.APP_CONSTANTS = {
       '--g-scroll-thumb-strong': 'rgba(122,104,224,.58)', // hover 增亮（webkit 伪元素无 transition，跳色）
       '--g-scroll-thumb-active': 'rgba(122,104,224,.72)', // 按压
       // ---- 气泡 ----
-      '--g-bubble-mine': 'rgba(150,138,230,.26)',
-      '--g-bubble-theirs': 'rgba(233,218,196,.30)',
-      '--g-bubble-system': 'rgba(206,198,238,.24)',
+      // v0.25.34 气泡近实化（调研：主流「发送彩色/接收中性」通例 + WCAG 对比度）：发送方=品牌紫提亮面、
+      // 接收方=中性近实白（发丝描边在 style-chat.css 补，白泡在浅底上立得住）、系统=中性低对比胶囊（去第三色相）
+      '--g-bubble-mine': '#E9E5FB',
+      '--g-bubble-theirs': '#FFFFFF',
+      '--g-bubble-system': 'rgba(17,17,20,.055)',
       // ---- 大块 pane ----
       '--g-sidebar-bg': 'rgba(250,248,245,.56)',
       '--g-sidebar-bg-m': 'rgba(244,242,247,.97)', // 移动端侧栏近不透明
@@ -432,9 +434,10 @@ globalThis.APP_CONSTANTS = {
       '--g-scroll-thumb-strong': 'rgba(255,255,255,.4)',
       '--g-scroll-thumb-active': 'rgba(255,255,255,.52)',
       // ---- 气泡 ----
-      '--g-bubble-mine': 'rgba(150,138,230,.32)',
-      '--g-bubble-theirs': 'rgba(233,218,196,.14)',
-      '--g-bubble-system': 'rgba(206,198,238,.20)',
+      // v0.25.34 深色同口径：发送方=品牌紫降饱和近实（WhatsApp #005C4B 同思路）、接收方=中性深灰（Telegram #262626）、系统=中性低对比
+      '--g-bubble-mine': '#3A3468',
+      '--g-bubble-theirs': '#262431',
+      '--g-bubble-system': 'rgba(255,255,255,.10)',
       // ---- 大块 pane ----
       '--g-sidebar-bg': 'rgba(18,16,26,.72)',
       '--g-sidebar-bg-m': 'rgba(26,23,37,.97)',

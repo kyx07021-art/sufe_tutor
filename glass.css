@@ -201,7 +201,8 @@ body { background: transparent; }
 .chat-bubble { --g-lift: var(--glass-lift-sm); --g-liquid: var(--g-liquid-sm); }
 .chat-bubble--mine { --g-fill: var(--g-bubble-mine); --g-fg: var(--ink); }
 .chat-bubble--theirs { --g-fill: var(--g-bubble-theirs); --g-fg: var(--ink); }
-.chat-bubble--system { --g-fill: var(--g-bubble-system); --g-fg: var(--accent-deep); }
+/* v0.25.34：系统=中性胶囊（--g-fg 从 accent-deep 改 muted，去第三色相；圆角胶囊） */
+.chat-bubble--system { --g-fill: var(--g-bubble-system); --g-fg: var(--muted); --g-r: 999px; }
 .profile-card { --g-fill: var(--g-card-strong); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .5→.32 */
 .profile-card--id { --g-fill: var(--g-card-id); } /* v0.19.35 同上 .62→.44 */
 /* 按钮族 = 液态玻璃（v0.19.1）：透明染色透镜 + 微毛 + 弯月环。
