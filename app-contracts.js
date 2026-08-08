@@ -312,12 +312,15 @@ async function submitSigning(convId) {
 // 先选对应需求 → 预载配置（科目/方式/预算）→ 教学方式 / 授课时间 / 授课地点 / 约定时薪 /
 // 教学方案（md 编辑器，合同文本禁插图）→ 发送另一方确认
 async function openContractDraftModal(convId) {
+  if (!ensureAuth()) return; // 网安审计修复：与 openSigningModal 防御口径一致（入口虽在聊天窗内，统一过登录通路）
   openModal({ title: null, closable: false, body: `${loaderHtml()}` });
   let demands = [], demandsFailed = false;
   try { const data = await api(`/api/conversations/${convId}/bindable-demands?phase=contract`); demands = data.demands || []; }
   catch { demandsFailed = true; /* 拉取失败则下拉空 + 前端 demandId 必选校验拦截起草，弹窗内明示 */ }
   const conv = (typeof chatConvById === 'function') ? chatConvById(convId) : null;
-  const preselect = (conv && demands.find(d => d.id === conv.demand_id)) || demands[0] || null;
+  // 审计修复：仅当会话绑定的需求确在可绑（已签约）列表内才预选；不在（未达已签约/被别教师签走）
+  // 则置空占位，由用户显式选择——不再静默回退列表首项（可能与会话实际绑定需求不符）
+  const preselect = (conv && demands.find(d => d.id === conv.demand_id)) || null;
   window._contractDraftDemands = demands; // 供 prefillContractFromDemand 取数
   openModal({
     title: `${UI.DRAFT_MODAL_TITLE}`,
@@ -328,7 +331,9 @@ async function openContractDraftModal(convId) {
           <p class="text-sm text-muted contract-demand-hint">${UI.CONTRACT_DEMANDS_SIGNED_HINT}</p>
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
             ${demands.length
-              ? demands.map(d => `<option value="${d.id}"${preselect && d.id === preselect.id ? ' selected' : ''}>${escHtml(DISP.demandOptionText(d))}</option>`).join('')
+              ? (preselect
+                ? demands.map(d => `<option value="${d.id}"${d.id === preselect.id ? ' selected' : ''}>${escHtml(DISP.demandOptionText(d))}</option>`).join('')
+                : `<option value="" selected disabled>${UI.OPTION_PLACEHOLDER}</option>` + demands.map(d => `<option value="${d.id}">${escHtml(DISP.demandOptionText(d))}</option>`).join(''))
               : `<option value="" disabled>${UI.CONTRACT_DEMANDS_EMPTY}</option>`}
           </select>
         </div>

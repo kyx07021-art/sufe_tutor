@@ -112,6 +112,55 @@ export async function handleSaveProfile(db, body, req) {
     p.nonacademic_prices = [];
   }
 
+  // R2-6 擅长科目 / 高考成绩白名单（网安纵深防御，与需求侧 target_subjects 同款口径）：
+  //   科目池 = constants SUBJECTS + region-data subjectNames 全量 id（含浙江技术等地区科目），
+  //   与前端 teacherSubjectPool 同源；注入串/未知 id 一律丢弃，去重 + 按池大小封顶防铺量 DoS。
+  const R = globalThis.SUFE_REGIONS || {};
+  const subjPool = new Set([
+    ...((globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.SUBJECTS) || []).map(s => s.id),
+    ...Object.keys(R.subjectNames || {}),
+  ]);
+  if (p.subjects != null) {
+    if (!Array.isArray(p.subjects)) return error(MSG.INVALID_PARAMS);
+    p.subjects = [...new Set(p.subjects.filter(id => typeof id === 'string' && subjPool.has(id)))].slice(0, subjPool.size);
+  } else {
+    p.subjects = [];
+  }
+
+  // 教师年级/性别白名单（同 teaching_method 静默回退口径）：非法回 ''（未填）；性别含历史 nonbinary 兼容
+  const gradeSet = new Set(((globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.TEACHER_GRADES) || []).map(g => g.id));
+  if (p.grade != null && !gradeSet.has(p.grade)) p.grade = '';
+  const genderSet = new Set(((globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.GENDERS) || []).map(g => g.id));
+  genderSet.add('nonbinary'); // 存量兼容：历史 nonbinary 保留，展示层已视同未填
+  if (p.gender != null && !genderSet.has(p.gender)) p.gender = '';
+
+  // 高考成绩：数组、≤科目池封顶；每项 subject 在白名单；score 数值且钳到 [0, GAOKAO_SCORE_MAX]
+  // （全政策单科最高 = 海南标准分 300，语数英 150/其他 100/旧综合 300 均在界内；分政策精度属前端按
+  // 地区+毕业年份渲染职责，服务端只做纵深防御）；grade 等第 id 白名单（region-data 全档位并集）。
+  // 非法项丢弃（成绩填错不该打回整张档案，同需求侧静默过滤语义）。
+  const GS = R.gradeSystems || {};
+  const gradeIds = new Set();
+  for (const g of Object.values(GS)) if (g && Array.isArray(g.levels)) for (const lv of g.levels) gradeIds.add(lv.id);
+  const GAOKAO_SCORE_MAX = 300;
+  if (p.gaokao_scores != null) {
+    if (!Array.isArray(p.gaokao_scores)) return error(MSG.INVALID_PARAMS);
+    p.gaokao_scores = p.gaokao_scores
+      .filter(it => it && typeof it === 'object' && typeof it.subject === 'string' && subjPool.has(it.subject))
+      .map(it => {
+        const out = { subject: it.subject };
+        if (it.score != null) {
+          const n = Number(it.score);
+          if (Number.isFinite(n)) out.score = Math.min(GAOKAO_SCORE_MAX, Math.max(0, n));
+        }
+        if (typeof it.grade === 'string' && gradeIds.has(it.grade)) out.grade = it.grade;
+        return out;
+      })
+      .filter(it => it.score != null || it.grade != null)
+      .slice(0, subjPool.size);
+  } else {
+    p.gaokao_scores = [];
+  }
+
   const credential = String(p.credential_image || '');
   // svg 一律拒绝：矢量可内嵌脚本（与 routes-auth 头像口径一致；上限单源 LIMITS.CREDENTIAL_MAX_BYTES）
   if (credential && (!credential.startsWith('data:image/') || credential.startsWith('data:image/svg') || credential.length > LIMITS.CREDENTIAL_MAX_BYTES)) return error(MSG.AVATAR_INVALID);

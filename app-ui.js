@@ -280,14 +280,19 @@ function refreshTimeField(field) {
   field.classList.toggle('has-value', !!(hh || mm));
 }
 
-/** 读时间栏：全空 → ''；半填 → null；完整 → 'HH:MM'（补零） */
+/** 读时间栏：全空 → ''；半填 → null；完整 → 'HH:MM'（补零 + 范围钳制）。
+ *  v0.25.15 审计修复：此前不钳制——用户填 99:00 不触发 blur 直接提交时，validateTimeSlots 的
+ *  start<end 串比会放行非法时间（99:00>18:00），落服务端才被 sanitizeTimeSlots 正则拒；现读时即钳
+ *  （时≤23、分≤59，同 clampTime blur 口径），前端拦截与收集值双一致。 */
 function readTimeField(field) {
   if (!field) return '';
-  const hh = (field.querySelector('.slot-time-hh') || {}).value || '';
-  const mm = (field.querySelector('.slot-time-mm') || {}).value || '';
-  if (!hh && !mm) return '';
-  if (!hh || !mm) return null;
-  return `${hh.padStart(2, '0')}:${mm.padStart(2, '0')}`;
+  const hhRaw = (field.querySelector('.slot-time-hh') || {}).value || '';
+  const mmRaw = (field.querySelector('.slot-time-mm') || {}).value || '';
+  if (!hhRaw && !mmRaw) return '';
+  if (!hhRaw || !mmRaw) return null;
+  const hh = Math.min(23, Math.max(0, parseInt(hhRaw, 10) || 0)).toString().padStart(2, '0');
+  const mm = Math.min(59, Math.max(0, parseInt(mmRaw, 10) || 0)).toString().padStart(2, '0');
+  return `${hh}:${mm}`;
 }
 
 /** 校验容器：返回错误文案，'' = 通过（全空行跳过；半填/缺起止/结束早于开始均报错） */

@@ -197,10 +197,12 @@ function setUiScale(v) {
   try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
   return applyUiScale(c);
 }
-// 滑块填充百分比（80→0%、100→100%），供设置页轨道填充渐变
+// 滑块填充百分比（80→0%、100→100%），供设置页轨道填充渐变；
+// 审计修复：min==max 时除零得 Infinity，防御性回 100
 function uiScaleFillPct(v) {
   const c = uiScaleClamp(v);
   const span = CONFIG.UI_SCALE_MAX - CONFIG.UI_SCALE_MIN;
+  if (span <= 0) return '100.0';
   return ((c - CONFIG.UI_SCALE_MIN) / span * 100).toFixed(1);
 }
 

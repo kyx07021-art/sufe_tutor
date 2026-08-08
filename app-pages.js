@@ -288,11 +288,15 @@ function enterAbout() {
 function groupProfileForm() {
   const form = document.querySelector('.profile-form');
   if (!form || form.querySelector('.profile-group-title')) return; // 幂等（切页重建 DOM 前不重复插）
+  // 索引与 index.html 编辑页静态字段顺序强耦合；v0.25.15 审计修复：个人简介挪入基本组
+  // （与右栏资料卡 PROFILE_CARD_ITEMS.basic 及需求六「个人简介挪上」一致，此前误落私密组），
+  // 其后的组索引整体 +1。顺序 = 省份/年级/学校/毕业年份/性别/个人简介 | 科目/成绩/报价/方式/
+  // 时间段/性格 | 非学科项目/报价 | 地址/微信/邮箱/真实姓名/学信网截图；加字段时同步核对。
   const groups = [
-    { title: UI.PROFILE_SECTION_BASIC,       firstIndex: 0 },  // 省份/年级/学校/毕业年份/性别
-    { title: UI.PROFILE_SECTION_ACADEMIC,    firstIndex: 5 },  // 科目/成绩/报价/方式/时间段/性格
-    { title: UI.PROFILE_SECTION_NONACADEMIC, firstIndex: 11 }, // 非学科项目/报价
-    { title: UI.PROFILE_SECTION_PRIVATE,     firstIndex: 13 }, // 地址/微信/邮箱/真实姓名/学信网截图
+    { title: UI.PROFILE_SECTION_BASIC,       firstIndex: 0 },  // 省份/年级/学校/毕业年份/性别/个人简介
+    { title: UI.PROFILE_SECTION_ACADEMIC,    firstIndex: 6 },  // 科目/成绩/报价/方式/时间段/性格
+    { title: UI.PROFILE_SECTION_NONACADEMIC, firstIndex: 12 }, // 非学科项目/报价
+    { title: UI.PROFILE_SECTION_PRIVATE,     firstIndex: 14 }, // 地址/微信/邮箱/真实姓名/学信网截图
   ];
   const rows = form.querySelectorAll('.form-group');
   // 逆序插入（先插后面的组，避免索引漂移）

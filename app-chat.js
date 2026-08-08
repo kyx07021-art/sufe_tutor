@@ -317,17 +317,20 @@ function renderChatBubble(m, i) {
     const recipient = !mine; // 接收方（非消息发送者）可确认/拒绝
     const price = Number(s.price) || 0;
     const methodName = s.method === 'online' ? UI.SIGNING_METHOD_ONLINE : UI.SIGNING_METHOD_OFFLINE;
+    // 网安加固（审计修复）：signing id 仅接受纯数字——历史/异常消息体可含任意串，直接插值会
+    // 注入 data 属性与 onclick 上下文（respondSigning 内部还按该值拼属性选择器）；非数字视为无效 id
+    const signingId = /^\d+$/.test(String(s.id || '')) ? String(s.id) : '';
     const pending = s.status === 'pending';
     const done = s.status === 'signed' ? UI.SIGNING_CONFIRMED_TEXT : (s.status === 'rejected' ? UI.SIGNING_REJECTED_TEXT : '');
     return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble chat-bubble--system glass signing-bubble${done ? ' signing-bubble--done' : ''}" data-signing-id="${s.id}">
+      <div class="chat-bubble chat-bubble--system glass signing-bubble${done ? ' signing-bubble--done' : ''}" data-signing-id="${escHtml(signingId)}">
         <div class="signing-bubble-title">${mine ? UI.CHAT_SIGNING_MINE_TITLE : UI.CHAT_SIGNING_REQUEST_TITLE}</div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_PRICE}</span><b>${price} ${UI.PRICE_UNIT}/小时</b></div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(String(s.schedule || ''))}</b></div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>
-        ${pending && recipient ? `<div class="signing-bubble-actions">
-          <button type="button" class="btn btn-sm glass glass--pressable" onclick="respondSigning(${s.id}, true)">${UI.BTN_SIGNING_CONFIRM}</button>
-          <button type="button" class="btn btn-sm btn-outline glass glass--pressable" onclick="respondSigning(${s.id}, false)">${UI.BTN_SIGNING_REJECT}</button>
+        ${pending && recipient && signingId ? `<div class="signing-bubble-actions">
+          <button type="button" class="btn btn-sm glass glass--pressable" onclick="respondSigning(${signingId}, true)">${UI.BTN_SIGNING_CONFIRM}</button>
+          <button type="button" class="btn btn-sm btn-outline glass glass--pressable" onclick="respondSigning(${signingId}, false)">${UI.BTN_SIGNING_REJECT}</button>
         </div>` : ''}
         ${done ? `<p class="signing-bubble-status">${done}</p>` : ''}
       </div>${time}</div>`;

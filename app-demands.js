@@ -244,13 +244,16 @@ function prefillDemandForm(d) {
   document.querySelectorAll('#demand-form select').forEach(syncCustomSelectText);
 }
 
-// 平时成绩回填：等第数据→点等级 pill（页签默认等第制）；分数数据→先切分数制页签再填值
+// 平时成绩回填：等第数据→点等级 pill（页签默认等第制）；分数数据→先切分数制页签再填值。
+// v0.25.15 审计修复：弃属性选择器插值（[data-score-subject="${cs.subject}"]），脏数据含 " 或 ] 会让
+// querySelector 抛 SyntaxError → 编辑弹窗打不开（自伤 DoS）；改遍历 dataset 比对（同库内 checkById 模式）。
 function prefillStudentScores(scores) {
+  const rows = [...document.querySelectorAll('#d-scores .region-score-row')];
   (scores || []).forEach(cs => {
-    const row = document.querySelector(`#d-scores .region-score-row[data-score-subject="${cs.subject}"]`);
+    const row = rows.find(r => r.dataset.scoreSubject === cs.subject);
     if (!row) return;
     if (cs.grade) {
-      const pill = row.querySelector(`.grade-option[data-grade="${cs.grade}"]`);
+      const pill = [...row.querySelectorAll('.grade-option')].find(p => p.dataset.grade === cs.grade);
       if (pill) pickGrade(pill);
     } else if (cs.score !== '' && cs.score != null) {
       const tab = row.querySelector('.score-mode-tab[data-mode="score"]');

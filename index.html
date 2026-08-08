@@ -320,6 +320,10 @@
               <select class="form-select" id="profile-gender" required><option value="">请选择</option></select>
             </div>
             <div class="form-group">
+              <label class="form-label">个人简介</label>
+              <input type="text" class="form-input" id="profile-intro" maxlength="50" placeholder="一句话介绍自己，让学生更快了解你（选填，50 字内）">
+            </div>
+            <div class="form-group">
               <label class="form-label">擅长科目 <span class="req">*</span>（可多选）</label>
               <div class="checkbox-grid" id="profile-subjects"></div>
             </div>
@@ -376,10 +380,6 @@
               <div class="profile-credential-ctl" id="profile-credential-ctl"></div>
               <input type="file" id="profile-credential-file" accept="image/*" class="sr-file-input" onchange="handleCredentialPicked(this)">
               <div class="form-note-block">学历证明，仅双向匹配后向对方可见，不公开</div>
-            </div>
-            <div class="form-group">
-              <label class="form-label">个人简介</label>
-              <input type="text" class="form-input" id="profile-intro" maxlength="50" placeholder="一句话介绍自己，让学生更快了解你（选填，50 字内）">
             </div>
             <div class="form-actions">
               <button type="submit" class="btn glass glass--pressable" id="profile-submit">保存</button>

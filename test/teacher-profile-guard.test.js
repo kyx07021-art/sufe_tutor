@@ -63,7 +63,7 @@ async function seed(db, raw) {
 }
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 const baseProfile = { province: 'shanghai', grade: 'freshman', gender: 'male', subjects: ['math'], gaokao_scores: [] };
-const rowOf = (raw, tea) => raw.prepare('SELECT price_min, price_max, time_slots, teaching_method, personality_tags, nonacademic_projects, nonacademic_prices, graduation_year FROM teacher_profiles WHERE user_id=?').get(tea);
+const rowOf = (raw, tea) => raw.prepare('SELECT price_min, price_max, time_slots, teaching_method, personality_tags, nonacademic_projects, nonacademic_prices, graduation_year, grade, gender, subjects, gaokao_scores FROM teacher_profiles WHERE user_id=?').get(tea);
 
 test('报价区间钳制：负值/超上限夹到 [0,BUDGET_MAX]，max<min 以 min 为准，null=未填保留', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -183,4 +183,63 @@ test('非学科项目：白名单去重、报价钳制、project 不在 projects
   assert.equal(music.price_max, 99999, 'music 超上限钳到 BUDGET_MAX');
   const chess = prices.find(x => x.project === 'chess');
   assert.equal(chess.price_max, 200, 'chess min=200 > max=100 → max 以 min 为准');
+});
+
+test('擅长科目白名单：合法入库、注入/未知 id 滤除去重、非数组 400（网安纵深防御）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, tea } = await seed(db, raw);
+  // 合法科目 + 注入串 + 重复 → 只留白名单内且去重（技术属浙江地区科目池，全量池含）
+  let r = await handleSaveProfile(db, { profile: { ...baseProfile, subjects: ['math', '<img onerror=1>', 'math', 'technology'] } }, reqOf(token));
+  assert.equal(r.status, 200);
+  assert.equal(JSON.parse(rowOf(raw, tea).subjects).join(','), 'math,technology', '白名单过滤 + 去重（注入串丢弃，技术保留）');
+  // 非数组 → 400
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, subjects: 'math,physics' } }, reqOf(token));
+  assert.equal(r.status, 400, 'subjects 非数组拒绝');
+  // 缺省 → 空数组
+  const { subjects, ...noSubj } = baseProfile;
+  r = await handleSaveProfile(db, { profile: noSubj }, reqOf(token));
+  assert.equal(r.status, 200);
+  assert.equal(rowOf(raw, tea).subjects, '[]', '缺省 subjects 落空数组');
+});
+
+test('年级/性别白名单：合法入库、非法静默回退空串（性别含历史 nonbinary）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, tea } = await seed(db, raw);
+  let r = await handleSaveProfile(db, { profile: { ...baseProfile, grade: 'graduated_master', gender: 'undeclared' } }, reqOf(token));
+  assert.equal(r.status, 200);
+  assert.equal(rowOf(raw, tea).grade, 'graduated_master', '合法年级入库');
+  assert.equal(rowOf(raw, tea).gender, 'undeclared', '合法性别（不愿透露）入库');
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, grade: 'hacker', gender: '<script>' } }, reqOf(token));
+  assert.equal(r.status, 200, '非法年级/性别不报错，静默回退');
+  assert.equal(rowOf(raw, tea).grade, '', '非法年级回退空串');
+  assert.equal(rowOf(raw, tea).gender, '', '非法性别回退空串（注入串被丢弃）');
+  // 历史 nonbinary 保留（展示层视同未填）
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, gender: 'nonbinary' } }, reqOf(token));
+  assert.equal(rowOf(raw, tea).gender, 'nonbinary', '历史 nonbinary 兼容保留');
+});
+
+test('高考成绩白名单：subject 池过滤、score 钳到 [0,300]、非法 grade 丢弃、非数组 400', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, tea } = await seed(db, raw);
+  const gk = [
+    { subject: 'math', score: 150 },
+    { subject: 'chinese', score: 9999 },   // 超 300 钳到 300
+    { subject: 'hacker', score: 100 },      // 未知科目丢弃
+    { subject: 'chemistry', grade: 'A' },   // 合法等第保留
+    { subject: 'physics', grade: '<script>' }, // 非法等第丢弃
+  ];
+  let r = await handleSaveProfile(db, { profile: { ...baseProfile, gaokao_scores: gk } }, reqOf(token));
+  assert.equal(r.status, 200);
+  const scores = JSON.parse(rowOf(raw, tea).gaokao_scores);
+  assert.equal(scores.length, 3, '未知科目与非法等第被丢弃');
+  const math = scores.find(x => x.subject === 'math');
+  assert.equal(math.score, 150, '合法分数入库');
+  const chinese = scores.find(x => x.subject === 'chinese');
+  assert.equal(chinese.score, 300, '超上限钳到 300（海南标准分上限）');
+  const chem = scores.find(x => x.subject === 'chemistry');
+  assert.equal(chem.grade, 'A', '合法等第保留');
+  assert.ok(!scores.some(x => x.subject === 'physics'), '非法等第条目被丢弃');
+  // 非数组 → 400
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, gaokao_scores: 'x' } }, reqOf(token));
+  assert.equal(r.status, 400, 'gaokao_scores 非数组拒绝');
 });

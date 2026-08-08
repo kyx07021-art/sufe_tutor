@@ -313,6 +313,13 @@ function runTour(nameOrSteps) {
 /** 跳过引导：右上角全局按钮 + Esc 统一收尾（需求三·6：跳过入口全局常亮，这才是跳过按钮的正确用法） */
 function skipTour() { _tourCleanup(); }
 
+// 登出复位（app-state registerLogoutReset 协议）：引导停在「等待点击」态时登出 → 立即收尾，
+// 不残留全屏拦截层盖住落地页（审计修复：此前只在步骤推进/等待轮询时 _tourInClientView 检查，
+// 等待用户点击的纯等待态会滞留覆盖层，直到用户再点任意处才触发清理）
+if (typeof registerLogoutReset === 'function') {
+  registerLogoutReset(() => { if (_tourActive) skipTour(); });
+}
+
 /**
  * 「重温新手引导」入口：按登录态 + 角色选脚本。管理员为运营角色不引导；
  * 不重置 sufe_returning 首访标记（仅首次访问自动弹窗用）。

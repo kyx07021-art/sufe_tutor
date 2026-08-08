@@ -126,6 +126,7 @@ test('openSigningModal：请求 phase=signing 需求，下拉每项含 #编号 �
 test('openContractDraftModal：请求 phase=contract，含「仅已签约需求」提示，下拉含 #编号', async () => {
   const { ctx, dom } = makeCtx();
   vm.runInContext(`
+    ensureAuth = () => true; // v0.25.15：openContractDraftModal 补 ensureAuth 守卫后测试须桩
     api = async (url) => { window.__requestedUrl = url; return { demands: [
       { id: 1, user_id: 39, display_id: 7, target_subjects: ['math'], target_type: 'academic', budget_min: 100, budget_max: 200 },
     ]}; };
@@ -140,6 +141,26 @@ test('openContractDraftModal：请求 phase=contract，含「仅已签约需求�
   assert.ok(sel, 'contract-demand select 在 DOM');
   assert.ok([...sel.options].some(o => o.textContent.includes('#0007')), '下拉含需求编号 #0007');
   assert.ok(![...sel.options].some(o => o.textContent.includes('不关联需求')), '不再提供「不关联需求」空选项');
+});
+
+test('openContractDraftModal：会话绑定需求不在可绑列表时置空占位（不静默回退首项，v0.25.15 审计修复）', async () => {
+  const { ctx, dom } = makeCtx();
+  vm.runInContext(`
+    ensureAuth = () => true;
+    api = async () => ({ demands: [
+      { id: 1, user_id: 39, display_id: 7, target_subjects: ['math'], target_type: 'academic', budget_min: 100, budget_max: 200 },
+      { id: 2, user_id: 39, display_id: 8, target_subjects: ['physics'], target_type: 'academic', budget_min: 150, budget_max: 250 },
+    ]});
+    chatConvById = () => ({ id: 1, student_user_id: 39, teacher_user_id: 40, demand_id: 999 }); // 绑定的需求不在可绑列表
+  `, ctx);
+  await vm.runInContext('openContractDraftModal(1)', ctx);
+  const sel = dom.window.document.getElementById('contract-demand');
+  assert.ok(sel, 'contract-demand select 在 DOM');
+  // 占位 option 存在且被选中（用户须显式选择，防与会话实际绑定需求不符）
+  const opts = [...sel.options];
+  assert.equal(opts[0].value, '', '首项为占位空值');
+  assert.ok(opts[0].disabled && opts[0].selected, '占位 option 选中且禁选');
+  assert.ok(!opts.some(o => o.selected && o.value !== ''), '无任何真实需求被静默预选');
 });
 
 test('submitSigning：未选需求被校验拦截，不发起请求；选中后携带 demandId', async () => {
