@@ -1824,7 +1824,7 @@ body.profile-panel-closing .profile-panel {
 .sidebar-version { margin-top: 8px; font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; color: var(--ink-3); opacity: .45; text-align: right; } /* 侧边栏白卡底：小字版本号 */
 .demand-id-tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); margin-left: 6px; } /* v0.20.0 编号从气泡挪出，与时间标记同排（时间右侧） */
 .form-note-block { margin-top: 6px; font-size: .72rem; line-height: 1.5; color: var(--muted); } /* 表单字段下方灰字备注 */
-.form-other-wrap { margin-top: 10px; } /* 下拉选「其他」时展开的文字输入行 */
+.form-group > .form-other-wrap { margin-top: 10px; flex-basis: 100%; display: flex; } /* 下拉选「其他」时展开的文字输入行——独占整行排下拉下方、输入撑满整行（v0.25.54 需求四十六：曾与下拉+label 同排挤成 186px 错位；特异性须压过 .form-group > div 的 flex:1 1 0） */
 /* 低调危险操作（撤销合同/注销账户）：玻璃圆角小按钮 + 红色危险染色——圆角由 .glass 引擎统一
    （旧 border-radius:0 与玻璃圆角竞争、方角胜出，已删；用户纪律：竞争删一方） */
 .btn-text-danger {
