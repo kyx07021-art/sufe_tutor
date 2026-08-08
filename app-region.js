@@ -158,8 +158,7 @@ function renderTeacherGaokaoEditor(provinceId, graduationYear, existing) {
   // 保存拦截另在 handleSaveProfile（app-pages）用同款 gaokaoPolicyMismatchCount 复检
   const mismatches = gaokaoPolicyMismatchCount(pol, list);
   if (mismatches > 0) {
-    html += `<div class="alert alert-warn glass gaokao-mismatch-warn">${escHtml(
-      UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches).replace('{year}', graduationYear ? String(graduationYear) : '（未填）'))}</div>`;
+    html += alertHtml('warn', UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches).replace('{year}', graduationYear ? String(graduationYear) : '（未填）'), 'gaokao-mismatch-warn');
   }
 
   // 主科原始分（三分支共有，仅渲染勾选的擅长主科）
@@ -289,9 +288,8 @@ function teacherSubjectPool(provinceId) {
 function rebuildTeacherSubjects(provinceId) {
   const el = document.getElementById('profile-subjects');
   if (!el) return;
-  const checked = new Set([...el.querySelectorAll('input:checked')].map(cb => cb.value));
-  el.innerHTML = teacherSubjectPool(provinceId).map(s => `
-    <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(s.id)}"${checked.has(s.id) ? ' checked' : ''}>${escHtml(s.name)}</label>`).join('');
+  const checked = [...el.querySelectorAll('input:checked')].map(cb => cb.value);
+  el.innerHTML = checkboxItemsHtml(teacherSubjectPool(provinceId), checked);
 }
 
 function onTeacherProvinceChange() {
@@ -398,9 +396,7 @@ function buildStudentSubjectsHtml(provinceId, gradeId) {
   if (!gradeId) return `<p class="text-sm text-muted">${UI.REGION_HINT_PICK_GRADE}</p>`;
   const ids = R.subjectsFor(provinceId, gradeId);
   if (!ids || !ids.length) return `<p class="text-sm text-muted">${UI.REGION_HINT_NO_SUBJECTS}</p>`;
-  return ids.map(sid =>
-    `<label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(sid)}">${escHtml(R.subjectNames[sid] || sid)}</label>`
-  ).join('');
+  return checkboxItemsHtml(ids.map(sid => ({ id: sid, name: R.subjectNames[sid] || sid })));
 }
 
 // 各科成绩行：科目名 +（gradeLevelsFor 非空时）「等第制 | 分数制」页签 + 对应面板。

@@ -219,12 +219,14 @@
 .chat-stage-thumb:has(.chat-stage-ring) .chat-stage-file { opacity: .45; }
 
 /* ---------- 拖入聊天区：虚线罩 + 中央提示 ---------- */
+/* v0.25.19 审计 G-07：功能覆盖层接入引擎（app-chat.js 挂 glass glass--solid）——background 迁 --g-fill；
+   全屏覆盖层零圆角/零浮影/零液体边保视觉不变；position/outline 为功能结构保留直写 */
 .chat-pane { position: relative; }
 .chat-drop-hint {
   position: absolute; inset: 0; z-index: 30; pointer-events: none;
   display: flex; align-items: center; justify-content: center;
   outline: 2px dashed var(--accent); outline-offset: -10px;
-  background: var(--g-accent-fill-soft);
+  --g-fill: var(--g-accent-fill-soft); --g-r: 0; --g-lift: 0 0 0 0 transparent; --g-liquid: 0 0 0 0 transparent;
   font-size: .8rem; font-weight: 700; color: var(--accent-deep); letter-spacing: .04em;
 }
 
@@ -257,7 +259,9 @@
 
 /* ---------- 合同改动 diff 视图（v0.24.3 改动留痕+高亮） ---------- */
 .contract-diff-head { font-size: .76rem; color: var(--text-muted, inherit); margin-bottom: 6px; }
-.contract-diff { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--g-paper, transparent); }
+/* v0.25.19 审计 G-07：diff 容器接入引擎（app-contracts.js 已挂 glass glass--solid 类）——
+   background 直写迁 --g-fill，border-radius 迁 --g-r；border/overflow 为结构属性保留直写 */
+.contract-diff { --g-fill: var(--g-paper); --g-r: 10px; border: 1px solid var(--line); overflow: hidden; }
 .diff-line { display: flex; gap: 8px; padding: 3px 10px; font-size: .8rem; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
 .diff-line + .diff-line { border-top: 1px solid rgba(17,17,20,.05); }
 .diff-sign { flex: 0 0 14px; text-align: center; user-select: none; color: var(--text-muted, inherit); }
@@ -315,12 +319,14 @@ textarea.chat-textarea {
 .chat-input-bar--closed { justify-content: center; }
 .chat-closed-tip { padding: 6px 0; font-size: .8rem; color: var(--muted); }
 
-/* 需求四·第4条：签约确认后会话背景灰字提示条（JS 只切 hidden 类显隐，文案单源 UI.CHAT_SIGN_TIP） */
+/* 需求四·第4条：签约确认后会话背景灰字提示条（JS 只切 hidden 类显隐，文案单源 UI.CHAT_SIGN_TIP）
+   v0.25.19 审计 G-07：接入引擎（app-chat.js 挂 glass glass--solid）——background 迁 --g-fill；
+   全宽条零圆角/零浮影/零液体边保视觉不变；border-bottom 为结构线保留 */
 .chat-sign-tip {
   padding: 6px 14px;
   font-size: .78rem; line-height: 1.5; color: var(--muted);
   text-align: center;
-  background: var(--g-fill-faint);
+  --g-fill: var(--g-fill-faint); --g-r: 0; --g-lift: 0 0 0 0 transparent; --g-liquid: 0 0 0 0 transparent;
   border-bottom: 1px solid var(--line);
 }
 

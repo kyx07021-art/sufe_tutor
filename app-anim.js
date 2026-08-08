@@ -126,6 +126,15 @@ function positionCustomSelectPanel(wrap) {
   panel.style.top = `${r.bottom + 6}px`;
   panel.style.width = `${r.width}px`;
 }
+/* 悬浮卡 fixed 锚定（v0.25.19 审计 G-14：教师端/学生端匹配度明细卡原两处重复定位，抽单点）。
+   挂 body 的 fixed 卡以触发按钮 rect 定位（left 对齐 + 下缘 offset）；listEl 可选——几何上限随按钮下缘差收缩。 */
+function positionFloatCard(btn, card, listEl) {
+  if (!btn || !card) return;
+  const r = btn.getBoundingClientRect();
+  card.style.left = `${r.left}px`;
+  card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
+  if (listEl) listEl.style.maxHeight = `${CONFIG.MATCH_DETAIL_MAX_HEIGHT}px`;
+}
 // 滚动即收起（fixed 面板不跟随滚动；capture 捕获所有滚动容器，但面板自身滚动除外——否则一滚面板就收）
 document.addEventListener('scroll', e => {
   if (e.target.closest && e.target.closest('.custom-select-panel')) return;

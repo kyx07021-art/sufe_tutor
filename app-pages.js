@@ -217,7 +217,7 @@ function confirmLogout() {
   openModal({
     title: null,
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
-    body: `<p style="margin-bottom:16px;">${UI.CONFIRM_LOGOUT}</p>`,
+    body: `<p class="spacer-lg">${UI.CONFIRM_LOGOUT}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="closeModal();handleLogout()">${UI.BTN_LOGOUT}</button>`,
   });
@@ -350,9 +350,7 @@ function initProfileForm() {
 
   const subjEl = document.getElementById('profile-subjects');
   // R2-12/M3 科目池走省感知 teacherSubjectPool（初始无省份 = 基础 9 科；选浙江后 onTeacherProvinceChange 重建加技术）
-  subjEl.innerHTML = teacherSubjectPool('').map(s=>
-    `<label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(s.id)}">${escHtml(s.name)}</label>
-  `).join('');
+  subjEl.innerHTML = checkboxItemsHtml(teacherSubjectPool(''));
   subjEl.removeEventListener('change', onTeacherSubjectsChange); // 静态节点每次进档案页都会初始化，先解绑防叠加（勾一次触发 N 遍）
   subjEl.addEventListener('change', onTeacherSubjectsChange); // 擅长科目驱动高考填写组件按需加载
   // 高考成绩区改由省份驱动（app-region.js）：选省份后渲染锁定编辑器；科目勾选仅标记擅长科目
@@ -515,14 +513,14 @@ async function handleSaveProfile(e) {
   e.preventDefault();
   const alertEl = document.getElementById('profile-alert');
   const province = document.getElementById('profile-province').value;
-  if (!province) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
+  if (!province) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_PROVINCE); return; }
   const subjects = [...document.querySelectorAll('#profile-subjects input:checked')].map(cb=>cb.value);
-  if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
+  if (!subjects.length) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_SUBJECT); return; }
 
   // R2-1 可授课时间段：前端先过 validateTimeSlots（半填/起止颠倒就地拦截），再收集序列化
   const timeSlotsContainer = document.getElementById('profile-time-slots');
   const tsErr = validateTimeSlots(timeSlotsContainer);
-  if (tsErr) { alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(tsErr)}</div>`; return; }
+  if (tsErr) { alertEl.innerHTML = alertHtml('error', tsErr); return; }
   const timeSlots = collectTimeSlots(timeSlotsContainer);
 
   // 省份锁定组件的收集函数（app-region.js），输出与旧 gaokao_scores 形状兼容
@@ -536,14 +534,14 @@ async function handleSaveProfile(e) {
   })();
   const mismatches = gaokaoPolicyMismatchCount(polForSave, gaokaoScores);
   if (mismatches > 0) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(
-      UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches).replace('{year}', gradYearVal ? gradYearVal : '（未填）'))}</div>`;
+    alertEl.innerHTML = alertHtml('error',
+      UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches).replace('{year}', gradYearVal ? gradYearVal : '（未填）'));
     return;
   }
 
   try {
     const btn = document.getElementById('profile-submit');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>';
+    btnLoading(btn);
     await api('/api/teacher/profile', {
       method: 'POST', body: { profile: {
         province,
@@ -573,13 +571,13 @@ async function handleSaveProfile(e) {
         credential_image: _profileCredential || '', // 截图 dataURL 暂存件随档案提交（空串 = 未上传/清空）
       }},
     });
-    alertEl.innerHTML = `<div class="alert alert-success glass">${UI.SUCCESS_PROFILE_SAVED}</div>`;
+    alertEl.innerHTML = alertHtml('success', UI.SUCCESS_PROFILE_SAVED);
     invalidate('teachers'); // 档案已变：清教师列表缓存，浏览页/个人信息面板/推送弹窗下次读取重拉新档
   } catch (err) {
     showToast(err.message); // v0.19.43 档案长表单底部提交：门牌号预警等错误改 Toast，避免被滚动淹没
   } finally {
     const btn = document.getElementById('profile-submit');
-    btn.disabled = false; btn.textContent = UI.BTN_SAVE;
+    btnDone(btn, UI.BTN_SAVE);
   }
 }
 

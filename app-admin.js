@@ -59,7 +59,7 @@ function openPostViewModal(postId) {
   if (!p) return;
   openModal({
     title: escHtml(p.title),
-    body: `<p class="text-sm text-muted" style="margin-bottom:12px;">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
+    body: `<p class="text-sm text-muted modal-sub-info">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
         <div class="md-preview glass glass--solid">${mdRender(p.body_md || '')}</div>`,
   });
 }
@@ -201,14 +201,14 @@ async function generateInviteCode() {
   const btn = document.getElementById('gen-invite-btn');
   const display = document.getElementById('invite-code-display');
   try {
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>';
+    btnLoading(btn);
     const data = await api('/api/admin/invite', { method: 'POST' });
     state.currentInviteCode = data;
     document.getElementById('invite-code-text').textContent = data.code;
     display.classList.remove('hidden');
     startInviteTimer(new Date(data.expiresAt));
   } catch (err) { showToast(UI.ERROR_GENERATE_INVITE + err.message); }
-  finally { btn.disabled = false; btn.textContent = UI.BTN_GENERATE_INVITE; }
+  finally { btnDone(btn, UI.BTN_GENERATE_INVITE); }
 }
 
 function startInviteTimer(expiresAt) {
@@ -256,7 +256,7 @@ async function loadAdminStats() {
 
       <div class="admin-panel glass">
         <h3>${UI.ADMIN_RECENT_USERS}</h3>
-        ${s.recentUsers.map(u => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
+        ${s.recentUsers.map(u => `<div class="recent-row">
           <span><strong>${escHtml(u.username)}</strong> <span class="tag glass glass--solid">${DISP.roleLabel(u.role)}</span></span>
           <span class="text-muted">${fmtDateTime(u.created_at)}</span>
         </div>`).join('')}
@@ -264,7 +264,7 @@ async function loadAdminStats() {
 
       <div class="admin-panel glass">
         <h3>${UI.ADMIN_RECENT_DEMANDS}</h3>
-        ${s.recentDemands.map(d => `<div style="display:flex;justify-content:space-between;padding:var(--s2) 0;border-bottom:1px solid var(--border-light);font-size:0.8125rem;">
+        ${s.recentDemands.map(d => `<div class="recent-row">
           <span><strong>${escHtml(d.username)}</strong> ${escHtml(STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||'')} ${escHtml(DISP.demandTargetNames(d.target_subjects, d.target_type))}</span>
           <span class="text-muted">${fmtDateTime(d.created_at)}</span>
         </div>`).join('')}
@@ -290,7 +290,7 @@ async function loadAdminTraffic() {
         <div class="traffic-range glass glass--solid">${ranges.map(([r, label]) =>
           `<button type="button" class="traffic-range-btn${r === _trafficRange ? ' on' : ''}" data-range="${r}" onclick="setTrafficRange('${r}')">${label}</button>`).join('')}
         </div>
-        <p class="text-muted" style="font-size:.78rem;margin:0 0 10px;">${UI.TRAFFIC_HINT}</p>
+        <p class="text-muted traffic-hint">${UI.TRAFFIC_HINT}</p>
         <div id="traffic-chart-req"></div>
         <div id="traffic-chart-lat"></div>`;
       renderGlassLineChart(document.getElementById('traffic-chart-req'), {

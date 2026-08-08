@@ -153,6 +153,6 @@ test('confirm() 密码错误（403）：就地提示不关窗不执行动作', a
   assert.equal(vm.runInContext('window.__got', ctx), null, '密码错不执行动作');
   assert.ok(doc.querySelector('#modal-container .modal-overlay'), '密码错弹窗不关');
   const errEl = doc.getElementById('reauth-err');
-  assert.equal(errEl.style.display, 'block', '就地提示密码错误');
+  assert.equal(errEl.classList.contains('hidden'), false, '就地提示密码错误（hidden 类已移除）'); // v0.25.19 审计 G-12：显隐走 .hidden 类（原 style.display='block'）
   assert.ok(errEl.textContent.length > 0, '错误文案非空');
 });

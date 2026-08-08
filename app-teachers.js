@@ -173,12 +173,8 @@ function showTeacherMatchDetail(btn) {
   const card = btn.nextElementSibling;
   if (!card || !card.classList.contains('match-detail')) return;
   document.body.appendChild(card); // 挂 body：与教师端同因（.list-card backdrop-filter 会困住 fixed 后代）
-  const r = btn.getBoundingClientRect();
-  card.style.left = `${r.left}px`;
-  card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
-  // 条目区高度上限单源 CONFIG.MATCH_DETAIL_MAX_HEIGHT（几何锚定同 MAX_MATCH_DETAIL_OFFSET 的 JS 内联先例）
-  const list = card.querySelector('.match-t-list');
-  if (list) list.style.maxHeight = `${CONFIG.MATCH_DETAIL_MAX_HEIGHT}px`;
+  // v0.25.19 审计 G-14：锚定 + 条目区高度上限收编 app-anim positionFloatCard 单点
+  positionFloatCard(btn, card, card.querySelector('.match-t-list'));
   _matchDetailOpen = true;
 }
 
@@ -561,8 +557,8 @@ async function submitReview(teacherUserId, reviewId) {
   const comment = document.getElementById('review-comment').value.trim();
   const alertEl = document.getElementById('review-alert');
 
-  if (!rating) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_RATING}</div>`; return; }
-  if (comment.length < 2) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_COMMENT_TOO_SHORT}</div>`; return; }
+  if (!rating) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_RATING); return; }
+  if (comment.length < 2) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_COMMENT_TOO_SHORT); return; }
   if (reviewSubmitBusy) return;
   reviewSubmitBusy = true;
 
@@ -574,7 +570,7 @@ async function submitReview(teacherUserId, reviewId) {
     showToast(data.message || UI.SUCCESS_REVIEW_SUBMITTED);
     if (profilePanelShowing(teacherUserId)) openProfilePanel(teacherUserId); // 面板正展示该教师 → 评价卡片就地刷新（写/改后状态同步）
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = alertHtml('error', err.message);
   } finally {
     reviewSubmitBusy = false;
   }

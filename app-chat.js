@@ -258,7 +258,7 @@ function renderChatFrame(conv) {
         </svg>
       </button>` : ''}
     </div>
-    <div class="chat-sign-tip${conv && conv.contracted ? '' : ' hidden'}" id="chat-sign-tip">${UI.CHAT_SIGN_TIP}</div>
+    <div class="chat-sign-tip glass glass--solid${conv && conv.contracted ? '' : ' hidden'}" id="chat-sign-tip">${UI.CHAT_SIGN_TIP}</div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
     <div class="chat-drop-hint hidden" id="chat-drop-hint">${UI.CHAT_DROP_HINT}</div>
     <div class="chat-stage hidden glass" id="chat-stage"></div>
@@ -465,7 +465,7 @@ async function sendChatMessage() {
 
   const btn = document.getElementById('chat-send-btn');
   chatSending = true;
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>'; }
+  btnLoading(btn);
   try {
     // 先逐个发暂存附件（成功一条移出暂存区），再发文字
     for (const it of staged) await chatSendAttachment(it, convId);
@@ -499,7 +499,7 @@ async function sendChatMessage() {
     showToast(err.message); // 失败保留输入内容与剩余暂存项，便于重试
   } finally {
     chatSending = false;
-    if (btn) { btn.disabled = false; btn.textContent = UI.CHAT_BTN_SEND; }
+    btnDone(btn, UI.CHAT_BTN_SEND);
   }
 }
 

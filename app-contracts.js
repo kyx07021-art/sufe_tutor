@@ -124,7 +124,7 @@ function viewContract(contractId) {
     title: diffHtml ? UI.CONTRACT_VIEW_DIFF_TITLE : UI.BTN_VIEW_CONTRACT,
     bodyCls: 'contract-md',
     body: `${diffHtml ? `<div class="contract-diff-head">${escHtml(UI.CONTRACT_DIFF_HINT)}</div>
-        <div class="contract-diff">${diffHtml}</div>
+        <div class="contract-diff glass glass--solid">${diffHtml}</div>
         <div class="contract-diff-divider"></div>` : ''}
       ${mdRender(stripContractMarker(c.contract_md || ''))}`,
   });
@@ -178,7 +178,7 @@ function openContractModifyModal(contractId) {
 function openRevokeContractModal(contractId) {
   openModal({
     title: UI.REVOKE_MODAL_TITLE,
-    style: 'max-width:430px;',
+    style: `max-width:${CONFIG.MODAL_W_DEACTIVATE};`,
     body: `<p class="danger-warn">${UI.REVOKE_CONTRACT_WARN}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_THINK_AGAIN}</button>
           <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="confirmRevokeContract(${contractId})">${UI.BTN_CONTINUE_DANGER}</button>`,
@@ -208,7 +208,7 @@ async function verifyContractLedgerUi(contractId) {
 async function submitContractModify(contractId) {
   const md = (document.getElementById('post-body').value || '').trim();
   const alertEl = document.getElementById('post-alert');
-  if (!md) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.CONTRACT_EMPTY}</div>`; return; }
+  if (!md) { alertEl.innerHTML = alertHtml('error', UI.CONTRACT_EMPTY); return; }
   try {
     const data = await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: window._contractModifyVersion } });
     closeModal();
@@ -224,7 +224,7 @@ async function submitContractModify(contractId) {
         if (c && c.version != null) window._contractModifyVersion = c.version;
       } catch { /* 刷新失败静默，用户可关弹窗重开 */ }
     }
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = alertHtml('error', err.message);
   }
 }
 
@@ -325,7 +325,7 @@ async function openContractDraftModal(convId) {
   openModal({
     title: `${UI.DRAFT_MODAL_TITLE}`,
     closable: false,
-    body: `<div id="contract-alert">${demandsFailed ? `<div class="alert alert-error glass">${UI.CONTRACT_DEMANDS_LOAD_FAIL}</div>` : ''}</div>
+    body: `<div id="contract-alert">${demandsFailed ? alertHtml('error', UI.CONTRACT_DEMANDS_LOAD_FAIL) : ''}</div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND} <span class="req">*</span></label>
           <p class="text-sm text-muted contract-demand-hint">${UI.CONTRACT_DEMANDS_SIGNED_HINT}</p>
@@ -441,11 +441,11 @@ async function submitContractDraft(convId) {
   const trialPay = document.getElementById('contract-trial-pay').value;
   const trialPayOther = trialPay === 'other' ? (document.getElementById('contract-trial-pay-other').value || '').trim() : '';
   const demandId = parseInt(document.getElementById('contract-demand').value) || null;
-  if (!demandId) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.CONTRACT_REQUIRE_SIGNED}</div>`; return; } // 需求四·第3条：只能选已签约需求
-  if (!rate || +rate <= 0) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_RATE}</div>`; return; }
-  if (payMethod === 'other' && !payMethodOther) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER}</div>`; return; }
-  if (trialPay === 'other' && !trialPayOther) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER}</div>`; return; }
-  if (!plan) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_CONTRACT_PLAN}</div>`; return; }
+  if (!demandId) { alertEl.innerHTML = alertHtml('error', UI.CONTRACT_REQUIRE_SIGNED); return; } // 需求四·第3条：只能选已签约需求
+  if (!rate || +rate <= 0) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_RATE); return; }
+  if (payMethod === 'other' && !payMethodOther) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER); return; }
+  if (trialPay === 'other' && !trialPayOther) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER); return; }
+  if (!plan) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_PLAN); return; }
   if (contractDraftBusy) return;
   contractDraftBusy = true;
   try {
@@ -456,7 +456,7 @@ async function submitContractDraft(convId) {
     closeModal();
     showToast(data.message || UI.CONTRACT_DRAFT_SENT_TOAST);
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = alertHtml('error', err.message);
   } finally {
     contractDraftBusy = false;
   }

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.18',
+  APP_VERSION: '0.25.19',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -58,6 +58,7 @@ globalThis.APP_CONSTANTS = {
     REOPEN_DELAY_MS: 800,                 // 邀请码确认→注册跳转 / 注销→登出延迟
     MODAL_W_CONFIRM: '380px',             // 确认类弹窗宽度（散落 380/400/420/430/480 收敛）
     MODAL_W_SEND: '480px', MODAL_W_DEACTIVATE: '430px', MODAL_W_PROFILE_HINT: '420px',
+    MODAL_W_INTENT_CONFIRM: '400px',        // 试课意向确认弹窗（v0.25.19 审计 G-11：散落硬编码宽度收进 CONFIG）
     TOUR_TARGET_TIMEOUT_MS: 3000,         // 新手引导：目标未挂载 rAF 轮询超时，超时自动跳过该步
     TOUR_GAP_PX: 16,                      // 新手引导：文字气泡与亮区间距（JS 定位用）
     PROFILE_ROW_GAP: 22,                  // 需求六·item1：教师资料卡条目纵向间距 px（去分隔线后拉大空隙，防相邻条目粘连难读）

@@ -171,9 +171,10 @@ body { background: transparent; }
    微毛 = blur(3px)+saturate(180%)+brightness(1.05)（研究：saturate 180% 是通透感关键，
    旧 130% 把背景拉灰成雾感；blur 2-8px 为通透区间）
    边缘 = design.dev 七层配方（见 --g-liquid） */
-.list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
+.list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row, .chart-glass {
   /* 弯月本体：填充里的锐利新月弧。峰值 at 50% 4% 移入卡内（原 -5% 峰值被裁在上缘外，可见区只剩 ~.45 窄条——用户诊断②），
-     浅底可见靠 .90 峰值进卡 + 快速衰减；下缘暗弧（浅底可见的那半）在 --g-liquid 加深加锐 */
+     浅底可见靠 .90 峰值进卡 + 快速衰减；下缘暗弧（浅底可见的那半）在 --g-liquid 加深加锐
+     2026-08-08（审计 G-02）：.chart-glass 原是裸玻璃吃引擎默认填充，语义上属卡族（图表容器=信息卡），归入卡族组 */
   --g-fill: var(--g-card-fill);
   --g-frost: var(--g-f-card, blur(6px) saturate(180%) brightness(1.05));
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
@@ -243,7 +244,7 @@ body { background: transparent; }
 .checkbox-item:has(input:checked) { --g-fill: var(--g-accent-fill-strong); --g-fg: var(--white); }
 /* G2：成绩/首选/文理单选 pill 统一挂引擎玻璃（原 style-region 手卷第二套删，竖条迁 ::after；文字色单源 style.css） */
 .grade-option { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.grade-option.selected { --g-fill: var(--accent); } /* v0.19.43 与科目勾选/页签统一：选中一律品牌紫（原墨底黑） */
+.grade-option.selected { --g-fill: var(--accent); } /* v0.19.43 与科目勾选/页签统一：选中一律品牌紫（原墨底黑）；文字色单源 style.css（base/hover/selected 三态同处） */
 .gk-pill { --g-r: var(--lg-r); --g-hover: var(--g-hover-wash); }
 .score-mode-tabs { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .score-mode-tab { --g-fill: transparent; }
@@ -326,7 +327,7 @@ body { background: transparent; }
    此前 modalM blur(6px) 去 saturate/brightness 致移动端浮窗「不毛、不透白、透背景」）
    ============================================================ */
 @media (max-width: 860px) {
-  .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row {
+  .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row, .chart-glass {
     --g-frost: var(--g-f-cardM, blur(4px) saturate(180%) brightness(1.05));
   }
   .profile-card { --g-fill: var(--g-card-strong-m); } /* v0.19.35 层级白值：移动端侧栏近纯白底，卡不需 .82 叠白（token 化 v0.19.49） */
@@ -388,6 +389,7 @@ body { background: transparent; }
 /* 警示条（语义强填充 + 左色条） */
 .alert-error { --g-fill: var(--g-danger-fill-soft); --g-fg: var(--danger-deep); --g-surface: inset 3px 0 0 var(--danger); --g-r: var(--lg-r-sm); }
 .alert-success { --g-fill: var(--g-ok-fill); --g-fg: var(--ok-deep); --g-surface: inset 3px 0 0 var(--g-ok-fg); --g-r: var(--lg-r-sm); }
+.alert-warn { --g-fill: var(--g-warn-fill); --g-fg: var(--warn-deep); --g-surface: inset 3px 0 0 var(--warn-deep); --g-r: var(--lg-r-sm); } /* v0.25.19 审计 G-06：补缺预设（原裸 glass 吃引擎默认，无 warn 语义色；app-region gaokao-mismatch-warn 用） */
 
 /* 推送需求单选行 */
 .push-pick-item { --g-fill: var(--g-fill-faint); --g-r: var(--lg-r-sm); }
@@ -399,4 +401,4 @@ body { background: transparent; }
 .admin-panel { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 
 /* Toast（fixed 浮层，登记于 .glass--float）——标准玻璃：浅透镜 + 深字（不搞深色特殊）；v0.19.35 层级白值：浮层降 .30→.22 */
-.toast { --g-fill: var(--g-fill-strong); --g-fg: var(--ink); color: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); }
+.toast { --g-fill: var(--g-fill-strong); --g-fg: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); } /* v0.25.19 审计 G-08：color 冗余删净，文字色单源 --g-fg */

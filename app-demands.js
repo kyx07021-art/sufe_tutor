@@ -110,9 +110,7 @@ function renderDemandModal(demand) {
           <div class="demand-section" id="d-section-academic">
             <div class="form-group">
               <label class="form-label">${UI.LABEL_TARGET_SUBJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
-              <div class="checkbox-grid" id="d-subjects">${SUBJECTS.map(s=>`
-                <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${s.id}">${s.name}</label>
-              `).join('')}</div>
+              <div class="checkbox-grid" id="d-subjects">${checkboxItemsHtml(SUBJECTS)}</div>
             </div>
             <div class="form-group" id="d-scores-wrap">
               <label class="form-label">${UI.LABEL_CURRENT_SCORES}</label>
@@ -122,9 +120,7 @@ function renderDemandModal(demand) {
           <div class="demand-section hidden" id="d-section-nonacademic">
             <div class="form-group">
               <label class="form-label">${UI.LABEL_TARGET_PROJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
-              <div class="checkbox-grid" id="d-nonacademic">${NONACADEMIC_PROJECTS.map(p=>`
-                <label class="checkbox-item glass glass--solid"><input type="checkbox" value="${p.id}">${p.name}</label>
-              `).join('')}</div>
+              <div class="checkbox-grid" id="d-nonacademic">${checkboxItemsHtml(NONACADEMIC_PROJECTS)}</div>
             </div>
           </div>
           <div class="form-group">
@@ -152,10 +148,10 @@ function renderDemandModal(demand) {
           </div>
           <div class="form-group">
             <label class="form-label">${UI.LABEL_BUDGET}</label>
-            <div style="display:flex;gap:var(--s3);align-items:center;">
-              <input type="number" class="form-input" id="d-budget-min" placeholder="${UI.PLACEHOLDER_MIN}" min="0" step="1" style="flex:1;">
+            <div class="range-row">
+              <input type="number" class="form-input" id="d-budget-min" placeholder="${UI.PLACEHOLDER_MIN}" min="0" step="1">
               <span class="text-muted">~</span>
-              <input type="number" class="form-input" id="d-budget-max" placeholder="${UI.PLACEHOLDER_MAX}" min="0" step="1" style="flex:1;">
+              <input type="number" class="form-input" id="d-budget-max" placeholder="${UI.PLACEHOLDER_MAX}" min="0" step="1">
             </div>
           </div>
           <div class="form-group">
@@ -271,10 +267,10 @@ function toggleAddressField() {
   const section = document.getElementById('d-address-section');
   const addrInput = document.getElementById('d-address');
   if (method === 'online') {
-    section.style.display = 'none';
+    section.classList.add('hidden'); // v0.25.19 审计 G-12：style.display 直写改 .hidden 类（与同文件其余显隐口径统一）
     addrInput.required = false;
   } else {
-    section.style.display = '';
+    section.classList.remove('hidden');
     addrInput.required = true;
   }
 }
@@ -338,19 +334,19 @@ async function handleSubmitDemand(e) {
   e.preventDefault();
   const alertEl = document.getElementById('demand-alert');
   const province = document.getElementById('d-province').value;
-  if (!province) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_PROVINCE}</div>`; return; }
+  if (!province) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_PROVINCE); return; }
   // R2-b 需求类型 + 按类型收集目标（学科 → #d-subjects；非学科 → #d-nonacademic）
   const type = document.querySelector('#d-type-tabs .demand-type-tab.active').dataset.type;
   const targetSel = type === DEMAND_TYPES.NONACADEMIC ? '#d-nonacademic input:checked' : '#d-subjects input:checked';
   const subjects = [...document.querySelectorAll(targetSel)].map(cb => cb.value);
-  if (!subjects.length) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_SELECT_SUBJECT}</div>`; return; }
+  if (!subjects.length) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_SUBJECT); return; }
 
   const scores = type === DEMAND_TYPES.NONACADEMIC ? [] : collectStudentScores(); // 非学科无成绩概念
   const prefTags = [...document.querySelectorAll('#d-personality-tags .tag-pick.selected')].map(b => b.dataset.id);
 
   // v0.25.0 结构化期望时间：校验（半填/缺起止/结束早于开始）通过后收集为 [{type:'week',...}] JSON
   const timeErr = validateTimeSlots(document.getElementById('d-time-slots'));
-  if (timeErr) { alertEl.innerHTML = `<div class="alert alert-error glass">${timeErr}</div>`; return; }
+  if (timeErr) { alertEl.innerHTML = alertHtml('error', timeErr); return; }
   const timeSlots = collectTimeSlots(document.getElementById('d-time-slots'));
 
   const isEdit = !!state.editingDemandId;
@@ -375,7 +371,7 @@ async function handleSubmitDemand(e) {
 
   try {
     const btn = document.getElementById('d-submit');
-    btn.disabled = true; btn.innerHTML = '<span class="spinner"><i></i><i></i><i></i></span>';
+    btnLoading(btn);
     if (isEdit) {
       await api(`/api/student/demands/${state.editingDemandId}`, { method: 'PUT', body: payload });
     } else {
@@ -390,7 +386,7 @@ async function handleSubmitDemand(e) {
     showToast(err.message); // v0.19.43 长表单滚到底部提交：错误条在浮窗顶部不可见，改 Toast
   } finally {
     const btn = document.getElementById('d-submit');
-    if (btn) { btn.disabled = false; btn.textContent = isEdit ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND; }
+    btnDone(btn, isEdit ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND);
   }
 }
 
@@ -572,9 +568,7 @@ function showMatchDetail(btn) {
   // Chrome 中它是 fixed 后代的 containing block——不挂 body 则 fixed 实际仍相对卡：定位偏移/被 overflow:hidden 切/图层困卡内，
   // 上版只改 CSS 没改挂载点，正是「还是老样子」的根因
   document.body.appendChild(card);
-  const r = btn.getBoundingClientRect();
-  card.style.left = `${r.left}px`;
-  card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
+  positionFloatCard(btn, card); // v0.25.19 审计 G-14：锚定逻辑收编 app-anim 单点
   _matchDetailOpen = true;
 }
 function closeMatchDetail() {
@@ -737,7 +731,7 @@ async function loadBrowseDemands() {
     normalDemands.sort((a, b) => (mdOf[b.id] ?? -1) - (mdOf[a.id] ?? -1));
     const normal = normalDemands.map(d => renderDemandCard(d, { teacher: true, myTeacher })).join('');
     if (seq !== loadSeqs['browse-demands']) return; // 内层 await（拉教师档案）期间再进页：过期响应不渲染
-    el.innerHTML = (pinned ? `<div class="section-title" style="margin-bottom:8px;">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '') + normal;
+    el.innerHTML = (pinned ? `<div class="section-title spacer-sm">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '') + normal;
     initReveals(el);
   } catch (err) {
     if (seq !== loadSeqs['browse-demands']) return; // 过期请求的错误不覆盖新列表
@@ -767,9 +761,9 @@ async function openSendDemandModal(teacherUserId) {
   }).join('')}</div>` : `<p class="text-sm text-muted">${state.myDemands.length ? UI.PUSH_NO_AVAILABLE_DEMANDS : UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
   openModal({
     title: `${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}`,
-    style: 'max-width:480px;',
+    style: `max-width:${CONFIG.MODAL_W_SEND};`,
     closable: false,
-    body: `<p class="text-sm text-muted" style="margin-bottom:12px;">${UI.PUSH_MODAL_HINT}</p>
+    body: `<p class="text-sm text-muted spacer-md">${UI.PUSH_MODAL_HINT}</p>
         ${pickHtml}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>`,
@@ -833,8 +827,8 @@ async function submitIntent(demandId) {
     : '';
   openModal({
     title: UI.INTENT_CONFIRM_TITLE,
-    style: 'max-width:400px;',
-    body: `<p class="text-sm" style="line-height:1.7;">${UI.INTENT_CONFIRM_HINT.replace('{demand}', escHtml(demandDesc))}</p>`,
+    style: `max-width:${CONFIG.MODAL_W_INTENT_CONFIRM};`,
+    body: `<p class="text-sm text-relaxed">${UI.INTENT_CONFIRM_HINT.replace('{demand}', escHtml(demandDesc))}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="doSubmitIntent(${demandId})">${UI.BTN_CONFIRM_INTENT}</button>`,
   });
@@ -858,8 +852,8 @@ async function doSubmitIntent(demandId) {
 function showProfileIncompleteModal() {
   openModal({
     title: UI.PROFILE_INCOMPLETE_TITLE,
-    style: 'max-width:420px;',
-    body: `<p class="text-sm" style="color:var(--ink-3);line-height:1.7;">${UI.PROFILE_INCOMPLETE_HINT}</p>`,
+    style: `max-width:${CONFIG.MODAL_W_PROFILE_HINT};`,
+    body: `<p class="text-sm text-relaxed" style="color:var(--ink-3);">${UI.PROFILE_INCOMPLETE_HINT}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_LATER}</button>
           <button type="button" class="btn glass glass--pressable" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>`,
   });

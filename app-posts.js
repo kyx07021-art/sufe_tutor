@@ -271,13 +271,12 @@ async function submitPost() {
   const title = (titleEl.value || '').trim();
 
   if (!title) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${UI.POST_TITLE_REQUIRED}</div>`;
+    alertEl.innerHTML = alertHtml('error', UI.POST_TITLE_REQUIRED);
     titleEl.focus();
     return;
   }
   try {
-    btn.disabled = true;
-    btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span> ${UI.POST_PUBLISHING}`;
+    btnLoading(btn, UI.POST_PUBLISHING);
     await api('/api/posts', {
       method: 'POST',
       body: { title, bodyMd: bodyEl.value || '' },
@@ -287,9 +286,8 @@ async function submitPost() {
     invalidate('posts'); // v0.23.1 审计 M1：写后清数据层缓存，否则 loadPosts 命中旧列表新帖不出现
     loadPosts();
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
-    btn.disabled = false;
-    btn.textContent = UI.BTN_PUBLISH;
+    alertEl.innerHTML = alertHtml('error', err.message);
+    btnDone(btn, UI.BTN_PUBLISH);
   }
 }
 
@@ -357,10 +355,10 @@ async function submitBroadcast() {
   const title = (document.getElementById('post-title').value || '').trim();
   const text = (document.getElementById('post-body').value || '').trim();
   const alertEl = document.getElementById('post-alert');
-  if (!title) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.POST_TITLE_REQUIRED}</div>`; return; }
-  if (!text) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.VALIDATE_BROADCAST_EMPTY}</div>`; return; }
+  if (!title) { alertEl.innerHTML = alertHtml('error', UI.POST_TITLE_REQUIRED); return; }
+  if (!text) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_BROADCAST_EMPTY); return; }
   const btn = document.getElementById('broadcast-submit');
-  btn.disabled = true;
+  btnLoading(btn);
   try {
     // 服务端给标题加【系统通知】前缀后群发
     await api('/api/notifications/broadcast', { method: 'POST', body: { title, text } });
@@ -368,8 +366,8 @@ async function submitBroadcast() {
     showToast(UI.BROADCAST_SENT_TOAST);
     if (state.page === 'notifications') enterNotifications(); // 自己也收一条，列表即时刷新
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
-    btn.disabled = false;
+    alertEl.innerHTML = alertHtml('error', err.message);
+    btnDone(btn);
   }
 }
 
@@ -423,13 +421,13 @@ async function submitFeedback() {
   const title = (document.getElementById('post-title').value || '').trim();
   const content = (document.getElementById('post-body').value || '').trim();
   const alertEl = document.getElementById('post-alert');
-  if (!title) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.POST_TITLE_REQUIRED}</div>`; return; }
-  if (!content) { alertEl.innerHTML = `<div class="alert alert-error glass">${UI.FEEDBACK_EMPTY}</div>`; return; }
+  if (!title) { alertEl.innerHTML = alertHtml('error', UI.POST_TITLE_REQUIRED); return; }
+  if (!content) { alertEl.innerHTML = alertHtml('error', UI.FEEDBACK_EMPTY); return; }
   try {
     await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
     closeModal();
     showToast(UI.FEEDBACK_SENT_TOAST);
   } catch (err) {
-    alertEl.innerHTML = `<div class="alert alert-error glass">${escHtml(err.message)}</div>`;
+    alertEl.innerHTML = alertHtml('error', err.message);
   }
 }

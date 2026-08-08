@@ -413,6 +413,37 @@ document.addEventListener('error', e => {
 }, true);
 
 // ============================================================
+// 标准组件壳（2026-08-08 审计收编 G-10）：alert 提示条 / 按钮 loading / 勾选框组。
+// ——把散落在各领域模块的手拼 HTML 收敛到单点，转义与视觉单源（原 7 文件 36 处内联拼接）。
+// ============================================================
+/** Alert 提示条：kind=error|success|warn；msg 内部统一 escHtml（调用处传原始文案，禁重复转义）；
+    extraCls 透传额外类（如 gaokao-mismatch-warn）。返回完整 <div class="alert ... glass"> 字符串 */
+function alertHtml(kind, msg, extraCls) {
+  return `<div class="alert alert-${escHtml(kind)} glass${extraCls ? ' ' + extraCls : ''}">${escHtml(msg)}</div>`;
+}
+
+/** 按钮 loading：禁用 + 三柱 spinner（+ 可选右侧文案）；label 传 null 则纯 spinner。
+    恢复用 btnDone(btn, label)（textContent 还原——原 innerHTML 拼 spinner 会把原文本冲掉）。 */
+function btnLoading(btn, label) {
+  if (!btn) return;
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"><i></i><i></i><i></i></span>${label ? ' ' + escHtml(label) : ''}`;
+}
+function btnDone(btn, label) {
+  if (!btn) return;
+  btn.disabled = false;
+  if (label) btn.textContent = label;
+}
+
+/** 勾选框组：items=[{id,name}]，checkedIds 为已勾选 id 集合（可空）。返回 checkbox-item label 组 HTML。
+    视觉/转义单源（原 app-region/app-demands/app-pages 三处手拼同款 label） */
+function checkboxItemsHtml(items, checkedIds) {
+  const checked = new Set((checkedIds || []).map(String));
+  return items.map(it =>
+    `<label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(String(it.id))}"${checked.has(String(it.id)) ? ' checked' : ''}>${escHtml(it.name)}</label>`).join('');
+}
+
+// ============================================================
 // 等第 pill 单选（全站共享：教师档案/学生成绩/高考赋分组件均用 .grade-option，选中互斥）
 // ============================================================
 function pickGrade(el) {
@@ -458,10 +489,10 @@ function confirm({ title = null, message = '', needReAuth = false, okText = UI.B
       <button type="button" class="btn glass glass--pressable" onclick="${needReAuth ? 'runReAuth()' : 'runPendingConfirm()'}">${okText}</button>`;
   const body = needReAuth
     ? `<p class="confirm-msg">${message}</p>
-      <div class="form-group" style="border:none;">
+      <div class="form-group reauth-group">
         <label class="form-label">${UI.REAUTH_PASSWORD_LABEL} <span class="req">*</span></label>
         <input type="password" class="form-input" id="reauth-password" placeholder="${UI.REAUTH_PASSWORD_HINT}" autocomplete="current-password" onkeydown="if(event.key==='Enter')runReAuth()">
-        <p class="form-hint" id="reauth-err" style="color:var(--danger);display:none;"></p>
+        <p class="form-hint form-hint--error hidden" id="reauth-err"></p>
       </div>`
     : `<p class="confirm-msg">${message}</p>`;
   if (needReAuth) reAuthAction = onConfirm; else pendingConfirmAction = onConfirm;
@@ -484,7 +515,7 @@ async function runReAuth() {
   const errEl = document.getElementById('reauth-err');
   if (!input || !errEl) return;
   const password = input.value;
-  if (!password) { errEl.textContent = UI.REAUTH_PASSWORD_HINT; errEl.style.display = 'block'; input.focus(); return; }
+  if (!password) { errEl.textContent = UI.REAUTH_PASSWORD_HINT; errEl.classList.remove('hidden'); input.focus(); return; }
   try {
     const r = await api('/api/auth/re-auth', { method: 'POST', body: { password } });
     const action = reAuthAction;
@@ -493,7 +524,7 @@ async function runReAuth() {
     if (action) await action(r.capToken);
   } catch (err) {
     errEl.textContent = err.message;
-    errEl.style.display = 'block';
+    errEl.classList.remove('hidden');
     input.value = '';
     input.focus();
   }
