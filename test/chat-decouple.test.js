@@ -2,7 +2,7 @@
  * 会话与需求/签约解耦 + 绑定需求下拉（需求四·第1/2/3/4条）前端回归
  *
  * 覆盖：
- *   1. renderChatFrame 不再渲染需求编号与「已签约」tag，但含签约确认提示卡（.chat-sign-tip，带起草按钮）；
+ *   1. renderChatFrame 不再渲染需求编号与「已签约」tag，也无独立提示卡（#150：提示并入签约气泡底下）；
  *   2. renderConvItem 会话列表项不再含「已签约」tag；
  *   3. openSigningModal 请求 phase=signing 需求、下拉每项含 #编号 · 目标名；
  *   4. openContractDraftModal 请求 phase=contract、含「仅已签约需求」提示文案、下拉含 #编号；
@@ -77,7 +77,7 @@ test('会话模块 title 旁 i 信息按钮（需求四·10 自查补漏：聊�
   assert.ok(modal.textContent.includes('会话'), '浮窗含该模块介绍文案');
 });
 
-test('renderChatFrame：不再含需求编号与「已签约」tag，含签约灰字提示条', () => {
+test('renderChatFrame：不再含需求编号/「已签约」tag，也无独立提示卡（#150 并入气泡）', () => {
   const { ctx, dom } = makeCtx();
   vm.runInContext(`
     state.user = { id: 39, role: 'student' };
@@ -88,12 +88,9 @@ test('renderChatFrame：不再含需求编号与「已签约」tag，含签约�
   assert.ok(!html.includes('chat-head-demand'), '不得渲染 .chat-head-demand');
   assert.ok(!html.includes('chat-head-signed'), '不得渲染 .chat-head-signed');
   assert.ok(!html.includes('已签约'), '会话头不得显示「已签约」tag');
-  assert.ok(html.includes('chat-sign-tip'), '应渲染签约确认提示卡（.chat-sign-tip）');
-  assert.ok(html.includes('id="chat-sign-tip"'), '提示卡带稳定 id 供 JS 切类');
-  // 需求四十七（v0.25.55）：细长条重构为带「起草合同」动作的卡片——不再是被动灰字，有直达入口
-  assert.ok(html.includes('chat-sign-text'), '提示卡文案独立元素（.chat-sign-text）');
-  assert.ok(html.includes('onclick="chatPlusDraft()"'), '提示卡带「起草合同」动作按钮（直达 chatPlusDraft）');
-  assert.ok(html.includes('起草合同'), '按钮文案为「起草合同」（单源 CHAT_BTN_DRAFT_CONTRACT）');
+  // #150（v0.25.58）：顶部独立提示卡删除，提示并入签约请求气泡底下（renderChatBubble 终态模板）
+  assert.ok(!html.includes('chat-sign-tip'), '不得再渲染独立提示卡（.chat-sign-tip 已删）');
+  assert.ok(!html.includes('chat-sign-text'), '提示卡文案元素已随卡片移除');
 });
 
 test('renderConvItem：会话列表项不再含「已签约」tag', () => {

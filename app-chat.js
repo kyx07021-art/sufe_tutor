@@ -221,7 +221,7 @@ async function openConversation(convId) {
     box.innerHTML = msgs.length
       ? msgs.map((m, i) => renderChatBubble(m, i)).join('')
       : `<div class="empty-state empty-state--small"><p>${UI.CHAT_EMPTY_NO_MESSAGES}</p></div>`;
-    if (msgs.some(chatMsgSigningSigned)) chatShowSignTip(); // 需求四·第4条：重开会话已签约 → 背景灰字提示
+    // #150：已签约提示随请求气泡模板渲染（status='signed' 自带 caption），无需额外注入
     chatLastMsgId = msgs.length ? msgs[msgs.length - 1].id : 0;
     chatScrollToBottom(false);
     if (msgs.some(m => (m.kind === 'image' || m.kind === 'file') && !m.body)) chatLazyLoadAttachments(); // 骨架占位延迟补载
@@ -241,7 +241,8 @@ async function openConversation(convId) {
 // 聊天窗骨架：头部（对方名 + 身份）+ 气泡区 + 输入区。
 // 会话关闭（status 非 active，服务端亦会 403）时输入区换成提示条。
 // 需求四·第1条：会话与需求/签约解耦——头部不显示需求编号、不显示「已签约」tag，会话只是发起签约的入口；
-// 第4条：签约确认后在会话背景弹一行灰字「已建议签合同」（.chat-sign-tip，JS 只切 hidden 类）。
+// 第4条（v0.25.58）：签约确认后「已建议签合同」提示随签约请求气泡渲染（模板终态渲染 + 在途注入），
+// 不再独立于消息流顶部（v0.25.55 卡片已随 #150 并入签约气泡底下）。
 function renderChatFrame(conv) {
   const peer = conv ? chatPeerOf(conv) : { name: '', role: '' };
   const closed = conv && conv.status && conv.status !== 'active';
@@ -257,10 +258,6 @@ function renderChatFrame(conv) {
           <circle cx="12" cy="8" r="3.6"/><path d="M4.6 19.4c1.6-3.3 4.2-5 7.4-5s5.8 1.7 7.4 5"/>
         </svg>
       </button>` : ''}
-    </div>
-    <div class="chat-sign-tip glass glass--solid${conv && conv.contracted ? '' : ' hidden'}" id="chat-sign-tip">
-      <span class="chat-sign-text">${UI.CHAT_SIGN_TIP}</span>
-      <button type="button" class="btn btn-sm glass glass--pressable" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
     </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
     <div class="chat-drop-hint hidden" id="chat-drop-hint">${UI.CHAT_DROP_HINT}</div>
@@ -339,7 +336,11 @@ function renderChatBubble(m, i) {
         </div>` : ''}
         ${done ? `<p class="signing-bubble-status">${done}</p>` : ''}
         <p class="signing-bubble-funds">${UI.FUNDS_NOTE_SHORT}</p>
-      </div>${time}</div>`;
+      </div>
+      ${s.status === 'signed' ? `<div class="signing-bubble-caption glass glass--solid">
+        <span class="signing-bubble-caption-text">${UI.CHAT_SIGN_TIP}</span>
+        <button type="button" class="btn btn-sm glass glass--pressable" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
+      </div>` : ''}${time}</div>`;
   }
   // v0.24.0 签约回应气泡（对方确认/拒绝后落一条，在途会话实时刷新）
   // v0.24.2 审计：视角修正——回应方看到「你已…」，发起方看到「对方已…」（原恒显「对方已…」颠倒）
@@ -485,7 +486,12 @@ async function chatPollTick() {
     chatScrollToBottom(true);
     if (fresh.some(m => (m.kind === 'image' || m.kind === 'file') && !m.body)) chatLazyLoadAttachments(); // 轮询带回的附件补载
     chatBumpConvPreview(convId, fresh[fresh.length - 1]); // 左栏预览同步 + 置顶
-    if (fresh.some(chatMsgSigningSigned)) chatShowSignTip(); // 需求四·第4条：对方确认签约 → 背景灰字提示
+    // #150：对方确认签约 → 把提示卡注入到配对的签约请求气泡底下（幂等；重开会话走模板终态渲染）
+    fresh.filter(m => m.kind === 'signing_response').forEach(m => {
+      let r = {};
+      try { r = JSON.parse(m.body || '{}'); } catch { /* 兜底 */ }
+      if (r.accept && /^\d+$/.test(String(r.requestId || ''))) chatInjectSignCaption(r.requestId);
+    });
     if (fresh.some(m => m.sender_user_id !== state.user.id)) markReadConv(convId); // 看着的会话收到对方消息：就地已读
   } catch (err) {
     // 网络抖动静默，下一 tick 自愈
@@ -748,21 +754,29 @@ function closeChatPlus() { const w = document.getElementById('chat-plus-wrap'); 
 function chatPlusDraft() { closeChatPlus(); if (chatConvId) openContractDraftModal(chatConvId); }
 function chatPlusSigning() { closeChatPlus(); if (chatConvId) openSigningModal(chatConvId); }
 
-// 需求四·第4条：会话内确认签约后，背景弹一行灰字「已签约+建议签合同」。
-// 判定口径（服务端终态）：signing_request 气泡 status='signed'，或 signing_response 气泡 accept=true。
-// 显示仅切 .chat-sign-tip 的 hidden 类（CSS 呈现，文案单源 UI.CHAT_SIGN_TIP）
-function chatMsgSigningSigned(m) {
-  if (!m) return false;
-  try {
-    const b = JSON.parse(m.body || '{}');
-    if (m.kind === 'signing_request') return b.status === 'signed';
-    if (m.kind === 'signing_response') return !!b.accept;
-    return false;
-  } catch { return false; }
-}
-function chatShowSignTip() {
-  const tip = document.getElementById('chat-sign-tip');
-  if (tip) tip.classList.remove('hidden');
+// 需求四·第4条（v0.25.58 #150）：签约确认后，「已与对方确认签约 + 起草合同」提示卡随签约请求气泡
+// 底下渲染——不再有独立于消息流的背景提示条。双路呈现：
+//   1) 终态模板：重开会话拉历史，signing_request 气泡 status='signed' 时模板直接渲染 caption；
+//   2) 在途注入：轮询/回应方就地确认时，配对 data-signing-id 把 caption 插到气泡底下（幂等）。
+// 文案单源 UI.CHAT_SIGN_TIP；signingId 仅接受纯数字（防 CSS 选择器注入）。
+function chatInjectSignCaption(signingId) {
+  if (!/^\d+$/.test(String(signingId || ''))) return;
+  const bubble = document.querySelector(`.chat-bubble[data-signing-id="${signingId}"]`);
+  if (!bubble || !bubble.parentElement) return;
+  if (bubble.parentElement.querySelector('.signing-bubble-caption')) return; // 幂等
+  const wrap = document.createElement('div');
+  wrap.className = 'signing-bubble-caption glass glass--solid';
+  const span = document.createElement('span');
+  span.className = 'signing-bubble-caption-text';
+  span.textContent = UI.CHAT_SIGN_TIP;
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-sm glass glass--pressable';
+  btn.textContent = UI.CHAT_BTN_DRAFT_CONTRACT;
+  btn.addEventListener('click', chatPlusDraft);
+  wrap.appendChild(span);
+  wrap.appendChild(btn);
+  bubble.after(wrap);
 }
 
 // v0.24.0 回应签约请求：确认/拒绝。成功后就地把请求气泡变灰 + 按钮消失为小灰字
@@ -779,7 +793,7 @@ async function respondSigning(signingId, accept) {
       if (status) status.textContent = text;
       else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = text; el.appendChild(p); }
     });
-    if (accept) chatShowSignTip(); // 需求四·第4条：确认签约 → 会话背景灰字提示
+    if (accept) chatInjectSignCaption(signingId); // #150：确认签约 → 提示卡注入请求气泡底下
     showToast(accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED); // v0.24.2：回应方视角（原「对方已…」颠倒）
   } catch (err) { showToast(err.message); }
 }

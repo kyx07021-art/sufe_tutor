@@ -1425,15 +1425,13 @@ export async function dbGetConversationBindableDemands(db, conversationId, phase
 // 我参与的会话列表（含对方用户名 + 最后一条消息预览 + 签约状态）
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
-  // contracted：本会话已确认签约（signed 签约请求或 signed 合同）——需求四·第1条聊天窗不再展示
-  // 「已签约」tag，但保留该字段供「签约确认后背景灰字提示」判定（.chat-sign-tip 显隐）
+  // v0.25.58（#150）：contracted 字段连根拔——原仅供「签约确认后背景灰字提示」（.chat-sign-tip）判定，
+  // 提示已并入签约请求气泡底下（status='signed' 模板渲染），会话列表字段无消费者后删除。
   // 显式列集（不用 c.*）：双方已读游标（student_last_read_id/teacher_last_read_id）不下发，
   // 避免向对方暴露己方已读位置（低敏信息泄露面收口）
   return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.demand_id, c.status, c.created_at,
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
-      EXISTS(SELECT 1 FROM contracts ct WHERE ct.conversation_id=c.id AND ct.status='signed')
-        OR EXISTS(SELECT 1 FROM signing_requests sr WHERE sr.conversation_id=c.id AND sr.status='signed') AS contracted,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
       lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
       (SELECT COUNT(*) FROM messages m WHERE m.conversation_id=c.id AND m.sender_user_id<>?

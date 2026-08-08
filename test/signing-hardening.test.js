@@ -224,13 +224,13 @@ test('v0.25.32 加固：起草合同后发起方不自动确认（drafter_confir
 
 // ============ 4. bindable-demands phase=contract 别教师过滤 ============
 
-test('会话列表不再返回 demand_display_id（4a 解耦删字段）；contracted 保留供灰字提示', async () => {
+test('会话列表不再返回 demand_display_id / contracted（4a 解耦删字段 + #150 提示并入气泡）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1 } = await seed(db, raw);
   const rows = await dbGetMyConversations(db, s1);
   assert.ok(rows.length > 0, '会话存在');
   assert.ok(!('demand_display_id' in rows[0]), '会话列表不再带需求编号（仅合同模块自持字段）');
-  assert.equal('contracted' in rows[0], true, 'contracted 字段保留（.chat-sign-tip 显隐判定）');
+  assert.ok(!('contracted' in rows[0]), 'contracted 字段已连根拔（v0.25.58 #150：提示卡随签约气泡渲染，会话列表字段无消费者）');
 });
 
 test('bindable-demands phase=contract：别教师签成的需求不列出；同教师会话列出', async () => {
