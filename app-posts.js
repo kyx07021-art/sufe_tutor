@@ -85,14 +85,16 @@ function renderPostCard(p, i) {
     </div>
     ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > CONFIG.POST_SNIPPET ? '…' : ''}</p>` : ''}
     <div class="post-actions">
-      <button type="button" class="post-like glass${p.liked ? ' liked' : ''}" data-id="${p.id}"
-        aria-pressed="${p.liked ? 'true' : 'false'}" aria-label="${UI.POST_LIKE_ARIA}" onclick="togglePostLike(${p.id})">
+      <label class="post-like glass" data-id="${p.id}"> <!-- #160（v0.25.68）：点赞接复选框逻辑——liked 态骑原生
+        checkbox checked（同 .checkbox-item 的 :has(input:checked) 单源），告别自定义 .liked 类 + aria-pressed 手管；
+        原生翻转即乐观即时反馈，服务端返回后以 data.liked 收敛，失败回滚到点前态 -->
+        <input type="checkbox"${p.liked ? ' checked' : ''} aria-label="${UI.POST_LIKE_ARIA}" onchange="togglePostLike(${p.id}, this)">
         <svg class="like-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"
           fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
         </svg>
         <span class="like-count">${p.like_count || 0}</span>
-      </button>
+      </label>
     </div>
   </div>`;
 }
@@ -101,23 +103,30 @@ function renderPostCard(p, i) {
 // 点赞（就地更新按钮，避免整列重渲染重放入场动画）
 // ============================================================
 const postLikeSeq = {}; // 每帖独立序号：双击连发时乱序到达的旧响应丢弃，UI 态以最后一次为准
-async function togglePostLike(id) {
-  if (!ensureAuth()) return; // 访客可浏览广场，点赞需登录
+async function togglePostLike(id, input) {
+  // #160（v0.25.68）：复选逻辑接入——change 在原生翻转后触发，input.checked 即新态，
+  // 取反得点前态；访客/失败回滚靠它还原。视觉由 CSS :has(input:checked) 单源，不再管 .liked 类。
+  if (!input) return;
+  const wasChecked = !input.checked; // 点前态
+  const revert = () => { if (input && input.checked !== wasChecked) input.checked = wasChecked; };
+  if (!ensureAuth()) { revert(); return; } // 访客可浏览广场，点赞需登录（原生已翻转，须回滚）
   const seq = (postLikeSeq[id] = (postLikeSeq[id] || 0) + 1);
   try {
     const data = await api(`/api/posts/${id}/like`, { method: 'POST', body: {} });
     if (postLikeSeq[id] !== seq) return; // 已有更新的点赞请求，丢弃过期响应
     const p = postsList.find(x => x.id === id);
     if (p) { p.liked = data.liked; p.like_count = data.likeCount; }
-    const btn = document.querySelector(`#posts-list .post-like[data-id="${id}"]`);
-    if (btn) {
-      btn.classList.toggle('liked', data.liked);
-      btn.setAttribute('aria-pressed', data.liked ? 'true' : 'false');
-      const cnt = btn.querySelector('.like-count');
+    const label = document.querySelector(`#posts-list .post-like[data-id="${id}"]`);
+    if (label) {
+      const box = label.querySelector('input[type="checkbox"]');
+      if (box) box.checked = data.liked; // 服务端为准：并发对端取消/失败兜底由这里收敛
+      const cnt = label.querySelector('.like-count');
       if (cnt) cnt.textContent = data.likeCount;
     }
     showToast(data.liked ? UI.POST_LIKED_TOAST : UI.POST_UNLIKED_TOAST);
   } catch (err) {
+    if (postLikeSeq[id] !== seq) return; // 过期请求的错误不覆盖新请求的 UI 态
+    revert();
     showToast(err.message);
   }
 }

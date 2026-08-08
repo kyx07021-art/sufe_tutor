@@ -63,20 +63,28 @@ select.posts-sort {
 
 /* ---------- 点赞按钮：线框拇指 → 已赞红色填充（计数随动） ---------- */
 /* v0.25.19 审计 G-08：文字色双源收敛——base/hover/liked 的 color 直写删净，统一走引擎 --g-fg
-   （glass.css .post-like 设 --g-fg: var(--muted) / .liked 设 --g-fg: var(--danger)）。 */
+   （glass.css .post-like 设 --g-fg: var(--muted) / :has(input:checked) 设 --g-fg: var(--danger)）。 */
+/* #160（v0.25.68）：点赞接复选框逻辑——label+隐藏原生 checkbox，checked 驱动 :has 视觉（同 .checkbox-item）。
+   隐藏用 sr-only 画法：保可聚焦可切换，键盘焦点视觉由 :has(input:focus-visible) 移到 pill 上。 */
 .post-like {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 5px 14px;
   font-size: .78rem; font-weight: 700; letter-spacing: .02em;
+  cursor: pointer; user-select: none; /* label 需指针光标（原 button 原生有） */
   transition: color var(--t-base) var(--ease-out),
               border-color var(--t-base) var(--ease-out),
               transform var(--t-fast) var(--ease-out); /* G28：background-color 死 */
 }
+.post-like input[type="checkbox"] {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+.post-like:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; } /* 键盘焦点环（checkbox-item 同款） */
 .post-like .like-icon { flex-shrink: 0; transition: fill var(--t-base) var(--ease-out), stroke var(--t-base) var(--ease-out); }
 .post-like .like-count { font-family: var(--mono); font-size: .74rem; }
 .post-like:hover { --g-fg: var(--ink-3); }
 .post-like:active { transform: scale(.94); transition-duration: 80ms; }
-.post-like.liked .like-icon { fill: var(--danger); stroke: var(--danger); } /* .liked 文字色单源 glass.css（--g-fg: var(--danger)） */
+.post-like:has(input:checked) .like-icon { fill: var(--danger); stroke: var(--danger); } /* 文字色单源 glass.css（--g-fg: var(--danger)） */
 
 /* 作者自删：低调文字按钮，悬停转危险红 + 细下划线 */
 .post-del {
