@@ -353,9 +353,11 @@ function guardSegmentKey(e) {
 }
 
 // R4：同 field 内相邻数字段（时↔分、月↔日、日↔年；跨过冒号/横杠分隔符）。
-// 只在分隔符两侧的 .seg-input 间跳（时间栏 .time-hms / 日期栏 .seg-hms 容器内），不越出时间栏。
+// 只在分隔符两侧的 .seg-input 间跳（时间栏 .time-hms / 日期栏 .seg-date 容器内），不越出时间栏。
+// A1 审计（v0.25.104）：日期容器已随 M5 从 .seg-hms 改为 .seg-date——原选择器永为空，
+// 日期三段左右键跨段导航静默失效（只剩时间栏有效，注释自称的「月↔日、日↔年」不成立），此处同步。
 function segmentSibling(inp, dir) {
-  const hms = inp.closest('.time-hms, .seg-hms');
+  const hms = inp.closest('.time-hms, .seg-date');
   if (!hms) return null;
   const segs = [...hms.querySelectorAll('.seg-input')];
   const idx = segs.indexOf(inp);
@@ -436,10 +438,10 @@ function clampDateDay(inp) {
 function dateFieldHtml(value) {
   const [y, m, d] = (value || '').split('-');
   return `<div class="seg-date" id="contract-first-lesson-field">
-    <span class="seg-part"><input ${segInputAttrs({ maxLen: 4, max: 9999, min: 1, pad: 4, label: UI.SEG_YEAR_ARIA, cls: 'seg-year', value: y, extra: 'clampYear(this)' })}><span class="seg-unit">年</span></span>
-    <span class="seg-part"><input ${segInputAttrs({ maxLen: 2, max: 12, min: 1, pad: 2, label: UI.SEG_MONTH_ARIA, cls: 'seg-month', value: m })}><span class="seg-unit">月</span></span>
-    <span class="seg-part"><input ${segInputAttrs({ maxLen: 2, max: 31, min: 1, pad: 2, label: UI.SEG_DAY_ARIA, cls: 'seg-day', value: d, extra: 'clampDateDay(this)' })}><span class="seg-unit">日</span></span>
-  </div>`;
+    <span class="seg-part"><input ${segInputAttrs({ maxLen: 4, max: 9999, min: 1, pad: 4, label: UI.SEG_YEAR_ARIA, cls: 'seg-year', value: y, extra: 'clampYear(this)' })}><span class="seg-unit">${UI.SEG_YEAR_ARIA}</span></span>
+    <span class="seg-part"><input ${segInputAttrs({ maxLen: 2, max: 12, min: 1, pad: 2, label: UI.SEG_MONTH_ARIA, cls: 'seg-month', value: m })}><span class="seg-unit">${UI.SEG_MONTH_ARIA}</span></span>
+    <span class="seg-part"><input ${segInputAttrs({ maxLen: 2, max: 31, min: 1, pad: 2, label: UI.SEG_DAY_ARIA, cls: 'seg-day', value: d, extra: 'clampDateDay(this)' })}><span class="seg-unit">${UI.SEG_DAY_ARIA}</span></span>
+  </div>`; // A1 审计（v0.25.104）：单位后缀复用 aria 常量单源（原硬编码 年/月/日）
 }
 
 /** 日期字段读：全空 → ''（= 由双方另行协商）；半填/年份不足四位 → null（调用方拦截）；

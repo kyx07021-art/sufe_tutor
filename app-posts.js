@@ -248,7 +248,7 @@ function openPostEditor() {
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE} <span class="req">*</span></label>
           <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.POST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
-          <span class="title-count" id="post-title-count">0/60</span>
+          <span class="title-count" id="post-title-count">0/${CONFIG.POST_TITLE_MAX}</span>
         </div>
         ${mdEditorHtml({ rows: 9, placeholder: UI.POST_BODY_PLACEHOLDER, labelFor: 'post-body' })}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
@@ -412,7 +412,7 @@ function openBroadcastModal() {
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
           <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.BROADCAST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
-          <span class="title-count" id="post-title-count">0/60</span>
+          <span class="title-count" id="post-title-count">0/${CONFIG.POST_TITLE_MAX}</span>
         </div>
         ${mdEditorHtml({ rows: 7, placeholder: UI.BROADCAST_BODY_PLACEHOLDER })}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
@@ -464,32 +464,23 @@ function openFeedbackComplaintChooser() {
 
 function openFeedbackModal(kind) {
   if (!ensureAuth()) return;
+  // A1 审计（v0.25.104）：M11 chooser 三选后 kind 即固定（专线原则真正落地）——原浮窗内仍渲染
+  // Bug/建议 切换 tab（segTabsHtml + switchFeedbackKind），chooser 的选择在浮窗内可被推翻，冗余
+  // 入口层已移除；本函数现在唯一调用方就是 chooser 三个 onclick（kind 恒有值）。
   feedbackKind = (kind === 'bug') ? kind : 'suggestion';
   openModal({
     title: feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST,
-    titleId: 'feedback-modal-title',
     closable: false,
     body: `
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
           <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.FEEDBACK_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
-          <span class="title-count" id="post-title-count">0/60</span>
+          <span class="title-count" id="post-title-count">0/${CONFIG.POST_TITLE_MAX}</span>
         </div>
-        ${segTabsHtml([
-          { key: 'bug', label: UI.BTN_FEEDBACK_BUG, onclick: "switchFeedbackKind('bug')" },
-          { key: 'suggestion', label: UI.BTN_FEEDBACK_SUGGEST, onclick: "switchFeedbackKind('suggestion')" },
-        ], feedbackKind, { containerClass: 'feedback-kind-row', attr: 'kind' })}
         ${mdEditorHtml({ rows: 7, placeholder: UI.FEEDBACK_PLACEHOLDER })}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>`,
   });
-}
-
-function switchFeedbackKind(kind) {
-  feedbackKind = kind;
-  document.querySelectorAll('.feedback-kind-row .seg-tab').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
-  const t = document.getElementById('feedback-modal-title');
-  if (t) t.textContent = kind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST;
 }
 
 async function submitFeedback() {
@@ -543,22 +534,11 @@ async function openMyFeedback() {
           <div class="feedback-foot"><span class="list-card-meta">${fmtDateTime(f.created_at)}</span></div>
         </div>`;
     }).join('');
-    const cpHtml = complaints.map(c => {
-      const resolved = c.status === STATUS.RESOLVED;
-      const snap = c.target_snapshot || {};
-      const typeName = c.target_type === 'teacher' ? UI.COMPLAINT_TAB_TEACHER : c.target_type === 'student' ? UI.COMPLAINT_TAB_STUDENT : UI.COMPLAINT_TAB_POST;
-      return `<div class="list-card glass complaint-card${resolved ? ' complaint-card--resolved' : ''}">
-        <div class="list-card-header">
-          <span class="list-card-title">${escHtml(snap.name || '')}</span>
-          <span class="complaint-tags">
-            <span class="tag glass glass--solid tag-accent">${escHtml(typeName)}</span>
-            <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.COMPLAINT_STATUS_RESOLVED : UI.COMPLAINT_STATUS_OPEN}</span>
-          </span>
-        </div>
-        <div class="list-card-detail">${escHtml(c.reason)}${c.detail ? `<div class="complaint-detail">${escHtml(c.detail)}</div>` : ''}</div>
-        <div class="complaint-foot"><span class="list-card-meta">${fmtDateTime(c.created_at)}</span></div>
-      </div>`;
-    }).join('');
+    // A1 审计（v0.25.104）：投诉卡渲染上收 complaintCardHtml（app-complaints）——与管理员处理页共用
+    // 一份结构/状态 tag/对象类型映射（DISP.complaintTargetName 单源），本处仅换脚部时间戳。
+    const cpHtml = complaints.map(c => complaintCardHtml(c, {
+      foot: `<span class="list-card-meta">${fmtDateTime(c.created_at)}</span>`,
+    })).join('');
     bodyEl.innerHTML = fbHtml + cpHtml;
   } catch (err) {
     const bodyEl = document.querySelector('#modal-container .my-feedback-list');

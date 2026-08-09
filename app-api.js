@@ -18,6 +18,7 @@
  * 依赖：state（app-state）、UI（constants）、clearSession（app-state）、ensureAuth（app-auth，运行时解析）。
  */
 async function api(endpoint, options = {}) {
+  const sentToken = state.authToken; // A1 审计（v0.25.104）：请求发起时刻的令牌——401 兜底只对「当前令牌」的请求生效
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (state.authToken) headers['X-Auth-Token'] = state.authToken;
   const config = { ...options, headers };
@@ -56,7 +57,11 @@ async function api(endpoint, options = {}) {
     // 401 兜底：带令牌仍被拒 = 会话已死（过期/多端顶号），必须清本地登录态并汇入登录通路，
     // 否则内存里 state.user 还在、ensureAuth 放行，页面只剩一句「加载失败」假装还登录着
     if (res.status === 401) {
-      if (state.authToken) {
+      // A1 审计（v0.25.104，B2 跨角色误删根因）：兜底必须校验该 401 属于「当前令牌」——登出→登录
+      // 另一角色的过渡窗口里，旧角色在途请求（徽标轮询 30s/慢接口）落回 401 时 state.authToken 已是
+      // 新令牌，原逻辑按响应时刻 state.user.role 清键会把新角色会话误删并踢出新登录。
+      // 发起令牌≠当前令牌 → 旧请求的 401 只作废自己（数据随新令牌走），不清任何会话。
+      if (sentToken && state.authToken === sentToken) {
         const role = state.user ? state.user.role : ''; // v0.23.1：只清该角色会话，另一角色保留
         state.authToken = null; state.user = null;
         clearSession(role);

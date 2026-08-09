@@ -28,9 +28,12 @@ function makeCtx() {
     localStorage: makeStorage(),
     sessionStorage: makeStorage(),
     SUFE_DISPLAY: {},
+    AbortController, setTimeout, clearTimeout,
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({}) }),
   };
   vm.createContext(sandbox);
-  for (const f of ['constants.js', 'app-state.js']) {
+  // A1 审计（v0.25.104）：载入 app-api 以覆盖 401 兜底（旧令牌在途 401 误清新角色会话的回归）
+  for (const f of ['constants.js', 'app-state.js', 'app-api.js']) {
     vm.runInContext(readFileSync('./' + f, 'utf8'), sandbox, { filename: f });
   }
   return sandbox;
@@ -66,4 +69,23 @@ test('clearSession 无角色参数 = 空操作（v0.24.2 审计：不误删他�
   vm.runInContext(`clearSession('student')`, ctx); // 显式清角色仍正常工作
   assert.equal(vm.runInContext(`loadSession('student')`, ctx), null, '显式角色清理应生效');
   assert.equal(vm.runInContext(`loadSession('teacher')`, ctx).authToken, 'b', '他角色不受影响');
+});
+
+test('A1 审计：401 兜底按发起时刻令牌校验——旧令牌在途 401 不清新角色会话（B2 跨角色误删根因）', async () => {
+  const ctx = makeCtx();
+  // 预置学生记住会话（旧角色在盘）
+  vm.runInContext(`state.user = { id: 1, role: 'student' }; state.authToken = 'stu-token'; saveSession(true);`, ctx);
+  // 在途请求：以旧令牌（stu-token）发起，fetch 挂起等测试放行
+  let release;
+  ctx.fetch = async () => new Promise(res => { release = () => res({ ok: false, status: 401, json: async () => ({ error: '会话过期' }) }); });
+  const p = vm.runInContext(`state.user = { id: 1, role: 'student' }; state.authToken = 'stu-token'; api('/api/slow');`, ctx);
+  // 期间用户登出旧角色、登录新角色（新令牌 + 教师会话落盘）
+  vm.runInContext(`state.user = { id: 2, role: 'teacher' }; state.authToken = 'new-token'; saveSession(true); state.view = 'client';`, ctx);
+  // 旧请求此刻才落回 401 —— 兜底必须识别「非当前令牌」，只作废自己
+  release();
+  await assert.rejects(p, /会话过期/, '401 仍抛业务错误（调用方照常 catch）');
+  assert.equal(vm.runInContext(`loadSession('teacher')`, ctx).authToken, 'new-token', '新角色教师会话未被误删');
+  assert.equal(vm.runInContext(`loadSession('student')`, ctx).authToken, 'stu-token', '旧角色学生记住会话仍在（401 只作废自己）');
+  assert.equal(vm.runInContext('state.authToken', ctx), 'new-token', '当前令牌未被旧请求作废');
+  assert.equal(vm.runInContext('state.user.role', ctx), 'teacher', '当前登录态未被旧请求清空');
 });

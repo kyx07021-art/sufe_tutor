@@ -201,6 +201,16 @@
       return '';
     },
 
+    // A1 审计（v0.25.104）：投诉对象类型 → 文案（teacher/student/post 三分支）——原三元复制散落
+    // app-complaints.loadAdminComplaints 与 app-posts.openMyFeedback 两处，上收单源。
+    // 与 feedbackSubjectName 语义不同：投诉含「帖子」档且文案为「投诉教师/学生/帖子」。
+    complaintTargetName(targetType) {
+      const u = UI();
+      if (targetType === 'teacher') return u.COMPLAINT_TAB_TEACHER;
+      if (targetType === 'student') return u.COMPLAINT_TAB_STUDENT;
+      return u.COMPLAINT_TAB_POST;
+    },
+
     // —— A2 收口（v0.25.78）：跨模块散落的显示映射统一单点 ——
 
     // 学生年级 id→名：查无返 id 本身（口径统一：id 保底显示，不静默消失）；空 id 返 ''

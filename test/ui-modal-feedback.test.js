@@ -15,14 +15,12 @@ const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
 // ============ U1：反馈浮窗分段按钮撑满 ============
 
-test('U1：反馈分段按钮 flex 交还组件契约（.seg-tab{flex:1} 等宽撑满），无 flex:0 0 auto 覆写', () => {
+test('U1：反馈浮窗已无内层分段（M11 三选后专线固定，.feedback-kind-row 连根删）', () => {
   const css = readFileSync('./style.css', 'utf8');
-  const block = css.split('.feedback-kind-row .seg-tab')[1] || '';
-  const rule = '{' + block.split('}')[0] + '}';
-  assert.ok(!rule.includes('flex: 0 0 auto'), '反馈分段不再覆写 flex（原覆写是挤左不撑满的根因）');
+  assert.ok(!css.includes('.feedback-kind-row {'), '反馈分段规则已删（A1 审计：chooser 三选即定 kind，内层切换是冗余入口）');
   const glass = readFileSync('./glass.css', 'utf8');
   const segTabRule = glass.split('.seg-tab {')[1] || '';
-  assert.ok(segTabRule.split('}')[0].includes('flex: 1'), '组件基类 .seg-tab 保持 flex:1（等宽撑满）');
+  assert.ok(segTabRule.split('}')[0].includes('flex: 1'), '组件基类 .seg-tab 保持 flex:1（等宽撑满，其余分段调用方仍依赖）');
 });
 
 // ============ U2：平面风格 关于平台 步骤圆圈数字可见 ============

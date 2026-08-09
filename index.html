@@ -521,6 +521,14 @@
           <div class="browse-list" id="admin-feedback-list"><div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div></div>
         </section>
 
+        <!-- 管理员：投诉处理（R22 独立通道；对象/理由/详情快照存档 + 标记已处理） -->
+        <!-- A1 审计（v0.25.104）：ROLE_PAGES.admin 注册了 admin-complaint 但 index.html 缺 section——
+             管理员点侧栏「投诉处理」→ selectPage 全隐藏无匹配 → 整页空白（R22 引入至今）。此处补上。 -->
+        <section class="client-page hidden" data-page="admin-complaint">
+          <div class="page-header"><h2>投诉处理</h2></div>
+          <div class="browse-list" id="admin-complaint-list"><div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div></div>
+        </section>
+
         <!-- 教师：资料共享（模块2；section 字段预留未来分区，当前全在广场） -->
         <section class="client-page hidden" data-page="resource-share">
           <div class="page-header"><h2>资料共享</h2></div>

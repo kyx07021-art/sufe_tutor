@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.103',
+  APP_VERSION: '0.25.104',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1121,8 +1121,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_PAY_METHOD_OTHER_PLACEHOLDER: '请输入结算方式，如：每 10 次课结算一次',
     VALIDATE_CONTRACT_PAY_METHOD_OTHER: '请输入具体的薪资结算方式',
     LABEL_CONTRACT_FIRST_LESSON: '首次上课日期',
-    // 需求四十五（v0.25.53）：分段日期输入（年-月-日，复用底层段输入原语）——灰字占位 + 每段 aria
-    SEG_DATE_GHOST: '选择日期',
+    // 需求四十五（v0.25.53）：分段日期输入（年-月-日，复用底层段输入原语）——每段 aria
     SEG_YEAR_ARIA: '年',
     SEG_MONTH_ARIA: '月',
     SEG_DAY_ARIA: '日',
@@ -1361,8 +1360,6 @@ globalThis.APP_CONSTANTS = {
     ABOUT_SUPPORT_WECHAT: '微信：13524121020',
     ABOUT_SUPPORT_EMAIL: '邮箱：support_sufe_tutor@163.com',
     BTN_FEEDBACK: '用户反馈',
-    BTN_FEEDBACK_BUG: '反馈 Bug',
-    BTN_FEEDBACK_SUGGEST: '提出建议',
     BTN_COMPLAINT_FEEDBACK: '投诉与反馈', // M11：用户反馈+投诉合并入口按钮
     FEEDBACK_CHOOSE_BUG: '我要反馈 Bug',
     FEEDBACK_CHOOSE_SUGGESTION: '我要提出建议',
@@ -1373,9 +1370,6 @@ globalThis.APP_CONSTANTS = {
     FEEDBACK_PLACEHOLDER: '详细描述你遇到的问题或建议（支持轻量 Markdown）',
     FEEDBACK_EMPTY: '反馈内容不能为空',
     FEEDBACK_SENT_TOAST: '反馈已提交，感谢你的声音',
-    // #165 历史投诉数据展示（R22 后新投诉走独立通道；这些仅渲染 feedbacks 表历史 complaint 记录）
-    BTN_COMPLAINT: '投诉',
-    BTN_MY_FEEDBACK: '我的反馈',
     BTN_MY_COMPLAINTS_FEEDBACK: '我的投诉与反馈', // M12：两按钮合并为一个（投诉+反馈同一浮窗）
     FEEDBACK_COMPLAINT_SUBJECT_TEACHER: '教师',
     FEEDBACK_COMPLAINT_SUBJECT_STUDENT: '学生',
@@ -1397,13 +1391,10 @@ globalThis.APP_CONSTANTS = {
     FEEDBACK_RESOLVED_TOAST: '已标记处理并通知提出者',
 
     // R22：投诉通道独立（接口/浮窗/数据通道均独立于用户反馈；仅外层接口接管理员临时通路）
-    BTN_COMPLAINT_OPEN: '投诉',
-    BTN_MY_COMPLAINTS: '我的投诉',
     COMPLAINT_MODAL_TITLE: '提交投诉',
     COMPLAINT_TAB_TEACHER: '投诉教师',
     COMPLAINT_TAB_STUDENT: '投诉学生',
     COMPLAINT_TAB_POST: '投诉帖子',
-    COMPLAINT_TARGET_LABEL: '选择投诉对象',
     COMPLAINT_RECENT_LABEL: '最近联系的人',
     COMPLAINT_SEARCH_PLACEHOLDER: '输入 id 或昵称搜索',
     COMPLAINT_SEARCH_POST_PLACEHOLDER: '输入帖子 id 或标题搜索',
@@ -1411,17 +1402,14 @@ globalThis.APP_CONSTANTS = {
     COMPLAINT_TARGET_REQUIRED: '请选择要投诉的对象',
     COMPLAINT_REASON_REQUIRED: '请选择投诉理由',
     COMPLAINT_REASON_LABEL: '投诉理由',
-    COMPLAINT_REASON_PLACEHOLDER: '请选择投诉理由', // M8：投诉理由从切换式改下拉栏占位项
     SELECT_PROVINCE_FIRST: '请先选择地区', // M3：年级选择前先选地区（年级随地区学制变化）
     COMPLAINT_SELECTED_PREFIX: '已选择：', // M9：投诉对象从可叉 tag 改「已选择 + 更换」单选行
     COMPLAINT_CHANGE_TARGET: '更换',
-    COMPLAINT_REASON_PLACEHOLDER: '请选择理由',
+    COMPLAINT_REASON_PLACEHOLDER: '请选择理由', // M8：投诉理由从切换式改下拉栏占位项（A1 审计：1414 重复键已删，本行生效）
     COMPLAINT_DETAIL_LABEL: '补充描述',
     COMPLAINT_DETAIL_PLACEHOLDER: '补充具体问题、发生时间等（选填，支持轻量 Markdown）',
     COMPLAINT_REASONS: ['虚假信息或欺诈', '侮辱谩骂或骚扰', '侵犯隐私', '违法违规内容', '恶意营销或广告', '其他'],
     COMPLAINT_SENT_TOAST: '投诉已提交，我们会尽快核实处理',
-    COMPLAINT_MINE_TITLE: '我的投诉',
-    COMPLAINT_MINE_EMPTY: '还没有提交过投诉',
     COMPLAINT_STATUS_OPEN: '处理中',
     COMPLAINT_STATUS_RESOLVED: '已处理',
 

@@ -59,6 +59,17 @@ test('ROLE_PAGES enter 全惰性包装：app-shell 顶层不直接引用领域�
   assert.ok(shell.includes('enter: () => enterAbout()'), 'about 惰性包装在位');
 });
 
+test('A1 审计：ROLE_PAGES 每个页 id 都有对应 data-page section（防 admin-complaint 漏建空白页复发）', () => {
+  const shell = readFileSync('./app-shell.js', 'utf8');
+  const html = readFileSync('./index.html', 'utf8');
+  const block = shell.split('const ROLE_PAGES = {')[1]?.split('};')[0] || '';
+  const pageIds = [...block.matchAll(/id: '([a-z0-9-]+)'/g)].map(m => m[1]);
+  const sectionIds = [...html.matchAll(/data-page="([^"]+)"/g)].map(m => m[1]);
+  assert.ok(pageIds.length >= 20, `ROLE_PAGES 应注册 20+ 页（实际 ${pageIds.length}）`);
+  const missing = pageIds.filter(id => !sectionIds.includes(id));
+  assert.deepEqual(missing, [], '每个注册页在 index.html 必须有 section（缺失 → selectPage 全隐藏整页空白）');
+});
+
 test('#178 后台静默预载：DOMContentLoaded 即调度领域脚本（点击入口下一帧进客户端）', () => {
   const shell = readFileSync('./app-shell.js', 'utf8');
   assert.ok(shell.includes('function preloadDomainScripts()'), '预载调度函数在位');

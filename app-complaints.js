@@ -188,30 +188,34 @@ async function submitComplaint() {
 // ============================================================
 // 管理员：投诉处理（独立侧栏页 admin-complaint，仅此一层接入管理员）
 // ============================================================
+// A1 审计（v0.25.104）：投诉卡 HTML 单源——管理员处理页（本函数）与「我的投诉与反馈」合并浮窗
+// （app-posts.openMyFeedback）共用同一份卡片结构/状态 tag/对象类型映射（DISP.complaintTargetName）。
+// opts.foot：默认管理员版（投诉人 + 标记已处理按钮）；用户端 openMyFeedback 传只含时间戳的 foot。
+function complaintCardHtml(c, opts = {}) {
+  const resolved = c.status === STATUS.RESOLVED;
+  const snap = c.target_snapshot || {};
+  const typeName = DISP.complaintTargetName(c.target_type);
+  const foot = opts.foot ?? `<span class="list-card-meta">投诉人 ${escHtml(c.reporter)} · ${fmtDateTime(c.created_at)}</span>
+      ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveAdminComplaint(${c.id})">${UI.BTN_COMPLAINT_RESOLVE}</button>`}`;
+  return `<div class="list-card glass complaint-card${resolved ? ' complaint-card--resolved' : ''}">
+    <div class="list-card-header">
+      <span class="list-card-title">${escHtml(snap.name || '')}</span>
+      <span class="complaint-tags">
+        <span class="tag glass glass--solid tag-accent">${escHtml(typeName)}</span>
+        <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.COMPLAINT_STATUS_RESOLVED : UI.COMPLAINT_STATUS_OPEN}</span>
+      </span>
+    </div>
+    <div class="list-card-detail">${escHtml(c.reason)}${c.detail ? `<div class="complaint-detail">${escHtml(c.detail)}</div>` : ''}</div>
+    <div class="complaint-foot">${foot}</div>
+  </div>`;
+}
+
 async function loadAdminComplaints() {
   setBadge('admin-complaint', 0); // 点开瞬间红点即灭（新投诉由轮询在离开本页后重新点亮）
   await loadInto('admin-complaint-list', async () => {
     const data = await dhGet('/api/complaints', { domain: 'admin' });
     return data.complaints || [];
-  }, list => list.map(c => {
-    const resolved = c.status === STATUS.RESOLVED;
-    const snap = c.target_snapshot || {};
-    const typeName = c.target_type === 'teacher' ? UI.COMPLAINT_TAB_TEACHER : c.target_type === 'student' ? UI.COMPLAINT_TAB_STUDENT : UI.COMPLAINT_TAB_POST;
-    return `<div class="list-card glass complaint-card${resolved ? ' complaint-card--resolved' : ''}">
-      <div class="list-card-header">
-        <span class="list-card-title">${escHtml(snap.name || '')}</span>
-        <span class="complaint-tags">
-          <span class="tag glass glass--solid tag-accent">${escHtml(typeName)}</span>
-          <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.COMPLAINT_STATUS_RESOLVED : UI.COMPLAINT_STATUS_OPEN}</span>
-        </span>
-      </div>
-      <div class="list-card-detail">${escHtml(c.reason)}${c.detail ? `<div class="complaint-detail">${escHtml(c.detail)}</div>` : ''}</div>
-      <div class="complaint-foot">
-        <span class="list-card-meta">投诉人 ${escHtml(c.reporter)} · ${fmtDateTime(c.created_at)}</span>
-        ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveAdminComplaint(${c.id})">${UI.BTN_COMPLAINT_RESOLVE}</button>`}
-      </div>
-    </div>`;
-  }).join(''), { empty: UI.ADMIN_COMPLAINT_EMPTY });
+  }, list => list.map(c => complaintCardHtml(c)).join(''), { empty: UI.ADMIN_COMPLAINT_EMPTY });
 }
 
 // 标记投诉已处理（后端通知投诉人）

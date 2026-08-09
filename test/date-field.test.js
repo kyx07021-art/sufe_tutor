@@ -126,6 +126,29 @@ test('clampSegment/clampYear/clampDateDay blur 钳制（复用底层原语，dat
   assert.equal(vm.runInContext('document.querySelector("#contract-first-lesson-field").classList.contains("has-value")', ctx), true, '有值后 has-value（灰字渐隐）');
 });
 
+test('A1 审计：日期三段左右键跨段导航（segmentSibling 容器 .seg-hms→.seg-date 同步后恢复）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`
+    const el = document.createElement('div');
+    el.innerHTML = dateFieldHtml();
+    document.body.appendChild(el.querySelector('#contract-first-lesson-field'));
+  `, ctx);
+  // 1) 段原语：日段左邻/月段右邻都正确落到相邻段（原 .seg-hms 选择器永空 → 修复后 .seg-date 生效）
+  const toMonth = vm.runInContext(`segmentSibling(document.querySelector('.seg-day'), -1)`, ctx);
+  const toDay = vm.runInContext(`segmentSibling(document.querySelector('.seg-month'), 1)`, ctx);
+  assert.ok(toMonth && toMonth.className.includes('seg-month'), '日段左邻 = 月份段');
+  assert.ok(toDay && toDay.className.includes('seg-day'), '月段右邻 = 日段');
+  // 2) guardSegmentKey 路径（以事件形状直接调用——内联 onkeydown 在 JSDOM window 作用域找不到 vm 词法绑定）：
+  //    日段首左键 → 焦点移月份段
+  const focused = vm.runInContext(`(() => {
+    const day = document.querySelector('.seg-day');
+    day.focus(); day.setSelectionRange(0, 0);
+    guardSegmentKey({ key: 'ArrowLeft', target: day, ctrlKey: false, metaKey: false, altKey: false, preventDefault() {} });
+    return document.activeElement.className;
+  })()`, ctx);
+  assert.ok(focused.includes('seg-month'), '日段首左键焦点跳月份段');
+});
+
 test('submitContractDraft 集成：日期空→另行协商空串；半填→校验拦截；完整→携带 YYYY-MM-DD', async () => {
   const setup = (ctx) => vm.runInContext(`
     state.user = { id: 1, role: 'teacher', username: 'qa_teacher' };

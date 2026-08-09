@@ -202,7 +202,7 @@ function makeCtx({ mineRows = [], myComplaints = [], recentByType = {}, searchRo
   vm.runInContext(`
     state.user = { id: 1, role: 'student', username: 's' };
     window.APP_CONSTANTS = globalThis.APP_CONSTANTS;
-    ['openFeedbackModal','switchFeedbackKind','submitFeedback','openMyFeedback','enterAbout','closeModal',
+    ['openFeedbackModal','submitFeedback','openMyFeedback','enterAbout','closeModal',
      'openComplaintModal','switchComplaintTab','switchComplaintReason','pickComplaintTarget','clearComplaintTarget',
      'complaintSearchInput','complaintSearch','submitComplaint','openMyFeedback'].forEach(function (k) { // M12：openMyComplaints 已删，合并入口=openMyFeedback
       if (typeof globalThis[k] === 'function') window[k] = globalThis[k];
@@ -267,9 +267,10 @@ test('R22 投诉独立浮窗：三 tab + pane 显隐 + 理由下拉栏；反馈�
   await vm.runInContext(`switchComplaintTab('student')`, ctx);
   assert.ok(!doc.getElementById('cmp-pane-student').classList.contains('hidden'), '学生 pane 显示');
   assert.ok(doc.getElementById('cmp-pane-teacher').classList.contains('hidden'), '教师 pane 隐藏');
-  // 反馈浮窗不再含投诉档（组件隔离）
+  // 反馈浮窗不再含投诉档（组件隔离）；M11 三选后 kind 即固定——无内层切换 tab（A1 审计连根删）
   await vm.runInContext(`openFeedbackModal('bug')`, ctx);
-  assert.equal(doc.querySelectorAll('.feedback-kind-row .seg-tab').length, 2, '反馈仅 Bug/建议两档');
+  assert.equal(doc.querySelectorAll('.feedback-kind-row').length, 0, '反馈浮窗无内层分段切换（chooser 三选即专线固定）');
+  assert.equal(doc.getElementById('feedback-modal-title'), null, '无标题切换逻辑（titleId 已随 switchFeedbackKind 移除）');
   assert.ok(!doc.getElementById('feedback-subject-row'), '反馈浮窗已无投诉对象行');
 });
 

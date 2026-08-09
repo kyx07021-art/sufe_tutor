@@ -968,11 +968,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .about-sec-title { display: block; font-size: .84rem; font-weight: 800; color: var(--ink); margin-bottom: 3px; }
 .about-sec-desc { font-size: .78rem; color: var(--ink-3); line-height: 1.7; margin: 0; }
 
-/* 反馈弹窗：Bug / 建议切换式分段按钮（v0.25.20 需求二：旧类连根删，收编标准分段控件 .seg-tabs） */
-.feedback-kind-row { margin-bottom: 14px; }
-/* v0.25.39（反馈 U1）：flex 一律交给组件契约 .seg-tab{flex:1}（等宽撑满整栏）——
-   原 flex:0 0 auto 覆写组件自适应契约，按钮挤在栏左不撑满横向空间（组件内部不统一的根因） */
-.feedback-kind-row .seg-tab { padding: 7px 18px; font-size: .8rem; font-weight: 700; }
+/* A1 审计（v0.25.104）：.feedback-kind-row 已删——M11 后 openFeedbackModal 仅从 chooser 三选进入
+   （kind 固定），内层 Bug/建议 切换 tab 是冗余入口（chooser 选择可被推翻），连根移除 */
 
 /* 管理员反馈卡：Bug 左侧红色警示边 + 浅红底；已处理整卡淡出 */
 .feedback-card--resolved { opacity: .62; }
@@ -1022,8 +1019,6 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .cmp-selected-change:hover { text-decoration: underline; }
 /* 最近候选选中态（单选高亮，radio 语义） */
 .cmp-chip.selected { outline: 2px solid var(--accent); outline-offset: -1px; }
-.complaint-reasons { margin-top: 4px; }
-.complaint-reasons .seg-tab { padding: 6px 12px; font-size: .78rem; }
 
 /* 投诉卡（我的投诉 / 管理员投诉处理共用）：已处理整卡淡出 */
 .complaint-card--resolved { opacity: .62; }
