@@ -217,6 +217,7 @@ function injectPageHeaderInfo(pageId) {
 }
 
 function selectPage(pageId) {
+  const prevPage = state.page; // 2026-08-09 反馈：记录离开页，供切出通知/会话页时"看过即消"批量已读
   closeProfilePanel(); // 切页收起个人信息右栏
   document.querySelectorAll('#client-main .client-page').forEach(s =>
     s.classList.toggle('hidden', s.dataset.page !== pageId));
@@ -228,6 +229,9 @@ function selectPage(pageId) {
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
   if (cfg && cfg.auth !== false && !ensureAuth()) return; // 需要身份的页统一过登录通路
+  // 2026-08-09 反馈：看过即消——离开通知页把已展示的未读批量标记正常（免逐条点击）；离开聊天页把当前会话已读
+  if (prevPage === 'notifications' && pageId !== 'notifications') markAllNotifsRead();
+  if (prevPage === 'my-chats' && pageId !== 'my-chats' && typeof markActiveConvRead === 'function') markActiveConvRead();
   injectPageHeaderInfo(pageId); // v0.25.10：页面顶部 title 旁 i 按钮（侧边栏内的已删）
   if (cfg && cfg.enter) cfg.enter();
   closeSidebar();
@@ -427,6 +431,21 @@ async function markNotifRead(id) {
   } catch {
     item.is_read = 0;
     if (el) applyNotifReadVisual(el, false);
+  }
+}
+// 2026-08-09 反馈：看过即消——离开通知页批量已读（免逐条点击）。乐观翻转本地（_notifList 与 datahub
+// 缓存同数组引用，徽标/重排即时一致），POST read-all 落库；失败回滚本次翻转。未进过通知页则 _notifList 空，天然 no-op。
+async function markAllNotifsRead() {
+  const unread = _notifList.filter(n => !n.is_read);
+  if (!unread.length) return;
+  const ids = unread.map(n => String(n.id));
+  unread.forEach(n => { n.is_read = 1; });
+  ids.forEach(id => { const el = document.querySelector(`.notif-item[data-id="${id}"]`); if (el) applyNotifReadVisual(el, true); });
+  try {
+    await api('/api/notifications/read-all', { method: 'POST', body: {} });
+  } catch {
+    unread.forEach(n => { n.is_read = 0; });
+    ids.forEach(id => { const el = document.querySelector(`.notif-item[data-id="${id}"]`); if (el) applyNotifReadVisual(el, false); });
   }
 }
 function notifKeyRead(e, id) {

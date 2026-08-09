@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.74',
+  APP_VERSION: '0.25.75',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -279,8 +279,9 @@ globalThis.APP_CONSTANTS = {
       // ---- 背景舞台 ----
       '--g-bg': '#ECEAF0',                       // html 页面底
       // #164（v0.25.72）：平面简约白色系——flat 包专用底/纸/线（浅色主题纯白底，白纸面靠灰线分界）
-      '--flat-bg': '#FFFFFF', '--flat-paper': '#FFFFFF', '--flat-paper-2': '#F6F6F8', '--flat-paper-3': '#ECECEF',
-      '--flat-line': 'rgba(17,17,20,.10)',
+      // 2026-08-09 反馈：白色系分层（非纯白）——页面底微灰 #F4F5F7，卡片纯白浮起，嵌套面逐级加深，发丝边略加重
+      '--flat-bg': '#F4F5F7', '--flat-paper': '#FFFFFF', '--flat-paper-2': '#EEF0F3', '--flat-paper-3': '#E5E7EB',
+      '--flat-line': 'rgba(17,17,20,.12)',
       '--g-plate': 'linear-gradient(105deg, rgba(250,248,245,.20), rgba(250,248,245,.10) 50%, rgba(244,242,247,.20)), linear-gradient(105deg, rgba(216,212,221,.12), rgba(250,248,245,.05) 50%, rgba(231,227,247,.12)), rgba(244,242,247,.08)',
       '--g-glow': 'radial-gradient(circle, rgba(255,255,255,.5), rgba(231,227,247,.16) 42%, rgba(255,255,255,0) 70%)', // 鼠标发光圆
       '--g-grid': 'rgba(17,17,20,.07)',          // 网格装饰线
@@ -385,8 +386,8 @@ globalThis.APP_CONSTANTS = {
       // ---- 背景舞台 ----
       '--g-bg': '#0E0C14',
       // #164（v0.25.72）：平面简约白色系——flat 专用 token（深色主题保持暗色系）
-      '--flat-bg': '#0B0A11', '--flat-paper': '#0E0C14', '--flat-paper-2': '#15131C', '--flat-paper-3': '#1C1A26',
-      '--flat-line': 'rgba(255,255,255,.10)',
+      '--flat-bg': '#0B0A11', '--flat-paper': '#0E0C14', '--flat-paper-2': '#171520', '--flat-paper-3': '#1F1C2B',
+      '--flat-line': 'rgba(255,255,255,.12)',
       '--g-plate': 'linear-gradient(105deg, rgba(28,24,44,.50), rgba(16,14,26,.40) 50%, rgba(30,26,48,.50)), linear-gradient(105deg, rgba(40,34,62,.35), rgba(12,10,20,.25) 50%, rgba(48,40,72,.35)), rgba(20,18,30,.55)',
       '--g-glow': 'radial-gradient(circle, rgba(142,128,232,.45), rgba(99,86,196,.16) 42%, rgba(255,255,255,0) 70%)',
       '--g-grid': 'rgba(255,255,255,.06)',

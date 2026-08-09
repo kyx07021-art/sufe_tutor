@@ -134,6 +134,12 @@ async function markReadConv(convId) {
   } catch { /* 静默 */ }
 }
 
+// 2026-08-09 反馈：离开聊天页时把当前打开的会话已读（看过即消——打开时已 markReadConv，此处兜底
+// 覆盖"打开后又有新消息/上报失败"的情形；app-shell selectPage 离开 my-chats 时 typeof 守卫调用）
+function markActiveConvRead() {
+  if (chatConvId != null) markReadConv(chatConvId);
+}
+
 function renderConvItem(c) {
   const peer = chatPeerOf(c);
   const me = state.user.id;

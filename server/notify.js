@@ -88,6 +88,15 @@ export async function handleMarkNotificationRead(db, notifId, req) {
   return json({ ok: true });
 }
 
+// POST /api/notifications/read-all → 全部已读（2026-08-09 反馈：离开通知页时把本次已展示的未读批量标记，
+// 免逐条点击；纯个人游标，不 bump 版本域，与单条已读同口径。进入页面不再自动全读——未读呼吸先展示，切出才消）
+export async function handleMarkAllNotificationsRead(db, req) {
+  const me = await authUser(db, req);
+  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0', [me.id]);
+  return json({ ok: true });
+}
+
 // DELETE /api/admin/notifications/:id —— 删除一整批广播通知（广播 = 全体用户同文案同秒各插一行，
 // 同批共享 batch_id；传任一条的 id 即按 batch_id 删全批。历史行/单点推送无 batch_id 则单删。
 // backoffice 接口：前端无调用，供管理员误发公告的撤销（CLAUDE.md 部署纪律引用了此接口）

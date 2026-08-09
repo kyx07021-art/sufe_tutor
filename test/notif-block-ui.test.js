@@ -273,3 +273,44 @@ test('#151 单条已读上报失败 → 回滚：遮罩与点击入口恢复（�
   assert.equal(target.querySelector('.notif-dot').classList.contains('read'), false, '红点恢复');
   assert.ok((target.getAttribute('onclick') || '').includes('markNotifRead('), '失败回滚：点击入口恢复可重试');
 });
+
+// 2026-08-09 反馈三项：呼吸加速 + 竖线连根删 + 离开通知页批量已读（看过即消）
+test('反馈-呼吸加速：notif-breathe 时长 1.4s（原 2.4s 太慢）', () => {
+  const css = readFileSync('./style.css', 'utf8');
+  const m = css.match(/animation: notif-breathe ([0-9.]+)s/);
+  assert.ok(m, '呼吸动画时长在位');
+  assert.equal(Number(m[1]), 1.4, '时长加快到 1.4s');
+});
+
+test('反馈-竖线连根删：.about-funds 与 .funds-note 不再带 border-left 强调', () => {
+  const css = readFileSync('./style.css', 'utf8');
+  for (const cls of ['.about-funds', '.funds-note']) {
+    const rule = css.split(cls + ' {')[1] || '';
+    const block = '{' + rule.split('}')[0] + '}';
+    assert.ok(!block.includes('border-left'), `${cls} 左竖线已删（无强调）`);
+  }
+});
+
+test('反馈-离开通知页批量已读：看过即消，POST /api/notifications/read-all + 本地全翻', async () => {
+  // 字面新建 fixture：早期 #151 点击测试会就地 mutate 共享 rows 对象（fetch 回同一引用），复用必被污染
+  const freshRows = [
+    { id: 11, text: `${BROADCAST}维护公告`, is_read: 1, created_at: '2026-08-08 10:00:00' },
+    { id: 12, text: '需求被选走', is_read: 0, created_at: '2026-08-08 09:00:00' },
+    { id: 13, text: `${BROADCAST}新版本上线`, is_read: 0, created_at: '2026-08-08 08:00:00' },
+    { id: 14, text: '意向已同意', is_read: 0, created_at: '2026-08-08 07:00:00' },
+  ];
+  const { dom, ctx, fetched } = makeCtx({ notifRows: freshRows });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  await vm.runInContext(`state.page = 'notifications'; enterNotifications()`, ctx);
+  await tick();
+  assert.equal(doc.querySelectorAll('.notif-item.unread').length, 3, '进页未读呼吸仍展示（不自动全读）');
+  assert.ok(!fetched.some(f => f.u === '/api/notifications/read-all'), '进页不发批量已读');
+  // 切到设置页 → 触发批量已读
+  await vm.runInContext(`selectPage('account-settings')`, ctx);
+  await tick(); await tick();
+  assert.ok(fetched.some(f => f.u === '/api/notifications/read-all' && f.method === 'POST'), '离开通知页发批量已读');
+  assert.equal(doc.querySelectorAll('.notif-item.unread').length, 0, '遮罩就地消除');
+  const allRead = vm.runInContext(`_notifList.every(n => n.is_read)`, ctx);
+  assert.equal(allRead, true, '本地 _notifList 全翻已读');
+});

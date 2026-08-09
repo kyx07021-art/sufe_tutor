@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { handleMarkNotificationRead } from '../server/notify.js';
+import { handleMarkNotificationRead, handleMarkAllNotificationsRead } from '../server/notify.js';
 import { tokenDigest } from '../server/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -122,4 +122,28 @@ test('routeApi 全路径：未认证 POST 单条已读 → 401', async () => {
   const url = new URL('http://x/api/notifications/1/read');
   const r = await routeApi(db, '/api/notifications/1/read', 'POST', {}, url, reqOf('bad'), {});
   assert.equal(r.status, 401, '未认证被拒');
+});
+
+// 2026-08-09 反馈：离开通知页批量已读（看过即消，免逐条点击）
+test('read-all：批量已读本人全部未读；不影响他人；幂等', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { a, b, aToken, bToken } = await seed(db, raw);
+  const r = await handleMarkAllNotificationsRead(db, reqOf(aToken));
+  assert.equal(r.status, 200);
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0').get(a).c, 0, '本人未读清零');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0').get(b).c, 1, '他人未读不受影响');
+  const r2 = await handleMarkAllNotificationsRead(db, reqOf(aToken));
+  assert.equal(r2.status, 200, '幂等 ok');
+  const unauth = await handleMarkAllNotificationsRead(db, reqOf('bad'));
+  assert.equal(unauth.status, 401, '未认证被拒');
+});
+
+test('routeApi 全路径：POST /api/notifications/read-all → 200 批量已读', async () => {
+  const { routeApi } = await import('../_worker.js');
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { a, aToken } = await seed(db, raw);
+  const url = new URL('http://x/api/notifications/read-all');
+  const r = await routeApi(db, '/api/notifications/read-all', 'POST', {}, url, reqOf(aToken), {});
+  assert.equal(r.status, 200, '路由接线正常');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0').get(a).c, 0, '全读生效');
 });

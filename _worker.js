@@ -21,7 +21,7 @@ import {
   handleCreateIntent, handleGetIntents, handleResolveIntent,
   handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from './server/routes-demands.js';
-import { handleGetNotifications, handleMarkNotificationRead, handleAdminDeleteNotification } from './server/notify.js';
+import { handleGetNotifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleAdminDeleteNotification } from './server/notify.js';
 import {
   handleCreateContract, handleGetMyContracts,
   handleSignContract, handleModifyContract, handleCancelContract,
@@ -126,6 +126,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
 
   // 通知信息（全角色侧边栏模块）
   if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, req);
+  if (p === '/api/notifications/read-all' && method === 'POST') return await handleMarkAllNotificationsRead(db, req); // 2026-08-09 反馈：离开通知页批量已读
   const notifRead = idMatch(p, /^\/api\/notifications\/(\d+)\/read$/); // #151 单条已读（取代批量全读）
   if (notifRead && method === 'POST') return await handleMarkNotificationRead(db, notifRead, req); // 2026-08-09 审计：#151 曾误传 notifRead[1]（idMatch 已返回数字，取下标恒 undefined → 恒 400，单条已读线上失效）
   if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);

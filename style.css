@@ -859,11 +859,11 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .about-title { font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink); margin-bottom: 10px; }
 .about-text { font-size: .86rem; color: var(--ink-3); line-height: 1.75; }
 /* 需求四（v0.25.44）：平台不走资金声明——关于页「我们是谁」卡内醒目分块（弱纸面 + 平台色左缘条，非警告） */
-.about-funds { margin-top: 14px; padding: 12px 14px; border-radius: var(--lg-r-sm); background: var(--g-fill-weak); border-left: 3px solid var(--accent); }
+.about-funds { margin-top: 14px; padding: 12px 14px; border-radius: var(--lg-r-sm); background: var(--g-fill-weak); } /* 2026-08-09 反馈：左竖线强调连根删，卡片存在本身足够 */
 .about-funds-title { font-size: .82rem; font-weight: 800; color: var(--accent-deep); margin-bottom: 6px; }
 .about-funds-text { font-size: .8rem; color: var(--ink-3); line-height: 1.7; }
 /* 需求四（v0.25.44）：资金触点浮窗（签约/起草合同）内的同款声明——弱纸面 + 平台色左缘条，用户必见 */
-.funds-note { margin: 4px 0 0; padding: 8px 11px; border-radius: var(--lg-r-sm); background: var(--g-fill-weak); border-left: 3px solid var(--accent); font-size: .74rem; color: var(--ink-3); line-height: 1.6; }
+.funds-note { margin: 4px 0 0; padding: 8px 11px; border-radius: var(--lg-r-sm); background: var(--g-fill-weak); font-size: .74rem; color: var(--ink-3); line-height: 1.6; } /* 2026-08-09 反馈：同删左竖线 */
 .about-card-block + .about-card-block { margin-top: 0; }
 /* 平台基本用法卡底部：重温新手引导按钮（v0.19.49） */
 .about-flow-revisit { margin-top: 16px; display: flex; gap: 10px; }
@@ -1814,7 +1814,7 @@ body.profile-panel-closing .profile-panel {
   content: ''; position: absolute; inset: 0;
   background: var(--danger);
   opacity: 0;
-  animation: notif-breathe 2.4s ease-in-out infinite;
+  animation: notif-breathe 1.4s ease-in-out infinite; /* 2026-08-09 反馈：呼吸加速（原 2.4s 太慢不易察觉） */
   pointer-events: none;
 }
 @keyframes notif-breathe {

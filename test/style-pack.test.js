@@ -164,9 +164,9 @@ test('平面简约白色系：#164 flat 基底覆盖 + 主题提供 --flat-*（�
   const light = vm.runInContext('APP_CONSTANTS.THEME.light', ctx);
   const dark = vm.runInContext('APP_CONSTANTS.THEME.dark', ctx);
   const flatTokens = vm.runInContext('APP_CONSTANTS.STYLE_PACKS.flat.tokens', ctx);
-  // 浅色主题：flat 专用底/纸为纯白
-  assert.equal(light['--flat-bg'], '#FFFFFF', '浅色 flat 页面底纯白');
-  assert.equal(light['--flat-paper'], '#FFFFFF', '浅色 flat 纸面纯白');
+  // 浅色主题：flat 白色系分层（2026-08-09 反馈：页面底微灰非纯白，白卡浮起才有层级）
+  assert.notEqual(light['--flat-bg'], '#FFFFFF', '页面底不是纯白（微灰白系，防全白无层级）');
+  assert.equal(light['--flat-paper'], '#FFFFFF', '浅色 flat 卡片纯白');
   assert.ok(light['--flat-paper-2'] && light['--flat-paper-3'], '浅色 flat 灰阶纸面在位');
   // 深色主题：flat 保持暗色系（非白色）
   assert.ok(dark['--flat-bg'].startsWith('#') && dark['--flat-bg'] !== '#FFFFFF', '深色 flat 底保持暗色');
@@ -178,4 +178,22 @@ test('平面简约白色系：#164 flat 基底覆盖 + 主题提供 --flat-*（�
   // 液态包零覆盖（白系只属于 flat）
   const liquidTokens = vm.runInContext('APP_CONSTANTS.STYLE_PACKS.liquid.tokens', ctx);
   assert.equal(liquidTokens['--g-bg'], undefined, '液态包不动 --g-bg');
+});
+
+// 2026-08-09 反馈：平面简约是"白色系"不是纯白——页面底与卡面分层（微灰底 + 纯白卡 + 发丝边），层级可辨
+test('flat 亮色分层：--flat-bg ≠ --flat-paper（页面底微灰、卡片纯白），嵌套面逐级加深', () => {
+  const { ctx } = makeCtx();
+  const light = vm.runInContext('APP_CONSTANTS.THEME.light', ctx);
+  assert.notEqual(light['--flat-bg'], light['--flat-paper'], '页面底与卡面不同色（此前全白无层级）');
+  assert.equal(light['--flat-paper'], '#FFFFFF', '卡片仍纯白');
+  const bg = light['--flat-bg'], p2 = light['--flat-paper-2'], p3 = light['--flat-paper-3'];
+  // 嵌套面按 底→卡→卡2→卡3 逐级加深：白色系从亮到暗有序
+  const shade = hex => {
+    const v = parseInt(hex.slice(1), 16);
+    return (v >> 16) + ((v >> 8) & 0xff) + (v & 0xff);
+  };
+  const sBg = shade(bg), sP = shade(light['--flat-paper']), sP2 = shade(p2), sP3 = shade(p3);
+  assert.ok(sBg < sP, '页面底比卡片暗一档（白卡浮起）');
+  assert.ok(sP2 < sP, '嵌套面（卡内控件）比卡片暗');
+  assert.ok(sP3 < sP2, '最深嵌套面再暗一档');
 });
