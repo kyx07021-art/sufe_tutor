@@ -97,6 +97,7 @@ const DOMAIN_FILES = [
   'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-complaints.js',
 ];
 let __domainLoaded = false;
+let __domainReloadOnce = false; // v0.25.100：领域脚本 404 自愈——整页刷新只触发一次，防死循环
 let __domainLoading = null; // #178 并发防重：预载与 enterClient 同时调 loadDomainScripts 时共享同一次注入
 function loadDomainScripts() {
   if (__domainLoaded || typeof globalThis.loadMyDemands === 'function') return Promise.resolve(); // 已载/测试短路
@@ -106,7 +107,15 @@ function loadDomainScripts() {
     const inject = f => new Promise(resolve => {
       const s = document.createElement('script');
       s.src = '/' + (manifest[f] || f);
-      s.onload = s.onerror = resolve; // 单脚本失败不阻断后续（缺个别模块下次补）
+      s.onload = resolve;
+      s.onerror = () => {
+        // v0.25.100（发布后老妖根治）：Pages 部署滚动窗口内，manifest 放行的新哈希资产可能间歇 404
+        // （边缘节点未同步，实测 12 次里 2 次）——领域脚本 404 会缺模块 → 教师列表/登录等加载失败。
+        // 自愈：检测到脚本加载失败 → 整页刷新拿新 index.html（内联新 manifest）→ 新哈希 URL 重试。
+        // 刷新恢复登录/页面停留（v0.25.95 会话层），不会踢出用户；防无限刷新（一次标记）。
+        if (!__domainReloadOnce) { __domainReloadOnce = true; setTimeout(() => location.reload(), 900); }
+        resolve();
+      };
       (document.head || document.documentElement).appendChild(s);
     });
     for (const f of DOMAIN_FILES) await inject(f);
