@@ -243,7 +243,7 @@ function openContractModifyModal(contractId) {
   openModal({
     title: `${UI.MODIFY_CONTRACT_TITLE}`,
     closable: false,
-    body: `<div id="post-alert"></div>
+    body: `
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_PLAN}</label>
           <div class="md-toolbar">
@@ -316,8 +316,7 @@ async function verifyContractLedgerUi(contractId) {
 
 async function submitContractModify(contractId) {
   const md = (document.getElementById('post-body').value || '').trim();
-  const alertEl = document.getElementById('post-alert');
-  if (!md) { alertEl.innerHTML = alertHtml('error', UI.CONTRACT_EMPTY); return; }
+  if (!md) { showToast(UI.CONTRACT_EMPTY, 'error'); return; }
   try {
     const data = await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: window._contractModifyVersion } });
     closeModal();
@@ -333,7 +332,7 @@ async function submitContractModify(contractId) {
         if (c && c.version != null) window._contractModifyVersion = c.version;
       } catch { /* 刷新失败静默，用户可关弹窗重开 */ }
     }
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error');
   }
 }
 
@@ -372,7 +371,7 @@ async function openSigningModal(convId) {
     title: UI.SIGNING_MODAL_TITLE,
     closable: false,
     replace: true, // v0.25.98：loading→表单同流程直接替换，不恢复旧 loading 壳
-    body: `<div id="post-alert"></div>
+    body: `
         <p class="text-sm text-muted signing-modal-hint">${UI.SIGNING_MODAL_HINT}</p>
         <div class="form-group">
           <label class="form-label">${UI.SIGNING_DEMAND_LABEL} <span class="req">*</span></label>
@@ -461,7 +460,7 @@ async function openContractDraftModal(convId) {
     title: `${UI.DRAFT_MODAL_TITLE}`,
     closable: false,
     replace: true, // v0.25.98：loading→表单同流程直接替换，不恢复旧 loading 壳
-    body: `<div id="contract-alert">${demandsFailed ? alertHtml('error', UI.CONTRACT_DEMANDS_LOAD_FAIL) : ''}</div>
+    body: `
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND} <span class="req">*</span></label>
           <p class="text-sm text-muted contract-demand-hint">${UI.CONTRACT_DEMANDS_SIGNED_HINT}</p>
@@ -534,6 +533,7 @@ async function openContractDraftModal(convId) {
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>`,
   });
+  if (demandsFailed) showToast(UI.CONTRACT_DEMANDS_LOAD_FAIL, 'error'); // v0.25.99：加载失败提示走底部 Toast（原浮窗顶红条）
   initCustomSelects(document.getElementById('contract-method') && document.getElementById('contract-method').closest('.modal'));
   contractToggleOther('contract-pay-method', 'contract-pay-method-other-wrap');
   contractToggleOther('contract-trial-pay', 'contract-trial-pay-other-wrap');
@@ -571,7 +571,6 @@ function prefillContractFromDemand() {
 let contractDraftBusy = false; // 合同起草防双发（双击生成两份草案）
 
 async function submitContractDraft(convId) {
-  const alertEl = document.getElementById('contract-alert');
   const method = document.getElementById('contract-method').value;
   const rate = document.getElementById('contract-rate').value;
   const plan = (document.getElementById('post-body').value || '').trim();
@@ -581,14 +580,14 @@ async function submitContractDraft(convId) {
   const trialPay = document.getElementById('contract-trial-pay').value;
   const trialPayOther = trialPay === 'other' ? (document.getElementById('contract-trial-pay-other').value || '').trim() : '';
   const demandId = parseInt(document.getElementById('contract-demand').value) || null;
-  if (!demandId) { alertEl.innerHTML = alertHtml('error', UI.CONTRACT_REQUIRE_SIGNED); return; } // 需求四·第3条：只能选已签约需求
-  if (!rate || +rate <= 0) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_RATE); return; }
-  if (payMethod === 'other' && !payMethodOther) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER); return; }
-  if (trialPay === 'other' && !trialPayOther) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER); return; }
-  if (!plan) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_PLAN); return; }
+  if (!demandId) { showToast(UI.CONTRACT_REQUIRE_SIGNED, 'error'); return; } // 需求四·第3条：只能选已签约需求
+  if (!rate || +rate <= 0) { showToast(UI.VALIDATE_CONTRACT_RATE, 'error'); return; }
+  if (payMethod === 'other' && !payMethodOther) { showToast(UI.VALIDATE_CONTRACT_PAY_METHOD_OTHER, 'error'); return; }
+  if (trialPay === 'other' && !trialPayOther) { showToast(UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER, 'error'); return; }
+  if (!plan) { showToast(UI.VALIDATE_CONTRACT_PLAN, 'error'); return; }
   const tsErr = validateTimeSlots(document.getElementById('contract-time-slots'));
-  if (tsErr) { alertEl.innerHTML = alertHtml('error', tsErr); return; } // v0.25.35 结构化时间校验（空=可协商，不强制）
-  if (firstLessonDateRaw === null) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_CONTRACT_FIRST_LESSON_INCOMPLETE); return; } // 需求四十五：日期半填拦截（空=另行协商合法）
+  if (tsErr) { showToast(tsErr, 'error'); return; } // v0.25.35 结构化时间校验（空=可协商，不强制）
+  if (firstLessonDateRaw === null) { showToast(UI.VALIDATE_CONTRACT_FIRST_LESSON_INCOMPLETE, 'error'); return; } // 需求四十五：日期半填拦截（空=另行协商合法）
   const firstLessonDate = firstLessonDateRaw; // '' 或 'YYYY-MM-DD'（readDateField 已按真实日历钳制）
   if (contractDraftBusy) return;
   contractDraftBusy = true;
@@ -600,7 +599,7 @@ async function submitContractDraft(convId) {
     closeModal();
     showToast(data.message || UI.CONTRACT_DRAFT_SENT_TOAST);
   } catch (err) {
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error');
   } finally {
     contractDraftBusy = false;
   }

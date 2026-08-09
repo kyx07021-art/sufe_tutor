@@ -411,8 +411,8 @@ body { background: transparent; }
 /* v0.25.42（注销幽灵数据）：一方已注销 tag——中性弱玻璃 + 灰字，注销是状态中性信息不惊扰（同 .post-like 弱面族） */
 .tag-deactivated { --g-fill: var(--g-fill-weak); color: var(--muted); }
 /* 反馈卡 Bug 红色警示 */
-/* 反馈 bug 卡：--g-surface 左红条连根拔（v0.19.21 用户定性没必要）——CSS 变量继承会把红条传给卡内所有 glass 子组件(tag/按钮)，
-   语义条只应设在不含 glass 子组件的组件上（如 alert 提示条） */
+/* 反馈 bug 卡：--g-surface 左红条连根拔（v0.19.21 用户定性没必要）——CSS 变量继承会把红条传给卡内所有 glass 子组件(tag/按钮)。
+   v0.25.99：alert 警示条亦已删除，全站提示统一走 Toast，--g-surface 语义条机制不再用于任何提示组件 */
 .feedback-card--bug { --g-fill: var(--g-danger-fill-soft); }
 
 /* 资料广场 */
@@ -438,10 +438,9 @@ body { background: transparent; }
 
 /* 反馈类型分段按钮（v0.25.20 需求二：旧类连根删，收编标准分段控件 .seg-tabs） */
 
-/* 警示条（语义强填充 + 左色条） */
-.alert-error { --g-fill: var(--g-danger-fill-soft); --g-fg: var(--danger-deep); --g-surface: inset 3px 0 0 var(--danger); --g-r: var(--lg-r-sm); }
-.alert-success { --g-fill: var(--g-ok-fill); --g-fg: var(--ok-deep); --g-surface: inset 3px 0 0 var(--g-ok-fg); --g-r: var(--lg-r-sm); }
-.alert-warn { --g-fill: var(--g-warn-fill); --g-fg: var(--warn-deep); --g-surface: inset 3px 0 0 var(--warn-deep); --g-r: var(--lg-r-sm); } /* v0.25.19 审计 G-06：补缺预设（原裸 glass 吃引擎默认，无 warn 语义色；app-region gaokao-mismatch-warn 用） */
+/* v0.25.99：Alert 警示条三色预设连根删——提示统一走底部 Toast（showToast 全风格，kind 只换 --g-fill/--g-fg，
+   不再用 --g-surface 左色条）。语义色预设转移至 style.css 的 .toast.toast--error/success/warn 与
+   持久性静态提示 .gaokao-mismatch-warn */
 
 /* 推送需求单选行 */
 .push-pick-item { --g-fill: var(--g-fill-faint); --g-r: var(--lg-r-sm); }

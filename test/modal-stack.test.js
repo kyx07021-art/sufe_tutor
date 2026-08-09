@@ -83,7 +83,7 @@ test('replace:true：同流程 loading→表单直接替换，关闭后不恢复
   const { ctx } = makeCtx();
   vm.runInContext(`
     openModal({ title: '加载中', closable: false, body: '<div class="empty-state">loading</div>' });
-    openModal({ title: '签约表单', closable: false, replace: true, body: '<div id="post-alert"></div>' });
+    openModal({ title: '签约表单', closable: false, replace: true, body: '<div id="form-marker"></div>' });
   `, ctx);
   assert.equal(title(ctx), '签约表单', 'replace 后顶层是表单');
   assert.equal(vm.runInContext('document.querySelectorAll("#modal-container .modal").length', ctx), 1,
@@ -133,8 +133,8 @@ test('真实路径 openSigningModal：loading→表单（replace），关闭后�
   await vm.runInContext('openSigningModal(1);', ctx); // fetch mock 返回空 demands
   assert.equal(vm.runInContext('document.querySelectorAll("#modal-container .modal").length', ctx), 1,
     'async 完成后仅一个 modal（loading 被 replace 替换）');
-  assert.ok(vm.runInContext(`document.querySelector('#modal-container #post-alert') !== null`, ctx),
-    '顶层是签约表单（含 post-alert）');
+  assert.ok(vm.runInContext(`document.querySelector('#modal-container #signing-demand') !== null`, ctx),
+    '顶层是签约表单（含需求下拉）');
   assert.ok(!vm.runInContext(`document.querySelector('#modal-container .empty-state') !== null`, ctx),
     '无 loading 壳残留');
   vm.runInContext('closeModal();', ctx);

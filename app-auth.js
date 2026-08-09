@@ -163,18 +163,16 @@ async function handleLogin(e) {
   e.preventDefault();
   const username = document.getElementById('login-username').value.trim();
   const password = document.getElementById('login-password').value;
-  const alertEl = document.getElementById('login-alert');
   const btn = document.getElementById('login-submit');
 
   try {
     btnLoading(btn, UI.LOADING_LOGIN);
     const data = await api('/api/auth/login', { method: 'POST', body: { username, password, deviceId: getDeviceId() } });
     state.user = data.user; state.authToken = data.authToken || null;
-    alertEl.innerHTML = '';
     saveSession(document.getElementById('login-remember').checked); // 会话持久化（绝不存明文密码）
     afterAuthSuccess();
   } catch (err) {
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error'); // v0.25.99：校验/错误提示走底部 Toast
   } finally {
     btnDone(btn, UI.BTN_LOGIN);
   }
@@ -186,22 +184,21 @@ async function handleRegister(e) {
   const password = document.getElementById('register-password').value;
   const password2 = document.getElementById('register-password2').value;
   const role = document.getElementById('register-role').value;
-  const alertEl = document.getElementById('register-alert');
 
   if (password !== password2) {
-    alertEl.innerHTML = alertHtml('error', UI.VALIDATE_PASSWORD_MISMATCH);
+    showToast(UI.VALIDATE_PASSWORD_MISMATCH, 'error'); // v0.25.99：校验提示走底部 Toast
     return;
   }
   // 需求三十（v0.25.47）：注册须勾选同意用户协议与隐私政策（两行轻量勾选；服务端同款强校验，双保险）
   const agreeAgreement = document.getElementById('agree-agreement') && document.getElementById('agree-agreement').checked;
   const agreePrivacy = document.getElementById('agree-privacy') && document.getElementById('agree-privacy').checked;
   if (!agreeAgreement || !agreePrivacy) {
-    alertEl.innerHTML = alertHtml('error', UI.AGREE_REQUIRED);
+    showToast(UI.AGREE_REQUIRED, 'error');
     return;
   }
   if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
     if (!state.validatedInviteCode) {
-      alertEl.innerHTML = alertHtml('error', UI.VALIDATE_INVITE_FIRST);
+      showToast(UI.VALIDATE_INVITE_FIRST, 'error');
       showView('invite-gate');
       return;
     }
@@ -215,11 +212,10 @@ async function handleRegister(e) {
     const data = await api('/api/auth/register', { method: 'POST', body });
     state.user = data.user; state.authToken = data.authToken || null;
     if (role === 'teacher') state.validatedInviteCode = null; // 请求成功后清（网络失败保留，重试免重验；原提前清空致失败即需重验）
-    alertEl.innerHTML = '';
     saveSession(false); // 注册即登录：会话存 sessionStorage（刷新保留，关标签即焚）
     afterAuthSuccess();
   } catch (err) {
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error');
   } finally {
     const btn = document.getElementById('register-submit');
     btnDone(btn, UI.BTN_REGISTER);
@@ -228,19 +224,18 @@ async function handleRegister(e) {
 
 async function validateInviteAndRegister() {
   const code = document.getElementById('invite-code-input').value.trim();
-  const alertEl = document.getElementById('invite-gate-alert');
 
-  if (!code) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_INVITE_REQUIRED); return; }
+  if (!code) { showToast(UI.VALIDATE_INVITE_REQUIRED, 'error'); return; }
 
   // 这里只做格式校验，真正的验证在注册时进行
   if (code.length !== CONFIG.INVITE_CODE_LEN) {
-    alertEl.innerHTML = alertHtml('error', UI.VALIDATE_INVITE_LENGTH); // 8 位
+    showToast(UI.VALIDATE_INVITE_LENGTH, 'error'); // 8 位
     return;
   }
 
   // 保存验证过的邀请码，跳转到注册表单
   state.validatedInviteCode = code;
-  alertEl.innerHTML = alertHtml('success', UI.SUCCESS_INVITE_CONFIRMED);
+  showToast(UI.SUCCESS_INVITE_CONFIRMED, 'success');
 
   // 等一秒让用户看到成功提示，然后跳转到注册页
   setTimeout(() => {

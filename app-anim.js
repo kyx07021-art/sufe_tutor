@@ -69,12 +69,16 @@ function initReveals(root) {
 
 // ============================================================
 // Toast：全站轻提示。CSS 类承担定位/入场动画；JS 只增删节点 + 定时切退场类（v0.21.0 重构：原内联 cssText 已下沉）
+// v0.25.99 升级全风格：showToast(msg, kind)，kind ∈ error|success|warn|info（缺省 info 兼容历史中性调用）。
+// 样式区分走 --g-fill/--g-fg 底色+文字色，无左竖条（v0.25.99 教训：alert 系 --g-surface 左竖条全站连根拔）。
+// 消息走 textContent（XSS 单源——调用处传原始文案，禁传已转义/含 HTML 的字符串）
 // ============================================================
-function showToast(msg) {
+function showToast(msg, kind) {
+  const box = document.getElementById('toast-container') || document.body;
   const toast = document.createElement('div');
-  toast.className = 'toast glass glass--float';
+  toast.className = `toast glass glass--float toast--${kind || 'info'}`;
   toast.textContent = msg;
-  document.body.appendChild(toast);
+  box.appendChild(toast);
   setTimeout(() => {
     toast.classList.add('toast--out'); // CSS transition 退场
     setTimeout(() => toast.remove(), CONFIG.TOAST_FADE_MS);

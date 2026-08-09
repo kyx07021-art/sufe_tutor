@@ -607,16 +607,15 @@ async function loadProfile() {
 
 async function handleSaveProfile(e) {
   e.preventDefault();
-  const alertEl = document.getElementById('profile-alert');
   const province = document.getElementById('profile-province').value;
-  if (!province) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_PROVINCE); return; }
+  if (!province) { showToast(UI.VALIDATE_SELECT_PROVINCE, 'error'); return; }
   const subjects = [...document.querySelectorAll('#profile-subjects input:checked')].map(cb=>cb.value);
-  if (!subjects.length) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_SUBJECT); return; }
+  if (!subjects.length) { showToast(UI.VALIDATE_SELECT_SUBJECT, 'error'); return; }
 
   // R2-1 可授课时间段：前端先过 validateTimeSlots（半填/起止颠倒就地拦截），再收集序列化
   const timeSlotsContainer = document.getElementById('profile-time-slots');
   const tsErr = validateTimeSlots(timeSlotsContainer);
-  if (tsErr) { alertEl.innerHTML = alertHtml('error', tsErr); return; }
+  if (tsErr) { showToast(tsErr, 'error'); return; }
   const timeSlots = collectTimeSlots(timeSlotsContainer);
 
   // 省份锁定组件的收集函数（app-region.js），输出与旧 gaokao_scores 形状兼容
@@ -630,8 +629,7 @@ async function handleSaveProfile(e) {
   })();
   const mismatches = gaokaoPolicyMismatchCount(polForSave, gaokaoScores);
   if (mismatches > 0) {
-    alertEl.innerHTML = alertHtml('error',
-      UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches));
+    showToast(UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches), 'error');
     return;
   }
 
@@ -667,7 +665,7 @@ async function handleSaveProfile(e) {
         credential_image: _profileCredential || '', // 截图 dataURL 暂存件随档案提交（空串 = 未上传/清空）
       }},
     });
-    alertEl.innerHTML = alertHtml('success', UI.SUCCESS_PROFILE_SAVED);
+    showToast(UI.SUCCESS_PROFILE_SAVED, 'success');
     invalidate('teachers'); // 档案已变：清教师列表缓存，浏览页/个人信息面板/推送弹窗下次读取重拉新档
   } catch (err) {
     showToast(err.message); // v0.19.43 档案长表单底部提交：门牌号预警等错误改 Toast，避免被滚动淹没

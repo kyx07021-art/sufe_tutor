@@ -139,7 +139,7 @@ test('前端：注册表单含两行勾选（我已阅读并同意用户协议/�
     window.__sent = () => sent;
   `, ctx);
   await vm.runInContext('handleRegister({ preventDefault() {} })', ctx);
-  assert.equal(vm.runInContext('document.getElementById("register-alert").innerHTML.includes("请先勾选同意用户协议与隐私政策")', ctx), true, '未勾选给出提示');
+  assert.equal(vm.runInContext('[...document.querySelectorAll("#toast-container .toast")].some(t => t.textContent.includes("请先勾选同意用户协议与隐私政策"))', ctx), true, '未勾选 Toast 提示');
   assert.equal(vm.runInContext('window.__sent()', ctx), false, '未勾选不发注册请求');
 });
 

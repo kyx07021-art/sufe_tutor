@@ -268,10 +268,10 @@ test('R22 对象选择与提交：选对象 + 理由 → POST /api/complaints；
   const UI = globalThis.APP_CONSTANTS.UI;
   await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
-  // 未选对象提交 → 拦截提示，不发请求
+  // 未选对象提交 → 拦截提示，不发请求（v0.25.99：提示走底部 Toast）
   await vm.runInContext(`switchComplaintReason(0); submitComplaint()`, ctx);
   assert.equal(complaints.length, 0, '未选对象不发请求');
-  assert.ok(doc.getElementById('complaint-alert').textContent.includes(UI.COMPLAINT_TARGET_REQUIRED), '未选对象提示');
+  assert.ok([...doc.querySelectorAll('#toast-container .toast')].some(t => t.textContent.includes(UI.COMPLAINT_TARGET_REQUIRED)), '未选对象 Toast 提示');
   // 选对象（教师 tab）+ 理由 + 详情 → 提交
   await vm.runInContext(`pickComplaintTarget('teacher', 5, { dataset: { name: '李老师' } })`, ctx);
   assert.ok(doc.getElementById('cmp-selected-teacher').textContent.includes('李老师'), '选中区显示对象名');

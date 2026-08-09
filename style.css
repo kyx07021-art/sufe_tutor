@@ -1338,18 +1338,31 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .match-t-head { margin-bottom: 6px; }
 .match-t-head-main { display: block; font-size: .74rem; font-weight: 800; color: var(--ink); line-height: 1.5; }
 
-/* Toast（全站轻提示）：定位/入场/退场全在 CSS 呈现层（v0.21.0 重构：原 JS 内联 cssText 且 fadeUp 关键帧缺失，
-   入场动画实为坏引用——下沉 CSS 后按既定意图生效）。JS 只增删节点 + 切 .toast--out 退场类 */
+/* Toast（全站轻提示，v0.25.99 升级全风格）：定位/入场/退场全在 CSS 呈现层。
+   JS 只增删节点 + 切 .toast--out 退场类。容器 #toast-container 固定底部中央、flex 堆叠多条；
+   kind 变体只换 --g-fill/--g-fg 底色+文字色，无左竖条（v0.25.99 教训：alert 系 --g-surface 左竖条连根拔） */
+#toast-container {
+  position: fixed; bottom: 24px; left: 0; right: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  z-index: 300; /* 高于 modal-overlay 200：浮于一切弹窗/面板之上 */
+  pointer-events: none; /* 容器不挡点击；toast 自身可点 */
+}
 .toast {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-  padding: 12px 24px; font-size: 0.875rem; font-weight: 500; z-index: 300;
-  animation: fadeUp .3s var(--ease-snap) both;
-  transition: opacity .3s ease;
+  pointer-events: auto;
+  padding: 12px 24px; font-size: 0.875rem; font-weight: 500;
+  max-width: min(86vw, 440px); text-align: center;
+  animation: fadeUp .3s var(--ease-snap) both; /* 毛玻璃 transform 动画走 animation 纯 transform（禁 transition，Chromium 983252） */
+  transition: opacity .3s ease; /* 退场只淡 opacity，无 transform，transition 安全 */
 }
 .toast--out { opacity: 0; }
+/* v0.25.99 全风格：info 走玻璃引擎默认（glass.css .toast 的 --g-fill-strong）；error/success/warn 换底色+文字色。
+   双类提特异性（0,2,0）压 glass.css 后加载的 .toast（0,1,0），颜色不被引擎默认覆盖 */
+.toast.toast--error { --g-fill: var(--g-danger-fill-soft); --g-fg: var(--danger-deep); }
+.toast.toast--success { --g-fill: var(--g-ok-fill); --g-fg: var(--ok-deep); }
+.toast.toast--warn { --g-fill: var(--g-warn-fill); --g-fg: var(--warn-deep); }
 @keyframes fadeUp {
-  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
-  to   { opacity: 1; transform: translateX(-50%); }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
 }
 
 
@@ -1536,9 +1549,13 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .star-rating-input .star-btn.active { color: var(--star); }
 .star-rating-input .star-btn:hover { color: var(--star); }
 
-/* Alert */
-.alert { padding: 11px 14px; font-size: .8rem; font-weight: 600; margin-bottom: 16px; animation: fade-in .3s ease; }
-/* v0.25.19 审计 G-08：文字色双源收敛——color 直写删净，统一走引擎 --g-fg（glass.css alert-* 设 --g-fg） */
+/* v0.25.99：Alert 提示条组件连根删——表单校验/错误/成功提示全站改走底部 Toast（showToast 全风格）。
+   原 .alert/.alert-error/.alert-success/.alert-warn 及 --g-surface 左竖条一并清除（见 glass.css 删除记录） */
+/* 独立静态提示（非浮层）：教师端高考政策不匹配警告，渲染进成绩区持久显示（区域编辑器 gaokao-mismatch-warn） */
+.gaokao-mismatch-warn {
+  --g-fill: var(--g-warn-fill); --g-fg: var(--warn-deep); --g-r: var(--lg-r-sm);
+  padding: 11px 14px; font-size: .8rem; font-weight: 600; margin-bottom: 16px;
+}
 
 /* ---------- spinner ---------- */
 /* 加载中：三根有规律伸缩的纵向柱体（全站统一，非圆圈）。柱体取 currentColor 随环境文字色

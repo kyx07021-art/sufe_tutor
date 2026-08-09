@@ -629,15 +629,10 @@ document.addEventListener('error', e => {
 }, true);
 
 // ============================================================
-// 标准组件壳（2026-08-08 审计收编 G-10）：alert 提示条 / 按钮 loading / 勾选框组。
+// 标准组件壳（2026-08-08 审计收编 G-10）：按钮 loading / 勾选框组。
 // ——把散落在各领域模块的手拼 HTML 收敛到单点，转义与视觉单源（原 7 文件 36 处内联拼接）。
+// v0.25.99：Alert 提示条连根删——提示统一走底部 Toast（showToast 全风格，app-anim.js）
 // ============================================================
-/** Alert 提示条：kind=error|success|warn；msg 内部统一 escHtml（调用处传原始文案，禁重复转义）；
-    extraCls 透传额外类（如 gaokao-mismatch-warn）。返回完整 <div class="alert ... glass"> 字符串 */
-function alertHtml(kind, msg, extraCls) {
-  return `<div class="alert alert-${escHtml(kind)} glass${extraCls ? ' ' + extraCls : ''}">${escHtml(msg)}</div>`;
-}
-
 /** 按钮 loading：禁用 + 三柱 spinner（+ 可选右侧文案）；label 传 null 则纯 spinner。
     恢复用 btnDone(btn, label)（textContent 还原——原 innerHTML 拼 spinner 会把原文本冲掉）。 */
 function btnLoading(btn, label) {

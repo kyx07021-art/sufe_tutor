@@ -584,7 +584,7 @@ function openReviewModal(teacherUserId, teacherName, editId) {
   const existing = editId ? state.myReviewOnModal : null;
   openModal({
     title: existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName),
-    body: `<div id="review-alert"></div>
+    body: `
         <div class="form-group">
           <label class="form-label">${UI.LABEL_RATING} <span class="req">*</span></label>
           <div class="star-rating-input" id="review-stars">
@@ -615,10 +615,9 @@ let reviewSubmitBusy = false; // 评价提交防双发（双击连发两条待�
 async function submitReview(teacherUserId, reviewId) {
   const rating = +document.getElementById('review-rating').value;
   const comment = document.getElementById('review-comment').value.trim();
-  const alertEl = document.getElementById('review-alert');
 
-  if (!rating) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_RATING); return; }
-  if (comment.length < CONFIG.REVIEW_COMMENT_MIN) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_COMMENT_TOO_SHORT); return; }
+  if (!rating) { showToast(UI.VALIDATE_SELECT_RATING, 'error'); return; }
+  if (comment.length < CONFIG.REVIEW_COMMENT_MIN) { showToast(UI.VALIDATE_COMMENT_TOO_SHORT, 'error'); return; }
   if (reviewSubmitBusy) return;
   reviewSubmitBusy = true;
 
@@ -630,7 +629,7 @@ async function submitReview(teacherUserId, reviewId) {
     showToast(data.message || UI.SUCCESS_REVIEW_SUBMITTED);
     if (profilePanelShowing(teacherUserId)) openProfilePanel(teacherUserId); // 面板正展示该教师 → 评价卡片就地刷新（写/改后状态同步）
   } catch (err) {
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error');
   } finally {
     reviewSubmitBusy = false;
   }

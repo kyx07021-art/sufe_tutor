@@ -117,7 +117,6 @@
           <h2 id="login-title">欢迎回来</h2>
           <p id="login-subtitle">登录你的账户以继续使用</p>
         </div>
-        <div id="login-alert"></div>
         <form onsubmit="handleLogin(event)">
           <div class="form-group">
             <label class="form-label">用户名</label>
@@ -150,7 +149,6 @@
           <h2>创建账户</h2>
           <p>注册后即可使用平台全部功能</p>
         </div>
-        <div id="register-alert"></div>
         <div class="seg-tabs seg-tabs--role glass glass--solid" id="register-role-tabs">
           <button type="button" class="seg-tab glass active" data-role="student" onclick="switchRegisterRole('student')">我是学生</button>
           <button type="button" class="seg-tab glass" data-role="teacher" onclick="switchRegisterRole('teacher')">我是教师</button>
@@ -194,7 +192,6 @@
           <h2>需要邀请码</h2>
           <p class="text-muted text-sm invite-note">教师注册需要先验证邀请码。请输入管理员提供的邀请码，验证通过后再填写注册信息。邀请码有效期 5 分钟且仅限一人使用。</p>
         </div>
-        <div id="invite-gate-alert"></div>
         <div class="form-group">
           <label class="form-label">邀请码</label>
           <input type="text" class="form-input invite-code-input" id="invite-code-input" placeholder="请输入 8 位邀请码">
@@ -372,7 +369,6 @@
         <!-- 教师：编辑自身信息 -->
         <section class="client-page hidden" data-page="edit-profile">
           <div class="page-header"><h2 id="profile-page-title">编辑教师信息</h2></div>
-          <div id="profile-alert"></div>
           <form onsubmit="handleSaveProfile(event)" class="profile-form">
             <div class="form-group">
               <label class="form-label">省份（高考所在地）<span class="req">*</span></label>
@@ -883,5 +879,7 @@
       }).catch(function () {});
     })();
   </script>
+  <!-- v0.25.99 底部 Toast 容器：全站提示统一走这里（showToast 全风格，fixed 浮于 modal 之上） -->
+  <div id="toast-container" aria-live="polite"></div>
 </body>
 </html>

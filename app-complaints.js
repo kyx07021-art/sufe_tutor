@@ -43,7 +43,7 @@ function openComplaintModal() {
     title: UI.COMPLAINT_MODAL_TITLE,
     titleId: 'complaint-modal-title',
     closable: false,
-    body: `<div id="complaint-alert"></div>
+    body: `
       ${segTabsHtml([
         { key: 'teacher', label: UI.COMPLAINT_TAB_TEACHER, onclick: "switchComplaintTab('teacher')" },
         { key: 'student', label: UI.COMPLAINT_TAB_STUDENT, onclick: "switchComplaintTab('student')" },
@@ -154,17 +154,16 @@ function clearComplaintTarget(type) {
 // 提交投诉
 // ============================================================
 async function submitComplaint() {
-  const alertEl = document.getElementById('complaint-alert');
   const target = _cpSel[_cpTab];
-  if (!target) { alertEl.innerHTML = alertHtml('error', UI.COMPLAINT_TARGET_REQUIRED); return; }
-  if (!_cpReason) { alertEl.innerHTML = alertHtml('error', UI.COMPLAINT_REASON_REQUIRED); return; }
+  if (!target) { showToast(UI.COMPLAINT_TARGET_REQUIRED, 'error'); return; }
+  if (!_cpReason) { showToast(UI.COMPLAINT_REASON_REQUIRED, 'error'); return; }
   const detail = (document.getElementById('complaint-detail').value || '').trim();
   try {
     await api('/api/complaints', { method: 'POST', body: { targetType: _cpTab, targetId: target.id, reason: _cpReason, detail } });
     closeModal();
     showToast(UI.COMPLAINT_SENT_TOAST);
   } catch (err) {
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error');
   }
 }
 

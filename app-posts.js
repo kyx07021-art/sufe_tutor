@@ -240,7 +240,7 @@ function openPostEditor() {
   openModal({
     title: `${UI.POST_MODAL_TITLE_CREATE}`,
     closable: false,
-    body: `<div id="post-alert"></div>
+    body: `
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE} <span class="req">*</span></label>
           <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.POST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
@@ -345,12 +345,11 @@ function openPostPreview() {
 async function submitPost() {
   const titleEl = document.getElementById('post-title');
   const bodyEl = document.getElementById('post-body');
-  const alertEl = document.getElementById('post-alert');
   const btn = document.getElementById('post-submit');
   const title = (titleEl.value || '').trim();
 
   if (!title) {
-    alertEl.innerHTML = alertHtml('error', UI.POST_TITLE_REQUIRED);
+    showToast(UI.POST_TITLE_REQUIRED, 'error'); // v0.25.99：校验提示走底部 Toast
     titleEl.focus();
     return;
   }
@@ -365,7 +364,7 @@ async function submitPost() {
     invalidate('posts'); // v0.23.1 审计 M1：写后清数据层缓存，否则 loadPosts 命中旧列表新帖不出现
     loadPosts();
   } catch (err) {
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error');
     btnDone(btn, UI.BTN_PUBLISH);
   }
 }
@@ -405,7 +404,7 @@ function openBroadcastModal() {
   openModal({
     title: `${UI.BROADCAST_MODAL_TITLE}`,
     closable: false,
-    body: `<div id="post-alert"></div>
+    body: `
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
           <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.BROADCAST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
@@ -421,9 +420,8 @@ function openBroadcastModal() {
 async function submitBroadcast() {
   const title = (document.getElementById('post-title').value || '').trim();
   const text = (document.getElementById('post-body').value || '').trim();
-  const alertEl = document.getElementById('post-alert');
-  if (!title) { alertEl.innerHTML = alertHtml('error', UI.POST_TITLE_REQUIRED); return; }
-  if (!text) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_BROADCAST_EMPTY); return; }
+  if (!title) { showToast(UI.POST_TITLE_REQUIRED, 'error'); return; }
+  if (!text) { showToast(UI.VALIDATE_BROADCAST_EMPTY, 'error'); return; }
   const btn = document.getElementById('broadcast-submit');
   btnLoading(btn);
   try {
@@ -433,7 +431,7 @@ async function submitBroadcast() {
     showToast(UI.BROADCAST_SENT_TOAST);
     if (state.page === 'notifications') enterNotifications(); // 自己也收一条，列表即时刷新
   } catch (err) {
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error');
     btnDone(btn);
   }
 }
@@ -452,7 +450,7 @@ function openFeedbackModal(kind) {
     title: feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST,
     titleId: 'feedback-modal-title',
     closable: false,
-    body: `<div id="post-alert"></div>
+    body: `
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
           <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.FEEDBACK_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
@@ -478,15 +476,14 @@ function switchFeedbackKind(kind) {
 async function submitFeedback() {
   const title = (document.getElementById('post-title').value || '').trim();
   const content = (document.getElementById('post-body').value || '').trim();
-  const alertEl = document.getElementById('post-alert');
-  if (!title) { alertEl.innerHTML = alertHtml('error', UI.POST_TITLE_REQUIRED); return; }
-  if (!content) { alertEl.innerHTML = alertHtml('error', UI.FEEDBACK_EMPTY); return; }
+  if (!title) { showToast(UI.POST_TITLE_REQUIRED, 'error'); return; }
+  if (!content) { showToast(UI.FEEDBACK_EMPTY, 'error'); return; }
   try {
     await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
     closeModal();
     showToast(UI.FEEDBACK_SENT_TOAST);
   } catch (err) {
-    alertEl.innerHTML = alertHtml('error', err.message);
+    showToast(err.message, 'error');
   }
 }
 

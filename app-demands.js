@@ -82,7 +82,7 @@ function renderDemandModal(demand) {
   // GENDERS 教师侧含 undeclared 默认（学生侧以 '' 表示不愿透露，剔除 undeclared 与历史 nonbinary）
   const studentGenders = [{ id: '', name: UI.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary')];
   const prefGenders = GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary'); // 偏好老师性别：不限('') + 男/女
-  return `<div id="demand-alert"></div>
+  return `
         <form onsubmit="handleSubmitDemand(event)" id="demand-form">
           <div class="form-group">
             <!-- R2-8 学科/非学科分段切换：标准分段控件 .seg-tabs（v0.25.20 需求二；v0.25.23 审计：构造走 segTabsHtml 壳） -->
@@ -333,21 +333,20 @@ function updateDemandScores() {
 
 async function handleSubmitDemand(e) {
   e.preventDefault();
-  const alertEl = document.getElementById('demand-alert');
   const province = document.getElementById('d-province').value;
-  if (!province) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_PROVINCE); return; }
+  if (!province) { showToast(UI.VALIDATE_SELECT_PROVINCE, 'error'); return; }
   // R2-b 需求类型 + 按类型收集目标（学科 → #d-subjects；非学科 → #d-nonacademic）
   const type = document.querySelector('#d-type-tabs .seg-tab.active').dataset.type;
   const targetSel = type === DEMAND_TYPES.NONACADEMIC ? '#d-nonacademic input:checked' : '#d-subjects input:checked';
   const subjects = [...document.querySelectorAll(targetSel)].map(cb => cb.value);
-  if (!subjects.length) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_SUBJECT); return; }
+  if (!subjects.length) { showToast(UI.VALIDATE_SELECT_SUBJECT, 'error'); return; }
 
   const scores = type === DEMAND_TYPES.NONACADEMIC ? [] : collectStudentScores(); // 非学科无成绩概念
   const prefTags = [...document.querySelectorAll('#d-personality-tags .tag-pick.selected')].map(b => b.dataset.id);
 
   // v0.25.0 结构化期望时间：校验（半填/缺起止/结束早于开始）通过后收集为 [{type:'week',...}] JSON
   const timeErr = validateTimeSlots(document.getElementById('d-time-slots'));
-  if (timeErr) { alertEl.innerHTML = alertHtml('error', timeErr); return; }
+  if (timeErr) { showToast(timeErr, 'error'); return; }
   const timeSlots = collectTimeSlots(document.getElementById('d-time-slots'));
 
   const isEdit = !!state.editingDemandId;

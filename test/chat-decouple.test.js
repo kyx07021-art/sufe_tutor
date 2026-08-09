@@ -195,14 +195,14 @@ test('submitSigning：未选需求被校验拦截，不发起请求；选中后�
   assert.ok(String(dom.window.__posted.body.schedule || '').includes('周一'), 'schedule 为格式化时间段');
 });
 
-test('submitContractDraft：未选已签约需求被校验拦截', async () => {
-  const { ctx, dom } = makeCtx();
+test('submitContractDraft：未选已签约需求被校验拦截（v0.25.99 走 Toast）', async () => {
+  const { ctx } = makeCtx();
   vm.runInContext(`
-    showToast = () => {};
+    globalThis.__toasts = [];
+    showToast = (m) => __toasts.push(m);
     api = async () => ({});
     document.getElementById('modal-container').innerHTML = \`
       <div class="modal"><div class="modal-body">
-        <div id="contract-alert"></div>
         <select class="form-select" id="contract-demand"><option value="" disabled>暂无</option></select>
         <input id="contract-rate" value="150"><select id="contract-method"><option value="online">线上</option></select>
         <input id="contract-pay-method" value="per_session"><div id="contract-pay-method-other-wrap" class="hidden"></div>
@@ -212,6 +212,8 @@ test('submitContractDraft：未选已签约需求被校验拦截', async () => {
       </div></div>\`;
   `, ctx);
   await vm.runInContext('submitContractDraft(1)', ctx);
-  const alertHtml = dom.window.document.getElementById('contract-alert').innerHTML;
-  assert.ok(alertHtml.includes('选择已签约需求'), '未选已签约需求应提示校验');
+  const toasts = vm.runInContext('globalThis.__toasts', ctx);
+  assert.ok(toasts.some(t => String(t).includes('选择已签约需求')), '未选已签约需求应 Toast 校验');
+  assert.equal(vm.runInContext('document.querySelector("#modal-container #contract-alert")', ctx), null,
+    '浮窗内不再渲染 alert 容器');
 });

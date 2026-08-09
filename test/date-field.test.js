@@ -159,8 +159,9 @@ test('submitContractDraft 集成：日期空→另行协商空串；半填→校
     `, ctx);
     await vm.runInContext('submitContractDraft(1)', ctx);
     assert.equal(record.length, 0, '半填不发起请求');
-    const alertText = vm.runInContext('document.getElementById("contract-alert").innerHTML', ctx);
-    assert.ok(alertText.includes('请完整填写首次上课日期'), '半填给出提示');
+    // v0.25.99：校验提示走底部 Toast（原浮窗顶红条已连根删）
+    const toastText = vm.runInContext('[...document.querySelectorAll("#toast-container .toast")].map(t => t.textContent).join(" ")', ctx);
+    assert.ok(toastText.includes('请完整填写首次上课日期'), '半填 Toast 提示');
   }
   // 3) 日期完整 → 提交 YYYY-MM-DD
   {

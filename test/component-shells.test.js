@@ -1,7 +1,7 @@
 /**
  * 前端重构（2026-08-08 审计收编）标准组件壳回归测试
  * 覆盖 app-ui.js 新增壳 + app-anim.js positionFloatCard：
- *   - alertHtml：三态类名/转义单源（msg 内部 escHtml）/extraCls 透传
+ *   - showToast：全风格 kind 类名 + textContent 转义单源（v0.25.99 取代 alertHtml，提示统一走底部 Toast）
  *   - btnLoading / btnDone：禁用 + spinner 结构 + 还原
  *   - checkboxItemsHtml：label 组结构 / checked 集合 / 转义
  *   - positionFloatCard：left/top 锚定 + 可选 listEl 高度上限（几何值单源 CONFIG）
@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 function makeCtx() {
-  const html = '<!DOCTYPE html><html><body><div id="box"></div></body></html>';
+  const html = '<!DOCTYPE html><html><body><div id="box"></div><div id="toast-container"></div></body></html>';
   const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true });
   const w = dom.window;
   const ctx = vm.createContext({
@@ -32,19 +32,25 @@ function makeCtx() {
   return { ctx, dom };
 }
 
-test('alertHtml：error/success 类名 + msg 内部转义（XSS 单源）', () => {
-  const { ctx } = makeCtx();
-  const html = vm.runInContext(`alertHtml('error', '<img src=x onerror=alert(1)>')`, ctx);
-  assert.ok(html.includes('class="alert alert-error glass"'), 'error 态类名');
-  assert.ok(!html.includes('<img'), 'msg 内部被转义（禁原样注入）');
-  assert.ok(html.includes('&lt;img'), '转义后实体存在');
+test('showToast：全风格 kind 类名 + textContent 转义（XSS 单源，v0.25.99 取代 alertHtml）', () => {
+  const { ctx, dom } = makeCtx();
+  vm.runInContext(`showToast('<img src=x onerror=alert(1)>', 'error')`, ctx);
+  const el = dom.window.document.querySelector('#toast-container .toast');
+  assert.ok(el, 'toast 挂载到 #toast-container（固定底部容器）');
+  assert.ok(el.classList.contains('toast--error'), 'error 态类名');
+  assert.equal(el.querySelector('img'), null, 'textContent 禁原样注入 HTML');
+  assert.equal(el.textContent, '<img src=x onerror=alert(1)>', '文案以纯文本呈现');
 });
 
-test('alertHtml：success 态 + extraCls 透传（gaokao-mismatch-warn 场景）', () => {
-  const { ctx } = makeCtx();
-  const html = vm.runInContext(`alertHtml('success', 'ok', 'gaokao-mismatch-warn')`, ctx);
-  assert.ok(html.includes('class="alert alert-success glass gaokao-mismatch-warn"'), 'success + extraCls');
-  assert.ok(html.includes('ok'), '文案保留');
+test('showToast：success/warn 类 + info 缺省 + 多条堆叠', () => {
+  const { ctx, dom } = makeCtx();
+  vm.runInContext(`showToast('a', 'success'); showToast('b'); showToast('c', 'warn');`, ctx);
+  const els = [...dom.window.document.querySelectorAll('#toast-container .toast')];
+  assert.equal(els.length, 3, '三条依次堆叠在容器内');
+  assert.ok(els[0].classList.contains('toast--success'), 'success 态');
+  assert.ok(els[1].classList.contains('toast--info'), '无 kind → info 缺省态（兼容历史中性调用）');
+  assert.ok(els[2].classList.contains('toast--warn'), 'warn 态');
+  assert.equal(els[0].textContent, 'a', '文案顺序与调用一致');
 });
 
 test('btnLoading/btnDone：禁用+spinner，还原后 textContent 恢复', () => {
