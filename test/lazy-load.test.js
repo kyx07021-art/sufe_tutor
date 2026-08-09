@@ -4,6 +4,7 @@
  *    领域脚本（region-data/style/region/posts/chat/contracts/chart/admin/demands/teachers/pages）不在其中
  *  - loadDomainScripts 幂等：领域函数已存在（测试 FILES 全载）即短路，不创建 script 标签
  *  - mdRender 已上移到 app-ui（boot 共享层）——登录前政策浮窗可用，不依赖领域脚本
+ *  - #178（v0.25.85）：preloadDomainScripts 在 DOMContentLoaded 末尾后台静默预载领域脚本
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -56,4 +57,14 @@ test('ROLE_PAGES enter 全惰性包装：app-shell 顶层不直接引用领域�
   }
   assert.ok(shell.includes('enter: () => loadMyDemands()'), '惰性包装在位');
   assert.ok(shell.includes('enter: () => enterAbout()'), 'about 惰性包装在位');
+});
+
+test('#178 后台静默预载：DOMContentLoaded 即调度领域脚本（点击入口下一帧进客户端）', () => {
+  const shell = readFileSync('./app-shell.js', 'utf8');
+  assert.ok(shell.includes('function preloadDomainScripts()'), '预载调度函数在位');
+  assert.ok(shell.includes("requestIdleCallback(run, { timeout: 2000 })"), '空闲回调优先（不挤占首屏）');
+  assert.ok(shell.includes('setTimeout(run, 500)'), '无 rIC 环境 setTimeout 兜底');
+  assert.ok(shell.includes('preloadDomainScripts(); // #178'), 'DOMContentLoaded 末尾触发预载');
+  assert.ok(shell.includes('if (__preloaded) return;'), '幂等防重复调度');
+  assert.ok(shell.includes('if (__domainLoading) return __domainLoading;'), '预载与 enterClient 并发注入共享同一 Promise（防重复注入）');
 });

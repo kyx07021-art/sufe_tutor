@@ -360,13 +360,18 @@ function closeProfilePanel() {
   }
 }
 
-// 关闭按钮 + 遮罩：程序化绑定（不写内联 onclick）
-document.addEventListener('DOMContentLoaded', () => {
+// 关闭按钮 + 遮罩：程序化绑定（不写内联 onclick）。
+// v0.25.85 断线修复：本文件是领域脚本（#175 懒加载/#178 预载），注入必在 DOMContentLoaded
+// 之后——原用 document.addEventListener('DOMContentLoaded') 注册的监听永不触发，
+// 表现为「个人信息卡点叉关不掉」。改 readyState 幂等：晚注入立即绑定，早注入等 DOM 就绪。
+const bindProfilePanelClosers = () => {
   const btn = document.getElementById('profile-panel-close');
   if (btn) btn.addEventListener('click', closeProfilePanel);
   const bd = document.getElementById('profile-panel-backdrop');
   if (bd) bd.addEventListener('click', closeProfilePanel);
-});
+};
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bindProfilePanelClosers);
+else bindProfilePanelClosers();
 
 // 面板是否正打开且展示某用户（评价提交后据此就地刷新）
 function profilePanelShowing(userId) {

@@ -826,9 +826,60 @@
       if (window.__applyPageStyle) window.__applyPageStyle();
     })();
   </script>
-  <!-- v0.25.76 #176：SW 自愈脚本连根删除——v0.24.1 起 SW 已拔除、全仓库无任何 register 调用，
-       自愈是"给还在用旧 SW 的存量浏览器做一次性迁移"的临时垫板；两周多来所有可达用户的首访
-       都已跑过并落 sufe_sw_cleanup_done 标记（且旧 SW 是 cache-first，会直接喂旧 index.html，
-       自愈脚本根本到不了它的作用域）。纯死代码，删除优先于增加。 -->
+  <!-- v0.25.85 SW 自愈脚本恢复（v0.25.76 曾删，误判：见下）：
+       完整缓存项清单（2026-08-09 调研，清理逻辑全覆盖面）：
+         [浏览器 Cache API —— 旧 SW 遗留，须自愈清理]
+           sufe-v<VERSION>（静态资产 cache-first，v0.22.5~v0.24.0 时代旧 SW）
+           sufe-api（公开读 API 30s 短缓存，旧 SW 时代）
+         [Service Worker 注册]（v0.24.1 已拔除注册代码，但存量浏览器已激活的 SW 不因删代码消失）
+         [HTTP 层] index.html max-age=0+must-revalidate + worker 自持 ETag（v0.25.77）；
+           裸名资产 max-age=0+must-revalidate；版本化资产 public,max-age=31536000,immutable；
+           API no-store —— 均无需清理（HTTP 语义自愈）
+         [Cloudflare 边缘] worker Cache API（版本化资产，v0.25.83）—— 内容寻址，无需清理
+         [localStorage 偏好/会话] sufe_theme/sufe_orb/sufe_ui_scale/sufe_style/sufe_device_id/
+           sufe_last_role/sufe_returning/sufe_app_version/sufe_block_broadcast/sufe_session_<role>
+           —— 用户数据与偏好，非缓存，禁止删除
+       v0.25.76 删除理由「旧 SW 是 cache-first 会直接喂旧 index.html，自愈脚本到不了作用域」不成立：
+       旧 SW 对导航请求是 network-first（fetch 网络拿最新 HTML 并更新缓存），在线用户必拿到含自愈
+       脚本的新 index.html → 脚本能执行。删除前提错误 + 主域名（长期使用，浏览器可能仍挂旧 SW）
+       断线隐患实证 → 恢复。自愈幂等：本会话清理过（sessionStorage 标记）即跳过；无 SW/无 sufe-*
+       缓存时零副作用不刷新。 -->
+  <script>
+    (function () {
+      function markDone() {
+        try { sessionStorage.setItem('sufe_sw_cleanup_done', '1'); return true; } catch (e) {}
+        try { localStorage.setItem('sufe_sw_cleanup_done', '1'); return true; } catch (e) {}
+        return false; // 双通道都不可写：放弃刷新（宁可本页暂不干净，也不刷新死循环）
+      }
+      function isDone() {
+        try { if (sessionStorage.getItem('sufe_sw_cleanup_done')) return true; } catch (e) {}
+        try { if (localStorage.getItem('sufe_sw_cleanup_done')) return true; } catch (e) {}
+        return false;
+      }
+      if (isDone()) return; // 本会话已清理过，防重复刷新
+      var found = false;
+      var tasks = [];
+      if ('serviceWorker' in navigator) {
+        tasks.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
+          if (rs && rs.length) {
+            found = true;
+            return Promise.all(rs.map(function (r) { return r.unregister(); }));
+          }
+        }).catch(function () {}));
+      }
+      if ('caches' in window) {
+        tasks.push(caches.keys().then(function (keys) {
+          var hit = keys.filter(function (k) { return k.indexOf('sufe-') === 0; });
+          if (hit.length) {
+            found = true;
+            return Promise.all(hit.map(function (k) { return caches.delete(k); }));
+          }
+        }).catch(function () {}));
+      }
+      Promise.all(tasks).then(function () {
+        if (found && markDone()) location.reload(); // 清完立刻整页刷新：当前页可能已被陈旧资产污染
+      }).catch(function () {});
+    })();
+  </script>
 </body>
 </html>

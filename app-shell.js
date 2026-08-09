@@ -96,17 +96,34 @@ const DOMAIN_FILES = [
   'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js', 'app-pages.js',
 ];
 let __domainLoaded = false;
-async function loadDomainScripts() {
-  if (__domainLoaded || typeof globalThis.loadMyDemands === 'function') return; // 已载/测试短路
-  const manifest = (window.ASSET_MANIFEST || {}).files || {};
-  const inject = f => new Promise(resolve => {
-    const s = document.createElement('script');
-    s.src = '/' + (manifest[f] || f);
-    s.onload = s.onerror = resolve; // 单脚本失败不阻断后续（缺个别模块下次补）
-    (document.head || document.documentElement).appendChild(s);
-  });
-  for (const f of DOMAIN_FILES) await inject(f);
-  __domainLoaded = true;
+let __domainLoading = null; // #178 并发防重：预载与 enterClient 同时调 loadDomainScripts 时共享同一次注入
+function loadDomainScripts() {
+  if (__domainLoaded || typeof globalThis.loadMyDemands === 'function') return Promise.resolve(); // 已载/测试短路
+  if (__domainLoading) return __domainLoading; // 注入已在途：复用同一 Promise，杜绝重复注入
+  __domainLoading = (async () => {
+    const manifest = (window.ASSET_MANIFEST || {}).files || {};
+    const inject = f => new Promise(resolve => {
+      const s = document.createElement('script');
+      s.src = '/' + (manifest[f] || f);
+      s.onload = s.onerror = resolve; // 单脚本失败不阻断后续（缺个别模块下次补）
+      (document.head || document.documentElement).appendChild(s);
+    });
+    for (const f of DOMAIN_FILES) await inject(f);
+    __domainLoaded = true;
+  })();
+  return __domainLoading;
+}
+
+// #178（v0.25.85）：领域脚本后台静默预载——落地页渲染完成后即开始注入，
+// 点击角色按钮进客户端时 loadDomainScripts 已就绪 → 下一帧即进入客户端（消除 ~0.5s 无事发生期）。
+// requestIdleCallback 空闲调度（fallback setTimeout），绝不影响首屏；幂等（已载短路）。
+let __preloaded = false;
+function preloadDomainScripts() {
+  if (__preloaded) return;
+  __preloaded = true;
+  const run = () => loadDomainScripts();
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 2000 });
+  else setTimeout(run, 500);
 }
 
 // ------------------------------------------------------------
@@ -525,4 +542,5 @@ document.addEventListener('DOMContentLoaded', () => {
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件
   showView('landing');
   showOnboardingIfNeeded();
+  preloadDomainScripts(); // #178：后台静默预载领域脚本（点击入口下一帧即进客户端）
 });

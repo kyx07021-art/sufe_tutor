@@ -9,7 +9,7 @@ export const ASSET_MANIFEST = {
     "style-posts.css": "style-posts.f30fd094.css",
     "style-chat.css": "style-chat.2ffbe360.css",
     "glass.css": "glass.dfdc3b47.css",
-    "constants.js": "constants.1efd2cf2.js",
+    "constants.js": "constants.d89da2eb.js",
     "app-display.js": "app-display.5b16d805.js",
     "app-state.js": "app-state.757548d4.js",
     "app-api.js": "app-api.f52ccd44.js",
@@ -17,7 +17,7 @@ export const ASSET_MANIFEST = {
     "app-anim.js": "app-anim.95f1e50a.js",
     "app-ui.js": "app-ui.515a1af0.js",
     "app-onboard.js": "app-onboard.0b8c61c7.js",
-    "app-shell.js": "app-shell.161f781e.js",
+    "app-shell.js": "app-shell.17056401.js",
     "app-auth.js": "app-auth.e1dc5976.js",
     "region-data.js": "region-data.921c2316.js",
     "app-style.js": "app-style.17807bc8.js",
@@ -28,7 +28,7 @@ export const ASSET_MANIFEST = {
     "app-chart.js": "app-chart.5bbef1cc.js",
     "app-admin.js": "app-admin.5f4b5a0f.js",
     "app-demands.js": "app-demands.d212d9a6.js",
-    "app-teachers.js": "app-teachers.be3d0a85.js",
+    "app-teachers.js": "app-teachers.a0b1053a.js",
     "app-pages.js": "app-pages.d1e7e8fa.js"
   }
 };
