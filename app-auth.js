@@ -89,6 +89,16 @@ function handleFeatureClick(role) {
   enterRolePreview(role);
 }
 
+// R28（v0.25.93）：主页入口按钮光标跟随光斑（liquid 透镜感）——mousemove 委托更新 --mx/--my，
+// 视觉全在 CSS 层（.entry-glow radial-gradient），JS 只写几何变量。仅当入口按钮渲染时更新，零常驻成本。
+document.addEventListener('mousemove', (e) => {
+  const entry = e.target && e.target.closest ? e.target.closest('.entry') : null;
+  if (!entry) return;
+  const r = entry.getBoundingClientRect();
+  entry.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+  entry.style.setProperty('--my', (e.clientY - r.top) + 'px');
+});
+
 // 切换到目标角色：先清当前运行时（保留其已存会话，供下次切回），再校验目标角色令牌
 function switchToRole(role, saved) {
   exitCurrentIdentity();

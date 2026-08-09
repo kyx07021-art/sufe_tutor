@@ -290,6 +290,41 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
 .entry-arrow { font-size: 1.4rem; color: var(--ink); transition: transform var(--t-base) var(--ease-snap), color var(--t-base) var(--ease-out); }
 .entry:hover .entry-arrow, .entry:focus-visible .entry-arrow { transform: translateX(6px); color: var(--accent-bright); }
 
+/* ============================================================
+   R28（v0.25.93）：主页入口按钮定制——liquid × flat 融合开始按钮
+   调研收敛（成熟开始按钮语言）：光标跟随光斑 + hover 辉光边缘 + 微光扫过 + 弹簧按压。
+   liquid 面（光斑/辉光/扫光走玻璃引擎 token），flat 底（实心对比/弹簧按压）——
+   一键融合站点两种风格，替代「标准按钮效果」。
+   光斑 --mx/--my 由 app-auth mousemove 委托更新（JS 只写变量，视觉全在 CSS 层）。
+   ============================================================ */
+.entry-glow {
+  position: absolute; inset: 0; z-index: -1; /* 引擎玻璃面之后、文字之前 */
+  pointer-events: none;
+  opacity: 0; transition: opacity var(--t-base) var(--ease-out);
+  background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%);
+}
+.entry:hover .entry-glow, .entry:focus-visible .entry-glow { opacity: 1; } /* 光标光斑（liquid 透镜感） */
+.entry::after { /* 微光扫过：hover 触发一次自左上的光泽带（经典开始按钮动效） */
+  content: ''; position: absolute; z-index: -1; top: -40%; left: -35%;
+  width: 36%; height: 180%;
+  transform: rotate(18deg) translateX(-160%);
+  background: linear-gradient(105deg, transparent 0%, color-mix(in srgb, #fff 26%, transparent) 50%, transparent 100%);
+  pointer-events: none;
+}
+.entry:hover::after { animation: entry-sheen .65s var(--ease-out) .1s; }
+@keyframes entry-sheen { to { transform: rotate(18deg) translateX(460%); } }
+/* hover 辉光边缘（liquid）：完整保留引擎浮影列表（--g-lift/--g-liquid/--g-surface + hover 白洗 inset），
+   末尾追加主题色辉光——直接覆盖列表会丢浮影与 hover 白洗（玻璃引擎教训 v0.19.17：列表禁混 none）。
+   .entry.glass 提特异性：glass.css 后加载，同特异性 (.entry:hover vs .glass:hover) 会被引擎规则覆盖（实测） */
+.entry.glass:hover, .entry.glass:focus-visible {
+  box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none),
+    inset 0 0 0 9999px var(--g-hover),
+    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 10px 28px -10px color-mix(in srgb, var(--accent) 48%, transparent);
+}
+.entry:active { transform: translateY(1px) scale(.985); transition-duration: 60ms; } /* 弹簧按压（flat 触感） */
+
 .stage-note {
   margin-top: 22px; font-size: .78rem; color: var(--muted); letter-spacing: .03em;
   opacity: 0;
