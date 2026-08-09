@@ -90,9 +90,7 @@ async function loadAdminContracts() {
 }
 
 function renderAdminContractRow(c) {
-  const statusText = c.status === 'pending' ? UI.CONTRACT_STATUS_PENDING
-    : c.status === 'signing' ? UI.CONTRACT_STATUS_SIGNING : UI.CONTRACT_STATUS_SIGNED;
-  const statusCls = c.status === 'signed' ? 'tag-ok' : c.status === 'signing' ? 'tag-warn' : 'tag-accent';
+  const { text: statusText, cls: statusCls } = DISP.contractStatusMeta(c.status);
   const methodName = DISP.methodName(c.method) || c.method;
   return `<div class="admin-row glass">
     <div class="admin-row-main">
@@ -146,8 +144,8 @@ async function loadAdminFeedback() {
     const data = await dhGet('/api/feedbacks', { domain: 'admin' }); // v0.23.0 静默数据层
     return data.feedbacks || [];
   }, list => list.map(f => {
-    const resolved = f.status === 'resolved';
-    const kindTagCls = f.kind === 'bug' ? 'tag-danger' : f.kind === 'complaint' ? 'tag-warn' : 'tag-accent'; // #165：投诉走警示色
+    const resolved = f.status === STATUS.RESOLVED;
+    const kindTagCls = DISP.feedbackKindCls(f.kind); // #165：投诉走警示色
     const subject = DISP.feedbackSubjectName(f.subject); // 非投诉恒 ''
     return `<div class="list-card glass feedback-card${f.kind === 'bug' ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
         <div class="list-card-header">
@@ -269,7 +267,7 @@ async function loadAdminStats() {
       <div class="admin-panel glass">
         <h3>${UI.ADMIN_RECENT_DEMANDS}</h3>
         ${s.recentDemands.map(d => `<div class="recent-row">
-          <span><strong>${escHtml(d.username)}</strong> ${escHtml(STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name||'')} ${escHtml(DISP.demandTargetNames(d.target_subjects, d.target_type))}</span>
+          <span><strong>${escHtml(d.username)}</strong> ${escHtml(DISP.studentGradeName(d.student_grade))} ${escHtml(DISP.demandTargetNames(d.target_subjects, d.target_type))}</span>
           <span class="text-muted">${fmtDateTime(d.created_at)}</span>
         </div>`).join('')}
       </div>
@@ -428,7 +426,7 @@ function renderAdminReviewRow(r) {
       <div class="admin-row-meta">${fmtDateTime(r.created_at)}</div>
     </div>
     <div class="admin-row-actions">
-      ${r.status === 'pending' ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',0)">${UI.BTN_APPROVE}</button>
+      ${r.status === STATUS.PENDING ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',0)">${UI.BTN_APPROVE}</button>
       <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',0)">${UI.BTN_REJECT}</button>` : ''}
       <button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},0)">${UI.BTN_DELETE_REVIEW}</button>
     </div>

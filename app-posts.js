@@ -498,13 +498,13 @@ async function openMyFeedback() {
     if (!bodyEl) return; // 浮窗已被关闭
     if (!list.length) { bodyEl.innerHTML = `<div class="empty-state">${UI.MY_FEEDBACK_EMPTY}</div>`; return; }
     bodyEl.innerHTML = list.map(f => {
-      const resolved = f.status === 'resolved';
+      const resolved = f.status === STATUS.RESOLVED;
       const subject = DISP.feedbackSubjectName(f.subject);
       return `<div class="list-card glass my-feedback-card">
           <div class="list-card-header">
             <span class="list-card-title">${escHtml(f.title || '')}</span>
             <span class="feedback-tags">
-              <span class="tag glass glass--solid ${f.kind === 'bug' ? 'tag-danger' : f.kind === 'complaint' ? 'tag-warn' : 'tag-accent'}">${escHtml(DISP.feedbackKindName(f.kind))}</span>
+              <span class="tag glass glass--solid ${DISP.feedbackKindCls(f.kind)}">${escHtml(DISP.feedbackKindName(f.kind))}</span>
               ${subject ? `<span class="tag glass glass--solid tag-ok">${escHtml(subject)}</span>` : ''}
               <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.FEEDBACK_STATUS_RESOLVED : UI.FEEDBACK_STATUS_OPEN}</span>
             </span>

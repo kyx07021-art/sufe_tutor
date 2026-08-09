@@ -201,6 +201,36 @@
       return '';
     },
 
+    // —— A2 收口（v0.25.78）：跨模块散落的显示映射统一单点 ——
+
+    // 学生年级 id→名：查无返 id 本身（口径统一：id 保底显示，不静默消失）；空 id 返 ''
+    studentGradeName(id) {
+      if (!id) return '';
+      return enumName(C().STUDENT_GRADES, id, String(id));
+    },
+    // 需求编号文本：统一「UI.DEMAND_PREFIX#四位补零」；无编号返 ''
+    demandIdText(displayId) {
+      const n = Number(displayId);
+      return n ? `${UI().DEMAND_PREFIX}#${String(n).padStart(4, '0')}` : '';
+    },
+    // 需求预算行：任一上下限有值 → 「下限~上限元/h」，双空 → 面议
+    demandBudgetText(d) {
+      return (d.budget_min || d.budget_max)
+        ? `${d.budget_min || UI().BUDGET_NO_LIMIT}~${d.budget_max || UI().BUDGET_NO_LIMIT}${UI().BUDGET_UNIT_SUFFIX}`
+        : UI().BUDGET_NEGOTIABLE;
+    },
+    // 反馈 kind→tag 类：#165 起 bug=危险 / complaint=警示 / 其余(suggestion)=强调
+    feedbackKindCls(kind) {
+      return kind === 'bug' ? 'tag-danger' : kind === 'complaint' ? 'tag-warn' : 'tag-accent';
+    },
+    // 合同状态→文案+tag 类：signed=ok / signing=warn / 其余(pending)=accent
+    contractStatusMeta(status) {
+      const ST = C().STATUS || {};
+      if (status === ST.SIGNED) return { text: UI().CONTRACT_STATUS_SIGNED, cls: 'tag-ok' };
+      if (status === ST.SIGNING) return { text: UI().CONTRACT_STATUS_SIGNING, cls: 'tag-warn' };
+      return { text: UI().CONTRACT_STATUS_PENDING, cls: 'tag-accent' };
+    },
+
     // 行级 diff（v0.24.3 合同改动高亮）：oldText/newText 按行 LCS 分类，
     // 返回 ops：[{ t: 'same'|'del'|'add', text }]。纯函数、零 DOM。
     diffLines(oldText, newText) {

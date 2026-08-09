@@ -591,7 +591,7 @@ function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false, myTeacher = null } = opts;
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
   // 需求编号（#0004 四位）：v0.20.0 从小气泡挪出，直接跟在时间标记右侧（与时间同排的普通文本）
-  const idTag = d.display_id ? `<span class="demand-id-tag">#${String(d.display_id).padStart(4, '0')}</span>` : '';
+  const idTag = d.display_id ? `<span class="demand-id-tag">${DISP.demandIdText(d.display_id)}</span>` : '';
   // 匹配度徽章（教师视角 + 教师档案齐全时展示）：需求五·item1 升级标准按钮，按分值三色遮罩（matchLevel），
   // 点击呼出明细悬浮卡（沿用 .tag-match 作关闭判定的语义标记，造型走 .match-btn--*）
   const matchTag = (teacher && myTeacher)
@@ -602,7 +602,7 @@ function renderDemandCard(d, opts = {}) {
   const typeBadge = `<span class="tag tag-accent glass glass--solid">${d.target_type === DEMAND_TYPES.NONACADEMIC ? UI.BADGE_TYPE_NONACADEMIC : UI.BADGE_TYPE_ACADEMIC}</span> `;
   // R2-b 目标名按类型分流（DISP.demandTargetNameList 单点映射）：非学科显示项目名、学科显示科目名
   const subjNames = DISP.demandTargetNameList(d.target_subjects, d.target_type);
-  const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade;
+  const grade = DISP.studentGradeName(d.student_grade);
   // R2-11 学生性别 '' = 不愿透露 与历史 nonbinary 一律视同未填：demandStudentGenderName 返回 ''，
   // 下方 .filter(Boolean) 自然省略不展示（网安 L2：存量 nonbinary 不再显示「非二元」）
   const gender = DISP.demandStudentGenderName(d.student_gender);
@@ -610,9 +610,9 @@ function renderDemandCard(d, opts = {}) {
   const method = DISP.methodName(d.teaching_method) || DISP.methodName('offline');
   // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
   const teacherIntentBtn = !teacher ? ''
-    : d.my_intent_status === 'accepted' ? `<button type="button" class="btn btn-sm btn-intent-ok glass glass--pressable" disabled>${UI.INTENT_ACCEPTED}</button>`
-    : d.my_intent_status === 'pending'  ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
-    : d.my_intent_status === 'rejected' ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
+    : d.my_intent_status === STATUS.ACCEPTED ? `<button type="button" class="btn btn-sm btn-intent-ok glass glass--pressable" disabled>${UI.INTENT_ACCEPTED}</button>`
+    : d.my_intent_status === STATUS.PENDING  ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
+    : d.my_intent_status === STATUS.REJECTED ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
     : `<button type="button" class="btn btn-outline btn-sm glass glass--pressable btn-intent-cta" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
   // v0.25.12（反馈 #92）：推送需求操作按钮与提交意向统一 btn-sm 尺寸（原 btn-xs 是没复用组件的败笔），
   // 与说明文案一并下沉到底栏右下角
@@ -620,11 +620,10 @@ function renderDemandCard(d, opts = {}) {
       <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
       <button type="button" class="btn btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>`;
   // 学生/管理员侧卡片操作（编辑/重开/下架）同归底栏右下角（统一 btn-sm）
-  const ownerActions = (editable && d.status === 'revoked' ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
-    : editable && d.status !== 'contracted' ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : '')
-    + (admin && d.status !== 'contracted' ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
-  const budget = (d.budget_min || d.budget_max)
-    ? `${d.budget_min||UI.BUDGET_NO_LIMIT}~${d.budget_max||UI.BUDGET_NO_LIMIT}${UI.BUDGET_UNIT_SUFFIX}` : UI.BUDGET_NEGOTIABLE;
+  const ownerActions = (editable && d.status === STATUS.REVOKED ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
+    : editable && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : '')
+    + (admin && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
+  const budget = DISP.demandBudgetText(d);
 
   // 三行点号纯文字（同教师卡语言，行间细线分隔）：
   // ① 基本信息：地区·年级·性别·提交者 ② 教学需求：线上/下·报价 ③ 需求科目和成绩：科目: 分数/分制（等第制直接显等第）
@@ -638,7 +637,7 @@ function renderDemandCard(d, opts = {}) {
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
     <div class="list-card-header">
-      <span class="list-card-title">${DISP.usernameHtml(d.username || '')}${DISP.deactivatedTag(d.username)}${typeBadge}${matchTag}${d.status === 'contracted' ? ` <span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>` : d.status === 'revoked' ? ` <span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : ''}</span>
+      <span class="list-card-title">${DISP.usernameHtml(d.username || '')}${DISP.deactivatedTag(d.username)}${typeBadge}${matchTag}${d.status === STATUS.CONTRACTED ? ` <span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>` : d.status === STATUS.REVOKED ? ` <span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : ''}</span>
       <span class="demand-card-tools">
         <span class="list-card-meta">${push ? fmtDate(push.push_created_at) : fmtDate(d.created_at)}</span>${idTag}
       </span>
@@ -656,10 +655,10 @@ function renderDemandCard(d, opts = {}) {
       </div>
       <div class="demand-card-actions">
         ${teacher ? (push ? pushActions : teacherIntentBtn) : ''}${ownerActions}
-        ${editable && d.status !== 'revoked' ? `<button type="button" class="drop-toggle glass glass--solid" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
+        ${editable && d.status !== STATUS.REVOKED ? `<button type="button" class="drop-toggle glass glass--solid" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
       </div>
     </div>
-    ${editable && d.status !== 'revoked' ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
+    ${editable && d.status !== STATUS.REVOKED ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
     </div>
   </div>`;
 }
@@ -816,7 +815,7 @@ async function openSendDemandModal(teacherUserId) {
   catch { demands = state.myDemands; }
   demands = demands.filter(d => DISP.demandIsActive(d)); // 需求活跃统一谓词（v0.25.10：==='open'——revoked 未重开需求亦不可推送，此前宽松口径把 revoked 漏进候选成死路按钮）
   const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
-    const grade = STUDENT_GRADES.find(g=>g.id===d.student_grade)?.name || d.student_grade || '';
+    const grade = DISP.studentGradeName(d.student_grade) || '';
     // R2-b：推送选择列表的「最有区分度核心信息」——非学科需求显示项目名，学科需求显示科目名
     const subs = DISP.demandTargetNames(d.target_subjects, d.target_type);
     const prov = DISP.provinceName(d.province);
@@ -889,7 +888,7 @@ async function submitIntent(demandId) {
   // v0.25.10 用户反馈：二次确认防海投——先弹确认浮窗（含需求核心信息），确认后才真正提交
   const d = _browseDemands.find(x => x.id === demandId);
   const demandDesc = d
-    ? `${DISP.demandTargetNames(d.target_subjects, d.target_type) || '—'} · ${UI.DEMAND_PREFIX}#${String(d.display_id || d.id).padStart(4, '0')}`
+    ? `${DISP.demandTargetNames(d.target_subjects, d.target_type) || '—'} · ${DISP.demandIdText(d.display_id || d.id)}`
     : '';
   openModal({
     title: UI.INTENT_CONFIRM_TITLE,
@@ -966,11 +965,11 @@ function renderIntentTeacherRow(t, demandId) {
   const st = t.intent_status;
   // 需求四·4b：用户名+星级包 intent-row-user、状态 tag 独立——移动端整行纵向排布，
   // tag 恒置于用户名下方（不与用户名同行）；桌面保持现状
-  const tag = st === 'accepted' ? `<span class="tag tag-ok glass glass--solid">${UI.INTENT_STATUS_ACCEPTED}</span>`
-    : st === 'rejected' ? `<span class="tag tag-danger glass glass--solid">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn glass glass--solid">${UI.INTENT_STATUS_PENDING}</span>`;
+  const tag = st === STATUS.ACCEPTED ? `<span class="tag tag-ok glass glass--solid">${UI.INTENT_STATUS_ACCEPTED}</span>`
+    : st === STATUS.REJECTED ? `<span class="tag tag-danger glass glass--solid">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn glass glass--solid">${UI.INTENT_STATUS_PENDING}</span>`;
   const provName = escHtml(DISP.provinceName(t.province)); // 网安审计 N-15：province 未知名回显原 id，防注入
   const viewBtn = `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
-  const actions = st === 'pending'
+  const actions = st === STATUS.PENDING
     ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
        <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
   // R2-5 报价区间（未填显 ? 占位，同旧单值口径）

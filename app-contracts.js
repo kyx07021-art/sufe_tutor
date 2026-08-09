@@ -15,8 +15,8 @@
 // 该合同当前是否需要我处理（侧栏红点口径）
 function contractActionable(c) {
   const iAmDrafter = c.drafter_user_id === state.user.id;
-  if (c.status === 'pending') return !iAmDrafter;                    // 对方起草，待我确认草案
-  if (c.status === 'signing') return !(iAmDrafter ? c.drafter_confirmed : c.other_confirmed); // 待我确认签约
+  if (c.status === STATUS.PENDING) return !iAmDrafter;                    // 对方起草，待我确认草案
+  if (c.status === STATUS.SIGNING) return !(iAmDrafter ? c.drafter_confirmed : c.other_confirmed); // 待我确认签约
   return false;
 }
 
@@ -59,17 +59,15 @@ function renderContractCard(c) {
   const iAmDrafter = c.drafter_user_id === me;
   const peerName = me === c.student_user_id ? c.teacher_name : c.student_name;
   const methodName = DISP.methodName(c.method) || c.method;
-  const statusText = c.status === 'pending' ? UI.CONTRACT_STATUS_PENDING
-    : c.status === 'signing' ? UI.CONTRACT_STATUS_SIGNING : UI.CONTRACT_STATUS_SIGNED;
-  const statusCls = c.status === 'signed' ? 'tag-ok' : c.status === 'signing' ? 'tag-warn' : 'tag-accent';
+  const { text: statusText, cls: statusCls } = DISP.contractStatusMeta(c.status);
   const myConfirmed = iAmDrafter ? c.drafter_confirmed : c.other_confirmed;
 
   let left = '', right = '';
-  if (c.status === 'signed') {
+  if (c.status === STATUS.SIGNED) {
     left = `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
       <button type="button" class="btn btn-ghost btn-sm glass glass--pressable" onclick="verifyContractLedgerUi(${c.id})">${UI.BTN_VERIFY_LEDGER}</button>`;
     right = `<button type="button" class="btn-text-danger glass" onclick="openRevokeContractModal(${c.id})">${UI.BTN_REVOKE_CONTRACT}</button>`; // 撤销入口刻意低调
-  } else if (c.status === 'pending' && iAmDrafter) {
+  } else if (c.status === STATUS.PENDING && iAmDrafter) {
     // 起草方：等对方处理草案（v0.24.0 签署流简化后新合同不产生此态，仅兼容历史 pending）
     left = `<span class="contract-wait-text text-muted">${UI.CONTRACT_WAIT_DRAFT}</span>`;
     right = `<button type="button" class="btn btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
@@ -91,12 +89,12 @@ function renderContractCard(c) {
     <div class="list-card-body">
       <span class="tag glass glass--solid">${escHtml(methodName)}</span>
       <span class="tag tag-warn glass glass--solid">${c.hourly_rate}${UI.PRICE_UNIT}</span>
-      ${c.demand_display_id ? `<span class="tag glass glass--solid">${escHtml(UI.DEMAND_PREFIX)}#${String(c.demand_display_id).padStart(4, '0')}</span>` : ''}
+      ${c.demand_display_id ? `<span class="tag glass glass--solid">${escHtml(DISP.demandIdText(c.demand_display_id))}</span>` : ''}
       <span class="list-card-meta">${fmtDateTime(c.updated_at)}</span>
     </div>
-    ${c.status === 'signing'
+    ${c.status === STATUS.SIGNING
       ? `<p class="contract-sign-progress text-sm text-muted">${contractSignProgress(c)}</p>`
-      : c.status === 'signed'
+      : c.status === STATUS.SIGNED
         ? `<p class="contract-sign-progress text-sm">${escHtml(UI.CONTRACT_SIGN_DONE_BOTH)}</p>`
         : ''}
     <div class="contract-actions">

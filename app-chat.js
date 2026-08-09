@@ -251,7 +251,7 @@ async function openConversation(convId) {
 // 不再独立于消息流顶部（v0.25.55 卡片已随 #150 并入签约气泡底下）。
 function renderChatFrame(conv) {
   const peer = conv ? chatPeerOf(conv) : { name: '', role: '' };
-  const closed = conv && conv.status && conv.status !== 'active';
+  const closed = conv && conv.status && conv.status !== STATUS.ACTIVE;
   return `
     <div class="chat-head glass">
       <button type="button" class="chat-back glass" onclick="backToConvList()">&larr; ${UI.CHAT_BACK_TO_LIST}</button>
@@ -328,8 +328,8 @@ function renderChatBubble(m, i) {
     // 网安加固（审计修复）：signing id 仅接受纯数字——历史/异常消息体可含任意串，直接插值会
     // 注入 data 属性与 onclick 上下文（respondSigning 内部还按该值拼属性选择器）；非数字视为无效 id
     const signingId = /^\d+$/.test(String(s.id || '')) ? String(s.id) : '';
-    const pending = s.status === 'pending';
-    const done = s.status === 'signed' ? UI.SIGNING_CONFIRMED_TEXT : (s.status === 'rejected' ? UI.SIGNING_REJECTED_TEXT : '');
+    const pending = s.status === STATUS.PENDING;
+    const done = s.status === STATUS.SIGNED ? UI.SIGNING_CONFIRMED_TEXT : (s.status === STATUS.REJECTED ? UI.SIGNING_REJECTED_TEXT : '');
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble glass ${skin} signing-bubble${done ? ' signing-bubble--done' : ''}" data-signing-id="${escHtml(signingId)}">
         <div class="signing-bubble-title">${mine ? UI.CHAT_SIGNING_MINE_TITLE : UI.CHAT_SIGNING_REQUEST_TITLE}</div>
@@ -343,7 +343,7 @@ function renderChatBubble(m, i) {
         ${done ? `<p class="signing-bubble-status">${done}</p>` : ''}
         <p class="signing-bubble-funds">${UI.FUNDS_NOTE_SHORT}</p>
       </div>
-      ${s.status === 'signed' ? `<div class="signing-bubble-caption glass glass--solid">
+      ${s.status === STATUS.SIGNED ? `<div class="signing-bubble-caption glass glass--solid">
         <span class="signing-bubble-caption-text">${UI.CHAT_SIGN_TIP}</span>
         <button type="button" class="btn btn-sm glass glass--pressable" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
       </div>` : ''}${time}</div>`;

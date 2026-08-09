@@ -305,7 +305,7 @@ async function openProfilePanel(userId) {
       if (!state.myContracts.length) {
         try { state.myContracts = (await dhGet('/api/contracts/my', { domain: 'contracts' })).contracts || []; } catch { /* 静默 */ }
       }
-      signed = state.myContracts.some(c => c.status === 'signed' && (c.student_user_id === userId || c.teacher_user_id === userId));
+      signed = state.myContracts.some(c => c.status === STATUS.SIGNED && (c.student_user_id === userId || c.teacher_user_id === userId));
     }
     if (isTeacher) {
       const isAdminViewer = state.user && state.user.role === 'admin';
@@ -537,7 +537,7 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
       ${reviewsData.admin ? `<div class="review-admin-actions">
-        ${r.status === 'pending' ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
+        ${r.status === STATUS.PENDING ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
         <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',1)">${UI.BTN_REJECT}</button>` : ''}
         <button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
       </div>` : ''}
@@ -545,7 +545,7 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
   let action = '';
   if (!reviewsData.admin && isStudentViewer) {
     action = mine ? `
-      <div class="review-mine-note">${UI.MY_REVIEW_PREFIX}${mine.status === 'approved' ? UI.STATUS_APPROVED : mine.status === 'rejected' ? UI.REVIEW_REJECTED_HINT : UI.REVIEW_STATUS_AUDITING}</div>
+      <div class="review-mine-note">${UI.MY_REVIEW_PREFIX}${mine.status === STATUS.APPROVED ? UI.STATUS_APPROVED : mine.status === STATUS.REJECTED ? UI.REVIEW_REJECTED_HINT : UI.REVIEW_STATUS_AUDITING}</div>
       <button type="button" class="btn btn-outline btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id}, null, ${mine.id})">${UI.BTN_EDIT_REVIEW}</button>`
       : signed ? `
       <button type="button" class="btn btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>`

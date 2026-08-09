@@ -354,7 +354,7 @@ async function refreshBadges() {
       // 管理员用户反馈红点：未处理条数
       try {
         const fbData = await dhGet(`/api/feedbacks`, { domain: 'admin' });
-        const openFb = (fbData.feedbacks || []).filter(f => f.status !== 'resolved').length;
+        const openFb = (fbData.feedbacks || []).filter(f => f.status !== STATUS.RESOLVED).length;
         if (state.page !== 'admin-feedback') setBadge('admin-feedback', openFb);
       } catch { /* 静默，下一轮自愈 */ }
     }

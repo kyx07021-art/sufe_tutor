@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.77',
+  APP_VERSION: '0.25.78',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1522,6 +1522,9 @@ globalThis.APP_CONSTANTS = {
     POST_IMAGE_ALT: '图片',
     POST_IMG_BLOCKED: '[图片：链接未放行，不予渲染]',
     POST_TITLE_REQUIRED: '标题不能为空',
+    POST_TITLE_TOO_LONG: '标题不能超过 60 个字符',       // A3 收口：服务端发帖错误文案单源
+    POST_BODY_TOO_LONG: '正文不能超过 20000 个字符',
+    POST_DELETE_FORBIDDEN: '仅作者本人可删除该帖子',
     POST_PUBLISHING: '发布中',
     POST_PUBLISHED: '发布成功',
     BTN_PUBLISH: '发布',

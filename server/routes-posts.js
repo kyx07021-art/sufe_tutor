@@ -16,15 +16,9 @@ import {
 } from './db.js';
 import { logEvent } from './log.js';
 
-// 本模块消息常量：仅保留帖子业务专属文案；通用错误一律复用 MSG（文案单源纪律）
-const PMSG = {
-  TITLE_REQUIRED: '标题不能为空',
-  TITLE_TOO_LONG: '标题不能超过 60 个字符',
-  BODY_TOO_LONG: '正文不能超过 20000 个字符',
-  DELETE_FORBIDDEN: '仅作者本人可删除该帖子',
-  POST_PUBLISHED: '发布成功',
-  POST_DELETED: '帖子已删除',
-};
+// 文案单源（A3 收口 v0.25.78）：帖子业务文案全部读 globalThis.APP_CONSTANTS.UI（与前端同源），
+// 本模块不再自持 PMSG——曾与 constants UI 逐字重复，双源迟早漂移
+const UI = () => (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.UI) || {};
 
 /**
  * GET /api/posts?sort=new|hot&section=&q=
@@ -53,9 +47,9 @@ export async function handleCreatePost(db, body, req) {
   const title = String(body.title || '').trim();
   const bodyMd = String(body.bodyMd || '');
 
-  if (!title) return error(PMSG.TITLE_REQUIRED);
-  if (title.length > LIMITS.TITLE_MAX) return error(PMSG.TITLE_TOO_LONG);
-  if (bodyMd.length > LIMITS.POST_BODY_MAX) return error(PMSG.BODY_TOO_LONG);
+  if (!title) return error(UI().POST_TITLE_REQUIRED);
+  if (title.length > LIMITS.TITLE_MAX) return error(UI().POST_TITLE_TOO_LONG);
+  if (bodyMd.length > LIMITS.POST_BODY_MAX) return error(UI().POST_BODY_TOO_LONG);
 
   const id = await dbCreatePost(db, userId, title, bodyMd);
 
@@ -64,7 +58,7 @@ export async function handleCreatePost(db, body, req) {
     action: 'post.create', actorUserId: userId, actorUsername: author?.username || null,
     actorRole: user.role, entity: 'post', entityId: id, detail: { title }, req,
   });
-  return json({ id, message: PMSG.POST_PUBLISHED });
+  return json({ id, message: UI().POST_PUBLISHED });
 }
 
 /**
@@ -113,7 +107,7 @@ export async function handleDeletePost(db, postId, body, req) {
   const post = await dbGetPostById(db, postId);
   if (!post) return error(MSG.POST_NOT_FOUND, 404, 'POST_NOT_FOUND');
   const isAdmin = requireAdminOrError(user) === null; // 管理员判定单点
-  if (user.id !== Number(post.user_id) && !isAdmin) return error(PMSG.DELETE_FORBIDDEN, 403); // 非作者且非管理员 → 拒
+  if (user.id !== Number(post.user_id) && !isAdmin) return error(UI().POST_DELETE_FORBIDDEN, 403); // 非作者且非管理员 → 拒
 
   await dbDeletePost(db, postId);
   await logEvent(db, {
@@ -121,5 +115,5 @@ export async function handleDeletePost(db, postId, body, req) {
     actorUserId: user.id, actorRole: isAdmin ? 'admin' : user.role,
     entity: 'post', entityId: postId, detail: { title: post.title, ownerUserId: post.user_id }, req,
   });
-  return json({ message: PMSG.POST_DELETED });
+  return json({ message: UI().POST_DELETED });
 }
