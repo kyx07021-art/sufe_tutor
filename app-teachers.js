@@ -231,7 +231,7 @@ function studentMatchDetailHtml(t) {
     const head = `<div class="match-t-head"><b class="match-t-head-main">${UI.MATCH_T_BRACKET_L}${UI.MATCH_T_DEMAND_PREFIX}${escHtml(DISP.demandOptionText(d))} ${UI.MATCH_T_PCT}${md}%${UI.MATCH_T_BRACKET_R}</b></div>`;
     return `<div class="match-t-item glass glass--solid">${head}${matchRowsHtml(matchDims(t, d))}</div>`;
   }).join('');
-  return `<div class="match-detail match-detail--teacher glass glass--float" role="dialog" aria-label="${UI.MATCH_T_TITLE}">
+  return `<div class="match-detail match-detail--teacher match-detail--${matchLevel(m.md)} glass glass--float" role="dialog" aria-label="${UI.MATCH_T_TITLE}">
     <div class="match-detail-head"><span class="match-detail-pct">${m.md}%</span><span class="match-detail-title">${UI.MATCH_T_TITLE}</span></div>
     <p class="match-detail-sub">${UI.MATCH_TEACHER_DETAIL_SUB}</p>
     <div class="match-t-list">${entries}</div>

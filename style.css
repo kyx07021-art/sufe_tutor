@@ -1251,18 +1251,23 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   from { transform: translateY(-4px); }
   to   { transform: none; }
 }
+/* R25（v0.25.90）：明细卡三色等级——等级类设 --md-bar（填充/数值标准色）与 --md-track（未填充淡色遮罩）。
+   与匹配度按钮同阈值（matchLevel ≥HIGH 绿 / ≥MID 黄 / 其余红）；缺数据维度 --skip 保持灰。 */
+.match-detail--hi  { --md-bar: var(--ok-deep);   --md-track: var(--ok-tint); }
+.match-detail--mid { --md-bar: var(--warn-deep); --md-track: var(--warn-tint); }
+.match-detail--lo  { --md-bar: var(--danger);    --md-track: var(--danger-tint); }
 .match-detail-head { display: flex; align-items: baseline; gap: 8px; }
-.match-detail-pct { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; color: var(--accent-deep); }
+.match-detail-pct { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; color: var(--md-bar); }
 .match-detail-title { font-size: .78rem; font-weight: 700; letter-spacing: .06em; color: var(--ink); }
 .match-detail-sub { margin: 2px 0 10px; font-size: .72rem; color: var(--muted); }
 .match-row + .match-row { margin-top: 8px; }
 .match-row-top { display: flex; justify-content: space-between; align-items: baseline; font-size: .74rem; }
 .match-row-k { font-weight: 700; color: var(--ink); }
-.match-row-s { font-weight: 800; color: var(--accent-deep); }
+.match-row-s { font-weight: 800; color: var(--md-bar); }
 .match-row-s--skip { font-weight: 600; color: var(--muted); font-size: .68rem; }
-.match-bar { margin-top: 3px; height: 4px; border-radius: 999px; background: var(--g-bar-soft); overflow: hidden; }
-.match-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); box-shadow: inset 0 0 0 1px rgba(122,104,224,.35); width: var(--bar-w, 0%); } /* v0.25.10：填充加发丝边，低分/纸面上可辨；v0.25.81 A7：宽度改 CSS 变量（JS 只设 --bar-w，零内联宽度） */
-.match-bar--zero i { background: var(--g-bar-strong); }
+.match-bar { margin-top: 3px; height: 4px; border-radius: 999px; background: var(--md-track); overflow: hidden; }
+.match-bar i { display: block; height: 100%; border-radius: 999px; background: var(--md-bar); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-bar) 30%, transparent); width: var(--bar-w, 0%); } /* 填充=标准色实色 + 同色发丝（低分/纸面上可辨）；v0.25.81 A7：宽度 CSS 变量 */
+.match-bar--skip { background: var(--g-bar-soft); } /* 缺数据维度：灰底保持中性，不随等级显色 */
 .match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
 .match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--g-line-soft); font-size: .66rem; line-height: 1.5; color: var(--muted); }
 

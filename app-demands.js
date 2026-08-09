@@ -505,9 +505,11 @@ function matchLevel(md) {
   return 'lo';
 }
 
-// 五维明细行渲染（教师视角明细卡 / 学生逐需求明细共用）；score 为加权得分（null=跳过），max 为该维权重
+// 五维明细行渲染（教师视角明细卡 / 学生逐需求明细共用）；score 为加权得分（null=跳过），max 为该维权重。
+// R25（v0.25.90）：比例条配色随卡级三色（--md-bar/--md-track 由 match-detail--hi/mid/lo 提供）——
+// 有效维度填充标准色 + 未填充淡色遮罩（0/10 也显色，不再 --zero 灰覆盖）；缺数据维度 --skip 保持灰底。
 function matchRowsHtml(dims) {
-  const bar = (s, max) => `<div class="match-bar${s === 0 ? ' match-bar--zero' : ''}"><i style="--bar-w:${s == null ? 0 : Math.round(s / max * 100)}%"></i></div>`;
+  const bar = (s, max) => `<div class="match-bar${s == null ? ' match-bar--skip' : ''}"><i style="--bar-w:${s == null ? 0 : Math.round(s / max * 100)}%"></i></div>`;
   const row = (k, s, max, hint) => `<div class="match-row">
     <span class="match-row-top"><span class="match-row-k">${k}</span><span class="match-row-s${s == null ? ' match-row-s--skip' : ''}">${s == null ? UI.MATCH_DIM_SKIP : Math.round(s) + '/' + max}</span></span>
     ${bar(s, max)}
@@ -526,9 +528,11 @@ function matchNoteHtml() {
 
 // 匹配度明细悬浮卡（v0.19.45 起）：分项对齐 matchDegree 口径（matchDims 单点），
 // 缺数据维度不计分并明示。毛度同浮窗纸面（glass.css .match-detail 参数，modal 同级）
+// R25（v0.25.90）：卡级三色等级类（matchLevel 同阈值）→ 总百分比/比例条/比例值随红黄绿遮罩，
+// 不再恒紫；缺数据维度保持灰。比例条填充=标准色（--md-bar）、未填充=淡色遮罩（--md-track）。
 function matchDetailHtml(t, d, md) {
   const note = matchNoteHtml();
-  return `<div class="match-detail glass glass--float" role="dialog" aria-label="${UI.MATCH_DETAIL_TITLE}">
+  return `<div class="match-detail glass glass--float match-detail--${matchLevel(md)}" role="dialog" aria-label="${UI.MATCH_DETAIL_TITLE}">
     <div class="match-detail-head"><span class="match-detail-pct">${md}%</span><span class="match-detail-title">${UI.MATCH_DETAIL_TITLE}</span></div>
     <p class="match-detail-sub">${UI.MATCH_DETAIL_SUB}</p>
     ${matchRowsHtml(matchDims(t, d))}
