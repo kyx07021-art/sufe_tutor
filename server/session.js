@@ -14,7 +14,7 @@
  * 命中即删——跨 Cloudflare 多 isolate 全局一致；原 per-isolate 内存 Map 在分布式下会
  * 间歇性失效，网安审计 N-02）。
  */
-import { dbAll, dbGet, dbRun } from './util.js';
+import { dbAll, dbGet, dbRun, toDbTime } from './util.js';
 import { bufToHex, tokenDigest } from './crypto.js';
 import { SECURITY } from './constants.js';
 
@@ -39,7 +39,7 @@ import { SECURITY } from './constants.js';
 export async function issueAuthToken(db, userId, label, deviceId) {
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
   const sessionId = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
-  const expires = new Date(Date.now() + SECURITY.TOKEN_TTL_MS).toISOString().slice(0, 19).replace('T', ' ');
+  const expires = toDbTime(new Date(Date.now() + SECURITY.TOKEN_TTL_MS));
   const digest = await tokenDigest(token);
   const dev = typeof deviceId === 'string' && /^[0-9a-f]{32}$/.test(deviceId) ? deviceId : '';
   const stmts = [

@@ -3,7 +3,7 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）。
  * 守卫统一走 requireAdmin（security.requireUser role='admin' 别名），替代散落的 authUser+requireAdminOrError 样板。
  */
-import { json, error, genCode } from './util.js';
+import { json, error, genCode, toDbTime } from './util.js';
 import { requireUser, requireAdmin } from './security.js';
 import { MSG, STATUS, LIMITS, SECURITY } from './constants.js';
 import {
@@ -66,7 +66,7 @@ export async function handleAdminTraffic(db, url, req) {
   const from = unit === 'hour'
     ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() - (n - 1)))
     : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (n - 1)));
-  const fromTs = from.toISOString().slice(0, 19).replace('T', ' ');
+  const fromTs = toDbTime(from);
   const rows = await dbGetTrafficBuckets(db, unit, fromTs);
   const map = new Map(rows.map(r => [r.bucket, r]));
   const step = unit === 'hour' ? 3600 * 1000 : 24 * 3600 * 1000;

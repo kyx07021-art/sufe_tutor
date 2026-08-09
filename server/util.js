@@ -51,6 +51,18 @@ export async function dbRun(db, sql, params = []) {
  * active == status==='open'（contracted 已成交 / revoked 已撤销未重开均非活跃）。
  * SQL 层字面量维持既有惯例（constants.js 头部注释），JS 判断层收敛到本函数。
  */
+// 库内 UTC 时间戳（A6 收口）：各处 `new Date().toISOString().slice(0,19).replace('T',' ')`
+// 散落 4 份，统一单点。入参 Date（缺省 now）；语义与既有调用一致（UTC 秒级）
+export function toDbTime(d = new Date()) {
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+// UNIQUE 冲突判定（A6 收口）：D1/SQLite 唯一索引冲突错误消息含 'UNIQUE'，
+// 路由层 3 处 `String(err?.message||err).includes('UNIQUE')` 收敛单点
+export function isUniqueConflict(err) {
+  return String(err?.message || err).includes('UNIQUE');
+}
+
 export function isDemandActive(status) {
   return status === STATUS.OPEN;
 }

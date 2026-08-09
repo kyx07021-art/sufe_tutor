@@ -97,12 +97,7 @@ const rlStrike = (ip, now) => {
 const rlDual = async (db, memLimit, memWindow, d1Key, d1Limit, d1Window, now) => {
   if (!rlBump(`m:${d1Key}`, memLimit, memWindow, now)) return false;
   try {
-    const mod = '+' + Math.round(d1Window / 1000) + ' seconds';
-    await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
-      ON CONFLICT(bucket) DO UPDATE SET
-        n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
-        reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`,
-      [d1Key, mod]);
+    await dbRun(db, RATE_UPSERT_SQL, [d1Key, rateWindowArg(d1Window)]);
     const row = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [d1Key]);
     if (!row || row.n > d1Limit) return false;
   } catch { /* D1 异常：内存限流兜底（上方 rlBump 已判定），不 fail-open */ }
@@ -122,15 +117,17 @@ const maybeCleanRateLimits = async (db, now) => {
 // 2026-08-09 审计：本函数只被 authRateBlock 调用（认证路径的 block 行由 authRateBatch 读取 → 跨实例生效）；
 // rateGate 的非认证路径三振此前也写 D1 block 行但无人读取（纯开销），已改纯内存（热路径零 D1 往返，
 // 非认证写面已有 rlDual 的 D1 写限流兜底，跨实例硬封禁仅认证路径需要）。
+// rate_limits 条件 upsert 单点（A6 收口）：rlDual / rlStrikeD1 / authRateBatch.rateUpsert 三处同 SQL + '+N seconds' 换算收敛
+const RATE_UPSERT_SQL = `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
+    ON CONFLICT(bucket) DO UPDATE SET
+      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
+      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`;
+const rateWindowArg = windowMs => '+' + Math.round(windowMs / 1000) + ' seconds';
+
 const rlStrikeD1 = async (db, ip) => {
   try {
-    const w = '+' + Math.round(RATE_LIMITS.strike.windowMs / 1000) + ' seconds';
-    const b = '+' + Math.round(RATE_LIMITS.block.windowMs / 1000) + ' seconds';
-    await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
-      ON CONFLICT(bucket) DO UPDATE SET
-        n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
-        reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`,
-      [`strike:${ip}`, w]);
+    const b = rateWindowArg(RATE_LIMITS.block.windowMs);
+    await dbRun(db, RATE_UPSERT_SQL, [`strike:${ip}`, rateWindowArg(RATE_LIMITS.strike.windowMs)]);
     const st = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [`strike:${ip}`]);
     if (st && st.n >= RATE_LIMITS.strike.count) {
       await dbRun(db, "INSERT OR REPLACE INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))", [`block:${ip}`, b]);
@@ -169,11 +166,7 @@ export async function rateGate(ip, p, method, body, now, db) {
 // ============================================================
 const AUTH_LIMIT_KEYS = { login: 'l', register: 'r', reauth: 'ra' };
 const rateUpsert = (db, key, windowMs) =>
-  db.prepare(`INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
-    ON CONFLICT(bucket) DO UPDATE SET
-      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
-      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`)
-    .bind(key, '+' + Math.round(windowMs / 1000) + ' seconds');
+  db.prepare(RATE_UPSERT_SQL).bind(key, rateWindowArg(windowMs));
 
 export function authRateBatch(db, ip, kind, extraStmts = []) {
   const cfg = RATE_LIMITS[kind];

@@ -715,5 +715,23 @@ async function runReAuth() {
   }
 }
 
+// md 编辑器壳（A6 收口 v0.25.80）：发帖/广播/反馈三弹窗共用模板（label + 工具栏 + 正文输入）。
+// labelFor 传 textarea id 时给 label 补 for（发帖用）；placeholder/rows 按弹窗差异传参
+function mdEditorHtml({ rows = 7, placeholder = '', label = UI.POST_LABEL_BODY, labelFor = '' } = {}) {
+  const forAttr = labelFor ? ` for="${labelFor}"` : '';
+  return `<div class="form-group">
+      <label class="form-label"${forAttr}>${label}</label>
+      <div class="md-toolbar">
+        <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
+        <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
+        <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
+        <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
+        <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
+        <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button>
+      </div>
+      <textarea id="post-body" class="form-input post-body-input" rows="${rows}" placeholder="${placeholder}"></textarea>
+    </div>`;
+}
+
 // 登出复位：确认类弹窗的挂起动作一并清（防上一账户的挂起确认被新账户触发）
 registerLogoutReset(() => { pendingConfirmAction = null; reAuthAction = null; });

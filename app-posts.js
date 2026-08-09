@@ -180,19 +180,7 @@ function openPostEditor() {
           <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.POST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
           <span class="title-count" id="post-title-count">0/60</span>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="post-body">${UI.POST_LABEL_BODY}</label>
-          <div class="md-toolbar">
-            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
-            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
-            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
-            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0：实时预览删，改按钮+浮窗 -->
-          </div>
-          <textarea id="post-body" class="form-input post-body-input" rows="9"
-            placeholder="${UI.POST_BODY_PLACEHOLDER}"></textarea>
-        </div>`,
+        ${mdEditorHtml({ rows: 9, placeholder: UI.POST_BODY_PLACEHOLDER, labelFor: 'post-body' })}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" id="post-submit" onclick="submitPost()">${UI.BTN_PUBLISH}</button>`,
   });
@@ -357,19 +345,7 @@ function openBroadcastModal() {
           <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.BROADCAST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
           <span class="title-count" id="post-title-count">0/60</span>
         </div>
-        <div class="form-group">
-          <label class="form-label">${UI.POST_LABEL_BODY}</label>
-          <div class="md-toolbar">
-            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
-            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
-            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
-            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
-          </div>
-          <textarea id="post-body" class="form-input post-body-input" rows="7"
-            placeholder="${UI.BROADCAST_BODY_PLACEHOLDER}"></textarea>
-        </div>`,
+        ${mdEditorHtml({ rows: 7, placeholder: UI.BROADCAST_BODY_PLACEHOLDER })}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" id="broadcast-submit" onclick="submitBroadcast()">${UI.BTN_SEND_NOTIFICATION}</button>`,
   });
@@ -429,18 +405,7 @@ function openFeedbackModal(kind) {
             <option value="platform">${UI.FEEDBACK_COMPLAINT_SUBJECT_PLATFORM}</option>
           </select>
         </div>
-        <div class="form-group">
-          <label class="form-label">${UI.POST_LABEL_BODY}</label>
-          <div class="md-toolbar">
-            <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
-            <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
-            <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <label class="md-btn glass" for="post-image-file">${UI.POST_MD_IMAGE}</label>
-            <input type="file" id="post-image-file" accept="image/*" class="sr-file-input" onchange="insertPostImage(this)">
-            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
-          </div>
-          <textarea id="post-body" class="form-input post-body-input" rows="7" placeholder="${feedbackPlaceholder}"></textarea>
-        </div>`,
+        ${mdEditorHtml({ rows: 7, placeholder: feedbackPlaceholder })}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>`,
   });

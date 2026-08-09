@@ -4,7 +4,7 @@
  *       已有评价只能修改（修改后重回待审核）。
  * 依赖：util / security（requireUser）/ constants（校验文案/评分/评论限额）/ db / log。
  */
-import { json, error } from './util.js';
+import { json, error, isUniqueConflict } from './util.js';
 import { requireUser } from './security.js';
 import { MSG, LIMITS } from './constants.js';
 import {
@@ -29,7 +29,7 @@ export async function handleCreateReview(db, body, req) {
   try {
     id = await dbCreateReview(db, teacherUserId, reviewerUserId, rating, comment.trim());
   } catch (err2) {
-    if (String(err2?.message || err2).includes('UNIQUE')) return error(MSG.REVIEW_EXISTS, 409); // 唯一索引兜底（并发双发）
+    if (isUniqueConflict(err2)) return error(MSG.REVIEW_EXISTS, 409); // 唯一索引兜底（并发双发）
     throw err2;
   }
   await logEvent(db, { action: 'review.create', actorUserId: reviewerUserId, actorRole: 'student',

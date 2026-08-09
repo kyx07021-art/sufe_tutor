@@ -12,7 +12,7 @@
  *   本版修复：台账幂等（签约后 500 重试可补记）；revoked 需求不可绕过「手动重开」再签约；
  *   合同修改乐观锁改 version 整数（秒级 updated_at 同秒双改互相覆盖的缺陷）。
  */
-import { dbGet, dbAll, dbRun, json, error, ensureColumns } from './util.js';
+import { dbGet, dbAll, dbRun, json, error, ensureColumns, toDbTime } from './util.js';
 import { requireUser, requireAdmin, requireAdminOrError } from './security.js';
 import { bufToHex, encryptField } from './crypto.js';
 import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
@@ -211,7 +211,7 @@ async function ledgerContentHash(contractId, contractMd, createdAt, prevHash) {
 async function ledgerRecord(db, contractId, contractMd) {
   const target = getLedgerDb(db);
   const bodyHash = await sha256Hex(contractMd);
-  const createdAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  const createdAt = toDbTime();
   for (let i = 0; i < 3; i++) {
     const prev = await dbGet(target, 'SELECT content_hash FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1', [contractId]);
     const prevHash = prev ? prev.content_hash : 'GENESIS';

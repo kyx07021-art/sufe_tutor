@@ -18,7 +18,7 @@
  *          util（dbRun/dbGet）/ constants（SECURITY.ONE_TIME_TTL_MS）。
  * 不依赖 db.js，无循环。
  */
-import { dbRun, dbGet } from './util.js';
+import { dbRun, dbGet, toDbTime } from './util.js';
 import { authUser } from './security.js';
 import { getSessionByToken } from './session.js';
 import { bufToHex, tokenDigest } from './crypto.js';
@@ -58,7 +58,7 @@ export async function issueCapToken(db, req) {
   // 惰性清理：清该用户已过期行，表不膨胀
   await dbRun(db, `DELETE FROM danger_caps WHERE user_id=? AND expires_at <= datetime('now','localtime')`, [userId]).catch(() => {});
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
-  const exp = new Date(Date.now() + SECURITY.ONE_TIME_TTL_MS).toISOString().slice(0, 19).replace('T', ' ');
+  const exp = toDbTime(new Date(Date.now() + SECURITY.ONE_TIME_TTL_MS));
   await dbRun(db, `INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)
     ON CONFLICT(user_id, session_id) DO UPDATE SET token_hash=excluded.token_hash, expires_at=excluded.expires_at`,
     [userId, sessionId, await tokenDigest(token), exp]).catch(() => {});

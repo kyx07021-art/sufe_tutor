@@ -4,7 +4,7 @@
  *       db（数据层）、log（留档）、notify（通知）。身份一律凭令牌（requireUser）。
  * 关口模式：requireUser → 归属校验 → 状态机（条件 UPDATE 赢家）→ 副作用（logEvent/notifyUser）。
  */
-import { json, error, sanitizeTimeSlots } from './util.js';
+import { json, error, sanitizeTimeSlots, isUniqueConflict } from './util.js';
 import { authUser, requireUser } from './security.js';
 import { MSG, STATUS, ADDRESS_GUARD, LIMITS } from './constants.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
@@ -223,7 +223,7 @@ export async function handleCreateIntent(db, demandId, body, req) {
     if (!id) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
     return json({ id, message: MSG.INTENT_SUBMITTED }, 201);
   } catch (err2) {
-    if (String(err2?.message || err2).includes('UNIQUE')) return error(MSG.INTENT_DUPLICATE, 409);
+    if (isUniqueConflict(err2)) return error(MSG.INTENT_DUPLICATE, 409);
     throw err2;
   }
 }
@@ -297,7 +297,7 @@ export async function handlePushDemand(db, body, req) {
       entity: 'demand_push', entityId: id, detail: { teacherUserId, demandId }, req });
     return json({ id, message: MSG.PUSH_SUBMITTED }, 201);
   } catch (err2) {
-    if (String(err2?.message || err2).includes('UNIQUE')) return error(MSG.PUSH_DUPLICATE, 409);
+    if (isUniqueConflict(err2)) return error(MSG.PUSH_DUPLICATE, 409);
     throw err2;
   }
 }
