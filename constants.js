@@ -31,6 +31,8 @@ globalThis.APP_CONSTANTS = {
     PUSH_COOLDOWN_SEC: 60,                // 需求推送限流
     LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
     API_TIMEOUT_MS: 20000,                // api() fetch 超时（停滞 SW/异常网络下避免「永远加载中」，超时归网络错误）
+    DOMAIN_SCRIPT_RETRY: 4,               // v0.25.100：领域脚本 404 重试次数（发布后边缘同步窗口 ~1-2 分钟，3s×4=12s 覆盖大部分窗口）
+    DOMAIN_SCRIPT_RETRY_MS: 3000,         // v0.25.100：领域脚本 404 重试间隔（延迟重试等边缘同步，保留页面状态）
     VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（v0.25.76 8s→30s：每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
     DH_TTL_MS: 60000,                     // 会话数据层保底 TTL（v0.23.0：即便探测停摆，缓存 60s 后强制重拉，防陈旧）
     POSTS_SEARCH_DEBOUNCE_MS: 350,        // 帖子搜索防抖

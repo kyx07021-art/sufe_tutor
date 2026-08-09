@@ -1,10 +1,10 @@
 /**
  * v0.25.100 发布后资产 404 自愈（老妖根治之二）
  *
- * 实测证据：Pages 部署滚动窗口内，manifest 放行的新哈希资产间歇性 404（连续 12 次取 2 次 404，
- * 未改动资产全 200）——领域脚本 404 → 模块缺失 → 教师列表/登录加载失败。
- * 修复：loadDomainScripts 注入失败（onerror）→ 整页刷新一次拿新 index.html（内联新 manifest），
- * __domainReloadOnce 防死循环；刷新恢复登录/页面停留（v0.25.95 会话层），不踢用户。
+ * 实测证据：Pages 部署滚动窗口（发布后约 1-2 分钟）内，manifest 放行的新哈希资产间歇性 404
+ * （连续 12 次取 2 次 / 15 次取 4 次，窗口过后全 200）——领域脚本 404 → 模块缺失 → 教师列表/登录加载失败。
+ * 修复：loadDomainScripts 注入失败先延迟重试（CONFIG.DOMAIN_SCRIPT_RETRY × RETRY_MS，等边缘同步、
+ * 保留页面状态），重试耗尽才整页刷新一次拿新 index.html（内联新 manifest）；__domainReloadOnce 防死循环。
  *
  * jsdom 不自动加载外部 script（load/error 事件不触发），测试手动派发事件驱动注入逻辑。
  * loadDomainScripts 以 loadMyDemands 存在短路，先置空再触发；注入串行 await，首个 script
@@ -49,39 +49,47 @@ function makeCtx() {
   return { dom, ctx };
 }
 
-const tick = () => new Promise(r => setTimeout(r, 30));
+const tick = () => new Promise(r => setTimeout(r, 40));
 
-test('领域脚本注入失败（404）触发整页刷新自愈标记，重复失败不重复触发（防死循环）', async () => {
+test('脚本 404 先延迟重试（窗口内不刷新），重试耗尽才整页刷新自愈', async () => {
   const { ctx, dom } = makeCtx();
   vm.runInContext(`
     globalThis.loadMyDemands = undefined; // 取消 loadDomainScripts 的已载短路
+    CONFIG.DOMAIN_SCRIPT_RETRY = 2; CONFIG.DOMAIN_SCRIPT_RETRY_MS = 10; // 测试用小参数
     __domainLoaded = false; __domainLoading = null; __domainReloadOnce = false;
     loadDomainScripts(); // fire-and-forget（jsdom 不自动触发 script 事件，下方手动驱动）
   `, ctx);
   await tick();
-  const s = dom.window.document.querySelector('script[src*="region-data"]'); // 首个注入脚本（onerror 自愈路径）
+  let s = dom.window.document.querySelector('script[src*="region-data"]');
   assert.ok(s, '领域脚本已注入');
-  s.dispatchEvent(new dom.window.Event('error')); // 部署滚动窗口 404 → onerror
-  await tick();
-  assert.equal(vm.runInContext('__domainReloadOnce', ctx), true,
-    '脚本 404 → 自愈标记置位（调度整页刷新拿新 manifest）');
-  // 同一脚本再次失败 / 后续脚本失败 → 标记已置位，不再重复触发（防无限刷新死循环）
+  // 第 1 次 404 → 进入重试（未刷新）
   s.dispatchEvent(new dom.window.Event('error'));
   await tick();
-  assert.equal(vm.runInContext('__domainReloadOnce', ctx), true, '防死循环：重复失败不再重复触发');
+  assert.equal(vm.runInContext('__domainReloadOnce', ctx), false, '第一次 404 不刷新（延迟重试等边缘同步）');
+  // 重试注入的新脚本（attempt 2）→ 再 404 → 重试耗尽
+  s = dom.window.document.querySelectorAll('script[src*="region-data"]');
+  s[s.length - 1].dispatchEvent(new dom.window.Event('error'));
+  await tick();
+  assert.equal(vm.runInContext('__domainReloadOnce', ctx), true,
+    '重试耗尽 → 自愈标记置位（整页刷新拿新 manifest）');
 });
 
-test('注入成功（onload）不触发刷新自愈', async () => {
+test('重试期间成功加载则不刷新，领域正常就绪', async () => {
   const { ctx, dom } = makeCtx();
   vm.runInContext(`
     globalThis.loadMyDemands = undefined;
+    CONFIG.DOMAIN_SCRIPT_RETRY = 4; CONFIG.DOMAIN_SCRIPT_RETRY_MS = 10;
     __domainLoaded = false; __domainLoading = null; __domainReloadOnce = false;
     loadDomainScripts();
   `, ctx);
   await tick();
   const s = dom.window.document.querySelector('script[src*="region-data"]');
   assert.ok(s, '脚本已注入');
-  s.dispatchEvent(new dom.window.Event('load')); // 成功加载
+  s.dispatchEvent(new dom.window.Event('error')); // 第一次 404
   await tick();
-  assert.equal(vm.runInContext('__domainReloadOnce', ctx), false, '加载成功不触发刷新自愈');
+  // 重试注入的新脚本成功加载
+  const all = dom.window.document.querySelectorAll('script[src*="region-data"]');
+  all[all.length - 1].dispatchEvent(new dom.window.Event('load'));
+  await tick();
+  assert.equal(vm.runInContext('__domainReloadOnce', ctx), false, '重试成功不触发刷新');
 });

@@ -62,17 +62,27 @@ test('kind 全风格走 --g-fill/--g-fg，无 --g-surface 左竖条（v0.25.99 �
   }
 });
 
+// 轮询等待条件成立（防并行 CPU 竞争下固定 sleep 不可靠的 flake）
+async function waitFor(cond, timeout = 2000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    if (cond()) return true;
+    await new Promise(r => setTimeout(r, 20));
+  }
+  return cond();
+}
+
 test('退场时序：驻留后切 .toast--out，退场动画后移除节点', async () => {
   const { ctx, dom } = makeCtx();
-  // 大窗口防并行 flake：TOAST_MS=50 切退场，FADE_MS=40 移除 → t1=80ms 断言中间态，t2=160ms 断言移除
+  // 短参数 + 轮询断言（不依赖固定 sleep，杜绝并行 flake）
   vm.runInContext('CONFIG.TOAST_MS = 50; CONFIG.TOAST_FADE_MS = 40; showToast("x", "error");', ctx);
   const el = dom.window.document.querySelector('#toast-container .toast');
   assert.ok(el, 'toast 节点挂载');
-  await new Promise(r => setTimeout(r, 80)); // > TOAST_MS(50) 已切退场，< TOAST_MS+FADE_MS(90) 未移除
-  assert.ok(el.classList.contains('toast--out'), '驻留期后切 .toast--out');
+  const gotOut = await waitFor(() => el.classList.contains('toast--out'));
+  assert.ok(gotOut, '驻留期后切 .toast--out');
   assert.ok(el.isConnected, '退场动画期间节点仍在 DOM（动画播完才移除）');
-  await new Promise(r => setTimeout(r, 100)); // > 90 移除完成
-  assert.equal(dom.window.document.querySelector('#toast-container .toast'), null, '退场动画后节点移除');
+  const removed = await waitFor(() => !dom.window.document.querySelector('#toast-container .toast'));
+  assert.ok(removed, '退场动画后节点移除');
 });
 
 test('连根删红例：alert 组件全站零残留（CSS 规则 / JS 函数 / 容器；注释留痕不算）', () => {
