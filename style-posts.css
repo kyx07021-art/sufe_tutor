@@ -61,9 +61,9 @@ select.posts-sort {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
+/* R24（v0.25.89）：帖子预览卡正文与操作按钮之间去分割线、收紧间距（预览紧贴动作，视觉一体的反馈） */
 .post-actions {
-  margin-top: 14px; padding-top: 10px;
-  border-top: 1px solid var(--border-light);
+  margin-top: 10px; padding-top: 0;
   display: flex; align-items: center; gap: 10px;
 }
 
