@@ -45,6 +45,8 @@ function loadCommon(ctx) {
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
 }
 
+const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
+
 // ---- item5 UI 大小滑块纯逻辑 ----
 test('uiScaleClamp：按 CONFIG 上下限钳制、非数/超界回默认（v0.25.12 上限 120）', () => {
   const { ctx } = makeCtx(); loadCommon(ctx);
@@ -170,7 +172,7 @@ function seedSettingsPage(ctx) {
   `, ctx);
 }
 
-test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、数值标签与 localStorage', () => {
+test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、数值标签与 localStorage', async () => {
   const { ctx, dom } = makeCtx();
   for (const f of FILES_WITH_PAGES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
   seedSettingsPage(ctx);
@@ -181,12 +183,21 @@ test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、
   assert.equal(vm.runInContext('window.SLIDER.step', ctx), '1', '步进 1（级差最小）');
   assert.equal(vm.runInContext('window.SLIDER.value', ctx), '100', '默认现值 100');
   assert.ok(vm.runInContext('!!window.SLIDER_ROW', ctx), '滑块行独立类 .ui-scale-row 存在（防作用域污染）');
-  // 拖到上限 120：拖动走 setUiScaleLive（rAF 合并应用，本帧 pending 未消费）——断言未 flush 前不应用
+  // 拖到上限 120：拖动走 setUiScaleLive——v0.25.94（R3）起只做 html transform 预览
+  // （compositor-only，不碰 --ui-scale），rAF 合并每帧合成一次。断言 flush 前无任何应用。
   vm.runInContext(`window.SLIDER.value = '${sliderMax}'; setUiScaleFromSlider(window.SLIDER);`, ctx);
-  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '', '拖动合并到 rAF：pending 未消费前 --ui-scale 不变');
-  // 松手 commit 同步落盘 + 应用（v0.25.87 R2：拖动中不落盘，change 才 commit）
+  const htmlEl = () => dom.window.document.documentElement;
+  assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '', '拖动期不动 --ui-scale（真排版只在 commit）');
+  assert.equal(htmlEl().style.transform, '', '拖动合并到 rAF：pending 未消费前 transform 未应用');
+  // 等 rAF 帧消费 → 预览 transform 应用（仍不落盘、不落真排版）
+  await tick(30);
+  assert.equal(htmlEl().style.transform, `scale(${(sliderMax / 100).toFixed(3)})`, 'rAF 帧后预览 transform 应用');
+  assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '', '预览期 --ui-scale 仍不动');
+  assert.equal(htmlEl().style.transformOrigin, 'top left', '预览缩放锚点 top-left（与真排版同锚点）');
+  // 松手 commit 同步落盘 + 落真排版（清预览 transform）
   vm.runInContext(`window.SLIDER.value = '85'; commitUiScaleFromSlider(window.SLIDER);`, ctx);
-  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.850', 'commit 后 --ui-scale 同步');
+  assert.equal(htmlEl().style.transform, '', 'commit 后预览 transform 清除');
+  assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '0.850', 'commit 后 --ui-scale 同步');
   assert.equal(vm.runInContext("document.getElementById('ui-scale-val').textContent", ctx), '85%', '数值标签更新');
   assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '85', '松手后 localStorage 持久化');
   // 刷新等价：getUiScale 从 localStorage 读回 85

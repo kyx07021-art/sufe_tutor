@@ -9,7 +9,7 @@
  *   ③「过透」：气泡填充 alpha 0.14~0.32 → 近实色 hex（alpha≈1.0）；文本气泡不加 backdrop-filter
  *      （--g-frost 默认 none；性能 + WCAG 4.5:1 合成对比度 + 本项目 983252 冻结教训）；
  *   ④「样式不统一」：圆角统一 16px、图片即气泡无边框（overflow:hidden 裁剪）、系统胶囊、
- *      签约气泡单条品牌色条（border-left accent）、组内 6px/换人 18px。
+ *      签约气泡单条品牌色条（border-left accent，v0.25.94 已按用户要求连根删）、组内 6px/换人 18px。
  *
  * 本测试覆盖（结构/单源断言；视觉几何靠浏览器实测）：
  *   - 主题气泡 token：浅/深两套 mine/theirs 为近实色（非低 alpha rgba）、system 为低对比中性；

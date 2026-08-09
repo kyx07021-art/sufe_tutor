@@ -34,6 +34,16 @@ test('R12 消除全局直角 outline：触发器与选项 focus-visible 均 outl
     '选项键盘聚焦复用悬停高亮（替代 outline）');
 });
 
+test('v0.25.94 下拉聚焦中性化：触发器聚焦环走 --g-option-ring（弃 --g-focus-soft 品牌紫）', () => {
+  assert.ok(/\.custom-select-trigger:focus, \.custom-select-trigger:focus-visible \{\s*box-shadow:[\s\S]*?0 0 0 3px var\(--g-option-ring/.test(glass),
+    '触发器聚焦环用中性墨色 token --g-option-ring（非紫 --g-focus-soft）');
+  const c = readFileSync('./constants.js', 'utf8');
+  assert.ok(c.includes("'--g-option-ring': 'rgba(17,17,20,.16)'"), '浅色主题中性聚焦环 token');
+  assert.ok(c.includes("'--g-option-ring': 'rgba(255,255,255,.30)'"), '深色主题中性聚焦环 token');
+  assert.ok(!c.includes("'--g-option-hover': 'rgba(122,104,224,.07)'"), '浅色下拉 hover 不再品牌紫');
+  assert.ok(!c.includes("'--g-option-hover': 'rgba(139,124,232,.14)'"), '深色下拉 hover 不再品牌紫');
+});
+
 test('R12 触发器元素无自带 outline 冲突（base 声明 outline:none）', () => {
   // 触发器 base 走输入族（border:none 无 outline）；确认没有直写 outline 的散件
   assert.ok(!/\.custom-select-trigger\s*\{[^}]*outline:\s*2px/.test(glass),

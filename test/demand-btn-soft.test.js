@@ -94,3 +94,14 @@ test('R11 推送动作：拒收/接收统一 .btn-soft', () => {
   assert.ok(html.includes('resolvePush(9,\'accept\')') && html.includes('btn-soft'), '推送接收 = btn-soft');
   assert.ok(!html.includes('btn-outline'), '推送动作不再 btn-outline');
 });
+
+test('v0.25.94 意向行动作统一 btn-soft：查看/同意/拒绝（原 btn-outline/裸 btn 混搭）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx);
+  const row = vm.runInContext(`renderIntentTeacherRow({ user_id: 5, username: '张老师', rating: 4.5, province: 'shanghai',
+    price_min: 100, price_max: 200, intent_id: 11, intent_status: 'pending' }, 2)`, ctx);
+  assert.ok(row.includes('openProfilePanel(5)') && row.includes('btn-soft'), '查看 = btn-soft（原 btn-outline）');
+  assert.ok(row.includes("resolveIntent(11,'accept',2)") && row.includes('btn-soft'), '同意 = btn-soft（原裸 btn 无边框）');
+  assert.ok(row.includes("resolveIntent(11,'reject',2)") && row.includes('btn-soft'), '拒绝 = btn-soft（原 btn-outline）');
+  assert.ok(!row.includes('btn-outline') && !row.includes('class="btn btn-xs'), '意向行无 btn-outline/裸 btn 残留');
+});

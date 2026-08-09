@@ -495,7 +495,7 @@ const PROFILE_CARD_ITEMS = [
   { key: 'credential', group: 'private', label: UI.LABEL_CREDENTIAL, render: h => {
     if (!h.t.matched) return { v: profileNote(UI.PROFILE_FIELD_AFTER_MATCH), muted: true };
     return h.t.credential_image
-      ? { v: `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="viewTeacherCredential(${h.t.user_id})">${UI.CREDENTIAL_VIEW}</button>` }
+      ? { v: `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="viewTeacherCredential(${h.t.user_id})">${UI.CREDENTIAL_VIEW}</button>` }
       : h.empty(UI.PROFILE_FIELD_EMPTY);
   }},
   { key: 'contact', group: 'private', label: UI.LABEL_CONTACT, render: h => {
@@ -547,20 +547,20 @@ function renderProfileReviewsCard(reviewsData, t, signed) {
       </div>
       <div class="review-text">${escHtml(r.comment)}</div>
       ${reviewsData.admin ? `<div class="review-admin-actions">
-        ${r.status === STATUS.PENDING ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
-        <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',1)">${UI.BTN_REJECT}</button>` : ''}
-        <button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
+        ${r.status === STATUS.PENDING ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',1)">${UI.BTN_APPROVE}</button>
+        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',1)">${UI.BTN_REJECT}</button>` : ''}
+        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},1)">${UI.BTN_DELETE_REVIEW}</button>
       </div>` : ''}
     </div>`).join('') : `<p class="profile-empty">${UI.EMPTY_NO_REVIEWS}</p>`;
   let action = '';
   if (!reviewsData.admin && isStudentViewer) {
     action = mine ? `
       <div class="review-mine-note">${UI.MY_REVIEW_PREFIX}${mine.status === STATUS.APPROVED ? UI.STATUS_APPROVED : mine.status === STATUS.REJECTED ? UI.REVIEW_REJECTED_HINT : UI.REVIEW_STATUS_AUDITING}</div>
-      <button type="button" class="btn btn-outline btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id}, null, ${mine.id})">${UI.BTN_EDIT_REVIEW}</button>`
+      <button type="button" class="btn btn-soft btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id}, null, ${mine.id})">${UI.BTN_EDIT_REVIEW}</button>`
       : signed ? `
-      <button type="button" class="btn btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>`
+      <button type="button" class="btn btn-soft btn-sm profile-review-btn glass glass--pressable" onclick="openReviewModal(${t.user_id})">${UI.BTN_WRITE_REVIEW}</button>`
       : `
-      <button type="button" class="btn btn-outline btn-sm profile-review-btn glass glass--pressable" disabled>${UI.BTN_WRITE_REVIEW}</button>
+      <button type="button" class="btn btn-soft btn-sm profile-review-btn glass glass--pressable" disabled>${UI.BTN_WRITE_REVIEW}</button>
       <p class="profile-review-hint">${UI.REVIEW_LOCKED_HINT}</p>`;
   }
   return `<div class="profile-card glass">

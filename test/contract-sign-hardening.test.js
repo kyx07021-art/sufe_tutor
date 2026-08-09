@@ -91,8 +91,34 @@ test('signContract 打开阅读弹窗：合同渲染、确认按钮初始 disabl
   assert.ok(doc.querySelector('#contract-sign-scroll'), '滚动阅读区存在');
   assert.ok(doc.querySelector('#contract-sign-scroll').textContent.includes('家教服务合同'), '合同全文已渲染');
   assert.ok(doc.querySelector('#contract-sign-btn').disabled, '确认按钮初始 disabled');
+  assert.ok(doc.querySelector('#contract-sign-btn').textContent.includes('30秒后可确认签约'),
+    'v0.25.94：倒计时在「确认签约」按钮上（初始=满时长），取代按钮标签');
   const overlay = doc.querySelector('.modal-overlay');
   assert.equal(overlay.getAttribute('onclick') || '', '', '阅读弹窗 closable:false（点遮罩不关）');
+});
+
+test('v0.25.94 倒计时放回确认按钮：计时中按钮=「N秒后可确认签约」，灰字提示静态不闪', () => {
+  const { ctx, dom } = makeCtx();
+  const doc = dom.window.document;
+  seed(ctx);
+  vm.runInContext('signContract(7)', ctx);
+  const hint = doc.querySelector('#contract-sign-hint');
+  const btn = doc.querySelector('#contract-sign-btn');
+  // 计时中：按钮文本 = 动态倒计时（取代按钮标签）；灰字提示 = 静态阅读指引（不含倒计时，不轮番闪）
+  vm.runInContext('updateSignBtnState(12)', ctx);
+  assert.ok(btn.textContent.includes('12秒后可确认签约'), '计时中按钮文本 = 倒计时');
+  assert.ok(btn.disabled, '计时中按钮 disabled');
+  assert.equal(hint.textContent, vm.runInContext('UI.SIGN_READ_HINT', ctx), '灰字提示静态阅读指引（无秒数，不闪）');
+  assert.ok(!hint.textContent.includes('秒'), '灰字提示不再含倒计时');
+  // 时长到但未滚到底：按钮恢复正式标签但仍 disabled；提示仍是静态
+  vm.runInContext('window._signingElapsed = true; updateSignBtnState()', ctx);
+  assert.equal(btn.textContent, vm.runInContext('UI.SIGN_READ_DONE_BTN', ctx), '时长到按钮恢复「我已阅读并确认签约」');
+  assert.ok(btn.disabled, '未滚到底仍 disabled');
+  assert.equal(hint.textContent, vm.runInContext('UI.SIGN_READ_HINT', ctx), '未就绪灰字提示静态');
+  // 双条件齐：启用 + 提示切换就绪
+  vm.runInContext('window._signingScrolled = true; updateSignBtnState()', ctx);
+  assert.ok(!btn.disabled, '滚动到底 && 时长到：启用');
+  assert.equal(hint.textContent, vm.runInContext('UI.SIGN_READY_HINT', ctx), '就绪灰字提示切换');
 });
 
 test('解锁双条件：仅时长到不启用、仅滚到底不启用、双条件齐才启用', async () => {

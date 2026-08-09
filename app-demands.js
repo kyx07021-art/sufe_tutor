@@ -506,15 +506,20 @@ function matchLevel(md) {
 }
 
 // 五维明细行渲染（教师视角明细卡 / 学生逐需求明细共用）；score 为加权得分（null=跳过），max 为该维权重。
-// R25（v0.25.90）：比例条配色随卡级三色（--md-bar/--md-track 由 match-detail--hi/mid/lo 提供）——
-// 有效维度填充标准色 + 未填充淡色遮罩（0/10 也显色，不再 --zero 灰覆盖）；缺数据维度 --skip 保持灰底。
+// R25（v0.25.90）：比例条配色随卡级三色——有效维度填充标准色 + 未填充淡色遮罩，缺数据 --skip 灰底。
+// v0.25.94（用户反馈）：每个百分比条按各自比例独立配色——行级 match-row--hi/mid/lo（阈值同 matchLevel，
+// 各维 score/max 归一化后判定），不再随卡级一股脑同色；总百分比仍随卡级 match-detail--*。
 function matchRowsHtml(dims) {
-  const bar = (s, max) => `<div class="match-bar${s == null ? ' match-bar--skip' : ''}"><i style="--bar-w:${s == null ? 0 : Math.round(s / max * 100)}%"></i></div>`;
-  const row = (k, s, max, hint) => `<div class="match-row">
-    <span class="match-row-top"><span class="match-row-k">${k}</span><span class="match-row-s${s == null ? ' match-row-s--skip' : ''}">${s == null ? UI.MATCH_DIM_SKIP : Math.round(s) + '/' + max}</span></span>
-    ${bar(s, max)}
-    <span class="match-row-hint">${hint}</span>
-  </div>`;
+  const row = (k, s, max, hint) => {
+    const skip = s == null;
+    const pct = skip ? 0 : Math.round(s / max * 100);
+    const lvl = skip ? '' : (pct >= CONFIG.MATCH_COLOR_HIGH ? 'hi' : pct >= CONFIG.MATCH_COLOR_MID ? 'mid' : 'lo');
+    return `<div class="match-row${lvl ? ` match-row--${lvl}` : ''}">
+      <span class="match-row-top"><span class="match-row-k">${k}</span><span class="match-row-s${skip ? ' match-row-s--skip' : ''}">${skip ? UI.MATCH_DIM_SKIP : Math.round(s) + '/' + max}</span></span>
+      <div class="match-bar${skip ? ' match-bar--skip' : ''}"><i style="--bar-w:${pct}%"></i></div>
+      <span class="match-row-hint">${hint}</span>
+    </div>`;
+  };
   return dims.map(dim => row(dim.label, dim.score, dim.max, dim.hint)).join('');
 }
 
@@ -974,10 +979,13 @@ function renderIntentTeacherRow(t, demandId) {
   const tag = st === STATUS.ACCEPTED ? `<span class="tag tag-ok glass glass--solid">${UI.INTENT_STATUS_ACCEPTED}</span>`
     : st === STATUS.REJECTED ? `<span class="tag tag-danger glass glass--solid">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn glass glass--solid">${UI.INTENT_STATUS_PENDING}</span>`;
   const provName = escHtml(DISP.provinceName(t.province)); // 网安审计 N-15：province 未知名回显原 id，防注入
-  const viewBtn = `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
+  // v0.25.94（用户反馈「编辑/试课意向颜色不一致、有的有边框有的没有」）：卡片动作按钮统一 .btn-soft
+  // 轻量描边族（白调面 + 细边框，与编辑/试课意向/推送动作同口径）——VIEW/AGREE/REJECT 从
+  // btn-outline/裸 btn 统一为 btn-soft，弃「同排一个无边框一个带边框」的混搭。
+  const viewBtn = `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
   const actions = st === STATUS.PENDING
-    ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
-       <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
+    ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'accept',${demandId})">${UI.BTN_AGREE}</button>
+       <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
   // R2-5 报价区间（未填显 ? 占位，同旧单值口径）
   const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT) || '?';
   return `<div class="admin-row glass">

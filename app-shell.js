@@ -188,7 +188,8 @@ function renderSidebar() {
     <button type="button" class="sidebar-footnote" onclick="selectPage('about')">${escHtml(UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK))}</button>
     <div class="sidebar-version">v${APP_CONSTANTS.APP_VERSION}</div>`;
   document.getElementById('sidebar-nav').innerHTML =
-    `<span class="sidebar-pill glass glass--float" id="sidebar-pill" aria-hidden="true"></span>` +
+    // v0.25.94（用户反馈「灰色块乱窜，别搞特殊」）：删绝对定位 .sidebar-pill 覆盖层——active 高亮改由
+    // 条目自身 .sidebar-item.active 的 background 承载（流内标准组件，缩放/拖动天然同步，零 JS 几何）。
     pagesForRole().map((p, i) => `
     <button type="button" class="sidebar-item${p.id === state.page ? ' active' : ''}" data-page="${p.id}" onclick="selectPage('${p.id}')">
       <span class="sidebar-item-index" aria-hidden="true">${String(i + 1).padStart(CONFIG.SIDEBAR_INDEX_PAD, '0')}</span>
@@ -201,7 +202,6 @@ function renderSidebar() {
       ${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}
     </button>`).join('');
   document.getElementById('sidebar-invite').classList.toggle('hidden', !isAdmin);
-  syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
 }
 
 // 页面顶部 title 旁「i」信息按钮（用户反馈 2026-08-08：加小 i 的地方是页面内顶上 title 的旁边，不是侧边栏内）：
@@ -270,9 +270,7 @@ function selectPage(pageId) {
   document.querySelectorAll('#client-main .client-page').forEach(s =>
     s.classList.toggle('hidden', s.dataset.page !== pageId));
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b =>
-    b.classList.toggle('active', b.dataset.page === pageId));
-  // 黑色选中块滑向新栏目；展开/退让动效由 CSS 承担，rAF 追逐保证严格同步
-  glidePill(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
+    b.classList.toggle('active', b.dataset.page === pageId)); // v0.25.94：active 高亮由条目自身 background 承载，切类即同步
   state.page = pageId;
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
@@ -286,12 +284,9 @@ function selectPage(pageId) {
   document.getElementById('client-main').scrollTop = 0;
 }
 
-// 侧边栏开合时选中黑块跟着宽度/高度过渡逐帧重绑
-function sidebarPillGlide() {
-  glidePill(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item', CONFIG.SIDEBAR_GLIDE_MS);
-}
-function closeSidebar()  { document.body.classList.remove('sidebar-open'); sidebarPillGlide(); }
-function toggleSidebar() { document.body.classList.toggle('sidebar-open'); sidebarPillGlide(); }
+// v0.25.94：删 sidebarPillGlide（原 glidePill 逐帧追逐）——active 高亮由条目自身承载，开合/缩放无需重绑
+function closeSidebar()  { document.body.classList.remove('sidebar-open'); }
+function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
 
 // ============================================================
 // 统一装载器：loading → 取数 → 空态/渲染/浮入，错误转义统一。

@@ -185,7 +185,10 @@ function syncCustomSelectText(sel) {
   const wrap = sel.closest('.custom-select');
   if (!wrap) return;
   const text = wrap.querySelector('.custom-select-text');
-  const o = sel.options[sel.selectedIndex];
+  // v0.25.94（用户反馈「无可用需求时下拉无提示文字、塌成细条」）：唯一选项为 disabled 时
+  // selectedIndex=-1，读 options[-1] 得空 → 触发器无文字。回落 options[0]：空态灰字提示（
+  // SIGNING_NO_DEMAND_HINT / CONTRACT_DEMANDS_EMPTY）仍显示，不再塌成无字细条。
+  const o = sel.options[sel.selectedIndex] || sel.options[0] || null;
   text.textContent = o ? o.textContent : '';
   text.classList.toggle('custom-select-empty', !sel.value);
   const panel = wrap._customPanel;

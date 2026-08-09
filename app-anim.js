@@ -6,7 +6,6 @@
  * 毛玻璃子树做 transform 动画必须走纯 transform 的 animation（复刻 modal-in），禁用 transition。
  *
  * 包含：
- *   - 选中块滑动（glidePill/syncPillOnce，rAF 逐帧追真实布局，真值依赖）
  *   - 卡片浮入（revealObserver/initReveals，错峰延迟单源 CONFIG）
  *   - Toast（创建节点 → CSS 类定位/入场 → 定时切退场类 → 移除）
  *   - 自定义下拉开闭（toggleCustomSelect/closeAllCustomSelects/positionCustomSelectPanel + 全局监听）
@@ -18,45 +17,13 @@
  */
 
 // ============================================================
-// 选中块滑动（侧边栏大黑块 + 沟通页会话选中块共用；容器须 position:relative，pill 为直接子元素。
-// 选中项自身有展开动效，故用 rAF 逐帧追真实布局，保证指示块与退让的栏目严格同步）
+// 选中块高亮（v0.25.94 重构）：删绝对定位 pill 覆盖层特例栈（syncPillOnce/glidePill 逐帧
+// 量 offsetTop/offsetHeight 写 CSS 变量的旁支通路连根删）——选中高亮改由条目自身
+// .sidebar-item.active / .conv-item.active 的 background 承载（流内标准组件）：
+//   ① 缩放/拖动/重排时条目即自身背景，天然同帧，零 JS 几何同步（用户反馈「灰色块乱窜」根治）；
+//   ② resize 时无覆盖层可错位，不再需要重对齐监听；
+//   ③ 切换项时条目 padding/背景 transition 由 CSS 呈现层负责（原 glidePill 的滑动改淡入）。
 // ============================================================
-// v0.25.87 重构（R2）：pill 几何改 CSS 变量驱动——JS 只写 --pill-top/--pill-height，
-// 位置/高度消费在 CSS 呈现层（同 --ui-scale 单源思路），不再直写 style.top/height。
-// 好处：字体/布局触发 reflow 时 pill 与内容同帧；且可被 CSS transition 接管（见 glidePill）。
-function syncPillOnce(pill, container, itemSel) {
-  if (!pill || !container) return;
-  const a = container.querySelector(itemSel + '.active');
-  if (!a) { pill.style.setProperty('opacity', '0'); return; }
-  pill.style.setProperty('opacity', '1');
-  pill.style.setProperty('--pill-top', a.offsetTop + 'px');
-  pill.style.setProperty('--pill-height', a.offsetHeight + 'px');
-}
-function glidePill(pill, container, itemSel, dur = CONFIG.GLIDE_MS) {
-  if (!pill || !container) return;
-  const t0 = performance.now();
-  const step = now => {
-    syncPillOnce(pill, container, itemSel);
-    if (now - t0 < dur) requestAnimationFrame(step);
-  };
-  requestAnimationFrame(step);
-}
-// 全局窗口缩放：重对齐侧边栏指示块；沟通页若已挂载也同步（其自行定义 syncChatPill）
-window.addEventListener('resize', () => {
-  syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
-  if (typeof syncChatPill === 'function') syncChatPill();
-});
-// v0.25.25 UI 大小滑块（需求六·item5）：--ui-scale 变化改 rem 字号 → 卡片高度变化，
-// 但指示块几何是 JS 测的 px，resize 事件不覆盖滑块路径——由 app-state setUiScale 发
-// sufe:ui-scale 事件触发同样重对齐（含沟通页会话选中块）。分层：state 发 → anim 收。
-// v0.25.87 重构（R2）：测量改 rAF 渲染帧——事件触发时 item padding 尚在过渡中间态，
-// 同步量会拿到旧/中值（拖动时乱窜根因）。rAF 下一帧几何已稳定，与 CSS 布局同帧对齐。
-window.addEventListener('sufe:ui-scale', () => {
-  requestAnimationFrame(() => {
-    syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
-    if (typeof syncChatPill === 'function') syncChatPill();
-  });
-});
 
 // ============================================================
 // 卡片浮入（通知/需求/教师信息卡统一动效）：打开栏目即播、滚进视口再播；

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.93',
+  APP_VERSION: '0.25.94',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -52,7 +52,6 @@ globalThis.APP_CONSTANTS = {
     MATCH_DETAIL_MAX_HEIGHT: 320,         // 学生端匹配度明细卡内需求条目区高度上限 px（条目多滚动）
     MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px
     MATCH_DETAIL_EDGE_MARGIN: 8,          // 匹配明细卡距屏幕左右缘最小边距 px（v0.25.26 移动端右缘钳制）
-    GLIDE_MS: 460, SIDEBAR_GLIDE_MS: 380, // 选中块滑动动画时长
     PANEL_CLOSE_TIMEOUT_MS: 600,          // 个人信息栏关闭兜底
     TOAST_MS: 2500, TOAST_FADE_MS: 300,   // Toast 时长
     REVEAL_DELAY_BASE: 80, REVEAL_DELAY_STEP: 45, REVEAL_DELAY_MAX: 360, // 卡片浮入错峰
@@ -230,8 +229,9 @@ globalThis.APP_CONSTANTS = {
         // ---- 线条族 → 墨线（半透明白线在不透明纸面上不可见） ----
         '--g-line-soft': 'var(--line)', '--g-line-pane': 'var(--line)', '--g-line-dark': 'var(--line)',
         '--g-seg-line': 'var(--line)', '--g-option-line': 'var(--line)', '--g-foot-text': 'var(--muted)',
-        // ---- 下拉高亮 → 品牌浅紫（半透明紫在不透明纸面上过淡） ----
-        '--g-option-hover': 'var(--accent-tint)', '--g-option-sel': 'var(--accent-tint)',
+        // ---- 下拉高亮 → 中性浅墨（v0.25.94：弃品牌紫「紫色直角矩形」反馈，下拉族统一中性） ----
+        '--g-option-hover': 'rgba(17,17,20,.06)', '--g-option-sel': 'rgba(17,17,20,.10)',
+        '--g-option-ring': 'rgba(17,17,20,.16)',
         // ---- 投影/液体边缘 → 透明占位（box-shadow 列表禁 none 混入，v0.19.17 教训） ----
         '--glass-lift': '0 0 0 0 transparent', '--glass-lift-sm': '0 0 0 0 transparent',
         '--g-liquid': '0 0 0 0 transparent', '--g-liquid-sm': '0 0 0 0 transparent',
@@ -300,7 +300,7 @@ globalThis.APP_CONSTANTS = {
       '--g-btn-line': 'rgba(17,17,20,.14)',        // 统一细边框（比 --line 略深一档，白卡上可辨）
       '--g-card-fill': 'radial-gradient(ellipse 120% 55% at 50% 4%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.45) 18%, rgba(255,255,255,.14) 36%, rgba(255,255,255,.06) 60%, rgba(255,255,255,.04) 100%)', // 卡族弯月径向
       '--g-card-strong': 'rgba(255,255,255,.32)',  // 信息卡强面（坐侧栏 L2）
-      '--g-card-id': 'rgba(255,255,255,.44)',      // 信息卡身份卡
+      '--g-card-id': 'rgba(255,255,255,.64)',      // 信息卡身份卡（v0.25.94：用户反馈「三卡底色变浅」——.44→.64，卡片本身提亮；底板 .profile-panel 仍 .22 不动）
       '--g-card-strong-m': 'rgba(255,255,255,.62)',// 移动端信息卡
       '--g-card-id-m': 'rgba(255,255,255,.75)',    // 移动端身份卡
       '--g-sideuser-fill': 'rgba(255,255,255,.26)',// 侧栏用户块
@@ -365,8 +365,9 @@ globalThis.APP_CONSTANTS = {
       '--g-paper-bright': 'rgba(255,255,255,.82)', // 压暗灰底上的玻璃提亮（新手引导气泡/跳过按钮：透灰需额外提亮，规则见 CLAUDE.md）
       '--g-sidebar-backdrop': 'rgba(20,18,40,.25)', // 移动端侧栏遮罩
       // ---- 下拉选项 / 匹配条 ----
-      '--g-option-hover': 'rgba(122,104,224,.07)',
-      '--g-option-sel': 'rgba(122,104,224,.13)',
+      '--g-option-hover': 'rgba(17,17,20,.05)',   // v0.25.94：下拉 hover/聚焦/选中改中性浅墨（弃品牌紫）
+      '--g-option-sel': 'rgba(17,17,20,.09)',
+      '--g-option-ring': 'rgba(17,17,20,.16)',    // 下拉触发器聚焦环（中性墨色，主题自适应）
       '--g-bar-soft': 'rgba(255,255,255,.35)',     // 匹配条底轨（v0.25.10 透明度微降，纸面上空轨可辨）
       '--g-bar-strong': 'rgba(142,128,232,.45)',   // 匹配条空值段（v0.25.10 淡紫 tint——原纯白在纸面上不可辨）
       '--g-slider-thumb': 'linear-gradient(145deg,#8E80E8,#6B5BD2)', // UI 大小滑块拖动球（v0.25.10 淡紫——原白玻璃珠在 80% 空轨上白对白）
@@ -474,8 +475,9 @@ globalThis.APP_CONSTANTS = {
       '--g-paper-bright': 'rgba(40,37,54,.9)',
       '--g-sidebar-backdrop': 'rgba(0,0,0,.5)',
       // ---- 下拉选项 / 匹配条 ----
-      '--g-option-hover': 'rgba(139,124,232,.14)',
-      '--g-option-sel': 'rgba(139,124,232,.24)',
+      '--g-option-hover': 'rgba(255,255,255,.10)', // v0.25.94：下拉 hover/聚焦/选中改中性（深色下白染，弃品牌紫）
+      '--g-option-sel': 'rgba(255,255,255,.16)',
+      '--g-option-ring': 'rgba(255,255,255,.30)',  // 下拉触发器聚焦环（深色下白环）
       '--g-bar-soft': 'rgba(255,255,255,.26)',
       '--g-bar-strong': 'rgba(139,124,232,.55)',
       '--g-slider-thumb': 'linear-gradient(145deg,#A99BF5,#8E80E8)', // 暗色提亮一档（--g-slider-thumb 同键）
@@ -1255,11 +1257,10 @@ globalThis.APP_CONSTANTS = {
     CREDENTIAL_VIEW: '点击查看',
     CREDENTIAL_REUPLOAD: '重新上传',
     CREDENTIAL_PICK_HINT: '请选择图片文件',
-    CONTRACT_STATUS_PENDING: '草案待确认',
+    // v0.25.94：合同待签约态只留「待签约」——pending（草案待确认）遗留态连根删
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',
     CONTRACT_STATUS_REVOKED: '已撤销', // v0.25.87 R7：撤销标记 tag（红）
-    CONTRACT_WAIT_DRAFT: '等待对方确认草案',
     BTN_SIGN: '开始签约',                 // v0.25.32：确认签约 → 开始签约（先读合同+待够时长）
     BTN_SIGN_WAITING: '等待对方确认签约',
     BTN_MODIFY_CONTRACT: '修改内容',
@@ -1270,7 +1271,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_MODIFY_BIZ_HINT: '仅可修改业务条款，法律条款不可修改',   // v0.24.2 审计：单源收口（曾硬编码中文 + 内联样式）
     CONTRACT_DIFF_HINT: '本次修改的改动处已高亮：绿色=新增，红色删除线=移除；法律条款未改动。', // v0.24.3 diff 视图
     SIGN_MODAL_TITLE: '开始签约',
-    SIGN_READ_HINT: '请阅读合同全文并滚动到底部，{secs} 秒后方可确认', // {secs} 渲染时填 CONFIG.CONTRACT_SIGN_READ_SECONDS（数字单源）
+    SIGN_READ_HINT: '请阅读合同全文并滚动到底部，方可确认', // v0.25.94：倒计时已上「确认签约」按钮，灰字提示只留静态阅读指引（不再轮番闪）
     SIGN_COUNTDOWN_HINT: '{secs}秒后可确认签约', // v0.25.87 R5：倒计时动态提示（从开窗起算）
     SIGN_READY_HINT: '已阅读完毕，可确认签约',
     SIGN_READ_DONE_BTN: '我已阅读并确认签约',
@@ -1530,7 +1531,7 @@ globalThis.APP_CONSTANTS = {
     CHAT_UNKNOWN_USER: '未知用户',
     CHAT_BACK_TO_LIST: '会话列表',
     CHAT_CLOSED_TIP: '该会话已关闭，不能再发送消息',
-    CHAT_SIGN_TIP: '已与对方确认签约，建议起草并签订正式合同以加强契约有效性。', // 需求四·第4条：签约确认后会话背景灰字
+    CHAT_SIGN_TIP: '已与对方确认签约，建议起草并签订正式合同以加强契约有效性；平台不参与费用结算，课费请与对方站外直接结算。', // 需求四·第4条：签约确认后气泡内合并提示（v0.25.94：并入资金声明，删独立 funds 小字）
     CHAT_ATTACH_IMAGE: '图片',
     CHAT_ATTACH_FILE: '文件',
     CHAT_INPUT_PLACEHOLDER: '输入消息',

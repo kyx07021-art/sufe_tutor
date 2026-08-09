@@ -559,10 +559,13 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
 
 // DELETE /api/contracts/:id —— 取消签约（v0.25.87 R7 重写：不再删行）
 // 分两种情况：
-//   ① 我方已签、对方未签：取消 → 弹窗+密码验证（前端），合同回退我方待签约态（status→pending、
+//   ① 我方已签、对方未签：取消 → 弹窗+密码验证（前端），合同回退我方待签约态（status→signing、
 //      清我方 confirmed/signed_at）、合同保留干净——可重新签约。
 //   ② 双方均已签：本接口拒绝（409），引导走 POST /api/contracts/:id/revoke（撤销合同，同样不删行）。
 // 会话保留，需求状态保持 open（合同文档与需求解耦）。
+// v0.25.94（用户反馈「草案待确认/待签约两种状态重复，删一种」）：取消回退一律 status='signing'
+// （待签约）——'pending' 是旧草案确认流遗留态，新合同创建即 'signing'，sign 接口对两者同等放行；
+// 历史 pending 行经 DISP.contractStatusMeta 归并为「待签约」显示，不再单独出「草案待确认」。
 export async function handleCancelContract(db, contractId, body, req) {
   const { user: me, err: authErr } = await requireUser(db, req);
   if (authErr) return authErr;
@@ -573,7 +576,6 @@ export async function handleCancelContract(db, contractId, body, req) {
   // 危险操作（取消签署承诺）：密码重认证换 capToken（同签约/撤销口径，网安 F-05）
   if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
 
-  // 我方已确认签约（pending 起草方除外——pending 态取消不涉签署承诺，仅撤销起草）：
   const myCol = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   const theirCol = userId === ct.drafter_user_id ? 'other_confirmed' : 'drafter_confirmed';
   const mySigned = userId === ct.drafter_user_id ? !!ct.drafter_confirmed : !!ct.other_confirmed;
@@ -581,12 +583,12 @@ export async function handleCancelContract(db, contractId, body, req) {
   if (bothSigned) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409); // 双方已签：走撤销合同（revoke）
 
   // 条件 UPDATE 并发守卫：AND 当前状态，changes=0 方重读幂等（对方并发签约/改态时不产生副作用）。
-  // 回退我方确认标志 + 签署时间，status 回 pending（对方未签则其确认本为空，保持）；
+  // 回退我方确认标志 + 签署时间，status 回 'signing'（待签约，v0.25.94 去 pending 遗留态；对方未签则其确认本为空，保持）；
   // 我方的已签时间一并清（回退到"待我签署"的干净态，可重新确认签约）。
   const upd = await dbRun(db,
     `UPDATE contracts SET ${myCol}=0,
         ${userId === ct.drafter_user_id ? "drafter_signed_at=''" : "other_signed_at=''"},
-        status='pending', version=version+1, updated_at=datetime('now','localtime')
+        status='signing', version=version+1, updated_at=datetime('now','localtime')
      WHERE id=? AND status IN ('pending','signing')`, [contractId]);
   if (!(upd && upd.meta && upd.meta.changes > 0)) {
     const cur = await dbGetContractById(db, contractId);
@@ -595,6 +597,6 @@ export async function handleCancelContract(db, contractId, body, req) {
   }
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId,
-    detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, rollbackTo: 'pending' }, req });
+    detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, rollbackTo: 'signing' }, req });
   return json({ ok: true });
 }

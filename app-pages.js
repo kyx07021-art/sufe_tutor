@@ -180,10 +180,11 @@ function setOrbPref(pref) {
   document.querySelectorAll('.orb-opt').forEach(b => b.classList.toggle('orb-opt--on', b.dataset.pref === o));
 }
 
-// 需求六·item5：UI 大小滑块拖动——setUiScaleLive 重算 --ui-scale（rAF 合并每帧一次，丝滑），
+// 需求六·item5：UI 大小滑块拖动——setUiScaleLive 走 html transform:scale 实时预览
+// （compositor-only，不触发全页重排版，拖动帧率根治——见 app-state setUiScale 注释），
 // 同步轨道填充渐变（--ui-fill）与数值标签；纯客户端不走服务器。
-// v0.25.87 重构（R2）：oninput 只走 Live（不落盘、rAF 合并）；松手 onchange 走 commitUiScale 落盘。
-// 原 setUiScaleFromSlider 每帧同步写 localStorage + dispatch → 拖动刷新率低 + 指示块中间态乱窜。
+// v0.25.94 重构（R3）：拖动只预览（transform，不落盘）；松手 onchange 走 commitUiScale 清预览落真排版 + 落盘。
+// 原 v0.25.87（R2）拖动走 --ui-scale rAF 合并应用——仍每帧全页排版重绘，实测 ~100ms/帧刷新率低（已废）。
 function setUiScaleFromSlider(el) {
   const v = setUiScaleLive(+el.value);
   const valEl = document.getElementById('ui-scale-val');

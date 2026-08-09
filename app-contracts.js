@@ -13,10 +13,10 @@
 // ============================================================
 
 // 该合同当前是否需要我处理（侧栏红点口径）
+// v0.25.94：pending 遗留态与 signing 同口径——都按「我方未确认签约」判定
 function contractActionable(c) {
   const iAmDrafter = c.drafter_user_id === state.user.id;
-  if (c.status === STATUS.PENDING) return !iAmDrafter;                    // 对方起草，待我确认草案
-  if (c.status === STATUS.SIGNING) return !(iAmDrafter ? c.drafter_confirmed : c.other_confirmed); // 待我确认签约
+  if (c.status === STATUS.PENDING || c.status === STATUS.SIGNING) return !(iAmDrafter ? c.drafter_confirmed : c.other_confirmed); // 待我确认签约
   return false;
 }
 
@@ -63,28 +63,28 @@ function renderContractCard(c) {
   const myConfirmed = iAmDrafter ? c.drafter_confirmed : c.other_confirmed;
 
   let left = '', right = '';
+  // v0.25.94（用户反馈「按钮颜色不一致、有的有边框有的没有」）：白卡上卡片动作按钮统一 .btn-soft
+  // 轻量描边族（白调面+细边框，白卡/灰底都可见）——sign/cancel/view/modify 从裸 btn/btn-outline 归口；
+  // verify-ledger 保留 btn-ghost（三级存证动作）、revoke 保留 btn-text-danger（刻意低调）。
   if (c.revoked) {
     // v0.25.87 R7：撤销后合同保留——显示「你/对方已撤销合同」状态文案 + 查看合同，无操作按钮
     const revokeText = c.revoked_by === me ? UI.CONTRACT_REVOKED_BY_ME : UI.CONTRACT_REVOKED_BY_PEER;
     left = `<span class="contract-wait-text ${c.revoked_by === me ? 'text-danger' : 'text-muted'}">${revokeText}</span>
-      <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
   } else if (c.status === STATUS.SIGNED) {
-    left = `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
+    left = `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
       <button type="button" class="btn btn-ghost btn-sm glass glass--pressable" onclick="verifyContractLedgerUi(${c.id})">${UI.BTN_VERIFY_LEDGER}</button>`;
     right = `<button type="button" class="btn-text-danger glass" onclick="openRevokeContractModal(${c.id})">${UI.BTN_REVOKE_CONTRACT}</button>`; // 撤销入口刻意低调
-  } else if (c.status === STATUS.PENDING && iAmDrafter) {
-    // 起草方：等对方处理草案（v0.24.0 签署流简化后新合同不产生此态，仅兼容历史 pending）
-    left = `<span class="contract-wait-text text-muted">${UI.CONTRACT_WAIT_DRAFT}</span>`;
-    right = `<button type="button" class="btn btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
   } else {
-    // pending 收草案方 / signing 双方：确认签约（已确认则灰字提示等待对方）+ 修改内容 + 查看合同
+    // signing（含历史 pending 遗留）：确认签约（已确认则灰字提示等待对方）+ 修改内容 + 查看合同
     // v0.25.87 R6：我方已确认后修改按钮隐藏（合同内容锁定；后端同款 409 门禁兜底）
+    // v0.25.94：删 pending&&iAmDrafter 起草方特例分支——新合同创建即 signing，取消回退也归 signing
     left = `${myConfirmed
         ? `<span class="contract-wait-text text-muted">${UI.BTN_SIGN_WAITING}</span>`
-        : `<button type="button" class="btn btn-sm glass glass--pressable" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
-      ${myConfirmed ? '' : `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openContractModifyModal(${c.id})">${UI.BTN_MODIFY_CONTRACT}</button>`}
-      <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
-    right = `<button type="button" class="btn btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
+        : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
+      ${myConfirmed ? '' : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="openContractModifyModal(${c.id})">${UI.BTN_MODIFY_CONTRACT}</button>`}
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
+    right = `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="cancelContract(${c.id})">${UI.BTN_CANCEL_CONTRACT}</button>`;
   }
 
   return `<div class="list-card glass">
@@ -134,7 +134,7 @@ function signContract(contractId) {
       <p class="contract-sign-disclose text-sm text-muted">${escHtml(UI.SIGN_MODAL_DISCLOSE.replace('{username}', (state.user && state.user.username) || ''))}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
       <span class="text-sm text-muted contract-sign-hint" id="contract-sign-hint">${signReadHint()}</span>
-      <button type="button" id="contract-sign-btn" class="btn glass glass--pressable" disabled onclick="confirmSignContract()">${UI.SIGN_READ_DONE_BTN}</button>`,
+      <button type="button" id="contract-sign-btn" class="btn glass glass--pressable" disabled onclick="confirmSignContract()">${UI.SIGN_COUNTDOWN_HINT.replace('{secs}', String(CONFIG.CONTRACT_SIGN_READ_SECONDS))}</button>`,
   });
   // 待够时长解锁；先按当前滚态初始化一次（短合同无溢出视同已到底，仍需待够时长）
   // v0.25.87 R5：倒计时从开窗起算，每秒刷新提示「x秒后可确认签约」（原静态"请阅读…N 秒后"无倒计时反馈）。
@@ -152,9 +152,9 @@ function signContract(contractId) {
   setTimeout(onContractSignScroll, 0);
 }
 
-// 阅读时长提示文案（数字单源：CONFIG 渲染进 SIGN_READ_HINT 的 {secs}）
+// 阅读时长提示文案（v0.25.94 起纯静态：倒计时已上确认按钮，不再渲染 {secs}）
 function signReadHint() {
-  return UI.SIGN_READ_HINT.replace('{secs}', String(CONFIG.CONTRACT_SIGN_READ_SECONDS));
+  return UI.SIGN_READ_HINT;
 }
 
 // 滚动到底判定：无溢出（短合同）视同已到底；有溢出须触底（容差 CONFIG.CONTRACT_SIGN_SCROLL_EPS）
@@ -167,20 +167,20 @@ function onContractSignScroll() {
   updateSignBtnState();
 }
 
-// 确认按钮使能：滚动到底 && 待够时长 双条件；提示同步三态
-// v0.25.87 R5：remainSec 传入时显示「x秒后可确认签约」动态倒计时（从开窗起算）；
-// 未传保持「阅读时长」静态提示（scroll 事件路径）；就绪显示「已阅读完毕，可确认签约」。
+// 确认按钮使能：滚动到底 && 待够时长 双条件
+// v0.25.94（用户反馈「灰字轮番闪」）：倒计时放回「确认签约」按钮上——计时阶段按钮文本=
+// 「N秒后可确认签约」（取代按钮标签），就绪恢复「我已阅读并确认签约」；
+// 灰字提示只做静态阅读指引（未就绪恒 SIGN_READ_HINT / 就绪 SIGN_READY_HINT），不再切倒计时。
 function updateSignBtnState(remainSec) {
   const btn = document.getElementById('contract-sign-btn');
   if (!btn) return;
   const ready = window._signingElapsed && window._signingScrolled;
   btn.disabled = !ready;
+  btn.textContent = ready ? UI.SIGN_READ_DONE_BTN
+    : (remainSec != null ? UI.SIGN_COUNTDOWN_HINT.replace('{secs}', String(remainSec)) : UI.SIGN_READ_DONE_BTN);
   const hint = document.getElementById('contract-sign-hint');
   if (!hint) return;
-  if (ready) hint.textContent = UI.SIGN_READY_HINT;
-  else if (window._signingElapsed) hint.textContent = signReadHint(); // 时长已够、只差滚动（回到静态提示）
-  else if (remainSec != null) hint.textContent = UI.SIGN_COUNTDOWN_HINT.replace('{secs}', String(remainSec));
-  else hint.textContent = signReadHint();
+  hint.textContent = ready ? UI.SIGN_READY_HINT : UI.SIGN_READ_HINT;
 }
 
 // 确认按钮 → 二次确认 → 密码最终确认（needReAuth 换 capToken）→ POST 签约

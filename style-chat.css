@@ -1,8 +1,8 @@
 /* ============================================================
    我的会话（模块4）— 延续编辑式扁平设计语言
    base 结构层；圆角 / 投影 / 玻璃由 glass.css 覆盖（聊天气泡圆角亦在 glass）。
-   会话列表选中态为共享滑块：.conv-pill 米色大色块（app.js glidePill
-   逐帧驱动，与平台侧边栏选中块同一套基建）；
+   会话列表选中态由 .conv-item.active 自身背景承载（v0.25.94：删绝对定位 .conv-pill
+   覆盖层栈，改流内标准组件——缩放/重排天然同帧，零 JS 几何同步）；
    消息区细点阵底纹，呼应品牌圆点母题（导航 logo / 参考图卡片）。
    壳高由 .client-page--flush 契约的 height:100% 撑满，无需 JS 计算。
    ============================================================ */
@@ -37,25 +37,18 @@
 
 .conv-list { position: relative; flex: 1; overflow-y: auto; min-height: 0; padding: 10px 0 16px; }
 
-/* 选中滑块：会话项背后的米色大色块。top / height / opacity 全由
-   app.js syncPillOnce / glidePill 逐帧写入，自身不带任何过渡 */
-.conv-pill {
-  position: absolute; left: 0; right: 0; z-index: 0;
-  top: var(--pill-top, 0); height: var(--pill-height, 0); /* v0.25.87 R2：几何走 CSS 变量（同 sidebar-pill 基建） */
-  opacity: 0;
-}
-
-/* 会话项：独立成块（间距分隔，不再用 border 切行）；
-   选中态加高 padding 撑出大色块呼吸感，文字保持墨色 */
+/* 会话项：独立成块（间距分隔，不再用 border 切行）；选中态加高 padding 撑出高亮呼吸感，文字保持墨色。
+   v0.25.94（用户反馈「灰色块乱窜，别搞特殊」）：删绝对定位 .conv-pill 覆盖层——选中高亮由条目
+   自身 .conv-item.active 的 background 承载（流内标准组件，缩放/拖动天然同步，零 JS 几何） */
 .conv-item {
   position: relative; z-index: 1; isolation: isolate;
   display: grid; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center;
   width: 100%; text-align: left;
   margin: 0 0 6px;
   padding: 13px 18px 14px;
-  transition: color .26s ease, padding .26s ease; /* G28：background-color 由引擎 --g-fill 接管，死 */
+  transition: color .26s ease, background-color .26s ease, padding .26s ease;
 }
-.conv-item.active { padding: 16px 18px 17px; color: var(--ink); }
+.conv-item.active { padding: 16px 18px 17px; color: var(--ink); background: var(--g-fill-strong); }
 
 /* 对方小头像：最左侧，纵跨名字行与预览行 */
 .conv-avatar { width: 36px; height: 36px; font-size: 1rem; grid-column: 1; grid-row: 1 / span 2; }
@@ -267,18 +260,37 @@
    v0.25.87 架构整理（R1）：气泡自持紧凑行距，不再继承 .chat-bubble 的 line-height:1.62——
    原 .78rem 小字 × 1.62 = 每行约 20px + 行间 padding，三行标签行距松到能塞图（用户反馈）。
    改 line-height:1.45 + 行距全走 margin（单点），信息行压缩为「相邻紧排」的紧凑正常气泡。 */
+/* 整改（v0.25.94）：删左竖线 + 彻底紧凑化——原 max-width:300px 是「雷霆大气泡」根因（R1 只压了行距，
+   没动结构尺寸）；border-left:3px 品牌色条整个删（用户明确要求删竖线组件，不留）。 */
 .signing-bubble {
-  max-width: 300px; text-align: left; padding: 10px 14px; border-left: 3px solid var(--accent);
-  line-height: 1.45; /* R1：不继承 chat-bubble 的 1.62（继承值按 .78rem 换算每行 ≈ 20px 过松） */
-} /* v0.25.34 单条品牌色条：签约卡片身份，不新增色相 */
-.signing-bubble-title { font-weight: 700; font-size: .8rem; margin-bottom: 5px; color: var(--accent-deep); }
-.signing-bubble-row { display: flex; justify-content: space-between; gap: 12px; font-size: .78rem; padding: 1px 0; }
-.signing-bubble-row + .signing-bubble-row { margin-top: 2px; } /* R1：信息行之间紧凑间距（原靠行高+padding 松散累积） */
+  max-width: 250px; text-align: left; padding: 8px 12px;
+  line-height: 1.4; /* 紧凑行高（继承 .78rem 换算每行更扁，信息行相邻紧排） */
+}
+.signing-bubble-title { font-weight: 700; font-size: .78rem; margin-bottom: 4px; color: var(--accent-deep); }
+.signing-bubble-row { display: flex; justify-content: space-between; gap: 10px; font-size: .76rem; padding: 0; }
+.signing-bubble-row + .signing-bubble-row { margin-top: 1px; } /* 信息行紧凑相邻 */
 .signing-bubble-row span { color: var(--muted); flex-shrink: 0; }
 .signing-bubble-row b { font-weight: 600; text-align: right; word-break: break-all; }
-.signing-bubble-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: center; }
-.signing-bubble-status { margin: 6px 0 0; font-size: .72rem; color: var(--muted); text-align: center; }
-.signing-bubble--done { opacity: .55; } /* 已回应：气泡整体变灰 */
+.signing-bubble-actions { display: flex; gap: 8px; margin-top: 6px; justify-content: center; }
+.signing-bubble-status { margin: 4px 0 0; font-size: .7rem; color: var(--muted); text-align: center; }
+.signing-bubble--done { opacity: .55; } /* 拒绝：气泡整体变灰（v0.25.94 起仅拒绝态；签约确认态不降透明——起草按钮须完整可见可点） */
+
+/* v0.25.94（用户反馈「确认签约后气泡底下先合并提示再起草按钮、按钮撑满气泡」）：
+   签约确认态底部 = 合并提示文案 + 左右撑满的「起草合同」按钮；独立 funds 小字已并入提示。 */
+.signing-bubble-signed-tip { margin: 6px 0 0; font-size: .68rem; line-height: 1.55; color: var(--muted); }
+.signing-bubble-draft-btn { display: block; width: 100%; margin-top: 8px; }
+
+/* 呼吸遮罩（整改 v0.25.94）：签约请求（待处理）/ 合同请求气泡加柔和呼吸光环——outline 呼吸不干扰
+   引擎 box-shadow 浮影，动画全在 CSS 呈现层，JS 只切类（renderChatBubble 加 chat-bubble--breathe）。
+   2.6s 周期弱化干扰；reduced-motion 归零（动画铁律）。 */
+.chat-bubble--breathe { animation: chat-breathe-ring 2.6s ease-in-out infinite; }
+@keyframes chat-breathe-ring {
+  0%, 100% { outline: 1px solid color-mix(in srgb, var(--accent) 34%, transparent); outline-offset: 3px; }
+  50%      { outline: 1px solid color-mix(in srgb, var(--accent) 8%, transparent);  outline-offset: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-bubble--breathe { animation: none; outline: 1px solid color-mix(in srgb, var(--accent) 26%, transparent); outline-offset: 3px; }
+}
 /* 需求四（v0.25.44）：签约气泡底部资金声明（报价触点的平台责任撇清，小字不喧宾夺主） */
 .signing-bubble-funds { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--g-line-row); font-size: .68rem; color: var(--muted); text-align: center; }
 

@@ -197,43 +197,52 @@ function applyUiScale(v) {
   document.documentElement.style.setProperty('--ui-scale', (c / 100).toFixed(3));
   return c;
 }
-// v0.25.87 重构（R2）：拖动丝滑 + 指示块同步。
-//   setUiScale 拆两段——applyUiScale 同步应用（首帧/落盘路径），联动事件转 rAF 调度：
-//   拖动时 oninput 高频触发，若同步 dispatch sufe:ui-scale 会在 item padding 过渡中间态量
-//   几何（乱窜根因），且每帧多次强制 reflow（刷新率低根因）。改「事件只记 pending，
-//   rAF 每帧最多消费一次」，测量落在渲染帧（几何已稳定），指示块与 CSS 布局同帧。
-let _uiScalePending = null;   // 待消费的目标值（拖动合并：同帧多次 oninput 只应用一次）
+// v0.25.94 重构（R3）：拖动丝滑根治法——拖动期不再动 --ui-scale（全页每帧重排版+重绘，
+// 实测 ~100ms/帧，刷新率暴跌根因），改 html 上 compositor-only 的 transform: scale 实时预览
+// （transform 不失效样式/布局，实测失效成本 ~0ms，主线程零排版），松手 commit 才落 --ui-scale
+// 真排版（一次性）。
+//   setUiScale 拆两段——applyUiScale 同步应用（首帧/落盘路径），联动事件转 rAF 调度；
+//   拖动中「事件只记 pending，rAF 每帧最多消费一次」保留（transform 合成本就帧对齐）。
+//   transform-origin: top-left 与真排版缩放同锚点，预览与落盘视觉连续。
+let _uiScalePending = null;   // 待预览的目标值（拖动合并：同帧多次 oninput 只合成一次）
 let _uiScaleRaf = 0;          // rAF 句柄（0 = 空闲）
+function _uiScaleClearLive() {
+  document.documentElement.style.removeProperty('transform');
+}
+function _uiScaleLiveApply(c) {
+  document.documentElement.style.transformOrigin = 'top left';
+  document.documentElement.style.transform = `scale(${(c / 100).toFixed(3)})`;
+}
 function _uiScaleFlush() {
   _uiScaleRaf = 0;
   const c = _uiScalePending;
   if (c == null) return;
   _uiScalePending = null;
-  const r = applyUiScale(c);
-  try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* 事件禁用兜底 */ }
-  return r;
+  _uiScaleLiveApply(c);
 }
 // 同步应用（无合并；首帧/测试路径），返回钳制值
 function setUiScale(v) {
   const c = uiScaleClamp(v);
+  _uiScaleClearLive();
   const r = applyUiScale(c);
   try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
   try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* ignore */ }
   return r;
 }
-// 拖动中：只记 pending + 调度 rAF 消费（每帧一次）；不落盘（松手 change 时 commit）。
-// 返回钳制值供调用方同步刷标签（几何变化在 rAF 帧，标签即时无妨）。
+// 拖动中：html transform 实时预览（compositor-only，不失效布局），rAF 合并每帧合成一次；
+// 不落盘（松手 change 时 commit）。返回钳制值供调用方同步刷标签（预览合成在 rAF 帧，标签即时无妨）。
 function setUiScaleLive(v) {
   const c = uiScaleClamp(v);
   _uiScalePending = c;
   if (!_uiScaleRaf) _uiScaleRaf = requestAnimationFrame(_uiScaleFlush);
   return c;
 }
-// 松手/失焦：一次性事件（无高频问题），同步落盘 + 应用。若拖动 rAF 在途，清掉 pending 防旧值覆盖。
+// 松手/失焦：清预览 transform → 落真 --ui-scale（一次全页排版）→ 落盘。若拖动 rAF 在途，清掉 pending 防旧值覆盖。
 function commitUiScale(v) {
   const c = uiScaleClamp(v);
   if (_uiScaleRaf) { cancelAnimationFrame(_uiScaleRaf); _uiScaleRaf = 0; }
   _uiScalePending = null;
+  _uiScaleClearLive();
   const r = applyUiScale(c);
   try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
   try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* ignore */ }

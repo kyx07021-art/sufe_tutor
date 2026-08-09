@@ -187,15 +187,16 @@ test('R7 取消签约：我方已签对方未签 → 回退待签约、合同保
   await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
   const before = await dbGetContractById(db, 1);
   assert.ok(before.drafter_confirmed, '起草方已确认');
-  // t1 取消（密码验证 capToken）→ 回退 pending、清我方确认、合同保留
+  // t1 取消（密码验证 capToken）→ 回退 signing（待签约）、清我方确认、合同保留
+  // v0.25.94（用户反馈去重）：回退态为 signing——'pending' 遗留态连根删，无「草案待确认」
   const res = await handleCancelContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
   assert.equal(res.status, 200);
   const after = await dbGetContractById(db, 1);
   assert.ok(after, '合同保留未删除');
-  assert.equal(after.status, 'pending', '状态回退待签约');
+  assert.equal(after.status, 'signing', '状态回退「待签约」');
   assert.equal(after.drafter_confirmed, 0, '我方确认标志清空');
   assert.equal(after.drafter_signed_at, '', '我方签署时间清空');
-  // 未签方 s1 取消也可（pending 态）
+  // 未签方 s1 取消也可（signing 态）
   const res2 = await handleCancelContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
   assert.equal(res2.status, 200);
 });

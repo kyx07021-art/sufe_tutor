@@ -47,8 +47,8 @@ function renderAdminPostRow(p) {
       <div class="admin-row-meta">${fmtDateTime(p.created_at)}</div>
     </div>
     <div class="admin-row-actions">
-      <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openPostViewModal(${p.id})">${UI.BTN_VIEW}</button>
-      <button type="button" class="btn btn-xs glass glass--pressable" onclick="adminDeletePost(${p.id})">${UI.BTN_REMOVE}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="openPostViewModal(${p.id})">${UI.BTN_VIEW}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="adminDeletePost(${p.id})">${UI.BTN_REMOVE}</button>
     </div>
   </div>`;
 }
@@ -101,8 +101,8 @@ function renderAdminContractRow(c) {
       <div class="admin-row-meta">${UI.ADMIN_CONTRACT_DRAFTER_PREFIX}${escHtml(c.drafter_name)} · ${escHtml(methodName)} · ${c.hourly_rate}${UI.PRICE_UNIT} · ${fmtDateTime(c.updated_at)}</div>
     </div>
     <div class="admin-row-actions">
-      <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminViewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
-      <button type="button" class="btn btn-xs glass glass--pressable" onclick="adminRemoveContract(${c.id})">${UI.BTN_REMOVE_CONTRACT}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="adminViewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="adminRemoveContract(${c.id})">${UI.BTN_REMOVE_CONTRACT}</button>
     </div>
   </div>`;
 }
@@ -159,7 +159,7 @@ async function loadAdminFeedback() {
         <div class="list-card-detail feedback-content">${escHtml(f.content)}</div>
         <div class="feedback-foot">
           <span class="list-card-meta">${escHtml(f.username)} · ${fmtDateTime(f.created_at)}</span>
-          ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveAdminFeedback(${f.id})">${UI.BTN_MARK_RESOLVED}</button>`}
+          ${resolved ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="resolveAdminFeedback(${f.id})">${UI.BTN_MARK_RESOLVED}</button>`}
         </div>
       </div>`;
   }).join(''), { empty: UI.ADMIN_FEEDBACK_EMPTY });
@@ -350,15 +350,15 @@ function renderAdminUserRow(u, role) {
       <div class="admin-row-meta">${meta} · ${UI.REGISTERED_AT_PREFIX}${fmtDateTime(u.created_at)}</div>
     </div>
     <div class="admin-row-actions">
-      ${role === 'teacher' ? `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="openProfilePanel(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
+      ${role === 'teacher' ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="openProfilePanel(${uid})">${UI.BTN_VIEW_DETAIL}</button>` : ''}
       ${role === 'teacher' && u.credential_image
         ? (u.verified
-          ? `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="toggleTeacherVerify(${uid}, 0)">${UI.UNVERIFY}</button>`
-          : `<button type="button" class="btn btn-xs glass glass--pressable" onclick="toggleTeacherVerify(${uid}, 1)">${UI.VERIFY_TEACHER}</button>`)
+          ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="toggleTeacherVerify(${uid}, 0)">${UI.UNVERIFY}</button>`
+          : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="toggleTeacherVerify(${uid}, 1)">${UI.VERIFY_TEACHER}</button>`)
         : ''}
       ${u.banned
-        ? `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="confirmBanUser(${uid}, 0)">${UI.UNBAN}</button>`
-        : `<button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmBanUser(${uid}, 1)">${UI.BAN}</button>`}
+        ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="confirmBanUser(${uid}, 0)">${UI.UNBAN}</button>`
+        : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="confirmBanUser(${uid}, 1)">${UI.BAN}</button>`}
     </div>
   </div>`;
 }
@@ -426,9 +426,9 @@ function renderAdminReviewRow(r) {
       <div class="admin-row-meta">${fmtDateTime(r.created_at)}</div>
     </div>
     <div class="admin-row-actions">
-      ${r.status === STATUS.PENDING ? `<button type="button" class="btn btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',0)">${UI.BTN_APPROVE}</button>
-      <button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',0)">${UI.BTN_REJECT}</button>` : ''}
-      <button type="button" class="btn btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},0)">${UI.BTN_DELETE_REVIEW}</button>
+      ${r.status === STATUS.PENDING ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'approve',0)">${UI.BTN_APPROVE}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="adminReviewAction(${r.id},'reject',0)">${UI.BTN_REJECT}</button>` : ''}
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="confirmDeleteReview(${r.id},0)">${UI.BTN_DELETE_REVIEW}</button>
     </div>
   </div>`;
 }

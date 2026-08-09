@@ -223,15 +223,16 @@
     feedbackKindCls(kind) {
       return kind === 'bug' ? 'tag-danger' : kind === 'complaint' ? 'tag-warn' : 'tag-accent';
     },
-    // 合同状态→文案+tag 类：signed=ok / signing=warn / 其余(pending)=accent。
+    // 合同状态→文案+tag 类：signed=ok / signing(含历史 pending)=warn。
     // v0.25.87 R7：撤销标记（revoked=1 且 status=signed）→ 红色「已撤销」（合同保留、不删除）。
+    // v0.25.94（用户反馈去重）：'pending' 是旧草案确认流遗留态——新合同创建即 signing、取消回退也归 signing；
+    // 历史 pending 行在此归并为「待签约」显示，不再单独出「草案待确认」。
     contractStatusMeta(ct) {
       const ST = C().STATUS || {};
       const status = typeof ct === 'string' ? ct : (ct && ct.status);
       if (ct && typeof ct === 'object' && ct.revoked) return { text: UI().CONTRACT_STATUS_REVOKED, cls: 'tag-danger' };
       if (status === ST.SIGNED) return { text: UI().CONTRACT_STATUS_SIGNED, cls: 'tag-ok' };
-      if (status === ST.SIGNING) return { text: UI().CONTRACT_STATUS_SIGNING, cls: 'tag-warn' };
-      return { text: UI().CONTRACT_STATUS_PENDING, cls: 'tag-accent' };
+      return { text: UI().CONTRACT_STATUS_SIGNING, cls: 'tag-warn' };
     },
 
     // 行级 diff（v0.24.3 合同改动高亮）：oldText/newText 按行 LCS 分类，

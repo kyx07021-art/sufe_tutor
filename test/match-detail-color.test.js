@@ -52,7 +52,7 @@ test('R25 教师端明细卡：卡级等级类随 md（hi 绿 / mid 黄 / lo 红
   assert.ok(vm.runInContext('matchDetailHtml(TEACHER, DEMAND, 30)', ctx).includes('match-detail--lo'), '30 → lo 红');
 });
 
-test('R25 比例条：0 分维度不灰化（显色）、缺数据维度 --skip 灰、正常维度无标记', () => {
+test('R25 比例条：0 分维度不灰化（显色）、缺数据维度 --skip 灰', () => {
   const { ctx } = makeCtx();
   loadCommon(ctx);
   // 有效 0 分：bar 无 --zero 也无 --skip（0/10 淡色底显色）
@@ -60,15 +60,31 @@ test('R25 比例条：0 分维度不灰化（显色）、缺数据维度 --skip 
   assert.ok(zero.includes('<div class="match-bar">'), '0 分维度比例条无特殊类（淡色底显色）');
   assert.ok(!zero.includes('match-bar--zero') && !zero.includes('match-bar--skip'), '0 分不再灰化');
   assert.ok(zero.includes('--bar-w:0%'), '0 分填充 0%');
-  // 缺数据（score null）：--skip 灰底 + 值 --skip
+  // 缺数据（score null）：--skip 灰底 + 值 --skip + 无行级配色类
   const skip = vm.runInContext(`matchRowsHtml([{ label: '性格', score: null, max: 15, hint: '' }])`, ctx);
   assert.ok(skip.includes('match-bar--skip'), '缺数据维度比例条 --skip 灰底');
   assert.ok(skip.includes('match-row-s--skip'), '缺数据值 --skip');
   assert.ok(skip.includes('--bar-w:0%'), '缺数据填充 0%');
-  // 正常维度：无标记，填充比例正确
-  const ok = vm.runInContext(`matchRowsHtml([{ label: '区域', score: 15, max: 15, hint: '' }])`, ctx);
-  assert.ok(ok.includes('<div class="match-bar">'), '正常维度无特殊类');
-  assert.ok(ok.includes('--bar-w:100%'), '满分填充 100%');
+  assert.ok(!skip.includes('match-row--'), '缺数据维度无行级配色类');
+});
+
+test('R25/v0.25.94 比例条逐条独立配色：每维按各自比例定级（不随卡级一股脑同色）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx);
+  const hi = vm.runInContext(`matchRowsHtml([{ label: '科目', score: 45, max: 45, hint: '' }])`, ctx);
+  assert.ok(hi.includes('match-row--hi'), '100% 维度 → hi 绿');
+  const mid = vm.runInContext(`matchRowsHtml([{ label: '区域', score: 14, max: 20, hint: '' }])`, ctx);
+  assert.ok(mid.includes('match-row--mid'), '70% 维度 → mid 黄');
+  const lo = vm.runInContext(`matchRowsHtml([{ label: '预算', score: 5, max: 20, hint: '' }])`, ctx);
+  assert.ok(lo.includes('match-row--lo'), '25% 维度 → lo 红');
+  // 同卡不同维度各带各的级（混排用例：一支 hi 一支 lo，卡级只决定总百分比）
+  const mixed = vm.runInContext(`matchRowsHtml([
+    { label: '科目', score: 45, max: 45, hint: '' },
+    { label: '预算', score: 5, max: 20, hint: '' },
+    { label: '性格', score: null, max: 15, hint: '' },
+  ])`, ctx);
+  assert.ok(mixed.includes('match-row--hi') && mixed.includes('match-row--lo'), 'hi/lo 维同卡并存');
+  assert.ok(!mixed.includes('match-row--mid'), '无 mid 维不出现');
 });
 
 test('R25 学生端明细卡：同时带 --teacher 结构变体与等级类', () => {
@@ -87,6 +103,10 @@ test('R25 CSS 单源：pct/row-s/bar 全走等级变量，无紫残留；skip �
   assert.ok(css.includes('.match-detail--hi  { --md-bar: var(--ok-deep);   --md-track: var(--ok-tint); }'), 'hi 等级变量（绿）');
   assert.ok(css.includes('.match-detail--mid { --md-bar: var(--warn-deep); --md-track: var(--warn-tint); }'), 'mid 等级变量（黄）');
   assert.ok(css.includes('.match-detail--lo  { --md-bar: var(--danger);    --md-track: var(--danger-tint); }'), 'lo 等级变量（红）');
+  // v0.25.94：明细行逐条配色类（每维独立定级）
+  assert.ok(css.includes('.match-row--hi  { --md-bar: var(--ok-deep);   --md-track: var(--ok-tint); }'), '行级 hi 变量（绿）');
+  assert.ok(css.includes('.match-row--mid { --md-bar: var(--warn-deep); --md-track: var(--warn-tint); }'), '行级 mid 变量（黄）');
+  assert.ok(css.includes('.match-row--lo  { --md-bar: var(--danger);    --md-track: var(--danger-tint); }'), '行级 lo 变量（红）');
   assert.ok(/\.match-detail-pct \{[\s\S]*color: var\(--md-bar\)/.test(css), '总百分比走等级色');
   assert.ok(/\.match-row-s \{[\s\S]*color: var\(--md-bar\)/.test(css), '比例值走等级色');
   assert.ok(/\.match-bar \{[\s\S]*background: var\(--md-track\)/.test(css), '未填充区淡色遮罩');

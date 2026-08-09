@@ -31,7 +31,7 @@ export const STATUS = {
   OPEN: 'open',          // 需求开放 / 反馈未处理
   CONTRACTED: 'contracted', // 需求已签约下架
   REVOKED: 'revoked',    // 需求合同已撤销（待所有者手动重开）
-  PENDING: 'pending',    // 意向/推送待处理 / 合同草案 / 评价待审核
+  PENDING: 'pending',    // 意向/推送待处理 / 评价待审核（v0.25.94：合同已无 pending 态——创建即 signing、取消回退归 signing）
   ACCEPTED: 'accepted',  // 意向/推送已接受
   REJECTED: 'rejected',  // 意向/推送已拒绝 / 评价已拒绝
   SIGNING: 'signing',    // 合同待签约（双方确认中）

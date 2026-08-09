@@ -2,7 +2,8 @@
  * 我的会话（学生 / 教师侧边栏「我的会话」页，模块4）
  *
  * 经典脚本：全部顶层全局函数 + 内联 onclick（全站同一约定）。
- * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / loaderHtml / setBadge / syncPillOnce / glidePill（app-state/app-api/app-anim/app-ui 先行加载）。
+ * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / loaderHtml / setBadge（app-state/app-api/app-anim/app-ui 先行加载）。
+ * v0.25.94：会话列表选中高亮由 .conv-item.active 自身背景承载（原 syncPillOnce/glidePill 覆盖层栈已连根删）。
  *
  * 数据来源（后端已上线，身份一律凭 X-Auth-Token，无自报 userId 参数）：
  *   GET  /api/conversations                          会话列表（含对方用户名 + 最后消息预览）
@@ -117,16 +118,9 @@ function renderConvList() {
     el.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.CHAT_EMPTY_NO_CONVS}</p></div>`;
     return;
   }
-  // 选中滑块（米色大色块）始终是首个子元素，glidePill/syncPillOnce 以它为指示块
-  el.innerHTML = '<span class="conv-pill glass glass--solid" id="conv-pill" aria-hidden="true"></span>' +
-    chatConvList.map(renderConvItem).join('');
-  syncChatPill(); // 全量重渲染后条目刚布局完，pill 立即归位（无滑动）
-}
-
-// 共享滑块同步口（app-anim syncPillOnce 的本页封装）。
-// app-anim 的全局 window resize 处理会在本函数存在时调用它，缩放时选中块即时重对齐。
-function syncChatPill() {
-  syncPillOnce(document.getElementById('conv-pill'), document.getElementById('conv-list'), '.conv-item');
+  // v0.25.94（用户反馈「灰色块乱窜，别搞特殊」）：删绝对定位 .conv-pill 覆盖层——选中高亮改由
+  // 条目自身 .conv-item.active 的 background 承载（流内标准组件，缩放/拖动天然同步，零 JS 几何）。
+  el.innerHTML = chatConvList.map(renderConvItem).join('');
 }
 
 // 对方名字：学生看 teacher_name，教师看 student_name
@@ -219,10 +213,9 @@ async function openConversation(convId) {
   stopChatPolling();          // 清掉上一段会话的定时器与状态
   chatConvId = convId;
 
-  // 左栏高亮 + 移动端切到聊天窗
+  // 左栏高亮 + 移动端切到聊天窗（v0.25.94：active 背景由条目自身承载，切类即同步，无需 glidePill）
   document.querySelectorAll('#conv-list .conv-item').forEach(b =>
     b.classList.toggle('active', +b.dataset.convId === convId));
-  glidePill(document.getElementById('conv-pill'), document.getElementById('conv-list'), '.conv-item'); // 米色块滑向新会话
   const shell = document.getElementById('chats-shell');
   if (shell) shell.classList.add('chats-show-chat');
 
@@ -332,10 +325,11 @@ function renderChatBubble(m, i) {
   const skin = mine ? 'chat-bubble--mine' : 'chat-bubble--theirs';
   // 合同事件消息（v0.25.87 R3 修复）：不再居中系统胶囊——改为对应用户一侧的普通气泡
   // （起草方右侧 / 接收方左侧，同普通消息皮肤与对齐）。用户反馈：居中灰泡观感突兀，应融入消息流。
+  // 整改（v0.25.94）：合同请求气泡加呼吸遮罩（chat-bubble--breathe，柔和呼吸光环强调新合同动作）。
   if (m.kind === 'contract') {
     const text = mine ? UI.CHAT_CONTRACT_BUBBLE_MINE : UI.CHAT_CONTRACT_BUBBLE_OTHER;
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble glass ${skin}">${escHtml(text)}</div>${time}</div>`;
+      <div class="chat-bubble glass ${skin} chat-bubble--breathe">${escHtml(text)}</div>${time}</div>`;
   }
   // v0.24.0 发起签约气泡（极简签约流）：报价/时间/方式三条信息 + 底部确认/拒绝按钮；
   // 对方回应后气泡变灰、按钮消失为无组件小灰字（data-signing-id 供 respondSigning 就地刷新）
@@ -350,9 +344,9 @@ function renderChatBubble(m, i) {
     // 注入 data 属性与 onclick 上下文（respondSigning 内部还按该值拼属性选择器）；非数字视为无效 id
     const signingId = /^\d+$/.test(String(s.id || '')) ? String(s.id) : '';
     const pending = s.status === STATUS.PENDING;
-    const done = s.status === STATUS.SIGNED ? UI.SIGNING_CONFIRMED_TEXT : (s.status === STATUS.REJECTED ? UI.SIGNING_REJECTED_TEXT : '');
+    const rejected = s.status === STATUS.REJECTED;
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble glass ${skin} signing-bubble${done ? ' signing-bubble--done' : ''}" data-signing-id="${escHtml(signingId)}">
+      <div class="chat-bubble glass ${skin} signing-bubble${rejected ? ' signing-bubble--done' : ''}${pending ? ' chat-bubble--breathe' : ''}" data-signing-id="${escHtml(signingId)}">
         <div class="signing-bubble-title">${mine ? UI.CHAT_SIGNING_MINE_TITLE : UI.CHAT_SIGNING_REQUEST_TITLE}</div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_PRICE}</span><b>${price} ${UI.PRICE_UNIT}/小时</b></div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(String(s.schedule || ''))}</b></div>
@@ -361,11 +355,11 @@ function renderChatBubble(m, i) {
           <button type="button" class="btn btn-sm glass glass--pressable" onclick="respondSigning(${signingId}, true)">${UI.BTN_SIGNING_CONFIRM}</button>
           <button type="button" class="btn btn-sm btn-outline glass glass--pressable" onclick="respondSigning(${signingId}, false)">${UI.BTN_SIGNING_REJECT}</button>
         </div>` : ''}
-        ${done ? `<p class="signing-bubble-status">${s.status === STATUS.SIGNED ? escHtml(UI.CHAT_SIGN_TIP) : escHtml(done)}</p>` : ''}
-        ${s.status === STATUS.SIGNED ? `<div class="signing-bubble-actions">
-          <button type="button" class="btn btn-sm glass glass--pressable" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
-        </div>` : ''}
-        <p class="signing-bubble-funds">${UI.FUNDS_NOTE_SHORT}</p>
+        ${rejected ? `<p class="signing-bubble-status">${escHtml(UI.SIGNING_REJECTED_TEXT)}</p>` : ''}
+        ${s.status === STATUS.SIGNED ? `
+          <p class="signing-bubble-signed-tip">${escHtml(UI.CHAT_SIGN_TIP)}</p>
+          <button type="button" class="btn glass glass--pressable signing-bubble-draft-btn" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>` : ''}
+        ${s.status !== STATUS.SIGNED ? `<p class="signing-bubble-funds">${UI.FUNDS_NOTE_SHORT}</p>` : ''}
       </div>${time}</div>`;
   }
   // v0.24.0 签约回应气泡（对方确认/拒绝后落一条，在途会话实时刷新）
@@ -784,29 +778,32 @@ function closeChatPlus() { const w = document.getElementById('chat-plus-wrap'); 
 function chatPlusDraft() { closeChatPlus(); if (chatConvId) openContractDraftModal(chatConvId); }
 function chatPlusSigning() { closeChatPlus(); if (chatConvId) openSigningModal(chatConvId); }
 
-// v0.25.87 R8 重构：签约确认后「已与对方确认签约 + 起草合同」并入请求气泡内部——status 区
-// 显示 CHAT_SIGN_TIP 文案、按钮区放「起草合同」（原独立于气泡外的灰色小组件已废除）。
-// 双路呈现：1) 终态模板：重开会话拉历史，signing_request 气泡 status='signed' 时模板直接渲染；
-//   2) 在途注入：轮询/回应方就地确认时，配对 data-signing-id 就地刷新 status 文本 + 挂起草按钮（幂等）。
-// 文案单源 UI.CHAT_SIGN_TIP；signingId 仅接受纯数字（防 CSS 选择器注入）。
+// v0.25.87 R8 起：签约确认后「已与对方确认签约 + 起草合同」并入请求气泡内部。
+// v0.25.94（用户反馈「气泡底下都是些什么鬼东西，删了重构」）：底部结构钉死为
+//   ① 合并提示文案（UI.CHAT_SIGN_TIP，已并入资金声明）→ ② 撑满气泡宽度的「起草合同」按钮；
+// 独立 funds 小字、旧小按钮结构废除。双路呈现：1) 终态模板：重开会话拉历史，
+// signing_request 气泡 status='signed' 时模板直接渲染；2) 在途注入：轮询/回应方就地确认时，
+// 配对 data-signing-id 就地重建底部（幂等）。signingId 仅接受纯数字（防 CSS 选择器注入）。
 function chatInjectSignCaption(signingId) {
   if (!/^\d+$/.test(String(signingId || ''))) return;
   const bubble = document.querySelector(`.chat-bubble[data-signing-id="${signingId}"]`);
   if (!bubble) return;
-  // 幂等：按起草按钮文本查找（pending 态气泡本就有确认/拒绝 actions，不能按 .actions 判重）
-  const already = [...bubble.querySelectorAll('.signing-bubble-actions button')]
-    .some(b => b.textContent === UI.CHAT_BTN_DRAFT_CONTRACT);
-  if (already) return;
-  const acts = document.createElement('div');
-  acts.className = 'signing-bubble-actions';
+  if (bubble.querySelector('.signing-bubble-draft-btn')) return; // 幂等：起草按钮在即已重建
+  // ① 提示文案（合并资金声明，单源 UI.CHAT_SIGN_TIP）
+  let tip = bubble.querySelector('.signing-bubble-status');
+  if (!tip) { tip = document.createElement('p'); bubble.appendChild(tip); }
+  tip.className = 'signing-bubble-signed-tip';
+  tip.textContent = UI.CHAT_SIGN_TIP;
+  // 资金声明已并入提示文案：删独立 funds
+  const funds = bubble.querySelector('.signing-bubble-funds');
+  if (funds) funds.remove();
+  // ② 起草合同按钮：左右撑满气泡（block width:100%）
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.className = 'btn btn-sm glass glass--pressable';
+  btn.className = 'btn glass glass--pressable signing-bubble-draft-btn';
   btn.textContent = UI.CHAT_BTN_DRAFT_CONTRACT;
   btn.addEventListener('click', chatPlusDraft);
-  acts.appendChild(btn);
-  const funds = bubble.querySelector('.signing-bubble-funds');
-  if (funds) bubble.insertBefore(acts, funds); else bubble.appendChild(acts);
+  bubble.appendChild(btn);
 }
 
 // v0.24.0 回应签约请求：确认/拒绝。成功后就地把请求气泡变灰 + 按钮消失为小灰字
@@ -815,15 +812,17 @@ async function respondSigning(signingId, accept) {
   try {
     await api(`/api/signing-requests/${signingId}/respond`, { method: 'POST', body: { accept } });
     document.querySelectorAll(`[data-signing-id="${signingId}"]`).forEach(el => {
-      el.classList.add('signing-bubble--done');
       const actions = el.querySelector('.signing-bubble-actions');
       if (actions) actions.remove();
-      const status = el.querySelector('.signing-bubble-status');
-      const text = accept ? UI.SIGNING_CONFIRMED_TEXT : UI.SIGNING_REJECTED_TEXT;
-      if (status) status.textContent = text;
-      else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = text; el.appendChild(p); }
+      if (!accept) {
+        // 拒绝：整泡变灰（终态）+ status 拒绝文案；funds 保留
+        el.classList.add('signing-bubble--done');
+        const status = el.querySelector('.signing-bubble-status');
+        if (status) status.textContent = UI.SIGNING_REJECTED_TEXT;
+        else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = UI.SIGNING_REJECTED_TEXT; el.appendChild(p); }
+      }
     });
-    if (accept) chatInjectSignCaption(signingId); // R8：确认签约 → 气泡内就地挂「起草合同」按钮 + status 替换为签约提示
+    if (accept) chatInjectSignCaption(signingId); // v0.25.94：确认签约 → 就地重建气泡底部（合并提示 + 撑满起草按钮）
     showToast(accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED); // v0.24.2：回应方视角（原「对方已…」颠倒）
   } catch (err) { showToast(err.message); }
 }

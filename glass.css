@@ -234,8 +234,7 @@ body { background: transparent; }
 [data-style="flat"] .btn-link-inline,
 [data-style="flat"] .btn-text-danger { --g-btn-fill: transparent; --g-border: none; }
 .tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: var(--glass-lift-sm); } /* G6：删全文件唯一常驻紫投影（v0.19.7 白化漏改），交还中性 lift */
-/* 侧栏选中块=标准玻璃（去紫块） */
-.sidebar-pill { --g-fill: var(--g-fill-strong); --g-frost: var(--g-f-pill, blur(4px) saturate(180%) brightness(1.04)); --g-fg: var(--ink); --g-r: var(--lg-r); --g-lift: var(--glass-lift); } /* v0.19.35 层级白值：坐侧栏 L2，微降 */
+/* v0.25.94：侧栏选中高亮由 .sidebar-item.active 自身背景承载（见 style.css），无覆盖层 */
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
   --g-fill: var(--g-avatar-fill);
@@ -309,8 +308,13 @@ body { background: transparent; }
 .form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(12px * var(--ui-scale, 1)); } /* 需求六·item5：输入控件水平内边距随滑块 */
 .form-input:focus, .chat-input:focus, .filter-select:focus, .custom-select-trigger:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
 /* R12：下拉触发器聚焦——圆角软环并入输入族（触发器本体圆角 9px，聚焦环随圆角而非直角 outline），
-   取代全局 :focus-visible 直角矩形描边（用户定性「紫色直角矩形」丑）；下拉选项键盘聚焦复用悬停高亮。 */
+   取代全局 :focus-visible 直角矩形描边（用户定性「紫色直角矩形」丑）；下拉选项键盘聚焦复用悬停高亮。
+   v0.25.94：触发器聚焦环颜色改中性墨色（--g-option-ring，主题自适应）——弃品牌紫（--g-focus-soft），
+   下拉族聚焦/高亮/选中统一中性（--g-option-hover/sel 同改），符合成熟产品下拉中性聚焦惯例。 */
 .custom-select-trigger:focus, .custom-select-trigger:focus-visible, .custom-option:focus-visible { outline: none; }
+.custom-select-trigger:focus, .custom-select-trigger:focus-visible {
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-option-ring, rgba(17,17,20,.16));
+}
 .custom-option:focus-visible { background: var(--g-option-hover); color: var(--ink); }
 
 /* v0.25.10 用户反馈（签约/起草弹窗「选择需求」下拉比其他下拉薄一大截）：.form-select 此前漏在控件族
@@ -340,7 +344,6 @@ body { background: transparent; }
 .chats-shell { background: transparent; }
 .chats-list-pane { background: var(--g-pane-fill); }
 .chat-pane, .chat-messages { background: transparent; background-image: none; }
-.conv-pill { --g-fill: var(--g-fill-strong); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r); } /* G9+G34：直写交还参数（G34 补回 --g-r，防圆角从 12px 回落到引擎默认 9px）；v0.19.35 层级白值：坐会话列表 pane 上的 L2 */
 .conv-item { border-radius: var(--lg-r); }
 .conv-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, var(--g-hover-wash)); }
 .conv-item:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--g-focus-soft); border-radius: var(--lg-r); }

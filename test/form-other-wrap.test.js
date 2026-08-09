@@ -56,6 +56,13 @@ test('CSS：.form-group > .form-other-wrap 独占整行（flex-basis:100%）且�
   assert.ok(css.includes('.form-group > .form-other-wrap'), '选择器含 .form-group 前缀（特异性压制）');
 });
 
+test('v0.25.94 输入框左对齐字段列：右推 calc(116px+22px)（label 列宽+列间距），不戳进 title 区', () => {
+  const css = readFileSync('./style.css', 'utf8');
+  const ruleBody = (css.split('.form-other-wrap .form-input {')[1] || '').split('}')[0];
+  assert.ok(ruleBody.includes('margin-left: calc(116px + 22px)'), '输入框右推 label 列宽+列间距（对齐 select 字段列）');
+  assert.ok(ruleBody.includes('flex: 1') && ruleBody.includes('min-width: 0'), '输入框仍撑满剩余字段列');
+});
+
 test('渲染验证：薪资结算 + 试课薪资两处「其他」展开输入行，toggle 显隐正确', async () => {
   const { ctx } = makeCtx();
   vm.runInContext(`
