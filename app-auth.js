@@ -117,18 +117,22 @@ function switchToRole(role, saved) {
 }
 
 // 进入目标角色访客预览（未登录态，用户信息栏显示「未登录」）
+// v0.25.95：持久化访客角色（sufe_last_guest_role）——刷新恢复访客预览与页面停留（用户反馈「刷新不要回首页」）
 function enterRolePreview(role) {
   exitCurrentIdentity();
   state.guestRole = role;
   state.guestAuthMode = false;
+  setLastGuestRole(role); // exit 已清旧值，此处重写当前访客角色
   enterClient();
 }
 
 // 清当前运行时身份（登出/切换共用）：停轮询 + 领域残留 + 会话缓存；不删已存会话记录
+// v0.25.95：同步清访客角色标记——登出/切换后刷新必回落地页（无身份可恢复）
 function exitCurrentIdentity() {
   stopBadgePoll();
   if (typeof stopChatPolling === 'function') stopChatPolling();
   if (typeof runLogoutResets === 'function') runLogoutResets();
+  setLastGuestRole(null);
   state.user = null; state.authToken = null;
   state.guestRole = null; state.guestAuthMode = false;
 }

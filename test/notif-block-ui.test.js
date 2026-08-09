@@ -314,3 +314,37 @@ test('反馈-离开通知页批量已读：看过即消，POST /api/notification
   const allRead = vm.runInContext(`_notifList.every(n => n.is_read)`, ctx);
   assert.equal(allRead, true, '本地 _notifList 全翻已读');
 });
+
+// v0.25.95（用户反馈）：屏蔽系统通知后，被屏蔽的广播公告未读不再计入侧边栏红点（refreshBadges 同过滤口径）
+test('屏蔽系统通知：广播公告未读不再唤起侧边栏红点（非广播未读仍计数）', async () => {
+  const { dom, ctx } = makeCtx({ notifRows: [
+    { id: 1, text: `${BROADCAST}维护公告`, is_read: 0, created_at: '2026-08-08 10:00:00' },
+    { id: 2, text: '关于「数学」的需求，学生已选择其他老师', is_read: 0, created_at: '2026-08-08 09:00:00' },
+    { id: 3, text: `${BROADCAST}新版本上线`, is_read: 1, created_at: '2026-08-08 08:00:00' },
+  ] });
+  const doc = dom.window.document;
+  await setup(ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  const dot = doc.getElementById('sidebar-notifications-dot');
+  assert.ok(dot, '通知红点元素在位');
+
+  // 未屏蔽：未读 = 广播1(未读) + 非广播1(未读) = 2 → 红点亮
+  vm.runInContext(`localStorage.removeItem(CONFIG.NOTIF_BLOCK_KEY); refreshBadges();`, ctx);
+  await tick(); await tick();
+  assert.equal(dot.classList.contains('hidden'), false, '未屏蔽：有未读（含广播）红点亮');
+
+  // 屏蔽：广播未读被过滤 → 未读 = 仅非广播1 = 1 → 红点仍亮（非广播未读正常计数）
+  vm.runInContext(`localStorage.setItem(CONFIG.NOTIF_BLOCK_KEY, '1'); refreshBadges();`, ctx);
+  await tick(); await tick();
+  assert.equal(dot.classList.contains('hidden'), false, '屏蔽后非广播未读仍计数红点亮');
+
+  // 全为广播未读 + 屏蔽 → 未读 = 0 → 红点灭（系统通知不再唤红点）
+  const all = makeCtx({ notifRows: [
+    { id: 4, text: `${BROADCAST}维护公告`, is_read: 0, created_at: '2026-08-08 10:00:00' },
+    { id: 5, text: `${BROADCAST}新版本上线`, is_read: 0, created_at: '2026-08-08 08:00:00' },
+  ] });
+  await setup(all.ctx, { user: { role: 'student', id: 1, username: 's', avatar: '' } });
+  vm.runInContext(`localStorage.setItem(CONFIG.NOTIF_BLOCK_KEY, '1'); refreshBadges();`, all.ctx);
+  await tick(); await tick();
+  assert.equal(all.dom.window.document.getElementById('sidebar-notifications-dot').classList.contains('hidden'), true,
+    '屏蔽后广播公告未读不唤红点（核心诉求）');
+});

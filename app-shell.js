@@ -145,8 +145,11 @@ async function enterClient(pageId) {
   await loadDomainScripts(); // #175：进入客户端前确保领域脚本就绪（首访注入、回访缓存命中秒回）
   renderSidebar();
   showView('client');
-  // v0.24.1 删自动登录后刷新必落落地页（无 storedPage 恢复），pageId 仅登录/切角色回跳时传入
-  const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId : defaultPageFor();
+  // v0.25.95（用户反馈「刷新不要回首页」）：刷新/进入客户端统一恢复页面停留——selectPage 记录的
+  // sufe_last_page 在身份可见时恢复；pageId 显式传入（登录/切角色回跳）优先，身份不可见自动回落默认页
+  const stored = getLastPage();
+  const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId
+    : (stored && pagesForRole().some(p => p.id === stored) ? stored : defaultPageFor());
   // v0.24.0：不阻塞登录——默认页签立即渲染（自身走正常加载），
   // 其余模块数据此刻开始后台并行预取（fire-and-forget），用户在页面里待着时就已全部就绪；
   // 预取在途时点进某模块由 dhReady 跳过 loader 闪屏，读取完即显示
@@ -272,6 +275,7 @@ function selectPage(pageId) {
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b =>
     b.classList.toggle('active', b.dataset.page === pageId)); // v0.25.94：active 高亮由条目自身 background 承载，切类即同步
   state.page = pageId;
+  savePageState(pageId); // v0.25.95：记录页面停留，供刷新恢复（app-state 会话层统一能力）
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
   if (cfg && cfg.auth !== false && !ensureAuth()) return; // 需要身份的页统一过登录通路
@@ -350,7 +354,9 @@ async function refreshBadges() {
       dhGet('/api/notifications', { domain: 'notifications' }),
     ]);
     const chatUnread = (convData.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
-    const notifUnread = (notifData.notifications || []).filter(n => !n.is_read).length;
+    // v0.25.95（用户反馈）：屏蔽系统通知后广播公告未读不再计入侧边栏红点——红点与屏蔽过滤同口径
+    // （列表页屏蔽过滤 isBroadcastNotif + notifBlockOn 同源，此二函数声明在下方，function 声明提升可用）
+    const notifUnread = (notifData.notifications || []).filter(n => !n.is_read && !(notifBlockOn() && isBroadcastNotif(n))).length;
     // 红点铁律：正在看的页签不写徽标——点开瞬间本地清零后，轮询不许把它再点亮
     if (state.page !== 'my-chats') setBadge('my-chats', chatUnread);
     if (state.page !== 'notifications') setBadge('notifications', notifUnread);
@@ -535,13 +541,17 @@ function renderNotifContent(text) {
 registerLogoutReset(() => { _notifList = []; _lastContractSig = ''; });
 
 // ============================================================
-// 初始化（DOMContentLoaded）：落地页恒为入口 → 新手引导。
-// v0.24.1：删除「进主页即自动登录」——主页双按钮按角色恢复/登录（handleFeatureClick），
-// 未经用户选择客户端类型绝不进客户端（曾表现为通过链接点进主页直接登录进客户端）。
-// 会话不再首屏验证：点击角色按钮时 switchToRole 才调 /api/auth/me 校验令牌。
+// 初始化（DOMContentLoaded）：v0.25.95（用户反馈「刷新不要回首页」）刷新恢复登录/访客 + 页面停留；
+// 无可恢复身份才落落地页。推翻 v0.24.1「刷新恒落落地页」：该决定防「链接直达自动登录」，但用户主动刷新
+// 应保持刷新前状态——恢复编排按 登录会话 → 访客角色 → 落地页 顺序，能力在 app-state 会话层
+// （loadSession/getLastGuestRole/getLastPage），进入复用 app-auth（switchToRole/enterRolePreview）。
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件
+  const saved = loadSession();
+  if (saved && saved.authToken) { switchToRole(saved.user.role, saved); return; } // 校验后进客户端（enterClient 恢复页面）
+  const guest = getLastGuestRole();
+  if (guest) { enterRolePreview(guest); return; } // 访客预览恢复（含页面停留）
   showView('landing');
   showOnboardingIfNeeded();
   preloadDomainScripts(); // #178：后台静默预载领域脚本（点击入口下一帧即进客户端）

@@ -305,15 +305,17 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
     color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%);
 }
 .entry:hover .entry-glow, .entry:focus-visible .entry-glow { opacity: 1; } /* 光标光斑（liquid 透镜感） */
-.entry::after { /* 微光扫过：hover 触发一次自左上的光泽带（经典开始按钮动效） */
-  content: ''; position: absolute; z-index: -1; top: -40%; left: -35%;
-  width: 36%; height: 180%;
-  transform: rotate(18deg) translateX(-160%);
-  background: linear-gradient(105deg, transparent 0%, color-mix(in srgb, #fff 26%, transparent) 50%, transparent 100%);
+.entry::after { /* 微光扫过：hover 触发一次自左至右横扫整钮的光泽带（经典开始按钮动效）
+   v0.25.95 修正：原 width 36% + top -40% + 斜扫只覆盖按钮左半/上区（用户实测「扫过小半个按钮」）。
+   改 width 62% 横向盖大部分 + height 200% / top -50% 垂直盖满 + translateX 横扫全宽（先平移后旋转保持斜姿）。 */
+  content: ''; position: absolute; z-index: -1; top: -50%; left: 0;
+  width: 62%; height: 200%;
+  transform: translateX(-150%) rotate(18deg);
+  background: linear-gradient(105deg, transparent 0%, color-mix(in srgb, #fff 30%, transparent) 50%, transparent 100%);
   pointer-events: none;
 }
-.entry:hover::after { animation: entry-sheen .65s var(--ease-out) .1s; }
-@keyframes entry-sheen { to { transform: rotate(18deg) translateX(460%); } }
+.entry:hover::after { animation: entry-sheen .7s var(--ease-out) .08s; }
+@keyframes entry-sheen { to { transform: translateX(320%) rotate(18deg); } }
 /* hover 辉光边缘（liquid）：完整保留引擎浮影列表（--g-lift/--g-liquid/--g-surface + hover 白洗 inset），
    末尾追加主题色辉光——直接覆盖列表会丢浮影与 hover 白洗（玻璃引擎教训 v0.19.17：列表禁混 none）。
    .entry.glass 提特异性：glass.css 后加载，同特异性 (.entry:hover vs .glass:hover) 会被引擎规则覆盖（实测） */

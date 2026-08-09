@@ -140,6 +140,28 @@ function clearSession(role) {
   try { sessionStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
 }
 
+// ============================================================
+// 刷新恢复（v0.25.95，用户反馈「刷新不要回首页」）——会话/页面/访客角色三态持久化，
+// 与 loadSession 同属本层会话能力；boot（app-shell）按 登录会话 → 访客角色 → 落地页 顺序编排恢复。
+//   页面停留：selectPage 记录（sufe_last_page），enterClient 恢复（身份不可见自动回落默认页）；
+//   访客角色：enterRolePreview 记录 / exitCurrentIdentity 清除（登出后刷新必回落地页）。
+// ============================================================
+const PAGE_STATE_KEY = 'sufe_last_page';
+const GUEST_ROLE_KEY = 'sufe_last_guest_role';
+function savePageState(pageId) {
+  if (!pageId) return;
+  try { localStorage.setItem(PAGE_STATE_KEY, pageId); } catch { /* ignore */ }
+}
+function getLastPage() {
+  try { return localStorage.getItem(PAGE_STATE_KEY); } catch { return null; }
+}
+function setLastGuestRole(role) {
+  try { role ? localStorage.setItem(GUEST_ROLE_KEY, role) : localStorage.removeItem(GUEST_ROLE_KEY); } catch { /* ignore */ }
+}
+function getLastGuestRole() {
+  try { const r = localStorage.getItem(GUEST_ROLE_KEY); return ROLES.includes(r) ? r : null; } catch { return null; }
+}
+
 // 设备标识（v0.25.11 设备会话去重）：浏览器档案级持久 id——同一浏览器所有窗口/标签共享，
 // 登录/注册随请求上传，服务端按 (user, device) 复用同一会话行（不再每次登录堆一行「设备」）。
 // localStorage 按「源×浏览器档案」隔离：无痕/不同 Edge 档案/手机各自独立设备，语义正确。
