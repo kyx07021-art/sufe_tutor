@@ -164,20 +164,25 @@ function onContractSignScroll() {
   const overflow = el.scrollHeight - el.clientHeight;
   window._signingScrolled = overflow <= CONFIG.CONTRACT_SIGN_SCROLL_EPS
     || (el.scrollHeight - el.scrollTop - el.clientHeight) <= CONFIG.CONTRACT_SIGN_SCROLL_EPS;
-  updateSignBtnState();
+  updateSignBtnState(null, true); // v0.25.101 Q2：滚动只刷新使能/提示，不覆盖倒计时文本
 }
 
 // 确认按钮使能：滚动到底 && 待够时长 双条件
 // v0.25.94（用户反馈「灰字轮番闪」）：倒计时放回「确认签约」按钮上——计时阶段按钮文本=
 // 「N秒后可确认签约」（取代按钮标签），就绪恢复「我已阅读并确认签约」；
 // 灰字提示只做静态阅读指引（未就绪恒 SIGN_READ_HINT / 就绪 SIGN_READY_HINT），不再切倒计时。
-function updateSignBtnState(remainSec) {
+// v0.25.101（Q2 用户质询「一滚动倒计时就变成『我已阅读并确认签约』」）：滚动调用不得覆盖倒计时文本。
+//   remainSec 非空（计时器）→ 更新倒计时；preserveText=true（滚动路径）→ 保持当前文本不动；
+//   否则（时长到 timer 清后）→ 恢复正式按钮标签。ready 恒设正式标签。
+function updateSignBtnState(remainSec, preserveText = false) {
   const btn = document.getElementById('contract-sign-btn');
   if (!btn) return;
   const ready = window._signingElapsed && window._signingScrolled;
   btn.disabled = !ready;
-  btn.textContent = ready ? UI.SIGN_READ_DONE_BTN
-    : (remainSec != null ? UI.SIGN_COUNTDOWN_HINT.replace('{secs}', String(remainSec)) : UI.SIGN_READ_DONE_BTN);
+  if (ready) btn.textContent = UI.SIGN_READ_DONE_BTN;
+  else if (remainSec != null) btn.textContent = UI.SIGN_COUNTDOWN_HINT.replace('{secs}', String(remainSec));
+  else if (!preserveText) btn.textContent = UI.SIGN_READ_DONE_BTN;
+  // preserveText=true（滚动路径）：保持当前倒计时文本，不覆盖（Q2 修复）
   const hint = document.getElementById('contract-sign-hint');
   if (!hint) return;
   hint.textContent = ready ? UI.SIGN_READY_HINT : UI.SIGN_READ_HINT;
@@ -191,6 +196,7 @@ function confirmSignContract() {
     confirm({ message: UI.CONFIRM_SIGN_FINAL, needReAuth: true, onConfirm: async capToken => {
       try {
         const data = await api(`/api/contracts/${id}/sign`, { method: 'POST', body: { capToken } });
+        closeModal(); // v0.25.101 Q3：成功路径关掉签署预览——v0.25.98 modal stack 回归（confirm 弹栈恢复预览后漏关，密码确认完又回预阅读页）
         showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
         invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
         loadMyContracts();

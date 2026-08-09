@@ -74,12 +74,12 @@ const TEACHERS = [
     time_slots: '历史纯文本', verified: 0 },
 ];
 
-test('sortTeachers：default 保持原序（不强制）/ rating 降序 / price 升序未填沉底', () => {
+test('sortTeachers：无 default 模式（Q6 删除）/ rating 降序 / price 升序未填沉底', () => {
   const { ctx } = makeCtx(); seed(ctx, TEACHERS);
   const ids = () => Array.from(vm.runInContext('state.allTeachers.map(t => t.user_id)', ctx));
 
-  vm.runInContext(`state.allTeachers = ${JSON.stringify(TEACHERS)}; sortTeachers(state.allTeachers, 'default')`, ctx);
-  assert.deepEqual(ids(), [1, 2, 3, 4], '默认排序 = 服务器原序（不强制）');
+  // Q6（v0.25.101 用户质询「默认排序」）：排序控件无 default 选项，默认方案=匹配度降序（teacherSortMode 无控件时返回 match）
+  assert.equal(vm.runInContext('teacherSortMode()', ctx), 'match', 'teacherSortMode 默认返回 match（匹配度降序）');
 
   vm.runInContext(`state.allTeachers = ${JSON.stringify(TEACHERS)}; sortTeachers(state.allTeachers, 'rating')`, ctx);
   assert.deepEqual(ids(), [1, 4, 3, 2], '评分降序 5→4.5→4→3');
@@ -127,6 +127,42 @@ test('applyFilters 新资料项：授课方式 / 可授课星期 / 认证状态�
   // 全部复位 → 4 人
   vm.runInContext(`document.getElementById('filter-verified').value = ''; applyFilters()`, ctx);
   assert.equal(count(), 4, '全部复位恢复 4 人');
+});
+
+test('Q6：学生端默认排序=匹配度降序（有匹配数据时）；无匹配回落原序', () => {
+  const { ctx } = makeCtx();
+  // 学生 + 有匹配数据：select 默认选中 match，渲染走匹配度降序
+  const withMatch = TEACHERS.map(t => ({ ...t }));
+  withMatch[0]._matchForStudent = { md: 88 }; // 甲 88
+  withMatch[2]._matchForStudent = { md: 99 }; // 丙 99
+  vm.runInContext(`
+    state.user = { role: 'student', id: 1, username: 's' };
+    state.allTeachers = ${JSON.stringify(withMatch)};
+    syncMatchSortOpt(); // 学生有匹配数据 → 匹配度选项可见
+  `, ctx);
+  assert.equal(vm.runInContext(`document.getElementById('opt-sort-match').classList.contains('hidden')`, ctx), false,
+    '学生有匹配数据时「匹配度最高」选项可见');
+  assert.equal(vm.runInContext(`document.getElementById('teacher-sort').value`, ctx), 'match',
+    'Q6：默认选中匹配度最高（替代被删的「默认排序」）');
+  vm.runInContext(`applyFilters()`, ctx);
+  const renderedOrder = Array.from(vm.runInContext(
+    `[...document.querySelectorAll('#teachers-list .list-card--teacher')].map(c => c.textContent.includes('丙') ? 3 : c.textContent.includes('甲') ? 1 : c.textContent.includes('乙') ? 2 : 4)`,
+    ctx));
+  assert.deepEqual(renderedOrder, [3, 1, 2, 4],
+    'Q6：默认排序=匹配度降序（99→88，无匹配沉底）——渲染卡顺序');
+  assert.deepEqual(Array.from(vm.runInContext('state.allTeachers.map(t => t.user_id)', ctx)), [1, 2, 3, 4],
+    'state.allTeachers 原序不动（排序只作用于渲染副本）');
+  // 无匹配数据（教师端）：匹配度选项隐藏，无排序（回落原序）
+  vm.runInContext(`
+    state.user = { role: 'teacher', id: 1, username: 't' };
+    state.allTeachers = ${JSON.stringify(TEACHERS)};
+    syncMatchSortOpt();
+  `, ctx);
+  assert.equal(vm.runInContext(`document.getElementById('opt-sort-match').classList.contains('hidden')`, ctx), true,
+    '无匹配语境（教师端）「匹配度最高」选项隐藏');
+  vm.runInContext(`applyFilters()`, ctx);
+  assert.deepEqual(Array.from(vm.runInContext('state.allTeachers.map(t => t.user_id)', ctx)), [1, 2, 3, 4],
+    '无匹配数据回落服务器原序');
 });
 
 test('sortTeachers 组合：排序控件改变影响 applyFilters 输出顺序', () => {

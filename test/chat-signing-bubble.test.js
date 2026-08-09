@@ -96,21 +96,55 @@ test('signing_response：sender=回应方 → 按查看者视角对齐回应方�
   const theirs = render(ctx, { kind: 'signing_response', sender_user_id: 2, id: 14, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ reject: true }) });
   assert.ok(theirs.includes('chat-msg--theirs') && theirs.includes('chat-bubble--theirs'), '发起方视角：回应方气泡在左侧');
   assert.ok(!theirs.includes('chat-bubble--system'), '回应气泡不再用系统条');
+  // v0.25.101 Q9：与合同提示统一呼吸样式（用户质询「提示之间亦有区别吗」）
+  assert.ok(mine.includes('chat-bubble--breathe'), '回应气泡带呼吸遮罩（与合同提示统一）');
+  assert.ok(theirs.includes('chat-bubble--breathe'), '对方视角回应气泡同样带呼吸');
 });
 
-test('v0.25.95 回应气泡带回应方用户名（非"对方"，同发起侧 #152）', () => {
+test('v0.25.101 Q8 回归：回应气泡统一「对方已确认/已拒绝」（回退 v0.25.95 username 注入）', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
-  // 对方（id=2，sender_name=乙）是回应方 → theirs 气泡带「乙」
+  // 对方（id=2）是回应方 → theirs 气泡「对方已确认签约请求」（不带用户名，Q8 用户质询）
   const theirs = render(ctx, { kind: 'signing_response', sender_user_id: 2, sender_name: '乙', id: 14, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ accept: true }) });
-  assert.ok(theirs.includes('「乙」已确认签约请求'), '确认气泡带回应方用户名，非「对方」');
-  assert.ok(!theirs.includes('{name}'), '无未替换的 {name} 字面量');
+  assert.ok(theirs.includes('对方已确认签约请求'), '确认气泡统一「对方」，不显示具体用户名');
+  assert.ok(!theirs.includes('乙') && !theirs.includes('{name}'), '无 username / 未替换 {name} 字面量');
   const theirsRej = render(ctx, { kind: 'signing_response', sender_user_id: 2, sender_name: '乙', id: 15, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ reject: true }) });
-  assert.ok(theirsRej.includes('「乙」已拒绝此次签约请求'), '拒绝气泡带回应方用户名');
+  assert.ok(theirsRej.includes('对方已拒绝此次签约请求'), '拒绝气泡统一「对方」');
+  assert.ok(!theirsRej.includes('乙'), '拒绝气泡不带用户名');
   // 我（id=1）是回应方 → mine 恒「你已…」（视角修正，无 {name}）
   const mine = render(ctx, { kind: 'signing_response', sender_user_id: 1, sender_name: '甲', id: 16, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ accept: true }) });
   assert.ok(mine.includes('你已确认签约请求'), '回应方本人视角仍为「你已确认签约请求」');
   assert.ok(!mine.includes('{name}'), 'mine 侧无 {name} 字面量');
+});
+
+test('v0.25.101 Q5 回归：签约请求气泡各状态恒挂 chat-bubble--breathe（与合同气泡同一种底层样式）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
+  // pending 待处理：恒有呼吸
+  const pending = render(ctx, {
+    kind: 'signing_request', sender_user_id: 2, id: 21, created_at: '2026-08-08 12:00:00',
+    body: JSON.stringify({ id: '5', price: 150, schedule: '每周六晚', method: 'offline', status: 'pending' }),
+  });
+  assert.ok(pending.includes('chat-bubble--breathe'), 'pending 态挂呼吸');
+  // signed 已确认：恒有呼吸（与合同气泡统一，不再按状态条件引用——Q5 用户质询「没有引用同一种底层样式」）
+  const signed = render(ctx, {
+    kind: 'signing_request', sender_user_id: 2, id: 22, created_at: '2026-08-08 12:00:00',
+    body: JSON.stringify({ id: '6', price: 150, schedule: '每周六晚', method: 'offline', status: 'signed' }),
+  });
+  assert.ok(signed.includes('chat-bubble--breathe'), 'signed 态也挂呼吸（统一底层样式）');
+  // rejected 已拒绝：恒有呼吸（拒绝灰化仍保留统一呼吸）
+  const rejected = render(ctx, {
+    kind: 'signing_request', sender_user_id: 2, id: 23, created_at: '2026-08-08 12:00:00',
+    body: JSON.stringify({ id: '7', price: 150, schedule: '每周六晚', method: 'offline', status: 'rejected' }),
+  });
+  assert.ok(rejected.includes('chat-bubble--breathe'), 'rejected 态也挂呼吸（统一底层样式）');
+  assert.ok(rejected.includes('signing-bubble--done'), '拒绝态仍整泡变灰（呼吸与灰化不冲突）');
+  // signing_response 回应：恒有呼吸（Q9）
+  const resp = render(ctx, {
+    kind: 'signing_response', sender_user_id: 2, id: 24, created_at: '2026-08-08 12:00:00',
+    body: JSON.stringify({ accept: true }),
+  });
+  assert.ok(resp.includes('chat-bubble--breathe'), '回应气泡挂呼吸（统一底层样式）');
 });
 
 test('R8/v0.25.94 签约确认后：合并提示 + 撑满气泡的起草按钮；拒绝态保留 funds（v0.25.94 重构）', () => {

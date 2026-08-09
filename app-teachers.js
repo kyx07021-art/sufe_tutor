@@ -94,16 +94,23 @@ async function attachStudentMatch(teachers) {
   }
 }
 
-// v0.25.29 排序控件（替代 v0.25.8 强制匹配度排序）：默认排序=服务器原序（不强制展示），
-// 可选 匹配度最高（仅学生且有数据时选项可见，无数据自动回落原序）/ 评分最高 / 报价最低。
+// v0.25.101 Q6 排序控件（用户质询：「把愚蠢的『默认排序』去了，默认就应该是匹配度降序」）：
+// 删「默认排序」选项，默认排序方案 = 匹配度降序（学生且确有匹配数据时）；
+// 教师端/无匹配数据时回落服务器原序（sortTeachers match 分支无数据即 return）。
+// 可选：匹配度最高（仅学生且有数据时选项可见）/ 评分最高 / 报价最低。
 function teacherSortMode() {
   const el = document.getElementById('teacher-sort');
-  return el ? el.value : 'default';
+  return el ? el.value : 'match';
 }
-// 匹配度排序选项显隐同步（A7 收口）：两处 display 切换收敛单点——学生且确有匹配数据才展示「匹配度最高」
+// 匹配度排序选项显隐同步（A7 收口）：学生且确有匹配数据才展示「匹配度最高」；
+// 无匹配语境时（教师端/无开放需求）隐藏该选项并把选中回落（防 select 空选——默认排序=匹配度降序的兜底）
 function syncMatchSortOpt() {
   const el = document.getElementById('opt-sort-match');
-  if (el) el.classList.toggle('hidden', !state.allTeachers.some(t => t._matchForStudent));
+  const sel = document.getElementById('teacher-sort');
+  if (!el) return;
+  const hasMatch = state.allTeachers.some(t => t._matchForStudent);
+  el.classList.toggle('hidden', !hasMatch);
+  if (!hasMatch && sel && sel.value === 'match') sel.value = 'rating';
 }
 
 function sortTeachers(teachers, mode = teacherSortMode()) {

@@ -265,6 +265,10 @@
 .signing-bubble {
   max-width: 250px; text-align: left; padding: 8px 12px;
   line-height: 1.4; /* 紧凑行高（继承 .78rem 换算每行更扁，信息行相邻紧排） */
+  /* v0.25.101 Q4：white-space:normal 覆盖 .chat-bubble 的 pre-wrap——signing-bubble 是结构化 div 模板，
+     模板里子元素间的换行+缩进文本节点会被 pre-wrap 渲染成可见空白行（实测带换行 319px vs 单行 122px）。
+     pre-wrap 只该服务纯文本气泡（保留用户输入换行），结构化组件一律 normal。 */
+  white-space: normal;
 }
 .signing-bubble-title { font-weight: 700; font-size: .78rem; margin-bottom: 4px; color: var(--accent-deep); }
 .signing-bubble-row { display: flex; justify-content: space-between; gap: 10px; font-size: .76rem; padding: 0; }

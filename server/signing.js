@@ -168,9 +168,9 @@ export async function handleRespondSigning(db, signingId, body, req) {
   }
   await dbCreateMessage(db, sr.conversation_id, userId, 'signing_response',
     JSON.stringify({ requestId: signingId, accept }));
-  // v0.25.95：回应侧通知带回应方用户名（原「对方」无身份标识，同发起侧 #152）。nameOf(conv, userId) 即回应方本人。
+  // v0.25.101 Q8：回退 v0.25.95 的 username 注入——通知统一「对方已确认/已拒绝」（用户质询：会话/通知不该显示具体用户 id）
   await notifyUser(db, sr.initiator_user_id,
-    (accept ? UIC.SIGNING_CONFIRMED : UIC.SIGNING_REJECTED).replace('{name}', nameOf(conv, userId)));
+    accept ? UIC.SIGNING_CONFIRMED : UIC.SIGNING_REJECTED);
   await logEvent(db, { action: `signing.${accept ? 'accept' : 'reject'}`, actorUserId: userId,
     entity: 'signing_request', entityId: signingId,
     detail: { conversationId: sr.conversation_id, demandId: sr.demand_id }, req });

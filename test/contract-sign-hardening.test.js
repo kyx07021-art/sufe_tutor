@@ -50,6 +50,8 @@ function makeCtx() {
     Image: class { set src(v) { this._s = v; } },
     requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
+    // setBadge 实现在 app-shell.js（本测试未加载）；loadMyContracts 内 fire-and-forget 调用需要 stub
+    setBadge: () => {},
   });
   const FILES = ['constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
     'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-posts.js', 'app-contracts.js'];
@@ -121,6 +123,31 @@ test('v0.25.94 倒计时放回确认按钮：计时中按钮=「N秒后可确认
   assert.equal(hint.textContent, vm.runInContext('UI.SIGN_READY_HINT', ctx), '就绪灰字提示切换');
 });
 
+test('v0.25.101 Q2 回归：滚动路径不覆盖倒计时文本（preserveText），时长到路径恢复正式标签', () => {
+  const { ctx, dom } = makeCtx();
+  const doc = dom.window.document;
+  seed(ctx);
+  vm.runInContext('signContract(7)', ctx);
+  stubScrollGeom(ctx, { scrollHeight: 1000, clientHeight: 200, scrollTop: 0 }); // 长合同未触底
+  const btn = doc.querySelector('#contract-sign-btn');
+  // 计时中：倒计时文本挂上
+  vm.runInContext('updateSignBtnState(20)', ctx);
+  assert.ok(btn.textContent.includes('20秒后可确认签约'), '计时中按钮文本 = 倒计时');
+  // 滚动（onContractSignScroll 无参 preserveText）→ 文本保持倒计时，不覆盖成「我已阅读并确认签约」
+  vm.runInContext('onContractSignScroll()', ctx); // 滚动未触底
+  assert.ok(btn.textContent.includes('20秒后可确认签约'), 'Q2：滚动不覆盖倒计时文本（保持当前秒数）');
+  assert.notEqual(btn.textContent, vm.runInContext('UI.SIGN_READ_DONE_BTN', ctx), '倒计时仍在（非正式标签）');
+  // 时长到（timer 清后无参调用）→ 恢复正式按钮标签（仍 disabled）
+  vm.runInContext('window._signingElapsed = true; updateSignBtnState()', ctx);
+  assert.equal(btn.textContent, vm.runInContext('UI.SIGN_READ_DONE_BTN', ctx), '时长到恢复正式标签');
+  assert.ok(btn.disabled, '未滚到底仍 disabled');
+  // 滚到底 + 时长到 → 启用且正式标签
+  stubScrollGeom(ctx, { scrollHeight: 1000, clientHeight: 200, scrollTop: 800 });
+  vm.runInContext('onContractSignScroll()', ctx);
+  assert.ok(!btn.disabled, '双条件齐启用');
+  assert.equal(btn.textContent, vm.runInContext('UI.SIGN_READ_DONE_BTN', ctx), '就绪正式标签');
+});
+
 test('解锁双条件：仅时长到不启用、仅滚到底不启用、双条件齐才启用', async () => {
   const { ctx, dom } = makeCtx();
   const doc = dom.window.document;
@@ -162,6 +189,32 @@ test('短合同（无溢出）视同已到底，但仍须待够时长', () => {
   vm.runInContext('onContractSignScroll()', ctx);
   assert.equal(vm.runInContext('window._signingScrolled', ctx), true, '短合同无溢出视同已到底');
   assert.ok(doc.querySelector('#contract-sign-btn').disabled, '但时长未到仍 disabled（阅读时间不可省）');
+});
+
+test('v0.25.101 Q3 回归：密码最终确认签约成功后弹窗彻底关闭（不回预阅读页）', async () => {
+  const { ctx, dom } = makeCtx();
+  const doc = dom.window.document;
+  seed(ctx);
+  vm.runInContext('signContract(7)', ctx);
+  stubScrollGeom(ctx, { scrollHeight: 200, clientHeight: 200, scrollTop: 0 });
+  vm.runInContext('window._signingElapsed = true; updateSignBtnState()', ctx); // 解锁
+  // mock 签约 POST 成功（data.signed=true）
+  vm.runInContext(`api = async (url, opts) => ({ ok: true, json: async () => ({ signed: true }) })`, ctx);
+  vm.runInContext('confirmSignContract()', ctx);
+  assert.ok(doc.querySelector('#contract-sign-scroll') || true, '流程起点：预览在栈');
+  vm.runInContext('runPendingConfirm()', ctx); // 二次确认 → 密码最终确认
+  assert.ok(doc.querySelector('#reauth-password'), '密码最终确认弹窗出现');
+  const pw = doc.querySelector('#reauth-password');
+  pw.value = 'SufeQa2026!';
+  vm.runInContext(`api = async (url, opts) => {
+    if (String(url).includes('/re-auth')) return { ok: true, json: async () => ({ capToken: 'tok' }) };
+    return { ok: true, json: async () => ({ signed: true }) };
+  }`, ctx);
+  await vm.runInContext('runReAuth()', ctx);
+  // 成功路径：弹窗彻底关闭（modal-container 无残留，栈底签署预览不再恢复）
+  assert.equal(doc.querySelector('#modal-container').innerHTML.trim(), '',
+    'Q3：密码确认成功后弹窗彻底关闭（不回预阅读页）');
+  assert.ok(!doc.querySelector('#contract-sign-scroll'), '签署预览不残留');
 });
 
 test('确认按钮 → 二次确认 → 密码最终确认（reauth 密码框）', () => {

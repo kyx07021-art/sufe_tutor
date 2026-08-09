@@ -249,9 +249,9 @@ test('bindable-demands phase=contract：别教师签成的需求不列出；同�
   assert.ok(!(await other.json()).demands.some(d => d.id === d1), '别教师签成的需求不可被其他会话列出');
 });
 
-// ============ 4. 回应侧通知带回应方用户名（v0.25.95，同发起侧 #152） ============
+// ============ 4. 回应侧通知统一「对方」（v0.25.101 Q8，回退 v0.25.95 的 username 注入） ============
 
-test('确认签约后：通知发起方「{回应方用户名}」已确认签约请求（非"对方"）', async () => {
+test('确认签约后：通知发起方「对方已确认签约请求」（不带用户名，Q8 用户质询）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1Token, t1Token, d1 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
@@ -261,10 +261,10 @@ test('确认签约后：通知发起方「{回应方用户名}」已确认签约
   const notif = raw.prepare("SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
     .get((await raw.prepare('SELECT id FROM users WHERE username=?').get('t1')).id);
   assert.ok(notif, '发起方收到通知');
-  assert.equal(notif.text, '「s1」已确认签约请求', '通知带回应方用户名，非"对方"');
+  assert.equal(notif.text, '对方已确认签约请求', '通知统一「对方」，不带具体用户名（Q8）');
 });
 
-test('拒绝签约后：通知发起方「{回应方用户名}」已拒绝此次签约请求', async () => {
+test('拒绝签约后：通知发起方「对方已拒绝此次签约请求」（不带用户名）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1Token, t1Token, d1 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
@@ -273,5 +273,5 @@ test('拒绝签约后：通知发起方「{回应方用户名}」已拒绝此次
   assert.equal(res.status, 200);
   const notif = raw.prepare("SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
     .get((await raw.prepare('SELECT id FROM users WHERE username=?').get('t1')).id);
-  assert.equal(notif.text, '「s1」已拒绝此次签约请求', '拒绝通知带回应方用户名');
+  assert.equal(notif.text, '对方已拒绝此次签约请求', '拒绝通知统一「对方」（Q8）');
 });

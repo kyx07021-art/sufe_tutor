@@ -53,6 +53,10 @@
 
   --nav-h: 64px;
 
+  /* v0.25.101 Q7 标准按钮高度（用户质询「按钮控件没有标准高度吗」）：筛选/排序等页头动作控件统一标准高，
+     不再各控件自定 min-height 导致紧挨的按钮矮一截。box-sizing:border-box 已全局生效，height 含 padding/border。 */
+  --btn-h: calc(40px * var(--ui-scale, 1));
+
   /* 需求六·item1：教师资料卡条目纵向间距（CONFIG.PROFILE_ROW_GAP 由 index.html 注入覆盖；此处为无 JS 兜底） */
   --profile-row-gap: 22px;
   /* 需求六·item5：UI 大小滑块比例系数（1=现状；80%~100% → 0.8~1.0，由 index.html 首帧注入覆盖） */
@@ -1202,6 +1206,47 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
 }
 .drop-toggle:hover { color: var(--ink); }
+/* v0.25.101 Q7 页头筛选/排序控件统一为标准按钮样式（用户：「用于筛选的，包括排序按钮本身和
+   筛选项下拉栏，都应该是标准按钮样式」）。页头（教师信息/需求大厅）排序下拉此前走输入控件族
+   （--g-fill-weak 白染 + 液体边缘），筛选按钮走按钮族（glass--solid 实底）——两族并列不齐。
+   统一：页头内排序下拉触发器 = 标准按钮玻璃参数（--g-btn-bg 白调面 + 发丝边 + 交互叠层），
+   与并列筛选按钮同族；非页头场景（表单/面板内下拉）保持输入控件族不变。 */
+.page-header-actions .custom-select-trigger {
+  --g-frost: var(--g-f-btn, blur(4px) saturate(180%) brightness(1.04));
+  --g-liquid: var(--g-liquid-sm);
+  --g-fill: var(--g-btn-bg, var(--g-fill-weak));
+  --g-hover: var(--g-hover-wash);
+  border: var(--g-border, none); border-radius: var(--lg-r-sm);
+  color: var(--ink-2);
+  font-size: .875rem; font-weight: 600; letter-spacing: .01em; /* 标准按钮字面（同 .btn） */
+  justify-content: center; gap: 8px;
+  height: var(--btn-h); /* 标准按钮高度（Q7：不再各控件自定 min-height 导致高度不齐） */
+  padding: calc(7px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1));
+  width: auto; min-width: 120px; /* 排序下拉定宽（匹配筛选按钮紧凑感） */
+}
+.page-header-actions .custom-select { flex: none; }
+/* 页头筛选按钮同样对齐标准按钮尺寸（与排序触发器同高/同字面/同字重，视觉成对；非页头场景不受影响） */
+.page-header-actions .drop-toggle {
+  height: var(--btn-h); /* 标准按钮高度（Q7：与相邻排序下拉同高，不再矮一截） */
+  font-size: .875rem; font-weight: 600; letter-spacing: .01em;
+  color: var(--ink-2);
+  border-radius: var(--lg-r-sm);
+}
+/* 筛选项下拉栏（筛选面板内 filter-group 的选项下拉）同样标准按钮样式（Q7 用户：「筛选项下拉栏
+   都应该是标准按钮样式」）——同标准按钮玻璃参数，尺寸紧凑档（面板内空间小）。表单/其他面板下拉保持输入控件族。 */
+.filter-group .custom-select-trigger {
+  --g-frost: var(--g-f-btn, blur(4px) saturate(180%) brightness(1.04));
+  --g-liquid: var(--g-liquid-sm);
+  --g-fill: var(--g-btn-bg, var(--g-fill-weak));
+  --g-hover: var(--g-hover-wash);
+  border: var(--g-border, none); border-radius: var(--lg-r-sm);
+  color: var(--ink-2);
+  font-size: .8rem; font-weight: 600; letter-spacing: .01em; /* 紧凑按钮字面（面板内小空间） */
+  justify-content: center; gap: 8px;
+  height: var(--btn-h); /* 标准按钮高度（Q7：筛选项下拉与排序/筛选按钮同标准高） */
+  padding: calc(4px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1));
+  width: auto; min-width: 90px;
+}
 .drop-caret { display: inline-flex; transition: transform .28s var(--ease-snap); }
 
 /* 开关右上角红点：待处理意向等未读标记 */

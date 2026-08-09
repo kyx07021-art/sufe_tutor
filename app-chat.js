@@ -334,6 +334,8 @@ function renderChatBubble(m, i) {
   // v0.24.0 发起签约气泡（极简签约流）：报价/时间/方式三条信息 + 底部确认/拒绝按钮；
   // 对方回应后气泡变灰、按钮消失为无组件小灰字（data-signing-id 供 respondSigning 就地刷新）
   // v0.25.33 重构：细长居中系统条 → 对应用户（发起方）一侧的大气泡，与普通消息同皮肤同对齐
+  // v0.25.101 Q5：与合同提示统一引用同一种底层样式 chat-bubble--breathe（用户质询「不统一=没有引用同一种底层样式」）
+  //   ——合同气泡/签约请求/签约回应三系流程提示气泡恒挂 breathe，不再按状态条件引用
   if (m.kind === 'signing_request') {
     let s = {};
     try { s = JSON.parse(m.body || '{}'); } catch { /* 坏 body 兜底为空 */ }
@@ -346,7 +348,7 @@ function renderChatBubble(m, i) {
     const pending = s.status === STATUS.PENDING;
     const rejected = s.status === STATUS.REJECTED;
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble glass ${skin} signing-bubble${rejected ? ' signing-bubble--done' : ''}${pending ? ' chat-bubble--breathe' : ''}" data-signing-id="${escHtml(signingId)}">
+      <div class="chat-bubble glass ${skin} signing-bubble${rejected ? ' signing-bubble--done' : ''} chat-bubble--breathe" data-signing-id="${escHtml(signingId)}">
         <div class="signing-bubble-title">${mine ? UI.CHAT_SIGNING_MINE_TITLE : UI.CHAT_SIGNING_REQUEST_TITLE}</div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_PRICE}</span><b>${price} ${UI.PRICE_UNIT}/小时</b></div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(String(s.schedule || ''))}</b></div>
@@ -365,15 +367,17 @@ function renderChatBubble(m, i) {
   // v0.24.0 签约回应气泡（对方确认/拒绝后落一条，在途会话实时刷新）
   // v0.24.2 审计：视角修正——回应方看到「你已…」，发起方看到「对方已…」（原恒显「对方已…」颠倒）
   // v0.25.33 重构：与签约请求同口径——对齐回应方一侧（sender=回应方），风格统一
+  // v0.25.101 Q9：与合同提示统一呼吸样式（chat-bubble--breathe）——用户质询「提示之间亦有区别吗」：
+  //   合同草案/签约请求/签约回应同属流程提示，一致使用柔和呼吸强调，不再区分样式
   if (m.kind === 'signing_response') {
     let r = {};
     try { r = JSON.parse(m.body || '{}'); } catch { /* 兜底 */ }
     const text = mine
       ? (r.accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED)
-      // v0.25.95：回应方视角的「已确认/已拒绝」气泡带回应方用户名（m.sender_name，消息查询已 JOIN users 下发）
-      : (r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED).replace('{name}', m.sender_name || '对方');
+      // v0.25.101 Q8：回退 v0.25.95 的 username 注入——会话统一「对方已确认/已拒绝」（用户质询：不该显示具体用户 id）
+      : (r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED);
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble glass ${skin}">${escHtml(text)}</div>${time}</div>`;
+      <div class="chat-bubble glass ${skin} chat-bubble--breathe">${escHtml(text)}</div>${time}</div>`;
   }
   // 图片 / 文件消息：列表接口不下发 dataURL 本体（性能）；v0.25.36 图片带缩略图（thumb）预载
   // 立即展示、点开拉原图；无缩略图（文件/历史图片）先渲染骨架，由 chatLazyLoadAttachments 补载
