@@ -64,6 +64,33 @@ export function injectManifest(html) {
   return out.replace('</head>', `<script>window.ASSET_MANIFEST=${JSON.stringify(ASSET_MANIFEST)};</script></head>`);
 }
 
+// 改写后 HTML 的弱 ETag（改写 body 的哈希前 16 hex）——worker 必须自持 HTML 的 ETag：
+// 存储的 index.html 在"只改资产不动页面"的发版里字节不变，若沿用 ASSETS 的原 ETag，
+// 重验请求会命中旧 ETag 得 304，浏览器继续用上一版哈希引用 → 新部署下旧哈希 404（审计发现）。
+const etagOf = out =>
+  crypto.subtle.digest('SHA-256', new TextEncoder().encode(out))
+    .then(d => '"' + [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16) + '"');
+
+const CONDITIONAL = new Set(['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since']);
+
+// 服务 HTML：改写资产引用 + 内联 manifest；用自身 ETag 驱动 304（index.html no-cache 每次导航重验）
+async function serveHtml(request, env, p, res) {
+  const strip = new Headers(request.headers);
+  for (const k of CONDITIONAL) strip.delete(k);
+  const htmlReq = new Request(request.url, { method: request.method, headers: strip });
+  const stored = res.ok ? res : await env.ASSETS.fetch(htmlReq); // res 304 时回退无条件重取
+  if (!stored.ok) return applySecurityHeaders(stored, p);
+  const out = injectManifest(await stored.text());
+  const etag = await etagOf(out);
+  if (request.headers.get('if-none-match') === etag) {
+    return applySecurityHeaders(new Response(null, { status: 304, headers: { ETag: etag } }), p);
+  }
+  const headers = new Headers(stored.headers);
+  headers.delete('Content-Length'); headers.delete('ETag'); headers.delete('Last-Modified');
+  headers.set('ETag', etag);
+  return applySecurityHeaders(new Response(out, { status: 200, headers }), p);
+}
+
 // API 分发：纯路由，无副作用（留档在 fetch 层统一包裹）。
 // :id 路径统一经 idMatch 抽取（正则只写一次，杜绝 approve/reject 双 match 旧写法）
 function idMatch(p, pattern) {
@@ -277,11 +304,13 @@ export default {
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
       const res = await env.ASSETS.fetch(request);
-      // HTML 文档（含 SPA 回退）：改写资产引用为哈希名 + 内联 manifest（懒加载器据此取哈希 URL）
-      if (res.ok && (res.headers.get('content-type') || '').includes('text/html')) {
-        const headers = new Headers(res.headers); // 保留 Pages 静态响应头（含 _headers 安全头）
-        return applySecurityHeaders(new Response(injectManifest(await res.text()), { status: res.status, headers }), p);
-      }
+      // HTML 文档（含 SPA 回退）：改写资产引用为哈希名 + 内联 manifest（懒加载器据此取哈希 URL）。
+      // ETag 由 worker 自持（改写 body 哈希）——沿用 ASSETS 原 ETag 会在只改资产不发版页面的发版后误判 304。
+      // 304 响应无 content-type：按路径推断（/、/index.html、SPA 无扩展名路由均为 HTML）
+      const isHtml = res.ok
+        ? (res.headers.get('content-type') || '').includes('text/html')
+        : /\.html?$/i.test(p) || !/\.[a-zA-Z0-9]{1,6}$/.test(p);
+      if (isHtml) return serveHtml(request, env, p, res);
       return applySecurityHeaders(res, p);
     }
 
