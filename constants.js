@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.90',
+  APP_VERSION: '0.25.91',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -984,6 +984,7 @@ globalThis.APP_CONSTANTS = {
 
     // 试课意向按钮四态
     INTENT_ACCEPTED: '已建立联系',
+    INTENT_ACCEPTED_GO: '已建立联系 →', // R26：点击跳对应会话
     INTENT_PENDING: '意向已提交',
     INTENT_REJECTED: '未获选',
     BTN_SUBMIT_INTENT: '提交试课意向',
@@ -1521,6 +1522,7 @@ globalThis.APP_CONSTANTS = {
     // 沟通（聊天）
     CHAT_TITLE: '会话',
     CHAT_EMPTY_NO_CONVS: '暂无沟通——同意教师试课意向后自动建立',
+    CHAT_CONV_NOT_FOUND: '未找到与该学生的会话', // R26：需求卡「已建立联系→」兜底
     CHAT_EMPTY_NO_MESSAGES: '还没有消息，先打个招呼吧',
     CHAT_PREVIEW_ME_PREFIX: '我：',
     CHAT_PREVIEW_IMAGE: '[图片]',

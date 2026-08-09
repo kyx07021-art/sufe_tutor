@@ -1163,8 +1163,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 侧边栏未读红点（语义圆点）：钉在条目右上角——窄栏形态下依然可见 */
 .sidebar-dot { position: absolute; top: 8px; right: 13px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
 
-/* 教师意向按钮状态：待处理灰 / 已建立联系绿（均禁用点击，opacity 不随 :disabled 衰减） */
-.btn-intent-wait, .btn-intent-ok { cursor: default; }
+/* 教师意向按钮状态：待处理灰（禁点）；已建立联系→绿可点击跳会话（R26，光标指针由 glass--pressable 提供）。
+   opacity 不随 :disabled 衰减 */
+.btn-intent-wait { cursor: default; }
 .btn-intent-wait:disabled, .btn-intent-ok:disabled { opacity: 1; }
 
 /* 需求卡内嵌意向列表（模块3）：grid-rows 0fr→1fr 展开动效，内容淡入 */

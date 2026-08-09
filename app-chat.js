@@ -33,6 +33,7 @@ let chatPollTimer = null;   // 轮询定时器（setInterval 句柄）
 let chatLastMsgId = 0;      // 已见最大消息 id，作轮询 sinceId
 let chatPollBusy = false;   // 上一次轮询未返回时跳过本 tick，防请求叠加
 let chatSending = false;    // 发送中，防连点
+let chatPendingOpen = null; // R26：跨页待打开的会话目标（按学生 id），会话列表就绪后自动打开
 
 // ============================================================
 // 页面入口
@@ -80,10 +81,30 @@ async function loadConversations() {
     chatConvList = data.conversations || [];
     renderConvList();
     if (typeof setBadge === 'function') setBadge('my-chats', chatsUnreadTotal()); // 同步侧边栏红点
+    // R26：跨页「已建立联系→」跳会话——列表就绪后打开目标会话（goChatWithStudent 设置）
+    if (chatPendingOpen != null) {
+      const target = chatPendingOpen;
+      chatPendingOpen = null;
+      const conv = chatConvList.find(c => c.student_user_id === target);
+      if (conv) openConversation(conv.id);
+      else if (typeof showToast === 'function') showToast(UI.CHAT_CONV_NOT_FOUND);
+    }
   } catch (err) {
     const el = document.getElementById('conv-list');
     if (el) el.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
+}
+
+// R26：需求大厅「已建立联系→」→ 跳到与该学生的会话页并打开。
+// 会话已在列表 → 就地打开；否则设待开目标并切到会话页（loadConversations 完成后自动打开）。
+function goChatWithStudent(studentId) {
+  if (!ensureAuth()) return;
+  if (!Number.isInteger(+studentId)) return;
+  const conv = chatConvList.find(c => c.student_user_id === +studentId);
+  if (conv && state.page === 'my-chats') { openConversation(conv.id); return; }
+  chatPendingOpen = +studentId;
+  if (state.page === 'my-chats') loadConversations(); // 已在会话页：刷新列表后自动打开（防列表陈旧缺目标）
+  else selectPage('my-chats');
 }
 
 // ============================================================

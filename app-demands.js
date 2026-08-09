@@ -612,10 +612,11 @@ function renderDemandCard(d, opts = {}) {
   const gender = DISP.demandStudentGenderName(d.student_gender);
   const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
   const method = DISP.methodName(d.teaching_method) || DISP.methodName('offline');
-  // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
+  // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系→ / 未获选），状态取自列表接口的 my_intent_status
   // R11：四态统一 .btn-soft 轻量描边外观（与编辑/推送动作同族，白卡/灰底都可见）
+  // R26：已建立联系不再是静态禁用按钮——「已建立联系→」可点击，直接跳到与该学生的会话页
   const teacherIntentBtn = !teacher ? ''
-    : d.my_intent_status === STATUS.ACCEPTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-ok glass glass--pressable" disabled>${UI.INTENT_ACCEPTED}</button>`
+    : d.my_intent_status === STATUS.ACCEPTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-ok glass glass--pressable" onclick="goChatWithStudent(${d.user_id})">${UI.INTENT_ACCEPTED_GO}</button>`
     : d.my_intent_status === STATUS.PENDING  ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
     : d.my_intent_status === STATUS.REJECTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
     : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable btn-intent-cta" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;

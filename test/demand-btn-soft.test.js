@@ -68,9 +68,11 @@ test('R11 教师视角意向按钮四态统一 .btn-soft（无 btn-outline/裸 b
     assert.ok(html.includes('btn-soft') && html.includes('btn-intent-wait'), `${st} = btn-soft + wait`);
     assert.ok(!html.includes('btn-outline'), `${st} 不用 btn-outline`);
   }
-  // 已建立联系 → ok（disabled）
+  // 已建立联系 → ok（R26：可点击跳会话，不再是静态禁用按钮）
   const ok = renderCard(ctx, { my_intent_status: 'accepted' }, { teacher: true });
   assert.ok(ok.includes('btn-soft') && ok.includes('btn-intent-ok'), 'accepted = btn-soft + ok');
+  assert.ok(ok.includes('onclick="goChatWithStudent('), 'R26：点击跳对应会话');
+  assert.ok(!ok.includes(' disabled'), 'R26：不再静态禁用');
   assert.ok(!ok.includes('btn-outline'), 'accepted 不用 btn-outline');
 });
 
