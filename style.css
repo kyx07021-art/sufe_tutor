@@ -596,6 +596,8 @@ textarea.form-input {
 .time-field .time-picker .custom-select { width: auto; }
 .time-field .time-picker .custom-select-trigger {
   width: auto; gap: 0; padding: 3px 3px; margin-left: 2px;
+  min-height: 0; /* v0.25.96（用户反馈「时间栏纵向格外高」）：通用空态撑高 min-height:40px 漏被本特判覆盖——
+     整点小 v 无独立框无需撑高，漏盖会把时间栏从 ~38px 撑到 ~78px（通用撑高 × 特判叠加，Chrome 实测） */
   background-color: transparent; box-shadow: none; border-radius: 0;
   color: var(--faint); font-size: inherit;
 }

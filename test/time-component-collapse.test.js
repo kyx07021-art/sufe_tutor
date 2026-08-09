@@ -54,6 +54,14 @@ test('.time-hms 不再 min-width:0（时/分输入组有内容下限，永不塌
   assert.ok(!ruleBody.includes('min-width: 0'), 'hms 不显式 min-width:0（默认 min-width:auto 内容下限）');
 });
 
+// v0.25.96（用户反馈「时间栏纵向格外高」）：通用空态撑高 min-height:40px 泄漏进时间栏内整点下拉
+// （特判只盖 padding/背景，漏 min-height）→ 时间栏从 ~36px 撑到 ~52px。特判必须显式 min-height:0
+test('时间栏内整点下拉覆盖通用 min-height 撑高（通用撑高不泄漏进时间组件）', () => {
+  const css = readFileSync('./style.css', 'utf8');
+  const ruleBody = (css.split('.time-field .time-picker .custom-select-trigger {')[1] || '').split('}')[0];
+  assert.ok(ruleBody.includes('min-height: 0'), '时间栏内 trigger 显式 min-height:0（覆盖通用 40px 撑高，防叠加）');
+});
+
 test('需求四十四：签约/起草 schedule 提示行已删（无抢宽同排元素），死接口 .form-group-note 已拔', () => {
   const contracts = readFileSync('./app-contracts.js', 'utf8');
   const css = readFileSync('./style.css', 'utf8');
