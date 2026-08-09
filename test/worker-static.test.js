@@ -44,14 +44,15 @@ function mockAssets() {
         if (request.headers.get('if-none-match') === STORED_ETAG) return new Response(null, { status: 304, headers: { ETag: STORED_ETAG } });
         return new Response(content, {
           status: 200,
-          headers: { 'content-type': isHtml ? 'text/html; charset=utf-8' : 'application/javascript', 'cache-control': 'max-age=0, must-revalidate', 'ETag': STORED_ETAG, 'Last-Modified': 'Tue, 01 Jan 2026 00:00:00 GMT' },
+          headers: { 'content-type': isHtml ? 'text/html; charset=utf-8' : 'application/javascript', 'cache-control': 'max-age=0, must-revalidate', 'ETag': STORED_ETAG, 'Last-Modified': 'Tue, 01 Jan 2026 00:00:00 GMT', 'content-length': String(content.byteLength) },
         });
       }
       // 无扩展名的导航路径 → SPA 回退 index.html；有扩展名的缺失资产 → 404
       if (!p.includes('.')) {
-        return new Response(readFileSync(REPO + 'index.html'), {
+        const html = readFileSync(REPO + 'index.html');
+        return new Response(html, {
           status: 200,
-          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'max-age=0, must-revalidate', 'ETag': STORED_ETAG },
+          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'max-age=0, must-revalidate', 'ETag': STORED_ETAG, 'content-length': String(html.byteLength) },
         });
       }
       return new Response('Not Found', { status: 404 });
@@ -109,6 +110,40 @@ test('GET /<base>.<hash8>.js → base 内容 + Cache-Control immutable', async (
   const body = await res.text();
   assert.ok(body.includes('loadDomainScripts'), '回 base 文件真实内容（app-shell 含懒加载器）');
   assert.ok(!body.includes('<html'), '绝不给 HTML 冒充脚本');
+});
+
+test('#260 空响应毒化防护：ASSETS 回 200 空 body 不进缓存（防哈希 URL 被空缓存永久毒化）', async () => {
+  cacheStore.clear();
+  const [base, hashed] = Object.entries(ASSET_MANIFEST.files).find(([b]) => b === 'glass.css');
+  // ASSETS 对该 base 文件回 200 空 body（模拟部署滚动窗口曾发生的空 css 响应——worker 回源请求的是 base 路径）
+  const emptyEnv = { ASSETS: {
+    async fetch(request) {
+      const u = new URL(request.url);
+      if (u.pathname === '/' + base) {
+        return new Response('', { status: 200, headers: { 'content-type': 'text/css', 'content-length': '0' } });
+      }
+      return mockAssets().fetch(request);
+    },
+  }};
+  const g = async (p) => worker.fetch(new Request('https://test.local' + p), emptyEnv, ctx);
+  const res = await g('/' + hashed);
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), '', '空响应透传（不伪造内容）');
+  assert.equal(cacheStore.size, 0, '空响应不写边缘缓存——否则永不失效的哈希 URL 恒返回 0 字节');
+});
+
+test('#260 空缓存命中不返回：预置空缓存条目 → 跳过回源正常内容并覆盖（自愈）', async () => {
+  cacheStore.clear();
+  const [base, hashed] = Object.entries(ASSET_MANIFEST.files).find(([b]) => b === 'app-shell.js');
+  // 预置一个已毒化的空哈希缓存条目（历史部署滚动窗口遗留）
+  cacheStore.set('https://test.local/' + hashed,
+    new Response('', { status: 200, headers: { 'content-type': 'application/javascript', 'content-length': '0' } }));
+  const res = await get('/' + hashed);
+  assert.equal(res.status, 200);
+  const body = await res.text();
+  assert.ok(body.includes('loadDomainScripts'), '跳过空缓存回源真实内容');
+  const cachedNow = cacheStore.get('https://test.local/' + hashed);
+  assert.ok(cachedNow && (await cachedNow.text()).length > 0, '正常内容覆盖空缓存（毒化条目自愈）');
 });
 
 test('版本化资产经 Cache API 写边缘缓存：二次命中返回缓存内容', async () => {

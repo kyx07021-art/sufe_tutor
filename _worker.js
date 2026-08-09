@@ -61,6 +61,15 @@ export function versionedBase(p) {
   return ASSET_MANIFEST.files[base] === hashed ? base : null;
 }
 
+// #260（v0.25.102）：空响应毒化缓存防护——哈希 URL 永不失效，一个 200 空 body 的缓存条目会永久毒化该资产。
+// 实证：部署滚动窗口曾把空 glass.css 写进 Cache API，生产 glass.9381f43f.css 恒 0 字节、玻璃引擎整体失效
+// （base 路径/带 query 均 40172 字节，唯无 query 哈希 URL 命中空缓存）。规则：content-length 为 0 或缺失
+// （无法证明非空）的响应既不出缓存也不进缓存。
+function cacheableAsset(res) {
+  const cl = res.headers.get('content-length');
+  return cl !== null && Number(cl) > 0;
+}
+
 // 改写 HTML 文档：资产引用 → 哈希名 + 内联 manifest（懒加载器读 window.ASSET_MANIFEST.files）
 export function injectManifest(html) {
   const files = ASSET_MANIFEST.files;
@@ -311,14 +320,16 @@ export default {
         const cache = typeof caches !== 'undefined' ? caches.default : null;
         if (cache) {
           const cached = await cache.match(new Request(url));
-          if (cached) return applySecurityHeaders(cached, p);
+          // #260（v0.25.102）：命中空/无长度缓存不返回，直接回源覆盖（防历史毒化条目自愈）
+          if (cached && cacheableAsset(cached)) return applySecurityHeaders(cached, p);
         }
         const res = await env.ASSETS.fetch(new Request(new URL(vBase, url), request));
         if (res.ok) {
           const headers = new Headers(res.headers);
           headers.set('Cache-Control', 'public, max-age=31536000, immutable');
           const out = new Response(res.body, { status: res.status, headers });
-          if (cache) ctx.waitUntil(cache.put(new Request(url), out.clone()));
+          // 空响应（content-length 0/缺失）不进缓存——哈希 URL 永不失效，空缓存会永久毒化生产
+          if (cache && cacheableAsset(res)) ctx.waitUntil(cache.put(new Request(url), out.clone()));
           return applySecurityHeaders(out, p);
         }
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
