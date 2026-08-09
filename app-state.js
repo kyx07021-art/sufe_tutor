@@ -197,14 +197,46 @@ function applyUiScale(v) {
   document.documentElement.style.setProperty('--ui-scale', (c / 100).toFixed(3));
   return c;
 }
+// v0.25.87 重构（R2）：拖动丝滑 + 指示块同步。
+//   setUiScale 拆两段——applyUiScale 同步应用（首帧/落盘路径），联动事件转 rAF 调度：
+//   拖动时 oninput 高频触发，若同步 dispatch sufe:ui-scale 会在 item padding 过渡中间态量
+//   几何（乱窜根因），且每帧多次强制 reflow（刷新率低根因）。改「事件只记 pending，
+//   rAF 每帧最多消费一次」，测量落在渲染帧（几何已稳定），指示块与 CSS 布局同帧。
+let _uiScalePending = null;   // 待消费的目标值（拖动合并：同帧多次 oninput 只应用一次）
+let _uiScaleRaf = 0;          // rAF 句柄（0 = 空闲）
+function _uiScaleFlush() {
+  _uiScaleRaf = 0;
+  const c = _uiScalePending;
+  if (c == null) return;
+  _uiScalePending = null;
+  const r = applyUiScale(c);
+  try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* 事件禁用兜底 */ }
+  return r;
+}
+// 同步应用（无合并；首帧/测试路径），返回钳制值
 function setUiScale(v) {
   const c = uiScaleClamp(v);
-  try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
   const r = applyUiScale(c);
-  // 布局联动（v0.25.25）：--ui-scale 变化会改 rem 字号 → 侧边栏/会话条卡片高度变化，
-  // 但指示块几何是 app-anim syncPillOnce 测的 px，须即时重对齐。状态层只发事件，动画层收
-  // （app-anim 监听 sufe:ui-scale 同 resize 口径；分层：state 发 → anim 收，互不引用）。
-  try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* 存储/事件禁用兜底 */ }
+  try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
+  try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* ignore */ }
+  return r;
+}
+// 拖动中：只记 pending + 调度 rAF 消费（每帧一次）；不落盘（松手 change 时 commit）。
+// 返回钳制值供调用方同步刷标签（几何变化在 rAF 帧，标签即时无妨）。
+function setUiScaleLive(v) {
+  const c = uiScaleClamp(v);
+  _uiScalePending = c;
+  if (!_uiScaleRaf) _uiScaleRaf = requestAnimationFrame(_uiScaleFlush);
+  return c;
+}
+// 松手/失焦：一次性事件（无高频问题），同步落盘 + 应用。若拖动 rAF 在途，清掉 pending 防旧值覆盖。
+function commitUiScale(v) {
+  const c = uiScaleClamp(v);
+  if (_uiScaleRaf) { cancelAnimationFrame(_uiScaleRaf); _uiScaleRaf = 0; }
+  _uiScalePending = null;
+  const r = applyUiScale(c);
+  try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
+  try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* ignore */ }
   return r;
 }
 // 滑块填充百分比（80→0%、100→100%），供设置页轨道填充渐变；

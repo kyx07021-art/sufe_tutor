@@ -57,8 +57,9 @@ async function renderSidebar(ctx, user) {
   vm.runInContext(`state.user = ${JSON.stringify(user)}; state.page = 'my-demands'; renderSidebar();`, ctx);
 }
 
-const pillTop = ctx => vm.runInContext(`document.getElementById('sidebar-pill').style.top`, ctx);
-const pillH = ctx => vm.runInContext(`document.getElementById('sidebar-pill').style.height`, ctx);
+// v0.25.87 重构（R2）：pill 几何改 CSS 变量驱动（--pill-top/--pill-height），断言随之切换
+const pillTop = ctx => vm.runInContext(`document.getElementById('sidebar-pill').style.getPropertyValue('--pill-top')`, ctx);
+const pillH = ctx => vm.runInContext(`document.getElementById('sidebar-pill').style.getPropertyValue('--pill-height')`, ctx);
 
 test('setUiScale 发 sufe:ui-scale 事件 → 侧边栏指示块按新几何重对齐（v0.25.25）', async () => {
   const { ctx } = makeCtx();
@@ -75,13 +76,15 @@ test('setUiScale 发 sufe:ui-scale 事件 → 侧边栏指示块按新几何重�
   assert.equal(pillTop(ctx), '40px');
   assert.equal(pillH(ctx), '60px');
 
-  // 模拟滑块拉大：卡片长高 → 几何变 (120,90)；setUiScale 后指示块必须追上新几何
+  // 模拟滑块拉大：卡片长高 → 几何变 (120,90)；setUiScale 后指示块必须追上新几何。
+  // v0.25.87（R2）：sufe:ui-scale 处理改 rAF 渲染帧测量 → 须等一帧再断言
   vm.runInContext(`
     const a2 = document.querySelector('#sidebar-nav .sidebar-item.active');
     Object.defineProperty(a2, 'offsetTop', { get: () => 120, configurable: true });
     Object.defineProperty(a2, 'offsetHeight', { get: () => 90, configurable: true });
     setUiScale(115);
   `, ctx);
+  await tick(40); // 等 rAF 帧执行 syncPillOnce
   assert.equal(pillTop(ctx), '120px', 'ui-scale 变化后指示块 top 追上新几何');
   assert.equal(pillH(ctx), '90px', 'ui-scale 变化后指示块 height 追上新几何');
 

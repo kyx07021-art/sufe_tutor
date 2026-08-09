@@ -40,9 +40,9 @@
 /* 选中滑块：会话项背后的米色大色块。top / height / opacity 全由
    app.js syncPillOnce / glidePill 逐帧写入，自身不带任何过渡 */
 .conv-pill {
-  position: absolute; left: 0; right: 0; top: 0;
-  height: 0; opacity: 0;
-  z-index: 0;
+  position: absolute; left: 0; right: 0; z-index: 0;
+  top: var(--pill-top, 0); height: var(--pill-height, 0); /* v0.25.87 R2：几何走 CSS 变量（同 sidebar-pill 基建） */
+  opacity: 0;
 }
 
 /* 会话项：独立成块（间距分隔，不再用 border 切行）；
@@ -263,17 +263,24 @@
 .chat-msg--mine + .chat-msg--theirs,
 .chat-msg--theirs + .chat-msg--mine { margin-top: 12px; }
 
-/* ---------- v0.24.0 发起签约气泡（极简签约流）：三条信息 + 确认/拒绝；回应后变灰为小灰字 ---------- */
-.signing-bubble { max-width: 300px; text-align: left; padding: 12px 14px; border-left: 3px solid var(--accent); } /* v0.25.34 单条品牌色条：签约卡片身份，不新增色相 */
-.signing-bubble-title { font-weight: 700; font-size: .8rem; margin-bottom: 8px; color: var(--accent-deep); }
-.signing-bubble-row { display: flex; justify-content: space-between; gap: 12px; font-size: .78rem; padding: 2px 0; }
+/* ---------- v0.24.0 发起签约气泡（极简签约流）：三条信息 + 确认/拒绝；回应后变灰为小灰字 ----------
+   v0.25.87 架构整理（R1）：气泡自持紧凑行距，不再继承 .chat-bubble 的 line-height:1.62——
+   原 .78rem 小字 × 1.62 = 每行约 20px + 行间 padding，三行标签行距松到能塞图（用户反馈）。
+   改 line-height:1.45 + 行距全走 margin（单点），信息行压缩为「相邻紧排」的紧凑正常气泡。 */
+.signing-bubble {
+  max-width: 300px; text-align: left; padding: 10px 14px; border-left: 3px solid var(--accent);
+  line-height: 1.45; /* R1：不继承 chat-bubble 的 1.62（继承值按 .78rem 换算每行 ≈ 20px 过松） */
+} /* v0.25.34 单条品牌色条：签约卡片身份，不新增色相 */
+.signing-bubble-title { font-weight: 700; font-size: .8rem; margin-bottom: 5px; color: var(--accent-deep); }
+.signing-bubble-row { display: flex; justify-content: space-between; gap: 12px; font-size: .78rem; padding: 1px 0; }
+.signing-bubble-row + .signing-bubble-row { margin-top: 2px; } /* R1：信息行之间紧凑间距（原靠行高+padding 松散累积） */
 .signing-bubble-row span { color: var(--muted); flex-shrink: 0; }
 .signing-bubble-row b { font-weight: 600; text-align: right; word-break: break-all; }
-.signing-bubble-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: center; }
-.signing-bubble-status { margin: 8px 0 0; font-size: .72rem; color: var(--muted); text-align: center; }
+.signing-bubble-actions { display: flex; gap: 8px; margin-top: 8px; justify-content: center; }
+.signing-bubble-status { margin: 6px 0 0; font-size: .72rem; color: var(--muted); text-align: center; }
 .signing-bubble--done { opacity: .55; } /* 已回应：气泡整体变灰 */
 /* 需求四（v0.25.44）：签约气泡底部资金声明（报价触点的平台责任撇清，小字不喧宾夺主） */
-.signing-bubble-funds { margin: 8px 0 0; padding-top: 7px; border-top: 1px dashed var(--g-line-row); font-size: .68rem; color: var(--muted); text-align: center; }
+.signing-bubble-funds { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--g-line-row); font-size: .68rem; color: var(--muted); text-align: center; }
 
 /* 合同卡「等待对方确认/签署」灰字（v0.24.0：无外套组件的不可交互提示，替代按钮） */
 .contract-wait-text { font-size: .72rem; font-weight: 600; }
@@ -343,18 +350,6 @@ textarea.chat-textarea {
 /* 会话关闭态：输入区换成居中提示 */
 .chat-input-bar--closed { justify-content: center; }
 .chat-closed-tip { padding: 6px 0; font-size: .8rem; color: var(--muted); }
-
-/* 需求四·第4条（v0.25.58 #150）：签约确认后「建议起草合同」提示卡随签约请求气泡底下渲染。
-   原独立于消息流顶部的卡片（v0.25.55）已并入气泡下——跟随所在消息流、与气泡同侧对齐；
-   独立玻璃面不继承 .signing-bubble--done 的整泡降透明度，保证提示与按钮可见。 */
-.signing-bubble-caption {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px;
-  width: fit-content; max-width: 100%; margin-top: 6px;
-  padding: 7px 8px 7px 12px;
-  font-size: .76rem; line-height: 1.5; color: var(--muted);
-  --g-fill: var(--g-fill-weak);
-}
-.signing-bubble-caption .signing-bubble-caption-text { flex: 1 1 auto; min-width: 170px; } /* 文案占主位，按钮靠右；窄屏换行 */
 
 /* ---------- 未选中会话占位：品牌四圆点呼吸 ---------- */
 .chat-placeholder {

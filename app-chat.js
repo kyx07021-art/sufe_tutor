@@ -309,12 +309,12 @@ function renderChatBubble(m, i) {
   const time = `<span class="chat-msg-time">${escHtml(fmtChatTime(m.created_at))}</span>`;
   const side = mine ? 'chat-msg--mine' : 'chat-msg--theirs';
   const skin = mine ? 'chat-bubble--mine' : 'chat-bubble--theirs';
-  // 合同事件系统气泡：独立中性灰胶囊居中（v0.25.34 去淡紫、v0.25.56 需求四十八提可见度），
-  // 文案按查看者区分（起草方 / 接收方）
+  // 合同事件消息（v0.25.87 R3 修复）：不再居中系统胶囊——改为对应用户一侧的普通气泡
+  // （起草方右侧 / 接收方左侧，同普通消息皮肤与对齐）。用户反馈：居中灰泡观感突兀，应融入消息流。
   if (m.kind === 'contract') {
     const text = mine ? UI.CHAT_CONTRACT_BUBBLE_MINE : UI.CHAT_CONTRACT_BUBBLE_OTHER;
-    return `<div class="chat-msg chat-msg--system" data-mid="${m.id}" style="${delay}">
-      <div class="chat-bubble chat-bubble--system glass">${escHtml(text)}</div>${time}</div>`;
+    return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
+      <div class="chat-bubble glass ${skin}">${escHtml(text)}</div>${time}</div>`;
   }
   // v0.24.0 发起签约气泡（极简签约流）：报价/时间/方式三条信息 + 底部确认/拒绝按钮；
   // 对方回应后气泡变灰、按钮消失为无组件小灰字（data-signing-id 供 respondSigning 就地刷新）
@@ -340,13 +340,12 @@ function renderChatBubble(m, i) {
           <button type="button" class="btn btn-sm glass glass--pressable" onclick="respondSigning(${signingId}, true)">${UI.BTN_SIGNING_CONFIRM}</button>
           <button type="button" class="btn btn-sm btn-outline glass glass--pressable" onclick="respondSigning(${signingId}, false)">${UI.BTN_SIGNING_REJECT}</button>
         </div>` : ''}
-        ${done ? `<p class="signing-bubble-status">${done}</p>` : ''}
+        ${done ? `<p class="signing-bubble-status">${s.status === STATUS.SIGNED ? escHtml(UI.CHAT_SIGN_TIP) : escHtml(done)}</p>` : ''}
+        ${s.status === STATUS.SIGNED ? `<div class="signing-bubble-actions">
+          <button type="button" class="btn btn-sm glass glass--pressable" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
+        </div>` : ''}
         <p class="signing-bubble-funds">${UI.FUNDS_NOTE_SHORT}</p>
-      </div>
-      ${s.status === STATUS.SIGNED ? `<div class="signing-bubble-caption glass glass--solid">
-        <span class="signing-bubble-caption-text">${UI.CHAT_SIGN_TIP}</span>
-        <button type="button" class="btn btn-sm glass glass--pressable" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
-      </div>` : ''}${time}</div>`;
+      </div>${time}</div>`;
   }
   // v0.24.0 签约回应气泡（对方确认/拒绝后落一条，在途会话实时刷新）
   // v0.24.2 审计：视角修正——回应方看到「你已…」，发起方看到「对方已…」（原恒显「对方已…」颠倒）
@@ -764,29 +763,29 @@ function closeChatPlus() { const w = document.getElementById('chat-plus-wrap'); 
 function chatPlusDraft() { closeChatPlus(); if (chatConvId) openContractDraftModal(chatConvId); }
 function chatPlusSigning() { closeChatPlus(); if (chatConvId) openSigningModal(chatConvId); }
 
-// 需求四·第4条（v0.25.58 #150）：签约确认后，「已与对方确认签约 + 起草合同」提示卡随签约请求气泡
-// 底下渲染——不再有独立于消息流的背景提示条。双路呈现：
-//   1) 终态模板：重开会话拉历史，signing_request 气泡 status='signed' 时模板直接渲染 caption；
-//   2) 在途注入：轮询/回应方就地确认时，配对 data-signing-id 把 caption 插到气泡底下（幂等）。
+// v0.25.87 R8 重构：签约确认后「已与对方确认签约 + 起草合同」并入请求气泡内部——status 区
+// 显示 CHAT_SIGN_TIP 文案、按钮区放「起草合同」（原独立于气泡外的灰色小组件已废除）。
+// 双路呈现：1) 终态模板：重开会话拉历史，signing_request 气泡 status='signed' 时模板直接渲染；
+//   2) 在途注入：轮询/回应方就地确认时，配对 data-signing-id 就地刷新 status 文本 + 挂起草按钮（幂等）。
 // 文案单源 UI.CHAT_SIGN_TIP；signingId 仅接受纯数字（防 CSS 选择器注入）。
 function chatInjectSignCaption(signingId) {
   if (!/^\d+$/.test(String(signingId || ''))) return;
   const bubble = document.querySelector(`.chat-bubble[data-signing-id="${signingId}"]`);
-  if (!bubble || !bubble.parentElement) return;
-  if (bubble.parentElement.querySelector('.signing-bubble-caption')) return; // 幂等
-  const wrap = document.createElement('div');
-  wrap.className = 'signing-bubble-caption glass glass--solid';
-  const span = document.createElement('span');
-  span.className = 'signing-bubble-caption-text';
-  span.textContent = UI.CHAT_SIGN_TIP;
+  if (!bubble) return;
+  // 幂等：按起草按钮文本查找（pending 态气泡本就有确认/拒绝 actions，不能按 .actions 判重）
+  const already = [...bubble.querySelectorAll('.signing-bubble-actions button')]
+    .some(b => b.textContent === UI.CHAT_BTN_DRAFT_CONTRACT);
+  if (already) return;
+  const acts = document.createElement('div');
+  acts.className = 'signing-bubble-actions';
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'btn btn-sm glass glass--pressable';
   btn.textContent = UI.CHAT_BTN_DRAFT_CONTRACT;
   btn.addEventListener('click', chatPlusDraft);
-  wrap.appendChild(span);
-  wrap.appendChild(btn);
-  bubble.after(wrap);
+  acts.appendChild(btn);
+  const funds = bubble.querySelector('.signing-bubble-funds');
+  if (funds) bubble.insertBefore(acts, funds); else bubble.appendChild(acts);
 }
 
 // v0.24.0 回应签约请求：确认/拒绝。成功后就地把请求气泡变灰 + 按钮消失为小灰字
@@ -803,7 +802,7 @@ async function respondSigning(signingId, accept) {
       if (status) status.textContent = text;
       else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = text; el.appendChild(p); }
     });
-    if (accept) chatInjectSignCaption(signingId); // #150：确认签约 → 提示卡注入请求气泡底下
+    if (accept) chatInjectSignCaption(signingId); // R8：确认签约 → 气泡内就地挂「起草合同」按钮 + status 替换为签约提示
     showToast(accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED); // v0.24.2：回应方视角（原「对方已…」颠倒）
   } catch (err) { showToast(err.message); }
 }

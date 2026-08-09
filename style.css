@@ -355,11 +355,19 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
 .agree-text { color: var(--ink-3); }
 .agree-link { font-weight: 700; color: var(--accent-deep); text-decoration: underline; text-underline-offset: 2px; }
 .agree-link:hover { color: var(--accent); }
-/* 协议/政策浮窗正文：长文排印（标题分级 + 段距拉开 + 行高加高，纯文本阅读舒适） */
+/* 协议/政策浮窗正文：长文排印（标题分级 + 段距拉开 + 行高加高，纯文本阅读舒适）
+   R21：md 排印统一——标题紧缩小阶梯（少用 1/2 级）、正文比标题右缩进、列表编号进一步右缩进 */
 .policy-body { line-height: 1.9; }
-.policy-body h2 { font-size: 1.15rem; font-weight: 900; color: var(--ink); margin: 18px 0 8px; }
-.policy-body h3 { font-size: .95rem; font-weight: 800; color: var(--ink-2); margin: 14px 0 6px; }
-.policy-body p { margin: 0 0 8px; font-size: .86rem; color: var(--ink-3); }
+.policy-body h1, .policy-body h2 { font-size: 1.05rem; font-weight: 900; color: var(--ink); margin: 16px 0 7px; } /* R21④：1/2 级不再巨大 */
+.policy-body h3 { font-size: .98rem; font-weight: 800; color: var(--ink-2); margin: 14px 0 6px; }
+.policy-body h4 { font-size: .94rem; font-weight: 800; color: var(--ink-2); margin: 12px 0 5px; }
+.policy-body h5 { font-size: .9rem; font-weight: 700; color: var(--ink-3); margin: 10px 0 4px; }
+.policy-body h6 { font-size: .88rem; font-weight: 700; color: var(--ink-3); margin: 8px 0 3px; }
+.policy-body p { margin: 0 0 8px 12px; font-size: .86rem; color: var(--ink-3); } /* R21②③：正文字号 .86 + 比标题右缩进 */
+.policy-body ul, .policy-body ol { margin: 0 0 8px 20px; padding-left: 16px; } /* R21②：列表编号进一步右缩进 */
+.policy-body ul { list-style: disc; }
+.policy-body ol { list-style: decimal; }
+.policy-body li { font-size: .86rem; line-height: 1.8; color: var(--ink-3); margin: 2px 0; }
 .policy-body strong { color: var(--ink); }
 
 /* 浏览器自动填充的蓝底抹掉：录入区底色 = 浮窗底色（v0.20.0 改走 --g-autofill 主题键，暗色下不再白底） */
@@ -655,7 +663,9 @@ textarea.form-input {
 /* 教师档案内联成绩 */
 .gaokao-section { margin-bottom: 18px; padding-top: 4px; } /* padding-top：与上方设置项的体面空隙 */
 .gaokao-section h4 { font-size: .8rem; font-weight: 700; color: var(--ink-3); margin-bottom: 14px; }
-.gaokao-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+/* R14：等第 pill 组多行换行时与科目名顶对齐（原 center 居中整组，首行 pill 被顶到科目名上方错位）；
+   科目名与值组件（分数输入/等第 pill/下拉）同一直线、左对齐同列 */
+.gaokao-row { display: flex; align-items: start; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 /* v0.25.41（反馈 #137）：科目名 = 左对齐子标题（标题区）——从选项区摘出往左挪，
    不再定宽右贴输入控件（原 v0.25.12「右缘对齐假想线」设计被否）：定宽列 + 左对齐，
    名右缘与选项区左缘之间保持体面空隙（列宽 + 行 flex gap 承担），各科目名形成干净左列。
@@ -665,7 +675,10 @@ textarea.form-input {
   text-align: left;
   font-size: .78rem; font-weight: 700; color: var(--ink-2);
 }
-.grade-selector { display: flex; flex-wrap: wrap; gap: 4px; }
+/* R14：等第 pill 组 = 科目名同行的值组件——flex-basis 0 + min-width 0：父行 wrap 按 flex-basis
+   断行（此前整组掉到科目名下一行，与分数行「科目名右边」不一致），改 0 基础永远占首行，
+   grow 吃满剩余宽、pills 组内换行——与分数输入同列左对齐（科目名 52px + gap 12px = 64px） */
+.grade-selector { display: flex; flex-wrap: wrap; gap: 4px; flex: 1 1 0; min-width: 0; }
 .grade-option {
   padding: calc(3px * var(--ui-scale, 1)) calc(9px * var(--ui-scale, 1)); font-size: .68rem; color: var(--muted); /* 需求六·item5：等第/年级 pill 随滑块 */
   cursor: pointer; transition: all var(--t-fast); font-weight: 600;
@@ -726,7 +739,8 @@ textarea.form-input {
    条目自身负责文字/简介展开动效，指示块由 app.js glidePill 逐帧追逐布局 */
 .sidebar-nav { position: relative; z-index: 1; display: flex; flex-direction: column; gap: calc(16px * var(--ui-scale, 1)); padding: 0; } /* 需求六·item5：卡片间距随滑块 */
 .sidebar-pill {
-  position: absolute; left: 0; right: 0; top: 0; height: 0; z-index: 0;
+  position: absolute; left: 0; right: 0; z-index: 0;
+  top: var(--pill-top, 0); height: var(--pill-height, 0); /* v0.25.87 R2：几何走 CSS 变量（JS 只写变量，不再直写 style），与 --ui-scale 同帧 */
   opacity: 0; /* 底色唯一主人 = glass.css --g-fill（旧 var(--ink) 黑底盖住玻璃紫，已删；竞争删一方） */
 }
 .sidebar-item {
@@ -901,6 +915,54 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .feedback-tags { display: inline-flex; gap: 6px; }
 .feedback-foot { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 
+/* ============================================================
+   R22 投诉独立通道组件（app-complaints.js）
+   目标选择组件内部子件全用独立 cmp-* 类名——不在 .form-group 祖先
+   作用域内，杜绝复合组件隔离问题（整点下拉教训）。玻璃引擎 token 渲染。
+   ============================================================ */
+.complaint-tabs { margin-bottom: 16px; }
+.complaint-tabs .seg-tab { padding: 7px 14px; font-size: .8rem; font-weight: 700; }
+.complaint-pane { margin-bottom: 14px; }
+.cmp-block { display: flex; flex-direction: column; gap: 8px; }
+.cmp-recent { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cmp-recent-label { font-size: .78rem; color: var(--faint); }
+.cmp-chip {
+  border: 1px solid var(--g-border, rgba(255,255,255,.14));
+  border-radius: 999px; padding: 4px 12px; font-size: .8rem;
+  color: var(--ink); background: var(--g-fill-weak, rgba(255,255,255,.04));
+  cursor: pointer; transition: border-color .15s ease, background-color .15s ease;
+}
+.cmp-chip:hover { border-color: var(--g-fg, rgba(255,255,255,.35)); }
+.cmp-search { margin-top: 2px; }
+.cmp-results { display: flex; flex-direction: column; gap: 6px; }
+.cmp-result {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; padding: 9px 12px; text-align: left; border-radius: 10px;
+  color: var(--ink); cursor: pointer;
+}
+.cmp-result-name { font-size: .86rem; font-weight: 600; }
+.cmp-result-sub { font-size: .74rem; color: var(--faint); flex-shrink: 0; }
+.cmp-empty { font-size: .8rem; color: var(--faint); padding: 4px 2px; }
+.cmp-selected { display: flex; }
+.cmp-selected-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 8px 5px 14px; border-radius: 999px; font-size: .82rem; font-weight: 600;
+  color: var(--ink);
+}
+.cmp-selected-x {
+  border: 0; background: transparent; color: var(--faint); cursor: pointer;
+  font-size: .8rem; padding: 0 4px; line-height: 1;
+}
+.cmp-selected-x:hover { color: var(--ink); }
+.complaint-reasons { margin-top: 4px; }
+.complaint-reasons .seg-tab { padding: 6px 12px; font-size: .78rem; }
+
+/* 投诉卡（我的投诉 / 管理员投诉处理共用）：已处理整卡淡出 */
+.complaint-card--resolved { opacity: .62; }
+.complaint-tags { display: inline-flex; gap: 6px; }
+.complaint-detail { margin-top: 6px; white-space: pre-wrap; font-size: .82rem; color: var(--faint); }
+.complaint-foot { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
 /* 合同卡按钮行：签约/修改/查看在左，取消签约在同行的页面另一侧 */
 .contract-actions { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .contract-actions-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -971,6 +1033,9 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 区首项贴标题线：每区第一个设置项无上边线，行间线从第二项起（与头像行 border-top:none 同模式，防标题下双线） */
 .settings-section-title + * > .settings-row:first-child,
 .settings-section-title + .settings-row { border-top: none; }
+/* R19：隐私设置区首项被 .settings-list > #privacy-settings-list 包一层，上面的直接兄弟选择器
+   够不着 → 标题 border-bottom + 首行 border-top 双线。补同口径：标题后 .settings-list 内首行无上边线 */
+.settings-section-title + .settings-list .settings-row:first-child { border-top: none; }
 /* 外观主题三项：复用玻璃按钮，选中态走引擎 --g-fill 参数（accent-tint 底 + accent-deep 字）
    v0.25.19 审计 G-09：补按钮族交互三参数（--g-hover 白洗/--g-raise 抬升/--g-scale 缩放），
    与同族按钮交互语言一致；不整组并入按钮族以免吃掉选中态自设 --g-fill */
@@ -1525,9 +1590,12 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* v0.25.17（反馈：教师卡头像变椭圆）：框定固定正方形 108×108——此前 min-height + align-self:stretch，
    卡片行高超过 108（右信息列多行）即被拉伸成椭圆；改 height 定高 + align-self:start 顶对齐。
    外观即按钮组件版样式（.avatar glass 圆形、--g-r:50% 引擎圆角），只是无聚焦/交互（avatar-btn 已去） */
+/* R13：头像 = 惰性装饰组件——pointer-events:none（不独立可点，点击穿透到整卡）、
+   无 tabindex 不可聚焦、renderAvatarHtml 恒 aria-hidden；交互语言全归宿主卡片 */
 .tc-avatar {
   grid-column: 1; grid-row: 1; align-self: start;
   width: 108px; height: 108px; font-size: 2.6rem;
+  pointer-events: none; user-select: none;
 }
 /* 卡片布局契约：grid 只定列骨架（头像/身份列/右信息列），列内堆叠顺序一律由
    DOM 在 flex 流里决定——增删内容只动 renderTeacherCard 的模板，CSS 不做行级摆放
@@ -1639,6 +1707,21 @@ body.profile-panel-closing .profile-panel {
   margin-left: -8px; /* v0.25.12（反馈）：大标题左凸——左对齐线突出来，不与字段标签共用同一条左对齐线
     （.profile-form 内边距 8px，负 margin 把标题顶到表单最左缘；字段保持 +8px 缩进） */
   font-size: 1.08rem; font-weight: 900; letter-spacing: .04em; color: var(--ink);
+}
+/* R17：大区段间插横向分割线 + 拉长行距——区段末尾与下一区段 title 之间（border-top 分隔 +
+   上下加大空隙），编辑页最后大区与保存按钮同理（.profile-form .form-actions，见下）。
+   首段「基本资料」不设上分割线（表单/卡顶部无前段）；卡片内评分行后第一个 title 属分段分隔，
+   照设（R18 同口径）。 */
+.profile-form .profile-group-title:not(:first-child),
+.profile-card .profile-group-title:not(:first-child) {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;   /* 区段间行距拉长（线前留白） */
+  padding-top: 16px;  /* 线后与 title 留白 */
+}
+.profile-form .form-actions {
+  border-top: 1px solid var(--line);
+  margin-top: 26px;   /* 最后大区与保存按钮：线前留白 */
+  padding-top: 20px;  /* 线后与按钮留白 */
 }
 /* ============================================================
    教师资料卡排版（编辑页 .profile-form）样式与组件规则（v0.25.12，复用前必读）：
@@ -1843,6 +1926,7 @@ body.profile-panel-closing .profile-panel {
 /* ---------- utilities ---------- */
 .hidden { display: none !important; }
 .text-muted { color: var(--muted); }
+.text-danger { color: var(--danger); } /* v0.25.87 R7：危险状态文案（撤销合同/错误提示） */
 .text-sm { font-size: .8rem; }
 /* v0.25.19 审计 G-12：散落内联 margin-bottom 收口为语义间距类（间距值自定，禁裸数字） */
 .spacer-sm { margin-bottom: 8px; }
@@ -1856,6 +1940,7 @@ body.profile-panel-closing .profile-panel {
 .demand-id-tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); margin-left: 6px; } /* v0.20.0 编号从气泡挪出，与时间标记同排（时间右侧） */
 .form-note-block { margin-top: 6px; font-size: .72rem; line-height: 1.5; color: var(--muted); } /* 表单字段下方灰字备注 */
 .form-group > .form-other-wrap { margin-top: 10px; flex-basis: 100%; display: flex; } /* 下拉选「其他」时展开的文字输入行——独占整行排下拉下方、输入撑满整行（v0.25.54 需求四十六：曾与下拉+label 同排挤成 186px 错位；特异性须压过 .form-group > div 的 flex:1 1 0） */
+.form-other-wrap .form-input { flex: 1; min-width: 0; } /* v0.25.87 R10：wrap 内 input 撑满整行、与 label/select 同左缘对齐（原未设 flex 只占内容宽，戳进 title 区） */
 /* 低调危险操作（撤销合同/注销账户）：玻璃圆角小按钮 + 红色危险染色——圆角由 .glass 引擎统一
    （旧 border-radius:0 与玻璃圆角竞争、方角胜出，已删；用户纪律：竞争删一方） */
 .btn-text-danger {

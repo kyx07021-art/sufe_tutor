@@ -181,14 +181,14 @@ test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、
   assert.equal(vm.runInContext('window.SLIDER.step', ctx), '1', '步进 1（级差最小）');
   assert.equal(vm.runInContext('window.SLIDER.value', ctx), '100', '默认现值 100');
   assert.ok(vm.runInContext('!!window.SLIDER_ROW', ctx), '滑块行独立类 .ui-scale-row 存在（防作用域污染）');
-  // 拖到上限 120：--ui-scale 应 = 1.200
+  // 拖到上限 120：拖动走 setUiScaleLive（rAF 合并应用，本帧 pending 未消费）——断言未 flush 前不应用
   vm.runInContext(`window.SLIDER.value = '${sliderMax}'; setUiScaleFromSlider(window.SLIDER);`, ctx);
-  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), (sliderMax / 100).toFixed(3), '拖到上限 --ui-scale 同步（1.2x）');
-  // 拖动到 85
-  vm.runInContext(`window.SLIDER.value = '85'; setUiScaleFromSlider(window.SLIDER);`, ctx);
-  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.850', '--ui-scale 实时更新');
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '', '拖动合并到 rAF：pending 未消费前 --ui-scale 不变');
+  // 松手 commit 同步落盘 + 应用（v0.25.87 R2：拖动中不落盘，change 才 commit）
+  vm.runInContext(`window.SLIDER.value = '85'; commitUiScaleFromSlider(window.SLIDER);`, ctx);
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.850', 'commit 后 --ui-scale 同步');
   assert.equal(vm.runInContext("document.getElementById('ui-scale-val').textContent", ctx), '85%', '数值标签更新');
-  assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '85', 'localStorage 持久化');
+  assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '85', '松手后 localStorage 持久化');
   // 刷新等价：getUiScale 从 localStorage 读回 85
   assert.equal(vm.runInContext('getUiScale()', ctx), 85, '刷新后按 localStorage 现值应用');
 });

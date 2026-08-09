@@ -191,7 +191,7 @@ function applyFilters() {
     if (gender && t.gender !== gender) return false;
     if (subject && !(t.subjects||[]).includes(subject)) return false;
     if (t.price_min != null && t.price_min > maxPrice) return false; // R2-5 按最低报价过滤（未填报价不限价）
-    if ((t.rating||4) < minRating) return false;
+    if ((t.rating||4.5) < minRating) return false; // R16：缺省评分 4.0→4.5（与显示兜底/服务端默认同源）
     if (method && t.teaching_method !== method) return false;                    // v0.25.29
     if (day && !hasDaySlot(t.time_slots, +day)) return false;                    // v0.25.29
     if (verified && !t.verified) return false;                                   // v0.25.29
@@ -381,7 +381,7 @@ function profilePanelShowing(userId) {
 
 function renderProfilePanel(base, t, signed, reviewsData) {
   const roleLabel = DISP.roleLabel(base.role);
-  const cardId = `<div class="profile-card profile-card--id glass">
+  const cardId = `<div class="profile-card glass">
       <div class="profile-id-top">
         ${renderAvatarHtml(base.avatar, base.username, 'profile-avatar')}
         ${signed ? `<span class="profile-signed-tag glass glass--solid">${UI.PROFILE_SIGNED_TAG}</span>` : ''}

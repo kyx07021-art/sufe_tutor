@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.86',
+  APP_VERSION: '0.25.87',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -220,6 +220,7 @@ globalThis.APP_CONSTANTS = {
         '--g-avatar-fill': 'var(--paper-3)', '--g-avatar-fill-ghost': 'var(--paper-3)',
         '--g-avatar-border': 'var(--line)', '--g-avatar-border-ghost': 'var(--line)',
         '--g-btn-fill': 'var(--g-fill-weak)',   // 按钮透明透镜 → 不透明纸面（防平面模式按钮隐形）
+        '--g-btn-line': 'var(--line)',          // R11 轻量描边按钮细边框对齐平面全局发丝边
         // v0.25.34 气泡不设 flat 特例：theme 近实值（#E9E5FB/#FFFFFF）液态平面同源，材质差异已由零投影/零液体边承担
         '--g-flow-dot': 'var(--paper-3)', // v0.25.39（反馈 U2）：圆点填纸面（与 ink 数字反色），修平面下数字/圆圈同色不可见
         '--g-ok-solid': 'var(--ok-deep)',
@@ -294,6 +295,9 @@ globalThis.APP_CONSTANTS = {
       '--g-fill-weak': 'rgba(255,255,255,.10)',    // 透：输入控件/分段容器/未选小件
       '--g-fill-mid': 'rgba(255,255,255,.14)',     // 中：入口块/工具栏/普通玻璃件
       '--g-fill-strong': 'rgba(255,255,255,.20)',  // 强：标签/选中态/侧栏选中块
+      // ---- 轻量描边按钮（R11 统一卡片动作外观：白调面 + 发丝边，白卡/灰底都可见） ----
+      '--g-btn-bg': 'rgba(255,255,255,.72)',       // 按钮面：较白调（灰底上浮起成片）
+      '--g-btn-line': 'rgba(17,17,20,.14)',        // 统一细边框（比 --line 略深一档，白卡上可辨）
       '--g-card-fill': 'radial-gradient(ellipse 120% 55% at 50% 4%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.45) 18%, rgba(255,255,255,.14) 36%, rgba(255,255,255,.06) 60%, rgba(255,255,255,.04) 100%)', // 卡族弯月径向
       '--g-card-strong': 'rgba(255,255,255,.32)',  // 信息卡强面（坐侧栏 L2）
       '--g-card-id': 'rgba(255,255,255,.44)',      // 信息卡身份卡
@@ -400,6 +404,9 @@ globalThis.APP_CONSTANTS = {
       '--g-fill-weak': 'rgba(255,255,255,.07)',
       '--g-fill-mid': 'rgba(255,255,255,.10)',
       '--g-fill-strong': 'rgba(255,255,255,.14)',
+      // ---- 轻量描边按钮（R11）：低白玻璃面 + 浅发丝边 ----
+      '--g-btn-bg': 'rgba(255,255,255,.09)',
+      '--g-btn-line': 'rgba(255,255,255,.18)',
       '--g-card-fill': 'radial-gradient(ellipse 120% 55% at 50% 4%, rgba(255,255,255,.32) 0%, rgba(255,255,255,.14) 18%, rgba(255,255,255,.07) 36%, rgba(255,255,255,.04) 60%, rgba(255,255,255,.03) 100%)',
       '--g-card-strong': 'rgba(255,255,255,.22)',
       '--g-card-id': 'rgba(255,255,255,.30)',
@@ -1162,7 +1169,7 @@ globalThis.APP_CONSTANTS = {
     // 撤销合同（仅签约后可用；入口刻意低调；两级确认；活跃库抹除、台账与留档保留）
     BTN_REVOKE_CONTRACT: '撤销合同',
     REVOKE_MODAL_TITLE: '撤销合同',
-    REVOKE_CONTRACT_WARN: '此功能仅限在双方已经约定好结束合同时使用。撤销后，平台活跃数据库中的本合同全部信息将被抹除（签署时的存证台账与加密留档将作为不可篡改记录保留）。由此产生的一切法律后果由双方自行承担。',
+    REVOKE_CONTRACT_WARN: '此功能仅限在双方已经约定好结束合同时使用。撤销后合同不再生效，双方列表保留「已撤销」状态、正文与存证台账留档（v0.25.87 R7：合同不删除）。由此产生的一切法律后果由双方自行承担。',
     BTN_THINK_AGAIN: '再想想',
     BTN_CONTINUE_DANGER: '我已知晓后果，继续',
     REVOKE_CONTRACT_FINAL: '最终确认：撤销后不可恢复，确定继续吗？',
@@ -1248,6 +1255,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_STATUS_PENDING: '草案待确认',
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',
+    CONTRACT_STATUS_REVOKED: '已撤销', // v0.25.87 R7：撤销标记 tag（红）
     CONTRACT_WAIT_DRAFT: '等待对方确认草案',
     BTN_SIGN: '开始签约',                 // v0.25.32：确认签约 → 开始签约（先读合同+待够时长）
     BTN_SIGN_WAITING: '等待对方确认签约',
@@ -1260,14 +1268,17 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_DIFF_HINT: '本次修改的改动处已高亮：绿色=新增，红色删除线=移除；法律条款未改动。', // v0.24.3 diff 视图
     SIGN_MODAL_TITLE: '开始签约',
     SIGN_READ_HINT: '请阅读合同全文并滚动到底部，{secs} 秒后方可确认', // {secs} 渲染时填 CONFIG.CONTRACT_SIGN_READ_SECONDS（数字单源）
+    SIGN_COUNTDOWN_HINT: '{secs}秒后可确认签约', // v0.25.87 R5：倒计时动态提示（从开窗起算）
     SIGN_READY_HINT: '已阅读完毕，可确认签约',
     SIGN_READ_DONE_BTN: '我已阅读并确认签约',
     CONFIRM_SIGN_TWICE: '确认签约后合同即生效、不可单方撤销。你确定已仔细阅读并确认这份合同吗？',
     CONFIRM_SIGN_FINAL: '请输入账户密码，完成最终确认（后期接入短信验证码）',
-    CONFIRM_CANCEL_CONTRACT: '取消后合同删除并通知对方（会话保留）。确定取消签约吗？',
+    CONFIRM_CANCEL_CONTRACT: '取消后回到待签约状态、合同保留（会话保留）。确定取消签约吗？', // v0.25.87 R7：取消不再删除合同
     CONTRACT_EMPTY_LIST: '暂无合同——可在「我的会话」的聊天窗内起草',
     CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',
-    CONTRACT_CANCELLED_TOAST: '已取消签约',
+    CONTRACT_CANCELLED_TOAST: '已取消签约，合同保留待重新签约',
+    CONTRACT_REVOKED_BY_ME: '你已撤销合同', // v0.25.87 R7：撤销后本人视角
+    CONTRACT_REVOKED_BY_PEER: '对方已撤销合同', // v0.25.87 R7：撤销后对方视角
     CONTRACT_SIGNED_TOAST: '签约完成',
 
     // v0.25.37 签署合规：签名区块内嵌正文 + 每次签署落台账 + signed_at 列
@@ -1340,17 +1351,12 @@ globalThis.APP_CONSTANTS = {
     FEEDBACK_PLACEHOLDER: '详细描述你遇到的问题或建议（支持轻量 Markdown）',
     FEEDBACK_EMPTY: '反馈内容不能为空',
     FEEDBACK_SENT_TOAST: '反馈已提交，感谢你的声音',
-    // #165（v0.25.73）：投诉通道全链路
+    // #165 历史投诉数据展示（R22 后新投诉走独立通道；这些仅渲染 feedbacks 表历史 complaint 记录）
     BTN_COMPLAINT: '投诉',
     BTN_MY_FEEDBACK: '我的反馈',
-    FEEDBACK_MODAL_TITLE_COMPLAINT: '提交投诉',
-    FEEDBACK_COMPLAINT_SUBJECT_LABEL: '投诉对象',
     FEEDBACK_COMPLAINT_SUBJECT_TEACHER: '教师',
     FEEDBACK_COMPLAINT_SUBJECT_STUDENT: '学生',
     FEEDBACK_COMPLAINT_SUBJECT_PLATFORM: '平台服务',
-    FEEDBACK_COMPLAINT_SUBJECT_REQUIRED: '请选择投诉对象',
-    FEEDBACK_COMPLAINT_PLACEHOLDER: '请描述投诉对象与具体问题、发生时间（支持轻量 Markdown）',
-    FEEDBACK_COMPLAINT_SENT_TOAST: '投诉已提交，我们会尽快核实处理',
     FEEDBACK_COMPLAINT_RESOLVED: '你的投诉已被受理并处理。感谢你的信任，如有其他问题欢迎随时反馈。',
     MY_FEEDBACK_TITLE: '我的反馈与投诉',
     MY_FEEDBACK_EMPTY: '还没有提交过反馈或投诉',
@@ -1366,6 +1372,38 @@ globalThis.APP_CONSTANTS = {
     FEEDBACK_STATUS_RESOLVED: '已处理',
     BTN_MARK_RESOLVED: '标记已处理',
     FEEDBACK_RESOLVED_TOAST: '已标记处理并通知提出者',
+
+    // R22：投诉通道独立（接口/浮窗/数据通道均独立于用户反馈；仅外层接口接管理员临时通路）
+    BTN_COMPLAINT_OPEN: '投诉',
+    BTN_MY_COMPLAINTS: '我的投诉',
+    COMPLAINT_MODAL_TITLE: '提交投诉',
+    COMPLAINT_TAB_TEACHER: '投诉教师',
+    COMPLAINT_TAB_STUDENT: '投诉学生',
+    COMPLAINT_TAB_POST: '投诉帖子',
+    COMPLAINT_TARGET_LABEL: '选择投诉对象',
+    COMPLAINT_RECENT_LABEL: '最近联系的人',
+    COMPLAINT_SEARCH_PLACEHOLDER: '输入 id 或昵称搜索',
+    COMPLAINT_SEARCH_POST_PLACEHOLDER: '输入帖子 id 或标题搜索',
+    COMPLAINT_SEARCH_EMPTY: '未找到匹配对象，可输入 id 精确搜索',
+    COMPLAINT_TARGET_REQUIRED: '请选择要投诉的对象',
+    COMPLAINT_REASON_REQUIRED: '请选择投诉理由',
+    COMPLAINT_REASON_LABEL: '投诉理由',
+    COMPLAINT_REASON_PLACEHOLDER: '请选择理由',
+    COMPLAINT_DETAIL_LABEL: '补充描述',
+    COMPLAINT_DETAIL_PLACEHOLDER: '补充具体问题、发生时间等（选填，支持轻量 Markdown）',
+    COMPLAINT_REASONS: ['虚假信息或欺诈', '侮辱谩骂或骚扰', '侵犯隐私', '违法违规内容', '恶意营销或广告', '其他'],
+    COMPLAINT_SENT_TOAST: '投诉已提交，我们会尽快核实处理',
+    COMPLAINT_MINE_TITLE: '我的投诉',
+    COMPLAINT_MINE_EMPTY: '还没有提交过投诉',
+    COMPLAINT_STATUS_OPEN: '处理中',
+    COMPLAINT_STATUS_RESOLVED: '已处理',
+
+    // 管理员：投诉处理（R22 独立于用户反馈）
+    PAGE_ADMIN_COMPLAINT: '投诉处理',
+    PAGE_ADMIN_COMPLAINT_DESC: '查看并处理用户提交的投诉（对象 / 理由 / 详情）',
+    ADMIN_COMPLAINT_EMPTY: '暂无投诉',
+    BTN_COMPLAINT_RESOLVE: '标记已处理',
+    COMPLAINT_RESOLVED_TOAST: '已标记处理并通知投诉人',
 
     // 账户头像
     SETTINGS_AVATAR: '账户头像',
@@ -1415,7 +1453,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_REVIEWS_DESC: '评价审核与删除',
     PAGE_ADMIN_POSTS_DESC: '管理教师共享的资料帖子',
     PAGE_NOTIFICATIONS_DESC: '意向与推送的处理进展',
-    PAGE_ACCOUNT_SETTINGS_DESC: '外观主题与账户信息',
+    PAGE_ACCOUNT_SETTINGS_DESC: '外观主题与账户设置',
 
     // 侧边栏模块「i」信息浮窗（需求四·4b）：每模块白话介绍，按 ROLE_PAGES 角色可见性各自加载
     MODULE_INFO_TIP: '模块介绍',
@@ -1441,6 +1479,7 @@ globalThis.APP_CONSTANTS = {
       'admin-posts': '## 这是什么\n资料帖子管理。\n\n## 怎么用\n查看教师共享的资料帖子，删除含隐私或违规信息的帖子。',
       'admin-contracts': '## 这是什么\n合同管理。\n\n## 怎么用\n查看平台全部合同与状态，必要时移除测试或异常数据。',
       'admin-feedback': '## 这是什么\n用户反馈处理。\n\n## 怎么用\n查看用户提交的 Bug 与建议，逐条查看详情并标记处理状态。',
+      'admin-complaint': '## 这是什么\n投诉处理。\n\n## 怎么用\n查看用户提交的投诉——投诉对象（教师/学生/帖子）、理由与详情都会快照存档，即使对象已注销或删除也不影响追溯。\n\n**处理：** 逐条核实后点「标记已处理」，系统会通知投诉人处理结果。\n\n## 小贴士\n投诉是独立的合规通道，与用户反馈分开管理；处理时先核实快照信息与聊天记录，再决定如何处置。',
     },
 
     // 需求表单
@@ -1566,7 +1605,7 @@ globalThis.APP_CONSTANTS = {
     THEME_LIGHT: '亮色',
     THEME_DARK: '暗色',
     THEME_SYSTEM: '跟随系统',
-    SETTINGS_ACCOUNT_TITLE: '账户信息',
+    SETTINGS_ACCOUNT_TITLE: '账户设置', // R20：「账户信息」title 改「账户设置」
     SETTINGS_USERNAME: '账户用户名',
     SETTINGS_ROLE: '账户角色',
     SETTINGS_PHONE: '电话',
@@ -1664,8 +1703,8 @@ globalThis.APP_CONSTANTS = {
     TOUR_STEP_NOTIF_ITEM: '一条通知：展示内容与时间；红点代表未读。',
     TOUR_STEP_NOTIF_BLOCK: '右上角「屏蔽系统通知」：不想看系统广播点一下，再点恢复。',
     // —— 设置 ——
-    TOUR_STEP_ACCOUNT_SETTINGS: '设置：账户信息与外观设置都在这里。点击进入。',
-    TOUR_STEP_SETTINGS_ACCOUNT: '账户信息区：头像、用户名、角色；可以上传头像。',
+    TOUR_STEP_ACCOUNT_SETTINGS: '设置：账户设置与外观设置都在这里。点击进入。',
+    TOUR_STEP_SETTINGS_ACCOUNT: '账户设置区：头像、用户名、角色；可以上传头像。',
     TOUR_STEP_SETTINGS_THEME: '外观主题：亮色 / 暗色 / 跟随系统，点一下即时切换。',
     TOUR_STEP_SETTINGS_UI_SCALE: 'UI 大小：拖动滑块整体调大调小界面文字和按钮。',
     TOUR_STEP_SETTINGS_LOGOUT: '页底「退出登录」，注销账户也在这里。',

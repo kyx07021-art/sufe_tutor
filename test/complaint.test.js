@@ -151,16 +151,17 @@ const FILES = [
   'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
   'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-style.js', 'app-onboard.js', 'app-region.js',
   'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
-  'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
+  'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-complaints.js', 'app-shell.js', 'app-auth.js',
 ];
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
-function makeCtx({ mineRows = [] } = {}) {
+function makeCtx({ mineRows = [], myComplaints = [], recentByType = {}, searchRows = [] } = {}) {
   const html = readFileSync('./index.html', 'utf8')
     .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
   const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously' });
   const w = dom.window;
   const posts = []; // 记录 POST 提交（feedback 创建）
+  const complaints = []; // 记录 POST 提交（投诉创建）
   const ctx = vm.createContext({
     window: w, document: w.document,
     getComputedStyle: w.getComputedStyle.bind(w),
@@ -173,6 +174,18 @@ function makeCtx({ mineRows = [] } = {}) {
         return { ok: true, status: 201, json: async () => ({ ok: true }) };
       }
       if (u === '/api/feedbacks/mine') return { ok: true, status: 200, json: async () => ({ feedbacks: mineRows }) };
+      if (u === '/api/complaints' && opts.method === 'POST') {
+        complaints.push({ body: JSON.parse(opts.body) });
+        return { ok: true, status: 201, json: async () => ({ ok: true }) };
+      }
+      if (u === '/api/complaints/mine') return { ok: true, status: 200, json: async () => ({ complaints: myComplaints }) };
+      if (u.startsWith('/api/complaints/recent')) {
+        const t = new URL(u, 'http://x').searchParams.get('target');
+        return { ok: true, status: 200, json: async () => ({ candidates: recentByType[t] || [] }) };
+      }
+      if (u.startsWith('/api/complaints/candidates')) {
+        return { ok: true, status: 200, json: async () => ({ candidates: searchRows }) };
+      }
       return { ok: true, status: 200, json: async () => ({}) };
     },
     setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
@@ -189,11 +202,13 @@ function makeCtx({ mineRows = [] } = {}) {
   vm.runInContext(`
     state.user = { id: 1, role: 'student', username: 's' };
     window.APP_CONSTANTS = globalThis.APP_CONSTANTS;
-    ['openFeedbackModal','switchFeedbackKind','submitFeedback','openMyFeedback','enterAbout','closeModal'].forEach(function (k) {
+    ['openFeedbackModal','switchFeedbackKind','submitFeedback','openMyFeedback','enterAbout','closeModal',
+     'openComplaintModal','switchComplaintTab','switchComplaintReason','pickComplaintTarget','clearComplaintTarget',
+     'complaintSearchInput','complaintSearch','submitComplaint','openMyComplaints'].forEach(function (k) {
       if (typeof globalThis[k] === 'function') window[k] = globalThis[k];
     });
   `, ctx);
-  return { dom, ctx, posts };
+  return { dom, ctx, posts, complaints };
 }
 
 const MINE = [
@@ -201,57 +216,119 @@ const MINE = [
   { id: 2, kind: 'bug', subject: '', title: '闪退', content: '打开就退', status: 'resolved', created_at: '2026-08-08 09:00:00' },
 ];
 
-test('关于平台：支持卡三按钮（反馈/投诉/我的反馈）', async () => {
+test('关于平台：支持卡四按钮（反馈/投诉/我的投诉/我的反馈）', async () => {
   const { dom, ctx } = makeCtx();
   const doc = dom.window.document;
   await vm.runInContext(`state.page = 'about'; enterAbout()`, ctx);
   const btns = [...doc.querySelectorAll('.about-feedback-btns button')];
-  assert.equal(btns.length, 3, '三个入口按钮');
+  assert.equal(btns.length, 4, '四个入口按钮');
   assert.equal(btns[0].textContent, globalThis.APP_CONSTANTS.UI.BTN_FEEDBACK);
   assert.equal(btns[1].textContent, globalThis.APP_CONSTANTS.UI.BTN_COMPLAINT);
-  assert.equal(btns[2].textContent, globalThis.APP_CONSTANTS.UI.BTN_MY_FEEDBACK);
+  assert.equal(btns[2].textContent, globalThis.APP_CONSTANTS.UI.BTN_MY_COMPLAINTS);
+  assert.equal(btns[3].textContent, globalThis.APP_CONSTANTS.UI.BTN_MY_FEEDBACK);
 });
 
-test('投诉浮窗：对象行仅投诉档显示；标题与占位随档切换', async () => {
+test('R22 投诉独立浮窗：三 tab + pane 显隐 + 理由 pill；反馈浮窗已无投诉档', async () => {
   const { dom, ctx } = makeCtx();
   const doc = dom.window.document;
-  await vm.runInContext(`openFeedbackModal('complaint')`, ctx);
-  const subj = doc.getElementById('feedback-subject-row');
-  assert.ok(subj && !subj.classList.contains('hidden'), '投诉档对象行可见');
-  assert.equal(doc.getElementById('feedback-modal-title').textContent, globalThis.APP_CONSTANTS.UI.FEEDBACK_MODAL_TITLE_COMPLAINT);
-  assert.equal(doc.querySelectorAll('.feedback-kind-row .seg-tab').length, 3, '三段选项卡（Bug/建议/投诉）');
-  assert.equal(doc.getElementById('post-body').placeholder, globalThis.APP_CONSTANTS.UI.FEEDBACK_COMPLAINT_PLACEHOLDER, '投诉占位专属');
-  await vm.runInContext(`switchFeedbackKind('suggestion')`, ctx);
-  assert.ok(subj.classList.contains('hidden'), '切建议档对象行隐藏');
-  assert.equal(doc.getElementById('feedback-modal-title').textContent, globalThis.APP_CONSTANTS.UI.FEEDBACK_MODAL_TITLE_SUGGEST);
-});
-
-test('普通建议档打开：对象行默认隐藏', async () => {
-  const { dom, ctx } = makeCtx();
-  const doc = dom.window.document;
-  await vm.runInContext(`openFeedbackModal('suggestion')`, ctx);
-  const subj = doc.getElementById('feedback-subject-row');
-  assert.ok(subj.classList.contains('hidden'), '建议档对象行隐藏');
-});
-
-test('投诉提交：POST 带 kind=complaint + subject；建议提交不带 subject', async () => {
-  const { dom, ctx, posts } = makeCtx();
-  const doc = dom.window.document;
-  await vm.runInContext(`openFeedbackModal('complaint')`, ctx);
-  doc.getElementById('post-title').value = '老师迟到';
-  doc.getElementById('post-body').value = '多次迟到';
-  await vm.runInContext(`submitFeedback()`, ctx);
+  const UI = globalThis.APP_CONSTANTS.UI;
+  await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
-  assert.equal(posts.length, 1);
-  assert.deepEqual(posts[0].body, { kind: 'complaint', title: '老师迟到', content: '多次迟到', subject: 'teacher' }, '默认对象 teacher');
-  assert.equal(doc.getElementById('modal-container').innerHTML, '', '提交后浮窗关闭');
-
+  assert.equal(doc.getElementById('complaint-modal-title').textContent, UI.COMPLAINT_MODAL_TITLE);
+  const tabs = doc.querySelectorAll('.complaint-tabs .seg-tab');
+  assert.equal(tabs.length, 3, '投诉教师/学生/帖子三段');
+  assert.equal(tabs[0].textContent, UI.COMPLAINT_TAB_TEACHER);
+  assert.ok(!doc.getElementById('cmp-pane-teacher').classList.contains('hidden'), '教师 pane 默认可见');
+  assert.ok(doc.getElementById('cmp-pane-student').classList.contains('hidden'), '学生 pane 初始隐藏');
+  assert.ok(doc.getElementById('cmp-pane-post').classList.contains('hidden'), '帖子 pane 初始隐藏');
+  assert.equal(doc.querySelectorAll('.complaint-reasons .seg-tab').length, UI.COMPLAINT_REASONS.length, '理由 pill 与白名单一致');
+  // 切学生 tab：pane 显隐互斥
+  await vm.runInContext(`switchComplaintTab('student')`, ctx);
+  assert.ok(!doc.getElementById('cmp-pane-student').classList.contains('hidden'), '学生 pane 显示');
+  assert.ok(doc.getElementById('cmp-pane-teacher').classList.contains('hidden'), '教师 pane 隐藏');
+  // 反馈浮窗不再含投诉档（组件隔离）
   await vm.runInContext(`openFeedbackModal('bug')`, ctx);
-  doc.getElementById('post-title').value = '闪退';
-  doc.getElementById('post-body').value = '打开就退';
-  await vm.runInContext(`submitFeedback()`, ctx);
+  assert.equal(doc.querySelectorAll('.feedback-kind-row .seg-tab').length, 2, '反馈仅 Bug/建议两档');
+  assert.ok(!doc.getElementById('feedback-subject-row'), '反馈浮窗已无投诉对象行');
+});
+
+test('R22 最近联系的人：打开后按 tab 拉取并渲染 chips', async () => {
+  const { dom, ctx } = makeCtx({ recentByType: { teacher: [{ id: 7, name: '李老师', subtitle: '教师', role: 'teacher' }] } });
+  const doc = dom.window.document;
+  await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
-  assert.deepEqual(posts[1].body, { kind: 'bug', title: '闪退', content: '打开就退', subject: '' }, '非投诉 subject 恒空');
+  const chips = doc.querySelectorAll('#cmp-recent-teacher .cmp-chip');
+  assert.equal(chips.length, 1, '最近交互教师 chip');
+  assert.ok(chips[0].textContent.includes('李老师'));
+});
+
+test('R22 对象选择与提交：选对象 + 理由 → POST /api/complaints；未选对象拦截', async () => {
+  const { dom, ctx, complaints } = makeCtx();
+  const doc = dom.window.document;
+  const UI = globalThis.APP_CONSTANTS.UI;
+  await vm.runInContext(`openComplaintModal()`, ctx);
+  await tick();
+  // 未选对象提交 → 拦截提示，不发请求
+  await vm.runInContext(`switchComplaintReason(0); submitComplaint()`, ctx);
+  assert.equal(complaints.length, 0, '未选对象不发请求');
+  assert.ok(doc.getElementById('complaint-alert').textContent.includes(UI.COMPLAINT_TARGET_REQUIRED), '未选对象提示');
+  // 选对象（教师 tab）+ 理由 + 详情 → 提交
+  await vm.runInContext(`pickComplaintTarget('teacher', 5, { dataset: { name: '李老师' } })`, ctx);
+  assert.ok(doc.getElementById('cmp-selected-teacher').textContent.includes('李老师'), '选中区显示对象名');
+  doc.getElementById('complaint-detail').value = '多次迟到';
+  await vm.runInContext(`submitComplaint()`, ctx);
+  await tick();
+  assert.equal(complaints.length, 1, '提交一次');
+  assert.deepEqual(complaints[0].body, { targetType: 'teacher', targetId: 5, reason: UI.COMPLAINT_REASONS[0], detail: '多次迟到' });
+  assert.equal(doc.getElementById('modal-container').innerHTML, '', '提交后浮窗关闭');
+});
+
+test('R22 对象按 tab 隔离：学生 tab 选择不影响教师 tab，提交当前 tab', async () => {
+  const { dom, ctx, complaints } = makeCtx();
+  const doc = dom.window.document;
+  const UI = globalThis.APP_CONSTANTS.UI;
+  await vm.runInContext(`openComplaintModal()`, ctx);
+  await tick();
+  await vm.runInContext(`pickComplaintTarget('teacher', 5, { dataset: { name: '李老师' } })`, ctx);
+  await vm.runInContext(`switchComplaintTab('student'); pickComplaintTarget('student', 9, { dataset: { name: '王同学' } })`, ctx);
+  await vm.runInContext(`switchComplaintReason(1); submitComplaint()`, ctx);
+  await tick();
+  assert.deepEqual(complaints[0].body, { targetType: 'student', targetId: 9, reason: UI.COMPLAINT_REASONS[1], detail: '' }, '提交当前 tab 的选中对象');
+});
+
+test('R22 对象搜索：候选渲染 + 点击选中后清空结果', async () => {
+  const { dom, ctx } = makeCtx({ searchRows: [{ id: 3, name: '赵老师', subtitle: '教师', role: 'teacher' }] });
+  const doc = dom.window.document;
+  await vm.runInContext(`openComplaintModal()`, ctx);
+  await tick();
+  await vm.runInContext(`complaintSearch('teacher', '赵')`, ctx);
+  await tick();
+  const items = doc.querySelectorAll('#cmp-results-teacher .cmp-result');
+  assert.equal(items.length, 1, '候选渲染');
+  await vm.runInContext(`pickComplaintTarget('teacher', 3, { dataset: { name: '赵老师' } })`, ctx);
+  assert.ok(doc.getElementById('cmp-selected-teacher').textContent.includes('赵老师'));
+  assert.equal(doc.getElementById('cmp-results-teacher').innerHTML, '', '选中后清空搜索结果');
+});
+
+test('R22 我的投诉：渲染对象/理由/状态；空态', async () => {
+  const { dom, ctx } = makeCtx({ myComplaints: [
+    { id: 1, target_type: 'teacher', target_snapshot: { name: '李老师' }, reason: '虚假信息或欺诈', detail: '多次迟到', status: 'open', created_at: '2026-08-09 10:00:00' },
+  ] });
+  const doc = dom.window.document;
+  const UI = globalThis.APP_CONSTANTS.UI;
+  await vm.runInContext(`openMyComplaints()`, ctx);
+  await tick();
+  const cards = doc.querySelectorAll('.my-complaints-list .complaint-card');
+  assert.equal(cards.length, 1, '一条投诉');
+  assert.ok(cards[0].textContent.includes('李老师'), '对象名');
+  assert.ok(cards[0].textContent.includes('虚假信息或欺诈'), '理由');
+  assert.ok(cards[0].textContent.includes(UI.COMPLAINT_STATUS_OPEN), '状态处理中');
+  assert.ok(cards[0].textContent.includes('多次迟到'), '详情');
+  // 空态
+  const { dom: dom2, ctx: ctx2 } = makeCtx({ myComplaints: [] });
+  await vm.runInContext(`openMyComplaints()`, ctx2);
+  await tick();
+  assert.ok(dom2.window.document.querySelector('.my-complaints-list').textContent.includes(UI.COMPLAINT_MINE_EMPTY), '空态文案');
 });
 
 test('我的反馈浮窗：渲染类型/对象/状态 tag + Markdown 正文；空态', async () => {

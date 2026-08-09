@@ -21,13 +21,16 @@
 // 选中块滑动（侧边栏大黑块 + 沟通页会话选中块共用；容器须 position:relative，pill 为直接子元素。
 // 选中项自身有展开动效，故用 rAF 逐帧追真实布局，保证指示块与退让的栏目严格同步）
 // ============================================================
+// v0.25.87 重构（R2）：pill 几何改 CSS 变量驱动——JS 只写 --pill-top/--pill-height，
+// 位置/高度消费在 CSS 呈现层（同 --ui-scale 单源思路），不再直写 style.top/height。
+// 好处：字体/布局触发 reflow 时 pill 与内容同帧；且可被 CSS transition 接管（见 glidePill）。
 function syncPillOnce(pill, container, itemSel) {
   if (!pill || !container) return;
   const a = container.querySelector(itemSel + '.active');
-  if (!a) { pill.style.opacity = '0'; return; }
-  pill.style.opacity = '1';
-  pill.style.top = a.offsetTop + 'px';
-  pill.style.height = a.offsetHeight + 'px';
+  if (!a) { pill.style.setProperty('opacity', '0'); return; }
+  pill.style.setProperty('opacity', '1');
+  pill.style.setProperty('--pill-top', a.offsetTop + 'px');
+  pill.style.setProperty('--pill-height', a.offsetHeight + 'px');
 }
 function glidePill(pill, container, itemSel, dur = CONFIG.GLIDE_MS) {
   if (!pill || !container) return;
@@ -44,11 +47,15 @@ window.addEventListener('resize', () => {
   if (typeof syncChatPill === 'function') syncChatPill();
 });
 // v0.25.25 UI 大小滑块（需求六·item5）：--ui-scale 变化改 rem 字号 → 卡片高度变化，
-// 但指示块 top/height 是 JS 测的 px，resize 事件不覆盖滑块路径——由 app-state setUiScale 发
+// 但指示块几何是 JS 测的 px，resize 事件不覆盖滑块路径——由 app-state setUiScale 发
 // sufe:ui-scale 事件触发同样重对齐（含沟通页会话选中块）。分层：state 发 → anim 收。
+// v0.25.87 重构（R2）：测量改 rAF 渲染帧——事件触发时 item padding 尚在过渡中间态，
+// 同步量会拿到旧/中值（拖动时乱窜根因）。rAF 下一帧几何已稳定，与 CSS 布局同帧对齐。
 window.addEventListener('sufe:ui-scale', () => {
-  syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
-  if (typeof syncChatPill === 'function') syncChatPill();
+  requestAnimationFrame(() => {
+    syncPillOnce(document.getElementById('sidebar-pill'), document.getElementById('sidebar-nav'), '.sidebar-item');
+    if (typeof syncChatPill === 'function') syncChatPill();
+  });
 });
 
 // ============================================================

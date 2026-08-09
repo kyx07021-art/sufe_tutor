@@ -254,3 +254,63 @@ test('时间组件：输入清洗与钳制（onSegmentInput/clampSegment/applyTi
   assert.equal(hh.value, '18');
   assert.equal(mm.value, '00');
 });
+
+test('时间组件：左右键跨分隔符跳到相邻段（v0.25.87 R4）', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  const container = mount(doc);
+  container.innerHTML = fns.renderTimeSlotContainerHtml();
+  fns.addTimeSlot(container.querySelector('.time-add-btn'));
+  const row = container.querySelector('.time-slot');
+  const hh = row.querySelector('.time-field[data-time-role="start"] .slot-time-hh');
+  const mm = row.querySelector('.time-field[data-time-role="start"] .slot-time-mm');
+  hh.value = '12'; mm.value = '34';
+
+  const fire = (inp, key, caretStart, caretEnd) => {
+    const ev = new dom.window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    Object.defineProperty(ev, 'target', { value: inp, configurable: true });
+    Object.defineProperty(inp, 'selectionStart', { value: caretStart, configurable: true });
+    Object.defineProperty(inp, 'selectionEnd', { value: caretEnd, configurable: true });
+    fns.guardSegmentKey(ev);
+    return ev;
+  };
+
+  // 光标在 hh 末尾 → ArrowRight 跨冒号跳到 mm 开头
+  const evR = fire(hh, 'ArrowRight', 2, 2);
+  assert.equal(evR.defaultPrevented, true, '段尾 ArrowRight 被接管（跨冒号）');
+  assert.equal(doc.activeElement, mm, '焦点跳到分位');
+  // 光标在 mm 开头 → ArrowLeft 跨冒号跳回 hh 末尾
+  const evL = fire(mm, 'ArrowLeft', 0, 0);
+  assert.equal(evL.defaultPrevented, true, '段首 ArrowLeft 被接管（跨冒号）');
+  assert.equal(doc.activeElement, hh, '焦点跳回时位');
+  // 段内移动（非边界）不接管
+  const evMid = fire(hh, 'ArrowLeft', 1, 1);
+  assert.equal(evMid.defaultPrevented, false, '段内 ArrowLeft 不接管（光标不越段）');
+  const evMidR = fire(mm, 'ArrowRight', 1, 1);
+  assert.equal(evMidR.defaultPrevented, false, '段内 ArrowRight 不接管（光标不越段）');
+});
+
+test('时间组件：框选 Backspace/Delete 正常删选区内数字（v0.25.87 R9）', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  const inp = doc.createElement('input');
+  inp.className = 'slot-time-hh';
+  inp.value = '12';
+  doc.body.appendChild(inp);
+  const fire = (key, caretStart, caretEnd) => {
+    const ev = new dom.window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    Object.defineProperty(ev, 'target', { value: inp, configurable: true });
+    Object.defineProperty(inp, 'selectionStart', { value: caretStart, configurable: true });
+    Object.defineProperty(inp, 'selectionEnd', { value: caretEnd, configurable: true });
+    fns.guardSegmentKey(ev);
+    return ev;
+  };
+  // 框选两位（光标 0→2）后 Backspace/Delete：放行（浏览器删选区，冒号独立元素不受影响）
+  assert.equal(fire('Backspace', 0, 2).defaultPrevented, false, '框选全段 Backspace 放行');
+  assert.equal(fire('Delete', 0, 2).defaultPrevented, false, '框选全段 Delete 放行');
+  // 框选单字符
+  assert.equal(fire('Backspace', 0, 1).defaultPrevented, false, '框选单字符 Backspace 放行');
+  // 框选后输入数字（替换选区）放行
+  const ev = fire('5', 0, 2);
+  assert.equal(ev.defaultPrevented, false, '框选后数字替换放行');
+});

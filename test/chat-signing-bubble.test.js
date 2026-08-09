@@ -96,29 +96,29 @@ test('signing_response：sender=回应方 → 按查看者视角对齐回应方�
   assert.ok(!theirs.includes('chat-bubble--system'), '回应气泡不再用系统条');
 });
 
-test('#150 签约确认后：提示卡渲染在签约请求气泡底下（status=signed），拒绝态不渲染', () => {
+test('R8 签约确认后：提示合并进请求气泡内部（status=signed），拒绝态不渲染（v0.25.87）', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
-  // 已确认签约：气泡底下出现「已与对方确认签约 + 起草合同」提示卡
+  // 已确认签约：status 区显示「已与对方确认签约」+ 气泡内「起草合同」按钮 + funds 声明一体
   const signed = render(ctx, {
     kind: 'signing_request', sender_user_id: 2, id: 16, created_at: '2026-08-08 12:00:00',
     body: JSON.stringify({ id: '7', price: 150, schedule: '每周六晚', method: 'offline', status: 'signed' }),
   });
-  assert.ok(signed.includes('signing-bubble-caption'), '已签约气泡底下渲染提示卡（.signing-bubble-caption）');
-  assert.ok(signed.includes('signing-bubble-caption-text'), '提示卡文案独立元素');
-  assert.ok(signed.includes('onclick="chatPlusDraft()"'), '提示卡带「起草合同」直达按钮');
-  assert.ok(signed.includes('已与对方确认签约'), '提示文案（单源 UI.CHAT_SIGN_TIP）');
+  assert.ok(!signed.includes('signing-bubble-caption'), '独立灰色小组件已废除（R8：合并进气泡内）');
+  assert.ok(signed.includes('已与对方确认签约'), 'status 区显示签约提示文案（单源 UI.CHAT_SIGN_TIP）');
+  assert.ok(signed.includes('onclick="chatPlusDraft()"'), '气泡内「起草合同」直达按钮');
+  assert.ok(signed.includes('signing-bubble-funds'), '平台费用声明仍在气泡内（已签约提醒一体）');
   assert.ok(signed.includes('signing-bubble--done'), '气泡整体变灰（终态）');
-  assert.ok(!signed.includes('signing-bubble-actions'), '已终态无确认/拒绝按钮');
-  // 已拒绝：只显示拒绝终态小灰字，不渲染提示卡
+  // 已拒绝：只显示拒绝终态小灰字，无起草按钮
   const rejected = render(ctx, {
     kind: 'signing_request', sender_user_id: 2, id: 17, created_at: '2026-08-08 12:00:00',
     body: JSON.stringify({ id: '8', price: 150, schedule: '每周六晚', method: 'offline', status: 'rejected' }),
   });
-  assert.ok(!rejected.includes('signing-bubble-caption'), '拒绝态不渲染提示卡');
+  assert.ok(!rejected.includes('chatPlusDraft()'), '拒绝态无起草按钮');
+  assert.ok(!rejected.includes('已与对方确认签约'), '拒绝态无签约提示文案');
 });
 
-test('#150 chatInjectSignCaption：配对 data-signing-id 注入提示卡且幂等、防选择器注入', () => {
+test('R8 chatInjectSignCaption：配对 data-signing-id 气泡内挂「起草合同」按钮且幂等、防选择器注入（v0.25.87）', () => {
   const { ctx, dom } = makeCtx();
   vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
   const html = render(ctx, {
@@ -129,22 +129,25 @@ test('#150 chatInjectSignCaption：配对 data-signing-id 注入提示卡且幂�
   box.innerHTML = html;
   dom.window.document.body.appendChild(box);
   vm.runInContext(`chatInjectSignCaption('9')`, ctx);
-  const caption = box.querySelector('.signing-bubble-caption');
-  assert.ok(caption, '注入后气泡底下出现提示卡');
-  assert.equal(caption.querySelector('.signing-bubble-caption-text').textContent,
-    vm.runInContext('UI.CHAT_SIGN_TIP', ctx), '文案单源（沙箱内 UI 常量）');
-  assert.equal(caption.querySelector('button').textContent,
-    vm.runInContext('UI.CHAT_BTN_DRAFT_CONTRACT', ctx), '按钮文案单源（沙箱内 UI 常量）');
-  vm.runInContext(`chatInjectSignCaption('9')`, ctx);
-  assert.equal(box.querySelectorAll('.signing-bubble-caption').length, 1, '幂等：不重复注入');
+  const btns = [...box.querySelectorAll('.signing-bubble-actions button')];
+  const draftBtn = btns.find(b => b.textContent === vm.runInContext('UI.CHAT_BTN_DRAFT_CONTRACT', ctx));
+  assert.ok(draftBtn, '注入后气泡内出现「起草合同」按钮');
+  assert.equal(btns.filter(b => b.textContent === vm.runInContext('UI.CHAT_BTN_DRAFT_CONTRACT', ctx)).length, 1, '幂等：不重复注入起草按钮');
   vm.runInContext(`chatInjectSignCaption('abc')`, ctx);
-  assert.equal(box.querySelectorAll('.signing-bubble-caption').length, 1, '非纯数字 id 拒绝注入（防选择器注入）');
+  assert.equal(btns.filter(b => b.textContent === vm.runInContext('UI.CHAT_BTN_DRAFT_CONTRACT', ctx)).length, 1, '非纯数字 id 拒绝注入（防选择器注入）');
 });
 
-test('contract 事件气泡：保留居中系统条（非交互通知的有意例外）', () => {
+test('contract 事件气泡：对应用户一侧普通气泡（R3：不再居中系统条）', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
-  const html = render(ctx, { kind: 'contract', sender_user_id: 1, id: 15, created_at: '2026-08-08 12:00:00', body: '' });
-  assert.ok(html.includes('chat-msg--system') && html.includes('chat-bubble--system'),
-    '合同事件仍为居中系统条（风格统一的有意例外）');
+  // 起草方（mine）：右侧普通气泡，非居中系统条
+  const mine = render(ctx, { kind: 'contract', sender_user_id: 1, id: 15, created_at: '2026-08-08 12:00:00', body: '' });
+  assert.ok(mine.includes('chat-msg--mine') && mine.includes('chat-bubble--mine'),
+    '起草方合同消息走右侧用户气泡');
+  assert.ok(!mine.includes('chat-msg--system') && !mine.includes('chat-bubble--system'),
+    '不再居中系统条（v0.25.87 R3 用户反馈：融入消息流）');
+  // 接收方（theirs）：左侧普通气泡
+  const theirs = render(ctx, { kind: 'contract', sender_user_id: 2, id: 16, created_at: '2026-08-08 12:00:00', body: '' });
+  assert.ok(theirs.includes('chat-msg--theirs') && theirs.includes('chat-bubble--theirs'),
+    '接收方合同消息走左侧用户气泡');
 });

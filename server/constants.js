@@ -14,8 +14,8 @@
 // ============================================================
 // 业务常量
 // ============================================================
-export const INITIAL_RATING = 4.0;   // 新教师初始评分（评价通过时做加权平均）
-export const INITIAL_WEIGHT = 10;    // 初始评分权重
+export const INITIAL_RATING = 4.5;   // 新教师初始评分（R16：默认评分 4.0→4.5，评价通过时做加权平均）
+export const INITIAL_WEIGHT = 10;    // 初始评分权重（R16：保持 10 不变）
 export const INVITE_GATE_ENABLED = false; // 教师注册邀请码门控。内测期有意沉默（false=教师免邀请码直接注册）：当前为内测阶段，
 // 开放注册便于产品验证与教师侧体验，非遗漏（网安报告 F-05 曾要求邀请码门控，内测后有意关闭）。
 // 公测上线前必须置回 true，并同步把前端 constants.js 的 INVITE_GATE_DORMANT 改为 false，届时此处注释同步删除。
@@ -117,6 +117,8 @@ export const MSG = {
   CONTRACT_CANCEL_SIGNED_BLOCKED: '对方已确认签约，无法再取消签约；如要结束合作请双方协商后走「撤销合同」',
   CONTRACT_NOT_FOUND: '合同不存在',
   CONTRACT_STATE_INVALID: '合同当前状态不允许该操作',
+  CONTRACT_LOCKED_AFTER_SIGN: '你已确认签约，合同内容锁定不可修改；如需变更请双方协商后重新起草', // v0.25.87 R6：已确认方禁改
+  CONTRACT_ALREADY_REVOKED: '合同已撤销，无需重复操作', // v0.25.87 R7：撤销幂等拒绝
   CONTRACT_MODIFIED_CONFLICT: '合同已被对方修改，请关闭后重新打开查看最新版本',
   SIGNING_ALREADY_RESPONDED: '该签约请求已处理，请勿重复操作',
   SIGNING_ALREADY_PENDING: '该会话已有待处理的签约请求，请等待对方确认后再发起',
@@ -144,6 +146,14 @@ export const MSG = {
   REVIEW_APPROVED: '评价已通过',
   REVIEW_REJECTED: '评价已拒绝',
   REVIEW_DELETED: '评价已删除',
+
+  // 投诉（R22 独立通道）
+  COMPLAINT_TARGET_REQUIRED: '请选择要投诉的对象',
+  COMPLAINT_REASON_REQUIRED: '请选择投诉理由',
+  COMPLAINT_TARGET_NOT_FOUND: '投诉对象不存在',
+  COMPLAINT_SELF_FORBIDDEN: '不能投诉自己',
+  COMPLAINT_DAILY_LIMIT: '今日投诉次数已达上限，请明天再试',
+  COMPLAINT_NOT_FOUND: '投诉不存在',
 
   // 登录设备（会话）
   SESSION_NOT_FOUND: '该设备的登录状态不存在或已失效',
@@ -197,6 +207,11 @@ export const LIMITS = {
   // 内容
   POST_BODY_MAX: 20000,    // 帖子/广播正文
   FEEDBACK_BODY_MAX: 5000, // 反馈正文
+  COMPLAINT_DETAIL_MAX: 2000, // 投诉补充描述（R22）
+  COMPLAINT_DAILY_LIMIT: 5,   // 投诉每日上限（防滥用）
+  COMPLAINT_MINE_MAX: 100,    // 我的投诉列表上限
+  COMPLAINT_ADMIN_MAX: 200,   // 管理端投诉列表上限
+  COMPLAINT_CANDIDATE_MAX: 8, // 投诉对象候选搜索上限
   NOTIF_TEXT_MAX: 200,     // 单条通知截断
   BROADCAST_TEXT_MAX: 2000,// 系统广播截断
   DEVICE_UA_MAX: 200,      // 留档 UA 截断

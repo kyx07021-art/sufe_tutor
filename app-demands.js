@@ -609,20 +609,21 @@ function renderDemandCard(d, opts = {}) {
   const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
   const method = DISP.methodName(d.teaching_method) || DISP.methodName('offline');
   // 教师视角：意向按钮四态（未提交 / 待处理 / 已建立联系 / 未获选），状态取自列表接口的 my_intent_status
+  // R11：四态统一 .btn-soft 轻量描边外观（与编辑/推送动作同族，白卡/灰底都可见）
   const teacherIntentBtn = !teacher ? ''
-    : d.my_intent_status === STATUS.ACCEPTED ? `<button type="button" class="btn btn-sm btn-intent-ok glass glass--pressable" disabled>${UI.INTENT_ACCEPTED}</button>`
-    : d.my_intent_status === STATUS.PENDING  ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
-    : d.my_intent_status === STATUS.REJECTED ? `<button type="button" class="btn btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
-    : `<button type="button" class="btn btn-outline btn-sm glass glass--pressable btn-intent-cta" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
+    : d.my_intent_status === STATUS.ACCEPTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-ok glass glass--pressable" disabled>${UI.INTENT_ACCEPTED}</button>`
+    : d.my_intent_status === STATUS.PENDING  ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
+    : d.my_intent_status === STATUS.REJECTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
+    : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable btn-intent-cta" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
   // v0.25.12（反馈 #92）：推送需求操作按钮与提交意向统一 btn-sm 尺寸（原 btn-xs 是没复用组件的败笔），
   // 与说明文案一并下沉到底栏右下角
   const pushActions = !teacher || !push ? '' : `
-      <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
-      <button type="button" class="btn btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>`;
-  // 学生/管理员侧卡片操作（编辑/重开/下架）同归底栏右下角（统一 btn-sm）
-  const ownerActions = (editable && d.status === STATUS.REVOKED ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
-    : editable && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : '')
-    + (admin && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'accept')">${UI.BTN_PUSH_ACCEPT}</button>`;
+  // 学生/管理员侧卡片操作（编辑/重开/下架）同归底栏右下角（统一 btn-sm + R11 统一 .btn-soft 外观）
+  const ownerActions = (editable && d.status === STATUS.REVOKED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
+    : editable && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : '')
+    + (admin && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
   const budget = DISP.demandBudgetText(d);
 
   // 三行点号纯文字（同教师卡语言，行间细线分隔）：

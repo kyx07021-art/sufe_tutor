@@ -203,8 +203,7 @@ body { background: transparent; }
 .chat-bubble--theirs { --g-fill: var(--g-bubble-theirs); --g-fg: var(--ink); }
 /* v0.25.34：系统=中性胶囊（--g-fg 从 accent-deep 改 muted，去第三色相；圆角胶囊） */
 .chat-bubble--system { --g-fill: var(--g-bubble-system); --g-fg: var(--muted); --g-r: 999px; }
-.profile-card { --g-fill: var(--g-card-strong); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .5→.32 */
-.profile-card--id { --g-fill: var(--g-card-id); } /* v0.19.35 同上 .62→.44 */
+.profile-card { --g-fill: var(--g-card-id); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; } /* R15：资料右栏三卡统一底层组件——fill 从 .32 灰档统一到更白的 id 档（--g-card-id .44），底色不再偏灰；--id 变体类已删（卡片一致性由内容承担，不靠底色分层） */
 /* 按钮族 = 液态玻璃（v0.19.1）：透明染色透镜 + 微毛 + 弯月环。
    基类统一：微毛 blur(1px)（研究推荐）、平透染色填充、弯月环边缘、hover 白染叠层。
    ——白色光泽渐变已删：旧"高光按钮"的顶部白渐变与弯月上缘白对白，正是它盖住了液态边缘
@@ -221,6 +220,16 @@ body { background: transparent; }
 .btn-outline { --g-fg: var(--ink); }
 .btn-ghost { --g-fg: var(--muted); }
 .btn-text-danger { --g-fg: var(--danger-deep, #9B2C2C); padding: 6px 12px; }
+/* 需求十一·轻量描边按钮（R11：需求列表 编辑/试课意向 等卡片动作统一外观）：
+   较浅色 + 统一细边框 + 背景灰变白——白卡上靠发丝边界定、灰底上靠白调面浮起，两背景都可见。
+   与下拉/勾选/成绩 pill 同族：纯 token 换肤，零 per-variant 散件；
+   --g-btn-bg/--g-btn-line 主题双 token（液态包白调面+发丝边；flat 包 --g-fill-weak/--g-btn-line 对齐平面）。 */
+.btn-soft {
+  --g-fill: var(--g-btn-bg, var(--g-fill-weak));
+  --g-border: 1px solid var(--g-btn-line, var(--line));
+  --g-fg: var(--ink);
+  --g-lift: var(--glass-lift-sm);
+}
 /* 需求八·item4：平面简约下文字链按钮保持文字语义（不实心不描边），与实心按钮区分层级 */
 [data-style="flat"] .btn-link-inline,
 [data-style="flat"] .btn-text-danger { --g-btn-fill: transparent; --g-border: none; }
@@ -298,7 +307,11 @@ body { background: transparent; }
   box-shadow: var(--glass-lift-sm), var(--g-liquid-sm);
 }
 .form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(12px * var(--ui-scale, 1)); } /* 需求六·item5：输入控件水平内边距随滑块 */
-.form-input:focus, .chat-input:focus, .filter-select:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
+.form-input:focus, .chat-input:focus, .filter-select:focus, .custom-select-trigger:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
+/* R12：下拉触发器聚焦——圆角软环并入输入族（触发器本体圆角 9px，聚焦环随圆角而非直角 outline），
+   取代全局 :focus-visible 直角矩形描边（用户定性「紫色直角矩形」丑）；下拉选项键盘聚焦复用悬停高亮。 */
+.custom-select-trigger:focus, .custom-select-trigger:focus-visible, .custom-option:focus-visible { outline: none; }
+.custom-option:focus-visible { background: var(--g-option-hover); color: var(--ink); }
 
 /* v0.25.10 用户反馈（签约/起草弹窗「选择需求」下拉比其他下拉薄一大截）：.form-select 此前漏在控件族
    选择器外——无玻璃边缘、水平内边距仅 2px（文字贴边显薄条）。补齐玻璃边缘 + 12px 左内边距（右留箭头位 24px）。
@@ -359,8 +372,7 @@ body { background: transparent; }
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row, .chart-glass {
     --g-frost: var(--g-f-cardM, blur(4px) saturate(180%) brightness(1.05));
   }
-  .profile-card { --g-fill: var(--g-card-strong-m); } /* v0.19.35 层级白值：移动端侧栏近纯白底，卡不需 .82 叠白（token 化 v0.19.49） */
-  .profile-card--id { --g-fill: var(--g-card-id-m); }
+  .profile-card { --g-fill: var(--g-card-id-m); } /* R15：移动端三卡统一 id 档（原 .62/.75 两档分层删除，同桌面口径） */
 }
 @media (max-width: 860px) {
   .client-sidebar { background: var(--g-sidebar-bg-m); -webkit-backdrop-filter: none; backdrop-filter: none; }

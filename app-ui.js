@@ -123,8 +123,11 @@ function renderAvatarHtml(avatar, name, cls, profileUserId) {
   const inner = avatar
     ? `<img src="${escHtml(avatar)}" alt="" loading="lazy">`
     : escHtml((name || '?').charAt(0).toUpperCase());
-  const span = `<span class="avatar glass ${cls}${profileUserId ? ' avatar--link' : ''}"${avatar ? '' : ' aria-hidden="true"'}>${inner}</span>`;
-  if (!profileUserId) return span;
+  // R13：无 profileUserId 的头像 = 纯装饰组件——恒 aria-hidden（惰性、不可聚焦、无交互），
+  // 视觉/行为只随宿主（如教师卡整卡可点）；有 profileUserId 才成独立交互入口（avatar-btn）
+  const decorative = !profileUserId;
+  const span = `<span class="avatar glass ${cls}${profileUserId ? ' avatar--link' : ''}"${decorative ? ' aria-hidden="true"' : ''}>${inner}</span>`;
+  if (decorative) return span;
   return `<span class="avatar-btn" role="button" tabindex="0" title="${UI.PROFILE_PANEL_TITLE}" onclick="event.stopPropagation();openProfilePanel(${profileUserId})">${span}</span>`;
 }
 
@@ -328,8 +331,35 @@ function guardSegmentKey(e) {
     if (k === 'a' || k === 'c') return; // 复制/全选（只作用于分隔符单侧，无碍整体约束）
     e.preventDefault(); return;        // 其余组合键（含 Ctrl+V/X）一律拦截
   }
+  // v0.25.87 R4：左右键在段边界跨分隔符（:/~-）跳到相邻段——时间/日期多段组件常用导航
+  const t = e.target;
+  if (t && t.selectionStart != null) {
+    if (e.key === 'ArrowLeft' && t.selectionStart === 0 && t.selectionEnd === 0) {
+      const prev = segmentSibling(t, -1);
+      if (prev) { e.preventDefault(); prev.focus(); placeCaret(prev, prev.value.length); }
+      return;
+    }
+    if (e.key === 'ArrowRight' && t.selectionStart === t.value.length) {
+      const next = segmentSibling(t, 1);
+      if (next) { e.preventDefault(); next.focus(); placeCaret(next, 0); }
+      return;
+    }
+  }
   if (['Tab', 'Enter', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(e.key)) return;
   if (e.key.length === 1 && !/[0-9]/.test(e.key)) e.preventDefault(); // 单字符非数字拦截
+}
+
+// R4：同 field 内相邻数字段（时↔分、月↔日、日↔年；跨过冒号/横杠分隔符）。
+// 只在分隔符两侧的 .seg-input 间跳（时间栏 .time-hms / 日期栏 .seg-hms 容器内），不越出时间栏。
+function segmentSibling(inp, dir) {
+  const hms = inp.closest('.time-hms, .seg-hms');
+  if (!hms) return null;
+  const segs = [...hms.querySelectorAll('.seg-input')];
+  const idx = segs.indexOf(inp);
+  return segs[idx + dir] || null;
+}
+function placeCaret(inp, pos) {
+  try { inp.setSelectionRange(pos, pos); } catch { /* 部分环境不支持 setSelectionRange（早退） */ }
 }
 
 /** beforeinput 兜底（IME/移动端虚拟键盘不走 keydown）：拦截黏贴/拖入与非数字插入；删除放行（同 keydown 口径） */

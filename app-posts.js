@@ -377,13 +377,13 @@ async function submitBroadcast() {
 // —— 与发帖/广播同为「内容提交」领域，并入本模块（功能相近合并）
 // ============================================================
 let feedbackKind = 'bug';
+// R22（v0.25.87）：投诉已独立为 openComplaintModal（app-complaints.js），
+// 此处反馈浮窗仅保留 bug / 建议两档，complaint 档连根拔除。
 function openFeedbackModal(kind) {
   if (!ensureAuth()) return;
-  // #165（v0.25.73）：投诉通道——kind 白名单扩 complaint
-  feedbackKind = (kind === 'bug' || kind === 'complaint') ? kind : 'suggestion';
-  const feedbackPlaceholder = feedbackKind === 'complaint' ? UI.FEEDBACK_COMPLAINT_PLACEHOLDER : UI.FEEDBACK_PLACEHOLDER;
+  feedbackKind = (kind === 'bug') ? kind : 'suggestion';
   openModal({
-    title: `${feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : feedbackKind === 'complaint' ? UI.FEEDBACK_MODAL_TITLE_COMPLAINT : UI.FEEDBACK_MODAL_TITLE_SUGGEST}`,
+    title: feedbackKind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST,
     titleId: 'feedback-modal-title',
     closable: false,
     body: `<div id="post-alert"></div>
@@ -395,17 +395,8 @@ function openFeedbackModal(kind) {
         ${segTabsHtml([
           { key: 'bug', label: UI.BTN_FEEDBACK_BUG, onclick: "switchFeedbackKind('bug')" },
           { key: 'suggestion', label: UI.BTN_FEEDBACK_SUGGEST, onclick: "switchFeedbackKind('suggestion')" },
-          { key: 'complaint', label: UI.BTN_COMPLAINT, onclick: "switchFeedbackKind('complaint')" },
         ], feedbackKind, { containerClass: 'feedback-kind-row', attr: 'kind' })}
-        <div class="form-group${feedbackKind === 'complaint' ? '' : ' hidden'}" id="feedback-subject-row">
-          <label class="form-label" for="feedback-subject">${UI.FEEDBACK_COMPLAINT_SUBJECT_LABEL}</label>
-          <select id="feedback-subject" class="form-select" aria-label="${UI.FEEDBACK_COMPLAINT_SUBJECT_LABEL}">
-            <option value="teacher" selected>${UI.FEEDBACK_COMPLAINT_SUBJECT_TEACHER}</option>
-            <option value="student">${UI.FEEDBACK_COMPLAINT_SUBJECT_STUDENT}</option>
-            <option value="platform">${UI.FEEDBACK_COMPLAINT_SUBJECT_PLATFORM}</option>
-          </select>
-        </div>
-        ${mdEditorHtml({ rows: 7, placeholder: feedbackPlaceholder })}`,
+        ${mdEditorHtml({ rows: 7, placeholder: UI.FEEDBACK_PLACEHOLDER })}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitFeedback()">${UI.BTN_SEND}</button>`,
   });
@@ -415,11 +406,7 @@ function switchFeedbackKind(kind) {
   feedbackKind = kind;
   document.querySelectorAll('.feedback-kind-row .seg-tab').forEach(b => b.classList.toggle('active', b.dataset.kind === kind));
   const t = document.getElementById('feedback-modal-title');
-  if (t) t.textContent = kind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : kind === 'complaint' ? UI.FEEDBACK_MODAL_TITLE_COMPLAINT : UI.FEEDBACK_MODAL_TITLE_SUGGEST;
-  const subj = document.getElementById('feedback-subject-row');
-  if (subj) subj.classList.toggle('hidden', kind !== 'complaint'); // 投诉对象行仅投诉档显示
-  const ph = document.getElementById('post-body');
-  if (ph) ph.placeholder = kind === 'complaint' ? UI.FEEDBACK_COMPLAINT_PLACEHOLDER : UI.FEEDBACK_PLACEHOLDER;
+  if (t) t.textContent = kind === 'bug' ? UI.FEEDBACK_MODAL_TITLE_BUG : UI.FEEDBACK_MODAL_TITLE_SUGGEST;
 }
 
 async function submitFeedback() {
@@ -428,18 +415,10 @@ async function submitFeedback() {
   const alertEl = document.getElementById('post-alert');
   if (!title) { alertEl.innerHTML = alertHtml('error', UI.POST_TITLE_REQUIRED); return; }
   if (!content) { alertEl.innerHTML = alertHtml('error', UI.FEEDBACK_EMPTY); return; }
-  // #165：投诉档须带对象（非投诉恒空；服务端白名单二次把关）
-  const subject = feedbackKind === 'complaint'
-    ? (document.getElementById('feedback-subject')?.value || '')
-    : '';
-  if (feedbackKind === 'complaint' && !['teacher', 'student', 'platform'].includes(subject)) {
-    alertEl.innerHTML = alertHtml('error', UI.FEEDBACK_COMPLAINT_SUBJECT_REQUIRED);
-    return;
-  }
   try {
-    await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content, subject } });
+    await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
     closeModal();
-    showToast(feedbackKind === 'complaint' ? UI.FEEDBACK_COMPLAINT_SENT_TOAST : UI.FEEDBACK_SENT_TOAST);
+    showToast(UI.FEEDBACK_SENT_TOAST);
   } catch (err) {
     alertEl.innerHTML = alertHtml('error', err.message);
   }

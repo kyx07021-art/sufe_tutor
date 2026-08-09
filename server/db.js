@@ -41,6 +41,8 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   drafter_signed_at TEXT NOT NULL DEFAULT '',
   other_signed_at TEXT NOT NULL DEFAULT '',
   version INTEGER NOT NULL DEFAULT 0,
+  revoked INTEGER NOT NULL DEFAULT 0,   -- v0.25.87 R7：撤销标记（合同不删除，status 保持 signed）
+  revoked_by INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT (datetime('now','localtime')),
   updated_at DATETIME DEFAULT (datetime('now','localtime')),
   FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`;
@@ -296,6 +298,19 @@ export async function initDb(db, env = {}) {
       UNIQUE(post_id, user_id),
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // R22：投诉独立通道（与 feedbacks 分表分通道；target_snapshot = 被投诉对象快照防删后失标）
+    db.prepare(`CREATE TABLE IF NOT EXISTS complaints (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      target_type TEXT NOT NULL CHECK(target_type IN ('teacher','student','post')),
+      target_id INTEGER NOT NULL,
+      target_snapshot TEXT NOT NULL DEFAULT '{}',
+      reason TEXT NOT NULL DEFAULT '',
+      detail TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      resolved_at DATETIME,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     // 学生主动把需求推送给指定教师（与 demand_intents 方向相反；pending 时置顶 + 红点）
     db.prepare(`CREATE TABLE IF NOT EXISTS demand_pushes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -461,6 +476,9 @@ export async function initDb(db, env = {}) {
   // R2-5 存量教师单报价转区间（幂等）：price 列保留不动（重建表不值当），仅按旧价回填 min==max，
   // 防档案完整性门槛（price_min==null）误拦历史教师接单。price 列此后不再写入。
   await dbRun(db, `UPDATE teacher_profiles SET price_min=price, price_max=price WHERE price_min IS NULL AND price IS NOT NULL`);
+  // R16：默认评分 4.0→4.5 对所有用户生效——存量从未被评价的教师（rating_count=0，rating=旧默认）回填 4.5；
+  // 被评价过的保留实际加权分。幂等：回填后 rating=4.5 不再命中；新库新建即 4.5。
+  await dbRun(db, `UPDATE teacher_profiles SET rating=${INITIAL_RATING} WHERE rating_count = 0 AND rating < ${INITIAL_RATING}`);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"],
     ['intent_locked', 'INTEGER NOT NULL DEFAULT 0'], // 意向单接受锁：并发 accept 抢占（防同需求双 accepted 意向）
     // R2-b 需求侧扩充：需求类型（学科/非学科）/ 偏好老师性格 / 偏好老师性别
@@ -474,7 +492,10 @@ export async function initDb(db, env = {}) {
     ['prev_business', 'TEXT'], // v0.24.0 改动留痕：上次业务条款（前端 diff 高亮；签署确认后清空）
     // v0.25.37 签署合规：双方签署时间（空=未签；UTC SQLite 时间戳），签名区块内嵌正文据此渲染
     ['drafter_signed_at', "TEXT NOT NULL DEFAULT ''"],
-    ['other_signed_at', "TEXT NOT NULL DEFAULT ''"]]);
+    ['other_signed_at', "TEXT NOT NULL DEFAULT ''"],
+    // v0.25.87 R7：撤销标记（双方签后撤销合同：合同不删除，status 保持 signed，置 revoked 标记 + 撤销人）
+    ['revoked', 'INTEGER NOT NULL DEFAULT 0'],
+    ['revoked_by', 'INTEGER NOT NULL DEFAULT 0']]);
 
   // 存量需求编号补发：按 id（生成顺序）依次取号，四位展示自 0001 起；已编号跳过（幂等）
   const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');
@@ -610,6 +631,7 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
   await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM notifications WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM feedbacks WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM complaints WHERE user_id=?', [userId]); // R22：注销清理投诉记录
   await dbRun(db, 'DELETE FROM uploads WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM post_likes WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [userId]);
@@ -1293,6 +1315,83 @@ export async function dbGetFeedbackById(db, feedbackId) {
 
 export async function dbResolveFeedback(db, feedbackId) {
   await dbRun(db, `UPDATE feedbacks SET status='resolved' WHERE id=?`, [feedbackId]);
+}
+
+// ============================================================
+// R22 投诉独立通道（与 feedbacks 分表分通道；仅外层接口接管理员临时通路）
+// ============================================================
+export async function dbCreateComplaint(db, userId, targetType, targetId, snapshot, reason, detail) {
+  const res = await dbRun(db,
+    'INSERT INTO complaints (user_id, target_type, target_id, target_snapshot, reason, detail) VALUES (?,?,?,?,?,?)',
+    [userId, targetType, targetId, JSON.stringify(snapshot), reason, detail]);
+  return (res && res.meta && res.meta.last_row_id) || 0;
+}
+
+// 今日投诉计数（防滥用：COMPLAINT_DAILY_LIMIT/日）
+export async function dbCountComplaintsToday(db, userId) {
+  const row = await dbGet(db,
+    `SELECT COUNT(*) AS c FROM complaints WHERE user_id=? AND date(created_at)=date('now','localtime')`, [userId]);
+  return (row && row.c) || 0;
+}
+
+// 我的投诉（状态跟踪闭环；target_snapshot 单点反序列化）
+export async function dbGetComplaintsByUser(db, userId) {
+  const rows = await dbAll(db, `SELECT * FROM complaints WHERE user_id=? ORDER BY id DESC LIMIT ${LIMITS.COMPLAINT_MINE_MAX}`, [userId]);
+  return rows.map(mapComplaint);
+}
+
+export async function dbGetComplaintsAdmin(db, status) {
+  const where = (status === 'open' || status === 'resolved') ? ' WHERE c.status=?' : '';
+  const params = where ? [status] : [];
+  const rows = await dbAll(db,
+    'SELECT c.*, u.username AS reporter FROM complaints c JOIN users u ON u.id = c.user_id' + where
+    + ` ORDER BY c.id DESC LIMIT ${LIMITS.COMPLAINT_ADMIN_MAX}`, params);
+  return rows.map(mapComplaint);
+}
+
+function mapComplaint(row) {
+  let snapshot = {};
+  try { snapshot = JSON.parse(row.target_snapshot || '{}'); } catch { snapshot = {}; }
+  return { ...row, target_snapshot: snapshot };
+}
+
+export async function dbGetComplaintById(db, complaintId) {
+  const row = await dbGet(db, 'SELECT * FROM complaints WHERE id=?', [complaintId]);
+  return row ? mapComplaint(row) : null;
+}
+
+export async function dbResolveComplaint(db, complaintId) {
+  await dbRun(db, `UPDATE complaints SET status='resolved', resolved_at=datetime('now','localtime') WHERE id=?`, [complaintId]);
+}
+
+// —— 投诉对象候选：按角色搜用户（id 精确 / 昵称模糊），排除自己 ——
+export async function dbSearchUsersByRole(db, role, q, excludeId, limit = LIMITS.COMPLAINT_CANDIDATE_MAX) {
+  const num = /^\d+$/.test(q) ? +q : 0;
+  const like = `%${q}%`;
+  return await dbAll(db,
+    `SELECT id, username, role FROM users WHERE role=? AND id<>? AND (username LIKE ? OR (? > 0 AND id = ?))
+     ORDER BY id DESC LIMIT ${limit}`, [role, excludeId, like, num, num]);
+}
+
+// 最近交互用户（会话另一侧；type='teacher' 对教师 / 'student' 对学生；按最近消息时间排序）
+export async function dbRecentInteractions(db, userId, role, limit = LIMITS.COMPLAINT_CANDIDATE_MAX) {
+  return await dbAll(db,
+    `SELECT u.id, u.username, u.role, MAX(m.created_at) AS last_at
+     FROM conversations c
+     JOIN users u ON u.id = CASE WHEN c.student_user_id=? THEN c.teacher_user_id ELSE c.student_user_id END
+     JOIN messages m ON m.conversation_id = c.id
+     WHERE (c.student_user_id=? OR c.teacher_user_id=?) AND u.role=?
+     GROUP BY u.id ORDER BY last_at DESC LIMIT ${limit}`,
+    [userId, userId, userId, role]);
+}
+
+// 帖子候选：按标题模糊 / id 精确
+export async function dbSearchPosts(db, q, limit = LIMITS.COMPLAINT_CANDIDATE_MAX) {
+  const num = /^\d+$/.test(q) ? +q : 0;
+  const like = `%${q}%`;
+  return await dbAll(db,
+    `SELECT id, title, user_id FROM posts WHERE title LIKE ? OR (? > 0 AND id = ?)
+     ORDER BY id DESC LIMIT ${limit}`, [like, num, num]);
 }
 
 // ============================================================

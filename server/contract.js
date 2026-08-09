@@ -19,7 +19,7 @@ import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证�
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin,
-  dbDeleteContract, dbDeleteContractMessages,
+  dbDeleteContract, // v0.25.87 R7：取消/撤销不再删行（合同保留），仅 admin remove 用
   dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
 } from './db.js';
 import { notifyUser } from './notify.js';
@@ -455,6 +455,11 @@ export async function handleModifyContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
+  // v0.25.87 R6：我方已确认签约后关闭修改接口（对方/我方均不得再改自己已确认的合同）。
+  // 修改会重置双方确认（下方 drafter_confirmed=0/other_confirmed=0），已确认方改 = 变相撤回自己的
+  // 签署承诺 → 必须拒绝。未确认方在对方已签后可改（改后对方确认随之重置，符合协商预期）。
+  const myConfirmed = userId === ct.drafter_user_id ? !!ct.drafter_confirmed : !!ct.other_confirmed;
+  if (myConfirmed) return error(MSG.CONTRACT_LOCKED_AFTER_SIGN, 409);
   const ver = parseInt(body.version);
   if (!Number.isInteger(ver)) return error(MSG.INVALID_PARAMS, 400);
   // v0.24.0：修改弹窗只放出业务条款——提交的 md 即新业务部分，法律条款由服务端固定重拼（不可修改）
@@ -497,14 +502,22 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, me.id, [STATUS.SIGNED]); // 未签约的走取消流程
   if (g.err) return g.err;
   const { ct, conv } = g;
+  if (ct.revoked) return error(MSG.CONTRACT_ALREADY_REVOKED, 409); // 已撤销幂等拒绝
   if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403); // 二次认证（F-05）
-  const del = await dbDeleteContract(db, contractId);
-  if (!(del && del.meta && del.meta.changes > 0)) return error(MSG.CONTRACT_NOT_FOUND, 404); // 并发双撤销仅赢家执行清理与通知
-  await dbDeleteContractMessages(db, ct.conversation_id);
+  // v0.25.87 R7：撤销不删行——置 revoked 标记 + 撤销人 + 撤销时间，合同正文/台账保留存证；
+  // 双方列表仍见该合同，右上角状态 tag 显示红色「已撤销」。条件 UPDATE 并发守卫（双撤销仅赢家副作用）。
+  const upd = await dbRun(db,
+    `UPDATE contracts SET revoked=1, revoked_by=?, status='signed', version=version+1, updated_at=datetime('now','localtime')
+     WHERE id=? AND revoked=0`, [me.id, contractId]);
+  if (!(upd && upd.meta && upd.meta.changes > 0)) {
+    const cur = await dbGetContractById(db, contractId);
+    if (cur && cur.revoked) return error(MSG.CONTRACT_ALREADY_REVOKED, 409); // 并发已撤销
+    return error(MSG.CONTRACT_NOT_FOUND, 404);
+  }
   // v0.24.0 合同文档与需求解耦：撤销文档不再把需求置回 revoked（需求签约状态由签约请求驱动）
   await notifyUser(db, otherSide(conv, me.id), UIC.CONTRACT_REVOKED_NOTIFY.replace('{name}', nameOf(conv, me.id)));
   await logEvent(db, { action: 'contract.revoke', actorUserId: me.id, entity: 'contract', entityId: contractId,
-    detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, note: 'ledger_retained' }, req });
+    detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, note: 'contract_retained' }, req });
   return json({ ok: true });
 }
 
@@ -544,7 +557,12 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
   return json({ ok: true });
 }
 
-// DELETE /api/contracts/:id —— 取消签约：删合同 + 通知对方；会话保留
+// DELETE /api/contracts/:id —— 取消签约（v0.25.87 R7 重写：不再删行）
+// 分两种情况：
+//   ① 我方已签、对方未签：取消 → 弹窗+密码验证（前端），合同回退我方待签约态（status→pending、
+//      清我方 confirmed/signed_at）、合同保留干净——可重新签约。
+//   ② 双方均已签：本接口拒绝（409），引导走 POST /api/contracts/:id/revoke（撤销合同，同样不删行）。
+// 会话保留，需求状态保持 open（合同文档与需求解耦）。
 export async function handleCancelContract(db, contractId, body, req) {
   const { user: me, err: authErr } = await requireUser(db, req);
   if (authErr) return authErr;
@@ -552,17 +570,31 @@ export async function handleCancelContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
+  // 危险操作（取消签署承诺）：密码重认证换 capToken（同签约/撤销口径，网安 F-05）
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
 
-  // 状态条件删除做并发守卫：load 之后翻到 signed/revoked 的行拒删（签约后不可再取消，须走撤销合同）
-  const del = await dbDeleteContract(db, contractId, [STATUS.PENDING, STATUS.SIGNING]);
-  if (!(del && del.meta && del.meta.changes > 0)) {
-    if (await dbGetContractById(db, contractId)) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409); // 行仍在：状态已翻，非「并发已删」
-    return json({ ok: true }); // 行已不在：并发对方已先取消，赢家已通知，此处不重复副作用
+  // 我方已确认签约（pending 起草方除外——pending 态取消不涉签署承诺，仅撤销起草）：
+  const myCol = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
+  const theirCol = userId === ct.drafter_user_id ? 'other_confirmed' : 'drafter_confirmed';
+  const mySigned = userId === ct.drafter_user_id ? !!ct.drafter_confirmed : !!ct.other_confirmed;
+  const bothSigned = mySigned && (!!ct[theirCol]);
+  if (bothSigned) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409); // 双方已签：走撤销合同（revoke）
+
+  // 条件 UPDATE 并发守卫：AND 当前状态，changes=0 方重读幂等（对方并发签约/改态时不产生副作用）。
+  // 回退我方确认标志 + 签署时间，status 回 pending（对方未签则其确认本为空，保持）；
+  // 我方的已签时间一并清（回退到"待我签署"的干净态，可重新确认签约）。
+  const upd = await dbRun(db,
+    `UPDATE contracts SET ${myCol}=0,
+        ${userId === ct.drafter_user_id ? "drafter_signed_at=''" : "other_signed_at=''"},
+        status='pending', version=version+1, updated_at=datetime('now','localtime')
+     WHERE id=? AND status IN ('pending','signing')`, [contractId]);
+  if (!(upd && upd.meta && upd.meta.changes > 0)) {
+    const cur = await dbGetContractById(db, contractId);
+    if (cur && cur.status === STATUS.SIGNED && !cur.revoked) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409);
+    return json({ ok: true }); // 并发已取消：幂等返回
   }
-  // v0.24.0 合同文档与需求解耦：取消文档不再复位需求意向锁（intent_locked 机制已随
-  // 「会话不锁需求」删除——routes-demands.js 移除 dbLockDemandIntent）；需求状态保持 open
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId,
-    detail: { conversationId: ct.conversation_id, demandId: ct.demand_id }, req });
+    detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, rollbackTo: 'pending' }, req });
   return json({ ok: true });
 }

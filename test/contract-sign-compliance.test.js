@@ -22,7 +22,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { initLedgerTable, handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract } from '../server/contract.js';
+import { initLedgerTable, handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract } from '../server/contract.js';
 import { dbGetContractById } from '../server/db.js';
 import { tokenDigest } from '../server/crypto.js';
 
@@ -156,22 +156,69 @@ test('双方签署：status=signed + 正文双方已签署 + 台账两条 + veri
   assert.ok(data.entryList[0].createdAt, '条目含记档时间');
 });
 
-test('修改合同：清空 signed_at/confirmed，正文重建全部「待签署」（回退签约选择态）', async () => {
+test('修改合同（v0.25.87 R6）：已确认方禁改（409）；未确认方修改 → 清空 signed_at/confirmed 重建「待签署」', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { t1, d1, idOf, t1S } = await seed(db, raw);
+  const { t1, d1, idOf, t1S, s1S } = await seed(db, raw);
   assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
   await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
   const before = await dbGetContractById(db, 1);
-  assert.ok(before.drafter_signed_at, '修改前已签');
-  // 修改（乐观锁带 version）：业务条款变更 → 回退签约选择态
+  assert.ok(before.drafter_signed_at, '修改前起草方已签');
+  // R6：已确认方（起草方 t1）修改 → 409 拒绝（合同内容锁定）
   const ver = before.version;
-  const upd = await handleModifyContract(db, 1, { contractMd: '补基础+真题演练', version: ver }, reqOf(t1S.token));
+  const locked = await handleModifyContract(db, 1, { contractMd: '补基础+真题演练', version: ver }, reqOf(t1S.token));
+  assert.equal(locked.status, 409, '已确认方修改被拒');
+  // 未确认方（接收方 s1）修改 → 回退签约选择态（对方已签态被重置，符合协商预期）
+  const upd = await handleModifyContract(db, 1, { contractMd: '补基础+真题演练', version: ver }, reqOf(s1S.token));
   assert.equal(upd.status, 200);
   const after = await dbGetContractById(db, 1);
-  assert.equal(after.drafter_signed_at, '', '修改后签署时间清空');
+  assert.equal(after.drafter_signed_at, '', '修改后签署时间清空（含对方已签）');
   assert.equal(after.other_signed_at, '', '修改后签署时间清空');
   assert.equal(after.drafter_confirmed, 0, '确认标志回退');
   assert.ok(after.contract_md.includes('签署状态：待签署'), '正文重建全部待签署');
   assert.ok(after.contract_md.includes('补基础+真题演练'), '新业务条款生效');
   assert.ok(!after.contract_md.includes('已签署'), '旧签名区块被重拼丢弃');
+});
+
+test('R7 取消签约：我方已签对方未签 → 回退待签约、合同保留不删（v0.25.87）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1, d1, idOf, t1S, s1S } = await seed(db, raw);
+  assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
+  // 起草方 t1 已签，接收方 s1 未签
+  await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  const before = await dbGetContractById(db, 1);
+  assert.ok(before.drafter_confirmed, '起草方已确认');
+  // t1 取消（密码验证 capToken）→ 回退 pending、清我方确认、合同保留
+  const res = await handleCancelContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  assert.equal(res.status, 200);
+  const after = await dbGetContractById(db, 1);
+  assert.ok(after, '合同保留未删除');
+  assert.equal(after.status, 'pending', '状态回退待签约');
+  assert.equal(after.drafter_confirmed, 0, '我方确认标志清空');
+  assert.equal(after.drafter_signed_at, '', '我方签署时间清空');
+  // 未签方 s1 取消也可（pending 态）
+  const res2 = await handleCancelContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
+  assert.equal(res2.status, 200);
+});
+
+test('R7 撤销合同：双方签后撤销 → 置 revoked 标记、合同保留、幂等拒绝（v0.25.87）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1, d1, idOf, t1S, s1S } = await seed(db, raw);
+  assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
+  await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
+  const before = await dbGetContractById(db, 1);
+  assert.equal(before.status, 'signed', '双方已签');
+  // 撤销（密码验证）→ 置 revoked，不删行
+  const res = await handleRevokeContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  assert.equal(res.status, 200);
+  const after = await dbGetContractById(db, 1);
+  assert.ok(after, '撤销后合同保留');
+  assert.equal(after.revoked, 1, '置撤销标记');
+  assert.equal(after.revoked_by, idOf('t1'), '记录撤销人');
+  // 幂等拒绝
+  const again = await handleRevokeContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
+  assert.equal(again.status, 409, '已撤销拒绝重复操作');
+  // 双方已签后 cancel 走撤销引导（409）
+  const cancelRes = await handleCancelContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  assert.equal(cancelRes.status, 409, '双方已签不可取消，须撤销');
 });

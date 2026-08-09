@@ -99,11 +99,15 @@ test('气泡圆角主值 16px（style-chat.css 单源）', () => {
   assert.ok(!css.includes('.chat-file-chip'), 'style-chat.css 无残留 .chat-file-chip 规则');
 });
 
-test('系统气泡仍走 system 类（中性胶囊）', () => {
+// R3（v0.25.87）：合同事件消息不再走居中系统胶囊——对应用户一侧普通气泡（起草方右侧/接收方左侧）。
+// system 类气泡已连根删，此处断言 contract 走用户皮肤且无 system 类残留。
+test('合同事件气泡：对应用户一侧普通气泡皮肤（R3 取代原 system 胶囊）', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
   const html = vm.runInContext(`renderChatBubble(${JSON.stringify({ kind: 'contract', sender_user_id: 1, id: 1, created_at: '2026-08-08 12:00:00', body: '' })}, 0)`, ctx);
-  assert.ok(html.includes('chat-bubble--system'), '系统事件气泡为 system 类（中性胶囊）');
+  assert.ok(html.includes('chat-msg--mine'), '起草方（本人）右侧消息');
+  assert.ok(html.includes('chat-bubble--mine'), '本人皮肤气泡');
+  assert.ok(!html.includes('chat-bubble--system'), 'system 类已连根删');
 });
 
 // ============ v0.25.36 图片缩略图：预载立即展示、点开加载大图 ============

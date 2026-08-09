@@ -37,6 +37,10 @@ import {
   handleCreateFeedback, handleAdminFeedbacks, handleMyFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
+import {
+  handleCreateComplaint, handleMyComplaints, handleComplaintCandidates, handleComplaintRecent,
+  handleAdminComplaints, handleResolveComplaint,
+} from './server/routes-complaints.js';
 import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
 import { handleCreateSigning, handleRespondSigning } from './server/signing.js';
 import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清单（push 前 node hash-assets.mjs 重新生成）
@@ -135,6 +139,14 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   if (p === '/api/feedbacks' && method === 'GET') return await handleAdminFeedbacks(db, url, req);
   const feedbackResolve = idMatch(p, /^\/api\/feedbacks\/(\d+)\/resolve$/);
   if (feedbackResolve && method === 'POST') return await handleResolveFeedback(db, feedbackResolve, body, req);
+  // R22：投诉独立通道（与反馈分表分通道；候选搜索/最近交互/我的投诉/管理员处理）
+  if (p === '/api/complaints' && method === 'POST') return await handleCreateComplaint(db, body, req);
+  if (p === '/api/complaints/mine' && method === 'GET') return await handleMyComplaints(db, req);
+  if (p === '/api/complaints/candidates' && method === 'GET') return await handleComplaintCandidates(db, url, req);
+  if (p === '/api/complaints/recent' && method === 'GET') return await handleComplaintRecent(db, url, req);
+  if (p === '/api/complaints' && method === 'GET') return await handleAdminComplaints(db, url, req);
+  const complaintResolve = idMatch(p, /^\/api\/complaints\/(\d+)\/resolve$/);
+  if (complaintResolve && method === 'POST') return await handleResolveComplaint(db, complaintResolve, req);
   const userBan = idMatch(p, /^\/api\/admin\/users\/(\d+)\/ban$/);
   if (userBan && method === 'POST') return await handleBanUser(db, userBan, body, req);
   const teacherVerify = idMatch(p, /^\/api\/admin\/teachers\/(\d+)\/verify$/);

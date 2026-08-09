@@ -206,7 +206,7 @@ test('遗留迁移 Case B：旧表缺列 → 数据保留、缺列由 ensureColu
   await assertMigratedOk(db, raw);
   const tp = db.prepare("SELECT grade,subjects,rating,school FROM teacher_profiles WHERE user_id=2").first();
   assert.equal(tp.grade, '高一');
-  assert.equal(tp.rating, 4.0);
+  assert.equal(tp.rating, 4.5, 'R16：存量未评价教师（rating_count=0 旧默认 4.0）回填新默认 4.5');
   assert.equal(tp.school, '', '缺列应由 ensureColumns 补空列');
   // ensureColumns 幂等：school 列已存在
   const cols = db.prepare('PRAGMA table_info(teacher_profiles)').all().results.map(c => c.name);

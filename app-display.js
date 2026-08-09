@@ -88,18 +88,18 @@
       return role === 'student' ? u.ROLE_STUDENT : role === 'teacher' ? u.ROLE_TEACHER : u.ADMIN_BADGE;
     },
 
-    // 星级：5 颗星 span.star.filled，rating 缺省按 4
+    // 星级：5 颗星 span.star.filled，rating 缺省按 4.5（R16：默认评分 4.0→4.5，服务端 INITIAL_RATING 同源）
     starsHtml(rating) {
-      const r = rating || 4;
+      const r = rating || 4.5;
       let html = '<span class="stars">';
       for (let i = 1; i <= 5; i++) {
         html += `<span class="star ${i <= Math.round(r) ? 'filled' : ''}">★</span>`;
       }
       return html + '</span>';
     },
-    // 评分文本：缺省按 4，一位小数（消灭散落的 ||4）
+    // 评分文本：缺省按 4.5，一位小数（消灭散落的 ||4）
     ratingText(rating) {
-      return (rating || 4).toFixed(1);
+      return (rating || 4.5).toFixed(1);
     },
 
     // 需求「活跃」统一谓词（用户反馈 2026-08-08）：业务逻辑判断需求可否操作（主动推送/收意向/发起签约）
@@ -223,9 +223,12 @@
     feedbackKindCls(kind) {
       return kind === 'bug' ? 'tag-danger' : kind === 'complaint' ? 'tag-warn' : 'tag-accent';
     },
-    // 合同状态→文案+tag 类：signed=ok / signing=warn / 其余(pending)=accent
-    contractStatusMeta(status) {
+    // 合同状态→文案+tag 类：signed=ok / signing=warn / 其余(pending)=accent。
+    // v0.25.87 R7：撤销标记（revoked=1 且 status=signed）→ 红色「已撤销」（合同保留、不删除）。
+    contractStatusMeta(ct) {
       const ST = C().STATUS || {};
+      const status = typeof ct === 'string' ? ct : (ct && ct.status);
+      if (ct && typeof ct === 'object' && ct.revoked) return { text: UI().CONTRACT_STATUS_REVOKED, cls: 'tag-danger' };
       if (status === ST.SIGNED) return { text: UI().CONTRACT_STATUS_SIGNED, cls: 'tag-ok' };
       if (status === ST.SIGNING) return { text: UI().CONTRACT_STATUS_SIGNING, cls: 'tag-warn' };
       return { text: UI().CONTRACT_STATUS_PENDING, cls: 'tag-accent' };

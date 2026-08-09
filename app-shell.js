@@ -77,6 +77,7 @@ const ROLE_PAGES = {
     { id: 'admin-posts',      label: UI.PAGE_ADMIN_POSTS,    desc: UI.PAGE_ADMIN_POSTS_DESC,    enter: () => loadAdminPosts() },
     { id: 'admin-contracts',  label: UI.PAGE_ADMIN_CONTRACTS, desc: UI.PAGE_ADMIN_CONTRACTS_DESC, enter: () => loadAdminContracts() },
     { id: 'admin-feedback',   label: UI.PAGE_ADMIN_FEEDBACK, desc: UI.PAGE_ADMIN_FEEDBACK_DESC, enter: () => loadAdminFeedback() },
+    { id: 'admin-complaint',  label: UI.PAGE_ADMIN_COMPLAINT, desc: UI.PAGE_ADMIN_COMPLAINT_DESC, enter: () => loadAdminComplaints() },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: () => enterAccountSettings() },
     { id: 'about',            label: UI.PAGE_ABOUT,          desc: UI.PAGE_ABOUT_DESC,          enter: () => enterAbout(), auth: false },
@@ -93,7 +94,7 @@ const ROLE_PAGES = {
 // ------------------------------------------------------------
 const DOMAIN_FILES = [
   'region-data.js', 'app-style.js', 'app-region.js', 'app-posts.js', 'app-chat.js',
-  'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js', 'app-pages.js',
+  'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-complaints.js',
 ];
 let __domainLoaded = false;
 let __domainLoading = null; // #178 并发防重：预载与 enterClient 同时调 loadDomainScripts 时共享同一次注入
@@ -373,6 +374,12 @@ async function refreshBadges() {
         const fbData = await dhGet(`/api/feedbacks`, { domain: 'admin' });
         const openFb = (fbData.feedbacks || []).filter(f => f.status !== STATUS.RESOLVED).length;
         if (state.page !== 'admin-feedback') setBadge('admin-feedback', openFb);
+      } catch { /* 静默，下一轮自愈 */ }
+      // R22 管理员投诉红点：独立通道未处理条数
+      try {
+        const cpData = await dhGet(`/api/complaints`, { domain: 'admin' });
+        const openCp = (cpData.complaints || []).filter(c => c.status !== STATUS.RESOLVED).length;
+        if (state.page !== 'admin-complaint') setBadge('admin-complaint', openCp);
       } catch { /* 静默，下一轮自愈 */ }
     }
     // 我的合同红点：待我处理的合同数；正停留在合同页则就地刷新列表（对方改动 ≤30s 可见）。

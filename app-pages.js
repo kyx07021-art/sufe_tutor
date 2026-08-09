@@ -102,7 +102,7 @@ function enterAccountSettings() {
           <div class="settings-hint">${UI.SETTINGS_UI_SCALE_HINT.replace('{min}', CONFIG.UI_SCALE_MIN).replace('{max}', CONFIG.UI_SCALE_MAX).replace('{def}', CONFIG.UI_SCALE_DEFAULT)}</div>
         </div>
         <div class="ui-scale-control">
-          <input type="range" class="ui-scale-slider" min="${CONFIG.UI_SCALE_MIN}" max="${CONFIG.UI_SCALE_MAX}" step="${CONFIG.UI_SCALE_STEP}" value="${uiScaleVal}" style="--ui-fill:${uiScaleFill}%;" oninput="setUiScaleFromSlider(this)" aria-label="${UI.SETTINGS_UI_SCALE_LABEL}">
+          <input type="range" class="ui-scale-slider" min="${CONFIG.UI_SCALE_MIN}" max="${CONFIG.UI_SCALE_MAX}" step="${CONFIG.UI_SCALE_STEP}" value="${uiScaleVal}" style="--ui-fill:${uiScaleFill}%;" oninput="setUiScaleFromSlider(this)" onchange="commitUiScaleFromSlider(this)" aria-label="${UI.SETTINGS_UI_SCALE_LABEL}">
           <span class="ui-scale-val" id="ui-scale-val">${uiScaleVal}%</span>
         </div>
       </div>
@@ -180,10 +180,18 @@ function setOrbPref(pref) {
   document.querySelectorAll('.orb-opt').forEach(b => b.classList.toggle('orb-opt--on', b.dataset.pref === o));
 }
 
-// 需求六·item5：UI 大小滑块拖动——setUiScale 写 localStorage + 重算 --ui-scale（页面实时变），
+// 需求六·item5：UI 大小滑块拖动——setUiScaleLive 重算 --ui-scale（rAF 合并每帧一次，丝滑），
 // 同步轨道填充渐变（--ui-fill）与数值标签；纯客户端不走服务器。
+// v0.25.87 重构（R2）：oninput 只走 Live（不落盘、rAF 合并）；松手 onchange 走 commitUiScale 落盘。
+// 原 setUiScaleFromSlider 每帧同步写 localStorage + dispatch → 拖动刷新率低 + 指示块中间态乱窜。
 function setUiScaleFromSlider(el) {
-  const v = setUiScale(+el.value);
+  const v = setUiScaleLive(+el.value);
+  const valEl = document.getElementById('ui-scale-val');
+  if (valEl) valEl.textContent = v + '%';
+  el.style.setProperty('--ui-fill', uiScaleFillPct(v) + '%');
+}
+function commitUiScaleFromSlider(el) {
+  const v = commitUiScale(+el.value); // 落盘（_uiScaleCommit 合并到在途 rAF）
   const valEl = document.getElementById('ui-scale-val');
   if (valEl) valEl.textContent = v + '%';
   el.style.setProperty('--ui-fill', uiScaleFillPct(v) + '%');
@@ -356,7 +364,8 @@ function enterAbout() {
       </div>
       <div class="about-feedback-btns">
         <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openFeedbackModal('suggestion')">${UI.BTN_FEEDBACK}</button>
-        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openFeedbackModal('complaint')">${UI.BTN_COMPLAINT}</button>
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openComplaintModal()">${UI.BTN_COMPLAINT}</button>
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openMyComplaints()">${UI.BTN_MY_COMPLAINTS}</button>
         <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openMyFeedback()">${UI.BTN_MY_FEEDBACK}</button>
       </div>
     </div>`;

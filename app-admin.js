@@ -90,7 +90,7 @@ async function loadAdminContracts() {
 }
 
 function renderAdminContractRow(c) {
-  const { text: statusText, cls: statusCls } = DISP.contractStatusMeta(c.status);
+  const { text: statusText, cls: statusCls } = DISP.contractStatusMeta(c);
   const methodName = DISP.methodName(c.method) || c.method;
   return `<div class="admin-row glass">
     <div class="admin-row-main">

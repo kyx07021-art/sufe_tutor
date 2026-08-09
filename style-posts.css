@@ -127,15 +127,19 @@ textarea.post-body-input { min-height: calc(200px * var(--ui-scale, 1)); font-si
   min-height: 64px; max-height: 240px; overflow-y: auto;
   padding: 12px 14px;
 }
-.md-preview h3 {
-  font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink);
-  margin: 10px 0 4px;
-}
-.md-preview h4 { font-size: .88rem; font-weight: 700; color: var(--ink-3); margin: 8px 0 3px; }
-.md-preview h3:first-child, .md-preview h4:first-child, .md-preview p:first-child { margin-top: 0; }
+/* R21④：标题紧缩小阶梯——1/2 级不再巨大（少用 1/2 级、优先 3/5 级），各级递增幅度 ~.04rem */
+.md-preview h1, .md-preview h2 { font-size: 1.02rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink); margin: 12px 0 5px; }
+.md-preview h3 { font-size: .96rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink); margin: 10px 0 4px; }
+.md-preview h4 { font-size: .92rem; font-weight: 800; color: var(--ink-2); margin: 8px 0 3px; }
+.md-preview h5 { font-size: .9rem; font-weight: 700; color: var(--ink-2); margin: 7px 0 3px; }
+.md-preview h6 { font-size: .88rem; font-weight: 700; color: var(--ink-3); margin: 6px 0 2px; }
+.md-preview h1:first-child, .md-preview h2:first-child, .md-preview h3:first-child,
+.md-preview h4:first-child, .md-preview h5:first-child, .md-preview h6:first-child,
+.md-preview p:first-child { margin-top: 0; }
+/* R21①③：正文行距 1.8（原 1.7）+ 字号 .86rem（与平台普通文本一致，原 .84）+ 段距加大 */
 .md-preview p {
-  font-size: .84rem; line-height: 1.7; color: var(--ink-3);
-  margin: 3px 0; overflow-wrap: anywhere;
+  font-size: .86rem; line-height: 1.8; color: var(--ink-3);
+  margin: 4px 0 4px 12px; overflow-wrap: anywhere; /* R21②：正文比标题统一右缩进 12px */
 }
 .md-preview strong { color: var(--ink); font-weight: 800; }
 .md-preview img {
@@ -147,16 +151,17 @@ textarea.post-body-input { min-height: calc(200px * var(--ui-scale, 1)); font-si
 /* #161（v0.25.69）：详情浮窗正文用 md-preview 排版但放开高度封顶（浮窗整体在 overlay 滚动，无需内滚） */
 .md-preview--full { max-height: none; }
 
-/* #162（v0.25.70）：markdown 列表/引用/行内代码排版（解析器新增块级+行内语法） */
-.md-preview ul, .md-preview ol { margin: 4px 0 4px 6px; padding-left: 18px; }
+/* #162（v0.25.70）：markdown 列表/引用/行内代码排版（解析器新增块级+行内语法）
+   R21②：列表容器比正文进一步右缩进（20px，编号在此），列表文字 20+16=36px——层级：标题0/正文12/编号20 */
+.md-preview ul, .md-preview ol { margin: 4px 0 4px 20px; padding-left: 16px; }
 .md-preview ul { list-style: disc; }
 .md-preview ol { list-style: decimal; }
-.md-preview li { font-size: .84rem; line-height: 1.7; color: var(--ink-3); margin: 1px 0; overflow-wrap: anywhere; }
+.md-preview li { font-size: .86rem; line-height: 1.8; color: var(--ink-3); margin: 2px 0; overflow-wrap: anywhere; }
 .md-preview li::marker { color: var(--muted); }
 .md-preview blockquote {
-  margin: 6px 0; padding: 4px 12px;
+  margin: 6px 0 6px 12px; padding: 4px 12px; /* R21②：引用随正文缩进线（比标题右缩进） */
   border-left: 3px solid var(--accent-tint, rgba(122,104,224,.3));
-  color: var(--ink-3); font-size: .84rem; line-height: 1.7;
+  color: var(--ink-3); font-size: .86rem; line-height: 1.8; /* R21①③：正文口径 */
 }
 .md-preview blockquote p { margin: 2px 0; }
 .md-preview code {
