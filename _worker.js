@@ -287,14 +287,24 @@ export default {
           p.startsWith('/.claude/') || p.startsWith('/.github/') || p === '/.claude' || p === '/.github') { // 本地配置/CI 目录不入静态面（网安审计）
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
-      // 版本化资产路由（#169A）：manifest 校验放行的哈希 URL → base 文件 + immutable（可安全长期缓存）
+      // 版本化资产路由（#169A + v0.25.83 边缘缓存）：manifest 校验放行的哈希 URL → base 文件 + immutable。
+      // 边缘缓存（Cache API）：内容哈希寻址的 URL 永不失效，可安全缓存到 Cloudflare 边缘——跨用户首访
+      // 也命中（此前响应头虽 immutable，但 CDN 边缘不缓存 worker 响应，新用户首访仍回源）。本地 dev /
+      // 无 caches 环境（测试）自动回落直取。
       const vBase = versionedBase(p);
       if (vBase) {
+        const cache = typeof caches !== 'undefined' ? caches.default : null;
+        if (cache) {
+          const cached = await cache.match(new Request(url));
+          if (cached) return applySecurityHeaders(cached, p);
+        }
         const res = await env.ASSETS.fetch(new Request(new URL(vBase, url), request));
         if (res.ok) {
           const headers = new Headers(res.headers);
           headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-          return applySecurityHeaders(new Response(res.body, { status: res.status, headers }), p);
+          const out = new Response(res.body, { status: res.status, headers });
+          if (cache) ctx.waitUntil(cache.put(new Request(url), out.clone()));
+          return applySecurityHeaders(out, p);
         }
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }

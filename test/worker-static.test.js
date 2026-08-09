@@ -21,6 +21,15 @@ import { ASSET_MANIFEST } from '../manifest.js';
 const REPO = fileURLToPath(new URL('../', import.meta.url));
 const STORED_ETAG = '"stored-file-etag"'; // 模拟存储 index.html 的固定 ETag（发版改资产不变页面时不变）
 
+// 模拟 Cloudflare Cache API（版本化资产边缘缓存，v0.25.83）
+const cacheStore = new Map();
+globalThis.caches = {
+  default: {
+    async match(req) { return cacheStore.get(String(req.url)) || null; },
+    async put(req, res) { cacheStore.set(String(req.url), res.clone()); },
+  },
+};
+
 function mockAssets() {
   return {
     async fetch(request) {
@@ -51,7 +60,7 @@ function mockAssets() {
 }
 
 const env = { ASSETS: mockAssets() };
-const ctx = { waitUntil: fn => fn() };
+const ctx = { waitUntil: fn => (typeof fn === 'function' ? fn() : fn) }; // waitUntil 接 promise（cache.put）时放行执行
 const get = async (p, headers = {}) => worker.fetch(new Request('https://test.local' + p, { headers }), env, ctx);
 
 test('GET / → HTML 资产引用改写为哈希名 + 内联 manifest（懒加载器读取）', async () => {
@@ -100,6 +109,18 @@ test('GET /<base>.<hash8>.js → base 内容 + Cache-Control immutable', async (
   const body = await res.text();
   assert.ok(body.includes('loadDomainScripts'), '回 base 文件真实内容（app-shell 含懒加载器）');
   assert.ok(!body.includes('<html'), '绝不给 HTML 冒充脚本');
+});
+
+test('版本化资产经 Cache API 写边缘缓存：二次命中返回缓存内容', async () => {
+  cacheStore.clear();
+  const [base, hashed] = Object.entries(ASSET_MANIFEST.files).find(([b]) => b === 'app-shell.js');
+  const first = await get('/' + hashed);
+  assert.equal(first.status, 200);
+  assert.equal(cacheStore.size, 1, '首取后写入边缘缓存');
+  const second = await get('/' + hashed);
+  assert.equal(second.status, 200);
+  const body = await second.text();
+  assert.ok(body.includes('loadDomainScripts'), '二次命中返回缓存内容');
 });
 
 test('GET /<base>.js（裸名）→ 正常服务但绝不 immutable', async () => {
