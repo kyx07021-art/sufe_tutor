@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.75',
+  APP_VERSION: '0.25.76',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -31,7 +31,7 @@ globalThis.APP_CONSTANTS = {
     PUSH_COOLDOWN_SEC: 60,                // 需求推送限流
     LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
     API_TIMEOUT_MS: 20000,                // api() fetch 超时（停滞 SW/异常网络下避免「永远加载中」，超时归网络错误）
-    VERSION_PROBE_MS: 8000,               // 数据版本探测间隔（v0.23.0 静默数据层：数据库有更新→8s 内静默拉取变化域）
+    VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（v0.25.76 8s→30s：每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
     DH_TTL_MS: 60000,                     // 会话数据层保底 TTL（v0.23.0：即便探测停摆，缓存 60s 后强制重拉，防陈旧）
     POSTS_SEARCH_DEBOUNCE_MS: 350,        // 帖子搜索防抖
     INVITE_CODE_LEN: 8,                   // 邀请码长度（与后端 LIMITS 同值）

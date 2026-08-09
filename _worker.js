@@ -39,6 +39,30 @@ import {
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
 import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
 import { handleCreateSigning, handleRespondSigning } from './server/signing.js';
+import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清单（push 前 node hash-assets.mjs 重新生成）
+
+// ============ 内容哈希虚拟版本化（v0.25.76 #169A）============
+// 设计：不提交哈希副本、不改写 index.html 源码——由 worker 服务时把资产引用改写成哈希名
+// （浏览器只请求哈希 URL），版本化 URL 经 manifest 校验后路由回 base 文件并回 immutable 缓存头。
+// 内容变 → 哈希变 → 新 URL；index.html no-cache 每次导航重验 → 零陈旧；base 名永不 immutable
+// （不是 manifest 放行的版本化 URL 一律拿不到 immutable）。manifest 由 node hash-assets.mjs
+// 生成（与 app-shell.js DOMAIN_FILES 同步），测试依旧读源码 base 名，零测试改动。
+
+// 校验路径是否为 manifest 中的版本化资产 URL（/app-chat.<hash8>.js），是则回 base 名
+export function versionedBase(p) {
+  const m = p.match(/^\/([a-zA-Z0-9._-]+)\.([0-9a-f]{8})\.(js|css)$/);
+  if (!m) return null;
+  const base = m[1] + '.' + m[3];
+  const hashed = m[1] + '.' + m[2] + '.' + m[3];
+  return ASSET_MANIFEST.files[base] === hashed ? base : null;
+}
+
+// 改写 HTML 文档：资产引用 → 哈希名 + 内联 manifest（懒加载器读 window.ASSET_MANIFEST.files）
+export function injectManifest(html) {
+  const files = ASSET_MANIFEST.files;
+  const out = html.replace(/(src|href)="\/([a-zA-Z0-9._-]+\.(?:js|css))"/g, (m, attr, base) => `${attr}="/${files[base] || base}"`);
+  return out.replace('</head>', `<script>window.ASSET_MANIFEST=${JSON.stringify(ASSET_MANIFEST)};</script></head>`);
+}
 
 // API 分发：纯路由，无副作用（留档在 fetch 层统一包裹）。
 // :id 路径统一经 idMatch 抽取（正则只写一次，杜绝 approve/reject 双 match 旧写法）
@@ -236,7 +260,29 @@ export default {
           p.startsWith('/.claude/') || p.startsWith('/.github/') || p === '/.claude' || p === '/.github') { // 本地配置/CI 目录不入静态面（网安审计）
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
-      return applySecurityHeaders(env.ASSETS.fetch(request), p);
+      // 版本化资产路由（#169A）：manifest 校验放行的哈希 URL → base 文件 + immutable（可安全长期缓存）
+      const vBase = versionedBase(p);
+      if (vBase) {
+        const res = await env.ASSETS.fetch(new Request(new URL(vBase, url), request));
+        if (res.ok) {
+          const headers = new Headers(res.headers);
+          headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+          return applySecurityHeaders(new Response(res.body, { status: res.status, headers }), p);
+        }
+        return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
+      }
+      // 版本化形态但不在当前 manifest（部署竞态里浏览器可能带旧哈希 URL 撞新版本）→ 404，
+      // 绝不给 HTML 冒充脚本（SPA 回退会把 index.html 喂给 <script src>，报错且难排查）
+      if (/^\/([a-zA-Z0-9._-]+)\.([0-9a-f]{8})\.(js|css)$/.test(p)) {
+        return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
+      }
+      const res = await env.ASSETS.fetch(request);
+      // HTML 文档（含 SPA 回退）：改写资产引用为哈希名 + 内联 manifest（懒加载器据此取哈希 URL）
+      if (res.ok && (res.headers.get('content-type') || '').includes('text/html')) {
+        const headers = new Headers(res.headers); // 保留 Pages 静态响应头（含 _headers 安全头）
+        return applySecurityHeaders(new Response(injectManifest(await res.text()), { status: res.status, headers }), p);
+      }
+      return applySecurityHeaders(res, p);
     }
 
     // 首次请求时初始化数据库（业务库 + 可选独立留档库 + 可选独立合同台账库）。

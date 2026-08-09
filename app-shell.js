@@ -1,8 +1,9 @@
 /**
  * 壳与路由层（目标分层：状态管理层下游）—— 视图切换 / 侧边栏 / 页面注册表 / 统一装载器 / 红点徽标 / 初始化
  *
- * 本文件必须最后加载（在全部领域模块之后）：ROLE_PAGES 以 `enter: loadMyDemands` 形式引用领域函数，
- * 顶层 const 求值时刻函数必须已定义，否则 ReferenceError。加载序见 index.html。
+ * #175（v0.25.76）：领域脚本（app-region/posts/chat/contracts/chart/admin/demands/teachers/pages 等）不再
+ * 于 index.html 同步加载——enterClient 时经 loadDomainScripts() 按 manifest 哈希名动态注入；
+ * ROLE_PAGES 的 enter 全为惰性包装（() => 领域函数()），顶层不直接引用领域函数。
  *
  * 职责：
  *   - 视图管理（landing/login/register/invite-gate/client 五视图）
@@ -40,29 +41,31 @@ function updateNavbar() {
 }
 
 // ============================================================
-// 客户端配置：侧边栏栏目注册表（enter 引用均为顶层函数，声明提升保证前向引用可用；
-// 本文件在全部领域模块之后加载，enter 函数此刻已定义）
+// 客户端配置：侧边栏栏目注册表
+// #175（v0.25.76）：领域脚本懒加载——enter 一律惰性包装（() => 领域函数()），
+// 顶层不再直接引用领域函数（领域脚本进入客户端时才注入，顶层引用会 ReferenceError）；
+// enterClient 先 await loadDomainScripts() 再 selectPage，点击侧栏时领域必已就绪
 // ============================================================
 const ROLE_PAGES = {
   student: [
-    { id: 'my-demands',       label: UI.PAGE_MY_DEMANDS,      desc: UI.PAGE_MY_DEMANDS_DESC,      enter: loadMyDemands },
-    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_DESC, enter: loadTeachers, auth: false },
+    { id: 'my-demands',       label: UI.PAGE_MY_DEMANDS,      desc: UI.PAGE_MY_DEMANDS_DESC,      enter: () => loadMyDemands() },
+    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_DESC, enter: () => loadTeachers(), auth: false },
     { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        desc: UI.PAGE_MY_CHATS_DESC,        enter: () => enterMyChats() },
     { id: 'my-contracts',     label: UI.PAGE_MY_CONTRACTS,    desc: UI.PAGE_MY_CONTRACTS_DESC,    enter: () => loadMyContracts() },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   desc: UI.PAGE_NOTIFICATIONS_DESC,   enter: enterNotifications },
-    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
-    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: enterAbout, auth: false },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: () => enterAccountSettings() },
+    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: () => enterAbout(), auth: false },
   ],
   teacher: [
-    { id: 'browse-demands',   label: UI.PAGE_BROWSE_DEMANDS,  desc: UI.PAGE_BROWSE_DEMANDS_DESC,  enter: loadBrowseDemands, auth: false },
-    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_PEER_DESC, enter: loadTeachers, auth: false },
+    { id: 'browse-demands',   label: UI.PAGE_BROWSE_DEMANDS,  desc: UI.PAGE_BROWSE_DEMANDS_DESC,  enter: () => loadBrowseDemands(), auth: false },
+    { id: 'browse-teachers',  label: UI.PAGE_BROWSE_TEACHERS, desc: UI.PAGE_BROWSE_TEACHERS_PEER_DESC, enter: () => loadTeachers(), auth: false },
     { id: 'resource-share',   label: UI.PAGE_RESOURCE_SHARE,  desc: UI.PAGE_RESOURCE_SHARE_DESC,  enter: () => enterResourceShare(), auth: false },
     { id: 'my-chats',         label: UI.PAGE_MY_CHATS,        desc: UI.PAGE_MY_CHATS_DESC,        enter: () => enterMyChats() },
     { id: 'my-contracts',     label: UI.PAGE_MY_CONTRACTS,    desc: UI.PAGE_MY_CONTRACTS_DESC,    enter: () => loadMyContracts() },
-    { id: 'edit-profile',     label: UI.PAGE_EDIT_PROFILE,    desc: UI.PAGE_EDIT_PROFILE_DESC,    enter: initProfileForm },
+    { id: 'edit-profile',     label: UI.PAGE_EDIT_PROFILE,    desc: UI.PAGE_EDIT_PROFILE_DESC,    enter: () => initProfileForm() },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,   desc: UI.PAGE_NOTIFICATIONS_DESC,   enter: enterNotifications },
-    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
-    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: enterAbout, auth: false },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: () => enterAccountSettings() },
+    { id: 'about',            label: UI.PAGE_ABOUT,           desc: UI.PAGE_ABOUT_DESC,           enter: () => enterAbout(), auth: false },
   ],
   admin: [
     { id: 'admin-stats',      label: UI.PAGE_ADMIN_STATS,    desc: UI.PAGE_ADMIN_STATS_DESC,    enter: () => loadAdminStats() },
@@ -75,10 +78,36 @@ const ROLE_PAGES = {
     { id: 'admin-contracts',  label: UI.PAGE_ADMIN_CONTRACTS, desc: UI.PAGE_ADMIN_CONTRACTS_DESC, enter: () => loadAdminContracts() },
     { id: 'admin-feedback',   label: UI.PAGE_ADMIN_FEEDBACK, desc: UI.PAGE_ADMIN_FEEDBACK_DESC, enter: () => loadAdminFeedback() },
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
-    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: enterAccountSettings },
-    { id: 'about',            label: UI.PAGE_ABOUT,          desc: UI.PAGE_ABOUT_DESC,          enter: enterAbout, auth: false },
+    { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: () => enterAccountSettings() },
+    { id: 'about',            label: UI.PAGE_ABOUT,          desc: UI.PAGE_ABOUT_DESC,          enter: () => enterAbout(), auth: false },
   ],
 };
+
+// ------------------------------------------------------------
+// 领域脚本懒加载（#175 v0.25.76）：领域脚本从 index.html 移除，进入客户端时才按序动态注入。
+// - DOMAIN_FILES 与 hash-assets.mjs 的清单必须同步（构建脚本哈希它们 + 写入 manifest）
+// - 哈希名：window.ASSET_MANIFEST（构建时内联进 index.html）命中优先，缺省回落基名（源/测试环境）
+// - 幂等哨兵：__domainLoaded 或领域函数已存在（测试 FILES 全载）即短路，不重复注入
+// - 注入失败/超时 6s 兜底放行（进页后再点侧栏由下次尝试补载），绝不永久挂起
+// - 注入按序（经典脚本共享作用域、依赖链按 index.html 原序）→ 用 Promise 链保序
+// ------------------------------------------------------------
+const DOMAIN_FILES = [
+  'region-data.js', 'app-style.js', 'app-region.js', 'app-posts.js', 'app-chat.js',
+  'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js', 'app-pages.js',
+];
+let __domainLoaded = false;
+async function loadDomainScripts() {
+  if (__domainLoaded || typeof globalThis.loadMyDemands === 'function') return; // 已载/测试短路
+  const manifest = (window.ASSET_MANIFEST || {}).files || {};
+  const inject = f => new Promise(resolve => {
+    const s = document.createElement('script');
+    s.src = '/' + (manifest[f] || f);
+    s.onload = s.onerror = resolve; // 单脚本失败不阻断后续（缺个别模块下次补）
+    (document.head || document.documentElement).appendChild(s);
+  });
+  for (const f of DOMAIN_FILES) await inject(f);
+  __domainLoaded = true;
+}
 
 // ------------------------------------------------------------
 // 客户端壳：侧边栏 + 页面区（栏目由 ROLE_PAGES 配置驱动）
@@ -94,7 +123,8 @@ function defaultPageFor() {
   return (pagesForRole()[0] || { id: 'my-demands' }).id;
 }
 
-function enterClient(pageId) {
+async function enterClient(pageId) {
+  await loadDomainScripts(); // #175：进入客户端前确保领域脚本就绪（首访注入、回访缓存命中秒回）
   renderSidebar();
   showView('client');
   // v0.24.1 删自动登录后刷新必落落地页（无 storedPage 恢复），pageId 仅登录/切角色回跳时传入

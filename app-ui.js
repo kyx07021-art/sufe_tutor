@@ -16,6 +16,67 @@ const CARET_SVG = '<svg width="10" height="6" viewBox="0 0 10 6" fill="none" ari
 // 展示工具
 // ============================================================
 /** HTML 转义：&<>"' 五字符（插值进 innerHTML 前必过） */
+// #175（v0.25.76，自 app-posts 移入 boot 共享层）：轻量 markdown 渲染——用户协议/政策浮窗在登录前
+// （领域脚本未加载）就要用，故从领域层 app-posts 上移到共享层；帖子/详情预览同源复用。
+function mdRender(src) {
+  // 安全铁律（v0.19.8）：先 escHtml 全转义，后续一切正则只作用在转义串上、只产出白名单固定标签，
+  // 用户原文里的任何 HTML/事件属性都已被转义为纯文本，天然免疫 XSS（escHtml 转义 < > & " '）。
+  const escaped = escHtml(String(src ?? ''));
+  const IMG_OK = /^(https?:\/\/|data:image\/(?!svg))/i; // 外链/位图放行；svg 可内嵌脚本，一律不渲染
+  // #162（v0.25.70）：链接白名单 http/https 内联在下方链接正则（不匹配即原样文本，无需单独 const）
+  // 行内：代码 span 先抽离占位（防内部 ** 粗体/链接误染），处理完图/链/粗体再还原
+  const inline = s => {
+    const codes = [];
+    let t = s.replace(/`([^`]+)`/g, (m, c) => { codes.push(c); return `\u0000${codes.length - 1}\u0000`; });
+    t = t
+      .replace(/!\[([^\]]*)\]\(([^)]*)\)/g, (m, alt, url) =>
+        (IMG_OK.test(url) && !/\s/.test(url))
+          ? `<img src="${url}" alt="${alt}">`
+          : `<span class="md-img-blocked">${UI.POST_IMG_BLOCKED}</span>`)
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, // #162：链接仅命中 http/https（javascript:/data: 不匹配即原样文本）
+        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    return t.replace(/\u0000(\d+)\u0000/g, (m, n) => `<code>${codes[+n]}</code>`);
+  };
+  // #162（v0.25.70）：块级分组——列表/引用需连续多行聚合（escHtml 把 > 转成 &gt;，引用检测匹配转义形态）
+  const isUl = l => /^[-*] +/.test(l);
+  const isOl = l => /^\d+\. +/.test(l);
+  const isQt = l => /^&gt; ?/.test(l);
+  const lines = escaped.split('\n');
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) { i++; continue; }
+    if (isUl(line)) {
+      const items = [];
+      while (i < lines.length && isUl(lines[i])) { items.push(lines[i].replace(/^[-*] +/, '')); i++; }
+      out.push(`<ul>${items.map(x => `<li>${inline(x)}</li>`).join('')}</ul>`);
+      continue;
+    }
+    if (isOl(line)) {
+      const items = [];
+      while (i < lines.length && isOl(lines[i])) { items.push(lines[i].replace(/^\d+\. +/, '')); i++; }
+      out.push(`<ol>${items.map(x => `<li>${inline(x)}</li>`).join('')}</ol>`);
+      continue;
+    }
+    if (isQt(line)) {
+      const parts = [];
+      while (i < lines.length && isQt(lines[i])) {
+        const c = lines[i].replace(/^&gt; ?/, '');
+        if (c.trim()) parts.push(`<p>${inline(c)}</p>`);
+        i++;
+      }
+      out.push(`<blockquote>${parts.join('')}</blockquote>`);
+      continue;
+    }
+    const head = line.match(/^(#{1,6})\s+(.*)$/); // v0.24.0：1~6 级标题全支持
+    if (head) { out.push(`<h${head[1].length}>${inline(head[2])}</h${head[1].length}>`); i++; }
+    else { out.push(`<p>${inline(line)}</p>`); i++; }
+  }
+  return out.join('');
+}
+
 function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
