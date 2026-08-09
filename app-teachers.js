@@ -506,9 +506,15 @@ const PROFILE_CARD_ITEMS = [
       : h.empty(UI.PROFILE_FIELD_EMPTY);
   }},
   { key: 'contact', group: 'private', label: UI.LABEL_CONTACT, render: h => {
-    // 联系方式：本人或已签约（且已取回值）→ 实际值（黑字）+「签约后展示联系方式」灰字小提示；已取回但未填 → 未填写；否则 → 仅灰字提示
-    const value = [h.t.wechat ? `${UI.CONTACT_PANEL_WECHAT_PREFIX}${escHtml(h.t.wechat)}` : '', h.t.email ? `${UI.CONTACT_PANEL_EMAIL_PREFIX}${escHtml(h.t.email)}` : ''].filter(Boolean).join(' · ');
-    if ((h.isSelf || h.signed) && value) return { v: value + profileNote(UI.CONTACT_AFTER_SIGN_NOTE) };
+    // M2（v0.25.103）：联系方式从「微信：x · 邮箱：y」单行（老版残留）改科目式多行——
+    // 子标题+内容逐行（同高考成绩 rows 渲染），灰字提示作末行。UI.CONTACT_PANEL_*_PREFIX 弃用（保留常量不删）。
+    const rows = [];
+    if (h.t.wechat) rows.push({ k: UI.LABEL_WECHAT, v: escHtml(h.t.wechat) });
+    if (h.t.email) rows.push({ k: UI.LABEL_EMAIL, v: escHtml(h.t.email) });
+    if ((h.isSelf || h.signed) && rows.length) {
+      rows.push({ k: '', v: profileNote(UI.CONTACT_AFTER_SIGN_NOTE), muted: true });
+      return { rows };
+    }
     if (h.isSelf || h.signed) return h.empty(UI.PROFILE_FIELD_EMPTY);
     return { v: profileNote(UI.CONTACT_AFTER_SIGN_NOTE), muted: true };
   }},

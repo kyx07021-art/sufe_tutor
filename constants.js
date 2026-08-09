@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.102',
+  APP_VERSION: '0.25.103',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -102,11 +102,17 @@ globalThis.APP_CONSTANTS = {
   ],
 
   STUDENT_GRADES: [
+    // M3（v0.25.103）：补小学六年级（外地六三学制）+ 预备班（上海五四学制：六年级=初中预备）。
+    // 全列表 = 六三学制（默认）；五四学制省份按 SCHEDULE 学制映射过滤（app-demands 渲染层）。
     {id:'p1',name:'小学一年级'},{id:'p2',name:'小学二年级'},{id:'p3',name:'小学三年级'},
     {id:'p4',name:'小学四年级'},{id:'p5',name:'小学五年级'},
+    {id:'p6',name:'小学六年级'},{id:'prep',name:'预备班'},
     {id:'junior1',name:'初一'},{id:'junior2',name:'初二'},{id:'junior3',name:'初三'},
     {id:'senior1',name:'高一'},{id:'senior2',name:'高二'},{id:'senior3',name:'高三'},
   ],
+  // M3：学制地区差异单源——五四学制省份（小学五年+初中四年，六年级=初中预备班）。
+  // 默认六三学制（小学六年）；上海为五四学制（2004 年市教委全面实行）。其余省市主流六三。
+  FIVE_FOUR_PROVINCES: ['shanghai'],
 
   TEACHER_GRADES: [
     {id:'freshman',name:'大一'},{id:'sophomore',name:'大二'},{id:'junior',name:'大三'},
@@ -281,7 +287,7 @@ globalThis.APP_CONSTANTS = {
       '--white': '#FFFFFF', '--field': '#F3F0EB', '--field-2': '#EBE7E1',
       '--paper-ghost': 'rgba(250,248,245,.62)',
       '--accent': '#6B5BD2', '--accent-deep': '#4B3DB0', '--accent-bright': '#8E80E8', '--accent-tint': '#E7E3F7',
-      '--warn-deep': '#9A6A2A', '--warn-tint': '#F0E2CF',
+      '--warn-deep': '#C8920F', '--warn-tint': '#F7E8C6', // M4（v0.25.103）：黄从土棕 #9A6A2A 提为金黄 #C8920F
       '--danger': '#C0392B', '--danger-deep': '#9B2C2C', '--danger-tint': '#F7E7E7',
       '--ok-deep': '#2E6B3A', '--ok-tint': '#E7EFE7',
       '--chart-traffic': '#6B5BD2', '--chart-latency': '#2E6B3A', // 流量监测图表系列色（亮色主题，经 dataviz 校验）
@@ -348,7 +354,7 @@ globalThis.APP_CONSTANTS = {
       '--g-ok-solid': 'linear-gradient(160deg, rgba(24,122,75,.9), rgba(24,122,75,.72))', // 已签约实心 tag
       '--g-danger-fill': 'rgba(198,72,58,.20)',
       '--g-danger-fill-soft': 'rgba(198,72,58,.14)', // 警示条/bug 卡
-      '--g-warn-fill': 'rgba(154,106,42,.20)',
+      '--g-warn-fill': 'rgba(200,146,15,.22)', // M4：金黄填充（原 rgba(154,106,42,.20) 土棕）
       '--g-accent-fill': 'rgba(122,104,224,.20)',
       '--g-accent-fill-soft': 'rgba(142,128,232,.08)', // 聊天拖入虚线罩
       '--g-like-fill': 'rgba(211,47,47,.16)',      // 帖子点赞态
@@ -393,7 +399,7 @@ globalThis.APP_CONSTANTS = {
       '--white': '#FFFFFF', '--field': '#15131D', '--field-2': '#1D1A27',
       '--paper-ghost': 'rgba(14,12,20,.62)',
       '--accent': '#8E80E8', '--accent-deep': '#A99BF5', '--accent-bright': '#A99BF5', '--accent-tint': 'rgba(142,128,232,.18)',
-      '--warn-deep': '#D4A64F', '--warn-tint': 'rgba(212,166,79,.16)',
+      '--warn-deep': '#E0B03A', '--warn-tint': 'rgba(224,176,58,.18)', // M4：暗色黄提亮（原 #D4A64F）
       '--danger': '#E05A4A', '--danger-deep': '#FF7A6A', '--danger-tint': 'rgba(224,90,74,.16)',
       '--ok-deep': '#55B26B', '--ok-tint': 'rgba(85,178,107,.16)',
       '--chart-traffic': '#8E80E8', '--chart-latency': '#46A05E', // 流量监测图表系列色（暗色主题，经 dataviz 校验）
@@ -459,7 +465,7 @@ globalThis.APP_CONSTANTS = {
       '--g-ok-solid': 'linear-gradient(160deg, rgba(56,152,94,.95), rgba(56,152,94,.75))',
       '--g-danger-fill': 'rgba(224,90,74,.24)',
       '--g-danger-fill-soft': 'rgba(224,90,74,.16)',
-      '--g-warn-fill': 'rgba(212,166,79,.22)',
+      '--g-warn-fill': 'rgba(224,176,58,.24)', // M4：暗色金黄填充（原 rgba(212,166,79,.22)）
       '--g-accent-fill': 'rgba(139,124,232,.26)',
       '--g-accent-fill-soft': 'rgba(139,124,232,.12)',
       '--g-like-fill': 'rgba(224,90,74,.20)',
@@ -1235,6 +1241,7 @@ globalThis.APP_CONSTANTS = {
     LABEL_REAL_NAME: '真实姓名',
     LABEL_CREDENTIAL: '学信网截图',
     LABEL_CONTACT: '联系方式',
+    LABEL_WECHAT: '微信', LABEL_EMAIL: '邮箱', // M2：联系方式多行子标题（科目式）
     // 教师档案扩展（R2-5/R2-1/R2-2/R2-3/R2-4）：报价区间 / 可授课时间段 / 授课方式 / 性格关键词 / 非学科项目
     LABEL_PRICE_RANGE: '报价区间（元/小时）',
     LABEL_TEACHING_METHOD_PROFILE: '授课方式',
@@ -1356,6 +1363,10 @@ globalThis.APP_CONSTANTS = {
     BTN_FEEDBACK: '用户反馈',
     BTN_FEEDBACK_BUG: '反馈 Bug',
     BTN_FEEDBACK_SUGGEST: '提出建议',
+    BTN_COMPLAINT_FEEDBACK: '投诉与反馈', // M11：用户反馈+投诉合并入口按钮
+    FEEDBACK_CHOOSE_BUG: '我要反馈 Bug',
+    FEEDBACK_CHOOSE_SUGGESTION: '我要提出建议',
+    FEEDBACK_CHOOSE_COMPLAINT: '我要投诉',
     FEEDBACK_MODAL_TITLE_BUG: '反馈 Bug',
     FEEDBACK_MODAL_TITLE_SUGGEST: '提出建议',
     FEEDBACK_TITLE_PLACEHOLDER: '一句话概括你的问题或建议',
@@ -1365,11 +1376,12 @@ globalThis.APP_CONSTANTS = {
     // #165 历史投诉数据展示（R22 后新投诉走独立通道；这些仅渲染 feedbacks 表历史 complaint 记录）
     BTN_COMPLAINT: '投诉',
     BTN_MY_FEEDBACK: '我的反馈',
+    BTN_MY_COMPLAINTS_FEEDBACK: '我的投诉与反馈', // M12：两按钮合并为一个（投诉+反馈同一浮窗）
     FEEDBACK_COMPLAINT_SUBJECT_TEACHER: '教师',
     FEEDBACK_COMPLAINT_SUBJECT_STUDENT: '学生',
     FEEDBACK_COMPLAINT_SUBJECT_PLATFORM: '平台服务',
     FEEDBACK_COMPLAINT_RESOLVED: '你的投诉已被受理并处理。感谢你的信任，如有其他问题欢迎随时反馈。',
-    MY_FEEDBACK_TITLE: '我的反馈与投诉',
+    MY_FEEDBACK_TITLE: '我的投诉与反馈', // M12：与合并按钮同名（原「我的反馈与投诉」）
     MY_FEEDBACK_EMPTY: '还没有提交过反馈或投诉',
 
     // 管理员：用户反馈
@@ -1399,6 +1411,10 @@ globalThis.APP_CONSTANTS = {
     COMPLAINT_TARGET_REQUIRED: '请选择要投诉的对象',
     COMPLAINT_REASON_REQUIRED: '请选择投诉理由',
     COMPLAINT_REASON_LABEL: '投诉理由',
+    COMPLAINT_REASON_PLACEHOLDER: '请选择投诉理由', // M8：投诉理由从切换式改下拉栏占位项
+    SELECT_PROVINCE_FIRST: '请先选择地区', // M3：年级选择前先选地区（年级随地区学制变化）
+    COMPLAINT_SELECTED_PREFIX: '已选择：', // M9：投诉对象从可叉 tag 改「已选择 + 更换」单选行
+    COMPLAINT_CHANGE_TARGET: '更换',
     COMPLAINT_REASON_PLACEHOLDER: '请选择理由',
     COMPLAINT_DETAIL_LABEL: '补充描述',
     COMPLAINT_DETAIL_PLACEHOLDER: '补充具体问题、发生时间等（选填，支持轻量 Markdown）',
@@ -1569,6 +1585,7 @@ globalThis.APP_CONSTANTS = {
     // R23：帖子收藏（资料共享——收藏即保存，仅本人可见）
     POSTS_VIEW_ALL: '全部',
     POSTS_VIEW_FAV: '我的收藏',
+    POSTS_FAV_ACTIVE: '√ 已进入我的收藏', // M7：收藏 toggle 按钮进入态文案（替代切换卡）
     BTN_FAVORITE: '收藏',
     BTN_FAVORITED: '已收藏',
     POST_FAV_ARIA: '收藏', // 未收藏

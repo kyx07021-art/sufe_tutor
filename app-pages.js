@@ -102,7 +102,7 @@ function enterAccountSettings() {
           <div class="settings-hint">${UI.SETTINGS_UI_SCALE_HINT.replace('{min}', CONFIG.UI_SCALE_MIN).replace('{max}', CONFIG.UI_SCALE_MAX).replace('{def}', CONFIG.UI_SCALE_DEFAULT)}</div>
         </div>
         <div class="ui-scale-control">
-          <input type="range" class="ui-scale-slider" min="${CONFIG.UI_SCALE_MIN}" max="${CONFIG.UI_SCALE_MAX}" step="${CONFIG.UI_SCALE_STEP}" value="${uiScaleVal}" style="--ui-fill:${uiScaleFill}%;" oninput="setUiScaleFromSlider(this)" onchange="commitUiScaleFromSlider(this)" aria-label="${UI.SETTINGS_UI_SCALE_LABEL}">
+          <input type="range" class="ui-scale-slider" id="ui-scale-slider" min="${CONFIG.UI_SCALE_MIN}" max="${CONFIG.UI_SCALE_MAX}" step="${CONFIG.UI_SCALE_STEP}" value="${uiScaleVal}" style="--ui-fill:${uiScaleFill}%;" aria-label="${UI.SETTINGS_UI_SCALE_LABEL}">
           <span class="ui-scale-val" id="ui-scale-val">${uiScaleVal}%</span>
         </div>
       </div>
@@ -118,6 +118,7 @@ function enterAccountSettings() {
     </div>
     <button type="button" class="btn settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate glass" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
+  bindUiScaleSlider(); // v0.25.103 B1：滑块渲染后接管 pointer 差分拖动（html transform 预览的正反馈根治）
   loadDeviceSessions();
   loadPrivacySettings(); // #163：进页异步读本人访客可见性设置（无行=默认允许）
 }
@@ -185,6 +186,11 @@ function setOrbPref(pref) {
 // 同步轨道填充渐变（--ui-fill）与数值标签；纯客户端不走服务器。
 // v0.25.94 重构（R3）：拖动只预览（transform，不落盘）；松手 onchange 走 commitUiScale 清预览落真排版 + 落盘。
 // 原 v0.25.87（R2）拖动走 --ui-scale rAF 合并应用——仍每帧全页排版重绘，实测 ~100ms/帧刷新率低（已废）。
+// v0.25.103 B1 根治（正反馈鬼畜）：预览的 html transform:scale 缩放整个页面（含滑块轨道），
+// 浏览器原生 range 拖动按缩放后轨道几何解析 value → scale 变 → 轨道几何变 → value 变 → 正反馈失控。
+// 拖动路径改为 pointer 差分（pointerdown 记初始指针/初始值/轨道 layout 宽——clientWidth 不受
+// transform 影响），value 只由固定初始几何差分驱动，鼠标静止即稳定；input/change 事件保留兜底
+// 键盘/无障碍操作（setUiScaleFromSlider/commitUiScaleFromSlider 不变，测试同款调用）。
 function setUiScaleFromSlider(el) {
   const v = setUiScaleLive(+el.value);
   const valEl = document.getElementById('ui-scale-val');
@@ -196,6 +202,41 @@ function commitUiScaleFromSlider(el) {
   const valEl = document.getElementById('ui-scale-val');
   if (valEl) valEl.textContent = v + '%';
   el.style.setProperty('--ui-fill', uiScaleFillPct(v) + '%');
+}
+function bindUiScaleSlider() {
+  const slider = document.getElementById('ui-scale-slider');
+  if (!slider) return;
+  const span = CONFIG.UI_SCALE_MAX - CONFIG.UI_SCALE_MIN;
+  let drag = null;
+  const refreshLabel = (el, c) => {
+    el.value = c;
+    el.style.setProperty('--ui-fill', uiScaleFillPct(c) + '%');
+    const valEl = document.getElementById('ui-scale-val');
+    if (valEl) valEl.textContent = c + '%';
+  };
+  slider.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    drag = { startX: e.clientX, startVal: +slider.value, trackW: slider.clientWidth || 1 };
+    try { slider.setPointerCapture(e.pointerId); } catch { /* 忽略 */ }
+    e.preventDefault(); // 接管拖动：阻止浏览器按缩放后轨道解析 value（正反馈引擎）
+  });
+  slider.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const raw = drag.startVal + ((e.clientX - drag.startX) / drag.trackW) * span;
+    refreshLabel(slider, setUiScaleLive(raw));
+  });
+  const endDrag = (e) => {
+    if (!drag) return;
+    const c = commitUiScale(+slider.value);
+    refreshLabel(slider, c);
+    if (slider.hasPointerCapture && slider.hasPointerCapture(e.pointerId)) slider.releasePointerCapture(e.pointerId);
+    drag = null;
+  };
+  slider.addEventListener('pointerup', endDrag);
+  slider.addEventListener('pointercancel', endDrag);
+  // 键盘/无障碍路径兜底（无 pointer 手势时）：input 预览 + change 落盘（原 oninput/onchange 语义）
+  slider.addEventListener('input', () => setUiScaleFromSlider(slider));
+  slider.addEventListener('change', () => commitUiScaleFromSlider(slider));
 }
 
 // 登录设备管理：拉本人会话列表逐端展示（token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。
@@ -364,10 +405,10 @@ function enterAbout() {
         <div>${escHtml(UI.ABOUT_SUPPORT_EMAIL)}</div>
       </div>
       <div class="about-feedback-btns">
-        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openFeedbackModal('suggestion')">${UI.BTN_FEEDBACK}</button>
-        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openComplaintModal()">${UI.BTN_COMPLAINT}</button>
-        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openMyComplaints()">${UI.BTN_MY_COMPLAINTS}</button>
-        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openMyFeedback()">${UI.BTN_MY_FEEDBACK}</button>
+        <!-- M11（v0.25.103）：「用户反馈」+「投诉」合并为「投诉与反馈」——点开浮窗三选通道（Bug/建议/投诉）
+             M12：「我的投诉」+「我的反馈」合并为「我的投诉与反馈」同一浮窗。支持卡两按钮收口。 -->
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openFeedbackComplaintChooser()">${UI.BTN_COMPLAINT_FEEDBACK}</button>
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openMyFeedback()">${UI.BTN_MY_COMPLAINTS_FEEDBACK}</button>
       </div>
     </div>`;
   initReveals(document.getElementById('about-content'));

@@ -409,3 +409,29 @@ test('dbGetTeachers：广场列表一律裁剪私密字段，管理端全量可�
   assert.equal(row.wechat, 'wx_test', '管理端应解密看到 wechat');
   assert.equal(row.email, 'e@t.com', '管理端应解密看到 email');
 });
+
+// B3（v0.25.103，用户反馈）：默认评分 4.0→4.5 后，存量「有评论」教师评分仍按旧默认加权——
+// 迁移只回填无评论教师，有评论的未重算。本测试验证新迁移按新公式全量重算（幂等）。
+test('B3 迁移：默认评分改 4.5 后，有评论教师评分按新公式重算（幂等）', async () => {
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV); // 新库建表 + 迁移
+  // 播种 学生+教师，有评论教师给旧评分（rating 按旧默认 4.0 加权：(4.0*10+8.6)/(10+2)=4.2167）
+  db.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('stu1','h','s','student'),('t1','h','s','teacher')").run();
+  db.prepare("INSERT INTO teacher_profiles (user_id,grade,rating,rating_count,rating_sum) VALUES (2,'高三',4.2167,2,8.6)").run();
+  // 重跑迁移 → 有评论教师按新公式 (4.5*10 + 8.6)/(10+2) 重算
+  await initDb(db, ENV);
+  const expect = (4.5 * 10 + 8.6) / 12;
+  const r1 = db.prepare('SELECT rating FROM teacher_profiles WHERE user_id=2').first();
+  assert.ok(Math.abs(r1.rating - expect) < 0.0001, `有评论教师重算 = ${expect.toFixed(4)}（实 ${r1.rating}）`);
+  // 幂等：再跑一次结果不变
+  await initDb(db, ENV);
+  const r2 = db.prepare('SELECT rating FROM teacher_profiles WHERE user_id=2').first();
+  assert.ok(Math.abs(r2.rating - expect) < 0.0001, '重复迁移结果不变（幂等）');
+  // 无评论教师：仍按 4.5 回填（原 R16 行为不回归）
+  db.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('t2','h','s','teacher')").run();
+  db.prepare("INSERT INTO teacher_profiles (user_id,grade,rating,rating_count,rating_sum) VALUES (3,'高一',4.0,0,0)").run();
+  await initDb(db, ENV);
+  const r3 = db.prepare('SELECT rating FROM teacher_profiles WHERE user_id=3').first();
+  assert.equal(r3.rating, 4.5, '无评论教师回填 4.5（原行为保持）');
+});

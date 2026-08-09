@@ -57,13 +57,15 @@ function makeCtx(record) {
   return { dom, ctx };
 }
 
-test('dateFieldHtml：三段（年/月/日）+ 分隔连字符 + 居中灰字占位 + 每段 aria 与 data-* 段配置', () => {
+test('M5 dateFieldHtml：三独立输入框 + 单位后缀【】年【】月【】日；每段 aria 与 data-* 段配置', () => {
   const { ctx } = makeCtx();
   const html = vm.runInContext('dateFieldHtml()', ctx);
   assert.ok(html.includes('id="contract-first-lesson-field"'), '容器 id 稳定（提交读取点）');
-  assert.ok(html.includes('seg-year') && html.includes('seg-month') && html.includes('seg-day'), '年/月/日三段');
-  assert.equal((html.match(/class="seg-sep"/g) || []).length, 2, '两处分隔连字符');
-  assert.ok(html.includes('seg-ghost'), '居中灰字占位');
+  assert.equal((html.match(/class="seg-part"/g) || []).length, 3, '三个独立输入框（非长条内窄段）');
+  assert.ok(html.includes('class="seg-unit">年') && html.includes('class="seg-unit">月') && html.includes('class="seg-unit">日'), '每框带单位后缀');
+  assert.ok(html.includes('seg-year') && html.includes('seg-month') && html.includes('seg-day'), '年/月/日三段类保留（readDateField 依赖）');
+  assert.ok(!html.includes('seg-ghost'), '弃居中灰字占位（用户反馈像能点但只能输）');
+  assert.ok(!html.includes('seg-sep'), '弃分隔连字符（拆独立框替代）');
   assert.ok(html.includes('aria-label="年"') && html.includes('aria-label="月"') && html.includes('aria-label="日"'), '每段 aria-label');
   assert.ok(html.includes('data-maxlen="4"') && html.includes('data-maxlen="2"'), '年份 4 位、月/日 2 位');
   assert.ok(html.includes('data-max="12"') && html.includes('data-max="31"'), '月≤12、日≤31 段上限');

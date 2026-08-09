@@ -35,10 +35,10 @@ function enterResourceShare() {
   const isTeacher = state.user && state.user.role === 'teacher';
   document.getElementById('posts-content').innerHTML = `
     <div class="posts-toolbar glass">
-      ${segTabsHtml([
-        { key: 'all', label: UI.POSTS_VIEW_ALL, onclick: "switchPostsView('all')" },
-        { key: 'fav', label: UI.POSTS_VIEW_FAV, onclick: "switchPostsView('fav')" },
-      ], postsView, { containerClass: 'posts-view-tabs', attr: 'view' })}
+      <!-- M7（v0.25.103）：我的收藏从切换式 tab（总宽固定、选项一多就换行变高）改单个 toggle 按钮，
+           复用「屏蔽系统通知」按钮逻辑——点击进入收藏态显示「√ 已进入我的收藏」，再点回全部 -->
+      <button type="button" class="btn btn-sm glass glass--pressable posts-fav-btn" id="posts-fav-btn"
+        onclick="togglePostsFav()" aria-pressed="${postsView === 'fav'}">${postsView === 'fav' ? UI.POSTS_FAV_ACTIVE : UI.POSTS_VIEW_FAV}</button>
       <input type="search" id="posts-search" class="form-input posts-search"
         placeholder="${UI.POSTS_SEARCH_PLACEHOLDER}" oninput="postsSearchDebounced()">
       <select id="posts-sort" class="form-select posts-sort" onchange="loadPosts()">
@@ -52,10 +52,14 @@ function enterResourceShare() {
   loadPosts();
 }
 
-// R23：视图切换（全部 / 我的收藏）——收藏视图清空搜索框（列表按收藏时间倒序，不受搜索/排序影响）
-function switchPostsView(view) {
-  postsView = view;
-  document.querySelectorAll('.posts-view-tabs .seg-tab').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+// M7：收藏视图 toggle（替代原 seg-tab 切换）——收藏视图清空搜索框（列表按收藏时间倒序，不受搜索/排序影响）
+function togglePostsFav() {
+  postsView = postsView === 'all' ? 'fav' : 'all';
+  const btn = document.getElementById('posts-fav-btn');
+  if (btn) {
+    btn.textContent = postsView === 'fav' ? UI.POSTS_FAV_ACTIVE : UI.POSTS_VIEW_FAV;
+    btn.setAttribute('aria-pressed', postsView === 'fav');
+  }
   const search = document.getElementById('posts-search');
   if (search) search.value = '';
   loadPosts();
@@ -443,6 +447,21 @@ async function submitBroadcast() {
 let feedbackKind = 'bug';
 // R22（v0.25.87）：投诉已独立为 openComplaintModal（app-complaints.js），
 // 此处反馈浮窗仅保留 bug / 建议两档，complaint 档连根拔除。
+// M11（v0.25.103）：用户支持入口合并——「投诉与反馈」先出三选浮窗（Bug/建议/投诉），
+// 选中后关闭 chooser 再开对应专线浮窗（反馈 Bug 与建议浮窗本已独立，符合专线原则）。
+function openFeedbackComplaintChooser() {
+  if (!ensureAuth()) return;
+  openModal({
+    title: UI.BTN_COMPLAINT_FEEDBACK,
+    body: `
+      <div class="chooser-grid">
+        <button type="button" class="btn glass glass--pressable chooser-item" onclick="closeModal(); openFeedbackModal('bug')">${escHtml(UI.FEEDBACK_CHOOSE_BUG)}</button>
+        <button type="button" class="btn glass glass--pressable chooser-item" onclick="closeModal(); openFeedbackModal('suggestion')">${escHtml(UI.FEEDBACK_CHOOSE_SUGGESTION)}</button>
+        <button type="button" class="btn glass glass--pressable chooser-item" onclick="closeModal(); openComplaintModal()">${escHtml(UI.FEEDBACK_CHOOSE_COMPLAINT)}</button>
+      </div>`,
+  });
+}
+
 function openFeedbackModal(kind) {
   if (!ensureAuth()) return;
   feedbackKind = (kind === 'bug') ? kind : 'suggestion';
@@ -487,9 +506,9 @@ async function submitFeedback() {
   }
 }
 
-// #165（v0.25.73）：我的反馈与投诉——GET /api/feedbacks/mine 渲染浮窗
+// #165（v0.25.73）：我的投诉与反馈（M12 合并）——并行拉反馈 + 投诉两通道，同一浮窗展示。
 // 类型 tag 走 DISP.feedbackKindName、投诉对象走 DISP.feedbackSubjectName（显示映射单源）；
-// 正文走 mdRender 排版（反馈内容支持轻量 Markdown）；空态 UI.MY_FEEDBACK_EMPTY。
+// 反馈正文走 mdRender 排版；空态 UI.MY_FEEDBACK_EMPTY。
 async function openMyFeedback() {
   if (!ensureAuth()) return;
   openModal({
@@ -499,12 +518,16 @@ async function openMyFeedback() {
     body: `<div class="my-feedback-list">${loaderHtml()}</div>`,
   });
   try {
-    const data = await api('/api/feedbacks/mine', { method: 'GET' });
-    const list = data.feedbacks || [];
+    const [fb, cp] = await Promise.all([
+      api('/api/feedbacks/mine', { method: 'GET' }),
+      api('/api/complaints/mine', { method: 'GET' }), // M12：投诉独立通道并入同一浮窗
+    ]);
+    const feedbacks = fb.feedbacks || [];
+    const complaints = cp.complaints || [];
     const bodyEl = document.querySelector('#modal-container .my-feedback-list');
     if (!bodyEl) return; // 浮窗已被关闭
-    if (!list.length) { bodyEl.innerHTML = `<div class="empty-state">${UI.MY_FEEDBACK_EMPTY}</div>`; return; }
-    bodyEl.innerHTML = list.map(f => {
+    if (!feedbacks.length && !complaints.length) { bodyEl.innerHTML = `<div class="empty-state">${UI.MY_FEEDBACK_EMPTY}</div>`; return; }
+    const fbHtml = feedbacks.map(f => {
       const resolved = f.status === STATUS.RESOLVED;
       const subject = DISP.feedbackSubjectName(f.subject);
       return `<div class="list-card glass my-feedback-card">
@@ -520,6 +543,23 @@ async function openMyFeedback() {
           <div class="feedback-foot"><span class="list-card-meta">${fmtDateTime(f.created_at)}</span></div>
         </div>`;
     }).join('');
+    const cpHtml = complaints.map(c => {
+      const resolved = c.status === STATUS.RESOLVED;
+      const snap = c.target_snapshot || {};
+      const typeName = c.target_type === 'teacher' ? UI.COMPLAINT_TAB_TEACHER : c.target_type === 'student' ? UI.COMPLAINT_TAB_STUDENT : UI.COMPLAINT_TAB_POST;
+      return `<div class="list-card glass complaint-card${resolved ? ' complaint-card--resolved' : ''}">
+        <div class="list-card-header">
+          <span class="list-card-title">${escHtml(snap.name || '')}</span>
+          <span class="complaint-tags">
+            <span class="tag glass glass--solid tag-accent">${escHtml(typeName)}</span>
+            <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.COMPLAINT_STATUS_RESOLVED : UI.COMPLAINT_STATUS_OPEN}</span>
+          </span>
+        </div>
+        <div class="list-card-detail">${escHtml(c.reason)}${c.detail ? `<div class="complaint-detail">${escHtml(c.detail)}</div>` : ''}</div>
+        <div class="complaint-foot"><span class="list-card-meta">${fmtDateTime(c.created_at)}</span></div>
+      </div>`;
+    }).join('');
+    bodyEl.innerHTML = fbHtml + cpHtml;
   } catch (err) {
     const bodyEl = document.querySelector('#modal-container .my-feedback-list');
     if (bodyEl) bodyEl.innerHTML = `<div class="empty-state">${escHtml(err.message)}</div>`;

@@ -377,7 +377,7 @@ function onSegmentInput(inp) {
   const len = +(inp.dataset.maxlen) || 2;
   const v = inp.value.replace(/[^0-9]/g, '').slice(0, len);
   if (inp.value !== v) inp.value = v;
-  refreshSegmentField(inp.closest('.time-field'));
+  refreshSegmentField(inp.closest('.seg-date, .time-field'));
 }
 
 /** blur 钳制：按 data-max/data-min 范围 + data-pad 补零（时间 时≤23/分≤59；日期 年9999/月12/日31）。
@@ -391,7 +391,7 @@ function clampSegment(inp) {
     let n = Math.min(max, Math.max(min, +v));
     inp.value = String(n).padStart(pad, '0');
   }
-  refreshSegmentField(inp.closest('.time-field'));
+  refreshSegmentField(inp.closest('.seg-date, .time-field'));
 }
 
 /** 容器灰字显隐：任一段有值 → has-value（对应 ghost 渐隐） */
@@ -410,7 +410,7 @@ function clampYear(inp) {
     const n = Math.min(9999, Math.max(1, +v));
     inp.value = String(n);
   }
-  refreshSegmentField(inp.closest('.time-field'));
+  refreshSegmentField(inp.closest('.seg-date, .time-field'));
 }
 
 /** 年月天数（new Date(y, m, 0) = 第 m 月的最后一天；闰年由 Date 内建处理） */
@@ -419,7 +419,7 @@ function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
 /** 日段 blur 钳制：先通用钳制（1-31），再按已填年/月钳到真实月末（2026-02-31 → 02-28） */
 function clampDateDay(inp) {
   clampSegment(inp);
-  const field = inp.closest('.time-field');
+  const field = inp.closest('.seg-date, .time-field');
   if (!field || !inp.value) return;
   const year = +(field.querySelector('.seg-year').value || '0');
   const month = +(field.querySelector('.seg-month').value || '0');
@@ -429,20 +429,16 @@ function clampDateDay(inp) {
   if (d > dim) { inp.value = String(dim).padStart(2, '0'); refreshSegmentField(field); }
 }
 
-/** 日期段容器 HTML（首次上课日期，v0.25.53）：年-月-日 三段 + 分隔连字符 + 居中灰字占位。
- *  value: 'YYYY-MM-DD' 或 ''。复用 .time-field 玻璃面（.seg-field 修饰），序列化契约 YYYY-MM-DD。 */
+/** 日期段容器 HTML（首次上课日期）：M5（v0.25.103）重做——三个独立输入框 + 单位后缀
+ *  【】年【】月【】日（用户反馈旧版「长条玻璃面 + 居中 ghost 像能点但只能输 + 输入区集中在中间」）。
+ *  value: 'YYYY-MM-DD' 或 ''。保留 .seg-input/.seg-year/.seg-month/.seg-day 类与 id
+ *  （readDateField/clampDateDay 依赖），序列化契约 YYYY-MM-DD 不变。 */
 function dateFieldHtml(value) {
   const [y, m, d] = (value || '').split('-');
-  const filled = (y || m || d) ? ' has-value' : '';
-  return `<div class="time-field seg-field seg-date${filled}" id="contract-first-lesson-field">
-    <div class="seg-hms">
-      <span class="seg-ghost">${escHtml(UI.SEG_DATE_GHOST)}</span>
-      <input ${segInputAttrs({ maxLen: 4, max: 9999, min: 1, pad: 4, label: UI.SEG_YEAR_ARIA, cls: 'seg-year', value: y, extra: 'clampYear(this)' })}>
-      <span class="seg-sep">-</span>
-      <input ${segInputAttrs({ maxLen: 2, max: 12, min: 1, pad: 2, label: UI.SEG_MONTH_ARIA, cls: 'seg-month', value: m })}>
-      <span class="seg-sep">-</span>
-      <input ${segInputAttrs({ maxLen: 2, max: 31, min: 1, pad: 2, label: UI.SEG_DAY_ARIA, cls: 'seg-day', value: d, extra: 'clampDateDay(this)' })}>
-    </div>
+  return `<div class="seg-date" id="contract-first-lesson-field">
+    <span class="seg-part"><input ${segInputAttrs({ maxLen: 4, max: 9999, min: 1, pad: 4, label: UI.SEG_YEAR_ARIA, cls: 'seg-year', value: y, extra: 'clampYear(this)' })}><span class="seg-unit">年</span></span>
+    <span class="seg-part"><input ${segInputAttrs({ maxLen: 2, max: 12, min: 1, pad: 2, label: UI.SEG_MONTH_ARIA, cls: 'seg-month', value: m })}><span class="seg-unit">月</span></span>
+    <span class="seg-part"><input ${segInputAttrs({ maxLen: 2, max: 31, min: 1, pad: 2, label: UI.SEG_DAY_ARIA, cls: 'seg-day', value: d, extra: 'clampDateDay(this)' })}><span class="seg-unit">日</span></span>
   </div>`;
 }
 

@@ -201,14 +201,16 @@ test('R23 我的收藏视图：取消收藏就地移除卡；视图切换走 fav
   await vm.runInContext('togglePostFavorite(9, document.querySelector(".post-fav input"))', ctx);
   assert.equal(vm.runInContext('lastFavCall', ctx), '/api/posts/9/favorite', '调收藏接口');
   assert.equal(dom.window.document.querySelectorAll('#posts-list .post-card').length, 0, '我的收藏视图取消收藏就地移除卡');
-  // 视图切换：switchPostsView('fav') → 清搜索框 + loadPosts 走 favorites/mine
+  // 视图切换（M7：切卡改 toggle 按钮）：togglePostsFav → 清搜索框 + loadPosts 走 favorites/mine
   dom.window.document.getElementById('posts-content').innerHTML =
     `<div class="posts-toolbar glass">
-      <div class="seg-tabs glass glass--solid posts-view-tabs"><button class="seg-tab active" data-view="all">全部</button><button class="seg-tab" data-view="fav">我的收藏</button></div>
+      <button type="button" class="btn btn-sm posts-fav-btn" id="posts-fav-btn" onclick="togglePostsFav()">我的收藏</button>
       <input type="search" id="posts-search" value="旧值">
     </div><div id="posts-list"></div>`;
-  await vm.runInContext(`switchPostsView('fav'); loadPosts()`, ctx);
+  await vm.runInContext(`postsView = 'all'; togglePostsFav(); loadPosts()`, ctx); // 重置到 all 再 toggle 进 fav
   assert.equal(vm.runInContext('lastDhCall', ctx), '/api/posts/favorites/mine', '收藏视图走独立接口');
   assert.equal(dom.window.document.getElementById('posts-search').value, '', '切视图清空搜索框');
-  assert.ok(dom.window.document.querySelector('.posts-view-tabs .seg-tab[data-view="fav"]').classList.contains('active'), 'tab 激活态切换');
+  assert.equal(dom.window.document.getElementById('posts-fav-btn').textContent, globalThis.APP_CONSTANTS.UI.POSTS_FAV_ACTIVE, '进入收藏态按钮显示「√ 已进入我的收藏」');
+  await vm.runInContext(`togglePostsFav(); loadPosts()`, ctx);
+  assert.equal(dom.window.document.getElementById('posts-fav-btn').textContent, globalThis.APP_CONSTANTS.UI.POSTS_VIEW_FAV, '再点回全部态按钮文案恢复');
 });

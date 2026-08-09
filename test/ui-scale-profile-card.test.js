@@ -150,7 +150,9 @@ test('资料卡渲染：条目无分隔线类、解锁态联系方式显示值+�
     window.PROF_HTML2 = renderProfileInfoCard(window.PROF_T, false);
   `, ctx);
   const html = vm.runInContext('window.PROF_HTML2', ctx);
-  assert.ok(html.includes('微信：wx_abc'), '解锁态显示联系方式实际值');
+  // M2：联系方式改多行——子标题「微信」+ 值「wx_abc」分列（不再「微信：wx_abc · …」单行）
+  assert.ok(html.includes('wx_abc'), '解锁态显示联系方式实际值');
+  assert.ok(html.includes(vm.runInContext('UI.LABEL_WECHAT', ctx)), '微信子标题存在（科目式多行）');
   assert.ok(html.includes('签约后展示联系方式'), '值下方仍带灰字提示（两行式）');
   const rowCount = (html.match(/class="profile-row"/g) || []).length;
   assert.ok(rowCount > 0, '资料行以 .profile-row 渲染');
@@ -204,6 +206,77 @@ test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、
   assert.equal(vm.runInContext('getUiScale()', ctx), 85, '刷新后按 localStorage 现值应用');
 });
 
+// ---- v0.25.103 B1：UI 大小条拖动正反馈根治（pointer 差分拖动） ----
+// 旧实现 oninput="setUiScaleFromSlider(this)" 由浏览器原生 range 拖动驱动——预览的
+// html transform:scale 缩放滑块轨道，浏览器按缩放后轨道解析 value → scale 变 → 轨道几何变
+// → value 变 → 正反馈鬼畜。新实现 pointerdown/move 差分（固定初始 clientWidth，不受
+// transform 影响），value 只由差分驱动，鼠标静止即稳定。
+test('B1 滑块：HTML 不再绑 oninput/onchange（拖动路径不依赖浏览器原生解析）', () => {
+  const { ctx } = makeCtx();
+  for (const f of FILES_WITH_PAGES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  seedSettingsPage(ctx);
+  assert.equal(vm.runInContext('window.SLIDER.getAttribute("oninput")', ctx), null, '滑块无 oninput 属性（正反馈引擎移除）');
+  assert.equal(vm.runInContext('window.SLIDER.getAttribute("onchange")', ctx), null, '滑块无 onchange 属性');
+  assert.equal(vm.runInContext('!!document.getElementById("ui-scale-slider")', ctx), true, '滑块带稳定 id（bind 定位）');
+});
+
+test('B1 滑块：pointer 差分拖动——value 按固定初始几何差分，缩放后同位置稳定（无正反馈）', async () => {
+  const { ctx, dom } = makeCtx();
+  for (const f of FILES_WITH_PAGES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  seedSettingsPage(ctx);
+  const min = vm.runInContext('CONFIG.UI_SCALE_MIN', ctx);
+  const max = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
+  const span = max - min;
+  // jsdom 无排版 → mock 轨道 layout 宽 200px（真实里 clientWidth 不受 html transform 影响）
+  vm.runInContext(`Object.defineProperty(window.SLIDER, 'clientWidth', { value: 200, configurable: true });`, ctx);
+  const fire = (type, x) => vm.runInContext(`
+    (function(){
+      var Ctor = (typeof window.PointerEvent !== 'undefined') ? window.PointerEvent : window.MouseEvent;
+      var ev = new Ctor('${type}', { clientX: ${x}, pointerId: 1, bubbles: true, cancelable: true, button: 0 });
+      window.SLIDER.dispatchEvent(ev);
+    })();
+  `, ctx);
+  // 初始 100，pointerdown 在 100px，拖动到 150px → 差分 +50/200*span
+  vm.runInContext("window.SLIDER.value = '100'", ctx);
+  fire('pointerdown', 100);
+  fire('pointermove', 150);
+  const expect150 = 100 + Math.round(50 / 200 * span);
+  assert.equal(vm.runInContext('window.SLIDER.value', ctx), String(expect150), `差分 50px → ${expect150}（初始几何映射）`);
+  await tick(30); // rAF 消费 → 预览 transform 应用（页面缩放开始）
+  const tAfterMove = dom.window.document.documentElement.style.transform;
+  assert.ok(tAfterMove.includes('scale('), '拖动中 html transform 预览已应用（页面缩放）');
+  // 核心正反馈判据：缩放生效后再发「同位置」move → value 必须不变（差分基于 startX，与缩放后几何无关）
+  const before = vm.runInContext('window.SLIDER.value', ctx);
+  fire('pointermove', 150);
+  assert.equal(vm.runInContext('window.SLIDER.value', ctx), before, '缩放后同位置 move → value 稳定（无正反馈漂移）');
+  fire('pointermove', 155);
+  const expect155 = 100 + Math.round(55 / 200 * span);
+  assert.equal(vm.runInContext('window.SLIDER.value', ctx), String(expect155), `继续差分 55px → ${expect155}`);
+  // 松手 commit：落盘 + 落真排版 + 清预览
+  fire('pointerup', 155);
+  const finalVal = vm.runInContext('window.SLIDER.value', ctx);
+  assert.equal(vm.runInContext("document.getElementById('ui-scale-val').textContent", ctx), finalVal + '%', '数值标签同步');
+  assert.equal(dom.window.document.documentElement.style.transform, '', 'pointerup 后预览 transform 清除（commit 落真排版）');
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), (Number(finalVal) / 100).toFixed(3), 'commit 落真 --ui-scale');
+  assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), finalVal, '松手持久化');
+});
+
+test('B1 滑块：input/change 事件兜底仍走预览/落盘（键盘与无障碍路径）', async () => {
+  const { ctx, dom } = makeCtx();
+  for (const f of FILES_WITH_PAGES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  seedSettingsPage(ctx);
+  const max = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
+  // input（键盘改值）→ 预览 transform（rAF），不落真排版
+  vm.runInContext(`window.SLIDER.value = '${max}'; window.SLIDER.dispatchEvent(new window.Event('input', { bubbles: true }));`, ctx);
+  await tick(30);
+  assert.equal(dom.window.document.documentElement.style.transform, `scale(${(max / 100).toFixed(3)})`, 'input 兜底：预览 transform 应用');
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '', 'input 兜底：不落真排版');
+  // change（键盘松键/辅助）→ commit 落盘落真排版
+  vm.runInContext(`window.SLIDER.value = '85'; window.SLIDER.dispatchEvent(new window.Event('change', { bubbles: true }));`, ctx);
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.850', 'change 兜底：落真 --ui-scale');
+  assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '85', 'change 兜底：持久化');
+});
+
 // #156（v0.25.64）：资料项行距压半 + PC资料卡加宽 + 表单去横线压紧（CSS+常量在位）
 test('#156 资料紧凑化：行距压半 / PC资料卡加宽 / 表单压紧', () => {
   const css = readFileSync('./style.css', 'utf8');
@@ -212,4 +285,34 @@ test('#156 资料紧凑化：行距压半 / PC资料卡加宽 / 表单压紧', (
   assert.ok(css.includes('min(max(330px, 30vw), 460px)'), 'PC 资料卡加宽（30vw，460px 上限）');
   assert.ok(css.includes('align-items: flex-start; padding: 8px 0;'), '编辑表单组行距压紧（15→8px）');
   assert.ok(css.includes('margin: 14px 0 8px;'), '组标题行距压紧（22→14px）');
+});
+
+// ---- v0.25.103 M1：ctrl/cmd + 滚轮任意位置调整 UI 大小（复用 --ui-scale 体系） ----
+test('M1 ctrl+滚轮调 UI 大小：上滚放大/下滚缩小/普通滚轮不触发/钳制上限', async () => {
+  const { ctx, dom } = makeCtx(); loadCommon(ctx);
+  const doc = dom.window.document;
+  const fire = (ctrl, deltaY) => {
+    const Ctor = typeof dom.window.MouseEvent !== 'undefined' ? dom.window.MouseEvent : dom.window.Event;
+    const ev = new Ctor('wheel', { ctrlKey: ctrl, metaKey: false, bubbles: true, cancelable: true });
+    Object.defineProperty(ev, 'deltaY', { value: deltaY });
+    doc.dispatchEvent(ev);
+  };
+  const uiScale = () => doc.documentElement.style.getPropertyValue('--ui-scale');
+  const stored = () => vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx);
+  vm.runInContext("localStorage.setItem('sufe_ui_scale', '100')", ctx);
+  // 上滚（deltaY<0）放大 +1
+  fire(true, -100); await tick(30);
+  assert.equal(uiScale(), '1.010', '上滚放大 +1%');
+  assert.equal(stored(), '101', '落盘');
+  // 下滚（deltaY>0）缩小回 100
+  fire(true, 100); await tick(30);
+  assert.equal(uiScale(), '1.000', '下滚缩小回 100');
+  // 普通滚轮（无 ctrl）不触发缩放
+  fire(false, -100); await tick(30);
+  assert.equal(uiScale(), '1.000', '无 ctrl 不缩放（正常滚动保留）');
+  // 连续上滚钳制到上限
+  const max = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
+  for (let i = 0; i < 60; i++) fire(true, -100);
+  await tick(30);
+  assert.equal(Number(stored()), max, `连续上滚钳到上限 ${max}`);
 });

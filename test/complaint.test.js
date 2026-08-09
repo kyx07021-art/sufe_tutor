@@ -204,7 +204,7 @@ function makeCtx({ mineRows = [], myComplaints = [], recentByType = {}, searchRo
     window.APP_CONSTANTS = globalThis.APP_CONSTANTS;
     ['openFeedbackModal','switchFeedbackKind','submitFeedback','openMyFeedback','enterAbout','closeModal',
      'openComplaintModal','switchComplaintTab','switchComplaintReason','pickComplaintTarget','clearComplaintTarget',
-     'complaintSearchInput','complaintSearch','submitComplaint','openMyComplaints'].forEach(function (k) {
+     'complaintSearchInput','complaintSearch','submitComplaint','openMyFeedback'].forEach(function (k) { // M12：openMyComplaints 已删，合并入口=openMyFeedback
       if (typeof globalThis[k] === 'function') window[k] = globalThis[k];
     });
   `, ctx);
@@ -216,19 +216,34 @@ const MINE = [
   { id: 2, kind: 'bug', subject: '', title: '闪退', content: '打开就退', status: 'resolved', created_at: '2026-08-08 09:00:00' },
 ];
 
-test('关于平台：支持卡四按钮（反馈/投诉/我的投诉/我的反馈）', async () => {
+test('M11+M12 关于平台：支持卡两按钮（投诉与反馈/我的投诉与反馈，四入口收口）', async () => {
   const { dom, ctx } = makeCtx();
   const doc = dom.window.document;
   await vm.runInContext(`state.page = 'about'; enterAbout()`, ctx);
   const btns = [...doc.querySelectorAll('.about-feedback-btns button')];
-  assert.equal(btns.length, 4, '四个入口按钮');
-  assert.equal(btns[0].textContent, globalThis.APP_CONSTANTS.UI.BTN_FEEDBACK);
-  assert.equal(btns[1].textContent, globalThis.APP_CONSTANTS.UI.BTN_COMPLAINT);
-  assert.equal(btns[2].textContent, globalThis.APP_CONSTANTS.UI.BTN_MY_COMPLAINTS);
-  assert.equal(btns[3].textContent, globalThis.APP_CONSTANTS.UI.BTN_MY_FEEDBACK);
+  const UI = globalThis.APP_CONSTANTS.UI;
+  assert.equal(btns.length, 2, '两个入口按钮（用户反馈+投诉→投诉与反馈；我的投诉+我的反馈→我的投诉与反馈）');
+  assert.equal(btns[0].textContent, UI.BTN_COMPLAINT_FEEDBACK);
+  assert.equal(btns[1].textContent, UI.BTN_MY_COMPLAINTS_FEEDBACK);
 });
 
-test('R22 投诉独立浮窗：三 tab + pane 显隐 + 理由 pill；反馈浮窗已无投诉档', async () => {
+test('M11 投诉与反馈：chooser 浮窗三选（Bug/建议/投诉），选中后开对应专线浮窗', async () => {
+  const { dom, ctx } = makeCtx();
+  const doc = dom.window.document;
+  const UI = globalThis.APP_CONSTANTS.UI;
+  await vm.runInContext(`openFeedbackComplaintChooser()`, ctx);
+  const items = doc.querySelectorAll('.chooser-grid .chooser-item');
+  assert.equal(items.length, 3, '三选通道');
+  assert.equal(items[0].textContent, UI.FEEDBACK_CHOOSE_BUG);
+  assert.equal(items[1].textContent, UI.FEEDBACK_CHOOSE_SUGGESTION);
+  assert.equal(items[2].textContent, UI.FEEDBACK_CHOOSE_COMPLAINT);
+  // 选「我要投诉」→ chooser 关闭 + 投诉浮窗打开（closeModal 再 openComplaintModal）
+  await vm.runInContext(`closeModal(); openComplaintModal()`, ctx);
+  await tick();
+  assert.equal(doc.getElementById('complaint-modal-title').textContent, UI.COMPLAINT_MODAL_TITLE, '投诉专线浮窗打开');
+});
+
+test('R22 投诉独立浮窗：三 tab + pane 显隐 + 理由下拉栏；反馈浮窗已无投诉档', async () => {
   const { dom, ctx } = makeCtx();
   const doc = dom.window.document;
   const UI = globalThis.APP_CONSTANTS.UI;
@@ -241,7 +256,13 @@ test('R22 投诉独立浮窗：三 tab + pane 显隐 + 理由 pill；反馈浮�
   assert.ok(!doc.getElementById('cmp-pane-teacher').classList.contains('hidden'), '教师 pane 默认可见');
   assert.ok(doc.getElementById('cmp-pane-student').classList.contains('hidden'), '学生 pane 初始隐藏');
   assert.ok(doc.getElementById('cmp-pane-post').classList.contains('hidden'), '帖子 pane 初始隐藏');
-  assert.equal(doc.querySelectorAll('.complaint-reasons .seg-tab').length, UI.COMPLAINT_REASONS.length, '理由 pill 与白名单一致');
+  // M8：投诉理由从切换式改下拉栏——select 选项 = 占位 + 白名单理由
+  const reasonSel = doc.getElementById('complaint-reason');
+  assert.ok(reasonSel, '投诉理由下拉栏存在');
+  assert.equal(reasonSel.tagName.toLowerCase(), 'select', '是下拉栏（非切换式）');
+  assert.equal(reasonSel.options.length, UI.COMPLAINT_REASONS.length + 1, '下拉选项 = 占位项 + 白名单');
+  assert.equal(reasonSel.value, '', '默认选中占位项（未选理由）');
+  assert.equal(reasonSel.options[1].textContent, UI.COMPLAINT_REASONS[0], '首个理由是白名单第一项');
   // 切学生 tab：pane 显隐互斥
   await vm.runInContext(`switchComplaintTab('student')`, ctx);
   assert.ok(!doc.getElementById('cmp-pane-student').classList.contains('hidden'), '学生 pane 显示');
@@ -269,7 +290,7 @@ test('R22 对象选择与提交：选对象 + 理由 → POST /api/complaints；
   await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
   // 未选对象提交 → 拦截提示，不发请求（v0.25.99：提示走底部 Toast）
-  await vm.runInContext(`switchComplaintReason(0); submitComplaint()`, ctx);
+  await vm.runInContext(`document.getElementById('complaint-reason').value = UI.COMPLAINT_REASONS[0]; switchComplaintReason(document.getElementById('complaint-reason')); submitComplaint()`, ctx);
   assert.equal(complaints.length, 0, '未选对象不发请求');
   assert.ok([...doc.querySelectorAll('#toast-container .toast')].some(t => t.textContent.includes(UI.COMPLAINT_TARGET_REQUIRED)), '未选对象 Toast 提示');
   // 选对象（教师 tab）+ 理由 + 详情 → 提交
@@ -291,7 +312,7 @@ test('R22 对象按 tab 隔离：学生 tab 选择不影响教师 tab，提交�
   await tick();
   await vm.runInContext(`pickComplaintTarget('teacher', 5, { dataset: { name: '李老师' } })`, ctx);
   await vm.runInContext(`switchComplaintTab('student'); pickComplaintTarget('student', 9, { dataset: { name: '王同学' } })`, ctx);
-  await vm.runInContext(`switchComplaintReason(1); submitComplaint()`, ctx);
+  await vm.runInContext(`document.getElementById('complaint-reason').value = UI.COMPLAINT_REASONS[1]; switchComplaintReason(document.getElementById('complaint-reason')); submitComplaint()`, ctx);
   await tick();
   assert.deepEqual(complaints[0].body, { targetType: 'student', targetId: 9, reason: UI.COMPLAINT_REASONS[1], detail: '' }, '提交当前 tab 的选中对象');
 });
@@ -310,25 +331,33 @@ test('R22 对象搜索：候选渲染 + 点击选中后清空结果', async () =
   assert.equal(doc.getElementById('cmp-results-teacher').innerHTML, '', '选中后清空搜索结果');
 });
 
-test('R22 我的投诉：渲染对象/理由/状态；空态', async () => {
+test('M12 我的投诉与反馈（合并）：投诉卡渲染对象/理由/状态；与反馈同浮窗；空态', async () => {
   const { dom, ctx } = makeCtx({ myComplaints: [
     { id: 1, target_type: 'teacher', target_snapshot: { name: '李老师' }, reason: '虚假信息或欺诈', detail: '多次迟到', status: 'open', created_at: '2026-08-09 10:00:00' },
   ] });
   const doc = dom.window.document;
   const UI = globalThis.APP_CONSTANTS.UI;
-  await vm.runInContext(`openMyComplaints()`, ctx);
+  await vm.runInContext(`openMyFeedback()`, ctx); // M12：合并入口统一走 openMyFeedback
   await tick();
-  const cards = doc.querySelectorAll('.my-complaints-list .complaint-card');
-  assert.equal(cards.length, 1, '一条投诉');
+  const cards = doc.querySelectorAll('.my-feedback-list .complaint-card');
+  assert.equal(cards.length, 1, '一条投诉（并入合并浮窗）');
   assert.ok(cards[0].textContent.includes('李老师'), '对象名');
   assert.ok(cards[0].textContent.includes('虚假信息或欺诈'), '理由');
   assert.ok(cards[0].textContent.includes(UI.COMPLAINT_STATUS_OPEN), '状态处理中');
   assert.ok(cards[0].textContent.includes('多次迟到'), '详情');
-  // 空态
-  const { dom: dom2, ctx: ctx2 } = makeCtx({ myComplaints: [] });
-  await vm.runInContext(`openMyComplaints()`, ctx2);
+  // 反馈+投诉共存：mineRows 有反馈时两张卡都在同一浮窗
+  const { dom: dom3, ctx: ctx3 } = makeCtx({ mineRows: [{ kind: 'bug', title: '卡顿', content: 'x', status: 'open', created_at: '2026-08-09 09:00:00' }], myComplaints: [
+    { id: 2, target_type: 'post', target_snapshot: { name: '帖子' }, reason: '违法违规内容', detail: '', status: 'open', created_at: '2026-08-09 11:00:00' },
+  ] });
+  await vm.runInContext(`openMyFeedback()`, ctx3);
   await tick();
-  assert.ok(dom2.window.document.querySelector('.my-complaints-list').textContent.includes(UI.COMPLAINT_MINE_EMPTY), '空态文案');
+  assert.equal(dom3.window.document.querySelectorAll('.my-feedback-list .my-feedback-card').length, 1, '反馈卡在合并浮窗');
+  assert.equal(dom3.window.document.querySelectorAll('.my-feedback-list .complaint-card').length, 1, '投诉卡在合并浮窗');
+  // 空态（反馈与投诉都空）
+  const { dom: dom2, ctx: ctx2 } = makeCtx({ myComplaints: [] });
+  await vm.runInContext(`openMyFeedback()`, ctx2);
+  await tick();
+  assert.ok(dom2.window.document.querySelector('.my-feedback-list').textContent.includes(UI.MY_FEEDBACK_EMPTY), '空态文案');
 });
 
 test('我的反馈浮窗：渲染类型/对象/状态 tag + Markdown 正文；空态', async () => {

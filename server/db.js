@@ -487,6 +487,11 @@ export async function initDb(db, env = {}) {
   // R16：默认评分 4.0→4.5 对所有用户生效——存量从未被评价的教师（rating_count=0，rating=旧默认）回填 4.5；
   // 被评价过的保留实际加权分。幂等：回填后 rating=4.5 不再命中；新库新建即 4.5。
   await dbRun(db, `UPDATE teacher_profiles SET rating=${INITIAL_RATING} WHERE rating_count = 0 AND rating < ${INITIAL_RATING}`);
+  // B3（v0.25.103）：默认评分改 4.5 后，存量「有评论」教师的 rating 仍是旧默认（4.0）加权的结果——
+  // 上一条只回填无评论教师，有评论的未按新公式重算（用户反馈）。此处按新公式全量重算
+  // （rating=(4.5*INITIAL_WEIGHT + rating_sum)/(INITIAL_WEIGHT + rating_count)，与 dbRecomputeTeacherRating
+  // 同口径，单点下沉迁移）。幂等：rating_sum/rating_count 不变 → 结果不变，可重复执行。
+  await dbRun(db, `UPDATE teacher_profiles SET rating=(${INITIAL_RATING} * ${INITIAL_WEIGHT} + COALESCE(rating_sum,0)) / (${INITIAL_WEIGHT} + rating_count) WHERE rating_count > 0`);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"],
     ['intent_locked', 'INTEGER NOT NULL DEFAULT 0'], // 意向单接受锁：并发 accept 抢占（防同需求双 accepted 意向）
     // R2-b 需求侧扩充：需求类型（学科/非学科）/ 偏好老师性格 / 偏好老师性别

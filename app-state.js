@@ -279,6 +279,30 @@ function uiScaleFillPct(v) {
   return ((c - CONFIG.UI_SCALE_MIN) / span * 100).toFixed(1);
 }
 
+// M1（v0.25.103）：ctrl/cmd + 滚轮在任意位置调整 UI 大小（成熟网页标配）。
+// 参考成熟实现：wheel 监听必须 { passive:false } 才能 preventDefault 拦截浏览器原生缩放；
+// ctrlKey||metaKey 双平台（Win/Linux Ctrl、macOS Cmd）；deltaY 符号定方向（上滚放大/下滚缩小）；
+// 连续滚轮 rAF 合并成一次落盘（避免每帧全站重排版）；钳制到 UI_SCALE_MIN/MAX。
+// 直接复用 --ui-scale 体系（与设置页滑块同源 setUiScale，全站 calc() 消费，真实重排版），
+// 不用 transform 预览（那是拖动期帧率策略，正式调整应落真排版）。
+function bindUiScaleWheel() {
+  let pending = 0;
+  let raf = 0;
+  document.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault(); // 拦截浏览器原生页面缩放/滚动
+    pending += e.deltaY < 0 ? 1 : -1; // 每 tick 一格（step=1）
+    if (!raf) raf = requestAnimationFrame(() => {
+      raf = 0;
+      if (!pending) return;
+      setUiScale(getUiScale() + pending); // 钳制 + 落盘 + 应用 --ui-scale
+      pending = 0;
+    });
+  }, { passive: false });
+}
+// 顶层绑定（jsdom 单测环境无 document 时跳过）
+if (typeof document !== 'undefined' && document.addEventListener) bindUiScaleWheel();
+
 // ============================================================
 // 登出复位注册表：领域模块登记自身的模块级残留清理
 // ============================================================

@@ -193,10 +193,19 @@
 
     stageOfGrade(gradeId) {
       if (!gradeId) return null;
+      if (gradeId.startsWith('prep')) return 'middle'; // M3：预备班=初中阶段（上海五四学制六年级属初中；须先于 'p' 前缀判断）
       if (gradeId.startsWith('p')) return 'primary';
       if (gradeId.startsWith('junior')) return 'middle';
       if (gradeId.startsWith('senior')) return 'senior';
       return null;
+    },
+
+    // M3：学制地区差异——五四学制省份（小学五年+初中四年；六年级=初中预备班，无小学六年级）。
+    // 单源 FIVE_FOUR_PROVINCES（constants），此处读 globalThis.APP_CONSTANTS；默认六三学制。
+    isFiveFour(provinceId) {
+      const cfg = globalThis.APP_CONSTANTS || {};
+      const list = cfg.FIVE_FOUR_PROVINCES || [];
+      return list.includes(provinceId);
     },
 
     // 学生科目池：地区 + 年级共同决定（需求 1.3）

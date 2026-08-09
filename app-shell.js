@@ -286,6 +286,9 @@ function injectPageHeaderInfo(pageId) {
 function selectPage(pageId) {
   const prevPage = state.page; // 2026-08-09 反馈：记录离开页，供切出通知/会话页时"看过即消"批量已读
   closeProfilePanel(); // 切页收起个人信息右栏
+  // v0.25.103 B4（用户反馈）：模块本身入层级树——切模块关闭所有子窗（新建需求/发送浮窗等
+  // openModal 残留），否则切页后浮窗还在（教室列表点发送需求后迅速切侧栏即复现）。
+  closeAllModals();
   document.querySelectorAll('#client-main .client-page').forEach(s =>
     s.classList.toggle('hidden', s.dataset.page !== pageId));
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b =>

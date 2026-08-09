@@ -98,8 +98,10 @@ function renderDemandModal(demand) {
           </div>
           <div class="form-group">
             <label class="form-label">${UI.LABEL_STUDENT_GRADE} <span class="req">*</span></label>
-            <select class="form-select" id="d-grade" required onchange="updateDemandSubjects()">
-              <option value="">${UI.OPTION_PLACEHOLDER}</option>${STUDENT_GRADES.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
+            <!-- M3（v0.25.103）：年级随地区学制动态（上海五四学制无小学六年级、六年级=预备班）；
+                 未选地区时禁用并提示先选地区 -->
+            <select class="form-select" id="d-grade" required onchange="updateDemandSubjects()"${demand && demand.province ? '' : ' disabled'}>
+              <option value="">${demand && demand.province ? UI.OPTION_PLACEHOLDER : UI.SELECT_PROVINCE_FIRST}</option>${gradeOptionsForProvince(demand && demand.province).map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -184,6 +186,17 @@ function renderDemandModal(demand) {
             <button type="submit" class="btn glass glass--pressable" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
           </div>
         </form>`;
+}
+
+// M3（v0.25.103）：年级选项按地区学制——五四学制（上海）无小学六年级、六年级=初中预备班；
+// 默认六三学制含小学六年级。单源 FIVE_FOUR_PROVINCES + STUDENT_GRADES。
+function gradeOptionsForProvince(prov) {
+  const fiveFour = globalThis.SUFE_REGIONS && globalThis.SUFE_REGIONS.isFiveFour(prov);
+  return STUDENT_GRADES.filter(g => {
+    if (g.id === 'prep') return !!fiveFour;
+    if (g.id === 'p6') return !fiveFour;
+    return true;
+  });
 }
 
 function initDemandForm(selectedProvince) {
@@ -280,6 +293,14 @@ function toggleAddressField() {
 function onDemandProvinceChange() {
   const prov = document.getElementById('d-province').value;
   document.getElementById('d-region-note').innerHTML = regionLockNote(prov); // regionLockNote 对空值同样给提示
+  // M3：地区→学制→年级选项重建（未选地区禁用+提示先选；切换省份保留原值若仍在列表）
+  const gradeSel = document.getElementById('d-grade');
+  const prevGrade = gradeSel.value;
+  const gradeOpts = gradeOptionsForProvince(prov);
+  gradeSel.disabled = !prov;
+  gradeSel.innerHTML = `<option value="">${prov ? UI.OPTION_PLACEHOLDER : UI.SELECT_PROVINCE_FIRST}</option>`
+    + gradeOpts.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+  if (prevGrade && gradeOpts.some(g => g.id === prevGrade)) gradeSel.value = prevGrade;
   const methodSel = document.getElementById('d-method');
   const onlineOnly = !(globalThis.SUFE_REGIONS && globalThis.SUFE_REGIONS.allowsOffline(prov)); // 线下许可数据驱动（v0.25.86 审计去 'shanghai' 硬编码）
   [...methodSel.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
