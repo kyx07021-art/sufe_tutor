@@ -105,7 +105,9 @@ function makeCtx(apiData = API_DATA) {
     performance: globalThis.performance,
     MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     Image: class { set src(v) { this._s = v; } },
-    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
+    // R27：亮区动态跟随循环持续跑（rAF）——timer unref 防止跟随循环 keep event loop（测试进程正常退出）
+    requestAnimationFrame: (cb) => { const t = setTimeout(cb, 16); if (t && typeof t.unref === 'function') t.unref(); },
+    cancelAnimationFrame: () => {},
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
   });
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
@@ -528,6 +530,55 @@ test('动画稳定化：目标祖先链动画运行中 → 延迟到动画结束
   assert.equal(doc.querySelector('.tour-hole--show'), null, '动画运行中：亮区不定位（避免中间帧几何卡屏幕外）');
   await tick(60); // rAF 后再查：动画结束 → 定位
   assert.ok(doc.querySelector('.tour-hole--show'), '动画结束后亮区定位');
+});
+
+// ============ R27（v0.25.92）：亮区动态绑定——定位后目标位移即跟随重定位 ============
+test('R27 亮区动态绑定：定位后目标浮入位移 → 跟随重定位（根治先亮后浮入/筛选顶跑错位）', async () => {
+  const { dom, ctx } = makeCtx();
+  const doc = dom.window.document;
+  await setupClient(ctx, { guestRole: 'student' });
+  // 目标初始 (20,20)，定位后模拟「浮入/列表重建挤压」位移到 (120,120)
+  vm.runInContext(`
+    const t = document.createElement('div'); t.id = 'drift-target';
+    let pos = 20;
+    t.getBoundingClientRect = function () { return { top: pos, left: pos, bottom: pos + 60, right: pos + 180, width: 180, height: 60 }; };
+    document.body.appendChild(t);
+    window.__driftMove = (v) => { pos = v; };
+  `, ctx);
+  vm.runInContext(`runTour([
+    { module: 'x', target: { sel: '#drift-target' }, text: '漂移目标' },
+    { module: 'x', target: { sel: '#drift-2' }, text: '下一步目标' },
+  ])`, ctx);
+  await tick(60); // 初始定位
+  const hole = doc.querySelector('.tour-hole');
+  assert.ok(hole.classList.contains('tour-hole--show'), '初始定位就位');
+  assert.ok(hole.style.transform.includes('20px'), '亮区在初始位置（实际: ' + hole.style.transform + '）');
+  // 目标浮入位移 → 跟随循环下一帧重定位
+  vm.runInContext('window.__driftMove(120)', ctx);
+  await tick(60);
+  assert.ok(hole.style.transform.includes('120px'), '亮区跟随目标位移（实际: ' + hole.style.transform + '）');
+  // 目标被移除（页面重建间隙）→ 亮区隐藏；恢复后再次跟随
+  vm.runInContext('document.getElementById("drift-target").remove()', ctx);
+  await tick(60);
+  assert.equal(doc.querySelector('.tour-hole--show'), null, '目标消失亮区隐藏');
+  // 步骤推进后跟随停止（不再污染下一步）；第二步指向新目标
+  vm.runInContext(`
+    const t2 = document.createElement('div'); t2.id = 'drift-2';
+    t2.getBoundingClientRect = function () { return { top: 300, left: 300, bottom: 360, right: 480, width: 180, height: 60 }; };
+    document.body.appendChild(t2);
+    window.__holeClicked = 0;
+  `, ctx);
+  // 重建 drift-target 供末步透传点击（引导第二步存在 → 非末步收尾路径）
+  vm.runInContext(`
+    const tr = document.createElement('div'); tr.id = 'drift-target';
+    tr.getBoundingClientRect = function () { return { top: 20, left: 20, bottom: 80, right: 200, width: 180, height: 60 }; };
+    document.body.appendChild(tr);
+  `, ctx);
+  hole.click(); // 推进到第二步
+  await tick(40);
+  assert.ok(doc.querySelector('.tour-hole--show'), '下一步亮区就位');
+  const m2 = doc.querySelector('.tour-hole').style.transform;
+  assert.ok(m2.includes('300px'), '下一步亮区定位于新目标（实际: ' + m2 + '）');
 });
 
 // 需求五十三（v0.25.61）：遮罩常置 + 亮区延时——overlay 恒压暗底（步骤间/目标等待不再闪回亮屏）、

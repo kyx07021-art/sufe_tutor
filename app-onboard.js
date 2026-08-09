@@ -206,7 +206,28 @@ function _tourAnimating(el) {
   return false;
 }
 
-/** 就位定位（稳定化）：滚入视口 → 等入场动画结束 → 定位亮区。
+/** R27（v0.25.92）：亮区动态绑定——定位后持续跟随目标几何变化（rAF 逐帧对比 rect，位置变了即重定位）。
+ *  根治「先亮后浮入」「筛选后卡片被顶跑」「关于平台浮入错位」类错位（反馈：每个带卡片模块第一条介绍都有）：
+ *  一次性定位只能覆盖定位时静止的目标；异步渲染/延迟入场/布局挤压在定位后仍会位移。
+ *  跟随循环以 _tourIdx 快照判定归属步骤——步骤推进（_tourNext 自增）或收尾（_tourActive=false）即停。
+ *  目标消失（页面重建间隙）隐藏亮区，下一帧出现即恢复。开销 = 每帧一次 getBoundingClientRect，位置不变零写入。 */
+function _tourStartFollow(step) {
+  const followIdx = _tourIdx;
+  let lastKey = '';
+  const loop = () => {
+    if (!_tourActive || _tourIdx !== followIdx) return; // 已步进/已收尾 → 停止跟随
+    if (!_tourInClientView()) { _tourCleanup(); return; } // 视图切走 → 收尾（同等待轮询口径）
+    const el = _tourResolve(step);
+    if (!el) { _tourHideHole(); requestAnimationFrame(loop); return; }
+    const r = el.getBoundingClientRect();
+    const key = Math.round(r.left) + 'x' + Math.round(r.top) + 'x' + Math.round(r.width) + 'x' + Math.round(r.height);
+    if (key !== lastKey) { lastKey = key; _tourPlace(el); }
+    requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+}
+
+/** 就位定位（稳定化）：滚入视口 → 等入场动画结束 → 定位亮区 → 启动动态跟随。
  *  常见路径（目标已稳定、无动画）同步定位——零额外帧，测试与交互即时；
  *  仅当目标祖先链有运行中的动画/过渡（资料栏/modal 滑入中）才进入 rAF 等待（最长 2s 防永动动画卡死）。
  *  scrollIntoView 同步触发布局，滚后立即 getBoundingClientRect 即最终几何，无需等 scroll 事件。 */
@@ -215,7 +236,7 @@ function _tourPlaceStable(step) {
   if (!el) { _tourHideHole(); return; }
   const scrollEl = (step.scrollTo ? document.querySelector(step.scrollTo) : null) || el;
   _tourScrollToEl(scrollEl);
-  if (!_tourAnimating(el) && !_tourAnimating(scrollEl)) { _tourPlace(el); return; }
+  if (!_tourAnimating(el) && !_tourAnimating(scrollEl)) { _tourPlace(el); _tourStartFollow(step); return; }
   const deadline = Date.now() + 2000; // 动画最长等 2s，防永动动画卡死亮区
   const tick = () => {
     if (!_tourActive) return;
@@ -223,6 +244,7 @@ function _tourPlaceStable(step) {
     if (!cur) { _tourHideHole(); return; }
     if (Date.now() < deadline && (_tourAnimating(cur) || _tourAnimating(scrollEl))) { requestAnimationFrame(tick); return; }
     _tourPlace(cur);
+    _tourStartFollow(step); // R27：动画结束定位后启动动态跟随
   };
   requestAnimationFrame(tick);
 }
