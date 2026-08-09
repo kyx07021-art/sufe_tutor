@@ -37,7 +37,7 @@ import { SECURITY } from './constants.js';
  *   语义：一个设备一个活跃会话——同设备重登会顶掉旧令牌（另一窗口旧会话收到 401 重登，符合「设备管理」心智）。
  */
 export async function issueAuthToken(db, userId, label, deviceId) {
-  const token = bufToHex(crypto.getRandomValues(new Uint8Array(24)));
+  const token = bufToHex(crypto.getRandomValues(new Uint8Array(SECURITY.TOKEN_BYTES)));
   const sessionId = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
   const expires = toDbTime(new Date(Date.now() + SECURITY.TOKEN_TTL_MS));
   const digest = await tokenDigest(token);

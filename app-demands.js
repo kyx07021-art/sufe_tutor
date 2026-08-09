@@ -507,7 +507,7 @@ function matchLevel(md) {
 
 // 五维明细行渲染（教师视角明细卡 / 学生逐需求明细共用）；score 为加权得分（null=跳过），max 为该维权重
 function matchRowsHtml(dims) {
-  const bar = (s, max) => `<div class="match-bar${s === 0 ? ' match-bar--zero' : ''}"><i style="width:${s == null ? 0 : Math.round(s / max * 100)}%"></i></div>`;
+  const bar = (s, max) => `<div class="match-bar${s === 0 ? ' match-bar--zero' : ''}"><i style="--bar-w:${s == null ? 0 : Math.round(s / max * 100)}%"></i></div>`;
   const row = (k, s, max, hint) => `<div class="match-row">
     <span class="match-row-top"><span class="match-row-k">${k}</span><span class="match-row-s${s == null ? ' match-row-s--skip' : ''}">${s == null ? UI.MATCH_DIM_SKIP : Math.round(s) + '/' + max}</span></span>
     ${bar(s, max)}
@@ -918,7 +918,7 @@ function showProfileIncompleteModal() {
   openModal({
     title: UI.PROFILE_INCOMPLETE_TITLE,
     style: `max-width:${CONFIG.MODAL_W_PROFILE_HINT};`,
-    body: `<p class="text-sm text-relaxed" style="color:var(--ink-3);">${UI.PROFILE_INCOMPLETE_HINT}</p>`,
+    body: `<p class="text-sm text-relaxed text-ink-3">${UI.PROFILE_INCOMPLETE_HINT}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_LATER}</button>
           <button type="button" class="btn glass glass--pressable" onclick="closeModal();selectPage('edit-profile')">${UI.BTN_GO_COMPLETE_PROFILE}</button>`,
   });

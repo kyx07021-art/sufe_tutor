@@ -141,7 +141,7 @@ export async function handleSaveProfile(db, body, req) {
   const GS = R.gradeSystems || {};
   const gradeIds = new Set();
   for (const g of Object.values(GS)) if (g && Array.isArray(g.levels)) for (const lv of g.levels) gradeIds.add(lv.id);
-  const GAOKAO_SCORE_MAX = 300;
+  const GAOKAO_SCORE_MAX = LIMITS.GAOKAO_SCORE_MAX;
   if (p.gaokao_scores != null) {
     if (!Array.isArray(p.gaokao_scores)) return error(MSG.INVALID_PARAMS);
     p.gaokao_scores = p.gaokao_scores

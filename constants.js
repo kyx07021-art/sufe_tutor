@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.80',
+  APP_VERSION: '0.25.81',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1278,6 +1278,11 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_VERIFY_HASH: '当前指纹',
     CONTRACT_VERIFY_ENTRIES: '台账条目',
     CONTRACT_VERIFY_FLOW: '存证流水号',
+    CONTRACT_VERIFY_LABEL_HEAD: '链头',                    // A7 收口：存证链校验标签
+    CONTRACT_VERIFY_LABEL_LINK: '连续性',
+    CONTRACT_VERIFY_LABEL_SEQ: '序号',
+    CONTRACT_VERIFY_CD_PREFIX: '#CD',                     // 存证流水号前缀
+    CONTRACT_VERIFY_ENTRY_UNIT: '条',                     // 「{n} 条」单位
 
     // 管理员：资料管理
     ADMIN_POSTS_EMPTY: '暂无帖子',
@@ -1553,6 +1558,7 @@ globalThis.APP_CONSTANTS = {
     STYLE_LIQUID: '液态玻璃', STYLE_FLAT: '平面简约',
     SETTINGS_ORB_LABEL: '背景光球',
     SETTINGS_ORB_HINT: '背景漂移光球的显示效果：鲜艳=彩色柔光，淡雅=若有若无，隐藏=纯净底色',
+    SETTINGS_ORB_FLAT_HIDDEN: '（平面简约下强制隐藏）',    // A7 收口：flat 档提示
     ORB_MODE_VIVID: '鲜艳', ORB_MODE_ELEGANT: '淡雅', ORB_MODE_HIDDEN: '隐藏',
     THEME_LIGHT: '亮色',
     THEME_DARK: '暗色',
@@ -1774,6 +1780,13 @@ globalThis.APP_CONSTANTS = {
     TRAFFIC_LATENCY_TITLE: '平均延迟',
     TRAFFIC_RANGE_24H: '24小时',
     TRAFFIC_RANGE_7D: '近7天',
+    TRAFFIC_TOTAL_FMT: '合计 {n} 次',                       // A7 收口：流量统计格式
+    TRAFFIC_SAMPLE_FMT: '样本 {n} 桶',
+    TRAFFIC_MS_UNIT: ' ms',
+    CHART_EMPTY: '暂无数据',                               // A7 收口：图表组件缺省文案
+    CHART_DEFAULT_TITLE: '折线图',
+    CHART_TABLE_LABEL: '数据明细',
+    CHART_TIME_LABEL: '时间',
     TRAFFIC_RANGE_30D: '近30天',
     TRAFFIC_HINT: '口径：仅统计写操作与失败请求（读/轮询流量不入留档）；平均延迟 = 服务端处理耗时（v0.22.0 起记录，历史时段无数据）',
     ADMIN_RECENT_DEMANDS: '最近需求',

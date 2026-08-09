@@ -30,7 +30,7 @@
     <nav class="navbar">
       <div class="container">
         <button type="button" class="sidebar-toggle glass" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="切换侧边栏"><span></span><span></span><span></span></button>
-        <div class="navbar-brand" onclick="goHome()" style="cursor:pointer;">
+        <div class="navbar-brand" onclick="goHome()">
           <div class="navbar-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
           <div>
             <div class="navbar-title">经途·伴学信息门户</div>
@@ -49,7 +49,7 @@
       <section class="landing-stage">
         <!-- G8：landing 无上边栏——logo+登录/注册直接浮在舞台顶（navbar 在 landing 时隐藏） -->
         <div class="stage-nav">
-          <div class="navbar-brand" onclick="goHome()" style="cursor:pointer;">
+          <div class="navbar-brand" onclick="goHome()">
             <div class="navbar-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
             <div>
               <div class="navbar-title">经途·伴学信息门户</div>
@@ -188,14 +188,14 @@
     <!-- Invite Gate -->
     <div class="auth-view hidden" id="view-invite-gate">
       <div class="auth-card glass">
-        <div style="text-align:center;">
+        <div class="ta-center">
           <h2>需要邀请码</h2>
-          <p class="text-muted text-sm" style="margin-bottom:22px;">教师注册需要先验证邀请码。请输入管理员提供的邀请码，验证通过后再填写注册信息。邀请码有效期 5 分钟且仅限一人使用。</p>
+          <p class="text-muted text-sm invite-note">教师注册需要先验证邀请码。请输入管理员提供的邀请码，验证通过后再填写注册信息。邀请码有效期 5 分钟且仅限一人使用。</p>
         </div>
         <div id="invite-gate-alert"></div>
         <div class="form-group">
           <label class="form-label">邀请码</label>
-          <input type="text" class="form-input" id="invite-code-input" placeholder="请输入 8 位邀请码" style="text-align:center;letter-spacing:0.15em;font-weight:600;">
+          <input type="text" class="form-input invite-code-input" id="invite-code-input" placeholder="请输入 8 位邀请码">
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-outline glass glass--pressable" onclick="showView('landing')">返回</button>
@@ -254,7 +254,7 @@
               <!-- v0.25.29 排序控件：默认排序不再强制（匹配度排序是可选，非学生/无匹配数据时自动隐藏该选项） -->
               <select class="filter-select filter-select-auto" id="teacher-sort" onchange="applyFilters()" aria-label="教师排序">
                 <option value="default">默认排序</option>
-                <option value="match" id="opt-sort-match" style="display:none">匹配度最高</option>
+                <option value="match" id="opt-sort-match" class="hidden">匹配度最高</option>
                 <option value="rating">评分最高</option>
                 <option value="price">报价最低</option>
               </select>

@@ -39,6 +39,9 @@
     return ticks.length ? ticks : [min];
   }
 
+  // 组件缺省文案读全局 UI 单源（A7 收口；调用方可经 opts 覆盖）
+  const CHART_UI = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.UI) || {};
+
   function renderGlassLineChart(container, opts = {}) {
     if (!container) return { refresh: () => {} };
     const colorVar = opts.colorVar || '--chart-traffic';
@@ -67,7 +70,7 @@
       let yAt = () => pad.t;
 
       if (!hasVal || !nonNull.length) {
-        container.innerHTML = `<div class="chart-glass glass"><div class="chart-head"><span class="chart-title">${esc(opts.title || '')}</span></div><div class="chart-empty">${esc(opts.emptyText || '暂无数据')}</div></div>`;
+        container.innerHTML = `<div class="chart-glass glass"><div class="chart-head"><span class="chart-title">${esc(opts.title || '')}</span></div><div class="chart-empty">${esc(opts.emptyText || CHART_UI.CHART_EMPTY)}</div></div>`;
         return;
       }
       let yMin, yMax;
@@ -115,7 +118,7 @@
       svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('width', W); svg.setAttribute('height', height);
       svg.setAttribute('role', 'img');
-      svg.setAttribute('aria-label', opts.title || '折线图');
+      svg.setAttribute('aria-label', opts.title || CHART_UI.CHART_DEFAULT_TITLE);
       svg.classList.add('chart-svg');
       const gradId = 'chartgrad' + Math.random().toString(36).slice(2, 8);
       svg.innerHTML = `
@@ -163,8 +166,8 @@
       plot.appendChild(tip);
       const table = document.createElement('details');
       table.className = 'chart-table';
-      table.innerHTML = `<summary>${esc(opts.tableLabel || '数据明细')}</summary>
-        <table><thead><tr><th>${esc(opts.timeLabel || '时间')}</th><th>${esc(opts.title || '')}</th></tr></thead>
+      table.innerHTML = `<summary>${esc(opts.tableLabel || CHART_UI.CHART_TABLE_LABEL)}</summary>
+        <table><thead><tr><th>${esc(opts.timeLabel || CHART_UI.CHART_TIME_LABEL)}</th><th>${esc(opts.title || '')}</th></tr></thead>
         <tbody>${data.map(d => `<tr><td></td><td></td></tr>`).join('')}</tbody></table>`;
       const tds = table.querySelectorAll('td');
       data.forEach((d, i) => { tds[i * 2].textContent = d.label; tds[i * 2 + 1].textContent = fmt(d.value); });

@@ -57,8 +57,7 @@ async function loadTeachers() {
     // 需求五·item5/6：学生看教师列表 → 对全部「活跃未匹配需求」逐一算匹配度、取最高值；
     // v0.25.29 匹配度排序不再是强制默认——排序控件（含「默认排序」）由用户选择，仅当学生且确有匹配数据时展示「匹配度最高」选项
     await attachStudentMatch(state.allTeachers);
-    const matchOpt = document.getElementById('opt-sort-match');
-    if (matchOpt) matchOpt.style.display = state.allTeachers.some(t => t._matchForStudent) ? '' : 'none';
+    syncMatchSortOpt();
     return state.allTeachers;
   }, teachers => { sortTeachers(teachers); return teachers.map(renderTeacherCard).join(''); },
     { empty: UI.EMPTY_NO_TEACHERS, peek: () => dhReady('/api/teachers') });
@@ -101,6 +100,12 @@ function teacherSortMode() {
   const el = document.getElementById('teacher-sort');
   return el ? el.value : 'default';
 }
+// 匹配度排序选项显隐同步（A7 收口）：两处 display 切换收敛单点——学生且确有匹配数据才展示「匹配度最高」
+function syncMatchSortOpt() {
+  const el = document.getElementById('opt-sort-match');
+  if (el) el.classList.toggle('hidden', !state.allTeachers.some(t => t._matchForStudent));
+}
+
 function sortTeachers(teachers, mode = teacherSortMode()) {
   if (!teachers.length) return;
   if (mode === 'match') {
@@ -266,8 +271,7 @@ if (typeof dhOnDomainRefresh === 'function') {
     if (state.page === 'browse-teachers' && typeof attachStudentMatch === 'function') {
       attachStudentMatch(state.allTeachers) // 异步先算匹配徽章/排序语境（非学生早退，async 恒返 Promise）
         .then(() => {
-          const matchOpt = document.getElementById('opt-sort-match');
-          if (matchOpt) matchOpt.style.display = state.allTeachers.some(t => t._matchForStudent) ? '' : 'none';
+          syncMatchSortOpt();
           if (state.page === 'browse-teachers') applyFilters(); // 读当前控件值，保用户筛选/排序选择
         })
         .catch(() => { /* 网络抖动：保留当前渲染，下轮探针再试 */ });

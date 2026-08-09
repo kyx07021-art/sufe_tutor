@@ -75,7 +75,7 @@ export async function handleCreateSigning(db, body, req) {
 
   const price = Math.min(LIMITS.BUDGET_MAX, Math.max(0, parseInt(body.price) || 0)); // 报价钳制上限（LIMITS 单源）
   if (price <= 0) return error(MSG.INVALID_PARAMS, 400); // 报价必填
-  const schedule = String(body.schedule || '').trim().slice(0, 200);
+  const schedule = String(body.schedule || '').trim().slice(0, LIMITS.SCHEDULE_MAX);
   if (!schedule) return error(MSG.INVALID_PARAMS, 400); // 时间（自然语言）必填
   const method = body.method === 'online' ? 'online' : 'offline'; // 线上/线下
 

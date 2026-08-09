@@ -92,7 +92,7 @@ function enterAccountSettings() {
       <div class="settings-row">
         <div>
           <div class="settings-label">${UI.SETTINGS_ORB_LABEL}</div>
-          <div class="settings-hint">${UI.SETTINGS_ORB_HINT}${stylePref === 'flat' ? '（平面简约下强制隐藏）' : ''}</div>
+          <div class="settings-hint">${UI.SETTINGS_ORB_HINT}${stylePref === 'flat' ? UI.SETTINGS_ORB_FLAT_HIDDEN : ''}</div>
         </div>
         <div class="orb-opts">${orbOpts}</div>
       </div>

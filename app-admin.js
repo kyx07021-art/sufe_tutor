@@ -299,7 +299,7 @@ async function loadAdminTraffic() {
         data: d.buckets.map(b => ({ label: b.label, value: b.requests })),
         unit: d.unit,
         baselineAtZero: true,
-        statFmt: total => `合计 ${Number(total).toLocaleString('zh-CN')} 次`,
+        statFmt: total => UI.TRAFFIC_TOTAL_FMT.replace('{n}', Number(total).toLocaleString('zh-CN')),
       });
       renderGlassLineChart(document.getElementById('traffic-chart-lat'), {
         title: UI.TRAFFIC_LATENCY_TITLE,
@@ -307,8 +307,8 @@ async function loadAdminTraffic() {
         data: d.buckets.map(b => ({ label: b.label, value: b.avgMs })),
         unit: d.unit,
         baselineAtZero: false,
-        valueFmt: v => (v == null ? '—' : `${Math.round(v)} ms`),
-        statFmt: (total, n) => (n ? `样本 ${n} 桶` : ''),
+        valueFmt: v => (v == null ? '—' : `${Math.round(v)}${UI.TRAFFIC_MS_UNIT}`),
+        statFmt: (total, n) => (n ? UI.TRAFFIC_SAMPLE_FMT.replace('{n}', n) : ''),
       });
     } catch (err) {
       el.innerHTML = `<div class="empty-state"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;

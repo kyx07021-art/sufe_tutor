@@ -107,9 +107,9 @@ const rlDual = async (db, memLimit, memWindow, d1Key, d1Limit, d1Window, now) =>
 // rate_limits 过期行清理节流（每分钟至多一次；N-07 桶已按 IP 上界，清理仅兜底）
 let lastRateCleanup = 0;
 const maybeCleanRateLimits = async (db, now) => {
-  if (now - lastRateCleanup < 60000) return;
+  if (now - lastRateCleanup < SECURITY.RATE_CLEANUP_THROTTLE_MS) return;
   lastRateCleanup = now;
-  await dbRun(db, "DELETE FROM rate_limits WHERE reset_at < datetime('now','localtime','-1 day')").catch(() => {});
+  await dbRun(db, "DELETE FROM rate_limits WHERE reset_at < datetime('now','localtime', ?)", [SECURITY.RATE_ROW_RETENTION]).catch(() => {});
 };
 
 // D1 三振封禁（跨实例持久）：strike.windowMs 窗口计数，满 strike.count 次写 block 行。

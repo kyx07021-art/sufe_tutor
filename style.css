@@ -119,7 +119,7 @@ body:has(#view-landing:not(.hidden)) .navbar { display: none; }
 /* 内层客户端：顶栏退场，侧边栏顶天立地（移动端恢复顶栏供汉堡开合抽屉） */
 body:has(#view-client:not(.hidden)) .navbar { display: none; }
 .navbar .container { display: flex; align-items: center; justify-content: space-between; min-height: 36px; }
-.navbar-brand { display: flex; align-items: center; gap: 12px; }
+.navbar-brand { display: flex; align-items: center; gap: 12px; cursor: pointer; } /* A7：光标移入 CSS，index.html 内联 style 删除 */
 
 /* 品牌点阵：呼应参考图卡片的圆点母题（3 墨 + 1 强调） */
 .navbar-logo {
@@ -1196,7 +1196,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .match-row-s { font-weight: 800; color: var(--accent-deep); }
 .match-row-s--skip { font-weight: 600; color: var(--muted); font-size: .68rem; }
 .match-bar { margin-top: 3px; height: 4px; border-radius: 999px; background: var(--g-bar-soft); overflow: hidden; }
-.match-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); box-shadow: inset 0 0 0 1px rgba(122,104,224,.35); } /* v0.25.10：填充加发丝边，低分/纸面上可辨 */
+.match-bar i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-bright)); box-shadow: inset 0 0 0 1px rgba(122,104,224,.35); width: var(--bar-w, 0%); } /* v0.25.10：填充加发丝边，低分/纸面上可辨；v0.25.81 A7：宽度改 CSS 变量（JS 只设 --bar-w，零内联宽度） */
 .match-bar--zero i { background: var(--g-bar-strong); }
 .match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
 .match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--g-line-soft); font-size: .66rem; line-height: 1.5; color: var(--muted); }
@@ -1944,3 +1944,10 @@ body.profile-panel-closing .profile-panel {
 /* 流量监测页：范围切换（v0.25.20 需求二：旧类连根删，收编标准分段控件 .seg-tabs） */
 .traffic-range { margin-bottom: 12px; }
 .traffic-range .seg-tab { padding: 6px 14px; font-size: .8rem; }
+
+/* ===== A7（v0.25.81）内联样式改类 ===== */
+.text-ink-3 { color: var(--ink-3); }                 /* 档案不完整提示（--ink-3 ≠ --muted，独立语义类） */
+.img-broken { visibility: hidden; }                  /* 图片加载失败静默隐藏（保留占位，display 不动） */
+.ta-center { text-align: center; }                   /* index.html 居中块 */
+.invite-note { margin-bottom: 22px; }                /* 邀请码说明行距 */
+.invite-code-input { text-align: center; letter-spacing: .15em; font-weight: 600; } /* 邀请码输入 */

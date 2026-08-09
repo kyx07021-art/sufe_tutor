@@ -177,7 +177,7 @@ function openPostEditor() {
     body: `<div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE} <span class="req">*</span></label>
-          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.POST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
+          <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.POST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
           <span class="title-count" id="post-title-count">0/60</span>
         </div>
         ${mdEditorHtml({ rows: 9, placeholder: UI.POST_BODY_PLACEHOLDER, labelFor: 'post-body' })}`,
@@ -342,7 +342,7 @@ function openBroadcastModal() {
     body: `<div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
-          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.BROADCAST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
+          <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.BROADCAST_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
           <span class="title-count" id="post-title-count">0/60</span>
         </div>
         ${mdEditorHtml({ rows: 7, placeholder: UI.BROADCAST_BODY_PLACEHOLDER })}`,
@@ -389,7 +389,7 @@ function openFeedbackModal(kind) {
     body: `<div id="post-alert"></div>
         <div class="form-group">
           <label class="form-label" for="post-title">${UI.POST_LABEL_TITLE}</label>
-          <input type="text" id="post-title" class="form-input" maxlength="60" placeholder="${UI.FEEDBACK_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
+          <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${UI.FEEDBACK_TITLE_PLACEHOLDER}" oninput="updateTitleCount()">
           <span class="title-count" id="post-title-count">0/60</span>
         </div>
         ${segTabsHtml([

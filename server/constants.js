@@ -175,6 +175,13 @@ export const LIMITS = {
   CONTACT_MAX: 50,         // 联系方式（wechat/email/家长/学生电话）
   ADDITIONAL_INFO_MAX: 500, // 需求补充说明（自由文本，2026-08-09 审计 F-1 补上限 + ADDRESS_GUARD）
   ADDRESS_FIELD_MAX: 100,  // 授课区域
+  SCHEDULE_MAX: 200,        // 签约请求时间（自然语言）
+  CONTRACT_LOCATION_MAX: 200, // 合同地点
+  PAY_OTHER_MAX: 100,        // 合同「其他」付款方式/试课薪资自定义文本
+  CONTRACT_PLAN_MAX: 20000,   // 合同方案正文
+  CONTRACT_SCHEDULE_MAX: 500,  // 合同授课安排
+  CONTRACT_MD_MAX: 30000,      // 合同正文（markdown）
+  GAOKAO_SCORE_MAX: 300,     // 高考分上限（全政策单科最高 = 海南标准分 300）
   DEMAND_TIME_MAX: 2000,   // 期望开课时间（v0.25.0 起存结构化时间段 JSON，多条组件需更长容量）
   TIME_SLOTS_MAX: 8,       // 结构化时间段条数上限（与前端 CONFIG.TIME_SLOTS_MAX 对齐）
   GRAD_YEAR_MIN: 1980, GRAD_YEAR_MAX: 2030, // 教师毕业年份范围（R2-12，与前端 CONFIG 同值）
@@ -210,6 +217,10 @@ export const LIMITS = {
 export const SECURITY = {
   TOKEN_TTL_MS: 7 * 24 * 3600 * 1000, // 登录令牌 7 天（前端本地过期判定经 constants.js CONFIG 读同值）
   ONE_TIME_TTL_MS: 5 * 60 * 1000,     // capToken / 邀请码 5 分钟一次性
+  TOKEN_BYTES: 24,              // 登录令牌随机字节（48 hex，session.js 签发）
+  CAP_TOKEN_BYTES: 16,          // capToken 随机字节（32 hex，danger-ops.js 签发）
+  RATE_CLEANUP_THROTTLE_MS: 60000, // rate_limits 过期行清理节流（每分钟至多一次）
+  RATE_ROW_RETENTION: '-1 day', // 过期行保留窗口（SQL datetime 修饰符）
   PBKDF2_ITERATIONS: 100000,
   PBKDF2_HASH: 'SHA-512',
 };

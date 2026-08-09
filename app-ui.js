@@ -574,7 +574,7 @@ document.addEventListener('error', e => {
   const t = e.target;
   if (t && t.tagName === 'IMG' && t.closest &&
       (t.closest('.avatar, .image-viewer-modal, .chat-bubble, .md-preview, .post-card, .conv-item'))) {
-    t.style.visibility = 'hidden';
+    t.classList.add('img-broken');
   }
 }, true);
 

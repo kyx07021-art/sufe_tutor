@@ -57,7 +57,7 @@ export async function issueCapToken(db, req) {
   if (!userId || !sessionId) return '';
   // 惰性清理：清该用户已过期行，表不膨胀
   await dbRun(db, `DELETE FROM danger_caps WHERE user_id=? AND expires_at <= datetime('now','localtime')`, [userId]).catch(() => {});
-  const token = bufToHex(crypto.getRandomValues(new Uint8Array(16)));
+  const token = bufToHex(crypto.getRandomValues(new Uint8Array(SECURITY.CAP_TOKEN_BYTES)));
   const exp = toDbTime(new Date(Date.now() + SECURITY.ONE_TIME_TTL_MS));
   await dbRun(db, `INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)
     ON CONFLICT(user_id, session_id) DO UPDATE SET token_hash=excluded.token_hash, expires_at=excluded.expires_at`,

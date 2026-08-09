@@ -722,7 +722,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   // 网安 N-05：credential_image（学信网截图 dataURL）同款加密——D1 泄露/备份不暴露证件图
   const [wechat, email, realName, credentialImage] = await Promise.all([
     encryptField(profile.wechat || ''), encryptField(profile.email || ''),
-    encryptField((profile.real_name || '').slice(0, 20)), encryptField(profile.credential_image || ''),
+    encryptField((profile.real_name || '').slice(0, LIMITS.REAL_NAME_MAX)), encryptField(profile.credential_image || ''),
   ]);
 
   // R2-5 报价区间化：price_min/price_max 保留 null=未填语义（完整性门槛据此拦截，勿落 0）；0 是合法报价
@@ -745,14 +745,14 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
       time_slots=?,teaching_method=?,personality_tags=?,nonacademic_projects=?,nonacademic_prices=?,
       graduation_year=?,
       updated_at=datetime('now','localtime') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage,
+      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
         timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, userId]);
   } else {
     await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,
         price,price_min,price_max,wechat,email,intro,address,school,real_name,credential_image,
         time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, 50), (profile.address || '').slice(0, 100), (profile.school || '').slice(0, 30), realName, credentialImage,
+      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
         timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear]);
   }
 }

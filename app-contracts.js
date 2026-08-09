@@ -270,9 +270,9 @@ async function verifyContractLedgerUi(contractId) {
     const verdict = data.archived ? UI.CONTRACT_LEDGER_ARCHIVED
       : data.valid ? UI.CONTRACT_LEDGER_VALID : UI.CONTRACT_LEDGER_INVALID;
     const chainBits = [
-      `${data.headValid ? '✓' : '✗'}链头`,
-      `${data.linksValid ? '✓' : '✗'}连续性`,
-      `${data.seqValid ? '✓' : '✗'}序号`,
+      `${data.headValid ? '✓' : '✗'}${UI.CONTRACT_VERIFY_LABEL_HEAD}`,
+      `${data.linksValid ? '✓' : '✗'}${UI.CONTRACT_VERIFY_LABEL_LINK}`,
+      `${data.seqValid ? '✓' : '✗'}${UI.CONTRACT_VERIFY_LABEL_SEQ}`,
     ].join('　');
     const rows = data.entryList || [];
     openModal({
@@ -281,9 +281,9 @@ async function verifyContractLedgerUi(contractId) {
       bodyCls: 'contract-md',
       body: `<p class="contract-verify-verdict ${data.valid ? 'contract-verify--ok' : 'contract-verify--bad'}">${escHtml(verdict)}</p>
         <div class="contract-verify-grid">
-          <div class="contract-verify-row"><span class="text-muted">${escHtml(UI.CONTRACT_VERIFY_FLOW)}</span><code>#CD${String(contractId).padStart(6, '0')}</code></div>
+          <div class="contract-verify-row"><span class="text-muted">${escHtml(UI.CONTRACT_VERIFY_FLOW)}</span><code>${UI.CONTRACT_VERIFY_CD_PREFIX}${String(contractId).padStart(6, '0')}</code></div>
           <div class="contract-verify-row"><span class="text-muted">${escHtml(UI.CONTRACT_VERIFY_HASH)}</span><code class="contract-verify-hash">${escHtml(data.contentHash)}</code></div>
-          <div class="contract-verify-row"><span class="text-muted">${escHtml(UI.CONTRACT_VERIFY_ENTRIES)}</span><span>${data.entries} 条 · ${escHtml(chainBits)}</span></div>
+          <div class="contract-verify-row"><span class="text-muted">${escHtml(UI.CONTRACT_VERIFY_ENTRIES)}</span><span>${data.entries} ${UI.CONTRACT_VERIFY_ENTRY_UNIT} · ${escHtml(chainBits)}</span></div>
         </div>
         ${rows.length ? `<div class="contract-verify-list">${rows.map(e =>
           `<div class="contract-verify-entry"><span>#${e.seq == null ? '?' : e.seq}</span><span>${fmtDateTime(e.createdAt)}</span></div>`).join('')}</div>` : ''}`,

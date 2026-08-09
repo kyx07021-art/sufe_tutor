@@ -28,7 +28,7 @@ export async function handleGenInvite(db, body, req) {
   const code = genCode(LIMITS.INVITE_CODE_LEN);
   const exp = new Date(Date.now() + SECURITY.ONE_TIME_TTL_MS);
   const expiresAt = exp.toISOString();                       // 返前端：ISO 带 Z，new Date 解析无时区歧义
-  const expiresAtDb = expiresAt.slice(0, 19).replace('T', ' '); // 入库：同 datetime('now','localtime') 格式（worker 上即 UTC）
+  const expiresAtDb = toDbTime(expiresAt); // 入库：同 datetime('now','localtime') 格式（worker 上即 UTC）
   await dbCreateInviteCode(db, code, admin.id, expiresAtDb);
   await logEvent(db, { action: 'admin.invite.create', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'invite', entityId: code, detail: { expiresAt }, req });

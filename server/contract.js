@@ -16,7 +16,7 @@ import { dbGet, dbAll, dbRun, json, error, ensureColumns, toDbTime } from './uti
 import { requireUser, requireAdmin, requireAdminOrError } from './security.js';
 import { bufToHex, encryptField } from './crypto.js';
 import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
-import { MSG, STATUS } from './constants.js';
+import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin,
   dbDeleteContract, dbDeleteContractMessages,
@@ -296,17 +296,17 @@ export async function handleCreateContract(db, body, req) {
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
 
   const method = body.method === 'offline' ? 'offline' : 'online';
-  const plan = String(body.plan || '').slice(0, 20000);
+  const plan = String(body.plan || '').slice(0, LIMITS.CONTRACT_PLAN_MAX);
   const rate = Math.max(0, parseInt(body.hourlyRate) || 0);
-  const schedule = String(body.schedule || '').slice(0, 500);
-  const location = String(body.location || '').slice(0, 200);
+  const schedule = String(body.schedule || '').slice(0, LIMITS.CONTRACT_SCHEDULE_MAX);
+  const location = String(body.location || '').slice(0, LIMITS.CONTRACT_LOCATION_MAX);
   // 薪资三要素：白名单枚举 + 「其他」自拟文字；首课日期取 yyyy-mm-dd（date input 原值）
   const payMethod = ['per_session', 'weekly', 'monthly', 'other'].includes(body.payMethod) ? body.payMethod : '';
-  const payMethodOther = payMethod === 'other' ? String(body.payMethodOther || '').trim().slice(0, 100) : '';
+  const payMethodOther = payMethod === 'other' ? String(body.payMethodOther || '').trim().slice(0, LIMITS.PAY_OTHER_MAX) : '';
   if (payMethod === 'other' && !payMethodOther) return error(MSG.INVALID_PARAMS, 400);
   const firstLessonDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.firstLessonDate || '')) ? body.firstLessonDate : '';
   const trialPay = ['first_free', 'first_hour_free', 'normal', 'other'].includes(body.trialPay) ? body.trialPay : '';
-  const trialPayOther = trialPay === 'other' ? String(body.trialPayOther || '').trim().slice(0, 100) : '';
+  const trialPayOther = trialPay === 'other' ? String(body.trialPayOther || '').trim().slice(0, LIMITS.PAY_OTHER_MAX) : '';
   if (trialPay === 'other' && !trialPayOther) return error(MSG.INVALID_PARAMS, 400);
   // 需求四·第3条：起草合同必须绑定「已签约」需求（发起签约确认 → demand contracted 后才可起草合同）。
   // v0.25.6 审计收紧：服务端强制 demandId，无 conv.demand_id 回落（会话与需求已解耦，同 signing 路径门禁）。
@@ -459,7 +459,7 @@ export async function handleModifyContract(db, contractId, body, req) {
   if (!Number.isInteger(ver)) return error(MSG.INVALID_PARAMS, 400);
   // v0.24.0：修改弹窗只放出业务条款——提交的 md 即新业务部分，法律条款由服务端固定重拼（不可修改）
   // v0.24.2：剥离提交内容中可能残留的标记及之后内容（前端 textarea 只放业务段，防御非前端客户端塞整段/重复提交）
-  const md = String(body.contractMd || '').slice(0, 30000).split(CONTRACT_BUSINESS_END)[0].trim();
+  const md = String(body.contractMd || '').slice(0, LIMITS.CONTRACT_MD_MAX).split(CONTRACT_BUSINESS_END)[0].trim();
   if (!md) return error(UIC.CONTRACT_EMPTY); // 用户可见文案单源 constants.js
   // 旧格式合同（v0.24.0 前起草、正文无标记）：整段即业务，不再追加法律块——否则旧法律条款被当业务
   // 重拼，出现两份法律条款且旧条款从此落入可编辑区，破坏「法律条款不可修改」承诺
