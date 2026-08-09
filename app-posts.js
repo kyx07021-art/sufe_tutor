@@ -50,7 +50,7 @@ function enterResourceShare() {
 // 搜索框防抖：停止输入 350ms 后再触发 loadPosts
 function postsSearchDebounced() {
   clearTimeout(postsSearchTimer);
-  postsSearchTimer = setTimeout(() => loadPosts(), 350);
+  postsSearchTimer = setTimeout(() => loadPosts(), CONFIG.POSTS_SEARCH_DEBOUNCE_MS);
 }
 
 // 拉取帖子列表：sort / q 取自工具条；liked 标记由后端凭令牌判定（访客恒 false）

@@ -352,7 +352,7 @@ function closeProfilePanel() {
   };
   if (pnl) {
     pnl.addEventListener('animationend', finish, { once: true });
-    setTimeout(finish, 600); // 兜底：动画未触发/被中断也必收尾
+    setTimeout(finish, CONFIG.PANEL_CLOSE_TIMEOUT_MS); // 兜底：动画未触发/被中断也必收尾
   }
 }
 
@@ -608,7 +608,7 @@ async function submitReview(teacherUserId, reviewId) {
   const alertEl = document.getElementById('review-alert');
 
   if (!rating) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_SELECT_RATING); return; }
-  if (comment.length < 2) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_COMMENT_TOO_SHORT); return; }
+  if (comment.length < CONFIG.REVIEW_COMMENT_MIN) { alertEl.innerHTML = alertHtml('error', UI.VALIDATE_COMMENT_TOO_SHORT); return; }
   if (reviewSubmitBusy) return;
   reviewSubmitBusy = true;
 

@@ -24,12 +24,15 @@
  * 需求四·第2条：发起签约显式绑定需求（body.demandId，前端「选择需求」下拉单选）；
  * 归属校验 = 需求必须属于会话学生方、状态 open（非 contracted/revoked）。
  */
-import { dbGet, dbRun, json, error, isDemandActive } from './util.js';
+import { dbRun, json, error, isDemandActive } from './util.js'; // dbRun 仅供 initSigningTable 建表（自持表域 DDL）
 import { requireUser } from './security.js';
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
   dbGetPendingIntentsForDemand, dbGetPendingPushesForDemand,
+  dbGetSigningById, dbGetPendingSigningForConversation, dbCreateSigning,
+  dbConfirmSigning, dbRejectSigning, dbSetMessageBody, dbDeleteMessage,
+  dbResolveIntent, dbResolvePush,
 } from './db.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
@@ -89,7 +92,7 @@ export async function handleCreateSigning(db, body, req) {
   if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
   if (!isDemandActive(dm.status)) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求活跃统一谓词（v0.25.10）
   // 同会话 pending 去重：已有待处理的签约请求则拒绝（防同会话堆积多条 pending 气泡、逐条确认变多签）
-  const dup = await dbGet(db, `SELECT id FROM signing_requests WHERE conversation_id=? AND status='pending' LIMIT 1`, [conversationId]);
+  const dup = await dbGetPendingSigningForConversation(db, conversationId);
   if (dup) return error(MSG.SIGNING_ALREADY_PENDING, 409);
 
   // 先落气泡（body 带临时 id），再建请求记录（message_id 关联），最后回填真实 id。
@@ -99,15 +102,10 @@ export async function handleCreateSigning(db, body, req) {
   try {
     msgId = await dbCreateMessage(db, conversationId, userId, 'signing_request',
       JSON.stringify({ id: 0, price, schedule, method, status: STATUS.PENDING }));
-    const res = await dbRun(db,
-      `INSERT INTO signing_requests (conversation_id, demand_id, initiator_user_id, message_id, price, schedule, method)
-       VALUES (?,?,?,?,?,?,?)`,
-      [conversationId, demandId, userId, msgId, price, schedule, method]);
-    id = (res && res.meta && res.meta.last_row_id) || 0;
-    await dbRun(db, 'UPDATE messages SET body=? WHERE id=?',
-      [JSON.stringify({ id, price, schedule, method, status: STATUS.PENDING }), msgId]);
+    id = await dbCreateSigning(db, conversationId, demandId, userId, msgId, price, schedule, method);
+    await dbSetMessageBody(db, msgId, JSON.stringify({ id, price, schedule, method, status: STATUS.PENDING }));
   } catch (e) {
-    if (msgId != null) { try { await dbRun(db, 'DELETE FROM messages WHERE id=?', [msgId]); } catch { /* 回滚失败不影响主错误 */ } }
+    if (msgId != null) { try { await dbDeleteMessage(db, msgId); } catch { /* 回滚失败不影响主错误 */ } }
     throw e;
   }
 
@@ -123,7 +121,7 @@ export async function handleRespondSigning(db, signingId, body, req) {
   const { user: me, err: authErr } = await requireUser(db, req);
   if (authErr) return authErr;
   const userId = me.id;
-  const sr = await dbGet(db, 'SELECT * FROM signing_requests WHERE id=?', [signingId]);
+  const sr = await dbGetSigningById(db, signingId);
   if (!sr) return error(MSG.CONTRACT_NOT_FOUND, 404);
   const conv = await dbGetConversationWithNames(db, sr.conversation_id);
   if (!conv || (conv.student_user_id !== userId && conv.teacher_user_id !== userId)) return error(MSG.NO_PERMISSION, 403);
@@ -140,33 +138,24 @@ export async function handleRespondSigning(db, signingId, body, req) {
   // → changes=0 → 410。auto-reject 副作用仍只由需求收缩赢家（results[1].changes>0）驱动。
   let demandContracted = false;
   if (accept && sr.demand_id) {
-    const results = await db.batch([
-      db.prepare(`UPDATE signing_requests SET status='signed', responded_at=datetime('now','localtime')
-        WHERE id=? AND status='pending'
-        AND EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='open')`).bind(signingId, sr.demand_id),
-      db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`).bind(sr.demand_id),
-    ]);
-    if (!(results[0] && results[0].meta && results[0].meta.changes > 0)) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已非 open（已回应由上行守卫拦）
-    demandContracted = !!(results[1] && results[1].meta && results[1].meta.changes > 0);
+    const results = await dbConfirmSigning(db, signingId, sr.demand_id);
+    if (!(results[0] > 0)) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已非 open（已回应由上行守卫拦）
+    demandContracted = results[1] > 0;
   } else {
-    const up = await dbRun(db, `UPDATE signing_requests SET status=?, responded_at=datetime('now','localtime')
-      WHERE id=? AND status='pending'`, [newStatus, signingId]);
-    if (!(up && up.meta && up.meta.changes > 0)) return error(MSG.SIGNING_ALREADY_RESPONDED, 409); // 赢家模式
+    if (!(await dbRejectSigning(db, signingId))) return error(MSG.SIGNING_ALREADY_RESPONDED, 409); // 赢家模式
   }
 
   // 确认签约且需求收缩成功（赢家）：自动拒绝其余待处理意向/推送（整段副作用只由需求收缩赢家驱动，杜绝双通知双台账）
   if (demandContracted) {
     const pending = await dbGetPendingIntentsForDemand(db, sr.demand_id);
     for (const it of pending) {
-      const r = await dbRun(db, `UPDATE demand_intents SET status='rejected', resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'`, [it.id]);
-      if (!(r && r.meta && r.meta.changes > 0)) continue; // 赢家模式：已被并发处理的行不重复留档
+      if (!(await dbResolveIntent(db, it.id, STATUS.REJECTED))) continue; // 赢家模式：已被并发处理的行不重复留档
       await logEvent(db, { action: 'intent.auto_reject', actorRole: 'system', entity: 'intent', entityId: it.id,
         detail: { demandId: sr.demand_id, teacherUserId: it.teacher_user_id, reason: 'signing_confirmed' }, req });
     }
     const pendingPushes = await dbGetPendingPushesForDemand(db, sr.demand_id);
     for (const pp of pendingPushes) {
-      const r = await dbRun(db, `UPDATE demand_pushes SET status='rejected' WHERE id=? AND status='pending'`, [pp.id]);
-      if (!(r && r.meta && r.meta.changes > 0)) continue;
+      if (!(await dbResolvePush(db, pp.id, STATUS.REJECTED))) continue;
       await logEvent(db, { action: 'demand_push.auto_reject', actorRole: 'system', entity: 'demand_push', entityId: pp.id,
         detail: { demandId: sr.demand_id, teacherUserId: pp.teacher_user_id, reason: 'signing_confirmed' }, req });
     }
@@ -174,8 +163,8 @@ export async function handleRespondSigning(db, signingId, body, req) {
 
   // 更新原气泡 body 为终态（重开会话渲染灰字）+ 落一条响应气泡（在途会话实时刷新）
   if (sr.message_id) {
-    await dbRun(db, 'UPDATE messages SET body=? WHERE id=?',
-      [JSON.stringify({ id: signingId, price: sr.price, schedule: sr.schedule, method: sr.method, status: newStatus }), sr.message_id]);
+    await dbSetMessageBody(db, sr.message_id,
+      JSON.stringify({ id: signingId, price: sr.price, schedule: sr.schedule, method: sr.method, status: newStatus }));
   }
   await dbCreateMessage(db, sr.conversation_id, userId, 'signing_response',
     JSON.stringify({ requestId: signingId, accept }));

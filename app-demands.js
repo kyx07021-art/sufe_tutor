@@ -864,7 +864,7 @@ async function submitDemandPush(teacherUserId) {
   try {
     const data = await api('/api/demand-pushes', { method: 'POST', body: { teacherUserId, demandId: +sel.value } });
     closeModal();
-    startPushCooldown(60);
+    startPushCooldown(CONFIG.PUSH_COOLDOWN_SEC);
     showToast(data.message || UI.PUSH_SENT_FALLBACK);
   } catch (err) { showToast(err.message); }
 }

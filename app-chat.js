@@ -305,7 +305,7 @@ function renderChatPlaceholder() {
 // 单条消息气泡：自己靠右（墨底纸字），对方靠左（浅棕底墨字）
 function renderChatBubble(m, i) {
   const mine = state.user && m.sender_user_id === state.user.id;
-  const delay = `--i:${Math.min(i || 0, 12)}`;
+  const delay = `--i:${Math.min(i || 0, CONFIG.CHAT_BUBBLE_DELAY_MS)}`;
   const time = `<span class="chat-msg-time">${escHtml(fmtChatTime(m.created_at))}</span>`;
   const side = mine ? 'chat-msg--mine' : 'chat-msg--theirs';
   const skin = mine ? 'chat-bubble--mine' : 'chat-bubble--theirs';
@@ -450,7 +450,7 @@ async function chatOpenImage(mid, img) {
 // ============================================================
 function chatStartPolling() {
   if (chatPollTimer) clearInterval(chatPollTimer);
-  chatPollTimer = setInterval(chatPollTick, 4000);
+  chatPollTimer = setInterval(chatPollTick, CONFIG.CHAT_POLL_MS);
 }
 
 // 对外清理口：登出 / 切页等场景调用，干净终止定时器与会话状态

@@ -115,7 +115,7 @@
     //   预算仅当 min/max 任一 > 0 时展示（默认 0 的需求不凑数）；纯函数返回明文，转义由调用方 escHtml
     demandOptionText(d) {
       const u = UI();
-      const id = String(d.display_id || d.id).padStart(4, '0');
+      const id = String(d.display_id || d.id).padStart((C().CONFIG || {}).DISPLAY_ID_PAD || 4, '0');
       const name = D.demandTargetNames(d.target_subjects, d.target_type) || '—';
       const hasBudget = (d.budget_min > 0) || (d.budget_max > 0);
       const price = hasBudget ? D.priceRangeText(d.budget_min, d.budget_max, u.PRICE_UNIT) : '';
@@ -211,7 +211,7 @@
     // 需求编号文本：统一「UI.DEMAND_PREFIX#四位补零」；无编号返 ''
     demandIdText(displayId) {
       const n = Number(displayId);
-      return n ? `${UI().DEMAND_PREFIX}#${String(n).padStart(4, '0')}` : '';
+      return n ? `${UI().DEMAND_PREFIX}#${String(n).padStart((C().CONFIG || {}).DISPLAY_ID_PAD || 4, '0')}` : '';
     },
     // 需求预算行：任一上下限有值 → 「下限~上限元/h」，双空 → 面议
     demandBudgetText(d) {

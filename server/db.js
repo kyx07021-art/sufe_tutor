@@ -2,6 +2,8 @@
  * 数据访问层 — 业务数据表 SQL 收敛于此（路由层只调用 dbXxx，不直接写业务 SQL）
  * 有意决定（CLAUDE.md）：日志表建表/插入在 server/log.js，通知表在 server/notify.js，
  * 合同状态机与台账 SQL 在 server/contract.js——各模块自持其表域，不在本文件重复。
+ * signing_requests 表 DDL 由 server/signing.js 自持（initSigningTable），但该表的业务 SQL
+ * （增/查/确认签约事务）已收口在本文件 mapper（v0.25.78 A5），signing.js 只调 dbXxx。
  * 换数据库时业务层只需重写本文件（咽喉层 util.js 的 dbAll/dbGet/dbRun 为通用封装）。
  */
 import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
@@ -1527,6 +1529,51 @@ export async function dbGetMessageAttachment(db, messageId, conversationId) {
 // 管理员删除单条消息（聊天内容管理）
 export async function dbDeleteMessage(db, messageId) {
   return dbRun(db, 'DELETE FROM messages WHERE id=?', [messageId]);
+}
+
+// 更新消息 body（A5 收口：signing.js 发起回填/终态覆写用，曾手写 UPDATE messages）
+export async function dbSetMessageBody(db, messageId, body) {
+  return dbRun(db, 'UPDATE messages SET body=? WHERE id=?', [body, messageId]);
+}
+
+// ============================================================
+// 签约请求（signing_requests）——A5 收口：业务 SQL 自 signing.js 内收（DDL 仍由 signing.js 自持）
+// ============================================================
+export async function dbGetSigningById(db, id) {
+  return await dbGet(db, 'SELECT * FROM signing_requests WHERE id=?', [id]);
+}
+
+export async function dbGetPendingSigningForConversation(db, conversationId) {
+  return await dbGet(db,
+    "SELECT id FROM signing_requests WHERE conversation_id=? AND status='pending' LIMIT 1", [conversationId]);
+}
+
+export async function dbCreateSigning(db, conversationId, demandId, userId, msgId, price, schedule, method) {
+  const res = await dbRun(db,
+    'INSERT INTO signing_requests (conversation_id, demand_id, initiator_user_id, message_id, price, schedule, method) VALUES (?,?,?,?,?,?,?)',
+    [conversationId, demandId, userId, msgId, price, schedule, method]);
+  return Number(res.meta.last_row_id);
+}
+
+// 确认签约原子事务（v0.25.6 TOCTOU 修复 + A5 收口）：sr 置 signed + 需求置 contracted 同一 batch 事务，
+// 需求守卫 EXISTS(open) 防同需求多会话并发双签（后到的批事务守卫失败 → changes[0]=0 → 调用方 410）。
+// 返回 [srChanges, demandChanges]；auto-reject 副作用只由需求收缩赢家（demandChanges>0）驱动。
+export async function dbConfirmSigning(db, signingId, demandId) {
+  const results = await db.batch([
+    db.prepare(`UPDATE signing_requests SET status='signed', responded_at=datetime('now','localtime')
+      WHERE id=? AND status='pending'
+      AND EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='open')`).bind(signingId, demandId),
+    db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`).bind(demandId),
+  ]);
+  return results.map(r => (r && r.meta && r.meta.changes) || 0);
+}
+
+// 拒绝/收束签约单条（respond 拒绝分支 + 注销收束共用）：条件 UPDATE + changes 判定（赢家模式）
+export async function dbRejectSigning(db, signingId) {
+  const res = await dbRun(db,
+    `UPDATE signing_requests SET status=?, responded_at=datetime('now','localtime') WHERE id=? AND status='pending'`,
+    [STATUS.REJECTED, signingId]);
+  return !!(res && res.meta && res.meta.changes > 0);
 }
 
 // ============================================================
