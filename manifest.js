@@ -9,7 +9,7 @@ export const ASSET_MANIFEST = {
     "style-posts.css": "style-posts.f30fd094.css",
     "style-chat.css": "style-chat.2ffbe360.css",
     "glass.css": "glass.dfdc3b47.css",
-    "constants.js": "constants.353a79fd.js",
+    "constants.js": "constants.1efd2cf2.js",
     "app-display.js": "app-display.5b16d805.js",
     "app-state.js": "app-state.757548d4.js",
     "app-api.js": "app-api.f52ccd44.js",
@@ -26,7 +26,7 @@ export const ASSET_MANIFEST = {
     "app-chat.js": "app-chat.548ae82a.js",
     "app-contracts.js": "app-contracts.25fc0574.js",
     "app-chart.js": "app-chart.5bbef1cc.js",
-    "app-admin.js": "app-admin.8e6c4535.js",
+    "app-admin.js": "app-admin.5f4b5a0f.js",
     "app-demands.js": "app-demands.d212d9a6.js",
     "app-teachers.js": "app-teachers.be3d0a85.js",
     "app-pages.js": "app-pages.d1e7e8fa.js"

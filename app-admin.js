@@ -246,14 +246,14 @@ async function loadAdminStats() {
     const num = x => escHtml(Number(x) || 0);
     el.innerHTML = `
       <div class="stats-grid">
-        <div class="stat-card glass"><div class="stat-value blue">${num(s.users.total)}</div><div class="stat-label">${UI.ADMIN_TOTAL_USERS}</div></div>
-        <div class="stat-card glass"><div class="stat-value green">${num(s.users.students)}</div><div class="stat-label">${UI.ADMIN_STUDENTS}</div></div>
-        <div class="stat-card glass"><div class="stat-value blue">${num(s.users.teachers)}</div><div class="stat-label">${UI.ADMIN_TEACHERS}</div></div>
+        <div class="stat-card glass"><div class="stat-value blue">${num(s.users?.total)}</div><div class="stat-label">${UI.ADMIN_TOTAL_USERS}</div></div>
+        <div class="stat-card glass"><div class="stat-value green">${num(s.users?.students)}</div><div class="stat-label">${UI.ADMIN_STUDENTS}</div></div>
+        <div class="stat-card glass"><div class="stat-value blue">${num(s.users?.teachers)}</div><div class="stat-label">${UI.ADMIN_TEACHERS}</div></div>
         <div class="stat-card glass"><div class="stat-value amber">${num(s.demands)}</div><div class="stat-label">${UI.ADMIN_DEMANDS}</div></div>
         <div class="stat-card glass"><div class="stat-value blue">${num(s.profiles)}</div><div class="stat-label">${UI.ADMIN_PROFILES}</div></div>
-        <div class="stat-card glass"><div class="stat-value green">${num(s.reviews.approved)}</div><div class="stat-label">${UI.ADMIN_REVIEWS_APPROVED}</div></div>
-        <div class="stat-card glass"><div class="stat-value amber">${num(s.reviews.pending)}</div><div class="stat-label">${UI.ADMIN_REVIEWS_PENDING}</div></div>
-        <div class="stat-card glass"><div class="stat-value red">${num(s.invites.used)}</div><div class="stat-label">${UI.ADMIN_INVITES_USED}</div></div>
+        <div class="stat-card glass"><div class="stat-value green">${num(s.reviews?.approved)}</div><div class="stat-label">${UI.ADMIN_REVIEWS_APPROVED}</div></div>
+        <div class="stat-card glass"><div class="stat-value amber">${num(s.reviews?.pending)}</div><div class="stat-label">${UI.ADMIN_REVIEWS_PENDING}</div></div>
+        <div class="stat-card glass"><div class="stat-value red">${num(s.invites?.used)}</div><div class="stat-label">${UI.ADMIN_INVITES_USED}</div></div>
       </div>
 
       <div class="admin-panel glass">

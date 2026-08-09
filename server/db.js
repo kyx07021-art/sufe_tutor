@@ -954,6 +954,8 @@ export async function dbGetDemandsByUser(db, userId) {
 }
 
 // 单条需求也走 mapper（与列表同形状；调用方统一拿数组字段，裸行分叉已消灭）
+// 单条需求：出口经 mapDemandRow（与列表 dbGetDemands 同 mapper，形状一致：路由层零 JSON.parse、
+// mapper 出口剥私密字段；price 保留 null 语义）。契约注释补记（v0.25.84 v0.21 审计遗留）
 export async function dbGetDemandById(db, id) {
   const row = await dbGet(db, 'SELECT * FROM student_demands WHERE id=?', [id]);
   return row ? mapDemandRow(row) : null;

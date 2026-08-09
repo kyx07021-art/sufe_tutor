@@ -15,7 +15,7 @@
  */
 import { dbGet, dbRun, error } from './util.js';
 import { tokenDigest } from './crypto.js';
-import { MSG, RATE_LIMITS, SECURITY_HEADERS, CORS_HEADERS } from './constants.js';
+import { MSG, RATE_LIMITS, SECURITY, SECURITY_HEADERS, CORS_HEADERS } from './constants.js'; // v0.25.84 修：RATE_CLEANUP_THROTTLE_MS 引用曾缺 SECURITY import → 生产 60s 后 rateGate 清理触发 ReferenceError → 全 API 1101
 
 // ============================================================
 // 身份解析：全站一律凭 X-Auth-Token（登录签发，TTL 见 constants.SECURITY.TOKEN_TTL_MS，
