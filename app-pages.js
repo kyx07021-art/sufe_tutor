@@ -164,7 +164,7 @@ async function setPrivacyField(field, value) {
 // 外观主题点按：写 localStorage → 主题脚本重算 → 切当前页按钮选中态（主题立即生效，无需刷新）。
 // v0.25.23 审计：存储 try/catch（隐私模式铁律）+ 末尾重跑页面风格单点（flat 包 token 覆盖在主题之上，防被主题冲掉）。
 function setThemePref(pref) {
-  try { localStorage.setItem('sufe_theme', pref); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ }
+  storeThemePref(pref);
   if (window.__applyTheme) window.__applyTheme();
   if (window.__applyPageStyle) window.__applyPageStyle();
   document.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('theme-opt--on', b.dataset.pref === pref));
@@ -621,7 +621,7 @@ async function handleSaveProfile(e) {
   const mismatches = gaokaoPolicyMismatchCount(polForSave, gaokaoScores);
   if (mismatches > 0) {
     alertEl.innerHTML = alertHtml('error',
-      UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches).replace('{year}', gradYearVal ? gradYearVal : '（未填）'));
+      UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches));
     return;
   }
 

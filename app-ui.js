@@ -646,7 +646,7 @@ function toggleTagPick(el, containerId, max) {
   if (nowSelected && max && max > 0) {
     const count = container.querySelectorAll('.tag-pick.selected').length;
     if (count >= max) {
-      showToast((UI.TAG_PICK_LIMIT || '最多选 {max} 个').replace('{max}', max));
+      showToast(UI.TAG_PICK_LIMIT.replace('{max}', max));
       return;
     }
   }

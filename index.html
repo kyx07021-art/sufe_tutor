@@ -619,7 +619,8 @@
        CSS 首帧渲染必在其后 → 无 FOUC 闪烁）；system 时监听 prefers-color-scheme 实时跟随系统。
        同时设 colorScheme 让原生滚动条/表单控件/自动填充随主题变暗（调研：matchMedia + color-scheme 接口）。 */
     (function () {
-      var THEME_KEY = 'sufe_theme';
+      var C0 = (window.APP_CONSTANTS || {}).CONFIG || {};
+      var THEME_KEY = C0.THEME_KEY || 'sufe_theme'; // A8：键单源（app-state 同读 CONFIG.THEME_KEY）
       function themeIsDark(pref) {
         return pref === 'dark' || (pref !== 'light' &&
           window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);

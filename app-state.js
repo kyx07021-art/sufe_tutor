@@ -163,7 +163,10 @@ function getDeviceId() {
 // ============================================================
 // 偏好/标记存取（全部 try/catch，防隐私模式抛异常）
 // ============================================================
-function getThemePref() { try { return localStorage.getItem('sufe_theme') || 'system'; } catch { return 'system'; } }
+function getThemePref() { try { return localStorage.getItem(CONFIG.THEME_KEY) || 'system'; } catch { return 'system'; } }
+// A8 收口：主题偏好写路径单点（app-pages.setThemePref 点按切换内部调用，不再裸写 localStorage。
+// 注意不与 app-pages 的 UI 层 setThemePref 重名——后者还负责 applyTheme/选中态，故本存储访问器前缀 store）
+function storeThemePref(pref) { try { localStorage.setItem(CONFIG.THEME_KEY, pref); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ } }
 // 需求八·item3 背景光球外观（vivid 鲜艳=elegant 淡雅=hidden 隐藏；缺省鲜艳=当前效果）
 function getOrbPref() { try { const v = localStorage.getItem(CONFIG.ORB_KEY || 'sufe_orb'); return (v === 'elegant' || v === 'hidden') ? v : 'vivid'; } catch { return 'vivid'; } }
 function isReturning() { try { return !!localStorage.getItem('sufe_returning'); } catch { return false; } }

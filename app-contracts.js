@@ -196,7 +196,8 @@ function viewContract(contractId) {
 }
 
 // 去除平台内部「业务条款结束」标记行（HTML 注释经 escHtml 后以文本泄漏到合同查看渲染）
-const stripContractMarker = (md) => String(md || '').replace(/<!--\s*业务条款结束[^\n]*\n?/g, '');
+// A8 收口：正则基于本地常量 CONTRACT_BIZ_END 拼接（与 server/contract.js CONTRACT_BUSINESS_END 前缀一致，杜绝双写漂移）
+const stripContractMarker = (md) => String(md || '').replace(new RegExp(CONTRACT_BIZ_END.replace(' ', '\\s*') + '[^\\n]*\\n?', 'g'), '');
 
 // v0.24.3 合同改动 diff 渲染：prev（上次业务条款）→ current（当前业务条款）行级 LCS 对比。
 // 复用 app-display.diffLines（纯函数）；escHtml 由 app-ui 提供（本文件加载序在其后）。

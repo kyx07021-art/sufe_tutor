@@ -158,7 +158,7 @@ function renderTeacherGaokaoEditor(provinceId, graduationYear, existing) {
   // 保存拦截另在 handleSaveProfile（app-pages）用同款 gaokaoPolicyMismatchCount 复检
   const mismatches = gaokaoPolicyMismatchCount(pol, list);
   if (mismatches > 0) {
-    html += alertHtml('warn', UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches).replace('{year}', graduationYear ? String(graduationYear) : '（未填）'), 'gaokao-mismatch-warn');
+    html += alertHtml('warn', UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches), 'gaokao-mismatch-warn');
   }
 
   // 主科原始分（三分支共有，仅渲染勾选的擅长主科）
