@@ -333,6 +333,7 @@ const CONTRACT_BIZ_END = '<!-- 业务条款结束';
 function splitContractBiz(md) {
   return String(md || '').split(CONTRACT_BIZ_END)[0].trim();
 }
+// v0.25.86 审计：stripContractMarker 已由 app-contracts 定义（见下），app-admin 复用，不再双写
 
 // v0.24.0 发起签约（极简签约流，加号栏呼出）：需求四·第2条加「选择需求」下拉（会话学生方开放需求，
 // 每项 #编号 · 目标名 · 预算），再确认报价 / 时间（自然语言）/ 教学方式线上或线下，

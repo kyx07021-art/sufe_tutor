@@ -44,7 +44,8 @@
  *         分数模式 {subject, mode:'score', scale:满分, score:'值'}
  *         （分数模式与现存 current_scores 的 {subject,scale,score} 向后兼容）
  *
- * 地区提示：regionLockNote(provinceId) → 非上海返回 .region-hint 提示段落，
+ * 地区提示：regionLockNote(provinceId) → 不允许线下授课的省份返回 .region-hint 提示段落
+ *           （线下许可单源 region-data.allowsOffline，v0.25.86 审计去 'shanghai' 硬编码），
  *           主会话渲染到省份选择器附近即可。
  * ============================================================
  */
@@ -125,9 +126,10 @@ function renderProvinceSelect(selectId, selectedId, onchangeAttr) {
   </select>`;
 }
 
-// 非上海省份的线下教学限制提示
+// 不允许线下授课省份的限制提示（v0.25.86 审计：改读 region-data allowsOffline，不再硬编码 'shanghai'）
 function regionLockNote(provinceId) {
-  if (provinceId === 'shanghai') return '';
+  const R = globalThis.SUFE_REGIONS;
+  if (R && R.allowsOffline(provinceId)) return '';
   return `<p class="region-hint">${UI.REGION_HINT_OFFLINE_ONLY}</p>`;
 }
 
@@ -410,8 +412,9 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
   const levels = R.gradeLevelsFor(provinceId, gradeId); // null = 该省该学段无等第制
   const stage = R.stageOfGrade(gradeId);
   const pol = regionResolvePolicy(provinceId);
-  // 上海高中选考满分 70（取自该省 gradeSystem.max）
-  const shMax = (provinceId === 'shanghai' && stage === 'senior' && pol.gradeSystem && pol.gradeSystem.max) || null;
+  // 高中选考科目满分（如上海 70）：仅等第制（grade 类型）gradeSystem 带 max；standard 类型（海南标准分）
+  // 满分 300 走 subjectMaxScore 原始分通道，不套选考满分（v0.25.86 审计去 'shanghai' 硬编码，用类型守卫）
+  const shMax = (stage === 'senior' && pol.gradeSystem && pol.gradeSystem.type === 'grade' && pol.gradeSystem.max) || null;
 
   return ids.map(sid => {
     const sidE = escHtml(sid);

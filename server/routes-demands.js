@@ -107,7 +107,7 @@ export async function handleCreateDemand(db, body, req) {
 
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
-  if (d.province !== 'shanghai') d.teaching_method = 'online'; // 业务规则：非上海仅线上
+  if (!R.allowsOffline(d.province)) d.teaching_method = 'online'; // 业务规则：线下许可省才可线下（region-data 数据驱动，v0.25.86 审计去 'shanghai' 硬编码）
   const ts = sanitizeTimeSlots(d.expected_time);
   if (ts.error) return error(ts.error);
   d.expected_time = ts.value;
@@ -161,7 +161,7 @@ export async function handleUpdateDemand(db, demandId, body, req) {
 
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
-  if (d.province !== 'shanghai') d.teaching_method = 'online';
+  if (!R.allowsOffline(d.province)) d.teaching_method = 'online';
   const ts = sanitizeTimeSlots(d.expected_time);
   if (ts.error) return error(ts.error);
   d.expected_time = ts.value;

@@ -208,6 +208,9 @@ export const LIMITS = {
   RECENT_LIMIT: 8,         // 统计近 N 条
   NOTIF_LIST_MAX: 200,     // 通知列表上限
   PUBLIC_LIST_MAX: 200,    // 公开列表（需求广场/帖子）上限（网安 N-04：匿名全量拉取封顶）
+  REVIEW_LIST_MAX: 200,    // 单教师公开评价上限（面板滚动查看；v0.25.86 审计收敛自裸 LIMIT 200）
+  FEEDBACK_MINE_MAX: 100,  // 我的反馈/投诉列表上限（v0.25.86 审计收敛自裸 LIMIT 100）
+  FEEDBACK_ADMIN_MAX: 200, // 管理端反馈列表上限（v0.25.86 审计收敛自裸 LIMIT 200）
   STALE_UPLOAD_WINDOW: '-30 minutes', // 暂存附件清理窗口
 };
 

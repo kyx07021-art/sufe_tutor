@@ -59,8 +59,9 @@
 
     // 省份 → 政策 + 赋分制（未显式列出的字段缺省 = 3+1+2 全国通用五等级）
     provincePolicy: {
-      // 3+3（第一、二批）
-      shanghai: { policy: '3+3', gradeSystem: 'shanghai' },
+      // 3+3（第一、二批）；offlineAllowed 数据驱动「线下授课允许省」（默认仅线上，
+      // v0.25.86 审计收敛：原'非上海锁线上'特判散落 app-region/app-demands/routes-demands 三处）
+      shanghai: { policy: '3+3', gradeSystem: 'shanghai', offlineAllowed: true },
       zhejiang: { policy: '3+3', gradeSystem: 'zhejiang20', extraElective: 'technology' }, // 浙江 7 选 3 含技术；2022 选考起 20 区间新制
       beijing:  { policy: '3+3', gradeSystem: 'beijing' },
       tianjin:  { policy: '3+3', gradeSystem: 'beijing' },   // 与北京同框架：21 档 3 分一段
@@ -157,6 +158,7 @@
     // ---- 查询函数 ----
     provinceName(id) { const p = this.provinces.find(x => x.id === id); return p ? p.name : (id || ''); },
     isValidProvince(id) { return this.provinces.some(p => p.id === id); },
+    allowsOffline(id) { const c = this.provincePolicy[id]; return !!(c && c.offlineAllowed); }, // 线下授课许可（默认仅线上）
 
     // 年份感知政策解析：无 year（学生端/最新）→ 最新政策；有 year（教师毕业年份）→ 按改革批次回退
     // 到该教师当年高考实际执行的政策（改革前 → 传统文理原始分；浙江 2017-2022 → 21 档旧制）。

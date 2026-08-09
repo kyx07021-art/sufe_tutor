@@ -1118,8 +1118,8 @@ export async function dbGetApprovedReviews(db, teacherUserId) {
     WHERE r.teacher_user_id=? AND r.status='approved'
       AND u.deactivated=0
       AND EXISTS (SELECT 1 FROM users u2 WHERE u2.id=r.teacher_user_id AND u2.deactivated=0)
-    ORDER BY r.created_at DESC LIMIT 200`,
-    [teacherUserId]); // 防全表返回（面板滚动查看；单教师 200 条上限足够）
+    ORDER BY r.created_at DESC LIMIT ${LIMITS.REVIEW_LIST_MAX}`,
+    [teacherUserId]); // 防全表返回（面板滚动查看；上限单源自 constants.LIMITS）
 }
 
 // 某学生对某教师的自有评价（任意状态；「已有评价只能修改」与编辑回填用）
@@ -1275,7 +1275,7 @@ export async function dbCreateFeedback(db, userId, kind, title, content, subject
 
 // #165（v0.25.73）：我的反馈/投诉列表——用户侧状态跟踪闭环（本人可见，无他人数据）
 export async function dbGetFeedbacksByUser(db, userId) {
-  return await dbAll(db, 'SELECT * FROM feedbacks WHERE user_id=? ORDER BY id DESC LIMIT 100', [userId]);
+  return await dbAll(db, `SELECT * FROM feedbacks WHERE user_id=? ORDER BY id DESC LIMIT ${LIMITS.FEEDBACK_MINE_MAX}`, [userId]);
 }
 
 export async function dbGetFeedbacksAdmin(db, status) {
@@ -1284,7 +1284,7 @@ export async function dbGetFeedbacksAdmin(db, status) {
   const where = (status === 'open' || status === 'resolved') ? ' WHERE f.status=?' : '';
   const params = where ? [status] : [];
   return await dbAll(db,
-    'SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id' + where + ' ORDER BY f.id DESC LIMIT 200', params);
+    'SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id' + where + ` ORDER BY f.id DESC LIMIT ${LIMITS.FEEDBACK_ADMIN_MAX}`, params);
 }
 
 export async function dbGetFeedbackById(db, feedbackId) {

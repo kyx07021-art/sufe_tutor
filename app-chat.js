@@ -734,15 +734,25 @@ async function chatSendAttachment(item, convId) {
 }
 
 // 拖入聊天区：松开即加入暂存区（桌面 / 平板拖放均可）
+// v0.25.86 审计修复：hint 由闭包捕获改为事件内现查——openConversation 每次重建
+// #chat-drop-hint（随 innerHTML），旧引用指向已脱离文档节点 → 首次切会话后提示永不显示；
+// zone（#chat-pane）本身不重建，dataset 防重仍成立
 function chatBindDropzone() {
   const zone = document.getElementById('chat-pane');
   if (!zone || zone.dataset.dropBound) return;
   zone.dataset.dropBound = '1';
-  const hint = document.getElementById('chat-drop-hint');
-  zone.addEventListener('dragover', e => { e.preventDefault(); if (hint) hint.classList.remove('hidden'); });
-  zone.addEventListener('dragleave', e => { if (!zone.contains(e.relatedTarget) && hint) hint.classList.add('hidden'); });
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    const hint = zone.querySelector('.chat-drop-hint');
+    if (hint) hint.classList.remove('hidden');
+  });
+  zone.addEventListener('dragleave', e => {
+    const hint = zone.querySelector('.chat-drop-hint');
+    if (!zone.contains(e.relatedTarget) && hint) hint.classList.add('hidden');
+  });
   zone.addEventListener('drop', e => {
     e.preventDefault();
+    const hint = zone.querySelector('.chat-drop-hint');
     if (hint) hint.classList.add('hidden');
     if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) chatStageFiles(e.dataTransfer.files);
   });

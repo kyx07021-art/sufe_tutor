@@ -112,7 +112,7 @@ function adminViewContract(contractId) {
   if (!c) return;
   // v0.24.3：与用户端同口径——修改过的合同（prev_business 非空）先渲染改动 diff 块再显示当前全文
   const diffHtml = c.prev_business && typeof renderContractDiff === 'function'
-    ? renderContractDiff(c.prev_business, (c.contract_md || '').split('<!-- 业务条款结束')[0].trim()) : '';
+    ? renderContractDiff(c.prev_business, splitContractBiz(c.contract_md)) : '';
   openModal({
     title: diffHtml ? UI.CONTRACT_VIEW_DIFF_TITLE : UI.BTN_VIEW_CONTRACT,
     cls: 'modal--wide', // 需求三十一：管理端合同全文拓宽
@@ -120,7 +120,7 @@ function adminViewContract(contractId) {
     body: `${diffHtml ? `<div class="contract-diff-head">${escHtml(UI.CONTRACT_DIFF_HINT)}</div>
         <div class="contract-diff">${diffHtml}</div>
         <div class="contract-diff-divider"></div>` : ''}
-      ${mdRender((c.contract_md || '').replace(/<!--\s*业务条款结束[^\n]*\n?/g, ''))}`, // v0.24.2：去除内部标记行
+      ${mdRender(stripContractMarker(c.contract_md))}`, // 去除内部标记行（stripContractMarker 单源，v0.25.86 审计收敛）
   });
 }
 

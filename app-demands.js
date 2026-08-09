@@ -281,7 +281,7 @@ function onDemandProvinceChange() {
   const prov = document.getElementById('d-province').value;
   document.getElementById('d-region-note').innerHTML = regionLockNote(prov); // regionLockNote 对空值同样给提示
   const methodSel = document.getElementById('d-method');
-  const onlineOnly = prov !== 'shanghai';
+  const onlineOnly = !(globalThis.SUFE_REGIONS && globalThis.SUFE_REGIONS.allowsOffline(prov)); // 线下许可数据驱动（v0.25.86 审计去 'shanghai' 硬编码）
   [...methodSel.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
   if (onlineOnly) { methodSel.value = 'online'; toggleAddressField(); }
   updateDemandSubjects();

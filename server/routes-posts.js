@@ -9,6 +9,7 @@
 import { json, error } from './util.js';
 import { authUser, requireUser, requireAdminOrError } from './security.js';
 import { MSG, LIMITS } from './constants.js';
+import '../constants.js'; // 副作用导入（v0.25.86 审计补）：UI() 惰性读 globalThis.APP_CONSTANTS 依赖其就绪——曾靠 routes-auth 先加载碰巧生效，删除别处 import 即静默变 {error: undefined}
 import {
   dbListPosts, dbCreatePost, dbGetPostById, dbGetPostLike,
   dbCreatePostLike, dbDeletePostLike, dbSyncPostLikeCount, dbGetPostLikeCount,

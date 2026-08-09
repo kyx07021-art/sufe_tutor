@@ -171,9 +171,10 @@ function openTeacherCard(e, userId) {
 }
 
 // v0.19.46 参数化：教师块默认参数不变；通知页筛选面板同组件复用（index.html 传 id）
-function toggleFilters(id = 'teacher-filters', btnId = 'filter-toggle-btn') {
-  const open = document.getElementById(id).classList.toggle('open'); // grid-rows 展开动效
-  const btn = document.getElementById(btnId);
+// v0.25.86 审计：删除死参数（唯一调用点 index.html 恒无参；通知页并无筛选切换按钮，复用注释已过时）
+function toggleFilters() {
+  const open = document.getElementById('teacher-filters').classList.toggle('open'); // grid-rows 展开动效
+  const btn = document.getElementById('filter-toggle-btn');
   if (btn) btn.classList.toggle('open', open); // v 形箭头翻转
 }
 

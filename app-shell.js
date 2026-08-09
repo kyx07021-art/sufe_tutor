@@ -410,8 +410,8 @@ if (typeof dhOnDomainRefresh === 'function') {
 // 屏蔽系统通知偏好：纯客户端、跨会话持久化（键名 sufe_block_broadcast，布尔；同 setThemePref 存取模式）
 // 广播判定单点（需求四·4b 重构后收敛回来：屏蔽按钮过滤 + 进页渲染两处共用，NOTIFY_BROADCAST_PREFIX 前缀单源）
 function isBroadcastNotif(n) { return String(n.text || '').startsWith(UI.NOTIFY_BROADCAST_PREFIX); }
-function notifBlockOn() { try { return localStorage.getItem('sufe_block_broadcast') === '1'; } catch { return false; } }
-function setNotifBlock(v) { try { localStorage.setItem('sufe_block_broadcast', v ? '1' : '0'); } catch { /* 存储被禁：本次不持久 */ } }
+function notifBlockOn() { try { return localStorage.getItem(CONFIG.NOTIF_BLOCK_KEY) === '1'; } catch { return false; } }
+function setNotifBlock(v) { try { localStorage.setItem(CONFIG.NOTIF_BLOCK_KEY, v ? '1' : '0'); } catch { /* 存储被禁：本次不持久 */ } }
 function renderNotifList() { // 复用渲染逻辑：按偏好过滤 _notifList 即时重排，不重新请求
   const el = document.getElementById('notifications-content');
   if (!el || !_notifList.length) return;
