@@ -28,7 +28,7 @@ export const ASSET_MANIFEST = {
     "app-chart.js": "app-chart.5bbef1cc.js",
     "app-admin.js": "app-admin.c22ce4ca.js",
     "app-demands.js": "app-demands.8f9296d3.js",
-    "app-teachers.js": "app-teachers.7e7970af.js",
+    "app-teachers.js": "app-teachers.cd5e586d.js",
     "app-pages.js": "app-pages.9909074a.js",
     "app-complaints.js": "app-complaints.5d3917f2.js"
   }
