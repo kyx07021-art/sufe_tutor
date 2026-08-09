@@ -98,6 +98,21 @@ test('signing_response：sender=回应方 → 按查看者视角对齐回应方�
   assert.ok(!theirs.includes('chat-bubble--system'), '回应气泡不再用系统条');
 });
 
+test('v0.25.95 回应气泡带回应方用户名（非"对方"，同发起侧 #152）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
+  // 对方（id=2，sender_name=乙）是回应方 → theirs 气泡带「乙」
+  const theirs = render(ctx, { kind: 'signing_response', sender_user_id: 2, sender_name: '乙', id: 14, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ accept: true }) });
+  assert.ok(theirs.includes('「乙」已确认签约请求'), '确认气泡带回应方用户名，非「对方」');
+  assert.ok(!theirs.includes('{name}'), '无未替换的 {name} 字面量');
+  const theirsRej = render(ctx, { kind: 'signing_response', sender_user_id: 2, sender_name: '乙', id: 15, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ reject: true }) });
+  assert.ok(theirsRej.includes('「乙」已拒绝此次签约请求'), '拒绝气泡带回应方用户名');
+  // 我（id=1）是回应方 → mine 恒「你已…」（视角修正，无 {name}）
+  const mine = render(ctx, { kind: 'signing_response', sender_user_id: 1, sender_name: '甲', id: 16, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ accept: true }) });
+  assert.ok(mine.includes('你已确认签约请求'), '回应方本人视角仍为「你已确认签约请求」');
+  assert.ok(!mine.includes('{name}'), 'mine 侧无 {name} 字面量');
+});
+
 test('R8/v0.25.94 签约确认后：合并提示 + 撑满气泡的起草按钮；拒绝态保留 funds（v0.25.94 重构）', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);

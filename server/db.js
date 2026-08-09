@@ -1023,6 +1023,20 @@ export async function dbDeleteDemand(db, id) {
   return true;
 }
 
+// 管理员强制删除需求（v0.25.95 调试阶段放开：含已签约 contracted）。
+// 与 dbDeleteDemand 的常规门禁（有 pending/signing/signed 合同引用即拒）并列——管理员路径
+// 放行全部状态，但 F-03b 不变量（demand_id 不悬空）仍需守住：contracts / signing_requests 的
+// demand_id 均为裸 INTEGER 无外键，悬空曾致线上事故（F-03b），故同一事务内先清引用再删需求；
+// demand_intents / demand_pushes 经 FK ON DELETE CASCADE 级联。db.batch 隐式单事务。
+export async function dbAdminForceDeleteDemand(db, id) {
+  const res = await db.batch([
+    db.prepare('UPDATE contracts SET demand_id=NULL WHERE demand_id=?').bind(id),
+    db.prepare('UPDATE signing_requests SET demand_id=NULL WHERE demand_id=?').bind(id),
+    db.prepare('DELETE FROM student_demands WHERE id=?').bind(id),
+  ]);
+  return !!(res && res[2] && res[2].meta && res[2].meta.changes > 0);
+}
+
 // 需求重开（revoked→open）：条件 UPDATE 赢家模式，返回是否命中（防并发双触发）。
 // 同时复位意向锁 intent_locked（网安审计：锁只置位不复位，撤销→重开→重收意向流程会永久断裂）
 export async function dbReopenDemand(db, id) {

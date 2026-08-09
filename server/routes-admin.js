@@ -11,7 +11,7 @@ import {
   dbGetUserStats, dbGetCount, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,
-  dbGetDemandById, dbDeleteDemand, dbDeleteReview, dbDeleteMessage,
+  dbGetDemandById, dbAdminForceDeleteDemand, dbDeleteReview, dbDeleteMessage,
   dbGetStudentUsersAdmin, dbGetTeachers, dbGetUserById, dbSetUserBanned, dbSetTeacherVerified,
   dbGetDemands, dbGetMessageById,
   dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbGetFeedbacksByUser,
@@ -172,9 +172,11 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   if (err) return err;
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (existing.status === STATUS.CONTRACTED) return error(MSG.DEMAND_CONTRACTED_LOCKED, 409); // 已签约需求禁删（合同 demand_id 会悬空）
-  const ok = await dbDeleteDemand(db, demandId); // 数据层门禁：pending/signing 合同引用时拒绝（防悬空，F-03b）
-  if (!ok) return error(MSG.DEMAND_CONTRACTED_LOCKED, 409);
+  // v0.25.95（调试阶段放开）：管理员可删全部需求（含已签约 contracted）。不再拦 CONTRACTED；
+  // 数据层 dbAdminForceDeleteDemand 同事务清 contracts/signing_requests 的 demand_id 引用再删需求，
+  // F-03b 悬空不变量照守（常规非管理员路径仍走 dbDeleteDemand 的原子门禁）。
+  const ok = await dbAdminForceDeleteDemand(db, demandId);
+  if (!ok) return error(MSG.DEMAND_NOT_FOUND, 409); // 行已被并发删除等
   await logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'demand', entityId: demandId, req });
   return json({ message: MSG.DEMAND_DELETED });

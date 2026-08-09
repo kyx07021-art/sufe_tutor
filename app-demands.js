@@ -633,7 +633,8 @@ function renderDemandCard(d, opts = {}) {
   // 学生/管理员侧卡片操作（编辑/重开/下架）同归底栏右下角（统一 btn-sm + R11 统一 .btn-soft 外观）
   const ownerActions = (editable && d.status === STATUS.REVOKED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
     : editable && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : '')
-    + (admin && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
+    // v0.25.95（调试阶段放开）：管理员移除按钮放开到全部状态（含已签约 contracted，服务端 force 路径同事务清引用）
+    + (admin ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
   const budget = DISP.demandBudgetText(d);
 
   // 三行点号纯文字（同教师卡语言，行间细线分隔）：

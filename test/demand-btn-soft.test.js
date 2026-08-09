@@ -105,3 +105,16 @@ test('v0.25.94 意向行动作统一 btn-soft：查看/同意/拒绝（原 btn-o
   assert.ok(row.includes("resolveIntent(11,'reject',2)") && row.includes('btn-soft'), '拒绝 = btn-soft（原 btn-outline）');
   assert.ok(!row.includes('btn-outline') && !row.includes('class="btn btn-xs'), '意向行无 btn-outline/裸 btn 残留');
 });
+
+// v0.25.95（调试阶段放开）：管理员移除按钮放开到全部状态（含已签约 contracted）
+test('管理员视角：contracted 需求也渲染移除按钮（v0.25.95 放开）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx);
+  const adminContracted = renderCard(ctx, { status: 'contracted' }, { admin: true });
+  assert.ok(adminContracted.includes('onclick="confirmDeleteDemand(2, true)"'), 'contracted 需求管理员可见移除按钮');
+  assert.ok(adminContracted.includes('btn-soft'), '移除按钮走 btn-soft 统一外观');
+  // 非管理员学生视角：contracted 仍不可编辑/下架（编辑门禁未动）
+  const studentOwned = renderCard(ctx, { status: 'contracted' }, { editable: true });
+  assert.ok(!studentOwned.includes('confirmDeleteDemand'), '学生不可删 contracted');
+  assert.ok(!studentOwned.includes('openDemandModal(2)'), '学生不可编辑 contracted');
+});

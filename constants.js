@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.94',
+  APP_VERSION: '0.25.95',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1053,8 +1053,8 @@ globalThis.APP_CONSTANTS = {
     // v0.24.0 发起签约（极简签约流：加号栏「发起签约」→ 会话内签约请求气泡 → 对方确认/拒绝）
     SIGNING_REQUEST_SENT: '「{name}」向你发送了签约请求', // #152（v0.25.60）：通知带发送者用户名（原「对方」无身份标识）
     SIGNING_REQUEST_SENT_TOAST: '签约请求已发送',
-    SIGNING_CONFIRMED: '对方已确认签约请求',
-    SIGNING_REJECTED: '对方已拒绝此次签约请求',
+    SIGNING_CONFIRMED: '「{name}」已确认签约请求', // v0.25.95：回应侧通知/气泡带确认方用户名（原「对方」无身份标识，同 #152 发起侧）
+    SIGNING_REJECTED: '「{name}」已拒绝此次签约请求',
     SIGNING_MY_CONFIRMED: '你已确认签约请求',      // v0.24.2 审计：回应方视角（原气泡/toast 恒显「对方已…」颠倒）
     SIGNING_MY_REJECTED: '你已拒绝此次签约请求',
     SIGNING_MODAL_TITLE: '发起签约',

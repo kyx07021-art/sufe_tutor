@@ -248,3 +248,30 @@ test('bindable-demands phase=contract：别教师签成的需求不列出；同�
   assert.equal(other.status, 200);
   assert.ok(!(await other.json()).demands.some(d => d.id === d1), '别教师签成的需求不可被其他会话列出');
 });
+
+// ============ 4. 回应侧通知带回应方用户名（v0.25.95，同发起侧 #152） ============
+
+test('确认签约后：通知发起方「{回应方用户名}」已确认签约请求（非"对方"）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1Token, t1Token, d1 } = await seed(db, raw);
+  const r = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
+  const { id: srA } = await r.json();
+  const res = await handleRespondSigning(db, srA, { accept: true }, reqOf(s1Token));
+  assert.equal(res.status, 200);
+  const notif = raw.prepare("SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
+    .get((await raw.prepare('SELECT id FROM users WHERE username=?').get('t1')).id);
+  assert.ok(notif, '发起方收到通知');
+  assert.equal(notif.text, '「s1」已确认签约请求', '通知带回应方用户名，非"对方"');
+});
+
+test('拒绝签约后：通知发起方「{回应方用户名}」已拒绝此次签约请求', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1Token, t1Token, d1 } = await seed(db, raw);
+  const r = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
+  const { id: srA } = await r.json();
+  const res = await handleRespondSigning(db, srA, { accept: false }, reqOf(s1Token));
+  assert.equal(res.status, 200);
+  const notif = raw.prepare("SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
+    .get((await raw.prepare('SELECT id FROM users WHERE username=?').get('t1')).id);
+  assert.equal(notif.text, '「s1」已拒绝此次签约请求', '拒绝通知带回应方用户名');
+});

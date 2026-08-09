@@ -370,7 +370,8 @@ function renderChatBubble(m, i) {
     try { r = JSON.parse(m.body || '{}'); } catch { /* 兜底 */ }
     const text = mine
       ? (r.accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED)
-      : (r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED);
+      // v0.25.95：回应方视角的「已确认/已拒绝」气泡带回应方用户名（m.sender_name，消息查询已 JOIN users 下发）
+      : (r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED).replace('{name}', m.sender_name || '对方');
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble glass ${skin}">${escHtml(text)}</div>${time}</div>`;
   }
