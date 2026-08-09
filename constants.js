@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.87',
+  APP_VERSION: '0.25.88',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -345,6 +345,7 @@ globalThis.APP_CONSTANTS = {
       '--g-accent-fill': 'rgba(122,104,224,.20)',
       '--g-accent-fill-soft': 'rgba(142,128,232,.08)', // 聊天拖入虚线罩
       '--g-like-fill': 'rgba(211,47,47,.16)',      // 帖子点赞态
+      '--g-fav-fill': 'rgba(122,104,224,.16)',     // 帖子收藏态（R23：主题色淡底）
       // ---- 内生滚动条（v0.25.28，全站统一组件；--g-scroll-* 语义 token，材质随外观包，几何同一） ----
       '--g-scroll-size': '8px',                    // 滚动条 hit 区宽（液态）
       '--g-scroll-thumb': 'rgba(122,104,224,.38)', // 静置滑块：半透明紫玻璃
@@ -454,6 +455,7 @@ globalThis.APP_CONSTANTS = {
       '--g-accent-fill': 'rgba(139,124,232,.26)',
       '--g-accent-fill-soft': 'rgba(139,124,232,.12)',
       '--g-like-fill': 'rgba(224,90,74,.20)',
+      '--g-fav-fill': 'rgba(139,124,232,.20)',     // 帖子收藏态（R23：主题色淡底）
       // ---- 内生滚动条（v0.25.28）----
       '--g-scroll-size': '8px',
       '--g-scroll-thumb': 'rgba(255,255,255,.26)', // 暗面低白玻璃滑块
@@ -1554,6 +1556,16 @@ globalThis.APP_CONSTANTS = {
     POST_VIEW_ARIA: '查看帖子全文', // #161（v0.25.69）：帖子标题按钮（点击卡片查看全文）
     POST_LIKED_TOAST: '已点赞',
     POST_UNLIKED_TOAST: '已取消点赞',
+    // R23：帖子收藏（资料共享——收藏即保存，仅本人可见）
+    POSTS_VIEW_ALL: '全部',
+    POSTS_VIEW_FAV: '我的收藏',
+    BTN_FAVORITE: '收藏',
+    BTN_FAVORITED: '已收藏',
+    POST_FAV_ARIA: '收藏', // 未收藏
+    POST_FAV_ACTIVE_ARIA: '取消收藏', // 已收藏
+    POST_FAVORITED_TOAST: '已收藏，可在「我的收藏」查看',
+    POST_UNFAVORITED_TOAST: '已取消收藏',
+    POSTS_FAV_EMPTY: '还没有收藏，看到有用的教学资料点一下书签图标，收藏后在这里随时查看。',
     POST_MODAL_TITLE_CREATE: '发布帖子',
     POST_LABEL_TITLE: '标题',
     POST_TITLE_PLACEHOLDER: '一句话概括分享内容',

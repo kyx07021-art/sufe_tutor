@@ -298,6 +298,14 @@ export async function initDb(db, env = {}) {
       UNIQUE(post_id, user_id),
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
+    // R23：帖子收藏（教师共享资料——收藏即保存，仅本人可见；UNIQUE 防重复收藏）
+    db.prepare(`CREATE TABLE IF NOT EXISTS post_favorites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      post_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      UNIQUE(post_id, user_id),
+      FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     // R22：投诉独立通道（与 feedbacks 分表分通道；target_snapshot = 被投诉对象快照防删后失标）
     db.prepare(`CREATE TABLE IF NOT EXISTS complaints (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -634,6 +642,7 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
   await dbRun(db, 'DELETE FROM complaints WHERE user_id=?', [userId]); // R22：注销清理投诉记录
   await dbRun(db, 'DELETE FROM uploads WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM post_likes WHERE user_id=?', [userId]);
+  await dbRun(db, 'DELETE FROM post_favorites WHERE user_id=?', [userId]); // R23：注销清理收藏
   await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [userId]);
 
   if (role === 'student') {
@@ -1213,7 +1222,8 @@ function likeEscape(s) {
   return String(s).replace(/[\\%_]/g, c => '\\' + c);
 }
 
-// 帖子列表：LEFT JOIN users 取作者名；viewerId 有值时 LEFT JOIN post_likes 产出 liked 布尔，否则恒 0。
+// 帖子列表：LEFT JOIN users 取作者名；viewerId 有值时 LEFT JOIN post_likes / post_favorites
+// 产出 liked / favorited 布尔，否则恒 0。
 // section 不传 = 不过滤（分区预留）；q 对 title + body_md 做 LIKE 模糊匹配；
 // sort: new=时间倒序（默认）；hot=like_count 倒序、同值时间倒序
 export async function dbListPosts(db, { section, q, viewerId, sort } = {}) {
@@ -1231,18 +1241,48 @@ export async function dbListPosts(db, { section, q, viewerId, sort } = {}) {
     ? 'p.like_count DESC, p.created_at DESC, p.id DESC'
     : 'p.created_at DESC, p.id DESC';
   const hasViewer = !!viewerId;
-  const likeJoin = hasViewer
-    ? 'LEFT JOIN post_likes pl ON pl.post_id = p.id AND pl.user_id = ?' : '';
-  const likeSel = hasViewer ? '(pl.id IS NOT NULL) AS liked' : '0 AS liked';
-  const bind = hasViewer ? [viewerId, ...params] : params;
+  const join = hasViewer
+    ? `LEFT JOIN post_likes pl ON pl.post_id = p.id AND pl.user_id = ?
+       LEFT JOIN post_favorites pf ON pf.post_id = p.id AND pf.user_id = ?`
+    : '';
+  const sel = hasViewer ? '(pl.id IS NOT NULL) AS liked, (pf.id IS NOT NULL) AS favorited' : '0 AS liked, 0 AS favorited';
+  const bind = hasViewer ? [viewerId, viewerId, ...params] : params;
   const rows = await dbAll(db,
     `SELECT p.id, p.user_id, p.section, p.title, p.body_md, p.like_count,
-            p.created_at, p.updated_at, u.username, ${likeSel}
+            p.created_at, p.updated_at, u.username, ${sel}
      FROM posts p
      LEFT JOIN users u ON u.id = p.user_id
-     ${likeJoin}${where}
+     ${join}${where}
      ORDER BY ${order} LIMIT ?`, [...bind, LIMITS.PUBLIC_LIST_MAX]);
-  return rows.map(r => ({ ...r, liked: !!r.liked }));
+  return rows.map(r => ({ ...r, liked: !!r.liked, favorited: !!r.favorited }));
+}
+
+// 我的收藏帖子列表（R23）：仅本人收藏，按收藏时间倒序；已注销作者帖子不入场。
+// 复用广场卡渲染字段集（id/title/body_md/like_count/username/created_at/liked/favorited）
+export async function dbListMyFavoritePosts(db, userId) {
+  const rows = await dbAll(db,
+    `SELECT p.id, p.user_id, p.section, p.title, p.body_md, p.like_count, p.created_at, p.updated_at,
+            u.username, (pl.id IS NOT NULL) AS liked, 1 AS favorited
+     FROM post_favorites pf
+     JOIN posts p ON p.id = pf.post_id
+     LEFT JOIN users u ON u.id = p.user_id
+     LEFT JOIN post_likes pl ON pl.post_id = p.id AND pl.user_id = ?
+     WHERE pf.user_id = ? AND u.deactivated = 0
+     ORDER BY pf.created_at DESC, pf.id DESC LIMIT ?`,
+    [userId, userId, LIMITS.PUBLIC_LIST_MAX]);
+  return rows.map(r => ({ ...r, liked: !!r.liked, favorited: true }));
+}
+
+export async function dbGetPostFavorite(db, postId, userId) {
+  return await dbGet(db, 'SELECT id FROM post_favorites WHERE post_id=? AND user_id=?', [postId, userId]);
+}
+
+export async function dbCreatePostFavorite(db, postId, userId) {
+  await dbRun(db, 'INSERT INTO post_favorites (post_id, user_id) VALUES (?,?)', [postId, userId]);
+}
+
+export async function dbDeletePostFavorite(db, favoriteId) {
+  await dbRun(db, 'DELETE FROM post_favorites WHERE id=?', [favoriteId]);
 }
 
 export async function dbCreatePost(db, userId, title, bodyMd) {

@@ -28,12 +28,17 @@ if (typeof dhOnDomainRefresh === 'function') {
 // ============================================================
 
 // 侧边栏项入口（ROLE_PAGES.teacher → enterResourceShare）：
-// 渲染工具条（搜索 / 排序 / 发布）+ 列表容器到 #posts-content，然后拉数据
+// 渲染工具条（视图切换 / 搜索 / 排序 / 发布）+ 列表容器到 #posts-content，然后拉数据
+let postsView = 'all'; // R23：'all' 广场全部 / 'fav' 我的收藏（收藏即保存，仅本人可见）
 function enterResourceShare() {
   clearTimeout(postsSearchTimer); // 清掉上一次停留时挂起的防抖回调，防切回瞬间打到隐藏页
   const isTeacher = state.user && state.user.role === 'teacher';
   document.getElementById('posts-content').innerHTML = `
     <div class="posts-toolbar glass">
+      ${segTabsHtml([
+        { key: 'all', label: UI.POSTS_VIEW_ALL, onclick: "switchPostsView('all')" },
+        { key: 'fav', label: UI.POSTS_VIEW_FAV, onclick: "switchPostsView('fav')" },
+      ], postsView, { containerClass: 'posts-view-tabs', attr: 'view' })}
       <input type="search" id="posts-search" class="form-input posts-search"
         placeholder="${UI.POSTS_SEARCH_PLACEHOLDER}" oninput="postsSearchDebounced()">
       <select id="posts-sort" class="form-select posts-sort" onchange="loadPosts()">
@@ -47,25 +52,36 @@ function enterResourceShare() {
   loadPosts();
 }
 
+// R23：视图切换（全部 / 我的收藏）——收藏视图清空搜索框（列表按收藏时间倒序，不受搜索/排序影响）
+function switchPostsView(view) {
+  postsView = view;
+  document.querySelectorAll('.posts-view-tabs .seg-tab').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+  const search = document.getElementById('posts-search');
+  if (search) search.value = '';
+  loadPosts();
+}
+
 // 搜索框防抖：停止输入 350ms 后再触发 loadPosts
 function postsSearchDebounced() {
   clearTimeout(postsSearchTimer);
   postsSearchTimer = setTimeout(() => loadPosts(), CONFIG.POSTS_SEARCH_DEBOUNCE_MS);
 }
 
-// 拉取帖子列表：sort / q 取自工具条；liked 标记由后端凭令牌判定（访客恒 false）
-// 乱序守卫由 loadInto 的 seqKey:'posts' 接管（搜索/排序快速切换时旧响应丢弃）
+// 拉取帖子列表：全部视图 sort / q 取自工具条；我的收藏视图走独立接口（按收藏时间倒序）。
+// liked / favorited 标记由后端凭令牌判定（访客恒 false）；乱序守卫由 loadInto 的 seqKey:'posts' 接管
 function loadPosts() {
   const q = (document.getElementById('posts-search')?.value || '').trim();
   const sort = document.getElementById('posts-sort')?.value || 'new';
-  const url = `/api/posts?sort=${sort}` + (q ? `&q=${encodeURIComponent(q)}` : '');
+  const url = postsView === 'fav'
+    ? '/api/posts/favorites/mine' // R23：我的收藏（独立数据源，不受搜索/排序影响）
+    : `/api/posts?sort=${sort}` + (q ? `&q=${encodeURIComponent(q)}` : '');
   postsUrl = url; // 记录最近 URL，探测刷新后按其重挂 postsList（审计 M1）
   return loadInto('posts-list', async () => {
     const data = await dhGet(url, { domain: 'posts' }); // v0.23.0 静默数据层
-    postsList = data.posts || []; // 渲染前同步：点赞就地更新依赖此数据源
+    postsList = data.posts || []; // 渲染前同步：点赞/收藏就地更新依赖此数据源
     return data;
   }, rows => rows.map(renderPostCard).join(''),
-  { seqKey: 'posts', empty: UI.POSTS_EMPTY, pick: d => d.posts, reveal: true, peek: () => dhReady(url) });
+  { seqKey: 'posts', empty: postsView === 'fav' ? UI.POSTS_FAV_EMPTY : UI.POSTS_EMPTY, pick: d => d.posts, reveal: true, peek: () => dhReady(url) });
 }
 
 // #161（v0.25.69）：点赞 pill 组件（列表卡 + 详情浮窗共用）——#160 复选逻辑单点
@@ -82,8 +98,22 @@ function likePillHtml(p) {
   </label>`;
 }
 
-// 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 作者可删。
-// #161（v0.25.69）：整卡可点击查看全文浮窗——卡 onclick 统一接管，点赞/删除内部控件用 closest 守卫不透传；
+// R23（v0.25.87）：收藏 pill 组件（列表卡 + 详情浮窗共用）——同点赞的复选框逻辑：
+// favorited 态骑原生 checkbox checked（:has(input:checked) 单源），原生翻转即乐观即时反馈，
+// 服务端返回后以 data.favorited 收敛，失败回滚。收藏是私人的，无公开计数，仅图标 + 状态文案。
+function favPillHtml(p) {
+  return `<label class="post-fav glass" data-id="${p.id}">
+    <input type="checkbox"${p.favorited ? ' checked' : ''} aria-label="${UI.POST_FAV_ARIA}" onchange="togglePostFavorite(${p.id}, this)">
+    <svg class="fav-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"
+      fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
+    </svg>
+    <span class="fav-label">${p.favorited ? UI.BTN_FAVORITED : UI.BTN_FAVORITE}</span>
+  </label>`;
+}
+
+// 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 收藏 / 作者可删。
+// #161（v0.25.69）：整卡可点击查看全文浮窗——卡 onclick 统一接管，点赞/收藏/删除内部控件用 closest 守卫不透传；
 // 标题转 button（键盘焦点 + Enter/Space 原生 click 冒泡到卡），正文摘要过长时点击即看全文。
 function renderPostCard(p, i) {
   const mine = state.user && p.user_id === state.user.id;
@@ -102,13 +132,14 @@ function renderPostCard(p, i) {
     ${snippet ? `<p class="post-snippet">${escHtml(snippet)}${raw.length > CONFIG.POST_SNIPPET ? '…' : ''}</p>` : ''}
     <div class="post-actions">
       ${likePillHtml(p)}
+      ${favPillHtml(p)}
     </div>
   </div>`;
 }
 
-// #161（v0.25.69）：帖子卡点击守卫——点赞/删除等内部控件点击不透传（事件从控件冒泡上来，closest 命中即返回）
+// #161（v0.25.69）：帖子卡点击守卫——点赞/收藏/删除等内部控件点击不透传（事件从控件冒泡上来，closest 命中即返回）
 function postCardClick(event, id) {
-  if (!event || (event.target.closest && event.target.closest('.post-like, .post-del'))) return;
+  if (!event || (event.target.closest && event.target.closest('.post-like, .post-fav, .post-del'))) return;
   openPostDetail(id);
 }
 
@@ -129,7 +160,7 @@ function openPostDetail(id) {
         <span class="post-time">${escHtml(time)}</span>
       </div>
       <div class="post-detail-body">${mdRender(p.body_md) || `<p>${UI.POST_PREVIEW_EMPTY}</p>`}</div>`,
-    footer: `<div class="post-detail-foot">${likePillHtml(p)}${mine ? `<button type="button" class="btn btn-text-danger glass glass--pressable" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}</div>`,
+    footer: `<div class="post-detail-foot">${likePillHtml(p)}${favPillHtml(p)}${mine ? `<button type="button" class="btn btn-text-danger glass glass--pressable" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}</div>`,
   });
 }
 
@@ -160,6 +191,41 @@ async function togglePostLike(id, input) {
     showToast(data.liked ? UI.POST_LIKED_TOAST : UI.POST_UNLIKED_TOAST);
   } catch (err) {
     if (postLikeSeq[id] !== seq) return; // 过期请求的错误不覆盖新请求的 UI 态
+    revert();
+    showToast(err.message);
+  }
+}
+
+// ============================================================
+// 收藏（R23）：就地更新按钮，避免整列重渲染重放入场动画
+// ============================================================
+const postFavSeq = {}; // 每帖独立序号：连点时乱序旧响应丢弃（同点赞口径）
+async function togglePostFavorite(id, input) {
+  if (!input) return;
+  const wasChecked = !input.checked; // 点前态
+  const revert = () => { if (input && input.checked !== wasChecked) input.checked = wasChecked; };
+  if (!ensureAuth()) { revert(); return; } // 访客可浏览广场，收藏需登录（原生已翻转，须回滚）
+  const seq = (postFavSeq[id] = (postFavSeq[id] || 0) + 1);
+  try {
+    const data = await api(`/api/posts/${id}/favorite`, { method: 'POST', body: {} });
+    if (postFavSeq[id] !== seq) return;
+    const p = postsList.find(x => x.id === id);
+    if (p) p.favorited = data.favorited;
+    // 同步全部 .post-fav（列表卡 + 详情浮窗），不限于 #posts-list
+    document.querySelectorAll(`.post-fav[data-id="${id}"]`).forEach(label => {
+      const box = label.querySelector('input[type="checkbox"]');
+      if (box) box.checked = data.favorited; // 服务端为准
+      const txt = label.querySelector('.fav-label');
+      if (txt) txt.textContent = data.favorited ? UI.BTN_FAVORITED : UI.BTN_FAVORITE;
+    });
+    // 我的收藏视图：取消收藏就地移除卡（收藏列表即时收敛，不整列重渲）
+    if (!data.favorited && postsView === 'fav') {
+      const card = document.querySelector(`#posts-list .post-fav[data-id="${id}"]`)?.closest('.post-card');
+      if (card) card.remove();
+    }
+    showToast(data.favorited ? UI.POST_FAVORITED_TOAST : UI.POST_UNFAVORITED_TOAST);
+  } catch (err) {
+    if (postFavSeq[id] !== seq) return; // 过期请求的错误不覆盖新请求的 UI 态
     revert();
     showToast(err.message);
   }

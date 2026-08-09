@@ -416,6 +416,8 @@ body { background: transparent; }
 .posts-toolbar { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 .post-like { --g-fill: var(--g-fill-weak); --g-fg: var(--muted); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r-sm); }
 .post-like:has(input:checked) { --g-fill: var(--g-like-fill); --g-fg: var(--danger); } /* #160（v0.25.68）：liked 态骑原生 checkbox checked（同 .checkbox-item 单源），删 .liked 类 */
+.post-fav { --g-fill: var(--g-fill-weak); --g-fg: var(--muted); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r-sm); }
+.post-fav:has(input:checked) { --g-fill: var(--g-fav-fill); --g-fg: var(--accent); } /* R23：favorited 态骑原生 checkbox checked——收藏即保存，主题色区分于点赞红 */
 
 /* 主页入口块（实心墨玻璃；竖条母题住 ::after，玻璃填充住元素自身） */
 .entry { --g-fill: var(--g-fill-mid); --g-frost: var(--g-f-entry, blur(4px) saturate(180%) brightness(1.04)); --g-hover: var(--g-hover-wash); --g-lift: var(--glass-lift); --g-r: var(--lg-r); --g-raise: -1px; } /* S7：--g-fg 死变量已删——文字色唯一主人 = style.css .entry { color }；--g-raise 悬停上浮同别的按钮 */

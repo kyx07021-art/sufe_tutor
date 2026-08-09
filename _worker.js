@@ -36,7 +36,7 @@ import {
   handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
   handleCreateFeedback, handleAdminFeedbacks, handleMyFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
 } from './server/routes-admin.js';
-import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost } from './server/routes-posts.js';
+import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost, handleMyFavorites, handleToggleFavorite } from './server/routes-posts.js';
 import {
   handleCreateComplaint, handleMyComplaints, handleComplaintCandidates, handleComplaintRecent,
   handleAdminComplaints, handleResolveComplaint,
@@ -239,6 +239,9 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   // 资料共享（section 字段预留分区，当前全在广场）
   if (p === '/api/posts' && method === 'GET') return await handleListPosts(db, url, req);
   if (p === '/api/posts' && method === 'POST') return await handleCreatePost(db, body, req);
+  if (p === '/api/posts/favorites/mine' && method === 'GET') return await handleMyFavorites(db, req); // R23 我的收藏
+  const postFav = idMatch(p, /^\/api\/posts\/(\d+)\/favorite$/);
+  if (postFav && method === 'POST') return await handleToggleFavorite(db, postFav, body, req);
   const postLike = idMatch(p, /^\/api\/posts\/(\d+)\/like$/);
   if (postLike && method === 'POST') return await handleToggleLike(db, postLike, body, req);
   const postById = idMatch(p, /^\/api\/posts\/(\d+)$/);
