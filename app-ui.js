@@ -530,8 +530,16 @@ function prefillTimeSlots(container, raw) {
 // cls/style 透传自定义类与内联样式；bodyCls 透传 body 类。
 // 开合动画在 CSS（modal-in），JS 只增删 #modal-container 内容
 // ============================================================
-function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '' } = {}) {
+// v0.25.98 弹窗栈（用户反馈「表单里开预览/协议/确认，叉掉后表单浮窗也没了」）：
+// 原单容器覆盖式（innerHTML 直接替换）——表单内开新浮窗会丢失下层表单。改栈式：
+//   openModal 默认压栈当前 modal 节点（节点引用保留 → 表单输入值/滚动位置不丢），closeModal 弹栈恢复；
+//   replace:true 供同流程 loading→表单（openSigningModal/openContractDraftModal）直接替换，不恢复旧 loading。
+let _modalStack = [];
+function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '', replace = false } = {}) {
   closeHostOverlays(document.getElementById('modal-container')); // v0.25.43 附属树：换弹窗前先级联关旧弹窗的子覆盖层
+  const container = document.getElementById('modal-container');
+  const cur = container.firstElementChild;
+  if (cur && !replace) _modalStack.push(cur); // 压栈：下层 modal（表单等）移出容器，节点保留
   const clickable = closable ? ' onclick="if(event.target===this)closeModal()"' : '';
   // v0.25.10（反馈 #82）：去独立玻璃表头——header 不再独占玻璃层/分隔线，
   // 标题直接坐弹窗顶端（毛玻璃归属整窗 .modal，表头只是自然流首行），整页滚动在 .modal-overlay
@@ -541,7 +549,7 @@ function openModal({ title, titleId = '', body = '', footer = '', closable = tru
   const clsAttr = cls ? ` ${cls}` : '';
   const styleAttr = style ? ` style="${style}"` : '';
   const bodyClsAttr = bodyCls ? ` ${bodyCls}` : '';
-  document.getElementById('modal-container').innerHTML = `<div class="modal-overlay"${clickable}>
+  container.innerHTML = `<div class="modal-overlay"${clickable}>
     <div class="modal glass glass--float${clsAttr}"${styleAttr}>
       ${header}
       <div class="modal-body${bodyClsAttr}">
@@ -553,7 +561,16 @@ function openModal({ title, titleId = '', body = '', footer = '', closable = tru
 }
 function closeModal() {
   closeHostOverlays(document.getElementById('modal-container')); // v0.25.43 附属树：关父组件先级联关子覆盖层（下拉面板等），防幽灵组件残留
-  document.getElementById('modal-container').innerHTML = '';
+  const container = document.getElementById('modal-container');
+  const prev = _modalStack.pop(); // v0.25.98：恢复被压栈的下层 modal；栈空则彻底关闭
+  container.innerHTML = '';
+  if (prev) container.appendChild(prev);
+}
+// v0.25.98：彻底关闭所有弹窗（登出等场景）——清栈 + 清容器，不恢复任何下层
+function closeAllModals() {
+  _modalStack.length = 0;
+  const container = document.getElementById('modal-container');
+  if (container) container.innerHTML = '';
 }
 
 // 需求三十（v0.25.47）+ v0.25.51 修正：用户协议/隐私政策浮窗——policy 全文硬编码在 constants

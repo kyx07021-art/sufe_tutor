@@ -371,6 +371,7 @@ async function openSigningModal(convId) {
   openModal({
     title: UI.SIGNING_MODAL_TITLE,
     closable: false,
+    replace: true, // v0.25.98：loading→表单同流程直接替换，不恢复旧 loading 壳
     body: `<div id="post-alert"></div>
         <p class="text-sm text-muted signing-modal-hint">${UI.SIGNING_MODAL_HINT}</p>
         <div class="form-group">
@@ -459,6 +460,7 @@ async function openContractDraftModal(convId) {
   openModal({
     title: `${UI.DRAFT_MODAL_TITLE}`,
     closable: false,
+    replace: true, // v0.25.98：loading→表单同流程直接替换，不恢复旧 loading 壳
     body: `<div id="contract-alert">${demandsFailed ? alertHtml('error', UI.CONTRACT_DEMANDS_LOAD_FAIL) : ''}</div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND} <span class="req">*</span></label>
