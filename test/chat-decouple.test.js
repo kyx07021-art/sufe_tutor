@@ -136,8 +136,8 @@ test('openContractDraftModal：请求 phase=contract，含「仅已签约需求�
   await vm.runInContext('openContractDraftModal(1)', ctx);
   const modal = dom.window.document.getElementById('modal-container').innerHTML;
   assert.ok(dom.window.__requestedUrl.includes('phase=contract'), '起草合同应请求 contract 阶段需求');
-  assert.ok(modal.includes('contract-demand-hint'), '应有「仅已签约需求」提示元素');
-  assert.ok(modal.includes('仅已签约需求'), '提示文案在位');
+  assert.ok(!modal.includes('contract-demand-hint'), 'U7：外置长提示行已删（并入下拉占位）');
+  assert.ok(modal.includes('仅已签约需求可继续签合同'), '下拉占位文案 = 缩短提示');
   const sel = dom.window.document.getElementById('contract-demand');
   assert.ok(sel, 'contract-demand select 在 DOM');
   assert.ok([...sel.options].some(o => o.textContent.includes('#0007')), '下拉含需求编号 #0007');

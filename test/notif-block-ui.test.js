@@ -275,11 +275,12 @@ test('#151 单条已读上报失败 → 回滚：遮罩与点击入口恢复（�
 });
 
 // 2026-08-09 反馈三项：呼吸加速 + 竖线连根删 + 离开通知页批量已读（看过即消）
-test('反馈-呼吸加速：notif-breathe 时长 1.4s（原 2.4s 太慢）', () => {
+test('反馈-呼吸加速：notif-breathe 时长 0.9s + 中间关键帧（U9：原 1.4s 仍慢 + 帧少卡顿）', () => {
   const css = readFileSync('./style.css', 'utf8');
   const m = css.match(/animation: notif-breathe ([0-9.]+)s/);
   assert.ok(m, '呼吸动画时长在位');
-  assert.equal(Number(m[1]), 1.4, '时长加快到 1.4s');
+  assert.equal(Number(m[1]), 0.9, '时长加快到 0.9s');
+  assert.ok(css.includes('25%, 75% { opacity: .09; }'), '加 25/75 中间关键帧（曲线更细无跳变感）');
 });
 
 test('反馈-竖线连根删：.about-funds 与 .funds-note 不再带 border-left 强调', () => {

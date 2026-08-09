@@ -455,6 +455,9 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px 22px;
   margin-bottom: 0; padding: 15px 0;
 }
+/* U8（v0.25.105）：起草合同浮窗应用资料栏去横线方案（glass.css .form-group + .form-group 细线去掉，
+   与 .profile-form 同口径），不引入分段标题——组间靠 15px 空隙分组 */
+.contract-form .form-group + .form-group { border-top: none; }
 /* 细米线只用于项与项之间：首项之前不出现（条件段落自带顶线保持连续） */
 #d-address-section + .form-group { border-top: 1px solid var(--paper-3); } /* G22：.form-group + .form-group 部分被 glass.css:298 胜，删 */
 #d-address-section { border-top: 1px solid var(--paper-3); }
@@ -660,12 +663,16 @@ textarea.form-input {
 .seg-date { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; }
 .seg-date .seg-part { display: inline-flex; align-items: center; gap: 4px; }
 .seg-date .seg-input {
+  /* U6（v0.25.105）：日期输入框接入玻璃输入族（原 --field 固定色 + 实线边框未绑定风格包，
+     liquid 下不成玻璃、flat 下不成纸面）——background-color longhand 防吃 focus 态，liquid 半透白
+     磨砂玻璃 / flat 自动变纸面，随风格包与主题自适应。 */
   width: 54px; padding: calc(6px * var(--ui-scale, 1)) 0;
   text-align: center; font-size: .9rem; color: var(--text);
-  background: var(--field); border: 1px solid var(--line); border-radius: var(--lg-r-sm);
+  background-color: var(--g-fill-weak); border: none; border-radius: var(--lg-r-sm);
+  box-shadow: var(--glass-lift-sm), var(--g-liquid-sm);
   caret-color: var(--accent);
 }
-.seg-date .seg-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--g-focus-soft); }
+.seg-date .seg-input:focus { outline: none; box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
 .seg-date .seg-year { width: 66px; } /* 4 位年份框比 2 位月/日宽 */
 .seg-date .seg-unit { font-size: .78rem; color: var(--muted); flex: 0 0 auto; }
 @media (max-width: 860px) {
@@ -1303,9 +1310,8 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 筛选面板（.drop-wrap 内：margin 会在收起态泄漏高度，间距改由内边距承担） */
 .filter-panel { margin-bottom: 0; padding: 18px; }
 .filter-row { display: flex; gap: 16px; flex-wrap: wrap; }
-/* 需求五（v0.25.44）：筛选面板多排下拉栏之间的纵向空隙——上下两排不能零空隙紧贴（用户实证）。
-   空隙值单源 CONFIG.FILTER_ROW_GAP → --filter-row-gap（index.html applyLg 注入；此处 16px 仅无 JS 兜底） */
-.filter-panel .filter-row + .filter-row { margin-top: var(--filter-row-gap, 16px); }
+/* U3（v0.25.105）：筛选下拉已缩窄，PC 端一行放下——index.html 两行 .filter-row 合并为一行 4 组
+   （原上下两排 .filter-row + .filter-row 纵向空隙规则随结构删除；--filter-row-gap 变量保留注入无害） */
 .filter-group { flex: 1; min-width: 120px; }
 .filter-label { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: .03em; }
 .filter-select {
@@ -2032,11 +2038,15 @@ body.profile-panel-closing .profile-panel {
   content: ''; position: absolute; inset: 0;
   background: var(--danger);
   opacity: 0;
-  animation: notif-breathe 1.4s ease-in-out infinite; /* 2026-08-09 反馈：呼吸加速（原 2.4s 太慢不易察觉） */
+  /* U9（v0.25.105）：呼吸再加速（原 1.4s 仍慢）+ 加 25/75 中间关键帧让曲线更细、无跳变感；
+     will-change: opacity 提示合成层（opacity 为合成属性，防整卡大区域重绘卡顿） */
+  animation: notif-breathe .9s ease-in-out infinite;
+  will-change: opacity;
   pointer-events: none;
 }
 @keyframes notif-breathe {
   0%, 100% { opacity: 0; }
+  25%, 75% { opacity: .09; }
   50% { opacity: .13; }
 }
 .notif-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-top: 7px; }

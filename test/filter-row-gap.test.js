@@ -38,19 +38,23 @@ function makeCtx() {
   return { dom, ctx };
 }
 
-test('筛选栏两排空隙写进规则：单源值 + 注入 + CSS 消费，非零空隙', () => {
-  // 1. 数值单源 CONFIG.FILTER_ROW_GAP
+test('筛选栏间距：U3 合并单行后由 .filter-row gap 承担（折行不零空隙），单源值保留注入', () => {
+  // 1. 数值单源 CONFIG.FILTER_ROW_GAP（保留注入，无害）
   const { ctx } = makeCtx();
   const gap = vm.runInContext('APP_CONSTANTS.CONFIG.FILTER_ROW_GAP', ctx);
   assert.ok(Number.isInteger(gap) && gap >= 8, `FILTER_ROW_GAP 为合理空隙值（当前 ${gap}px）`);
-  // 2. index.html applyLg 注入 --filter-row-gap
+  // 2. index.html applyLg 注入 --filter-row-gap 保留
   const html = readFileSync('./index.html', 'utf8');
   assert.ok(html.includes("set('--filter-row-gap'"), 'index.html 注入 --filter-row-gap');
   assert.ok(html.includes('C.FILTER_ROW_GAP'), '注入值取单源 CONFIG.FILTER_ROW_GAP');
-  // 3. style.css 消费：第二排起 margin-top = var(--filter-row-gap)
+  // 3. U3（v0.25.105）：筛选下拉缩窄后 PC 端 4 组一行——单行间距由 .filter-row gap 承担
   const css = readFileSync('./style.css', 'utf8');
-  const rule = css.split('.filter-panel .filter-row + .filter-row {')[1] || '';
-  assert.ok(rule.split('}')[0].includes('var(--filter-row-gap'), '第二排纵向空隙走注入变量');
-  // 4. 两排下拉确认存在于筛选面板（index.html 双 .filter-row）
-  assert.ok((html.match(/class="filter-row"/g) || []).length >= 2, '教师筛选面板确有两排下拉栏');
+  const rowRule = css.split('.filter-row {')[1] || '';
+  assert.ok(rowRule.split('}')[0].includes('gap: 16px'), '.filter-row 行内/折行间距 gap 16px（单行不再需要两排 margin 规则）');
+  assert.ok(!css.includes('.filter-row + .filter-row {'), '两排空隙规则已随合并删除（不再有第二排）');
+  // 4. 单行 4 组确认（demand-filter-panel 块内单个 .filter-row 含 4 组；其他筛选面板 filter-row 不动）
+  const panelMatch = html.match(/id="demand-filter-panel"[\s\S]*?<\/div>\s*<\/div>/);
+  const panel = panelMatch ? panelMatch[0] : '';
+  assert.equal((panel.match(/class="filter-row"/g) || []).length, 1, 'U3：需求大厅筛选合并为单行（4 组一行）');
+  assert.ok((panel.match(/id="demand-filter-/g) || []).length >= 4, '4 个筛选项在位');
 });

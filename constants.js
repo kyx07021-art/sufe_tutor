@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.104',
+  APP_VERSION: '0.25.105',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -68,6 +68,7 @@ globalThis.APP_CONSTANTS = {
     PROFILE_ROW_GAP: 11,                  // 需求六·item1：教师资料卡条目纵向间距 px；#156（v0.25.64）行距压半 22→11
     FILTER_ROW_GAP: 16,                   // 需求五（v0.25.44）：筛选面板多排下拉栏之间的纵向空隙 px（上下两排不能零空隙紧贴）
     UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_DEFAULT: 100, UI_SCALE_STEP: 1, // 需求六·item5：UI 大小滑块范围/步进（百分比；100=现状；v0.25.12 上限扩到 120）
+    UI_SCALE_WHEEL_STEP: 4, // U5（v0.25.105）：ctrl+滚轮每格步长（=4×滑块 step；用户实证一格太小拖沓）
     UI_SCALE_KEY: 'sufe_ui_scale',        // 需求六·item5：UI 大小偏好 localStorage 键（参照 setThemePref 的 sufe_theme 模式）
     STYLE_KEY: 'sufe_style',              // 需求八·item4：页面风格偏好 localStorage 键（liquid/flat）
     THEME_KEY: 'sufe_theme',
@@ -214,6 +215,7 @@ globalThis.APP_CONSTANTS = {
         '--g-paper': 'var(--paper)',          // 浮窗/面板 → 不透明纸面
         '--g-paper-bright': 'var(--paper)',
         '--g-fill-strong': 'var(--paper-2)',  // 标签/选中态/侧栏选中块
+        '--g-seg-fill': 'var(--paper-2)',     // 分段选中（flat：纸面，与 --g-fill-strong 同源，平面现状不变）
         '--g-fill-weak': 'var(--paper-2)',    // 输入控件/勾选/分段容器
         '--g-fill-faint': 'var(--paper-3)',   // 微透面 → 最浅纸面
         '--g-fill-mid': 'var(--paper-2)',
@@ -308,6 +310,7 @@ globalThis.APP_CONSTANTS = {
       '--g-fill-weak': 'rgba(255,255,255,.10)',    // 透：输入控件/分段容器/未选小件
       '--g-fill-mid': 'rgba(255,255,255,.14)',     // 中：入口块/工具栏/普通玻璃件
       '--g-fill-strong': 'rgba(255,255,255,.20)',  // 强：标签/选中态/侧栏选中块
+      '--g-seg-fill': 'rgba(255,255,255,.55)',     // 分段选中药丸（U4 v0.25.105：liquid 原 .20 与容器 .07 白差太小、选中/未选中都白不分明，提实白）
       // ---- 轻量描边按钮（R11 统一卡片动作外观：白调面 + 发丝边，白卡/灰底都可见） ----
       '--g-btn-bg': 'rgba(255,255,255,.72)',       // 按钮面：较白调（灰底上浮起成片）
       '--g-btn-line': 'rgba(17,17,20,.14)',        // 统一细边框（比 --line 略深一档，白卡上可辨）
@@ -419,6 +422,7 @@ globalThis.APP_CONSTANTS = {
       '--g-fill-weak': 'rgba(255,255,255,.07)',
       '--g-fill-mid': 'rgba(255,255,255,.10)',
       '--g-fill-strong': 'rgba(255,255,255,.14)',
+      '--g-seg-fill': 'rgba(255,255,255,.30)', // U4：dark 下分段选中更实白（原 .14 与容器 .05 太接近）
       // ---- 轻量描边按钮（R11）：低白玻璃面 + 浅发丝边 ----
       '--g-btn-bg': 'rgba(255,255,255,.09)',
       '--g-btn-line': 'rgba(255,255,255,.18)',
@@ -1136,7 +1140,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_TRIAL_PAY_OTHER_PLACEHOLDER: '请输入试课薪资方案',
     VALIDATE_CONTRACT_TRIAL_PAY_OTHER: '请输入具体的试课薪资方案',
     LABEL_CONTRACT_DEMAND: '对应需求',
-    CONTRACT_DEMANDS_SIGNED_HINT: '仅已签约需求可继续签合同——先在会话内「发起签约」并由对方确认', // 需求四·第3条
+    CONTRACT_DEMANDS_SIGNED_HINT: '仅已签约需求可继续签合同', // 需求四·第3条（U7 v0.25.105：长提示缩短并入下拉占位，删外置提示行）
     CONTRACT_REQUIRE_SIGNED: '请选择已签约需求',
     CONTRACT_DEMANDS_EMPTY: '暂无已签约需求可起草合同',
     CONTRACT_DEMANDS_LOAD_FAIL: '需求列表加载失败，请刷新页面后重试。',

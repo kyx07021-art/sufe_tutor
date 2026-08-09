@@ -195,10 +195,12 @@ test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、
   await tick(30);
   assert.equal(htmlEl().style.transform, `scale(${(sliderMax / 100).toFixed(3)})`, 'rAF 帧后预览 transform 应用');
   assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '', '预览期 --ui-scale 仍不动');
-  assert.equal(htmlEl().style.transformOrigin, 'top left', '预览缩放锚点 top-left（与真排版同锚点）');
+  assert.equal(htmlEl().style.transformOrigin, 'center center', 'U2：预览居中原点（右/下边缘不再单边溢出）');
+  assert.equal(htmlEl().style.overflow, 'hidden', 'U2：预览期抑制滚动条（无右/下边缘滚动条跳变）');
   // 松手 commit 同步落盘 + 落真排版（清预览 transform）
   vm.runInContext(`window.SLIDER.value = '85'; commitUiScaleFromSlider(window.SLIDER);`, ctx);
   assert.equal(htmlEl().style.transform, '', 'commit 后预览 transform 清除');
+  assert.equal(htmlEl().style.overflow, '', 'commit 后滚动条抑制恢复');
   assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '0.850', 'commit 后 --ui-scale 同步');
   assert.equal(vm.runInContext("document.getElementById('ui-scale-val').textContent", ctx), '85%', '数值标签更新');
   assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '85', '松手后 localStorage 持久化');
@@ -300,10 +302,11 @@ test('M1 ctrl+滚轮调 UI 大小：上滚放大/下滚缩小/普通滚轮不触
   const uiScale = () => doc.documentElement.style.getPropertyValue('--ui-scale');
   const stored = () => vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx);
   vm.runInContext("localStorage.setItem('sufe_ui_scale', '100')", ctx);
-  // 上滚（deltaY<0）放大 +1
+  // 上滚（deltaY<0）放大 +UI_SCALE_WHEEL_STEP（U5：4×滑块 step，用户实证一格太小拖沓）
+  const step = vm.runInContext('CONFIG.UI_SCALE_WHEEL_STEP', ctx);
   fire(true, -100); await tick(30);
-  assert.equal(uiScale(), '1.010', '上滚放大 +1%');
-  assert.equal(stored(), '101', '落盘');
+  assert.equal(uiScale(), (1 + step / 100).toFixed(3), `上滚放大 +${step}%`);
+  assert.equal(stored(), String(100 + step), '落盘');
   // 下滚（deltaY>0）缩小回 100
   fire(true, 100); await tick(30);
   assert.equal(uiScale(), '1.000', '下滚缩小回 100');

@@ -466,15 +466,16 @@ async function openContractDraftModal(convId) {
     title: `${UI.DRAFT_MODAL_TITLE}`,
     closable: false,
     replace: true, // v0.25.98：loading→表单同流程直接替换，不恢复旧 loading 壳
+    cls: 'contract-form', // U8（v0.25.105）：应用资料栏去横线方案（.form-group 间细线去掉），不引入分段标题
     body: `
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND} <span class="req">*</span></label>
-          <p class="text-sm text-muted contract-demand-hint">${UI.CONTRACT_DEMANDS_SIGNED_HINT}</p>
+          <!-- U7（v0.25.105）：外置长提示行并入下拉占位——框内灰字占位即短提示「仅已签约需求可继续签合同」，浮窗回到本来一行 -->
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
             ${demands.length
               ? (preselect
                 ? demands.map(d => `<option value="${d.id}"${d.id === preselect.id ? ' selected' : ''}>${escHtml(DISP.demandOptionText(d))}</option>`).join('')
-                : `<option value="" selected disabled>${UI.OPTION_PLACEHOLDER}</option>` + demands.map(d => `<option value="${d.id}">${escHtml(DISP.demandOptionText(d))}</option>`).join(''))
+                : `<option value="" selected disabled>${UI.CONTRACT_DEMANDS_SIGNED_HINT}</option>` + demands.map(d => `<option value="${d.id}">${escHtml(DISP.demandOptionText(d))}</option>`).join(''))
               : `<option value="" disabled>${UI.CONTRACT_DEMANDS_EMPTY}</option>`}
           </select>
         </div>

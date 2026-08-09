@@ -225,7 +225,10 @@ body { background: transparent; }
    与下拉/勾选/成绩 pill 同族：纯 token 换肤，零 per-variant 散件；
    --g-btn-bg/--g-btn-line 主题双 token（液态包白调面+发丝边；flat 包 --g-fill-weak/--g-btn-line 对齐平面）。 */
 .btn-soft {
-  --g-fill: var(--g-btn-bg, var(--g-fill-weak));
+  /* U1（v0.25.105）：liquid 下原 --g-btn-bg 白调面（72% 白）盖住磨砂 → 观感 flat（用户实证「查看合同按钮
+     是 flat 风格」）。改继承标准玻璃 --g-btn-fill：liquid 未定义 → transparent 磨砂玻璃 + 细边（液态感）；
+     flat 包 --g-btn-fill=纸面，平面现状不变。 */
+  --g-fill: var(--g-btn-fill, transparent);
   --g-border: 1px solid var(--g-btn-line, var(--line));
   --g-fg: var(--ink);
   --g-lift: var(--glass-lift-sm);
@@ -255,7 +258,7 @@ body { background: transparent; }
   transition: color var(--t-fast) var(--ease-out), background var(--t-fast) var(--ease-out);
 }
 .seg-tab:hover { color: var(--ink); }
-.seg-tab.active { color: var(--ink); font-weight: 700; --g-fill: var(--g-fill-strong); --g-lift: var(--g-seg-lift, 0 2px 10px -3px rgba(30,26,64,.18)); } /* iOS 26 选中抬升药丸：白底高亮 + 轻浮影；--g-seg-lift 语义别名（需求八·item4 flat 包覆盖） */
+.seg-tab.active { color: var(--ink); font-weight: 700; --g-fill: var(--g-seg-fill, var(--g-fill-strong)); --g-lift: var(--g-seg-lift, 0 2px 10px -3px rgba(30,26,64,.18)); } /* iOS 26 选中抬升药丸：白底高亮 + 轻浮影；U4：--g-seg-fill 语义别名——liquid 提实白药丸（未选中透明透灰容器，选中明显可辨）、flat 包覆盖为纸面 */
 
 /* ============================================================
    实心小件预设（标签 / 勾选 / 分数制 / 筛选 / 暂存 / 下拉选项）

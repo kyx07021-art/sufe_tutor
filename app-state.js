@@ -225,14 +225,19 @@ function applyUiScale(v) {
 // 真排版（一次性）。
 //   setUiScale 拆两段——applyUiScale 同步应用（首帧/落盘路径），联动事件转 rAF 调度；
 //   拖动中「事件只记 pending，rAF 每帧最多消费一次」保留（transform 合成本就帧对齐）。
-//   transform-origin: top-left 与真排版缩放同锚点，预览与落盘视觉连续。
+//   U2（v0.25.105）：预览改居中原点 + 预览期抑制滚动条——原 top-left 锚点放大时右/下边缘内容溢出
+//   视口（滚动条出现/页面跳），缩小时右下留白（用户实证「右边缘和下边缘都会动」）；居中缩放四边
+//   对称 + overflow hidden 无滚动条跳变，观感稳定（镜头缩放）。commit 才落真排版（左上锚定，一次性）。
 let _uiScalePending = null;   // 待预览的目标值（拖动合并：同帧多次 oninput 只合成一次）
 let _uiScaleRaf = 0;          // rAF 句柄（0 = 空闲）
 function _uiScaleClearLive() {
   document.documentElement.style.removeProperty('transform');
+  document.documentElement.style.removeProperty('overflow'); // U2：预览期滚动条抑制随预览清除一并恢复
+  document.documentElement.style.removeProperty('transformOrigin');
 }
 function _uiScaleLiveApply(c) {
-  document.documentElement.style.transformOrigin = 'top left';
+  document.documentElement.style.transformOrigin = 'center center';
+  document.documentElement.style.overflow = 'hidden';
   document.documentElement.style.transform = `scale(${(c / 100).toFixed(3)})`;
 }
 function _uiScaleFlush() {
@@ -291,7 +296,8 @@ function bindUiScaleWheel() {
   document.addEventListener('wheel', (e) => {
     if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault(); // 拦截浏览器原生页面缩放/滚动
-    pending += e.deltaY < 0 ? 1 : -1; // 每 tick 一格（step=1）
+    // U5（v0.25.105）：步长放大 4 倍（用户实证「一格太小、拖沓」）——CONFIG.UI_SCALE_WHEEL_STEP 单源
+    pending += e.deltaY < 0 ? CONFIG.UI_SCALE_WHEEL_STEP : -CONFIG.UI_SCALE_WHEEL_STEP;
     if (!raf) raf = requestAnimationFrame(() => {
       raf = 0;
       if (!pending) return;

@@ -340,6 +340,7 @@
             </div>
           </div>
           <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">
+            <!-- U3（v0.25.105）：筛选下拉已缩窄，PC 端 4 个一组一行放下（原两行 .filter-row 合并） -->
             <div class="filter-row">
               <div class="filter-group">
                 <label class="filter-label" id="demand-filter-subject-label"></label>
@@ -349,8 +350,6 @@
                 <label class="filter-label" id="demand-filter-grade-label"></label>
                 <select class="filter-select" id="demand-filter-grade" onchange="applyDemandControls()"></select>
               </div>
-            </div>
-            <div class="filter-row">
               <div class="filter-group">
                 <label class="filter-label" id="demand-filter-method-label"></label>
                 <select class="filter-select" id="demand-filter-method" onchange="applyDemandControls()"></select>
