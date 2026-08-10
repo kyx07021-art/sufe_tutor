@@ -4,7 +4,10 @@
  * 职责：
  *   - 自动带 X-Auth-Token（state.authToken，管理员接口凭此鉴权）
  *   - body 对象自动 JSON 序列化
- *   - 401 兜底：带令牌仍被拒 = 会话已死（过期/多端顶号），清本地会话 + 汇入登录通路
+ *   - 401 兜底：带令牌仍被拒 = 会话已死（过期/多端顶号），清本地会话 + 汇入登录通路。
+ *     幂等（v0.26.13 D3）：同一死令牌的并发在途 401 只处理一次——首个清会话+汇登录后，后续
+ *     同令牌 401 整体跳过，杜绝 clearSession/runLogoutResets/showView('login') 重复执行风暴
+ *     （生产实证：会话失效后徽标轮询+预取并发 21 个 GET 401 同刻落地，全走兜底会重渲染登录页 21 次）。
  *   - 网络错误统一识别：fetch 抛错（断线/被拒/超时/DNS）与非 JSON 响应（网关 502/代理错误页）
  *     一律归为 UI.NETWORK_ERROR（code='NETWORK_ERROR'）——前端据此弹明确中文提示，
  *     杜绝「Failed to fetch」英文裸错误。调用方 catch 里不用再判断英文消息。
@@ -17,6 +20,10 @@
  *
  * 依赖：state（app-state）、UI（constants）、clearSession（app-state）、ensureAuth（app-auth，运行时解析）。
  */
+// D3（v0.26.13）401 兜底幂等键：已处理过 401 的令牌。同一死令牌的并发在途 401 只清一次会话、
+// 只跳一次登录；令牌换新后（重新登录）新令牌的 401 重新走兜底——每个令牌至多处理一次，无需手动复位。
+let lastHandled401Token = null;
+
 async function api(endpoint, options = {}) {
   const sentToken = state.authToken; // A1 审计（v0.25.104）：请求发起时刻的令牌——401 兜底只对「当前令牌」的请求生效
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
@@ -61,16 +68,24 @@ async function api(endpoint, options = {}) {
       // 另一角色的过渡窗口里，旧角色在途请求（徽标轮询 30s/慢接口）落回 401 时 state.authToken 已是
       // 新令牌，原逻辑按响应时刻 state.user.role 清键会把新角色会话误删并踢出新登录。
       // 发起令牌≠当前令牌 → 旧请求的 401 只作废自己（数据随新令牌走），不清任何会话。
-      if (sentToken && state.authToken === sentToken) {
-        const role = state.user ? state.user.role : ''; // v0.23.1：只清该角色会话，另一角色保留
-        state.authToken = null; state.user = null;
-        clearSession(role);
-        // v0.23.0/v0.23.1 静默数据层：401 会话失效统一走 runLogoutResets——与登出同口径，
-        // 清会话缓存 + 停版本探测（datahub 自注册）+ 各领域模块级数组残留（_notifList/
-        // chatConvList/state.myDemands 等），防旧账户数据残留到新账户登录后被读到
-        if (typeof runLogoutResets === 'function') runLogoutResets();
+      // D3（v0.26.13，401 风暴收敛）：幂等键 = 发起令牌本身。会话失效后徽标轮询/预取并发在途
+      // 请求同刻落回 401（生产实证同刻 21 个），若各自全走兜底会重复 clearSession/runLogoutResets/
+      // showView('login') 重渲染登录页 N 次。首个 401 处理（清会话+汇登录）后，同一死令牌的后续
+      // 401 整体跳过；新令牌（重新登录后）的 401 自会重新处理。
+      const alreadyHandledDeadToken = sentToken && sentToken === lastHandled401Token;
+      if (!alreadyHandledDeadToken) {
+        if (sentToken) lastHandled401Token = sentToken; // 无令牌请求（已登出空态 401）不占幂等键：每次仍尝试汇登录
+        if (sentToken && state.authToken === sentToken) {
+          const role = state.user ? state.user.role : ''; // v0.23.1：只清该角色会话，另一角色保留
+          state.authToken = null; state.user = null;
+          clearSession(role);
+          // v0.23.0/v0.23.1 静默数据层：401 会话失效统一走 runLogoutResets——与登出同口径，
+          // 清会话缓存 + 停版本探测（datahub 自注册）+ 各领域模块级数组残留（_notifList/
+          // chatConvList/state.myDemands 等），防旧账户数据残留到新账户登录后被读到
+          if (typeof runLogoutResets === 'function') runLogoutResets();
+        }
+        if (state.view === 'client' && typeof ensureAuth === 'function') ensureAuth(); // user 已清空 → 这次真的会进登录页
       }
-      if (state.view === 'client' && typeof ensureAuth === 'function') ensureAuth(); // user 已清空 → 这次真的会进登录页
     }
     const e = new Error(data.error || UI.ERROR_REQUEST_FAILED);
     e.code = data.code; // 后端 error() 带稳定 code，前端按 code 分支（不脆耦合中文 MSG）

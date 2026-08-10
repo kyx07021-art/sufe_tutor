@@ -119,6 +119,14 @@
 - **Cloudflare China Network（Cosmic）**：根治"客户端→边缘"跨洋延迟（上海用户当前 ~300ms+ 路径），需 ICP 备案 + 企业版，暂不可行，备忘。
 - **日志保留期定期清理**：v0.22.3 后留档已 -96%，但长尾仍线性增长（~45MB/年）；可加保留期删除任务（如 90 天）。
 
+## keepalive 与冷启动评估（2026-08-10，v0.26.12/0.26.13 网络层复盘，D2 结论文档）
+- **结论：keepalive 已降级为保底保险，不再承担「首击唤醒」职责。**
+  - 根因链回顾：Pages 多 isolate 各自冷启动 → 原 initDb 每次全量跑 19 表 CREATE + ~15 组 ensureColumns（≈13-20 次 D1 往返）× D1 冷连接 → 首击 6-25s 超时（v0.25.112 用户掐秒表：游客 7s / 教师列表 20s）。
+  - v0.26.12 治本：initDb schema 版本判断（冷 isolate 首击 1 次 batch 命中已最新即跳过全量迁移）。生产验证（C4）：data-version 20 次 0 次 >5s、teachers 全 <1.7s。
+  - keepalive 原职责（v0.22.8/v0.25.16「避免空闲冷启动首击 4-6s」）已不再必要——首击已轻。
+- **保留理由（防极端空闲）**：全部 isolate 回收 + D1 连接冷时首次查询仍多几百 ms；keepalive 热着一个实例的 D1 连接是低成本保险。保留 /api/keepalive 路由 + keepD1Warm（保活失败静默，零风险）。
+- **keepalive-worker 停用需用户外部操作**：`keepalive-worker/` 在仓库外（尼采家教v2/keepalive-worker/），由用户 `cd keepalive-worker && npx wrangler deploy` 部署，cron 在外部 Worker 上运行。停用 = 用户删除该 cron/Worker，代码仓库内无法操作。评估：5 分钟一次 SELECT 1 开销可忽略，**当前保留不动**；若日后追求极简可自行停用。
+
 ## 2026-08-09 收尾全量审计遗留（代码/网安/架构三审计；关键+高危已随 v0.25.74 修掉，以下为系统性重构项）
 
 ### A1 前端状态字面量绕过 STATUS 常量（架构#2）

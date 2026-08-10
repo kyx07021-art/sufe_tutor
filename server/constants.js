@@ -248,6 +248,7 @@ export const LIMITS = {
   DEVICE_UA_MAX: 200,      // 留档 UA 截断
   LOG_DETAIL_MAX: 4096,    // 留档 detail 截断
   LOG_QUERY_MAX: 500,      // 管理端日志检索过量上限
+  SLOW_GET_MS: 2000,       // GET 留档慢阈值（v0.26.13 D1 观测盲区：GET 成功且 > 阈值也留档，低频不撑表）
   // 数据层
   PAGE_SIZE: 50, PAGE_HAS_MORE: 51, // keyset 游标分页（LIMIT 51 判 hasMore）
   MSG_LIMIT: 100,          // 消息拉取上限

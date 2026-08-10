@@ -309,10 +309,12 @@ export function isPublicListCacheable(p, url) {
   return false;
 }
 
-// D1 保活（v0.22.8 + v0.25.16 重构单点）：对业务/留档/台账三库轻查询 SELECT 1，避免空闲冷启动
-// （首击 4-6s 唤醒；冷启动伤害最重的是 per-token 列表页）。调用方：① scheduled 事件——Pages 无原生
-// cron 触发器，wrangler.toml [triggers] 对 Pages 不生效（2026 实测 API/CLI 均无法注册，见会话），
-// 由独立保活 Worker（keepalive-worker/，wrangler cron 触发）打 /api/keepalive 代为唤醒；
+// D1 保活（v0.22.8 + v0.25.16 重构单点）：对业务/留档/台账三库轻查询 SELECT 1。
+// v0.26.13 评估（D2，见 docs/backlog.md）：initDb schema 版本判断（v0.26.12）已把冷 isolate 首击
+// 从 25s 降到 <1.7s，keepalive 原「首击唤醒」职责不再必要；保留为防极端空闲的保底保险
+// （全部 isolate 回收 + D1 连接冷时首次查询仍多几百 ms）。调用方：① scheduled 事件——Pages 无
+// 原生 cron 触发器，wrangler.toml [triggers] 对 Pages 不生效（2026 实测 API/CLI 均无法注册，见
+// 会话），由独立保活 Worker（keepalive-worker/，wrangler cron 触发）打 /api/keepalive 代为唤醒；
 // ② /api/keepalive 路由。保活失败静默，不影响主流程。
 function keepD1Warm(env) {
   try {
