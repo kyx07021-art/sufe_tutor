@@ -376,6 +376,12 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
 
 .auth-footer { text-align: center; margin-top: 26px; font-size: .8rem; color: var(--muted); }
 .auth-footer a { font-weight: 700; color: var(--accent-deep); }
+/* v0.26.14 L2：登录页页脚「验证码登录」与「立即注册」两个交互点原本内联紧贴只隔一个「·」，
+   视觉上像一个按钮（用户反馈）。flex + gap 拉开链接与分隔符；sep 居中于间隙；链接 hover 下划线
+   增强可点性识别。仅作用于登录页变体，注册页页脚（文本+单链接）不受影响。 */
+.auth-footer--split { display: flex; align-items: center; justify-content: center; gap: 14px; }
+.auth-footer--split .sep { opacity: .7; }
+.auth-footer--split a:hover { text-decoration: underline; }
 
 /* 需求三十（v0.25.47）：注册页用户协议/隐私政策两行轻量勾选——复用 .checkbox-item 同款勾选视觉，
    文本右侧文档名高亮为链接（点击浮窗看全文）；两行间留 10px 空隙，压住「轻量不喧宾」 */

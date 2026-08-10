@@ -21,6 +21,21 @@ function validatePhone(target) {
 function validateEmail(s) {
   return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(s || '').trim());
 }
+/** 登录唯一输入框判型（v0.26.14 L1）——与服务端 server/otp.js classifyIdentifier 同语义，杜绝口径漂移：
+ * 含 @ → email；带地区前缀合法号或裸大陆号（后端 normalizeIdentifier 自动补 +86）→ phone；否则 username。
+ * 背景：登录页唯一输入框无地区前缀选择器，用户直接输裸大陆号（如 138xxxxxxxx）是正常预期，
+ * 前端若只认带前缀会把裸号误判为 username → 拦下验证码登录（用户实证，勿回退）。
+ * @returns {'username'|'phone'|'email'|null}
+ */
+function classifyIdentifier(identifier) {
+  const s = String(identifier || '').trim();
+  if (!s) return null;
+  if (s.includes('@')) return 'email';
+  if (validatePhone(s)) return 'phone';
+  const cn = CONFIG.PHONE_REGIONS.find(r => r.prefix === '+86');
+  if (cn && cn.pattern.test(s)) return 'phone'; // 裸大陆号：服务端补 +86 后按手机号处理
+  return 'username';
+}
 
 // ============================================================
 // 输入组件 HTML（label + 输入；验证码为输入框内右缘小按钮，不占左半边输入区）

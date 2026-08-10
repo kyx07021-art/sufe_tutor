@@ -212,8 +212,11 @@ function toggleLoginMode(e) {
   if (!loginAccountValid) return; // 账户未确认前不切换（凭证组未呼出）
   const next = loginMode === 'code' ? 'password' : 'code';
   if (next === 'code') {
+    // v0.26.14 L1：判型收口 classifyIdentifier（与服务端 classifyIdentifier 同语义）——
+    // 原 validatePhone 只认带 +86 前缀，裸大陆号被误判为 username 拦下验证码登录（用户实证）。
     const ident = (document.getElementById('login-identifier') || {}).value || '';
-    if (ident && !validateEmail(ident) && !validatePhone(ident)) {
+    const kind = classifyIdentifier(ident);
+    if (kind !== 'phone' && kind !== 'email') {
       showToast('用户名账户请使用密码登录', 'error');
       return;
     }
