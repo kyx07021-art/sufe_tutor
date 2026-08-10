@@ -419,6 +419,8 @@ test('B3 迁移：默认评分改 4.5 后，有评论教师评分按新公式重
   // 播种 学生+教师，有评论教师给旧评分（rating 按旧默认 4.0 加权：(4.0*10+8.6)/(10+2)=4.2167）
   db.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('stu1','h','s','student'),('t1','h','s','teacher')").run();
   db.prepare("INSERT INTO teacher_profiles (user_id,grade,rating,rating_count,rating_sum) VALUES (2,'高三',4.2167,2,8.6)").run();
+  // v0.26.12：schema 版本化——重跑迁移前降版本（模拟旧库升级触发迁移）
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run();
   // 重跑迁移 → 有评论教师按新公式 (4.5*10 + 8.6)/(10+2) 重算
   await initDb(db, ENV);
   const expect = (4.5 * 10 + 8.6) / 12;
@@ -431,6 +433,7 @@ test('B3 迁移：默认评分改 4.5 后，有评论教师评分按新公式重
   // 无评论教师：仍按 4.5 回填（原 R16 行为不回归）
   db.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('t2','h','s','teacher')").run();
   db.prepare("INSERT INTO teacher_profiles (user_id,grade,rating,rating_count,rating_sum) VALUES (3,'高一',4.0,0,0)").run();
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run(); // v0.26.12：版本落后触发回填
   await initDb(db, ENV);
   const r3 = db.prepare('SELECT rating FROM teacher_profiles WHERE user_id=3').first();
   assert.equal(r3.rating, 4.5, '无评论教师回填 4.5（原行为保持）');

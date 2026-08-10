@@ -180,7 +180,35 @@ async function migrateLegacyRoles(db, adminNames) {
   await db.batch(stmts);
 }
 
+// ============================================================
+// v0.26.12 initDb 瘦身（冷 isolate 首击 25s 超时治本，C1）：
+// 根因：原 initDb 每次 worker isolate 首击全量跑 19 表 CREATE + ~15 组 ensureColumns
+// （≈13-20 次 D1 往返），Pages 多 isolate 各自冷启动 × D1 冷连接 → 6-25s 超时
+// （生产实测纯 D1 单表查询正常 0.7s，但 30% 请求间歇 6.7s/25s）。现改为 schema 版本判断：
+// 冷 isolate 首击 1 次 batch（CREATE schema_meta 幂等 + SELECT 版本）命中已最新即跳过
+// 全量迁移——D1 往返 20→1，任何 isolate 首击 <1s。
+// 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
+// ============================================================
+export const SCHEMA_VERSION = 1;
+
 export async function initDb(db, env = {}) {
+  bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
+  // 1 次 batch：建 schema_meta（幂等）+ 读版本（batch 顺序执行，CREATE 后 SELECT 可见）
+  let rows = null;
+  try {
+    rows = await db.batch([
+      db.prepare(`CREATE TABLE IF NOT EXISTS schema_meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL)`),
+      db.prepare(`SELECT v FROM schema_meta WHERE k='schema'`),
+    ]);
+  } catch { /* batch 异常：保守视为版本落后，走全量幂等迁移（不阻塞初始化） */ }
+  const cur = rows && rows[1] && rows[1].results && rows[1].results[0] ? rows[1].results[0].v : 0;
+  if (cur >= SCHEMA_VERSION) return; // schema 已最新：冷 isolate 首击跳过全量迁移（1 次 D1 即完成）
+  await runFullMigration(db, env); // 首次部署/版本落后：跑完整幂等迁移
+  try { await db.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', ?)`).bind(SCHEMA_VERSION).run(); } catch { /* 版本写失败静默：下次重跑幂等迁移 */ }
+}
+
+// 原 initDb 全量迁移体（幂等：CREATE IF NOT EXISTS + ensureColumns；仅 schema 版本落后时执行）
+async function runFullMigration(db, env) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
   const adminNames = adminNamesOf(getSecret(env, 'ADMIN_USERNAMES'));
   const adminPassword = getSecret(env, 'ADMIN_DEFAULT_PASSWORD') || '';

@@ -50,7 +50,8 @@ test('回填 A：存量单报价行 → price_min/max=price，且幂等', async 
   // 模拟改动前的老库行：只有 price 有值，price_min/max 列存在但为 NULL
   raw.prepare(`INSERT INTO teacher_profiles (user_id,grade,gender,subjects,gaokao_scores,price)
     VALUES (1,'junior','male','[]','[]',150)`).run();
-  // 部署跑 initDb → 回填触发
+  // 部署跑 initDb → 回填触发（v0.26.12：schema 版本化——版本落后才跑迁移，模拟旧库升级）
+  raw.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run();
   await initDb(db, ENV);
   let row = raw.prepare('SELECT price_min, price_max FROM teacher_profiles WHERE user_id=1').get();
   assert.equal(row.price_min, 150, '存量单报价回填 price_min');
@@ -73,7 +74,8 @@ test('回填 B：新写入路径未报价 → price/price_min 均 NULL，回填�
   let row = raw.prepare('SELECT price, price_min, price_max FROM teacher_profiles WHERE user_id=1').get();
   assert.equal(row.price, null, '新行未报价 price 应为 NULL（防回填误抓）');
   assert.equal(row.price_min, null, '新行未报价 price_min 应为 NULL');
-  // 再跑 initDb：回填 `WHERE price_min IS NULL AND price IS NOT NULL` 不命中 → 未被误判为 0
+  // 再跑 initDb（v0.26.12 版本落后触发迁移）：回填 `WHERE price_min IS NULL AND price IS NOT NULL` 不命中 → 未被误判为 0
+  raw.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run();
   await initDb(db, ENV);
   row = raw.prepare('SELECT price_min, price_max FROM teacher_profiles WHERE user_id=1').get();
   assert.equal(row.price_min, null, '未报价教师不被误回填为 0');

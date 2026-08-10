@@ -71,7 +71,9 @@ test('R16 存量未评价教师（旧默认 4.0）→ initDb 幂等回填 4.5', 
   // 模拟旧默认（initDb 首次跑后置回 4.0，rating_count=0）
   raw.prepare('UPDATE teacher_profiles SET rating=4.0 WHERE user_id=?').run(uid);
   assert.equal(ratingOf(raw, uid).rating, 4.0, '前置：存量旧默认 4.0');
-  // initDb 幂等重跑（真实发布后每次启动都会走）→ 回填
+  // v0.26.12：schema 版本化——initDb 仅在版本落后时跑迁移。模拟旧库（schema 版本 0）升级
+  raw.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run();
+  // initDb 重跑（版本落后）→ 迁移回填
   await initDb(db, ENV);
   assert.equal(ratingOf(raw, uid).rating, 4.5, '未评价存量教师回填 4.5');
   // 再跑一次仍稳定（幂等）
@@ -85,6 +87,7 @@ test('B3 已被评价教师（rating_count>0）按新默认 4.5 加权重算（v
   const uid = await seedTeacher(raw, db, 't_reviewed');
   // 模拟 R16 前的存量：旧默认 4.0 加权结果 + 实际评论统计（sum=19, count=5）
   raw.prepare('UPDATE teacher_profiles SET rating=3.8, rating_count=5, rating_sum=19 WHERE user_id=?').run(uid);
+  raw.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run(); // v0.26.12：版本落后触发迁移
   await initDb(db, ENV);
   const row = ratingOf(raw, uid);
   const expect = (INITIAL_RATING * INITIAL_WEIGHT + 19) / (INITIAL_WEIGHT + 5); // (4.5*10+19)/15 = 4.2667
