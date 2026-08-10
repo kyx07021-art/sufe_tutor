@@ -221,15 +221,16 @@ function applyUiScale(v) {
 }
 // v0.25.94 曾用 html transform:scale 整页预览保帧率（center 四边齐动 / top-left 右下沉，用户拒绝）；
 // v0.25.111 试过拖动期真实 applyUiScale（reflow）——用户实证拒绝：全页重绘帧率下降。
-// v0.25.112 定稿「预览图模式」（用户：分别缩放 + 预览图模式）：设置页放独立示意 mockup
-// （.ui-scale-preview：顶栏/侧边栏头与脚/内容区，各区域 CSS 层独立 transform-origin 锚定——
-// 侧栏头 left top、侧栏脚 left bottom、内容 right top），拖动期 JS 只写一个 CSS 变量
-// --ui-preview-scale 到 <html>，预览图内各区域 transform: scale(var(--ui-preview-scale)) 由 CSS 消费
-// （transform 合成器只读，零 reflow 零重绘真实页面，帧率不受影响）；真实页面松手 commit 才一次性
+// v0.25.112 曾用预览图 mockup（用户 B3 返工：删 mockup，真实页面分块缩放）。
+// v0.26.5 B3 定稿「真实页面分块缩放预览」（用户原话：原来的组件冻结、整体缩放逻辑是可以的，
+// 只是要分三块以保证边缘位置不动）：拖动期 JS 只写一个 CSS 变量 --ui-preview-scale 到 <html>
+// + data-ui-previewing 门控，真实页面顶栏/侧栏（头·脚）/内容区由 CSS 分块
+// transform: scale(var(--ui-preview-scale)) 消费（transform 合成器只读，零 reflow 零重绘，帧率不受影响）；
+// 区域锚点：侧栏头/顶栏 left top、侧栏脚 left bottom、内容 right top。松手 commit 才一次性
 // 落 --ui-scale 真排版 + 落盘。B1 pointer 差分拖动不受影响（滑块几何固定差分）。
 let _uiScalePending = null;   // 待预览的目标值（拖动合并：同帧多次 oninput 只合成一次）
 let _uiScaleRaf = 0;          // rAF 句柄（0 = 空闲）
-// 拖动中：rAF 帧消费 pending → 只更新预览图缩放变量（--ui-preview-scale，真实页面不动，不落盘）
+// 拖动中：rAF 帧消费 pending → 只更新预览缩放变量（--ui-preview-scale，真实页面分块 transform 预览，不落盘）
 function _uiScaleFlush() {
   _uiScaleRaf = 0;
   const c = _uiScalePending;
@@ -237,13 +238,17 @@ function _uiScaleFlush() {
   _uiScalePending = null;
   _uiScalePreviewApply(c);
 }
-// 预览图模式：把目标缩放系数写入 --ui-preview-scale（预览图内 [data-scaled] 区域由 CSS transform 消费）
+// B3 真实页面分块缩放：把目标缩放系数写入 --ui-preview-scale（<html>）+ data-ui-previewing 门控
+// （CSS 据此对真实页面顶栏/侧栏头脚/内容区分块 transform:scale；门控保证平时无 transform，
+// 避免 scale(1) 残留 stacking context / containing block 干扰 fixed 定位）。
 function _uiScalePreviewApply(c) {
   document.documentElement.style.setProperty('--ui-preview-scale', (c / 100).toFixed(3));
+  document.documentElement.dataset.uiPreviewing = '1';
 }
-// 预览结束（commit/同步路径）：清预览缩放变量，预览图回到基准（真实页面已按 --ui-scale 呈现最终效果）
+// 预览结束（commit/同步路径）：清预览缩放变量 + 撤门控（真实页面已按 --ui-scale 呈现最终效果）
 function _uiScalePreviewReset() {
   document.documentElement.style.removeProperty('--ui-preview-scale');
+  delete document.documentElement.dataset.uiPreviewing;
 }
 // 同步应用（无合并；首帧/测试路径），返回钳制值
 function setUiScale(v) {

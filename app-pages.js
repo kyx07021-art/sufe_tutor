@@ -116,24 +116,9 @@ function enterAccountSettings() {
           <span class="ui-scale-val" id="ui-scale-val">${uiScaleVal}%</span>
         </div>
       </div>
-      <!-- v0.25.112 预览图模式（用户：分别缩放 + 预览图模式，勿整页缩放/勿全页重绘）：示意 mockup，
-           拖动滑块时图内各区域由 --ui-preview-scale 分别缩放（CSS 层各锚点），真实页面松手才落 --ui-scale -->
-      <div class="ui-scale-preview glass glass--solid" id="ui-scale-preview" aria-hidden="true">
-        <div class="pvw-nav" data-scaled></div>
-        <div class="pvw-body">
-          <div class="pvw-side">
-            <div class="pvw-side-head" data-scaled></div>
-            <div class="pvw-side-item" data-scaled></div>
-            <div class="pvw-side-item" data-scaled></div>
-            <div class="pvw-side-item" data-scaled></div>
-            <div class="pvw-side-foot" data-scaled></div>
-          </div>
-          <div class="pvw-main" data-scaled>
-            <div class="pvw-card pvw-card--tall"></div>
-            <div class="pvw-card"></div>
-          </div>
-        </div>
-      </div>
+      <!-- v0.26.5 B3（用户返工：删预览图 mockup）：UI 大小拖动直接预览真实页面——
+           拖动期 JS 只写 --ui-preview-scale + html[data-ui-previewing] 门控，顶栏/侧栏（头·脚）/内容区
+           由 CSS 分块 transform:scale 消费（合成器只读零重绘，帧率不受拖动影响），松手 commit 才落 --ui-scale -->
     </div>
     <div class="settings-section-title">${UI.SETTINGS_PRIVACY_TITLE}</div>
     <div class="settings-list">

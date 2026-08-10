@@ -4,14 +4,14 @@
  */
 export const ASSET_MANIFEST = {
   "files": {
-    "style.css": "style.29520a91.css",
+    "style.css": "style.c11a2dd8.css",
     "style-region.css": "style-region.39b4624e.css",
     "style-posts.css": "style-posts.c5d926c9.css",
     "style-chat.css": "style-chat.b764601b.css",
     "glass.css": "glass.0664a6fe.css",
-    "constants.js": "constants.e800755e.js",
+    "constants.js": "constants.510bfef4.js",
     "app-display.js": "app-display.e3cfbdf7.js",
-    "app-state.js": "app-state.62b4f135.js",
+    "app-state.js": "app-state.fdacb10e.js",
     "app-api.js": "app-api.dd8c08f1.js",
     "app-datahub.js": "app-datahub.b3ab9773.js",
     "app-anim.js": "app-anim.fc0cdb1c.js",
@@ -31,7 +31,7 @@ export const ASSET_MANIFEST = {
     "app-admin.js": "app-admin.0e5ded37.js",
     "app-demands.js": "app-demands.bc0c54d3.js",
     "app-teachers.js": "app-teachers.3c4b85fc.js",
-    "app-pages.js": "app-pages.e7f3e9a9.js",
+    "app-pages.js": "app-pages.e10cf725.js",
     "app-complaints.js": "app-complaints.e6cb4b88.js"
   }
 };

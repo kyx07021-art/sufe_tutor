@@ -1235,42 +1235,35 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 }
 .ui-scale-slider:active::-webkit-slider-thumb { box-shadow: var(--glass-lift-sm), 0 0 0 3px var(--g-focus-soft), inset 0 0 0 1px var(--g-avatar-border); }
 /* ============================================================
-   v0.25.112 UI 大小预览图模式（用户：分别缩放 + 预览图模式，勿整页缩放/勿全页重绘）：
-   设置页示意 mockup——顶栏/侧边栏（头·菜单·脚）/内容区，拖动滑块时图内各区域
-   transform: scale(var(--ui-preview-scale)) 分别缩放（JS 只写这一个 CSS 变量，样式全在此层）。
-   区域锚点（用户要求）：侧栏头/顶栏靠左上（left top）、侧栏脚靠左下（left bottom）、
-   内容区靠右（right top）、中间菜单项居中。transform 合成器只读——零重排零重绘真实页面，
-   帧率不受拖动影响；真实页面松手 commit 才一次性落 --ui-scale 真排版。
+   v0.26.5 B3 UI 大小拖动真实页面分块缩放（用户返工 B3：删预览图 mockup，
+   「原来的组件冻结、整体缩放逻辑是可以的，只是要分三块以保证边缘位置不动」）：
+   拖动期 JS 只写 --ui-preview-scale + html[data-ui-previewing] 门控，真实页面
+   顶栏（.navbar）/侧栏（头 .sidebar-expand-toggle+.sidebar-scroll、脚 .sidebar-invite+.sidebar-user）/
+   内容区（.client-main）由 CSS 分块 transform: scale(var(--ui-preview-scale)) 消费
+   （transform 合成器只读——零 reflow 零重绘真实页面，帧率不受拖动影响）。
+   区域锚点（用户要求）：顶栏/侧栏头 left top（左上）、侧栏脚 left bottom（左下）、
+   内容区 right top（右上）。预览期块间错位/缝隙是预览本性（各块独立缩放、向锚点对侧展开），
+   松手 commit 才一次性落 --ui-scale 真排版对齐。门控保证平时无 transform——
+   即使 scale(1) 也会建 stacking context / containing block（干扰 fixed 定位），不能常驻。
    ============================================================ */
-.ui-scale-preview {
-  margin-top: 14px;
-  width: 100%; height: 170px;
-  border-radius: var(--lg-r-sm);
-  padding: 10px;
-  display: flex; flex-direction: column; gap: 7px;
-  background: var(--g-bg);
-  overflow: hidden; /* 锚定处向外展开超界裁掉，保「四边固定、区域向锚点对侧展开」观感 */
-}
-.pvw-nav { height: 14px; border-radius: 4px; background: var(--g-fill-strong); }
-.pvw-body { flex: 1; display: flex; gap: 7px; min-height: 0; }
-.pvw-side { width: 62px; display: flex; flex-direction: column; gap: 6px; }
-.pvw-side-head { height: 20px; border-radius: 4px; background: var(--g-fill-strong); }
-.pvw-side-item { height: 7px; border-radius: 3px; background: var(--g-fill-mid); }
-.pvw-side-foot { height: 12px; border-radius: 4px; background: var(--g-fill-strong); margin-top: auto; }
-.pvw-main { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
-.pvw-card { flex: 1; border-radius: 5px; background: var(--g-paper); border: 1px solid var(--g-line-soft); }
-.pvw-card--tall { flex: 1.6; }
-/* 预览图缩放：图内所有示意块由 --ui-preview-scale 驱动（默认 1 = 100% 基准） */
-.ui-scale-preview [data-scaled] {
+html[data-ui-previewing] .navbar,
+html[data-ui-previewing] .sidebar-expand-toggle,
+html[data-ui-previewing] .sidebar-scroll {
   transform: scale(var(--ui-preview-scale, 1));
-  transform-origin: center;
+  transform-origin: left top;
   will-change: transform;
 }
-/* 区域锚点（用户要求）：侧栏头/顶栏靠左上、侧栏脚靠左下、内容区靠右 */
-.ui-scale-preview .pvw-nav,
-.ui-scale-preview .pvw-side-head { transform-origin: left top; }
-.ui-scale-preview .pvw-side-foot { transform-origin: left bottom; }
-.ui-scale-preview .pvw-main { transform-origin: right top; }
+html[data-ui-previewing] .sidebar-invite,
+html[data-ui-previewing] .sidebar-user {
+  transform: scale(var(--ui-preview-scale, 1));
+  transform-origin: left bottom;
+  will-change: transform;
+}
+html[data-ui-previewing] .client-main {
+  transform: scale(var(--ui-preview-scale, 1));
+  transform-origin: right top;
+  will-change: transform;
+}
 .ui-scale-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .ui-scale-val { flex: 0 0 auto; font-size: .82rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; min-width: 38px; text-align: right; }
 /* 新手引导浮窗（v0.19.49）：内测政策小盾标逐条，同关于页安全区语言 */
