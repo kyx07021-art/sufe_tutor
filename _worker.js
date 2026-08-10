@@ -438,17 +438,12 @@ export default {
           const cached = await apiCache.match(new Request(url));
           if (cached && cached.status === 200 && (cached.headers.get('content-type') || '').includes('application/json')) {
             const text = await cached.text();
-            if (text) {
-              const hit = json(JSON.parse(text));
-              hit.headers.set('X-Public-Cache', 'HIT'); // 诊断头（v0.26.10 排查用，修后删）
-              return applySecurityHeaders(hit, p);
-            }
+            if (text) return applySecurityHeaders(json(JSON.parse(text)), p);
           }
         } catch { /* 缓存读失败：回落正常 handler（不 500） */ }
       }
       const res = await routeApi(db, p, request.method, body, url, request, env); // env 供保活等需多绑定端点
       if (publicList && apiCache && res.status === 200) {
-        try { res.headers.set('X-Public-Cache', 'MISS'); } catch { /* 诊断头 */ }
         let text = null;
         try {
           text = await res.text(); // 读一次消费 body（下面用 text 重建返回，避免二次读原流）
@@ -460,11 +455,7 @@ export default {
           await apiCache.put(new Request(url), new Response(text, { status: res.status, headers }));
         } catch { /* 缓存写失败静默：text 保持 null 走原 res */ }
         if (text !== null) {
-          try {
-            const w = json(JSON.parse(text));
-            w.headers.set('X-Public-Cache-Write', '1'); // 诊断头（v0.26.10 排查用，修后删）
-            return applySecurityHeaders(w, p);
-          } catch { /* 文本异常：回落原 res */ }
+          try { return applySecurityHeaders(json(JSON.parse(text)), p); } catch { /* 文本异常：回落原 res */ }
         }
       }
       // 数据版本戳（v0.23.0 静默数据层）：写操作成功在写咽喉 bump 受影响域。
