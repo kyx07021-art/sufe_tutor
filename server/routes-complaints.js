@@ -20,7 +20,7 @@ import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbCreateComplaint, dbCountComplaintsToday, dbGetComplaintsByUser, dbGetComplaintsAdmin,
   dbGetComplaintById, dbResolveComplaint, dbSearchUsersByRole, dbRecentInteractions, dbSearchPosts,
-  dbGetUserById, dbGetPostById, dbGetUpload, dbDeleteUpload,
+  dbGetUserById, dbGetPostById, dbGetUpload, dbGetUploads, dbDeleteUpload,
 } from './db.js';
 import { decryptField } from './crypto.js'; // U11：投诉附件密文出门解密（与聊天附件同口径）
 import { logEvent } from './log.js';
@@ -58,11 +58,14 @@ export async function handleCreateComplaint(db, body, req) {
   const detail = String(body.detail || '').trim().slice(0, LIMITS.COMPLAINT_DETAIL_MAX);
 
   // 附件：数量钳制 + 归属校验（仅本人暂存可复制，防借 id 搬运他人附件）
+  // B5（v0.27.0 网络层重构）：逐条 dbGetUpload → dbGetUploads 单查（WHERE IN，N 往返 → 1）
   const uploadIds = Array.isArray(body.uploadIds) ? body.uploadIds.map(Number).filter(Number.isInteger) : [];
   if (uploadIds.length > LIMITS.COMPLAINT_ATTACH_MAX) return error(MSG.COMPLAINT_ATTACH_TOO_MANY, 400);
   const attachments = [];
+  const uploadRows = uploadIds.length ? await dbGetUploads(db, uploadIds) : [];
+  const uploadById = new Map(uploadRows.map(u => [u.id, u]));
   for (const id of uploadIds) {
-    const up = await dbGetUpload(db, id);
+    const up = uploadById.get(id);
     if (!up || up.user_id !== me.id) return error(MSG.COMPLAINT_ATTACH_NOT_FOUND, 400);
     attachments.push({ kind: up.kind, name: up.name, body: up.body, thumb: up.thumb || '' });
   }

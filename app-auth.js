@@ -117,15 +117,29 @@ document.addEventListener('mousemove', (e) => {
 });
 
 // 切换到目标角色：先清当前运行时（保留其已存会话，供下次切回），再校验目标角色令牌
+// F8（v0.27.0 网络层重构）：/me 从阻塞改为并行——用已存会话的 user 立即渲染客户端壳
+// （刷新/切角色的串行阻塞往返移出关键路径，客户端壳提前 ~1 RTT 呈现），/me 并行调和
+// state.user（头像/用户名新鲜度不丢）。令牌若死：预取批量 401 清会话（sessionBootValidating
+// 期内不弹登录）+ /me catch 统一回落该角色访客预览，无竞态无登录页闪烁。
 function switchToRole(role, saved) {
   exitCurrentIdentity();
   state.authToken = saved.authToken;
+  state.user = saved.user; // F8：先以已存会话渲染（v0.24.2 曾因 /me 阻塞而 delay 客户端壳）
+  saveSession(saved.source === 'local'); // 保活刷新该角色会话（按 state.user.role 落键）
+  enterClient();
+  // F8：并行令牌验证 + user 调和。验证期置位 → 预取批量 401 不 ensureAuth（防抢跑登录页）。
+  sessionBootValidating = true;
   api('/api/auth/me').then(data => {
-    state.user = data.user;
-    saveSession(saved.source === 'local'); // 保活刷新该角色会话（按 state.user.role 落键）
-    enterClient();
+    sessionBootValidating = false;
+    if (data.user && data.user.role === state.user?.role) {
+      state.user = data.user; // 以服务端 user 为准（头像/用户名/角色新鲜度）
+      saveSession(saved.source === 'local');
+      if (typeof renderSidebar === 'function') renderSidebar();
+    }
   }).catch((err) => {
+    sessionBootValidating = false;
     state.authToken = null;
+    state.user = null;
     // v0.24.2 审计：死令牌只清目标角色会话（401 兜底在 state.user 为空时曾以 '' 误删全部角色会话）；
     // 网络抖动不删会话——令牌仍可恢复，下次点角色按钮再校验
     if (err && err.code !== 'NETWORK_ERROR') clearSession(role);

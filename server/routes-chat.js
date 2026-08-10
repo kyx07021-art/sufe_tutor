@@ -138,6 +138,10 @@ export async function handleSendMessage(db, convId, body, req) {
   if (g.err) return g.err;
   if (g.conv.status !== STATUS.ACTIVE) return error(MSG.NO_PERMISSION, 403);
 
+  // F9（v0.27.0 网络层重构）：批量发送——一次往返落多条（暂存附件确认 + 文字），2N+1 串行 → 1。
+  // 前端暂存附件已上传（带进度），发送阶段只凭 uploadId 落消息 + 删暂存；整批单事务 db.batch。
+  if (Array.isArray(body.batch)) return handleSendBatch(db, convId, body.batch, userId, req);
+
   // 暂存附件确认入会话：凭 uploadId 取出已上传文件，落成消息后删除暂存
   if (body.uploadId) {
     const up = await dbGetUpload(db, parseInt(body.uploadId));
@@ -170,4 +174,39 @@ export async function handleSendMessage(db, convId, body, req) {
   await logEvent(db, { action: 'chat.send', actorUserId: userId, entity: 'conversation', entityId: convId,
     detail: { messageId: id, kind, name, len: rawLen }, req }); // 不记 dataURL 本体
   return json({ id, message: 'ok' }, 201);
+}
+
+// F9（v0.27.0）：批量发送——附件确认 + 文字一次 db.batch 落库（单事务），2N+1 串行 → 1 往返。
+// 校验与单条路径同口径（归属/长度），任一校验失败整批 400（不落半批）；db.batch 失败整体回滚。
+const MSG_INSERT_SQL = 'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb) VALUES (?,?,?,?,?,?)';
+async function handleSendBatch(db, convId, batch, userId, req) {
+  if (!batch.length || batch.length > LIMITS.MSG_BATCH_MAX) return error(MSG.INVALID_PARAMS, 400);
+  const stmts = [];
+  const items = []; // { resultIndex, kind, name }
+  for (const item of batch) {
+    if (item && item.uploadId) {
+      const up = await dbGetUpload(db, parseInt(item.uploadId));
+      if (!up || up.user_id !== userId) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+      items.push({ resultIndex: stmts.length, kind: up.kind, name: up.name });
+      stmts.push(db.prepare(MSG_INSERT_SQL).bind(convId, userId, up.kind, up.body, up.name, up.thumb)); // 密文随 uploads 转正
+      stmts.push(db.prepare('DELETE FROM uploads WHERE id=?').bind(up.id));
+    } else if (item && item.kind === 'text') {
+      const content = String(item.body ?? '').trim();
+      if (!content || content.length > LIMITS.MESSAGE_MAX_LEN) return error(MSG.MESSAGE_TOO_LONG);
+      items.push({ resultIndex: stmts.length, kind: 'text', name: '' });
+      stmts.push(db.prepare(MSG_INSERT_SQL).bind(convId, userId, 'text', content, '', ''));
+    } else {
+      return error(MSG.INVALID_PARAMS, 400);
+    }
+  }
+  let results;
+  try { results = await db.batch(stmts); }
+  catch (e) { console.error('send batch failed:', e && e.message); return error(MSG.SERVER_ERROR, 500); }
+  const created = items.map(it => ({
+    id: Number((results[it.resultIndex] && results[it.resultIndex].meta && results[it.resultIndex].meta.last_row_id) || 0),
+    kind: it.kind, name: it.name,
+  }));
+  await logEvent(db, { action: 'chat.send_batch', actorUserId: userId, entity: 'conversation', entityId: convId,
+    detail: { count: created.length, kinds: created.map(c => c.kind) }, req });
+  return json({ messages: created }, 201);
 }

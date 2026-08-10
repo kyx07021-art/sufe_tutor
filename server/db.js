@@ -1836,6 +1836,13 @@ export async function dbGetUpload(db, uploadId) {
   return await dbGet(db, 'SELECT * FROM uploads WHERE id=?', [uploadId]);
 }
 
+// B5（v0.27.0 网络层重构）：批量取上传（投诉附件归属校验 N+1 → 单查 WHERE IN，上限附件配额 4）
+export async function dbGetUploads(db, ids) {
+  if (!ids || !ids.length) return [];
+  const placeholders = ids.map(() => '?').join(',');
+  return await dbAll(db, `SELECT * FROM uploads WHERE id IN (${placeholders})`, ids);
+}
+
 export async function dbDeleteUpload(db, uploadId) {
   await dbRun(db, 'DELETE FROM uploads WHERE id=?', [uploadId]);
 }
@@ -1873,54 +1880,65 @@ export async function dbSetPrivacySettings(db, userId, { allowGuestProfile, allo
 // 增量改造：只新增本查询出口，不改变任何现有内容流转；私密字段（联系方式/附件本体）不提取。
 // type 过滤参数：不传 = 全类型（每类型取 limit 条最新）；传 = 单类型。
 // ============================================================
+// B6（v0.27.0 网络层重构）：逐表串行 10 次 dbAll → 单次 db.batch（1 往返原子读，
+// 无 type 过滤的全类型内容页是最重单查询：10 次串行 D1 → 1 次）。SQL 与行映射各自集中，
+// 语义与旧实现逐字节一致（测试仍逐类型断言形状）。私密字段（联系方式/附件本体）不提取不变。
+const CONTENT_SQL = {
+  post: `SELECT p.id, p.user_id, u.username, u.role, p.section, p.title, p.body_md, p.like_count, p.created_at
+    FROM posts p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT ?`,
+  demand: `SELECT sd.id, sd.user_id, u.username, u.role, sd.status, sd.target_subjects, sd.address, sd.additional_info, sd.display_id, sd.created_at
+    FROM student_demands sd LEFT JOIN users u ON u.id=sd.user_id ORDER BY sd.id DESC LIMIT ?`,
+  teacher: `SELECT tp.user_id, u.username, u.role, tp.intro, tp.address, tp.school, tp.verified, tp.updated_at
+    FROM teacher_profiles tp LEFT JOIN users u ON u.id=tp.user_id ORDER BY tp.updated_at DESC LIMIT ?`,
+  review: `SELECT r.id, r.reviewer_user_id, u.username, u.role, r.rating, r.comment, r.status, r.created_at
+    FROM reviews r LEFT JOIN users u ON u.id=r.reviewer_user_id ORDER BY r.id DESC LIMIT ?`,
+  message: `SELECT m.id, m.conversation_id, m.sender_user_id, u.username, u.role, m.kind, m.body, m.name, m.created_at
+    FROM messages m LEFT JOIN users u ON u.id=m.sender_user_id ORDER BY m.id DESC LIMIT ?`,
+  feedback: `SELECT f.id, f.user_id, u.username, u.role, f.kind, f.title, f.content, f.status, f.created_at
+    FROM feedbacks f LEFT JOIN users u ON u.id=f.user_id ORDER BY f.id DESC LIMIT ?`,
+  complaint: `SELECT c.id, c.user_id, u.username, u.role, c.target_type, c.target_id, c.reason, c.detail, c.status, c.created_at
+    FROM complaints c LEFT JOIN users u ON u.id=c.user_id ORDER BY c.id DESC LIMIT ?`,
+  upload: `SELECT o.id, o.user_id, u.username, u.role, o.kind, o.name, o.created_at
+    FROM uploads o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.id DESC LIMIT ?`,
+  contract: `SELECT c.id, c.drafter_user_id, u.username, u.role, c.plan, c.schedule, c.status, c.created_at
+    FROM contracts c LEFT JOIN users u ON u.id=c.drafter_user_id ORDER BY c.id DESC LIMIT ?`,
+  signing: `SELECT s.id, s.initiator_user_id, u.username, u.role, s.price, s.schedule, s.method, s.status, s.created_at
+    FROM signing_requests s LEFT JOIN users u ON u.id=s.initiator_user_id ORDER BY s.id DESC LIMIT ?`,
+};
+
+function mapContentRows(t, rows, out) {
+  for (const r of rows) {
+    if (t === 'post') {
+      out.push({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } });
+    } else if (t === 'demand') {
+      out.push({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `需求 #${r.display_id || r.id}`, body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
+    } else if (t === 'teacher') {
+      out.push({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: `教师档案 · ${r.username || ''}`, body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} });
+    } else if (t === 'review') {
+      out.push({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: `评价 ${r.rating} 星`, body: r.comment, status: r.status, created_at: r.created_at, extra: {} });
+    } else if (t === 'message') {
+      out.push({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? '聊天消息' : `附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } });
+    } else if (t === 'feedback') {
+      out.push({ type: 'feedback', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title || `反馈（${r.kind}）`, body: r.content, status: r.status, created_at: r.created_at, extra: { kind: r.kind } });
+    } else if (t === 'complaint') {
+      out.push({ type: 'complaint', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `投诉 ${r.target_type} #${r.target_id}（${r.reason}）`, body: r.detail, status: r.status, created_at: r.created_at, extra: { target_type: r.target_type, target_id: r.target_id } });
+    } else if (t === 'upload') {
+      out.push({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `暂存附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } });
+    } else if (t === 'contract') {
+      out.push({ type: 'contract', id: r.id, author: { id: r.drafter_user_id, username: r.username, role: r.role }, title: '合同', body: [r.plan, r.schedule].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
+    } else if (t === 'signing') {
+      out.push({ type: 'signing', id: r.id, author: { id: r.initiator_user_id, username: r.username, role: r.role }, title: `签约请求 ${r.price > 0 ? r.price + ' 元/时' : ''}`, body: [r.schedule, r.method].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
+    }
+  }
+}
+
 export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUBLIC_LIST_MAX } = {}) {
   // 审查补丁：补 contract（合同正文——最敏感的用户内容）与 signing（签约请求），
   // 统一内容页现在可审全部用户可操作内容。
   const types = type ? [type] : ['post', 'demand', 'teacher', 'review', 'message', 'feedback', 'complaint', 'upload', 'contract', 'signing'];
+  const results = await db.batch(types.map(t => db.prepare(CONTENT_SQL[t]).bind(limit)));
   const out = [];
-  for (const t of types) {
-    if (t === 'post') {
-      const rows = await dbAll(db, `SELECT p.id, p.user_id, u.username, u.role, p.section, p.title, p.body_md, p.like_count, p.created_at
-        FROM posts p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } });
-    } else if (t === 'demand') {
-      const rows = await dbAll(db, `SELECT sd.id, sd.user_id, u.username, u.role, sd.status, sd.target_subjects, sd.address, sd.additional_info, sd.display_id, sd.created_at
-        FROM student_demands sd LEFT JOIN users u ON u.id=sd.user_id ORDER BY sd.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `需求 #${r.display_id || r.id}`, body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
-    } else if (t === 'teacher') {
-      const rows = await dbAll(db, `SELECT tp.user_id, u.username, u.role, tp.intro, tp.address, tp.school, tp.verified, tp.updated_at
-        FROM teacher_profiles tp LEFT JOIN users u ON u.id=tp.user_id ORDER BY tp.updated_at DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: `教师档案 · ${r.username || ''}`, body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} });
-    } else if (t === 'review') {
-      const rows = await dbAll(db, `SELECT r.id, r.reviewer_user_id, u.username, u.role, r.rating, r.comment, r.status, r.created_at
-        FROM reviews r LEFT JOIN users u ON u.id=r.reviewer_user_id ORDER BY r.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: `评价 ${r.rating} 星`, body: r.comment, status: r.status, created_at: r.created_at, extra: {} });
-    } else if (t === 'message') {
-      const rows = await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, u.username, u.role, m.kind, m.body, m.name, m.created_at
-        FROM messages m LEFT JOIN users u ON u.id=m.sender_user_id ORDER BY m.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? '聊天消息' : `附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } });
-    } else if (t === 'feedback') {
-      const rows = await dbAll(db, `SELECT f.id, f.user_id, u.username, u.role, f.kind, f.title, f.content, f.status, f.created_at
-        FROM feedbacks f LEFT JOIN users u ON u.id=f.user_id ORDER BY f.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'feedback', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title || `反馈（${r.kind}）`, body: r.content, status: r.status, created_at: r.created_at, extra: { kind: r.kind } });
-    } else if (t === 'complaint') {
-      const rows = await dbAll(db, `SELECT c.id, c.user_id, u.username, u.role, c.target_type, c.target_id, c.reason, c.detail, c.status, c.created_at
-        FROM complaints c LEFT JOIN users u ON u.id=c.user_id ORDER BY c.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'complaint', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `投诉 ${r.target_type} #${r.target_id}（${r.reason}）`, body: r.detail, status: r.status, created_at: r.created_at, extra: { target_type: r.target_type, target_id: r.target_id } });
-    } else if (t === 'upload') {
-      const rows = await dbAll(db, `SELECT o.id, o.user_id, u.username, u.role, o.kind, o.name, o.created_at
-        FROM uploads o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `暂存附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } });
-    } else if (t === 'contract') {
-      const rows = await dbAll(db, `SELECT c.id, c.drafter_user_id, u.username, u.role, c.plan, c.schedule, c.status, c.created_at
-        FROM contracts c LEFT JOIN users u ON u.id=c.drafter_user_id ORDER BY c.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'contract', id: r.id, author: { id: r.drafter_user_id, username: r.username, role: r.role }, title: '合同', body: [r.plan, r.schedule].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
-    } else if (t === 'signing') {
-      const rows = await dbAll(db, `SELECT s.id, s.initiator_user_id, u.username, u.role, s.price, s.schedule, s.method, s.status, s.created_at
-        FROM signing_requests s LEFT JOIN users u ON u.id=s.initiator_user_id ORDER BY s.id DESC LIMIT ?`, [limit]);
-      for (const r of rows) out.push({ type: 'signing', id: r.id, author: { id: r.initiator_user_id, username: r.username, role: r.role }, title: `签约请求 ${r.price > 0 ? r.price + ' 元/时' : ''}`, body: [r.schedule, r.method].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
-    }
-  }
+  results.forEach((r, i) => mapContentRows(types[i], (r && r.results) || [], out));
   return out;
 }
 

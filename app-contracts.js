@@ -341,9 +341,10 @@ async function submitContractModify(contractId) {
     loadMyContracts();
   } catch (err) {
     // v0.24.2 审计：409 乐观锁冲突后刷新本地版本号（否则重复保存恒 409，只能关弹窗重开）
+    // F13（v0.27.0）：裸 api 改走 dhGet forceRefresh——拿最新版本号同时更新缓存（不再缓存陈旧）
     if (err.code === 'CONTRACT_MODIFIED_CONFLICT') {
       try {
-        const fresh = await api('/api/contracts/my');
+        const fresh = await dhGet('/api/contracts/my', { domain: 'contracts', forceRefresh: true });
         const c = (fresh.contracts || []).find(x => x.id === contractId);
         if (c && c.version != null) window._contractModifyVersion = c.version;
       } catch { /* 刷新失败静默，用户可关弹窗重开 */ }

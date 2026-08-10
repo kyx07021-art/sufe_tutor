@@ -32,20 +32,17 @@ export async function initVersionTable(db) {
     counter INTEGER NOT NULL DEFAULT 0)`);
 }
 
-async function bumpDomain(db, domain) {
-  // 原子 upsert：首见插 1，再遇自增（SQLite ON CONFLICT 单语句，无并发空窗）
-  await dbRun(db,
-    `INSERT INTO data_versions (domain, counter) VALUES (?, 1)
-     ON CONFLICT(domain) DO UPDATE SET counter = counter + 1`, [domain]);
-}
-
-/** 写咽喉调用：版本戳失败绝不影响主业务；逐域容错——单域失败不 abort 其余域（审计 m5） */
+/** 写咽喉调用：版本戳失败绝不影响主业务。B3（v0.27.0 网络层重构）：多域写从逐域串行
+ *  1 D1/域 收敛为单次 db.batch（1 往返原子自增；3 域合同写 3 D1 → 1 D1）。
+ *  语义变化：单域失败整体回滚吞错（原逐域容错）——版本戳非关键路径，失败即本写丢失 bump，
+ *  客户端下次探测/写自然再收敛，无正确性影响；表经 initDb 恒存在，ON CONFLICT 原子防并发空窗。 */
 export async function bumpVersions(db, domains) {
   if (!domains || !domains.length) return;
-  for (const d of domains) {
-    try { await bumpDomain(db, d); }
-    catch (e) { console.warn('bumpVersion failed:', d, e && e.message); }
-  }
+  try {
+    await db.batch(domains.map(d => db.prepare(
+      `INSERT INTO data_versions (domain, counter) VALUES (?, 1)
+       ON CONFLICT(domain) DO UPDATE SET counter = counter + 1`).bind(d)));
+  } catch (e) { console.warn('bumpVersions failed:', e && e.message); }
 }
 
 /** 恒返回全部域、未 bump 的补 0——客户端基线即有键，0→1 首次写入才能正确触发重拉（审计 m1） */

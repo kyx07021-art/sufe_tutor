@@ -352,7 +352,9 @@ async function openProfilePanel(userId) {
     // （取过一次打标记，不重复请求；签约时后端追加返回联系方式，兑现「签约后展示」）
     if (isTeacher && t && (t.matched || (state.user && state.user.id === t.user_id)) && !t._matchedDetailLoaded) {
       try {
-        const pd = await api(`/api/teacher/profile?userId=${userId}`);
+        // F13（v0.27.0）：匹配私密详情改走 datahub（teachers 域，按 ?userId= 分键缓存 +
+        // 版本探测刷新；per-session 客户端缓存，跨用户零泄露）
+        const pd = await dhGet(`/api/teacher/profile?userId=${userId}`, { domain: 'teachers' });
         if (seq !== profilePanelSeq) return;
         if (pd.profile) Object.assign(t, { real_name: pd.profile.real_name || '', credential_image: pd.profile.credential_image || '', wechat: pd.profile.wechat || '', email: pd.profile.email || '' }); // 签约后后端追加返回联系方式，此处一并并入缓存行
       } catch { /* 未匹配后端 403：按不可见处理 */ }

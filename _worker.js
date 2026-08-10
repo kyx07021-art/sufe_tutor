@@ -274,6 +274,9 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   const contentAction = p.match(/^\/api\/admin\/content\/([a-z]+)\/(\d+)\/action$/);
   if (contentAction && method === 'POST') return await handleContentAction(db, contentAction[1], parseInt(contentAction[2], 10), body, req);
 
+  // B2（v0.27.0 网络层重构）：批量只读端点（一次往返拉 N 个 GET；鉴权记忆化共享、边缘缓存复用）
+  if (p === '/api/batch' && method === 'POST') return await handleBatch(db, body, url, req, env);
+
   // 健康检查
   if (p === '/api/health') return json({ status: 'ok', timestamp: new Date().toISOString() });
 
@@ -307,6 +310,56 @@ export function isPublicListCacheable(p, url) {
   if (p === '/api/posts') return true;                    // 资料广场（公开）
   if (p === '/api/student/demands' && !url.searchParams.has('scope')) return true; // 需求广场（无 scope=公开）
   return false;
+}
+
+// B2（v0.27.0 网络层重构）：公开列表边缘缓存读 helper——主请求路径与 /api/batch 子请求共用。
+// 命中返回解析后的 JSON data（object），miss/读异常返回 null（fail-open 回落正常 handler，绝不 500）。
+// 生产实证铁律（v0.26.9）：workerd Cache API 的 match 响应 body 流有锁定/不可重复读风险，
+// 一律 text() 读一次重建 json，勿 clone/重复读原流。
+async function readPublicListCache(url) {
+  const cache = typeof caches !== 'undefined' ? caches.default : null;
+  if (!cache) return null;
+  try {
+    const cached = await cache.match(new Request(url));
+    if (cached && cached.status === 200 && (cached.headers.get('content-type') || '').includes('application/json')) {
+      const text = await cached.text();
+      if (text) return JSON.parse(text);
+    }
+  } catch { /* 缓存读失败：回落正常 handler（不 500） */ }
+  return null;
+}
+
+// B2（v0.27.0 网络层重构）：批量只读端点——一次鉴权 + N 个子 GET 并发。
+// 设计（调研：API batching / BFF 聚合）：客户端 prefetch/域刷新/多模块首载把 N 个独立 GET
+// 合并为 1 次往返——HTTP/1.1 下免浏览器 6 连接队列串行，HTTP/2 下减 worker 调用与 D1 往返；
+// 子请求仍走 routeApi（复用公开列表边缘缓存 + 各 handler 校验）；authUser 经 B1 reqCtx 记忆化
+// 共享 1 次 D1 鉴权；单子请求失败不阻断其余（结果带独立 status）。
+// 写操作禁止入 batch——写路径仍走单请求，保证错误码/toast/二次认证/留档语义。
+// 安全：子请求与直接 GET 权限面完全一致（不升级权限），batch 只省往返不改变路由语义。
+const BATCH_MAX = 16;
+async function handleBatch(db, body, url, req, env) {
+  const gets = body && Array.isArray(body.gets) ? body.gets : null;
+  if (!gets || !gets.length || gets.length > BATCH_MAX) return error(MSG.INVALID_PARAMS, 400);
+  const paths = gets.map(g => String(g));
+  if (!paths.every(p => p.startsWith('/api/') && !/\s/.test(p) && p.length < 300)) {
+    return error(MSG.INVALID_PARAMS, 400); // 只允许 /api/ 相对路径（防外域/协议相对/注入）
+  }
+  const results = await Promise.all(paths.map(async sub => {
+    try {
+      const subUrl = new URL(sub, url.origin);
+      // 匿名公开列表子请求命中边缘缓存 → 零 D1 直返（与主请求路径同款）
+      if (isAnonymous(req) && isPublicListCacheable(subUrl.pathname, subUrl)) {
+        const hit = await readPublicListCache(subUrl);
+        if (hit) return { path: sub, status: 200, data: hit };
+      }
+      const res = await routeApi(db, subUrl.pathname, 'GET', {}, subUrl, req, env);
+      const data = await res.json();
+      return { path: sub, status: res.status, data };
+    } catch {
+      return { path: sub, status: 500, data: { error: MSG.SERVER_ERROR } };
+    }
+  }));
+  return json({ results });
 }
 
 // D1 保活（v0.22.8 + v0.25.16 重构单点）：对业务/留档/台账三库轻查询 SELECT 1。
@@ -436,13 +489,8 @@ export default {
       // 匿名门（外部审查 1101）：仅访客请求参与公开列表缓存——登录请求含 per-user 字段，走实时
       const publicList = request.method === 'GET' && isAnonymous(request) && isPublicListCacheable(p, url);
       if (publicList && apiCache) {
-        try {
-          const cached = await apiCache.match(new Request(url));
-          if (cached && cached.status === 200 && (cached.headers.get('content-type') || '').includes('application/json')) {
-            const text = await cached.text();
-            if (text) return applySecurityHeaders(json(JSON.parse(text)), p);
-          }
-        } catch { /* 缓存读失败：回落正常 handler（不 500） */ }
+        const cachedData = await readPublicListCache(url);
+        if (cachedData) return applySecurityHeaders(json(cachedData), p);
       }
       const res = await routeApi(db, p, request.method, body, url, request, env); // env 供保活等需多绑定端点
       if (publicList && apiCache && res.status === 200) {

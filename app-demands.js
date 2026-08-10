@@ -419,19 +419,24 @@ function confirmDeleteDemand(demandId, asAdmin) {
 }
 
 async function handleDeleteDemand(demandId, asAdmin) {
+  // F12（v0.27.0）乐观删除：确认后卡片立即移除（本地数据 + DOM），失败整列重渲染恢复——
+  // 删除需求不再等服务端往返（高频操作，卡顿感来源之一）。成功只 invalidate + toast（卡片已不在）。
+  closeModal();
+  const card = document.querySelector(`.list-card--demand[data-demand-id="${demandId}"]`);
+  if (card) card.remove(); // 乐观：卡片立即消失
+  state.myDemands = state.myDemands.filter(d => d.id !== demandId);
   try {
     if (asAdmin) {
       await api(`/api/admin/demands/${demandId}`, { method: 'DELETE' });
     } else {
       await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: {} });
     }
-    closeModal();
     showToast(UI.SUCCESS_DEMAND_DELETED);
-    state.myDemands = state.myDemands.filter(d => d.id !== demandId);
     invalidate('demands'); // v0.23.1 审计 M2：否则 loadMyDemands/loadBrowseDemands 命中缓存，已删需求闪回
+  } catch (err) {
+    // 失败回滚：整列重渲染恢复卡片（loadMyDemands/loadAdminDemands 从服务端取回该需求）
     if (asAdmin) { if (state.page === 'admin-demands') loadAdminDemands(); }
     else if (state.page === 'my-demands') loadMyDemands();
-  } catch (err) {
     showToast(err.message);
   }
 }
@@ -644,7 +649,7 @@ function renderDemandCard(d, opts = {}) {
     : d.my_intent_status === STATUS.ACCEPTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-ok glass glass--pressable" onclick="goChatWithStudent(${d.user_id})">${UI.INTENT_ACCEPTED_GO}</button>`
     : d.my_intent_status === STATUS.PENDING  ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
     : d.my_intent_status === STATUS.REJECTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
-    : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable btn-intent-cta" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
+    : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable btn-intent-cta" data-demand-id="${d.id}" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
   // v0.25.12（反馈 #92）：推送需求操作按钮与提交意向统一 btn-sm 尺寸（原 btn-xs 是没复用组件的败笔），
   // 与说明文案一并下沉到底栏右下角
   const pushActions = !teacher || !push ? '' : `
@@ -665,7 +670,7 @@ function renderDemandCard(d, opts = {}) {
   const scoreItems = (d.current_scores||[]).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
   const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
 
-  return `<div class="list-card list-card--demand glass">
+  return `<div class="list-card list-card--demand glass" data-demand-id="${d.id}">
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
     <div class="list-card-header">
@@ -844,9 +849,11 @@ async function openSendDemandModal(teacherUserId) {
   if (!ensureAuth()) return;
   const t = state.allTeachers.find(x => x.user_id === teacherUserId);
   const tName = t ? t.username : UI.PUSH_TEACHER_FALLBACK;
-  // 每次现拉自己的需求（不用页内缓存）：签约可能在其他页发生，缓存会把已签约需求漏进候选
+  // 每次现拉自己的需求：签约可能在其他页发生，已签约需求不能漏进候选——
+  // F13（v0.27.0）由裸 api 改走 dhGet forceRefresh：绕过缓存保新鲜（语义不变），
+  // 同时共享 datahub 在途去重 + 写缓存与徽标/列表一致（不再重复打网/缓存陈旧）
   let demands = [];
-  try { demands = (await api('/api/student/demands?scope=mine')).demands || []; state.myDemands = demands; }
+  try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands', forceRefresh: true })).demands || []; state.myDemands = demands; }
   catch { demands = state.myDemands; }
   demands = demands.filter(d => DISP.demandIsActive(d)); // 需求活跃统一谓词（v0.25.10：==='open'——revoked 未重开需求亦不可推送，此前宽松口径把 revoked 漏进候选成死路按钮）
   const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
@@ -934,15 +941,27 @@ async function submitIntent(demandId) {
   });
 }
 
-// 试课意向实际提交（二次确认通过后）：先关确认浮窗再 POST，成功后按钮刷新为「意向已提交」态
+// 试课意向实际提交（二次确认通过后）：先关确认浮窗再 POST。
+// F12（v0.27.0）乐观反馈：确认后按钮立即置「待处理」态（本地数据 + 就地替换按钮），失败回滚——
+// 不等服务端往返，教师提交试课意向的卡顿感消除（audit-flow 驳回/网络错均回滚原按钮）。
 async function doSubmitIntent(demandId) {
   closeModal();
+  const d = _browseDemands.find(x => x.id === demandId);
+  const origStatus = d ? d.my_intent_status : undefined;
+  const pendingHtml = `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled data-demand-id="${demandId}">${UI.INTENT_PENDING}</button>`;
+  if (d) d.my_intent_status = STATUS.PENDING;
+  const cta = document.querySelector(`.btn-intent-cta[data-demand-id="${demandId}"]`);
+  const origHtml = cta ? cta.outerHTML : ''; // 先捕获原按钮（常量派生的 HTML，非用户输入）
+  if (cta) cta.outerHTML = pendingHtml; // 乐观：按钮立即变「待处理」
   try {
     await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: {} });
     showToast(UI.INTENT_SUBMITTED_TOAST);
     invalidate('demands'); // v0.23.1 审计 M2：否则按钮仍显示「提交意向」，操作看似无效
-    if (state.page === 'browse-demands') loadBrowseDemands(); // 按钮刷新为「意向已提交」态
   } catch (err) {
+    // 失败回滚：恢复本地状态 + 还原按钮
+    if (d) d.my_intent_status = origStatus;
+    const wait = document.querySelector(`.btn-intent-wait[data-demand-id="${demandId}"]`);
+    if (wait) wait.outerHTML = origHtml;
     if (err.code === 'PROFILE_INCOMPLETE') { showProfileIncompleteModal(); return; } // 按稳定 code 分支，勿比对中文文案
     showToast(err.message);
   }

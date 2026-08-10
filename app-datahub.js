@@ -68,6 +68,70 @@ async function dhGet(endpoint, { domain = 'misc', forceRefresh = false } = {}) {
   try { return await p; } finally { dhInflight.delete(endpoint); }
 }
 
+/**
+ * B2/F3（v0.27.0 网络层重构）：批量读主入口——一次往返拉 N 个 key（服务端 /api/batch 并发，
+ * 一次鉴权 + 公开列表边缘缓存复用）。prefetch/域刷新/多模块首载的「N 个独立 GET」合并为 1 次往返。
+ *
+ * 去重与 single-flight 兼容：
+ *   - 已缓存键（TTL 内）跳过直出；forceRefresh 绕过缓存
+ *   - 在途键（dhGet 或另一批量已发起）共享同一 Promise（await 后入结果）
+ *   - 缺键经一次 apiBatch 拉取；每个 key 注册 dhInflight，期间 dhGet 对同 key 共享批量结果
+ * 结果：返回 Map<path, data>（仅成功键）；失败键不入（调用方 allSettled/回退按需加载语义）。
+ * 会话代次：epoch 不符不写入缓存（旧账户数据不得残留）。
+ */
+async function dhBatchGet(entries, { forceRefresh = false } = {}) {
+  const list = entries.map(e => (typeof e === 'string' ? { path: e, domain: 'misc' } : e));
+  const out = new Map();
+  const epoch = dhEpoch;
+  const toFetch = [];
+  const seen = new Set(); // 同一 key 在 entries 中重复只拉一次（结果集可多键合并）
+
+  for (const { path, domain } of list) {
+    if (!forceRefresh) {
+      const hit = dhPeek(path);
+      if (hit !== null) { out.set(path, hit); continue; }
+    }
+    if (dhInflight.has(path)) {
+      try { out.set(path, await dhInflight.get(path)); } catch { /* 在途失败：该 key 不入结果 */ }
+      continue;
+    }
+    if (seen.has(path)) continue;
+    seen.add(path);
+    toFetch.push({ path, domain });
+  }
+
+  if (toFetch.length) {
+    const resolvers = new Map();
+    for (const { path } of toFetch) {
+      const pr = new Promise((res, rej) => resolvers.set(path, { res, rej }));
+      pr.catch(() => {}); // 标记已处理：fire-and-forget（dhPrefetch 不 await）场景子键失败不产生未处理拒绝
+      dhInflight.set(path, pr);
+    }
+    let results;
+    try {
+      results = await apiBatch(toFetch.map(t => t.path));
+    } catch (e) {
+      for (const { path } of toFetch) { dhInflight.delete(path); resolvers.get(path).rej(e); }
+      throw e; // 批量整体网络失败：调用方回退按需加载
+    }
+    for (const { path, domain } of toFetch) {
+      dhInflight.delete(path);
+      const r = results.get(path);
+      const pr = resolvers.get(path);
+      if (r && r.status === 200) {
+        if (epoch === dhEpoch) { dhCache.set(path, { domain, data: r.data, fetchedAt: Date.now() }); dhCapCache(); }
+        out.set(path, r.data);
+        pr.res(r.data);
+      } else {
+        const e = new Error((r && r.data && r.data.error) || UI.ERROR_REQUEST_FAILED);
+        e.code = (r && r.data && r.data.code) || 'BATCH_FAILED';
+        pr.rej(e);
+      }
+    }
+  }
+  return out;
+}
+
 /** 缓存键数上限：超过 DH_MAX_KEYS 淘汰最旧（搜索变体等不随域刷新过期，须显式封顶） */
 function dhCapCache() {
   if (dhCache.size <= DH_MAX_KEYS) return;
@@ -164,10 +228,12 @@ const DH_PREFETCH = {
   ],
 };
 
-/** 静默预取：登录进客户端后调用；allSettled——任何单键失败静默，绝不阻断其余/任何页面 */
+/** 静默预取：登录进客户端后调用；B2/F3（v0.27.0）改批量——DH_PREFETCH 全键一次 /api/batch 往返
+ *  （9-13 个独立 GET → 1）。失败静默（单键失败不阻断其余；整体失败回退按需加载——预取绝不卡任何页面）。
+ *  返回值由 Promise.allSettled 数组改为 Map<path,data>（调用方均不消费，只作 fire-and-forget）。 */
 function dhPrefetch(role) {
   const keys = DH_PREFETCH[role] || [];
-  return Promise.allSettled(keys.map(([endpoint, domain]) => dhGet(endpoint, { domain })));
+  return dhBatchGet(keys.map(([endpoint, domain]) => ({ path: endpoint, domain }))).catch(() => new Map());
 }
 
 /** 模块别名重挂注册：探测刷新替换缓存数组后，把模块级变量重新指向新数组。
@@ -181,15 +247,21 @@ function dhOnDomainRefresh(domain, fn) {
 }
 
 /** 静默重拉某域全部已缓存 key（域计数变化时触发）；只刷缓存不碰 DOM——切 tab 时自然拿到新数据。
+ *  B2/F4（v0.27.0）改批量：域内已缓存 key 一次 /api/batch forceRefresh（N+1 → 1 往返）。
  *  返回是否全部成功：失败域由 dhProbeTick 保留旧基线、下轮重试（审计 m5）。
  *  成功后执行该域的重挂函数（模块别名回到新缓存数组）。 */
 async function dhRefreshDomain(domain) {
   const entries = [...dhCache.entries()].filter(([, v]) => v.domain === domain);
   if (!entries.length) return true;
-  const results = await Promise.allSettled(entries.map(([k, v]) => dhGet(k, { domain, forceRefresh: true })));
+  const paths = entries.map(([k]) => k);
+  let ok = false;
+  try {
+    const fetched = await dhBatchGet(paths.map(p => ({ path: p, domain })), { forceRefresh: true });
+    ok = paths.every(p => fetched.has(p));
+  } catch { ok = false; }
   const fns = dhRebinders.get(domain);
   if (fns) for (const fn of fns) { try { fn(); } catch { /* 重挂失败不影响主流程 */ } }
-  return results.every(r => r.status === 'fulfilled');
+  return ok;
 }
 
 let dhProbeBusy = false; // 防重入（审计 m6）：interval 与 visibilitychange 并发 tick 互斥
@@ -241,6 +313,38 @@ if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && dhProbeTimer) dhProbeTick().catch(() => {});
   });
+}
+
+// ============================================================
+// F5（v0.27.0 网络层重构）：乐观写辅助——缓存级即时更新 + 失败恢复。
+// 配合模块级数组快照实现完整乐观回滚（模块负责自己数组的快照，缓存由这三件套托管）。
+// 为什么需要：模块就地变更自己的数组后，dhCache 仍存旧数据——用户重进模块 dhGet 命中旧缓存，
+// 乐观变更丢失。dhApply 同步缓存使重进仍见乐观态；成功以 invalidate/服务端收敛为准，失败 dhRevert 恢复。
+// ============================================================
+/** 快照一批缓存条目（undefined=不在缓存；null=被删；对象=原条目）。调用方须同样快照自己的模块数组 */
+function dhSnapshot(paths) {
+  const snap = new Map();
+  for (const p of paths) {
+    const e = dhCache.get(p);
+    snap.set(p, e ? { ...e, data: e.data } : null);
+  }
+  return snap;
+}
+
+/** 就地乐观变更缓存条目（mutator 拿到当前 data 返回新 data；条目不存在跳过——无缓存可改则依赖模块数组） */
+function dhApply(path, mutator) {
+  const e = dhCache.get(path);
+  if (!e || typeof mutator !== 'function') return;
+  const next = mutator(e.data);
+  if (next !== undefined) { e.data = next; e.fetchedAt = Date.now(); }
+}
+
+/** 失败恢复：snapshot 来自 dhSnapshot(paths)；原条目存在则回置，原无则删除（乐观新增回滚） */
+function dhRevert(path, snapshot) {
+  const s = snapshot.get(path);
+  if (s === undefined) return; // 未快照的 key 不动
+  if (s === null) dhCache.delete(path);
+  else dhCache.set(path, s);
 }
 
 // 登出复位（app-state registerLogoutReset 协议）：停探测 + 清会话缓存，防上一账户残留

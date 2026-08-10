@@ -22,15 +22,26 @@ import { MSG, RATE_LIMITS, SECURITY, SECURITY_HEADERS, CORS_HEADERS } from './co
 // 过期按 UTC 比较——同全站 datetime 纪律）。body/query 里的 userId 只当前端回显用，
 // 服务端身份认定永远以令牌解出的用户为准（审计整改：自报 userId 可枚举冒名）
 // ============================================================
+// B1（v0.27.0 网络层重构）：请求级 auth 记忆化——同一请求内二次鉴权（logRequest 记 actor、
+// /api/batch 批量子请求并发）零额外 D1。WeakMap 键 req，请求结束即 GC，跨请求零泄漏；
+// 并发调用共享同一 Promise（batch 子请求并发不重复查）。安全：同请求令牌恒定（headers 不可变），
+// 记忆化无陈旧风险。不做跨请求会话缓存（登出/封禁即时失效 + 跨 isolate 无法全局失效，安全账不划算，
+// 见 docs/network-layer-redesign.md 有意不做清单）。
+const authMemo = new WeakMap();
 export async function authUser(db, req) {
   const token = req && req.headers && req.headers.get('X-Auth-Token');
   if (!token) return null;
-  const u = await dbGet(db, `SELECT u.id,u.username,u.role,u.avatar,u.banned,s.expires_at AS token_expires
-    FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?`, [await tokenDigest(token)]);
-  if (!u || u.banned) return null;
-  const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
-  if (!exp || exp < Date.now()) return null;
-  return u;
+  if (authMemo.has(req)) return authMemo.get(req);
+  const p = (async () => {
+    const u = await dbGet(db, `SELECT u.id,u.username,u.role,u.avatar,u.banned,s.expires_at AS token_expires
+      FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?`, [await tokenDigest(token)]);
+    if (!u || u.banned) return null;
+    const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
+    if (!exp || exp < Date.now()) return null;
+    return u;
+  })();
+  authMemo.set(req, p);
+  return p;
 }
 
 /** 管理员判定两行式合一：非管理员（含无令牌/令牌失效）→ 403 响应；通过 → null */
@@ -94,11 +105,16 @@ const rlStrike = (ip, now) => {
 // 双写限流：内存 + D1 各自独立计数，两者都放行才算过。
 //  - D1 失败（写/读抛错）→ 只以内存为准（降级不 fail-open，网安 N-06）
 //  - 写/用户名探测/登录/注册/重认证全部双写 → 跨实例生效（网安 N-08；原仅登录/注册/重认证走 D1）
+// B4（v0.27.0 网络层重构）：upsert + 回读 合成单次 db.batch（写路径 2 D1 → 1 D1；
+//  与 authRateBatch 同款 batch 形状，r[1].results[0].n 判读同 verdict 口径）
 const rlDual = async (db, memLimit, memWindow, d1Key, d1Limit, d1Window, now) => {
   if (!rlBump(`m:${d1Key}`, memLimit, memWindow, now)) return false;
   try {
-    await dbRun(db, RATE_UPSERT_SQL, [d1Key, rateWindowArg(d1Window)]);
-    const row = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [d1Key]);
+    const r = await db.batch([
+      db.prepare(RATE_UPSERT_SQL).bind(d1Key, rateWindowArg(d1Window)),
+      db.prepare('SELECT n FROM rate_limits WHERE bucket=?').bind(d1Key),
+    ]);
+    const row = r && r[1] && r[1].results && r[1].results[0];
     if (!row || row.n > d1Limit) return false;
   } catch { /* D1 异常：内存限流兜底（上方 rlBump 已判定），不 fail-open */ }
   return true;

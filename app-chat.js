@@ -34,6 +34,7 @@ let chatPollTimer = null;   // 轮询定时器（setInterval 句柄）
 let chatLastMsgId = 0;      // 已见最大消息 id，作轮询 sinceId
 let chatPollBusy = false;   // 上一次轮询未返回时跳过本 tick，防请求叠加
 let chatSending = false;    // 发送中，防连点
+let chatOptimisticSending = false; // F10（v0.27.0）：乐观发送在途——轮询跳过，防乐观临时气泡与轮询真实气泡双插（去重窗口）
 let chatPendingOpen = null; // R26：跨页待打开的会话目标（按学生 id），会话列表就绪后自动打开
 
 // ============================================================
@@ -433,20 +434,28 @@ function chatLazyLoadAttachments() {
   const convId = chatConvId;
   setTimeout(async () => {
     const pending = [...document.querySelectorAll('.chat-bubble--loading[data-attach]')];
-    for (const el of pending) {
-      if (chatConvId !== convId) return; // 会话已切走，丢弃
-      const mid = el.dataset.attach;
-      try {
-        const data = await api(`/api/conversations/${convId}/messages/${mid}/attachment`);
-        if (chatConvId !== convId) return;
-        el.innerHTML = renderChatMediaInner(el.dataset.attachKind, data.body || '', data.name || '');
-        el.classList.remove('chat-bubble--loading');
-        delete el.dataset.attach;
-      } catch {
-        el.classList.remove('chat-bubble--loading');
-        el.innerHTML = `<span class="chat-attach-fail">${UI.CHAT_ATTACH_FAIL}</span>`;
+    // F11（v0.27.0 网络层重构）：串行 await 循环 → 有界并发（~4 波）——历史多附件会话
+    // N 次串行往返 → ~N/4 波（每波一个 RTT 内并行）；会话切换丢弃语义不变（每波检查 chatConvId）。
+    const CONCURRENCY = 4;
+    let i = 0;
+    const worker = async () => {
+      while (i < pending.length) {
+        const el = pending[i++];
+        if (chatConvId !== convId) return; // 会话已切走，丢弃
+        const mid = el.dataset.attach;
+        try {
+          const data = await api(`/api/conversations/${convId}/messages/${mid}/attachment`);
+          if (chatConvId !== convId) return;
+          el.innerHTML = renderChatMediaInner(el.dataset.attachKind, data.body || '', data.name || '');
+          el.classList.remove('chat-bubble--loading');
+          delete el.dataset.attach;
+        } catch {
+          el.classList.remove('chat-bubble--loading');
+          el.innerHTML = `<span class="chat-attach-fail">${UI.CHAT_ATTACH_FAIL}</span>`;
+        }
       }
-    }
+    };
+    await Promise.all(Array.from({ length: Math.min(CONCURRENCY, pending.length) }, worker));
   }, CONFIG.CHAT_SLIDE_DELAY_MS);
 }
 
@@ -483,8 +492,9 @@ function stopChatPolling() {
 }
 
 async function chatPollTick() {
-  // 每次 tick 自检：切页 / 登出 / 会话已关 / 上一轮未回 → 不发请求
-  if (state.page !== 'my-chats' || !state.user || !chatConvId || chatPollBusy) return;
+  // 每次 tick 自检：切页 / 登出 / 会话已关 / 上一轮未回 / 乐观发送在途 → 不发请求
+  // （乐观发送在途时轮询若拉回刚发的消息会与临时气泡双插，F10 用此标志关窗口）
+  if (state.page !== 'my-chats' || !state.user || !chatConvId || chatPollBusy || chatOptimisticSending) return;
   const convId = chatConvId;
   chatPollBusy = true;
   try {
@@ -534,41 +544,76 @@ async function sendChatMessage() {
 
   const btn = document.getElementById('chat-send-btn');
   chatSending = true;
+  chatOptimisticSending = true; // F10：乐观发送在途关轮询窗口（防临时气泡与轮询真实气泡双插）
   btnLoading(btn);
-  try {
-    // 先逐个发暂存附件（成功一条移出暂存区），再发文字
-    for (const it of staged) await chatSendAttachment(it, convId);
-    if (text) {
-      ta.value = '';
-      chatAutogrow(ta);
-      const data = await api(`/api/conversations/${convId}/messages`, {
-        method: 'POST',
-        body: { body: text, kind: 'text' },
-      });
-      if (chatConvId !== convId) return;
-      ta.focus();
-      const newId = data.id || 0;
-      const stamp = chatNowStamp();
-      const box = document.getElementById('chat-messages');
-      if (box) {
-        if (box.querySelector('.empty-state')) box.innerHTML = '';
-        if (!newId || !box.querySelector(`.chat-msg[data-mid="${newId}"]`)) {
-          box.insertAdjacentHTML('beforeend', renderChatBubble({
-            id: newId, sender_user_id: state.user.id, body: text, created_at: stamp,
-          }, 0));
-        }
-        chatScrollToBottom(true);
-      }
-      if (newId > chatLastMsgId) chatLastMsgId = newId; // 避免下一轮轮询重复拉回自己这条
-      chatBumpConvPreview(convId, { body: text, kind: 'text', created_at: stamp, sender_user_id: state.user.id });
+
+  // F10（v0.27.0）乐观发送：本地立即插入临时气泡（负 id），一次批量 POST 落库，响应替换真实 id；
+  // 失败移除临时气泡 + 恢复输入/暂存（audit-flow 断点可能驳回，须回滚）。data-mid 去重语义对齐旧实现。
+  // F9 批量：附件确认 + 文字一次往返（2N+1 串行 → 1），服务端单事务 db.batch。
+  const box = document.getElementById('chat-messages');
+  const optimistic = [];        // { tempId, kind, body, name }
+  let tempSeq = -900000 - Date.now() % 1000; // 负临时 id（与真实自增 id 空间不冲突）
+  const stagedCopy = staged.map(it => ({ ...it }));
+
+  // 乐观 UI：先清输入框 + 暂存区，立即渲染全部消息气泡
+  if (text) { ta.value = ''; chatAutogrow(ta); }
+  chatStaged = [];
+  renderChatStage();
+  const appendOptimistic = (m) => {
+    const tempId = --tempSeq;
+    optimistic.push({ tempId, kind: m.kind || 'text', body: m.body, name: m.name || '' });
+    if (box) {
+      if (box.querySelector('.empty-state')) box.innerHTML = '';
+      box.insertAdjacentHTML('beforeend', renderChatBubble({
+        id: tempId, sender_user_id: state.user.id, kind: m.kind || 'text', body: m.body, name: m.name || '', created_at: chatNowStamp(),
+      }, 0));
+      chatScrollToBottom(true);
     }
+  };
+  for (const it of stagedCopy) appendOptimistic({ kind: it.kind, body: it.dataUrl, name: it.name });
+  if (text) appendOptimistic({ kind: 'text', body: text });
+
+  try {
+    // 批量发送：附件凭 uploadId（数据已暂存），文字随批
+    const batch = stagedCopy.map(it => ({ kind: it.kind, uploadId: it.uploadId }));
+    if (text) batch.push({ kind: 'text', body: text });
+    const data = await api(`/api/conversations/${convId}/messages`, { method: 'POST', body: { batch } });
+    if (chatConvId !== convId) return; // 发送中切走会话：丢弃（乐观气泡随会话重开消失）
+    // 响应按批序返回真实 id：替换临时气泡 data-mid（轮询已抢插则跳过——data-mid 已存在）
+    const created = data.messages || [];
+    let maxId = chatLastMsgId;
+    created.forEach((m, i) => {
+      const op = optimistic[i];
+      if (!op || !m.id) return;
+      const el = box && box.querySelector(`.chat-msg[data-mid="${op.tempId}"]`);
+      if (el) el.dataset.mid = String(m.id);
+      if (m.id > maxId) maxId = m.id;
+    });
+    chatLastMsgId = maxId; // 防下一轮轮询重复拉回自己这批
+    const lastOp = optimistic[optimistic.length - 1];
+    if (lastOp) chatBumpConvPreview(convId, {
+      body: lastOp.kind === 'text' ? lastOp.body : '', kind: lastOp.kind, name: lastOp.name,
+      created_at: chatNowStamp(), sender_user_id: state.user.id,
+    });
     // 按钮微反馈：弹一下
     if (btn) { btn.classList.remove('chat-send--flash'); void btn.offsetWidth; btn.classList.add('chat-send--flash'); }
   } catch (err) {
-    showToast(err.message); // 失败保留输入内容与剩余暂存项，便于重试
+    // 失败回滚：移除乐观临时气泡 + 恢复输入/暂存（audit-flow 驳回/网络错误均可重试）
+    if (chatConvId === convId) {
+      for (const op of optimistic) {
+        const el = box && box.querySelector(`.chat-msg[data-mid="${op.tempId}"]`);
+        if (el) el.remove();
+      }
+      if (text) { ta.value = text; chatAutogrow(ta); }
+      chatStaged = stagedCopy;
+      renderChatStage();
+    }
+    showToast(err.message);
   } finally {
+    chatOptimisticSending = false;
     chatSending = false;
     btnDone(btn, UI.CHAT_BTN_SEND);
+    ta.focus();
   }
 }
 
@@ -730,31 +775,8 @@ function renderChatStage() {
   renderStageBox(chatStaged, document.getElementById('chat-stage'), it => `chatUnstage(${it.id})`);
 }
 
-// 发送单条附件 = 确认载入会话：数据已在上传阶段进服务器，这里只凭 uploadId 落成消息
-async function chatSendAttachment(item, convId) {
-  const data = await api(`/api/conversations/${convId}/messages`, {
-    method: 'POST',
-    body: { uploadId: item.uploadId },
-  });
-  if (chatConvId !== convId) return; // 发送中切走会话：丢弃
-  chatStaged = chatStaged.filter(it => it.id !== item.id);
-  renderChatStage();
-  const kind = data.kind || item.kind;
-  const name = data.name != null ? data.name : item.name;
-  const box = document.getElementById('chat-messages');
-  if (box) {
-    if (box.querySelector('.empty-state')) box.innerHTML = '';
-    // 与轮询互为真相：在途 poll 可能先把这条拉回渲染，本地插入必须按 data-mid 去重（对齐文本路径）
-    if (!data.id || !box.querySelector(`.chat-msg[data-mid="${data.id}"]`)) {
-      box.insertAdjacentHTML('beforeend', renderChatBubble({
-        id: data.id || 0, sender_user_id: state.user.id, kind, body: item.dataUrl, name, created_at: chatNowStamp(),
-      }, 0));
-      chatScrollToBottom(true);
-    }
-  }
-  if (data.id && data.id > chatLastMsgId) chatLastMsgId = data.id;
-  chatBumpConvPreview(convId, { body: '', kind, created_at: chatNowStamp(), sender_user_id: state.user.id });
-}
+// （v0.27.0 F9 删除：chatSendAttachment 单条发送已被 sendChatMessage 的批量乐观发送取代，
+//  附件确认+文字一次 POST /batch 落库；暂存上传路径 chatUploadToServer 保留不动）
 
 // 拖入聊天区：松开即加入暂存区（桌面 / 平板拖放均可）
 // v0.25.86 审计修复：hint 由闭包捕获改为事件内现查——openConversation 每次重建

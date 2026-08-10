@@ -93,3 +93,25 @@ test('重试期间成功加载则不刷新，领域正常就绪', async () => {
   await tick();
   assert.equal(vm.runInContext('__domainReloadOnce', ctx), false, '重试成功不触发刷新');
 });
+
+test('T5 并行注入：loadDomainScripts 同 tick 注入全部 12 个领域脚本（F6 瀑布 → 1 波）', async () => {
+  const { ctx, dom } = makeCtx();
+  const DOMAIN = [
+    'region-data', 'app-style', 'app-region', 'app-posts', 'app-chat', 'app-contracts',
+    'app-chart', 'app-admin', 'app-demands', 'app-teachers', 'app-pages', 'app-complaints',
+  ];
+  vm.runInContext(`
+    globalThis.loadMyDemands = undefined;
+    __domainLoaded = false; __domainLoading = null; __domainReloadOnce = false;
+    loadDomainScripts(); // fire-and-forget：Promise.all 同步 append 全部脚本
+  `, ctx);
+  // 关键断言：此刻（同一同步块后、任何 onload 事件前）全部 12 个 script 已在 DOM——
+  // 串行实现只会在首个脚本 onload 后才注入下一个（瀑布），并行实现一次全放。
+  // 注：index.html 残留 /constants.js 标签（剥离正则只匹配 app-*），按领域名过滤计数。
+  const srcs = [...dom.window.document.querySelectorAll('script[src]')].map(s => s.getAttribute('src'));
+  for (const name of DOMAIN) {
+    assert.ok(srcs.some(s => s.includes(name)), `${name} 已注入（同 tick 并行）`);
+  }
+  const injected = srcs.filter(s => DOMAIN.some(name => s.includes(name)));
+  assert.equal(injected.length, 12, '全部 12 个领域脚本一次性注入');
+});

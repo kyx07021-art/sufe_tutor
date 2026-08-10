@@ -105,11 +105,14 @@ function loadDomainScripts() {
   if (__domainLoading) return __domainLoading; // 注入已在途：复用同一 Promise，杜绝重复注入
   __domainLoading = (async () => {
     const manifest = (window.ASSET_MANIFEST || {}).files || {};
+    // F6（v0.27.0 网络层重构）：串行 Promise 链 → 并行注入。经典脚本浏览器按 DOM 插入序执行，
+    // 一次性 appendChild 全部 → 下载并行、执行仍保依赖序——冷进客户端 12 次 RTT 瀑布 → 1 波。
+    // 404 重试语义不变（逐脚本延迟重试等边缘同步；耗尽整页刷新一次自愈，__domainReloadOnce 防死循环）。
     const inject = f => new Promise(resolve => {
       // v0.25.100（发布后老妖根治）：Pages 部署滚动窗口（实测发布后约 1-2 分钟）内，manifest 放行的
       // 新哈希资产间歇 404（边缘节点未同步，实测 15 次里 4 次）——领域脚本 404 缺模块 → 教师列表/登录失败。
       // 自愈：先延迟重试等边缘同步（窗口 ~1-2 分钟，逐脚本重试保留页面状态），重试耗尽才整页刷新一次
-      // 拿新 index.html（内联新 manifest）；刷新恢复登录/页面停留（v0.25.95 会话层），__domainReloadOnce 防死循环。
+      // 拿新 index.html（内联新 manifest）；刷新恢复登录/页面停留（v0.25.95 会话层）。
       const tryInject = (attempt) => {
         const s = document.createElement('script');
         s.src = '/' + (manifest[f] || f);
@@ -126,7 +129,7 @@ function loadDomainScripts() {
       };
       tryInject(1);
     });
-    for (const f of DOMAIN_FILES) await inject(f);
+    await Promise.all(DOMAIN_FILES.map(f => inject(f)));
     __domainLoaded = true;
   })();
   return __domainLoading;

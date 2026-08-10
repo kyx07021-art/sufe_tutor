@@ -126,7 +126,7 @@ function renderPostCard(p, i) {
   const raw = String(p.body_md || '');
   const snippet = raw.slice(0, CONFIG.POST_SNIPPET);
   const time = p.created_at ? fmtDateTime(p.created_at) : '';
-  return `<div class="post-card glass" style="--i:${Math.min(i, 8)}" onclick="postCardClick(event, ${p.id})">
+  return `<div class="post-card glass" style="--i:${Math.min(i, 8)}" data-post-id="${p.id}" onclick="postCardClick(event, ${p.id})">
     <div class="post-card-head">
       <button type="button" class="post-title" aria-label="${UI.POST_VIEW_ARIA}">${escHtml(p.title)}</button>
       ${mine ? `<button type="button" class="post-del" onclick="postConfirmDelete(${p.id})">${UI.POST_BTN_DELETE}</button>` : ''}
@@ -417,15 +417,18 @@ function postConfirmDelete(id) {
 }
 
 async function deletePost(id) {
+  // F12（v0.27.0）乐观删除：确认后卡片立即移除，失败整列重渲染恢复——不再等服务端往返
+  closeModal();
+  const card = document.querySelector(`.post-card[data-post-id="${id}"]`);
+  if (card) card.remove(); // 乐观：卡片立即消失
   try {
     await api(`/api/posts/${id}`, { method: 'DELETE', body: {} });
-    closeModal();
     showToast(UI.POST_DELETED);
     invalidate('posts'); // v0.23.1 审计 M1：否则被删帖子从缓存闪回
-    loadPosts();
   } catch (err) {
-    showToast(err.message);
+    loadPosts(); // 失败回滚：整列重渲染恢复卡片
     if (err.code === 'POST_NOT_FOUND') { closeModal(); loadPosts(); } // C2：帖子已被（管理员）删除：只认 code（A8 删人类文案依赖）
+    showToast(err.message);
   }
 }
 

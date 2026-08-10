@@ -44,8 +44,18 @@ function makeCtx() {
     getComputedStyle: w.getComputedStyle.bind(w),
     localStorage: w.localStorage, sessionStorage: w.sessionStorage,
     console,
-    fetch: async (url) => {
+    fetch: async (url, opts) => {
       const s = String(url);
+      // B2/F3（v0.27.0）：dhRefreshDomain 批量重拉走 /api/batch，mock 合成批量结果
+      if (s === '/api/batch') {
+        let gets = [];
+        try { gets = JSON.parse((opts && opts.body) || '{}').gets || []; } catch { gets = []; }
+        const results = gets.map(p => ({
+          path: p, status: 200,
+          data: p === '/api/teachers' ? { teachers: FRESH_TEACHERS } : {},
+        }));
+        return { ok: true, status: 200, json: async () => ({ results }) };
+      }
       if (s.includes('/api/teachers')) return { ok: true, status: 200, json: async () => ({ teachers: FRESH_TEACHERS }) };
       if (s.includes('/api/data-version')) return { ok: true, status: 200, json: async () => ({ versions: { teachers: 5, demands: 5, posts: 5 } }) };
       return { ok: true, status: 200, json: async () => ({}) };

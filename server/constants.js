@@ -234,6 +234,7 @@ export const LIMITS = {
   THUMB_MAX_BYTES: 20000,  // 聊天图片缩略图 dataURL 上限（v0.25.36；128px JPEG 约 3-8KB）
   FILE_NAME_MAX: 100,      // 附件文件名
   UPLOAD_STAGING_MAX: 12,  // 暂存附件件数
+  MSG_BATCH_MAX: 13,       // F9（v0.27.0）：批量发送条数上限（暂存附件 ≤12 + 文字 1，一次往返）
   // 内容
   POST_BODY_MAX: 20000,    // 帖子/广播正文
   FEEDBACK_BODY_MAX: 5000, // 反馈正文

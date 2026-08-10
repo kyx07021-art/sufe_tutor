@@ -678,7 +678,9 @@ function collectNonacademicPrices() {
 
 async function loadProfile() {
   try {
-    const data = await api('/api/teacher/profile');
+    // F13（v0.27.0）：本人档案读取改走 datahub（teachers 域缓存 + 版本探测刷新；
+    // 保存后 invalidate('teachers') 使下次读取 miss 重拉，新鲜度不丢）
+    const data = await dhGet('/api/teacher/profile', { domain: 'teachers' });
     if (data.profile) {
       const p = data.profile;
       document.getElementById('profile-grade').value = p.grade || '';
