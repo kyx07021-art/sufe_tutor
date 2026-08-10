@@ -290,6 +290,19 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   return error('Not Found', 404);
 }
 
+// B6 公开列表边缘缓存（用户实测：游客 7s 出列表 / 教师列表 20s / 进模块拉表单 8s——D1 冷实例
+// 偶发 ~6s 慢往返按 worker 实例隔离，keepalive 只热它所在实例，用户请求路由到其他实例仍冷）。
+// 公开列表（教师 / 需求广场 / 帖子）命中边缘缓存零碰 D1，跨用户共享、冷实例也秒开。
+// 一致性：TTL 30s 自愈（公开列表低频变更，发布/审核后 30s 内可见；个人数据走私有端点不缓存）。
+// 无 caches 环境（本地 dev / vm 测试）回落直取（fail-open，同加密咽喉内测兼容哲学）。
+const PUBLIC_LIST_TTL_S = 30;
+export function isPublicListCacheable(p, url) {
+  if (p === '/api/teachers') return true;                 // 教师列表（公开，含筛选 query 变体）
+  if (p === '/api/posts') return true;                    // 资料广场（公开）
+  if (p === '/api/student/demands' && !url.searchParams.has('scope')) return true; // 需求广场（无 scope=公开）
+  return false;
+}
+
 // D1 保活（v0.22.8 + v0.25.16 重构单点）：对业务/留档/台账三库轻查询 SELECT 1，避免空闲冷启动
 // （首击 4-6s 唤醒；冷启动伤害最重的是 per-token 列表页）。调用方：① scheduled 事件——Pages 无原生
 // cron 触发器，wrangler.toml [triggers] 对 Pages 不生效（2026 实测 API/CLI 均无法注册，见会话），
@@ -406,7 +419,27 @@ export default {
       if (audit.reject) {
         return applySecurityHeaders(error(audit.reject, 400), p);
       }
+      // B6 公开列表边缘缓存：GET 公开列表命中缓存 → 零 D1 零留档直接返回（冷启动治本）；
+      // miss 走正常 handler 后把响应写入边缘缓存（waitUntil 托管，30s TTL 自愈）
+      const apiCache = typeof caches !== 'undefined' ? caches.default : null;
+      const publicList = request.method === 'GET' && isPublicListCacheable(p, url);
+      if (publicList && apiCache) {
+        const cached = await apiCache.match(new Request(url));
+        // 命中判定：status 200 + JSON content-type（json() 响应必有；非 JSON/异常条目不返回，
+        // 防历史毒化——#260 静态资产 content-length 判据不适用于 workerd Response，其不设该头）
+        if (cached && cached.status === 200 && (cached.headers.get('content-type') || '').includes('application/json')) {
+          return applySecurityHeaders(cached, p);
+        }
+      }
       const res = await routeApi(db, p, request.method, body, url, request, env); // env 供保活等需多绑定端点
+      if (publicList && apiCache && res.status === 200) {
+        try {
+          const copy = res.clone();
+          const headers = new Headers(copy.headers);
+          headers.set('Cache-Control', `public, s-maxage=${PUBLIC_LIST_TTL_S}`);
+          ctx.waitUntil(apiCache.put(new Request(url), new Response(copy.body, { status: copy.status, headers })));
+        } catch { /* 缓存写失败静默：主流程不受影响 */ }
+      }
       // 数据版本戳（v0.23.0 静默数据层）：写操作成功在写咽喉 bump 受影响域。
       // waitUntil 包裹——workerd 会掐断未完成的悬浮 Promise；版本戳失败静默
       // （bumpVersions 内吞错），不影响主业务。

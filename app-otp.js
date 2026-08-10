@@ -160,6 +160,7 @@ async function doBind(kind, isPhone, target, code) {
       const el = document.getElementById(isPhone ? 'settings-phone-val' : 'settings-email-val');
       if (el) el.textContent = mask;
     }
+    if (typeof invalidate === 'function') invalidate('account'); // B6：creds 缓存作废，loadMyCreds 拉新
     if (typeof loadMyCreds === 'function') loadMyCreds();
   } catch (err) {
     showToast(err.message, 'error');

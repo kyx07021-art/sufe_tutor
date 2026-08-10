@@ -280,3 +280,51 @@ test('dhProbeTick：getVersions 全域补零后首写 0→1 触发重拉（审�
   await vm.runInContext('dhProbeTick()', ctx);
   assert.equal(calls.filter(u => u === '/api/teachers').length, n0 + 1, '0→1 应触发重拉');
 });
+
+// B6（用户反馈「后台静默加载无效：挂机十分钟后点模块仍现场拉表单，且拉取要 8 秒」）：
+// 根因 = DH_TTL_MS 60s 保底 TTL——挂机期间预取数据过期，进模块缓存 miss 现场拉。
+// 修复 = 版本探测成功后续期全缓存（dhTouchAll）：数据版本一致则缓存长期有效，进任何模块秒开；
+// 探测停摆/失败时保留 TTL 兜底防陈旧。
+// 注：dhPeek 在 TTL 过期时主动删除缓存条目（防陈旧读取），所以「续期验证」不能先调 dhPeek——
+// 用 dhGet 的请求计数验证（续期成功 = 进模块 dhGet 命中缓存零请求，即用户「点模块秒开」的实测语义）
+test('B6 dhProbeTick：探测成功全缓存续期——TTL 过期后进模块零请求（不现场拉）', async () => {
+  const { impl, calls, routes } = makeFetch();
+  routes.set('/api/teachers', { teachers: [{ user_id: 1 }] });
+  routes.set('/api/data-version', { versions: { teachers: 1 } });
+  const ctx = makeCtx({ fetchImpl: impl });
+  vm.runInContext('CONFIG.DH_TTL_MS = 50;', ctx); // 极短 TTL 模拟挂机超时
+  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  await new Promise(r => setTimeout(r, 80)); // TTL 过期（条目仍在缓存，fetchedAt 旧）
+  const n0 = calls.filter(u => u === '/api/teachers').length;
+  await vm.runInContext('dhProbeTick()', ctx); // 挂机恢复：探测成功（数据版本未变）→ 续期
+  const data = await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  assert.ok(Array.isArray(data.teachers), '续期后 dhGet 命中缓存返回数据');
+  assert.equal(calls.filter(u => u === '/api/teachers').length, n0, '续期后进模块零请求（缓存命中，不现场拉表单）');
+});
+
+test('B6 探测失败不续期：TTL 过期后 dhGet 现场拉（防陈旧兜底仍在）', async () => {
+  const { impl, calls, routes } = makeFetch();
+  routes.set('/api/teachers', { teachers: [{ user_id: 1 }] });
+  routes.set('/api/data-version', { versions: { teachers: 1 } });
+  const ctx = makeCtx({ fetchImpl: impl });
+  vm.runInContext('CONFIG.DH_TTL_MS = 50;', ctx);
+  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  await new Promise(r => setTimeout(r, 80)); // TTL 过期
+  const n0 = calls.filter(u => u === '/api/teachers').length;
+  routes.set('/api/data-version', new Error('探测断线'));
+  await vm.runInContext('dhProbeTick()', ctx); // 失败静默（不续期）
+  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  assert.equal(calls.filter(u => u === '/api/teachers').length, n0 + 1, '探测失败不续期，进模块现场拉（TTL 兜底）');
+});
+
+test('B6 DH_PREFETCH：设置页四表单并入预取（account 域，登录即后台拉取）', () => {
+  const { impl } = makeFetch();
+  const ctx = makeCtx({ fetchImpl: impl });
+  const prefetch = vm.runInContext('DH_PREFETCH', ctx);
+  const eps = ['/api/auth/sessions', '/api/privacy-settings', '/api/user/username/status', '/api/user/creds'];
+  for (const role of ['student', 'teacher', 'admin']) {
+    const keys = prefetch[role].map(([e]) => e);
+    for (const ep of eps) assert.ok(keys.includes(ep), `${role} 预取清单应含 ${ep}`);
+    assert.equal(prefetch[role].filter(([, d]) => d === 'account').length, 4, `${role} account 域端点 4 个`);
+  }
+});

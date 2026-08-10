@@ -143,7 +143,8 @@ async function loadUsernameStatus() {
   const btn = document.getElementById('username-change-btn');
   if (!btn) return;
   try {
-    const d = await api('/api/user/username/status');
+    // B6：设置页数据走会话数据层（登录即预取，进设置页秒开）；写操作后 invalidate('account') 失效
+    const d = await dhGet('/api/user/username/status', { domain: 'account' });
     if (!document.getElementById('username-change-btn')) return; // 已离开设置页
     // 防御：canChange 明确 true 或 cooldownMs 非法（NaN/缺失，如 mock/异常响应）→ 按钮保持「修改」不启动倒计时
     if (d.canChange === true || !isFinite(Number(d.cooldownMs)) || Number(d.cooldownMs) <= 0) return;
@@ -157,7 +158,7 @@ async function loadMyCreds() {
   const emailEl = document.getElementById('settings-email-val');
   if (!phoneEl && !emailEl) return;
   try {
-    const d = await api('/api/user/creds');
+    const d = await dhGet('/api/user/creds', { domain: 'account' }); // B6：会话缓存（登录即预取）
     if (!document.getElementById('settings-phone-val')) return; // 已离开设置页
     if (phoneEl) phoneEl.textContent = d.phone || UI.SETTINGS_UNBOUND;
     if (emailEl) emailEl.textContent = d.email || UI.SETTINGS_UNBOUND;
@@ -213,6 +214,7 @@ async function submitUsernameChange(newName, capToken) {
       saveSession(cur.source === 'local');
     }
     closeModal();
+    invalidate('account'); // B6：username-status/creds 缓存作废，重渲染读新值（冷却态/脱敏不闪旧）
     enterAccountSettings(); // 重渲染设置页（新用户名 + 冷却倒计时按钮）
     showToast(r.message, 'success');
   } catch (err) {
@@ -225,7 +227,7 @@ async function loadPrivacySettings() {
   const el = document.getElementById('privacy-settings-list');
   if (!el) return;
   try {
-    const d = await api('/api/privacy-settings');
+    const d = await dhGet('/api/privacy-settings', { domain: 'account' }); // B6：会话缓存（登录即预取）
     const isTeacher = state.user.role === 'teacher';
     const row = (field, cur, label, hint) => `
       <div class="settings-row">
@@ -250,6 +252,7 @@ async function loadPrivacySettings() {
 async function setPrivacyField(field, value) {
   try {
     await api('/api/privacy-settings', { method: 'POST', body: { [field]: value } });
+    invalidate('account'); // B6：隐私缓存作废，下次读取重拉（本地选中态已即时更新）
     const opts = document.querySelector(`#privacy-settings-list .privacy-opts[data-field="${field}"]`);
     if (opts) opts.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('theme-opt--on', Number(b.dataset.val) === value));
     showToast(UI.SETTINGS_PRIVACY_SAVED);
@@ -342,7 +345,7 @@ async function loadDeviceSessions() {
   const box = document.getElementById('settings-devices-list');
   if (!box) return;
   try {
-    const data = await api('/api/auth/sessions');
+    const data = await dhGet('/api/auth/sessions', { domain: 'account' }); // B6：会话缓存（登录即预取）
     if (state.page !== 'account-settings') return;
     const sessions = data.sessions || [];
     box.innerHTML = sessions.length
@@ -370,6 +373,7 @@ function revokeDeviceSession(sessionId) {
       const data = await api('/api/auth/sessions/revoke', { method: 'POST', body: { sessionId } });
       showToast(UI.DEVICE_REVOKE_DONE);
       if (data.revokedSelf) { handleLogout(); return; } // 踢的是自己 → 本地登出
+      invalidate('account'); // B6：会话缓存作废，重载走缓存 miss 拉新列表
       loadDeviceSessions();
     } catch (err) { showToast(err.message); }
   }});

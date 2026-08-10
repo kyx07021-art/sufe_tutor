@@ -114,6 +114,13 @@ const DH_PREFETCH = {
     ['/api/contracts/my', 'contracts'],
     ['/api/conversations', 'chat'],
     ['/api/notifications', 'notifications'],
+    // B6（用户反馈「挂机后点模块仍现场拉表单」）：设置页四表单并入预取——
+    // sessions/privacy/username-status/creds 归 account 域，登录即后台预取，进设置页秒开；
+    // 写操作（改用户名/绑定/隐私/撤销设备）后 invalidate('account') 失效（app-state CACHE_DOMAINS 同口径）
+    ['/api/auth/sessions', 'account'],
+    ['/api/privacy-settings', 'account'],
+    ['/api/user/username/status', 'account'],
+    ['/api/user/creds', 'account'],
   ],
   teacher: [
     ['/api/student/demands?scope=for-teacher', 'demands'],
@@ -123,6 +130,11 @@ const DH_PREFETCH = {
     ['/api/contracts/my', 'contracts'],
     ['/api/conversations', 'chat'],
     ['/api/notifications', 'notifications'],
+    // B6：设置页四表单并入预取（account 域）——见 student 注释
+    ['/api/auth/sessions', 'account'],
+    ['/api/privacy-settings', 'account'],
+    ['/api/user/username/status', 'account'],
+    ['/api/user/creds', 'account'],
   ],
   admin: [
     ['/api/admin/stats', 'admin'],
@@ -132,6 +144,11 @@ const DH_PREFETCH = {
     ['/api/admin/contracts', 'contracts'], // 合同数据归 contracts 域：合同变动（含学生/教师侧签约）一并静默重拉
     ['/api/posts', 'posts'],               // 资料管理页同教师广场端点，归 posts 域
     ['/api/feedbacks', 'admin'],
+    // B6：admin 设置页四表单并入预取（account 域）
+    ['/api/auth/sessions', 'account'],
+    ['/api/privacy-settings', 'account'],
+    ['/api/user/username/status', 'account'],
+    ['/api/user/creds', 'account'],
   ],
   // v0.24.0：访客（未登录预览）也预取公开数据——进入网页瞬间静默加载所有内容，
   // 与所在模块无关；版本探测同步启用保持公开列表新鲜
@@ -176,6 +193,13 @@ async function dhRefreshDomain(domain) {
 }
 
 let dhProbeBusy = false; // 防重入（审计 m6）：interval 与 visibilitychange 并发 tick 互斥
+// B6（用户反馈「后台静默加载无效：挂机十分钟后点模块仍现场拉表单」）：版本探测成功后给全缓存续期——
+// 探测正常 = 数据版本一致（本地缓存仍新鲜），保底 TTL 不再因挂机过期，进任何模块都秒开；
+// 探测停摆/失败时保留 DH_TTL_MS(60s) 兜底防陈旧。数据域变化仍由 dhRefreshDomain 重拉不冲突。
+function dhTouchAll() {
+  const now = Date.now();
+  for (const e of dhCache.values()) e.fetchedAt = now;
+}
 async function dhProbeTick() {
   if (dhProbeBusy) return;
   if (typeof document !== 'undefined' && document.hidden) return; // 标签页隐藏：不探测不重拉
@@ -185,6 +209,7 @@ async function dhProbeTick() {
     let versions;
     try { versions = (await api('/api/data-version')).versions || {}; }
     catch { return; } // 探测失败静默，保留上次基线（不误触发全量重拉）
+    dhTouchAll(); // B6：探测成功 = 版本一致，全缓存续期（挂机期间数据未变则缓存长期有效）
     const next = {};
     for (const [domain, counter] of Object.entries(versions)) {
       next[domain] = counter;
