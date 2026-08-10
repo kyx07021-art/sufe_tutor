@@ -22,6 +22,14 @@ test('isContentWrite：内容域写路径白名单', () => {
   assert.equal(isContentWrite('/api/uploads', 'POST'), true, '暂存附件');
   assert.equal(isContentWrite('/api/conversations/12/messages', 'POST'), true, '聊天消息');
   assert.equal(isContentWrite('/api/conversations/12/messages', 'PUT'), true, '聊天消息 PUT 变体');
+  assert.equal(isContentWrite('/api/conversations/12/signing', 'POST'), true, '发起签约');
+  assert.equal(isContentWrite('/api/signing-requests/5/respond', 'POST'), true, '签约请求回复（二次审查补漏）');
+  assert.equal(isContentWrite('/api/demands/3/intents', 'POST'), true, '创建需求意向（二次审查补漏）');
+  assert.equal(isContentWrite('/api/intents/9/resolve', 'POST'), true, '处理需求意向（二次审查补漏）');
+  assert.equal(isContentWrite('/api/demand-pushes', 'POST'), true, '学生推送需求（二次审查补漏）');
+  assert.equal(isContentWrite('/api/demand-pushes/8/resolve', 'POST'), true, '教师处理推送（二次审查补漏）');
+  assert.equal(isContentWrite('/api/contracts', 'POST'), true, '起草合同');
+  assert.equal(isContentWrite('/api/user/avatar', 'POST'), true, '上传头像');
   // 非内容写/读 → 不过断点
   assert.equal(isContentWrite('/api/posts', 'GET'), false, '读不审核');
   assert.equal(isContentWrite('/api/auth/login', 'POST'), false, '登录不是内容上传');

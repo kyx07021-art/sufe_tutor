@@ -230,6 +230,12 @@ async function handleLogin(e) {
   e.preventDefault();
   const identifier = document.getElementById('login-identifier').value.trim();
   if (!identifier) { showToast(UI.LOGIN_IDENTIFIER_PLACEHOLDER, 'error'); return; }
+  // 账户未确认（按钮灰置）时的兜底：补跑一次探测再判——disabled 拦截的是正常点击/多数浏览器
+  // 的 Enter 隐式提交，此守卫防个别浏览器在禁用提交按钮下仍隐式提交绕过门控（审查补丁）
+  if (!loginAccountValid) {
+    await checkLoginUsername();
+    if (!loginAccountValid) { showToast(UI.LOGIN_ACCOUNT_MISSING, 'error'); return; }
+  }
   if (loginMode === 'code' && !(document.getElementById('login-code') || {}).value) {
     showToast(UI.CODE_PLACEHOLDER, 'error');
     return;

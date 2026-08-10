@@ -23,14 +23,19 @@
 // 内容域写路径（E2 接入点：_worker 对内容域写请求统一过断点）
 // 用户上传数据 = 内容域写路径（POST/PUT）；读/已读/登录等非内容写不在其列。
 // 前缀覆盖 = 创建 + 编辑（带 :id 的 PUT）全口径：posts/demands/teacher profile/reviews/feedbacks/
-// complaints/uploads/contracts（创建+修改）/聊天消息/签约请求/注册/头像。
-// 点赞/收藏等轻量写也命中（同为内容域写路径，dummy 放行无害，宁全勿漏——审查补丁：原 set 只精确
-// 匹配创建路径，漏 PUT 编辑与合同/签约创建，与"POST/PUT"注释矛盾）。
+// complaints/uploads/contracts（创建+修改）/聊天消息/签约（发起+回复）/需求意向（创建+处理）/
+// 需求推送（学生推送+教师处理）/注册/头像。
+// 点赞/收藏等轻量写也命中（同为内容域写路径，dummy 放行无害，宁全勿漏——审查补丁×2：原 set 只精确
+// 匹配创建路径，漏 PUT 编辑与合同/签约创建；二次审查又漏签约回复（signing-requests/respond）、
+// 需求意向（demands/:id/intents、intents/:id/resolve）、需求推送（demand-pushes）三类路径——
+// 已与 _worker.js 路由全表对照补齐，读路径由 isContentWrite 的 POST/PUT 门控天然排除）。
 // ============================================================
 const CONTENT_WRITE_PREFIXES = [
-  '/api/posts', '/api/student/demands', '/api/teacher/profile', '/api/reviews',
+  '/api/posts', '/api/student/demands', '/api/demands/', '/api/intents',
+  '/api/demand-pushes', '/api/teacher/profile', '/api/reviews',
   '/api/feedbacks', '/api/complaints', '/api/uploads', '/api/contracts',
-  '/api/conversations/', '/api/auth/register', '/api/user/avatar',
+  '/api/conversations/', '/api/signing-requests',
+  '/api/auth/register', '/api/user/avatar',
 ];
 
 export function isContentWrite(path, method) {

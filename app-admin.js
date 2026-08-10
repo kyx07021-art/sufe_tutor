@@ -492,11 +492,11 @@ function openContentPenaltyModal(type, id) {
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
     body: `<div class="form-group">
         <label class="form-label">${UI.ADMIN_CONTENT_PENALTY_REASON} <span class="req">*</span></label>
-        <input type="text" class="form-input" id="penalty-reason" maxlength="200" placeholder="如：含详细门牌号，违反平台隐私红线">
+        <input type="text" class="form-input" id="penalty-reason" maxlength="80" placeholder="如：含详细门牌号，违反平台隐私红线">
       </div>
       <div class="form-group">
         <label class="form-label">${UI.ADMIN_CONTENT_PENALTY_RULE}</label>
-        <input type="text" class="form-input" id="penalty-rule" maxlength="100" placeholder="如：地址门控 / 内容安全">
+        <input type="text" class="form-input" id="penalty-rule" maxlength="30" placeholder="如：地址门控 / 内容安全">
       </div>
       <p class="form-hint">处罚后将自动通知作者（含原因、规则与触发内容摘要）</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>

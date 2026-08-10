@@ -62,6 +62,9 @@ export async function handleContentAction(db, type, id, body, req) {
   const rule = String(body.rule || '').trim().slice(0, PENALTY_RULE_MAX);
   if (!['delete', 'remove', 'ban'].includes(action)) return error(MSG.INVALID_PARAMS);
   if (!reason) return error(MSG.PENALTY_REASON_REQUIRED);
+  // teacher 档案无硬删分支（doDeleteContent 跳过）——API 直发 delete/remove 直接拒绝，
+  // 防「no-op 却回成功 + 发'移除内容'通知」的误导文案（审查补丁；UI 层已只给封禁）
+  if (type === 'teacher' && action !== 'ban') return error(MSG.INVALID_PARAMS);
   const label = TYPE_LABEL[type] || type;
 
   // 定位目标内容 + 作者（按类型取快照摘要，供处罚通知展示触发内容）

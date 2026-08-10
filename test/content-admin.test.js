@@ -125,8 +125,14 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
 
 test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', async () => {
   const { raw, db, req } = await setup();
-  await handleRegister(db, { username: 'teach0', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
+  const teaReg = await handleRegister(db, { username: 'teach0', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
+  const teaToken = (await teaReg.json()).authToken;
   await handleRegister(db, { username: 'stud0', password: 'pass123456', role: 'student', agreeAgreement: true, agreePrivacy: true }, req());
+  // 建教师档案（teacher 类型处罚定位走 dbGetTeacherProfile，无档案行 → 404）
+  const prof = await (await import('../server/routes-teacher.js')).handleSaveProfile(db, {
+    profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '教法严谨', address: '浦东新区', school: '上财' },
+  }, req({ 'X-Auth-Token': teaToken }));
+  assert.equal(prof.status, 200);
   const teaId = raw.prepare("SELECT id FROM users WHERE username='teach0'").get().id;
   const stuId = raw.prepare("SELECT id FROM users WHERE username='stud0'").get().id;
   // 直接造会话 + 合同 + 签约请求（D1/D2 提取/处罚覆盖；完整签约流见 signing-hardening.test.js）
@@ -154,14 +160,28 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   assert.equal(signing.author.username, 'teach0');
   assert.ok(String(signing.body).includes('每周六'), '签约正文含 schedule');
 
-  // 处罚：超长原因+超长规则 → 通知截断钉在 NOTIF_TEXT_MAX 内（审查补丁：三段分预算）
-  const longReason = '发布包含完整门牌号码的内容，严重违反平台隐私保护红线，已多次警告仍不改正，'.repeat(3);
+  // 处罚：超长原因+超长规则 → 通知三段截断预算生效（审查补丁：三段分预算）。
+  // 真实回归：reason 240 字（旧逻辑取满 200）+ rule 60 字（旧逻辑 100）+ 摘要，旧逻辑组合文本
+  // ~340 > 200 被 notifyUser 库层截断丢尾部「触发内容」；新预算三段各取 80/30/40 → 总长 ≤200
+  // 且触发内容摘要必须保留（断言区分修复前后，杜绝假绿）。
+  const longReason = '发布包含完整门牌号码的内容，严重违反平台隐私保护红线，已多次警告仍不改正，'.repeat(4); // 240 字
   const delC = await handleContentAction(db, 'contract', contractId, { action: 'delete', reason: longReason, rule: '地址门控与隐私红线，内容安全审核，恶意规避审核' }, req({ 'X-Auth-Token': token }));
   assert.equal(delC.status, 200, JSON.stringify(await delC.json()));
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE id=?').get(contractId).c, 0, '合同已删除');
   const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teaId);
-  assert.ok(notif && notif.text.length <= 200, `通知截断在 200 内，实际 ${notif && notif.text.length}`);
+  assert.ok(notif, '通知已生成');
+  assert.ok(notif.text.length <= 200, `通知总长 ${notif.text.length} ≤ 200`);
+  assert.ok(notif.text.includes('触发内容'), '触发内容摘要未被截断丢弃');
+  assert.ok(notif.text.includes('每周两次'), '摘要内容存活（三段预算保住 summary）');
+  assert.ok(notif.text.includes('地址门控与隐私红线'), '规则段存活（rule≤30 截断后前缀保留）');
   const delS = await handleContentAction(db, 'signing', signingId, { action: 'delete', reason: '包含可定位地址', rule: '地址门控' }, req({ 'X-Auth-Token': token }));
   assert.equal(delS.status, 200);
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests WHERE id=?').get(signingId).c, 0, '签约请求已删除');
+  // teacher 档案 delete/remove → 400 拒绝（无硬删分支，API 直发不许 no-op 假装成功）
+  const teaDel = await handleContentAction(db, 'teacher', teaId, { action: 'delete', reason: 'x', rule: 'x' }, req({ 'X-Auth-Token': token }));
+  assert.equal(teaDel.status, 400, 'teacher delete 直接拒绝');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM users WHERE id=?').get(teaId).c, 1, '教师账户未被删除');
+  const teaBan = await handleContentAction(db, 'teacher', teaId, { action: 'ban', reason: '档案含可定位地址', rule: '地址门控' }, req({ 'X-Auth-Token': token }));
+  assert.equal(teaBan.status, 200, 'teacher ban 仍可用');
+  assert.equal(raw.prepare('SELECT banned FROM users WHERE id=?').get(teaId).banned, 1, '教师已封禁');
 });
