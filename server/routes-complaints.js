@@ -20,8 +20,9 @@ import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbCreateComplaint, dbCountComplaintsToday, dbGetComplaintsByUser, dbGetComplaintsAdmin,
   dbGetComplaintById, dbResolveComplaint, dbSearchUsersByRole, dbRecentInteractions, dbSearchPosts,
-  dbGetUserById, dbGetPostById,
+  dbGetUserById, dbGetPostById, dbGetUpload, dbDeleteUpload,
 } from './db.js';
+import { decryptField } from './crypto.js'; // U11：投诉附件密文出门解密（与聊天附件同口径）
 import { logEvent } from './log.js';
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 
@@ -41,6 +42,8 @@ async function resolveTarget(db, type, id) {
 }
 
 // POST /api/complaints —— 提交投诉（对象必选、理由白名单、自投诉拦截、每日限额）
+// U11：body.uploadIds 可选——附件已在 /api/uploads 暂存（前端复用聊天暂存区上传），
+// 提交时从暂存复制密文入投诉（与聊天发送同口径），复制成功后删暂存（残留由 STALE_UPLOAD_WINDOW 兜底）。
 export async function handleCreateComplaint(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
@@ -54,6 +57,16 @@ export async function handleCreateComplaint(db, body, req) {
   if (!reasons.includes(reason)) return error(MSG.COMPLAINT_REASON_REQUIRED, 400);
   const detail = String(body.detail || '').trim().slice(0, LIMITS.COMPLAINT_DETAIL_MAX);
 
+  // 附件：数量钳制 + 归属校验（仅本人暂存可复制，防借 id 搬运他人附件）
+  const uploadIds = Array.isArray(body.uploadIds) ? body.uploadIds.map(Number).filter(Number.isInteger) : [];
+  if (uploadIds.length > LIMITS.COMPLAINT_ATTACH_MAX) return error(MSG.COMPLAINT_ATTACH_TOO_MANY, 400);
+  const attachments = [];
+  for (const id of uploadIds) {
+    const up = await dbGetUpload(db, id);
+    if (!up || up.user_id !== me.id) return error(MSG.COMPLAINT_ATTACH_NOT_FOUND, 400);
+    attachments.push({ kind: up.kind, name: up.name, body: up.body, thumb: up.thumb || '' });
+  }
+
   const target = await resolveTarget(db, targetType, targetId);
   if (!target) return error(MSG.COMPLAINT_TARGET_NOT_FOUND, 404);
   // 不能投诉自己：用户类型比对本人 id；帖子比对作者 id（resolveTarget 快照已带 authorId）
@@ -63,17 +76,30 @@ export async function handleCreateComplaint(db, body, req) {
   const today = await dbCountComplaintsToday(db, me.id);
   if (today >= LIMITS.COMPLAINT_DAILY_LIMIT) return error(MSG.COMPLAINT_DAILY_LIMIT, 429);
 
-  const complaintId = await dbCreateComplaint(db, me.id, targetType, targetId, target, reason, detail);
+  const complaintId = await dbCreateComplaint(db, me.id, targetType, targetId, target, reason, detail, attachments);
+  // 复制成功即删暂存（best-effort：删失败由 30 分钟清理窗口兜底，不留孤儿大字段）
+  await Promise.all(uploadIds.map(id => dbDeleteUpload(db, id).catch(() => {})));
   await logEvent(db, { action: 'complaint.create', actorUserId: me.id, entity: 'complaint',
-    entityId: complaintId, detail: { targetType, targetId, reason, len: detail.length }, req });
+    entityId: complaintId, detail: { targetType, targetId, reason, len: detail.length, attachCount: attachments.length }, req });
   return json({ ok: true }, 201);
+}
+
+// U11：投诉附件缩略图出门解密（小字段随列表；body 本体大字段懒加载走 /attachment 接口，与聊天列表同口径）
+async function decryptComplaintAttachments(list) {
+  for (const c of list) {
+    for (const a of (c.attachments || [])) {
+      if (a.thumb) { try { a.thumb = await decryptField(a.thumb); } catch { a.thumb = ''; } }
+      a.body = ''; // 列表不下发本体
+    }
+  }
+  return list;
 }
 
 // GET /api/complaints/mine —— 我的投诉（状态跟踪闭环）
 export async function handleMyComplaints(db, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
-  return json({ complaints: await dbGetComplaintsByUser(db, me.id) });
+  return json({ complaints: await decryptComplaintAttachments(await dbGetComplaintsByUser(db, me.id)) });
 }
 
 // GET /api/complaints/candidates?target=teacher|student|post&q= —— 对象候选搜索（id 精确 / 昵称/标题模糊）
@@ -106,7 +132,20 @@ export async function handleAdminComplaints(db, url, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
   const complaints = await dbGetComplaintsAdmin(db, url.searchParams.get('status') || '');
-  return json({ complaints });
+  return json({ complaints: await decryptComplaintAttachments(complaints) });
+}
+
+// GET /api/complaints/:id/attachment?idx=N —— 投诉附件懒加载（投诉人本人或管理员；与聊天附件同款懒加载模式）
+export async function handleComplaintAttachment(db, complaintId, url, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const c = await dbGetComplaintById(db, complaintId);
+  if (!c) return error(MSG.COMPLAINT_NOT_FOUND, 404);
+  if (c.user_id !== me.id && me.role !== 'admin') return error(MSG.NO_PERMISSION, 403);
+  const idx = parseInt(url.searchParams.get('idx')) || 0;
+  const a = (c.attachments || [])[idx];
+  if (!a) return error(MSG.COMPLAINT_ATTACH_NOT_FOUND, 404);
+  return json({ kind: a.kind, name: a.name, body: await decryptField(a.body) }); // N-05：附件密文出门解密
 }
 
 // POST /api/complaints/:id/resolve —— 管理员标记已处理，通知投诉人

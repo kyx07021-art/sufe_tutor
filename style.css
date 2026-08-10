@@ -1032,6 +1032,22 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 .complaint-tags { display: inline-flex; gap: 6px; }
 .complaint-detail { margin-top: 6px; white-space: pre-wrap; font-size: .82rem; color: var(--faint); }
 .complaint-foot { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+/* U11 投诉附件：浮窗暂存区（按钮 + 复用 .chat-stage 预览）+ 卡片缩略行 */
+.complaint-attach-row { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.complaint-attach-btn {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 84px; height: 64px; padding: 0 14px; cursor: pointer;
+  --g-r: 8px; font-size: .78rem; color: var(--ink-2);
+}
+.complaint-attach-row .chat-stage { padding: 0; }
+.complaint-attaches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.complaint-attach {
+  position: relative; width: 48px; height: 48px; padding: 0; cursor: pointer;
+  --g-r: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background-color: var(--g-fill-weak); border: none;
+}
+.complaint-attach img { width: 100%; height: 100%; object-fit: cover; }
+.complaint-attach--file { flex-direction: column; gap: 0; }
 
 /* 合同卡按钮行：签约/修改/查看在左，取消签约在同行的页面另一侧 */
 .contract-actions { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

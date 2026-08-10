@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.106',
+  APP_VERSION: '0.25.107',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -27,6 +27,7 @@ globalThis.APP_CONSTANTS = {
     CHAT_FILE_MAX_BYTES: 500 * 1024,      // 前端图片压缩上限（后端 FILE_MAX_BYTES 700000 兜底）
     CHAT_IMG_MAX_SIDE: 900, CHAT_IMG_QUALITY: 0.82, // 聊天图片最长边/JPEG 质量（控制 D1 单元格体积）
     CHAT_IMG_THUMB_SIDE: 128, CHAT_IMG_THUMB_QUALITY: 0.72, // v0.25.36 聊天图缩略图（预载立即展示，点开加载原图）
+    COMPLAINT_ATTACH_MAX: 4,                // 投诉附件件数上限（U11；与后端 LIMITS.COMPLAINT_ATTACH_MAX 同值）
     BADGE_POLL_MS: 30000,                 // 红点慢轮询
     PUSH_COOLDOWN_SEC: 60,                // 需求推送限流
     LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
@@ -1416,6 +1417,11 @@ globalThis.APP_CONSTANTS = {
     COMPLAINT_SENT_TOAST: '投诉已提交，我们会尽快核实处理',
     COMPLAINT_STATUS_OPEN: '处理中',
     COMPLAINT_STATUS_RESOLVED: '已处理',
+    COMPLAINT_ATTACH_LABEL: '上传附件（选填，最多 4 个，图片可上传 4 张以下）', // U11：投诉附件区（预览复用聊天暂存区样式）
+    COMPLAINT_ATTACH_ADD: '添加附件',
+    COMPLAINT_ATTACH_TOO_MANY: '附件最多 4 个',
+    COMPLAINT_ATTACH_UPLOADING: '请等待附件上传完成', // 与聊天 CHAT_STAGE_WAIT 同语义
+    COMPLAINT_ATTACH_FAIL: '附件加载失败',
 
     // 管理员：投诉处理（R22 独立于用户反馈）
     PAGE_ADMIN_COMPLAINT: '投诉处理',

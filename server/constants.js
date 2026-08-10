@@ -154,6 +154,8 @@ export const MSG = {
   COMPLAINT_SELF_FORBIDDEN: '不能投诉自己',
   COMPLAINT_DAILY_LIMIT: '今日投诉次数已达上限，请明天再试',
   COMPLAINT_NOT_FOUND: '投诉不存在',
+  COMPLAINT_ATTACH_TOO_MANY: '投诉附件最多 4 个', // U11：附件件数上限提示
+  COMPLAINT_ATTACH_NOT_FOUND: '附件不存在',
 
   // 登录设备（会话）
   SESSION_NOT_FOUND: '该设备的登录状态不存在或已失效',
@@ -212,6 +214,7 @@ export const LIMITS = {
   COMPLAINT_MINE_MAX: 100,    // 我的投诉列表上限
   COMPLAINT_ADMIN_MAX: 200,   // 管理端投诉列表上限
   COMPLAINT_CANDIDATE_MAX: 8, // 投诉对象候选搜索上限
+  COMPLAINT_ATTACH_MAX: 4,    // 投诉附件件数上限（U11：复用聊天暂存上传，落库为附件 JSON）
   NOTIF_TEXT_MAX: 200,     // 单条通知截断
   BROADCAST_TEXT_MAX: 2000,// 系统广播截断
   DEVICE_UA_MAX: 200,      // 留档 UA 截断

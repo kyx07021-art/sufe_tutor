@@ -708,12 +708,12 @@ function chatStageRing(p) {
   </svg>`;
 }
 
-function renderChatStage() {
-  const el = document.getElementById('chat-stage');
+// 渲染暂存区（聊天/投诉附件共用；U11 泛化）：items = 宿主暂存数组，delExpr(it) = 删除回调内联表达式
+function renderStageBox(items, el, delExpr) {
   if (!el) return;
-  if (!chatStaged.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
+  if (!items.length) { el.classList.add('hidden'); el.innerHTML = ''; return; }
   el.classList.remove('hidden');
-  el.innerHTML = chatStaged.map(it => {
+  el.innerHTML = items.map(it => {
     const media = it.kind === 'image' && it.dataUrl
       ? `<img src="${escHtml(it.dataUrl)}" alt="${UI.CHAT_ATTACH_IMAGE}">`
       : `<span class="chat-stage-file"><span class="chat-stage-ext">${escHtml(chatFileExt(it.name))}</span></span>`;
@@ -721,9 +721,13 @@ function renderChatStage() {
     return `<div class="chat-stage-item glass glass--solid${it.kind === 'file' ? ' chat-stage-item--file' : ''}">
       <div class="chat-stage-thumb glass glass--solid">${media}${it.ready ? '' : chatStageRing(it.progress)}</div>
       ${nameRow}
-      <button type="button" class="chat-stage-del glass glass--float" onclick="chatUnstage(${it.id})" aria-label="${UI.BTN_CANCEL}">✕</button>
+      <button type="button" class="chat-stage-del glass glass--float" onclick="${delExpr(it)}" aria-label="${UI.BTN_CANCEL}">✕</button>
     </div>`;
   }).join('');
+}
+
+function renderChatStage() {
+  renderStageBox(chatStaged, document.getElementById('chat-stage'), it => `chatUnstage(${it.id})`);
 }
 
 // 发送单条附件 = 确认载入会话：数据已在上传阶段进服务器，这里只凭 uploadId 落成消息

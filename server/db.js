@@ -472,6 +472,7 @@ export async function initDb(db, env = {}) {
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"],
     ['subject', "TEXT NOT NULL DEFAULT ''"]]); // #165：投诉对象列（补列兜底）
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"], ['thumb', "TEXT NOT NULL DEFAULT ''"]]); // v0.25.36 图片缩略图列
+  await ensureColumns(db, 'complaints', [['attachments', "TEXT NOT NULL DEFAULT '[]'"]]); // U11：投诉附件 JSON（从 uploads 暂存复制，密文原样）
   await ensureColumns(db, 'uploads', [['thumb', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
     ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"],
@@ -1379,10 +1380,10 @@ export async function dbResolveFeedback(db, feedbackId) {
 // ============================================================
 // R22 投诉独立通道（与 feedbacks 分表分通道；仅外层接口接管理员临时通路）
 // ============================================================
-export async function dbCreateComplaint(db, userId, targetType, targetId, snapshot, reason, detail) {
+export async function dbCreateComplaint(db, userId, targetType, targetId, snapshot, reason, detail, attachments = []) {
   const res = await dbRun(db,
-    'INSERT INTO complaints (user_id, target_type, target_id, target_snapshot, reason, detail) VALUES (?,?,?,?,?,?)',
-    [userId, targetType, targetId, JSON.stringify(snapshot), reason, detail]);
+    'INSERT INTO complaints (user_id, target_type, target_id, target_snapshot, reason, detail, attachments) VALUES (?,?,?,?,?,?,?)',
+    [userId, targetType, targetId, JSON.stringify(snapshot), reason, detail, JSON.stringify(attachments)]);
   return (res && res.meta && res.meta.last_row_id) || 0;
 }
 
@@ -1411,7 +1412,9 @@ export async function dbGetComplaintsAdmin(db, status) {
 function mapComplaint(row) {
   let snapshot = {};
   try { snapshot = JSON.parse(row.target_snapshot || '{}'); } catch { snapshot = {}; }
-  return { ...row, target_snapshot: snapshot };
+  let attachments = [];
+  try { attachments = JSON.parse(row.attachments || '[]'); } catch { attachments = []; }
+  return { ...row, target_snapshot: snapshot, attachments };
 }
 
 export async function dbGetComplaintById(db, complaintId) {

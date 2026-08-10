@@ -21,6 +21,8 @@ let _cpReason = '';                                            // 选中的理�
 let _cpSeq = 0;                                                // 搜索竞态序号（防旧响应覆盖新结果）
 let _cpTimer = null;                                           // 搜索防抖
 let _cpRecentLoaded = new Set();                               // 各 pane 最近交互已拉取标记
+let _cpStaged = [];    // U11：投诉附件暂存项（预览/上传逻辑复用聊天暂存区，状态独立防跨模块耦合）
+let _cpStageSeq = 0;   // U11：暂存项自增序号（与聊天 chatStageSeq 互不干扰）
 
 // ============================================================
 // 投诉浮窗（独立组件）——入口：设置页「投诉」按钮
@@ -69,8 +71,17 @@ function openComplaintModal() {
         <label class="form-label" for="complaint-detail">${UI.COMPLAINT_DETAIL_LABEL}</label>
         <textarea id="complaint-detail" class="form-input" rows="5"
           placeholder="${UI.COMPLAINT_DETAIL_PLACEHOLDER}"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${UI.COMPLAINT_ATTACH_LABEL}</label>
+        <div class="complaint-attach-row">
+          <label class="complaint-attach-btn glass glass--pressable" for="complaint-file-input">${UI.COMPLAINT_ATTACH_ADD}</label>
+          <input type="file" id="complaint-file-input" class="sr-file-input" multiple
+            accept="image/*,.pdf,.doc,.docx,.txt,.xls,.xlsx,.ppt,.pptx,.zip" onchange="complaintStageFiles(this)">
+          <div class="chat-stage hidden glass" id="complaint-stage"></div>
+        </div>
       </div>`,
-    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeComplaintModal()">${UI.BTN_CANCEL}</button>
       <button type="button" class="btn glass glass--pressable" onclick="submitComplaint()">${UI.BTN_SEND}</button>`,
   });
   // 打开即拉当前 tab 的最近交互
@@ -166,15 +177,97 @@ function clearComplaintTarget(type) {
 }
 
 // ============================================================
+// U11：投诉附件暂存区（预览样式/上传/压缩完全复用聊天附件暂存逻辑；状态独立防跨模块耦合）
+// ============================================================
+function complaintStageFiles(input) {
+  const files = input ? [...input.files] : []; // 活引用先拷贝（input.files 铁律）
+  if (input) input.value = '';                 // 清空允许重复选同一文件
+  const room = CONFIG.COMPLAINT_ATTACH_MAX - _cpStaged.length;
+  if (files.length > room) { showToast(UI.COMPLAINT_ATTACH_TOO_MANY, 'error'); files.length = room; }
+  files.forEach(f => {
+    const item = { id: ++_cpStageSeq, name: f.name || UI.CHAT_FILE_FALLBACK, progress: 0, ready: false, uploadId: null, dataUrl: '', thumb: '' };
+    if ((f.type || '').startsWith('image/')) {
+      item.kind = 'image';
+      _cpStaged.push(item);
+      renderComplaintStage();
+      const reader = new FileReader();
+      reader.onload = () => chatShrinkImage(reader.result, (url, thumb) => complaintDoUpload(item, url, thumb)); // 先本地压缩+缩略图再传（同聊天）
+      reader.onerror = () => { complaintUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
+      reader.readAsDataURL(f);
+    } else {
+      if (f.size > CONFIG.CHAT_FILE_MAX_BYTES) { showToast(UI.CHAT_FILE_TOO_LARGE); return; }
+      item.kind = 'file';
+      _cpStaged.push(item);
+      renderComplaintStage();
+      const reader = new FileReader();
+      reader.onload = () => complaintDoUpload(item, reader.result);
+      reader.onerror = () => { complaintUnstage(item.id); showToast(UI.CHAT_FILE_TOO_LARGE); };
+      reader.readAsDataURL(f);
+    }
+  });
+}
+
+// 进暂存 = 真实上传（XHR 进度圈），传完拿 uploadId 变为可提交（同聊天 chatDoUpload）
+async function complaintDoUpload(item, dataUrl, thumbUrl) {
+  item.dataUrl = dataUrl;
+  item.thumb = thumbUrl || '';
+  renderComplaintStage(); // 图片缩略先亮（本地数据），进度圈转真实上传进度
+  try {
+    const data = await chatUploadToServer(item, dataUrl, p => { item.progress = p; renderComplaintStage(); });
+    if (item._aborted) return; // 上传期间浮窗已关：不把 uploadId 写进孤儿项
+    item.uploadId = data.id;
+    item.progress = 100;
+    item.ready = true;
+    renderComplaintStage();
+  } catch (err) {
+    if (item._aborted) return;
+    complaintUnstage(item.id);
+    showToast(err.message);
+  }
+}
+
+function complaintUnstage(id) {
+  const it = _cpStaged.find(x => x.id === id);
+  _cpStaged = _cpStaged.filter(x => x.id !== id);
+  renderComplaintStage();
+  if (it && it.uploadId) {
+    api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {}); // 已上传：best-effort 删暂存
+  }
+}
+
+// 浮窗关闭/提交成功：abort 在途上传 + 已上传 best-effort 删（与聊天切会话 chatAbortStagedUploads 同款，防孤儿暂存）
+function complaintResetStage() {
+  _cpStaged.forEach(it => {
+    if (it._xhr) { it._xhr.abort(); it._aborted = true; }
+    if (it.uploadId) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {});
+  });
+  _cpStaged = [];
+  const box = document.getElementById('complaint-stage');
+  if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
+}
+
+function renderComplaintStage() {
+  renderStageBox(_cpStaged, document.getElementById('complaint-stage'), it => `complaintUnstage(${it.id})`);
+}
+
+function closeComplaintModal() {
+  complaintResetStage();
+  closeModal();
+}
+
+// ============================================================
 // 提交投诉
 // ============================================================
 async function submitComplaint() {
   const target = _cpSel[_cpTab];
   if (!target) { showToast(UI.COMPLAINT_TARGET_REQUIRED, 'error'); return; }
   if (!_cpReason) { showToast(UI.COMPLAINT_REASON_REQUIRED, 'error'); return; }
+  if (_cpStaged.some(it => !it.ready)) { showToast(UI.COMPLAINT_ATTACH_UPLOADING, 'error'); return; } // 在途/未传完拦截（同聊天 CHAT_STAGE_WAIT）
   const detail = (document.getElementById('complaint-detail').value || '').trim();
+  const uploadIds = _cpStaged.map(it => it.uploadId).filter(Boolean);
   try {
-    await api('/api/complaints', { method: 'POST', body: { targetType: _cpTab, targetId: target.id, reason: _cpReason, detail } });
+    await api('/api/complaints', { method: 'POST', body: { targetType: _cpTab, targetId: target.id, reason: _cpReason, detail, uploadIds } });
+    complaintResetStage(); // 后端已从暂存复制入投诉并删除暂存，本地清空（幂等：_cpStaged 已空则 no-op）
     closeModal();
     showToast(UI.COMPLAINT_SENT_TOAST);
   } catch (err) {
@@ -197,6 +290,14 @@ function complaintCardHtml(c, opts = {}) {
   const typeName = DISP.complaintTargetName(c.target_type);
   const foot = opts.foot ?? `<span class="list-card-meta">投诉人 ${escHtml(c.reporter)} · ${fmtDateTime(c.created_at)}</span>
       ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveAdminComplaint(${c.id})">${UI.BTN_COMPLAINT_RESOLVE}</button>`}`;
+  // U11：附件缩略行——图片显示缩略图（点开拉原图）、文件显示扩展名徽标（点开下载）；本人/管理员均可看（服务端鉴权）
+  const attaches = (c.attachments || []).length
+    ? `<div class="complaint-attaches">${(c.attachments || []).map((a, i) => a.kind === 'image'
+        ? `<button type="button" class="complaint-attach glass glass--solid" onclick="complaintOpenAttachment(${c.id},${i})" aria-label="${UI.CHAT_ATTACH_IMAGE}">
+            <img src="${escHtml(a.thumb || '')}" alt="${UI.CHAT_ATTACH_IMAGE}" loading="lazy"></button>`
+        : `<button type="button" class="complaint-attach complaint-attach--file glass glass--solid" onclick="complaintOpenAttachment(${c.id},${i})" title="${escHtml(a.name || '')}">
+            <span class="chat-stage-ext">${escHtml(chatFileExt(a.name))}</span></button>`).join('')}</div>`
+    : '';
   return `<div class="list-card glass complaint-card${resolved ? ' complaint-card--resolved' : ''}">
     <div class="list-card-header">
       <span class="list-card-title">${escHtml(snap.name || '')}</span>
@@ -205,9 +306,22 @@ function complaintCardHtml(c, opts = {}) {
         <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${resolved ? UI.COMPLAINT_STATUS_RESOLVED : UI.COMPLAINT_STATUS_OPEN}</span>
       </span>
     </div>
-    <div class="list-card-detail">${escHtml(c.reason)}${c.detail ? `<div class="complaint-detail">${escHtml(c.detail)}</div>` : ''}</div>
+    <div class="list-card-detail">${escHtml(c.reason)}${c.detail ? `<div class="complaint-detail">${escHtml(c.detail)}</div>` : ''}${attaches}</div>
     <div class="complaint-foot">${foot}</div>
   </div>`;
+}
+
+// U11：投诉附件懒加载（body 大字段随列表不下发，与聊天附件同款按需拉取）
+async function complaintOpenAttachment(complaintId, idx) {
+  try {
+    const data = await api(`/api/complaints/${complaintId}/attachment?idx=${idx}`, { method: 'GET' });
+    if (!data.body) { showToast(UI.COMPLAINT_ATTACH_FAIL); return; }
+    if (data.kind === 'image') { openImageViewer(data.body); return; } // 通用大图查看器（app-ui）
+    const href = String(data.body).startsWith('data:') ? data.body : '#'; // 客户端 scheme 自守（同聊天文件卡）
+    const a = document.createElement('a');
+    a.href = href; a.download = data.name || UI.CHAT_FILE_FALLBACK;
+    document.body.appendChild(a); a.click(); a.remove();
+  } catch (err) { showToast(err.message || UI.COMPLAINT_ATTACH_FAIL); }
 }
 
 async function loadAdminComplaints() {

@@ -39,7 +39,7 @@ import {
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost, handleMyFavorites, handleToggleFavorite } from './server/routes-posts.js';
 import {
   handleCreateComplaint, handleMyComplaints, handleComplaintCandidates, handleComplaintRecent,
-  handleAdminComplaints, handleResolveComplaint,
+  handleAdminComplaints, handleResolveComplaint, handleComplaintAttachment,
 } from './server/routes-complaints.js';
 import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
 import { handleCreateSigning, handleRespondSigning } from './server/signing.js';
@@ -156,6 +156,8 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   if (p === '/api/complaints' && method === 'GET') return await handleAdminComplaints(db, url, req);
   const complaintResolve = idMatch(p, /^\/api\/complaints\/(\d+)\/resolve$/);
   if (complaintResolve && method === 'POST') return await handleResolveComplaint(db, complaintResolve, req);
+  const complaintAttach = idMatch(p, /^\/api\/complaints\/(\d+)\/attachment$/); // U11：投诉附件懒加载
+  if (complaintAttach && method === 'GET') return await handleComplaintAttachment(db, complaintAttach, url, req);
   const userBan = idMatch(p, /^\/api\/admin\/users\/(\d+)\/ban$/);
   if (userBan && method === 'POST') return await handleBanUser(db, userBan, body, req);
   const teacherVerify = idMatch(p, /^\/api\/admin\/teachers\/(\d+)\/verify$/);
