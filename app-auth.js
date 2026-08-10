@@ -37,6 +37,7 @@ function refreshAuthHeader() {
     const saved = state.guestRole ? loadSession(state.guestRole) : loadSession();
     const name = saved && saved.user ? saved.user.username : '';
     u.value = name; // 覆盖浏览器自动填充的异角色账密（密码无法按角色预填：绝不存明文密码）
+    if (name) checkLoginUsernameDebounced(); // 预填账户立即探测，命中即启用登录按钮（防手输前按钮灰置）
   }
   // 复位登录表单态（v0.26.0：每次进登录页回密码模式 + 隐藏凭证组 + 清探测提示）
   loginMode = 'password'; loginAccountValid = false;
@@ -44,10 +45,12 @@ function refreshAuthHeader() {
   const cd = document.getElementById('login-code-group');
   const hint = document.getElementById('login-username-hint');
   const link = document.getElementById('login-switch-mode');
+  const btn = document.getElementById('login-submit');
   if (pw) pw.classList.add('hidden');
   if (cd) cd.classList.add('hidden');
   if (hint) { hint.textContent = ''; hint.classList.remove('login-hint--missing'); }
   if (link) link.textContent = UI.LOGIN_SWITCH_CODE;
+  if (btn) { btn.disabled = true; btn.classList.add('disabled'); } // 未确认账户前登录按钮灰置
   if (state.guestAuthMode && state.guestRole === 'teacher') {
     h.textContent = UI.AUTH_LOGIN_TITLE_TEACHER;
     p.textContent = UI.AUTH_LOGIN_SUB_TEACHER;
@@ -163,7 +166,12 @@ async function checkLoginUsername() {
   const hint = document.getElementById('login-username-hint');
   const identifier = document.getElementById('login-identifier').value.trim();
   const seq = ++loginCheckSeq;
-  if (!identifier || !hint) { if (hint) hint.textContent = ''; return; }
+  if (!identifier || !hint) {
+    if (hint) hint.textContent = '';
+    loginAccountValid = false;      // 清空输入 → 按钮回灰（凭证组已由 refreshAuthHeader 隐藏）
+    syncLoginCredGroups();
+    return;
+  }
   try {
     const data = await api(`/api/auth/check?identifier=${encodeURIComponent(identifier)}`);
     if (seq !== loginCheckSeq) return; // 过期响应丢弃，防输入快于请求时的乱序
@@ -179,15 +187,20 @@ async function checkLoginUsername() {
   } catch { /* 网络抖动：静默不给提示 */ }
 }
 
-// 同步凭证组显示：账户有效 → 按当前模式（密码/验证码）显示对应组；无效 → 全隐藏
+// 同步凭证组显示：账户有效 → 按当前模式（密码/验证码）显示对应组 + 启用登录按钮；
+// 无效 → 全隐藏 + 登录按钮灰置（审查补丁：原只切凭证组，登录按钮常显可点，用户未确认账户
+// 也显示可提交，与「账户有效后显示密码框 + 登录按钮」需求不符）
 function syncLoginCredGroups() {
   const pw = document.getElementById('login-password-group');
   const cd = document.getElementById('login-code-group');
+  const btn = document.getElementById('login-submit');
   if (!loginAccountValid) {
     if (pw) pw.classList.add('hidden');
     if (cd) cd.classList.add('hidden');
+    if (btn) { btn.disabled = true; btn.classList.add('disabled'); }
     return;
   }
+  if (btn) { btn.disabled = false; btn.classList.remove('disabled'); }
   const codeMode = loginMode === 'code';
   if (pw) pw.classList.toggle('hidden', codeMode);
   if (cd) cd.classList.toggle('hidden', !codeMode);

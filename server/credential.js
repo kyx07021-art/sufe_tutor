@@ -30,8 +30,11 @@ const USER_CRED_SQL = `SELECT id, username, role, avatar, banned, deactivated, p
  * 未来切手机号核心：新增 phone 主凭证更新函数，调用点替换本函数即可。
  */
 export async function updateUsernameCredential(db, userId, newUsername) {
-  await dbRun(db, `UPDATE users SET username=?, username_changed_at=datetime('now','localtime') WHERE id=?`,
-    [newUsername, userId]);
+  // username_changed_at 落 UTC（toDbTime，与 danger-ops/otp 的 UTC 存储域纪律一致）——
+  // 审查补丁：原 SQL datetime('now','localtime') 落库 + JS 侧按 UTC 读，非 UTC 时区环境 7 天冷却
+  // 漂移 ~8 小时（服务端提前放行）。
+  await dbRun(db, `UPDATE users SET username=?, username_changed_at=? WHERE id=?`,
+    [newUsername, toDbTime(new Date()), userId]);
 }
 
 /** 读用户名最近修改时间（无记录 = 从未改过） */

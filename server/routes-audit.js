@@ -17,14 +17,22 @@ import { logEvent } from './log.js';
 import {
   dbGetAllContentAdmin, dbGetPostById, dbGetDemandById, dbGetReviewById, dbGetMessageById,
   dbGetFeedbackById, dbGetComplaintById, dbGetUpload, dbGetUserById, dbGetTeacherProfile,
+  dbGetContractById, dbGetSigningById,
   dbDeletePost, dbAdminForceDeleteDemand, dbDeleteReview, dbDeleteMessage,
-  dbDeleteFeedback, dbDeleteComplaint, dbDeleteUpload, dbSetUserBanned,
+  dbDeleteFeedback, dbDeleteComplaint, dbDeleteUpload, dbDeleteContract, dbDeleteSigning,
+  dbSetUserBanned,
 } from './db.js';
 
 const TYPE_LABEL = {
   post: '帖子', demand: '需求', teacher: '教师档案', review: '评价',
   message: '聊天消息', feedback: '反馈', complaint: '投诉', upload: '附件',
+  contract: '合同', signing: '签约请求',
 };
+
+// 处罚通知三段截断预算（reason+rule+summary + 模板开销 ≤ NOTIF_TEXT_MAX=200）
+const PENALTY_REASON_MAX = 80;
+const PENALTY_RULE_MAX = 30;
+const PENALTY_SUMMARY_MAX = 40;
 
 // ============================================================
 // D1 统一内容提取
@@ -48,8 +56,10 @@ export async function handleContentAction(db, type, id, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const action = body.action;
-  const reason = String(body.reason || '').trim().slice(0, LIMITS.NOTIF_TEXT_MAX);
-  const rule = String(body.rule || '').trim().slice(0, 100);
+  // 三段截断预算平衡（审查补丁：原 reason 取满 NOTIF_TEXT_MAX，组合文本可超 200 被库层截断，
+  // 触发内容丢失；改为三段分预算，总长钉在 NOTIF_TEXT_MAX 内）
+  const reason = String(body.reason || '').trim().slice(0, PENALTY_REASON_MAX);
+  const rule = String(body.rule || '').trim().slice(0, PENALTY_RULE_MAX);
   if (!['delete', 'remove', 'ban'].includes(action)) return error(MSG.INVALID_PARAMS);
   if (!reason) return error(MSG.PENALTY_REASON_REQUIRED);
   const label = TYPE_LABEL[type] || type;
@@ -65,6 +75,8 @@ export async function handleContentAction(db, type, id, body, req) {
     case 'feedback': { const f = await dbGetFeedbackById(db, id); if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404); authorId = f.user_id; summary = `${f.title || ''} ${f.content || ''}`; break; }
     case 'complaint': { const c = await dbGetComplaintById(db, id); if (!c) return error(MSG.COMPLAINT_NOT_FOUND, 404); authorId = c.user_id; summary = `${c.reason || ''} ${c.detail || ''}`; break; }
     case 'upload': { const o = await dbGetUpload(db, id); if (!o) return error(MSG.INVALID_PARAMS, 404); authorId = o.user_id; summary = o.name || ''; break; }
+    case 'contract': { const c = await dbGetContractById(db, id); if (!c) return error(MSG.CONTRACT_NOT_FOUND, 404); authorId = c.drafter_user_id; summary = `${c.plan || ''} ${c.schedule || ''}`; break; }
+    case 'signing': { const s = await dbGetSigningById(db, id); if (!s) return error(MSG.CONTRACT_NOT_FOUND, 404); authorId = s.initiator_user_id; summary = `${s.price > 0 ? s.price + ' 元/时 ' : ''}${s.schedule || ''} ${s.method || ''}`; break; }
     default: return error(MSG.INVALID_PARAMS);
   }
   if (!authorId) return error(MSG.USER_NOT_FOUND, 404);
@@ -78,7 +90,7 @@ export async function handleContentAction(db, type, id, body, req) {
   if (action === 'ban') await dbSetUserBanned(db, authorId, 1);
 
   // 处罚后自动通知作者：详细原因 + 触犯规则 + 触发内容摘要（截断）
-  const summaryClip = String(summary || '').slice(0, 80);
+  const summaryClip = String(summary || '').slice(0, PENALTY_SUMMARY_MAX);
   const punish = action === 'ban' ? '封禁账户' : '移除内容';
   const notifText = `你的${label}因违反规则「${rule || '平台规则'}」被管理员${punish}。原因：${reason}${summaryClip ? `。触发内容：${summaryClip}` : ''}`;
   await notifyUser(db, authorId, notifText);
@@ -99,5 +111,7 @@ async function doDeleteContent(db, type, id) {
     case 'feedback': await dbDeleteFeedback(db, id); break;
     case 'complaint': await dbDeleteComplaint(db, id); break;
     case 'upload': await dbDeleteUpload(db, id); break;
+    case 'contract': await dbDeleteContract(db, id); break;
+    case 'signing': await dbDeleteSigning(db, id); break;
   }
 }

@@ -20,26 +20,21 @@
  */
 
 // ============================================================
-// 内容域写路径白名单（E2 接入点：_worker 对内容域写请求统一过断点）
-// 用户上传数据 = 写路径（POST/PUT）；读/已读/登录等非内容写不在其列。
+// 内容域写路径（E2 接入点：_worker 对内容域写请求统一过断点）
+// 用户上传数据 = 内容域写路径（POST/PUT）；读/已读/登录等非内容写不在其列。
+// 前缀覆盖 = 创建 + 编辑（带 :id 的 PUT）全口径：posts/demands/teacher profile/reviews/feedbacks/
+// complaints/uploads/contracts（创建+修改）/聊天消息/签约请求/注册/头像。
+// 点赞/收藏等轻量写也命中（同为内容域写路径，dummy 放行无害，宁全勿漏——审查补丁：原 set 只精确
+// 匹配创建路径，漏 PUT 编辑与合同/签约创建，与"POST/PUT"注释矛盾）。
 // ============================================================
-const CONTENT_WRITE_PATHS = new Set([
-  '/api/posts',          // 资料共享帖子
-  '/api/student/demands',// 学生需求
-  '/api/teacher/profile',// 教师档案
-  '/api/reviews',        // 评价
-  '/api/feedbacks',      // 反馈
-  '/api/complaints',     // 投诉
-  '/api/uploads',        // 附件暂存
-  '/api/auth/register',  // 注册（用户名）
-]);
 const CONTENT_WRITE_PREFIXES = [
-  '/api/conversations/', // 聊天消息（POST /api/conversations/:id/messages）
+  '/api/posts', '/api/student/demands', '/api/teacher/profile', '/api/reviews',
+  '/api/feedbacks', '/api/complaints', '/api/uploads', '/api/contracts',
+  '/api/conversations/', '/api/auth/register', '/api/user/avatar',
 ];
 
 export function isContentWrite(path, method) {
   if (method !== 'POST' && method !== 'PUT') return false;
-  if (CONTENT_WRITE_PATHS.has(path)) return true;
   return CONTENT_WRITE_PREFIXES.some(pr => path.startsWith(pr));
 }
 

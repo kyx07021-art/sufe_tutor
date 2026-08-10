@@ -440,6 +440,7 @@ const _contentTypeName = t => ({
   post: UI.ADMIN_CONTENT_TYPE_POST, demand: UI.ADMIN_CONTENT_TYPE_DEMAND, teacher: UI.ADMIN_CONTENT_TYPE_TEACHER,
   review: UI.ADMIN_CONTENT_TYPE_REVIEW, message: UI.ADMIN_CONTENT_TYPE_MESSAGE, feedback: UI.ADMIN_CONTENT_TYPE_FEEDBACK,
   complaint: UI.ADMIN_CONTENT_TYPE_COMPLAINT, upload: UI.ADMIN_CONTENT_TYPE_UPLOAD,
+  contract: '合同', signing: '签约请求',
 }[t] || t);
 
 async function loadAdminContent(type = '') {
@@ -476,14 +477,16 @@ function renderAdminContentRow(it) {
     <div class="feedback-foot">
       <span class="list-card-meta">${author} · ${fmtDateTime(it.created_at)}</span>
       <div class="admin-row-actions">
-        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="openContentPenaltyModal('${it.type}',${it.id})">${UI.ADMIN_CONTENT_PENALTY_DELETE} / ${UI.ADMIN_CONTENT_PENALTY_BAN}</button>
+        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="openContentPenaltyModal('${it.type}',${it.id})">${it.type === 'teacher' ? UI.ADMIN_CONTENT_PENALTY_BAN : UI.ADMIN_CONTENT_PENALTY_DELETE + ' / ' + UI.ADMIN_CONTENT_PENALTY_BAN}</button>
       </div>
     </div>
   </div>`;
 }
 
 // 处罚弹窗：原因（必填）+ 触犯规则 → 删除 / 封禁作者
+// teacher 档案无硬删分支（后端 doDeleteContent 对 teacher 跳过）——只给封禁，不展示 no-op 删除（审查补丁）
 function openContentPenaltyModal(type, id) {
+  const onlyBan = type === 'teacher';
   openModal({
     title: `处罚${_contentTypeName(type)} #${id}`,
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
@@ -497,7 +500,7 @@ function openContentPenaltyModal(type, id) {
       </div>
       <p class="form-hint">处罚后将自动通知作者（含原因、规则与触发内容摘要）</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="submitContentPenalty('${type}',${id},'remove')">${UI.ADMIN_CONTENT_PENALTY_DELETE}</button>
+      ${onlyBan ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="submitContentPenalty('${type}',${id},'remove')">${UI.ADMIN_CONTENT_PENALTY_DELETE}</button>`}
       <button type="button" class="btn glass glass--pressable" onclick="submitContentPenalty('${type}',${id},'ban')">${UI.ADMIN_CONTENT_PENALTY_BAN}</button>`,
   });
 }

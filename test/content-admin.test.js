@@ -122,3 +122,46 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
   const bannedUser = await handleContentAction(db, 'post', post2Id, { action: 'delete', reason: 'x', rule: 'x' }, req({ 'X-Auth-Token': sData.authToken }));
   assert.equal(bannedUser.status, 401);
 });
+
+test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', async () => {
+  const { raw, db, req } = await setup();
+  await handleRegister(db, { username: 'teach0', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
+  await handleRegister(db, { username: 'stud0', password: 'pass123456', role: 'student', agreeAgreement: true, agreePrivacy: true }, req());
+  const teaId = raw.prepare("SELECT id FROM users WHERE username='teach0'").get().id;
+  const stuId = raw.prepare("SELECT id FROM users WHERE username='stud0'").get().id;
+  // 直接造会话 + 合同 + 签约请求（D1/D2 提取/处罚覆盖；完整签约流见 signing-hardening.test.js）
+  raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(stuId, teaId);
+  const convId = raw.prepare('SELECT MAX(id) AS id FROM conversations').get().id;
+  raw.prepare(`INSERT INTO contracts (conversation_id, drafter_user_id, method, plan, hourly_rate, pay_method, first_lesson_date, contract_md, status)
+    VALUES (?,?,?,?,?,?,?,?,?)`)
+    .run(convId, teaId, 'online', '每周两次，每次两小时，梳理高二数学', 200, 'wechat', '2026-08-20', '# 辅导计划', 'pending');
+  raw.prepare(`INSERT INTO signing_requests (conversation_id, initiator_user_id, price, schedule, method, status) VALUES (?,?,?,?,?,?)`)
+    .run(convId, teaId, 200, '每周六下午', 'online', 'pending');
+  const contractId = raw.prepare('SELECT MAX(id) AS id FROM contracts').get().id;
+  const signingId = raw.prepare('SELECT MAX(id) AS id FROM signing_requests').get().id;
+
+  const token = await adminToken(db, raw);
+  const rc = await handleAdminContent(db, new URL('http://x/api/admin/content?type=contract'), req({ 'X-Auth-Token': token }));
+  assert.equal(rc.status, 200);
+  const contract = (await rc.json()).items.find(i => i.id === contractId);
+  assert.ok(contract, '合同被提取');
+  assert.equal(contract.author.username, 'teach0');
+  assert.ok(String(contract.body).includes('每周两次'), '合同正文含 plan/schedule');
+  const rs = await handleAdminContent(db, new URL('http://x/api/admin/content?type=signing'), req({ 'X-Auth-Token': token }));
+  assert.equal(rs.status, 200);
+  const signing = (await rs.json()).items.find(i => i.id === signingId);
+  assert.ok(signing, '签约请求被提取');
+  assert.equal(signing.author.username, 'teach0');
+  assert.ok(String(signing.body).includes('每周六'), '签约正文含 schedule');
+
+  // 处罚：超长原因+超长规则 → 通知截断钉在 NOTIF_TEXT_MAX 内（审查补丁：三段分预算）
+  const longReason = '发布包含完整门牌号码的内容，严重违反平台隐私保护红线，已多次警告仍不改正，'.repeat(3);
+  const delC = await handleContentAction(db, 'contract', contractId, { action: 'delete', reason: longReason, rule: '地址门控与隐私红线，内容安全审核，恶意规避审核' }, req({ 'X-Auth-Token': token }));
+  assert.equal(delC.status, 200, JSON.stringify(await delC.json()));
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE id=?').get(contractId).c, 0, '合同已删除');
+  const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teaId);
+  assert.ok(notif && notif.text.length <= 200, `通知截断在 200 内，实际 ${notif && notif.text.length}`);
+  const delS = await handleContentAction(db, 'signing', signingId, { action: 'delete', reason: '包含可定位地址', rule: '地址门控' }, req({ 'X-Auth-Token': token }));
+  assert.equal(delS.status, 200);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests WHERE id=?').get(signingId).c, 0, '签约请求已删除');
+});

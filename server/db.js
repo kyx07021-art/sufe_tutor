@@ -1740,6 +1740,11 @@ export async function dbGetSigningById(db, id) {
   return await dbGet(db, 'SELECT * FROM signing_requests WHERE id=?', [id]);
 }
 
+/** 管理端硬删签约请求（D2 处罚；气泡消息本体留 messages，正文 JSON 自含快照不受影响） */
+export async function dbDeleteSigning(db, signingId) {
+  await dbRun(db, 'DELETE FROM signing_requests WHERE id=?', [signingId]);
+}
+
 export async function dbGetPendingSigningForConversation(db, conversationId) {
   return await dbGet(db,
     "SELECT id FROM signing_requests WHERE conversation_id=? AND status='pending' LIMIT 1", [conversationId]);
@@ -1841,7 +1846,9 @@ export async function dbSetPrivacySettings(db, userId, { allowGuestProfile, allo
 // type 过滤参数：不传 = 全类型（每类型取 limit 条最新）；传 = 单类型。
 // ============================================================
 export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUBLIC_LIST_MAX } = {}) {
-  const types = type ? [type] : ['post', 'demand', 'teacher', 'review', 'message', 'feedback', 'complaint', 'upload'];
+  // 审查补丁：补 contract（合同正文——最敏感的用户内容）与 signing（签约请求），
+  // 统一内容页现在可审全部用户可操作内容。
+  const types = type ? [type] : ['post', 'demand', 'teacher', 'review', 'message', 'feedback', 'complaint', 'upload', 'contract', 'signing'];
   const out = [];
   for (const t of types) {
     if (t === 'post') {
@@ -1876,6 +1883,14 @@ export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUB
       const rows = await dbAll(db, `SELECT o.id, o.user_id, u.username, u.role, o.kind, o.name, o.created_at
         FROM uploads o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.id DESC LIMIT ?`, [limit]);
       for (const r of rows) out.push({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `暂存附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } });
+    } else if (t === 'contract') {
+      const rows = await dbAll(db, `SELECT c.id, c.drafter_user_id, u.username, u.role, c.plan, c.schedule, c.status, c.created_at
+        FROM contracts c LEFT JOIN users u ON u.id=c.drafter_user_id ORDER BY c.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'contract', id: r.id, author: { id: r.drafter_user_id, username: r.username, role: r.role }, title: '合同', body: [r.plan, r.schedule].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
+    } else if (t === 'signing') {
+      const rows = await dbAll(db, `SELECT s.id, s.initiator_user_id, u.username, u.role, s.price, s.schedule, s.method, s.status, s.created_at
+        FROM signing_requests s LEFT JOIN users u ON u.id=s.initiator_user_id ORDER BY s.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'signing', id: r.id, author: { id: r.initiator_user_id, username: r.username, role: r.role }, title: `签约请求 ${r.price > 0 ? r.price + ' 元/时' : ''}`, body: [r.schedule, r.method].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
     }
   }
   return out;

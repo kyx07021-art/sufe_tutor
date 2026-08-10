@@ -33,6 +33,10 @@ export async function handleRegister(db, body, req) {
   if (!username || username.length < LIMITS.USERNAME_MIN || username.length > LIMITS.USERNAME_MAX) return error(MSG.USERNAME_LENGTH);
   // 用户名字符集白名单（中文/字母/数字/_ . -），杜绝 control char / HTML 注入名进入全站 innerHTML
   if (!/^[\p{Script=Han}A-Za-z0-9_.\-]{3,30}$/u.test(username)) return error(MSG.USERNAME_INVALID);
+  // v0.26.0 用户名规则（审查补丁：注册端与改用户名同口径）——纯数字（含 11 位手机形）拒绝：
+  // 登录唯一输入框把纯数字识别为 phone，走 phone_hash 查不到 → 账户永久锁死「不存在的账户」。
+  // 存量纯数字用户由 initDb 的 _sufe 消毒迁移处理（A8）；新注册在此拦断。不改注册 UI（需求保留）。
+  if (/^\d+$/.test(username)) return error(MSG.USERNAME_NEW_INVALID);
   // 预留注销墓碑前缀：禁止注册与「已注销用户#id」同前缀的用户名（防冒充注销账户）
   const tombPrefix = globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX;
   if (tombPrefix && username.startsWith(tombPrefix)) return error(MSG.USERNAME_INVALID);
