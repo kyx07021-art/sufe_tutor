@@ -116,8 +116,13 @@ test('B4 拼图交互：拖拽更新 --captcha-x + 命中缺口验证通过 + �
   vm.runInContext(`window.__passed = null; window.__got = null; openCaptchaModal({ onPass: (r) => { window.__passed = true; window.__got = r; } })`, ctx);
   const target = vm.runInContext(`Math.round(_captchaTarget * 240)`, ctx);
   drag(target);
-  const trackX = vm.runInContext(`document.getElementById('captcha-track').style.getPropertyValue('--captcha-x')`, ctx);
-  assert.equal(trackX, target + 'px', '拖拽写入 --captcha-x（滑块位移）');
+  // v0.26.17：--captcha-x 统一写共同祖先 .captcha-box（puzzle 与 track 是兄弟，原挂 track 上拼图块
+  // 拿不到 → 拖动小块滑块原位静止，用户实证）。knob/fill（track 子）与 puzzle（track 兄弟）全继承 box。
+  const trackX = vm.runInContext(`document.getElementById('captcha-box').style.getPropertyValue('--captcha-x')`, ctx);
+  assert.equal(trackX, target + 'px', '拖拽写入 --captcha-x 到共同祖先 .captcha-box（滑块位移）');
+  // 断线回归：拼图块不得设自身 inline --captcha-x（inline 覆盖继承值 → 永远停在起点）
+  const puzzleInline = vm.runInContext(`document.getElementById('captcha-puzzle').style.getPropertyValue('--captcha-x')`, ctx);
+  assert.equal(puzzleInline, '', '拼图块无自身 inline --captcha-x（走 box 继承跟随，防原位静止）');
   await new Promise(r => setTimeout(r, 350)); // verifyCaptcha pass 260ms 关闭
   assert.equal(dom.window.__passed, true, '命中缺口 → 验证通过 onPass 调用');
   assert.ok(dom.window.__got && typeof dom.window.__got.offset === 'number' && dom.window.__got.captchaId && Array.isArray(dom.window.__got.track), '完整动作输出接口 {captchaId, offset, track}');
@@ -127,8 +132,8 @@ test('B4 拼图交互：拖拽更新 --captcha-x + 命中缺口验证通过 + �
   drag(Math.min(240, Math.max(10, t2 + 130))); // 明显偏离
   await new Promise(r => setTimeout(r, 500)); // fail 420ms 复位
   assert.equal(dom.window.__passed, false, '拖偏 → 不通过');
-  const resetX = vm.runInContext(`document.getElementById('captcha-track').style.getPropertyValue('--captcha-x')`, ctx);
-  assert.equal(resetX, '0px', '失败后滑块复位到起点');
+  const resetX = vm.runInContext(`document.getElementById('captcha-box').style.getPropertyValue('--captcha-x')`, ctx);
+  assert.equal(resetX, '0px', '失败后滑块复位到起点（box 共同祖先）');
 });
 
 // ---------------- C2 withCaptcha 门禁 ----------------

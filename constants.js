@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.26.16',
+  APP_VERSION: '0.26.17',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -329,7 +329,7 @@ globalThis.APP_CONSTANTS = {
       '--g-card-id': 'rgba(255,255,255,.64)',      // 信息卡身份卡（v0.25.94：用户反馈「三卡底色变浅」——.44→.64，卡片本身提亮；底板 .profile-panel 仍 .22 不动）
       '--g-card-strong-m': 'rgba(255,255,255,.62)',// 移动端信息卡
       '--g-card-id-m': 'rgba(255,255,255,.75)',    // 移动端身份卡
-      '--g-sideuser-fill': 'rgba(255,255,255,.26)',// 侧栏用户块
+      '--g-sideuser-fill': 'rgba(244,242,248,.62)',// 侧栏用户块（v0.26.17 用户反馈：原 .26 纯白与侧栏暖白底 rgba(250,248,245,.56) 色号极其接近、无区分度；加深为灰紫调一档，坐暖白底上可辨）
       '--g-pane-fill': 'rgba(255,255,255,.12)',    // 会话列表 pane/暂存区
       '--g-header-fill': 'rgba(255,255,255,.08)',  // 浮窗头栏（玻璃上的玻璃）
       '--g-hover-wash': 'rgba(255,255,255,.18)',   // hover 白洗叠层
@@ -1681,7 +1681,7 @@ globalThis.APP_CONSTANTS = {
     EMAIL_LABEL: '邮箱', EMAIL_PLACEHOLDER: '请输入邮箱',
     CODE_LABEL: '验证码', CODE_PLACEHOLDER: '输入验证码',
     CODE_SEND: '发送验证码',
-    CODE_SEND_AGAIN: '{time}后可再次发送验证码',   // B1 倒计时复用（60s）
+    CODE_SEND_AGAIN: '{time}后重发',   // B1 倒计时复用（60s）。v0.26.17 用户反馈：原「{time}后可再次发送验证码」10 字 > 发送按钮 max-width（92-104px）溢出——左边戳到输入框底部、右边 ellipsis 截断；改短「xx秒后重发」装得下
     OTP_MOCK_TOAST: '模拟验证码（内测期使用）：{code}', // B6 内测短路：请求后 toast 模拟验证码
     BTN_BIND: '绑定',
     BIND_PHONE_TITLE: '绑定手机号',

@@ -42,10 +42,12 @@ function openCaptchaModal({ title = UI.CAPTCHA_TITLE, onPass = null } = {}) {
   openModal({
     title,
     cls: 'captcha-modal',
-    body: `<div class="captcha-box">
+    // v0.26.17 拼图块断线修复：--captcha-x 统一挂共同祖先 .captcha-box（puzzle 与 track 是兄弟，
+    // CSS 变量按元素继承，原挂 track 上 puzzle 拿不到 → 拖动小块滑块原位静止，用户实证）。初始 0px 在此。
+    body: `<div class="captcha-box" id="captcha-box" style="--captcha-x:0px">
       <canvas id="captcha-canvas" width="${CAPTCHA_W}" height="${CAPTCHA_H}"></canvas>
       <canvas id="captcha-puzzle" width="${SLIDER_W}" height="${SLIDER_H}" aria-hidden="true"></canvas>
-      <div class="captcha-slider-track" id="captcha-track" style="--captcha-x:0px">
+      <div class="captcha-slider-track" id="captcha-track">
         <div class="captcha-slider-fill" id="captcha-fill"></div>
         <div class="captcha-slider-knob" id="captcha-knob" role="button" aria-label="${UI.CAPTCHA_ARIA}">➜</div>
       </div>
@@ -84,13 +86,14 @@ function paintCaptcha() {
   _captchaTarget = (16 + Math.random() * maxX) / W;
   const cutX = _captchaTarget * W, cutY = (H - SLIDER_H) / 2;
   // 拼图块（B4 修复：原只抠洞没有跟随滑块的拼图块）：把缺口区域背景复制到 puzzle canvas，
-  // 滑块位移经 CSS 同源 --captcha-x 驱动 translateX 跟随（合成器只读，零重绘）
+  // 滑块位移经 CSS 同源 --captcha-x 驱动 translateX 跟随（合成器只读，零重绘）。
+  // v0.26.17：--captcha-x 由共同祖先 .captcha-box 提供（模板初始化 0px），puzzle 经继承跟随——
+  // 原在 puzzle 自身 inline 设 0px 会以 inline 覆盖继承值，拼图块永远停原位（用户实证）。
   const pz = document.getElementById('captcha-puzzle');
   if (pz) {
     const pctx = pz.getContext('2d');
     pctx.clearRect(0, 0, SLIDER_W, SLIDER_H);
     pctx.drawImage(cv, cutX, cutY, SLIDER_W, SLIDER_H, 0, 0, SLIDER_W, SLIDER_H);
-    pz.style.setProperty('--captcha-x', '0px');
   }
   // 缺口：destination-out 抠出 + 白描边可见
   ctx.save();
@@ -101,10 +104,11 @@ function paintCaptcha() {
   ctx.strokeStyle = 'rgba(255,255,255,.85)';
   ctx.lineWidth = 2;
   ctx.strokeRect(cutX + 1, cutY + 1, SLIDER_W - 2, SLIDER_H - 2);
-  // 复位滑块与轨迹
+  // 复位滑块与轨迹（v0.26.17：--captcha-x 统一写共同祖先 .captcha-box，puzzle/fill/knob 全部继承复位）
   _captchaOffset = 0; _captchaTrack = [];
   const track = document.getElementById('captcha-track');
-  if (track) track.style.setProperty('--captcha-x', '0px');
+  const box = document.getElementById('captcha-box') || track;
+  box.style.setProperty('--captcha-x', '0px');
 }
 
 /** 拖拽绑定（pointer 事件统一鼠标/触摸；JS 只写 --captcha-x 与几何测量） */
@@ -112,6 +116,8 @@ function bindCaptchaDrag() {
   const knob = document.getElementById('captcha-knob');
   const track = document.getElementById('captcha-track');
   if (!knob || !track) return;
+  // v0.26.17：--captcha-x 统一写共同祖先 .captcha-box——puzzle（track 兄弟）与 fill/knob（track 子）全继承
+  const box = document.getElementById('captcha-box') || track;
   const max = CAPTCHA_W - SLIDER_W;
   const down = (e) => {
     if (knob.classList.contains('captcha--pass')) return;
@@ -123,7 +129,7 @@ function bindCaptchaDrag() {
     if (!_captchaDrag) return;
     const next = Math.max(0, Math.min(max, _captchaDrag.startX + (e.clientX - _captchaDrag.startClientX)));
     _captchaOffset = next / max;
-    track.style.setProperty('--captcha-x', `${next}px`);
+    box.style.setProperty('--captcha-x', `${next}px`);
     _captchaTrack.push({ t: Date.now(), x: e.clientX, y: e.clientY });
     if (_captchaTrack.length > 64) _captchaTrack.shift();
   };
@@ -174,7 +180,8 @@ async function verifyCaptcha() {
     tip.textContent = UI.CAPTCHA_TIP;
     tip.classList.remove('captcha-tip--fail');
     _captchaOffset = 0;
-    track.style.setProperty('--captcha-x', '0px');
+    const box = document.getElementById('captcha-box') || track;
+    box.style.setProperty('--captcha-x', '0px');
   }, 420);
 }
 

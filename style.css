@@ -526,6 +526,10 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 .code-send-btn { position: absolute; right: 6px; top: 0; bottom: 0; margin: auto 0; height: fit-content;
   max-width: 104px;
   font-size: .72rem; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* v0.26.17 用户反馈：验证码输入框是文本框组件，倒计时灰字不该再叠一层毛玻璃底（backdrop-filter blur
+   在输入框右缘糊出一块「底板」，倒计时文字溢出时视觉更乱）。倒计时（disabled）态去掉毛玻璃 + 玻璃阴影，
+   只剩 .btn:disabled 的 .45 灰字——名副其实的「灰字」，输入框右缘干净。正常态保持标准玻璃按钮。 */
+.code-send-btn:disabled { backdrop-filter: none; box-shadow: none; }
 @media (max-width: 480px) {
   .code-send-btn { max-width: 92px; padding: 4px 6px; font-size: .66rem; }
   .code-input-wrap .form-input { padding-right: 104px; }
