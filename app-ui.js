@@ -781,7 +781,7 @@ function formatCountdown(ms) {
  * @param el 按钮/文本节点（按钮自动 disabled）
  * @param opts { endAt, runningText, onDone }
  *   endAt      结束时间戳（Date.now() + ms）
- *   runningText 倒计时文案模板，含 {time} 占位（如 '{time}后可再次发送验证码'）
+ *   runningText 倒计时文案模板，含 {time} 占位（如 '{time}后重发'）
  *   onDone     倒计时结束回调（复原后触发；按钮文本还原为原文案）
  * @returns stop 函数（组件销毁/页面切换时调用，清 interval）
  */

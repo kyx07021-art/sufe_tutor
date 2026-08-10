@@ -15,7 +15,8 @@
  *   - 图片留接口：背景当前为程序化渐变+噪点（无版权素材），未来接动态图片仅改 paintCaptcha 的
  *     背景绘制（drawImage 任意背景图 + 同源缺口块），接口签名不变。
  *
- * JS 只写 CSS 变量（--captcha-x 到轨道）与几何测量，滑块位移由 CSS transform 消费（合成器友好）。
+ * JS 只写 CSS 变量（--captcha-x 到共同祖先 .captcha-box，puzzle/fill/knob 全继承）与几何测量，
+ * 滑块位移由 CSS transform 消费（合成器友好）。v0.26.17：原写轨道上拼图块（track 兄弟）拿不到。
  */
 
 const CAPTCHA_W = 280, CAPTCHA_H = 120, SLIDER_W = 40, SLIDER_H = 40;
