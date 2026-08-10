@@ -391,10 +391,12 @@ export default {
         const domains = versionDomainOf(p);
         if (domains.length) ctx.waitUntil(bumpVersions(env.DB, domains));
       }
-      // 留档必须 await：workerd 在响应结束后掐断未完成的悬浮 Promise（加密咽喉链路较长，
-      // 不 await 会导致留档被杀在途中——本批次线上 0 留档事故根因）。
+      // 留档改 ctx.waitUntil 托管（U10 v0.25.106）：响应路径不再等待留档写库——每写请求省 1 次 D1 往返
+      // （登录 6.4s→~4.4s，网络层架构债专项第一步）。workerd 的 ctx.waitUntil 是官方保活通道，
+      // 保证留档完成（非悬浮 Promise；历史 0 留档事故是裸 await 后响应结束被掐断，waitUntil 正确托管，
+      // _worker 已用于 bumpVersions 同款）。logRequest 内部吞错，留档失败绝不阻断响应。
       // logRequest 兼作本请求全部留档的统一落库点（B4：业务 logEvent 队列 + 本条访问留档一次 batch）
-      await logRequest(db, { method: request.method, path: p, body, status: res.status, req: request, durationMs: Date.now() - t0 });
+      ctx.waitUntil(logRequest(db, { method: request.method, path: p, body, status: res.status, req: request, durationMs: Date.now() - t0 }));
       return applySecurityHeaders(res, p);
     } catch (err) {
       console.error('API Error:', err); // 细节只留服务端日志

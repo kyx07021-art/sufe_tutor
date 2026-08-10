@@ -9,7 +9,7 @@ export const ASSET_MANIFEST = {
     "style-posts.css": "style-posts.c5d926c9.css",
     "style-chat.css": "style-chat.a6557204.css",
     "glass.css": "glass.868f6b81.css",
-    "constants.js": "constants.16a73049.js",
+    "constants.js": "constants.6c5763a4.js",
     "app-display.js": "app-display.e3cfbdf7.js",
     "app-state.js": "app-state.749a1282.js",
     "app-api.js": "app-api.dd8c08f1.js",
