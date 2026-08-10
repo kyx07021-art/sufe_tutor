@@ -14,7 +14,7 @@ import { MSG } from './server/constants.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './server/security.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { bindTextAuditEnv } from './server/text-audit.js';
-import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth } from './server/routes-auth.js';
+import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth, handleOtpRequest, handleBindPhone, handleBindEmail, handleUsernameStatus, handleChangeUsername, handleLoginWithCode, handleGetMyCreds } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import { handleGetPrivacySettings, handleSetPrivacySettings } from './server/routes-settings.js';
 import {
@@ -44,6 +44,8 @@ import {
 } from './server/routes-complaints.js';
 import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
 import { handleCreateSigning, handleRespondSigning } from './server/signing.js';
+import { handleAdminContent, handleContentAction } from './server/routes-audit.js'; // v0.26.0 D：统一内容审核/管理
+import { auditBeforeWrite } from './server/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
 import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清单（push 前 node hash-assets.mjs 重新生成）
 
 // ============ 内容哈希虚拟版本化（v0.25.76 #169A）============
@@ -119,6 +121,14 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   if (p === '/api/auth/check' && method === 'GET') return await handleCheckUsername(db, url);
   if (p === '/api/auth/me' && method === 'GET') return await handleAuthMe(db, req);
   if (p === '/api/auth/re-auth' && method === 'POST') return await handleReAuth(db, body, req);
+  // v0.26.0 验证码/凭证（A3/A5/A6/A7）
+  if (p === '/api/auth/otp/request' && method === 'POST') return await handleOtpRequest(db, body, req);
+  if (p === '/api/auth/phone/bind' && method === 'POST') return await handleBindPhone(db, body, req);
+  if (p === '/api/auth/email/bind' && method === 'POST') return await handleBindEmail(db, body, req);
+  if (p === '/api/auth/login/code' && method === 'POST') return await handleLoginWithCode(db, body, req);
+  if (p === '/api/user/username' && method === 'POST') return await handleChangeUsername(db, body, req);
+  if (p === '/api/user/username/status' && method === 'GET') return await handleUsernameStatus(db, req);
+  if (p === '/api/user/creds' && method === 'GET') return await handleGetMyCreds(db, req);
   if (p === '/api/auth/logout' && method === 'POST') return await handleLogout(db, req);
   if (p === '/api/auth/sessions' && method === 'GET') return await handleListSessions(db, req);
   if (p === '/api/auth/sessions/revoke' && method === 'POST') return await handleRevokeSession(db, body, req);
@@ -259,6 +269,11 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   const postById = idMatch(p, /^\/api\/posts\/(\d+)$/);
   if (postById && method === 'DELETE') return await handleDeletePost(db, postById, body, req);
 
+  // v0.26.0 D：统一内容审核/管理（D1 提取 + D2 处罚）
+  if (p === '/api/admin/content' && method === 'GET') return await handleAdminContent(db, url, req);
+  const contentAction = p.match(/^\/api\/admin\/content\/([a-z]+)\/(\d+)\/action$/);
+  if (contentAction && method === 'POST') return await handleContentAction(db, contentAction[1], parseInt(contentAction[2], 10), body, req);
+
   // 健康检查
   if (p === '/api/health') return json({ status: 'ok', timestamp: new Date().toISOString() });
 
@@ -384,6 +399,13 @@ export default {
 
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
     try {
+      // v0.26.0 E2 高频轻量日常审核断点：内容域写请求途中统一过监听断点（数据副本 + 上下文入队列 →
+      // 轻量审核节点；dummy 极小概率驳回）。驳回 400 文案走上传过程自身的 toast（api 调用方 catch
+      // 已 showToast(err.message) 原样弹出，无需额外 toast 通路）。同步微秒级，300ms 预算内。
+      const audit = auditBeforeWrite({ path: p, method: request.method, body, ip, userId: null });
+      if (audit.reject) {
+        return applySecurityHeaders(error(audit.reject, 400), p);
+      }
       const res = await routeApi(db, p, request.method, body, url, request, env); // env 供保活等需多绑定端点
       // 数据版本戳（v0.23.0 静默数据层）：写操作成功在写咽喉 bump 受影响域。
       // waitUntil 包裹——workerd 会掐断未完成的悬浮 Promise；版本戳失败静默

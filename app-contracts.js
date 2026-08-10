@@ -194,15 +194,20 @@ function confirmSignContract() {
   clearInterval(window._signingTimer);
   confirm({ message: UI.CONFIRM_SIGN_TWICE, onConfirm: () => {
     confirm({ message: UI.CONFIRM_SIGN_FINAL, needReAuth: true, onConfirm: async capToken => {
-      try {
-        const data = await api(`/api/contracts/${id}/sign`, { method: 'POST', body: { capToken } });
-        closeModal(); // v0.25.101 Q3：成功路径关掉签署预览——v0.25.98 modal stack 回归（confirm 弹栈恢复预览后漏关，密码确认完又回预阅读页）
-        showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
-        invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
-        loadMyContracts();
-      } catch (err) { showToast(err.message); }
+      // C2 敏感操作门禁：密码验证通过后再过一次拼图真人验证，才真正提交签署
+      withCaptcha(() => doSignContract(id, capToken));
     }});
   }});
+}
+
+async function doSignContract(id, capToken) {
+  try {
+    const data = await api(`/api/contracts/${id}/sign`, { method: 'POST', body: { capToken } });
+    closeModal(); // v0.25.101 Q3：成功路径关掉签署预览——v0.25.98 modal stack 回归（confirm 弹栈恢复预览后漏关，密码确认完又回预阅读页）
+    showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
+    invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
+    loadMyContracts();
+  } catch (err) { showToast(err.message); }
 }
 
 // 查看正式合同预览（Markdown 渲染，复用发帖组件的 mdRender）
@@ -281,13 +286,18 @@ function openRevokeContractModal(contractId) {
 function confirmRevokeContract(contractId) {
   // 撤销=危险操作（网安报告 F-05）：密码重认证换 capToken（原 confirmDangerOtp 恒通过已废除）
   confirm({ message: UI.REVOKE_CONTRACT_FINAL, needReAuth: true, onConfirm: async capToken => {
-    try {
-      await api(`/api/contracts/${contractId}/revoke`, { method: 'POST', body: { capToken } });
-      showToast(UI.CONTRACT_REVOKED_TOAST);
-      invalidate('contracts'); // 撤销后签约标记须消失
-      loadMyContracts();
-    } catch (err) { showToast(err.message); }
+    // C2 敏感操作门禁：密码验证通过后再过一次拼图真人验证，才真正撤销合同
+    withCaptcha(() => doRevokeContract(contractId, capToken));
   }});
+}
+
+async function doRevokeContract(contractId, capToken) {
+  try {
+    await api(`/api/contracts/${contractId}/revoke`, { method: 'POST', body: { capToken } });
+    showToast(UI.CONTRACT_REVOKED_TOAST);
+    invalidate('contracts'); // 撤销后签约标记须消失
+    loadMyContracts();
+  } catch (err) { showToast(err.message); }
 }
 
 // 存证校验（v0.25.37 toast 升级小面板）：重算合同文本哈希对比签署时的台账指纹（后端 /verify），
@@ -346,13 +356,18 @@ async function submitContractModify(contractId) {
 // 后端回退我方待签约态（合同保留，不删除）+ 通知对方；会话保留
 function cancelContract(contractId) {
   confirm({ message: UI.CONFIRM_CANCEL_CONTRACT, needReAuth: true, onConfirm: async capToken => {
-    try {
-      await api(`/api/contracts/${contractId}`, { method: 'DELETE', body: { capToken } });
-      showToast(UI.CONTRACT_CANCELLED_TOAST);
-      invalidate('contracts');
-      loadMyContracts();
-    } catch (err) { showToast(err.message); }
+    // C2 敏感操作门禁：密码验证通过后再过一次拼图真人验证，才真正取消签约
+    withCaptcha(() => doCancelContract(contractId, capToken));
   }});
+}
+
+async function doCancelContract(contractId, capToken) {
+  try {
+    await api(`/api/contracts/${contractId}`, { method: 'DELETE', body: { capToken } });
+    showToast(UI.CONTRACT_CANCELLED_TOAST);
+    invalidate('contracts');
+    loadMyContracts();
+  } catch (err) { showToast(err.message); }
 }
 
 // v0.24.0 合同修改只放出业务条款：法律条款由服务端固定重拼（不可修改）。
@@ -440,6 +455,11 @@ async function submitSigning(convId) {
   if (price <= 0) { showToast(UI.VALIDATE_SIGNING_PRICE); return; }
   if (tsErr) { showToast(tsErr); return; } // v0.25.35 结构化时间校验（半填/起止颠倒就地拦截）
   if (!schedule) { showToast(UI.VALIDATE_SIGNING_SCHEDULE); return; }
+  // C2 敏感操作门禁：发起签约（建立合同关系）前先过一次拼图真人验证
+  withCaptcha(() => doSubmitSigning(convId, { demandId, price, schedule, method }));
+}
+
+async function doSubmitSigning(convId, { demandId, price, schedule, method }) {
   try {
     await api(`/api/conversations/${convId}/signing`, { method: 'POST', body: { demandId, price, schedule, method } });
     closeModal();

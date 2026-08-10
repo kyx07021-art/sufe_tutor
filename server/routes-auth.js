@@ -5,7 +5,7 @@
  *       security（身份解析）、constants（校验文案/限额）。
  */
 import { json, error, deviceLabelFromUA } from './util.js';
-import { hashPassword, verifyPassword } from './crypto.js';
+import { hashPassword, verifyPassword, tokenDigest } from './crypto.js';
 import { authUser, requireUser, authRateBatch, authRateBlock } from './security.js';
 import {
   issueAuthToken, listSessions, revokeSession,
@@ -16,8 +16,15 @@ import { MSG, INVITE_GATE_ENABLED, LIMITS } from './constants.js';
 import {
   dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
   dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbDeleteUser,
-  dbUserLookupStmt, dbUsernameExistsStmt,
+  dbUserLookupStmt, dbUsernameExistsStmt, dbUserPhoneHashStmt, dbUserEmailHashStmt,
 } from './db.js';
+// v0.26.0 凭证域：凭证更新独立环节（A4）+ 验证码咽喉（A3）+ 登录识别（A7）
+import {
+  updateUsernameCredential, getUsernameChangedAt,
+  bindPhoneCredential, bindEmailCredential, dbPhoneTaken, dbEmailTaken,
+  dbFindUserByPhoneHash, dbFindUserByEmailHash, dbGetMyCreds,
+} from './credential.js';
+import { requestOtp, verifyOtp, normalizeIdentifier, targetMask } from './otp.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
 
@@ -70,14 +77,22 @@ export async function handleRegister(db, body, req) {
 }
 
 export async function handleLogin(db, body, req) {
-  const { username, password } = body;
-  if (!username || !password) return error(MSG.LOGIN_REQUIRED);
-  // 限定用户名/密码长度上限：超长串直接早退，避免无谓的哈希查库 / PBKDF2 消耗（文案不变，仍为「用户名或密码错误」）
-  if (String(username).length > LIMITS.LOGIN_USERNAME_MAX || String(password).length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.LOGIN_FAILED, 401);
+  // v0.26.0 五合一登录（A7）：identifier = 用户名 / 手机号 / 邮箱（前端唯一输入框「请输入用户名/手机号/邮箱」）。
+  // 兼容旧客户端 body.username（老字段仍读）；识别格式 → 按 username 直查 / phone_hash / email_hash 定位。
+  const { password } = body;
+  const identifier = String(body.identifier || body.username || '').trim();
+  if (!identifier || !password) return error(MSG.LOGIN_REQUIRED);
+  // 长度早退：超长串直接早退，避免无谓的哈希查库 / PBKDF2 消耗（文案不变，仍为「用户名或密码错误」）
+  if (String(identifier).length > LIMITS.LOGIN_USERNAME_MAX || String(password).length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.LOGIN_FAILED, 401);
+  const { kind, target } = normalizeIdentifier(identifier);
+  if (!kind || (kind === 'email' && String(target).length > LIMITS.EMAIL_MAX)) return error(MSG.LOGIN_FAILED, 401);
 
   // B1：限流（封禁查+写限流+登录限流）与取用户同批一次往返（登录 10 次 D1 → 此步 1 次）；D1 异常由 fetch 层兜 500
   const ip = req.headers.get('CF-Connecting-IP') || 'anon';
-  const gate = authRateBatch(db, ip, 'login', [dbUserLookupStmt(db, username)]);
+  const userStmt = kind === 'username' ? dbUserLookupStmt(db, target)
+    : kind === 'phone' ? dbUserPhoneHashStmt(db, await tokenDigest(target))
+    : dbUserEmailHashStmt(db, await tokenDigest(target));
+  const gate = authRateBatch(db, ip, 'login', [userStmt]);
   const results = await db.batch(gate.stmts);
   if (gate.verdict(results)) { await authRateBlock(db, ip); return error(MSG.RATE_LIMITED, 429); }
   const userRow = gate.extra(results)[0];
@@ -85,13 +100,13 @@ export async function handleLogin(db, body, req) {
 
   if (!user) {
     await hashPassword(password); // 网安 N-18：哑 PBKDF2 抹平「用户名不存在」与「密码错误」的响应时序差
-    await logEvent(db, { action: 'auth.login.failed', actorUsername: username,
-      entity: 'user', detail: { username }, req });
+    await logEvent(db, { action: 'auth.login.failed', actorUsername: targetMask(target),
+      entity: 'user', detail: { kind, identifier: targetMask(target) }, req });
     return error(MSG.LOGIN_FAILED, 401);
   }
   if (!(await verifyPassword(password, user.password_hash, user.salt))) {
-    await logEvent(db, { action: 'auth.login.failed', actorUsername: username,
-      entity: 'user', detail: { username }, req });
+    await logEvent(db, { action: 'auth.login.failed', actorUsername: targetMask(target),
+      entity: 'user', detail: { kind, identifier: targetMask(target) }, req });
     return error(MSG.LOGIN_FAILED, 401);
   }
   if (user.banned) {
@@ -106,12 +121,19 @@ export async function handleLogin(db, body, req) {
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' }, authToken });
 }
 
-// 登录页用户名实时探测：仅返回存在与否 + 角色（登录提示用，不暴露其他字段）
+// 登录页账户实时探测（v0.26.0 A7 五合一登录）：identifier = 用户名/手机号/邮箱。
+// 识别格式 → 定位账户 → 返回 { exists, role, kind }；不存在 → { exists:false, kind }（前端红字「不存在的账户」）。
+// 仅返回存在与否 + 角色，不暴露其他字段（手机号/邮箱经哈希列查询，探测不泄露绑定关系之外的任何信息）
 export async function handleCheckUsername(db, url) {
-  const username = (url.searchParams.get('username') || '').trim();
-  if (!username) return json({ exists: false });
-  const user = await dbFindUserByUsername(db, username);
-  return json(user ? { exists: true, role: user.role } : { exists: false });
+  const identifier = (url.searchParams.get('identifier') || url.searchParams.get('username') || '').trim();
+  if (!identifier) return json({ exists: false, kind: null });
+  const { kind, target } = normalizeIdentifier(identifier);
+  if (!kind) return json({ exists: false, kind: null });
+  let user = null;
+  if (kind === 'username') user = await dbFindUserByUsername(db, target);
+  else if (kind === 'phone') user = await dbFindUserByPhoneHash(db, await tokenDigest(target));
+  else user = await dbFindUserByEmailHash(db, await tokenDigest(target));
+  return json(user ? { exists: true, role: user.role, kind } : { exists: false, kind });
 }
 
 // GET /api/users/:id —— 公开名片（个人信息右栏的兜底数据源）：仅用户名/角色/头像三件，
@@ -226,4 +248,142 @@ export async function handleReAuth(db, body, req) {
   const capToken = await issueCapToken(db, req);
   await logEvent(db, { action: 'auth.reauth.success', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ capToken });
+}
+
+// ============================================================
+// v0.26.0 验证码 / 凭证扩展（A5-A7）
+// ============================================================
+// 手机号脱敏展示（+8613812345678 → 138****5678）；非手机格式原样截断
+function maskPhone(phone) {
+  const s = String(phone || '');
+  const m = s.match(/^(\+\d+)(\d{3})\d{4}(\d{4})$/);
+  if (m) return `${m[2]}****${m[3]}`;
+  return s.slice(0, 3) + '***';
+}
+
+// POST /api/auth/otp/request { channel, target } —— 请求验证码（登录/绑定共用；无需鉴权，限流兜底防骚扰）。
+// 内测短路（A3/otp.js）：OTP_PROVIDER='mock' 时返回 mockCode 供前端 toast「模拟验证码（内测期使用）」。
+export async function handleOtpRequest(db, body, req) {
+  const channel = body.channel === 'email' ? 'email' : 'sms';
+  const norm = normalizeIdentifier(String(body.target || '').trim());
+  if (channel === 'sms' && norm.kind !== 'phone') return error(MSG.PHONE_INVALID);
+  if (channel === 'email' && norm.kind !== 'email') return error(MSG.EMAIL_INVALID);
+  const r = await requestOtp(db, { channel, target: norm.target }, req);
+  if (!r.ok) return r.err;
+  return json({ ok: true, mockCode: r.code || undefined });
+}
+
+// POST /api/auth/phone/bind { phone, code } —— 绑定手机号（requireUser + 验证码校验 + 占用查）
+export async function handleBindPhone(db, body, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const norm = normalizeIdentifier(String(body.phone || '').trim());
+  if (norm.kind !== 'phone') return error(MSG.PHONE_INVALID);
+  if (!String(body.code || '').trim()) return error(MSG.OTP_REQUIRED);
+  if (await dbPhoneTaken(db, norm.target)) return error(MSG.PHONE_ALREADY_BOUND, 409);
+  const ok = await verifyOtp(db, { channel: 'sms', target: norm.target, code: String(body.code).trim() });
+  if (!ok) return error(MSG.OTP_INVALID_OR_EXPIRED);
+  await bindPhoneCredential(db, me.id, norm.target); // 凭证更新独立环节（A4）：未来切手机号核心只改 credential.js
+  await logEvent(db, { action: 'user.phone.bind', actorUserId: me.id, actorUsername: me.username,
+    actorRole: me.role, entity: 'user', entityId: me.id, detail: { phone: maskPhone(norm.target) }, req });
+  return json({ ok: true, message: MSG.BIND_SUCCESS, phone: maskPhone(norm.target) });
+}
+
+// POST /api/auth/email/bind { email, code } —— 绑定邮箱（同手机号，A6）
+export async function handleBindEmail(db, body, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const norm = normalizeIdentifier(String(body.email || '').trim());
+  if (norm.kind !== 'email') return error(MSG.EMAIL_INVALID);
+  if (!String(body.code || '').trim()) return error(MSG.OTP_REQUIRED);
+  if (await dbEmailTaken(db, norm.target)) return error(MSG.EMAIL_ALREADY_BOUND, 409);
+  const ok = await verifyOtp(db, { channel: 'email', target: norm.target, code: String(body.code).trim() });
+  if (!ok) return error(MSG.OTP_INVALID_OR_EXPIRED);
+  await bindEmailCredential(db, me.id, norm.target);
+  await logEvent(db, { action: 'user.email.bind', actorUserId: me.id, actorUsername: me.username,
+    actorRole: me.role, entity: 'user', entityId: me.id, detail: { email: targetMask(norm.target) }, req });
+  return json({ ok: true, message: MSG.BIND_SUCCESS, email: targetMask(norm.target) });
+}
+
+// GET /api/user/username/status —— 用户名修改冷却状态（前端按钮倒计时/灰化依据）
+export async function handleUsernameStatus(db, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const changedAt = await getUsernameChangedAt(db, me.id);
+  let cooldownMs = 0;
+  if (changedAt) {
+    const t = Date.parse(String(changedAt).replace(' ', 'T') + 'Z');
+    if (isFinite(t)) cooldownMs = Math.max(0, LIMITS.USERNAME_COOLDOWN_MS - (Date.now() - t));
+  }
+  return json({ canChange: cooldownMs <= 0, cooldownMs, changedAt: changedAt || '' });
+}
+
+// POST /api/user/username { newUsername, capToken } —— 修改用户名（A5）
+// 危险操作二次认证（capToken）+ 7 天冷却 + 格式校验 + 占用查 → 凭证更新独立环节（A4）。
+// 管理员用户名不动（防管理面板标识漂移）。修改成功后前端本地更新 + /api/auth/me 自然返回新名。
+export async function handleChangeUsername(db, body, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  if (me.role === 'admin') return error(MSG.NO_PERMISSION, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  const newName = String(body.newUsername || '').trim();
+  if (newName.length < LIMITS.USERNAME_MIN || newName.length > LIMITS.USERNAME_MAX) return error(MSG.USERNAME_LENGTH);
+  // v0.26.0 用户名规则：白名单字符 + 不含 @ + 非纯数字（登录唯一输入框按格式初判，纯数字/含@会歧义为手机号/邮箱）
+  if (!/^[\p{Script=Han}A-Za-z0-9_.\-]+$/u.test(newName)) return error(MSG.USERNAME_NEW_INVALID);
+  if (newName.includes('@') || /^\d+$/.test(newName)) return error(MSG.USERNAME_NEW_INVALID);
+  const tombPrefix = globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX;
+  if (tombPrefix && newName.startsWith(tombPrefix)) return error(MSG.USERNAME_NEW_INVALID);
+  if (newName === me.username) return error(MSG.USERNAME_NEW_INVALID);
+  const changedAt = await getUsernameChangedAt(db, me.id);
+  if (changedAt) {
+    const t = Date.parse(String(changedAt).replace(' ', 'T') + 'Z');
+    if (isFinite(t) && Date.now() - t < LIMITS.USERNAME_COOLDOWN_MS) return error(MSG.USERNAME_COOLDOWN);
+  }
+  if (await dbFindUserByUsername(db, newName)) return error(MSG.USERNAME_TAKEN);
+  await updateUsernameCredential(db, me.id, newName);
+  await logEvent(db, { action: 'user.username.change', actorUserId: me.id, actorUsername: me.username,
+    actorRole: me.role, entity: 'user', entityId: me.id, detail: { from: me.username, to: newName }, req });
+  return json({ ok: true, message: MSG.USERNAME_CHANGED, username: newName });
+}
+
+// POST /api/auth/login/code { identifier, code } —— 验证码登录（A7：手机验证码/邮箱验证码两种通路）。
+// identifier 仅接受手机号/邮箱（用户名无验证码通道）；命中账户 + verifyOtp 通过 → 签发登录令牌。
+export async function handleLoginWithCode(db, body, req) {
+  const identifier = String(body.identifier || body.username || '').trim();
+  const code = String(body.code || '').trim();
+  if (!identifier || !code) return error(MSG.LOGIN_REQUIRED);
+  const { kind, target } = normalizeIdentifier(identifier);
+  if (!kind || kind === 'username') return error(MSG.LOGIN_FAILED, 401);
+  if (String(target).length > (kind === 'email' ? LIMITS.EMAIL_MAX : LIMITS.PHONE_MAX)) return error(MSG.LOGIN_FAILED, 401);
+  const channel = kind === 'email' ? 'email' : 'sms';
+  const ip = req.headers.get('CF-Connecting-IP') || 'anon';
+  // B1：限流 + 取用户同批（复用 login 桶；hash 定位）
+  const gate = authRateBatch(db, ip, 'login',
+    [kind === 'phone' ? dbUserPhoneHashStmt(db, await tokenDigest(target)) : dbUserEmailHashStmt(db, await tokenDigest(target))]);
+  const results = await db.batch(gate.stmts);
+  if (gate.verdict(results)) { await authRateBlock(db, ip); return error(MSG.RATE_LIMITED, 429); }
+  const userRow = gate.extra(results)[0];
+  const user = userRow && userRow.results ? userRow.results[0] : null;
+  if (!user) {
+    await logEvent(db, { action: 'auth.login.failed', actorUsername: targetMask(target),
+      entity: 'user', detail: { via: 'code', kind, identifier: targetMask(target) }, req });
+    return error(MSG.LOGIN_FAILED, 401);
+  }
+  if (user.banned) return error(MSG.ACCOUNT_BANNED, 403);
+  if (user.deactivated) return error(MSG.ACCOUNT_DEACTIVATED, 403);
+  const ok = await verifyOtp(db, { channel, target, code });
+  if (!ok) return error(MSG.OTP_INVALID_OR_EXPIRED);
+  const authToken = await issueAuthToken(db, user.id, deviceLabelFromUA(req && req.headers.get('user-agent')), body.deviceId);
+  await logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
+    actorRole: user.role, entity: 'user', entityId: user.id, detail: { via: 'code', kind }, req });
+  return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' }, authToken });
+}
+
+// GET /api/user/creds —— 本人已绑凭证（脱敏出口：手机号 138****5678、邮箱 a***@x.com）。
+// 仅本人可读（requireUser）；设置页展示绑定状态用。明文凭证绝不进响应体
+export async function handleGetMyCreds(db, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const creds = await dbGetMyCreds(db, me.id);
+  return json({ phone: maskPhone(creds.phone), email: targetMask(creds.email) });
 }

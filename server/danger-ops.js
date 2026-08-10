@@ -55,8 +55,10 @@ export async function issueCapToken(db, req) {
   const userId = (await authUser(db, req))?.id;
   const sessionId = await currentSessionId(db, req);
   if (!userId || !sessionId) return '';
-  // 惰性清理：清该用户已过期行，表不膨胀
-  await dbRun(db, `DELETE FROM danger_caps WHERE user_id=? AND expires_at <= datetime('now','localtime')`, [userId]).catch(() => {});
+  // 惰性清理：清该用户已过期行，表不膨胀。expires_at 经 toDbTime 落 UTC——SQL 比较必须传 UTC
+  // 参数（datetime('now','localtime') 是库内本地时区，非 UTC 时区环境会恒判过期/永不过期）
+  const nowUtc = toDbTime(new Date());
+  await dbRun(db, `DELETE FROM danger_caps WHERE user_id=? AND expires_at <= ?`, [userId, nowUtc]).catch(() => {});
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(SECURITY.CAP_TOKEN_BYTES)));
   const exp = toDbTime(new Date(Date.now() + SECURITY.ONE_TIME_TTL_MS));
   await dbRun(db, `INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)
@@ -78,10 +80,12 @@ export async function confirmDangerOtp(db, req, body) {
   const sessionId = await currentSessionId(db, req);
   const got = String((body && body.capToken) || '');
   if (!sessionId || !got) return false;
-  // session_id 全局唯一（无需再匹配 user_id）；token 只存摘要比对；过期行不命中
+  // session_id 全局唯一（无需再匹配 user_id）；token 只存摘要比对；过期行不命中。
+  // expires_at 为 UTC 存储域，SQL 比较传 UTC 参数（同上方惰性清理，见注释）
+  const nowUtc = toDbTime(new Date());
   const r = await dbRun(db,
-    `DELETE FROM danger_caps WHERE session_id=? AND token_hash=? AND expires_at > datetime('now','localtime')`,
-    [sessionId, await tokenDigest(got)]).catch(() => ({ meta: { changes: 0 } }));
+    `DELETE FROM danger_caps WHERE session_id=? AND token_hash=? AND expires_at > ?`,
+    [sessionId, await tokenDigest(got), nowUtc]).catch(() => ({ meta: { changes: 0 } }));
   return !!(r && r.meta && r.meta.changes > 0);
 }
 

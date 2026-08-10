@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.114',
+  APP_VERSION: '0.26.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -32,6 +32,20 @@ globalThis.APP_CONSTANTS = {
     PUSH_COOLDOWN_SEC: 60,                // 需求推送限流
     LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
     API_TIMEOUT_MS: 20000,                // api() fetch 超时（停滞 SW/异常网络下避免「永远加载中」，超时归网络错误）
+    // v0.26.0 验证码/凭证（数据单源：前端 app-otp.js 与后端 server/otp.js 经 globalThis 同读）
+    PHONE_REGIONS: [                      // 手机号地区前缀表（+xx 前缀选择器 + 服务端格式校验共用）
+      { prefix: '+86', name: '中国大陆', pattern: /^1[3-9]\d{9}$/ },
+      { prefix: '+852', name: '中国香港', pattern: /^[2-9]\d{7}$/ },
+      { prefix: '+853', name: '中国澳门', pattern: /^6\d{7}$/ },
+      { prefix: '+886', name: '中国台湾', pattern: /^9\d{8}$/ },
+      { prefix: '+81', name: '日本', pattern: /^[7-9]0?\d{8,9}$/ },
+      { prefix: '+65', name: '新加坡', pattern: /^[689]\d{7}$/ },
+      { prefix: '+1', name: '美国/加拿大', pattern: /^[2-9]\d{9}$/ },
+      { prefix: '+44', name: '英国', pattern: /^7\d{9}$/ },
+      { prefix: '+61', name: '澳大利亚', pattern: /^4\d{8}$/ },
+    ],
+    OTP_RESEND_SEC: 60,                   // 验证码 60s 重发冷却（前端倒计时/灰化；服务端 LIMITS.OTP_RESEND_WINDOW_MS 同口径强制）
+    USERNAME_COOLDOWN_MS: 7 * 24 * 3600 * 1000, // 用户名 7 天冷却（前端按钮倒计时；服务端 LIMITS.USERNAME_COOLDOWN_MS 同值）
     DOMAIN_SCRIPT_RETRY: 4,               // v0.25.100：领域脚本 404 重试次数（发布后边缘同步窗口 ~1-2 分钟，3s×4=12s 覆盖大部分窗口）
     DOMAIN_SCRIPT_RETRY_MS: 3000,         // v0.25.100：领域脚本 404 重试间隔（延迟重试等边缘同步，保留页面状态）
     VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（v0.25.76 8s→30s：每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
@@ -1433,6 +1447,17 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_COMPLAINT_DESC: '查看并处理用户提交的投诉（对象 / 理由 / 详情）',
     ADMIN_COMPLAINT_EMPTY: '暂无投诉',
     BTN_COMPLAINT_RESOLVE: '标记已处理',
+    // v0.26.0 D3：统一内容审核页
+    PAGE_ADMIN_CONTENT: '内容审核',
+    PAGE_ADMIN_CONTENT_DESC: '统一查看全站用户内容并执行删除/封禁处罚',
+    ADMIN_CONTENT_EMPTY: '暂无内容',
+    ADMIN_CONTENT_PENALTY_DELETE: '删除',
+    ADMIN_CONTENT_PENALTY_BAN: '封禁作者',
+    ADMIN_CONTENT_PENALTY_REASON: '处罚原因（必填）',
+    ADMIN_CONTENT_PENALTY_RULE: '触犯规则',
+    ADMIN_CONTENT_TYPE_POST: '帖子', ADMIN_CONTENT_TYPE_DEMAND: '需求', ADMIN_CONTENT_TYPE_TEACHER: '教师档案',
+    ADMIN_CONTENT_TYPE_REVIEW: '评价', ADMIN_CONTENT_TYPE_MESSAGE: '聊天', ADMIN_CONTENT_TYPE_FEEDBACK: '反馈',
+    ADMIN_CONTENT_TYPE_COMPLAINT: '投诉', ADMIN_CONTENT_TYPE_UPLOAD: '附件',
     COMPLAINT_RESOLVED_TOAST: '已标记处理并通知投诉人',
 
     // 账户头像
@@ -1510,6 +1535,7 @@ globalThis.APP_CONSTANTS = {
       'admin-contracts': '## 这是什么\n合同管理。\n\n## 怎么用\n查看平台全部合同与状态，必要时移除测试或异常数据。',
       'admin-feedback': '## 这是什么\n用户反馈处理。\n\n## 怎么用\n查看用户提交的 Bug 与建议，逐条查看详情并标记处理状态。',
       'admin-complaint': '## 这是什么\n投诉处理。\n\n## 怎么用\n查看用户提交的投诉——投诉对象（教师/学生/帖子）、理由与详情都会快照存档，即使对象已注销或删除也不影响追溯。\n\n**处理：** 逐条核实后点「标记已处理」，系统会通知投诉人处理结果。\n\n## 小贴士\n投诉是独立的合规通道，与用户反馈分开管理；处理时先核实快照信息与聊天记录，再决定如何处置。',
+      'admin-content': '## 这是什么\n全站统一内容审核界面（v0.26.0）：一声令下看到平台所有用户可操作的内容，一声令下完成处罚。\n\n## 怎么用\n**看内容：** 上方按类型切换（帖子/需求/教师档案/评价/聊天/反馈/投诉/附件），每张卡片展示作者、内容摘要与状态。\n\n**处罚：** 点卡片右侧按钮，填写处罚原因（必填）与触犯规则，可「删除」该内容或「封禁作者」——处罚后系统会自动把原因、规则与触发内容摘要通知给作者本人。\n\n## 小贴士\n处罚前先核实触发内容与聊天上下文；封禁会同时阻止该账户继续登录。',
     },
 
     // 需求表单
@@ -1655,6 +1681,32 @@ globalThis.APP_CONSTANTS = {
     SETTINGS_UNBOUND: '未绑定',
     BTN_MODIFY: '修改',
     TOAST_COMING_SOON: '该功能暂未开放，敬请期待',
+    // v0.26.0 验证码/凭证（B2-B6；手机号/邮箱绑定、用户名修改、验证码登录）
+    PHONE_LABEL: '手机号', PHONE_PLACEHOLDER: '请输入手机号',
+    EMAIL_LABEL: '邮箱', EMAIL_PLACEHOLDER: '请输入邮箱',
+    CODE_LABEL: '验证码', CODE_PLACEHOLDER: '输入验证码',
+    CODE_SEND: '发送验证码',
+    CODE_SEND_AGAIN: '{time}后可再次发送验证码',   // B1 倒计时复用（60s）
+    OTP_MOCK_TOAST: '模拟验证码（内测期使用）：{code}', // B6 内测短路：请求后 toast 模拟验证码
+    BTN_BIND: '绑定',
+    BIND_PHONE_TITLE: '绑定手机号',
+    BIND_EMAIL_TITLE: '绑定邮箱',
+    USERNAME_CHANGE_TITLE: '修改用户名',
+    USERNAME_NEW_PLACEHOLDER: '输入新用户名（3-30 字符，不含 @ 与纯数字）',
+    USERNAME_COOLDOWN_BTN: '{time}后可再次修改用户名', // B1 倒计时复用（7 天冷却）
+    BTN_USERNAME_SAVE: '确认修改',
+    BTN_USERNAME_SAVING: '保存中...',
+    LOGIN_SWITCH_CODE: '验证码登录',
+    LOGIN_SWITCH_PASSWORD: '密码登录',
+    LOGIN_IDENTIFIER_PLACEHOLDER: '请输入用户名/手机号/邮箱',
+    LOGIN_ACCOUNT_MISSING: '不存在的账户',
+    LOGIN_CODE_TIP: '向该账户绑定的手机/邮箱发送验证码',
+    // v0.26.0 滑块拼图真人验证（C1/C2）
+    CAPTCHA_TITLE: '拖动滑块完成拼图',
+    CAPTCHA_TIP: '拖动滑块，将拼图块对齐到缺口位置',
+    CAPTCHA_PASS: '验证通过',
+    CAPTCHA_FAIL: '验证未通过，请重试',
+    CAPTCHA_ARIA: '拖动滑块完成拼图验证',
     BTN_LOGOUT: '退出登录',
     CONFIRM_LOGOUT: '确定要退出当前账户吗？',
     // 登录设备管理（账户设置）

@@ -758,6 +758,67 @@ async function runReAuth() {
   }
 }
 
+// ============================================================
+// v0.26.0 通用倒计时组件（B1，用户需求：倒计时+按钮组件抽象待复用）：
+//   智能单位（>1 天 → 向下取整 x 天；<1 天 >1 分 → 向下取整 x 时 x 分；<1 分 → 向下取整 x 秒）
+//   + 按钮灰化不可点 + 完成复原。复用点：用户名 7 天冷却、验证码 60s 重发、邀请码到期。
+//   formatCountdown(ms) 纯函数独立暴露供单测。
+// ============================================================
+function formatCountdown(ms) {
+  const t = Math.max(0, Math.floor(ms / 1000));
+  if (t <= 0) return '';
+  const D = 24 * 3600, H = 3600, M = 60;
+  if (t >= D) return `${Math.floor(t / D)}天`;                     // >1 天：向下取整 x 天
+  if (t >= M) {                                                    // <1 天且 ≥1 分：向下取整 x 时 x 分
+    const h = Math.floor(t / H), m = Math.floor((t % H) / M);
+    return h > 0 ? `${h}时${m}分` : `${m}分`;
+  }
+  return `${t}秒`;                                                 // <1 分：向下取整 x 秒
+}
+
+/**
+ * 倒计时按钮绑定（按钮灰化不可点 + 内部文字随单位切换 + 完成复原）。
+ * @param el 按钮/文本节点（按钮自动 disabled）
+ * @param opts { endAt, runningText, onDone }
+ *   endAt      结束时间戳（Date.now() + ms）
+ *   runningText 倒计时文案模板，含 {time} 占位（如 '{time}后可再次发送验证码'）
+ *   onDone     倒计时结束回调（复原后触发；按钮文本还原为原文案）
+ * @returns stop 函数（组件销毁/页面切换时调用，清 interval）
+ */
+function bindCountdown(el, { endAt, runningText = '{time}', onDone = null } = {}) {
+  if (!el) return () => {};
+  if (!isFinite(endAt)) return () => {}; // 防御：endAt 非法（NaN/Infinity）→ 不启动倒计时（防 interval 永续挂起事件循环）
+  const orig = el.textContent;
+  const tick = () => {
+    const rem = endAt - Date.now();
+    if (rem <= 0) {
+      clearInterval(iv);
+      el.disabled = false;
+      el.textContent = orig;
+      if (onDone) onDone();
+      return;
+    }
+    el.textContent = runningText.replace('{time}', formatCountdown(rem));
+  };
+  el.disabled = true;
+  tick();
+  const iv = setInterval(tick, 1000);
+  return () => { clearInterval(iv); el.disabled = false; el.textContent = orig; };
+}
+
+// ============================================================
+// v0.26.0 C2 敏感操作门禁（放在 boot 共享层：签约/合同/登录/注册等各领域与登录页都调用；
+// openCaptchaModal 由 app-captcha.js（同步加载，紧随本文件）提供）——
+// 确认按钮按下 → 先拦实际请求过一次拼图真人验证，通过才执行 action。
+// 防御降级：captcha 组件未就绪（vm 测试/异常环境）时直接执行 action——
+// 生产 captcha 同步加载必就绪，走拼图；测试专注业务逻辑自动直通。
+// ============================================================
+function withCaptcha(action) {
+  if (typeof action !== 'function') return;
+  if (typeof openCaptchaModal === 'function') openCaptchaModal({ onPass: action });
+  else action();
+}
+
 // md 编辑器壳（A6 收口 v0.25.80）：发帖/广播/反馈三弹窗共用模板（label + 工具栏 + 正文输入）。
 // labelFor 传 textarea id 时给 label 补 for（发帖用）；placeholder/rows 按弹窗差异传参
 function mdEditorHtml({ rows = 7, placeholder = '', label = UI.POST_LABEL_BODY, labelFor = '' } = {}) {

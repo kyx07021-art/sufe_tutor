@@ -110,7 +110,7 @@
       </section>
     </main>
 
-    <!-- Login -->
+    <!-- Login（v0.26.0 五合一登录：唯一输入框识别用户名/手机号/邮箱；默认密码登录，页脚小字切验证码登录） -->
     <div class="auth-view hidden" id="view-login">
       <div class="auth-card glass">
         <div class="auth-header">
@@ -119,26 +119,46 @@
         </div>
         <form onsubmit="handleLogin(event)">
           <div class="form-group">
-            <label class="form-label">用户名</label>
-            <input type="text" class="form-input" id="login-username" placeholder="请输入用户名" required
+            <label class="form-label">用户名 / 手机号 / 邮箱</label>
+            <input type="text" class="form-input" id="login-identifier" placeholder="请输入用户名/手机号/邮箱" required
               autocomplete="username" oninput="checkLoginUsernameDebounced()">
             <div class="login-username-hint" id="login-username-hint" aria-live="polite"></div>
           </div>
-          <div class="form-group">
-            <label class="form-label">密码</label>
-            <input type="password" class="form-input" id="login-password" placeholder="请输入密码" required
-              autocomplete="new-password">
+          <!-- 密码登录组（默认；账户探测有效后呼出） -->
+          <div id="login-password-group" class="hidden">
+            <div class="form-group">
+              <label class="form-label">密码</label>
+              <input type="password" class="form-input" id="login-password" placeholder="请输入密码" required
+                autocomplete="current-password">
+            </div>
+            <label class="remember-me">
+              <input type="checkbox" id="login-remember">
+              <span>记住登录状态，下次免输密码</span>
+            </label>
           </div>
-          <label class="remember-me">
-            <input type="checkbox" id="login-remember">
-            <span>记住登录状态，下次免输密码</span>
-          </label>
+          <!-- 验证码登录组（页脚小字切换；输入框内右缘发送按钮复用 B2 组件） -->
+          <div id="login-code-group" class="hidden">
+            <div class="form-group">
+              <label class="form-label">验证码</label>
+              <div class="code-input-wrap">
+                <input type="text" class="form-input" id="login-code" placeholder="输入验证码" inputmode="numeric"
+                  autocomplete="one-time-code" maxlength="6">
+                <button type="button" class="btn btn-sm code-send-btn glass glass--pressable" id="login-send"
+                  onclick="requestOtpCode('login','sms')">发送验证码</button>
+              </div>
+              <p class="form-hint">登录验证码将发送至该账户绑定的手机/邮箱</p>
+            </div>
+          </div>
           <div class="form-actions">
             <button type="button" class="btn btn-outline glass glass--pressable" onclick="authGoBack()">返回</button>
             <button type="submit" class="btn glass glass--pressable" id="login-submit">登录</button>
           </div>
         </form>
-        <div class="auth-footer">还没有账户？<a href="#" onclick="showView('register');return false;">立即注册</a></div>
+        <div class="auth-footer">
+          <a href="#" id="login-switch-mode" onclick="toggleLoginMode(event)">验证码登录</a>
+          <span>·</span>
+          <a href="#" onclick="showView('register');return false;">立即注册</a>
+        </div>
       </div>
     </div>
 
@@ -527,6 +547,25 @@
           <div class="browse-list" id="admin-complaint-list"><div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div></div>
         </section>
 
+        <!-- 管理员：内容审核（v0.26.0 D3 统一审核界面：全站内容提取 + 一键处罚） -->
+        <section class="client-page hidden" data-page="admin-content">
+          <div class="page-header">
+            <h2>内容审核</h2>
+            <div class="seg-tabs seg-tabs--role glass glass--solid" id="admin-content-tabs">
+              <button type="button" class="seg-tab glass active" data-type="" onclick="loadAdminContent('')">全部</button>
+              <button type="button" class="seg-tab glass" data-type="post" onclick="loadAdminContent('post')">帖子</button>
+              <button type="button" class="seg-tab glass" data-type="demand" onclick="loadAdminContent('demand')">需求</button>
+              <button type="button" class="seg-tab glass" data-type="teacher" onclick="loadAdminContent('teacher')">教师档案</button>
+              <button type="button" class="seg-tab glass" data-type="review" onclick="loadAdminContent('review')">评价</button>
+              <button type="button" class="seg-tab glass" data-type="message" onclick="loadAdminContent('message')">聊天</button>
+              <button type="button" class="seg-tab glass" data-type="feedback" onclick="loadAdminContent('feedback')">反馈</button>
+              <button type="button" class="seg-tab glass" data-type="complaint" onclick="loadAdminContent('complaint')">投诉</button>
+              <button type="button" class="seg-tab glass" data-type="upload" onclick="loadAdminContent('upload')">附件</button>
+            </div>
+          </div>
+          <div class="browse-list" id="admin-content-list"><div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div></div>
+        </section>
+
         <!-- 教师：资料共享（模块2；section 字段预留未来分区，当前全在广场） -->
         <section class="client-page hidden" data-page="resource-share">
           <div class="page-header"><h2>资料共享</h2></div>
@@ -598,6 +637,8 @@
   <script src="/app-datahub.js"></script>
   <script src="/app-anim.js"></script>
   <script src="/app-ui.js"></script>
+  <script src="/app-otp.js"></script>
+  <script src="/app-captcha.js"></script>
   <script src="/app-onboard.js"></script>
   <script src="/app-shell.js"></script>
   <script src="/app-auth.js"></script>

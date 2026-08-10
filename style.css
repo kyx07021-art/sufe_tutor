@@ -471,6 +471,46 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 
 /* 登录页：用户名命中现有账户时的灰字角色提示（固定占位防表单跳动） */
 .login-username-hint { min-height: 17px; margin-top: 5px; font-size: .74rem; color: var(--muted); letter-spacing: .02em; }
+/* v0.26.0 五合一登录：「不存在的账户」红字提示 */
+.login-hint--missing { color: var(--danger) !important; font-weight: 600; }
+
+/* v0.26.0 滑块拼图真人验证浮窗（C1）：canvas 拼图 + 拖拽轨道 + 失败抖动 */
+.captcha-box { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+#captcha-canvas { width: 100%; height: auto; border-radius: 10px; display: block; touch-action: none; }
+.captcha-slider-track { position: relative; height: 42px; border-radius: 21px; overflow: hidden;
+  background: var(--g-fill, rgba(128,128,128,.14)); box-shadow: inset 0 1px 3px rgba(0,0,0,.12); }
+.captcha-slider-fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--captcha-x, 0px) + 40px);
+  background: linear-gradient(90deg, rgba(76,175,80,.35), rgba(76,175,80,.5)); border-radius: 21px; }
+.captcha-slider-knob { position: absolute; left: 0; top: 0; width: 40px; height: 40px; margin: 1px;
+  display: flex; align-items: center; justify-content: center; cursor: grab; touch-action: none;
+  border-radius: 50%; background: #fff; color: #333; font-size: 18px; user-select: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25); transform: translateX(var(--captcha-x, 0px)); will-change: transform; }
+.captcha-slider-knob:active { cursor: grabbing; }
+.captcha--dragging .captcha-slider-knob { box-shadow: 0 3px 12px rgba(0,0,0,.35); }
+.captcha-slider-knob.captcha--pass { background: #4caf50; color: #fff; }
+.captcha-slider-knob.captcha--fail { background: #e53935; color: #fff; }
+.captcha-slider-track.captcha--shake { animation: captcha-shake .4s ease; }
+@keyframes captcha-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); } 40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); } 80% { transform: translateX(4px); }
+}
+.captcha-tip { font-size: .74rem; color: var(--muted); text-align: center; letter-spacing: .02em; margin: 0; }
+.captcha-tip--fail { color: var(--danger); font-weight: 600; }
+.captcha-tip--pass { color: #4caf50; font-weight: 600; }
+
+/* v0.26.0 手机号输入行（地区前缀 + 号码）与验证码输入框（内部右缘发送按钮，不占左半边输入区） */
+.phone-input-row { display: flex; gap: 8px; flex: 1; min-width: 0; }
+.phone-input-row .phone-prefix-select { flex: 0 0 132px; min-width: 0; }
+.phone-input-row .form-input { flex: 1; min-width: 0; }
+.code-input-wrap { position: relative; flex: 1; min-width: 0; }
+.code-input-wrap .form-input { width: 100%; padding-right: 116px; } /* 预留右缘按钮空间，文字不顶按钮 */
+.code-send-btn { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); max-width: 104px;
+  font-size: .72rem; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 480px) {
+  .code-send-btn { max-width: 92px; padding: 4px 6px; font-size: .66rem; }
+  .code-input-wrap .form-input { padding-right: 104px; }
+}
 .form-label {
   flex: 0 0 116px; margin: 0;
   font-size: .8rem; font-weight: 700; color: var(--ink-3); letter-spacing: .02em; line-height: 1.5;

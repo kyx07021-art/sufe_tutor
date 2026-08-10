@@ -170,6 +170,24 @@ export const MSG = {
   // 登录设备（会话）
   SESSION_NOT_FOUND: '该设备的登录状态不存在或已失效',
 
+  // v0.26.0 验证码/凭证（A3/A5/A6）
+  PHONE_INVALID: '手机号格式不正确',
+  EMAIL_INVALID: '邮箱格式不正确',
+  OTP_RESEND_LIMIT: '发送过于频繁，请 60 秒后再试',
+  OTP_DAILY_LIMIT: '今日验证码发送次数已达上限，请明天再试',
+  OTP_INVALID_OR_EXPIRED: '验证码错误或已过期',
+  OTP_REQUIRED: '请输入验证码',
+  CODE_SENT: '验证码已发送',
+  PHONE_ALREADY_BOUND: '该手机号已绑定其他账户',
+  EMAIL_ALREADY_BOUND: '该邮箱已绑定其他账户',
+  BIND_SUCCESS: '绑定成功',
+  USERNAME_COOLDOWN: '用户名 7 天内只能修改一次',
+  USERNAME_NEW_INVALID: '用户名只能包含中文、字母、数字及 _ . - （3-30 个字符），且不能为纯数字、不能含 @',
+  USERNAME_CHANGED: '用户名修改成功',
+
+  // v0.26.0 内容审核（D2 处罚）
+  PENALTY_REASON_REQUIRED: '请填写处罚原因',
+
   // 通用
   REGISTER_SUCCESS: '注册成功',
   REAUTH_FAILED: '密码错误，请重新输入后再试',
@@ -240,6 +258,14 @@ export const LIMITS = {
   FEEDBACK_MINE_MAX: 100,  // 我的反馈/投诉列表上限（v0.25.86 审计收敛自裸 LIMIT 100）
   FEEDBACK_ADMIN_MAX: 200, // 管理端反馈列表上限（v0.25.86 审计收敛自裸 LIMIT 200）
   STALE_UPLOAD_WINDOW: '-30 minutes', // 暂存附件清理窗口
+  // v0.26.0 验证码（A3，成熟方案口径：TTL+一次性+频控服务端强制）
+  OTP_CODE_TTL_MS: 5 * 60 * 1000,   // 验证码有效期 5 分钟
+  OTP_RESEND_WINDOW_MS: 60 * 1000,  // 同一目标 60s 内只能请求一次（服务端原子限频，前端倒计时只是表象）
+  OTP_DAILY_MAX: 10,                // 同一目标单日请求上限
+  OTP_CODE_MIN: 100000, OTP_CODE_MAX: 999999, // 6 位数字（避免前导零截断）
+  PHONE_MAX: 20,                    // 手机号长度上限（国际区号+号码）
+  EMAIL_MAX: 100,                   // 邮箱长度上限
+  USERNAME_COOLDOWN_MS: 7 * 24 * 3600 * 1000, // 用户名 7 天冷却
 };
 
 // ============================================================

@@ -15,6 +15,7 @@ import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块
 import { initVersionTable } from './version.js'; // 数据版本戳表建表（v0.23.0 静默数据层，仅借 init）
 import { initSigningTable } from './signing.js'; // 发起签约请求表建表（v0.24.0 极简签约流，仅借 init）
 import { initDangerCaps } from './danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
+import { initOtpTable } from './otp.js'; // 验证码表建表（v0.26.0 A3，独立模块，仅借 init，无循环依赖）
 
 // ============================================================
 // 数据库初始化 + 迁移
@@ -461,7 +462,14 @@ export async function initDb(db, env = {}) {
   await initLogDb(db);
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
-  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['deactivated', 'INTEGER NOT NULL DEFAULT 0']]);
+  // v0.26.0 凭证扩展（内测增量凭证，详见 docs/0.26-认证与审核架构.md A2）：
+  //   phone/email 为 AES 加密列（可展示，解密出门）；phone_hash/email_hash 为 SHA-256 可查询列
+  //   （AES 不可查询，登录按手机号/邮箱定位账户的唯一手段，同 auth_sessions.token_hash 模式）。
+  //   username_changed_at：用户名最近修改时间（7 天冷却判定，A5）。
+  await ensureColumns(db, 'users', [['avatar', "TEXT DEFAULT ''"], ['deactivated', 'INTEGER NOT NULL DEFAULT 0'],
+    ['phone', "TEXT DEFAULT ''"], ['phone_hash', "TEXT DEFAULT ''"],
+    ['email', "TEXT DEFAULT ''"], ['email_hash', "TEXT DEFAULT ''"],
+    ['username_changed_at', 'DATETIME']]);
   // 旧单令牌残留清空（网安报告 F-04：auth_token/token_expires 列已无读者，清值缩泄露面）。
   // 列仅存于历史库、不在任何 DDL（旧 schema 迁移残留）；全新库无这两列，须先 PRAGMA 探测再执行，
   // 否则 initDb 在全新 D1 上必抛 no such column（曾致初始化永久失败、全站 500 的 CRITICAL 缺陷）
@@ -565,6 +573,12 @@ export async function initDb(db, env = {}) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, banned, deactivated)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_pushes_teacher ON demand_pushes(teacher_user_id, status)'),
   ]);
+  // v0.26.0 凭证哈希唯一索引（A2）：同一手机号/邮箱至多绑一个账户（防撞库串号）。存量全空无冲突；
+  // 万一未来出现重复绑定数据，try/catch 保启动（登录按 hash 命中多行时路由层按首行处理并留档）
+  try {
+    await dbRun(db, 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash ON users(phone_hash) WHERE phone_hash != \'\'');
+    await dbRun(db, 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash) WHERE email_hash != \'\'');
+  } catch { /* 存量重复绑定数据（理论不出现）：跳过索引，路由层兜底 */ }
 
   // 通知表（独立模块 notify.js 提供建表与推送咽喉）
   await initNotifyTable(db);
@@ -574,6 +588,16 @@ export async function initDb(db, env = {}) {
   await initSigningTable(db);
   // 危险操作二次认证 capToken 表（独立模块 danger-ops.js 提供签发/校验；D1 持久化跨实例一致，网安审计 N-02）
   await initDangerCaps(db);
+  // 验证码表（v0.26.0 A3，独立模块 otp.js 提供请求/校验/限频；表域自持）
+  await initOtpTable(db);
+
+  // v0.26.0 A8 存量用户名消毒（幂等）：登录唯一输入框按格式初判，含 @ / 纯数字的用户名会歧义为
+  // 邮箱/手机号，一次性改名「原名_sufe」（后缀避 UNIQUE 冲突；幂等——已消毒名不含 @ / 纯数字不再命中）。
+  // 须在凭证哈希唯一索引之后执行（消毒不触碰 phone_hash/email_hash，无冲突）。
+  const dirtyUsers = await dbAll(db, `SELECT id, username FROM users WHERE username LIKE '%@%' OR CAST(username AS TEXT) GLOB '[0-9]*' AND CAST(username AS TEXT) NOT GLOB '*[^0-9]*'`);
+  for (const r of dirtyUsers) {
+    await dbRun(db, 'UPDATE users SET username=? WHERE id=?', [`${r.username}_sufe`, r.id]);
+  }
 
   // 存量用户名消毒：注册白名单仅约束新注册，旧库若残留含 < > " ' 的用户名会命中各转义汇点，
   // 一次性改名「用户#id#时间戳」（幂等：GLOB 不再匹配已消毒名；时间戳后缀保 UNIQUE）
@@ -599,6 +623,13 @@ export function dbUserLookupStmt(db, username) {
 }
 export function dbUsernameExistsStmt(db, username) {
   return db.prepare('SELECT id FROM users WHERE username=?').bind(username);
+}
+// v0.26.0 登录识别（A7）：手机号/邮箱哈希可查列定位 stmt（B1 限流同批；hash 由调用方 tokenDigest 预计算）
+export function dbUserPhoneHashStmt(db, hash) {
+  return db.prepare("SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE phone_hash=? AND phone_hash != ''").bind(hash);
+}
+export function dbUserEmailHashStmt(db, hash) {
+  return db.prepare("SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE email_hash=? AND email_hash != ''").bind(hash);
 }
 
 export async function dbFindUserById(db, id) {
@@ -1801,4 +1832,59 @@ export async function dbSetPrivacySettings(db, userId, { allowGuestProfile, allo
       allow_guest_demand=excluded.allow_guest_demand,
       updated_at=excluded.updated_at`, [userId, p, d]);
   return dbGetPrivacySettings(db, userId);
+}
+
+// ============================================================
+// v0.26.0 D1 统一内容提取（审核者「一声令下看所有数据」）：逐表查询全部用户可操作内容，
+// 归拢统一结构 { type, id, author:{id,username,role}, title, body, status, created_at, extra }。
+// 增量改造：只新增本查询出口，不改变任何现有内容流转；私密字段（联系方式/附件本体）不提取。
+// type 过滤参数：不传 = 全类型（每类型取 limit 条最新）；传 = 单类型。
+// ============================================================
+export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUBLIC_LIST_MAX } = {}) {
+  const types = type ? [type] : ['post', 'demand', 'teacher', 'review', 'message', 'feedback', 'complaint', 'upload'];
+  const out = [];
+  for (const t of types) {
+    if (t === 'post') {
+      const rows = await dbAll(db, `SELECT p.id, p.user_id, u.username, u.role, p.section, p.title, p.body_md, p.like_count, p.created_at
+        FROM posts p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } });
+    } else if (t === 'demand') {
+      const rows = await dbAll(db, `SELECT sd.id, sd.user_id, u.username, u.role, sd.status, sd.target_subjects, sd.address, sd.additional_info, sd.display_id, sd.created_at
+        FROM student_demands sd LEFT JOIN users u ON u.id=sd.user_id ORDER BY sd.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `需求 #${r.display_id || r.id}`, body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
+    } else if (t === 'teacher') {
+      const rows = await dbAll(db, `SELECT tp.user_id, u.username, u.role, tp.intro, tp.address, tp.school, tp.verified, tp.updated_at
+        FROM teacher_profiles tp LEFT JOIN users u ON u.id=tp.user_id ORDER BY tp.updated_at DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: `教师档案 · ${r.username || ''}`, body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} });
+    } else if (t === 'review') {
+      const rows = await dbAll(db, `SELECT r.id, r.reviewer_user_id, u.username, u.role, r.rating, r.comment, r.status, r.created_at
+        FROM reviews r LEFT JOIN users u ON u.id=r.reviewer_user_id ORDER BY r.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: `评价 ${r.rating} 星`, body: r.comment, status: r.status, created_at: r.created_at, extra: {} });
+    } else if (t === 'message') {
+      const rows = await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, u.username, u.role, m.kind, m.body, m.name, m.created_at
+        FROM messages m LEFT JOIN users u ON u.id=m.sender_user_id ORDER BY m.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? '聊天消息' : `附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } });
+    } else if (t === 'feedback') {
+      const rows = await dbAll(db, `SELECT f.id, f.user_id, u.username, u.role, f.kind, f.title, f.content, f.status, f.created_at
+        FROM feedbacks f LEFT JOIN users u ON u.id=f.user_id ORDER BY f.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'feedback', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title || `反馈（${r.kind}）`, body: r.content, status: r.status, created_at: r.created_at, extra: { kind: r.kind } });
+    } else if (t === 'complaint') {
+      const rows = await dbAll(db, `SELECT c.id, c.user_id, u.username, u.role, c.target_type, c.target_id, c.reason, c.detail, c.status, c.created_at
+        FROM complaints c LEFT JOIN users u ON u.id=c.user_id ORDER BY c.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'complaint', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `投诉 ${r.target_type} #${r.target_id}（${r.reason}）`, body: r.detail, status: r.status, created_at: r.created_at, extra: { target_type: r.target_type, target_id: r.target_id } });
+    } else if (t === 'upload') {
+      const rows = await dbAll(db, `SELECT o.id, o.user_id, u.username, u.role, o.kind, o.name, o.created_at
+        FROM uploads o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.id DESC LIMIT ?`, [limit]);
+      for (const r of rows) out.push({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `暂存附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } });
+    }
+  }
+  return out;
+}
+
+// v0.26.0 D2 处罚所需删除 mapper（反馈/投诉此前仅有 resolve，无删除；内容审核通道需硬删）
+export async function dbDeleteFeedback(db, id) {
+  await dbRun(db, 'DELETE FROM feedbacks WHERE id=?', [id]);
+}
+export async function dbDeleteComplaint(db, id) {
+  await dbRun(db, 'DELETE FROM complaints WHERE id=?', [id]);
 }

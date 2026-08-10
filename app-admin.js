@@ -432,3 +432,84 @@ function renderAdminReviewRow(r) {
     </div>
   </div>`;
 }
+
+// ============================================================
+// v0.26.0 D3：统一内容审核页（全站内容提取 + 一键处罚）
+// ============================================================
+const _contentTypeName = t => ({
+  post: UI.ADMIN_CONTENT_TYPE_POST, demand: UI.ADMIN_CONTENT_TYPE_DEMAND, teacher: UI.ADMIN_CONTENT_TYPE_TEACHER,
+  review: UI.ADMIN_CONTENT_TYPE_REVIEW, message: UI.ADMIN_CONTENT_TYPE_MESSAGE, feedback: UI.ADMIN_CONTENT_TYPE_FEEDBACK,
+  complaint: UI.ADMIN_CONTENT_TYPE_COMPLAINT, upload: UI.ADMIN_CONTENT_TYPE_UPLOAD,
+}[t] || t);
+
+async function loadAdminContent(type = '') {
+  // 选中态（全部/单类型 tab）
+  document.querySelectorAll('#admin-content-tabs .seg-tab').forEach(b => b.classList.toggle('active', String(b.dataset.type) === String(type)));
+  const el = document.getElementById('admin-content-list');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
+  try {
+    const data = await api(`/api/admin/content${type ? `?type=${encodeURIComponent(type)}` : ''}`);
+    const items = data.items || [];
+    if (!document.getElementById('admin-content-list')) return; // 已离开页面
+    if (!items.length) { el.innerHTML = `<div class="empty-state"><p>${UI.ADMIN_CONTENT_EMPTY}</p></div>`; return; }
+    el.innerHTML = items.map(renderAdminContentRow).join('');
+    initReveals(el);
+  } catch (err) {
+    if (document.getElementById('admin-content-list')) el.innerHTML = `<div class="empty-state"><p>${escHtml(err.message)}</p></div>`;
+  }
+}
+
+function renderAdminContentRow(it) {
+  const author = it.author && it.author.username ? escHtml(it.author.username) : '已注销用户';
+  const roleTag = it.author && it.author.role ? `<span class="tag glass glass--solid">${escHtml(DISP.roleLabel(it.author.role))}</span>` : '';
+  const statusTag = it.status ? `<span class="tag glass glass--solid ${it.status === 'open' || it.status === 'pending' ? 'tag-warn' : 'tag-ok'}">${escHtml(it.status)}</span>` : '';
+  return `<div class="list-card glass content-card" data-type="${escHtml(it.type)}" data-id="${it.id}">
+    <div class="list-card-header">
+      <span class="list-card-title">${escHtml(it.title || it.type)}</span>
+      <span class="feedback-tags">
+        <span class="tag glass glass--solid">${escHtml(_contentTypeName(it.type))}</span>
+        ${statusTag}${roleTag}
+      </span>
+    </div>
+    <div class="list-card-detail content-card-body">${escHtml(String(it.body || '').slice(0, 160))}</div>
+    <div class="feedback-foot">
+      <span class="list-card-meta">${author} · ${fmtDateTime(it.created_at)}</span>
+      <div class="admin-row-actions">
+        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="openContentPenaltyModal('${it.type}',${it.id})">${UI.ADMIN_CONTENT_PENALTY_DELETE} / ${UI.ADMIN_CONTENT_PENALTY_BAN}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// 处罚弹窗：原因（必填）+ 触犯规则 → 删除 / 封禁作者
+function openContentPenaltyModal(type, id) {
+  openModal({
+    title: `处罚${_contentTypeName(type)} #${id}`,
+    style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
+    body: `<div class="form-group">
+        <label class="form-label">${UI.ADMIN_CONTENT_PENALTY_REASON} <span class="req">*</span></label>
+        <input type="text" class="form-input" id="penalty-reason" maxlength="200" placeholder="如：含详细门牌号，违反平台隐私红线">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${UI.ADMIN_CONTENT_PENALTY_RULE}</label>
+        <input type="text" class="form-input" id="penalty-rule" maxlength="100" placeholder="如：地址门控 / 内容安全">
+      </div>
+      <p class="form-hint">处罚后将自动通知作者（含原因、规则与触发内容摘要）</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="submitContentPenalty('${type}',${id},'remove')">${UI.ADMIN_CONTENT_PENALTY_DELETE}</button>
+      <button type="button" class="btn glass glass--pressable" onclick="submitContentPenalty('${type}',${id},'ban')">${UI.ADMIN_CONTENT_PENALTY_BAN}</button>`,
+  });
+}
+
+async function submitContentPenalty(type, id, action) {
+  const reason = document.getElementById('penalty-reason').value.trim();
+  if (!reason) { showToast(UI.ADMIN_CONTENT_PENALTY_REASON, 'error'); return; }
+  const rule = document.getElementById('penalty-rule').value.trim();
+  try {
+    const r = await api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, rule } });
+    showToast(r.message || '已处理', 'success');
+    closeModal();
+    loadAdminContent(document.querySelector('#admin-content-tabs .seg-tab.active')?.dataset.type || '');
+  } catch (err) { showToast(err.message, 'error'); }
+}

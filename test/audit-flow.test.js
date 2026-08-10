@@ -1,0 +1,56 @@
+/**
+ * v0.26.0 高频轻量日常审核通道（E1/E2）
+ *
+ * 覆盖：
+ *   - isContentWrite：内容域写路径白名单（帖子/需求/档案/评价/反馈/投诉/注册/聊天消息/附件）；
+ *   - auditBeforeWrite：放行（默认）/ 驳回（dummy 随机极小概率，stub Math.random）；
+ *   - 300ms 预算：同步微秒级返回；队列处理即清栈（深度恒 0）。
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { isContentWrite, auditBeforeWrite, auditQueueDepth } from '../server/audit-flow.js';
+
+test('isContentWrite：内容域写路径白名单', () => {
+  // 内容域写（POST/PUT）→ 过断点
+  assert.equal(isContentWrite('/api/posts', 'POST'), true, '发帖');
+  assert.equal(isContentWrite('/api/student/demands', 'POST'), true, '发布需求');
+  assert.equal(isContentWrite('/api/teacher/profile', 'POST'), true, '保存教师档案');
+  assert.equal(isContentWrite('/api/reviews', 'POST'), true, '提交评价');
+  assert.equal(isContentWrite('/api/feedbacks', 'POST'), true, '提交反馈');
+  assert.equal(isContentWrite('/api/complaints', 'POST'), true, '提交投诉');
+  assert.equal(isContentWrite('/api/auth/register', 'POST'), true, '注册');
+  assert.equal(isContentWrite('/api/uploads', 'POST'), true, '暂存附件');
+  assert.equal(isContentWrite('/api/conversations/12/messages', 'POST'), true, '聊天消息');
+  assert.equal(isContentWrite('/api/conversations/12/messages', 'PUT'), true, '聊天消息 PUT 变体');
+  // 非内容写/读 → 不过断点
+  assert.equal(isContentWrite('/api/posts', 'GET'), false, '读不审核');
+  assert.equal(isContentWrite('/api/auth/login', 'POST'), false, '登录不是内容上传');
+  assert.equal(isContentWrite('/api/notifications/read-all', 'POST'), false, '已读非内容');
+  assert.equal(isContentWrite('/api/auth/logout', 'POST'), false, '登出非内容');
+  assert.equal(isContentWrite('/api/health', 'GET'), false);
+});
+
+test('auditBeforeWrite：默认放行 + 300ms 预算 + 队列即清栈', async () => {
+  const t0 = Date.now();
+  const r = auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: 'x', body_md: 'y' }, ip: '1.2.3.4', userId: 7 });
+  const elapsed = Date.now() - t0;
+  assert.equal(r.ok, true, 'dummy 默认放行');
+  assert.ok(elapsed < 300, `全链路 ≤300ms（实测 ${elapsed}ms）`);
+  assert.equal(auditQueueDepth(), 0, '处理即清栈（清栈速度远高于堆栈）');
+  // 非内容路径直接放行不入队
+  const r2 = auditBeforeWrite({ path: '/api/notifications/read-all', method: 'POST', body: {} });
+  assert.equal(r2.ok, true);
+});
+
+test('auditBeforeWrite：dummy 极小概率驳回（stub Math.random）→ 返回拒绝文本', () => {
+  const orig = Math.random;
+  try {
+    Math.random = () => 0; // 必命中随机驳回
+    const r = auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: '违规测试' }, ip: '9.9.9.9', userId: 3 });
+    assert.equal(r.ok, undefined);
+    assert.equal(r.reject, 'dummy审核组件随机驳回一些请求，以测试网站内容审核功能，请再试一次');
+  } finally { Math.random = orig; }
+  // 恢复后放行
+  const ok = auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: 'y' } });
+  assert.equal(ok.ok, true);
+});

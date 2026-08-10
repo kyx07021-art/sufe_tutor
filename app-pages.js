@@ -56,6 +56,13 @@ function enterAccountSettings() {
   // 需求六·item5：UI 大小滑块现值/轨道填充百分比（进页按 localStorage 现值应用；滑块一边滑一边变）
   const uiScaleVal = getUiScale();
   const uiScaleFill = uiScaleFillPct(uiScaleVal);
+  // v0.26.0 凭证行（B5）：用户名行修改按钮按 7 天冷却显示（倒计时/灰化由 loadUsernameStatus 填充）；
+  // 手机号/邮箱行显示已绑（脱敏，loadMyCreds 填充）或未绑定，修改按钮打开绑定浮窗。
+  const credRow = (label, valId, bindFn) => `
+    <div class="settings-row">
+      <div><div class="settings-label">${label}</div><div class="settings-value"><span id="${valId}">${UI.SETTINGS_UNBOUND}</span></div></div>
+      <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="${bindFn}">${UI.BTN_MODIFY}</button>
+    </div>`;
   // 需求四·4b：两区对调——账户信息在上、外观在下（原外观在前账户在后；头像行相对账户标题位置不变）
   document.getElementById('account-settings-content').innerHTML = `
     <div class="settings-section-title">${UI.SETTINGS_ACCOUNT_TITLE}</div>
@@ -68,10 +75,13 @@ function enterAccountSettings() {
       ${renderAvatarHtml(u.avatar, u.username, 'settings-avatar')}
     </div>
     <div class="settings-list">
-      ${row(UI.SETTINGS_USERNAME, escHtml(u.username), false)}
+      <div class="settings-row">
+        <div><div class="settings-label">${UI.SETTINGS_USERNAME}</div><div class="settings-value">${escHtml(u.username)}</div></div>
+        <button type="button" class="btn btn-outline btn-sm glass glass--pressable" id="username-change-btn" onclick="openUsernameChangeModal()">${UI.BTN_MODIFY}</button>
+      </div>
       ${row(UI.SETTINGS_ROLE, roleLabel, false)}
-      ${row(UI.SETTINGS_PHONE, UI.SETTINGS_UNBOUND, true)}
-      ${row(UI.SETTINGS_EMAIL, UI.SETTINGS_UNBOUND, true)}
+      ${credRow(UI.SETTINGS_PHONE, 'settings-phone-val', 'openPhoneBindModal()')}
+      ${credRow(UI.SETTINGS_EMAIL, 'settings-email-val', 'openEmailBindModal()')}
     </div>
     <div class="settings-section-title">${UI.SETTINGS_APPEARANCE_TITLE}</div>
     <div class="settings-list">
@@ -139,6 +149,90 @@ function enterAccountSettings() {
   bindUiScaleSlider(); // v0.25.103 B1：滑块渲染后接管 pointer 差分拖动（html transform 预览的正反馈根治）
   loadDeviceSessions();
   loadPrivacySettings(); // #163：进页异步读本人访客可见性设置（无行=默认允许）
+  loadUsernameStatus(); // v0.26.0 B5：用户名 7 天冷却按钮态（倒计时/灰化）
+  loadMyCreds();        // v0.26.0 B5：手机号/邮箱绑定状态（脱敏展示）
+}
+
+// v0.26.0 B5：用户名修改冷却状态 → 修改按钮「修改」/ 倒计时灰化（bindCountdown 复用）
+async function loadUsernameStatus() {
+  const btn = document.getElementById('username-change-btn');
+  if (!btn) return;
+  try {
+    const d = await api('/api/user/username/status');
+    if (!document.getElementById('username-change-btn')) return; // 已离开设置页
+    // 防御：canChange 明确 true 或 cooldownMs 非法（NaN/缺失，如 mock/异常响应）→ 按钮保持「修改」不启动倒计时
+    if (d.canChange === true || !isFinite(Number(d.cooldownMs)) || Number(d.cooldownMs) <= 0) return;
+    bindCountdown(btn, { endAt: Date.now() + Number(d.cooldownMs), runningText: UI.USERNAME_COOLDOWN_BTN, onDone: () => { btn.textContent = UI.BTN_MODIFY; } });
+  } catch { /* 网络抖动：按钮保持「修改」，提交时服务端兜底拦截 */ }
+}
+
+// v0.26.0 B5：本人已绑凭证（服务端脱敏）填充设置页手机号/邮箱行
+async function loadMyCreds() {
+  const phoneEl = document.getElementById('settings-phone-val');
+  const emailEl = document.getElementById('settings-email-val');
+  if (!phoneEl && !emailEl) return;
+  try {
+    const d = await api('/api/user/creds');
+    if (!document.getElementById('settings-phone-val')) return; // 已离开设置页
+    if (phoneEl) phoneEl.textContent = d.phone || UI.SETTINGS_UNBOUND;
+    if (emailEl) emailEl.textContent = d.email || UI.SETTINGS_UNBOUND;
+  } catch { /* 网络抖动：保持「未绑定」占位 */ }
+}
+
+// v0.26.0 B5：修改用户名弹窗（输入新名）→ 密码二道确认（confirm needReAuth）→ 提交
+function openUsernameChangeModal() {
+  const btn = document.getElementById('username-change-btn');
+  if (btn && btn.disabled) { showToast(UI.USERNAME_COOLDOWN, 'error'); return; } // 冷却中不可点（按钮已灰化，双保险）
+  openModal({
+    title: UI.USERNAME_CHANGE_TITLE,
+    style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
+    body: `<div class="form-group">
+      <label class="form-label">新用户名 <span class="req">*</span></label>
+      <input type="text" class="form-input" id="username-new-input" placeholder="${UI.USERNAME_NEW_PLACEHOLDER}" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')confirmUsernameChange()">
+      <p class="form-hint">修改后全平台即时更新用户名；7 天内仅可修改一次</p>
+    </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+      <button type="button" class="btn glass glass--pressable" onclick="confirmUsernameChange()">${UI.BTN_USERNAME_SAVE}</button>`,
+  });
+}
+
+// 确认修改：校验新名格式 → 危险操作二次认证（输入当前密码）→ 提交
+function confirmUsernameChange() {
+  const input = document.getElementById('username-new-input');
+  if (!input) return;
+  const newName = input.value.trim();
+  if (newName.length < 3 || newName.length > 30) { showToast('用户名长度需在 3-30 个字符之间', 'error'); return; }
+  if (!/^[\p{Script=Han}A-Za-z0-9_.\-]+$/u.test(newName) || newName.includes('@') || /^\d+$/.test(newName)) {
+    showToast('用户名只能包含中文、字母、数字及 _ . -，且不能为纯数字、不能含 @', 'error');
+    return;
+  }
+  confirm({
+    title: UI.USERNAME_CHANGE_TITLE,
+    message: `确定将用户名修改为「${escHtml(newName)}」吗？修改后 7 天内不可再次修改。`,
+    needReAuth: true, // 密码二道确认（网安 F-05 二次认证）
+    okText: UI.BTN_USERNAME_SAVE,
+    // C2 敏感操作门禁：密码验证通过后再过一次拼图真人验证，才真正改用户名
+    onConfirm: (capToken) => withCaptcha(() => submitUsernameChange(newName, capToken)),
+  });
+}
+
+async function submitUsernameChange(newName, capToken) {
+  try {
+    const btn = document.getElementById('username-change-btn');
+    btnLoading(btn, UI.BTN_USERNAME_SAVING);
+    const r = await api('/api/user/username', { method: 'POST', body: { newUsername: newName, capToken } });
+    state.user.username = r.username; // 本地立即更新（会话内全站 username 展示同步）
+    // 保活会话：保持原「记住我」来源（local=localStorage / session=sessionStorage）
+    if (typeof saveSession === 'function') {
+      const cur = (typeof loadSession === 'function' && loadSession()) || {};
+      saveSession(cur.source === 'local');
+    }
+    closeModal();
+    enterAccountSettings(); // 重渲染设置页（新用户名 + 冷却倒计时按钮）
+    showToast(r.message, 'success');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 // #163（v0.25.71）：隐私设置——访客可见性。教师看档案开关、学生看需求开关（各自仅一个相关项）。

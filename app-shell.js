@@ -78,6 +78,7 @@ const ROLE_PAGES = {
     { id: 'admin-contracts',  label: UI.PAGE_ADMIN_CONTRACTS, desc: UI.PAGE_ADMIN_CONTRACTS_DESC, enter: () => loadAdminContracts() },
     { id: 'admin-feedback',   label: UI.PAGE_ADMIN_FEEDBACK, desc: UI.PAGE_ADMIN_FEEDBACK_DESC, enter: () => loadAdminFeedback() },
     { id: 'admin-complaint',  label: UI.PAGE_ADMIN_COMPLAINT, desc: UI.PAGE_ADMIN_COMPLAINT_DESC, enter: () => loadAdminComplaints() },
+    { id: 'admin-content',    label: UI.PAGE_ADMIN_CONTENT, desc: UI.PAGE_ADMIN_CONTENT_DESC, enter: () => loadAdminContent() }, // v0.26.0 D3 统一内容审核
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: () => enterAccountSettings() },
     { id: 'about',            label: UI.PAGE_ABOUT,          desc: UI.PAGE_ABOUT_DESC,          enter: () => enterAbout(), auth: false },

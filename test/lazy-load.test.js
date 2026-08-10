@@ -12,11 +12,11 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 
-const BOOT = ['constants.js','app-display.js','app-state.js','app-api.js','app-datahub.js','app-anim.js','app-ui.js','app-onboard.js','app-shell.js','app-auth.js'];
+const BOOT = ['constants.js','app-display.js','app-state.js','app-api.js','app-datahub.js','app-anim.js','app-ui.js','app-otp.js','app-captcha.js','app-onboard.js','app-shell.js','app-auth.js'];
 const DOMAIN = ['region-data.js','app-style.js','app-region.js','app-posts.js','app-chat.js','app-contracts.js','app-chart.js','app-admin.js','app-demands.js','app-teachers.js','app-pages.js','app-complaints.js'];
 const ALL = [...BOOT, ...DOMAIN];
 
-test('index.html 只同步加载 10 个 boot 脚本，12 个领域脚本全部移除', () => {
+test('index.html 只同步加载 12 个 boot 脚本，12 个领域脚本全部移除', () => {
   const html = readFileSync('./index.html', 'utf8');
   const refs = [...html.matchAll(/src="\/([a-z-]+\.js)"/g)].map(m => m[1]);
   assert.deepEqual([...refs].sort(), [...BOOT].sort(), '仅 boot 脚本在位');

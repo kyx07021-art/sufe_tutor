@@ -24,16 +24,30 @@ function ensureAuth() {
 // v0.23.1：预览端触发登录时按客户端类型提示「请登录教师/学生账户」
 // v0.24.0：登录表单用户名按当前客户端角色预填（拉该角色上次登录记录）——
 // 学生端预填学生账户、教师端预填教师账户，不再串号
+// v0.26.0：唯一输入框 login-identifier（用户名/手机号/邮箱）；进登录页复位密码模式与账户探测态
+let loginMode = 'password'; // 密码登录（默认） | 验证码登录（页脚小字切换）
+let loginAccountValid = false; // 账户探测是否有效（有效才呼出凭证组）
+
 function refreshAuthHeader() {
   const h = document.getElementById('login-title');
   const p = document.getElementById('login-subtitle');
   if (!h || !p) return;
-  const u = document.getElementById('login-username');
+  const u = document.getElementById('login-identifier');
   if (u) {
     const saved = state.guestRole ? loadSession(state.guestRole) : loadSession();
     const name = saved && saved.user ? saved.user.username : '';
     u.value = name; // 覆盖浏览器自动填充的异角色账密（密码无法按角色预填：绝不存明文密码）
   }
+  // 复位登录表单态（v0.26.0：每次进登录页回密码模式 + 隐藏凭证组 + 清探测提示）
+  loginMode = 'password'; loginAccountValid = false;
+  const pw = document.getElementById('login-password-group');
+  const cd = document.getElementById('login-code-group');
+  const hint = document.getElementById('login-username-hint');
+  const link = document.getElementById('login-switch-mode');
+  if (pw) pw.classList.add('hidden');
+  if (cd) cd.classList.add('hidden');
+  if (hint) { hint.textContent = ''; hint.classList.remove('login-hint--missing'); }
+  if (link) link.textContent = UI.LOGIN_SWITCH_CODE;
   if (state.guestAuthMode && state.guestRole === 'teacher') {
     h.textContent = UI.AUTH_LOGIN_TITLE_TEACHER;
     p.textContent = UI.AUTH_LOGIN_SUB_TEACHER;
@@ -147,29 +161,88 @@ function checkLoginUsernameDebounced() {
 
 async function checkLoginUsername() {
   const hint = document.getElementById('login-username-hint');
-  const name = document.getElementById('login-username').value.trim();
+  const identifier = document.getElementById('login-identifier').value.trim();
   const seq = ++loginCheckSeq;
-  if (!name || !hint) { if (hint) hint.textContent = ''; return; }
+  if (!identifier || !hint) { if (hint) hint.textContent = ''; return; }
   try {
-    const data = await api(`/api/auth/check?username=${encodeURIComponent(name)}`);
+    const data = await api(`/api/auth/check?identifier=${encodeURIComponent(identifier)}`);
     if (seq !== loginCheckSeq) return; // 过期响应丢弃，防输入快于请求时的乱序
-    hint.textContent = !data.exists ? ''
+    // v0.26.0：账户类型反馈复用「学生账户/教师账户/管理员账户」，加「不存在的账户」红字；
+    // 账户有效才呼出密码/验证码凭证组（loginAccountValid 门控）
+    const exists = !!data.exists;
+    loginAccountValid = exists;
+    hint.textContent = !exists ? UI.LOGIN_ACCOUNT_MISSING
       : data.role === 'teacher' ? UI.HINT_ROLE_TEACHER
       : data.role === 'student' ? UI.HINT_ROLE_STUDENT : UI.HINT_ROLE_ADMIN;
+    hint.classList.toggle('login-hint--missing', !exists);
+    syncLoginCredGroups();
   } catch { /* 网络抖动：静默不给提示 */ }
 }
 
+// 同步凭证组显示：账户有效 → 按当前模式（密码/验证码）显示对应组；无效 → 全隐藏
+function syncLoginCredGroups() {
+  const pw = document.getElementById('login-password-group');
+  const cd = document.getElementById('login-code-group');
+  if (!loginAccountValid) {
+    if (pw) pw.classList.add('hidden');
+    if (cd) cd.classList.add('hidden');
+    return;
+  }
+  const codeMode = loginMode === 'code';
+  if (pw) pw.classList.toggle('hidden', codeMode);
+  if (cd) cd.classList.toggle('hidden', !codeMode);
+}
+
+// 页脚小字切换：密码登录 ↔ 验证码登录（用户名账户无验证码通道 → 提示并留在密码模式）
+function toggleLoginMode(e) {
+  if (e) e.preventDefault();
+  if (!loginAccountValid) return; // 账户未确认前不切换（凭证组未呼出）
+  const next = loginMode === 'code' ? 'password' : 'code';
+  if (next === 'code') {
+    const ident = (document.getElementById('login-identifier') || {}).value || '';
+    if (ident && !validateEmail(ident) && !validatePhone(ident)) {
+      showToast('用户名账户请使用密码登录', 'error');
+      return;
+    }
+  }
+  loginMode = next;
+  const link = document.getElementById('login-switch-mode');
+  if (link) link.textContent = next === 'code' ? UI.LOGIN_SWITCH_PASSWORD : UI.LOGIN_SWITCH_CODE;
+  syncLoginCredGroups();
+}
+
+// v0.26.0 五合一登录提交：密码模式（账密/手机密码/邮箱密码）与验证码模式（手机验证码/邮箱验证码）
+// C2 敏感操作门禁：按下「登录」先过一次拼图真人验证，通过后才真正发登录请求（非自动登录须验证）
 async function handleLogin(e) {
   e.preventDefault();
-  const username = document.getElementById('login-username').value.trim();
-  const password = document.getElementById('login-password').value;
-  const btn = document.getElementById('login-submit');
+  const identifier = document.getElementById('login-identifier').value.trim();
+  if (!identifier) { showToast(UI.LOGIN_IDENTIFIER_PLACEHOLDER, 'error'); return; }
+  if (loginMode === 'code' && !(document.getElementById('login-code') || {}).value) {
+    showToast(UI.CODE_PLACEHOLDER, 'error');
+    return;
+  }
+  if (loginMode !== 'code' && !(document.getElementById('login-password') || {}).value) {
+    showToast(UI.LOGIN_REQUIRED, 'error');
+    return;
+  }
+  withCaptcha(() => doLogin(identifier));
+}
 
+async function doLogin(identifier) {
+  const btn = document.getElementById('login-submit');
+  const remember = !!(document.getElementById('login-remember') && document.getElementById('login-remember').checked);
   try {
     btnLoading(btn, UI.LOADING_LOGIN);
-    const data = await api('/api/auth/login', { method: 'POST', body: { username, password, deviceId: getDeviceId() } });
+    let data;
+    if (loginMode === 'code') {
+      const code = document.getElementById('login-code').value.trim();
+      data = await api('/api/auth/login/code', { method: 'POST', body: { identifier, code, deviceId: getDeviceId() } });
+    } else {
+      const password = document.getElementById('login-password').value;
+      data = await api('/api/auth/login', { method: 'POST', body: { identifier, password, deviceId: getDeviceId() } });
+    }
     state.user = data.user; state.authToken = data.authToken || null;
-    saveSession(document.getElementById('login-remember').checked); // 会话持久化（绝不存明文密码）
+    saveSession(remember); // 会话持久化（绝不存明文密码）
     afterAuthSuccess();
   } catch (err) {
     showToast(err.message, 'error'); // v0.25.99：校验/错误提示走底部 Toast
@@ -203,7 +276,11 @@ async function handleRegister(e) {
       return;
     }
   }
+  // C2 敏感操作门禁：按下「注册」先过一次拼图真人验证，通过后才真正发注册请求
+  withCaptcha(() => doRegister(username, password, role, agreeAgreement, agreePrivacy));
+}
 
+async function doRegister(username, password, role, agreeAgreement, agreePrivacy) {
   try {
     const btn = document.getElementById('register-submit');
     btnLoading(btn, UI.LOADING_REGISTER);
