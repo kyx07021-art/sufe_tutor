@@ -1293,10 +1293,6 @@ export async function dbListMyFavoritePosts(db, userId) {
   return rows.map(r => ({ ...r, liked: !!r.liked, favorited: true }));
 }
 
-export async function dbGetPostFavorite(db, postId, userId) {
-  return await dbGet(db, 'SELECT id FROM post_favorites WHERE post_id=? AND user_id=?', [postId, userId]);
-}
-
 export async function dbCreatePostFavorite(db, postId, userId) {
   await dbRun(db, 'INSERT INTO post_favorites (post_id, user_id) VALUES (?,?)', [postId, userId]);
 }
@@ -1316,28 +1312,35 @@ export async function dbGetPostById(db, postId) {
   return await dbGet(db, 'SELECT id, user_id, title FROM posts WHERE id=?', [postId]);
 }
 
-export async function dbGetPostLike(db, postId, userId) {
-  return await dbGet(db, 'SELECT id FROM post_likes WHERE post_id=? AND user_id=?', [postId, userId]);
+// U10（网络层架构债）：点赞/收藏切换把「读帖 + 读本人记录」合成一步 batch（串行 2 次往返 → 1 次）。
+// D1 batch 结果元素对 SELECT 含 .results 数组（与 login authRateBatch 同解析口径）。
+export async function dbGetPostLikeToggleRead(db, postId, userId) {
+  const out = await db.batch([
+    db.prepare('SELECT id, user_id, title FROM posts WHERE id=?').bind(postId),
+    db.prepare('SELECT id FROM post_likes WHERE post_id=? AND user_id=?').bind(postId, userId),
+  ]);
+  return { post: out[0]?.results?.[0] ?? null, like: out[1]?.results?.[0] ?? null };
 }
 
-export async function dbCreatePostLike(db, postId, userId) {
-  await dbRun(db, 'INSERT INTO post_likes (post_id, user_id) VALUES (?,?)', [postId, userId]);
+export async function dbGetPostFavoriteToggleRead(db, postId, userId) {
+  const out = await db.batch([
+    db.prepare('SELECT id, user_id, title FROM posts WHERE id=?').bind(postId),
+    db.prepare('SELECT id FROM post_favorites WHERE post_id=? AND user_id=?').bind(postId, userId),
+  ]);
+  return { post: out[0]?.results?.[0] ?? null, fav: out[1]?.results?.[0] ?? null };
 }
 
-export async function dbDeletePostLike(db, likeId) {
-  await dbRun(db, 'DELETE FROM post_likes WHERE id=?', [likeId]);
-}
-
-// 以 COUNT 为唯一事实源同步计数，杜绝 like_count 增减漂移
-export async function dbSyncPostLikeCount(db, postId) {
-  await dbRun(db,
-    'UPDATE posts SET like_count = (SELECT COUNT(*) FROM post_likes WHERE post_id=?) WHERE id=?',
-    [postId, postId]);
-}
-
-export async function dbGetPostLikeCount(db, postId) {
-  const row = await dbGet(db, 'SELECT like_count FROM posts WHERE id=?', [postId]);
-  return row?.like_count || 0;
+// U10：点赞写入 + 计数同步 + 计数回读 同一 batch（事务内顺序执行；串行 3 次往返 → 1 次）。
+// likeId 有 → 删（取消赞），无 → 插（点赞）；计数以子查询 COUNT 为唯一事实源，杜绝漂移。
+export async function dbTogglePostLike(db, postId, userId, likeId) {
+  const stmts = likeId
+    ? [db.prepare('DELETE FROM post_likes WHERE id=?').bind(likeId)]
+    : [db.prepare('INSERT INTO post_likes (post_id, user_id) VALUES (?,?)').bind(postId, userId)];
+  stmts.push(db.prepare('UPDATE posts SET like_count = (SELECT COUNT(*) FROM post_likes WHERE post_id=?) WHERE id=?').bind(postId, postId));
+  stmts.push(db.prepare('SELECT like_count FROM posts WHERE id=?').bind(postId));
+  const out = await db.batch(stmts);
+  const countRow = out[out.length - 1]?.results?.[0];
+  return { likeCount: countRow?.like_count || 0 };
 }
 
 // post_likes 由外键 ON DELETE CASCADE 连带清理，无需手工删

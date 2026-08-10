@@ -172,27 +172,46 @@ function openPostDetail(id) {
 // 点赞（就地更新按钮，避免整列重渲染重放入场动画）
 // ============================================================
 const postLikeSeq = {}; // 每帖独立序号：双击连发时乱序到达的旧响应丢弃，UI 态以最后一次为准
+// U10（网络层架构债）：点赞/收藏状态就地收敛（列表卡 + 详情浮窗 + postsList 数据源单点）
+function applyPostLikeState(id, liked, likeCount) {
+  const p = postsList.find(x => x.id === id);
+  if (p) { p.liked = liked; p.like_count = likeCount; }
+  document.querySelectorAll(`.post-like[data-id="${id}"]`).forEach(label => {
+    const box = label.querySelector('input[type="checkbox"]');
+    if (box) box.checked = liked;
+    const cnt = label.querySelector('.like-count');
+    if (cnt) cnt.textContent = likeCount;
+  });
+}
 async function togglePostLike(id, input) {
   // #160（v0.25.68）：复选逻辑接入——change 在原生翻转后触发，input.checked 即新态，
   // 取反得点前态；访客/失败回滚靠它还原。视觉由 CSS :has(input:checked) 单源，不再管 .liked 类。
   if (!input) return;
   const wasChecked = !input.checked; // 点前态
-  const revert = () => { if (input && input.checked !== wasChecked) input.checked = wasChecked; };
+  const target = input.checked;      // 目标态（原生已翻转）
+  const p0 = postsList.find(x => x.id === id);
+  const cnt0 = document.querySelector(`.post-like[data-id="${id}"] .like-count`);
+  const origLiked = p0 ? p0.liked : wasChecked;
+  const origCount = p0 ? (p0.like_count ?? 0) : (cnt0 ? (Number(cnt0.textContent) || 0) : 0);
+  const revert = () => {
+    if (input && input.checked !== wasChecked) input.checked = wasChecked;
+    document.querySelectorAll(`.post-like[data-id="${id}"]`).forEach(label => {
+      const box = label.querySelector('input[type="checkbox"]');
+      if (box) box.checked = wasChecked;
+      const cnt = label.querySelector('.like-count');
+      if (cnt) cnt.textContent = origCount;
+    });
+    if (p0) { p0.liked = origLiked; p0.like_count = origCount; }
+  };
   if (!ensureAuth()) { revert(); return; } // 访客可浏览广场，点赞需登录（原生已翻转，须回滚）
   const seq = (postLikeSeq[id] = (postLikeSeq[id] || 0) + 1);
+  // U10 乐观反馈：文字/计数/toast 本地立即（不等服务端往返），服务端返回后再收敛；失败回滚
+  applyPostLikeState(id, target, origCount + (target ? 1 : -1));
+  showToast(target ? UI.POST_LIKED_TOAST : UI.POST_UNLIKED_TOAST);
   try {
     const data = await api(`/api/posts/${id}/like`, { method: 'POST', body: {} });
     if (postLikeSeq[id] !== seq) return; // 已有更新的点赞请求，丢弃过期响应
-    const p = postsList.find(x => x.id === id);
-    if (p) { p.liked = data.liked; p.like_count = data.likeCount; }
-    // #161（v0.25.69）：同步全部 .post-like（列表卡 + 详情浮窗），不限于 #posts-list
-    document.querySelectorAll(`.post-like[data-id="${id}"]`).forEach(label => {
-      const box = label.querySelector('input[type="checkbox"]');
-      if (box) box.checked = data.liked; // 服务端为准：并发对端取消/失败兜底由这里收敛
-      const cnt = label.querySelector('.like-count');
-      if (cnt) cnt.textContent = data.likeCount;
-    });
-    showToast(data.liked ? UI.POST_LIKED_TOAST : UI.POST_UNLIKED_TOAST);
+    applyPostLikeState(id, data.liked, data.likeCount); // 服务端为准：并发对端取消/失败兜底由这里收敛
   } catch (err) {
     if (postLikeSeq[id] !== seq) return; // 过期请求的错误不覆盖新请求的 UI 态
     revert();
@@ -204,30 +223,47 @@ async function togglePostLike(id, input) {
 // 收藏（R23）：就地更新按钮，避免整列重渲染重放入场动画
 // ============================================================
 const postFavSeq = {}; // 每帖独立序号：连点时乱序旧响应丢弃（同点赞口径）
+// U10：收藏状态就地收敛（checkbox + 文案 + postsList 数据源）
+function applyPostFavState(id, favorited) {
+  const p = postsList.find(x => x.id === id);
+  if (p) p.favorited = favorited;
+  document.querySelectorAll(`.post-fav[data-id="${id}"]`).forEach(label => {
+    const box = label.querySelector('input[type="checkbox"]');
+    if (box) box.checked = favorited;
+    const txt = label.querySelector('.fav-label');
+    if (txt) txt.textContent = favorited ? UI.BTN_FAVORITED : UI.BTN_FAVORITE;
+  });
+}
 async function togglePostFavorite(id, input) {
   if (!input) return;
   const wasChecked = !input.checked; // 点前态
-  const revert = () => { if (input && input.checked !== wasChecked) input.checked = wasChecked; };
-  if (!ensureAuth()) { revert(); return; } // 访客可浏览广场，收藏需登录（原生已翻转，须回滚）
-  const seq = (postFavSeq[id] = (postFavSeq[id] || 0) + 1);
-  try {
-    const data = await api(`/api/posts/${id}/favorite`, { method: 'POST', body: {} });
-    if (postFavSeq[id] !== seq) return;
-    const p = postsList.find(x => x.id === id);
-    if (p) p.favorited = data.favorited;
-    // 同步全部 .post-fav（列表卡 + 详情浮窗），不限于 #posts-list
+  const target = input.checked;      // 目标态（原生已翻转）
+  const p0 = postsList.find(x => x.id === id);
+  const origFav = p0 ? p0.favorited : wasChecked;
+  const revert = () => {
+    if (input && input.checked !== wasChecked) input.checked = wasChecked;
     document.querySelectorAll(`.post-fav[data-id="${id}"]`).forEach(label => {
       const box = label.querySelector('input[type="checkbox"]');
-      if (box) box.checked = data.favorited; // 服务端为准
+      if (box) box.checked = wasChecked;
       const txt = label.querySelector('.fav-label');
-      if (txt) txt.textContent = data.favorited ? UI.BTN_FAVORITED : UI.BTN_FAVORITE;
+      if (txt) txt.textContent = origFav ? UI.BTN_FAVORITED : UI.BTN_FAVORITE;
     });
-    // 我的收藏视图：取消收藏就地移除卡（收藏列表即时收敛，不整列重渲）
+    if (p0) p0.favorited = origFav;
+  };
+  if (!ensureAuth()) { revert(); return; } // 访客可浏览广场，收藏需登录（原生已翻转，须回滚）
+  const seq = (postFavSeq[id] = (postFavSeq[id] || 0) + 1);
+  // U10 乐观反馈：文案/toast 本地立即（不等服务端往返），服务端返回后再收敛；失败回滚
+  applyPostFavState(id, target);
+  showToast(target ? UI.POST_FAVORITED_TOAST : UI.POST_UNFAVORITED_TOAST);
+  try {
+    const data = await api(`/api/posts/${id}/favorite`, { method: 'POST', body: {} });
+    if (postFavSeq[id] !== seq) return; // 连点：过期响应丢弃，新响应收敛
+    applyPostFavState(id, data.favorited); // 服务端为准
+    // 我的收藏视图：取消收藏就地移除卡（服务端确认后才移除，失败卡片留在原位可再点）
     if (!data.favorited && postsView === 'fav') {
       const card = document.querySelector(`#posts-list .post-fav[data-id="${id}"]`)?.closest('.post-card');
       if (card) card.remove();
     }
-    showToast(data.favorited ? UI.POST_FAVORITED_TOAST : UI.POST_UNFAVORITED_TOAST);
   } catch (err) {
     if (postFavSeq[id] !== seq) return; // 过期请求的错误不覆盖新请求的 UI 态
     revert();

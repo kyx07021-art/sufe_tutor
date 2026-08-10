@@ -125,5 +125,53 @@ test('点赞 seq 守卫：过期响应不覆盖、过期错误不回滚', async 
   loadCommon(ctx);
   const src = readFileSync('./app-posts.js', 'utf8');
   assert.ok(/postLikeSeq\[id\] !== seq\) return;[\s\S]*revert\(\)/.test(src), 'catch 分支先判 seq 再回滚');
-  assert.ok(/postLikeSeq\[id\] !== seq\) return;[\s\S]*const p = postsList/.test(src), '成功分支同样 seq 丢弃');
+  assert.ok(/postLikeSeq\[id\] !== seq\) return;[\s\S]*applyPostLikeState\(/.test(src), 'U10 成功分支同样 seq 丢弃（收敛前先判 seq）');
+});
+
+test('U10 点赞乐观反馈：toast/计数立即（不等服务端）；成功后收敛', async () => {
+  const { ctx, dom } = makeCtx();
+  loadCommon(ctx);
+  vm.runInContext(`
+    setBadge = () => {}; initReveals = () => {};
+    showToast = (m) => { (window.__toasts || (window.__toasts = [])).push(m); };
+    ensureAuth = () => true;
+    window.__resolveApi = null;
+    api = () => new Promise(res => { window.__resolveApi = () => res({ liked: true, likeCount: 9 }); });
+    state.user = { id: 38, username: 'kkkk', role: 'teacher' };
+    postsList = [ { id: 9, liked: false, like_count: 8 } ];
+  `, ctx);
+  dom.window.document.getElementById('posts-list').innerHTML =
+    `<label class="post-like glass" data-id="9"><input type="checkbox" aria-label="点赞" onchange="togglePostLike(9, this)"><span class="like-count">8</span></label>`;
+  const box = dom.window.document.querySelector('.post-like input');
+  box.checked = true; // 原生翻转
+  vm.runInContext('togglePostLike(9, document.querySelector(".post-like input"))', ctx); // 不 await：同步段先行
+  const UI = vm.runInContext('APP_CONSTANTS.UI', ctx);
+  assert.ok(vm.runInContext('window.__toasts', ctx).includes(UI.POST_LIKED_TOAST), 'toast 在服务端返回前立即弹出');
+  assert.equal(dom.window.document.querySelector('.like-count').textContent, '9', '计数乐观 +1（8→9，服务端未回）');
+  assert.equal(box.checked, true, 'checkbox 保持目标态');
+  // 服务端 resolve → 收敛一致
+  await vm.runInContext('window.__resolveApi()', ctx);
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal(dom.window.document.querySelector('.like-count').textContent, '9', '服务端 likeCount=9 收敛一致');
+  assert.equal(vm.runInContext('postsList[0].like_count', ctx), 9, '数据源同步');
+});
+
+test('U10 点赞乐观失败：回滚计数到点前态', async () => {
+  const { ctx, dom } = makeCtx();
+  loadCommon(ctx);
+  vm.runInContext(`
+    setBadge = () => {}; initReveals = () => {}; showToast = () => {};
+    ensureAuth = () => true;
+    api = async () => { throw new Error('网络错误'); };
+    state.user = { id: 38, username: 'kkkk', role: 'teacher' };
+    postsList = [ { id: 9, liked: true, like_count: 5 } ];
+  `, ctx);
+  dom.window.document.getElementById('posts-list').innerHTML =
+    `<label class="post-like glass" data-id="9"><input type="checkbox" checked aria-label="点赞" onchange="togglePostLike(9, this)"><span class="like-count">5</span></label>`;
+  const box = dom.window.document.querySelector('.post-like input');
+  box.checked = false; // 取消赞：原生翻转
+  await vm.runInContext('togglePostLike(9, document.querySelector(".post-like input"))', ctx);
+  assert.equal(box.checked, true, '失败回滚 checkbox 到点前态（已赞）');
+  assert.equal(dom.window.document.querySelector('.like-count').textContent, '5', '计数回滚');
+  assert.equal(vm.runInContext('postsList[0].liked', ctx), true, '数据源回滚');
 });

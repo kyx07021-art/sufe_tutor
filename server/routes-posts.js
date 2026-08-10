@@ -11,10 +11,9 @@ import { authUser, requireUser, requireAdminOrError } from './security.js';
 import { MSG, LIMITS } from './constants.js';
 import '../constants.js'; // 副作用导入（v0.25.86 审计补）：UI() 惰性读 globalThis.APP_CONSTANTS 依赖其就绪——曾靠 routes-auth 先加载碰巧生效，删除别处 import 即静默变 {error: undefined}
 import {
-  dbListPosts, dbCreatePost, dbGetPostById, dbGetPostLike,
-  dbCreatePostLike, dbDeletePostLike, dbSyncPostLikeCount, dbGetPostLikeCount,
-  dbDeletePost, dbGetUserById, dbListMyFavoritePosts,
-  dbGetPostFavorite, dbCreatePostFavorite, dbDeletePostFavorite,
+  dbListPosts, dbCreatePost, dbGetPostById, dbDeletePost, dbGetUserById, dbListMyFavoritePosts,
+  dbCreatePostFavorite, dbDeletePostFavorite,
+  dbGetPostLikeToggleRead, dbGetPostFavoriteToggleRead, dbTogglePostLike, // U10：批量读写 helper
 } from './db.js';
 import { logEvent } from './log.js';
 
@@ -73,22 +72,13 @@ export async function handleToggleLike(db, postId, body, req) {
   if (err) return err;
   const userId = user.id;
 
-  const post = await dbGetPostById(db, postId);
+  // U10（网络层架构债）：帖 + 本人点赞记录一步 batch 取回（原 2 次串行 D1 往返 → 1 次）
+  const { post, like } = await dbGetPostLikeToggleRead(db, postId, userId);
   if (!post) return error(MSG.POST_NOT_FOUND, 404, 'POST_NOT_FOUND');
 
-  const existing = await dbGetPostLike(db, postId, userId);
-  let liked;
-  if (existing) {
-    await dbDeletePostLike(db, existing.id);
-    liked = false;
-  } else {
-    await dbCreatePostLike(db, postId, userId);
-    liked = true;
-  }
-
-  // 以 COUNT 为唯一事实源同步计数
-  await dbSyncPostLikeCount(db, postId);
-  const likeCount = await dbGetPostLikeCount(db, postId);
+  const liked = !like;
+  // U10：写入 + 计数同步 + 计数回读同一 batch（原 3 次串行 → 1 次；点赞 6 次往返 → 3 次）
+  const { likeCount } = await dbTogglePostLike(db, postId, userId, like ? like.id : null);
 
   await logEvent(db, {
     action: liked ? 'post.like' : 'post.unlike', actorUserId: userId,
@@ -115,13 +105,13 @@ export async function handleMyFavorites(db, req) {
 export async function handleToggleFavorite(db, postId, body, req) {
   const { user, err } = await requireUser(db, req);
   if (err) return err;
-  const post = await dbGetPostById(db, postId);
+  // U10（网络层架构债）：帖 + 本人收藏记录一步 batch 取回（原 2 次串行 D1 往返 → 1 次）
+  const { post, fav } = await dbGetPostFavoriteToggleRead(db, postId, user.id);
   if (!post) return error(MSG.POST_NOT_FOUND, 404, 'POST_NOT_FOUND');
 
-  const existing = await dbGetPostFavorite(db, postId, user.id);
   let favorited;
-  if (existing) {
-    await dbDeletePostFavorite(db, existing.id);
+  if (fav) {
+    await dbDeletePostFavorite(db, fav.id);
     favorited = false;
   } else {
     await dbCreatePostFavorite(db, postId, user.id);
