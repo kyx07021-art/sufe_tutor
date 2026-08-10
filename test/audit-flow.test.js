@@ -3,7 +3,7 @@
  *
  * 覆盖：
  *   - isContentWrite：内容域写路径白名单（帖子/需求/档案/评价/反馈/投诉/注册/聊天消息/附件）；
- *   - auditBeforeWrite：放行（默认）/ 驳回（dummy 随机极小概率，stub Math.random）；
+ *   - auditBeforeWrite：恒放行（dummy 随机驳回 v0.26.3 已关闭，stub Math.random 极值验证）；
  *   - 300ms 预算：同步微秒级返回；队列处理即清栈（深度恒 0）。
  */
 import { test } from 'node:test';
@@ -50,15 +50,15 @@ test('auditBeforeWrite：默认放行 + 300ms 预算 + 队列即清栈', async (
   assert.equal(r2.ok, true);
 });
 
-test('auditBeforeWrite：dummy 极小概率驳回（stub Math.random）→ 返回拒绝文本', () => {
+test('auditBeforeWrite：dummy 恒放行（v0.26.3 随机驳回已关闭，stub Math.random 极值验证）', () => {
   const orig = Math.random;
   try {
-    Math.random = () => 0; // 必命中随机驳回
-    const r = auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: '违规测试' }, ip: '9.9.9.9', userId: 3 });
-    assert.equal(r.ok, undefined);
-    assert.equal(r.reject, 'dummy审核组件随机驳回一些请求，以测试网站内容审核功能，请再试一次');
+    Math.random = () => 0; // 极值 0：即使随机值取最小也恒放行（旧逻辑此值必命中驳回）
+    const r = auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: '任意内容' }, ip: '9.9.9.9', userId: 3 });
+    assert.equal(r.ok, true, '随机值 0 仍放行');
+    assert.equal(r.reject, undefined);
+    Math.random = () => 0.999; // 另一极值
+    const r2 = auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: 'y' } });
+    assert.equal(r2.ok, true, '随机值 0.999 仍放行');
   } finally { Math.random = orig; }
-  // 恢复后放行
-  const ok = auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: 'y' } });
-  assert.equal(ok.ok, true);
 });

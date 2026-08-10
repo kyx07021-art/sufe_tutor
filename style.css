@@ -505,7 +505,13 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 .phone-input-row .form-input { flex: 1; min-width: 0; }
 .code-input-wrap { position: relative; flex: 1; min-width: 0; }
 .code-input-wrap .form-input { width: 100%; padding-right: 116px; } /* 预留右缘按钮空间，文字不顶按钮 */
-.code-send-btn { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); max-width: 104px;
+/* v0.26.3 修复（用户反馈：发送验证码按钮聚焦/按下往下动太多）：
+   原 top:50% + transform:translateY(-50%) 垂直居中——transform 是引擎 hover(translateY(-1px) 上浮)/
+   active(scale .97) 的财产，引擎规则(:hover/:active 特异性 0-2-0)覆盖本类(0-1-0)后居中位移丢失，
+   按钮从 -50% 掉到 -1px 下坠近半高。改 top:0+bottom:0+margin:auto 0+height:fit-content 居中，
+   transform 完全还给引擎 → 悬停上浮/按下收缩/聚焦双色环全部走标准 .btn 效果，零特例。 */
+.code-send-btn { position: absolute; right: 6px; top: 0; bottom: 0; margin: auto 0; height: fit-content;
+  max-width: 104px;
   font-size: .72rem; padding: 4px 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 480px) {
   .code-send-btn { max-width: 92px; padding: 4px 6px; font-size: .66rem; }
