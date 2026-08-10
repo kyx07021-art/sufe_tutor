@@ -260,6 +260,7 @@ export async function handleReAuth(db, body, req) {
 // 手机号脱敏展示（+8613812345678 → 138****5678）；非手机格式原样截断
 function maskPhone(phone) {
   const s = String(phone || '');
+  if (!s) return ''; // 未绑定：空串 → 前端回落「未绑定」占位（B5 修复：原空串被 slice 成 '***'）
   const m = s.match(/^(\+\d+)(\d{3})\d{4}(\d{4})$/);
   if (m) return `${m[2]}****${m[3]}`;
   return s.slice(0, 3) + '***';

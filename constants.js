@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.26.3',
+  APP_VERSION: '0.26.4',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1614,7 +1614,7 @@ globalThis.APP_CONSTANTS = {
     // R23：帖子收藏（资料共享——收藏即保存，仅本人可见）
     POSTS_VIEW_ALL: '全部',
     POSTS_VIEW_FAV: '我的收藏',
-    POSTS_FAV_ACTIVE: '√ 已进入我的收藏', // M7：收藏 toggle 按钮进入态文案（替代切换卡）
+    POSTS_FAV_ACTIVE: '已进入我的收藏', // M7/B7：收藏 toggle 按钮进入态文案（B7 返工：勾不写进文案，改前置 SVG 勾）
     BTN_FAVORITE: '收藏',
     BTN_FAVORITED: '已收藏',
     POST_FAV_ARIA: '收藏', // 未收藏

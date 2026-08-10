@@ -20,7 +20,7 @@ import {
 } from '../server/credential.js';
 import {
   handleOtpRequest, handleBindPhone, handleChangeUsername, handleUsernameStatus,
-  handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister,
+  handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister, handleGetMyCreds,
 } from '../server/routes-auth.js';
 import { issueCapToken } from '../server/danger-ops.js';
 
@@ -250,4 +250,28 @@ test('verifyOtp：过期验证码拒绝（TTL 5 分钟）', async () => {
   const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
   raw.exec(`UPDATE verification_codes SET expires_at=datetime('now','-1 minute')`); // UTC 存储域，用 UTC 改过期
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), false, '过期验证码拒绝');
+});
+
+// B5 回归（用户反馈：未绑定也显示 ***、绑定后先闪「未绑定」再更新）：
+// 未绑定 handleGetMyCreds 返回空串（前端回落「未绑定」占位，而非 '***'）；绑定后返回脱敏缩略。
+test('B5 handleGetMyCreds：未绑定返回空串（回落「未绑定」），绑定后返回脱敏缩略', async () => {
+  const { raw, db } = await setup();
+  const u = await registerUser(db, raw, 'b5user');
+  // 未绑定：phone/email 空串（修复前 maskPhone('') 返回 '***'）
+  const r0 = await handleGetMyCreds(db, authedReq(u.token));
+  assert.equal(r0.status, 200);
+  const d0 = await r0.json();
+  assert.equal(d0.phone, '', '未绑定手机号返回空串（前端显示「未绑定」而非 ***）');
+  assert.equal(d0.email, '', '未绑定邮箱返回空串');
+  // 绑定手机号后返回脱敏缩略
+  const otp = await requestOtp(db, { channel: 'sms', target: '+8613812345678' }, authedReq(''));
+  assert.equal(otp.ok, true);
+  const bind = await handleBindPhone(db, { phone: '+8613812345678', code: otp.code }, authedReq(u.token));
+  assert.equal(bind.status, 200);
+  const bindData = await bind.json();
+  assert.equal(bindData.phone, '138****5678', 'bind 接口返回脱敏缩略');
+  const r1 = await handleGetMyCreds(db, authedReq(u.token));
+  const d1 = await r1.json();
+  assert.equal(d1.phone, '138****5678', '绑定后 creds 返回脱敏缩略');
+  assert.equal(d1.email, '', '邮箱仍未绑定（空串回落占位）');
 });

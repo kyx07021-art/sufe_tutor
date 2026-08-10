@@ -35,9 +35,10 @@ function enterResourceShare() {
   const isTeacher = state.user && state.user.role === 'teacher';
   document.getElementById('posts-content').innerHTML = `
     <div class="posts-toolbar glass">
-      <!-- M7（v0.25.103）：我的收藏从切换式 tab（总宽固定、选项一多就换行变高）改单个 toggle 按钮，
-           复用「屏蔽系统通知」按钮逻辑——点击进入收藏态显示「√ 已进入我的收藏」，再点回全部 -->
-      <button type="button" class="btn btn-sm glass glass--pressable posts-fav-btn" id="posts-fav-btn"
+      <!-- M7（v0.25.103）+ B7（v0.26.4 返工）：我的收藏从切换式 tab 改单个 toggle 按钮，
+           复用「屏蔽系统通知」按钮的 SVG 描边勾模式——进入收藏态前置勾（.posts-fav-btn--on::before，
+           同 .notif-block-btn SVG data-uri 单源，非字符 √），再点回全部 -->
+      <button type="button" class="btn btn-sm glass glass--pressable posts-fav-btn${postsView === 'fav' ? ' posts-fav-btn--on' : ''}" id="posts-fav-btn"
         onclick="togglePostsFav()" aria-pressed="${postsView === 'fav'}">${postsView === 'fav' ? UI.POSTS_FAV_ACTIVE : UI.POSTS_VIEW_FAV}</button>
       <input type="search" id="posts-search" class="form-input posts-search"
         placeholder="${UI.POSTS_SEARCH_PLACEHOLDER}" oninput="postsSearchDebounced()">
@@ -58,6 +59,7 @@ function togglePostsFav() {
   const btn = document.getElementById('posts-fav-btn');
   if (btn) {
     btn.textContent = postsView === 'fav' ? UI.POSTS_FAV_ACTIVE : UI.POSTS_VIEW_FAV;
+    btn.classList.toggle('posts-fav-btn--on', postsView === 'fav'); // B7：选中态前置 SVG 勾
     btn.setAttribute('aria-pressed', postsView === 'fav');
   }
   const search = document.getElementById('posts-search');

@@ -284,16 +284,23 @@
 .signing-bubble-signed-tip { margin: 6px 0 0; font-size: .68rem; line-height: 1.55; color: var(--muted); }
 .signing-bubble-draft-btn { display: block; width: 100%; margin-top: 8px; }
 
-/* 呼吸遮罩（整改 v0.25.94）：签约请求（待处理）/ 合同请求气泡加柔和呼吸光环——outline 呼吸不干扰
-   引擎 box-shadow 浮影，动画全在 CSS 呈现层，JS 只切类（renderChatBubble 加 chat-bubble--breathe）。
-   2.6s 周期弱化干扰；reduced-motion 归零（动画铁律）。 */
-.chat-bubble--breathe { animation: chat-breathe-ring 2.6s ease-in-out infinite; }
+/* 呼吸遮罩（整改 v0.25.94 + B8 提速 v0.26.4）：签约请求（待处理）/ 合同请求等会话内流程气泡的
+   「镶嵌线框呼吸浮动」——B8（用户 U9 原话：呼吸太慢、帧数少卡顿）：原 outline 呼吸（2.6s，
+   outline 动画触发重绘、帧数不足）→ 改 ::after 描边环 + transform/opacity 动画
+   （合成器只读，零重排零重绘，帧率拉满）+ 周期 2.6s→1.4s 提速 + 环随呼吸 scale 浮动。
+   环 inset -3px 在气泡外圈、pointer-events 不挡交互、border-radius 继承气泡圆角。 */
+.chat-bubble--breathe { position: relative; }
+.chat-bubble--breathe::after {
+  content: ''; position: absolute; inset: -3px; border-radius: inherit; pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  animation: chat-breathe-ring 1.4s ease-in-out infinite;
+}
 @keyframes chat-breathe-ring {
-  0%, 100% { outline: 1px solid color-mix(in srgb, var(--accent) 34%, transparent); outline-offset: 3px; }
-  50%      { outline: 1px solid color-mix(in srgb, var(--accent) 8%, transparent);  outline-offset: 6px; }
+  0%, 100% { transform: scale(1);    opacity: .95; }
+  50%      { transform: scale(1.03); opacity: .35; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .chat-bubble--breathe { animation: none; outline: 1px solid color-mix(in srgb, var(--accent) 26%, transparent); outline-offset: 3px; }
+  .chat-bubble--breathe::after { animation: none; opacity: .6; }
 }
 /* 需求四（v0.25.44）：签约气泡底部资金声明（报价触点的平台责任撇清，小字不喧宾夺主） */
 .signing-bubble-funds { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--g-line-row); font-size: .68rem; color: var(--muted); text-align: center; }

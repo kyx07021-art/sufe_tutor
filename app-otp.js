@@ -152,7 +152,15 @@ async function doBind(kind, isPhone, target, code) {
     });
     showToast(r.message || '绑定成功', 'success');
     closeModal();
-    if (typeof enterAccountSettings === 'function') enterAccountSettings(); // 刷新设置页手机号/邮箱行
+    // B5 修复（用户反馈：绑定后先闪「未绑定」再更新为缩略）：原 enterAccountSettings 整页重渲染
+    // 会重置行占位「未绑定」→ 再异步 loadMyCreds 才更新。改为本地立即用 bind 接口返回的脱敏值
+    // 更新目标行（防闪烁），后台 loadMyCreds 只做确认不重置占位。
+    const mask = isPhone ? (r.phone || '') : (r.email || '');
+    if (mask) {
+      const el = document.getElementById(isPhone ? 'settings-phone-val' : 'settings-email-val');
+      if (el) el.textContent = mask;
+    }
+    if (typeof loadMyCreds === 'function') loadMyCreds();
   } catch (err) {
     showToast(err.message, 'error');
   }

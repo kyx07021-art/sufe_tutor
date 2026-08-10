@@ -44,6 +44,7 @@ function openCaptchaModal({ title = UI.CAPTCHA_TITLE, onPass = null } = {}) {
     cls: 'captcha-modal',
     body: `<div class="captcha-box">
       <canvas id="captcha-canvas" width="${CAPTCHA_W}" height="${CAPTCHA_H}"></canvas>
+      <canvas id="captcha-puzzle" width="${SLIDER_W}" height="${SLIDER_H}" aria-hidden="true"></canvas>
       <div class="captcha-slider-track" id="captcha-track" style="--captcha-x:0px">
         <div class="captcha-slider-fill" id="captcha-fill"></div>
         <div class="captcha-slider-knob" id="captcha-knob" role="button" aria-label="${UI.CAPTCHA_ARIA}">➜</div>
@@ -82,6 +83,15 @@ function paintCaptcha() {
   const maxX = W - SLIDER_W - 24;
   _captchaTarget = (16 + Math.random() * maxX) / W;
   const cutX = _captchaTarget * W, cutY = (H - SLIDER_H) / 2;
+  // 拼图块（B4 修复：原只抠洞没有跟随滑块的拼图块）：把缺口区域背景复制到 puzzle canvas，
+  // 滑块位移经 CSS 同源 --captcha-x 驱动 translateX 跟随（合成器只读，零重绘）
+  const pz = document.getElementById('captcha-puzzle');
+  if (pz) {
+    const pctx = pz.getContext('2d');
+    pctx.clearRect(0, 0, SLIDER_W, SLIDER_H);
+    pctx.drawImage(cv, cutX, cutY, SLIDER_W, SLIDER_H, 0, 0, SLIDER_W, SLIDER_H);
+    pz.style.setProperty('--captcha-x', '0px');
+  }
   // 缺口：destination-out 抠出 + 白描边可见
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';

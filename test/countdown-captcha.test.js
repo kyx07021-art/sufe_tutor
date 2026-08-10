@@ -75,6 +75,7 @@ test('openCaptchaModal：独立验证浮窗（canvas/轨道/滑块/提示）+ �
     createLinearGradient: () => ({ addColorStop: () => {} }),
     fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
     globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
+    clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
   load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
@@ -82,6 +83,7 @@ test('openCaptchaModal：独立验证浮窗（canvas/轨道/滑块/提示）+ �
   vm.runInContext(`openCaptchaModal({ onPass: (r) => { window.__captchaResult = r; } })`, ctx);
   const container = dom.window.document.getElementById('modal-container');
   assert.ok(container.querySelector('#captcha-canvas'), 'canvas 拼图区渲染');
+  assert.ok(container.querySelector('#captcha-puzzle'), '拼图块 canvas 渲染（B4 修复：跟随滑块移动）');
   assert.ok(container.querySelector('#captcha-track'), '滑块轨道渲染');
   assert.ok(container.querySelector('#captcha-knob'), '滑块渲染');
   assert.ok(container.querySelector('.captcha-tip'), '提示渲染');
@@ -91,6 +93,44 @@ test('openCaptchaModal：独立验证浮窗（canvas/轨道/滑块/提示）+ �
   void passed;
 });
 
+// B4 回归（用户反馈：滑块只能滑到左边一半 + 拼图块没渲染）：
+// 拖拽写入 --captcha-x、命中缺口验证通过（onPass 完整动作输出）、拖偏失败复位
+test('B4 拼图交互：拖拽更新 --captcha-x + 命中缺口验证通过 + 拖偏失败复位', async () => {
+  const dom = new JSDOM('<html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/', runScripts: 'dangerously' });
+  dom.window.HTMLCanvasElement.prototype.getContext = () => ({
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
+    globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
+    clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
+  });
+  const ctx = bootCtx(dom);
+  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
+  const drag = (toX) => vm.runInContext(`(() => {
+    const ME = window.MouseEvent; // jsdom vm 上下文无 MouseEvent 全局，走 window
+    const knob = document.getElementById('captcha-knob');
+    knob.dispatchEvent(new ME('pointerdown', { clientX: 0, bubbles: true }));
+    knob.dispatchEvent(new ME('pointermove', { clientX: ${toX}, bubbles: true }));
+    knob.dispatchEvent(new ME('pointerup', { clientX: ${toX}, bubbles: true }));
+  })()`, ctx);
+  // 通过路径：拖到缺口位置
+  vm.runInContext(`window.__passed = null; window.__got = null; openCaptchaModal({ onPass: (r) => { window.__passed = true; window.__got = r; } })`, ctx);
+  const target = vm.runInContext(`Math.round(_captchaTarget * 240)`, ctx);
+  drag(target);
+  const trackX = vm.runInContext(`document.getElementById('captcha-track').style.getPropertyValue('--captcha-x')`, ctx);
+  assert.equal(trackX, target + 'px', '拖拽写入 --captcha-x（滑块位移）');
+  await new Promise(r => setTimeout(r, 350)); // verifyCaptcha pass 260ms 关闭
+  assert.equal(dom.window.__passed, true, '命中缺口 → 验证通过 onPass 调用');
+  assert.ok(dom.window.__got && typeof dom.window.__got.offset === 'number' && dom.window.__got.captchaId && Array.isArray(dom.window.__got.track), '完整动作输出接口 {captchaId, offset, track}');
+  // 失败路径：拖偏 → 不通过 + 滑块复位
+  vm.runInContext(`window.__passed = false; openCaptchaModal({ onPass: () => { window.__passed = true; } })`, ctx);
+  const t2 = vm.runInContext(`Math.round(_captchaTarget * 240)`, ctx);
+  drag(Math.min(240, Math.max(10, t2 + 130))); // 明显偏离
+  await new Promise(r => setTimeout(r, 500)); // fail 420ms 复位
+  assert.equal(dom.window.__passed, false, '拖偏 → 不通过');
+  const resetX = vm.runInContext(`document.getElementById('captcha-track').style.getPropertyValue('--captcha-x')`, ctx);
+  assert.equal(resetX, '0px', '失败后滑块复位到起点');
+});
+
 // ---------------- C2 withCaptcha 门禁 ----------------
 test('withCaptcha：存在并经 openCaptchaModal 拦截 action（生产门禁入口）', () => {
   const dom = new JSDOM('<html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/', runScripts: 'dangerously' });
@@ -98,6 +138,7 @@ test('withCaptcha：存在并经 openCaptchaModal 拦截 action（生产门禁�
     createLinearGradient: () => ({ addColorStop: () => {} }),
     fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
     globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
+    clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
   load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js']);

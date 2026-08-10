@@ -187,6 +187,7 @@ async function genOtpCode() {
 /** 目标脱敏（留档用：手机号留尾号、邮箱留域名前 3 字）——验证码绝不进留档 */
 export function targetMask(target) {
   const s = String(target || '');
+  if (!s) return ''; // 未绑定：空串 → 前端回落「未绑定」占位（B5 修复：原空串被 slice 成 '***'）
   if (s.startsWith('+')) return s.slice(0, 3) + '***' + s.slice(-4);
   const at = s.indexOf('@');
   if (at > 0) return s.slice(0, Math.min(3, at)) + '***' + s.slice(at);

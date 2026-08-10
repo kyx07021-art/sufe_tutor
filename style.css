@@ -474,10 +474,19 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 /* v0.26.0 五合一登录：「不存在的账户」红字提示 */
 .login-hint--missing { color: var(--danger) !important; font-weight: 600; }
 
-/* v0.26.0 滑块拼图真人验证浮窗（C1）：canvas 拼图 + 拖拽轨道 + 失败抖动 */
-.captcha-box { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
-#captcha-canvas { width: 100%; height: auto; border-radius: 10px; display: block; touch-action: none; }
-.captcha-slider-track { position: relative; height: 42px; border-radius: 21px; overflow: hidden;
+/* v0.26.0 滑块拼图真人验证浮窗（C1）：canvas 拼图 + 拖拽轨道 + 失败抖动
+   B4 修复（用户反馈：滑块只能滑到左边一半 + 拼图块没渲染）：
+   原 #captcha-canvas width:100% 把 280 内部坐标 canvas 拉伸到容器宽（实测 532px），
+   轨道同宽，而 JS 滑块 max=CAPTCHA_W-SLIDER_W=240px（固定 CSS 像素）→ 滑块只能到轨道 45%
+   （左半边）、缺口按内部坐标画被拉伸错位、永远够不到。修复：canvas/轨道固定 280px，
+   内部坐标=视觉坐标，滑块 0~240 全轨对齐缺口；拼图块 #captcha-puzzle 跟随 --captcha-x。 */
+.captcha-box { display: flex; flex-direction: column; gap: 10px; align-items: center; position: relative;
+  width: 280px; margin: 0 auto; } /* box 固定 280：canvas/track/puzzle 同左 0，拼图块对齐缺口 */
+#captcha-canvas { width: 280px; height: 120px; border-radius: 10px; display: block; touch-action: none; }
+#captcha-puzzle { position: absolute; left: 0; top: 40px; width: 40px; height: 40px; pointer-events: none;
+  transform: translateX(var(--captcha-x, 0px)); will-change: transform; z-index: 2;
+  box-shadow: 0 2px 8px rgba(0,0,0,.28), inset 0 0 0 1px rgba(255,255,255,.4); }
+.captcha-slider-track { position: relative; width: 280px; height: 42px; border-radius: 21px; overflow: hidden;
   background: var(--g-fill, rgba(128,128,128,.14)); box-shadow: inset 0 1px 3px rgba(0,0,0,.12); }
 .captcha-slider-fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--captcha-x, 0px) + 40px);
   background: linear-gradient(90deg, rgba(76,175,80,.35), rgba(76,175,80,.5)); border-radius: 21px; }
@@ -2115,17 +2124,18 @@ body.profile-panel-closing .profile-panel {
 /* ============================================================
    通知信息列表
    ============================================================ */
-/* 屏蔽系统通知按钮（需求四·4b）：标准按钮样式，无特殊颜色遮罩；
+/* 屏蔽系统通知按钮（需求四·4b）+ 收藏 toggle（B7 返工：复用同一 SVG 勾）：标准按钮样式，无特殊颜色遮罩；
    选中态 = 前置小勾（SVG 描边勾，非 √ 文本符号），颜色走 currentColor=--ok-deep 单源，按钮字色不变。
-   未选中时勾宽 0（不占位、文字居中与标准按钮一致）；选中时 12px 勾 + 8px 间距展开（宽度过渡即显勾） */
+   未选中时勾宽 0（不占位、文字居中与标准按钮一致）；选中时 12px 勾 + 8px 间距展开（宽度过渡即显勾）。
+   SVG data-uri 单源：.notif-block-btn 与 .posts-fav-btn 共用一条 ::before 规则，勿复制。 */
 .notif-block-btn { gap: 0; }
-.notif-block-btn::before {
+.notif-block-btn::before, .posts-fav-btn::before {
   content: ''; display: inline-block; flex: 0 0 auto;
   width: 0; height: 12px; color: var(--ok-deep);
   background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.5 L5 9.5 L10 3' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/contain no-repeat;
   transition: width var(--t-fast) var(--ease-out), margin-right var(--t-fast) var(--ease-out);
 }
-.notif-block-btn--on::before { width: 12px; margin-right: 8px; }
+.notif-block-btn--on::before, .posts-fav-btn--on::before { width: 12px; margin-right: 8px; }
 
 .notif-item {
   display: flex; gap: 12px; align-items: flex-start;
