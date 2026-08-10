@@ -159,3 +159,34 @@ test('缓存命中并发：两个请求同时命中同一缓存条目，body 均
   const b2 = JSON.parse(await r2.text());
   assert.ok(Array.isArray(b1.teachers) && Array.isArray(b2.teachers), '两个并发响应 body 均可完整读取');
 });
+
+// 外部审查 1101（生产事故级）：共享 Cache 曾把登录用户的 per-user 字段跨用户下发——
+// /api/posts 的 liked/favorited、/api/teachers 的 matched、demands 观众变体。
+// 修复 = 仅匿名（无 X-Auth-Token）请求参与缓存；登录请求走实时 routeApi 保私有正确。
+test('匿名门：登录请求不写缓存，也不命中匿名缓存（防 per-user 字段跨用户泄露）', async (t) => {
+  installCache();
+  const { env } = await setup(t);
+  const anon = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
+  const authed = (p) => worker.fetch(new Request('https://test.local' + p, { headers: { 'X-Auth-Token': 'some-token' } }), env, ctx);
+
+  // ① 匿名首请求写缓存
+  await anon('/api/teachers');
+  assert.equal(cacheStore.has('https://test.local/api/teachers'), true, '匿名请求写缓存');
+  // ② 登录请求（同 URL）不命中缓存——走 routeApi 实时（响应可能含 matched/liked 等 per-user 字段）
+  const authedRes = await authed('/api/teachers');
+  assert.equal(authedRes.status, 200, '登录请求正常返回');
+  assert.equal(cacheStore.get('https://test.local/api/teachers').headers.get('cache-control'), 'public, s-maxage=30', '缓存条目仍为匿名写入的原样（未被登录响应覆盖）');
+  // ③ 登录请求（带 token）不写缓存
+  await authed('/api/posts?sort=new');
+  assert.equal(cacheStore.has('https://test.local/api/posts?sort=new'), false, '登录请求不写共享缓存（per-user 数据不跨用户下发）');
+  // ④ 匿名命中不受登录请求影响
+  const anonRes = await anon('/api/teachers');
+  assert.equal(anonRes.status, 200, '匿名仍命中缓存');
+});
+
+test('isPublicListCacheable 保持公开判定（匿名门在 fetch 层，纯函数只判端点）', () => {
+  const url = p => new URL('https://test.local' + p);
+  assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers')), true);
+  assert.equal(isPublicListCacheable('/api/posts', url('/api/posts')), true);
+  assert.equal(isPublicListCacheable('/api/student/demands', url('/api/student/demands')), true);
+});
