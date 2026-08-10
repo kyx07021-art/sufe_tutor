@@ -499,6 +499,35 @@ test('U11 提交投诉：携带已传完附件 uploadIds；在途附件拦截提
   assert.deepEqual(complaints[0].body, { targetType: 'teacher', targetId: 5, reason: UI.COMPLAINT_REASONS[0], detail: '', uploadIds: [7, 8] });
 });
 
+test('U11 审查 F1：头部 ✕ 关闭后重开浮窗清旧暂存，新投诉不静默携带旧 uploadId', async () => {
+  const { dom, ctx, complaints } = makeCtx();
+  const doc = dom.window.document;
+  const UI = globalThis.APP_CONSTANTS.UI;
+  await vm.runInContext(`openComplaintModal()`, ctx);
+  await tick();
+  await vm.runInContext(`
+    _cpStaged = [ { id: 1, kind: 'file', name: 'old.txt', progress: 100, ready: true, uploadId: 99, _xhr: { abort: () => {} } } ];
+    renderComplaintStage();
+  `, ctx);
+  // 头部 ✕ 写死 closeModal()（app-ui），不经 closeComplaintModal → 模拟该关闭路径
+  await vm.runInContext(`closeModal()`, ctx);
+  await tick();
+  // 重开：openComplaintModal 须重置暂存（否则 room=0 加不进新附件 + 旧 uploadId 静默带入）
+  await vm.runInContext(`openComplaintModal()`, ctx);
+  await tick();
+  assert.equal(vm.runInContext('_cpStaged.length', ctx), 0, '重开即清旧暂存（含 closeModal 绕过路径）');
+  // 新会话提交：不带旧 uploadId
+  await vm.runInContext(`
+    pickComplaintTarget('teacher', 5, { dataset: { name: '李老师' } });
+    document.getElementById('complaint-reason').value = UI.COMPLAINT_REASONS[0];
+    switchComplaintReason(document.getElementById('complaint-reason'));
+    submitComplaint();
+  `, ctx);
+  await tick();
+  assert.equal(complaints.length, 1, '重开后正常提交');
+  assert.deepEqual(complaints[0].body, { targetType: 'teacher', targetId: 5, reason: UI.COMPLAINT_REASONS[0], detail: '', uploadIds: [] }, '不携带旧暂存 uploadId');
+});
+
 test('U11 取消浮窗：清理暂存（在途 abort + 已上传 best-effort 删）', async () => {
   const { dom, ctx } = makeCtx();
   const doc = dom.window.document;

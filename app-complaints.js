@@ -29,6 +29,9 @@ let _cpStageSeq = 0;   // U11：暂存项自增序号（与聊天 chatStageSeq �
 // ============================================================
 function openComplaintModal() {
   if (!ensureAuth()) return;
+  // U11 审查 F1：重开浮窗先清上一会话的暂存——头部 ✕（app-ui 写死 closeModal）与登出 closeAllModals
+  // 都不经底部取消的 complaintResetStage，残留会占满附件容量（room=0 无法再加）且旧 uploadId 被静默带进下次投诉
+  complaintResetStage();
   _cpRecentLoaded.clear(); // 重开浮窗重拉「最近联系的人」（随会话变化）
   const picker = (type, withRecent) => {
     // M10（v0.25.103）：三 tab 布局统一——搜索框在选项卡下、最近联系区在搜索框下边；
