@@ -266,7 +266,7 @@ test('学生端教师匹配：开放需求归零后旧徽章清除（v0.25.8 审
   assert.equal(vm.runInContext('T1._matchForStudent', ctx), undefined, '开放需求归零后旧匹配清除');
 });
 
-test('教师需求大厅：普通需求默认最新排序（v0.25.110 删匹配度默认；匹配徽章仍在）', async () => {
+test('教师需求大厅：普通需求默认匹配度降序（v0.25.113 恢复，v0.25.110 误删；匹配徽章在）', async () => {
   const { ctx, dom } = makeCtx('<!DOCTYPE html><html><body><div id="demands-list"></div></body></html>');
   loadCommon(ctx);
   vm.runInContext(`
@@ -291,10 +291,9 @@ test('教师需求大厅：普通需求默认最新排序（v0.25.110 删匹配�
   const iA = html.indexOf('data-id="1"'); // 匹配度按钮 data-id = 需求 id
   const iB = html.indexOf('data-id="2"');
   assert.ok(iA >= 0 && iB >= 0, '两条需求都渲染');
-  // v0.25.110：默认最新排序（B created_at 04:27:10 晚于 A 04:27:09）→ B 排前；
-  // 匹配度不再参与默认排序（english 100% 命中 A 不再靠匹配度置顶）
-  assert.ok(iB < iA, '默认最新：created_at 晚的 B 排前（匹配度不再作默认排序依据）');
-  assert.ok(html.includes('match-btn'), '匹配度徽章/按钮仍渲染（仅不参与默认排序）');
+  // v0.25.113（恢复）：默认匹配度降序——english 100% 命中 A 排前（v0.25.110 误删匹配度排序后回归）
+  assert.ok(iA < iB, '默认匹配度最高：english 命中（100%）的 A 排前，math 未中（29%）的 B 沉后');
+  assert.ok(html.includes('match-btn'), '匹配度徽章/按钮渲染');
 });
 
 test('教师看教师：不参与匹配度（无 _matchForStudent 不排序）', async () => {

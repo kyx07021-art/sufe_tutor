@@ -84,6 +84,10 @@ test('v0.25.110 中文数字门牌不得绕过门控（贰柒捌捌号/五号楼
     ['additional_info', '具体位置是三十八号楼'],
     ['address', '上海市xx区xx路伍仟贰佰号'],
     ['additional_info', '静安区壹拾贰号403室'],
+    // v0.25.113（用户实证）：数字位间夹分隔符（连字符/顿号/空格）曾绕过——贰-柒-捌-捌-号
+    ['additional_info', '浦东新区杨高中路贰-柒-捌-捌-号'],
+    ['additional_info', '杨高中路2-7-8-8号'],
+    ['address', '某某路二百·七十八·号'],
   ]) {
     const r = await handleCreateDemand(db, { demand: { ...baseDemand, [field]: val } }, reqOf(stuToken));
     assert.equal(r.status, 400, `${field}「${val}」含中文数字门牌应被拒`);
@@ -91,8 +95,8 @@ test('v0.25.110 中文数字门牌不得绕过门控（贰柒捌捌号/五号楼
   // 教师 intro 中文数字门牌同守
   const pw = await handleSaveProfile(db, { profile: { province: 'shanghai', price_min: 150, price_max: 200, intro: '家在八号楼二单元' } }, reqOf(teaToken));
   assert.equal(pw.status, 400, '教师 intro 中文数字门牌被拒');
-  // 不误伤：号线（地铁/公交）、纯数字未足两位、楼层描述放行
-  for (const ok of ['地铁九号线站附近', '中山北路1234弄'] ) {
+  // 不误伤：号线（地铁/公交）、纯数字未足两位、楼层描述、纯路名无门牌放行
+  for (const ok of ['地铁九号线站附近', '中山北路1234弄', '十二号线附近', '浦东新区杨高中路'] ) {
     const r = await handleCreateDemand(db, { demand: { ...baseDemand, additional_info: ok } }, reqOf(stuToken));
     assert.equal(r.status, 200, `「${ok}」应放行`);
   }

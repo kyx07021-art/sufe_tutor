@@ -102,14 +102,14 @@ test('需求大厅排序筛选：默认最新；科目筛选；预算/最新排�
 
   await vm.runInContext('loadBrowseDemands()', ctx);
   const list = () => dom.window.document.getElementById('demands-list').innerHTML;
-  // 控件已填充 + 默认最新（v0.25.110：删匹配度最高默认项，公开浏览默认按上架时间）
-  assert.equal(vm.runInContext(`document.getElementById('demand-sort').options.length`, ctx), 2, '排序两选项（最新/预算，匹配度已删）');
-  assert.equal(vm.runInContext(`document.getElementById('demand-sort').value`, ctx), 'newest', '默认最新');
+  // 控件已填充 + 默认匹配度最高（v0.25.113 恢复：v0.25.110 误删匹配度排序，教师看需求匹配度是核心价值）
+  assert.equal(vm.runInContext(`document.getElementById('demand-sort').options.length`, ctx), 3, '排序三选项（匹配度/最新/预算）');
+  assert.equal(vm.runInContext(`document.getElementById('demand-sort').value`, ctx), 'match', '默认匹配度最高');
   assert.ok(vm.runInContext(`document.getElementById('demand-filter-subject').options.length > 1`, ctx), '科目筛选已填充');
   assert.equal(vm.runInContext(`document.getElementById('demand-filter-subject-label').textContent`, ctx), '科目', '筛选标签单源');
   assert.equal(vm.runInContext(`document.getElementById('demand-filter-grade-label').textContent`, ctx), '年级', '年级标签单源');
-  // 默认最新：created_at 更晚的 2 排前
-  assert.ok(list().indexOf('学生B') < list().indexOf('学生A'), '默认最新：04:27:10 排前');
+  // 默认匹配度：english（100%）排 math 前
+  assert.ok(list().indexOf('学生A') < list().indexOf('学生B'), '默认匹配度最高：english 卡在 math 卡前');
   // 科目筛选 = math → 只剩需求2
   vm.runInContext(`document.getElementById('demand-filter-subject').value = 'math'; applyDemandControls()`, ctx);
   assert.ok(list().includes('学生B') && !list().includes('学生A'), '按科目 math 筛选只剩需求2');
