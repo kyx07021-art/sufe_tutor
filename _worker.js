@@ -299,7 +299,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
 // 访客请求无 per-user 数据，是冷启动缓存的目标受众。登录用户走实时 routeApi 保私有正确。
 // 无 caches 环境（本地 dev / vm 测试）回落直取（fail-open，同加密咽喉内测兼容哲学）。
 const PUBLIC_LIST_TTL_S = 30;
-function isAnonymous(request) {
+export function isAnonymous(request) {
   return !request.headers.get('X-Auth-Token');
 }
 export function isPublicListCacheable(p, url) {
@@ -426,28 +426,37 @@ export default {
         return applySecurityHeaders(error(audit.reject, 400), p);
       }
       // B6 公开列表边缘缓存：GET 公开列表命中缓存 → 零 D1 零留档直接返回（冷启动治本）；
-      // miss 走正常 handler 后把响应写入边缘缓存（waitUntil 托管，30s TTL 自愈）
+      // miss 走正常 handler 后把响应写入边缘缓存（waitUntil 托管，30s TTL 自愈）。
+      // 【命中读 text 重建，catch 回落 routeApi】：workerd Cache API 的 match 响应 body 流
+      // 有锁定/不可重复读风险（生产实证 clone 后仍 500、durationMs 4ms）——改为 text() 读一次
+      // 重建 json 响应；任何缓存读异常都回落正常 handler（绝不 500，fail-open）。
       const apiCache = typeof caches !== 'undefined' ? caches.default : null;
       // 匿名门（外部审查 1101）：仅访客请求参与公开列表缓存——登录请求含 per-user 字段，走实时
       const publicList = request.method === 'GET' && isAnonymous(request) && isPublicListCacheable(p, url);
       if (publicList && apiCache) {
-        const cached = await apiCache.match(new Request(url));
-        // 命中判定：status 200 + JSON content-type（json() 响应必有；非 JSON/异常条目不返回，
-        // 防历史毒化——#260 静态资产 content-length 判据不适用于 workerd Response，其不设该头）
-        if (cached && cached.status === 200 && (cached.headers.get('content-type') || '').includes('application/json')) {
-          // 必须 clone 再返回：Cache API 并发命中返回同一 Response 对象，body 流只可读一次，
-          // 顺序读尚可、并发读第二个请求抛流锁错误 → 500（生产实证）。clone 各得独立流。
-          return applySecurityHeaders(cached.clone(), p);
-        }
+        try {
+          const cached = await apiCache.match(new Request(url));
+          if (cached && cached.status === 200 && (cached.headers.get('content-type') || '').includes('application/json')) {
+            const text = await cached.text();
+            if (text) return applySecurityHeaders(json(JSON.parse(text)), p);
+          }
+        } catch { /* 缓存读失败：回落正常 handler（不 500） */ }
       }
       const res = await routeApi(db, p, request.method, body, url, request, env); // env 供保活等需多绑定端点
       if (publicList && apiCache && res.status === 200) {
+        let text = null;
         try {
-          const copy = res.clone();
-          const headers = new Headers(copy.headers);
+          text = await res.text(); // 读一次消费 body（下面用 text 重建返回，避免二次读原流）
+          const headers = new Headers(res.headers);
           headers.set('Cache-Control', `public, s-maxage=${PUBLIC_LIST_TTL_S}`);
-          ctx.waitUntil(apiCache.put(new Request(url), new Response(copy.body, { status: copy.status, headers })));
-        } catch { /* 缓存写失败静默：主流程不受影响 */ }
+          // 直接 await put（不用 ctx.waitUntil fire-and-forget）：text 极小毫秒级完成，且保证
+          // 响应返回时缓存已就绪——下一个请求必命中；生产实证 waitUntil 异步写导致响应先返回、
+          // 紧随的请求 miss 走 D1（冷启动又现）
+          await apiCache.put(new Request(url), new Response(text, { status: res.status, headers }));
+        } catch { /* 缓存写失败静默：text 保持 null 走原 res */ }
+        if (text !== null) {
+          try { return applySecurityHeaders(json(JSON.parse(text)), p); } catch { /* 文本异常：回落原 res */ }
+        }
       }
       // 数据版本戳（v0.23.0 静默数据层）：写操作成功在写咽喉 bump 受影响域。
       // waitUntil 包裹——workerd 会掐断未完成的悬浮 Promise；版本戳失败静默

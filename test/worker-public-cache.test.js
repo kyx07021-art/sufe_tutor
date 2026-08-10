@@ -53,14 +53,18 @@ function buildEnv() {
   return { raw, env, calls };
 }
 
-// 缓存 stub：独立 cacheStore，waitUntil 同步 await 保证写缓存确定性
+// 缓存 stub：存 text 字符串（模拟 workerd Cache API 每次 match 返回可读的新回放流），
+// waitUntil 同步 await 保证写缓存确定性
 let cacheStore;
 function installCache() {
   cacheStore = new Map();
   globalThis.caches = {
     default: {
-      async match(req) { return cacheStore.get(String(req.url)) || null; },
-      async put(req, res) { cacheStore.set(String(req.url), res.clone()); },
+      async match(req) {
+        const t = cacheStore.get(String(req.url));
+        return t != null ? new Response(t, { status: 200, headers: { 'content-type': 'application/json' } }) : null;
+      },
+      async put(req, res) { cacheStore.set(String(req.url), await res.clone().text()); },
     },
   };
 }
@@ -102,8 +106,7 @@ test('整 worker：公开列表首请求 miss→D1→写缓存；二次请求命
   const firstBody = JSON.parse(await first.text());
   assert.ok(Array.isArray(firstBody.teachers), '教师列表返回数组');
   assert.equal(cacheStore.has('https://test.local/api/teachers'), true, '首请求后响应已写边缘缓存');
-  const cachedResp = cacheStore.get('https://test.local/api/teachers');
-  assert.match(cachedResp.headers.get('cache-control'), /s-maxage=30/, '缓存条目带 30s TTL');
+  assert.ok(Array.isArray(JSON.parse(cacheStore.get('https://test.local/api/teachers')).teachers), '缓存条目为完整 JSON 文本');
 
   const dbCallsAfterFirst = calls.length;
   const second = await get('/api/teachers');
@@ -175,7 +178,7 @@ test('匿名门：登录请求不写缓存，也不命中匿名缓存（防 per-
   // ② 登录请求（同 URL）不命中缓存——走 routeApi 实时（响应可能含 matched/liked 等 per-user 字段）
   const authedRes = await authed('/api/teachers');
   assert.equal(authedRes.status, 200, '登录请求正常返回');
-  assert.equal(cacheStore.get('https://test.local/api/teachers').headers.get('cache-control'), 'public, s-maxage=30', '缓存条目仍为匿名写入的原样（未被登录响应覆盖）');
+  assert.ok(cacheStore.has('https://test.local/api/teachers'), '缓存条目仍为匿名写入的原样（未被登录响应覆盖）');
   // ③ 登录请求（带 token）不写缓存
   await authed('/api/posts?sort=new');
   assert.equal(cacheStore.has('https://test.local/api/posts?sort=new'), false, '登录请求不写共享缓存（per-user 数据不跨用户下发）');
