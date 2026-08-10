@@ -219,32 +219,42 @@ function applyUiScale(v) {
   document.documentElement.style.setProperty('--ui-scale', (c / 100).toFixed(3));
   return c;
 }
-// v0.25.94 曾用 html transform:scale 整页预览保帧率；v0.25.110 用户两次返工实证拒绝——transform
-// 整页缩放必动页边（center 四边齐动 / top-left 右、下边缘照动）。用户要求直白：拖动时页边四边不动、
-// 组件相对位置动（真实 reflow：侧边栏组件靠左上/左下对齐、设置内容靠右对齐）。故预览改真实重排版——
-// 拖动期直接应用 --ui-scale（--ui-scale 全站 calc() 消费，改一次即真实 reflow：侧栏 flex 贴左、
-// 内容区 flex:1 贴右、视口四边固定）。帧率取舍：rAF 合并每帧最多消费一次 pending（拖动连续 oninput
-// 合帧），预览即真排版，松手 commit 落盘同值无二次排版。B1 pointer 差分拖动不受 --ui-scale 反噬
-// （滑块几何按固定初始 clientWidth 差分，见 app-pages.js）。
+// v0.25.94 曾用 html transform:scale 整页预览保帧率（center 四边齐动 / top-left 右下沉，用户拒绝）；
+// v0.25.111 试过拖动期真实 applyUiScale（reflow）——用户实证拒绝：全页重绘帧率下降。
+// v0.25.112 定稿「预览图模式」（用户：分别缩放 + 预览图模式）：设置页放独立示意 mockup
+// （.ui-scale-preview：顶栏/侧边栏头与脚/内容区，各区域 CSS 层独立 transform-origin 锚定——
+// 侧栏头 left top、侧栏脚 left bottom、内容 right top），拖动期 JS 只写一个 CSS 变量
+// --ui-preview-scale 到 <html>，预览图内各区域 transform: scale(var(--ui-preview-scale)) 由 CSS 消费
+// （transform 合成器只读，零 reflow 零重绘真实页面，帧率不受影响）；真实页面松手 commit 才一次性
+// 落 --ui-scale 真排版 + 落盘。B1 pointer 差分拖动不受影响（滑块几何固定差分）。
 let _uiScalePending = null;   // 待预览的目标值（拖动合并：同帧多次 oninput 只合成一次）
 let _uiScaleRaf = 0;          // rAF 句柄（0 = 空闲）
-// 拖动中：rAF 帧消费 pending → 真实应用 --ui-scale（reflow 预览，不落盘）
+// 拖动中：rAF 帧消费 pending → 只更新预览图缩放变量（--ui-preview-scale，真实页面不动，不落盘）
 function _uiScaleFlush() {
   _uiScaleRaf = 0;
   const c = _uiScalePending;
   if (c == null) return;
   _uiScalePending = null;
-  applyUiScale(c);
+  _uiScalePreviewApply(c);
+}
+// 预览图模式：把目标缩放系数写入 --ui-preview-scale（预览图内 [data-scaled] 区域由 CSS transform 消费）
+function _uiScalePreviewApply(c) {
+  document.documentElement.style.setProperty('--ui-preview-scale', (c / 100).toFixed(3));
+}
+// 预览结束（commit/同步路径）：清预览缩放变量，预览图回到基准（真实页面已按 --ui-scale 呈现最终效果）
+function _uiScalePreviewReset() {
+  document.documentElement.style.removeProperty('--ui-preview-scale');
 }
 // 同步应用（无合并；首帧/测试路径），返回钳制值
 function setUiScale(v) {
   const c = uiScaleClamp(v);
+  _uiScalePreviewReset();
   const r = applyUiScale(c);
   try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
   try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* ignore */ }
   return r;
 }
-// 拖动中：rAF 合并真实 --ui-scale 预览（每帧最多一次全站 reflow）；不落盘（松手 change 时 commit）。
+// 拖动中：rAF 合并预览图缩放（compositor-only，零重绘真实页面）；不落盘（松手 change 时 commit）。
 // 返回钳制值供调用方同步刷标签。
 function setUiScaleLive(v) {
   const c = uiScaleClamp(v);
@@ -252,11 +262,12 @@ function setUiScaleLive(v) {
   if (!_uiScaleRaf) _uiScaleRaf = requestAnimationFrame(_uiScaleFlush);
   return c;
 }
-// 松手/失焦：落真 --ui-scale（预览已实时应用，此处落盘持久化）。若拖动 rAF 在途，清掉 pending 防旧值覆盖。
+// 松手/失焦：清预览 → 落真 --ui-scale（一次性全页排版）→ 落盘。若拖动 rAF 在途，清掉 pending 防旧值覆盖。
 function commitUiScale(v) {
   const c = uiScaleClamp(v);
   if (_uiScaleRaf) { cancelAnimationFrame(_uiScaleRaf); _uiScaleRaf = 0; }
   _uiScalePending = null;
+  _uiScalePreviewReset();
   const r = applyUiScale(c);
   try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
   try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* ignore */ }

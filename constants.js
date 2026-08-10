@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.25.111',
+  APP_VERSION: '0.25.112',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -975,6 +975,11 @@ globalThis.APP_CONSTANTS = {
     EMPTY_NO_MY_DEMANDS: '还没有需求，点击右上角「新建需求」发布第一条',
     EMPTY_NO_REVIEWS: '暂无评价',
     EMPTY_NO_USERS: '暂无用户',
+
+    // 浏览教师排序（v0.25.112：匹配度最高仅学生且有开放需求匹配数据时可见；教师/访客彻底移除，默认评分最高）
+    TEACHER_SORT_MATCH: '匹配度最高',
+    TEACHER_SORT_RATING: '评分最高',
+    TEACHER_SORT_PRICE: '报价最低',
 
     // 邀请码
     INVITE_EXPIRED: '已过期',

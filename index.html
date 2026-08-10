@@ -250,8 +250,9 @@
           <div class="page-header">
             <h2>教师信息</h2>
             <div class="page-header-actions">
-              <!-- v0.25.101 Q6：删「默认排序」（用户质询：默认就应该是匹配度降序）——默认选项即匹配度最高，
-                   学生且确有匹配数据时可见可选；教师/无匹配数据时该选项隐藏（syncMatchSortOpt），排序回落服务器原序 -->
+              <!-- v0.25.101 Q6：学生看教师默认匹配度降序；v0.25.112（用户纠正）：教师看教师/访客浏览
+                   彻底删除「匹配度最高」选项（syncMatchSortOpt remove，非隐藏），默认评分最高。
+                   静态首项仅作初始占位，运行期由 syncMatchSortOpt 按角色删/留。 -->
               <select class="filter-select filter-select-auto" id="teacher-sort" onchange="applyFilters()" aria-label="教师排序">
                 <option value="match" id="opt-sort-match" selected>匹配度最高</option>
                 <option value="rating">评分最高</option>

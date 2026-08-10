@@ -78,8 +78,9 @@ test('sortTeachers：无 default 模式（Q6 删除）/ rating 降序 / price �
   const { ctx } = makeCtx(); seed(ctx, TEACHERS);
   const ids = () => Array.from(vm.runInContext('state.allTeachers.map(t => t.user_id)', ctx));
 
-  // Q6（v0.25.101 用户质询「默认排序」）：排序控件无 default 选项，默认方案=匹配度降序（teacherSortMode 无控件时返回 match）
-  assert.equal(vm.runInContext('teacherSortMode()', ctx), 'match', 'teacherSortMode 默认返回 match（匹配度降序）');
+  // v0.25.112（用户纠正）：teacherSortMode 无控件兜底按角色——seed 为教师语境 → 默认评分最高
+  // （匹配度是学生↔需求概念，教师看教师不适用；学生语境兜底 match，见下方 Q6 测试）
+  assert.equal(vm.runInContext('teacherSortMode()', ctx), 'rating', 'v0.25.112：教师语境 teacherSortMode 默认返回 rating（非匹配度）');
 
   vm.runInContext(`state.allTeachers = ${JSON.stringify(TEACHERS)}; sortTeachers(state.allTeachers, 'rating')`, ctx);
   assert.deepEqual(ids(), [1, 4, 3, 2], '评分降序 5→4.5→4→3');
@@ -152,17 +153,35 @@ test('Q6：学生端默认排序=匹配度降序（有匹配数据时）；无�
     'Q6：默认排序=匹配度降序（99→88，无匹配沉底）——渲染卡顺序');
   assert.deepEqual(Array.from(vm.runInContext('state.allTeachers.map(t => t.user_id)', ctx)), [1, 2, 3, 4],
     'state.allTeachers 原序不动（排序只作用于渲染副本）');
-  // 无匹配数据（教师端）：匹配度选项隐藏，无排序（回落原序）
+  // 无匹配数据（教师端）：v0.25.112 匹配度选项彻底移除（非隐藏），排序回落评分最高
   vm.runInContext(`
     state.user = { role: 'teacher', id: 1, username: 't' };
     state.allTeachers = ${JSON.stringify(TEACHERS)};
     syncMatchSortOpt();
   `, ctx);
-  assert.equal(vm.runInContext(`document.getElementById('opt-sort-match').classList.contains('hidden')`, ctx), true,
-    '无匹配语境（教师端）「匹配度最高」选项隐藏');
+  assert.equal(vm.runInContext(`document.getElementById('opt-sort-match')`, ctx), null,
+    'v0.25.112：教师看教师「匹配度最高」选项从下拉彻底删除（非隐藏）');
+  assert.equal(vm.runInContext(`document.getElementById('teacher-sort').value`, ctx), 'rating',
+    'v0.25.112：教师看教师默认排序=评分最高');
   vm.runInContext(`applyFilters()`, ctx);
   assert.deepEqual(Array.from(vm.runInContext('state.allTeachers.map(t => t.user_id)', ctx)), [1, 2, 3, 4],
-    '无匹配数据回落服务器原序');
+    'state.allTeachers 原序不动（排序只作用于渲染副本）');
+});
+
+test('v0.25.112：教师看教师/访客删除匹配度排序项（用户纠正 v0.25.110 误删成需求大厅）', () => {
+  const { ctx, dom } = makeCtx();
+  seed(ctx, TEACHERS); // seed 默认 role=teacher
+  vm.runInContext('syncMatchSortOpt()', ctx);
+  const opts = vm.runInContext(`[...document.getElementById('teacher-sort').options].map(o => o.value).join(',')`, ctx);
+  assert.equal(opts, 'rating,price', '教师看教师下拉仅评分/报价，无匹配度选项');
+  assert.equal(vm.runInContext(`document.getElementById('teacher-sort').value`, ctx), 'rating', '教师看教师默认评分最高');
+  vm.runInContext('applyFilters()', ctx);
+  const first = dom.window.document.querySelector('#teachers-list .list-card--teacher .tc-username');
+  assert.ok(first && first.textContent.includes('甲'), '教师看教师按评分排序：首卡 5 分甲（非匹配度）');
+  // 访客浏览同款（未登录）：同样无匹配度选项、默认评分
+  vm.runInContext('state.user = null; syncMatchSortOpt()', ctx);
+  assert.equal(vm.runInContext(`document.getElementById('opt-sort-match')`, ctx), null, '访客浏览同样删除匹配度选项');
+  assert.equal(vm.runInContext(`document.getElementById('teacher-sort').value`, ctx), 'rating', '访客浏览默认评分最高');
 });
 
 test('sortTeachers 组合：排序控件改变影响 applyFilters 输出顺序', () => {

@@ -95,22 +95,41 @@ async function attachStudentMatch(teachers) {
 }
 
 // v0.25.101 Q6 排序控件（用户质询：「把愚蠢的『默认排序』去了，默认就应该是匹配度降序」）：
-// 删「默认排序」选项，默认排序方案 = 匹配度降序（学生且确有匹配数据时）；
-// 教师端/无匹配数据时回落服务器原序（sortTeachers match 分支无数据即 return）。
-// 可选：匹配度最高（仅学生且有数据时选项可见）/ 评分最高 / 报价最低。
+// 学生看教师默认排序方案 = 匹配度降序（学生且确有匹配数据时）。
+// v0.25.112（用户二次纠正「教师看教师的匹配度排序删了」——v0.25.110 误删成了需求大厅）：
+// 匹配度是「教师↔学生需求」的概念，教师看教师（同行浏览）/ 访客浏览都不该有匹配度排序项——
+// 非学生语境从下拉彻底 remove「匹配度最高」选项（非隐藏），默认评分最高（rating）；
+// 仅学生且确有开放需求匹配数据时该项可见可选并默认匹配度降序（Q6）。
+// 可选：匹配度最高（仅学生且有数据时）/ 评分最高 / 报价最低。
 function teacherSortMode() {
   const el = document.getElementById('teacher-sort');
-  return el ? el.value : 'match';
+  if (!el) return (state.user && state.user.role === 'student') ? 'match' : 'rating'; // 无控件兜底按角色
+  const v = el.value;
+  // v0.25.112：非学生语境即使控件仍为 match（静态 selected 未及被 syncMatchSortOpt 改写）也不生效——
+  // 匹配度是学生↔需求概念，教师看教师/访客一律评分最高（学生语境 match 保持 Q6 语义）
+  if (v === 'match' && !(state.user && state.user.role === 'student')) return 'rating';
+  return v;
 }
-// 匹配度排序选项显隐同步（A7 收口）：学生且确有匹配数据才展示「匹配度最高」；
-// 无匹配语境时（教师端/无开放需求）隐藏该选项并把选中回落（防 select 空选——默认排序=匹配度降序的兜底）
+// 匹配度排序选项同步（A7 收口 + v0.25.112 纠正）：
+//   - 非学生（教师/访客）或学生无开放需求匹配数据 → remove opt-sort-match（彻底删项，下拉不再出现），
+//     选中回落评分最高（防 select 空选）；
+//   - 学生且确有匹配数据 → 确保选项在位（角色切换删过则重建）并默认匹配度降序。
 function syncMatchSortOpt() {
-  const el = document.getElementById('opt-sort-match');
   const sel = document.getElementById('teacher-sort');
-  if (!el) return;
   const hasMatch = state.allTeachers.some(t => t._matchForStudent);
-  el.classList.toggle('hidden', !hasMatch);
-  if (!hasMatch && sel && sel.value === 'match') sel.value = 'rating';
+  const isStudentWithMatch = !!(state.user && state.user.role === 'student') && hasMatch;
+  if (!isStudentWithMatch) {
+    const opt = document.getElementById('opt-sort-match');
+    if (opt) opt.remove();
+    if (sel && sel.value === 'match') sel.value = 'rating';
+    return;
+  }
+  if (!document.getElementById('opt-sort-match')) {
+    const o = document.createElement('option');
+    o.value = 'match'; o.id = 'opt-sort-match'; o.textContent = UI.TEACHER_SORT_MATCH;
+    if (sel) sel.insertBefore(o, sel.firstChild);
+  }
+  if (sel && !sel.value) sel.value = 'match';
 }
 
 function sortTeachers(teachers, mode = teacherSortMode()) {
