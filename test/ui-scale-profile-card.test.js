@@ -185,24 +185,21 @@ test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、
   assert.equal(vm.runInContext('window.SLIDER.step', ctx), '1', '步进 1（级差最小）');
   assert.equal(vm.runInContext('window.SLIDER.value', ctx), '100', '默认现值 100');
   assert.ok(vm.runInContext('!!window.SLIDER_ROW', ctx), '滑块行独立类 .ui-scale-row 存在（防作用域污染）');
-  // 拖到上限 120：拖动走 setUiScaleLive——v0.25.94（R3）起只做 html transform 预览
-  // （compositor-only，不碰 --ui-scale），rAF 合并每帧合成一次。断言 flush 前无任何应用。
+  // 拖到上限 120：拖动走 setUiScaleLive——v0.25.110 二次返工改真实 reflow 预览：
+  // 拖动期直接应用 --ui-scale（页边四边不动、组件真实重排：侧栏贴左/内容贴右），rAF 合并每帧一次；
+  // 不再做 html transform 整页缩放（transform 必动页边——center 四边齐动/top-left 右下沉，
+  // 用户两次返工拒绝，见 app-state.js 注释）。
   vm.runInContext(`window.SLIDER.value = '${sliderMax}'; setUiScaleFromSlider(window.SLIDER);`, ctx);
   const htmlEl = () => dom.window.document.documentElement;
-  assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '', '拖动期不动 --ui-scale（真排版只在 commit）');
-  assert.equal(htmlEl().style.transform, '', '拖动合并到 rAF：pending 未消费前 transform 未应用');
-  // 等 rAF 帧消费 → 预览 transform 应用（仍不落盘、不落真排版）
+  assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '', '拖动合并到 rAF：pending 未消费前 --ui-scale 未应用');
+  assert.equal(htmlEl().style.transform, '', '无 transform 整页缩放残留（预览走 reflow 非缩放）');
+  // 等 rAF 帧消费 → 真实 --ui-scale 应用（reflow 预览，不落盘）
   await tick(30);
-  assert.equal(htmlEl().style.transform, `scale(${(sliderMax / 100).toFixed(3)})`, 'rAF 帧后预览 transform 应用');
-  assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '', '预览期 --ui-scale 仍不动');
-  // v0.25.110（用户「四边齐动」返工）：整页缩放锚定回归成熟方案 top-left（浏览器 Ctrl+ 缩放同款：
-  // 放大从左上向右下展开、缩小从左上收缩），放弃 center（四边对称 = 镜头缩放感，用户实证拒绝）
-  assert.equal(htmlEl().style.transformOrigin, 'top left', 'v0.25.110：预览左上锚定（整页缩放成熟锚定，见 app-state 注释）');
-  assert.equal(htmlEl().style.overflow, 'hidden', 'U2：预览期抑制滚动条（无右/下边缘滚动条跳变）');
-  // 松手 commit 同步落盘 + 落真排版（清预览 transform）
+  assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), (sliderMax / 100).toFixed(3), 'rAF 帧后 --ui-scale 真实应用（reflow 预览）');
+  assert.equal(htmlEl().style.transform, '', 'reflow 预览不做 html transform 缩放');
+  // 松手 commit：落盘 + 确认 --ui-scale（无 transform 需清除）
   vm.runInContext(`window.SLIDER.value = '85'; commitUiScaleFromSlider(window.SLIDER);`, ctx);
-  assert.equal(htmlEl().style.transform, '', 'commit 后预览 transform 清除');
-  assert.equal(htmlEl().style.overflow, '', 'commit 后滚动条抑制恢复');
+  assert.equal(htmlEl().style.transform, '', '无 transform 残留');
   assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '0.850', 'commit 后 --ui-scale 同步');
   assert.equal(vm.runInContext("document.getElementById('ui-scale-val').textContent", ctx), '85%', '数值标签更新');
   assert.equal(vm.runInContext("localStorage.getItem('sufe_ui_scale')", ctx), '85', '松手后 localStorage 持久化');
@@ -246,9 +243,9 @@ test('B1 滑块：pointer 差分拖动——value 按固定初始几何差分，
   fire('pointermove', 150);
   const expect150 = 100 + Math.round(50 / 200 * span);
   assert.equal(vm.runInContext('window.SLIDER.value', ctx), String(expect150), `差分 50px → ${expect150}（初始几何映射）`);
-  await tick(30); // rAF 消费 → 预览 transform 应用（页面缩放开始）
-  const tAfterMove = dom.window.document.documentElement.style.transform;
-  assert.ok(tAfterMove.includes('scale('), '拖动中 html transform 预览已应用（页面缩放）');
+  await tick(30); // rAF 消费 → 真实 reflow 预览应用（--ui-scale 生效，页面重排：四边不动、组件 reflow）
+  assert.equal(dom.window.document.documentElement.style.transform, '', '预览走 reflow 无 html transform 缩放');
+  assert.notEqual(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '', '拖动中 --ui-scale 真实应用（页面重排预览）');
   // 核心正反馈判据：缩放生效后再发「同位置」move → value 必须不变（差分基于 startX，与缩放后几何无关）
   const before = vm.runInContext('window.SLIDER.value', ctx);
   fire('pointermove', 150);
@@ -270,11 +267,11 @@ test('B1 滑块：input/change 事件兜底仍走预览/落盘（键盘与无障
   for (const f of FILES_WITH_PAGES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
   seedSettingsPage(ctx);
   const max = vm.runInContext('CONFIG.UI_SCALE_MAX', ctx);
-  // input（键盘改值）→ 预览 transform（rAF），不落真排版
+  // input（键盘改值）→ 真实 --ui-scale 预览（rAF），不落盘
   vm.runInContext(`window.SLIDER.value = '${max}'; window.SLIDER.dispatchEvent(new window.Event('input', { bubbles: true }));`, ctx);
   await tick(30);
-  assert.equal(dom.window.document.documentElement.style.transform, `scale(${(max / 100).toFixed(3)})`, 'input 兜底：预览 transform 应用');
-  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '', 'input 兜底：不落真排版');
+  assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), (max / 100).toFixed(3), 'input 兜底：真实 reflow 预览应用');
+  assert.equal(dom.window.document.documentElement.style.transform, '', 'input 兜底：无 transform 整页缩放');
   // change（键盘松键/辅助）→ commit 落盘落真排版
   vm.runInContext(`window.SLIDER.value = '85'; window.SLIDER.dispatchEvent(new window.Event('change', { bubbles: true }));`, ctx);
   assert.equal(dom.window.document.documentElement.style.getPropertyValue('--ui-scale'), '0.850', 'change 兜底：落真 --ui-scale');

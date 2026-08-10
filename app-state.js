@@ -219,61 +219,44 @@ function applyUiScale(v) {
   document.documentElement.style.setProperty('--ui-scale', (c / 100).toFixed(3));
   return c;
 }
-// v0.25.94 重构（R3）：拖动丝滑根治法——拖动期不再动 --ui-scale（全页每帧重排版+重绘，
-// 实测 ~100ms/帧，刷新率暴跌根因），改 html 上 compositor-only 的 transform: scale 实时预览
-// （transform 不失效样式/布局，实测失效成本 ~0ms，主线程零排版），松手 commit 才落 --ui-scale
-// 真排版（一次性）。
-//   setUiScale 拆两段——applyUiScale 同步应用（首帧/落盘路径），联动事件转 rAF 调度；
-//   拖动中「事件只记 pending，rAF 每帧最多消费一次」保留（transform 合成本就帧对齐）。
-//   U2（v0.25.105）：预览期抑制滚动条（overflow hidden，防放大时滚动条出现导致页面跳）；
-//   原点曾改 center（「四边对称，观感稳定」）——v0.25.110 用户返工实证拒绝：整页 scale 居中 = 四个
-//   边缘一起动（镜头缩放感，用户：「你就算是把页面拆成侧边栏/个人信息栏/设置栏分别锚定我也都忍了」）。
-//   上网检索成熟方案结论：整页/容器缩放必须 transform-origin top left（SitePoint/Chromium 一致，
-//   否则内容从左边/上边滑出视口）；center 仅用于 hover/scale 元素动画。故回归 top-left 锚定：
-//   放大从左上向右下展开（浏览器 Ctrl+ 缩放同款），缩小从左上收缩右下留白；overflow hidden 保留
-//   防滚动条跳变。commit 才落真排版（--ui-scale，左上自然锚定，一次性）。
+// v0.25.94 曾用 html transform:scale 整页预览保帧率；v0.25.110 用户两次返工实证拒绝——transform
+// 整页缩放必动页边（center 四边齐动 / top-left 右、下边缘照动）。用户要求直白：拖动时页边四边不动、
+// 组件相对位置动（真实 reflow：侧边栏组件靠左上/左下对齐、设置内容靠右对齐）。故预览改真实重排版——
+// 拖动期直接应用 --ui-scale（--ui-scale 全站 calc() 消费，改一次即真实 reflow：侧栏 flex 贴左、
+// 内容区 flex:1 贴右、视口四边固定）。帧率取舍：rAF 合并每帧最多消费一次 pending（拖动连续 oninput
+// 合帧），预览即真排版，松手 commit 落盘同值无二次排版。B1 pointer 差分拖动不受 --ui-scale 反噬
+// （滑块几何按固定初始 clientWidth 差分，见 app-pages.js）。
 let _uiScalePending = null;   // 待预览的目标值（拖动合并：同帧多次 oninput 只合成一次）
 let _uiScaleRaf = 0;          // rAF 句柄（0 = 空闲）
-function _uiScaleClearLive() {
-  document.documentElement.style.removeProperty('transform');
-  document.documentElement.style.removeProperty('overflow'); // U2：预览期滚动条抑制随预览清除一并恢复
-  document.documentElement.style.removeProperty('transformOrigin');
-}
-function _uiScaleLiveApply(c) {
-  document.documentElement.style.transformOrigin = 'top left'; // v0.25.110：整页缩放成熟锚定（见上注释）
-  document.documentElement.style.overflow = 'hidden';
-  document.documentElement.style.transform = `scale(${(c / 100).toFixed(3)})`;
-}
+// 拖动中：rAF 帧消费 pending → 真实应用 --ui-scale（reflow 预览，不落盘）
 function _uiScaleFlush() {
   _uiScaleRaf = 0;
   const c = _uiScalePending;
   if (c == null) return;
   _uiScalePending = null;
-  _uiScaleLiveApply(c);
+  applyUiScale(c);
 }
 // 同步应用（无合并；首帧/测试路径），返回钳制值
 function setUiScale(v) {
   const c = uiScaleClamp(v);
-  _uiScaleClearLive();
   const r = applyUiScale(c);
   try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
   try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* ignore */ }
   return r;
 }
-// 拖动中：html transform 实时预览（compositor-only，不失效布局），rAF 合并每帧合成一次；
-// 不落盘（松手 change 时 commit）。返回钳制值供调用方同步刷标签（预览合成在 rAF 帧，标签即时无妨）。
+// 拖动中：rAF 合并真实 --ui-scale 预览（每帧最多一次全站 reflow）；不落盘（松手 change 时 commit）。
+// 返回钳制值供调用方同步刷标签。
 function setUiScaleLive(v) {
   const c = uiScaleClamp(v);
   _uiScalePending = c;
   if (!_uiScaleRaf) _uiScaleRaf = requestAnimationFrame(_uiScaleFlush);
   return c;
 }
-// 松手/失焦：清预览 transform → 落真 --ui-scale（一次全页排版）→ 落盘。若拖动 rAF 在途，清掉 pending 防旧值覆盖。
+// 松手/失焦：落真 --ui-scale（预览已实时应用，此处落盘持久化）。若拖动 rAF 在途，清掉 pending 防旧值覆盖。
 function commitUiScale(v) {
   const c = uiScaleClamp(v);
   if (_uiScaleRaf) { cancelAnimationFrame(_uiScaleRaf); _uiScaleRaf = 0; }
   _uiScalePending = null;
-  _uiScaleClearLive();
   const r = applyUiScale(c);
   try { localStorage.setItem(CONFIG.UI_SCALE_KEY, String(c)); } catch { /* ignore */ }
   try { window.dispatchEvent(new window.Event('sufe:ui-scale')); } catch { /* ignore */ }
