@@ -44,6 +44,7 @@ const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands:
 const CACHE_DOMAINS = {
   teachers: 'teachers', contracts: 'contracts', demands: 'demands', intentTeachers: 'teachers',
   posts: 'posts', notifications: 'notifications', admin: 'admin',
+  chat: 'chat', // v0.27.0 审计：resolvePush 接受意向新建会话后 invalidate('chat') 立即失效会话列表缓存——否则 ≤8s 版本探针刷新窗口内切 my-chats 读到旧缓存「不见新会话」
   // B6：设置页四表单（sessions/privacy/username-status/creds）归 account 域——写操作
   // （改用户名/绑定手机邮箱/隐私切换/撤销设备）成功后 invalidate('account') 失效，下次读取重拉
   account: 'account',

@@ -329,6 +329,20 @@ async function readPublicListCache(url) {
   return null;
 }
 
+// B2 补（v0.27.0 审计）：公开列表边缘缓存写 helper——/api/batch 子请求 miss 后写回。
+// 直接 await put（生产实证 waitUntil 异步写 → 紧随请求 miss）：text 极小毫秒级完成，
+// 响应返回时缓存已就绪，下一个请求必命中。写失败静默（不影响主响应，fail-open）。
+async function writePublicListCache(url, jsonText) {
+  const apiCache = typeof caches !== 'undefined' ? caches.default : null;
+  if (!apiCache) return;
+  try {
+    const headers = new Headers();
+    headers.set('content-type', 'application/json; charset=UTF-8');
+    headers.set('Cache-Control', `public, s-maxage=${PUBLIC_LIST_TTL_S}`);
+    await apiCache.put(new Request(url), new Response(jsonText, { status: 200, headers }));
+  } catch { /* 缓存写失败静默：不影响主响应 */ }
+}
+
 // B2（v0.27.0 网络层重构）：批量只读端点——一次鉴权 + N 个子 GET 并发。
 // 设计（调研：API batching / BFF 聚合）：客户端 prefetch/域刷新/多模块首载把 N 个独立 GET
 // 合并为 1 次往返——HTTP/1.1 下免浏览器 6 连接队列串行，HTTP/2 下减 worker 调用与 D1 往返；
@@ -336,7 +350,8 @@ async function readPublicListCache(url) {
 // 共享 1 次 D1 鉴权；单子请求失败不阻断其余（结果带独立 status）。
 // 写操作禁止入 batch——写路径仍走单请求，保证错误码/toast/二次认证/留档语义。
 // 安全：子请求与直接 GET 权限面完全一致（不升级权限），batch 只省往返不改变路由语义。
-const BATCH_MAX = 16;
+// 批量读上限单源：constants.js CONFIG.BATCH_GET_MAX（前端 dhBatchGet 按同值分块，杜绝整批超限 400）
+const BATCH_MAX = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.BATCH_GET_MAX) || 16;
 async function handleBatch(db, body, url, req, env) {
   const gets = body && Array.isArray(body.gets) ? body.gets : null;
   if (!gets || !gets.length || gets.length > BATCH_MAX) return error(MSG.INVALID_PARAMS, 400);
@@ -354,6 +369,11 @@ async function handleBatch(db, body, url, req, env) {
       }
       const res = await routeApi(db, subUrl.pathname, 'GET', {}, subUrl, req, env);
       const data = await res.json();
+      // B2 审计补：匿名公开列表 miss 子请求写回边缘缓存——否则访客预取全走批量时
+      // 边缘缓存永不被预热（B6 冷启动收益被绕过），后续直连 GET 才温。await put 保响应返回即就绪。
+      if (res.status === 200 && isAnonymous(req) && isPublicListCacheable(subUrl.pathname, subUrl)) {
+        await writePublicListCache(subUrl, JSON.stringify(data));
+      }
       return { path: sub, status: res.status, data };
     } catch {
       return { path: sub, status: 500, data: { error: MSG.SERVER_ERROR } };

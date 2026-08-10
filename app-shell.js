@@ -90,8 +90,9 @@ const ROLE_PAGES = {
 // - DOMAIN_FILES 与 hash-assets.mjs 的清单必须同步（构建脚本哈希它们 + 写入 manifest）
 // - 哈希名：window.ASSET_MANIFEST（构建时内联进 index.html）命中优先，缺省回落基名（源/测试环境）
 // - 幂等哨兵：__domainLoaded 或领域函数已存在（测试 FILES 全载）即短路，不重复注入
-// - 注入失败/超时 6s 兜底放行（进页后再点侧栏由下次尝试补载），绝不永久挂起
-// - 注入按序（经典脚本共享作用域、依赖链按 index.html 原序）→ 用 Promise 链保序
+// - 注入失败/超时兜底（CONFIG.DOMAIN_SCRIPT_TIMEOUT_MS 挂起超时 + 404 延迟重试），绝不永久挂起 enterClient
+// - F6（v0.27.0）：经典脚本按 DOM 插入序执行 → Promise.all 并行注入（下载并行执行保序），
+//   404 重试脚本插回原兄弟位（A1 审计）不破依赖序
 // ------------------------------------------------------------
 const DOMAIN_FILES = [
   'region-data.js', 'app-style.js', 'app-region.js', 'app-posts.js', 'app-chat.js',
@@ -113,21 +114,36 @@ function loadDomainScripts() {
       // 新哈希资产间歇 404（边缘节点未同步，实测 15 次里 4 次）——领域脚本 404 缺模块 → 教师列表/登录失败。
       // 自愈：先延迟重试等边缘同步（窗口 ~1-2 分钟，逐脚本重试保留页面状态），重试耗尽才整页刷新一次
       // 拿新 index.html（内联新 manifest）；刷新恢复登录/页面停留（v0.25.95 会话层）。
-      const tryInject = (attempt) => {
+      const tryInject = (attempt, anchor) => {
         const s = document.createElement('script');
         s.src = '/' + (manifest[f] || f);
-        s.onload = resolve;
-        s.onerror = () => {
+        let hangTimer = null; // 挂起下载超时（load/error/超时三者互斥，只放行一次）
+        const fail = () => {
+          if (hangTimer !== null) { clearTimeout(hangTimer); hangTimer = null; }
           if (attempt < CONFIG.DOMAIN_SCRIPT_RETRY) {
-            setTimeout(() => tryInject(attempt + 1), CONFIG.DOMAIN_SCRIPT_RETRY_MS);
+            // A1（v0.27.0 审计）：并行注入下 404 重试若 appendChild 会追加到 head 末尾——
+            // 其余 11 脚本早已执行完，被重试的脚本最后执行，依赖链头部（如 region-data → SUFE_REGIONS）
+            // 在依赖者之后才就绪 → 窗口内点区域相关交互 ReferenceError；且坏模块顶层求值抛错时
+            // onload 仍触发、__domainLoaded=true、不触发整页刷新自愈。重试脚本须插回原失败节点之后
+            // （保持经典脚本依赖执行序），自愈语义才成立。
+            setTimeout(() => tryInject(attempt + 1, s), CONFIG.DOMAIN_SCRIPT_RETRY_MS);
           } else {
             if (!__domainReloadOnce) { __domainReloadOnce = true; setTimeout(() => location.reload(), 900); }
             resolve();
           }
         };
-        (document.head || document.documentElement).appendChild(s);
+        s.onload = () => { if (hangTimer !== null) { clearTimeout(hangTimer); hangTimer = null; } resolve(); };
+        s.onerror = fail;
+        // 审计：挂起下载（无 load/error，如边缘节点吞请求）会令 enterClient 永久等待——加超时兜底
+        // 按失败走重试/自愈（与 404 同语义），进页绝不卡死在 loading。
+        hangTimer = setTimeout(fail, CONFIG.DOMAIN_SCRIPT_TIMEOUT_MS || 6000);
+        if (anchor && anchor.parentNode) {
+          anchor.parentNode.insertBefore(s, anchor.nextSibling); // 插回原兄弟位：依赖序不破
+        } else {
+          (document.head || document.documentElement).appendChild(s);
+        }
       };
-      tryInject(1);
+      tryInject(1, null);
     });
     await Promise.all(DOMAIN_FILES.map(f => inject(f)));
     __domainLoaded = true;
@@ -179,9 +195,12 @@ async function enterClient(pageId) {
   // 预取在途时点进某模块由 dhReady 跳过 loader 闪屏，读取完即显示
   selectPage(valid);
   if (state.user) {
+    // #10（v0.27.0 审计）：先 dhPrefetch 设好全部预取键 inflight（同步块内完成）——
+    // startBadgePoll 的 refreshBadges 随后 dhGet conversations/notifications 共享同一批 → 首波 1 次 batch
+    // （原序徽标先跑独立 GET，批内跳过两键，首波实际 4-5 往返非 1）
+    dhPrefetch(state.user.role);
     startBadgePoll(); // 红点轮询仅登录态开启（访客无个人数据可轮询）
     startVersionProbe();
-    dhPrefetch(state.user.role);
   } else if (state.guestRole) {
     // v0.24.0：访客预览也开启版本探测 + 静默预取公开数据（与所在模块无关）
     startVersionProbe();

@@ -11,8 +11,6 @@
  *   - dhBatchGet：缓存跳过/在途共享/一次批量/部分失败/域 rebinder 执行（F3）
  *   - dhGet forceRefresh 绕过缓存
  *   - startVersionProbe 启动即建基线 / stopVersionProbe 安全
- *   - dhSnapshot/dhApply/dhRevert 乐观写辅助（F5）
- *
  * 沙箱：constants + app-state + app-api + app-datahub（与 api-timeout.test.js 同款 vm 模式），
  * fetch 用可控 mock（按 URL 路由，Error 值模拟失败；POST /api/batch 特殊合成批量结果）。
  */
@@ -330,6 +328,27 @@ test('T6 发版重预取：版本变化清缓存后进客户端 dhPrefetch 立�
   assert.equal(Object.prototype.toString.call(r), '[object Map]', '返回 Map');
 });
 
+test('B-2 分块：单域缓存键超 BATCH_GET_MAX 时 dhRefreshDomain 分块拉取不整批 400', async () => {
+  const { impl, calls, routes, batchGets } = makeFetch();
+  const ctx = makeCtx({ fetchImpl: impl });
+  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
+  // teachers 域累积 17 个 ?userId= 分键（教师详情面板逐个打开），超 CONFIG.BATCH_GET_MAX(16)
+  for (let i = 0; i < 17; i++) {
+    routes.set(`/api/teacher/profile?userId=${i}`, { profile: { user_id: i, name: `t${i}` } });
+    await vm.runInContext(`dhGet('/api/teacher/profile?userId=${i}', { domain: 'teachers' })`, ctx);
+  }
+  assert.equal(vm.runInContext('dhCache.size', ctx), 17, '缓存已有 17 键');
+  const before = batchGets.length;
+  const ok = await vm.runInContext('dhRefreshDomain("teachers")', ctx);
+  assert.equal(ok, true, '域刷新成功（不再整批 400 静默失败）');
+  const newBatches = batchGets.slice(before);
+  assert.equal(newBatches.length, 2, '17 键分 2 块（16+1）');
+  assert.ok(newBatches[0].length <= 16 && newBatches[1].length <= 16, '每块 ≤ BATCH_GET_MAX');
+  assert.equal(newBatches.flat().length, 17, '两块合计覆盖全部 17 键');
+  // 刷新后缓存仍是 17 键（无键丢失）
+  assert.equal(vm.runInContext('dhCache.size', ctx), 17, '刷新后无键丢失');
+});
+
 test('dhProbeTick：getVersions 全域补零后首写 0→1 触发重拉（审计 m1，批量）', async () => {
   const { impl, calls, routes, batchGets } = makeFetch();
   routes.set('/api/teachers', { teachers: [] });
@@ -392,26 +411,3 @@ test('B6 DH_PREFETCH：设置页四表单并入预取（account 域，登录即�
   }
 });
 
-test('F5 乐观写辅助：dhApply 就地改缓存、dhRevert 失败恢复、dhSnapshot 快照', async () => {
-  const { impl, routes } = makeFetch();
-  routes.set('/api/student/demands?scope=mine', { demands: [{ id: 1, status: 'open' }] });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/student/demands?scope=mine', { domain: 'demands' })`, ctx);
-  // 整段在 vm 内执行（快照/应用/回滚共用同一 vm-realm 的 Map，避免跨 realm 引用）
-  const results = vm.runInContext(`
-    const snap = dhSnapshot(['/api/student/demands?scope=mine']);
-    dhApply('/api/student/demands?scope=mine', d => ({ ...d, demands: d.demands.filter(x => x.id !== 1) }));
-    const afterApply = dhPeek('/api/student/demands?scope=mine').demands.length;
-    dhRevert('/api/student/demands?scope=mine', snap);
-    const afterRevert = dhPeek('/api/student/demands?scope=mine').demands.length;
-    // 乐观新增场景：条目不存在 → dhApply 跳过、dhRevert 原样无
-    const snap2 = dhSnapshot(['/api/notifications']);
-    dhApply('/api/notifications', d => ({ notifications: [] }));
-    dhRevert('/api/notifications', snap2);
-    ({ afterApply, afterRevert, afterNew: dhPeek('/api/notifications') === null });
-  `, ctx);
-  assert.equal(results.afterApply, 0, '乐观删除即时生效');
-  assert.equal(results.afterRevert, 1, '失败回滚恢复原数据');
-  assert.equal(results.afterNew, true, '原无条目回滚后仍无');
-});

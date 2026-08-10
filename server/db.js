@@ -1626,11 +1626,6 @@ export async function dbDeleteContract(db, contractId, statuses = null) {
   return dbRun(db, `DELETE FROM contracts WHERE id=? AND status IN (${q})`, [contractId, ...statuses]);
 }
 
-// 清会话内的合同系统气泡（撤销合同步双方聊天窗；kind='contract' 仅合同事件消息）
-export async function dbDeleteContractMessages(db, conversationId) {
-  await dbRun(db, `DELETE FROM messages WHERE conversation_id=? AND kind='contract'`, [conversationId]);
-}
-
 // ============================================================
 // 会话与消息（模块4）
 // ============================================================

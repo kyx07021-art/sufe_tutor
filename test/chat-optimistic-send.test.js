@@ -113,6 +113,30 @@ test('乐观失败回滚：api 拒绝 → 气泡移除 + 输入恢复 + toast', 
   assert.equal(vm.runInContext('chatOptimisticSending', ctx), false, '失败后关窗复位');
 });
 
+test('乐观去重：在途轮询已抢插真实气泡 → 发送成功移除临时气泡（防双气泡）', async () => {
+  const { ctx, dom } = makeCtx();
+  scaffoldChat(ctx, dom);
+  let resolveSend;
+  ctx.api = (url, opts) => {
+    if (opts && opts.method === 'POST') return new Promise(res => { resolveSend = res; });
+    return Promise.resolve({ messages: [] });
+  };
+  const doc = dom.window.document;
+  doc.getElementById('chat-input').value = '你好';
+  const p = vm.runInContext('sendChatMessage()', ctx);
+  await new Promise(r => setTimeout(r, 0));
+  const optimistic = doc.querySelector('#chat-messages .chat-msg');
+  assert.ok(Number(optimistic.dataset.mid) < 0, '乐观临时气泡已插入');
+  // 模拟在途轮询（发送发起前已发出、服务端 GET 排在 batch POST 后处理）抢插真实 id 气泡：
+  // 轮询去重查 data-mid 因临时气泡还是负 id 而 miss → 插了真实气泡
+  doc.querySelector('#chat-messages').insertAdjacentHTML('beforeend', `<div class="chat-msg" data-mid="5"></div>`);
+  resolveSend({ messages: [{ id: 5, kind: 'text', name: '' }] });
+  await p;
+  const bubbles = [...doc.querySelectorAll('#chat-messages .chat-msg')];
+  assert.equal(bubbles.length, 1, '发送成功后无双气泡（临时气泡被移除去重）');
+  assert.equal(bubbles[0].dataset.mid, '5', '仅剩轮询抢插的真实气泡');
+});
+
 test('批量附件：暂存附件（uploadId）+ 文字一次 POST，乐观气泡逐条插入', async () => {
   const { ctx, dom } = makeCtx();
   scaffoldChat(ctx, dom);

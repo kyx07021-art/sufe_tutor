@@ -124,6 +124,7 @@ document.addEventListener('mousemove', (e) => {
 function switchToRole(role, saved) {
   exitCurrentIdentity();
   state.authToken = saved.authToken;
+  const sentToken = saved.authToken; // B1（v0.27.0 审计）：/me 异步窗口内身份可能已被替换
   state.user = saved.user; // F8：先以已存会话渲染（v0.24.2 曾因 /me 阻塞而 delay 客户端壳）
   saveSession(saved.source === 'local'); // 保活刷新该角色会话（按 state.user.role 落键）
   enterClient();
@@ -138,6 +139,9 @@ function switchToRole(role, saved) {
     }
   }).catch((err) => {
     sessionBootValidating = false;
+    // B1：/me 在途期间若已登出/切角色（state.authToken 已被替换/清空），过期拒绝回调不得把页面
+    // 强制拉回该角色访客预览（覆盖用户刚做的登出）。仅当「我仍是发起者」时才回落。
+    if (state.authToken !== sentToken) return;
     state.authToken = null;
     state.user = null;
     // v0.24.2 审计：死令牌只清目标角色会话（401 兜底在 state.user 为空时曾以 '' 误删全部角色会话）；

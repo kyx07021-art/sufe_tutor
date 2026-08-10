@@ -428,6 +428,10 @@ async function handleDeleteDemand(demandId, asAdmin) {
   try {
     if (asAdmin) {
       await api(`/api/admin/demands/${demandId}`, { method: 'DELETE' });
+      // 审计：同步管理端数组——否则「加载更多」adminDemandsAll.concat(下一页) 整列重渲染会把已删卡复活
+      if (typeof adminDemandsAll !== 'undefined') {
+        adminDemandsAll = adminDemandsAll.filter(d => d.id !== demandId);
+      }
     } else {
       await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: {} });
     }
@@ -647,7 +651,7 @@ function renderDemandCard(d, opts = {}) {
   // R26：已建立联系不再是静态禁用按钮——「已建立联系→」可点击，直接跳到与该学生的会话页
   const teacherIntentBtn = !teacher ? ''
     : d.my_intent_status === STATUS.ACCEPTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-ok glass glass--pressable" onclick="goChatWithStudent(${d.user_id})">${UI.INTENT_ACCEPTED_GO}</button>`
-    : d.my_intent_status === STATUS.PENDING  ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_PENDING}</button>`
+    : d.my_intent_status === STATUS.PENDING  ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled data-demand-id="${d.id}">${UI.INTENT_PENDING}</button>`
     : d.my_intent_status === STATUS.REJECTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
     : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable btn-intent-cta" data-demand-id="${d.id}" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
   // v0.25.12（反馈 #92）：推送需求操作按钮与提交意向统一 btn-sm 尺寸（原 btn-xs 是没复用组件的败笔），
@@ -670,7 +674,7 @@ function renderDemandCard(d, opts = {}) {
   const scoreItems = (d.current_scores||[]).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
   const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
 
-  return `<div class="list-card list-card--demand glass" data-demand-id="${d.id}">
+  return `<div class="list-card list-card--demand glass" data-demand-id="${d.id}"${push ? ` data-push-id="${push.push_id}"` : ''}>
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
     <div class="list-card-header">
@@ -912,14 +916,26 @@ async function submitDemandPush(teacherUserId) {
 }
 
 // 教师处理学生主动推送：确认 = 建会话；拒绝 = 婉拒（学生收通知）
+// F12②（v0.27.0 审计补）：乐观——点击即把推送卡动作按钮换成「已处理」占位并移除卡片推送态，
+// 成功 loadBrowseDemands 收敛终态，失败恢复动作按钮（audit-flow 驳回/网络错均回滚）。
 async function resolvePush(pushId, action) {
+  const card = document.querySelector(`.list-card--demand[data-push-id="${pushId}"]`);
+  const actionsEl = card && card.querySelector('.demand-card-actions');
+  const origActionsHtml = actionsEl ? actionsEl.innerHTML : '';
+  const doneTag = `<span class="tag tag-ok glass glass--solid">${action === 'accept' ? UI.PUSH_ACCEPTED_TAG : UI.PUSH_REJECTED_TAG}</span>`;
+  if (actionsEl) actionsEl.innerHTML = doneTag; // 乐观：动作按钮即刻变「已处理」占位
+  // 注：_browseDemands 不改——loadBrowseDemands 从缓存全量重建（成功路径），失败只还原 DOM 按钮即可
   try {
     await api(`/api/demand-pushes/${pushId}/resolve`, { method: 'POST', body: { action } });
     showToast(action === 'accept' ? UI.PUSH_ACCEPTED_TOAST : UI.PUSH_REJECTED_TOAST);
     invalidate('demands'); // v0.23.1 审计 M2：否则已处理推送卡从缓存滞留
     if (action === 'accept') invalidate('chat'); // accept 建会话：切到 my-chats 立即见新会话
     loadBrowseDemands();
-  } catch (err) { showToast(err.message); }
+  } catch (err) {
+    // 失败回滚：恢复动作按钮（audit-flow 驳回/网络错均可重试）
+    if (actionsEl && origActionsHtml) actionsEl.innerHTML = origActionsHtml;
+    showToast(err.message);
+  }
 }
 
 // ============================================================
@@ -1031,7 +1047,7 @@ function renderIntentTeacherRow(t, demandId) {
        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
   // R2-5 报价区间（未填显 ? 占位，同旧单值口径）
   const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT) || '?';
-  return `<div class="admin-row glass">
+  return `<div class="admin-row glass" data-intent-id="${t.intent_id}">
     <div class="admin-row-main">
       <div class="admin-row-line intent-row-line">
         <span class="intent-row-user"><strong>${DISP.usernameHtml(t.username)}</strong> ${DISP.starsHtml(t.rating)}</span>${tag}
@@ -1043,7 +1059,22 @@ function renderIntentTeacherRow(t, demandId) {
 }
 
 // 学生同意 / 拒绝意向；同意后自动建立会话，可前往「我的会话」
+// F12②（v0.27.0 审计补）：乐观——点击即把行状态翻到目标终态（tag 变已同意/已拒绝 + 动作按钮隐藏），
+// 成功 refreshIntentsBox 收敛终态，失败恢复 tag/按钮/内存状态（audit-flow 驳回/网络错均回滚）。
 async function resolveIntent(intentId, action, demandId) {
+  const row = document.querySelector(`.admin-row[data-intent-id="${intentId}"]`);
+  const t = (state.intentTeachers || []).find(x => x.intent_id === intentId);
+  const origStatus = t ? t.intent_status : STATUS.PENDING;
+  const tagEl = row && row.querySelector('.intent-row-line .tag');
+  const actionsEl = row && row.querySelector('.admin-row-actions');
+  const origTagHtml = tagEl ? tagEl.outerHTML : '';
+  const origActionsHtml = actionsEl ? actionsEl.innerHTML : '';
+  const newTag = action === 'accept'
+    ? `<span class="tag tag-ok glass glass--solid">${UI.INTENT_STATUS_ACCEPTED}</span>`
+    : `<span class="tag tag-danger glass glass--solid">${UI.INTENT_STATUS_REJECTED}</span>`;
+  if (t) t.intent_status = action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED; // 乐观：内存先行（refreshIntentsBox 同源）
+  if (tagEl) tagEl.outerHTML = newTag; // 乐观：状态 tag 即刻翻转
+  if (actionsEl) actionsEl.innerHTML = ''; // 乐观：动作按钮即刻隐藏
   try {
     await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { action } });
     showToast(action === 'accept' ? UI.INTENT_ACCEPTED_TOAST : UI.INTENT_REJECTED_TOAST);
@@ -1051,7 +1082,17 @@ async function resolveIntent(intentId, action, demandId) {
     if (action === 'accept') invalidate('chat'); // accept 建会话：切到 my-chats 立即见新会话
     await refreshIntentsBox(demandId);
     loadMyDemands(); // 刷新意向计数（整列重渲染，意向栏回到收起态）
-  } catch (err) { showToast(err.message); }
+  } catch (err) {
+    // 失败回滚：恢复 tag + 动作按钮 + 内存状态
+    if (t) t.intent_status = origStatus;
+    if (row) {
+      const curTag = row.querySelector('.intent-row-line .tag');
+      if (curTag && origTagHtml) curTag.outerHTML = origTagHtml;
+      const curActions = row.querySelector('.admin-row-actions');
+      if (curActions) curActions.innerHTML = origActionsHtml;
+    }
+    showToast(err.message);
+  }
 }
 
 // 登出复位：模块级残留清理（会话切换/登出时由认证层 runLogoutResets 统一调用）

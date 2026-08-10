@@ -78,7 +78,7 @@ test('上传带缩略图：thumb 落库；发送后随消息落库；列表返�
   const upRow = raw.prepare('SELECT thumb FROM uploads WHERE id=?').get(id);
   assert.equal(await decryptField(upRow.thumb), THUMB, 'thumb 加密落暂存区，解密后一致');
 
-  const sent = await handleSendMessage(db, 1, { uploadId: id }, reqOf(t1Token));
+  const sent = await handleSendMessage(db, 1, { batch: [{ kind: 'image', uploadId: id }] }, reqOf(t1Token));
   assert.equal(sent.status, 201);
   const msg = raw.prepare('SELECT kind, body, thumb FROM messages ORDER BY id DESC LIMIT 1').get();
   assert.equal(msg.kind, 'image');

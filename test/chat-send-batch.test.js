@@ -132,6 +132,18 @@ test('校验：空批/超上限/非法项/超长文字 → 400；非 active 会�
   assert.equal((await handleSendMessage(db, 1, { batch: [{ kind: 'text', body: '  ' }] }, reqOf(t1Token))).status, 400, '空白文字');
 });
 
+test('C-4 重复 uploadId：同附件重复引用整批 400（防双消息双删）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1Token } = await seed(db, raw);
+  const [imgId] = await stageTwoUploads(db, raw, t1Token);
+  const sent = await handleSendMessage(db, 1, {
+    batch: [{ kind: 'image', uploadId: imgId }, { kind: 'image', uploadId: imgId }],
+  }, reqOf(t1Token));
+  assert.equal(sent.status, 400, '重复 uploadId 整批拒绝');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages').get().c, 0, '不落任何消息');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM uploads').get().c, 2, '两个暂存附件全保留（未删可重试）');
+});
+
 test('列表读回：批量发送后对方视角可读消息（含解密缩略图）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { t1Token, s1Token } = await seed(db, raw);

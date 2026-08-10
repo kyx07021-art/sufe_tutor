@@ -60,12 +60,6 @@ function openCaptchaModal({ title = UI.CAPTCHA_TITLE, onPass = null } = {}) {
   bindCaptchaDrag();
 }
 
-function closeCaptchaModal() {
-  _captchaOnPass = null;
-  _captchaDrag = null;
-  closeModal();
-}
-
 /** 绘制背景（程序化渐变+噪点）与缺口；未来接动态图片只改此处背景绘制 */
 function paintCaptcha() {
   const cv = document.getElementById('captcha-canvas');

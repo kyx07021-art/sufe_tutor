@@ -59,7 +59,9 @@ export async function handleCreateComplaint(db, body, req) {
 
   // 附件：数量钳制 + 归属校验（仅本人暂存可复制，防借 id 搬运他人附件）
   // B5（v0.27.0 网络层重构）：逐条 dbGetUpload → dbGetUploads 单查（WHERE IN，N 往返 → 1）
-  const uploadIds = Array.isArray(body.uploadIds) ? body.uploadIds.map(Number).filter(Number.isInteger) : [];
+  const uploadIds = Array.isArray(body.uploadIds)
+    ? [...new Set(body.uploadIds.map(Number).filter(Number.isInteger))] // 审计 C-5：Set 去重（[1,1,1,1] 不再复制 4 份同附件）
+    : [];
   if (uploadIds.length > LIMITS.COMPLAINT_ATTACH_MAX) return error(MSG.COMPLAINT_ATTACH_TOO_MANY, 400);
   const attachments = [];
   const uploadRows = uploadIds.length ? await dbGetUploads(db, uploadIds) : [];

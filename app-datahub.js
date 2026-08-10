@@ -107,10 +107,20 @@ async function dhBatchGet(entries, { forceRefresh = false } = {}) {
       pr.catch(() => {}); // 标记已处理：fire-and-forget（dhPrefetch 不 await）场景子键失败不产生未处理拒绝
       dhInflight.set(path, pr);
     }
-    let results;
+    let results = new Map();
+    // B-2（v0.27.0 审计修复）：单域缓存键可超服务端批量上限（teachers 域按 ?userId= 分键累积、
+    // 搜索 query 变体键），一次全发 → 服务端整批 400 → dhRefreshDomain ok=false 静默持续失败、
+    // 列表长期陈旧（dhTouchAll 又给全缓存续期永不过期）。按 CONFIG.BATCH_GET_MAX 分块逐块拉取合并。
+    const chunkSize = CONFIG.BATCH_GET_MAX || 16;
     try {
-      results = await apiBatch(toFetch.map(t => t.path));
+      for (let i = 0; i < toFetch.length; i += chunkSize) {
+        const chunk = toFetch.slice(i, i + chunkSize);
+        const part = await apiBatch(chunk.map(t => t.path));
+        for (const [k, v] of part) results.set(k, v);
+      }
     } catch (e) {
+      // 任一块整体网络失败：清理全部未消费 inflight + 拒绝等待者（已成功块路径仍在 inflight，
+      // 一并清理由调用方按需回退；失败键不写入缓存，陈旧基线保留下轮重试）
       for (const { path } of toFetch) { dhInflight.delete(path); resolvers.get(path).rej(e); }
       throw e; // 批量整体网络失败：调用方回退按需加载
     }
@@ -313,38 +323,6 @@ if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && dhProbeTimer) dhProbeTick().catch(() => {});
   });
-}
-
-// ============================================================
-// F5（v0.27.0 网络层重构）：乐观写辅助——缓存级即时更新 + 失败恢复。
-// 配合模块级数组快照实现完整乐观回滚（模块负责自己数组的快照，缓存由这三件套托管）。
-// 为什么需要：模块就地变更自己的数组后，dhCache 仍存旧数据——用户重进模块 dhGet 命中旧缓存，
-// 乐观变更丢失。dhApply 同步缓存使重进仍见乐观态；成功以 invalidate/服务端收敛为准，失败 dhRevert 恢复。
-// ============================================================
-/** 快照一批缓存条目（undefined=不在缓存；null=被删；对象=原条目）。调用方须同样快照自己的模块数组 */
-function dhSnapshot(paths) {
-  const snap = new Map();
-  for (const p of paths) {
-    const e = dhCache.get(p);
-    snap.set(p, e ? { ...e, data: e.data } : null);
-  }
-  return snap;
-}
-
-/** 就地乐观变更缓存条目（mutator 拿到当前 data 返回新 data；条目不存在跳过——无缓存可改则依赖模块数组） */
-function dhApply(path, mutator) {
-  const e = dhCache.get(path);
-  if (!e || typeof mutator !== 'function') return;
-  const next = mutator(e.data);
-  if (next !== undefined) { e.data = next; e.fetchedAt = Date.now(); }
-}
-
-/** 失败恢复：snapshot 来自 dhSnapshot(paths)；原条目存在则回置，原无则删除（乐观新增回滚） */
-function dhRevert(path, snapshot) {
-  const s = snapshot.get(path);
-  if (s === undefined) return; // 未快照的 key 不动
-  if (s === null) dhCache.delete(path);
-  else dhCache.set(path, s);
 }
 
 // 登出复位（app-state registerLogoutReset 协议）：停探测 + 清会话缓存，防上一账户残留

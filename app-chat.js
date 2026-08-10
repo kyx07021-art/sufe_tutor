@@ -452,6 +452,9 @@ function chatLazyLoadAttachments() {
         } catch {
           el.classList.remove('chat-bubble--loading');
           el.innerHTML = `<span class="chat-attach-fail">${UI.CHAT_ATTACH_FAIL}</span>`;
+          // 审计 C：失败也删 data-attach——否则永久失败附件（对方注销后附件清空等）每次懒加载
+          // 触发（轮询带回新附件）都被反复重拉重失败
+          delete el.dataset.attach;
         }
       }
     };
@@ -549,7 +552,8 @@ async function sendChatMessage() {
 
   // F10（v0.27.0）乐观发送：本地立即插入临时气泡（负 id），一次批量 POST 落库，响应替换真实 id；
   // 失败移除临时气泡 + 恢复输入/暂存（audit-flow 断点可能驳回，须回滚）。data-mid 去重语义对齐旧实现。
-  // F9 批量：附件确认 + 文字一次往返（2N+1 串行 → 1），服务端单事务 db.batch。
+  // F9 批量：附件确认 + 文字一次写往返（2N+1 串行写 → 1），服务端单事务 db.batch
+  // （服务端每附件 1 次归属读 + 1 写批，边界 MSG_BATCH_MAX=13 封顶）。
   const box = document.getElementById('chat-messages');
   const optimistic = [];        // { tempId, kind, body, name }
   let tempSeq = -900000 - Date.now() % 1000; // 负临时 id（与真实自增 id 空间不冲突）
@@ -579,14 +583,23 @@ async function sendChatMessage() {
     if (text) batch.push({ kind: 'text', body: text });
     const data = await api(`/api/conversations/${convId}/messages`, { method: 'POST', body: { batch } });
     if (chatConvId !== convId) return; // 发送中切走会话：丢弃（乐观气泡随会话重开消失）
-    // 响应按批序返回真实 id：替换临时气泡 data-mid（轮询已抢插则跳过——data-mid 已存在）
+    // 响应按批序返回真实 id：替换临时气泡 data-mid。
+    // 竞态（审计）：发送发起前已在途的轮询不受 chatOptimisticSending 关窗约束——若服务端 GET 排在
+    // batch POST 之后处理，会带回刚发的真实 id；轮询去重查 data-mid 因临时气泡还是负 id 而 miss，
+    // 先插了真实气泡。此处若发现真实 id 气泡已被轮询抢插 → 移除临时气泡去重（否则同消息双气泡）。
     const created = data.messages || [];
     let maxId = chatLastMsgId;
     created.forEach((m, i) => {
       const op = optimistic[i];
       if (!op || !m.id) return;
       const el = box && box.querySelector(`.chat-msg[data-mid="${op.tempId}"]`);
-      if (el) el.dataset.mid = String(m.id);
+      if (el) {
+        if (box.querySelector(`.chat-msg[data-mid="${m.id}"]`)) {
+          el.remove(); // 轮询已抢插真实气泡 → 移除临时气泡（双气泡去重）
+        } else {
+          el.dataset.mid = String(m.id);
+        }
+      }
       if (m.id > maxId) maxId = m.id;
     });
     chatLastMsgId = maxId; // 防下一轮轮询重复拉回自己这批

@@ -94,6 +94,31 @@ test('重试期间成功加载则不刷新，领域正常就绪', async () => {
   assert.equal(vm.runInContext('__domainReloadOnce', ctx), false, '重试成功不触发刷新');
 });
 
+test('A1 重试保序：region-data 404 后重试脚本插回原兄弟位（非 head 末尾，依赖序不破）', async () => {
+  const { ctx, dom } = makeCtx();
+  vm.runInContext(`
+    globalThis.loadMyDemands = undefined;
+    CONFIG.DOMAIN_SCRIPT_RETRY = 2; CONFIG.DOMAIN_SCRIPT_RETRY_MS = 10; // RETRY=2：attempt1 404 → 重试 attempt2
+    __domainLoaded = false; __domainLoading = null; __domainReloadOnce = false;
+    loadDomainScripts();
+  `, ctx);
+  await tick();
+  const scripts = () => [...dom.window.document.querySelectorAll('script[src]')].map(s => s.getAttribute('src'));
+  assert.equal(scripts().filter(s => s.includes('region-data')).length, 1, 'region-data 已注入（首个）');
+  // region-data 404 → 重试（10ms 后）
+  const first = dom.window.document.querySelector('script[src*="region-data"]');
+  first.dispatchEvent(new dom.window.Event('error'));
+  await tick();
+  const all = [...dom.window.document.querySelectorAll('script[src]')];
+  const idx = all.findIndex(s => (s.getAttribute('src') || '').includes('region-data'));
+  // 重试脚本（最后一个 region-data）应紧邻首个 region-data 之后，而非 head 末尾
+  const retryIdx = all.map(s => s.getAttribute('src')).lastIndexOf('/region-data.js');
+  assert.equal(retryIdx, idx + 1, '重试脚本插回原失败节点之后（并行注入下依赖序不破）');
+  // 且它必须仍排在 app-style 等依赖者之前（执行序 = DOM 序）
+  const styleIdx = all.map(s => s.getAttribute('src')).findIndex(s => s.includes('app-style'));
+  assert.ok(retryIdx < styleIdx, '重试的 region-data 在 app-style 之前执行');
+});
+
 test('T5 并行注入：loadDomainScripts 同 tick 注入全部 12 个领域脚本（F6 瀑布 → 1 波）', async () => {
   const { ctx, dom } = makeCtx();
   const DOMAIN = [

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.27.0',
+  APP_VERSION: '0.27.1',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -34,6 +34,7 @@ globalThis.APP_CONSTANTS = {
     API_TIMEOUT_MS: 20000,                // api() fetch 超时（停滞 SW/异常网络下避免「永远加载中」，超时归网络错误）
     GET_RETRY: 1,                         // F1（v0.27.0）：幂等 GET 网络抖动自动重试次数（fetch 瞬断/DNS/被拒 → 短退避重试自愈；超时/业务错误不重试）
     GET_RETRY_BACKOFF_MS: 300,            // F1（v0.27.0）：GET 重试退避（短，连不稳时快速自愈，不拖长感知延迟）
+    BATCH_GET_MAX: 16,                    // B2（v0.27.0）：/api/batch 单次批量读上限（服务端 _worker.js 经 APP_CONSTANTS 同读校验；前端 dhBatchGet 按此分块——单域缓存键可超限，整批超限会被服务端 400 整批拒绝 → 域刷新静默失效）
     // v0.26.0 验证码/凭证（数据单源：前端 app-otp.js 与后端 server/otp.js 经 globalThis 同读）
     PHONE_REGIONS: [                      // 手机号地区前缀表（固定 +86 前缀显示 + 服务端格式校验共用）
       // v0.26.15 收敛大陆单区（用户批评：多地区前缀"装模作样"）——①只对大陆号有裸号补 +86 适配
@@ -45,6 +46,7 @@ globalThis.APP_CONSTANTS = {
     USERNAME_COOLDOWN_MS: 7 * 24 * 3600 * 1000, // 用户名 7 天冷却（前端按钮倒计时；服务端 LIMITS.USERNAME_COOLDOWN_MS 同值）
     DOMAIN_SCRIPT_RETRY: 4,               // v0.25.100：领域脚本 404 重试次数（发布后边缘同步窗口 ~1-2 分钟，3s×4=12s 覆盖大部分窗口）
     DOMAIN_SCRIPT_RETRY_MS: 3000,         // v0.25.100：领域脚本 404 重试间隔（延迟重试等边缘同步，保留页面状态）
+    DOMAIN_SCRIPT_TIMEOUT_MS: 6000,       // v0.27.0 审计：单脚本挂起下载（无 load/error，边缘节点吞请求）超时兜底——按失败走重试/自愈，绝不让 enterClient 永久等待
     VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（v0.25.76 8s→30s：每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
     DH_TTL_MS: 60000,                     // 会话数据层保底 TTL（v0.23.0：即便探测停摆，缓存 60s 后强制重拉，防陈旧）
     POSTS_SEARCH_DEBOUNCE_MS: 350,        // 帖子搜索防抖
@@ -1046,6 +1048,8 @@ globalThis.APP_CONSTANTS = {
     PUSH_SECTION_TITLE: '学生主动发给你的需求',
     PUSH_ACCEPTED_TOAST: '已确认，可在「我的会话」开始对话',
     PUSH_REJECTED_TOAST: '已谢绝',
+    PUSH_ACCEPTED_TAG: '已确认',  // F12②（v0.27.0）：推送卡乐观处理后占位 tag
+    PUSH_REJECTED_TAG: '已谢绝',
     // 系统通知模板（拒绝等节点发给对方的通知；{subjects} 由服务端替换为科目名）
     NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
     NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。',

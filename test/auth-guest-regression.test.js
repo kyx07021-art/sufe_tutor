@@ -104,6 +104,31 @@ test('有效学生会话点学生入口 → 自动登录学生客户端（switch
   assert.equal(viewOf(ctx), 'client', '学生客户端视图');
 });
 
+test('B1 /me 拒绝不覆盖登出：/me 在途时身份已被替换 → 拒绝回调不回落访客预览', async () => {
+  let rejectMe;
+  const { ctx, errors } = makeCtx({
+    apiHandlers: { '/api/auth/me': () => new Promise((_, rej) => { rejectMe = rej; }) },
+  });
+  await settleBoot(ctx);
+  // 有效学生会话进客户端（switchToRole，/me 挂起中）
+  await vm.runInContext(`
+    state.user = ${JSON.stringify(STUDENT)};
+    state.authToken = 'stu-token';
+    saveSession(true);
+    state.user = null; state.authToken = null;
+  `, ctx);
+  await vm.runInContext(`handleFeatureClick('student')`, ctx);
+  await tick(20);
+  assert.equal(vm.runInContext('state.user && state.user.role', ctx), 'student', '已进学生客户端');
+  // /me 在途期间用户登出（身份被清空）——过期拒绝回调不得把它拉回学生访客预览
+  vm.runInContext(`state.authToken = null; state.user = null;`, ctx);
+  rejectMe(Object.assign(new Error('dead token'), { code: 401 }));
+  await tick(30);
+  assert.notEqual(vm.runInContext('state.guestRole', ctx), 'student',
+    '拒绝回调不得覆盖已发生的登出（B1 身份守卫）');
+  assert.equal(errors.length, 0, '无 JS 错误：' + errors.join('\n'));
+});
+
 test('sufe_last_page 残留需登录页：访客不恢复，回落公开页（v0.25.110 根因回归）', async () => {
   const { ctx, errors } = makeCtx({ apiHandlers: {} });
   await settleBoot(ctx);

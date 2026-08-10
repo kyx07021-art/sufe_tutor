@@ -131,6 +131,27 @@ test('匿名公开列表子请求命中边缘缓存（零 D1 直返）', async (
   assert.equal(calls.length, callsBefore, '公开列表子请求命中缓存零 D1');
 });
 
+test('匿名公开列表子请求 miss 写回边缘缓存（B2 审计：访客批量预取也温缓存）', async (t) => {
+  installCache();
+  const { env, calls } = await setup(t);
+  assert.ok(!cacheStore.has('https://test.local/api/teachers'), '初始边缘缓存未预热');
+  // 批量子请求 miss → 走 D1 → 写回（否则访客预取全走批量时边缘缓存永不被预热）
+  const res = await worker.fetch(new Request('https://test.local/api/batch', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gets: ['/api/teachers'] }),
+  }), env, ctx);
+  assert.equal(res.status, 200);
+  assert.ok(cacheStore.has('https://test.local/api/teachers'), '批量子请求 miss 后写回边缘缓存');
+  // 写回后下一个匿名批量子请求直读缓存（零 D1）
+  const callsBefore = calls.length;
+  const res2 = await worker.fetch(new Request('https://test.local/api/batch', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gets: ['/api/teachers'] }),
+  }), env, ctx);
+  assert.equal(res2.status, 200);
+  assert.equal(calls.length, callsBefore, '写回后第二个批量子请求命中缓存零 D1');
+});
+
 test('参数校验：空/非 /api/ 路径/超上限 → 400', async (t) => {
   const { env } = await setup(t);
   const post = (body) => worker.fetch(new Request('https://test.local/api/batch', {

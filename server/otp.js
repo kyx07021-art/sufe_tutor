@@ -201,7 +201,6 @@ export function targetMask(target) {
 // ============================================================
 // 裸中国手机号（无 +86 前缀）也按手机识别：11 位、1[3-9] 开头
 const CN_MOBILE = /^1[3-9]\d{9}$/;
-export const CN_MOBILE_RE = CN_MOBILE;
 
 /**
  * 初判 identifier 类别：'email'（含 @）| 'phone'（带区号前缀或裸中国手机号）| 'username' | null

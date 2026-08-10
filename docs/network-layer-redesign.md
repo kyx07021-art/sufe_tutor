@@ -107,10 +107,10 @@ db.js 数据层：不变架构（定点补批量查询）
 
 ### 前端（F）
 - ✅ **F1 GET 自动重试**：app-api 幂等 GET 网络错误（仅 NETWORK_ERROR 且非超时）重试 1 次（GET_RETRY/GET_RETRY_BACKOFF_MS 进 CONFIG）；4xx/5xx 业务错误与 401 不重试；POST 不重试（防双写）。
-- ✅ **F2 批量传输 `apiBatch(gets)`**：POST /api/batch，返回 `Map<path,data>`；子结果 401 触发既有幂等兜底（lastHandled401Token 一次）；网络错误统一归 NETWORK_ERROR。
+- ✅ **F2 批量传输 `apiBatch(gets)`**：POST /api/batch，返回 `Map<path,{status,data}>`（子结果带独立 status，前端按 status 分派 401 兜底/成功取数）；子结果 401 触发既有幂等兜底（lastHandled401Token 一次）；网络错误统一归 NETWORK_ERROR。
 - ✅ **F3 dhPrefetch 改批量**：`dhBatchGet(entries)`——缓存命中键跳过、在途键共享（single-flight）、缺键一次批量拉取；结果按 key 写缓存 + 域 rebinder；`dhPrefetch(role)` 签名不变内部批量。
 - ✅ **F4 dhRefreshDomain 改批量**：域内已缓存 key 一次批量 forceRefresh（版本变化 -N+1 往返）。
-- ✅ **F5 乐观写辅助**：`dhSnapshot(paths)`/`dhApply(path, mutator)`/`dhRevert(path, snapshot)`——缓存级乐观写 + 失败恢复。
+- ~~F5 乐观写辅助~~（v0.27.0 审计后删除：dhSnapshot/dhApply/dhRevert 零生产调用者——F12 乐观操作全用模块数组/DOM 就地变更 + invalidate，无缓存级乐观需求，死代码连根删）。
 - ✅ **F6 领域脚本并行注入**：loadDomainScripts 串行 Promise 链 → `Promise.all`（经典脚本按 DOM 插入序执行，下载并行执行保序）——冷进客户端 12 RTT 瀑布 → 1 波。404 重试/整页刷新自愈语义不变（__domainLoading 并发防重保留）。
 - ✅ **F7 发版后后台重预取**：dhCheckAppVersion 清缓存后 enterClient 立即 dhPrefetch 批量重灌（见 T6 链式测试）。
 - ✅ **F8 switchToRole 非阻塞 me**：`/api/auth/me` 不阻塞客户端壳——立即 enterClient，me 并行调和 state.user（sessionBootValidating 防 401 闪登出；死令牌回落访客预览保留）。
@@ -130,12 +130,12 @@ db.js 数据层：不变架构（定点补批量查询）
 - ✅ **T7** chat-optimistic-send.test.js（乐观气泡/真实 id 替换/失败回滚恢复输入/批量体/关窗）。
 - ✅ **T8** chat-send-batch.test.js（多附件+文字一次落库/归属校验 404 不落半批/校验分支/读回）。
 - ✅ **T9** bumpVersions/logRequest 回归并入全量（bump 测试沿用，log-request 原 5 用例绿）。
-- ⏳ **T10** 全量回归 + hash-assets（manifest 与源码一致红例拦截）。
+- ✅ **T10** 全量回归 + hash-assets（manifest 与源码一致红例拦截）。
 
 ### 部署与验证（D）
-- ⏳ **D1** 全量测试绿 → hash-assets → commit（APP_VERSION 0.27.0）→ push-retry → /api/health 验线上。
-- ⏳ **D2** 生产实测：批量预取（进客户端 1 个 batch 请求替代 9-13 个）、聊天发送即时气泡、写操作往返减少、发版后冷启动改善、GET 断线自愈。
-- ⏳ **D3** 反馈单巡检 + 公告（v0.27.0）。
+- ✅ **D1** 全量 663 测试绿 → hash-assets → commit 78c6fd1（APP_VERSION 0.27.0）→ push-retry 一次成功 → 线上 constants.js 版本 0.27.0 实证。
+- ✅ **D2** 生产实测（2026-08-10/11）：①匿名批量 `/api/teachers+/api/posts+/api/student/demands` 一次往返 3 子结果全 200（1.5s）；②认证批量 `/api/auth/me+/api/notifications+/api/student/demands?scope=mine` 一次往返全 200（1.4s）；③聊天批量发送 conv18 两文字消息一次 POST → 201 + 消息 65/66 落库读回；④发版后冷启动 `/api/teachers` 直连 0.69-1.25s（部署前基线 6-25s 间歇卡顿全消失）；⑤批量边界（审计补正：前记录"14→400"是误用非法路径测得，实为 BATCH_GET_MAX=16）：17 有效路径 → 400、16 有效路径 → 200、非法体 → 400、未知路径子结果 404 不阻断其余；⑥补组件：认证批量 `/api/contracts/my+/api/conversations+/api/posts` 全 200；⑦GET 断线自愈由 api-retry 测试覆盖（前端逻辑，生产全 200）。
+- ✅ **D3** 反馈单巡检：3 条全 resolved、0 开放；公告 v0.27.0 已发（54 用户）。
 
 ---
 
@@ -146,3 +146,22 @@ db.js 数据层：不变架构（定点补批量查询）
 - db.batch 在 workerd 语义 = 单往返多语句；失败整体回滚由 SQLite 事务保证（D1 batch 是事务性的）。
 - F8 非阻塞 me 后，state.user 以 me 响应为准调和（avatar/username 新鲜度不丢）。
 - 版本探测与徽标轮询频率保持现状（30s），本版不动轮询架构。
+
+---
+
+## 六、v0.27.0 审计修复轮（2026-08-11，四路只读 agent + 外部核漏）
+
+部署 78c6fd1 后跑全栈只读审计（后端/前端数据层/乐观写聊天/需求对照核漏），发现并修复：
+
+- **B-2（真 BUG）**：dhRefreshDomain 单域缓存键可超服务端批量上限（teachers 域按 ?userId= 分键累积）→ 整批 400 → 域刷新静默持续失效（dhTouchAll 续期永不过期）。修 = dhBatchGet 按 CONFIG.BATCH_GET_MAX 分块拉取合并 + 服务端 BATCH_MAX 硬编码改读共享常量（constants.js CONFIG.BATCH_GET_MAX=16 单源）。
+- **A1（并行注入回归）**：F6 Promise.all 并行下，404 重试脚本 appendChild 到 head 末尾 → 依赖链头部（region-data→SUFE_REGIONS）最后执行 → 窗口内 ReferenceError；且坏模块顶层求值抛错 onload 照常触发不刷新自愈。修 = 重试脚本插回原失败节点之后（insertBefore 保序）。
+- **B1**：switchToRole /me catch 无身份守卫，过期拒绝覆盖用户登出。修 = catch 前校验 state.authToken === sentToken。
+- **B2 补**：批量子请求 miss 写回边缘缓存（否则访客预取全走批量时边缘缓存永不被预热）。
+- **聊天双气泡竞态**：在途轮询（不受 F10 关窗约束）先插真实气泡 → 发送成功把乐观气泡改成同 id → 双气泡。修 = 替换前查重，已抢插则移除临时气泡。
+- **F12② 补齐**：意向/推送接受拒绝乐观化（核漏判定跳过理由不成立——频率高于已做的删除、状态翻转简单）。修 = resolvePush/resolveIntent 就地翻转 tag + 隐藏动作按钮，失败回滚。
+- **死代码清理**：F5（dhSnapshot/dhApply/dhRevert 零生产调用）连根删；handleSendMessage 单消息分支删除（前端恒发 batch，不留向后兼容）；closeCaptchaModal/dbDeleteContractMessages/CN_MOBILE_RE 删除；handleSendBatch 附件归属读改 dbGetUploads IN（N 串行读 → 1）。
+- **注入挂起超时**：loadDomainScripts 补 CONFIG.DOMAIN_SCRIPT_TIMEOUT_MS 挂起下载兜底（无 load/error 不再永久阻塞 enterClient）。
+- **入口批量化**：enterClient 调序 dhPrefetch 先跑（设好 inflight）→ 徽标 dhGet 共享同批，首波 4-5 往返 → 1 批。
+- **invalidate('chat') 空操作**：CACHE_DOMAINS 补 chat 域（resolvePush accept 后会话列表缓存立即失效）。
+- **C 级**：重复 uploadId 整批拒绝/投诉 Set 去重；注释「2N+1 串行→1」口径修正（写 1 往返，读仍 N→已收敛 IN）；懒加载失败删 data-attach 防反复重拉。
+- 保留（有意）：F5 删除后乐观窗口缓存一致性缺口由「成功 invalidate + 失败回滚」覆盖；`/api/posts` 缓存键碎片为既有债务入 backlog。
