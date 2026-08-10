@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.26.14',
+  APP_VERSION: '0.26.15',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -33,16 +33,11 @@ globalThis.APP_CONSTANTS = {
     LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
     API_TIMEOUT_MS: 20000,                // api() fetch 超时（停滞 SW/异常网络下避免「永远加载中」，超时归网络错误）
     // v0.26.0 验证码/凭证（数据单源：前端 app-otp.js 与后端 server/otp.js 经 globalThis 同读）
-    PHONE_REGIONS: [                      // 手机号地区前缀表（+xx 前缀选择器 + 服务端格式校验共用）
+    PHONE_REGIONS: [                      // 手机号地区前缀表（固定 +86 前缀显示 + 服务端格式校验共用）
+      // v0.26.15 收敛大陆单区（用户批评：多地区前缀"装模作样"）——①只对大陆号有裸号补 +86 适配
+      // （CN_MOBILE），其他地区无裸号支持；②验证码生产恒 mock，真实短信服务商基本只支持大陆号；
+      // 多地区选择器在产品场景是摆设。支持范围与实际逻辑自洽 = 仅 +86。接入国际短信时再加回。
       { prefix: '+86', name: '中国大陆', pattern: /^1[3-9]\d{9}$/ },
-      { prefix: '+852', name: '中国香港', pattern: /^[2-9]\d{7}$/ },
-      { prefix: '+853', name: '中国澳门', pattern: /^6\d{7}$/ },
-      { prefix: '+886', name: '中国台湾', pattern: /^9\d{8}$/ },
-      { prefix: '+81', name: '日本', pattern: /^[7-9]0?\d{8,9}$/ },
-      { prefix: '+65', name: '新加坡', pattern: /^[689]\d{7}$/ },
-      { prefix: '+1', name: '美国/加拿大', pattern: /^[2-9]\d{9}$/ },
-      { prefix: '+44', name: '英国', pattern: /^7\d{9}$/ },
-      { prefix: '+61', name: '澳大利亚', pattern: /^4\d{8}$/ },
     ],
     OTP_RESEND_SEC: 60,                   // 验证码 60s 重发冷却（前端倒计时/灰化；服务端 LIMITS.OTP_RESEND_WINDOW_MS 同口径强制）
     USERNAME_COOLDOWN_MS: 7 * 24 * 3600 * 1000, // 用户名 7 天冷却（前端按钮倒计时；服务端 LIMITS.USERNAME_COOLDOWN_MS 同值）
@@ -1682,7 +1677,7 @@ globalThis.APP_CONSTANTS = {
     BTN_MODIFY: '修改',
     TOAST_COMING_SOON: '该功能暂未开放，敬请期待',
     // v0.26.0 验证码/凭证（B2-B6；手机号/邮箱绑定、用户名修改、验证码登录）
-    PHONE_LABEL: '手机号', PHONE_PLACEHOLDER: '请输入手机号',
+    PHONE_LABEL: '手机号', PHONE_PLACEHOLDER: '请输入中国大陆手机号', // v0.26.15 只支持大陆（用户拍板）
     EMAIL_LABEL: '邮箱', EMAIL_PLACEHOLDER: '请输入邮箱',
     CODE_LABEL: '验证码', CODE_PLACEHOLDER: '输入验证码',
     CODE_SEND: '发送验证码',

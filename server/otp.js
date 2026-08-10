@@ -45,10 +45,12 @@ export async function initOtpTable(db) {
 // ============================================================
 // 目标格式校验（地区前缀 + 号码 pattern；邮箱标准正则）
 // ============================================================
-// 手机号地区表单源在根 constants.js CONFIG.PHONE_REGIONS（前端 app-otp.js 同读，杜绝双源漂移）
+// 手机号地区表单源在根 constants.js CONFIG.PHONE_REGIONS（前端 app-otp.js 同读，杜绝双源漂移）。
+// v0.26.15 收敛大陆单区（仅 +86）：前缀选项连根移除，parsePhone 只认大陆号，validateOtpTarget 随数据源
+// 自然收敛——支持范围与实际逻辑自洽（见 constants.js PHONE_REGIONS 注释，接入国际短信时再加回）。
 export const PHONE_REGIONS = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS) || [];
 
-/** 解析地区前缀：最长前缀优先（+86 前于 +8 之类）；返回 { prefix, number } 或 null */
+/** 解析手机号前缀：遍历 PHONE_REGIONS（v0.26.15 大陆单区 = 仅 +86）；返回 { prefix, number } 或 null */
 export function parsePhone(target) {
   const s = String(target || '').trim();
   if (!s) return null;

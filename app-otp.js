@@ -4,8 +4,10 @@
  * 同步加载（登录页与设置页共用，见 index.html 加载序：app-ui.js 之后）。
  * 地区前缀表单源 CONFIG.PHONE_REGIONS（与后端 server/otp.js 同读，杜绝双源漂移）。
  *
- * id 约定（组件内联 onclick 依赖）：prefix + '-prefix'（地区 select）/ '-phone' / '-email' /
- * '-code'（验证码输入）/ '-send'（发送按钮）。绑定浮窗 prefix='bind'；登录页验证码 prefix='login'。
+ * id 约定（组件内联 onclick 依赖）：prefix + '-phone' / '-email' / '-code'（验证码输入）/
+ * '-send'（发送按钮）。绑定浮窗 prefix='bind'；登录页验证码 prefix='login'。
+ * 手机号前缀 v0.26.15 收敛大陆单区：固定 +86（PHONE_REGIONS 仅 +86，无地区 select），
+ * 目标恒为 '+86' + 号码；服务端 normalizeIdentifier 对裸大陆号补 +86 同口径。
  *
  * B6 内测短路：requestOtpCode 成功后若响应带 mockCode → toast「模拟验证码（内测期使用）：xxxxxx」
  * （后端 OTP_PROVIDER='mock'，见 server/otp.js；生产拆掉短路后无 mockCode，不弹 toast）。
@@ -41,14 +43,11 @@ function classifyIdentifier(identifier) {
 // 输入组件 HTML（label + 输入；验证码为输入框内右缘小按钮，不占左半边输入区）
 // ============================================================
 function phoneFieldHtml({ prefix = 'bind', label = UI.PHONE_LABEL } = {}) {
-  const options = CONFIG.PHONE_REGIONS.map(r =>
-    `<option value="${r.prefix}"${r.prefix === '+86' ? ' selected' : ''}>${r.prefix} ${r.name}</option>`).join('');
+  // v0.26.15：前缀选项连根移除（用户拍板：只说支持大陆手机号）——输入框直接输大陆号，
+  // 提交时前端补 '+86'（requestOtpCode/submitBind），后端 normalizeIdentifier 对裸号亦补 +86 双保险。
   return `<div class="form-group">
     <label class="form-label">${label}</label>
-    <div class="phone-input-row">
-      <select class="form-select phone-prefix-select" id="${prefix}-prefix">${options}</select>
-      <input type="tel" class="form-input" id="${prefix}-phone" placeholder="${UI.PHONE_PLACEHOLDER}" inputmode="tel" autocomplete="tel">
-    </div>
+    <input type="tel" class="form-input" id="${prefix}-phone" placeholder="${UI.PHONE_PLACEHOLDER}" inputmode="tel" autocomplete="tel">
   </div>`;
 }
 function emailFieldHtml({ prefix = 'bind', label = UI.EMAIL_LABEL } = {}) {
@@ -74,7 +73,7 @@ async function requestOtpCode(prefix, channel) {
   const sendBtn = document.getElementById(`${prefix}-send`);
   const codeEl = document.getElementById(`${prefix}-code`);
   if (!sendBtn || sendBtn.disabled) return; // 倒计时中不重复请求
-  // 组装目标：sms = 地区前缀 + 手机号；email = 邮箱
+  // 组装目标：sms = 固定 +86 前缀 + 大陆手机号（v0.26.15 大陆单区）；email = 邮箱
   let target = '';
   if (prefix === 'login') {
     // 登录页特例：目标来自唯一输入框 login-identifier（用户名/手机号/邮箱），channel 按格式推断
@@ -87,9 +86,9 @@ async function requestOtpCode(prefix, channel) {
     const el = document.getElementById(`${prefix}-email`);
     target = el ? el.value.trim() : '';
   } else {
-    const sel = document.getElementById(`${prefix}-prefix`);
+    // v0.26.15：前缀选项连根移除，目标恒为 '+86' + 号码（输入框只输大陆号）
     const el = document.getElementById(`${prefix}-phone`);
-    target = (sel ? sel.value : '+86') + (el ? el.value.trim() : '');
+    target = '+86' + (el ? el.value.trim() : '');
   }
   if (!target) { showToast(channel === 'email' ? UI.EMAIL_PLACEHOLDER : UI.PHONE_PLACEHOLDER, 'error'); return; }
   const valid = channel === 'email' ? validateEmail(target) : validatePhone(target);
@@ -125,7 +124,7 @@ function openPhoneBindModal() {
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
       <button type="button" class="btn glass glass--pressable" onclick="submitBind('phone')">${UI.BTN_BIND}</button>`,
   });
-  initCustomSelects(document.getElementById('modal-container')); // 地区前缀下拉包装
+  // v0.26.15：无地区前缀 select，不再需要 initCustomSelects 包装（删除后无下拉组件）
 }
 
 function openEmailBindModal() {
@@ -142,9 +141,9 @@ async function submitBind(kind) {
   const isPhone = kind === 'phone';
   let target = '';
   if (isPhone) {
-    const sel = document.getElementById('bind-prefix');
+    // v0.26.15：前缀选项连根移除，目标恒为 '+86' + 号码（输入框只输大陆号）
     const el = document.getElementById('bind-phone');
-    target = (sel ? sel.value : '+86') + (el ? el.value.trim() : '');
+    target = '+86' + (el ? el.value.trim() : '');
     if (!validatePhone(target)) { showToast('手机号格式不正确', 'error'); return; }
   } else {
     const el = document.getElementById('bind-email');

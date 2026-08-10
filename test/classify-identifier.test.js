@@ -8,7 +8,8 @@
  * 修复 = 前端判型收口 classifyIdentifier（app-otp.js，与服务端同语义），toggleLoginMode
  * 按 kind==='phone'/'email' 放行；用户名仍拦。
  *
- * 覆盖：裸大陆号→phone / 带+86→phone / 其他地区前缀→phone / 邮箱→email / 用户名→username / 空→null。
+ * 覆盖：裸大陆号→phone / 带+86→phone / 邮箱→email / 用户名→username / 空→null。
+ * v0.26.15 收敛大陆单区：多地区前缀（+852/+659 等）用例随 PHONE_REGIONS 砍除。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,11 +35,9 @@ test('裸大陆手机号 → phone（v0.26.14 L1 修复点）', () => {
   assert.equal(kind(ctx, '19912345678'), 'phone', '199 号段同判 phone');
 });
 
-test('带地区前缀手机号 → phone（原有能力保留）', () => {
+test('带 +86 前缀手机号 → phone', () => {
   const ctx = makeCtx();
   assert.equal(kind(ctx, '+8613800000000'), 'phone');
-  assert.equal(kind(ctx, '+85223456789'), 'phone', '香港号');
-  assert.equal(kind(ctx, '+6591234567'), 'phone', '新加坡号');
 });
 
 test('邮箱 → email', () => {

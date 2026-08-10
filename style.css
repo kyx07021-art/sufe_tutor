@@ -515,9 +515,7 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 .captcha-tip--pass { color: #4caf50; font-weight: 600; }
 
 /* v0.26.0 手机号输入行（地区前缀 + 号码）与验证码输入框（内部右缘发送按钮，不占左半边输入区） */
-.phone-input-row { display: flex; gap: 8px; flex: 1; min-width: 0; }
-.phone-input-row .phone-prefix-select { flex: 0 0 132px; min-width: 0; }
-.phone-input-row .form-input { flex: 1; min-width: 0; }
+/* v0.26.15 已删：.phone-input-row/.phone-prefix-select 随地区前缀连根移除（用户拍板只支持大陆手机号），零引用 */
 .code-input-wrap { position: relative; flex: 1; min-width: 0; }
 .code-input-wrap .form-input { width: 100%; padding-right: 116px; } /* 预留右缘按钮空间，文字不顶按钮 */
 /* v0.26.3 修复（用户反馈：发送验证码按钮聚焦/按下往下动太多）：

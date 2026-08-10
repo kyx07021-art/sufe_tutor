@@ -4,19 +4,19 @@
  */
 export const ASSET_MANIFEST = {
   "files": {
-    "style.css": "style.29d93b7e.css",
+    "style.css": "style.215c89c1.css",
     "style-region.css": "style-region.39b4624e.css",
     "style-posts.css": "style-posts.c5d926c9.css",
     "style-chat.css": "style-chat.b764601b.css",
     "glass.css": "glass.0664a6fe.css",
-    "constants.js": "constants.2f8bb00a.js",
+    "constants.js": "constants.f622a93f.js",
     "app-display.js": "app-display.e3cfbdf7.js",
     "app-state.js": "app-state.cb780ba1.js",
     "app-api.js": "app-api.0940144e.js",
     "app-datahub.js": "app-datahub.a4317bf8.js",
     "app-anim.js": "app-anim.fc0cdb1c.js",
     "app-ui.js": "app-ui.f665a482.js",
-    "app-otp.js": "app-otp.97ae056e.js",
+    "app-otp.js": "app-otp.3a2f4ce0.js",
     "app-captcha.js": "app-captcha.9c535e22.js",
     "app-onboard.js": "app-onboard.ff38c62e.js",
     "app-shell.js": "app-shell.1766cc11.js",
