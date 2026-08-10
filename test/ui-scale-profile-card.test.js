@@ -195,7 +195,9 @@ test('设置页滑块：渲染 min/max/现值；拖动实时更新 --ui-scale、
   await tick(30);
   assert.equal(htmlEl().style.transform, `scale(${(sliderMax / 100).toFixed(3)})`, 'rAF 帧后预览 transform 应用');
   assert.equal(htmlEl().style.getPropertyValue('--ui-scale'), '', '预览期 --ui-scale 仍不动');
-  assert.equal(htmlEl().style.transformOrigin, 'center center', 'U2：预览居中原点（右/下边缘不再单边溢出）');
+  // v0.25.110（用户「四边齐动」返工）：整页缩放锚定回归成熟方案 top-left（浏览器 Ctrl+ 缩放同款：
+  // 放大从左上向右下展开、缩小从左上收缩），放弃 center（四边对称 = 镜头缩放感，用户实证拒绝）
+  assert.equal(htmlEl().style.transformOrigin, 'top left', 'v0.25.110：预览左上锚定（整页缩放成熟锚定，见 app-state 注释）');
   assert.equal(htmlEl().style.overflow, 'hidden', 'U2：预览期抑制滚动条（无右/下边缘滚动条跳变）');
   // 松手 commit 同步落盘 + 落真排版（清预览 transform）
   vm.runInContext(`window.SLIDER.value = '85'; commitUiScaleFromSlider(window.SLIDER);`, ctx);

@@ -57,4 +57,12 @@ test('筛选栏间距：U3 合并单行后由 .filter-row gap 承担（折行不
   const panel = panelMatch ? panelMatch[0] : '';
   assert.equal((panel.match(/class="filter-row"/g) || []).length, 1, 'U3：需求大厅筛选合并为单行（4 组一行）');
   assert.ok((panel.match(/id="demand-filter-/g) || []).length >= 4, '4 个筛选项在位');
+  // 5. v0.25.110（U3 漏交付）：教师筛选面板 7 组并入一行（id=teacher-filters 块内单个 .filter-row）
+  const teaMatch = html.match(/id="teacher-filters"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*<\/div>/);
+  const teaPanel = teaMatch ? teaMatch[0] : '';
+  assert.equal((teaPanel.match(/class="filter-row"/g) || []).length, 1, '教师筛选合并为单行（7 组一行）');
+  assert.ok((teaPanel.match(/id="filter-(gender|subject|price|rating|method|day|verified)"/g) || []).length === 7, '教师筛选 7 组全部在位');
+  // 6. min-width 收窄保证 7 组进 920px 容器：100px（7×100+6×16=796 ≤ 920-padding）
+  const grpCss = css.split('.filter-group {')[1] || '';
+  assert.ok(grpCss.split('}')[0].includes('min-width: 100px'), 'v0.25.110：.filter-group min-width 收窄到 100px（7 组一行）');
 });

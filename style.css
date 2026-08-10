@@ -1326,9 +1326,11 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
 /* 筛选面板（.drop-wrap 内：margin 会在收起态泄漏高度，间距改由内边距承担） */
 .filter-panel { margin-bottom: 0; padding: 18px; }
 .filter-row { display: flex; gap: 16px; flex-wrap: wrap; }
-/* U3（v0.25.105）：筛选下拉已缩窄，PC 端一行放下——index.html 两行 .filter-row 合并为一行 4 组
+/* U3（v0.25.105）+ v0.25.110（U3 漏交付）：筛选下拉已缩窄，PC 端一行放下——需求大厅 4 组、
+   教师筛选 7 组均并入一行 .filter-row。min-width 100px：7×100+6×16=796px ≤ .client-page 920px
+   容器内一行（原 120px 时 7 组 = 936px 必折行，教师筛选恒两行是根因）。
    （原上下两排 .filter-row + .filter-row 纵向空隙规则随结构删除；--filter-row-gap 变量保留注入无害） */
-.filter-group { flex: 1; min-width: 120px; }
+.filter-group { flex: 1; min-width: 100px; }
 .filter-label { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: .03em; }
 .filter-select {
   width: 100%; padding: calc(8px * var(--ui-scale, 1)) calc(24px * var(--ui-scale, 1)) calc(8px * var(--ui-scale, 1)) 2px; border: none; outline: none; /* 需求六·item5：筛选下拉尺寸随滑块 */

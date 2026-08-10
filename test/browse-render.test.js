@@ -64,8 +64,8 @@ test('loadBrowseDemands 首次调用即渲染需求卡（乱序守卫首用初�
   assert.ok(html.includes('匹配度') || html.includes('tag-match'), '教师视角应渲染匹配度徽章');
 });
 
-// #158（v0.25.66）：需求大厅排序筛选控件——默认匹配度最高、科目筛选、预算/最新排序、筛选空态
-test('需求大厅排序筛选：默认匹配度最高；科目筛选；预算/最新排序；空态（#158）', async () => {
+// #158（v0.25.66）：需求大厅排序筛选控件——v0.25.110 起默认最新（删匹配度排序）、科目筛选、预算/最新排序、筛选空态
+test('需求大厅排序筛选：默认最新；科目筛选；预算/最新排序；空态（#158）', async () => {
   const controls = '<div id="demands-list"></div>' +
     '<select id="demand-sort"></select>' +
     '<select id="demand-filter-subject"></select><select id="demand-filter-grade"></select>' +
@@ -102,14 +102,14 @@ test('需求大厅排序筛选：默认匹配度最高；科目筛选；预算/�
 
   await vm.runInContext('loadBrowseDemands()', ctx);
   const list = () => dom.window.document.getElementById('demands-list').innerHTML;
-  // 控件已填充 + 默认匹配度最高
-  assert.equal(vm.runInContext(`document.getElementById('demand-sort').options.length`, ctx), 3, '排序三选项');
-  assert.equal(vm.runInContext(`document.getElementById('demand-sort').value`, ctx), 'match', '默认匹配度最高');
+  // 控件已填充 + 默认最新（v0.25.110：删匹配度最高默认项，公开浏览默认按上架时间）
+  assert.equal(vm.runInContext(`document.getElementById('demand-sort').options.length`, ctx), 2, '排序两选项（最新/预算，匹配度已删）');
+  assert.equal(vm.runInContext(`document.getElementById('demand-sort').value`, ctx), 'newest', '默认最新');
   assert.ok(vm.runInContext(`document.getElementById('demand-filter-subject').options.length > 1`, ctx), '科目筛选已填充');
   assert.equal(vm.runInContext(`document.getElementById('demand-filter-subject-label').textContent`, ctx), '科目', '筛选标签单源');
   assert.equal(vm.runInContext(`document.getElementById('demand-filter-grade-label').textContent`, ctx), '年级', '年级标签单源');
-  // 默认匹配度：english（100%）排 math 前
-  assert.ok(list().indexOf('学生A') < list().indexOf('学生B'), '默认匹配度最高：english 卡在 math 卡前');
+  // 默认最新：created_at 更晚的 2 排前
+  assert.ok(list().indexOf('学生B') < list().indexOf('学生A'), '默认最新：04:27:10 排前');
   // 科目筛选 = math → 只剩需求2
   vm.runInContext(`document.getElementById('demand-filter-subject').value = 'math'; applyDemandControls()`, ctx);
   assert.ok(list().includes('学生B') && !list().includes('学生A'), '按科目 math 筛选只剩需求2');
@@ -120,6 +120,6 @@ test('需求大厅排序筛选：默认匹配度最高；科目筛选；预算/�
   vm.runInContext(`document.getElementById('demand-sort').value = 'newest'; applyDemandControls()`, ctx);
   assert.ok(list().indexOf('学生B') < list().indexOf('学生A'), '最新发布：04:27:10 排前');
   // 无命中 → 筛选空态
-  vm.runInContext(`document.getElementById('demand-sort').value = 'match'; document.getElementById('demand-filter-subject').value = 'physics'; applyDemandControls()`, ctx);
+  vm.runInContext(`document.getElementById('demand-sort').value = 'newest'; document.getElementById('demand-filter-subject').value = 'physics'; applyDemandControls()`, ctx);
   assert.ok(list().includes('没有符合筛选条件的需求'), '筛选无命中显示空态');
 });

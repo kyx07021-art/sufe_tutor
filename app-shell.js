@@ -164,8 +164,12 @@ async function enterClient(pageId) {
   // v0.25.95（用户反馈「刷新不要回首页」）：刷新/进入客户端统一恢复页面停留——selectPage 记录的
   // sufe_last_page 在身份可见时恢复；pageId 显式传入（登录/切角色回跳）优先，身份不可见自动回落默认页
   const stored = getLastPage();
+  // v0.25.110（用户反馈「登出教师后点学生入口弹登录页+返回无效」）：停留页恢复须过「当前身份可见」门——
+  // 上一角色登出后 sufe_last_page 残留（如 account-settings），访客恢复它 → selectPage 触发 ensureAuth
+  // 弹登录页，且「返回」恢复同一页 → 死循环（返回无效）。访客只允许恢复 auth:false 的公开页。
+  const storedOk = stored && pagesForRole().some(p => p.id === stored && (state.user || p.auth === false));
   const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId
-    : (stored && pagesForRole().some(p => p.id === stored) ? stored : defaultPageFor());
+    : (storedOk ? stored : defaultPageFor());
   // v0.24.0：不阻塞登录——默认页签立即渲染（自身走正常加载），
   // 其余模块数据此刻开始后台并行预取（fire-and-forget），用户在页面里待着时就已全部就绪；
   // 预取在途时点进某模块由 dhReady 跳过 loader 闪屏，读取完即显示

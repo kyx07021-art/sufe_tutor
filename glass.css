@@ -225,10 +225,13 @@ body { background: transparent; }
    与下拉/勾选/成绩 pill 同族：纯 token 换肤，零 per-variant 散件；
    --g-btn-bg/--g-btn-line 主题双 token（液态包白调面+发丝边；flat 包 --g-fill-weak/--g-btn-line 对齐平面）。 */
 .btn-soft {
-  /* U1（v0.25.105）：liquid 下原 --g-btn-bg 白调面（72% 白）盖住磨砂 → 观感 flat（用户实证「查看合同按钮
-     是 flat 风格」）。改继承标准玻璃 --g-btn-fill：liquid 未定义 → transparent 磨砂玻璃 + 细边（液态感）；
-     flat 包 --g-btn-fill=纸面，平面现状不变。 */
-  --g-fill: var(--g-btn-fill, transparent);
+  /* v0.25.110（用户「查看合同按钮还是 flat」二次实证）：U1 改 transparent 磨砂后，在纯色白卡/灰底上
+     磨砂无可透内容 → 观感仍 flat（透明+描边）。液态玻璃定义 = 透明染色透镜+微毛+弯月环（本文件顶部
+     按钮族注释）——默认填充补回半透白面做「透镜染色」：var(--g-fill-strong)（light .20 / dark .14 随
+     THEME 自适应），磨砂/弯月环/细边保留，白卡灰底上浮起成液态面。曾验证 .72 不透明白（原 --g-btn-bg
+     = flat 实证）、transparent（U1 后仍 flat 实证）两极端都不行，低 alpha 半透面为正解。
+     flat 包 --g-btn-fill=纸面覆盖不变（平面现状）。 */
+  --g-fill: var(--g-btn-fill, var(--g-fill-strong));
   --g-border: 1px solid var(--g-btn-line, var(--line));
   --g-fg: var(--ink);
   --g-lift: var(--glass-lift-sm);

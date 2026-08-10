@@ -75,6 +75,30 @@ test('F-1 需求补充说明含门牌号 → 整单 400（与 address 同守）'
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM student_demands').get().c, 0, '无任何需求落库');
 });
 
+test('v0.25.110 中文数字门牌不得绕过门控（贰柒捌捌号/五号楼/拾贰号室）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { stuToken, teaToken } = await seed(db, raw);
+  // 用户实证：贰柒捌捌号（中文数字）曾绕过
+  for (const [field, val] of [
+    ['additional_info', '家在贰柒捌捌号旁边'],
+    ['additional_info', '具体位置是三十八号楼'],
+    ['address', '上海市xx区xx路伍仟贰佰号'],
+    ['additional_info', '静安区壹拾贰号403室'],
+  ]) {
+    const r = await handleCreateDemand(db, { demand: { ...baseDemand, [field]: val } }, reqOf(stuToken));
+    assert.equal(r.status, 400, `${field}「${val}」含中文数字门牌应被拒`);
+  }
+  // 教师 intro 中文数字门牌同守
+  const pw = await handleSaveProfile(db, { profile: { province: 'shanghai', price_min: 150, price_max: 200, intro: '家在八号楼二单元' } }, reqOf(teaToken));
+  assert.equal(pw.status, 400, '教师 intro 中文数字门牌被拒');
+  // 不误伤：号线（地铁/公交）、纯数字未足两位、楼层描述放行
+  for (const ok of ['地铁九号线站附近', '中山北路1234弄'] ) {
+    const r = await handleCreateDemand(db, { demand: { ...baseDemand, additional_info: ok } }, reqOf(stuToken));
+    assert.equal(r.status, 200, `「${ok}」应放行`);
+  }
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM student_demands').get().c >= 2, true, '放行项正常落库');
+});
+
 test('F-1 需求补充说明正常文本 → 201 + 超长截断到 ADDITIONAL_INFO_MAX', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stuToken } = await seed(db, raw);

@@ -760,12 +760,13 @@ async function loadBrowseDemands() {
   }
 }
 
-// #158（v0.25.66）：需求大厅排序 + 筛选控件（教师端默认匹配度最高）
+// #158（v0.25.66）：需求大厅排序 + 筛选控件
+// v0.25.110（用户反馈）：教师端不再以「匹配度最高」为默认排序——删该项，默认最新（需求大厅是公开浏览，
+// 匹配度仅个人偏好；默认浏览应是最新上架，需要时再按预算筛选）
 function initDemandControls() {
   const sort = document.getElementById('demand-sort');
   if (sort && !sort.options.length) {
-    sort.innerHTML = `<option value="match" selected>${UI.DEMAND_SORT_MATCH}</option>
-      <option value="newest">${UI.DEMAND_SORT_NEWEST}</option>
+    sort.innerHTML = `<option value="newest" selected>${UI.DEMAND_SORT_NEWEST}</option>
       <option value="budget">${UI.DEMAND_SORT_BUDGET}</option>`;
   }
   const fill = (id, opts) => {
@@ -791,7 +792,7 @@ function toggleDemandFilters() {
 }
 function demandSortMode() {
   const el = document.getElementById('demand-sort');
-  return el ? el.value : 'match';
+  return el && el.value ? el.value : 'newest'; // v0.25.110：默认最新（匹配度选项已删）
 }
 // 控件变更：本地重渲（取数缓存命中零网络），不重拉 loader
 function applyDemandControls() {
@@ -800,7 +801,7 @@ function applyDemandControls() {
 }
 
 // 教师需求大厅渲染（loadBrowseDemands 取数后与 applyDemandControls 共用）：
-// 推送置顶 + 普通需求筛选（科目/年级/方式/省份）+ 排序（默认匹配度最高，最新/预算可选）
+// 推送置顶 + 普通需求筛选（科目/年级/方式/省份）+ 排序（默认最新，预算可选；v0.25.110 删匹配度排序）
 function renderBrowseDemands(pushes, demands) {
   const el = document.getElementById('demands-list');
   if (!el) return;
@@ -826,9 +827,8 @@ function renderBrowseDemands(pushes, demands) {
   const mdOf = {};
   if (myTeacher) for (const d of normalDemands) { const m = matchDegree(myTeacher, d); mdOf[d.id] = m; d._md = m; }
   const mode = demandSortMode();
-  if (mode === 'newest') normalDemands.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
-  else if (mode === 'budget') normalDemands.sort((a, b) => (a.budget_min ?? Infinity) - (b.budget_min ?? Infinity));
-  else normalDemands.sort((a, b) => (mdOf[b.id] ?? -1) - (mdOf[a.id] ?? -1)); // 匹配度最高（默认；无档案沉底）
+  if (mode === 'budget') normalDemands.sort((a, b) => (a.budget_min ?? Infinity) - (b.budget_min ?? Infinity));
+  else normalDemands.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))); // 默认最新
   const normal = normalDemands.map(d => renderDemandCard(d, { teacher: true, myTeacher })).join('');
   el.innerHTML = (pinned ? `<div class="section-title spacer-sm">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '')
     + normal

@@ -263,6 +263,7 @@
           <div class="drop-wrap" id="teacher-filters">
           <div class="drop-clip">
           <div class="filter-panel glass glass--solid">
+            <!-- v0.25.110（U3 漏交付）：教师筛选 7 组并入一行——.filter-group min-width 收窄后 920px 容器内一行放下 -->
             <div class="filter-row">
               <div class="filter-group">
                 <label class="filter-label">性别</label>
@@ -297,9 +298,6 @@
                   <option value="3.5">3.5+</option>
                 </select>
               </div>
-            </div>
-            <!-- v0.25.29 新资料项筛选：授课方式 / 可授课时间（结构化时间段，星期） / 认证状态 -->
-            <div class="filter-row">
               <div class="filter-group">
                 <label class="filter-label">授课方式</label>
                 <select class="filter-select" id="filter-method" onchange="applyFilters()">
