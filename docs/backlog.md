@@ -158,3 +158,6 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 - app-posts.js:392 `err.code==='POST_NOT_FOUND' || /不存在/.test(err.message)` 依赖人类文案 → 只认 err.code
 - db.js 头部注释补 signing.js 自持表域约定
 - app-ui.js:588 `(UI.TAG_PICK_LIMIT || '最多选 {max} 个')` 兜底与 constants 重复 → 删兜底
+
+### U10 会话鉴权缓存（结构性，待评估）
+每请求 requireUser → authUser 1 次 D1 往返（SELECT auth_sessions JOIN users）。U10（v0.25.108）已把点赞/收藏写路径减到 ~3 次往返，但全平台读/写仍各含此 1 次。缓存方案：内存 Map<token_hash, {user, exp}>，TTL ~30-60s，命中免 D1。风险：登出/封禁/停用须即时失效，而 Pages 多实例无法全局失效（实例 A 删会话行、实例 B 缓存仍放行 ≤TTL）——须评估「封禁即时性」是否可接受 TTL 窗口，或只缓存只读请求路径、写路径仍实时查。未定，勿盲做。
