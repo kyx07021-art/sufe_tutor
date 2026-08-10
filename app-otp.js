@@ -76,12 +76,18 @@ async function requestOtpCode(prefix, channel) {
   // 组装目标：sms = 固定 +86 前缀 + 大陆手机号（v0.26.15 大陆单区）；email = 邮箱
   let target = '';
   if (prefix === 'login') {
-    // 登录页特例：目标来自唯一输入框 login-identifier（用户名/手机号/邮箱），channel 按格式推断
+    // 登录页特例：目标来自唯一输入框 login-identifier（用户名/手机号/邮箱），channel 按格式推断。
+    // v0.26.16 修（外部审查补漏）：原 validatePhone 门控要求 +86 前缀，裸大陆号在「发送验证码」一步
+    // 被拦——toggleLoginMode 已放行裸号切到验证码模式（classifyIdentifier→phone），此处再拦即
+    // 「切一段留一段」，用户实证场景最终登录目标不可达。改 classifyIdentifier + 前端 normalize
+    // （裸大陆号补 +86），与后端 server/otp.js normalizeIdentifier 同语义。
     const ident = ((document.getElementById('login-identifier') || {}).value || '').trim();
-    channel = validateEmail(ident) ? 'email' : 'sms';
-    if (validateEmail(ident)) target = ident;
-    else if (validatePhone(ident)) target = ident.startsWith('+') ? ident : '+86' + ident; // 裸手机号补 +86
-    else { showToast('请输入有效的手机号或邮箱', 'error'); return; }
+    const kind = classifyIdentifier(ident);
+    if (kind === 'email') { channel = 'email'; target = ident; }
+    else if (kind === 'phone') {
+      channel = 'sms';
+      target = ident.startsWith('+') ? ident : '+86' + ident;
+    } else { showToast('请输入有效的手机号或邮箱', 'error'); return; }
   } else if (channel === 'email') {
     const el = document.getElementById(`${prefix}-email`);
     target = el ? el.value.trim() : '';
