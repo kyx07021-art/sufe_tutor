@@ -428,7 +428,9 @@ export default {
         // 命中判定：status 200 + JSON content-type（json() 响应必有；非 JSON/异常条目不返回，
         // 防历史毒化——#260 静态资产 content-length 判据不适用于 workerd Response，其不设该头）
         if (cached && cached.status === 200 && (cached.headers.get('content-type') || '').includes('application/json')) {
-          return applySecurityHeaders(cached, p);
+          // 必须 clone 再返回：Cache API 并发命中返回同一 Response 对象，body 流只可读一次，
+          // 顺序读尚可、并发读第二个请求抛流锁错误 → 500（生产实证）。clone 各得独立流。
+          return applySecurityHeaders(cached.clone(), p);
         }
       }
       const res = await routeApi(db, p, request.method, body, url, request, env); // env 供保活等需多绑定端点

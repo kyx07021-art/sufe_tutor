@@ -144,3 +144,18 @@ test('无 caches 环境回落直取（fail-open：缓存缺失不阻断主流程
     globalThis.caches = saved;
   }
 });
+
+// 生产实证教训：缓存命中直接返回同一 Response 对象，并发命中第二个请求读已锁定的 body 流 → 500。
+// 修复 = 命中时 cached.clone()（各得独立流）。本测试并发双请求同时命中，两者都必须读到完整 body。
+test('缓存命中并发：两个请求同时命中同一缓存条目，body 均可读（clone 防流锁）', async (t) => {
+  installCache();
+  const { env } = await setup(t);
+  const get = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
+  await get('/api/teachers'); // 首请求写缓存
+  const [r1, r2] = await Promise.all([get('/api/teachers'), get('/api/teachers')]);
+  assert.equal(r1.status, 200, '并发命中第 1 个 200');
+  assert.equal(r2.status, 200, '并发命中第 2 个 200（clone 后 body 流各自独立，无流锁 500）');
+  const b1 = JSON.parse(await r1.text());
+  const b2 = JSON.parse(await r2.text());
+  assert.ok(Array.isArray(b1.teachers) && Array.isArray(b2.teachers), '两个并发响应 body 均可完整读取');
+});
