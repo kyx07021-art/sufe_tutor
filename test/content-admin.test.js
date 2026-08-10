@@ -161,10 +161,11 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   assert.ok(String(signing.body).includes('每周六'), '签约正文含 schedule');
 
   // 处罚：超长原因+超长规则 → 通知三段截断预算生效（审查补丁：三段分预算）。
-  // 真实回归：reason 240 字（旧逻辑取满 200）+ rule 60 字（旧逻辑 100）+ 摘要，旧逻辑组合文本
-  // ~340 > 200 被 notifyUser 库层截断丢尾部「触发内容」；新预算三段各取 80/30/40 → 总长 ≤200
-  // 且触发内容摘要必须保留（断言区分修复前后，杜绝假绿）。
-  const longReason = '发布包含完整门牌号码的内容，严重违反平台隐私保护红线，已多次警告仍不改正，'.repeat(4); // 240 字
+  // 真实回归：reason 222 字（≥200，旧逻辑取满 200 后仍余 148）+ rule 23 字（旧逻辑 100），
+  // 旧逻辑组合文本 ~228 > 200 被 notifyUser 库层截断丢尾部「每周两次」摘要关键词；
+  // 新预算三段各取 80/30/40 → 总长 152 ≤200 且摘要关键词存活。判别断言是
+  // notif.text.includes('每周两次')——旧逻辑必失败、新逻辑通过，杜绝假绿（二次审查实测确认）。
+  const longReason = '发布包含完整门牌号码的内容，严重违反平台隐私保护红线，已多次警告仍不改正，'.repeat(6); // 222 字（≥200）
   const delC = await handleContentAction(db, 'contract', contractId, { action: 'delete', reason: longReason, rule: '地址门控与隐私红线，内容安全审核，恶意规避审核' }, req({ 'X-Auth-Token': token }));
   assert.equal(delC.status, 200, JSON.stringify(await delC.json()));
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE id=?').get(contractId).c, 0, '合同已删除');
