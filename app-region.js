@@ -420,7 +420,9 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
   return ids.map(sid => {
     const sidE = escHtml(sid);
     const name = R.subjectNames[sid] || sid;
-    const base = R.subjectMaxScore[sid] || 100;
+    // B3（v0.27.2 用户反馈「小学一年级语文满分 150」）：主科满分按学段适配——
+    // 小学 100 / 初中·高中 150（subjectMaxForStage 单源，前后端同读）。上海高中选考 70 上限仅非主科生效。
+    const base = R.subjectMaxForStage(sid, gradeId);
     const max = (base !== 150 && shMax) ? shMax : base;
 
     const inputPane = `<input type="number" class="score-inline" data-sg-subject="${sidE}"

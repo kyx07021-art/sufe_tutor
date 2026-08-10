@@ -20,12 +20,19 @@
  */
 
 const CAPTCHA_W = 280, CAPTCHA_H = 120, SLIDER_W = 40, SLIDER_H = 40;
+// B2（v0.27.2 用户反馈「空缺老是左边/右边校验必败/卡死」）：几何单源——
+// 旋钮行程 = 画布宽 - 旋钮宽（画布/轨道同 280px，v0.26.17 已对齐）；缺口生成与拖拽 clamp 共用此值。
+// 曾两把尺：缺口 _captchaTarget 用 /W(280) 归一化、旋钮 _captchaOffset 用 /max(240) 归一化 →
+// 右半缺口（cutX>134px）误差恒 > 容差 → 校验必败（用户实证「空缺在右边一定通不过」）。
+const CAPTCHA_MAX_X = CAPTCHA_W - SLIDER_W; // 240：旋钮可移动行程（px）
 const CAPTCHA_TOLERANCE = 0.08; // mock 验证器容差（归一化 ±8%）
 let _captchaOnPass = null;
-let _captchaTarget = 0;      // 缺口归一化位置（0~1，mock 自算；生产由后端下发）
-let _captchaOffset = 0;      // 当前滑块归一化偏移（0~1）
+let _captchaTarget = 0;      // 缺口归一化位置（0~1，mock 自算；生产由后端下发）——统一按 CAPTCHA_MAX_X 归一化
+let _captchaOffset = 0;      // 当前滑块归一化偏移（0~1，/CAPTCHA_MAX_X，与 target 同坐标系）
 let _captchaDrag = null;     // 拖拽中 { startClientX, startX }
 let _captchaTrack = [];      // 轨迹点 [{t,x,y}]（未来人机分析用）
+let _captchaIdStr = '';      // 本次挑战唯一标识（每轮 paint 重生成；生产后端以此查服务端保存的 cutX）
+let _captchaResetTimer = null; // 失败复位定时器（新拖拽即取消，防 420ms 复位打断在途拖拽）
 
 function _randHex() {
   const b = new Uint8Array(3);
@@ -76,10 +83,12 @@ function paintCaptcha() {
     ctx.fillStyle = `rgba(${Math.floor(Math.random() * 255)},${Math.floor(Math.random() * 255)},${Math.floor(Math.random() * 255)},${(Math.random() * 0.5 + 0.1).toFixed(2)})`;
     ctx.fillRect(Math.random() * W, Math.random() * H, 1.2, 1.2);
   }
-  // 缺口位置（mock 答案；生产由后端下发 cutX）
-  const maxX = W - SLIDER_W - 24;
-  _captchaTarget = (16 + Math.random() * maxX) / W;
-  const cutX = _captchaTarget * W, cutY = (H - SLIDER_H) / 2;
+  // 缺口位置（mock 答案；生产由后端下发 cutX）——B2：按旋钮行程 CAPTCHA_MAX_X 归一化，
+  // 与 _captchaOffset 同一坐标系（曾 /W 导致右半缺口恒差超容差必败）。左右各留边距，全域可达。
+  _captchaIdStr = _captchaId(); // 每轮挑战唯一 id（生产后端据此查 cutX；mock 仅随 onPass 上抛）
+  const gapMin = 16, gapMax = CAPTCHA_MAX_X - 24; // 左缘 16px / 右缘 24px 边距（行程内）
+  _captchaTarget = (gapMin + Math.random() * (gapMax - gapMin)) / CAPTCHA_MAX_X;
+  const cutX = _captchaTarget * CAPTCHA_MAX_X, cutY = (H - SLIDER_H) / 2;
   // 拼图块（B4 修复：原只抠洞没有跟随滑块的拼图块）：把缺口区域背景复制到 puzzle canvas，
   // 滑块位移经 CSS 同源 --captcha-x 驱动 translateX 跟随（合成器只读，零重绘）。
   // v0.26.17：--captcha-x 由共同祖先 .captcha-box 提供（模板初始化 0px），puzzle 经继承跟随——
@@ -113,9 +122,10 @@ function bindCaptchaDrag() {
   if (!knob || !track) return;
   // v0.26.17：--captcha-x 统一写共同祖先 .captcha-box——puzzle（track 兄弟）与 fill/knob（track 子）全继承
   const box = document.getElementById('captcha-box') || track;
-  const max = CAPTCHA_W - SLIDER_W;
+  const max = CAPTCHA_MAX_X; // 几何单源（B2）
   const down = (e) => {
     if (knob.classList.contains('captcha--pass')) return;
+    if (_captchaResetTimer) { clearTimeout(_captchaResetTimer); _captchaResetTimer = null; } // 失败复位在途：新拖拽即取消，防复位打断（B2 卡死修复）
     _captchaDrag = { startClientX: e.clientX, startX: _captchaOffset * max };
     knob.setPointerCapture(e.pointerId);
     track.classList.add('captcha--dragging');
@@ -149,7 +159,7 @@ async function verifyCaptcha() {
   const diff = Math.abs(_captchaOffset - _captchaTarget);
   if (diff <= CAPTCHA_TOLERANCE) {
     // ============ 生产接入点（后端校验）============
-    // const r = await api('/api/captcha/verify', { method: 'POST', body: { captchaId, offset: _captchaOffset, track: _captchaTrack } });
+    // const r = await api('/api/captcha/verify', { method: 'POST', body: { captchaId: _captchaIdStr, offset: _captchaOffset, track: _captchaTrack } });
     // if (!r.ok) return failCaptcha(track, tip, knob);
     // ============ 内测 mock 验证器（大差不差即过）============
     knob.classList.add('captcha--pass');
@@ -160,23 +170,25 @@ async function verifyCaptcha() {
     _captchaOnPass = null;
     setTimeout(() => {
       closeModal();
-      if (cb) cb({ captchaId: _captchaId(), offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack });
+      if (cb) cb({ captchaId: _captchaIdStr, offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack });
     }, 260);
     return;
   }
-  // 失败：抖动 + 复位（可重试）
+  // 失败：抖动 + 复位 + 重滚缺口（B2：失败不再卡在同一个难位——paintCaptcha 每轮新缺口 + 复位旋钮/轨迹）
   knob.classList.add('captcha--fail');
   track.classList.add('captcha--shake');
   tip.textContent = UI.CAPTCHA_FAIL;
   tip.classList.add('captcha-tip--fail');
-  setTimeout(() => {
-    knob.classList.remove('captcha--fail');
-    track.classList.remove('captcha--shake');
-    tip.textContent = UI.CAPTCHA_TIP;
-    tip.classList.remove('captcha-tip--fail');
-    _captchaOffset = 0;
+  if (_captchaResetTimer) clearTimeout(_captchaResetTimer);
+  _captchaResetTimer = setTimeout(() => {
+    _captchaResetTimer = null;
     const box = document.getElementById('captcha-box') || track;
     box.style.setProperty('--captcha-x', '0px');
+    paintCaptcha(); // 重绘背景 + 重滚缺口 + 复位旋钮/轨迹（tip 复位）
+    tip.textContent = UI.CAPTCHA_TIP;
+    tip.classList.remove('captcha-tip--fail');
+    knob.classList.remove('captcha--fail');
+    track.classList.remove('captcha--shake');
   }, 420);
 }
 

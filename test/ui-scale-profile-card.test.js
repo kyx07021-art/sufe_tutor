@@ -95,6 +95,30 @@ test('uiScaleFillPct：min→0%、max→100%、中点→50%', () => {
   assert.equal(vm.runInContext(`uiScaleFillPct(${mid})`, ctx), '50.0');
 });
 
+test('B1 滑块响应滚轮：sufe:ui-scale 事件同步滑块值/数值标签/轨道（滚轮滑块同底层值）', async () => {
+  const { ctx, dom } = makeCtx(); loadCommon(ctx);
+  vm.runInContext(readFileSync('./app-pages.js', 'utf8'), ctx, { filename: 'app-pages.js' });
+  const doc = dom.window.document;
+  const slider = doc.createElement('input');
+  slider.type = 'range'; slider.id = 'ui-scale-slider';
+  slider.min = String(vm.runInContext('CONFIG.UI_SCALE_MIN', ctx));
+  slider.max = String(vm.runInContext('CONFIG.UI_SCALE_MAX', ctx));
+  slider.value = String(vm.runInContext('CONFIG.UI_SCALE_DEFAULT', ctx));
+  const val = doc.createElement('span'); val.id = 'ui-scale-val';
+  doc.body.appendChild(slider); doc.body.appendChild(val);
+  vm.runInContext(`bindUiScaleSlider()`, ctx);
+  // 滚轮改值走 setUiScale（写 --ui-scale + localStorage + 派发 sufe:ui-scale）→ 滑块应同步
+  vm.runInContext(`localStorage.setItem(CONFIG.UI_SCALE_KEY, '110'); setUiScale(110)`, ctx);
+  assert.equal(slider.value, '110', '滑块值同步到滚轮改后的值');
+  assert.equal(val.textContent, '110%', '数值标签同步');
+  const fill = slider.style.getPropertyValue('--ui-fill');
+  assert.ok(fill.endsWith('%'), `轨道填充随值更新（--ui-fill=${fill}）`);
+  // 再次滚轮改值继续同步（单一事实源 getUiScale）
+  vm.runInContext(`setUiScale(115)`, ctx);
+  assert.equal(slider.value, '115', '再改值滑块继续同步');
+  assert.equal(val.textContent, '115%', '数值标签再同步');
+});
+
 // ---- item1/2/3 教师资料卡分组渲染 ----
 function seedProfileFixtures(ctx) {
   vm.runInContext(`

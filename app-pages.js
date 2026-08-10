@@ -337,6 +337,15 @@ function bindUiScaleSlider() {
   // 键盘/无障碍路径兜底（无 pointer 手势时）：input 预览 + change 落盘（原 oninput/onchange 语义）
   slider.addEventListener('input', () => setUiScaleFromSlider(slider));
   slider.addEventListener('change', () => commitUiScaleFromSlider(slider));
+  // B1（v0.27.2 用户反馈「滚轮和滑块是两个叠加值」）：滚轮改 UI 大小走 setUiScale（写 --ui-scale +
+  // localStorage + 派发 sufe:ui-scale），滑块绑定此前无该事件监听 → 设置页开着时滚轮改值后滑块显示/
+  // 控制的是陈旧值（表现为两个值叠加）。此处监听事件把滑块值/数值标签/轨道填充同步到实际应用值——
+  // 滚轮与滑块合并为一个底层值，滑块动态响应滚轮。
+  window.addEventListener('sufe:ui-scale', () => {
+    const synced = getUiScale(); // 单一事实源（--ui-scale + localStorage）
+    if (drag) drag.startVal = synced; // 拖拽在途：同步基线，防滚轮值被旧 startVal 覆盖
+    refreshLabel(slider, synced);
+  });
 }
 
 // 登录设备管理：拉本人会话列表逐端展示（token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。

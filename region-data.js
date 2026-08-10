@@ -149,6 +149,16 @@
     },
     subjectMaxScore: { chinese: 150, math: 150, english: 150 }, // 其余默认 100
 
+    // 主科满分按学段适配（v0.27.2 用户反馈「小学一年级语文满分 150 荒谬」）。
+    // 政策调研（各省市）：高考语数外 150 全国统一；中考各省 100-150 不等（北京 100/上海数学 150/成都英语 150 等）；
+    // 小学语数英 100 分制全国统一。定策：主科满分 小学=100（核心修复）、初中=150（取各省中考高值防拒合法高分）、
+    // 高中=150（高考口径）。非主科恒 100（subjectMaxScore 无此键 → 100）。前后端同读本函数（单源）。
+    subjectMaxForStage(subjectId, gradeId) {
+      const base = this.subjectMaxScore[subjectId] || 100;
+      if (base === 150 && this.stageOfGrade(gradeId) === 'primary') return 100;
+      return base;
+    },
+
     // 义务教育阶段通用等第（小学/初中平时成绩的"等第制"选项）
     COMPULSORY_LEVELS: [
       { id: 'A', name: 'A（优秀）' }, { id: 'B', name: 'B（良好）' },

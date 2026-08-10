@@ -226,7 +226,8 @@ test('学生端教师列表：逐需求取最高匹配值、明细降序、排�
   assert.ok(heads[0].textContent.includes('需求#0007') && heads[0].textContent.includes('匹配度：100%'), '首条 = 最高匹配需求（头行格式【需求#xxxx · 主要信息 匹配度：xx%】）');
   assert.ok(heads[1].textContent.includes('需求#0008'), '次条 = 次高');
   assert.ok(detail.querySelector('.match-t-item .match-row'), '每条含五维明细行');
-  assert.ok(detail.querySelector('.match-t-list').style.maxHeight.includes('320'), '条目区限高（CONFIG.MATCH_DETAIL_MAX_HEIGHT）');
+  // B4（v0.27.2 用户反馈「比例条区右边诡异小滚动条」）：不再注入条目区限高——卡片随内容动态拉长
+  assert.equal(detail.querySelector('.match-t-list').style.maxHeight, '', '不注入 max-height（无小滚动条，卡片随比例条区拉长）');
 
   // 关闭：同教师端共用开关
   vm.runInContext('closeMatchDetail()', ctx);

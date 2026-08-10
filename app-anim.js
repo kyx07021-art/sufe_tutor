@@ -145,8 +145,10 @@ function positionCustomSelectPanel(wrap) {
   panel.style.width = `${r.width}px`;
 }
 /* 悬浮卡 fixed 锚定（v0.25.19 审计 G-14：教师端/学生端匹配度明细卡原两处重复定位，抽单点）。
-   挂 body 的 fixed 卡以触发按钮 rect 定位（left 对齐 + 下缘 offset）；listEl 可选——几何上限随按钮下缘差收缩。 */
-function positionFloatCard(btn, card, listEl) {
+   挂 body 的 fixed 卡以触发按钮 rect 定位（left 对齐 + 下缘 offset）。
+   B4（v0.27.2 用户反馈「比例条区右边诡异小滚动条」）：不再注入 listEl max-height——
+   卡片随比例条区内容动态拉长（原 max-height 320 内容超几个 px 即出小滚动条）。 */
+function positionFloatCard(btn, card) {
   if (!btn || !card) return;
   const r = btn.getBoundingClientRect();
   const vw = document.documentElement.clientWidth;
@@ -159,7 +161,6 @@ function positionFloatCard(btn, card, listEl) {
   if (w > 0 && vw > 0 && left + w > vw - m) left = Math.max(vw - w - m, m);
   card.style.left = `${left}px`;
   card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
-  if (listEl) listEl.style.maxHeight = `${CONFIG.MATCH_DETAIL_MAX_HEIGHT}px`;
 }
 // 滚动即收起（fixed 面板不跟随滚动；capture 捕获所有滚动容器，但面板自身滚动除外——否则一滚面板就收）
 document.addEventListener('scroll', e => {

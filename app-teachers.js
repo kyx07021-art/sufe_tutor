@@ -244,8 +244,9 @@ function showTeacherMatchDetail(btn) {
   const card = btn.nextElementSibling;
   if (!card || !card.classList.contains('match-detail')) return;
   document.body.appendChild(card); // 挂 body：与教师端同因（.list-card backdrop-filter 会困住 fixed 后代）
-  // v0.25.19 审计 G-14：锚定 + 条目区高度上限收编 app-anim positionFloatCard 单点
-  positionFloatCard(btn, card, card.querySelector('.match-t-list'));
+  // v0.25.19 审计 G-14：锚定收编 app-anim positionFloatCard 单点
+  // B4（v0.27.2）：不再传 listEl 限高——卡片随比例条区内容动态拉长（无小滚动条）
+  positionFloatCard(btn, card);
   _matchDetailOpen = true;
 }
 

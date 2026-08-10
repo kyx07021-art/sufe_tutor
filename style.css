@@ -1501,8 +1501,9 @@ html[data-ui-previewing] .client-main {
 .match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
 .match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--g-line-soft); font-size: .66rem; line-height: 1.5; color: var(--muted); }
 
-/* 需求五·item5 学生端逐需求明细：条目区限高滚动（max-height 由 JS 以 CONFIG.MATCH_DETAIL_MAX_HEIGHT 注入，单源） */
-.match-t-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+/* 需求五·item5 学生端逐需求明细：卡片随内容动态拉长（B4 v0.27.2：去 overflow/限高——
+   原 JS 注入 max-height 320，内容超几个 px 即在比例条区右侧出诡异小滚动条） */
+.match-t-list { display: flex; flex-direction: column; gap: 8px; }
 .match-t-item { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); padding: 8px 10px; }
 .match-t-head { margin-bottom: 6px; }
 .match-t-head-main { display: block; font-size: .74rem; font-weight: 800; color: var(--ink); line-height: 1.5; }

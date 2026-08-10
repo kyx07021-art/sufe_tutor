@@ -136,6 +136,55 @@ test('B4 拼图交互：拖拽更新 --captcha-x + 命中缺口验证通过 + �
   assert.equal(resetX, '0px', '失败后滑块复位到起点（box 共同祖先）');
 });
 
+// ---------------- B2（v0.27.2 用户反馈：空缺老是左边 / 右边必败 / 试多卡死） ----------------
+// 根因：缺口 _captchaTarget 用 /W(280) 归一化、旋钮 _captchaOffset 用 /240（CAPTCHA_MAX_X）归一化——
+// 两把尺，cutX>134px 的右半缺口实际对齐误差恒 > 容差 → 必败。修后统一按 CAPTCHA_MAX_X 归一化。
+test('B2 全域可达 + 右半缺口对齐即过：gap 边缘落在行程内，右侧缺口校验通过', async () => {
+  const dom = new JSDOM('<html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/', runScripts: 'dangerously' });
+  dom.window.HTMLCanvasElement.prototype.getContext = () => ({
+    createLinearGradient: () => ({ addColorStop: () => {} }), fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
+    globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '', clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
+  });
+  const ctx = bootCtx(dom);
+  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
+  const drag = (toX) => vm.runInContext(`(() => { const ME = window.MouseEvent; const knob = document.getElementById('captcha-knob'); knob.dispatchEvent(new ME('pointerdown', { clientX: 0, bubbles: true })); knob.dispatchEvent(new ME('pointermove', { clientX: ${toX}, bubbles: true })); knob.dispatchEvent(new ME('pointerup', { clientX: ${toX}, bubbles: true })); })()`, ctx);
+  vm.runInContext(`window.__passed = false; openCaptchaModal({ onPass: () => { window.__passed = true; } });`, ctx);
+  // 缺口归一化按行程 CAPTCHA_MAX_X（与旋钮同坐标系）：gap 像素位恒在 [16, CAPTCHA_MAX_X-24] 行程内
+  const [gapMin, gapMax, maxX] = vm.runInContext(`(Math.round(_captchaTarget * CAPTCHA_MAX_X) >= 16 && Math.round(_captchaTarget * CAPTCHA_MAX_X) <= CAPTCHA_MAX_X - 24) ? [16, CAPTCHA_MAX_X - 24, CAPTCHA_MAX_X] : [0,0,0]`, ctx);
+  assert.equal(maxX, 240, 'CAPTCHA_MAX_X = 240（画布宽-旋钮宽）');
+  assert.ok(gapMin > 0 && gapMax < 240, `缺口生成在行程 [16, 216] 内（全域可被旋钮 0-240 到达）`);
+  // 右半缺口（0.85 → 204px）：旧实现 204/240=0.85 vs 204/280=0.729 → 差 0.121>0.08 必败
+  vm.runInContext(`_captchaTarget = 0.85;`, ctx);
+  const rightPx = vm.runInContext(`Math.round(_captchaTarget * CAPTCHA_MAX_X)`, ctx);
+  assert.ok(rightPx > 180, `右半缺口像素位=${rightPx}px`);
+  drag(rightPx);
+  await new Promise(r => setTimeout(r, 350));
+  assert.equal(dom.window.__passed, true, '右半缺口对齐 → 校验通过（坐标系统一，不再必败）');
+});
+
+test('B2 失败重滚缺口：拖偏失败后目标重滚（新挑战）+ 旋钮复位到 0', async () => {
+  const dom = new JSDOM('<html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/', runScripts: 'dangerously' });
+  dom.window.HTMLCanvasElement.prototype.getContext = () => ({
+    createLinearGradient: () => ({ addColorStop: () => {} }), fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
+    globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '', clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
+  });
+  const ctx = bootCtx(dom);
+  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
+  const drag = (toX) => vm.runInContext(`(() => { const ME = window.MouseEvent; const knob = document.getElementById('captcha-knob'); knob.dispatchEvent(new ME('pointerdown', { clientX: 0, bubbles: true })); knob.dispatchEvent(new ME('pointermove', { clientX: ${toX}, bubbles: true })); knob.dispatchEvent(new ME('pointerup', { clientX: ${toX}, bubbles: true })); })()`, ctx);
+  vm.runInContext(`window.__passed = false; openCaptchaModal({ onPass: () => { window.__passed = true; } });`, ctx);
+  const t1 = vm.runInContext(`_captchaTarget`, ctx);
+  const id1 = vm.runInContext(`_captchaIdStr`, ctx);
+  drag(5); // 明显偏离 → 必败
+  await new Promise(r => setTimeout(r, 500)); // fail 420ms 复位 + 重滚
+  const resetX = vm.runInContext(`document.getElementById('captcha-box').style.getPropertyValue('--captcha-x')`, ctx);
+  assert.equal(resetX, '0px', '失败后旋钮复位到起点');
+  const t2 = vm.runInContext(`_captchaTarget`, ctx);
+  const id2 = vm.runInContext(`_captchaIdStr`, ctx);
+  assert.notEqual(t2, t1, '失败后缺口重滚（新挑战，不再卡在同一个难位）');
+  assert.notEqual(id2, id1, '失败后 captchaId 重生成（生产后端按挑战取值）');
+  assert.equal(dom.window.__passed, false, '拖偏不通过');
+});
+
 // ---------------- C2 withCaptcha 门禁 ----------------
 test('withCaptcha：存在并经 openCaptchaModal 拦截 action（生产门禁入口）', () => {
   const dom = new JSDOM('<html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/', runScripts: 'dangerously' });

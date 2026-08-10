@@ -83,7 +83,7 @@ test('checkboxItemsHtml：id/name 转义（XSS 单源）', () => {
   assert.ok(!html.includes('value="a"b"'), 'id 转义');
 });
 
-test('positionFloatCard：锚定 btn 下缘 + listEl 高度上限单源 CONFIG', () => {
+test('positionFloatCard：锚定 btn 下缘；不再注入 listEl 限高（B4 卡片随内容拉长）', () => {
   const { ctx, dom } = makeCtx();
   const btn = dom.window.document.createElement('button');
   const card = dom.window.document.createElement('div');
@@ -95,10 +95,9 @@ test('positionFloatCard：锚定 btn 下缘 + listEl 高度上限单源 CONFIG',
     positionFloatCard(btn, card, list);
   `, Object.assign(ctx, { btn, card, list }));
   const offset = vm.runInContext('CONFIG.MAX_MATCH_DETAIL_OFFSET', ctx);
-  const maxH = vm.runInContext('CONFIG.MATCH_DETAIL_MAX_HEIGHT', ctx);
   assert.equal(card.style.left, '42px', 'left 对齐按钮');
   assert.equal(card.style.top, `${100 + offset}px`, '锚定：bottom + MAX_MATCH_DETAIL_OFFSET');
-  assert.equal(list.style.maxHeight, `${maxH}px`, 'listEl 高度上限单源 CONFIG');
+  assert.equal(list.style.maxHeight, '', '不再注入 listEl 限高（小滚动条根治，卡片随内容拉长）');
 });
 
 test('positionFloatCard：右缘钳制——移动端按钮贴右时卡片强制右对齐屏幕边缘（v0.25.26）', () => {
