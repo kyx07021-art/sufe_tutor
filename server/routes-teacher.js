@@ -8,7 +8,8 @@
  */
 import { json, error, sanitizeTimeSlots } from './util.js';
 import { authUser, requireUser } from './security.js';
-import { MSG, ADDRESS_GUARD, LIMITS } from './constants.js';
+import { MSG, LIMITS } from './constants.js';
+import { auditFreeText } from './text-audit.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（PERSONALITY_TAGS/NONACADEMIC_PROJECTS 白名单单源，与前端共用）
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById } from './db.js';
@@ -165,8 +166,11 @@ export async function handleSaveProfile(db, body, req) {
   // svg 一律拒绝：矢量可内嵌脚本（与 routes-auth 头像口径一致；上限单源 LIMITS.CREDENTIAL_MAX_BYTES）
   if (credential && (!credential.startsWith('data:image/') || credential.startsWith('data:image/svg') || credential.length > LIMITS.CREDENTIAL_MAX_BYTES)) return error(MSG.AVATAR_INVALID);
   // 2026-08-09 审计 F-1/F-4：自由文本（intro/school）同守门牌红线；联系方式统一截断（db 层仅 real_name/intro/address/school 有切片）
-  if (ADDRESS_GUARD.test(p.address || '') || ADDRESS_GUARD.test(p.intro || '') || ADDRESS_GUARD.test(p.school || ''))
-    return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号不收集
+  // v0.25.113：门牌审核收口到 text-audit 咽喉（规则层 + 可选语义层，fail-open），不再直接 ADDRESS_GUARD
+  for (const f of ['address', 'intro', 'school']) {
+    const audit = await auditFreeText(p[f]);
+    if (!audit.ok) return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号/可定位住址不收集
+  }
   if (typeof p.wechat === 'string') p.wechat = p.wechat.slice(0, LIMITS.CONTACT_MAX);
   if (typeof p.email === 'string') p.email = p.email.slice(0, LIMITS.CONTACT_MAX);
   await dbUpsertTeacherProfile(db, me.id, { ...p, credential_image: credential }); // 只能写自己的档案

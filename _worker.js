@@ -13,6 +13,7 @@ import { json, error, parseBody } from './server/util.js';
 import { MSG } from './server/constants.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './server/security.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
+import { bindTextAuditEnv } from './server/text-audit.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
 import { handleGetPrivacySettings, handleSetPrivacySettings } from './server/routes-settings.js';
@@ -362,6 +363,7 @@ export default {
         .catch(e => { env._dbInited = null; throw e; });
       bindLogDb(env); // 管理员配置经 secrets 网关读取（env.Worker Secrets 优先，回落本地文件）
       bindLedgerDb(env);
+      bindTextAuditEnv(env); // 文本审核咽喉（text-audit）：语义层密钥经 Secrets 网关读取，fail-open
     }
     await env._dbInited;
 

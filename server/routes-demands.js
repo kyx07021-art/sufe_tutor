@@ -6,7 +6,8 @@
  */
 import { json, error, sanitizeTimeSlots, isUniqueConflict } from './util.js';
 import { authUser, requireUser } from './security.js';
-import { MSG, STATUS, ADDRESS_GUARD, LIMITS } from './constants.js';
+import { MSG, STATUS, LIMITS } from './constants.js';
+import { auditFreeText } from './text-audit.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
@@ -94,7 +95,6 @@ function sanitizeDemand(d) {
   d.preferred_teacher_gender = PREFERRED_GENDERS.has(d.preferred_teacher_gender) ? d.preferred_teacher_gender : '';
   // R2-11 学生性别：白名单 ['','male','female','nonbinary']，非法回退 ''（'' = 不愿透露）
   d.student_gender = DEMAND_GENDERS.has(d.student_gender) ? d.student_gender : '';
-  if (ADDRESS_GUARD.test(d.address) || ADDRESS_GUARD.test(d.additional_info)) return null; // 合规红线：详细门牌号不收集（调用方回 ADDRESS_TOO_DETAILED；补充说明同守）
   return d;
 }
 
@@ -111,7 +111,12 @@ export async function handleCreateDemand(db, body, req) {
   const ts = sanitizeTimeSlots(d.expected_time);
   if (ts.error) return error(ts.error);
   d.expected_time = ts.value;
-  if (!sanitizeDemand(d)) return error(MSG.ADDRESS_TOO_DETAILED);
+  sanitizeDemand(d); // 字段清理（预算钳制/白名单/截断）
+  // v0.25.113：门牌/可定位住址审核收口 text-audit 咽喉（规则层 + 可选语义层 fail-open）——address/additional_info 同守
+  for (const f of ['address', 'additional_info']) {
+    const audit = await auditFreeText(d[f]);
+    if (!audit.ok) return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号/可定位住址不收集
+  }
   if (!d.target_subjects || !d.target_subjects.length) return error(MSG.INVALID_PARAMS); // 白名单过滤后为空：无有效科目
 
   const id = await dbCreateDemand(db, userId, d);
