@@ -84,6 +84,22 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   assert.ok((await onlyPosts.json()).items.every(i => i.type === 'post'));
 });
 
+test('D1 键控化（v0.27.3 #21）：清单与表域单源——CONTENT_TYPES 每键可单查；无效 type → 空不崩溃', async () => {
+  const { raw, db, req } = await setup();
+  const token = await adminToken(db, raw);
+  const { CONTENT_TYPES } = await import('../server/db.js');
+  // 每键可单类型提取（空表也 200 空列表）→ 清单由 CONTENT_SQL 键派生，不存在「漏列新表域」
+  for (const key of CONTENT_TYPES) {
+    const r = await handleAdminContent(db, new URL(`http://x/api/admin/content?type=${key}`), req({ 'X-Auth-Token': token }));
+    assert.equal(r.status, 200, `type=${key} 应 200`);
+    assert.ok((await r.json()).items.every(i => i.type === key), `type=${key} 返回条目类型一致`);
+  }
+  // 无效 type → 200 空列表（不再 db.prepare(undefined) 崩溃）
+  const bad = await handleAdminContent(db, new URL('http://x/api/admin/content?type=bogus'), req({ 'X-Auth-Token': token }));
+  assert.equal(bad.status, 200);
+  assert.deepEqual((await bad.json()).items, []);
+});
+
 test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + 缺原因 400', async () => {
   const { raw, db, req } = await setup();
   const s = await handleRegister(db, { username: 'mallory', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());

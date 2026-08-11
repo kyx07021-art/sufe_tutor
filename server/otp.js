@@ -10,7 +10,7 @@
  *   - 频控（60s 重发 + 单日上限）必须服务端强制（原子条件 INSERT 赢家模式，跨实例 D1 生效），
  *     前端倒计时只是表象；
  *   - 验证码一次性消费（命中即置 used，防重放并发双消费）；
- *   - TTL 5 分钟（expires_at，SQL 内 localtime 比较）；
+ *   - TTL 5 分钟（expires_at，库内 UTC、SQL 层 UTC 参数比较）；
  *   - 验证码与目标均哈希存储（code_hash / target_hash，SHA-256 同 tokenDigest，不落明文）。
  *
  * 插拔点（生产接入真实短信/邮件服务商只改此处，接口签名不变）：
@@ -36,9 +36,9 @@ export async function initOtpTable(db) {
     channel TEXT NOT NULL CHECK(channel IN ('sms','email')),
     target_hash TEXT NOT NULL,      -- SHA-256(target)，目标（手机号/邮箱）不落明文
     code_hash TEXT NOT NULL,        -- SHA-256(code)，验证码不落明文
-    expires_at DATETIME NOT NULL,   -- TTL（5 分钟，SQL localtime 比较）
+    expires_at DATETIME NOT NULL,   -- TTL（5 分钟；库内 UTC，SQL 层 UTC 比较）
     used INTEGER NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT (datetime('now','localtime')))`);
+    created_at DATETIME DEFAULT (datetime('now')))`); // 库内 UTC（v0.27.3 走查：与 expires_at 统一域，弃 localtime）
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_otp_target ON verification_codes(channel, target_hash, created_at)');
 }
 
@@ -115,22 +115,30 @@ export async function requestOtp(db, { channel, target }, req) {
   const expires = toDbTime(new Date(Date.now() + LIMITS.OTP_CODE_TTL_MS));
 
   // 原子限频（赢家模式）：60s 内已发 / 单日超限 → 条件 INSERT 不命中（changes=0）拒绝。
-  // 同时清该目标过期行（防 verification_codes 膨胀；与 rate_limits 的过期清理互补）。
+  // 时间域纪律（v0.27.3 走查统一 UTC）：created_at/expires_at 库内 UTC，SQL 层比较必须用 UTC
+  // （datetime('now') 即 UTC；datetime('now','localtime') 是库内本地时区，与 UTC 存储域比较
+  // 在中国时区恒判命中/过期——verifyOtp 早已 UTC 参数比较，此处一并对齐）。
+  // 同时清该目标过期行（防 verification_codes 膨胀；与 rate_limits 的过期清理互补）——
+  // v0.27.3 落地：此前注释承诺的 DELETE 从未执行。
+  const nowUtc = toDbTime(new Date());
   try {
-    const r = await dbRun(db, `INSERT INTO verification_codes (channel, target_hash, code_hash, expires_at)
-      SELECT ?, ?, ?, ? WHERE NOT EXISTS (
+    // 过期/已用行对本目标请求无意义，顺手清理（只删 expires_at < now 的过期行，绝不误删存活验证码）
+    await dbRun(db, 'DELETE FROM verification_codes WHERE channel=? AND target_hash=? AND expires_at < ?',
+      [ch, targetHash, nowUtc]);
+    const r = await dbRun(db, `INSERT INTO verification_codes (channel, target_hash, code_hash, expires_at, created_at)
+      SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (
         SELECT 1 FROM verification_codes
-        WHERE channel=? AND target_hash=? AND created_at > datetime('now','localtime', ?))
+        WHERE channel=? AND target_hash=? AND created_at > datetime('now', ?))
         AND (SELECT COUNT(*) FROM verification_codes
-          WHERE channel=? AND target_hash=? AND created_at > datetime('now','localtime', ?)) < ?
-      `, [ch, targetHash, codeHash, expires,
+          WHERE channel=? AND target_hash=? AND created_at > datetime('now', ?)) < ?
+      `, [ch, targetHash, codeHash, expires, nowUtc,
           ch, targetHash, '-' + Math.round(LIMITS.OTP_RESEND_WINDOW_MS / 1000) + ' seconds',
           ch, targetHash, '-1 day', LIMITS.OTP_DAILY_MAX]);
     if (!(r && r.meta && r.meta.changes > 0)) {
       await logEvent(db, { action: 'otp.request.rate', actorUsername: targetMask(t),
         entity: 'otp', detail: { channel: ch, reason: 'resend_window_or_daily_limit' }, req });
       // 区分 60s 窗口与单日上限的文案（60s 更常见）
-      const recent = await dbGet(db, 'SELECT 1 AS x FROM verification_codes WHERE channel=? AND target_hash=? AND created_at > datetime(\'now\',\'localtime\', ?)',
+      const recent = await dbGet(db, 'SELECT 1 AS x FROM verification_codes WHERE channel=? AND target_hash=? AND created_at > datetime(\'now\', ?)',
         [ch, targetHash, '-' + Math.round(LIMITS.OTP_RESEND_WINDOW_MS / 1000) + ' seconds']);
       return { ok: false, err: error(recent ? MSG.OTP_RESEND_LIMIT : MSG.OTP_DAILY_LIMIT, 429) };
     }

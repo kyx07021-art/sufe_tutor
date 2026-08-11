@@ -94,14 +94,30 @@ test('requestOtp：60s 重发限频 + 单日上限（服务端原子强制）', 
   // 单日上限：每次请求前把既有行 created_at 挪到 2 小时前（> -1day 计入单日计数、< -60s 绕过重发窗口），
   // 累计到第 10 次上限
   for (let i = 0; i < 9; i++) {
-    raw.exec(`UPDATE verification_codes SET created_at=datetime('now','localtime','-2 hours')`);
+    raw.exec(`UPDATE verification_codes SET created_at=datetime('now','-2 hours')`); // UTC 存储域，用 UTC 挪时间
     const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
     assert.equal(r.ok, true, `第 ${i + 2} 次应成功`);
   }
-  raw.exec(`UPDATE verification_codes SET created_at=datetime('now','localtime','-2 hours')`);
+  raw.exec(`UPDATE verification_codes SET created_at=datetime('now','-2 hours')`); // UTC 存储域，用 UTC 挪时间
   const over = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
   assert.equal(over.ok, false);
   assert.equal((await over.err.json()).error, '今日验证码发送次数已达上限，请明天再试');
+});
+
+test('requestOtp：过期行清理（v0.27.3 #19：注释承诺的 DELETE 落地，防 verification_codes 膨胀）', async () => {
+  const { raw, db } = await setup();
+  const target = '+8613812345678';
+  const hash = await tokenDigest(target);
+  const r1 = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  assert.equal(r1.ok, true);
+  let cnt = raw.prepare('SELECT COUNT(*) c FROM verification_codes WHERE channel=? AND target_hash=?').get('sms', hash).c;
+  assert.equal(cnt, 1, '发码后仅 1 行');
+  // 把既有行过期（expires_at UTC 改到 1 分钟前）→ 再发码：过期行应被 DELETE 清理，不再拦重发
+  raw.exec(`UPDATE verification_codes SET expires_at=datetime('now','-1 minute')`);
+  const r2 = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  assert.equal(r2.ok, true, '过期行已清，60s 窗口不误拦');
+  cnt = raw.prepare('SELECT COUNT(*) c FROM verification_codes WHERE channel=? AND target_hash=?').get('sms', hash).c;
+  assert.equal(cnt, 1, '过期行已删，仅剩新码 1 行（不膨胀）');
 });
 
 test('verifyOtp：正确/错误/一次性消费', async () => {

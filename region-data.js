@@ -147,16 +147,78 @@
       chinese: '语文', math: '数学', english: '英语', physics: '物理', chemistry: '化学',
       biology: '生物', history: '历史', geography: '地理', politics: '政治', technology: '技术',
     },
-    subjectMaxScore: { chinese: 150, math: 150, english: 150 }, // 其余默认 100
+    subjectMaxScore: { chinese: 150, math: 150, english: 150 }, // 其余默认 100（仅高中主科走此键；初中按省 middleScore）
 
-    // 主科满分按学段适配（v0.27.2 用户反馈「小学一年级语文满分 150 荒谬」）。
-    // 政策调研（各省市）：高考语数外 150 全国统一；中考各省 100-150 不等（北京 100/上海数学 150/成都英语 150 等）；
-    // 小学语数英 100 分制全国统一。定策：主科满分 小学=100（核心修复）、初中=150（取各省中考高值防拒合法高分）、
-    // 高中=150（高考口径）。非主科恒 100（subjectMaxScore 无此键 → 100）。前后端同读本函数（单源）。
-    subjectMaxForStage(subjectId, gradeId) {
-      const base = this.subjectMaxScore[subjectId] || 100;
-      if (base === 150 && this.stageOfGrade(gradeId) === 'primary') return 100;
-      return base;
+    // 每省「初中平时卷满分」惯例（v0.27.3 #22 用户需求，web 核实 2026-08-11，五路只读调研：
+    // 华北东北/华东/中南华南/西南/西北，来源省教育厅/招考文件与实证卷面）。
+    // 通用缺省：小学主科 100（全国统一）／ 初中主科 100 ／ 高中主科 150（高考口径）／ 副科 100。
+    // 实测主流模式：多数省全程用中考分制命题（120 分制省初一即 120 分卷）；
+    //   150 分制省中 新疆/福建全程 150，上海/重庆/安徽「初一初二 100、初三才切 150」；青海「初一初二 100、初三切 120」。
+    // 结构：省份值可简写数字（语数外同分）或对象 { main, switch }——
+    //   main:   主科（语数外）平时卷满分，数字（三科同分）或 {subject:满分}（缺省科目 100；如 湖南英100）；
+    //   switch: 'junior3' 主科从该年级起才用 main、此前年级用 100（缺省全程用 main）。
+    // subjectMax 子表：副科满分特例（缺省 100；如 上海历史笔试 30）。卷面 100 折算计分者（湖南/福建/云南）
+    //   按卷面 100 记（学校卷面即 100）；北京/山东史政等级制不计分 → 缺省 100。
+    middleScore: {
+      // —— 120 分制省（全程同中考分命题）——
+      tianjin: 120, hebei: 120, shanxi: 120, liaoning: 120, jilin: 120, heilongjiang: 120,
+      jiangsu: 120, zhejiang: 120, jiangxi: 120, shandong: 120,
+      henan: 120, hubei: 120, guangdong: 120, guangxi: 120, hainan: 120,
+      xizang: 120, shaanxi: 120, gansu: 120, qinghai: { main: 120, switch: 'junior3' }, ningxia: 120,
+      // —— 150 分制省 ——
+      fujian: 150, xinjiang: 150, sichuan: 150, guizhou: 150,
+      anhui: { main: { chinese: 150, math: 150, english: 120 }, switch: 'junior3' },
+      shanghai: { main: 150, switch: 'junior3' },
+      chongqing: { main: 150, switch: 'junior3' },
+      // —— 特殊：湖南英语 100 ——
+      hunan: { main: { chinese: 120, math: 120, english: 100 } },
+      // —— 100 分制省（beijing/neimenggu/yunnan = 缺省 100，不写）——
+      subjectMax: {
+        tianjin: { history: 100, politics: 100 }, hebei: { history: 60, politics: 60 },
+        shanxi: { history: 75, politics: 75 }, neimenggu: { history: 50, politics: 50 },
+        liaoning: { history: 70, politics: 70 }, jilin: { history: 60, politics: 60 },
+        heilongjiang: { history: 70, politics: 70 }, shanghai: { history: 30, politics: 60 },
+        jiangsu: { history: 60, politics: 60 }, zhejiang: { history: 100, politics: 100 },
+        anhui: { history: 70, politics: 80 }, fujian: { history: 100, politics: 100 },
+        jiangxi: { history: 80, politics: 80 },
+        henan: { history: 50, politics: 70 }, hubei: { history: 60, politics: 60 },
+        hunan: { history: 100, politics: 100 }, guangdong: { history: 90, politics: 90 },
+        guangxi: { history: 75, politics: 75 }, hainan: { history: 100, politics: 100 },
+        chongqing: { history: 50, politics: 50 }, sichuan: { history: 100, politics: 100 },
+        guizhou: { history: 60, politics: 70 }, yunnan: { history: 100, politics: 100 },
+        xizang: { history: 80, politics: 80 }, shaanxi: { history: 60, politics: 80 },
+        gansu: { history: 50, politics: 50 }, qinghai: { history: 60, politics: 60 },
+        ningxia: { history: 30, politics: 70 }, xinjiang: { history: 75, politics: 75 },
+      },
+    },
+
+    // 年级在学段内排序（prep<junior1..3<senior1..3；小学恒 100 用不到，兜底 0 防误用）
+    gradeIndex(gradeId) {
+      const s = String(gradeId || '');
+      if (s === 'prep') return 0;
+      const m = /^(junior|senior)(\d)/.exec(s);
+      if (m) return Number(m[2]) || 0;
+      return 0;
+    },
+
+    // 主科满分按省+年级（v0.27.3 #22 每省每年级科目/分数政策，用户需求「按惯例主流(>50%)设定每个年级的科目/分数政策」）。
+    // 小学恒 100（全国统一）；高中主科 150（高考口径）、副科 100；初中按省 middleScore（主科中考口径 + 切换年级 + 副科特例）。
+    // 年级为空/非法 → 保守 100（v0.27.3 走查 #18：150 只适配 middle/senior，空年级钳制不再被绕过）。
+    // 前后端同读本函数（单源）。非主科无省特例恒 100。
+    subjectMaxFor(provinceId, subjectId, gradeId) {
+      const stage = this.stageOfGrade(gradeId);
+      if (stage === 'primary' || !stage) return 100;
+      if (stage === 'senior') return this.subjectMaxScore[subjectId] || 100;
+      // 初中（middle）：副科特例优先（如 上海历史笔试 30）
+      const sm = this.middleScore.subjectMax;
+      if (sm && sm[provinceId] && sm[provinceId][subjectId] != null) return sm[provinceId][subjectId];
+      const isMain = subjectId === 'chinese' || subjectId === 'math' || subjectId === 'english';
+      if (!isMain) return 100;
+      const raw = this.middleScore[provinceId];
+      const cfg = raw == null ? { main: 100 } : (typeof raw === 'number' ? { main: raw } : raw);
+      const mainMax = typeof cfg.main === 'number' ? cfg.main : (cfg.main && cfg.main[subjectId]) || 100;
+      if (cfg.switch && this.gradeIndex(gradeId) < this.gradeIndex(cfg.switch)) return 100;
+      return mainMax;
     },
 
     // 义务教育阶段通用等第（小学/初中平时成绩的"等第制"选项）

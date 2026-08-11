@@ -30,17 +30,21 @@ export const DOMAIN_FILES = [
 ];
 
 const hash = s => createHash('sha256').update(s, 'utf8').digest('hex').slice(0, HASH_LEN);
+// 行尾归一化（v0.27.2 走查修复）：autocrlf=true 的 Windows 检出会把 LF 转 CRLF，直接哈希原始字节
+// 会让 CRLF 环境生成与 LF 环境不同的哈希 → 红线测试在 CRLF 检出下误报「manifest 过期」。
+// 哈希前统一归一化为 LF（git 库内即 LF），跨环境确定性；LF 环境下归一化是 no-op，哈希不变。
+const normLf = s => s.replace(/\r\n/g, '\n');
 
 /** 纯函数：读当前源码 → 返回 manifest.js 完整内容（测试据此校验已提交 manifest 是否过期） */
 export function renderManifest() {
   // index.html 引用的 js/css（base 名；本脚本不改写 index.html，改写由 worker 服务时做）
-  const html = readFileSync('index.html', 'utf8');
+  const html = normLf(readFileSync('index.html', 'utf8'));
   const refs = [...new Set([...html.matchAll(/(?:src|href)="\/([a-zA-Z0-9._-]+\.(?:js|css))"/g)].map(m => m[1]))];
   const all = [...new Set([...refs, ...DOMAIN_FILES])];
 
   const files = {};
   for (const base of all) {
-    const src = readFileSync(base, 'utf8');
+    const src = normLf(readFileSync(base, 'utf8'));
     const h = hash(src);
     files[base] = base.replace(/\.(js|css)$/, `.${h}.$1`);
   }

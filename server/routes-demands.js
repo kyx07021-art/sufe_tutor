@@ -95,8 +95,8 @@ function sanitizeDemand(d) {
   d.preferred_teacher_gender = PREFERRED_GENDERS.has(d.preferred_teacher_gender) ? d.preferred_teacher_gender : '';
   // R2-11 学生性别：白名单 ['','male','female','nonbinary']，非法回退 ''（'' = 不愿透露）
   d.student_gender = DEMAND_GENDERS.has(d.student_gender) ? d.student_gender : '';
-  // B3（v0.27.2 用户反馈「小学一年级语文满分 150」）：平时成绩主科满分按学段钳制——
-  // 前端输入 max 已按 subjectMaxForStage（小学主科 100），服务端同口径兜底（防绕过前端直传 150）。
+  // B3（v0.27.2「小学一年级语文满分 150」）+ #22（v0.27.3 每省每年级政策）：平时成绩满分按省+年级钳制——
+  // 前端输入 max 已按 subjectMaxFor（省+年级，region-data 单源），服务端同口径兜底（防绕过前端直传 150）。
   // 只钳制分数模式（mode='score' 或 legacy scale>0）；等第模式无数值不改。非法项剔除。
   if (Array.isArray(d.current_scores)) {
     const R = globalThis.SUFE_REGIONS;
@@ -105,7 +105,7 @@ function sanitizeDemand(d) {
       .map(cs => {
         if (!cs || typeof cs !== 'object' || typeof cs.subject !== 'string' || !R.subjectNames[cs.subject]) return null;
         if (cs.mode === 'score' || Number(cs.scale) > 0) {
-          const max = R.subjectMaxForStage(cs.subject, d.student_grade);
+          const max = R.subjectMaxFor(d.province, cs.subject, d.student_grade);
           const n = Number(cs.score);
           if (!isFinite(n) || n < 0) { cs.score = ''; }
           else if (n > max) { cs.score = String(max); }

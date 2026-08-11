@@ -5,7 +5,8 @@
  * 小学语数英 100 分制全国统一。定策：主科满分 小学=100、初中=150（取各省中考高值防拒合法高分）、高中=150（高考）。
  *
  * 覆盖：
- *   - region-data subjectMaxForStage 单源：小学主科 100 / 初中·高中主科 150 / 非主科恒 100 / 无年级回 150
+ *   - region-data subjectMaxFor 省+年级单源：小学 100 / 高中主科 150 / 初中按省 middleScore
+ *     （上海初二100初三切150、河南全程120、新疆全程150、湖南英100、青海初二100初三切120、副科省特例）/ 空年级钳回 100
  *   - buildStudentScoreRows 渲染：小学语文 max=100「/ 100」、高中语文 max=150「/ 150」
  *   - 服务端 sanitizeDemand 兜底：小学 current_scores 语文 150 → 钳到 100 落库；高中 150 → 保持
  */
@@ -39,16 +40,41 @@ function frontCtx(files) {
   return ctx;
 }
 
-test('B3 subjectMaxForStage 单源：小学主科 100 / 初中·高中 150 / 非主科恒 100 / 无年级 150', () => {
+test('B3+#22 subjectMaxFor 省+年级单源：小学 100 / 高中 150 / 初中按省（含切换年级与副科特例）', () => {
   const ctx = frontCtx(['constants.js', 'region-data.js', 'app-display.js', 'app-state.js']);
   const R = vm.runInContext('globalThis.SUFE_REGIONS', ctx);
-  assert.equal(R.subjectMaxForStage('chinese', 'p1'), 100, '小学一年级语文 100（核心修复）');
-  assert.equal(R.subjectMaxForStage('math', 'p6'), 100, '小学六年级数学 100');
-  assert.equal(R.subjectMaxForStage('english', 'junior1'), 150, '初一英语 150（中考各省高值兜底）');
-  assert.equal(R.subjectMaxForStage('chinese', 'prep'), 150, '预备班（初中阶段）语文 150');
-  assert.equal(R.subjectMaxForStage('chinese', 'senior1'), 150, '高一语文 150（高考口径）');
-  assert.equal(R.subjectMaxForStage('physics', 'p1'), 100, '非主科恒 100');
-  assert.equal(R.subjectMaxForStage('chinese', ''), 150, '无年级回 150（默认高考口径）');
+  // 小学：全国统一 100
+  assert.equal(R.subjectMaxFor('jiangsu', 'chinese', 'p1'), 100, '小学一年级语文 100（核心修复）');
+  assert.equal(R.subjectMaxFor('jiangsu', 'math', 'p6'), 100, '小学六年级数学 100');
+  // 高中：主科 150（高考口径）、副科 100
+  assert.equal(R.subjectMaxFor('jiangsu', 'chinese', 'senior1'), 150, '高一语文 150（高考口径）');
+  assert.equal(R.subjectMaxFor('jiangsu', 'physics', 'senior1'), 100, '高中非主科 100');
+  // 上海：初二及以下 100、初三切 150（用户原话 + 2025-2026 八年级期末卷 100/一模二模 150 实证）
+  assert.equal(R.subjectMaxFor('shanghai', 'math', 'prep'), 100, '上海预备班（五四制六年级）数学 100');
+  assert.equal(R.subjectMaxFor('shanghai', 'math', 'junior1'), 100, '上海初一数学 100');
+  assert.equal(R.subjectMaxFor('shanghai', 'math', 'junior2'), 100, '上海初二数学 100');
+  assert.equal(R.subjectMaxFor('shanghai', 'math', 'junior3'), 150, '上海初三数学 150（切换）');
+  // 上海副科特例：历史笔试 30；无特例副科 100
+  assert.equal(R.subjectMaxFor('shanghai', 'history', 'junior3'), 30, '上海历史笔试满分 30');
+  assert.equal(R.subjectMaxFor('shanghai', 'physics', 'junior3'), 100, '上海物理无特例 100');
+  // 120 分制省全程；100 分制省缺省；150 分制省全程
+  assert.equal(R.subjectMaxFor('henan', 'chinese', 'junior1'), 120, '河南初一语文 120（全程同中考分命题）');
+  assert.equal(R.subjectMaxFor('henan', 'chinese', 'junior3'), 120, '河南初三语文 120');
+  assert.equal(R.subjectMaxFor('yunnan', 'math', 'junior3'), 100, '云南初三数学 100（100 分制）');
+  assert.equal(R.subjectMaxFor('xinjiang', 'math', 'junior1'), 150, '新疆初一数学 150（全程 150）');
+  // 湖南英语 100 特例
+  assert.equal(R.subjectMaxFor('hunan', 'chinese', 'junior1'), 120, '湖南初一语文 120');
+  assert.equal(R.subjectMaxFor('hunan', 'english', 'junior1'), 100, '湖南初一英语 100（卷面 100）');
+  // 青海：初一初二 100、初三切 120
+  assert.equal(R.subjectMaxFor('qinghai', 'math', 'junior2'), 100, '青海初二数学 100');
+  assert.equal(R.subjectMaxFor('qinghai', 'math', 'junior3'), 120, '青海初三数学 120（切换）');
+  // 副科省特例（河南历史 50 / 道法 70）
+  assert.equal(R.subjectMaxFor('henan', 'history', 'junior3'), 50, '河南历史 50');
+  assert.equal(R.subjectMaxFor('henan', 'politics', 'junior3'), 70, '河南道法 70');
+  // 空/非法年级 → 保守 100（v0.27.3 走查 #18：150 只适配中学，空年级钳制不被绕过）
+  assert.equal(R.subjectMaxFor('jiangsu', 'chinese', ''), 100, '年级为空 → 钳回 100');
+  assert.equal(R.subjectMaxFor('jiangsu', 'chinese', null), 100, '年级 null → 钳回 100');
+  assert.equal(R.subjectMaxFor('jiangsu', 'chinese', 'bogus'), 100, '非法年级 → 钳回 100');
 });
 
 test('B3 buildStudentScoreRows 渲染：小学语文 /100、高中语文 /150（输入 max 随学段）', () => {

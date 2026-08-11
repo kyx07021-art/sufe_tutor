@@ -1901,36 +1901,35 @@ const CONTENT_SQL = {
     FROM signing_requests s LEFT JOIN users u ON u.id=s.initiator_user_id ORDER BY s.id DESC LIMIT ?`,
 };
 
+// v0.27.3 走查键控化：SQL 与行映射都按类型字符串键控（CONTENT_MAPPER[t]），
+// 类型清单由 CONTENT_SQL 的键派生（CONTENT_TYPES）——增类型只改 CONTENT_SQL + CONTENT_MAPPER
+// 两处同名键，清单自动跟随，杜绝「硬编码清单与表域错位」（曾两轮审查分别漏补不同类型）。
+// 无效 type（非键）→ 返回空列表，不再崩溃。
+const CONTENT_MAPPER = {
+  post: r => ({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } }),
+  demand: r => ({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `需求 #${r.display_id || r.id}`, body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
+  teacher: r => ({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: `教师档案 · ${r.username || ''}`, body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} }),
+  review: r => ({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: `评价 ${r.rating} 星`, body: r.comment, status: r.status, created_at: r.created_at, extra: {} }),
+  message: r => ({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? '聊天消息' : `附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } }),
+  feedback: r => ({ type: 'feedback', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title || `反馈（${r.kind}）`, body: r.content, status: r.status, created_at: r.created_at, extra: { kind: r.kind } }),
+  complaint: r => ({ type: 'complaint', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `投诉 ${r.target_type} #${r.target_id}（${r.reason}）`, body: r.detail, status: r.status, created_at: r.created_at, extra: { target_type: r.target_type, target_id: r.target_id } }),
+  upload: r => ({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `暂存附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } }),
+  contract: r => ({ type: 'contract', id: r.id, author: { id: r.drafter_user_id, username: r.username, role: r.role }, title: '合同', body: [r.plan, r.schedule].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
+  signing: r => ({ type: 'signing', id: r.id, author: { id: r.initiator_user_id, username: r.username, role: r.role }, title: `签约请求 ${r.price > 0 ? r.price + ' 元/时' : ''}`, body: [r.schedule, r.method].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
+};
+
 function mapContentRows(t, rows, out) {
-  for (const r of rows) {
-    if (t === 'post') {
-      out.push({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } });
-    } else if (t === 'demand') {
-      out.push({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `需求 #${r.display_id || r.id}`, body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
-    } else if (t === 'teacher') {
-      out.push({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: `教师档案 · ${r.username || ''}`, body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} });
-    } else if (t === 'review') {
-      out.push({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: `评价 ${r.rating} 星`, body: r.comment, status: r.status, created_at: r.created_at, extra: {} });
-    } else if (t === 'message') {
-      out.push({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? '聊天消息' : `附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } });
-    } else if (t === 'feedback') {
-      out.push({ type: 'feedback', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title || `反馈（${r.kind}）`, body: r.content, status: r.status, created_at: r.created_at, extra: { kind: r.kind } });
-    } else if (t === 'complaint') {
-      out.push({ type: 'complaint', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `投诉 ${r.target_type} #${r.target_id}（${r.reason}）`, body: r.detail, status: r.status, created_at: r.created_at, extra: { target_type: r.target_type, target_id: r.target_id } });
-    } else if (t === 'upload') {
-      out.push({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `暂存附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } });
-    } else if (t === 'contract') {
-      out.push({ type: 'contract', id: r.id, author: { id: r.drafter_user_id, username: r.username, role: r.role }, title: '合同', body: [r.plan, r.schedule].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
-    } else if (t === 'signing') {
-      out.push({ type: 'signing', id: r.id, author: { id: r.initiator_user_id, username: r.username, role: r.role }, title: `签约请求 ${r.price > 0 ? r.price + ' 元/时' : ''}`, body: [r.schedule, r.method].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} });
-    }
-  }
+  const m = CONTENT_MAPPER[t];
+  if (!m) return; // 类型键无映射（新增表域忘补映射）→ 跳过；清单本身由 CONTENT_SQL 键派生不会漏列
+  for (const r of rows) out.push(m(r));
 }
+
+export const CONTENT_TYPES = Object.keys(CONTENT_SQL); // 单源：类型清单自动跟随 CONTENT_SQL 键（v0.27.3 去硬编码数组）
 
 export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUBLIC_LIST_MAX } = {}) {
   // 审查补丁：补 contract（合同正文——最敏感的用户内容）与 signing（签约请求），
   // 统一内容页现在可审全部用户可操作内容。
-  const types = type ? [type] : ['post', 'demand', 'teacher', 'review', 'message', 'feedback', 'complaint', 'upload', 'contract', 'signing'];
+  const types = (type && CONTENT_SQL[type]) ? [type] : (type ? [] : CONTENT_TYPES);
   const results = await db.batch(types.map(t => db.prepare(CONTENT_SQL[t]).bind(limit)));
   const out = [];
   results.forEach((r, i) => mapContentRows(types[i], (r && r.results) || [], out));
