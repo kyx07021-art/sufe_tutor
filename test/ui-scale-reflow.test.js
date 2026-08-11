@@ -162,3 +162,20 @@ test('页面切换后 prepare 重采：新可见页单元收录、旧页单元�
   assert.ok(after.some(u => u.el.id === 'c3'), '切换后收录新可见页卡片 c3');
   assert.ok(!after.some(u => u.el.id === 'c1'), '切换后移除旧页卡片 c1');
 });
+
+test('陈旧守卫：预热采样后元素被重渲染摘除（isConnected=false）→ prepare 重建，死元素单元剔除（生产实证 54/144 脱树）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare()`, ctx);
+  const before = vm.runInContext(`window.__uiScaleReflow._units()`, ctx);
+  assert.ok(before.some(u => u.el.id === 'c1'), '预热后含 c1 单元');
+  // 模拟异步重渲染摘除 c1（innerHTML 替换把采样元素摘离 DOM）
+  vm.runInContext(`document.getElementById('c1').remove()`, ctx);
+  const ready = vm.runInContext(`window.__uiScaleReflow.prepare()`, ctx);
+  assert.equal(ready, true, '陈旧检测到脱树后重建成功返回就绪');
+  const after = vm.runInContext(`window.__uiScaleReflow._units()`, ctx);
+  assert.ok(!after.some(u => u.el.id === 'c1'), '重建后死元素 c1 单元剔除');
+  assert.ok(after.some(u => u.el.id === 'c2'), '重建后仍收录存活元素 c2');
+  // 重建后采样可用（目标位有值）
+  vm.runInContext(`window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  assert.ok(vm.runInContext(`document.querySelectorAll('[data-ui-reflow-unit]').length`, ctx) > 0, '重建后 renderAt 生效挂属性');
+});

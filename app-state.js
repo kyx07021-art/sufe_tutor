@@ -256,6 +256,10 @@ function _uiScalePreviewApply(c) {
     R.renderAt(c);
     return;
   }
+  // 回落分支：先清 reflow 状态（teardown + 撤 data-ui-reflowing），防「reflow 预览在途时 prepare 失败」
+  // 叠加两套门控（理论双门控，客户端壳内不可达但防御无成本）
+  if (window.__uiScaleReflow) window.__uiScaleReflow.teardown();
+  delete document.documentElement.dataset.uiReflowing;
   document.documentElement.style.setProperty('--ui-preview-scale', (c / 100).toFixed(3));
   document.documentElement.dataset.uiPreviewing = '1';
 }

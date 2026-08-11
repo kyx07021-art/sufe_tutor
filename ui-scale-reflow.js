@@ -19,8 +19,8 @@
  *      translate 含祖先 transform 补偿）→ 写进单张 <style>（合成器只读）。
  *   4. teardown：撤 data 属性 + 清样式表，成对零残留。
  *
- * 铁律相容：JS 只写 CSS 变量/属性（data-ui-reflow-unit/--ui-preview 由本模块管理，transform 全在
- *   CSS 呈现层经动态样式表消费）；无内联样式；无 transition/逐帧动画（静态 transform）；真实页零 reflow。
+ * 铁律相容：JS 只写 CSS 变量/属性（data-ui-reflow-unit 由本模块管理，transform 全在 CSS 呈现层经
+ *   动态样式表消费）；无内联样式；无 transition/逐帧动画（静态 transform）；真实页零 reflow。
  */
 (function () {
   var SAMPLE_STEP = 5; // CONFIG.UI_SCALE_REFLOW_SAMPLE_STEP 单源（app-state 读后覆写）
@@ -29,7 +29,7 @@
   var SHELL_SELECTORS = ['.navbar', '.sidebar', '.client-main'];
   var EXCLUDE_SELECTORS = ['.ui-scale-row', '.ui-scale-control', '.ui-scale-slider', '.toast', '#toast-container', '.modal', '.modal-overlay', '#modal-container'];
 
-  var units = [];       // [{el, base:{x,y,w,h}, targets:{80:{...},...}, parentIdx, tx,ty,sx,sy, rx,ry(rendered base)}]
+  var units = [];       // [{el, base:{x,y,w,h}, targets:{80:{...},...}, parentIdx, tx,ty,sx,sy, _ancX,_ancY,_ancSx,_ancSy}]
   var unitByEl = new WeakMap();
   var styleEl = null;
   var sampledPage = null; // 采样的可见 .client-page 引用（变了要重采）
@@ -232,15 +232,27 @@
   function teardown() {
     if (styleEl) { styleEl.textContent = ''; }
     for (var i = 0; i < units.length; i++) units[i].el.removeAttribute('data-ui-reflow-unit');
+    // 全量清扫：跨页循环中「上次是单元、本次不是」的残留属性（旧元素仍在 DOM）一并撤，零残留
+    var stale = document.querySelectorAll('[data-ui-reflow-unit]');
+    for (var s = 0; s < stale.length; s++) stale[s].removeAttribute('data-ui-reflow-unit');
     units = [];
     unitByEl = new WeakMap();
     active = false;
   }
 
-  // 惰性准备：可见页变化或未采样 → 重建单元 + 采样；返回是否就绪
+  // 惰性准备：可见页变化 / 未采样 / 缓存单元元素被重渲染摘除 → 重建单元 + 采样；返回是否就绪。
+  // 陈旧守卫（生产实证）：设置页异步填充（设备列表/凭证值/用户名冷却）在预热采样后 innerHTML 重渲染，
+  // 会把采样的元素摘离 DOM——缓存单元引用旧元素，renderAt 给死元素挂 transform，新渲染内容零预览
+  // （拖动期「行没动」）。isConnected 检查 144 单元 <0.1ms，检测到任何脱树即整批重建重采样（一次 ~150-400ms
+  // 后台预热成本，拖动中只发生一次，之后缓存有效）。注意：只对「采样过的页」做陈旧检测，页面变化走既有分支。
   function prepare() {
     var page = visiblePage();
-    if (page && page === sampledPage && units.length) return true;
+    if (page && page === sampledPage && units.length) {
+      for (var i = 0; i < units.length; i++) {
+        if (!units[i].el.isConnected) { units = []; unitByEl = new WeakMap(); break; } // 陈旧 → 强制重建（走下方收集）
+      }
+      if (units.length) return true;
+    }
     try {
       collectUnits();
       if (units.length) sampleTargets();
