@@ -245,14 +245,33 @@ function _uiScaleFlush() {
 // B3 真实页面分块缩放：把目标缩放系数写入 --ui-preview-scale（<html>）+ data-ui-previewing 门控
 // （CSS 据此对真实页面顶栏/侧栏头脚/内容区分块 transform:scale；门控保证平时无 transform，
 // 避免 scale(1) 残留 stacking context / containing block 干扰 fixed 定位）。
+// v0.27.6 元素级模拟重排：采样就绪时改走 __uiScaleReflow（per-element transform 驱动真实重排目标位，
+// 合成器只读零 reflow），此时不写 --ui-preview-scale、不挂 data-ui-previewing（互斥，4 分块规则不命中）；
+// 采样未就绪回落本分块预览。门控互斥保证两套 transform 不叠加。
 function _uiScalePreviewApply(c) {
+  const R = window.__uiScaleReflow;
+  if (R && R.prepare()) {
+    document.documentElement.dataset.uiReflowing = '1';
+    R.begin();
+    R.renderAt(c);
+    return;
+  }
   document.documentElement.style.setProperty('--ui-preview-scale', (c / 100).toFixed(3));
   document.documentElement.dataset.uiPreviewing = '1';
 }
-// 预览结束（commit/同步路径）：清预览缩放变量 + 撤门控（真实页面已按 --ui-scale 呈现最终效果）
+// 预览结束（commit/同步路径）：清 reflow 单元 transform + 撤两套门控（真实页面已按 --ui-scale 呈现最终效果）
 function _uiScalePreviewReset() {
+  if (window.__uiScaleReflow) window.__uiScaleReflow.teardown();
+  delete document.documentElement.dataset.uiReflowing;
   document.documentElement.style.removeProperty('--ui-preview-scale');
   delete document.documentElement.dataset.uiPreviewing;
+}
+// v0.27.6：设置页进入时后台预热元素级模拟重排采样（真实重排目标位 ~270ms 一次性，含 flash-free 采样），
+// 拖动前就绪则拖动即用元素级；否则回落分块预览。采样失败/页面变化自动回落（prepare 惰性重采）。
+function _uiScaleReflowWarm() {
+  const R = window.__uiScaleReflow;
+  if (!R) return;
+  setTimeout(() => { try { R.prepare(); } catch (e) { /* 采样失败回落分块预览 */ } }, 350);
 }
 // 同步应用（无合并；首帧/测试路径），返回钳制值
 function setUiScale(v) {

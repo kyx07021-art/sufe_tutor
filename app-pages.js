@@ -132,6 +132,7 @@ function enterAccountSettings() {
     <button type="button" class="btn settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate glass" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
   bindUiScaleSlider(); // v0.25.103 B1：滑块渲染后接管 pointer 差分拖动（html transform 预览的正反馈根治）
+  _uiScaleReflowWarm(); // v0.27.6：进设置页即后台预热元素级模拟重排采样，拖动前就绪则拖动即元素级
   loadDeviceSessions();
   loadPrivacySettings(); // #163：进页异步读本人访客可见性设置（无行=默认允许）
   loadUsernameStatus(); // v0.26.0 B5：用户名 7 天冷却按钮态（倒计时/灰化）

@@ -96,7 +96,9 @@ const ROLE_PAGES = {
 // ------------------------------------------------------------
 const DOMAIN_FILES = [
   'region-data.js', 'app-style.js', 'app-region.js', 'app-posts.js', 'app-chat.js',
-  'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-complaints.js',
+  'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js',
+  'ui-scale-reflow.js', // v0.27.6：UI 滑块元素级模拟重排（共享层工具，仅客户端设置页用；app-state typeof 防御访问）
+  'app-pages.js', 'app-complaints.js',
 ];
 let __domainLoaded = false;
 let __domainReloadOnce = false; // v0.25.100：领域脚本 404 重试耗尽后整页刷新自愈——只触发一次，防死循环

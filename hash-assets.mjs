@@ -26,7 +26,8 @@ const HASH_LEN = 8;
 // 与 app-shell.js DOMAIN_FILES 必须同步（懒加载脚本不在 index.html）
 export const DOMAIN_FILES = [
   'region-data.js', 'app-style.js', 'app-region.js', 'app-posts.js', 'app-chat.js',
-  'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-complaints.js',
+  'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js',
+  'ui-scale-reflow.js', 'app-pages.js', 'app-complaints.js',
 ];
 
 const hash = s => createHash('sha256').update(s, 'utf8').digest('hex').slice(0, HASH_LEN);

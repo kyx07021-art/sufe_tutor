@@ -13,7 +13,7 @@ import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 
 const BOOT = ['constants.js','app-display.js','app-state.js','app-api.js','app-datahub.js','app-anim.js','app-ui.js','app-otp.js','app-captcha.js','app-onboard.js','app-shell.js','app-auth.js'];
-const DOMAIN = ['region-data.js','app-style.js','app-region.js','app-posts.js','app-chat.js','app-contracts.js','app-chart.js','app-admin.js','app-demands.js','app-teachers.js','app-pages.js','app-complaints.js'];
+const DOMAIN = ['region-data.js','app-style.js','app-region.js','app-posts.js','app-chat.js','app-contracts.js','app-chart.js','app-admin.js','app-demands.js','app-teachers.js','ui-scale-reflow.js','app-pages.js','app-complaints.js'];
 const ALL = [...BOOT, ...DOMAIN];
 
 test('index.html 只同步加载 12 个 boot 脚本，12 个领域脚本全部移除', () => {
