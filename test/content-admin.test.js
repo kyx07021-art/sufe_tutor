@@ -25,6 +25,9 @@ function d1Shim(raw) {
       return st;
     },
     async batch(stmts) {
+      // v0.27.3 #21 生产实证：真实 D1 空数组 batch 会抛错，mock 忠实还原（曾因 mock 空 batch 返回 []
+      // 掩盖「无效 type 500」回归——线上 500 抓出，修复=空清单提前返回，本 shim 从此拦截该回归）
+      if (!stmts.length) throw new Error('D1 batch requires at least one statement');
       raw.exec('BEGIN');
       try { const out = [];
         for (const s of stmts) {

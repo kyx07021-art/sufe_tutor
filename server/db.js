@@ -1930,6 +1930,8 @@ export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUB
   // 审查补丁：补 contract（合同正文——最敏感的用户内容）与 signing（签约请求），
   // 统一内容页现在可审全部用户可操作内容。
   const types = (type && CONTENT_SQL[type]) ? [type] : (type ? [] : CONTENT_TYPES);
+  if (!types.length) return []; // 无效 type/空清单 → 空结果；不调 D1 batch([])（真实 D1 空数组 batch 会抛错，
+    // v0.27.3 #21 生产验证实证：mock shim 空 batch 返回 [] 掩盖了该路径，线上 500）
   const results = await db.batch(types.map(t => db.prepare(CONTENT_SQL[t]).bind(limit)));
   const out = [];
   results.forEach((r, i) => mapContentRows(types[i], (r && r.results) || [], out));
