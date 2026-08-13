@@ -45,6 +45,9 @@
   var styleEl = null;
   var sampledPage = null; // 采样的可见 .client-page 引用（变了要重采）
   var active = false;
+  var baseScale = 1;    // v0.31.5（P1）：collectUnits 时记录的当前 --ui-scale——文本单元字号比例必须
+                        // 相对此基数（scalePct/currentScale），绝对档位（scalePct/100）在非 100 基数下
+                        // 预览偏大（用户实证：105 基数预览 110 时按钮 55.6×32.4 vs 实际 58.2×34.4）
 
   function cssVars(cfg) {
     if (cfg && cfg.UI_SCALE_REFLOW_SAMPLE_STEP) SAMPLE_STEP = cfg.UI_SCALE_REFLOW_SAMPLE_STEP;
@@ -115,6 +118,9 @@
     unitByEl = new WeakMap();
     var page = visiblePage();
     sampledPage = page;
+    // v0.31.5（P1）：记录当前基数的 --ui-scale（默认未设 = 1/100%）——base rect 是此基数下的几何，
+    // 文本单元的相对字号比例以此为准（targetScale/currentScale），见 renderAt。
+    baseScale = parseFloat(document.documentElement.style.getPropertyValue('--ui-scale')) || 1;
     var roots = [];
     for (var i = 0; i < SHELL_SELECTORS.length; i++) {
       var list = document.querySelectorAll(SHELL_SELECTORS[i]);
@@ -247,9 +253,10 @@
       u.tx = u._ancSx ? (target.x - u._ancX) / u._ancSx : 0;
       u.ty = u._ancSy ? (target.y - u._ancY) / u._ancSy : 0;
       if (u.isText) {
-        // v0.31.4（P2）文本单元统一等比：视觉缩放 = 字号比例 scalePct/100（经祖先补偿除净 ancSx/ancSy），
-        // 文字恒不变形（用户「有的变扁有的等比，不统一」根治）；位置仍跟 target（tx/ty 已算）。
-        var fs = scalePct / 100;
+        // v0.31.4（P2）文本单元统一等比：文字永不变形（用户「有的变扁有的等比，不统一」根治）。
+        // v0.31.5（P1）基数修正：字号比例 = 目标 scale/当前 base scale（相对），非绝对档位——base
+        // 是 currentScale 下的 rect，绝对 fs=scalePct/100 在非 100 基数下预览偏大（按钮实证）。
+        var fs = (scalePct / 100) / baseScale;
         u.sx = u._ancSx ? fs / u._ancSx : fs;
         u.sy = u._ancSy ? fs / u._ancSy : fs;
       } else if (u.isDivider) {

@@ -174,7 +174,7 @@ test('R2-11 学生性别展示：demandStudentGenderName（网安 L2 修复）',
 // ============================================================
 // 需求五：上海精细地址选择组件（区→镇/街道二级联动；组合值写 #d-address 保持提交签名不变）
 // ============================================================
-test('需求五 地址区：无省份/非上海 隐藏；上海（不限教学方式）显示精细选择并组装值', () => {
+test('需求五 地址区：仅「上海+线下」显示精细选择并组装值（v0.31.5 P3 gate）', () => {
   const { dom, fns } = makeCtx();
   const doc = dom.window.document;
   doc.getElementById('modal-container').innerHTML = fns.renderDemandModal(null);
@@ -185,17 +185,26 @@ test('需求五 地址区：无省份/非上海 隐藏；上海（不限教学�
   const prov = doc.getElementById('d-province');
   assert.ok(section.classList.contains('hidden'), '无省份 → 地址区隐藏');
   assert.equal(addr.value, '', '隐藏时地址值清空');
-  // v0.31.0 任务三 wizard：教学方式归 P2、地址归 P1——上海即显示精细选择（不 gate 方式），
-  // 线上需求由服务端清空兜底。注：inline onchange 在 JSDOM window 域解析，测试直调函数（既有模式）
+  // v0.31.5（P3 用户返工）：授课区域移入 P2 期望教学方式，仅「上海+线下」显示——线上不强行报地址。
+  // 注：inline onchange 在 JSDOM window 域解析，测试直调函数（既有模式）
   prov.value = 'shanghai';
   fns.onDemandProvinceChange();
-  assert.ok(!section.classList.contains('hidden'), '上海（方式未选/默认线上）→ 地址区可见');
+  assert.ok(section.classList.contains('hidden'), '上海+默认线上 → 地址区隐藏（线上不要求地址）');
   assert.equal([...method.options].filter(o => o.disabled).length, 0, '上海放开线下（offline/both 不锁）');
-  assert.equal(addr.required, true, '上海地址必填');
-  // 方式切线上/线下都不影响 P1 地址区可见性（地址是 P1 字段）
+  // 切线下 → 地址区显示必填
+  method.value = 'offline';
+  fns.toggleAddressField();
+  assert.ok(!section.classList.contains('hidden'), '上海+线下 → 地址区可见');
+  assert.equal(addr.required, true, '上海+线下地址必填');
+  // 切回线上 → 隐藏 + 清值（防残留带进提交）
   method.value = 'online';
   fns.toggleAddressField();
-  assert.ok(!section.classList.contains('hidden'), '上海+线上 → 地址区仍可见（P1 字段不随 P2 方式隐藏）');
+  assert.ok(section.classList.contains('hidden'), '上海+线上 → 地址区隐藏');
+  assert.equal(addr.value, '', '线上隐藏清空地址值');
+  // 再切线下 → 显示，picker 正常
+  method.value = 'offline';
+  fns.toggleAddressField();
+  assert.ok(!section.classList.contains('hidden'), '上海+线下再显示');
   const dSel = doc.getElementById('d-district');
   const uSel = doc.getElementById('d-unit');
   assert.ok(dSel && uSel, '区/镇两个下拉渲染');

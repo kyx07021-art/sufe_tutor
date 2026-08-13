@@ -71,7 +71,7 @@ test('wizard 渲染：7 步常驻 DOM、初始 P1 激活、步进器 7 芯片、
   assert.equal(submit1.disabled, true, 'P1 提交按钮禁用（防 Enter 隐式提交半截表单，审计 🟡3）');
 });
 
-test('wizard 逐页校验：P1 缺省份 / 缺上海地址 → 不前进 + toast', () => {
+test('wizard 逐页校验：P1 缺省份拦截；P2 仅上海+线下缺地址拦截（线上放行）', () => {
   const { dom, fns, toasts } = makeCtx();
   const doc = dom.window.document;
   doc.getElementById('modal-container').innerHTML = fns.renderDemandModal(null);
@@ -80,16 +80,25 @@ test('wizard 逐页校验：P1 缺省份 / 缺上海地址 → 不前进 + toast
   fns.demandWizardNext(); // 无省份
   assert.deepEqual(active(), [1], '缺省份不前进');
   assert.equal(toasts().at(-1), '请选择省份', '缺省份 toast');
-  // 选上海但没选地址 → 拦截
+  // 选上海 → P1 通过（v0.31.5 P3：地址校验已移到 P2）→ 前进 P2
   doc.getElementById('d-province').value = 'shanghai';
   fns.onDemandProvinceChange();
   fns.demandWizardNext();
-  assert.deepEqual(active(), [1], '上海缺地址不前进');
+  assert.deepEqual(active(), [2], '上海 P1 通过 → P2（地址校验在 P2）');
+  // P2 默认线上 → 不需要地址 → 放行（用户选线上不被强行要求报地址）
+  fns.demandWizardNext();
+  assert.deepEqual(active(), [3], 'P2 线上不需要地址 → 放行到 P3');
+  // 回 P2 选线下 → 缺地址拦截
+  fns.demandWizardGoTo(2);
+  doc.getElementById('d-method').value = 'offline';
+  fns.toggleAddressField();
+  fns.demandWizardNext();
+  assert.deepEqual(active(), [2], '上海+线下缺地址不前进');
   assert.equal(toasts().at(-1), '请选择所在区与镇/街道', '缺地址 toast');
-  // 补地址 → 前进到 P2
+  // 补地址 → 通过
   doc.getElementById('d-address').value = '黄浦区·南京东路街道';
   fns.demandWizardNext();
-  assert.deepEqual(active(), [2], 'P1 校验通过 → P2');
+  assert.deepEqual(active(), [3], 'P2 补地址校验通过 → P3');
 });
 
 test('wizard 逐页校验：P3 缺年级 / P4 缺科目 / P7 缺联系方式 → 拦截；合法流到 P7 出提交按钮', () => {

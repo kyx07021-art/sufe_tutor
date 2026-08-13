@@ -154,7 +154,14 @@ function initCustomSelects(root) {
     sel.classList.add('hidden');
     const trigger = document.createElement('button');
     trigger.type = 'button';
-    trigger.className = 'custom-select-trigger';
+    // P4（v0.31.5 用户返工：「所有本质上是按钮而非输入框的下拉栏组件都应该用按钮配置」）：
+    // 按钮语境（筛选组/页头操作区）的下拉触发器接入标准按钮组件（.btn .btn-soft .glass .glass--pressable）——
+    // 玻璃引擎消费标准按钮 token（透明磨砂透镜+弯月环+白洗 hover+涟漪），与并列按钮同族；
+    // 表单/面板内下拉保持输入控件族。Q7（v0.25.101）曾只设 --g-fill/--g-frost 引擎变量不挂 .glass，
+    // 引擎不消费=高度/字重生效但观感仍是输入框（用户：「单纯统一高度到40px是没法解决观感问题的」）。
+    trigger.className = (sel.closest('.filter-group') || sel.closest('.page-header-actions'))
+      ? 'custom-select-trigger btn btn-soft glass glass--pressable'
+      : 'custom-select-trigger';
     trigger.setAttribute('onclick', 'toggleCustomSelect(this.closest(".custom-select"))');
     trigger.innerHTML = `<span class="custom-select-text"></span><span class="drop-caret">${CARET_SVG}</span>`;
     const panel = document.createElement('div');

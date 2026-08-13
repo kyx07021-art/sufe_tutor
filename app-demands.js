@@ -96,12 +96,23 @@ function renderDemandModal(demand) {
             ${DEMAND_WIZARD_STEPS.map((s, i) => `<div class="dw-step-chip" data-step="${i + 1}" title="${s}"><span class="dw-step-chip-dot"></span><span class="dw-step-chip-label">${s}</span></div>`).join('')}
           </div>
           <div class="dw-step" data-step="1">
-            <!-- P1 选省：选上海追加区 + 镇/街道（wizard 下地址区随省份即显示，不 gate 教学方式——方式在 P2） -->
+            <!-- P1 选省 -->
             <div class="form-group">
               <label class="form-label">${UI.LABEL_PROVINCE} <span class="req">*</span></label>
               <span id="d-province-wrap"></span>
               <div id="d-region-note"></div>
             </div>
+          </div>
+          <div class="dw-step" data-step="2">
+            <!-- P2 期望教学方式 + 授课区域（v0.31.5 P3：地址区从 P1 移入——仅「上海+线下」显示，
+                 用户选线上不再被强行要求报地址） -->
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_TEACHING_METHOD} <span class="req">*</span></label>
+              <select class="form-select" id="d-method" required onchange="toggleAddressField()">
+                ${TEACHING_METHODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
+              </select>
+            </div>
+            <p class="text-sm text-muted spacer-sm" id="d-method-note"></p>
             <div id="d-address-section">
               <div class="form-group">
                 <!-- 需求五：地址结构化（区·镇/街道 二级联动），picker 渲染进容器；隐藏 input 保持提交签名不变 -->
@@ -110,16 +121,6 @@ function renderDemandModal(demand) {
                 <input type="hidden" id="d-address" placeholder="${UI.ADDRESS_PLACEHOLDER}">
               </div>
             </div>
-          </div>
-          <div class="dw-step" data-step="2">
-            <!-- P2 期望教学方式 -->
-            <div class="form-group">
-              <label class="form-label">${UI.LABEL_TEACHING_METHOD} <span class="req">*</span></label>
-              <select class="form-select" id="d-method" required>
-                ${TEACHING_METHODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
-              </select>
-            </div>
-            <p class="text-sm text-muted spacer-sm" id="d-method-note"></p>
           </div>
           <div class="dw-step" data-step="3">
             <!-- P3 学生性别 + 年级 -->
@@ -273,8 +274,12 @@ function demandWizardValidateStep(n) {
   const gid = id => document.getElementById(id);
   if (n === 1) {
     if (!gid('d-province') || !gid('d-province').value) { showToast(UI.VALIDATE_SELECT_PROVINCE, 'error'); return false; }
-    // 上海地址区随省份即显示（不 gate 教学方式）——必填；服务端对线上需求清空兜底
-    if (gid('d-province').value === 'shanghai' && !gid('d-address').value.trim()) {
+    return true; // v0.31.5 P3：地址校验移入 P2（授课方式页，仅上海+线下必填）
+  }
+  if (n === 2) {
+    // v0.31.5 P3：授课区域仅「上海+线下」显示必填；线上/非上海不需要地址（服务端同口径清空兜底）
+    const needAddr = gid('d-province').value === 'shanghai' && gid('d-method').value === 'offline';
+    if (needAddr && !gid('d-address').value.trim()) {
       showToast(UI.VALIDATE_ADDRESS_REQUIRED, 'error'); return false;
     }
     return true;
@@ -392,12 +397,14 @@ function prefillStudentScores(scores) {
 
 function toggleAddressField() {
   const prov = document.getElementById('d-province').value;
+  const method = document.getElementById('d-method').value;
   const section = document.getElementById('d-address-section');
   const addrInput = document.getElementById('d-address');
-  // 需求五：地址结构化（区·镇/街道）。v0.31.0 任务三 wizard 起：教学方式归 P2、地址归 P1——
-  // 地址区随省份即显示（上海 显示精细选择，其余隐藏），不再 gate 教学方式；线上需求由服务端清空兜底。
-  const isShanghai = prov === 'shanghai';
-  if (!isShanghai) {
+  // v0.31.5（P3 用户返工）：授课区域从 P1 移入 P2（期望教学方式），仅「上海 + 线下」显示——
+  // 用户选线上不再被强行要求报地址（曾 gate 只按省份，线上也强制填，服务端清空兜底掩盖）。
+  // 线上/非上海：隐藏 + 清值（防提交带出残留）；上海+线下：显示精细选择必填。
+  const show = prov === 'shanghai' && method === 'offline';
+  if (!show) {
     section.classList.add('hidden'); // v0.25.19 审计 G-12：style.display 直写改 .hidden 类（与同文件其余显隐口径统一）
     addrInput.value = '';
     addrInput.required = false;

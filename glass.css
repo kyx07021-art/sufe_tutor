@@ -299,8 +299,10 @@ body { background: transparent; }
 /* ============================================================
    输入控件（input/select/textarea）——不带 glass 类，不走引擎；
    直写与引擎视觉同源（白染填充 + 液体边缘内高光）。非玻璃件，非特例。
+   P4（v0.31.5）：:not(.glass) 排除按钮语境触发器——筛选组/页头下拉已挂 .glass 走引擎，
+   输入族直写属性（bg/圆角/shadow 0-1-0）会盖引擎 :where()（0-0-0），排除后引擎 surface 才生效。
    ============================================================ */
-.form-input, .custom-select-trigger, .chat-input, .filter-select,
+.form-input, .custom-select-trigger:not(.glass), .chat-input, .filter-select,
 .chat-textarea, .posts-search, .post-body-input { /* G29：补三处引擎覆盖缺口（聊天输入/广场搜索/正文） */
   background-color: var(--g-fill-weak); border: none; border-radius: var(--lg-r-sm);
   /* G18/G19：background shorthand 会重置 background-image，吃掉 style.css 的聚焦下划线/下拉 v 箭头 → 拆 longhand background-color */
@@ -308,7 +310,7 @@ body { background: transparent; }
      直接用标准玻璃小件边缘 --g-liquid-sm（同 .chat-bubble）。若实测可读性明显变差，回滚为原 inset 配方即可。 */
   box-shadow: var(--glass-lift-sm), var(--g-liquid-sm);
 }
-.form-input, .custom-select-trigger, .chat-input, .filter-select { padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(12px * var(--ui-scale, 1)); } /* 需求六·item5：输入控件水平内边距随滑块 */
+.form-input, .custom-select-trigger:not(.glass), .chat-input, .filter-select { padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(12px * var(--ui-scale, 1)); } /* 需求六·item5：输入控件水平内边距随滑块 */
 .form-input:focus, .chat-input:focus, .filter-select:focus, .custom-select-trigger:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
 /* R12：下拉触发器聚焦——圆角软环并入输入族（触发器本体圆角 9px，聚焦环随圆角而非直角 outline），
    取代全局 :focus-visible 直角矩形描边（用户定性「紫色直角矩形」丑）；下拉选项键盘聚焦复用悬停高亮。
