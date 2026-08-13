@@ -585,6 +585,11 @@ textarea.form-input {
 .custom-select.open { z-index: 50; } /* 展开时容器浮起：面板(z-index:40)随容器盖过下方卡片/兄弟 */
 .form-group .custom-select, .filter-group .custom-select { flex: 1 1 0; min-width: 0; width: 100%; }
 .gaokao-row .custom-select { flex: 1; min-width: 110px; }
+/* 需求五：上海精细地址选择（区·镇/街道 二级联动）——两下拉横向排列，紧贴是缺陷（CLAUDE.md 组件间距纪律）；
+   子件为 .custom-select 包装（app-ui initCustomSelects）或原生 .form-select，各自 flex:1 均分行宽 */
+.sh-addr-picker { display: flex; gap: 10px; width: 100%; align-items: stretch; }
+.sh-addr-picker > .custom-select, .sh-addr-picker > .form-select { flex: 1 1 0; min-width: 0; }
+@media (max-width: 420px) { .sh-addr-picker { flex-direction: column; gap: 6px; } }
 .custom-select-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   width: 100%; padding: calc(8px * var(--ui-scale, 1)) 2px; /* 需求六·item5：下拉触发器尺寸随滑块 */

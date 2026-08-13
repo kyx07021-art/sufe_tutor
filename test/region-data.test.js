@@ -92,3 +92,35 @@ test('policyOf：无 year 学生端恒最新（standard5 省份 / 3+3 省份）'
   assert.equal(R.policyOf('shanghai').gradeSystemId, 'shanghai');
   assert.equal(R.policyOf('shanghai').gradeSystem.levels.length, 11);
 });
+
+// ============================================================
+// 需求五（v0.28.1）：上海镇/街道坐标表（218 全量可查）+ 距离取数链路
+// ============================================================
+test('shanghaiTownCoords：218 个镇/街道全量坐标可查（与 shanghaiDistricts 一一对应）', () => {
+  let total = 0;
+  for (const d of R.shanghaiDistricts) {
+    for (const u of d.units) {
+      const c = R.townCoord(d.name, u);
+      assert.ok(c && Number.isFinite(c.lat) && Number.isFinite(c.lng), `${d.name}·${u} 应有坐标`);
+      assert.ok(30.6 < c.lat && c.lat < 31.95 && 120.8 < c.lng && c.lng < 122.2, `${d.name}·${u} 应在上海经纬界内`);
+      total++;
+    }
+  }
+  assert.equal(total, 218, '坐标表须覆盖全部 218 个镇/街道');
+});
+
+test('townCoordByAddr：结构化地址 → 坐标；非法地址/未知单位/未知区 → null', () => {
+  assert.deepEqual(R.townCoordByAddr('黄浦区·南京东路街道'), { lat: 31.2405, lng: 121.4645 });
+  assert.equal(R.townCoordByAddr('黄浦区·不存在的街道'), null, '未知单位 null');
+  assert.equal(R.townCoordByAddr('北京市·东城区'), null, '非上海地址 null');
+  assert.equal(R.townCoordByAddr(''), null, '空串 null');
+  assert.equal(R.townCoordByAddr(undefined), null, 'undefined null');
+});
+
+test('新设 2026 单位坐标就位：嘉定·菊园街道 / 娄塘镇（行政区划变更后仍可距离评分）', () => {
+  const jy = R.townCoordByAddr('嘉定区·菊园街道');
+  const lt = R.townCoordByAddr('嘉定区·娄塘镇');
+  assert.ok(jy && lt, '2026 新设单位须有坐标');
+  assert.ok(Math.abs(jy.lat - 31.37) < 0.05 && Math.abs(jy.lng - 121.23) < 0.05, `菊园街道坐标 ${JSON.stringify(jy)} 应在嘉定城区`);
+  assert.ok(Math.abs(lt.lat - 31.43) < 0.05 && Math.abs(lt.lng - 121.22) < 0.05, `娄塘镇坐标 ${JSON.stringify(lt)} 应在嘉定北部`);
+});

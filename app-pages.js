@@ -626,6 +626,15 @@ function initProfileForm() {
       lab.insertAdjacentHTML('beforeend', `<span class="form-label-note">${escHtml(text)}</span>`);
     }
   }
+  // 需求五：上海常住地（区别于高考省份）label 归口常量 + 距离匹配说明 + picker 挂载（loadProfile 按库内值重挂）
+  setProfileLabel('profile-label-residence', UI.LABEL_SHANGHAI_RESIDENCE);
+  const resLabel = document.getElementById('profile-label-residence');
+  if (resLabel && !resLabel.querySelector('.form-label-note')) {
+    resLabel.insertAdjacentHTML('beforeend', `<span class="form-label-note">${escHtml(UI.SHANGHAI_RESIDENCE_NOTE)}</span>`);
+  }
+  if (typeof mountShanghaiAddrPicker === 'function') {
+    mountShanghaiAddrPicker('profile', document.getElementById('profile-address').value || '', { hiddenId: 'profile-address' });
+  }
   initCustomSelects(document.querySelector('.profile-form')); // 省份/年级/性别/授课方式下拉统一换自定义组件
   _profileCredential = null; renderProfileCredentialCtl(); // 学信网截图控件复位（loadProfile 按库内值重绘）
   loadProfile();
@@ -735,7 +744,15 @@ async function loadProfile() {
       document.getElementById('profile-wechat').value = p.wechat || '';
       document.getElementById('profile-email').value = p.email || '';
       document.getElementById('profile-intro').value = p.intro || '';
-      document.getElementById('profile-address').value = p.address || '';
+      // 需求五：上海常住地结构化——先写隐藏值再挂载 picker（回填区/镇下拉）。
+      // 存量兼容（v0.29.0）：库内旧自由文本地址（如「浦东新区杨高中路」）不是合法「区·镇/街道」→
+      // 清空重选——需求五已废弃精确地址、旧值本不该保留；不清空则保存时 400 ADDRESS_REQUIRED 卡死整张表单。
+      const R5 = globalThis.SUFE_REGIONS;
+      const storedAddr = (R5 && R5.isValidShanghaiAddr(p.address)) ? (p.address || '') : '';
+      document.getElementById('profile-address').value = storedAddr;
+      if (typeof mountShanghaiAddrPicker === 'function') {
+        mountShanghaiAddrPicker('profile', storedAddr, { hiddenId: 'profile-address' });
+      }
       // 先重建省感知科目池（浙江教师回填时技术科目 checkbox 需存在），再按 id 勾选
       if (p.province) rebuildTeacherSubjects(p.province);
       if (p.subjects?.length) {
@@ -822,7 +839,7 @@ async function handleSaveProfile(e) {
     showToast(UI.SUCCESS_PROFILE_SAVED, 'success');
     invalidate('teachers'); // 档案已变：清教师列表缓存，浏览页/个人信息面板/推送弹窗下次读取重拉新档
   } catch (err) {
-    showToast(err.message); // v0.19.43 档案长表单底部提交：门牌号预警等错误改 Toast，避免被滚动淹没
+    showToast(err.message); // v0.19.43 档案长表单底部提交：长表单错误改 Toast，避免被滚动淹没
   } finally {
     const btn = document.getElementById('profile-submit');
     btnDone(btn, UI.BTN_SAVE);

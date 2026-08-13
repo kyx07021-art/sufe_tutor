@@ -86,7 +86,8 @@ export const MSG = {
   INVALID_TIME_SLOTS: '期望开课时间格式不正确', // v0.25.0 结构化时间段：JSON 结构/范围校验失败（需求 expected_time 与教师档案 time_slots 共用）
   PERSONALITY_TAGS_TOO_MANY: '性格关键词最多选 3 个', // R2-3：服务端兜底（前端 toggleTagPick 已限）
   PROVINCE_REQUIRED: '请选择省份',
-  ADDRESS_TOO_DETAILED: '地址请用「区/路」级别的模糊表述，请勿填写详细门牌号（如 xx号楼 / xx室 / xx号门）',
+  ADDRESS_REQUIRED: '请选择授课所在区与镇/街道', // 需求五：地址结构化（区·镇/街道）必填（上海线下）
+  ADDRESS_TOO_DETAILED: '地址请用「区/路」级别的模糊表述，请勿填写详细门牌号（如 xx号楼 / xx室 / xx号门）', // 仍用于 intro/school/additional_info 自由文本
   TEACHER_ONLY: '仅教师可操作',
   ADMIN_ONLY: '仅管理员可操作',
   USER_NOT_FOUND: '用户不存在',

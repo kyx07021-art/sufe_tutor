@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.28.0',
+  APP_VERSION: '0.29.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -62,6 +62,7 @@ globalThis.APP_CONSTANTS = {
     POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
     GREETING_MSG_MAX: 300,                // 打招呼消息上限（v0.28.0 M1：学生推送需求/教师试课意向附带；与服务端 LIMITS.GREETING_MSG_MAX 同值）
     MATCH_WEIGHT: { subject: 45, region: 15, budget: 15, personality: 15, gender: 10 },     // 教师匹配度权重（合计 100；需求五并入性格/性别，科目仍为主权重）
+    MATCH_DISTANCE_MAX_KM: 20,            // 需求五：上海线下单镇间距离评分上限 km——20km 内随距离线性下降至 0，更远恒 0（用户定策）
     MATCH_MAX: 100,
     MATCH_COLOR_HIGH: 80,                 // 匹配度按钮三色阈值：≥80 绿（hi）
     MATCH_COLOR_MID: 60,                  // 60-79 黄（mid），<60 红（lo）
@@ -1192,6 +1193,10 @@ globalThis.APP_CONSTANTS = {
     MATCH_SUBJECT_HIT: '命中 {hit}/{total} 门需求科目',
     MATCH_REGION_HIT: '同省（{name}），区域吻合',
     MATCH_REGION_MISS: '省份不符，区域不匹配',
+    MATCH_DISTANCE_SAME: '同镇/同街道，零距离',            // 需求五：上海线下镇间距离 ≤0.5km
+    MATCH_DISTANCE_HIT: '距授课点约 {km} 公里',            // 需求五：上海线下镇间距离（20km 内线性计分）
+    MATCH_DISTANCE_ONLINE: '线上授课，距离不计分',          // 需求五：线上单距离分不参与加权
+    MATCH_DISTANCE_NO_LOCALE: '教师未填上海常住地，未计入',  // 需求五：教师无常住地坐标时该维跳过
     MATCH_BUDGET_HIT: '报价在需求预算区间内',
     MATCH_BUDGET_MISS: '报价超出需求预算区间',
     MATCH_PERSONALITY_HIT: '命中 {hit}/{total} 个偏好性格',
@@ -1201,7 +1206,7 @@ globalThis.APP_CONSTANTS = {
     MATCH_GENDER_MISS: '性别不符需求偏好',
     MATCH_GENDER_UNDISCLOSED: '教师未透露性别，明确偏好折半计分',
     MATCH_DIM_SKIP: '该项缺数据，未计入',
-    MATCH_NOTE: '计分口径：科目 {subject} 分（命中需求科目的比例）+ 区域 {region} 分（同省）+ 预算 {budget} 分（报价在区间内）+ 性格 {personality} 分（偏好性格重合比例）+ 性别 {gender} 分（偏好性别吻合）。缺数据的维度不计分，总分按有效维度归一化到 100。',
+    MATCH_NOTE: '计分口径：科目 {subject} 分（命中需求科目的比例）+ 区域 {region} 分（上海线下按教师常住地距授课点公里数计分、线上单不计）+ 预算 {budget} 分（报价在区间内）+ 性格 {personality} 分（偏好性格重合比例）+ 性别 {gender} 分（偏好性别吻合）。缺数据的维度不计分，总分按有效维度归一化到 100。',
     // 学生端教师匹配度明细（需求五）：多需求逐条比对，条目区限高滚动
     MATCH_T_TITLE: '教师匹配度明细',
     MATCH_TEACHER_DETAIL_SUB: '根据你的活跃需求与该教师档案自动计算，按匹配度从高到低展示',
@@ -1386,7 +1391,7 @@ globalThis.APP_CONSTANTS = {
       { t: '登录不反复传密码', d: '登录后用一次性加密凭证通行，密码不会一次次在网络上传输；还能在「账户设置」里随时让别的设备下线。' },
       { t: '联系方式先藏起来', d: '微信、电话等联系方式要等双方签约后才向对方展示，在此之前谁也看不到，不怕被陌生人骚扰。' },
       { t: '个人信息按需可见', d: '真实姓名、学籍认证材料只在双方建立联系之后才互相展示，平时对所有人隐藏。' },
-      { t: '不收集精确地址', d: '平台从不收集、不保存、不展示详细门牌地址，上课地点由双方自行商量约定。' },
+      { t: '地址只到街道一级', d: '平台只收集、保存、展示到区/镇/街道一级，从不收集详细门牌地址，上课地点由双方自行商量约定。' },
       { t: '合同防篡改存证', d: '签好的合同会生成加密存证并环环相扣，一旦签署就没法被悄悄改动，对双方都是保障。' },
       { t: '全程加密传输', d: '你和网站之间往来的所有数据都走加密通道，防止半路被人偷看。' },
       { t: '自动抵御恶意试探', d: '对频繁尝试登录、批量注册等异常行为，系统会自动限流并临时封禁，守护账户安全。' },
@@ -1871,8 +1876,12 @@ globalThis.APP_CONSTANTS = {
     OPTION_PREF_GENDER_ANY: '不限',
     LABEL_CURRENT_SCORES: '各科当前大概成绩',
     LABEL_TEACHING_METHOD: '期望教学方式',
-    LABEL_ADDRESS: '地址',
-    ADDRESS_PLACEHOLDER: '如上海市xx区xx路（精确门牌号请后续自行与教师沟通）',
+    LABEL_ADDRESS: '地址（授课区域）',
+    // 需求五：地址改结构化选择（区·镇/街道），非上海强制线上不收集地址；placeholder 语义更新
+    ADDRESS_PLACEHOLDER: '选择所在区与镇/街道',
+    SH_ADDR_SELECT_DISTRICT_FIRST: '请先选择区',
+    LABEL_SHANGHAI_RESIDENCE: '上海常住地', // 教师档案第二地址（区别于高考省份；线下距离匹配用）
+    SHANGHAI_RESIDENCE_NOTE: '仅上海线下订单参与距离匹配（选至镇/街道即可，精确位置后续自行沟通）',
     LABEL_BUDGET: '预算区间（元/小时）',
     PLACEHOLDER_MIN: '最低',
     PLACEHOLDER_MAX: '最高',

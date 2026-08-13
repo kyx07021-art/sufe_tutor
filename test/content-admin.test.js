@@ -64,7 +64,7 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   const t = await handleRegister(db, { username: 'bobt', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
   const tData = await t.json();
   const prof = await (await import('../server/routes-teacher.js')).handleSaveProfile(db, {
-    profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '注重方法', address: '浦东新区杨高中路', school: '上财' },
+    profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '注重方法', address: '浦东新区·花木街道', school: '上财' },
   }, req({ 'X-Auth-Token': tData.authToken }));
   assert.equal(prof.status, 200);
 
@@ -149,7 +149,7 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   await handleRegister(db, { username: 'stud0', password: 'pass123456', role: 'student', agreeAgreement: true, agreePrivacy: true }, req());
   // 建教师档案（teacher 类型处罚定位走 dbGetTeacherProfile，无档案行 → 404）
   const prof = await (await import('../server/routes-teacher.js')).handleSaveProfile(db, {
-    profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '教法严谨', address: '浦东新区', school: '上财' },
+    profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '教法严谨', address: '浦东新区·陆家嘴街道', school: '上财' },
   }, req({ 'X-Auth-Token': teaToken }));
   assert.equal(prof.status, 200);
   const teaId = raw.prepare("SELECT id FROM users WHERE username='teach0'").get().id;

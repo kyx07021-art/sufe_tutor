@@ -145,8 +145,10 @@ function renderDemandModal(demand) {
           </div>
           <div id="d-address-section">
             <div class="form-group">
+              <!-- 需求五：地址结构化（区·镇/街道 二级联动），picker 渲染进容器；隐藏 input 保持提交签名不变 -->
               <label class="form-label">${UI.LABEL_ADDRESS} <span class="req">*</span></label>
-              <input type="text" class="form-input" id="d-address" placeholder="${UI.ADDRESS_PLACEHOLDER}">
+              <div id="d-addr-picker" class="sh-addr-picker"></div>
+              <input type="hidden" id="d-address" placeholder="${UI.ADDRESS_PLACEHOLDER}">
             </div>
           </div>
           <div class="form-group">
@@ -241,8 +243,12 @@ function prefillDemandForm(d) {
   });
   document.getElementById('d-pref-gender').value = d.preferred_teacher_gender || '';
   document.getElementById('d-method').value = d.teaching_method || 'offline';
+  // 需求五：先写隐藏地址值再 toggleAddressField（picker 挂载时据隐藏值回填区/镇下拉）。
+  // 存量兼容（v0.29.0）：库内旧自由文本地址不是合法「区·镇/街道」→ 清空重选（保存时不被 400 卡死）
+  const R5 = globalThis.SUFE_REGIONS;
+  const storedAddr = (R5 && R5.isValidShanghaiAddr(d.address)) ? (d.address || '') : '';
+  document.getElementById('d-address').value = storedAddr;
   toggleAddressField();
-  document.getElementById('d-address').value        = d.address || '';
   prefillTimeSlots(document.getElementById('d-time-slots'), d.expected_time || '');
   document.getElementById('d-budget-min').value = d.budget_min || '';
   document.getElementById('d-budget-max').value = d.budget_max || '';
@@ -278,14 +284,21 @@ function prefillStudentScores(scores) {
 
 function toggleAddressField() {
   const method = document.getElementById('d-method').value;
+  const prov = document.getElementById('d-province').value;
   const section = document.getElementById('d-address-section');
   const addrInput = document.getElementById('d-address');
-  if (method === 'online') {
+  // 需求五：地址结构化（区·镇/街道）——仅 上海 + 线下 展示精细选择；其余线上/非上海 隐藏
+  const isShanghaiOffline = prov === 'shanghai' && method !== 'online';
+  if (!isShanghaiOffline) {
     section.classList.add('hidden'); // v0.25.19 审计 G-12：style.display 直写改 .hidden 类（与同文件其余显隐口径统一）
+    addrInput.value = '';
     addrInput.required = false;
-  } else {
-    section.classList.remove('hidden');
-    addrInput.required = true;
+    return;
+  }
+  section.classList.remove('hidden');
+  addrInput.required = true;
+  if (typeof mountShanghaiAddrPicker === 'function') {
+    mountShanghaiAddrPicker('d', addrInput.value || '', { hiddenId: 'd-address' }); // 幂等重建；组合值写 #d-address
   }
 }
 
@@ -304,7 +317,8 @@ function onDemandProvinceChange() {
   const methodSel = document.getElementById('d-method');
   const onlineOnly = !(globalThis.SUFE_REGIONS && globalThis.SUFE_REGIONS.allowsOffline(prov)); // 线下许可数据驱动（v0.25.86 审计去 'shanghai' 硬编码）
   [...methodSel.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
-  if (onlineOnly) { methodSel.value = 'online'; toggleAddressField(); }
+  if (onlineOnly) methodSel.value = 'online';
+  toggleAddressField(); // 需求五：省份切换恒刷新地址区（上海+线下 → 精细选择；其余隐藏）
   updateDemandSubjects();
 }
 
@@ -459,6 +473,20 @@ function genderMatchScore(pref, teacherGender) {
   return teacherGender === pref ? 100 : 0;
 }
 
+// 需求五：上海镇间距离（Haversine，公里）。坐标取 region-data SUFE_REGIONS.shanghaiTownCoords
+// （218 个镇/街道 [lat,lng] 单源，WGS-84/GCJ-02 互差数百米，20km 级评分下可忽略）。
+function haversineKm(a, b) {
+  const R = 6371, toRad = d => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+// 距离→分数（用户定策）：20km 以内随距离增大线性下降到 0，距离再远都是 0。
+function distanceScore(km) {
+  const maxKm = CONFIG.MATCH_DISTANCE_MAX_KM;
+  return km <= maxKm ? Math.max(0, 1 - km / maxKm) : 0;
+}
+
 // 五维分项统一计算（需求五：科目/性格/区域/预算/性别）。权重单源 constants CONFIG.MATCH_WEIGHT。
 // 返回每维 { label, score, max, hint }：score 为该维加权得分（0..max，缺数据维 = null 不计入总分）。
 // matchDegree 与明细卡（教师视角/学生逐需求）共用本函数——口径单点，杜绝总分与明细分叉。
@@ -484,8 +512,31 @@ function matchDims(t, d) {
   const personalityOn = prefTags.length > 0;
   const personalityScore = personalityOn ? pHit / prefTags.length * W.personality : null;
 
-  const regionOn = !!(t.province && d.province);
-  const regionScore = regionOn ? (t.province === d.province ? W.region : 0) : null;
+  // 需求五：区域维度三分支——①线上单：距离无关，维度不参与加权（跳过）；
+  // ②上海线下单：教师常住地与需求镇/街道距离 20km 线性衰减计分（缺任一坐标则跳过，不惩罚未知）；
+  // ③其余线下单（非上海/历史数据）：沿旧口径同省满分/异省 0（无镇级坐标，省份即距离代理）。
+  const online = d.teaching_method === 'online';
+  let regionScore = null;
+  let regionHint = UI.MATCH_DIM_SKIP;
+  if (!online && d.province === 'shanghai') {
+    const R = globalThis.SUFE_REGIONS;
+    const tC = R && R.townCoordByAddr ? R.townCoordByAddr(t.address) : null;
+    const dC = R && R.townCoordByAddr ? R.townCoordByAddr(d.address) : null;
+    if (tC && dC) {
+      const km = haversineKm(tC, dC);
+      regionScore = distanceScore(km) * W.region;
+      regionHint = km <= 0.5 ? UI.MATCH_DISTANCE_SAME
+        : UI.MATCH_DISTANCE_HIT.replace('{km}', km < 10 ? km.toFixed(1) : String(Math.round(km)));
+    } else if (!tC) {
+      regionHint = UI.MATCH_DISTANCE_NO_LOCALE; // 教师未填上海常住地 → 该维跳过（不惩罚未知）
+    }
+  } else if (!online && t.province && d.province) {
+    regionScore = t.province === d.province ? W.region : 0;
+    regionHint = regionScore === W.region
+      ? UI.MATCH_REGION_HIT.replace('{name}', escHtml(DISP.provinceName(d.province))) : UI.MATCH_REGION_MISS;
+  } else if (online) {
+    regionHint = UI.MATCH_DISTANCE_ONLINE;
+  }
 
   // R2-13：匹配度用最低报价代表（区间重叠未来扩展）
   const budgetOn = t.price_min != null && (d.budget_min || d.budget_max);
@@ -504,8 +555,7 @@ function matchDims(t, d) {
       hint: subjOn ? UI.MATCH_SUBJECT_HIT.replace('{hit}', hit).replace('{total}', dSubj.length) : UI.MATCH_DIM_SKIP },
     { key: 'personality', label: UI.MATCH_ITEM_PERSONALITY, score: personalityScore, max: W.personality,
       hint: !personalityOn ? UI.MATCH_DIM_SKIP : (pHit > 0 ? UI.MATCH_PERSONALITY_HIT.replace('{hit}', pHit).replace('{total}', prefTags.length) : UI.MATCH_PERSONALITY_MISS) },
-    { key: 'region', label: UI.MATCH_ITEM_REGION, score: regionScore, max: W.region,
-      hint: !regionOn ? UI.MATCH_DIM_SKIP : (regionScore === W.region ? UI.MATCH_REGION_HIT.replace('{name}', escHtml(DISP.provinceName(d.province))) : UI.MATCH_REGION_MISS) },
+    { key: 'region', label: UI.MATCH_ITEM_REGION, score: regionScore, max: W.region, hint: regionHint },
     { key: 'budget', label: UI.MATCH_ITEM_BUDGET, score: budgetScore, max: W.budget,
       hint: !budgetOn ? UI.MATCH_DIM_SKIP : (budgetScore === W.budget ? UI.MATCH_BUDGET_HIT : UI.MATCH_BUDGET_MISS) },
     { key: 'gender', label: UI.MATCH_ITEM_GENDER, score: genderScore, max: W.gender, hint: genderHint },

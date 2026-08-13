@@ -166,10 +166,18 @@ export async function handleSaveProfile(db, body, req) {
   // svg 一律拒绝：矢量可内嵌脚本（与 routes-auth 头像口径一致；上限单源 LIMITS.CREDENTIAL_MAX_BYTES）
   if (credential && (!credential.startsWith('data:image/') || credential.startsWith('data:image/svg') || credential.length > LIMITS.CREDENTIAL_MAX_BYTES)) return error(MSG.AVATAR_INVALID);
   // 2026-08-09 审计 F-1/F-4：自由文本（intro/school）同守门牌红线；联系方式统一截断（db 层仅 real_name/intro/address/school 有切片）
-  // v0.25.113：门牌审核收口到 text-audit 咽喉（规则层 + 可选语义层，fail-open），不再直接 ADDRESS_GUARD
-  for (const f of ['address', 'intro', 'school']) {
+  // 需求五（2026-08-13）：address 改结构化「上海常住地」（区·镇/街道 picker），不再自由文本 → 移出门牌审核；
+  //   intro/school 仍为自由文本，保留 text-audit 咽喉（合规红线：详细门牌号不收集不因字段绕行）
+  for (const f of ['intro', 'school']) {
     const audit = await auditFreeText(p[f]);
     if (!audit.ok) return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号/可定位住址不收集
+  }
+  // 需求五：上海常住地结构化校验——非空则必须合法「区·镇/街道」；空 = 未填（不参与距离匹配）
+  {
+    const R = globalThis.SUFE_REGIONS;
+    const addr = typeof p.address === 'string' ? p.address.trim() : '';
+    if (addr && R && !R.isValidShanghaiAddr(addr)) return error(MSG.ADDRESS_REQUIRED);
+    p.address = addr;
   }
   if (typeof p.wechat === 'string') p.wechat = p.wechat.slice(0, LIMITS.CONTACT_MAX);
   if (typeof p.email === 'string') p.email = p.email.slice(0, LIMITS.CONTACT_MAX);

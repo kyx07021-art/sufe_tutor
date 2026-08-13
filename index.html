@@ -450,8 +450,10 @@
               <div id="profile-nonacademic-prices"></div>
             </div>
             <div class="form-group">
-              <label class="form-label">地址</label>
-              <input type="text" class="form-input" id="profile-address" maxlength="100" placeholder="上海市xx区xx路（无需详细门牌号）">
+              <!-- 需求五：上海常住地（区别于上方「省份（高考所在地）」；线下距离匹配用）——结构化区·镇/街道 -->
+              <label class="form-label" id="profile-label-residence">上海常住地</label>
+              <div id="profile-addr-picker" class="sh-addr-picker"></div>
+              <input type="hidden" id="profile-address">
             </div>
             <div class="form-group">
               <label class="form-label">微信号</label>

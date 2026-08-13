@@ -132,10 +132,18 @@ export async function handleCreateDemand(db, body, req) {
   if (ts.error) return error(ts.error);
   d.expected_time = ts.value;
   sanitizeDemand(d); // 字段清理（预算钳制/白名单/截断）
-  // v0.25.113：门牌/可定位住址审核收口 text-audit 咽喉（规则层 + 可选语义层 fail-open）——address/additional_info 同守
-  for (const f of ['address', 'additional_info']) {
-    const audit = await auditFreeText(d[f]);
-    if (!audit.ok) return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号/可定位住址不收集
+  // 需求五（2026-08-13）：address 改结构化（区·镇/街道 picker）→ 不再自由文本，移出门牌审核；
+  //   additional_info 仍为自由文本，保留 text-audit 咽喉（合规红线：详细门牌号不收集不因字段绕行）
+  const audit = await auditFreeText(d.additional_info);
+  if (!audit.ok) return error(MSG.ADDRESS_TOO_DETAILED);
+  // 需求五：地址结构化校验——线上不收集地址（清空）；线下（仅上海 allowed）必须合法「区·镇/街道」
+  {
+    const R = globalThis.SUFE_REGIONS;
+    if (d.teaching_method === 'online') {
+      d.address = '';
+    } else if (!R || !R.isValidShanghaiAddr(d.address)) {
+      return error(MSG.ADDRESS_REQUIRED);
+    }
   }
   if (!d.target_subjects || !d.target_subjects.length) return error(MSG.INVALID_PARAMS); // 白名单过滤后为空：无有效科目
 
@@ -190,7 +198,13 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   const ts = sanitizeTimeSlots(d.expected_time);
   if (ts.error) return error(ts.error);
   d.expected_time = ts.value;
-  if (!sanitizeDemand(d)) return error(MSG.ADDRESS_TOO_DETAILED);
+  sanitizeDemand(d);
+  // 需求五：地址结构化校验（同 handleCreateDemand）——线上清空；线下（上海）必须合法「区·镇/街道」
+  if (d.teaching_method === 'online') {
+    d.address = '';
+  } else if (!R.isValidShanghaiAddr(d.address)) {
+    return error(MSG.ADDRESS_REQUIRED);
+  }
   if (!d.target_subjects || !d.target_subjects.length) return error(MSG.INVALID_PARAMS); // 白名单过滤后为空
 
   await dbUpdateDemand(db, demandId, d);

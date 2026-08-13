@@ -63,7 +63,8 @@ async function seed(db, raw) {
 const baseDemand = {
   province: 'shanghai', student_grade: 'senior1', student_gender: 'female',
   target_subjects: ['math'], current_scores: [], teaching_method: 'offline',
-  address: '杨浦区', submitter_type: 'self', parent_contact: '13800000000',
+  address: '杨浦区·四平路街道', // 需求五：线下单地址须合法「区·镇/街道」（单区名 '杨浦区' 已不合法）
+  submitter_type: 'self', parent_contact: '13800000000',
   student_contact: '13800000000', additional_info: '',
 };
 
@@ -79,6 +80,9 @@ test('v0.25.110 中文数字门牌不得绕过门控（贰柒捌捌号/五号楼
   const raw = rawOf(); const db = d1Shim(raw);
   const { stuToken, teaToken } = await seed(db, raw);
   // 用户实证：贰柒捌捌号（中文数字）曾绕过
+  // 需求五（v0.28.1）：address 字段已结构化（区·镇/街道选择器），自由文本无处写入门牌——
+  // 注入的裸地址串经 isValidShanghaiAddr 拒绝（400 ADDRESS_REQUIRED），守卫语义由 ADDRESS_GUARD 升级为结构校验；
+  // additional_info 仍走 auditFreeText 门牌咽喉（合规红线不因字段绕行）。
   for (const [field, val] of [
     ['additional_info', '家在贰柒捌捌号旁边'],
     ['additional_info', '具体位置是三十八号楼'],

@@ -134,6 +134,68 @@ function regionLockNote(provinceId) {
 }
 
 // ------------------------------------------------------------
+// 需求五：上海精细地址选择组件（区 → 镇/街道 二级联动；非上海不渲染）
+// ------------------------------------------------------------
+// 结构化地址格式（单源）："黄浦区·南京东路街道"（区名·镇/街道全名），
+// 解析/组装/校验走 SUFE_REGIONS.parseShanghaiAddr/buildShanghaiAddr/isValidShanghaiAddr。
+// 用法：容器 <div id="{prefix}-addr-picker"> 上调用 mountShanghaiAddrPicker(prefix, selected)；
+//   组件渲染 #d-{prefix}-district（区下拉）与 #d-{prefix}-unit（镇/街道下拉，未选区禁用），
+//   组合值写入隐藏 input #{prefix}-addr（表单提交直接读它，与旧 address 字段同签名）。
+// 事件：区变更 → 重建镇/街道下拉（prev 保留若仍可选）；任一变更 → 组装写隐藏值。
+// 适配：自定义下拉组件由 MutationObserver 自动重建（app-ui selectSweepObserver），无需手动 init。
+function mountShanghaiAddrPicker(prefix, selected, { onDistChange, hiddenId } = {}) {
+  const R = globalThis.SUFE_REGIONS;
+  const host = document.getElementById(prefix + '-addr-picker');
+  if (!host) return;
+  const hidId = hiddenId || (prefix + '-addr');
+  const parsed = R && R.parseShanghaiAddr(selected);
+  const distOpts = R.shanghaiDistricts.map(d =>
+    `<option value="${escHtml(d.id)}"${parsed && d.id === parsed.districtId ? ' selected' : ''}>${escHtml(d.name)}</option>`).join('');
+  const unitOpts = (parsed ? (R.shanghaiDistrictById(parsed.districtId).units || []) : [])
+    .map(u => `<option value="${escHtml(u)}"${parsed && u === parsed.unit ? ' selected' : ''}>${escHtml(u)}</option>`).join('');
+  host.innerHTML = `<select class="form-select sh-addr-district" id="${escHtml(prefix)}-district">
+      <option value="">${UI.OPTION_PLACEHOLDER}</option>${distOpts}
+    </select>
+    <select class="form-select sh-addr-unit" id="${escHtml(prefix)}-unit"${parsed ? '' : ' disabled'}>
+      <option value="">${parsed ? UI.OPTION_PLACEHOLDER : UI.SH_ADDR_SELECT_DISTRICT_FIRST}</option>${unitOpts}
+    </select>`;
+  // 组装值写调用方指定隐藏 input（默认 {prefix}-addr）；表单提交读该字段（与旧 address 同签名）
+  const hidden = document.getElementById(hidId);
+  if (hidden) hidden.value = selected || '';
+  const dSel = document.getElementById(prefix + '-district');
+  const uSel = document.getElementById(prefix + '-unit');
+  dSel.addEventListener('change', () => {
+    syncShanghaiAddrPicker(prefix, hidId);
+    if (typeof onDistChange === 'function') onDistChange();
+  });
+  uSel.addEventListener('change', () => syncShanghaiAddrPicker(prefix, hidId));
+  syncShanghaiAddrPicker(prefix, hidId); // 初始同步隐藏值（编辑回填不派发 change）
+}
+
+// 区/镇联动 + 组装隐藏值（区清空 → 镇禁用 + 清值；任一为空 → 组合为空串）
+function syncShanghaiAddrPicker(prefix, hiddenId) {
+  const R = globalThis.SUFE_REGIONS;
+  const dSel = document.getElementById(prefix + '-district');
+  const uSel = document.getElementById(prefix + '-unit');
+  const h = document.getElementById(hiddenId || (prefix + '-addr'));
+  if (!dSel || !uSel || !h) return;
+  const d = dSel.value ? R.shanghaiDistrictById(dSel.value) : null;
+  const prevUnit = uSel.value;
+  if (d) {
+    uSel.disabled = false;
+    uSel.innerHTML = `<option value="">${UI.OPTION_PLACEHOLDER}</option>`
+      + d.units.map(u => `<option value="${escHtml(u)}">${escHtml(u)}</option>`).join('');
+    if (prevUnit && d.units.includes(prevUnit)) uSel.value = prevUnit;
+  } else {
+    uSel.disabled = true;
+    uSel.value = '';
+    uSel.innerHTML = `<option value="">${UI.SH_ADDR_SELECT_DISTRICT_FIRST}</option>`;
+  }
+  h.value = d && uSel.value ? R.buildShanghaiAddr(d.id, uSel.value) : '';
+  // 自定义下拉组件由 selectSweepObserver 自动重建面板，此处不手动 init（避免重复初始化）
+}
+
+// ------------------------------------------------------------
 // 教师端：高考政策编辑器（渲染进 #profile-gaokao-scores）
 // ------------------------------------------------------------
 

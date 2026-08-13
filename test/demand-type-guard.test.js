@@ -64,7 +64,7 @@ async function seedStudent(db, raw) {
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 const baseDemand = { province: 'shanghai', student_grade: 'senior1', student_gender: 'male',
   target_subjects: ['math'], current_scores: [], teaching_method: 'offline',
-  address: '杨浦区', budget_min: 0, budget_max: 0,
+  address: '杨浦区·四平路街道', budget_min: 0, budget_max: 0, // 需求五：线下单地址须合法「区·镇/街道」（'杨浦区' 单区名已不合法）
   submitter_type: 'parent', parent_contact: '13800138000', student_contact: '13900139000', additional_info: '' };
 
 test('target_type：非法值静默回退 academic；nonacademic 按项目白名单并强制清成绩', async () => {

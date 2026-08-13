@@ -39,12 +39,16 @@ function loadCommon(ctx) {
 }
 
 // 夹具注入 vm 全局（权重 constants CONFIG.MATCH_WEIGHT：subject 45 / personality 15 / region 15 / budget 15 / gender 10）
+// 需求五（v0.28.1）：区域维度上海线下按镇间距离计分——夹具 TEACHER/DEMAND 同镇（嘉定·嘉定镇街道，0km）
+// → 区域维满分 15，各既有用例期望值不变；teaching_method: offline 走距离分支。
 function seedFixtures(ctx) {
   vm.runInContext(`
     const TEACHER = { subjects: ['math', 'english'], province: 'shanghai', price_min: 150, price_max: 180,
-      personality_tags: ['patience', 'humorous'], gender: 'male', nonacademic_projects: [] };
+      personality_tags: ['patience', 'humorous'], gender: 'male', nonacademic_projects: [],
+      address: '嘉定区·嘉定镇街道' };
     const DEMAND = { id: 1, target_type: 'academic', target_subjects: ['math', 'physics'], province: 'shanghai',
-      budget_min: 100, budget_max: 200, preferred_personality_tags: ['patience', 'strict'], preferred_teacher_gender: 'male' };
+      budget_min: 100, budget_max: 200, preferred_personality_tags: ['patience', 'strict'], preferred_teacher_gender: 'male',
+      teaching_method: 'offline', address: '嘉定区·嘉定镇街道' };
   `, ctx);
 }
 
@@ -152,6 +156,73 @@ test('matchDetailHtml：五维行齐全 + 计分口径内嵌当前权重', async
   assert.ok(html.includes('match-row'), '明细行结构');
 });
 
+// ============================================================
+// 需求五（v0.28.1）：区域维度三分支——线上跳过 / 上海线下镇间距离 / 其余线下同省
+// ============================================================
+test('matchDims 上海线下：同镇 → 区域维满分（0km 线性满值）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx); seedFixtures(ctx);
+  const region = vm.runInContext('matchDims(TEACHER, DEMAND).find(d => d.key === "region")', ctx);
+  assert.equal(region.score, 15, '同镇 0km 区域维满分 15');
+  assert.ok(region.hint.includes('零距离'), `同镇提示文案：${region.hint}`);
+});
+
+test('matchDims 上海线下：镇间距离 20km 内线性计分 + km 提示', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx); seedFixtures(ctx);
+  // 嘉定镇街道(31.38575,121.24465) → 南翔镇(31.29979,121.3118) = 11.49km
+  // distanceScore = 1-11.49/20 = 0.4255 → region = 0.4255×15 ≈ 6.38
+  const region = vm.runInContext('matchDims(TEACHER, { ...DEMAND, address: "嘉定区·南翔镇" }).find(d => d.key === "region")', ctx);
+  assert.ok(Math.abs(region.score - 6.38) < 0.05, `11.49km 线性计分 → ${region.score}（期望 ≈6.38）`);
+  assert.ok(region.hint.includes('距授课点约 11 公里'), `km 提示：${region.hint}`);
+});
+
+test('matchDims 上海线下：>20km → 区域维 0 分（用户定策：更远恒 0）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx); seedFixtures(ctx);
+  // 嘉定镇街道 → 崇明·城桥镇 = 30.64km > 20 → 0
+  const region = vm.runInContext('matchDims(TEACHER, { ...DEMAND, address: "崇明区·城桥镇" }).find(d => d.key === "region")', ctx);
+  assert.equal(region.score, 0, '>20km 区域维 0 分');
+  assert.ok(region.hint.includes('公里'), '仍显示实际距离');
+});
+
+test('matchDims 线上单：距离分不参与加权（区域维跳过 + 提示）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx); seedFixtures(ctx);
+  const region = vm.runInContext('matchDims(TEACHER, { ...DEMAND, teaching_method: "online" }).find(d => d.key === "region")', ctx);
+  assert.equal(region.score, null, '线上单区域维不参与加权');
+  assert.ok(region.hint.includes('线上授课'), `线上提示：${region.hint}`);
+});
+
+test('matchDims 上海线下：教师未填上海常住地 → 区域维跳过（不惩罚未知）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx); seedFixtures(ctx);
+  const region = vm.runInContext('matchDims({ ...TEACHER, address: "" }, DEMAND).find(d => d.key === "region")', ctx);
+  assert.equal(region.score, null, '无常住地坐标 → 跳过');
+  assert.ok(region.hint.includes('未填上海常住地'), `未填提示：${region.hint}`);
+});
+
+test('matchDims 非上海线下：沿旧口径同省满分/异省 0（无镇级坐标，省份即距离代理）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx); seedFixtures(ctx);
+  const same = vm.runInContext('matchDims({ ...TEACHER, province: "beijing" }, { ...DEMAND, province: "beijing" }).find(d => d.key === "region")', ctx);
+  assert.equal(same.score, 15, '非上海同省满分');
+  const diff = vm.runInContext('matchDims({ ...TEACHER, province: "beijing" }, { ...DEMAND, province: "jiangsu" }).find(d => d.key === "region")', ctx);
+  assert.equal(diff.score, 0, '非上海异省 0 分');
+});
+
+test('haversineKm/distanceScore 纯函数：0 / 边界 / 超限 / 已知距离', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx);
+  assert.equal(vm.runInContext('distanceScore(0)', ctx), 1, '0km 满值');
+  assert.equal(vm.runInContext('distanceScore(20)', ctx), 0, '20km 边界 0');
+  assert.equal(vm.runInContext('distanceScore(30)', ctx), 0, '>20km 恒 0');
+  assert.equal(vm.runInContext('distanceScore(10)', ctx), 0.5, '10km 半值');
+  // Haversine 已知距离：黄浦·南京东路街道 → 静安·临汾路街道 ≈ 7.8km
+  const km = vm.runInContext('haversineKm({lat:31.24050,lng:121.46450},{lat:31.31060,lng:121.46026})', ctx);
+  assert.ok(Math.abs(km - 7.81) < 0.2, `南京东路→临汾路 ${km.toFixed(2)}km ≈ 7.81`);
+});
+
 test('需求卡匹配度按钮：三色遮罩类 + 「匹配度N% · 点击展开明细」文案', async () => {
   const { ctx } = makeCtx();
   loadCommon(ctx); seedFixtures(ctx);
@@ -174,6 +245,7 @@ test('学生端教师列表：逐需求取最高匹配值、明细降序、排�
   ctx.T_HIGH = {
     user_id: 1, username: 'T高', subjects: ['math'], province: 'shanghai', price_min: 150,
     personality_tags: ['patience'], gender: 'male', avatar: '', rating: 5,
+    address: '嘉定区·嘉定镇街道', // 需求五：上海线下距离维需要常住地坐标（与 #0007 同镇 → 区域维满分保 100）
   };
   ctx.T_LOW = {
     user_id: 2, username: 'T低', subjects: ['english'], province: 'beijing', price_min: 150,
@@ -185,7 +257,7 @@ test('学生端教师列表：逐需求取最高匹配值、明细降序、排�
     state.allTeachers = [T_HIGH, T_LOW];
     dhGet = async (url) => {
       if (url.includes('scope=mine')) return { demands: [
-        { id: 11, display_id: 7, target_type: 'academic', target_subjects: ['math'], student_grade: 'senior1', province: 'shanghai', budget_min: 100, budget_max: 200, preferred_personality_tags: ['patience'], preferred_teacher_gender: 'male', status: 'open' },
+        { id: 11, display_id: 7, target_type: 'academic', target_subjects: ['math'], student_grade: 'senior1', province: 'shanghai', teaching_method: 'offline', address: '嘉定区·嘉定镇街道', budget_min: 100, budget_max: 200, preferred_personality_tags: ['patience'], preferred_teacher_gender: 'male', status: 'open' },
         { id: 12, display_id: 8, target_type: 'academic', target_subjects: ['english'], student_grade: 'junior2', province: 'beijing', budget_min: 100, budget_max: 200, preferred_personality_tags: ['patience'], preferred_teacher_gender: 'male', status: 'open' },
         { id: 13, display_id: 9, target_type: 'academic', target_subjects: ['math'], status: 'contracted' },
       ] };
@@ -247,7 +319,7 @@ test('学生端教师匹配：开放需求归零后旧徽章清除（v0.25.8 审
     state.allTeachers = [T1];
     dhGet = async (url) => {
       if (url.includes('scope=mine')) return { demands: [
-        { id: 11, display_id: 7, target_type: 'academic', target_subjects: ['math'], student_grade: 'senior1', province: 'shanghai', budget_min: 100, budget_max: 200, preferred_personality_tags: ['patience'], preferred_teacher_gender: 'male', status: 'open' },
+        { id: 11, display_id: 7, target_type: 'academic', target_subjects: ['math'], student_grade: 'senior1', province: 'shanghai', teaching_method: 'offline', address: '嘉定区·嘉定镇街道', budget_min: 100, budget_max: 200, preferred_personality_tags: ['patience'], preferred_teacher_gender: 'male', status: 'open' },
       ] };
       return {};
     };

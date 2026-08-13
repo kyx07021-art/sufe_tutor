@@ -46,6 +46,7 @@ function makeCtx() {
   const fns = vm.runInContext(`({
     renderDemandModal, initDemandForm, prefillDemandForm, switchDemandType,
     toggleTagPick, renderDemandCard,
+    onDemandProvinceChange, toggleAddressField,
   })`, ctx);
   const toasts = () => vm.runInContext('globalThis.__toasts', ctx);
   return { dom, fns, toasts };
@@ -168,4 +169,104 @@ test('R2-11 学生性别展示：demandStudentGenderName（网安 L2 修复）',
   assert.equal(snapshot(''), '上海 · 初一 · 提交者: 学生', '空串(不愿透露)不渲染性别');
   assert.equal(snapshot('nonbinary'), '上海 · 初一 · 提交者: 学生', '历史 nonbinary 不渲染性别（视同未填）');
   assert.match(snapshot('male'), /男/, 'male 正常显示');
+});
+
+// ============================================================
+// 需求五：上海精细地址选择组件（区→镇/街道二级联动；组合值写 #d-address 保持提交签名不变）
+// ============================================================
+test('需求五 地址区：无省份/线上/非上海 隐藏；上海+线下 显示精细选择并组装值', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  doc.getElementById('modal-container').innerHTML = fns.renderDemandModal(null);
+  fns.initDemandForm('');
+  const section = doc.getElementById('d-address-section');
+  const addr = doc.getElementById('d-address');
+  const method = doc.getElementById('d-method');
+  const prov = doc.getElementById('d-province');
+  assert.ok(section.classList.contains('hidden'), '无省份 → 地址区隐藏');
+  assert.equal(addr.value, '', '隐藏时地址值清空');
+  // 选上海：method 默认 online → 仍隐藏（线上不收集地址）。
+  // 注：inline onchange 在 JSDOM window 域解析（vm 全局函数不可达），测试直调函数（同套件既有模式）
+  prov.value = 'shanghai';
+  fns.onDemandProvinceChange();
+  assert.ok(section.classList.contains('hidden'), '上海+线上（默认）→ 仍隐藏');
+  assert.equal([...method.options].filter(o => o.disabled).length, 0, '上海放开线下（offline/both 不锁）');
+  // 切线下 → 精细选择区出现
+  method.value = 'offline';
+  fns.toggleAddressField();
+  assert.ok(!section.classList.contains('hidden'), '上海+线下 → 地址区可见');
+  assert.equal(addr.required, true, '线下地址必填');
+  const dSel = doc.getElementById('d-district');
+  const uSel = doc.getElementById('d-unit');
+  assert.ok(dSel && uSel, '区/镇两个下拉渲染');
+  assert.equal(uSel.disabled, true, '未选区 → 镇下拉禁用');
+  assert.equal(dSel.options.length, 17, '占位 + 16 区');
+  // 选区 → 镇下拉启用并重建（addEventListener 监听在 vm 域注册，dispatch 直触）
+  dSel.value = 'huangpu';
+  dSel.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(uSel.disabled, false, '选区后镇下拉启用');
+  assert.equal(uSel.options.length, 11, '占位 + 黄浦 10 街道');
+  // 选镇 → 组合值写隐藏 #d-address
+  uSel.value = '南京东路街道';
+  uSel.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(addr.value, '黄浦区·南京东路街道', '组合值 = 区名·镇/街道');
+  // 清空区 → 镇禁用、地址值清空
+  dSel.value = '';
+  dSel.dispatchEvent(new dom.window.Event('change'));
+  assert.equal(uSel.disabled, true, '区清空 → 镇禁用');
+  assert.equal(addr.value, '', '区清空 → 地址值清空');
+});
+
+test('需求五 地址区：非上海省份锁线上且地址区隐藏（线下许可数据驱动）', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  doc.getElementById('modal-container').innerHTML = fns.renderDemandModal(null);
+  fns.initDemandForm('beijing'); // 非上海：初始即锁线上
+  const method = doc.getElementById('d-method');
+  const section = doc.getElementById('d-address-section');
+  const addr = doc.getElementById('d-address');
+  assert.equal(method.value, 'online', '非上海初始锁线上');
+  assert.ok(section.classList.contains('hidden'), '非上海 → 地址区隐藏');
+  assert.equal(addr.required, false, '非上海地址非必填');
+});
+
+test('需求五 地址区：编辑回填——先写隐藏地址值再挂 picker，区/镇预选', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  doc.getElementById('modal-container').innerHTML = fns.renderDemandModal(null);
+  fns.initDemandForm('shanghai');
+  fns.prefillDemandForm({
+    id: 9, province: 'shanghai', student_grade: 'senior1', student_gender: '',
+    target_type: 'academic', target_subjects: ['math'], current_scores: [],
+    preferred_personality_tags: [], preferred_teacher_gender: '',
+    teaching_method: 'offline', address: '黄浦区·南京东路街道', expected_time: '',
+    budget_min: 100, budget_max: 150, submitter_type: 'self',
+    parent_contact: 'x', student_contact: 'y', additional_info: '',
+  });
+  const doc2 = doc;
+  const section = doc2.getElementById('d-address-section');
+  const addr = doc2.getElementById('d-address');
+  assert.ok(!section.classList.contains('hidden'), '上海线下编辑回填 → 地址区可见');
+  assert.equal(doc2.getElementById('d-district').value, 'huangpu', '区下拉回填');
+  assert.equal(doc2.getElementById('d-unit').value, '南京东路街道', '镇下拉回填');
+  assert.equal(addr.value, '黄浦区·南京东路街道', '隐藏值保留组合地址');
+});
+
+test('需求五 地址区：旧自由文本地址回填被清空重选（存量兼容，防保存 400 卡死）', () => {
+  const { dom, fns } = makeCtx();
+  const doc = dom.window.document;
+  doc.getElementById('modal-container').innerHTML = fns.renderDemandModal(null);
+  fns.initDemandForm('shanghai');
+  fns.prefillDemandForm({
+    id: 9, province: 'shanghai', student_grade: 'senior1', student_gender: '',
+    target_type: 'academic', target_subjects: ['math'], current_scores: [],
+    preferred_personality_tags: [], preferred_teacher_gender: '',
+    teaching_method: 'offline', address: '浦东新区杨高中路1234号', expected_time: '',
+    budget_min: 100, budget_max: 150, submitter_type: 'self',
+    parent_contact: 'x', student_contact: 'y', additional_info: '',
+  });
+  const addr = doc.getElementById('d-address');
+  assert.equal(addr.value, '', '旧自由文本地址 → 清空（编辑保存时须重新选择，避免 ADDRESS_REQUIRED 卡死）');
+  assert.equal(doc.getElementById('d-district').value, '', '区下拉未预选');
+  assert.equal(doc.getElementById('d-unit').disabled, true, '镇下拉禁用（未选区）');
 });
