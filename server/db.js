@@ -189,7 +189,7 @@ async function migrateLegacyRoles(db, adminNames) {
 // 全量迁移——D1 往返 20→1，任何 isolate 首击 <1s。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2; // v0.28.0 M1：demand_pushes/demand_intents 加 message 列（打招呼消息）
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
