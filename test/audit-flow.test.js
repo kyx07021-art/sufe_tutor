@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isContentWrite, auditBeforeWrite, auditQueueDepth } from '../server/audit-flow.js';
+import { isContentWrite, auditBeforeWrite } from '../server/audit-flow.js';
 
 test('isContentWrite：内容域写路径白名单', () => {
   assert.equal(isContentWrite('/api/posts', 'POST'), true, '发帖');
@@ -43,7 +43,6 @@ test('auditBeforeWrite：默认放行 + 300ms 预算 + 队列即清栈', async (
   const elapsed = Date.now() - t0;
   assert.equal(r.ok, true, '正常文本默认放行');
   assert.ok(elapsed < 300, '全链路 ≤300ms（实测 ' + elapsed + 'ms）');
-  assert.equal(auditQueueDepth(), 0, '处理即清栈');
   const r2 = await auditBeforeWrite({ path: '/api/notifications/read-all', method: 'POST', body: {} });
   assert.equal(r2.ok, true, '非内容路径直接放行不入队');
 });
@@ -77,6 +76,12 @@ test('auditBeforeWrite L1 规则层（S2-1）：自由文本字段含门牌号 �
   assert.ok(signingBad.reject, '发起签约 schedule 含门牌 → 拒');
   const signingOk = await auditBeforeWrite({ path: '/api/conversations/12/signing', method: 'POST', body: { schedule: '每周六下午3点' } });
   assert.equal(signingOk.ok, true, '发起签约正常 → 放行');
+  // v0.31.2 审计：合同修改路径 body 为 {version, contractMd}——pick 曾只读创建扁平字段（plan/schedule/location/payMethodOther），
+  // 修改时四字段全 undefined → 恒放行（用户可在修改弹窗打进详细门牌绕开红线）。补 contractMd 后此层拦截。
+  const contractModBad = await auditBeforeWrite({ path: '/api/contracts/12', method: 'PUT', body: { version: 3, contractMd: '每周六晚8点，上门到静安区5号楼303室授课' } });
+  assert.ok(contractModBad.reject, '合同修改 contractMd 含门牌 → 拒');
+  const contractModOk = await auditBeforeWrite({ path: '/api/contracts/12', method: 'PUT', body: { version: 3, contractMd: '每周六晚8点线上授课' } });
+  assert.equal(contractModOk.ok, true, '合同修改正常 → 放行');
 });
 
 test('auditBeforeWrite L1 嵌套 body：需求/教师档案字段在 body.demand / body.profile 下（外部审计断线回归）', async () => {

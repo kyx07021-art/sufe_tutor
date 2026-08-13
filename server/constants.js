@@ -27,8 +27,12 @@ export const INVITE_GATE_ENABLED = false; // 教师注册邀请码门控。内�
 //   [-·、．.，, ] 分隔（NLP 级枚举的工程等价：门牌号 = 数字串 + 门牌后缀，分隔符是地址语法噪音，
 //   归一化进模式而非上重型 NLP 库——workerd 体积/兼容约束下规则匹配更精准可靠，见 docs 地址门控注记）。
 const CN_DIGIT = '一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億';
-const NUM_T = `[0-9０-９${CN_DIGIT}]`;        // 数字 token（阿拉伯/全角/中文/大写中文）
-const NUM_SEP = `[-·、．.，, ]`;              // 数字位间可夹的地址语法分隔符
+export const NUM_T = `[0-9０-９${CN_DIGIT}]`;        // 数字 token（阿拉伯/全角/中文/大写中文）
+export const NUM_SEP = `[-·、．.，, ]`;              // 数字位间可夹的地址语法分隔符（v0.31.3 审计 A1：导出供 text-audit 复用，防数字变体扩容漂移）
+// 手机/邮箱哈希可查列定位条件单源（v0.31.3 审计 A3）：credential.js（登录识别全列）+ db.js（限流同批）
+// 各写一份 WHERE 曾逐字重复 6 处——哈希列语义只此一份，改列名/判空口径不再两处漂移。组成时前缀 WHERE 或接 LIMIT。
+export const PHONE_HASH_COND = "phone_hash=? AND phone_hash != ''";
+export const EMAIL_HASH_COND = "email_hash=? AND email_hash != ''";
 const NOSEQ2 = `(?:${NUM_T}${NUM_SEP}?)+${NUM_T}`; // ≥2 个数字 token，位间可夹分隔符（用于「号」）
 const NOSEQ1 = `(?:${NUM_T}${NUM_SEP}?)*${NUM_T}`; // ≥1 个数字 token（用于 号楼/室/栋/单元/门牌，八号楼 也属门牌）
 export const ADDRESS_GUARD = new RegExp(

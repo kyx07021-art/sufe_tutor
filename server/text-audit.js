@@ -16,7 +16,7 @@
  * 对自由文本字段调 auditFreeText，命中 { ok:false } 即回 MSG.ADDRESS_TOO_DETAILED。
  * 未来全站统一审核：策略链只在本模块演进（换模型/换厂商/加规则），调用点签名不变。
  */
-import { ADDRESS_GUARD } from './constants.js';
+import { ADDRESS_GUARD, NUM_T, NUM_SEP } from './constants.js'; // NUM_T/NUM_SEP 与 ADDRESS_GUARD 同源（v0.31.3 审计 A1：曾各写一份，数字变体扩容必漂移）
 import { getSecret } from './secrets.js';
 
 let AUDIT_ENV = null;
@@ -28,8 +28,6 @@ export function bindTextAuditEnv(env) { AUDIT_ENV = env; }
 // ============================================================
 // 数字谐音后缀表（用户实证「2788好」——「号」写成谐音字绕过门控）：好/昊/豪/浩/耗/壕
 const HOU_HARMONY = '号好昊豪浩耗壕';
-const NUM_T = `[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億]`;
-const NUM_SEP = `[-·、．.，, ]`;
 const HARMONIC_GUARD = new RegExp(
   `(?:${NUM_T}${NUM_SEP}?)+${NUM_T}[${HOU_HARMONY}](?!线)`); // (?!线) 同 ADDRESS_GUARD：地铁/公交「十二号线」不误伤
 // 注：规则层只拦「数字串+门牌/谐音后缀」模式变体。谐音词（二期爸爸号=2期88号）、

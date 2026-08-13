@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.31.2',
+  APP_VERSION: '0.31.3',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -43,7 +43,7 @@ globalThis.APP_CONSTANTS = {
       { prefix: '+86', name: '中国大陆', pattern: /^1[3-9]\d{9}$/ },
     ],
     OTP_RESEND_SEC: 60,                   // 验证码 60s 重发冷却（前端倒计时/灰化；服务端 LIMITS.OTP_RESEND_WINDOW_MS 同口径强制）
-    USERNAME_COOLDOWN_MS: 7 * 24 * 3600 * 1000, // 用户名 7 天冷却（前端按钮倒计时；服务端 LIMITS.USERNAME_COOLDOWN_MS 同值）
+    DEMAND_SCORE_MAX: 12,                 // 需求「科目具体情况」成绩条目数上限（服务端 sanitizeDemand 同读钳制——v0.31.3 审计：原为幽灵引用 + 裸 12 兜底）
     DOMAIN_SCRIPT_RETRY: 4,               // v0.25.100：领域脚本 404 重试次数（发布后边缘同步窗口 ~1-2 分钟，3s×4=12s 覆盖大部分窗口）
     DOMAIN_SCRIPT_RETRY_MS: 3000,         // v0.25.100：领域脚本 404 重试间隔（延迟重试等边缘同步，保留页面状态）
     DOMAIN_SCRIPT_TIMEOUT_MS: 6000,       // v0.27.0 审计：单脚本挂起下载（无 load/error，边缘节点吞请求）超时兜底——按失败走重试/自愈，绝不让 enterClient 永久等待
@@ -1726,6 +1726,14 @@ globalThis.APP_CONSTANTS = {
     USERNAME_CHANGE_TITLE: '修改用户名',
     USERNAME_NEW_PLACEHOLDER: '输入新用户名（3-30 字符，不含 @ 与纯数字）',
     USERNAME_COOLDOWN_BTN: '{time}后可再次修改用户名', // B1 倒计时复用（7 天冷却）
+    // v0.31.3 审计（U2/U3）：以下文案收口自硬编码——服务端同文案在 server/constants.js MSG（跨层重复属既定，
+    // 改文案必须两处同步；此处为前端校验的即时 toast）
+    USERNAME_LENGTH_ERR: '用户名长度需在 3-30 个字符之间', // 同 MSG.USERNAME_LENGTH
+    USERNAME_CHARS_ERR: '用户名只能包含中文、字母、数字及 _ . - （3-30 个字符），且不能为纯数字、不能含 @', // 同 MSG.USERNAME_NEW_INVALID（对齐服务端全文案，修复此前少「（3-30 个字符）」段的漂移）
+    USERNAME_USE_PASSWORD: '用户名账户请使用密码登录',
+    CRED_IDENT_INVALID: '请输入有效的手机号或邮箱',
+    CRED_FORMAT_PHONE: '手机号格式不正确', // 同 MSG.PHONE_INVALID
+    CRED_FORMAT_EMAIL: '邮箱格式不正确', // 同 MSG.EMAIL_INVALID
     BTN_USERNAME_SAVE: '确认修改',
     BTN_USERNAME_SAVING: '保存中...',
     LOGIN_SWITCH_CODE: '验证码登录',

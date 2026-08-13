@@ -87,7 +87,7 @@ async function requestOtpCode(prefix, channel) {
     else if (kind === 'phone') {
       channel = 'sms';
       target = ident.startsWith('+') ? ident : '+86' + ident;
-    } else { showToast('请输入有效的手机号或邮箱', 'error'); return; }
+    } else { showToast(UI.CRED_IDENT_INVALID, 'error'); return; }
   } else if (channel === 'email') {
     const el = document.getElementById(`${prefix}-email`);
     target = el ? el.value.trim() : '';
@@ -99,7 +99,7 @@ async function requestOtpCode(prefix, channel) {
   if (!target) { showToast(channel === 'email' ? UI.EMAIL_PLACEHOLDER : UI.PHONE_PLACEHOLDER, 'error'); return; }
   const valid = channel === 'email' ? validateEmail(target) : validatePhone(target);
   if (!valid) {
-    showToast(channel === 'email' ? '邮箱格式不正确' : '手机号格式不正确', 'error');
+    showToast(channel === 'email' ? UI.CRED_FORMAT_EMAIL : UI.CRED_FORMAT_PHONE, 'error');
     return;
   }
   sendBtn.disabled = true; // 立即灰化防连点（后端 60s 原子限频兜底）
@@ -150,11 +150,11 @@ async function submitBind(kind) {
     // v0.26.15：前缀选项连根移除，目标恒为 '+86' + 号码（输入框只输大陆号）
     const el = document.getElementById('bind-phone');
     target = '+86' + (el ? el.value.trim() : '');
-    if (!validatePhone(target)) { showToast('手机号格式不正确', 'error'); return; }
+    if (!validatePhone(target)) { showToast(UI.CRED_FORMAT_PHONE, 'error'); return; }
   } else {
     const el = document.getElementById('bind-email');
     target = el ? el.value.trim() : '';
-    if (!validateEmail(target)) { showToast('邮箱格式不正确', 'error'); return; }
+    if (!validateEmail(target)) { showToast(UI.CRED_FORMAT_EMAIL, 'error'); return; }
   }
   const code = document.getElementById('bind-code');
   if (!code || !code.value.trim()) { showToast(UI.CODE_PLACEHOLDER, 'error'); return; }

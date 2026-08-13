@@ -13,6 +13,7 @@ import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbMarkConversationRead,
   dbGetMessageAttachment, dbGetConversationBindableDemands,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload,
+  dbPrepareMessageInsert,
 } from './db.js';
 import { logEvent } from './log.js';
 
@@ -149,7 +150,7 @@ export async function handleSendMessage(db, convId, body, req) {
 // 往返口径（审计修正）：写落库 1 次往返；附件归属读经 dbGetUploads WHERE IN 一次单查（N 读 → 1，
 // 同 B5 模式），总往返 = 1 读 + 1 写批（边界受 MSG_BATCH_MAX=13 封顶）。
 // 校验与单条路径同口径（归属/长度），任一校验失败整批 400/404（不落半批）；db.batch 失败整体回滚。
-const MSG_INSERT_SQL = 'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb) VALUES (?,?,?,?,?,?)';
+// v0.31.3 审计 A2：INSERT SQL 收口 db.js 单源（dbPrepareMessageInsert）——曾自持一份，加列双处漂移。
 async function handleSendBatch(db, convId, batch, userId, req) {
   if (!batch.length || batch.length > LIMITS.MSG_BATCH_MAX) return error(MSG.INVALID_PARAMS, 400);
   // 第一遍（for...of 保留 return 语义）：文字项校验 + 收集附件 id（非数字/重复整批拒绝）
@@ -178,12 +179,12 @@ async function handleSendBatch(db, convId, batch, userId, req) {
       const up = uploadById.get(parseInt(item.uploadId));
       if (!up || up.user_id !== userId) return error(MSG.CONVERSATION_NOT_FOUND, 404);
       items.push({ resultIndex: stmts.length, kind: up.kind, name: up.name });
-      stmts.push(db.prepare(MSG_INSERT_SQL).bind(convId, userId, up.kind, up.body, up.name, up.thumb)); // 密文随 uploads 转正
+      stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, up.kind, up.body, up.name, up.thumb)); // 密文随 uploads 转正
       stmts.push(db.prepare('DELETE FROM uploads WHERE id=?').bind(up.id));
     } else if (item && item.kind === 'text') {
       const content = String(item.body ?? '').trim();
       items.push({ resultIndex: stmts.length, kind: 'text', name: '' });
-      stmts.push(db.prepare(MSG_INSERT_SQL).bind(convId, userId, 'text', content, '', ''));
+      stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, 'text', content, '', ''));
     }
   }
   let results;

@@ -188,9 +188,9 @@ function confirmUsernameChange() {
   const input = document.getElementById('username-new-input');
   if (!input) return;
   const newName = input.value.trim();
-  if (newName.length < 3 || newName.length > 30) { showToast('用户名长度需在 3-30 个字符之间', 'error'); return; }
+  if (newName.length < 3 || newName.length > 30) { showToast(UI.USERNAME_LENGTH_ERR, 'error'); return; }
   if (!/^[\p{Script=Han}A-Za-z0-9_.\-]+$/u.test(newName) || newName.includes('@') || /^\d+$/.test(newName)) {
-    showToast('用户名只能包含中文、字母、数字及 _ . -，且不能为纯数字、不能含 @', 'error');
+    showToast(UI.USERNAME_CHARS_ERR, 'error');
     return;
   }
   confirm({

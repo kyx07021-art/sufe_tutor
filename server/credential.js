@@ -14,6 +14,7 @@
  */
 import { dbGet, dbRun, toDbTime } from './util.js';
 import { encryptField, decryptField, tokenDigest } from './crypto.js';
+import { PHONE_HASH_COND, EMAIL_HASH_COND } from './constants.js'; // 哈希列定位条件单源（v0.31.3 审计 A3）
 
 // 凭证读取列集（登录识别/校验用，含口令列——仅登录/重认证路径出层）
 const USER_CRED_SQL = `SELECT id, username, role, avatar, banned, deactivated, password_hash, salt,
@@ -60,24 +61,24 @@ export async function bindEmailCredential(db, userId, email) {
 
 /** 按手机号哈希定位账户（登录识别；含口令列供密码校验；无则 undefined） */
 export async function dbFindUserByPhoneHash(db, hash) {
-  return await dbGet(db, `${USER_CRED_SQL} WHERE phone_hash=? AND phone_hash != ''`, [hash]);
+  return await dbGet(db, `${USER_CRED_SQL} WHERE ${PHONE_HASH_COND}`, [hash]);
 }
 
 /** 按邮箱哈希定位账户（登录识别；同 phone） */
 export async function dbFindUserByEmailHash(db, hash) {
-  return await dbGet(db, `${USER_CRED_SQL} WHERE email_hash=? AND email_hash != ''`, [hash]);
+  return await dbGet(db, `${USER_CRED_SQL} WHERE ${EMAIL_HASH_COND}`, [hash]);
 }
 
 /** 手机号是否已被某账户绑定（绑定去重；UNIQUE 索引兜底并发） */
 export async function dbPhoneTaken(db, phone) {
   const h = await tokenDigest(phone);
-  return !!(await dbGet(db, 'SELECT id FROM users WHERE phone_hash=? AND phone_hash != \'\' LIMIT 1', [h]));
+  return !!(await dbGet(db, `SELECT id FROM users WHERE ${PHONE_HASH_COND} LIMIT 1`, [h]));
 }
 
 /** 邮箱是否已被某账户绑定 */
 export async function dbEmailTaken(db, email) {
   const h = await tokenDigest(email);
-  return !!(await dbGet(db, 'SELECT id FROM users WHERE email_hash=? AND email_hash != \'\' LIMIT 1', [h]));
+  return !!(await dbGet(db, `SELECT id FROM users WHERE ${EMAIL_HASH_COND} LIMIT 1`, [h]));
 }
 
 /** 本人已绑凭证（解密出门；未绑 = 空串）。仅本人/管理员路径调用 */

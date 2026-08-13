@@ -78,6 +78,10 @@ try {
   await page.waitForTimeout(300);
   const step2 = await page.evaluate(() => +document.querySelector('#demand-form .dw-step.dw-step--active').dataset.step);
   ok('P1 校验通过 → P2', step2 === 2, `active=${step2}`);
+  // P2 选线下（new 表单默认第一项=online，服务端对线上需求清空 address——地址端到端要存活必须选线下）
+  await page.evaluate(() => {
+    const m = document.getElementById('d-method'); m.value = 'offline'; m.dispatchEvent(new Event('change'));
+  });
 
   // 一路 Next 到 P7：P3 需填年级、P4 勾科目，P5/P6 可空
   await page.evaluate(() => document.getElementById('dw-next').click()); await page.waitForTimeout(250); // → P3

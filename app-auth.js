@@ -235,7 +235,7 @@ function toggleLoginMode(e) {
     const ident = (document.getElementById('login-identifier') || {}).value || '';
     const kind = classifyIdentifier(ident);
     if (kind !== 'phone' && kind !== 'email') {
-      showToast('用户名账户请使用密码登录', 'error');
+      showToast(UI.USERNAME_USE_PASSWORD, 'error');
       return;
     }
   }

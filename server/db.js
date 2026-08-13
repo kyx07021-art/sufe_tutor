@@ -8,7 +8,7 @@
  */
 import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
 import { hashPassword, encryptField, decryptField, bindCryptoEnv } from './crypto.js'; // 密码哈希/敏感字段加密（网安报告 F-06）
-import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS } from './constants.js';
+import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS, PHONE_HASH_COND, EMAIL_HASH_COND } from './constants.js'; // PHONE/EMAIL_HASH_COND：哈希定位条件单源（v0.31.3 审计 A3）
 import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
@@ -657,12 +657,13 @@ export function dbUserLookupStmt(db, username) {
 export function dbUsernameExistsStmt(db, username) {
   return db.prepare('SELECT id FROM users WHERE username=?').bind(username);
 }
-// v0.26.0 登录识别（A7）：手机号/邮箱哈希可查列定位 stmt（B1 限流同批；hash 由调用方 tokenDigest 预计算）
+// v0.26.0 登录识别（A7）：手机号/邮箱哈希可查列定位 stmt（B1 限流同批；hash 由调用方 tokenDigest 预计算；
+// 谓词单源 PHONE/EMAIL_HASH_COND，与 credential.js 登录识别同口径）
 export function dbUserPhoneHashStmt(db, hash) {
-  return db.prepare("SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE phone_hash=? AND phone_hash != ''").bind(hash);
+  return db.prepare(`SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE ${PHONE_HASH_COND}`).bind(hash);
 }
 export function dbUserEmailHashStmt(db, hash) {
-  return db.prepare("SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE email_hash=? AND email_hash != ''").bind(hash);
+  return db.prepare(`SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE ${EMAIL_HASH_COND}`).bind(hash);
 }
 
 export async function dbFindUserById(db, id) {
@@ -1739,10 +1740,14 @@ export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_
     WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
 }
 
+// messages INSERT 单源（v0.31.3 审计 A2）：路由层批量发送（routes-chat）曾自持一份 SQL 直插——
+// 数据层单写原则旁支通路，messages 加列时两处只改一处必静默缺列。业务 SQL 只此一份，批量经
+// dbPrepareMessageInsert 取预编译语句，单条经 dbCreateMessage 落库。
+const MSG_INSERT_SQL = 'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb) VALUES (?,?,?,?,?,?)';
+export function dbPrepareMessageInsert(db) { return db.prepare(MSG_INSERT_SQL); }
+
 export async function dbCreateMessage(db, convId, senderUserId, kind, body, name = '', thumb = '') { // v0.25.36 缩略图随消息落库
-  const result = await dbRun(db,
-    'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb) VALUES (?,?,?,?,?,?)',
-    [convId, senderUserId, kind, body, name, thumb]);
+  const result = await dbRun(db, MSG_INSERT_SQL, [convId, senderUserId, kind, body, name, thumb]);
   return Number(result.meta.last_row_id);
 }
 

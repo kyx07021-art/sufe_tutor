@@ -72,7 +72,7 @@ const AUDIT_MAP = [
   { prefix: '/api/reviews',         pick: b => [b.comment] },
   { prefix: '/api/feedbacks',       pick: b => [b.title, b.content] },
   { prefix: '/api/complaints',      pick: b => [b.reason, b.detail] },
-  { prefix: '/api/contracts',       pick: b => [b.plan, b.schedule, b.location, b.payMethodOther] }, // 合同线下地点可承载门牌（v0.30.0 审计补）
+  { prefix: '/api/contracts',       pick: b => [b.plan, b.schedule, b.location, b.payMethodOther, b.contractMd] }, // 合同线下地点可承载门牌（v0.30.0 审计补）；v0.31.2 审计补 contractMd——修改路径 body {version,contractMd}，创建路径 body 为扁平四字段（contractMd 服务端重拼，客户端不传即 undefined 不误拦）
   { prefix: '/api/conversations/',  pick: b => [
       ...(Array.isArray(b.batch) ? b.batch.map(i => i && i.body) : []), // 聊天批量正文
       b.schedule, // 发起签约（/api/conversations/:id/signing）schedule 自由文本（v0.30.0 审计补）
@@ -140,5 +140,6 @@ export async function auditBeforeWrite({ path, method, body, ip, userId }) {
   return { ok: true };
 }
 
-/** 队列深度观测（管理端诊断；当前同步路径恒 ≈0） */
-export function auditQueueDepth() { return _auditQueue.length; }
+// v0.31.3 审计（D1）：auditQueueDepth 深度观测导出已删——同步处理即清栈恒 ≈0 且无管理端端点读取，
+// 测试-only 死导出（连删测试引用）。_auditQueue 本体保留（runAudit 入队→同步清栈的微队列）。
+
