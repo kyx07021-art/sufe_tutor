@@ -71,7 +71,7 @@ function makeCtx() {
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   };
   w.scrollTo = () => {};
-  w.APP_CONSTANTS = { CONFIG: { UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_REFLOW_SAMPLE_STEP: 10 } };
+  w.APP_CONSTANTS = { CONFIG: { UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_REFLOW_SAMPLE_STEP: 20 } };
   const ctx = vm.createContext({
     window: w, document: w.document, getComputedStyle: w.getComputedStyle.bind(w),
     console, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
@@ -99,15 +99,15 @@ function readTransform(ctx, id) {
 const hasTranslate = (ctx) => vm.runInContext(
   `document.getElementById('__ui-reflow-transforms').textContent.includes('translate(')`, ctx);
 
-test('CONFIG 单源：UI_SCALE_REFLOW_SAMPLE_STEP=10 在 constants.js（UI_SCALE_MIN..MAX 整除步进）', () => {
-  assert.match(CONSTANTS, /UI_SCALE_REFLOW_SAMPLE_STEP:\s*10/, 'constants.js 定义 UI_SCALE_REFLOW_SAMPLE_STEP: 10（v0.31.4 P4 减半采样成本）');
+test('CONFIG 单源：UI_SCALE_REFLOW_SAMPLE_STEP=20 在 constants.js（UI_SCALE_MIN..MAX 整除步进）', () => {
+  assert.match(CONSTANTS, /UI_SCALE_REFLOW_SAMPLE_STEP:\s*20/, 'constants.js 定义 UI_SCALE_REFLOW_SAMPLE_STEP: 20（v0.31.4 P4 采样成本 9 档→3 档）');
 });
 
-test('prepare：采样档位 [80,90,…,120]；采样后 --ui-scale 还原（无闪屏中间态残留）', () => {
+test('prepare：采样档位 [80,100,120]；采样后 --ui-scale 还原（无闪屏中间态残留）', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`window.__uiScaleReflow.prepare()`, ctx);
   const samples = vm.runInContext(`window.__uiScaleReflow._samples()`, ctx);
-  assert.deepEqual(Array.from(samples), [80, 90, 100, 110, 120], 'UI_SCALE_MIN..MAX 每 10% 一档（5 档）');
+  assert.deepEqual(Array.from(samples), [80, 100, 120], 'UI_SCALE_MIN..MAX 每 20% 一档（3 档）');
   assert.equal(vm.runInContext(`document.documentElement.style.getPropertyValue('--ui-scale')`, ctx), '',
     '采样后 --ui-scale 还原空（不残留中间档位）');
 });
