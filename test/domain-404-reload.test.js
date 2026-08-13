@@ -110,13 +110,13 @@ test('A1 重试保序：region-data 404 后重试脚本插回原兄弟位（非 
   first.dispatchEvent(new dom.window.Event('error'));
   await tick();
   const all = [...dom.window.document.querySelectorAll('script[src]')];
-  const idx = all.findIndex(s => (s.getAttribute('src') || '').includes('region-data'));
-  // 重试脚本（最后一个 region-data）应紧邻首个 region-data 之后，而非 head 末尾
-  const retryIdx = all.map(s => s.getAttribute('src')).lastIndexOf('/region-data.js');
-  assert.equal(retryIdx, idx + 1, '重试脚本插回原失败节点之后（并行注入下依赖序不破）');
-  // 且它必须仍排在 app-style 等依赖者之前（执行序 = DOM 序）
-  const styleIdx = all.map(s => s.getAttribute('src')).findIndex(s => s.includes('app-style'));
-  assert.ok(retryIdx < styleIdx, '重试的 region-data 在 app-style 之前执行');
+  const srcs = all.map(s => s.getAttribute('src'));
+  // v0.31.0 慢下载双执行修复：失败原脚本被摘除（HTML spec：移除中止待执行），仅重试副本留在原兄弟位
+  assert.equal(srcs.filter(s => s.includes('region-data')).length, 1, '原脚本摘除、仅重试副本保留（杜绝双执行重复声明炸页）');
+  const retryIdx = srcs.findIndex(s => s.includes('region-data'));
+  // 且它必须仍排在 app-style 等依赖者之前（执行序 = DOM 序，依赖序不破）
+  const styleIdx = srcs.findIndex(s => s.includes('app-style'));
+  assert.ok(retryIdx < styleIdx, '重试的 region-data 仍排在 app-style 之前执行（依赖序不破）');
 });
 
 test('T5 并行注入：loadDomainScripts 同 tick 注入全部 12 个领域脚本（F6 瀑布 → 1 波）', async () => {
@@ -139,4 +139,33 @@ test('T5 并行注入：loadDomainScripts 同 tick 注入全部 12 个领域脚�
   }
   const injected = srcs.filter(s => DOMAIN.some(name => s.includes(name)));
   assert.equal(injected.length, 12, '全部 12 个领域脚本一次性注入');
+});
+
+// v0.31.0 慢下载双执行修复回归：挂起超时触发重试时，原脚本必须被摘除（否则晚到仍执行 →
+// 顶层 const/let 重复声明炸页——发布窗口冷 PoP 单脚本 >6s 时实测反复触发，弹窗打不开/交互失灵）。
+test('挂起超时重试：原脚本被摘除，仅重试副本保留（防慢下载晚到双执行）', async () => {
+  const { ctx, dom } = makeCtx();
+  vm.runInContext(`
+    globalThis.loadMyDemands = undefined;
+    CONFIG.DOMAIN_SCRIPT_TIMEOUT_MS = 150; CONFIG.DOMAIN_SCRIPT_RETRY = 2; CONFIG.DOMAIN_SCRIPT_RETRY_MS = 30;
+    __domainLoaded = false; __domainLoading = null; __domainReloadOnce = false;
+    loadDomainScripts(); // fire-and-forget（同步注入即刻在 DOM，T5 已验证）
+  `, ctx);
+  // 同步注入已发生：在挂起超时（150ms）前捕获首份脚本引用
+  const first = dom.window.document.querySelector('script[src*="region-data"]');
+  assert.ok(first, '首份 region-data 已注入');
+  // 不派发 load/error，轮询等挂起超时（150ms）→ fail 摘除原脚本 + 重试（+30ms 注入）。
+  // 轮询（30ms×N）容忍 timer 抖动；重试副本自身的挂起超时在 180+150=330ms，轮询窗口内可捕获。
+  let retry = null;
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 30));
+    const nodes = [...dom.window.document.querySelectorAll('script[src*="region-data"]')];
+    if (nodes.length === 1 && nodes[0] !== first) { retry = nodes[0]; break; }
+  }
+  assert.ok(retry, '挂起重试后重试副本注入');
+  assert.equal(first.parentNode, null, '原脚本已从 DOM 摘除（HTML spec：移除中止待执行，晚到不再执行）');
+  // 重试副本成功加载 → 自愈标记不置位（不误刷新）
+  retry.dispatchEvent(new dom.window.Event('load'));
+  await tick();
+  assert.equal(vm.runInContext('__domainReloadOnce', ctx), false, '重试成功不触发刷新');
 });
