@@ -66,7 +66,9 @@ test('wizard 渲染：7 步常驻 DOM、初始 P1 激活、步进器 7 芯片、
   assert.equal(doc.getElementById('demand-form').noValidate, true, 'form novalidate（原生校验关闭）');
   assert.ok(doc.getElementById('dw-back').classList.contains('hidden'), 'P1 无上一步');
   assert.ok(!doc.getElementById('dw-next').classList.contains('hidden'), 'P1 有下一步');
-  assert.ok(doc.getElementById('d-submit').classList.contains('hidden'), 'P1 无提交按钮');
+  const submit1 = doc.getElementById('d-submit');
+  assert.ok(submit1.classList.contains('hidden'), 'P1 无提交按钮');
+  assert.equal(submit1.disabled, true, 'P1 提交按钮禁用（防 Enter 隐式提交半截表单，审计 🟡3）');
 });
 
 test('wizard 逐页校验：P1 缺省份 / 缺上海地址 → 不前进 + toast', () => {
@@ -121,6 +123,7 @@ test('wizard 逐页校验：P3 缺年级 / P4 缺科目 / P7 缺联系方式 →
   assert.deepEqual(active(), [7], 'P6（时间/预算空合法）→ P7');
   assert.ok(doc.getElementById('dw-next').classList.contains('hidden'), 'P7 无下一步');
   assert.ok(!doc.getElementById('d-submit').classList.contains('hidden'), 'P7 提交按钮可见');
+  assert.equal(doc.getElementById('d-submit').disabled, false, 'P7 提交按钮启用');
   assert.ok(!doc.getElementById('dw-back').classList.contains('hidden'), 'P7 有上一步');
   // P7 缺联系方式 → 拦截
   fns.demandWizardValidateStep(7);

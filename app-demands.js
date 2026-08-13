@@ -257,7 +257,12 @@ function demandWizardGoTo(n) {
   const submit = document.getElementById('d-submit');
   if (back) back.classList.toggle('hidden', n === 1);
   if (next) next.classList.toggle('hidden', n === total);
-  if (submit) submit.classList.toggle('hidden', n !== total);
+  if (submit) {
+    submit.classList.toggle('hidden', n !== total);
+    // v0.31.2（审计 🟡3）：非末页禁用提交按钮——HTML 默认按钮取「未禁用」首个 submit，
+    // 仅 display:none 仍会被 Enter 隐式提交触发（P1-P6 文本框回车直接提交半截表单）。
+    submit.disabled = n !== total;
+  }
 }
 
 function demandWizardNext() { if (demandWizardValidateStep(_dwStep)) demandWizardGoTo(_dwStep + 1); }
@@ -482,6 +487,11 @@ async function handleSubmitDemand(e) {
   }
   if (!document.getElementById('d-parent-contact').value.trim() || !document.getElementById('d-student-contact').value.trim()) {
     showToast(UI.VALIDATE_CONTACT_REQUIRED, 'error'); return;
+  }
+  // v0.31.2（审计 🟡2）：预算区间纵深防御——wizard P6 已拦，此处兜底（服务端 sanitizeDemand 亦钳制）
+  const bMin = document.getElementById('d-budget-min'), bMax = document.getElementById('d-budget-max');
+  if (bMin.value && bMax.value && +bMin.value > +bMax.value) {
+    showToast(UI.VALIDATE_BUDGET_RANGE, 'error'); return;
   }
   // R2-b 需求类型 + 按类型收集目标（学科 → #d-subjects；非学科 → #d-nonacademic）
   const type = document.querySelector('#d-type-tabs .seg-tab.active').dataset.type;

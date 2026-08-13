@@ -120,12 +120,16 @@ function loadDomainScripts() {
         const s = document.createElement('script');
         s.src = '/' + (manifest[f] || f);
         let hangTimer = null; // 挂起下载超时（load/error/超时三者互斥，只放行一次）
-        // v0.31.0 审计修复（慢下载双执行炸页）：原 fail 重试注入第二份但未摘除原脚本——慢边缘
+        let retryTimer = null;
+        let settled = false; // v0.31.2（审计 a）：三路只结算一次 + 晚到 onload 取消已排程重试
+        // v0.31.1 审计修复（慢下载双执行炸页）：原 fail 重试注入第二份但未摘除原脚本——慢边缘
         // （冷 PoP/发布窗口单脚本下载 >6s）原脚本晚到仍执行 → 顶层 const/let 重复声明 → 领域模块
         // 状态损坏（弹窗打不开/流程中断/交互失灵，实测反复触发）。修 = fail 先摘除原脚本
-        // （HTML spec：移除脚本中止待执行的 fetch，杜绝双执行）+ 重试锚定原兄弟位（依赖序不破）。
+        // （主流浏览器 de-facto 移除即中止待执行，尽力而为）+ 重试锚定原兄弟位（依赖序不破）。
         const prev = anchor || (document.head.lastChild || null); // 本脚本插入前的兄弟，重试锚点（首次= head 尾）
         const fail = () => {
+          if (settled) return; // 对端已成功（onload 已结算）→ 不摘除不重试
+          settled = true;
           if (hangTimer !== null) { clearTimeout(hangTimer); hangTimer = null; }
           try { if (s.parentNode) s.parentNode.removeChild(s); } catch { /* ignore */ }
           if (attempt < CONFIG.DOMAIN_SCRIPT_RETRY) {
@@ -134,19 +138,31 @@ function loadDomainScripts() {
             // 在依赖者之后才就绪 → 窗口内点区域相关交互 ReferenceError；且坏模块顶层求值抛错时
             // onload 仍触发、__domainLoaded=true、不触发整页刷新自愈。重试脚本须插回原失败节点之后
             // （保持经典脚本依赖执行序），自愈语义才成立。
-            setTimeout(() => tryInject(attempt + 1, prev), CONFIG.DOMAIN_SCRIPT_RETRY_MS);
+            retryTimer = setTimeout(() => tryInject(attempt + 1, prev), CONFIG.DOMAIN_SCRIPT_RETRY_MS);
           } else {
             if (!__domainReloadOnce) { __domainReloadOnce = true; setTimeout(() => location.reload(), 900); }
             resolve();
           }
         };
-        s.onload = () => { if (hangTimer !== null) { clearTimeout(hangTimer); hangTimer = null; } resolve(); };
+        s.onload = () => {
+          if (settled) { // 原脚本晚到已执行 → 取消已排程的重试（防双执行竞态，审计 a）
+            if (retryTimer !== null) { clearTimeout(retryTimer); retryTimer = null; }
+            return;
+          }
+          settled = true;
+          if (hangTimer !== null) { clearTimeout(hangTimer); hangTimer = null; }
+          resolve();
+        };
         s.onerror = fail;
         // 审计：挂起下载（无 load/error，如边缘节点吞请求）会令 enterClient 永久等待——加超时兜底
         // 按失败走重试/自愈（与 404 同语义），进页绝不卡死在 loading。
         hangTimer = setTimeout(fail, CONFIG.DOMAIN_SCRIPT_TIMEOUT_MS || 6000);
-        if (prev && prev.parentNode) {
-          prev.parentNode.insertBefore(s, prev.nextSibling); // 插回原兄弟位：依赖序不破
+        // 相邻多失败时 prev 可能已被摘除（其自身 fail removeChild）——向前回退到最近存续兄弟，
+        // 重试仍落在原区间（审计 c），杜绝追加到 head 末尾破依赖序。
+        let ins = prev;
+        while (ins && !ins.parentNode) ins = ins.previousSibling;
+        if (ins && ins.parentNode) {
+          ins.parentNode.insertBefore(s, ins.nextSibling); // 插回原兄弟位：依赖序不破
         } else {
           (document.head || document.documentElement).appendChild(s);
         }

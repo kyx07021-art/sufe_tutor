@@ -141,6 +141,35 @@ test('T5 并行注入：loadDomainScripts 同 tick 注入全部 12 个领域脚�
   assert.equal(injected.length, 12, '全部 12 个领域脚本一次性注入');
 });
 
+// v0.31.2（审计 a）回归：挂起超时 fail 摘除原脚本并排程重试后，原脚本晚到触发 onload——
+// 说明它已成功加载执行，必须取消已排程的重试，否则重试副本注入后双执行（重复声明炸页）。
+test('settled 哨兵：晚到 onload 取消已排程重试（杜绝残余双执行窗口）', async () => {
+  const { ctx, dom } = makeCtx();
+  vm.runInContext(`
+    globalThis.loadMyDemands = undefined;
+    CONFIG.DOMAIN_SCRIPT_TIMEOUT_MS = 120; CONFIG.DOMAIN_SCRIPT_RETRY = 2; CONFIG.DOMAIN_SCRIPT_RETRY_MS = 500;
+    __domainLoaded = false; __domainLoading = null; __domainReloadOnce = false;
+    loadDomainScripts();
+  `, ctx);
+  const first = dom.window.document.querySelector('script[src*="region-data"]');
+  assert.ok(first, '首份 region-data 已注入');
+  // 不派发 load/error，轮询等挂起超时（120ms）→ fail 摘除原脚本 + 排程重试（+500ms）
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 20));
+    if (first.parentNode === null) break;
+  }
+  assert.equal(first.parentNode, null, '原脚本已被 fail 摘除');
+  // 原脚本晚到成功（load 事件派发在被摘除的节点上）→ 应取消重试
+  first.dispatchEvent(new dom.window.Event('load'));
+  await tick();
+  // 等过原重试时点（120+500ms）仍无重试副本注入 → 晚到 onload 已取消重试
+  await new Promise(r => setTimeout(r, 620));
+  const remaining = [...dom.window.document.querySelectorAll('script[src*="region-data"]')];
+  assert.equal(remaining.length, 0, '晚到 onload 后无重试副本注入（settled 哨兵生效）');
+  // 注：不断言 __domainReloadOnce——其余 11 个领域脚本各持独立 timer，会在本窗口内自行挂起→
+  // 重试→耗尽（置位自愈标记），与本测试验证的 region-data 晚到取消重试无关。
+});
+
 // v0.31.0 慢下载双执行修复回归：挂起超时触发重试时，原脚本必须被摘除（否则晚到仍执行 →
 // 顶层 const/let 重复声明炸页——发布窗口冷 PoP 单脚本 >6s 时实测反复触发，弹窗打不开/交互失灵）。
 test('挂起超时重试：原脚本被摘除，仅重试副本保留（防慢下载晚到双执行）', async () => {
