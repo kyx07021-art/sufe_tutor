@@ -41,7 +41,8 @@ function demandSubjectsText(d) {
 const pushRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
 const intentRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_INTENT_REJECT.replace('{subjects}', demandSubjectsText(d));
 
-// 需求输入硬化：预算钳到 [0, LIMITS.BUDGET_MAX] 且 max>=min；授课方式白名单；地址门牌级按 ADDRESS_GUARD 拒绝
+// 需求输入硬化：预算钳到 [0, LIMITS.BUDGET_MAX] 且 max>=min；授课方式白名单（v0.29.0 起 address 改结构化
+// 「区·镇/街道」校验，不再自由文本门牌守卫——见 handleCreateDemand 内 isValidShanghaiAddr 分支）
 const clampBudget = v => { const n = Number(v); return Number.isFinite(n) ? Math.min(LIMITS.BUDGET_MAX, Math.max(0, n)) : 0; };
 // 需求类型白名单（R2-b）：academic 学科 / nonacademic 非学科，非法回退 academic（静默不拒需求）。
 // 取值单源 constants DEMAND_TYPES（与前端同文件，禁止散落字面量）
@@ -66,7 +67,8 @@ function sanitizeDemand(d) {
   if (d.budget_max < d.budget_min) d.budget_max = d.budget_min;
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
   d.address = (typeof d.address === 'string' ? d.address : '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
-  // 2026-08-09 审计 F-1/F-4：补充说明是自由文本——上限截断 + 与 address 同款门牌守卫（合规红线不因字段绕行）
+  // 2026-08-09 审计 F-1/F-4：补充说明是自由文本——上限截断；门牌守卫由调用方 auditFreeText 单独执行
+  // （v0.29.0：address 已结构化不再走守卫，仅 additional_info 保留咽喉——合规红线不因字段绕行）
   d.additional_info = (typeof d.additional_info === 'string' ? d.additional_info : '').slice(0, LIMITS.ADDITIONAL_INFO_MAX);
   d.parent_contact = (typeof d.parent_contact === 'string' ? d.parent_contact : '').slice(0, LIMITS.CONTACT_MAX);
   d.student_contact = (typeof d.student_contact === 'string' ? d.student_contact : '').slice(0, LIMITS.CONTACT_MAX);
