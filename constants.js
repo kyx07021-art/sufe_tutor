@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.30.1',
+  APP_VERSION: '0.31.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1494,6 +1494,20 @@ globalThis.APP_CONSTANTS = {
     OPTION_PLACEHOLDER: '请选择',
     CONTACT_PLACEHOLDER: '手机邮箱',
     VALIDATE_SELECT_PROVINCE: '请选择省份',
+    // 任务三（v0.31.0）需求表单 wizard：分步导航 + 每页校验
+    BTN_PREV_STEP: '上一步',
+    BTN_NEXT_STEP: '下一步',
+    VALIDATE_SELECT_GRADE: '请选择学生年级',
+    VALIDATE_ADDRESS_REQUIRED: '请选择所在区与镇/街道',
+    VALIDATE_BUDGET_RANGE: '预算区间有误：最低价不能高于最高价',
+    VALIDATE_CONTACT_REQUIRED: '请填写家长与学生联系方式',
+    DW_STEP_PROVINCE: '省份',
+    DW_STEP_METHOD: '教学方式',
+    DW_STEP_STUDENT: '学生信息',
+    DW_STEP_SUBJECTS: '科目',
+    DW_STEP_SCORES: '成绩',
+    DW_STEP_BUDGET: '预算时间',
+    DW_STEP_SUBMIT: '提交',
 
     // 侧边栏页签标题
     PAGE_MY_DEMANDS: '我的需求',

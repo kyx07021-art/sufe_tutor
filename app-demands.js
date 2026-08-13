@@ -77,115 +77,149 @@ function setDemandType(type) {
   if (na) na.classList.toggle('hidden', isAc);
 }
 
+// 任务三（v0.31.0）：需求表单 wizard 分页标签单源（对应 renderDemandModal 的 7 个 .dw-step）
+const DEMAND_WIZARD_STEPS = [
+  UI.DW_STEP_PROVINCE, UI.DW_STEP_METHOD, UI.DW_STEP_STUDENT,
+  UI.DW_STEP_SUBJECTS, UI.DW_STEP_SCORES, UI.DW_STEP_BUDGET, UI.DW_STEP_SUBMIT,
+];
+
 function renderDemandModal(demand) {
   // R2-b 学生性别选项：'' = 不愿透露（默认，视同未填）+ GENDERS 男/女；
   // GENDERS 教师侧含 undeclared 默认（学生侧以 '' 表示不愿透露，剔除 undeclared 与历史 nonbinary）
   const studentGenders = [{ id: '', name: UI.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary')];
   const prefGenders = GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary'); // 偏好老师性别：不限('') + 男/女
+  // 任务三（v0.31.0）分步 wizard：字段按用户定序归 7 页（省份/教学方式/学生信息/科目/成绩/预算时间/提交），
+  // 页面 DOM 常驻（display 切换不卸载，跨页状态零丢失）；form novalidate——每页校验走 demandWizardValidateStep。
   return `
-        <form onsubmit="handleSubmitDemand(event)" id="demand-form">
-          <div class="form-group">
-            <!-- R2-8 学科/非学科分段切换：标准分段控件 .seg-tabs（v0.25.20 需求二；v0.25.23 审计：构造走 segTabsHtml 壳） -->
-            ${segTabsHtml([
-              { key: DEMAND_TYPES.ACADEMIC, label: UI.LABEL_TYPE_ACADEMIC, onclick: 'switchDemandType(this)' },
-              { key: DEMAND_TYPES.NONACADEMIC, label: UI.LABEL_TYPE_NONACADEMIC, onclick: 'switchDemandType(this)' },
-            ], DEMAND_TYPES.ACADEMIC, { containerClass: 'demand-type-tabs', containerId: 'd-type-tabs', attr: 'type' })}
+        <form onsubmit="handleSubmitDemand(event)" id="demand-form" novalidate>
+          <div class="dw-stepper" id="dw-stepper">
+            ${DEMAND_WIZARD_STEPS.map((s, i) => `<div class="dw-step-chip" data-step="${i + 1}" title="${s}"><span class="dw-step-chip-dot"></span><span class="dw-step-chip-label">${s}</span></div>`).join('')}
           </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_PROVINCE} <span class="req">*</span></label>
-            <span id="d-province-wrap"></span>
-            <div id="d-region-note"></div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_STUDENT_GRADE} <span class="req">*</span></label>
-            <!-- M3（v0.25.103）：年级随地区学制动态（上海五四学制无小学六年级、六年级=预备班）；
-                 未选地区时禁用并提示先选地区 -->
-            <select class="form-select" id="d-grade" required onchange="updateDemandSubjects()"${demand && demand.province ? '' : ' disabled'}>
-              <option value="">${demand && demand.province ? UI.OPTION_PLACEHOLDER : UI.SELECT_PROVINCE_FIRST}</option>${gradeOptionsForProvince(demand && demand.province).map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_STUDENT_GENDER}</label>
-            <select class="form-select" id="d-gender">
-              ${studentGenders.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
-            </select>
-          </div>
-          <div class="demand-section" id="d-section-academic">
+          <div class="dw-step" data-step="1">
+            <!-- P1 选省：选上海追加区 + 镇/街道（wizard 下地址区随省份即显示，不 gate 教学方式——方式在 P2） -->
             <div class="form-group">
-              <label class="form-label">${UI.LABEL_TARGET_SUBJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
-              <div class="checkbox-grid" id="d-subjects">${checkboxItemsHtml(SUBJECTS)}</div>
+              <label class="form-label">${UI.LABEL_PROVINCE} <span class="req">*</span></label>
+              <span id="d-province-wrap"></span>
+              <div id="d-region-note"></div>
             </div>
+            <div id="d-address-section">
+              <div class="form-group">
+                <!-- 需求五：地址结构化（区·镇/街道 二级联动），picker 渲染进容器；隐藏 input 保持提交签名不变 -->
+                <label class="form-label">${UI.LABEL_ADDRESS} <span class="req">*</span></label>
+                <div id="d-addr-picker" class="sh-addr-picker"></div>
+                <input type="hidden" id="d-address" placeholder="${UI.ADDRESS_PLACEHOLDER}">
+              </div>
+            </div>
+          </div>
+          <div class="dw-step" data-step="2">
+            <!-- P2 期望教学方式 -->
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_TEACHING_METHOD} <span class="req">*</span></label>
+              <select class="form-select" id="d-method" required>
+                ${TEACHING_METHODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
+              </select>
+            </div>
+            <p class="text-sm text-muted spacer-sm" id="d-method-note"></p>
+          </div>
+          <div class="dw-step" data-step="3">
+            <!-- P3 学生性别 + 年级 -->
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_STUDENT_GENDER}</label>
+              <select class="form-select" id="d-gender">
+                ${studentGenders.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_STUDENT_GRADE} <span class="req">*</span></label>
+              <!-- M3（v0.25.103）：年级随地区学制动态（上海五四学制无小学六年级、六年级=预备班）；
+                   未选地区时禁用并提示先选地区 -->
+              <select class="form-select" id="d-grade" required onchange="updateDemandSubjects()"${demand && demand.province ? '' : ' disabled'}>
+                <option value="">${demand && demand.province ? UI.OPTION_PLACEHOLDER : UI.SELECT_PROVINCE_FIRST}</option>${gradeOptionsForProvince(demand && demand.province).map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="dw-step" data-step="4">
+            <!-- P4 科目：类型切换 + 学科科目/非学科项目 + 特质 + 偏好性别 -->
+            <div class="form-group">
+              <!-- R2-8 学科/非学科分段切换：标准分段控件 .seg-tabs（v0.25.20 需求二；v0.25.23 审计：构造走 segTabsHtml 壳） -->
+              ${segTabsHtml([
+                { key: DEMAND_TYPES.ACADEMIC, label: UI.LABEL_TYPE_ACADEMIC, onclick: 'switchDemandType(this)' },
+                { key: DEMAND_TYPES.NONACADEMIC, label: UI.LABEL_TYPE_NONACADEMIC, onclick: 'switchDemandType(this)' },
+              ], DEMAND_TYPES.ACADEMIC, { containerClass: 'demand-type-tabs', containerId: 'd-type-tabs', attr: 'type' })}
+            </div>
+            <div class="demand-section" id="d-section-academic">
+              <div class="form-group">
+                <label class="form-label">${UI.LABEL_TARGET_SUBJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
+                <div class="checkbox-grid" id="d-subjects">${checkboxItemsHtml(SUBJECTS)}</div>
+              </div>
+            </div>
+            <div class="demand-section hidden" id="d-section-nonacademic">
+              <div class="form-group">
+                <label class="form-label">${UI.LABEL_TARGET_PROJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
+                <div class="checkbox-grid" id="d-nonacademic">${checkboxItemsHtml(NONACADEMIC_PROJECTS)}</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_PREFERRED_PERSONALITY}${UI.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
+              <div id="d-personality-tags">${PERSONALITY_TAGS.map(tag=>
+                `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(tag.id)}" onclick="toggleTagPick(this, 'd-personality-tags', ${CONFIG.PERSONALITY_TAGS_MAX})">${escHtml(tag.name)}</button>`).join('')}</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_PREFERRED_GENDER}</label>
+              <select class="form-select" id="d-pref-gender">
+                <option value="">${UI.OPTION_PREF_GENDER_ANY}</option>${prefGenders.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <div class="dw-step" data-step="5">
+            <!-- P5 科目具体情况（分数/分制/等第等） -->
             <div class="form-group" id="d-scores-wrap">
               <label class="form-label">${UI.LABEL_CURRENT_SCORES}</label>
               <div id="d-scores"><p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p></div>
             </div>
           </div>
-          <div class="demand-section hidden" id="d-section-nonacademic">
+          <div class="dw-step" data-step="6">
+            <!-- P6 预算 + 期望时间 -->
             <div class="form-group">
-              <label class="form-label">${UI.LABEL_TARGET_PROJECTS} <span class="req">*</span>${UI.LABEL_MULTI_SUFFIX}</label>
-              <div class="checkbox-grid" id="d-nonacademic">${checkboxItemsHtml(NONACADEMIC_PROJECTS)}</div>
+              <label class="form-label">${UI.LABEL_BUDGET}</label>
+              <div class="range-row">
+                <input type="number" class="form-input" id="d-budget-min" placeholder="${UI.PLACEHOLDER_MIN}" min="0" step="1">
+                <span class="text-muted">~</span>
+                <input type="number" class="form-input" id="d-budget-max" placeholder="${UI.PLACEHOLDER_MAX}" min="0" step="1">
+              </div>
             </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_PREFERRED_PERSONALITY}${UI.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
-            <div id="d-personality-tags">${PERSONALITY_TAGS.map(tag=>
-              `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(tag.id)}" onclick="toggleTagPick(this, 'd-personality-tags', ${CONFIG.PERSONALITY_TAGS_MAX})">${escHtml(tag.name)}</button>`).join('')}</div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_PREFERRED_GENDER}</label>
-            <select class="form-select" id="d-pref-gender">
-              <option value="">${UI.OPTION_PREF_GENDER_ANY}</option>${prefGenders.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_TEACHING_METHOD} <span class="req">*</span></label>
-            <select class="form-select" id="d-method" required onchange="toggleAddressField()">
-              ${TEACHING_METHODS.map(m=>`<option value="${m.id}">${m.name}</option>`).join('')}
-            </select>
-          </div>
-          <div id="d-address-section">
             <div class="form-group">
-              <!-- 需求五：地址结构化（区·镇/街道 二级联动），picker 渲染进容器；隐藏 input 保持提交签名不变 -->
-              <label class="form-label">${UI.LABEL_ADDRESS} <span class="req">*</span></label>
-              <div id="d-addr-picker" class="sh-addr-picker"></div>
-              <input type="hidden" id="d-address" placeholder="${UI.ADDRESS_PLACEHOLDER}">
+              <label class="form-label">${UI.LABEL_EXPECTED_TIME}</label>
+              <div id="d-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div>
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_BUDGET}</label>
-            <div class="range-row">
-              <input type="number" class="form-input" id="d-budget-min" placeholder="${UI.PLACEHOLDER_MIN}" min="0" step="1">
-              <span class="text-muted">~</span>
-              <input type="number" class="form-input" id="d-budget-max" placeholder="${UI.PLACEHOLDER_MAX}" min="0" step="1">
+          <div class="dw-step" data-step="7">
+            <!-- P7 提交者 + 联系方式 + 补充说明 -->
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_SUBMITTER} <span class="req">*</span></label>
+              <select class="form-select" id="d-submitter" required>
+                <option value="parent">${UI.SUBMITTER_PARENT}</option><option value="student">${UI.SUBMITTER_STUDENT}</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_PARENT_CONTACT} <span class="req">*</span><span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span></label>
+              <input type="text" class="form-input" id="d-parent-contact" placeholder="${UI.CONTACT_PLACEHOLDER}" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_STUDENT_CONTACT} <span class="req">*</span><span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span></label>
+              <input type="text" class="form-input" id="d-student-contact" placeholder="${UI.CONTACT_PLACEHOLDER}" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label">${UI.LABEL_ADDITIONAL_INFO}</label>
+              <textarea class="form-input" id="d-info" rows="3" placeholder="${UI.DEMAND_INFO_PLACEHOLDER}"></textarea>
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_EXPECTED_TIME}</label>
-            <div id="d-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div>
-          </div>
-          <div class="form-divider"></div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_SUBMITTER} <span class="req">*</span></label>
-            <select class="form-select" id="d-submitter" required>
-              <option value="parent">${UI.SUBMITTER_PARENT}</option><option value="student">${UI.SUBMITTER_STUDENT}</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_PARENT_CONTACT} <span class="req">*</span><span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span></label>
-            <input type="text" class="form-input" id="d-parent-contact" placeholder="${UI.CONTACT_PLACEHOLDER}" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_STUDENT_CONTACT} <span class="req">*</span><span class="form-label-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span></label>
-            <input type="text" class="form-input" id="d-student-contact" placeholder="${UI.CONTACT_PLACEHOLDER}" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">${UI.LABEL_ADDITIONAL_INFO}</label>
-            <textarea class="form-input" id="d-info" rows="3" placeholder="${UI.DEMAND_INFO_PLACEHOLDER}"></textarea>
-          </div>
-          <div class="modal-footer">
-            ${demand ? `<button type="button" class="btn btn-sm modal-footer-start glass glass--pressable" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
+          <div class="dw-footer">
+            ${demand ? `<button type="button" class="btn btn-sm btn-text-danger glass glass--pressable" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
             <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-            <button type="submit" class="btn glass glass--pressable" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
+            <button type="button" class="btn btn-outline glass glass--pressable hidden" id="dw-back" onclick="demandWizardBack()">${UI.BTN_PREV_STEP}</button>
+            <button type="button" class="btn glass glass--pressable" id="dw-next" onclick="demandWizardNext()">${UI.BTN_NEXT_STEP}</button>
+            <button type="submit" class="btn glass glass--pressable hidden" id="d-submit">${demand ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND}</button>
           </div>
         </form>`;
 }
@@ -201,6 +235,73 @@ function gradeOptionsForProvince(prov) {
   });
 }
 
+// ============================================================
+// 任务三（v0.31.0）需求表单 wizard 控制器：7 页常驻 DOM + 进度条 + 逐页校验
+// 设计依据（web 调研结论）：页面不卸载（display 切换）跨页状态零丢失；每页过校验才前进；
+// Back 恒在（P1 无）；末页动作即提交按钮本身。JS 只切类/写 --dw-fill，零内联布局样式。
+// ============================================================
+let _dwStep = 1;
+
+function demandWizardGoTo(n) {
+  const total = DEMAND_WIZARD_STEPS.length;
+  n = Math.max(1, Math.min(total, n | 0));
+  _dwStep = n;
+  document.querySelectorAll('#demand-form .dw-step').forEach(el => el.classList.toggle('dw-step--active', +el.dataset.step === n));
+  document.querySelectorAll('#dw-stepper .dw-step-chip').forEach(ch => {
+    const s = +ch.dataset.step;
+    ch.classList.toggle('dw-step-chip--done', s < n);
+    ch.classList.toggle('dw-step-chip--active', s === n);
+  });
+  const back = document.getElementById('dw-back');
+  const next = document.getElementById('dw-next');
+  const submit = document.getElementById('d-submit');
+  if (back) back.classList.toggle('hidden', n === 1);
+  if (next) next.classList.toggle('hidden', n === total);
+  if (submit) submit.classList.toggle('hidden', n !== total);
+}
+
+function demandWizardNext() { if (demandWizardValidateStep(_dwStep)) demandWizardGoTo(_dwStep + 1); }
+function demandWizardBack() { demandWizardGoTo(_dwStep - 1); }
+
+// 每页校验（form novalidate 后唯一闸门；各页 toast 文案单源 UI.*）。返回是否可前进。
+function demandWizardValidateStep(n) {
+  const gid = id => document.getElementById(id);
+  if (n === 1) {
+    if (!gid('d-province') || !gid('d-province').value) { showToast(UI.VALIDATE_SELECT_PROVINCE, 'error'); return false; }
+    // 上海地址区随省份即显示（不 gate 教学方式）——必填；服务端对线上需求清空兜底
+    if (gid('d-province').value === 'shanghai' && !gid('d-address').value.trim()) {
+      showToast(UI.VALIDATE_ADDRESS_REQUIRED, 'error'); return false;
+    }
+    return true;
+  }
+  if (n === 3) {
+    if (!gid('d-grade').value) { showToast(UI.VALIDATE_SELECT_GRADE, 'error'); return false; }
+    return true;
+  }
+  if (n === 4) {
+    const type = document.querySelector('#d-type-tabs .seg-tab.active').dataset.type;
+    const sel = type === DEMAND_TYPES.NONACADEMIC ? '#d-nonacademic input:checked' : '#d-subjects input:checked';
+    if (!document.querySelectorAll(sel).length) { showToast(UI.VALIDATE_SELECT_SUBJECT, 'error'); return false; }
+    return true;
+  }
+  if (n === 6) {
+    const timeErr = validateTimeSlots(gid('d-time-slots'));
+    if (timeErr) { showToast(timeErr, 'error'); return false; }
+    if (gid('d-budget-min').value && gid('d-budget-max').value
+      && +gid('d-budget-min').value > +gid('d-budget-max').value) {
+      showToast(UI.VALIDATE_BUDGET_RANGE, 'error'); return false;
+    }
+    return true;
+  }
+  if (n === 7) {
+    if (!gid('d-parent-contact').value.trim() || !gid('d-student-contact').value.trim()) {
+      showToast(UI.VALIDATE_CONTACT_REQUIRED, 'error'); return false;
+    }
+    return true;
+  }
+  return true; // P2 方式（有默认恒有效）/ P5 成绩（可选）直通
+}
+
 function initDemandForm(selectedProvince) {
   document.getElementById('d-province-wrap').innerHTML =
     renderProvinceSelect('d-province', selectedProvince || '', 'onchange="onDemandProvinceChange()"');
@@ -208,6 +309,7 @@ function initDemandForm(selectedProvince) {
   document.getElementById('d-subjects').addEventListener('change', updateDemandScores);
   toggleAddressField(); // 初始化地址字段可见性
   initCustomSelects(document.getElementById('demand-form')); // 省份/年级/性别/方式/身份下拉统一换自定义组件
+  demandWizardGoTo(1); // 任务三：表单打开恒从 P1 起（编辑模式 prefill 后同回 P1，见 prefillDemandForm 尾）
 }
 
 // 编辑需求时回填表单（复用提交需求组件）。
@@ -258,6 +360,7 @@ function prefillDemandForm(d) {
   document.getElementById('d-info').value           = d.additional_info || '';
   // 程序回填不派发 change：手动同步全部自定义下拉的触发器文字（prefillStudentScores 已同步学科分支，此处两分支兜底）
   document.querySelectorAll('#demand-form select').forEach(syncCustomSelectText);
+  demandWizardGoTo(1); // 任务三：编辑模式回填完恒从 P1 起（P1 省份/地址可见，逐页核对）
 }
 
 // 平时成绩回填：等第数据→点等级 pill（页签默认等第制）；分数数据→先切分数制页签再填值。
@@ -283,13 +386,13 @@ function prefillStudentScores(scores) {
 }
 
 function toggleAddressField() {
-  const method = document.getElementById('d-method').value;
   const prov = document.getElementById('d-province').value;
   const section = document.getElementById('d-address-section');
   const addrInput = document.getElementById('d-address');
-  // 需求五：地址结构化（区·镇/街道）——仅 上海 + 线下 展示精细选择；其余线上/非上海 隐藏
-  const isShanghaiOffline = prov === 'shanghai' && method !== 'online';
-  if (!isShanghaiOffline) {
+  // 需求五：地址结构化（区·镇/街道）。v0.31.0 任务三 wizard 起：教学方式归 P2、地址归 P1——
+  // 地址区随省份即显示（上海 显示精细选择，其余隐藏），不再 gate 教学方式；线上需求由服务端清空兜底。
+  const isShanghai = prov === 'shanghai';
+  if (!isShanghai) {
     section.classList.add('hidden'); // v0.25.19 审计 G-12：style.display 直写改 .hidden 类（与同文件其余显隐口径统一）
     addrInput.value = '';
     addrInput.required = false;
@@ -318,7 +421,9 @@ function onDemandProvinceChange() {
   const onlineOnly = !(globalThis.SUFE_REGIONS && globalThis.SUFE_REGIONS.allowsOffline(prov)); // 线下许可数据驱动（v0.25.86 审计去 'shanghai' 硬编码）
   [...methodSel.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
   if (onlineOnly) methodSel.value = 'online';
-  toggleAddressField(); // 需求五：省份切换恒刷新地址区（上海+线下 → 精细选择；其余隐藏）
+  const note = document.getElementById('d-method-note');
+  if (note) note.textContent = onlineOnly ? UI.REGION_HINT_OFFLINE_ONLY : ''; // P2 方式页提示：非上海锁定线上（同 P1 文案单源）
+  toggleAddressField(); // 需求五：省份切换恒刷新地址区（上海 → 精细选择；其余隐藏）
   updateDemandSubjects();
 }
 
@@ -370,6 +475,14 @@ async function handleSubmitDemand(e) {
   e.preventDefault();
   const province = document.getElementById('d-province').value;
   if (!province) { showToast(UI.VALIDATE_SELECT_PROVINCE, 'error'); return; }
+  // 任务三（v0.31.0）：form novalidate——提交前补 grade/联系方式（逐页校验已拦，此处纵深防御兜底）
+  if (!document.getElementById('d-grade').value) { showToast(UI.VALIDATE_SELECT_GRADE, 'error'); return; }
+  if (province === 'shanghai' && !document.getElementById('d-address').value.trim()) {
+    showToast(UI.VALIDATE_ADDRESS_REQUIRED, 'error'); return;
+  }
+  if (!document.getElementById('d-parent-contact').value.trim() || !document.getElementById('d-student-contact').value.trim()) {
+    showToast(UI.VALIDATE_CONTACT_REQUIRED, 'error'); return;
+  }
   // R2-b 需求类型 + 按类型收集目标（学科 → #d-subjects；非学科 → #d-nonacademic）
   const type = document.querySelector('#d-type-tabs .seg-tab.active').dataset.type;
   const targetSel = type === DEMAND_TYPES.NONACADEMIC ? '#d-nonacademic input:checked' : '#d-subjects input:checked';

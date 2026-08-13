@@ -1669,6 +1669,31 @@ html[data-ui-previewing] .client-main {
 .modal-body { padding: 20px 24px 24px; }
 .modal-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; }
 .modal-footer-start { margin-right: auto; }
+/* 任务三（v0.31.0）需求表单 wizard：圆点步进进度条 + 分步页（DOM 常驻 display 切换）+ 页脚 */
+.dw-stepper { display: flex; align-items: flex-start; gap: 0; margin-bottom: 20px; padding: 4px 0 2px; }
+.dw-step-chip { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1;
+  min-width: 0; padding: 6px 2px 4px; position: relative; }
+.dw-step-chip:not(:first-child)::before { content: ''; position: absolute; top: 10px; left: calc(-50% + 7px);
+  width: calc(100% - 14px); height: 2px; background: var(--g-border, var(--glass-border, rgba(0,0,0,.08)));
+  z-index: 0; transition: background .2s; }
+.dw-step-chip-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--g-fill-weak, var(--g-paper));
+  border: 2px solid var(--g-border, rgba(0,0,0,.18)); position: relative; z-index: 1;
+  transition: background .2s, border-color .2s, box-shadow .2s; }
+.dw-step-chip-label { font-size: .7rem; color: var(--ink-muted, var(--ink)); white-space: nowrap; opacity: .8;
+  transition: color .2s, opacity .2s; }
+.dw-step-chip--done::before { background: var(--g-fg, var(--ink)); }
+.dw-step-chip--done .dw-step-chip-dot { background: var(--g-fill-strong, var(--g-fg)); border-color: var(--g-fg, var(--ink)); }
+.dw-step-chip--done .dw-step-chip-label { color: var(--ink); opacity: 1; }
+.dw-step-chip--active .dw-step-chip-dot { background: var(--g-fg, var(--ink)); border-color: var(--g-fg, var(--ink));
+  box-shadow: 0 0 0 3px var(--g-focus-soft, rgba(0,0,0,.12)); }
+.dw-step-chip--active .dw-step-chip-label { color: var(--ink); opacity: 1; font-weight: 700; }
+.dw-step { display: none; }
+.dw-step--active { display: block; }
+.dw-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
+.dw-footer .btn-text-danger { margin-right: auto; }
+@media (max-width: 480px) {
+  .dw-step-chip-label { display: none; } /* 窄屏只留圆点步进 */
+}
 /* 确认弹窗正文（confirm() 原语）：统一间距，表头无独立层后正文自然流 */
 .confirm-msg { margin: 0 0 16px; }
 /* 二次认证密码行（v0.25.19 审计 G-12：原内联 style 改类）：去 .form-group 上分隔线 + 错误行红字显隐 */

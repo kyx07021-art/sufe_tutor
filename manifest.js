@@ -4,12 +4,12 @@
  */
 export const ASSET_MANIFEST = {
   "files": {
-    "style.css": "style.6b0d4fca.css",
+    "style.css": "style.d90531fa.css",
     "style-region.css": "style-region.0e7853d1.css",
     "style-posts.css": "style-posts.ef7c77a7.css",
     "style-chat.css": "style-chat.b77a5019.css",
     "glass.css": "glass.8336805c.css",
-    "constants.js": "constants.4100481b.js",
+    "constants.js": "constants.1292ce71.js",
     "app-display.js": "app-display.439b4ea7.js",
     "app-state.js": "app-state.04d1f30c.js",
     "app-api.js": "app-api.d0028a0b.js",
@@ -29,7 +29,7 @@ export const ASSET_MANIFEST = {
     "app-contracts.js": "app-contracts.44b27924.js",
     "app-chart.js": "app-chart.5bbef1cc.js",
     "app-admin.js": "app-admin.5c70f145.js",
-    "app-demands.js": "app-demands.0be60e4d.js",
+    "app-demands.js": "app-demands.6b02460b.js",
     "app-teachers.js": "app-teachers.88931c97.js",
     "ui-scale-reflow.js": "ui-scale-reflow.e8d8c75d.js",
     "app-pages.js": "app-pages.b87a074d.js",
