@@ -248,34 +248,78 @@ function _uiScaleFlush() {
 // v0.27.6 元素级模拟重排：采样就绪时改走 __uiScaleReflow（per-element transform 驱动真实重排目标位，
 // 合成器只读零 reflow），此时不写 --ui-preview-scale、不挂 data-ui-previewing（互斥，4 分块规则不命中）；
 // 采样未就绪回落本分块预览。门控互斥保证两套 transform 不叠加。
+// v0.31.4（P4 开始拖卡半秒）：拖动会话化——prepare 只在会话开始跑一次（warm 预热后命中 <1ms），
+// rAF 后续帧只 renderAt（曾每帧都跑 prepare 的陈旧检查）；缓存失效时先回落分块（瞬时不卡）+
+// 后台异步重采（_uiScaleReflowStartAsync），成功后本会话无缝切回元素级。
+let _uiScaleReflowLive = false;   // 当前预览会话是否元素级模式
+let _uiScaleReflowRetry = 0;      // 异步重采重试计数（防页面无法采样时无限重试）
+let _uiScaleReflowSession = 0;    // 预览会话代次（reset 自增；异步重采回调校验快照，防松手后误挂门控）
+
+function _uiScaleReflowStartAsync() {
+  const R = window.__uiScaleReflow;
+  if (!R || _uiScaleReflowRetry > 2) return; // 上限 3 次，之后维持分块预览
+  _uiScaleReflowRetry++;
+  const session = _uiScaleReflowSession; // 快照：回调时比对，reset（松手 commit）已自增则放弃
+  setTimeout(() => {
+    try {
+      if (session !== _uiScaleReflowSession) return; // 会话已结束（松手/commit）→ 放弃切回，防门控残留
+      if (R.collectUnits() && R.sampleTargets() && R._units().length) {
+        // 重采成功：切回元素级（撤分块门控、挂 reflowing），本会话后续帧 renderAt 用新单元
+        _uiScaleReflowLive = true;
+        _uiScaleReflowRetry = 0;
+        document.documentElement.dataset.uiReflowing = '1';
+        delete document.documentElement.dataset.uiPreviewing;
+        document.documentElement.style.removeProperty('--ui-preview-scale');
+        R.begin();
+      } else {
+        _uiScaleReflowStartAsync(); // 单元为空 → 再试
+      }
+    } catch { /* 采样异常维持分块 */ }
+  }, 60);
+}
+
 function _uiScalePreviewApply(c) {
   const R = window.__uiScaleReflow;
-  if (R && R.prepare()) {
-    document.documentElement.dataset.uiReflowing = '1';
-    R.begin();
-    R.renderAt(c);
-    return;
+  if (R) {
+    if (_uiScaleReflowLive) {
+      R.renderAt(c); // 会话内：只 renderAt（prepare 会话开始已做，页面变化由下次会话 prepare 检测）
+      return;
+    }
+    if (R.prepare()) {
+      _uiScaleReflowLive = true;
+      _uiScaleReflowRetry = 0;
+      document.documentElement.dataset.uiReflowing = '1';
+      R.begin();
+      R.renderAt(c);
+      return;
+    }
+    // 缓存失效/未就绪：先清 reflow 状态回落分块（瞬时不卡），后台异步重采成功后切回元素级
+    R.teardown();
+    delete document.documentElement.dataset.uiReflowing;
+    _uiScaleReflowStartAsync();
   }
-  // 回落分支：先清 reflow 状态（teardown + 撤 data-ui-reflowing），防「reflow 预览在途时 prepare 失败」
-  // 叠加两套门控（理论双门控，客户端壳内不可达但防御无成本）
-  if (window.__uiScaleReflow) window.__uiScaleReflow.teardown();
-  delete document.documentElement.dataset.uiReflowing;
+  // 分块回落（元素级不可用/未就绪）
   document.documentElement.style.setProperty('--ui-preview-scale', (c / 100).toFixed(3));
   document.documentElement.dataset.uiPreviewing = '1';
 }
-// 预览结束（commit/同步路径）：清 reflow 单元 transform + 撤两套门控（真实页面已按 --ui-scale 呈现最终效果）
+// 预览结束（commit/同步路径）：清 reflow 单元 transform + 撤两套门控 + 会话复位
 function _uiScalePreviewReset() {
   if (window.__uiScaleReflow) window.__uiScaleReflow.teardown();
+  _uiScaleReflowLive = false;
+  _uiScaleReflowRetry = 0;
+  _uiScaleReflowSession++; // 会话代次自增：在途异步重采回调校验到此不一致即放弃
   delete document.documentElement.dataset.uiReflowing;
   document.documentElement.style.removeProperty('--ui-preview-scale');
   delete document.documentElement.dataset.uiPreviewing;
 }
-// v0.27.6：设置页进入时后台预热元素级模拟重排采样（真实重排目标位 ~270ms 一次性，含 flash-free 采样），
-// 拖动前就绪则拖动即用元素级；否则回落分块预览。采样失败/页面变化自动回落（prepare 惰性重采）。
+// v0.27.6：设置页进入时后台预热元素级模拟重排采样（真实重排目标位一次性，含 flash-free 采样），
+// 拖动前就绪则拖动即用元素级；否则回落分块预览。
+// v0.31.4（P4）：350ms → 0ms（渲染完成即预热，用户进设置页立刻拖也不卡——首次拖动会话开始时
+// prepare 命中缓存；未命中则异步重采回落分块，拖动全程不阻塞）。
 function _uiScaleReflowWarm() {
   const R = window.__uiScaleReflow;
   if (!R) return;
-  setTimeout(() => { try { R.prepare(); } catch (e) { /* 采样失败回落分块预览 */ } }, 350);
+  setTimeout(() => { try { R.prepare(); } catch (e) { /* 采样失败回落分块预览 */ } }, 0);
 }
 // 同步应用（无合并；首帧/测试路径），返回钳制值
 function setUiScale(v) {

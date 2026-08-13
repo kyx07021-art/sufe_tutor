@@ -1682,7 +1682,10 @@ html[data-ui-previewing] .client-main {
 .dw-step-chip-label { font-size: .7rem; color: var(--ink-muted, var(--ink)); white-space: nowrap; opacity: .8;
   transition: color .2s, opacity .2s; }
 .dw-step-chip--done::before { background: var(--g-fg, var(--ink)); }
-.dw-step-chip--done .dw-step-chip-dot { background: var(--g-fill-strong, var(--g-fg)); border-color: var(--g-fg, var(--ink)); }
+/* v0.31.4（P6 用户反馈「已经填写完的点换个比较实的颜色」）：done 曾用 --g-fill-strong（半透白透镜，
+   light 浅底上合成后不实、与未到达点区分弱）。改实色 accent（主题紫）——三态分明：未到达=浅描边空心、
+   已完成=实紫、当前=墨实+光圈。连接线 done 段已实色（--g-fg），色系自洽。 */
+.dw-step-chip--done .dw-step-chip-dot { background: var(--accent, #6B5BD2); border-color: var(--accent, #6B5BD2); }
 .dw-step-chip--done .dw-step-chip-label { color: var(--ink); opacity: 1; }
 .dw-step-chip--active .dw-step-chip-dot { background: var(--g-fg, var(--ink)); border-color: var(--g-fg, var(--ink));
   box-shadow: 0 0 0 3px var(--g-focus-soft, rgba(0,0,0,.12)); }

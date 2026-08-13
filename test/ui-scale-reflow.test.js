@@ -27,26 +27,32 @@ const MODULE = readFileSync('./ui-scale-reflow.js', 'utf8');
 const CONSTANTS = readFileSync('./constants.js', 'utf8');
 
 // 真实重排模型（stub）：sf = 当前 --ui-scale。侧栏 240·sf 扩张、内容列右缘钉 1280 左缘被顶右收窄。
-// 与真实 .sidebar max(144*S,13.3vw*S) 增长、内容列变窄的机制同构（测试用确定性简化模型）。
+// 与真实 .client-sidebar max(144*S,13.3vw*S) 增长、内容列变窄的机制同构（测试用确定性简化模型）。
+// v0.31.4：itA/itB 高度固定 44（文本行高不随字号比例——制造 sx≠sy 场景）；noteText 独立文本
+//（宽随 sf、高固定 20，在 client-main 内）；divider 分隔线（宽随 sf、高固定 1px）。
 function reflowModel(sf) {
   return {
     nav: { x: 0, y: 0, width: 1280, height: 64 * sf },
     side: { x: 0, y: 64 * sf, width: 240 * sf, height: 736 * sf },
-    itA: { x: 12 * sf, y: 72 * sf, width: 216 * sf, height: 44 * sf },
-    itB: { x: 12 * sf, y: 124 * sf, width: 216 * sf, height: 44 * sf },
+    itA: { x: 12 * sf, y: 72 * sf, width: 216 * sf, height: 44 },
+    itB: { x: 12 * sf, y: 124 * sf, width: 216 * sf, height: 44 },
     main: { x: 240 * sf, y: 64 * sf, width: 1280 - 240 * sf, height: 736 * sf },
     pg1: { x: 240 * sf, y: 64 * sf, width: 1280 - 240 * sf, height: 736 * sf },
     c1: { x: 240 * sf + 16 * sf, y: 64 * sf + 16 * sf, width: 1280 - 240 * sf - 32 * sf, height: 180 * sf },
     c2: { x: 240 * sf + 16 * sf, y: 64 * sf + 196 * sf, width: 1280 - 240 * sf - 32 * sf, height: 180 * sf },
+    noteText: { x: 260 * sf, y: 100, width: 200 * sf, height: 20 },  // 独立文本：宽随 sf、高固定（reflow 中文字不扁，预览应等比）
+    divider: { x: 280 * sf, y: 300, width: 600 * sf, height: 1 },   // 分隔线：宽随 sf、高恒 1px
   };
 }
 
 const DOM = `
   <div class="navbar" id="nav"></div>
-  <div class="sidebar" id="side"><div class="sidebar-scroll"><nav class="sidebar-nav">
+  <div class="client-sidebar" id="side"><div class="sidebar-scroll"><nav class="sidebar-nav">
     <div class="sidebar-item" id="itA">A</div><div class="sidebar-item" id="itB">B</div>
   </nav></div></div>
   <div class="client-main" id="main">
+    <div class="note" id="noteText">独立说明文字</div>
+    <div class="form-divider" id="divider"></div>
     <div class="client-page" id="pg1"><div class="list-card" id="c1"></div><div class="list-card" id="c2"></div></div>
     <div class="client-page hidden" id="pg2"><div class="list-card" id="c3"></div></div>
   </div>
@@ -65,7 +71,7 @@ function makeCtx() {
     return { x: r.x, y: r.y, width: r.width, height: r.height };
   };
   w.scrollTo = () => {};
-  w.APP_CONSTANTS = { CONFIG: { UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_REFLOW_SAMPLE_STEP: 5 } };
+  w.APP_CONSTANTS = { CONFIG: { UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_REFLOW_SAMPLE_STEP: 10 } };
   const ctx = vm.createContext({
     window: w, document: w.document, getComputedStyle: w.getComputedStyle.bind(w),
     console, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
@@ -93,15 +99,15 @@ function readTransform(ctx, id) {
 const hasTranslate = (ctx) => vm.runInContext(
   `document.getElementById('__ui-reflow-transforms').textContent.includes('translate(')`, ctx);
 
-test('CONFIG 单源：UI_SCALE_REFLOW_SAMPLE_STEP=5 在 constants.js（UI_SCALE_MIN..MAX 整除步进）', () => {
-  assert.match(CONSTANTS, /UI_SCALE_REFLOW_SAMPLE_STEP:\s*5/, 'constants.js 定义 UI_SCALE_REFLOW_SAMPLE_STEP: 5');
+test('CONFIG 单源：UI_SCALE_REFLOW_SAMPLE_STEP=10 在 constants.js（UI_SCALE_MIN..MAX 整除步进）', () => {
+  assert.match(CONSTANTS, /UI_SCALE_REFLOW_SAMPLE_STEP:\s*10/, 'constants.js 定义 UI_SCALE_REFLOW_SAMPLE_STEP: 10（v0.31.4 P4 减半采样成本）');
 });
 
-test('prepare：采样档位 [80,85,…,120]；采样后 --ui-scale 还原（无闪屏中间态残留）', () => {
+test('prepare：采样档位 [80,90,…,120]；采样后 --ui-scale 还原（无闪屏中间态残留）', () => {
   const { ctx } = makeCtx();
   vm.runInContext(`window.__uiScaleReflow.prepare()`, ctx);
   const samples = vm.runInContext(`window.__uiScaleReflow._samples()`, ctx);
-  assert.deepEqual(Array.from(samples), [80, 85, 90, 95, 100, 105, 110, 115, 120], 'UI_SCALE_MIN..MAX 每 5% 一档');
+  assert.deepEqual(Array.from(samples), [80, 90, 100, 110, 120], 'UI_SCALE_MIN..MAX 每 10% 一档（5 档）');
   assert.equal(vm.runInContext(`document.documentElement.style.getPropertyValue('--ui-scale')`, ctx), '',
     '采样后 --ui-scale 还原空（不残留中间档位）');
 });
@@ -138,6 +144,50 @@ test('祖先缩放补偿：侧栏项随父缩放收敛恒等（无双重 1.44×�
   vm.runInContext(`window.__uiScaleReflow.prepare(); window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
   const itA = readTransform(ctx, 'itA');
   assert.equal(itA.rule, '', `侧栏项被父链缩放完全补偿 → 无自身 transform 规则（无双重缩放），实得规则「${itA.rule}」`);
+});
+
+// v0.31.4（P1/P5）断线回归：SHELL_SELECTORS 曾写 '.sidebar'（真实 DOM 是 .client-sidebar）——
+// 整条侧栏（含左下用户卡）未遍历零单元。改对类名后 .client-sidebar 成单元，侧栏宽随 scale 采样
+// 扩张（P5 分界移动同源）。
+test('P1/P5：.client-sidebar 是 shell 单元（侧栏宽随 scale 扩张、分界移动）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare()`, ctx);
+  const units = vm.runInContext(`window.__uiScaleReflow._units()`, ctx);
+  assert.ok(units.some(u => u.el.id === 'side'), '.client-sidebar 被收集为单元（曾 .sidebar 查不到整栏零单元）');
+  vm.runInContext(`window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  const side = readTransform(ctx, 'side');
+  assert.ok(Math.abs(side.sx - 1.2) < 0.02, `侧栏宽随 scale 扩张 sx≈1.2（分界随之移动），实得 ${side.sx}`);
+});
+
+// v0.31.4（P2）文本元素统一等比：文本单元视觉缩放 = 字号比例（1.2），不随父块 rect 拉伸变扁；
+// 块单元照旧 rect 拉伸（允许 sx≠sy）。
+test('P2：文本单元统一等比（视觉 sx=sy=字号比例，不受父拉伸影响）；块单元照旧 rect 拉伸', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare(); window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  const main = readTransform(ctx, 'main');
+  const note = readTransform(ctx, 'noteText');
+  assert.ok(note.rule, '文本单元有 transform 规则');
+  // 视觉缩放 = 局部 × 祖先：noteText 应等比 1.2（父 main sx≈0.954/sy≈1.2 不影响文字形状）
+  assert.ok(Math.abs(note.sx * main.sx - 1.2) < 0.02 && Math.abs(note.sy * main.sy - 1.2) < 0.02,
+    `文本单元视觉等比 1.2（sx*ancSx=${(note.sx * main.sx).toFixed(3)} sy*ancSy=${(note.sy * main.sy).toFixed(3)}）——曾 sx≠sy 文字变扁`);
+  // 块单元（卡片）保持 rect 拉伸：视觉 sx≠sy（真实 reflow 中块变窄变高，允许）
+  const c1 = readTransform(ctx, 'c1');
+  assert.ok(c1.rule, '卡片有规则');
+  assert.ok(Math.abs(c1.sx * main.sx - c1.sy * main.sy) > 0.05,
+    `块单元保持非等比 rect 拉伸（真实收窄 sx<sy），实得 视觉sx=${(c1.sx * main.sx).toFixed(3)} 视觉sy=${(c1.sy * main.sy).toFixed(3)}`);
+});
+
+// v0.31.4（P3）分隔线单元：参与预览（只位移 + 宽随布局），视觉高度恒 1px（不随字号/祖先放大）。
+test('P3：分隔线单元——宽随布局、视觉高度恒 1px（不放大不压按钮）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare(); window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  const div = readTransform(ctx, 'divider');
+  assert.ok(div.rule, '分隔线收集为单元并有规则（曾 h<8 被过滤、原地不动与按钮错位）');
+  const main = readTransform(ctx, 'main');
+  assert.ok(Math.abs(div.sy * main.sy - 1) < 0.02,
+    `分隔线视觉高度恒 1px（sy*ancSy≈1），实得 ${(div.sy * main.sy).toFixed(3)}`);
+  assert.ok(Math.abs(div.sx * main.sx - 1.2) < 0.02,
+    `分隔线宽度随布局（sx*ancSx≈1.2），实得 ${(div.sx * main.sx).toFixed(3)}`);
 });
 
 test('teardown：样式表清空 + data-ui-reflow-unit 属性全撤（成对零残留）', () => {

@@ -25,9 +25,20 @@
 (function () {
   var SAMPLE_STEP = 5; // CONFIG.UI_SCALE_REFLOW_SAMPLE_STEP 单源（app-state 读后覆写）
   var SAMPLES = [];    // 采样档位（百分数，升序，含 MIN/MAX）
-  var LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool)([-_\s]|$)/i;
-  var SHELL_SELECTORS = ['.navbar', '.sidebar', '.client-main'];
+  // v0.31.4（P1）LAYOUT_RE 补词：user/text/invite/version/footnote/label/value/hint/desc/name/role——
+  // 左下用户卡（.sidebar-user 族）、设置页文本容器（.settings-label/.settings-value/.settings-hint）此前
+  // 类名不命中 + 无直接文本 → 不成独立单元，缩放与父块脱节。补词后这些块单设分区。
+  var LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool|user|text|invite|version|footnote|label|value|hint|desc|name|role)([-_\s]|$)/i;
+  // v0.31.4（P1 断线根因）：SHELL_SELECTORS 曾写 '.sidebar'——真实 DOM 是 .client-sidebar（aside）！
+  // 整条侧栏（除 .sidebar-nav）从未被遍历：左下用户卡/邀请卡/栏底脚注零单元。改对类名后侧栏主体成
+  // 单元（P5 分界随之移动），其内块经 LAYOUT_RE 补词 + 文本叶子各自成单元。
+  var SHELL_SELECTORS = ['.navbar', '.client-sidebar', '.client-main'];
   var EXCLUDE_SELECTORS = ['.ui-scale-row', '.ui-scale-control', '.ui-scale-slider', '.toast', '#toast-container', '.modal', '.modal-overlay', '#modal-container'];
+  // v0.31.4（P3）横向分隔线识别：类名 divider/separator/hr 的细条、或高度 <6px 的宽横条（如主题选项
+  // 下的行分隔）。收为「分隔单元」：只随布局位移（ty/tx 跟 target），sy=1/ancSy 恒保持 1px 不放大
+  // （真实 reflow 中 1px border 不受 --ui-scale 影响）；用户方案「按钮预览位置与上方分割线高度关联」——
+  // 分割线参与垂直跟随即不再与按钮错位。
+  var DIVIDER_RE = /(^|[-_\s])(divider|separator|hr)([-_\s]|$)/i;
 
   var units = [];       // [{el, base:{x,y,w,h}, targets:{80:{...},...}, parentIdx, tx,ty,sx,sy, _ancX,_ancY,_ancSx,_ancSy}]
   var unitByEl = new WeakMap();
@@ -59,6 +70,22 @@
     return false;
   }
 
+  // v0.31.4（P3）：横向分隔线识别——类名命中 DIVIDER_RE（divider/separator/hr）或「宽横条」
+  // （width>60 且 height<6，非 inline）。分隔线是 1px 级别，普通 isLayoutBlock 的 h>=8 阈值会把它
+  // 排除 → 预览中原地不动、与移动的按钮错位（用户实证「分割线跑按钮底下」）。
+  function isDivider(el) {
+    if (el.nodeType !== 1 || isExcluded(el)) return false;
+    var cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.position === 'fixed') return false;
+    var disp = cs.display;
+    if (disp === 'inline' || disp === 'contents') return false;
+    var r = el.getBoundingClientRect();
+    if (r.width < 60) return false; // 太窄不构成横向分隔线
+    var cls = String(el.className && el.className.toString ? el.className : '');
+    if (cls && DIVIDER_RE.test(cls)) return true; // 类名命中（form-divider/hr 等）即分隔线
+    return r.height < 6; // 类名未命中但高 <6px 的宽横条视为视觉分隔线（border 级）
+  }
+
   function isLayoutBlock(el) {
     if (el.nodeType !== 1 || isExcluded(el)) return false;
     var cs = getComputedStyle(el);
@@ -73,6 +100,14 @@
     if (cls && LAYOUT_RE.test(cls)) return true;
     if (el.childNodes && Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && /\S/.test(n.nodeValue || ''); })) return true;
     return false;
+  }
+
+  // v0.31.4（P2）：文本承载单元 = 直接含非空白文本节点。这类块的视觉主体是文字——真实 reflow 中
+  // 文字大小只随 --ui-scale 根字号（等比），而 rect 宽度会因 flex/行内布局变化——若按 target rect
+  // 拉伸（sx=target.w/base.w）会把文字压扁/拉长（用户实证「有的变扁有的等比，不统一」）。
+  // 统一规则：文本单元 sx=sy=字号比例（等比，永不变形），位置仍跟 target（tx/ty 祖先补偿不变）。
+  function isTextUnit(el) {
+    return !!(el.childNodes && Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && /\S/.test(n.nodeValue || ''); }));
   }
 
   function collectUnits() {
@@ -112,7 +147,7 @@
       if (hiddenAncestor) continue;
       // display:none 根（如 client 视图 .navbar 是 hidden 的 0×0 壳）不收集——0×0 单元浪费 slot 且 base.w=0 恒等
       if (isShell && getComputedStyle(el).display === 'none') continue;
-      if (isShell || isLayoutBlock(el)) {
+      if (isShell || isLayoutBlock(el) || isDivider(el)) {
         order.push(el);
         unitByEl.set(el, true);
       }
@@ -123,7 +158,7 @@
     // 测 base rect（当前 scale 下即 live）
     for (var u = 0; u < order.length; u++) {
       var r2 = order[u].getBoundingClientRect();
-      units.push({ el: order[u], base: { x: r2.x, y: r2.y, w: r2.width, h: r2.height }, targets: {}, parentIdx: -1, tx: 0, ty: 0, sx: 1, sy: 1, _ancX: 0, _ancY: 0, _ancSx: 1, _ancSy: 1 });
+      units.push({ el: order[u], base: { x: r2.x, y: r2.y, w: r2.width, h: r2.height }, targets: {}, parentIdx: -1, tx: 0, ty: 0, sx: 1, sy: 1, _ancX: 0, _ancY: 0, _ancSx: 1, _ancSy: 1, isDivider: isDivider(order[u]), isText: isTextUnit(order[u]) });
     }
     // 建 parent 链（最近 unit 祖先）
     for (var a = 0; a < units.length; a++) {
@@ -148,6 +183,7 @@
         el: o.el, base: o.base, targets: o.targets,
         parentIdx: o.parentIdx >= 0 ? newPos[o.parentIdx] : -1,
         tx: 0, ty: 0, sx: 1, sy: 1, _ancX: 0, _ancY: 0, _ancSx: 1, _ancSy: 1,
+        isDivider: o.isDivider, isText: o.isText,
       });
     }
     units = remapped;
@@ -163,14 +199,14 @@
       s = SAMPLES[i];
       var sc = (s / 100).toFixed(3);
       docEl.style.setProperty('--ui-scale', sc);
-      // 强制整树 layout + 逐单元测 rect
+      // 强制整树 layout + 逐单元测 rect（读 getBoundingClientRect 本身同步强制 layout，无需额外
+      // offsetHeight 结算——同一 task 内不 paint 中间态；v0.31.4 P4 去冗余，每档省一次全树 layout）
       for (var u = 0; u < units.length; u++) {
         var r = units[u].el.getBoundingClientRect();
         units[u].targets[s] = { x: r.x, y: r.y, w: r.width, h: r.height };
       }
       docEl.style.setProperty('--ui-scale', prev);
-      void document.body.offsetHeight; // 让还原在任务内结算，防 paint 中间态
-      window.scrollTo(prevX, prevY);
+      window.scrollTo(prevX, prevY); // 每档还原滚动：rect 用视口坐标，防档间 scroll 漂移污染采样
     }
   }
 
@@ -210,8 +246,20 @@
       }
       u.tx = u._ancSx ? (target.x - u._ancX) / u._ancSx : 0;
       u.ty = u._ancSy ? (target.y - u._ancY) / u._ancSy : 0;
-      u.sx = (u.base.w > 0 && u._ancSx) ? target.w / (u.base.w * u._ancSx) : 1;
-      u.sy = (u.base.h > 0 && u._ancSy) ? target.h / (u.base.h * u._ancSy) : 1;
+      if (u.isText) {
+        // v0.31.4（P2）文本单元统一等比：视觉缩放 = 字号比例 scalePct/100（经祖先补偿除净 ancSx/ancSy），
+        // 文字恒不变形（用户「有的变扁有的等比，不统一」根治）；位置仍跟 target（tx/ty 已算）。
+        var fs = scalePct / 100;
+        u.sx = u._ancSx ? fs / u._ancSx : fs;
+        u.sy = u._ancSy ? fs / u._ancSy : fs;
+      } else if (u.isDivider) {
+        // v0.31.4（P3）分隔单元：宽度跟随 target（水平拉伸无碍），高度恒 1px（除以祖先 sy 抵消放大）。
+        u.sx = (u.base.w > 0 && u._ancSx) ? target.w / (u.base.w * u._ancSx) : 1;
+        u.sy = u._ancSy ? 1 / u._ancSy : 1;
+      } else {
+        u.sx = (u.base.w > 0 && u._ancSx) ? target.w / (u.base.w * u._ancSx) : 1;
+        u.sy = (u.base.h > 0 && u._ancSy) ? target.h / (u.base.h * u._ancSy) : 1;
+      }
     }
     // 写样式表（只写非恒等变换，减体积）
     var lines = [];

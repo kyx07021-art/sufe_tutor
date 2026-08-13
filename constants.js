@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.31.3',
+  APP_VERSION: '0.31.4',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -84,7 +84,7 @@ globalThis.APP_CONSTANTS = {
     FILTER_ROW_GAP: 16,                   // 需求五（v0.25.44）：筛选面板多排下拉栏之间的纵向空隙 px（上下两排不能零空隙紧贴）
     UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_DEFAULT: 100, UI_SCALE_STEP: 1, // 需求六·item5：UI 大小滑块范围/步进（百分比；100=现状；v0.25.12 上限扩到 120）
     UI_SCALE_WHEEL_STEP: 4, // U5（v0.25.105）：ctrl+滚轮每格步长（=4×滑块 step；用户实证一格太小拖沓）
-    UI_SCALE_REFLOW_SAMPLE_STEP: 5, // v0.27.6 元素级模拟重排：真实重排目标位采样档位步长（MIN~MAX 每 5% 一档，UI_SCALE_REFLOW_SAMPLE_STEP 单源）
+    UI_SCALE_REFLOW_SAMPLE_STEP: 10, // v0.27.6 元素级模拟重排：真实重排目标位采样档位步长（v0.31.4 P4：5%→10% 减半采样成本——9 档→5 档，档间插值近似线性足够，UI_SCALE_REFLOW_SAMPLE_STEP 单源）
     UI_SCALE_KEY: 'sufe_ui_scale',        // 需求六·item5：UI 大小偏好 localStorage 键（参照 setThemePref 的 sufe_theme 模式）
     STYLE_KEY: 'sufe_style',              // 需求八·item4：页面风格偏好 localStorage 键（liquid/flat）
     THEME_KEY: 'sufe_theme',
@@ -1501,13 +1501,13 @@ globalThis.APP_CONSTANTS = {
     VALIDATE_ADDRESS_REQUIRED: '请选择所在区与镇/街道',
     VALIDATE_BUDGET_RANGE: '预算区间有误：最低价不能高于最高价',
     VALIDATE_CONTACT_REQUIRED: '请填写家长与学生联系方式',
-    DW_STEP_PROVINCE: '省份',
+    DW_STEP_PROVINCE: '地区信息',
     DW_STEP_METHOD: '教学方式',
-    DW_STEP_STUDENT: '学生信息',
-    DW_STEP_SUBJECTS: '科目',
-    DW_STEP_SCORES: '成绩',
-    DW_STEP_BUDGET: '预算时间',
-    DW_STEP_SUBMIT: '提交',
+    DW_STEP_STUDENT: '学生概况',
+    DW_STEP_SUBJECTS: '详细偏好',
+    DW_STEP_SCORES: '成绩现状',
+    DW_STEP_BUDGET: '预算与时间',
+    DW_STEP_SUBMIT: '补充信息',
 
     // 侧边栏页签标题
     PAGE_MY_DEMANDS: '我的需求',
