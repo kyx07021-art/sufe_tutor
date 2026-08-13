@@ -47,9 +47,9 @@ try {
     const sbUnit = units.find(u => u.el === sb);
     const suUnits = units.filter(u => u.el.closest && u.el.closest('.sidebar-user'));
     const t100 = sbUnit && sbUnit.targets ? sbUnit.targets[100] : undefined;
-    const t115 = sbUnit && sbUnit.targets ? sbUnit.targets[115] : undefined;
+    const t120 = sbUnit && sbUnit.targets ? sbUnit.targets[120] : undefined; // 采样档 [80,100,120]——用 120 非 115
     const sideRight100 = t100 ? t100.x + t100.w : null;
-    const sideRight115 = t115 ? t115.x + t115.w : null;
+    const sideRight120 = t120 ? t120.x + t120.w : null;
     // P2：文本单元视觉等比（renderAt 115 后局部 sx/sy 经 anc 除净——局部 sx≠sy 是祖先拉伸补偿的
     // 正确结果；判据是「视觉」等比 = ancSx×sx ≈ ancSy×sy ≈ 字号比例 1.15）
     R.begin(); R.renderAt(115);
@@ -61,8 +61,8 @@ try {
       sidebarUserUnits: suUnits.length,
       targetKeys: sbUnit && sbUnit.targets ? Object.keys(sbUnit.targets) : [],
       t100raw: t100 ? { x: t100.x, w: t100.w } : null,
-      t115raw: t115 ? { x: t115.x, w: t115.w } : null,
-      boundaryDelta: (typeof sideRight100 === 'number' && isFinite(sideRight100) && typeof sideRight115 === 'number' && isFinite(sideRight115)) ? +(sideRight115 - sideRight100).toFixed(1) : null,
+      t120raw: t120 ? { x: t120.x, w: t120.w } : null,
+      boundaryDelta: (typeof sideRight100 === 'number' && isFinite(sideRight100) && typeof sideRight120 === 'number' && isFinite(sideRight120)) ? +(sideRight120 - sideRight100).toFixed(1) : null,
       textTotal: texts.length, skewedTexts: skewed.length,
       dividerCount: divCount,
     };
@@ -71,7 +71,7 @@ try {
   ok('P1 侧栏主体成单元', diag.hasSidebarUnit);
   ok('P1 左下用户卡参与预览', diag.sidebarUserUnits > 0, `sidebarUserUnits=${diag.sidebarUserUnits}`);
   ok('P5 侧栏/主页分界随 scale 移动', typeof diag.boundaryDelta === 'number' && isFinite(diag.boundaryDelta) && diag.boundaryDelta > 10,
-    `boundary delta=${diag.boundaryDelta}px（100→115，侧栏右缘 = x+w）`);
+    `boundary delta=${diag.boundaryDelta}px（100→120，侧栏右缘 = x+w）`);
   ok('P2 文本单元统一等比（无 sx≠sy 变扁）', diag.skewedTexts === 0, `texts=${diag.textTotal} skewed=${diag.skewedTexts}`);
   ok('P3 分隔线收集', true, `divider 单元数=${diag.dividerCount}（设置页无独立 hr，收集逻辑以 vm 回归覆盖）`);
 

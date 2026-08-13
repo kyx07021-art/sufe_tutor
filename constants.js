@@ -554,7 +554,9 @@ globalThis.APP_CONSTANTS = {
     INTENT_GREET_LABEL: '和对方打个招呼（可选）',
     INTENT_GREET_PLACEHOLDER: '简单介绍一下自己，说说为什么想接下这单～（例：老师您好，我教初中数学五年，带过三届中考班，对您孩子的分数情况很有把握）',
     INTENT_GREET_OPTIONAL: '可留空直接提交；填写后学生会在「试课意向」里看到这段话。',
-    BTN_SUBMIT_INTENT: '提交意向',
+    // v0.31.4 审计：BTN_SUBMIT_INTENT 曾在此重复定义（'提交意向'）与下方 :1036（'提交试课意向'）——
+    // 对象字面量后键覆盖先键，运行恒取后者（wrangler 部署 duplicate-object-key 警告）。删此旧键，单源
+    // 收敛到 :1036 的新文案（两个引用点 app-demands.js:829/1146 均读 UI.BTN_SUBMIT_INTENT，不受影响）。
     // 打招呼消息在卡片上的引用块头标（谁说的：学生留言 / 教师留言）
     GREET_HEAD_STUDENT: '学生留言',
     GREET_HEAD_TEACHER: '教师留言',
