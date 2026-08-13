@@ -141,6 +141,7 @@ export const MSG = {
   CONVERSATION_NOT_FOUND: '会话不存在',
   MESSAGE_NOT_FOUND: '消息不存在',
   MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
+  GREETING_TOO_LONG: '打招呼消息太长（上限 300 字）', // v0.28.0 M1 打招呼消息专用
   FILE_TOO_LARGE: '附件过大（上限约 500KB，图片会自动压缩）',
   FILE_TYPE_BLOCKED: '不支持的文件类型',
   UPLOAD_STAGING_LIMIT: '暂存的待发送附件过多，请先发送或删除部分附件',
@@ -214,6 +215,7 @@ export const LIMITS = {
   SCHOOL_MAX: 30, INTRO_MAX: 50, REAL_NAME_MAX: 20,
   CONTACT_MAX: 50,         // 联系方式（wechat/email/家长/学生电话）
   ADDITIONAL_INFO_MAX: 500, // 需求补充说明（自由文本，2026-08-09 审计 F-1 补上限 + ADDRESS_GUARD）
+  GREETING_MSG_MAX: 300,  // 打招呼消息上限（v0.28.0 M1：学生推送需求 / 教师试课意向附带；Airbnb 式简短温暖，100-300 字）
   ADDRESS_FIELD_MAX: 100,  // 授课区域
   SCHEDULE_MAX: 200,        // 签约请求时间（自然语言）
   CONTRACT_LOCATION_MAX: 200, // 合同地点

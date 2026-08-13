@@ -690,6 +690,10 @@ function renderDemandCard(d, opts = {}) {
     </div>
     ${d.address ? `<div class="list-card-detail">${UI.ADDRESS_PREFIX}${escHtml(d.address)}</div>` : ''}
     ${d.additional_info ? `<div class="list-card-detail">${UI.ADDITIONAL_PREFIX}${escHtml(d.additional_info)}</div>` : ''}
+    ${push && push.push_message ? `<div class="greet-bubble glass">
+      <div class="greet-bubble-head">${UI.GREET_HEAD_STUDENT}</div>
+      <div class="greet-bubble-body">${escHtml(push.push_message)}</div>
+    </div>` : ''}
     <div class="demand-card-foot">
       <div class="list-card-contact">
         ${push ? `<span class="push-note-text">${UI.PUSH_NOTE_TEXT}</span>` : `<span class="contact-sign-note">${UI.CONTACT_AFTER_SIGN_NOTE}</span>`}
@@ -870,12 +874,19 @@ async function openSendDemandModal(teacherUserId) {
       <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
       <span class="push-pick-sub">${[prov, method].filter(Boolean).map(escHtml).join(' · ')}</span></span></label>`;
   }).join('')}</div>` : `<p class="text-sm text-muted">${state.myDemands.length ? UI.PUSH_NO_AVAILABLE_DEMANDS : UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
+  // v0.28.0 M1：推送需求附带打招呼消息——自我介绍+为什么选这位老师（Airbnb 式；可选，maxlength 与后端同源）
+  const greetHtml = `<div class="push-greet spacer-md">
+      <label class="form-label greet-form-label" for="push-greet">${UI.PUSH_GREET_LABEL}</label>
+      <textarea id="push-greet" class="form-input greet-input" rows="3" maxlength="${CONFIG.GREETING_MSG_MAX}"
+        placeholder="${escHtml(UI.PUSH_GREET_PLACEHOLDER)}"></textarea>
+      <p class="text-xs text-muted spacer-sm">${UI.PUSH_GREET_OPTIONAL}</p>
+    </div>`;
   openModal({
     title: `${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}`,
     style: `max-width:${CONFIG.MODAL_W_SEND};`,
     closable: false,
     body: `<p class="text-sm text-muted spacer-md">${UI.PUSH_MODAL_HINT}</p>
-        ${pickHtml}`,
+        ${pickHtml}${greetHtml}`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" ${demands.length ? '' : 'disabled'} onclick="submitDemandPush(${teacherUserId})">${UI.BTN_SEND}</button>`,
   });
@@ -907,8 +918,9 @@ async function submitDemandPush(teacherUserId) {
   const sel = document.querySelector('input[name="push-demand"]:checked');
   if (!sel) { showToast(UI.VALIDATE_SELECT_DEMAND); return; }
   if (pushCooldownLeft() > 0) { showToast(`${UI.PUSH_BTN_COOLDOWN} ${pushCooldownLeft()}s`); return; }
+  const message = (document.getElementById('push-greet')?.value ?? '').trim(); // v0.28.0 M1：学生打招呼消息（可选）
   try {
-    const data = await api('/api/demand-pushes', { method: 'POST', body: { teacherUserId, demandId: +sel.value } });
+    const data = await api('/api/demand-pushes', { method: 'POST', body: { teacherUserId, demandId: +sel.value, message } });
     closeModal();
     startPushCooldown(CONFIG.PUSH_COOLDOWN_SEC);
     showToast(data.message || UI.PUSH_SENT_FALLBACK);
@@ -943,17 +955,22 @@ async function resolvePush(pushId, action) {
 // ============================================================
 async function submitIntent(demandId) {
   if (!ensureAuth()) return; // 访客浏览需求大厅可看卡片，点意向即走登录通路
-  // v0.25.10 用户反馈：二次确认防海投——先弹确认浮窗（含需求核心信息），确认后才真正提交
+  // v0.28.0 M1：由「二次确认」改为「打招呼消息」浮窗（Airbnb 租客对房东式）——
+  // 保留需求核心信息上下文，教师附一条友善的自我介绍/为什么想接这单，可留空直接提交
   const d = _browseDemands.find(x => x.id === demandId);
   const demandDesc = d
     ? `${DISP.demandTargetNames(d.target_subjects, d.target_type) || '—'} · ${DISP.demandIdText(d.display_id || d.id)}`
     : '';
   openModal({
-    title: UI.INTENT_CONFIRM_TITLE,
+    title: UI.INTENT_GREET_TITLE,
     style: `max-width:${CONFIG.MODAL_W_INTENT_CONFIRM};`,
-    body: `<p class="text-sm text-relaxed">${UI.INTENT_CONFIRM_HINT.replace('{demand}', escHtml(demandDesc))}</p>`,
+    body: `<p class="text-sm text-muted spacer-md">${UI.INTENT_GREET_DEMAND.replace('{demand}', escHtml(demandDesc))}</p>
+        <label class="form-label greet-form-label" for="intent-greet-${demandId}">${UI.INTENT_GREET_LABEL}</label>
+        <textarea id="intent-greet-${demandId}" class="form-input greet-input" rows="4" maxlength="${CONFIG.GREETING_MSG_MAX}"
+          placeholder="${escHtml(UI.INTENT_GREET_PLACEHOLDER)}"></textarea>
+        <p class="text-xs text-muted spacer-sm">${UI.INTENT_GREET_OPTIONAL}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" onclick="doSubmitIntent(${demandId})">${UI.BTN_CONFIRM_INTENT}</button>`,
+          <button type="button" class="btn glass glass--pressable" onclick="doSubmitIntent(${demandId})">${UI.BTN_SUBMIT_INTENT}</button>`,
   });
 }
 
@@ -961,6 +978,8 @@ async function submitIntent(demandId) {
 // F12（v0.27.0）乐观反馈：确认后按钮立即置「待处理」态（本地数据 + 就地替换按钮），失败回滚——
 // 不等服务端往返，教师提交试课意向的卡顿感消除（audit-flow 驳回/网络错均回滚原按钮）。
 async function doSubmitIntent(demandId) {
+  // v0.28.0 M1：打招呼消息须在 closeModal 前读取（弹窗关闭即销毁 textarea，closeModal 后读恒空串）
+  const message = (document.getElementById(`intent-greet-${demandId}`)?.value ?? '').trim();
   closeModal();
   const d = _browseDemands.find(x => x.id === demandId);
   const origStatus = d ? d.my_intent_status : undefined;
@@ -970,7 +989,7 @@ async function doSubmitIntent(demandId) {
   const origHtml = cta ? cta.outerHTML : ''; // 先捕获原按钮（常量派生的 HTML，非用户输入）
   if (cta) cta.outerHTML = pendingHtml; // 乐观：按钮立即变「待处理」
   try {
-    await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: {} });
+    await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: { message } });
     showToast(UI.INTENT_SUBMITTED_TOAST);
     invalidate('demands'); // v0.23.1 审计 M2：否则按钮仍显示「提交意向」，操作看似无效
   } catch (err) {
@@ -1047,12 +1066,18 @@ function renderIntentTeacherRow(t, demandId) {
        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
   // R2-5 报价区间（未填显 ? 占位，同旧单值口径）
   const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT) || '?';
+  // v0.28.0 M1：教师打招呼消息显示在意向卡 meta 下方——完整渲染全文（无省略号），卡片随内容增高
+  const greetHtml = t.intent_message ? `<div class="greet-bubble glass greet-bubble--row">
+      <div class="greet-bubble-head">${UI.GREET_HEAD_TEACHER}</div>
+      <div class="greet-bubble-body">${escHtml(t.intent_message)}</div>
+    </div>` : '';
   return `<div class="admin-row glass" data-intent-id="${t.intent_id}">
     <div class="admin-row-main">
       <div class="admin-row-line intent-row-line">
         <span class="intent-row-user"><strong>${DISP.usernameHtml(t.username)}</strong> ${DISP.starsHtml(t.rating)}</span>${tag}
       </div>
       <div class="admin-row-meta">${[provName, priceLine].filter(Boolean).join(' · ')}</div>
+      ${greetHtml}
     </div>
     <div class="admin-row-actions">${viewBtn}${actions}</div>
   </div>`;

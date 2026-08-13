@@ -228,6 +228,9 @@ export async function handleReopenDemand(db, demandId, body, req) {
 
 // --- 需求意向（前端四态按钮 UI：my_intent_status 三态 + 撤销重提） ---
 export async function handleCreateIntent(db, demandId, body, req) {
+  // v0.28.0 M1：教师打招呼消息（Airbnb 租客对房东式；自我介绍+为什么关注此需求）；可选，trim 后超限拒绝
+  const message = String(body.message ?? '').trim();
+  if (message.length > LIMITS.GREETING_MSG_MAX) return error(MSG.GREETING_TOO_LONG, 400);
   const { user: me, err } = await requireUser(db, req, 'teacher');
   if (err) return err;
   const userId = me.id;
@@ -244,7 +247,7 @@ export async function handleCreateIntent(db, demandId, body, req) {
   }
 
   try {
-    const id = await dbCreateIntent(db, demandId, userId); // 条件 INSERT 原子化：0 = 检查与插入之间需求被签/撤
+    const id = await dbCreateIntent(db, demandId, userId, message); // 条件 INSERT 原子化：0 = 检查与插入之间需求被签/撤
     if (!id) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
     return json({ id, message: MSG.INTENT_SUBMITTED }, 201);
   } catch (err2) {
@@ -305,6 +308,9 @@ export async function handleResolveIntent(db, intentId, body, req) {
 // ============================================================
 export async function handlePushDemand(db, body, req) {
   const { teacherUserId, demandId } = body;
+  // v0.28.0 M1：学生打招呼消息（自我介绍+为什么选这位老师）；可选，trim 后超限拒绝
+  let message = String(body.message ?? '').trim();
+  if (message.length > LIMITS.GREETING_MSG_MAX) return error(MSG.GREETING_TOO_LONG, 400);
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
   const userId = me.id;
@@ -316,7 +322,7 @@ export async function handlePushDemand(db, body, req) {
   if (demand.status === STATUS.CONTRACTED || demand.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求不可再推送
 
   try {
-    const id = await dbCreatePush(db, demandId, userId, teacherUserId); // 条件 INSERT 原子化：0 = 需求已非开放
+    const id = await dbCreatePush(db, demandId, userId, teacherUserId, message); // 条件 INSERT 原子化：0 = 需求已非开放
     if (!id) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
     await logEvent(db, { action: 'demand.push', actorUserId: userId, actorRole: 'student',
       entity: 'demand_push', entityId: id, detail: { teacherUserId, demandId }, req });

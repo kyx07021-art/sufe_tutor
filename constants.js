@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.27.7',
+  APP_VERSION: '0.28.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -60,6 +60,7 @@ globalThis.APP_CONSTANTS = {
     GRAD_YEAR_MIN: 1980, GRAD_YEAR_MAX: 2030, // 教师毕业年份可填范围（R2-12，服务端钳制同值）
     SIDEBAR_INDEX_PAD: 2,                 // 侧边栏序号补零位数
     POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
+    GREETING_MSG_MAX: 300,                // 打招呼消息上限（v0.28.0 M1：学生推送需求/教师试课意向附带；与服务端 LIMITS.GREETING_MSG_MAX 同值）
     MATCH_WEIGHT: { subject: 45, region: 15, budget: 15, personality: 15, gender: 10 },     // 教师匹配度权重（合计 100；需求五并入性格/性别，科目仍为主权重）
     MATCH_MAX: 100,
     MATCH_COLOR_HIGH: 80,                 // 匹配度按钮三色阈值：≥80 绿（hi）
@@ -546,10 +547,16 @@ globalThis.APP_CONSTANTS = {
     UNVERIFY_DONE: '已撤销学籍认证',
     BTN_GENERATE_INVITE: '生成邀请码',
     BTN_CANCEL: '取消',
-    // 试课意向二次确认（用户反馈 2026-08-08：防教师海投——提交前弹窗确认，确认后走 doSubmitIntent）
-    INTENT_CONFIRM_TITLE: '确认提交试课意向',
-    INTENT_CONFIRM_HINT: '你将向学生提交这条需求的试课意向：{demand}。提交后需等学生确认是否同意，请确认是你真正想接的需求。',
-    BTN_CONFIRM_INTENT: '确认提交',
+    // v0.28.0 M1：试课意向由「二次确认」改为「打招呼消息」（Airbnb 租客对房东式——自我介绍+为什么想接这单，提示语友善）
+    INTENT_GREET_TITLE: '提交试课意向',
+    INTENT_GREET_DEMAND: '你将向这条需求提交试课意向：{demand}',
+    INTENT_GREET_LABEL: '和对方打个招呼（可选）',
+    INTENT_GREET_PLACEHOLDER: '简单介绍一下自己，说说为什么想接下这单～（例：老师您好，我教初中数学五年，带过三届中考班，对您孩子的分数情况很有把握）',
+    INTENT_GREET_OPTIONAL: '可留空直接提交；填写后学生会在「试课意向」里看到这段话。',
+    BTN_SUBMIT_INTENT: '提交意向',
+    // 打招呼消息在卡片上的引用块头标（谁说的：学生留言 / 教师留言）
+    GREET_HEAD_STUDENT: '学生留言',
+    GREET_HEAD_TEACHER: '教师留言',
     BTN_LOAD_MORE: '加载更多',      // 管理员需求分页（网安报告 F-09：keyset 游标翻页）
 
     // 加载状态
@@ -1037,6 +1044,10 @@ globalThis.APP_CONSTANTS = {
     PUSH_TEACHER_FALLBACK: '该老师',
     PUSH_MODAL_TITLE_PREFIX: '把需求发给 ',
     PUSH_MODAL_HINT: '选一条需求发送给这位老师，对方会在需求大厅优先看到它。',
+    // v0.28.0 M1：推送需求附带打招呼消息（自我介绍+为什么选这位老师，Airbnb 式友善提示）
+    PUSH_GREET_LABEL: '和老师打个招呼（可选）',
+    PUSH_GREET_PLACEHOLDER: '简单介绍一下自己，说说为什么想请这位老师～（例：老师您好，孩子初二数学偏弱，看到您带过三届中考班，想请您试试）',
+    PUSH_GREET_OPTIONAL: '可留空直接发送；填写后老师会在需求卡上看到这段话。',
     EMPTY_NO_MY_DEMANDS_SHORT: '你还没有需求，先去「我的需求」发布一条吧。',
     PUSH_NO_AVAILABLE_DEMANDS: '暂无可发送的需求（已签约的需求会自动成交下架）。',
     BTN_SEND: '发送',

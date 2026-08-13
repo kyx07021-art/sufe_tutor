@@ -558,6 +558,11 @@ async function runFullMigration(db, env) {
   await ensureColumns(db, 'demand_intents', [
     ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
     ['resolved_at', 'DATETIME'],
+    ['message', "TEXT NOT NULL DEFAULT ''"], // v0.28.0 M1 教师试课意向打招呼消息
+  ]);
+  // v0.28.0 M1：学生主动推送需求附带打招呼消息（自我介绍+为什么选这位老师）
+  await ensureColumns(db, 'demand_pushes', [
+    ['message', "TEXT NOT NULL DEFAULT ''"],
   ]);
   // 存量会话需求绑定修复：旧会话 demand_id 为空 → 从已接受意向 / 已接受推送反查回填（幂等，仅填空不覆写）
   await dbRun(db, `UPDATE conversations SET demand_id = (
@@ -1115,18 +1120,19 @@ export async function dbReopenDemand(db, id) {
 // 需求主动推送（学生 → 指定教师）
 // ============================================================
 // 推送创建原子化（网安审计 TOCTOU：同 dbCreateIntent，仅当需求 status='open' 才插入；changes=0 返回 0）
-export async function dbCreatePush(db, demandId, studentUserId, teacherUserId) {
+// v0.28.0 M1：message = 学生打招呼消息（自我介绍+为什么选这位老师）
+export async function dbCreatePush(db, demandId, studentUserId, teacherUserId, message = '') {
   const r = await dbRun(db,
-    `INSERT INTO demand_pushes (demand_id, student_user_id, teacher_user_id)
-     SELECT ?, ?, ? FROM student_demands WHERE id=? AND status='open'`,
-    [demandId, studentUserId, teacherUserId, demandId]);
+    `INSERT INTO demand_pushes (demand_id, student_user_id, teacher_user_id, message)
+     SELECT ?, ?, ?, ? FROM student_demands WHERE id=? AND status='open'`,
+    [demandId, studentUserId, teacherUserId, message, demandId]);
   return (r && r.meta && r.meta.changes > 0) ? Number(r.meta.last_row_id) : 0;
 }
 
-// 某教师待处理推送（含需求全字段 + 学生用户名），供需求大厅置顶 + 红点计数
+// 某教师待处理推送（含需求全字段 + 学生用户名 + 打招呼消息），供需求大厅置顶 + 红点计数
 export async function dbGetPendingPushesForTeacher(db, teacherUserId) {
   const rows = await dbAll(db, `SELECT dp.id AS push_id, dp.status AS push_status, dp.created_at AS push_created_at,
-      sd.*, u.username
+      dp.message AS push_message, sd.*, u.username
     FROM demand_pushes dp
     JOIN student_demands sd ON sd.id=dp.demand_id
     JOIN users u ON u.id=sd.user_id
@@ -1167,17 +1173,18 @@ export async function dbAcceptPushAsIntent(db, demandId, teacherUserId) {
 // 意向创建原子化（网安审计 TOCTOU：路由层先查需求状态再 INSERT 存在窗口——查询与插入之间需求被签约/撤销，
 // 意向会落在已关闭需求上。改为条件 INSERT：仅当需求 status='open' 才插入，changes=0 即需求非开放，
 // 调用方据返回 0 判定 410）。UNIQUE(demand_id, teacher_user_id) 冲突仍抛错由路由转 409
-export async function dbCreateIntent(db, demandId, teacherUserId) {
+export async function dbCreateIntent(db, demandId, teacherUserId, message = '') {
   const result = await dbRun(db,
-    `INSERT INTO demand_intents (demand_id, teacher_user_id)
-     SELECT ?, ? FROM student_demands WHERE id=? AND status='open'`,
-    [demandId, teacherUserId, demandId]);
+    `INSERT INTO demand_intents (demand_id, teacher_user_id, message)
+     SELECT ?, ?, ? FROM student_demands WHERE id=? AND status='open'`,
+    [demandId, teacherUserId, message, demandId]);
   return (result && result.meta && result.meta.changes > 0) ? Number(result.meta.last_row_id) : 0;
 }
 
 export async function dbGetIntentTeachers(db, demandId) {
   const rows = await dbAll(db, `SELECT tp.*, di.teacher_user_id AS user_id, u.username,
-      di.id AS intent_id, di.status AS intent_status, di.created_at AS intent_created_at
+      di.id AS intent_id, di.status AS intent_status, di.created_at AS intent_created_at,
+      di.message AS intent_message
     FROM demand_intents di
     JOIN users u ON u.id=di.teacher_user_id
     LEFT JOIN teacher_profiles tp ON tp.user_id=di.teacher_user_id
@@ -1189,6 +1196,7 @@ export async function dbGetIntentTeachers(db, demandId) {
   return (await Promise.all(rows.map(async r => ({
     ...(await mapTeacherProfileRow(r)),
     intent_id: r.intent_id, intent_status: r.intent_status, intent_created_at: r.intent_created_at,
+    intent_message: r.intent_message || '', // v0.28.0 M1：教师打招呼消息（SELECT 已取，出口透传；空串统一）
   })))).map(({ wechat, email, real_name, credential_image, matched, ...rest }) => rest);
 }
 
