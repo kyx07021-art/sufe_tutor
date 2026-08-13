@@ -13,7 +13,8 @@
  * 机制：
  *   1. collectUnits：壳（.navbar/.sidebar/.client-main）+ 可见页内"布局显著块"（类名命中 LAYOUT_RE
  *      + 有几何尺寸的叶子块）→ 单元表，每个单元记录 当前 rect（base）。
- *   2. sampleTargets：对每个采样档位（CONFIG.UI_SCALE_REFLOW_SAMPLE_STEP 每 5% 一档，MIN~MAX），
+ *   2. sampleTargets：对每个采样档位（CONFIG.UI_SCALE_REFLOW_SAMPLE_STEP，MIN~MAX；v0.31.4 P4 定为 20，
+ *      [80,100,120] 3 档——每档一次整树 reflow 是成本大头，档间 --ui-scale 乘性变换目标位近线性插值足够），
  *      同帧 set --ui-scale → 强制 layout 测各单元 rect → 还原（浏览器只在任务结束 paint，不闪屏）。
  *   3. renderAt(scale)：插值目标 rect → 自顶向下算 per-element transform（translate+scale，origin 0 0，
  *      translate 含祖先 transform 补偿）→ 写进单张 <style>（合成器只读）。
@@ -276,8 +277,12 @@
       lines.push('[data-ui-reflow-unit="' + k + '"]{transform:translate(' + un.tx.toFixed(2) + 'px,' + un.ty.toFixed(2) + 'px) scale(' + un.sx.toFixed(4) + ',' + un.sy.toFixed(4) + ')}');
     }
     if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = '__ui-reflow-transforms'; document.head.appendChild(styleEl); }
+    // v0.31.5（P1 根因之二）：预览期禁用引擎 transform 过渡——.glass 引擎 transition: transform .18s
+    //   会让刚写入的 per-element transform 从恒等动画起点开始（getBoundingClientRect 立即读 = 起点，
+    //   拖动中预览持续滞后/偏小；生产实测同帧 55.6×31.7 vs 500ms 后 58.2×33.2）。transition:none
+    //   !important 覆盖引擎；html[data-ui-reflowing] 门控只在预览期命中，teardown 清样式表即恢复。
     // 不用 will-change：会提升数百个合成层（内存/GPU 代价）；有 transform 的单元本就提升，无 transform 的无需提升。
-    styleEl.textContent = '[data-ui-reflow-unit]{transform-origin:0 0}\n' + lines.join('\n');
+    styleEl.textContent = 'html[data-ui-reflowing] [data-ui-reflow-unit]{transition:none !important}\n[data-ui-reflow-unit]{transform-origin:0 0}\n' + lines.join('\n');
     // 挂属性（只挂一次：同名属性重复 set 可能触发样式失效，拖动期零冗余 set）
     for (var m = 0; m < units.length; m++) {
       if (!units[m].el.hasAttribute('data-ui-reflow-unit')) units[m].el.setAttribute('data-ui-reflow-unit', String(m));

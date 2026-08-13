@@ -1,13 +1,13 @@
 /**
  * v0.27.6 UI 滑块拖动期元素级模拟重排（ui-scale-reflow.js）
  *
- * 机制：拖动期把真实重排的"目标位"采样成离散档位（UI_SCALE_REFLOW_SAMPLE_STEP 每 5% 一档），
+ * 机制：拖动期把真实重排的"目标位"采样成离散档位（UI_SCALE_REFLOW_SAMPLE_STEP，v0.31.4 P4 定为 20 → [80,100,120]），
  * 用 per-element transform（translate+scale）把每个布局单元移动到真实重排后的位置——合成器只读，
  * 零 reflow 零 repaint；真实页面 --ui-scale 拖动期不动，松手 commit 才一次真重排。
  *
  * 本测试用 stub getBoundingClientRect 模拟真实重排目标（侧栏随缩放扩张 → 内容列右缘钉视口、
  * 左缘被顶右收窄的非均匀目标位），验证：
- *   1. prepare：采样档位 = [80,85,…,120]（CONFIG 单源 5）；采样后 --ui-scale 还原，无闪屏中间态残留；
+ *   1. prepare：采样档位 = [80,100,120]（CONFIG 单源 UI_SCALE_REFLOW_SAMPLE_STEP=20）；采样后 --ui-scale 还原，无闪屏中间态残留；
  *   2. renderAt(100)：全恒等 → 样式表无 translate 规则（拖动起点不重复写 transform）；
  *   3. renderAt(120)：非均匀收窄正确——
  *      顶栏 高度缩放 sy=1.2 宽度钉 1280（sx≈1）；
@@ -118,6 +118,15 @@ test('renderAt(100)：全恒等 → 样式表无 translate 规则（拖动起点
   assert.equal(hasTranslate(ctx), false, 'scale=100 无任何 translate 规则');
   assert.notEqual(vm.runInContext(`document.querySelector('.client-main').getAttribute('data-ui-reflow-unit')`, ctx), null,
     'data-ui-reflow-unit 属性已挂（base 规则生效）');
+});
+
+test('v0.31.5 P1：renderAt 样式表含过渡禁用规则（引擎 transform 过渡致预览滞后/偏小的根因修复）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare(); window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  const css = vm.runInContext(`document.getElementById('__ui-reflow-transforms').textContent`, ctx);
+  assert.ok(css.includes('html[data-ui-reflowing] [data-ui-reflow-unit]{transition:none !important}'),
+    '预览期禁用引擎 transform 过渡（.glass transition .18s 会让 transform 从恒等动画起点——拖动中预览滞后偏小）');
+  assert.ok(css.includes('[data-ui-reflow-unit]{transform-origin:0 0}'), 'transform-origin 规则保留');
 });
 
 test('renderAt(120)：非均匀真实重排（顶栏钉宽/侧栏扩张/内容列收窄 sx<1）', () => {
