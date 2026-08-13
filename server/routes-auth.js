@@ -369,15 +369,18 @@ export async function handleLoginWithCode(db, body, req) {
   if (gate.verdict(results)) { await authRateBlock(db, ip); return error(MSG.RATE_LIMITED, 429); }
   const userRow = gate.extra(results)[0];
   const user = userRow && userRow.results ? userRow.results[0] : null;
-  if (!user) {
+  // S2-2 防枚举（限流审计 FAIL-1）：验码先行、账户状态后置——requestOtp 不查存在性（任何目标都发码），
+  // 不存在账户与验证码错误统一返回 OTP_INVALID_OR_EXPIRED（同 400 同文案），无码者四态不可区分
+  // （与密码登录 LOGIN_FAILED 抹平姿态一致；banned/deactivated 仅在验码成功后才分支——只有持码者
+  // 能触发，不构成存在性探测面）。
+  const ok = await verifyOtp(db, { channel, target, code });
+  if (!user || !ok) {
     await logEvent(db, { action: 'auth.login.failed', actorUsername: targetMask(target),
       entity: 'user', detail: { via: 'code', kind, identifier: targetMask(target) }, req });
-    return error(MSG.LOGIN_FAILED, 401);
+    return error(MSG.OTP_INVALID_OR_EXPIRED, 400);
   }
   if (user.banned) return error(MSG.ACCOUNT_BANNED, 403);
   if (user.deactivated) return error(MSG.ACCOUNT_DEACTIVATED, 403);
-  const ok = await verifyOtp(db, { channel, target, code });
-  if (!ok) return error(MSG.OTP_INVALID_OR_EXPIRED);
   const authToken = await issueAuthToken(db, user.id, deviceLabelFromUA(req && req.headers.get('user-agent')), body.deviceId);
   await logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, detail: { via: 'code', kind }, req });

@@ -852,23 +852,32 @@ function chatInjectSignCaption(signingId) {
 
 // v0.24.0 回应签约请求：确认/拒绝。成功后就地把请求气泡变灰 + 按钮消失为小灰字
 // （服务端已更新原气泡 body 为终态并落 signing_response 响应气泡，轮询也会拉到）
+// S2-2（v0.30.0）：确认签约 = 危险操作（需求锁定成交 + 自动拒绝其余意向）——接密码重认证换 capToken
+// 二次认证（同合同签署/撤销口径 confirm needReAuth）；拒绝仍为普通确认。
 async function respondSigning(signingId, accept) {
-  try {
-    await api(`/api/signing-requests/${signingId}/respond`, { method: 'POST', body: { accept } });
-    document.querySelectorAll(`[data-signing-id="${signingId}"]`).forEach(el => {
-      const actions = el.querySelector('.signing-bubble-actions');
-      if (actions) actions.remove();
-      if (!accept) {
-        // 拒绝：整泡变灰（终态）+ status 拒绝文案；funds 保留
-        el.classList.add('signing-bubble--done');
-        const status = el.querySelector('.signing-bubble-status');
-        if (status) status.textContent = UI.SIGNING_REJECTED_TEXT;
-        else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = UI.SIGNING_REJECTED_TEXT; el.appendChild(p); }
-      }
-    });
-    if (accept) chatInjectSignCaption(signingId); // v0.25.94：确认签约 → 就地重建气泡底部（合并提示 + 撑满起草按钮）
-    showToast(accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED); // v0.24.2：回应方视角（原「对方已…」颠倒）
-  } catch (err) { showToast(err.message); }
+  const doRespond = async capToken => {
+    try {
+      await api(`/api/signing-requests/${signingId}/respond`, { method: 'POST', body: accept ? { accept, capToken } : { accept } });
+      document.querySelectorAll(`[data-signing-id="${signingId}"]`).forEach(el => {
+        const actions = el.querySelector('.signing-bubble-actions');
+        if (actions) actions.remove();
+        if (!accept) {
+          // 拒绝：整泡变灰（终态）+ status 拒绝文案；funds 保留
+          el.classList.add('signing-bubble--done');
+          const status = el.querySelector('.signing-bubble-status');
+          if (status) status.textContent = UI.SIGNING_REJECTED_TEXT;
+          else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = UI.SIGNING_REJECTED_TEXT; el.appendChild(p); }
+        }
+      });
+      if (accept) chatInjectSignCaption(signingId); // v0.25.94：确认签约 → 就地重建气泡底部（合并提示 + 撑满起草按钮）
+      showToast(accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED); // v0.24.2：回应方视角（原「对方已…」颠倒）
+    } catch (err) { showToast(err.message); }
+  };
+  if (accept) {
+    confirm({ message: UI.CONFIRM_SIGNING_ACCEPT, needReAuth: true, onConfirm: capToken => doRespond(capToken) });
+    return;
+  }
+  doRespond();
 }
 
 // 移动端：从聊天窗返回会话列表（会话保持打开，轮询继续，预览照常刷新）

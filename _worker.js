@@ -494,9 +494,10 @@ export default {
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
     try {
       // v0.26.0 E2 高频轻量日常审核断点：内容域写请求途中统一过监听断点（数据副本 + 上下文入队列 →
-      // 轻量审核节点；dummy 极小概率驳回）。驳回 400 文案走上传过程自身的 toast（api 调用方 catch
-      // 已 showToast(err.message) 原样弹出，无需额外 toast 通路）。同步微秒级，300ms 预算内。
-      const audit = auditBeforeWrite({ path: p, method: request.method, body, ip, userId: null });
+      // 审核节点）。v0.30.0（S2-1）起节点为门牌合规 L1 规则层（AUDIT_MAP 抽取自由文本字段交
+      // auditFreeText），命中详细门牌号 → 400 reject。驳回文案走上传过程自身的 toast（api 调用方
+      // catch 已 showToast(err.message) 原样弹出，无需额外 toast 通路）。≤300ms 预算 fail-open。
+      const audit = await auditBeforeWrite({ path: p, method: request.method, body, ip, userId: null });
       if (audit.reject) {
         return applySecurityHeaders(error(audit.reject, 400), p);
       }

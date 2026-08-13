@@ -618,7 +618,7 @@ function openReviewModal(teacherUserId, teacherName, editId) {
   teacherName = teacherName ?? (state.allTeachers.find(x => x.user_id === teacherUserId)?.username || '');
   const existing = editId ? state.myReviewOnModal : null;
   openModal({
-    title: existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + escHtml(teacherName),
+    title: existing ? UI.BTN_EDIT_REVIEW : UI.REVIEW_MODAL_TITLE_PREFIX + teacherName, // S2-2：openModal 组件内统一转义
     body: `
         <div class="form-group">
           <label class="form-label">${UI.LABEL_RATING} <span class="req">*</span></label>

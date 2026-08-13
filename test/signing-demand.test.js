@@ -70,13 +70,22 @@ async function seed(db, raw) {
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)').run(s1, t1, d1);
   const mkToken = async name => {
     const token = `${name}-token`;
-    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
-      .run(await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00');
-    return token;
+    // session_id 显式非空：confirmDangerOtp 对 '' 会话直接拒绝（生产恒生成，空串只可能 fixture 直插）
+    const sessionId = `${name}-sess`;
+    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at,session_id) VALUES (?,?,?,?,?)')
+      .run(await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00', sessionId);
+    return { token, sessionId };
   };
-  return { s1, s2, t1, d1, d2, d3, d4, t1Token: await mkToken('t1'), s1Token: await mkToken('s1') };
+  const t1s = await mkToken('t1'), s1s = await mkToken('s1');
+  return { s1, s2, t1, d1, d2, d3, d4, t1Token: t1s.token, s1Token: s1s.token, s1SessionId: s1s.sessionId };
 }
 const signBody = demandId => ({ conversationId: 1, demandId, price: 150, schedule: '每周六', method: 'offline' });
+// S2-2（v0.30.0）：确认签约须 capToken 二次认证——直接落 danger_caps（session_id 与种子会话一致即命中）
+const capOf = async (raw, userId, sessionId, value = 'cap-stu') => {
+  raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
+    .run(userId, sessionId, await tokenDigest(value), '2099-01-01 00:00:00');
+  return value;
+};
 
 test('发起签约：body.demandId 合法（会话学生方 open 需求）→ 201 且需求落库', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -173,13 +182,13 @@ test('bindable-demands：非会话参与方 → 404（不泄露会话存在性�
 
 test('确认签约：需求状态 open → contracted，签约请求置 signed', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1Token, t1Token, d1 } = await seed(db, raw);
+  const { s1, s1Token, s1SessionId, t1Token, d1 } = await seed(db, raw);
   // t1 发起、s1 确认（发起者不能确认自己的请求，须对方回应）
   const r1 = await handleCreateSigning(db, signBody(d1), reqOf(t1Token));
   assert.equal(r1.status, 201);
   const { id: srId } = await r1.json();
   assert.ok(srId > 0);
-  const r2 = await handleRespondSigning(db, srId, { accept: true }, reqOf(s1Token));
+  const r2 = await handleRespondSigning(db, srId, { accept: true, capToken: await capOf(raw, s1, s1SessionId) }, reqOf(s1Token));
   assert.equal(r2.status, 200, '需求 open 时确认应成功');
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'contracted', '确认签约后需求置 contracted');
   assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=?').get(srId).status, 'signed', '签约请求置 signed');

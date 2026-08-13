@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.29.0',
+  APP_VERSION: '0.30.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1331,6 +1331,7 @@ globalThis.APP_CONSTANTS = {
     SIGN_READ_DONE_BTN: '我已阅读并确认签约',
     CONFIRM_SIGN_TWICE: '确认签约后合同即生效、不可单方撤销。你确定已仔细阅读并确认这份合同吗？',
     CONFIRM_SIGN_FINAL: '请输入账户密码，完成最终确认（后期接入短信验证码）',
+    CONFIRM_SIGNING_ACCEPT: '接受签约？需求将锁定为已成交，其他教师的试课意向会被自动拒绝。请输入账户密码完成最终确认。', // S2-2：确认签约=危险操作（同合同签署/撤销口径，capToken 二次认证）
     CONFIRM_CANCEL_CONTRACT: '取消后回到待签约状态、合同保留（会话保留）。确定取消签约吗？', // v0.25.87 R7：取消不再删除合同
     CONTRACT_EMPTY_LIST: '暂无合同——可在「我的会话」的聊天窗内起草',
     CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',

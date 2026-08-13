@@ -157,7 +157,7 @@ function openPostDetail(id) {
   const mine = state.user && p.user_id === state.user.id;
   const time = p.created_at ? fmtDateTime(p.created_at) : '';
   openModal({
-    title: escHtml(p.title),
+    title: p.title, // S2-2：openModal 组件内统一转义（调用方传原文）
     cls: 'modal--wide', // 长文拓宽（同 md 预览）
     bodyCls: 'md-preview md-preview--full',
     body: `

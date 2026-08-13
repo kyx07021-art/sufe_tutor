@@ -60,36 +60,45 @@ async function seed(db, raw, demandStatus = 'open') {
     VALUES (1,1,2,NULL,150,'每周六','offline','pending'),(2,1,3,NULL,150,'每周六','offline','pending')`);
   if (demandStatus !== 'open') raw.exec(`UPDATE student_demands SET status='${demandStatus}' WHERE id=1`);
   const token = 'stu-token';
-  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
-    .run(await tokenDigest(token), 1, 'x', '2099-01-01 00:00:00');
-  return token;
+  // session_id 必须显式落非空值：confirmDangerOtp 对 '' 会话直接拒绝（生产 issueAuthToken 恒生成
+  // 32 位 hex session_id，空串只可能在 fixture 直插时出现——v0.30.0 曾因 fixture 默认 '' 误判 403）
+  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at,session_id) VALUES (?,?,?,?,?)')
+    .run(await tokenDigest(token), 1, 'x', '2099-01-01 00:00:00', 'sess-stu');
+  return { token, sessionId: 'sess-stu' };
 }
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
+// S2-2（v0.30.0）：确认签约须 capToken 二次认证——直接落 danger_caps（session_id 与 seed 会话一致
+// 即命中；命中即删语义仍被真实 confirmDangerOtp 完整覆盖）
+const capOf = async (raw, sessionId = 'sess-stu', value = 'cap-stu') => {
+  raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
+    .run(1, sessionId, await tokenDigest(value), '2099-01-01 00:00:00');
+  return value;
+};
 
 test('需求态守卫：需求已签约成交后，另一会话的签约请求不可再 signed（防一条需求双签）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const token = await seed(db, raw);
+  const { token } = await seed(db, raw);
   // 学生确认会话1的请求：需求 open → 成功，需求置 contracted
-  const r1 = await handleRespondSigning(db, 1, { accept: true }, reqOf(token));
+  const r1 = await handleRespondSigning(db, 1, { accept: true, capToken: await capOf(raw) }, reqOf(token));
   assert.equal(r1.status, 200, '需求 open 时确认应成功');
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=1').get().status, 'contracted');
   // 学生再确认会话2的请求：需求已非 open → 410，请求保持 pending（不得双签）
-  const r2 = await handleRespondSigning(db, 2, { accept: true }, reqOf(token));
+  const r2 = await handleRespondSigning(db, 2, { accept: true, capToken: await capOf(raw, 'sess-stu', 'cap-stu-2') }, reqOf(token));
   assert.equal(r2.status, 410, '需求已成交：二次确认必须被拒');
   assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=2').get().status, 'pending', '第二次签约请求不得置 signed');
 });
 
 test('需求态守卫：需求已撤销 → accept 410 且请求保持 pending', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const token = await seed(db, raw, 'revoked');
-  const r = await handleRespondSigning(db, 1, { accept: true }, reqOf(token));
+  const { token } = await seed(db, raw, 'revoked');
+  const r = await handleRespondSigning(db, 1, { accept: true, capToken: await capOf(raw) }, reqOf(token));
   assert.equal(r.status, 410);
   assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=1').get().status, 'pending');
 });
 
 test('拒绝签约不依赖需求状态：需求已成交时拒绝仍放行', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const token = await seed(db, raw, 'contracted');
+  const { token } = await seed(db, raw, 'contracted');
   const r = await handleRespondSigning(db, 1, { accept: false }, reqOf(token));
   assert.equal(r.status, 200, '拒绝不契约需求，无需需求守卫');
   assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=1').get().status, 'rejected');

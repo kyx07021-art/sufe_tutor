@@ -932,7 +932,7 @@ async function openSendDemandModal(teacherUserId) {
       <p class="text-xs text-muted spacer-sm">${UI.PUSH_GREET_OPTIONAL}</p>
     </div>`;
   openModal({
-    title: `${UI.PUSH_MODAL_TITLE_PREFIX}${escHtml(tName)}`,
+    title: `${UI.PUSH_MODAL_TITLE_PREFIX}${tName}`, // S2-2：openModal 组件内统一转义
     style: `max-width:${CONFIG.MODAL_W_SEND};`,
     closable: false,
     body: `<p class="text-sm text-muted spacer-md">${UI.PUSH_MODAL_HINT}</p>

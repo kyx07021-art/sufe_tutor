@@ -58,7 +58,7 @@ function openPostViewModal(postId) {
   const p = state.adminPosts.find(x => x.id === postId);
   if (!p) return;
   openModal({
-    title: escHtml(p.title),
+    title: p.title, // S2-2：openModal 组件内统一转义（调用方传原文）
     cls: 'modal--wide', // 需求三十一：管理端全文阅读拓宽
     body: `<p class="text-sm text-muted modal-sub-info">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
         <div class="md-preview glass glass--solid">${mdRender(p.body_md || '')}</div>`,

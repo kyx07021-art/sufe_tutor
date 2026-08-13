@@ -26,6 +26,7 @@
  */
 import { dbRun, json, error, isDemandActive } from './util.js'; // dbRun 仅供 initSigningTable 建表（自持表域 DDL）
 import { requireUser } from './security.js';
+import { confirmDangerOtp } from './danger-ops.js'; // S2-2：确认签约危险操作二次认证（网安 F-05 同口径）
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
@@ -127,6 +128,10 @@ export async function handleRespondSigning(db, signingId, body, req) {
   if (!conv || (conv.student_user_id !== userId && conv.teacher_user_id !== userId)) return error(MSG.NO_PERMISSION, 403);
   if (sr.initiator_user_id === userId) return error(MSG.NO_PERMISSION, 403); // 发起者不能确认自己的请求
   if (sr.status !== STATUS.PENDING) return error(MSG.SIGNING_ALREADY_RESPONDED, 409); // 已回应过
+
+  // S2-2 危险操作二次认证（限流审计 FAIL-2）：确认签约有交易后果（需求置 contracted + 自动拒绝其余
+  // 意向/推送），同合同签署/撤销口径（网安 F-05）须凭 re-auth 换发的一次性 capToken；拒绝不需要。
+  if (accept && !(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
 
   const newStatus = accept ? STATUS.SIGNED : STATUS.REJECTED;
   // 赢家模式 + 需求态守卫：确认签约须需求仍 open（同需求多会话并存下，若另一会话已签约成交则拒绝——

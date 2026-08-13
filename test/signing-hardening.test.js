@@ -4,7 +4,8 @@
  *  1. handleCreateSigning 强制 demandId（无回落）：无/非法 demandId → 400，杜绝 demand_id=NULL
  *     的无需求签约绕过「每次签约绑定一份需求」门禁（原缺省回落 conv.demand_id 可落 NULL）。
  *  2. handleRespondSigning db.batch 原子化：sr 置 signed 与需求置 contracted 同一事务——
- *     同需求两会话并发双确认只单赢（一个 200 一个 410），杜绝双 signed 双评价门槛。
+ *     同需求两会话并发双确认只单赢（一个 200；v0.30.0 capToken 二次认证层先拦 → 另一个 403，
+ *     顺序二次确认才走需求态 410），杜绝双 signed 双评价门槛。
  *  3. handleCreateContract 收紧：无 demandId → 410；别教师签成的 contracted 需求 → 410
  *     （签约成交方与合同缔结方必须同一教师，同对师生换会话放行）；INSERT 守卫补 status='contracted'。
  *  4. bindable-demands phase=contract：别教师签成的需求不列出（同口径，防下拉可选、提交被拒的错位）。
@@ -74,13 +75,22 @@ async function seed(db, raw) {
     .run(s1, t1, d1, s1, t2, d1); // C1=s1-t1, C2=s1-t2（同一需求 d1 两会话并存——并发双确认场景）
   const mkToken = async name => {
     const token = `${name}-token`;
-    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
-      .run(await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00');
-    return token;
+    // session_id 显式非空：confirmDangerOtp 对 '' 会话直接拒绝（生产恒生成，空串只可能 fixture 直插）
+    const sessionId = `${name}-sess`;
+    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at,session_id) VALUES (?,?,?,?,?)')
+      .run(await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00', sessionId);
+    return { token, sessionId };
   };
-  return { s1, s2, t1, t2, d1, d2, t1Token: await mkToken('t1'), t2Token: await mkToken('t2'), s1Token: await mkToken('s1') };
+  const t1s = await mkToken('t1'), t2s = await mkToken('t2'), s1s = await mkToken('s1');
+  return { s1, s2, t1, t2, d1, d2, t1Token: t1s.token, t2Token: t2s.token, s1Token: s1s.token, s1SessionId: s1s.sessionId };
 }
 const signBody = (convId, demandId) => ({ conversationId: convId, demandId, price: 150, schedule: '每周六', method: 'offline' });
+// S2-2（v0.30.0）：确认签约须 capToken 二次认证——直接落 danger_caps（session_id 与种子会话一致即命中）
+const capOf = async (raw, userId, sessionId, value = 'cap-stu') => {
+  raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
+    .run(userId, sessionId, await tokenDigest(value), '2099-01-01 00:00:00');
+  return value;
+};
 // handleCreateContract 最小合法 body（需求四·第3条：起草合同绑定已签约需求）
 const contractBody = (convId, demandId) => ({
   conversationId: convId, demandId, method: 'online', plan: '补基础', hourlyRate: 150,
@@ -113,20 +123,23 @@ test('发起签约：demandId 非法（非数字/0/负数/小数）→ 400，不
 
 test('同需求两会话并发双确认：只单赢（一个 200 一个 410，signed 仅一条）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1Token, t1Token, t2Token, d1 } = await seed(db, raw);
+  const { s1, s1Token, s1SessionId, t1Token, t2Token, d1 } = await seed(db, raw);
   // t1 在 C1、t2 在 C2 分别对同一需求 d1 发起签约（两会话并存，可并行 pending）
   const r1 = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
   const r2 = await handleCreateSigning(db, signBody(2, d1), reqOf(t2Token));
   assert.equal(r1.status, 201); assert.equal(r2.status, 201);
   const { id: srA } = await r1.json();
   const { id: srB } = await r2.json();
-  // s1 对两条请求并发确认：db.batch 原子化保证后到的批事务 EXISTS(open) 守卫失败 → 410
+  // s1 对两条请求并发确认：生产每会话仅一枚 capToken（UPSERT 单行、命中即删），并发双确认共用
+  // 同一枚——只一个 DELETE changes>0（真赢家 200），另一个 cap 已消费 changes=0 → 403（v0.30.0
+  // capToken 二次认证层先于需求态守卫拦截；顺序二次确认才走到 410，见 signing-guard.test.js）
+  const capToken = await capOf(raw, s1, s1SessionId);
   const [resA, resB] = await Promise.all([
-    handleRespondSigning(db, srA, { accept: true }, reqOf(s1Token)),
-    handleRespondSigning(db, srB, { accept: true }, reqOf(s1Token)),
+    handleRespondSigning(db, srA, { accept: true, capToken }, reqOf(s1Token)),
+    handleRespondSigning(db, srB, { accept: true, capToken }, reqOf(s1Token)),
   ]);
   const statuses = [resA.status, resB.status].sort();
-  assert.deepEqual(statuses, [200, 410], '并发双确认只单赢（一个确认成功，另一个被需求已签拦截）');
+  assert.deepEqual(statuses, [200, 403], '并发双确认只单赢（一个确认成功，另一个 cap 被消费被拒）');
   assert.equal(raw.prepare(`SELECT COUNT(*) AS c FROM signing_requests WHERE status='signed'`).get().c, 1, '仅一条签约请求置 signed（杜绝双评价门槛）');
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'contracted', '需求收敛为 contracted');
   assert.equal(raw.prepare(`SELECT COUNT(*) AS c FROM signing_requests WHERE status='pending'`).get().c, 1, '输家保持 pending（未被改 signed）');
@@ -134,10 +147,10 @@ test('同需求两会话并发双确认：只单赢（一个 200 一个 410，si
 
 test('确认签约后同需求再发起签约被拒（410）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1Token, t1Token, t2Token, d1 } = await seed(db, raw);
+  const { s1, s1Token, s1SessionId, t1Token, t2Token, d1 } = await seed(db, raw);
   const r1 = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
   const { id: srA } = await r1.json();
-  const r2 = await handleRespondSigning(db, srA, { accept: true }, reqOf(s1Token));
+  const r2 = await handleRespondSigning(db, srA, { accept: true, capToken: await capOf(raw, s1, s1SessionId) }, reqOf(s1Token));
   assert.equal(r2.status, 200);
   // 需求已 contracted，t2 在 C2 再发起签约 → 410
   const r3 = await handleCreateSigning(db, signBody(2, d1), reqOf(t2Token));
@@ -163,11 +176,11 @@ test('起草合同：无 demandId → 410；open 需求 → 410（须已签约�
 
 test('起草合同：别教师签成的 contracted 需求 → 410；本会话同教师 → 201', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1Token, t1Token, t2Token, d1 } = await seed(db, raw);
+  const { s1, s1Token, s1SessionId, t1Token, t2Token, d1 } = await seed(db, raw);
   // t1 在 C1 与 s1 签约 d1（走完整 API 流，生成 signed signing_request）
   const r1 = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
   const { id: srA } = await r1.json();
-  assert.equal((await handleRespondSigning(db, srA, { accept: true }, reqOf(s1Token))).status, 200);
+  assert.equal((await handleRespondSigning(db, srA, { accept: true, capToken: await capOf(raw, s1, s1SessionId) }, reqOf(s1Token))).status, 200);
   // t2 在 C2 起草合同绑 d1 → 410（d1 由别教师 t1 签成，签约成交方与合同缔结方必须同一教师）
   const r2 = await handleCreateContract(db, contractBody(2, d1), reqOf(t2Token));
   assert.equal(r2.status, 410, '别教师签成的需求不可跨会话抢绑起草合同');
@@ -235,10 +248,10 @@ test('会话列表不再返回 demand_display_id / contracted（4a 解耦删字�
 
 test('bindable-demands phase=contract：别教师签成的需求不列出；同教师会话列出', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1Token, t1Token, t2Token, d1 } = await seed(db, raw);
+  const { s1, s1Token, s1SessionId, t1Token, t2Token, d1 } = await seed(db, raw);
   const r1 = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
   const { id: srA } = await r1.json();
-  assert.equal((await handleRespondSigning(db, srA, { accept: true }, reqOf(s1Token))).status, 200);
+  assert.equal((await handleRespondSigning(db, srA, { accept: true, capToken: await capOf(raw, s1, s1SessionId) }, reqOf(s1Token))).status, 200);
   // t1 本会话（C1）：phase=contract 应列出 d1（自己签成）
   const mine = await handleGetConversationBindableDemands(db, 1, bindUrl(1, 'contract'), reqOf(t1Token));
   assert.equal(mine.status, 200);
@@ -253,10 +266,10 @@ test('bindable-demands phase=contract：别教师签成的需求不列出；同�
 
 test('确认签约后：通知发起方「对方已确认签约请求」（不带用户名，Q8 用户质询）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1Token, t1Token, d1 } = await seed(db, raw);
+  const { s1, s1Token, s1SessionId, t1Token, d1 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(1, d1), reqOf(t1Token));
   const { id: srA } = await r.json();
-  const res = await handleRespondSigning(db, srA, { accept: true }, reqOf(s1Token));
+  const res = await handleRespondSigning(db, srA, { accept: true, capToken: await capOf(raw, s1, s1SessionId) }, reqOf(s1Token));
   assert.equal(res.status, 200);
   const notif = raw.prepare("SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
     .get((await raw.prepare('SELECT id FROM users WHERE username=?').get('t1')).id);

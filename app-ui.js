@@ -541,8 +541,9 @@ function openModal({ title, titleId = '', body = '', footer = '', closable = tru
   const clickable = closable ? ' onclick="if(event.target===this)closeModal()"' : '';
   // v0.25.10（反馈 #82）：去独立玻璃表头——header 不再独占玻璃层/分隔线，
   // 标题直接坐弹窗顶端（毛玻璃归属整窗 .modal，表头只是自然流首行），整页滚动在 .modal-overlay
+  // S2-2（XSS 审计防御加固）：title 组件内统一转义——调用方一律传原文，不再各自 escHtml（防双重转义）
   const header = title != null
-    ? `<div class="modal-header"><h2${titleId ? ` id="${titleId}"` : ''}>${title}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>`
+    ? `<div class="modal-header"><h2${titleId ? ` id="${titleId}"` : ''}>${escHtml(title)}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${UI.BTN_CLOSE}" onclick="closeModal()">✕</button></div>`
     : '';
   const clsAttr = cls ? ` ${cls}` : '';
   const styleAttr = style ? ` style="${style}"` : '';

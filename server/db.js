@@ -1499,9 +1499,10 @@ export async function dbResolveComplaint(db, complaintId) {
 // —— 投诉对象候选：按角色搜用户（id 精确 / 昵称模糊），排除自己 ——
 export async function dbSearchUsersByRole(db, role, q, excludeId, limit = LIMITS.COMPLAINT_CANDIDATE_MAX) {
   const num = /^\d+$/.test(q) ? +q : 0;
-  const like = `%${q}%`;
+  // S2-2（SQLi 审计）：q 中 %/_ 转义字面 + ESCAPE 子句（对齐 dbListPosts）——防 LIKE 通配符注入放大匹配/枚举
+  const like = `%${likeEscape(q)}%`;
   return await dbAll(db,
-    `SELECT id, username, role FROM users WHERE role=? AND id<>? AND (username LIKE ? OR (? > 0 AND id = ?))
+    `SELECT id, username, role FROM users WHERE role=? AND id<>? AND (username LIKE ? ESCAPE '\\' OR (? > 0 AND id = ?))
      ORDER BY id DESC LIMIT ${limit}`, [role, excludeId, like, num, num]);
 }
 
@@ -1520,9 +1521,10 @@ export async function dbRecentInteractions(db, userId, role, limit = LIMITS.COMP
 // 帖子候选：按标题模糊 / id 精确
 export async function dbSearchPosts(db, q, limit = LIMITS.COMPLAINT_CANDIDATE_MAX) {
   const num = /^\d+$/.test(q) ? +q : 0;
-  const like = `%${q}%`;
+  // S2-2（SQLi 审计）：同 dbSearchUsersByRole——q 中 %/_ 转义字面 + ESCAPE
+  const like = `%${likeEscape(q)}%`;
   return await dbAll(db,
-    `SELECT id, title, user_id FROM posts WHERE title LIKE ? OR (? > 0 AND id = ?)
+    `SELECT id, title, user_id FROM posts WHERE title LIKE ? ESCAPE '\\' OR (? > 0 AND id = ?)
      ORDER BY id DESC LIMIT ${limit}`, [like, num, num]);
 }
 
