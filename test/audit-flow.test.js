@@ -68,6 +68,30 @@ test('auditBeforeWrite L1 规则层（S2-1）：自由文本字段含门牌号 �
   assert.ok(fbBad.reject, '反馈含门牌 → 拒');
   const like = await auditBeforeWrite({ path: '/api/posts/3/like', method: 'POST', body: {} });
   assert.equal(like.ok, true, '点赞路径无映射字段 → 放行');
+  // v0.30.0 审计补覆盖：合同线下地点 / 签约 schedule 也可承载门牌
+  const contractBad = await auditBeforeWrite({ path: '/api/contracts', method: 'POST', body: { plan: '补基础', schedule: '每周六晚', location: '静安区5号楼303室', payMethodOther: '' } });
+  assert.ok(contractBad.reject, '合同线下地点含门牌 → 拒');
+  const contractOk = await auditBeforeWrite({ path: '/api/contracts', method: 'POST', body: { plan: '补基础', schedule: '每周六晚', location: '双方约定的线上课堂', payMethodOther: '' } });
+  assert.equal(contractOk.ok, true, '合同正常 → 放行');
+  const signingBad = await auditBeforeWrite({ path: '/api/conversations/12/signing', method: 'POST', body: { schedule: '每周六下午，静安区5号楼303室' } });
+  assert.ok(signingBad.reject, '发起签约 schedule 含门牌 → 拒');
+  const signingOk = await auditBeforeWrite({ path: '/api/conversations/12/signing', method: 'POST', body: { schedule: '每周六下午3点' } });
+  assert.equal(signingOk.ok, true, '发起签约正常 → 放行');
+});
+
+test('auditBeforeWrite L1 嵌套 body：需求/教师档案字段在 body.demand / body.profile 下（外部审计断线回归）', async () => {
+  // 断线 1：/api/student/demands 创建+编辑 body 为 { demand: { additional_info } }——曾读扁平字段规则恒空转
+  const demBad = await auditBeforeWrite({ path: '/api/student/demands', method: 'POST', body: { demand: { additional_info: '补充：家在静安区5号楼303室' } } });
+  assert.ok(demBad.reject, '需求创建嵌套 additional_info 含门牌 → 拒');
+  const demEditBad = await auditBeforeWrite({ path: '/api/student/demands/9', method: 'PUT', body: { demand: { additional_info: '住在xx路88号' } } });
+  assert.ok(demEditBad.reject, '需求编辑嵌套 additional_info 含门牌 → 拒（编辑路径无路由层兜底，全赖此层）');
+  const demOk = await auditBeforeWrite({ path: '/api/student/demands', method: 'POST', body: { demand: { additional_info: '希望周末上课' } } });
+  assert.equal(demOk.ok, true, '需求正常 → 放行');
+  // 断线 2：/api/teacher/profile body 为 { profile: { intro, school } }
+  const profBad = await auditBeforeWrite({ path: '/api/teacher/profile', method: 'POST', body: { profile: { intro: '大家好，家在杨高中路88号', school: '华师大' } } });
+  assert.ok(profBad.reject, '教师档案嵌套 intro 含门牌 → 拒');
+  const profOk = await auditBeforeWrite({ path: '/api/teacher/profile', method: 'POST', body: { profile: { intro: '专注高中数学辅导', school: '华东师范大学' } } });
+  assert.equal(profOk.ok, true, '教师档案正常 → 放行');
 });
 
 test('auditBeforeWrite L1 规则层：地铁「号线」不误伤、路名级别放行（全覆盖不误拒正常内容）', async () => {

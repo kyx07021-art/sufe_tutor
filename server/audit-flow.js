@@ -52,26 +52,41 @@ export function isContentWrite(path, method) {
 // 门牌合规 L1 规则层挂接（v0.30.0 S2-1 补全）
 // ============================================================
 // 原缺口：auditFreeText（门牌合规咽喉）仅 routes-teacher（intro/school）/routes-demands
-// （additional_info）直调——帖子/评价/投诉/聊天/反馈/打招呼消息的自由文本可写入门牌号，
+// （additional_info）直调——帖子/评价/投诉/聊天/反馈/打招呼消息/合同/签约的自由文本可写入门牌号，
 // 违反合规红线「详细门牌号不收集」。现按路径映射在此统一抽取自由文本字段交 auditFreeText
 // （L1 规则 + 可选 L2 语义 fail-open），audit-flow 成为名实相符的统一审核咽喉。
 // 抽取用 pick 函数（body → string[]），比字段名字符串映射稳（可处理嵌套如聊天 batch[].body）；
 // 新增内容路径在此加一行即可。路由层原有直调保留作纵深防御 + 直接路由单测入口。
 // 依赖：auditFreeText 走 secrets 网关（L2 密钥未配置即跳过，仅规则层）。
+// 白名单里有意不映射的路径（isContentWrite 通过但无地址承载自由文本，auditItem 落 'skip' 属预期）：
+//   /api/uploads（附件上传，正文无自由文本）、/api/user/avatar（头像，无文本）、
+//   /api/auth/register（username 有字符白名单，无门牌承载）、/api/signing-requests/（respond 仅
+//   {accept,capToken}，无自由文本）——新增写路径时先确认是否有承载地址的自由文本字段，有则在此加映射。
 const AUDIT_MAP = [
   { prefix: '/api/posts',           pick: b => [b.title, b.bodyMd] },
-  { prefix: '/api/student/demands', pick: b => [b.additional_info] },
-  { prefix: '/api/demands/',        pick: b => [b.additional_info, b.message] }, // 需求编辑 + 意向创建 message
+  { prefix: '/api/student/demands', pick: b => [b.demand?.additional_info] }, // 嵌套 body（创建 POST 与编辑 PUT 同构 {demand:{additional_info}}——外部审计抓出曾读扁平字段规则恒空转）
+  { prefix: '/api/demands/',        pick: b => [b.message] }, // 仅 POST /api/demands/:id/intents（意向创建，body 扁平 message；需求编辑在 /api/student/demands/:id）
   { prefix: '/api/intents',         pick: b => [b.message] },
   { prefix: '/api/demand-pushes',   pick: b => [b.message] },
-  { prefix: '/api/teacher/profile', pick: b => [b.intro, b.school] },
+  { prefix: '/api/teacher/profile', pick: b => [b.profile?.intro, b.profile?.school] }, // 嵌套 body {profile:{intro,school}}（同断线修法）
   { prefix: '/api/reviews',         pick: b => [b.comment] },
   { prefix: '/api/feedbacks',       pick: b => [b.title, b.content] },
   { prefix: '/api/complaints',      pick: b => [b.reason, b.detail] },
-  { prefix: '/api/conversations/',  pick: b => (Array.isArray(b.batch) ? b.batch.map(i => i && i.body) : []) }, // 聊天批量正文
+  { prefix: '/api/contracts',       pick: b => [b.plan, b.schedule, b.location, b.payMethodOther] }, // 合同线下地点可承载门牌（v0.30.0 审计补）
+  { prefix: '/api/conversations/',  pick: b => [
+      ...(Array.isArray(b.batch) ? b.batch.map(i => i && i.body) : []), // 聊天批量正文
+      b.schedule, // 发起签约（/api/conversations/:id/signing）schedule 自由文本（v0.30.0 审计补）
+    ] },
 ];
 
-const AUDIT_BUDGET_MS = 300; // ≤300ms 预算；超时 fail-open（未来 L2 语义层配置后仍不阻塞上传）
+// 预算说明（安全评审回应）：≤300ms fail-open 是**有意**的、且有文本依据的合规取舍——
+// ①生产现状 TEXT_AUDIT_API_KEY 未配置，auditSemantic 立即返 null，auditItem 纯 L1 正则微秒级，
+//   预算竞速在当下**不可达**（写路径永远走 L1 确定性门控）；
+// ②未来挂 L2 语义层后，LLM 往返 300ms 内完成属常态，慢于 300ms 时若 fail-closed 拒绝全部写请求
+//   = 把「AI 慢」变成全站写路径 DoS + 正常内容被 400「地址太详细」误伤（用户可用性灾难）；
+//   L2 自身已有 4s 超时 fail-open（text-audit.js），L1 是确定性主闸、L2 是纵深防御最佳努力——
+//   合规红线的兜底是 L1 正则，不依赖 L2 在预算内返回。落预算路径时 console.warn 留观测信号。
+const AUDIT_BUDGET_MS = 300;
 
 // ============================================================
 // 统一信息队列（内存微队列；同步处理即清栈）
@@ -98,10 +113,11 @@ async function auditItem(item) {
 }
 
 function runAudit(item) {
-  // ≤300ms 预算 fail-open：L1 规则微秒级；未来 L2 语义/关键词若超时放行，绝不阻塞上传
+  // ≤300ms 预算 fail-open：L1 规则微秒级；未来 L2 语义/关键词若超时放行，绝不阻塞上传。
+  // 预算路径只在 L2 挂接后可达——warn 留观测（未配置密钥时永不触发，见 AUDIT_MAP 上方预算说明）
   return Promise.race([
     auditItem(item),
-    new Promise(res => setTimeout(() => res({ ok: true, layer: 'budget' }), AUDIT_BUDGET_MS)),
+    new Promise(res => setTimeout(() => { console.warn('[audit-flow] budget exceeded, fail-open for', item.path); res({ ok: true, layer: 'budget' }); }, AUDIT_BUDGET_MS)),
   ]);
 }
 

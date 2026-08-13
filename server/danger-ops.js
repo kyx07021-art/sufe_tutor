@@ -9,8 +9,9 @@
  * 方案：capToken 迁 D1 持久化（danger_caps 表），跨实例全局一致：
  *   - 签发：INSERT ... ON CONFLICT(user_id, session_id) UPSERT，每用户每会话仅一枚，
  *           落 SHA-256 摘要（tokenDigest），明文 token 仅在签发时回传一次（F-04 同款口径）
- *   - 校验：原子 DELETE WHERE user_id=? AND session_id=? AND token_hash=? AND expires_at > now，
- *           changes>0 即通过——命中即删（一次性），无论成败 capToken 随即失效（与内存版语义一致）
+ *   - 校验：原子 DELETE WHERE session_id=? AND token_hash=? AND expires_at > now，
+ *           changes>0 即通过——命中即删（一次性）；session_id 全局唯一（32 位随机 hex），
+ *           无需再带 user_id；错 token 的 DELETE 命中 0 行（不删任何有效行，仅自身失效）
  *   - 会话绑定：capToken 与签发时的 session_id 绑定，杜绝同用户任意设备在 5 分钟内复用
  *   - 惰性清理：签发前清该用户过期行，表以 (user_id, session_id) 为主键天然不膨胀
  *
