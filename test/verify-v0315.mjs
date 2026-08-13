@@ -52,6 +52,10 @@ const newPage = async (user, authToken, role, extra = {}) => {
   await p.waitForTimeout(2500);
   const preview = await p.evaluate(() => {
     const R = window.__uiScaleReflow;
+    // 复刻真实 app 流程（_uiScalePreviewApply）：先挂 html[data-ui-reflowing] 门控再 renderAt——
+    // 过渡禁用规则（html[data-ui-reflowing] [data-ui-reflow-unit]{transition:none}）靠它命中，
+    // 不挂门控则引擎 transform 过渡仍生效、同帧读恒等起点（v0.31.5 P1 双根因）。
+    document.documentElement.dataset.uiReflowing = '1';
     R.collectUnits(); R.sampleTargets();
     R.begin(); R.renderAt(110);
     const g = (sel) => {
@@ -149,10 +153,11 @@ const newPage = async (user, authToken, role, extra = {}) => {
     const cardBtn = document.querySelector('#demands-list .list-card .btn-soft');
     return { sort: cs(sort), filter: cs(filt), cardBtn: cs(cardBtn) };
   });
-  const btnLike = (c) => c && c.bg === 'rgba(0, 0, 0, 0)' && c.radius === '12px' && c.h >= 36 && c.frost && c.frost.includes('blur');
+  const btnLike = (c, minH = 36) => c && c.bg === 'rgba(0, 0, 0, 0)' && c.radius === '12px' && c.h >= minH && c.frost && c.frost.includes('blur');
   check('P4 排序下拉 = 标准按钮玻璃面（透明+12px+磨砂+btn高）', btnLike(p4.sort), `bg=${p4.sort && p4.sort.bg} r=${p4.sort && p4.sort.radius} h=${p4.sort && p4.sort.h} frost=${p4.sort && p4.sort.frost}`);
   check('P4 筛选项下拉 = 标准按钮玻璃面', btnLike(p4.filter), `bg=${p4.filter && p4.filter.bg} r=${p4.filter && p4.filter.radius} h=${p4.filter && p4.filter.h}`);
-  check('P4 卡片按钮（试课意向）仍标准玻璃面', btnLike(p4.cardBtn), `bg=${p4.cardBtn && p4.cardBtn.bg} r=${p4.cardBtn && p4.cardBtn.radius} h=${p4.cardBtn && p4.cardBtn.h}`);
+  // 卡片按钮是 btn-sm 紧凑档（h=34 正确），只验玻璃面材质（透明+12px+磨砂），高度走 .btn-sm 自己
+  check('P4 卡片按钮（试课意向）仍标准玻璃面', btnLike(p4.cardBtn, 30), `bg=${p4.cardBtn && p4.cardBtn.bg} r=${p4.cardBtn && p4.cardBtn.radius} h=${p4.cardBtn && p4.cardBtn.h}`);
   check('P4 排序/筛选项与卡片按钮同族（同透明同圆角）',
     p4.sort && p4.cardBtn && p4.sort.bg === p4.cardBtn.bg && p4.sort.radius === p4.cardBtn.radius,
     `sort(${p4.sort && p4.sort.bg}/${p4.sort && p4.sort.radius}) vs card(${p4.cardBtn && p4.cardBtn.bg}/${p4.cardBtn && p4.cardBtn.radius})`);
