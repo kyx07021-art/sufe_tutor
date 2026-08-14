@@ -1534,6 +1534,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_TEACHERS: '教师管理',
     PAGE_ADMIN_DEMANDS: '需求管理',
     PAGE_ADMIN_REVIEWS: '评价管理',
+    PAGE_ADMIN_AWARDS: '奖项审核', PAGE_ADMIN_AWARDS_DESC: '审核教师荣誉奖项与奖状证明',
     PAGE_ADMIN_POSTS: '资料管理',
 
     // 侧边栏页签简介（选中时展开的灰字说明）
@@ -1574,6 +1575,7 @@ globalThis.APP_CONSTANTS = {
       'admin-teachers': '## 这是什么\n教师账户管理。\n\n## 怎么用\n查看全部教师列表，处理学籍认证审核，封禁/解封违规账户。',
       'admin-demands': '## 这是什么\n全平台需求管理。\n\n## 怎么用\n查看所有用户发布的需求，可删除违规内容，维护广场秩序。',
       'admin-reviews': '## 这是什么\n评价审核与删除。\n\n## 怎么用\n用户提交的评价先在这里审核，通过的才会公开；违规内容可删除或拒绝。',
+      'admin-awards': '## 这是什么\n教师荣誉奖项审核。\n\n## 怎么用\n教师上传奖状证明提交奖项，管理员在此人工核对后通过或驳回；通过的奖项才展示在教师主页。',
       'admin-posts': '## 这是什么\n资料帖子管理。\n\n## 怎么用\n查看教师共享的资料帖子，删除含隐私或违规信息的帖子。',
       'admin-contracts': '## 这是什么\n合同管理。\n\n## 怎么用\n查看平台全部合同与状态，必要时移除测试或异常数据。',
       'admin-feedback': '## 这是什么\n用户反馈处理。\n\n## 怎么用\n查看用户提交的 Bug 与建议，逐条查看详情并标记处理状态。',
@@ -1722,6 +1724,32 @@ globalThis.APP_CONSTANTS = {
     SETTINGS_PHONE: '电话',
     SETTINGS_EMAIL: '邮箱',
     SETTINGS_UNBOUND: '未绑定',
+    // 教师荣誉奖项（提交/展示/审核）
+    AWARD_SECTION_TITLE: '荣誉奖项',
+    AWARD_ADD_BTN: '添加奖项',
+    AWARD_TITLE_LABEL: '奖项名称', AWARD_TITLE_PLACEHOLDER: '如：全国高中数学联赛一等奖',
+    AWARD_ISSUER_LABEL: '颁发机构', AWARD_ISSUER_PLACEHOLDER: '如：中国数学会',
+    AWARD_DATE_LABEL: '获奖时间', AWARD_DATE_PLACEHOLDER: '如 2025-06（可选）',
+    AWARD_PROOF_LABEL: '奖状证明',
+    AWARD_PROOF_HINT: '上传奖状/获奖证书图片，管理员审核通过后公开展示',
+    AWARD_STATUS_PENDING: '待审核', AWARD_STATUS_APPROVED: '已通过', AWARD_STATUS_REJECTED: '已驳回',
+    AWARD_COUNT_BADGE: '🏆 荣誉 ×{n}',
+    AWARD_EMPTY: '暂无荣誉奖项',
+    AWARD_DELETE_CONFIRM: '确定删除该奖项吗？删除后需重新提交审核。',
+    AWARD_REJECTED_NOTE_PREFIX: '驳回理由：',
+    AWARD_APPROVED_NOTIFY: '你的荣誉奖项「{title}」已通过审核，将展示在你的教师主页。',
+    AWARD_REJECTED_NOTIFY: '你的荣誉奖项「{title}」未通过审核，请登录查看驳回理由。',
+    BTN_SUBMIT: '提交', BTN_SUBMITTING: '提交中...', SUCCESS_DELETED: '已删除',
+    BTN_DELETE: '删除',
+    // 管理员：奖项审核
+    ADMIN_AWARDS_TITLE: '奖项审核',
+    ADMIN_AWARDS_DESC: '审核教师提交的荣誉奖项与奖状证明',
+    ADMIN_AWARD_APPROVE: '通过', ADMIN_AWARD_REJECT: '驳回',
+    ADMIN_AWARD_REJECT_HINT: '驳回理由（必填，将通知教师）',
+    ADMIN_AWARD_PROOF_VIEW: '查看奖状',
+    ADMIN_AWARD_NONE: '暂无待审核的奖项',
+    ADMIN_AWARD_APPROVE_CONFIRM: '确定通过该奖项审核吗？通过后将展示在教师主页。',
+    ADMIN_AWARD_REJECT_CONFIRM: '确定驳回该奖项吗？理由将通知教师。',
     BTN_MODIFY: '修改',
     // 验证码/凭证（B2-B6；手机号/邮箱绑定、用户名修改、验证码登录）
     PHONE_LABEL: '手机号', PHONE_PLACEHOLDER: '请输入中国大陆手机号', // 只支持大陆（用户拍板）

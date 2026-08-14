@@ -169,7 +169,7 @@ function renderTeacherCard(t) {
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">
         <span class="tc-name-row"> <!-- 匹配度按钮与用户名同行（PC），移动端独占一行 -->
-          <span class="tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}</span>
+          <span class="tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${UI.AWARD_SECTION_TITLE}">${UI.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
           ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
         </span>
         <span class="tc-rating">${DISP.starsHtml(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
@@ -349,6 +349,12 @@ async function openProfilePanel(userId) {
       if (seq !== profilePanelSeq) return;
     }
     state.myReviewOnModal = (reviewsData && reviewsData.mine) || null;
+    // ⑤ 荣誉奖项（公开出口仅 approved）：教师资料右栏荣誉区
+    let awards = [];
+    if (isTeacher) {
+      try { awards = (await api(`/api/teacher/awards?userId=${userId}`)).awards || []; } catch { awards = []; }
+      if (seq !== profilePanelSeq) return;
+    }
     // ④ 私密字段（真实姓名/学信网截图/联系方式）：列表接口永不下发，仅本人或双向匹配后定点取回并入缓存行
     // （取过一次打标记，不重复请求；签约时后端追加返回联系方式，兑现「签约后展示」）
     if (isTeacher && t && (t.matched || (state.user && state.user.id === t.user_id)) && !t._matchedDetailLoaded) {
@@ -361,7 +367,7 @@ async function openProfilePanel(userId) {
       } catch { /* 未匹配后端 403：按不可见处理 */ }
       t._matchedDetailLoaded = true;
     }
-    body.innerHTML = renderProfilePanel(base, t, signed, reviewsData);
+    body.innerHTML = renderProfilePanel(base, t, signed, reviewsData, awards);
   } catch (err) {
     if (seq !== profilePanelSeq) return;
     body.innerHTML = `<div class="profile-loading"><p>${UI.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
@@ -408,7 +414,7 @@ function profilePanelShowing(userId) {
   return document.body.classList.contains('profile-panel-open') && profilePanelUserId === userId;
 }
 
-function renderProfilePanel(base, t, signed, reviewsData) {
+function renderProfilePanel(base, t, signed, reviewsData, awards = []) {
   const roleLabel = DISP.roleLabel(base.role);
   const cardId = `<div class="profile-card glass">
       <div class="profile-id-top">
@@ -420,7 +426,18 @@ function renderProfilePanel(base, t, signed, reviewsData) {
     </div>`;
   return cardId
     + (base.role === 'teacher' ? renderProfileInfoCard(t, signed) : '')
+    + (base.role === 'teacher' && awards.length ? renderProfileAwardsCard(awards) : '')
     + (base.role === 'teacher' && reviewsData ? renderProfileReviewsCard(reviewsData, t, signed) : '');
+}
+
+// 卡片：荣誉奖项（公开出口仅已通过审核的奖项；奖状证明不公开展示，仅管理员审核时可见）
+function renderProfileAwardsCard(awards) {
+  return `<div class="profile-card glass">
+    <div class="profile-card-title">${UI.AWARD_SECTION_TITLE}</div>
+    ${awards.map(a => `<div class="profile-award-row">
+      <div class="profile-award-title">${escHtml(a.title)}${a.issuer ? ` <span class="profile-award-issuer">· ${escHtml(a.issuer)}</span>` : ''}${a.award_date ? ` <span class="profile-award-date">· ${escHtml(a.award_date)}</span>` : ''}</div>
+    </div>`).join('')}
+  </div>`;
 }
 
 // 卡片②：教师资料账簿行 —— title 最左、信息自固定 px（CSS profile-row grid）处统一开始，逐项成行

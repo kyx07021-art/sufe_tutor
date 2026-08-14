@@ -44,6 +44,7 @@ import {
 } from './server/routes-complaints.js';
 import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
 import { handleCreateSigning, handleRespondSigning } from './server/signing.js';
+import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction, handleAdminAwardProof } from './server/awards.js'; // v1.0 R2：教师荣誉奖项（奖状上传+管理员人工审核）
 import { handleAdminContent, handleContentAction } from './server/routes-audit.js'; // v0.26.0 D：统一内容审核/管理
 import { auditBeforeWrite } from './server/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
 import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清单（push 前 node hash-assets.mjs 重新生成）
@@ -238,6 +239,17 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   if (convBindableDemands && method === 'GET') return await handleGetConversationBindableDemands(db, convBindableDemands, url, req);
   const signingRespond = idMatch(p, /^\/api\/signing-requests\/(\d+)\/respond$/);
   if (signingRespond && method === 'POST') return await handleRespondSigning(db, signingRespond, body, req);
+
+  // 教师荣誉奖项（v1.0 R2：提交/列表/删除 + 管理员审核）
+  if (p === '/api/teacher/awards' && method === 'POST') return await handleCreateAward(db, body, req);
+  if (p === '/api/teacher/awards' && method === 'GET') return await handleGetAwards(db, url, req);
+  const awardDelete = idMatch(p, /^\/api\/teacher\/awards\/(\d+)$/);
+  if (awardDelete && method === 'DELETE') return await handleDeleteAward(db, awardDelete, body, req);
+  if (p === '/api/admin/awards' && method === 'GET') return await handleAdminAwards(db, url, req);
+  const awardProof = idMatch(p, /^\/api\/admin\/awards\/(\d+)\/proof$/);
+  if (awardProof && method === 'GET') return await handleAdminAwardProof(db, awardProof, req);
+  const awardAction = idMatch(p, /^\/api\/admin\/awards\/(\d+)\/action$/);
+  if (awardAction && method === 'POST') return await handleAdminAwardAction(db, awardAction, body, req);
 
   // 站内沟通
   if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url, req);

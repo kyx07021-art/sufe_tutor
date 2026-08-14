@@ -143,6 +143,18 @@ export const MSG = {
   MESSAGE_NOT_FOUND: '消息不存在',
   MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
   GREETING_TOO_LONG: '打招呼消息太长（上限 300 字）', // 打招呼消息专用
+
+  // 教师荣誉奖项（awards.js；奖状证明必填 + 管理员人工审核）
+  AWARD_TITLE_REQUIRED: '请填写奖项名称',
+  AWARD_DATE_INVALID: '获奖时间格式不正确（如 2025-06 或 2025）',
+  AWARD_PROOF_REQUIRED: '请上传奖状证明图片',
+  AWARD_LIMIT_REACHED: '奖项数量已达上限（10 条），请先删除部分奖项',
+  AWARD_NOT_FOUND: '奖项不存在',
+  AWARD_STATE_INVALID: '该奖项已审核，请勿重复操作',
+  AWARD_REJECT_NOTE_REQUIRED: '驳回时请填写理由',
+  AWARD_SUBMITTED: '奖项已提交，等待管理员审核',
+  AWARD_APPROVED: '已通过该奖项审核',
+  AWARD_REJECTED: '已驳回该奖项',
   FILE_TOO_LARGE: '附件过大（上限约 500KB，图片会自动压缩）',
   FILE_TYPE_BLOCKED: '不支持的文件类型',
   UPLOAD_STAGING_LIMIT: '暂存的待发送附件过多，请先发送或删除部分附件',

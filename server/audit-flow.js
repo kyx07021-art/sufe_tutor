@@ -36,7 +36,7 @@ const CONTENT_WRITE_PREFIXES = [
   '/api/posts', '/api/student/demands', '/api/demands/', '/api/intents',
   '/api/demand-pushes', '/api/teacher/profile', '/api/reviews',
   '/api/feedbacks', '/api/complaints', '/api/uploads', '/api/contracts',
-  '/api/conversations/', '/api/signing-requests',
+  '/api/conversations/', '/api/signing-requests', '/api/teacher/awards',
   '/api/auth/register', '/api/user/username', '/api/user/avatar',
 ];
 
@@ -73,6 +73,7 @@ const AUDIT_MAP = [
       b.schedule, // 发起签约（/api/conversations/:id/signing）schedule 自由文本
     ] },
   { prefix: '/api/user/username',   pick: b => [b.newUsername] }, // 改用户名：白名单字符可拼出门牌文本（如「中山路88号」），与注册同口径过闸
+  { prefix: '/api/teacher/awards',   pick: b => [b.title, b.issuer] }, // 奖项名称/颁发机构（自由文本）
 ];
 
 // 预算说明（安全评审回应）：≤300ms fail-open 是**有意**的、且有文本依据的合规取舍——

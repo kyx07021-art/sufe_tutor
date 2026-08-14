@@ -530,3 +530,91 @@ async function doSubmitContentPenalty(type, id, action, reason, rule, capToken) 
     loadAdminContent(document.querySelector('#admin-content-tabs .seg-tab.active')?.dataset.type || '');
   } catch (err) { showToast(err.message, 'error'); }
 }
+
+// ============================================================
+// 教师荣誉奖项审核（v1.0 R2：奖状证明人工审核，先审后展示）
+// ============================================================
+function loadAdminAwards() {
+  const statusEl = document.getElementById('admin-awards-status');
+  const status = statusEl ? statusEl.value : 'pending';
+  loadInto('admin-awards-list',
+    () => api(`/api/admin/awards${status ? `?status=${status}` : ''}`, { method: 'GET' }),
+    d => {
+      const list = d.awards || [];
+      if (!list.length) return { html: `<div class="empty-state"><p>${UI.ADMIN_AWARD_NONE}</p></div>` };
+      return { html: list.map(a => {
+        const statusTag = a.status === 'approved'
+          ? `<span class="tag tag-ok glass glass--solid">${UI.AWARD_STATUS_APPROVED}</span>`
+          : a.status === 'rejected'
+            ? `<span class="tag tag-danger glass glass--solid">${UI.AWARD_STATUS_REJECTED}</span>`
+            : `<span class="tag tag-warn glass glass--solid">${UI.AWARD_STATUS_PENDING}</span>`;
+        return `<div class="list-card list-card--teacher glass">
+          <div class="admin-award-head">
+            <span class="list-card-title">${escHtml(a.title)}${a.issuer ? ` · ${escHtml(a.issuer)}` : ''}${a.award_date ? ` · ${escHtml(a.award_date)}` : ''}</span>
+            ${statusTag}
+          </div>
+          <div class="admin-award-meta">教师：${escHtml(a.teacher_username || `#${a.teacher_user_id}`)}</div>
+          ${a.admin_note ? `<div class="admin-award-note">${escHtml(UI.AWARD_REJECTED_NOTE_PREFIX)}${escHtml(a.admin_note)}</div>` : ''}
+          <div class="admin-row-actions">
+            ${a.proof_upload_id ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="viewAwardProof(${a.id})">${UI.ADMIN_AWARD_PROOF_VIEW}</button>` : ''}
+            ${a.status === 'pending' ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="approveAward(${a.id})">${UI.ADMIN_AWARD_APPROVE}</button>
+              <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="rejectAwardModal(${a.id})">${UI.ADMIN_AWARD_REJECT}</button>` : ''}
+          </div>
+        </div>`;
+      }).join('') };
+    },
+    { empty: UI.ADMIN_AWARD_NONE, pick: d => d.awards });
+}
+
+// 奖状证明查看（管理员鉴权端点解密返回 dataURL）
+async function viewAwardProof(awardId) {
+  try {
+    const d = await api(`/api/admin/awards/${awardId}/proof`, { method: 'GET' });
+    if (d.dataUrl) openImageViewer(d.dataUrl, d.name || '');
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// 通过：危险操作二次认证（同封禁/处罚口径）
+function approveAward(awardId) {
+  confirm({
+    title: UI.ADMIN_AWARD_APPROVE,
+    message: UI.ADMIN_AWARD_APPROVE_CONFIRM,
+    needReAuth: true,
+    onConfirm: (capToken) => doAwardAction(awardId, 'approve', '', capToken),
+  });
+}
+
+function rejectAwardModal(awardId) {
+  openModal({
+    title: UI.ADMIN_AWARD_REJECT,
+    style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
+    body: `<div class="form-group">
+        <label class="form-label">${UI.ADMIN_AWARD_REJECT_HINT} <span class="req">*</span></label>
+        <input type="text" class="form-input" id="award-reject-note" maxlength="200" placeholder="如：奖状模糊无法辨认">
+      </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+      <button type="button" class="btn glass glass--pressable" onclick="submitAwardReject(${awardId})">${UI.ADMIN_AWARD_REJECT}</button>`,
+  });
+}
+
+function submitAwardReject(awardId) {
+  const note = (document.getElementById('award-reject-note')?.value || '').trim();
+  if (!note) { showToast(UI.ADMIN_AWARD_REJECT_HINT, 'error'); return; }
+  closeModal();
+  confirm({
+    title: UI.ADMIN_AWARD_REJECT,
+    message: UI.ADMIN_AWARD_REJECT_CONFIRM,
+    needReAuth: true,
+    onConfirm: (capToken) => doAwardAction(awardId, 'reject', note, capToken),
+  });
+}
+
+async function doAwardAction(awardId, action, note, capToken) {
+  try {
+    await api(`/api/admin/awards/${awardId}/action`, { method: 'POST', body: { action, note, capToken } });
+    closeModal();
+    showToast(action === 'approve' ? UI.AWARD_STATUS_APPROVED : UI.AWARD_STATUS_REJECTED, 'success');
+    loadAdminAwards();
+    invalidate('teachers'); // 奖项状态变：教师卡荣誉徽章缓存刷新
+  } catch (err) { showToast(err.message, 'error'); }
+}

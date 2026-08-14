@@ -557,6 +557,7 @@ function groupProfileForm() {
 
 function initProfileForm() {
   groupProfileForm(); // 编辑页四组大 title
+  loadProfileAwards(); // 荣誉奖项管理区（v1.0 R2）
   const pageTitle = document.getElementById('profile-page-title');
   if (pageTitle) pageTitle.textContent = UI.PAGE_TITLE_EDIT_PROFILE; // 页头标题归口 constants（index.html 静态文本仅 JS 前的兜底）
   // 新扩展字段的 label 归口 constants（index.html 静态文本仅 JS 前的兜底；保留 .req 星号）
@@ -847,3 +848,124 @@ async function handleSaveProfile(e) {
 
 // 模块级状态登出复位：登出时清空学信网截图暂存（防下次进入他人档案残留展示）
 registerLogoutReset(() => { _profileCredential = null; });
+
+// ============================================================
+// 教师荣誉奖项（v1.0 R2：编辑页管理 + 奖状上传暂存 + 管理员审核后公开）
+// ============================================================
+let _awardProofUploadId = null;   // 添加弹窗内的奖状暂存 uploadId（提交时随奖项落库）
+let _awardProofPreview = '';      // 奖状缩略预览 dataURL（提交前本地展示）
+
+// 奖项状态 → tag 文案/样式（显示映射单源：constants UI + 本地 tag 类）
+const AWARD_TAG_CLS = { pending: 'tag-warn', approved: 'tag-ok', rejected: 'tag-danger' };
+
+function loadProfileAwards() {
+  const el = document.getElementById('profile-awards-list');
+  if (!el) return;
+  api('/api/teacher/awards', { method: 'GET' }).then(d => {
+    const list = d.awards || [];
+    el.innerHTML = list.length
+      ? list.map(a => `<div class="award-row">
+          <div class="award-row-main">
+            <div class="award-title">${escHtml(a.title)}${a.issuer ? ` <span class="award-issuer">· ${escHtml(a.issuer)}</span>` : ''}${a.award_date ? ` <span class="award-date">· ${escHtml(a.award_date)}</span>` : ''}</div>
+            ${a.status === 'rejected' && a.admin_note ? `<div class="award-note">${escHtml(UI.AWARD_REJECTED_NOTE_PREFIX)}${escHtml(a.admin_note)}</div>` : ''}
+          </div>
+          <span class="tag ${AWARD_TAG_CLS[a.status] || ''} glass glass--solid">${escHtml(awardStatusText(a.status))}</span>
+          <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="deleteAward(${a.id})">${UI.BTN_DELETE}</button>
+        </div>`).join('')
+      : `<div class="form-note-block">${UI.AWARD_EMPTY}</div>`;
+  }).catch(err => { el.innerHTML = `<div class="form-note-block">${escHtml(err.message)}</div>`; });
+}
+
+function awardStatusText(status) {
+  return status === 'approved' ? UI.AWARD_STATUS_APPROVED : status === 'rejected' ? UI.AWARD_STATUS_REJECTED : UI.AWARD_STATUS_PENDING;
+}
+
+// 打开添加奖项浮窗（奖状选择 → 压缩 → uploads 暂存 → 提交随奖项落库）
+function openAwardModal() {
+  if (!ensureAuth()) return;
+  _awardProofUploadId = null;
+  _awardProofPreview = '';
+  openModal({
+    title: UI.AWARD_ADD_BTN,
+    style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
+    body: `<div class="form-group">
+        <label class="form-label">${UI.AWARD_TITLE_LABEL} <span class="req">*</span></label>
+        <input type="text" class="form-input" id="award-title" maxlength="60" placeholder="${UI.AWARD_TITLE_PLACEHOLDER}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${UI.AWARD_ISSUER_LABEL}</label>
+        <input type="text" class="form-input" id="award-issuer" maxlength="60" placeholder="${UI.AWARD_ISSUER_PLACEHOLDER}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${UI.AWARD_DATE_LABEL}</label>
+        <input type="text" class="form-input" id="award-date" maxlength="7" placeholder="${UI.AWARD_DATE_PLACEHOLDER}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${UI.AWARD_PROOF_LABEL} <span class="req">*</span></label>
+        <div class="award-proof-box" id="award-proof-box">
+          <label class="award-proof-pick" for="award-proof-file">
+            <span class="award-proof-hint" id="award-proof-hint">${UI.AWARD_PROOF_HINT}</span>
+            <img class="award-proof-thumb hidden" id="award-proof-thumb" alt="">
+          </label>
+          <input type="file" id="award-proof-file" accept="image/*" class="sr-file-input" onchange="handleAwardProofPicked(this)">
+        </div>
+      </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
+      <button type="button" class="btn glass glass--pressable" id="award-submit-btn" onclick="submitAward()">${UI.BTN_SUBMIT}</button>`,
+  });
+}
+
+// 奖状选择：压缩 → uploads 暂存（复用聊天附件上传链）→ 缩略预览
+async function handleAwardProofPicked(input) {
+  const files = [...input.files]; input.value = ''; // FileList 是活引用，先拷贝再清
+  const f = files[0];
+  if (!f) return;
+  try {
+    const dataUrl = await compressToDataURL(f, CONFIG.CHAT_IMG_MAX_SIDE || 1600, CONFIG.CHAT_IMG_THUMB_QUALITY || 0.8);
+    if (!dataUrl) { showToast(UI.FILE_TYPE_BLOCKED, 'error'); return; }
+    const item = { kind: 'image', name: f.name, thumb: '' };
+    const up = await chatUploadToServer(item, dataUrl, () => {});
+    _awardProofUploadId = up.id;
+    _awardProofPreview = dataUrl;
+    const thumb = document.getElementById('award-proof-thumb');
+    const hint = document.getElementById('award-proof-hint');
+    if (thumb) { thumb.src = dataUrl; thumb.classList.remove('hidden'); }
+    if (hint) hint.classList.add('hidden');
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function submitAward() {
+  const title = (document.getElementById('award-title')?.value || '').trim();
+  if (!title) { showToast(UI.AWARD_TITLE_PLACEHOLDER, 'error'); return; }
+  if (!_awardProofUploadId) { showToast(UI.AWARD_PROOF_HINT, 'error'); return; }
+  const btn = document.getElementById('award-submit-btn');
+  btnLoading(btn, UI.BTN_SUBMITTING);
+  try {
+    const r = await api('/api/teacher/awards', { method: 'POST', body: {
+      title,
+      issuer: (document.getElementById('award-issuer')?.value || '').trim(),
+      awardDate: (document.getElementById('award-date')?.value || '').trim(),
+      proofUploadId: _awardProofUploadId,
+    } });
+    closeModal();
+    showToast(r.message || UI.AWARD_SUBMITTED, 'success');
+    loadProfileAwards();
+  } catch (err) {
+    showToast(err.message, 'error');
+    btnDone(btn, UI.BTN_SUBMIT);
+  }
+}
+
+function deleteAward(id) {
+  confirm({ title: UI.BTN_DELETE, message: UI.AWARD_DELETE_CONFIRM, onConfirm: async () => {
+    try {
+      await api(`/api/teacher/awards/${id}`, { method: 'DELETE', body: {} });
+      showToast(UI.SUCCESS_DELETED, 'success');
+      loadProfileAwards();
+    } catch (err) { showToast(err.message, 'error'); }
+  } });
+}
+
+registerLogoutReset(() => { _awardProofUploadId = null; _awardProofPreview = ''; });

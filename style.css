@@ -2401,3 +2401,29 @@ body.profile-panel-closing .profile-panel {
 /* M11：投诉与反馈通道选择浮窗——大按钮竖排 */
 .chooser-grid { display: flex; flex-direction: column; gap: 10px; padding: 4px 0; }
 .chooser-item { justify-content: center; }
+
+/* ============================================================
+   教师荣誉奖项（v1.0 R2）
+   ============================================================ */
+/* 编辑页奖项管理行 */
+.award-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.award-row + .award-row { border-top: 1px solid var(--g-line-soft, rgba(0,0,0,.06)); }
+.award-row-main { flex: 1; min-width: 0; }
+.award-title { font-size: .88rem; color: var(--text); font-weight: 600; }
+.award-issuer, .award-date { font-weight: 400; color: var(--muted); font-size: .8rem; }
+.award-note { font-size: .74rem; color: var(--danger); margin-top: 2px; }
+/* 添加弹窗奖状上传区 */
+.award-proof-box { width: 100%; }
+.award-proof-pick { display: flex; align-items: center; justify-content: center; min-height: 96px; border: 1px dashed var(--g-line-soft, rgba(0,0,0,.14)); border-radius: 12px; cursor: pointer; padding: 8px; overflow: hidden; }
+.award-proof-hint { font-size: .8rem; color: var(--muted); text-align: center; padding: 12px; }
+.award-proof-thumb { max-width: 100%; max-height: 180px; object-fit: contain; border-radius: 8px; }
+/* 教师卡荣誉徽章 */
+.award-badge { display: inline-flex; align-items: center; font-size: .68rem; padding: 1px 8px; margin-left: 6px; }
+/* 资料右栏荣誉区 */
+.profile-award-row { padding: 5px 0; font-size: .84rem; color: var(--text); }
+.profile-award-row + .profile-award-row { border-top: 1px dashed var(--g-line-soft, rgba(0,0,0,.06)); }
+.profile-award-issuer, .profile-award-date { color: var(--muted); font-size: .78rem; }
+/* 管理员审核卡 */
+.admin-award-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.admin-award-meta { font-size: .78rem; color: var(--muted); margin-bottom: 4px; }
+.admin-award-note { font-size: .76rem; color: var(--danger); margin-bottom: 4px; }

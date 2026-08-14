@@ -16,6 +16,7 @@ import { initVersionTable } from './version.js'; // 数据版本戳表建表（�
 import { initSigningTable } from './signing.js'; // 发起签约请求表建表（仅借 init）
 import { initDangerCaps } from './danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
 import { initOtpTable } from './otp.js'; // 验证码表建表（独立模块，仅借 init，无循环依赖）
+import { initAwardsTable } from './awards.js'; // 教师荣誉奖项表建表（独立模块，仅借 init）
 
 // ============================================================
 // 数据库初始化 + 迁移
@@ -187,7 +188,7 @@ async function migrateLegacyRoles(db, adminNames) {
 // 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 3; // 当前 schema 覆盖：demand_pushes/demand_intents 有 message 列；student_demands 有 teaching_goal/skill_notes
+export const SCHEMA_VERSION = 4; // 当前 schema 覆盖：…+ teacher_awards（教师荣誉奖项，v1.0 R2）
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
@@ -619,6 +620,7 @@ async function runFullMigration(db, env) {
   await initVersionTable(db);
   // 发起签约请求表（确认签约关系；需求-会话解耦后唯一「签约才拒其他」的触发点）
   await initSigningTable(db);
+  await initAwardsTable(db);
   // 危险操作二次认证 capToken 表（独立模块 danger-ops.js 提供签发/校验；D1 持久化跨实例一致，网安审计 N-02）
   await initDangerCaps(db);
   // 验证码表（独立模块 otp.js 提供请求/校验/限频；表域自持）
@@ -876,6 +878,7 @@ async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) 
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
     school: p.school || '', real_name: realName || '', credential_image: credentialImage || '',
     verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
+    award_count: p.award_count != null ? Number(p.award_count) : 0, // 已审核荣誉奖项数（公开）
     subjects: safeJsonArray(p.subjects),
     gaokao_scores: safeJsonArray(p.gaokao_scores),
     // R2-5 报价区间化：price_min/price_max 保留 null=未填（完整性门槛据此拦截）；price 保留供历史兼容，前端不再用
@@ -920,7 +923,8 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
   // 访客可见性——游客只看 allow_guest_profile=1 的教师（无 user_settings 行=默认可见）
   const joinUs = viewerId ? '' : ' LEFT JOIN user_settings us ON us.user_id=tp.user_id';
   const privWhere = viewerId ? '' : ' AND COALESCE(us.allow_guest_profile, 1) = 1';
-  const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar, ${matchedSel}
+  const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar, ${matchedSel},
+    (SELECT COUNT(*) FROM teacher_awards a WHERE a.teacher_user_id=tp.user_id AND a.status='approved') AS award_count
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id${joinUs}
     WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0${privWhere}
     ORDER BY tp.updated_at DESC`, params);
@@ -928,6 +932,7 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
   // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经
   // /api/teacher/profile 定点取回（该端点按 本人/双向匹配 门控，未匹配 403）。
   // 收益：列表免逐行 AES 解密 + payload 瘦身（含 base64 学信网截图）+ 数据最小化。
+  // award_count：已通过审核的荣誉奖项数（教师卡荣誉徽章；公开信息，无需解密）
   return await Promise.all(profiles.map(p => mapTeacherProfileRow(p, { private: false })));
 }
 
