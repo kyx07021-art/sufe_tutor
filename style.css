@@ -2118,11 +2118,6 @@ body.profile-panel-closing .profile-panel {
 .demand-avatar { width: 108px; height: 108px; font-size: 2.6rem; }
 .demand-card-main { flex: 1; min-width: 0; }
 
-/* 需求信息三行（点号分隔纯文字，同教师卡语言；行间细线分隔） */
-.demand-info { margin-top: 2px; }
-.demand-info-row { padding: 8px 0; font-size: .8rem; color: var(--ink-3); line-height: 1.65; }
-.demand-info-row + .demand-info-row { border-top: 1px solid var(--paper-3); }
-
 /* 教师卡海报式三层（信息取舍：卡面只留身份+决策锚点+教什么，其余收进资料右栏）：
    L1 身份：姓名（最深最大）+ 学校·年级（次深）；L2 焦点：评分/报价（mono 等宽数字）；L3 静默：科目小灰。 */
 .tc-identity { grid-column: 2; display: flex; flex-direction: column; gap: 4px; min-width: 0; align-self: start; }
@@ -2176,7 +2171,6 @@ body.profile-panel-closing .profile-panel {
   .list-card--demand { display: block; }
   .demand-avatar { width: 40px; height: 40px; font-size: 1.05rem; margin: 0 0 10px; }
   .list-card-title { font-size: .95rem; }
-  .demand-info-row { font-size: .76rem; padding: 7px 0; }
 
   /* 移动端防横向溢出：卡片头部/工具区/底栏一律允许换行，杜绝被 .list-card 的
      overflow:hidden 裁切（表现为按钮/编号在右缘被切断）。标题可压缩，工具区独占整行自换行 */

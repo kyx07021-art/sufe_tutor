@@ -4,7 +4,7 @@
  */
 export const ASSET_MANIFEST = {
   "files": {
-    "style.css": "style.508fe1a8.css",
+    "style.css": "style.a50eb616.css",
     "style-region.css": "style-region.e5577254.css",
     "style-posts.css": "style-posts.d7934ceb.css",
     "style-chat.css": "style-chat.fb6db88c.css",
