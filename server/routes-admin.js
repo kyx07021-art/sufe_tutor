@@ -8,7 +8,7 @@ import { requireUser, requireAdmin } from './security.js';
 import { MSG, STATUS, LIMITS, SECURITY } from './constants.js';
 import {
   dbCreateInviteCode,
-  dbGetUserStats, dbGetCount, dbGetReviewStats, dbGetInviteStats,
+  dbGetUserStats, dbGetCount, dbGetCountWhere, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,
   dbGetDemandById, dbAdminForceDeleteDemand, dbDeleteReview, dbDeleteMessage,

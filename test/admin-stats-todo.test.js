@@ -1,0 +1,83 @@
+/**
+ * v1.0.1 回归（生产 500 事故根因）：handleAdminStats 统计端点含 R3 待办计数（awardsPending/
+ * feedbacksOpen/complaintsOpen）——dbGetCountWhere 曾漏 import（ReferenceError → 500，生产统计页
+ * 「加载失败: 服务器内部错误」），本测试钉死全链路：清库后状态 + 待办计数非零 + 全字段形状。
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { DatabaseSync } from 'node:sqlite';
+import { initDb } from '../server/db.js';
+import { handleAdminStats } from '../server/routes-admin.js';
+import { handleLogin } from '../server/routes-auth.js';
+import { tokenDigest } from '../server/crypto.js';
+import { requestOtp } from '../server/otp.js';
+import { handleRegister } from '../server/routes-auth.js';
+
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+function d1Shim(raw) {
+  return {
+    prepare(sql) {
+      const st = { _sql: sql, _params: [], bind(...p) { st._params = p; return st; },
+        all(...p) { return { results: raw.prepare(st._sql).all(...(p.length ? p : st._params)) }; },
+        first(...p) { return raw.prepare(st._sql).get(...(p.length ? p : st._params)) ?? undefined; },
+        run(...p) { const info = raw.prepare(st._sql).run(...(p.length ? p : st._params)); return { meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } }; } };
+      return st;
+    },
+    async batch(stmts) {
+      if (!stmts.length) throw new Error('D1 batch requires at least one statement'); // 真实 D1 空 batch 抛错（同 content-admin shim 口径）
+      raw.exec('BEGIN');
+      try { const out = [];
+        for (const s of stmts) {
+          if (/^\s*(SELECT|PRAGMA|WITH|EXPLAIN)/i.test(s._sql)) out.push({ results: raw.prepare(s._sql).all(...s._params) });
+          else { const info = raw.prepare(s._sql).run(...s._params); out.push({ meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } }); }
+        }
+        raw.exec('COMMIT'); return out;
+      } catch (e) { try { raw.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+    },
+  };
+}
+
+async function setup() {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  return { raw, db };
+}
+
+test('统计端点：清库后状态 200 + 待办计数字段在位（import 断线回归）', async () => {
+  const { raw, db } = await setup();
+  const login = await handleLogin(db, { identifier: 'admin_sufe', password: 'test-pw-123' }, { headers: new Headers() });
+  const token = (await login.json()).authToken;
+  const r = await handleAdminStats(db, new URL('http://x/api/admin/stats'), { headers: new Headers({ 'X-Auth-Token': token }) });
+  assert.equal(r.status, 200, '清库后统计端点 200（曾 ReferenceError → 500）');
+  const d = await r.json();
+  assert.equal(typeof d.stats.users.total, 'number', 'users.total 数字');
+  assert.equal(typeof d.stats.todo.awardsPending, 'number', '待办奖项计数在位');
+  assert.equal(typeof d.stats.todo.feedbacksOpen, 'number', '待办反馈计数在位');
+  assert.equal(typeof d.stats.todo.complaintsOpen, 'number', '待办投诉计数在位');
+  assert.ok(Array.isArray(d.stats.recentUsers), '最近用户数组');
+});
+
+test('统计端点：有数据时待办计数非零', async () => {
+  const { raw, db } = await setup();
+  // 造一条待审奖项 + 一条开放反馈 + 一条开放投诉（教师注册+奖项直插/反馈直插）
+  const target = '+8613911110001';
+  const otp = await requestOtp(db, { channel: 'sms', target }, { headers: new Headers() });
+  assert.ok(otp.ok);
+  const reg = await handleRegister(db, { username: 't_stats', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: otp.code }, { headers: new Headers() });
+  assert.equal(reg.status, 200);
+  const tId = raw.prepare("SELECT id FROM users WHERE username='t_stats'").get().id;
+  raw.prepare("INSERT INTO teacher_awards (teacher_user_id, title, status) VALUES (?, '奖项A', 'pending')").run(tId);
+  raw.prepare("INSERT INTO feedbacks (user_id, kind, title, content, status) VALUES (?, 'suggestion', 't', 'c', 'open')").run(tId);
+  raw.prepare("INSERT INTO complaints (user_id, reason, detail, status, target_type, target_id) VALUES (?, 'r', 'd', 'open', 'teacher', 999)").run(tId);
+
+  const login = await handleLogin(db, { identifier: 'admin_sufe', password: 'test-pw-123' }, { headers: new Headers() });
+  const token = (await login.json()).authToken;
+  const r = await handleAdminStats(db, new URL('http://x/api/admin/stats'), { headers: new Headers({ 'X-Auth-Token': token }) });
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  assert.equal(d.stats.todo.awardsPending, 1, '待审奖项 = 1');
+  assert.equal(d.stats.todo.feedbacksOpen, 1, '开放反馈 = 1');
+  assert.equal(d.stats.todo.complaintsOpen, 1, '开放投诉 = 1');
+});
