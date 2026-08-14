@@ -16,7 +16,7 @@ import { requestOtp } from '../server/otp.js';
 import { handleCreatePost } from '../server/routes-posts.js';
 import { handleAdminContent, handleContentAction } from '../server/routes-audit.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
 function d1Shim(raw) {
   return {
     prepare(sql) {

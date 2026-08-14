@@ -91,26 +91,31 @@ function validateOtpTarget(channel, target) {
 //                        200 仅表示受理，request_id 落留档备查）；sms 通道未接入前仍回落 mock。
 //   OTP_VERIFIER='local' → 验证码由本应用侧哈希比对校验（验证码本就由我们生成，此为唯一正解）；
 //                        未来若验证码托管给服务商（服务商存 code），可切 'provider' 接服务商校验 API。
-const OTP_PROVIDER = String(getSecret(null, 'OTP_PROVIDER') || 'mock');
 const OTP_VERIFIER = 'local';
 
+// OTP 部署级配置经 env 绑定（bindOtpEnv，由 initDb 调用）后惰性读取——
+// 测试 ENV 注入 OTP_PROVIDER='mock' 防真实发信；生产 env 无该键回落 secrets.js 文件。
+let OTP_ENV = null;
+export function bindOtpEnv(env) { OTP_ENV = env; }
+const otpProvider = () => String(getSecret(OTP_ENV, 'OTP_PROVIDER') || 'mock');
 // 邮件验证码通道（push.spug.cc）：模板编码即调用凭证（禁止进前端/公开仓库），
-// 未配置时该通道回落 mock（内测兼容 fail-open）
-const EMAIL_TEMPLATE_CODE = String(getSecret(null, 'EMAIL_OTP_TEMPLATE_CODE') || '');
+// 未配置时该通道回落 mock（fail-open）
+const emailTemplateCode = () => String(getSecret(OTP_ENV, 'EMAIL_OTP_TEMPLATE_CODE') || '');
 
 /**
  * 真实通道投递：email → push.spug.cc 邮件接口（4s 超时防拖主流程；返回 {mock, code?, requestId?}）。
  * 投递失败抛错由 requestOtp 捕获走「不发码」路径；sms 未接入真实通道 → 回落 mock。
  */
 async function deliverOtp({ channel, target, code, scene }) {
-  if (channel === 'sms' || !EMAIL_TEMPLATE_CODE || OTP_PROVIDER !== 'prod') {
-    console.warn('OTP 通道回落 mock：channel=%s 模板配置=%s', channel, EMAIL_TEMPLATE_CODE ? '已配' : '未配');
+  const tpl = emailTemplateCode();
+  if (channel === 'sms' || !tpl || otpProvider() !== 'prod') {
+    console.warn('OTP 通道回落 mock：channel=%s 模板配置=%s', channel, tpl ? '已配' : '未配');
     return { mock: true, code }; // 【短路】模拟发送：返回 code 供前端 toast
   }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 4000); // 外部调用 4s 超时，不让邮件接口拖住注册/登录主流程
   try {
-    const res = await fetch(`https://push.spug.cc/mail/${EMAIL_TEMPLATE_CODE}`, {
+    const res = await fetch(`https://push.spug.cc/mail/${tpl}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ to: target, scene, code, minute: '5' }),
@@ -195,7 +200,7 @@ export async function requestOtp(db, { channel, target, scene }, req) {
     return { ok: false, err: error(MSG.SERVER_ERROR, 500) };
   }
   await logEvent(db, { action: 'otp.request', actorUsername: targetMask(t),
-    entity: 'otp', detail: { channel: ch, provider: OTP_PROVIDER, requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）
+    entity: 'otp', detail: { channel: ch, provider: otpProvider(), requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）
   return { ok: true, code: delivered.mock ? delivered.code : undefined };
 }
 

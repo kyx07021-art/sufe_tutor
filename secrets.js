@@ -33,7 +33,9 @@ globalThis.APP_SECRETS = {
 
   // ---- 验证码通道配置（插拔点：真实通道接入时只改此文件值 + otp.js deliverOtp 实现）----
   // OTP_PROVIDER: 'mock'（内测：模拟发送，响应返回 code 供前端 toast）| 'prod'（真实短信/邮件通道，绝不返回 code）
-  OTP_PROVIDER: 'mock',
+  // v1.0.3 起置 'prod'：邮箱验证码走 push.spug.cc 真实发信；sms 通道未接真实服务商仍回落 mock（deliverOtp 内分支）
+  OTP_PROVIDER: 'prod',
   // 邮件验证码模板编码（push.spug.cc 邮件模板；编码即调用凭证，禁止进前端/公开仓库，只经 server/secrets.js 网关读取）
-  EMAIL_OTP_TEMPLATE_CODE: '',
+  // 模板正文：您正在进行${scene}，本次验证码为：${code}，请在 ${minute} 分钟内输入验证码完成验证
+  EMAIL_OTP_TEMPLATE_CODE: 'v3aDVjBPM48JeX9M',
 };

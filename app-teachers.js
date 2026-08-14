@@ -152,39 +152,27 @@ function sortTeachers(teachers, mode = teacherSortMode()) {
 function renderTeacherCard(t) {
   const isStudent = state.user && state.user.role === 'student';
   const grade = DISP.teacherGradeName(t.grade) || t.grade || '';
-  const gender = DISP.genderName(t.gender);
-  const provName = DISP.provinceName(t.province);
-  const info1 = [provName, t.school, grade].filter(Boolean).join(' · '); // 粗体行：地区·学校·年级
-  const scoreLine = (t.gaokao_scores || []).map(gs => `${DISP.subjectName(gs.subject)}${DISP.gaokaoCell(gs)}`).filter(Boolean).join(' · ');
-  // R2-5/R2-1/R2-2：报价区间 / 可授课时间段 / 授课方式 各一行（未填不显）
+  // 信息取舍：卡面只留「身份 + 两个决策锚点 + 教什么」，其余（地区/性别/方式/时间/成绩/简介）
+  // 收进资料右栏详情——卡面是海报不是清单。
+  const subjectsLine = (t.subjects || []).map(sid => DISP.subjectName(sid)).filter(Boolean).join('、');
   const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT);
-  const methodLine = DISP.methodName(t.teaching_method);
-  const timeLine = DISP.expectedTimeText(t.time_slots);
-  // 需求五·item5：学生端教师卡匹配度徽章（最高匹配值，三色按 matchLevel）——点击呼出逐需求明细
-  // #155：学生无开放需求 → 匹配度位置渲染小灰字提示（不再空白）
   const matchBtn = t._matchForStudent
     ? `<button type="button" class="tag-match match-btn match-btn--${matchLevel(t._matchForStudent.md)} glass glass--pressable" data-id="${t.user_id}" onclick="showTeacherMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${t._matchForStudent.md}%${UI.TAG_MATCH_HINT}</button>`
     : (isStudent && !_studentOpenDemand ? `<span class="tc-match--hint">${escHtml(UI.TAG_MATCH_NO_DEMAND)}</span>` : '');
   return `<div class="list-card list-card--teacher glass" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openTeacherCard(event, ${t.user_id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProfilePanel(${t.user_id});}">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">
-        <span class="tc-name-row"> <!-- 核心决策信息同行：姓名 + 徽章 + 星级评分；匹配度徽章靠右 -->
-          <span class="tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${UI.AWARD_SECTION_TITLE}">${UI.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
-          <span class="tc-rating">${DISP.starsHtml(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
-          ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
-        </span>
-        ${t.intro ? `<span class="tc-intro">${escHtml(t.intro)}</span>` : ''}
+        <span class="tc-name tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${UI.AWARD_SECTION_TITLE}">${UI.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
+        ${t.school || grade ? `<span class="tc-school">${escHtml([t.school, grade].filter(Boolean).join(' · '))}</span>` : ''}
       </div>
-      <div class="tc-right">
-        ${info1 ? `<div class="tc-info1">${escHtml(info1)}</div>` : ''}
-        ${gender ? `<div class="tc-info2">${UI.LABEL_GENDER}：${escHtml(gender)}</div>` : ''}
-        ${methodLine ? `<div class="tc-info2">${UI.LABEL_TEACHING_METHOD_PROFILE}：${escHtml(methodLine)}</div>` : ''}
-        ${priceLine ? `<div class="tc-info2">${UI.LABEL_PRICE}：${escHtml(priceLine)}</div>` : ''}
-        ${timeLine ? `<div class="tc-info2">${UI.LABEL_TIME_SLOTS}：${escHtml(timeLine)}</div>` : ''}
-        ${scoreLine ? `<div class="tc-info2">${escHtml(scoreLine)}</div>` : ''}
-        <div class="tc-actions">
-          ${isStudent ? renderPushBtn(t) : ''}
-        </div>
+      <div class="tc-metrics">
+        <span class="tc-metric tc-metric--rating">${DISP.starsHtml(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
+        ${priceLine ? `<span class="tc-metric tc-metric--price">${escHtml(priceLine)}</span>` : ''}
+        ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
+      </div>
+      ${subjectsLine ? `<div class="tc-subjects">${escHtml(subjectsLine)}</div>` : ''}
+      <div class="tc-actions">
+        ${isStudent ? renderPushBtn(t) : ''}
       </div>
     </div>`;
 }
@@ -517,7 +505,7 @@ const PROFILE_CARD_ITEMS = [
   // R2-5 报价区间（未填显占位，与教师卡 priceRangeText 同口径；报价=核心决策数值，加粗突出）
   { key: 'price', group: 'academic', label: UI.LABEL_PRICE, render: h => {
     const v = DISP.priceRangeText(h.t.price_min, h.t.price_max, UI.PRICE_UNIT);
-    return v ? { v: `<strong class="profile-price">${escHtml(v)}</strong>` } : h.empty(UI.PROFILE_FIELD_EMPTY);
+    return v ? { v: `<span class="profile-price">${escHtml(v)}</span>` } : h.empty(UI.PROFILE_FIELD_EMPTY);
   }},
   // —— 非学科类资料：擅长非学科项目（项目名 + 对应报价区间） ——
   { key: 'nonacademic', group: 'nonacademic', label: UI.LABEL_NONACADEMIC_PROJECTS, render: h => {

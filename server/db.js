@@ -15,7 +15,7 @@ import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块
 import { initVersionTable } from './version.js'; // 数据版本戳表建表（仅借 init）
 import { initSigningTable } from './signing.js'; // 发起签约请求表建表（仅借 init）
 import { initDangerCaps } from './danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
-import { initOtpTable } from './otp.js'; // 验证码表建表（独立模块，仅借 init，无循环依赖）
+import { initOtpTable, bindOtpEnv } from './otp.js'; // 验证码表建表（独立模块，仅借 init，无循环依赖）
 import { initAwardsTable } from './awards.js'; // 教师荣誉奖项表建表（独立模块，仅借 init）
 
 // ============================================================
@@ -192,6 +192,7 @@ export const SCHEMA_VERSION = 5; // 当前 schema 覆盖：…+ teacher_awards�
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
+  bindOtpEnv(env);    // OTP 部署级配置（OTP_PROVIDER/EMAIL_OTP_TEMPLATE_CODE；测试 ENV 注入 mock 防真实发信）
   // 1 次 batch：建 schema_meta（幂等）+ 读版本（batch 顺序执行，CREATE 后 SELECT 可见）
   let rows = null;
   try {

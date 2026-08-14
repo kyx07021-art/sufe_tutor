@@ -966,21 +966,13 @@ function renderDemandCard(d, opts = {}) {
     + (admin ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
   const budget = DISP.demandBudgetText(d);
 
-  // 三行点号纯文字（同教师卡语言，行间细线分隔）：
-  // ① 基本信息：地区·年级·性别·提交者 ② 教学需求：线上/下·报价 ③ 需求科目和成绩：科目: 分数/分制（等第制直接显等第）
-  const infoBase = [provinceName, grade, gender, `${UI.SUBMITTER_PREFIX}${submitter}`].filter(Boolean).map(escHtml).join(' · ');
-  const timeStr = d.expected_time ? `${UI.LABEL_EXPECTED_TIME}：${DISP.expectedTimeText(d.expected_time)}` : '';
-  const infoDemandRow = [method, budget, timeStr].filter(Boolean).map(escHtml).join(' · ');
-  // 科目/成绩 pill 化（扫读优于点号串）；无成绩条目时仅科目名 pill
-  const scoreCells = (d.current_scores||[]).map(cs => ({ subj: DISP.subjectName(cs.subject), val: DISP.demandScoreCell(cs) })).filter(c => c.val);
-  const scorePills = scoreCells.length
-    ? scoreCells.map(c => `<span class="demand-subj-pill glass glass--solid"><b>${escHtml(c.subj)}</b> ${escHtml(c.val)}</span>`).join('')
-    : (subjNames || []).map(n => `<span class="demand-subj-pill glass glass--solid">${escHtml(n)}</span>`).join('');
-
+  // 海报式信息取舍：卡面只留「学什么 + 年级/方式 + 预算焦点 + 期望时间」，
+  // 地区/性别/提交者/成绩明细/补充说明收进详情浮窗（openDemandDetail）。
+  const timeLine = DISP.expectedTimeText(d.expected_time);
   // 卡片「试课意向 (N)」
   // 展开按钮从 .drop-toggle glass--solid（实心 9px）接回 .btn-soft btn-sm 按钮组件——与并排「编辑」
   // 按钮完全同族（透明磨砂+12px+白洗+涟漪）；btn-intent-toggle 新类供引导/移动端 flex-shrink 定位。
-  return `<div class="list-card list-card--demand glass" data-demand-id="${d.id}"${push ? ` data-push-id="${push.push_id}"` : ''}>
+  return `<div class="list-card list-card--demand glass" data-demand-id="${d.id}"${push ? ` data-push-id="${push.push_id}"` : ''} role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openDemandCard(event, ${d.id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDemandDetail(${d.id});}">
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
     <div class="list-card-header">
@@ -989,13 +981,12 @@ function renderDemandCard(d, opts = {}) {
         <span class="list-card-meta">${push ? fmtDate(push.push_created_at) : fmtDate(d.created_at)}</span>${idTag}
       </span>
     </div>
-    <div class="demand-info">
-      ${infoBase ? `<div class="demand-info-row">${infoBase}</div>` : ''}
-      ${infoDemandRow ? `<div class="demand-info-row">${infoDemandRow}</div>` : ''}
-      ${scorePills ? `<div class="demand-info-row demand-subj-row">${scorePills}</div>` : ''}
+    ${(subjNames || []).length ? `<div class="demand-title">${escHtml((subjNames || []).join('、'))}</div>` : ''}
+    <div class="demand-sub">
+      ${[grade, method].filter(Boolean).map(escHtml).join(' · ')}
+      ${budget ? `<span class="demand-budget">${escHtml(budget)}</span>` : ''}
     </div>
-    ${d.address ? `<div class="list-card-detail">${UI.ADDRESS_PREFIX}${escHtml(d.address)}</div>` : ''}
-    ${d.additional_info ? `<div class="list-card-detail">${UI.ADDITIONAL_PREFIX}${escHtml(d.additional_info)}</div>` : ''}
+    ${timeLine ? `<div class="demand-quiet">${UI.LABEL_EXPECTED_TIME} ${escHtml(timeLine)}</div>` : ''}
     ${push && push.push_message ? `<div class="greet-bubble glass">
       <div class="greet-bubble-head">${UI.GREET_HEAD_STUDENT}</div>
       <div class="greet-bubble-body">${escHtml(push.push_message)}</div>
@@ -1433,3 +1424,76 @@ registerLogoutReset(() => {
   _browseDemands = [];
   _matchDetailOpen = false;
 });
+
+// ============================================================
+// 需求详情浮窗（v1.0.3 海报化：卡面瘦身后全部次要信息收编于此）
+// ============================================================
+// 需求卡点击守卫：意向/推送/编辑等操作按钮点击不透传（closest 命中即短路）；其余开详情浮窗
+function openDemandCard(e, id) {
+  if (e && e.target.closest && e.target.closest('button, .btn-intent-toggle, .intents-box')) return;
+  openDemandDetail(id);
+}
+
+// 详情浮窗：从列表缓存取数据本地渲染（列表 payload 已含全字段，零网络）；
+// 分组语言沿用资料右栏（profile-group-title），条目流式排布不设表格
+function openDemandDetail(id) {
+  const list = [...(state.myDemands || []), ...(_browseDemands || [])];
+  const d = list.find(x => x.id === id);
+  if (!d) return;
+  const grade = DISP.studentGradeName(d.student_grade);
+  const gender = DISP.demandStudentGenderName(d.student_gender);
+  const submitter = d.submitter_type === 'parent' ? UI.SUBMITTER_PARENT : UI.SUBMITTER_STUDENT;
+  const method = DISP.methodName(d.teaching_method) || DISP.methodName('offline');
+  const provinceName = DISP.provinceName(d.province);
+  const budget = DISP.demandBudgetText(d);
+  const timeLine = DISP.expectedTimeText(d.expected_time);
+  const subjNames = DISP.demandTargetNameList(d.target_subjects, d.target_type);
+  const scoreCells = (d.current_scores || []).map(cs => ({ subj: DISP.subjectName(cs.subject), val: DISP.demandScoreCell(cs) })).filter(c => c.val);
+  const scorePills = scoreCells.length
+    ? scoreCells.map(c => `<span class="demand-subj-pill glass glass--solid">${escHtml(c.subj)} ${escHtml(c.val)}</span>`).join('')
+    : (subjNames || []).map(n => `<span class="demand-subj-pill glass glass--solid">${escHtml(n)}</span>`).join('');
+  const typeBadge = d.target_type === DEMAND_TYPES.NONACADEMIC ? UI.BADGE_TYPE_NONACADEMIC : UI.BADGE_TYPE_ACADEMIC;
+  const statusTag = d.status === STATUS.CONTRACTED ? `<span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>`
+    : d.status === STATUS.REVOKED ? `<span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : '';
+  openModal({
+    title: `${d.display_id ? DISP.demandIdText(d.display_id) + ' · ' : ''}${DISP.usernameHtml(d.username || '')}的需求`,
+    cls: 'modal--wide',
+    body: `<div class="demand-detail">
+      <div class="demand-detail-head">
+        ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-detail-avatar', d.user_id)}
+        <div class="demand-detail-head-main">
+          <div class="demand-detail-name">${DISP.usernameHtml(d.username || '')}${DISP.deactivatedTag(d.username)}</div>
+          <div class="demand-detail-tags"><span class="tag tag-accent glass glass--solid">${escHtml(typeBadge)}</span>${statusTag}</div>
+        </div>
+      </div>
+      <div class="demand-detail-sec">
+        <div class="profile-group-title">${UI.DEMAND_DETAIL_GOAL}</div>
+        ${scorePills ? `<div class="demand-subj-row">${scorePills}</div>` : `<p class="demand-detail-text">${UI.DEMAND_DETAIL_EMPTY}</p>`}
+      </div>
+      <div class="demand-detail-sec">
+        <div class="profile-group-title">${UI.DEMAND_DETAIL_ARRANGE}</div>
+        <div class="demand-detail-flow">
+          ${[grade, provinceName, method].filter(Boolean).map(v => `<span class="demand-detail-item">${escHtml(v)}</span>`).join('')}
+          ${budget ? `<span class="demand-detail-item demand-detail-item--price">${escHtml(budget)}</span>` : ''}
+          ${timeLine ? `<span class="demand-detail-item">${UI.LABEL_EXPECTED_TIME} ${escHtml(timeLine)}</span>` : ''}
+          ${d.address ? `<span class="demand-detail-item">${UI.ADDRESS_PREFIX}${escHtml(d.address)}</span>` : ''}
+        </div>
+      </div>
+      <div class="demand-detail-sec">
+        <div class="profile-group-title">${UI.DEMAND_DETAIL_STUDENT}</div>
+        <div class="demand-detail-flow">
+          ${gender ? `<span class="demand-detail-item">${escHtml(gender)}</span>` : ''}
+          <span class="demand-detail-item">${UI.SUBMITTER_PREFIX}${escHtml(submitter)}</span>
+        </div>
+      </div>
+      ${d.additional_info ? `<div class="demand-detail-sec">
+        <div class="profile-group-title">${UI.LABEL_ADDITIONAL_INFO}</div>
+        <p class="demand-detail-text">${escHtml(d.additional_info)}</p>
+      </div>` : ''}
+      ${d.push_message ? `<div class="demand-detail-sec"><div class="greet-bubble glass">
+        <div class="greet-bubble-head">${UI.GREET_HEAD_STUDENT}</div>
+        <div class="greet-bubble-body">${escHtml(d.push_message)}</div>
+      </div></div>` : ''}
+    </div>`,
+  });
+}

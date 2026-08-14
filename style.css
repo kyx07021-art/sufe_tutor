@@ -1913,7 +1913,7 @@ html[data-ui-sampling] *::after {
    头像右侧左对齐（原空间关系保留）；右侧信息两行 + 方形发送按钮
    ============================================================ */
 .list-card--teacher {
-  display: grid; grid-template-columns: 108px 1fr auto; column-gap: 22px; row-gap: 3px; align-items: start;
+  display: grid; grid-template-columns: 84px 1fr; column-gap: 20px; row-gap: 10px; align-items: start;
 }
 /* 删手动直写 box-shadow，交还引擎 */
 .list-card--teacher { cursor: pointer; --g-hover: var(--g-hover-wash); }
@@ -1923,8 +1923,8 @@ html[data-ui-sampling] *::after {
 /* R13：头像 = 惰性装饰组件——pointer-events:none（不独立可点，点击穿透到整卡）、
    无 tabindex 不可聚焦、renderAvatarHtml 恒 aria-hidden；交互语言全归宿主卡片 */
 .tc-avatar {
-  grid-column: 1; grid-row: 1; align-self: start;
-  width: 108px; height: 108px; font-size: 2.6rem;
+  grid-column: 1; grid-row: 1 / span 3; align-self: start;
+  width: 84px; height: 84px; font-size: 2.1rem;
   pointer-events: none; user-select: none;
 }
 /* 卡片布局契约：grid 只定列骨架（头像/身份列/右信息列），列内堆叠顺序一律由
@@ -2123,26 +2123,23 @@ body.profile-panel-closing .profile-panel {
 .demand-info-row { padding: 8px 0; font-size: .8rem; color: var(--ink-3); line-height: 1.65; }
 .demand-info-row + .demand-info-row { border-top: 1px solid var(--paper-3); }
 
-.tc-identity { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; align-self: start; } /* 顶对齐：简介紧随星级，不随右列高度居中留白 */
+/* 教师卡海报式三层（信息取舍：卡面只留身份+决策锚点+教什么，其余收进资料右栏）：
+   L1 身份：姓名（最深最大）+ 学校·年级（次深）；L2 焦点：评分/报价（mono 等宽数字）；L3 静默：科目小灰。 */
+.tc-identity { grid-column: 2; display: flex; flex-direction: column; gap: 4px; min-width: 0; align-self: start; }
 .tc-username {
-  font-weight: 800; font-size: 1.08rem; color: var(--ink); letter-spacing: -.01em;
+  font-weight: 600; font-size: 1.06rem; color: var(--ink); letter-spacing: -.01em;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-} /* v0.25.12：可点性移交整卡（.list-card--teacher 聚焦效果），用户名不再单独可点/下划线 */
-.tc-rating { display: inline-flex; align-items: center; gap: 6px; }
-.tc-name-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-width: 0; } /* 用户名+匹配度同行 + 间距 */
+} /* 可点性移交整卡（.list-card--teacher 聚焦效果），用户名不单独可点 */
+.tc-school { font-size: .88rem; font-weight: 500; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-metrics { grid-column: 2; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.tc-metric { display: inline-flex; align-items: center; gap: 5px; }
+.tc-metric--rating .stars { font-size: .9rem; }
+.tc-metric--rating b { font-family: var(--mono); font-size: .95rem; font-weight: 600; color: var(--ink); }
+.tc-metric--price { font-family: var(--mono); font-size: 1.1rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
 .tc-match { display: inline-flex; } /* 匹配度按钮不进 .tc-username 防 ellipsis 裁剪（需求五·item5） */
-.tc-match--hint { font-size: .72rem; color: var(--muted); } /* #155：学生无开放需求时匹配度位置小灰字提示 */
-.tc-rating .stars { font-size: .85rem; }
-.tc-rating b { font-family: var(--mono); font-size: .76rem; color: var(--ink-3); }
-.tc-right {
-  grid-column: 3; grid-row: 1;
-  display: flex; flex-direction: column; align-items: flex-end; text-align: right; gap: 8px;
-}
-.tc-info1 { font-size: .92rem; font-weight: 700; color: var(--ink); line-height: 1.5; }
-.tc-info2 { font-size: .78rem; color: var(--muted); line-height: 1.7; max-width: 100%; }
-.tc-intro { font-size: .8rem; color: var(--muted); line-height: 1.5; text-align: left; overflow-wrap: anywhere;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* identity 列 flex 子项：紧随姓名行，正常行距换行；2 行截断防长简介撑乱卡片 */
-.tc-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.tc-match--hint { font-size: .72rem; color: var(--muted); } /* 学生无开放需求时匹配度位置小灰字提示 */
+.tc-subjects { grid-column: 2; font-size: .78rem; color: var(--muted); }
+.tc-actions { grid-column: 2; display: flex; gap: 8px; flex-wrap: wrap; }
 /* 方形「发送需求」按钮：呼应参考图 Model details 按钮位 */
 .tc-push-btn {
   display: inline-flex; align-items: center; gap: 6px;
@@ -2165,17 +2162,15 @@ body.profile-panel-closing .profile-panel {
   .list-card { padding: 14px 16px; }
 
   .list-card--teacher { grid-template-columns: 56px 1fr; column-gap: 12px; row-gap: 8px; }
-  .tc-avatar { grid-column: 1; grid-row: 1; align-self: start; width: 56px; height: 56px; min-height: 0; font-size: 1.4rem; }
-  .tc-identity { grid-column: 1 / -1; grid-row: 2; align-self: start; align-items: flex-start; gap: 3px; }
-  .tc-username { font-size: .8rem; white-space: normal; }
-  .tc-rating .stars { font-size: .66rem; }
-  .tc-rating b { font-size: .62rem; }
-  .tc-intro { font-size: .72rem; }
-  .tc-right { grid-column: 2; grid-row: 1; align-items: flex-start; text-align: left; }
-  .tc-info1 { font-size: .8rem; }
-  .tc-info2 { font-size: .7rem; }
+  .tc-avatar { grid-column: 1; grid-row: 1 / span 2; align-self: start; width: 56px; height: 56px; min-height: 0; font-size: 1.4rem; }
+  .tc-username { font-size: .88rem; white-space: normal; }
+  .tc-school { font-size: .78rem; }
+  .tc-metric--rating .stars { font-size: .74rem; }
+  .tc-metric--rating b { font-size: .8rem; }
+  .tc-metric--price { font-size: .95rem; }
+  .tc-subjects { font-size: .7rem; }
 
-  /* 发送需求按钮右对齐，消除与右区信息的小幅重叠 */
+  /* 发送需求按钮右对齐 */
   .tc-actions { align-self: flex-end; }
 
   .list-card--demand { display: block; }
@@ -2448,4 +2443,24 @@ body.profile-panel-closing .profile-panel {
 .demand-subj-pill b { font-weight: 700; color: var(--ink); }
 
 /* 个人信息栏报价行（核心决策数值突出） */
-.profile-price { font-family: var(--mono); font-size: 1.02rem; color: var(--ink); }
+.profile-price { font-family: var(--mono); font-size: 1.08rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; } /* 决策数值：字号层级（不靠加粗轰炸） */
+
+/* ============================================================
+   需求卡海报式三层（v1.0.3：卡面只留学什么/年级方式/预算焦点/时间，
+   地区/性别/成绩/补充说明收进详情浮窗）+ 需求详情浮窗
+   ============================================================ */
+.demand-title { font-size: 1.08rem; font-weight: 600; color: var(--ink); letter-spacing: -.01em; margin-top: 2px; } /* L1：学什么（第一决策） */
+.demand-sub { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: .85rem; color: var(--ink-3); } /* L2：年级 · 授课方式 */
+.demand-budget { font-family: var(--mono); font-size: 1.02rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; } /* 预算焦点（等宽数字） */
+.demand-quiet { margin-top: 6px; font-size: .76rem; color: var(--muted); } /* L3：期望时间 */
+/* 详情浮窗：分组流式排布（无表格），间距节奏与资料右栏同语言 */
+.demand-detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.demand-detail-avatar { width: 52px; height: 52px; font-size: 1.3rem; }
+.demand-detail-head-main { min-width: 0; }
+.demand-detail-name { font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+.demand-detail-tags { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.demand-detail-sec { margin-top: 18px; }
+.demand-detail-flow { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; }
+.demand-detail-item { font-size: .85rem; color: var(--ink-3); }
+.demand-detail-item--price { font-family: var(--mono); font-weight: 600; color: var(--ink); }
+.demand-detail-text { margin-top: 8px; font-size: .85rem; color: var(--ink-3); line-height: 1.65; }

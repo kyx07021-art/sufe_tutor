@@ -14,7 +14,7 @@ import { requestOtp } from '../server/otp.js';
 import { handleCreateUpload } from '../server/routes-chat.js';
 import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction } from '../server/awards.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
 function d1Shim(raw) {
   return {
     prepare(sql) {

@@ -31,7 +31,7 @@ import {
 import { handleDeactivateAccount } from '../server/routes-auth.js';
 import { tokenDigest } from '../server/crypto.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
 
 function d1Shim(raw) {
   return {

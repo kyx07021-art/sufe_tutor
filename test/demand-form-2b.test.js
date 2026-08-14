@@ -54,7 +54,7 @@ function makeCtx() {
     onDemandProvinceChange, toggleAddressField,
   })`, ctx);
   const toasts = () => vm.runInContext('globalThis.__toasts', ctx);
-  return { dom, fns, toasts };
+  return { dom, ctx, fns, toasts };
 }
 
 test('需求表单 type 切换：学科/非学科区块显隐（JS 切类）', () => {
@@ -157,8 +157,9 @@ test('prefillDemandForm：非学科需求回填非学科勾选、偏好性格、
 });
 
 test('R2-11 学生性别展示：demandStudentGenderName（网安 L2 修复）', () => {
-  const { dom, fns } = makeCtx();
-  // 经 renderDemandCard 快照断言：'' 与历史 nonbinary 都不渲染性别文字；male/female 正常显示
+  const { dom, ctx, fns } = makeCtx();
+  // v1.0.3 卡面海报化后性别收进详情浮窗——断言改为两层：
+  // ①卡面零性别泄漏（信息取舍天然满足）②DISP.demandStudentGenderName 口径正确（male→男、''/nonbinary→空）
   const snapshot = (gender) => {
     const doc = dom.window.document;
     const card = fns.renderDemandCard({
@@ -169,11 +170,11 @@ test('R2-11 学生性别展示：demandStudentGenderName（网安 L2 修复）',
       address: '', additional_info: '', budget_min: null, budget_max: null,
     }, {});
     doc.body.innerHTML = card;
-    return doc.querySelector('.demand-info-row') ? doc.querySelector('.demand-info-row').textContent : '';
+    return doc.querySelector('.list-card--demand').textContent;
   };
-  assert.equal(snapshot(''), '上海 · 初一 · 提交者: 学生', '空串(不愿透露)不渲染性别');
-  assert.equal(snapshot('nonbinary'), '上海 · 初一 · 提交者: 学生', '历史 nonbinary 不渲染性别（视同未填）');
-  assert.match(snapshot('male'), /男/, 'male 正常显示');
+  assert.ok(!snapshot('').includes('男') && !snapshot('').includes('女'), '空串(不愿透露)卡面不渲染性别');
+  assert.ok(!snapshot('nonbinary').includes('男') && !snapshot('nonbinary').includes('女'), '历史 nonbinary 卡面不渲染性别（视同未填）');
+  assert.equal(vm.runInContext('DISP.demandStudentGenderName("male")', ctx), '男', 'male 口径正确（详情浮窗展示用）');
 });
 
 // ============================================================
