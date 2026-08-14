@@ -10,6 +10,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb, dbGetUpload } from '../server/db.js';
 import { tokenDigest } from '../server/crypto.js';
 import { handleRegister, handleLogin } from '../server/routes-auth.js';
+import { requestOtp } from '../server/otp.js';
 import { handleCreateUpload } from '../server/routes-chat.js';
 import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction } from '../server/awards.js';
 
@@ -44,7 +45,7 @@ async function setup() {
   await initDb(db, ENV);
   const req = h => ({ headers: new Headers(h || {}) });
   const reg = async (name, role) => {
-    const r = await handleRegister(db, { username: name, password: 'pass123456', role, agreeAgreement: true, agreePrivacy: true }, req());
+    const r = await registerWithContact(db, req(), { username: name, role });
     return (await r.json()).authToken;
   };
   const teacherToken = await reg('t_award', 'teacher');
@@ -173,3 +174,15 @@ test('R2 审核：无 capToken 403 / 驳回必填理由 / 非 pending 409 / 重�
   const nonAdmin = await handleAdminAwards(db, new URL('http://x/api/admin/awards'), req({ 'X-Auth-Token': teacherToken }));
   assert.equal(nonAdmin.status, 403);
 });
+
+// v1.0 R7：注册必绑核心凭证（手机号/邮箱任一 + 验证码）——mock 发码取 code 后注册
+async function registerWithContact(db, reqObj, { username, role = 'student', password = 'pass123456', channel = 'sms' }, phone = '') {
+  const target = channel === 'email' ? `${username}@test.dev` : (phone || '+86139' + String(Math.floor(Math.random() * 90000000) + 10000000));
+  const otp = await requestOtp(db, { channel, target }, reqObj);
+  if (!otp.ok) throw new Error('mock 发码失败');
+  const body = { username, password, role, agreeAgreement: true, agreePrivacy: true };
+  if (channel === 'email') { body.email = target; body.otpChannel = 'email'; }
+  else { body.phone = target; body.otpChannel = 'sms'; }
+  body.code = otp.code;
+  return await handleRegister(db, body, reqObj);
+}

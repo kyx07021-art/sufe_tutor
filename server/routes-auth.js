@@ -24,7 +24,7 @@ import {
   bindPhoneCredential, bindEmailCredential, dbPhoneTaken, dbEmailTaken,
   dbFindUserByPhoneHash, dbFindUserByEmailHash, dbGetMyCreds,
 } from './credential.js';
-import { requestOtp, verifyOtp, normalizeIdentifier, targetMask } from './otp.js';
+import { requestOtp, verifyOtp, normalizeIdentifier, parsePhone, targetMask } from './otp.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
 
@@ -55,6 +55,25 @@ export async function handleRegister(db, body, req) {
   const takenRow = gate.extra(results)[0];
   if (takenRow && takenRow.results && takenRow.results.length) return error(MSG.USERNAME_TAKEN);
 
+  // v1.0 R7：核心凭证 = 手机号/邮箱双联系方式，具备任一即可支持账户存在——
+  // 注册必须绑定至少一个（验证码验证先行，防无效联系方式绑定）。
+  // 验码先行与登录同口径：验证码错误统一文案（不泄露联系方式的绑定/占用状态）。
+  const otpChannel = body.otpChannel === 'email' ? 'email' : 'sms';
+  const contactRaw = String((otpChannel === 'email' ? body.email : body.phone) || '').trim();
+  const otpCode = String(body.code || '').trim();
+  if (!contactRaw || !otpCode) return error(MSG.REGISTER_CONTACT_REQUIRED);
+  // 归一化与发码同口径（裸大陆号补 +86——验证码是发给归一化目标的，verifyOtp 必须同目标比对）
+  const normContact = normalizeIdentifier(contactRaw);
+  if (otpChannel === 'email' && (normContact.kind !== 'email' || normContact.target.length > LIMITS.EMAIL_MAX)) return error(MSG.EMAIL_INVALID);
+  if (otpChannel === 'sms' && normContact.kind !== 'phone') return error(MSG.PHONE_INVALID);
+  const contactTarget = normContact.target;
+  // 占用查先于注册（防注册后被占用则无法绑定）——占用即拒绝注册
+  const contactTaken = otpChannel === 'email' ? await dbEmailTaken(db, contactTarget) : await dbPhoneTaken(db, contactTarget);
+  if (contactTaken) return error(otpChannel === 'email' ? MSG.EMAIL_ALREADY_BOUND : MSG.PHONE_ALREADY_BOUND, 409);
+  const otpR = await verifyOtp(db, { channel: otpChannel, target: contactTarget, code: otpCode });
+  if (otpR === 'exhausted') return error(MSG.OTP_EXHAUSTED, 400);
+  if (otpR !== 'ok') return error(MSG.OTP_INVALID_OR_EXPIRED);
+
   // 教师邀请码门控：内测期间休眠（INVITE_GATE_ENABLED=false 时教师免邀请码注册）
   const needsInvite = role === 'teacher' && INVITE_GATE_ENABLED;
   if (needsInvite) {
@@ -65,6 +84,9 @@ export async function handleRegister(db, body, req) {
 
   const { hash, salt } = await hashPassword(password);
   const userId = await dbCreateUser(db, username, hash, salt, role);
+  // 注册即绑定核心凭证（手机号/邮箱至少其一；验证码已先行通过）
+  if (otpChannel === 'email') await bindEmailCredential(db, userId, contactTarget);
+  else await bindPhoneCredential(db, userId, contactTarget);
   if (needsInvite) {
     // 原子消费（赢家模式）：并发双注册同码仅一方 changes>0；输家回滚刚建的用户拒绝注册
     const consumed = await dbUseInviteCode(db, inviteCode, userId);
@@ -75,7 +97,8 @@ export async function handleRegister(db, body, req) {
   }
   const authToken = await issueAuthToken(db, userId, deviceLabelFromUA(req && req.headers.get('user-agent')), body.deviceId);
   await logEvent(db, { action: 'auth.register', actorUserId: userId, actorUsername: username,
-    actorRole: role, entity: 'user', entityId: userId, detail: { role, via: needsInvite ? 'invite' : 'direct' }, req });
+    actorRole: role, entity: 'user', entityId: userId,
+    detail: { role, via: needsInvite ? 'invite' : 'direct', contactChannel: otpChannel }, req });
   return json({ user: { id: userId, username, role, avatar: '' }, authToken, message: MSG.REGISTER_SUCCESS });
 }
 

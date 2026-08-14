@@ -12,6 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
 import { tokenDigest } from '../server/crypto.js';
 import { handleRegister, handleLogin } from '../server/routes-auth.js';
+import { requestOtp } from '../server/otp.js';
 import { handleCreatePost } from '../server/routes-posts.js';
 import { handleAdminContent, handleContentAction } from '../server/routes-audit.js';
 
@@ -69,10 +70,10 @@ async function capOf(raw, token) {
 test('D1：统一内容提取（多类型归拢统一结构，私密字段不提取）', async () => {
   const { raw, db, req } = await setup();
   // 造数据：一个学生发帖 + 一个教师建档案
-  const s = await handleRegister(db, { username: 'alice', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
+  const s = await registerWithContact(db, req(), { username: 'alice', password: 'pass123456', role: 'teacher' });
   const sData = await s.json();
   await handleCreatePost(db, { title: '物理笔记', bodyMd: '牛顿三大定律总结' }, req({ 'X-Auth-Token': sData.authToken }));
-  const t = await handleRegister(db, { username: 'bobt', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
+  const t = await registerWithContact(db, req(), { username: 'bobt', password: 'pass123456', role: 'teacher' });
   const tData = await t.json();
   const prof = await (await import('../server/routes-teacher.js')).handleSaveProfile(db, {
     profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '注重方法', address: '浦东新区·花木街道', school: '上财' },
@@ -116,7 +117,7 @@ test('D1 键控化（v0.27.3 #21）：清单与表域单源——CONTENT_TYPES �
 
 test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + 缺原因 400', async () => {
   const { raw, db, req } = await setup();
-  const s = await handleRegister(db, { username: 'mallory', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
+  const s = await registerWithContact(db, req(), { username: 'mallory', password: 'pass123456', role: 'teacher' });
   const sData = await s.json();
   const sId = raw.prepare("SELECT id FROM users WHERE username='mallory'").get().id;
   const postRes = await handleCreatePost(db, { title: '违规帖子', bodyMd: '含详细门牌号 88 号' }, req({ 'X-Auth-Token': sData.authToken }));
@@ -145,7 +146,7 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
   assert.equal(ban2.status, 200);
   assert.equal(raw.prepare('SELECT banned FROM users WHERE id=?').get(sId).banned, 1, '作者已封禁');
   // 非管理员（有效令牌但角色非 admin）→ 403；被 ban 用户 token 已失效 → 401
-  const eve = await handleRegister(db, { username: 'eve_t', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
+  const eve = await registerWithContact(db, req(), { username: 'eve_t', password: 'pass123456', role: 'teacher' });
   const eveData = await eve.json();
   const nonAdmin = await handleContentAction(db, 'post', post2Id, { action: 'delete', reason: 'x', rule: 'x' }, req({ 'X-Auth-Token': eveData.authToken }));
   assert.equal(nonAdmin.status, 403);
@@ -155,9 +156,9 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
 
 test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', async () => {
   const { raw, db, req } = await setup();
-  const teaReg = await handleRegister(db, { username: 'teach0', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true }, req());
+  const teaReg = await registerWithContact(db, req(), { username: 'teach0', password: 'pass123456', role: 'teacher' });
   const teaToken = (await teaReg.json()).authToken;
-  await handleRegister(db, { username: 'stud0', password: 'pass123456', role: 'student', agreeAgreement: true, agreePrivacy: true }, req());
+  await registerWithContact(db, req(), { username: 'stud0', password: 'pass123456', role: 'student' });
   // 建教师档案（teacher 类型处罚定位走 dbGetTeacherProfile，无档案行 → 404）
   const prof = await (await import('../server/routes-teacher.js')).handleSaveProfile(db, {
     profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '教法严谨', address: '浦东新区·陆家嘴街道', school: '上财' },
@@ -216,3 +217,15 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   assert.equal(teaBan.status, 200, 'teacher ban 仍可用');
   assert.equal(raw.prepare('SELECT banned FROM users WHERE id=?').get(teaId).banned, 1, '教师已封禁');
 });
+
+// v1.0 R7：注册必绑核心凭证（手机号/邮箱任一 + 验证码）——mock 发码取 code 后注册
+async function registerWithContact(db, reqObj, { username, role = 'student', password = 'pass123456', channel = 'sms' }, phone = '') {
+  const target = channel === 'email' ? `${username}@test.dev` : (phone || '+86139' + String(Math.floor(Math.random() * 90000000) + 10000000));
+  const otp = await requestOtp(db, { channel, target }, reqObj);
+  if (!otp.ok) throw new Error('mock 发码失败');
+  const body = { username, password, role, agreeAgreement: true, agreePrivacy: true };
+  if (channel === 'email') { body.email = target; body.otpChannel = 'email'; }
+  else { body.phone = target; body.otpChannel = 'sms'; }
+  body.code = otp.code;
+  return await handleRegister(db, body, reqObj);
+}

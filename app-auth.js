@@ -316,16 +316,32 @@ async function handleRegister(e) {
       return;
     }
   }
+  // v1.0 R7：核心凭证 = 手机号/邮箱（至少绑定一个）——联系方式与验证码成对填写才算一组完整
+  const phone = (document.getElementById('register-phone') || {}).value || '';
+  const phoneCode = (document.getElementById('register-phone-code') || {}).value || '';
+  const email = (document.getElementById('register-email') || {}).value || '';
+  const emailCode = (document.getElementById('register-email-code') || {}).value || '';
+  const phoneComplete = !!(phone.trim() && phoneCode.trim());
+  const emailComplete = !!(email.trim() && emailCode.trim());
+  if (!phoneComplete && !emailComplete) {
+    showToast(UI.REGISTER_CONTACT_REQUIRED, 'error');
+    return;
+  }
   // C2 敏感操作门禁：按下「注册」先过一次拼图真人验证，通过后才真正发注册请求
-  withCaptcha(() => doRegister(username, password, role, agreeAgreement, agreePrivacy));
+  withCaptcha(() => doRegister(username, password, role, agreeAgreement, agreePrivacy, { phone, phoneCode, email, emailCode }));
 }
 
-async function doRegister(username, password, role, agreeAgreement, agreePrivacy) {
+async function doRegister(username, password, role, agreeAgreement, agreePrivacy, contact) {
   try {
     const btn = document.getElementById('register-submit');
     btnLoading(btn, UI.LOADING_REGISTER);
     const body = { username, password, role, deviceId: getDeviceId(), agreeAgreement, agreePrivacy };
     if (role === 'teacher' && state.validatedInviteCode) body.inviteCode = state.validatedInviteCode;
+    // 验证码只随完整的那组上送（后端按 otpChannel 校验对应组）
+    const phoneComplete = !!(contact.phone.trim() && contact.phoneCode.trim());
+    const emailComplete = !!(contact.email.trim() && contact.emailCode.trim());
+    if (phoneComplete) { body.phone = contact.phone.trim(); body.code = contact.phoneCode.trim(); body.otpChannel = 'sms'; }
+    else if (emailComplete) { body.email = contact.email.trim(); body.code = contact.emailCode.trim(); body.otpChannel = 'email'; }
     const data = await api('/api/auth/register', { method: 'POST', body });
     state.user = data.user; state.authToken = data.authToken || null;
     if (role === 'teacher') state.validatedInviteCode = null; // 请求成功后清（网络失败保留，重试免重验；原提前清空致失败即需重验）

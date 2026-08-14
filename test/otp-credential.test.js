@@ -60,7 +60,11 @@ function authedReq(token) {
 }
 
 async function registerUser(db, raw, username, role = 'student') {
-  const r = await handleRegister(db, { username, password: 'pass123456', role, agreeAgreement: true, agreePrivacy: true }, authedReq(''));
+  // v1.0 R7：注册必绑联系方式（mock 发码取 code）
+  const target = '+86139' + String(Math.floor(Math.random() * 90000000) + 10000000);
+  const otp = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  assert.ok(otp.ok, 'mock 发码成功');
+  const r = await handleRegister(db, { username, password: 'pass123456', role, agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: otp.code }, authedReq(''));
   assert.equal(r.status, 200, `注册 ${username} 应成功: ${JSON.stringify(r)}`);
   const data = await r.json();
   const id = raw.prepare("SELECT id FROM users WHERE username=?").get(username).id;
@@ -270,14 +274,15 @@ test('verifyOtp：过期验证码拒绝（TTL 5 分钟）', async () => {
 
 // B5 回归（用户反馈：未绑定也显示 ***、绑定后先闪「未绑定」再更新）：
 // 未绑定 handleGetMyCreds 返回空串（前端回落「未绑定」占位，而非 '***'）；绑定后返回脱敏缩略。
+// v1.0 R7：注册必绑手机号（registerUser 走短信验证码注册），故新建用户 phone 为脱敏缩略而非空串；
+// 未绑定语义改为「邮箱未绑 → 空串」验证（手机号已由注册绑定）。
 test('B5 handleGetMyCreds：未绑定返回空串（回落「未绑定」），绑定后返回脱敏缩略', async () => {
   const { raw, db } = await setup();
   const u = await registerUser(db, raw, 'b5user');
-  // 未绑定：phone/email 空串（修复前 maskPhone('') 返回 '***'）
   const r0 = await handleGetMyCreds(db, authedReq(u.token));
   assert.equal(r0.status, 200);
   const d0 = await r0.json();
-  assert.equal(d0.phone, '', '未绑定手机号返回空串（前端显示「未绑定」而非 ***）');
+  assert.match(d0.phone, /^139\*{4}\d{4}$/, '注册已绑手机号 → 脱敏缩略');
   assert.equal(d0.email, '', '未绑定邮箱返回空串');
   // 绑定手机号后返回脱敏缩略
   const otp = await requestOtp(db, { channel: 'sms', target: '+8613812345678' }, authedReq(''));

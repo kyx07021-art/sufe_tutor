@@ -12,6 +12,7 @@ import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
+import { requestOtp } from '../server/otp.js';
 import { handleRegister } from '../server/routes-auth.js';
 import { tokenDigest } from '../server/crypto.js';
 
@@ -101,7 +102,9 @@ test('服务端：双同意 → 注册成功', async () => {
   const raw = new DatabaseSync(':memory:'); raw.exec('PRAGMA foreign_keys = ON');
   const db = d1Shim(raw);
   await initDb(db, ENV);
-  const r = await handleRegister(db, { username: 'u_ok', password: 'pass123456', role: 'student', deviceId: 'd1', agreeAgreement: true, agreePrivacy: true }, reqOf());
+  const target = '+8613912345678';
+  const otp = await requestOtp(db, { channel: 'sms', target }, reqOf());
+  const r = await handleRegister(db, { username: 'u_ok', password: 'pass123456', role: 'student', deviceId: 'd1', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: otp.code }, reqOf());
   assert.equal(r.status, 200);
   assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM users WHERE username='u_ok'").get().c, 1, '双同意才建账户');
 });
@@ -163,11 +166,15 @@ test('前端：勾选后 handleRegister 携带同意标志发起注册', async (
     document.getElementById('register-password2').value = 'pass123456';
     document.getElementById('agree-agreement').checked = true;
     document.getElementById('agree-privacy').checked = true;
+    document.getElementById('register-phone').value = '13811112222';
+    document.getElementById('register-phone-code').value = '123456';
   `, ctx);
   await vm.runInContext('handleRegister({ preventDefault() {} })', ctx);
   const body = vm.runInContext('window.__body()', ctx);
   assert.ok(body && body.agreeAgreement === true, '请求带 agreeAgreement=true');
   assert.ok(body && body.agreePrivacy === true, '请求带 agreePrivacy=true');
+  assert.equal(body && body.phone, '13811112222', 'v1.0 R7：联系方式随注册上送');
+  assert.equal(body && body.otpChannel, 'sms', '验证码通道 sms');
 });
 
 // ============ 前端：openPolicyModal 浮窗渲染 md（v0.25.51：常量直渲，无 fetch） ============
