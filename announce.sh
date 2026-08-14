@@ -27,7 +27,7 @@ PY
 # 2) curl 登录拿 token + 发送（curl 走系统代理/UA，与线上既有通路一致）
 TOKEN=$(curl -s --max-time 60 -X POST "https://sufe-tutor.pages.dev/api/auth/login" \
   -H "Content-Type: application/json" \
-  -d "{\"username\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" \
+  -d "{\"identifier\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" \
   | python -c "import sys,json;print(json.load(sys.stdin).get('authToken',''))")
 if [ -z "$TOKEN" ]; then echo "管理员登录失败"; exit 1; fi
 curl -s --max-time 60 -X POST "https://sufe-tutor.pages.dev/api/notifications/broadcast" \

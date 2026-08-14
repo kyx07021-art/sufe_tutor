@@ -95,6 +95,28 @@ function sanitizeDemand(d) {
     .filter(id => typeof id === 'string' && personalitySet.has(id)))].slice(0, personalityMax);
   // R2-b 偏好老师性别：白名单 ['','male','female']，非法回退 ''（不限）
   d.preferred_teacher_gender = PREFERRED_GENDERS.has(d.preferred_teacher_gender) ? d.preferred_teacher_gender : '';
+  // v0.31.7 R1：教学目标白名单（≤TEACHING_GOALS_MAX、TEACHING_GOALS 池、去重；静默截断不拒绝整表）
+  const TG = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.TEACHING_GOALS) || [];
+  const goalSet = new Set(TG.map(t => t.id));
+  const goalMax = (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.TEACHING_GOALS_MAX) || 2;
+  if (!Array.isArray(d.teaching_goal)) d.teaching_goal = [];
+  d.teaching_goal = [...new Set(d.teaching_goal.filter(id => typeof id === 'string' && goalSet.has(id)))].slice(0, goalMax);
+  // v0.31.7 R2：非学科技能现状 [{project, note}]——project 白名单（NONACADEMIC_PROJECTS）+ note 截断；
+  // 仅非学科类型保留（学科需求强制清空，同 current_scores 口径）。非法项剔除。
+  if (d.target_type === (globalThis.APP_CONSTANTS.DEMAND_TYPES || {}).NONACADEMIC) {
+    const NP = (globalThis.APP_CONSTANTS.NONACADEMIC_PROJECTS) || [];
+    const projectSet = new Set(NP.map(p => p.id));
+    const noteMax = (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.SKILL_NOTE_MAX) || 300;
+    if (!Array.isArray(d.skill_notes)) d.skill_notes = [];
+    d.skill_notes = d.skill_notes.slice(0, (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.DEMAND_SCORE_MAX) || 12)
+      .map(sn => {
+        if (!sn || typeof sn !== 'object' || typeof sn.project !== 'string' || !projectSet.has(sn.project)) return null;
+        return { project: sn.project, note: (typeof sn.note === 'string' ? sn.note : '').slice(0, noteMax) };
+      })
+      .filter(Boolean);
+  } else {
+    d.skill_notes = [];
+  }
   // R2-11 学生性别：白名单 ['','male','female','nonbinary']，非法回退 ''（'' = 不愿透露）
   d.student_gender = DEMAND_GENDERS.has(d.student_gender) ? d.student_gender : '';
   // B3（v0.27.2「小学一年级语文满分 150」）+ #22（v0.27.3 每省每年级政策）：平时成绩满分按省+年级钳制——

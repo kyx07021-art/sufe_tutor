@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.31.7',
+  APP_VERSION: '0.31.8',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -57,6 +57,8 @@ globalThis.APP_CONSTANTS = {
     DISPLAY_ID_PAD: 4,                    // 需求编号补零位数
     TIME_SLOTS_MAX: 8,                    // 结构化时间组件条数上限（与 server LIMITS.TIME_SLOTS_MAX 对齐）
     PERSONALITY_TAGS_MAX: 3,              // 性格关键词上限（R2-3，前端 toggleTagPick 与服务端兜底同用）
+    TEACHING_GOALS_MAX: 2,                // 教学目标上限（v0.31.7 R1：≤2，前后端同用）
+    SKILL_NOTE_MAX: 300,                  // 技能现状单项目描述上限（v0.31.7 R2：描述/证书/考级/获奖）
     GRAD_YEAR_MIN: 1980, GRAD_YEAR_MAX: 2030, // 教师毕业年份可填范围（R2-12，服务端钳制同值）
     SIDEBAR_INDEX_PAD: 2,                 // 侧边栏序号补零位数
     POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
@@ -160,6 +162,12 @@ globalThis.APP_CONSTANTS = {
     {id:'dance',name:'舞蹈'},{id:'calligraphy',name:'书法'},{id:'chess',name:'棋类'},
     {id:'code',name:'编程/机器人'},{id:'sports',name:'体育/运动'},{id:'speech',name:'演讲主持'},
     {id:'language',name:'语言口语'},
+  ],
+  // 教学目标（v0.31.7 R1）：「详细偏好」拆分后的教学目标白名单（id 英文小写、name 中文），
+  // 学科/非学科通用；服务端经本数组校验（同 PERSONALITY_TAGS 口径，静默截断不拒绝整表）
+  TEACHING_GOALS: [
+    {id:'score',name:'提分'},{id:'advanced',name:'培优'},{id:'contest',name:'竞赛'},
+    {id:'interest',name:'兴趣培养'},{id:'habit',name:'习惯养成'},{id:'cram',name:'考前冲刺'},
   ],
 
   // 需求类型（R2-b）：student_demands.target_type 取值单源（状态字面量铁律同 STATUS）。
@@ -1506,8 +1514,9 @@ globalThis.APP_CONSTANTS = {
     DW_STEP_PROVINCE: '省份',
     DW_STEP_METHOD: '教学方式',
     DW_STEP_STUDENT: '学生概况',
-    DW_STEP_SUBJECTS: '教学偏好',
-    DW_STEP_SCORES: '成绩情况',
+    DW_STEP_SUBJECTS: '科目',
+    DW_STEP_SCORES: '成绩情况', // 非学科类型即时改「技能现状」（LABEL_SKILL_STATUS）
+    DW_STEP_TEACHER_PREF: '教师偏好', // v0.31.7 R1：「详细偏好」拆分，教师偏好独立页（原 P4 内容移此）
     DW_STEP_BUDGET: '预算与时间',
     DW_STEP_SUBMIT: '补充信息',
 
@@ -1896,6 +1905,13 @@ globalThis.APP_CONSTANTS = {
     // 需求偏好（R2-b）：偏好老师性格 / 偏好老师性别
     LABEL_PREFERRED_PERSONALITY: '偏好老师性格',
     LABEL_PREFERRED_GENDER: '偏好老师性别',
+    // 教学目标（v0.31.7 R1）：「详细偏好」拆分——P4 教学目标 tag-pick
+    LABEL_TEACHING_GOAL: '教学目标',
+    TEACHING_GOALS_HINT: '（最多 {max} 个）', // {max} 由调用方以 CONFIG.TEACHING_GOALS_MAX 替换
+    // 技能现状（v0.31.7 R2）：非学科类型下 P5 标题即时切换 + 每项目描述文本框
+    LABEL_SKILL_STATUS: '技能现状',
+    LABEL_SKILL_NOTE: '技能详情',
+    SKILL_NOTE_PLACEHOLDER: '描述当前水平/证书/考级/获奖（选填）',
     // 学生性别（R2-11）：'' = 不愿透露（默认，资料卡视同未填不展示）；男/女沿用 GENDERS 文案
     OPTION_GENDER_NOT_SAY: '不愿透露',
     OPTION_PREF_GENDER_ANY: '不限',

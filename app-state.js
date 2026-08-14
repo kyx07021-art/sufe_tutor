@@ -17,7 +17,7 @@
  * 登出复位：各领域模块经 registerLogoutReset(fn) 登记自身模块级残留清理，
  * 认证层 handleLogout 调 runLogoutResets() 统一收口（曾漏清 _profileCredential/_browseDemands 等）。
  */
-const { SUBJECTS, STUDENT_GRADES, TEACHER_GRADES, GENDERS, TEACHING_METHODS, WEEKDAYS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, DEMAND_TYPES, UI, STATUS, CONFIG } = APP_CONSTANTS;
+const { SUBJECTS, STUDENT_GRADES, TEACHER_GRADES, GENDERS, TEACHING_METHODS, WEEKDAYS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, UI, STATUS, CONFIG } = APP_CONSTANTS;
 const DISP = globalThis.SUFE_DISPLAY; // app-display.js 已加载（本文件之前）
 
 const state = {

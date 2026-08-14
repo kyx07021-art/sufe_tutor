@@ -153,3 +153,41 @@ test('student_gender 空串合法（不愿透露默认）：创建成功；非�
   row = raw.prepare('SELECT student_gender FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
   assert.equal(row.student_gender, '', '非法性别回退空串');
 });
+
+// v0.31.7 R1/R2：教学目标白名单（≤2、TEACHING_GOALS 池、去重）；技能现状仅非学科保留、project 白名单、note 截断
+test('teaching_goal：≤2、白名单去重、超限截断；skill_notes 仅非学科保留 + project 白名单 + note 截断', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, stu } = await seedStudent(db, raw);
+  // 教学目标：白名单外剔除、去重、超 2 截断
+  let r = await handleCreateDemand(db, { demand: {
+    ...baseDemand,
+    teaching_goal: ['score', 'hacker', 'interest', 'score', 'habit'], // hacker 剔除 + score 去重 + 超 2 截断
+  } }, reqOf(token));
+  assert.equal(r.status, 200, '教学目标超限静默截断不拒绝');
+  let row = raw.prepare('SELECT teaching_goal FROM student_demands WHERE user_id=?').get(stu);
+  assert.deepEqual(JSON.parse(row.teaching_goal), ['score', 'interest'], '教学目标白名单去重 + ≤2 截断');
+  // 非数组 → 归空数组（不落脏）
+  r = await handleCreateDemand(db, { demand: { ...baseDemand, teaching_goal: 'attack' } }, reqOf(token));
+  assert.equal(r.status, 200);
+  row = raw.prepare('SELECT teaching_goal FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.deepEqual(JSON.parse(row.teaching_goal), [], '非数组 teaching_goal 归空');
+  // 非学科技能现状：project 白名单、note 截断、学科需求强制清空
+  const longNote = 'x'.repeat(500);
+  r = await handleCreateDemand(db, { demand: {
+    ...baseDemand,
+    target_type: 'nonacademic', target_subjects: ['music'],
+    teaching_goal: ['interest'], current_scores: [],
+    skill_notes: [{ project: 'music', note: longNote }, { project: 'hacker', note: '注入' }, { project: 'code', note: 'Python' }, 'junk'],
+  } }, reqOf(token));
+  assert.equal(r.status, 200);
+  row = raw.prepare('SELECT skill_notes, teaching_goal FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  const notes = JSON.parse(row.skill_notes);
+  assert.deepEqual(notes.map(n => n.project), ['music', 'code'], 'skill_notes project 白名单 + 非法项剔除');
+  assert.equal(notes.find(n => n.project === 'music').note.length, 300, 'note 截断到 SKILL_NOTE_MAX=300');
+  assert.deepEqual(JSON.parse(row.teaching_goal), ['interest'], '非学科教学目标照常保留');
+  // 学科需求：skill_notes 强制清空（同 current_scores 口径）
+  r = await handleCreateDemand(db, { demand: { ...baseDemand, skill_notes: [{ project: 'music', note: '不该存' }] } }, reqOf(token));
+  assert.equal(r.status, 200);
+  row = raw.prepare('SELECT skill_notes FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.skill_notes, '[]', '学科需求 skill_notes 强制清空');
+});

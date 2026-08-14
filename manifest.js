@@ -4,14 +4,14 @@
  */
 export const ASSET_MANIFEST = {
   "files": {
-    "style.css": "style.1fe88325.css",
+    "style.css": "style.1e83f461.css",
     "style-region.css": "style-region.0e7853d1.css",
     "style-posts.css": "style-posts.ef7c77a7.css",
     "style-chat.css": "style-chat.b77a5019.css",
     "glass.css": "glass.d7dcde4d.css",
-    "constants.js": "constants.51cf080f.js",
+    "constants.js": "constants.9e6986a2.js",
     "app-display.js": "app-display.439b4ea7.js",
-    "app-state.js": "app-state.118393c9.js",
+    "app-state.js": "app-state.8e0759eb.js",
     "app-api.js": "app-api.d0028a0b.js",
     "app-datahub.js": "app-datahub.46eed721.js",
     "app-anim.js": "app-anim.f8cea771.js",
@@ -29,7 +29,7 @@ export const ASSET_MANIFEST = {
     "app-contracts.js": "app-contracts.44b27924.js",
     "app-chart.js": "app-chart.5bbef1cc.js",
     "app-admin.js": "app-admin.5c70f145.js",
-    "app-demands.js": "app-demands.1d0b9354.js",
+    "app-demands.js": "app-demands.b1eff88a.js",
     "app-teachers.js": "app-teachers.88931c97.js",
     "ui-scale-reflow.js": "ui-scale-reflow.7a62902c.js",
     "app-pages.js": "app-pages.6ea12cb7.js",

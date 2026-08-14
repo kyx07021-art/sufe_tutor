@@ -114,6 +114,8 @@ async function migrateLegacyRoles(db, adminNames) {
         target_type TEXT NOT NULL DEFAULT 'academic',
         preferred_personality_tags TEXT NOT NULL DEFAULT '[]',
         preferred_teacher_gender TEXT NOT NULL DEFAULT '',
+        teaching_goal TEXT NOT NULL DEFAULT '[]',
+        skill_notes TEXT NOT NULL DEFAULT '[]',
         created_at DATETIME DEFAULT (datetime('now','localtime')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`,
     },
@@ -189,7 +191,7 @@ async function migrateLegacyRoles(db, adminNames) {
 // 全量迁移——D1 往返 20→1，任何 isolate 首击 <1s。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 2; // v0.28.0 M1：demand_pushes/demand_intents 加 message 列（打招呼消息）
+export const SCHEMA_VERSION = 3; // v0.28.0 M1：demand_pushes/demand_intents 加 message 列；v0.31.7 R1/R2：student_demands 加 teaching_goal/skill_notes
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
@@ -264,6 +266,8 @@ async function runFullMigration(db, env) {
       target_type TEXT NOT NULL DEFAULT 'academic',
       preferred_personality_tags TEXT NOT NULL DEFAULT '[]',
       preferred_teacher_gender TEXT NOT NULL DEFAULT '',
+      teaching_goal TEXT NOT NULL DEFAULT '[]',
+      skill_notes TEXT NOT NULL DEFAULT '[]',
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS reviews (
@@ -534,7 +538,10 @@ async function runFullMigration(db, env) {
     // R2-b 需求侧扩充：需求类型（学科/非学科）/ 偏好老师性格 / 偏好老师性别
     ['target_type', "TEXT NOT NULL DEFAULT 'academic'"],
     ['preferred_personality_tags', "TEXT NOT NULL DEFAULT '[]'"],
-    ['preferred_teacher_gender', "TEXT NOT NULL DEFAULT ''"]]);
+    ['preferred_teacher_gender', "TEXT NOT NULL DEFAULT ''"],
+    // v0.31.7 R1/R2：教学目标（JSON 数组）/ 非学科技能现状（JSON [{project,note}]）
+    ['teaching_goal', "TEXT NOT NULL DEFAULT '[]'"],
+    ['skill_notes', "TEXT NOT NULL DEFAULT '[]'"]]);
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
     ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"],
@@ -954,9 +961,9 @@ export async function dbCreateDemand(db, userId, demand) {
     (user_id,province,student_grade,student_gender,target_subjects,current_scores,
      teaching_method,address,expected_time,budget_min,budget_max,
      submitter_type,parent_contact,student_contact,additional_info,display_id,
-     target_type,preferred_personality_tags,preferred_teacher_gender)
+     target_type,preferred_personality_tags,preferred_teacher_gender,teaching_goal,skill_notes)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, (SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands),
-      ?,?,?)`, [
+      ?,?,?,?,?)`, [
     userId, demand.province || '', demand.student_grade, demand.student_gender,
     JSON.stringify(demand.target_subjects), JSON.stringify(demand.current_scores),
     demand.teaching_method || 'offline', demand.address || '', demand.expected_time || '',
@@ -965,6 +972,8 @@ export async function dbCreateDemand(db, userId, demand) {
     demand.target_type || 'academic',
     JSON.stringify(Array.isArray(demand.preferred_personality_tags) ? demand.preferred_personality_tags : []),
     demand.preferred_teacher_gender || '',
+    JSON.stringify(Array.isArray(demand.teaching_goal) ? demand.teaching_goal : []),
+    JSON.stringify(Array.isArray(demand.skill_notes) ? demand.skill_notes : []),
   ]);
   return Number(result.meta.last_row_id);
 }
@@ -990,6 +999,9 @@ function mapDemandRow(r) {
     current_scores: safeJsonArray(r.current_scores),
     // R2-b：偏好老师性格 JSON 列单点反序列化（target_type/preferred_teacher_gender 随 rest 透传）
     preferred_personality_tags: safeJsonArray(r.preferred_personality_tags),
+    // v0.31.7 R1/R2：教学目标 / 技能现状 JSON 列单点反序列化（mapper 出口同口径）
+    teaching_goal: safeJsonArray(r.teaching_goal),
+    skill_notes: safeJsonArray(r.skill_notes),
   };
 }
 
@@ -1069,7 +1081,8 @@ export async function dbUpdateDemand(db, id, d) {
   await dbRun(db, `UPDATE student_demands SET province=?,student_grade=?,student_gender=?,
     target_subjects=?,current_scores=?,teaching_method=?,address=?,expected_time=?,address_detail='',
     budget_min=?,budget_max=?,submitter_type=?,parent_contact=?,student_contact=?,
-    additional_info=?,target_type=?,preferred_personality_tags=?,preferred_teacher_gender=? WHERE id=?`, [
+    additional_info=?,target_type=?,preferred_personality_tags=?,preferred_teacher_gender=?,
+    teaching_goal=?,skill_notes=? WHERE id=?`, [
     d.province || '', d.student_grade, d.student_gender,
     JSON.stringify(d.target_subjects), JSON.stringify(d.current_scores),
     d.teaching_method || 'offline', d.address || '', d.expected_time || '',
@@ -1077,7 +1090,9 @@ export async function dbUpdateDemand(db, id, d) {
     d.submitter_type, parentContact, studentContact, d.additional_info || '',
     d.target_type || 'academic',
     JSON.stringify(Array.isArray(d.preferred_personality_tags) ? d.preferred_personality_tags : []),
-    d.preferred_teacher_gender || '', id,
+    d.preferred_teacher_gender || '',
+    JSON.stringify(Array.isArray(d.teaching_goal) ? d.teaching_goal : []),
+    JSON.stringify(Array.isArray(d.skill_notes) ? d.skill_notes : []), id,
   ]);
 }
 

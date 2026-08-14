@@ -57,6 +57,10 @@ async function openDemandModal(demandId) {
       editDemand = demand;
     }
   }
+  // v0.31.7 R3：每次打开重置完成态集合 + 设编辑模式标记（编辑 = 翻到过 visited；新建 = 填写完 done）
+  _dwEditMode = !!editDemand;
+  demandWizardDone.clear();
+  demandWizardVisited.clear();
   // v0.25.31 需求表单点遮罩不关（编辑成本高，防误触丢输入；仅 ✕/取消关闭，与发帖/签约表单同口径）
   openModal({ title: editDemand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE, body: renderDemandModal(editDemand), closable: false });
   initDemandForm(editDemand ? editDemand.province : null);
@@ -75,12 +79,74 @@ function setDemandType(type) {
   const na = document.getElementById('d-section-nonacademic');
   if (ac) ac.classList.toggle('hidden', !isAc);
   if (na) na.classList.toggle('hidden', isAc);
+  // v0.31.7 R2 类型联动：P5 标题即时切换（成绩情况 ↔ 技能现状）+ 成绩行/技能文本框切换。
+  // 切非学科清成绩行（用户实证「切非学科后成绩页还是学科那几样」）；切回学科重建成绩行。
+  const title = document.getElementById('d-scores-title');
+  if (title) title.textContent = isAc ? UI.LABEL_CURRENT_SCORES : UI.LABEL_SKILL_STATUS;
+  const scoresEl = document.getElementById('d-scores');
+  const skillEl = document.getElementById('d-skill-notes');
+  if (scoresEl) scoresEl.classList.toggle('hidden', !isAc);
+  if (skillEl) skillEl.classList.toggle('hidden', isAc);
+  if (isAc) {
+    // 清成绩行（防残留学科科目）——#d-province 由 initDemandForm 创建，未初始化前无成绩逻辑（防御）
+    if (scoresEl && document.getElementById('d-province')) {
+      scoresEl.innerHTML = `<p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p>`;
+      updateDemandScores(); // 按勾选科目重建
+    }
+  } else {
+    renderSkillNotes();
+  }
 }
 
-// 任务三（v0.31.0）：需求表单 wizard 分页标签单源（对应 renderDemandModal 的 7 个 .dw-step）
+// v0.31.7 R2：非学科技能现状文本框——按勾选项目渲染「技能详情」输入（描述/证书/考级/获奖）。
+// 数据：[{project, note}]，project 白名单 NONACADEMIC_PROJECTS，note 由服务端钳制上限。
+function renderSkillNotes() {
+  const el = document.getElementById('d-skill-notes');
+  if (!el) return;
+  const checked = [...document.querySelectorAll('#d-nonacademic input:checked')].map(cb => cb.value);
+  if (!checked.length) { el.innerHTML = `<p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p>`; return; }
+  // 增量口径（同 updateDemandScores）：移除取消勾选行 + 只新增缺行（保留已填输入）
+  el.querySelectorAll('.skill-note-row').forEach(row => {
+    if (!checked.includes(row.dataset.project)) row.remove();
+  });
+  const present = new Set([...el.querySelectorAll('.skill-note-row')].map(r => r.dataset.project));
+  const fresh = checked.filter(pid => !present.has(pid));
+  if (fresh.length) {
+    const names = Object.fromEntries((NONACADEMIC_PROJECTS || []).map(p => [p.id, p.name]));
+    el.insertAdjacentHTML('beforeend', fresh.map(pid => `
+      <div class="skill-note-row" data-project="${escHtml(pid)}">
+        <label class="skill-note-label">${escHtml(names[pid] || pid)}</label>
+        <textarea class="form-input skill-note-input" data-sn-project="${escHtml(pid)}" rows="2" placeholder="${UI.SKILL_NOTE_PLACEHOLDER}"></textarea>
+      </div>`).join(''));
+  }
+  checked.forEach(pid => {
+    const row = el.querySelector(`.skill-note-row[data-project="${pid}"]`);
+    if (row) el.appendChild(row);
+  });
+}
+
+function collectSkillNotes() {
+  return [...document.querySelectorAll('#d-skill-notes .skill-note-row')]
+    .map(row => ({ project: row.dataset.project, note: row.querySelector('textarea').value.trim() }))
+    .filter(sn => sn.note); // 空 note 不收（payload 干净）
+}
+
+// 编辑回填技能文本框（遍历比对，勿用属性选择器插值——网安 L3 教训同 checkById）
+function prefillSkillNotes(notes) {
+  const rows = [...document.querySelectorAll('#d-skill-notes .skill-note-row')];
+  (notes || []).forEach(sn => {
+    const row = rows.find(r => r.dataset.project === sn.project);
+    const ta = row && row.querySelector('textarea');
+    if (ta) ta.value = sn.note || '';
+  });
+}
+
+// 任务三（v0.31.0）：需求表单 wizard 分页标签单源（对应 renderDemandModal 的 .dw-step）
+// v0.31.7 R1：8 页——「详细偏好」拆成「教学目标」（P4）+「教师偏好」（新 P6，原 P4 偏好性格/性别移此）
 const DEMAND_WIZARD_STEPS = [
   UI.DW_STEP_PROVINCE, UI.DW_STEP_METHOD, UI.DW_STEP_STUDENT,
-  UI.DW_STEP_SUBJECTS, UI.DW_STEP_SCORES, UI.DW_STEP_BUDGET, UI.DW_STEP_SUBMIT,
+  UI.DW_STEP_SUBJECTS, UI.DW_STEP_SCORES, UI.DW_STEP_TEACHER_PREF,
+  UI.DW_STEP_BUDGET, UI.DW_STEP_SUBMIT,
 ];
 
 function renderDemandModal(demand) {
@@ -95,6 +161,11 @@ function renderDemandModal(demand) {
           <div class="dw-stepper" id="dw-stepper">
             ${DEMAND_WIZARD_STEPS.map((s, i) => `<div class="dw-step-chip" data-step="${i + 1}" title="${s}"><span class="dw-step-chip-dot"></span><span class="dw-step-chip-label">${s}</span></div>`).join('')}
           </div>
+          <!-- v0.31.7 R3：滑动轨道（sliding track）——8 步并排 flex，JS 只写 --dw-step-active（0 基索引）
+               到 #demand-form，CSS translateX(-active×100%) 侧滑；视口定高内滚（统一高度）。
+               铁律相容：JS 只写 CSS 变量，动画全在 CSS 呈现层（transition transform）。 -->
+          <div class="dw-steps-viewport">
+          <div class="dw-steps-track">
           <div class="dw-step" data-step="1">
             <!-- P1 选省 -->
             <div class="form-group">
@@ -161,6 +232,23 @@ function renderDemandModal(demand) {
               </div>
             </div>
             <div class="form-group">
+              <!-- v0.31.7 R1：教学目标 tag-pick（「详细偏好」拆分，学科/非学科通用） -->
+              <label class="form-label">${UI.LABEL_TEACHING_GOAL}${UI.TEACHING_GOALS_HINT.replace('{max}', CONFIG.TEACHING_GOALS_MAX)}</label>
+              <div id="d-teaching-goals">${TEACHING_GOALS.map(tag=>
+                `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(tag.id)}" onclick="toggleTagPick(this, 'd-teaching-goals', ${CONFIG.TEACHING_GOALS_MAX})">${escHtml(tag.name)}</button>`).join('')}</div>
+            </div>
+          </div>
+          <div class="dw-step" data-step="5">
+            <!-- P5 成绩情况 / 技能现状（v0.31.7 R2：类型切换即时改标题 + 清成绩行 + 技能文本框） -->
+            <div class="form-group">
+              <label class="form-label" id="d-scores-title">${UI.LABEL_CURRENT_SCORES}</label>
+              <div id="d-scores"><p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p></div>
+              <div id="d-skill-notes" class="hidden"></div>
+            </div>
+          </div>
+          <div class="dw-step" data-step="6">
+            <!-- P6 教师偏好（v0.31.7 R1：从原 P4 移出，「详细偏好」拆分的教师偏好独立页） -->
+            <div class="form-group">
               <label class="form-label">${UI.LABEL_PREFERRED_PERSONALITY}${UI.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
               <div id="d-personality-tags">${PERSONALITY_TAGS.map(tag=>
                 `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(tag.id)}" onclick="toggleTagPick(this, 'd-personality-tags', ${CONFIG.PERSONALITY_TAGS_MAX})">${escHtml(tag.name)}</button>`).join('')}</div>
@@ -172,15 +260,8 @@ function renderDemandModal(demand) {
               </select>
             </div>
           </div>
-          <div class="dw-step" data-step="5">
-            <!-- P5 科目具体情况（分数/分制/等第等） -->
-            <div class="form-group" id="d-scores-wrap">
-              <label class="form-label">${UI.LABEL_CURRENT_SCORES}</label>
-              <div id="d-scores"><p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p></div>
-            </div>
-          </div>
-          <div class="dw-step" data-step="6">
-            <!-- P6 预算 + 期望时间 -->
+          <div class="dw-step" data-step="7">
+            <!-- P7 预算 + 期望时间 -->
             <div class="form-group">
               <label class="form-label">${UI.LABEL_BUDGET}</label>
               <div class="range-row">
@@ -194,8 +275,8 @@ function renderDemandModal(demand) {
               <div id="d-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div>
             </div>
           </div>
-          <div class="dw-step" data-step="7">
-            <!-- P7 提交者 + 联系方式 + 补充说明 -->
+          <div class="dw-step" data-step="8">
+            <!-- P8 提交者 + 联系方式 + 补充说明 -->
             <div class="form-group">
               <label class="form-label">${UI.LABEL_SUBMITTER} <span class="req">*</span></label>
               <select class="form-select" id="d-submitter" required>
@@ -215,6 +296,8 @@ function renderDemandModal(demand) {
               <textarea class="form-input" id="d-info" rows="3" placeholder="${UI.DEMAND_INFO_PLACEHOLDER}"></textarea>
             </div>
           </div>
+          </div><!-- /dw-steps-track -->
+          </div><!-- /dw-steps-viewport -->
           <div class="dw-footer">
             ${demand ? `<button type="button" class="btn btn-sm btn-text-danger glass glass--pressable" onclick="confirmDeleteDemand(${demand.id})">${UI.BTN_DELETE_DEMAND}</button>` : ''}
             <button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
@@ -242,15 +325,33 @@ function gradeOptionsForProvince(prov) {
 // Back 恒在（P1 无）；末页动作即提交按钮本身。JS 只切类/写 --dw-fill，零内联布局样式。
 // ============================================================
 let _dwStep = 1;
+let _dwEditMode = false; // v0.31.7 R3：编辑模式完成态 = 翻到过（visited）；新建 = 填写完（done）
+// 完成态集合（用户语义：新建「填写完的点染紫」= done 校验通过过；编辑「翻到过的页面」= visited。
+// 进度条推进/点色**不跟当前停留页**——用户明确否定 Ant 式「当前页之前全 done」。）
+const demandWizardDone = new Set();
+const demandWizardVisited = new Set();
 
 function demandWizardGoTo(n) {
   const total = DEMAND_WIZARD_STEPS.length;
   n = Math.max(1, Math.min(total, n | 0));
   _dwStep = n;
+  const form = document.getElementById('demand-form');
+  // v0.31.7 R3 侧滑轨道：JS 只写 --dw-step-active（0 基索引），CSS translateX(calc(var(--dw-step-active) * -100%)) 消费
+  if (form) form.style.setProperty('--dw-step-active', String(n - 1));
+  // 编辑模式：翻到过的页记 visited（含当前）；新建模式 visited 恒空（只看 done）
+  if (_dwEditMode) demandWizardVisited.add(n);
   document.querySelectorAll('#demand-form .dw-step').forEach(el => el.classList.toggle('dw-step--active', +el.dataset.step === n));
+  // 完成态（用户语义）：点染紫 = done ∪ visited（当前页只挂 active 位置态）；连接线推进 = 从 P1 起
+  // done∪visited 连续前缀实紫（非前缀内的孤立 done 点实紫但连线浅——进度条不跟当前页、也不跳段）。
+  let prefix = 0;
+  for (let s = 1; s <= total; s++) { if (demandWizardDone.has(s) || demandWizardVisited.has(s)) prefix = s; else break; }
   document.querySelectorAll('#dw-stepper .dw-step-chip').forEach(ch => {
     const s = +ch.dataset.step;
-    ch.classList.toggle('dw-step-chip--done', s < n);
+    const isDone = demandWizardDone.has(s) || demandWizardVisited.has(s);
+    // 当前页若 done∪visited → done 实紫 + active 光圈叠加（编辑翻到过的当前页 = 实紫带位置光圈）；
+    // 未完成的新建停留页 → 仅 active 墨实+光圈（位置指示，不误标完成）
+    ch.classList.toggle('dw-step-chip--done', isDone);
+    ch.classList.toggle('dw-step-chip--lined', s <= prefix); // 该点左侧段连线实紫（连续前缀）
     ch.classList.toggle('dw-step-chip--active', s === n);
   });
   const back = document.getElementById('dw-back');
@@ -266,7 +367,12 @@ function demandWizardGoTo(n) {
   }
 }
 
-function demandWizardNext() { if (demandWizardValidateStep(_dwStep)) demandWizardGoTo(_dwStep + 1); }
+function demandWizardNext() {
+  if (demandWizardValidateStep(_dwStep)) {
+    demandWizardDone.add(_dwStep); // 校验通过 = 该页填写完（新建完成态）
+    demandWizardGoTo(_dwStep + 1);
+  }
+}
 function demandWizardBack() { demandWizardGoTo(_dwStep - 1); }
 
 // 每页校验（form novalidate 后唯一闸门；各页 toast 文案单源 UI.*）。返回是否可前进。
@@ -294,7 +400,7 @@ function demandWizardValidateStep(n) {
     if (!document.querySelectorAll(sel).length) { showToast(UI.VALIDATE_SELECT_SUBJECT, 'error'); return false; }
     return true;
   }
-  if (n === 6) {
+  if (n === 7) {
     const timeErr = validateTimeSlots(gid('d-time-slots'));
     if (timeErr) { showToast(timeErr, 'error'); return false; }
     if (gid('d-budget-min').value && gid('d-budget-max').value
@@ -303,13 +409,13 @@ function demandWizardValidateStep(n) {
     }
     return true;
   }
-  if (n === 7) {
+  if (n === 8) {
     if (!gid('d-parent-contact').value.trim() || !gid('d-student-contact').value.trim()) {
       showToast(UI.VALIDATE_CONTACT_REQUIRED, 'error'); return false;
     }
     return true;
   }
-  return true; // P2 方式（有默认恒有效）/ P5 成绩（可选）直通
+  return true; // P2 方式（有默认恒有效）/ P5 成绩（可选）直通 / P6 教师偏好（可选）直通
 }
 
 function initDemandForm(selectedProvince) {
@@ -317,6 +423,8 @@ function initDemandForm(selectedProvince) {
     renderProvinceSelect('d-province', selectedProvince || '', 'onchange="onDemandProvinceChange()"');
   onDemandProvinceChange(); // 初始即执行：未选省份也给提示、锁线上、科目池给出引导文案
   document.getElementById('d-subjects').addEventListener('change', updateDemandScores);
+  // v0.31.7 R2：非学科项目勾选变化 → 技能文本框渲染（增量保留已填）
+  document.getElementById('d-nonacademic').addEventListener('change', renderSkillNotes);
   toggleAddressField(); // 初始化地址字段可见性
   initCustomSelects(document.getElementById('demand-form')); // 省份/年级/性别/方式/身份下拉统一换自定义组件
   demandWizardGoTo(1); // 任务三：表单打开恒从 P1 起（编辑模式 prefill 后同回 P1，见 prefillDemandForm 尾）
@@ -327,6 +435,7 @@ function initDemandForm(selectedProvince) {
 // → 回填各科分制/分数 → 设教学方式 → 再调 toggleAddressField()
 // （initDemandForm 那次跑在默认值上，会把线下需求的地址区错误隐藏）
 function prefillDemandForm(d) {
+  _dwEditMode = true; // v0.31.7 R3：编辑回填 = 完成态走 visited（翻到过）；openDemandModal 也设（幂等）
   document.getElementById('d-province').value = d.province || '';
   onDemandProvinceChange(); // 锁线上约束 + 建科目池（科目池还需年级，下行补）
   document.getElementById('d-grade').value  = d.student_grade || '';
@@ -343,11 +452,18 @@ function prefillDemandForm(d) {
   };
   if (d.target_type === DEMAND_TYPES.NONACADEMIC) {
     (d.target_subjects || []).forEach(sid => { const cb = checkById('d-nonacademic', sid); if (cb) cb.checked = true; });
+    renderSkillNotes(); // v0.31.7 R2：勾选后手动渲染技能文本框（程序改 checkbox 不派发 change）
+    prefillSkillNotes(d.skill_notes || []);
   } else {
     (d.target_subjects || []).forEach(sid => { const cb = checkById('d-subjects', sid); if (cb) cb.checked = true; });
     updateDemandScores();
     prefillStudentScores(d.current_scores || []);
   }
+  // v0.31.7 R1 教学目标回填（P4 tag-pick）
+  (d.teaching_goal || []).forEach(id => {
+    const btn = [...document.querySelectorAll('#d-teaching-goals .tag-pick')].find(b => b.dataset.id === id);
+    if (btn) btn.classList.add('selected');
+  });
   // R2-b 偏好性格 / 偏好老师性别回填
   (d.preferred_personality_tags || []).forEach(id => {
     const btn = [...document.querySelectorAll('#d-personality-tags .tag-pick')].find(b => b.dataset.id === id);
@@ -508,6 +624,9 @@ async function handleSubmitDemand(e) {
 
   const scores = type === DEMAND_TYPES.NONACADEMIC ? [] : collectStudentScores(); // 非学科无成绩概念
   const prefTags = [...document.querySelectorAll('#d-personality-tags .tag-pick.selected')].map(b => b.dataset.id);
+  // v0.31.7 R1/R2：教学目标 + 非学科技能现状
+  const teachingGoal = [...document.querySelectorAll('#d-teaching-goals .tag-pick.selected')].map(b => b.dataset.id);
+  const skillNotes = type === DEMAND_TYPES.NONACADEMIC ? collectSkillNotes() : [];
 
   // v0.25.0 结构化期望时间：校验（半填/缺起止/结束早于开始）通过后收集为 [{type:'week',...}] JSON
   const timeErr = validateTimeSlots(document.getElementById('d-time-slots'));
@@ -523,6 +642,7 @@ async function handleSubmitDemand(e) {
     target_subjects: subjects, current_scores: scores,
     preferred_personality_tags: prefTags,
     preferred_teacher_gender: document.getElementById('d-pref-gender').value,
+    teaching_goal: teachingGoal, skill_notes: skillNotes,
     teaching_method: document.getElementById('d-method').value,
     address: document.getElementById('d-address').value.trim(),
     expected_time: timeSlots.length ? JSON.stringify(timeSlots) : '',

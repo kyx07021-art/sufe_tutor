@@ -1672,7 +1672,11 @@ html[data-ui-sampling] *::after {
 .modal-body { padding: 20px 24px 24px; }
 .modal-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; }
 .modal-footer-start { margin-right: auto; }
-/* 任务三（v0.31.0）需求表单 wizard：圆点步进进度条 + 分步页（DOM 常驻 display 切换）+ 页脚 */
+/* 任务三（v0.31.0）需求表单 wizard：圆点步进进度条 + 分步页 + 页脚。
+   v0.31.7 R3 重构（用户要求「页面切换用侧滑+淡出入而非无动画；进度点用线串起来」）：
+   sliding track——8 步并排 flex，JS 只写 --dw-step-active（0 基索引）到 #demand-form，
+   track translateX(calc(var(--dw-step-active) * -100%)) 侧滑（合成器只读），步内淡入淡出。
+   视口定高内滚（min-height 340 + max-height 56vh）——页面间高度不再跳变（统一高度）。 */
 .dw-stepper { display: flex; align-items: flex-start; gap: 0; margin-bottom: 20px; padding: 4px 0 2px; }
 .dw-step-chip { display: flex; flex-direction: column; align-items: center; gap: 5px; flex: 1;
   min-width: 0; padding: 6px 2px 4px; position: relative; }
@@ -1684,7 +1688,9 @@ html[data-ui-sampling] *::after {
   transition: background .2s, border-color .2s, box-shadow .2s; }
 .dw-step-chip-label { font-size: .7rem; color: var(--ink-muted, var(--ink)); white-space: nowrap; opacity: .8;
   transition: color .2s, opacity .2s; }
-.dw-step-chip--done::before { background: var(--g-fg, var(--ink)); }
+/* v0.31.7 R3：连接线推进 = done∪visited 连续前缀实紫（JS 挂 --lined），非前缀孤立 done 点实紫但连线浅——
+   进度条不跟当前页、也不跳段（用户「进度条推到哪里逻辑同上，不要跟着当前停留页走」）。 */
+.dw-step-chip--lined::before { background: var(--accent, #6B5BD2); }
 /* v0.31.4（P6 用户反馈「已经填写完的点换个比较实的颜色」）：done 曾用 --g-fill-strong（半透白透镜，
    light 浅底上合成后不实、与未到达点区分弱）。改实色 accent（主题紫）——三态分明：未到达=浅描边空心、
    已完成=实紫、当前=墨实+光圈。连接线 done 段已实色（--g-fg），色系自洽。 */
@@ -1693,10 +1699,18 @@ html[data-ui-sampling] *::after {
 .dw-step-chip--active .dw-step-chip-dot { background: var(--g-fg, var(--ink)); border-color: var(--g-fg, var(--ink));
   box-shadow: 0 0 0 3px var(--g-focus-soft, rgba(0,0,0,.12)); }
 .dw-step-chip--active .dw-step-chip-label { color: var(--ink); opacity: 1; font-weight: 700; }
-.dw-step { display: none; }
-.dw-step--active { display: block; }
+.dw-steps-viewport { overflow-x: hidden; overflow-y: auto; min-height: 340px; max-height: 56vh; padding: 2px 4px; }
+.dw-steps-track { display: flex; transition: transform .32s var(--ease-out, ease); }
+.dw-step { flex: 0 0 100%; min-width: 100%; visibility: hidden; opacity: 0; transform: translateY(8px);
+  transition: opacity .28s ease, transform .28s ease, visibility 0s linear .28s; }
+.dw-step--active { visibility: visible; opacity: 1; transform: none;
+  transition: opacity .28s ease, transform .28s ease; }
 .dw-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; }
 .dw-footer .btn-text-danger { margin-right: auto; }
+/* v0.31.7 R2：非学科技能现状文本框（每勾选项目一行，标签 + 输入） */
+.skill-note-row { margin-bottom: 10px; }
+.skill-note-label { font-size: .78rem; font-weight: 600; color: var(--ink); display: block; margin-bottom: 4px; }
+.skill-note-input { width: 100%; }
 @media (max-width: 480px) {
   .dw-step-chip-label { display: none; } /* 窄屏只留圆点步进 */
 }
