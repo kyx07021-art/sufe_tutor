@@ -20,6 +20,17 @@
  *      translate 含祖先 transform 补偿）→ 写进单张 <style>（合成器只读）。
  *   4. teardown：撤 data 属性 + 清样式表，成对零残留。
  *
+ * v0.31.7（用户 UI 预览返工四连 + 最后通牒）变更：
+ *   - R4-7：sampleTargets 挂 html[data-ui-sampling]（style.css 禁全站 transition）——.sidebar-item 等
+ *     padding var(--t-slow) 过渡让采样读到动画起点旧高度（实测 h=50 vs 实际 60），box target 全错。
+ *   - R4-2/R4-6：固定尺寸装饰单元（FIXED_RE：红点 dot/滑块 thumb 等）isFixed 分支 sx=sy=1/_ancS
+ *     只位移不缩放（红点曾 8.4×7 椭圆、滑块交互点非等比）。
+ *   - R4-4：LAYOUT_RE 补 btn|select|sort|toggle 让工具条按钮成单元（筛选/排序/收藏/发布/点赞预览
+ *     零缩放）；CONTROL_RE 排除按钮类走 block rect 拉伸（采样真实宽——filter-toggle 定宽 90 的
+ *     target 恒 90，fs 等比会错误预测 108）。
+ *   - R4-1/R4-5：删 isDivider 渲染特例（v0.31.4 P3 sy=1/ancSy），横线统一 block rect 拉伸（采样真实
+ *     rect，恒 1px 横线 target.h=base.h 数学等价）；isDivider 退化为收集标签。
+ *
  * 铁律相容：JS 只写 CSS 变量/属性（data-ui-reflow-unit 由本模块管理，transform 全在 CSS 呈现层经
  *   动态样式表消费）；无内联样式；无 transition/逐帧动画（静态 transform）；真实页零 reflow。
  */
@@ -29,16 +40,25 @@
   // v0.31.4（P1）LAYOUT_RE 补词：user/text/invite/version/footnote/label/value/hint/desc/name/role——
   // 左下用户卡（.sidebar-user 族）、设置页文本容器（.settings-label/.settings-value/.settings-hint）此前
   // 类名不命中 + 无直接文本 → 不成独立单元，缩放与父块脱节。补词后这些块单设分区。
-  var LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool|user|text|invite|version|footnote|label|value|hint|desc|name|role)([-_\s]|$)/i;
+  var LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool|user|text|invite|version|footnote|label|value|hint|desc|name|role|btn|select|sort|toggle)([-_\s]|$)/i;
+  // v0.31.7（R4-2/R4-6）固定尺寸装饰单元：红点/徽章/计数/滑块交互点（thumb 宿主）等类名命中的小块，
+  // 真实 reflow 中尺寸恒定（固定 px，不随 --ui-scale），只随父容器位移。若走普通 block 拉伸会被祖先
+  // 非等比缩放连带（用户实证红点 8.4×7 椭圆、滑块 thumb 非等比）。收为「固定尺寸单元」：
+  // 只位移（tx/ty 跟 target）、sx=sy=1/_ancScale 抵消祖先缩放（视觉恒定像素）。
+  // v0.31.7 定稿收窄：只收纯装饰（无文本内容）固定点——红点 .sidebar-dot / 通知点 / 滑块交互点宿主。
+  // 徽章/计数/状态含数字文本，字号随 --ui-scale（走 isText 等比 + 祖先抵消更接近真实），不收死。
+  var FIXED_RE = /(^|[-_\s])(dot|point|pulse|thumb)([-_\s]|$)/i;
+  // .ui-scale-slider 是预览控件自身——其 thumb（交互点）必须恒定像素，但滑块轨道在 EXCLUDE 里
+  // （预览控件不参与预览单元），这里单独放行收为固定尺寸单元。
+  var FIXED_SELECTORS = ['.ui-scale-slider'];
   // v0.31.4（P1 断线根因）：SHELL_SELECTORS 曾写 '.sidebar'——真实 DOM 是 .client-sidebar（aside）！
   // 整条侧栏（除 .sidebar-nav）从未被遍历：左下用户卡/邀请卡/栏底脚注零单元。改对类名后侧栏主体成
   // 单元（P5 分界随之移动），其内块经 LAYOUT_RE 补词 + 文本叶子各自成单元。
   var SHELL_SELECTORS = ['.navbar', '.client-sidebar', '.client-main'];
   var EXCLUDE_SELECTORS = ['.ui-scale-row', '.ui-scale-control', '.ui-scale-slider', '.toast', '#toast-container', '.modal', '.modal-overlay', '#modal-container'];
-  // v0.31.4（P3）横向分隔线识别：类名 divider/separator/hr 的细条、或高度 <6px 的宽横条（如主题选项
-  // 下的行分隔）。收为「分隔单元」：只随布局位移（ty/tx 跟 target），sy=1/ancSy 恒保持 1px 不放大
-  // （真实 reflow 中 1px border 不受 --ui-scale 影响）；用户方案「按钮预览位置与上方分割线高度关联」——
-  // 分割线参与垂直跟随即不再与按钮错位。
+  // v0.31.7（R4-1/R4-5 横线统一）：横向分隔线识别退化为「收集标签」——类名 divider/separator/hr 的
+  // 细条、或高度 <6px 的宽横条，此前被 isLayoutBlock 的 h<8 阈值过滤（预览原地不动、与移动的按钮错位）。
+  // 收集保证它们成单元（参与位移/缩放），渲染不再特例（统一 block rect 拉伸，见 renderAt 注释）。
   var DIVIDER_RE = /(^|[-_\s])(divider|separator|hr)([-_\s]|$)/i;
 
   var units = [];       // [{el, base:{x,y,w,h}, targets:{80:{...},...}, parentIdx, tx,ty,sx,sy, _ancX,_ancY,_ancSx,_ancSy}]
@@ -90,6 +110,22 @@
     return r.height < 6; // 类名未命中但高 <6px 的宽横条视为视觉分隔线（border 级）
   }
 
+  // v0.31.7（R4-2/R4-6）固定尺寸装饰单元识别：FIXED_RE 类名命中（红点/徽章/计数/状态点）且 ≥3px 的块，
+  // 或预览滑块自身（.ui-scale-slider，thumb 固定尺寸，绕过 EXCLUDE）。h<8 的普通块被 isLayoutBlock 排除，
+  // 但固定装饰本来就是小尺寸——按 FIXED_RE 单独放行（同 v0.31.4 P3 divider 放宽思路）。
+  function isFixedDeco(el) {
+    if (el.nodeType !== 1) return false;
+    if (el.matches && el.matches(FIXED_SELECTORS.join(','))) return true;
+    if (isExcluded(el)) return false;
+    var cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || cs.position === 'fixed') return false;
+    if (cs.display === 'inline' || cs.display === 'contents') return false;
+    var r = el.getBoundingClientRect();
+    if (r.width < 3 || r.height < 3) return false;
+    var cls = String(el.className && el.className.toString ? el.className : '');
+    return !!(cls && FIXED_RE.test(cls));
+  }
+
   function isLayoutBlock(el) {
     if (el.nodeType !== 1 || isExcluded(el)) return false;
     var cs = getComputedStyle(el);
@@ -110,7 +146,16 @@
   // 文字大小只随 --ui-scale 根字号（等比），而 rect 宽度会因 flex/行内布局变化——若按 target rect
   // 拉伸（sx=target.w/base.w）会把文字压扁/拉长（用户实证「有的变扁有的等比，不统一」）。
   // 统一规则：文本单元 sx=sy=字号比例（等比，永不变形），位置仍跟 target（tx/ty 祖先补偿不变）。
+  // v0.31.7（R4-4 按钮宽度）按钮类排除文本等比：按钮/下拉触发器/开关等是「控件」不是「文本容器」——
+  // 真实 reflow 中控件宽高随布局/内容变化（采样 rect 才是真值），fs 等比（base.w×字号比例）会超缩或欠缩
+  // （filter-toggle 实测固定 90，fs 会预测 108）。控件一律走 block rect 拉伸分支（sx=target.w/base.w 采样真值），
+  // 文字变形只在 sx≠sy 时轻微发生且与真实重排一致；纯文本容器（.settings-value/.sidebar-user 等）保持 fs 等比。
+  // 注意：控件内部直接文本节点无法单独补偿（无内层 span），已入单元体系待后续需要时再包层。
+  var CONTROL_RE = /(^|[-_\s])(btn|select|toggle|switch|thumb)([-_\s]|$)/i;
   function isTextUnit(el) {
+    if (el.matches && el.matches('button, input, select, textarea')) return false;
+    var cls = String(el.className && el.className.toString ? el.className : '');
+    if (cls && CONTROL_RE.test(cls)) return false;
     return !!(el.childNodes && Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && /\S/.test(n.nodeValue || ''); }));
   }
 
@@ -154,7 +199,7 @@
       if (hiddenAncestor) continue;
       // display:none 根（如 client 视图 .navbar 是 hidden 的 0×0 壳）不收集——0×0 单元浪费 slot 且 base.w=0 恒等
       if (isShell && getComputedStyle(el).display === 'none') continue;
-      if (isShell || isLayoutBlock(el) || isDivider(el)) {
+      if (isShell || isLayoutBlock(el) || isDivider(el) || isFixedDeco(el)) {
         order.push(el);
         unitByEl.set(el, true);
       }
@@ -165,7 +210,7 @@
     // 测 base rect（当前 scale 下即 live）
     for (var u = 0; u < order.length; u++) {
       var r2 = order[u].getBoundingClientRect();
-      units.push({ el: order[u], base: { x: r2.x, y: r2.y, w: r2.width, h: r2.height }, targets: {}, parentIdx: -1, tx: 0, ty: 0, sx: 1, sy: 1, _ancX: 0, _ancY: 0, _ancSx: 1, _ancSy: 1, isDivider: isDivider(order[u]), isText: isTextUnit(order[u]) });
+      units.push({ el: order[u], base: { x: r2.x, y: r2.y, w: r2.width, h: r2.height }, targets: {}, parentIdx: -1, tx: 0, ty: 0, sx: 1, sy: 1, _ancX: 0, _ancY: 0, _ancSx: 1, _ancSy: 1, isDivider: isDivider(order[u]), isText: isTextUnit(order[u]), isFixed: isFixedDeco(order[u]) });
     }
     // 建 parent 链（最近 unit 祖先）
     for (var a = 0; a < units.length; a++) {
@@ -190,7 +235,7 @@
         el: o.el, base: o.base, targets: o.targets,
         parentIdx: o.parentIdx >= 0 ? newPos[o.parentIdx] : -1,
         tx: 0, ty: 0, sx: 1, sy: 1, _ancX: 0, _ancY: 0, _ancSx: 1, _ancSy: 1,
-        isDivider: o.isDivider, isText: o.isText,
+        isDivider: o.isDivider, isText: o.isText, isFixed: o.isFixed,
       });
     }
     units = remapped;
@@ -202,6 +247,11 @@
     var prev = docEl.style.getPropertyValue('--ui-scale');
     var prevX = window.scrollX, prevY = window.scrollY;
     var i, s;
+    // v0.31.7（用户返工实测：「侧边栏各个选项卡之间的高度并没有被缩放」）：采样必须禁用全站
+    // transition——.sidebar-item 等有 padding var(--t-slow) 过渡，设 --ui-scale 后 padding 停在
+    // 动画起点，同帧读 rect = 旧高度（生产实测采样 h=50 vs 实际 60），box target 全错。
+    // html[data-ui-sampling] 由 style.css 规则禁全站 transition，采样后移除。
+    docEl.dataset.uiSampling = '1';
     for (i = 0; i < SAMPLES.length; i++) {
       s = SAMPLES[i];
       var sc = (s / 100).toFixed(3);
@@ -215,6 +265,7 @@
       docEl.style.setProperty('--ui-scale', prev);
       window.scrollTo(prevX, prevY); // 每档还原滚动：rect 用视口坐标，防档间 scroll 漂移污染采样
     }
+    delete docEl.dataset.uiSampling;
   }
 
   function lerp(a, b, t) { return a + (b - a) * t; }
@@ -253,18 +304,24 @@
       }
       u.tx = u._ancSx ? (target.x - u._ancX) / u._ancSx : 0;
       u.ty = u._ancSy ? (target.y - u._ancY) / u._ancSy : 0;
-      if (u.isText) {
+      if (u.isFixed) {
+        // v0.31.7（R4-2/R4-6）固定尺寸装饰：红点/徽章/计数/滑块 thumb 视觉恒定像素——除以祖先缩放
+        // 抵消放大（sx=sy=1/_ancS），只位移跟 target。真实 reflow 中这些是固定 px 不随 --ui-scale。
+        u.sx = u._ancSx ? 1 / u._ancSx : 1;
+        u.sy = u._ancSy ? 1 / u._ancSy : 1;
+      } else if (u.isText) {
         // v0.31.4（P2）文本单元统一等比：文字永不变形（用户「有的变扁有的等比，不统一」根治）。
         // v0.31.5（P1）基数修正：字号比例 = 目标 scale/当前 base scale（相对），非绝对档位——base
         // 是 currentScale 下的 rect，绝对 fs=scalePct/100 在非 100 基数下预览偏大（按钮实证）。
         var fs = (scalePct / 100) / baseScale;
         u.sx = u._ancSx ? fs / u._ancSx : fs;
         u.sy = u._ancSy ? fs / u._ancSy : fs;
-      } else if (u.isDivider) {
-        // v0.31.4（P3）分隔单元：宽度跟随 target（水平拉伸无碍），高度恒 1px（除以祖先 sy 抵消放大）。
-        u.sx = (u.base.w > 0 && u._ancSx) ? target.w / (u.base.w * u._ancSx) : 1;
-        u.sy = u._ancSy ? 1 / u._ancSy : 1;
       } else {
+        // v0.31.7（R4-1/R4-5 横线统一）：分隔线不再特例（v0.31.4 P3 的 sy=1/ancSy 分支删除）——
+        // 横线统一走 block rect 拉伸（采样真实 reflow rect）。真实 reflow 中 1px 横线高度恒定，
+        // 采样 target.h=base.h → sy≈1/ancSy，与旧特例数学等价；而旧特例在"横线高度随布局变化"
+        // （flex 拉伸等）时无视采样真值，block 分支始终以采样为准。isDivider 退化为收集标签
+        // （保证宽横条/独立分隔元素成单元，不被 h<8 过滤），渲染逻辑与普通块一份。
         u.sx = (u.base.w > 0 && u._ancSx) ? target.w / (u.base.w * u._ancSx) : 1;
         u.sy = (u.base.h > 0 && u._ancSy) ? target.h / (u.base.h * u._ancSy) : 1;
       }

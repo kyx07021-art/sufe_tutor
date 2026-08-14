@@ -42,17 +42,20 @@ function reflowModel(sf) {
     c2: { x: 240 * sf + 16 * sf, y: 64 * sf + 196 * sf, width: 1280 - 240 * sf - 32 * sf, height: 180 * sf },
     noteText: { x: 260 * sf, y: 100, width: 200 * sf, height: 20 },  // 独立文本：宽随 sf、高固定（reflow 中文字不扁，预览应等比）
     divider: { x: 280 * sf, y: 300, width: 600 * sf, height: 1 },   // 分隔线：宽随 sf、高恒 1px
+    dot: { x: 200 * sf, y: 80 * sf, width: 8, height: 8 },           // 红点（sidebar-dot）：尺寸固定 8px（不随 sf）
+    btn: { x: 16 * sf, y: 220 * sf, width: 90, height: 40 },         // 定宽按钮（filter-toggle 场景）：宽高固定不随 sf
   };
 }
 
 const DOM = `
   <div class="navbar" id="nav"></div>
   <div class="client-sidebar" id="side"><div class="sidebar-scroll"><nav class="sidebar-nav">
-    <div class="sidebar-item" id="itA">A</div><div class="sidebar-item" id="itB">B</div>
+    <div class="sidebar-item" id="itA">A<div class="sidebar-dot" id="dot"></div></div><div class="sidebar-item" id="itB">B</div>
   </nav></div></div>
   <div class="client-main" id="main">
     <div class="note" id="noteText">独立说明文字</div>
     <div class="form-divider" id="divider"></div>
+    <button class="btn" id="btn">筛选</button>
     <div class="client-page" id="pg1"><div class="list-card" id="c1"></div><div class="list-card" id="c2"></div></div>
     <div class="client-page hidden" id="pg2"><div class="list-card" id="c3"></div></div>
   </div>
@@ -237,4 +240,45 @@ test('陈旧守卫：预热采样后元素被重渲染摘除（isConnected=false
   // 重建后采样可用（目标位有值）
   vm.runInContext(`window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
   assert.ok(vm.runInContext(`document.querySelectorAll('[data-ui-reflow-unit]').length`, ctx) > 0, '重建后 renderAt 生效挂属性');
+});
+
+// v0.31.7（R4-2/R4-6）固定尺寸装饰单元：红点/滑块 thumb 视觉恒定像素——isFixed 分支 sx=sy=1/_ancS，
+// 抵消祖先非等比缩放（用户实证红点 8.4×7 椭圆、滑块 thumb 非等比）。视觉缩放 = 自身×祖先链 ≈ 1。
+test('R4-2/R4-6：红点固定尺寸单元——视觉恒 8px（抵消祖先缩放，不椭圆）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare(); window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  const dot = readTransform(ctx, 'dot');
+  const itA = readTransform(ctx, 'itA');
+  const side = readTransform(ctx, 'side');
+  assert.ok(dot.rule, '红点收集为单元（isFixedDeco 放宽 h<8 阈值）');
+  // 视觉缩放 = dot.sx × itA.sx × side.sx（祖先链）——isFixed 只位移不缩放 → ≈1（8px 恒定）
+  const visual = dot.sx * itA.sx * side.sx;
+  assert.ok(Math.abs(visual - 1) < 0.02,
+    `红点视觉缩放≈1（8px 恒定），实得 ${visual.toFixed(3)}——曾随父链 sx≈1.2 放大成椭圆`);
+});
+
+// v0.31.7（R4-4）按钮类排除文本等比 → 走 block rect 拉伸：定宽按钮（filter-toggle 场景）采样 target 宽
+// 恒 90 → 预览视觉宽 90 不超缩（fs 等比会预测 90×1.2=108）。按钮直接含文本但 CONTROL_RE 排除 isText。
+test('R4-4：定宽按钮 block rect 拉伸——预览视觉宽 90 不超缩（fs 等比会错误放大到 108）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare(); window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  const btn = readTransform(ctx, 'btn');
+  const main = readTransform(ctx, 'main');
+  assert.ok(btn.rule, '按钮收集为单元（LAYOUT_RE 补 btn 词）');
+  // 视觉宽缩放 = btn.sx × main.sx（祖先链）——block 分支 = target.w/base.w = 90/90 = 1
+  const visual = btn.sx * main.sx;
+  assert.ok(Math.abs(visual - 1) < 0.02,
+    `定宽按钮视觉宽缩放≈1（90px 不超缩），实得 ${visual.toFixed(3)}——若走 isText fs 等比会得 1.2（108px 超缩）`);
+  const visualH = btn.sy * main.sy;
+  assert.ok(Math.abs(visualH - 1) < 0.02, `定宽按钮视觉高缩放≈1（40px 恒定），实得 ${visualH.toFixed(3)}`);
+});
+
+// v0.31.7（R4-7）采样禁全站 transition：sampleTargets 期间挂 html[data-ui-sampling]，style.css 有
+// `transition:none !important` 规则（.sidebar-item 等 padding var(--t-slow) 过渡让采样读到动画起点旧高度）。
+test('R4-7：采样禁全站 transition（data-ui-sampling 门控 + style.css 规则）', () => {
+  const src = readFileSync('./ui-scale-reflow.js', 'utf8');
+  assert.match(src, /docEl\.dataset\.uiSampling = '1'/, 'sampleTargets 挂 data-ui-sampling 门控');
+  assert.match(src, /delete docEl\.dataset\.uiSampling/, '采样后移除门控（成对零残留）');
+  const css = readFileSync('./style.css', 'utf8');
+  assert.match(css, /html\[data-ui-sampling\] \*[\s\S]*?transition: none !important/, 'style.css 禁全站 transition 规则');
 });

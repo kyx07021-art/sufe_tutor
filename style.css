@@ -1169,7 +1169,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    v0.20.0 删列表底部线：区边界统一由子标题 border-bottom 承担，列表自身不划线（否则单设置项区出现孤线） */
 .settings-row {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 15px 2px; border-top: 1px solid var(--line);
+  padding: 15px 2px; border-top: 1px solid var(--g-line-soft); /* v0.31.7 横线统一：行分隔线视觉单源 --g-line-soft（glass 透白/light·flat 回落），禁裸 --line */
 }
 .settings-label { font-size: .7rem; font-weight: 700; color: var(--muted); letter-spacing: .06em; margin-bottom: 3px; }
 .settings-value { font-size: .9rem; font-weight: 600; color: var(--ink); }
@@ -1184,7 +1184,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
   font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
   padding-bottom: 10px;
   margin: 2px 0 14px;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--g-line-soft); /* v0.31.7 横线统一：区段标题底线视觉单源 */
 }
 .settings-section-title ~ .settings-section-title { margin-top: 36px; } /* 外观区与账户区间距 */
 /* 区首项贴标题线：每区第一个设置项无上边线，行间线从第二项起（与头像行 border-top:none 同模式，防标题下双线） */
@@ -1277,6 +1277,15 @@ html[data-ui-previewing] .client-main {
   transform-origin: right top;
   will-change: transform;
 }
+/* v0.31.7（R4-7）：采样必须禁全站 transition——.sidebar-item 等有 padding var(--t-slow) 过渡，
+   设 --ui-scale 后 padding 停在动画起点，同帧读 rect 读到旧高度（生产实测采样 h=50 vs 实际 60），
+   box target 全错。html[data-ui-sampling] 只在 ui-scale-reflow sampleTargets 期间挂载（JS 管理），
+   平时零影响；禁全站 transition 即让采样读到真实 reflow 后的几何。 */
+html[data-ui-sampling] *,
+html[data-ui-sampling] *::before,
+html[data-ui-sampling] *::after {
+  transition: none !important;
+}
 .ui-scale-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .ui-scale-val { flex: 0 0 auto; font-size: .82rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; min-width: 38px; text-align: right; }
 /* 新手引导浮窗（v0.19.49）：内测政策小盾标逐条，同关于页安全区语言 */
@@ -1286,12 +1295,12 @@ html[data-ui-previewing] .client-main {
 .onboard-policy-item + .onboard-policy-item { border-top: 1px solid var(--line); }
 .onboard-policy-item p { font-size: .82rem; color: var(--ink-3); line-height: 1.65; }
 /* 登录设备管理：延续登记簿细线分项风格 */
-.settings-devices { padding: 20px 2px 4px; border-top: 1px solid var(--line); }
+.settings-devices { padding: 20px 2px 4px; border-top: 1px solid var(--g-line-soft); } /* v0.31.7 横线统一 */
 .settings-hint { font-size: .72rem; color: var(--muted); margin: -1px 0 10px; }
 .settings-devices-list { display: flex; flex-direction: column; }
 .device-row {
   display: flex; align-items: center; justify-content: space-between; gap: 14px;
-  padding: 11px 2px; border-top: 1px solid var(--line);
+  padding: 11px 2px; border-top: 1px solid var(--g-line-soft); /* v0.31.7 横线统一 */
 }
 .device-row:first-child { border-top: none; }
 .device-info { min-width: 0; }
