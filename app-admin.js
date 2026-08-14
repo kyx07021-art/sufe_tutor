@@ -479,7 +479,7 @@ const _contentTypeName = t => ({
   post: UI.ADMIN_CONTENT_TYPE_POST, demand: UI.ADMIN_CONTENT_TYPE_DEMAND, teacher: UI.ADMIN_CONTENT_TYPE_TEACHER,
   review: UI.ADMIN_CONTENT_TYPE_REVIEW, message: UI.ADMIN_CONTENT_TYPE_MESSAGE, feedback: UI.ADMIN_CONTENT_TYPE_FEEDBACK,
   complaint: UI.ADMIN_CONTENT_TYPE_COMPLAINT, upload: UI.ADMIN_CONTENT_TYPE_UPLOAD,
-  contract: '合同', signing: '签约请求',
+  contract: UI.ADMIN_CONTENT_TYPE_CONTRACT, signing: UI.ADMIN_CONTENT_TYPE_SIGNING,
 }[t] || t);
 
 async function loadAdminContent(type = '') {

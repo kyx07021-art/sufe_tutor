@@ -971,8 +971,11 @@ function renderDemandCard(d, opts = {}) {
   const infoBase = [provinceName, grade, gender, `${UI.SUBMITTER_PREFIX}${submitter}`].filter(Boolean).map(escHtml).join(' · ');
   const timeStr = d.expected_time ? `${UI.LABEL_EXPECTED_TIME}：${DISP.expectedTimeText(d.expected_time)}` : '';
   const infoDemandRow = [method, budget, timeStr].filter(Boolean).map(escHtml).join(' · ');
-  const scoreItems = (d.current_scores||[]).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
-  const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
+  // 科目/成绩 pill 化（扫读优于点号串）；无成绩条目时仅科目名 pill
+  const scoreCells = (d.current_scores||[]).map(cs => ({ subj: DISP.subjectName(cs.subject), val: DISP.demandScoreCell(cs) })).filter(c => c.val);
+  const scorePills = scoreCells.length
+    ? scoreCells.map(c => `<span class="demand-subj-pill glass glass--solid"><b>${escHtml(c.subj)}</b> ${escHtml(c.val)}</span>`).join('')
+    : (subjNames || []).map(n => `<span class="demand-subj-pill glass glass--solid">${escHtml(n)}</span>`).join('');
 
   // 卡片「试课意向 (N)」
   // 展开按钮从 .drop-toggle glass--solid（实心 9px）接回 .btn-soft btn-sm 按钮组件——与并排「编辑」
@@ -989,7 +992,7 @@ function renderDemandCard(d, opts = {}) {
     <div class="demand-info">
       ${infoBase ? `<div class="demand-info-row">${infoBase}</div>` : ''}
       ${infoDemandRow ? `<div class="demand-info-row">${infoDemandRow}</div>` : ''}
-      ${infoScores ? `<div class="demand-info-row">${infoScores}</div>` : ''}
+      ${scorePills ? `<div class="demand-info-row demand-subj-row">${scorePills}</div>` : ''}
     </div>
     ${d.address ? `<div class="list-card-detail">${UI.ADDRESS_PREFIX}${escHtml(d.address)}</div>` : ''}
     ${d.additional_info ? `<div class="list-card-detail">${UI.ADDITIONAL_PREFIX}${escHtml(d.additional_info)}</div>` : ''}

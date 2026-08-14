@@ -168,11 +168,11 @@ function renderTeacherCard(t) {
   return `<div class="list-card list-card--teacher glass" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openTeacherCard(event, ${t.user_id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProfilePanel(${t.user_id});}">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">
-        <span class="tc-name-row"> <!-- 匹配度按钮与用户名同行（PC），移动端独占一行 -->
+        <span class="tc-name-row"> <!-- 核心决策信息同行：姓名 + 徽章 + 星级评分；匹配度徽章靠右 -->
           <span class="tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${UI.AWARD_SECTION_TITLE}">${UI.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
+          <span class="tc-rating">${DISP.starsHtml(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
           ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
         </span>
-        <span class="tc-rating">${DISP.starsHtml(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
         ${t.intro ? `<span class="tc-intro">${escHtml(t.intro)}</span>` : ''}
       </div>
       <div class="tc-right">
@@ -514,10 +514,10 @@ const PROFILE_CARD_ITEMS = [
     }).filter(Boolean);
     return rows.length ? { rows } : h.empty(UI.PROFILE_FIELD_EMPTY);
   }},
-  // R2-5 报价区间（未填显占位，与教师卡 priceRangeText 同口径）
+  // R2-5 报价区间（未填显占位，与教师卡 priceRangeText 同口径；报价=核心决策数值，加粗突出）
   { key: 'price', group: 'academic', label: UI.LABEL_PRICE, render: h => {
     const v = DISP.priceRangeText(h.t.price_min, h.t.price_max, UI.PRICE_UNIT);
-    return v ? h.cell(v) : h.empty(UI.PROFILE_FIELD_EMPTY);
+    return v ? { v: `<strong class="profile-price">${escHtml(v)}</strong>` } : h.empty(UI.PROFILE_FIELD_EMPTY);
   }},
   // —— 非学科类资料：擅长非学科项目（项目名 + 对应报价区间） ——
   { key: 'nonacademic', group: 'nonacademic', label: UI.LABEL_NONACADEMIC_PROJECTS, render: h => {
