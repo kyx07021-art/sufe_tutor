@@ -115,10 +115,11 @@ async function deliverOtp({ channel, target, code, scene }) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 4000); // 外部调用 4s 超时，不让邮件接口拖住注册/登录主流程
   try {
+    // 平台接口只认表单（Content-Type: application/json 会被拒「无效的数据格式」，实测）；
+    // 无 Content-Type + URLSearchParams 即表单模式（fetch 自动补 x-www-form-urlencoded）。
     const res = await fetch(`https://push.spug.cc/mail/${tpl}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: target, scene, code, minute: '5' }),
+      body: new URLSearchParams({ to: target, scene, code, minute: '5' }),
       signal: ctrl.signal,
     });
     const data = await res.json().catch(() => ({}));
