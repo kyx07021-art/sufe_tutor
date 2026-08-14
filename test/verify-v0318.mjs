@@ -142,8 +142,13 @@ await p.evaluate(() => {
   document.getElementById('d-submit').click();
 });
 await p.waitForTimeout(2500);
-const created = await p.evaluate(() => !document.getElementById('modal-container').innerHTML.includes('demand-form'));
-check('P6 非学科需求提交成功（含技能/教学目标）', created, `表单已提交关闭`);
+const submitState = await p.evaluate(() => ({
+  modalHasForm: document.getElementById('modal-container').innerHTML.includes('demand-form'),
+  toastText: (document.querySelector('.toast, #toast-container')?.textContent || '').trim().slice(0, 80),
+  bodyHasErr: /错误|失败|请选择|请填写/.test(document.body.innerText),
+}));
+check('P6 非学科需求提交成功（含技能/教学目标）', !submitState.modalHasForm,
+  `modalHasForm=${submitState.modalHasForm} toast=${submitState.toastText || '无'} errSignal=${submitState.bodyHasErr}`);
 // 服务端验证落库（本人需求）
 const my = await fetch(BASE + '/api/student/demands?scope=mine', { headers: { 'X-Auth-Token': authToken } });
 const myJson = await my.json();
