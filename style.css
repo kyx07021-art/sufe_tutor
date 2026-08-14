@@ -1350,7 +1350,7 @@ html[data-ui-sampling] *::after {
   color: var(--ink); /* 按钮字色（--g-fg 由 .btn-soft 提供，color 兜底） */
   font-size: .875rem; font-weight: 600; letter-spacing: .01em; /* 标准按钮字面（同 .btn） */
   padding: calc(7px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1));
-  min-width: 120px; /* 排序下拉定宽（匹配筛选按钮紧凑感） */
+  min-width: calc(120px * var(--ui-scale, 1)); /* K1 排序下拉定宽随滑块 */
 }
 /* 下拉箭头随按钮字色（非灰 --faint，与按钮内图标同色惯例） */
 .page-header-actions .custom-select-trigger .drop-caret,
@@ -1364,7 +1364,7 @@ html[data-ui-sampling] *::after {
   font-size: .875rem; font-weight: 600; letter-spacing: .01em;
   color: var(--ink);
   padding: calc(7px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1));
-  min-width: 90px;
+  min-width: calc(90px * var(--ui-scale, 1)); /* K1 筛选按钮定宽随滑块 */
   justify-content: center;
 }
 /* 筛选项下拉栏（筛选面板内 filter-group 的选项下拉）：紧凑按钮字面（面板内小空间） */
@@ -1376,7 +1376,7 @@ html[data-ui-sampling] *::after {
   color: var(--ink);
   font-size: .8rem; font-weight: 600; letter-spacing: .01em;
   padding: calc(4px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1));
-  min-width: 90px;
+  min-width: calc(90px * var(--ui-scale, 1)); /* K1 筛选项下拉定宽随滑块 */
 }
 .drop-caret { display: inline-flex; transition: transform .28s var(--ease-snap); }
 

@@ -73,8 +73,8 @@ select.posts-sort {
 /* #160（v0.25.68）：点赞接复选框逻辑——label+隐藏原生 checkbox，checked 驱动 :has 视觉（同 .checkbox-item）。
    隐藏用 sr-only 画法：保可聚焦可切换，键盘焦点视觉由 :has(input:focus-visible) 移到 pill 上。 */
 .post-like {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 5px 14px;
+  display: inline-flex; align-items: center; gap: calc(7px * var(--ui-scale, 1));
+  padding: calc(5px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1));
   font-size: .78rem; font-weight: 700; letter-spacing: .02em;
   cursor: pointer; user-select: none; /* label 需指针光标（原 button 原生有） */
   transition: color var(--t-base) var(--ease-out),
@@ -86,7 +86,11 @@ select.posts-sort {
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
 .post-like:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; } /* 键盘焦点环（checkbox-item 同款） */
-.post-like .like-icon { flex-shrink: 0; transition: fill var(--t-base) var(--ease-out), stroke var(--t-base) var(--ease-out); }
+.post-like .like-icon, .post-fav .fav-icon {
+  flex-shrink: 0;
+  width: calc(15px * var(--ui-scale, 1)); height: calc(15px * var(--ui-scale, 1)); /* K1 图标随滑块 */
+  transition: fill var(--t-base) var(--ease-out), stroke var(--t-base) var(--ease-out);
+}
 .post-like .like-count { font-family: var(--mono); font-size: .74rem; }
 .post-like:hover { --g-fg: var(--ink-3); }
 .post-like:active { transform: scale(.94); transition-duration: 80ms; }
@@ -95,8 +99,8 @@ select.posts-sort {
 /* ---------- 收藏按钮（R23）：线框书签 → 已收藏主题色实心（收藏即保存，私人无计数） ----------
    同 .post-like 复选逻辑与 sr-only 隐藏 checkbox；主题色区分于点赞红（--g-fg 单源 glass.css） */
 .post-fav {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 5px 14px;
+  display: inline-flex; align-items: center; gap: calc(7px * var(--ui-scale, 1));
+  padding: calc(5px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1));
   font-size: .78rem; font-weight: 700; letter-spacing: .02em;
   cursor: pointer; user-select: none;
   transition: color var(--t-base) var(--ease-out),
@@ -108,7 +112,6 @@ select.posts-sort {
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
 .post-fav:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-.post-fav .fav-icon { flex-shrink: 0; transition: fill var(--t-base) var(--ease-out), stroke var(--t-base) var(--ease-out); }
 .post-fav .fav-label { font-size: .76rem; }
 .post-fav:hover { --g-fg: var(--ink-3); }
 .post-fav:active { transform: scale(.94); transition-duration: 80ms; }
