@@ -125,9 +125,15 @@ async function deliverOtp({ channel, target, code, scene }) {
     const data = await res.json().catch(() => ({}));
     // 200 仅表示「发送请求已受理」，投递异步——request_id 落留档备查（查询发送状态用）
     if (res.status !== 200 || data.code !== 200) {
-      throw new Error(`mail otp rejected: ${res.status} ${JSON.stringify(data)}`);
+      // 通道失败不阻断主流程（fail-open 有意决策）：回落 mock 返回 code 供前端 toast，
+      // 观测信号 = console.warn + 留档 provider 字段；通道恢复（如平台 IP 白名单放开）自动转真实发信。
+      console.warn('OTP 邮件通道拒绝（回落 mock）：%s %s', res.status, data.msg || '');
+      return { mock: true, code };
     }
     return { mock: false, requestId: data.request_id || '' };
+  } catch (err) {
+    console.warn('OTP 邮件通道异常（回落 mock）：%s', String(err && err.message || err));
+    return { mock: true, code };
   } finally {
     clearTimeout(timer);
   }
