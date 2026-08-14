@@ -40,7 +40,12 @@
   // v0.31.4（P1）LAYOUT_RE 补词：user/text/invite/version/footnote/label/value/hint/desc/name/role——
   // 左下用户卡（.sidebar-user 族）、设置页文本容器（.settings-label/.settings-value/.settings-hint）此前
   // 类名不命中 + 无直接文本 → 不成独立单元，缩放与父块脱节。补词后这些块单设分区。
-  var LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool|user|text|invite|version|footnote|label|value|hint|desc|name|role|btn|select|sort|toggle)([-_\s]|$)/i;
+  var LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool|user|text|invite|version|footnote|label|value|hint|desc|name|role|btn|select|sort|toggle|devices|section)([-_\s]|$)/i;
+  // v0.31.8 用户返工（横线归属盘点漏项）：设置页「登录设备」区（.settings-devices）承载 border-top 横线，
+  // 但类名 devices 不命中 LAYOUT_RE → 非单元 → 横线只随最近单元祖先（.client-main 壳）粗略缩放，与下方
+  // .device-row（独立单元）预览位移不同步（用户实证「组件底层混乱」的残留）。补 devices/section 词——
+  // 横线承载容器成单元后，横线与区内内容同一 transform。教训：删同类视觉组件/统一组件必须先全站盘点
+  // 每个实例的「承载元素是否进单元体系」，不能只统一 token 和渲染分支（v0.31.7 R4-5 只统一了后两者）。
   // v0.31.7（R4-2/R4-6）固定尺寸装饰单元：红点/徽章/计数/滑块交互点（thumb 宿主）等类名命中的小块，
   // 真实 reflow 中尺寸恒定（固定 px，不随 --ui-scale），只随父容器位移。若走普通 block 拉伸会被祖先
   // 非等比缩放连带（用户实证红点 8.4×7 椭圆、滑块 thumb 非等比）。收为「固定尺寸单元」：
