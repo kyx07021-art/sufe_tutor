@@ -188,7 +188,7 @@ async function migrateLegacyRoles(db, adminNames) {
 // 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 4; // 当前 schema 覆盖：…+ teacher_awards（教师荣誉奖项，v1.0 R2）
+export const SCHEMA_VERSION = 5; // 当前 schema 覆盖：…+ teacher_awards（R2）+ verification_codes.attempts（R6 三振限次）
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生

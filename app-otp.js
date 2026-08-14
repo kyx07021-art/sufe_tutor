@@ -69,6 +69,16 @@ function codeFieldHtml({ prefix = 'bind', channel = 'sms', label = UI.CODE_LABEL
 // ============================================================
 // 请求验证码（B6 模拟短路 + B1 60s 倒计时复用）
 // ============================================================
+const _otpCountdownStops = {}; // prefix → stop 函数（验证码三振作废时立即复原发送按钮）
+
+/** 验证码三振作废（OTP_EXHAUSTED）：停倒计时 + 复原发送按钮，引导用户重新发码 */
+function otpExhaustedReset(prefix) {
+  const stop = _otpCountdownStops[prefix];
+  if (typeof stop === 'function') { stop(); delete _otpCountdownStops[prefix]; }
+  const btn = document.getElementById(`${prefix}-send`);
+  if (btn) { btn.disabled = false; btn.textContent = UI.CODE_SEND; }
+}
+
 async function requestOtpCode(prefix, channel) {
   const sendBtn = document.getElementById(`${prefix}-send`);
   const codeEl = document.getElementById(`${prefix}-code`);
@@ -105,12 +115,12 @@ async function requestOtpCode(prefix, channel) {
   try {
     const data = await api('/api/auth/otp/request', {
       method: 'POST',
-      body: { channel: channel === 'email' ? 'email' : 'sms', target },
+      body: { channel: channel === 'email' ? 'email' : 'sms', target, scene: prefix === 'bind' ? '绑定验证' : '登录验证' },
     });
     // B6 内测短路：mock 提供方返回模拟验证码 → toast 给用户（生产接入真实短信/邮件后无 mockCode）
     if (data.mockCode) showToast(UI.OTP_MOCK_TOAST.replace('{code}', data.mockCode), 'info');
     if (codeEl) codeEl.focus();
-    bindCountdown(sendBtn, { endAt: Date.now() + CONFIG.OTP_RESEND_SEC * 1000, runningText: UI.CODE_SEND_AGAIN });
+    _otpCountdownStops[prefix] = bindCountdown(sendBtn, { endAt: Date.now() + CONFIG.OTP_RESEND_SEC * 1000, runningText: UI.CODE_SEND_AGAIN });
   } catch (err) {
     sendBtn.disabled = false;
     showToast(err.message, 'error');
@@ -182,6 +192,7 @@ async function doBind(kind, isPhone, target, code) {
     if (typeof invalidate === 'function') invalidate('account'); // B6：creds 缓存作废，loadMyCreds 拉新
     if (typeof loadMyCreds === 'function') loadMyCreds();
   } catch (err) {
+    if (String(err.message || '').includes('重新获取')) otpExhaustedReset('bind'); // 三振作废：复原发送按钮引导重发
     showToast(err.message, 'error');
   }
 }

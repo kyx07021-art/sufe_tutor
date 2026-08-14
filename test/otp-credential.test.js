@@ -124,9 +124,9 @@ test('verifyOtp：正确/错误/一次性消费', async () => {
   const { db } = await setup();
   const target = '+8613812345678';
   const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000000' }), false, '错误验证码拒绝');
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), true, '正确验证码通过');
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), false, '一次性：消费后不可重用');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000000' }), 'invalid', '错误验证码拒绝');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'ok', '正确验证码通过');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'invalid', '一次性：消费后不可重用');
   // 未请求过的号码无验证码
   const ghost = await requestOtp(db, { channel: 'sms', target: '+8613812345679' }, authedReq(''));
   const r2 = await requestOtp(db, { channel: 'sms', target: '+8613812345679' }, authedReq(''));
@@ -265,7 +265,7 @@ test('verifyOtp：过期验证码拒绝（TTL 5 分钟）', async () => {
   const target = '+8613812345678';
   const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
   raw.exec(`UPDATE verification_codes SET expires_at=datetime('now','-1 minute')`); // UTC 存储域，用 UTC 改过期
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), false, '过期验证码拒绝');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'invalid', '过期验证码拒绝');
 });
 
 // B5 回归（用户反馈：未绑定也显示 ***、绑定后先闪「未绑定」再更新）：
@@ -290,4 +290,58 @@ test('B5 handleGetMyCreds：未绑定返回空串（回落「未绑定」），�
   const d1 = await r1.json();
   assert.equal(d1.phone, '138****5678', '绑定后 creds 返回脱敏缩略');
   assert.equal(d1.email, '', '邮箱仍未绑定（空串回落占位）');
+});
+
+// ============================================================
+// v1.0 R6 验证码模块重构：三振限次 + 新码作废旧码
+// ============================================================
+test('R6 三振限次：前两次错可重试，第三次错作废必须重新发码', async () => {
+  const { raw, db } = await setup();
+  const req = { headers: new Headers() };
+  const target = '+8613811112222';
+  const r = await requestOtp(db, { channel: 'sms', target }, req);
+  assert.ok(r.ok);
+  // 第 1、2 次输错：invalid（码仍有效）
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000000' }), 'invalid');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000001' }), 'invalid');
+  // 码仍有效：正确码此时仍可通过
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'ok', '未满 3 次，正确码仍可通过');
+});
+
+test('R6 三振作废：连续三次输错 → exhausted，原码彻底失效', async () => {
+  const { raw, db } = await setup();
+  const req = { headers: new Headers() };
+  const target = '+8613811113333';
+  const r = await requestOtp(db, { channel: 'sms', target }, req);
+  assert.ok(r.ok);
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000000' }), 'invalid');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000001' }), 'invalid');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000002' }), 'exhausted', '第三次输错即作废');
+  // 原码已作废：正确码也拒绝
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'invalid', '作废后原码失效');
+  // 重新发码后可正常通过
+  const r2 = await requestOtp(db, { channel: 'sms', target }, req);
+  assert.ok(r2.ok);
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r2.code }), 'ok');
+});
+
+test('R6 新码作废旧码：同目标发新码后旧码立即失效', async () => {
+  const { raw, db } = await setup();
+  const req = { headers: new Headers() };
+  const target = '+8613811114444';
+  const r1 = await requestOtp(db, { channel: 'sms', target }, req);
+  assert.ok(r1.ok);
+  // 先验证旧码仍有效
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r1.code }), 'ok', '发新码前旧码有效');
+  // 造一个未消费旧码，然后绕过限频直接验证「新码作废旧码」逻辑（时间快进：把旧行 created_at 改到 61s 前）
+  const rOld = await requestOtp(db, { channel: 'sms', target }, req);
+  if (!rOld.ok) return; // 60s 限频内（时间未快进）——用 SQL 快进后重发
+  // 用 SQL 把刚发码的 created_at 拨回 61 秒前，绕过 60s 窗口
+  raw.prepare("UPDATE verification_codes SET created_at=datetime('now','-61 seconds') WHERE target_hash=?").run(await tokenDigest(target));
+  const r2 = await requestOtp(db, { channel: 'sms', target }, req);
+  assert.ok(r2.ok, '60s 窗口过后可发新码');
+  // 旧码（第一枚）已被新码作废
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: rOld.code }), 'invalid', '旧码被新码作废');
+  // 新码有效
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r2.code }), 'ok', '新码有效');
 });

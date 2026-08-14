@@ -190,6 +190,7 @@ export const MSG = {
   OTP_RESEND_LIMIT: '发送过于频繁，请 60 秒后再试',
   OTP_DAILY_LIMIT: '今日验证码发送次数已达上限，请明天再试',
   OTP_INVALID_OR_EXPIRED: '验证码错误或已过期',
+  OTP_EXHAUSTED: '验证码错误次数过多，已失效，请重新获取',
   OTP_REQUIRED: '请输入验证码',
   CODE_SENT: '验证码已发送',
   PHONE_ALREADY_BOUND: '该手机号已绑定其他账户',
@@ -280,6 +281,7 @@ export const LIMITS = {
   OTP_CODE_TTL_MS: 5 * 60 * 1000,   // 验证码有效期 5 分钟
   OTP_RESEND_WINDOW_MS: 60 * 1000,  // 同一目标 60s 内只能请求一次（服务端原子限频，前端倒计时只是表象）
   OTP_DAILY_MAX: 10,                // 同一目标单日请求上限
+  OTP_MAX_ATTEMPTS: 3,             // 一枚验证码最多尝试次数（第 3 次输错即作废，须重新发码）
   OTP_CODE_MIN: 100000, OTP_CODE_MAX: 999999, // 6 位数字（避免前导零截断）
   PHONE_MAX: 20,                    // 手机号长度上限（国际区号+号码）
   EMAIL_MAX: 100,                   // 邮箱长度上限

@@ -278,7 +278,9 @@ export async function handleOtpRequest(db, body, req) {
   const norm = normalizeIdentifier(String(body.target || '').trim());
   if (channel === 'sms' && norm.kind !== 'phone') return error(MSG.PHONE_INVALID);
   if (channel === 'email' && norm.kind !== 'email') return error(MSG.EMAIL_INVALID);
-  const r = await requestOtp(db, { channel, target: norm.target }, req);
+  // scene 白名单（邮件模板场景 ≤12 字、不含链接域名）：bind（绑定）| login（登录）| '' 由 otp.js 兜底
+  const scene = String(body.scene || '').trim().slice(0, 12);
+  const r = await requestOtp(db, { channel, target: norm.target, scene }, req);
   if (!r.ok) return r.err;
   return json({ ok: true, mockCode: r.code || undefined });
 }
@@ -291,8 +293,9 @@ export async function handleBindPhone(db, body, req) {
   if (norm.kind !== 'phone') return error(MSG.PHONE_INVALID);
   if (!String(body.code || '').trim()) return error(MSG.OTP_REQUIRED);
   if (await dbPhoneTaken(db, norm.target)) return error(MSG.PHONE_ALREADY_BOUND, 409);
-  const ok = await verifyOtp(db, { channel: 'sms', target: norm.target, code: String(body.code).trim() });
-  if (!ok) return error(MSG.OTP_INVALID_OR_EXPIRED);
+  const otpR = await verifyOtp(db, { channel: 'sms', target: norm.target, code: String(body.code).trim() });
+  if (otpR === 'exhausted') return error(MSG.OTP_EXHAUSTED, 400); // 三振作废：必须重新发码
+  if (otpR !== 'ok') return error(MSG.OTP_INVALID_OR_EXPIRED);
   await bindPhoneCredential(db, me.id, norm.target); // 凭证更新独立环节（A4）：未来切手机号核心只改 credential.js
   await logEvent(db, { action: 'user.phone.bind', actorUserId: me.id, actorUsername: me.username,
     actorRole: me.role, entity: 'user', entityId: me.id, detail: { phone: maskPhone(norm.target) }, req });
@@ -307,8 +310,9 @@ export async function handleBindEmail(db, body, req) {
   if (norm.kind !== 'email') return error(MSG.EMAIL_INVALID);
   if (!String(body.code || '').trim()) return error(MSG.OTP_REQUIRED);
   if (await dbEmailTaken(db, norm.target)) return error(MSG.EMAIL_ALREADY_BOUND, 409);
-  const ok = await verifyOtp(db, { channel: 'email', target: norm.target, code: String(body.code).trim() });
-  if (!ok) return error(MSG.OTP_INVALID_OR_EXPIRED);
+  const otpR = await verifyOtp(db, { channel: 'email', target: norm.target, code: String(body.code).trim() });
+  if (otpR === 'exhausted') return error(MSG.OTP_EXHAUSTED, 400); // 三振作废：必须重新发码
+  if (otpR !== 'ok') return error(MSG.OTP_INVALID_OR_EXPIRED);
   await bindEmailCredential(db, me.id, norm.target);
   await logEvent(db, { action: 'user.email.bind', actorUserId: me.id, actorUsername: me.username,
     actorRole: me.role, entity: 'user', entityId: me.id, detail: { email: targetMask(norm.target) }, req });
@@ -378,11 +382,12 @@ export async function handleLoginWithCode(db, body, req) {
   // 不存在账户与验证码错误统一返回 OTP_INVALID_OR_EXPIRED（同 400 同文案），无码者四态不可区分
   // （与密码登录 LOGIN_FAILED 抹平姿态一致；banned/deactivated 仅在验码成功后才分支——只有持码者
   // 能触发，不构成存在性探测面）。
-  const ok = await verifyOtp(db, { channel, target, code });
-  if (!user || !ok) {
+  const otpR = await verifyOtp(db, { channel, target, code });
+  if (!user || otpR !== 'ok') {
     await logEvent(db, { action: 'auth.login.failed', actorUsername: targetMask(target),
-      entity: 'user', detail: { via: 'code', kind, identifier: targetMask(target) }, req });
-    return error(MSG.OTP_INVALID_OR_EXPIRED, 400);
+      entity: 'user', detail: { via: 'code', kind, identifier: targetMask(target), reason: otpR }, req });
+    // 三振作废 → 引导重新发码；其余（不存在账户/码错/过期）统一文案防枚举
+    return error(otpR === 'exhausted' ? MSG.OTP_EXHAUSTED : MSG.OTP_INVALID_OR_EXPIRED, 400);
   }
   if (user.banned) return error(MSG.ACCOUNT_BANNED, 403);
   if (user.deactivated) return error(MSG.ACCOUNT_DEACTIVATED, 403);

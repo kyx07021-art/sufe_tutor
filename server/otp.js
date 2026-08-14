@@ -21,7 +21,7 @@
  *                        唯一正解——验证码本就是我们生成的）；未来若验证码托管给服务商
  *                        （服务商存 code），可切 'provider' 接服务商校验 API。
  */
-import { dbGet, dbRun, json, error, toDbTime } from './util.js';
+import { dbGet, dbRun, dbAll, json, error, toDbTime } from './util.js';
 import { tokenDigest } from './crypto.js';
 import { MSG, LIMITS } from './constants.js';
 import { getSecret } from './secrets.js'; // OTP_PROVIDER 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
@@ -39,7 +39,13 @@ export async function initOtpTable(db) {
     code_hash TEXT NOT NULL,        -- SHA-256(code)，验证码不落明文
     expires_at DATETIME NOT NULL,   -- TTL（5 分钟；库内 UTC，SQL 层 UTC 比较）
     used INTEGER NOT NULL DEFAULT 0,
+    attempts INTEGER NOT NULL DEFAULT 0, -- 输错次数（满 3 次即作废，须重新发码）
     created_at DATETIME DEFAULT (datetime('now')))`); // 库内 UTC（与 expires_at 统一域）
+  // 存量表补 attempts 列（幂等；新库 DDL 已带）
+  const cols = (await dbAll(db, 'PRAGMA table_info(verification_codes)')).map(c => c.name);
+  if (!cols.includes('attempts')) {
+    await dbRun(db, 'ALTER TABLE verification_codes ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0');
+  }
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_otp_target ON verification_codes(channel, target_hash, created_at)');
 }
 
@@ -80,23 +86,45 @@ function validateOtpTarget(channel, target) {
 //   OTP_PROVIDER='mock' → 模拟发送：不真正发短信/邮件，返回 code 供前端 toast
 //                        「模拟验证码（内测期使用）：xxxxxx」——生产接入真实通道后此值必须置 'prod'，
 //                        mock 下响应携带明文验证码 = 任意人可免密登录目标账户（内测期有意短路）。
-//   OTP_PROVIDER='prod' → deliverOtp 内接真实短信/邮件 API（sendSms/sendEmail），不返回 code。
+//   OTP_PROVIDER='prod' → deliverOtp 走真实通道：email 调 push.spug.cc 邮件接口
+//                        （POST https://push.spug.cc/mail/<TEMPLATE_CODE>，body {to,scene,code,minute}；
+//                        200 仅表示受理，request_id 落留档备查）；sms 通道未接入前仍回落 mock。
 //   OTP_VERIFIER='local' → 验证码由本应用侧哈希比对校验（验证码本就由我们生成，此为唯一正解）；
 //                        未来若验证码托管给服务商（服务商存 code），可切 'provider' 接服务商校验 API。
 const OTP_PROVIDER = String(getSecret(null, 'OTP_PROVIDER') || 'mock');
 const OTP_VERIFIER = 'local';
 
-async function deliverOtp({ channel, target, code }) {
-  if (OTP_PROVIDER === 'mock') {
-    console.warn('OTP_PROVIDER=mock：验证码未真实发送（内测短路，公测前必须置 prod）');
+// 邮件验证码通道（push.spug.cc）：模板编码即调用凭证（禁止进前端/公开仓库），
+// 未配置时该通道回落 mock（内测兼容 fail-open）
+const EMAIL_TEMPLATE_CODE = String(getSecret(null, 'EMAIL_OTP_TEMPLATE_CODE') || '');
+
+/**
+ * 真实通道投递：email → push.spug.cc 邮件接口（4s 超时防拖主流程；返回 {mock, code?, requestId?}）。
+ * 投递失败抛错由 requestOtp 捕获走「不发码」路径；sms 未接入真实通道 → 回落 mock。
+ */
+async function deliverOtp({ channel, target, code, scene }) {
+  if (channel === 'sms' || !EMAIL_TEMPLATE_CODE || OTP_PROVIDER !== 'prod') {
+    console.warn('OTP 通道回落 mock：channel=%s 模板配置=%s', channel, EMAIL_TEMPLATE_CODE ? '已配' : '未配');
     return { mock: true, code }; // 【短路】模拟发送：返回 code 供前端 toast
   }
-  // ---- 生产通道（真实短信/邮件服务商接入点，接口签名不变）----
-  // const template = channel === 'sms' ? SMS_TEMPLATE_CODE : EMAIL_OTP_TEMPLATE_CODE;
-  // await sendSms(target, { code, template });
-  // await sendEmail(target, { code, template });
-  // return { mock: false };
-  throw new Error('OTP_PROVIDER=prod 未配置真实短信/邮件通道');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 4000); // 外部调用 4s 超时，不让邮件接口拖住注册/登录主流程
+  try {
+    const res = await fetch(`https://push.spug.cc/mail/${EMAIL_TEMPLATE_CODE}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: target, scene, code, minute: '5' }),
+      signal: ctrl.signal,
+    });
+    const data = await res.json().catch(() => ({}));
+    // 200 仅表示「发送请求已受理」，投递异步——request_id 落留档备查（查询发送状态用）
+    if (res.status !== 200 || data.code !== 200) {
+      throw new Error(`mail otp rejected: ${res.status} ${JSON.stringify(data)}`);
+    }
+    return { mock: false, requestId: data.request_id || '' };
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ============================================================
@@ -108,12 +136,12 @@ async function deliverOtp({ channel, target, code }) {
  *   ok=true 且 OTP_PROVIDER=mock 时 code=模拟验证码（前端 toast 用，绝不进留档）；
  *   ok=false 时 err 为 429/400 响应。
  */
-export async function requestOtp(db, { channel, target }, req) {
+export async function requestOtp(db, { channel, target, scene }, req) {
   const ch = channel === 'email' ? 'email' : 'sms';
   const v = validateOtpTarget(ch, target);
   if (!v.ok) return { ok: false, err: error(v.msg) };
   const t = String(target).trim();
-  const [targetHash, code] = await Promise.all([tokenDigest(t), genOtpCode()]);
+  const [targetHash, code] = await Promise.all([tokenDigest(t), genOtpCode()]); // 六位数字明文验证码（本地变量，绝不进留档）
   const codeHash = await tokenDigest(String(code));
   const expires = toDbTime(new Date(Date.now() + LIMITS.OTP_CODE_TTL_MS));
 
@@ -121,17 +149,16 @@ export async function requestOtp(db, { channel, target }, req) {
   // 时间域纪律：created_at/expires_at 库内 UTC，SQL 层比较必须用 UTC
   // （datetime('now') 即 UTC；datetime('now','localtime') 是库内本地时区，与 UTC 存储域比较
   // 在中国时区恒判命中/过期——verifyOtp 早已 UTC 参数比较，此处一并对齐）。
-  // 同时清该目标过期行（防 verification_codes 膨胀；与 rate_limits 的过期清理互补）——
   // 限频 INSERT 前必须先清该目标过期行（防 verification_codes 膨胀）。
   const nowUtc = toDbTime(new Date());
   try {
-    // 过期/已用行对本目标请求无意义，顺手清理（只删 expires_at < now 的过期行，绝不误删存活验证码）
+    // 清理过期行（防 verification_codes 膨胀）
     await dbRun(db, 'DELETE FROM verification_codes WHERE channel=? AND target_hash=? AND expires_at < ?',
       [ch, targetHash, nowUtc]);
     const r = await dbRun(db, `INSERT INTO verification_codes (channel, target_hash, code_hash, expires_at, created_at)
       SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (
         SELECT 1 FROM verification_codes
-        WHERE channel=? AND target_hash=? AND created_at > datetime('now', ?))
+        WHERE channel=? AND target_hash=? AND used=0 AND created_at > datetime('now', ?))
         AND (SELECT COUNT(*) FROM verification_codes
           WHERE channel=? AND target_hash=? AND created_at > datetime('now', ?)) < ?
       `, [ch, targetHash, codeHash, expires, nowUtc,
@@ -141,17 +168,34 @@ export async function requestOtp(db, { channel, target }, req) {
       await logEvent(db, { action: 'otp.request.rate', actorUsername: targetMask(t),
         entity: 'otp', detail: { channel: ch, reason: 'resend_window_or_daily_limit' }, req });
       // 区分 60s 窗口与单日上限的文案（60s 更常见）
-      const recent = await dbGet(db, 'SELECT 1 AS x FROM verification_codes WHERE channel=? AND target_hash=? AND created_at > datetime(\'now\', ?)',
+      const recent = await dbGet(db, 'SELECT 1 AS x FROM verification_codes WHERE channel=? AND target_hash=? AND used=0 AND created_at > datetime(\'now\', ?)',
         [ch, targetHash, '-' + Math.round(LIMITS.OTP_RESEND_WINDOW_MS / 1000) + ' seconds']);
       return { ok: false, err: error(recent ? MSG.OTP_RESEND_LIMIT : MSG.OTP_DAILY_LIMIT, 429) };
+    }
+    // 契约：同一联系方式发新码后，旧验证码凭证立刻过期销毁——
+    // 限频已过（本请求成功插入新码），作废该目标其余未消费行（置 used，行保留供单日计数/审计；
+    // 同目标同一时刻至多一枚有效验证码）
+    const newId = Number((r && r.meta && r.meta.last_row_id) || 0);
+    if (newId) {
+      await dbRun(db, 'UPDATE verification_codes SET used=1 WHERE channel=? AND target_hash=? AND used=0 AND id != ?',
+        [ch, targetHash, newId]);
     }
   } catch (e) {
     return { ok: false, err: error(MSG.SERVER_ERROR, 500) }; // D1 异常保守拒绝（不 fail-open 出假验证码）
   }
 
-  const delivered = await deliverOtp({ channel: ch, target: t, code });
+  // 邮件投递失败：作废刚写入的验证码行（码没送达，留着只会被猜到/过期），返回 500 让用户重试
+  let delivered;
+  try {
+    delivered = await deliverOtp({ channel: ch, target: t, code, scene: scene || (ch === 'email' ? '登录验证' : '身份验证') });
+  } catch (e) {
+    console.warn('OTP 投递失败（已作废本次验证码）:', e && e.message);
+    await dbRun(db, 'DELETE FROM verification_codes WHERE channel=? AND target_hash=? AND code_hash=? AND used=0',
+      [ch, targetHash, codeHash]);
+    return { ok: false, err: error(MSG.SERVER_ERROR, 500) };
+  }
   await logEvent(db, { action: 'otp.request', actorUsername: targetMask(t),
-    entity: 'otp', detail: { channel: ch, provider: OTP_PROVIDER }, req });
+    entity: 'otp', detail: { channel: ch, provider: OTP_PROVIDER, requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）
   return { ok: true, code: delivered.mock ? delivered.code : undefined };
 }
 
@@ -162,29 +206,48 @@ export async function requestOtp(db, { channel, target }, req) {
  * 校验验证码；命中即消费（置 used=1，赢家模式防并发双消费）。
  * @returns {Promise<boolean>}
  */
+/**
+ * 校验验证码（哈希匹配 + 一次性消费 + 三振限次）。
+ * 契约（用户需求）：一个验证码只能尝试三次——前两次输错 +1 次计数（码仍有效可重试），
+ * 第三次输错即作废该码，必须重新发送；输对即一次性消费（赢家模式防并发双消费）。
+ * @returns {Promise<'ok'|'invalid'|'exhausted'>}
+ *   ok        校验通过（码已消费，不可再用）
+ *   invalid   验证码错误（未达 3 次，可重试；统一文案防枚举）
+ *   exhausted 连续输错 3 次，该码已作废——必须重新发送验证码
+ */
 export async function verifyOtp(db, { channel, target, code }) {
   const ch = channel === 'email' ? 'email' : 'sms';
   const v = validateOtpTarget(ch, target);
-  if (!v.ok || !String(code || '')) return false;
+  if (!v.ok || !String(code || '')) return 'invalid';
   const t = String(target).trim();
   const targetHash = await tokenDigest(t);
-  // 时间戳纪律：expires_at 由 toDbTime 落 UTC，SQL 层比较必须传 UTC 参数（datetime('now','localtime')
-  // 是库内本地时区，与 UTC 存储域比较会恒判过期/永不过期——中国时区实测踩坑）
+  // 时间戳纪律：expires_at 由 toDbTime 落 UTC，SQL 层比较必须传 UTC 参数
   const nowUtc = toDbTime(new Date());
-  const row = await dbGet(db, `SELECT id, code_hash FROM verification_codes
+  const row = await dbGet(db, `SELECT id, code_hash, attempts FROM verification_codes
     WHERE channel=? AND target_hash=? AND used=0 AND expires_at > ?
     ORDER BY id DESC LIMIT 1`, [ch, targetHash, nowUtc]);
-  if (!row) return false; // 未找到 / 已过期 / 已用
+  if (!row) return 'invalid'; // 未找到 / 已过期 / 已用（统一文案防枚举）
   const codeHash = await tokenDigest(String(code).trim());
-  if (row.code_hash !== codeHash) return false;
+  if (row.code_hash !== codeHash) {
+    // 输错：计数 +1；满 3 次即作废（置 used）——第四次起必然「未找到/已用」回落 invalid 文案，
+    // 但前端三振后主动提示重新发码
+    const newAttempts = Number(row.attempts) + 1;
+    if (newAttempts >= LIMITS.OTP_MAX_ATTEMPTS) {
+      const kill = await dbRun(db, 'UPDATE verification_codes SET used=1, attempts=? WHERE id=? AND used=0',
+        [newAttempts, row.id]);
+      return (kill && kill.meta && kill.meta.changes > 0) ? 'exhausted' : 'invalid';
+    }
+    await dbRun(db, 'UPDATE verification_codes SET attempts=? WHERE id=? AND used=0', [newAttempts, row.id]);
+    return 'invalid';
+  }
   // 一次性消费（赢家）：并发双提交仅 changes>0 的一方通过
   const r = await dbRun(db, 'UPDATE verification_codes SET used=1 WHERE id=? AND used=0', [row.id]);
-  if (!(r && r.meta && r.meta.changes > 0)) return false;
+  if (!(r && r.meta && r.meta.changes > 0)) return 'invalid';
   if (OTP_VERIFIER === 'provider') {
     // 生产占位：验证码托管给服务商时，改走服务商校验 API（verifyOtp 内分支，接口签名不变）
     // return await providerVerifyOtp({ channel: ch, target: t, code });
   }
-  return true;
+  return 'ok';
 }
 
 // ============================================================
