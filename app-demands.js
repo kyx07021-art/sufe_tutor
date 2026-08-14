@@ -605,7 +605,9 @@ async function handleSubmitDemand(e) {
   if (!province) { showToast(UI.VALIDATE_SELECT_PROVINCE, 'error'); return; }
   // 任务三（v0.31.0）：form novalidate——提交前补 grade/联系方式（逐页校验已拦，此处纵深防御兜底）
   if (!document.getElementById('d-grade').value) { showToast(UI.VALIDATE_SELECT_GRADE, 'error'); return; }
-  if (province === 'shanghai' && !document.getElementById('d-address').value.trim()) {
+  // v0.31.8（生产验证抓出）：地址纵深防御须与 toggleAddressField 同口径「仅上海+线下」——
+  // 曾只按省份判断，toggleAddressField 在线上清空地址 → 上海+线上提交被误拦（v0.31.5 P3 改 gate 未同步提交兜底）
+  if (province === 'shanghai' && document.getElementById('d-method').value === 'offline' && !document.getElementById('d-address').value.trim()) {
     showToast(UI.VALIDATE_ADDRESS_REQUIRED, 'error'); return;
   }
   if (!document.getElementById('d-parent-contact').value.trim() || !document.getElementById('d-student-contact').value.trim()) {

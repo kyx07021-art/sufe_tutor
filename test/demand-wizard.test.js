@@ -248,3 +248,14 @@ test('R3：完成态集合（done∪visited）驱动进度条，不跟当前停�
   assert.ok(!ch2(2).classList.contains('dw-step-chip--done'), '未翻到的 P2 不实紫（连续前缀只到 P1）');
   assert.ok(ch2(2).classList.contains('dw-step-chip--lined') === false, 'P2 连接线不实紫（非连续前缀）');
 });
+
+// v0.31.8（生产验证抓出）：提交地址纵深防御须与 toggleAddressField 同口径「仅上海+线下」——
+// 曾只按省份判断 → toggleAddressField 线上清地址 → 上海+线上提交被误拦（v0.31.5 P3 改 gate 未同步提交兜底）
+test('v0.31.8 提交地址纵深防御含 method 判断（上海+线上不拦）', () => {
+  const src = readFileSync('./app-demands.js', 'utf8');
+  assert.match(src,
+    /province === 'shanghai' && document\.getElementById\('d-method'\)\.value === 'offline' && !document\.getElementById\('d-address'\)\.value\.trim\(\)/,
+    'handleSubmitDemand 地址检查含 method==offline（与 toggleAddressField 同口径）');
+  assert.doesNotMatch(src, /if \(province === 'shanghai' && !document\.getElementById\('d-address'\)\.value\.trim\(\)\)/,
+    '无旧口径残留（仅省份判断的误拦分支）');
+});

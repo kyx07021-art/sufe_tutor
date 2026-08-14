@@ -89,7 +89,9 @@ check('P5 R3 完成态：P1 校验通过 done + 连线实紫', s2.p1Done && s2.p
 await p.evaluate(() => closeModal());
 await p.waitForTimeout(400);
 await p.evaluate(() => openDemandModal(null));
-await p.waitForSelector('#d-type-tabs', { timeout: 10000 });
+// 等表单 DOM 就绪（.dw-step 常驻；#d-type-tabs 在 P4 非 active 步 visibility:hidden，waitForSelector visible 等不到——JS 操作不依赖可见性）
+await p.waitForSelector('#demand-form .dw-step', { timeout: 10000 });
+await p.waitForTimeout(300);
 await p.evaluate(() => switchDemandType({ dataset: { type: 'nonacademic' } }));
 await p.waitForTimeout(300);
 const s3 = await p.evaluate(() => ({
@@ -143,7 +145,7 @@ await p.waitForTimeout(2500);
 const created = await p.evaluate(() => !document.getElementById('modal-container').innerHTML.includes('demand-form'));
 check('P6 非学科需求提交成功（含技能/教学目标）', created, `表单已提交关闭`);
 // 服务端验证落库（本人需求）
-const my = await fetch(BASE + '/api/student/demands/my', { headers: { 'X-Auth-Token': authToken } });
+const my = await fetch(BASE + '/api/student/demands?scope=mine', { headers: { 'X-Auth-Token': authToken } });
 const myJson = await my.json();
 const mine = (myJson.demands || myJson || []).filter(d => d.target_type === 'nonacademic')[0];
 check('P6 落库 teaching_goal/skill_notes', mine && mine.teaching_goal?.includes('interest') && mine.skill_notes?.[0]?.project === 'music' && mine.skill_notes?.[0]?.note === '钢琴八级',
