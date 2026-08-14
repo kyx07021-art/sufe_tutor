@@ -284,7 +284,7 @@ async function doLogin(identifier) {
     saveSession(remember); // 会话持久化（绝不存明文密码）
     afterAuthSuccess();
   } catch (err) {
-    if (String(err.message || '').includes('重新获取') && typeof otpExhaustedReset === 'function') otpExhaustedReset('login'); // 三振作废：复原发送按钮引导重发
+    if (err && err.code === 'OTP_EXHAUSTED' && typeof otpExhaustedReset === 'function') otpExhaustedReset('login'); // 三振作废（稳定 code 契约）：复原发送按钮引导重发
     showToast(err.message, 'error'); // 校验/错误提示走底部 Toast
   } finally {
     btnDone(btn, UI.BTN_LOGIN);

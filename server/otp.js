@@ -21,7 +21,7 @@
  *                        唯一正解——验证码本就是我们生成的）；未来若验证码托管给服务商
  *                        （服务商存 code），可切 'provider' 接服务商校验 API。
  */
-import { dbGet, dbRun, dbAll, json, error, toDbTime } from './util.js';
+import { dbGet, dbRun, dbAll, error, toDbTime } from './util.js';
 import { tokenDigest } from './crypto.js';
 import { MSG, LIMITS } from './constants.js';
 import { getSecret } from './secrets.js'; // OTP_PROVIDER 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
@@ -204,7 +204,7 @@ export async function requestOtp(db, { channel, target, scene }, req) {
 // ============================================================
 /**
  * 校验验证码；命中即消费（置 used=1，赢家模式防并发双消费）。
- * @returns {Promise<boolean>}
+ * @returns {Promise<'ok'|'invalid'|'exhausted'>}
  */
 /**
  * 校验验证码（哈希匹配 + 一次性消费 + 三振限次）。

@@ -853,7 +853,6 @@ registerLogoutReset(() => { _profileCredential = null; });
 // 教师荣誉奖项（v1.0 R2：编辑页管理 + 奖状上传暂存 + 管理员审核后公开）
 // ============================================================
 let _awardProofUploadId = null;   // 添加弹窗内的奖状暂存 uploadId（提交时随奖项落库）
-let _awardProofPreview = '';      // 奖状缩略预览 dataURL（提交前本地展示）
 
 // 奖项状态 → tag 文案/样式（显示映射单源：constants UI + 本地 tag 类）
 const AWARD_TAG_CLS = { pending: 'tag-warn', approved: 'tag-ok', rejected: 'tag-danger' };
@@ -884,7 +883,6 @@ function awardStatusText(status) {
 function openAwardModal() {
   if (!ensureAuth()) return;
   _awardProofUploadId = null;
-  _awardProofPreview = '';
   openModal({
     title: UI.AWARD_ADD_BTN,
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
@@ -926,7 +924,6 @@ async function handleAwardProofPicked(input) {
     const item = { kind: 'image', name: f.name, thumb: '' };
     const up = await chatUploadToServer(item, dataUrl, () => {});
     _awardProofUploadId = up.id;
-    _awardProofPreview = dataUrl;
     const thumb = document.getElementById('award-proof-thumb');
     const hint = document.getElementById('award-proof-hint');
     if (thumb) { thumb.src = dataUrl; thumb.classList.remove('hidden'); }
@@ -968,4 +965,4 @@ function deleteAward(id) {
   } });
 }
 
-registerLogoutReset(() => { _awardProofUploadId = null; _awardProofPreview = ''; });
+registerLogoutReset(() => { _awardProofUploadId = null; });

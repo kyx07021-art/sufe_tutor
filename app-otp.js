@@ -192,7 +192,7 @@ async function doBind(kind, isPhone, target, code) {
     if (typeof invalidate === 'function') invalidate('account'); // B6：creds 缓存作废，loadMyCreds 拉新
     if (typeof loadMyCreds === 'function') loadMyCreds();
   } catch (err) {
-    if (String(err.message || '').includes('重新获取')) otpExhaustedReset('bind'); // 三振作废：复原发送按钮引导重发
+    if (err && err.code === 'OTP_EXHAUSTED') otpExhaustedReset('bind'); // 三振作废（稳定 code 契约）：复原发送按钮引导重发
     showToast(err.message, 'error');
   }
 }

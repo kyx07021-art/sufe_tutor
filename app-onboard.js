@@ -419,7 +419,7 @@ if (typeof registerLogoutReset === 'function') {
 }
 
 /**
- * 「重温新手引导」入口：按登录态 + 角色选脚本。管理员为运营角色不引导；
+ * 「重温新手引导」入口：按登录态 + 角色选脚本（管理员走审核工作台脚本）；
  * 不重置 sufe_returning 首访标记（仅首次访问自动弹窗用）。
  */
 function startOnboardingTour() {

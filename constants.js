@@ -1747,7 +1747,6 @@ globalThis.APP_CONSTANTS = {
     BTN_SUBMIT: '提交', BTN_SUBMITTING: '提交中...', SUCCESS_DELETED: '已删除',
     BTN_DELETE: '删除',
     // 管理员：奖项审核
-    ADMIN_AWARDS_TITLE: '奖项审核',
     ADMIN_AWARDS_DESC: '审核教师提交的荣誉奖项与奖状证明',
     ADMIN_AWARD_APPROVE: '通过', ADMIN_AWARD_REJECT: '驳回',
     ADMIN_AWARD_REJECT_HINT: '驳回理由（必填，将通知教师）',
