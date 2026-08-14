@@ -127,6 +127,47 @@ const newPage = async (user, authToken, role, extra = {}) => {
   check('P3 地址区已移入 P2（授课方式页）', wiz.addrInStep2 && !wiz.addrInStep1, `P2=${wiz.addrInStep2} P1=${wiz.addrInStep1}`);
   check('P3 上海+线上不要求地址（P2 放行到 P3）', wiz.steps[0][0] === 2 && wiz.onlineHidden && wiz.steps[1][0] === 3, `steps=${JSON.stringify(wiz.steps)} onlineHidden=${wiz.onlineHidden}`);
   check('P3 上海+线下地址区显示必填 + 缺地址拦截', wiz.offlineShown && wiz.addrRequired && wiz.steps[2][0] === 2, `shown=${wiz.offlineShown} required=${wiz.addrRequired} steps=${JSON.stringify(wiz.steps)}`);
+  // 关浮窗
+  await p.evaluate(() => { if (typeof closeAllModals === 'function') closeAllModals(); });
+
+  // --- P4 补：my-demands 卡片「试课意向」展开按钮 = 编辑按钮同族（建临时需求验观感，验完删）---
+  const cr = await fetch(BASE + '/api/demands', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Auth-Token': authToken },
+    body: JSON.stringify({ demand: {
+      province: 'zhejiang', teaching_method: 'online', target_type: 'academic', target_subjects: ['math'],
+      student_grade: 'senior1', current_scores: [], budget_min: 100, budget_max: 150,
+      parent_contact: '13800000000', student_contact: '13900000000', submitter_type: 'self', additional_info: '',
+    } }),
+  });
+  const created = cr.status === 200 ? await cr.json() : null;
+  check('P4补 临时需求创建成功（验证用）', !!created && !!created.id, `status=${cr.status} id=${created && created.id}`);
+  if (created && created.id) {
+    await p.evaluate(() => selectPage('my-demands'));
+    await p.waitForSelector('#my-demands-list .list-card', { timeout: 10000 });
+    await p.waitForTimeout(800);
+    const it = await p.evaluate(() => {
+      const cs = (el) => {
+        if (!el) return null;
+        const s = getComputedStyle(el), r = el.getBoundingClientRect();
+        return { cls: String(el.className).slice(0, 55), bg: s.backgroundColor, radius: s.borderRadius, frost: (s.backdropFilter || '').slice(0, 25), h: Math.round(r.height) };
+      };
+      const card = [...document.querySelectorAll('#my-demands-list .list-card')].find(c => c.getBoundingClientRect().height > 0);
+      if (!card) return null;
+      const edit = card.querySelector('.btn-soft[onclick*="openDemandModal"]');
+      const toggle = card.querySelector('.btn-intent-toggle');
+      return { edit: cs(edit), toggle: cs(toggle), both: edit && toggle };
+    });
+    check('P4补 试课意向展开按钮渲染为按钮组件', !!it && !!it.both, it ? `edit=${!!it.edit} toggle=${!!it.toggle}` : '卡片未渲染');
+    const sameFace = it && it.edit && it.toggle && it.edit.bg === it.toggle.bg && it.edit.radius === it.toggle.radius && it.edit.frost === it.toggle.frost;
+    check('P4补 试课意向展开按钮与编辑按钮同族（同透明同圆角同磨砂）', sameFace,
+      it && it.edit && it.toggle ? `edit(${it.edit.bg}/${it.edit.radius}) vs toggle(${it.toggle.bg}/${it.toggle.radius})` : '不可比');
+    check('P4补 试课意向展开按钮非实心旧观感', it && it.toggle && it.toggle.bg === 'rgba(0, 0, 0, 0)', `toggle bg=${it.toggle && it.toggle.bg}`);
+    // 清理：删除临时需求
+    const del = await fetch(BASE + '/api/demands/' + created.id, {
+      method: 'DELETE', headers: { 'X-Auth-Token': authToken },
+    });
+    check('P4补 临时需求已删除（无残留）', del.status === 200, `del status=${del.status}`);
+  }
   await p.close();
 }
 
@@ -147,11 +188,12 @@ const newPage = async (user, authToken, role, extra = {}) => {
         h: Math.round(r.height), color: s.color };
     };
     // 注意：DOM 里有 教师页+需求页 两个 .page-header-actions（隐藏页 display:none h=0），
-    // 排序下拉选择器必须限定到可见页（否则命中隐藏页头的 h=0 元素）
+    // 排序下拉/筛选 toggle 选择器必须限定到可见页（否则命中隐藏页头的 h=0 元素）
     const sort = document.querySelector('.client-page:not(.hidden) .page-header-actions .custom-select-trigger');
     const filt = document.querySelector('#demand-filter-panel .filter-group .custom-select-trigger');
     const cardBtn = document.querySelector('#demands-list .list-card .btn-soft');
-    return { sort: cs(sort), filter: cs(filt), cardBtn: cs(cardBtn) };
+    const filterToggle = document.querySelector('.client-page:not(.hidden) .page-header-actions .filter-toggle');
+    return { sort: cs(sort), filter: cs(filt), cardBtn: cs(cardBtn), filterToggle: cs(filterToggle) };
   });
   const btnLike = (c, minH = 36) => c && c.bg === 'rgba(0, 0, 0, 0)' && c.radius === '12px' && c.h >= minH && c.frost && c.frost.includes('blur');
   check('P4 排序下拉 = 标准按钮玻璃面（透明+12px+磨砂+btn高）', btnLike(p4.sort), `bg=${p4.sort && p4.sort.bg} r=${p4.sort && p4.sort.radius} h=${p4.sort && p4.sort.h} frost=${p4.sort && p4.sort.frost}`);
@@ -161,6 +203,26 @@ const newPage = async (user, authToken, role, extra = {}) => {
   check('P4 排序/筛选项与卡片按钮同族（同透明同圆角）',
     p4.sort && p4.cardBtn && p4.sort.bg === p4.cardBtn.bg && p4.sort.radius === p4.cardBtn.radius,
     `sort(${p4.sort && p4.sort.bg}/${p4.sort && p4.sort.radius}) vs card(${p4.cardBtn && p4.cardBtn.bg}/${p4.cardBtn && p4.cardBtn.radius})`);
+  check('P4补 页头筛选 toggle 接按钮组件（透明+12px+磨砂+btn高）',
+    btnLike(p4.filterToggle), `bg=${p4.filterToggle && p4.filterToggle.bg} r=${p4.filterToggle && p4.filterToggle.radius} h=${p4.filterToggle && p4.filterToggle.h} frost=${p4.filterToggle && p4.filterToggle.frost}`);
+  // 教师列表页：筛选 toggle + 排序下拉（v0.31.5 P4 补，用户点名「教师列表的筛选」）
+  await p.evaluate(() => selectPage('browse-teachers'));
+  await p.waitForTimeout(2500);
+  const p4b = await p.evaluate(() => {
+    const cs = (el) => {
+      if (!el) return null;
+      const s = getComputedStyle(el), r = el.getBoundingClientRect();
+      return { bg: s.backgroundColor, radius: s.borderRadius, frost: (s.backdropFilter || '').slice(0, 30), h: Math.round(r.height), cls: String(el.className).slice(0, 50) };
+    };
+    const ft = document.querySelector('.client-page:not(.hidden) .page-header-actions .filter-toggle');
+    const sort = document.querySelector('.client-page:not(.hidden) .page-header-actions .custom-select-trigger');
+    const panelTriggers = [...document.querySelectorAll('#teacher-filters .filter-group .custom-select-trigger')]
+      .filter(t => t.getBoundingClientRect().height > 0);
+    return { ft: cs(ft), sort: cs(sort), panelTrig: panelTriggers.map(cs) };
+  });
+  check('P4补 教师列表页筛选 toggle 接按钮组件', btnLike(p4b.ft), `bg=${p4b.ft && p4b.ft.bg} r=${p4b.ft && p4b.ft.radius} h=${p4b.ft && p4b.ft.h}`);
+  check('P4补 教师列表筛选面板下拉按钮化', p4b.panelTrig.length >= 3 && p4b.panelTrig.every(btnLike), `面板下拉 ${p4b.panelTrig.length} 个`);
+  check('P4补 教师列表排序下拉按钮化', btnLike(p4b.sort), `bg=${p4b.sort && p4b.sort.bg} r=${p4b.sort && p4b.sort.radius} h=${p4b.sort && p4b.sort.h}`);
   await p.close();
 }
 

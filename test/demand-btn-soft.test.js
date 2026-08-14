@@ -95,6 +95,16 @@ test('R11 推送动作：拒收/接收统一 .btn-soft', () => {
   assert.ok(!html.includes('btn-outline'), '推送动作不再 btn-outline');
 });
 
+test('v0.31.5 P4 补：my-demands 卡片「试课意向」展开按钮接 .btn-soft 组件（原 .drop-toggle 实心面，用户返工「我的需求里边的试课意向呢」）', () => {
+  const { ctx } = makeCtx();
+  loadCommon(ctx);
+  const html = renderCard(ctx, { intent_count: 3 }, { editable: true });
+  assert.ok(html.includes('btn-intent-toggle'), '意图展开按钮挂 btn-intent-toggle 类（引导/移动端定位）');
+  assert.ok(html.includes('btn-soft') && html.includes('btn-sm'), '意图展开按钮走 btn-soft btn-sm 按钮组件（与编辑按钮同族）');
+  assert.ok(!html.includes('drop-toggle'), '不再用 .drop-toggle 实心面（与编辑按钮观感统一）');
+  assert.ok(html.includes('onclick="toggleDemandIntents(2)"'), 'toggle 展开语义保留');
+});
+
 test('v0.25.94 意向行动作统一 btn-soft：查看/同意/拒绝（原 btn-outline/裸 btn 混搭）', () => {
   const { ctx } = makeCtx();
   loadCommon(ctx);

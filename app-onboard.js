@@ -518,7 +518,7 @@ function tourStepAboutFeedback()  { return { module: 'about', target: { sel: '.a
 // ---- 我的需求（学生）----
 function tourStepMyDemands()      { return { module: 'my-demands', target: { page: 'my-demands' }, text: UI.TOUR_STEP_MY_DEMANDS }; }
 function tourStepMyDemandsList()  { return { module: 'my-demands', target: { sel: '#my-demands-list' }, text: UI.TOUR_STEP_MY_DEMANDS_LIST }; }
-function tourStepIntentToggle()   { return { module: 'my-demands', target: { sel: '#my-demands-list .drop-toggle' }, text: UI.TOUR_STEP_INTENT_TOGGLE }; }
+function tourStepIntentToggle()   { return { module: 'my-demands', target: { sel: '#my-demands-list .btn-intent-toggle' }, text: UI.TOUR_STEP_INTENT_TOGGLE }; }
 function tourStepNewDemandBtn()   { return { module: 'my-demands', target: { sel: '#btn-new-demand' }, text: UI.TOUR_STEP_NEW_DEMAND_BTN }; }
 function tourStepNewDemandModal() { return { module: 'my-demands', target: { closeModal: true }, text: UI.TOUR_STEP_NEW_DEMAND_MODAL }; }
 

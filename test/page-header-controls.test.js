@@ -55,12 +55,13 @@ test('P4 页头排序触发器：布局适配 + 圆角对齐按钮 + 不再设�
   assert.ok(b.includes('justify-content: center'), '按钮式内容居中');
 });
 
-test('P4 页头筛选按钮：同字面 + 标准高度（不再矮一截）', () => {
+test('P4 页头筛选按钮：接 .btn 组件 + 布局适配（同字面 + 标准高度 + 12px 圆角对齐）', () => {
   const css = readFileSync('./style.css', 'utf8');
-  const b = blockOf(css, '.page-header-actions .drop-toggle');
-  assert.ok(b, '页头筛选按钮规则存在');
+  const b = blockOf(css, '.page-header-actions .filter-toggle');
+  assert.ok(b, '页头筛选按钮布局规则存在（.filter-toggle）');
   assert.ok(b.includes('height: var(--btn-h)'), '筛选按钮也用标准按钮高度');
   assert.ok(b.includes('font-size: .875rem') && b.includes('font-weight: 600'), '与排序触发器同字面');
+  assert.ok(b.includes('--g-r: var(--lg-r)'), '圆角对齐排序下拉（12px，非旧 9px）');
 });
 
 test('P4 筛选项下拉：紧凑按钮字面 + 标准高度', () => {
@@ -105,6 +106,6 @@ test('P4 页头 HTML：教师信息/需求大厅排序+筛选按钮同页头动�
     '教师信息页排序+筛选按钮同页');
   assert.ok(html.includes('id="demand-sort"') && html.includes('id="demand-filter-toggle-btn"'),
     '需求大厅排序+筛选按钮同页');
-  assert.ok(html.includes('class="drop-toggle glass glass--solid" id="filter-toggle-btn"'),
-    '教师信息页筛选按钮为 drop-toggle 类（统一入口）');
+  assert.ok(html.includes('class="btn btn-soft glass glass--pressable filter-toggle" id="filter-toggle-btn"'),
+    '教师信息页筛选按钮接 .btn .btn-soft 按钮组件（v0.31.5 P4 补，与排序下拉同族）');
 });

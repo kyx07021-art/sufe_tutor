@@ -291,7 +291,7 @@ body { background: transparent; }
 /* v0.25.20 需求二：score-mode-tabs 旧类连根删，收编到标准分段控件 .seg-tabs（见本文件分段控件区）；
    style-region.css 只留 .seg-tabs--score 宽度变体。零兼容层。 */
 .filter-panel { --g-fill: var(--g-fill-strong); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
-.drop-toggle { --g-fill: var(--g-fill-faint); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+/* v0.31.5 P4 补：.drop-toggle 连根删（见 style.css 注释）——三处 toggle 已接 .btn 组件 */
 /* 下拉选项：非 glass 件（面板是大玻璃，选项间横线分割——用户定性：不要一串独立玻璃珠）。
    hover/selected 背景直写为合理例外（同 sidebar-item 手卷 hover） */
 .md-preview { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }

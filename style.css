@@ -1325,15 +1325,8 @@ html[data-ui-previewing] .client-main {
 
 /* 统一下拉开关：透明底 + 右侧 v 形箭头（展开翻转 180°），
    替换试课意向 / 筛选等一切「展开/收起栏目」按钮 */
-.drop-toggle {
-  position: relative;
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: calc(7px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); /* 需求六·item5：下拉开关随滑块 */
-  color: var(--ink-3);
-  font-size: .8rem; font-weight: 700; letter-spacing: .01em;
-  transition: color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
-}
-.drop-toggle:hover { color: var(--ink); }
+/* v0.31.5 P4 补：.drop-toggle 基础规则连根删——全站 3 处（教师/需求页头筛选 toggle + my-demands 意向
+   展开）已接入 .btn .btn-soft 按钮组件（透明磨砂+12px 与相邻按钮同族），该独立样式族零消费者。 */
 /* v0.31.5 P4 返工（用户：「所有本质上是按钮而非输入框的下拉栏组件都应该用按钮配置」）：
    页头排序下拉 / 筛选面板选项下拉在 JS 端已挂 .btn .btn-soft .glass .glass--pressable——
    标准按钮玻璃面（透明磨砂透镜+弯月环+白洗 hover+涟漪+12px 圆角）由按钮组件提供。
@@ -1354,12 +1347,16 @@ html[data-ui-previewing] .client-main {
 .page-header-actions .custom-select-trigger .drop-caret,
 .filter-group .custom-select-trigger .drop-caret { color: currentColor; }
 .page-header-actions .custom-select { flex: none; }
-/* 页头筛选按钮同样对齐标准按钮尺寸（与排序触发器同高/同字面/同字重，视觉成对；非页头场景不受影响） */
-.page-header-actions .drop-toggle {
-  height: var(--btn-h); /* 标准按钮高度（Q7：与相邻排序下拉同高，不再矮一截） */
+/* 页头筛选按钮（v0.31.5 P4 补：已接 .btn .btn-soft 组件，透明磨砂+12px 与排序下拉同族）——
+   仅留页头布局适配：标准按钮高度/字面/圆角对齐（--g-r 12px 同排序下拉，非 .drop-toggle 旧 9px 实心面） */
+.page-header-actions .filter-toggle {
+  --g-r: var(--lg-r);
+  height: var(--btn-h); /* 标准按钮高度（与相邻排序下拉同高，不再矮一截） */
   font-size: .875rem; font-weight: 600; letter-spacing: .01em;
-  color: var(--ink-2);
-  border-radius: var(--lg-r-sm);
+  color: var(--ink);
+  padding: calc(7px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1));
+  min-width: 90px;
+  justify-content: center;
 }
 /* 筛选项下拉栏（筛选面板内 filter-group 的选项下拉）：紧凑按钮字面（面板内小空间） */
 .filter-group .custom-select-trigger {
@@ -2337,7 +2334,7 @@ body.profile-panel-closing .profile-panel {
 @media (max-width: 860px) {
   .demand-card-tools { display: flex; }                 /* 块级 flex，消除 inline-flex + width:100% 的尺寸歧义 */
   .demand-card-foot .list-card-contact { min-width: 0; }
-  .demand-card-foot .drop-toggle { flex-shrink: 0; }
+  .demand-card-foot .btn-intent-toggle { flex-shrink: 0; } /* v0.31.5 P4 补：意图展开按钮新类（原 .drop-toggle） */
   /* 需求四·4b：试课意向行移动端整行纵向排布——用户名+星级一行、状态 tag 独立一行在用户名下方 */
   .intent-row-line { flex-direction: column; align-items: flex-start; gap: 6px; }
   .intent-row-user { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }

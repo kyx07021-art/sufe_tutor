@@ -278,7 +278,10 @@
                 <option value="rating">评分最高</option>
                 <option value="price">报价最低</option>
               </select>
-              <button type="button" class="drop-toggle glass glass--solid" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
+              <!-- v0.31.5 P4 补（用户返工：「教师列表的筛选呢？你做事情只做一半」）：筛选 toggle 从
+                   .drop-toggle glass--solid（实心 9px）接回 .btn .btn-soft 按钮组件——与相邻排序下拉
+                   完全同族（透明磨砂+12px+白洗+涟漪+标准高）；filter-toggle 类供页头布局适配。 -->
+              <button type="button" class="btn btn-soft glass glass--pressable filter-toggle" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
             </div>
           </div>
           <div class="drop-wrap" id="teacher-filters">
@@ -355,7 +358,8 @@
             <div class="page-header-actions">
               <!-- #158（v0.25.66）：需求大厅排序（默认匹配度最高，选项由 initDemandControls 填充）+ 筛选 -->
               <select class="filter-select filter-select-auto" id="demand-sort" onchange="applyDemandControls()" aria-label="需求排序"></select>
-              <button type="button" class="drop-toggle glass glass--solid" id="demand-filter-toggle-btn" onclick="toggleDemandFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
+              <!-- v0.31.5 P4 补：筛选 toggle 接 .btn .btn-soft 按钮组件（与排序下拉同族，同 index.html 教师页） -->
+              <button type="button" class="btn btn-soft glass glass--pressable filter-toggle" id="demand-filter-toggle-btn" onclick="toggleDemandFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
             </div>
           </div>
           <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">

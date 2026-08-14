@@ -854,6 +854,9 @@ function renderDemandCard(d, opts = {}) {
   const scoreItems = (d.current_scores||[]).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
   const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
 
+  // v0.31.5 P4 补（用户返工：「我的需求里边的试课意向呢？你做事情只做一半」）：卡片「试课意向 (N)」
+  // 展开按钮从 .drop-toggle glass--solid（实心 9px）接回 .btn-soft btn-sm 按钮组件——与并排「编辑」
+  // 按钮完全同族（透明磨砂+12px+白洗+涟漪）；btn-intent-toggle 新类供引导/移动端 flex-shrink 定位。
   return `<div class="list-card list-card--demand glass" data-demand-id="${d.id}"${push ? ` data-push-id="${push.push_id}"` : ''}>
     ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
     <div class="demand-card-main">
@@ -880,7 +883,7 @@ function renderDemandCard(d, opts = {}) {
       </div>
       <div class="demand-card-actions">
         ${teacher ? (push ? pushActions : teacherIntentBtn) : ''}${ownerActions}
-        ${editable && d.status !== STATUS.REVOKED ? `<button type="button" class="drop-toggle glass glass--solid" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
+        ${editable && d.status !== STATUS.REVOKED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable btn-intent-toggle" id="intent-toggle-${d.id}" onclick="toggleDemandIntents(${d.id})">${UI.INTENTS_TITLE} (${d.intent_count || 0}) <span class="drop-caret">${CARET_SVG}</span><span class="corner-dot${d.pending_intents ? '' : ' hidden'}" id="intent-dot-${d.id}"></span></button>` : ''}
       </div>
     </div>
     ${editable && d.status !== STATUS.REVOKED ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : ''}
