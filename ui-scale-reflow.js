@@ -176,9 +176,50 @@
     return !!(el.childNodes && Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && /\S/.test(n.nodeValue || ''); }));
   }
 
+  // v0.31.10（T1/T2，用户「治标不治本，重做」定案）：block 单元（isTextUnit=false）且直接含非空白文本
+  //   → 预览期把直接文本节点包 <span class="ui-reflow-text">，拆两层单元：
+  //     容器走 block（sx 采样定宽——横线/宽度正确），span 走 isText（fs 等比 × 祖先缩放补偿除净）。
+  //   单元素单 transform 表达不了「容器定宽 + 内容等比」——fix4 用 isText 排除 border 块换横线正确，
+  //   代价是标题被 block 拉伸 sx=1/sy≈1.142、文字拉扁（用户实测）。拆两层后 span 视觉 =
+  //   容器(1,sy) × span(fs/sy, fs/ancSx) = (fs,fs) 等比。标题/按钮内文字共用，teardown 还原零残留。
+  //   restoreTextSpans 全量清扫（不依赖记录列表）：跨页/重建先还原上次包裹，防残留。
+  function restoreTextSpans() {
+    var all = document.querySelectorAll('.ui-reflow-text');
+    for (var i = all.length - 1; i >= 0; i--) {
+      var span = all[i];
+      var el = span.parentElement;
+      if (!el) continue;
+      while (span.firstChild) el.insertBefore(span.firstChild, span);
+      el.removeChild(span);
+    }
+  }
+
+  // 对 block 单元直接含非空白文本节点 → 原位包成 span（保序：insertBefore 到文本前再移入）。
+  // 幂等：el 已含 .ui-reflow-text 子则跳过（缓存重建/重复 collectUnits 不重包）。
+  function wrapTextSpan(el) {
+    if (el.nodeType !== 1 || isExcluded(el) || isTextUnit(el)) return null; // isText 单元已等比，无需包
+    var ch = el.children;
+    for (var k = 0; k < ch.length; k++) {
+      if (ch[k].classList && ch[k].classList.contains('ui-reflow-text')) return null; // 已包
+    }
+    var wrapped = null;
+    var kids = Array.prototype.slice.call(el.childNodes);
+    for (var i = 0; i < kids.length; i++) {
+      var n = kids[i];
+      if (n.nodeType !== 3 || !/\S/.test(n.nodeValue || '')) continue;
+      var span = document.createElement('span');
+      span.className = 'ui-reflow-text';
+      el.insertBefore(span, n); // span 插到文本前（保序，不破坏 drop-caret 等兄弟元素位置）
+      span.appendChild(n);      // 文本移入 span（原位替换）
+      if (!wrapped) wrapped = span;
+    }
+    return wrapped;
+  }
+
   function collectUnits() {
     units = [];
     unitByEl = new WeakMap();
+    restoreTextSpans(); // 跨页/重建先还原上次包裹（幂等前提）
     var page = visiblePage();
     sampledPage = page;
     // v0.31.5（P1）：记录当前基数的 --ui-scale（默认未设 = 1/100%）——base rect 是此基数下的几何，
@@ -223,6 +264,15 @@
       var kids = Array.prototype.slice.call(el.children).reverse();
       for (var k = 0; k < kids.length; k++) stack.push(kids[k]);
     }
+
+    // T1（v0.31.10 治本）：block 单元直接含文本 → 包文本 span 成 isText 子单元（容器定宽 + 文字等比两层）。
+    //   span 紧跟父 push 进 order（拓扑序父先子后），unitByEl 标记使其进单元表。
+    var extra = [];
+    for (var w0 = 0; w0 < order.length; w0++) {
+      var sp = wrapTextSpan(order[w0]);
+      if (sp) extra.push(sp);
+    }
+    for (var w1 = 0; w1 < extra.length; w1++) { order.push(extra[w1]); unitByEl.set(extra[w1], true); }
 
     // 测 base rect（当前 scale 下即 live）
     for (var u = 0; u < order.length; u++) {
@@ -369,6 +419,7 @@
 
   function teardown() {
     if (styleEl) { styleEl.textContent = ''; }
+    restoreTextSpans(); // T1：还原预览期文本包裹（span 文本移回容器原位，零残留）
     for (var i = 0; i < units.length; i++) units[i].el.removeAttribute('data-ui-reflow-unit');
     // 全量清扫：跨页循环中「上次是单元、本次不是」的残留属性（旧元素仍在 DOM）一并撤，零残留
     var stale = document.querySelectorAll('[data-ui-reflow-unit]');

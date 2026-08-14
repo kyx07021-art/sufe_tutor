@@ -1379,6 +1379,9 @@ html[data-ui-sampling] *::after {
   min-width: calc(90px * var(--ui-scale, 1)); /* K1 筛选项下拉定宽随滑块 */
 }
 .drop-caret { display: inline-flex; transition: transform .28s var(--ease-snap); }
+/* T1（v0.31.10）：预览期文本包裹 span——容器定宽 + 文字等比两层。transform 对 inline 无效，必须 inline-block
+   （collectUnits 包入、teardown 还原，正常 DOM 无此元素） */
+.ui-reflow-text { display: inline-block; }
 
 /* 开关右上角红点：待处理意向等未读标记 */
 .corner-dot { position: absolute; top: 0; right: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }

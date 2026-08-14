@@ -4,7 +4,7 @@
  */
 export const ASSET_MANIFEST = {
   "files": {
-    "style.css": "style.e51f8c84.css",
+    "style.css": "style.11c1b08b.css",
     "style-region.css": "style-region.0e7853d1.css",
     "style-posts.css": "style-posts.a181f0f2.css",
     "style-chat.css": "style-chat.b77a5019.css",
@@ -31,7 +31,7 @@ export const ASSET_MANIFEST = {
     "app-admin.js": "app-admin.5c70f145.js",
     "app-demands.js": "app-demands.4ab830c5.js",
     "app-teachers.js": "app-teachers.88931c97.js",
-    "ui-scale-reflow.js": "ui-scale-reflow.3f08d014.js",
+    "ui-scale-reflow.js": "ui-scale-reflow.dec13d49.js",
     "app-pages.js": "app-pages.6ea12cb7.js",
     "app-complaints.js": "app-complaints.e6cb4b88.js"
   }

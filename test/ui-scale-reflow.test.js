@@ -290,3 +290,55 @@ test('v0.31.8 isText 排除 border 块（横线承载元素统一 block rect 拉
   assert.match(src, /cs\[s\] && cs\[s\] !== 'none' && parseFloat\(cs\[w\] \|\| '0'\) > 0/,
     'isTextUnit 排除带横线（border）的块（style 非 none + width>0，兼容 jsdom 默认 border-width）');
 });
+
+// v0.31.10（T1-T4）标题字非等比治本：block 单元直接含文本 → 预览期包 .ui-reflow-text span
+//   （容器 block 定宽 + span isText 等比 × 祖先补偿）。修复 fix4「isText 排除 border 块」把标题退回
+//   block 拉伸 sx=1/sy≈1.142 导致文字拉扁（用户「治标不治本，重做」定案）。
+test('T1：block 文本容器包 span——容器 block 拉伸 + span 视觉等比（标题/按钮文字不变形）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare(); window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  const spans = vm.runInContext(`document.querySelectorAll('.ui-reflow-text').length`, ctx);
+  assert.ok(spans >= 1, `block 文本容器已包 span（btn「筛选」等），实得 ${spans}`);
+  // 容器仍 block：定宽按钮视觉宽≈1（btn.sx×main.sx，R4-4 语义保留）
+  const btn = readTransform(ctx, 'btn');
+  const main = readTransform(ctx, 'main');
+  assert.ok(Math.abs(btn.sx * main.sx - 1) < 0.02, `容器仍 block 拉伸（定宽按钮视觉宽≈1），实得 ${(btn.sx * main.sx).toFixed(3)}`);
+  // span 是 isText 单元：fs 等比 × 祖先补偿 → 文字等比 1.2（曾随容器 block 拉伸 sx=1/sy≈1.142 拉扁）
+  // 宿主字符串 includes 断言（不解析 vm 内 RegExp——反斜杠层级易错，见 v0.31.10 测试教训）
+  const spState = JSON.parse(vm.runInContext(`(() => {
+    const sp = document.querySelector('.ui-reflow-text');
+    const u = window.__uiScaleReflow._units().find(x => x.el === sp);
+    return u ? JSON.stringify({ sx: +u.sx.toFixed(3), sy: +u.sy.toFixed(3) }) : 'null';
+  })()`, ctx));
+  assert.ok(spState && Math.abs(spState.sx - 1.2) < 0.02 && Math.abs(spState.sy - 1.2) < 0.02,
+    `span 文字等比 1.2（sx=${spState ? spState.sx : '无单元'} sy=${spState ? spState.sy : ''}）——曾容器 block 拉伸 sx=1/sy≈1.142 文字拉扁`);
+});
+test('T2：teardown 还原文本包裹（span 移除、文本回容器原位，零残留）', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare(); window.__uiScaleReflow.begin(); window.__uiScaleReflow.renderAt(120)`, ctx);
+  assert.ok(vm.runInContext(`document.querySelectorAll('.ui-reflow-text').length`, ctx) >= 1, '预览期有包裹 span');
+  assert.equal(vm.runInContext(`document.getElementById('btn').textContent`, ctx), '筛选', '包裹后按钮文本内容不变');
+  vm.runInContext(`window.__uiScaleReflow.teardown()`, ctx);
+  assert.equal(vm.runInContext(`document.querySelectorAll('.ui-reflow-text').length`, ctx), 0, 'teardown 后 span 全还原');
+  assert.equal(vm.runInContext(`document.getElementById('btn').textContent`, ctx), '筛选', '文本回容器原位（无残留包裹）');
+});
+
+test('T1 幂等：陈旧重建后不重复包裹、不丢文本', () => {
+  const { ctx } = makeCtx();
+  vm.runInContext(`window.__uiScaleReflow.prepare()`, ctx);
+  const n1 = vm.runInContext(`document.querySelectorAll('.ui-reflow-text').length`, ctx);
+  const t1 = vm.runInContext(`document.getElementById('btn').textContent`, ctx);
+  vm.runInContext(`document.getElementById('c1').remove()`, ctx); // 触发陈旧重建
+  vm.runInContext(`window.__uiScaleReflow.prepare()`, ctx);
+  const n2 = vm.runInContext(`document.querySelectorAll('.ui-reflow-text').length`, ctx);
+  const t2 = vm.runInContext(`document.getElementById('btn').textContent`, ctx);
+  assert.equal(n1, n2, `重复 prepare 包裹数不变（${n1}→${n2}）`);
+  assert.equal(t1, t2, '文本内容不受重建影响');
+});
+
+// T6 回归防线：fix4「isText 排除 border 块」判定保留（横线不戳回归）
+test('T6：isText 排除 border 块判定保留（横线不戳回归，fix4 语义未回退）', () => {
+  const src = readFileSync('./ui-scale-reflow.js', 'utf8');
+  assert.match(src, /cs\[s\] && cs\[s\] !== 'none' && parseFloat\(cs\[w\] \|\| '0'\) > 0/,
+    'isTextUnit 仍排除带横线（border）的块');
+});
