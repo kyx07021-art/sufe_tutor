@@ -12,7 +12,7 @@
 
    层模型（自底向上）：
      ① 全局舞台（lg-bg 光球+底板，页面级）
-     ② 玻璃体 = 元素自身（v0.19.31 删 ::before 层：background 天然在内容之下、box-shadow 在背景之上，
+     ② 玻璃体 = 元素自身（background 天然在内容之下、box-shadow 在背景之上，
        无需 z-index:-1 伪元素——①滚动容器内玻璃不随内容滚（下拉面板衬底跟滚根治）
        ②替换元素 input 也能吃引擎 ③全站少一层伪元素）
      ③ 内容（元素自身 DOM）
@@ -35,12 +35,12 @@
    ============================================================ */
 
 :root {
-  /* 颜色单源（v0.19.49）：以下颜色值仅作无 JS 时的亮色兜底，日常渲染由 constants.THEME
+  /* 颜色单源：以下颜色值仅作无 JS 时的亮色兜底，日常渲染由 constants.THEME
      注入覆盖（index.html 主题脚本 setProperty 到 <html>）；暗色配色改 constants.THEME.dark */
   --lg-r-sm: 9px; --lg-r: 12px; --lg-r-lg: 15px;
   --lg-bg-blur: 6px;
   --lg-glow-size: 230px; --lg-glow-op: .85;
-  /* v0.19.43 淡雅化：九色提亮度压饱和（向白靠拢），配合透明度下调，不再辣眼睛 */
+  /* 九色提亮度压饱和（向白靠拢），配合透明度下调，不再辣眼睛 */
   --lg-orb-a: 176,156,240; --lg-orb-b: 240,200,150; --lg-orb-c: 172,202,235;
   --lg-orb-d: 202,148,240; --lg-orb-e: 152,212,190; --lg-orb-f: 240,176,222; --lg-orb-g: 244,208,150; --lg-orb-h: 164,174,240; --lg-orb-i: 234,186,132;
   --glass-lift: 0 12px 30px -12px rgba(30,26,64,.22);
@@ -51,19 +51,19 @@
   --g-raise: 0;
   --g-scale: 1;
   --g-ring: rgba(122,104,224,.55);
-  /* 内生滚动条 token 兜底（v0.25.28；日常由 constants.THEME 注入覆盖，flat 包再叠） */
+  /* 内生滚动条 token 兜底 */
   --g-scroll-size: 8px;
   --g-scroll-thumb: rgba(122,104,224,.38);
   --g-scroll-thumb-strong: rgba(122,104,224,.58);
   --g-scroll-thumb-active: rgba(122,104,224,.72);
   /* 表面 inset 阴影（语义色条等，叠在玻璃填充上）。
      默认用「无痕零阴影」占位而非 none——box-shadow 语法是 none | <shadow>#，列表项混入 none 整条非法，
-     浏览器会整条回退成 none（v0.19.7 起弯月/发丝/暗弧/hover白洗全线断线的根因，v0.19.17 修） */
+     浏览器会整条回退成 none */
   --g-surface: inset 0 0 0 0 transparent;
-  /* 浮层纸面填充单点（v0.19.28 起）：modal / profile-panel / 下拉面板复用同一配置。
+  /* 浮层纸面填充单点：modal / profile-panel / 下拉面板复用同一配置。
      v0.19.34 用户指示调透明：.68 纸面在亮背景上=白色不透明观感（backdrop 渲染正常但视觉无差），
      .38 透镜式=背后形状透出模糊=真玻璃感；modal 有暗遮罩垫底，.38 依然显实可读（实测像素） */
-  /* v0.19.35 层级白值（用户指示）：玻璃每叠一层白 alpha 就累积更白，人眼舒适色调范围窄——
+  /* 玻璃每叠一层白 alpha 就累积更白，人眼舒适色调范围窄——
      层级越高白值越低；浮层不直接坐底板，白值只留"一点点"（.38→.22）；
      内层玻璃（header 等）更低（.08），坐 pane 上的小件微降。高斯模糊一律保留。 */
   --g-paper: rgba(255,255,255,.22);
@@ -87,7 +87,7 @@
     inset 0 0 0 1px rgba(255,255,255,.34);      /* 发丝白边 */
 }
 
-html { background: var(--g-bg, #ECEAF0); } /* 底色 token 化（v0.19.49），暗色由 constants.THEME 注入 */
+html { background: var(--g-bg, #ECEAF0); } /* 底色 token 化，暗色由 constants.THEME 注入 */
 body { background: transparent; }
 
 /* ---- 背景舞台：多而小、方向随机的光球 + 轻磨砂底板（球现形为柔形，组件自带轻磨砂保可读）。
@@ -111,20 +111,19 @@ body { background: transparent; }
 @keyframes lg-d5 { 0%{transform:translate3d(0,0,0) rotate(0)} 50%{transform:translate3d(-78vmax,26vmax,0) rotate(-20deg)} 100%{transform:translate3d(-160vmax,12vmax,0) rotate(0)} }
 .lg-plate { position: absolute; inset: 0;
   -webkit-backdrop-filter: blur(var(--lg-bg-blur)) ; backdrop-filter: blur(var(--lg-bg-blur)) ;
-  background: var(--g-plate); } /* 底板染色 token 化（v0.19.49），暗色由 constants.THEME 注入 */
+  background: var(--g-plate); } /* 底板染色 token 化，暗色由 constants.THEME 注入 */
 
 /* ---- 鼠标发光圆：无阻尼 ---- */
 .lg-mouseglow { position: fixed; left: 0; top: 0; width: var(--lg-glow-size); height: var(--lg-glow-size);
   border-radius: 50%; pointer-events: none; z-index: 9998; mix-blend-mode: screen; opacity: var(--lg-glow-op);
   will-change: transform; /* 独立合成层：rAF 写 transform 不触发重排，合帧到 60fps */
-  background: var(--g-glow); /* 发光圆 token 化（v0.19.49），暗色改紫光由 constants.THEME 注入 */
+  background: var(--g-glow); /* 发光圆 token 化，暗色改紫光由 constants.THEME 注入 */
   transform: translate3d(-50%,-50%,0) translate3d(-200px,-200px,0); transition: opacity .35s ease; }
 
 /* ============================================================
    标准玻璃引擎 —— 三条主规则（结构只此一处；其余全是参数预设）
    ============================================================ */
-/* .glass：玻璃体 = 元素自身（v0.19.31 删 ::before 层——背景天然在内容之下，阴影在背景之上，
-   无需伪元素隔层；滚动容器内玻璃不随内容滚，替换元素 input 也能吃引擎）。
+/* .glass：玻璃体 = 元素自身。
    position 用 :where() 降特异性到 0 —— 组件的自有定位（如 .profile-panel 的 fixed）永远胜出，
    引擎只兜底「没设定位的玻璃件」。不再有「谁胜出靠加载顺序」的多方管理（用户纪律：删）。 */
 :where(.glass, .glass--float) {
@@ -132,7 +131,7 @@ body { background: transparent; }
   border-radius: var(--g-r, var(--lg-r-sm));
   color: var(--g-fg, inherit);
   /* 玻璃表面单层：填充（弯月本体住 --g-fill 的径向高光里）+ 磨砂 + 浮影 + 液体边缘 + 语义条。
-     box-shadow 列表禁止混入 none（v0.19.17 教训）——故 --g-lift/--g-surface 默认均为透明占位 */
+     box-shadow 列表禁止混入 none——故 --g-lift/--g-surface 默认均为透明占位 */
   background: var(--g-fill, var(--g-fill-mid));
   -webkit-backdrop-filter: var(--g-frost, none); backdrop-filter: var(--g-frost, none);
   box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none);
@@ -171,7 +170,7 @@ body { background: transparent; }
 /* ============================================================
    参数预设：卡 / 浮层 / 气泡 / 信息栏卡（组件类只设参数）
    ============================================================ */
-/* 卡族 = 液态玻璃（v0.19.2 · 研究配方）：
+/* 卡族 = 液态玻璃：
    填充 = top-weighted 径向（上缘镜面高光 .35 + 主体 .16→.05，弯月本体在此，非薄弧）
    微毛 = blur(3px)+saturate(180%)+brightness(1.05)（研究：saturate 180% 是通透感关键，
    旧 130% 把背景拉灰成雾感；blur 2-8px 为通透区间）
@@ -185,18 +184,17 @@ body { background: transparent; }
   --g-r: var(--lg-r); --g-lift: var(--glass-lift);
 }
 .modal, .custom-select-panel, .chat-plus-pop, .profile-panel {
-  /* 浮窗=毛玻璃「纸面」：blur 24 重毛 + 纸面填充 --g-paper 单点（v0.19.28 三件复用同一配置；
-     透字真因=填充太透+遮罩太亮，blur 只模糊形状不挡亮度。用户层级：容器毛=可读纸面，控件透=玻璃上的玻璃） */
+  /* 浮窗=毛玻璃「纸面」：blur 24 重毛 + 纸面填充 --g-paper 单点（容器毛=可读纸面，控件透=玻璃上的玻璃） */
   --g-fill: var(--g-paper); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04));
   --g-lift: var(--glass-lift);
 }
 .modal { --g-r: var(--lg-r-lg); }
 .custom-select-panel, .chat-plus-pop { --g-r: var(--lg-r); }
 /* 下拉面板：玻璃体在面板元素自身（--g-fill: var(--g-paper)），滚动在内部 .custom-select-list 透明通道——
-   磨砂不随内容滚（v0.19.32：backdrop-filter 在滚动容器上失效=白板根因，故玻璃体与滚动分离） */
+   磨砂不随内容滚 */
 .profile-panel { --g-r: var(--lg-r-lg); }
-/* 头栏=玻璃上的玻璃（浮层内层，层级白值最底）：白 .08 更透，毛度补强 blur(12px) 保滚动可读（v0.19.35 层级白值）
-   v0.25.10（反馈 #82）：modal 去独立表头层（标题直坐弹窗顶端），.modal-header 不再吃该配方，仅侧栏 profile-panel 头栏保留 */
+/* 头栏=玻璃上的玻璃（浮层内层，层级白值最底）：白 .08 更透，毛度补强 blur(12px) 保滚动可读
+  ：modal 去独立表头层（标题直坐弹窗顶端），.modal-header 不再吃该配方，仅侧栏 profile-panel 头栏保留 */
 .profile-panel-head { --g-fill: var(--g-header-fill); --g-frost: var(--g-f-header, blur(12px)); }
 .chat-bubble { --g-lift: var(--glass-lift-sm); --g-liquid: var(--g-liquid-sm); }
 .chat-bubble--mine { --g-fill: var(--g-bubble-mine); --g-fg: var(--ink); }
@@ -204,7 +202,7 @@ body { background: transparent; }
 /* v0.25.34：系统=中性胶囊（--g-fg 从 accent-deep 改 muted，去第三色相；圆角胶囊） */
 .chat-bubble--system { --g-fill: var(--g-bubble-system); --g-fg: var(--muted); --g-r: 999px; }
 .profile-card { --g-fill: var(--g-card-id); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); padding: 14px 16px; } /* R15：资料右栏三卡统一底层组件——fill 从 .32 灰档统一到更白的 id 档（--g-card-id .44），底色不再偏灰；--id 变体类已删（卡片一致性由内容承担，不靠底色分层） */
-/* 按钮族 = 液态玻璃（v0.19.1）：透明染色透镜 + 微毛 + 弯月环。
+/* 按钮族 = 液态玻璃：透明染色透镜 + 微毛 + 弯月环。
    基类统一：微毛 blur(1px)（研究推荐）、平透染色填充、弯月环边缘、hover 白染叠层。
    ——白色光泽渐变已删：旧"高光按钮"的顶部白渐变与弯月上缘白对白，正是它盖住了液态边缘
    （用户纪律：地下党/竞争删一方）。液体感交给弯月环，不再用渐变假装高光。
@@ -225,7 +223,7 @@ body { background: transparent; }
    与下拉/勾选/成绩 pill 同族：纯 token 换肤，零 per-variant 散件；
    --g-btn-bg/--g-btn-line 主题双 token（液态包白调面+发丝边；flat 包 --g-fill-weak/--g-btn-line 对齐平面）。 */
 .btn-soft {
-  /* v0.25.110 返工（用户：别改来改去加填充特例，直接接 liquid 标准按钮组件）：
+  /* 别改来改去加填充特例，直接接 liquid 标准按钮组件）：
      按钮本就带 .btn 类，标准玻璃面（磨砂 blur(4px)+弯月环+深字，见上方按钮族）由 .btn 提供——
      回滚前几轮加的填充/描边特例（.72 白调面 → flat；transparent+1px 描边 → outline 观感 flat；
      .20 半透白 → 用户拒收特例），不覆写 --g-fill、不设描边，继承 .btn 标准面即接入 liquid 标准按钮。
@@ -236,7 +234,7 @@ body { background: transparent; }
 /* 需求八·item4：平面简约下文字链按钮保持文字语义（不实心不描边），与实心按钮区分层级 */
 [data-style="flat"] .btn-link-inline,
 [data-style="flat"] .btn-text-danger { --g-btn-fill: transparent; --g-border: none; }
-.tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: var(--glass-lift-sm); } /* G6：删全文件唯一常驻紫投影（v0.19.7 白化漏改），交还中性 lift */
+.tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: var(--glass-lift-sm); } /* G6：删全文件唯一常驻紫投影，交还中性 lift */
 /* v0.25.94：侧栏选中高亮由 .sidebar-item.active 自身背景承载（见 style.css），无覆盖层 */
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */
 .avatar, .avatar--link {
@@ -244,7 +242,7 @@ body { background: transparent; }
   border: 1.5px solid var(--g-avatar-border); --g-r: 50%; --g-lift: var(--glass-lift-sm);
 }
 .avatar--guest { --g-fill: var(--g-avatar-fill-ghost); border: 1.5px dashed var(--g-avatar-border-ghost); --g-lift: 0 0 0 0 transparent; } /* 无浮影用透明占位（none 混入 box-shadow 列表整条非法，v0.19.17 教训） */
-/* 分段控件（v0.25.20 需求二·标准分段控件，iOS 26 Liquid Glass 分段口径——上网调研：
+/* 分段控件（
    容器微透灰底 + 选项间 gap（删分隔线），选中项=白色抬升药丸（白底+墨字+字重 700+轻浮影）。
    统一收编原 6 处散装分段（role-tabs/demand-type-tabs/score-mode-tabs/traffic-range/feedback-kind-btn），
    JS 只切 .active 类；旧类名选择器全删，零兼容层（CLAUDE.md 不保留向后兼容）。
@@ -267,14 +265,14 @@ body { background: transparent; }
 /* 实心小件修饰：关磨砂 = 干净圆角填充，零额外性能。
    液体边缘高光保留（--g-liquid 默认开启）——实心件同样需要珠圆玉润的液态感 */
 .glass--solid { --g-frost: none; } /* 实心小件：关磨砂 = 干净圆角填充 */
-.chat-file-chip, .chat-stage-item, .chat-stage-thumb { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
+.chat-stage-item, .chat-stage-thumb { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
 .tag, .conv-item-role, .chat-peer-tag, .device-current, .profile-tag {
   --g-fill: var(--g-fill-strong); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2);
   --g-border: none; /* 实心小件 opt-out：flat 描边不落 pill/tag */
-  white-space: nowrap; /* #159（v0.25.67）：原子 pill 家族统一不换行——长标签保持整粒（chat-peer-tag 原已有，收口到家族单点） */
+  white-space: nowrap; /* #159：原子 pill 家族统一不换行——长标签保持整粒（chat-peer-tag 原已有，收口到家族单点） */
 }
 .profile-signed-tag { --g-fill: var(--g-ok-solid); --g-fg: var(--white); --g-lift: var(--glass-lift-sm); --g-r: 999px; --g-border: none; }
-/* v0.25.24 需求一·复选框：选中态告别「整块亮紫 + 白字」——白字压 .7 alpha 紫底仅 2.62:1 对比（连 WCAG AA 都不达），
+/* 选中态告别「整块亮紫 + 白字」——白字压 .7 alpha 紫底仅 2.62:1 对比（连 WCAG AA 都不达），
    且双重亮紫（整 pill + 内方框）正是用户定性「恐怖的亮紫色」。上网调研（MD3 filter-chip / Carbon / Accor 三源）收敛：
    选中 = 软紫 tint + 1.5px 紫环 + 墨字 三重提示（WCAG 1.4.1 不靠颜色单独传状态 / 1.4.3 墨字过 4.5:1），
    饱和紫只保留在小方框勾选位（行业唯一公认允许饱和的位置）。文字色走引擎 --g-fg（style.css 不再直写 color）。 */
@@ -286,12 +284,12 @@ body { background: transparent; }
 }
 /* G2：成绩/首选/文理单选 pill 统一挂引擎玻璃（原 style-region 手卷第二套删，竖条迁 ::after；文字色单源 style.css） */
 .grade-option { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); --g-border: none; }
-.grade-option.selected { --g-fill: var(--accent-tint); --g-lift: var(--glass-lift-sm), 0 0 0 1.5px var(--g-ring); } /* v0.25.24 与勾选/标签统一：软紫 tint + 紫环（原整块品牌紫，同口径归树） */
+.grade-option.selected { --g-fill: var(--accent-tint); --g-lift: var(--glass-lift-sm), 0 0 0 1.5px var(--g-ring); } /* 软紫 tint + 紫环（原整块品牌紫，同口径归树） */
 .gk-pill { --g-r: var(--lg-r); --g-hover: var(--g-hover-wash); }
-/* v0.25.20 需求二：score-mode-tabs 旧类连根删，收编到标准分段控件 .seg-tabs（见本文件分段控件区）；
+/* score-mode-tabs 旧类连根删，收编到标准分段控件 .seg-tabs（见本文件分段控件区）；
    style-region.css 只留 .seg-tabs--score 宽度变体。零兼容层。 */
 .filter-panel { --g-fill: var(--g-fill-strong); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
-/* v0.31.5 P4 补：.drop-toggle 连根删（见 style.css 注释）——三处 toggle 已接 .btn 组件 */
+/* .drop-toggle 连根删（见 style.css 注释）——三处 toggle 已接 .btn 组件 */
 /* 下拉选项：非 glass 件（面板是大玻璃，选项间横线分割——用户定性：不要一串独立玻璃珠）。
    hover/selected 背景直写为合理例外（同 sidebar-item 手卷 hover） */
 .md-preview { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
@@ -299,19 +297,21 @@ body { background: transparent; }
 /* ============================================================
    输入控件（input/select/textarea）——不带 glass 类，不走引擎；
    直写与引擎视觉同源（白染填充 + 液体边缘内高光）。非玻璃件，非特例。
-   P4（v0.31.5）：:not(.glass) 排除按钮语境触发器——筛选组/页头下拉已挂 .glass 走引擎，
+   P4：:not(.glass) 排除按钮语境触发器——筛选组/页头下拉已挂 .glass 走引擎，
    输入族直写属性（bg/圆角/shadow 0-1-0）会盖引擎 :where()（0-0-0），排除后引擎 surface 才生效。
    ============================================================ */
-.form-input, .custom-select-trigger:not(.glass), .chat-input, .filter-select,
-.chat-textarea, .posts-search, .post-body-input { /* G29：补三处引擎覆盖缺口（聊天输入/广场搜索/正文） */
+.form-input, .custom-select-trigger:not(.glass),
+.chat-textarea, .posts-search, .post-body-input { /* 输入族引擎覆盖（聊天输入 .chat-textarea/广场搜索/正文）。
+     .filter-select 有意排除：运行期恒被 initCustomSelects 隐藏，其唯一价值是无 JS 兜底的
+     mask 箭头——currentColor 染色在 style.css，进本规则会被 --g-fill-weak 覆盖致箭头不可见 */
   background-color: var(--g-fill-weak); border: none; border-radius: var(--lg-r-sm);
   /* G18/G19：background shorthand 会重置 background-image，吃掉 style.css 的聚焦下划线/下拉 v 箭头 → 拆 longhand background-color */
   /* 需求六·item4：删玻璃感淡化（原 --g-inset-edge-soft 白描边 .18 比标准 --g-liquid 发丝边 .40 淡，影响可见性），
      直接用标准玻璃小件边缘 --g-liquid-sm（同 .chat-bubble）。若实测可读性明显变差，回滚为原 inset 配方即可。 */
   box-shadow: var(--glass-lift-sm), var(--g-liquid-sm);
 }
-.form-input, .custom-select-trigger:not(.glass), .chat-input, .filter-select { padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(12px * var(--ui-scale, 1)); } /* 需求六·item5：输入控件水平内边距随滑块 */
-.form-input:focus, .chat-input:focus, .filter-select:focus, .custom-select-trigger:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
+.form-input, .custom-select-trigger:not(.glass), .filter-select { padding-left: calc(12px * var(--ui-scale, 1)); padding-right: calc(12px * var(--ui-scale, 1)); } /* 输入控件水平内边距随滑块 */
+.form-input:focus, .filter-select:focus, .custom-select-trigger:focus { box-shadow: var(--glass-lift-sm), var(--g-liquid-sm), 0 0 0 3px var(--g-focus-soft); }
 /* R12：下拉触发器聚焦——圆角软环并入输入族（触发器本体圆角 9px，聚焦环随圆角而非直角 outline），
    取代全局 :focus-visible 直角矩形描边（用户定性「紫色直角矩形」丑）；下拉选项键盘聚焦复用悬停高亮。
    v0.25.94：触发器聚焦环颜色改中性墨色（--g-option-ring，主题自适应）——弃品牌紫（--g-focus-soft），
@@ -322,7 +322,7 @@ body { background: transparent; }
 }
 .custom-option:focus-visible { background: var(--g-option-hover); color: var(--ink); }
 
-/* v0.25.10 用户反馈（签约/起草弹窗「选择需求」下拉比其他下拉薄一大截）：.form-select 此前漏在控件族
+/* .form-select 此前漏在控件族
    选择器外——无玻璃边缘、水平内边距仅 2px（文字贴边显薄条）。补齐玻璃边缘 + 12px 左内边距（右留箭头位 24px）。
    注意：background 保持 style.css 的 currentColor（mask 箭头染色用），不能并入上面的 background-color 规则
    ——mask 会把 background 局限在箭头 10x6 区域，覆盖 currentColor 会让箭头变透明白不可见。 */
@@ -343,7 +343,7 @@ body { background: transparent; }
   -webkit-backdrop-filter: var(--g-f-side, blur(8px)); backdrop-filter: var(--g-f-side, blur(8px)); /* 近不透明玻璃条，blur 由 constants.LG.frosts.side 定 */
   border-right: 1px solid var(--g-line-pane); box-shadow: var(--g-pane-shadow);
 }
-.sidebar-user { --g-fill: var(--g-sideuser-fill); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); margin: 8px; } /* v0.19.35 层级白值：坐侧栏上的 L2，降 .34→.26 */
+.sidebar-user { --g-fill: var(--g-sideuser-fill); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); margin: 8px; } /* 坐侧栏上的 L2，降 .34→.26 */
 .sidebar-item { border-radius: var(--lg-r-sm); }
 .sidebar-item:hover:not(.active) { box-shadow: inset 0 0 0 9999px var(--g-hover, var(--g-hover-wash)); }
 .chats-shell { background: transparent; }
@@ -360,21 +360,20 @@ body { background: transparent; }
 .client-main { background: transparent; }
 
 /* ============================================================
-   弹窗整页滚动（v0.25.10 反馈 #82）：去独立玻璃表头与内滚通道——
+   弹窗整页滚动：去独立玻璃表头与内滚通道——
    滚动上移到 .modal-overlay（style.css），表头/正文自然流，无 sticky、无 border-bottom
    ============================================================ */
 /* v0.19.36：overlay 预模糊连根删——modal 隔着 blur(4px) 层看原画面=糊上加糊、形状对比弱=显不毛；
    profile-panel 直接坐原画面（形状清晰、模糊对比强=显毛），删后 modal 与 profile-panel 同款毛感
    （用户："表单浮窗不够毛，把个人信息栏面板的配置扔给它"）。顺带消除 overlay 自身
-   backdrop-filter + fade-in opacity 动画的 Chromium 983252 失效隐患（v0.19.33 只修了 modal 没修 overlay） */
+   backdrop-filter + fade-in opacity 动画的 Chromium 983252 失效隐患 */
 .form-group + .form-group { border-top: 1.5px solid var(--g-line-dark); }
 .form-group { background: transparent; }
 
 /* ============================================================
    移动端：卡片微毛降档（blur 6→4px，列表页几十卡保帧率）+ 信息卡加重白底保对比。
    浮层（modal/下拉面板/聊天+菜单/个人信息右栏）与桌面共用 --g-f-modal，不做移动端降档——
-   同屏仅 1-2 件浮层，blur(24px) 不构成帧率风险（v0.23.1 用户指示统一；
-   此前 modalM blur(6px) 去 saturate/brightness 致移动端浮窗「不毛、不透白、透背景」）
+   同屏仅 1-2 件浮层，blur(24px) 不构成帧率风险
    ============================================================ */
 @media (max-width: 860px) {
   .list-card, .post-card, .about-card, .about-card-block, .notif-item, .stat-card, .auth-card, .feedback-card, .admin-row, .chart-glass {
@@ -400,11 +399,11 @@ body { background: transparent; }
 .tag-ok { --g-fill: var(--g-ok-fill); color: var(--g-ok-fg); }
 /* 需求五·item1：匹配度按钮语义标记（明细卡关闭判定用）；造型走 style.css .match-btn--* 三色遮罩，玻璃参数同按钮 */
 .tag-match { margin-left: 6px; }
-/* v0.19.45 匹配度明细悬浮卡：纸面同浮窗三件套（modal 毛度 = 填写资料浮窗同级），玻璃体在元素自身 */
+/* 纸面同浮窗三件套（modal 毛度 = 填写资料浮窗同级），玻璃体在元素自身 */
 .match-detail { --g-fill: var(--g-paper); --g-frost: var(--g-f-modal, blur(16px) saturate(180%) brightness(1.04)); --g-r: var(--lg-r-lg); --g-lift: var(--glass-lift); }
 /* 需求五·item5 学生端逐需求明细卡：比教师端单卡略宽（容纳多需求条目） */
 .match-detail--teacher { width: min(340px, calc(100vw - 24px)); }
-/* #159（v0.25.67）：状态语义 tag 加状态点（hue 匹配 currentColor，6px 圆点）——ok/warn/danger 均为状态语义
+/* #159：状态语义 tag 加状态点（hue 匹配 currentColor，6px 圆点）——ok/warn/danger 均为状态语义
    （已签约/待处理/已驳回/进行中/待审核…），点随字色自动同色，零模板改动；accent 是类型/中性语义（学科辅导/草稿）不加点 */
 .tag-ok::before, .tag-warn::before, .tag-danger::before {
   content: ''; width: 6px; height: 6px; border-radius: 50%;
@@ -413,17 +412,17 @@ body { background: transparent; }
 .tag-danger { --g-fill: var(--g-danger-fill); color: var(--danger); }
 .tag-warn { --g-fill: var(--g-warn-fill); color: var(--warn-deep); }
 .tag-accent { --g-fill: var(--g-accent-fill); color: var(--accent-deep); }
-/* v0.25.42（注销幽灵数据）：一方已注销 tag——中性弱玻璃 + 灰字，注销是状态中性信息不惊扰（同 .post-like 弱面族） */
+/* 一方已注销 tag——中性弱玻璃 + 灰字，注销是状态中性信息不惊扰（同 .post-like 弱面族） */
 .tag-deactivated { --g-fill: var(--g-fill-weak); color: var(--muted); }
 /* 反馈卡 Bug 红色警示 */
-/* 反馈 bug 卡：--g-surface 左红条连根拔（v0.19.21 用户定性没必要）——CSS 变量继承会把红条传给卡内所有 glass 子组件(tag/按钮)。
+/* 反馈 bug 卡：--g-surface 左红条连根拔——CSS 变量继承会把红条传给卡内所有 glass 子组件(tag/按钮)。
    v0.25.99：alert 警示条亦已删除，全站提示统一走 Toast，--g-surface 语义条机制不再用于任何提示组件 */
 .feedback-card--bug { --g-fill: var(--g-danger-fill-soft); }
 
 /* 资料广场 */
 .posts-toolbar { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 .post-like { --g-fill: var(--g-fill-weak); --g-fg: var(--muted); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r-sm); }
-.post-like:has(input:checked) { --g-fill: var(--g-like-fill); --g-fg: var(--danger); } /* #160（v0.25.68）：liked 态骑原生 checkbox checked（同 .checkbox-item 单源），删 .liked 类 */
+.post-like:has(input:checked) { --g-fill: var(--g-like-fill); --g-fg: var(--danger); } /* #160：liked 态骑原生 checkbox checked（同 .checkbox-item 单源），删 .liked 类 */
 .post-fav { --g-fill: var(--g-fill-weak); --g-fg: var(--muted); --g-lift: var(--glass-lift-sm); --g-r: var(--lg-r-sm); }
 .post-fav:has(input:checked) { --g-fill: var(--g-fav-fill); --g-fg: var(--accent); } /* R23：favorited 态骑原生 checkbox checked——收藏即保存，主题色区分于点赞红 */
 
@@ -441,7 +440,7 @@ body { background: transparent; }
 .about-sec-mark { --g-fill: var(--accent-tint); --g-r: 50%; } /* G15：实变圆走参数 */
 .about-flow-dot { --g-fill: var(--g-flow-dot); --g-r: 50%; }
 
-/* 反馈类型分段按钮（v0.25.20 需求二：旧类连根删，收编标准分段控件 .seg-tabs） */
+/* 反馈类型分段按钮（旧类连根删，收编标准分段控件 .seg-tabs） */
 
 /* v0.25.99：Alert 警示条三色预设连根删——提示统一走底部 Toast（showToast 全风格，kind 只换 --g-fill/--g-fg，
    不再用 --g-surface 左色条）。语义色预设转移至 style.css 的 .toast.toast--error/success/warn 与
@@ -457,10 +456,10 @@ body { background: transparent; }
 .admin-panel { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
 
 /* Toast（fixed 浮层，登记于 .glass--float）——标准玻璃：浅透镜 + 深字（不搞深色特殊）；v0.19.35 层级白值：浮层降 .30→.22 */
-.toast { --g-fill: var(--g-fill-strong); --g-fg: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); } /* v0.25.19 审计 G-08：color 冗余删净，文字色单源 --g-fg */
+.toast { --g-fill: var(--g-fill-strong); --g-fg: var(--ink); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift); } /* color 冗余删净，文字色单源 --g-fg */
 
 /* ============================================================
-   内生滚动条组件（v0.25.28）：全站统一，替代所有默认滚动条
+   内生滚动条组件：全站统一，替代所有默认滚动条
    —— 加入玻璃引擎前端树：--g-scroll-* 语义 token 单源（constants THEME + flat 包），
       组件只消费 token；液态 = 半透明紫玻璃滑块，平面 = 墨色发丝细条（材质随外观包，几何同一）
    铁律（上网调研收敛）：

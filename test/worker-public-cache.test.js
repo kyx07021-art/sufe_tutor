@@ -27,6 +27,7 @@ function makeShim(raw, calls) {
       return st;
     },
     batch(stmts) {
+      if (!stmts.length) throw new Error('D1 batch requires at least one statement'); // 真实 D1 空 batch 抛错（同 content-admin shim 口径）
       raw.exec('BEGIN');
       try {
         const out = [];

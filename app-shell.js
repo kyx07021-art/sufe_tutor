@@ -1,7 +1,7 @@
 /**
  * 壳与路由层（目标分层：状态管理层下游）—— 视图切换 / 侧边栏 / 页面注册表 / 统一装载器 / 红点徽标 / 初始化
  *
- * #175（v0.25.76）：领域脚本（app-region/posts/chat/contracts/chart/admin/demands/teachers/pages 等）不再
+ * #175：领域脚本（app-region/posts/chat/contracts/chart/admin/demands/teachers/pages 等）不再
  * 于 index.html 同步加载——enterClient 时经 loadDomainScripts() 按 manifest 哈希名动态注入；
  * ROLE_PAGES 的 enter 全为惰性包装（() => 领域函数()），顶层不直接引用领域函数。
  *
@@ -11,7 +11,7 @@
  *   - 统一装载器 loadInto（loading/空态/错误转义/浮入/乱序守卫 四件套，禁止手写）
  *   - 红点徽标慢轮询（30s，全角色；各模块也可即时 setBadge 消点）
  *   - 通知信息页（全角色）
- *   - DOMContentLoaded 初始化（落地页恒为入口 + 新手引导；v0.24.1 删自动登录）
+ *   - DOMContentLoaded 初始化（落地页恒为入口 + 新手引导；不自动登录）
  */
 const VIEWS = ['landing', 'login', 'register', 'invite-gate', 'client'];
 
@@ -42,7 +42,7 @@ function updateNavbar() {
 
 // ============================================================
 // 客户端配置：侧边栏栏目注册表
-// #175（v0.25.76）：领域脚本懒加载——enter 一律惰性包装（() => 领域函数()），
+// #175：领域脚本懒加载——enter 一律惰性包装（() => 领域函数()），
 // 顶层不再直接引用领域函数（领域脚本进入客户端时才注入，顶层引用会 ReferenceError）；
 // enterClient 先 await loadDomainScripts() 再 selectPage，点击侧栏时领域必已就绪
 // ============================================================
@@ -78,7 +78,7 @@ const ROLE_PAGES = {
     { id: 'admin-contracts',  label: UI.PAGE_ADMIN_CONTRACTS, desc: UI.PAGE_ADMIN_CONTRACTS_DESC, enter: () => loadAdminContracts() },
     { id: 'admin-feedback',   label: UI.PAGE_ADMIN_FEEDBACK, desc: UI.PAGE_ADMIN_FEEDBACK_DESC, enter: () => loadAdminFeedback() },
     { id: 'admin-complaint',  label: UI.PAGE_ADMIN_COMPLAINT, desc: UI.PAGE_ADMIN_COMPLAINT_DESC, enter: () => loadAdminComplaints() },
-    { id: 'admin-content',    label: UI.PAGE_ADMIN_CONTENT, desc: UI.PAGE_ADMIN_CONTENT_DESC, enter: () => loadAdminContent() }, // v0.26.0 D3 统一内容审核
+    { id: 'admin-content',    label: UI.PAGE_ADMIN_CONTENT, desc: UI.PAGE_ADMIN_CONTENT_DESC, enter: () => loadAdminContent() }, // 统一内容审核
     { id: 'notifications',    label: UI.PAGE_NOTIFICATIONS,  desc: UI.PAGE_NOTIFICATIONS_DESC,  enter: enterNotifications },
     { id: 'account-settings', label: UI.PAGE_ACCOUNT_SETTINGS, desc: UI.PAGE_ACCOUNT_SETTINGS_DESC, enter: () => enterAccountSettings() },
     { id: 'about',            label: UI.PAGE_ABOUT,          desc: UI.PAGE_ABOUT_DESC,          enter: () => enterAbout(), auth: false },
@@ -86,47 +86,47 @@ const ROLE_PAGES = {
 };
 
 // ------------------------------------------------------------
-// 领域脚本懒加载（#175 v0.25.76）：领域脚本从 index.html 移除，进入客户端时才按序动态注入。
+// 领域脚本懒加载：领域脚本从 index.html 移除，进入客户端时才按序动态注入。
 // - DOMAIN_FILES 与 hash-assets.mjs 的清单必须同步（构建脚本哈希它们 + 写入 manifest）
 // - 哈希名：window.ASSET_MANIFEST（构建时内联进 index.html）命中优先，缺省回落基名（源/测试环境）
 // - 幂等哨兵：__domainLoaded 或领域函数已存在（测试 FILES 全载）即短路，不重复注入
 // - 注入失败/超时兜底（CONFIG.DOMAIN_SCRIPT_TIMEOUT_MS 挂起超时 + 404 延迟重试），绝不永久挂起 enterClient
-// - F6（v0.27.0）：经典脚本按 DOM 插入序执行 → Promise.all 并行注入（下载并行执行保序），
+// - F6：经典脚本按 DOM 插入序执行 → Promise.all 并行注入（下载并行执行保序），
 //   404 重试脚本插回原兄弟位（A1 审计）不破依赖序
 // ------------------------------------------------------------
 const DOMAIN_FILES = [
   'region-data.js', 'app-style.js', 'app-region.js', 'app-posts.js', 'app-chat.js',
   'app-contracts.js', 'app-chart.js', 'app-admin.js', 'app-demands.js', 'app-teachers.js',
-  'ui-scale-reflow.js', // v0.27.6：UI 滑块元素级模拟重排（共享层工具，仅客户端设置页用；app-state typeof 防御访问）
+  'ui-scale-reflow.js', // UI 滑块元素级模拟重排（共享层工具，仅客户端设置页用；app-state typeof 防御访问）
   'app-pages.js', 'app-complaints.js',
 ];
 let __domainLoaded = false;
-let __domainReloadOnce = false; // v0.25.100：领域脚本 404 重试耗尽后整页刷新自愈——只触发一次，防死循环
+let __domainReloadOnce = false; // 领域脚本 404 重试耗尽后整页刷新自愈——只触发一次，防死循环
 let __domainLoading = null; // #178 并发防重：预载与 enterClient 同时调 loadDomainScripts 时共享同一次注入
 function loadDomainScripts() {
   if (__domainLoaded || typeof globalThis.loadMyDemands === 'function') return Promise.resolve(); // 已载/测试短路
   if (__domainLoading) return __domainLoading; // 注入已在途：复用同一 Promise，杜绝重复注入
   __domainLoading = (async () => {
     const manifest = (window.ASSET_MANIFEST || {}).files || {};
-    // F6（v0.27.0 网络层重构）：串行 Promise 链 → 并行注入。经典脚本浏览器按 DOM 插入序执行，
+    // F6：串行 Promise 链 → 并行注入。经典脚本浏览器按 DOM 插入序执行，
     // 一次性 appendChild 全部 → 下载并行、执行仍保依赖序——冷进客户端 12 次 RTT 瀑布 → 1 波。
     // 404 重试语义不变（逐脚本延迟重试等边缘同步；耗尽整页刷新一次自愈，__domainReloadOnce 防死循环）。
     const inject = f => new Promise(resolve => {
-      // v0.25.100（发布后老妖根治）：Pages 部署滚动窗口（实测发布后约 1-2 分钟）内，manifest 放行的
+      // Pages 部署滚动窗口（实测发布后约 1-2 分钟）内，manifest 放行的
       // 新哈希资产间歇 404（边缘节点未同步，实测 15 次里 4 次）——领域脚本 404 缺模块 → 教师列表/登录失败。
       // 自愈：先延迟重试等边缘同步（窗口 ~1-2 分钟，逐脚本重试保留页面状态），重试耗尽才整页刷新一次
-      // 拿新 index.html（内联新 manifest）；刷新恢复登录/页面停留（v0.25.95 会话层）。
+      // 拿新 index.html（内联新 manifest）；刷新恢复登录/页面停留。
       const tryInject = (attempt, anchor) => {
         const s = document.createElement('script');
         s.src = '/' + (manifest[f] || f);
         let hangTimer = null; // 挂起下载超时（load/error/超时三者互斥，只放行一次）
         let retryTimer = null;
-        let settled = false; // v0.31.2（审计 a）：三路只结算一次 + 晚到 onload 取消已排程重试
-        // v0.31.1 审计修复（慢下载双执行炸页）：原 fail 重试注入第二份但未摘除原脚本——慢边缘
+        let settled = false; // 三路只结算一次 + 晚到 onload 取消已排程重试
+        // 审计修复（慢下载双执行炸页）：原 fail 重试注入第二份但未摘除原脚本——慢边缘
         // （冷 PoP/发布窗口单脚本下载 >6s）原脚本晚到仍执行 → 顶层 const/let 重复声明 → 领域模块
         // 状态损坏（弹窗打不开/流程中断/交互失灵，实测反复触发）。修 = fail 先摘除原脚本
         // （主流浏览器 de-facto 移除即中止待执行，尽力而为——非规范保证）+ 重试锚定原兄弟位（依赖序不破）。
-        // v0.31.3 审计（F5）残余如实标注：settled 哨兵只闭合「晚到 onload 在重试注入前到达」（6-9s 完成 →
+        // 审计（F5）残余如实标注：settled 哨兵只闭合「晚到 onload 在重试注入前到达」（6-9s 完成 →
         // onload 取消重试）的单执行；「原脚本 >9s 才完成下载且浏览器不中止已摘除脚本」双条件叠加时仍可能
         // 双执行。经典脚本注入层无解（须模块级执行守卫，触及全部领域脚本，成本高），主流 Chromium 摘除即
         // 中止不触发此残余——已接受为文档化残余风险，勿在注入层继续加特例。
@@ -137,7 +137,7 @@ function loadDomainScripts() {
           if (hangTimer !== null) { clearTimeout(hangTimer); hangTimer = null; }
           try { if (s.parentNode) s.parentNode.removeChild(s); } catch { /* ignore */ }
           if (attempt < CONFIG.DOMAIN_SCRIPT_RETRY) {
-            // A1（v0.27.0 审计）：并行注入下 404 重试若 appendChild 会追加到 head 末尾——
+            // A1：并行注入下 404 重试若 appendChild 会追加到 head 末尾——
             // 其余 11 脚本早已执行完，被重试的脚本最后执行，依赖链头部（如 region-data → SUFE_REGIONS）
             // 在依赖者之后才就绪 → 窗口内点区域相关交互 ReferenceError；且坏模块顶层求值抛错时
             // onload 仍触发、__domainLoaded=true、不触发整页刷新自愈。重试脚本须插回原失败节点之后
@@ -179,7 +179,7 @@ function loadDomainScripts() {
   return __domainLoading;
 }
 
-// #178（v0.25.85）：领域脚本后台静默预载——落地页渲染完成后即开始注入，
+// #178：领域脚本后台静默预载——落地页渲染完成后即开始注入，
 // 点击角色按钮进客户端时 loadDomainScripts 已就绪 → 下一帧即进入客户端（消除 ~0.5s 无事发生期）。
 // requestIdleCallback 空闲调度（fallback setTimeout），绝不影响首屏；幂等（已载短路）。
 let __preloaded = false;
@@ -209,28 +209,28 @@ async function enterClient(pageId) {
   await loadDomainScripts(); // #175：进入客户端前确保领域脚本就绪（首访注入、回访缓存命中秒回）
   renderSidebar();
   showView('client');
-  // v0.25.95（用户反馈「刷新不要回首页」）：刷新/进入客户端统一恢复页面停留——selectPage 记录的
+  // 刷新/进入客户端统一恢复页面停留——selectPage 记录的
   // sufe_last_page 在身份可见时恢复；pageId 显式传入（登录/切角色回跳）优先，身份不可见自动回落默认页
   const stored = getLastPage();
-  // v0.25.110（用户反馈「登出教师后点学生入口弹登录页+返回无效」）：停留页恢复须过「当前身份可见」门——
+  // 停留页恢复须过「当前身份可见」门——
   // 上一角色登出后 sufe_last_page 残留（如 account-settings），访客恢复它 → selectPage 触发 ensureAuth
   // 弹登录页，且「返回」恢复同一页 → 死循环（返回无效）。访客只允许恢复 auth:false 的公开页。
   const storedOk = stored && pagesForRole().some(p => p.id === stored && (state.user || p.auth === false));
   const valid = pageId && pagesForRole().some(p => p.id === pageId) ? pageId
     : (storedOk ? stored : defaultPageFor());
-  // v0.24.0：不阻塞登录——默认页签立即渲染（自身走正常加载），
+  // 不阻塞登录——默认页签立即渲染（自身走正常加载），
   // 其余模块数据此刻开始后台并行预取（fire-and-forget），用户在页面里待着时就已全部就绪；
   // 预取在途时点进某模块由 dhReady 跳过 loader 闪屏，读取完即显示
   selectPage(valid);
   if (state.user) {
-    // #10（v0.27.0 审计）：先 dhPrefetch 设好全部预取键 inflight（同步块内完成）——
+    // #10：先 dhPrefetch 设好全部预取键 inflight（同步块内完成）——
     // startBadgePoll 的 refreshBadges 随后 dhGet conversations/notifications 共享同一批 → 首波 1 次 batch
     // （原序徽标先跑独立 GET，批内跳过两键，首波实际 4-5 往返非 1）
     dhPrefetch(state.user.role);
     startBadgePoll(); // 红点轮询仅登录态开启（访客无个人数据可轮询）
     startVersionProbe();
   } else if (state.guestRole) {
-    // v0.24.0：访客预览也开启版本探测 + 静默预取公开数据（与所在模块无关）
+    // 访客预览也开启版本探测 + 静默预取公开数据（与所在模块无关）
     startVersionProbe();
     dhPrefetch(state.guestRole === 'teacher' ? 'teacher-guest' : 'student-guest');
   }
@@ -262,7 +262,7 @@ function renderSidebar() {
     <button type="button" class="sidebar-footnote" onclick="selectPage('about')">${escHtml(UI.ABOUT_FOOTNOTE.replace('{feedback}', UI.BTN_FEEDBACK))}</button>
     <div class="sidebar-version">v${APP_CONSTANTS.APP_VERSION}</div>`;
   document.getElementById('sidebar-nav').innerHTML =
-    // v0.25.94（用户反馈「灰色块乱窜，别搞特殊」）：删绝对定位 .sidebar-pill 覆盖层——active 高亮改由
+    // 删绝对定位 .sidebar-pill 覆盖层——active 高亮改由
     // 条目自身 .sidebar-item.active 的 background 承载（流内标准组件，缩放/拖动天然同步，零 JS 几何）。
     pagesForRole().map((p, i) => `
     <button type="button" class="sidebar-item${p.id === state.page ? ' active' : ''}" data-page="${p.id}" onclick="selectPage('${p.id}')">
@@ -284,8 +284,8 @@ function openModuleInfo(pageId) {
   const cfg = pagesForRole().find(p => p.id === pageId);
   const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
   if (!info) return;
-  // v0.25.12（反馈 #95）：介绍改为结构化 Markdown（## 小标题 + 段落 + **加粗**），
-  // 复用 app-posts 的 mdRender；v0.25.48（需求三十一）文本浮窗统一走 modal--wide
+  // 介绍改为结构化 Markdown（## 小标题 + 段落 + **加粗**），
+  // 复用 app-posts 的 mdRender；文本浮窗统一走 modal--wide
   // S2-2：openModal 组件内统一转义，此处传原文（曾传 escHtml() 双重转义，外部审计抓出）
   openModal({
     title: cfg ? cfg.label : '',
@@ -295,7 +295,7 @@ function openModuleInfo(pageId) {
   });
 }
 
-/** i 信息按钮构造（v0.25.14 复用单源）：模块 title 旁小圆 i，带 a11y（Enter/Space 同开），
+/** i 信息按钮构造：模块 title 旁小圆 i，带 a11y（Enter/Space 同开），
  *  点开标准信息浮窗（openModuleInfo）。聊天自绘 title（.chats-list-title）由 enterMyChats 复用本构造，
  *  页面级 i 由 injectPageHeaderInfo 复用——两处共用同一外观/交互，免维护两套。 */
 function createModuleInfoBtn(pageId) {
@@ -311,7 +311,7 @@ function createModuleInfoBtn(pageId) {
   return btn;
 }
 
-/** 页头 i 按钮注入（v0.25.10）：selectPage 切页汇聚点调用，按 pageId 定位当前页 .page-header 幂等插入。
+/** 页头 i 按钮注入：selectPage 切页汇聚点调用，按 pageId 定位当前页 .page-header 幂等插入。
  *  my-chats 页头被 .client-page--flush 隐藏（标题由聊天页自有区渲染，见 enterMyChats），跳过注入。 */
 function injectPageHeaderInfo(pageId) {
   const old = document.querySelector('.page-header-info');
@@ -321,7 +321,7 @@ function injectPageHeaderInfo(pageId) {
   const info = UI.MODULE_INFO && UI.MODULE_INFO[pageId];
   if (!info) return;
   const btn = createModuleInfoBtn(pageId);
-  // v0.25.12（反馈 #89）：h2 与 i 必须同组靠左——.page-header 是 space-between，直接 after(h2)
+  // h2 与 i 必须同组靠左——.page-header 是 space-between，直接 after(h2)
   // 会把 i 顶到最右。包进 .page-header-title 组（幂等：已包裹则复用），组 gap 统一间距
   const h2 = hdr.querySelector('h2');
   if (h2) {
@@ -342,28 +342,28 @@ function injectPageHeaderInfo(pageId) {
 function selectPage(pageId) {
   const prevPage = state.page; // 2026-08-09 反馈：记录离开页，供切出通知/会话页时"看过即消"批量已读
   closeProfilePanel(); // 切页收起个人信息右栏
-  // v0.25.103 B4（用户反馈）：模块本身入层级树——切模块关闭所有子窗（新建需求/发送浮窗等
+  // （用户反馈）：模块本身入层级树——切模块关闭所有子窗（新建需求/发送浮窗等
   // openModal 残留），否则切页后浮窗还在（教室列表点发送需求后迅速切侧栏即复现）。
   closeAllModals();
   document.querySelectorAll('#client-main .client-page').forEach(s =>
     s.classList.toggle('hidden', s.dataset.page !== pageId));
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b =>
-    b.classList.toggle('active', b.dataset.page === pageId)); // v0.25.94：active 高亮由条目自身 background 承载，切类即同步
+    b.classList.toggle('active', b.dataset.page === pageId)); // active 高亮由条目自身 background 承载，切类即同步
   state.page = pageId;
-  savePageState(pageId); // v0.25.95：记录页面停留，供刷新恢复（app-state 会话层统一能力）
+  savePageState(pageId); // 记录页面停留，供刷新恢复（app-state 会话层统一能力）
   if (pageId !== 'my-chats' && typeof stopChatPolling === 'function') stopChatPolling(); // 切离聊天页即停轮询
   const cfg = pagesForRole().find(p => p.id === pageId);
   if (cfg && cfg.auth !== false && !ensureAuth()) return; // 需要身份的页统一过登录通路
   // 2026-08-09 反馈：看过即消——离开通知页把已展示的未读批量标记正常（免逐条点击）；离开聊天页把当前会话已读
   if (prevPage === 'notifications' && pageId !== 'notifications') markAllNotifsRead();
   if (prevPage === 'my-chats' && pageId !== 'my-chats' && typeof markActiveConvRead === 'function') markActiveConvRead();
-  injectPageHeaderInfo(pageId); // v0.25.10：页面顶部 title 旁 i 按钮（侧边栏内的已删）
+  injectPageHeaderInfo(pageId); // 页面顶部 title 旁 i 按钮（侧边栏内的已删）
   if (cfg && cfg.enter) cfg.enter();
   closeSidebar();
   document.getElementById('client-main').scrollTop = 0;
 }
 
-// v0.25.94：删 sidebarPillGlide（原 glidePill 逐帧追逐）——active 高亮由条目自身承载，开合/缩放无需重绑
+// 删 sidebarPillGlide（原 glidePill 逐帧追逐）——active 高亮由条目自身承载，开合/缩放无需重绑
 function closeSidebar()  { document.body.classList.remove('sidebar-open'); }
 function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
 
@@ -378,7 +378,7 @@ async function loadInto(elId, fetcher, renderer, opts = {}) {
   if (!el) return false;
   // 计数器首用初始化：++undefined = NaN，而 NaN !== NaN 恒真 → 首次装载会被误判「乱序」而丢弃
   const seq = opts.seqKey ? (loadSeqs[opts.seqKey] = (loadSeqs[opts.seqKey] || 0) + 1) : null;
-  // v0.23.0 静默数据层：会话缓存命中 → 跳过 loader 闪烁直出（切 tab 秒开）。
+  // 静默数据层：会话缓存命中 → 跳过 loader 闪烁直出（切 tab 秒开）。
   // 仍走 fetcher（dhGet 瞬时返回缓存）以同步模块级镜像（state.*），保证跨功能查找与渲染一致；
   // 缓存 miss/过期 → 正常 loader + 按需加载
   const cachedHit = typeof opts.peek === 'function' && opts.peek() != null;
@@ -422,14 +422,14 @@ function stopBadgePoll() { if (badgePollTimer) { clearInterval(badgePollTimer); 
 async function refreshBadges() {
   if (!state.user) return;
   try {
-    // v0.23.0 静默数据层：徽标轮询改走会话数据层统一出口——与 tab 加载共享同一份缓存（单请求源），
+    // 静默数据层：徽标轮询改走会话数据层统一出口——与 tab 加载共享同一份缓存（单请求源），
     // 版本探测使缓存 ≤8s 新鲜，徽标天然跟得上数据变化
     const [convData, notifData] = await Promise.all([
       dhGet('/api/conversations', { domain: 'chat' }),
       dhGet('/api/notifications', { domain: 'notifications' }),
     ]);
     const chatUnread = (convData.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
-    // v0.25.95（用户反馈）：屏蔽系统通知后广播公告未读不再计入侧边栏红点——红点与屏蔽过滤同口径
+    // 屏蔽系统通知后广播公告未读不再计入侧边栏红点——红点与屏蔽过滤同口径
     // （列表页屏蔽过滤 isBroadcastNotif + notifBlockOn 同源，此二函数声明在下方，function 声明提升可用）
     const notifUnread = (notifData.notifications || []).filter(n => !n.is_read && !(notifBlockOn() && isBroadcastNotif(n))).length;
     // 红点铁律：正在看的页签不写徽标——点开瞬间本地清零后，轮询不许把它再点亮
@@ -459,7 +459,7 @@ async function refreshBadges() {
       } catch { /* 静默，下一轮自愈 */ }
     }
     // 我的合同红点：待我处理的合同数；正停留在合同页则就地刷新列表（对方改动 ≤30s 可见）。
-    // v0.22.8：列表签名未变不整列重渲——原实现每 30s 轮询即使数据没变也 innerHTML 重写整列 + initReveals
+    // 列表签名未变不整列重渲——原实现每 30s 轮询即使数据没变也 innerHTML 重写整列 + initReveals
     if (state.user.role === 'student' || state.user.role === 'teacher') {
       const ctData = await dhGet('/api/contracts/my', { domain: 'contracts' });
       const contracts = ctData.contracts || [];
@@ -482,8 +482,8 @@ async function refreshBadges() {
 // 屏蔽系统通知为纯客户端偏好（localStorage），只动渲染层
 // ============================================================
 let _notifList = [];
-let _lastContractSig = ''; // 合同列表渲染签名（v0.22.8：30s 轮询数据未变不整列重渲）
-// v0.23.1 审计 M1：探测刷新替换缓存数组后重挂 _notifList——屏蔽过滤与已读翻转依赖同引用
+let _lastContractSig = ''; // 合同列表渲染签名
+// 审计 M1：探测刷新替换缓存数组后重挂 _notifList——屏蔽过滤与已读翻转依赖同引用
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('notifications', () => {
     const c = dhPeek('/api/notifications');
@@ -521,7 +521,7 @@ async function enterNotifications() {
   if (bb) bb.classList.toggle('hidden', !(state.user && state.user.role === 'admin'));
   syncNotifBlockBtn(); // 进页按持久化偏好标按钮态
   await loadInto('notifications-content', async () => {
-    const data = await dhGet('/api/notifications', { domain: 'notifications' }); // v0.23.0 静默数据层
+    const data = await dhGet('/api/notifications', { domain: 'notifications' }); // 静默数据层
     _notifList = data.notifications || [];
     return _notifList;
   }, rows => {
@@ -534,7 +534,7 @@ async function enterNotifications() {
 
 function renderNotifItem(n) {
   const id = /^\d+$/.test(String(n.id)) ? String(n.id) : '';
-  // #151（v0.25.59）：未读通知可点击/键盘消除——data-id 供 markNotifRead 精确定位；已读项无交互
+  // #151：未读通知可点击/键盘消除——data-id 供 markNotifRead 精确定位；已读项无交互
   const interact = n.is_read ? '' :
     ` role="button" tabindex="0" aria-label="${escHtml(UI.NOTIF_READ_ARIA)}" onclick="markNotifRead('${id}')" onkeydown="notifKeyRead(event, '${id}')"`;
   return `<div class="notif-item glass${n.is_read ? '' : ' unread'}" data-id="${id}"${interact}>
@@ -546,7 +546,7 @@ function renderNotifItem(n) {
     </div>`;
 }
 
-// #151（v0.25.59）：未读通知呼吸遮罩点击消除——单条标记已读。本地先翻（_notifList 与 datahub 缓存
+// #151：未读通知呼吸遮罩点击消除——单条标记已读。本地先翻（_notifList 与 datahub 缓存
 // 同数组引用，徽标/屏蔽重排即时一致），成功后服务端落库；失败回滚。服务端不 bump 版本域
 // （纯个人游标，与旧批量已读同口径），客户端翻缓存即全站一致。
 async function markNotifRead(id) {
@@ -616,8 +616,8 @@ function renderNotifContent(text) {
 registerLogoutReset(() => { _notifList = []; _lastContractSig = ''; });
 
 // ============================================================
-// 初始化（DOMContentLoaded）：v0.25.95（用户反馈「刷新不要回首页」）刷新恢复登录/访客 + 页面停留；
-// 无可恢复身份才落落地页。推翻 v0.24.1「刷新恒落落地页」：该决定防「链接直达自动登录」，但用户主动刷新
+// 初始化（DOMContentLoaded）：刷新恢复登录/访客 + 页面停留；
+// 无可恢复身份才落落地页。恒落落地页的防「链接直达自动登录」决定已废止——用户主动刷新
 // 应保持刷新前状态——恢复编排按 登录会话 → 访客角色 → 落地页 顺序，能力在 app-state 会话层
 // （loadSession/getLastGuestRole/getLastPage），进入复用 app-auth（switchToRole/enterRolePreview）。
 // ============================================================

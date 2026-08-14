@@ -71,8 +71,13 @@ export async function initLogDb(db) {
 
 // 敏感键剔除：口令 / 盐 / 验证码 / 正文大字段 / 联系方式 / 需求地址信息绝不落明文档
 // （第一道脱敏；detail 加密在 crypto.js。网安 N-16：补 address/additional_info——自由文本可能手填电话/门牌）
-const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email|real_name|credential_image|phone|mobile|tel|address|info|thumb/i; // thumb：聊天缩略图 dataURL 不进留档（2026-08-09 审计 F-3）
-/** 导出供 node --test 回归（test/log-sanitize.test.js），语义不变 */
+// identifier/target：登录/OTP 请求 body 的键——手机号/邮箱明文经这两键进留档，若漏配则管理员可解密还原
+// （管理员可调 /api/admin/logs/:id/decrypt）。契约：新增任何可承载联系方式的 body 键名，必须复查本清单。
+const SENSITIVE_KEYS = /pass|salt|secret|token|code$|fileData|avatar|^body$|contact|wechat|email|real_name|credential_image|phone|mobile|tel|address|info|thumb|identifier|target/i; // thumb：聊天缩略图 dataURL 不进留档
+/**
+ * 键级脱敏（深度上限 4 层，超出整值标 '[deep]'；命中键标 '[redacted]'；__proto__ 键跳过防原型污染）。
+ * 导出供 node --test 回归（test/log-sanitize.test.js），语义变更必须同步该测试。
+ */
 export function sanitize(value, depth = 0) {
   if (value === null || value === undefined) return value;
   if (typeof value !== 'object') return value;
@@ -91,7 +96,6 @@ export function sanitize(value, depth = 0) {
 const TRUNC_MARK = '…[truncated]';
 
 // 超长 detail 截断为合法 JSON（对象/数组保结构、标量退化为字符串摘要）。
-// 原实现假定序列化结果是 '}' 结尾对象，数组/字符串会拼出非法 JSON（潜伏缺陷，已修）
 function truncateJsonString(s, maxLen) {
   const cut = s.slice(0, maxLen);
   // 切点前最后一个「字符串外的结构边界」（, { [）：保证截断处是一个完整值之后
@@ -210,8 +214,8 @@ export async function logRequest(db, { method, path, body, status, req, duration
   // 访问留档只记「有审计意义的请求」：写操作（非 GET）与失败请求（status>=400）。
   // 成功 GET（列表读取、徽标轮询、用户名探测、附件拉取等）不入留档——它们不是用户动作，
   // 全量记会以百倍速度撑爆留档库且无审计价值（流量页口径见 constants UI.TRAFFIC_HINT）。
-  // v0.26.13 D1 例外：成功 GET 但耗时 > LIMITS.SLOW_GET_MS 也留档——慢 GET 是用户可感知的性能
-  // 事故信号，此前「GET 成功不留档」是观测盲区（慢到底慢在哪无据可查），低频慢请求撑不爆表。
+  // 例外：成功 GET 但耗时 > LIMITS.SLOW_GET_MS 也留档——慢 GET 是用户可感知的性能事故信号，
+  // 否则「GET 成功不留档」是观测盲区（慢到底慢在哪无据可查），低频慢请求撑不爆表。
   if (method === 'GET' && status < 400 && (durationMs == null || durationMs <= LIMITS.SLOW_GET_MS)) return;
   try {
     // 从路径抽取实体与实体 id：/api/student/demands/42 → entity=demands, id=42
@@ -245,8 +249,8 @@ export async function logRequest(db, { method, path, body, status, req, duration
   } catch { /* 兜底中的兜底：静默 */ }
 }
 
-// 流量监测（v0.22.1）：按时间桶聚合 http.* 访问留档的请求数与平均耗时。
-// unit: 'hour'（24h 用）| 'day'（7d/30d 用）；duration_ms 为 v0.22.0 起记录，历史桶 avg 为 null
+// 流量监测：按时间桶聚合 http.* 访问留档的请求数与平均耗时。
+// unit: 'hour'（24h 用）| 'day'（7d/30d 用）；duration_ms 历史桶 avg 为 null
 const TRAFFIC_BUCKET_FMT = { hour: '%Y-%m-%d %H:00', day: '%Y-%m-%d' };
 export async function dbGetTrafficBuckets(db, unit, fromTs) {
   const fmt = TRAFFIC_BUCKET_FMT[unit] || TRAFFIC_BUCKET_FMT.hour; // 白名单内插值，无注入面

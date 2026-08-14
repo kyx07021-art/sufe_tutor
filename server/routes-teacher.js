@@ -39,7 +39,7 @@ export async function handleGetProfile(db, url, req) {
 
 export async function handleSaveProfile(db, body, req) {
   const { profile: p = {} } = body;
-  if (typeof p !== 'object' || p === null) return error(MSG.INVALID_PARAMS); // 空 body 兜底（曾直 500）
+  if (typeof p !== 'object' || p === null) return error(MSG.INVALID_PARAMS); // 空 body 兜底
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   if (me.role !== 'teacher') return error(MSG.NO_PERMISSION, 403); // 仅教师可建档案（防学生/管理员写 teacher_profiles）

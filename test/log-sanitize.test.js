@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { sanitize } from '../server/log.js';
 
-const SENSITIVE = ['password', 'passwd', 'salt', 'secret', 'token', 'verifyCode', 'fileData', 'avatar', 'body', 'contact', 'wechat', 'email', 'real_name', 'credential_image', 'phone', 'mobile', 'tel', 'address', 'address_detail', 'additional_info', 'thumb']; // thumb：聊天缩略图 dataURL（2026-08-09 审计 F-3）
+const SENSITIVE = ['password', 'passwd', 'salt', 'secret', 'token', 'verifyCode', 'fileData', 'avatar', 'body', 'contact', 'wechat', 'email', 'real_name', 'credential_image', 'phone', 'mobile', 'tel', 'address', 'address_detail', 'additional_info', 'thumb', 'identifier', 'target']; // thumb：聊天缩略图 dataURL；identifier/target：登录/OTP body 键（手机号/邮箱明文载体）
 
 test('全部敏感键脱敏，普通键保留', () => {
   const input = { password: 'x', name: '正常字段', title: '标题' };

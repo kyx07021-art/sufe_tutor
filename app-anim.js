@@ -9,7 +9,7 @@
  *   - 卡片浮入（revealObserver/initReveals，错峰延迟单源 CONFIG）
  *   - Toast（创建节点 → CSS 类定位/入场 → 定时切退场类 → 移除）
  *   - 自定义下拉开闭（toggleCustomSelect/closeAllCustomSelects/positionCustomSelectPanel + 全局监听）
- *   - 浮窗附属树（v0.25.43 需求三）：registerOverlay/closeHostOverlays——body 附属覆盖层登记到宿主，
+ *   - 浮窗附属树：registerOverlay/closeHostOverlays——body 附属覆盖层登记到宿主，
  *     宿主关闭级联关子（浮窗内下拉关浮窗后成幽灵组件的根治）
  *   - 通用交互监听（[role=button] 键盘可达 a11y）
  *
@@ -17,7 +17,7 @@
  */
 
 // ============================================================
-// 选中块高亮（v0.25.94 重构）：删绝对定位 pill 覆盖层特例栈（syncPillOnce/glidePill 逐帧
+// 选中块高亮：删绝对定位 pill 覆盖层特例栈（syncPillOnce/glidePill 逐帧
 // 量 offsetTop/offsetHeight 写 CSS 变量的旁支通路连根删）——选中高亮改由条目自身
 // .sidebar-item.active / .conv-item.active 的 background 承载（流内标准组件）：
 //   ① 缩放/拖动/重排时条目即自身背景，天然同帧，零 JS 几何同步（用户反馈「灰色块乱窜」根治）；
@@ -68,9 +68,9 @@ function initReveals(root) {
 }
 
 // ============================================================
-// Toast：全站轻提示。CSS 类承担定位/入场动画；JS 只增删节点 + 定时切退场类（v0.21.0 重构：原内联 cssText 已下沉）
-// v0.25.99 升级全风格：showToast(msg, kind)，kind ∈ error|success|warn|info（缺省 info 兼容历史中性调用）。
-// 样式区分走 --g-fill/--g-fg 底色+文字色，无左竖条（v0.25.99 教训：alert 系 --g-surface 左竖条全站连根拔）。
+// Toast：全站轻提示。CSS 类承担定位/入场动画；JS 只增删节点 + 定时切退场类（原内联 cssText 已下沉）
+// 升级全风格：showToast(msg, kind)，kind ∈ error|success|warn|info（缺省 info 兼容历史中性调用）。
+// 样式区分走 --g-fill/--g-fg 底色+文字色（契约：禁止添加左竖条/--g-surface——全站无 alert 条，仅 toast）。
 // 消息走 textContent（XSS 单源——调用处传原始文案，禁传已转义/含 HTML 的字符串）
 // ============================================================
 function showToast(msg, kind) {
@@ -113,8 +113,8 @@ function closeAllCustomSelects() {
 }
 
 // ============================================================
-// 浮窗附属树（v0.25.43 需求三）：body 附属覆盖层登记到宿主，宿主关闭级联关子
-// 背景：下拉面板/悬浮卡等 fixed 覆盖层挂 body 逃逸玻璃 isolation 裁剪（v0.19.25 架构债），
+// 浮窗附属树：body 附属覆盖层登记到宿主，宿主关闭级联关子
+// 背景：下拉面板/悬浮卡等 fixed 覆盖层挂 body 逃逸玻璃 isolation 裁剪，
 // 但脱离触发组件 DOM 子树后「关父组件」天然不级联——浮窗内呼出下拉、关浮窗后面板仍挂 body
 // 成幽灵组件（用户实证）。机制：宿主要关闭时 closeHostOverlays(host) 逐个关子覆盖层。
 // 标准接口：registerOverlay(host, closeFn, keyEl)——任何 future 覆盖层组件走此口登记；
@@ -144,9 +144,9 @@ function positionCustomSelectPanel(wrap) {
   panel.style.top = `${r.bottom + 6}px`;
   panel.style.width = `${r.width}px`;
 }
-/* 悬浮卡 fixed 锚定（v0.25.19 审计 G-14：教师端/学生端匹配度明细卡原两处重复定位，抽单点）。
+/* 悬浮卡 fixed 锚定（教师端/学生端匹配度明细卡原两处重复定位，抽单点）。
    挂 body 的 fixed 卡以触发按钮 rect 定位（left 对齐 + 下缘 offset）。
-   B4（v0.27.2 用户反馈「比例条区右边诡异小滚动条」）：不再注入 listEl max-height——
+   B4：不再注入 listEl max-height——
    卡片随比例条区内容动态拉长（原 max-height 320 内容超几个 px 即出小滚动条）。 */
 function positionFloatCard(btn, card) {
   if (!btn || !card) return;
@@ -154,7 +154,7 @@ function positionFloatCard(btn, card) {
   const vw = document.documentElement.clientWidth;
   const w = card.offsetWidth;
   const m = CONFIG.MATCH_DETAIL_EDGE_MARGIN;
-  // v0.25.26 移动端右缘钳制（用户反馈：匹配度明细卡超出屏幕右边）：默认左对齐按钮下，
+  // 移动端右缘钳制（用户反馈：匹配度明细卡超出屏幕右边）：默认左对齐按钮下，
   // 卡片右缘越界（按钮贴右 / 窄屏）时强制右对齐屏幕边缘——left 同时钳最小边距，双向杜绝溢出。
   // w/vw 未就绪（0：jsdom/隐藏态/测量失败）时跳过钳制回退左对齐，防退化环境误钳。
   let left = r.left;

@@ -22,7 +22,7 @@ const glass = readFileSync('./glass.css', 'utf8');
 
 test('R12 触发器聚焦环并入输入族（软环随圆角）', () => {
   // 聚焦环规则必须包含 custom-select-trigger（与 form-input/filter-select 同族）
-  assert.ok(/\.form-input:focus, \.chat-input:focus, \.filter-select:focus, \.custom-select-trigger:focus \{/.test(glass),
+  assert.ok(/\.form-input:focus, \.filter-select:focus, \.custom-select-trigger:focus \{/.test(glass),
     '触发器聚焦环与输入族同一规则');
   assert.ok(glass.includes('0 0 0 3px var(--g-focus-soft)'), '聚焦环用标准软环 token');
 });

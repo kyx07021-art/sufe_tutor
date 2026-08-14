@@ -7,7 +7,7 @@
  * 函数一律保持 function 声明式（内联 onclick 靠它挂全局）。
  */
 
-// v0.23.1 审计 M6：探测刷新替换缓存数组后重挂管理端镜像——全文查看/移除弹窗与教师详情
+// 审计 M6：探测刷新替换缓存数组后重挂管理端镜像——全文查看/移除弹窗与教师详情
 // 的数据源，不重挂则展示旧数据（自愈但误导）
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('admin', () => {
@@ -29,7 +29,7 @@ if (typeof dhOnDomainRefresh === 'function') {
 // ============================================================
 async function loadAdminPosts() {
   await loadInto('admin-posts-list', async () => {
-    const data = await dhGet('/api/posts', { domain: 'posts' }); // v0.23.0 静默数据层（与教师资料广场同端点同域）
+    const data = await dhGet('/api/posts', { domain: 'posts' }); // 静默数据层（与教师资料广场同端点同域）
     state.adminPosts = data.posts || []; // 全文查看弹窗的数据源
     return state.adminPosts;
   }, rows => rows.map(renderAdminPostRow).join(''),
@@ -70,7 +70,7 @@ function adminDeletePost(postId) {
     try {
       await api(`/api/posts/${postId}`, { method: 'DELETE', body: {} });
       showToast(UI.POST_DELETED);
-      invalidate('posts'); // v0.23.1 审计 M1：否则 loadAdminPosts 命中旧列表，被删帖闪回
+      invalidate('posts'); // 审计 M1：否则 loadAdminPosts 命中旧列表，被删帖闪回
       loadAdminPosts();
     } catch (err) { showToast(err.message); }
   }});
@@ -81,7 +81,7 @@ function adminDeletePost(postId) {
 // ============================================================
 async function loadAdminContracts() {
   await loadInto('admin-contracts-list', async () => {
-    // v0.23.0 静默数据层：管理端合同列表归 contracts 域——合同变动（含学生/教师侧签约）一并静默重拉
+    // 静默数据层：管理端合同列表归 contracts 域——合同变动（含学生/教师侧签约）一并静默重拉
     const data = await dhGet('/api/admin/contracts', { domain: 'contracts' });
     state.adminContracts = data.contracts || []; // 查看/移除弹窗的数据源
     return state.adminContracts;
@@ -110,7 +110,7 @@ function renderAdminContractRow(c) {
 function adminViewContract(contractId) {
   const c = state.adminContracts.find(x => x.id === contractId);
   if (!c) return;
-  // v0.24.3：与用户端同口径——修改过的合同（prev_business 非空）先渲染改动 diff 块再显示当前全文
+  // 与用户端同口径——修改过的合同（prev_business 非空）先渲染改动 diff 块再显示当前全文
   const diffHtml = c.prev_business && typeof renderContractDiff === 'function'
     ? renderContractDiff(c.prev_business, splitContractBiz(c.contract_md)) : '';
   openModal({
@@ -120,7 +120,7 @@ function adminViewContract(contractId) {
     body: `${diffHtml ? `<div class="contract-diff-head">${escHtml(UI.CONTRACT_DIFF_HINT)}</div>
         <div class="contract-diff">${diffHtml}</div>
         <div class="contract-diff-divider"></div>` : ''}
-      ${mdRender(stripContractMarker(c.contract_md))}`, // 去除内部标记行（stripContractMarker 单源，v0.25.86 审计收敛）
+      ${mdRender(stripContractMarker(c.contract_md))}`, // 去除内部标记行（stripContractMarker 单源）
   });
 }
 
@@ -129,7 +129,7 @@ function adminRemoveContract(contractId) {
     try {
       await api(`/api/admin/contracts/${contractId}`, { method: 'DELETE' });
       showToast(UI.ADMIN_CONTRACT_REMOVED_TOAST);
-      invalidate('contracts'); // v0.23.1 审计 M5：否则 loadAdminContracts 命中旧列表
+      invalidate('contracts'); // 审计 M5：否则 loadAdminContracts 命中旧列表
       loadAdminContracts();
     } catch (err) { showToast(err.message); }
   }});
@@ -141,7 +141,7 @@ function adminRemoveContract(contractId) {
 async function loadAdminFeedback() {
   setBadge('admin-feedback', 0); // 点开瞬间红点即灭（新反馈由轮询在离开本页后重新点亮）
   await loadInto('admin-feedback-list', async () => {
-    const data = await dhGet('/api/feedbacks', { domain: 'admin' }); // v0.23.0 静默数据层
+    const data = await dhGet('/api/feedbacks', { domain: 'admin' }); // 静默数据层
     return data.feedbacks || [];
   }, list => list.map(f => {
     const resolved = f.status === STATUS.RESOLVED;
@@ -170,7 +170,7 @@ async function resolveAdminFeedback(feedbackId) {
   try {
     await api(`/api/feedbacks/${feedbackId}/resolve`, { method: 'POST' });
     showToast(UI.FEEDBACK_RESOLVED_TOAST);
-    invalidate('admin'); // v0.23.1 审计 M5：否则 loadAdminFeedback 命中旧列表
+    invalidate('admin'); // 审计 M5：否则 loadAdminFeedback 命中旧列表
     loadAdminFeedback();
   } catch (err) { showToast(err.message); }
 }
@@ -179,16 +179,17 @@ async function resolveAdminFeedback(feedbackId) {
 // 管理员：封禁 / 解封用户
 // ============================================================
 function confirmBanUser(userId, banned) {
-  confirm({ title: banned ? UI.BAN : UI.UNBAN, message: banned ? UI.CONFIRM_BAN : UI.CONFIRM_UNBAN, onConfirm: () => doBanUser(userId, banned) });
+  // 危险操作（同签约/注销口径）：needReAuth 换 capToken 后 doBanUser 才发请求，服务端 confirmDangerOtp 校验
+  confirm({ title: banned ? UI.BAN : UI.UNBAN, message: banned ? UI.CONFIRM_BAN : UI.CONFIRM_UNBAN, needReAuth: true, onConfirm: (capToken) => doBanUser(userId, banned, capToken) });
 }
 
-async function doBanUser(userId, banned) {
+async function doBanUser(userId, banned, capToken) {
   try {
-    await api(`/api/admin/users/${userId}/ban`, { method: 'POST', body: { banned } });
+    await api(`/api/admin/users/${userId}/ban`, { method: 'POST', body: { banned, capToken } });
     closeModal();
     showToast(banned ? UI.SUCCESS_BANNED : UI.SUCCESS_UNBANNED);
     invalidate('teachers'); // 封禁/解封后清教师缓存，防被封教师滞留浏览列表
-    invalidate('admin'); // v0.23.1 审计 M3：admin 用户列表也是缓存，不清则封禁状态滞留 60s
+    invalidate('admin'); // admin 用户列表也是缓存，不清则封禁状态滞留 60s
     if (state.page === 'admin-students') loadAdminStudents();
     if (state.page === 'admin-teachers') loadAdminTeachers();
   } catch (err) {
@@ -239,7 +240,7 @@ async function loadAdminStats() {
   const el = document.getElementById('admin-stats-content');
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
-    const statsData = await dhGet('/api/admin/stats', { domain: 'admin' }); // v0.23.0 静默数据层
+    const statsData = await dhGet('/api/admin/stats', { domain: 'admin' }); // 静默数据层
     const s = statsData.stats;
 
     // 网安审计 N-14：统计数值本应都是数字，但防御性转义（服务端异常/未来字段改文案时防存储型 XSS）
@@ -277,7 +278,7 @@ async function loadAdminStats() {
   }
 }
 
-// 流量监测（v0.22.1）：站点总流量 + 平均延迟。范围切换 + 独立图表组件（app-chart.js）渲染。
+// 流量监测：站点总流量 + 平均延迟。范围切换 + 独立图表组件（app-chart.js）渲染。
 // 口径见 UI.TRAFFIC_HINT；接口 /api/admin/traffic 由服务端聚合 activity_log。
 let _trafficRange = '24h';
 async function loadAdminTraffic() {
@@ -325,9 +326,9 @@ function setTrafficRange(r) { _trafficRange = r; loadAdminTraffic(); }
 async function loadAdminUsers(role, elId) {
   const url = `/api/admin/users?role=${role}`;
   await loadInto(elId, async () => {
-    const data = await dhGet(url, { domain: 'admin' }); // v0.23.0 静默数据层
+    const data = await dhGet(url, { domain: 'admin' }); // 静默数据层
     const users = data.users || [];
-    if (role === 'teacher') state.adminTeachers = users; // 空数组也回写：封禁最后一个教师后旧缓存不滞留 // 教师详情弹窗的数据源（原口径：非空才回写）
+    if (role === 'teacher') state.adminTeachers = users; // 空数组也回写：封禁最后一个教师后旧缓存不滞留（教师详情弹窗的数据源）
     return users;
   }, users => users.map(u => renderAdminUserRow(u, role)).join(''),
     { empty: UI.EMPTY_NO_USERS, reveal: false, peek: () => dhReady(url) });
@@ -368,7 +369,7 @@ async function toggleTeacherVerify(userId, verified) {
   try {
     const data = await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified } });
     showToast(verified ? UI.VERIFY_DONE : UI.UNVERIFY_DONE);
-    invalidate('admin'); // v0.23.1 审计 M3：admin 教师列表缓存不清则核验状态滞留
+    invalidate('admin'); // 审计 M3：admin 教师列表缓存不清则核验状态滞留
     invalidate('teachers'); // 教师列表 verified 徽章同步刷新
     loadAdminTeachers();
   } catch (err) { showToast(err.message); }
@@ -407,7 +408,7 @@ async function loadAdminReviews() {
   const url = `/api/admin/reviews${status ? `?status=${status}` : ''}`;
   await loadInto('admin-reviews-list', async () => {
     // 修：原用 &status 开头（无 ? 前缀，服务端无法解析，按状态过滤失效）→ 改 ?status
-    const data = await dhGet(url, { domain: 'admin' }); // v0.23.0 静默数据层
+    const data = await dhGet(url, { domain: 'admin' }); // 静默数据层
     return data.reviews || [];
   }, reviews => reviews.map(renderAdminReviewRow).join(''),
     { empty: UI.EMPTY_NO_REVIEWS, reveal: false, peek: () => dhReady(url) });
@@ -434,7 +435,7 @@ function renderAdminReviewRow(r) {
 }
 
 // ============================================================
-// v0.26.0 D3：统一内容审核页（全站内容提取 + 一键处罚）
+// ：统一内容审核页（全站内容提取 + 一键处罚）
 // ============================================================
 const _contentTypeName = t => ({
   post: UI.ADMIN_CONTENT_TYPE_POST, demand: UI.ADMIN_CONTENT_TYPE_DEMAND, teacher: UI.ADMIN_CONTENT_TYPE_TEACHER,
@@ -484,11 +485,13 @@ function renderAdminContentRow(it) {
 }
 
 // 处罚弹窗：原因（必填）+ 触犯规则 → 删除 / 封禁作者
-// teacher 档案无硬删分支（后端 doDeleteContent 对 teacher 跳过）——只给封禁，不展示 no-op 删除（审查补丁）
+// teacher 档案无硬删分支（后端 doDeleteContent 对 teacher 跳过）——只给封禁，不展示 no-op 删除
 function openContentPenaltyModal(type, id) {
   const onlyBan = type === 'teacher';
+  // type 来自服务端提取枚举（CONTENT_TYPES），拼入 onclick 前仍按白名单断言（属性上下文纵深防御）
+  const t = /^[a-z]+$/.test(type) ? type : 'post';
   openModal({
-    title: `处罚${_contentTypeName(type)} #${id}`,
+    title: `处罚${_contentTypeName(t)} #${id}`,
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
     body: `<div class="form-group">
         <label class="form-label">${UI.ADMIN_CONTENT_PENALTY_REASON} <span class="req">*</span></label>
@@ -500,8 +503,8 @@ function openContentPenaltyModal(type, id) {
       </div>
       <p class="form-hint">处罚后将自动通知作者（含原因、规则与触发内容摘要）</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
-      ${onlyBan ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="submitContentPenalty('${type}',${id},'remove')">${UI.ADMIN_CONTENT_PENALTY_DELETE}</button>`}
-      <button type="button" class="btn glass glass--pressable" onclick="submitContentPenalty('${type}',${id},'ban')">${UI.ADMIN_CONTENT_PENALTY_BAN}</button>`,
+      ${onlyBan ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="submitContentPenalty('${t}',${id},'remove')">${UI.ADMIN_CONTENT_PENALTY_DELETE}</button>`}
+      <button type="button" class="btn glass glass--pressable" onclick="submitContentPenalty('${t}',${id},'ban')">${UI.ADMIN_CONTENT_PENALTY_BAN}</button>`,
   });
 }
 
@@ -509,8 +512,19 @@ async function submitContentPenalty(type, id, action) {
   const reason = document.getElementById('penalty-reason').value.trim();
   if (!reason) { showToast(UI.ADMIN_CONTENT_PENALTY_REASON, 'error'); return; }
   const rule = document.getElementById('penalty-rule').value.trim();
+  // 处罚 = 危险操作（后端 confirmDangerOtp 强制 capToken）：先二次认证换 capToken 再发请求
+  closeModal();
+  confirm({
+    title: `处罚${_contentTypeName(type)} #${id}`,
+    message: `将${action === 'ban' ? '封禁' : '移除'}该内容并通知作者，确认继续？`,
+    needReAuth: true,
+    onConfirm: (capToken) => doSubmitContentPenalty(type, id, action, reason, rule, capToken),
+  });
+}
+
+async function doSubmitContentPenalty(type, id, action, reason, rule, capToken) {
   try {
-    const r = await api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, rule } });
+    const r = await api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, rule, capToken } });
     showToast(r.message || '已处理', 'success');
     closeModal();
     loadAdminContent(document.querySelector('#admin-content-tabs .seg-tab.active')?.dataset.type || '');

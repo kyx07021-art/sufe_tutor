@@ -25,10 +25,14 @@ const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-
 function frontCtx(files) {
   const dom = new JSDOM('<!DOCTYPE html><html><head></head><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
   const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
+    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
+    return mk();
+  };
   const ctx = vm.createContext({
     window: w, document: w.document, getComputedStyle: w.getComputedStyle.bind(w),
     localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
+    console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
     setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval, Request: globalThis.Request,
     MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     Image: class { set src(v) { this._s = v; } },

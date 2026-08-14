@@ -14,23 +14,20 @@
 // ============================================================
 // 业务常量
 // ============================================================
-export const INITIAL_RATING = 4.5;   // 新教师初始评分（R16：默认评分 4.0→4.5，评价通过时做加权平均）
-export const INITIAL_WEIGHT = 10;    // 初始评分权重（R16：保持 10 不变）
-export const INVITE_GATE_ENABLED = false; // 教师注册邀请码门控。内测期有意沉默（false=教师免邀请码直接注册）：当前为内测阶段，
-// 开放注册便于产品验证与教师侧体验，非遗漏（网安报告 F-05 曾要求邀请码门控，内测后有意关闭）。
-// 公测上线前必须置回 true，并同步把前端 constants.js 的 INVITE_GATE_DORMANT 改为 false，届时此处注释同步删除。
+export const INITIAL_RATING = 4.5;   // 新教师初始评分（评价通过时与 INITIAL_WEIGHT 做加权平均，公式见 dbRecomputeTeacherRating）
+export const INITIAL_WEIGHT = 10;    // 初始评分权重（与 INITIAL_RATING 成对修改）
+export const INVITE_GATE_ENABLED = false; // 教师注册邀请码门控。契约：公测上线前必须置回 true，并同步把前端
+// constants.js 的 INVITE_GATE_DORMANT 改为 false（当前 false = 内测期开放注册，有意决定）。
 
 // 合规红线「不收集详细门牌号」的服务端兜底：区块/地标级表述放行，门牌级拒绝。
-// 刻意排除「号线」避免误伤地铁站描述（如 12号线附近）；「xx号」仅两位以上数字视为门牌。
-// v0.25.110：补中文数字（含大写壹贰叁…）——贰柒捌捌号曾绕过门控。
-// v0.25.113（用户反馈）：数字位间可夹分隔符（贰-柒-捌-捌-号 连字符分隔曾绕过）——门牌数字段允许
-//   [-·、．.，, ] 分隔（NLP 级枚举的工程等价：门牌号 = 数字串 + 门牌后缀，分隔符是地址语法噪音，
-//   归一化进模式而非上重型 NLP 库——workerd 体积/兼容约束下规则匹配更精准可靠，见 docs 地址门控注记）。
+// 口径：排除「号线」避免误伤地铁站描述（如 12号线附近）；「xx号」仅两位以上数字视为门牌；
+// 覆盖阿拉伯/全角/中文数字（壹贰叁…大写），数字位间可夹地址语法分隔符 [-·、．.，, ]
+// （「贰-柒-捌-捌-号」类连字符变体）。text-audit.js 复用 NUM_T/NUM_SEP，改门牌口径两处同步。
 const CN_DIGIT = '一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億';
 export const NUM_T = `[0-9０-９${CN_DIGIT}]`;        // 数字 token（阿拉伯/全角/中文/大写中文）
-export const NUM_SEP = `[-·、．.，, ]`;              // 数字位间可夹的地址语法分隔符（v0.31.3 审计 A1：导出供 text-audit 复用，防数字变体扩容漂移）
-// 手机/邮箱哈希可查列定位条件单源（v0.31.3 审计 A3）：credential.js（登录识别全列）+ db.js（限流同批）
-// 各写一份 WHERE 曾逐字重复 6 处——哈希列语义只此一份，改列名/判空口径不再两处漂移。组成时前缀 WHERE 或接 LIMIT。
+export const NUM_SEP = `[-·、．.，, ]`;              // 数字位间可夹的地址语法分隔符（text-audit 复用，改数字变体两处同步）
+// 手机/邮箱哈希可查列定位条件单源：credential.js（登录识别全列）+ db.js（限流同批）同读——
+// 哈希列语义只此一份，改列名/判空口径只改此处。组成时前缀 WHERE 或接 LIMIT。
 export const PHONE_HASH_COND = "phone_hash=? AND phone_hash != ''";
 export const EMAIL_HASH_COND = "email_hash=? AND email_hash != ''";
 const NOSEQ2 = `(?:${NUM_T}${NUM_SEP}?)+${NUM_T}`; // ≥2 个数字 token，位间可夹分隔符（用于「号」）
@@ -45,7 +42,7 @@ export const STATUS = {
   OPEN: 'open',          // 需求开放 / 反馈未处理
   CONTRACTED: 'contracted', // 需求已签约下架
   REVOKED: 'revoked',    // 需求合同已撤销（待所有者手动重开）
-  PENDING: 'pending',    // 意向/推送待处理 / 评价待审核（v0.25.94：合同已无 pending 态——创建即 signing、取消回退归 signing）
+  PENDING: 'pending',    // 意向/推送待处理 / 评价待审核（合同无 pending 态——创建即 signing）
   ACCEPTED: 'accepted',  // 意向/推送已接受
   REJECTED: 'rejected',  // 意向/推送已拒绝 / 评价已拒绝
   SIGNING: 'signing',    // 合同待签约（双方确认中）
@@ -64,7 +61,7 @@ export const MSG = {
   USERNAME_INVALID: '用户名只能包含中文、字母、数字及 _ . - （3-30 个字符）',
   PASSWORD_LENGTH: '密码长度至少 6 个字符',
   INVALID_ROLE: '无效的用户角色',
-  AGREE_REQUIRED: '注册须同意用户协议与隐私政策', // 需求三十（v0.25.47）：服务端强校验，前端勾选双保险
+  AGREE_REQUIRED: '注册须同意用户协议与隐私政策', // 服务端强校验（前端勾选可被构造请求绕过，合规红线）
   INVALID_ACTION: '无效的操作',
   INVALID_PARAMS: '参数不合法',
   LOGIN_REQUIRED: '请输入用户名和密码',
@@ -87,10 +84,10 @@ export const MSG = {
   DEMAND_DELETED: '需求已删除',
   DEMAND_REOPENED: '需求已重新开放',
   DEMAND_STATE_INVALID: '当前需求状态不允许此操作',
-  INVALID_TIME_SLOTS: '期望开课时间格式不正确', // v0.25.0 结构化时间段：JSON 结构/范围校验失败（需求 expected_time 与教师档案 time_slots 共用）
+  INVALID_TIME_SLOTS: '期望开课时间格式不正确', // 结构化时间段 JSON 结构/范围校验失败（需求 expected_time 与教师档案 time_slots 共用）
   PERSONALITY_TAGS_TOO_MANY: '性格关键词最多选 3 个', // R2-3：服务端兜底（前端 toggleTagPick 已限）
   PROVINCE_REQUIRED: '请选择省份',
-  ADDRESS_REQUIRED: '请选择授课所在区与镇/街道', // 需求五：地址结构化（区·镇/街道）必填（上海线下）
+  ADDRESS_REQUIRED: '请选择授课所在区与镇/街道', // 地址结构化（区·镇/街道）必填（上海线下）
   ADDRESS_TOO_DETAILED: '地址请用「区/路」级别的模糊表述，请勿填写详细门牌号（如 xx号楼 / xx室 / xx号门）', // 仍用于 intro/school/additional_info 自由文本
   TEACHER_ONLY: '仅教师可操作',
   ADMIN_ONLY: '仅管理员可操作',
@@ -127,26 +124,25 @@ export const MSG = {
   POST_NOT_FOUND: '帖子不存在',
 
   // 合同（通知模板含 {name} 占位；用户可见合同文案在 constants.js UI.CONTRACT_*，本块只留校验/状态语义）
-  // v0.25.57 需求四十九：CONTRACT_EXISTS（该会话已存在进行中的合同）已连根拔——会话级查任意状态合同过宽，
-  // 阻塞已拒绝/已撤销后的重新起草；「一条需求一份合同」由 DEMAND_CONTRACT_EXISTS 需求级门禁把关。
+  // 「一条需求一份合同」由 DEMAND_CONTRACT_EXISTS 需求级门禁把关（会话级查任意状态合同过宽）
   CONTRACT_CANCEL_SIGNED_BLOCKED: '对方已确认签约，无法再取消签约；如要结束合作请双方协商后走「撤销合同」',
   CONTRACT_NOT_FOUND: '合同不存在',
   CONTRACT_STATE_INVALID: '合同当前状态不允许该操作',
-  CONTRACT_LOCKED_AFTER_SIGN: '你已确认签约，合同内容锁定不可修改；如需变更请双方协商后重新起草', // v0.25.87 R6：已确认方禁改
-  CONTRACT_ALREADY_REVOKED: '合同已撤销，无需重复操作', // v0.25.87 R7：撤销幂等拒绝
+  CONTRACT_LOCKED_AFTER_SIGN: '你已确认签约，合同内容锁定不可修改；如需变更请双方协商后重新起草', // 已确认方禁改
+  CONTRACT_ALREADY_REVOKED: '合同已撤销，无需重复操作', // 撤销幂等拒绝
   CONTRACT_MODIFIED_CONFLICT: '合同已被对方修改，请关闭后重新打开查看最新版本',
   SIGNING_ALREADY_RESPONDED: '该签约请求已处理，请勿重复操作',
   SIGNING_ALREADY_PENDING: '该会话已有待处理的签约请求，请等待对方确认后再发起',
   DEMAND_CONTRACTED_CLOSED: '该需求已签约成交，已停止接收新意向',
   DEMAND_CONTRACTED_LOCKED: '已签约的需求不可修改或删除',
-  DEMAND_NOT_SIGNED: '该需求尚未确认签约，无法起草合同', // 需求四·第3条：起草合同只能绑已签约需求
-  DEMAND_CONTRACT_EXISTS: '该需求已关联合同，不可重复起草', // 需求四·第3条：一条需求一份合同
+  DEMAND_NOT_SIGNED: '该需求尚未确认签约，无法起草合同', // 起草合同只能绑已签约需求
+  DEMAND_CONTRACT_EXISTS: '该需求已关联合同，不可重复起草', // 一条需求一份合同
 
   // 沟通
   CONVERSATION_NOT_FOUND: '会话不存在',
   MESSAGE_NOT_FOUND: '消息不存在',
   MESSAGE_TOO_LONG: '消息太长（上限 2000 字）',
-  GREETING_TOO_LONG: '打招呼消息太长（上限 300 字）', // v0.28.0 M1 打招呼消息专用
+  GREETING_TOO_LONG: '打招呼消息太长（上限 300 字）', // 打招呼消息专用
   FILE_TOO_LARGE: '附件过大（上限约 500KB，图片会自动压缩）',
   FILE_TYPE_BLOCKED: '不支持的文件类型',
   UPLOAD_STAGING_LIMIT: '暂存的待发送附件过多，请先发送或删除部分附件',
@@ -176,7 +172,7 @@ export const MSG = {
   // 登录设备（会话）
   SESSION_NOT_FOUND: '该设备的登录状态不存在或已失效',
 
-  // v0.26.0 验证码/凭证（A3/A5/A6）
+  // 验证码/凭证（otp/credential/routes-auth 消费）
   PHONE_INVALID: '手机号格式不正确',
   EMAIL_INVALID: '邮箱格式不正确',
   OTP_RESEND_LIMIT: '发送过于频繁，请 60 秒后再试',
@@ -191,7 +187,7 @@ export const MSG = {
   USERNAME_NEW_INVALID: '用户名只能包含中文、字母、数字及 _ . - （3-30 个字符），且不能为纯数字、不能含 @',
   USERNAME_CHANGED: '用户名修改成功',
 
-  // v0.26.0 内容审核（D2 处罚）
+  // 内容审核（D2 处罚）
   PENALTY_REASON_REQUIRED: '请填写处罚原因',
 
   // 通用
@@ -220,7 +216,7 @@ export const LIMITS = {
   SCHOOL_MAX: 30, INTRO_MAX: 50, REAL_NAME_MAX: 20,
   CONTACT_MAX: 50,         // 联系方式（wechat/email/家长/学生电话）
   ADDITIONAL_INFO_MAX: 500, // 需求补充说明（自由文本，2026-08-09 审计 F-1 补上限 + ADDRESS_GUARD）
-  GREETING_MSG_MAX: 300,  // 打招呼消息上限（v0.28.0 M1：学生推送需求 / 教师试课意向附带；Airbnb 式简短温暖，100-300 字）
+  GREETING_MSG_MAX: 300,  // 打招呼消息上限（学生推送需求 / 教师试课意向附带；Airbnb 式简短温暖，100-300 字）
   ADDRESS_FIELD_MAX: 100,  // 授课区域
   SCHEDULE_MAX: 200,        // 签约请求时间（自然语言）
   CONTRACT_LOCATION_MAX: 200, // 合同地点
@@ -229,19 +225,19 @@ export const LIMITS = {
   CONTRACT_SCHEDULE_MAX: 500,  // 合同授课安排
   CONTRACT_MD_MAX: 30000,      // 合同正文（markdown）
   GAOKAO_SCORE_MAX: 300,     // 高考分上限（全政策单科最高 = 海南标准分 300）
-  DEMAND_TIME_MAX: 2000,   // 期望开课时间（v0.25.0 起存结构化时间段 JSON，多条组件需更长容量）
+  DEMAND_TIME_MAX: 2000,   // 期望开课时间（结构化时间段 JSON，多条组件需更长容量）
   TIME_SLOTS_MAX: 8,       // 结构化时间段条数上限（与前端 CONFIG.TIME_SLOTS_MAX 对齐）
-  GRAD_YEAR_MIN: 1980, GRAD_YEAR_MAX: 2030, // 教师毕业年份范围（R2-12，与前端 CONFIG 同值）
+  GRAD_YEAR_MIN: 1980, GRAD_YEAR_MAX: 2030, // 教师毕业年份范围（与前端 CONFIG 同值）
   BUDGET_MAX: 99999,       // 预算/报价钳制上限
   AVATAR_MAX_BYTES: 20000, // 头像 dataURL
   CREDENTIAL_MAX_BYTES: 500000, // 学信网截图 dataURL
   // 沟通
   MESSAGE_MAX_LEN: 2000,   // 单条消息
   FILE_MAX_BYTES: 700000,  // 附件 dataURL（约 500KB 图片压缩后）
-  THUMB_MAX_BYTES: 20000,  // 聊天图片缩略图 dataURL 上限（v0.25.36；128px JPEG 约 3-8KB）
+  THUMB_MAX_BYTES: 20000,  // 聊天图片缩略图 dataURL 上限（128px JPEG 约 3-8KB）
   FILE_NAME_MAX: 100,      // 附件文件名
   UPLOAD_STAGING_MAX: 12,  // 暂存附件件数
-  MSG_BATCH_MAX: 13,       // F9（v0.27.0）：批量发送条数上限（暂存附件 ≤12 + 文字 1，一次往返）
+  MSG_BATCH_MAX: 13,       // 批量发送条数上限（暂存附件 ≤12 + 文字 1，一次往返）
   // 内容
   POST_BODY_MAX: 20000,    // 帖子/广播正文
   FEEDBACK_BODY_MAX: 5000, // 反馈正文
@@ -256,18 +252,18 @@ export const LIMITS = {
   DEVICE_UA_MAX: 200,      // 留档 UA 截断
   LOG_DETAIL_MAX: 4096,    // 留档 detail 截断
   LOG_QUERY_MAX: 500,      // 管理端日志检索过量上限
-  SLOW_GET_MS: 2000,       // GET 留档慢阈值（v0.26.13 D1 观测盲区：GET 成功且 > 阈值也留档，低频不撑表）
+  SLOW_GET_MS: 2000,       // GET 留档慢阈值（GET 成功且 > 阈值也留档，低频不撑表；成功 GET 默认不留档）
   // 数据层
   PAGE_SIZE: 50, PAGE_HAS_MORE: 51, // keyset 游标分页（LIMIT 51 判 hasMore）
   MSG_LIMIT: 100,          // 消息拉取上限
   RECENT_LIMIT: 8,         // 统计近 N 条
   NOTIF_LIST_MAX: 200,     // 通知列表上限
   PUBLIC_LIST_MAX: 200,    // 公开列表（需求广场/帖子）上限（网安 N-04：匿名全量拉取封顶）
-  REVIEW_LIST_MAX: 200,    // 单教师公开评价上限（面板滚动查看；v0.25.86 审计收敛自裸 LIMIT 200）
-  FEEDBACK_MINE_MAX: 100,  // 我的反馈/投诉列表上限（v0.25.86 审计收敛自裸 LIMIT 100）
-  FEEDBACK_ADMIN_MAX: 200, // 管理端反馈列表上限（v0.25.86 审计收敛自裸 LIMIT 200）
+  REVIEW_LIST_MAX: 200,    // 单教师公开评价上限（面板滚动查看）
+  FEEDBACK_MINE_MAX: 100,  // 我的反馈/投诉列表上限
+  FEEDBACK_ADMIN_MAX: 200, // 管理端反馈列表上限
   STALE_UPLOAD_WINDOW: '-30 minutes', // 暂存附件清理窗口
-  // v0.26.0 验证码（A3，成熟方案口径：TTL+一次性+频控服务端强制）
+  // 验证码（成熟方案口径：TTL+一次性+频控服务端强制）
   OTP_CODE_TTL_MS: 5 * 60 * 1000,   // 验证码有效期 5 分钟
   OTP_RESEND_WINDOW_MS: 60 * 1000,  // 同一目标 60s 内只能请求一次（服务端原子限频，前端倒计时只是表象）
   OTP_DAILY_MAX: 10,                // 同一目标单日请求上限

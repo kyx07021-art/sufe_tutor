@@ -3,7 +3,7 @@
  *
  * 经典脚本：全部顶层全局函数 + 内联 onclick（全站同一约定）。
  * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / closeModal / loaderHtml / loadInto / initCustomSelects；
- * 删除确认复用共享 confirm() 原语（v0.25.10 反馈 #82 合并，原自写 postConfirmDelete 小弹窗已连根删）。
+ * 删除确认复用共享 confirm() 原语。
  * mdRender 为自研轻量 markdown-lite：先 escHtml 全转义再逐行识别语法，不引任何外部库。
  * section 恒 'plaza'，当前不做分区 UI（接口已预留 section 参数）。
  */
@@ -14,7 +14,7 @@
 let postsList = [];          // 当前已加载的帖子（点赞后本地同步的数据源）
 let postsUrl = '/api/posts?sort=new'; // 最近一次加载的帖子 URL（探测刷新后按它重挂 postsList）
 let postsSearchTimer = null; // 搜索防抖定时器
-// v0.23.1 审计 M1：探测刷新替换缓存数组后重挂别名——点赞就地变更（togglePostLike 改 postsList）
+// 审计 M1：探测刷新替换缓存数组后重挂别名——点赞就地变更（togglePostLike 改 postsList）
 // 依赖「postsList === 缓存数组同引用」，不重挂则点赞态被缓存旧值弹回
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('posts', () => {
@@ -35,7 +35,7 @@ function enterResourceShare() {
   const isTeacher = state.user && state.user.role === 'teacher';
   document.getElementById('posts-content').innerHTML = `
     <div class="posts-toolbar glass">
-      <!-- M7（v0.25.103）+ B7（v0.26.4 返工）：我的收藏从切换式 tab 改单个 toggle 按钮，
+      <!-- M7+ B7：我的收藏从切换式 tab 改单个 toggle 按钮，
            复用「屏蔽系统通知」按钮的 SVG 描边勾模式——进入收藏态前置勾（.posts-fav-btn--on::before，
            同 .notif-block-btn SVG data-uri 单源，非字符 √），再点回全部 -->
       <button type="button" class="btn btn-sm glass glass--pressable posts-fav-btn${postsView === 'fav' ? ' posts-fav-btn--on' : ''}" id="posts-fav-btn"
@@ -83,16 +83,16 @@ function loadPosts() {
     : `/api/posts?sort=${sort}` + (q ? `&q=${encodeURIComponent(q)}` : '');
   postsUrl = url; // 记录最近 URL，探测刷新后按其重挂 postsList（审计 M1）
   return loadInto('posts-list', async () => {
-    const data = await dhGet(url, { domain: 'posts' }); // v0.23.0 静默数据层
+    const data = await dhGet(url, { domain: 'posts' }); // 静默数据层
     postsList = data.posts || []; // 渲染前同步：点赞/收藏就地更新依赖此数据源
     return data;
   }, rows => rows.map(renderPostCard).join(''),
   { seqKey: 'posts', empty: postsView === 'fav' ? UI.POSTS_FAV_EMPTY : UI.POSTS_EMPTY, pick: d => d.posts, reveal: true, peek: () => dhReady(url) });
 }
 
-// #161（v0.25.69）：点赞 pill 组件（列表卡 + 详情浮窗共用）——#160 复选逻辑单点
+// #161：点赞 pill 组件（列表卡 + 详情浮窗共用）——#160 复选逻辑单点
 function likePillHtml(p) {
-  return `<label class="post-like glass" data-id="${p.id}"> <!-- #160（v0.25.68）：点赞接复选框逻辑——liked 态骑原生
+  return `<label class="post-like glass" data-id="${p.id}"> <!-- #160：点赞接复选框逻辑——liked 态骑原生
     checkbox checked（同 .checkbox-item 的 :has(input:checked) 单源），告别自定义 .liked 类 + aria-pressed 手管；
     原生翻转即乐观即时反馈，服务端返回后以 data.liked 收敛，失败回滚到点前态 -->
     <input type="checkbox"${p.liked ? ' checked' : ''} aria-label="${UI.POST_LIKE_ARIA}" onchange="togglePostLike(${p.id}, this)">
@@ -104,7 +104,7 @@ function likePillHtml(p) {
   </label>`;
 }
 
-// R23（v0.25.87）：收藏 pill 组件（列表卡 + 详情浮窗共用）——同点赞的复选框逻辑：
+// R23：收藏 pill 组件（列表卡 + 详情浮窗共用）——同点赞的复选框逻辑：
 // favorited 态骑原生 checkbox checked（:has(input:checked) 单源），原生翻转即乐观即时反馈，
 // 服务端返回后以 data.favorited 收敛，失败回滚。收藏是私人的，无公开计数，仅图标 + 状态文案。
 function favPillHtml(p) {
@@ -119,7 +119,7 @@ function favPillHtml(p) {
 }
 
 // 帖子卡：标题 / 作者+时间 / 正文摘要（md 原文前 80 字，escHtml）/ 点赞 / 收藏 / 作者可删。
-// #161（v0.25.69）：整卡可点击查看全文浮窗——卡 onclick 统一接管，点赞/收藏/删除内部控件用 closest 守卫不透传；
+// #161：整卡可点击查看全文浮窗——卡 onclick 统一接管，点赞/收藏/删除内部控件用 closest 守卫不透传；
 // 标题转 button（键盘焦点 + Enter/Space 原生 click 冒泡到卡），正文摘要过长时点击即看全文。
 function renderPostCard(p, i) {
   const mine = state.user && p.user_id === state.user.id;
@@ -143,13 +143,13 @@ function renderPostCard(p, i) {
   </div>`;
 }
 
-// #161（v0.25.69）：帖子卡点击守卫——点赞/收藏/删除等内部控件点击不透传（事件从控件冒泡上来，closest 命中即返回）
+// #161：帖子卡点击守卫——点赞/收藏/删除等内部控件点击不透传（事件从控件冒泡上来，closest 命中即返回）
 function postCardClick(event, id) {
   if (!event || (event.target.closest && event.target.closest('.post-like, .post-fav, .post-del'))) return;
   openPostDetail(id);
 }
 
-// #161（v0.25.69）：帖子全文浮窗——列表 payload 已含完整 body_md（列表只截 80 字摘要），直接本地渲染零网络；
+// #161：帖子全文浮窗——列表 payload 已含完整 body_md（列表只截 80 字摘要），直接本地渲染零网络；
 // 正文走 .md-preview 排版（--full 放开高度封顶，浮窗整体在 overlay 滚动），点赞 pill 与列表卡共用组件
 function openPostDetail(id) {
   const p = postsList.find(x => x.id === id);
@@ -186,7 +186,7 @@ function applyPostLikeState(id, liked, likeCount) {
   });
 }
 async function togglePostLike(id, input) {
-  // #160（v0.25.68）：复选逻辑接入——change 在原生翻转后触发，input.checked 即新态，
+  // #160：复选逻辑接入——change 在原生翻转后触发，input.checked 即新态，
   // 取反得点前态；访客/失败回滚靠它还原。视觉由 CSS :has(input:checked) 单源，不再管 .liked 类。
   if (!input) return;
   const wasChecked = !input.checked; // 点前态
@@ -361,21 +361,13 @@ function insertPostImage(input) {
   reader.readAsDataURL(file);
 }
 
-/**
- * 轻量 markdown-lite 渲染器（自研，零依赖）
- * 安全策略：先 escHtml 全转义（任何注入文本已失效），再逐行识别语法。
- * 规则：'#'×1~6 → h1~h6（v0.24.0 全支持）；**x** → strong；
- *       ![alt](url) → <img>，url 仅放行 http(s): 与 data:image 前缀且不含空白，
- *       其余（含 javascript: 等伪协议）占位不渲染；其余非空行包 <p>，空行跳过。
- * 返回 HTML 字符串。
- */
-/** v0.24.0：「预览效果」按钮 → 独立浮窗展示 markdown 解析结果（实时预览连根删） */
+/** 「预览效果」按钮 → 独立浮窗展示 markdown 解析结果（mdRender 已上移 app-ui.js，本文件不持有） */
 function openPostPreview() {
   const ta = document.getElementById('post-body');
   const html = ta ? mdRender(ta.value) : '';
   openModal({
     title: UI.POST_PREVIEW_TITLE,
-    cls: 'modal--wide', // 需求三十一：md 预览长文拓宽
+    cls: 'modal--wide', // md 预览长文拓宽
     bodyCls: 'contract-md',
     body: html || `<p class="md-preview-empty">${UI.POST_PREVIEW_EMPTY}</p>`,
   });
@@ -403,7 +395,7 @@ async function submitPost() {
     });
     closeModal();
     showToast(UI.POST_PUBLISHED);
-    invalidate('posts'); // v0.23.1 审计 M1：写后清数据层缓存，否则 loadPosts 命中旧列表新帖不出现
+    invalidate('posts'); // 审计 M1：写后清数据层缓存，否则 loadPosts 命中旧列表新帖不出现
     loadPosts();
   } catch (err) {
     showToast(err.message, 'error');
@@ -411,20 +403,20 @@ async function submitPost() {
   }
 }
 
-// 删除二次确认：薄封装复用共享 confirm() 原语（v0.25.10 反馈 #82 合并，连根删自写小弹窗）
+// 删除二次确认：薄封装复用共享 confirm() 原语
 function postConfirmDelete(id) {
   confirm({ title: UI.POST_DELETE_TITLE, message: UI.POST_DELETE_CONFIRM, okText: UI.BTN_CONFIRM_DELETE, onConfirm: () => deletePost(id) });
 }
 
 async function deletePost(id) {
-  // F12（v0.27.0）乐观删除：确认后卡片立即移除，失败整列重渲染恢复——不再等服务端往返
+  // F12乐观删除：确认后卡片立即移除，失败整列重渲染恢复——不再等服务端往返
   closeModal();
   const card = document.querySelector(`.post-card[data-post-id="${id}"]`);
   if (card) card.remove(); // 乐观：卡片立即消失
   try {
     await api(`/api/posts/${id}`, { method: 'DELETE', body: {} });
     showToast(UI.POST_DELETED);
-    invalidate('posts'); // v0.23.1 审计 M1：否则被删帖子从缓存闪回
+    invalidate('posts'); // 审计 M1：否则被删帖子从缓存闪回
   } catch (err) {
     loadPosts(); // 失败回滚：整列重渲染恢复卡片
     if (err.code === 'POST_NOT_FOUND') { closeModal(); loadPosts(); } // C2：帖子已被（管理员）删除：只认 code（A8 删人类文案依赖）
@@ -486,9 +478,9 @@ async function submitBroadcast() {
 // —— 与发帖/广播同为「内容提交」领域，并入本模块（功能相近合并）
 // ============================================================
 let feedbackKind = 'bug';
-// R22（v0.25.87）：投诉已独立为 openComplaintModal（app-complaints.js），
+// R22：投诉已独立为 openComplaintModal（app-complaints.js），
 // 此处反馈浮窗仅保留 bug / 建议两档，complaint 档连根拔除。
-// M11（v0.25.103）：用户支持入口合并——「投诉与反馈」先出三选浮窗（Bug/建议/投诉），
+// M11：用户支持入口合并——「投诉与反馈」先出三选浮窗（Bug/建议/投诉），
 // 选中后关闭 chooser 再开对应专线浮窗（反馈 Bug 与建议浮窗本已独立，符合专线原则）。
 function openFeedbackComplaintChooser() {
   if (!ensureAuth()) return;
@@ -505,7 +497,7 @@ function openFeedbackComplaintChooser() {
 
 function openFeedbackModal(kind) {
   if (!ensureAuth()) return;
-  // A1 审计（v0.25.104）：M11 chooser 三选后 kind 即固定（专线原则真正落地）——原浮窗内仍渲染
+  // A1 审计：M11 chooser 三选后 kind 即固定（专线原则真正落地）——原浮窗内仍渲染
   // Bug/建议 切换 tab（segTabsHtml + switchFeedbackKind），chooser 的选择在浮窗内可被推翻，冗余
   // 入口层已移除；本函数现在唯一调用方就是 chooser 三个 onclick（kind 恒有值）。
   feedbackKind = (kind === 'bug') ? kind : 'suggestion';
@@ -538,7 +530,7 @@ async function submitFeedback() {
   }
 }
 
-// #165（v0.25.73）：我的投诉与反馈（M12 合并）——并行拉反馈 + 投诉两通道，同一浮窗展示。
+// #165：我的投诉与反馈（M12 合并）——并行拉反馈 + 投诉两通道，同一浮窗展示。
 // 类型 tag 走 DISP.feedbackKindName、投诉对象走 DISP.feedbackSubjectName（显示映射单源）；
 // 反馈正文走 mdRender 排版；空态 UI.MY_FEEDBACK_EMPTY。
 async function openMyFeedback() {
@@ -575,7 +567,7 @@ async function openMyFeedback() {
           <div class="feedback-foot"><span class="list-card-meta">${fmtDateTime(f.created_at)}</span></div>
         </div>`;
     }).join('');
-    // A1 审计（v0.25.104）：投诉卡渲染上收 complaintCardHtml（app-complaints）——与管理员处理页共用
+    // A1 审计：投诉卡渲染上收 complaintCardHtml（app-complaints）——与管理员处理页共用
     // 一份结构/状态 tag/对象类型映射（DISP.complaintTargetName 单源），本处仅换脚部时间戳。
     const cpHtml = complaints.map(c => complaintCardHtml(c, {
       foot: `<span class="list-card-meta">${fmtDateTime(c.created_at)}</span>`,

@@ -10,14 +10,14 @@
  * 不依赖 db.js，避免循环。
  *
  * 广播批删（管理员）：广播一次为全体用户各插一行，同批共享 batch_id；
- * 删除按 batch_id 整批删（替代旧「同文案+同秒」匹配——同秒两批同文案会连带误删，已修）。
+ * 删除按 batch_id 整批删（同秒两批同文案也不会连带误删）。
  * 历史行 / 单点推送无 batch_id，按 id 单删。
  */
 import { dbAll, dbGet, dbRun, json, error, genCode, ensureColumns } from './util.js';
 import { authUser, requireAdmin } from './security.js';
 import { MSG, LIMITS } from './constants.js';
 import { logEvent } from './log.js';
-import { bumpVersions } from './version.js'; // v0.23.1 审计 M2：通知插入统一 bump notifications 域
+import { bumpVersions } from './version.js'; // 通知插入统一 bump notifications 域
 
 // 建表（幂等；batch_id 为广播批标识，旧表经 ensureColumns 补列）
 export async function initNotifyTable(db) {
@@ -39,7 +39,7 @@ export async function notifyUser(db, userId, text) {
   try {
     await dbRun(db, 'INSERT INTO notifications (user_id, text) VALUES (?,?)',
       [userId, String(text).slice(0, LIMITS.NOTIF_TEXT_MAX)]);
-    // v0.23.1 审计 M2：通知插入即 bump notifications 域——所有业务方（意向/推送/合同/反馈等）
+    // 通知插入即 bump notifications 域——所有业务方（意向/推送/合同/反馈等）
     // 的逐用户通知都经此咽喉，对端客户端 8s 内静默重拉红点。低频，不成放大；失败静默不影响主业务
     await bumpVersions(db, ['notifications']);
   } catch (e) {
@@ -55,7 +55,7 @@ export async function dbBroadcastNotification(db, text) {
   const t = String(text || '').trim().slice(0, LIMITS.BROADCAST_TEXT_MAX);
   if (!t) return 0;
   const batchId = genCode(8);
-  // v0.25.41：已注销用户不收广播（否则 purge 后再广播会为墓碑用户补插幽灵通知）
+  // 已注销用户不收广播（否则 purge 后再广播会为墓碑用户补插幽灵通知）
   const res = await dbRun(db, 'INSERT INTO notifications (user_id, text, batch_id) SELECT id, ?, ? FROM users WHERE deactivated=0', [t, batchId]);
   return (res && res.meta && res.meta.changes) || 0;
 }

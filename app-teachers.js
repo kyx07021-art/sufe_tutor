@@ -24,7 +24,7 @@
 //   state、UI、SUBJECTS、DISP、invalidate()、registerLogoutReset()（app-state.js）
 //   api()（app-api.js）；showToast()、initReveals()（app-anim.js）
 //   escHtml()、fmtDateTime()、loaderHtml()、renderAvatarHtml()、openModal()、
-//   closeModal()、openImageViewer()、confirm()（app-ui.js，v0.25.10 合并原 confirmDanger）
+//   closeModal()、openImageViewer()、confirm()（app-ui.js）
 //   DISP.starsHtml / usernameHtml / subjectName / roleLabel / provinceName /
 //   genderName / teacherGradeName / gaokaoCell / ratingText / reviewStatusTagHtml（app-display.js）
 //   loadInto()（app-shell）；renderPushBtn()（app-demands）、loadAdminReviews()（app-admin）
@@ -41,7 +41,7 @@ async function loadTeachers() {
   if (subjectFilter.options.length <= 1) {
     SUBJECTS.forEach(s => { const o = document.createElement('option'); o.value = s.id; o.textContent = s.name; subjectFilter.appendChild(o); });
   }
-  // v0.25.29 新资料项筛选选项单源（WEEKDAYS / TEACHING_METHODS）：授课方式 + 可授课星期
+  // 新资料项筛选选项单源（WEEKDAYS / TEACHING_METHODS）：授课方式 + 可授课星期
   const methodFilter = document.getElementById('filter-method');
   if (methodFilter && methodFilter.options.length <= 1) {
     TEACHING_METHODS.forEach(m => { const o = document.createElement('option'); o.value = m.id; o.textContent = m.name; methodFilter.appendChild(o); });
@@ -52,10 +52,10 @@ async function loadTeachers() {
   }
 
   await loadInto('teachers-list', async () => {
-    const data = await dhGet('/api/teachers', { domain: 'teachers' }); // v0.23.0 静默数据层
+    const data = await dhGet('/api/teachers', { domain: 'teachers' }); // 静默数据层
     state.allTeachers = data.teachers || []; // 先回写再判空渲染
     // 需求五·item5/6：学生看教师列表 → 对全部「活跃未匹配需求」逐一算匹配度、取最高值；
-    // v0.25.29 匹配度排序不再是强制默认——排序控件（含「默认排序」）由用户选择，仅当学生且确有匹配数据时展示「匹配度最高」选项
+    // 匹配度排序不再是强制默认——排序控件（含「默认排序」）由用户选择，仅当学生且确有匹配数据时展示「匹配度最高」选项
     await attachStudentMatch(state.allTeachers);
     syncMatchSortOpt();
     return state.allTeachers;
@@ -71,14 +71,14 @@ function renderTeachers(teachers) {
   initReveals(el);
 }
 
-let _studentOpenDemand = false; // #155（v0.25.63）：学生是否有开放需求——无需求时匹配度位置显示小灰字提示
+let _studentOpenDemand = false; // #155：学生是否有开放需求——无需求时匹配度位置显示小灰字提示
 
 // 需求五·item5：学生端教师匹配度。对该学生所有 status='open'（活跃未匹配）需求逐条算 matchDegree，
 // 取最高值作卡片徽章，并把逐需求明细（按匹配度降序）挂到教师行 _matchForStudent 供明细卡渲染。
 // 非学生 / 无开放需求 → 不挂（卡上不显示匹配度、不参与排序）；无开放需求时匹配度位置渲染小灰字。
 async function attachStudentMatch(teachers) {
   if (!state.user || state.user.role !== 'student') { _studentOpenDemand = false; return; }
-  for (const t of teachers) delete t._matchForStudent; // v0.25.8 审计修复：先清旧匹配——开放需求归零/更换后不残留过期徽章与过期排序（缓存对象同引用复用）
+  for (const t of teachers) delete t._matchForStudent; // 审计修复：先清旧匹配——开放需求归零/更换后不残留过期徽章与过期排序（缓存对象同引用复用）
   let demands = [];
   try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands' })).demands || []; }
   catch { demands = []; }
@@ -94,9 +94,9 @@ async function attachStudentMatch(teachers) {
   }
 }
 
-// v0.25.101 Q6 排序控件（用户质询：「把愚蠢的『默认排序』去了，默认就应该是匹配度降序」）：
+// 排序控件（用户质询：「把愚蠢的『默认排序』去了，默认就应该是匹配度降序」）：
 // 学生看教师默认排序方案 = 匹配度降序（学生且确有匹配数据时）。
-// v0.25.112（用户二次纠正「教师看教师的匹配度排序删了」——v0.25.110 误删成了需求大厅）：
+// 契约：
 // 匹配度是「教师↔学生需求」的概念，教师看教师（同行浏览）/ 访客浏览都不该有匹配度排序项——
 // 非学生语境从下拉彻底 remove「匹配度最高」选项（非隐藏），默认评分最高（rating）；
 // 仅学生且确有开放需求匹配数据时该项可见可选并默认匹配度降序（Q6）。
@@ -105,12 +105,12 @@ function teacherSortMode() {
   const el = document.getElementById('teacher-sort');
   if (!el) return (state.user && state.user.role === 'student') ? 'match' : 'rating'; // 无控件兜底按角色
   const v = el.value;
-  // v0.25.112：非学生语境即使控件仍为 match（静态 selected 未及被 syncMatchSortOpt 改写）也不生效——
+  // 非学生语境即使控件仍为 match（静态 selected 未及被 syncMatchSortOpt 改写）也不生效——
   // 匹配度是学生↔需求概念，教师看教师/访客一律评分最高（学生语境 match 保持 Q6 语义）
   if (v === 'match' && !(state.user && state.user.role === 'student')) return 'rating';
   return v;
 }
-// 匹配度排序选项同步（A7 收口 + v0.25.112 纠正）：
+// 匹配度排序选项同步：
 //   - 非学生（教师/访客）或学生无开放需求匹配数据 → remove opt-sort-match（彻底删项，下拉不再出现），
 //     选中回落评分最高（防 select 空选）；
 //   - 学生且确有匹配数据 → 确保选项在位（角色切换删过则重建）并默认匹配度降序。
@@ -161,14 +161,14 @@ function renderTeacherCard(t) {
   const methodLine = DISP.methodName(t.teaching_method);
   const timeLine = DISP.expectedTimeText(t.time_slots);
   // 需求五·item5：学生端教师卡匹配度徽章（最高匹配值，三色按 matchLevel）——点击呼出逐需求明细
-  // #155（v0.25.63）：学生无开放需求 → 匹配度位置渲染小灰字提示（不再空白）
+  // #155：学生无开放需求 → 匹配度位置渲染小灰字提示（不再空白）
   const matchBtn = t._matchForStudent
     ? `<button type="button" class="tag-match match-btn match-btn--${matchLevel(t._matchForStudent.md)} glass glass--pressable" data-id="${t.user_id}" onclick="showTeacherMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${t._matchForStudent.md}%${UI.TAG_MATCH_HINT}</button>`
     : (isStudent && !_studentOpenDemand ? `<span class="tc-match--hint">${escHtml(UI.TAG_MATCH_NO_DEMAND)}</span>` : '');
   return `<div class="list-card list-card--teacher glass" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openTeacherCard(event, ${t.user_id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProfilePanel(${t.user_id});}">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">
-        <span class="tc-name-row"> <!-- v0.25.12（反馈 #93）：匹配度按钮与用户名同行（PC），移动端独占一行 -->
+        <span class="tc-name-row"> <!-- 匹配度按钮与用户名同行（PC），移动端独占一行 -->
           <span class="tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}</span>
           ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
         </span>
@@ -189,15 +189,15 @@ function renderTeacherCard(t) {
     </div>`;
 }
 
-// v0.25.12（反馈：教师卡整卡可点进入资料右栏）：卡片自身可点击/可聚焦；
+// 教师卡整卡可点进入资料右栏：卡片自身可点击/可聚焦；
 // 内嵌交互（按钮/匹配度/推送操作）不误触——命中即短路，不冒泡打开资料栏
 function openTeacherCard(e, userId) {
   if (e.target.closest('button, .tag-match, .tc-actions')) return;
   openProfilePanel(userId);
 }
 
-// v0.19.46 参数化：教师块默认参数不变；通知页筛选面板同组件复用（index.html 传 id）
-// v0.25.86 审计：删除死参数（唯一调用点 index.html 恒无参；通知页并无筛选切换按钮，复用注释已过时）
+// 参数化：教师块默认参数不变；通知页筛选面板同组件复用（index.html 传 id）
+// 审计：删除死参数（唯一调用点 index.html 恒无参；通知页并无筛选切换按钮，复用注释已过时）
 function toggleFilters() {
   const open = document.getElementById('teacher-filters').classList.toggle('open'); // grid-rows 展开动效
   const btn = document.getElementById('filter-toggle-btn');
@@ -209,24 +209,24 @@ function applyFilters() {
   const subject = document.getElementById('filter-subject').value;
   const maxPrice = +document.getElementById('filter-price').value || Infinity;
   const minRating = +document.getElementById('filter-rating').value || 0;
-  const method = document.getElementById('filter-method').value;      // v0.25.29 新资料项：授课方式
-  const day = document.getElementById('filter-day').value;            // v0.25.29 新资料项：可授课星期
-  const verified = document.getElementById('filter-verified').value;  // v0.25.29 新资料项：认证状态
+  const method = document.getElementById('filter-method').value;      // 新资料项：授课方式
+  const day = document.getElementById('filter-day').value;            // 新资料项：可授课星期
+  const verified = document.getElementById('filter-verified').value;  // 新资料项：认证状态
 
   const filtered = state.allTeachers.filter(t => {
     if (gender && t.gender !== gender) return false;
     if (subject && !(t.subjects||[]).includes(subject)) return false;
     if (t.price_min != null && t.price_min > maxPrice) return false; // R2-5 按最低报价过滤（未填报价不限价）
     if ((t.rating||4.5) < minRating) return false; // R16：缺省评分 4.0→4.5（与显示兜底/服务端默认同源）
-    if (method && t.teaching_method !== method) return false;                    // v0.25.29
-    if (day && !hasDaySlot(t.time_slots, +day)) return false;                    // v0.25.29
-    if (verified && !t.verified) return false;                                   // v0.25.29
+    if (method && t.teaching_method !== method) return false;
+    if (day && !hasDaySlot(t.time_slots, +day)) return false;
+    if (verified && !t.verified) return false;
     return true;
   });
   renderTeachers(filtered);
 }
 
-// v0.25.29：结构化时间段 JSON 判星期命中（历史纯文本数据不参与星期筛选）
+// 结构化时间段 JSON 判星期命中（历史纯文本数据不参与星期筛选）
 function hasDaySlot(raw, dow) {
   let arr = null;
   try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch { arr = null; }
@@ -244,8 +244,8 @@ function showTeacherMatchDetail(btn) {
   const card = btn.nextElementSibling;
   if (!card || !card.classList.contains('match-detail')) return;
   document.body.appendChild(card); // 挂 body：与教师端同因（.list-card backdrop-filter 会困住 fixed 后代）
-  // v0.25.19 审计 G-14：锚定收编 app-anim positionFloatCard 单点
-  // B4（v0.27.2）：不再传 listEl 限高——卡片随比例条区内容动态拉长（无小滚动条）
+  // 审计 G-14：锚定收编 app-anim positionFloatCard 单点
+  // B4：不再传 listEl 限高——卡片随比例条区内容动态拉长（无小滚动条）
   positionFloatCard(btn, card);
   _matchDetailOpen = true;
 }
@@ -275,7 +275,7 @@ function studentMatchDetailHtml(t) {
 //   入口：全站头像（账户设置预览除外）/ 会话窗右上角人头肩线框 / 原教师详情按钮。
 //   开闭状态管理（0.20.8 解耦重写）：JS 只切 body.profile-panel-open 类 + 作废在途异步；
 //   动画、原子隐藏、时序全由 CSS 呈现层负责，JS 不写任何内联样式。
-//   病灶回顾：0.20.5~0.20.7 曾在 close 里写 p.style.visibility='hidden'（JS 直接篡改绘制状态
+//   开闭状态管理与动画解耦：JS 只切类，绘制状态只在 CSS（禁止 JS 篡改 visibility/display），
 //   与 CSS transition 耦合）→ 动画被瞬间压死 =「收回去瞬间消失」；0.20.7 又误删 backdrop-filter
 //   治耦合，观感崩。本轮把状态与动画彻底分离，两者不再互相干涉。
 // ============================================================
@@ -288,9 +288,9 @@ function findCachedTeacher(userId) {
       || state.intentTeachers.find(x => x.user_id === userId) || null;
 }
 
-// v0.23.1 审计 M6：探测刷新替换缓存数组后重挂 state.allTeachers——openProfilePanel/
+// 审计 M6：探测刷新替换缓存数组后重挂 state.allTeachers——openProfilePanel/
 // findCachedTeacher 等跨功能读取依赖镜像，不重挂则展示旧价格/旧认证（自愈但误导）
-// v0.25.30 注销残留修复：探针刷新只刷缓存不碰 DOM（v0.23.0 设计取舍），教师列表已打开时
+// 注销残留修复：探针刷新只刷缓存不碰 DOM，教师列表已打开时
 // 旧卡（含已注销教师）会一直挂着直到切 tab。重挂同时按现有筛选/排序控件重渲染当前页。
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('teachers', () => {
@@ -353,7 +353,7 @@ async function openProfilePanel(userId) {
     // （取过一次打标记，不重复请求；签约时后端追加返回联系方式，兑现「签约后展示」）
     if (isTeacher && t && (t.matched || (state.user && state.user.id === t.user_id)) && !t._matchedDetailLoaded) {
       try {
-        // F13（v0.27.0）：匹配私密详情改走 datahub（teachers 域，按 ?userId= 分键缓存 +
+        // F13：匹配私密详情改走 datahub（teachers 域，按 ?userId= 分键缓存 +
         // 版本探测刷新；per-session 客户端缓存，跨用户零泄露）
         const pd = await dhGet(`/api/teacher/profile?userId=${userId}`, { domain: 'teachers' });
         if (seq !== profilePanelSeq) return;
@@ -391,7 +391,7 @@ function closeProfilePanel() {
 }
 
 // 关闭按钮 + 遮罩：程序化绑定（不写内联 onclick）。
-// v0.25.85 断线修复：本文件是领域脚本（#175 懒加载/#178 预载），注入必在 DOMContentLoaded
+// 断线修复：本文件是领域脚本（#175 懒加载/#178 预载），注入必在 DOMContentLoaded
 // 之后——原用 document.addEventListener('DOMContentLoaded') 注册的监听永不触发，
 // 表现为「个人信息卡点叉关不掉」。改 readyState 幂等：晚注入立即绑定，早注入等 DOM 就绪。
 const bindProfilePanelClosers = () => {
@@ -528,7 +528,7 @@ const PROFILE_CARD_ITEMS = [
       : h.empty(UI.PROFILE_FIELD_EMPTY);
   }},
   { key: 'contact', group: 'private', label: UI.LABEL_CONTACT, render: h => {
-    // M2（v0.25.103）：联系方式从「微信：x · 邮箱：y」单行（老版残留）改科目式多行——
+    // M2：联系方式从「微信：x · 邮箱：y」单行（老版残留）改科目式多行——
     // 子标题+内容逐行（同高考成绩 rows 渲染），灰字提示作末行。UI.CONTACT_PANEL_*_PREFIX 弃用（保留常量不删）。
     const rows = [];
     if (h.t.wechat) rows.push({ k: UI.LABEL_WECHAT, v: escHtml(h.t.wechat) });
@@ -685,7 +685,7 @@ async function adminReviewAction(reviewId, action, fromModal) {
       showToast(action === 'approve' ? UI.SUCCESS_APPROVED : UI.SUCCESS_REJECTED);
     }
     closeModal();
-    invalidate('admin'); // v0.23.1 审计 M5：评价审核改管理端评价列表 + 教师评分（teachers）
+    invalidate('admin'); // 审计 M5：评价审核改管理端评价列表 + 教师评分（teachers）
     invalidate('teachers');
     if (fromModal && profilePanelUserId) {
       openProfilePanel(profilePanelUserId); // 个人信息面板内就地刷新（内部 seq 守卫丢弃在途旧响应）

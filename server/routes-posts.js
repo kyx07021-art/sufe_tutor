@@ -4,12 +4,12 @@
  * section 字段恒透传 'plaza'：表结构与接口均支持 section 参数（未来分区 UI 的架构预留），
  * 当前不做分区过滤（不传 section 即查全部）。
  * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete / admin.post.delete
- * 安全补丁已并入主线：身份一律凭令牌（曾凭自报 userId 可冒名/越权）、管理员判定单点。
+ * 契约：身份一律凭令牌（自报 userId 可冒名/越权）、管理员判定走 requireAdminOrError 单点。
  */
 import { json, error } from './util.js';
 import { authUser, requireUser, requireAdminOrError } from './security.js';
 import { MSG, LIMITS } from './constants.js';
-import '../constants.js'; // 副作用导入（v0.25.86 审计补）：UI() 惰性读 globalThis.APP_CONSTANTS 依赖其就绪——曾靠 routes-auth 先加载碰巧生效，删除别处 import 即静默变 {error: undefined}
+import '../constants.js'; // 副作用导入必须保留：UI() 惰性读 globalThis.APP_CONSTANTS 依赖其就绪，删除即静默变 {error: undefined}
 import {
   dbListPosts, dbCreatePost, dbGetPostById, dbDeletePost, dbGetUserById, dbListMyFavoritePosts,
   dbCreatePostFavorite, dbDeletePostFavorite,
@@ -17,8 +17,8 @@ import {
 } from './db.js';
 import { logEvent } from './log.js';
 
-// 文案单源（A3 收口 v0.25.78）：帖子业务文案全部读 globalThis.APP_CONSTANTS.UI（与前端同源），
-// 本模块不再自持 PMSG——曾与 constants UI 逐字重复，双源迟早漂移
+// 文案单源：帖子业务文案全部读 globalThis.APP_CONSTANTS.UI（与前端同源），
+// 本模块不自持 PMSG（与 constants UI 逐字重复的双源迟早漂移）
 const UI = () => (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.UI) || {};
 
 /**
@@ -42,7 +42,7 @@ export async function handleListPosts(db, url, req) {
  * section 恒 'plaza'；返回 { id, message }
  */
 export async function handleCreatePost(db, body, req) {
-  const { user, err } = await requireUser(db, req, 'teacher'); // 身份凭令牌 + 角色门（曾凭自报 userId 可冒名教师发帖）
+  const { user, err } = await requireUser(db, req, 'teacher'); // 身份凭令牌 + 角色门
   if (err) return err;
   const userId = user.id;
   const title = String(body.title || '').trim();
@@ -68,7 +68,7 @@ export async function handleCreatePost(db, body, req) {
  * → { liked, likeCount }
  */
 export async function handleToggleLike(db, postId, body, req) {
-  const { user, err } = await requireUser(db, req); // 身份凭令牌（曾凭自报 userId 可用他人 id 点赞）
+  const { user, err } = await requireUser(db, req); // 身份凭令牌
   if (err) return err;
   const userId = user.id;
 
@@ -130,7 +130,7 @@ export async function handleToggleFavorite(db, postId, body, req) {
  * post_likes / post_favorites 由外键 ON DELETE CASCADE 连带清理，无需手工删。
  */
 export async function handleDeletePost(db, postId, body, req) {
-  const { user, err } = await requireUser(db, req); // 身份凭令牌（曾凭自报 userId 可非管理员删他人帖）
+  const { user, err } = await requireUser(db, req); // 身份凭令牌
   if (err) return err;
 
   const post = await dbGetPostById(db, postId);

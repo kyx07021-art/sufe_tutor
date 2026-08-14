@@ -5,37 +5,37 @@
  *   - 自动带 X-Auth-Token（state.authToken，管理员接口凭此鉴权）
  *   - body 对象自动 JSON 序列化
  *   - 401 兜底：带令牌仍被拒 = 会话已死（过期/多端顶号），清本地会话 + 汇入登录通路。
- *     幂等（v0.26.13 D3）：同一死令牌的并发在途 401 只处理一次——首个清会话+汇登录后，后续
+ *     幂等：同一死令牌的并发在途 401 只处理一次——首个清会话+汇登录后，后续
  *     同令牌 401 整体跳过，杜绝 clearSession/runLogoutResets/showView('login') 重复执行风暴
  *     （生产实证：会话失效后徽标轮询+预取并发 21 个 GET 401 同刻落地，全走兜底会重渲染登录页 21 次）。
  *   - 网络错误统一识别：fetch 抛错（断线/被拒/超时/DNS）与非 JSON 响应（网关 502/代理错误页）
  *     一律归为 UI.NETWORK_ERROR（code='NETWORK_ERROR'）——前端据此弹明确中文提示，
  *     杜绝「Failed to fetch」英文裸错误。调用方 catch 里不用再判断英文消息。
- *   - fetch 挂死保护（v0.22.7）：无超时 fetch 在停滞 SW/异常网络下永不 settle——登录按钮
+ *   - fetch 挂死保护：无超时 fetch 在停滞 SW/异常网络下永不 settle——登录按钮
  *     「永远加载中」即此形态。超时归入网络错误，调用方 finally 正常收口，不再无限转圈。
- *   - v0.22.9 修正盲区：超时覆盖「fetch + 响应体读取」全程（竞速计时器，而非仅 AbortController——
- *     实证 abort 信号在 fetch 解析后不会传播到 res.json()，body 流停滞会永久挂起）。服务端
- *     若已回响应头但 body 停滞（如 logRequest 写库卡住），现仍会被超时掐断并归网络错误。
- *   - F1（v0.27.0 网络层重构）：幂等 GET 网络抖动自动重试——fetch 瞬断/DNS/被拒等快速网络错
+ *   - 超时覆盖「fetch + 响应体读取」全程（竞速计时器，而非仅 AbortController——abort 信号
+ *     在 fetch 解析后不会传播到 res.json()，body 流停滞会永久挂起）。服务端已回响应头但
+ *     body 停滞时仍会被超时掐断并归网络错误。
+ *   - F1：幂等 GET 网络抖动自动重试——fetch 瞬断/DNS/被拒等快速网络错
  *     短退避重试 1 次自愈（根治「连接不稳定」弹错误 toast）；超时（20s 停滞）不重试（已等太久
  *     重试更糟）；业务 4xx/5xx/401 不重试（不可重放）。
- *   - F2（v0.27.0）：批量只读传输 apiBatch——一次往返拉 N 个 GET（服务端 /api/batch 并发），
+ *   - F2：批量只读传输 apiBatch——一次往返拉 N 个 GET（服务端 /api/batch 并发），
  *     prefetch/域刷新/多模块首载的往返合并；子结果 401 复用同一幂等兜底。
  *   - 业务错误统一抛 { message, code }（code = 后端 error() 稳定错误码）
  *
  * 依赖：state（app-state）、UI（constants）、clearSession（app-state）、ensureAuth（app-auth，运行时解析）。
  */
-// D3（v0.26.13）401 兜底幂等键：已处理过 401 的令牌。同一死令牌的并发在途 401 只清一次会话、
+// D3401 兜底幂等键：已处理过 401 的令牌。同一死令牌的并发在途 401 只清一次会话、
 // 只跳一次登录；令牌换新后（重新登录）新令牌的 401 重新走兜底——每个令牌至多处理一次，无需手动复位。
 let lastHandled401Token = null;
 
-// F8（v0.27.0 网络层重构）：boot 令牌验证期标志——switchToRole 并行 /me 验证阶段，401 的
+// F8：boot 令牌验证期标志——switchToRole 并行 /me 验证阶段，401 的
 // ensureAuth（弹登录）由 /me catch 统一接管走 guest 预览回落，避免预取批量 401 抢先弹登录页
 // 与 guest 回落竞态。经典脚本共享全局词法环境，app-auth 直接置位/复位。验证期外（运行中会话
 // 失效）仍 ensureAuth 汇登录（语义不变）。无令牌/登出空态 401 不受影响。
 let sessionBootValidating = false;
 
-// A1/D3 兜底（v0.27.0 从 api() 抽出供 apiBatch 子结果复用）：死令牌会话清理 + 汇登录，幂等键防风暴。
+// A1/D3 兜底：死令牌会话清理 + 汇登录，幂等键防风暴。
 // 只处理「发起令牌 === 当前令牌」的 401——登出→登录另一角色的过渡窗口里旧在途 401 不清新会话。
 function handleDeadToken(sentToken) {
   const alreadyHandledDeadToken = sentToken && sentToken === lastHandled401Token;
@@ -54,13 +54,13 @@ function handleDeadToken(sentToken) {
 }
 
 async function api(endpoint, options = {}) {
-  const sentToken = state.authToken; // A1 审计（v0.25.104）：请求发起时刻的令牌——401 兜底只对「当前令牌」的请求生效
+  const sentToken = state.authToken; // A1 审计：请求发起时刻的令牌——401 兜底只对「当前令牌」的请求生效
   const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (state.authToken) headers['X-Auth-Token'] = state.authToken;
   const config = { ...options, headers };
   if (config.body && typeof config.body === 'object') config.body = JSON.stringify(config.body);
 
-  // F1（v0.27.0）：幂等 GET 重试循环。重试仅限快速网络错误（NETWORK_ERROR 且非超时）；
+  // F1：幂等 GET 重试循环。重试仅限快速网络错误（NETWORK_ERROR 且非超时）；
   // 超时/业务错误 break。重试共享同一 sentToken（401 幂等语义不变）。
   const retries = !config.method || config.method === 'GET' ? CONFIG.GET_RETRY : 0;
   let lastErr;
@@ -80,7 +80,7 @@ async function api(endpoint, options = {}) {
 }
 
 // 单请求执行（含超时竞速 + 错误分类 + 401 兜底）。挂死保护：AbortController 掐断 fetch；
-// 竞速计时器兜底 body 读取停滞（v0.22.9 覆盖全程）。超时统一归网络错误，请求不再无限转圈。
+// 竞速计时器兜底 body 读取停滞。超时统一归网络错误，请求不再无限转圈。
 async function doRequest(endpoint, config, sentToken) {
   const controller = new AbortController();
   config.signal = controller.signal;
@@ -121,7 +121,7 @@ async function doRequest(endpoint, config, sentToken) {
   return data;
 }
 
-// F2（v0.27.0 网络层重构）：批量只读传输——一次往返拉 N 个 GET（服务端 /api/batch 并发执行，
+// F2：批量只读传输——一次往返拉 N 个 GET（服务端 /api/batch 并发执行，
 // 一次鉴权 + 公开列表边缘缓存复用）。返回 Map<path, {status, data}>。
 // 失败语义：外层网络错误归 NETWORK_ERROR（与 api 同口径，调用方 catch 同 toast）；
 // 子结果 401 触发 handleDeadToken 幂等兜底（同死令牌只清一次会话）；其余非 200 子结果

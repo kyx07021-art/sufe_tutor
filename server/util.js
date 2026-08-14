@@ -47,18 +47,17 @@ export async function dbRun(db, sql, params = []) {
 }
 
 /**
- * 需求「活跃」统一谓词（v0.25.10 用户反馈）：业务路由判断需求可否操作（签约/意向/推送）一律走这里，
+ * 需求「活跃」统一谓词：业务路由判断需求可否操作（签约/意向/推送）一律走这里，
  * active == status==='open'（contracted 已成交 / revoked 已撤销未重开均非活跃）。
  * SQL 层字面量维持既有惯例（constants.js 头部注释），JS 判断层收敛到本函数。
  */
-// 库内 UTC 时间戳（A6 收口）：各处 `new Date().toISOString().slice(0,19).replace('T',' ')`
-// 散落 4 份，统一单点。入参 Date（缺省 now）；语义与既有调用一致（UTC 秒级）
+// 库内 UTC 时间戳单点：入参 Date（缺省 now）→ 'YYYY-MM-DD HH:MM:SS'（UTC 秒级）。
+// SQL 层 UTC 比较一律传本函数产物（datetime('now','localtime') 是非 UTC 时区环境的时间域陷阱）
 export function toDbTime(d = new Date()) {
   return d.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-// UNIQUE 冲突判定（A6 收口）：D1/SQLite 唯一索引冲突错误消息含 'UNIQUE'，
-// 路由层 3 处 `String(err?.message||err).includes('UNIQUE')` 收敛单点
+// UNIQUE 冲突判定单点：D1/SQLite 唯一索引冲突错误消息含 'UNIQUE'
 export function isUniqueConflict(err) {
   return String(err?.message || err).includes('UNIQUE');
 }
@@ -84,7 +83,7 @@ export async function ensureColumns(db, table, cols) {
 
 /**
  * JSON 请求体解析（_worker 每请求调用；POST/PUT/DELETE 才有体）。
- * 体积炸弹防护：Content-Length 廉价短路 + 流式硬上限双保险——仅看 CL 会被 chunked 传输绕过，
+ * 体积炸弹防护：Content-Length 廉价短路（快路径）+ 流式硬上限双保险——仅看 CL 会被 chunked 传输绕过，
  * 改用 reader 累积到上限+1 即抛 {status:413}（调用方转 413 响应）；其余解析失败兜底空对象交路由校验。
  */
 export async function parseBody(request) {
@@ -114,7 +113,7 @@ export async function parseBody(request) {
 }
 
 // ============================================================
-// 结构化时间段校验（v0.25.0 需求一）：库内 JSON
+// 结构化时间段校验：库内 JSON
 // [{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}] 白名单式校验。
 // 设计不拟合当前周制输入：type 判别符为未来扩展（月日 + 时间等）留位，未知 type 一律拒绝。
 // 需求档案（expected_time）与教师档案（time_slots）共用；空串合法（时间非必填）。
@@ -140,7 +139,8 @@ export function sanitizeTimeSlots(raw) {
 }
 
 // ============================================================
-// 随机邀请码（大写去易混字符集）
+// 随机邀请码（32 字符大写去易混字符集，256%32=0 无取模偏差；8 字符 ≈40bit 熵，
+// 一次性邀请码/batchId 用途足够，勿用于长期凭证）
 // ============================================================
 export function genCode(len = 8) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -151,6 +151,7 @@ export function genCode(len = 8) {
 
 // ============================================================
 // 登录设备标签（账户设置展示：「Windows · Chrome」/「iPhone · Safari」）
+// 契约：仅展示标签，非安全边界（身份认定只认令牌，见 security.authUser）
 // ============================================================
 export function deviceLabelFromUA(ua) {
   const s = String(ua || '');

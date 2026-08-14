@@ -19,7 +19,7 @@
  *   - 层高：.tour-overlay z-index 高于 modal / profile-panel / 侧栏遮罩；蒙层压暗由亮区洞的
  *     box-shadow 承担（真孔透视，目标可点）。气泡是玻璃（backdrop-filter）子树，入场用纯
  *     transform animation（复刻 modal-in），禁 transition（Chromium 983252 冻结首帧）。
- *   - 类名独立前缀 .tour-：防被表单/弹窗作用域后代选择器命中（v0.25.1 复合组件隔离教训）。
+ *   - 类名独立前缀 .tour-：防被表单/弹窗作用域后代选择器命中。
  * 依赖：state（登录态）、UI/CONFIG（constants）、openModal/closeModal（app-ui）、ensureAuth（运行时）。
  */
 
@@ -43,7 +43,7 @@ function openOnboarding() {
   openModal({
     title: UI.ONBOARD_TITLE,
     closable: false,
-    body: `<p class="onboard-intro">${escHtml(UI.ONBOARD_INTRO)}</p><div class="onboard-policy">${policyItems}</div><p class="funds-note onboard-funds">${escHtml(UI.FUNDS_NOTE_SHORT)}</p>`, // 需求四（v0.25.44）：首访即明示平台不走资金（不并入 policy 保精简）
+    body: `<p class="onboard-intro">${escHtml(UI.ONBOARD_INTRO)}</p><div class="onboard-policy">${policyItems}</div><p class="funds-note onboard-funds">${escHtml(UI.FUNDS_NOTE_SHORT)}</p>`, // 需求四：首访即明示平台不走资金（不并入 policy 保精简）
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="openUsageGuide()">${UI.USAGE_GUIDE_BTN}</button>
       ${primary}`,
   });
@@ -64,7 +64,7 @@ function openUsageGuide() {
   });
 }
 
-/** 初始化入口：首访才弹；本设备标记常驻（登录/注册也写），访客落地也按标记不弹（v0.24.1 已无自动登录） */
+/** 初始化入口：首访才弹；本设备标记常驻（登录/注册也写），访客落地也按标记不弹 */
 function showOnboardingIfNeeded() {
   if (isReturning()) return;
   setReturning();
@@ -119,7 +119,7 @@ function _tourMount() {
     pos: overlay.querySelector('.tour-bubble-pos'),
     bubble: null,
   };
-  // v0.25.12（反馈 #97）：整层任意点击推进——点击监听挂 overlay（覆盖全屏含亮区），
+  // 整层任意点击推进——点击监听挂 overlay（覆盖全屏含亮区），
   // 不再要求「点在亮区」、不再有亮区几何判定（_tourHoleClick 连根删）
   overlay.addEventListener('click', _tourOverlayClick);
   // 网安 M2：引导期间对 AT 隐藏底层内容（aria-hidden；不用 inert——inert 会连程序化 .click() 一起禁掉，破坏亮区透传）
@@ -155,7 +155,7 @@ function _tourHideHole() {
   _tourEls.hole.classList.remove('tour-hole--show');
 }
 
-// ---- v0.25.38 就位稳定化（架构修复：反馈 #129/#131/#132，对滚动/动画不做特例）----
+// ---- 就位稳定化：对滚动/动画不做特例，统一「先滚出目标 → 等入场动画结束 → 再定位亮区」----
 // 每个步骤统一走「先滚出目标 → 等入场动画结束 → 再定位亮区」：
 //   滚动：目标在默认展示范围之外时（报价区间/保存/设置页后半/反馈通道等），先通知页面层滚进来再打洞——
 //   支持 step.scrollTo 选填绑定页面元素（缺省滚目标本身）；已完全在视口内的目标不滚（侧栏等天然命中）。
@@ -175,7 +175,7 @@ function _tourScrollViewport(el) {
   return document.scrollingElement || document.documentElement;
 }
 
-/** 目标滚入滚动容器中带（需求五十四 v0.25.62）：滚动须让目标中心落在容器可视区 30%~70% 竖带。
+/** 目标滚入滚动容器中带：滚动须让目标中心落在容器可视区 30%~70% 竖带。
  *  判据从「完全可见即跳过」收紧为「中心在 30%~70% 且完全可见才跳过」——贴边可见（顶部/底部边缘）
  *  也要滚入中带，亮区不压在容器边缘；block:'center' 居中落点（容器边缘不可居中时尽力即可）。
  *  instant 滚动防平滑动画与亮区几何竞态。 */
@@ -206,7 +206,7 @@ function _tourAnimating(el) {
   return false;
 }
 
-/** R27（v0.25.92）：亮区动态绑定——定位后持续跟随目标几何变化（rAF 逐帧对比 rect，位置变了即重定位）。
+/** R27：亮区动态绑定——定位后持续跟随目标几何变化（rAF 逐帧对比 rect，位置变了即重定位）。
  *  根治「先亮后浮入」「筛选后卡片被顶跑」「关于平台浮入错位」类错位（反馈：每个带卡片模块第一条介绍都有）：
  *  一次性定位只能覆盖定位时静止的目标；异步渲染/延迟入场/布局挤压在定位后仍会位移。
  *  跟随循环以 _tourIdx 快照判定归属步骤——步骤推进（_tourNext 自增）或收尾（_tourActive=false）即停。
@@ -294,7 +294,7 @@ function _tourStartStep() {
     if (!step) { _tourCleanup(); return; }
     _tourShowBubble(step.text);
     const el = _tourResolve(step);
-    if (el) { _tourPlaceStable(step); return; } // v0.25.38：滚入视口 + 等入场动画后才定位（架构修复）
+    if (el) { _tourPlaceStable(step); return; } // 滚入视口 + 等入场动画后才定位（架构修复）
     _tourHideHole();
     const waitStep = _tourIdx;
     const start = Date.now();
@@ -322,7 +322,7 @@ function _tourNext() {
   _tourStartStep();
 }
 
-/** v0.25.12（反馈 #97）：整层任意点击推进——不再要求「点在亮区」。
+/** 整层任意点击推进——不再要求「点在亮区」。
  *  卡死根治：目标不存在（空大厅/需求全签/异步未加载）时点任意处照样进入下一步；
  *  原「点在亮区的几何判定」与 M1 漂移守卫逻辑连根删（布局错位不再拦截步进，简化交互模型）。
  *  每次推进仍执行步动作（onAdvance + 目标存在则透传真实点击），引导中的真实交互照常发生。 */
@@ -344,7 +344,7 @@ function _tourOverlayClick(e) {
 }
 
 /** 执行当前步的副作用：onAdvance + 透传真实点击（closeModal 步不透传，onAdvance 已关）。
- *  v0.25.38（反馈 #127）点击拦截：step.pass===false 不透传真实点击——
+ *  点击拦截：step.pass===false 不透传真实点击——
  *  有些穿透是为了打开/切换页面（保留），提交/开关类真实请求（试课意向/屏蔽系统通知/保存等）该拦的拦。 */
 function _tourAdvanceAction(step) {
   const t = step.target || {};
@@ -442,7 +442,7 @@ function startOnboardingTour() {
 function tourStepBrowseDemands()    { return { module: 'browse-demands', target: { page: 'browse-demands' }, text: UI.TOUR_STEP_BROWSE_DEMANDS }; }
 function tourStepDemandList()       { return { module: 'browse-demands', target: { sel: '#demands-list' },   text: UI.TOUR_STEP_DEMAND_LIST }; }
 function tourStepDemandCard()       { return { module: 'browse-demands', target: { sel: '#demands-list .list-card--demand' }, text: UI.TOUR_STEP_DEMAND_CARD }; }
-// v0.25.38（反馈 #127）：「提交试课意向」= 真实提交请求，点击拦截不透传（只讲解推进）
+// 「提交试课意向」= 真实提交请求，点击拦截不透传（只讲解推进）
 function tourStepDemandIntentBtn()  { return { module: 'browse-demands', target: { sel: '#demands-list .btn-intent-cta' },   text: UI.TOUR_STEP_DEMAND_INTENT_BTN, pass: false }; }
 function tourStepDemandIdTag()      { return { module: 'browse-demands', target: { sel: '#demands-list .demand-id-tag' },     text: UI.TOUR_STEP_DEMAND_ID_TAG }; }
 
@@ -452,7 +452,7 @@ function tourStepBrowseTeachersPeer() { return { module: 'browse-teachers', targ
 function tourStepTeachersList()       { return { module: 'browse-teachers', target: { sel: '#teachers-list' },   text: UI.TOUR_STEP_TEACHERS_LIST }; }
 function tourStepFilterToggle()       { return { module: 'browse-teachers', target: { sel: '#filter-toggle-btn' }, text: UI.TOUR_STEP_FILTER_TOGGLE }; }
 function tourStepFilterSubject()      { return { module: 'browse-teachers', target: { sel: '#filter-subject' },  text: UI.TOUR_STEP_FILTER_SUBJECT }; }
-// v0.25.38（反馈 #128）：可点性在整卡（.list-card--teacher 承载点击），亮区改指整卡而非用户名文本
+// 可点性在整卡（.list-card--teacher 承载点击），亮区改指整卡而非用户名文本
 function tourStepTeacherUsername()    { return { module: 'browse-teachers', target: { sel: '#teachers-list .list-card--teacher' }, text: UI.TOUR_STEP_TEACHER_USERNAME }; }
 function tourStepProfileClose()       { return { module: 'browse-teachers', target: { sel: '#profile-panel-close' }, text: UI.TOUR_STEP_PROFILE_CLOSE }; }
 function tourStepTeacherPushBtn()     { return { module: 'browse-teachers', target: { sel: '#teachers-list .tc-push-btn' }, text: UI.TOUR_STEP_TEACHER_PUSH_BTN }; }
@@ -472,7 +472,7 @@ function tourStepConvItem()      { return { module: 'my-chats', target: { sel: '
 function tourStepChatMessages()  { return { module: 'my-chats', target: { sel: '#chat-messages' }, text: UI.TOUR_STEP_CHAT_MESSAGES }; }
 function tourStepChatSend()      { return { module: 'my-chats', target: { sel: '#chat-send-btn' }, text: UI.TOUR_STEP_CHAT_SEND }; }
 function tourStepChatPlus()      { return { module: 'my-chats', target: { sel: '.chat-plus-btn' }, text: UI.TOUR_STEP_CHAT_PLUS }; }
-// v0.25.38（反馈 #130）：+ 号唤出功能栏后逐个介绍项目——真实点击会发请求/开弹窗/文件选择器，一律拦截不透传
+// + 号唤出功能栏后逐个介绍项目——真实点击会发请求/开弹窗/文件选择器，一律拦截不透传
 function tourStepChatPlusItem(i, text) { return { module: 'my-chats', target: { sel: `.chat-plus-pop .chat-pop-item:nth-child(${i})` }, text, pass: false }; }
 const tourStepChatPlusImage   = () => tourStepChatPlusItem(1, UI.TOUR_STEP_CHAT_PLUS_IMAGE);
 const tourStepChatPlusFile    = () => tourStepChatPlusItem(2, UI.TOUR_STEP_CHAT_PLUS_FILE);
@@ -490,14 +490,14 @@ function tourStepEditProfile()      { return { module: 'edit-profile', target: {
 function tourStepProfileForm()      { return { module: 'edit-profile', target: { sel: '.profile-form' }, text: UI.TOUR_STEP_PROFILE_FORM }; }
 function tourStepProfileSubjects()  { return { module: 'edit-profile', target: { sel: '#profile-subjects' }, text: UI.TOUR_STEP_PROFILE_SUBJECTS }; }
 function tourStepProfilePrice()     { return { module: 'edit-profile', target: { sel: '#profile-price-min' }, text: UI.TOUR_STEP_PROFILE_PRICE }; }
-// v0.25.38：「保存」= 真实提交请求，点击拦截不透传；默认滚动架构自动把按钮滚进视口（反馈 #131）
+// 「保存」= 真实提交请求，点击拦截不透传；默认滚动架构自动把按钮滚进视口（反馈 #131）
 function tourStepProfileSubmit()    { return { module: 'edit-profile', target: { sel: '#profile-submit' }, text: UI.TOUR_STEP_PROFILE_SUBMIT, pass: false }; }
 
 // ---- 通知 ----
 function tourStepNotifications() { return { module: 'notifications', target: { page: 'notifications' }, text: UI.TOUR_STEP_NOTIFICATIONS }; }
 function tourStepNotifList()     { return { module: 'notifications', target: { sel: '#notifications-content' }, text: UI.TOUR_STEP_NOTIF_LIST }; }
 function tourStepNotifItem()     { return { module: 'notifications', target: { sel: '.notif-item' }, text: UI.TOUR_STEP_NOTIF_ITEM }; }
-// v0.25.38（反馈 #127）：「屏蔽系统通知」= 真实偏好开关 + 请求，点击拦截不透传
+// 「屏蔽系统通知」= 真实偏好开关 + 请求，点击拦截不透传
 function tourStepNotifBlock()    { return { module: 'notifications', target: { sel: '#btn-notif-block' }, text: UI.TOUR_STEP_NOTIF_BLOCK, pass: false }; }
 
 // ---- 设置 ----

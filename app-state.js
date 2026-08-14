@@ -37,14 +37,14 @@ const loadSeqs = {};
 // 缓存协议
 // ============================================================
 const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers', posts: 'adminPosts' };
-// v0.23.0 静默数据层：写操作失效必须同时清会话数据层对应域缓存（加载器经 dhGet 读缓存，
+// 静默数据层：写操作失效必须同时清会话数据层对应域缓存（加载器经 dhGet 读缓存，
 // 只清 state 镜像会导致 dhGet 继续服务旧数据）。域映射与 app-datahub DH_PREFETCH 的域口径一致。
-// v0.23.1 审计 M1/M5：补 posts/notifications/admin 域——发布/删除帖子、广播、管理员操作写后重载
+// 审计 M1/M5：补 posts/notifications/admin 域——发布/删除帖子、广播、管理员操作写后重载
 // 必须清数据层缓存，否则命中写前旧数据（新帖不出现/已删项闪回）
 const CACHE_DOMAINS = {
   teachers: 'teachers', contracts: 'contracts', demands: 'demands', intentTeachers: 'teachers',
   posts: 'posts', notifications: 'notifications', admin: 'admin',
-  chat: 'chat', // v0.27.0 审计：resolvePush 接受意向新建会话后 invalidate('chat') 立即失效会话列表缓存——否则 ≤8s 版本探针刷新窗口内切 my-chats 读到旧缓存「不见新会话」
+  chat: 'chat', // 审计：resolvePush 接受意向新建会话后 invalidate('chat') 立即失效会话列表缓存——否则 ≤8s 版本探针刷新窗口内切 my-chats 读到旧缓存「不见新会话」
   // B6：设置页四表单（sessions/privacy/username-status/creds）归 account 域——写操作
   // （改用户名/绑定手机邮箱/隐私切换/撤销设备）成功后 invalidate('account') 失效，下次读取重拉
   account: 'account',
@@ -58,9 +58,9 @@ function invalidate(key) {
 
 // ============================================================
 // 会话持久化（令牌；绝不存明文密码）
-// v0.23.1 按角色分键：sufe_session_<role>——主页双按钮分别导向上次登录的学生/教师账户，
+// 按角色分键：sufe_session_<role>——主页双按钮分别导向上次登录的学生/教师账户，
 // 登出/401 只清当前角色（另一角色会话保留，供下次按角色恢复）。sufe_last_role 记上次使用角色，
-// 无角色参数 loadSession() 按它恢复（v0.24.1 删自动登录后，恢复仅由主页角色按钮触发）
+// 无角色参数 loadSession() 按它恢复
 // ============================================================
 const ROLES = ['student', 'teacher', 'admin'];
 const sessionKey = role => `sufe_session_${role || ''}`;
@@ -88,7 +88,7 @@ function loadSessionForRole(role) {
     const s = JSON.parse(sessionStorage.getItem(k));
     if (s && s.authToken) return { ...s, source: 'session' };
   } catch { /* ignore */ }
-  // v0.24.0 旧键迁移：v0.23.1 改按角色分键前，会话存单一键 sufe_session——
+  // 旧键迁移：v0.23.1 改按角色分键前，会话存单一键 sufe_session——
   // 若该键里的用户角色匹配，迁移到角色键（否则老用户全部自动登录失效变访客）
   return loadLegacyAndMigrate(role);
 }
@@ -134,18 +134,18 @@ function loadSession(role) {
     const s = loadSessionForRole(r);
     if (s) return s;
   }
-  return loadLegacyAndMigrate(); // 兜底：旧键任意角色（v0.24.0 迁移）
+  return loadLegacyAndMigrate(); // 兜底：旧键任意角色
 }
 
 function clearSession(role) {
-  if (!role) return; // v0.24.2 审计：空角色不再清全量——401 兜底在 switchToRole（state.user 为空）曾以 '' 误删
+  if (!role) return; // 审计：空角色不再清全量——401 兜底在 switchToRole（state.user 为空）曾以 '' 误删
   // 所有角色会话（另一角色有效记住会话被静默抹掉）。登录/登出路径均显式传角色，无合法全量清理调用方
   try { localStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
   try { sessionStorage.removeItem(sessionKey(role)); } catch { /* ignore */ }
 }
 
 // ============================================================
-// 刷新恢复（v0.25.95，用户反馈「刷新不要回首页」）——会话/页面/访客角色三态持久化，
+// 刷新恢复——会话/页面/访客角色三态持久化，
 // 与 loadSession 同属本层会话能力；boot（app-shell）按 登录会话 → 访客角色 → 落地页 顺序编排恢复。
 //   页面停留：selectPage 记录（sufe_last_page），enterClient 恢复（身份不可见自动回落默认页）；
 //   访客角色：enterRolePreview 记录 / exitCurrentIdentity 清除（登出后刷新必回落地页）。
@@ -166,7 +166,7 @@ function getLastGuestRole() {
   try { const r = localStorage.getItem(GUEST_ROLE_KEY); return ROLES.includes(r) ? r : null; } catch { return null; }
 }
 
-// 设备标识（v0.25.11 设备会话去重）：浏览器档案级持久 id——同一浏览器所有窗口/标签共享，
+// 设备标识：浏览器档案级持久 id——同一浏览器所有窗口/标签共享，
 // 登录/注册随请求上传，服务端按 (user, device) 复用同一会话行（不再每次登录堆一行「设备」）。
 // localStorage 按「源×浏览器档案」隔离：无痕/不同 Edge 档案/手机各自独立设备，语义正确。
 function getDeviceId() {
@@ -223,15 +223,11 @@ function applyUiScale(v) {
   document.documentElement.style.setProperty('--ui-scale', (c / 100).toFixed(3));
   return c;
 }
-// v0.25.94 曾用 html transform:scale 整页预览保帧率（center 四边齐动 / top-left 右下沉，用户拒绝）；
-// v0.25.111 试过拖动期真实 applyUiScale（reflow）——用户实证拒绝：全页重绘帧率下降。
-// v0.25.112 曾用预览图 mockup（用户 B3 返工：删 mockup，真实页面分块缩放）。
-// v0.26.5 B3 定稿「真实页面分块缩放预览」（用户原话：原来的组件冻结、整体缩放逻辑是可以的，
-// 只是要分三块以保证边缘位置不动）：拖动期 JS 只写一个 CSS 变量 --ui-preview-scale 到 <html>
-// + data-ui-previewing 门控，真实页面顶栏/侧栏（头·脚）/内容区由 CSS 分块
-// transform: scale(var(--ui-preview-scale)) 消费（transform 合成器只读，零 reflow 零重绘，帧率不受影响）；
-// 区域锚点：侧栏头/顶栏 left top、侧栏脚 left bottom、内容 right top。松手 commit 才一次性
-// 落 --ui-scale 真排版 + 落盘。B1 pointer 差分拖动不受影响（滑块几何固定差分）。
+// 拖动期预览契约：「真实页面分块缩放」——JS 只写一个 CSS 变量 --ui-preview-scale 到 <html>
+// + data-ui-previewing 门控，顶栏/侧栏（头·脚）/内容区由 CSS 分块 transform: scale 消费
+// （合成器只读，零 reflow 零重绘，帧率不受拖动影响）；区域锚点：侧栏头/顶栏 left top、
+// 侧栏脚 left bottom、内容 right top。松手 commit 才一次性落 --ui-scale 真排版 + 落盘。
+// 元素级模拟重排（ui-scale-reflow.js）就绪时此分块预览仅作回落。
 let _uiScalePending = null;   // 待预览的目标值（拖动合并：同帧多次 oninput 只合成一次）
 let _uiScaleRaf = 0;          // rAF 句柄（0 = 空闲）
 // 拖动中：rAF 帧消费 pending → 只更新预览缩放变量（--ui-preview-scale，真实页面分块 transform 预览，不落盘）
@@ -245,7 +241,7 @@ function _uiScaleFlush() {
 // B3 真实页面分块缩放：把目标缩放系数写入 --ui-preview-scale（<html>）+ data-ui-previewing 门控
 // （CSS 据此对真实页面顶栏/侧栏头脚/内容区分块 transform:scale；门控保证平时无 transform，
 // 避免 scale(1) 残留 stacking context / containing block 干扰 fixed 定位）。
-// v0.27.6 元素级模拟重排：采样就绪时改走 __uiScaleReflow（per-element transform 驱动真实重排目标位，
+// 元素级模拟重排：采样就绪时改走 __uiScaleReflow（per-element transform 驱动真实重排目标位，
 // 合成器只读零 reflow），此时不写 --ui-preview-scale、不挂 data-ui-previewing（互斥，4 分块规则不命中）；
 // 采样未就绪回落本分块预览。门控互斥保证两套 transform 不叠加。
 // v0.31.4（P4 开始拖卡半秒）：拖动会话化——prepare 只在会话开始跑一次（warm 预热后命中 <1ms），
@@ -358,7 +354,7 @@ function uiScaleFillPct(v) {
   return ((c - CONFIG.UI_SCALE_MIN) / span * 100).toFixed(1);
 }
 
-// M1（v0.25.103）：ctrl/cmd + 滚轮在任意位置调整 UI 大小（成熟网页标配）。
+// M1：ctrl/cmd + 滚轮在任意位置调整 UI 大小（成熟网页标配）。
 // 参考成熟实现：wheel 监听必须 { passive:false } 才能 preventDefault 拦截浏览器原生缩放；
 // ctrlKey||metaKey 双平台（Win/Linux Ctrl、macOS Cmd）；deltaY 符号定方向（上滚放大/下滚缩小）；
 // 连续滚轮 rAF 合并成一次落盘（避免每帧全站重排版）；钳制到 UI_SCALE_MIN/MAX。
@@ -370,7 +366,7 @@ function bindUiScaleWheel() {
   document.addEventListener('wheel', (e) => {
     if (!e.ctrlKey && !e.metaKey) return;
     e.preventDefault(); // 拦截浏览器原生页面缩放/滚动
-    // U5（v0.25.105）：步长放大 4 倍（用户实证「一格太小、拖沓」）——CONFIG.UI_SCALE_WHEEL_STEP 单源
+    // U5：步长放大 4 倍（用户实证「一格太小、拖沓」）——CONFIG.UI_SCALE_WHEEL_STEP 单源
     pending += e.deltaY < 0 ? CONFIG.UI_SCALE_WHEEL_STEP : -CONFIG.UI_SCALE_WHEEL_STEP;
     if (!raf) raf = requestAnimationFrame(() => {
       raf = 0;

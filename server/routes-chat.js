@@ -13,7 +13,7 @@ import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbMarkConversationRead,
   dbGetMessageAttachment, dbGetConversationBindableDemands,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload,
-  dbPrepareMessageInsert,
+  dbPrepareMessageInsert, dbPrepareUploadDelete,
 } from './db.js';
 import { logEvent } from './log.js';
 
@@ -61,7 +61,7 @@ export async function handleGetMessages(db, convId, url, req) {
   if (g.err) return g.err;
 
   const messages = await dbGetMessages(db, convId, sinceId);
-  // v0.25.36 缩略图加密落库，出门解密（附件大字段仍懒加载走 attachment 接口，thumb 小字段随列表）
+  // 缩略图加密落库，出门解密（附件大字段仍懒加载走 attachment 接口，thumb 小字段随列表）
   for (const m of messages) {
     if (m.thumb) { try { m.thumb = await decryptField(m.thumb); } catch { m.thumb = ''; } }
   }
@@ -104,7 +104,7 @@ export async function handleCreateUpload(db, body, req) {
   const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
   if (!prefixOk || content.length > LIMITS.FILE_MAX_BYTES) return error(MSG.FILE_TOO_LARGE);
   if (fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED); // svg/html 黑名单对图片同样生效
-  // v0.25.36 缩略图（仅图片携带）：data:image 前缀 + 小体积钳制（防刷大字段）+ 黑名单同款拦截
+  // 缩略图（仅图片携带）：data:image 前缀 + 小体积钳制（防刷大字段）+ 黑名单同款拦截
   const thumbRaw = kind === 'image' ? String(body.thumb ?? '') : '';
   if (thumbRaw && (!thumbRaw.startsWith('data:image/') || thumbRaw.length > LIMITS.THUMB_MAX_BYTES)) return error(MSG.FILE_TOO_LARGE);
   if (thumbRaw && fileDataBlocked(thumbRaw)) return error(MSG.FILE_TYPE_BLOCKED);
@@ -138,19 +138,19 @@ export async function handleSendMessage(db, convId, body, req) {
   if (g.err) return g.err;
   if (g.conv.status !== STATUS.ACTIVE) return error(MSG.NO_PERMISSION, 403);
 
-  // F9（v0.27.0 网络层重构）：批量发送——一次写往返落多条（暂存附件确认 + 文字），2N+1 串行写 → 1。
+  // 批量发送——一次写往返落多条（暂存附件确认 + 文字），2N+1 串行写 → 1。
   // 前端暂存附件已上传（带进度），发送阶段只凭 uploadId 落消息 + 删暂存；整批单事务 db.batch。
-  // v0.27.0 审计：单消息分支（body.body / body.uploadId / fileData 直发）已无前端调用者（前端恒发
+  // 单消息分支（body.body / body.uploadId / fileData 直发）已无前端调用者（前端恒发
   // batch），按「不保留向后兼容」连根删——text/image/file 直发语义全部由 batch 项覆盖。
   if (!Array.isArray(body.batch)) return error(MSG.INVALID_PARAMS, 400);
   return handleSendBatch(db, convId, body.batch, userId, req);
 }
 
-// F9（v0.27.0）：批量发送——附件确认 + 文字一次 db.batch 落库（单事务）。
+// 批量发送——附件确认 + 文字一次 db.batch 落库（单事务）。
 // 往返口径（审计修正）：写落库 1 次往返；附件归属读经 dbGetUploads WHERE IN 一次单查（N 读 → 1，
 // 同 B5 模式），总往返 = 1 读 + 1 写批（边界受 MSG_BATCH_MAX=13 封顶）。
 // 校验与单条路径同口径（归属/长度），任一校验失败整批 400/404（不落半批）；db.batch 失败整体回滚。
-// v0.31.3 审计 A2：INSERT SQL 收口 db.js 单源（dbPrepareMessageInsert）——曾自持一份，加列双处漂移。
+// INSERT SQL 收口 db.js 单源（dbPrepareMessageInsert）——自持一份会加列双处漂移。
 async function handleSendBatch(db, convId, batch, userId, req) {
   if (!batch.length || batch.length > LIMITS.MSG_BATCH_MAX) return error(MSG.INVALID_PARAMS, 400);
   // 第一遍（for...of 保留 return 语义）：文字项校验 + 收集附件 id（非数字/重复整批拒绝）
@@ -180,7 +180,7 @@ async function handleSendBatch(db, convId, batch, userId, req) {
       if (!up || up.user_id !== userId) return error(MSG.CONVERSATION_NOT_FOUND, 404);
       items.push({ resultIndex: stmts.length, kind: up.kind, name: up.name });
       stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, up.kind, up.body, up.name, up.thumb)); // 密文随 uploads 转正
-      stmts.push(db.prepare('DELETE FROM uploads WHERE id=?').bind(up.id));
+      stmts.push(dbPrepareUploadDelete(db).bind(up.id));
     } else if (item && item.kind === 'text') {
       const content = String(item.body ?? '').trim();
       items.push({ resultIndex: stmts.length, kind: 'text', name: '' });

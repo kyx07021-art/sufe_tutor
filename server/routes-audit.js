@@ -1,5 +1,5 @@
 /**
- * 内容审核/管理统一接口（v0.26.0 D1/D2）—— 为未来审核者配备的「一声令下看所有、一声令下处罚」通道
+ * 内容审核/管理统一接口（D1/D2）—— 为未来审核者配备的「一声令下看所有、一声令下处罚」通道
  *
  * D1 统一提取 GET /api/admin/content：逐表抓出全部用户可操作内容，归拢统一结构
  *   { type, id, author:{id,username,role}, title, body, status, created_at, extra }。
@@ -14,6 +14,7 @@ import { requireAdmin } from './security.js';
 import { MSG, LIMITS } from './constants.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
+import { confirmDangerOtp } from './danger-ops.js'; // 处罚（删除/封禁）危险操作二次认证（同注销/签约口径）
 import {
   dbGetAllContentAdmin, dbGetPostById, dbGetDemandById, dbGetReviewById, dbGetMessageById,
   dbGetFeedbackById, dbGetComplaintById, dbGetUpload, dbGetUserById, dbGetTeacherProfile,
@@ -56,14 +57,13 @@ export async function handleContentAction(db, type, id, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const action = body.action;
-  // 三段截断预算平衡（审查补丁：原 reason 取满 NOTIF_TEXT_MAX，组合文本可超 200 被库层截断，
-  // 触发内容丢失；改为三段分预算，总长钉在 NOTIF_TEXT_MAX 内）
+  // 三段截断预算：reason/rule/summary 分预算，总长钉在 NOTIF_TEXT_MAX 内（单字段取满上限会组合超限被库层截断丢内容）
   const reason = String(body.reason || '').trim().slice(0, PENALTY_REASON_MAX);
   const rule = String(body.rule || '').trim().slice(0, PENALTY_RULE_MAX);
   if (!['delete', 'remove', 'ban'].includes(action)) return error(MSG.INVALID_PARAMS);
   if (!reason) return error(MSG.PENALTY_REASON_REQUIRED);
   // teacher 档案无硬删分支（doDeleteContent 跳过）——API 直发 delete/remove 直接拒绝，
-  // 防「no-op 却回成功 + 发'移除内容'通知」的误导文案（审查补丁；UI 层已只给封禁）
+  // 防「no-op 却回成功 + 发'移除内容'通知」的误导文案（UI 层已只给封禁）
   if (type === 'teacher' && action !== 'ban') return error(MSG.INVALID_PARAMS);
   const label = TYPE_LABEL[type] || type;
 
@@ -85,6 +85,9 @@ export async function handleContentAction(db, type, id, body, req) {
   if (!authorId) return error(MSG.USER_NOT_FOUND, 404);
   const author = await dbGetUserById(db, authorId);
   const authorName = author ? author.username : `用户#${authorId}`;
+  // 处罚 = 危险操作（删除/封禁不可逆），须 capToken 二次认证；且不得处罚管理员账户
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (author && author.role === 'admin') return error(MSG.NO_PERMISSION, 403);
 
   // 执行处罚（teacher 档案不硬删——ban 作者即可；其余类型删除/下架）
   if (type !== 'teacher' && (action === 'delete' || action === 'remove')) {

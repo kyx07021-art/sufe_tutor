@@ -13,7 +13,7 @@
 // ============================================================
 
 // 该合同当前是否需要我处理（侧栏红点口径）
-// v0.25.94：pending 遗留态与 signing 同口径——都按「我方未确认签约」判定
+// pending 遗留态与 signing 同口径——都按「我方未确认签约」判定
 function contractActionable(c) {
   const iAmDrafter = c.drafter_user_id === state.user.id;
   if (c.status === STATUS.PENDING || c.status === STATUS.SIGNING) return !(iAmDrafter ? c.drafter_confirmed : c.other_confirmed); // 待我确认签约
@@ -23,7 +23,7 @@ function contractActionable(c) {
 async function loadMyContracts() {
   const el = document.getElementById('my-contracts-list');
   setBadge('my-contracts', 0); // 点开瞬间红点即灭（有待办由下一轮轮询在离开本页后重新点亮）
-  // v0.23.0 静默数据层：缓存命中直出（dhGet 瞬时返缓存，同帧完成不闪 loader）
+  // 静默数据层：缓存命中直出（dhGet 瞬时返缓存，同帧完成不闪 loader）
   const cached = dhPeek('/api/contracts/my');
   if (cached !== null) { state.myContracts = cached.contracts || []; renderMyContractsList(); return; }
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
@@ -36,7 +36,7 @@ async function loadMyContracts() {
   }
 }
 
-// v0.23.1 审计 M6：探测刷新替换缓存数组后重挂 state.myContracts——徽标轮询就地刷新
+// 审计 M6：探测刷新替换缓存数组后重挂 state.myContracts——徽标轮询就地刷新
 // （_lastContractSig 重渲）与跨功能读取依赖镜像，不重挂则展示旧合同状态
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('contracts', () => {
@@ -63,11 +63,11 @@ function renderContractCard(c) {
   const myConfirmed = iAmDrafter ? c.drafter_confirmed : c.other_confirmed;
 
   let left = '', right = '';
-  // v0.25.94（用户反馈「按钮颜色不一致、有的有边框有的没有」）：白卡上卡片动作按钮统一 .btn-soft
+  // 白卡上卡片动作按钮统一 .btn-soft
   // 轻量描边族（白调面+细边框，白卡/灰底都可见）——sign/cancel/view/modify 从裸 btn/btn-outline 归口；
   // verify-ledger 保留 btn-ghost（三级存证动作）、revoke 保留 btn-text-danger（刻意低调）。
   if (c.revoked) {
-    // v0.25.87 R7：撤销后合同保留——显示「你/对方已撤销合同」状态文案 + 查看合同，无操作按钮
+    // ：撤销后合同保留——显示「你/对方已撤销合同」状态文案 + 查看合同，无操作按钮
     const revokeText = c.revoked_by === me ? UI.CONTRACT_REVOKED_BY_ME : UI.CONTRACT_REVOKED_BY_PEER;
     left = `<span class="contract-wait-text ${c.revoked_by === me ? 'text-danger' : 'text-muted'}">${revokeText}</span>
       <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="viewContract(${c.id})">${UI.BTN_VIEW_CONTRACT}</button>`;
@@ -77,8 +77,8 @@ function renderContractCard(c) {
     right = `<button type="button" class="btn-text-danger glass" onclick="openRevokeContractModal(${c.id})">${UI.BTN_REVOKE_CONTRACT}</button>`; // 撤销入口刻意低调
   } else {
     // signing（含历史 pending 遗留）：确认签约（已确认则灰字提示等待对方）+ 修改内容 + 查看合同
-    // v0.25.87 R6：我方已确认后修改按钮隐藏（合同内容锁定；后端同款 409 门禁兜底）
-    // v0.25.94：删 pending&&iAmDrafter 起草方特例分支——新合同创建即 signing，取消回退也归 signing
+    // ：我方已确认后修改按钮隐藏（合同内容锁定；后端同款 409 门禁兜底）
+    // 无 pending&&iAmDrafter 起草方特例分支——新合同创建即 signing，取消回退也归 signing
     left = `${myConfirmed
         ? `<span class="contract-wait-text text-muted">${UI.BTN_SIGN_WAITING}</span>`
         : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="signContract(${c.id})">${UI.BTN_SIGN}</button>`}
@@ -110,14 +110,14 @@ function renderContractCard(c) {
   </div>`;
 }
 
-// v0.25.37 签署合规：甲方/乙方（学生/教师）各自签署进度——confirmed 标志按 drafter 归属映射到两方
+// 签署合规：甲方/乙方（学生/教师）各自签署进度——confirmed 标志按 drafter 归属映射到两方
 function contractSignProgress(c) {
   const studentSigned = (c.drafter_user_id === c.student_user_id ? c.drafter_confirmed : c.other_confirmed) ? 1 : 0;
   const teacherSigned = (c.drafter_user_id === c.teacher_user_id ? c.drafter_confirmed : c.other_confirmed) ? 1 : 0;
   return `${studentSigned ? UI.CONTRACT_PARTY_SIGNED_A : UI.CONTRACT_PARTY_PENDING_A} · ${teacherSigned ? UI.CONTRACT_PARTY_SIGNED_B : UI.CONTRACT_PARTY_PENDING_B}`;
 }
 
-// 开始签约（v0.25.32 加固）：读合同全文 → 滚动到底 + 待够时长（CONFIG.CONTRACT_SIGN_READ_SECONDS）
+// 开始签约：读合同全文 → 滚动到底 + 待够时长（CONFIG.CONTRACT_SIGN_READ_SECONDS）
 // 解锁确认 → 二次确认 → 密码最终确认（危险操作二次认证，原 verifySignOtp 恒通过已废除；后期改短信验证码）。
 // 时间状态放 window 侧（_signing*），防模块闭包与 openModal 重建 #modal-container 时状态丢失。
 function signContract(contractId) {
@@ -137,7 +137,7 @@ function signContract(contractId) {
       <button type="button" id="contract-sign-btn" class="btn glass glass--pressable" disabled onclick="confirmSignContract()">${UI.SIGN_COUNTDOWN_HINT.replace('{secs}', String(CONFIG.CONTRACT_SIGN_READ_SECONDS))}</button>`,
   });
   // 待够时长解锁；先按当前滚态初始化一次（短合同无溢出视同已到底，仍需待够时长）
-  // v0.25.87 R5：倒计时从开窗起算，每秒刷新提示「x秒后可确认签约」（原静态"请阅读…N 秒后"无倒计时反馈）。
+  // ：倒计时从开窗起算，每秒刷新提示「x秒后可确认签约」（原静态"请阅读…N 秒后"无倒计时反馈）。
   window._signingOpenedAt = Date.now();
   window._signingTimer = setInterval(() => {
     const remain = Math.max(0, CONFIG.CONTRACT_SIGN_READ_SECONDS * 1000 - (Date.now() - window._signingOpenedAt));
@@ -152,7 +152,7 @@ function signContract(contractId) {
   setTimeout(onContractSignScroll, 0);
 }
 
-// 阅读时长提示文案（v0.25.94 起纯静态：倒计时已上确认按钮，不再渲染 {secs}）
+// 阅读时长提示文案（倒计时已上确认按钮，不再渲染 {secs}）
 function signReadHint() {
   return UI.SIGN_READ_HINT;
 }
@@ -164,14 +164,14 @@ function onContractSignScroll() {
   const overflow = el.scrollHeight - el.clientHeight;
   window._signingScrolled = overflow <= CONFIG.CONTRACT_SIGN_SCROLL_EPS
     || (el.scrollHeight - el.scrollTop - el.clientHeight) <= CONFIG.CONTRACT_SIGN_SCROLL_EPS;
-  updateSignBtnState(null, true); // v0.25.101 Q2：滚动只刷新使能/提示，不覆盖倒计时文本
+  updateSignBtnState(null, true); // ：滚动只刷新使能/提示，不覆盖倒计时文本
 }
 
 // 确认按钮使能：滚动到底 && 待够时长 双条件
-// v0.25.94（用户反馈「灰字轮番闪」）：倒计时放回「确认签约」按钮上——计时阶段按钮文本=
+// 倒计时放回「确认签约」按钮上——计时阶段按钮文本=
 // 「N秒后可确认签约」（取代按钮标签），就绪恢复「我已阅读并确认签约」；
 // 灰字提示只做静态阅读指引（未就绪恒 SIGN_READ_HINT / 就绪 SIGN_READY_HINT），不再切倒计时。
-// v0.25.101（Q2 用户质询「一滚动倒计时就变成『我已阅读并确认签约』」）：滚动调用不得覆盖倒计时文本。
+// 滚动调用不得覆盖倒计时文本（preserveText）。
 //   remainSec 非空（计时器）→ 更新倒计时；preserveText=true（滚动路径）→ 保持当前文本不动；
 //   否则（时长到 timer 清后）→ 恢复正式按钮标签。ready 恒设正式标签。
 function updateSignBtnState(remainSec, preserveText = false) {
@@ -203,7 +203,7 @@ function confirmSignContract() {
 async function doSignContract(id, capToken) {
   try {
     const data = await api(`/api/contracts/${id}/sign`, { method: 'POST', body: { capToken } });
-    closeModal(); // v0.25.101 Q3：成功路径关掉签署预览——v0.25.98 modal stack 回归（confirm 弹栈恢复预览后漏关，密码确认完又回预阅读页）
+    closeModal(); // 成功路径关掉签署预览（confirm 弹栈恢复预览后必须再关一次，否则密码确认完又回预阅读页）
     showToast(data.signed ? UI.CONTRACT_SIGNED_TOAST : UI.BTN_SIGN_WAITING);
     invalidate('contracts'); // 签约改合同状态：清缓存，面板「已签约」标记/合同页下次读取重拉
     loadMyContracts();
@@ -214,7 +214,7 @@ async function doSignContract(id, capToken) {
 function viewContract(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
-  // v0.24.3 改动留痕+高亮：修改过的合同（prev_business 非空）先渲染改动 diff 块，再显示当前全文。
+  // 改动留痕+高亮：修改过的合同（prev_business 非空）先渲染改动 diff 块，再显示当前全文。
   // prev_business 为上次业务条款（服务端留痕，签署确认后清空）——diff 仅存在于重新确认窗口期
   const diffHtml = c.prev_business ? renderContractDiff(c.prev_business, splitContractBiz(c.contract_md || '')) : '';
   openModal({
@@ -232,7 +232,7 @@ function viewContract(contractId) {
 // A8 收口：正则基于本地常量 CONTRACT_BIZ_END 拼接（与 server/contract.js CONTRACT_BUSINESS_END 前缀一致，杜绝双写漂移）
 const stripContractMarker = (md) => String(md || '').replace(new RegExp(CONTRACT_BIZ_END.replace(' ', '\\s*') + '[^\\n]*\\n?', 'g'), '');
 
-// v0.24.3 合同改动 diff 渲染：prev（上次业务条款）→ current（当前业务条款）行级 LCS 对比。
+// 合同改动 diff 渲染：prev（上次业务条款）→ current（当前业务条款）行级 LCS 对比。
 // 复用 app-display.diffLines（纯函数）；escHtml 由 app-ui 提供（本文件加载序在其后）。
 // 返回 diff HTML（绿=新增 / 红删除线=移除 / 普通=未变）；无实际改动返回空串
 function renderContractDiff(prev, current) {
@@ -250,7 +250,7 @@ function renderContractDiff(prev, current) {
 function openContractModifyModal(contractId) {
   const c = state.myContracts.find(x => x.id === contractId);
   if (!c) return;
-  window._contractModifyVersion = c.version != null ? c.version : 0; // 乐观锁版本：提交时带上，期间被对方改过则 409 强制重载（后端 v0.21.0 起用自增 version，秒级 updated_at 已弃用）
+  window._contractModifyVersion = c.version != null ? c.version : 0; // 乐观锁版本：提交时带上，期间被对方改过则 409 强制重载（自增 version，秒级 updated_at 不可靠）
   openModal({
     title: `${UI.MODIFY_CONTRACT_TITLE}`,
     closable: false,
@@ -262,7 +262,7 @@ function openContractModifyModal(contractId) {
             <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
             <!-- 合同编辑器禁插图：合同正文须为纯文本条款 -->
-            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
+            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button>
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="12">${escHtml(splitContractBiz(c.contract_md))}</textarea>
           <p class="text-muted text-sm contract-modify-hint">${UI.CONTRACT_MODIFY_BIZ_HINT}</p>
@@ -300,7 +300,7 @@ async function doRevokeContract(contractId, capToken) {
   } catch (err) { showToast(err.message); }
 }
 
-// 存证校验（v0.25.37 toast 升级小面板）：重算合同文本哈希对比签署时的台账指纹（后端 /verify），
+// 存证校验：重算合同文本哈希对比签署时的台账指纹（后端 /verify），
 // 展示当前指纹、台账条目数与各条记档时间（签署历史）——哈希链由服务端校验并回传各环节结果
 async function verifyContractLedgerUi(contractId) {
   try {
@@ -336,12 +336,12 @@ async function submitContractModify(contractId) {
   try {
     const data = await api(`/api/contracts/${contractId}`, { method: 'PUT', body: { contractMd: md, version: window._contractModifyVersion } });
     closeModal();
-    if (!(data && data.unchanged)) showToast(UI.CONTRACT_MODIFIED_TOAST); // v0.24.2 审计：未改动不误导「已同步需重新确认」
-    invalidate('contracts'); // v0.23.1 审计 M5：否则 loadMyContracts 命中旧正文
+    if (!(data && data.unchanged)) showToast(UI.CONTRACT_MODIFIED_TOAST); // 审计：未改动不误导「已同步需重新确认」
+    invalidate('contracts'); // 审计 M5：否则 loadMyContracts 命中旧正文
     loadMyContracts();
   } catch (err) {
-    // v0.24.2 审计：409 乐观锁冲突后刷新本地版本号（否则重复保存恒 409，只能关弹窗重开）
-    // F13（v0.27.0）：裸 api 改走 dhGet forceRefresh——拿最新版本号同时更新缓存（不再缓存陈旧）
+    // 审计：409 乐观锁冲突后刷新本地版本号（否则重复保存恒 409，只能关弹窗重开）
+    // F13：裸 api 改走 dhGet forceRefresh——拿最新版本号同时更新缓存（不再缓存陈旧）
     if (err.code === 'CONTRACT_MODIFIED_CONFLICT') {
       try {
         const fresh = await dhGet('/api/contracts/my', { domain: 'contracts', forceRefresh: true });
@@ -353,7 +353,7 @@ async function submitContractModify(contractId) {
   }
 }
 
-// 取消签约（v0.25.87 R7）：弹窗 + 密码验证（取消签署承诺 = 危险操作，needReAuth 换 capToken）→
+// 取消签约：弹窗 + 密码验证（取消签署承诺 = 危险操作，needReAuth 换 capToken）→
 // 后端回退我方待签约态（合同保留，不删除）+ 通知对方；会话保留
 function cancelContract(contractId) {
   confirm({ message: UI.CONFIRM_CANCEL_CONTRACT, needReAuth: true, onConfirm: async capToken => {
@@ -371,15 +371,15 @@ async function doCancelContract(contractId, capToken) {
   } catch (err) { showToast(err.message); }
 }
 
-// v0.24.0 合同修改只放出业务条款：法律条款由服务端固定重拼（不可修改）。
+// 合同修改只放出业务条款：法律条款由服务端固定重拼（不可修改）。
 // 标记前缀与 server/contract.js CONTRACT_BUSINESS_END 一致
 const CONTRACT_BIZ_END = '<!-- 业务条款结束';
 function splitContractBiz(md) {
   return String(md || '').split(CONTRACT_BIZ_END)[0].trim();
 }
-// v0.25.86 审计：stripContractMarker 已由 app-contracts 定义（见下），app-admin 复用，不再双写
+// 审计：stripContractMarker 已由 app-contracts 定义（见下），app-admin 复用，不再双写
 
-// v0.24.0 发起签约（极简签约流，加号栏呼出）：需求四·第2条加「选择需求」下拉（会话学生方开放需求，
+// 发起签约（极简签约流，加号栏呼出）：需求四·第2条加「选择需求」下拉（会话学生方开放需求，
 // 每项 #编号 · 目标名 · 预算），再确认报价 / 时间（自然语言）/ 教学方式线上或线下，
 // 发送后会话内出现「对方向你发送了签约请求」气泡，由对方确认或拒绝（见 app-chat.js 气泡渲染）
 async function openSigningModal(convId) {
@@ -392,7 +392,7 @@ async function openSigningModal(convId) {
   openModal({
     title: UI.SIGNING_MODAL_TITLE,
     closable: false,
-    replace: true, // v0.25.98：loading→表单同流程直接替换，不恢复旧 loading 壳
+    replace: true, // loading→表单同流程直接替换，不恢复旧 loading 壳
     body: `
         <p class="text-sm text-muted signing-modal-hint">${UI.SIGNING_MODAL_HINT}</p>
         <div class="form-group">
@@ -411,7 +411,7 @@ async function openSigningModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_SCHEDULE} <span class="req">*</span></label>
-          <div id="signing-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件；需求四十四：提示行已删（与「+ 新建时间段」文案重复） -->
+          <div id="signing-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- 复用结构化时间组件 -->
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_SIGNING_METHOD}</label>
@@ -420,14 +420,15 @@ async function openSigningModal(convId) {
             <option value="offline" selected>${UI.SIGNING_METHOD_OFFLINE}</option>
           </select>
         </div>
-        <p class="funds-note">${UI.FUNDS_NOTE}</p>`, <!-- 需求四（v0.25.44）：报价资金触点明示平台不走资金 -->
+        <p class="funds-note">${UI.FUNDS_NOTE}</p>`,
+    // 报价资金触点明示平台不走资金（模板外禁夹 HTML 注释——module 语法非法）
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitSigning(${convId})">${UI.BTN_SIGNING_SEND}</button>`,
   });
   initCustomSelects(document.getElementById('signing-method') && document.getElementById('signing-method').closest('.modal'));
 }
 
-// v0.25.35 签约/草拟共用：收集时间组件 → 人类可读 schedule 串（结构化 slots 经 DISP.expectedTimeText
+// 签约/草拟共用：收集时间组件 → 人类可读 schedule 串（结构化 slots 经 DISP.expectedTimeText
 // 格式化为「周一 18:00-20:00、周三 16:00-18:00」；空 → ''；半填/起止颠倒由 validateTimeSlots 先行拦截）
 function collectScheduleText(containerId) {
   const container = document.getElementById(containerId);
@@ -454,7 +455,7 @@ async function submitSigning(convId) {
   const method = document.getElementById('signing-method').value;
   if (!demandId) { showToast(UI.VALIDATE_SIGNING_DEMAND); return; } // 需求四·第2条：每次签约绑定一份需求
   if (price <= 0) { showToast(UI.VALIDATE_SIGNING_PRICE); return; }
-  if (tsErr) { showToast(tsErr); return; } // v0.25.35 结构化时间校验（半填/起止颠倒就地拦截）
+  if (tsErr) { showToast(tsErr); return; } // 结构化时间校验（半填/起止颠倒就地拦截）
   if (!schedule) { showToast(UI.VALIDATE_SIGNING_SCHEDULE); return; }
   // C2 敏感操作门禁：发起签约（建立合同关系）前先过一次拼图真人验证
   withCaptcha(() => doSubmitSigning(convId, { demandId, price, schedule, method }));
@@ -486,12 +487,12 @@ async function openContractDraftModal(convId) {
   openModal({
     title: `${UI.DRAFT_MODAL_TITLE}`,
     closable: false,
-    replace: true, // v0.25.98：loading→表单同流程直接替换，不恢复旧 loading 壳
-    cls: 'contract-form', // U8（v0.25.105）：应用资料栏去横线方案（.form-group 间细线去掉），不引入分段标题
+    replace: true, // loading→表单同流程直接替换，不恢复旧 loading 壳
+    cls: 'contract-form', // U8：应用资料栏去横线方案（.form-group 间细线去掉），不引入分段标题
     body: `
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_DEMAND} <span class="req">*</span></label>
-          <!-- U7（v0.25.105）：外置长提示行并入下拉占位——框内灰字占位即短提示「仅已签约需求可继续签合同」，浮窗回到本来一行 -->
+          <!-- U7：外置长提示行并入下拉占位——框内灰字占位即短提示「仅已签约需求可继续签合同」，浮窗回到本来一行 -->
           <select class="form-select" id="contract-demand" onchange="prefillContractFromDemand()">
             ${demands.length
               ? (preselect
@@ -508,7 +509,7 @@ async function openContractDraftModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_SCHEDULE}</label>
-          <div id="contract-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- v0.25.35 复用结构化时间组件；需求四十四：提示行已删（与「+ 新建时间段」文案重复） -->
+          <div id="contract-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div> <!-- 复用结构化时间组件 -->
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_LOCATION}</label>
@@ -533,7 +534,7 @@ async function openContractDraftModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_FIRST_LESSON}</label>
-          ${dateFieldHtml()} <!-- 需求四十五（v0.25.53）：分段日期输入（年-月-日），复用底层段输入原语，空=由双方另行协商 -->
+          ${dateFieldHtml()} <!-- 需求四十五：分段日期输入（年-月-日），复用底层段输入原语，空=由双方另行协商 -->
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_TRIAL_PAY}</label>
@@ -553,11 +554,12 @@ async function openContractDraftModal(convId) {
             <button type="button" class="md-btn glass" onclick="mdWrap('h2')">H2</button>
             <button type="button" class="md-btn glass" onclick="mdWrap('h3')">H3</button>
             <button type="button" class="md-btn glass" onclick="mdWrap('bold')">${UI.POST_MD_BOLD}</button>
-            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button> <!-- v0.24.0 -->
+            <button type="button" class="md-btn glass" onclick="openPostPreview()">${UI.POST_PREVIEW_BTN}</button>
           </div>
           <textarea id="post-body" class="form-input post-body-input" rows="8" placeholder="${UI.CONTRACT_PLAN_PLACEHOLDER}"></textarea>
         </div>
-        <p class="funds-note">${UI.FUNDS_NOTE}</p>`, <!-- 需求四（v0.25.44）：时薪资金触点明示平台不走资金 -->
+        <p class="funds-note">${UI.FUNDS_NOTE}</p>`,
+    // 时薪资金触点明示平台不走资金（模板外禁夹 HTML 注释——module 语法非法）
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" onclick="submitContractDraft(${convId})">${UI.BTN_SEND}</button>`,
   });
@@ -591,7 +593,7 @@ function prefillContractFromDemand() {
   const plan = document.getElementById('post-body');
   const subjLine = DISP.demandTargetNames(d.target_subjects, d.target_type); // R2-b 合同详情按需求类型显示目标名
   if (plan && !plan.value.trim() && subjLine) { plan.value = `${UI.CONTRACT_SUBJECT_LINE_PREFIX}${subjLine}\n\n`; }
-  // v0.25.35 授课时间段：按需求 expected_time 预填时间组件（仅未填时，用户改过的不覆盖）
+  // 授课时间段：按需求 expected_time 预填时间组件（仅未填时，用户改过的不覆盖）
   const ts = document.getElementById('contract-time-slots');
   if (ts && !ts.querySelectorAll('.time-slot').length) prefillTimeSlots(ts, d.expected_time || '');
 }
@@ -614,7 +616,7 @@ async function submitContractDraft(convId) {
   if (trialPay === 'other' && !trialPayOther) { showToast(UI.VALIDATE_CONTRACT_TRIAL_PAY_OTHER, 'error'); return; }
   if (!plan) { showToast(UI.VALIDATE_CONTRACT_PLAN, 'error'); return; }
   const tsErr = validateTimeSlots(document.getElementById('contract-time-slots'));
-  if (tsErr) { showToast(tsErr, 'error'); return; } // v0.25.35 结构化时间校验（空=可协商，不强制）
+  if (tsErr) { showToast(tsErr, 'error'); return; } // 结构化时间校验（空=可协商，不强制）
   if (firstLessonDateRaw === null) { showToast(UI.VALIDATE_CONTRACT_FIRST_LESSON_INCOMPLETE, 'error'); return; } // 需求四十五：日期半填拦截（空=另行协商合法）
   const firstLessonDate = firstLessonDateRaw; // '' 或 'YYYY-MM-DD'（readDateField 已按真实日历钳制）
   if (contractDraftBusy) return;

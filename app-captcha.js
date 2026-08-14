@@ -1,5 +1,5 @@
 /**
- * 滑块拼图真人验证组件（v0.26.0 C1/C2）—— 独立验证浮窗 + 敏感操作门禁
+ * 滑块拼图真人验证组件—— 独立验证浮窗 + 敏感操作门禁
  *
  * 成熟方案口径（调研结论，见 docs/0.26-认证与审核架构.md）：
  *   - 后端生成答案、前端渲染交互、后端校验，归一化偏移上报，一次性 token 防重放；
@@ -16,14 +16,14 @@
  *     背景绘制（drawImage 任意背景图 + 同源缺口块），接口签名不变。
  *
  * JS 只写 CSS 变量（--captcha-x 到共同祖先 .captcha-box，puzzle/fill/knob 全继承）与几何测量，
- * 滑块位移由 CSS transform 消费（合成器友好）。v0.26.17：原写轨道上拼图块（track 兄弟）拿不到。
+ * 滑块位移由 CSS transform 消费（合成器友好）。
  */
 
 const CAPTCHA_W = 280, CAPTCHA_H = 120, SLIDER_W = 40, SLIDER_H = 40;
-// B2（v0.27.2 用户反馈「空缺老是左边/右边校验必败/卡死」）：几何单源——
-// 旋钮行程 = 画布宽 - 旋钮宽（画布/轨道同 280px，v0.26.17 已对齐）；缺口生成与拖拽 clamp 共用此值。
-// 曾两把尺：缺口 _captchaTarget 用 /W(280) 归一化、旋钮 _captchaOffset 用 /max(240) 归一化 →
-// 右半缺口（cutX>134px）误差恒 > 容差 → 校验必败（用户实证「空缺在右边一定通不过」）。
+// 几何单源——
+// 旋钮行程 = 画布宽 - 旋钮宽（画布/轨道同 280px）；缺口生成与拖拽 clamp 共用此值。
+// 契约：缺口位置与旋钮偏移必须用同一把尺（CAPTCHA_MAX_X）归一化——分母不一致时右半缺口
+// 误差恒超容差，校验必败。
 const CAPTCHA_MAX_X = CAPTCHA_W - SLIDER_W; // 240：旋钮可移动行程（px）
 const CAPTCHA_TOLERANCE = 0.08; // mock 验证器容差（归一化 ±8%）
 let _captchaOnPass = null;
@@ -50,8 +50,8 @@ function openCaptchaModal({ title = UI.CAPTCHA_TITLE, onPass = null } = {}) {
   openModal({
     title,
     cls: 'captcha-modal',
-    // v0.26.17 拼图块断线修复：--captcha-x 统一挂共同祖先 .captcha-box（puzzle 与 track 是兄弟，
-    // CSS 变量按元素继承，原挂 track 上 puzzle 拿不到 → 拖动小块滑块原位静止，用户实证）。初始 0px 在此。
+    // --captcha-x 统一挂共同祖先 .captcha-box（puzzle 与 track 是兄弟，CSS 变量按元素继承，
+    // 挂 track 上 puzzle 拿不到 → 拖动小块滑块原位静止）。初始 0px 在此。
     body: `<div class="captcha-box" id="captcha-box" style="--captcha-x:0px">
       <canvas id="captcha-canvas" width="${CAPTCHA_W}" height="${CAPTCHA_H}"></canvas>
       <canvas id="captcha-puzzle" width="${SLIDER_W}" height="${SLIDER_H}" aria-hidden="true"></canvas>
@@ -89,10 +89,9 @@ function paintCaptcha() {
   const gapMin = 16, gapMax = CAPTCHA_MAX_X - 24; // 左缘 16px / 右缘 24px 边距（行程内）
   _captchaTarget = (gapMin + Math.random() * (gapMax - gapMin)) / CAPTCHA_MAX_X;
   const cutX = _captchaTarget * CAPTCHA_MAX_X, cutY = (H - SLIDER_H) / 2;
-  // 拼图块（B4 修复：原只抠洞没有跟随滑块的拼图块）：把缺口区域背景复制到 puzzle canvas，
-  // 滑块位移经 CSS 同源 --captcha-x 驱动 translateX 跟随（合成器只读，零重绘）。
-  // v0.26.17：--captcha-x 由共同祖先 .captcha-box 提供（模板初始化 0px），puzzle 经继承跟随——
-  // 原在 puzzle 自身 inline 设 0px 会以 inline 覆盖继承值，拼图块永远停原位（用户实证）。
+  // 拼图块：把缺口区域背景复制到 puzzle canvas，滑块位移经 CSS 同源 --captcha-x 驱动
+  // translateX 跟随（合成器只读，零重绘）。--captcha-x 由共同祖先 .captcha-box 提供（模板初始化 0px），
+  // puzzle 经继承跟随——禁止在 puzzle 自身 inline 设位移（inline 覆盖继承值，拼图块永远停原位）。
   const pz = document.getElementById('captcha-puzzle');
   if (pz) {
     const pctx = pz.getContext('2d');
@@ -108,7 +107,7 @@ function paintCaptcha() {
   ctx.strokeStyle = 'rgba(255,255,255,.85)';
   ctx.lineWidth = 2;
   ctx.strokeRect(cutX + 1, cutY + 1, SLIDER_W - 2, SLIDER_H - 2);
-  // 复位滑块与轨迹（v0.26.17：--captcha-x 统一写共同祖先 .captcha-box，puzzle/fill/knob 全部继承复位）
+  // 复位滑块与轨迹
   _captchaOffset = 0; _captchaTrack = [];
   const track = document.getElementById('captcha-track');
   const box = document.getElementById('captcha-box') || track;
@@ -120,7 +119,7 @@ function bindCaptchaDrag() {
   const knob = document.getElementById('captcha-knob');
   const track = document.getElementById('captcha-track');
   if (!knob || !track) return;
-  // v0.26.17：--captcha-x 统一写共同祖先 .captcha-box——puzzle（track 兄弟）与 fill/knob（track 子）全继承
+  // --captcha-x 统一写共同祖先 .captcha-box——puzzle（track 兄弟）与 fill/knob（track 子）全继承
   const box = document.getElementById('captcha-box') || track;
   const max = CAPTCHA_MAX_X; // 几何单源（B2）
   const down = (e) => {

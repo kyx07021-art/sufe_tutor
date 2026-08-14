@@ -7,12 +7,12 @@
 globalThis.APP_CONSTANTS = {
 
   // 教师注册邀请码门控：休眠中（true = 门控沉睡，教师注册免邀请码直接提交；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
-  // 内测期间沉默：简易注册、无需邀请码（v0.19.49 用户指令）；公测前如需恢复，置回 false 并同步后端开关
+  // 内测期间沉默：简易注册、无需邀请码；公测前如需恢复，置回 false 并同步后端开关
   // 网安报告 F-05：教师开放注册属高危，恢复门控时注册必须经管理员签发邀请码
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '0.31.11',
+  APP_VERSION: '0.32.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -26,18 +26,18 @@ globalThis.APP_CONSTANTS = {
     CHAT_BUBBLE_DELAY_MS: 12,             // 气泡错峰
     CHAT_FILE_MAX_BYTES: 500 * 1024,      // 前端图片压缩上限（后端 FILE_MAX_BYTES 700000 兜底）
     CHAT_IMG_MAX_SIDE: 900, CHAT_IMG_QUALITY: 0.82, // 聊天图片最长边/JPEG 质量（控制 D1 单元格体积）
-    CHAT_IMG_THUMB_SIDE: 128, CHAT_IMG_THUMB_QUALITY: 0.72, // v0.25.36 聊天图缩略图（预载立即展示，点开加载原图）
+    CHAT_IMG_THUMB_SIDE: 128, CHAT_IMG_THUMB_QUALITY: 0.72, // 聊天图缩略图（预载立即展示，点开加载原图）
     COMPLAINT_ATTACH_MAX: 4,                // 投诉附件件数上限（U11；与后端 LIMITS.COMPLAINT_ATTACH_MAX 同值）
     BADGE_POLL_MS: 30000,                 // 红点慢轮询
     PUSH_COOLDOWN_SEC: 60,                // 需求推送限流
     LOGIN_CHECK_DEBOUNCE_MS: 300,         // 登录用户名探测防抖
     API_TIMEOUT_MS: 20000,                // api() fetch 超时（停滞 SW/异常网络下避免「永远加载中」，超时归网络错误）
-    GET_RETRY: 1,                         // F1（v0.27.0）：幂等 GET 网络抖动自动重试次数（fetch 瞬断/DNS/被拒 → 短退避重试自愈；超时/业务错误不重试）
-    GET_RETRY_BACKOFF_MS: 300,            // F1（v0.27.0）：GET 重试退避（短，连不稳时快速自愈，不拖长感知延迟）
-    BATCH_GET_MAX: 16,                    // B2（v0.27.0）：/api/batch 单次批量读上限（服务端 _worker.js 经 APP_CONSTANTS 同读校验；前端 dhBatchGet 按此分块——单域缓存键可超限，整批超限会被服务端 400 整批拒绝 → 域刷新静默失效）
-    // v0.26.0 验证码/凭证（数据单源：前端 app-otp.js 与后端 server/otp.js 经 globalThis 同读）
+    GET_RETRY: 1,                         // F1：幂等 GET 网络抖动自动重试次数（fetch 瞬断/DNS/被拒 → 短退避重试自愈；超时/业务错误不重试）
+    GET_RETRY_BACKOFF_MS: 300,            // F1：GET 重试退避（短，连不稳时快速自愈，不拖长感知延迟）
+    BATCH_GET_MAX: 16,                    // B2：/api/batch 单次批量读上限（服务端 _worker.js 经 APP_CONSTANTS 同读校验；前端 dhBatchGet 按此分块——单域缓存键可超限，整批超限会被服务端 400 整批拒绝 → 域刷新静默失效）
+    // 验证码/凭证（数据单源：前端 app-otp.js 与后端 server/otp.js 经 globalThis 同读）
     PHONE_REGIONS: [                      // 手机号地区前缀表（固定 +86 前缀显示 + 服务端格式校验共用）
-      // v0.26.15 收敛大陆单区（用户批评：多地区前缀"装模作样"）——①只对大陆号有裸号补 +86 适配
+      // 收敛大陆单区（用户批评：多地区前缀"装模作样"）——①只对大陆号有裸号补 +86 适配
       // （CN_MOBILE），其他地区无裸号支持；②验证码生产恒 mock，真实短信服务商基本只支持大陆号；
       // 多地区选择器在产品场景是摆设。支持范围与实际逻辑自洽 = 仅 +86。接入国际短信时再加回。
       { prefix: '+86', name: '中国大陆', pattern: /^1[3-9]\d{9}$/ },
@@ -46,9 +46,9 @@ globalThis.APP_CONSTANTS = {
     DEMAND_SCORE_MAX: 12,                 // 需求「科目具体情况」成绩条目数上限（服务端 sanitizeDemand 同读钳制——v0.31.3 审计：原为幽灵引用 + 裸 12 兜底）
     DOMAIN_SCRIPT_RETRY: 4,               // v0.25.100：领域脚本 404 重试次数（发布后边缘同步窗口 ~1-2 分钟，3s×4=12s 覆盖大部分窗口）
     DOMAIN_SCRIPT_RETRY_MS: 3000,         // v0.25.100：领域脚本 404 重试间隔（延迟重试等边缘同步，保留页面状态）
-    DOMAIN_SCRIPT_TIMEOUT_MS: 6000,       // v0.27.0 审计：单脚本挂起下载（无 load/error，边缘节点吞请求）超时兜底——按失败走重试/自愈，绝不让 enterClient 永久等待
-    VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（v0.25.76 8s→30s：每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
-    DH_TTL_MS: 60000,                     // 会话数据层保底 TTL（v0.23.0：即便探测停摆，缓存 60s 后强制重拉，防陈旧）
+    DOMAIN_SCRIPT_TIMEOUT_MS: 6000,       // 审计：单脚本挂起下载（无 load/error，边缘节点吞请求）超时兜底——按失败走重试/自愈，绝不让 enterClient 永久等待
+    VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
+    DH_TTL_MS: 60000,                     // 会话数据层保底 TTL
     POSTS_SEARCH_DEBOUNCE_MS: 350,        // 帖子搜索防抖
     INVITE_CODE_LEN: 8,                   // 邀请码长度（与后端 LIMITS 同值）
     AVATAR_SIDE: 160, AVATAR_QUALITY: 0.85,
@@ -57,12 +57,12 @@ globalThis.APP_CONSTANTS = {
     DISPLAY_ID_PAD: 4,                    // 需求编号补零位数
     TIME_SLOTS_MAX: 8,                    // 结构化时间组件条数上限（与 server LIMITS.TIME_SLOTS_MAX 对齐）
     PERSONALITY_TAGS_MAX: 3,              // 性格关键词上限（R2-3，前端 toggleTagPick 与服务端兜底同用）
-    TEACHING_GOALS_MAX: 2,                // 教学目标上限（v0.31.7 R1：≤2，前后端同用）
-    SKILL_NOTE_MAX: 300,                  // 技能现状单项目描述上限（v0.31.7 R2：描述/证书/考级/获奖）
+    TEACHING_GOALS_MAX: 2,                // 教学目标上限（≤2，前后端同用）
+    SKILL_NOTE_MAX: 300,                  // 技能现状单项目描述上限（描述/证书/考级/获奖）
     GRAD_YEAR_MIN: 1980, GRAD_YEAR_MAX: 2030, // 教师毕业年份可填范围（R2-12，服务端钳制同值）
     SIDEBAR_INDEX_PAD: 2,                 // 侧边栏序号补零位数
     POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
-    GREETING_MSG_MAX: 300,                // 打招呼消息上限（v0.28.0 M1：学生推送需求/教师试课意向附带；与服务端 LIMITS.GREETING_MSG_MAX 同值）
+    GREETING_MSG_MAX: 300,                // 打招呼消息上限（学生推送需求/教师试课意向附带；与服务端 LIMITS.GREETING_MSG_MAX 同值）
     MATCH_WEIGHT: { subject: 45, region: 15, budget: 15, personality: 15, gender: 10 },     // 教师匹配度权重（合计 100；需求五并入性格/性别，科目仍为主权重）
     MATCH_DISTANCE_MAX_KM: 20,            // 需求五：上海线下单镇间距离评分上限 km——20km 内随距离线性下降至 0，更远恒 0（用户定策）
     MATCH_MAX: 100,
@@ -70,7 +70,7 @@ globalThis.APP_CONSTANTS = {
     MATCH_COLOR_MID: 60,                  // 60-79 黄（mid），<60 红（lo）
     GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（undeclared/历史 nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
     MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px（B4：max-height 注入已删，卡片随内容拉长）
-    MATCH_DETAIL_EDGE_MARGIN: 8,          // 匹配明细卡距屏幕左右缘最小边距 px（v0.25.26 移动端右缘钳制）
+    MATCH_DETAIL_EDGE_MARGIN: 8,          // 匹配明细卡距屏幕左右缘最小边距 px
     PANEL_CLOSE_TIMEOUT_MS: 600,          // 个人信息栏关闭兜底
     TOAST_MS: 2500, TOAST_FADE_MS: 300,   // Toast 时长
     REVEAL_DELAY_BASE: 80, REVEAL_DELAY_STEP: 45, REVEAL_DELAY_MAX: 360, // 卡片浮入错峰
@@ -78,22 +78,22 @@ globalThis.APP_CONSTANTS = {
     REOPEN_DELAY_MS: 800,                 // 邀请码确认→注册跳转 / 注销→登出延迟
     MODAL_W_CONFIRM: '380px',             // 确认类弹窗宽度（散落 380/400/420/430/480 收敛）
     MODAL_W_SEND: '480px', MODAL_W_DEACTIVATE: '430px', MODAL_W_PROFILE_HINT: '420px',
-    MODAL_W_INTENT_CONFIRM: '400px',        // 试课意向确认弹窗（v0.25.19 审计 G-11：散落硬编码宽度收进 CONFIG）
+    MODAL_W_INTENT_CONFIRM: '400px',        // 试课意向确认弹窗（散落硬编码宽度收进 CONFIG）
     TOUR_TARGET_TIMEOUT_MS: 3000,         // 新手引导：目标未挂载 rAF 轮询超时，超时自动跳过该步
     TOUR_GAP_PX: 16,                      // 新手引导：文字气泡与亮区间距（JS 定位用）
     TOUR_SCROLL_BAND_LO: 0.3, TOUR_SCROLL_BAND_HI: 0.7, // 需求五十四：新手引导滚动后目标中心须落容器可视区竖带（比例）
-    PROFILE_ROW_GAP: 11,                  // 需求六·item1：教师资料卡条目纵向间距 px；#156（v0.25.64）行距压半 22→11
-    FILTER_ROW_GAP: 16,                   // 需求五（v0.25.44）：筛选面板多排下拉栏之间的纵向空隙 px（上下两排不能零空隙紧贴）
+    PROFILE_ROW_GAP: 11,                  // 需求六·item1：教师资料卡条目纵向间距 px；#156行距压半 22→11
+    FILTER_ROW_GAP: 16,                   // 需求五：筛选面板多排下拉栏之间的纵向空隙 px（上下两排不能零空隙紧贴）
     UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_DEFAULT: 100, UI_SCALE_STEP: 1, // 需求六·item5：UI 大小滑块范围/步进（百分比；100=现状；v0.25.12 上限扩到 120）
-    UI_SCALE_WHEEL_STEP: 4, // U5（v0.25.105）：ctrl+滚轮每格步长（=4×滑块 step；用户实证一格太小拖沓）
-    UI_SCALE_REFLOW_SAMPLE_STEP: 20, // v0.27.6 元素级模拟重排：真实重排目标位采样档位步长（v0.31.4 P4：5%→20%——9 档→3 档 [80/100/120]，每档一次整树 reflow 是采样成本大头（生产 1300+ 单元 ~100ms/档），3 档 ~300ms 且档间线性插值足够——--ui-scale 乘性变换目标位近线性；UI_SCALE_REFLOW_SAMPLE_STEP 单源）
+    UI_SCALE_WHEEL_STEP: 4, // ctrl+滚轮每格步长（=4×滑块 step）
+    UI_SCALE_REFLOW_SAMPLE_STEP: 20, // 元素级模拟重排：真实重排目标位采样档位步长（5%→20%——9 档→3 档 [80/100/120]，每档一次整树 reflow 是采样成本大头（生产 1300+ 单元 ~100ms/档），3 档 ~300ms 且档间线性插值足够——--ui-scale 乘性变换目标位近线性；UI_SCALE_REFLOW_SAMPLE_STEP 单源）
     UI_SCALE_KEY: 'sufe_ui_scale',        // 需求六·item5：UI 大小偏好 localStorage 键（参照 setThemePref 的 sufe_theme 模式）
     STYLE_KEY: 'sufe_style',              // 需求八·item4：页面风格偏好 localStorage 键（liquid/flat）
     THEME_KEY: 'sufe_theme',
     ORB_KEY: 'sufe_orb',                  // 需求八·item3：背景光球偏好 localStorage 键（vivid/elegant/hidden）
-    NOTIF_BLOCK_KEY: 'sufe_block_broadcast', // 屏蔽系统通知偏好 localStorage 键（v0.25.86 审计收敛自 app-shell 裸字符串）
-    DEVICE_ID_KEY: 'sufe_device_id',      // 设备标识 localStorage 键（v0.25.86 审计收敛自 app-state 裸字符串）
-    CONTRACT_SIGN_READ_SECONDS: 30,       // 签约加固：合同确认前须滚动到底 + 待够此时长（秒）（v0.25.32）
+    NOTIF_BLOCK_KEY: 'sufe_block_broadcast', // 屏蔽系统通知偏好 localStorage 键
+    DEVICE_ID_KEY: 'sufe_device_id',      // 设备标识 localStorage 键
+    CONTRACT_SIGN_READ_SECONDS: 30,       // 签约加固：合同确认前须滚动到底 + 待够此时长（秒）
     CONTRACT_SIGN_SCROLL_EPS: 2,          // 签约加固：判定「滚到底」的底部容差 px（无溢出短合同视同已到底）
   },
 
@@ -121,7 +121,7 @@ globalThis.APP_CONSTANTS = {
   ],
 
   STUDENT_GRADES: [
-    // M3（v0.25.103）：补小学六年级（外地六三学制）+ 预备班（上海五四学制：六年级=初中预备）。
+    // M3：补小学六年级（外地六三学制）+ 预备班（上海五四学制：六年级=初中预备）。
     // 全列表 = 六三学制（默认）；五四学制省份按 SCHEDULE 学制映射过滤（app-demands 渲染层）。
     {id:'p1',name:'小学一年级'},{id:'p2',name:'小学二年级'},{id:'p3',name:'小学三年级'},
     {id:'p4',name:'小学四年级'},{id:'p5',name:'小学五年级'},
@@ -144,7 +144,7 @@ globalThis.APP_CONSTANTS = {
   // 顺序即默认：不愿透露排首位，教师资料下拉默认选中它。学生侧以 '' 表示不愿透露，剔除 undeclared。
   GENDERS: [{id:'undeclared',name:'不愿透露'},{id:'male',name:'男'},{id:'female',name:'女'}],
   TEACHING_METHODS: [{id:'online',name:'线上'},{id:'offline',name:'线下'},{id:'both',name:'线上线下均可'}],
-  // 结构化时间组件（v0.25.0）：期望开课/可授课时间段的下拉枚举（1=周一 … 7=周日）
+  // 结构化时间组件：期望开课/可授课时间段的下拉枚举（1=周一 … 7=周日）
   WEEKDAYS: [
     {id:1,name:'周一'},{id:2,name:'周二'},{id:3,name:'周三'},{id:4,name:'周四'},
     {id:5,name:'周五'},{id:6,name:'周六'},{id:7,name:'周日'},
@@ -163,7 +163,7 @@ globalThis.APP_CONSTANTS = {
     {id:'code',name:'编程/机器人'},{id:'sports',name:'体育/运动'},{id:'speech',name:'演讲主持'},
     {id:'language',name:'语言口语'},
   ],
-  // 教学目标（v0.31.7 R1）：「详细偏好」拆分后的教学目标白名单（id 英文小写、name 中文），
+  // 教学目标：「详细偏好」拆分后的教学目标白名单（id 英文小写、name 中文），
   // 学科/非学科通用；服务端经本数组校验（同 PERSONALITY_TAGS 口径，静默截断不拒绝整表）
   TEACHING_GOALS: [
     {id:'score',name:'提分'},{id:'advanced',name:'培优'},{id:'contest',name:'竞赛'},
@@ -226,7 +226,7 @@ globalThis.APP_CONSTANTS = {
     flat: {
       orb: 'hidden', // 特殊效果协调：平面简约强制光球隐藏（orbMode 读 <html data-style>）
       tokens: {
-        // #164（v0.25.72）：平面简约改白色系——覆盖基底 底/纸/线 token（theme 块提供 --flat-* 深浅自适应），
+        // #164：平面简约改白色系——覆盖基底 底/纸/线 token（theme 块提供 --flat-* 深浅自适应），
         // 下游全部 var(--paper)/var(--g-bg) 引用随变纯白系，无需逐条改
         '--g-bg': 'var(--flat-bg)', '--paper': 'var(--flat-paper)', '--paper-2': 'var(--flat-paper-2)',
         '--paper-3': 'var(--flat-paper-3)', '--line': 'var(--flat-line)',
@@ -244,7 +244,7 @@ globalThis.APP_CONSTANTS = {
         '--g-fill-faint': 'var(--paper-3)',   // 微透面 → 最浅纸面
         '--g-fill-mid': 'var(--paper-2)',
         '--g-card-fill': 'var(--paper)',      // 卡族弯月径向 → 纯纸面
-        // v0.25.101 Q1：flat light 三卡深度修正。三卡坐在纯白面板（profile-panel = --paper）上，
+        // ：flat light 三卡深度修正。三卡坐在纯白面板（profile-panel = --paper）上，
         // 卡片须比纯白深一档微灰（用户：「教师卡本身就是纯白，所以三卡应该是10度灰」）——原映射
         // --paper-3（#E5E7EB，24 度）比页面底 #F4F5F7（10 度）还深，成页面最深组件。
         // 改 --g-bg（flat light = #F4F5F7 = 10 度灰）：三卡与页面同灰、在纯白面板上恰好 10 度层次。
@@ -259,8 +259,8 @@ globalThis.APP_CONSTANTS = {
         '--g-avatar-border': 'var(--line)', '--g-avatar-border-ghost': 'var(--line)',
         '--g-btn-fill': 'var(--g-fill-weak)',   // 按钮透明透镜 → 不透明纸面（防平面模式按钮隐形）
         '--g-btn-line': 'var(--line)',          // R11 轻量描边按钮细边框对齐平面全局发丝边
-        // v0.25.34 气泡不设 flat 特例：theme 近实值（#E9E5FB/#FFFFFF）液态平面同源，材质差异已由零投影/零液体边承担
-        '--g-flow-dot': 'var(--paper-3)', // v0.25.39（反馈 U2）：圆点填纸面（与 ink 数字反色），修平面下数字/圆圈同色不可见
+        // 气泡不设 flat 特例：theme 近实值（#E9E5FB/#FFFFFF）液态平面同源，材质差异已由零投影/零液体边承担
+        '--g-flow-dot': 'var(--paper-3)', // 圆点填纸面（与 ink 数字反色），修平面下数字/圆圈同色不可见
         '--g-ok-solid': 'var(--ok-deep)',
         // ---- 表面发丝描边（审计 H1/H2：平面无阴影无磨砂，靠描边定义表面边界；
         //      引擎 base border: var(--g-border, none)；.btn 同源；实心小件 .seg-tab/.tag 等 opt-out 不带边） ----
@@ -268,7 +268,7 @@ globalThis.APP_CONSTANTS = {
         // ---- 线条族 → 墨线（半透明白线在不透明纸面上不可见） ----
         '--g-line-soft': 'var(--line)', '--g-line-pane': 'var(--line)', '--g-line-dark': 'var(--line)',
         '--g-seg-line': 'var(--line)', '--g-option-line': 'var(--line)', '--g-foot-text': 'var(--muted)',
-        // ---- 下拉高亮 → 中性浅墨（v0.25.94：弃品牌紫「紫色直角矩形」反馈，下拉族统一中性） ----
+        // ---- 下拉高亮 → 中性浅墨 ----
         '--g-option-hover': 'rgba(17,17,20,.06)', '--g-option-sel': 'rgba(17,17,20,.10)',
         '--g-option-ring': 'rgba(17,17,20,.16)',
         // ---- 投影/液体边缘 → 透明占位（box-shadow 列表禁 none 混入，v0.19.17 教训） ----
@@ -282,7 +282,7 @@ globalThis.APP_CONSTANTS = {
         '--g-hover-wash': 'rgba(120,120,132,.12)',
         // ---- 匹配条空轨/填充段 ----
         '--g-bar-soft': 'var(--paper-3)', '--g-bar-strong': 'var(--accent-tint)',
-        // ---- 内生滚动条（v0.25.28）：平面 = 墨色发丝细条（color-mix 引主题 ink，深浅自适应；
+        // ---- 内生滚动条：平面 = 墨色发丝细条（color-mix 引主题 ink，深浅自适应；
         //       无磨砂无投影，材质与液态包的半透明紫玻璃区分；宽度收窄到 6px 更纤） ----
         '--g-scroll-size': '6px',
         '--g-scroll-thumb': 'color-mix(in srgb, var(--ink) 20%, transparent)',
@@ -313,7 +313,7 @@ globalThis.APP_CONSTANTS = {
       '--white': '#FFFFFF', '--field': '#F3F0EB', '--field-2': '#EBE7E1',
       '--paper-ghost': 'rgba(250,248,245,.62)',
       '--accent': '#6B5BD2', '--accent-deep': '#4B3DB0', '--accent-bright': '#8E80E8', '--accent-tint': '#E7E3F7',
-      '--warn-deep': '#C8920F', '--warn-tint': '#F7E8C6', // M4（v0.25.103）：黄从土棕 #9A6A2A 提为金黄 #C8920F
+      '--warn-deep': '#C8920F', '--warn-tint': '#F7E8C6', // M4：黄从土棕 #9A6A2A 提为金黄 #C8920F
       '--danger': '#C0392B', '--danger-deep': '#9B2C2C', '--danger-tint': '#F7E7E7',
       '--ok-deep': '#2E6B3A', '--ok-tint': '#E7EFE7',
       '--chart-traffic': '#6B5BD2', '--chart-latency': '#2E6B3A', // 流量监测图表系列色（亮色主题，经 dataviz 校验）
@@ -321,7 +321,7 @@ globalThis.APP_CONSTANTS = {
       '--line': 'rgba(17,17,20,.12)', '--border-light': 'rgba(17,17,20,.10)',
       // ---- 背景舞台 ----
       '--g-bg': '#ECEAF0',                       // html 页面底
-      // #164（v0.25.72）：平面简约白色系——flat 包专用底/纸/线（浅色主题纯白底，白纸面靠灰线分界）
+      // #164：平面简约白色系——flat 包专用底/纸/线（浅色主题纯白底，白纸面靠灰线分界）
       // 2026-08-09 反馈：白色系分层（非纯白）——页面底微灰 #F4F5F7，卡片纯白浮起，嵌套面逐级加深，发丝边略加重
       '--flat-bg': '#F4F5F7', '--flat-paper': '#FFFFFF', '--flat-paper-2': '#EEF0F3', '--flat-paper-3': '#E5E7EB',
       '--flat-line': 'rgba(17,17,20,.12)',
@@ -340,10 +340,10 @@ globalThis.APP_CONSTANTS = {
       '--g-btn-line': 'rgba(17,17,20,.14)',        // 统一细边框（比 --line 略深一档，白卡上可辨）
       '--g-card-fill': 'radial-gradient(ellipse 120% 55% at 50% 4%, rgba(255,255,255,.90) 0%, rgba(255,255,255,.45) 18%, rgba(255,255,255,.14) 36%, rgba(255,255,255,.06) 60%, rgba(255,255,255,.04) 100%)', // 卡族弯月径向
       '--g-card-strong': 'rgba(255,255,255,.32)',  // 信息卡强面（坐侧栏 L2）
-      '--g-card-id': 'rgba(255,255,255,.64)',      // 信息卡身份卡（v0.25.94：用户反馈「三卡底色变浅」——.44→.64，卡片本身提亮；底板 .profile-panel 仍 .22 不动）
+      '--g-card-id': 'rgba(255,255,255,.64)',      // 信息卡身份卡
       '--g-card-strong-m': 'rgba(255,255,255,.62)',// 移动端信息卡
       '--g-card-id-m': 'rgba(255,255,255,.75)',    // 移动端身份卡
-      '--g-sideuser-fill': 'rgba(219,216,233,0.94)',// 侧栏用户块（v0.26.17 首修 rgba(244,242,248,.62) 生产实测仍无效：62% 半透明灰紫叠浅侧栏 rgba(250,248,245,.56) 合成 rgb(244,243,246) vs 侧栏 rgb(242,240,241)，RGB 总差仅 10 肉眼无区分——用户二连反馈「还是过于一致」）。v0.27.5 返工：偏冷灰紫 + 高不透明度 0.94，合成后 rgb(220,217,234) vs 侧栏总差约 52 清晰可辨；dark(128)/flat(纸面+描边) 不涉及
+      '--g-sideuser-fill': 'rgba(219,216,233,0.94)',// 侧栏用户块（62% 半透明灰紫叠浅侧栏 rgba(250,248,245,.56) 合成 rgb(244,243,246) vs 侧栏 rgb(242,240,241)，RGB 总差仅 10 肉眼无区分——用户二连反馈「还是过于一致」）。v0.27.5 返工：偏冷灰紫 + 高不透明度 0.94，合成后 rgb(220,217,234) vs 侧栏总差约 52 清晰可辨；dark(128)/flat(纸面+描边) 不涉及
       '--g-pane-fill': 'rgba(255,255,255,.12)',    // 会话列表 pane/暂存区
       '--g-header-fill': 'rgba(255,255,255,.08)',  // 浮窗头栏（玻璃上的玻璃）
       '--g-hover-wash': 'rgba(255,255,255,.18)',   // hover 白洗叠层
@@ -386,17 +386,17 @@ globalThis.APP_CONSTANTS = {
       '--g-accent-fill-soft': 'rgba(142,128,232,.08)', // 聊天拖入虚线罩
       '--g-like-fill': 'rgba(211,47,47,.16)',      // 帖子点赞态
       '--g-fav-fill': 'rgba(122,104,224,.16)',     // 帖子收藏态（R23：主题色淡底）
-      // ---- 内生滚动条（v0.25.28，全站统一组件；--g-scroll-* 语义 token，材质随外观包，几何同一） ----
+      // ---- 内生滚动条 ----
       '--g-scroll-size': '8px',                    // 滚动条 hit 区宽（液态）
       '--g-scroll-thumb': 'rgba(122,104,224,.38)', // 静置滑块：半透明紫玻璃
       '--g-scroll-thumb-strong': 'rgba(122,104,224,.58)', // hover 增亮（webkit 伪元素无 transition，跳色）
       '--g-scroll-thumb-active': 'rgba(122,104,224,.72)', // 按压
       // ---- 气泡 ----
-      // v0.25.34 气泡近实化（调研：主流「发送彩色/接收中性」通例 + WCAG 对比度）：发送方=品牌紫提亮面、
+      // 气泡近实化（调研：主流「发送彩色/接收中性」通例 + WCAG 对比度）：发送方=品牌紫提亮面、
       // 接收方=中性近实白（发丝描边在 style-chat.css 补，白泡在浅底上立得住）、系统=中性低对比胶囊（去第三色相）
       '--g-bubble-mine': '#E9E5FB',
       '--g-bubble-theirs': '#FFFFFF',
-      '--g-bubble-system': 'rgba(17,17,20,.10)', // v0.25.56 需求四十八：合同草案通知改明显灰色气泡（原 .055 在浅纸上几乎不可见）
+      '--g-bubble-system': 'rgba(17,17,20,.10)', // 需求四十八：合同草案通知改明显灰色气泡（原 .055 在浅纸上几乎不可见）
       // ---- 大块 pane ----
       '--g-sidebar-bg': 'rgba(250,248,245,.56)',
       '--g-sidebar-bg-m': 'rgba(244,242,247,.97)', // 移动端侧栏近不透明
@@ -408,9 +408,9 @@ globalThis.APP_CONSTANTS = {
       '--g-option-hover': 'rgba(17,17,20,.05)',   // v0.25.94：下拉 hover/聚焦/选中改中性浅墨（弃品牌紫）
       '--g-option-sel': 'rgba(17,17,20,.09)',
       '--g-option-ring': 'rgba(17,17,20,.16)',    // 下拉触发器聚焦环（中性墨色，主题自适应）
-      '--g-bar-soft': 'rgba(255,255,255,.35)',     // 匹配条底轨（v0.25.10 透明度微降，纸面上空轨可辨）
-      '--g-bar-strong': 'rgba(142,128,232,.45)',   // 匹配条空值段（v0.25.10 淡紫 tint——原纯白在纸面上不可辨）
-      '--g-slider-thumb': 'linear-gradient(145deg,#8E80E8,#6B5BD2)', // UI 大小滑块拖动球（v0.25.10 淡紫——原白玻璃珠在 80% 空轨上白对白）
+      '--g-bar-soft': 'rgba(255,255,255,.35)',     // 匹配条底轨
+      '--g-bar-strong': 'rgba(142,128,232,.45)',   // 匹配条空值段
+      '--g-slider-thumb': 'linear-gradient(145deg,#8E80E8,#6B5BD2)', // UI 大小滑块拖动球
       // ---- 光球（淡雅化 RGB 三元组；暗色沿用） ----
       '--lg-orb-a': '176,156,240', '--lg-orb-b': '240,200,150', '--lg-orb-c': '172,202,235',
       '--lg-orb-d': '202,148,240', '--lg-orb-e': '152,212,190', '--lg-orb-f': '240,176,222',
@@ -434,7 +434,7 @@ globalThis.APP_CONSTANTS = {
       '--line': 'rgba(255,255,255,.10)', '--border-light': 'rgba(255,255,255,.08)',
       // ---- 背景舞台 ----
       '--g-bg': '#0E0C14',
-      // #164（v0.25.72）：平面简约白色系——flat 专用 token（深色主题保持暗色系）
+      // #164：平面简约白色系——flat 专用 token（深色主题保持暗色系）
       '--flat-bg': '#0B0A11', '--flat-paper': '#0E0C14', '--flat-paper-2': '#171520', '--flat-paper-3': '#1F1C2B',
       '--flat-line': 'rgba(255,255,255,.12)',
       '--g-plate': 'linear-gradient(105deg, rgba(28,24,44,.50), rgba(16,14,26,.40) 50%, rgba(30,26,48,.50)), linear-gradient(105deg, rgba(40,34,62,.35), rgba(12,10,20,.25) 50%, rgba(48,40,72,.35)), rgba(20,18,30,.55)',
@@ -498,16 +498,16 @@ globalThis.APP_CONSTANTS = {
       '--g-accent-fill-soft': 'rgba(139,124,232,.12)',
       '--g-like-fill': 'rgba(224,90,74,.20)',
       '--g-fav-fill': 'rgba(139,124,232,.20)',     // 帖子收藏态（R23：主题色淡底）
-      // ---- 内生滚动条（v0.25.28）----
+      // ---- 内生滚动条----
       '--g-scroll-size': '8px',
       '--g-scroll-thumb': 'rgba(255,255,255,.26)', // 暗面低白玻璃滑块
       '--g-scroll-thumb-strong': 'rgba(255,255,255,.4)',
       '--g-scroll-thumb-active': 'rgba(255,255,255,.52)',
       // ---- 气泡 ----
-      // v0.25.34 深色同口径：发送方=品牌紫降饱和近实（WhatsApp #005C4B 同思路）、接收方=中性深灰（Telegram #262626）、系统=中性低对比
+      // 深色同口径：发送方=品牌紫降饱和近实（WhatsApp #005C4B 同思路）、接收方=中性深灰（Telegram #262626）、系统=中性低对比
       '--g-bubble-mine': '#3A3468',
       '--g-bubble-theirs': '#262431',
-      '--g-bubble-system': 'rgba(255,255,255,.14)', // v0.25.56 需求四十八：暗色同步提可见度
+      '--g-bubble-system': 'rgba(255,255,255,.14)', // 需求四十八：暗色同步提可见度
       // ---- 大块 pane ----
       '--g-sidebar-bg': 'rgba(18,16,26,.72)',
       '--g-sidebar-bg-m': 'rgba(26,23,37,.97)',
@@ -556,13 +556,13 @@ globalThis.APP_CONSTANTS = {
     UNVERIFY_DONE: '已撤销学籍认证',
     BTN_GENERATE_INVITE: '生成邀请码',
     BTN_CANCEL: '取消',
-    // v0.28.0 M1：试课意向由「二次确认」改为「打招呼消息」（Airbnb 租客对房东式——自我介绍+为什么想接这单，提示语友善）
+    // ：试课意向由「二次确认」改为「打招呼消息」（Airbnb 租客对房东式——自我介绍+为什么想接这单，提示语友善）
     INTENT_GREET_TITLE: '提交试课意向',
     INTENT_GREET_DEMAND: '你将向这条需求提交试课意向：{demand}',
     INTENT_GREET_LABEL: '和对方打个招呼（可选）',
     INTENT_GREET_PLACEHOLDER: '简单介绍一下自己，说说为什么想接下这单～（例：老师您好，我教初中数学五年，带过三届中考班，对您孩子的分数情况很有把握）',
     INTENT_GREET_OPTIONAL: '可留空直接提交；填写后学生会在「试课意向」里看到这段话。',
-    // v0.31.4 审计：BTN_SUBMIT_INTENT 曾在此重复定义（'提交意向'）与下方 :1036（'提交试课意向'）——
+    // 审计：BTN_SUBMIT_INTENT 曾在此重复定义（'提交意向'）与下方 :1036（'提交试课意向'）——
     // 对象字面量后键覆盖先键，运行恒取后者（wrangler 部署 duplicate-object-key 警告）。删此旧键，单源
     // 收敛到 :1036 的新文案（两个引用点 app-demands.js:829/1146 均读 UI.BTN_SUBMIT_INTENT，不受影响）。
     // 打招呼消息在卡片上的引用块头标（谁说的：学生留言 / 教师留言）
@@ -576,7 +576,7 @@ globalThis.APP_CONSTANTS = {
 
     // 验证提示
     VALIDATE_PASSWORD_MISMATCH: '两次密码不一致',
-    // 需求三十（v0.25.47）：注册须勾选同意用户协议/隐私政策（两行轻量勾选 + md 浮窗展示全文）
+    // 需求三十：注册须勾选同意用户协议/隐私政策（两行轻量勾选 + md 浮窗展示全文）
     AGREE_LINK_AGREEMENT: '用户协议',
     AGREE_LINK_PRIVACY: '隐私政策',
     AGREE_REQUIRED: '请先勾选同意用户协议与隐私政策',
@@ -1007,7 +1007,7 @@ globalThis.APP_CONSTANTS = {
     EMPTY_NO_REVIEWS: '暂无评价',
     EMPTY_NO_USERS: '暂无用户',
 
-    // 浏览教师排序（v0.25.112：匹配度最高仅学生且有开放需求匹配数据时可见；教师/访客彻底移除，默认评分最高）
+    // 浏览教师排序
     TEACHER_SORT_MATCH: '匹配度最高',
     TEACHER_SORT_RATING: '评分最高',
     TEACHER_SORT_PRICE: '报价最低',
@@ -1055,7 +1055,7 @@ globalThis.APP_CONSTANTS = {
     PUSH_TEACHER_FALLBACK: '该老师',
     PUSH_MODAL_TITLE_PREFIX: '把需求发给 ',
     PUSH_MODAL_HINT: '选一条需求发送给这位老师，对方会在需求大厅优先看到它。',
-    // v0.28.0 M1：推送需求附带打招呼消息（自我介绍+为什么选这位老师，Airbnb 式友善提示）
+    // ：推送需求附带打招呼消息（自我介绍+为什么选这位老师，Airbnb 式友善提示）
     PUSH_GREET_LABEL: '和老师打个招呼（可选）',
     PUSH_GREET_PLACEHOLDER: '简单介绍一下自己，说说为什么想请这位老师～（例：老师您好，孩子初二数学偏弱，看到您带过三届中考班，想请您试试）',
     PUSH_GREET_OPTIONAL: '可留空直接发送；填写后老师会在需求卡上看到这段话。',
@@ -1070,7 +1070,7 @@ globalThis.APP_CONSTANTS = {
     PUSH_SECTION_TITLE: '学生主动发给你的需求',
     PUSH_ACCEPTED_TOAST: '已确认，可在「我的会话」开始对话',
     PUSH_REJECTED_TOAST: '已谢绝',
-    PUSH_ACCEPTED_TAG: '已确认',  // F12②（v0.27.0）：推送卡乐观处理后占位 tag
+    PUSH_ACCEPTED_TAG: '已确认',  // F12②：推送卡乐观处理后占位 tag
     PUSH_REJECTED_TAG: '已谢绝',
     // 系统通知模板（拒绝等节点发给对方的通知；{subjects} 由服务端替换为科目名）
     NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
@@ -1101,7 +1101,7 @@ globalThis.APP_CONSTANTS = {
     CHAT_BTN_DRAFT_CONTRACT: '起草合同',
     CHAT_PLUS_ARIA: '附件与合同',
     CHAT_PREVIEW_CONTRACT: '[合同草案]',
-    CHAT_PREVIEW_SIGNING_REQ: '[签约请求]',   // v0.24.2 审计：签约消息曾落入「非 text → [文件]」误导分支
+    CHAT_PREVIEW_SIGNING_REQ: '[签约请求]',   // 审计：签约消息曾落入「非 text → [文件]」误导分支
     CHAT_PREVIEW_SIGNING_RESP: '[签约回应]',
     CHAT_CONTRACT_BUBBLE_MINE: '你向对方发送了一份合同草案，可前往「我的合同」查看进度',
     CHAT_CONTRACT_BUBBLE_OTHER: '对方向你发送了一份合同草案，请前往「我的合同」查看并确认',
@@ -1110,12 +1110,12 @@ globalThis.APP_CONSTANTS = {
     PAGE_MY_CONTRACTS: '我的合同',
     PAGE_MY_CONTRACTS_DESC: '合同草案确认与正式签约',
     DRAFT_MODAL_TITLE: '起草合同',
-    // v0.24.0 发起签约（极简签约流：加号栏「发起签约」→ 会话内签约请求气泡 → 对方确认/拒绝）
-    SIGNING_REQUEST_SENT: '「{name}」向你发送了签约请求', // #152（v0.25.60）：通知带发送者用户名（原「对方」无身份标识）
+    // 发起签约（极简签约流：加号栏「发起签约」→ 会话内签约请求气泡 → 对方确认/拒绝）
+    SIGNING_REQUEST_SENT: '「{name}」向你发送了签约请求', // #152：通知带发送者用户名（原「对方」无身份标识）
     SIGNING_REQUEST_SENT_TOAST: '签约请求已发送',
-    SIGNING_CONFIRMED: '对方已确认签约请求', // v0.25.101 Q8：回退 v0.25.95 的 username 注入——会话/通知统一「对方」（用户质询：会话里不该显示具体用户 id）
+    SIGNING_CONFIRMED: '对方已确认签约请求', // ：回退 v0.25.95 的 username 注入——会话/通知统一「对方」（用户质询：会话里不该显示具体用户 id）
     SIGNING_REJECTED: '对方已拒绝此次签约请求',
-    SIGNING_MY_CONFIRMED: '你已确认签约请求',      // v0.24.2 审计：回应方视角（原气泡/toast 恒显「对方已…」颠倒）
+    SIGNING_MY_CONFIRMED: '你已确认签约请求',      // 审计：回应方视角（原气泡/toast 恒显「对方已…」颠倒）
     SIGNING_MY_REJECTED: '你已拒绝此次签约请求',
     SIGNING_MODAL_TITLE: '发起签约',
     SIGNING_MODAL_HINT: '选择需求、确认报价、时间与授课方式后发送，由对方确认', // 需求四·第2条：发起签约绑定需求
@@ -1125,7 +1125,7 @@ globalThis.APP_CONSTANTS = {
     SIGNING_NO_DEMAND_HINT: '暂无开放的需求可签约，请先发布需求',
     SIGNING_DEMANDS_LOAD_FAIL: '需求列表加载失败，请刷新页面后重试。',
     LABEL_SIGNING_PRICE: '报价（元/小时）',
-    LABEL_SIGNING_SCHEDULE: '授课时间（每周固定时间段）', // v0.25.35 复用结构化时间组件（非自然语言文本框）
+    LABEL_SIGNING_SCHEDULE: '授课时间（每周固定时间段）', // 复用结构化时间组件（非自然语言文本框）
     LABEL_SIGNING_METHOD: '授课方式',
     SIGNING_PRICE_PLACEHOLDER: '例如 150',
     SIGNING_METHOD_ONLINE: '线上授课',
@@ -1142,7 +1142,7 @@ globalThis.APP_CONSTANTS = {
     SIGNING_REJECTED_TEXT: '已拒绝此次签约请求',
     VALIDATE_SIGNING_PRICE: '请填写有效报价',
     VALIDATE_SIGNING_SCHEDULE: '请填写授课时间',
-    // 需求四（v0.25.44）平台不走资金声明：平台仅信息撮合与契约留档，课费由双方站外直接结算——
+    // 需求四平台不走资金声明：平台仅信息撮合与契约留档，课费由双方站外直接结算——
     // 全文（资金触点浮窗：签约/起草合同）+ 短文（聊天气泡）+ 平台介绍 / 新手导引各取所需，文案单源
     FUNDS_NOTE: '平台仅提供信息撮合与合同存证服务，不参与任何费用结算。课时费请由双方自行协商并在站外直接结算（如微信、支付宝转账等），平台不代收、不代付。',
     FUNDS_NOTE_SHORT: '平台不参与费用结算，课费请与对方站外直接结算。',
@@ -1155,7 +1155,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_EMPTY: '合同内容不能为空',
     CONTRACT_PRICE_PLACEHOLDER: '如：150',
     ADMIN_CONTRACT_DRAFTER_PREFIX: '起草 ',
-    LABEL_CONTRACT_SCHEDULE: '授课时间（每周固定时间段）', // v0.25.35 复用结构化时间组件
+    LABEL_CONTRACT_SCHEDULE: '授课时间（每周固定时间段）', // 复用结构化时间组件
     LABEL_CONTRACT_LOCATION: '授课地点',
     CONTRACT_LOCATION_PLACEHOLDER: '甲方常住处或双方另行约定的地点',
     CONTRACT_LOCATION_NOTE: '出于隐私保护，授课地点请使用「甲方常住处」等模糊表述，勿将详细地址上传至平台。',
@@ -1168,7 +1168,7 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_PAY_METHOD_OTHER_PLACEHOLDER: '请输入结算方式，如：每 10 次课结算一次',
     VALIDATE_CONTRACT_PAY_METHOD_OTHER: '请输入具体的薪资结算方式',
     LABEL_CONTRACT_FIRST_LESSON: '首次上课日期',
-    // 需求四十五（v0.25.53）：分段日期输入（年-月-日，复用底层段输入原语）——每段 aria
+    // 需求四十五：分段日期输入（年-月-日，复用底层段输入原语）——每段 aria
     SEG_YEAR_ARIA: '年',
     SEG_MONTH_ARIA: '月',
     SEG_DAY_ARIA: '日',
@@ -1192,7 +1192,7 @@ globalThis.APP_CONSTANTS = {
     TAG_MATCH: '匹配度 ',
     TAG_MATCH_HINT: ' · 点击展开明细',
     TAG_MATCH_TITLE: '点击查看匹配度明细',
-    TAG_MATCH_NO_DEMAND: '发布需求后展示匹配度', // #155（v0.25.63）：学生无开放需求时匹配度位置小灰字提示
+    TAG_MATCH_NO_DEMAND: '发布需求后展示匹配度', // #155：学生无开放需求时匹配度位置小灰字提示
     MATCH_DETAIL_TITLE: '匹配度明细',
     MATCH_DETAIL_SUB: '根据你的教师档案与这条需求自动计算',
     MATCH_ITEM_SUBJECT: '科目匹配',
@@ -1237,7 +1237,7 @@ globalThis.APP_CONSTANTS = {
     // 撤销合同（仅签约后可用；入口刻意低调；两级确认；活跃库抹除、台账与留档保留）
     BTN_REVOKE_CONTRACT: '撤销合同',
     REVOKE_MODAL_TITLE: '撤销合同',
-    REVOKE_CONTRACT_WARN: '此功能仅限在双方已经约定好结束合同时使用。撤销后合同不再生效，双方列表保留「已撤销」状态、正文与存证台账留档（v0.25.87 R7：合同不删除）。由此产生的一切法律后果由双方自行承担。',
+    REVOKE_CONTRACT_WARN: '此功能仅限在双方已经约定好结束合同时使用。撤销后合同不再生效，双方列表保留「已撤销」状态、正文与存证台账留档（合同不删除）。由此产生的一切法律后果由双方自行承担。',
     BTN_THINK_AGAIN: '再想想',
     BTN_CONTINUE_DANGER: '我已知晓后果，继续',
     REVOKE_CONTRACT_FINAL: '最终确认：撤销后不可恢复，确定继续吗？',
@@ -1278,8 +1278,8 @@ globalThis.APP_CONSTANTS = {
     LABEL_PRICE: '报价',
     LABEL_INTRO: '简介',
     LABEL_GAOKAO_SCORES: '高考成绩',
-    LABEL_SUBJECT: '科目', // #158（v0.25.66）：需求大厅筛选标签
-    // #158（v0.25.66）：需求大厅排序 + 筛选（v0.25.113 恢复匹配度——v0.25.110 误删，教师看需求匹配度是核心价值）
+    LABEL_SUBJECT: '科目', // #158：需求大厅筛选标签
+    // #158：需求大厅排序 + 筛选
     DEMAND_SORT_MATCH: '匹配度最高',
     DEMAND_SORT_NEWEST: '最新发布',
     DEMAND_SORT_BUDGET: '预算从低到高',
@@ -1324,7 +1324,7 @@ globalThis.APP_CONSTANTS = {
     // v0.25.94：合同待签约态只留「待签约」——pending（草案待确认）遗留态连根删
     CONTRACT_STATUS_SIGNING: '待签约',
     CONTRACT_STATUS_SIGNED: '已签约',
-    CONTRACT_STATUS_REVOKED: '已撤销', // v0.25.87 R7：撤销标记 tag（红）
+    CONTRACT_STATUS_REVOKED: '已撤销', // ：撤销标记 tag（红）
     BTN_SIGN: '开始签约',                 // v0.25.32：确认签约 → 开始签约（先读合同+待够时长）
     BTN_SIGN_WAITING: '等待对方确认签约',
     BTN_MODIFY_CONTRACT: '修改内容',
@@ -1332,25 +1332,25 @@ globalThis.APP_CONSTANTS = {
     BTN_CANCEL_CONTRACT: '取消签约',
     MODIFY_CONTRACT_TITLE: '修改合同内容',
     CONTRACT_VIEW_DIFF_TITLE: '查看合同 · 本次改动',   // v0.24.3：修改过的合同查看时标题带改动提示
-    CONTRACT_MODIFY_BIZ_HINT: '仅可修改业务条款，法律条款不可修改',   // v0.24.2 审计：单源收口（曾硬编码中文 + 内联样式）
-    CONTRACT_DIFF_HINT: '本次修改的改动处已高亮：绿色=新增，红色删除线=移除；法律条款未改动。', // v0.24.3 diff 视图
+    CONTRACT_MODIFY_BIZ_HINT: '仅可修改业务条款，法律条款不可修改',   // 审计：单源收口（曾硬编码中文 + 内联样式）
+    CONTRACT_DIFF_HINT: '本次修改的改动处已高亮：绿色=新增，红色删除线=移除；法律条款未改动。', // diff 视图
     SIGN_MODAL_TITLE: '开始签约',
     SIGN_READ_HINT: '请阅读合同全文并滚动到底部，方可确认', // v0.25.94：倒计时已上「确认签约」按钮，灰字提示只留静态阅读指引（不再轮番闪）
-    SIGN_COUNTDOWN_HINT: '{secs}秒后可确认签约', // v0.25.87 R5：倒计时动态提示（从开窗起算）
+    SIGN_COUNTDOWN_HINT: '{secs}秒后可确认签约', // ：倒计时动态提示（从开窗起算）
     SIGN_READY_HINT: '已阅读完毕，可确认签约',
     SIGN_READ_DONE_BTN: '我已阅读并确认签约',
     CONFIRM_SIGN_TWICE: '确认签约后合同即生效、不可单方撤销。你确定已仔细阅读并确认这份合同吗？',
     CONFIRM_SIGN_FINAL: '请输入账户密码，完成最终确认（后期接入短信验证码）',
     CONFIRM_SIGNING_ACCEPT: '接受签约？需求将锁定为已成交，其他教师的试课意向会被自动拒绝。请输入账户密码完成最终确认。', // S2-2：确认签约=危险操作（同合同签署/撤销口径，capToken 二次认证）
-    CONFIRM_CANCEL_CONTRACT: '取消后回到待签约状态、合同保留（会话保留）。确定取消签约吗？', // v0.25.87 R7：取消不再删除合同
+    CONFIRM_CANCEL_CONTRACT: '取消后回到待签约状态、合同保留（会话保留）。确定取消签约吗？', // ：取消不再删除合同
     CONTRACT_EMPTY_LIST: '暂无合同——可在「我的会话」的聊天窗内起草',
     CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',
     CONTRACT_CANCELLED_TOAST: '已取消签约，合同保留待重新签约',
-    CONTRACT_REVOKED_BY_ME: '你已撤销合同', // v0.25.87 R7：撤销后本人视角
-    CONTRACT_REVOKED_BY_PEER: '对方已撤销合同', // v0.25.87 R7：撤销后对方视角
+    CONTRACT_REVOKED_BY_ME: '你已撤销合同', // ：撤销后本人视角
+    CONTRACT_REVOKED_BY_PEER: '对方已撤销合同', // ：撤销后对方视角
     CONTRACT_SIGNED_TOAST: '签约完成',
 
-    // v0.25.37 签署合规：签名区块内嵌正文 + 每次签署落台账 + signed_at 列
+    // 签署合规：签名区块内嵌正文 + 每次签署落台账 + signed_at 列
     CONTRACT_SIGN_DONE_BOTH: '双方已签署',                    // 已签约合同卡副标
     CONTRACT_PARTY_SIGNED_A: '甲方已签',                     // 签署进度（甲方=学生方）
     CONTRACT_PARTY_PENDING_A: '甲方待签',
@@ -1384,7 +1384,7 @@ globalThis.APP_CONSTANTS = {
     ABOUT_FOOTNOTE: '网站初创，欢迎在「关于平台」-「{feedback}」中向我们提出优化建议。您说任何需求/设想，我们都尽力实现。',
     ABOUT_WHO_TITLE: '我们是谁',
     ABOUT_WHO_TEXT: '经途·伴学信息门户是由上海财经大学在校学生的家教团体运营的公益信息平台。我们的初衷很简单：为想做家教的同学（尤其是持有教师资格证的在校大学生与研究生）提供勤工俭学、社会实践的机会，也帮家长和同学直接对接合适的老师，中间不赚一分钱差价。平台不开展任何有偿培训业务，不向老师收取佣金，也不向家长学员收取任何中介费用。为响应国家「双减」政策，我们谢绝在职老师及校外培训机构注册与合作。',
-    // 需求四（v0.25.44）：平台不走资金声明（关于页「我们是谁」卡内的醒目分块）——撇清平台资金责任
+    // 需求四：平台不走资金声明（关于页「我们是谁」卡内的醒目分块）——撇清平台资金责任
     ABOUT_FUNDS_TITLE: '关于费用',
     ABOUT_FUNDS_TEXT: '平台是公益信息平台，仅提供信息撮合与合同存证服务，不参与任何费用结算，也不从任何交易中抽成。课时费的金额与支付方式由你与老师/学员自行协商，并在站外直接结算（如微信、支付宝转账）。请勿向平台支付任何费用。',
     ABOUT_USAGE_TITLE: '平台基本用法',
@@ -1475,7 +1475,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_COMPLAINT_DESC: '查看并处理用户提交的投诉（对象 / 理由 / 详情）',
     ADMIN_COMPLAINT_EMPTY: '暂无投诉',
     BTN_COMPLAINT_RESOLVE: '标记已处理',
-    // v0.26.0 D3：统一内容审核页
+    // ：统一内容审核页
     PAGE_ADMIN_CONTENT: '内容审核',
     PAGE_ADMIN_CONTENT_DESC: '统一查看全站用户内容并执行删除/封禁处罚',
     ADMIN_CONTENT_EMPTY: '暂无内容',
@@ -1504,7 +1504,7 @@ globalThis.APP_CONSTANTS = {
     OPTION_PLACEHOLDER: '请选择',
     CONTACT_PLACEHOLDER: '手机邮箱',
     VALIDATE_SELECT_PROVINCE: '请选择省份',
-    // 任务三（v0.31.0）需求表单 wizard：分步导航 + 每页校验
+    // 任务三需求表单 wizard：分步导航 + 每页校验
     BTN_PREV_STEP: '上一步',
     BTN_NEXT_STEP: '下一步',
     VALIDATE_SELECT_GRADE: '请选择学生年级',
@@ -1516,7 +1516,7 @@ globalThis.APP_CONSTANTS = {
     DW_STEP_STUDENT: '学生概况',
     DW_STEP_SUBJECTS: '科目',
     DW_STEP_SCORES: '成绩情况', // 非学科类型即时改「技能现状」（LABEL_SKILL_STATUS）
-    DW_STEP_TEACHER_PREF: '教师偏好', // v0.31.7 R1：「详细偏好」拆分，教师偏好独立页（原 P4 内容移此）
+    DW_STEP_TEACHER_PREF: '教师偏好', // ：「详细偏好」拆分，教师偏好独立页（原 P4 内容移此）
     DW_STEP_BUDGET: '预算与时间',
     DW_STEP_SUBMIT: '补充信息',
 
@@ -1578,7 +1578,7 @@ globalThis.APP_CONSTANTS = {
       'admin-contracts': '## 这是什么\n合同管理。\n\n## 怎么用\n查看平台全部合同与状态，必要时移除测试或异常数据。',
       'admin-feedback': '## 这是什么\n用户反馈处理。\n\n## 怎么用\n查看用户提交的 Bug 与建议，逐条查看详情并标记处理状态。',
       'admin-complaint': '## 这是什么\n投诉处理。\n\n## 怎么用\n查看用户提交的投诉——投诉对象（教师/学生/帖子）、理由与详情都会快照存档，即使对象已注销或删除也不影响追溯。\n\n**处理：** 逐条核实后点「标记已处理」，系统会通知投诉人处理结果。\n\n## 小贴士\n投诉是独立的合规通道，与用户反馈分开管理；处理时先核实快照信息与聊天记录，再决定如何处置。',
-      'admin-content': '## 这是什么\n全站统一内容审核界面（v0.26.0）：一声令下看到平台所有用户可操作的内容，一声令下完成处罚。\n\n## 怎么用\n**看内容：** 上方按类型切换（帖子/需求/教师档案/评价/聊天/反馈/投诉/附件），每张卡片展示作者、内容摘要与状态。\n\n**处罚：** 点卡片右侧按钮，填写处罚原因（必填）与触犯规则，可「删除」该内容或「封禁作者」——处罚后系统会自动把原因、规则与触发内容摘要通知给作者本人。\n\n## 小贴士\n处罚前先核实触发内容与聊天上下文；封禁会同时阻止该账户继续登录。',
+      'admin-content': '## 这是什么\n全站统一内容审核界面：一声令下看到平台所有用户可操作的内容，一声令下完成处罚。\n\n## 怎么用\n**看内容：** 上方按类型切换（帖子/需求/教师档案/评价/聊天/反馈/投诉/附件），每张卡片展示作者、内容摘要与状态。\n\n**处罚：** 点卡片右侧按钮，填写处罚原因（必填）与触犯规则，可「删除」该内容或「封禁作者」——处罚后系统会自动把原因、规则与触发内容摘要通知给作者本人。\n\n## 小贴士\n处罚前先核实触发内容与聊天上下文；封禁会同时阻止该账户继续登录。',
     },
 
     // 需求表单
@@ -1626,7 +1626,7 @@ globalThis.APP_CONSTANTS = {
     CHAT_UNKNOWN_USER: '未知用户',
     CHAT_BACK_TO_LIST: '会话列表',
     CHAT_CLOSED_TIP: '该会话已关闭，不能再发送消息',
-    CHAT_SIGN_TIP: '已与对方确认签约，建议起草并签订正式合同以加强契约有效性；平台不参与费用结算，课费请与对方站外直接结算。', // 需求四·第4条：签约确认后气泡内合并提示（v0.25.94：并入资金声明，删独立 funds 小字）
+    CHAT_SIGN_TIP: '已与对方确认签约，建议起草并签订正式合同以加强契约有效性；平台不参与费用结算，课费请与对方站外直接结算。', // 需求四·第4条：签约确认后气泡内合并提示
     CHAT_ATTACH_IMAGE: '图片',
     CHAT_ATTACH_FILE: '文件',
     CHAT_INPUT_PLACEHOLDER: '输入消息',
@@ -1651,7 +1651,7 @@ globalThis.APP_CONSTANTS = {
     BTN_CONFIRM_DELETE: '确认删除',
     POST_ANONYMOUS: '匿名',
     POST_LIKE_ARIA: '点赞',
-    POST_VIEW_ARIA: '查看帖子全文', // #161（v0.25.69）：帖子标题按钮（点击卡片查看全文）
+    POST_VIEW_ARIA: '查看帖子全文', // #161：帖子标题按钮（点击卡片查看全文）
     POST_LIKED_TOAST: '已点赞',
     POST_UNLIKED_TOAST: '已取消点赞',
     // R23：帖子收藏（资料共享——收藏即保存，仅本人可见）
@@ -1696,7 +1696,7 @@ globalThis.APP_CONSTANTS = {
     // 通知信息
     EMPTY_NO_NOTIFICATIONS: '暂无通知',
     NOTIF_FILTER_EMPTY: '没有符合条件的通知', /* v0.19.46 通知页屏蔽系统通知后空态 */
-    NOTIF_READ_ARIA: '标记该条通知已读',     // #151（v0.25.59）：未读通知呼吸遮罩 + 点击消除（键盘可达）
+    NOTIF_READ_ARIA: '标记该条通知已读',     // #151：未读通知呼吸遮罩 + 点击消除（键盘可达）
     NOTIF_BLOCK_OFF: '屏蔽系统通知',        // 需求四·4b：通知页右上角屏蔽按钮两态（localStorage 持久化，纯客户端）
     NOTIF_BLOCK_ON: '已屏蔽系统通知',
 
@@ -1723,9 +1723,8 @@ globalThis.APP_CONSTANTS = {
     SETTINGS_EMAIL: '邮箱',
     SETTINGS_UNBOUND: '未绑定',
     BTN_MODIFY: '修改',
-    TOAST_COMING_SOON: '该功能暂未开放，敬请期待',
-    // v0.26.0 验证码/凭证（B2-B6；手机号/邮箱绑定、用户名修改、验证码登录）
-    PHONE_LABEL: '手机号', PHONE_PLACEHOLDER: '请输入中国大陆手机号', // v0.26.15 只支持大陆（用户拍板）
+    // 验证码/凭证（B2-B6；手机号/邮箱绑定、用户名修改、验证码登录）
+    PHONE_LABEL: '手机号', PHONE_PLACEHOLDER: '请输入中国大陆手机号', // 只支持大陆（用户拍板）
     EMAIL_LABEL: '邮箱', EMAIL_PLACEHOLDER: '请输入邮箱',
     CODE_LABEL: '验证码', CODE_PLACEHOLDER: '输入验证码',
     CODE_SEND: '发送验证码',
@@ -1737,7 +1736,7 @@ globalThis.APP_CONSTANTS = {
     USERNAME_CHANGE_TITLE: '修改用户名',
     USERNAME_NEW_PLACEHOLDER: '输入新用户名（3-30 字符，不含 @ 与纯数字）',
     USERNAME_COOLDOWN_BTN: '{time}后可再次修改用户名', // B1 倒计时复用（7 天冷却）
-    // v0.31.3 审计（U2/U3）：以下文案收口自硬编码——服务端同文案在 server/constants.js MSG（跨层重复属既定，
+    // 审计（U2/U3）：以下文案收口自硬编码——服务端同文案在 server/constants.js MSG（跨层重复属既定，
     // 改文案必须两处同步；此处为前端校验的即时 toast）
     USERNAME_LENGTH_ERR: '用户名长度需在 3-30 个字符之间', // 同 MSG.USERNAME_LENGTH
     USERNAME_CHARS_ERR: '用户名只能包含中文、字母、数字及 _ . - （3-30 个字符），且不能为纯数字、不能含 @', // 同 MSG.USERNAME_NEW_INVALID（对齐服务端全文案，修复此前少「（3-30 个字符）」段的漂移）
@@ -1752,7 +1751,7 @@ globalThis.APP_CONSTANTS = {
     LOGIN_IDENTIFIER_PLACEHOLDER: '请输入用户名/手机号/邮箱',
     LOGIN_ACCOUNT_MISSING: '不存在的账户',
     LOGIN_CODE_TIP: '向该账户绑定的手机/邮箱发送验证码',
-    // v0.26.0 滑块拼图真人验证（C1/C2）
+    // 滑块拼图真人验证（C1/C2）
     CAPTCHA_TITLE: '拖动滑块完成拼图',
     CAPTCHA_TIP: '拖动滑块，将拼图块对齐到缺口位置',
     CAPTCHA_PASS: '验证通过',
@@ -1762,7 +1761,7 @@ globalThis.APP_CONSTANTS = {
     CONFIRM_LOGOUT: '确定要退出当前账户吗？',
     // 登录设备管理（账户设置）
     SETTINGS_DEVICES: '登录设备',
-    // #163（v0.25.71）：隐私设置——访客可见性控制
+    // #163：隐私设置——访客可见性控制
     SETTINGS_PRIVACY_TITLE: '隐私设置',
     SETTINGS_PRIVACY_ON: '允许',
     SETTINGS_PRIVACY_OFF: '关闭',
@@ -1905,10 +1904,10 @@ globalThis.APP_CONSTANTS = {
     // 需求偏好（R2-b）：偏好老师性格 / 偏好老师性别
     LABEL_PREFERRED_PERSONALITY: '偏好老师性格',
     LABEL_PREFERRED_GENDER: '偏好老师性别',
-    // 教学目标（v0.31.7 R1）：「详细偏好」拆分——P4 教学目标 tag-pick
+    // 教学目标：「详细偏好」拆分——P4 教学目标 tag-pick
     LABEL_TEACHING_GOAL: '教学目标',
     TEACHING_GOALS_HINT: '（最多 {max} 个）', // {max} 由调用方以 CONFIG.TEACHING_GOALS_MAX 替换
-    // 技能现状（v0.31.7 R2）：非学科类型下 P5 标题即时切换 + 每项目描述文本框
+    // 技能现状：非学科类型下 P5 标题即时切换 + 每项目描述文本框
     LABEL_SKILL_STATUS: '技能现状',
     LABEL_SKILL_NOTE: '技能详情',
     SKILL_NOTE_PLACEHOLDER: '描述当前水平/证书/考级/获奖（选填）',
@@ -1926,7 +1925,7 @@ globalThis.APP_CONSTANTS = {
     LABEL_BUDGET: '预算区间（元/小时）',
     PLACEHOLDER_MIN: '最低',
     PLACEHOLDER_MAX: '最高',
-    LABEL_EXPECTED_TIME: '期望开课时间',   // v0.25.0 结构化：文本输入 → 多条时间组件（周次+时段 JSON 落库）
+    LABEL_EXPECTED_TIME: '期望开课时间',   // 结构化：文本输入 → 多条时间组件（周次+时段 JSON 落库）
     SLOT_ADD_LABEL: '新建时间段',
     SLOT_DOW_PLACEHOLDER: '选择星期',
     SLOT_TIME_START_GHOST: '开始时间',
@@ -1986,7 +1985,7 @@ globalThis.APP_CONSTANTS = {
     CHART_TABLE_LABEL: '数据明细',
     CHART_TIME_LABEL: '时间',
     TRAFFIC_RANGE_30D: '近30天',
-    TRAFFIC_HINT: '口径：仅统计写操作与失败请求（读/轮询流量不入留档）；平均延迟 = 服务端处理耗时（v0.22.0 起记录，历史时段无数据）',
+    TRAFFIC_HINT: '口径：仅统计写操作与失败请求（读/轮询流量不入留档）；平均延迟 = 服务端处理耗时',
     ADMIN_RECENT_DEMANDS: '最近需求',
     BTN_APPROVE: '通过',
     BTN_REJECT: '拒绝',

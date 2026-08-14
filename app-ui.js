@@ -16,14 +16,14 @@ const CARET_SVG = '<svg width="10" height="6" viewBox="0 0 10 6" fill="none" ari
 // 展示工具
 // ============================================================
 /** HTML 转义：&<>"' 五字符（插值进 innerHTML 前必过） */
-// #175（v0.25.76，自 app-posts 移入 boot 共享层）：轻量 markdown 渲染——用户协议/政策浮窗在登录前
+// #175：轻量 markdown 渲染——用户协议/政策浮窗在登录前
 // （领域脚本未加载）就要用，故从领域层 app-posts 上移到共享层；帖子/详情预览同源复用。
 function mdRender(src) {
-  // 安全铁律（v0.19.8）：先 escHtml 全转义，后续一切正则只作用在转义串上、只产出白名单固定标签，
+  // 安全铁律：先 escHtml 全转义，后续一切正则只作用在转义串上、只产出白名单固定标签，
   // 用户原文里的任何 HTML/事件属性都已被转义为纯文本，天然免疫 XSS（escHtml 转义 < > & " '）。
   const escaped = escHtml(String(src ?? ''));
   const IMG_OK = /^(https?:\/\/|data:image\/(?!svg))/i; // 外链/位图放行；svg 可内嵌脚本，一律不渲染
-  // #162（v0.25.70）：链接白名单 http/https 内联在下方链接正则（不匹配即原样文本，无需单独 const）
+  // #162：链接白名单 http/https 内联在下方链接正则（不匹配即原样文本，无需单独 const）
   // 行内：代码 span 先抽离占位（防内部 ** 粗体/链接误染），处理完图/链/粗体再还原
   const inline = s => {
     const codes = [];
@@ -38,7 +38,7 @@ function mdRender(src) {
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     return t.replace(/\u0000(\d+)\u0000/g, (m, n) => `<code>${codes[+n]}</code>`);
   };
-  // #162（v0.25.70）：块级分组——列表/引用需连续多行聚合（escHtml 把 > 转成 &gt;，引用检测匹配转义形态）
+  // #162：块级分组——列表/引用需连续多行聚合（escHtml 把 > 转成 &gt;，引用检测匹配转义形态）
   const isUl = l => /^[-*] +/.test(l);
   const isOl = l => /^\d+\. +/.test(l);
   const isQt = l => /^&gt; ?/.test(l);
@@ -105,7 +105,7 @@ function fmtDateTime(s) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-/** 仅日期（YYYY-MM-DD）：需求卡片等「日内时间无意义」场景（v0.25.12 反馈） */
+/** 仅日期（YYYY-MM-DD）：需求卡片等「日内时间无意义」场景 */
 function fmtDate(s) {
   if (!s) return '';
   const str = String(s);
@@ -154,11 +154,11 @@ function initCustomSelects(root) {
     sel.classList.add('hidden');
     const trigger = document.createElement('button');
     trigger.type = 'button';
-    // P4（v0.31.5 用户返工：「所有本质上是按钮而非输入框的下拉栏组件都应该用按钮配置」）：
+    // P4（「所有本质上是按钮而非输入框的下拉栏组件都应该用按钮配置」）：
     // 按钮语境（筛选组/页头操作区）的下拉触发器接入标准按钮组件（.btn .btn-soft .glass .glass--pressable）——
     // 玻璃引擎消费标准按钮 token（透明磨砂透镜+弯月环+白洗 hover+涟漪），与并列按钮同族；
-    // 表单/面板内下拉保持输入控件族。Q7（v0.25.101）曾只设 --g-fill/--g-frost 引擎变量不挂 .glass，
-    // 引擎不消费=高度/字重生效但观感仍是输入框（用户：「单纯统一高度到40px是没法解决观感问题的」）。
+    // 表单/面板内下拉保持输入控件族。只设 --g-fill/--g-frost 引擎变量而不挂 .glass，引擎不消费
+    // =观感仍是输入框（引擎变量必须配消费类才生效）。
     trigger.className = (sel.closest('.filter-group') || sel.closest('.page-header-actions'))
       ? 'custom-select-trigger btn btn-soft glass glass--pressable'
       : 'custom-select-trigger';
@@ -211,7 +211,7 @@ const selectSweepObserver = new MutationObserver(() => {
 selectSweepObserver.observe(document.documentElement, { childList: true, subtree: true });
 
 // ============================================================
-// 结构化时间组件（v0.25.0 需求一）：期望开课 / 可授课时间段
+// 结构化时间组件：期望开课 / 可授课时间段
 // 纵向多条组件（无分隔线、组件间空几 px 缝隙），行内 = 星期下拉 + 起止时间栏 + 删除按钮；
 // 容器底部「+ 新建时间段」行在流内自然落位（新增组件插到它前面，它即闪现到新组件正下方）。
 // 时间栏 = 文本框 + 内部靠右小 v（整点下拉 00:00~23:00）+ 严格编辑限制：
@@ -244,7 +244,7 @@ function renderTimeSlotRowHtml(slot) {
  *  v0.25.27 空栏冒号恒显：hh/冒号/mm 包进 .time-hms（relative 锚点），ghost 拆两半
  *  「开始|时间」以 flex 居中于 .time-hms——hh/mm 等宽对称，冒号恰在 .time-hms 中心，
  *  ghost 两半之间的间隙（style.css gap）正好落在冒号上，整体观感「开始:时间」零魔法偏移。
- *  （v0.25.3 曾藏冒号，用户反馈打字党困惑：位置提示消失；改回恒显 + 灰字让位。）
+ *  （位置提示消失；改回恒显 + 灰字让位。）
  *  v0.25.53（需求四十五）：段输入改用底层原语 segInputAttrs（通用守卫 + data-* 段配置），
  *  DOM 类名/结构不变；冒号/整点下拉为时间专用件保留在本函数。 */
 function timeFieldHtml(role, hh, mm) {
@@ -318,7 +318,7 @@ function applyTimePick(sel) {
 }
 
 // ============================================================
-// 底层数字段输入原语（v0.25.53 需求四十五·抽象）：时间(时:分) 与 日期(年-月-日) 同族共用。
+// 底层数字段输入原语：时间(时:分) 与 日期(年-月-日) 同族共用。
 // 由 guardTimeKey/onTimeInput/clampTime/refreshTimeField 泛化（改名）而来：段配置走元素 data-* 属性
 // （data-maxlen/data-max/data-min/data-pad），守卫不再写死时间语义。冒号、整点下拉、时段校验等
 // 时间专用件不并入（见 timeFieldHtml / validateTimeSlots）；日期特有件（真实日历校验）见段末。
@@ -341,7 +341,7 @@ function guardSegmentKey(e) {
     if (k === 'a' || k === 'c') return; // 复制/全选（只作用于分隔符单侧，无碍整体约束）
     e.preventDefault(); return;        // 其余组合键（含 Ctrl+V/X）一律拦截
   }
-  // v0.25.87 R4：左右键在段边界跨分隔符（:/~-）跳到相邻段——时间/日期多段组件常用导航
+  // ：左右键在段边界跨分隔符（:/~-）跳到相邻段——时间/日期多段组件常用导航
   const t = e.target;
   if (t && t.selectionStart != null) {
     if (e.key === 'ArrowLeft' && t.selectionStart === 0 && t.selectionEnd === 0) {
@@ -361,7 +361,7 @@ function guardSegmentKey(e) {
 
 // R4：同 field 内相邻数字段（时↔分、月↔日、日↔年；跨过冒号/横杠分隔符）。
 // 只在分隔符两侧的 .seg-input 间跳（时间栏 .time-hms / 日期栏 .seg-date 容器内），不越出时间栏。
-// A1 审计（v0.25.104）：日期容器已随 M5 从 .seg-hms 改为 .seg-date——原选择器永为空，
+// A1 审计：日期容器已随 M5 从 .seg-hms 改为 .seg-date——原选择器永为空，
 // 日期三段左右键跨段导航静默失效（只剩时间栏有效，注释自称的「月↔日、日↔年」不成立），此处同步。
 function segmentSibling(inp, dir) {
   const hms = inp.closest('.time-hms, .seg-date');
@@ -438,7 +438,7 @@ function clampDateDay(inp) {
   if (d > dim) { inp.value = String(dim).padStart(2, '0'); refreshSegmentField(field); }
 }
 
-/** 日期段容器 HTML（首次上课日期）：M5（v0.25.103）重做——三个独立输入框 + 单位后缀
+/** 日期段容器 HTML（首次上课日期）：M5重做——三个独立输入框 + 单位后缀
  *  【】年【】月【】日（用户反馈旧版「长条玻璃面 + 居中 ghost 像能点但只能输 + 输入区集中在中间」）。
  *  value: 'YYYY-MM-DD' 或 ''。保留 .seg-input/.seg-year/.seg-month/.seg-day 类与 id
  *  （readDateField/clampDateDay 依赖），序列化契约 YYYY-MM-DD 不变。 */
@@ -448,7 +448,7 @@ function dateFieldHtml(value) {
     <span class="seg-part"><input ${segInputAttrs({ maxLen: 4, max: 9999, min: 1, pad: 4, label: UI.SEG_YEAR_ARIA, cls: 'seg-year', value: y, extra: 'clampYear(this)' })}><span class="seg-unit">${UI.SEG_YEAR_ARIA}</span></span>
     <span class="seg-part"><input ${segInputAttrs({ maxLen: 2, max: 12, min: 1, pad: 2, label: UI.SEG_MONTH_ARIA, cls: 'seg-month', value: m })}><span class="seg-unit">${UI.SEG_MONTH_ARIA}</span></span>
     <span class="seg-part"><input ${segInputAttrs({ maxLen: 2, max: 31, min: 1, pad: 2, label: UI.SEG_DAY_ARIA, cls: 'seg-day', value: d, extra: 'clampDateDay(this)' })}><span class="seg-unit">${UI.SEG_DAY_ARIA}</span></span>
-  </div>`; // A1 审计（v0.25.104）：单位后缀复用 aria 常量单源（原硬编码 年/月/日）
+  </div>`; // A1 审计：单位后缀复用 aria 常量单源（原硬编码 年/月/日）
 }
 
 /** 日期字段读：全空 → ''（= 由双方另行协商）；半填/年份不足四位 → null（调用方拦截）；
@@ -535,13 +535,13 @@ function prefillTimeSlots(container, raw) {
 // cls/style 透传自定义类与内联样式；bodyCls 透传 body 类。
 // 开合动画在 CSS（modal-in），JS 只增删 #modal-container 内容
 // ============================================================
-// v0.25.98 弹窗栈（用户反馈「表单里开预览/协议/确认，叉掉后表单浮窗也没了」）：
+// 弹窗栈（用户反馈「表单里开预览/协议/确认，叉掉后表单浮窗也没了」）：
 // 原单容器覆盖式（innerHTML 直接替换）——表单内开新浮窗会丢失下层表单。改栈式：
 //   openModal 默认压栈当前 modal 节点（节点引用保留 → 表单输入值/滚动位置不丢），closeModal 弹栈恢复；
 //   replace:true 供同流程 loading→表单（openSigningModal/openContractDraftModal）直接替换，不恢复旧 loading。
 let _modalStack = [];
 function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '', replace = false } = {}) {
-  closeHostOverlays(document.getElementById('modal-container')); // v0.25.43 附属树：换弹窗前先级联关旧弹窗的子覆盖层
+  closeHostOverlays(document.getElementById('modal-container')); // 附属树：换弹窗前先级联关旧弹窗的子覆盖层
   const container = document.getElementById('modal-container');
   const cur = container.firstElementChild;
   if (cur && !replace) _modalStack.push(cur); // 压栈：下层 modal（表单等）移出容器，节点保留
@@ -566,7 +566,7 @@ function openModal({ title, titleId = '', body = '', footer = '', closable = tru
   </div>`;
 }
 function closeModal() {
-  closeHostOverlays(document.getElementById('modal-container')); // v0.25.43 附属树：关父组件先级联关子覆盖层（下拉面板等），防幽灵组件残留
+  closeHostOverlays(document.getElementById('modal-container')); // 附属树：关父组件先级联关子覆盖层（下拉面板等），防幽灵组件残留
   const container = document.getElementById('modal-container');
   const prev = _modalStack.pop(); // v0.25.98：恢复被压栈的下层 modal；栈空则彻底关闭
   container.innerHTML = '';
@@ -579,7 +579,7 @@ function closeAllModals() {
   if (container) container.innerHTML = '';
 }
 
-// 需求三十（v0.25.47）+ v0.25.51 修正：用户协议/隐私政策浮窗——policy 全文硬编码在 constants
+// 需求三十+ v0.25.51 修正：用户协议/隐私政策浮窗——policy 全文硬编码在 constants
 // UI.POLICY_AGREEMENT/PRIVACY（单源原则），mdRender 同步渲染，无网络依赖。
 // key 单源 constants UI.POLICY_KEY_AGREEMENT/PRIVACY（index.html 注册勾选行 onclick 传入）；标题取 UI.AGREE_LINK_*。
 function openPolicyModal(key) {
@@ -660,10 +660,10 @@ function checkboxItemsHtml(items, checkedIds) {
     `<label class="checkbox-item glass glass--solid"><input type="checkbox" value="${escHtml(String(it.id))}"${checked.has(String(it.id)) ? ' checked' : ''}>${escHtml(it.name)}</label>`).join('');
 }
 
-/** 标准分段控件（v0.25.20 需求二·美化，iOS 26 Liquid Glass 分段控件口径——上网调研参考：
+/** 标准分段控件（
     容器微透灰底 + 选项间 gap（删分隔线），选中项=白色抬升药丸（白底+墨字+字重 700+轻浮影）。
     CSS 层统一收编原 6 处散装分段（role-tabs/demand-type-tabs/score-mode-tabs/traffic-range/feedback-kind-btn），
-    JS 构造走本壳（v0.25.23 审计：角色分段在 index.html 静态标记，其余 4 处 JS 站点收编）。
+    JS 构造走本壳（角色分段在 index.html 静态标记，其余 4 处 JS 站点收编）。
     items=[{ key, label, onclick }]；activeKey 初始选中；onclick 为字符串表达式（内联 onclick 约定，
     key 经 escHtml 转义）；opts={ containerClass, containerId, attr }——attr 决定 data-* 属性名
     （各站 JS 选择器依赖 data-type/data-mode/data-kind/data-range，须保留）。
@@ -719,23 +719,26 @@ let pendingConfirmAction = null;
 let reAuthAction = null;
 
 function confirm({ title = null, message = '', needReAuth = false, okText = UI.BTN_CONFIRM, onConfirm } = {}) {
+  // message 组件内统一转义（与 openModal title 同口径）——调用方传原文（含用户输入）即可，
+  // 禁止调用方自行 escHtml（双重转义会出现 &amp;lt; 类乱码）
+  const msg = escHtml(message);
   const footer = `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
       <button type="button" class="btn glass glass--pressable" onclick="${needReAuth ? 'runReAuth()' : 'runPendingConfirm()'}">${okText}</button>`;
   const body = needReAuth
-    ? `<p class="confirm-msg">${message}</p>
+    ? `<p class="confirm-msg">${msg}</p>
       <div class="form-group reauth-group">
         <label class="form-label">${UI.REAUTH_PASSWORD_LABEL} <span class="req">*</span></label>
         <input type="password" class="form-input" id="reauth-password" placeholder="${UI.REAUTH_PASSWORD_HINT}" autocomplete="current-password" onkeydown="if(event.key==='Enter')runReAuth()">
         <p class="form-hint form-hint--error hidden" id="reauth-err"></p>
       </div>`
-    : `<p class="confirm-msg">${message}</p>`;
+    : `<p class="confirm-msg">${msg}</p>`;
   if (needReAuth) reAuthAction = onConfirm; else pendingConfirmAction = onConfirm;
   openModal({
     title,
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
     body,
     footer,
-    // v0.25.31 重认证（密码输入）属表单类：点遮罩不关，防误触丢已输入密码；普通确认保留点遮罩快捷关闭
+    // 重认证（密码输入）属表单类：点遮罩不关，防误触丢已输入密码；普通确认保留点遮罩快捷关闭
     closable: !needReAuth,
   });
   if (needReAuth) setTimeout(() => { const i = document.getElementById('reauth-password'); if (i) i.focus(); }, CONFIG.REAUTH_FOCUS_MS);
@@ -767,7 +770,7 @@ async function runReAuth() {
 }
 
 // ============================================================
-// v0.26.0 通用倒计时组件（B1，用户需求：倒计时+按钮组件抽象待复用）：
+// 通用倒计时组件（B1，用户需求：倒计时+按钮组件抽象待复用）：
 //   智能单位（>1 天 → 向下取整 x 天；<1 天 >1 分 → 向下取整 x 时 x 分；<1 分 → 向下取整 x 秒）
 //   + 按钮灰化不可点 + 完成复原。复用点：用户名 7 天冷却、验证码 60s 重发、邀请码到期。
 //   formatCountdown(ms) 纯函数独立暴露供单测。
@@ -815,7 +818,7 @@ function bindCountdown(el, { endAt, runningText = '{time}', onDone = null } = {}
 }
 
 // ============================================================
-// v0.26.0 C2 敏感操作门禁（放在 boot 共享层：签约/合同/登录/注册等各领域与登录页都调用；
+// 敏感操作门禁（放在 boot 共享层：签约/合同/登录/注册等各领域与登录页都调用；
 // openCaptchaModal 由 app-captcha.js（同步加载，紧随本文件）提供）——
 // 确认按钮按下 → 先拦实际请求过一次拼图真人验证，通过才执行 action。
 // 防御降级：captcha 组件未就绪（vm 测试/异常环境）时直接执行 action——

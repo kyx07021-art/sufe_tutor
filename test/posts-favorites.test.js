@@ -33,6 +33,7 @@ function d1Shim(raw) {
       return st;
     },
     batch(stmts) {
+      if (!stmts.length) throw new Error('D1 batch requires at least one statement'); // 真实 D1 空 batch 抛错（同 content-admin shim 口径）
       raw.exec('BEGIN');
       try {
         const out = [];
@@ -128,7 +129,7 @@ function makeCtx() {
       window: w, document: w.document,
       getComputedStyle: w.getComputedStyle.bind(w),
       localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-      console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
+      console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
       clearTimeout: globalThis.clearTimeout, Request: globalThis.Request,
       MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     }),

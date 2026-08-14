@@ -34,6 +34,10 @@ function makeCtx({ notifRows = [], demandRows = [], failRead = false } = {}) {
     url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
   });
   const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
+    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
+    return mk();
+  };
   const fetched = []; // #151：记录 fetch 调用（断言「进入不再批量全读 / 点击上报单条」）
   const ctx = vm.createContext({
     window: w, document: w.document,
@@ -59,6 +63,7 @@ function makeCtx({ notifRows = [], demandRows = [], failRead = false } = {}) {
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
   });
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
   // 桥接内联 onclick 引用的全局函数到 jsdom window（vm 沙箱与 jsdom window 是两个 realm）
   vm.runInContext(`
     ['showView','renderSidebar','selectPage','ensureAuth','toggleNotifBlock','openModuleInfo',

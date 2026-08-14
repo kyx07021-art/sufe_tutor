@@ -1,10 +1,10 @@
 /**
- * ui-scale-reflow.js — 元素级模拟重排预览（v0.27.6）
+ * ui-scale-reflow.js — 元素级模拟重排预览
  *
  * 架构补丁注释：本模块是从「--ui-scale 走布局属性通路」主干上生出来的补丁。
  *   折射的架构缺陷：--ui-scale 全站 calc() 扩散（根字号 + 69 处 calc + 305 处 rem），任何缩放都要
  *   整树 reflow——生产实测完整每帧 ~36-42ms（25fps，paint 是大头），拖动期真实重排 60fps 不可达
- *   （即 v0.25.111 全页重绘返工红线）。补丁把"真实重排的结果"采样成离散档位目标位（flash-free，
+ *   （全页重绘是返工红线）。补丁把"真实重排的结果"采样成离散档位目标位（flash-free，
  *   同帧 set+测+还原不闪屏），拖动期用 per-element transform 把每个布局单元插值移动到真实重排后的
  *   位置（合成器只读零 reflow 零 repaint）——即用户要求的「切到元素级分区、按真实重排表现驱动移动、
  *   实现模拟重排」。
@@ -13,22 +13,22 @@
  * 机制：
  *   1. collectUnits：壳（.navbar/.sidebar/.client-main）+ 可见页内"布局显著块"（类名命中 LAYOUT_RE
  *      + 有几何尺寸的叶子块）→ 单元表，每个单元记录 当前 rect（base）。
- *   2. sampleTargets：对每个采样档位（CONFIG.UI_SCALE_REFLOW_SAMPLE_STEP，MIN~MAX；v0.31.4 P4 定为 20，
+ *   2. sampleTargets：对每个采样档位（CONFIG.UI_SCALE_REFLOW_SAMPLE_STEP，MIN~MAX；定为 20，
  *      [80,100,120] 3 档——每档一次整树 reflow 是成本大头，档间 --ui-scale 乘性变换目标位近线性插值足够），
  *      同帧 set --ui-scale → 强制 layout 测各单元 rect → 还原（浏览器只在任务结束 paint，不闪屏）。
  *   3. renderAt(scale)：插值目标 rect → 自顶向下算 per-element transform（translate+scale，origin 0 0，
  *      translate 含祖先 transform 补偿）→ 写进单张 <style>（合成器只读）。
  *   4. teardown：撤 data 属性 + 清样式表，成对零残留。
  *
- * v0.31.7（用户 UI 预览返工四连 + 最后通牒）变更：
+ * 变更记录：
  *   - R4-7：sampleTargets 挂 html[data-ui-sampling]（style.css 禁全站 transition）——.sidebar-item 等
  *     padding var(--t-slow) 过渡让采样读到动画起点旧高度（实测 h=50 vs 实际 60），box target 全错。
  *   - R4-2/R4-6：固定尺寸装饰单元（FIXED_RE：红点 dot/滑块 thumb 等）isFixed 分支 sx=sy=1/_ancS
- *     只位移不缩放（红点曾 8.4×7 椭圆、滑块交互点非等比）。
+ *     只位移不缩放（红点/滑块交互点等固定尺寸装饰，缩放会变椭圆）。
  *   - R4-4：LAYOUT_RE 补 btn|select|sort|toggle 让工具条按钮成单元（筛选/排序/收藏/发布/点赞预览
  *     零缩放）；CONTROL_RE 排除按钮类走 block rect 拉伸（采样真实宽——filter-toggle 定宽 90 的
  *     target 恒 90，fs 等比会错误预测 108）。
- *   - R4-1/R4-5：删 isDivider 渲染特例（v0.31.4 P3 sy=1/ancSy），横线统一 block rect 拉伸（采样真实
+ *   - R4-1/R4-5：删 isDivider 渲染特例，横线统一 block rect 拉伸（采样真实
  *     rect，恒 1px 横线 target.h=base.h 数学等价）；isDivider 退化为收集标签。
  *
  * 铁律相容：JS 只写 CSS 变量/属性（data-ui-reflow-unit 由本模块管理，transform 全在 CSS 呈现层经
@@ -37,26 +37,26 @@
 (function () {
   var SAMPLE_STEP = 5; // CONFIG.UI_SCALE_REFLOW_SAMPLE_STEP 单源（app-state 读后覆写）
   var SAMPLES = [];    // 采样档位（百分数，升序，含 MIN/MAX）
-  // v0.31.4（P1）LAYOUT_RE 补词：user/text/invite/version/footnote/label/value/hint/desc/name/role——
+  // LAYOUT_RE 补词：user/text/invite/version/footnote/label/value/hint/desc/name/role——
   // 左下用户卡（.sidebar-user 族）、设置页文本容器（.settings-label/.settings-value/.settings-hint）此前
   // 类名不命中 + 无直接文本 → 不成独立单元，缩放与父块脱节。补词后这些块单设分区。
   var LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool|user|text|invite|version|footnote|label|value|hint|desc|name|role|btn|select|sort|toggle|devices|section)([-_\s]|$)/i;
-  // v0.31.8 用户返工（横线归属盘点漏项）：设置页「登录设备」区（.settings-devices）承载 border-top 横线，
+  // 设置页「登录设备」区（.settings-devices）承载 border-top 横线，
   // 但类名 devices 不命中 LAYOUT_RE → 非单元 → 横线只随最近单元祖先（.client-main 壳）粗略缩放，与下方
   // .device-row（独立单元）预览位移不同步（用户实证「组件底层混乱」的残留）。补 devices/section 词——
-  // 横线承载容器成单元后，横线与区内内容同一 transform。教训：删同类视觉组件/统一组件必须先全站盘点
-  // 每个实例的「承载元素是否进单元体系」，不能只统一 token 和渲染分支（v0.31.7 R4-5 只统一了后两者）。
-  // v0.31.7（R4-2/R4-6）固定尺寸装饰单元：红点/徽章/计数/滑块交互点（thumb 宿主）等类名命中的小块，
+  // 横线承载容器成单元后，横线与区内内容同一 transform（统一视觉组件必须先全站盘点归属）。
+  // 每个实例的「承载元素是否进单元体系」，不能只统一 token 和渲染分支。
+  // 固定尺寸装饰单元：红点/徽章/计数/滑块交互点（thumb 宿主）等类名命中的小块，
   // 真实 reflow 中尺寸恒定（固定 px，不随 --ui-scale），只随父容器位移。若走普通 block 拉伸会被祖先
   // 非等比缩放连带（用户实证红点 8.4×7 椭圆、滑块 thumb 非等比）。收为「固定尺寸单元」：
   // 只位移（tx/ty 跟 target）、sx=sy=1/_ancScale 抵消祖先缩放（视觉恒定像素）。
-  // v0.31.7 定稿收窄：只收纯装饰（无文本内容）固定点——红点 .sidebar-dot / 通知点 / 滑块交互点宿主。
+  // 定稿收窄：只收纯装饰（无文本内容）固定点——红点 .sidebar-dot / 通知点 / 滑块交互点宿主。
   // 徽章/计数/状态含数字文本，字号随 --ui-scale（走 isText 等比 + 祖先抵消更接近真实），不收死。
   var FIXED_RE = /(^|[-_\s])(dot|point|pulse|thumb)([-_\s]|$)/i;
   // .ui-scale-slider 是预览控件自身——其 thumb（交互点）必须恒定像素，但滑块轨道在 EXCLUDE 里
   // （预览控件不参与预览单元），这里单独放行收为固定尺寸单元。
   var FIXED_SELECTORS = ['.ui-scale-slider'];
-  // v0.31.4（P1 断线根因）：SHELL_SELECTORS 曾写 '.sidebar'——真实 DOM 是 .client-sidebar（aside）！
+  // SHELL_SELECTORS 必须与真实 DOM 类名一致（.client-sidebar 而非 .sidebar）！
   // 整条侧栏（除 .sidebar-nav）从未被遍历：左下用户卡/邀请卡/栏底脚注零单元。改对类名后侧栏主体成
   // 单元（P5 分界随之移动），其内块经 LAYOUT_RE 补词 + 文本叶子各自成单元。
   var SHELL_SELECTORS = ['.navbar', '.client-sidebar', '.client-main'];
@@ -161,7 +161,7 @@
     if (el.matches && el.matches('button, input, select, textarea')) return false;
     var cls = String(el.className && el.className.toString ? el.className : '');
     if (cls && CONTROL_RE.test(cls)) return false;
-    // v0.31.8 用户验收抓出（横线戳出 184px）：带横线（border）的块不算纯文本容器。
+    // 用户验收抓出（横线戳出 184px）：带横线（border）的块不算纯文本容器。
     //   大标题 .settings-section-title（border-bottom + 直接文本）曾被 isText 判定 → fs 等比 sx=fs=1.2
     //   → 视觉宽 920→1104，横线戳出右缘；真实 reflow 容器定宽标题宽不变（sx 应为 1）。
     //   语义：isText fs 等比只适合「宽度由文字内容决定」的纯文本块；有 border（横线承载）的块宽度
@@ -265,7 +265,7 @@
       for (var k = 0; k < kids.length; k++) stack.push(kids[k]);
     }
 
-    // T1（v0.31.10 治本）：block 单元直接含文本 → 包文本 span 成 isText 子单元（容器定宽 + 文字等比两层）。
+    // T1：block 单元直接含文本 → 包文本 span 成 isText 子单元（容器定宽 + 文字等比两层）。
     //   span 紧跟父 push 进 order（拓扑序父先子后），unitByEl 标记使其进单元表。
     var extra = [];
     for (var w0 = 0; w0 < order.length; w0++) {
@@ -388,7 +388,7 @@
         u.sx = u._ancSx ? fs / u._ancSx : fs;
         u.sy = u._ancSy ? fs / u._ancSy : fs;
       } else {
-        // v0.31.7（R4-1/R4-5 横线统一）：分隔线不再特例（v0.31.4 P3 的 sy=1/ancSy 分支删除）——
+        // v0.31.7（R4-1/R4-5 横线统一）：分隔线不再特例——
         // 横线统一走 block rect 拉伸（采样真实 reflow rect）。真实 reflow 中 1px 横线高度恒定，
         // 采样 target.h=base.h → sy≈1/ancSy，与旧特例数学等价；而旧特例在"横线高度随布局变化"
         // （flex 拉伸等）时无视采样真值，block 分支始终以采样为准。isDivider 退化为收集标签

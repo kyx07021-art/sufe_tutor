@@ -138,7 +138,7 @@
       return gs.score != null ? String(gs.score) : (gs.grade || '');
     },
 
-    // 期望开课时间显示（v0.25.0 结构化时间组件）：库内存 JSON 数组
+    // 期望开课时间显示：库内存 JSON 数组
     // [{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}]，解析为「周一 18:00-20:00」逗号列表；
     // 旧数据（纯文本）原样透传。未来扩展 type（如月日 + 时间）时在此按类型分支展开。
     expectedTimeText(raw) {
@@ -173,18 +173,18 @@
         ? `<span class="username-deactivated">${esc(s)}</span>` : esc(s);
     },
 
-    // v0.25.42（注销幽灵数据）：对端姓名是否已注销（墓碑前缀命中）
+    // 对端姓名是否已注销（墓碑前缀命中）
     isDeactivated(name) {
       return String(name || '').startsWith(UI().DEACTIVATED_USER_PREFIX);
     },
 
-    // v0.25.42：涉事双方数据（会话/需求/合同/评价等）的对端姓名旁追加「一方已注销」tag——
+    // 涉事双方数据（会话/需求/合同/评价等）的对端姓名旁追加「一方已注销」tag——
     // 对方已注销但数据仍保留的场景，明确告知本端对方账户状态。非注销返 ''
     deactivatedTag(name) {
       return D.isDeactivated(name) ? `<span class="tag-deactivated">${esc(UI().PEER_DEACTIVATED_TAG || '一方已注销')}</span>` : '';
     },
 
-    // #165（v0.25.73）：反馈类型 → 文案（bug/投诉/建议 三分支；单源 constants）
+    // #165：反馈类型 → 文案（bug/投诉/建议 三分支；单源 constants）
     feedbackKindName(kind) {
       const u = UI();
       if (kind === 'bug') return u.FEEDBACK_TAG_BUG;
@@ -192,7 +192,7 @@
       return u.FEEDBACK_TAG_SUGGEST;
     },
 
-    // #165（v0.25.73）：投诉对象 → 文案；非投诉恒 ''（subject 服务端已白名单，前端兜底防脏数据）
+    // #165：投诉对象 → 文案；非投诉恒 ''（subject 服务端已白名单，前端兜底防脏数据）
     feedbackSubjectName(subject) {
       const u = UI();
       if (subject === 'teacher') return u.FEEDBACK_COMPLAINT_SUBJECT_TEACHER;
@@ -201,7 +201,7 @@
       return '';
     },
 
-    // A1 审计（v0.25.104）：投诉对象类型 → 文案（teacher/student/post 三分支）——原三元复制散落
+    // A1 审计：投诉对象类型 → 文案（teacher/student/post 三分支）——原三元复制散落
     // app-complaints.loadAdminComplaints 与 app-posts.openMyFeedback 两处，上收单源。
     // 与 feedbackSubjectName 语义不同：投诉含「帖子」档且文案为「投诉教师/学生/帖子」。
     complaintTargetName(targetType) {
@@ -211,7 +211,7 @@
       return u.COMPLAINT_TAB_POST;
     },
 
-    // —— A2 收口（v0.25.78）：跨模块散落的显示映射统一单点 ——
+    // —— A2 收口：跨模块散落的显示映射统一单点 ——
 
     // 学生年级 id→名：查无返 id 本身（口径统一：id 保底显示，不静默消失）；空 id 返 ''
     studentGradeName(id) {
@@ -234,8 +234,8 @@
       return kind === 'bug' ? 'tag-danger' : kind === 'complaint' ? 'tag-warn' : 'tag-accent';
     },
     // 合同状态→文案+tag 类：signed=ok / signing(含历史 pending)=warn。
-    // v0.25.87 R7：撤销标记（revoked=1 且 status=signed）→ 红色「已撤销」（合同保留、不删除）。
-    // v0.25.94（用户反馈去重）：'pending' 是旧草案确认流遗留态——新合同创建即 signing、取消回退也归 signing；
+    // ：撤销标记（revoked=1 且 status=signed）→ 红色「已撤销」（合同保留、不删除）。
+    // 'pending' 是旧草案确认流遗留态——新合同创建即 signing、取消回退也归 signing；
     // 历史 pending 行在此归并为「待签约」显示，不再单独出「草案待确认」。
     contractStatusMeta(ct) {
       const ST = C().STATUS || {};
@@ -245,7 +245,7 @@
       return { text: UI().CONTRACT_STATUS_SIGNING, cls: 'tag-warn' };
     },
 
-    // 行级 diff（v0.24.3 合同改动高亮）：oldText/newText 按行 LCS 分类，
+    // 行级 diff：oldText/newText 按行 LCS 分类，
     // 返回 ops：[{ t: 'same'|'del'|'add', text }]。纯函数、零 DOM。
     diffLines(oldText, newText) {
       const splitLines = t => (t == null || t === '') ? [] : String(t).split('\n'); // 空文本 = 0 行（'' split 会给单空行）

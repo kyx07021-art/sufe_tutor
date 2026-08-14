@@ -85,9 +85,9 @@ test('P4 按钮语境触发器 JS 挂标准按钮组件类（组件级按钮配�
 
 test('P4 输入控件族排除 .glass 触发器：引擎 surface 不被 0-1-0 直写盖掉', () => {
   const css = readFileSync('./glass.css', 'utf8');
-  assert.ok(css.includes('.form-input, .custom-select-trigger:not(.glass), .chat-input, .filter-select'),
+  assert.ok(css.includes('.form-input, .custom-select-trigger:not(.glass), .filter-select'),
     '输入控件族表面规则排除 .glass 触发器（引擎背景/圆角/shadow 生效）');
-  assert.ok(css.includes('.custom-select-trigger:not(.glass), .chat-input, .filter-select { padding-left'),
+  assert.ok(css.includes('.custom-select-trigger:not(.glass), .filter-select { padding-left'),
     '水平内边距规则同样排除 .glass 触发器（按钮 padding 由 .btn/布局规则提供）');
 });
 

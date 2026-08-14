@@ -18,6 +18,10 @@ function makeCtx() {
     .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
   const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously' });
   const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
+    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
+    return mk();
+  };
   const ctx = vm.createContext({
     window: w, document: w.document,
     getComputedStyle: w.getComputedStyle.bind(w),

@@ -15,14 +15,14 @@
  */
 import { dbGet, dbRun, error } from './util.js';
 import { tokenDigest } from './crypto.js';
-import { MSG, RATE_LIMITS, SECURITY, SECURITY_HEADERS, CORS_HEADERS } from './constants.js'; // v0.25.84 修：RATE_CLEANUP_THROTTLE_MS 引用曾缺 SECURITY import → 生产 60s 后 rateGate 清理触发 ReferenceError → 全 API 1101
+import { MSG, RATE_LIMITS, SECURITY, SECURITY_HEADERS, CORS_HEADERS } from './constants.js';
 
 // ============================================================
 // 身份解析：全站一律凭 X-Auth-Token（登录签发，TTL 见 constants.SECURITY.TOKEN_TTL_MS，
 // 过期按 UTC 比较——同全站 datetime 纪律）。body/query 里的 userId 只当前端回显用，
 // 服务端身份认定永远以令牌解出的用户为准（审计整改：自报 userId 可枚举冒名）
 // ============================================================
-// B1（v0.27.0 网络层重构）：请求级 auth 记忆化——同一请求内二次鉴权（logRequest 记 actor、
+// 请求级 auth 记忆化——同一请求内二次鉴权（logRequest 记 actor、
 // /api/batch 批量子请求并发）零额外 D1。WeakMap 键 req，请求结束即 GC，跨请求零泄漏；
 // 并发调用共享同一 Promise（batch 子请求并发不重复查）。安全：同请求令牌恒定（headers 不可变），
 // 记忆化无陈旧风险。不做跨请求会话缓存（登出/封禁即时失效 + 跨 isolate 无法全局失效，安全账不划算，
@@ -104,9 +104,9 @@ const rlStrike = (ip, now) => {
 
 // 双写限流：内存 + D1 各自独立计数，两者都放行才算过。
 //  - D1 失败（写/读抛错）→ 只以内存为准（降级不 fail-open，网安 N-06）
-//  - 写/用户名探测/登录/注册/重认证全部双写 → 跨实例生效（网安 N-08；原仅登录/注册/重认证走 D1）
-// B4（v0.27.0 网络层重构）：upsert + 回读 合成单次 db.batch（写路径 2 D1 → 1 D1；
-//  与 authRateBatch 同款 batch 形状，r[1].results[0].n 判读同 verdict 口径）
+//  - 写/用户名探测/登录/注册/重认证全部双写 → 跨实例生效（网安 N-08）
+// upsert + 回读合成单次 db.batch（写路径 2 D1 → 1 D1；与 authRateBatch 同款 batch 形状，
+// r[1].results[0].n 判读同 verdict 口径）
 const rlDual = async (db, memLimit, memWindow, d1Key, d1Limit, d1Window, now) => {
   if (!rlBump(`m:${d1Key}`, memLimit, memWindow, now)) return false;
   try {
@@ -130,10 +130,10 @@ const maybeCleanRateLimits = async (db, now) => {
 
 // D1 三振封禁（跨实例持久）：strike.windowMs 窗口计数，满 strike.count 次写 block 行。
 // D1 异常不阻断请求（内存三振已生效），网安 N-06 同口径。
-// 2026-08-09 审计：本函数只被 authRateBlock 调用（认证路径的 block 行由 authRateBatch 读取 → 跨实例生效）；
-// rateGate 的非认证路径三振此前也写 D1 block 行但无人读取（纯开销），已改纯内存（热路径零 D1 往返，
-// 非认证写面已有 rlDual 的 D1 写限流兜底，跨实例硬封禁仅认证路径需要）。
-// rate_limits 条件 upsert 单点（A6 收口）：rlDual / rlStrikeD1 / authRateBatch.rateUpsert 三处同 SQL + '+N seconds' 换算收敛
+// 本函数只被 authRateBlock 调用（认证路径的 block 行由 authRateBatch 读取 → 跨实例生效）；
+// rateGate 的非认证路径三振走纯内存（热路径零 D1 往返，非认证写面已有 rlDual 的 D1 写限流兜底，
+// 跨实例硬封禁仅认证路径需要）。
+// rate_limits 条件 upsert 单点：rlDual / rlStrikeD1 / authRateBatch.rateUpsert 三处同 SQL + '+N seconds' 换算收敛
 const RATE_UPSERT_SQL = `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime', ?))
     ON CONFLICT(bucket) DO UPDATE SET
       n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
@@ -160,7 +160,7 @@ const rlStrikeD1 = async (db, ip) => {
  * 登录桶按 IP 计数（网安 N-07：原按 IP+用户名，攻击者随机用户名可无限建桶撑爆 rate_limits）。
  * 用户名探测为软限制，不记三振。
  */
-export async function rateGate(ip, p, method, body, now, db) {
+export async function rateGate(ip, p, method, body, now, db) { // body 参数预留（限流策略升级用），当前未消费
   rlSweep(now);
   await maybeCleanRateLimits(db, now);
   if ((RL.blocked.get(ip) || 0) > now) return false;

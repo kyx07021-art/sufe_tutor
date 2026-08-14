@@ -26,7 +26,7 @@ function makeCtx() {
       window: w, document: w.document,
       getComputedStyle: w.getComputedStyle.bind(w),
       localStorage: w.localStorage,
-      console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
+      console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
       clearTimeout: globalThis.clearTimeout, Request: globalThis.Request,
       MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     }),
@@ -38,6 +38,7 @@ const FILES = ['constants.js', 'region-data.js', 'app-display.js', 'app-state.js
   'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-demands.js', 'app-teachers.js'];
 function loadCommon(ctx) {
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
 }
 
 test('R13 renderAvatarHtml 非交互分支：恒 aria-hidden、无 avatar-btn/role/tabindex', () => {

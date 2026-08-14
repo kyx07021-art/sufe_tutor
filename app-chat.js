@@ -3,7 +3,7 @@
  *
  * 经典脚本：全部顶层全局函数 + 内联 onclick（全站同一约定）。
  * 仅依赖共享层提供的基础设施：state / api / escHtml / showToast / loaderHtml / setBadge（app-state/app-api/app-anim/app-ui 先行加载）。
- * v0.25.94：会话列表选中高亮由 .conv-item.active 自身背景承载（原 syncPillOnce/glidePill 覆盖层栈已连根删）。
+ * 会话列表选中高亮由 .conv-item.active 自身背景承载（禁绝对定位覆盖层）。
  *
  * 数据来源（后端已上线，身份一律凭 X-Auth-Token，无自报 userId 参数）：
  *   GET  /api/conversations                          会话列表（含对方用户名 + 最后消息预览）
@@ -22,7 +22,7 @@
 // ============================================================
 let chatConvId = null;      // 当前打开的会话 id（null = 未选中任何会话）
 let chatConvList = [];      // 已加载的会话列表（收发后就地更新预览，避免整列重拉）
-// v0.23.1 审计 M1：探测刷新替换缓存数组后重挂别名——markReadConv/收发预览的就地变更
+// 审计 M1：探测刷新替换缓存数组后重挂别名——markReadConv/收发预览的就地变更
 // 依赖「chatConvList === 缓存数组同引用」，不重挂则变更落在游离旧数组、红点复亮
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('chat', () => {
@@ -34,7 +34,7 @@ let chatPollTimer = null;   // 轮询定时器（setInterval 句柄）
 let chatLastMsgId = 0;      // 已见最大消息 id，作轮询 sinceId
 let chatPollBusy = false;   // 上一次轮询未返回时跳过本 tick，防请求叠加
 let chatSending = false;    // 发送中，防连点
-let chatOptimisticSending = false; // F10（v0.27.0）：乐观发送在途——轮询跳过，防乐观临时气泡与轮询真实气泡双插（去重窗口）
+let chatOptimisticSending = false; // F10：乐观发送在途——轮询跳过，防乐观临时气泡与轮询真实气泡双插（去重窗口）
 let chatPendingOpen = null; // R26：跨页待打开的会话目标（按学生 id），会话列表就绪后自动打开
 
 // ============================================================
@@ -79,7 +79,7 @@ function enterMyChats() {
 // 拉取会话列表（服务端已按最后活跃时间倒序）
 async function loadConversations() {
   try {
-    const data = await dhGet('/api/conversations', { domain: 'chat' }); // v0.23.0 静默数据层
+    const data = await dhGet('/api/conversations', { domain: 'chat' }); // 静默数据层
     chatConvList = data.conversations || [];
     renderConvList();
     if (typeof setBadge === 'function') setBadge('my-chats', chatsUnreadTotal()); // 同步侧边栏红点
@@ -119,7 +119,7 @@ function renderConvList() {
     el.innerHTML = `<div class="empty-state empty-state--small"><p>${UI.CHAT_EMPTY_NO_CONVS}</p></div>`;
     return;
   }
-  // v0.25.94（用户反馈「灰色块乱窜，别搞特殊」）：删绝对定位 .conv-pill 覆盖层——选中高亮改由
+  // 删绝对定位覆盖层——选中高亮改由
   // 条目自身 .conv-item.active 的 background 承载（流内标准组件，缩放/拖动天然同步，零 JS 几何）。
   el.innerHTML = chatConvList.map(renderConvItem).join('');
 }
@@ -163,7 +163,7 @@ function renderConvItem(c) {
   if (c.last_kind === 'contract') {
     preview = UI.CHAT_PREVIEW_CONTRACT;
   } else if (c.last_kind === 'signing_request' || c.last_kind === 'signing_response') {
-    // v0.24.2 审计：签约消息曾落入「非 text → [文件]」分支，新功能主入口被误标
+    // 签约消息必须先于「非 text → [文件]」分支判定，否则新功能主入口被误标
     preview = c.last_kind === 'signing_request' ? UI.CHAT_PREVIEW_SIGNING_REQ : UI.CHAT_PREVIEW_SIGNING_RESP;
   } else if (c.last_kind && c.last_kind !== 'text') {
     preview = (c.last_sender === me ? UI.CHAT_PREVIEW_ME_PREFIX : '') + (c.last_kind === 'image' ? UI.CHAT_PREVIEW_IMAGE : UI.CHAT_PREVIEW_FILE);
@@ -214,7 +214,7 @@ async function openConversation(convId) {
   stopChatPolling();          // 清掉上一段会话的定时器与状态
   chatConvId = convId;
 
-  // 左栏高亮 + 移动端切到聊天窗（v0.25.94：active 背景由条目自身承载，切类即同步，无需 glidePill）
+  // 左栏高亮 + 移动端切到聊天窗
   document.querySelectorAll('#conv-list .conv-item').forEach(b =>
     b.classList.toggle('active', +b.dataset.convId === convId));
   const shell = document.getElementById('chats-shell');
@@ -262,8 +262,8 @@ async function openConversation(convId) {
 // 聊天窗骨架：头部（对方名 + 身份）+ 气泡区 + 输入区。
 // 会话关闭（status 非 active，服务端亦会 403）时输入区换成提示条。
 // 需求四·第1条：会话与需求/签约解耦——头部不显示需求编号、不显示「已签约」tag，会话只是发起签约的入口；
-// 第4条（v0.25.58）：签约确认后「已建议签合同」提示随签约请求气泡渲染（模板终态渲染 + 在途注入），
-// 不再独立于消息流顶部（v0.25.55 卡片已随 #150 并入签约气泡底下）。
+// 第4条：签约确认后「已建议签合同」提示随签约请求气泡渲染（模板终态渲染 + 在途注入），
+// 不再独立于消息流顶部。
 function renderChatFrame(conv) {
   const peer = conv ? chatPeerOf(conv) : { name: '', role: '' };
   const closed = conv && conv.status && conv.status !== STATUS.ACTIVE;
@@ -294,7 +294,7 @@ function renderChatFrame(conv) {
                <div class="chat-plus-pop glass glass--float">
                  <label class="chat-pop-item" for="chat-image-input" onclick="closeChatPlus()">${UI.CHAT_ATTACH_IMAGE}</label>
                  <label class="chat-pop-item" for="chat-file-input" onclick="closeChatPlus()">${UI.CHAT_ATTACH_FILE}</label>
-                 <button type="button" class="chat-pop-item" onclick="chatPlusSigning()">${UI.SIGNING_MODAL_TITLE}</button> <!-- v0.24.0 发起签约（极简签约流） -->
+                 <button type="button" class="chat-pop-item" onclick="chatPlusSigning()">${UI.SIGNING_MODAL_TITLE}</button> <!-- 发起签约 -->
                  <button type="button" class="chat-pop-item" onclick="chatPlusDraft()">${UI.CHAT_BTN_DRAFT_CONTRACT}</button>
                </div>
                <input type="file" id="chat-image-input" accept="image/*" class="sr-file-input" onchange="chatOnImagePicked(this)">
@@ -324,18 +324,18 @@ function renderChatBubble(m, i) {
   const time = `<span class="chat-msg-time">${escHtml(fmtChatTime(m.created_at))}</span>`;
   const side = mine ? 'chat-msg--mine' : 'chat-msg--theirs';
   const skin = mine ? 'chat-bubble--mine' : 'chat-bubble--theirs';
-  // 合同事件消息（v0.25.87 R3 修复）：不再居中系统胶囊——改为对应用户一侧的普通气泡
+  // 合同事件消息：不再居中系统胶囊——改为对应用户一侧的普通气泡
   // （起草方右侧 / 接收方左侧，同普通消息皮肤与对齐）。用户反馈：居中灰泡观感突兀，应融入消息流。
-  // 整改（v0.25.94）：合同请求气泡加呼吸遮罩（chat-bubble--breathe，柔和呼吸光环强调新合同动作）。
+  // 整改：合同请求气泡加呼吸遮罩（chat-bubble--breathe，柔和呼吸光环强调新合同动作）。
   if (m.kind === 'contract') {
     const text = mine ? UI.CHAT_CONTRACT_BUBBLE_MINE : UI.CHAT_CONTRACT_BUBBLE_OTHER;
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble glass ${skin} chat-bubble--breathe">${escHtml(text)}</div>${time}</div>`;
   }
-  // v0.24.0 发起签约气泡（极简签约流）：报价/时间/方式三条信息 + 底部确认/拒绝按钮；
+  // 发起签约气泡（极简签约流）：报价/时间/方式三条信息 + 底部确认/拒绝按钮；
   // 对方回应后气泡变灰、按钮消失为无组件小灰字（data-signing-id 供 respondSigning 就地刷新）
-  // v0.25.33 重构：细长居中系统条 → 对应用户（发起方）一侧的大气泡，与普通消息同皮肤同对齐
-  // v0.25.101 Q5：与合同提示统一引用同一种底层样式 chat-bubble--breathe（用户质询「不统一=没有引用同一种底层样式」）
+  // 重构：细长居中系统条 → 对应用户（发起方）一侧的大气泡，与普通消息同皮肤同对齐
+  // ：与合同提示统一引用同一种底层样式 chat-bubble--breathe（用户质询「不统一=没有引用同一种底层样式」）
   //   ——合同气泡/签约请求/签约回应三系流程提示气泡恒挂 breathe，不再按状态条件引用
   if (m.kind === 'signing_request') {
     let s = {};
@@ -365,26 +365,26 @@ function renderChatBubble(m, i) {
         ${s.status !== STATUS.SIGNED ? `<p class="signing-bubble-funds">${UI.FUNDS_NOTE_SHORT}</p>` : ''}
       </div>${time}</div>`;
   }
-  // v0.24.0 签约回应气泡（对方确认/拒绝后落一条，在途会话实时刷新）
-  // v0.24.2 审计：视角修正——回应方看到「你已…」，发起方看到「对方已…」（原恒显「对方已…」颠倒）
-  // v0.25.33 重构：与签约请求同口径——对齐回应方一侧（sender=回应方），风格统一
-  // v0.25.101 Q9：与合同提示统一呼吸样式（chat-bubble--breathe）——用户质询「提示之间亦有区别吗」：
+  // 签约回应气泡（对方确认/拒绝后落一条，在途会话实时刷新）
+  // 审计：视角修正——回应方看到「你已…」，发起方看到「对方已…」（原恒显「对方已…」颠倒）
+  // 重构：与签约请求同口径——对齐回应方一侧（sender=回应方），风格统一
+  // ：与合同提示统一呼吸样式（chat-bubble--breathe）——用户质询「提示之间亦有区别吗」：
   //   合同草案/签约请求/签约回应同属流程提示，一致使用柔和呼吸强调，不再区分样式
   if (m.kind === 'signing_response') {
     let r = {};
     try { r = JSON.parse(m.body || '{}'); } catch { /* 兜底 */ }
     const text = mine
       ? (r.accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED)
-      // v0.25.101 Q8：回退 v0.25.95 的 username 注入——会话统一「对方已确认/已拒绝」（用户质询：不该显示具体用户 id）
+      // 会话统一「对方已确认/已拒绝」——通知不含具体用户 id
       : (r.accept ? UI.SIGNING_CONFIRMED : UI.SIGNING_REJECTED);
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble glass ${skin} chat-bubble--breathe">${escHtml(text)}</div>${time}</div>`;
   }
-  // 图片 / 文件消息：列表接口不下发 dataURL 本体（性能）；v0.25.36 图片带缩略图（thumb）预载
+  // 图片 / 文件消息：列表接口不下发 dataURL 本体（性能）；图片带缩略图（thumb）预载
   // 立即展示、点开拉原图；无缩略图（文件/历史图片）先渲染骨架，由 chatLazyLoadAttachments 补载
   if (m.kind === 'image' || m.kind === 'file') {
-    // v0.25.36 修正：媒体内容（thumb/全图/文件卡）一律包气泡 div；仅两者皆空才走骨架占位
-    // v0.25.49（需求六）：文件卡与图片分流——图片全出血无内衬，文件卡带圆角内衬（.chat-bubble--file）
+    // 修正：媒体内容（thumb/全图/文件卡）一律包气泡 div；仅两者皆空才走骨架占位
+    // 文件卡与图片分流——图片全出血无内衬，文件卡带圆角内衬（.chat-bubble--file）
     const mediaCls = m.kind === 'file' ? ' chat-bubble--file' : '';
     const media = (m.body || m.thumb)
       ? `<div class="chat-bubble glass ${skin} chat-bubble--media${mediaCls}">${renderChatMediaInner(m.kind, m.body, m.name, m.thumb, m.id)}</div>`
@@ -395,7 +395,7 @@ function renderChatBubble(m, i) {
     <div class="chat-bubble glass ${skin}">${escHtml(m.body)}</div>${time}</div>`;
 }
 
-// 图片（v0.25.36 缩略图预载，点开拉原图）/ 文件卡片（v0.25.34 拍平进气泡，去 glass-in-glass 套娃；dataURL 直接 download）
+// 图片/ 文件卡片
 function renderChatMediaInner(kind, body, name, thumb, mid) {
   // 网安审计 N-03：发送方注销后附件本体被服务端清空（body=''），此处占位而非渲染死链接/空图
   if (!body && !thumb) return `<span class="chat-attach-fail">${UI.CHAT_ATTACH_REMOVED}</span>`;
@@ -434,7 +434,7 @@ function chatLazyLoadAttachments() {
   const convId = chatConvId;
   setTimeout(async () => {
     const pending = [...document.querySelectorAll('.chat-bubble--loading[data-attach]')];
-    // F11（v0.27.0 网络层重构）：串行 await 循环 → 有界并发（~4 波）——历史多附件会话
+    // F11：串行 await 循环 → 有界并发（~4 波）——历史多附件会话
     // N 次串行往返 → ~N/4 波（每波一个 RTT 内并行）；会话切换丢弃语义不变（每波检查 chatConvId）。
     const CONCURRENCY = 4;
     let i = 0;
@@ -462,7 +462,7 @@ function chatLazyLoadAttachments() {
   }, CONFIG.CHAT_SLIDE_DELAY_MS);
 }
 
-// v0.25.36 点开图片：缩略图（无 data-full）→ 拉原图后开大图并把气泡 src 升级为原图（二次点击直开）；
+// 点开图片：缩略图（无 data-full）→ 拉原图后开大图并把气泡 src 升级为原图（二次点击直开）；
 // 已带原图（本人刚发/历史懒加载，data-full=1）→ 直开。大图查看器通用件在 app-ui openImageViewer。
 async function chatOpenImage(mid, img) {
   if (img && img.dataset.full === '1') { openImageViewer(img.src); return; }
@@ -550,7 +550,7 @@ async function sendChatMessage() {
   chatOptimisticSending = true; // F10：乐观发送在途关轮询窗口（防临时气泡与轮询真实气泡双插）
   btnLoading(btn);
 
-  // F10（v0.27.0）乐观发送：本地立即插入临时气泡（负 id），一次批量 POST 落库，响应替换真实 id；
+  // F10乐观发送：本地立即插入临时气泡（负 id），一次批量 POST 落库，响应替换真实 id；
   // 失败移除临时气泡 + 恢复输入/暂存（audit-flow 断点可能驳回，须回滚）。data-mid 去重语义对齐旧实现。
   // F9 批量：附件确认 + 文字一次写往返（2N+1 串行写 → 1），服务端单事务 db.batch
   // （服务端每附件 1 次归属读 + 1 写批，边界 MSG_BATCH_MAX=13 封顶）。
@@ -697,13 +697,13 @@ function chatUploadToServer(item, dataUrl, onProgress) {
       else reject(new Error(data.error || ('HTTP ' + xhr.status)));
     };
     xhr.onerror = () => { item._xhr = null; const e = new Error(UI.NETWORK_ERROR); e.code = 'NETWORK_ERROR'; reject(e); }; // 网络错误捕获环节 4/4：上传断线明确文案
-    xhr.send(JSON.stringify({ kind: item.kind, fileData: dataUrl, fileName: item.name, thumb: item.thumb || '' })); // v0.25.36 缩略图随传；身份一律凭令牌，移除自报 userId（服务端早已忽略）
+    xhr.send(JSON.stringify({ kind: item.kind, fileData: dataUrl, fileName: item.name, thumb: item.thumb || '' })); // 缩略图随传；身份一律凭令牌，移除自报 userId（服务端早已忽略）
   });
 }
 
 async function chatDoUpload(item, dataUrl, thumbUrl) {
   item.dataUrl = dataUrl;
-  item.thumb = thumbUrl || ''; // v0.25.36 缩略图随暂存项保存，发送时随 uploadId 落库
+  item.thumb = thumbUrl || ''; // 缩略图随暂存项保存，发送时随 uploadId 落库
   renderChatStage(); // 图片缩略先亮（本地数据），进度圈开始转真实上传进度
   try {
     const data = await chatUploadToServer(item, dataUrl, p => { item.progress = p; renderChatStage(); });
@@ -719,7 +719,7 @@ async function chatDoUpload(item, dataUrl, thumbUrl) {
   }
 }
 
-// 图片压缩 + 缩略图（v0.25.36）：最长边缩至 CONFIG.CHAT_IMG_MAX_SIDE 内出全图，再缩至
+// 图片压缩 + 缩略图：最长边缩至 CONFIG.CHAT_IMG_MAX_SIDE 内出全图，再缩至
 // CHAT_IMG_THUMB_SIDE 出缩略图（预载展示、点开拉原图）。一次 onload 双画布（复用同一压缩源）。
 function chatShrinkImage(src, cb) {
   const img = new Image();
@@ -788,11 +788,10 @@ function renderChatStage() {
   renderStageBox(chatStaged, document.getElementById('chat-stage'), it => `chatUnstage(${it.id})`);
 }
 
-// （v0.27.0 F9 删除：chatSendAttachment 单条发送已被 sendChatMessage 的批量乐观发送取代，
-//  附件确认+文字一次 POST /batch 落库；暂存上传路径 chatUploadToServer 保留不动）
+// 发送统一走批量乐观发送（附件确认+文字一次 POST /batch 落库）；暂存上传路径 chatUploadToServer 保留不动
 
 // 拖入聊天区：松开即加入暂存区（桌面 / 平板拖放均可）
-// v0.25.86 审计修复：hint 由闭包捕获改为事件内现查——openConversation 每次重建
+// 审计修复：hint 由闭包捕获改为事件内现查——openConversation 每次重建
 // #chat-drop-hint（随 innerHTML），旧引用指向已脱离文档节点 → 首次切会话后提示永不显示；
 // zone（#chat-pane）本身不重建，dataset 防重仍成立
 function chatBindDropzone() {
@@ -822,8 +821,8 @@ function closeChatPlus() { const w = document.getElementById('chat-plus-wrap'); 
 function chatPlusDraft() { closeChatPlus(); if (chatConvId) openContractDraftModal(chatConvId); }
 function chatPlusSigning() { closeChatPlus(); if (chatConvId) openSigningModal(chatConvId); }
 
-// v0.25.87 R8 起：签约确认后「已与对方确认签约 + 起草合同」并入请求气泡内部。
-// v0.25.94（用户反馈「气泡底下都是些什么鬼东西，删了重构」）：底部结构钉死为
+// 起：签约确认后「已与对方确认签约 + 起草合同」并入请求气泡内部。
+// 底部结构钉死为
 //   ① 合并提示文案（UI.CHAT_SIGN_TIP，已并入资金声明）→ ② 撑满气泡宽度的「起草合同」按钮；
 // 独立 funds 小字、旧小按钮结构废除。双路呈现：1) 终态模板：重开会话拉历史，
 // signing_request 气泡 status='signed' 时模板直接渲染；2) 在途注入：轮询/回应方就地确认时，
@@ -850,9 +849,9 @@ function chatInjectSignCaption(signingId) {
   bubble.appendChild(btn);
 }
 
-// v0.24.0 回应签约请求：确认/拒绝。成功后就地把请求气泡变灰 + 按钮消失为小灰字
+// 回应签约请求：确认/拒绝。成功后就地把请求气泡变灰 + 按钮消失为小灰字
 // （服务端已更新原气泡 body 为终态并落 signing_response 响应气泡，轮询也会拉到）
-// S2-2（v0.30.0）：确认签约 = 危险操作（需求锁定成交 + 自动拒绝其余意向）——接密码重认证换 capToken
+// S2-2：确认签约 = 危险操作（需求锁定成交 + 自动拒绝其余意向）——接密码重认证换 capToken
 // 二次认证（同合同签署/撤销口径 confirm needReAuth）；拒绝仍为普通确认。
 async function respondSigning(signingId, accept) {
   const doRespond = async capToken => {
@@ -869,8 +868,8 @@ async function respondSigning(signingId, accept) {
           else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = UI.SIGNING_REJECTED_TEXT; el.appendChild(p); }
         }
       });
-      if (accept) chatInjectSignCaption(signingId); // v0.25.94：确认签约 → 就地重建气泡底部（合并提示 + 撑满起草按钮）
-      showToast(accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED); // v0.24.2：回应方视角（原「对方已…」颠倒）
+      if (accept) chatInjectSignCaption(signingId); // 确认签约 → 就地重建气泡底部（合并提示 + 撑满起草按钮）
+      showToast(accept ? UI.SIGNING_MY_CONFIRMED : UI.SIGNING_MY_REJECTED); // 回应方视角
     } catch (err) { showToast(err.message); }
   };
   if (accept) {

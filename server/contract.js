@@ -19,8 +19,9 @@ import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证�
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin,
-  dbDeleteContract, // v0.25.87 R7：取消/撤销不再删行（合同保留），仅 admin remove 用
+  dbDeleteContract, // 取消/撤销不再删行（合同保留），仅 admin remove 用
   dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
+  dbReleaseDemandAfterRevoke, // 撤销/管理员删合同后释放绑定需求（contracted→revoked）
 } from './db.js';
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
@@ -28,7 +29,7 @@ import '../constants.js'; // 副作用导入：一切发给用户看的文案统
 const UIC = globalThis.APP_CONSTANTS.UI;
 
 // 根据草案信息生成正式合同正文。条款要素依《民法典》第四百七十条一般条款拟定。
-// v0.24.0 拆分：业务条款（服务内容/课时费/教学方案，可由双方协商修改）与法律条款
+// 拆分：业务条款（服务内容/课时费/教学方案，可由双方协商修改）与法律条款
 // （权利义务/违约责任/变更解除/争议解决/生效存证，平台固定不可修改）用唯一注释标记分隔——
 // 修改弹窗只放出业务部分，服务端保存时重新拼接固定法律部分（前后端同一常量收口）。
 // 授课地点按隐私合规采用模糊表述（甲方常住处等），不收集详细门牌号。
@@ -77,13 +78,13 @@ const LEGAL_CLAUSES = `## 第四条 甲方权利与义务
 // 第十条 签署记录由 buildSignatureBlock 动态生成并内嵌合同正文末尾（随每次签署重拼，
 // 修改/重拼时位于法律条款之后自动丢弃重建，见 rebuildFullMd）——不含占位符，避免显式空占位
 
-/** 业务部分 + 标记 + 固定法律部分 → 完整合同正文（v0.24.0） */
+/** 业务部分 + 标记 + 固定法律部分 → 完整合同正文 */
 export function contractWithLegal(businessMd) {
   const biz = String(businessMd || '').trim();
   return `${biz}\n\n${CONTRACT_BUSINESS_END}\n\n${LEGAL_CLAUSES}`;
 }
 
-// 第十条 签署记录（v0.25.37 签署合规）：把「谁签/何时签」落进合同正文本身。
+// 第十条 签署记录：把「谁签/何时签」落进合同正文本身。
 // mdRender 仅支持 # 标题 + **加粗**，模板只允许这两种语法；不自引用原始哈希——
 // 区块内只放合同流水号 #CD{id}，原始 SHA-256 经 /api/contracts/:id/verify 在存证校验面板展示
 // （避免「先有哈希才生成正文」的自引用循环）。platform 账号 = 平台用户名（无独立昵称字段）。
@@ -111,7 +112,7 @@ ${partyLine(teacherName, teacherSignedAt)}
 // 重拼完整正文（业务 + 法律 + 第十条 签署记录）：
 // 旧签名区块位于法律条款之后，以「当前业务部分」重拼时被自动丢弃、按当前签署态重建——
 // 修改（PUT 清 signed_at）与每次签署共用此函数，保证 contract_md 始终反映最新签署状态。
-// 旧格式合同（v0.24.0 前无标记）不重拼（同 handleModifyContract 的旧格式保护，防法律条款双份）
+// 旧格式合同（无标记）不重拼（同 handleModifyContract 的旧格式保护，防法律条款双份）
 function rebuildFullMd(ct, conv) {
   const md = String(ct.contract_md || '');
   if (!md.includes(CONTRACT_BUSINESS_END)) return md;
@@ -123,7 +124,7 @@ function rebuildFullMd(ct, conv) {
   });
 }
 
-// v0.25.46 返工（合同不可修改性原则）：曾在此处匿名化注销用户名的合同正文修改逻辑已整体删除。
+// 合同正文一个字都不许碰（签署后不可修改是合同的立身之本）——匿名化注销用户名等改写逻辑一律禁止。
 // 铁律：合同正文一个字都不许碰（签署后不可修改是合同的立身之本，存证哈希链亦不容重写）。
 // 注销用户名处理只走前端「一方已注销」tag（对端姓名 JOIN users 自然显示墓碑），不改 contract_md。
 
@@ -263,7 +264,7 @@ async function verifyContractLedger(db, contractId) {
     valid: chain.ok && chain.lastRehashValid !== false, // archived 无正文可重放（lastRehashValid=null），以链结构为准
     entries: rows.length, headValid: chain.headValid, linksValid: chain.linksValid, seqValid: chain.seqValid,
     contentHash: last.content_hash, prevHash: last.prev_hash, createdAt: last.created_at,
-    // v0.25.37 签署合规：逐条台账明细（序号 + 记档时间）供前端存证校验面板展示签署历史
+    // 逐条台账明细（序号 + 记档时间）供前端存证校验面板展示签署历史
     entryList: rows.map(r => ({ seq: r.seq, createdAt: r.created_at })),
   };
 }
@@ -309,7 +310,7 @@ export async function handleCreateContract(db, body, req) {
   const trialPayOther = trialPay === 'other' ? String(body.trialPayOther || '').trim().slice(0, LIMITS.PAY_OTHER_MAX) : '';
   if (trialPay === 'other' && !trialPayOther) return error(MSG.INVALID_PARAMS, 400);
   // 需求四·第3条：起草合同必须绑定「已签约」需求（发起签约确认 → demand contracted 后才可起草合同）。
-  // v0.25.6 审计收紧：服务端强制 demandId，无 conv.demand_id 回落（会话与需求已解耦，同 signing 路径门禁）。
+  // 服务端强制 demandId，无 conv.demand_id 回落（会话与需求已解耦，同 signing 路径门禁）。
   // 归属硬校验：需求必须属于会话学生方（防越权绑他人需求）；状态须 contracted；一条需求只允许一份合同
   // （进行中/已签均不可再绑，前端下拉亦已过滤，服务端统一入口把关防并发窗口）。
   // 签约成交方校验（教师方口径）：contracted 需求若由「别教师」的 signed 签约驱动，本会话不得绑它起草合同
@@ -333,12 +334,12 @@ export async function handleCreateContract(db, body, req) {
     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
   });
   const mdEnc = await encryptField(md); // 网安 N-05：合同正文加密落库（读点经 db.js 解密，台账哈希走明文）
-  // v0.25.37 签署合规：插入时正文不含签署记录（流水号须先有 id），拿到 id 后回写完整正文——
+  // 插入时正文不含签署记录（流水号须先有 id），拿到 id 后回写完整正文——
   // 第十条 签署记录显示双方「待签署」；自愈：回写失败不影响签署（每次签署都会重拼正文）
   const res = await dbRun(db,
-    // v0.25.32 加固：发起方不再自动确认（原 drafter_confirmed=1 自动「已签约」）——起草后双方
+    // 发起方不再自动确认——起草后双方
     // 各自走「读合同→滚到底+待够时长→二次确认→密码最终确认」显式签署，双方确认才 signed
-    // v0.25.57 需求四十九：删会话级「已存在进行中的合同」限制（连根拔）——会话级查任意状态合同
+    // 无会话级「已存在进行中的合同」限制——会话级查任意状态合同
     // 会把已拒绝/已撤销的历史合同也算「进行中」，阻塞重新起草；需求级门禁（ct2 只认 pending/signing/
     // signed）才是「一条需求一份合同」的正确闸门。会话只绑一条需求，需求级门禁天然覆盖会话级。
     `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
@@ -400,7 +401,7 @@ export async function handleSignContract(db, contractId, body, req) {
   const signedCol = userId === ct.drafter_user_id ? 'drafter_signed_at' : 'other_signed_at';
   // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
   // 不产生任何改动；changes=0 方重读当前态幂等返回，不触发任何副作用。version 同步递增（乐观锁）
-  // v0.25.37 签署合规：同句置位 signed_at（服务端时间戳，UTC SQLite 格式），签名区块据此渲染
+  // 同句置位 signed_at（服务端时间戳，UTC SQLite 格式），签名区块据此渲染
   const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, ${signedCol}=datetime('now','localtime'), status='signing', version=version+1, updated_at=datetime('now','localtime') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
   if (!(flag && flag.meta && flag.meta.changes > 0)) {
     const cur = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
@@ -420,16 +421,16 @@ export async function handleSignContract(db, contractId, body, req) {
   const signedMd = rebuildFullMd(updated, conv);
   await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
     [await encryptField(signedMd), contractId, updated.version]);
-  // 每次签署都落台账（v0.25.37）：正文已内嵌签署人/时间，content_hash 自然覆盖「谁签/何时签」；
+  // 每次签署都落台账：正文已内嵌签署人/时间，content_hash 自然覆盖「谁签/何时签」；
   // 幂等（同正文 NOT EXISTS 去重）——并发双签双方同正文只挂一条，签约后 500 重试可安全补记
   let contentHash = '';
   try { contentHash = await ledgerRecord(db, contractId, signedMd); }
   catch (e) { console.error('contract ledger failed:', e && e.message); }
   if (both) {
-    // v0.24.0 合同文档与需求签约状态彻底解耦：文档 signed 不再触碰 student_demands
+    // 合同文档与需求签约状态彻底解耦：文档 signed 不再触碰 student_demands
     // （需求签约关系由「发起签约」signing.js 的签约请求确认驱动）。条件 UPDATE 赢家模式——
     // 双方同时签约仅一方 changes>0，防并发双副作用
-    const claim = await dbRun(db, `UPDATE contracts SET status='signed', prev_business=NULL, version=version+1 WHERE id=? AND status='signing'`, [contractId]); // v0.24.3：签署确认后清空留痕（对齐 db.js:414 注释意图，diff 仅存于重新确认窗口期）
+    const claim = await dbRun(db, `UPDATE contracts SET status='signed', prev_business=NULL, version=version+1 WHERE id=? AND status='signing'`, [contractId]); // 签署确认后清空留痕（diff 仅存于重新确认窗口期）
     if (claim && claim.meta && claim.meta.changes > 0) {
       await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGNED);
       // 留档保存合同原文（detailMax 放宽，加密后落库；撤销合同后仍可凭留档还原缔约内容）
@@ -455,23 +456,23 @@ export async function handleModifyContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
-  // v0.25.87 R6：我方已确认签约后关闭修改接口（对方/我方均不得再改自己已确认的合同）。
+  // 我方已确认签约后关闭修改接口（对方/我方均不得再改自己已确认的合同）。
   // 修改会重置双方确认（下方 drafter_confirmed=0/other_confirmed=0），已确认方改 = 变相撤回自己的
   // 签署承诺 → 必须拒绝。未确认方在对方已签后可改（改后对方确认随之重置，符合协商预期）。
   const myConfirmed = userId === ct.drafter_user_id ? !!ct.drafter_confirmed : !!ct.other_confirmed;
   if (myConfirmed) return error(MSG.CONTRACT_LOCKED_AFTER_SIGN, 409);
   const ver = parseInt(body.version);
   if (!Number.isInteger(ver)) return error(MSG.INVALID_PARAMS, 400);
-  // v0.24.0：修改弹窗只放出业务条款——提交的 md 即新业务部分，法律条款由服务端固定重拼（不可修改）
-  // v0.24.2：剥离提交内容中可能残留的标记及之后内容（前端 textarea 只放业务段，防御非前端客户端塞整段/重复提交）
+  // 修改弹窗只放出业务条款——提交的 md 即新业务部分，法律条款由服务端固定重拼（不可修改）
+  // 剥离提交内容中可能残留的标记及之后内容（前端 textarea 只放业务段，防御非前端客户端塞整段/重复提交）
   const md = String(body.contractMd || '').slice(0, LIMITS.CONTRACT_MD_MAX).split(CONTRACT_BUSINESS_END)[0].trim();
   if (!md) return error(UIC.CONTRACT_EMPTY); // 用户可见文案单源 constants.js
-  // 旧格式合同（v0.24.0 前起草、正文无标记）：整段即业务，不再追加法律块——否则旧法律条款被当业务
+  // 旧格式合同（正文无标记）：整段即业务，不再追加法律块——否则旧法律条款被当业务
   // 重拼，出现两份法律条款且旧条款从此落入可编辑区，破坏「法律条款不可修改」承诺
   const oldHasMarker = (ct.contract_md || '').includes(CONTRACT_BUSINESS_END);
   const oldBiz = (oldHasMarker ? (ct.contract_md || '').split(CONTRACT_BUSINESS_END)[0] : (ct.contract_md || '')).trim(); // 旧业务部分（留痕 diff 基线）
   if (md === oldBiz) return json({ ok: true, unchanged: true }); // 业务未变：幂等短路，不重置确认/不重发通知
-  // 新格式：业务+固定法律条款+第十条 签署记录（v0.25.37 全部待签署——修改即回退签约选择态）；
+  // 新格式：业务+固定法律条款+第十条 签署记录（全部待签署——修改即回退签约选择态）；
   // 旧格式：保持原文本不重拼（无标记则无签署记录，历史合同语义不变）
   const fullMd = oldHasMarker
     ? contractWithLegal(md) + buildSignatureBlock({
@@ -487,7 +488,7 @@ export async function handleModifyContract(db, contractId, body, req) {
        drafter_signed_at='', other_signed_at='', status='signing', version=version+1, updated_at=datetime('now','localtime')
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
     [await encryptField(fullMd), oldBiz, contractId, ver]); // N-05：合同正文加密落库
-  if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409, 'CONTRACT_MODIFIED_CONFLICT'); // v0.24.2：带稳定 code 供前端刷新版本号
+  if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409, 'CONTRACT_MODIFIED_CONFLICT'); // 带稳定 code 供前端刷新版本号
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
@@ -504,7 +505,7 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const { ct, conv } = g;
   if (ct.revoked) return error(MSG.CONTRACT_ALREADY_REVOKED, 409); // 已撤销幂等拒绝
   if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403); // 二次认证（F-05）
-  // v0.25.87 R7：撤销不删行——置 revoked 标记 + 撤销人 + 撤销时间，合同正文/台账保留存证；
+  // 撤销不删行——置 revoked 标记 + 撤销人 + 撤销时间，合同正文/台账保留存证；
   // 双方列表仍见该合同，右上角状态 tag 显示红色「已撤销」。条件 UPDATE 并发守卫（双撤销仅赢家副作用）。
   const upd = await dbRun(db,
     `UPDATE contracts SET revoked=1, revoked_by=?, status='signed', version=version+1, updated_at=datetime('now','localtime')
@@ -514,7 +515,9 @@ export async function handleRevokeContract(db, contractId, body, req) {
     if (cur && cur.revoked) return error(MSG.CONTRACT_ALREADY_REVOKED, 409); // 并发已撤销
     return error(MSG.CONTRACT_NOT_FOUND, 404);
   }
-  // v0.24.0 合同文档与需求解耦：撤销文档不再把需求置回 revoked（需求签约状态由签约请求驱动）
+  // 撤销后释放绑定需求：contracted→revoked（待所有者手动重开；合同文档与需求解耦，但需求状态
+  // 必须随撤销流转——否则需求永久滞留 contracted、无任何重开入口，与 STATUS.REVOKED 契约断线）
+  await dbReleaseDemandAfterRevoke(db, ct.demand_id);
   await notifyUser(db, otherSide(conv, me.id), UIC.CONTRACT_REVOKED_NOTIFY.replace('{name}', nameOf(conv, me.id)));
   await logEvent(db, { action: 'contract.revoke', actorUserId: me.id, entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, note: 'contract_retained' }, req });
@@ -548,22 +551,22 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
   await dbDeleteContract(db, contractId);
-  // 网安审计 N-11：删除的是 signed 合同时，其绑定的需求已被置 contracted（签约时原子完成），
-  // 合同删除后无「撤销」可走，需求会永久滞留 contracted（不可见、不可 reopen）——此处同撤销合同
-  // v0.24.0 合同文档与需求解耦：删除文档不再把需求置回 revoked（需求签约状态由签约请求驱动）
+  // 删除已签合同时同步释放绑定需求（contracted→revoked，待所有者手动重开）——
+  // 否则需求永久滞留 contracted（不可见、不可 reopen），与撤销合同同径处理
+  await dbReleaseDemandAfterRevoke(db, ct.demand_id);
   await logEvent(db, { action: 'admin.contract.remove', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, status: ct.status, drafterUserId: ct.drafter_user_id, demandId: ct.demand_id }, req });
   return json({ ok: true });
 }
 
-// DELETE /api/contracts/:id —— 取消签约（v0.25.87 R7 重写：不再删行）
+// DELETE /api/contracts/:id —— 取消签约（不再删行）
 // 分两种情况：
 //   ① 我方已签、对方未签：取消 → 弹窗+密码验证（前端），合同回退我方待签约态（status→signing、
 //      清我方 confirmed/signed_at）、合同保留干净——可重新签约。
 //   ② 双方均已签：本接口拒绝（409），引导走 POST /api/contracts/:id/revoke（撤销合同，同样不删行）。
 // 会话保留，需求状态保持 open（合同文档与需求解耦）。
-// v0.25.94（用户反馈「草案待确认/待签约两种状态重复，删一种」）：取消回退一律 status='signing'
+// 取消回退一律 status='signing'
 // （待签约）——'pending' 是旧草案确认流遗留态，新合同创建即 'signing'，sign 接口对两者同等放行；
 // 历史 pending 行经 DISP.contractStatusMeta 归并为「待签约」显示，不再单独出「草案待确认」。
 export async function handleCancelContract(db, contractId, body, req) {
@@ -583,7 +586,7 @@ export async function handleCancelContract(db, contractId, body, req) {
   if (bothSigned) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409); // 双方已签：走撤销合同（revoke）
 
   // 条件 UPDATE 并发守卫：AND 当前状态，changes=0 方重读幂等（对方并发签约/改态时不产生副作用）。
-  // 回退我方确认标志 + 签署时间，status 回 'signing'（待签约，v0.25.94 去 pending 遗留态；对方未签则其确认本为空，保持）；
+  // 回退我方确认标志 + 签署时间，status 回 'signing'（待签约；对方未签则其确认本为空，保持）；
   // 我方的已签时间一并清（回退到"待我签署"的干净态，可重新确认签约）。
   const upd = await dbRun(db,
     `UPDATE contracts SET ${myCol}=0,

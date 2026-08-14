@@ -220,6 +220,10 @@ function makeCtx({ mineRows = [], myComplaints = [], recentByType = {}, searchRo
     .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
   const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously' });
   const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
+    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
+    return mk();
+  };
   const posts = []; // 记录 POST 提交（feedback 创建）
   const complaints = []; // 记录 POST 提交（投诉创建）
   const ctx = vm.createContext({
@@ -262,6 +266,7 @@ function makeCtx({ mineRows = [], myComplaints = [], recentByType = {}, searchRo
   });
   vm.runInContext(`try { localStorage.setItem('sufe_returning', '1'); } catch (e) {}`, ctx); // 首访欢迎浮窗让路
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
   vm.runInContext(`
     state.user = { id: 1, role: 'student', username: 's' };
     window.APP_CONSTANTS = globalThis.APP_CONSTANTS;

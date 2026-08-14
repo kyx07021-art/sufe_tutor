@@ -45,7 +45,7 @@
  *         （分数模式与现存 current_scores 的 {subject,scale,score} 向后兼容）
  *
  * 地区提示：regionLockNote(provinceId) → 不允许线下授课的省份返回 .region-hint 提示段落
- *           （线下许可单源 region-data.allowsOffline，v0.25.86 审计去 'shanghai' 硬编码），
+ *           （线下许可单源 region-data.allowsOffline），
  *           主会话渲染到省份选择器附近即可。
  * ============================================================
  */
@@ -126,7 +126,7 @@ function renderProvinceSelect(selectId, selectedId, onchangeAttr) {
   </select>`;
 }
 
-// 不允许线下授课省份的限制提示（v0.25.86 审计：改读 region-data allowsOffline，不再硬编码 'shanghai'）
+// 不允许线下授课省份的限制提示（改读 region-data allowsOffline，不再硬编码 'shanghai'）
 function regionLockNote(provinceId) {
   const R = globalThis.SUFE_REGIONS;
   if (R && R.allowsOffline(provinceId)) return '';
@@ -222,7 +222,7 @@ function renderTeacherGaokaoEditor(provinceId, graduationYear, existing) {
   // 保存拦截另在 handleSaveProfile（app-pages）用同款 gaokaoPolicyMismatchCount 复检
   const mismatches = gaokaoPolicyMismatchCount(pol, list);
   if (mismatches > 0) {
-    // v0.25.99：alert 组件连根删——本提示是成绩区持久性内联横幅（非浮层），独立类 .gaokao-mismatch-warn 静态渲染
+    // 本提示是成绩区持久性内联横幅（非浮层；全站无 alert 浮层），独立类 .gaokao-mismatch-warn 静态渲染
     html += `<div class="gaokao-mismatch-warn glass">${escHtml(UI.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches))}</div>`;
   }
 
@@ -476,13 +476,13 @@ function buildStudentScoreRows(provinceId, gradeId, subjectIds) {
   const stage = R.stageOfGrade(gradeId);
   const pol = regionResolvePolicy(provinceId);
   // 高中选考科目满分（如上海 70）：仅等第制（grade 类型）gradeSystem 带 max；standard 类型（海南标准分）
-  // 满分 300 走 subjectMaxScore 原始分通道，不套选考满分（v0.25.86 审计去 'shanghai' 硬编码，用类型守卫）
+  // 满分 300 走 subjectMaxScore 原始分通道，不套选考满分
   const shMax = (stage === 'senior' && pol.gradeSystem && pol.gradeSystem.type === 'grade' && pol.gradeSystem.max) || null;
 
   return ids.map(sid => {
     const sidE = escHtml(sid);
     const name = R.subjectNames[sid] || sid;
-    // B3（v0.27.2「小学一年级语文满分 150」）+ #22（v0.27.3 每省每年级政策）：主科满分按省+年级——
+    // B3+ #22：主科满分按省+年级——
     // 小学 100 / 初中按省 middleScore（subjectMaxFor 单源，前后端同读）/ 高中 150。上海高中选考 70 上限仅非主科生效。
     const base = R.subjectMaxFor(provinceId, sid, gradeId);
     const max = (base !== 150 && shMax) ? shMax : base;

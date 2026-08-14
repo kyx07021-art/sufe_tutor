@@ -41,7 +41,7 @@ function demandSubjectsText(d) {
 const pushRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
 const intentRejectNote = d => globalThis.APP_CONSTANTS.UI.NOTIFY_INTENT_REJECT.replace('{subjects}', demandSubjectsText(d));
 
-// 需求输入硬化：预算钳到 [0, LIMITS.BUDGET_MAX] 且 max>=min；授课方式白名单（v0.29.0 起 address 改结构化
+// 需求输入硬化：预算钳到 [0, LIMITS.BUDGET_MAX] 且 max>=min；授课方式白名单（address 已改结构化
 // 「区·镇/街道」校验，不再自由文本门牌守卫——见 handleCreateDemand 内 isValidShanghaiAddr 分支）
 const clampBudget = v => { const n = Number(v); return Number.isFinite(n) ? Math.min(LIMITS.BUDGET_MAX, Math.max(0, n)) : 0; };
 // 需求类型白名单（R2-b）：academic 学科 / nonacademic 非学科，非法回退 academic（静默不拒需求）。
@@ -68,7 +68,7 @@ function sanitizeDemand(d) {
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
   d.address = (typeof d.address === 'string' ? d.address : '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
   // 2026-08-09 审计 F-1/F-4：补充说明是自由文本——上限截断；门牌守卫由调用方 auditFreeText 单独执行
-  // （v0.29.0：address 已结构化不再走守卫，仅 additional_info 保留咽喉——合规红线不因字段绕行）
+  // （address 已结构化不再走守卫，仅 additional_info 保留咽喉——合规红线不因字段绕行）
   d.additional_info = (typeof d.additional_info === 'string' ? d.additional_info : '').slice(0, LIMITS.ADDITIONAL_INFO_MAX);
   d.parent_contact = (typeof d.parent_contact === 'string' ? d.parent_contact : '').slice(0, LIMITS.CONTACT_MAX);
   d.student_contact = (typeof d.student_contact === 'string' ? d.student_contact : '').slice(0, LIMITS.CONTACT_MAX);
@@ -95,20 +95,20 @@ function sanitizeDemand(d) {
     .filter(id => typeof id === 'string' && personalitySet.has(id)))].slice(0, personalityMax);
   // R2-b 偏好老师性别：白名单 ['','male','female']，非法回退 ''（不限）
   d.preferred_teacher_gender = PREFERRED_GENDERS.has(d.preferred_teacher_gender) ? d.preferred_teacher_gender : '';
-  // v0.31.7 R1：教学目标白名单（≤TEACHING_GOALS_MAX、TEACHING_GOALS 池、去重；静默截断不拒绝整表）
+  // 教学目标白名单（≤TEACHING_GOALS_MAX、TEACHING_GOALS 池、去重；静默截断不拒绝整表）
   const TG = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.TEACHING_GOALS) || [];
   const goalSet = new Set(TG.map(t => t.id));
   const goalMax = (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.TEACHING_GOALS_MAX) || 2;
   if (!Array.isArray(d.teaching_goal)) d.teaching_goal = [];
   d.teaching_goal = [...new Set(d.teaching_goal.filter(id => typeof id === 'string' && goalSet.has(id)))].slice(0, goalMax);
-  // v0.31.7 R2：非学科技能现状 [{project, note}]——project 白名单（NONACADEMIC_PROJECTS）+ note 截断；
+  // 非学科技能现状 [{project, note}]——project 白名单（NONACADEMIC_PROJECTS）+ note 截断；
   // 仅非学科类型保留（学科需求强制清空，同 current_scores 口径）。非法项剔除。
   if (d.target_type === (globalThis.APP_CONSTANTS.DEMAND_TYPES || {}).NONACADEMIC) {
     const NP = (globalThis.APP_CONSTANTS.NONACADEMIC_PROJECTS) || [];
     const projectSet = new Set(NP.map(p => p.id));
     const noteMax = (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.SKILL_NOTE_MAX) || 300;
     if (!Array.isArray(d.skill_notes)) d.skill_notes = [];
-    // 上限 = 非学科项目池大小（去重后每项目至多一条；曾误复用 DEMAND_SCORE_MAX=12 成绩行上限，语义错位）
+    // 上限 = 非学科项目池大小（去重后每项目至多一条，与成绩行上限语义不同）
     d.skill_notes = d.skill_notes.slice(0, NP.length)
       .map(sn => {
         if (!sn || typeof sn !== 'object' || typeof sn.project !== 'string' || !projectSet.has(sn.project)) return null;
@@ -120,7 +120,7 @@ function sanitizeDemand(d) {
   }
   // R2-11 学生性别：白名单 ['','male','female','nonbinary']，非法回退 ''（'' = 不愿透露）
   d.student_gender = DEMAND_GENDERS.has(d.student_gender) ? d.student_gender : '';
-  // B3（v0.27.2「小学一年级语文满分 150」）+ #22（v0.27.3 每省每年级政策）：平时成绩满分按省+年级钳制——
+  // 平时成绩满分按省+年级钳制（region-data 政策单源）——
   // 前端输入 max 已按 subjectMaxFor（省+年级，region-data 单源），服务端同口径兜底（防绕过前端直传 150）。
   // 只钳制分数模式（mode='score' 或 legacy scale>0）；等第模式无数值不改。非法项剔除。
   if (Array.isArray(d.current_scores)) {
@@ -145,14 +145,14 @@ function sanitizeDemand(d) {
 
 export async function handleCreateDemand(db, body, req) {
   const { demand: d = {} } = body;
-  if (typeof d !== 'object' || d === null) return error(MSG.INVALID_PARAMS); // 空 body 兜底（曾直 500）
+  if (typeof d !== 'object' || d === null) return error(MSG.INVALID_PARAMS); // 空 body 兜底
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
   const userId = me.id;
 
   const R = globalThis.SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return error(MSG.PROVINCE_REQUIRED);
-  if (!R.allowsOffline(d.province)) d.teaching_method = 'online'; // 业务规则：线下许可省才可线下（region-data 数据驱动，v0.25.86 审计去 'shanghai' 硬编码）
+  if (!R.allowsOffline(d.province)) d.teaching_method = 'online'; // 业务规则：线下许可省才可线下（region-data 数据驱动）
   const ts = sanitizeTimeSlots(d.expected_time);
   if (ts.error) return error(ts.error);
   d.expected_time = ts.value;
@@ -191,11 +191,11 @@ export async function handleGetDemands(db, url, req) {
     return json({ demands: await dbGetDemandsByUser(db, me.id) });
   }
   if (scope === 'for-teacher') {
-    const { user: me, err } = await requireUser(db, req, 'teacher'); // 角色门（网安审计：曾只验登录，学生可冒充教师视角）
+    const { user: me, err } = await requireUser(db, req, 'teacher'); // 角色门（只验登录会被学生冒充教师视角）
     if (err) return err;
     return json({ demands: await dbGetDemands(db, { teacherUserId: me.id }) });
   }
-  // #163（v0.25.71）：默认视图同时服务登录学生与游客——游客（无令牌）只见 allow_guest_demand=1 的需求
+  // 默认视图同时服务登录学生与游客——游客（无令牌）只见 allow_guest_demand=1 的需求
   const me = await authUser(db, req);
   return json({ demands: await dbGetDemands(db, { forGuest: !me }) });
 }
@@ -267,7 +267,7 @@ export async function handleReopenDemand(db, demandId, body, req) {
 
 // --- 需求意向（前端四态按钮 UI：my_intent_status 三态 + 撤销重提） ---
 export async function handleCreateIntent(db, demandId, body, req) {
-  // v0.28.0 M1：教师打招呼消息（Airbnb 租客对房东式；自我介绍+为什么关注此需求）；可选，trim 后超限拒绝
+  // 教师打招呼消息（Airbnb 租客对房东式；自我介绍+为什么关注此需求）；可选，trim 后超限拒绝
   const message = String(body.message ?? '').trim();
   if (message.length > LIMITS.GREETING_MSG_MAX) return error(MSG.GREETING_TOO_LONG, 400);
   const { user: me, err } = await requireUser(db, req, 'teacher');
@@ -288,6 +288,8 @@ export async function handleCreateIntent(db, demandId, body, req) {
   try {
     const id = await dbCreateIntent(db, demandId, userId, message); // 条件 INSERT 原子化：0 = 检查与插入之间需求被签/撤
     if (!id) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410);
+    await logEvent(db, { action: 'intent.create', actorUserId: userId, actorUsername: me.username,
+      actorRole: 'teacher', entity: 'demand', entityId: demandId, detail: { intentId: id }, req });
     return json({ id, message: MSG.INTENT_SUBMITTED }, 201);
   } catch (err2) {
     if (isUniqueConflict(err2)) return error(MSG.INTENT_DUPLICATE, 409);
@@ -306,7 +308,7 @@ export async function handleGetIntents(db, demandId, req) {
 }
 
 // 学生处理意向：accept → 置 accepted 并建立（或复用）师生会话；reject → 置 rejected。
-// 顺序契约（与 handleResolvePush 对齐）：先查需求状态再写，杜绝「先写后判」窗口（曾置 accepted 后返 410 的缺陷）；
+// 顺序契约（与 handleResolvePush 对齐）：先查需求状态再写，杜绝「先写后判」窗口；
 // accept 前用 dbLockDemandIntent 抢占（条件 UPDATE），防同需求并发双 accepted + 双会话。
 export async function handleResolveIntent(db, intentId, body, req) {
   const { action } = body;
@@ -322,7 +324,7 @@ export async function handleResolveIntent(db, intentId, body, req) {
 
   const dNow = await dbGetDemandById(db, intent.demand_id);
   if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已撤销需求不可接受意向（须先重开）
-  // v0.24.0 删屎逻辑：接受意向不再锁需求（dbLockDemandIntent 移除）——一条需求允许任意多会话并存，
+  // 接受意向不再锁需求——一条需求允许任意多会话并存，
   // 仅当某会话「发起签约」成功签约时才自动拒绝其余（见 signing.js）
 
   const status = action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED;
@@ -347,7 +349,7 @@ export async function handleResolveIntent(db, intentId, body, req) {
 // ============================================================
 export async function handlePushDemand(db, body, req) {
   const { teacherUserId, demandId } = body;
-  // v0.28.0 M1：学生打招呼消息（自我介绍+为什么选这位老师）；可选，trim 后超限拒绝
+  // 学生打招呼消息（自我介绍+为什么选这位老师）；可选，trim 后超限拒绝
   let message = String(body.message ?? '').trim();
   if (message.length > LIMITS.GREETING_MSG_MAX) return error(MSG.GREETING_TOO_LONG, 400);
   const { user: me, err } = await requireUser(db, req, 'student');
@@ -395,7 +397,7 @@ export async function handleResolvePush(db, pushId, body, req) {
   if (action === 'accept') {
     const dNow = await dbGetDemandById(db, push.demand_id);
     if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求不可再确认
-    // v0.24.0 删屎逻辑：确认推送不再锁需求（dbLockDemandIntent 移除）——一条需求允许多会话并存，
+    // 确认推送不再锁需求——一条需求允许多会话并存，
     // 仅「发起签约」成功签约时才自动拒绝其余（见 signing.js）
     if (!(await dbResolvePush(db, pushId, STATUS.ACCEPTED))) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
     await dbAcceptPushAsIntent(db, push.demand_id, userId);

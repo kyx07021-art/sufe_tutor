@@ -12,7 +12,7 @@ import vm from 'node:vm';
 
 const FILES = [
   'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-onboard.js', 'app-region.js',
+  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js', 'app-onboard.js', 'app-region.js',
   'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
   'app-demands.js', 'app-teachers.js', 'app-style.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
 ];
@@ -24,11 +24,15 @@ function makeCtx() {
     url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
   });
   const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
+    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
+    return mk();
+  };
   const ctx = vm.createContext({
     window: w, document: w.document,
     getComputedStyle: w.getComputedStyle.bind(w),
     localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
+    console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
     clearTimeout: globalThis.clearTimeout, setInterval: globalThis.setInterval,
     clearInterval: globalThis.clearInterval, Request: globalThis.Request,
     MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
@@ -37,6 +41,7 @@ function makeCtx() {
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
   });
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
   // 拦截 showToast：记录文案断言超限提示，不真实创建 toast 节点（__toasts 在沙箱 globalThis，经 ctx 读取）
   vm.runInContext(`globalThis.__toasts = []; showToast = (msg) => __toasts.push(msg);`, ctx);
   const fns = vm.runInContext(`({ toggleTagPick, DISP })`, ctx);

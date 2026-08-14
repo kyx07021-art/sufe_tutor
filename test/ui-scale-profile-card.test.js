@@ -20,12 +20,16 @@ function makeCtx() {
     url: 'http://localhost/', pretendToBeVisual: true,
   });
   const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
+    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
+    return mk();
+  };
   return {
     ctx: vm.createContext({
       window: w, document: w.document,
       getComputedStyle: w.getComputedStyle.bind(w),
       localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-      console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
+      console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
       clearTimeout: globalThis.clearTimeout, setInterval: globalThis.setInterval,
       clearInterval: globalThis.clearInterval, Request: globalThis.Request,
       MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
@@ -43,6 +47,7 @@ const FILES = ['constants.js', 'region-data.js', 'app-display.js', 'app-state.js
   'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-style.js', 'app-demands.js', 'app-teachers.js'];
 function loadCommon(ctx) {
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
 }
 
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));

@@ -30,4 +30,10 @@ globalThis.APP_SECRETS = {
   SMS_ACCESS_KEY_SECRET: '',
   SMS_SIGN_NAME: '',
   SMS_TEMPLATE_CODE: '',
+
+  // ---- 验证码通道配置（插拔点：真实通道接入时只改此文件值 + otp.js deliverOtp 实现）----
+  // OTP_PROVIDER: 'mock'（内测：模拟发送，响应返回 code 供前端 toast）| 'prod'（真实短信/邮件通道，绝不返回 code）
+  OTP_PROVIDER: 'mock',
+  // 邮件验证码模板编码（push.spug.cc 邮件模板；编码即调用凭证，禁止进前端/公开仓库，只经 server/secrets.js 网关读取）
+  EMAIL_OTP_TEMPLATE_CODE: '',
 };

@@ -1,5 +1,5 @@
 /**
- * 路由模块：隐私设置（#163 v0.25.71）——访客可见性控制
+ * 路由模块：隐私设置——访客可见性控制
  * GET  /api/privacy-settings   读本人设置（requireUser）
  * POST /api/privacy-settings   写（requireUser）；字段显式 0 关闭、缺省保持原值
  * 访客浏览过滤在 db 层（dbGetDemands forGuest / dbGetTeachers 游客分支），本文件只管读写。

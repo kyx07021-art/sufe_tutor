@@ -30,7 +30,7 @@ import vm from 'node:vm';
 
 const FILES = [
   'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-onboard.js', 'app-region.js',
+  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js', 'app-onboard.js', 'app-region.js',
   'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
   'app-demands.js', 'app-teachers.js', 'app-style.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
 ];
@@ -93,6 +93,10 @@ function makeCtx(apiData = API_DATA) {
     url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
   });
   const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
+    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
+    return mk();
+  };
   const ctx = vm.createContext({
     window: w, document: w.document,
     getComputedStyle: w.getComputedStyle.bind(w),
@@ -111,6 +115,7 @@ function makeCtx(apiData = API_DATA) {
     matchMedia: () => ({ matches: false, addEventListener: () => {} }),
   });
   for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
   // 桥接内联 onclick 引用的全局函数到 jsdom window（真实浏览器 <script> 顶层函数天然挂 window；
   // 引导 walk-through 会真实点击多种内联 handler，故把 vm 全局函数全量桥接——除注入的运行期依赖）。
   // 排除注入 globals（它们已有正确绑定，覆盖会改变 jsdom 行为，如 window.setTimeout 换成 node 版）。

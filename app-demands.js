@@ -19,7 +19,7 @@
  *   state / UI / SUBJECTS / STUDENT_GRADES / GENDERS / TEACHING_METHODS / DISP（app-state）
  *   api()（app-api）；showToast()/initReveals()（app-anim）
  *   escHtml()/fmtDateTime()/fmtDate()/loaderHtml()/renderAvatarHtml()/openModal()/closeModal()/
- *   confirm()（v0.25.10：原 openConfirmModal/confirmDanger/reAuthModal 三原语合并）/initCustomSelects()/
+ *   confirm()/initCustomSelects()/
  *   syncCustomSelectText()/CARET_SVG/pickGrade（app-ui）
  *   renderProvinceSelect()/regionLockNote()/buildStudentSubjectsHtml()/buildStudentScoreRows()/
  *   collectStudentScores()/switchScoreMode（app-region）
@@ -57,11 +57,11 @@ async function openDemandModal(demandId) {
       editDemand = demand;
     }
   }
-  // v0.31.7 R3：每次打开重置完成态集合 + 设编辑模式标记（编辑 = 翻到过 visited；新建 = 填写完 done）
+  // ：每次打开重置完成态集合 + 设编辑模式标记（编辑 = 翻到过 visited；新建 = 填写完 done）
   _dwEditMode = !!editDemand;
   demandWizardDone.clear();
   demandWizardVisited.clear();
-  // v0.25.31 需求表单点遮罩不关（编辑成本高，防误触丢输入；仅 ✕/取消关闭，与发帖/签约表单同口径）
+  // 需求表单点遮罩不关（编辑成本高，防误触丢输入；仅 ✕/取消关闭，与发帖/签约表单同口径）
   openModal({ title: editDemand ? UI.MODAL_TITLE_DEMAND_EDIT : UI.MODAL_TITLE_DEMAND_CREATE, body: renderDemandModal(editDemand), closable: false });
   initDemandForm(editDemand ? editDemand.province : null);
   if (editDemand) prefillDemandForm(editDemand);
@@ -79,8 +79,8 @@ function setDemandType(type) {
   const na = document.getElementById('d-section-nonacademic');
   if (ac) ac.classList.toggle('hidden', !isAc);
   if (na) na.classList.toggle('hidden', isAc);
-  // v0.31.7 R2 类型联动：P5 标题即时切换（成绩情况 ↔ 技能现状）+ 成绩行/技能文本框切换。
-  // 切非学科清成绩行（用户实证「切非学科后成绩页还是学科那几样」）；切回学科重建成绩行。
+  // 类型联动：P5 标题即时切换（成绩情况 ↔ 技能现状）+ 成绩行/技能文本框切换。
+  // 切非学科清成绩行（否则成绩页残留学科项）；切回学科重建成绩行。
   const title = document.getElementById('d-scores-title');
   if (title) title.textContent = isAc ? UI.LABEL_CURRENT_SCORES : UI.LABEL_SKILL_STATUS;
   const scoresEl = document.getElementById('d-scores');
@@ -98,7 +98,7 @@ function setDemandType(type) {
   }
 }
 
-// v0.31.7 R2：非学科技能现状文本框——按勾选项目渲染「技能详情」输入（描述/证书/考级/获奖）。
+// ：非学科技能现状文本框——按勾选项目渲染「技能详情」输入（描述/证书/考级/获奖）。
 // 数据：[{project, note}]，project 白名单 NONACADEMIC_PROJECTS，note 由服务端钳制上限。
 function renderSkillNotes() {
   const el = document.getElementById('d-skill-notes');
@@ -131,7 +131,7 @@ function collectSkillNotes() {
     .filter(sn => sn.note); // 空 note 不收（payload 干净）
 }
 
-// 编辑回填技能文本框（遍历比对，勿用属性选择器插值——网安 L3 教训同 checkById）
+// 编辑回填技能文本框（遍历比对，勿用属性选择器插值——脏数据含引号/方括号会抛 SyntaxError）
 function prefillSkillNotes(notes) {
   const rows = [...document.querySelectorAll('#d-skill-notes .skill-note-row')];
   (notes || []).forEach(sn => {
@@ -141,8 +141,8 @@ function prefillSkillNotes(notes) {
   });
 }
 
-// 任务三（v0.31.0）：需求表单 wizard 分页标签单源（对应 renderDemandModal 的 .dw-step）
-// v0.31.7 R1：8 页——「详细偏好」拆成「教学目标」（P4）+「教师偏好」（新 P6，原 P4 偏好性格/性别移此）
+// 任务三：需求表单 wizard 分页标签单源（对应 renderDemandModal 的 .dw-step）
+// ：8 页——「详细偏好」拆成「教学目标」（P4）+「教师偏好」（新 P6，原 P4 偏好性格/性别移此）
 const DEMAND_WIZARD_STEPS = [
   UI.DW_STEP_PROVINCE, UI.DW_STEP_METHOD, UI.DW_STEP_STUDENT,
   UI.DW_STEP_SUBJECTS, UI.DW_STEP_SCORES, UI.DW_STEP_TEACHER_PREF,
@@ -154,14 +154,14 @@ function renderDemandModal(demand) {
   // GENDERS 教师侧含 undeclared 默认（学生侧以 '' 表示不愿透露，剔除 undeclared 与历史 nonbinary）
   const studentGenders = [{ id: '', name: UI.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary')];
   const prefGenders = GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary'); // 偏好老师性别：不限('') + 男/女
-  // 任务三（v0.31.0）分步 wizard：字段按用户定序归 7 页（省份/教学方式/学生信息/科目/成绩/预算时间/提交），
+  // 任务三分步 wizard：字段按用户定序归 7 页（省份/教学方式/学生信息/科目/成绩/预算时间/提交），
   // 页面 DOM 常驻（display 切换不卸载，跨页状态零丢失）；form novalidate——每页校验走 demandWizardValidateStep。
   return `
         <form onsubmit="handleSubmitDemand(event)" id="demand-form" novalidate>
           <div class="dw-stepper" id="dw-stepper">
             ${DEMAND_WIZARD_STEPS.map((s, i) => `<div class="dw-step-chip" data-step="${i + 1}" title="${s}"><span class="dw-step-chip-dot"></span><span class="dw-step-chip-label">${s}</span></div>`).join('')}
           </div>
-          <!-- v0.31.7 R3：滑动轨道（sliding track）——8 步并排 flex，JS 只写 --dw-step-active（0 基索引）
+          <!-- 滑动轨道（sliding track）——8 步并排 flex，JS 只写 --dw-step-active（0 基索引）
                到 #demand-form，CSS translateX(-active×100%) 侧滑；视口定高内滚（统一高度）。
                铁律相容：JS 只写 CSS 变量，动画全在 CSS 呈现层（transition transform）。 -->
           <div class="dw-steps-viewport">
@@ -175,7 +175,7 @@ function renderDemandModal(demand) {
             </div>
           </div>
           <div class="dw-step" data-step="2">
-            <!-- P2 期望教学方式 + 授课区域（v0.31.5 P3：地址区从 P1 移入——仅「上海+线下」显示，
+            <!-- P2 期望教学方式 + 授课区域（地址区从 P1 移入——仅「上海+线下」显示，
                  用户选线上不再被强行要求报地址） -->
             <div class="form-group">
               <label class="form-label">${UI.LABEL_TEACHING_METHOD} <span class="req">*</span></label>
@@ -203,7 +203,7 @@ function renderDemandModal(demand) {
             </div>
             <div class="form-group">
               <label class="form-label">${UI.LABEL_STUDENT_GRADE} <span class="req">*</span></label>
-              <!-- M3（v0.25.103）：年级随地区学制动态（上海五四学制无小学六年级、六年级=预备班）；
+              <!-- M3：年级随地区学制动态（上海五四学制无小学六年级、六年级=预备班）；
                    未选地区时禁用并提示先选地区 -->
               <select class="form-select" id="d-grade" required onchange="updateDemandSubjects()"${demand && demand.province ? '' : ' disabled'}>
                 <option value="">${demand && demand.province ? UI.OPTION_PLACEHOLDER : UI.SELECT_PROVINCE_FIRST}</option>${gradeOptionsForProvince(demand && demand.province).map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}
@@ -213,7 +213,7 @@ function renderDemandModal(demand) {
           <div class="dw-step" data-step="4">
             <!-- P4 科目：类型切换 + 学科科目/非学科项目 + 特质 + 偏好性别 -->
             <div class="form-group">
-              <!-- R2-8 学科/非学科分段切换：标准分段控件 .seg-tabs（v0.25.20 需求二；v0.25.23 审计：构造走 segTabsHtml 壳） -->
+              <!-- R2-8 学科/非学科分段切换：标准分段控件 .seg-tabs（构造走 segTabsHtml 壳） -->
               ${segTabsHtml([
                 { key: DEMAND_TYPES.ACADEMIC, label: UI.LABEL_TYPE_ACADEMIC, onclick: 'switchDemandType(this)' },
                 { key: DEMAND_TYPES.NONACADEMIC, label: UI.LABEL_TYPE_NONACADEMIC, onclick: 'switchDemandType(this)' },
@@ -232,14 +232,14 @@ function renderDemandModal(demand) {
               </div>
             </div>
             <div class="form-group">
-              <!-- v0.31.7 R1：教学目标 tag-pick（「详细偏好」拆分，学科/非学科通用） -->
+              <!-- 教学目标 tag-pick（「详细偏好」拆分，学科/非学科通用） -->
               <label class="form-label">${UI.LABEL_TEACHING_GOAL}${UI.TEACHING_GOALS_HINT.replace('{max}', CONFIG.TEACHING_GOALS_MAX)}</label>
               <div id="d-teaching-goals">${TEACHING_GOALS.map(tag=>
                 `<button type="button" class="tag-pick glass glass--solid" data-id="${escHtml(tag.id)}" onclick="toggleTagPick(this, 'd-teaching-goals', ${CONFIG.TEACHING_GOALS_MAX})">${escHtml(tag.name)}</button>`).join('')}</div>
             </div>
           </div>
           <div class="dw-step" data-step="5">
-            <!-- P5 成绩情况 / 技能现状（v0.31.7 R2：类型切换即时改标题 + 清成绩行 + 技能文本框） -->
+            <!-- P5 成绩情况 / 技能现状（类型切换即时改标题 + 清成绩行 + 技能文本框） -->
             <div class="form-group">
               <label class="form-label" id="d-scores-title">${UI.LABEL_CURRENT_SCORES}</label>
               <div id="d-scores"><p class="text-sm text-muted">${UI.HINT_SELECT_TARGET_SUBJECTS}</p></div>
@@ -247,7 +247,7 @@ function renderDemandModal(demand) {
             </div>
           </div>
           <div class="dw-step" data-step="6">
-            <!-- P6 教师偏好（v0.31.7 R1：从原 P4 移出，「详细偏好」拆分的教师偏好独立页） -->
+            <!-- P6 教师偏好（从原 P4 移出，「详细偏好」拆分的教师偏好独立页） -->
             <div class="form-group">
               <label class="form-label">${UI.LABEL_PREFERRED_PERSONALITY}${UI.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
               <div id="d-personality-tags">${PERSONALITY_TAGS.map(tag=>
@@ -308,7 +308,7 @@ function renderDemandModal(demand) {
         </form>`;
 }
 
-// M3（v0.25.103）：年级选项按地区学制——五四学制（上海）无小学六年级、六年级=初中预备班；
+// M3：年级选项按地区学制——五四学制（上海）无小学六年级、六年级=初中预备班；
 // 默认六三学制含小学六年级。单源 FIVE_FOUR_PROVINCES + STUDENT_GRADES。
 function gradeOptionsForProvince(prov) {
   const fiveFour = globalThis.SUFE_REGIONS && globalThis.SUFE_REGIONS.isFiveFour(prov);
@@ -320,12 +320,12 @@ function gradeOptionsForProvince(prov) {
 }
 
 // ============================================================
-// 任务三（v0.31.0）需求表单 wizard 控制器：7 页常驻 DOM + 进度条 + 逐页校验
+// 任务三需求表单 wizard 控制器：7 页常驻 DOM + 进度条 + 逐页校验
 // 设计依据（web 调研结论）：页面不卸载（display 切换）跨页状态零丢失；每页过校验才前进；
 // Back 恒在（P1 无）；末页动作即提交按钮本身。JS 只切类/写 --dw-fill，零内联布局样式。
 // ============================================================
 let _dwStep = 1;
-let _dwEditMode = false; // v0.31.7 R3：编辑模式完成态 = 翻到过（visited）；新建 = 填写完（done）
+let _dwEditMode = false; // ：编辑模式完成态 = 翻到过（visited）；新建 = 填写完（done）
 // 完成态集合（用户语义：新建「填写完的点染紫」= done 校验通过过；编辑「翻到过的页面」= visited。
 // 进度条推进/点色**不跟当前停留页**——用户明确否定 Ant 式「当前页之前全 done」。）
 const demandWizardDone = new Set();
@@ -336,7 +336,7 @@ function demandWizardGoTo(n) {
   n = Math.max(1, Math.min(total, n | 0));
   _dwStep = n;
   const form = document.getElementById('demand-form');
-  // v0.31.7 R3 侧滑轨道：JS 只写 --dw-step-active（0 基索引），CSS translateX(calc(var(--dw-step-active) * -100%)) 消费
+  // 侧滑轨道：JS 只写 --dw-step-active（0 基索引），CSS translateX(calc(var(--dw-step-active) * -100%)) 消费
   if (form) form.style.setProperty('--dw-step-active', String(n - 1));
   // 编辑模式：翻到过的页记 visited（含当前）；新建模式 visited 恒空（只看 done）
   if (_dwEditMode) demandWizardVisited.add(n);
@@ -361,7 +361,7 @@ function demandWizardGoTo(n) {
   if (next) next.classList.toggle('hidden', n === total);
   if (submit) {
     submit.classList.toggle('hidden', n !== total);
-    // v0.31.2（审计 🟡3）：非末页禁用提交按钮——HTML 默认按钮取「未禁用」首个 submit，
+    // 非末页禁用提交按钮——HTML 默认按钮取「未禁用」首个 submit，
     // 仅 display:none 仍会被 Enter 隐式提交触发（P1-P6 文本框回车直接提交半截表单）。
     submit.disabled = n !== total;
   }
@@ -380,10 +380,10 @@ function demandWizardValidateStep(n) {
   const gid = id => document.getElementById(id);
   if (n === 1) {
     if (!gid('d-province') || !gid('d-province').value) { showToast(UI.VALIDATE_SELECT_PROVINCE, 'error'); return false; }
-    return true; // v0.31.5 P3：地址校验移入 P2（授课方式页，仅上海+线下必填）
+    return true; // ：地址校验移入 P2（授课方式页，仅上海+线下必填）
   }
   if (n === 2) {
-    // v0.31.5 P3：授课区域仅「上海+线下」显示必填；线上/非上海不需要地址（服务端同口径清空兜底）
+    // ：授课区域仅「上海+线下」显示必填；线上/非上海不需要地址（服务端同口径清空兜底）
     const needAddr = gid('d-province').value === 'shanghai' && gid('d-method').value === 'offline';
     if (needAddr && !gid('d-address').value.trim()) {
       showToast(UI.VALIDATE_ADDRESS_REQUIRED, 'error'); return false;
@@ -423,7 +423,7 @@ function initDemandForm(selectedProvince) {
     renderProvinceSelect('d-province', selectedProvince || '', 'onchange="onDemandProvinceChange()"');
   onDemandProvinceChange(); // 初始即执行：未选省份也给提示、锁线上、科目池给出引导文案
   document.getElementById('d-subjects').addEventListener('change', updateDemandScores);
-  // v0.31.7 R2：非学科项目勾选变化 → 技能文本框渲染（增量保留已填）
+  // ：非学科项目勾选变化 → 技能文本框渲染（增量保留已填）
   document.getElementById('d-nonacademic').addEventListener('change', renderSkillNotes);
   toggleAddressField(); // 初始化地址字段可见性
   initCustomSelects(document.getElementById('demand-form')); // 省份/年级/性别/方式/身份下拉统一换自定义组件
@@ -435,7 +435,7 @@ function initDemandForm(selectedProvince) {
 // → 回填各科分制/分数 → 设教学方式 → 再调 toggleAddressField()
 // （initDemandForm 那次跑在默认值上，会把线下需求的地址区错误隐藏）
 function prefillDemandForm(d) {
-  _dwEditMode = true; // v0.31.7 R3：编辑回填 = 完成态走 visited（翻到过）；openDemandModal 也设（幂等）
+  _dwEditMode = true; // ：编辑回填 = 完成态走 visited（翻到过）；openDemandModal 也设（幂等）
   document.getElementById('d-province').value = d.province || '';
   onDemandProvinceChange(); // 锁线上约束 + 建科目池（科目池还需年级，下行补）
   document.getElementById('d-grade').value  = d.student_grade || '';
@@ -444,7 +444,7 @@ function prefillDemandForm(d) {
   setDemandType(d.target_type === DEMAND_TYPES.NONACADEMIC ? DEMAND_TYPES.NONACADEMIC : DEMAND_TYPES.ACADEMIC);
   document.getElementById('d-gender').value = d.student_gender || ''; // '' = 不愿透露（prefill 兼容旧数据 undefined）
   // 回填勾选用遍历比对 value，勿用属性选择器插值（网安 L3：历史恶意 sid 含 " ] 会让 querySelector
-  // 抛 SyntaxError 打不开编辑浮窗；v0.25.2 教师档案回填同款教训——pickById 遍历替代）
+  // 抛 SyntaxError 打不开编辑浮窗——pickById 遍历替代）
   const checkById = (containerId, pid) => {
     const el = document.getElementById(containerId);
     if (!el) return null;
@@ -452,14 +452,14 @@ function prefillDemandForm(d) {
   };
   if (d.target_type === DEMAND_TYPES.NONACADEMIC) {
     (d.target_subjects || []).forEach(sid => { const cb = checkById('d-nonacademic', sid); if (cb) cb.checked = true; });
-    renderSkillNotes(); // v0.31.7 R2：勾选后手动渲染技能文本框（程序改 checkbox 不派发 change）
+    renderSkillNotes(); // ：勾选后手动渲染技能文本框（程序改 checkbox 不派发 change）
     prefillSkillNotes(d.skill_notes || []);
   } else {
     (d.target_subjects || []).forEach(sid => { const cb = checkById('d-subjects', sid); if (cb) cb.checked = true; });
     updateDemandScores();
     prefillStudentScores(d.current_scores || []);
   }
-  // v0.31.7 R1 教学目标回填（P4 tag-pick）
+  // 教学目标回填（P4 tag-pick）
   (d.teaching_goal || []).forEach(id => {
     const btn = [...document.querySelectorAll('#d-teaching-goals .tag-pick')].find(b => b.dataset.id === id);
     if (btn) btn.classList.add('selected');
@@ -472,7 +472,7 @@ function prefillDemandForm(d) {
   document.getElementById('d-pref-gender').value = d.preferred_teacher_gender || '';
   document.getElementById('d-method').value = d.teaching_method || 'offline';
   // 需求五：先写隐藏地址值再 toggleAddressField（picker 挂载时据隐藏值回填区/镇下拉）。
-  // 存量兼容（v0.29.0）：库内旧自由文本地址不是合法「区·镇/街道」→ 清空重选（保存时不被 400 卡死）
+  // 存量兼容：库内旧自由文本地址不是合法「区·镇/街道」→ 清空重选（保存时不被 400 卡死）
   const R5 = globalThis.SUFE_REGIONS;
   const storedAddr = (R5 && R5.isValidShanghaiAddr(d.address)) ? (d.address || '') : '';
   document.getElementById('d-address').value = storedAddr;
@@ -490,7 +490,7 @@ function prefillDemandForm(d) {
 }
 
 // 平时成绩回填：等第数据→点等级 pill（页签默认等第制）；分数数据→先切分数制页签再填值。
-// v0.25.15 审计修复：弃属性选择器插值（[data-score-subject="${cs.subject}"]），脏数据含 " 或 ] 会让
+// 审计修复：弃属性选择器插值（[data-score-subject="${cs.subject}"]），脏数据含 " 或 ] 会让
 // querySelector 抛 SyntaxError → 编辑弹窗打不开（自伤 DoS）；改遍历 dataset 比对（同库内 checkById 模式）。
 function prefillStudentScores(scores) {
   const rows = [...document.querySelectorAll('#d-scores .region-score-row')];
@@ -516,12 +516,11 @@ function toggleAddressField() {
   const method = document.getElementById('d-method').value;
   const section = document.getElementById('d-address-section');
   const addrInput = document.getElementById('d-address');
-  // v0.31.5（P3 用户返工）：授课区域从 P1 移入 P2（期望教学方式），仅「上海 + 线下」显示——
-  // 用户选线上不再被强行要求报地址（曾 gate 只按省份，线上也强制填，服务端清空兜底掩盖）。
+  // 授课区域在 P2（期望教学方式），仅「上海 + 线下」显示——用户选线上不被强行要求报地址。
   // 线上/非上海：隐藏 + 清值（防提交带出残留）；上海+线下：显示精细选择必填。
   const show = prov === 'shanghai' && method === 'offline';
   if (!show) {
-    section.classList.add('hidden'); // v0.25.19 审计 G-12：style.display 直写改 .hidden 类（与同文件其余显隐口径统一）
+    section.classList.add('hidden'); // 审计 G-12：style.display 直写改 .hidden 类（与同文件其余显隐口径统一）
     addrInput.value = '';
     addrInput.required = false;
     return;
@@ -546,7 +545,7 @@ function onDemandProvinceChange() {
     + gradeOpts.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
   if (prevGrade && gradeOpts.some(g => g.id === prevGrade)) gradeSel.value = prevGrade;
   const methodSel = document.getElementById('d-method');
-  const onlineOnly = !(globalThis.SUFE_REGIONS && globalThis.SUFE_REGIONS.allowsOffline(prov)); // 线下许可数据驱动（v0.25.86 审计去 'shanghai' 硬编码）
+  const onlineOnly = !(globalThis.SUFE_REGIONS && globalThis.SUFE_REGIONS.allowsOffline(prov)); // 线下许可数据驱动
   [...methodSel.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
   if (onlineOnly) methodSel.value = 'online';
   const note = document.getElementById('d-method-note');
@@ -603,17 +602,16 @@ async function handleSubmitDemand(e) {
   e.preventDefault();
   const province = document.getElementById('d-province').value;
   if (!province) { showToast(UI.VALIDATE_SELECT_PROVINCE, 'error'); return; }
-  // 任务三（v0.31.0）：form novalidate——提交前补 grade/联系方式（逐页校验已拦，此处纵深防御兜底）
+  // 任务三：form novalidate——提交前补 grade/联系方式（逐页校验已拦，此处纵深防御兜底）
   if (!document.getElementById('d-grade').value) { showToast(UI.VALIDATE_SELECT_GRADE, 'error'); return; }
-  // v0.31.8（生产验证抓出）：地址纵深防御须与 toggleAddressField 同口径「仅上海+线下」——
-  // 曾只按省份判断，toggleAddressField 在线上清空地址 → 上海+线上提交被误拦（v0.31.5 P3 改 gate 未同步提交兜底）
+  // 地址纵深防御必须与 toggleAddressField 同口径「仅上海+线下」——二者必须同步改，只按省份会误拦上海+线上提交
   if (province === 'shanghai' && document.getElementById('d-method').value === 'offline' && !document.getElementById('d-address').value.trim()) {
     showToast(UI.VALIDATE_ADDRESS_REQUIRED, 'error'); return;
   }
   if (!document.getElementById('d-parent-contact').value.trim() || !document.getElementById('d-student-contact').value.trim()) {
     showToast(UI.VALIDATE_CONTACT_REQUIRED, 'error'); return;
   }
-  // v0.31.2（审计 🟡2）：预算区间纵深防御——wizard P6 已拦，此处兜底（服务端 sanitizeDemand 亦钳制）
+  // 预算区间纵深防御——wizard P6 已拦，此处兜底（服务端 sanitizeDemand 亦钳制）
   const bMin = document.getElementById('d-budget-min'), bMax = document.getElementById('d-budget-max');
   if (bMin.value && bMax.value && +bMin.value > +bMax.value) {
     showToast(UI.VALIDATE_BUDGET_RANGE, 'error'); return;
@@ -626,11 +624,11 @@ async function handleSubmitDemand(e) {
 
   const scores = type === DEMAND_TYPES.NONACADEMIC ? [] : collectStudentScores(); // 非学科无成绩概念
   const prefTags = [...document.querySelectorAll('#d-personality-tags .tag-pick.selected')].map(b => b.dataset.id);
-  // v0.31.7 R1/R2：教学目标 + 非学科技能现状
+  // /R2：教学目标 + 非学科技能现状
   const teachingGoal = [...document.querySelectorAll('#d-teaching-goals .tag-pick.selected')].map(b => b.dataset.id);
   const skillNotes = type === DEMAND_TYPES.NONACADEMIC ? collectSkillNotes() : [];
 
-  // v0.25.0 结构化期望时间：校验（半填/缺起止/结束早于开始）通过后收集为 [{type:'week',...}] JSON
+  // 结构化期望时间：校验（半填/缺起止/结束早于开始）通过后收集为 [{type:'week',...}] JSON
   const timeErr = validateTimeSlots(document.getElementById('d-time-slots'));
   if (timeErr) { showToast(timeErr, 'error'); return; }
   const timeSlots = collectTimeSlots(document.getElementById('d-time-slots'));
@@ -670,7 +668,7 @@ async function handleSubmitDemand(e) {
     invalidate('demands'); // 提交/编辑后清需求缓存，防非本页提交致 state.myDemands 陈旧（编辑回填读它）
     if (state.page === 'my-demands') loadMyDemands();
   } catch (err) {
-    showToast(err.message); // v0.19.43 长表单滚到底部提交：错误条在浮窗顶部不可见，改 Toast
+    showToast(err.message); // 长表单滚到底部提交：错误条在浮窗顶部不可见，改 Toast
   } finally {
     const btn = document.getElementById('d-submit');
     btnDone(btn, isEdit ? UI.BTN_SAVE_DEMAND : UI.BTN_SUBMIT_DEMAND);
@@ -685,7 +683,7 @@ function confirmDeleteDemand(demandId, asAdmin) {
 }
 
 async function handleDeleteDemand(demandId, asAdmin) {
-  // F12（v0.27.0）乐观删除：确认后卡片立即移除（本地数据 + DOM），失败整列重渲染恢复——
+  // F12乐观删除：确认后卡片立即移除（本地数据 + DOM），失败整列重渲染恢复——
   // 删除需求不再等服务端往返（高频操作，卡顿感来源之一）。成功只 invalidate + toast（卡片已不在）。
   closeModal();
   const card = document.querySelector(`.list-card--demand[data-demand-id="${demandId}"]`);
@@ -702,7 +700,7 @@ async function handleDeleteDemand(demandId, asAdmin) {
       await api(`/api/student/demands/${demandId}`, { method: 'DELETE', body: {} });
     }
     showToast(UI.SUCCESS_DEMAND_DELETED);
-    invalidate('demands'); // v0.23.1 审计 M2：否则 loadMyDemands/loadBrowseDemands 命中缓存，已删需求闪回
+    invalidate('demands'); // 审计 M2：否则 loadMyDemands/loadBrowseDemands 命中缓存，已删需求闪回
   } catch (err) {
     // 失败回滚：整列重渲染恢复卡片（loadMyDemands/loadAdminDemands 从服务端取回该需求）
     if (asAdmin) { if (state.page === 'admin-demands') loadAdminDemands(); }
@@ -837,8 +835,8 @@ function matchLevel(md) {
 }
 
 // 五维明细行渲染（教师视角明细卡 / 学生逐需求明细共用）；score 为加权得分（null=跳过），max 为该维权重。
-// R25（v0.25.90）：比例条配色随卡级三色——有效维度填充标准色 + 未填充淡色遮罩，缺数据 --skip 灰底。
-// v0.25.94（用户反馈）：每个百分比条按各自比例独立配色——行级 match-row--hi/mid/lo（阈值同 matchLevel，
+// R25：比例条配色随卡级三色——有效维度填充标准色 + 未填充淡色遮罩，缺数据 --skip 灰底。
+// 每个百分比条按各自比例独立配色——行级 match-row--hi/mid/lo（阈值同 matchLevel，
 // 各维 score/max 归一化后判定），不再随卡级一股脑同色；总百分比仍随卡级 match-detail--*。
 function matchRowsHtml(dims) {
   const row = (k, s, max, hint) => {
@@ -854,7 +852,7 @@ function matchRowsHtml(dims) {
   return dims.map(dim => row(dim.label, dim.score, dim.max, dim.hint)).join('');
 }
 
-// 权重说明文案插值单点（v0.25.8 审计修复，教师端/学生端明细卡共用）：MATCH_NOTE 权重插值收敛一处防双写漂移
+// 权重说明文案插值单点：MATCH_NOTE 权重插值收敛一处防双写漂移
 function matchNoteHtml() {
   const W = CONFIG.MATCH_WEIGHT;
   return UI.MATCH_NOTE
@@ -862,9 +860,9 @@ function matchNoteHtml() {
     .replace('{personality}', W.personality).replace('{gender}', W.gender);
 }
 
-// 匹配度明细悬浮卡（v0.19.45 起）：分项对齐 matchDegree 口径（matchDims 单点），
+// 匹配度明细悬浮卡：分项对齐 matchDegree 口径（matchDims 单点），
 // 缺数据维度不计分并明示。毛度同浮窗纸面（glass.css .match-detail 参数，modal 同级）
-// R25（v0.25.90）：卡级三色等级类（matchLevel 同阈值）→ 总百分比/比例条/比例值随红黄绿遮罩，
+// R25：卡级三色等级类（matchLevel 同阈值）→ 总百分比/比例条/比例值随红黄绿遮罩，
 // 不再恒紫；缺数据维度保持灰。比例条填充=标准色（--md-bar）、未填充=淡色遮罩（--md-track）。
 function matchDetailHtml(t, d, md) {
   const note = matchNoteHtml();
@@ -877,12 +875,12 @@ function matchDetailHtml(t, d, md) {
 }
 
 // 点击开关 + 外部点击 / Esc / 滚动关闭（同一时刻至多一张）。
-// v0.19.46 数据从缓存重建（按按钮 data-id 找需求 + state.allTeachers 找本人档案）——
+// 数据从缓存重建（按按钮 data-id 找需求 + state.allTeachers 找本人档案）——
 // 原 window._matchDetail 单槽被最后一张卡渲染覆盖：多 tag 时点谁都显示最后一张的数据
 let _matchDetailOpen = false;
 let _browseDemands = []; // 教师需求大厅当前列表（含置顶推送卡），showMatchDetail 的按 id 取数源
-let _browsePushes = [], _browseNormal = []; // #158（v0.25.66）：排序/筛选控件变更时本地重渲的数据源（取数缓存命中零网络）
-// v0.23.1 审计 M1/m5：探测刷新替换缓存数组后重挂镜像（state.myDemands 编辑回填源、
+let _browsePushes = [], _browseNormal = []; // #158：排序/筛选控件变更时本地重渲的数据源（取数缓存命中零网络）
+// 审计 M1/m5：探测刷新替换缓存数组后重挂镜像（state.myDemands 编辑回填源、
 // _browseDemands 匹配度明细取数源）——不重挂则就地变更/取数作用在游离旧数组上
 if (typeof dhOnDomainRefresh === 'function') {
   dhOnDomainRefresh('demands', () => {
@@ -906,11 +904,11 @@ function showMatchDetail(btn) {
   btn.insertAdjacentHTML('afterend', matchDetailHtml(t, d, md));
   const card = btn.nextElementSibling;
   if (!card || !card.classList.contains('match-detail')) return;
-  // v0.19.47 挂 body（custom-select 面板完整模式）：.list-card 常驻 backdrop-filter（--g-f-card 微毛），
+  // 挂 body（custom-select 面板完整模式）：.list-card 常驻 backdrop-filter（--g-f-card 微毛），
   // Chrome 中它是 fixed 后代的 containing block——不挂 body 则 fixed 实际仍相对卡：定位偏移/被 overflow:hidden 切/图层困卡内，
   // 上版只改 CSS 没改挂载点，正是「还是老样子」的根因
   document.body.appendChild(card);
-  positionFloatCard(btn, card); // v0.25.19 审计 G-14：锚定逻辑收编 app-anim 单点
+  positionFloatCard(btn, card); // 审计 G-14：锚定逻辑收编 app-anim 单点
   _matchDetailOpen = true;
 }
 function closeMatchDetail() {
@@ -930,7 +928,7 @@ document.addEventListener('scroll', () => { if (_matchDetailOpen) closeMatchDeta
 function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false, myTeacher = null } = opts;
   const push = opts.push; // 学生主动推送的待处理需求（教师视角置顶卡）
-  // 需求编号（#0004 四位）：v0.20.0 从小气泡挪出，直接跟在时间标记右侧（与时间同排的普通文本）
+  // 需求编号（#0004 四位）：直接跟在时间标记右侧（与时间同排的普通文本）
   const idTag = d.display_id ? `<span class="demand-id-tag">${DISP.demandIdText(d.display_id)}</span>` : '';
   // 匹配度徽章（教师视角 + 教师档案齐全时展示）：需求五·item1 升级标准按钮，按分值三色遮罩（matchLevel），
   // 点击呼出明细悬浮卡（沿用 .tag-match 作关闭判定的语义标记，造型走 .match-btn--*）
@@ -956,7 +954,7 @@ function renderDemandCard(d, opts = {}) {
     : d.my_intent_status === STATUS.PENDING  ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled data-demand-id="${d.id}">${UI.INTENT_PENDING}</button>`
     : d.my_intent_status === STATUS.REJECTED ? `<button type="button" class="btn btn-soft btn-sm btn-intent-wait glass glass--pressable" disabled>${UI.INTENT_REJECTED}</button>`
     : `<button type="button" class="btn btn-soft btn-sm glass glass--pressable btn-intent-cta" data-demand-id="${d.id}" onclick="submitIntent(${d.id})">${UI.BTN_SUBMIT_INTENT}</button>`;
-  // v0.25.12（反馈 #92）：推送需求操作按钮与提交意向统一 btn-sm 尺寸（原 btn-xs 是没复用组件的败笔），
+  // 推送需求操作按钮与提交意向统一 btn-sm 尺寸（组件复用，勿开特例），
   // 与说明文案一并下沉到底栏右下角
   const pushActions = !teacher || !push ? '' : `
       <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="resolvePush(${push.push_id},'reject')">${UI.BTN_PUSH_REJECT}</button>
@@ -964,7 +962,7 @@ function renderDemandCard(d, opts = {}) {
   // 学生/管理员侧卡片操作（编辑/重开/下架）同归底栏右下角（统一 btn-sm + R11 统一 .btn-soft 外观）
   const ownerActions = (editable && d.status === STATUS.REVOKED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="reopenDemand(${d.id})">${UI.BTN_REOPEN_DEMAND}</button>`
     : editable && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : '')
-    // v0.25.95（调试阶段放开）：管理员移除按钮放开到全部状态（含已签约 contracted，服务端 force 路径同事务清引用）
+    // 管理员移除按钮放开到全部状态（含已签约 contracted，服务端 force 路径同事务清引用）
     + (admin ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
   const budget = DISP.demandBudgetText(d);
 
@@ -976,7 +974,7 @@ function renderDemandCard(d, opts = {}) {
   const scoreItems = (d.current_scores||[]).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
   const infoScores = (scoreItems.length ? scoreItems : subjNames).map(escHtml).join(' · ');
 
-  // v0.31.5 P4 补（用户返工：「我的需求里边的试课意向呢？你做事情只做一半」）：卡片「试课意向 (N)」
+  // 卡片「试课意向 (N)」
   // 展开按钮从 .drop-toggle glass--solid（实心 9px）接回 .btn-soft btn-sm 按钮组件——与并排「编辑」
   // 按钮完全同族（透明磨砂+12px+白洗+涟漪）；btn-intent-toggle 新类供引导/移动端 flex-shrink 定位。
   return `<div class="list-card list-card--demand glass" data-demand-id="${d.id}"${push ? ` data-push-id="${push.push_id}"` : ''}>
@@ -1018,7 +1016,7 @@ async function loadDemandList(elId, { mine }) {
   const url = mine ? '/api/student/demands?scope=mine'
                    : '/api/student/demands?scope=for-teacher';
   await loadInto(elId, async () => {
-    const data = await dhGet(url, { domain: 'demands' }); // v0.23.0 静默数据层
+    const data = await dhGet(url, { domain: 'demands' }); // 静默数据层
     const demands = data.demands || [];
     if (mine) {
       state.myDemands = demands; // 编辑回填的数据源
@@ -1047,17 +1045,17 @@ function reopenDemand(demandId) {
 async function loadBrowseDemands() {
   // 乱序守卫：快速进出页签时丢弃过期响应。
   // 计数器首用须 || 0 初始化——++undefined=NaN，而 NaN !== NaN 恒真会把首次渲染误判为过期而丢弃
-  //（loadInto 同款坑注释见 app-shell.js；此处在 v0.21.0 起因漏初始化致需求大厅恒不渲染）
+  //（loadInto 同款坑注释见 app-shell.js——漏初始化致页面恒不渲染）
   const seq = (loadSeqs['browse-demands'] = (loadSeqs['browse-demands'] || 0) + 1);
   const el = document.getElementById('demands-list');
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
     const isGuest = !state.user; // 访客教师可浏览公开需求列表；推送卡片与意向操作点了再走登录通路
-    // v0.22.8：教师档案并入同一批并行取数——原逻辑在需求+推送之后串行等 /api/teachers，
+    // 教师档案并入同一批并行取数——不在需求+推送之后串行等 /api/teachers，
     // 教师首访大厅被第三个 RTT 卡住渲染（审计热点①）
     const needTeachers = !isGuest && state.user.role === 'teacher' && !state.allTeachers.length;
     const [dData, pData, tData] = await Promise.all([
-      // v0.23.0 静默数据层：三路走会话缓存（命中即返，miss 再发请求；预取已填缓存则零网络）
+      // 静默数据层：三路走会话缓存（命中即返，miss 再发请求；预取已填缓存则零网络）
       dhGet(isGuest ? '/api/student/demands' : '/api/student/demands?scope=for-teacher', { domain: 'demands' }),
       isGuest ? Promise.resolve({ pushes: [] }) : dhGet('/api/demand-pushes', { domain: 'demands' }),
       needTeachers ? dhGet('/api/teachers', { domain: 'teachers' }).catch(() => null) : Promise.resolve(null), // 教师档案失败不阻塞需求列表
@@ -1078,10 +1076,10 @@ async function loadBrowseDemands() {
   }
 }
 
-// #158（v0.25.66）：需求大厅排序 + 筛选控件（教师看需求默认匹配度最高）
-// v0.25.110 误删「匹配度最高」（听岔：用户要删的是教师看教师，不是需求大厅）——v0.25.113 加回。
+// #158：需求大厅排序 + 筛选控件（教师看需求默认匹配度最高）
+// 教师看需求默认匹配度最高。
 // 匹配度是「教师↔学生需求」概念，教师看需求（需求大厅）匹配度是核心价值，默认匹配度最高（无档案回落原序）；
-// 教师看教师（browse-teachers）的匹配度排序已在 v0.25.112 删除（同行浏览无匹配语境）。
+// 教师看教师（browse-teachers）无匹配度排序（同行浏览无匹配语境，非学生语境移除该选项）。
 function initDemandControls() {
   const sort = document.getElementById('demand-sort');
   if (sort && !sort.options.length) {
@@ -1112,7 +1110,7 @@ function toggleDemandFilters() {
 }
 function demandSortMode() {
   const el = document.getElementById('demand-sort');
-  return el ? el.value : 'match'; // v0.25.113：教师看需求默认匹配度最高（v0.25.110 误删恢复）
+  return el ? el.value : 'match'; // 教师看需求默认匹配度最高
 }
 // 控件变更：本地重渲（取数缓存命中零网络），不重拉 loader
 function applyDemandControls() {
@@ -1121,7 +1119,7 @@ function applyDemandControls() {
 }
 
 // 教师需求大厅渲染（loadBrowseDemands 取数后与 applyDemandControls 共用）：
-// 推送置顶 + 普通需求筛选（科目/年级/方式/省份）+ 排序（v0.25.113 恢复默认匹配度最高，最新/预算可选）
+// 推送置顶 + 普通需求筛选（科目/年级/方式/省份）+ 排序
 function renderBrowseDemands(pushes, demands) {
   const el = document.getElementById('demands-list');
   if (!el) return;
@@ -1143,13 +1141,13 @@ function renderBrowseDemands(pushes, demands) {
     if (fProv && d.province !== fProv) return false;
     return true;
   });
-  // v0.25.8 审计修复：_md 挂需求对象供 renderDemandCard 徽章复用（预计算一次，避免排序后渲染再算一遍）
+  // 审计修复：_md 挂需求对象供 renderDemandCard 徽章复用（预计算一次，避免排序后渲染再算一遍）
   const mdOf = {};
   if (myTeacher) for (const d of normalDemands) { const m = matchDegree(myTeacher, d); mdOf[d.id] = m; d._md = m; }
   const mode = demandSortMode();
   if (mode === 'newest') normalDemands.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
   else if (mode === 'budget') normalDemands.sort((a, b) => (a.budget_min ?? Infinity) - (b.budget_min ?? Infinity));
-  else normalDemands.sort((a, b) => (mdOf[b.id] ?? -1) - (mdOf[a.id] ?? -1)); // 匹配度最高（v0.25.113 恢复；无档案沉底）
+  else normalDemands.sort((a, b) => (mdOf[b.id] ?? -1) - (mdOf[a.id] ?? -1)); // 匹配度最高
   const normal = normalDemands.map(d => renderDemandCard(d, { teacher: true, myTeacher })).join('');
   el.innerHTML = (pinned ? `<div class="section-title spacer-sm">${UI.PUSH_SECTION_TITLE}</div>${pinned}` : '')
     + normal
@@ -1163,12 +1161,12 @@ async function openSendDemandModal(teacherUserId) {
   const t = state.allTeachers.find(x => x.user_id === teacherUserId);
   const tName = t ? t.username : UI.PUSH_TEACHER_FALLBACK;
   // 每次现拉自己的需求：签约可能在其他页发生，已签约需求不能漏进候选——
-  // F13（v0.27.0）由裸 api 改走 dhGet forceRefresh：绕过缓存保新鲜（语义不变），
+  // F13由裸 api 改走 dhGet forceRefresh：绕过缓存保新鲜（语义不变），
   // 同时共享 datahub 在途去重 + 写缓存与徽标/列表一致（不再重复打网/缓存陈旧）
   let demands = [];
   try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands', forceRefresh: true })).demands || []; state.myDemands = demands; }
   catch { demands = state.myDemands; }
-  demands = demands.filter(d => DISP.demandIsActive(d)); // 需求活跃统一谓词（v0.25.10：==='open'——revoked 未重开需求亦不可推送，此前宽松口径把 revoked 漏进候选成死路按钮）
+  demands = demands.filter(d => DISP.demandIsActive(d)); // 需求活跃统一谓词
   const pickHtml = demands.length ? `<div class="push-pick">${demands.map(d => {
     const grade = DISP.studentGradeName(d.student_grade) || '';
     // R2-b：推送选择列表的「最有区分度核心信息」——非学科需求显示项目名，学科需求显示科目名
@@ -1179,7 +1177,7 @@ async function openSendDemandModal(teacherUserId) {
       <span><span class="push-pick-main">${escHtml(grade)}${subs ? ' · ' + escHtml(subs) : ''}</span>
       <span class="push-pick-sub">${[prov, method].filter(Boolean).map(escHtml).join(' · ')}</span></span></label>`;
   }).join('')}</div>` : `<p class="text-sm text-muted">${state.myDemands.length ? UI.PUSH_NO_AVAILABLE_DEMANDS : UI.EMPTY_NO_MY_DEMANDS_SHORT}</p>`;
-  // v0.28.0 M1：推送需求附带打招呼消息——自我介绍+为什么选这位老师（Airbnb 式；可选，maxlength 与后端同源）
+  // ：推送需求附带打招呼消息——自我介绍+为什么选这位老师（Airbnb 式；可选，maxlength 与后端同源）
   const greetHtml = `<div class="push-greet spacer-md">
       <label class="form-label greet-form-label" for="push-greet">${UI.PUSH_GREET_LABEL}</label>
       <textarea id="push-greet" class="form-input greet-input" rows="3" maxlength="${CONFIG.GREETING_MSG_MAX}"
@@ -1223,7 +1221,7 @@ async function submitDemandPush(teacherUserId) {
   const sel = document.querySelector('input[name="push-demand"]:checked');
   if (!sel) { showToast(UI.VALIDATE_SELECT_DEMAND); return; }
   if (pushCooldownLeft() > 0) { showToast(`${UI.PUSH_BTN_COOLDOWN} ${pushCooldownLeft()}s`); return; }
-  const message = (document.getElementById('push-greet')?.value ?? '').trim(); // v0.28.0 M1：学生打招呼消息（可选）
+  const message = (document.getElementById('push-greet')?.value ?? '').trim(); // ：学生打招呼消息（可选）
   try {
     const data = await api('/api/demand-pushes', { method: 'POST', body: { teacherUserId, demandId: +sel.value, message } });
     closeModal();
@@ -1233,7 +1231,7 @@ async function submitDemandPush(teacherUserId) {
 }
 
 // 教师处理学生主动推送：确认 = 建会话；拒绝 = 婉拒（学生收通知）
-// F12②（v0.27.0 审计补）：乐观——点击即把推送卡动作按钮换成「已处理」占位并移除卡片推送态，
+// F12②：乐观——点击即把推送卡动作按钮换成「已处理」占位并移除卡片推送态，
 // 成功 loadBrowseDemands 收敛终态，失败恢复动作按钮（audit-flow 驳回/网络错均回滚）。
 async function resolvePush(pushId, action) {
   const card = document.querySelector(`.list-card--demand[data-push-id="${pushId}"]`);
@@ -1245,7 +1243,7 @@ async function resolvePush(pushId, action) {
   try {
     await api(`/api/demand-pushes/${pushId}/resolve`, { method: 'POST', body: { action } });
     showToast(action === 'accept' ? UI.PUSH_ACCEPTED_TOAST : UI.PUSH_REJECTED_TOAST);
-    invalidate('demands'); // v0.23.1 审计 M2：否则已处理推送卡从缓存滞留
+    invalidate('demands'); // 审计 M2：否则已处理推送卡从缓存滞留
     if (action === 'accept') invalidate('chat'); // accept 建会话：切到 my-chats 立即见新会话
     loadBrowseDemands();
   } catch (err) {
@@ -1260,7 +1258,7 @@ async function resolvePush(pushId, action) {
 // ============================================================
 async function submitIntent(demandId) {
   if (!ensureAuth()) return; // 访客浏览需求大厅可看卡片，点意向即走登录通路
-  // v0.28.0 M1：由「二次确认」改为「打招呼消息」浮窗（Airbnb 租客对房东式）——
+  // ：由「二次确认」改为「打招呼消息」浮窗（Airbnb 租客对房东式）——
   // 保留需求核心信息上下文，教师附一条友善的自我介绍/为什么想接这单，可留空直接提交
   const d = _browseDemands.find(x => x.id === demandId);
   const demandDesc = d
@@ -1280,10 +1278,10 @@ async function submitIntent(demandId) {
 }
 
 // 试课意向实际提交（二次确认通过后）：先关确认浮窗再 POST。
-// F12（v0.27.0）乐观反馈：确认后按钮立即置「待处理」态（本地数据 + 就地替换按钮），失败回滚——
+// F12乐观反馈：确认后按钮立即置「待处理」态（本地数据 + 就地替换按钮），失败回滚——
 // 不等服务端往返，教师提交试课意向的卡顿感消除（audit-flow 驳回/网络错均回滚原按钮）。
 async function doSubmitIntent(demandId) {
-  // v0.28.0 M1：打招呼消息须在 closeModal 前读取（弹窗关闭即销毁 textarea，closeModal 后读恒空串）
+  // ：打招呼消息须在 closeModal 前读取（弹窗关闭即销毁 textarea，closeModal 后读恒空串）
   const message = (document.getElementById(`intent-greet-${demandId}`)?.value ?? '').trim();
   closeModal();
   const d = _browseDemands.find(x => x.id === demandId);
@@ -1296,7 +1294,7 @@ async function doSubmitIntent(demandId) {
   try {
     await api(`/api/demands/${demandId}/intents`, { method: 'POST', body: { message } });
     showToast(UI.INTENT_SUBMITTED_TOAST);
-    invalidate('demands'); // v0.23.1 审计 M2：否则按钮仍显示「提交意向」，操作看似无效
+    invalidate('demands'); // 审计 M2：否则按钮仍显示「提交意向」，操作看似无效
   } catch (err) {
     // 失败回滚：恢复本地状态 + 还原按钮
     if (d) d.my_intent_status = origStatus;
@@ -1362,7 +1360,7 @@ function renderIntentTeacherRow(t, demandId) {
   const tag = st === STATUS.ACCEPTED ? `<span class="tag tag-ok glass glass--solid">${UI.INTENT_STATUS_ACCEPTED}</span>`
     : st === STATUS.REJECTED ? `<span class="tag tag-danger glass glass--solid">${UI.INTENT_STATUS_REJECTED}</span>` : `<span class="tag tag-warn glass glass--solid">${UI.INTENT_STATUS_PENDING}</span>`;
   const provName = escHtml(DISP.provinceName(t.province)); // 网安审计 N-15：province 未知名回显原 id，防注入
-  // v0.25.94（用户反馈「编辑/试课意向颜色不一致、有的有边框有的没有」）：卡片动作按钮统一 .btn-soft
+  // 卡片动作按钮统一 .btn-soft
   // 轻量描边族（白调面 + 细边框，与编辑/试课意向/推送动作同口径）——VIEW/AGREE/REJECT 从
   // btn-outline/裸 btn 统一为 btn-soft，弃「同排一个无边框一个带边框」的混搭。
   const viewBtn = `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="openProfilePanel(${t.user_id})">${UI.BTN_VIEW}</button>`;
@@ -1371,7 +1369,7 @@ function renderIntentTeacherRow(t, demandId) {
        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="resolveIntent(${t.intent_id},'reject',${demandId})">${UI.BTN_REJECT}</button>` : '';
   // R2-5 报价区间（未填显 ? 占位，同旧单值口径）
   const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT) || '?';
-  // v0.28.0 M1：教师打招呼消息显示在意向卡 meta 下方——完整渲染全文（无省略号），卡片随内容增高
+  // ：教师打招呼消息显示在意向卡 meta 下方——完整渲染全文（无省略号），卡片随内容增高
   const greetHtml = t.intent_message ? `<div class="greet-bubble glass greet-bubble--row">
       <div class="greet-bubble-head">${UI.GREET_HEAD_TEACHER}</div>
       <div class="greet-bubble-body">${escHtml(t.intent_message)}</div>
@@ -1389,7 +1387,7 @@ function renderIntentTeacherRow(t, demandId) {
 }
 
 // 学生同意 / 拒绝意向；同意后自动建立会话，可前往「我的会话」
-// F12②（v0.27.0 审计补）：乐观——点击即把行状态翻到目标终态（tag 变已同意/已拒绝 + 动作按钮隐藏），
+// F12②：乐观——点击即把行状态翻到目标终态（tag 变已同意/已拒绝 + 动作按钮隐藏），
 // 成功 refreshIntentsBox 收敛终态，失败恢复 tag/按钮/内存状态（audit-flow 驳回/网络错均回滚）。
 async function resolveIntent(intentId, action, demandId) {
   const row = document.querySelector(`.admin-row[data-intent-id="${intentId}"]`);
@@ -1408,7 +1406,7 @@ async function resolveIntent(intentId, action, demandId) {
   try {
     await api(`/api/intents/${intentId}/resolve`, { method: 'POST', body: { action } });
     showToast(action === 'accept' ? UI.INTENT_ACCEPTED_TOAST : UI.INTENT_REJECTED_TOAST);
-    invalidate('demands'); // v0.23.1 审计 M2：否则意向计数/状态不刷新
+    invalidate('demands'); // 审计 M2：否则意向计数/状态不刷新
     if (action === 'accept') invalidate('chat'); // accept 建会话：切到 my-chats 立即见新会话
     await refreshIntentsBox(demandId);
     loadMyDemands(); // 刷新意向计数（整列重渲染，意向栏回到收起态）

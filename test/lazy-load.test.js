@@ -1,10 +1,10 @@
 /**
- * #175（v0.25.76）：领域脚本懒加载——首屏只载 boot 脚本，进入客户端才注入领域脚本
- *  - index.html 只引用 10 个 boot 脚本（constants/display/state/api/datahub/anim/ui/onboard/shell/auth），
+ * #175 领域脚本懒加载——首屏只载 boot 脚本，进入客户端才注入领域脚本
+ *  - index.html 只同步引用 12 个 boot 脚本（constants/display/state/api/datahub/anim/ui/otp/captcha/onboard/shell/auth），
  *    领域脚本（region-data/style/region/posts/chat/contracts/chart/admin/demands/teachers/pages/complaints）不在其中
  *  - loadDomainScripts 幂等：领域函数已存在（测试 FILES 全载）即短路，不创建 script 标签
  *  - mdRender 已上移到 app-ui（boot 共享层）——登录前政策浮窗可用，不依赖领域脚本
- *  - #178（v0.25.85）：preloadDomainScripts 在 DOMContentLoaded 末尾后台静默预载领域脚本
+ *  - preloadDomainScripts 在 DOMContentLoaded 末尾后台静默预载领域脚本
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -33,7 +33,8 @@ test('loadDomainScripts 幂等：领域函数已存在（测试全载）即短�
     console, fetch: async () => ({ ok: true, status: 200, json: async () => ({}) }),
     setTimeout, clearTimeout, setInterval, clearInterval, Request, AbortController, performance,
     MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    Image: class { set src(v) { this._s = v; } }, requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
+    Image: class { set src(v) { this._s = v; } },
+    HTMLCanvasElement: class { getContext() { return new Proxy({}, { get: (t, k) => (k === 'canvas') ? {} : (...a) => ({}) }); } }, requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
     matchMedia: () => ({ matches: false, addEventListener: () => {} }) });
   for (const f of ALL) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
   await vm.runInContext('loadDomainScripts()', ctx);

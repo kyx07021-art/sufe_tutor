@@ -1,5 +1,5 @@
 // ============================================================
-// R22（v0.25.87）· 投诉独立通道（前端）
+// 投诉独立通道（前端）：独立浮窗 + 独立数据通道 + 独立处理页（admin-complaint）
 //
 // 与用户反馈彻底分离：独立浮窗组件（openComplaintModal，不复用 openFeedbackModal）、
 // 独立数据通道（/api/complaints*）、独立管理员处理页（admin-complaint 侧栏项）。
@@ -34,7 +34,7 @@ function openComplaintModal() {
   complaintResetStage();
   _cpRecentLoaded.clear(); // 重开浮窗重拉「最近联系的人」（随会话变化）
   const picker = (type, withRecent) => {
-    // M10（v0.25.103）：三 tab 布局统一——搜索框在选项卡下、最近联系区在搜索框下边；
+    // M10：三 tab 布局统一——搜索框在选项卡下、最近联系区在搜索框下边；
     // 帖子 tab 也渲染同高占位的 .cmp-recent（aria-hidden），三界面「最近联系过」区域
     // 至少空出一行同高，不因数据多寡动态撑高度（用户反馈：三 tab 页面尺寸不一致）。
     const recent = withRecent
@@ -64,7 +64,7 @@ function openComplaintModal() {
       <div class="complaint-pane hidden" id="cmp-pane-post">${picker('post', false)}</div>
       <div class="form-group">
         <label class="form-label" id="complaint-reason-label">${UI.COMPLAINT_REASON_LABEL}</label>
-        <!-- M8（v0.25.103）：投诉理由从切换式 tab（理由多、总宽固定必换行变高）改下拉栏 -->
+        <!-- M8：投诉理由从切换式 tab（理由多、总宽固定必换行变高）改下拉栏 -->
         <select class="form-select complaint-reason-sel" id="complaint-reason" onchange="switchComplaintReason(this)">
           <option value="">${UI.COMPLAINT_REASON_PLACEHOLDER}</option>
           ${UI.COMPLAINT_REASONS.map(r => `<option value="${escHtml(r)}">${escHtml(r)}</option>`).join('')}
@@ -153,7 +153,7 @@ async function complaintSearch(type, q) {
 }
 
 // 选中对象：存槽 + 渲染选中区 + 清搜索。
-// M9（v0.25.103）：呈现从「可叉掉小 tag」改「已选择：xxx + 更换」单选行（radio 语义，
+// M9：呈现从「可叉掉小 tag」改「已选择：xxx + 更换」单选行（radio 语义，
 // 替换按钮代替 ✕ 叉，候选行保留高亮供直接换选）。nameArg 双形态兼容：
 // 内联 onclick 传 this.dataset.name（字符串），jsdom 测试可传 {dataset:{name}}
 function pickComplaintTarget(type, id, nameArg) {
@@ -279,12 +279,11 @@ async function submitComplaint() {
 }
 
 // ============================================================
-// 我的投诉（状态跟踪闭环）——M12 合并进 openMyFeedback（app-posts）「我的投诉与反馈」浮窗，
-// 本函数已删除（渲染逻辑并入合并浮窗，入口按钮只保留一个）。
+// 我的投诉展示合并进 openMyFeedback（app-posts）「我的投诉与反馈」浮窗，本文件不重复实现。
 // ============================================================
 // 管理员：投诉处理（独立侧栏页 admin-complaint，仅此一层接入管理员）
 // ============================================================
-// A1 审计（v0.25.104）：投诉卡 HTML 单源——管理员处理页（本函数）与「我的投诉与反馈」合并浮窗
+// A1 审计：投诉卡 HTML 单源——管理员处理页（本函数）与「我的投诉与反馈」合并浮窗
 // （app-posts.openMyFeedback）共用同一份卡片结构/状态 tag/对象类型映射（DISP.complaintTargetName）。
 // opts.foot：默认管理员版（投诉人 + 标记已处理按钮）；用户端 openMyFeedback 传只含时间戳的 foot。
 function complaintCardHtml(c, opts = {}) {

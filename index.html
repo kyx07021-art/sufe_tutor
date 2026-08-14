@@ -110,7 +110,7 @@
       </section>
     </main>
 
-    <!-- Login（v0.26.0 五合一登录：唯一输入框识别用户名/手机号/邮箱；默认密码登录，页脚小字切验证码登录） -->
+    <!-- Login（唯一输入框识别用户名/手机号/邮箱；默认密码登录，页脚小字切验证码登录） -->
     <div class="auth-view hidden" id="view-login">
       <div class="auth-card glass">
         <div class="auth-header">
@@ -270,15 +270,15 @@
           <div class="page-header">
             <h2>教师信息</h2>
             <div class="page-header-actions">
-              <!-- v0.25.101 Q6：学生看教师默认匹配度降序；v0.25.112（用户纠正）：教师看教师/访客浏览
-                   彻底删除「匹配度最高」选项（syncMatchSortOpt remove，非隐藏），默认评分最高。
+              <!-- 学生看教师默认匹配度降序；教师看教师/访客浏览无「匹配度最高」选项
+                   （syncMatchSortOpt remove，非隐藏），默认评分最高。
                    静态首项仅作初始占位，运行期由 syncMatchSortOpt 按角色删/留。 -->
               <select class="filter-select filter-select-auto" id="teacher-sort" onchange="applyFilters()" aria-label="教师排序">
                 <option value="match" id="opt-sort-match" selected>匹配度最高</option>
                 <option value="rating">评分最高</option>
                 <option value="price">报价最低</option>
               </select>
-              <!-- v0.31.5 P4 补（用户返工：「教师列表的筛选呢？你做事情只做一半」）：筛选 toggle 从
+              <!-- 「教师列表的筛选呢？你做事情只做一半」）：筛选 toggle 从
                    .drop-toggle glass--solid（实心 9px）接回 .btn .btn-soft 按钮组件——与相邻排序下拉
                    完全同族（透明磨砂+12px+白洗+涟漪+标准高）；filter-toggle 类供页头布局适配。 -->
               <button type="button" class="btn btn-soft glass glass--pressable filter-toggle" id="filter-toggle-btn" onclick="toggleFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
@@ -287,7 +287,7 @@
           <div class="drop-wrap" id="teacher-filters">
           <div class="drop-clip">
           <div class="filter-panel glass glass--solid">
-            <!-- v0.25.110（U3 漏交付）：教师筛选 7 组并入一行——.filter-group min-width 收窄后 920px 容器内一行放下 -->
+            <!-- 教师筛选 7 组并入一行——.filter-group min-width 收窄后 920px 容器内一行放下 -->
             <div class="filter-row">
               <div class="filter-group">
                 <label class="filter-label">性别</label>
@@ -356,14 +356,14 @@
           <div class="page-header">
             <h2>需求大厅</h2>
             <div class="page-header-actions">
-              <!-- #158（v0.25.66）：需求大厅排序（默认匹配度最高，选项由 initDemandControls 填充）+ 筛选 -->
+              <!-- #158：需求大厅排序（默认匹配度最高，选项由 initDemandControls 填充）+ 筛选 -->
               <select class="filter-select filter-select-auto" id="demand-sort" onchange="applyDemandControls()" aria-label="需求排序"></select>
-              <!-- v0.31.5 P4 补：筛选 toggle 接 .btn .btn-soft 按钮组件（与排序下拉同族，同 index.html 教师页） -->
+              <!-- 筛选 toggle 接 .btn .btn-soft 按钮组件（与排序下拉同族，同 index.html 教师页） -->
               <button type="button" class="btn btn-soft glass glass--pressable filter-toggle" id="demand-filter-toggle-btn" onclick="toggleDemandFilters()">筛选 <span class="drop-caret"><svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg></span></button>
             </div>
           </div>
           <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">
-            <!-- U3（v0.25.105）：筛选下拉已缩窄，PC 端 4 个一组一行放下（原两行 .filter-row 合并） -->
+            <!-- U3：筛选下拉已缩窄，PC 端 4 个一组一行放下（原两行 .filter-row 合并） -->
             <div class="filter-row">
               <div class="filter-group">
                 <label class="filter-label" id="demand-filter-subject-label"></label>
@@ -546,14 +546,14 @@
         </section>
 
         <!-- 管理员：投诉处理（R22 独立通道；对象/理由/详情快照存档 + 标记已处理） -->
-        <!-- A1 审计（v0.25.104）：ROLE_PAGES.admin 注册了 admin-complaint 但 index.html 缺 section——
+        <!-- A1 审计：ROLE_PAGES.admin 注册了 admin-complaint 但 index.html 缺 section——
              管理员点侧栏「投诉处理」→ selectPage 全隐藏无匹配 → 整页空白（R22 引入至今）。此处补上。 -->
         <section class="client-page hidden" data-page="admin-complaint">
           <div class="page-header"><h2>投诉处理</h2></div>
           <div class="browse-list" id="admin-complaint-list"><div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div></div>
         </section>
 
-        <!-- 管理员：内容审核（v0.26.0 D3 统一审核界面：全站内容提取 + 一键处罚） -->
+        <!-- 管理员：内容审核（全站内容提取 + 一键处罚） -->
         <section class="client-page hidden" data-page="admin-content">
           <div class="page-header">
             <h2>内容审核</h2>
@@ -636,7 +636,7 @@
     <div class="profile-panel-body" id="profile-panel-body"></div>
   </aside>
 
-  <!-- 加载序分层（v0.21.0 重构）：基础数据 → 显示层 → 共享层（状态/API/动画/外观/引导）→ 领域层 → 壳层（ROLE_PAGES 引用领域函数，必须最后）→ 认证层。
+  <!-- 加载序分层：基础数据 → 显示层 → 共享层（状态/API/动画/外观/引导）→ 领域层 → 壳层（ROLE_PAGES 引用领域函数，必须最后）→ 认证层。
        共享层 const 全局词法绑定（UI/state/DISP 等）由 app-state.js 定义，此后各模块裸引；调整顺序先动 app-state.js -->
   <script src="/constants.js"></script>
   <script src="/app-display.js"></script>
@@ -666,7 +666,7 @@
     })();
   </script>
   <script>
-    /* 主题注入（v0.19.49）：全站颜色单源 = constants.THEME。
+    /* 主题注入：全站颜色单源 = constants.THEME。
        偏好存 localStorage 'sufe_theme'（light|dark|system，缺省 system）；
        首帧前同步执行把 THEME[主题] 全部 setProperty 到 <html>（本脚本在 body 底部同步跑，
        CSS 首帧渲染必在其后 → 无 FOUC 闪烁）；system 时监听 prefers-color-scheme 实时跟随系统。
@@ -679,7 +679,7 @@
           window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
       }
       function themeApply() {
-        /* THEME 每次现读 window.APP_CONSTANTS（v0.25.23 审计：与页面风格 IIFE 同款——jsdom 两 realm 测试
+        /* THEME 每次现读 window.APP_CONSTANTS（与页面风格 IIFE 同款——jsdom 两 realm 测试
            桥接后可实时拿到真主题；生产首绘前即就绪；构造时捕获会锁死空兜底） */
         var THEME = (window.APP_CONSTANTS || {}).THEME || { light: {}, dark: {} };
         var pref = 'system';
@@ -720,7 +720,7 @@
   <script>
     /* 页面风格注入（需求八·item4 外观包）：首帧前把偏好（localStorage 'sufe_style'，liquid 缺省）：
        1) <html data-style="liquid|flat">（光球档位协调 + 调试钩子）；
-       2) 外观包 = 语义 token 增量，应用次序（审计修复 v0.25.23）：
+       2) 外观包 = 语义 token 增量，应用次序：
           清空全部包 key（遍历全包防残留）→ 恢复主题内联值（__applyTheme：清 key 会连带删掉与包同名的
           主题 token，不恢复则 dark 下 flat→liquid 退回亮色）→ 恢复 LG 基础几何（__applyLg：frost/blur
           与包同 key）→ 应用当前包 token → __applyOrbs（光球定档）。
@@ -731,7 +731,7 @@
     (function () {
       function stylePref() {
         /* 解析逻辑与 app-style.js getStylePref 双份：内联首绘脚本跑在经典 window 无法 import app-*.js
-           （jsdom 两 realm 实证），键经 CONFIG.STYLE_KEY 单源，白名单与模块版一致，勿分叉 */
+           键经 CONFIG.STYLE_KEY 单源，白名单与模块版一致，勿分叉 */
         var KEY = ((window.APP_CONSTANTS || {}).CONFIG || {}).STYLE_KEY || 'sufe_style';
         var p = 'liquid';
         try { var v = localStorage.getItem(KEY); if (v === 'flat') p = v; } catch (e) {}
@@ -777,13 +777,13 @@
       var st = document.documentElement.style;
       function set(k, v) { st.setProperty(k, v); }
       function f3(n) { return Math.round(n * 1000) / 1000; }
-      /* LG 基础几何注入（v0.25.23 审计：抽出为 window.__applyLg 单点）。
+      /* LG 基础几何注入（抽出为 window.__applyLg 单点）。
          外观包 pageStyleApply 清包 key 会连带删掉与包同名的 --g-f-* / --lg-bg-blur 内联值，
          恢复几何必须先重跑本函数再叠包 token。首绘本 IIFE 调用一次，页面风格单点也会调用。 */
       function applyLg() {
         /* 需求六·item1：教师资料卡行间距单源 CONFIG.PROFILE_ROW_GAP → --profile-row-gap（style.css 默认 22px 仅兜底） */
         set('--profile-row-gap', (C.PROFILE_ROW_GAP || 22) + 'px');
-        /* 需求五（v0.25.44）：筛选面板多排下拉栏纵向空隙单源 CONFIG.FILTER_ROW_GAP → --filter-row-gap（style.css 默认 16px 仅兜底） */
+        /* 需求五：筛选面板多排下拉栏纵向空隙单源 CONFIG.FILTER_ROW_GAP → --filter-row-gap（style.css 默认 16px 仅兜底） */
         set('--filter-row-gap', (C.FILTER_ROW_GAP || 16) + 'px');
         set('--lg-r-sm', (LG.radius.sm || 9) + 'px');
         set('--lg-r', (LG.radius.md || 12) + 'px');
@@ -792,7 +792,7 @@
         set('--lg-glow-size', (LG.glow.size || 230) + 'px');
         set('--lg-glow-op', LG.glow.opacity != null ? LG.glow.opacity : .85);
         /* 毛度配置（constants.LG.frosts）→ --g-f-* 变量，glass.css 消费（改观感只动 constants）。
-           v0.21.0：删除陈旧 FALL 兜底字面量（modal blur 16 vs 24 曾与 constants 分叉）——键缺失时由
+           键缺失时由
            glass.css 的 var(--g-f-*, ...) 回退兜底，此处不再维护第二份数值 */
         var F = LG.frosts || {};
         for (var fk in F) set('--g-f-' + fk, F[fk]);
@@ -817,7 +817,7 @@
       var glow = document.createElement('div'); glow.className = 'lg-mouseglow'; glow.setAttribute('aria-hidden', 'true');
       document.body.appendChild(glow);
       function orbMode() {
-        /* 需求八·item4 外观包协调（审计 v0.25.23：由 STYLE_PACKS[style].orb 数据驱动，非硬编码）：
+        /* 需求八·item4 外观包协调（由 STYLE_PACKS[style].orb 数据驱动，非硬编码）：
            包声明档位优先（flat → hidden）；无声明（liquid）交还用户光球偏好 */
         var PACKS = (window.APP_CONSTANTS || {}).STYLE_PACKS || {};
         var pkg = PACKS[document.documentElement.dataset.style];
@@ -873,30 +873,26 @@
       }, { passive: true });
       window.addEventListener('mouseout', function (e) { if (!e.relatedTarget) glow.style.opacity = '0'; });
       window.addEventListener('mouseover', function () { glow.style.opacity = String(getComputedStyle(document.documentElement).getPropertyValue('--lg-glow-op') || '.85'); });
-      /* v0.25.23 审计：本 IIFE 注入的 --g-f-* / --lg-bg-blur 基础值可能覆盖 flat 包的 none/0px，
+      /* 本 IIFE 注入的 --g-f-* / --lg-bg-blur 基础值可能覆盖 flat 包的 none/0px，
          末尾重跑页面风格单点（清 key → 恢复主题 → 恢复几何 → 叠包 token）让包覆盖最后落地——
          「刷新进 flat」与「点按进 flat」同源。 */
       if (window.__applyPageStyle) window.__applyPageStyle();
     })();
   </script>
-  <!-- v0.25.85 SW 自愈脚本恢复（v0.25.76 曾删，误判：见下）：
+  <!-- 
        完整缓存项清单（2026-08-09 调研，清理逻辑全覆盖面）：
          [浏览器 Cache API —— 旧 SW 遗留，须自愈清理]
-           sufe-v<VERSION>（静态资产 cache-first，v0.22.5~v0.24.0 时代旧 SW）
+           sufe-v<VERSION>（静态资产 cache-first，旧 SW 时代）
            sufe-api（公开读 API 30s 短缓存，旧 SW 时代）
-         [Service Worker 注册]（v0.24.1 已拔除注册代码，但存量浏览器已激活的 SW 不因删代码消失）
-         [HTTP 层] index.html max-age=0+must-revalidate + worker 自持 ETag（v0.25.77）；
+         [Service Worker 注册]
+         [HTTP 层] index.html max-age=0+must-revalidate + worker 自持 ETag；
            裸名资产 max-age=0+must-revalidate；版本化资产 public,max-age=31536000,immutable；
            API no-store —— 均无需清理（HTTP 语义自愈）
-         [Cloudflare 边缘] worker Cache API（版本化资产，v0.25.83）—— 内容寻址，无需清理
+         [Cloudflare 边缘] worker Cache API（版本化资产）—— 内容寻址，无需清理
          [localStorage 偏好/会话] sufe_theme/sufe_orb/sufe_ui_scale/sufe_style/sufe_device_id/
            sufe_last_role/sufe_returning/sufe_app_version/sufe_block_broadcast/sufe_session_<role>
            —— 用户数据与偏好，非缓存，禁止删除
-       v0.25.76 删除理由「旧 SW 是 cache-first 会直接喂旧 index.html，自愈脚本到不了作用域」不成立：
-       旧 SW 对导航请求是 network-first（fetch 网络拿最新 HTML 并更新缓存），在线用户必拿到含自愈
-       脚本的新 index.html → 脚本能执行。删除前提错误 + 主域名（长期使用，浏览器可能仍挂旧 SW）
-       断线隐患实证 → 恢复。自愈幂等：本会话清理过（sessionStorage 标记）即跳过；无 SW/无 sufe-*
-       缓存时零副作用不刷新。 -->
+       自愈幂等：本会话清理过（sessionStorage 标记）即跳过；无 SW/无 sufe-* 缓存时零副作用不刷新。 -->
   <script>
     (function () {
       function markDone() {
@@ -934,7 +930,7 @@
       }).catch(function () {});
     })();
   </script>
-  <!-- v0.25.99 底部 Toast 容器：全站提示统一走这里（showToast 全风格，fixed 浮于 modal 之上） -->
+  <!-- 全站提示统一走这里（showToast 全风格，fixed 浮于 modal 之上） -->
   <div id="toast-container" aria-live="polite"></div>
 </body>
 </html>

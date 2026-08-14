@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
+import { tokenDigest } from '../server/crypto.js';
 import { handleRegister, handleLogin } from '../server/routes-auth.js';
 import { handleCreatePost } from '../server/routes-posts.js';
 import { handleAdminContent, handleContentAction } from '../server/routes-audit.js';
@@ -53,6 +54,16 @@ async function adminToken(db, raw) {
   const r = await handleLogin(db, { identifier: 'admin_sufe', password: 'test-pw-123' }, { headers: new Headers() });
   const data = await r.json();
   return data.authToken;
+}
+
+// 处罚危险操作二次认证的 capToken：直接落 danger_caps 行（真实 confirmDangerOtp SQL 全链路，
+// 会话绑定 + 命中即删）。expires_at 取 2099 规避时区比较伪象（同 contract-sign-compliance 口径）。
+async function capOf(raw, token) {
+  const sess = raw.prepare('SELECT user_id, session_id FROM auth_sessions WHERE token_hash=?').get(await tokenDigest(token));
+  const cap = `cap-${Math.random().toString(36).slice(2)}`;
+  raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
+    .run(sess.user_id, sess.session_id, await tokenDigest(cap), '2099-01-01 00:00:00');
+  return cap;
 }
 
 test('D1：统一内容提取（多类型归拢统一结构，私密字段不提取）', async () => {
@@ -116,8 +127,8 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
   // 缺原因 → 400
   const noReason = await handleContentAction(db, 'post', postId, { action: 'delete', rule: '隐私' }, req({ 'X-Auth-Token': token }));
   assert.equal(noReason.status, 400);
-  // 删除帖子 → 200 + 通知作者
-  const del = await handleContentAction(db, 'post', postId, { action: 'delete', reason: '含详细门牌号，违反隐私红线', rule: '地址门控' }, req({ 'X-Auth-Token': token }));
+  // 删除帖子 → 200 + 通知作者（危险操作须 capToken 二次认证）
+  const del = await handleContentAction(db, 'post', postId, { action: 'delete', reason: '含详细门牌号，违反隐私红线', rule: '地址门控', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(del.status, 200, JSON.stringify(await del.json()));
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM posts WHERE id=?').get(postId).c, 0, '帖子已删除');
   const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(sId);
@@ -130,7 +141,7 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
   // 重新造一条再 ban 作者
   const post2 = await handleCreatePost(db, { title: '另一条', bodyMd: '普通内容' }, req({ 'X-Auth-Token': sData.authToken }));
   const post2Id = raw.prepare('SELECT MAX(id) AS id FROM posts').get().id;
-  const ban2 = await handleContentAction(db, 'post', post2Id, { action: 'ban', reason: '发布违规内容', rule: '内容安全' }, req({ 'X-Auth-Token': token }));
+  const ban2 = await handleContentAction(db, 'post', post2Id, { action: 'ban', reason: '发布违规内容', rule: '内容安全', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(ban2.status, 200);
   assert.equal(raw.prepare('SELECT banned FROM users WHERE id=?').get(sId).banned, 1, '作者已封禁');
   // 非管理员（有效令牌但角色非 admin）→ 403；被 ban 用户 token 已失效 → 401
@@ -185,7 +196,7 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   // 新预算三段各取 80/30/40 → 总长 152 ≤200 且摘要关键词存活。判别断言是
   // notif.text.includes('每周两次')——旧逻辑必失败、新逻辑通过，杜绝假绿（二次审查实测确认）。
   const longReason = '发布包含完整门牌号码的内容，严重违反平台隐私保护红线，已多次警告仍不改正，'.repeat(6); // 222 字（≥200）
-  const delC = await handleContentAction(db, 'contract', contractId, { action: 'delete', reason: longReason, rule: '地址门控与隐私红线，内容安全审核，恶意规避审核' }, req({ 'X-Auth-Token': token }));
+  const delC = await handleContentAction(db, 'contract', contractId, { action: 'delete', reason: longReason, rule: '地址门控与隐私红线，内容安全审核，恶意规避审核', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(delC.status, 200, JSON.stringify(await delC.json()));
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE id=?').get(contractId).c, 0, '合同已删除');
   const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teaId);
@@ -194,14 +205,14 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   assert.ok(notif.text.includes('触发内容'), '触发内容摘要未被截断丢弃');
   assert.ok(notif.text.includes('每周两次'), '摘要内容存活（三段预算保住 summary）');
   assert.ok(notif.text.includes('地址门控与隐私红线'), '规则段存活（rule≤30 截断后前缀保留）');
-  const delS = await handleContentAction(db, 'signing', signingId, { action: 'delete', reason: '包含可定位地址', rule: '地址门控' }, req({ 'X-Auth-Token': token }));
+  const delS = await handleContentAction(db, 'signing', signingId, { action: 'delete', reason: '包含可定位地址', rule: '地址门控', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(delS.status, 200);
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests WHERE id=?').get(signingId).c, 0, '签约请求已删除');
   // teacher 档案 delete/remove → 400 拒绝（无硬删分支，API 直发不许 no-op 假装成功）
   const teaDel = await handleContentAction(db, 'teacher', teaId, { action: 'delete', reason: 'x', rule: 'x' }, req({ 'X-Auth-Token': token }));
   assert.equal(teaDel.status, 400, 'teacher delete 直接拒绝');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM users WHERE id=?').get(teaId).c, 1, '教师账户未被删除');
-  const teaBan = await handleContentAction(db, 'teacher', teaId, { action: 'ban', reason: '档案含可定位地址', rule: '地址门控' }, req({ 'X-Auth-Token': token }));
+  const teaBan = await handleContentAction(db, 'teacher', teaId, { action: 'ban', reason: '档案含可定位地址', rule: '地址门控', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(teaBan.status, 200, 'teacher ban 仍可用');
   assert.equal(raw.prepare('SELECT banned FROM users WHERE id=?').get(teaId).banned, 1, '教师已封禁');
 });

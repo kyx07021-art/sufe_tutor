@@ -2,7 +2,7 @@
  * 外观包模块（需求八·item4 页面风格）：液态玻璃 / 平面简约 的独立模块。
  *
  * 架构（上网调研：语义 token 分层 core→semantic→component + [data-style][data-theme] 正交维度，
- * lombokcss 实证 flat/glass 切换 = remap 语义 token）：
+ * flat/glass 切换 = remap 语义 token）：
  *   - 玻璃引擎组件一律只消费语义 token（--g-fill/--g-frost/--g-lift…），外观包只 remap 语义层；
  *   - 每份外观包（constants.STYLE_PACKS）= 语义 token 增量 + 特殊效果协调（orb 档位）；
  *   - liquid 零覆盖（等价现状）；flat 把半透明玻璃面→不透明纸面、磨砂/投影/液体边缘→none/透明。

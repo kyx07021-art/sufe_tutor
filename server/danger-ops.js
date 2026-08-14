@@ -1,12 +1,8 @@
 /**
  * 危险操作凭证咽喉（独立模块，目标分层：账户凭证管理 / 危险操作二次认证）
  *
- * 背景（网安审计 N-02）：v0.21 前 capToken 存 per-isolate 内存 Map（session.js CAPS），
- * Cloudflare Worker 多 isolate 分发下，re-auth 签发 capToken 与危险操作请求可能落在
- * 不同 isolate——后者查不到内存 Map 中的 capToken → 校验失败 → 合法用户注销/签约/撤销
- * 间歇性 403「密码错误」。这是「per-isolate 内存状态不具全局一致性」的典型。
- *
- * 方案：capToken 迁 D1 持久化（danger_caps 表），跨实例全局一致：
+ * 契约：capToken 必须 D1 持久化（danger_caps 表）——per-isolate 内存 Map 在多 isolate 分发下
+ * 「此实例签发、彼实例校验」必失败，合法用户危险操作间歇性 403。方案：
  *   - 签发：INSERT ... ON CONFLICT(user_id, session_id) UPSERT，每用户每会话仅一枚，
  *           落 SHA-256 摘要（tokenDigest），明文 token 仅在签发时回传一次（F-04 同款口径）
  *   - 校验：原子 DELETE WHERE session_id=? AND token_hash=? AND expires_at > now，

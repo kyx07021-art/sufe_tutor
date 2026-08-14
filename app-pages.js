@@ -21,7 +21,7 @@
 //   app-api：api
 //   app-anim：showToast、initReveals
 //   app-ui：escHtml、fmtDateTime、renderAvatarHtml、loaderHtml、openModal、
-//     closeModal、openImageViewer、compressToDataURL、confirm（v0.25.10 三原语合并）、
+//     closeModal、openImageViewer、compressToDataURL、confirm、
 //     initCustomSelects、syncCustomSelectText
 //   app-onboard：openOnboarding、openUsageGuide
 //   app-region：renderProvinceSelect、onTeacherProvinceChange、
@@ -36,10 +36,9 @@
 function enterAccountSettings() {
   const u = state.user;
   const roleLabel = DISP.roleLabel(u.role);
-  const row = (label, value, modifiable) => `
+  const row = (label, value) => `
     <div class="settings-row">
       <div><div class="settings-label">${label}</div><div class="settings-value">${value}</div></div>
-      ${modifiable ? `<button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="showToast('${escJsStr(UI.TOAST_COMING_SOON)}')">${UI.BTN_MODIFY}</button>` : ''}
     </div>`;
   // 外观主题三项：选中态按 localStorage 现值标注，点按走 setThemePref 即时切换
   const themePref = getThemePref();
@@ -56,7 +55,7 @@ function enterAccountSettings() {
   // 需求六·item5：UI 大小滑块现值/轨道填充百分比（进页按 localStorage 现值应用；滑块一边滑一边变）
   const uiScaleVal = getUiScale();
   const uiScaleFill = uiScaleFillPct(uiScaleVal);
-  // v0.26.0 凭证行（B5）：用户名行修改按钮按 7 天冷却显示（倒计时/灰化由 loadUsernameStatus 填充）；
+  // 凭证行（B5）：用户名行修改按钮按 7 天冷却显示（倒计时/灰化由 loadUsernameStatus 填充）；
   // 手机号/邮箱行显示已绑（脱敏，loadMyCreds 填充）或未绑定，修改按钮打开绑定浮窗。
   const credRow = (label, valId, bindFn) => `
     <div class="settings-row">
@@ -79,7 +78,7 @@ function enterAccountSettings() {
         <div><div class="settings-label">${UI.SETTINGS_USERNAME}</div><div class="settings-value">${escHtml(u.username)}</div></div>
         <button type="button" class="btn btn-outline btn-sm glass glass--pressable" id="username-change-btn" onclick="openUsernameChangeModal()">${UI.BTN_MODIFY}</button>
       </div>
-      ${row(UI.SETTINGS_ROLE, roleLabel, false)}
+      ${row(UI.SETTINGS_ROLE, roleLabel)}
       ${credRow(UI.SETTINGS_PHONE, 'settings-phone-val', 'openPhoneBindModal()')}
       ${credRow(UI.SETTINGS_EMAIL, 'settings-email-val', 'openEmailBindModal()')}
     </div>
@@ -116,7 +115,7 @@ function enterAccountSettings() {
           <span class="ui-scale-val" id="ui-scale-val">${uiScaleVal}%</span>
         </div>
       </div>
-      <!-- v0.26.5 B3（用户返工：删预览图 mockup）：UI 大小拖动直接预览真实页面——
+      <!-- UI 大小拖动直接预览真实页面——
            拖动期 JS 只写 --ui-preview-scale + html[data-ui-previewing] 门控，顶栏/侧栏（头·脚）/内容区
            由 CSS 分块 transform:scale 消费（合成器只读零重绘，帧率不受拖动影响），松手 commit 才落 --ui-scale -->
     </div>
@@ -131,15 +130,15 @@ function enterAccountSettings() {
     </div>
     <button type="button" class="btn settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate glass" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
-  bindUiScaleSlider(); // v0.25.103 B1：滑块渲染后接管 pointer 差分拖动（html transform 预览的正反馈根治）
-  _uiScaleReflowWarm(); // v0.27.6：进设置页即后台预热元素级模拟重排采样，拖动前就绪则拖动即元素级
+  bindUiScaleSlider(); // ：滑块渲染后接管 pointer 差分拖动（html transform 预览的正反馈根治）
+  _uiScaleReflowWarm(); // 进设置页即后台预热元素级模拟重排采样，拖动前就绪则拖动即元素级
   loadDeviceSessions();
   loadPrivacySettings(); // #163：进页异步读本人访客可见性设置（无行=默认允许）
-  loadUsernameStatus(); // v0.26.0 B5：用户名 7 天冷却按钮态（倒计时/灰化）
-  loadMyCreds();        // v0.26.0 B5：手机号/邮箱绑定状态（脱敏展示）
+  loadUsernameStatus(); // ：用户名 7 天冷却按钮态（倒计时/灰化）
+  loadMyCreds();        // ：手机号/邮箱绑定状态（脱敏展示）
 }
 
-// v0.26.0 B5：用户名修改冷却状态 → 修改按钮「修改」/ 倒计时灰化（bindCountdown 复用）
+// ：用户名修改冷却状态 → 修改按钮「修改」/ 倒计时灰化（bindCountdown 复用）
 async function loadUsernameStatus() {
   const btn = document.getElementById('username-change-btn');
   if (!btn) return;
@@ -153,7 +152,7 @@ async function loadUsernameStatus() {
   } catch { /* 网络抖动：按钮保持「修改」，提交时服务端兜底拦截 */ }
 }
 
-// v0.26.0 B5：本人已绑凭证（服务端脱敏）填充设置页手机号/邮箱行
+// ：本人已绑凭证（服务端脱敏）填充设置页手机号/邮箱行
 async function loadMyCreds() {
   const phoneEl = document.getElementById('settings-phone-val');
   const emailEl = document.getElementById('settings-email-val');
@@ -166,7 +165,7 @@ async function loadMyCreds() {
   } catch { /* 网络抖动：保持「未绑定」占位 */ }
 }
 
-// v0.26.0 B5：修改用户名弹窗（输入新名）→ 密码二道确认（confirm needReAuth）→ 提交
+// ：修改用户名弹窗（输入新名）→ 密码二道确认（confirm needReAuth）→ 提交
 function openUsernameChangeModal() {
   const btn = document.getElementById('username-change-btn');
   if (btn && btn.disabled) { showToast(UI.USERNAME_COOLDOWN, 'error'); return; } // 冷却中不可点（按钮已灰化，双保险）
@@ -195,7 +194,7 @@ function confirmUsernameChange() {
   }
   confirm({
     title: UI.USERNAME_CHANGE_TITLE,
-    message: `确定将用户名修改为「${escHtml(newName)}」吗？修改后 7 天内不可再次修改。`,
+    message: `确定将用户名修改为「${newName}」吗？修改后 7 天内不可再次修改。`,
     needReAuth: true, // 密码二道确认（网安 F-05 二次认证）
     okText: UI.BTN_USERNAME_SAVE,
     // C2 敏感操作门禁：密码验证通过后再过一次拼图真人验证，才真正改用户名
@@ -223,7 +222,7 @@ async function submitUsernameChange(newName, capToken) {
   }
 }
 
-// #163（v0.25.71）：隐私设置——访客可见性。教师看档案开关、学生看需求开关（各自仅一个相关项）。
+// #163：隐私设置——访客可见性。教师看档案开关、学生看需求开关（各自仅一个相关项）。
 async function loadPrivacySettings() {
   const el = document.getElementById('privacy-settings-list');
   if (!el) return;
@@ -264,7 +263,7 @@ async function setPrivacyField(field, value) {
 }
 
 // 外观主题点按：写 localStorage → 主题脚本重算 → 切当前页按钮选中态（主题立即生效，无需刷新）。
-// v0.25.23 审计：存储 try/catch（隐私模式铁律）+ 末尾重跑页面风格单点（flat 包 token 覆盖在主题之上，防被主题冲掉）。
+// 审计：存储 try/catch（隐私模式铁律）+ 末尾重跑页面风格单点（flat 包 token 覆盖在主题之上，防被主题冲掉）。
 function setThemePref(pref) {
   storeThemePref(pref);
   if (window.__applyTheme) window.__applyTheme();
@@ -274,7 +273,7 @@ function setThemePref(pref) {
 
 // 需求八·item3 背景光球外观点按：写 localStorage → 重生成背景光球（index.html 首绘 IIFE 暴露的
 // window.__applyOrbs 单点，可重入切档）→ 切当前页按钮选中态（背景立即生效，无需刷新）。
-// v0.25.23 审计：写入白名单钳制（与 setStylePref 对称；读取方白名单回落，写入不过滤则语义分叉）。
+// 审计：写入白名单钳制（与 setStylePref 对称；读取方白名单回落，写入不过滤则语义分叉）。
 function setOrbPref(pref) {
   const o = (pref === 'elegant' || pref === 'hidden') ? pref : 'vivid';
   try { localStorage.setItem(CONFIG.ORB_KEY || 'sufe_orb', o); } catch (e) { /* 存储被禁：本次会话内仍可切换 */ }
@@ -285,9 +284,9 @@ function setOrbPref(pref) {
 // 需求六·item5：UI 大小滑块拖动——setUiScaleLive 走 html transform:scale 实时预览
 // （compositor-only，不触发全页重排版，拖动帧率根治——见 app-state setUiScale 注释），
 // 同步轨道填充渐变（--ui-fill）与数值标签；纯客户端不走服务器。
-// v0.25.94 重构（R3）：拖动只预览（transform，不落盘）；松手 onchange 走 commitUiScale 清预览落真排版 + 落盘。
-// 原 v0.25.87（R2）拖动走 --ui-scale rAF 合并应用——仍每帧全页排版重绘，实测 ~100ms/帧刷新率低（已废）。
-// v0.25.103 B1 根治（正反馈鬼畜）：预览的 html transform:scale 缩放整个页面（含滑块轨道），
+// 重构（R3）：拖动只预览（transform，不落盘）；松手 onchange 走 commitUiScale 清预览落真排版 + 落盘。
+// 拖动只预览（transform，零重排零重绘），松手 commit 才落 --ui-scale 真排版 + 落盘。
+// 根治（正反馈鬼畜）：预览的 html transform:scale 缩放整个页面（含滑块轨道），
 // 浏览器原生 range 拖动按缩放后轨道几何解析 value → scale 变 → 轨道几何变 → value 变 → 正反馈失控。
 // 拖动路径改为 pointer 差分（pointerdown 记初始指针/初始值/轨道 layout 宽——clientWidth 不受
 // transform 影响），value 只由固定初始几何差分驱动，鼠标静止即稳定；input/change 事件保留兜底
@@ -338,7 +337,7 @@ function bindUiScaleSlider() {
   // 键盘/无障碍路径兜底（无 pointer 手势时）：input 预览 + change 落盘（原 oninput/onchange 语义）
   slider.addEventListener('input', () => setUiScaleFromSlider(slider));
   slider.addEventListener('change', () => commitUiScaleFromSlider(slider));
-  // B1（v0.27.2 用户反馈「滚轮和滑块是两个叠加值」）：滚轮改 UI 大小走 setUiScale（写 --ui-scale +
+  // B1：滚轮改 UI 大小走 setUiScale（写 --ui-scale +
   // localStorage + 派发 sufe:ui-scale），滑块绑定此前无该事件监听 → 设置页开着时滚轮改值后滑块显示/
   // 控制的是陈旧值（表现为两个值叠加）。此处监听事件把滑块值/数值标签/轨道填充同步到实际应用值——
   // 滚轮与滑块合并为一个底层值，滑块动态响应滚轮。
@@ -350,7 +349,7 @@ function bindUiScaleSlider() {
 }
 
 // 登录设备管理：拉本人会话列表逐端展示（token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。
-// 页签已切走则丢弃结果（防异步串号，同教师弹窗评价教训）
+// 页签已切走则丢弃结果（防异步串号）
 async function loadDeviceSessions() {
   const box = document.getElementById('settings-devices-list');
   if (!box) return;
@@ -440,7 +439,7 @@ function renderProfileCredentialCtl() {
     : `<label class="btn btn-outline btn-sm glass glass--pressable" for="profile-credential-file">${UI.CREDENTIAL_UPLOAD}</label>`;
 }
 async function handleCredentialPicked(input) {
-  const files = [...input.files]; input.value = ''; // FileList 是活引用，先拷贝再清（选文件无反应 bug 同款教训）
+  const files = [...input.files]; input.value = ''; // FileList 是活引用，先拷贝再清
   const file = files[0];
   if (!file) return;
   if (!file.type.startsWith('image/')) { showToast(UI.POST_IMAGE_ONLY); return; }
@@ -516,7 +515,7 @@ function enterAbout() {
         <div>${escHtml(UI.ABOUT_SUPPORT_EMAIL)}</div>
       </div>
       <div class="about-feedback-btns">
-        <!-- M11（v0.25.103）：「用户反馈」+「投诉」合并为「投诉与反馈」——点开浮窗三选通道（Bug/建议/投诉）
+        <!-- M11：「用户反馈」+「投诉」合并为「投诉与反馈」——点开浮窗三选通道（Bug/建议/投诉）
              M12：「我的投诉」+「我的反馈」合并为「我的投诉与反馈」同一浮窗。支持卡两按钮收口。 -->
         <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openFeedbackComplaintChooser()">${UI.BTN_COMPLAINT_FEEDBACK}</button>
         <button type="button" class="btn btn-outline btn-sm glass glass--pressable" onclick="openMyFeedback()">${UI.BTN_MY_COMPLAINTS_FEEDBACK}</button>
@@ -528,13 +527,13 @@ function enterAbout() {
 // ============================================================
 // 教师档案编辑
 // ============================================================
-// v0.25.10 用户反馈（「教师端个人资料页没有前端试验改动」）：需求六的分组大 title 只做了右栏资料卡，
+// 用户反馈（「教师端个人资料页没有前端试验改动」）：需求六的分组大 title 只做了右栏资料卡，
 // 编辑页（.profile-form）没做——这里按四组在对应字段前注入 .profile-group-title（文案单源 PROFILE_SECTION_*）。
 // 组序/首字段索引与 index.html 编辑页静态字段顺序强耦合，加字段时同步核对。
 function groupProfileForm() {
   const form = document.querySelector('.profile-form');
   if (!form || form.querySelector('.profile-group-title')) return; // 幂等（切页重建 DOM 前不重复插）
-  // 索引与 index.html 编辑页静态字段顺序强耦合；v0.25.15 审计修复：个人简介挪入基本组
+  // 索引与 index.html 编辑页静态字段顺序强耦合，加字段必须同步核对；个人简介在基本组
   // （与右栏资料卡 PROFILE_CARD_ITEMS.basic 及需求六「个人简介挪上」一致，此前误落私密组），
   // 其后的组索引整体 +1。顺序 = 省份/年级/学校/毕业年份/性别/个人简介 | 科目/成绩/报价/方式/
   // 时间段/性格 | 非学科项目/报价 | 地址/微信/邮箱/真实姓名/学信网截图；加字段时同步核对。
@@ -557,7 +556,7 @@ function groupProfileForm() {
 }
 
 function initProfileForm() {
-  groupProfileForm(); // v0.25.10：编辑页四组大 title（需求六版式补齐到个人资料编辑表单）
+  groupProfileForm(); // 编辑页四组大 title
   const pageTitle = document.getElementById('profile-page-title');
   if (pageTitle) pageTitle.textContent = UI.PAGE_TITLE_EDIT_PROFILE; // 页头标题归口 constants（index.html 静态文本仅 JS 前的兜底）
   // 新扩展字段的 label 归口 constants（index.html 静态文本仅 JS 前的兜底；保留 .req 星号）
@@ -697,13 +696,13 @@ function collectNonacademicPrices() {
 
 async function loadProfile() {
   try {
-    // F13（v0.27.0）：本人档案读取改走 datahub（teachers 域缓存 + 版本探测刷新；
+    // F13：本人档案读取改走 datahub（teachers 域缓存 + 版本探测刷新；
     // 保存后 invalidate('teachers') 使下次读取 miss 重拉，新鲜度不丢）
     const data = await dhGet('/api/teacher/profile', { domain: 'teachers' });
     if (data.profile) {
       const p = data.profile;
       document.getElementById('profile-grade').value = p.grade || '';
-      // v0.25.39（反馈 U3）：按 GENDERS 白名单消毒——历史值（''/nonbinary 等旧枚举）不在选项中时
+      // 按 GENDERS 白名单消毒——历史值（''/nonbinary 等旧枚举）不在选项中时
       // 一律回落默认「不愿透露」（未消毒则 value 落空 → selectedIndex=-1 → 自定义下拉触发器文字为空、塌成细条）
       document.getElementById('profile-gender').value = GENDERS.some(x => x.id === p.gender) ? p.gender : 'undeclared';
       document.getElementById('profile-school').value = p.school || '';
@@ -719,7 +718,7 @@ async function loadProfile() {
       // R2-1 可授课时间段（结构化 JSON 回填组件行；旧纯文本忽略）
       prefillTimeSlots(document.getElementById('profile-time-slots'), p.time_slots || '');
       // R2-3 性格关键词回填选中（遍历比对 data-id，勿用属性选择器插值——escJsStr 是 onclick 双层上下文转义，
-      // 对 CSS 选择器语义不匹配；白名单 id 安全但避免坏味道，v0.25.2 审计修）
+      // 对 CSS 选择器语义不匹配；白名单 id 安全但避免坏味道）
       const pickById = (containerId, pid) => {
         const el = document.getElementById(containerId);
         if (!el) return null;
@@ -745,7 +744,7 @@ async function loadProfile() {
       document.getElementById('profile-email').value = p.email || '';
       document.getElementById('profile-intro').value = p.intro || '';
       // 需求五：上海常住地结构化——先写隐藏值再挂载 picker（回填区/镇下拉）。
-      // 存量兼容（v0.29.0）：库内旧自由文本地址（如「浦东新区杨高中路」）不是合法「区·镇/街道」→
+      // 存量兼容：库内旧自由文本地址（如「浦东新区杨高中路」）不是合法「区·镇/街道」→
       // 清空重选——需求五已废弃精确地址、旧值本不该保留；不清空则保存时 400 ADDRESS_REQUIRED 卡死整张表单。
       const R5 = globalThis.SUFE_REGIONS;
       const storedAddr = (R5 && R5.isValidShanghaiAddr(p.address)) ? (p.address || '') : '';
@@ -757,7 +756,7 @@ async function loadProfile() {
       if (p.province) rebuildTeacherSubjects(p.province);
       if (p.subjects?.length) {
         p.subjects.forEach(id => {
-          // 遍历比对 value，勿用属性选择器插值（v0.25.3 网安 L3 同款教训）
+          // 遍历比对 value，勿用属性选择器插值
           const cb = [...(document.getElementById('profile-subjects') || { querySelectorAll: () => [] }).querySelectorAll('input')]
             .find(x => x.value === id);
           if (cb) cb.checked = true;
@@ -839,7 +838,7 @@ async function handleSaveProfile(e) {
     showToast(UI.SUCCESS_PROFILE_SAVED, 'success');
     invalidate('teachers'); // 档案已变：清教师列表缓存，浏览页/个人信息面板/推送弹窗下次读取重拉新档
   } catch (err) {
-    showToast(err.message); // v0.19.43 档案长表单底部提交：长表单错误改 Toast，避免被滚动淹没
+    showToast(err.message); // 档案长表单底部提交：长表单错误改 Toast，避免被滚动淹没
   } finally {
     const btn = document.getElementById('profile-submit');
     btnDone(btn, UI.BTN_SAVE);

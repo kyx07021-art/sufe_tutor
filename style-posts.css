@@ -22,7 +22,7 @@ select.posts-sort {
 }
 
 /* ---------- 帖子卡 ---------- */
-/* #161（v0.25.69）：卡片可点击查看全文——交互卡，悬停走引擎 hover 洗 + cursor 指针（原「统一静态」对交互卡放开）；
+/* #161：卡片可点击查看全文——交互卡，悬停走引擎 hover 洗 + cursor 指针（原「统一静态」对交互卡放开）；
    入场动效统一走全站 .reveal 浮入管线 */
 .post-card {
   position: relative; overflow: hidden; isolation: isolate;
@@ -38,7 +38,7 @@ select.posts-sort {
 .post-title {
   font-size: 1.05rem; font-weight: 800; letter-spacing: -.01em;
   line-height: 1.35; color: var(--ink); overflow-wrap: anywhere;
-  /* #161（v0.25.69）：标题转 button 承载键盘焦点/Enter 激活，样式还原为文本外观 */
+  /* #161：标题转 button 承载键盘焦点/Enter 激活，样式还原为文本外观 */
   border: none; background: none; padding: 0; margin: 0; font-family: inherit;
   text-align: left; cursor: pointer; width: auto;
 }
@@ -61,16 +61,16 @@ select.posts-sort {
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
-/* R24（v0.25.89）：帖子预览卡正文与操作按钮之间去分割线、收紧间距（预览紧贴动作，视觉一体的反馈） */
+/* R24：帖子预览卡正文与操作按钮之间去分割线、收紧间距（预览紧贴动作，视觉一体的反馈） */
 .post-actions {
   margin-top: 10px; padding-top: 0;
   display: flex; align-items: center; gap: 10px;
 }
 
 /* ---------- 点赞按钮：线框拇指 → 已赞红色填充（计数随动） ---------- */
-/* v0.25.19 审计 G-08：文字色双源收敛——base/hover/liked 的 color 直写删净，统一走引擎 --g-fg
+/* 文字色双源收敛——base/hover/liked 的 color 直写删净，统一走引擎 --g-fg
    （glass.css .post-like 设 --g-fg: var(--muted) / :has(input:checked) 设 --g-fg: var(--danger)）。 */
-/* #160（v0.25.68）：点赞接复选框逻辑——label+隐藏原生 checkbox，checked 驱动 :has 视觉（同 .checkbox-item）。
+/* #160：点赞接复选框逻辑——label+隐藏原生 checkbox，checked 驱动 :has 视觉（同 .checkbox-item）。
    隐藏用 sr-only 画法：保可聚焦可切换，键盘焦点视觉由 :has(input:focus-visible) 移到 pill 上。 */
 .post-like {
   display: inline-flex; align-items: center; gap: calc(7px * var(--ui-scale, 1));
@@ -122,7 +122,7 @@ select.posts-sort {
 .posts-view-tabs { flex: 0 0 auto; }
 .posts-view-tabs .seg-tab { padding: 6px 14px; font-size: .8rem; font-weight: 700; }
 
-/* #161（v0.25.69）：详情浮窗 footer——点赞 pill 与删除分居两侧 */
+/* #161：详情浮窗 footer——点赞 pill 与删除分居两侧 */
 .post-detail-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-light); }
 .post-detail-body { margin-top: 10px; }
 
@@ -182,10 +182,10 @@ textarea.post-body-input { min-height: calc(200px * var(--ui-scale, 1)); font-si
 }
 .md-preview-empty { font-size: .78rem; color: var(--faint); }
 
-/* #161（v0.25.69）：详情浮窗正文用 md-preview 排版但放开高度封顶（浮窗整体在 overlay 滚动，无需内滚） */
+/* #161：详情浮窗正文用 md-preview 排版但放开高度封顶（浮窗整体在 overlay 滚动，无需内滚） */
 .md-preview--full { max-height: none; }
 
-/* #162（v0.25.70）：markdown 列表/引用/行内代码排版（解析器新增块级+行内语法）
+/* #162：markdown 列表/引用/行内代码排版（解析器新增块级+行内语法）
    R21②：列表容器比正文进一步右缩进（20px，编号在此），列表文字 20+16=36px——层级：标题0/正文12/编号20
    v0.25.94：扩展 .post-detail-body——详情正文同口径（全局 *{padding:0} 把 ol 默认缩进清零，
    无此规则的容器里编号画在负空间、从左边戳出正文）。padding-left 16px 是编号立足区，不可省。 */

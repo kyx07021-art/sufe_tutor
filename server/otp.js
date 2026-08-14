@@ -1,5 +1,5 @@
 /**
- * 验证码咽喉（v0.26.0 A3）—— 手机号/邮箱验证码请求与校验 单点
+ * 验证码咽喉 —— 手机号/邮箱验证码请求与校验 单点
  *
  * 用户需求（2026-08-10）：公测以手机号为唯一账户凭证，内测把手机号做成基于用户名的增量凭证。
  * 要求：假装有现成验证码 API，做好全套「请求验证码 → 上传校验」通路；内测期明确注释短路——
@@ -24,6 +24,7 @@
 import { dbGet, dbRun, json, error, toDbTime } from './util.js';
 import { tokenDigest } from './crypto.js';
 import { MSG, LIMITS } from './constants.js';
+import { getSecret } from './secrets.js'; // OTP_PROVIDER 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
 import '../constants.js'; // 地区前缀表数据单源：globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS（与前端同源）
 import { logEvent } from './log.js';
 
@@ -38,7 +39,7 @@ export async function initOtpTable(db) {
     code_hash TEXT NOT NULL,        -- SHA-256(code)，验证码不落明文
     expires_at DATETIME NOT NULL,   -- TTL（5 分钟；库内 UTC，SQL 层 UTC 比较）
     used INTEGER NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT (datetime('now')))`); // 库内 UTC（v0.27.3 走查：与 expires_at 统一域，弃 localtime）
+    created_at DATETIME DEFAULT (datetime('now')))`); // 库内 UTC（与 expires_at 统一域）
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_otp_target ON verification_codes(channel, target_hash, created_at)');
 }
 
@@ -46,11 +47,10 @@ export async function initOtpTable(db) {
 // 目标格式校验（地区前缀 + 号码 pattern；邮箱标准正则）
 // ============================================================
 // 手机号地区表单源在根 constants.js CONFIG.PHONE_REGIONS（前端 app-otp.js 同读，杜绝双源漂移）。
-// v0.26.15 收敛大陆单区（仅 +86）：前缀选项连根移除，parsePhone 只认大陆号，validateOtpTarget 随数据源
-// 自然收敛——支持范围与实际逻辑自洽（见 constants.js PHONE_REGIONS 注释，接入国际短信时再加回）。
-export const PHONE_REGIONS = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS) || [];
+// 当前收敛大陆单区（仅 +86）：前缀选项已连根移除，parsePhone 只认大陆号；接入国际短信时再加回。
+const PHONE_REGIONS = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS) || [];
 
-/** 解析手机号前缀：遍历 PHONE_REGIONS（v0.26.15 大陆单区 = 仅 +86）；返回 { prefix, number } 或 null */
+/** 解析手机号前缀：遍历 PHONE_REGIONS（大陆单区 = 仅 +86）；返回 { prefix, number } 或 null */
 export function parsePhone(target) {
   const s = String(target || '').trim();
   if (!s) return null;
@@ -65,8 +65,8 @@ export function parsePhone(target) {
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 
-/** 校验目标格式与长度；返回 { ok } 或 { ok:false, msg } */
-export function validateOtpTarget(channel, target) {
+/** 校验目标格式与长度；返回 { ok } 或 { ok:false, msg }（模块内使用） */
+function validateOtpTarget(channel, target) {
   const t = String(target || '').trim();
   if (!t || t.length > (channel === 'sms' ? LIMITS.PHONE_MAX : LIMITS.EMAIL_MAX)) {
     return { ok: false, msg: channel === 'sms' ? MSG.PHONE_INVALID : MSG.EMAIL_INVALID };
@@ -76,22 +76,25 @@ export function validateOtpTarget(channel, target) {
 }
 
 // ============================================================
-// 插拔点
-// ============================================================
-// 内测期模拟短信/邮件服务商（用户需求：接口短路 + 模拟验证码 toast）。
-// 生产接入：OTP_PROVIDER 改 'prod'，deliverOtp 内调真实 sendSms/sendEmail（模板参数 JSON 序列化，
-// 防拼接注入），不再返回 code。接口签名（channel/target/code）不变，其余链路原样。
-const OTP_PROVIDER = 'mock';
-// 校验侧插拔点：'local' = 本应用哈希比对（内测「模拟校验模块」；验证码本就由本应用生成，此为唯一正解）；
-// 未来若验证码托管给服务商（服务商侧存 code），切 'provider' 接服务商校验 API，verifyOtp 内分支即可。
+// 插拔点（部署级配置经网关读取）：
+//   OTP_PROVIDER='mock' → 模拟发送：不真正发短信/邮件，返回 code 供前端 toast
+//                        「模拟验证码（内测期使用）：xxxxxx」——生产接入真实通道后此值必须置 'prod'，
+//                        mock 下响应携带明文验证码 = 任意人可免密登录目标账户（内测期有意短路）。
+//   OTP_PROVIDER='prod' → deliverOtp 内接真实短信/邮件 API（sendSms/sendEmail），不返回 code。
+//   OTP_VERIFIER='local' → 验证码由本应用侧哈希比对校验（验证码本就由我们生成，此为唯一正解）；
+//                        未来若验证码托管给服务商（服务商存 code），可切 'provider' 接服务商校验 API。
+const OTP_PROVIDER = String(getSecret(null, 'OTP_PROVIDER') || 'mock');
 const OTP_VERIFIER = 'local';
 
 async function deliverOtp({ channel, target, code }) {
-  if (OTP_PROVIDER === 'mock') return { mock: true, code }; // 【短路】模拟发送：返回 code 供前端 toast
-  // ---- 生产占位（真实短信/邮件服务商接入点）----
-  // const template = channel === 'sms' ? 'sufe_verify' : 'sufe_verify_email';
-  // await sendSms(target, { code, template });   // 伪代码：接真实短信 API
-  // await sendEmail(target, { code, template }); // 伪代码：接真实邮件 API
+  if (OTP_PROVIDER === 'mock') {
+    console.warn('OTP_PROVIDER=mock：验证码未真实发送（内测短路，公测前必须置 prod）');
+    return { mock: true, code }; // 【短路】模拟发送：返回 code 供前端 toast
+  }
+  // ---- 生产通道（真实短信/邮件服务商接入点，接口签名不变）----
+  // const template = channel === 'sms' ? SMS_TEMPLATE_CODE : EMAIL_OTP_TEMPLATE_CODE;
+  // await sendSms(target, { code, template });
+  // await sendEmail(target, { code, template });
   // return { mock: false };
   throw new Error('OTP_PROVIDER=prod 未配置真实短信/邮件通道');
 }
@@ -115,11 +118,11 @@ export async function requestOtp(db, { channel, target }, req) {
   const expires = toDbTime(new Date(Date.now() + LIMITS.OTP_CODE_TTL_MS));
 
   // 原子限频（赢家模式）：60s 内已发 / 单日超限 → 条件 INSERT 不命中（changes=0）拒绝。
-  // 时间域纪律（v0.27.3 走查统一 UTC）：created_at/expires_at 库内 UTC，SQL 层比较必须用 UTC
+  // 时间域纪律：created_at/expires_at 库内 UTC，SQL 层比较必须用 UTC
   // （datetime('now') 即 UTC；datetime('now','localtime') 是库内本地时区，与 UTC 存储域比较
   // 在中国时区恒判命中/过期——verifyOtp 早已 UTC 参数比较，此处一并对齐）。
   // 同时清该目标过期行（防 verification_codes 膨胀；与 rate_limits 的过期清理互补）——
-  // v0.27.3 落地：此前注释承诺的 DELETE 从未执行。
+  // 限频 INSERT 前必须先清该目标过期行（防 verification_codes 膨胀）。
   const nowUtc = toDbTime(new Date());
   try {
     // 过期/已用行对本目标请求无意义，顺手清理（只删 expires_at < now 的过期行，绝不误删存活验证码）

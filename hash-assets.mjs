@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * #169（v0.25.76）：内容哈希资产管线（worker 侧虚拟版本化）
+ * 内容哈希资产管线（worker 侧虚拟版本化）
  *
  * 在 push 前运行（commit 纪律：改完代码先 node hash-assets.mjs 再 commit）：
  * 对全部 js/css（index.html 引用的 + DOMAIN_FILES 懒加载脚本）算内容哈希，生成 manifest.js
@@ -31,7 +31,7 @@ export const DOMAIN_FILES = [
 ];
 
 const hash = s => createHash('sha256').update(s, 'utf8').digest('hex').slice(0, HASH_LEN);
-// 行尾归一化（v0.27.2 走查修复）：autocrlf=true 的 Windows 检出会把 LF 转 CRLF，直接哈希原始字节
+// 行尾归一化：autocrlf=true 的 Windows 检出会把 LF 转 CRLF，直接哈希原始字节
 // 会让 CRLF 环境生成与 LF 环境不同的哈希 → 红线测试在 CRLF 检出下误报「manifest 过期」。
 // 哈希前统一归一化为 LF（git 库内即 LF），跨环境确定性；LF 环境下归一化是 no-op，哈希不变。
 const normLf = s => s.replace(/\r\n/g, '\n');

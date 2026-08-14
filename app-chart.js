@@ -105,7 +105,7 @@
 
       // 工具提示：跨线 + 吸附点 + 数值优先
       const tip = document.createElement('div');
-      tip.className = 'chart-tooltip glass glass--float'; // v0.25.19 审计 G-07：挂引擎（样式走 style.css .chart-tooltip 参数）
+      tip.className = 'chart-tooltip glass glass--float'; // 审计 G-07：挂引擎（样式走 style.css .chart-tooltip 参数）
       tip.hidden = true;
       const cross = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       cross.setAttribute('class', 'chart-crosshair');

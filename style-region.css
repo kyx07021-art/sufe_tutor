@@ -28,7 +28,7 @@
 }
 
 /* ---------- 学生端：等第制 / 分数制页签 ---------- */
-/* v0.25.20 需求二：收编到标准分段控件 .seg-tabs/.seg-tab（glass.css 单点）——本文件只留宽度变体
+/* 收编到标准分段控件 .seg-tabs/.seg-tab（glass.css 单点）——本文件只留宽度变体
    （成绩行内嵌需定宽，其余分段控件默认自适应）。分隔线删（新组件用 gap），hover 走引擎。 */
 .seg-tabs--score { display: inline-flex; width: 172px; flex-shrink: 0; }
 .seg-tabs--score .seg-tab { flex: 1 1 50%; padding: 5px 0; font-size: .72rem; font-weight: 700; letter-spacing: .06em; }

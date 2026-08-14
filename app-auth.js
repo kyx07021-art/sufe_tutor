@@ -21,10 +21,10 @@ function ensureAuth() {
 }
 
 // 登录页标题按来路切换（index.html 静态文本仅作 JS 前兜底）。
-// v0.23.1：预览端触发登录时按客户端类型提示「请登录教师/学生账户」
-// v0.24.0：登录表单用户名按当前客户端角色预填（拉该角色上次登录记录）——
+// 预览端触发登录时按客户端类型提示「请登录教师/学生账户」
+// 登录表单用户名按当前客户端角色预填（拉该角色上次登录记录）——
 // 学生端预填学生账户、教师端预填教师账户，不再串号
-// v0.26.0：唯一输入框 login-identifier（用户名/手机号/邮箱）；进登录页复位密码模式与账户探测态
+// 唯一输入框 login-identifier（用户名/手机号/邮箱）；进登录页复位密码模式与账户探测态
 let loginMode = 'password'; // 密码登录（默认） | 验证码登录（页脚小字切换）
 let loginAccountValid = false; // 账户探测是否有效（有效才呼出凭证组）
 
@@ -39,7 +39,7 @@ function refreshAuthHeader() {
     u.value = name; // 覆盖浏览器自动填充的异角色账密（密码无法按角色预填：绝不存明文密码）
     if (name) checkLoginUsernameDebounced(); // 预填账户立即探测，命中即启用登录按钮（防手输前按钮灰置）
   }
-  // 复位登录表单态（v0.26.0：每次进登录页回密码模式 + 隐藏凭证组 + 清探测提示）
+  // 复位登录表单态
   loginMode = 'password'; loginAccountValid = false;
   const pw = document.getElementById('login-password-group');
   const cd = document.getElementById('login-code-group');
@@ -81,7 +81,7 @@ function afterAuthSuccess() {
   state.guestAuthMode = false;
   state.guestRole = null;
   setReturning(); // 本设备已登录过 → 首访新手引导不再弹
-  // v0.23.0 静默数据层：登录/注册成功即清会话缓存——访客浏览期缓存的 anon 视角数据
+  // 静默数据层：登录/注册成功即清会话缓存——访客浏览期缓存的 anon 视角数据
   // （teachers.matched / posts.liked / demands.my_intent_status）是 per-user 的，不清理会
   // 被新身份读到（dhPeek 命中旧身份缓存）。清理后 enterClient 的预取为当前身份现拉
   if (typeof dhInvalidateAll === 'function') dhInvalidateAll();
@@ -99,14 +99,14 @@ function switchRegisterRole(role) {
 }
 
 function handleFeatureClick(role) {
-  // v0.23.1 主页双按钮按角色分流：恢复该角色「上次登录」已存会话，无记录则进入该角色访客预览。
-  // v0.24.1 删自动登录后落地页恒为访客态（state.user 恒 null），原「同角色已登录直进」分支已不可达（死代码已删）
+  // 主页双按钮按角色分流：恢复该角色「上次登录」已存会话，无记录则进入该角色访客预览。
+  // 删自动登录后落地页恒为访客态（state.user 恒 null），原「同角色已登录直进」分支已不可达（死代码已删）
   const saved = loadSession(role);
   if (saved && saved.authToken) { switchToRole(role, saved); return; }
   enterRolePreview(role);
 }
 
-// R28（v0.25.93）：主页入口按钮光标跟随光斑（liquid 透镜感）——mousemove 委托更新 --mx/--my，
+// R28：主页入口按钮光标跟随光斑（liquid 透镜感）——mousemove 委托更新 --mx/--my，
 // 视觉全在 CSS 层（.entry-glow radial-gradient），JS 只写几何变量。仅当入口按钮渲染时更新，零常驻成本。
 document.addEventListener('mousemove', (e) => {
   const entry = e.target && e.target.closest ? e.target.closest('.entry') : null;
@@ -117,15 +117,15 @@ document.addEventListener('mousemove', (e) => {
 });
 
 // 切换到目标角色：先清当前运行时（保留其已存会话，供下次切回），再校验目标角色令牌
-// F8（v0.27.0 网络层重构）：/me 从阻塞改为并行——用已存会话的 user 立即渲染客户端壳
+// F8：/me 从阻塞改为并行——用已存会话的 user 立即渲染客户端壳
 // （刷新/切角色的串行阻塞往返移出关键路径，客户端壳提前 ~1 RTT 呈现），/me 并行调和
 // state.user（头像/用户名新鲜度不丢）。令牌若死：预取批量 401 清会话（sessionBootValidating
 // 期内不弹登录）+ /me catch 统一回落该角色访客预览，无竞态无登录页闪烁。
 function switchToRole(role, saved) {
   exitCurrentIdentity();
   state.authToken = saved.authToken;
-  const sentToken = saved.authToken; // B1（v0.27.0 审计）：/me 异步窗口内身份可能已被替换
-  state.user = saved.user; // F8：先以已存会话渲染（v0.24.2 曾因 /me 阻塞而 delay 客户端壳）
+  const sentToken = saved.authToken; // B1：/me 异步窗口内身份可能已被替换
+  state.user = saved.user; // F8：先以已存会话渲染
   saveSession(saved.source === 'local'); // 保活刷新该角色会话（按 state.user.role 落键）
   enterClient();
   // F8：并行令牌验证 + user 调和。验证期置位 → 预取批量 401 不 ensureAuth（防抢跑登录页）。
@@ -144,7 +144,7 @@ function switchToRole(role, saved) {
     if (state.authToken !== sentToken) return;
     state.authToken = null;
     state.user = null;
-    // v0.24.2 审计：死令牌只清目标角色会话（401 兜底在 state.user 为空时曾以 '' 误删全部角色会话）；
+    // 审计：死令牌只清目标角色会话（401 兜底在 state.user 为空时曾以 '' 误删全部角色会话）；
     // 网络抖动不删会话——令牌仍可恢复，下次点角色按钮再校验
     if (err && err.code !== 'NETWORK_ERROR') clearSession(role);
     enterRolePreview(role); // 令牌失效：回落该角色访客预览
@@ -152,7 +152,7 @@ function switchToRole(role, saved) {
 }
 
 // 进入目标角色访客预览（未登录态，用户信息栏显示「未登录」）
-// v0.25.95：持久化访客角色（sufe_last_guest_role）——刷新恢复访客预览与页面停留（用户反馈「刷新不要回首页」）
+// 持久化访客角色（sufe_last_guest_role）——刷新恢复访客预览与页面停留（用户反馈「刷新不要回首页」）
 function enterRolePreview(role) {
   exitCurrentIdentity();
   state.guestRole = role;
@@ -162,7 +162,7 @@ function enterRolePreview(role) {
 }
 
 // 清当前运行时身份（登出/切换共用）：停轮询 + 领域残留 + 会话缓存；不删已存会话记录
-// v0.25.95：同步清访客角色标记——登出/切换后刷新必回落地页（无身份可恢复）
+// 同步清访客角色标记——登出/切换后刷新必回落地页（无身份可恢复）
 function exitCurrentIdentity() {
   stopBadgePoll();
   if (typeof stopChatPolling === 'function') stopChatPolling();
@@ -193,7 +193,7 @@ async function checkLoginUsername() {
   try {
     const data = await api(`/api/auth/check?identifier=${encodeURIComponent(identifier)}`);
     if (seq !== loginCheckSeq) return; // 过期响应丢弃，防输入快于请求时的乱序
-    // v0.26.0：账户类型反馈复用「学生账户/教师账户/管理员账户」，加「不存在的账户」红字；
+    // 账户类型反馈复用「学生账户/教师账户/管理员账户」，加「不存在的账户」红字；
     // 账户有效才呼出密码/验证码凭证组（loginAccountValid 门控）
     const exists = !!data.exists;
     loginAccountValid = exists;
@@ -206,8 +206,7 @@ async function checkLoginUsername() {
 }
 
 // 同步凭证组显示：账户有效 → 按当前模式（密码/验证码）显示对应组 + 启用登录按钮；
-// 无效 → 全隐藏 + 登录按钮灰置（审查补丁：原只切凭证组，登录按钮常显可点，用户未确认账户
-// 也显示可提交，与「账户有效后显示密码框 + 登录按钮」需求不符）
+// 无效 → 全隐藏 + 登录按钮灰置（登录按钮必须与凭证组同步，否则未确认账户也可提交）
 function syncLoginCredGroups() {
   const pw = document.getElementById('login-password-group');
   const cd = document.getElementById('login-code-group');
@@ -230,8 +229,8 @@ function toggleLoginMode(e) {
   if (!loginAccountValid) return; // 账户未确认前不切换（凭证组未呼出）
   const next = loginMode === 'code' ? 'password' : 'code';
   if (next === 'code') {
-    // v0.26.14 L1：判型收口 classifyIdentifier（与服务端 classifyIdentifier 同语义）——
-    // 原 validatePhone 只认带 +86 前缀，裸大陆号被误判为 username 拦下验证码登录（用户实证）。
+    // 判型收口 classifyIdentifier（与服务端 classifyIdentifier 同语义）——
+    // 只认带 +86 前缀会把裸大陆号误判为 username 拦下验证码登录。
     const ident = (document.getElementById('login-identifier') || {}).value || '';
     const kind = classifyIdentifier(ident);
     if (kind !== 'phone' && kind !== 'email') {
@@ -245,14 +244,14 @@ function toggleLoginMode(e) {
   syncLoginCredGroups();
 }
 
-// v0.26.0 五合一登录提交：密码模式（账密/手机密码/邮箱密码）与验证码模式（手机验证码/邮箱验证码）
+// 五合一登录提交：密码模式（账密/手机密码/邮箱密码）与验证码模式（手机验证码/邮箱验证码）
 // C2 敏感操作门禁：按下「登录」先过一次拼图真人验证，通过后才真正发登录请求（非自动登录须验证）
 async function handleLogin(e) {
   e.preventDefault();
   const identifier = document.getElementById('login-identifier').value.trim();
   if (!identifier) { showToast(UI.LOGIN_IDENTIFIER_PLACEHOLDER, 'error'); return; }
-  // 账户未确认（按钮灰置）时的兜底：补跑一次探测再判——disabled 拦截的是正常点击/多数浏览器
-  // 的 Enter 隐式提交，此守卫防个别浏览器在禁用提交按钮下仍隐式提交绕过门控（审查补丁）
+  // 账户未确认（按钮灰置）时的兜底：补跑一次探测再判——disabled 拦截正常点击与多数浏览器的
+  // Enter 隐式提交，此守卫防个别浏览器在禁用提交按钮下仍隐式提交绕过门控
   if (!loginAccountValid) {
     await checkLoginUsername();
     if (!loginAccountValid) { showToast(UI.LOGIN_ACCOUNT_MISSING, 'error'); return; }
@@ -285,7 +284,7 @@ async function doLogin(identifier) {
     saveSession(remember); // 会话持久化（绝不存明文密码）
     afterAuthSuccess();
   } catch (err) {
-    showToast(err.message, 'error'); // v0.25.99：校验/错误提示走底部 Toast
+    showToast(err.message, 'error'); // 校验/错误提示走底部 Toast
   } finally {
     btnDone(btn, UI.BTN_LOGIN);
   }
@@ -299,10 +298,10 @@ async function handleRegister(e) {
   const role = document.getElementById('register-role').value;
 
   if (password !== password2) {
-    showToast(UI.VALIDATE_PASSWORD_MISMATCH, 'error'); // v0.25.99：校验提示走底部 Toast
+    showToast(UI.VALIDATE_PASSWORD_MISMATCH, 'error'); // 校验提示走底部 Toast
     return;
   }
-  // 需求三十（v0.25.47）：注册须勾选同意用户协议与隐私政策（两行轻量勾选；服务端同款强校验，双保险）
+  // 需求三十：注册须勾选同意用户协议与隐私政策（两行轻量勾选；服务端同款强校验，双保险）
   const agreeAgreement = document.getElementById('agree-agreement') && document.getElementById('agree-agreement').checked;
   const agreePrivacy = document.getElementById('agree-privacy') && document.getElementById('agree-privacy').checked;
   if (!agreeAgreement || !agreePrivacy) {
@@ -364,7 +363,7 @@ async function validateInviteAndRegister() {
 }
 
 function handleLogout() {
-  const role = state.user ? state.user.role : ''; // v0.23.1：记当前角色，只清该角色会话
+  const role = state.user ? state.user.role : ''; // 记当前角色，只清该角色会话
   if (state.authToken) api('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {}); // 真登出：吊销当前会话（fire-and-forget）
   stopBadgePoll();
   if (typeof stopChatPolling === 'function') stopChatPolling(); // 登出即停聊天轮询（兼清暂存附件）
@@ -373,11 +372,13 @@ function handleLogout() {
   state.user = null; state.authToken = null; state.page = null;
   state.guestRole = null; state.guestAuthMode = false; authReturnPage = null;
   closeProfilePanel(); // 内部 seq 作废在途（panel 状态复位由 app-teachers 的 logout reset 兜底）
+  // 教师缓存必须随登出清空：缓存行上挂 _matchedDetailLoaded/real_name/wechat/email 等匹配后私密字段，
+  // 残留会使下一账户读到上一账户可见的联系方式（服务器不会重复校验）
   state.allTeachers = []; state.adminTeachers = []; state.intentTeachers = [];
   state.myDemands = []; state.editingDemandId = null; state.adminPosts = []; state.adminContracts = []; state.myContracts = [];
-  state.inviteTimerId = null; state.currentInviteCode = null; state.validatedInviteCode = null; // 邀请码随账号清（曾漏清）
-  clearSession(role); // v0.23.1：只清当前角色会话——另一角色会话保留，供主页按角色分流恢复
+  state.inviteTimerId = null; state.currentInviteCode = null; state.validatedInviteCode = null; // 邀请码随账号清
+  clearSession(role); // 只清当前角色会话——另一角色会话保留，供主页按角色分流恢复
   closeSidebar();
-  closeAllModals(); // v0.25.98：登出彻底清弹窗栈（清栈+清容器，不恢复任何下层）
+  closeAllModals(); // 登出彻底清弹窗栈（清栈+清容器，不恢复任何下层）
   showView('landing');
 }

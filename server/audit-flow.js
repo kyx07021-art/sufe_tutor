@@ -29,18 +29,15 @@ import { MSG } from './constants.js';             // 驳回文案单源（ADDRES
 // 用户上传数据 = 内容域写路径（POST/PUT）；读/已读/登录等非内容写不在其列。
 // 前缀覆盖 = 创建 + 编辑（带 :id 的 PUT）全口径：posts/demands/teacher profile/reviews/feedbacks/
 // complaints/uploads/contracts（创建+修改）/聊天消息/签约（发起+回复）/需求意向（创建+处理）/
-// 需求推送（学生推送+教师处理）/注册/头像。
-// 点赞/收藏等轻量写也命中（同为内容域写路径，dummy 放行无害，宁全勿漏——审查补丁×2：原 set 只精确
-// 匹配创建路径，漏 PUT 编辑与合同/签约创建；二次审查又漏签约回复（signing-requests/respond）、
-// 需求意向（demands/:id/intents、intents/:id/resolve）、需求推送（demand-pushes）三类路径——
-// 已与 _worker.js 路由全表对照补齐，读路径由 isContentWrite 的 POST/PUT 门控天然排除）。
+// 需求推送（学生推送+教师处理）/注册/改用户名/头像。契约：新增内容域写路径先在此加行，
+// 并与 _worker.js 路由全表对照（宁全勿漏——点赞/收藏等轻量写命中放行无害，漏一条即合规断线）。
 // ============================================================
 const CONTENT_WRITE_PREFIXES = [
   '/api/posts', '/api/student/demands', '/api/demands/', '/api/intents',
   '/api/demand-pushes', '/api/teacher/profile', '/api/reviews',
   '/api/feedbacks', '/api/complaints', '/api/uploads', '/api/contracts',
   '/api/conversations/', '/api/signing-requests',
-  '/api/auth/register', '/api/user/avatar',
+  '/api/auth/register', '/api/user/username', '/api/user/avatar',
 ];
 
 export function isContentWrite(path, method) {
@@ -49,14 +46,12 @@ export function isContentWrite(path, method) {
 }
 
 // ============================================================
-// 门牌合规 L1 规则层挂接（v0.30.0 S2-1 补全）
+// 门牌合规 L1 规则层挂接
 // ============================================================
-// 原缺口：auditFreeText（门牌合规咽喉）仅 routes-teacher（intro/school）/routes-demands
-// （additional_info）直调——帖子/评价/投诉/聊天/反馈/打招呼消息/合同/签约的自由文本可写入门牌号，
-// 违反合规红线「详细门牌号不收集」。现按路径映射在此统一抽取自由文本字段交 auditFreeText
-// （L1 规则 + 可选 L2 语义 fail-open），audit-flow 成为名实相符的统一审核咽喉。
-// 抽取用 pick 函数（body → string[]），比字段名字符串映射稳（可处理嵌套如聊天 batch[].body）；
-// 新增内容路径在此加一行即可。路由层原有直调保留作纵深防御 + 直接路由单测入口。
+// auditFreeText（门牌合规咽喉）统一在此按路径映射抽取内容域自由文本交审（L1 规则 + 可选 L2 语义
+// fail-open），帖子/评价/投诉/聊天/反馈/打招呼消息/合同/签约等全口径覆盖——audit-flow 是统一审核咽喉。
+// 抽取用 pick 函数（body → string[]），按真实请求形状（嵌套如聊天 batch[].body、需求 {demand:{}}），
+// 比字段名字符串映射稳；新增内容路径在此加一行即可。路由层原有直调保留作纵深防御 + 直接路由单测入口。
 // 依赖：auditFreeText 走 secrets 网关（L2 密钥未配置即跳过，仅规则层）。
 // 白名单里有意不映射的路径（isContentWrite 通过但无地址承载自由文本，auditItem 落 'skip' 属预期）：
 //   /api/uploads（附件上传，正文无自由文本）、/api/user/avatar（头像，无文本）、
@@ -64,19 +59,20 @@ export function isContentWrite(path, method) {
 //   {accept,capToken}，无自由文本）——新增写路径时先确认是否有承载地址的自由文本字段，有则在此加映射。
 const AUDIT_MAP = [
   { prefix: '/api/posts',           pick: b => [b.title, b.bodyMd] },
-  { prefix: '/api/student/demands', pick: b => [b.demand?.additional_info] }, // 嵌套 body（创建 POST 与编辑 PUT 同构 {demand:{additional_info}}——外部审计抓出曾读扁平字段规则恒空转）
+  { prefix: '/api/student/demands', pick: b => [b.demand?.additional_info] }, // 嵌套 body（创建 POST 与编辑 PUT 同构 {demand:{additional_info}}）
   { prefix: '/api/demands/',        pick: b => [b.message] }, // 仅 POST /api/demands/:id/intents（意向创建，body 扁平 message；需求编辑在 /api/student/demands/:id）
   { prefix: '/api/intents',         pick: b => [b.message] },
   { prefix: '/api/demand-pushes',   pick: b => [b.message] },
-  { prefix: '/api/teacher/profile', pick: b => [b.profile?.intro, b.profile?.school] }, // 嵌套 body {profile:{intro,school}}（同断线修法）
+  { prefix: '/api/teacher/profile', pick: b => [b.profile?.intro, b.profile?.school] }, // 嵌套 body {profile:{intro,school}}
   { prefix: '/api/reviews',         pick: b => [b.comment] },
   { prefix: '/api/feedbacks',       pick: b => [b.title, b.content] },
   { prefix: '/api/complaints',      pick: b => [b.reason, b.detail] },
-  { prefix: '/api/contracts',       pick: b => [b.plan, b.schedule, b.location, b.payMethodOther, b.contractMd] }, // 合同线下地点可承载门牌（v0.30.0 审计补）；v0.31.2 审计补 contractMd——修改路径 body {version,contractMd}，创建路径 body 为扁平四字段（contractMd 服务端重拼，客户端不传即 undefined 不误拦）
+  { prefix: '/api/contracts',       pick: b => [b.plan, b.schedule, b.location, b.payMethodOther, b.trialPayOther, b.contractMd] }, // 合同线下地点/试课支付备注可承载门牌；修改路径 body {version,contractMd}，创建路径其余字段（服务端重拼的字段客户端不传即 undefined 不误拦）
   { prefix: '/api/conversations/',  pick: b => [
       ...(Array.isArray(b.batch) ? b.batch.map(i => i && i.body) : []), // 聊天批量正文
-      b.schedule, // 发起签约（/api/conversations/:id/signing）schedule 自由文本（v0.30.0 审计补）
+      b.schedule, // 发起签约（/api/conversations/:id/signing）schedule 自由文本
     ] },
+  { prefix: '/api/user/username',   pick: b => [b.newUsername] }, // 改用户名：白名单字符可拼出门牌文本（如「中山路88号」），与注册同口径过闸
 ];
 
 // 预算说明（安全评审回应）：≤300ms fail-open 是**有意**的、且有文本依据的合规取舍——

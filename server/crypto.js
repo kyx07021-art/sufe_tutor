@@ -24,21 +24,31 @@ import { SECURITY } from './constants.js';
 export function bufToHex(buf) {
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
-export const b64ToBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-export const bytesToB64 = bytes => btoa(String.fromCharCode(...bytes));
+// 以下五个 b64/AES 原语仅供本模块内部使用（全仓唯一外部入口是 encryptField/decryptField/encryptDetail/decryptDetail）
+const b64ToBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+// 分块编码：String.fromCharCode(...bytes) 的参数展开超引擎上限（V8≈64KB）会抛 RangeError——
+// 大字段（学信网截图/聊天附件 >64KB）会因此加密失败静默退明文。以 0x8000 为块循环编码，任意长度安全。
+const bytesToB64 = bytes => {
+  const u8 = new Uint8Array(bytes);
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) {
+    s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
+  }
+  return btoa(s);
+};
 
 // ============================================================
 // AES-GCM 原语
 // ============================================================
 /** b64 密钥 → AES-GCM CryptoKey；非法密钥返回 null（不抛，调用方按无密钥语义回落） */
-export async function aesKeyFromB64(b64) {
+async function aesKeyFromB64(b64) {
   try {
     return await crypto.subtle.importKey('raw', b64ToBytes(b64), 'AES-GCM', false, ['encrypt', 'decrypt']);
   } catch { return null; }
 }
 
 /** AES-GCM 加密 → 'enc:v1:<iv_b64>:<ct_b64>'；加密失败返回 null */
-export async function encryptAes(key, text) {
+async function encryptAes(key, text) {
   try {
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(text));
@@ -47,7 +57,7 @@ export async function encryptAes(key, text) {
 }
 
 /** AES-GCM 解密：老明文行原样放行；解密失败回 '[undecryptable]'（密钥轮换后的历史密文标记，不抛错） */
-export async function decryptAes(key, text) {
+async function decryptAes(key, text) {
   if (typeof text !== 'string' || !text.startsWith('enc:v1:')) return text;
   try {
     const parts = text.split(':');

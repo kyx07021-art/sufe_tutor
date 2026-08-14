@@ -17,6 +17,7 @@ import {
   dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbGetFeedbacksByUser,
 } from './db.js';
 import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from './log.js';
+import { confirmDangerOtp } from './danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 import { dbBroadcastNotification, notifyUser } from './notify.js';
 
@@ -52,9 +53,9 @@ export async function handleAdminStats(db, url, req) {
   });
 }
 
-// 流量监测（v0.22.1）：站点总流量 + 平均延迟。
+// 流量监测：站点总流量 + 平均延迟。
 // 口径：activity_log 中 http.* 访问留档 = 服务端实际处理的请求；流量 = 每桶请求数；
-// 平均延迟 = AVG(duration_ms)（v0.22.0 起记录，历史桶为 null）。范围白名单 24h/7d/30d，空桶补零。
+// 平均延迟 = AVG(duration_ms)（历史桶为 null）。范围白名单 24h/7d/30d，空桶补零。
 export async function handleAdminTraffic(db, url, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
@@ -135,6 +136,8 @@ export async function handleBanUser(db, userId, body, req) {
   const target = await dbGetUserById(db, userId);
   if (!target) return error(MSG.USER_NOT_FOUND, 404);
   if (target.role === 'admin') return error(MSG.NO_PERMISSION, 403);
+  // 封禁/解封 = 危险操作（同注销/签约口径），须 capToken 二次认证：管理员令牌被复用/泄露时封禁一击无效
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
 
   const banned = body.banned ? 1 : 0;
   await dbSetUserBanned(db, userId, banned);
@@ -172,7 +175,7 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   if (err) return err;
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
-  // v0.25.95（调试阶段放开）：管理员可删全部需求（含已签约 contracted）。不再拦 CONTRACTED；
+  // 管理员可删全部需求（含已签约 contracted）；
   // 数据层 dbAdminForceDeleteDemand 同事务清 contracts/signing_requests 的 demand_id 引用再删需求，
   // F-03b 悬空不变量照守（常规非管理员路径仍走 dbDeleteDemand 的原子门禁）。
   const ok = await dbAdminForceDeleteDemand(db, demandId);
@@ -230,7 +233,7 @@ export async function handleCreateFeedback(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   const userId = me.id;
-  // #165（v0.25.73）：投诉通道——kind 白名单扩 complaint；投诉对象白名单（teacher/student/platform），非投诉恒空
+  // 投诉通道——kind 白名单扩 complaint；投诉对象白名单（teacher/student/platform），非投诉恒空
   const kind = (body.kind === 'bug' || body.kind === 'complaint') ? body.kind : 'suggestion';
   const subject = (kind === 'complaint' && ['teacher', 'student', 'platform'].includes(body.subject)) ? body.subject : '';
   const title = String(body.title || '').trim().slice(0, LIMITS.TITLE_MAX);
@@ -242,7 +245,7 @@ export async function handleCreateFeedback(db, body, req) {
   return json({ ok: true }, 201);
 }
 
-// #165（v0.25.73）：我的反馈/投诉——用户侧闭环（仅本人数据；GET /api/feedbacks/mine）
+// 我的反馈/投诉——用户侧闭环（仅本人数据；GET /api/feedbacks/mine）
 export async function handleMyFeedbacks(db, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;

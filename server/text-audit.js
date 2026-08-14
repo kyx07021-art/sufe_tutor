@@ -1,9 +1,8 @@
 /**
- * 文本审核咽喉（v0.25.113 起）——全站自由文本字段统一审核入口
+ * 文本审核咽喉 —— 全站自由文本字段统一审核入口
  *
- * 用户需求（2026-08-10）：地址门控被谐音/语义级描述绕过——「二期爸爸号」「2期8霸昊」
- * 「2788好」「丁香国际对门学校上二楼左转第一间房」等，纯正则规则层兜不住，须语义层；
- * 同时接口留清晰独立，方便未来改接全站文本统一审核方案。
+ * 定位：地址门控被谐音/语义级描述绕过（「二期爸爸号」「2788好」「对门二楼左转」等），
+ * 纯正则规则层兜不住，须语义层；接口独立，方便未来改接全站文本统一审核方案。
  *
  * 策略链（自低到高，fail-open）：
  *   L1 规则层（零网络零成本毫秒级）：ADDRESS_GUARD 增强正则（数字+门牌后缀含连字符变体）
@@ -12,11 +11,11 @@
  *     （门牌/楼栋/房间/方位描述）。密钥 env.TEXT_AUDIT_API_KEY（Secrets 网关，见 secrets.js）；
  *     未配置 / 超时 / 接口异常 → fail-open 回退 L1（规则层结果）。
  *
- * 调用点：routes-teacher（address/intro/school）、routes-demands（address/additional_info）等
- * 对自由文本字段调 auditFreeText，命中 { ok:false } 即回 MSG.ADDRESS_TOO_DETAILED。
+ * 调用点：统一咽喉是 audit-flow（AUDIT_MAP 按路径抽取全部内容域自由文本交 auditFreeText）；
+ * 路由层直调保留作纵深防御。命中 { ok:false } 即回 MSG.ADDRESS_TOO_DETAILED。
  * 未来全站统一审核：策略链只在本模块演进（换模型/换厂商/加规则），调用点签名不变。
  */
-import { ADDRESS_GUARD, NUM_T, NUM_SEP } from './constants.js'; // NUM_T/NUM_SEP 与 ADDRESS_GUARD 同源（v0.31.3 审计 A1：曾各写一份，数字变体扩容必漂移）
+import { ADDRESS_GUARD, NUM_T, NUM_SEP } from './constants.js'; // NUM_T/NUM_SEP 与 ADDRESS_GUARD 同源，改数字变体两处同步
 import { getSecret } from './secrets.js';
 
 let AUDIT_ENV = null;

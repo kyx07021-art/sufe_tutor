@@ -18,7 +18,7 @@ import {
   dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbDeleteUser,
   dbUserLookupStmt, dbUsernameExistsStmt, dbUserPhoneHashStmt, dbUserEmailHashStmt,
 } from './db.js';
-// v0.26.0 凭证域：凭证更新独立环节（A4）+ 验证码咽喉（A3）+ 登录识别（A7）
+// 凭证域：凭证更新独立环节 + 验证码咽喉 + 登录识别
 import {
   updateUsernameCredential, getUsernameChangedAt,
   bindPhoneCredential, bindEmailCredential, dbPhoneTaken, dbEmailTaken,
@@ -33,16 +33,15 @@ export async function handleRegister(db, body, req) {
   if (!username || username.length < LIMITS.USERNAME_MIN || username.length > LIMITS.USERNAME_MAX) return error(MSG.USERNAME_LENGTH);
   // 用户名字符集白名单（中文/字母/数字/_ . -），杜绝 control char / HTML 注入名进入全站 innerHTML
   if (!/^[\p{Script=Han}A-Za-z0-9_.\-]{3,30}$/u.test(username)) return error(MSG.USERNAME_INVALID);
-  // v0.26.0 用户名规则（审查补丁：注册端与改用户名同口径）——纯数字（含 11 位手机形）拒绝：
-  // 登录唯一输入框把纯数字识别为 phone，走 phone_hash 查不到 → 账户永久锁死「不存在的账户」。
-  // 存量纯数字用户由 initDb 的 _sufe 消毒迁移处理（A8）；新注册在此拦断。不改注册 UI（需求保留）。
+  // 契约：禁止纯数字用户名（含 11 位手机形）——登录唯一输入框把纯数字识别为 phone，
+  // 走 phone_hash 查不到 → 账户永久无法登录。存量由 initDb 的 _sufe 消毒迁移处理；新注册在此拦断。
   if (/^\d+$/.test(username)) return error(MSG.USERNAME_NEW_INVALID);
   // 预留注销墓碑前缀：禁止注册与「已注销用户#id」同前缀的用户名（防冒充注销账户）
   const tombPrefix = globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX;
   if (tombPrefix && username.startsWith(tombPrefix)) return error(MSG.USERNAME_INVALID);
   if (!password || password.length < LIMITS.PASSWORD_MIN || password.length > LIMITS.LOGIN_PASSWORD_MAX) return error(MSG.PASSWORD_LENGTH); // 上限防 PBKDF2 CPU 放大（与登录同口径）
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
-  // 需求三十（v0.25.47）：注册必须同意用户协议与隐私政策（服务端强校验——前端勾选可被构造请求绕过，
+  // 注册必须同意用户协议与隐私政策（服务端强校验——前端勾选可被构造请求绕过，
   // 平台合规红线，不同意即拒绝注册，不建任何账户）
   const agreeAgreement = body.agreeAgreement === true || body.agreeAgreement === 1 || body.agreeAgreement === 'true';
   const agreePrivacy = body.agreePrivacy === true || body.agreePrivacy === 1 || body.agreePrivacy === 'true';
@@ -81,7 +80,7 @@ export async function handleRegister(db, body, req) {
 }
 
 export async function handleLogin(db, body, req) {
-  // v0.26.0 五合一登录（A7）：identifier = 用户名 / 手机号 / 邮箱（前端唯一输入框「请输入用户名/手机号/邮箱」）。
+  // 五合一登录：identifier = 用户名 / 手机号 / 邮箱（前端唯一输入框「请输入用户名/手机号/邮箱」）。
   // 兼容旧客户端 body.username（老字段仍读）；识别格式 → 按 username 直查 / phone_hash / email_hash 定位。
   const { password } = body;
   const identifier = String(body.identifier || body.username || '').trim();
@@ -125,7 +124,7 @@ export async function handleLogin(db, body, req) {
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' }, authToken });
 }
 
-// 登录页账户实时探测（v0.26.0 A7 五合一登录）：identifier = 用户名/手机号/邮箱。
+// 登录页账户实时探测：identifier = 用户名/手机号/邮箱。
 // 识别格式 → 定位账户 → 返回 { exists, role, kind }；不存在 → { exists:false, kind }（前端红字「不存在的账户」）。
 // 仅返回存在与否 + 角色，不暴露其他字段（手机号/邮箱经哈希列查询，探测不泄露绑定关系之外的任何信息）
 export async function handleCheckUsername(db, url) {
@@ -159,7 +158,7 @@ export async function handleDeactivateAccount(db, body, req) {
   const tombstone = `${globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX}#${me.id}`;
   await dbDeactivateUser(db, me.id, tombstone);
   await dbPurgeUserOwnedData(db, me.id, me.role); // 按角色清理单方数据 + 匿名化本人聊天正文
-  // v0.25.46 返工：合同正文一字不碰（签署后不可修改是合同的立身之本）——注销不改 contract_md，
+  // 合同正文一字不碰（签署后不可修改是合同的立身之本）——注销不改 contract_md，
   // 对端「一方已注销」tag 由前端 JOIN users 墓碑名自然呈现（合同是双方数据，对方本就知道本人用户名）
   await clearDangerCaps(db, me.id); // 注销即清全部 capToken（防 danger_caps 孤儿行残留）
   await logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
@@ -250,12 +249,18 @@ export async function handleReAuth(db, body, req) {
     return error(MSG.LOGIN_FAILED, 403);
   }
   const capToken = await issueCapToken(db, req);
+  // capToken 落库失败返回空串（D1 异常）：空串会让下游危险操作恒 403「密码错误」且无观测信号——
+  // 直接 500 并告警，不让用户陷入迷惑状态
+  if (!capToken) {
+    console.warn('handleReAuth: issueCapToken 返回空（D1 异常），拒绝下发');
+    return error(MSG.SERVER_ERROR, 500);
+  }
   await logEvent(db, { action: 'auth.reauth.success', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ capToken });
 }
 
 // ============================================================
-// v0.26.0 验证码 / 凭证扩展（A5-A7）
+// 验证码 / 凭证扩展
 // ============================================================
 // 手机号脱敏展示（+8613812345678 → 138****5678）；非手机格式原样截断
 function maskPhone(phone) {
@@ -333,7 +338,7 @@ export async function handleChangeUsername(db, body, req) {
   if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
   const newName = String(body.newUsername || '').trim();
   if (newName.length < LIMITS.USERNAME_MIN || newName.length > LIMITS.USERNAME_MAX) return error(MSG.USERNAME_LENGTH);
-  // v0.26.0 用户名规则：白名单字符 + 不含 @ + 非纯数字（登录唯一输入框按格式初判，纯数字/含@会歧义为手机号/邮箱）
+  // 用户名规则：白名单字符 + 不含 @ + 非纯数字（登录唯一输入框按格式初判，纯数字/含@会歧义为手机号/邮箱）
   if (!/^[\p{Script=Han}A-Za-z0-9_.\-]+$/u.test(newName)) return error(MSG.USERNAME_NEW_INVALID);
   if (newName.includes('@') || /^\d+$/.test(newName)) return error(MSG.USERNAME_NEW_INVALID);
   const tombPrefix = globalThis.APP_CONSTANTS.UI.DEACTIVATED_USER_PREFIX;

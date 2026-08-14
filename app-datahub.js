@@ -1,5 +1,5 @@
 /**
- * app-datahub.js — 会话数据层（v0.23.0 静默数据层；目标分层：状态管理层下游、领域层上游）
+ * app-datahub.js — 会话数据层（状态管理层下游、领域层上游）
  *
  * 加载序（见 index.html）：app-api 之后、领域层之前；共享层最后。
  *
@@ -69,7 +69,7 @@ async function dhGet(endpoint, { domain = 'misc', forceRefresh = false } = {}) {
 }
 
 /**
- * B2/F3（v0.27.0 网络层重构）：批量读主入口——一次往返拉 N 个 key（服务端 /api/batch 并发，
+ * B2/F3：批量读主入口——一次往返拉 N 个 key（服务端 /api/batch 并发，
  * 一次鉴权 + 公开列表边缘缓存复用）。prefetch/域刷新/多模块首载的「N 个独立 GET」合并为 1 次往返。
  *
  * 去重与 single-flight 兼容：
@@ -108,7 +108,7 @@ async function dhBatchGet(entries, { forceRefresh = false } = {}) {
       dhInflight.set(path, pr);
     }
     let results = new Map();
-    // B-2（v0.27.0 审计修复）：单域缓存键可超服务端批量上限（teachers 域按 ?userId= 分键累积、
+    // B-2：单域缓存键可超服务端批量上限（teachers 域按 ?userId= 分键累积、
     // 搜索 query 变体键），一次全发 → 服务端整批 400 → dhRefreshDomain ok=false 静默持续失败、
     // 列表长期陈旧（dhTouchAll 又给全缓存续期永不过期）。按 CONFIG.BATCH_GET_MAX 分块逐块拉取合并。
     const chunkSize = CONFIG.BATCH_GET_MAX || 16;
@@ -160,7 +160,7 @@ function dhInvalidateAll() {
   dhEpoch++;
 }
 
-/** 版本更新强清缓存（v0.25.12 反馈：「版本更新之后强行清洗缓存」，简单粗暴）。
+/** 版本更新强清缓存（「版本更新之后强行清洗缓存」，简单粗暴）。
  *  机制：localStorage 记上次运行版本；与 APP_CONSTANTS.APP_VERSION 不一致（发版/回滚）
  *  → dhInvalidateAll 整体作废（清空缓存 + 推进代次，在途旧数据丢弃）→ 覆写新版本号。
  *  调用点：① 模块加载时（boot 落版本基线）；② 每次版本探测 tick（运行中的标签页
@@ -200,7 +200,7 @@ const DH_PREFETCH = {
     ['/api/student/demands?scope=for-teacher', 'demands'],
     ['/api/demand-pushes', 'demands'],
     ['/api/teachers', 'teachers'],
-    ['/api/posts?sort=new', 'posts'], // v0.23.1 审计 m1：loadPosts 恒带 sort=new，无 query 的预取键永不命中
+    ['/api/posts?sort=new', 'posts'], // 审计 m1：loadPosts 恒带 sort=new，无 query 的预取键永不命中
     ['/api/contracts/my', 'contracts'],
     ['/api/conversations', 'chat'],
     ['/api/notifications', 'notifications'],
@@ -224,7 +224,7 @@ const DH_PREFETCH = {
     ['/api/user/username/status', 'account'],
     ['/api/user/creds', 'account'],
   ],
-  // v0.24.0：访客（未登录预览）也预取公开数据——进入网页瞬间静默加载所有内容，
+  // 访客（未登录预览）也预取公开数据——进入网页瞬间静默加载所有内容，
   // 与所在模块无关；版本探测同步启用保持公开列表新鲜
   'student-guest': [
     ['/api/student/demands', 'demands'], // 需求广场（公开，无 scope）
@@ -238,7 +238,7 @@ const DH_PREFETCH = {
   ],
 };
 
-/** 静默预取：登录进客户端后调用；B2/F3（v0.27.0）改批量——DH_PREFETCH 全键一次 /api/batch 往返
+/** 静默预取：登录进客户端后调用；B2/F3改批量——DH_PREFETCH 全键一次 /api/batch 往返
  *  （9-13 个独立 GET → 1）。失败静默（单键失败不阻断其余；整体失败回退按需加载——预取绝不卡任何页面）。
  *  返回值由 Promise.allSettled 数组改为 Map<path,data>（调用方均不消费，只作 fire-and-forget）。 */
 function dhPrefetch(role) {
@@ -257,7 +257,7 @@ function dhOnDomainRefresh(domain, fn) {
 }
 
 /** 静默重拉某域全部已缓存 key（域计数变化时触发）；只刷缓存不碰 DOM——切 tab 时自然拿到新数据。
- *  B2/F4（v0.27.0）改批量：域内已缓存 key 一次 /api/batch forceRefresh（N+1 → 1 往返）。
+ *  B2/F4改批量：域内已缓存 key 一次 /api/batch forceRefresh（N+1 → 1 往返）。
  *  返回是否全部成功：失败域由 dhProbeTick 保留旧基线、下轮重试（审计 m5）。
  *  成功后执行该域的重挂函数（模块别名回到新缓存数组）。 */
 async function dhRefreshDomain(domain) {

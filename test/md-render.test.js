@@ -20,7 +20,7 @@ function makeCtx() {
       window: w, document: w.document,
       getComputedStyle: w.getComputedStyle.bind(w),
       localStorage: w.localStorage,
-      console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
+      console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
       clearTimeout: globalThis.clearTimeout, Request: globalThis.Request,
       MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     }),

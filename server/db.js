@@ -3,19 +3,19 @@
  * 有意决定（CLAUDE.md）：日志表建表/插入在 server/log.js，通知表在 server/notify.js，
  * 合同状态机与台账 SQL 在 server/contract.js——各模块自持其表域，不在本文件重复。
  * signing_requests 表 DDL 由 server/signing.js 自持（initSigningTable），但该表的业务 SQL
- * （增/查/确认签约事务）已收口在本文件 mapper（v0.25.78 A5），signing.js 只调 dbXxx。
+ * （增/查/确认签约事务）已收口在本文件 mapper，signing.js 只调 dbXxx。
  * 换数据库时业务层只需重写本文件（咽喉层 util.js 的 dbAll/dbGet/dbRun 为通用封装）。
  */
 import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
 import { hashPassword, encryptField, decryptField, bindCryptoEnv } from './crypto.js'; // 密码哈希/敏感字段加密（网安报告 F-06）
-import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS, PHONE_HASH_COND, EMAIL_HASH_COND } from './constants.js'; // PHONE/EMAIL_HASH_COND：哈希定位条件单源（v0.31.3 审计 A3）
+import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS, PHONE_HASH_COND, EMAIL_HASH_COND } from './constants.js'; // PHONE/EMAIL_HASH_COND：哈希定位条件单源
 import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
-import { initVersionTable } from './version.js'; // 数据版本戳表建表（v0.23.0 静默数据层，仅借 init）
-import { initSigningTable } from './signing.js'; // 发起签约请求表建表（v0.24.0 极简签约流，仅借 init）
+import { initVersionTable } from './version.js'; // 数据版本戳表建表（仅借 init）
+import { initSigningTable } from './signing.js'; // 发起签约请求表建表（仅借 init）
 import { initDangerCaps } from './danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
-import { initOtpTable } from './otp.js'; // 验证码表建表（v0.26.0 A3，独立模块，仅借 init，无循环依赖）
+import { initOtpTable } from './otp.js'; // 验证码表建表（独立模块，仅借 init，无循环依赖）
 
 // ============================================================
 // 数据库初始化 + 迁移
@@ -42,7 +42,7 @@ const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   drafter_signed_at TEXT NOT NULL DEFAULT '',
   other_signed_at TEXT NOT NULL DEFAULT '',
   version INTEGER NOT NULL DEFAULT 0,
-  revoked INTEGER NOT NULL DEFAULT 0,   -- v0.25.87 R7：撤销标记（合同不删除，status 保持 signed）
+  revoked INTEGER NOT NULL DEFAULT 0,   -- 撤销标记（合同不删除，status 保持 signed）
   revoked_by INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT (datetime('now','localtime')),
   updated_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -56,9 +56,9 @@ const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(
 //   ① 旧表整体改名为 _*_old（SQLite 自动同步改写旧表间的 FK 引用）
 //   ② 建当前形状新表并改名回终名，数据从 _*_old 拷贝（列交集）
 //   ③ 先子后父删 _*_old
-// 必须由 initDb 在初始建表【之前】调用：若初始 batch 先建出 auth_sessions/conversations 等子表，
-// 本迁移改名 users 时会把它们的 FK 一并改写指向 _users_old，随后 _users_old 被删 → 子表 FK 悬空，
-// 任何 INSERT 报 no such table: _users_old（实证复现）。迁移在前则子表直接引用迁移后的最终表。
+// 契约：本迁移必须由 initDb 在初始建表【之前】调用——若初始 batch 先建出子表，
+// 改名 users 时会把它们的 FK 一并改写指向 _users_old，随后 _users_old 被删 → 子表 FK 悬空，
+// 任何 INSERT 报 no such table: _users_old。迁移在前则子表直接引用迁移后的最终表。
 // 幂等守卫：users 定义已含 'admin' 即跳过（全新库/已迁移库零开销）。
 // 网安审计 N-19：旧表可能经历次 ensureColumns 比迁移 DDL 多/少列，逐表取「新旧列交集」显式列名拷贝，
 // 缺列/多列均不炸；更老库缺失的表跳过、由初始 batch 按当前形状补建；补列仍由后续 ensureColumns 统一补齐。
@@ -183,15 +183,11 @@ async function migrateLegacyRoles(db, adminNames) {
 }
 
 // ============================================================
-// v0.26.12 initDb 瘦身（冷 isolate 首击 25s 超时治本，C1）：
-// 根因：原 initDb 每次 worker isolate 首击全量跑 19 表 CREATE + ~15 组 ensureColumns
-// （≈13-20 次 D1 往返），Pages 多 isolate 各自冷启动 × D1 冷连接 → 6-25s 超时
-// （生产实测纯 D1 单表查询正常 0.7s，但 30% 请求间歇 6.7s/25s）。现改为 schema 版本判断：
-// 冷 isolate 首击 1 次 batch（CREATE schema_meta 幂等 + SELECT 版本）命中已最新即跳过
-// 全量迁移——D1 往返 20→1，任何 isolate 首击 <1s。
+// initDb 采用 schema 版本判断：冷 isolate 首击 1 次 batch（CREATE schema_meta 幂等 + SELECT 版本）
+// 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 3; // v0.28.0 M1：demand_pushes/demand_intents 加 message 列；v0.31.7 R1/R2：student_demands 加 teaching_goal/skill_notes
+export const SCHEMA_VERSION = 3; // 当前 schema 覆盖：demand_pushes/demand_intents 有 message 列；student_demands 有 teaching_goal/skill_notes
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
@@ -214,9 +210,8 @@ async function runFullMigration(db, env) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
   const adminNames = adminNamesOf(getSecret(env, 'ADMIN_USERNAMES'));
   const adminPassword = getSecret(env, 'ADMIN_DEFAULT_PASSWORD') || '';
-  // 遗留角色迁移必须先于初始建表执行：若在初始 batch 之后跑，新建子表（auth_sessions/conversations…）
-  // 的 FK 会在改名腾位时被改写指向 _*_old，随后 _*_old 被删 → 子表 FK 悬空，全站 INSERT 报
-  // no such table（实证复现）。迁移在前时子表直接引用迁移后的最终表，从根上规避。
+  // 遗留角色迁移必须先于初始建表执行：否则新建子表的 FK 会在改名腾位时被改写指向 _*_old，
+  // 随后 _*_old 被删 → 子表 FK 悬空，全站 INSERT 报 no such table。
   await migrateLegacyRoles(db, adminNames);
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
@@ -231,7 +226,7 @@ async function runFullMigration(db, env) {
       token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
       session_id TEXT NOT NULL DEFAULT '',
       label TEXT NOT NULL DEFAULT '',
-      device_id TEXT NOT NULL DEFAULT '', /* v0.25.11：设备去重键（浏览器档案持久 id；'' = 无设备标识的老客户端/脚本，不受部分唯一索引约束） */
+      device_id TEXT NOT NULL DEFAULT '', /* 设备去重键（浏览器档案持久 id；'' = 无设备标识的老客户端/脚本，不受部分唯一索引约束） */
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       expires_at DATETIME NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
@@ -376,7 +371,7 @@ async function runFullMigration(db, env) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL,
       kind TEXT NOT NULL DEFAULT 'suggestion' CHECK(kind IN ('bug','suggestion','complaint')),
-      subject TEXT NOT NULL DEFAULT '', /* #165（v0.25.73）：投诉对象（teacher/student/platform），非投诉恒空 */
+      subject TEXT NOT NULL DEFAULT '', /* 投诉对象（teacher/student/platform），非投诉恒空 */
       title TEXT NOT NULL DEFAULT '',
       content TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
@@ -384,10 +379,10 @@ async function runFullMigration(db, env) {
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     db.prepare(`CREATE TABLE IF NOT EXISTS user_settings (
       user_id INTEGER PRIMARY KEY,
-      allow_guest_profile INTEGER NOT NULL DEFAULT 1, /* #163（v0.25.71）：访客可见性——教师档案对未登录游客可见 */
-      allow_guest_demand INTEGER NOT NULL DEFAULT 1,  /* #163：需求对未登录游客可见 */
+      allow_guest_profile INTEGER NOT NULL DEFAULT 1, /* 访客可见性——教师档案对未登录游客可见 */
+      allow_guest_demand INTEGER NOT NULL DEFAULT 1,  /* 需求对未登录游客可见 */
       updated_at DATETIME DEFAULT (datetime('now','localtime')),
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`), /* #163：隐私设置大层级——无行=全默认可见（COALESCE 1） */
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`), /* 隐私设置大层级——无行=全默认可见（COALESCE 1） */
   ]);
 
   // 合同表 schema 迁移：旧预留表（student/teacher 直连 + active/ended 状态）从未启用过，
@@ -398,8 +393,8 @@ async function runFullMigration(db, env) {
     await dbRun(db, CONTRACTS_DDL);
   }
 
-  // messages.kind CHECK 迁移：约束缺 'contract'（合同气泡）→ v0.24.0 再补 'signing_request'/'signing_response'
-  // （发起签约气泡与响应），检测到缺任一即保数据换表（rename → 新建 → 拷贝 → 删旧 → 补索引）
+  // messages.kind CHECK 迁移：约束缺 'contract'/'signing_request'/'signing_response'（合同/签约气泡）
+  // 检测到缺任一即保数据换表（rename → 新建 → 拷贝 → 删旧 → 补索引）
   const msgMeta = await dbGet(db, `SELECT sql FROM sqlite_master WHERE type='table' AND name='messages'`);
   if (msgMeta && msgMeta.sql && !(msgMeta.sql.includes("'contract'") && msgMeta.sql.includes("'signing_request'"))) {
     await db.batch([
@@ -419,7 +414,7 @@ async function runFullMigration(db, env) {
     ]);
   }
 
-  // feedbacks.kind CHECK 迁移（#165 v0.25.73）：约束缺 'complaint'（投诉通道）→ 保数据换表
+  // feedbacks.kind CHECK 迁移：约束缺 'complaint'（投诉通道）→ 保数据换表
   const fbMeta = await dbGet(db, `SELECT sql FROM sqlite_master WHERE type='table' AND name='feedbacks'`);
   if (fbMeta && fbMeta.sql && !fbMeta.sql.includes("'complaint'")) {
     await db.batch([
@@ -494,7 +489,7 @@ async function runFullMigration(db, env) {
   await initLogDb(db);
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
-  // v0.26.0 凭证扩展（内测增量凭证，详见 docs/0.26-认证与审核架构.md A2）：
+  // 凭证扩展（内测增量凭证，详见 docs/0.26-认证与审核架构.md）：
   //   phone/email 为 AES 加密列（可展示，解密出门）；phone_hash/email_hash 为 SHA-256 可查询列
   //   （AES 不可查询，登录按手机号/邮箱定位账户的唯一手段，同 auth_sessions.token_hash 模式）。
   //   username_changed_at：用户名最近修改时间（7 天冷却判定，A5）。
@@ -502,25 +497,25 @@ async function runFullMigration(db, env) {
     ['phone', "TEXT DEFAULT ''"], ['phone_hash', "TEXT DEFAULT ''"],
     ['email', "TEXT DEFAULT ''"], ['email_hash', "TEXT DEFAULT ''"],
     ['username_changed_at', 'DATETIME']]);
-  // 旧单令牌残留清空（网安报告 F-04：auth_token/token_expires 列已无读者，清值缩泄露面）。
-  // 列仅存于历史库、不在任何 DDL（旧 schema 迁移残留）；全新库无这两列，须先 PRAGMA 探测再执行，
-  // 否则 initDb 在全新 D1 上必抛 no such column（曾致初始化永久失败、全站 500 的 CRITICAL 缺陷）
+  // 旧单令牌残留清空（auth_token/token_expires 列已无读者，清值缩泄露面）。
+  // 列仅存于历史库、不在任何 DDL；全新库无这两列，必须先 PRAGMA 探测再执行，
+  // 否则 initDb 在全新 D1 上必抛 no such column
   const userCols = (await dbAll(db, 'PRAGMA table_info(users)')).map(c => c.name);
   if (userCols.includes('auth_token')) {
     await dbRun(db, `UPDATE users SET auth_token='', token_expires='' WHERE auth_token != '' OR token_expires != ''`);
   }
   await ensureColumns(db, 'feedbacks', [['title', "TEXT NOT NULL DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"],
-    ['subject', "TEXT NOT NULL DEFAULT ''"]]); // #165：投诉对象列（补列兜底）
-  await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"], ['thumb', "TEXT NOT NULL DEFAULT ''"]]); // v0.25.36 图片缩略图列
+    ['subject', "TEXT NOT NULL DEFAULT ''"]]); // 投诉对象列（补列兜底）
+  await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"], ['thumb', "TEXT NOT NULL DEFAULT ''"]]); // 图片缩略图列
   await ensureColumns(db, 'complaints', [['attachments', "TEXT NOT NULL DEFAULT '[]'"]]); // U11：投诉附件 JSON（从 uploads 暂存复制，密文原样）
   await ensureColumns(db, 'uploads', [['thumb', "TEXT NOT NULL DEFAULT ''"]]);
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
     ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"],
     ['verified', 'INTEGER NOT NULL DEFAULT 0'], // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
-    ['price_min', 'REAL'], ['price_max', 'REAL'], // R2-5 报价区间化（可空，null=未填；不落 DEFAULT 0）
-    ['time_slots', "TEXT DEFAULT ''"], ['teaching_method', "TEXT DEFAULT ''"], // R2-1 可授课时间段 / R2-2 授课方式
-    ['personality_tags', "TEXT DEFAULT ''"], ['nonacademic_projects', "TEXT DEFAULT ''"], ['nonacademic_prices', "TEXT DEFAULT ''"], // R2-3 性格关键词 / R2-4 非学科项目+报价
-    ['graduation_year', 'INTEGER'] // R2-12 毕业年份（可空；null=未填按最新政策，非 null 决定教师当年赋分政策）
+    ['price_min', 'REAL'], ['price_max', 'REAL'], // 报价区间化（可空，null=未填；不落 DEFAULT 0）
+    ['time_slots', "TEXT DEFAULT ''"], ['teaching_method', "TEXT DEFAULT ''"], // 可授课时间段 / 授课方式
+    ['personality_tags', "TEXT DEFAULT ''"], ['nonacademic_projects', "TEXT DEFAULT ''"], ['nonacademic_prices', "TEXT DEFAULT ''"], // 性格关键词 / 非学科项目+报价
+    ['graduation_year', 'INTEGER'] // 毕业年份（可空；null=未填按最新政策，非 null 决定教师当年赋分政策）
   ]);
   // R2-5 存量教师单报价转区间（幂等）：price 列保留不动（重建表不值当），仅按旧价回填 min==max，
   // 防档案完整性门槛（price_min==null）误拦历史教师接单。price 列此后不再写入。
@@ -528,10 +523,8 @@ async function runFullMigration(db, env) {
   // R16：默认评分 4.0→4.5 对所有用户生效——存量从未被评价的教师（rating_count=0，rating=旧默认）回填 4.5；
   // 被评价过的保留实际加权分。幂等：回填后 rating=4.5 不再命中；新库新建即 4.5。
   await dbRun(db, `UPDATE teacher_profiles SET rating=${INITIAL_RATING} WHERE rating_count = 0 AND rating < ${INITIAL_RATING}`);
-  // B3（v0.25.103）：默认评分改 4.5 后，存量「有评论」教师的 rating 仍是旧默认（4.0）加权的结果——
-  // 上一条只回填无评论教师，有评论的未按新公式重算（用户反馈）。此处按新公式全量重算
-  // （rating=(4.5*INITIAL_WEIGHT + rating_sum)/(INITIAL_WEIGHT + rating_count)，与 dbRecomputeTeacherRating
-  // 同口径，单点下沉迁移）。幂等：rating_sum/rating_count 不变 → 结果不变，可重复执行。
+  // 有评论教师的 rating 按新公式全量重算（rating=(4.5*INITIAL_WEIGHT + rating_sum)/(INITIAL_WEIGHT + rating_count)，
+  // 与 dbRecomputeTeacherRating 同口径，单点下沉迁移）。幂等：rating_sum/rating_count 不变 → 结果不变。
   await dbRun(db, `UPDATE teacher_profiles SET rating=(${INITIAL_RATING} * ${INITIAL_WEIGHT} + COALESCE(rating_sum,0)) / (${INITIAL_WEIGHT} + rating_count) WHERE rating_count > 0`);
   await ensureColumns(db, 'student_demands', [['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"],
     ['intent_locked', 'INTEGER NOT NULL DEFAULT 0'], // 意向单接受锁：并发 accept 抢占（防同需求双 accepted 意向）
@@ -539,18 +532,18 @@ async function runFullMigration(db, env) {
     ['target_type', "TEXT NOT NULL DEFAULT 'academic'"],
     ['preferred_personality_tags', "TEXT NOT NULL DEFAULT '[]'"],
     ['preferred_teacher_gender', "TEXT NOT NULL DEFAULT ''"],
-    // v0.31.7 R1/R2：教学目标（JSON 数组）/ 非学科技能现状（JSON [{project,note}]）
+    // 教学目标（JSON 数组）/ 非学科技能现状（JSON [{project,note}]）
     ['teaching_goal', "TEXT NOT NULL DEFAULT '[]'"],
     ['skill_notes', "TEXT NOT NULL DEFAULT '[]'"]]);
   await ensureColumns(db, 'contracts', [['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
     ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
     ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"],
     ['version', 'INTEGER NOT NULL DEFAULT 0'], // 合同乐观锁版本（秒级 updated_at 不可靠，修同秒双改互相覆盖）
-    ['prev_business', 'TEXT'], // v0.24.0 改动留痕：上次业务条款（前端 diff 高亮；签署确认后清空）
-    // v0.25.37 签署合规：双方签署时间（空=未签；UTC SQLite 时间戳），签名区块内嵌正文据此渲染
+    ['prev_business', 'TEXT'], // 改动留痕：上次业务条款（前端 diff 高亮；签署确认后清空）
+    // 双方签署时间（空=未签；UTC SQLite 时间戳），签名区块内嵌正文据此渲染
     ['drafter_signed_at', "TEXT NOT NULL DEFAULT ''"],
     ['other_signed_at', "TEXT NOT NULL DEFAULT ''"],
-    // v0.25.87 R7：撤销标记（双方签后撤销合同：合同不删除，status 保持 signed，置 revoked 标记 + 撤销人）
+    // 撤销标记（双方签后撤销合同：合同不删除，status 保持 signed，置 revoked 标记 + 撤销人）
     ['revoked', 'INTEGER NOT NULL DEFAULT 0'],
     ['revoked_by', 'INTEGER NOT NULL DEFAULT 0']]);
 
@@ -561,13 +554,13 @@ async function runFullMigration(db, env) {
   }
 
   // 意向状态列先行补齐：下方「存量会话需求绑定修复」回填引用 di.status，须先建列再回填——
-  // 否则全新 D1 上 initDb 在 prepare 阶段即报 no such column（曾致全新库初始化失败的 CRITICAL 缺陷）
+  // 否则全新 D1 上 initDb 在 prepare 阶段即报 no such column
   await ensureColumns(db, 'demand_intents', [
     ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
     ['resolved_at', 'DATETIME'],
-    ['message', "TEXT NOT NULL DEFAULT ''"], // v0.28.0 M1 教师试课意向打招呼消息
+    ['message', "TEXT NOT NULL DEFAULT ''"], // 教师试课意向打招呼消息
   ]);
-  // v0.28.0 M1：学生主动推送需求附带打招呼消息（自我介绍+为什么选这位老师）
+  // 学生主动推送需求附带打招呼消息（自我介绍+为什么选这位老师）
   await ensureColumns(db, 'demand_pushes', [
     ['message', "TEXT NOT NULL DEFAULT ''"],
   ]);
@@ -591,17 +584,17 @@ async function runFullMigration(db, env) {
   ]);
   // 设备管理安全（网安报告 F-04）：auth_sessions.session_id 已入 DDL 与重建迁移，设备接口只暴露
   // session_id、token 永不进响应体（旧表经上方 DROP 重建后自然带列，无需回填迁移）
-  // v0.25.11 设备去重：老库补 device_id 列（新库 DDL 已带）。列补齐后建部分唯一索引——
+  // 设备去重：老库补 device_id 列（新库 DDL 已带）。列补齐后建部分唯一索引——
   // 同一 (user, device) 至多一行活跃会话（issueAuthToken UPSERT 复用行）；device_id=''（无标识的
-  // 老客户端/curl 脚本）不受约束，保持历史多行行为。旧数据 device_id 全空，无冲突，建索引安全
+  // 老客户端/curl 脚本）不受约束，保持历史多行行为
   await ensureColumns(db, 'auth_sessions', [['device_id', "TEXT NOT NULL DEFAULT ''"]]);
   await dbRun(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_auth_sessions_user_device
     ON auth_sessions(user_id, device_id) WHERE device_id != ''`);
 
-  // 热点查询索引（v0.22.8，查询优化杠杆）：幂等 CREATE INDEX IF NOT EXISTS。
-  // 必须置于全部换表迁移 + ensureColumns 之后——迁移重建表不继承旧索引、后补列（demand_intents.status、
-  // users.deactivated）在此前尚不存在，早建会 no such column（实证踩坑）。依据审计：
-  // 教师列表 matched EXISTS 走 teacher 前置、需求聚合子查询走 demand 前置、分页 ORDER BY 走复合等。
+  // 热点查询索引：幂等 CREATE INDEX IF NOT EXISTS。契约：必须置于全部换表迁移 + ensureColumns 之后——
+  // 迁移重建表不继承旧索引、后补列（demand_intents.status、users.deactivated）在此前尚不存在，
+  // 早建会 no such column。教师列表 matched EXISTS 走 teacher 前置、需求聚合子查询走 demand 前置、
+  // 分页 ORDER BY 走复合等。
   await db.batch([
     db.prepare('CREATE INDEX IF NOT EXISTS idx_conv_teacher ON conversations(teacher_user_id, student_user_id)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_demands_created ON student_demands(created_at, id)'),
@@ -613,7 +606,7 @@ async function runFullMigration(db, env) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_users_role ON users(role, banned, deactivated)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_pushes_teacher ON demand_pushes(teacher_user_id, status)'),
   ]);
-  // v0.26.0 凭证哈希唯一索引（A2）：同一手机号/邮箱至多绑一个账户（防撞库串号）。存量全空无冲突；
+  // 凭证哈希唯一索引：同一手机号/邮箱至多绑一个账户（防撞库串号）。存量全空无冲突；
   // 万一未来出现重复绑定数据，try/catch 保启动（登录按 hash 命中多行时路由层按首行处理并留档）
   try {
     await dbRun(db, 'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_hash ON users(phone_hash) WHERE phone_hash != \'\'');
@@ -622,16 +615,16 @@ async function runFullMigration(db, env) {
 
   // 通知表（独立模块 notify.js 提供建表与推送咽喉）
   await initNotifyTable(db);
-  // 数据版本戳表（v0.23.0 静默数据层：客户端 8s 探测版本，只重拉变化域）
+  // 数据版本戳表（客户端 8s 探测版本，只重拉变化域）
   await initVersionTable(db);
-  // 发起签约请求表（v0.24.0 极简签约流：确认签约关系；需求-会话解耦后唯一「签约才拒其他」的触发点）
+  // 发起签约请求表（确认签约关系；需求-会话解耦后唯一「签约才拒其他」的触发点）
   await initSigningTable(db);
   // 危险操作二次认证 capToken 表（独立模块 danger-ops.js 提供签发/校验；D1 持久化跨实例一致，网安审计 N-02）
   await initDangerCaps(db);
-  // 验证码表（v0.26.0 A3，独立模块 otp.js 提供请求/校验/限频；表域自持）
+  // 验证码表（独立模块 otp.js 提供请求/校验/限频；表域自持）
   await initOtpTable(db);
 
-  // v0.26.0 A8 存量用户名消毒（幂等）：登录唯一输入框按格式初判，含 @ / 纯数字的用户名会歧义为
+  // 存量用户名消毒（幂等）：登录唯一输入框按格式初判，含 @ / 纯数字的用户名会歧义为
   // 邮箱/手机号，一次性改名「原名_sufe」（后缀避 UNIQUE 冲突；幂等——已消毒名不含 @ / 纯数字不再命中）。
   // 须在凭证哈希唯一索引之后执行（消毒不触碰 phone_hash/email_hash，无冲突）。
   const dirtyUsers = await dbAll(db, `SELECT id, username FROM users WHERE username LIKE '%@%' OR CAST(username AS TEXT) GLOB '[0-9]*' AND CAST(username AS TEXT) NOT GLOB '*[^0-9]*'`);
@@ -664,7 +657,7 @@ export function dbUserLookupStmt(db, username) {
 export function dbUsernameExistsStmt(db, username) {
   return db.prepare('SELECT id FROM users WHERE username=?').bind(username);
 }
-// v0.26.0 登录识别（A7）：手机号/邮箱哈希可查列定位 stmt（B1 限流同批；hash 由调用方 tokenDigest 预计算；
+// 登录识别：手机号/邮箱哈希可查列定位 stmt（限流同批；hash 由调用方 tokenDigest 预计算；
 // 谓词单源 PHONE/EMAIL_HASH_COND，与 credential.js 登录识别同口径）
 export function dbUserPhoneHashStmt(db, hash) {
   return db.prepare(`SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE ${PHONE_HASH_COND}`).bind(hash);
@@ -739,7 +732,7 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
     await dbRun(db, 'DELETE FROM demand_pushes WHERE teacher_user_id=?', [userId]);
   }
 
-  // v0.25.41（注销幽灵数据）：发起方的待处理签约请求收束为「已拒绝」终态——行 + 会话内气泡同步终态。
+  // 注销幽灵数据：发起方的待处理签约请求收束为「已拒绝」终态——行 + 会话内气泡同步终态。
   // 不能 DELETE：气泡自包含（kind='signing_request' 渲染自 body JSON），行删了气泡仍显 pending 按钮、
   // 接收方点击必 404 死按钮（死签约请求）；也不可留 pending：注销者永不可回应、对方永远悬着。
   // 置 rejected = 单方 offer 收走（offer 作历史双方协商记录保留），气泡终态灰字「已拒绝此次签约请求」。
@@ -756,7 +749,7 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
   }
 
   // 匿名化本人发出的聊天正文与附件（会话/合同行保留，正文清空 + 墓碑用户名显示，符合 F-06 保留分级）。
-  // 网安审计 N-03：image/file 消息的 dataURL 本体（最高 700KB）与文件名同样清空——原只清 kind='text'，
+  // image/file 消息的 dataURL 本体（最高 700KB）与文件名同样清空（不只清 kind='text'），
   // 注销者历史照片/文件会永久留在库中、可被会话对方经 attachment 接口无限期下载。
   // contract 类型的合同事件气泡无隐私本体（body 为固定事件标记），保留以供聊天窗事件展示。
   await dbRun(db, `UPDATE messages SET body='', name='' WHERE sender_user_id=? AND kind IN ('text','image','file')`, [userId]);
@@ -799,7 +792,7 @@ export async function dbCreateInviteCode(db, code, adminId, expiresAt) {
 // ============================================================
 // JSON 列反序列化单点：subjects / gaokao_scores / target_subjects / current_scores
 // 四列在库里是 JSON 字符串，出 db.js 一律经此函数变数组——容错（脏数据不炸全列表），
-// 调用方拿到的永远是数组，严禁在路由层再 JSON.parse（双重解析曾炸 500）
+// 调用方拿到的永远是数组，严禁在路由层再 JSON.parse（双重解析会炸）
 // ============================================================
 function safeJsonArray(text) {
   if (!text) return [];
@@ -845,7 +838,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   // R2-12 毕业年份：''/null/非法（routes 已回 ''）一律归一为 null 落库（null = 未填，按最新政策）
   const gradYear = profile.graduation_year != null && profile.graduation_year !== '' ? profile.graduation_year : null;
 
-  // price 列保留 = price_min 同步镜像（v0.25.2 审计修复）：INSERT/UPDATE 显式写 price=priceMin，
+  // price 列保留 = price_min 同步镜像：INSERT/UPDATE 显式写 price=priceMin，
   // 防新行吃 DEFAULT 0 后，被存量回填 `WHERE price_min IS NULL AND price IS NOT NULL` 误抓成「报价 0」。
   // 语义：price 为只读残留（历史迁移用），业务读写一律走 price_min/price_max。
   if (existing) {
@@ -870,7 +863,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
 // 网安报告 F-06：wechat/email/real_name 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
 // 网安 N-05：credential_image 同款加密列，出门解密
-// v0.22.8 数据最小化：private:false 时私密字段不解密、置空——广场列表非匹配行（viewerId 缺省或未匹配）
+// 数据最小化：private:false 时私密字段不解密、置空——广场列表非匹配行（viewerId 缺省或未匹配）
 // 一律裁剪，服务端硬把关（前端仅按 matched/signed 门控显示，但数据此前已随列表发给所有人）
 async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) {
   const [wechat, email, realName, credentialImage] = includePrivate
@@ -904,7 +897,7 @@ async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) 
   };
 }
 
-// 教师列表统一出口（v0.19.40 合并 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎）：
+// 教师列表统一出口（合并 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎）：
 // 广场视图（默认）：viewerId 有值（登录态）时附 matched 标记（双向匹配 = 与该教师已建立会话），
 //   前端据此决定是否拉取真实姓名/学信网截图等仅匹配可见字段；
 // adminView：管理端教师管理列表——LEFT JOIN（无档案教师也显示）+ 附 role/banned/created_at
@@ -924,14 +917,14 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
     ? `EXISTS(SELECT 1 FROM conversations cv WHERE (cv.student_user_id=? AND cv.teacher_user_id=tp.user_id) OR (cv.student_user_id=tp.user_id AND cv.teacher_user_id=?)) AS matched`
     : '0 AS matched';
   const params = viewerId ? [viewerId, viewerId] : [];
-  // #163（v0.25.71）：访客可见性——游客只看 allow_guest_profile=1 的教师（无 user_settings 行=默认可见）
+  // 访客可见性——游客只看 allow_guest_profile=1 的教师（无 user_settings 行=默认可见）
   const joinUs = viewerId ? '' : ' LEFT JOIN user_settings us ON us.user_id=tp.user_id';
   const privWhere = viewerId ? '' : ' AND COALESCE(us.allow_guest_profile, 1) = 1';
   const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar, ${matchedSel}
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id${joinUs}
     WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0${privWhere}
     ORDER BY tp.updated_at DESC`, params);
-  // v0.22.8：广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
+  // 广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
   // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经
   // /api/teacher/profile 定点取回（该端点按 本人/双向匹配 门控，未匹配 403）。
   // 收益：列表免逐行 AES 解密 + payload 瘦身（含 base64 学信网截图）+ 数据最小化。
@@ -999,7 +992,7 @@ function mapDemandRow(r) {
     current_scores: safeJsonArray(r.current_scores),
     // R2-b：偏好老师性格 JSON 列单点反序列化（target_type/preferred_teacher_gender 随 rest 透传）
     preferred_personality_tags: safeJsonArray(r.preferred_personality_tags),
-    // v0.31.7 R1/R2：教学目标 / 技能现状 JSON 列单点反序列化（mapper 出口同口径）
+    // 教学目标 / 技能现状 JSON 列单点反序列化（mapper 出口同口径）
     teaching_goal: safeJsonArray(r.teaching_goal),
     skill_notes: safeJsonArray(r.skill_notes),
   };
@@ -1012,7 +1005,7 @@ async function mapDemandRowFull(r) {
   return { ...mapDemandRow(r), parent_contact: parentContact || '', student_contact: studentContact || '' };
 }
 
-// 需求列表统一出口（v0.19.40 合并 dbGetAllDemands / dbGetAllDemandsAdmin）：
+// 需求列表统一出口（合并 dbGetAllDemands / dbGetAllDemandsAdmin）：
 // 广场（默认）：status NOT IN (contracted,revoked)，传 teacherUserId 时附该教师的意向状态
 // （my_intent_status，供前端按钮三态渲染）；admin：管理员全量（含已签约，管理端查看联系方式）
 export async function dbGetDemands(db, { admin = false, cursor = null, teacherUserId = null, forGuest = false } = {}) {
@@ -1046,21 +1039,21 @@ export async function dbGetDemands(db, { admin = false, cursor = null, teacherUs
     extra = ' LEFT JOIN demand_intents mi ON mi.demand_id=sd.id AND mi.teacher_user_id=?';
     params = [teacherUserId];
   }
-  // #163（v0.25.71）：访客可见性——未登录游客只看 allow_guest_demand=1 的需求（无 user_settings 行=默认可见）
+  // 访客可见性——未登录游客只看 allow_guest_demand=1 的需求（无 user_settings 行=默认可见）
   if (forGuest) {
     extra += ' LEFT JOIN user_settings us ON us.user_id=sd.user_id';
     where += ' AND COALESCE(us.allow_guest_demand, 1) = 1';
   }
-  // 广场只展示活跃需求（v0.25.10 用户反馈：统一口径 status='open'——此前排除式 NOT IN ('contracted','revoked')
+  // 广场只展示活跃需求（统一口径 status='open'，排除式 NOT IN ('contracted','revoked')
   // 会把未来新增状态/NULL 当活跃，与 dbCreatePush/dbCreateIntent 的原子守卫（WHERE status='open'）口径漂移）
-  // v0.25.41（注销幽灵数据）：广场门控——已注销用户数据严禁入场（不依赖 purge 完整性，双保险）
+  // 广场门控——已注销用户数据严禁入场（不依赖 purge 完整性，双保险）
   const rows = await dbAll(db, sel + extra + where + ' ORDER BY sd.created_at DESC LIMIT ?',
     [...params, LIMITS.PUBLIC_LIST_MAX]);
   return rows.map(mapDemandRow);
 }
 
 export async function dbGetDemandsByUser(db, userId) {
-  // #157（v0.25.65）：我的需求已签约沉底——contract 需求不再与开放需求按时间穿插，
+  // 我的需求已签约沉底——contract 需求不再与开放需求按时间穿插，
   // 活跃需求优先（可按创建时间排），已签约的堆列表最下；revoked 仍可重开，归活跃侧。
   const rows = await dbAll(db, DEMANDS_SELECT +
     ` WHERE sd.user_id=? ORDER BY CASE WHEN sd.status='contracted' THEN 1 ELSE 0 END, sd.created_at DESC`, [userId]);
@@ -1069,7 +1062,7 @@ export async function dbGetDemandsByUser(db, userId) {
 
 // 单条需求也走 mapper（与列表同形状；调用方统一拿数组字段，裸行分叉已消灭）
 // 单条需求：出口经 mapDemandRow（与列表 dbGetDemands 同 mapper，形状一致：路由层零 JSON.parse、
-// mapper 出口剥私密字段；price 保留 null 语义）。契约注释补记（v0.25.84 v0.21 审计遗留）
+// mapper 出口剥私密字段；price 保留 null 语义）。
 export async function dbGetDemandById(db, id) {
   const row = await dbGet(db, 'SELECT * FROM student_demands WHERE id=?', [id]);
   return row ? mapDemandRow(row) : null;
@@ -1097,7 +1090,7 @@ export async function dbUpdateDemand(db, id, d) {
 }
 
 // 删除需求：数据层强制保护——只要存在 pending/signing/signed 合同引用该需求，即返回 false（调用方拒绝删除）。
-// 悬空 demand_id 曾导致签约 410 后合同仍 signed 的线上事故（网安报告 F-03b），此门禁在 db.js 单点收口。
+// 悬空 demand_id 会导致签约 410 后合同仍 signed 的线上事故（F-03b），此门禁在 db.js 单点收口。
 export async function dbDeleteDemand(db, id) {
   // 原子守卫（替代 check-then-delete）：DELETE 携带 NOT EXISTS(活跃合同引用)，
   // 并发起草窗口内合同先落库则本删除不命中→false，杜绝悬空 demand_id（F-03b）
@@ -1109,10 +1102,10 @@ export async function dbDeleteDemand(db, id) {
   return true;
 }
 
-// 管理员强制删除需求（v0.25.95 调试阶段放开：含已签约 contracted）。
+// 管理员强制删除需求（含已签约 contracted）。
 // 与 dbDeleteDemand 的常规门禁（有 pending/signing/signed 合同引用即拒）并列——管理员路径
 // 放行全部状态，但 F-03b 不变量（demand_id 不悬空）仍需守住：contracts / signing_requests 的
-// demand_id 均为裸 INTEGER 无外键，悬空曾致线上事故（F-03b），故同一事务内先清引用再删需求；
+// demand_id 均为裸 INTEGER 无外键，悬空会致线上事故（F-03b），故同一事务内先清引用再删需求；
 // demand_intents / demand_pushes 经 FK ON DELETE CASCADE 级联。db.batch 隐式单事务。
 export async function dbAdminForceDeleteDemand(db, id) {
   const res = await db.batch([
@@ -1130,13 +1123,22 @@ export async function dbReopenDemand(db, id) {
   return !!(r && r.meta && r.meta.changes > 0);
 }
 
+// 合同撤销后释放绑定需求：contracted→revoked（待所有者手动重开，与 STATUS.REVOKED 契约对齐）。
+// 撤销/管理员删合同路径调用；条件 UPDATE 赢家模式，无命中（非 contracted/已释放）幂等返回 false。
+// 签约成交后需求恒 contracted 且一需求一份成交合同（dbCreateContract 硬校验），释放无歧义。
+export async function dbReleaseDemandAfterRevoke(db, demandId) {
+  if (!demandId) return false;
+  const r = await dbRun(db, `UPDATE student_demands SET status='revoked' WHERE id=? AND status='contracted'`, [demandId]);
+  return !!(r && r.meta && r.meta.changes > 0);
+}
+
 // 需求意向单接受锁：条件 UPDATE 抢占（intent_locked 0→1），赢家才继续。
 // 防并发 accept 两条意向产生双 accepted + 双会话（审计发现的聚合不变量缺口）
 // ============================================================
 // 需求主动推送（学生 → 指定教师）
 // ============================================================
-// 推送创建原子化（网安审计 TOCTOU：同 dbCreateIntent，仅当需求 status='open' 才插入；changes=0 返回 0）
-// v0.28.0 M1：message = 学生打招呼消息（自我介绍+为什么选这位老师）
+// 推送创建原子化（同 dbCreateIntent，仅当需求 status='open' 才插入；changes=0 返回 0）
+// message = 学生打招呼消息（自我介绍+为什么选这位老师）
 export async function dbCreatePush(db, demandId, studentUserId, teacherUserId, message = '') {
   const r = await dbRun(db,
     `INSERT INTO demand_pushes (demand_id, student_user_id, teacher_user_id, message)
@@ -1152,7 +1154,7 @@ export async function dbGetPendingPushesForTeacher(db, teacherUserId) {
     FROM demand_pushes dp
     JOIN student_demands sd ON sd.id=dp.demand_id
     JOIN users u ON u.id=sd.user_id
-    WHERE dp.teacher_user_id=? AND dp.status='pending' AND u.deactivated=0 -- v0.25.41 门控：已注销学生推送不进场
+    WHERE dp.teacher_user_id=? AND dp.status='pending' AND u.deactivated=0 -- 门控：已注销学生推送不进场
     ORDER BY dp.created_at DESC`, [teacherUserId]);
   return rows.map(mapDemandRow); // push_* 字段随 rest 透传
 }
@@ -1186,7 +1188,7 @@ export async function dbAcceptPushAsIntent(db, demandId, teacherUserId) {
 // ============================================================
 // 意向
 // ============================================================
-// 意向创建原子化（网安审计 TOCTOU：路由层先查需求状态再 INSERT 存在窗口——查询与插入之间需求被签约/撤销，
+// 意向创建原子化（路由层先查需求状态再 INSERT 存在窗口——查询与插入之间需求被签约/撤销，
 // 意向会落在已关闭需求上。改为条件 INSERT：仅当需求 status='open' 才插入，changes=0 即需求非开放，
 // 调用方据返回 0 判定 410）。UNIQUE(demand_id, teacher_user_id) 冲突仍抛错由路由转 409
 export async function dbCreateIntent(db, demandId, teacherUserId, message = '') {
@@ -1204,15 +1206,15 @@ export async function dbGetIntentTeachers(db, demandId) {
     FROM demand_intents di
     JOIN users u ON u.id=di.teacher_user_id
     LEFT JOIN teacher_profiles tp ON tp.user_id=di.teacher_user_id
-    WHERE di.demand_id=? AND u.deactivated=0 -- v0.25.41 门控：已注销教师意向不进场
+    WHERE di.demand_id=? AND u.deactivated=0 -- 门控：已注销教师意向不进场
     ORDER BY di.created_at DESC`, [demandId]);
   // 附加意向自身字段（id/状态/时间），供学生端同意/拒绝按钮使用
-  // 出口剥私密字段（mapper 出口剥私密字段契约，v0.19.40 自路由层内收）：
+  // 出口剥私密字段（mapper 出口剥私密字段契约）：
   // 联系方式签约后展示；真实姓名/学信网截图仅双向匹配后按档案端点定点取
   return (await Promise.all(rows.map(async r => ({
     ...(await mapTeacherProfileRow(r)),
     intent_id: r.intent_id, intent_status: r.intent_status, intent_created_at: r.intent_created_at,
-    intent_message: r.intent_message || '', // v0.28.0 M1：教师打招呼消息（SELECT 已取，出口透传；空串统一）
+    intent_message: r.intent_message || '', // 教师打招呼消息（SELECT 已取，出口透传；空串统一）
   })))).map(({ wechat, email, real_name, credential_image, matched, ...rest }) => rest);
 }
 
@@ -1246,7 +1248,7 @@ export async function dbCreateReview(db, teacherUserId, reviewerUserId, rating, 
 }
 
 export async function dbGetApprovedReviews(db, teacherUserId) {
-  // v0.25.41 门控：已注销评价者/被评教师的数据不对外（教师注销后评价行保留留档，但不再经此公开出口）
+  // 门控：已注销评价者/被评教师的数据不对外（教师注销后评价行保留留档，但不再经此公开出口）
   return await dbAll(db, `SELECT r.*, u.username as reviewer_name
     FROM reviews r JOIN users u ON r.reviewer_user_id=u.id
     WHERE r.teacher_user_id=? AND r.status='approved'
@@ -1276,7 +1278,7 @@ export async function dbUpdateReview(db, reviewId, rating, comment) {
   if (wasApproved && teacherUserId) await dbRecomputeTeacherRating(db, teacherUserId);
 }
 
-// 签约门槛查询：该师生会话存在已签约合同（文档或 v0.24.0 发起签约请求）即放行评价
+// 签约门槛查询：该师生会话存在已签约合同（文档或发起签约请求）即放行评价
 export async function dbIsContracted(db, studentUserId, teacherUserId) {
   return !!(await dbGet(db,
     `SELECT 1 FROM conversations c
@@ -1331,7 +1333,7 @@ function likeEscape(s) {
 // sort: new=时间倒序（默认）；hot=like_count 倒序、同值时间倒序
 export async function dbListPosts(db, { section, q, viewerId, sort } = {}) {
   const cond = [], params = [];
-  // v0.25.41（注销幽灵数据）：广场门控——已注销用户帖子严禁入场（LEFT JOIN 下该条件等效丢弃墓碑作者行）
+  // 广场门控——已注销用户帖子严禁入场（LEFT JOIN 下该条件等效丢弃墓碑作者行）
   cond.push('u.deactivated = 0');
   if (section) { cond.push('p.section = ?'); params.push(section); }
   if (q) {
@@ -1441,14 +1443,14 @@ export async function dbCreateFeedback(db, userId, kind, title, content, subject
   return (res && res.meta && res.meta.last_row_id) || 0;
 }
 
-// #165（v0.25.73）：我的反馈/投诉列表——用户侧状态跟踪闭环（本人可见，无他人数据）
+// 我的反馈/投诉列表——用户侧状态跟踪闭环（本人可见，无他人数据）
 export async function dbGetFeedbacksByUser(db, userId) {
   return await dbAll(db, `SELECT * FROM feedbacks WHERE user_id=? ORDER BY id DESC LIMIT ${LIMITS.FEEDBACK_MINE_MAX}`, [userId]);
 }
 
 export async function dbGetFeedbacksAdmin(db, status) {
   // 可选 status 下推过滤（白名单，防注入）；不传则返回全部。
-  // feedbacks.status 合法值仅 'open'/'resolved'（曾误用 'pending' 致「未处理」过滤恒空，已修）
+  // feedbacks.status 合法值仅 'open'/'resolved'（'pending' 会使「未处理」过滤恒空）
   const where = (status === 'open' || status === 'resolved') ? ' WHERE f.status=?' : '';
   const params = where ? [status] : [];
   return await dbAll(db,
@@ -1606,7 +1608,7 @@ export async function dbGetContractById(db, id) {
   return row;
 }
 
-// v0.25.57 需求四十九：dbGetContractByConv 已连根拔——会话级查任意状态合同过宽（把已拒绝/已撤销历史合同
+// dbGetContractByConv 已连根拔——会话级查任意状态合同过宽（把已拒绝/已撤销历史合同
 // 当「进行中」，阻塞重新起草）；「一条需求一份合同」由需求级门禁（status IN pending/signing/signed）把关。
 // 我参与的合同列表（含双方用户名 + 需求编号，「我的合同」页用）
 export async function dbGetMyContracts(db, userId) {
@@ -1621,7 +1623,7 @@ export async function dbGetMyContracts(db, userId) {
     ORDER BY ct.updated_at DESC`, [userId, userId]);
   for (const r of rows) {
     r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
-    if (r.prev_business) r.prev_business = await decryptField(r.prev_business); // v0.24.0 留痕 diff 基线
+    if (r.prev_business) r.prev_business = await decryptField(r.prev_business); // 留痕 diff 基线
   }
   return rows;
 }
@@ -1638,7 +1640,7 @@ export async function dbGetAllContractsAdmin(db) {
     ORDER BY ct.updated_at DESC`);
   for (const r of rows) {
     r.contract_md = await decryptField(r.contract_md); // N-05：合同正文加密列出门解密
-    if (r.prev_business) r.prev_business = await decryptField(r.prev_business); // v0.24.3：与 dbGetMyContracts 同口径，管理员改动对比可用
+    if (r.prev_business) r.prev_business = await decryptField(r.prev_business); // 与 dbGetMyContracts 同口径，管理员改动对比可用
   }
   return rows;
 }
@@ -1688,7 +1690,7 @@ export async function dbGetConversationWithNames(db, conversationId) {
 // 会话可绑定需求下拉单源（需求四·第2/3条：发起签约 / 起草合同共用）：
 //   phase='signing'   会话学生方「开放」需求（可发起签约）
 //   phase='contract'  会话学生方「已签约」需求（签约确认后可起草合同；已绑进行中/已签合同的需求除外；
-//                     且须由本会话教师促成签约——v0.25.6 收紧：被别教师 signed 签约驱动的需求不列出，
+//                     且须由本会话教师促成签约——被别教师 signed 签约驱动的需求不列出，
 //                     防跨会话绑别教师签成的需求起草合同；同对师生换会话的 contracted 需求仍可列出）
 // 归属硬约束：只取会话学生方（sd.user_id = c.student_user_id），师生身份由路由层参与方校验保证；
 // 出口走 mapDemandRow（剥联系方式，师生双方均不可在绑定下拉里看到学生联系方式）
@@ -1712,7 +1714,7 @@ export async function dbGetConversationBindableDemands(db, conversationId, phase
 // 我参与的会话列表（含对方用户名 + 最后一条消息预览 + 签约状态）
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
-  // v0.25.58（#150）：contracted 字段连根拔——原仅供「签约确认后背景灰字提示」（.chat-sign-tip）判定，
+  // contracted 字段连根拔——原仅供「签约确认后背景灰字提示」（.chat-sign-tip）判定，
   // 提示已并入签约请求气泡底下（status='signed' 模板渲染），会话列表字段无消费者后删除。
   // 显式列集（不用 c.*）：双方已读游标（student_last_read_id/teacher_last_read_id）不下发，
   // 避免向对方暴露己方已读位置（低敏信息泄露面收口）
@@ -1746,7 +1748,7 @@ export async function dbMarkConversationRead(db, convId, userId) {
 
 export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_LIMIT) {
   // 图片/文件消息不在列表查询里下发 dataURL 本体（大字段懒加载，走 attachment 接口）；
-  // v0.25.36 缩略图随列表下发（小字段）：thumb 列（加密）由路由层解密；图片无缩略图（历史数据）回 ''
+  // 缩略图随列表下发（小字段）：thumb 列（加密）由路由层解密；图片无缩略图（历史数据）回 ''
   return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.name, m.created_at,
       CASE WHEN m.kind IN ('image','file') THEN '' ELSE m.body END AS body,
       CASE WHEN m.kind='image' THEN m.thumb ELSE '' END AS thumb,
@@ -1755,13 +1757,13 @@ export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_
     WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
 }
 
-// messages INSERT 单源（v0.31.3 审计 A2）：路由层批量发送（routes-chat）曾自持一份 SQL 直插——
+// messages INSERT 单源：路由层批量发送（routes-chat）不得自持 SQL 直插——
 // 数据层单写原则旁支通路，messages 加列时两处只改一处必静默缺列。业务 SQL 只此一份，批量经
 // dbPrepareMessageInsert 取预编译语句，单条经 dbCreateMessage 落库。
 const MSG_INSERT_SQL = 'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb) VALUES (?,?,?,?,?,?)';
 export function dbPrepareMessageInsert(db) { return db.prepare(MSG_INSERT_SQL); }
 
-export async function dbCreateMessage(db, convId, senderUserId, kind, body, name = '', thumb = '') { // v0.25.36 缩略图随消息落库
+export async function dbCreateMessage(db, convId, senderUserId, kind, body, name = '', thumb = '') { // 缩略图随消息落库
   const result = await dbRun(db, MSG_INSERT_SQL, [convId, senderUserId, kind, body, name, thumb]);
   return Number(result.meta.last_row_id);
 }
@@ -1781,7 +1783,7 @@ export async function dbDeleteMessage(db, messageId) {
   return dbRun(db, 'DELETE FROM messages WHERE id=?', [messageId]);
 }
 
-// 更新消息 body（A5 收口：signing.js 发起回填/终态覆写用，曾手写 UPDATE messages）
+// 更新消息 body（signing.js 发起回填/终态覆写用；UPDATE 只此一处）
 export async function dbSetMessageBody(db, messageId, body) {
   return dbRun(db, 'UPDATE messages SET body=? WHERE id=?', [body, messageId]);
 }
@@ -1810,7 +1812,7 @@ export async function dbCreateSigning(db, conversationId, demandId, userId, msgI
   return Number(res.meta.last_row_id);
 }
 
-// 确认签约原子事务（v0.25.6 TOCTOU 修复 + A5 收口）：sr 置 signed + 需求置 contracted 同一 batch 事务，
+// 确认签约原子事务：sr 置 signed + 需求置 contracted 同一 batch 事务，
 // 需求守卫 EXISTS(open) 防同需求多会话并发双签（后到的批事务守卫失败 → changes[0]=0 → 调用方 410）。
 // 返回 [srChanges, demandChanges]；auto-reject 副作用只由需求收缩赢家（demandChanges>0）驱动。
 export async function dbConfirmSigning(db, signingId, demandId) {
@@ -1849,7 +1851,7 @@ export async function dbCountUploads(db, userId) {
 
 // 上传创建原子化（网安审计 TOCTOU：配额 check-then-act 有窗口——并发上传可越过 LIMITS.UPLOAD_STAGING_MAX。
 // 改为条件 INSERT：仅当本人暂存件数 < 上限才插入，changes=0 即超配额，调用方据返回 0 判定 413）
-export async function dbCreateUpload(db, userId, kind, body, name, thumb = '') { // v0.25.36 缩略图随传
+export async function dbCreateUpload(db, userId, kind, body, name, thumb = '') { // 缩略图随传
   const res = await dbRun(db,
     `INSERT INTO uploads (user_id, kind, body, name, thumb)
      SELECT ?, ?, ?, ?, ? WHERE (SELECT COUNT(*) FROM uploads WHERE user_id=?) < ${LIMITS.UPLOAD_STAGING_MAX}`,
@@ -1861,7 +1863,7 @@ export async function dbGetUpload(db, uploadId) {
   return await dbGet(db, 'SELECT * FROM uploads WHERE id=?', [uploadId]);
 }
 
-// B5（v0.27.0 网络层重构）：批量取上传（投诉附件归属校验 N+1 → 单查 WHERE IN，上限附件配额 4）
+// 批量取上传（投诉附件归属校验 N+1 → 单查 WHERE IN，上限附件配额 4）
 export async function dbGetUploads(db, ids) {
   if (!ids || !ids.length) return [];
   const placeholders = ids.map(() => '?').join(',');
@@ -1872,8 +1874,12 @@ export async function dbDeleteUpload(db, uploadId) {
   await dbRun(db, 'DELETE FROM uploads WHERE id=?', [uploadId]);
 }
 
+// 批量事务内的上传删除语句（同 dbPrepareMessageInsert 模式）：DELETE SQL 单源在 db.js，
+// 路由层批量发送不得自持 SQL（加列/改表两处漂移）
+export function dbPrepareUploadDelete(db) { return db.prepare('DELETE FROM uploads WHERE id=?'); }
+
 // ============================================================
-// 隐私设置（#163 v0.25.71）：访客可见性控制
+// 隐私设置：访客可见性控制
 // user_settings 无行 = 全默认可见（COALESCE 1）；upsert 单点写
 // ============================================================
 export async function dbGetPrivacySettings(db, userId) {
@@ -1900,12 +1906,12 @@ export async function dbSetPrivacySettings(db, userId, { allowGuestProfile, allo
 }
 
 // ============================================================
-// v0.26.0 D1 统一内容提取（审核者「一声令下看所有数据」）：逐表查询全部用户可操作内容，
+// D1 统一内容提取（审核者「一声令下看所有数据」）：逐表查询全部用户可操作内容，
 // 归拢统一结构 { type, id, author:{id,username,role}, title, body, status, created_at, extra }。
 // 增量改造：只新增本查询出口，不改变任何现有内容流转；私密字段（联系方式/附件本体）不提取。
 // type 过滤参数：不传 = 全类型（每类型取 limit 条最新）；传 = 单类型。
 // ============================================================
-// B6（v0.27.0 网络层重构）：逐表串行 10 次 dbAll → 单次 db.batch（1 往返原子读，
+// 逐表串行 10 次 dbAll → 单次 db.batch（1 往返原子读，
 // 无 type 过滤的全类型内容页是最重单查询：10 次串行 D1 → 1 次）。SQL 与行映射各自集中，
 // 语义与旧实现逐字节一致（测试仍逐类型断言形状）。私密字段（联系方式/附件本体）不提取不变。
 const CONTENT_SQL = {
@@ -1931,9 +1937,9 @@ const CONTENT_SQL = {
     FROM signing_requests s LEFT JOIN users u ON u.id=s.initiator_user_id ORDER BY s.id DESC LIMIT ?`,
 };
 
-// v0.27.3 走查键控化：SQL 与行映射都按类型字符串键控（CONTENT_MAPPER[t]），
+// SQL 与行映射都按类型字符串键控（CONTENT_MAPPER[t]），
 // 类型清单由 CONTENT_SQL 的键派生（CONTENT_TYPES）——增类型只改 CONTENT_SQL + CONTENT_MAPPER
-// 两处同名键，清单自动跟随，杜绝「硬编码清单与表域错位」（曾两轮审查分别漏补不同类型）。
+// 两处同名键，清单自动跟随，杜绝「硬编码清单与表域错位」。
 // 无效 type（非键）→ 返回空列表，不再崩溃。
 const CONTENT_MAPPER = {
   post: r => ({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } }),
@@ -1954,21 +1960,21 @@ function mapContentRows(t, rows, out) {
   for (const r of rows) out.push(m(r));
 }
 
-export const CONTENT_TYPES = Object.keys(CONTENT_SQL); // 单源：类型清单自动跟随 CONTENT_SQL 键（v0.27.3 去硬编码数组）
+export const CONTENT_TYPES = Object.keys(CONTENT_SQL); // 单源：类型清单自动跟随 CONTENT_SQL 键
 
 export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUBLIC_LIST_MAX } = {}) {
-  // 审查补丁：补 contract（合同正文——最敏感的用户内容）与 signing（签约请求），
+  // 补 contract（合同正文——最敏感的用户内容）与 signing（签约请求），
   // 统一内容页现在可审全部用户可操作内容。
   const types = (type && CONTENT_SQL[type]) ? [type] : (type ? [] : CONTENT_TYPES);
   if (!types.length) return []; // 无效 type/空清单 → 空结果；不调 D1 batch([])（真实 D1 空数组 batch 会抛错，
-    // v0.27.3 #21 生产验证实证：mock shim 空 batch 返回 [] 掩盖了该路径，线上 500）
+    // 真实 D1 空数组 batch 会抛错，空清单必须提前 return（mock shim 同行为回归拦截）
   const results = await db.batch(types.map(t => db.prepare(CONTENT_SQL[t]).bind(limit)));
   const out = [];
   results.forEach((r, i) => mapContentRows(types[i], (r && r.results) || [], out));
   return out;
 }
 
-// v0.26.0 D2 处罚所需删除 mapper（反馈/投诉此前仅有 resolve，无删除；内容审核通道需硬删）
+// D2 处罚所需删除 mapper（反馈/投诉此前仅有 resolve，无删除；内容审核通道需硬删）
 export async function dbDeleteFeedback(db, id) {
   await dbRun(db, 'DELETE FROM feedbacks WHERE id=?', [id]);
 }

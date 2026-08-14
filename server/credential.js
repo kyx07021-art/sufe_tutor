@@ -1,5 +1,5 @@
 /**
- * 凭证更新独立环节（v0.26.0 A4）—— 账户凭证（用户名/手机号/邮箱）变更 单点
+ * 凭证更新独立环节 —— 账户凭证（用户名/手机号/邮箱）变更 单点
  *
  * 用户需求（2026-08-10）：修改用户名后全平台凭证立刻更新，凭证更新做成独立环节，
  * 和「改用户名/绑定的过程」本身解耦——未来切换到手机号为核心凭证时，只把凭证更新接口换地方。
@@ -14,7 +14,7 @@
  */
 import { dbGet, dbRun, toDbTime } from './util.js';
 import { encryptField, decryptField, tokenDigest } from './crypto.js';
-import { PHONE_HASH_COND, EMAIL_HASH_COND } from './constants.js'; // 哈希列定位条件单源（v0.31.3 审计 A3）
+import { PHONE_HASH_COND, EMAIL_HASH_COND } from './constants.js'; // 哈希列定位条件单源
 
 // 凭证读取列集（登录识别/校验用，含口令列——仅登录/重认证路径出层）
 const USER_CRED_SQL = `SELECT id, username, role, avatar, banned, deactivated, password_hash, salt,
@@ -32,7 +32,7 @@ const USER_CRED_SQL = `SELECT id, username, role, avatar, banned, deactivated, p
  */
 export async function updateUsernameCredential(db, userId, newUsername) {
   // username_changed_at 落 UTC（toDbTime，与 danger-ops/otp 的 UTC 存储域纪律一致）——
-  // 审查补丁：原 SQL datetime('now','localtime') 落库 + JS 侧按 UTC 读，非 UTC 时区环境 7 天冷却
+  // username_changed_at 必须 toDbTime 落 UTC（与 danger-ops/otp 同域纪律）；localtime 落库 + UTC 读
   // 漂移 ~8 小时（服务端提前放行）。
   await dbRun(db, `UPDATE users SET username=?, username_changed_at=? WHERE id=?`,
     [newUsername, toDbTime(new Date()), userId]);

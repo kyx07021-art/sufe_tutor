@@ -21,7 +21,7 @@ import vm from 'node:vm';
 
 const FILES = [
   'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-onboard.js', 'app-region.js',
+  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js', 'app-onboard.js', 'app-region.js',
   'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
   'app-demands.js', 'app-teachers.js', 'app-style.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
   'app-complaints.js',
@@ -32,6 +32,10 @@ function makeCtx({ apiHandlers = {} } = {}) {
     .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
   const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously' });
   const w = dom.window;
+  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
+    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
+    return mk();
+  };
   const errors = [];
   w.addEventListener('error', (e) => errors.push('window.onerror: ' + (e.message || e)));
   const ctx = vm.createContext({

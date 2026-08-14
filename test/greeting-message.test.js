@@ -174,7 +174,7 @@ function makeCtx(html) {
       window: w, document: w.document,
       getComputedStyle: w.getComputedStyle.bind(w),
       localStorage: w.localStorage,
-      console, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
+      console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
       setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval, Request: globalThis.Request,
       MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     }),

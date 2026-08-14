@@ -1,8 +1,7 @@
 /* ============================================================
    我的会话（模块4）— 延续编辑式扁平设计语言
    base 结构层；圆角 / 投影 / 玻璃由 glass.css 覆盖（聊天气泡圆角亦在 glass）。
-   会话列表选中态由 .conv-item.active 自身背景承载（v0.25.94：删绝对定位 .conv-pill
-   覆盖层栈，改流内标准组件——缩放/重排天然同帧，零 JS 几何同步）；
+   会话列表选中态由 .conv-item.active 自身背景承载；
    消息区细点阵底纹，呼应品牌圆点母题（导航 logo / 参考图卡片）。
    壳高由 .client-page--flush 契约的 height:100% 撑满，无需 JS 计算。
    ============================================================ */
@@ -38,7 +37,7 @@
 .conv-list { position: relative; flex: 1; overflow-y: auto; min-height: 0; padding: 10px 0 16px; }
 
 /* 会话项：独立成块（间距分隔，不再用 border 切行）；选中态加高 padding 撑出高亮呼吸感，文字保持墨色。
-   v0.25.94（用户反馈「灰色块乱窜，别搞特殊」）：删绝对定位 .conv-pill 覆盖层——选中高亮由条目
+  ：删绝对定位 .conv-pill 覆盖层——选中高亮由条目
    自身 .conv-item.active 的 background 承载（流内标准组件，缩放/拖动天然同步，零 JS 几何） */
 .conv-item {
   position: relative; z-index: 1; isolation: isolate;
@@ -161,11 +160,11 @@
   padding: 12px 14px;
 }
 
-/* ---------- 图片 / 文件消息（v0.25.34 调研重构） ---------- */
+/* ---------- 图片 / 文件消息 ---------- */
 /* 图片即气泡：无边框无内边距，圆角由气泡 --g-r + overflow:hidden 裁剪（WhatsApp 2026 无框媒体同口径） */
 .chat-bubble--media { padding: 0; overflow: hidden; }
 .chat-bubble--media img { display: block; max-width: 240px; max-height: 320px; cursor: zoom-in; border-radius: 0; }
-/* 需求六（v0.25.49）：文件卡与图片分流——文件卡带圆角内衬（内容不再戳出圆角外），图片保持全出血 */
+/* 需求六：文件卡与图片分流——文件卡带圆角内衬（内容不再戳出圆角外），图片保持全出血 */
 .chat-bubble--file { padding: 10px 12px; }
 /* 接收方中性气泡发丝描边（浅色白泡在浅底上立得住；color-mix 引 --ink 深浅主题自适应） */
 .chat-bubble--theirs { border: 1px solid color-mix(in srgb, var(--ink) 8%, transparent); }
@@ -231,7 +230,7 @@
 .chat-stage-thumb:has(.chat-stage-ring) .chat-stage-file { opacity: .45; }
 
 /* ---------- 拖入聊天区：虚线罩 + 中央提示 ---------- */
-/* v0.25.19 审计 G-07：功能覆盖层接入引擎（app-chat.js 挂 glass glass--solid）——background 迁 --g-fill；
+/* 功能覆盖层接入引擎（app-chat.js 挂 glass glass--solid）——background 迁 --g-fill；
    全屏覆盖层零圆角/零浮影/零液体边保视觉不变；position/outline 为功能结构保留直写 */
 .chat-pane { position: relative; }
 .chat-drop-hint {
@@ -247,12 +246,12 @@
 .chat-actions .chat-plus-btn { height: 100%; width: calc(40px * var(--ui-scale, 1)); }
 .chat-actions .chat-send { height: 100%; min-width: calc(78px * var(--ui-scale, 1)); }
 
-/* ---------- 系统事件气泡：居中中性胶囊（v0.25.34 去淡紫第三色相，圆角胶囊在 glass.css） ---------- */
+/* ---------- 系统事件气泡：居中中性胶囊 ---------- */
 .chat-msg--system { align-self: center; align-items: center; max-width: 88%; margin: 10px 0; } /* 上下留白，区别于左右内容泡 */
 .chat-bubble--system { font-size: .78rem; text-align: center; }
 .chat-msg--system .chat-msg-time { text-align: center; }
 
-/* v0.25.34 间距：同发送者组内 6px（gap），换人/换说话人拉开到 ~18px（主流 16-20px） */
+/* 同发送者组内 6px（gap），换人/换说话人拉开到 ~18px（主流 16-20px） */
 .chat-msg--mine + .chat-msg--theirs,
 .chat-msg--theirs + .chat-msg--mine { margin-top: 12px; }
 
@@ -260,12 +259,12 @@
    v0.25.87 架构整理（R1）：气泡自持紧凑行距，不再继承 .chat-bubble 的 line-height:1.62——
    原 .78rem 小字 × 1.62 = 每行约 20px + 行间 padding，三行标签行距松到能塞图（用户反馈）。
    改 line-height:1.45 + 行距全走 margin（单点），信息行压缩为「相邻紧排」的紧凑正常气泡。 */
-/* 整改（v0.25.94）：删左竖线 + 彻底紧凑化——原 max-width:300px 是「雷霆大气泡」根因（R1 只压了行距，
+/* 整改：删左竖线 + 彻底紧凑化——原 max-width:300px 是「雷霆大气泡」根因（R1 只压了行距，
    没动结构尺寸）；border-left:3px 品牌色条整个删（用户明确要求删竖线组件，不留）。 */
 .signing-bubble {
   max-width: 250px; text-align: left; padding: 8px 12px;
   line-height: 1.4; /* 紧凑行高（继承 .78rem 换算每行更扁，信息行相邻紧排） */
-  /* v0.25.101 Q4：white-space:normal 覆盖 .chat-bubble 的 pre-wrap——signing-bubble 是结构化 div 模板，
+  /* white-space:normal 覆盖 .chat-bubble 的 pre-wrap——signing-bubble 是结构化 div 模板，
      模板里子元素间的换行+缩进文本节点会被 pre-wrap 渲染成可见空白行（实测带换行 319px vs 单行 122px）。
      pre-wrap 只该服务纯文本气泡（保留用户输入换行），结构化组件一律 normal。 */
   white-space: normal;
@@ -277,9 +276,9 @@
 .signing-bubble-row b { font-weight: 600; text-align: right; word-break: break-all; }
 .signing-bubble-actions { display: flex; gap: 8px; margin-top: 6px; justify-content: center; }
 .signing-bubble-status { margin: 4px 0 0; font-size: .7rem; color: var(--muted); text-align: center; }
-.signing-bubble--done { opacity: .55; } /* 拒绝：气泡整体变灰（v0.25.94 起仅拒绝态；签约确认态不降透明——起草按钮须完整可见可点） */
+.signing-bubble--done { opacity: .55; } /* 拒绝：气泡整体变灰 */
 
-/* v0.25.94（用户反馈「确认签约后气泡底下先合并提示再起草按钮、按钮撑满气泡」）：
+/* 
    签约确认态底部 = 合并提示文案 + 左右撑满的「起草合同」按钮；独立 funds 小字已并入提示。 */
 .signing-bubble-signed-tip { margin: 6px 0 0; font-size: .68rem; line-height: 1.55; color: var(--muted); }
 .signing-bubble-draft-btn { display: block; width: 100%; margin-top: 8px; }
@@ -302,25 +301,25 @@
 @media (prefers-reduced-motion: reduce) {
   .chat-bubble--breathe::after { animation: none; opacity: .6; }
 }
-/* 需求四（v0.25.44）：签约气泡底部资金声明（报价触点的平台责任撇清，小字不喧宾夺主） */
-.signing-bubble-funds { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--g-line-row); font-size: .68rem; color: var(--muted); text-align: center; }
+/* 需求四：签约气泡底部资金声明（报价触点的平台责任撇清，小字不喧宾夺主） */
+.signing-bubble-funds { margin: 6px 0 0; padding-top: 6px; border-top: 1px dashed var(--g-line-soft); font-size: .68rem; color: var(--muted); text-align: center; }
 
-/* 合同卡「等待对方确认/签署」灰字（v0.24.0：无外套组件的不可交互提示，替代按钮） */
+/* 合同卡「等待对方确认/签署」灰字 */
 .contract-wait-text { font-size: .72rem; font-weight: 600; }
 
-/* v0.24.2 审计：修改合同/发起签约浮窗提示行（原内联样式收口为类，JS 零内联样式铁律） */
+/* 修改合同/发起签约浮窗提示行（原内联样式收口为类，JS 零内联样式铁律） */
 .contract-modify-hint { margin-top: 6px; }
 .signing-modal-hint { margin-bottom: 12px; }
 
-/* ---------- 合同改动 diff 视图（v0.24.3 改动留痕+高亮） ---------- */
-.contract-diff-head { font-size: .76rem; color: var(--text-muted, inherit); margin-bottom: 6px; }
-/* v0.25.19 审计 G-07：diff 容器接入引擎（app-contracts.js 已挂 glass glass--solid 类）——
+/* ---------- 合同改动 diff 视图 ---------- */
+.contract-diff-head { font-size: .76rem; color: var(--muted); margin-bottom: 6px; }
+/* diff 容器接入引擎（app-contracts.js 已挂 glass glass--solid 类）——
    background 直写迁 --g-fill，border-radius 迁 --g-r；border/overflow 为结构属性保留直写 */
 .contract-diff { --g-fill: var(--g-paper); --g-r: 10px; border: 1px solid var(--line); overflow: hidden; }
 .diff-line { display: flex; gap: 8px; padding: 3px 10px; font-size: .8rem; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
 .diff-line + .diff-line { border-top: 1px solid rgba(17,17,20,.05); }
-.diff-sign { flex: 0 0 14px; text-align: center; user-select: none; color: var(--text-muted, inherit); }
-.diff-same { color: var(--text-muted, inherit); }
+.diff-sign { flex: 0 0 14px; text-align: center; user-select: none; color: var(--muted); }
+.diff-same { color: var(--muted); }
 .diff-add { background: var(--ok-tint, transparent); color: var(--ok-deep); }
 .diff-del { background: var(--danger-tint, transparent); color: var(--danger-deep); text-decoration: line-through; }
 .contract-diff-divider { margin: 14px 0; border-top: 1px dashed var(--line); }
@@ -340,7 +339,7 @@
 .chat-plus-pop {
   position: absolute; bottom: calc(100% + 8px); right: 0; z-index: 40;
   min-width: 140px; padding: 4px;
-  /* v0.19.33 去 opacity 动画：Chromium bug 983252（backdrop-filter + opacity 动画 → 磨砂失效=白板），
+  /* Chromium bug 983252（backdrop-filter + opacity 动画 → 磨砂失效=白板），
      纯 transform 路径（同 profile-panel/下拉面板） */
   opacity: 1; visibility: hidden; transform: translateY(6px);
   transition: transform .22s cubic-bezier(.16,1,.3,1), visibility 0s .22s;

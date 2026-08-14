@@ -1,12 +1,12 @@
 /**
- * 验证码组件包（v0.26.0 B2/B3/B6）—— 手机号+验证码 / 邮箱+验证码 输入组件 + 绑定浮窗
+ * 验证码组件包—— 手机号+验证码 / 邮箱+验证码 输入组件 + 绑定浮窗
  *
  * 同步加载（登录页与设置页共用，见 index.html 加载序：app-ui.js 之后）。
  * 地区前缀表单源 CONFIG.PHONE_REGIONS（与后端 server/otp.js 同读，杜绝双源漂移）。
  *
  * id 约定（组件内联 onclick 依赖）：prefix + '-phone' / '-email' / '-code'（验证码输入）/
  * '-send'（发送按钮）。绑定浮窗 prefix='bind'；登录页验证码 prefix='login'。
- * 手机号前缀 v0.26.15 收敛大陆单区：固定 +86（PHONE_REGIONS 仅 +86，无地区 select），
+ * 手机号前缀收敛大陆单区：固定 +86（PHONE_REGIONS 仅 +86，无地区 select），
  * 目标恒为 '+86' + 号码；服务端 normalizeIdentifier 对裸大陆号补 +86 同口径。
  *
  * B6 内测短路：requestOtpCode 成功后若响应带 mockCode → toast「模拟验证码（内测期使用）：xxxxxx」
@@ -23,10 +23,10 @@ function validatePhone(target) {
 function validateEmail(s) {
   return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(String(s || '').trim());
 }
-/** 登录唯一输入框判型（v0.26.14 L1）——与服务端 server/otp.js classifyIdentifier 同语义，杜绝口径漂移：
+/** 登录唯一输入框判型——与服务端 server/otp.js classifyIdentifier 同语义，杜绝口径漂移：
  * 含 @ → email；带地区前缀合法号或裸大陆号（后端 normalizeIdentifier 自动补 +86）→ phone；否则 username。
- * 背景：登录页唯一输入框无地区前缀选择器，用户直接输裸大陆号（如 138xxxxxxxx）是正常预期，
- * 前端若只认带前缀会把裸号误判为 username → 拦下验证码登录（用户实证，勿回退）。
+ * 契约：登录页唯一输入框无地区前缀选择器，用户直接输裸大陆号（如 138xxxxxxxx）是正常预期，
+ * 前端若只认带前缀会把裸号误判为 username → 拦下验证码登录，勿回退此口径。
  * @returns {'username'|'phone'|'email'|null}
  */
 function classifyIdentifier(identifier) {
@@ -43,7 +43,7 @@ function classifyIdentifier(identifier) {
 // 输入组件 HTML（label + 输入；验证码为输入框内右缘小按钮，不占左半边输入区）
 // ============================================================
 function phoneFieldHtml({ prefix = 'bind', label = UI.PHONE_LABEL } = {}) {
-  // v0.26.15：前缀选项连根移除（用户拍板：只说支持大陆手机号）——输入框直接输大陆号，
+  // 前缀选项连根移除（用户拍板：只说支持大陆手机号）——输入框直接输大陆号，
   // 提交时前端补 '+86'（requestOtpCode/submitBind），后端 normalizeIdentifier 对裸号亦补 +86 双保险。
   return `<div class="form-group">
     <label class="form-label">${label}</label>
@@ -73,14 +73,13 @@ async function requestOtpCode(prefix, channel) {
   const sendBtn = document.getElementById(`${prefix}-send`);
   const codeEl = document.getElementById(`${prefix}-code`);
   if (!sendBtn || sendBtn.disabled) return; // 倒计时中不重复请求
-  // 组装目标：sms = 固定 +86 前缀 + 大陆手机号（v0.26.15 大陆单区）；email = 邮箱
+  // 组装目标：sms = 固定 +86 前缀 + 大陆手机号；email = 邮箱
   let target = '';
   if (prefix === 'login') {
     // 登录页特例：目标来自唯一输入框 login-identifier（用户名/手机号/邮箱），channel 按格式推断。
-    // v0.26.16 修（外部审查补漏）：原 validatePhone 门控要求 +86 前缀，裸大陆号在「发送验证码」一步
-    // 被拦——toggleLoginMode 已放行裸号切到验证码模式（classifyIdentifier→phone），此处再拦即
-    // 「切一段留一段」，用户实证场景最终登录目标不可达。改 classifyIdentifier + 前端 normalize
-    // （裸大陆号补 +86），与后端 server/otp.js normalizeIdentifier 同语义。
+    // 契约：发送门控必须与 toggleLoginMode 判型同口径（classifyIdentifier→phone + 前端 normalize
+    // 裸大陆号补 +86，与后端 server/otp.js normalizeIdentifier 同语义）——只认 +86 前缀会把
+    // 裸大陆号拦在「发送验证码」一步（「切一段留一段」）。
     const ident = ((document.getElementById('login-identifier') || {}).value || '').trim();
     const kind = classifyIdentifier(ident);
     if (kind === 'email') { channel = 'email'; target = ident; }
@@ -92,7 +91,7 @@ async function requestOtpCode(prefix, channel) {
     const el = document.getElementById(`${prefix}-email`);
     target = el ? el.value.trim() : '';
   } else {
-    // v0.26.15：前缀选项连根移除，目标恒为 '+86' + 号码（输入框只输大陆号）
+    // 前缀选项连根移除，目标恒为 '+86' + 号码（输入框只输大陆号）
     const el = document.getElementById(`${prefix}-phone`);
     target = '+86' + (el ? el.value.trim() : '');
   }
@@ -130,7 +129,7 @@ function openPhoneBindModal() {
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
       <button type="button" class="btn glass glass--pressable" onclick="submitBind('phone')">${UI.BTN_BIND}</button>`,
   });
-  // v0.26.15：无地区前缀 select，不再需要 initCustomSelects 包装（删除后无下拉组件）
+  // 无地区前缀 select，不再需要 initCustomSelects 包装（删除后无下拉组件）
 }
 
 function openEmailBindModal() {
@@ -147,7 +146,7 @@ async function submitBind(kind) {
   const isPhone = kind === 'phone';
   let target = '';
   if (isPhone) {
-    // v0.26.15：前缀选项连根移除，目标恒为 '+86' + 号码（输入框只输大陆号）
+    // 前缀选项连根移除，目标恒为 '+86' + 号码（输入框只输大陆号）
     const el = document.getElementById('bind-phone');
     target = '+86' + (el ? el.value.trim() : '');
     if (!validatePhone(target)) { showToast(UI.CRED_FORMAT_PHONE, 'error'); return; }
