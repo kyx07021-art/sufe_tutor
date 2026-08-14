@@ -282,3 +282,11 @@ test('R4-7：采样禁全站 transition（data-ui-sampling 门控 + style.css �
   const css = readFileSync('./style.css', 'utf8');
   assert.match(css, /html\[data-ui-sampling\] \*[\s\S]*?transition: none !important/, 'style.css 禁全站 transition 规则');
 });
+
+// v0.31.8 用户验收抓出（横线戳出 184px）：带横线（border）的块不算纯文本容器——isText fs 等比会放大
+// 宽度（大标题视觉宽 920→1104，border-bottom 横线戳出右缘；真实 reflow 容器定宽标题宽不变）。
+test('v0.31.8 isText 排除 border 块（横线承载元素统一 block rect 拉伸）', () => {
+  const src = readFileSync('./ui-scale-reflow.js', 'utf8');
+  assert.match(src, /cs\[s\] && cs\[s\] !== 'none' && parseFloat\(cs\[w\] \|\| '0'\) > 0/,
+    'isTextUnit 排除带横线（border）的块（style 非 none + width>0，兼容 jsdom 默认 border-width）');
+});

@@ -161,6 +161,18 @@
     if (el.matches && el.matches('button, input, select, textarea')) return false;
     var cls = String(el.className && el.className.toString ? el.className : '');
     if (cls && CONTROL_RE.test(cls)) return false;
+    // v0.31.8 用户验收抓出（横线戳出 184px）：带横线（border）的块不算纯文本容器。
+    //   大标题 .settings-section-title（border-bottom + 直接文本）曾被 isText 判定 → fs 等比 sx=fs=1.2
+    //   → 视觉宽 920→1104，横线戳出右缘；真实 reflow 容器定宽标题宽不变（sx 应为 1）。
+    //   语义：isText fs 等比只适合「宽度由文字内容决定」的纯文本块；有 border（横线承载）的块宽度
+    //   由布局定 → 走 block rect 拉伸（sx=采样真实宽）。这也是「横线缩放逻辑一份」的收敛——横线承载
+    //   元素统一 block。
+    var cs = getComputedStyle(el);
+    // 有横线（border）的块不算纯文本容器——宽度由布局定 → block rect 拉伸。判定须 style 非 none + width>0：
+    // 浏览器无边框元素 borderTopStyle='none'（width 计算 0）；jsdom 对未设边框返回默认 width（非 0）但
+    // style 为空串/undefined——只查 width 会把 jsdom 元素全判有边框（文本单元全走 block，测试假 FAIL）。
+    function hasLine(w, s) { return cs[s] && cs[s] !== 'none' && parseFloat(cs[w] || '0') > 0; }
+    if (hasLine('borderTopWidth', 'borderTopStyle') || hasLine('borderBottomWidth', 'borderBottomStyle')) return false;
     return !!(el.childNodes && Array.prototype.some.call(el.childNodes, function (n) { return n.nodeType === 3 && /\S/.test(n.nodeValue || ''); }));
   }
 

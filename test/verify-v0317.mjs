@@ -88,7 +88,9 @@ const settingsSnap = () => {
   const cRight = cp ? cp.getBoundingClientRect().right : null;
   // 全部带 border-top 的行元素右缘
   const lineEls = [...document.querySelectorAll('.settings-row, .settings-devices, .settings-section-title')]
-    .filter(e => getComputedStyle(e).borderTopWidth !== '0px' && e.getBoundingClientRect().height > 0);
+    // v0.31.8 用户验收抓出：此前只查 borderTopWidth 漏掉大标题（.settings-section-title 是 border-bottom）
+    // 的横线 → 假绿。横线承载元素横竖边框都算（大标题横线戳出 184px 曾漏测）。
+    .filter(e => { const c = getComputedStyle(e); return (c.borderTopWidth !== '0px' || c.borderBottomWidth !== '0px') && e.getBoundingClientRect().height > 0; });
   const lines = lineEls.map(e => { const r = e.getBoundingClientRect(); return { right: +r.right.toFixed(1), overflow: cRight ? +(r.right - cRight).toFixed(1) : null }; });
   return {
     btnRelToRow: (pr && pb) ? +(pb.y - pr.y).toFixed(2) : null,
