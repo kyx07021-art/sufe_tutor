@@ -579,7 +579,7 @@ globalThis.APP_CONSTANTS = {
     // 需求三十：注册须勾选同意用户协议/隐私政策（两行轻量勾选 + md 浮窗展示全文）
     AGREE_LINK_AGREEMENT: '用户协议',
     AGREE_LINK_PRIVACY: '隐私政策',
-    REGISTER_CONTACT_REQUIRED: '请填写手机号或邮箱（至少一个）及对应验证码',
+    REGISTER_CONTACT_REQUIRED: '请填写手机号或邮箱并输入验证码',
     AGREE_REQUIRED: '请先勾选同意用户协议与隐私政策',
     POLICY_KEY_AGREEMENT: 'user_agreement',
     POLICY_KEY_PRIVACY: 'privacy_policy',

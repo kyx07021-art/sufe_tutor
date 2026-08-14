@@ -1716,6 +1716,8 @@ html[data-ui-sampling] *::after {
 /* 二次认证密码行（原内联 style 改类）：去 .form-group 上分隔线 + 错误行红字显隐 */
 .reauth-group { border-top: none !important; }
 .form-hint--error { color: var(--danger); }
+/* 表单辅助说明：小字灰，只做引导不做主视觉（注册页登录凭证说明等） */
+.form-hint { margin: 6px 0 0; font-size: .76rem; line-height: 1.5; color: var(--muted); }
 /* v0.19.33：去 opacity 帧——Chromium bug 983252：元素自身 backdrop-filter + opacity 动画 → backdrop 渲染失效（毛玻璃变白板）。
    纯 transform 动画（profile-panel 路径）不触发，modal 复刻之
    v0.19.37：删 fill both——动画结束后 transform 不再常驻 translateY(0)，合成层释放，backdrop 回普通渲染路径；

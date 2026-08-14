@@ -166,14 +166,14 @@ test('前端：勾选后 handleRegister 携带同意标志发起注册', async (
     document.getElementById('register-password2').value = 'pass123456';
     document.getElementById('agree-agreement').checked = true;
     document.getElementById('agree-privacy').checked = true;
-    document.getElementById('register-phone').value = '13811112222';
-    document.getElementById('register-phone-code').value = '123456';
+    document.getElementById('register-identifier').value = '13811112222';
+    document.getElementById('register-code').value = '123456';
   `, ctx);
   await vm.runInContext('handleRegister({ preventDefault() {} })', ctx);
   const body = vm.runInContext('window.__body()', ctx);
   assert.ok(body && body.agreeAgreement === true, '请求带 agreeAgreement=true');
   assert.ok(body && body.agreePrivacy === true, '请求带 agreePrivacy=true');
-  assert.equal(body && body.phone, '13811112222', 'v1.0 R7：联系方式随注册上送');
+  assert.equal(body && body.phone, '+8613811112222', 'v1.0 R7：裸手机号补 +86 随注册上送');
   assert.equal(body && body.otpChannel, 'sms', '验证码通道 sms');
 });
 

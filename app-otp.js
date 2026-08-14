@@ -85,12 +85,12 @@ async function requestOtpCode(prefix, channel) {
   if (!sendBtn || sendBtn.disabled) return; // 倒计时中不重复请求
   // 组装目标：sms = 固定 +86 前缀 + 大陆手机号；email = 邮箱
   let target = '';
-  if (prefix === 'login') {
-    // 登录页特例：目标来自唯一输入框 login-identifier（用户名/手机号/邮箱），channel 按格式推断。
-    // 契约：发送门控必须与 toggleLoginMode 判型同口径（classifyIdentifier→phone + 前端 normalize
-    // 裸大陆号补 +86，与后端 server/otp.js normalizeIdentifier 同语义）——只认 +86 前缀会把
+  if (prefix === 'login' || prefix === 'register') {
+    // 登录/注册页共用特例：目标来自唯一输入框（login-identifier / register-identifier），channel 按格式推断。
+    // 契约：发送门控必须与 toggleLoginMode/checkRegisterContact 判型同口径（classifyIdentifier→phone + 前端
+    // normalize 裸大陆号补 +86，与后端 server/otp.js normalizeIdentifier 同语义）——只认 +86 前缀会把
     // 裸大陆号拦在「发送验证码」一步（「切一段留一段」）。
-    const ident = ((document.getElementById('login-identifier') || {}).value || '').trim();
+    const ident = ((document.getElementById(`${prefix}-identifier`) || {}).value || '').trim();
     const kind = classifyIdentifier(ident);
     if (kind === 'email') { channel = 'email'; target = ident; }
     else if (kind === 'phone') {
@@ -115,7 +115,7 @@ async function requestOtpCode(prefix, channel) {
   try {
     const data = await api('/api/auth/otp/request', {
       method: 'POST',
-      body: { channel: channel === 'email' ? 'email' : 'sms', target, scene: prefix === 'bind' ? '绑定验证' : '登录验证' },
+      body: { channel: channel === 'email' ? 'email' : 'sms', target, scene: prefix === 'bind' ? '绑定验证' : prefix === 'register' ? '注册验证' : '登录验证' },
     });
     // B6 内测短路：mock 提供方返回模拟验证码 → toast 给用户（生产接入真实短信/邮件后无 mockCode）
     if (data.mockCode) showToast(UI.OTP_MOCK_TOAST.replace('{code}', data.mockCode), 'info');
@@ -124,6 +124,22 @@ async function requestOtpCode(prefix, channel) {
   } catch (err) {
     sendBtn.disabled = false;
     showToast(err.message, 'error');
+  }
+}
+
+/** 注册页联系方式单输入框判定：输入合法手机号/邮箱即呼出验证码组并更新通道文案，
+ *  非法/空则收起（与 requestOtpCode 判型同口径 classifyIdentifier，单源不漂移）。 */
+async function checkRegisterContact() {
+  const el = document.getElementById('register-identifier');
+  const group = document.getElementById('register-code-group');
+  const label = document.getElementById('register-code-label');
+  if (!group || !label) return;
+  const kind = classifyIdentifier(el ? el.value : '');
+  if (kind === 'phone' || kind === 'email') {
+    group.classList.remove('hidden');
+    label.textContent = kind === 'phone' ? '手机验证码' : '邮箱验证码';
+  } else {
+    group.classList.add('hidden');
   }
 }
 
