@@ -229,16 +229,15 @@ export async function verifyOtp(db, { channel, target, code }) {
   if (!row) return 'invalid'; // 未找到 / 已过期 / 已用（统一文案防枚举）
   const codeHash = await tokenDigest(String(code).trim());
   if (row.code_hash !== codeHash) {
-    // 输错：计数 +1；满 3 次即作废（置 used）——第四次起必然「未找到/已用」回落 invalid 文案，
-    // 但前端三振后主动提示重新发码
-    const newAttempts = Number(row.attempts) + 1;
-    if (newAttempts >= LIMITS.OTP_MAX_ATTEMPTS) {
-      const kill = await dbRun(db, 'UPDATE verification_codes SET used=1, attempts=? WHERE id=? AND used=0',
-        [newAttempts, row.id]);
-      return (kill && kill.meta && kill.meta.changes > 0) ? 'exhausted' : 'invalid';
-    }
-    await dbRun(db, 'UPDATE verification_codes SET attempts=? WHERE id=? AND used=0', [newAttempts, row.id]);
-    return 'invalid';
+    // 输错：原子自增计数（并发 N 个错误请求各读旧值再绝对写会把三振折叠——必须 SQL 内 +1）；
+    // 达到 3 次即作废（置 used）——之后必然「未找到/已用」回落 invalid 文案，前端三振后主动提示重新发码
+    const bump = await dbRun(db,
+      `UPDATE verification_codes SET attempts=attempts+1,
+         used=CASE WHEN attempts+1 >= ? THEN 1 ELSE 0 END
+       WHERE id=? AND used=0`, [LIMITS.OTP_MAX_ATTEMPTS, row.id]);
+    if (!(bump && bump.meta && bump.meta.changes > 0)) return 'invalid';
+    const after = await dbGet(db, 'SELECT attempts, used FROM verification_codes WHERE id=?', [row.id]);
+    return (after && after.used) ? 'exhausted' : 'invalid';
   }
   // 一次性消费（赢家）：并发双提交仅 changes>0 的一方通过
   const r = await dbRun(db, 'UPDATE verification_codes SET used=1 WHERE id=? AND used=0', [row.id]);

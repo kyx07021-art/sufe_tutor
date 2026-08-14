@@ -63,6 +63,7 @@ export const MSG = {
   INVALID_ROLE: '无效的用户角色',
   AGREE_REQUIRED: '注册须同意用户协议与隐私政策', // 服务端强校验（前端勾选可被构造请求绕过，合规红线）
   REGISTER_CONTACT_REQUIRED: '请填写手机号或邮箱（至少一个）及对应验证码', // v1.0 R7：核心凭证注册必绑
+  CONTACT_CONFLICT_RETRY: '联系方式已被其他账户绑定，注册未完成，请更换后重试',
   INVALID_ACTION: '无效的操作',
   INVALID_PARAMS: '参数不合法',
   LOGIN_REQUIRED: '请输入用户名和密码',

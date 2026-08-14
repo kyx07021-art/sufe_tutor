@@ -67,12 +67,14 @@ export async function handleRegister(db, body, req) {
   if (otpChannel === 'email' && (normContact.kind !== 'email' || normContact.target.length > LIMITS.EMAIL_MAX)) return error(MSG.EMAIL_INVALID);
   if (otpChannel === 'sms' && normContact.kind !== 'phone') return error(MSG.PHONE_INVALID);
   const contactTarget = normContact.target;
-  // 占用查先于注册（防注册后被占用则无法绑定）——占用即拒绝注册
-  const contactTaken = otpChannel === 'email' ? await dbEmailTaken(db, contactTarget) : await dbPhoneTaken(db, contactTarget);
-  if (contactTaken) return error(otpChannel === 'email' ? MSG.EMAIL_ALREADY_BOUND : MSG.PHONE_ALREADY_BOUND, 409);
+  // 验码先行（审查修正）：占用查若在验码之前，任意假码即可按 409/400 区分该联系方式是否已注册
+  // （零成本枚举面）。验码通过后才查占用——只有持码者能触发 409，与登录验码先行的防枚举口径一致。
   const otpR = await verifyOtp(db, { channel: otpChannel, target: contactTarget, code: otpCode });
   if (otpR === 'exhausted') return error(MSG.OTP_EXHAUSTED, 400);
   if (otpR !== 'ok') return error(MSG.OTP_INVALID_OR_EXPIRED);
+  // 占用查（验码已消费——同一目标注册+绑定竞态由 UNIQUE 索引兜底，见下方绑定回滚）
+  const contactTaken = otpChannel === 'email' ? await dbEmailTaken(db, contactTarget) : await dbPhoneTaken(db, contactTarget);
+  if (contactTaken) return error(otpChannel === 'email' ? MSG.EMAIL_ALREADY_BOUND : MSG.PHONE_ALREADY_BOUND, 409);
 
   // 教师邀请码门控：内测期间休眠（INVITE_GATE_ENABLED=false 时教师免邀请码注册）
   const needsInvite = role === 'teacher' && INVITE_GATE_ENABLED;
@@ -84,9 +86,17 @@ export async function handleRegister(db, body, req) {
 
   const { hash, salt } = await hashPassword(password);
   const userId = await dbCreateUser(db, username, hash, salt, role);
-  // 注册即绑定核心凭证（手机号/邮箱至少其一；验证码已先行通过）
-  if (otpChannel === 'email') await bindEmailCredential(db, userId, contactTarget);
-  else await bindPhoneCredential(db, userId, contactTarget);
+  // 注册即绑定核心凭证（手机号/邮箱至少其一；验证码已先行通过）。
+  // 绑定失败（并发占用抢先 UNIQUE 索引拦截）= 账户已建凭证未绑，违反「注册必绑」契约——
+  // 回滚刚建用户拒绝注册（同 invite 消费失败的回滚口径）。
+  try {
+    if (otpChannel === 'email') await bindEmailCredential(db, userId, contactTarget);
+    else await bindPhoneCredential(db, userId, contactTarget);
+  } catch (e) {
+    await dbDeleteUser(db, userId);
+    console.warn('注册绑定凭证失败（并发占用），已回滚账户:', e && e.message);
+    return error(MSG.CONTACT_CONFLICT_RETRY, 409);
+  }
   if (needsInvite) {
     // 原子消费（赢家模式）：并发双注册同码仅一方 changes>0；输家回滚刚建的用户拒绝注册
     const consumed = await dbUseInviteCode(db, inviteCode, userId);
