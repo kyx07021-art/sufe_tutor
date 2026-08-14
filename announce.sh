@@ -30,6 +30,21 @@ TOKEN=$(curl -s --max-time 60 -X POST "https://sufe-tutor.pages.dev/api/auth/log
   -d "{\"identifier\":\"$ADMIN_USER\",\"password\":\"$ADMIN_PASS\"}" \
   | python -c "import sys,json;print(json.load(sys.stdin).get('authToken',''))")
 if [ -z "$TOKEN" ]; then echo "管理员登录失败"; exit 1; fi
+# 广播 = 全站危险操作（R3 起须 capToken 二次认证）：先 re-auth 换 capToken 再发
+CAP=$(curl -s --max-time 60 -X POST "https://sufe-tutor.pages.dev/api/auth/re-auth" \
+  -H "Content-Type: application/json" -H "X-Auth-Token: $TOKEN" \
+  -d "{\"password\":\"$ADMIN_PASS\"}" \
+  | python -c "import sys,json;print(json.load(sys.stdin).get('capToken',''))")
+if [ -z "$CAP" ]; then echo "二次认证失败"; exit 1; fi
+python - "$PAYLOAD" "$CAP" "$PAYLOAD" <<'PY2'
+import json, sys
+p, cap, out = sys.argv[1], sys.argv[2], sys.argv[3]
+with open(p, encoding='utf-8') as f:
+    d = json.load(f)
+d['capToken'] = cap
+with open(out, 'w', encoding='utf-8') as f:
+    json.dump(d, f, ensure_ascii=False)
+PY2
 curl -s --max-time 60 -X POST "https://sufe-tutor.pages.dev/api/notifications/broadcast" \
   -H "Content-Type: application/json" -H "X-Auth-Token: $TOKEN" -d @"$PAYLOAD"
 echo
