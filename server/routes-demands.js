@@ -108,7 +108,8 @@ function sanitizeDemand(d) {
     const projectSet = new Set(NP.map(p => p.id));
     const noteMax = (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.SKILL_NOTE_MAX) || 300;
     if (!Array.isArray(d.skill_notes)) d.skill_notes = [];
-    d.skill_notes = d.skill_notes.slice(0, (globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.DEMAND_SCORE_MAX) || 12)
+    // 上限 = 非学科项目池大小（去重后每项目至多一条；曾误复用 DEMAND_SCORE_MAX=12 成绩行上限，语义错位）
+    d.skill_notes = d.skill_notes.slice(0, NP.length)
       .map(sn => {
         if (!sn || typeof sn !== 'object' || typeof sn.project !== 'string' || !projectSet.has(sn.project)) return null;
         return { project: sn.project, note: (typeof sn.note === 'string' ? sn.note : '').slice(0, noteMax) };

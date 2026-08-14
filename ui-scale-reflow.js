@@ -252,20 +252,24 @@
     // 动画起点，同帧读 rect = 旧高度（生产实测采样 h=50 vs 实际 60），box target 全错。
     // html[data-ui-sampling] 由 style.css 规则禁全站 transition，采样后移除。
     docEl.dataset.uiSampling = '1';
-    for (i = 0; i < SAMPLES.length; i++) {
-      s = SAMPLES[i];
-      var sc = (s / 100).toFixed(3);
-      docEl.style.setProperty('--ui-scale', sc);
-      // 强制整树 layout + 逐单元测 rect（读 getBoundingClientRect 本身同步强制 layout，无需额外
-      // offsetHeight 结算——同一 task 内不 paint 中间态；v0.31.4 P4 去冗余，每档省一次全树 layout）
-      for (var u = 0; u < units.length; u++) {
-        var r = units[u].el.getBoundingClientRect();
-        units[u].targets[s] = { x: r.x, y: r.y, w: r.width, h: r.height };
+    try {
+      for (i = 0; i < SAMPLES.length; i++) {
+        s = SAMPLES[i];
+        var sc = (s / 100).toFixed(3);
+        docEl.style.setProperty('--ui-scale', sc);
+        // 强制整树 layout + 逐单元测 rect（读 getBoundingClientRect 本身同步强制 layout，无需额外
+        // offsetHeight 结算——同一 task 内不 paint 中间态；v0.31.4 P4 去冗余，每档省一次全树 layout）
+        for (var u = 0; u < units.length; u++) {
+          var r = units[u].el.getBoundingClientRect();
+          units[u].targets[s] = { x: r.x, y: r.y, w: r.width, h: r.height };
+        }
+        docEl.style.setProperty('--ui-scale', prev);
+        window.scrollTo(prevX, prevY); // 每档还原滚动：rect 用视口坐标，防档间 scroll 漂移污染采样
       }
-      docEl.style.setProperty('--ui-scale', prev);
-      window.scrollTo(prevX, prevY); // 每档还原滚动：rect 用视口坐标，防档间 scroll 漂移污染采样
+    } finally {
+      // v0.31.8（外部审查）：try/finally 保证异常也摘门控——残留 data-ui-sampling 会全站禁 transition 直至下次采样
+      delete docEl.dataset.uiSampling;
     }
-    delete docEl.dataset.uiSampling;
   }
 
   function lerp(a, b, t) { return a + (b - a) * t; }

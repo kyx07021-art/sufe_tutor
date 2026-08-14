@@ -1700,7 +1700,9 @@ html[data-ui-sampling] *::after {
   box-shadow: 0 0 0 3px var(--g-focus-soft, rgba(0,0,0,.12)); }
 .dw-step-chip--active .dw-step-chip-label { color: var(--ink); opacity: 1; font-weight: 700; }
 .dw-steps-viewport { overflow-x: hidden; overflow-y: auto; min-height: 340px; max-height: 56vh; padding: 2px 4px; }
-.dw-steps-track { display: flex; transition: transform .32s var(--ease-out, ease); }
+.dw-steps-track { display: flex; transform: translateX(calc(var(--dw-step-active, 0) * -100%)); transition: transform .32s var(--ease-out, ease); }
+/* v0.31.8（外部审查 🔴）：JS 写 --dw-step-active（0 基索引）到 #demand-form，本规则 translateX 消费——
+   曾漏写 transform 属性（只有 transition），8 步并排后 P2-P8 全被视口 overflow-x:hidden 裁剪，表单空白。 */
 .dw-step { flex: 0 0 100%; min-width: 100%; visibility: hidden; opacity: 0; transform: translateY(8px);
   transition: opacity .28s ease, transform .28s ease, visibility 0s linear .28s; }
 .dw-step--active { visibility: visible; opacity: 1; transform: none;
