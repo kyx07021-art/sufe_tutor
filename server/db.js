@@ -1561,7 +1561,15 @@ export async function dbGetUserStats(db) {
 }
 
 // 网安审计 N-17：表名白名单映射（消除调用方拼表名进 SQL 的注入形状；未知表返回 0 不炸）
-const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1 };
+const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1, teacher_awards: 1, feedbacks: 1, complaints: 1 };
+// 条件计数（统计页待办队列用）：表名必须过 COUNT_TABLES 白名单（防注入），
+// where 为内部硬编码字面量（status 枚举），禁止拼接用户输入
+export async function dbGetCountWhere(db, table, where) {
+  if (!COUNT_TABLES[table]) return 0;
+  const r = await dbGet(db, `SELECT COUNT(*) AS c FROM ${table} WHERE ${where}`, []);
+  return r ? Number(r.c) : 0;
+}
+
 export async function dbGetCount(db, table) {
   if (!COUNT_TABLES[table]) return 0;
   const row = await dbGet(db, `SELECT COUNT(*) as cnt FROM ${table}`);

@@ -459,17 +459,25 @@ async function submitBroadcast() {
   const text = (document.getElementById('post-body').value || '').trim();
   if (!title) { showToast(UI.POST_TITLE_REQUIRED, 'error'); return; }
   if (!text) { showToast(UI.VALIDATE_BROADCAST_EMPTY, 'error'); return; }
-  const btn = document.getElementById('broadcast-submit');
-  btnLoading(btn);
+  // 广播 = 全站高危操作：先二次认证换 capToken 再发送（服务端 confirmDangerOtp 校验）
+  closeModal();
+  confirm({
+    title: UI.BROADCAST_MODAL_TITLE,
+    message: UI.BROADCAST_CONFIRM_TEXT,
+    needReAuth: true,
+    onConfirm: (capToken) => doBroadcast(title, text, capToken),
+  });
+}
+
+async function doBroadcast(title, text, capToken) {
   try {
     // 服务端给标题加【系统通知】前缀后群发
-    await api('/api/notifications/broadcast', { method: 'POST', body: { title, text } });
+    await api('/api/notifications/broadcast', { method: 'POST', body: { title, text, capToken } });
     closeModal();
     showToast(UI.BROADCAST_SENT_TOAST);
     if (state.page === 'notifications') enterNotifications(); // 自己也收一条，列表即时刷新
   } catch (err) {
     showToast(err.message, 'error');
-    btnDone(btn);
   }
 }
 

@@ -503,13 +503,17 @@
 
         <!-- 管理员：学生管理 -->
         <section class="client-page hidden" data-page="admin-students">
-          <div class="page-header"><h2>学生管理</h2></div>
+          <div class="page-header"><h2>学生管理</h2>
+            <input type="search" class="form-input admin-search" id="admin-students-search" placeholder="搜索用户名" oninput="adminUsersSearchDebounced('student', this.value)">
+          </div>
           <div class="browse-list" id="admin-students-list"><div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div></div>
         </section>
 
         <!-- 管理员：教师管理 -->
         <section class="client-page hidden" data-page="admin-teachers">
-          <div class="page-header"><h2>教师管理</h2></div>
+          <div class="page-header"><h2>教师管理</h2>
+            <input type="search" class="form-input admin-search" id="admin-teachers-search" placeholder="搜索用户名" oninput="adminUsersSearchDebounced('teacher', this.value)">
+          </div>
           <div class="browse-list" id="admin-teachers-list"><div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div></div>
         </section>
 

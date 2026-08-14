@@ -1092,6 +1092,7 @@ globalThis.APP_CONSTANTS = {
     BROADCAST_TITLE_PLACEHOLDER: '通知标题（推送时自动加【系统通知】前缀）',
     BROADCAST_BODY_PLACEHOLDER: '输入通知正文，全部用户都会收到（支持轻量 Markdown）',
     VALIDATE_BROADCAST_EMPTY: '通知内容不能为空',
+    BROADCAST_CONFIRM_TEXT: '广播将通知全站所有用户，请输入密码确认发送。',
     BROADCAST_SENT_TOAST: '通知已发送给全部用户',
 
     // 教师端浏览同行
@@ -1690,7 +1691,9 @@ globalThis.APP_CONSTANTS = {
     BTN_PUBLISH: '发布',
     BTN_CLOSE: '关闭',                 // 弹窗 ✕ 关闭按钮 aria-label
     A11Y_VIEW_PROFILE: '查看该用户资料',  // 可点用户名/头像 span 的 aria-label
-    VERIFIED_BADGE: '✓ 已认证',        // 学籍认证徽章（管理员审核学信网截图通过）
+    VERIFIED_BADGE: '✓ 已认证',
+    VERIFY_CONFIRM: '确认通过该教师的学籍认证吗？认证徽章将展示在教师主页。',
+    UNVERIFY_CONFIRM: '确认撤销该教师的学籍认证吗？',        // 学籍认证徽章（管理员审核学信网截图通过）
     VERIFIED_TITLE: '已通过学籍认证',   // 徽章悬停提示
     POST_DELETE_TITLE: '删除帖子',
     POST_DELETE_CONFIRM: '删除后不可恢复，点赞数据一并清空。确认删除这篇帖子？',
@@ -1992,6 +1995,11 @@ globalThis.APP_CONSTANTS = {
     POST_DELETED: '帖子已删除',
 
     // 管理员面板
+    ADMIN_TODO_TITLE: '待办事项',
+    ADMIN_TODO_REVIEWS: '待审核评价',
+    ADMIN_TODO_AWARDS: '待审核奖项',
+    ADMIN_TODO_FEEDBACKS: '未处理反馈',
+    ADMIN_TODO_COMPLAINTS: '未处理投诉',
     ADMIN_TOTAL_USERS: '总用户',
     ADMIN_STUDENTS: '学生',
     ADMIN_TEACHERS: '教师',

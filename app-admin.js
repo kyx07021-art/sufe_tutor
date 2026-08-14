@@ -236,6 +236,16 @@ function copyInviteCode() {
 // ============================================================
 // 统计面板（原「管理员面板」，去掉待审核评价——审核并入「评价管理」；
 // 结构上保留 stats-grid + 若干 admin-panel 板块，后期扩展统计数据直接加板块即可）
+// 待办卡（渐进式披露：管理员最关心的「今日必办」置顶；点击直达对应管理页）
+const todoItem = (pageId, label, count) => {
+  const n = Number(count) || 0;
+  return `<button type="button" class="todo-item glass glass--pressable" onclick="selectPage('${pageId}')">
+    <span class="todo-count${n > 0 ? ' todo-count--hot' : ''}">${n}</span>
+    <span class="todo-label">${label}</span>
+    ${n > 0 ? `<span class="todo-arrow">→</span>` : ''}
+  </button>`;
+};
+
 async function loadAdminStats() {
   const el = document.getElementById('admin-stats-content');
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
@@ -246,6 +256,15 @@ async function loadAdminStats() {
     // 网安审计 N-14：统计数值本应都是数字，但防御性转义（服务端异常/未来字段改文案时防存储型 XSS）
     const num = x => escHtml(Number(x) || 0);
     el.innerHTML = `
+      <div class="admin-panel glass todo-panel">
+        <h3>${UI.ADMIN_TODO_TITLE}</h3>
+        <div class="todo-grid">
+          ${todoItem('admin-reviews', UI.ADMIN_TODO_REVIEWS, s.reviews?.pending)}
+          ${todoItem('admin-awards', UI.ADMIN_TODO_AWARDS, s.todo?.awardsPending)}
+          ${todoItem('admin-feedback', UI.ADMIN_TODO_FEEDBACKS, s.todo?.feedbacksOpen)}
+          ${todoItem('admin-complaint', UI.ADMIN_TODO_COMPLAINTS, s.todo?.complaintsOpen)}
+        </div>
+      </div>
       <div class="stats-grid">
         <div class="stat-card glass"><div class="stat-value blue">${num(s.users?.total)}</div><div class="stat-label">${UI.ADMIN_TOTAL_USERS}</div></div>
         <div class="stat-card glass"><div class="stat-value green">${num(s.users?.students)}</div><div class="stat-label">${UI.ADMIN_STUDENTS}</div></div>
@@ -323,18 +342,27 @@ function setTrafficRange(r) { _trafficRange = r; loadAdminTraffic(); }
 // ============================================================
 // 管理员：学生 / 教师管理（封禁的账户无法登录）
 // ============================================================
-async function loadAdminUsers(role, elId) {
-  const url = `/api/admin/users?role=${role}`;
+async function loadAdminUsers(role, elId, q = '') {
+  const url = `/api/admin/users?role=${role}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
   await loadInto(elId, async () => {
     const data = await dhGet(url, { domain: 'admin' }); // 静默数据层
     const users = data.users || [];
-    if (role === 'teacher') state.adminTeachers = users; // 空数组也回写：封禁最后一个教师后旧缓存不滞留（教师详情弹窗的数据源）
+    if (role === 'teacher' && !q) state.adminTeachers = users; // 空数组也回写：封禁最后一个教师后旧缓存不滞留（教师详情弹窗的数据源）；搜索态不回写缓存
     return users;
   }, users => users.map(u => renderAdminUserRow(u, role)).join(''),
     { empty: UI.EMPTY_NO_USERS, reveal: false, peek: () => dhReady(url) });
 }
 function loadAdminStudents() { return loadAdminUsers('student', 'admin-students-list'); }
 function loadAdminTeachers() { return loadAdminUsers('teacher', 'admin-teachers-list'); }
+
+// 用户搜索（防抖 300ms；空串回落全量列表）
+let _adminUsersSearchTimer = 0;
+function adminUsersSearchDebounced(role, q) {
+  clearTimeout(_adminUsersSearchTimer);
+  _adminUsersSearchTimer = setTimeout(() => {
+    loadAdminUsers(role, role === 'student' ? 'admin-students-list' : 'admin-teachers-list', q.trim());
+  }, 300);
+}
 
 function renderAdminUserRow(u, role) {
   const uid = role === 'teacher' ? u.user_id : u.id;
@@ -365,11 +393,21 @@ function renderAdminUserRow(u, role) {
 }
 
 // 学籍认证审核：管理员核对学信网截图后置 verified（运营建议——「真实可验证在校生」信任锚点）
-async function toggleTeacherVerify(userId, verified) {
+function toggleTeacherVerify(userId, verified) {
+  // 学籍认证 = 信任锚点操作（高危）：先二次认证换 capToken（服务端 confirmDangerOtp 校验）
+  confirm({
+    title: verified ? UI.VERIFY_TEACHER : UI.UNVERIFY,
+    message: verified ? UI.VERIFY_CONFIRM : UI.UNVERIFY_CONFIRM,
+    needReAuth: true,
+    onConfirm: (capToken) => doTeacherVerify(userId, verified, capToken),
+  });
+}
+
+async function doTeacherVerify(userId, verified, capToken) {
   try {
-    const data = await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified } });
+    await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified, capToken } });
     showToast(verified ? UI.VERIFY_DONE : UI.UNVERIFY_DONE);
-    invalidate('admin'); // 审计 M3：admin 教师列表缓存不清则核验状态滞留
+    invalidate('admin'); // admin 教师列表缓存不清则核验状态滞留
     invalidate('teachers'); // 教师列表 verified 徽章同步刷新
     loadAdminTeachers();
   } catch (err) { showToast(err.message); }

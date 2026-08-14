@@ -2427,3 +2427,14 @@ body.profile-panel-closing .profile-panel {
 .admin-award-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
 .admin-award-meta { font-size: .78rem; color: var(--muted); margin-bottom: 4px; }
 .admin-award-note { font-size: .76rem; color: var(--danger); margin-bottom: 4px; }
+
+/* 管理端统计页待办队列（渐进式披露：今日必办置顶） */
+.todo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.todo-item { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: .84rem; cursor: pointer; }
+.todo-count { min-width: 26px; text-align: center; font-weight: 800; font-size: 1.05rem; color: var(--muted); }
+.todo-count--hot { color: var(--accent); }
+.todo-label { flex: 1; text-align: left; }
+.todo-arrow { color: var(--muted); }
+
+/* 管理端用户搜索框（页头内联，窄幅不占整行） */
+.admin-search { max-width: 240px; flex: 0 1 auto; }

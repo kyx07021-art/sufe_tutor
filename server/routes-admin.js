@@ -12,7 +12,7 @@ import {
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,
   dbGetDemandById, dbAdminForceDeleteDemand, dbDeleteReview, dbDeleteMessage,
-  dbGetStudentUsersAdmin, dbGetTeachers, dbGetUserById, dbSetUserBanned, dbSetTeacherVerified,
+  dbGetStudentUsersAdmin, dbGetTeachers, dbGetUserById, dbSetUserBanned, dbSetTeacherVerified, dbSearchUsersByRole,
   dbGetDemands, dbGetMessageById,
   dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbGetFeedbacksByUser,
 } from './db.js';
@@ -47,9 +47,14 @@ export async function handleAdminStats(db, url, req) {
   const invites = await dbGetInviteStats(db) || { total:0, used:0, active:0 };
   const recentUsers = await dbGetRecentUsers(db);
   const recentDemands = await dbGetRecentDemands(db);
+  // 待办计数（管理员今日必办：待审核项 + 未处理反馈/投诉）
+  const awardsPending = await dbGetCountWhere(db, 'teacher_awards', "status='pending'");
+  const feedbacksOpen = await dbGetCountWhere(db, 'feedbacks', "status='open'");
+  const complaintsOpen = await dbGetCountWhere(db, 'complaints', "status='open'");
 
   return json({
-    stats: { users, profiles, demands, reviews, invites, recentUsers, recentDemands }
+    stats: { users, profiles, demands, reviews, invites, recentUsers, recentDemands,
+      todo: { awardsPending, feedbacksOpen, complaintsOpen } }
   });
 }
 
@@ -123,6 +128,9 @@ export async function handleAdminUsers(db, url, req) {
   if (err) return err;
   const role = url.searchParams.get('role');
   if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
+  // 用户名搜索（q 可选）：LIKE 转义在数据层单点（dbSearchUsersByRole 同口径），管理员效率入口
+  const q = String(url.searchParams.get('q') || '').trim();
+  if (q) return json({ users: await dbSearchUsersByRole(db, role, q, 0, LIMITS.ADMIN_SEARCH_MAX) });
 
   const users = role === 'student'
     ? await dbGetStudentUsersAdmin(db)
@@ -154,6 +162,8 @@ export async function handleVerifyTeacher(db, userId, body, req) {
   const target = await dbGetUserById(db, userId);
   if (!target) return error(MSG.USER_NOT_FOUND, 404);
   if (target.role !== 'teacher') return error(MSG.TEACHER_ONLY, 403);
+  // 学籍认证 = 信任锚点操作（影响学生对教师的信任判断），须 capToken 二次认证
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
   const verified = body.verified ? 1 : 0;
   await dbSetTeacherVerified(db, userId, verified);
   await logEvent(db, { action: verified ? 'admin.teacher.verify' : 'admin.teacher.unverify', actorUserId: admin.id,
@@ -284,6 +294,8 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
 export async function handleAdminBroadcast(db, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
+  // 广播影响全站用户 = 最高危管理操作，须 capToken 二次认证（同封禁/处罚口径）
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
   const title = String(body.title || '').trim();
   const text = String(body.text || '').trim();
   if (!text) return error(MSG.BROADCAST_EMPTY);

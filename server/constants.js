@@ -255,6 +255,7 @@ export const LIMITS = {
   FEEDBACK_BODY_MAX: 5000, // 反馈正文
   COMPLAINT_DETAIL_MAX: 2000, // 投诉补充描述（R22）
   COMPLAINT_DAILY_LIMIT: 5,   // 投诉每日上限（防滥用）
+  ADMIN_SEARCH_MAX: 50,      // 管理员用户搜索返回上限
   COMPLAINT_MINE_MAX: 100,    // 我的投诉列表上限
   COMPLAINT_ADMIN_MAX: 200,   // 管理端投诉列表上限
   COMPLAINT_CANDIDATE_MAX: 8, // 投诉对象候选搜索上限
