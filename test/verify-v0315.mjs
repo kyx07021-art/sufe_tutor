@@ -131,7 +131,7 @@ const newPage = async (user, authToken, role, extra = {}) => {
   await p.evaluate(() => { if (typeof closeAllModals === 'function') closeAllModals(); });
 
   // --- P4 补：my-demands 卡片「试课意向」展开按钮 = 编辑按钮同族（建临时需求验观感，验完删）---
-  const cr = await fetch(BASE + '/api/demands', {
+  const cr = await fetch(BASE + '/api/student/demands', {
     method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Auth-Token': authToken },
     body: JSON.stringify({ demand: {
       province: 'zhejiang', teaching_method: 'online', target_type: 'academic', target_subjects: ['math'],
@@ -142,6 +142,9 @@ const newPage = async (user, authToken, role, extra = {}) => {
   const created = cr.status === 200 ? await cr.json() : null;
   check('P4补 临时需求创建成功（验证用）', !!created && !!created.id, `status=${cr.status} id=${created && created.id}`);
   if (created && created.id) {
+    // API 直建绕过了前端 handleSubmitDemand 的 invalidate——先清 demands 域缓存再进页，
+    // 否则 loadMyDemands 命中 60s TTL 空列表缓存不显示新需求
+    await p.evaluate(() => { try { invalidate('demands'); } catch (e) {} });
     await p.evaluate(() => selectPage('my-demands'));
     await p.waitForSelector('#my-demands-list .list-card', { timeout: 10000 });
     await p.waitForTimeout(800);
@@ -163,7 +166,7 @@ const newPage = async (user, authToken, role, extra = {}) => {
       it && it.edit && it.toggle ? `edit(${it.edit.bg}/${it.edit.radius}) vs toggle(${it.toggle.bg}/${it.toggle.radius})` : '不可比');
     check('P4补 试课意向展开按钮非实心旧观感', it && it.toggle && it.toggle.bg === 'rgba(0, 0, 0, 0)', `toggle bg=${it.toggle && it.toggle.bg}`);
     // 清理：删除临时需求
-    const del = await fetch(BASE + '/api/demands/' + created.id, {
+    const del = await fetch(BASE + '/api/student/demands/' + created.id, {
       method: 'DELETE', headers: { 'X-Auth-Token': authToken },
     });
     check('P4补 临时需求已删除（无残留）', del.status === 200, `del status=${del.status}`);
