@@ -424,9 +424,8 @@ if (typeof registerLogoutReset === 'function') {
  */
 function startOnboardingTour() {
   const ctx = onboardContext();
-  if (ctx.loggedIn && ctx.role === 'admin') return;
   const script = ctx.loggedIn
-    ? (ctx.role === 'teacher' ? 'teacherUser' : 'studentUser')
+    ? (ctx.role === 'admin' ? 'admin' : ctx.role === 'teacher' ? 'teacherUser' : 'studentUser')
     : (ctx.role === 'teacher' ? 'teacherGuest' : 'studentGuest'); // 访客 role = guestRole
   runTour(script);
 }
@@ -490,6 +489,7 @@ function tourStepEditProfile()      { return { module: 'edit-profile', target: {
 function tourStepProfileForm()      { return { module: 'edit-profile', target: { sel: '.profile-form' }, text: UI.TOUR_STEP_PROFILE_FORM }; }
 function tourStepProfileSubjects()  { return { module: 'edit-profile', target: { sel: '#profile-subjects' }, text: UI.TOUR_STEP_PROFILE_SUBJECTS }; }
 function tourStepProfilePrice()     { return { module: 'edit-profile', target: { sel: '#profile-price-min' }, text: UI.TOUR_STEP_PROFILE_PRICE }; }
+function tourStepProfileAwards()    { return { module: 'edit-profile', target: { sel: '#profile-awards-list' }, text: UI.TOUR_STEP_PROFILE_AWARDS }; }
 // 「保存」= 真实提交请求，点击拦截不透传；默认滚动架构自动把按钮滚进视口（反馈 #131）
 function tourStepProfileSubmit()    { return { module: 'edit-profile', target: { sel: '#profile-submit' }, text: UI.TOUR_STEP_PROFILE_SUBMIT, pass: false }; }
 
@@ -520,13 +520,29 @@ function tourStepMyDemands()      { return { module: 'my-demands', target: { pag
 function tourStepMyDemandsList()  { return { module: 'my-demands', target: { sel: '#my-demands-list' }, text: UI.TOUR_STEP_MY_DEMANDS_LIST }; }
 function tourStepIntentToggle()   { return { module: 'my-demands', target: { sel: '#my-demands-list .btn-intent-toggle' }, text: UI.TOUR_STEP_INTENT_TOGGLE }; }
 function tourStepNewDemandBtn()   { return { module: 'my-demands', target: { sel: '#btn-new-demand' }, text: UI.TOUR_STEP_NEW_DEMAND_BTN }; }
+function tourStepDemandWizard()    { return { module: 'my-demands', target: { sel: '#demand-form .dw-step' }, text: UI.TOUR_STEP_DEMAND_WIZARD }; }
 function tourStepNewDemandModal() { return { module: 'my-demands', target: { closeModal: true }, text: UI.TOUR_STEP_NEW_DEMAND_MODAL }; }
 
 // ---- 末步（不计入模块统计）----
 function tourStepGuestLogin()     { return { module: 'end', target: { self: true }, text: UI.TOUR_STEP_GUEST_LOGIN }; }
 function tourStepUserBar()        { return { module: 'end', target: { self: true }, text: UI.TOUR_STEP_USER_BAR }; }
 
+// ---- 管理员（运营角色：审核工作台全览）----
+function tourStepAdminStats()    { return { module: 'admin-stats', target: { page: 'admin-stats' }, text: UI.TOUR_STEP_ADMIN_STATS }; }
+function tourStepAdminTodo()     { return { module: 'admin-stats', target: { sel: '.todo-panel' }, text: UI.TOUR_STEP_ADMIN_TODO }; }
+function tourStepAdminAwards()   { return { module: 'admin-awards', target: { page: 'admin-awards' }, text: UI.TOUR_STEP_ADMIN_AWARDS }; }
+function tourStepAdminContent()  { return { module: 'admin-content', target: { page: 'admin-content' }, text: UI.TOUR_STEP_ADMIN_CONTENT }; }
+function tourStepAdminEnd()      { return { module: 'end', target: { self: true }, text: UI.TOUR_STEP_ADMIN_END }; }
+
 const TOUR_SCRIPTS = {
+  // 管理员：审核工作台（统计待办 → 奖项审核 → 内容审核）
+  admin: () => [
+    tourStepAdminStats(),
+    tourStepAdminTodo(),
+    tourStepAdminAwards(),
+    tourStepAdminContent(),
+    tourStepAdminEnd(),
+  ],
   // 教师登录前：可访问区域（需求大厅 / 教师同行 / 资料共享 / 关于）+ 末步引导登录
   teacherGuest: () => [
     tourStepBrowseDemands(),
@@ -599,6 +615,7 @@ const TOUR_SCRIPTS = {
     tourStepProfileForm(),
     tourStepProfileSubjects(),
     tourStepProfilePrice(),
+    tourStepProfileAwards(),
     tourStepProfileSubmit(),
     tourStepNotifications(),
     tourStepNotifList(),
@@ -623,6 +640,7 @@ const TOUR_SCRIPTS = {
     tourStepMyDemandsList(),
     tourStepIntentToggle(),
     tourStepNewDemandBtn(),
+    tourStepDemandWizard(),
     tourStepNewDemandModal(),
     tourStepBrowseTeachers(),
     tourStepTeachersList(),

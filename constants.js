@@ -1873,6 +1873,7 @@ globalThis.APP_CONSTANTS = {
     TOUR_STEP_PROFILE_SUBJECTS: '擅长科目：勾选你教的科目，可多选。',
     TOUR_STEP_PROFILE_PRICE: '报价区间：填最低和最高课时费，学生按这个区间判断。',
     TOUR_STEP_PROFILE_SUBMIT: '填完点「保存」，资料就更新了。越完整越容易被选中。',
+    TOUR_STEP_PROFILE_AWARDS: '荣誉奖项：上传奖状证明，管理员审核通过后会展示在你的教师主页。',
     // —— 通知 ——
     TOUR_STEP_NOTIFICATIONS: '通知信息：试课意向、需求推送、合同进展都汇总在这。点击进入。',
     TOUR_STEP_NOTIF_LIST: '通知列表：每条通知写着处理进展，点击未读通知即可标为已读。', // #151：进页不再自动全读
@@ -1895,10 +1896,16 @@ globalThis.APP_CONSTANTS = {
     TOUR_STEP_MY_DEMANDS: '我的需求：你发布的家教需求都在这管理。点击进入。',
     TOUR_STEP_MY_DEMANDS_LIST: '需求列表：每条显示科目、预算、状态；待处理的教师意向有红点提醒。',
     TOUR_STEP_INTENT_TOGGLE: '展开「教师意向」：谁想来教，同意或拒绝都在这处理。',
+    TOUR_STEP_DEMAND_WIZARD: '这是 7 页分步表单，跟着顶部进度条一步步填；每一步都会校验，填完自动进入下一页。',
     TOUR_STEP_NEW_DEMAND_BTN: '点「新建需求」打开发布表单。',
-    TOUR_STEP_NEW_DEMAND_MODAL: '发布表单：选学科 / 非学科，填科目、预算、偏好。点击关闭。',
+    TOUR_STEP_NEW_DEMAND_MODAL: '发布表单共 7 页：省份 → 授课方式 → 学生信息 → 科目 → 科目情况 → 预算时间 → 联系方式。顶部进度条随页推进，随时可回上一步修改。',
     // —— 末步 ——
     TOUR_STEP_GUEST_LOGIN: '到这里就逛完啦：点下方个人信息栏登录或注册，登录后就能使用全部功能。',
+    TOUR_STEP_ADMIN_STATS: '统计页：平台运营数据总览。',
+    TOUR_STEP_ADMIN_TODO: '待办事项：待审核的评价、奖项与未处理反馈、投诉都汇总在这，点一下直达处理页。',
+    TOUR_STEP_ADMIN_AWARDS: '奖项审核：核对教师上传的奖状证明，通过后展示在教师主页；驳回时填理由通知教师。',
+    TOUR_STEP_ADMIN_CONTENT: '内容审核：全站内容统一提取与一键处罚（删除/封禁），处罚会自动通知作者。',
+    TOUR_STEP_ADMIN_END: '以上是管理端核心工作台。封禁、处罚、广播等危险操作都需要密码二次确认。',
     TOUR_STEP_USER_BAR: '个人信息栏：点头像查看自己的信息；退出登录在「设置」页，想重温新手引导去「关于平台」页。',
     // 详细用法介绍（关于页「平台基本用法」底部按钮呼出的完整使用说明浮窗；文案单源）
     USAGE_GUIDE_BTN: '详细用法介绍',

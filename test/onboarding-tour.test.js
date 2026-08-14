@@ -293,10 +293,11 @@ test('startOnboardingTour：按登录态 + 角色选脚本（学生登录后 / �
   assert.equal(doc.querySelector('.tour-bubble-text').textContent, UI.TOUR_STEP_BROWSE_DEMANDS, '教师访客走 teacherGuest');
   doc.querySelector('.tour-global-skip').click();
 
-  // 管理员不引导
+  // 管理员走审核工作台脚本（统计待办 → 奖项审核 → 内容审核）
   await setupClient(ctx, { user: { role: 'admin', id: 9, username: 'a', avatar: '' } });
   fns.startOnboardingTour();
-  assert.equal(doc.querySelector('.tour-overlay'), null, '管理员不引导');
+  assert.ok(doc.querySelector('.tour-overlay'), '管理员引导（审核工作台）已挂载');
+  fns.skipTour();
 });
 
 test('「重温新手引导」入口迁移：侧边栏连根删，仅「关于平台」页保留', async () => {
@@ -342,6 +343,7 @@ test('脚本完整性：非空、target 形状合法、page id 存在于 ROLE_PA
     studentGuest: fns.TOUR_SCRIPTS.studentGuest(),
     teacherUser: fns.TOUR_SCRIPTS.teacherUser(),
     studentUser: fns.TOUR_SCRIPTS.studentUser(),
+    admin: fns.TOUR_SCRIPTS.admin(),
   };
   for (const [name, steps] of Object.entries(scripts)) {
     assert.ok(steps.length > 0, `${name} 非空`);
