@@ -191,3 +191,19 @@ test('teaching_goal：≤2、白名单去重、超限截断；skill_notes 仅非
   row = raw.prepare('SELECT skill_notes FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
   assert.equal(row.skill_notes, '[]', '学科需求 skill_notes 强制清空');
 });
+
+// v1.3.0 修复：student_grade 白名单（此前无校验——生产脏数据 'grade7' 泄漏到卡片英文原文）
+test('student_grade：非法值静默回退空串；合法值正常入库', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, stu } = await seedStudent(db, raw);
+  // 非法年级（脏数据 'grade7' 同款）→ 静默回退空（不拒绝整表，与 target_type 非法回退同口径）
+  const r = await handleCreateDemand(db, { demand: { ...baseDemand, student_grade: 'grade7' } }, reqOf(token));
+  assert.equal(r.status, 200, '非法年级不拒绝整表，实际 ' + r.status);
+  let row = raw.prepare('SELECT student_grade FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.student_grade, '', '非法年级回退空串');
+  // 合法年级正常入库
+  const r2 = await handleCreateDemand(db, { demand: { ...baseDemand, student_grade: 'junior2' } }, reqOf(token));
+  assert.equal(r2.status, 200);
+  row = raw.prepare('SELECT student_grade FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.student_grade, 'junior2', '合法年级正常入库');
+});

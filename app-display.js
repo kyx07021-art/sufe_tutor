@@ -216,7 +216,9 @@
     // 学生年级 id→名：查无返 id 本身（口径统一：id 保底显示，不静默消失）；空 id 返 ''
     studentGradeName(id) {
       if (!id) return '';
-      return enumName(C().STUDENT_GRADES, id, String(id));
+      // v1.3.0 修复：未知 grade id 返回空（不显示原文——生产曾泄漏脏数据 'grade7' 到卡片）；
+      // 与 teacherGradeName 同款防御（脏 id 是历史非法值，服务端已补白名单拦截新写入）
+      return enumName(C().STUDENT_GRADES, id, '');
     },
     // 需求编号文本：统一「UI.DEMAND_PREFIX#四位补零」；无编号返 ''
     demandIdText(displayId) {
