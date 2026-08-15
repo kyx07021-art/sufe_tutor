@@ -2171,7 +2171,7 @@ export async function dbListTeacherVerifications(db, status) {
       JOIN users u ON u.id=v.user_id${where} ORDER BY v.created_at DESC`, args);
   // 安全审计 M1：verify_code 加密落库，管理端列表解密（管理员核验需明文查证，同 wechat 管理端解密口径）。
   // map 返回新对象（不改原 row——D1 返回行可能只读，ESM 严格模式赋值抛 TypeError → 列表 500 生产实证）
-  return Promise.all(rows.map(async r => ({ ...r, verify_code: (await decryptField(r.verify_code)) || '' })));
+  return rows.map(r => ({ ...r, verify_code: String(r.verify_code || '').startsWith('enc:v1:') ? '[已加密]' : r.verify_code })); // 临时隔离：解密路径 500 排查
 }
 
 // v1.2.0 T6：管理员按 id 查核验记录
