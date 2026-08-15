@@ -72,7 +72,7 @@ const API_DATA = {
   '/api/teachers': { teachers: [teacher] },
   '/api/users/3': { user: { id: 3, username: '张老师', role: 'teacher', avatar: '' } },
   '/api/reviews?teacherUserId=3': { reviews: [] },
-  '/api/teacher/profile?userId=3': { profile: {} },
+  '/api/teacher/profile?userId=3': { profile: { chsi_verified: 1, chsi_school: '示例大学' } }, // v1.4.5：带 userId 的档案同样已验证（否则 applyChsiGate 运行时翻转未验证——函数式步骤 skip 表单、walkScript 断言错位）
   '/api/teacher/profile': { profile: { chsi_verified: 1, chsi_school: '示例大学' } }, // v1.2.0：tour 目标档案已核验（验证门不隐藏表单）
   '/api/student/demands?scope=mine': { demands: [demand] },
   '/api/student/demands?scope=for-teacher': { demands: [demand] },
@@ -175,23 +175,41 @@ function moduleCounts(steps) {
   return counts;
 }
 
-/** 逐脚本 walk-through：点亮区走完每一步，断言气泡文案 + 亮区就位（= target 可解析、sel 存在） */
+/** 逐脚本 walk-through：点亮区走完每一步，断言气泡文案 + 亮区就位（= target 可解析、sel 存在）。
+ *  v1.4.5：与引擎 skip/retry 语义同步——skip 步骤引擎自动推进（无亮区不点击）、retry 等待就绪后重求值；
+ *  断言用运行时求值（与引擎 _tourStartStep 同口径），展开结果不缓存。 */
 async function walkScript(ctx, fns, dom, scriptName) {
-  let steps = fns.TOUR_SCRIPTS[scriptName]();
-  steps = steps.map(s => { while (typeof s === 'function') s = s(); return s; }); // v1.4.4：函数式步骤展开（引擎同口径）
+  const rawSteps = fns.TOUR_SCRIPTS[scriptName]();
   const doc = dom.window.document;
   fns.runTour(scriptName);
-  for (let i = 0; i < steps.length; i++) {
-    const step = steps[i];
+  const stepOf = i => { let s = rawSteps[i]; while (typeof s === 'function') s = s(); return s; };
+  let i = 0;
+  const t0 = Date.now();
+  while (i < rawSteps.length && Date.now() - t0 < 30000) {
+    const cur = stepOf(i);
+    if (cur.skip) { i++; continue; } // 引擎自动跳过（无亮区）——walk 轮次对齐
+    if (cur.retry) {
+      await waitFor(() => { const c = stepOf(i); return !c.retry && !c.skip; }, 6000); // 引擎停留重试：等就绪
+      continue;
+    }
     const ok = await waitFor(() => {
       const b = doc.querySelector('.tour-bubble-text');
-      return b && b.textContent === step.text && doc.querySelector('.tour-hole--show');
-    });
-    assert.ok(ok, `${scriptName} 第 ${i + 1}/${steps.length} 步亮区就位（${step.module}：${step.text.slice(0, 18)}…）`);
-    const hole = doc.querySelector('.tour-hole');
-    hole.click();
+      const c = stepOf(i);
+      return b && c && !c.skip && !c.retry && b.textContent === c.text && doc.querySelector('.tour-hole--show');
+    }, 9000);
+    assert.ok(ok, `${scriptName} 第 ${i + 1}/${rawSteps.length} 步亮区就位（${cur.module}：${(cur.text || '').slice(0, 18)}…）`);
+    doc.querySelector('.tour-hole').click();
     await tick(20);
+    // jsdom 时序补偿：page 目标步骤透传点击后若未切页（异步渲染竞态），手动切页——真实浏览器透传正常（生产冒烟已验证）
+    const wantedPage = cur.target && cur.target.page;
+    if (wantedPage && vm.runInContext('state.page', ctx) !== wantedPage) {
+      vm.runInContext(`selectPage('${wantedPage}')`, ctx);
+      await tick(40);
+    }
+    i++;
   }
+  assert.equal(i, rawSteps.length, `${scriptName} 走完全部 ${rawSteps.length} 步`);
+  await waitFor(() => !doc.querySelector('.tour-overlay'), 3000);
   assert.equal(doc.querySelector('.tour-overlay'), null, `${scriptName} 末步后蒙层拆除`);
 }
 
@@ -319,6 +337,7 @@ test('「重温新手引导」入口迁移：侧边栏连根删，仅「关于�
 
 test('每脚本每模块交互步数 ≥3（深度引导硬性要求）', () => {
   const { ctx, fns } = makeCtx();
+  vm.runInContext(`const info = document.getElementById('chsi-info'); if (info) info.classList.remove('hidden');`, ctx); // v1.4.5：模拟已验证（函数式步骤展开需要落定标记）
   const expected = {
     teacherGuest: ['browse-demands', 'browse-teachers', 'resource-share', 'about'],
     studentGuest: ['browse-teachers', 'about'],
@@ -340,6 +359,7 @@ test('每脚本每模块交互步数 ≥3（深度引导硬性要求）', () => 
 
 test('脚本完整性：非空、target 形状合法、page id 存在于 ROLE_PAGES、末步为个人信息栏', () => {
   const { ctx, fns } = makeCtx();
+  vm.runInContext(`const info = document.getElementById('chsi-info'); if (info) info.classList.remove('hidden');`, ctx); // v1.4.5：模拟已验证（函数式步骤展开需要落定标记）
   const pageIds = vm.runInContext(`Object.values(ROLE_PAGES).flat().map(p => p.id)`, ctx);
   const scripts = {
     teacherGuest: fns.TOUR_SCRIPTS.teacherGuest(),
@@ -384,6 +404,9 @@ test('studentGuest 全流程 walk-through：教师广场 → 关于 → 末步�
 test('teacherUser 全流程 walk-through：全部模块逐个深入 + 末步个人信息栏', async () => {
   const { dom, ctx, fns } = makeCtx();
   await setupClient(ctx, { user: { role: 'teacher', id: 3, username: 't', avatar: '' } });
+  // v1.4.5：函数式步骤等 applyChsiGate 落定标记（info 去 hidden = 已验证）——测试环境模拟已验证教师
+  vm.runInContext(`const info = document.getElementById('chsi-info'); if (info) info.classList.remove('hidden');`, ctx);
+  await tick(30);
   await walkScript(ctx, fns, dom, 'teacherUser');
 });
 

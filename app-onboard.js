@@ -304,9 +304,18 @@ function _tourStartStep() {
   if (!_tourActive) return;
   if (!_tourInClientView()) { _tourCleanup(); return; } // 网安 M2：视图切走（登出落 landing）→ 立即收尾，不等 3s 逐步超时
   try {
-    // v1.4.4：函数式步骤（到达时才求值——页面已切换可读 DOM 判状态：学信网门控/示例会话注入）
-    let step = _tourSteps[_tourIdx];
-    while (typeof step === 'function') { step = step(); _tourSteps[_tourIdx] = step; }
+    // v1.4.4：函数式步骤（到达时才求值——页面已切换可读 DOM 判状态：学信网门控/示例会话注入）。
+    // v1.4.5（审计修复）：求值结果不写回 _tourSteps（保留原始函数）——retry 时重新求值；
+    // tick 轮询同样重新求值（目标 DOM 异步渲染完成后函数式步骤才能给出正确分支）
+    const stepOf = () => { let s = _tourSteps[_tourIdx]; while (typeof s === 'function') s = s(); return s; };
+    const step = stepOf();
+    if (step && step.retry) { // v1.4.5：停留重试（目标异步渲染未完成——学信网门控判断需等 applyChsiGate 落定）
+      _tourShowBubble(step.text || '');
+      _tourHideHole();
+      const waitIdx = _tourIdx;
+      setTimeout(() => { if (_tourActive && _tourIdx === waitIdx) _tourStartStep(); }, CONFIG.TOUR_RETRY_MS || 350);
+      return;
+    }
     if (step && step.skip) { _tourNext(); return; } // v1.4.4：skip 步骤（条件不成立时直接推进，如未验证学信网时跳过表单介绍）
     if (!step) { _tourCleanup(); return; }
     _tourShowBubble(step.text);
@@ -319,8 +328,10 @@ function _tourStartStep() {
       if (!_tourActive || _tourIdx !== waitStep) return; // 已跳走/已结束
       if (!_tourInClientView()) { _tourCleanup(); return; } // 等待中视图切走 → 收尾
       if (Date.now() - start > CONFIG.TOUR_TARGET_TIMEOUT_MS) { _tourNext(); return; }
-      const found = _tourResolve(_tourSteps[_tourIdx]);
-      if (found) { _tourPlaceStable(_tourSteps[_tourIdx]); return; }
+      const cur = stepOf(); // v1.4.5：重求值（函数式步骤可能已随异步渲染改变分支）
+      if (cur && cur.retry) { _tourHideHole(); requestAnimationFrame(tick); return; } // 仍未就绪：继续等
+      const found = cur ? _tourResolve(cur) : null;
+      if (found) { _tourPlaceStable(cur); return; }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -489,11 +500,19 @@ function tourStepPostsModal()     { return { module: 'resource-share', target: {
 // ---- 我的会话 ----
 // v1.4.4（用户反馈）：新用户无会话，会话组件介绍无从谈起——引导期间注入「示例教师/示例学生」会话
 //（空白会话记录，仅展示会话窗口组件；引导外自动隐藏——_tourDemoChatCleanup 在 _tourCleanup 统一移除）。
-function tourStepMyChats() { _tourDemoChatEnsure(); return { module: 'my-chats', target: { page: 'my-chats' }, text: UI.TOUR_STEP_MY_CHATS }; }
+function tourStepMyChats() { _tourDemoChatEnsure(); return { module: 'my-chats', target: { page: 'my-chats' }, text: UI.TOUR_STEP_MY_CHATS }; } // 注入轮询自续（_tourDemoChatEnsure 内 setTimeout 幂等重试——页面切到 my-chats、conv-list 渲染完成后注入），无需函数式
 // 注入示例会话：对侧角色命名（教师用户看到「示例学生」，学生用户看到「示例教师」）
 function _tourDemoChatEnsure() {
   const list = document.getElementById('conv-list');
   if (!list || list.querySelector('.tour-demo-conv')) return;
+  // v1.4.5（审计修复）：renderConvList 是异步——注入过早会被其 innerHTML 重建冲掉；
+  // 轮询等 loader 移除（渲染完成——含空态，新用户无会话正是要注入的场景）再注入（幂等）
+  if (list.querySelector('.loader')) {
+    setTimeout(_tourDemoChatEnsure, 200);
+    return;
+  }
+  const empty = list.querySelector('.empty-state');
+  if (empty) empty.remove(); // 注入示例会话后空态不再成立
   const teacherView = state.user && state.user.role === 'teacher';
   const demoName = teacherView ? UI.TOUR_DEMO_CHAT_NAME_TEACHER : UI.TOUR_DEMO_CHAT_NAME_STUDENT;
   const demoRole = teacherView ? UI.CHAT_ROLE_STUDENT : UI.CHAT_ROLE_TEACHER;
@@ -550,18 +569,26 @@ function tourStepContractActions() { return { module: 'my-contracts', target: { 
 // v1.4.4（用户反馈）：教师信息页已学信网门控——默认引导引导尽快上传学信网证明；
 // 已验证用户走模块引导（介绍表单组件），信息项介绍保留供重温（状态判断自动切换）。
 function tourStepEditProfile() { return () => {
-  // 到达时页面已切 edit-profile：未验证 → #chsi-gate 可见（JS 填充后去 hidden；静态骨架初始 hidden 不作数）
-  // → 引导验证门；已验证 → 表单介绍照旧
+  // 到达时页面已切 edit-profile。就绪判据（v1.4.5 审计修复）：applyChsiGate（async——dhGet profile 后落定）
+  // 落定前骨架是 gate hidden + info hidden——与「已验证」无法区分，必须等落定标记：
+  // 未验证 → gate 去 hidden（填充验证门）；已验证 → info 去 hidden（显示学信网信息）——两者任一即就绪。
+  // 未就绪 → retry 停留（引擎 350ms 重求值）——避免后续表单步骤在 applyChsiGate 落定前误判跳过。
   const gate = document.getElementById('chsi-gate');
-  if (gate && !gate.classList.contains('hidden')) {
-    return { module: 'edit-profile', target: { sel: '#chsi-gate' }, text: UI.TOUR_STEP_CHSI_GATE };
-  }
+  const info = document.getElementById('chsi-info');
+  const gateReady = gate && !gate.classList.contains('hidden');
+  const verifiedReady = info && !info.classList.contains('hidden');
+  if (!gateReady && !verifiedReady) return { retry: true, text: UI.TOUR_STEP_EDIT_PROFILE }; // 门控未落定：停留重试
+  if (gateReady) return { module: 'edit-profile', target: { sel: '#chsi-gate' }, text: UI.TOUR_STEP_CHSI_GATE };
   return { module: 'edit-profile', target: { page: 'edit-profile' }, text: UI.TOUR_STEP_EDIT_PROFILE };
 }; }
 // 表单介绍步骤：未验证学信网时表单不存在 → skip（验证门引导已覆盖，无需逐项介绍）
 function _tourProfileFormStep(stepFn) { return () => {
   const gate = document.getElementById('chsi-gate');
-  return (gate && !gate.classList.contains('hidden')) ? { skip: true } : stepFn();
+  const info = document.getElementById('chsi-info');
+  const gateReady = gate && !gate.classList.contains('hidden');
+  const verifiedReady = info && !info.classList.contains('hidden');
+  if (!gateReady && !verifiedReady) return { retry: true, text: stepFn().text }; // 门控未落定：停留重试
+  return gateReady ? { skip: true } : stepFn(); // 未验证：表单隐藏跳过；已验证：正常介绍
 }; }
 function tourStepProfileForm()      { return _tourProfileFormStep(() => ({ module: 'edit-profile', target: { sel: '.profile-form' }, text: UI.TOUR_STEP_PROFILE_FORM })); }
 function tourStepProfileSubjects()  { return _tourProfileFormStep(() => ({ module: 'edit-profile', target: { sel: '#profile-subjects' }, text: UI.TOUR_STEP_PROFILE_SUBJECTS })); }

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.4.4',
+  APP_VERSION: '1.4.5',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -80,6 +80,7 @@ globalThis.APP_CONSTANTS = {
     MODAL_W_SEND: '480px', MODAL_W_DEACTIVATE: '430px', MODAL_W_PROFILE_HINT: '420px',
     MODAL_W_INTENT_CONFIRM: '400px',        // 试课意向确认弹窗（散落硬编码宽度收进 CONFIG）
     TOUR_TARGET_TIMEOUT_MS: 3000,         // 新手引导：目标未挂载 rAF 轮询超时，超时自动跳过该步
+    TOUR_RETRY_MS: 350,                     // v1.4.5：函数式步骤停留重试间隔（学信网门控/异步渲染未就绪时）
     TOUR_GAP_PX: 16,                      // 新手引导：文字气泡与亮区间距（JS 定位用）
     TOUR_SCROLL_BAND_LO: 0.3, TOUR_SCROLL_BAND_HI: 0.7, // 需求五十四：新手引导滚动后目标中心须落容器可视区竖带（比例）
     PROFILE_ROW_GAP: 11,                  // 需求六·item1：教师资料卡条目纵向间距 px；#156行距压半 22→11
