@@ -990,7 +990,7 @@ function renderDemandCard(d, opts = {}) {
     ${(subjNames || []).length ? `<div class="demand-title">${escHtml((subjNames || []).join('、'))}</div>` : ''}
     <div class="demand-sub">
       ${[grade, method].filter(Boolean).map(escHtml).join(' · ')}
-      ${budget ? `<span class="demand-budget">${escHtml(budget)}</span>` : ''}
+      ${budget || ''}
     </div>
     ${timeLine ? `<div class="demand-quiet">${UI.LABEL_EXPECTED_TIME} ${escHtml(timeLine)}</div>` : ''}
     ${push && push.push_message ? `<div class="greet-bubble glass">
