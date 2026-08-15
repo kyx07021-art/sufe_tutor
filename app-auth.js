@@ -195,6 +195,8 @@ function regWizardGoTo(idx) {
   _regStep = idx;
   const track = document.getElementById('reg-w-track');
   if (track) track.style.setProperty('--dw-step-active', String(idx)); // JS 只写变量，滑动 transform 由 CSS 消费
+  document.querySelectorAll('#reg-w-track .dw-step').forEach(el =>
+    el.classList.toggle('dw-step--active', +el.dataset.step === idx + 1)); // .dw-step 默认 visibility:hidden，须挂 active 类才可见
   const chips = document.querySelectorAll('#reg-w-stepper .dw-step-chip');
   chips.forEach((c, i) => {
     c.classList.toggle('active', i === idx);
