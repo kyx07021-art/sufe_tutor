@@ -47,6 +47,7 @@
     methodName(id) { return enumName(C().TEACHING_METHODS, id, ''); },
     personalityTagName(id) { return enumName(C().PERSONALITY_TAGS, id, ''); }, // R2-3 性格关键词名
     nonacademicProjectName(id) { return enumName(C().NONACADEMIC_PROJECTS, id, ''); }, // R2-4 非学科项目名
+    teachingGoalName(id) { return enumName(C().TEACHING_GOALS, id, ''); }, // v1.4.3：教学目标 tag 名（需求详情浮窗渲染用，与 personalityTagName 同款）
     // R2-12 毕业年份展示：非空年份 → 「xxx年」，null/空 → ''（资料卡条目动态加载渲染层判断，单点映射防内联拼接）
     graduationYearText(year) {
       return (year != null && year !== '') ? `${year}${(C().UI || {}).GRAD_YEAR_SUFFIX || '年'}` : '';

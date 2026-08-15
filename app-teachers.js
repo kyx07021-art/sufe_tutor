@@ -174,10 +174,18 @@ function renderTeacherCard(t) {
       </div>
       ${hasPrice ? `<div class="tc-price"><span class="tc-num tc-num--price">${escHtml(priceNum)}</span><span class="tc-unit">${escHtml(UI.PRICE_UNIT)}</span></div>` : ''}
       ${subjectsLine ? `<div class="tc-subjects">${escHtml(subjectsLine)}</div>` : ''}
-      ${t.intro ? `<div class="tc-intro">${escHtml(t.intro)}</div>` : ''} <!-- v1.4.1：简介上卡（家长选老师要看），截断 2 行，完整在资料栏 -->
-      <div class="tc-actions">
-        ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
-        ${isStudent ? renderPushBtn(t) : ''}
+      <!-- v1.4.3：卡片底部左右两列完全解耦——左列内容区（简介等）与右列动作区各自独立排版，
+           互不撑行、互不依赖；未来任一侧新增元素只在其列内堆叠，不影响对侧（用户定案） -->
+      <div class="tc-bottom">
+        <div class="tc-bottom-left">
+          ${t.intro ? `<div class="tc-intro">${escHtml(t.intro)}</div>` : ''} <!-- v1.4.1：简介上卡（家长选老师要看），截断 2 行，完整在资料栏 -->
+        </div>
+        <div class="tc-bottom-right">
+          <div class="tc-actions">
+            ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
+            ${isStudent ? renderPushBtn(t) : ''}
+          </div>
+        </div>
       </div>
     </div>`;
 }

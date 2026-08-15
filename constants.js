@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.4.2',
+  APP_VERSION: '1.4.3',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -2026,6 +2026,7 @@ globalThis.APP_CONSTANTS = {
     LABEL_STUDENT_CONTACT: '学生联系方式',
     LABEL_ADDITIONAL_INFO: '其他补充信息',
     DEMAND_DETAIL_GOAL: '学习目标', DEMAND_DETAIL_ARRANGE: '上课安排', DEMAND_DETAIL_STUDENT: '学生信息', DEMAND_DETAIL_EMPTY: '未填写',
+    DEMAND_DETAIL_CONTACT_HINT: '签约后可查看联系方式', // v1.4.3：详情浮窗联系方式占位（未签约灰字提示——用户反馈）
     DEMAND_INFO_PLACEHOLDER: '上课时间偏好、特殊要求等',
     LABEL_RATING: '评分',
     LABEL_REVIEW_CONTENT: '评价内容',

@@ -1458,6 +1458,9 @@ function openDemandDetail(id) {
   const scorePills = scoreCells.length
     ? scoreCells.map(v => `<span class="demand-subj-pill glass glass--solid">${escHtml(v)}</span>`).join('')
     : (subjNames || []).map(n => `<span class="demand-subj-pill glass glass--solid">${escHtml(n)}</span>`).join('');
+  // v1.4.3：学习目标 tag（教学目的白名单，≤2）——详情浮窗此前漏渲染（用户反馈「选了几个学习目标 tag 没显示」）
+  const goalPills = (d.teaching_goal || []).map(id => DISP.teachingGoalName(id)).filter(Boolean)
+    .map(n => `<span class="demand-subj-pill glass glass--solid">${escHtml(n)}</span>`).join('');
   const typeBadge = d.target_type === DEMAND_TYPES.NONACADEMIC ? UI.BADGE_TYPE_NONACADEMIC : UI.BADGE_TYPE_ACADEMIC;
   const statusTag = d.status === STATUS.CONTRACTED ? `<span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>`
     : d.status === STATUS.REVOKED ? `<span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : '';
@@ -1475,6 +1478,11 @@ function openDemandDetail(id) {
   const studentRows = [
     gender ? row(UI.LABEL_GENDER, escHtml(gender)) : '',
     row(UI.SUBMITTER_PREFIX, escHtml(submitter)),
+    // v1.4.3：联系方式——本人需求（mapDemandRowFull 出口）显示明文；他人未签约显示灰字占位
+    //（用户反馈「没看到联系方式，留空位+灰字提示」；签约后向对方展示是服务端硬规则，前端只做占位）
+    (d.parent_contact || d.student_contact)
+      ? row(UI.LABEL_CONTACT, escHtml(d.parent_contact || d.student_contact))
+      : row(UI.LABEL_CONTACT, `<span class="demand-detail-contact-hint">${escHtml(UI.DEMAND_DETAIL_CONTACT_HINT)}</span>`),
   ].filter(Boolean).join('');
   openModal({
     // v1.4.0：标题=科目（主角），不再塞需求 id 与「的需求」后缀；提交者在正文头部
@@ -1491,6 +1499,7 @@ function openDemandDetail(id) {
       <div class="demand-detail-sec">
         <div class="profile-group-title">${UI.DEMAND_DETAIL_GOAL}</div>
         ${scorePills ? `<div class="demand-subj-row">${scorePills}</div>` : `<p class="demand-detail-text">${UI.DEMAND_DETAIL_EMPTY}</p>`}
+        ${goalPills ? `<div class="demand-subj-row demand-subj-row--goals">${goalPills}</div>` : ''} <!-- v1.4.3：学习目标 tag（漏渲染修复） -->
       </div>
       <div class="demand-detail-sec">
         <div class="profile-group-title">${UI.DEMAND_DETAIL_ARRANGE}</div>
