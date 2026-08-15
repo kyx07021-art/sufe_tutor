@@ -167,16 +167,18 @@ function waitFor(fn, timeoutMs = 9000) {
 /** 按模块统计某脚本的交互步数（末步 self 不计入模块） */
 function moduleCounts(steps) {
   const counts = {};
-  for (const s of steps) {
-    if (!s.module || s.module === 'end') continue;
-    counts[s.module] = (counts[s.module] || 0) + 1;
+  for (let raw of steps) {
+    while (typeof raw === 'function') raw = raw(); // v1.4.4：函数式步骤求值（引擎同口径）
+    if (!raw || !raw.module || raw.module === 'end') continue;
+    counts[raw.module] = (counts[raw.module] || 0) + 1;
   }
   return counts;
 }
 
 /** 逐脚本 walk-through：点亮区走完每一步，断言气泡文案 + 亮区就位（= target 可解析、sel 存在） */
 async function walkScript(ctx, fns, dom, scriptName) {
-  const steps = fns.TOUR_SCRIPTS[scriptName]();
+  let steps = fns.TOUR_SCRIPTS[scriptName]();
+  steps = steps.map(s => { while (typeof s === 'function') s = s(); return s; }); // v1.4.4：函数式步骤展开（引擎同口径）
   const doc = dom.window.document;
   fns.runTour(scriptName);
   for (let i = 0; i < steps.length; i++) {
@@ -346,9 +348,11 @@ test('脚本完整性：非空、target 形状合法、page id 存在于 ROLE_PA
     studentUser: fns.TOUR_SCRIPTS.studentUser(),
     admin: fns.TOUR_SCRIPTS.admin(),
   };
+  const expand = raw => { let st = raw; while (typeof st === 'function') st = st(); return st; };
   for (const [name, steps] of Object.entries(scripts)) {
     assert.ok(steps.length > 0, `${name} 非空`);
-    steps.forEach((s, i) => {
+    steps.forEach((raw, i) => {
+      const s = expand(raw);
       assert.ok(s.text && s.text.length > 0, `${name} 第 ${i + 1} 步有文案`);
       assert.ok(s.module, `${name} 第 ${i + 1} 步带模块标记`);
       const t = s.target || {};
@@ -386,6 +390,19 @@ test('teacherUser 全流程 walk-through：全部模块逐个深入 + 末步个�
 test('studentUser 全流程 walk-through：我的需求 → 教师广场 → 其余模块 + 末步个人信息栏', async () => {
   const { dom, ctx, fns } = makeCtx();
   await setupClient(ctx, { user: { role: 'student', id: 9, username: 's', avatar: '' } });
+  // v1.4.4：需求详情引导步需要 my-demands 有卡（详情浮窗由此打开）——注入 fixture 数据+卡 DOM
+  vm.runInContext(`
+    state.myDemands = [{ id: 1, display_id: 1, user_id: 9, username: 's', target_type: 'academic',
+      target_subjects: ['math'], student_grade: 'junior1', teaching_method: 'offline',
+      budget_min: 150, budget_max: 200, expected_time: '周六上午', status: 'open',
+      my_intent_status: null, intent_count: 0, pending_intents: 0,
+      current_scores: [], teaching_goal: [], skill_notes: [],
+      province: 'shanghai', address: '杨浦区·四平路街道', submitter_type: 'self', student_gender: 'female' }];
+    const list = document.getElementById('my-demands-list');
+    if (list) list.innerHTML = '<div class="list-card list-card--demand">数学</div>';
+    list.onclick = () => openDemandDetail(1); // 容器点击开详情（模拟真实卡点击；walkScript 第 1 步 selectPage 透传会关预开的 modal，故不能预先打开）
+  `, ctx);
+  await tick(30);
   await walkScript(ctx, fns, dom, 'studentUser');
 });
 

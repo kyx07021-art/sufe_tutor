@@ -306,7 +306,7 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
   pointer-events: none;
   opacity: 0; transition: opacity var(--t-base) var(--ease-out);
   background: radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%),
-    color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%);
+    color-mix(in srgb, #fff 26%, transparent), transparent 70%); /* v1.4.4：光晕改亮色发光感（原 accent 紫——用户需求 hover 变亮有发光感） */
 }
 .entry:hover .entry-glow, .entry:focus-visible .entry-glow { opacity: 1; } /* 光标光斑（liquid 透镜感） */
 .entry::after { /* 微光扫过：hover 触发一次自左至右横扫整钮的光泽带（经典开始按钮动效）
@@ -315,19 +315,26 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
   content: ''; position: absolute; z-index: -1; top: -50%; left: 0;
   width: 62%; height: 200%;
   transform: translateX(-150%) rotate(18deg);
-  background: linear-gradient(105deg, transparent 0%, color-mix(in srgb, #fff 30%, transparent) 50%, transparent 100%);
+  background: linear-gradient(105deg, transparent 0%, color-mix(in srgb, #fff 55%, transparent) 50%, transparent 100%); /* v1.4.4：扫光白色更不透明（原 30%） */
   pointer-events: none;
 }
-.entry:hover::after { animation: entry-sheen .7s var(--ease-out) .08s; }
+.entry:hover::after { animation: entry-sheen 1.15s var(--ease-out) .1s; } /* v1.4.4：扫光更慢（原 .7s），更清晰可见 */
 @keyframes entry-sheen { to { transform: translateX(320%) rotate(18deg); } }
+/* v1.4.4 用户需求：平面简约（flat）下入口按钮与底区分不开——深灰细边框 + 提亮填充（--g-fill-mid → 纸面亮档）。
+   liquid 透镜有玻璃边缘不涉及；dark 保留透镜。 */
+[data-style="flat"] .entry.glass {
+  border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent);
+  --g-fill: var(--g-paper-bright);
+}
 /* hover 辉光边缘（liquid）：完整保留引擎浮影列表（--g-lift/--g-liquid/--g-surface + hover 白洗 inset），
    末尾追加主题色辉光——直接覆盖列表会丢浮影与 hover 白洗（玻璃引擎教训 v0.19.17：列表禁混 none）。
    .entry.glass 提特异性：glass.css 后加载，同特异性 (.entry:hover vs .glass:hover) 会被引擎规则覆盖（实测） */
 .entry.glass:hover, .entry.glass:focus-visible {
+  --g-hover: rgba(255,255,255,.30); /* v1.4.4：hover 变亮（原主题灰洗 120,120,132 → 白亮） */
   box-shadow: var(--g-lift), var(--g-liquid, none), var(--g-surface, none),
     inset 0 0 0 9999px var(--g-hover),
-    0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
-    0 10px 28px -10px color-mix(in srgb, var(--accent) 48%, transparent);
+    0 0 0 1px color-mix(in srgb, #fff 55%, transparent), /* v1.4.4：辉光边缘改亮色（原 accent 紫） */
+    0 12px 36px -10px color-mix(in srgb, #fff 62%, transparent); /* v1.4.4：发光感（原 accent 紫） */
 }
 .entry:active { transform: translateY(1px) scale(.985); transition-duration: 60ms; } /* 弹簧按压（flat 触感） */
 

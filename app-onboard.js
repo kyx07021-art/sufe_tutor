@@ -304,7 +304,10 @@ function _tourStartStep() {
   if (!_tourActive) return;
   if (!_tourInClientView()) { _tourCleanup(); return; } // 网安 M2：视图切走（登出落 landing）→ 立即收尾，不等 3s 逐步超时
   try {
-    const step = _tourSteps[_tourIdx];
+    // v1.4.4：函数式步骤（到达时才求值——页面已切换可读 DOM 判状态：学信网门控/示例会话注入）
+    let step = _tourSteps[_tourIdx];
+    while (typeof step === 'function') { step = step(); _tourSteps[_tourIdx] = step; }
+    if (step && step.skip) { _tourNext(); return; } // v1.4.4：skip 步骤（条件不成立时直接推进，如未验证学信网时跳过表单介绍）
     if (!step) { _tourCleanup(); return; }
     _tourShowBubble(step.text);
     const el = _tourResolve(step);
@@ -396,6 +399,7 @@ function _tourCleanup() {
   window.removeEventListener('resize', _tourReposition);
   window.removeEventListener('scroll', _tourReposition, { capture: true });
   window.removeEventListener('keydown', _tourKeydown); // 网安 M3：Esc 退出
+  _tourDemoChatCleanup(); // v1.4.4：引导结束移除示例会话（完成/跳过/视图切走统一收尾）
 }
 
 /** 键盘 Esc 退出引导（网安 M3：主交互对键盘可达——Esc 等效「跳过」） */
@@ -455,6 +459,9 @@ function startOnboardingTour() {
 function tourStepBrowseDemands()    { return { module: 'browse-demands', target: { page: 'browse-demands' }, text: UI.TOUR_STEP_BROWSE_DEMANDS }; }
 function tourStepDemandList()       { return { module: 'browse-demands', target: { sel: '#demands-list' },   text: UI.TOUR_STEP_DEMAND_LIST }; }
 function tourStepDemandCard()       { return { module: 'browse-demands', target: { sel: '#demands-list .list-card--demand' }, text: UI.TOUR_STEP_DEMAND_CARD }; }
+// v1.4.4（用户反馈）：卡面介绍点击会打开详情浮窗——加详情介绍步 + 关闭步，不再让详情页晾在灰化区
+function tourStepDemandDetail(module = 'browse-demands')     { return { module, target: { sel: '.modal .demand-detail' }, text: UI.TOUR_STEP_DEMAND_DETAIL }; }
+function tourStepDemandDetailClose(module = 'browse-demands'){ return { module, target: { closeModal: true }, text: UI.TOUR_STEP_DEMAND_DETAIL_CLOSE }; }
 // 「提交试课意向」= 真实提交请求，点击拦截不透传（只讲解推进）
 function tourStepDemandIntentBtn()  { return { module: 'browse-demands', target: { sel: '#demands-list .btn-intent-cta' },   text: UI.TOUR_STEP_DEMAND_INTENT_BTN, pass: false }; }
 function tourStepDemandIdTag()      { return { module: 'browse-demands', target: { sel: '#demands-list .demand-id-tag' },     text: UI.TOUR_STEP_DEMAND_ID_TAG }; }
@@ -480,7 +487,48 @@ function tourStepPostsCreate()    { return { module: 'resource-share', target: {
 function tourStepPostsModal()     { return { module: 'resource-share', target: { closeModal: true }, text: UI.TOUR_STEP_POSTS_MODAL }; }
 
 // ---- 我的会话 ----
-function tourStepMyChats()       { return { module: 'my-chats', target: { page: 'my-chats' }, text: UI.TOUR_STEP_MY_CHATS }; }
+// v1.4.4（用户反馈）：新用户无会话，会话组件介绍无从谈起——引导期间注入「示例教师/示例学生」会话
+//（空白会话记录，仅展示会话窗口组件；引导外自动隐藏——_tourDemoChatCleanup 在 _tourCleanup 统一移除）。
+function tourStepMyChats() { _tourDemoChatEnsure(); return { module: 'my-chats', target: { page: 'my-chats' }, text: UI.TOUR_STEP_MY_CHATS }; }
+// 注入示例会话：对侧角色命名（教师用户看到「示例学生」，学生用户看到「示例教师」）
+function _tourDemoChatEnsure() {
+  const list = document.getElementById('conv-list');
+  if (!list || list.querySelector('.tour-demo-conv')) return;
+  const teacherView = state.user && state.user.role === 'teacher';
+  const demoName = teacherView ? UI.TOUR_DEMO_CHAT_NAME_TEACHER : UI.TOUR_DEMO_CHAT_NAME_STUDENT;
+  const demoRole = teacherView ? UI.CHAT_ROLE_STUDENT : UI.CHAT_ROLE_TEACHER;
+  list.insertAdjacentHTML('afterbegin', `<button type="button" class="conv-item tour-demo-conv" data-conv-id="demo" onclick="demoOpenConversation()">
+    <span class="conv-item-top">
+      <span class="conv-item-name">${escHtml(demoName)}</span>
+      <span class="conv-item-role glass glass--solid">${escHtml(demoRole)}</span>
+    </span>
+    <span class="conv-item-preview">${escHtml(UI.TOUR_DEMO_CHAT_PREVIEW)}</span>
+  </button>`);
+}
+// 打开示例会话：不走真实请求（空白会话记录），仅渲染会话窗口组件供引导介绍
+function demoOpenConversation() {
+  closeChatPlus();
+  stopChatPolling();
+  document.querySelectorAll('#conv-list .conv-item').forEach(b =>
+    b.classList.toggle('active', b.dataset.convId === 'demo'));
+  const shell = document.getElementById('chats-shell');
+  if (shell) shell.classList.add('chats-show-chat');
+  const pane = document.getElementById('chat-pane');
+  if (!pane) return;
+  const teacherView = state.user && state.user.role === 'teacher';
+  const demoName = teacherView ? UI.TOUR_DEMO_CHAT_NAME_TEACHER : UI.TOUR_DEMO_CHAT_NAME_STUDENT;
+  const demoRole = teacherView ? UI.CHAT_ROLE_STUDENT : UI.CHAT_ROLE_TEACHER;
+  pane.innerHTML = renderChatFrame({ id: 'demo', peer: { name: demoName, role: demoRole }, status: 'active' });
+  const box = document.getElementById('chat-messages');
+  if (box) box.innerHTML = `<div class="empty-state empty-state--small"><p>${escHtml(UI.TOUR_DEMO_CHAT_EMPTY)}</p></div>`;
+}
+// 引导收尾移除示例会话；若示例会话打开中还原聊天窗占位（引导外自动隐藏）
+function _tourDemoChatCleanup() {
+  const list = document.getElementById('conv-list');
+  if (list) list.querySelectorAll('.tour-demo-conv').forEach(el => el.remove());
+  const pane = document.getElementById('chat-pane');
+  if (pane && pane.querySelector('.chat-messages') && !chatConvId) pane.innerHTML = renderChatPlaceholder();
+}
 function tourStepConvItem()      { return { module: 'my-chats', target: { sel: '#conv-list .conv-item' }, text: UI.TOUR_STEP_CONV_ITEM }; }
 function tourStepChatMessages()  { return { module: 'my-chats', target: { sel: '#chat-messages' }, text: UI.TOUR_STEP_CHAT_MESSAGES }; }
 function tourStepChatSend()      { return { module: 'my-chats', target: { sel: '#chat-send-btn' }, text: UI.TOUR_STEP_CHAT_SEND }; }
@@ -499,13 +547,28 @@ function tourStepContractCard()    { return { module: 'my-contracts', target: { 
 function tourStepContractActions() { return { module: 'my-contracts', target: { sel: '#my-contracts-list .contract-actions' }, text: UI.TOUR_STEP_CONTRACT_ACTIONS }; }
 
 // ---- 个人资料（教师编辑档案）----
-function tourStepEditProfile()      { return { module: 'edit-profile', target: { page: 'edit-profile' }, text: UI.TOUR_STEP_EDIT_PROFILE }; }
-function tourStepProfileForm()      { return { module: 'edit-profile', target: { sel: '.profile-form' }, text: UI.TOUR_STEP_PROFILE_FORM }; }
-function tourStepProfileSubjects()  { return { module: 'edit-profile', target: { sel: '#profile-subjects' }, text: UI.TOUR_STEP_PROFILE_SUBJECTS }; }
-function tourStepProfilePrice()     { return { module: 'edit-profile', target: { sel: '#profile-price-min' }, text: UI.TOUR_STEP_PROFILE_PRICE }; }
-function tourStepProfileAwards()    { return { module: 'edit-profile', target: { sel: '#profile-awards-list' }, text: UI.TOUR_STEP_PROFILE_AWARDS }; }
+// v1.4.4（用户反馈）：教师信息页已学信网门控——默认引导引导尽快上传学信网证明；
+// 已验证用户走模块引导（介绍表单组件），信息项介绍保留供重温（状态判断自动切换）。
+function tourStepEditProfile() { return () => {
+  // 到达时页面已切 edit-profile：未验证 → #chsi-gate 可见（JS 填充后去 hidden；静态骨架初始 hidden 不作数）
+  // → 引导验证门；已验证 → 表单介绍照旧
+  const gate = document.getElementById('chsi-gate');
+  if (gate && !gate.classList.contains('hidden')) {
+    return { module: 'edit-profile', target: { sel: '#chsi-gate' }, text: UI.TOUR_STEP_CHSI_GATE };
+  }
+  return { module: 'edit-profile', target: { page: 'edit-profile' }, text: UI.TOUR_STEP_EDIT_PROFILE };
+}; }
+// 表单介绍步骤：未验证学信网时表单不存在 → skip（验证门引导已覆盖，无需逐项介绍）
+function _tourProfileFormStep(stepFn) { return () => {
+  const gate = document.getElementById('chsi-gate');
+  return (gate && !gate.classList.contains('hidden')) ? { skip: true } : stepFn();
+}; }
+function tourStepProfileForm()      { return _tourProfileFormStep(() => ({ module: 'edit-profile', target: { sel: '.profile-form' }, text: UI.TOUR_STEP_PROFILE_FORM })); }
+function tourStepProfileSubjects()  { return _tourProfileFormStep(() => ({ module: 'edit-profile', target: { sel: '#profile-subjects' }, text: UI.TOUR_STEP_PROFILE_SUBJECTS })); }
+function tourStepProfilePrice()     { return _tourProfileFormStep(() => ({ module: 'edit-profile', target: { sel: '#profile-price-min' }, text: UI.TOUR_STEP_PROFILE_PRICE })); }
+function tourStepProfileAwards()    { return _tourProfileFormStep(() => ({ module: 'edit-profile', target: { sel: '#profile-awards-list' }, text: UI.TOUR_STEP_PROFILE_AWARDS })); }
 // 「保存」= 真实提交请求，点击拦截不透传；默认滚动架构自动把按钮滚进视口（反馈 #131）
-function tourStepProfileSubmit()    { return { module: 'edit-profile', target: { sel: '#profile-submit' }, text: UI.TOUR_STEP_PROFILE_SUBMIT, pass: false }; }
+function tourStepProfileSubmit()    { return _tourProfileFormStep(() => ({ module: 'edit-profile', target: { sel: '#profile-submit' }, text: UI.TOUR_STEP_PROFILE_SUBMIT, pass: false })); }
 
 // ---- 通知 ----
 function tourStepNotifications() { return { module: 'notifications', target: { page: 'notifications' }, text: UI.TOUR_STEP_NOTIFICATIONS }; }
@@ -562,6 +625,8 @@ const TOUR_SCRIPTS = {
     tourStepBrowseDemands(),
     tourStepDemandList(),
     tourStepDemandCard(),
+    tourStepDemandDetail(),
+    tourStepDemandDetailClose(),
     tourStepDemandIdTag(),
     tourStepBrowseTeachersPeer(),
     tourStepTeachersList(),
@@ -599,6 +664,8 @@ const TOUR_SCRIPTS = {
     tourStepBrowseDemands(),
     tourStepDemandList(),
     tourStepDemandCard(),
+    tourStepDemandDetail(),
+    tourStepDemandDetailClose(),
     tourStepDemandIntentBtn(),
     tourStepDemandIdTag(),
     tourStepBrowseTeachersPeer(),
@@ -652,6 +719,8 @@ const TOUR_SCRIPTS = {
   studentUser: () => [
     tourStepMyDemands(),
     tourStepMyDemandsList(),
+    tourStepDemandDetail('my-demands'),
+    tourStepDemandDetailClose('my-demands'),
     tourStepIntentToggle(),
     tourStepNewDemandBtn(),
     tourStepDemandWizard(),

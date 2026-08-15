@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.4.3',
+  APP_VERSION: '1.4.4',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1879,6 +1879,13 @@ globalThis.APP_CONSTANTS = {
     TOUR_STEP_BROWSE_DEMANDS: '需求大厅：学生发布的家教需求都在这，按匹配度排好序。点击进入。',
     TOUR_STEP_DEMAND_LIST: '这里就是需求列表。每条卡片写着发起人、科目、年级、预算、上课方式，一目了然。',
     TOUR_STEP_DEMAND_CARD: '一条需求卡：期望时间、预算区间、授课方式都在上面，先看看合不合适。',
+    TOUR_STEP_DEMAND_DETAIL: '这是需求详情：学习目标、上课安排、学生信息都在这里，一目了然。', // v1.4.4：卡面点击开详情后的介绍步（用户反馈）
+    TOUR_STEP_DEMAND_DETAIL_CLOSE: '点击关闭详情，回到需求列表。', // v1.4.4：详情介绍后直接关闭（不再晾在灰化区）
+    TOUR_STEP_CHSI_GATE: '先完成学信网验证：输入学信网在线验证报告上的验证码，核验通过后即可填写详细资料并开始接单。', // v1.4.4：学信网门控引导（默认引导）
+    TOUR_DEMO_CHAT_NAME_TEACHER: '示例学生', // v1.4.4：教师用户引导中的示例会话（对侧角色）
+    TOUR_DEMO_CHAT_NAME_STUDENT: '示例教师', // v1.4.4：学生用户引导中的示例会话（对侧角色）
+    TOUR_DEMO_CHAT_PREVIEW: '示例会话：这里展示聊天窗口，还没有消息。', // v1.4.4
+    TOUR_DEMO_CHAT_EMPTY: '示例会话：还没有消息，可以试试下方的输入框和 + 号。', // v1.4.4
     TOUR_STEP_DEMAND_INTENT_BTN: '「提交试课意向」按钮：觉得合适就点它，等学生确认后自动开启会话。',
     TOUR_STEP_DEMAND_ID_TAG: '需求编号 #0001：沟通时用它指代这条需求，对方一看就知道是哪条。',
     // —— 浏览教师（教师广场 / 教师同行）——
