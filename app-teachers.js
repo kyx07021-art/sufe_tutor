@@ -152,10 +152,10 @@ function sortTeachers(teachers, mode = teacherSortMode()) {
 function renderTeacherCard(t) {
   const isStudent = state.user && state.user.role === 'student';
   const grade = DISP.teacherGradeName(t.grade) || t.grade || '';
-  // 信息取舍：卡面只留「身份 + 两个决策锚点 + 教什么」，其余（地区/性别/方式/时间/成绩/简介）
-  // 收进资料右栏详情——卡面是海报不是清单。
+  // 信息取舍（v1.4.1 用户修正）：卡面 = 身份 + 两个决策锚点 + 教什么 + 简介（信任内容，家长选老师要看）；
+  // 其余（地区/性别/方式/时间/成绩）收进资料右栏详情——卡面是海报不是清单，简介截断 2 行完整在资料栏
   const subjectsLine = (t.subjects || []).map(sid => DISP.subjectName(sid)).filter(Boolean).join('、');
-  // 报价「大而轻」：数字大字号 + 细字重（500）+ mono，单位拆出变小灰——焦点靠字号不靠加粗
+  // 报价「大而轻」：数字大字号 + 细字重（500）统一字体族（v1.4.1 去 mono 特例），单位拆出变小灰——焦点靠字号不靠加粗
   const priceNum = DISP.priceRangeText(t.price_min, t.price_max, '');
   const hasPrice = !!priceNum;
   const matchBtn = t._matchForStudent
@@ -174,6 +174,7 @@ function renderTeacherCard(t) {
       </div>
       ${hasPrice ? `<div class="tc-price"><span class="tc-num tc-num--price">${escHtml(priceNum)}</span><span class="tc-unit">${escHtml(UI.PRICE_UNIT)}</span></div>` : ''}
       ${subjectsLine ? `<div class="tc-subjects">${escHtml(subjectsLine)}</div>` : ''}
+      ${t.intro ? `<div class="tc-intro">${escHtml(t.intro)}</div>` : ''} <!-- v1.4.1：简介上卡（家长选老师要看），截断 2 行，完整在资料栏 -->
       <div class="tc-actions">
         ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
         ${isStudent ? renderPushBtn(t) : ''}

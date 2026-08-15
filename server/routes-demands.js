@@ -67,7 +67,7 @@ function sanitizeDemand(d) {
   d.budget_max = clampBudget(d.budget_max);
   if (d.budget_max < d.budget_min) d.budget_max = d.budget_min;
   d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
-  // v1.3.0 修复：student_grade 白名单（此前无校验——生产脏数据 'grade7' 入库泄漏到卡片）；
+  // v1.3.1 修复：student_grade 白名单（此前无校验——生产脏数据 'grade7' 入库泄漏到卡片）；
   // 非法回退空串（需求创建高频动作，静默回退不拒绝整表——与 target_type 非法回退 academic 同口径）
   const gradeSet = new Set(((globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.STUDENT_GRADES) || []).map(g => g.id));
   if (!gradeSet.has(d.student_grade)) d.student_grade = '';
