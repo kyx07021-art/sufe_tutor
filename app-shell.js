@@ -628,11 +628,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // closeAllModals 清掉——身份恢复完成后（.then）再弹；已登录由 isReturning 拦截。
   // 不用 async 回调：jsdom 测试里挂起的 await 会在测试结束后恢复访问已清理 DOM（unhandledRejection））
   const saved = loadSession();
+  // 令牌失效竞态（罕见，审计 noted）：saved 分支 switchToRole 的 /me 失败回落 enterRolePreview →
+  // selectPage 的 closeAllModals 可能清掉刚弹的首访弹窗，且 setReturning 已写不再弹——触发需
+  // localStorage 被清但 sessionStorage 会话保留 + 令牌失效叠加，接受该降级（用户仍可走落地页入口）
   const after = () => showOnboardingIfNeeded();
-  if (saved && saved.authToken) { switchToRole(saved.user.role, saved).then(after); } // 校验后进客户端（enterClient 恢复页面）
+  if (saved && saved.authToken) { switchToRole(saved.user.role, saved).then(after, err => console.warn('onboarding after switchToRole skipped', err)); } // 校验后进客户端（enterClient 恢复页面）
   else {
     const guest = getLastGuestRole();
-    if (guest) { enterRolePreview(guest).then(after); } // 访客预览恢复（含页面停留）
+    if (guest) { enterRolePreview(guest).then(after, err => console.warn('onboarding after guest skipped', err)); } // 访客预览恢复（含页面停留）
     else { showView('landing'); after(); }
   }
   preloadDomainScripts(); // #178：后台静默预载领域脚本（同步调度，与身份恢复并行；点击入口下一帧即进客户端）

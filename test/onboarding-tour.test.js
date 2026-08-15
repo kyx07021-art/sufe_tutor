@@ -601,3 +601,61 @@ test('需求五十三：遮罩常置 + 亮区延时（CSS 在位）', () => {
   assert.ok(css.includes('.tour-hole { transition-delay: 0s; }'),
     'reduced-motion 归零亮区延迟');
 });
+
+// ============ v1.0.8 Q3 新手引导接线回归（用户四连返工轮） ============
+
+// 一分流程：首访「进客户端逛逛」→ await 游客客户端渲染完成 → 自动跑对应角色逛一圈 tour
+test('browseAsGuest：await 游客客户端渲染后自动跑对应角色 tour（studentGuest 首步）', async () => {
+  const { ctx, fns } = makeCtx();
+  await vm.runInContext(`
+    localStorage.removeItem('sufe_returning');
+    browseAsGuest('student');
+  `, ctx);
+  await tick(250);
+  const st = await vm.runInContext(`({
+    tour: !!document.querySelector('.tour-overlay'),
+    view: state.view,
+    guestRole: state.guestRole,
+    firstText: (document.querySelector('.tour-bubble-text') || {}).textContent || '',
+  })`, ctx);
+  assert.equal(st.guestRole, 'student', '游客角色进入');
+  assert.equal(st.view, 'client', '客户端视图渲染完成');
+  assert.equal(st.tour, true, 'tour 层挂载（不再被 _tourInClientView 立即清理）');
+  assert.ok(st.firstText.includes('教师广场'), '首步 = studentGuest 逛教师广场（实际: ' + st.firstText.slice(0, 20) + '）');
+  await vm.runInContext('stopBadgePoll(); stopVersionProbe();', ctx); // enterClient 起两个 interval，测试结尾清理防事件循环不退出
+});
+
+// 二分流程：注册成功 afterAuthSuccess(true) → await enterClient 后自动跑对应角色详细指引 tour
+test('afterAuthSuccess(true)：注册成功自动跑对应角色详细指引 tour（studentUser 首步）', async () => {
+  const { ctx } = makeCtx();
+  await vm.runInContext(`
+    state.user = { id: 9, role: 'student', username: 's', avatar: '' };
+    state.authToken = 'tok';
+    afterAuthSuccess(true);
+  `, ctx);
+  await tick(300);
+  const st = await vm.runInContext(`({
+    tour: !!document.querySelector('.tour-overlay'),
+    view: state.view,
+    firstText: (document.querySelector('.tour-bubble-text') || {}).textContent || '',
+  })`, ctx);
+  assert.equal(st.view, 'client', '客户端视图');
+  assert.equal(st.tour, true, '注册成功自动跑 tour（isNew=true）');
+  assert.ok(st.firstText.includes('我的需求'), '首步 = studentUser 我的需求（实际: ' + st.firstText.slice(0, 20) + '）');
+  await vm.runInContext('stopBadgePoll(); stopVersionProbe();', ctx);
+});
+
+// 登录成功（isNew=false）不跑 tour——避免每次登录都弹引导
+test('afterAuthSuccess()（登录）：不跑 tour', async () => {
+  const { ctx } = makeCtx();
+  await vm.runInContext(`
+    state.user = { id: 9, role: 'student', username: 's', avatar: '' };
+    state.authToken = 'tok';
+    afterAuthSuccess();
+  `, ctx);
+  await tick(300);
+  const st = await vm.runInContext(`({ tour: !!document.querySelector('.tour-overlay'), view: state.view })`, ctx);
+  assert.equal(st.view, 'client', '客户端视图');
+  assert.equal(st.tour, false, '登录不自动跑 tour');
+  await vm.runInContext('stopBadgePoll(); stopVersionProbe();', ctx);
+});

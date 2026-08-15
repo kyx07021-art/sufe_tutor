@@ -350,7 +350,7 @@ async function doRegister(username, password, role, agreeAgreement, agreePrivacy
     state.user = data.user; state.authToken = data.authToken || null;
     if (role === 'teacher') state.validatedInviteCode = null; // 请求成功后清（网络失败保留，重试免重验；原提前清空致失败即需重验）
     saveSession(false); // 注册即登录：会话存 sessionStorage（刷新保留，关标签即焚）
-    afterAuthSuccess(true); // isNew：注册成功自动跑对应角色详细指引 tour
+    afterAuthSuccess(true).catch(err => console.warn('afterAuthSuccess', err)); // isNew：注册成功自动跑对应角色详细指引 tour（fire-and-forget，catch 防 unhandledRejection）
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
