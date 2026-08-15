@@ -22,7 +22,11 @@
  */
 import { getSecret } from './secrets.js';
 
-const CHSI_ENV = 'CHSI_PROVIDER';
+// 部署级配置经 env 绑定（bindChsiEnv，由 initDb 调用）后惰性读取——复审 H1 闭环修复：
+// 此前 getSecret(CHSI_ENV, ...) 传字符串常量当 env 对象，env 分支永不命中、恒回落 secrets.js
+// 的 mock（生产配置 manual 失效，fail-open 依旧）。同 otp.js bindOtpEnv 模式。
+let CHSI_ENV = null;
+export function bindChsiEnv(env) { CHSI_ENV = env; }
 
 /** 部署级 provider 配置（env 优先，回落 secrets.js 文件）。
  *  安全审计 H1（fail-open 修复）：缺省 = 'manual'（fail-closed）——未显式配置时验证码进管理员核验

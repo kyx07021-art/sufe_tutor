@@ -17,6 +17,7 @@ import {
   dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbGetFeedbacksByUser,
 } from './db.js';
 import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from './log.js';
+import { decryptField } from './crypto.js'; // M1 修复：管理端动作传解密验证码（避免双重加密）
 import { confirmDangerOtp } from './danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 import { dbBroadcastNotification, notifyUser } from './notify.js';
@@ -355,7 +356,7 @@ export async function handleVerificationAction(db, id, body, req) {
     if (!school || !level) return error(MSG.INVALID_PARAMS, 400); // 院校/层次必填（结构化输入）
     const now = new Date().toISOString();
     await dbUpsertTeacherVerification(db, {
-      userId: v.user_id, verifyCode: v.verify_code, status: 'approved', provider: v.provider || 'manual',
+      userId: v.user_id, verifyCode: await decryptField(v.verify_code), status: 'approved', provider: v.provider || 'manual',
       school, level, major, enrollmentStatus, enrollYear, verifiedBy: admin.id, verifiedAt: now,
     });
     await dbApplyChsiToProfile(db, v.user_id, { school, level, major, enrollmentStatus, enrollYear });
@@ -368,7 +369,7 @@ export async function handleVerificationAction(db, id, body, req) {
   if (action === 'reject' || action === 'revoke') {
     const reason = String(body.reason || '').trim().slice(0, 200);
     await dbUpsertTeacherVerification(db, {
-      userId: v.user_id, verifyCode: v.verify_code, status: 'rejected', provider: v.provider || 'manual',
+      userId: v.user_id, verifyCode: await decryptField(v.verify_code), status: 'rejected', provider: v.provider || 'manual',
       verifiedBy: admin.id, verifiedAt: new Date().toISOString(),
     });
     // 安全审计 H2：reject/revoke 同步撤销接单资格 + 清空学信网展示字段（误批/欺诈核验可回收）
