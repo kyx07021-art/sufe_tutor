@@ -335,6 +335,10 @@
       }
     } finally {
       // v0.31.8（外部审查）：try/finally 保证异常也摘门控——残留 data-ui-sampling 会全站禁 transition 直至下次采样
+      // v1.0.7（Q4 抽搐残留）：摘门控前必须强制样式结算（void document.body.offsetHeight）——浏览器在
+      // transition:none 期间记录样式跳变（设 1.2 档的 padding 25.2），摘门控后以该跳变值为起点重播过渡回
+      // 当前值（生产实测 25.2→21 短过渡 = 设置项轻跳一下）；先强制 layout 把最终值结算固化，摘门控零变化零过渡。
+      void document.body.offsetHeight;
       delete docEl.dataset.uiSampling;
     }
   }

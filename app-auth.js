@@ -130,7 +130,7 @@ function switchToRole(role, saved) {
   const sentToken = saved.authToken; // B1：/me 异步窗口内身份可能已被替换
   state.user = saved.user; // F8：先以已存会话渲染
   saveSession(saved.source === 'local'); // 保活刷新该角色会话（按 state.user.role 落键）
-  enterClient();
+  const p = enterClient(); // 返回 promise：身份恢复完成后调用方继续（首访弹窗时序依赖）
   // F8：并行令牌验证 + user 调和。验证期置位 → 预取批量 401 不 ensureAuth（防抢跑登录页）。
   sessionBootValidating = true;
   api('/api/auth/me').then(data => {
@@ -152,6 +152,7 @@ function switchToRole(role, saved) {
     if (err && err.code !== 'NETWORK_ERROR') clearSession(role);
     enterRolePreview(role); // 令牌失效：回落该角色访客预览
   });
+  return p;
 }
 
 // 进入目标角色访客预览（未登录态，用户信息栏显示「未登录」）
@@ -161,7 +162,7 @@ function enterRolePreview(role) {
   state.guestRole = role;
   state.guestAuthMode = false;
   setLastGuestRole(role); // exit 已清旧值，此处重写当前访客角色
-  enterClient();
+  return enterClient(); // 返回 promise：访客恢复完成后调用方继续（首访弹窗时序依赖）
 }
 
 // 清当前运行时身份（登出/切换共用）：停轮询 + 领域残留 + 会话缓存；不删已存会话记录

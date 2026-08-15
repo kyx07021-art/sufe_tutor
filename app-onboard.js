@@ -40,7 +40,7 @@ function openOnboarding() {
   // 自动跑对应角色逛一圈 tour（新手引导一分流程）；登录入口落地页常驻，随时可去
   const primary = ctx.loggedIn
     ? `<button type="button" class="btn glass glass--pressable" onclick="closeModal()">${UI.ONBOARD_CONFIRM}</button>`
-    : `<button type="button" class="btn glass glass--pressable" onclick="closeModal();enterRolePreview('student');startOnboardingTour()">${UI.ONBOARD_CONFIRM_BROWSE}</button>`;
+    : `<button type="button" class="btn glass glass--pressable" onclick="browseAsGuest('student')">${UI.ONBOARD_CONFIRM_BROWSE}</button>`;
   openModal({
     title: UI.ONBOARD_TITLE,
     closable: false,
@@ -48,6 +48,15 @@ function openOnboarding() {
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="openUsageGuide()">${UI.USAGE_GUIDE_BTN}</button>
       ${primary}`,
   });
+}
+
+/** 首访「进客户端逛逛」：关弹窗 → 进游客客户端（await 渲染完成）→ 自动跑对应角色逛一圈 tour。
+ *  不能同步跟在 enterRolePreview 后跑 tour——enterClient 内部 await loadDomainScripts，
+ *  客户端渲染（state.view='client'）在 await 之后，tour 引擎检测到不在客户端视图会立即收尾。 */
+async function browseAsGuest(role) {
+  closeModal();
+  await enterRolePreview(role);
+  startOnboardingTour();
 }
 
 /** 详细用法介绍：分区标题 + 段落（文案单源 constants；关于页「平台基本用法」底部呼出） */
