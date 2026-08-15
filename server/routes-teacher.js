@@ -31,17 +31,6 @@ export function acceptEligibility(profile) {
   return { ok: true };
 }
 
-/** 接单写路径门禁：失败返回 403 + 具体原因（前端据此引导去资料页补全/验证） */
-export async function requireAcceptEligible(db, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return { err };
-  if (me.role !== 'teacher') return { err: error(MSG.NO_PERMISSION, 403) };
-  const profile = await dbGetTeacherProfile(db, me.id);
-  const el = acceptEligibility(profile);
-  if (!el.ok) return { err: error(el.reason === 'CHSI_UNVERIFIED' ? MSG.CHSI_VERIFY_REQUIRED : MSG.PROFILE_COMPLETE_REQUIRED, 403) };
-  return { me, profile };
-}
-
 /** POST /api/teacher/verify-chsi —— 教师提交《学籍在线验证报告》验证码核验（v1.2.0 T3）
  *  mock/thirdparty：直通 approved，学信网字段自动填入资料卡；
  *  manual：进管理员核验队列（pending），管理员查证后结构化录入。 */

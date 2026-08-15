@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.2.3',
+  APP_VERSION: '1.2.4',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1359,6 +1359,8 @@ globalThis.APP_CONSTANTS = {
     VERIF_APPROVE_REQUIRED: '院校与层次为必填项',
     VERIF_APPROVED_OK: '核验已通过，学籍信息已填入教师档案并通知',
     VERIF_REJECTED_OK: '已拒绝该核验申请并通知教师',
+    VERIF_REVOKE_BTN: '撤销核验',
+    VERIF_REVOKED_OK: '已撤销该教师核验资格并通知',
     CREDENTIAL_UPLOAD: '上传',
     CREDENTIAL_UPLOADED_VIEW: '已上传，点击查看',
     CREDENTIAL_VIEW: '点击查看',

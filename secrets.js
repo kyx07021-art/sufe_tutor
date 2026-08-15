@@ -38,4 +38,8 @@ globalThis.APP_SECRETS = {
   // 邮件验证码模板编码（push.spug.cc 邮件模板；编码即调用凭证，禁止进前端/公开仓库，只经 server/secrets.js 网关读取）
   // 模板正文：您正在进行${scene}，本次验证码为：${code}，请在 ${minute} 分钟内输入验证码完成验证
   EMAIL_OTP_TEMPLATE_CODE: 'v3aDVjBPM48JeX9M',
+  // ---- 学信网核验通道配置（v1.2.0；缺省 manual = fail-closed，安全审计 H1）----
+  // CHSI_PROVIDER: 'mock'（内测：验证码格式校验即通过，返回模拟学籍信息）| 'manual'（生产：进管理员核验队列）
+  //               | 'thirdparty'（量产：第三方学历核验 API，密钥 CHSI_VERIFY_API_KEY）
+  CHSI_PROVIDER: 'mock',
 };

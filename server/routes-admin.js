@@ -7,7 +7,7 @@ import { json, error, genCode, toDbTime } from './util.js';
 import { requireUser, requireAdmin } from './security.js';
 import { MSG, STATUS, LIMITS, SECURITY } from './constants.js';
 import {
-  dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode,
+  dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode, dbClearChsiFromProfile, dbGetTeacherVerificationById, dbUpsertTeacherVerification, dbApplyChsiToProfile,
   dbGetUserStats, dbGetCount, dbGetCountWhere, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,
@@ -342,6 +342,10 @@ export async function handleVerificationAction(db, id, body, req) {
   const v = await dbGetTeacherVerificationById(db, id);
   if (!v) return error(MSG.USER_NOT_FOUND, 404);
   const action = body.action;
+  // 状态机（安全审计 H2 修复）：pending 才能 approve/reject；approved 才能 revoke（撤销已通过资格）
+  if (action === 'approve' && v.status !== 'pending') return error(MSG.INVALID_ACTION, 409);
+  if (action === 'reject' && v.status !== 'pending') return error(MSG.INVALID_ACTION, 409);
+  if (action === 'revoke' && v.status !== 'approved') return error(MSG.INVALID_ACTION, 409);
   if (action === 'approve') {
     const school = String(body.school || '').trim().slice(0, LIMITS.SCHOOL_MAX);
     const level = String(body.level || '').trim().slice(0, 20);
@@ -361,14 +365,18 @@ export async function handleVerificationAction(db, id, body, req) {
       actorRole: 'admin', entity: 'user', entityId: v.user_id, detail: { school, level, major }, req });
     return json({ ok: true });
   }
-  if (action === 'reject') {
+  if (action === 'reject' || action === 'revoke') {
     const reason = String(body.reason || '').trim().slice(0, 200);
     await dbUpsertTeacherVerification(db, {
       userId: v.user_id, verifyCode: v.verify_code, status: 'rejected', provider: v.provider || 'manual',
       verifiedBy: admin.id, verifiedAt: new Date().toISOString(),
     });
-    await notifyUser(db, v.user_id, `${globalThis.APP_CONSTANTS.UI.CHSI_NOTIFY_REJECTED}${reason ? '\n' + reason : ''}`);
-    await logEvent(db, { action: 'admin.chsi.reject', actorUserId: admin.id, actorUsername: admin.username,
+    // 安全审计 H2：reject/revoke 同步撤销接单资格 + 清空学信网展示字段（误批/欺诈核验可回收）
+    await dbClearChsiFromProfile(db, v.user_id);
+    const text = `${globalThis.APP_CONSTANTS.UI.CHSI_NOTIFY_REJECTED}${reason ? '\n' + reason : ''}`;
+    await notifyUser(db, v.user_id, text);
+    await logEvent(db, { action: action === 'revoke' ? 'admin.chsi.revoke' : 'admin.chsi.reject',
+      actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'user', entityId: v.user_id, detail: { reason }, req });
     return json({ ok: true });
   }

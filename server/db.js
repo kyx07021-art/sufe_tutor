@@ -2125,8 +2125,10 @@ export async function dbGetTeacherVerification(db, userId) {
     'SELECT * FROM teacher_verifications WHERE user_id=?', [userId]);
 }
 
-/** 插入/更新核验记录（一人一条，UNIQUE(user_id)；approved/rejected 覆写旧状态） */
+/** 插入/更新核验记录（一人一条，UNIQUE(user_id)；approved/rejected 覆写旧状态）。
+ *  安全审计 M1：verify_code 加密落库（学信网报告访问凭证，同 wechat/email 口径）——库泄露不暴露明文。 */
 export async function dbUpsertTeacherVerification(db, v) {
+  const verifyCode = await encryptField(String(v.verifyCode || ''));
   await dbRun(db, `INSERT INTO teacher_verifications
       (user_id, verify_code, status, school, level, major, enrollment_status, enroll_year, provider, verified_by, verified_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?)
@@ -2135,26 +2137,41 @@ export async function dbUpsertTeacherVerification(db, v) {
       school=excluded.school, level=excluded.level, major=excluded.major,
       enrollment_status=excluded.enrollment_status, enroll_year=excluded.enroll_year,
       provider=excluded.provider, verified_by=excluded.verified_by, verified_at=excluded.verified_at`,
-    [v.userId, v.verifyCode, v.status, v.school || '', v.level || '', v.major || '',
+    [v.userId, verifyCode, v.status, v.school || '', v.level || '', v.major || '',
      v.enrollmentStatus || '', v.enrollYear || '', v.provider || 'mock', v.verifiedBy || null, v.verifiedAt || null]);
 }
 
-/** 核验通过后把学信网字段自动填入教师档案（chsi_* 只读，禁手动改） */
-export async function dbApplyChsiToProfile(db, userId, info) {
+/** 安全审计 H2：撤销接单资格（reject/revoke）——清空学信网字段与展示（chsi_verified=0、chsi_* 清空、
+ *  school 还原为空——school 在 approved 时被学信网覆盖，撤销后不再展示学信网来源值） */
+export async function dbClearChsiFromProfile(db, userId) {
   await dbRun(db, `UPDATE teacher_profiles SET
-      chsi_school=?, chsi_level=?, chsi_major=?, chsi_status=?, chsi_enroll_year=?, chsi_verified=1,
-      school=CASE WHEN school='' OR school IS NULL THEN ? ELSE school END
-      WHERE user_id=?`,
-    [info.school || '', info.level || '', info.major || '', info.enrollmentStatus || '',
-     info.enrollYear || '', info.school || '', userId]);
+      chsi_school='', chsi_level='', chsi_major='', chsi_status='', chsi_enroll_year='', chsi_verified=0,
+      school=CASE WHEN school=chsi_school THEN '' ELSE school END
+      WHERE user_id=?`, [userId]);
+}
+
+/** 核验通过后把学信网字段自动填入教师档案（chsi_* 只读，禁手动改）。
+ *  教师可能无档案行（注册不建 teacher_profiles）——INSERT 兜底（其他列默认/空，随档案编辑补齐）。 */
+export async function dbApplyChsiToProfile(db, userId, info) {
+  await dbRun(db, `INSERT INTO teacher_profiles (user_id, chsi_school, chsi_level, chsi_major, chsi_status, chsi_enroll_year, chsi_verified, school)
+      VALUES (?,?,?,?,?,?,1,?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      chsi_school=excluded.chsi_school, chsi_level=excluded.chsi_level, chsi_major=excluded.chsi_major,
+      chsi_status=excluded.chsi_status, chsi_enroll_year=excluded.chsi_enroll_year, chsi_verified=1,
+      school=CASE WHEN teacher_profiles.school='' OR teacher_profiles.school IS NULL THEN excluded.school ELSE teacher_profiles.school END`,
+    [userId, info.school || '', info.level || '', info.major || '', info.enrollmentStatus || '',
+     info.enrollYear || '', info.school || '']);
 }
 
 /** 管理员核验队列：全部记录（pending 优先） */
 export async function dbListTeacherVerifications(db, status) {
   const where = status && status !== 'all' ? ' WHERE v.status=?' : '';
   const args = status && status !== 'all' ? [status] : [];
-  return await dbAll(db, `SELECT v.*, u.username FROM teacher_verifications v
+  const rows = await dbAll(db, `SELECT v.*, u.username FROM teacher_verifications v
       JOIN users u ON u.id=v.user_id${where} ORDER BY v.created_at DESC`, args);
+  // 安全审计 M1：verify_code 加密落库，管理端列表解密（管理员核验需明文查证，同 wechat 管理端解密口径）
+  for (const r of rows) { r.verify_code = (await decryptField(r.verify_code)) || ''; }
+  return rows;
 }
 
 // v1.2.0 T6：管理员按 id 查核验记录

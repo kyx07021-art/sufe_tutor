@@ -24,8 +24,10 @@ import { getSecret } from './secrets.js';
 
 const CHSI_ENV = 'CHSI_PROVIDER';
 
-/** 部署级 provider 配置（env 优先，回落 secrets.js 文件；缺省 mock 内测直通） */
-const chsiProvider = () => String(getSecret(CHSI_ENV, 'CHSI_PROVIDER') || 'mock');
+/** 部署级 provider 配置（env 优先，回落 secrets.js 文件）。
+ *  安全审计 H1（fail-open 修复）：缺省 = 'manual'（fail-closed）——未显式配置时验证码进管理员核验
+ *  队列，任意字符串不能获得接单资格；内测 mock 直通须显式配置 CHSI_PROVIDER=mock（secrets.js/env）。 */
+const chsiProvider = () => String(getSecret(CHSI_ENV, 'CHSI_PROVIDER') || 'manual');
 
 /** 学信网在线验证码格式：12 或 16 位字母数字（《学籍在线验证报告》验证码口径） */
 const CHSI_CODE_RE = /^[A-Za-z0-9]{12,16}$/;

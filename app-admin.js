@@ -705,7 +705,8 @@ async function loadAdminVerifications() {
         <span class="verif-code">${escHtml(v.verify_code)}</span>
       </div>
       <div class="verif-meta">${fmtDateTime(v.created_at)}${v.verified_at ? ' · ' + fmtDateTime(v.verified_at) : ''}</div>
-      ${v.status === 'approved' ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>` : ''}
+      ${v.status === 'approved' ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>
+        <div class="verif-actions"><button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="verifRevoke(${v.id})">${escHtml(UI.VERIF_REVOKE_BTN)}</button></div>` : ''}
       ${v.status === 'pending' ? renderVerifForm(v) : ''}
     </div>`).join('');
   } catch (err) {
@@ -747,6 +748,14 @@ async function verifApprove(id) {
   try {
     await api(`/api/admin/verifications/${id}/action`, { method: 'POST', body });
     showToast(UI.VERIF_APPROVED_OK, 'success');
+    loadAdminVerifications();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function verifRevoke(id) {
+  try {
+    await api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'revoke' } });
+    showToast(UI.VERIF_REVOKED_OK, 'success');
     loadAdminVerifications();
   } catch (err) { showToast(err.message, 'error'); }
 }
