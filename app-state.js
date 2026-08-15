@@ -312,10 +312,15 @@ function _uiScalePreviewReset() {
 // 拖动前就绪则拖动即用元素级；否则回落分块预览。
 // v0.31.4（P4）：350ms → 0ms（渲染完成即预热，用户进设置页立刻拖也不卡——首次拖动会话开始时
 // prepare 命中缓存；未命中则异步重采回落分块，拖动全程不阻塞）。
+// 2026-08-15（Q4 侧边栏抽搐根因）：预热延迟不能为 0——点击设置瞬间侧边栏 active 项正在
+// padding/desc 过渡（--t-slow 420ms），此时采样临时改 --ui-scale（档位 0.8→1.0→1.2→1.0）会把
+// 进行中的过渡重定向（生产实测 padTop 25.2→21 二次过渡 = 「先鼓后缩」抽搐），且采样读到的 rect
+// 是动画中间值（数据污染）。延迟等页面动画完成再采样：采样不与动画打架、数据准确；
+// 拖动不卡由「缓存命中 renderAt / 未命中回落分块+异步重采」双路径保证，预热只是让元素级更早可用。
 function _uiScaleReflowWarm() {
   const R = window.__uiScaleReflow;
   if (!R) return;
-  setTimeout(() => { try { R.prepare(); } catch (e) { /* 采样失败回落分块预览 */ } }, 0);
+  setTimeout(() => { try { R.prepare(); } catch (e) { /* 采样失败回落分块预览 */ } }, CONFIG.UI_SCALE_REFLOW_WARM_DELAY_MS);
 }
 // 同步应用（无合并；首帧/测试路径），返回钳制值
 function setUiScale(v) {

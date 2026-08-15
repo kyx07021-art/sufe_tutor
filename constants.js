@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.0.3',
+  APP_VERSION: '1.0.4',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -87,6 +87,7 @@ globalThis.APP_CONSTANTS = {
     UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_DEFAULT: 100, UI_SCALE_STEP: 1, // 需求六·item5：UI 大小滑块范围/步进（百分比；100=现状；v0.25.12 上限扩到 120）
     UI_SCALE_WHEEL_STEP: 4, // ctrl+滚轮每格步长（=4×滑块 step）
     UI_SCALE_REFLOW_SAMPLE_STEP: 20, // 元素级模拟重排：真实重排目标位采样档位步长（5%→20%——9 档→3 档 [80/100/120]，每档一次整树 reflow 是采样成本大头（生产 1300+ 单元 ~100ms/档），3 档 ~300ms 且档间线性插值足够——--ui-scale 乘性变换目标位近线性；UI_SCALE_REFLOW_SAMPLE_STEP 单源）
+    UI_SCALE_REFLOW_WARM_DELAY_MS: 600, // 预热采样延迟：必须大于侧边栏 active 过渡时长（style.css --t-slow 420ms）——点击设置瞬间采样改 --ui-scale 会把进行中的过渡重定向（侧边栏抽搐根因），延迟等动画完成再采样
     UI_SCALE_KEY: 'sufe_ui_scale',        // 需求六·item5：UI 大小偏好 localStorage 键（参照 setThemePref 的 sufe_theme 模式）
     STYLE_KEY: 'sufe_style',              // 需求八·item4：页面风格偏好 localStorage 键（liquid/flat）
     THEME_KEY: 'sufe_theme',
