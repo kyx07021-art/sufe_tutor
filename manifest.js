@@ -9,7 +9,7 @@ export const ASSET_MANIFEST = {
     "style-posts.css": "style-posts.d7934ceb.css",
     "style-chat.css": "style-chat.fb6db88c.css",
     "glass.css": "glass.bfcec76f.css",
-    "constants.js": "constants.424e72e5.js",
+    "constants.js": "constants.8f49f340.js",
     "app-display.js": "app-display.b559f1f4.js",
     "app-state.js": "app-state.f7553a25.js",
     "app-api.js": "app-api.13a4ee1a.js",
@@ -32,7 +32,7 @@ export const ASSET_MANIFEST = {
     "app-demands.js": "app-demands.b297fb73.js",
     "app-teachers.js": "app-teachers.ef3f1f17.js",
     "ui-scale-reflow.js": "ui-scale-reflow.c2bc51ee.js",
-    "app-pages.js": "app-pages.04a6eb3a.js",
+    "app-pages.js": "app-pages.ac697bf9.js",
     "app-complaints.js": "app-complaints.132a599d.js"
   }
 };

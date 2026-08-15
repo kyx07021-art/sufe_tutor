@@ -73,6 +73,7 @@ const API_DATA = {
   '/api/users/3': { user: { id: 3, username: '张老师', role: 'teacher', avatar: '' } },
   '/api/reviews?teacherUserId=3': { reviews: [] },
   '/api/teacher/profile?userId=3': { profile: {} },
+  '/api/teacher/profile': { profile: { chsi_verified: 1, chsi_school: '示例大学' } }, // v1.2.0：tour 目标档案已核验（验证门不隐藏表单）
   '/api/student/demands?scope=mine': { demands: [demand] },
   '/api/student/demands?scope=for-teacher': { demands: [demand] },
   '/api/student/demands': { demands: [demand] },
