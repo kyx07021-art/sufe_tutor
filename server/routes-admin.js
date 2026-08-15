@@ -7,7 +7,7 @@ import { json, error, genCode, toDbTime } from './util.js';
 import { requireUser, requireAdmin } from './security.js';
 import { MSG, STATUS, LIMITS, SECURITY } from './constants.js';
 import {
-  dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode, dbClearChsiFromProfile, dbGetTeacherVerificationById, dbUpsertTeacherVerification, dbApplyChsiToProfile,
+  dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode, dbClearChsiFromProfile, dbGetTeacherVerificationById, dbUpsertTeacherVerification, dbApplyChsiToProfile, dbListTeacherVerifications,
   dbGetUserStats, dbGetCount, dbGetCountWhere, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,

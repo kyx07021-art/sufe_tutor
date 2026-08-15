@@ -571,7 +571,7 @@ export default {
     } catch (err) {
       console.error('API Error:', err); // 细节只留服务端日志
       await logRequest(db, { method: request.method, path: p, body, status: 500, req: request, durationMs: Date.now() - t0 });
-      return applySecurityHeaders(error(MSG.SERVER_ERROR + ' [' + String(err && err.message || err).slice(0, 120) + ']', 500), p); // TEMP-DEBUG: 排查 verifications 500（还原后改回脱敏）
+      return applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message
     }
   },
   // D1 保活（v0.22.8 + v0.25.16）：逻辑收敛到 keepD1Warm 单点（与 /api/keepalive 路由共用）。
