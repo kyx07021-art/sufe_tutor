@@ -96,15 +96,17 @@ function switchRegisterRole(role) {
   document.getElementById('register-role').value = role;
   document.querySelectorAll('#register-role-tabs .seg-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
   // v1.2.0 T5：教师 = 3 步 wizard（①邀请码 ②用户名+联系方式 ③验证码）；学生 = 单页表单保持原样。
-  // 两组互斥显示；wizard 动态渲染，字段 id 复用 register-*（handleRegister/requestOtpCode/checkRegisterContact 零改动）
+  // 两组**互斥渲染**（切角色清空对方 DOM）——wizard 复用 register-* 字段 id，学生组残留会导致
+  // getElementById 命中 hidden 旧字段（空值），提交被原生 required 校验拦截（生产实测 valid:false）
   const studentGroup = document.getElementById('student-reg-group');
   const wizardRoot = document.getElementById('teacher-wizard-root');
   if (!studentGroup || !wizardRoot) return;
   if (role === 'teacher') {
-    studentGroup.classList.add('hidden');
+    if (!window.__studentGroupTemplate) window.__studentGroupTemplate = studentGroup.innerHTML; // 首切保存学生表单模板
+    studentGroup.innerHTML = '';
     renderTeacherWizard();
   } else {
-    studentGroup.classList.remove('hidden');
+    if (window.__studentGroupTemplate) studentGroup.innerHTML = window.__studentGroupTemplate;
     wizardRoot.classList.add('hidden');
     wizardRoot.innerHTML = '';
   }
