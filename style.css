@@ -2077,7 +2077,7 @@ body.profile-panel-closing .profile-panel {
 .profile-row-note { display: block; margin-top: 2px; font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
 .profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 600; color: var(--ink); } /* 需求六·item5：资料卡 tag 随滑块 */ /* #159：横 padding 对齐 .tag 基类 */
 .profile-rating { display: inline-flex; align-items: center; gap: 8px; } /* 核心决策信息：评分行放大 */
-.profile-rating-num { font-size: 1.05rem; font-family: var(--mono); font-weight: 500; color: var(--accent-deep); } /* 评分数字：mono + 品牌紫（不加粗，色彩语义） */
+.profile-rating-num { font-size: .95rem; font-family: var(--mono); font-weight: 500; color: var(--ink); } /* 评分数字：深色 mono 细字（数据不用彩色） */
 
 /* R2-3/R2-4 性格关键词 / 非学科项目 tag-pick pill：复用勾选框语义但不显示勾选框，
    默认玻璃底（.glass 引擎），选中态软紫 tint + 紫环 */
@@ -2129,8 +2129,9 @@ body.profile-panel-closing .profile-panel {
 .tc-metrics { grid-column: 2; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .tc-metric { display: inline-flex; align-items: center; gap: 5px; }
 .tc-metric--rating .stars { font-size: .9rem; }
-.tc-rating-num { font-family: var(--mono); font-size: .9rem; font-weight: 500; color: var(--accent-deep); } /* 评分=信任信号：mono + 品牌紫（不加粗，靠色彩语义） */
-.tc-metric--price { font-family: var(--mono); font-size: 1.05rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
+.tc-rating-num { font-family: var(--mono); font-size: .88rem; font-weight: 500; color: var(--ink); } /* 评分=信任信号：深色 mono 细字（数据不用彩色——彩色留给状态/徽章） */
+.tc-num--price { font-family: var(--mono); font-size: 1.2rem; font-weight: 500; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; } /* 报价=数字焦点「大而轻」：大字号+细字重（500），焦点靠字号不靠加粗 */
+.tc-unit { font-size: .72rem; font-weight: 400; color: var(--muted); margin-left: 2px; } /* 单位小灰：衬托数字焦点 */
 .tc-match { display: inline-flex; } /* 匹配度按钮不进 .tc-username 防 ellipsis 裁剪（需求五·item5） */
 .tc-match--hint { font-size: .72rem; color: var(--muted); } /* 学生无开放需求时匹配度位置小灰字提示 */
 .tc-subjects { grid-column: 2; font-size: .78rem; color: var(--muted); }
@@ -2162,7 +2163,7 @@ body.profile-panel-closing .profile-panel {
   .tc-school { font-size: .78rem; }
   .tc-metric--rating .stars { font-size: .74rem; }
   .tc-rating-num { font-size: .8rem; }
-  .tc-metric--price { font-size: .95rem; }
+  .tc-num--price { font-size: 1rem; }
   .tc-subjects { font-size: .7rem; }
 
   /* 发送需求按钮右对齐 */
@@ -2437,15 +2438,20 @@ body.profile-panel-closing .profile-panel {
 .demand-subj-pill b { font-weight: 700; color: var(--ink); }
 
 /* 个人信息栏报价行（核心决策数值突出） */
-.profile-price { font-family: var(--mono); font-size: 1.08rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; } /* 决策数值：字号层级（不靠加粗轰炸） */
+.profile-price { display: inline-flex; align-items: baseline; gap: 3px; }
+.profile-price-num { font-family: var(--mono); font-size: 1.15rem; font-weight: 500; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; } /* 报价=数字焦点「大而轻」：大字号+细字重（500） */
+.profile-price-unit { font-size: .72rem; font-weight: 400; color: var(--muted); } /* 单位小灰 */
 
 /* ============================================================
    需求卡海报式三层（v1.0.3：卡面只留学什么/年级方式/预算焦点/时间，
    地区/性别/成绩/补充说明收进详情浮窗）+ 需求详情浮窗
    ============================================================ */
-.demand-title { font-size: 1.12rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; margin-top: 2px; } /* L1：学什么（第一决策，唯一重磅） */
-.demand-sub { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: .85rem; color: var(--ink-3); } /* L2：年级 · 授课方式 */
-.demand-budget { font-family: var(--mono); font-size: 1.05rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; } /* 预算焦点（等宽数字） */
+.demand-title { font-size: 1.15rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; margin-top: 2px; } /* L1：学什么（第一决策，唯一重磅） */
+.demand-sub { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-top: 6px; font-size: .85rem; color: var(--ink-3); } /* L2：年级 · 授课方式 */
+.demand-budget { display: inline-flex; align-items: baseline; gap: 3px; }
+.demand-budget-num { font-family: var(--mono); font-size: 1.2rem; font-weight: 500; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; } /* 预算=数字焦点「大而轻」：大字号+细字重（500） */
+.demand-budget-unit { font-size: .72rem; font-weight: 400; color: var(--muted); } /* 单位小灰 */
+.demand-budget--nego { font-family: var(--mono); font-size: .95rem; font-weight: 500; color: var(--ink-3); } /* 面议：无单位，弱一档 */
 .demand-quiet { margin-top: 6px; font-size: .76rem; color: var(--muted); } /* L3：期望时间 */
 /* 详情浮窗：分组流式排布（无表格），间距节奏与资料右栏同语言 */
 .demand-detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }

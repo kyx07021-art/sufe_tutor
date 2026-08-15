@@ -964,7 +964,13 @@ function renderDemandCard(d, opts = {}) {
     : editable && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="openDemandModal(${d.id})">${UI.BTN_EDIT}</button>` : '')
     // 管理员移除按钮放开到全部状态（含已签约 contracted，服务端 force 路径同事务清引用）
     + (admin ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="confirmDeleteDemand(${d.id}, true)">${UI.BTN_REMOVE}</button>` : '');
-  const budget = DISP.demandBudgetText(d);
+  // 预算「大而轻」：数字大字号细字重 + 单位小灰；面议无单位（同教师卡 tc-num--price/tc-unit 模型）
+  const budgetNum = (d.budget_min || d.budget_max)
+    ? `${d.budget_min || UI.BUDGET_NO_LIMIT}~${d.budget_max || UI.BUDGET_NO_LIMIT}`
+    : '';
+  const budget = budgetNum
+    ? `<span class="demand-budget"><span class="demand-budget-num">${escHtml(budgetNum)}</span><span class="demand-budget-unit">${escHtml(UI.BUDGET_UNIT_SUFFIX)}</span></span>`
+    : `<span class="demand-budget demand-budget--nego">${escHtml(UI.BUDGET_NEGOTIABLE)}</span>`;
 
   // 海报式信息取舍：卡面只留「学什么 + 年级/方式 + 预算焦点 + 期望时间」，
   // 地区/性别/提交者/成绩明细/补充说明收进详情浮窗（openDemandDetail）。

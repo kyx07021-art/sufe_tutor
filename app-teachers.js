@@ -155,7 +155,9 @@ function renderTeacherCard(t) {
   // 信息取舍：卡面只留「身份 + 两个决策锚点 + 教什么」，其余（地区/性别/方式/时间/成绩/简介）
   // 收进资料右栏详情——卡面是海报不是清单。
   const subjectsLine = (t.subjects || []).map(sid => DISP.subjectName(sid)).filter(Boolean).join('、');
-  const priceLine = DISP.priceRangeText(t.price_min, t.price_max, UI.PRICE_UNIT);
+  // 报价「大而轻」：数字大字号 + 细字重（500）+ mono，单位拆出变小灰——焦点靠字号不靠加粗
+  const priceNum = DISP.priceRangeText(t.price_min, t.price_max, '');
+  const hasPrice = !!priceNum;
   const matchBtn = t._matchForStudent
     ? `<button type="button" class="tag-match match-btn match-btn--${matchLevel(t._matchForStudent.md)} glass glass--pressable" data-id="${t.user_id}" onclick="showTeacherMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${t._matchForStudent.md}%${UI.TAG_MATCH_HINT}</button>`
     : (isStudent && !_studentOpenDemand ? `<span class="tc-match--hint">${escHtml(UI.TAG_MATCH_NO_DEMAND)}</span>` : '');
@@ -167,7 +169,7 @@ function renderTeacherCard(t) {
       </div>
       <div class="tc-metrics">
         <span class="tc-metric tc-metric--rating">${DISP.starsHtml(t.rating)}<span class="tc-rating-num">${DISP.ratingText(t.rating)}</span></span>
-        ${priceLine ? `<span class="tc-metric tc-metric--price">${escHtml(priceLine)}</span>` : ''}
+        ${hasPrice ? `<span class="tc-metric"><span class="tc-num tc-num--price">${escHtml(priceNum)}</span><span class="tc-unit">${escHtml(UI.PRICE_UNIT)}</span></span>` : ''}
         ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
       </div>
       ${subjectsLine ? `<div class="tc-subjects">${escHtml(subjectsLine)}</div>` : ''}
@@ -504,8 +506,9 @@ const PROFILE_CARD_ITEMS = [
   }},
   // R2-5 报价区间（未填显占位，与教师卡 priceRangeText 同口径；报价=核心决策数值，加粗突出）
   { key: 'price', group: 'academic', label: UI.LABEL_PRICE, render: h => {
-    const v = DISP.priceRangeText(h.t.price_min, h.t.price_max, UI.PRICE_UNIT);
-    return v ? { v: `<span class="profile-price">${escHtml(v)}</span>` } : h.empty(UI.PROFILE_FIELD_EMPTY);
+    // 报价「大而轻」：数字大字号细字重 + 单位小灰（同教师卡 tc-num--price/tc-unit 模型）
+    const num = DISP.priceRangeText(h.t.price_min, h.t.price_max, '');
+    return num ? { v: `<span class="profile-price"><span class="profile-price-num">${escHtml(num)}</span><span class="profile-price-unit">${escHtml(UI.PRICE_UNIT)}</span></span>` } : h.empty(UI.PROFILE_FIELD_EMPTY);
   }},
   // —— 非学科类资料：擅长非学科项目（项目名 + 对应报价区间） ——
   { key: 'nonacademic', group: 'nonacademic', label: UI.LABEL_NONACADEMIC_PROJECTS, render: h => {
