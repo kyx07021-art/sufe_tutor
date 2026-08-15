@@ -2169,9 +2169,9 @@ export async function dbListTeacherVerifications(db, status) {
   const args = status && status !== 'all' ? [status] : [];
   const rows = await dbAll(db, `SELECT v.*, u.username FROM teacher_verifications v
       JOIN users u ON u.id=v.user_id${where} ORDER BY v.created_at DESC`, args);
-  // 安全审计 M1：verify_code 加密落库，管理端列表解密（管理员核验需明文查证，同 wechat 管理端解密口径）
-  for (const r of rows) { r.verify_code = (await decryptField(r.verify_code)) || ''; }
-  return rows;
+  // 安全审计 M1：verify_code 加密落库，管理端列表解密（管理员核验需明文查证，同 wechat 管理端解密口径）。
+  // map 返回新对象（不改原 row——D1 返回行可能只读，ESM 严格模式赋值抛 TypeError → 列表 500 生产实证）
+  return Promise.all(rows.map(async r => ({ ...r, verify_code: (await decryptField(r.verify_code)) || '' })));
 }
 
 // v1.2.0 T6：管理员按 id 查核验记录
