@@ -67,10 +67,11 @@ async function migrateLegacyRoles(db, adminNames) {
   const meta = await dbGet(db, "SELECT sql FROM sqlite_master WHERE type='table' AND name='users'");
   if (!meta || meta.sql.includes("'admin'")) return;
 
+  // users 专属重建（角色 CHECK + banned 列；users 被全站 FK 引用，重建必须全表闭包——
+  // 旧库该迁移本身重建全表使引用方 FK 一并重建，勿拆）。非 users 表重建见 rebuildTables。
   const exists = async t => !!(await dbGet(db, "SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name=?", [t]));
   const oldColsOf = async t => (await dbAll(db, `PRAGMA table_info(${t})`)).map(c => c.name);
   const sharedCols = (old, fresh) => fresh.filter(c => old.includes(c));
-
   // 迁移目标（父先于子）：新表 DDL 与初始 batch 当前形状一致；cols 用于交集拷贝
   const T = [
     {
@@ -174,12 +175,78 @@ async function migrateLegacyRoles(db, adminNames) {
         FOREIGN KEY (verified_by) REFERENCES users(id))`,
     },
   ];
+  const ready = [];
+  for (const p of T) {
+    if (!(await exists(p.t))) continue;
+    const old = await oldColsOf(p.t);
+    const cols = sharedCols(old, p.cols).join(',');
+    ready.push({ ...p, cols });
+  }
+  if (!ready.length) return;
+  const stmts = [];
+  for (const p of ready) {
+    stmts.push(db.prepare(`ALTER TABLE ${p.t} RENAME TO _${p.t}_old`));
+    stmts.push(db.prepare(p.ddl));
+    if (p.cols) stmts.push(db.prepare(`INSERT INTO ${p.t}_new (${p.cols}) SELECT ${p.cols} FROM _${p.t}_old`));
+    if (p.t === 'users' && adminNames.length) {
+      stmts.push(db.prepare(`UPDATE users_new SET role='admin' WHERE username IN (${adminNames.map(() => '?').join(',')})`).bind(...adminNames));
+    }
+    stmts.push(db.prepare(`ALTER TABLE ${p.t}_new RENAME TO ${p.t}`));
+  }
+  for (const p of [...ready].reverse()) stmts.push(db.prepare(`DROP TABLE _${p.t}_old`));
+  await db.batch(stmts);
+}
+
+// ============================================================
+// 表结构重建（父先于子）：旧表整体改名腾位 → 建当前形状新表 → 列交集拷贝 → 删旧。
+// 幂等（sharedCols 交集 + IF NOT EXISTS）；仅 schema 版本落后时由 runFullMigration 调用。
+// 契约：任何需要「删列/改约束/改表形」的变更必须 SCHEMA_VERSION +1 并在此数组更新
+// 目标 DDL（纯 ensureColumns 加列不需要重建）。
+// ============================================================
+async function rebuildTables(db, adminNames) {
+  const exists = async t => !!(await dbGet(db, "SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name=?", [t]));
+  const oldColsOf = async t => (await dbAll(db, `PRAGMA table_info(${t})`)).map(c => c.name);
+  const sharedCols = (old, fresh) => fresh.filter(c => old.includes(c));
+
+  // 迁移目标（父先于子）：新表 DDL 与初始 batch 当前形状一致；cols 用于交集拷贝。
+  // 注意：仅保留「无被引用表」（invite_codes/reviews）——被 FK 引用的表（users/teacher_profiles/
+  // student_demands 等）重建会把引用方 FK 改写为 _old 名且不改正（SQLite RENAME 语义），
+  // 部分重建即 FK 悬空；其加列走 ensureColumns，删列类变更需先做引用闭包重建设计。
+  const T = [
+    {
+      t: 'reviews',
+      cols: ['id', 'teacher_user_id', 'reviewer_user_id', 'rating', 'comment', 'status', 'created_at', 'reviewed_at', 'reviewed_by'],
+      ddl: `CREATE TABLE reviews_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, teacher_user_id INTEGER NOT NULL,
+        reviewer_user_id INTEGER NOT NULL, rating INTEGER NOT NULL CHECK(rating>=1 AND rating<=5),
+        comment TEXT NOT NULL, status TEXT DEFAULT 'pending'
+          CHECK(status IN ('pending','approved','rejected')),
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        reviewed_at DATETIME, reviewed_by INTEGER,
+        FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
+    },
+    {
+      t: 'invite_codes',
+      cols: ['code', 'created_by', 'created_at', 'used_by', 'used_at'],
+      ddl: `CREATE TABLE invite_codes_new (
+        code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        used_by INTEGER DEFAULT NULL,
+        used_at DATETIME DEFAULT NULL,
+        FOREIGN KEY (created_by) REFERENCES users(id),
+        FOREIGN KEY (used_by) REFERENCES users(id))`,
+    },
+  ];
 
   // 先查存在性 + 旧表列交集（PRAGMA 均在 batch 前执行）
   const ready = [];
   for (const p of T) {
     if (!(await exists(p.t))) continue;
     const old = await oldColsOf(p.t);
+    // v1.2.0：结构一致（新旧列名集合相同）→ 跳过重建（幂等优化：全新库/无重建型变更零开销；
+    // 重建只由「删列/改表形」类变更触发——列差异即信号，如 invite_codes 去 expires_at）
+    if (old.length === p.cols.length && p.cols.every(c => old.includes(c))) continue;
     const cols = sharedCols(old, p.cols).join(',');
     ready.push({ ...p, cols });
   }
@@ -233,6 +300,7 @@ async function runFullMigration(db, env) {
   // 遗留角色迁移必须先于初始建表执行：否则新建子表的 FK 会在改名腾位时被改写指向 _*_old，
   // 随后 _*_old 被删 → 子表 FK 悬空，全站 INSERT 报 no such table。
   await migrateLegacyRoles(db, adminNames);
+  await rebuildTables(db, adminNames); // v1.2.0：表重建（删列/改表形）与 users 角色迁移解耦，幂等
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
