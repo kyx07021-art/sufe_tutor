@@ -972,9 +972,11 @@ function renderDemandCard(d, opts = {}) {
     ? `<span class="demand-budget"><span class="demand-budget-num">${escHtml(budgetNum)}</span><span class="demand-budget-unit">${escHtml(UI.BUDGET_UNIT_SUFFIX)}</span></span>`
     : `<span class="demand-budget demand-budget--nego">${escHtml(UI.BUDGET_NEGOTIABLE)}</span>`;
 
-  // 海报式信息取舍：卡面只留「学什么 + 年级/方式 + 预算焦点 + 期望时间」，
-  // 地区/性别/提交者/成绩明细/补充说明收进详情浮窗（openDemandDetail）。
+  // v1.3.0 结构性重构（海报式分区）：行1 header（提交者弱化+类型/匹配度徽章+时间编号）、
+  // 行2 科目海报主标题、行3 元数据合并一条（年级·方式·期望时间）、行4 预算焦点带（独立大而轻）、
+  // 行5 动作区（联系提示+意向/编辑/推送按钮）。地区/性别/成绩/补充收详情浮窗。
   const timeLine = DISP.expectedTimeText(d.expected_time);
+  const metaParts = [grade, method, timeLine ? `${UI.LABEL_EXPECTED_TIME}${timeLine}` : ''].filter(Boolean);
   // 卡片「试课意向 (N)」
   // 展开按钮从 .drop-toggle glass--solid（实心 9px）接回 .btn-soft btn-sm 按钮组件——与并排「编辑」
   // 按钮完全同族（透明磨砂+12px+白洗+涟漪）；btn-intent-toggle 新类供引导/移动端 flex-shrink 定位。
@@ -988,11 +990,8 @@ function renderDemandCard(d, opts = {}) {
       </span>
     </div>
     ${(subjNames || []).length ? `<div class="demand-title">${escHtml((subjNames || []).join('、'))}</div>` : ''}
-    <div class="demand-sub">
-      ${[grade, method].filter(Boolean).map(escHtml).join(' · ')}
-      ${budget || ''}
-    </div>
-    ${timeLine ? `<div class="demand-quiet">${UI.LABEL_EXPECTED_TIME} ${escHtml(timeLine)}</div>` : ''}
+    ${metaParts.length ? `<div class="demand-sub">${metaParts.map(escHtml).join(' · ')}</div>` : ''}
+    <div class="demand-price">${budget || ''}</div>
     ${push && push.push_message ? `<div class="greet-bubble glass">
       <div class="greet-bubble-head">${UI.GREET_HEAD_STUDENT}</div>
       <div class="greet-bubble-body">${escHtml(push.push_message)}</div>

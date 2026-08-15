@@ -161,19 +161,21 @@ function renderTeacherCard(t) {
   const matchBtn = t._matchForStudent
     ? `<button type="button" class="tag-match match-btn match-btn--${matchLevel(t._matchForStudent.md)} glass glass--pressable" data-id="${t.user_id}" onclick="showTeacherMatchDetail(this)" title="${UI.TAG_MATCH_TITLE}">${UI.TAG_MATCH}${t._matchForStudent.md}%${UI.TAG_MATCH_HINT}</button>`
     : (isStudent && !_studentOpenDemand ? `<span class="tc-match--hint">${escHtml(UI.TAG_MATCH_NO_DEMAND)}</span>` : '');
+  // v1.3.0 结构性重构（海报式分区）：行1 头像(hero)+身份+评分右对齐（信任信号同排）、
+  // 行2 报价焦点带（独立成行大而轻）、行3 科目元数据、行4 动作区右对齐（匹配度/推送并排）
   return `<div class="list-card list-card--teacher glass" role="button" tabindex="0" aria-label="${UI.A11Y_VIEW_PROFILE}" onclick="openTeacherCard(event, ${t.user_id})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openProfilePanel(${t.user_id});}">
-      ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
-      <div class="tc-identity">
-        <span class="tc-name tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${UI.AWARD_SECTION_TITLE}">${UI.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
-        ${t.school || grade ? `<span class="tc-school">${escHtml([t.school, grade].filter(Boolean).join(' · '))}</span>` : ''}
+      <div class="tc-head">
+        ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
+        <div class="tc-identity">
+          <span class="tc-name tc-username">${DISP.usernameHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${UI.VERIFIED_TITLE}">${UI.VERIFIED_BADGE}</span>` : ''}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${UI.AWARD_SECTION_TITLE}">${UI.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
+          ${t.school || grade ? `<span class="tc-school">${escHtml([t.school, grade].filter(Boolean).join(' · '))}</span>` : ''}
+        </div>
+        <div class="tc-rating">${DISP.starsHtml(t.rating)}<span class="tc-rating-num">${DISP.ratingText(t.rating)}</span></div>
       </div>
-      <div class="tc-metrics">
-        <span class="tc-metric tc-metric--rating">${DISP.starsHtml(t.rating)}<span class="tc-rating-num">${DISP.ratingText(t.rating)}</span></span>
-        ${hasPrice ? `<span class="tc-metric"><span class="tc-num tc-num--price">${escHtml(priceNum)}</span><span class="tc-unit">${escHtml(UI.PRICE_UNIT)}</span></span>` : ''}
-        ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
-      </div>
+      ${hasPrice ? `<div class="tc-price"><span class="tc-num tc-num--price">${escHtml(priceNum)}</span><span class="tc-unit">${escHtml(UI.PRICE_UNIT)}</span></div>` : ''}
       ${subjectsLine ? `<div class="tc-subjects">${escHtml(subjectsLine)}</div>` : ''}
       <div class="tc-actions">
+        ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
         ${isStudent ? renderPushBtn(t) : ''}
       </div>
     </div>`;
