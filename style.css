@@ -1447,7 +1447,7 @@ html[data-ui-sampling] *::after {
 .list-card-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; gap: 12px; }
 /* 标题行改 inline-flex + gap——匹配度按钮 PC 同行、移动端独占一行；
    gap 统一元素间距（学科/非学科 tag 与用户名不再紧贴） */
-.list-card-title { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-weight: 800; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; }
+.list-card-title { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; font-weight: 700; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; }
 .list-card-meta { font-size: .74rem; color: var(--muted); font-weight: 500; }
 .list-card-body { display: flex; flex-wrap: wrap; gap: 7px; }
 
@@ -2009,7 +2009,7 @@ body.profile-panel-closing .profile-panel {
   display: flex; flex-direction: column; gap: 14px;
 }
 .profile-loading { padding: 44px 0; text-align: center; color: var(--muted); font-size: .85rem; }
-.profile-card-title { margin-bottom: 10px; font-size: .78rem; font-weight: 800; letter-spacing: .05em; color: var(--ink); }
+.profile-card-title { margin-bottom: 10px; font-size: .78rem; font-weight: 700; letter-spacing: .05em; color: var(--ink); }
 .profile-empty { padding: 6px 0; font-size: .78rem; } /* padding/font-size 由 glass.css 底层组件承接，仅补内容排版 */
 
 /* 卡片①：头像 + 用户名 + 角色；已签约 → 头像右侧绿色小卡 */
@@ -2027,8 +2027,8 @@ body.profile-panel-closing .profile-panel {
 /* 需求六·item1：条目小 title 由纵向居中改向上对齐（align-items: start = 对齐头部而非垂直居中）；
    行间距由 --profile-row-gap 承担（去分隔线后多拉空隙，值单源 CONFIG.PROFILE_ROW_GAP）。 */
 .profile-row { display: grid; grid-template-columns: calc(70px * var(--ui-scale, 1)) 1fr; column-gap: 10px; padding: calc(var(--profile-row-gap, 22px) / 2) 0; align-items: start; } /* 需求六·item5：title 列宽随滑块（防大字换行） */
-.profile-row-k { padding-top: 2px; font-size: .73rem; font-weight: 700; color: var(--muted); }
-.profile-row-v { font-size: .84rem; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
+.profile-row-k { padding-top: 2px; font-size: .68rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; } /* label 降级：小灰标签（Stripe 式 definition list），value 为主角 */
+.profile-row-v { font-size: .9rem; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
 .profile-row-v--muted { color: var(--muted); font-size: .78rem; } /* 占位态：未填写 / 建立会话后展示 / 签约后展示 */
 /* 需求六·item2：资料卡分组大 title —— 占满横向空位分隔不同类型资料（去行分隔线后的段分隔） */
 .profile-group-title {
@@ -2077,7 +2077,7 @@ body.profile-panel-closing .profile-panel {
 .profile-row-note { display: block; margin-top: 2px; font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
 .profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 600; color: var(--ink); } /* 需求六·item5：资料卡 tag 随滑块 */ /* #159：横 padding 对齐 .tag 基类 */
 .profile-rating { display: inline-flex; align-items: center; gap: 8px; } /* 核心决策信息：评分行放大 */
-.profile-rating b { font-size: 1.05rem; font-family: var(--mono); color: var(--ink); }
+.profile-rating-num { font-size: 1.05rem; font-family: var(--mono); font-weight: 500; color: var(--accent-deep); } /* 评分数字：mono + 品牌紫（不加粗，色彩语义） */
 
 /* R2-3/R2-4 性格关键词 / 非学科项目 tag-pick pill：复用勾选框语义但不显示勾选框，
    默认玻璃底（.glass 引擎），选中态软紫 tint + 紫环 */
@@ -2125,12 +2125,12 @@ body.profile-panel-closing .profile-panel {
   font-weight: 600; font-size: 1.06rem; color: var(--ink); letter-spacing: -.01em;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 } /* 可点性移交整卡（.list-card--teacher 聚焦效果），用户名不单独可点 */
-.tc-school { font-size: .88rem; font-weight: 500; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-school { font-size: .85rem; font-weight: 400; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tc-metrics { grid-column: 2; display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
 .tc-metric { display: inline-flex; align-items: center; gap: 5px; }
 .tc-metric--rating .stars { font-size: .9rem; }
-.tc-metric--rating b { font-family: var(--mono); font-size: .95rem; font-weight: 600; color: var(--ink); }
-.tc-metric--price { font-family: var(--mono); font-size: 1.1rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
+.tc-rating-num { font-family: var(--mono); font-size: .9rem; font-weight: 500; color: var(--accent-deep); } /* 评分=信任信号：mono + 品牌紫（不加粗，靠色彩语义） */
+.tc-metric--price { font-family: var(--mono); font-size: 1.05rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; }
 .tc-match { display: inline-flex; } /* 匹配度按钮不进 .tc-username 防 ellipsis 裁剪（需求五·item5） */
 .tc-match--hint { font-size: .72rem; color: var(--muted); } /* 学生无开放需求时匹配度位置小灰字提示 */
 .tc-subjects { grid-column: 2; font-size: .78rem; color: var(--muted); }
@@ -2161,7 +2161,7 @@ body.profile-panel-closing .profile-panel {
   .tc-username { font-size: .88rem; white-space: normal; }
   .tc-school { font-size: .78rem; }
   .tc-metric--rating .stars { font-size: .74rem; }
-  .tc-metric--rating b { font-size: .8rem; }
+  .tc-rating-num { font-size: .8rem; }
   .tc-metric--price { font-size: .95rem; }
   .tc-subjects { font-size: .7rem; }
 
@@ -2443,9 +2443,9 @@ body.profile-panel-closing .profile-panel {
    需求卡海报式三层（v1.0.3：卡面只留学什么/年级方式/预算焦点/时间，
    地区/性别/成绩/补充说明收进详情浮窗）+ 需求详情浮窗
    ============================================================ */
-.demand-title { font-size: 1.08rem; font-weight: 600; color: var(--ink); letter-spacing: -.01em; margin-top: 2px; } /* L1：学什么（第一决策） */
+.demand-title { font-size: 1.12rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; margin-top: 2px; } /* L1：学什么（第一决策，唯一重磅） */
 .demand-sub { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-top: 6px; font-size: .85rem; color: var(--ink-3); } /* L2：年级 · 授课方式 */
-.demand-budget { font-family: var(--mono); font-size: 1.02rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; } /* 预算焦点（等宽数字） */
+.demand-budget { font-family: var(--mono); font-size: 1.05rem; font-weight: 600; color: var(--ink); letter-spacing: -.02em; } /* 预算焦点（等宽数字） */
 .demand-quiet { margin-top: 6px; font-size: .76rem; color: var(--muted); } /* L3：期望时间 */
 /* 详情浮窗：分组流式排布（无表格），间距节奏与资料右栏同语言 */
 .demand-detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }

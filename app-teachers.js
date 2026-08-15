@@ -166,7 +166,7 @@ function renderTeacherCard(t) {
         ${t.school || grade ? `<span class="tc-school">${escHtml([t.school, grade].filter(Boolean).join(' · '))}</span>` : ''}
       </div>
       <div class="tc-metrics">
-        <span class="tc-metric tc-metric--rating">${DISP.starsHtml(t.rating)}<b>${DISP.ratingText(t.rating)}</b></span>
+        <span class="tc-metric tc-metric--rating">${DISP.starsHtml(t.rating)}<span class="tc-rating-num">${DISP.ratingText(t.rating)}</span></span>
         ${priceLine ? `<span class="tc-metric tc-metric--price">${escHtml(priceLine)}</span>` : ''}
         ${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}
       </div>
@@ -461,7 +461,7 @@ const profileNote = text => `<span class="profile-row-note">${escHtml(text)}</sp
 
 const PROFILE_CARD_ITEMS = [
   // —— 独立评分行（无分组 title，恒顶置） ——
-  { key: 'rating', group: 'top', label: UI.LABEL_RATING, render: h => ({ v: `<span class="profile-rating">${DISP.starsHtml(h.t.rating)}<b>${DISP.ratingText(h.t.rating)}</b></span>` }) },
+  { key: 'rating', group: 'top', label: UI.LABEL_RATING, render: h => ({ v: `<span class="profile-rating">${DISP.starsHtml(h.t.rating)}<span class="profile-rating-num">${DISP.ratingText(h.t.rating)}</span></span>` }) },
   // —— 基本资料：地区/年级/学校/性别/地址/授课方式/可授课时间段/性格关键词/个人简介（简介挪上边） ——
   { key: 'region', group: 'basic', label: UI.SECTION_REGION, render: h => h.plain(DISP.provinceName(h.t.province)) },
   { key: 'grade', group: 'basic', label: UI.LABEL_GRADE, render: h => h.plain(DISP.teacherGradeName(h.t.grade)) },
