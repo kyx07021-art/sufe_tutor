@@ -1444,6 +1444,9 @@ html[data-ui-sampling] *::after {
   padding: 20px 22px; margin-bottom: 12px;
   position: relative; overflow: hidden; isolation: isolate;
 }
+/* v1.4.0：卡片可点反馈（原理#87/#88）——整卡可点必须有 hover 提亮 + focus-visible 焦点环；
+   .glass 背景在 hover 时提亮（提亮面），focus 用品牌色焦点环（同按钮焦点环语言） */
+.list-card:focus-visible { outline: 2px solid var(--accent, #7c5cff); outline-offset: 2px; }
 .list-card-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; gap: 12px; }
 /* 标题行改 inline-flex + gap——匹配度按钮 PC 同行、移动端独占一行；
    gap 统一元素间距（学科/非学科 tag 与用户名不再紧贴） */
@@ -1663,7 +1666,7 @@ html[data-ui-sampling] *::after {
   display: flex; align-items: center; justify-content: space-between;
   padding: 22px 24px 16px;
 } /* 去独立玻璃层/分隔线/sticky——标题直接坐弹窗顶端，整页滚动，无内滚通道 */
-.modal-header h2 { font-size: 1.15rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
+.modal-header h2 { font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; color: var(--ink); } /* v1.4.0：字重 800→700（原理#42 字重纪律：600/700 并存是混乱，标题用字号不用字重堆层次） */
 .modal-body { padding: 20px 24px 24px; }
 .modal-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; }
 .modal-footer-start { margin-right: auto; }
@@ -2115,7 +2118,7 @@ body.profile-panel-closing .profile-panel {
 }
 
 /* 学生需求卡：头像占与教师卡同宽的左区，卡身整体右移 */
-.list-card--demand { display: flex; gap: 20px; align-items: flex-start; }
+.list-card--demand { display: flex; gap: 20px; align-items: flex-start; --g-hover: var(--g-hover-wash); } /* v1.4.0：需求卡同款 hover 提亮（与 teacher 卡一致——整卡可点必须有反馈，原理#87） */
 .demand-avatar { width: 108px; height: 108px; font-size: 2.6rem; }
 .demand-card-main { flex: 1; min-width: 0; }
 
@@ -2462,9 +2465,11 @@ body.profile-panel-closing .profile-panel {
 .demand-detail-name { font-size: 1.05rem; font-weight: 600; color: var(--ink); }
 .demand-detail-tags { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
 .demand-detail-sec { margin-top: 18px; }
-.demand-detail-flow { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 8px; }
-.demand-detail-item { font-size: .85rem; color: var(--ink-3); }
-.demand-detail-item--price { font-family: var(--mono); font-weight: 600; color: var(--ink); }
+.demand-detail-rows { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+.demand-detail-row { display: grid; grid-template-columns: calc(84px * var(--ui-scale, 1)) 1fr; column-gap: 12px; align-items: baseline; }
+.demand-detail-k { font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.demand-detail-v { font-size: .9rem; color: var(--ink); overflow-wrap: anywhere; }
+.demand-detail-v--price { font-family: var(--mono); font-size: 1.05rem; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
 .demand-detail-text { margin-top: 8px; font-size: .85rem; color: var(--ink-3); line-height: 1.65; }
 
 /* ============================================================

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.3.1',
+  APP_VERSION: '1.4.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1288,10 +1288,12 @@ globalThis.APP_CONSTANTS = {
     REVIEW_LOCKED_HINT: '与这位老师签约后，即可写下你的评价',
     LABEL_GRADE: '年级',
     LABEL_GENDER: '性别',
+    LABEL_METHOD: '教学方式',
     LABEL_PRICE: '报价',
     LABEL_INTRO: '简介',
     LABEL_GAOKAO_SCORES: '高考成绩',
     LABEL_SUBJECT: '科目', // #158：需求大厅筛选标签
+    DEMAND_DETAIL_TITLE_FALLBACK: '需求详情', // v1.4.0：详情浮窗标题=科目主语（原理#78）；无科目时的兜底
     // #158：需求大厅排序 + 筛选
     DEMAND_SORT_MATCH: '匹配度最高',
     DEMAND_SORT_NEWEST: '最新发布',
@@ -2007,6 +2009,7 @@ globalThis.APP_CONSTANTS = {
     LABEL_SHANGHAI_RESIDENCE: '上海常住地', // 教师档案第二地址（区别于高考省份；线下距离匹配用）
     SHANGHAI_RESIDENCE_NOTE: '仅上海线下订单参与距离匹配（选至镇/街道即可，精确位置后续自行沟通）',
     LABEL_BUDGET: '预算区间（元/小时）',
+    LABEL_BUDGET_SHORT: '预算', // v1.4.0：详情浮窗预算行短标签（LABEL_BUDGET 是表单文案，值与单位已含「元/h」）
     PLACEHOLDER_MIN: '最低',
     PLACEHOLDER_MAX: '最高',
     LABEL_EXPECTED_TIME: '期望开课时间',   // 结构化：文本输入 → 多条时间组件（周次+时段 JSON 落库）

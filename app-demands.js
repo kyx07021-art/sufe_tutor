@@ -1453,15 +1453,31 @@ function openDemandDetail(id) {
   const budget = DISP.demandBudgetText(d);
   const timeLine = DISP.expectedTimeText(d.expected_time);
   const subjNames = DISP.demandTargetNameList(d.target_subjects, d.target_type);
-  const scoreCells = (d.current_scores || []).map(cs => ({ subj: DISP.subjectName(cs.subject), val: DISP.demandScoreCell(cs) })).filter(c => c.val);
+  // v1.3.2：val（demandScoreCell）已含「数学: 88分/100分制」完整语义——不再拼 subj 前缀（曾致「数学 数学: …」重复）
+  const scoreCells = (d.current_scores || []).map(cs => DISP.demandScoreCell(cs)).filter(Boolean);
   const scorePills = scoreCells.length
-    ? scoreCells.map(c => `<span class="demand-subj-pill glass glass--solid">${escHtml(c.subj)} ${escHtml(c.val)}</span>`).join('')
+    ? scoreCells.map(v => `<span class="demand-subj-pill glass glass--solid">${escHtml(v)}</span>`).join('')
     : (subjNames || []).map(n => `<span class="demand-subj-pill glass glass--solid">${escHtml(n)}</span>`).join('');
   const typeBadge = d.target_type === DEMAND_TYPES.NONACADEMIC ? UI.BADGE_TYPE_NONACADEMIC : UI.BADGE_TYPE_ACADEMIC;
   const statusTag = d.status === STATUS.CONTRACTED ? `<span class="tag tag-ok glass glass--solid">${UI.DEMAND_TAG_CONTRACTED}</span>`
     : d.status === STATUS.REVOKED ? `<span class="tag tag-warn glass glass--solid">${UI.DEMAND_TAG_REVOKED}</span>` : '';
+  // v1.3.2：详情行（label 小灰 + value 深色，与资料栏 .profile-row 同语言）——替代原 flex 横排堆叠
+  const row = (k, v) => `<div class="demand-detail-row"><span class="demand-detail-k">${escHtml(k)}</span><span class="demand-detail-v">${v}</span></div>`;
+  const arrangeRows = [
+    grade ? row(UI.LABEL_GRADE, escHtml(grade)) : '',
+    provinceName ? row(UI.LABEL_PROVINCE, escHtml(provinceName)) : '',
+    row(UI.LABEL_METHOD, escHtml(method)),
+    budget ? row(UI.LABEL_BUDGET_SHORT, `<span class="demand-detail-v--price">${escHtml(budget)}</span>`) : '',
+    timeLine ? row(UI.LABEL_EXPECTED_TIME, escHtml(timeLine)) : '',
+    d.address ? row(UI.ADDRESS_PREFIX, escHtml(d.address)) : '',
+  ].filter(Boolean).join('');
+  const studentRows = [
+    gender ? row(UI.LABEL_GENDER, escHtml(gender)) : '',
+    row(UI.SUBMITTER_PREFIX, escHtml(submitter)),
+  ].filter(Boolean).join('');
   openModal({
-    title: `${d.display_id ? DISP.demandIdText(d.display_id) + ' · ' : ''}${DISP.usernameHtml(d.username || '')}的需求`,
+    // v1.3.2：标题=科目（主角），不再塞需求 id 与「的需求」后缀；提交者在正文头部
+    title: (subjNames || []).join('、') || UI.DEMAND_DETAIL_TITLE_FALLBACK,
     cls: 'modal--wide',
     body: `<div class="demand-detail">
       <div class="demand-detail-head">
@@ -1477,19 +1493,11 @@ function openDemandDetail(id) {
       </div>
       <div class="demand-detail-sec">
         <div class="profile-group-title">${UI.DEMAND_DETAIL_ARRANGE}</div>
-        <div class="demand-detail-flow">
-          ${[grade, provinceName, method].filter(Boolean).map(v => `<span class="demand-detail-item">${escHtml(v)}</span>`).join('')}
-          ${budget ? `<span class="demand-detail-item demand-detail-item--price">${escHtml(budget)}</span>` : ''}
-          ${timeLine ? `<span class="demand-detail-item">${UI.LABEL_EXPECTED_TIME} ${escHtml(timeLine)}</span>` : ''}
-          ${d.address ? `<span class="demand-detail-item">${UI.ADDRESS_PREFIX}${escHtml(d.address)}</span>` : ''}
-        </div>
+        <div class="demand-detail-rows">${arrangeRows}</div>
       </div>
       <div class="demand-detail-sec">
         <div class="profile-group-title">${UI.DEMAND_DETAIL_STUDENT}</div>
-        <div class="demand-detail-flow">
-          ${gender ? `<span class="demand-detail-item">${escHtml(gender)}</span>` : ''}
-          <span class="demand-detail-item">${UI.SUBMITTER_PREFIX}${escHtml(submitter)}</span>
-        </div>
+        <div class="demand-detail-rows">${studentRows}</div>
       </div>
       ${d.additional_info ? `<div class="demand-detail-sec">
         <div class="profile-group-title">${UI.LABEL_ADDITIONAL_INFO}</div>
