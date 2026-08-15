@@ -373,6 +373,7 @@ test('脚本完整性：非空、target 形状合法、page id 存在于 ROLE_PA
     assert.ok(steps.length > 0, `${name} 非空`);
     steps.forEach((raw, i) => {
       const s = expand(raw);
+      if (s.skip) return; // v1.4.5：skip 步骤（条件分支不成立时引擎直接推进）无文案/无亮区——跳过断言
       assert.ok(s.text && s.text.length > 0, `${name} 第 ${i + 1} 步有文案`);
       assert.ok(s.module, `${name} 第 ${i + 1} 步带模块标记`);
       const t = s.target || {};
@@ -699,4 +700,28 @@ test('afterAuthSuccess()（登录）：不跑 tour', async () => {
   assert.equal(st.view, 'client', '客户端视图');
   assert.equal(st.tour, false, '登录不自动跑 tour');
   await vm.runInContext('stopBadgePoll(); stopVersionProbe();', ctx);
+});
+
+// v1.4.5（审计要求）：未验证学信网教师——验证门步显示验证门引导 + 表单步骤 skip（生产时序修复回归）
+test('学信网门控：未验证教师走验证门引导，表单步骤跳过（applyChsiGate 落定后）', async () => {
+  const { dom, ctx, fns, UI } = makeCtx();
+  await setupClient(ctx, { user: { role: 'teacher', id: 3, username: 't', avatar: '' } });
+  // 模拟未验证：applyChsiGate 落定 = gate 去 hidden（验证门填充）
+  vm.runInContext(`(() => {
+    const gate = document.getElementById('chsi-gate');
+    if (gate) gate.classList.remove('hidden');
+  })()`, ctx);
+  await tick(30);
+  const steps = fns.TOUR_SCRIPTS.teacherUser();
+  const expand = raw => { let st = raw; while (typeof st === 'function') st = st(); return st; };
+  const idxEdit = steps.findIndex(s => { const e = expand(s); return e.module === 'edit-profile' && e.text === UI.TOUR_STEP_EDIT_PROFILE; });
+  assert.ok(idxEdit >= 0, '找到 edit-profile 入口步');
+  const chsiStep = expand(steps[idxEdit + 1]);
+  assert.ok(chsiStep.target && chsiStep.target.sel === '#chsi-gate', '入口步后是验证门步（亮验证门）');
+  assert.ok(chsiStep.text.includes('学信网'), '验证门步文案引导学信网验证');
+  // 表单步骤全部 skip（未验证时表单隐藏）
+  for (let i = idxEdit + 2; i < idxEdit + 7; i++) {
+    const st = expand(steps[i]);
+    assert.ok(st.skip, `未验证教师第 ${i + 1} 步（表单介绍）应 skip`);
+  }
 });

@@ -568,18 +568,20 @@ function tourStepContractActions() { return { module: 'my-contracts', target: { 
 // ---- 个人资料（教师编辑档案）----
 // v1.4.4（用户反馈）：教师信息页已学信网门控——默认引导引导尽快上传学信网证明；
 // 已验证用户走模块引导（介绍表单组件），信息项介绍保留供重温（状态判断自动切换）。
-function tourStepEditProfile() { return () => {
-  // 到达时页面已切 edit-profile。就绪判据（v1.4.5 审计修复）：applyChsiGate（async——dhGet profile 后落定）
-  // 落定前骨架是 gate hidden + info hidden——与「已验证」无法区分，必须等落定标记：
-  // 未验证 → gate 去 hidden（填充验证门）；已验证 → info 去 hidden（显示学信网信息）——两者任一即就绪。
-  // 未就绪 → retry 停留（引擎 350ms 重求值）——避免后续表单步骤在 applyChsiGate 落定前误判跳过。
+function tourStepEditProfile() { return { module: 'edit-profile', target: { page: 'edit-profile' }, text: UI.TOUR_STEP_EDIT_PROFILE }; }
+// v1.4.5 修正：验证门步（切页后、表单步骤前）——applyChsiGate（async，dhGet profile 后落定）落定前
+// gate/info 骨架 hidden，无法区分未验证/已验证 → retry 停留重试；落定后：未验证 → 验证门引导、
+// 已验证 → skip（表单步骤照常）。注意：等待必须在此步（页面已切、initProfileForm 已触发），
+// 不能放在 edit-profile 入口步（页面未切时 applyChsiGate 不会跑——retry 死循环，生产实证）。
+function tourStepChsiGate() { return () => {
   const gate = document.getElementById('chsi-gate');
   const info = document.getElementById('chsi-info');
   const gateReady = gate && !gate.classList.contains('hidden');
   const verifiedReady = info && !info.classList.contains('hidden');
-  if (!gateReady && !verifiedReady) return { retry: true, text: UI.TOUR_STEP_EDIT_PROFILE }; // 门控未落定：停留重试
-  if (gateReady) return { module: 'edit-profile', target: { sel: '#chsi-gate' }, text: UI.TOUR_STEP_CHSI_GATE };
-  return { module: 'edit-profile', target: { page: 'edit-profile' }, text: UI.TOUR_STEP_EDIT_PROFILE };
+  if (!gateReady && !verifiedReady) return { retry: true, text: UI.TOUR_STEP_CHSI_GATE };
+  return gateReady
+    ? { module: 'edit-profile', target: { sel: '#chsi-gate' }, text: UI.TOUR_STEP_CHSI_GATE }
+    : { skip: true };
 }; }
 // 表单介绍步骤：未验证学信网时表单不存在 → skip（验证门引导已覆盖，无需逐项介绍）
 function _tourProfileFormStep(stepFn) { return () => {
@@ -587,7 +589,7 @@ function _tourProfileFormStep(stepFn) { return () => {
   const info = document.getElementById('chsi-info');
   const gateReady = gate && !gate.classList.contains('hidden');
   const verifiedReady = info && !info.classList.contains('hidden');
-  if (!gateReady && !verifiedReady) return { retry: true, text: stepFn().text }; // 门控未落定：停留重试
+  if (!gateReady && !verifiedReady) return { retry: true, text: stepFn().text }; // 门控未落定：停留重试（防御——验证门步已等过）
   return gateReady ? { skip: true } : stepFn(); // 未验证：表单隐藏跳过；已验证：正常介绍
 }; }
 function tourStepProfileForm()      { return _tourProfileFormStep(() => ({ module: 'edit-profile', target: { sel: '.profile-form' }, text: UI.TOUR_STEP_PROFILE_FORM })); }
@@ -720,6 +722,7 @@ const TOUR_SCRIPTS = {
     tourStepContractCard(),
     tourStepContractActions(),
     tourStepEditProfile(),
+    tourStepChsiGate(),
     tourStepProfileForm(),
     tourStepProfileSubjects(),
     tourStepProfilePrice(),
