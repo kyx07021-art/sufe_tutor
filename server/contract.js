@@ -20,9 +20,10 @@ import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin,
   dbDeleteContract, // 取消/撤销不再删行（合同保留），仅 admin remove 用
-  dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
+  dbGetConversationWithNames, dbGetDemandById, dbCreateMessage, dbGetTeacherProfile,
   dbReleaseDemandAfterRevoke, // 撤销/管理员删合同后释放绑定需求（contracted→revoked）
 } from './db.js';
+import { acceptEligibility } from './routes-teacher.js'; // v1.2.0 T3：教师接单资格（chsi 核验 + 必填齐全）
 import { notifyUser } from './notify.js';
 import { logEvent } from './log.js';
 import '../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
@@ -295,6 +296,12 @@ export async function handleCreateContract(db, body, req) {
   const conversationId = parseInt(body.conversationId);
   const conv = await dbGetConversationWithNames(db, conversationId);
   if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
+
+  // v1.2.0 T3：签约创建 = 成交动作，教师方须过接单资格（学信网核验 + 必填齐全）——学生发起时校验对端教师
+  const teacherId = me.role === 'teacher' ? userId : conv.teacher_user_id;
+  const tProf = await dbGetTeacherProfile(db, teacherId);
+  const el = acceptEligibility(tProf);
+  if (!el.ok) return error(el.reason === 'CHSI_UNVERIFIED' ? MSG.CHSI_VERIFY_REQUIRED : MSG.PROFILE_COMPLETE_REQUIRED, 403, el.reason);
 
   const method = body.method === 'offline' ? 'offline' : 'online';
   const plan = String(body.plan || '').slice(0, LIMITS.CONTRACT_PLAN_MAX);

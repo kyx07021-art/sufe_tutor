@@ -19,6 +19,7 @@ import {
 } from './db.js';
 import { logEvent } from './log.js';
 import { notifyUser } from './notify.js';
+import { acceptEligibility } from './routes-teacher.js'; // v1.2.0 T3：接单资格统一判定（chsi 核验 + 必填齐全）
 
 const UIC = globalThis.APP_CONSTANTS.UI; // 接受/拒绝通知文案（constants.js 收口）
 
@@ -277,12 +278,11 @@ export async function handleCreateIntent(db, demandId, body, req) {
   if (!demand0) return error(MSG.DEMAND_NOT_FOUND, 404);
   if (demand0.status === STATUS.CONTRACTED || demand0.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求停止接收意向（服务端硬门禁；撤销后须重开）
 
-  // 档案完整性门槛：必填项（省份/年级/性别/科目/报价）齐全才许接单；price_min==null 才是未填（0 是合法报价）
-  // R2-5：报价区间化后完整性按最低报价判定（price_min），price 单值列已停写
+  // 接单资格门槛（v1.2.0 T3 升级）：学信网核验通过 + 资料必填齐全（科目/报价/时间/方式）——统一 acceptEligibility 判定
   const p = await dbGetTeacherProfile(db, userId);
-  const subjectsOk = !!(p && Array.isArray(p.subjects) && p.subjects.length > 0);
-  if (!p || !p.province || !p.grade || !p.gender || !subjectsOk || p.price_min == null) {
-    return error(MSG.PROFILE_INCOMPLETE, 403, 'PROFILE_INCOMPLETE');
+  const el = acceptEligibility(p);
+  if (!el.ok) {
+    return error(el.reason === 'CHSI_UNVERIFIED' ? MSG.CHSI_VERIFY_REQUIRED : MSG.PROFILE_COMPLETE_REQUIRED, 403, el.reason);
   }
 
   try {
@@ -395,6 +395,10 @@ export async function handleResolvePush(db, pushId, body, req) {
   if (push.status !== STATUS.PENDING) return error(MSG.INTENT_ALREADY_RESOLVED, 409);
 
   if (action === 'accept') {
+    // v1.2.0 T3：推送接受 = 接单动作，须过接单资格（学信网核验 + 必填齐全）
+    const prof = await dbGetTeacherProfile(db, userId);
+    const el = acceptEligibility(prof);
+    if (!el.ok) return error(el.reason === 'CHSI_UNVERIFIED' ? MSG.CHSI_VERIFY_REQUIRED : MSG.PROFILE_COMPLETE_REQUIRED, 403, el.reason);
     const dNow = await dbGetDemandById(db, push.demand_id);
     if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 已签约/已撤销需求不可再确认
     // 确认推送不再锁需求——一条需求允许多会话并存，

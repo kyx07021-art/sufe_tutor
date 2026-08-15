@@ -7,7 +7,7 @@ import { json, error, genCode, toDbTime } from './util.js';
 import { requireUser, requireAdmin } from './security.js';
 import { MSG, STATUS, LIMITS, SECURITY } from './constants.js';
 import {
-  dbCreateInviteCode,
+  dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode,
   dbGetUserStats, dbGetCount, dbGetCountWhere, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands, dbGetReviewsAdmin, dbGetReviewById,
   dbUpdateReviewStatus, dbRecomputeTeacherRating,
@@ -26,14 +26,31 @@ export async function handleGenInvite(db, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
 
+  // v1.2.0 T4：邀请码无过期时间（去掉 expiresAt 参数），一人使用并成功注册后失效
   const code = genCode(LIMITS.INVITE_CODE_LEN);
-  const exp = new Date(Date.now() + SECURITY.ONE_TIME_TTL_MS);
-  const expiresAt = exp.toISOString();                       // 返前端：ISO 带 Z，new Date 解析无时区歧义
-  const expiresAtDb = toDbTime(expiresAt); // 入库：同 datetime('now','localtime') 格式（worker 上即 UTC）
-  await dbCreateInviteCode(db, code, admin.id, expiresAtDb);
+  await dbCreateInviteCode(db, code, admin.id);
   await logEvent(db, { action: 'admin.invite.create', actorUserId: admin.id, actorUsername: admin.username,
-    actorRole: 'admin', entity: 'invite', entityId: code, detail: { expiresAt }, req });
-  return json({ code, expiresAt });
+    actorRole: 'admin', entity: 'invite', entityId: code, detail: {}, req });
+  return json({ code });
+}
+
+// v1.2.0 T4：邀请码管理模块——列表（含状态/使用者）
+export async function handleListInvites(db, req) {
+  const { err } = await requireAdmin(db, req);
+  if (err) return err;
+  const invites = await dbListInviteCodes(db) || [];
+  return json({ invites });
+}
+
+// v1.2.0 T4：作废未使用邀请码（已使用不可作废）
+export async function handleRevokeInvite(db, code, req) {
+  const { admin, err } = await requireAdmin(db, req);
+  if (err) return err;
+  const ok = await dbRevokeInviteCode(db, code);
+  if (!ok) return error(MSG.INVITE_INVALID, 404);
+  await logEvent(db, { action: 'admin.invite.revoke', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'invite', entityId: code, detail: {}, req });
+  return json({ ok: true });
 }
 
 export async function handleAdminStats(db, url, req) {
@@ -304,4 +321,56 @@ export async function handleAdminBroadcast(db, body, req) {
   await logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: message.length }, req });
   return json({ ok: true, count });
+}
+
+// ============================================================
+// v1.2.0 T6：学信网核验队列（manual provider：管理员查证后结构化录入）
+// ============================================================
+export async function handleListVerifications(db, url, req) {
+  const { err } = await requireAdmin(db, req);
+  if (err) return err;
+  const status = url.searchParams.get('status') || 'all';
+  const list = await dbListTeacherVerifications(db, status) || [];
+  return json({ verifications: list });
+}
+
+// POST /api/admin/verifications/:id/action { action:'approve'|'reject', school, level, major, enrollment_status, enroll_year }
+// approve：结构化录入学信网字段 + 自动填入教师档案 + 通知教师；reject：通知教师
+export async function handleVerificationAction(db, id, body, req) {
+  const { admin, err } = await requireAdmin(db, req);
+  if (err) return err;
+  const v = await dbGetTeacherVerificationById(db, id);
+  if (!v) return error(MSG.USER_NOT_FOUND, 404);
+  const action = body.action;
+  if (action === 'approve') {
+    const school = String(body.school || '').trim().slice(0, LIMITS.SCHOOL_MAX);
+    const level = String(body.level || '').trim().slice(0, 20);
+    const major = String(body.major || '').trim().slice(0, 60);
+    const enrollmentStatus = String(body.enrollment_status || '').trim().slice(0, 20);
+    const enrollYear = String(body.enroll_year || '').trim().slice(0, 10);
+    if (!school || !level) return error(MSG.INVALID_PARAMS, 400); // 院校/层次必填（结构化输入）
+    const now = new Date().toISOString();
+    await dbUpsertTeacherVerification(db, {
+      userId: v.user_id, verifyCode: v.verify_code, status: 'approved', provider: v.provider || 'manual',
+      school, level, major, enrollmentStatus, enrollYear, verifiedBy: admin.id, verifiedAt: now,
+    });
+    await dbApplyChsiToProfile(db, v.user_id, { school, level, major, enrollmentStatus, enrollYear });
+    const text = `${globalThis.APP_CONSTANTS.UI.CHSI_NOTIFY_APPROVED}\n${globalThis.APP_CONSTANTS.UI.CHSI_NOTIFY_DETAIL}${school} · ${level}${major ? ' · ' + major : ''}`;
+    await notifyUser(db, v.user_id, text);
+    await logEvent(db, { action: 'admin.chsi.approve', actorUserId: admin.id, actorUsername: admin.username,
+      actorRole: 'admin', entity: 'user', entityId: v.user_id, detail: { school, level, major }, req });
+    return json({ ok: true });
+  }
+  if (action === 'reject') {
+    const reason = String(body.reason || '').trim().slice(0, 200);
+    await dbUpsertTeacherVerification(db, {
+      userId: v.user_id, verifyCode: v.verify_code, status: 'rejected', provider: v.provider || 'manual',
+      verifiedBy: admin.id, verifiedAt: new Date().toISOString(),
+    });
+    await notifyUser(db, v.user_id, `${globalThis.APP_CONSTANTS.UI.CHSI_NOTIFY_REJECTED}${reason ? '\n' + reason : ''}`);
+    await logEvent(db, { action: 'admin.chsi.reject', actorUserId: admin.id, actorUsername: admin.username,
+      actorRole: 'admin', entity: 'user', entityId: v.user_id, detail: { reason }, req });
+    return json({ ok: true });
+  }
+  return error(MSG.INVALID_ACTION, 400);
 }

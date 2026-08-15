@@ -184,5 +184,11 @@ async function registerWithContact(db, reqObj, { username, role = 'student', pas
   if (channel === 'email') { body.email = target; body.otpChannel = 'email'; }
   else { body.phone = target; body.otpChannel = 'sms'; }
   body.code = otp.code;
+  if (role === 'teacher') { // v1.2.0 T4：教师注册须邀请码——测试预置一枚
+    const adminId = (db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").first() || {}).id || 1;
+    const invite = 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();
+    db.prepare('INSERT INTO invite_codes (code, created_by) VALUES (?,?)').run(invite, adminId);
+    body.inviteCode = invite;
+  }
   return await handleRegister(db, body, reqObj);
 }

@@ -2464,3 +2464,40 @@ body.profile-panel-closing .profile-panel {
 .demand-detail-item { font-size: .85rem; color: var(--ink-3); }
 .demand-detail-item--price { font-family: var(--mono); font-weight: 600; color: var(--ink); }
 .demand-detail-text { margin-top: 8px; font-size: .85rem; color: var(--ink-3); line-height: 1.65; }
+
+/* ============================================================
+   v1.2.0 T5：学信网验证门（资料页）——显眼需求卡片 + 验证码输入 + 学信网信息只读展示
+   ============================================================ */
+.chsi-gate-card { padding: 22px 24px; margin-bottom: 18px; border: 1px solid var(--g-line-soft, var(--line)); }
+.chsi-gate-title { font-size: 1.02rem; font-weight: 700; color: var(--ink); margin-bottom: 12px; letter-spacing: -.01em; }
+.chsi-gate-steps { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.chsi-gate-steps li { font-size: .86rem; color: var(--ink-2); line-height: 1.5; }
+.chsi-gate-hint { font-size: .78rem; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
+.chsi-gate-input { max-width: 420px; }
+.chsi-gate-pending { font-size: .88rem; color: var(--accent-deep); line-height: 1.6; } /* 待核验提示：状态语义可用强调色 */
+.chsi-info-card { padding: 18px 22px; margin-bottom: 18px; }
+.chsi-info-title { font-size: .86rem; font-weight: 700; color: var(--ink); margin-bottom: 10px; letter-spacing: .02em; }
+.chsi-info-row { display: flex; gap: 14px; padding: 5px 0; align-items: baseline; }
+.chsi-info-k { flex: 0 0 84px; font-size: .72rem; font-weight: 500; color: var(--muted); }
+.chsi-info-v { font-size: .9rem; color: var(--ink); overflow-wrap: anywhere; }
+
+/* ============================================================
+   v1.2.0 T4/T6：邀请码管理 + 学信网核验队列（管理员）
+   ============================================================ */
+.invite-actions-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.invite-actions-row .btn { flex: 1; }
+.invite-manager-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.invite-manager-table th { text-align: left; font-size: .72rem; font-weight: 600; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.invite-manager-table td { padding: 8px; border-bottom: 1px solid var(--line-soft, var(--line)); color: var(--ink); }
+.invite-m-code { font-family: var(--mono); letter-spacing: .04em; }
+.invite-m-meta { color: var(--muted); font-size: .78rem; }
+.verif-card { padding: 14px 16px; }
+.verif-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.verif-user { font-weight: 700; color: var(--ink); font-size: .95rem; }
+.verif-code { font-family: var(--mono); font-size: .78rem; color: var(--muted); letter-spacing: .03em; }
+.verif-meta { font-size: .74rem; color: var(--muted); margin-top: 3px; }
+.verif-result { font-size: .85rem; color: var(--ink); margin-top: 6px; }
+.verif-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft, var(--line)); }
+.verif-form-hint { font-size: .76rem; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+.verif-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.verif-actions { display: flex; gap: 8px; margin-top: 10px; }

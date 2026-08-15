@@ -198,7 +198,7 @@ async function doBanUser(userId, banned, capToken) {
 }
 
 // ============================================================
-// 管理员：邀请码签发与计时
+// 管理员：邀请码签发与管理（v1.2.0 T4：无过期时间，一人使用即失效）
 // ============================================================
 async function generateInviteCode() {
   const btn = document.getElementById('gen-invite-btn');
@@ -208,22 +208,49 @@ async function generateInviteCode() {
     const data = await api('/api/admin/invite', { method: 'POST' });
     state.currentInviteCode = data;
     document.getElementById('invite-code-text').textContent = data.code;
+    document.getElementById('invite-code-timer').textContent = UI.INVITE_NO_EXPIRY;
     display.classList.remove('hidden');
-    startInviteTimer(new Date(data.expiresAt));
   } catch (err) { showToast(UI.ERROR_GENERATE_INVITE + err.message); }
   finally { btnDone(btn, UI.BTN_GENERATE_INVITE); }
 }
 
-function startInviteTimer(expiresAt) {
-  if (state.inviteTimerId) clearInterval(state.inviteTimerId);
-  const update = () => {
-    const rem = expiresAt - new Date();
-    if (rem <= 0) { clearInterval(state.inviteTimerId); document.getElementById('invite-code-timer').textContent = UI.INVITE_EXPIRED; return; }
-    const m = Math.floor(rem/60000), s = Math.floor((rem%60000)/1000);
-    document.getElementById('invite-code-timer').textContent = `${m}:${String(s).padStart(2,'0')}${UI.INVITE_EXPIRES_SUFFIX}`;
-  };
-  update();
-  state.inviteTimerId = setInterval(update, 1000);
+/** 邀请码管理浮窗：全部邀请码列表（状态/使用者/时间）+ 作废未用码 */
+async function openInviteManager() {
+  const body = '<div class="invite-manager" id="invite-manager-body"><div class="empty-state empty-state--small"><p>' + loaderHtml('sm') + '</p></div></div>';
+  openModal({
+    title: UI.INVITE_MANAGER_TITLE,
+    cls: 'modal--wide',
+    body,
+    footer: `<button type="button" class="btn glass glass--pressable" onclick="closeModal()">${UI.ONBOARD_CONFIRM}</button>`,
+  });
+  try {
+    const r = await api('/api/admin/invites');
+    const list = r.invites || [];
+    const el = document.getElementById('invite-manager-body');
+    if (!el) return;
+    if (!list.length) { el.innerHTML = `<p class="profile-empty">${escHtml(UI.INVITE_MANAGER_EMPTY)}</p>`; return; }
+    el.innerHTML = `<table class="invite-manager-table">
+      <thead><tr><th>${escHtml(UI.INVITE_MANAGER_CODE)}</th><th>${escHtml(UI.INVITE_MANAGER_STATUS)}</th><th>${escHtml(UI.INVITE_MANAGER_USED_BY)}</th><th>${escHtml(UI.INVITE_MANAGER_CREATED)}</th><th></th></tr></thead>
+      <tbody>${list.map(inv => `<tr>
+        <td class="invite-m-code">${escHtml(inv.code)}</td>
+        <td>${inv.used_by ? `<span class="tag tag-ok glass glass--solid">${escHtml(UI.INVITE_MANAGER_USED)}</span>` : `<span class="tag tag-accent glass glass--solid">${escHtml(UI.INVITE_MANAGER_ACTIVE)}</span>`}</td>
+        <td>${inv.used_by ? escHtml(inv.used_by_username || ('#' + inv.used_by)) : '—'}</td>
+        <td class="invite-m-meta">${fmtDateTime(inv.created_at)}</td>
+        <td>${inv.used_by ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="revokeInvite('${escHtml(inv.code)}')">${escHtml(UI.INVITE_MANAGER_REVOKE)}</button>`}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  } catch (err) {
+    const el = document.getElementById('invite-manager-body');
+    if (el) el.innerHTML = `<p class="profile-empty">${escHtml(err.message)}</p>`;
+  }
+}
+
+async function revokeInvite(code) {
+  try {
+    await api(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE', body: {} });
+    showToast(UI.INVITE_MANAGER_REVOKED, 'success');
+    openInviteManager(); // 刷新列表
+  } catch (err) { showToast(err.message, 'error'); }
 }
 
 function copyInviteCode() {
@@ -654,5 +681,80 @@ async function doAwardAction(awardId, action, note, capToken) {
     showToast(action === 'approve' ? UI.AWARD_STATUS_APPROVED : UI.AWARD_STATUS_REJECTED, 'success');
     loadAdminAwards();
     invalidate('teachers'); // 奖项状态变：教师卡荣誉徽章缓存刷新
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ============================================================
+// v1.2.0 T6：学信网核验队列（管理员）——结构化录入（无 API 时管理员按官方核验页查证后手动填写）
+// ============================================================
+async function loadAdminVerifications() {
+  const el = document.getElementById('admin-verif-list');
+  if (!el) return;
+  const status = (document.getElementById('admin-verif-status') || {}).value || 'all';
+  el.innerHTML = '<div class="empty-state"><span class="loader" role="status" aria-label="加载中..."><i></i><i></i><i></i></span></div>';
+  try {
+    const r = await api('/api/admin/verifications?status=' + encodeURIComponent(status));
+    const list = r.verifications || [];
+    if (!list.length) { el.innerHTML = `<p class="profile-empty">${escHtml(UI.VERIF_EMPTY)}</p>`; return; }
+    el.innerHTML = list.map(v => `<div class="list-card glass verif-card" data-id="${v.id}">
+      <div class="verif-head">
+        <span class="verif-user">${escHtml(v.username || ('#' + v.user_id))}</span>
+        ${v.status === 'pending' ? `<span class="tag tag-warn glass glass--solid">${escHtml(UI.VERIF_PENDING)}</span>`
+          : v.status === 'approved' ? `<span class="tag tag-ok glass glass--solid">${escHtml(UI.VERIF_APPROVED)}</span>`
+          : `<span class="tag tag-danger glass glass--solid">${escHtml(UI.VERIF_REJECTED)}</span>`}
+        <span class="verif-code">${escHtml(v.verify_code)}</span>
+      </div>
+      <div class="verif-meta">${fmtDateTime(v.created_at)}${v.verified_at ? ' · ' + fmtDateTime(v.verified_at) : ''}</div>
+      ${v.status === 'approved' ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>` : ''}
+      ${v.status === 'pending' ? renderVerifForm(v) : ''}
+    </div>`).join('');
+  } catch (err) {
+    el.innerHTML = `<p class="profile-empty">${escHtml(err.message)}</p>`;
+  }
+}
+
+function renderVerifForm(v) {
+  return `<div class="verif-form">
+    <p class="verif-form-hint">${escHtml(UI.VERIF_FORM_HINT)}</p>
+    <div class="verif-grid">
+      <div class="form-group"><label class="form-label">${escHtml(UI.CHSI_INFO_SCHOOL)} <span class="req">*</span></label>
+        <input type="text" class="form-input" id="verif-school-${v.id}" maxlength="30" placeholder="如：上海财经大学"></div>
+      <div class="form-group"><label class="form-label">${escHtml(UI.CHSI_INFO_LEVEL)} <span class="req">*</span></label>
+        <input type="text" class="form-input" id="verif-level-${v.id}" maxlength="20" placeholder="本科 / 硕士"></div>
+      <div class="form-group"><label class="form-label">${escHtml(UI.CHSI_INFO_MAJOR)}</label>
+        <input type="text" class="form-input" id="verif-major-${v.id}" maxlength="60"></div>
+      <div class="form-group"><label class="form-label">${escHtml(UI.CHSI_INFO_STATUS)}</label>
+        <input type="text" class="form-input" id="verif-status-${v.id}" maxlength="20" placeholder="在籍 / 已毕业"></div>
+      <div class="form-group"><label class="form-label">${escHtml(UI.CHSI_INFO_YEAR)}</label>
+        <input type="text" class="form-input" id="verif-year-${v.id}" maxlength="10" placeholder="如 2024"></div>
+    </div>
+    <div class="verif-actions">
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="verifApprove(${v.id})">${escHtml(UI.VERIF_APPROVE_BTN)}</button>
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="verifReject(${v.id})">${escHtml(UI.VERIF_REJECT_BTN)}</button>
+    </div>
+  </div>`;
+}
+
+async function verifApprove(id) {
+  const g = s => ((document.getElementById(s) || {}).value || '').trim();
+  const body = {
+    action: 'approve',
+    school: g(`verif-school-${id}`), level: g(`verif-level-${id}`),
+    major: g(`verif-major-${id}`), enrollment_status: g(`verif-status-${id}`),
+    enroll_year: g(`verif-year-${id}`),
+  };
+  if (!body.school || !body.level) { showToast(UI.VERIF_APPROVE_REQUIRED, 'error'); return; }
+  try {
+    await api(`/api/admin/verifications/${id}/action`, { method: 'POST', body });
+    showToast(UI.VERIF_APPROVED_OK, 'success');
+    loadAdminVerifications();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function verifReject(id) {
+  try {
+    await api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'reject' } });
+    showToast(UI.VERIF_REJECTED_OK, 'success');
+    loadAdminVerifications();
   } catch (err) { showToast(err.message, 'error'); }
 }

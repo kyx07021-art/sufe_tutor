@@ -4,12 +4,12 @@
  */
 export const ASSET_MANIFEST = {
   "files": {
-    "style.css": "style.b3d77365.css",
+    "style.css": "style.d30775f7.css",
     "style-region.css": "style-region.e5577254.css",
     "style-posts.css": "style-posts.d7934ceb.css",
     "style-chat.css": "style-chat.fb6db88c.css",
     "glass.css": "glass.bfcec76f.css",
-    "constants.js": "constants.d382b5b0.js",
+    "constants.js": "constants.1fc72db7.js",
     "app-display.js": "app-display.b559f1f4.js",
     "app-state.js": "app-state.f7553a25.js",
     "app-api.js": "app-api.13a4ee1a.js",
@@ -19,8 +19,8 @@ export const ASSET_MANIFEST = {
     "app-otp.js": "app-otp.d1f4a4c6.js",
     "app-captcha.js": "app-captcha.b6c54ad5.js",
     "app-onboard.js": "app-onboard.00ce8709.js",
-    "app-shell.js": "app-shell.740f1af0.js",
-    "app-auth.js": "app-auth.7d9deccd.js",
+    "app-shell.js": "app-shell.5fd42550.js",
+    "app-auth.js": "app-auth.9d54d339.js",
     "region-data.js": "region-data.46b9f543.js",
     "app-style.js": "app-style.86067e76.js",
     "app-region.js": "app-region.2be1bf85.js",
@@ -28,11 +28,11 @@ export const ASSET_MANIFEST = {
     "app-chat.js": "app-chat.d7522aae.js",
     "app-contracts.js": "app-contracts.da10c08e.js",
     "app-chart.js": "app-chart.3c56e026.js",
-    "app-admin.js": "app-admin.efb01c62.js",
+    "app-admin.js": "app-admin.b1d33007.js",
     "app-demands.js": "app-demands.b297fb73.js",
     "app-teachers.js": "app-teachers.ef3f1f17.js",
     "ui-scale-reflow.js": "ui-scale-reflow.c2bc51ee.js",
-    "app-pages.js": "app-pages.67b59e4d.js",
+    "app-pages.js": "app-pages.04a6eb3a.js",
     "app-complaints.js": "app-complaints.132a599d.js"
   }
 };

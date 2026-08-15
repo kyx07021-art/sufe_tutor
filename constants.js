@@ -9,10 +9,10 @@ globalThis.APP_CONSTANTS = {
   // 教师注册邀请码门控：休眠中（true = 门控沉睡，教师注册免邀请码直接提交；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
   // 内测期间沉默：简易注册、无需邀请码；公测前如需恢复，置回 false 并同步后端开关
   // 网安报告 F-05：教师开放注册属高危，恢复门控时注册必须经管理员签发邀请码
-  INVITE_GATE_DORMANT: true,
+  INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.1.1',
+  APP_VERSION: '1.2.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -576,6 +576,7 @@ globalThis.APP_CONSTANTS = {
     LOADING_REGISTER: '注册中...',
 
     // 验证提示
+    VALIDATE_PASSWORD: '密码至少 6 个字符',
     VALIDATE_PASSWORD_MISMATCH: '两次密码不一致',
     // 需求三十：注册须勾选同意用户协议/隐私政策（两行轻量勾选 + md 浮窗展示全文）
     AGREE_LINK_AGREEMENT: '用户协议',
@@ -1015,8 +1016,17 @@ globalThis.APP_CONSTANTS = {
     TEACHER_SORT_PRICE: '报价最低',
 
     // 邀请码
-    INVITE_EXPIRED: '已过期',
-    INVITE_EXPIRES_SUFFIX: ' 后过期',
+    INVITE_NO_EXPIRY: '无有效期 · 一人使用即失效',
+    INVITE_MANAGER_TITLE: '邀请码管理',
+    INVITE_MANAGER_EMPTY: '还没有邀请码，点击「生成邀请码」创建',
+    INVITE_MANAGER_CODE: '邀请码',
+    INVITE_MANAGER_STATUS: '状态',
+    INVITE_MANAGER_USED: '已使用',
+    INVITE_MANAGER_ACTIVE: '未使用',
+    INVITE_MANAGER_USED_BY: '使用者',
+    INVITE_MANAGER_CREATED: '创建时间',
+    INVITE_MANAGER_REVOKE: '作废',
+    INVITE_MANAGER_REVOKED: '邀请码已作废',
 
     // 教师卡片 / 列表
     PRICE_UNIT: '元/h',
@@ -1319,6 +1329,36 @@ globalThis.APP_CONSTANTS = {
     PROFILE_SECTION_ACADEMIC: '学科类资料',
     PROFILE_SECTION_NONACADEMIC: '非学科类资料',
     PROFILE_SECTION_PRIVATE: '私密资料',
+    // v1.2.0 T5：学信网验证门（导引只含验证过程本身所需的步骤，不掺其他信息）
+    CHSI_GATE_TITLE: '验证学信网学籍',
+    CHSI_GATE_STEPS: ['打开学信网 APP', '登录后进入「学籍查询」', '申请《学籍在线验证报告》', '复制在线验证码（有效期 180 天）'],
+    CHSI_GATE_HINT: '输入验证码提交后，平台将自动核验并提取你的学籍信息（院校、层次、专业、在读状态、入学年份）',
+    CHSI_GATE_PLACEHOLDER: '请输入学信网在线验证码',
+    CHSI_GATE_SUBMIT: '提交核验',
+    CHSI_GATE_VERIFYING: '核验中…',
+    CHSI_GATE_PENDING: '验证码已提交，管理员核验中（一般 24 小时内完成），通过后自动开放资料填写',
+    CHSI_GATE_MOCK_NOTE: '当前为内测模拟核验',
+    CHSI_INFO_TITLE: '学信网核验信息（自动填入，不可修改）',
+    CHSI_INFO_SCHOOL: '院校全称',
+    CHSI_INFO_LEVEL: '层次',
+    CHSI_INFO_MAJOR: '专业',
+    CHSI_INFO_STATUS: '在读状态',
+    CHSI_INFO_YEAR: '入学年份',
+    CHSI_SUCCESS: '学信网核验通过，学籍信息已自动填入',
+    CHSI_CODE_REQUIRED: '请输入学信网在线验证码',
+    CHSI_NOTIFY_APPROVED: '学信网学籍核验已通过',
+    CHSI_NOTIFY_DETAIL: '核验信息：',
+    CHSI_NOTIFY_REJECTED: '学信网学籍核验未通过，请重新提交验证码',
+    VERIF_EMPTY: '没有核验记录',
+    VERIF_PENDING: '待核验',
+    VERIF_APPROVED: '已通过',
+    VERIF_REJECTED: '已拒绝',
+    VERIF_FORM_HINT: '在学信网官方核验页（xlcx.chsi.com.cn/bgcx.jsp 或学信网小程序扫码）查证该验证码后，按报告填写以下信息并确认通过',
+    VERIF_APPROVE_BTN: '核验通过',
+    VERIF_REJECT_BTN: '拒绝',
+    VERIF_APPROVE_REQUIRED: '院校与层次为必填项',
+    VERIF_APPROVED_OK: '核验已通过，学籍信息已填入教师档案并通知',
+    VERIF_REJECTED_OK: '已拒绝该核验申请并通知教师',
     CREDENTIAL_UPLOAD: '上传',
     CREDENTIAL_UPLOADED_VIEW: '已上传，点击查看',
     CREDENTIAL_VIEW: '点击查看',
@@ -1539,6 +1579,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_DEMANDS: '需求管理',
     PAGE_ADMIN_REVIEWS: '评价管理',
     PAGE_ADMIN_AWARDS: '奖项审核', PAGE_ADMIN_AWARDS_DESC: '审核教师荣誉奖项与奖状证明',
+    PAGE_ADMIN_VERIFICATIONS: '学信网核验', PAGE_ADMIN_VERIFICATIONS_DESC: '核验教师学籍在线验证报告',
     PAGE_ADMIN_POSTS: '资料管理',
 
     // 侧边栏页签简介（选中时展开的灰字说明）
@@ -1580,6 +1621,7 @@ globalThis.APP_CONSTANTS = {
       'admin-demands': '## 这是什么\n全平台需求管理。\n\n## 怎么用\n查看所有用户发布的需求，可删除违规内容，维护广场秩序。',
       'admin-reviews': '## 这是什么\n评价审核与删除。\n\n## 怎么用\n用户提交的评价先在这里审核，通过的才会公开；违规内容可删除或拒绝。',
       'admin-awards': '## 这是什么\n教师荣誉奖项审核。\n\n## 怎么用\n教师上传奖状证明提交奖项，管理员在此人工核对后通过或驳回；通过的奖项才展示在教师主页。',
+      'admin-verifications': '## 这是什么\n教师学信网学籍核验队列。\n\n## 怎么用\n教师在资料页提交《学籍在线验证报告》验证码后进入此队列；管理员在学信网官方核验页（xlcx.chsi.com.cn/bgcx.jsp 或学信网小程序扫码）查证后，按报告填写院校/层次/专业/在读状态/入学年份并通过，或拒绝。通过后学籍信息自动填入教师档案并开放其接单权限。',
       'admin-posts': '## 这是什么\n资料帖子管理。\n\n## 怎么用\n查看教师共享的资料帖子，删除含隐私或违规信息的帖子。',
       'admin-contracts': '## 这是什么\n合同管理。\n\n## 怎么用\n查看平台全部合同与状态，必要时移除测试或异常数据。',
       'admin-feedback': '## 这是什么\n用户反馈处理。\n\n## 怎么用\n查看用户提交的 Bug 与建议，逐条查看详情并标记处理状态。',

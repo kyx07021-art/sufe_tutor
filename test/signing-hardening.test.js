@@ -64,6 +64,10 @@ async function seed(db, raw) {
     ('s1','h','s','student'),('s2','h','s','student'),('t1','h','s','teacher'),('t2','h','s','teacher')`);
   const idOf = name => raw.prepare("SELECT id FROM users WHERE username=?").get(name).id;
   const s1 = idOf('s1'), s2 = idOf('s2'), t1 = idOf('t1'), t2 = idOf('t2');
+  // v1.2.0 T3：合格接单教师档案（chsi_verified=1 + 必填齐全），合同创建门禁依赖
+  const insTeacherProfile = uid => raw.prepare('INSERT INTO teacher_profiles (user_id, province, grade, gender, subjects, price_min, price_max, time_slots, teaching_method, chsi_verified) VALUES (?,?,?,?,?,?,?,?,?,1)')
+    .run(uid, 'shanghai', 'freshman', 'male', '["math"]', 100, 200, '[{"day":"sat"}]', 'online');
+  insTeacherProfile(t1); insTeacherProfile(t2);
   const insDemand = (owner, status) => {
     raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
       VALUES (?,?,?,?,?,?,?,?,?)`).run(owner, 'senior1', 'female', '["math"]', '[]', 'self', '13800000000', '13800000000', status);

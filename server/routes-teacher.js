@@ -12,8 +12,73 @@ import { MSG, LIMITS } from './constants.js';
 import { auditFreeText } from './text-audit.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（PERSONALITY_TAGS/NONACADEMIC_PROJECTS 白名单单源，与前端共用）
-import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById } from './db.js';
+import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbApplyChsiToProfile, safeJsonArray } from './db.js';
+import { verifyChsiCode } from './chsi.js';
 import { logEvent } from './log.js';
+
+// ============================================================
+// 接单资格（v1.2.0 T3）：教师能接单 = 学信网核验通过（chsi_verified=1）
+// + 资料必填齐全（科目/报价/可授课时间/授课方式）。写路径（意向提交/推送接受/签约创建）统一门禁。
+// ============================================================
+export function acceptEligibility(profile) {
+  if (!profile) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
+  if (!profile.chsi_verified) return { ok: false, reason: 'CHSI_UNVERIFIED' };
+  const subjects = safeJsonArray(profile.subjects);
+  if (!subjects.length) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
+  if (profile.price_min == null) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
+  if (!profile.time_slots) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
+  if (!profile.teaching_method) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
+  return { ok: true };
+}
+
+/** 接单写路径门禁：失败返回 403 + 具体原因（前端据此引导去资料页补全/验证） */
+export async function requireAcceptEligible(db, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return { err };
+  if (me.role !== 'teacher') return { err: error(MSG.NO_PERMISSION, 403) };
+  const profile = await dbGetTeacherProfile(db, me.id);
+  const el = acceptEligibility(profile);
+  if (!el.ok) return { err: error(el.reason === 'CHSI_UNVERIFIED' ? MSG.CHSI_VERIFY_REQUIRED : MSG.PROFILE_COMPLETE_REQUIRED, 403) };
+  return { me, profile };
+}
+
+/** POST /api/teacher/verify-chsi —— 教师提交《学籍在线验证报告》验证码核验（v1.2.0 T3）
+ *  mock/thirdparty：直通 approved，学信网字段自动填入资料卡；
+ *  manual：进管理员核验队列（pending），管理员查证后结构化录入。 */
+export async function handleVerifyChsi(db, body, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  if (me.role !== 'teacher') return error(MSG.NO_PERMISSION, 403);
+  const code = String((body && body.code) || '').trim();
+  const v = await verifyChsiCode(code);
+  if (!v.ok) return error(MSG.CHSI_CODE_INVALID);
+  const now = new Date().toISOString();
+  if (v.status === 'approved') {
+    await dbUpsertTeacherVerification(db, {
+      userId: me.id, verifyCode: code, status: 'approved', provider: v.provider,
+      school: v.school, level: v.level, major: v.major,
+      enrollmentStatus: v.enrollment_status, enrollYear: v.enroll_year,
+      verifiedBy: me.id, verifiedAt: now,
+    });
+    await dbApplyChsiToProfile(db, me.id, {
+      school: v.school, level: v.level, major: v.major,
+      enrollmentStatus: v.enrollment_status, enrollYear: v.enroll_year,
+    });
+    await logEvent(db, { action: 'teacher.chsi.verify', actorUserId: me.id, actorUsername: me.username,
+      actorRole: 'teacher', entity: 'user', entityId: me.id, detail: { provider: v.provider, status: 'approved' }, req });
+    return json({ ok: true, status: 'approved', provider: v.provider,
+      school: v.school, level: v.level, major: v.major,
+      enrollment_status: v.enrollment_status, enroll_year: v.enroll_year });
+  }
+  // manual：进队列待管理员核验
+  await dbUpsertTeacherVerification(db, {
+    userId: me.id, verifyCode: code, status: 'pending', provider: v.provider,
+  });
+  await logEvent(db, { action: 'teacher.chsi.submit', actorUserId: me.id, actorUsername: me.username,
+    actorRole: 'teacher', entity: 'user', entityId: me.id, detail: { provider: v.provider, status: 'pending' }, req });
+  return json({ ok: true, status: 'pending', provider: v.provider });
+}
+
 
 // ?userId= 缺省 = 本人（编辑预填）；传他人 id：
 //   未匹配 → 403（面板数据源是列表接口，不应走到这里）
@@ -195,4 +260,14 @@ export async function handleGetTeachers(db, req) {
   const teachers = (await dbGetTeachers(db, { viewerId: me ? me.id : null }))
     .map(({ wechat, email, real_name, credential_image, ...rest }) => rest);
   return json({ teachers });
+}
+
+/** GET /api/teacher/verify-status —— 学信网核验状态（none 未提交 / pending 待管理员核验 / approved 已通过） */
+export async function handleChsiStatus(db, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  if (me.role !== 'teacher') return error(MSG.NO_PERMISSION, 403);
+  const v = await dbGetTeacherVerification(db, me.id);
+  if (!v) return json({ status: 'none' });
+  return json({ status: v.status, provider: v.provider });
 }

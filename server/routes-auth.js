@@ -440,3 +440,13 @@ export async function handleGetMyCreds(db, req) {
   const creds = await dbGetMyCreds(db, me.id);
   return json({ phone: maskPhone(creds.phone), email: targetMask(creds.email) });
 }
+
+// POST /api/auth/check-invite —— 教师注册第一步「邀请码」服务端预校验（v1.2.0 T5：只验证不消费，
+// 消费在注册时 dbUseInviteCode 赢家模式——并发双注册同码仅一方成功）
+export async function handleCheckInvite(db, body) {
+  const code = String((body && body.code) || '').trim();
+  if (!code) return error(MSG.INVITE_INVALID);
+  const found = await dbFindValidInviteCode(db, code);
+  if (!found) return error(MSG.INVITE_INVALID);
+  return json({ ok: true });
+}

@@ -16,7 +16,7 @@
 // ============================================================
 export const INITIAL_RATING = 4.5;   // 新教师初始评分（评价通过时与 INITIAL_WEIGHT 做加权平均，公式见 dbRecomputeTeacherRating）
 export const INITIAL_WEIGHT = 10;    // 初始评分权重（与 INITIAL_RATING 成对修改）
-export const INVITE_GATE_ENABLED = false; // 教师注册邀请码门控。契约：公测上线前必须置回 true，并同步把前端
+export const INVITE_GATE_ENABLED = true; // 教师注册邀请码门控（v1.2.0 T4 用户需求：教师注册第一步填邀请码；无过期、一人使用即失效）
 // constants.js 的 INVITE_GATE_DORMANT 改为 false（当前 false = 内测期开放注册，有意决定）。
 
 // 合规红线「不收集详细门牌号」的服务端兜底：区块/地标级表述放行，门牌级拒绝。
@@ -72,7 +72,10 @@ export const MSG = {
 
   // 邀请码
   TEACHER_NEEDS_INVITE: '教师注册需要邀请码',
-  INVITE_INVALID: '邀请码无效或已过期',
+  INVITE_INVALID: '邀请码无效或已被使用',
+  CHSI_CODE_INVALID: '验证码格式不正确，请检查后重新输入',
+  CHSI_VERIFY_REQUIRED: '请先完成学信网验证再使用接单功能',
+  PROFILE_COMPLETE_REQUIRED: '请先完善个人资料（科目/报价/可授课时间/授课方式）再使用接单功能',
   NO_PERMISSION: '无权限',
 
   // 教师

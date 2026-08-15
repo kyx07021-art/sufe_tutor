@@ -95,11 +95,149 @@ async function afterAuthSuccess(isNew = false) {
 function switchRegisterRole(role) {
   document.getElementById('register-role').value = role;
   document.querySelectorAll('#register-role-tabs .seg-tab').forEach(t => t.classList.toggle('active', t.dataset.role === role));
-  // 教师注册：门控休眠期（内测）直接填表；恢复后先验证邀请码再填表
-  if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
-    showView('invite-gate');
+  // v1.2.0 T5：教师 = 3 步 wizard（①邀请码 ②用户名+联系方式 ③验证码）；学生 = 单页表单保持原样。
+  // 两组互斥显示；wizard 动态渲染，字段 id 复用 register-*（handleRegister/requestOtpCode/checkRegisterContact 零改动）
+  const studentGroup = document.getElementById('student-reg-group');
+  const wizardRoot = document.getElementById('teacher-wizard-root');
+  if (!studentGroup || !wizardRoot) return;
+  if (role === 'teacher') {
+    studentGroup.classList.add('hidden');
+    renderTeacherWizard();
+  } else {
+    studentGroup.classList.remove('hidden');
+    wizardRoot.classList.add('hidden');
+    wizardRoot.innerHTML = '';
   }
 }
+
+// ============================================================
+// v1.2.0 T5：教师注册 3 步 wizard（复用 .dw-step/.dw-stepper 底层组件，同需求表单分页模式）
+// ============================================================
+const REG_WIZARD_STEPS = ['邀请码', '用户名与联系方式', '验证码验证'];
+let _regStep = 0;
+
+function renderTeacherWizard() {
+  const root = document.getElementById('teacher-wizard-root');
+  if (!root) return;
+  _regStep = 0;
+  state.validatedInviteCode = null;
+  root.classList.remove('hidden');
+  root.innerHTML = `
+    <div class="dw-stepper" id="reg-w-stepper">
+      ${REG_WIZARD_STEPS.map((s, i) => `<div class="dw-step-chip" data-step="${i + 1}" title="${s}"><span class="dw-step-chip-dot"></span><span class="dw-step-chip-label">${s}</span></div>`).join('')}
+    </div>
+    <div class="dw-steps-viewport"><div class="dw-steps-track" id="reg-w-track">
+      <div class="dw-step" data-step="1">
+        <div class="form-group">
+          <label class="form-label">邀请码 <span class="req">*</span></label>
+          <input type="text" class="form-input" id="reg-invite-code" placeholder="请输入管理员提供的邀请码" maxlength="${CONFIG.INVITE_CODE_LEN}">
+          <p class="form-hint">邀请码由管理员发放，一枚邀请码仅限一人使用，无有效期</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="showView('landing')">返回</button>
+          <button type="button" class="btn glass glass--pressable" id="reg-step1-next" onclick="regWizardNext()">下一步</button>
+        </div>
+      </div>
+      <div class="dw-step" data-step="2">
+        <div class="form-group">
+          <label class="form-label">用户名 <span class="req">*</span></label>
+          <input type="text" class="form-input" id="register-username" placeholder="3-30 个字符" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">密码 <span class="req">*</span></label>
+          <input type="password" class="form-input" id="register-password" placeholder="至少 6 个字符" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">确认密码 <span class="req">*</span></label>
+          <input type="password" class="form-input" id="register-password2" placeholder="再次输入密码" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">手机号或邮箱 <span class="req">*</span></label>
+          <input type="text" class="form-input" id="register-identifier" placeholder="请输入手机号或邮箱"
+            autocomplete="email" oninput="checkRegisterContact()">
+          <p class="form-hint">手机号或邮箱任选其一绑定（验证码验证），将作为你的登录凭证</p>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="regWizardBack()">上一步</button>
+          <button type="button" class="btn glass glass--pressable" id="reg-step2-next" onclick="regWizardNext()">下一步</button>
+        </div>
+      </div>
+      <div class="dw-step" data-step="3">
+        <div id="register-code-group">
+          <div class="form-group">
+            <label class="form-label" id="register-code-label">验证码</label>
+            <div class="code-input-wrap">
+              <input type="text" class="form-input" id="register-code" placeholder="输入验证码" inputmode="numeric"
+                autocomplete="one-time-code" maxlength="6">
+              <button type="button" class="btn btn-sm code-send-btn glass glass--pressable" id="register-send"
+                onclick="requestOtpCode('register','auto')">发送验证码</button>
+            </div>
+          </div>
+        </div>
+        <label class="agree-row">
+          <input type="checkbox" id="agree-agreement" class="agree-check">
+          <span class="agree-text">我已阅读并同意<a href="#" class="agree-link" onclick="event.preventDefault();openPolicyModal('user_agreement')">用户协议</a></span>
+        </label>
+        <label class="agree-row">
+          <input type="checkbox" id="agree-privacy" class="agree-check">
+          <span class="agree-text">我已阅读并同意<a href="#" class="agree-link" onclick="event.preventDefault();openPolicyModal('privacy_policy')">隐私政策</a></span>
+        </label>
+        <div class="form-actions">
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="regWizardBack()">上一步</button>
+          <button type="submit" class="btn glass glass--pressable" id="register-submit">注册</button>
+        </div>
+      </div>
+    </div></div>`;
+  regWizardGoTo(0);
+}
+
+function regWizardGoTo(idx) {
+  _regStep = idx;
+  const track = document.getElementById('reg-w-track');
+  if (track) track.style.setProperty('--dw-step-active', String(idx)); // JS 只写变量，滑动 transform 由 CSS 消费
+  const chips = document.querySelectorAll('#reg-w-stepper .dw-step-chip');
+  chips.forEach((c, i) => {
+    c.classList.toggle('active', i === idx);
+    c.classList.toggle('done', i < idx); // 完成态：已过步实心
+  });
+}
+
+/** 每步校验 + 推进（step1 邀请码走服务端预校验，step2 本地格式校验） */
+async function regWizardNext() {
+  if (_regStep === 0) {
+    const code = ((document.getElementById('reg-invite-code') || {}).value || '').trim();
+    if (!code) { showToast(UI.VALIDATE_INVITE_REQUIRED, 'error'); return; }
+    const btn = document.getElementById('reg-step1-next');
+    btnLoading(btn, UI.LOADING_VERIFY);
+    try {
+      const r = await api('/api/auth/check-invite', { method: 'POST', body: { code } });
+      if (r && r.ok) {
+        state.validatedInviteCode = code;
+        showToast(UI.SUCCESS_INVITE_CONFIRMED, 'success');
+        regWizardGoTo(1);
+      }
+    } catch (err) {
+      showToast(err.message, 'error'); // 服务端返回的邀请码无效/已被使用文案
+    } finally {
+      btnDone(btn, UI.BTN_NEXT_STEP);
+    }
+    return;
+  }
+  if (_regStep === 1) {
+    const username = document.getElementById('register-username').value.trim();
+    const password = document.getElementById('register-password').value;
+    const password2 = document.getElementById('register-password2').value;
+    const ident = ((document.getElementById('register-identifier') || {}).value || '').trim();
+    if (!username || username.length < 3 || username.length > 30) { showToast(UI.USERNAME_LENGTH_ERR, 'error'); return; }
+    if (password.length < 6) { showToast(UI.VALIDATE_PASSWORD, 'error'); return; }
+    if (password !== password2) { showToast(UI.VALIDATE_PASSWORD_MISMATCH, 'error'); return; }
+    const kind = classifyIdentifier(ident);
+    if (kind !== 'phone' && kind !== 'email') { showToast(UI.CRED_IDENT_INVALID, 'error'); return; }
+    regWizardGoTo(2);
+  }
+}
+
+function regWizardBack() { if (_regStep > 0) regWizardGoTo(_regStep - 1); }
 
 function handleFeatureClick(role) {
   // 主页双按钮按角色分流：恢复该角色「上次登录」已存会话，无记录则进入该角色访客预览。
@@ -316,7 +454,7 @@ async function handleRegister(e) {
   if (role === 'teacher' && !APP_CONSTANTS.INVITE_GATE_DORMANT) {
     if (!state.validatedInviteCode) {
       showToast(UI.VALIDATE_INVITE_FIRST, 'error');
-      showView('invite-gate');
+      regWizardGoTo(0); // v1.2.0 T5：教师 wizard 第一步（邀请码）——不再有独立 invite-gate 视图
       return;
     }
   }
@@ -359,29 +497,6 @@ async function doRegister(username, password, role, agreeAgreement, agreePrivacy
   }
 }
 
-async function validateInviteAndRegister() {
-  const code = document.getElementById('invite-code-input').value.trim();
-
-  if (!code) { showToast(UI.VALIDATE_INVITE_REQUIRED, 'error'); return; }
-
-  // 这里只做格式校验，真正的验证在注册时进行
-  if (code.length !== CONFIG.INVITE_CODE_LEN) {
-    showToast(UI.VALIDATE_INVITE_LENGTH, 'error'); // 8 位
-    return;
-  }
-
-  // 保存验证过的邀请码，跳转到注册表单
-  state.validatedInviteCode = code;
-  showToast(UI.SUCCESS_INVITE_CONFIRMED, 'success');
-
-  // 等一秒让用户看到成功提示，然后跳转到注册页
-  setTimeout(() => {
-    document.getElementById('register-role').value = 'teacher';
-    document.querySelectorAll('#register-role-tabs .seg-tab').forEach(t =>
-      t.classList.toggle('active', t.dataset.role === 'teacher'));
-    showView('register');
-  }, CONFIG.REOPEN_DELAY_MS);
-}
 
 function handleLogout() {
   const role = state.user ? state.user.role : ''; // 记当前角色，只清该角色会话

@@ -14,8 +14,8 @@ import { MSG } from './server/constants.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './server/security.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { bindTextAuditEnv } from './server/text-audit.js';
-import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth, handleOtpRequest, handleBindPhone, handleBindEmail, handleUsernameStatus, handleChangeUsername, handleLoginWithCode, handleGetMyCreds } from './server/routes-auth.js';
-import { handleGetProfile, handleSaveProfile, handleGetTeachers } from './server/routes-teacher.js';
+import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth, handleOtpRequest, handleBindPhone, handleBindEmail, handleUsernameStatus, handleChangeUsername, handleLoginWithCode, handleGetMyCreds, handleCheckInvite } from './server/routes-auth.js';
+import { handleGetProfile, handleSaveProfile, handleGetTeachers, handleVerifyChsi, handleChsiStatus } from './server/routes-teacher.js';
 import { handleGetPrivacySettings, handleSetPrivacySettings } from './server/routes-settings.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand, handleReopenDemand,
@@ -32,7 +32,8 @@ import {
 import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleGetConversationBindableDemands, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
 import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
 import {
-  handleGenInvite, handleAdminStats, handleAdminTraffic,
+  handleGenInvite, handleListInvites, handleRevokeInvite, handleAdminStats, handleAdminTraffic,
+  handleListVerifications, handleVerificationAction,
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
   handleCreateFeedback, handleAdminFeedbacks, handleMyFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
@@ -130,6 +131,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   if (p === '/api/user/username' && method === 'POST') return await handleChangeUsername(db, body, req);
   if (p === '/api/user/username/status' && method === 'GET') return await handleUsernameStatus(db, req);
   if (p === '/api/user/creds' && method === 'GET') return await handleGetMyCreds(db, req);
+  if (p === '/api/auth/check-invite' && method === 'POST') return await handleCheckInvite(db, body); // v1.2.0 T5：教师注册第一步邀请码预校验（只验证不消费）
   if (p === '/api/auth/logout' && method === 'POST') return await handleLogout(db, req);
   if (p === '/api/auth/sessions' && method === 'GET') return await handleListSessions(db, req);
   if (p === '/api/auth/sessions/revoke' && method === 'POST') return await handleRevokeSession(db, body, req);
@@ -140,6 +142,12 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
 
   // 管理员
   if (p === '/api/admin/invite' && method === 'POST') return await handleGenInvite(db, body, req);
+  if (p === '/api/admin/invites' && method === 'GET') return await handleListInvites(db, req); // v1.2.0 T4：邀请码管理列表
+  const inviteRevoke = idMatch(p, /^\/api\/admin\/invites\/([A-Za-z0-9]+)$/);
+  if (inviteRevoke && method === 'DELETE') return await handleRevokeInvite(db, inviteRevoke, req); // v1.2.0 T4：作废未用码
+  if (p === '/api/admin/verifications' && method === 'GET') return await handleListVerifications(db, url, req); // v1.2.0 T6：学信网核验队列
+  const verifAction = idMatch(p, /^\/api\/admin\/verifications\/(\d+)\/action$/);
+  if (verifAction && method === 'POST') return await handleVerificationAction(db, verifAction, body, req); // v1.2.0 T6：通过/拒绝+结构化录入
   if (p === '/api/admin/stats' && method === 'GET') return await handleAdminStats(db, url, req);
   if (p === '/api/admin/traffic' && method === 'GET') return await handleAdminTraffic(db, url, req);
   if (p === '/api/admin/reviews' && method === 'GET') return await handleAdminReviews(db, url, req);
@@ -186,6 +194,8 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   if (p === '/api/privacy-settings' && method === 'POST') return await handleSetPrivacySettings(db, body, req);
   if (p === '/api/teacher/profile' && method === 'GET') return await handleGetProfile(db, url, req);
   if (p === '/api/teacher/profile' && method === 'POST') return await handleSaveProfile(db, body, req);
+  if (p === '/api/teacher/verify-chsi' && method === 'POST') return await handleVerifyChsi(db, body, req); // v1.2.0 T3：学信网验证码核验
+  if (p === '/api/teacher/verify-status' && method === 'GET') return await handleChsiStatus(db, req); // v1.2.0 T5：核验状态
   if (p === '/api/teachers' && method === 'GET') return await handleGetTeachers(db, req);
 
   // 学生需求

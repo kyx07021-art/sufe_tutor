@@ -6,14 +6,14 @@
  * ROLE_PAGES 的 enter 全为惰性包装（() => 领域函数()），顶层不直接引用领域函数。
  *
  * 职责：
- *   - 视图管理（landing/login/register/invite-gate/client 五视图）
+ *   - 视图管理（landing/login/register/client 四视图；invite-gate 并入教师注册 wizard）
  *   - 侧边栏栏目注册表 ROLE_PAGES（加栏目 = 这里一条 + index.html 一个 section + 一个 enter 函数）
  *   - 统一装载器 loadInto（loading/空态/错误转义/浮入/乱序守卫 四件套，禁止手写）
  *   - 红点徽标慢轮询（30s，全角色；各模块也可即时 setBadge 消点）
  *   - 通知信息页（全角色）
  *   - DOMContentLoaded 初始化（落地页恒为入口 + 新手引导；不自动登录）
  */
-const VIEWS = ['landing', 'login', 'register', 'invite-gate', 'client'];
+const VIEWS = ['landing', 'login', 'register', 'client']; // v1.2.0 T5：invite-gate 并入教师注册 wizard 第一步
 
 function showView(name) {
   VIEWS.forEach(v => { const el = document.getElementById(`view-${v}`); if (el) el.classList.add('hidden'); });
@@ -75,6 +75,7 @@ const ROLE_PAGES = {
     { id: 'admin-demands',    label: UI.PAGE_ADMIN_DEMANDS,  desc: UI.PAGE_ADMIN_DEMANDS_DESC,  enter: () => loadAdminDemands() },
     { id: 'admin-reviews',    label: UI.PAGE_ADMIN_REVIEWS,  desc: UI.PAGE_ADMIN_REVIEWS_DESC,  enter: () => loadAdminReviews() },
     { id: 'admin-awards',     label: UI.PAGE_ADMIN_AWARDS,  desc: UI.PAGE_ADMIN_AWARDS_DESC,  enter: () => loadAdminAwards() },
+    { id: 'admin-verifications', label: UI.PAGE_ADMIN_VERIFICATIONS, desc: UI.PAGE_ADMIN_VERIFICATIONS_DESC, enter: () => loadAdminVerifications() }, // v1.2.0 T6：学信网核验队列
     { id: 'admin-posts',      label: UI.PAGE_ADMIN_POSTS,    desc: UI.PAGE_ADMIN_POSTS_DESC,    enter: () => loadAdminPosts() },
     { id: 'admin-contracts',  label: UI.PAGE_ADMIN_CONTRACTS, desc: UI.PAGE_ADMIN_CONTRACTS_DESC, enter: () => loadAdminContracts() },
     { id: 'admin-feedback',   label: UI.PAGE_ADMIN_FEEDBACK, desc: UI.PAGE_ADMIN_FEEDBACK_DESC, enter: () => loadAdminFeedback() },

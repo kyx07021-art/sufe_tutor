@@ -65,7 +65,11 @@ test('统计端点：有数据时待办计数非零', async () => {
   const target = '+8613911110001';
   const otp = await requestOtp(db, { channel: 'sms', target }, { headers: new Headers() });
   assert.ok(otp.ok);
-  const reg = await handleRegister(db, { username: 't_stats', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: otp.code }, { headers: new Headers() });
+  // v1.2.0 T4：教师注册须邀请码——测试预置一枚
+  const adminId = (db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").first() || {}).id || 1;
+  const invite = 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  db.prepare('INSERT INTO invite_codes (code, created_by) VALUES (?,?)').run(invite, adminId);
+  const reg = await handleRegister(db, { username: 't_stats', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: otp.code, inviteCode: invite }, { headers: new Headers() });
   assert.equal(reg.status, 200);
   const tId = raw.prepare("SELECT id FROM users WHERE username='t_stats'").get().id;
   raw.prepare("INSERT INTO teacher_awards (teacher_user_id, title, status) VALUES (?, '奖项A', 'pending')").run(tId);

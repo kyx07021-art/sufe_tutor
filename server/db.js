@@ -85,7 +85,7 @@ async function migrateLegacyRoles(db, adminNames) {
     },
     {
       t: 'teacher_profiles',
-      cols: ['id', 'user_id', 'grade', 'gender', 'subjects', 'gaokao_scores', 'price', 'wechat', 'email', 'school', 'real_name', 'credential_image', 'rating', 'rating_count', 'rating_sum', 'updated_at'],
+      cols: ['id', 'user_id', 'grade', 'gender', 'subjects', 'gaokao_scores', 'price', 'wechat', 'email', 'school', 'real_name', 'credential_image', 'rating', 'rating_count', 'rating_sum', 'updated_at', 'chsi_school', 'chsi_level', 'chsi_major', 'chsi_status', 'chsi_enroll_year', 'chsi_verified'],
       ddl: `CREATE TABLE teacher_profiles_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,
         grade TEXT, gender TEXT, subjects TEXT, gaokao_scores TEXT,
@@ -94,6 +94,8 @@ async function migrateLegacyRoles(db, adminNames) {
         time_slots TEXT DEFAULT '', teaching_method TEXT DEFAULT '',
         personality_tags TEXT DEFAULT '', nonacademic_projects TEXT DEFAULT '', nonacademic_prices TEXT DEFAULT '',
         graduation_year INTEGER,
+        chsi_school TEXT DEFAULT '', chsi_level TEXT DEFAULT '', chsi_major TEXT DEFAULT '',
+        chsi_status TEXT DEFAULT '', chsi_enroll_year TEXT DEFAULT '', chsi_verified INTEGER NOT NULL DEFAULT 0,
         rating REAL DEFAULT ${INITIAL_RATING},
         rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
         updated_at DATETIME DEFAULT (datetime('now','localtime')),
@@ -135,11 +137,11 @@ async function migrateLegacyRoles(db, adminNames) {
     },
     {
       t: 'invite_codes',
-      cols: ['code', 'created_by', 'created_at', 'expires_at', 'used_by', 'used_at'],
+      cols: ['code', 'created_by', 'created_at', 'used_by', 'used_at'],
       ddl: `CREATE TABLE invite_codes_new (
         code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
         created_at DATETIME DEFAULT (datetime('now','localtime')),
-        expires_at DATETIME NOT NULL, used_by INTEGER DEFAULT NULL,
+        used_by INTEGER DEFAULT NULL,
         used_at DATETIME DEFAULT NULL,
         FOREIGN KEY (created_by) REFERENCES users(id),
         FOREIGN KEY (used_by) REFERENCES users(id))`,
@@ -154,6 +156,22 @@ async function migrateLegacyRoles(db, adminNames) {
         UNIQUE(demand_id, teacher_user_id),
         FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
         FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
+    },
+    {
+      // v1.2.0 T1：教师学信网核验记录（验证码 + 核验结果；provider=mock 内测直通 / manual 管理员核验 / thirdparty 量产 API）
+      t: 'teacher_verifications',
+      cols: ['id', 'user_id', 'verify_code', 'status', 'school', 'level', 'major', 'enrollment_status', 'enroll_year', 'provider', 'verified_by', 'verified_at', 'created_at'],
+      ddl: `CREATE TABLE teacher_verifications_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL UNIQUE, verify_code TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+        school TEXT DEFAULT '', level TEXT DEFAULT '', major TEXT DEFAULT '',
+        enrollment_status TEXT DEFAULT '', enroll_year TEXT DEFAULT '',
+        provider TEXT NOT NULL DEFAULT 'mock',
+        verified_by INTEGER DEFAULT NULL, verified_at DATETIME DEFAULT NULL,
+        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (verified_by) REFERENCES users(id))`,
     },
   ];
 
@@ -188,7 +206,7 @@ async function migrateLegacyRoles(db, adminNames) {
 // 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 5; // 当前 schema 覆盖：…+ teacher_awards（R2）+ verification_codes.attempts（R6 三振限次）
+export const SCHEMA_VERSION = 6; // 当前 schema 覆盖：…+ teacher_verifications（v1.2.0 T1）+ teacher_profiles.chsi_* + invite_codes 去 expires_at
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
@@ -281,7 +299,7 @@ async function runFullMigration(db, env) {
     db.prepare(`CREATE TABLE IF NOT EXISTS invite_codes (
       code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
       created_at DATETIME DEFAULT (datetime('now','localtime')),
-      expires_at DATETIME NOT NULL, used_by INTEGER DEFAULT NULL,
+      used_by INTEGER DEFAULT NULL,
       used_at DATETIME DEFAULT NULL,
       FOREIGN KEY (created_by) REFERENCES users(id),
       FOREIGN KEY (used_by) REFERENCES users(id))`),
@@ -385,6 +403,18 @@ async function runFullMigration(db, env) {
       allow_guest_demand INTEGER NOT NULL DEFAULT 1,  /* 需求对未登录游客可见 */
       updated_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`), /* 隐私设置大层级——无行=全默认可见（COALESCE 1） */
+    // v1.2.0 T1：教师学信网核验记录（provider=mock 内测直通 / manual 管理员核验 / thirdparty 量产 API）
+    db.prepare(`CREATE TABLE IF NOT EXISTS teacher_verifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL UNIQUE, verify_code TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+      school TEXT DEFAULT '', level TEXT DEFAULT '', major TEXT DEFAULT '',
+      enrollment_status TEXT DEFAULT '', enroll_year TEXT DEFAULT '',
+      provider TEXT NOT NULL DEFAULT 'mock',
+      verified_by INTEGER DEFAULT NULL, verified_at DATETIME DEFAULT NULL,
+      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (verified_by) REFERENCES users(id))`),
   ]);
 
   // 合同表 schema 迁移：旧预留表（student/teacher 直连 + active/ended 状态）从未启用过，
@@ -517,7 +547,9 @@ async function runFullMigration(db, env) {
     ['price_min', 'REAL'], ['price_max', 'REAL'], // 报价区间化（可空，null=未填；不落 DEFAULT 0）
     ['time_slots', "TEXT DEFAULT ''"], ['teaching_method', "TEXT DEFAULT ''"], // 可授课时间段 / 授课方式
     ['personality_tags', "TEXT DEFAULT ''"], ['nonacademic_projects', "TEXT DEFAULT ''"], ['nonacademic_prices', "TEXT DEFAULT ''"], // 性格关键词 / 非学科项目+报价
-    ['graduation_year', 'INTEGER'] // 毕业年份（可空；null=未填按最新政策，非 null 决定教师当年赋分政策）
+    ['graduation_year', 'INTEGER'], // 毕业年份（可空；null=未填按最新政策，非 null 决定教师当年赋分政策）
+    ['chsi_school', "TEXT DEFAULT ''"], ['chsi_level', "TEXT DEFAULT ''"], ['chsi_major', "TEXT DEFAULT ''"],
+    ['chsi_status', "TEXT DEFAULT ''"], ['chsi_enroll_year', "TEXT DEFAULT ''"], ['chsi_verified', 'INTEGER NOT NULL DEFAULT 0'] // v1.2.0 T1：学信网核验自动填入字段（只读，禁手动改）
   ]);
   // R2-5 存量教师单报价转区间（幂等）：price 列保留不动（重建表不值当），仅按旧价回填 min==max，
   // 防档案完整性门槛（price_min==null）误拦历史教师接单。price 列此后不再写入。
@@ -772,8 +804,9 @@ export async function dbSetUserBanned(db, userId, banned) {
 // 邀请码
 // ============================================================
 export async function dbFindValidInviteCode(db, code) {
+  // v1.2.0 T4：邀请码无过期时间（去掉 expires_at 条件），一人使用并成功注册后失效（used_by 非空）
   return await dbGet(db,
-    "SELECT * FROM invite_codes WHERE code=? AND used_by IS NULL AND expires_at > datetime('now','localtime')",
+    "SELECT * FROM invite_codes WHERE code=? AND used_by IS NULL",
     [code]);
 }
 
@@ -785,10 +818,11 @@ export async function dbUseInviteCode(db, code, userId) {
   return !!(r && r.meta && r.meta.changes > 0);
 }
 
-export async function dbCreateInviteCode(db, code, adminId, expiresAt) {
+export async function dbCreateInviteCode(db, code, adminId) {
+  // v1.2.0 T4：邀请码无过期时间（去掉 expires_at 列/参数）
   await dbRun(db,
-    'INSERT INTO invite_codes (code,created_by,expires_at) VALUES (?,?,?)',
-    [code, adminId, expiresAt]);
+    'INSERT INTO invite_codes (code,created_by) VALUES (?,?)',
+    [code, adminId]);
 }
 
 
@@ -797,8 +831,9 @@ export async function dbCreateInviteCode(db, code, adminId, expiresAt) {
 // 四列在库里是 JSON 字符串，出 db.js 一律经此函数变数组——容错（脏数据不炸全列表），
 // 调用方拿到的永远是数组，严禁在路由层再 JSON.parse（双重解析会炸）
 // ============================================================
-function safeJsonArray(text) {
+export function safeJsonArray(text) {
   if (!text) return [];
+  if (Array.isArray(text)) return text; // 已反序列化（mapper 出口）再入本函数：直接放行，勿二次 JSON.parse
   try { const v = JSON.parse(text); return Array.isArray(v) ? v : []; }
   catch { return []; }
 }
@@ -896,6 +931,10 @@ async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) 
     // 网安审计 M1 决策：公开模式不裁剪——毕业年份仅能粗推成人教师年龄（远弱于联系方式/门牌），
     // 且是学生判断「该教师高考分按哪套政策」的必读信息（2c 需求），刻意公开；不仿 real_name 门控。
     graduation_year: p.graduation_year != null ? p.graduation_year : null,
+    // v1.2.0 T1：学信网核验自动填入字段（只读，禁手动改；chsi_verified=1 才开放接单资格）
+    chsi_school: p.chsi_school || '', chsi_level: p.chsi_level || '', chsi_major: p.chsi_major || '',
+    chsi_status: p.chsi_status || '', chsi_enroll_year: p.chsi_enroll_year || '',
+    chsi_verified: p.chsi_verified ? true : false,
     wechat, email, avatar: p.avatar || '',
     rating: p.rating, rating_count: p.rating_count, matched: p.matched ? true : false, updatedAt: p.updated_at,
   };
@@ -1585,10 +1624,24 @@ export async function dbGetReviewStats(db) {
 }
 
 export async function dbGetInviteStats(db) {
+  // v1.2.0 T4：邀请码无过期时间——active = 未使用（used_by IS NULL）
   return await dbGet(db, `SELECT COUNT(*) as total,
     SUM(CASE WHEN used_by IS NOT NULL THEN 1 ELSE 0 END) as used,
-    SUM(CASE WHEN used_by IS NULL AND expires_at>datetime('now','localtime') THEN 1 ELSE 0 END) as active
+    SUM(CASE WHEN used_by IS NULL THEN 1 ELSE 0 END) as active
     FROM invite_codes`);
+}
+
+/** v1.2.0 T4：邀请码列表（管理员管理模块）——含使用者用户名；未用在前，按创建倒序 */
+export async function dbListInviteCodes(db) {
+  return await dbAll(db, `SELECT i.code, i.created_at, i.used_by, i.used_at, u.username AS used_by_username
+    FROM invite_codes i LEFT JOIN users u ON u.id=i.used_by
+    ORDER BY (i.used_by IS NOT NULL), i.created_at DESC LIMIT 200`);
+}
+
+/** v1.2.0 T4：作废未使用邀请码（已使用不可作废——使用即永久失效） */
+export async function dbRevokeInviteCode(db, code) {
+  const r = await dbRun(db, 'DELETE FROM invite_codes WHERE code=? AND used_by IS NULL', [code]);
+  return !!(r && r.meta && r.meta.changes > 0);
 }
 
 export async function dbGetRecentUsers(db, limit = LIMITS.RECENT_LIMIT) {
@@ -1994,4 +2047,49 @@ export async function dbDeleteFeedback(db, id) {
 }
 export async function dbDeleteComplaint(db, id) {
   await dbRun(db, 'DELETE FROM complaints WHERE id=?', [id]);
+}
+
+// ============================================================
+// 学信网核验（v1.2.0 T1/T3）：teacher_verifications 记录 + teacher_profiles chsi_* 字段
+// ============================================================
+export async function dbGetTeacherVerification(db, userId) {
+  return await dbGet(db,
+    'SELECT * FROM teacher_verifications WHERE user_id=?', [userId]);
+}
+
+/** 插入/更新核验记录（一人一条，UNIQUE(user_id)；approved/rejected 覆写旧状态） */
+export async function dbUpsertTeacherVerification(db, v) {
+  await dbRun(db, `INSERT INTO teacher_verifications
+      (user_id, verify_code, status, school, level, major, enrollment_status, enroll_year, provider, verified_by, verified_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      verify_code=excluded.verify_code, status=excluded.status,
+      school=excluded.school, level=excluded.level, major=excluded.major,
+      enrollment_status=excluded.enrollment_status, enroll_year=excluded.enroll_year,
+      provider=excluded.provider, verified_by=excluded.verified_by, verified_at=excluded.verified_at`,
+    [v.userId, v.verifyCode, v.status, v.school || '', v.level || '', v.major || '',
+     v.enrollmentStatus || '', v.enrollYear || '', v.provider || 'mock', v.verifiedBy || null, v.verifiedAt || null]);
+}
+
+/** 核验通过后把学信网字段自动填入教师档案（chsi_* 只读，禁手动改） */
+export async function dbApplyChsiToProfile(db, userId, info) {
+  await dbRun(db, `UPDATE teacher_profiles SET
+      chsi_school=?, chsi_level=?, chsi_major=?, chsi_status=?, chsi_enroll_year=?, chsi_verified=1,
+      school=CASE WHEN school='' OR school IS NULL THEN ? ELSE school END
+      WHERE user_id=?`,
+    [info.school || '', info.level || '', info.major || '', info.enrollmentStatus || '',
+     info.enrollYear || '', info.school || '', userId]);
+}
+
+/** 管理员核验队列：全部记录（pending 优先） */
+export async function dbListTeacherVerifications(db, status) {
+  const where = status && status !== 'all' ? ' WHERE v.status=?' : '';
+  const args = status && status !== 'all' ? [status] : [];
+  return await dbAll(db, `SELECT v.*, u.username FROM teacher_verifications v
+      JOIN users u ON u.id=v.user_id${where} ORDER BY v.created_at DESC`, args);
+}
+
+// v1.2.0 T6：管理员按 id 查核验记录
+export async function dbGetTeacherVerificationById(db, id) {
+  return await dbGet(db, 'SELECT * FROM teacher_verifications WHERE id=?', [id]);
 }

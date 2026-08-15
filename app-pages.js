@@ -702,11 +702,16 @@ async function loadProfile() {
     const data = await dhGet('/api/teacher/profile', { domain: 'teachers' });
     if (data.profile) {
       const p = data.profile;
+      // v1.2.0 T5：学信网验证门控——未核验教师只呈现验证门（表单隐藏）；已核验显示学信网信息 + 解锁表单
+      applyChsiGate(p);
       document.getElementById('profile-grade').value = p.grade || '';
       // 按 GENDERS 白名单消毒——历史值（''/nonbinary 等旧枚举）不在选项中时
       // 一律回落默认「不愿透露」（未消毒则 value 落空 → selectedIndex=-1 → 自定义下拉触发器文字为空、塌成细条）
       document.getElementById('profile-gender').value = GENDERS.some(x => x.id === p.gender) ? p.gender : 'undeclared';
-      document.getElementById('profile-school').value = p.school || '';
+      document.getElementById('profile-school').value = p.chsi_verified ? p.chsi_school : (p.school || '');
+      // v1.2.0 T5：学信网核验通过后学校不可手动填写（值来自学信网 chsi_school）
+      const schoolEl = document.getElementById('profile-school');
+      if (schoolEl) schoolEl.readOnly = !!p.chsi_verified;
       // R2-12 毕业年份回填（决定高考赋分按哪套政策渲染）
       document.getElementById('profile-graduation-year').value = p.graduation_year || '';
       document.getElementById('profile-real-name').value = p.real_name || '';
@@ -966,3 +971,86 @@ function deleteAward(id) {
 }
 
 registerLogoutReset(() => { _awardProofUploadId = null; });
+
+// ============================================================
+// v1.2.0 T5：学信网验证门（资料页）——未核验教师只呈现验证需求 + 提交核验；
+// 通过后学信网字段自动填入（只读展示），开放正常资料卡填写
+// ============================================================
+function renderChsiInfo(p) {
+  const rows = [
+    [UI.CHSI_INFO_SCHOOL, p.chsi_school],
+    [UI.CHSI_INFO_LEVEL, p.chsi_level],
+    [UI.CHSI_INFO_MAJOR, p.chsi_major],
+    [UI.CHSI_INFO_STATUS, p.chsi_status],
+    [UI.CHSI_INFO_YEAR, p.chsi_enroll_year],
+  ].filter(([, v]) => v);
+  return `<div class="chsi-info-card glass">
+    <h3 class="chsi-info-title">${escHtml(UI.CHSI_INFO_TITLE)}</h3>
+    ${rows.map(([k, v]) => `<div class="chsi-info-row"><span class="chsi-info-k">${escHtml(k)}</span><span class="chsi-info-v">${escHtml(v)}</span></div>`).join('')}
+  </div>`;
+}
+
+/** 档案加载后门控：已核验 → 显示学信网信息 + 解锁表单；未核验 → 验证门（表单隐藏） */
+async function applyChsiGate(p) {
+  const gate = document.getElementById('chsi-gate');
+  const info = document.getElementById('chsi-info');
+  const form = document.getElementById('profile-form');
+  if (!gate || !info || !form) return;
+  if (p && p.chsi_verified) {
+    gate.classList.add('hidden');
+    info.classList.remove('hidden');
+    info.innerHTML = renderChsiInfo(p);
+    form.classList.remove('hidden');
+    return;
+  }
+  // 未核验：查核验记录状态（none=未提交 / pending=管理员核验中）
+  let st = 'none';
+  try { st = (await api('/api/teacher/verify-status')).status || 'none'; } catch { /* 静默：按未提交渲染 */ }
+  form.classList.add('hidden');
+  info.classList.add('hidden');
+  gate.classList.remove('hidden');
+  if (st === 'pending') {
+    gate.innerHTML = `<div class="chsi-gate-card glass">
+      <h3 class="chsi-gate-title">${escHtml(UI.CHSI_GATE_TITLE)}</h3>
+      <p class="chsi-gate-pending">${escHtml(UI.CHSI_GATE_PENDING)}</p>
+    </div>`;
+    return;
+  }
+  gate.innerHTML = `<div class="chsi-gate-card glass">
+    <h3 class="chsi-gate-title">${escHtml(UI.CHSI_GATE_TITLE)}</h3>
+    <ol class="chsi-gate-steps">${UI.CHSI_GATE_STEPS.map(s => `<li>${escHtml(s)}</li>`).join('')}</ol>
+    <p class="chsi-gate-hint">${escHtml(UI.CHSI_GATE_HINT)}</p>
+    <div class="code-input-wrap chsi-gate-input">
+      <input type="text" class="form-input" id="chsi-code" placeholder="${escHtml(UI.CHSI_GATE_PLACEHOLDER)}" maxlength="16" inputmode="text" autocomplete="off">
+      <button type="button" class="btn btn-sm code-send-btn glass glass--pressable" id="chsi-submit" onclick="submitChsiVerify()">${escHtml(UI.CHSI_GATE_SUBMIT)}</button>
+    </div>
+  </div>`;
+}
+
+/** 提交学信网验证码核验 */
+async function submitChsiVerify() {
+  const code = ((document.getElementById('chsi-code') || {}).value || '').trim();
+  if (!code) { showToast(UI.CHSI_CODE_REQUIRED, 'error'); return; }
+  const btn = document.getElementById('chsi-submit');
+  btnLoading(btn, UI.CHSI_GATE_VERIFYING);
+  try {
+    const r = await api('/api/teacher/verify-chsi', { method: 'POST', body: { code } });
+    if (r.status === 'approved') {
+      showToast(UI.CHSI_SUCCESS, 'success');
+      // 重新拉档案（datahub 缓存 miss 重拉）+ 重新门控
+      if (typeof dhInvalidateDomain === 'function') dhInvalidateDomain('teachers');
+      await loadProfile();
+    } else if (r.status === 'pending') {
+      const gate = document.getElementById('chsi-gate');
+      if (gate) gate.innerHTML = `<div class="chsi-gate-card glass">
+        <h3 class="chsi-gate-title">${escHtml(UI.CHSI_GATE_TITLE)}</h3>
+        <p class="chsi-gate-pending">${escHtml(UI.CHSI_GATE_PENDING)}</p>
+      </div>`;
+    }
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    const b2 = document.getElementById('chsi-submit');
+    if (b2) btnDone(b2, UI.CHSI_GATE_SUBMIT);
+  }
+}

@@ -69,8 +69,9 @@ async function seedTeacher(db, raw, username = 't1', complete = true) {
   raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
     .run(await tokenDigest(token), id, 'x', '2099-01-01 00:00:00');
   if (complete) {
-    raw.prepare('INSERT INTO teacher_profiles (user_id, province, grade, gender, subjects, price_min, price_max) VALUES (?,?,?,?,?,?,?)')
-      .run(id, 'shanghai', 'senior1', 'male', JSON.stringify(['math']), 150, 150);
+    // v1.2.0 T3：合格接单教师档案（chsi_verified=1 + 必填齐全：科目/报价/时间/方式）
+    raw.prepare('INSERT INTO teacher_profiles (user_id, province, grade, gender, subjects, price_min, price_max, time_slots, teaching_method, chsi_verified) VALUES (?,?,?,?,?,?,?,?,?,1)')
+      .run(id, 'shanghai', 'senior1', 'male', JSON.stringify(['math']), 150, 150, '[{"day":"sat"}]', 'online');
   }
   return { token, id };
 }
