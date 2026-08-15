@@ -35,8 +35,8 @@ function updateNavbar() {
     el.innerHTML = `<div class="navbar-user">
       <span>${escHtml(u.username)}</span><span class="user-badge glass${u.role === 'admin' ? ' admin-badge glass' : ''}">${roleLabel}</span></div>`;
   } else {
-    el.innerHTML = `<button class="btn btn-ghost glass glass--pressable" onclick="showView('login')">${UI.NAV_LOGIN}</button>
-      <button class="btn btn-sm glass glass--pressable" onclick="showView('register')">${UI.NAV_REGISTER}</button>`;
+    el.innerHTML = `<button class="btn glass glass--pressable" onclick="showView('login')">${UI.NAV_LOGIN}</button>
+      <button class="btn glass glass--pressable" onclick="showView('register')">${UI.NAV_REGISTER}</button>`;
   }
 }
 
