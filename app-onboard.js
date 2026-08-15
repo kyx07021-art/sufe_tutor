@@ -36,10 +36,11 @@ function onboardContext() {
 function openOnboarding() {
   const ctx = onboardContext();
   const policyItems = UI.ONBOARD_POLICY.map(p => `<div class="onboard-policy-item"><span class="about-sec-mark glass" aria-hidden="true"></span><p>${escHtml(p)}</p></div>`).join('');
-  // 登录态依赖：访客主按钮导向登录通路，已登录主按钮关闭进入平台
+  // 登录态依赖：已登录主按钮关闭进入平台；访客主按钮「进客户端逛逛」——直接带新客进游客客户端
+  // 自动跑对应角色逛一圈 tour（新手引导一分流程）；登录入口落地页常驻，随时可去
   const primary = ctx.loggedIn
     ? `<button type="button" class="btn glass glass--pressable" onclick="closeModal()">${UI.ONBOARD_CONFIRM}</button>`
-    : `<button type="button" class="btn glass glass--pressable" onclick="closeModal();ensureAuth()">${UI.ONBOARD_CONFIRM_LOGIN}</button>`;
+    : `<button type="button" class="btn glass glass--pressable" onclick="closeModal();enterRolePreview('student');startOnboardingTour()">${UI.ONBOARD_CONFIRM_BROWSE}</button>`;
   openModal({
     title: UI.ONBOARD_TITLE,
     closable: false,

@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: true,
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.0.6',
+  APP_VERSION: '1.0.7',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1823,7 +1823,7 @@ globalThis.APP_CONSTANTS = {
       '当前为内测阶段，公测后账号与数据将被清空；更多细节见「详细用法介绍」',
     ],
     ONBOARD_CONFIRM: '知道了',
-    ONBOARD_CONFIRM_LOGIN: '知道了，去登录',
+    ONBOARD_CONFIRM_BROWSE: '知道了，进客户端逛逛',
     ONBOARD_REVISIT_BTN: '重温新手引导',
     // 新手引导多步走（需求三）：独立可交互层，亮区点击进入下一步；文案单源。
     // 右上角全局「跳过引导」按钮（需求三·6：引导全程常亮，固定定位 z 高于一切）。

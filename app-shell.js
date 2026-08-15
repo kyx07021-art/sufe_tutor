@@ -624,11 +624,13 @@ registerLogoutReset(() => { _notifList = []; _lastContractSig = ''; });
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   initCustomSelects(); // 静态页面上的筛选/评价下拉统一换自定义组件
+  // 首访引导前置到身份恢复三分支之前：访客恢复（getLastGuestRole 非空）原分支直接 return 不弹首访
+  // （生产实证：清库后本地残留访客角色 → 首访无引导）——已登录由 isReturning() 拦截（登录即写标记）
+  showOnboardingIfNeeded();
   const saved = loadSession();
   if (saved && saved.authToken) { switchToRole(saved.user.role, saved); return; } // 校验后进客户端（enterClient 恢复页面）
   const guest = getLastGuestRole();
   if (guest) { enterRolePreview(guest); return; } // 访客预览恢复（含页面停留）
   showView('landing');
-  showOnboardingIfNeeded();
   preloadDomainScripts(); // #178：后台静默预载领域脚本（点击入口下一帧即进客户端）
 });

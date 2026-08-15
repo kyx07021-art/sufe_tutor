@@ -77,7 +77,9 @@ function authGoBack() {
 }
 
 // 登录 / 注册成功统一收口：清访客态 + 本机已登录标记 + 自动返回触发登录通路的那个页面
-function afterAuthSuccess() {
+// isNew=true（注册成功）：enterClient 完成后自动跑对应角色详细指引 tour（新手引导二分流程——
+// 「注册后在对应客户端详细指引」；登录不跑，避免每次登录都弹引导）
+async function afterAuthSuccess(isNew = false) {
   state.guestAuthMode = false;
   state.guestRole = null;
   setReturning(); // 本设备已登录过 → 首访新手引导不再弹
@@ -86,7 +88,8 @@ function afterAuthSuccess() {
   // 被新身份读到（dhPeek 命中旧身份缓存）。清理后 enterClient 的预取为当前身份现拉
   if (typeof dhInvalidateAll === 'function') dhInvalidateAll();
   const back = authReturnPage; authReturnPage = null;
-  enterClient(back || undefined); // 返回页与新角色不匹配时 enterClient 自然回落默认页
+  await enterClient(back || undefined); // 返回页与新角色不匹配时 enterClient 自然回落默认页
+  if (isNew) startOnboardingTour(); // 注册成功：按角色跑 studentUser/teacherUser 全模块指引（sidebar 已渲染，引擎轮询兜底等待）
 }
 
 function switchRegisterRole(role) {
@@ -346,7 +349,7 @@ async function doRegister(username, password, role, agreeAgreement, agreePrivacy
     state.user = data.user; state.authToken = data.authToken || null;
     if (role === 'teacher') state.validatedInviteCode = null; // 请求成功后清（网络失败保留，重试免重验；原提前清空致失败即需重验）
     saveSession(false); // 注册即登录：会话存 sessionStorage（刷新保留，关标签即焚）
-    afterAuthSuccess();
+    afterAuthSuccess(true); // isNew：注册成功自动跑对应角色详细指引 tour
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
