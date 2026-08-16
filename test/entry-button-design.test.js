@@ -39,8 +39,8 @@ test('R28 CSS：光斑跟随变量 + 扫光 + 辉光边缘 + 弹簧按压（四�
   assert.ok(css.includes('transform: translateX(-150%) rotate(18deg);') &&
     css.includes('@keyframes entry-sheen { to { transform: translateX(320%) rotate(18deg); } }'),
     '扫光自左外横扫至右外（全覆盖）');
-  assert.ok(css.includes('.entry.glass:hover, .entry.glass:focus-visible {') && css.includes('color-mix(in srgb, #fff 55%, transparent)'),
-    'hover 辉光边缘改亮色发光（v1.4.4：光晕变亮有发光感——用户需求）');
+  assert.ok(css.includes('.entry.glass:hover, .entry.glass:focus-visible {') && css.includes('color-mix(in srgb, var(--accent-bright) 45%, transparent)'),
+    'hover 辉光边缘发光紫（v1.4.10：v1.4.4 改白后混入卡片原色——用户反馈改回紫）');
   assert.ok(css.includes('.entry:active { transform: translateY(1px) scale(.985);'),
     'active 弹簧按压（flat 触感）');
   assert.ok(!css.includes('.entry:hover { background-color'), '不引入散装 hover 背景（走引擎 token）');
