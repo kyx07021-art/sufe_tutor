@@ -134,17 +134,17 @@ test('业务拒绝（HTTP 200 + 业务码非 200）：作废验证码 + 500 + �
   assert.equal(r.ok, false);
   assert.equal(r.err.status, 500, 'HTTP 200 受理 ≠ 成功：业务码非 200 仍按失败处理');
   const body = await r.err.json();
-  assert.equal(body.error, '验证码发送失败：账户未通过实名认证，请前往个人设置/实名认证完成认证后再试', '透传服务商操作提示（用户可自助），非笼统「服务器内部错误」');
+  assert.equal(body.error, '验证码发送失败：账户未通过实名认证，请前往个人设置/实名认证完成认证后再试', '透传服务商操作提示（用户可自助），非笼统的 500 通用文案');
   const cnt = raw.prepare('SELECT COUNT(*) c FROM verification_codes WHERE channel=? AND target_hash=?').get('sms', hash).c;
   assert.equal(cnt, 0, '验证码行已作废删除');
 });
 
-// 网络/超时类失败无服务商提示 → 保持 SERVER_ERROR（不透传技术细节）
+// 网络/超时类失败无服务商提示 → 保持 SERVER_ERROR（通用人话，不透传技术细节）
 test('非业务拒绝（网络异常）：保持 SERVER_ERROR 文案', async () => {
   const { db } = await setup();
   setOtpStubFail('throw');
   const r = await requestOtp(db, { channel: 'sms', target: '+8613812345678' }, { headers: new Headers() });
   assert.equal(r.ok, false);
   const body = await r.err.json();
-  assert.equal(body.error, '服务器内部错误');
+  assert.equal(body.error, '刚刚的操作没有成功，请稍后重试；如果反复出现，请到「关于平台」反馈给我们。');
 });

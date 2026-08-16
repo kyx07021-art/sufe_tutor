@@ -213,27 +213,27 @@ body { background: transparent; }
   --g-fill: var(--g-btn-fill, transparent); /* 白按钮=标准玻璃：不需要填充层，磨砂(frost)+液态边(edge)+深字定义它（用户："现在它需要填充吗？"）；--g-btn-fill 语义别名（需求八·item4 flat 包覆盖为不透明纸面，防平面模式按钮隐形） */
   --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97;
 }
-/* 按钮=标准玻璃（用户指令：别管好不好看，先接入标准玻璃——去自定义紫/彩填充）。
-   全部透明磨砂透镜 + 深字；hover/涟漪/边缘由引擎兜底。 */
+/* 按钮层级（R5-2）：主按钮（裸 .btn）= 白调面 + 发丝边，一眼可辨；
+   次按钮 .btn-soft = 轻面 + 细边，弱一档；.btn-outline/.btn-ghost 只留文字层。 */
+.btn:not(.btn-soft):not(.btn-outline):not(.btn-ghost):not(.btn-text-danger), .tc-push-btn, .chat-send {
+  --g-fill: var(--g-btn-bg);
+  --g-border: 1px solid var(--g-btn-line);
+  --g-lift: var(--glass-lift-sm);
+}
 .btn-outline { --g-fg: var(--ink); }
 .btn-ghost { --g-fg: var(--muted); }
-.btn-text-danger { --g-fg: var(--danger-deep, #9B2C2C); padding: 6px 12px; }
-/* 需求十一·轻量描边按钮（R11：需求列表 编辑/试课意向 等卡片动作统一外观）：
-   较浅色 + 统一细边框 + 背景灰变白——白卡上靠发丝边界定、灰底上靠白调面浮起，两背景都可见。
-   与下拉/勾选/成绩 pill 同族：纯 token 换肤，零 per-variant 散件；
-   --g-btn-bg/--g-btn-line 主题双 token（液态包白调面+发丝边；flat 包 --g-fill-weak/--g-btn-line 对齐平面）。 */
+.btn-text-danger { --g-fg: var(--danger-deep, #9B2C2C); padding: 6px 12px; --g-fill: var(--g-danger-fill); --g-border: 1px solid var(--g-danger-line); --g-lift: var(--glass-lift-sm); }
+/* 次按钮（R11 卡片动作统一外观）：比主按钮弱一档——微透轻面 + 发丝细边。
+   --g-btn-bg/--g-btn-line 主题双 token；flat 下 --g-fill-weak/全局 --g-border 同语义。 */
 .btn-soft {
-  /* 别改来改去加填充特例，直接接 liquid 标准按钮组件）：
-     按钮本就带 .btn 类，标准玻璃面（磨砂 blur(4px)+弯月环+深字，见上方按钮族）由 .btn 提供——
-     回滚前几轮加的填充/描边特例（.72 白调面 → flat；transparent+1px 描边 → outline 观感 flat；
-     .20 半透白 → 用户拒收特例），不覆写 --g-fill、不设描边，继承 .btn 标准面即接入 liquid 标准按钮。
-     flat 包 --g-btn-fill=纸面 照常生效（平面现状不变）。 */
+  --g-fill: var(--g-fill-weak);
+  --g-border: 1px solid var(--g-btn-line);
   --g-fg: var(--ink);
   --g-lift: var(--glass-lift-sm);
 }
 /* 需求八·item4：平面简约下文字链按钮保持文字语义（不实心不描边），与实心按钮区分层级 */
 [data-style="flat"] .btn-link-inline,
-[data-style="flat"] .btn-text-danger { --g-btn-fill: transparent; --g-border: none; }
+[data-style="flat"] .btn-text-danger { --g-btn-fill: transparent; --g-fill: transparent; --g-border: none; }
 .tc-push-btn { --g-r: var(--lg-r); padding: 9px 18px; --g-lift: var(--glass-lift-sm); } /* G6：删全文件唯一常驻紫投影，交还中性 lift */
 /* v0.25.94：侧栏选中高亮由 .sidebar-item.active 自身背景承载（见 style.css），无覆盖层 */
 /* 头像：圆形玻璃面（实心遮罩）+ 高光描边 */

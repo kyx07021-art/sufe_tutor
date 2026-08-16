@@ -5,15 +5,23 @@
  *  - 联系方式长度：wechat/email 超 CONTACT_MAX 截断（此前无上限，可塞 MB 级）
  *  - 需求 parent_contact/student_contact 同款截断
  */
-import { test } from 'node:test';
+import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
 import { tokenDigest, decryptField } from '../server/crypto.js';
 import { handleCreateDemand } from '../server/routes-demands.js';
 import { handleSaveProfile } from '../server/routes-teacher.js';
+import { bindTextAuditEnv } from '../server/text-audit.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const origFetch = globalThis.fetch;
+beforeEach(() => {
+  bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: '{"flagged": false}' }] }) });
+});
+afterEach(() => { bindTextAuditEnv(null); globalThis.fetch = origFetch; });
+
 
 function d1Shim(raw) {
   return {
@@ -131,7 +139,7 @@ test('F-1 教师 intro/school 含门牌号 → 400（此前仅 address 有守卫
 test('F-4 联系方式超长截断：wechat/email ≤ CONTACT_MAX、parent/student_contact ≤ CONTACT_MAX', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { teaToken, stuToken } = await seed(db, raw);
-  // 测试环境无 FIELD_ENC_KEY → encryptField fail-open 存明文，可直接断言落库长度（routes 层 slice 先于 db）
+  // 测试环境无 FIELD_ENC_KEY → encryptField 回落 LOG_ENCRYPT_KEY 加密，解密后断言落库长度（routes 层 slice 先于 db）
   const pw = await handleSaveProfile(db, { profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, wechat: 'w'.repeat(300), email: 'e'.repeat(300) } }, reqOf(teaToken));
   assert.equal(pw.status, 200);
   const row = raw.prepare('SELECT wechat, email FROM teacher_profiles').get();

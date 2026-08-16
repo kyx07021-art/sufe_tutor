@@ -19,6 +19,8 @@ import {
 import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from './log.js';
 import { decryptField } from './crypto.js'; // M1 修复：管理端动作传解密验证码（避免双重加密）
 import { confirmDangerOtp } from './danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
+import { reencryptAll } from './reencrypt.js'; // v1.5.0 密钥轮换重加密（危险操作，capToken 门禁）
+import { getDashboardMetrics } from './telemetry.js'; // v1.5.0 观测 dashboard 数据
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 import { dbBroadcastNotification, notifyUser } from './notify.js';
 
@@ -74,6 +76,31 @@ export async function handleAdminStats(db, url, req) {
     stats: { users, profiles, demands, reviews, invites, recentUsers, recentDemands,
       todo: { awardsPending, feedbacksOpen, complaintsOpen } }
   });
+}
+
+// v1.5.0 管理端 dashboard：一次返回待办 + 观测指标（KPI/趋势/状态分布/热点路径）。
+export async function handleAdminDashboard(db, url, req) {
+  const { err } = await requireAdmin(db, req);
+  if (err) return err;
+  const hours = Math.min(24 * 7, Math.max(1, parseInt(url.searchParams.get('hours')) || 24));
+  const [users, reviews, metrics] = await Promise.all([
+    dbGetUserStats(db),
+    dbGetReviewStats(db),
+    getDashboardMetrics(db, hours),
+  ]);
+  const todo = {
+    verificationsPending: await dbGetCountWhere(db, 'teacher_verifications', "status='pending'"),
+    reviewsPending: reviews ? Number(reviews.pending || 0) : 0,
+    awardsPending: await dbGetCountWhere(db, 'teacher_awards', "status='pending'"),
+    feedbacksOpen: await dbGetCountWhere(db, 'feedbacks', "status='open'"),
+    complaintsOpen: await dbGetCountWhere(db, 'complaints', "status='open'"),
+  };
+  return json({ dashboard: {
+    hours,
+    counts: { users, reviews, demands: await dbGetCount(db, 'student_demands'), teachers: await dbGetCount(db, 'teacher_profiles') },
+    todo,
+    metrics,
+  } });
 }
 
 // 流量监测：站点总流量 + 平均延迟。
@@ -305,6 +332,18 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
       actorRole: 'admin', entity: 'feedback', entityId: feedbackId, detail: { kind: f.kind }, req });
   }
   return json({ ok: true });
+}
+
+// v1.5.0 密钥轮换：管理员经二次认证触发全库密文重加密。
+// 契约：Worker Secrets 先同时配置新钥与 *_OLD 旧钥；成功后在发布层删除旧钥。无法解密的行只计数不覆盖。
+export async function handleAdminReencrypt(db, body, req, env = null) {
+  const { admin, err } = await requireAdmin(db, req);
+  if (err) return err;
+  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  const summary = await reencryptAll(db, env && env.LOG_DB); // 独立留档库一并重加密（N1 审计修复）
+  await logEvent(db, { action: 'admin.crypto.reencrypt', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'system', entityId: 0, detail: summary, req });
+  return json({ ok: true, summary });
 }
 
 // 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件：标题+正文，

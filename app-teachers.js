@@ -36,6 +36,15 @@
 // 浏览教师
 // ============================================================
 async function loadTeachers() {
+  // v1.5.0 文案单源：静态 option 只是无 JS 兜底，运行期统一覆盖为 UI 常量
+  const sortSel = document.getElementById('teacher-sort');
+  if (sortSel) {
+    const map = { match: UI.TEACHER_SORT_MATCH, rating: UI.TEACHER_SORT_RATING, price: UI.TEACHER_SORT_PRICE };
+    for (const [v, text] of Object.entries(map)) {
+      const opt = sortSel.querySelector(`option[value="${v}"]`);
+      if (opt) opt.textContent = text;
+    }
+  }
   // Populate subject filter
   const subjectFilter = document.getElementById('filter-subject');
   if (subjectFilter.options.length <= 1) {

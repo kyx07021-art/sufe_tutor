@@ -76,7 +76,7 @@ export async function handleRegister(db, body, req) {
   const contactTaken = otpChannel === 'email' ? await dbEmailTaken(db, contactTarget) : await dbPhoneTaken(db, contactTarget);
   if (contactTaken) return error(otpChannel === 'email' ? MSG.EMAIL_ALREADY_BOUND : MSG.PHONE_ALREADY_BOUND, 409);
 
-  // 教师邀请码门控：内测期间休眠（INVITE_GATE_ENABLED=false 时教师免邀请码注册）
+  // 教师邀请码门控：后端 INVITE_GATE_ENABLED 决定是否需要邀请码（当前 true = 启用）
   const needsInvite = role === 'teacher' && INVITE_GATE_ENABLED;
   if (needsInvite) {
     if (!inviteCode) return error(MSG.TEACHER_NEEDS_INVITE);

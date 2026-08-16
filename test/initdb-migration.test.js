@@ -438,3 +438,17 @@ test('B3 迁移：默认评分改 4.5 后，有评论教师评分按新公式重
   const r3 = db.prepare('SELECT rating FROM teacher_profiles WHERE user_id=3').first();
   assert.equal(r3.rating, 4.5, '无评论教师回填 4.5（原行为保持）');
 });
+
+test('v1.5.0 K7：已有管理员不会被历史默认口令覆写（非默认新口令才轮换）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'first-strong-pw' });
+  const before = raw.prepare("SELECT password_hash, salt FROM users WHERE username='admin_sufe'").get();
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run();
+  await initDb(db, { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'admin_sufe' }); // 历史默认值：只首次种子化，不覆写
+  const afterLegacy = raw.prepare("SELECT password_hash, salt FROM users WHERE username='admin_sufe'").get();
+  assert.equal(afterLegacy.password_hash, before.password_hash, '默认口令不覆写已有管理员');
+  db.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run();
+  await initDb(db, { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'second-strong-pw' }); // 新强口令：自动轮换
+  const afterNew = raw.prepare("SELECT password_hash FROM users WHERE username='admin_sufe'").get();
+  assert.notEqual(afterNew.password_hash, before.password_hash, '非默认新口令轮换生效');
+});

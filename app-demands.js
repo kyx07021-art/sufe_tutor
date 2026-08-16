@@ -154,7 +154,7 @@ function renderDemandModal(demand) {
   // GENDERS 教师侧含 undeclared 默认（学生侧以 '' 表示不愿透露，剔除 undeclared 与历史 nonbinary）
   const studentGenders = [{ id: '', name: UI.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary')];
   const prefGenders = GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary'); // 偏好老师性别：不限('') + 男/女
-  // 任务三分步 wizard：字段按用户定序归 7 页（省份/教学方式/学生信息/科目/成绩/预算时间/提交），
+  // 任务三分步 wizard：字段按用户定序归 8 页（省份/教学方式/学生信息/科目/成绩/教师偏好/预算时间/提交），
   // 页面 DOM 常驻（display 切换不卸载，跨页状态零丢失）；form novalidate——每页校验走 demandWizardValidateStep。
   return `
         <form onsubmit="handleSubmitDemand(event)" id="demand-form" novalidate>
@@ -320,7 +320,7 @@ function gradeOptionsForProvince(prov) {
 }
 
 // ============================================================
-// 任务三需求表单 wizard 控制器：7 页常驻 DOM + 进度条 + 逐页校验
+// 任务三需求表单 wizard 控制器：8 页常驻 DOM + 进度条 + 逐页校验
 // 设计依据（web 调研结论）：页面不卸载（display 切换）跨页状态零丢失；每页过校验才前进；
 // Back 恒在（P1 无）；末页动作即提交按钮本身。JS 只切类/写 --dw-fill，零内联布局样式。
 // ============================================================

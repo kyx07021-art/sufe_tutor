@@ -170,9 +170,9 @@ function openUsernameChangeModal() {
     title: UI.USERNAME_CHANGE_TITLE,
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
     body: `<div class="form-group">
-      <label class="form-label">新用户名 <span class="req">*</span></label>
+      <label class="form-label">${UI.USERNAME_NEW_LABEL} <span class="req">*</span></label>
       <input type="text" class="form-input" id="username-new-input" placeholder="${UI.USERNAME_NEW_PLACEHOLDER}" maxlength="30" autocomplete="off" onkeydown="if(event.key==='Enter')confirmUsernameChange()">
-      <p class="form-hint">修改后全平台即时更新用户名；7 天内仅可修改一次</p>
+      <p class="form-hint">${UI.USERNAME_NEW_HINT}</p>
     </div>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${UI.BTN_CANCEL}</button>
       <button type="button" class="btn glass glass--pressable" onclick="confirmUsernameChange()">${UI.BTN_USERNAME_SAVE}</button>`,
@@ -191,7 +191,7 @@ function confirmUsernameChange() {
   }
   confirm({
     title: UI.USERNAME_CHANGE_TITLE,
-    message: `确定将用户名修改为「${newName}」吗？修改后 7 天内不可再次修改。`,
+    message: UI.USERNAME_CHANGE_CONFIRM_FMT.replace('{name}', newName),
     needReAuth: true, // 密码二道确认（网安 F-05 二次认证）
     okText: UI.BTN_USERNAME_SAVE,
     // C2 敏感操作门禁：密码验证通过后再过一次拼图真人验证，才真正改用户名
@@ -1075,7 +1075,7 @@ function admissionImagePicked(input) {
     window.__admissionImage = data; // 提交时读取（input.files 是活引用，清空后不可再读）
     if (preview) {
       preview.classList.remove('hidden');
-      preview.innerHTML = `<img src="${escHtml(data)}" alt="录取通知书预览">`;
+      preview.innerHTML = `<img src="${escHtml(data)}" alt="${UI.ADMISSION_GATE_TITLE}">`;
     }
   };
   reader.readAsDataURL(f);

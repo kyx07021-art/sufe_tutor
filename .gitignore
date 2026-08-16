@@ -9,3 +9,8 @@ data/
 .cssids.py
 .cssorder.py
 push-retry.log
+
+# 本地审计/临时产物（不提交）
+_tmp_*/
+_tmp_*.log
+_audit_*.md

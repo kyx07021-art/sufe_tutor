@@ -11,6 +11,8 @@
 import { initDb } from './server/db.js';
 import { json, error, parseBody } from './server/util.js';
 import { MSG } from './server/constants.js';
+import { productionReady, notReadyResponse } from './server/startup.js';
+import { recordRequestMetric, flushMetrics } from './server/telemetry.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './server/security.js';
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { bindTextAuditEnv } from './server/text-audit.js';
@@ -38,6 +40,7 @@ import {
   handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
   handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
   handleCreateFeedback, handleAdminFeedbacks, handleMyFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
+  handleAdminReencrypt, handleAdminDashboard,
 } from './server/routes-admin.js';
 import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost, handleMyFavorites, handleToggleFavorite } from './server/routes-posts.js';
 import {
@@ -150,6 +153,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   const verifAction = idMatch(p, /^\/api\/admin\/verifications\/(\d+)\/action$/);
   if (verifAction && method === 'POST') return await handleVerificationAction(db, verifAction, body, req); // v1.2.0 T6：通过/拒绝+结构化录入
   if (p === '/api/admin/stats' && method === 'GET') return await handleAdminStats(db, url, req);
+  if (p === '/api/admin/dashboard' && method === 'GET') return await handleAdminDashboard(db, url, req); // v1.5.0 观测面板聚合端点
   if (p === '/api/admin/traffic' && method === 'GET') return await handleAdminTraffic(db, url, req);
   if (p === '/api/admin/reviews' && method === 'GET') return await handleAdminReviews(db, url, req);
   if (p === '/api/admin/logs' && method === 'GET') return await handleAdminLogs(db, url, req);
@@ -228,6 +232,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   const notifRead = idMatch(p, /^\/api\/notifications\/(\d+)\/read$/); // #151 单条已读（取代批量全读）
   if (notifRead && method === 'POST') return await handleMarkNotificationRead(db, notifRead, req); // 2026-08-09 审计：#151 曾误传 notifRead[1]（idMatch 已返回数字，取下标恒 undefined → 恒 400，单条已读线上失效）
   if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);
+  if (p === '/api/admin/reencrypt' && method === 'POST') return await handleAdminReencrypt(db, body, req, env); // v1.5.0 密钥轮换（capToken 二次认证）
   const notifDelete = idMatch(p, /^\/api\/admin\/notifications\/(\d+)$/);
   if (notifDelete && method === 'DELETE') return await handleAdminDeleteNotification(db, notifDelete, req);
 
@@ -302,7 +307,10 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   if (p === '/api/batch' && method === 'POST') return await handleBatch(db, body, url, req, env);
 
   // 健康检查
-  if (p === '/api/health') return json({ status: 'ok', timestamp: new Date().toISOString() });
+  if (p === '/api/health') {
+    const gate = productionReady(env);
+    return json({ status: gate.ok ? 'ok' : 'not-ready', ready: gate.ok, checks: gate.checks, timestamp: new Date().toISOString() }, gate.ok ? 200 : 503);
+  }
 
   // D1 保活（v0.25.16）：Pages 无原生 cron，由独立保活 Worker 的 cron 每 5 分钟打本端点，
   // 对业务/留档/台账三库 SELECT 1 保持唤醒（等效 scheduled handler 的保活逻辑）。纯读、无敏感数据。
@@ -327,7 +335,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
 // 【外部审查 1101 修】仅匿名请求参与缓存（无 X-Auth-Token）——登录用户请求的响应含 per-user
 // 字段（posts.liked/favorited、teachers.matched、demands 观众变体），共享缓存跨用户下发即泄露；
 // 访客请求无 per-user 数据，是冷启动缓存的目标受众。登录用户走实时 routeApi 保私有正确。
-// 无 caches 环境（本地 dev / vm 测试）回落直取（fail-open，同加密咽喉内测兼容哲学）。
+// 无 caches 环境（本地 dev / vm 测试）回落直取（可用性 fallback，不改变鉴权与数据）。
 const PUBLIC_LIST_TTL_S = 30;
 export function isAnonymous(request) {
   return !request.headers.get('X-Auth-Token');
@@ -340,7 +348,7 @@ export function isPublicListCacheable(p, url) {
 }
 
 // B2（v0.27.0 网络层重构）：公开列表边缘缓存读 helper——主请求路径与 /api/batch 子请求共用。
-// 命中返回解析后的 JSON data（object），miss/读异常返回 null（fail-open 回落正常 handler，绝不 500）。
+// 命中返回解析后的 JSON data（object），miss/读异常返回 null（可用性 fallback，回落正常 handler，绝不 500）。
 // 生产实证铁律（v0.26.9）：workerd Cache API 的 match 响应 body 流有锁定/不可重复读风险，
 // 一律 text() 读一次重建 json，勿 clone/重复读原流。
 async function readPublicListCache(url) {
@@ -358,7 +366,7 @@ async function readPublicListCache(url) {
 
 // B2 补（v0.27.0 审计）：公开列表边缘缓存写 helper——/api/batch 子请求 miss 后写回。
 // 直接 await put（生产实证 waitUntil 异步写 → 紧随请求 miss）：text 极小毫秒级完成，
-// 响应返回时缓存已就绪，下一个请求必命中。写失败静默（不影响主响应，fail-open）。
+// 响应返回时缓存已就绪，下一个请求必命中。写失败静默（缓存是加速层，不影响主响应）。
 async function writePublicListCache(url, jsonText) {
   const apiCache = typeof caches !== 'undefined' ? caches.default : null;
   if (!apiCache) return;
@@ -431,6 +439,13 @@ export default {
     let p = url.pathname;
     try { p = decodeURIComponent(p); } catch { /* 非法编码保持原样 */ } // 防 %73erver 式编码绕过路径前缀检查
 
+    // v1.5.0 生产 Release Gate：生产运行时缺任一必需 Secret/仍处 mock 配置 → API 全部 503。
+    // 静态资源照常服务（发版脚本 curl /api/health 判 ready）。本地 dev/测试无 CF_PAGES_* 信号，不受影响。
+    if (p.startsWith('/api/')) {
+      const gate = productionReady(env);
+      if (!gate.ok) { recordRequestMetric({ path: p, status: 503 }); return applySecurityHeaders(notReadyResponse(gate), p); }
+    }
+
     // CORS preflight（网安咽喉单点）：仅对 /api/ 路径应答——非 API 敏感路径的 OPTIONS 一律 404（网安审计：曾绕过敏感路径黑名单）
     if (request.method === 'OPTIONS') {
       if (!p.startsWith('/api/')) return new Response('Not Found', { status: 404 });
@@ -501,7 +516,7 @@ export default {
         .catch(e => { env._dbInited = null; throw e; });
       bindLogDb(env); // 管理员配置经 secrets 网关读取（env.Worker Secrets 优先，回落本地文件）
       bindLedgerDb(env);
-      bindTextAuditEnv(env); // 文本审核咽喉（text-audit）：语义层密钥经 Secrets 网关读取，fail-open
+      bindTextAuditEnv(env); // 文本审核咽喉（text-audit）：v1.5.0 语义层缺密钥/异常拒绝写入（fail-closed）
     }
     await env._dbInited;
 
@@ -510,13 +525,14 @@ export default {
     let body = {};
     try { body = await parseBody(request); }
     catch (e) {
-      if (e && e.status === 413) return applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p);
+      if (e && e.status === 413) { recordRequestMetric({ path: p, status: 413 }); return applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p); }
       body = {};
     }
 
     // 限流闸门（网安咽喉；IP 取 CF-Connecting-IP；超限一律 429，细节不回显）
     const ip = request.headers.get('CF-Connecting-IP') || 'anon';
     if (!(await rateGate(ip, p, request.method, body, Date.now(), db))) {
+      recordRequestMetric({ path: p, status: 429, rateLimited: true });
       return applySecurityHeaders(error(MSG.RATE_LIMITED, 429), p);
     }
 
@@ -525,22 +541,23 @@ export default {
       // v0.26.0 E2 高频轻量日常审核断点：内容域写请求途中统一过监听断点（数据副本 + 上下文入队列 →
       // 审核节点）。v0.30.0（S2-1）起节点为门牌合规 L1 规则层（AUDIT_MAP 抽取自由文本字段交
       // auditFreeText），命中详细门牌号 → 400 reject。驳回文案走上传过程自身的 toast（api 调用方
-      // catch 已 showToast(err.message) 原样弹出，无需额外 toast 通路）。≤300ms 预算 fail-open。
+      // catch 已 showToast(err.message) 原样弹出，无需额外 toast 通路）。审核缺配置/异常拒绝写入。
       const audit = await auditBeforeWrite({ path: p, method: request.method, body, ip, userId: null });
       if (audit.reject) {
+        recordRequestMetric({ path: p, status: 400, durationMs: Date.now() - t0 });
         return applySecurityHeaders(error(audit.reject, 400), p);
       }
       // B6 公开列表边缘缓存：GET 公开列表命中缓存 → 零 D1 零留档直接返回（冷启动治本）；
       // miss 走正常 handler 后把响应写入边缘缓存（waitUntil 托管，30s TTL 自愈）。
       // 【命中读 text 重建，catch 回落 routeApi】：workerd Cache API 的 match 响应 body 流
       // 有锁定/不可重复读风险（生产实证 clone 后仍 500、durationMs 4ms）——改为 text() 读一次
-      // 重建 json 响应；任何缓存读异常都回落正常 handler（绝不 500，fail-open）。
+      // 重建 json 响应；任何缓存读异常都回落正常 handler（绝不 500，可用性 fallback）。
       const apiCache = typeof caches !== 'undefined' ? caches.default : null;
       // 匿名门（外部审查 1101）：仅访客请求参与公开列表缓存——登录请求含 per-user 字段，走实时
       const publicList = request.method === 'GET' && isAnonymous(request) && isPublicListCacheable(p, url);
       if (publicList && apiCache) {
         const cachedData = await readPublicListCache(url);
-        if (cachedData) return applySecurityHeaders(json(cachedData), p);
+        if (cachedData) { recordRequestMetric({ path: p, status: 200, durationMs: Date.now() - t0 }); return applySecurityHeaders(json(cachedData), p); }
       }
       const res = await routeApi(db, p, request.method, body, url, request, env); // env 供保活等需多绑定端点
       if (publicList && apiCache && res.status === 200) {
@@ -573,10 +590,15 @@ export default {
       // 保证留档完成（非悬浮 Promise；历史 0 留档事故是裸 await 后响应结束被掐断，waitUntil 正确托管，
       // _worker 已用于 bumpVersions 同款）。logRequest 内部吞错，留档失败绝不阻断响应。
       // logRequest 兼作本请求全部留档的统一落库点（B4：业务 logEvent 队列 + 本条访问留档一次 batch）
-      ctx.waitUntil(logRequest(db, { method: request.method, path: p, body, status: res.status, req: request, durationMs: Date.now() - t0 }));
+      const finalMs = Date.now() - t0;
+      recordRequestMetric({ path: p, status: res.status, durationMs: finalMs });
+      ctx.waitUntil(flushMetrics(db));
+      ctx.waitUntil(logRequest(db, { method: request.method, path: p, body, status: res.status, req: request, durationMs: finalMs }));
       return applySecurityHeaders(res, p);
     } catch (err) {
       console.error('API Error:', err); // 细节只留服务端日志
+      recordRequestMetric({ path: p, status: 500, durationMs: Date.now() - t0 });
+      ctx.waitUntil(flushMetrics(db));
       await logRequest(db, { method: request.method, path: p, body, status: 500, req: request, durationMs: Date.now() - t0 });
       return applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message
     }

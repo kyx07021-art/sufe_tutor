@@ -18,7 +18,7 @@ function bootCtx(dom, extra = {}) {
   const w = dom.window;
   return vm.createContext({
     window: w, document: w.document, localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console, fetch: extra.fetch || (async () => ({ ok: true, status: 200, json: async () => ({}) })),
+    console, fetch: extra.fetch || (async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) })),
     setTimeout, clearTimeout, setInterval, clearInterval, Request, AbortController, performance,
     MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
     Image: class { set src(v) { this._s = v; } }, requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
@@ -79,7 +79,7 @@ test('openCaptchaModal：独立验证浮窗（canvas/轨道/滑块/提示）+ �
     clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
-  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
+  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-api.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
   let passed = null;
   vm.runInContext(`openCaptchaModal({ onPass: (r) => { window.__captchaResult = r; } })`, ctx);
   const container = dom.window.document.getElementById('modal-container');
@@ -106,7 +106,7 @@ test('B4 拼图交互：拖拽更新 --captcha-x + 命中缺口验证通过 + �
     clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
-  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
+  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-api.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
   const drag = (toX) => vm.runInContext(`(() => {
     const ME = window.MouseEvent; // jsdom vm 上下文无 MouseEvent 全局，走 window
     const knob = document.getElementById('captcha-knob');
@@ -126,6 +126,7 @@ test('B4 拼图交互：拖拽更新 --captcha-x + 命中缺口验证通过 + �
   const puzzleInline = vm.runInContext(`document.getElementById('captcha-puzzle').style.getPropertyValue('--captcha-x')`, ctx);
   assert.equal(puzzleInline, '', '拼图块无自身 inline --captcha-x（走 box 继承跟随，防原位静止）');
   await new Promise(r => setTimeout(r, 350)); // verifyCaptcha pass 260ms 关闭
+  console.log('DEBUG passed?', dom.window.__passed, vm.runInContext(`document.getElementById('captcha-tip')?.textContent`, ctx), vm.runInContext(`JSON.stringify({off:_captchaOffset,target:_captchaTarget, apiType: typeof api, stateType: typeof state})`, ctx));
   assert.equal(dom.window.__passed, true, '命中缺口 → 验证通过 onPass 调用');
   assert.equal(dom.window.__got, undefined, 'onPass 无参调用（v1.4.13 删无消费方的 captchaId/offset/track 上抛）');
   // 失败路径：拖偏 → 不通过 + 滑块复位
@@ -149,7 +150,7 @@ test('B2 全域可达 + 右半缺口对齐即过：gap 边缘落在行程内，�
     beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {}, arc: () => {}, rect: () => {}, stroke: () => {}, clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
-  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
+  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-api.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
   const drag = (toX) => vm.runInContext(`(() => { const ME = window.MouseEvent; const knob = document.getElementById('captcha-knob'); knob.dispatchEvent(new ME('pointerdown', { clientX: 0, bubbles: true })); knob.dispatchEvent(new ME('pointermove', { clientX: ${toX}, bubbles: true })); knob.dispatchEvent(new ME('pointerup', { clientX: ${toX}, bubbles: true })); })()`, ctx);
   vm.runInContext(`window.__passed = false; openCaptchaModal({ onPass: () => { window.__passed = true; } });`, ctx);
   // 缺口归一化按行程 CAPTCHA_MAX_X（与旋钮同坐标系）：gap 像素位恒在 [16, CAPTCHA_MAX_X-24] 行程内
@@ -162,6 +163,7 @@ test('B2 全域可达 + 右半缺口对齐即过：gap 边缘落在行程内，�
   assert.ok(rightPx > 180, `右半缺口像素位=${rightPx}px`);
   drag(rightPx);
   await new Promise(r => setTimeout(r, 350));
+  console.log('DEBUG B2 passed?', dom.window.__passed, vm.runInContext(`document.getElementById('captcha-tip')?.textContent`, ctx), vm.runInContext(`JSON.stringify({off:_captchaOffset,target:_captchaTarget})`, ctx));
   assert.equal(dom.window.__passed, true, '右半缺口对齐 → 校验通过（坐标系统一，不再必败）');
 });
 
@@ -173,7 +175,7 @@ test('B2 失败重滚缺口：拖偏失败后目标重滚（新挑战）+ 旋钮
     beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {}, arc: () => {}, rect: () => {}, stroke: () => {}, clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
-  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
+  load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-api.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
   const drag = (toX) => vm.runInContext(`(() => { const ME = window.MouseEvent; const knob = document.getElementById('captcha-knob'); knob.dispatchEvent(new ME('pointerdown', { clientX: 0, bubbles: true })); knob.dispatchEvent(new ME('pointermove', { clientX: ${toX}, bubbles: true })); knob.dispatchEvent(new ME('pointerup', { clientX: ${toX}, bubbles: true })); })()`, ctx);
   vm.runInContext(`window.__passed = false; openCaptchaModal({ onPass: () => { window.__passed = true; } });`, ctx);
   const t1 = vm.runInContext(`_captchaTarget`, ctx);

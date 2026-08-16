@@ -121,8 +121,29 @@ export async function tokenDigest(token) {
 // 回落语义：FIELD_ENC_KEY 已配置（含非法值）即以其为准——非法值派生失败 → 抛错（v1.4.14 fail-closed）；
 // 仅当 FIELD_ENC_KEY 未配置时才回落 LOG_ENCRYPT_KEY（内测共用密钥，与 log 留档同源）
 // ============================================================
-async function fieldKeyName() {
+function fieldKeyName() {
   return String(getSecret(CRYPTO_ENV, 'FIELD_ENC_KEY') || '') ? 'FIELD_ENC_KEY' : 'LOG_ENCRYPT_KEY';
+}
+
+/** 解密候选密钥序（v1.5.0 密钥轮换）：字段钥存在时 = 当前字段钥 → 旧字段钥 → 旧日志钥
+ *  （历史数据可能在「无 FIELD 钥时期」由旧 LOG 钥加密）；未配置字段钥 = 当前日志钥 → 旧日志钥 */
+const FIELD_DECRYPT_KEYS = () => fieldKeyName() === 'FIELD_ENC_KEY'
+  ? ['FIELD_ENC_KEY', 'FIELD_ENC_KEY_OLD', 'LOG_ENCRYPT_KEY_OLD']
+  : ['LOG_ENCRYPT_KEY', 'LOG_ENCRYPT_KEY_OLD'];
+/** 日志 detail 解密候选：当前日志钥 → 旧日志钥 */
+const LOG_DECRYPT_KEYS = () => ['LOG_ENCRYPT_KEY', 'LOG_ENCRYPT_KEY_OLD'];
+
+async function decryptWithAny(text, keyNames) {
+  let tried = false;
+  for (const name of keyNames) {
+    if (!String(getSecret(CRYPTO_ENV, name) || '')) continue;
+    const key = await deriveKey(name);
+    if (!key) continue;
+    tried = true;
+    const pt = await decryptAes(key, text);
+    if (pt !== '[undecryptable]') return pt;
+  }
+  return tried ? '[undecryptable]' : '[encrypted]';
 }
 
 /** 加密（v1.4.14 起 fail-closed）：空串原样；无密钥/加密失败一律抛错——绝不明文落库（生产标准）。
@@ -137,12 +158,10 @@ export async function encryptField(text) {
   return ct;
 }
 
-/** 解密：老明文行原样放行；无密钥标 '[encrypted]'；解密失败标 '[undecryptable]' */
+/** 解密：老明文行原样放行；轮换期按候选钥序尝试；全失败标 '[encrypted]' */
 export async function decryptField(text) {
   if (typeof text !== 'string' || !text.startsWith('enc:v1:')) return text;
-  const key = await deriveKey(await fieldKeyName());
-  if (!key) return '[encrypted]';
-  return decryptAes(key, text);
+  return decryptWithAny(text, FIELD_DECRYPT_KEYS());
 }
 
 // ============================================================
@@ -162,7 +181,5 @@ export async function encryptDetail(json) {
 
 export async function decryptDetail(text) {
   if (typeof text !== 'string' || !text.startsWith('enc:v1:')) return text;
-  const key = await deriveKey('LOG_ENCRYPT_KEY');
-  if (!key) return '[encrypted]';
-  return decryptAes(key, text);
+  return decryptWithAny(text, LOG_DECRYPT_KEYS());
 }

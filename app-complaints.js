@@ -290,7 +290,7 @@ function complaintCardHtml(c, opts = {}) {
   const resolved = c.status === STATUS.RESOLVED;
   const snap = c.target_snapshot || {};
   const typeName = DISP.complaintTargetName(c.target_type);
-  const foot = opts.foot ?? `<span class="list-card-meta">投诉人 ${escHtml(c.reporter)} · ${fmtDateTime(c.created_at)}</span>
+  const foot = opts.foot ?? `<span class="list-card-meta">${UI.COMPLAINT_REPORTER_LABEL} ${escHtml(c.reporter)} · ${fmtDateTime(c.created_at)}</span>
       ${resolved ? '' : `<button type="button" class="btn btn-outline btn-xs glass glass--pressable" onclick="resolveAdminComplaint(${c.id})">${UI.BTN_COMPLAINT_RESOLVE}</button>`}`;
   // U11：附件缩略行——图片显示缩略图（点开拉原图）、文件显示扩展名徽标（点开下载）；本人/管理员均可看（服务端鉴权）
   const attaches = (c.attachments || []).length

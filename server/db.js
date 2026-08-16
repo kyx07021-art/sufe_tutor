@@ -8,8 +8,9 @@
  */
 import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
 import { hashPassword, encryptField, decryptField, bindCryptoEnv } from './crypto.js'; // 密码哈希/敏感字段加密（网安报告 F-06）
-import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS, PHONE_HASH_COND, EMAIL_HASH_COND } from './constants.js'; // PHONE/EMAIL_HASH_COND：哈希定位条件单源
+import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS, PHONE_HASH_COND, EMAIL_HASH_COND, LEGACY_ADMIN_PASSWORD } from './constants.js'; // PHONE/EMAIL_HASH_COND：哈希定位条件单源
 import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
+import { initMetrics } from './telemetry.js'; // v1.5.0 观测指标表（请求聚合）
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
 import { initVersionTable } from './version.js'; // 数据版本戳表建表（仅借 init）
@@ -160,7 +161,7 @@ async function migrateLegacyRoles(db, adminNames) {
         FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
     },
     {
-      // v1.2.0 T1：教师学信网核验记录（验证码 + 核验结果；provider=mock 内测直通 / manual 管理员核验 / thirdparty 量产 API）
+      // 教师学信网核验记录（验证码 + 核验结果；provider=manual 管理员核验，v1.5.0 起无 mock/thirdparty）
       t: 'teacher_verifications',
       cols: ['id', 'user_id', 'verify_code', 'status', 'school', 'level', 'major', 'enrollment_status', 'enroll_year', 'provider', 'verified_by', 'verified_at', 'created_at'],
       ddl: `CREATE TABLE teacher_verifications_new (
@@ -169,7 +170,7 @@ async function migrateLegacyRoles(db, adminNames) {
         status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
         school TEXT DEFAULT '', level TEXT DEFAULT '', major TEXT DEFAULT '',
         enrollment_status TEXT DEFAULT '', enroll_year TEXT DEFAULT '',
-        provider TEXT NOT NULL DEFAULT 'mock',
+        provider TEXT NOT NULL DEFAULT 'manual',
         verified_by INTEGER DEFAULT NULL, verified_at DATETIME DEFAULT NULL,
         created_at DATETIME DEFAULT (datetime('now','localtime')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -274,12 +275,12 @@ async function rebuildTables(db, adminNames) {
 // 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 6; // 当前 schema 覆盖：…+ teacher_verifications（v1.2.0 T1）+ teacher_profiles.chsi_* + invite_codes 去 expires_at
+export const SCHEMA_VERSION = 7; // v1.5.0：+ request_metrics 观测表 + provider 默认 manual + 录取通知书列（存量 v6 库需跑全量迁移）
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
   bindOtpEnv(env);    // OTP 部署级配置（SMS/EMAIL_OTP_TEMPLATE_CODE 模板编码；测试经 test/_otp-stub.js stub fetch 防真实发信）
-  bindChsiEnv(env);   // CHSI 部署级配置（CHSI_PROVIDER；缺省 manual fail-closed，secrets.js 显式 mock）
+  bindChsiEnv(env);   // CHSI 部署级配置（v1.5.0：只允许 manual，其他 provider fail-closed）
   // 1 次 batch：建 schema_meta（幂等）+ 读版本（batch 顺序执行，CREATE 后 SELECT 可见）
   let rows = null;
   try {
@@ -473,14 +474,14 @@ async function runFullMigration(db, env) {
       allow_guest_demand INTEGER NOT NULL DEFAULT 1,  /* 需求对未登录游客可见 */
       updated_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`), /* 隐私设置大层级——无行=全默认可见（COALESCE 1） */
-    // v1.2.0 T1：教师学信网核验记录（provider=mock 内测直通 / manual 管理员核验 / thirdparty 量产 API）
+    // 教师学信网核验记录（provider=manual 管理员核验；v1.5.0 起无 mock/thirdparty）
     db.prepare(`CREATE TABLE IF NOT EXISTS teacher_verifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER NOT NULL UNIQUE, verify_code TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
       school TEXT DEFAULT '', level TEXT DEFAULT '', major TEXT DEFAULT '',
       enrollment_status TEXT DEFAULT '', enroll_year TEXT DEFAULT '',
-      provider TEXT NOT NULL DEFAULT 'mock',
+      provider TEXT NOT NULL DEFAULT 'manual',
       verify_type TEXT NOT NULL DEFAULT 'chsi',  -- v1.4.16：'chsi' 学信网验证码 | 'admission' 大一新生录取通知书（人工核验）
       admission_image TEXT DEFAULT '',          -- v1.4.16：录取通知书图片（加密 data URL，仅 admission 类型使用）
       verified_by INTEGER DEFAULT NULL, verified_at DATETIME DEFAULT NULL,
@@ -581,7 +582,8 @@ async function runFullMigration(db, env) {
       const { hash, salt } = await hashPassword(adminPassword);
       await dbRun(db, 'INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,?,?)',
         [name, hash, salt, 'admin']);
-    } else if (adminPassword) {
+    } else if (adminPassword && adminPassword !== LEGACY_ADMIN_PASSWORD) {
+      // v1.5.0：已有 admin 只接受非历史默认口令轮换；历史默认口令一律不覆写（kill-list K7）
       const { hash, salt } = await hashPassword(adminPassword);
       if (hash !== existing.password_hash) {
         await dbRun(db, 'UPDATE users SET password_hash=?, salt=? WHERE id=?', [hash, salt, existing.id]);
@@ -591,6 +593,7 @@ async function runFullMigration(db, env) {
 
   // 留档表（模块5；绑定独立 LOG_DB 时此表建在业务库亦无害，查询走 getLogDb 路由）
   await initLogDb(db);
+  await initMetrics(db); // v1.5.0 观测指标表（请求聚合）
 
   // 幂等加列（模块1：地区档案；模块3：意向状态机）
   // 凭证扩展（内测增量凭证，详见 docs/0.26-认证与审核架构.md）：
@@ -906,6 +909,13 @@ export function safeJsonArray(text) {
   if (Array.isArray(text)) return text; // 已反序列化（mapper 出口）再入本函数：直接放行，勿二次 JSON.parse
   try { const v = JSON.parse(text); return Array.isArray(v) ? v : []; }
   catch { return []; }
+}
+
+export function safeJsonObject(text, fallback = {}) {
+  if (!text) return fallback;
+  if (typeof text === 'object' && !Array.isArray(text)) return text;
+  try { const v = JSON.parse(text); return v && typeof v === 'object' && !Array.isArray(v) ? v : fallback; }
+  catch { return fallback; }
 }
 
 // ============================================================
@@ -1613,11 +1623,7 @@ export async function dbGetComplaintsAdmin(db, status) {
 }
 
 function mapComplaint(row) {
-  let snapshot = {};
-  try { snapshot = JSON.parse(row.target_snapshot || '{}'); } catch { snapshot = {}; }
-  let attachments = [];
-  try { attachments = JSON.parse(row.attachments || '[]'); } catch { attachments = []; }
-  return { ...row, target_snapshot: snapshot, attachments };
+  return { ...row, target_snapshot: safeJsonObject(row.target_snapshot), attachments: safeJsonArray(row.attachments) };
 }
 
 export async function dbGetComplaintById(db, complaintId) {
@@ -2141,7 +2147,7 @@ export async function dbUpsertTeacherVerification(db, v) {
       provider=excluded.provider, verify_type=excluded.verify_type, admission_image=excluded.admission_image,
       verified_by=excluded.verified_by, verified_at=excluded.verified_at`,
     [v.userId, verifyCode, v.status, v.school || '', v.level || '', v.major || '',
-     v.enrollmentStatus || '', v.enrollYear || '', v.provider || 'mock', v.verifyType || 'chsi', admissionImage,
+     v.enrollmentStatus || '', v.enrollYear || '', v.provider || 'manual', v.verifyType || 'chsi', admissionImage,
      v.verifiedBy || null, v.verifiedAt || null]);
 }
 

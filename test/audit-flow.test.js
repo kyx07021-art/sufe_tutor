@@ -3,13 +3,24 @@
  *
  * 覆盖：
  *   - isContentWrite：内容域写路径白名单（帖子/需求/档案/评价/反馈/投诉/注册/聊天消息/附件）；
- *   - auditBeforeWrite：默认放行 + 300ms 预算 + 队列即清栈；
+ *   - auditBeforeWrite：默认放行；语义层未配置拒绝写入；
  *   - L1 规则层（v0.30.0 S2-1）：按路径映射抽取自由文本字段交 auditFreeText——
  *     门牌号内容 → reject（ADDRESS_TOO_DETAILED）；正常文本放行；非内容写路径不过断点。
  */
-import { test } from 'node:test';
+import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { isContentWrite, auditBeforeWrite } from '../server/audit-flow.js';
+import { bindTextAuditEnv } from '../server/text-audit.js';
+
+const origFetch = globalThis.fetch;
+beforeEach(() => {
+  bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: '{"flagged": false, "reason": "无住址信息"}' }] }) });
+});
+afterEach(() => {
+  bindTextAuditEnv(null);
+  globalThis.fetch = origFetch;
+});
 
 test('isContentWrite：内容域写路径白名单', () => {
   assert.equal(isContentWrite('/api/posts', 'POST'), true, '发帖');
@@ -37,14 +48,20 @@ test('isContentWrite：内容域写路径白名单', () => {
   assert.equal(isContentWrite('/api/health', 'GET'), false);
 });
 
-test('auditBeforeWrite：默认放行 + 300ms 预算 + 队列即清栈', async () => {
-  const t0 = Date.now();
+test('auditBeforeWrite：正常文本经语义层放行；非内容路径直接放行', async () => {
   const r = await auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: 'x', bodyMd: 'y' }, ip: '1.2.3.4', userId: 7 });
-  const elapsed = Date.now() - t0;
-  assert.equal(r.ok, true, '正常文本默认放行');
-  assert.ok(elapsed < 300, '全链路 ≤300ms（实测 ' + elapsed + 'ms）');
+  assert.equal(r.ok, true, '正常文本放行');
   const r2 = await auditBeforeWrite({ path: '/api/notifications/read-all', method: 'POST', body: {} });
-  assert.equal(r2.ok, true, '非内容路径直接放行不入队');
+  assert.equal(r2.ok, true, '非内容路径直接放行');
+});
+
+test('auditBeforeWrite fail-closed：语义层未配置 → 正常文本也拒绝', async () => {
+  bindTextAuditEnv(null);
+  try {
+    const r = await auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: '学习笔记', bodyMd: '分享一轮复习方法' }, ip: '1.2.3.4', userId: 7 });
+    assert.ok(r.reject, '语义层未配置拒绝写入');
+    assert.ok(r.reject.includes('不可用'), '提示审核服务不可用');
+  } finally { bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' }); }
 });
 
 test('auditBeforeWrite L1 规则层（S2-1）：自由文本字段含门牌号 → reject；正常 → 放行', async () => {
@@ -104,4 +121,11 @@ test('auditBeforeWrite L1 规则层：地铁「号线」不误伤、路名级别
   assert.equal(ok1.ok, true, '号线（地铁）不误伤');
   const ok2 = await auditBeforeWrite({ path: '/api/conversations/1/messages', method: 'POST', body: { batch: [{ kind: 'text', body: '我们约在人民广场地铁站碰面吧' }] } });
   assert.equal(ok2.ok, true, '纯地点无门牌放行');
+});
+
+test('auditBeforeWrite 注册用户名与改用户名同守门牌红线', async () => {
+  const regBad = await auditBeforeWrite({ path: '/api/auth/register', method: 'POST', body: { username: '静安区5号楼303室' } });
+  assert.ok(regBad.reject, '注册用户名含门牌 → 拒');
+  const regOk = await auditBeforeWrite({ path: '/api/auth/register', method: 'POST', body: { username: '小明同学' } });
+  assert.equal(regOk.ok, true, '普通用户名 → 放行');
 });

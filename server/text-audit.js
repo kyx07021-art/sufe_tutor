@@ -1,21 +1,14 @@
 /**
- * 文本审核咽喉 —— 全站自由文本字段统一审核入口
+ * 文本审核咽喉 —— 全站自由文本字段统一审核入口（v1.5.0 起 fail-closed）
  *
- * 定位：地址门控被谐音/语义级描述绕过（「二期爸爸号」「2788好」「对门二楼左转」等），
- * 纯正则规则层兜不住，须语义层；接口独立，方便未来改接全站文本统一审核方案。
+ * L1 规则层（确定性主闸）：ADDRESS_GUARD 增强正则 + 数字谐音后缀表——拦模式变体（2788好）。
+ * L2 语义层（外接必配）：Anthropic Messages API 判断自由文本是否含可定位住址描述
+ *   （门牌/楼栋/房间/方位描述）。密钥 env.TEXT_AUDIT_API_KEY。
  *
- * 策略链（自低到高，fail-open）：
- *   L1 规则层（零网络零成本毫秒级）：ADDRESS_GUARD 增强正则（数字+门牌后缀含连字符变体）
- *     + 数字谐音后缀表（号→好/昊/豪 等）——拦模式变体（2788好）。
- *   L2 语义层（可选外接，可配置）：Anthropic Messages API 判断自由文本是否含可定位住址描述
- *     （门牌/楼栋/房间/方位描述）。密钥 env.TEXT_AUDIT_API_KEY（Secrets 网关，见 secrets.js）；
- *     未配置 / 超时 / 接口异常 → fail-open 回退 L1（规则层结果）。
- *
- * 调用点：统一咽喉是 audit-flow（AUDIT_MAP 按路径抽取全部内容域自由文本交 auditFreeText）；
- * 路由层直调保留作纵深防御。命中 { ok:false } 即回 MSG.ADDRESS_TOO_DETAILED。
- * 未来全站统一审核：策略链只在本模块演进（换模型/换厂商/加规则），调用点签名不变。
+ * fail-closed 语义：生产未配置密钥 / 超时 / 接口异常 / 解析失败 → 拒绝写入
+ * （返回 layer:'error'，调用方回 MSG.TEXT_AUDIT_UNAVAILABLE），绝不静默降级为仅 L1。
  */
-import { ADDRESS_GUARD, NUM_T, NUM_SEP } from './constants.js'; // NUM_T/NUM_SEP 与 ADDRESS_GUARD 同源，改数字变体两处同步
+import { ADDRESS_GUARD, NUM_T, NUM_SEP, TEXT_AUDIT } from './constants.js';
 import { getSecret } from './secrets.js';
 
 let AUDIT_ENV = null;
@@ -29,47 +22,55 @@ export function bindTextAuditEnv(env) { AUDIT_ENV = env; }
 const HOU_HARMONY = '号好昊豪浩耗壕';
 const HARMONIC_GUARD = new RegExp(
   `(?:${NUM_T}${NUM_SEP}?)+${NUM_T}[${HOU_HARMONY}](?!线)`); // (?!线) 同 ADDRESS_GUARD：地铁/公交「十二号线」不误伤
-// 注：规则层只拦「数字串+门牌/谐音后缀」模式变体。谐音词（二期爸爸号=2期88号）、
-// 纯方位描述（对门二楼左转第一间）无数字特征，规则层拦不住 → 语义层（L2）兜底。
 
 // ============================================================
-// L2 语义层（可选外接）
+// L2 语义层（v1.5.0：必配，fail-closed）
 // ============================================================
-const AUDIT_MODEL = 'claude-sonnet-4-6';      // 轻量模型省成本；换模型只改这里
-const AUDIT_TIMEOUT_MS = 4000;                // 超时 fail-open，不让提交被外接接口拖死
+const AUDIT_MODEL = TEXT_AUDIT.MODEL;         // 换模型只改 server/constants
+const AUDIT_TIMEOUT_MS = TEXT_AUDIT.TIMEOUT_MS; // 超时 = 拒绝写入（不再 fail-open）
 const AUDIT_SYSTEM = `你是地址合规审核员。判断给定文本是否包含能定位到具体住址/门牌/房间的信息——
 门牌号、楼栋号、单元号、房间号，或足以唯一确定住址的方位描述（如「对门」「上二楼」「左转第一间」）。
 只输出 JSON：{"flagged": true或false, "reason": "简短原因"}。flagged=true 表示文本含可定位住址信息。`;
 
+const UNAVAILABLE = { ok: false, layer: 'error', reason: 'TEXT_AUDIT_UNAVAILABLE' };
+
+/** 调用语义层。任何不可用/不确定都返回 UNAVAILABLE（fail-closed），绝不返回 null 放行。 */
 async function auditSemantic(text) {
-  const key = getSecret(AUDIT_ENV, 'TEXT_AUDIT_API_KEY');
-  if (!key) return null; // 未配置语义层密钥 → fail-open 跳过（仅规则层）
+  const key = String(getSecret(AUDIT_ENV, 'TEXT_AUDIT_API_KEY') || '').trim();
+  if (!key) return UNAVAILABLE;
   try {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), AUDIT_TIMEOUT_MS);
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: AUDIT_MODEL,
-        max_tokens: 80,
-        system: AUDIT_SYSTEM,
-        messages: [{ role: 'user', content: text }],
-      }),
-    });
-    clearTimeout(timer);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const out = (data.content || []).map(b => b.text || '').join('');
-    const m = out.match(/\{[\s\S]*\}/); // 模型可能夹散文，取 JSON 块
-    const j = m ? JSON.parse(m[0]) : null;
-    return j && typeof j.flagged === 'boolean' ? j : null;
-  } catch { /* 超时/网络/解析失败 → fail-open（规则层结果） */ }
-  return null;
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: AUDIT_MODEL,
+          max_tokens: 80,
+          system: AUDIT_SYSTEM,
+          messages: [{ role: 'user', content: text }],
+        }),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) return UNAVAILABLE;
+      const data = await res.json(); // 超时覆盖响应头 + 响应体读取全程
+      clearTimeout(timer);
+      const out = (data.content || []).map(b => b.text || '').join('');
+      const m = out.match(/\{[\s\S]*\}/); // 模型可能夹散文，取 JSON 块
+      const j = m ? JSON.parse(m[0]) : null;
+      if (!j || typeof j.flagged !== 'boolean') return UNAVAILABLE;
+      return j.flagged
+        ? { ok: false, layer: 'ai', reason: 'ADDRESS_TOO_DETAILED' }
+        : { ok: true, layer: 'ai' };
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch { return UNAVAILABLE; }
 }
 
 // ============================================================
@@ -77,9 +78,9 @@ async function auditSemantic(text) {
 // ============================================================
 /**
  * 审核一段自由文本是否含可定位住址/门牌信息。
- * @param {string} text 自由文本（address/intro/school/additional_info 等）
- * @returns {Promise<{ok:boolean, layer:'rule'|'ai', reason?:string}>}
- *   ok=false → 调用方回 MSG.ADDRESS_TOO_DETAILED；layer 标注由哪层拦截（审计可观察）。
+ * @returns {Promise<{ok:boolean, layer:'rule'|'ai'|'error', reason?:string}>}
+ *   ok=false：layer='rule' → 调用方回 MSG.ADDRESS_TOO_DETAILED；
+ *             layer='error' → 调用方回 MSG.TEXT_AUDIT_UNAVAILABLE（审核服务不可用，fail-closed）。
  */
 export async function auditFreeText(text) {
   const s = String(text || '').trim();
@@ -87,7 +88,5 @@ export async function auditFreeText(text) {
   if (ADDRESS_GUARD.test(s) || HARMONIC_GUARD.test(s)) {
     return { ok: false, layer: 'rule', reason: 'ADDRESS_TOO_DETAILED' };
   }
-  const ai = await auditSemantic(s);
-  if (ai && ai.flagged) return { ok: false, layer: 'ai', reason: 'ADDRESS_TOO_DETAILED' };
-  return { ok: true, layer: ai ? 'ai' : 'rule' };
+  return auditSemantic(s);
 }

@@ -115,7 +115,7 @@ function switchRegisterRole(role) {
 // ============================================================
 // v1.2.0 T5：教师注册 3 步 wizard（复用 .dw-step/.dw-stepper 底层组件，同需求表单分页模式）
 // ============================================================
-const REG_WIZARD_STEPS = ['邀请码', '用户名与联系方式', '验证码验证'];
+const REG_WIZARD_STEPS = UI.REG_WIZARD_STEPS;
 let _regStep = 0;
 
 function renderTeacherWizard() {
@@ -131,62 +131,62 @@ function renderTeacherWizard() {
     <div class="dw-steps-viewport"><div class="dw-steps-track" id="reg-w-track">
       <div class="dw-step" data-step="1">
         <div class="form-group">
-          <label class="form-label">邀请码 <span class="req">*</span></label>
-          <input type="text" class="form-input" id="reg-invite-code" placeholder="请输入管理员提供的邀请码" maxlength="${CONFIG.INVITE_CODE_LEN}">
-          <p class="form-hint">邀请码由管理员发放，一枚邀请码仅限一人使用，无有效期</p>
+          <label class="form-label">${UI.REG_INVITE_LABEL} <span class="req">*</span></label>
+          <input type="text" class="form-input" id="reg-invite-code" placeholder="${UI.REG_INVITE_PLACEHOLDER}" maxlength="${CONFIG.INVITE_CODE_LEN}">
+          <p class="form-hint">${UI.REG_INVITE_HINT}</p>
         </div>
         <div class="form-actions">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="showView('landing')">返回</button>
-          <button type="button" class="btn glass glass--pressable" id="reg-step1-next" onclick="regWizardNext()">下一步</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="showView('landing')">${UI.BTN_BACK_LANDING}</button>
+          <button type="button" class="btn glass glass--pressable" id="reg-step1-next" onclick="regWizardNext()">${UI.BTN_NEXT_STEP}</button>
         </div>
       </div>
       <div class="dw-step" data-step="2">
         <div class="form-group">
-          <label class="form-label">用户名 <span class="req">*</span></label>
-          <input type="text" class="form-input" id="register-username" placeholder="3-30 个字符" required>
+          <label class="form-label">${UI.REG_USERNAME_LABEL} <span class="req">*</span></label>
+          <input type="text" class="form-input" id="register-username" placeholder="${UI.REG_USERNAME_PLACEHOLDER}" required>
         </div>
         <div class="form-group">
-          <label class="form-label">密码 <span class="req">*</span></label>
-          <input type="password" class="form-input" id="register-password" placeholder="至少 6 个字符" required>
+          <label class="form-label">${UI.REG_PASSWORD_LABEL} <span class="req">*</span></label>
+          <input type="password" class="form-input" id="register-password" placeholder="${UI.REG_PASSWORD_PLACEHOLDER}" required>
         </div>
         <div class="form-group">
-          <label class="form-label">确认密码 <span class="req">*</span></label>
-          <input type="password" class="form-input" id="register-password2" placeholder="再次输入密码" required>
+          <label class="form-label">${UI.REG_PASSWORD2_LABEL} <span class="req">*</span></label>
+          <input type="password" class="form-input" id="register-password2" placeholder="${UI.REG_PASSWORD2_PLACEHOLDER}" required>
         </div>
         <div class="form-group">
-          <label class="form-label">手机号或邮箱 <span class="req">*</span></label>
-          <input type="text" class="form-input" id="register-identifier" placeholder="请输入手机号或邮箱"
+          <label class="form-label">${UI.REG_CONTACT_LABEL} <span class="req">*</span></label>
+          <input type="text" class="form-input" id="register-identifier" placeholder="${UI.REG_CONTACT_PLACEHOLDER}"
             autocomplete="email" oninput="checkRegisterContact()">
-          <p class="form-hint">手机号或邮箱任选其一绑定（验证码验证），将作为你的登录凭证</p>
+          <p class="form-hint">${UI.REG_CONTACT_HINT}</p>
         </div>
         <div class="form-actions">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="regWizardBack()">上一步</button>
-          <button type="button" class="btn glass glass--pressable" id="reg-step2-next" onclick="regWizardNext()">下一步</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="regWizardBack()">${UI.BTN_PREV_STEP}</button>
+          <button type="button" class="btn glass glass--pressable" id="reg-step2-next" onclick="regWizardNext()">${UI.BTN_NEXT_STEP}</button>
         </div>
       </div>
       <div class="dw-step" data-step="3">
         <div id="register-code-group">
           <div class="form-group">
-            <label class="form-label" id="register-code-label">验证码</label>
+            <label class="form-label" id="register-code-label">${UI.CODE_LABEL}</label>
             <div class="code-input-wrap">
-              <input type="text" class="form-input" id="register-code" placeholder="输入验证码" inputmode="numeric"
+              <input type="text" class="form-input" id="register-code" placeholder="${UI.CODE_PLACEHOLDER}" inputmode="numeric"
                 autocomplete="one-time-code" maxlength="6">
               <button type="button" class="btn btn-sm code-send-btn glass glass--pressable" id="register-send"
-                onclick="requestOtpCode('register','auto')">发送验证码</button>
+                onclick="requestOtpCode('register','auto')">${UI.CODE_SEND}</button>
             </div>
           </div>
         </div>
         <label class="agree-row">
           <input type="checkbox" id="agree-agreement" class="agree-check">
-          <span class="agree-text">我已阅读并同意<a href="#" class="agree-link" onclick="event.preventDefault();openPolicyModal('user_agreement')">用户协议</a></span>
+          <span class="agree-text">${UI.AGREE_PREFIX}<a href="#" class="agree-link" onclick="event.preventDefault();openPolicyModal('user_agreement')">${UI.AGREE_LINK_AGREEMENT}</a></span>
         </label>
         <label class="agree-row">
           <input type="checkbox" id="agree-privacy" class="agree-check">
-          <span class="agree-text">我已阅读并同意<a href="#" class="agree-link" onclick="event.preventDefault();openPolicyModal('privacy_policy')">隐私政策</a></span>
+          <span class="agree-text">${UI.AGREE_PREFIX}<a href="#" class="agree-link" onclick="event.preventDefault();openPolicyModal('privacy_policy')">${UI.AGREE_LINK_PRIVACY}</a></span>
         </label>
         <div class="form-actions">
-          <button type="button" class="btn btn-outline glass glass--pressable" onclick="regWizardBack()">上一步</button>
-          <button type="submit" class="btn glass glass--pressable" id="register-submit">注册</button>
+          <button type="button" class="btn btn-outline glass glass--pressable" onclick="regWizardBack()">${UI.BTN_PREV_STEP}</button>
+          <button type="submit" class="btn glass glass--pressable" id="register-submit">${UI.BTN_REGISTER}</button>
         </div>
       </div>
     </div></div>`;
@@ -339,7 +339,7 @@ async function checkLoginUsername() {
   try {
     const data = await api(`/api/auth/check?identifier=${encodeURIComponent(identifier)}`);
     if (seq !== loginCheckSeq) return; // 过期响应丢弃，防输入快于请求时的乱序
-    // 账户类型反馈复用「学生账户/教师账户/管理员账户」，加「不存在的账户」红字；
+    // 账户类型反馈复用角色提示；账户不存在时给检查输入/注册引导；
     // 账户有效才呼出密码/验证码凭证组（loginAccountValid 门控）
     const exists = !!data.exists;
     loginAccountValid = exists;
@@ -407,7 +407,7 @@ async function handleLogin(e) {
     return;
   }
   if (loginMode !== 'code' && !(document.getElementById('login-password') || {}).value) {
-    showToast(UI.LOGIN_REQUIRED, 'error');
+    showToast(UI.LOGIN_PASSWORD_REQUIRED, 'error');
     return;
   }
   withCaptcha(() => doLogin(identifier));

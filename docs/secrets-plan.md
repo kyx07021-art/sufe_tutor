@@ -1,49 +1,59 @@
-# Secrets 公测迁移手册（内测阶段休眠，届时按此执行）
+# Secrets 公测迁移手册（v1.5.0 起执行）
 
-## 现状（内测）
+## 现状
 
-- 全部敏感值明文存于 `server/secrets.js`（v1.4.14 起数据与网关合并单文件，挂 `globalThis.APP_SECRETS`；原仓库根 `secrets.js` 已删除）。
-- 读取一律经 `server/secrets.js` 网关：`getSecret(env, key)` —— env（Worker Secrets）优先，回落本文件内联数据。
-- `_worker.js` 对 `server/` 目录整体返回 404，公网无法下载。
+- `server/secrets.js` 只保留本地开发/测试的明文便利数据；`isProductionRuntime`（env 存在 `CF_PAGES_URL` / `CF_PAGES_COMMIT_SHA`）时绝不回落该文件。
+- 生产缺必需 Secret 时：Release Gate（`server/startup.js`）会让 `/api/*` 全部返回 503 not-ready，静态资源照常。
+- 学信网核验已固定 manual，无 mock/thirdparty；内容审核 L2（Anthropic）缺密钥会拒绝写请求。
 
-## 迁移动机
+## 生产必需 Worker Secrets（缺一不可）
 
-公测后仓库可能被 fork/镜像，明文敏感值必须从代码中彻底消失，改为 Cloudflare Worker Secrets（加密存储，仅业务逻辑运行时可临时调用，本地无影无踪）。
+| 键 | 说明 |
+|---|---|
+| `ADMIN_USERNAMES` | 管理员用户名（逗号分隔） |
+| `ADMIN_DEFAULT_PASSWORD` | 轮换后的管理员口令；**不得等于历史值 `admin_sufe`**，建议 ≥12 位。首次发布时若与库内哈希不同会自动轮换 |
+| `FIELD_ENC_KEY` | AES-GCM-256 base64，字段加密新钥（建议与 LOG 不同） |
+| `FIELD_ENC_KEY_OLD` | 旧字段钥（重加密完成前保留） |
+| `LOG_ENCRYPT_KEY` | 留档加密新钥 |
+| `LOG_ENCRYPT_KEY_OLD` | 旧留档钥（重加密完成前保留） |
+| `SMS_OTP_TEMPLATE_CODE` | spug.cc 短信模板编码（仓库旧值作废） |
+| `EMAIL_OTP_TEMPLATE_CODE` | 邮件模板编码（仓库旧值作废） |
+| `TEXT_AUDIT_API_KEY` | Anthropic API Key（L2 地址语义审核，fail-closed） |
+| `CHSI_PROVIDER` | 可缺省；只接受 `manual`，其他值会使 Release Gate 失败 |
+| `CRYPTO_REENCRYPT_DONE` | 重加密完成并删除旧钥后设为 `true`；此前必须保留 `*_OLD` |
+
+上传示例：
+
+```bash
+cd 代码仓库
+npx wrangler pages secret put ADMIN_USERNAMES
+npx wrangler pages secret put ADMIN_DEFAULT_PASSWORD
+npx wrangler pages secret put FIELD_ENC_KEY
+npx wrangler pages secret put FIELD_ENC_KEY_OLD
+npx wrangler pages secret put LOG_ENCRYPT_KEY
+npx wrangler pages secret put LOG_ENCRYPT_KEY_OLD
+npx wrangler pages secret put SMS_OTP_TEMPLATE_CODE
+npx wrangler pages secret put EMAIL_OTP_TEMPLATE_CODE
+npx wrangler pages secret put TEXT_AUDIT_API_KEY
+```
 
 ## 迁移步骤
 
-1. **上传 Secrets**（Dashboard：Pages 项目 → Settings → Environment variables → 选 Production，或 CLI）：
+1. 上传上表全部 Secrets（先配好再推送代码，否则新版本 Release Gate 会把 API 全部 503）。
+2. 推送 v1.5.0；`curl https://sufe-tutor.pages.dev/api/health` 必须返回 `"status":"ok"`。
+3. 管理员口令由 `ADMIN_DEFAULT_PASSWORD` 在 initDb 中自动轮换；随后建议手动撤销旧会话。
+4. 用新管理员口令执行一次性重加密；成功后把 `CRYPTO_REENCRYPT_DONE` 设为 `true`：
+
    ```bash
-   npx wrangler pages secret put ADMIN_USERNAMES        # 值填逗号分隔：admin_sufe,副管理员名
-   npx wrangler pages secret put ADMIN_DEFAULT_PASSWORD
-   npx wrangler pages secret put LOG_ENCRYPT_KEY
-   npx wrangler pages secret put SMS_ACCESS_KEY_ID      # 短信开通后
-   npx wrangler pages secret put SMS_ACCESS_KEY_SECRET
-   npx wrangler pages secret put SMS_SIGN_NAME
-   npx wrangler pages secret put SMS_TEMPLATE_CODE
+   SUFE_ADMIN_PASS='<新管理员口令>' bash scripts/reencrypt-production.sh
    ```
-   键名与 `secrets.js` 完全一致 → 网关 env 优先链自动接管，**业务代码零改动**。
 
-2. **覆盖仓库内的旧文件**（把带敏感信息的版本从历史里挤掉）：
-   把 `server/secrets.js` 内联数据替换为占位版（所有值置空，仅留键与注释），commit + 强推：
-   ```bash
-   git add server/secrets.js && git commit -m "secrets 迁移 Worker Secrets，本地置空"
-   git push            # 新推送覆盖远端文件
-   ```
-   注：git 历史里的旧值仍可追溯，如需彻底清除走 `git filter-repo` 重写历史 + 轮换全部凭证（管理员密码、LOG 密钥重新生成）。
+   返回 `unreadable: 0` 后，删除 `FIELD_ENC_KEY_OLD` / `LOG_ENCRYPT_KEY_OLD` 并重新发布。
 
-3. **加入 .gitignore**（占位版留存防 globalThis.APP_SECRETS 缺键；或彻底删数据并让网关空值兜底）：
-   推荐保留占位键入库，不 ignore —— 避免新克隆环境缺键时 `getSecret` 全空导致鉴权/加密路径不可用。
+5. 仓库内 `server/secrets.js` 的本地值不再被生产读取；如仓库被镜像，git 历史仍可追溯旧值，正式运营后建议 `git filter-repo` 清理历史并再次轮换。
+6. 上线后拉一次反馈单（`GET /api/feedbacks`），按 CLAUDE.md 规则处理遗留问题。
 
-4. **轮换**：迁移同时更换管理员密码与 `LOG_ENCRYPT_KEY`（换密钥后旧密文留档不可解，需先解密重加密一轮，或接受历史留档只读封存）。
+## 生产 Ready 校验
 
-## 网关行为验证
-
-```bash
-# env 未配置（内测）：回落本地文件，管理员登录正常
-# env 已配置（公测）：改本地文件里的值 → 线上行为不变，即证明 env 优先生效
-```
-
-## 未来新敏感字段接入流程
-
-API 到手 → ① `secrets.js` 加键（内测即时可用）→ ② 公测时同步 `wrangler pages secret put` → ③ 业务经 `getSecret(env, 'XXX')` 读取。
+- 未就绪时 `/api/health` 返回 503，`checks` 数组逐项列出失败 code（不含秘密值）。
+- 本地开发/测试没有 `CF_PAGES_*` 信号，不受 Release Gate 限制；本地继续用 `server/secrets.js` 或 `.dev.vars`。

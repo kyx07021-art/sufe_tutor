@@ -16,8 +16,9 @@
 // ============================================================
 export const INITIAL_RATING = 4.5;   // 新教师初始评分（评价通过时与 INITIAL_WEIGHT 做加权平均，公式见 dbRecomputeTeacherRating）
 export const INITIAL_WEIGHT = 10;    // 初始评分权重（与 INITIAL_RATING 成对修改）
-export const INVITE_GATE_ENABLED = true; // 教师注册邀请码门控（v1.2.0 T4 用户需求：教师注册第一步填邀请码；无过期、一人使用即失效）
-// constants.js 的 INVITE_GATE_DORMANT 改为 false（当前 false = 内测期开放注册，有意决定）。
+export const INVITE_GATE_ENABLED = true;
+export const LEGACY_ADMIN_PASSWORD = 'admin_sufe'; // v1.5.0：历史默认口令，生产 Release Gate 拒绝使用 // 教师注册邀请码门控（v1.2.0 T4 用户需求：教师注册第一步填邀请码；无过期、一人使用即失效）
+// constants.js 的 INVITE_GATE_DORMANT：true = 门控沉睡（免邀请码）；false = 门控启用（与后端 true 一致）。
 
 // 合规红线「不收集详细门牌号」的服务端兜底：区块/地标级表述放行，门牌级拒绝。
 // 口径：排除「号线」避免误伤地铁站描述（如 12号线附近）；「xx号」仅两位以上数字视为门牌；
@@ -61,8 +62,8 @@ export const MSG = {
   USERNAME_INVALID: '用户名只能包含中文、字母、数字及 _ . - （3-30 个字符）',
   PASSWORD_LENGTH: '密码长度至少 6 个字符',
   INVALID_ROLE: '无效的用户角色',
-  AGREE_REQUIRED: '注册须同意用户协议与隐私政策', // 服务端强校验（前端勾选可被构造请求绕过，合规红线）
-  REGISTER_CONTACT_REQUIRED: '请填写手机号或邮箱（至少一个）及对应验证码', // v1.0 R7：核心凭证注册必绑
+  AGREE_REQUIRED: '请先勾选同意用户协议与隐私政策', // 服务端强校验（前端勾选可被构造请求绕过，合规红线）
+  REGISTER_CONTACT_REQUIRED: '请填写手机号或邮箱并输入验证码', // v1.0 R7：核心凭证注册必绑
   CONTACT_CONFLICT_RETRY: '联系方式已被其他账户绑定，注册未完成，请更换后重试',
   INVALID_ACTION: '无效的操作',
   INVALID_PARAMS: '参数不合法',
@@ -74,6 +75,8 @@ export const MSG = {
   TEACHER_NEEDS_INVITE: '教师注册需要邀请码',
   INVITE_INVALID: '邀请码无效或已被使用',
   CHSI_CODE_INVALID: '验证码格式不正确，请检查后重新输入',
+  CHSI_UNAVAILABLE: '学籍核验服务暂不可用，请稍后再试',
+  TEXT_AUDIT_UNAVAILABLE: '内容安全校验服务暂不可用，请稍后再试',
   ADMISSION_IMAGE_INVALID: '录取通知书图片格式不正确（仅支持 jpg/png 等常见图片）',
   ADMISSION_IMAGE_TOO_LARGE: '录取通知书图片过大，请压缩后重新上传',
   ADMISSION_ALREADY_VERIFIED: '你已通过核验，无需重复提交（学籍信息变更请通过学信网验证更新）',
@@ -215,9 +218,9 @@ export const MSG = {
   // 通用
   REGISTER_SUCCESS: '注册成功',
   REAUTH_FAILED: '密码错误，请重新输入后再试',
-  SERVER_ERROR: '服务器内部错误',
+  SERVER_ERROR: '刚刚的操作没有成功，请稍后重试；如果反复出现，请到「关于平台」反馈给我们。',
   PAYLOAD_TOO_LARGE: '请求体过大',
-  RATE_LIMITED: '请求过于频繁，请稍后再试',
+  RATE_LIMITED: '操作太频繁了，请稍等片刻再试；如果持续出现，请联系管理员。',
   LOG_NOT_FOUND: '留档记录不存在',
 };
 
@@ -276,6 +279,9 @@ export const LIMITS = {
   LOG_DETAIL_MAX: 4096,    // 留档 detail 截断
   LOG_QUERY_MAX: 500,      // 管理端日志检索过量上限
   SLOW_GET_MS: 2000,       // GET 留档慢阈值（GET 成功且 > 阈值也留档，低频不撑表；成功 GET 默认不留档）
+  METRICS_FLUSH_MS: 60000, // v1.5.0 观测：内存指标桶落库间隔（每 isolate 最多 1 次/分钟）
+  METRICS_BUCKET_MIN: 5,   // 观测聚合桶宽（分钟）
+  METRICS_RETENTION_DAYS: 30, // 观测指标保留天数（管理端趋势上限）
   // 数据层
   PAGE_SIZE: 50, PAGE_HAS_MORE: 51, // keyset 游标分页（LIMIT 51 判 hasMore）
   MSG_LIMIT: 100,          // 消息拉取上限
@@ -300,6 +306,12 @@ export const LIMITS = {
 // ============================================================
 // 凭证/密码学参数（加密咽喉 server/crypto.js 消费）
 // ============================================================
+// 文本审核 L2（v1.5.0 fail-closed）：模型与超时参数单源
+export const TEXT_AUDIT = {
+  MODEL: 'claude-sonnet-4-6',
+  TIMEOUT_MS: 4000,
+};
+
 export const SECURITY = {
   TOKEN_TTL_MS: 7 * 24 * 3600 * 1000, // 登录令牌 7 天（前端本地过期判定经 constants.js CONFIG 读同值）
   ONE_TIME_TTL_MS: 5 * 60 * 1000,     // capToken / 邀请码 5 分钟一次性
@@ -315,8 +327,11 @@ export const SECURITY = {
 // 响应头（工具层 json() 与网安咽喉预检共用同一份，防漂移）
 // 安全头只对 /api/* 生效（static 层由仓库根 _headers 承担，二者互不纠缠）
 // ============================================================
+// v1.5.0：CORS 只对生产站自身开放（API 同源调用不需要更宽的跨域面）。
+// 未来接其他合法域名时在此追加白名单，不允许再退回 '*'。
+export const CORS_ALLOWED_ORIGINS = ['https://sufe-tutor.pages.dev'];
 export const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin': CORS_ALLOWED_ORIGINS[0],
   'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };

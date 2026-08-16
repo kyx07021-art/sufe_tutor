@@ -161,8 +161,8 @@ test('R8/v0.25.94 签约确认后：合并提示 + 撑满气泡的起草按钮�
     body: JSON.stringify({ id: '7', price: 150, schedule: '每周六晚', method: 'offline', status: 'signed' }),
   });
   assert.ok(!signed.includes('signing-bubble-caption'), '独立灰色小组件已废除（R8：合并进气泡内）');
-  assert.ok(signed.includes('已与对方确认签约'), '合并提示文案（单源 UI.CHAT_SIGN_TIP）');
-  assert.ok(signed.includes('平台不参与费用结算，课费请与对方站外直接结算'), '资金声明并入提示文案');
+  assert.ok(signed.includes('双方已确认签约'), '合并提示文案（单源 UI.CHAT_SIGN_TIP）');
+  assert.ok(signed.includes('平台不代收代付，课费请与对方协商后站外结算'), '资金声明并入提示文案');
   assert.ok(signed.includes('signing-bubble-signed-tip'), '提示走 signed-tip 类');
   assert.ok(signed.includes('signing-bubble-draft-btn'), '起草按钮走撑满气泡类');
   assert.ok(signed.includes('onclick="chatPlusDraft()"'), '起草合同直达按钮');
@@ -194,7 +194,7 @@ test('R8/v0.25.94 chatInjectSignCaption：就地重建底部（合并提示 + �
   assert.ok(draftBtn, '注入后气泡内出现撑满类「起草合同」按钮');
   assert.equal(draftBtn.textContent, vm.runInContext('UI.CHAT_BTN_DRAFT_CONTRACT', ctx), '按钮文案单源');
   const tip = box.querySelector('.signing-bubble-signed-tip');
-  assert.ok(tip && tip.textContent.includes('平台不参与费用结算'), '提示文案含合并资金声明（单源 UI.CHAT_SIGN_TIP）');
+  assert.ok(tip && tip.textContent.includes('平台不代收代付'), '提示文案含合并资金声明（单源 UI.CHAT_SIGN_TIP）');
   assert.ok(!box.querySelector('.signing-bubble-funds'), '注入后独立 funds 已删（并入提示）');
   assert.equal(box.querySelectorAll('.signing-bubble-draft-btn').length, 1, '幂等：不重复注入起草按钮');
   vm.runInContext(`chatInjectSignCaption('abc')`, ctx);

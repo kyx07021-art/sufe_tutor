@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.4.16',
+  APP_VERSION: '1.5.0',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -265,6 +265,7 @@ globalThis.APP_CONSTANTS = {
         '--g-avatar-fill': 'var(--paper-3)', '--g-avatar-fill-ghost': 'var(--paper-3)',
         '--g-avatar-border': 'var(--line)', '--g-avatar-border-ghost': 'var(--line)',
         '--g-btn-fill': 'var(--g-fill-weak)',   // 按钮透明透镜 → 不透明纸面（防平面模式按钮隐形）
+        '--g-btn-bg': 'var(--paper)',           // v1.5.0：主按钮白调面同样收口到纸面（液态半透/平面纯纸）
         '--g-btn-line': 'var(--line)',          // R11 轻量描边按钮细边框对齐平面全局发丝边
         // 气泡不设 flat 特例：theme 近实值（#E9E5FB/#FFFFFF）液态平面同源，材质差异已由零投影/零液体边承担
         '--g-flow-dot': 'var(--paper-3)', // 圆点填纸面（与 ink 数字反色），修平面下数字/圆圈同色不可见
@@ -316,12 +317,13 @@ globalThis.APP_CONSTANTS = {
       '--paper': '#FAF8F5', '--paper-2': '#F1EEE9', '--paper-3': '#E3DFD8',
       '--lilac': '#D8D4DD', '--lilac-2': '#CFCBD6',
       '--ink': '#111114', '--ink-2': '#232329', '--ink-3': '#34343B',
-      '--text': '#16161A', '--muted': '#6E6E76', '--faint': '#9A9AA2',
+      '--text': '#16161A', '--muted': '#5A5A64', '--faint': '#7C7C86',
       '--white': '#FFFFFF', '--field': '#F3F0EB', '--field-2': '#EBE7E1',
       '--paper-ghost': 'rgba(250,248,245,.62)',
       '--accent': '#6B5BD2', '--accent-deep': '#4B3DB0', '--accent-bright': '#8E80E8', '--accent-tint': '#E7E3F7',
       '--warn-deep': '#C8920F', '--warn-tint': '#F7E8C6', // M4：黄从土棕 #9A6A2A 提为金黄 #C8920F
       '--danger': '#C0392B', '--danger-deep': '#9B2C2C', '--danger-tint': '#F7E7E7',
+      '--g-danger-line': 'rgba(155,44,44,.22)',
       '--ok-deep': '#2E6B3A', '--ok-tint': '#E7EFE7',
       '--chart-traffic': '#6B5BD2', '--chart-latency': '#2E6B3A', // 流量监测图表系列色（亮色主题，经 dataviz 校验）
       '--star': '#B5841F', '--star-empty': '#C9C4BD',
@@ -435,6 +437,7 @@ globalThis.APP_CONSTANTS = {
       '--accent': '#8E80E8', '--accent-deep': '#A99BF5', '--accent-bright': '#A99BF5', '--accent-tint': 'rgba(142,128,232,.18)',
       '--warn-deep': '#E0B03A', '--warn-tint': 'rgba(224,176,58,.18)', // M4：暗色黄提亮（原 #D4A64F）
       '--danger': '#E05A4A', '--danger-deep': '#FF7A6A', '--danger-tint': 'rgba(224,90,74,.16)',
+      '--g-danger-line': 'rgba(255,122,106,.28)',
       '--ok-deep': '#55B26B', '--ok-tint': 'rgba(85,178,107,.16)',
       '--chart-traffic': '#8E80E8', '--chart-latency': '#46A05E', // 流量监测图表系列色（暗色主题，经 dataviz 校验）
       '--star': '#E2B84C', '--star-empty': '#4A4856',
@@ -584,7 +587,22 @@ globalThis.APP_CONSTANTS = {
     // 验证提示
     VALIDATE_PASSWORD: '密码至少 6 个字符',
     VALIDATE_PASSWORD_MISMATCH: '两次密码不一致',
+    // 教师注册向导（v1.5.0 文案重写：从 app-auth.js 硬编码收口）
+    REG_WIZARD_STEPS: ['验证邀请码', '填写账号信息', '验证手机或邮箱'],
+    REG_INVITE_LABEL: '邀请码',
+    REG_INVITE_PLACEHOLDER: '请输入管理员提供的邀请码',
+    REG_INVITE_HINT: '邀请码由管理员发放，一枚邀请码仅限一人使用。没有邀请码请联系平台负责人。',
+    REG_USERNAME_LABEL: '用户名',
+    REG_USERNAME_PLACEHOLDER: '3-30 个字符',
+    REG_PASSWORD_LABEL: '密码',
+    REG_PASSWORD_PLACEHOLDER: '至少 6 个字符',
+    REG_PASSWORD2_LABEL: '确认密码',
+    REG_PASSWORD2_PLACEHOLDER: '再输入一次密码',
+    REG_CONTACT_LABEL: '手机号或邮箱',
+    REG_CONTACT_PLACEHOLDER: '请输入手机号或邮箱',
+    REG_CONTACT_HINT: '绑定手机或邮箱用于登录和找回账号，任选一种即可，需通过验证码验证。',
     // 需求三十：注册须勾选同意用户协议/隐私政策（两行轻量勾选 + md 浮窗展示全文）
+    AGREE_PREFIX: '我已阅读并同意',
     AGREE_LINK_AGREEMENT: '用户协议',
     AGREE_LINK_PRIVACY: '隐私政策',
     REGISTER_CONTACT_REQUIRED: '请填写手机号或邮箱并输入验证码',
@@ -976,7 +994,6 @@ globalThis.APP_CONSTANTS = {
 **3.** 本政策无霸王解释权，条款存在争议时，依法作出有利于用户的解释（与用户协议统一）。`,
     VALIDATE_INVITE_FIRST: '请先验证邀请码',
     VALIDATE_INVITE_REQUIRED: '请输入邀请码',
-    VALIDATE_INVITE_LENGTH: '邀请码应为 8 位字符',
     VALIDATE_SELECT_SUBJECT: '请至少选择一个科目',
     VALIDATE_SELECT_RATING: '请选择评分',
     VALIDATE_COMMENT_TOO_SHORT: '评价内容太短',
@@ -1010,11 +1027,11 @@ globalThis.APP_CONSTANTS = {
     NETWORK_ERROR: '网络连接失败，请检查网络后重试',
 
     // 空状态
-    EMPTY_NO_TEACHERS: '暂无教师信息',
-    EMPTY_NO_DEMANDS: '暂无学生需求',
-    EMPTY_NO_MY_DEMANDS: '还没有需求，点击右上角「新建需求」发布第一条',
-    EMPTY_NO_REVIEWS: '暂无评价',
-    EMPTY_NO_USERS: '暂无用户',
+    EMPTY_NO_TEACHERS: '还没有老师入驻。如果你是教师，完善档案后会出现在这里；学生也可以先发布需求，匹配的老师会主动联系你。',
+    EMPTY_NO_DEMANDS: '还没有学生发布需求。教师可以先完善档案，新需求会按匹配度推荐给你。',
+    EMPTY_NO_MY_DEMANDS: '还没有发布过需求。点「新建需求」，填写学生情况和期望的科目、预算，老师看到后会联系你。',
+    EMPTY_NO_REVIEWS: '还没有人写下评价。与该教师完成签约后，学生可以分享真实的上课体验。',
+    EMPTY_NO_USERS: '当前筛选条件下没有用户。调整筛选条件后再看看。',
 
     // 浏览教师排序
     TEACHER_SORT_MATCH: '匹配度最高',
@@ -1057,7 +1074,6 @@ globalThis.APP_CONSTANTS = {
     HINT_ROLE_ADMIN: '管理员账户',
 
     // 试课意向按钮四态
-    INTENT_ACCEPTED: '已建立联系',
     INTENT_ACCEPTED_GO: '已建立联系 →', // R26：点击跳对应会话
     INTENT_PENDING: '意向已提交',
     INTENT_REJECTED: '未获选',
@@ -1078,7 +1094,7 @@ globalThis.APP_CONSTANTS = {
     PUSH_GREET_PLACEHOLDER: '简单介绍一下自己，说说为什么想请这位老师～（例：老师您好，孩子初二数学偏弱，看到您带过三届中考班，想请您试试）',
     PUSH_GREET_OPTIONAL: '可留空直接发送；填写后老师会在需求卡上看到这段话。',
     EMPTY_NO_MY_DEMANDS_SHORT: '你还没有需求，先去「我的需求」发布一条吧。',
-    PUSH_NO_AVAILABLE_DEMANDS: '暂无可发送的需求（已签约的需求会自动成交下架）。',
+    PUSH_NO_AVAILABLE_DEMANDS: '暂时没有可发送的需求。先到「我的需求」发布一条，开放中的需求才能发给老师。',
     BTN_SEND: '发送',
     VALIDATE_SELECT_DEMAND: '请先选择一条需求',
     PUSH_SENT_FALLBACK: '需求已发送',
@@ -1091,16 +1107,16 @@ globalThis.APP_CONSTANTS = {
     PUSH_ACCEPTED_TAG: '已确认',  // F12②：推送卡乐观处理后占位 tag
     PUSH_REJECTED_TAG: '已谢绝',
     // 系统通知模板（拒绝等节点发给对方的通知；{subjects} 由服务端替换为科目名）
-    NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，对方老师暂时无法承接。非常感谢你的信任，平台会继续为你留意更合适的老师。',
-    NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已选择了当前阶段更匹配的老师。感谢你付出的热情，期待下一次的双向奔赴。',
+    NOTIFY_PUSH_REJECT: '关于「{subjects}」的家教需求，这位老师暂时排不开。我们会继续为你留意匹配的老师，有进展会在这里通知你。',
+    NOTIFY_INTENT_REJECT: '关于「{subjects}」的家教需求，学生已经和更合适的老师建立了联系。你的档案仍在教师广场展示，新的匹配机会会继续推送。',
     NOTIFY_SUBJECTS_FALLBACK: '相关科目',
     // 以下通知/提示文案同样统一收口于此（服务端经 globalThis.APP_CONSTANTS.UI 读取）
-    FEEDBACK_RESOLVED: '你提交的反馈已被关注并处理。感谢你帮助我们做得更好，如有其他问题欢迎随时反馈！',
+    FEEDBACK_RESOLVED: '你反馈的问题已经处理好了。具体结果可以到「我的投诉与反馈」查看。',
     CONTRACT_DRAFT_SENT: '「{name}」发来一份合同草案，请前往「我的合同」查看并确认',
     CONTRACT_DRAFT_SENT_TOAST: '合同草案已发送，等待对方确认',
     CONTRACT_SIGN_WAITING: '「{name}」已确认签约，请在「我的合同」内完成你的确认',
     CONTRACT_MODIFIED: '「{name}」修改了合同内容，双方签约确认已重置，请重新查看',
-    CONTRACT_SIGNED: '双方已完成签约，合作愉快！',
+    CONTRACT_SIGNED: '双方已完成签约，合同生效。请按约定时间开始上课。',
     CONTRACT_CANCELLED: '「{name}」已取消签约，可于会话中继续商议细节',
 
     // 管理员：系统通知广播（编辑器复用发帖组件：标题+正文）
@@ -1141,7 +1157,7 @@ globalThis.APP_CONSTANTS = {
     SIGNING_DEMAND_LABEL: '选择需求',
     SIGNING_DEMAND_PLACEHOLDER: '请选择要签约的需求',
     VALIDATE_SIGNING_DEMAND: '请选择要签约的需求',
-    SIGNING_NO_DEMAND_HINT: '暂无开放的需求可签约，请先发布需求',
+    SIGNING_NO_DEMAND_HINT: '暂时没有开放中的需求。先发布一条需求，双方确认意向后才能发起签约。',
     SIGNING_DEMANDS_LOAD_FAIL: '需求列表加载失败，请刷新页面后重试。',
     LABEL_SIGNING_PRICE: '报价（元/小时）',
     LABEL_SIGNING_SCHEDULE: '授课时间（每周固定时间段）', // 复用结构化时间组件（非自然语言文本框）
@@ -1157,7 +1173,6 @@ globalThis.APP_CONSTANTS = {
     CHAT_SIGNING_METHOD: '方式',
     BTN_SIGNING_CONFIRM: '确认签约',
     BTN_SIGNING_REJECT: '拒绝',
-    SIGNING_CONFIRMED_TEXT: '已确认签约',
     SIGNING_REJECTED_TEXT: '已拒绝此次签约请求',
     VALIDATE_SIGNING_PRICE: '请填写有效报价',
     VALIDATE_SIGNING_SCHEDULE: '请填写授课时间',
@@ -1204,7 +1219,7 @@ globalThis.APP_CONSTANTS = {
     LABEL_CONTRACT_DEMAND: '对应需求',
     CONTRACT_DEMANDS_SIGNED_HINT: '仅已签约需求可继续签合同', // 需求四·第3条（U7 v0.25.105：长提示缩短并入下拉占位，删外置提示行）
     CONTRACT_REQUIRE_SIGNED: '请选择已签约需求',
-    CONTRACT_DEMANDS_EMPTY: '暂无已签约需求可起草合同',
+    CONTRACT_DEMANDS_EMPTY: '还没有已签约的需求。双方都确认签约后，这里才能起草正式合同。',
     CONTRACT_DEMANDS_LOAD_FAIL: '需求列表加载失败，请刷新页面后重试。',
     DEMAND_TAG_CONTRACTED: '已签约',
     DEMAND_TAG_REVOKED: '合同已撤销',
@@ -1277,15 +1292,15 @@ globalThis.APP_CONSTANTS = {
     // 访客模式：主页按钮直达客户端（未登录态）；需要身份的操作统一经 ensureAuth 导向特制登录页，登录后自动返回原页面
     GUEST_NOT_LOGGED_IN: '未登录',
     GUEST_TAP_TO_LOGIN: '点击登录以使用全部功能',
-    AUTH_LOGIN_TITLE: '欢迎回来',
-    AUTH_LOGIN_SUB: '登录你的账户以继续使用',
-    AUTH_LOGIN_TITLE_GUEST: '登录以使用全部功能',
-    AUTH_LOGIN_SUB_GUEST: '登录后将自动返回你刚才所在的页面',
+    AUTH_LOGIN_TITLE: '欢迎回到经途·伴学',
+    AUTH_LOGIN_SUB: '登录后继续管理需求、会话与合同',
+    AUTH_LOGIN_TITLE_GUEST: '登录后继续刚才的操作',
+    AUTH_LOGIN_SUB_GUEST: '登录成功后会自动返回你刚才所在的页面',
     // v0.23.1：主页双按钮按角色分流，预览端触发登录时按客户端类型提示
-    AUTH_LOGIN_TITLE_TEACHER: '请登录教师账户',
-    AUTH_LOGIN_SUB_TEACHER: '登录后将进入教师端',
-    AUTH_LOGIN_TITLE_STUDENT: '请登录学生账户',
-    AUTH_LOGIN_SUB_STUDENT: '登录后将进入学生端',
+    AUTH_LOGIN_TITLE_TEACHER: '登录教师账户',
+    AUTH_LOGIN_SUB_TEACHER: '教师端可浏览学生需求、提交试课意向和管理合同',
+    AUTH_LOGIN_TITLE_STUDENT: '登录学生账户',
+    AUTH_LOGIN_SUB_STUDENT: '学生端可发布需求、联系老师和管理签约',
 
     // 个人信息右栏（取代旧教师详情弹窗：卡片①身份②教师资料③评价；已签约绿色标记；账簿式对齐布局）
     PROFILE_PANEL_TITLE: '个人信息',
@@ -1345,7 +1360,6 @@ globalThis.APP_CONSTANTS = {
     CHSI_GATE_SUBMIT: '提交核验',
     CHSI_GATE_VERIFYING: '核验中…',
     CHSI_GATE_PENDING: '验证码已提交，管理员核验中（一般 24 小时内完成），通过后自动开放资料填写',
-    CHSI_GATE_MOCK_NOTE: '当前为内测模拟核验',
     // v1.4.16 大一新生录取通知书验证（学信网入学后数月才录入，暑期未录入期间走通知书核验）
     ADMISSION_SWITCH_LINK: '我是大一新生，改为验证录取通知书',
     ADMISSION_GATE_TITLE: '验证录取通知书',
@@ -1356,6 +1370,8 @@ globalThis.APP_CONSTANTS = {
     ADMISSION_SUBMIT: '提交核验',
     ADMISSION_VERIFYING: '提交中…',
     ADMISSION_GATE_PENDING: '录取通知书已提交，管理员核验中（一般 24 小时内完成），通过后自动开放资料填写',
+    ADMISSION_IMAGE_INVALID: '录取通知书图片格式不正确（仅支持 jpg/png 等常见图片）',
+    ADMISSION_IMAGE_TOO_LARGE: '录取通知书图片过大，请压缩后重新上传',
     ADMISSION_NOTIFY_APPROVED: '录取通知书核验已通过，你的接单资格已开放',
     CHSI_INFO_TITLE: '学信网核验信息（自动填入，不可修改）',
     CHSI_INFO_SCHOOL: '院校全称',
@@ -1382,6 +1398,11 @@ globalThis.APP_CONSTANTS = {
     VERIF_REVOKED_OK: '已撤销该教师核验资格并通知',
     // v1.4.16 录取通知书核验（与学信网同一队列收口）
     VERIF_ADMISSION_NO_CODE: '录取通知书核验（无验证码）',
+    VERIF_ADMISSION_TAG: '录取通知书',
+    VERIF_SCHOOL_PLACEHOLDER: '如：上海财经大学',
+    VERIF_LEVEL_PLACEHOLDER: '本科 / 硕士',
+    VERIF_STATUS_PLACEHOLDER: '在籍 / 已毕业',
+    VERIF_YEAR_PLACEHOLDER: '如 2024',
     VERIF_ADMISSION_VIEW_IMG: '查看通知书原图',
     CREDENTIAL_UPLOAD: '上传',
     CREDENTIAL_UPLOADED_VIEW: '已上传，点击查看',
@@ -1407,10 +1428,10 @@ globalThis.APP_CONSTANTS = {
     SIGN_READY_HINT: '已阅读完毕，可确认签约',
     SIGN_READ_DONE_BTN: '我已阅读并确认签约',
     CONFIRM_SIGN_TWICE: '确认签约后合同即生效、不可单方撤销。你确定已仔细阅读并确认这份合同吗？',
-    CONFIRM_SIGN_FINAL: '请输入账户密码，完成最终确认（后期接入短信验证码）',
+    CONFIRM_SIGN_FINAL: '请输入账户密码完成最终确认。确认后合同生效，单方无法撤销。',
     CONFIRM_SIGNING_ACCEPT: '接受签约？需求将锁定为已成交，其他教师的试课意向会被自动拒绝。请输入账户密码完成最终确认。', // S2-2：确认签约=危险操作（同合同签署/撤销口径，capToken 二次认证）
     CONFIRM_CANCEL_CONTRACT: '取消后回到待签约状态、合同保留（会话保留）。确定取消签约吗？', // ：取消不再删除合同
-    CONTRACT_EMPTY_LIST: '暂无合同——可在「我的会话」的聊天窗内起草',
+    CONTRACT_EMPTY_LIST: '还没有合同。双方确认签约后，可在「我的会话」里起草正式合同。',
     CONTRACT_MODIFIED_TOAST: '修改已同步给对方，双方需重新确认签约',
     CONTRACT_CANCELLED_TOAST: '已取消签约，合同保留待重新签约',
     CONTRACT_REVOKED_BY_ME: '你已撤销合同', // ：撤销后本人视角
@@ -1435,12 +1456,12 @@ globalThis.APP_CONSTANTS = {
     CONTRACT_VERIFY_ENTRY_UNIT: '条',                     // 「{n} 条」单位
 
     // 管理员：资料管理
-    ADMIN_POSTS_EMPTY: '暂无帖子',
+    ADMIN_POSTS_EMPTY: '还没有教师发布资料，新帖子会出现在这里。',
 
     // 管理员：合同管理（网页测试用途，真实场景仅管理员可见）
     PAGE_ADMIN_CONTRACTS: '合同管理',
-    PAGE_ADMIN_CONTRACTS_DESC: '查看全部合同，测试用移除',
-    ADMIN_CONTRACTS_EMPTY: '暂无合同',
+    PAGE_ADMIN_CONTRACTS_DESC: '查看全站合同与状态，仅用于处理异常数据',
+    ADMIN_CONTRACTS_EMPTY: '还没有合同记录。',
     BTN_REMOVE_CONTRACT: '移除合同',
     CONFIRM_ADMIN_REMOVE_CONTRACT: '移除后合同彻底删除（操作留档保留）。确定移除该合同吗？',
     ADMIN_CONTRACT_REMOVED_TOAST: '合同已移除',
@@ -1448,7 +1469,7 @@ globalThis.APP_CONSTANTS = {
     // 关于平台（全角色，侧边栏末尾；原名「关于我们」，改称更切合模块实际功能）
     PAGE_ABOUT: '关于平台',
     PAGE_ABOUT_DESC: '平台介绍与用户支持',
-    ABOUT_FOOTNOTE: '网站初创，欢迎在「关于平台」-「{feedback}」中向我们提出优化建议。您说任何需求/设想，我们都尽力实现。',
+    ABOUT_FOOTNOTE: '平台由上海财经大学学生团队维护。有建议或遇到问题，可以到「关于平台」-「{feedback}」告诉我们，我们会逐条看。',
     ABOUT_WHO_TITLE: '我们是谁',
     ABOUT_WHO_TEXT: '经途·伴学信息门户是由上海财经大学在校学生的家教团体运营的公益信息平台。我们的初衷很简单：为想做家教的同学（尤其是持有教师资格证的在校大学生与研究生）提供勤工俭学、社会实践的机会，也帮家长和同学直接对接合适的老师，中间不赚一分钱差价。平台不开展任何有偿培训业务，不向老师收取佣金，也不向家长学员收取任何中介费用。为响应国家「双减」政策，我们谢绝在职老师及校外培训机构注册与合作。',
     // 需求四：平台不走资金声明（关于页「我们是谁」卡内的醒目分块）——撇清平台资金责任
@@ -1493,14 +1514,14 @@ globalThis.APP_CONSTANTS = {
     FEEDBACK_COMPLAINT_SUBJECT_TEACHER: '教师',
     FEEDBACK_COMPLAINT_SUBJECT_STUDENT: '学生',
     FEEDBACK_COMPLAINT_SUBJECT_PLATFORM: '平台服务',
-    FEEDBACK_COMPLAINT_RESOLVED: '你的投诉已被受理并处理。感谢你的信任，如有其他问题欢迎随时反馈。',
+    FEEDBACK_COMPLAINT_RESOLVED: '你的投诉已处理完毕，结果可以在「我的投诉与反馈」里查看。',
     MY_FEEDBACK_TITLE: '我的投诉与反馈', // M12：与合并按钮同名（原「我的反馈与投诉」）
     MY_FEEDBACK_EMPTY: '还没有提交过反馈或投诉',
 
     // 管理员：用户反馈
     PAGE_ADMIN_FEEDBACK: '用户反馈',
-    PAGE_ADMIN_FEEDBACK_DESC: '查看并处理用户提交的 Bug、建议与投诉',
-    ADMIN_FEEDBACK_EMPTY: '暂无用户反馈',
+    PAGE_ADMIN_FEEDBACK_DESC: '查看并处理用户提交的问题与建议（投诉在独立页处理）',
+    ADMIN_FEEDBACK_EMPTY: '还没有用户反馈，新的问题和建议会出现在这里。',
     FEEDBACK_TAG_BUG: 'Bug',
     FEEDBACK_TAG_SUGGEST: '建议',
     FEEDBACK_TAG_COMPLAINT: '投诉',
@@ -1540,12 +1561,12 @@ globalThis.APP_CONSTANTS = {
     // 管理员：投诉处理（R22 独立于用户反馈）
     PAGE_ADMIN_COMPLAINT: '投诉处理',
     PAGE_ADMIN_COMPLAINT_DESC: '查看并处理用户提交的投诉（对象 / 理由 / 详情）',
-    ADMIN_COMPLAINT_EMPTY: '暂无投诉',
+    ADMIN_COMPLAINT_EMPTY: '还没有投诉记录，新投诉会出现在这里。',
     BTN_COMPLAINT_RESOLVE: '标记已处理',
     // ：统一内容审核页
     PAGE_ADMIN_CONTENT: '内容审核',
-    PAGE_ADMIN_CONTENT_DESC: '统一查看全站用户内容并执行删除/封禁处罚',
-    ADMIN_CONTENT_EMPTY: '暂无内容',
+    PAGE_ADMIN_CONTENT_DESC: '集中查看全站用户内容，可删除违规内容或封禁作者',
+    ADMIN_CONTENT_EMPTY: '当前筛选条件下没有内容。',
     ADMIN_CONTENT_PENALTY_DELETE: '删除',
     ADMIN_CONTENT_PENALTY_BAN: '封禁作者',
     ADMIN_CONTENT_PENALTY_REASON: '处罚原因（必填）',
@@ -1574,6 +1595,7 @@ globalThis.APP_CONSTANTS = {
     VALIDATE_SELECT_PROVINCE: '请选择省份',
     // 任务三需求表单 wizard：分步导航 + 每页校验
     BTN_PREV_STEP: '上一步',
+    BTN_BACK_LANDING: '返回首页',
     BTN_NEXT_STEP: '下一步',
     VALIDATE_SELECT_GRADE: '请选择学生年级',
     VALIDATE_ADDRESS_REQUIRED: '请选择所在区与镇/街道',
@@ -1602,7 +1624,7 @@ globalThis.APP_CONSTANTS = {
     PAGE_ADMIN_TEACHERS: '教师管理',
     PAGE_ADMIN_DEMANDS: '需求管理',
     PAGE_ADMIN_REVIEWS: '评价管理',
-    PAGE_ADMIN_AWARDS: '奖项审核', PAGE_ADMIN_AWARDS_DESC: '审核教师荣誉奖项与奖状证明',
+    PAGE_ADMIN_AWARDS: '奖项审核',
     PAGE_ADMIN_VERIFICATIONS: '学信网核验', PAGE_ADMIN_VERIFICATIONS_DESC: '核验教师学籍在线验证报告',
     PAGE_ADMIN_POSTS: '资料管理',
 
@@ -1630,7 +1652,7 @@ globalThis.APP_CONSTANTS = {
       // 渲染走 openModuleInfo → mdRender（app-posts 自研 markdown-lite，escHtml 先转义，安全）
       'my-demands': '## 这是什么\n你的家教需求管理中心：发布、查看、修改需求，并处理老师发来的试课意向。\n\n## 怎么用\n**新建需求：** 点右上角「新建需求」，按引导填写学科或非学科项目、年级、预算、期望时间等，提交后需求即发布到需求广场，老师能看到并投递意向。\n\n**处理意向：** 发布后，老师对这条需求的试课意向会逐条出现在需求下方。点开可看到老师姓名、擅长科目与报价，逐个同意或拒绝。\n\n**管理需求：** 已签约或想下架的需求可编辑或删除；撤销的需求可以重新开放。\n\n## 小贴士\n资料填得越完整，匹配到的老师越精准，越容易被选中。',
       'browse-teachers': '## 这是什么\n全平台教师列表，学生端默认按与你需求的匹配度从高到低排列。\n\n## 怎么用\n**筛选：** 用上方筛选按地区、科目、性别、报价等缩小范围。\n\n**看卡片：** 每张卡片展示老师的学校年级、擅长科目、高考成绩、授课方式与报价；右侧匹配度按钮会列出你每个需求的具体得分。\n\n**看详情：** 点卡片任意处打开完整资料卡，含性格关键词、可授课时间段与历史评价。\n\n## 小贴士\n满意的老师可直接把需求发给他，或先进会话聊一聊再决定。',
-      'my-chats': '## 这是什么\n与老师/学生一对一沟通的聊天窗口，所有交流都会留档。\n\n## 怎么用\n**会话列表：** 左侧是全部会话，点开即可收发文字、图片和文件，消息约每 4 秒自动刷新。\n\n**对方资料：** 右上角人头图标可打开对方资料卡。\n\n**签约入口：** 聊天里的「+」号可呼出发起签约或起草合同，谈妥后在这里确认签约关系。',
+      'my-chats': '## 这是什么\n与老师/学生一对一沟通的聊天窗口，所有交流都会留档。\n\n## 怎么用\n**会话列表：** 左侧是全部会话，点开即可收发文字、图片和文件，消息会自动同步。\n\n**对方资料：** 右上角人头图标可打开对方资料卡。\n\n**签约入口：** 聊天里的「+」号可呼出发起签约或起草合同，谈妥后在这里确认签约关系。',
       'my-contracts': '## 这是什么\n合同管理区：起草、确认、签署与撤销都在这里完成。\n\n## 怎么用\n**起草签约：** 在会话里谈妥条件后，起草合同并选择对应的已签约需求，双方确认后正式签约。\n\n**查看修改：** 每张合同卡显示签约对象、授课方式、时薪与状态；可查看正式合同全文、修改条款。\n\n**存证与撤销：** 已签合同可查存证；确需结束时按流程撤销。\n\n## 小贴士\n合同签好即具有法律效力，是双方权益的保障，签署前请仔细核对条款。',
       'notifications': '## 这是什么\n平台各类提醒的汇总页：试课意向、学生推送的需求、签约与合同进展都会通知到这里。\n\n## 怎么用\n**查看：** 每条通知可直接看到内容，处理过的意向与需求去「我的需求」查看状态。\n\n**屏蔽公告：** 右上角「屏蔽系统通知」可一键过滤平台公告类消息，再点一次恢复。',
       'account-settings': '## 这是什么\n账户与外观设置页。\n\n## 怎么用\n**账户信息：** 查看用户名与身份，上传头像，管理已登录设备——发现陌生设备可随时踢下线。\n\n**外观设置：** 切换亮色/暗色/跟随系统主题；用「UI大小」滑块整体调整字号、按钮与侧边栏尺寸。\n\n**退出与注销：** 页面底部是退出登录（二次确认）与注销账户（需密码二次认证，注销后数据会被清理）。',
@@ -1664,7 +1686,7 @@ globalThis.APP_CONSTANTS = {
     INTENT_STATUS_PENDING: '待处理',
     INTENT_STATUS_ACCEPTED: '已同意',
     INTENT_STATUS_REJECTED: '已拒绝',
-    EMPTY_NO_INTENTS: '暂无教师意向',
+    EMPTY_NO_INTENTS: '还没有教师提交意向。收到意向后，可以在这里同意或拒绝。',
     INTENT_ACCEPTED_TOAST: '已同意，可在「我的会话」中开始对话',
     INTENT_ACCEPTED_NOTIFY: '学生已同意你的试课意向，会话已建立，请前往「我的会话」查看详情',
     PUSH_ACCEPTED_NOTIFY: '教师已确认你发送的需求，会话已建立，请前往「我的会话」查看详情',
@@ -1680,8 +1702,6 @@ globalThis.APP_CONSTANTS = {
     // 教师弹窗 / 联系方式
     SECTION_REGION: '地区',
     CONTACT_AFTER_SIGN_NOTE: '签约后展示联系方式',
-    CONTACT_PANEL_WECHAT_PREFIX: '微信：',
-    CONTACT_PANEL_EMAIL_PREFIX: '邮箱：',
     CONTRACT_SUBJECT_LINE_PREFIX: '授课科目：',
 
     // 用户状态标签
@@ -1689,7 +1709,9 @@ globalThis.APP_CONSTANTS = {
 
     // 沟通（聊天）
     CHAT_TITLE: '会话',
-    CHAT_EMPTY_NO_CONVS: '暂无沟通——同意教师试课意向后自动建立',
+    CHAT_EMPTY_NO_CONVS: '还没有会话。学生同意教师试课意向、或教师确认学生推送后，会话会自动建立。',
+    CHAT_ROLE_STUDENT: '学生',
+    CHAT_ROLE_TEACHER: '教师',
     CHAT_CONV_NOT_FOUND: '未找到与该学生的会话', // R26：需求卡「已建立联系→」兜底
     CHAT_EMPTY_NO_MESSAGES: '还没有消息，先打个招呼吧',
     CHAT_PREVIEW_ME_PREFIX: '我：',
@@ -1697,8 +1719,8 @@ globalThis.APP_CONSTANTS = {
     CHAT_PREVIEW_FILE: '[文件]',
     CHAT_UNKNOWN_USER: '未知用户',
     CHAT_BACK_TO_LIST: '会话列表',
-    CHAT_CLOSED_TIP: '该会话已关闭，不能再发送消息',
-    CHAT_SIGN_TIP: '已与对方确认签约，建议起草并签订正式合同以加强契约有效性；平台不参与费用结算，课费请与对方站外直接结算。', // 需求四·第4条：签约确认后气泡内合并提示
+    CHAT_CLOSED_TIP: '会话已结束，不能再发消息。如需继续沟通，请重新发起会话或走合同流程。',
+    CHAT_SIGN_TIP: '双方已确认签约，建议在「我的合同」里起草正式合同。\n平台不代收代付，课费请与对方协商后站外结算。', // 需求四·第4条：签约确认后气泡内合并提示
     CHAT_ATTACH_IMAGE: '图片',
     CHAT_ATTACH_FILE: '文件',
     CHAT_INPUT_PLACEHOLDER: '输入消息',
@@ -1711,7 +1733,7 @@ globalThis.APP_CONSTANTS = {
     CHAT_ATTACH_FAIL: '附件加载失败',
     CHAT_ATTACH_REMOVED: '附件已被发送方移除',
     CHAT_PLACEHOLDER_TITLE: '选择左侧会话，开始沟通',
-    CHAT_PLACEHOLDER_SUB: '同意试课意向后自动建立会话，消息每 4 秒自动刷新',
+    CHAT_PLACEHOLDER_SUB: '同意试课意向后自动建立会话，消息会自动同步',
 
     // 资料共享广场
     POSTS_SEARCH_PLACEHOLDER: '搜索标题或正文',
@@ -1727,13 +1749,11 @@ globalThis.APP_CONSTANTS = {
     POST_LIKED_TOAST: '已点赞',
     POST_UNLIKED_TOAST: '已取消点赞',
     // R23：帖子收藏（资料共享——收藏即保存，仅本人可见）
-    POSTS_VIEW_ALL: '全部',
     POSTS_VIEW_FAV: '我的收藏',
     POSTS_FAV_ACTIVE: '已进入我的收藏', // M7/B7：收藏 toggle 按钮进入态文案（B7 返工：勾不写进文案，改前置 SVG 勾）
     BTN_FAVORITE: '收藏',
     BTN_FAVORITED: '已收藏',
     POST_FAV_ARIA: '收藏', // 未收藏
-    POST_FAV_ACTIVE_ARIA: '取消收藏', // 已收藏
     POST_FAVORITED_TOAST: '已收藏，可在「我的收藏」查看',
     POST_UNFAVORITED_TOAST: '已取消收藏',
     POSTS_FAV_EMPTY: '还没有收藏，看到有用的教学资料点一下书签图标，收藏后在这里随时查看。',
@@ -1768,7 +1788,7 @@ globalThis.APP_CONSTANTS = {
     POST_DELETE_CONFIRM: '删除后不可恢复，点赞数据一并清空。确认删除这篇帖子？',
 
     // 通知信息
-    EMPTY_NO_NOTIFICATIONS: '暂无通知',
+    EMPTY_NO_NOTIFICATIONS: '还没有通知。试课意向、需求推送和合同进展都会汇总到这里。',
     NOTIF_FILTER_EMPTY: '没有符合条件的通知', /* v0.19.46 通知页屏蔽系统通知后空态 */
     NOTIF_READ_ARIA: '标记该条通知已读',     // #151：未读通知呼吸遮罩 + 点击消除（键盘可达）
     NOTIF_BLOCK_OFF: '屏蔽系统通知',        // 需求四·4b：通知页右上角屏蔽按钮两态（localStorage 持久化，纯客户端）
@@ -1776,8 +1796,8 @@ globalThis.APP_CONSTANTS = {
 
     // 账户设置（设置页：账户信息区 + 外观设置区）
     SETTINGS_APPEARANCE_TITLE: '外观设置',
-    SETTINGS_THEME_LABEL: '外观主题',
-    SETTINGS_THEME_HINT: '选择界面外观风格，「跟随系统」会自动适配系统的黑夜模式',
+    SETTINGS_THEME_LABEL: '界面配色',
+    SETTINGS_THEME_HINT: '亮色、暗色或跟随系统自动切换',
     SETTINGS_UI_SCALE_LABEL: 'UI大小',
     SETTINGS_UI_SCALE_HINT: '调整界面文字、按钮与输入组件的整体大小（{min}%~{max}%，默认 {def}%）', // {min}/{max}/{def} 渲染时填 CONFIG.UI_SCALE_MIN/MAX/DEFAULT（数字单源，禁散落硬编码）
     SETTINGS_STYLE_LABEL: '页面风格',
@@ -1805,8 +1825,10 @@ globalThis.APP_CONSTANTS = {
     AWARD_PROOF_LABEL: '奖状证明',
     AWARD_PROOF_HINT: '上传奖状/获奖证书图片，管理员审核通过后公开展示',
     AWARD_STATUS_PENDING: '待审核', AWARD_STATUS_APPROVED: '已通过', AWARD_STATUS_REJECTED: '已驳回',
+    AWARD_SUBMITTED: '奖项已提交，等待管理员审核',
+    FILE_TYPE_BLOCKED: '不支持的文件类型',
     AWARD_COUNT_BADGE: '🏆 荣誉 ×{n}',
-    AWARD_EMPTY: '暂无荣誉奖项',
+    AWARD_EMPTY: '还没有添加奖项。提交获奖证明并审核通过后，会展示在教师主页。',
     AWARD_DELETE_CONFIRM: '确定删除该奖项吗？删除后需重新提交审核。',
     AWARD_REJECTED_NOTE_PREFIX: '驳回理由：',
     AWARD_APPROVED_NOTIFY: '你的荣誉奖项「{title}」已通过审核，将展示在你的教师主页。',
@@ -1814,13 +1836,21 @@ globalThis.APP_CONSTANTS = {
     BTN_SUBMIT: '提交', BTN_SUBMITTING: '提交中...', SUCCESS_DELETED: '已删除',
     BTN_DELETE: '删除',
     // 管理员：奖项审核
-    ADMIN_AWARDS_DESC: '审核教师提交的荣誉奖项与奖状证明',
     ADMIN_AWARD_APPROVE: '通过', ADMIN_AWARD_REJECT: '驳回',
     ADMIN_AWARD_REJECT_HINT: '驳回理由（必填，将通知教师）',
     ADMIN_AWARD_PROOF_VIEW: '查看奖状',
-    ADMIN_AWARD_NONE: '暂无待审核的奖项',
+    ADMIN_AWARD_NONE: '当前没有待审核的奖项，新提交会出现在这里。',
+    ADMIN_PENALTY_REASON_PLACEHOLDER: '如：含详细门牌号，违反平台隐私红线',
+    ADMIN_PENALTY_RULE_PLACEHOLDER: '如：地址门控 / 内容安全',
+    ADMIN_PENALTY_CONFIRM: '将{action}该内容并通知作者，确认继续？',
+    ADMIN_PENALTY_DONE: '已处理',
+    ADMIN_CONTENT_PENALTY_TITLE: '处罚{type} #{id}',
+    ADMIN_CONTENT_PENALTY_HINT: '处罚后将自动通知作者，附上原因、规则与触发内容摘要。',
+    ADMIN_AWARD_TEACHER_LABEL: '教师',
+    COMPLAINT_REPORTER_LABEL: '投诉人',
     ADMIN_AWARD_APPROVE_CONFIRM: '确定通过该奖项审核吗？通过后将展示在教师主页。',
     ADMIN_AWARD_REJECT_CONFIRM: '确定驳回该奖项吗？理由将通知教师。',
+    ADMIN_AWARD_REJECT_PLACEHOLDER: '如：奖状模糊、无法辨认颁发机构',
     BTN_MODIFY: '修改',
     // 验证码/凭证（B2-B6；手机号/邮箱绑定、用户名修改、验证码登录）
     PHONE_LABEL: '手机号', PHONE_PLACEHOLDER: '请输入中国大陆手机号', // 只支持大陆（用户拍板）
@@ -1828,12 +1858,22 @@ globalThis.APP_CONSTANTS = {
     CODE_LABEL: '验证码', CODE_PLACEHOLDER: '输入验证码',
     CODE_SEND: '发送验证码',
     CODE_SEND_AGAIN: '{time}后重发',   // B1 倒计时复用（60s）。v0.26.17 用户反馈：原「{time}后可再次发送验证码」10 字 > 发送按钮 max-width（92-104px）溢出——左边戳到输入框底部、右边 ellipsis 截断；改短「xx秒后重发」装得下
-    CODE_SENT: '验证码已发送', // v1.4.12 真实通道投递受理后的成功提示（同服务端 MSG.CODE_SENT 口径）
+    CODE_SENT: '验证码已发送',
+    OTP_SCENE_BIND: '绑定验证',
+    OTP_SCENE_REGISTER: '注册验证',
+    OTP_SCENE_LOGIN: '登录验证',
+    OTP_PHONE_LABEL: '手机验证码',
+    OTP_EMAIL_LABEL: '邮箱验证码',
+    OTP_BIND_DONE: '绑定成功', // v1.4.12 真实通道投递受理后的成功提示（同服务端 MSG.CODE_SENT 口径）
     BTN_BIND: '绑定',
     BIND_PHONE_TITLE: '绑定手机号',
     BIND_EMAIL_TITLE: '绑定邮箱',
     USERNAME_CHANGE_TITLE: '修改用户名',
     USERNAME_NEW_PLACEHOLDER: '输入新用户名（3-30 字符，不含 @ 与纯数字）',
+    USERNAME_NEW_LABEL: '新用户名',
+    USERNAME_NEW_HINT: '修改后全平台即时更新；7 天内只能改一次。',
+    USERNAME_CHANGE_CONFIRM_FMT: '确定将用户名修改为「{name}」吗？修改后 7 天内不可再次修改。',
+    USERNAME_COOLDOWN: '用户名 7 天内只能修改一次',
     USERNAME_COOLDOWN_BTN: '{time}后可再次修改用户名', // B1 倒计时复用（7 天冷却）
     // 审计（U2/U3）：以下文案收口自硬编码——服务端同文案在 server/constants.js MSG（跨层重复属既定，
     // 改文案必须两处同步；此处为前端校验的即时 toast）
@@ -1845,19 +1885,21 @@ globalThis.APP_CONSTANTS = {
     CRED_FORMAT_EMAIL: '邮箱格式不正确', // 同 MSG.EMAIL_INVALID
     BTN_USERNAME_SAVE: '确认修改',
     BTN_USERNAME_SAVING: '保存中...',
+
+    LOGIN_PASSWORD_REQUIRED: '请输入登录密码',
+    LOADING_VERIFY: '核验中…',
     LOGIN_SWITCH_CODE: '验证码登录',
     LOGIN_SWITCH_PASSWORD: '密码登录',
     LOGIN_IDENTIFIER_PLACEHOLDER: '请输入用户名/手机号/邮箱',
-    LOGIN_ACCOUNT_MISSING: '不存在的账户',
-    LOGIN_CODE_TIP: '向该账户绑定的手机/邮箱发送验证码',
+    LOGIN_ACCOUNT_MISSING: '没有找到这个用户名、手机号或邮箱。请检查输入；还没有账号的话，可以先注册。',
     // 滑块拼图真人验证（C1/C2）
     CAPTCHA_TITLE: '拖动滑块完成拼图',
     CAPTCHA_TIP: '拖动滑块，将拼图块对齐到缺口位置',
     CAPTCHA_PASS: '验证通过',
-    CAPTCHA_FAIL: '验证未通过，请重试',
+    CAPTCHA_FAIL: '没对准缺口，再试一次',
     CAPTCHA_ARIA: '拖动滑块完成拼图验证',
     BTN_LOGOUT: '退出登录',
-    CONFIRM_LOGOUT: '确定要退出当前账户吗？',
+    CONFIRM_LOGOUT: '退出后需要重新登录。确定退出当前账户吗？',
     // 登录设备管理（账户设置）
     SETTINGS_DEVICES: '登录设备',
     // #163：隐私设置——访客可见性控制
@@ -1870,7 +1912,7 @@ globalThis.APP_CONSTANTS = {
     SETTINGS_PRIVACY_DEMAND_HINT: '关闭后，未登录的游客看不到你发布的需求，仅登录用户可见',
     SETTINGS_PRIVACY_SAVED: '隐私设置已保存',
     SETTINGS_DEVICES_HINT: '以下是登录过此账户的设备，可让其他设备下线。',
-    SETTINGS_DEVICES_EMPTY: '暂无其他登录设备',
+    SETTINGS_DEVICES_EMPTY: '当前只有这台设备登录。',
     DEVICE_CURRENT: '当前设备',
     DEVICE_UNKNOWN: '未知设备',
     DEVICE_LOGIN_AT: '登录于 ',
@@ -1882,12 +1924,12 @@ globalThis.APP_CONSTANTS = {
     ONBOARD_TITLE: '欢迎来到经途·伴学信息门户',
     // v0.25 需求三：主页首访浮窗简化——聚焦核心特点 + 最基本流程（避免理解疲劳）；
     // 详细用法浮窗 USAGE_GUIDE_SECTIONS 不变，想深入了解随时可开
-    ONBOARD_INTRO: '欢迎来到经途·伴学信息门户——学生与家教老师直接对接，零佣金、不收费。',
+    ONBOARD_INTRO: '学生和家教老师直接对接，零佣金、不收费；三步就能开始使用。',
     ONBOARD_POLICY: [
       '学生：发布需求 → 浏览教师 → 匹配后站内沟通',
       '教师：浏览需求 → 提交试课意向 → 匹配后站内沟通',
       '匹配成功后在「我的会话」沟通上课细节，到「我的合同」正式签约',
-      '当前为内测阶段，公测后账号与数据将被清空；更多细节见「详细用法介绍」',
+      '平台不向老师或学生收取中介费，课费由双方自行结算',
     ],
     ONBOARD_CONFIRM: '知道了',
     ONBOARD_CONFIRM_BROWSE: '知道了，进客户端逛逛',
@@ -1898,9 +1940,9 @@ globalThis.APP_CONSTANTS = {
     TOUR_ARIA_LABEL: '新手引导', // 引导层 role=dialog aria-label（网安 M2/a11y）
     // —— 需求大厅（教师）——
     TOUR_STEP_BROWSE_DEMANDS: '需求大厅：学生发布的家教需求都在这，按匹配度排好序。点击进入。',
-    TOUR_STEP_DEMAND_LIST: '这里就是需求列表。每条卡片写着发起人、科目、年级、预算、上课方式，一目了然。',
+    TOUR_STEP_DEMAND_LIST: '这里就是需求列表。每张卡写着发起人、科目、年级、预算和上课方式，先看这几项判断是否合适。',
     TOUR_STEP_DEMAND_CARD: '一条需求卡：期望时间、预算区间、授课方式都在上面，先看看合不合适。',
-    TOUR_STEP_DEMAND_DETAIL: '这是需求详情：学习目标、上课安排、学生信息都在这里，一目了然。', // v1.4.4：卡面点击开详情后的介绍步（用户反馈）
+    TOUR_STEP_DEMAND_DETAIL: '这是需求详情：学习目标、上课安排和学生信息都在这里，提交意向前先完整看一遍。', // v1.4.4：卡面点击开详情后的介绍步（用户反馈）
     TOUR_STEP_DEMAND_DETAIL_CLOSE: '点击关闭详情，回到需求列表。', // v1.4.4：详情介绍后直接关闭（不再晾在灰化区）
     TOUR_STEP_CHSI_GATE: '先完成学信网验证：输入学信网在线验证报告上的验证码，核验通过后即可填写详细资料并开始接单。', // v1.4.4：学信网门控引导（默认引导）
     TOUR_DEMO_CHAT_NAME_TEACHER: '示例学生', // v1.4.4：教师用户引导中的示例会话（对侧角色）
@@ -1916,7 +1958,7 @@ globalThis.APP_CONSTANTS = {
     TOUR_STEP_DEMAND_ID_TAG: '需求编号 #0001：沟通时用它指代这条需求，对方一看就知道是哪条。',
     // —— 浏览教师（教师广场 / 教师同行）——
     TOUR_STEP_BROWSE_TEACHERS: '教师广场：平台上的全部教师都在这，按匹配度从高到低排。点击进入。',
-    TOUR_STEP_BROWSE_TEACHERS_PEER: '教师同行：看看其他老师怎么介绍自己、怎么定价，参考参考。点击进入。',
+    TOUR_STEP_BROWSE_TEACHERS_PEER: '教师同行：看看其他老师怎么介绍自己、怎么定价，可以用来调整自己的档案。',
     TOUR_STEP_TEACHERS_LIST: '教师列表：每张卡片显示地区、学校、年级、报价区间、可授课时间。',
     TOUR_STEP_FILTER_TOGGLE: '「筛选」按钮：按科目、报价上限、最低评分过滤教师。',
     TOUR_STEP_FILTER_SUBJECT: '选科目、报价等条件，列表会即时筛选；清空条件就看全部。',
@@ -1934,7 +1976,7 @@ globalThis.APP_CONSTANTS = {
     // —— 我的会话 ——
     TOUR_STEP_MY_CHATS: '我的会话：匹配成功后的沟通窗口，双方的联系方式此时互相不可见。点击进入。',
     TOUR_STEP_CONV_ITEM: '左侧是会话列表，每个会话对应一位师生。点一个打开聊天窗。',
-    TOUR_STEP_CHAT_MESSAGES: '这里是聊天记录，消息约每 4 秒自动刷新，交流都会留档。',
+    TOUR_STEP_CHAT_MESSAGES: '这里是聊天记录，消息会自动同步；聊天内容用于平台留档，联系方式此时仍互相不可见。',
     TOUR_STEP_CHAT_SEND: '底部输入框打字，点「发送」；也支持图片和文件。',
     TOUR_STEP_CHAT_PLUS: '点这个 + 号，唤出功能栏；下面的每一项都介绍一下。',
     // —— v0.25.38（反馈 #130）：+ 号功能栏项目逐个聚焦介绍 ——
@@ -1962,23 +2004,23 @@ globalThis.APP_CONSTANTS = {
     // —— 设置 ——
     TOUR_STEP_ACCOUNT_SETTINGS: '设置：账户设置与外观设置都在这里。点击进入。',
     TOUR_STEP_SETTINGS_ACCOUNT: '账户设置区：头像、用户名、角色；可以上传头像。',
-    TOUR_STEP_SETTINGS_THEME: '外观主题：亮色 / 暗色 / 跟随系统，点一下即时切换。',
+    TOUR_STEP_SETTINGS_THEME: '界面配色：亮色、暗色或跟随系统自动切换。',
     TOUR_STEP_SETTINGS_UI_SCALE: 'UI 大小：拖动滑块整体调大调小界面文字和按钮。',
     TOUR_STEP_SETTINGS_LOGOUT: '页底「退出登录」，注销账户也在这里。',
-    TOUR_STEP_SETTINGS_LOGOUT_MODAL: '确认退出：点一下这个弹窗的空白处或按钮就能关闭它。',
+    TOUR_STEP_SETTINGS_LOGOUT_MODAL: '退出前会再次确认；注销账户入口也在设置页底部，操作不可恢复。',
     // —— 关于平台 ——
     TOUR_STEP_ABOUT: '关于平台：平台理念、基本用法、安全隐私与反馈通道。点击进入。',
     TOUR_STEP_ABOUT_WHO: '我们是谁：一句话介绍平台定位。',
-    TOUR_STEP_ABOUT_FLOW: '学生签约完整流程：发布需求 → 匹配 → 沟通 → 签约，五步走。',
-    TOUR_STEP_ABOUT_SECURITY: '安全与隐私：联系方式保护、资料脱敏等，放心使用。',
+    TOUR_STEP_ABOUT_FLOW: '学生签约完整流程：发布需求 → 双向匹配 → 站内沟通 → 确认意向 → 正式签约。',
+    TOUR_STEP_ABOUT_SECURITY: '安全与隐私：联系方式签约后才展示，详细住址不收集，敏感资料加密存储。',
     TOUR_STEP_ABOUT_FEEDBACK: '反馈通道：遇到问题或建议，点这里告诉我们。',
     // —— 我的需求（学生）——
     TOUR_STEP_MY_DEMANDS: '我的需求：你发布的家教需求都在这管理。点击进入。',
     TOUR_STEP_MY_DEMANDS_LIST: '需求列表：每条显示科目、预算、状态；待处理的教师意向有红点提醒。',
     TOUR_STEP_INTENT_TOGGLE: '展开「教师意向」：谁想来教，同意或拒绝都在这处理。',
-    TOUR_STEP_DEMAND_WIZARD: '这是 7 页分步表单，跟着顶部进度条一步步填；每一步都会校验，填完自动进入下一页。',
+    TOUR_STEP_DEMAND_WIZARD: '发布需求是分步表单，跟着顶部进度条逐页填写；每页填完会自动进入下一页，随时可以返回修改。',
     TOUR_STEP_NEW_DEMAND_BTN: '点「新建需求」打开发布表单。',
-    TOUR_STEP_NEW_DEMAND_MODAL: '发布表单共 7 页：省份 → 授课方式 → 学生信息 → 科目 → 科目情况 → 预算时间 → 联系方式。顶部进度条随页推进，随时可回上一步修改。',
+    TOUR_STEP_NEW_DEMAND_MODAL: '表单共 8 步：省份 → 授课方式 → 学生信息 → 科目 → 成绩情况 → 教师偏好 → 预算时间 → 联系方式。顶部进度条随页推进，随时可返回修改。',
     // —— 末步 ——
     TOUR_STEP_GUEST_LOGIN: '到这里就逛完啦：点下方个人信息栏登录或注册，登录后就能使用全部功能。',
     TOUR_STEP_ADMIN_STATS: '统计页：平台运营数据总览。',
@@ -1991,17 +2033,17 @@ globalThis.APP_CONSTANTS = {
     USAGE_GUIDE_BTN: '详细用法介绍',
     USAGE_GUIDE_TITLE: '详细用法介绍',
     USAGE_GUIDE_SECTIONS: [
-      { t: '一、用户注册', p: ['账户分为学生、教师两种，可访问的客户端不同。内测期采用简易注册，自己设定用户名和密码即可，没有多余验证；欢迎大家学生、教师各注册一个试试看。公开上线后将改为手机号 + 验证码注册，教师账号还需要邀请码才能注册。'] },
+      { t: '一、用户注册', p: ['账户分为学生和教师两种，注册时需要设置用户名、密码，并绑定手机号或邮箱（需验证码验证）。教师注册还需要管理员发放的邀请码。'] },
       { t: '二、家教签约（主要功能）', p: [
         '发布需求：学生在「我的需求」里填写年级、科目、预算等信息，发布一条家教需求。',
         '双向匹配：学生可在「浏览教师」页面把需求直接发给心仪的教师，等教师确认；教师也可以在「需求广场」里给感兴趣的需求发送试课意向，等学生确认。无论哪条路，只要对方点头，双方就自动开启会话。',
         '站内沟通：匹配成功后，双方在「我的会话」里沟通上课细节，支持发送图片和文件。这个阶段双方的联系方式互相不可见，所有交流都在站内、有留档。',
         '签约：会话里任一方点「+」发送一份合同草案，约定授课地点、方式、费用与双方权利义务；随后双方各自到「我的合同」里确认签署。合同具有法律效力，签好后双方的联系方式才会互相展示，之后转入站外沟通，撮合完成。',
       ]},
-      { t: '三、（教师端）资料共享', p: ['这一栏用于站内教师共享教学资料，目前功能还比较原始：只支持简单的图文发帖，也还没有激励机制。平台会持续完善这一块。'] },
-      { t: '四、（教师端）个人资料', p: ['教师的基本信息：科目成绩、报价、联系方式、学信网截图等，目的是提升教师可信度。这些信息会展示在点击头像打开的个人资料卡里，供学生和家长参考。'] },
-      { t: '五、设置', p: ['可设置系统主题（暗色 / 亮色）、更换头像、绑定手机或邮箱、管理登录设备等。'] },
-      { t: '六、关于平台', p: ['平台的基本介绍；拉到最底部有 Bug / 建议的反馈通道。'] },
+      { t: '三、（教师端）资料共享', p: ['这里用于教师之间分享教学资料，支持图文和 Markdown 排版。资料是公开的，学生也可以浏览。'] },
+      { t: '四、（教师端）个人资料', p: ['教师档案包含科目成绩、报价、可授课时间和获奖证明等，用来帮助学生判断是否合适。联系方式只在签约后展示，学信网信息仅管理员核验时查看。'] },
+      { t: '五、设置', p: ['可设置亮色/暗色外观、调整界面大小、更换头像、绑定手机或邮箱，以及查看和管理登录设备。'] },
+      { t: '六、关于平台', p: ['这里介绍平台定位、基本用法和安全隐私说明；有问题或建议，可以通过页面底部的反馈通道告诉我们。'] },
       { t: '七、其他小巧思', p: [
         '从教师端看学生需求会有「匹配度」标签，点开能看到教师与这单需求的匹配度明细；后续计划把匹配度扩展成智能排序引擎。',
         '根据你设置的省份和年级，可选科目和赋分制也会不同。',
@@ -2028,7 +2070,6 @@ globalThis.APP_CONSTANTS = {
     TEACHING_GOALS_HINT: '（最多 {max} 个）', // {max} 由调用方以 CONFIG.TEACHING_GOALS_MAX 替换
     // 技能现状：非学科类型下 P5 标题即时切换 + 每项目描述文本框
     LABEL_SKILL_STATUS: '技能现状',
-    LABEL_SKILL_NOTE: '技能详情',
     SKILL_NOTE_PLACEHOLDER: '描述当前水平/证书/考级/获奖（选填）',
     // 学生性别（R2-11）：'' = 不愿透露（默认，资料卡视同未填不展示）；男/女沿用 GENDERS 文案
     OPTION_GENDER_NOT_SAY: '不愿透露',
@@ -2074,7 +2115,6 @@ globalThis.APP_CONSTANTS = {
     INTENTS_TITLE: '试课意向',
     MY_REVIEW_PREFIX: '你的评价：',
     ADDRESS_PREFIX: '地址：',
-    ADDITIONAL_PREFIX: '补充：',
 
     // 管理员面板补充
     REGISTERED_AT_PREFIX: '注册于 ',
@@ -2107,13 +2147,23 @@ globalThis.APP_CONSTANTS = {
     TRAFFIC_TOTAL_FMT: '合计 {n} 次',                       // A7 收口：流量统计格式
     TRAFFIC_SAMPLE_FMT: '样本 {n} 桶',
     TRAFFIC_MS_UNIT: ' ms',
-    CHART_EMPTY: '暂无数据',                               // A7 收口：图表组件缺省文案
+    CHART_EMPTY: '这段时间还没有采样数据。',                               // A7 收口：图表组件缺省文案
     CHART_DEFAULT_TITLE: '折线图',
     CHART_TABLE_LABEL: '数据明细',
     CHART_TIME_LABEL: '时间',
     TRAFFIC_RANGE_30D: '近30天',
     TRAFFIC_HINT: '口径：仅统计写操作与失败请求（读/轮询流量不入留档）；平均延迟 = 服务端处理耗时',
     ADMIN_RECENT_DEMANDS: '最近需求',
+    ADMIN_TODO_VERIFICATIONS: '待核验申请',
+    ADMIN_DASH_24H: '24 小时请求',
+    ADMIN_DASH_ERRORS: '服务端异常',
+    ADMIN_DASH_SLOW: '慢请求',
+    ADMIN_DASH_LIMITED: '限流命中',
+    ADMIN_DASH_AVG: '平均耗时',
+    ADMIN_DASH_AVG_FMT: '{n} ms',
+    ADMIN_DASH_TOP_PATHS: '高频接口（近 24 小时）',
+    ADMIN_DASH_STATUS: '状态码分布',
+    ADMIN_DASH_EMPTY: '指标采样刚开始，稍后就有数据。',
     BTN_APPROVE: '通过',
     BTN_REJECT: '拒绝',
 

@@ -51,7 +51,7 @@
     teachingGoalName(id) { return enumName(C().TEACHING_GOALS, id, ''); }, // v1.4.3：教学目标 tag 名（需求详情浮窗渲染用，与 personalityTagName 同款）
     // R2-12 毕业年份展示：非空年份 → 「xxx年」，null/空 → ''（资料卡条目动态加载渲染层判断，单点映射防内联拼接）
     graduationYearText(year) {
-      return (year != null && year !== '') ? `${year}${(C().UI || {}).GRAD_YEAR_SUFFIX || '年'}` : '';
+      return (year != null && year !== '') ? `${year}${C().UI.GRAD_YEAR_SUFFIX}` : '';
     },
 
     // R2-b 需求目标名按类型分流单点映射（需求卡/推送列表/管理端统计/合同流共用，消灭散落三元）：
@@ -183,7 +183,7 @@
     // 涉事双方数据（会话/需求/合同/评价等）的对端姓名旁追加「一方已注销」tag——
     // 对方已注销但数据仍保留的场景，明确告知本端对方账户状态。非注销返 ''
     deactivatedTag(name) {
-      return D.isDeactivated(name) ? `<span class="tag-deactivated">${esc(UI().PEER_DEACTIVATED_TAG || '一方已注销')}</span>` : '';
+      return D.isDeactivated(name) ? `<span class="tag-deactivated">${esc(UI().PEER_DEACTIVATED_TAG)}</span>` : '';
     },
 
     // #165：反馈类型 → 文案（bug/投诉/建议 三分支；单源 constants）

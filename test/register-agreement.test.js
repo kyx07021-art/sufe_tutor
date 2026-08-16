@@ -91,7 +91,7 @@ test('服务端：未同意协议/隐私政策 → 拒绝注册且不建账户',
   // 前端勾选可被构造请求绕过——只发账号信息、不带同意标志必须被拒
   const r1 = await handleRegister(db, { username: 'u_deny', password: 'pass123456', role: 'student', deviceId: 'd1' }, reqOf());
   assert.equal(r1.status, 400);
-  assert.equal((await r1.json()).error, '注册须同意用户协议与隐私政策');
+  assert.equal((await r1.json()).error, '请先勾选同意用户协议与隐私政策');
   assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM users WHERE username='u_deny'").get().c, 0, '不同意不建账户');
   // 只同意一半也不行
   const r2 = await handleRegister(db, { username: 'u_half', password: 'pass123456', role: 'student', deviceId: 'd1', agreeAgreement: true, agreePrivacy: false }, reqOf());

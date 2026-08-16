@@ -207,16 +207,15 @@ async function verifyCaptcha() {
   if (!track || !tip || !knob) return;
   const diff = Math.abs(_captchaOffset - _captchaTarget);
   if (diff <= CAPTCHA_TOLERANCE) {
-    // v1.4.16 后端人机判定：本地比对（答案对准）通过后，提交轨迹给 /api/captcha/verify 做人机特征判定；
-    // 判定拒绝 → 走失败路径（抖动+重滚新题）；判定服务不可达 → fail-open 放行（captcha 是叠加防线，
-    // 服务端 rate_limits 兜底；机器轨迹本就被判定模块拦，网络抖动不阻塞真实用户）
+    // v1.5.0 后端人机判定：本地比对通过后提交轨迹；判定拒绝或服务不可达都走失败路径
+    // （fail-closed：验证码是安全门，不通就不放行，用户重试一次即可）
     try {
       const r = await api('/api/captcha/verify', {
         method: 'POST',
         body: { captchaId: _captchaIdStr, offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack },
       });
       if (!r || !r.ok) { failCaptcha(track, tip, knob); return; }
-    } catch (e) { /* 判定服务不可达 fail-open：不因网络抖动卡住真实用户 */ }
+    } catch (e) { failCaptcha(track, tip, knob); return; } // 判定服务不可达 = 不通过（fail-closed）
     knob.classList.add('captcha--pass');
     tip.textContent = UI.CAPTCHA_PASS;
     tip.classList.remove('captcha-tip--fail');

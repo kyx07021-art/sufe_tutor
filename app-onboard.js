@@ -123,7 +123,7 @@ function _tourMount() {
   overlay.className = 'tour-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.setAttribute('aria-label', UI.TOUR_ARIA_LABEL || '新手引导');
+  overlay.setAttribute('aria-label', UI.TOUR_ARIA_LABEL);
   overlay.innerHTML = '<div class="tour-hole"></div><div class="tour-bubble-pos"></div>'
     + `<button type="button" class="tour-global-skip" onclick="event.stopPropagation();skipTour()">${escHtml(UI.TOUR_SKIP_GLOBAL)}</button>`;
   document.body.appendChild(overlay);

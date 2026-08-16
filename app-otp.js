@@ -115,7 +115,7 @@ async function requestOtpCode(prefix, channel) {
   try {
     await api('/api/auth/otp/request', {
       method: 'POST',
-      body: { channel: channel === 'email' ? 'email' : 'sms', target, scene: prefix === 'bind' ? '绑定验证' : prefix === 'register' ? '注册验证' : '登录验证' },
+      body: { channel: channel === 'email' ? 'email' : 'sms', target, scene: prefix === 'bind' ? UI.OTP_SCENE_BIND : prefix === 'register' ? UI.OTP_SCENE_REGISTER : UI.OTP_SCENE_LOGIN },
     });
     // v1.4.12 真实通道投递：受理成功即提示（绝不返回验证码明文；失败由 catch 提示 500 可重试）
     showToast(UI.CODE_SENT, 'success');
@@ -137,7 +137,7 @@ async function checkRegisterContact() {
   const kind = classifyIdentifier(el ? el.value : '');
   if (kind === 'phone' || kind === 'email') {
     group.classList.remove('hidden');
-    label.textContent = kind === 'phone' ? '手机验证码' : '邮箱验证码';
+    label.textContent = kind === 'phone' ? UI.OTP_PHONE_LABEL : UI.OTP_EMAIL_LABEL;
   } else {
     group.classList.add('hidden');
   }
@@ -195,7 +195,7 @@ async function doBind(kind, isPhone, target, code) {
       method: 'POST',
       body: isPhone ? { phone: target, code } : { email: target, code },
     });
-    showToast(r.message || '绑定成功', 'success');
+    showToast(r.message || UI.OTP_BIND_DONE, 'success');
     closeModal();
     // B5 修复（用户反馈：绑定后先闪「未绑定」再更新为缩略）：原 enterAccountSettings 整页重渲染
     // 会重置行占位「未绑定」→ 再异步 loadMyCreds 才更新。改为本地立即用 bind 接口返回的脱敏值

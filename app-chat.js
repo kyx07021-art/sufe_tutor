@@ -351,7 +351,7 @@ function renderChatBubble(m, i) {
     return `<div class="chat-msg ${side}" data-mid="${m.id}" style="${delay}">
       <div class="chat-bubble glass ${skin} signing-bubble${rejected ? ' signing-bubble--done' : ''} chat-bubble--breathe" data-signing-id="${escHtml(signingId)}">
         <div class="signing-bubble-title">${mine ? UI.CHAT_SIGNING_MINE_TITLE : UI.CHAT_SIGNING_REQUEST_TITLE}</div>
-        <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_PRICE}</span><b>${price} ${UI.PRICE_UNIT}/小时</b></div>
+        <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_PRICE}</span><b>${price} ${UI.PRICE_UNIT}</b></div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(String(s.schedule || ''))}</b></div>
         <div class="signing-bubble-row"><span>${UI.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>
         ${pending && recipient && signingId ? `<div class="signing-bubble-actions">

@@ -12,7 +12,7 @@ import { MSG, LIMITS } from './constants.js';
 import { auditFreeText } from './text-audit.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（PERSONALITY_TAGS/NONACADEMIC_PROJECTS 白名单单源，与前端共用）
-import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbApplyChsiToProfile, safeJsonArray } from './db.js';
+import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, safeJsonArray } from './db.js';
 import { verifyChsiCode } from './chsi.js';
 import { logEvent } from './log.js';
 
@@ -31,35 +31,17 @@ export function acceptEligibility(profile) {
   return { ok: true };
 }
 
-/** POST /api/teacher/verify-chsi —— 教师提交《学籍在线验证报告》验证码核验（v1.2.0 T3）
- *  mock/thirdparty：直通 approved，学信网字段自动填入资料卡；
- *  manual：进管理员核验队列（pending），管理员查证后结构化录入。 */
+/** POST /api/teacher/verify-chsi —— 教师提交《学籍在线验证报告》验证码核验（v1.5.0 起仅 manual）
+ *  验证码格式通过后进管理员核验队列（pending），管理员在学信网官方页查证后结构化录入。 */
 export async function handleVerifyChsi(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   if (me.role !== 'teacher') return error(MSG.NO_PERMISSION, 403);
   const code = String((body && body.code) || '').trim();
   const v = await verifyChsiCode(code);
-  if (!v.ok) return error(MSG.CHSI_CODE_INVALID);
-  const now = new Date().toISOString();
-  if (v.status === 'approved') {
-    await dbUpsertTeacherVerification(db, {
-      userId: me.id, verifyCode: code, status: 'approved', provider: v.provider,
-      school: v.school, level: v.level, major: v.major,
-      enrollmentStatus: v.enrollment_status, enrollYear: v.enroll_year,
-      verifiedBy: me.id, verifiedAt: now,
-    });
-    await dbApplyChsiToProfile(db, me.id, {
-      school: v.school, level: v.level, major: v.major,
-      enrollmentStatus: v.enrollment_status, enrollYear: v.enroll_year,
-    });
-    await logEvent(db, { action: 'teacher.chsi.verify', actorUserId: me.id, actorUsername: me.username,
-      actorRole: 'teacher', entity: 'user', entityId: me.id, detail: { provider: v.provider, status: 'approved' }, req });
-    return json({ ok: true, status: 'approved', provider: v.provider,
-      school: v.school, level: v.level, major: v.major,
-      enrollment_status: v.enrollment_status, enroll_year: v.enroll_year });
-  }
-  // manual：进队列待管理员核验
+  if (!v.ok) return v.code === 'CHSI_PROVIDER_INVALID'
+    ? error(MSG.CHSI_UNAVAILABLE, 503)
+    : error(MSG.CHSI_CODE_INVALID);
   await dbUpsertTeacherVerification(db, {
     userId: me.id, verifyCode: code, status: 'pending', provider: v.provider,
   });
@@ -269,7 +251,7 @@ export async function handleSaveProfile(db, body, req) {
   //   intro/school 仍为自由文本，保留 text-audit 咽喉（合规红线：详细门牌号不收集不因字段绕行）
   for (const f of ['intro', 'school']) {
     const audit = await auditFreeText(p[f]);
-    if (!audit.ok) return error(MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号/可定位住址不收集
+    if (!audit.ok) return error(audit.layer === 'error' ? MSG.TEXT_AUDIT_UNAVAILABLE : MSG.ADDRESS_TOO_DETAILED); // 合规红线：详细门牌号/可定位住址不收集
   }
   // 需求五：上海常住地结构化校验——非空则必须合法「区·镇/街道」；空 = 未填（不参与距离匹配）
   {

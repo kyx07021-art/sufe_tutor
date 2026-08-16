@@ -16,8 +16,19 @@ import { requestOtp } from '../server/otp.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 import { handleCreatePost } from '../server/routes-posts.js';
 import { handleAdminContent, handleContentAction } from '../server/routes-audit.js';
+import { bindTextAuditEnv } from '../server/text-audit.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+// 语义层测试通道：保留 OTP stub 的 push.spug.cc 拦截，其余请求按「AI 判未命中」应答。
+const otpFetch = globalThis.fetch;
+function semanticPass() {
+  bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('push.spug.cc')) return otpFetch(url, init);
+    return { ok: true, json: async () => ({ content: [{ type: 'text', text: '{"flagged": false}' }] }) };
+  };
+}
+
 function d1Shim(raw) {
   return {
     prepare(sql) {
@@ -70,6 +81,7 @@ async function capOf(raw, token) {
 
 test('D1：统一内容提取（多类型归拢统一结构，私密字段不提取）', async () => {
   const { raw, db, req } = await setup();
+  semanticPass();
   // 造数据：一个学生发帖 + 一个教师建档案
   const s = await registerWithContact(db, req(), { username: 'alice', password: 'pass123456', role: 'teacher' });
   const sData = await s.json();
@@ -118,6 +130,7 @@ test('D1 键控化（v0.27.3 #21）：清单与表域单源——CONTENT_TYPES �
 
 test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + 缺原因 400', async () => {
   const { raw, db, req } = await setup();
+  semanticPass();
   const s = await registerWithContact(db, req(), { username: 'mallory', password: 'pass123456', role: 'teacher' });
   const sData = await s.json();
   const sId = raw.prepare("SELECT id FROM users WHERE username='mallory'").get().id;
@@ -157,6 +170,7 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
 
 test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', async () => {
   const { raw, db, req } = await setup();
+  semanticPass();
   const teaReg = await registerWithContact(db, req(), { username: 'teach0', password: 'pass123456', role: 'teacher' });
   const teaToken = (await teaReg.json()).authToken;
   await registerWithContact(db, req(), { username: 'stud0', password: 'pass123456', role: 'student' });
