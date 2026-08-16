@@ -122,3 +122,29 @@ test('发送失败后恢复：再次发码成功走真实形状', async () => {
   const send = lastOtpSend();
   assert.ok(send.url.includes(`/sms/${SMS_KEY}`));
 });
+
+// v1.4.15 生产事故回归（用户实证：绑定手机号发码 500）：spug 未实名认证时返回 HTTP 200 受理 +
+// 业务码非 200——deliverOtp 必须按业务码判失败（HTTP 200 ≠ 成功），且把服务商操作提示透传用户替代「服务器内部错误」
+test('业务拒绝（HTTP 200 + 业务码非 200）：作废验证码 + 500 + 透传服务商提示', async () => {
+  const { raw, db } = await setup();
+  const target = '+8613812345678';
+  const hash = await tokenDigest(target);
+  setOtpStubFail({ status: 200, bodyCode: 4001, msg: '账户未通过实名认证，请前往个人设置/实名认证完成认证后再试' });
+  const r = await requestOtp(db, { channel: 'sms', target }, { headers: new Headers() });
+  assert.equal(r.ok, false);
+  assert.equal(r.err.status, 500, 'HTTP 200 受理 ≠ 成功：业务码非 200 仍按失败处理');
+  const body = await r.err.json();
+  assert.equal(body.error, '验证码发送失败：账户未通过实名认证，请前往个人设置/实名认证完成认证后再试', '透传服务商操作提示（用户可自助），非笼统「服务器内部错误」');
+  const cnt = raw.prepare('SELECT COUNT(*) c FROM verification_codes WHERE channel=? AND target_hash=?').get('sms', hash).c;
+  assert.equal(cnt, 0, '验证码行已作废删除');
+});
+
+// 网络/超时类失败无服务商提示 → 保持 SERVER_ERROR（不透传技术细节）
+test('非业务拒绝（网络异常）：保持 SERVER_ERROR 文案', async () => {
+  const { db } = await setup();
+  setOtpStubFail('throw');
+  const r = await requestOtp(db, { channel: 'sms', target: '+8613812345678' }, { headers: new Headers() });
+  assert.equal(r.ok, false);
+  const body = await r.err.json();
+  assert.equal(body.error, '服务器内部错误');
+});

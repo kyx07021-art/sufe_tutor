@@ -198,6 +198,7 @@ export const MSG = {
   OTP_EXHAUSTED: '验证码错误次数过多，已失效，请重新获取',
   OTP_REQUIRED: '请输入验证码',
   CODE_SENT: '验证码已发送',
+  OTP_SEND_FAILED_PREFIX: '验证码发送失败：', // 通道业务拒绝时透传服务商操作提示（如未实名认证/余额不足）
   PHONE_ALREADY_BOUND: '该手机号已绑定其他账户',
   EMAIL_ALREADY_BOUND: '该邮箱已绑定其他账户',
   BIND_SUCCESS: '绑定成功',

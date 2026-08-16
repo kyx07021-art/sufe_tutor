@@ -131,7 +131,11 @@ async function deliverOtp({ channel, target, code, scene }) {
     });
     const data = await res.json().catch(() => ({}));
     if (res.status !== 200 || data.code !== 200) {
-      throw new Error(`OTP ${channel} 通道拒绝：HTTP ${res.status} ${data.msg || ''}`);
+      // HTTP 200 仅表示受理，业务 code 才是真实结果（生产实证：spug 未实名认证时 HTTP 200 + code!=200）
+      const err = new Error(`OTP ${channel} 通道拒绝：HTTP ${res.status} ${data.msg || ''}`);
+      err.code = 'OTP_CHANNEL_REJECT'; // 业务拒绝：data.msg 为服务商操作提示（如未实名认证），可透传用户自助
+      err.spugMsg = data.msg || '';
+      throw err;
     }
     return { requestId: data.request_id || '' };
   } finally {
@@ -211,7 +215,12 @@ export async function requestOtp(db, { channel, target, scene }, req) {
     console.warn('OTP 投递失败（已作废本次验证码）:', reason);
     await dbRun(db, 'DELETE FROM verification_codes WHERE channel=? AND target_hash=? AND code_hash=? AND used=0',
       [ch, targetHash, codeHash]);
-    return { ok: false, err: error(MSG.SERVER_ERROR, 500) };
+    // 通道业务拒绝（服务商操作提示，如未实名认证/余额不足）→ 透传用户自助，替代笼统「服务器内部错误」；
+    // 网络/超时/配置类失败无用户可操作信息 → 保持 SERVER_ERROR
+    const userMsg = (e && e.code === 'OTP_CHANNEL_REJECT' && e.spugMsg)
+      ? MSG.OTP_SEND_FAILED_PREFIX + e.spugMsg
+      : MSG.SERVER_ERROR;
+    return { ok: false, err: error(userMsg, 500) };
   }
   await logEvent(db, { action: 'otp.request', actorUsername: targetMask(t),
     entity: 'otp', detail: { channel: ch, requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）

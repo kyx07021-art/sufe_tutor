@@ -27,8 +27,10 @@ globalThis.fetch = async (url, init) => {
     sent.push({ url: u, body });
     if (failMode === 'throw') throw new Error('network down (stub)');
     if (failMode) {
+      // {status} → HTTP 非 200；{status:200, bodyCode, msg} → HTTP 200 受理但业务码非 200（spug 实名认证事故场景）
       const status = failMode.status || 500;
-      return { status, json: async () => ({ code: status, msg: 'stub 模拟失败' }) };
+      const bodyCode = failMode.bodyCode != null ? failMode.bodyCode : status;
+      return { status, json: async () => ({ code: bodyCode, msg: failMode.msg || 'stub 模拟失败' }) };
     }
     return {
       status: 200,
