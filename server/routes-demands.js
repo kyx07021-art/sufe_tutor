@@ -11,7 +11,7 @@ import { auditFreeText } from './text-audit.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
-  dbFindUserById, dbCreateDemand, dbGetDemands, dbGetDemandsByUser,
+  dbGetUserById, dbCreateDemand, dbGetDemands, dbGetDemandsByUser,
   dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbReopenDemand,
   dbCreateIntent, dbGetIntentTeachers, dbGetIntentWithDemand, dbResolveIntent,
   dbUpsertConversation, dbGetTeacherProfile,
@@ -359,7 +359,7 @@ export async function handlePushDemand(db, body, req) {
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
   const userId = me.id;
-  const teacher = await dbFindUserById(db, teacherUserId);
+  const teacher = await dbGetUserById(db, teacherUserId);
   if (!teacher || teacher.role !== 'teacher' || teacher.banned || teacher.deactivated) return error(MSG.TEACHER_NOT_FOUND, 404); // 封禁/注销教师不可被推送（网安审计）
   const demand = await dbGetDemandById(db, demandId);
   if (!demand) return error(MSG.DEMAND_NOT_FOUND, 404);

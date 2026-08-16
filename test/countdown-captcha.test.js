@@ -125,7 +125,7 @@ test('B4 拼图交互：拖拽更新 --captcha-x + 命中缺口验证通过 + �
   assert.equal(puzzleInline, '', '拼图块无自身 inline --captcha-x（走 box 继承跟随，防原位静止）');
   await new Promise(r => setTimeout(r, 350)); // verifyCaptcha pass 260ms 关闭
   assert.equal(dom.window.__passed, true, '命中缺口 → 验证通过 onPass 调用');
-  assert.ok(dom.window.__got && typeof dom.window.__got.offset === 'number' && dom.window.__got.captchaId && Array.isArray(dom.window.__got.track), '完整动作输出接口 {captchaId, offset, track}');
+  assert.equal(dom.window.__got, undefined, 'onPass 无参调用（v1.4.13 删无消费方的 captchaId/offset/track 上抛）');
   // 失败路径：拖偏 → 不通过 + 滑块复位
   vm.runInContext(`window.__passed = false; openCaptchaModal({ onPass: () => { window.__passed = true; } })`, ctx);
   const t2 = vm.runInContext(`Math.round(_captchaTarget * 240)`, ctx);
@@ -173,15 +173,12 @@ test('B2 失败重滚缺口：拖偏失败后目标重滚（新挑战）+ 旋钮
   const drag = (toX) => vm.runInContext(`(() => { const ME = window.MouseEvent; const knob = document.getElementById('captcha-knob'); knob.dispatchEvent(new ME('pointerdown', { clientX: 0, bubbles: true })); knob.dispatchEvent(new ME('pointermove', { clientX: ${toX}, bubbles: true })); knob.dispatchEvent(new ME('pointerup', { clientX: ${toX}, bubbles: true })); })()`, ctx);
   vm.runInContext(`window.__passed = false; openCaptchaModal({ onPass: () => { window.__passed = true; } });`, ctx);
   const t1 = vm.runInContext(`_captchaTarget`, ctx);
-  const id1 = vm.runInContext(`_captchaIdStr`, ctx);
   drag(5); // 明显偏离 → 必败
   await new Promise(r => setTimeout(r, 500)); // fail 420ms 复位 + 重滚
   const resetX = vm.runInContext(`document.getElementById('captcha-box').style.getPropertyValue('--captcha-x')`, ctx);
   assert.equal(resetX, '0px', '失败后旋钮复位到起点');
   const t2 = vm.runInContext(`_captchaTarget`, ctx);
-  const id2 = vm.runInContext(`_captchaIdStr`, ctx);
   assert.notEqual(t2, t1, '失败后缺口重滚（新挑战，不再卡在同一个难位）');
-  assert.notEqual(id2, id1, '失败后 captchaId 重生成（生产后端按挑战取值）');
   assert.equal(dom.window.__passed, false, '拖偏不通过');
 });
 

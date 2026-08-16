@@ -161,9 +161,9 @@
     // 审核状态三色 tag；其他状态返 ''
     reviewStatusTagHtml(status) {
       const u = UI();
-      if (status === 'approved') return `<span class="tag tag-ok">${u.STATUS_APPROVED}</span>`;
-      if (status === 'rejected') return `<span class="tag tag-danger">${u.STATUS_REJECTED}</span>`;
-      if (status === 'pending') return `<span class="tag tag-warn">${u.STATUS_PENDING}</span>`;
+      if (status === STATUS.APPROVED) return `<span class="tag tag-ok">${u.STATUS_APPROVED}</span>`;
+      if (status === STATUS.REJECTED) return `<span class="tag tag-danger">${u.STATUS_REJECTED}</span>`;
+      if (status === STATUS.PENDING) return `<span class="tag tag-warn">${u.STATUS_PENDING}</span>`;
       return '';
     },
 

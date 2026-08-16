@@ -771,11 +771,8 @@ export function dbUserEmailHashStmt(db, hash) {
   return db.prepare(`SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE ${EMAIL_HASH_COND}`).bind(hash);
 }
 
-export async function dbFindUserById(db, id) {
-  return await dbGet(db, 'SELECT id,role FROM users WHERE id=?', [id]);
-}
-
-// 用户卡片（公开名片 / 封禁态判定 / 管理员封禁 / 帖子作者留档共用）：固定列集，不含口令盐等凭证
+// 用户卡片（公开名片 / 封禁态判定 / 管理员封禁 / 帖子作者留档 / 教师推送守卫共用）：
+// 固定列集，不含口令盐等凭证；调用点读 banned/deactivated 做守卫判定，勿再收窄列集（曾致封禁拦截静默失效）
 export async function dbGetUserById(db, id) {
   return await dbGet(db, 'SELECT id, username, role, avatar, banned, deactivated FROM users WHERE id=?', [id]);
 }
@@ -1006,7 +1003,7 @@ async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) 
     chsi_status: p.chsi_status || '', chsi_enroll_year: p.chsi_enroll_year || '',
     chsi_verified: p.chsi_verified ? true : false,
     wechat, email, avatar: p.avatar || '',
-    rating: p.rating, rating_count: p.rating_count, matched: p.matched ? true : false, updatedAt: p.updated_at,
+    rating: p.rating, rating_count: p.rating_count, matched: p.matched ? true : false,
   };
 }
 
@@ -1469,7 +1466,7 @@ export async function dbListPosts(db, { section, q, viewerId, sort } = {}) {
   const bind = hasViewer ? [viewerId, viewerId, ...params] : params;
   const rows = await dbAll(db,
     `SELECT p.id, p.user_id, p.section, p.title, p.body_md, p.like_count,
-            p.created_at, p.updated_at, u.username, ${sel}
+            p.created_at, u.username, ${sel}
      FROM posts p
      LEFT JOIN users u ON u.id = p.user_id
      ${join}${where}
@@ -1888,9 +1885,8 @@ export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_
   // 缩略图随列表下发（小字段）：thumb 列（加密）由路由层解密；图片无缩略图（历史数据）回 ''
   return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.name, m.created_at,
       CASE WHEN m.kind IN ('image','file') THEN '' ELSE m.body END AS body,
-      CASE WHEN m.kind='image' THEN m.thumb ELSE '' END AS thumb,
-      u.username AS sender_name
-    FROM messages m JOIN users u ON u.id=m.sender_user_id
+      CASE WHEN m.kind='image' THEN m.thumb ELSE '' END AS thumb
+    FROM messages m
     WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
 }
 

@@ -874,7 +874,7 @@ function loadProfileAwards() {
       ? list.map(a => `<div class="award-row">
           <div class="award-row-main">
             <div class="award-title">${escHtml(a.title)}${a.issuer ? ` <span class="award-issuer">· ${escHtml(a.issuer)}</span>` : ''}${a.award_date ? ` <span class="award-date">· ${escHtml(a.award_date)}</span>` : ''}</div>
-            ${a.status === 'rejected' && a.admin_note ? `<div class="award-note">${escHtml(UI.AWARD_REJECTED_NOTE_PREFIX)}${escHtml(a.admin_note)}</div>` : ''}
+            ${a.status === STATUS.REJECTED && a.admin_note ? `<div class="award-note">${escHtml(UI.AWARD_REJECTED_NOTE_PREFIX)}${escHtml(a.admin_note)}</div>` : ''}
           </div>
           <span class="tag ${AWARD_TAG_CLS[a.status] || ''} glass glass--solid">${escHtml(awardStatusText(a.status))}</span>
           <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="deleteAward(${a.id})">${UI.BTN_DELETE}</button>
@@ -884,7 +884,7 @@ function loadProfileAwards() {
 }
 
 function awardStatusText(status) {
-  return status === 'approved' ? UI.AWARD_STATUS_APPROVED : status === 'rejected' ? UI.AWARD_STATUS_REJECTED : UI.AWARD_STATUS_PENDING;
+  return status === STATUS.APPROVED ? UI.AWARD_STATUS_APPROVED : status === STATUS.REJECTED ? UI.AWARD_STATUS_REJECTED : UI.AWARD_STATUS_PENDING;
 }
 
 // 打开添加奖项浮窗（奖状选择 → 压缩 → uploads 暂存 → 提交随奖项落库）
@@ -1012,7 +1012,7 @@ async function applyChsiGate(p) {
   form.classList.add('hidden');
   info.classList.add('hidden');
   gate.classList.remove('hidden');
-  if (st === 'pending') {
+  if (st === STATUS.PENDING) {
     gate.innerHTML = `<div class="chsi-gate-card glass">
       <h3 class="chsi-gate-title">${escHtml(UI.CHSI_GATE_TITLE)}</h3>
       <p class="chsi-gate-pending">${escHtml(UI.CHSI_GATE_PENDING)}</p>
@@ -1038,12 +1038,12 @@ async function submitChsiVerify() {
   btnLoading(btn, UI.CHSI_GATE_VERIFYING);
   try {
     const r = await api('/api/teacher/verify-chsi', { method: 'POST', body: { code } });
-    if (r.status === 'approved') {
+    if (r.status === STATUS.APPROVED) {
       showToast(UI.CHSI_SUCCESS, 'success');
       // 重新拉档案（datahub 缓存 miss 重拉）+ 重新门控
       if (typeof dhInvalidateDomain === 'function') dhInvalidateDomain('teachers');
       await loadProfile();
-    } else if (r.status === 'pending') {
+    } else if (r.status === STATUS.PENDING) {
       const gate = document.getElementById('chsi-gate');
       if (gate) gate.innerHTML = `<div class="chsi-gate-card glass">
         <h3 class="chsi-gate-title">${escHtml(UI.CHSI_GATE_TITLE)}</h3>

@@ -530,7 +530,7 @@ async function loadAdminContent(type = '') {
 function renderAdminContentRow(it) {
   const author = it.author && it.author.username ? escHtml(it.author.username) : '已注销用户';
   const roleTag = it.author && it.author.role ? `<span class="tag glass glass--solid">${escHtml(DISP.roleLabel(it.author.role))}</span>` : '';
-  const statusTag = it.status ? `<span class="tag glass glass--solid ${it.status === 'open' || it.status === 'pending' ? 'tag-warn' : 'tag-ok'}">${escHtml(it.status)}</span>` : '';
+  const statusTag = it.status ? `<span class="tag glass glass--solid ${it.status === STATUS.OPEN || it.status === STATUS.PENDING ? 'tag-warn' : 'tag-ok'}">${escHtml(it.status)}</span>` : '';
   return `<div class="list-card glass content-card" data-type="${escHtml(it.type)}" data-id="${it.id}">
     <div class="list-card-header">
       <span class="list-card-title">${escHtml(it.title || it.type)}</span>
@@ -608,9 +608,9 @@ function loadAdminAwards() {
       const list = d.awards || [];
       if (!list.length) return { html: `<div class="empty-state"><p>${UI.ADMIN_AWARD_NONE}</p></div>` };
       return { html: list.map(a => {
-        const statusTag = a.status === 'approved'
+        const statusTag = a.status === STATUS.APPROVED
           ? `<span class="tag tag-ok glass glass--solid">${UI.AWARD_STATUS_APPROVED}</span>`
-          : a.status === 'rejected'
+          : a.status === STATUS.REJECTED
             ? `<span class="tag tag-danger glass glass--solid">${UI.AWARD_STATUS_REJECTED}</span>`
             : `<span class="tag tag-warn glass glass--solid">${UI.AWARD_STATUS_PENDING}</span>`;
         return `<div class="list-card list-card--teacher glass">
@@ -622,7 +622,7 @@ function loadAdminAwards() {
           ${a.admin_note ? `<div class="admin-award-note">${escHtml(UI.AWARD_REJECTED_NOTE_PREFIX)}${escHtml(a.admin_note)}</div>` : ''}
           <div class="admin-row-actions">
             ${a.proof_upload_id ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="viewAwardProof(${a.id})">${UI.ADMIN_AWARD_PROOF_VIEW}</button>` : ''}
-            ${a.status === 'pending' ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="approveAward(${a.id})">${UI.ADMIN_AWARD_APPROVE}</button>
+            ${a.status === STATUS.PENDING ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="approveAward(${a.id})">${UI.ADMIN_AWARD_APPROVE}</button>
               <button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="rejectAwardModal(${a.id})">${UI.ADMIN_AWARD_REJECT}</button>` : ''}
           </div>
         </div>`;
@@ -699,15 +699,15 @@ async function loadAdminVerifications() {
     el.innerHTML = list.map(v => `<div class="list-card glass verif-card" data-id="${v.id}">
       <div class="verif-head">
         <span class="verif-user">${escHtml(v.username || ('#' + v.user_id))}</span>
-        ${v.status === 'pending' ? `<span class="tag tag-warn glass glass--solid">${escHtml(UI.VERIF_PENDING)}</span>`
-          : v.status === 'approved' ? `<span class="tag tag-ok glass glass--solid">${escHtml(UI.VERIF_APPROVED)}</span>`
+        ${v.status === STATUS.PENDING ? `<span class="tag tag-warn glass glass--solid">${escHtml(UI.VERIF_PENDING)}</span>`
+          : v.status === STATUS.APPROVED ? `<span class="tag tag-ok glass glass--solid">${escHtml(UI.VERIF_APPROVED)}</span>`
           : `<span class="tag tag-danger glass glass--solid">${escHtml(UI.VERIF_REJECTED)}</span>`}
         <span class="verif-code">${escHtml(v.verify_code)}</span>
       </div>
       <div class="verif-meta">${fmtDateTime(v.created_at)}${v.verified_at ? ' · ' + fmtDateTime(v.verified_at) : ''}</div>
-      ${v.status === 'approved' ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>
+      ${v.status === STATUS.APPROVED ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>
         <div class="verif-actions"><button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="verifRevoke(${v.id})">${escHtml(UI.VERIF_REVOKE_BTN)}</button></div>` : ''}
-      ${v.status === 'pending' ? renderVerifForm(v) : ''}
+      ${v.status === STATUS.PENDING ? renderVerifForm(v) : ''}
     </div>`).join('');
   } catch (err) {
     el.innerHTML = `<p class="profile-empty">${escHtml(err.message)}</p>`;

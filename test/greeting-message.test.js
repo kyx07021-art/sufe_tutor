@@ -294,3 +294,27 @@ test('意向浮窗：打招呼 textarea + 提交携带 message；缺省可直提
   assert.equal(calls.length, 2, '第二次提交');
   assert.equal(calls[1].opts.body.message, '', '缺省 message 空串');
 });
+
+// v1.4.13 审计发现（R2-T13）：dbFindUserById 曾只 SELECT id,role，调用点读 banned/deactivated 恒 undefined
+// → 「封禁/注销教师不可被推送」守卫静默失效；改引 dbGetUserById 后拦截生效，此处钉死回归。
+test('handlePushDemand：封禁/注销教师被拒（TEACHER_NOT_FOUND 404）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, id: stu } = await seedStudent(db, raw);
+  const { id: tch } = await seedTeacher(db, raw, 't1', false);
+  const demandId = await seedDemand(db, raw, stu);
+
+  // 封禁教师
+  raw.prepare('UPDATE users SET banned=1 WHERE id=?').run(tch);
+  let r = await handlePushDemand(db, { teacherUserId: tch, demandId, message: '你好' }, reqOf(token));
+  assert.equal(r.status, 404, '封禁教师推送被拒');
+
+  // 注销教师
+  raw.prepare('UPDATE users SET banned=0, deactivated=1 WHERE id=?').run(tch);
+  r = await handlePushDemand(db, { teacherUserId: tch, demandId, message: '你好' }, reqOf(token));
+  assert.equal(r.status, 404, '注销教师推送被拒');
+
+  // 恢复后正常推送（守卫不误伤）
+  raw.prepare('UPDATE users SET deactivated=0 WHERE id=?').run(tch);
+  r = await handlePushDemand(db, { teacherUserId: tch, demandId, message: '你好' }, reqOf(token));
+  assert.equal(r.status, 201, '正常教师可推送');
+});

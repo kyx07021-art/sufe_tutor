@@ -5,15 +5,14 @@
  *   - 后端生成答案、前端渲染交互、后端校验，归一化偏移上报，一次性 token 防重放；
  *   - 前端只渲染与上报，不参与答案计算（正确答案由服务端保存，前端拿不到绝对值）。
  *
- * 内测落地（完整动作输出接口 + 简单验证器）：
- *   - 完整动作输出接口 = openCaptchaModal({ onPass }) → onPass({ captchaId, offset, track })：
- *     captchaId 本次验证唯一标识、offset 归一化偏移（0~1）、track 轨迹点数组。
- *   - 【内测短路】答案由前端生成（缺口随机位置），校验走前端 mock 验证器：偏差 ≤ CAPTCHA_TOLERANCE
- *     即通过（大差不差放行，用户授权）。生产接入：切 verifyCaptcha 内注释的分支——
- *     调后端 POST /api/captcha/verify（服务端保存 captchaId→cutX、一次性校验、轨迹人机分析），
- *     前端不再自算答案。
+ * 内测落地（v1.4.13 清理特例后的最终形态）：
+ *   - 完整动作输出接口 = openCaptchaModal({ onPass }) → onPass()（验证通过即执行被门禁拦下的动作）；
+ *   - 【本地简化验证】答案由前端生成（缺口随机位置），校验走前端验证器：偏差 ≤ CAPTCHA_TOLERANCE
+ *     即通过（大差不差放行，用户授权）——服务端防刷由 rate_limits 限流咽喉承担，拼图是纯人机交互门槛；
  *   - 图片留接口：背景当前为程序化渐变+噪点（无版权素材），未来接动态图片仅改 paintCaptcha 的
  *     背景绘制（drawImage 任意背景图 + 同源缺口块），接口签名不变。
+ *   - 服务端图片化验证（后端生成答案/一次性 token/轨迹人机分析）属新功能待办，见 docs/backlog.md——
+ *     当前前端自算答案，后端无 cutX 可独立校验，勿再写「切后端校验」死注释。
  *
  * JS 只写 CSS 变量（--captcha-x 到共同祖先 .captcha-box，puzzle/fill/knob 全继承）与几何测量，
  * 滑块位移由 CSS transform 消费（合成器友好）。
@@ -27,11 +26,9 @@ const CAPTCHA_W = 280, CAPTCHA_H = 120, SLIDER_W = 40, SLIDER_H = 40;
 const CAPTCHA_MAX_X = CAPTCHA_W - SLIDER_W; // 240：旋钮可移动行程（px）
 const CAPTCHA_TOLERANCE = 0.08; // mock 验证器容差（归一化 ±8%）
 let _captchaOnPass = null;
-let _captchaTarget = 0;      // 缺口归一化位置（0~1，mock 自算；生产由后端下发）——统一按 CAPTCHA_MAX_X 归一化
+let _captchaTarget = 0;      // 缺口归一化位置（0~1，本地自算）——统一按 CAPTCHA_MAX_X 归一化
 let _captchaOffset = 0;      // 当前滑块归一化偏移（0~1，/CAPTCHA_MAX_X，与 target 同坐标系）
 let _captchaDrag = null;     // 拖拽中 { startClientX, startX }
-let _captchaTrack = [];      // 轨迹点 [{t,x,y}]（未来人机分析用）
-let _captchaIdStr = '';      // 本次挑战唯一标识（每轮 paint 重生成；生产后端以此查服务端保存的 cutX）
 let _captchaResetTimer = null; // 失败复位定时器（新拖拽即取消，防 420ms 复位打断在途拖拽）
 
 function _randHex() {
@@ -43,7 +40,7 @@ function _randHex() {
 /**
  * 打开拼图验证浮窗。
  * @param opts { title?, onPass? }
- *   onPass({ captchaId, offset, track }) —— 验证通过回调（执行被门禁拦下的实际动作）
+ *   onPass() —— 验证通过回调（执行被门禁拦下的实际动作）
  */
 function openCaptchaModal({ title = UI.CAPTCHA_TITLE, onPass = null } = {}) {
   _captchaOnPass = onPass;
@@ -83,9 +80,8 @@ function paintCaptcha() {
     ctx.fillStyle = `rgba(${Math.floor(Math.random() * 255)},${Math.floor(Math.random() * 255)},${Math.floor(Math.random() * 255)},${(Math.random() * 0.5 + 0.1).toFixed(2)})`;
     ctx.fillRect(Math.random() * W, Math.random() * H, 1.2, 1.2);
   }
-  // 缺口位置（mock 答案；生产由后端下发 cutX）——B2：按旋钮行程 CAPTCHA_MAX_X 归一化，
+  // 缺口位置（本地答案）——B2：按旋钮行程 CAPTCHA_MAX_X 归一化，
   // 与 _captchaOffset 同一坐标系（曾 /W 导致右半缺口恒差超容差必败）。左右各留边距，全域可达。
-  _captchaIdStr = _captchaId(); // 每轮挑战唯一 id（生产后端据此查 cutX；mock 仅随 onPass 上抛）
   const gapMin = 16, gapMax = CAPTCHA_MAX_X - 24; // 左缘 16px / 右缘 24px 边距（行程内）
   _captchaTarget = (gapMin + Math.random() * (gapMax - gapMin)) / CAPTCHA_MAX_X;
   const cutX = _captchaTarget * CAPTCHA_MAX_X, cutY = (H - SLIDER_H) / 2;
@@ -107,8 +103,8 @@ function paintCaptcha() {
   ctx.strokeStyle = 'rgba(255,255,255,.85)';
   ctx.lineWidth = 2;
   ctx.strokeRect(cutX + 1, cutY + 1, SLIDER_W - 2, SLIDER_H - 2);
-  // 复位滑块与轨迹
-  _captchaOffset = 0; _captchaTrack = [];
+  // 复位滑块
+  _captchaOffset = 0;
   const track = document.getElementById('captcha-track');
   const box = document.getElementById('captcha-box') || track;
   box.style.setProperty('--captcha-x', '0px');
@@ -134,8 +130,6 @@ function bindCaptchaDrag() {
     const next = Math.max(0, Math.min(max, _captchaDrag.startX + (e.clientX - _captchaDrag.startClientX)));
     _captchaOffset = next / max;
     box.style.setProperty('--captcha-x', `${next}px`);
-    _captchaTrack.push({ t: Date.now(), x: e.clientX, y: e.clientY });
-    if (_captchaTrack.length > 64) _captchaTrack.shift();
   };
   const up = () => {
     if (!_captchaDrag) return;
@@ -149,7 +143,7 @@ function bindCaptchaDrag() {
   knob.addEventListener('pointercancel', up);
 }
 
-/** 校验（内测 mock 验证器：归一化偏差 ≤ 容差即过；生产切后端校验分支） */
+/** 校验（本地简化验证器：归一化偏差 ≤ 容差即过——服务端防刷由 rate_limits 承担，见头部注释） */
 async function verifyCaptcha() {
   const track = document.getElementById('captcha-track');
   const tip = document.getElementById('captcha-tip');
@@ -157,10 +151,6 @@ async function verifyCaptcha() {
   if (!track || !tip || !knob) return;
   const diff = Math.abs(_captchaOffset - _captchaTarget);
   if (diff <= CAPTCHA_TOLERANCE) {
-    // ============ 生产接入点（后端校验）============
-    // const r = await api('/api/captcha/verify', { method: 'POST', body: { captchaId: _captchaIdStr, offset: _captchaOffset, track: _captchaTrack } });
-    // if (!r.ok) return failCaptcha(track, tip, knob);
-    // ============ 内测 mock 验证器（大差不差即过）============
     knob.classList.add('captcha--pass');
     tip.textContent = UI.CAPTCHA_PASS;
     tip.classList.remove('captcha-tip--fail');
@@ -169,7 +159,7 @@ async function verifyCaptcha() {
     _captchaOnPass = null;
     setTimeout(() => {
       closeModal();
-      if (cb) cb({ captchaId: _captchaIdStr, offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack });
+      if (cb) cb();
     }, 260);
     return;
   }
@@ -189,12 +179,6 @@ async function verifyCaptcha() {
     knob.classList.remove('captcha--fail');
     track.classList.remove('captcha--shake');
   }, 420);
-}
-
-function _captchaId() {
-  const b = new Uint8Array(16);
-  crypto.getRandomValues(b);
-  return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
 }
 
 // C2 敏感操作门禁 withCaptcha 已下沉到 app-ui.js（boot 共享层：登录/注册/签约/合同等各领域调用，

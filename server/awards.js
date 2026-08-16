@@ -70,7 +70,7 @@ export async function dbGetAwardById(db, id) {
 /** 某教师奖项：本人/管理员视角全量；公开视角仅 approved */
 export async function dbGetAwardsByTeacher(db, teacherUserId, { publicOnly = false } = {}) {
   return await dbAll(db, publicOnly
-    ? `SELECT id, title, issuer, award_date, status FROM teacher_awards
+    ? `SELECT id, title, issuer, award_date FROM teacher_awards
        WHERE teacher_user_id=? AND status='approved' ORDER BY id DESC`
     : `SELECT id, title, issuer, award_date, proof_upload_id, status, admin_note, created_at
        FROM teacher_awards WHERE teacher_user_id=? ORDER BY id DESC`, [teacherUserId]);

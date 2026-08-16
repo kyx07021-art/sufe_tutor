@@ -372,8 +372,10 @@ async function writePublicListCache(url, jsonText) {
 // 共享 1 次 D1 鉴权；单子请求失败不阻断其余（结果带独立 status）。
 // 写操作禁止入 batch——写路径仍走单请求，保证错误码/toast/二次认证/留档语义。
 // 安全：子请求与直接 GET 权限面完全一致（不升级权限），batch 只省往返不改变路由语义。
-// 批量读上限单源：constants.js CONFIG.BATCH_GET_MAX（前端 dhBatchGet 按同值分块，杜绝整批超限 400）
-const BATCH_MAX = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.BATCH_GET_MAX) || 16;
+// 批量读上限单源：constants.js CONFIG.BATCH_GET_MAX（前端 dhBatchGet 按同值分块，杜绝整批超限 400）。
+// 读不到（异常环境）→ 0 = 整批拒绝（fail-closed，绝不放宽超限）；正常路径 APP_CONSTANTS 由
+// server/otp.js import '../constants.js' 的副作用注入，恒在——勿再加「|| 16」复制兜底（改值双源漂移）。
+const BATCH_MAX = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.BATCH_GET_MAX) || 0;
 async function handleBatch(db, body, url, req, env) {
   const gets = body && Array.isArray(body.gets) ? body.gets : null;
   if (!gets || !gets.length || gets.length > BATCH_MAX) return error(MSG.INVALID_PARAMS, 400);

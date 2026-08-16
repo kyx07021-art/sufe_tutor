@@ -169,3 +169,7 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 
 ### U10 会话鉴权缓存（结构性，待评估）
 每请求 requireUser → authUser 1 次 D1 往返（SELECT auth_sessions JOIN users）。U10（v0.25.108）已把点赞/收藏写路径减到 ~3 次往返，但全平台读/写仍各含此 1 次。缓存方案：内存 Map<token_hash, {user, exp}>，TTL ~30-60s，命中免 D1。风险：登出/封禁/停用须即时失效，而 Pages 多实例无法全局失效（实例 A 删会话行、实例 B 缓存仍放行 ≤TTL）——须评估「封禁即时性」是否可接受 TTL 窗口，或只缓存只读请求路径、写路径仍实时查。未定，勿盲做。
+
+### 拼图验证码服务端化（v1.4.13 清理特例后列为新功能待办，非清理范围）
+- 现状：答案前端自算、本地比对（app-captcha.js），服务端防刷由 rate_limits 限流咽喉承担；"生产接入点"死代码已删。
+- 未来演进（需服务端图片生成能力，属新功能）：后端生成背景图+cutX（服务端保存 captchaId→cutX、一次性 token 防重放、轨迹人机分析），前端只渲染与上报 offset；图片素材或程序化生成迁服务端。实现时新增 POST /api/captcha/verify 路由 + 挑战存储（D1 表或 KV），前端恢复上抛 offset。

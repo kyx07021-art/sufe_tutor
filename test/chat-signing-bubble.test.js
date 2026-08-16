@@ -110,14 +110,14 @@ test('v0.25.101 Q8 回归：回应气泡统一「对方已确认/已拒绝」（
   const { ctx } = makeCtx();
   vm.runInContext(`state.user = { id: 1, role: 'teacher', username: '甲' }`, ctx);
   // 对方（id=2）是回应方 → theirs 气泡「对方已确认签约请求」（不带用户名，Q8 用户质询）
-  const theirs = render(ctx, { kind: 'signing_response', sender_user_id: 2, sender_name: '乙', id: 14, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ accept: true }) });
+  const theirs = render(ctx, { kind: 'signing_response', sender_user_id: 2, id: 14, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ requestId: 14, accept: true }) });
   assert.ok(theirs.includes('对方已确认签约请求'), '确认气泡统一「对方」，不显示具体用户名');
   assert.ok(!theirs.includes('乙') && !theirs.includes('{name}'), '无 username / 未替换 {name} 字面量');
-  const theirsRej = render(ctx, { kind: 'signing_response', sender_user_id: 2, sender_name: '乙', id: 15, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ reject: true }) });
+  const theirsRej = render(ctx, { kind: 'signing_response', sender_user_id: 2, id: 15, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ requestId: 15, accept: false }) });
   assert.ok(theirsRej.includes('对方已拒绝此次签约请求'), '拒绝气泡统一「对方」');
   assert.ok(!theirsRej.includes('乙'), '拒绝气泡不带用户名');
   // 我（id=1）是回应方 → mine 恒「你已…」（视角修正，无 {name}）
-  const mine = render(ctx, { kind: 'signing_response', sender_user_id: 1, sender_name: '甲', id: 16, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ accept: true }) });
+  const mine = render(ctx, { kind: 'signing_response', sender_user_id: 1, id: 16, created_at: '2026-08-08 12:00:00', body: JSON.stringify({ requestId: 16, accept: true }) });
   assert.ok(mine.includes('你已确认签约请求'), '回应方本人视角仍为「你已确认签约请求」');
   assert.ok(!mine.includes('{name}'), 'mine 侧无 {name} 字面量');
 });
