@@ -15,8 +15,9 @@ import { initDb } from '../server/db.js';
 import { requestOtp } from '../server/otp.js';
 import { handleRegister } from '../server/routes-auth.js';
 import { tokenDigest } from '../server/crypto.js';
+import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {
@@ -104,7 +105,7 @@ test('服务端：双同意 → 注册成功', async () => {
   await initDb(db, ENV);
   const target = '+8613912345678';
   const otp = await requestOtp(db, { channel: 'sms', target }, reqOf());
-  const r = await handleRegister(db, { username: 'u_ok', password: 'pass123456', role: 'student', deviceId: 'd1', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: otp.code }, reqOf());
+  const r = await handleRegister(db, { username: 'u_ok', password: 'pass123456', role: 'student', deviceId: 'd1', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: lastOtpCode(target) }, reqOf());
   assert.equal(r.status, 200);
   assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM users WHERE username='u_ok'").get().c, 1, '双同意才建账户');
 });

@@ -18,7 +18,7 @@ import { initDb, dbCreatePush, dbGetPendingPushesForTeacher, dbCreateIntent, dbG
 import { handlePushDemand, handleCreateIntent } from '../server/routes-demands.js';
 import { tokenDigest } from '../server/crypto.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 // ---- D1 shim（同 demand-type-guard：db.prepare().bind() + db.batch 事务） ----
 function d1Shim(raw) {

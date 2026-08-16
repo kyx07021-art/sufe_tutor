@@ -15,7 +15,7 @@ import { handleGetTeachers } from '../server/routes-teacher.js';
 import { tokenDigest } from '../server/crypto.js';
 import { versionDomainOf } from '../server/version.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

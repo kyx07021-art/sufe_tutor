@@ -2,7 +2,7 @@
  * v0.26.0 验证码咽喉 + 凭证扩展（A2-A8）
  *
  * 覆盖：
- *   - otp.requestOtp：mock 返回 6 位模拟验证码、60s 重发限频、单日上限、格式校验；
+ *   - otp.requestOtp：真实通道投递（stub 捕获 6 位验证码）、60s 重发限频、单日上限、格式校验；
  *   - otp.verifyOtp：正确/错误/一次性消费/过期；
  *   - credential：bindPhone/bindEmail + 哈希可查列定位 + 占用查 + username 变更冷却；
  *   - 路由集成：handleOtpRequest / handleBindPhone / handleChangeUsername / handleUsernameStatus /
@@ -23,8 +23,9 @@ import {
   handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister, handleGetMyCreds,
 } from '../server/routes-auth.js';
 import { issueCapToken } from '../server/danger-ops.js';
+import { lastOtpCode, resetOtpStub } from './_otp-stub.js'; // 拦截真实发信（stub fetch：真实代码路径 + 捕获验证码）
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {
   return {
     prepare(sql) {
@@ -52,6 +53,7 @@ async function setup() {
   raw.exec('PRAGMA foreign_keys = ON');
   const db = d1Shim(raw);
   await initDb(db, ENV);
+  resetOtpStub(); // 测试隔离：清空上次捕获
   return { raw, db };
 }
 
@@ -60,11 +62,11 @@ function authedReq(token) {
 }
 
 async function registerUser(db, raw, username, role = 'student') {
-  // v1.0 R7：注册必绑联系方式（mock 发码取 code）
+  // v1.0 R7：注册必绑联系方式（发码后从 stub 捕获取 code）
   const target = '+86139' + String(Math.floor(Math.random() * 90000000) + 10000000);
   const otp = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
-  assert.ok(otp.ok, 'mock 发码成功');
-  const r = await handleRegister(db, { username, password: 'pass123456', role, agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: otp.code }, authedReq(''));
+  assert.ok(otp.ok, '发码成功');
+  const r = await handleRegister(db, { username, password: 'pass123456', role, agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: lastOtpCode(target) }, authedReq(''));
   assert.equal(r.status, 200, `注册 ${username} 应成功: ${JSON.stringify(r)}`);
   const data = await r.json();
   const id = raw.prepare("SELECT id FROM users WHERE username=?").get(username).id;
@@ -72,11 +74,12 @@ async function registerUser(db, raw, username, role = 'student') {
 }
 
 // ---------------- OTP 基础 ----------------
-test('requestOtp：mock 返回 6 位模拟验证码 + 格式校验', async () => {
+test('requestOtp：真实通道投递 + 6 位验证码 + 格式校验', async () => {
   const { db } = await setup();
-  const r = await requestOtp(db, { channel: 'sms', target: '+8613812345678' }, authedReq(''));
+  const target = '+8613812345678';
+  const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
   assert.equal(r.ok, true);
-  assert.match(String(r.code), /^\d{6}$/, 'mock 模拟验证码为 6 位数字');
+  assert.match(String(lastOtpCode(target)), /^\d{6}$/, '验证码为 6 位数字（stub 捕获的投递 body 断言）');
   // 非法手机号
   const bad = await requestOtp(db, { channel: 'sms', target: '+861234567' }, authedReq(''));
   assert.equal(bad.ok, false);
@@ -127,10 +130,11 @@ test('requestOtp：过期行清理（v0.27.3 #19：注释承诺的 DELETE 落地
 test('verifyOtp：正确/错误/一次性消费', async () => {
   const { db } = await setup();
   const target = '+8613812345678';
-  const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  const code = lastOtpCode(target);
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000000' }), 'invalid', '错误验证码拒绝');
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'ok', '正确验证码通过');
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'invalid', '一次性：消费后不可重用');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code }), 'ok', '正确验证码通过');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code }), 'invalid', '一次性：消费后不可重用');
   // 未请求过的号码无验证码
   const ghost = await requestOtp(db, { channel: 'sms', target: '+8613812345679' }, authedReq(''));
   const r2 = await requestOtp(db, { channel: 'sms', target: '+8613812345679' }, authedReq(''));
@@ -181,16 +185,17 @@ test('路由：发码/绑定/用户名修改/冷却状态', async () => {
   const { raw, db } = await setup();
   const u = await registerUser(db, raw, 'carol');
 
-  // 发码（mock → mockCode）
+  // 发码（真实通道 → stub 捕获验证码）
   const send = await handleOtpRequest(db, { channel: 'sms', target: '13812345678' }, authedReq(''));
   assert.equal(send.status, 200);
-  const sendData = await send.json();
-  assert.match(String(sendData.mockCode), /^\d{6}$/);
+  assert.deepEqual(Object.keys(await send.json()), ['ok'], '响应仅 ok，绝不携带验证码明文');
+  const code = lastOtpCode('13812345678');
+  assert.match(String(code), /^\d{6}$/);
 
   // 绑定
-  const bind = await handleBindPhone(db, { phone: '+8613812345678', code: sendData.mockCode }, authedReq(u.token));
+  const bind = await handleBindPhone(db, { phone: '+8613812345678', code }, authedReq(u.token));
   assert.equal(bind.status, 200, `绑定应成功: ${JSON.stringify(await bind.json())}`);
-  const dup = await handleBindPhone(db, { phone: '+8613812345678', code: sendData.mockCode }, authedReq(u.token));
+  const dup = await handleBindPhone(db, { phone: '+8613812345678', code }, authedReq(u.token));
   assert.equal(dup.status, 409, '重复绑定同号 → 409');
 
   // 用户名修改：冷却前 400；新用户名非法 400
@@ -241,7 +246,7 @@ test('路由：五合一登录——手机号密码 / 邮箱密码 / 验证码�
 
   // 验证码登录
   const send = await handleOtpRequest(db, { channel: 'sms', target: '13812345678' }, authedReq(''));
-  const code = (await send.json()).mockCode;
+  const code = lastOtpCode('13812345678');
   const codeLogin = await handleLoginWithCode(db, { identifier: '13812345678', code }, authedReq(''));
   assert.equal(codeLogin.status, 200, '手机号+验证码登录');
   const codeData = await codeLogin.json();
@@ -267,9 +272,9 @@ test('路由：五合一登录——手机号密码 / 邮箱密码 / 验证码�
 test('verifyOtp：过期验证码拒绝（TTL 5 分钟）', async () => {
   const { raw, db } = await setup();
   const target = '+8613812345678';
-  const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  await requestOtp(db, { channel: 'sms', target }, authedReq(''));
   raw.exec(`UPDATE verification_codes SET expires_at=datetime('now','-1 minute')`); // UTC 存储域，用 UTC 改过期
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'invalid', '过期验证码拒绝');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: lastOtpCode(target) }), 'invalid', '过期验证码拒绝');
 });
 
 // B5 回归（用户反馈：未绑定也显示 ***、绑定后先闪「未绑定」再更新）：
@@ -287,7 +292,7 @@ test('B5 handleGetMyCreds：未绑定返回空串（回落「未绑定」），�
   // 绑定手机号后返回脱敏缩略
   const otp = await requestOtp(db, { channel: 'sms', target: '+8613812345678' }, authedReq(''));
   assert.equal(otp.ok, true);
-  const bind = await handleBindPhone(db, { phone: '+8613812345678', code: otp.code }, authedReq(u.token));
+  const bind = await handleBindPhone(db, { phone: '+8613812345678', code: lastOtpCode('+8613812345678') }, authedReq(u.token));
   assert.equal(bind.status, 200);
   const bindData = await bind.json();
   assert.equal(bindData.phone, '138****5678', 'bind 接口返回脱敏缩略');
@@ -306,11 +311,12 @@ test('R6 三振限次：前两次错可重试，第三次错作废必须重新�
   const target = '+8613811112222';
   const r = await requestOtp(db, { channel: 'sms', target }, req);
   assert.ok(r.ok);
+  const code = lastOtpCode(target);
   // 第 1、2 次输错：invalid（码仍有效）
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000000' }), 'invalid');
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000001' }), 'invalid');
   // 码仍有效：正确码此时仍可通过
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'ok', '未满 3 次，正确码仍可通过');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code }), 'ok', '未满 3 次，正确码仍可通过');
 });
 
 test('R6 三振作废：连续三次输错 → exhausted，原码彻底失效', async () => {
@@ -319,15 +325,16 @@ test('R6 三振作废：连续三次输错 → exhausted，原码彻底失效', 
   const target = '+8613811113333';
   const r = await requestOtp(db, { channel: 'sms', target }, req);
   assert.ok(r.ok);
+  const code = lastOtpCode(target);
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000000' }), 'invalid');
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000001' }), 'invalid');
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: '000002' }), 'exhausted', '第三次输错即作废');
   // 原码已作废：正确码也拒绝
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r.code }), 'invalid', '作废后原码失效');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code }), 'invalid', '作废后原码失效');
   // 重新发码后可正常通过
   const r2 = await requestOtp(db, { channel: 'sms', target }, req);
   assert.ok(r2.ok);
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r2.code }), 'ok');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: lastOtpCode(target) }), 'ok');
 });
 
 test('R6 新码作废旧码：同目标发新码后旧码立即失效', async () => {
@@ -336,17 +343,19 @@ test('R6 新码作废旧码：同目标发新码后旧码立即失效', async ()
   const target = '+8613811114444';
   const r1 = await requestOtp(db, { channel: 'sms', target }, req);
   assert.ok(r1.ok);
+  const r1Code = lastOtpCode(target);
   // 先验证旧码仍有效
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r1.code }), 'ok', '发新码前旧码有效');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r1Code }), 'ok', '发新码前旧码有效');
   // 造一个未消费旧码，然后绕过限频直接验证「新码作废旧码」逻辑（时间快进：把旧行 created_at 改到 61s 前）
   const rOld = await requestOtp(db, { channel: 'sms', target }, req);
   if (!rOld.ok) return; // 60s 限频内（时间未快进）——用 SQL 快进后重发
+  const rOldCode = lastOtpCode(target);
   // 用 SQL 把刚发码的 created_at 拨回 61 秒前，绕过 60s 窗口
   raw.prepare("UPDATE verification_codes SET created_at=datetime('now','-61 seconds') WHERE target_hash=?").run(await tokenDigest(target));
   const r2 = await requestOtp(db, { channel: 'sms', target }, req);
   assert.ok(r2.ok, '60s 窗口过后可发新码');
   // 旧码（第一枚）已被新码作废
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: rOld.code }), 'invalid', '旧码被新码作废');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: rOldCode }), 'invalid', '旧码被新码作废');
   // 新码有效
-  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: r2.code }), 'ok', '新码有效');
+  assert.equal(await verifyOtp(db, { channel: 'sms', target, code: lastOtpCode(target) }), 'ok', '新码有效');
 });

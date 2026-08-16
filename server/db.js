@@ -278,7 +278,7 @@ export const SCHEMA_VERSION = 6; // 当前 schema 覆盖：…+ teacher_verifica
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
-  bindOtpEnv(env);    // OTP 部署级配置（OTP_PROVIDER/EMAIL_OTP_TEMPLATE_CODE；测试 ENV 注入 mock 防真实发信）
+  bindOtpEnv(env);    // OTP 部署级配置（SMS/EMAIL_OTP_TEMPLATE_CODE 模板编码；测试经 test/_otp-stub.js stub fetch 防真实发信）
   bindChsiEnv(env);   // CHSI 部署级配置（CHSI_PROVIDER；缺省 manual fail-closed，secrets.js 显式 mock）
   // 1 次 batch：建 schema_meta（幂等）+ 读版本（batch 顺序执行，CREATE 后 SELECT 可见）
   let rows = null;

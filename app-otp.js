@@ -9,8 +9,8 @@
  * 手机号前缀收敛大陆单区：固定 +86（PHONE_REGIONS 仅 +86，无地区 select），
  * 目标恒为 '+86' + 号码；服务端 normalizeIdentifier 对裸大陆号补 +86 同口径。
  *
- * B6 内测短路：requestOtpCode 成功后若响应带 mockCode → toast「模拟验证码（内测期使用）：xxxxxx」
- * （后端 OTP_PROVIDER='mock'，见 server/otp.js；生产拆掉短路后无 mockCode，不弹 toast）。
+ * v1.4.12 起真实通道投递（sms/email 均 push.spug.cc）：发码受理成功 toast UI.CODE_SENT，
+ * 后端绝不返回验证码明文；投递失败接口 500 由 catch 提示、用户可重试。
  */
 
 // ============================================================
@@ -117,8 +117,8 @@ async function requestOtpCode(prefix, channel) {
       method: 'POST',
       body: { channel: channel === 'email' ? 'email' : 'sms', target, scene: prefix === 'bind' ? '绑定验证' : prefix === 'register' ? '注册验证' : '登录验证' },
     });
-    // B6 内测短路：mock 提供方返回模拟验证码 → toast 给用户（生产接入真实短信/邮件后无 mockCode）
-    if (data.mockCode) showToast(UI.OTP_MOCK_TOAST.replace('{code}', data.mockCode), 'info');
+    // v1.4.12 真实通道投递：受理成功即提示（绝不返回验证码明文；失败由 catch 提示 500 可重试）
+    showToast(UI.CODE_SENT, 'success');
     if (codeEl) codeEl.focus();
     _otpCountdownStops[prefix] = bindCountdown(sendBtn, { endAt: Date.now() + CONFIG.OTP_RESEND_SEC * 1000, runningText: UI.CODE_SEND_AGAIN });
   } catch (err) {

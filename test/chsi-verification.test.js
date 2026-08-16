@@ -17,8 +17,9 @@ import { handleCreateIntent } from '../server/routes-demands.js';
 import { handleVerificationAction } from '../server/routes-admin.js';
 import { handleLogin } from '../server/routes-auth.js';
 import { dbGetTeacherProfile, dbGetTeacherVerification } from '../server/db.js';
+import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock', CHSI_PROVIDER: 'mock' };
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', CHSI_PROVIDER: 'mock' };
 
 function d1Shim(raw) {
   return {
@@ -53,7 +54,7 @@ async function regTeacher(db, raw, username, phone) {
   const invite = 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();
   db.prepare('INSERT INTO invite_codes (code, created_by) VALUES (?,?)').run(invite, adminId);
   const otp = await (await import('../server/otp.js')).requestOtp(db, { channel: 'sms', target: phone }, { headers: new Headers() });
-  const reg = await handleRegister(db, { username, password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone, otpChannel: 'sms', code: otp.code, inviteCode: invite }, { headers: new Headers() });
+  const reg = await handleRegister(db, { username, password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone, otpChannel: 'sms', code: lastOtpCode(phone), inviteCode: invite }, { headers: new Headers() });
   assert.equal(reg.status, 200);
   return (await reg.json()).authToken;
 }

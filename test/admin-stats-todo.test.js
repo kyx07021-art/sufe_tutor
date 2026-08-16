@@ -12,8 +12,9 @@ import { handleLogin } from '../server/routes-auth.js';
 import { tokenDigest } from '../server/crypto.js';
 import { requestOtp } from '../server/otp.js';
 import { handleRegister } from '../server/routes-auth.js';
+import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {
   return {
     prepare(sql) {
@@ -69,7 +70,7 @@ test('统计端点：有数据时待办计数非零', async () => {
   const adminId = (db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").first() || {}).id || 1;
   const invite = 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();
   db.prepare('INSERT INTO invite_codes (code, created_by) VALUES (?,?)').run(invite, adminId);
-  const reg = await handleRegister(db, { username: 't_stats', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: otp.code, inviteCode: invite }, { headers: new Headers() });
+  const reg = await handleRegister(db, { username: 't_stats', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: lastOtpCode(target), inviteCode: invite }, { headers: new Headers() });
   assert.equal(reg.status, 200);
   const tId = raw.prepare("SELECT id FROM users WHERE username='t_stats'").get().id;
   raw.prepare("INSERT INTO teacher_awards (teacher_user_id, title, status) VALUES (?, '奖项A', 'pending')").run(tId);

@@ -30,7 +30,7 @@ function makeCtx(identifierValue) {
         return map[id] || null;
       },
     },
-    api: async (...a) => { calls.api.push(a); return { mockCode: '123456' }; },
+    api: async (...a) => { calls.api.push(a); return { ok: true }; },
     showToast: (msg) => { calls.toast.push(msg); },
     bindCountdown: () => {},
   };

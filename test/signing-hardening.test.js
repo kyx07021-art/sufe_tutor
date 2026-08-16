@@ -22,7 +22,7 @@ import { handleGetConversationBindableDemands } from '../server/routes-chat.js';
 import { dbGetMyConversations } from '../server/db.js';
 import { tokenDigest } from '../server/crypto.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

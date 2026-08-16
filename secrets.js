@@ -24,19 +24,11 @@ globalThis.APP_SECRETS = {
   // 日志留档加密密钥（AES-GCM-256，base64；留档咽喉 logEvent 使用）
   LOG_ENCRYPT_KEY: 'lkFHs0M1GcoyhNiixoI9VRfsLR03BbLc9OgwQOHVtiQ=',
 
-  // ---- 未来敏感字段（公测 API 到手即填入，并按 secrets-plan.md 同步上传 Worker Secrets）----
-  // 短信服务（SMS 验证码：注销账户 / 撤销合同的危险操作确认，见 docs/sms-plan.md）
-  SMS_ACCESS_KEY_ID: '',
-  SMS_ACCESS_KEY_SECRET: '',
-  SMS_SIGN_NAME: '',
-  SMS_TEMPLATE_CODE: '',
-
-  // ---- 验证码通道配置（插拔点：真实通道接入时只改此文件值 + otp.js deliverOtp 实现）----
-  // OTP_PROVIDER: 'mock'（内测：模拟发送，响应返回 code 供前端 toast）| 'prod'（真实短信/邮件通道，绝不返回 code）
-  // v1.0.3 起置 'prod'：邮箱验证码走 push.spug.cc 真实发信；sms 通道未接真实服务商仍回落 mock（deliverOtp 内分支）
-  OTP_PROVIDER: 'prod',
-  // 邮件验证码模板编码（push.spug.cc 邮件模板；编码即调用凭证，禁止进前端/公开仓库，只经 server/secrets.js 网关读取）
-  // 模板正文：您正在进行${scene}，本次验证码为：${code}，请在 ${minute} 分钟内输入验证码完成验证
+  // ---- 验证码通道配置（真实投递：push.spug.cc，模板编码即调用凭证，只经 server/secrets.js 网关读取）----
+  // 短信模板（用户提供）：您的验证码是${code}，${number}分钟内有效，如非本人操作请忽略。
+  // 参数 to=11 位裸手机号 / code=验证码 / number=有效时长分钟数（v1.4.12 起 sms 走真实通道，不再 mock）
+  SMS_OTP_TEMPLATE_CODE: 'g5H9xV6xRKmOPMiq5aQiKA',
+  // 邮件模板正文：您正在进行${scene}，本次验证码为：${code}，请在 ${minute} 分钟内输入验证码完成验证
   EMAIL_OTP_TEMPLATE_CODE: 'v3aDVjBPM48JeX9M',
   // ---- 学信网核验通道配置（v1.2.0；缺省 manual = fail-closed，安全审计 H1）----
   // CHSI_PROVIDER: 'mock'（内测：验证码格式校验即通过，返回模拟学籍信息）| 'manual'（生产：进管理员核验队列）

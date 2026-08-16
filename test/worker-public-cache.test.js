@@ -15,7 +15,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
 import worker, { isPublicListCacheable } from '../_worker.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123', OTP_PROVIDER: 'mock' }; // mock：测试不真实发信
+const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function makeShim(raw, calls) {
   return {

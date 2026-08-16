@@ -305,7 +305,7 @@ function maskPhone(phone) {
 }
 
 // POST /api/auth/otp/request { channel, target } —— 请求验证码（登录/绑定共用；无需鉴权，限流兜底防骚扰）。
-// 内测短路（A3/otp.js）：OTP_PROVIDER='mock' 时返回 mockCode 供前端 toast「模拟验证码（内测期使用）」。
+// 真实通道投递（v1.4.12：sms 走 push.spug.cc 短信、email 走邮件；绝不返回验证码明文，失败 500 由前端提示重试）。
 export async function handleOtpRequest(db, body, req) {
   const channel = body.channel === 'email' ? 'email' : 'sms';
   const norm = normalizeIdentifier(String(body.target || '').trim());
@@ -317,7 +317,7 @@ export async function handleOtpRequest(db, body, req) {
   const scene = SCENE_WHITELIST.includes(sceneRaw) ? sceneRaw : '';
   const r = await requestOtp(db, { channel, target: norm.target, scene }, req);
   if (!r.ok) return r.err;
-  return json({ ok: true, mockCode: r.code || undefined });
+  return json({ ok: true });
 }
 
 // POST /api/auth/phone/bind { phone, code } —— 绑定手机号（requireUser + 验证码校验 + 占用查）

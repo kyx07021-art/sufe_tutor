@@ -2,9 +2,9 @@
  * 验证码咽喉 —— 手机号/邮箱验证码请求与校验 单点
  *
  * 用户需求（2026-08-10）：公测以手机号为唯一账户凭证，内测把手机号做成基于用户名的增量凭证。
- * 要求：假装有现成验证码 API，做好全套「请求验证码 → 上传校验」通路；内测期明确注释短路——
- * 请求 API 后调内置随机模块 toast「模拟验证码（内测期使用）」；校验接口也留模拟校验模块；
- * 模块必须符合生产接口且轻易插拔。
+ * 要求：做好全套「请求验证码 → 上传校验」通路；模块符合生产接口且轻易插拔。
+ * v1.4.12：接入 spug.cc 短信真实通道（sms），删除内测 mock 短路与 fail-open 回落——
+ * 发送失败一律作废验证码返回 500（fail-closed，绝不再静默出假码）。
  *
  * 成熟方案口径（调研结论，见 docs/0.26-认证与审核架构.md）：
  *   - 频控（60s 重发 + 单日上限）必须服务端强制（原子条件 INSERT 赢家模式，跨实例 D1 生效），
@@ -13,10 +13,10 @@
  *   - TTL 5 分钟（expires_at，库内 UTC、SQL 层 UTC 参数比较）；
  *   - 验证码与目标均哈希存储（code_hash / target_hash，SHA-256 同 tokenDigest，不落明文）。
  *
- * 插拔点（生产接入真实短信/邮件服务商只改此处，接口签名不变）：
- *   OTP_PROVIDER='mock' → 模拟发送：不真正发短信/邮件，返回 code 供前端 toast
- *                         「模拟验证码（内测期使用）：xxxxxx」；
- *   OTP_PROVIDER='prod' → deliverOtp 内接真实短信/邮件 API（sendSms/sendEmail），不返回 code。
+ * 部署配置（经 secrets 网关读取，模板编码即调用凭证，禁止进前端/公开仓库）：
+ *   SMS_OTP_TEMPLATE_CODE   → push.spug.cc 短信模板编码（POST /sms/<编码>，表单 {to,code,number}）
+ *   EMAIL_OTP_TEMPLATE_CODE → push.spug.cc 邮件模板编码（POST /mail/<编码>，表单 {to,scene,code,minute}）
+ *   模板编码未配置 → 抛错 fail-closed（宁可发码失败也不回落短路）。
  *   OTP_VERIFIER='local' → 验证码由本应用侧哈希比对校验（内测=「模拟校验模块」，这是校验的
  *                        唯一正解——验证码本就是我们生成的）；未来若验证码托管给服务商
  *                        （服务商存 code），可切 'provider' 接服务商校验 API。
@@ -24,7 +24,7 @@
 import { dbGet, dbRun, dbAll, error, toDbTime } from './util.js';
 import { tokenDigest } from './crypto.js';
 import { MSG, LIMITS } from './constants.js';
-import { getSecret } from './secrets.js'; // OTP_PROVIDER 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
+import { getSecret } from './secrets.js'; // SMS/EMAIL_OTP_TEMPLATE_CODE 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
 import '../constants.js'; // 地区前缀表数据单源：globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS（与前端同源）
 import { logEvent } from './log.js';
 
@@ -82,58 +82,58 @@ function validateOtpTarget(channel, target) {
 }
 
 // ============================================================
-// 插拔点（部署级配置经网关读取）：
-//   OTP_PROVIDER='mock' → 模拟发送：不真正发短信/邮件，返回 code 供前端 toast
-//                        「模拟验证码（内测期使用）：xxxxxx」——生产接入真实通道后此值必须置 'prod'，
-//                        mock 下响应携带明文验证码 = 任意人可免密登录目标账户（内测期有意短路）。
-//   OTP_PROVIDER='prod' → deliverOtp 走真实通道：email 调 push.spug.cc 邮件接口
-//                        （POST https://push.spug.cc/mail/<TEMPLATE_CODE>，body {to,scene,code,minute}；
-//                        200 仅表示受理，request_id 落留档备查）；sms 通道未接入前仍回落 mock。
-//   OTP_VERIFIER='local' → 验证码由本应用侧哈希比对校验（验证码本就由我们生成，此为唯一正解）；
+// 部署级配置（经 secrets 网关读取；测试经 test/_otp-stub.js stub fetch 防真实发信）：
+//   SMS_OTP_TEMPLATE_CODE   → push.spug.cc 短信模板编码（调用凭证，禁进前端/公开仓库）
+//   EMAIL_OTP_TEMPLATE_CODE → push.spug.cc 邮件模板编码（调用凭证）
+//   模板编码未配置 → deliverOtp 抛错（fail-closed：宁可发码失败也不静默短路出假码）。
+//   OTP_VERIFIER='local' → 验证码由本应用侧哈希比对校验（验证码本就由我们生成，唯一正解）；
 //                        未来若验证码托管给服务商（服务商存 code），可切 'provider' 接服务商校验 API。
 const OTP_VERIFIER = 'local';
 
 // OTP 部署级配置经 env 绑定（bindOtpEnv，由 initDb 调用）后惰性读取——
-// 测试 ENV 注入 OTP_PROVIDER='mock' 防真实发信；生产 env 无该键回落 secrets.js 文件。
+// 生产 env 无该键回落 secrets.js 文件（server/secrets.js 网关单点）。
 let OTP_ENV = null;
 export function bindOtpEnv(env) { OTP_ENV = env; }
-const otpProvider = () => String(getSecret(OTP_ENV, 'OTP_PROVIDER') || 'mock');
-// 邮件验证码通道（push.spug.cc）：模板编码即调用凭证（禁止进前端/公开仓库），
-// 未配置时该通道回落 mock（fail-open）
+const smsTemplateCode = () => String(getSecret(OTP_ENV, 'SMS_OTP_TEMPLATE_CODE') || '');
 const emailTemplateCode = () => String(getSecret(OTP_ENV, 'EMAIL_OTP_TEMPLATE_CODE') || '');
 
 /**
- * 真实通道投递：email → push.spug.cc 邮件接口（4s 超时防拖主流程；返回 {mock, code?, requestId?}）。
- * 投递失败抛错由 requestOtp 捕获走「不发码」路径；sms 未接入真实通道 → 回落 mock。
+ * 真实通道投递（push.spug.cc，4s 超时防拖主流程；失败一律抛错，由 requestOtp 走「作废验证码 + 500」）：
+ *   sms   → POST /sms/<SMS_OTP_TEMPLATE_CODE>，表单 {to: 裸 11 位号, code, number: 分钟数}
+ *           （模板「您的验证码是${code}，${number}分钟内有效，如非本人操作请忽略。」）
+ *   email → POST /mail/<EMAIL_OTP_TEMPLATE_CODE>，表单 {to, scene, code, minute: 分钟数}
+ * 200 仅表示「发送请求已受理」，投递异步——request_id 落留档备查；响应码非 200 / 异常 / 超时均抛错。
  */
 async function deliverOtp({ channel, target, code, scene }) {
-  const tpl = emailTemplateCode();
-  if (channel === 'sms' || !tpl || otpProvider() !== 'prod') {
-    console.warn('OTP 通道回落 mock：channel=%s 模板配置=%s', channel, tpl ? '已配' : '未配');
-    return { mock: true, code }; // 【短路】模拟发送：返回 code 供前端 toast
-  }
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 4000); // 外部调用 4s 超时，不让邮件接口拖住注册/登录主流程
+  const timer = setTimeout(() => ctrl.abort(), 4000); // 外部调用 4s 超时，不让短信/邮件接口拖住注册/登录主流程
   try {
+    const minute = String(LIMITS.OTP_CODE_TTL_MS / 60000); // 有效时长分钟数（模板 ${number}/${minute} 占位）
+    let url, params;
+    if (channel === 'sms') {
+      const key = smsTemplateCode();
+      if (!key) throw new Error('SMS_OTP_TEMPLATE_CODE 未配置（短信通道 fail-closed）');
+      const p = parsePhone(target);
+      url = `https://push.spug.cc/sms/${key}`;
+      params = { to: (p && p.number) || target, code, number: minute }; // to 需 11 位裸号（模板口径）
+    } else {
+      const key = emailTemplateCode();
+      if (!key) throw new Error('EMAIL_OTP_TEMPLATE_CODE 未配置（邮件通道 fail-closed）');
+      url = `https://push.spug.cc/mail/${key}`;
+      params = { to: target, scene, code, minute };
+    }
     // 平台接口只认表单（Content-Type: application/json 会被拒「无效的数据格式」，实测）；
     // 无 Content-Type + URLSearchParams 即表单模式（fetch 自动补 x-www-form-urlencoded）。
-    const res = await fetch(`https://push.spug.cc/mail/${tpl}`, {
+    const res = await fetch(url, {
       method: 'POST',
-      body: new URLSearchParams({ to: target, scene, code, minute: '5' }),
+      body: new URLSearchParams(params),
       signal: ctrl.signal,
     });
     const data = await res.json().catch(() => ({}));
-    // 200 仅表示「发送请求已受理」，投递异步——request_id 落留档备查（查询发送状态用）
     if (res.status !== 200 || data.code !== 200) {
-      // 通道失败不阻断主流程（fail-open 有意决策）：回落 mock 返回 code 供前端 toast，
-      // 观测信号 = console.warn + 留档 provider 字段；通道恢复（如平台 IP 白名单放开）自动转真实发信。
-      console.warn('OTP 邮件通道拒绝（回落 mock）：%s %s', res.status, data.msg || '');
-      return { mock: true, code };
+      throw new Error(`OTP ${channel} 通道拒绝：HTTP ${res.status} ${data.msg || ''}`);
     }
-    return { mock: false, requestId: data.request_id || '' };
-  } catch (err) {
-    console.warn('OTP 邮件通道异常（回落 mock）：%s', String(err && err.message || err));
-    return { mock: true, code };
+    return { requestId: data.request_id || '' };
   } finally {
     clearTimeout(timer);
   }
@@ -144,9 +144,9 @@ async function deliverOtp({ channel, target, code, scene }) {
 // ============================================================
 /**
  * 请求验证码（60s 原子限频 + 单日上限，跨实例 D1 生效）。
- * @returns {Promise<{ok:boolean, code?:string, err?:Response}>}
- *   ok=true 且 OTP_PROVIDER=mock 时 code=模拟验证码（前端 toast 用，绝不进留档）；
- *   ok=false 时 err 为 429/400 响应。
+ * @returns {Promise<{ok:boolean, err?:Response}>}
+ *   ok=true  已受理（真实通道投递，绝不返回验证码明文）；
+ *   ok=false 时 err 为 429/400/500 响应（500 = 投递失败已作废本次验证码，用户可重试）。
  */
 export async function requestOtp(db, { channel, target, scene }, req) {
   const ch = channel === 'email' ? 'email' : 'sms';
@@ -196,19 +196,23 @@ export async function requestOtp(db, { channel, target, scene }, req) {
     return { ok: false, err: error(MSG.SERVER_ERROR, 500) }; // D1 异常保守拒绝（不 fail-open 出假验证码）
   }
 
-  // 邮件投递失败：作废刚写入的验证码行（码没送达，留着只会被猜到/过期），返回 500 让用户重试
+  // 投递失败（fail-closed 生产路径）：作废刚写入的验证码行（码没送达，留着只会被猜到/过期），
+  // 返回 500 让用户重试；失败留档（detail 只含通道/原因摘要，验证码绝不进留档）
   let delivered;
   try {
     delivered = await deliverOtp({ channel: ch, target: t, code, scene: scene || (ch === 'email' ? '登录验证' : '身份验证') });
   } catch (e) {
-    console.warn('OTP 投递失败（已作废本次验证码）:', e && e.message);
+    const reason = String((e && e.message) || e).slice(0, 200);
+    await logEvent(db, { action: 'otp.send.fail', actorUsername: targetMask(t),
+      entity: 'otp', detail: { channel: ch, reason }, req });
+    console.warn('OTP 投递失败（已作废本次验证码）:', reason);
     await dbRun(db, 'DELETE FROM verification_codes WHERE channel=? AND target_hash=? AND code_hash=? AND used=0',
       [ch, targetHash, codeHash]);
     return { ok: false, err: error(MSG.SERVER_ERROR, 500) };
   }
   await logEvent(db, { action: 'otp.request', actorUsername: targetMask(t),
-    entity: 'otp', detail: { channel: ch, provider: otpProvider(), requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）
-  return { ok: true, code: delivered.mock ? delivered.code : undefined };
+    entity: 'otp', detail: { channel: ch, requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）
+  return { ok: true };
 }
 
 // ============================================================

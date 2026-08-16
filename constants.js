@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.4.11',
+  APP_VERSION: '1.4.12',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1809,7 +1809,7 @@ globalThis.APP_CONSTANTS = {
     CODE_LABEL: '验证码', CODE_PLACEHOLDER: '输入验证码',
     CODE_SEND: '发送验证码',
     CODE_SEND_AGAIN: '{time}后重发',   // B1 倒计时复用（60s）。v0.26.17 用户反馈：原「{time}后可再次发送验证码」10 字 > 发送按钮 max-width（92-104px）溢出——左边戳到输入框底部、右边 ellipsis 截断；改短「xx秒后重发」装得下
-    OTP_MOCK_TOAST: '模拟验证码（内测期使用）：{code}', // B6 内测短路：请求后 toast 模拟验证码
+    CODE_SENT: '验证码已发送', // v1.4.12 真实通道投递受理后的成功提示（同服务端 MSG.CODE_SENT 口径）
     BTN_BIND: '绑定',
     BIND_PHONE_TITLE: '绑定手机号',
     BIND_EMAIL_TITLE: '绑定邮箱',
