@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.4.15',
+  APP_VERSION: '1.4.16',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1339,12 +1339,23 @@ globalThis.APP_CONSTANTS = {
     // v1.2.0 T5：学信网验证门（导引只含验证过程本身所需的步骤，不掺其他信息）
     CHSI_GATE_TITLE: '验证学信网学籍',
     CHSI_GATE_STEPS: ['打开学信网 APP', '登录后进入「学籍查询」', '申请《学籍在线验证报告》', '复制在线验证码（有效期 180 天）'],
-    CHSI_GATE_HINT: '输入验证码提交后，平台将自动核验并提取你的学籍信息（院校、层次、专业、在读状态、入学年份）',
+    CHSI_GATE_HINT: '提交验证码后，平台会核对你的学籍信息（院校、层次、专业、在读状态、入学年份），通过后自动填入资料卡。',
     CHSI_GATE_PLACEHOLDER: '请输入学信网在线验证码',
     CHSI_GATE_SUBMIT: '提交核验',
     CHSI_GATE_VERIFYING: '核验中…',
     CHSI_GATE_PENDING: '验证码已提交，管理员核验中（一般 24 小时内完成），通过后自动开放资料填写',
     CHSI_GATE_MOCK_NOTE: '当前为内测模拟核验',
+    // v1.4.16 大一新生录取通知书验证（学信网入学后数月才录入，暑期未录入期间走通知书核验）
+    ADMISSION_SWITCH_LINK: '我是大一新生，改为验证录取通知书',
+    ADMISSION_GATE_TITLE: '验证录取通知书',
+    ADMISSION_GATE_BACK: '← 返回学信网验证',
+    ADMISSION_SHOOT_HINT: '请拍摄或上传录取通知书的完整整页照片，确保姓名、考生号、录取院校与专业清晰可读',
+    ADMISSION_PRIVACY_NOTE: '隐私保护声明：录取通知书照片仅用于身份核验，管理员人工核对后将加密存储，不会公开展示，审核结束后仅保留核验结论。',
+    ADMISSION_UPLOAD_BTN: '选择录取通知书照片',
+    ADMISSION_SUBMIT: '提交核验',
+    ADMISSION_VERIFYING: '提交中…',
+    ADMISSION_GATE_PENDING: '录取通知书已提交，管理员核验中（一般 24 小时内完成），通过后自动开放资料填写',
+    ADMISSION_NOTIFY_APPROVED: '录取通知书核验已通过，你的接单资格已开放',
     CHSI_INFO_TITLE: '学信网核验信息（自动填入，不可修改）',
     CHSI_INFO_SCHOOL: '院校全称',
     CHSI_INFO_LEVEL: '层次',
@@ -1360,7 +1371,7 @@ globalThis.APP_CONSTANTS = {
     VERIF_PENDING: '待核验',
     VERIF_APPROVED: '已通过',
     VERIF_REJECTED: '已拒绝',
-    VERIF_FORM_HINT: '在学信网官方核验页（xlcx.chsi.com.cn/bgcx.jsp 或学信网小程序扫码）查证该验证码后，按报告填写以下信息并确认通过',
+    VERIF_FORM_HINT: '去学信网核验页（xlcx.chsi.com.cn 或学信网小程序扫码）查证这个验证码对应的报告，按报告内容填写院校、层次等信息后通过。',
     VERIF_APPROVE_BTN: '核验通过',
     VERIF_REJECT_BTN: '拒绝',
     VERIF_APPROVE_REQUIRED: '院校与层次为必填项',
@@ -1368,6 +1379,9 @@ globalThis.APP_CONSTANTS = {
     VERIF_REJECTED_OK: '已拒绝该核验申请并通知教师',
     VERIF_REVOKE_BTN: '撤销核验',
     VERIF_REVOKED_OK: '已撤销该教师核验资格并通知',
+    // v1.4.16 录取通知书核验（与学信网同一队列收口）
+    VERIF_ADMISSION_NO_CODE: '录取通知书核验（无验证码）',
+    VERIF_ADMISSION_VIEW_IMG: '查看通知书原图',
     CREDENTIAL_UPLOAD: '上传',
     CREDENTIAL_UPLOADED_VIEW: '已上传，点击查看',
     CREDENTIAL_VIEW: '点击查看',
@@ -1855,6 +1869,7 @@ globalThis.APP_CONSTANTS = {
     SETTINGS_PRIVACY_DEMAND_HINT: '关闭后，未登录的游客看不到你发布的需求，仅登录用户可见',
     SETTINGS_PRIVACY_SAVED: '隐私设置已保存',
     SETTINGS_DEVICES_HINT: '以下是登录过此账户的设备，可让其他设备下线。',
+    SETTINGS_DEVICES_EMPTY: '暂无其他登录设备',
     DEVICE_CURRENT: '当前设备',
     DEVICE_UNKNOWN: '未知设备',
     DEVICE_LOGIN_AT: '登录于 ',

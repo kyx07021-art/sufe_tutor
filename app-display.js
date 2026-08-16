@@ -26,12 +26,13 @@
 
   const D = {
     // 科目名：SUBJECTS 命中优先；查无兜底 region-data subjectNames（浙江技术等小众选科——不在全局
-    // SUBJECTS 池但教师/学生科目池会按省份注入）；再无返 sid 本身
+    // SUBJECTS 池但教师/学生科目池会按省份注入）；再无返 ''（v1.4.16 修复：不再直出英文 id——用户反馈
+    // 「科目变成 chinese math」= 映射表查无时把系统变量名漏给了用户；查无应静默省略（filter(Boolean) 兜底））
     subjectName(sid) {
       const hit = enumName(C().SUBJECTS, sid, null);
       if (hit !== null) return hit;
       const R = globalThis.SUFE_REGIONS;
-      return (R && R.subjectNames && R.subjectNames[sid]) || sid;
+      return (R && R.subjectNames && R.subjectNames[sid]) || '';
     },
     // 性别显示单点：不愿透露（undeclared）与历史 ''/nonbinary 一律视同未填 → 不展示文字
     // （资料卡/详情/筛选 .filter(Boolean) 自然省略该行）；仅明确男/女才出字。

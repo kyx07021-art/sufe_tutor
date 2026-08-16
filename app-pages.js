@@ -123,16 +123,13 @@ function enterAccountSettings() {
     <div class="settings-list">
       <div id="privacy-settings-list"><div class="empty-state empty-state--small"><p>${loaderHtml('sm')}</p></div></div>
     </div>
-    <div class="settings-devices">
-      <div class="settings-label">${UI.SETTINGS_DEVICES}</div>
-      <div class="settings-hint">${UI.SETTINGS_DEVICES_HINT}</div>
-      <div id="settings-devices-list" class="settings-devices-list">${loaderHtml('sm')}</div>
+    <div class="settings-bottom-actions">
+      <button type="button" class="btn btn-outline settings-devices-btn glass glass--pressable" onclick="openDeviceManager()">${UI.SETTINGS_DEVICES}</button>
+      <button type="button" class="btn settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     </div>
-    <button type="button" class="btn settings-logout glass glass--pressable" onclick="confirmLogout()">${UI.BTN_LOGOUT}</button>
     ${u.role !== 'admin' ? `<button type="button" class="btn-text-danger settings-deactivate glass" onclick="openDeactivateModal()">${UI.BTN_DEACTIVATE_ACCOUNT}</button>` : ''}`;
   bindUiScaleSlider(); // ：滑块渲染后接管 pointer 差分拖动（html transform 预览的正反馈根治）
   _uiScaleReflowWarm(); // 进设置页即后台预热元素级模拟重排采样，拖动前就绪则拖动即元素级
-  loadDeviceSessions();
   loadPrivacySettings(); // #163：进页异步读本人访客可见性设置（无行=默认允许）
   loadUsernameStatus(); // ：用户名 7 天冷却按钮态（倒计时/灰化）
   loadMyCreds();        // ：手机号/邮箱绑定状态（脱敏展示）
@@ -348,21 +345,33 @@ function bindUiScaleSlider() {
   });
 }
 
-// 登录设备管理：拉本人会话列表逐端展示（token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。
-// 页签已切走则丢弃结果（防异步串号）
-async function loadDeviceSessions() {
-  const box = document.getElementById('settings-devices-list');
+// 登录设备管理（v1.4.16 从设置栏改为底部按钮 + 浮窗）：拉本人会话列表逐端展示
+// （token 末 6 位脱敏展示，current 标「当前设备」不给下线按钮）。
+function openDeviceManager() {
+  openModal({
+    title: UI.SETTINGS_DEVICES,
+    body: `<div class="device-manager-body">
+      <p class="text-muted" style="margin:0 0 10px">${escHtml(UI.SETTINGS_DEVICES_HINT)}</p>
+      <div id="device-manager-list">${loaderHtml('sm')}</div>
+    </div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${escHtml(UI.BTN_CLOSE)}</button>`,
+    cls: 'device-manager-modal',
+  });
+  renderDeviceList();
+}
+
+/** 渲染设备列表（浮窗内；数据经 datahub account 域缓存，miss 自动拉取） */
+async function renderDeviceList() {
+  const box = document.getElementById('device-manager-list');
   if (!box) return;
   try {
     const data = await dhGet('/api/auth/sessions', { domain: 'account' }); // B6：会话缓存（登录即预取）
-    if (state.page !== 'account-settings') return;
     const sessions = data.sessions || [];
     box.innerHTML = sessions.length
       ? sessions.map(renderDeviceRow).join('')
-      : `${loaderHtml('sm')}`; // 至少有当前设备，空列表几乎不可能
+      : `<p class="profile-empty">${escHtml(UI.SETTINGS_DEVICES_EMPTY)}</p>`;
   } catch {
-    const b = document.getElementById('settings-devices-list');
-    if (b && state.page === 'account-settings') b.innerHTML = `<div class="text-muted">${UI.ERROR_REQUEST_FAILED}</div>`;
+    box.innerHTML = `<div class="text-muted">${UI.ERROR_REQUEST_FAILED}</div>`;
   }
 }
 function renderDeviceRow(s) {
@@ -383,7 +392,7 @@ function revokeDeviceSession(sessionId) {
       showToast(UI.DEVICE_REVOKE_DONE);
       if (data.revokedSelf) { handleLogout(); return; } // 踢的是自己 → 本地登出
       invalidate('account'); // B6：会话缓存作废，重载走缓存 miss 拉新列表
-      loadDeviceSessions();
+      renderDeviceList(); // 浮窗内就地刷新列表
     } catch (err) { showToast(err.message); }
   }});
 }
@@ -1027,7 +1036,73 @@ async function applyChsiGate(p) {
       <input type="text" class="form-input" id="chsi-code" placeholder="${escHtml(UI.CHSI_GATE_PLACEHOLDER)}" maxlength="16" inputmode="text" autocomplete="off">
       <button type="button" class="btn btn-sm code-send-btn glass glass--pressable" id="chsi-submit" onclick="submitChsiVerify()">${escHtml(UI.CHSI_GATE_SUBMIT)}</button>
     </div>
+    <button type="button" class="admission-switch-link" onclick="showAdmissionGate()">${escHtml(UI.ADMISSION_SWITCH_LINK)}</button>
   </div>`;
+}
+
+/** v1.4.16：大一新生录取通知书验证模式（学信网暑期未录入的替代通道） */
+function showAdmissionGate() {
+  const gate = document.getElementById('chsi-gate');
+  if (!gate) return;
+  gate.innerHTML = `<div class="chsi-gate-card glass">
+    <h3 class="chsi-gate-title">${escHtml(UI.ADMISSION_GATE_TITLE)}</h3>
+    <p class="chsi-gate-hint">${escHtml(UI.ADMISSION_SHOOT_HINT)}</p>
+    <p class="chsi-gate-privacy">${escHtml(UI.ADMISSION_PRIVACY_NOTE)}</p>
+    <div class="admission-upload-row">
+      <label class="btn btn-soft btn-sm glass glass--pressable" for="admission-image-input">${escHtml(UI.ADMISSION_UPLOAD_BTN)}</label>
+      <input type="file" id="admission-image-input" accept="image/jpeg,image/png,image/webp" class="sr-file-input" onchange="admissionImagePicked(this)">
+      <span class="admission-file-name text-muted" id="admission-file-name"></span>
+    </div>
+    <div class="admission-preview hidden" id="admission-preview"></div>
+    <button type="button" class="btn btn-sm code-send-btn glass glass--pressable" id="admission-submit" onclick="submitAdmissionVerify()">${escHtml(UI.ADMISSION_SUBMIT)}</button>
+    <button type="button" class="admission-switch-link" onclick="applyChsiGate()">${escHtml(UI.ADMISSION_GATE_BACK)}</button>
+  </div>`;
+}
+
+/** 录取通知书图片选择：本地预览（data URL 读入，不落地文件）；活引用先 spread 拷贝再清空 */
+function admissionImagePicked(input) {
+  const f = input && input.files && input.files[0];
+  const nameEl = document.getElementById('admission-file-name');
+  const preview = document.getElementById('admission-preview');
+  const submit = document.getElementById('admission-submit');
+  if (!f) return;
+  if (nameEl) nameEl.textContent = f.name;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const data = e.target.result;
+    // 大小预检（data URL 长度超 CREDENTIAL_MAX_BYTES 会 413/400——前端先拦）
+    if (String(data).length > (CONFIG.ADMISSION_IMG_MAX || 500000)) { showToast(UI.ADMISSION_IMAGE_TOO_LARGE, 'error'); input.value = ''; return; }
+    window.__admissionImage = data; // 提交时读取（input.files 是活引用，清空后不可再读）
+    if (preview) {
+      preview.classList.remove('hidden');
+      preview.innerHTML = `<img src="${escHtml(data)}" alt="录取通知书预览">`;
+    }
+  };
+  reader.readAsDataURL(f);
+}
+
+/** 提交录取通知书核验 */
+async function submitAdmissionVerify() {
+  const image = window.__admissionImage || '';
+  if (!image) { showToast(UI.ADMISSION_IMAGE_INVALID, 'error'); return; }
+  const btn = document.getElementById('admission-submit');
+  btnLoading(btn, UI.ADMISSION_VERIFYING);
+  try {
+    const r = await api('/api/teacher/verify-admission', { method: 'POST', body: { image } });
+    const gate = document.getElementById('chsi-gate');
+    if (gate && r.status === STATUS.PENDING) {
+      gate.innerHTML = `<div class="chsi-gate-card glass">
+        <h3 class="chsi-gate-title">${escHtml(UI.ADMISSION_GATE_TITLE)}</h3>
+        <p class="chsi-gate-pending">${escHtml(UI.ADMISSION_GATE_PENDING)}</p>
+      </div>`;
+    }
+    window.__admissionImage = '';
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    const b2 = document.getElementById('admission-submit');
+    if (b2) btnDone(b2, UI.ADMISSION_SUBMIT);
+  }
 }
 
 /** 提交学信网验证码核验 */

@@ -695,16 +695,19 @@ async function loadAdminVerifications() {
   try {
     const r = await api('/api/admin/verifications?status=' + encodeURIComponent(status));
     const list = r.verifications || [];
+    window.__verifList = list; // viewAdmissionImage 取原图（列表接口已解密 admission_image）
     if (!list.length) { el.innerHTML = `<p class="profile-empty">${escHtml(UI.VERIF_EMPTY)}</p>`; return; }
     el.innerHTML = list.map(v => `<div class="list-card glass verif-card" data-id="${v.id}">
       <div class="verif-head">
         <span class="verif-user">${escHtml(v.username || ('#' + v.user_id))}</span>
+        ${v.verify_type === 'admission' ? `<span class="tag tag-accent glass glass--solid">录取通知书</span>` : ''}
         ${v.status === STATUS.PENDING ? `<span class="tag tag-warn glass glass--solid">${escHtml(UI.VERIF_PENDING)}</span>`
           : v.status === STATUS.APPROVED ? `<span class="tag tag-ok glass glass--solid">${escHtml(UI.VERIF_APPROVED)}</span>`
           : `<span class="tag tag-danger glass glass--solid">${escHtml(UI.VERIF_REJECTED)}</span>`}
-        <span class="verif-code">${escHtml(v.verify_code)}</span>
+        <span class="verif-code">${v.verify_type === 'admission' ? escHtml(UI.VERIF_ADMISSION_NO_CODE) : escHtml(v.verify_code)}</span>
       </div>
       <div class="verif-meta">${fmtDateTime(v.created_at)}${v.verified_at ? ' · ' + fmtDateTime(v.verified_at) : ''}</div>
+      ${v.verify_type === 'admission' && v.admission_image ? `<div class="verif-admission-preview"><button type="button" class="btn btn-soft btn-xs glass glass--pressable" onclick="viewAdmissionImage(${v.id})">${escHtml(UI.VERIF_ADMISSION_VIEW_IMG)}</button></div>` : ''}
       ${v.status === STATUS.APPROVED ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>
         <div class="verif-actions"><button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="verifRevoke(${v.id})">${escHtml(UI.VERIF_REVOKE_BTN)}</button></div>` : ''}
       ${v.status === STATUS.PENDING ? renderVerifForm(v) : ''}
@@ -712,6 +715,19 @@ async function loadAdminVerifications() {
   } catch (err) {
     el.innerHTML = `<p class="profile-empty">${escHtml(err.message)}</p>`;
   }
+}
+
+/** v1.4.16：管理员查看录取通知书原图（大图浮窗；数据来自核验队列解密下发的 admission_image） */
+function viewAdmissionImage(id) {
+  const card = document.querySelector(`.verif-card[data-id="${id}"]`);
+  const v = window.__verifList && window.__verifList.find(x => x.id === id);
+  const img = v && v.admission_image;
+  if (!img) return;
+  openModal({
+    title: '录取通知书原图',
+    body: `<div class="image-viewer-body"><img src="${escHtml(img)}" alt="录取通知书" style="max-width:100%;max-height:70vh;border-radius:var(--lg-r,12px);"></div>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" onclick="closeModal()">${escHtml(UI.BTN_CLOSE)}</button>`,
+  });
 }
 
 function renderVerifForm(v) {

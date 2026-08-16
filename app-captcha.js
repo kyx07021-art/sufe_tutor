@@ -13,6 +13,8 @@
  *     背景绘制（drawImage 任意背景图 + 同源缺口块），接口签名不变。
  *   - 服务端图片化验证（后端生成答案/一次性 token/轨迹人机分析）属新功能待办，见 docs/backlog.md——
  *     当前前端自算答案，后端无 cutX 可独立校验，勿再写「切后端校验」死注释。
+ *   - ⚠️ v1.4.13 曾删除轨迹收集（_captchaTrack）与 captchaId——若做后端人机判定（见 backlog 拼图待办），
+ *     须按判定特征（时序 {t,x,y}/速度/停顿/抖动）重新设计恢复，勿直接从 git 历史捞旧格式。
  *
  * JS 只写 CSS 变量（--captcha-x 到共同祖先 .captcha-box，puzzle/fill/knob 全继承）与几何测量，
  * 滑块位移由 CSS transform 消费（合成器友好）。
@@ -28,7 +30,9 @@ const CAPTCHA_TOLERANCE = 0.08; // mock 验证器容差（归一化 ±8%）
 let _captchaOnPass = null;
 let _captchaTarget = 0;      // 缺口归一化位置（0~1，本地自算）——统一按 CAPTCHA_MAX_X 归一化
 let _captchaOffset = 0;      // 当前滑块归一化偏移（0~1，/CAPTCHA_MAX_X，与 target 同坐标系）
-let _captchaDrag = null;     // 拖拽中 { startClientX, startX }
+let _captchaDrag = null;     // 拖拽中 { startClientX, startX, startT }
+let _captchaTrack = [];      // 轨迹点 [{t,x,y}]（t=相对拖拽开始 ms，x/y=clientX/Y；v1.4.16 恢复供后端人机判定）
+let _captchaIdStr = '';      // 本次挑战唯一标识（每轮 paint 重生成；后端人机判定一次性防重放）
 let _captchaResetTimer = null; // 失败复位定时器（新拖拽即取消，防 420ms 复位打断在途拖拽）
 
 function _randHex() {
@@ -65,6 +69,26 @@ function openCaptchaModal({ title = UI.CAPTCHA_TITLE, onPass = null } = {}) {
 }
 
 /** 绘制背景（程序化渐变+噪点）与缺口；未来接动态图片只改此处背景绘制 */
+// 缺口形状（v1.4.16：正方形 → 多形状随机；外接框 40×40，R 为形状半径/半宽）
+const GAP_SHAPES = ['square', 'circle', 'triangle', 'diamond', 'pentagon'];
+
+/** 画缺口形状路径（以 (cx,cy) 为中心、r 为半径/半宽；fill 或 stroke 由调用方决定） */
+function drawGapShape(ctx, cx, cy, r, shape) {
+  ctx.beginPath();
+  if (shape === 'circle') { ctx.arc(cx, cy, r, 0, Math.PI * 2); }
+  else if (shape === 'square') { ctx.rect(cx - r, cy - r, r * 2, r * 2); }
+  else if (shape === 'triangle') { ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy + r); ctx.lineTo(cx - r, cy + r); ctx.closePath(); }
+  else if (shape === 'diamond') { ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath(); }
+  else { // pentagon（5 点正五边形）
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+      const px = cx + r * Math.cos(a), py = cy + r * Math.sin(a);
+      if (i) ctx.lineTo(px, py); else ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+  }
+}
+
 function paintCaptcha() {
   const cv = document.getElementById('captcha-canvas');
   if (!cv) return;
@@ -85,26 +109,55 @@ function paintCaptcha() {
   const gapMin = 16, gapMax = CAPTCHA_MAX_X - 24; // 左缘 16px / 右缘 24px 边距（行程内）
   _captchaTarget = (gapMin + Math.random() * (gapMax - gapMin)) / CAPTCHA_MAX_X;
   const cutX = _captchaTarget * CAPTCHA_MAX_X, cutY = (H - SLIDER_H) / 2;
-  // 拼图块：把缺口区域背景复制到 puzzle canvas，滑块位移经 CSS 同源 --captcha-x 驱动
-  // translateX 跟随（合成器只读，零重绘）。--captcha-x 由共同祖先 .captcha-box 提供（模板初始化 0px），
-  // puzzle 经继承跟随——禁止在 puzzle 自身 inline 设位移（inline 覆盖继承值，拼图块永远停原位）。
+  // v1.4.16：缺口形状随机（多形状）；背景另画 2 个无效空缺（形状/高度不同）作干扰——拼图块只匹配有效缺口
+  const shape = GAP_SHAPES[Math.floor(Math.random() * GAP_SHAPES.length)];
+  const R = SLIDER_W / 2 - 4; // 形状半径（40 框内留边，圆/多边形不触框）
+  _captchaIdStr = _captchaId(); // 每轮挑战唯一 id（后端人机判定一次性防重放）
+  // 拼图块：矩形复制背景缺口区 → destination-in 按形状保留（非矩形块 = 背景原位裁剪成形状）
   const pz = document.getElementById('captcha-puzzle');
   if (pz) {
     const pctx = pz.getContext('2d');
     pctx.clearRect(0, 0, SLIDER_W, SLIDER_H);
     pctx.drawImage(cv, cutX, cutY, SLIDER_W, SLIDER_H, 0, 0, SLIDER_W, SLIDER_H);
+    pctx.save();
+    pctx.globalCompositeOperation = 'destination-in'; // 只保留形状内像素（背景原位裁剪）
+    drawGapShape(pctx, SLIDER_W / 2, SLIDER_H / 2, R, shape);
+    pctx.restore();
   }
-  // 缺口：destination-out 抠出 + 白描边可见
+  // 背景有效缺口：destination-out 抠出形状 + 白描边可见
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';
   ctx.fillStyle = 'rgba(0,0,0,1)';
-  ctx.fillRect(cutX, cutY, SLIDER_W, SLIDER_H);
+  drawGapShape(ctx, cutX + SLIDER_W / 2, cutY + SLIDER_H / 2, R, shape);
   ctx.restore();
   ctx.strokeStyle = 'rgba(255,255,255,.85)';
   ctx.lineWidth = 2;
-  ctx.strokeRect(cutX + 1, cutY + 1, SLIDER_W - 2, SLIDER_H - 2);
-  // 复位滑块
-  _captchaOffset = 0;
+  drawGapShape(ctx, cutX + SLIDER_W / 2, cutY + SLIDER_H / 2, R, shape);
+  ctx.stroke();
+  // 无效空缺 ×2（干扰）：形状与有效缺口不同（或高度偏移），位置避开有效缺口与彼此
+  const fakeShapes = GAP_SHAPES.filter(s => s !== shape);
+  const fakes = [];
+  for (let i = 0; i < 2; i++) {
+    let fx = 0, fy = 0, tries = 0;
+    do {
+      fx = 24 + Math.random() * (W - 64);
+      fy = 10 + Math.random() * (H - 46); // 高度可变（不与有效缺口同行，增加"合不上"感）
+      tries++;
+    } while (tries < 20 && (Math.abs(fx - cutX) < 80 || fakes.some(f => Math.abs(f.x - fx) < 60)));
+    fakes.push({ x: fx, y: fy });
+    const fs = fakeShapes[i % fakeShapes.length];
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillStyle = 'rgba(0,0,0,1)';
+    drawGapShape(ctx, fx + SLIDER_W / 2, fy + SLIDER_H / 2, R, fs);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255,255,255,.85)';
+    ctx.lineWidth = 2;
+    drawGapShape(ctx, fx + SLIDER_W / 2, fy + SLIDER_H / 2, R, fs);
+    ctx.stroke();
+  }
+  // 复位滑块与轨迹
+  _captchaOffset = 0; _captchaTrack = [];
   const track = document.getElementById('captcha-track');
   const box = document.getElementById('captcha-box') || track;
   box.style.setProperty('--captcha-x', '0px');
@@ -121,7 +174,8 @@ function bindCaptchaDrag() {
   const down = (e) => {
     if (knob.classList.contains('captcha--pass')) return;
     if (_captchaResetTimer) { clearTimeout(_captchaResetTimer); _captchaResetTimer = null; } // 失败复位在途：新拖拽即取消，防复位打断（B2 卡死修复）
-    _captchaDrag = { startClientX: e.clientX, startX: _captchaOffset * max };
+    _captchaDrag = { startClientX: e.clientX, startX: _captchaOffset * max, startT: Date.now() };
+    _captchaTrack = []; // 新一轮拖拽清空轨迹（人机判定只取本次拖拽）
     knob.setPointerCapture(e.pointerId);
     track.classList.add('captcha--dragging');
   };
@@ -130,6 +184,8 @@ function bindCaptchaDrag() {
     const next = Math.max(0, Math.min(max, _captchaDrag.startX + (e.clientX - _captchaDrag.startClientX)));
     _captchaOffset = next / max;
     box.style.setProperty('--captcha-x', `${next}px`);
+    // 轨迹收集（v1.4.16 后端人机判定）：时序点，cap 128 防刷屏
+    if (_captchaTrack.length < 128) _captchaTrack.push({ t: Date.now() - _captchaDrag.startT, x: e.clientX, y: e.clientY });
   };
   const up = () => {
     if (!_captchaDrag) return;
@@ -151,6 +207,16 @@ async function verifyCaptcha() {
   if (!track || !tip || !knob) return;
   const diff = Math.abs(_captchaOffset - _captchaTarget);
   if (diff <= CAPTCHA_TOLERANCE) {
+    // v1.4.16 后端人机判定：本地比对（答案对准）通过后，提交轨迹给 /api/captcha/verify 做人机特征判定；
+    // 判定拒绝 → 走失败路径（抖动+重滚新题）；判定服务不可达 → fail-open 放行（captcha 是叠加防线，
+    // 服务端 rate_limits 兜底；机器轨迹本就被判定模块拦，网络抖动不阻塞真实用户）
+    try {
+      const r = await api('/api/captcha/verify', {
+        method: 'POST',
+        body: { captchaId: _captchaIdStr, offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack },
+      });
+      if (!r || !r.ok) { failCaptcha(track, tip, knob); return; }
+    } catch (e) { /* 判定服务不可达 fail-open：不因网络抖动卡住真实用户 */ }
     knob.classList.add('captcha--pass');
     tip.textContent = UI.CAPTCHA_PASS;
     tip.classList.remove('captcha-tip--fail');
@@ -163,7 +229,13 @@ async function verifyCaptcha() {
     }, 260);
     return;
   }
-  // 失败：抖动 + 复位 + 重滚缺口（B2：失败不再卡在同一个难位——paintCaptcha 每轮新缺口 + 复位旋钮/轨迹）
+  // 本地比对未对准 / 后端人机判定拒绝 → 统一失败路径（抖动 + 复位 + 重滚缺口，
+  // B2：失败不再卡在同一个难位——paintCaptcha 每轮新缺口 + 复位旋钮/轨迹）
+  failCaptcha(track, tip, knob);
+}
+
+/** 验证失败统一收尾：抖动 + 复位 + 重滚新缺口（人机判定拒绝与本地比对失败共用） */
+function failCaptcha(track, tip, knob) {
   knob.classList.add('captcha--fail');
   track.classList.add('captcha--shake');
   tip.textContent = UI.CAPTCHA_FAIL;
@@ -179,6 +251,12 @@ async function verifyCaptcha() {
     knob.classList.remove('captcha--fail');
     track.classList.remove('captcha--shake');
   }, 420);
+}
+
+function _captchaId() {
+  const b = new Uint8Array(16);
+  crypto.getRandomValues(b);
+  return Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
 }
 
 // C2 敏感操作门禁 withCaptcha 已下沉到 app-ui.js（boot 共享层：登录/注册/签约/合同等各领域调用，

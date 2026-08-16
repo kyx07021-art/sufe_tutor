@@ -481,6 +481,8 @@ async function runFullMigration(db, env) {
       school TEXT DEFAULT '', level TEXT DEFAULT '', major TEXT DEFAULT '',
       enrollment_status TEXT DEFAULT '', enroll_year TEXT DEFAULT '',
       provider TEXT NOT NULL DEFAULT 'mock',
+      verify_type TEXT NOT NULL DEFAULT 'chsi',  -- v1.4.16：'chsi' 学信网验证码 | 'admission' 大一新生录取通知书（人工核验）
+      admission_image TEXT DEFAULT '',          -- v1.4.16：录取通知书图片（加密 data URL，仅 admission 类型使用）
       verified_by INTEGER DEFAULT NULL, verified_at DATETIME DEFAULT NULL,
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -611,6 +613,7 @@ async function runFullMigration(db, env) {
   await ensureColumns(db, 'messages', [['name', "TEXT NOT NULL DEFAULT ''"], ['thumb', "TEXT NOT NULL DEFAULT ''"]]); // 图片缩略图列
   await ensureColumns(db, 'complaints', [['attachments', "TEXT NOT NULL DEFAULT '[]'"]]); // U11：投诉附件 JSON（从 uploads 暂存复制，密文原样）
   await ensureColumns(db, 'uploads', [['thumb', "TEXT NOT NULL DEFAULT ''"]]);
+  await ensureColumns(db, 'teacher_verifications', [['verify_type', "TEXT NOT NULL DEFAULT 'chsi'"], ['admission_image', "TEXT DEFAULT ''"]]); // v1.4.16：录取通知书验证（大一新生）
   await ensureColumns(db, 'teacher_profiles', [['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
     ['school', "TEXT DEFAULT ''"], ['real_name', "TEXT DEFAULT ''"], ['credential_image', "TEXT DEFAULT ''"],
     ['verified', 'INTEGER NOT NULL DEFAULT 0'], // 学籍认证（运营建议：管理员审核学信网截图后置 1，前端显示「已认证」徽章）
@@ -2127,16 +2130,19 @@ export async function dbGetTeacherVerification(db, userId) {
  *  安全审计 M1：verify_code 加密落库（学信网报告访问凭证，同 wechat/email 口径）——库泄露不暴露明文。 */
 export async function dbUpsertTeacherVerification(db, v) {
   const verifyCode = await encryptField(String(v.verifyCode || ''));
+  const admissionImage = v.admissionImage ? await encryptField(String(v.admissionImage)) : '';
   await dbRun(db, `INSERT INTO teacher_verifications
-      (user_id, verify_code, status, school, level, major, enrollment_status, enroll_year, provider, verified_by, verified_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+      (user_id, verify_code, status, school, level, major, enrollment_status, enroll_year, provider, verify_type, admission_image, verified_by, verified_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET
       verify_code=excluded.verify_code, status=excluded.status,
       school=excluded.school, level=excluded.level, major=excluded.major,
       enrollment_status=excluded.enrollment_status, enroll_year=excluded.enroll_year,
-      provider=excluded.provider, verified_by=excluded.verified_by, verified_at=excluded.verified_at`,
+      provider=excluded.provider, verify_type=excluded.verify_type, admission_image=excluded.admission_image,
+      verified_by=excluded.verified_by, verified_at=excluded.verified_at`,
     [v.userId, verifyCode, v.status, v.school || '', v.level || '', v.major || '',
-     v.enrollmentStatus || '', v.enrollYear || '', v.provider || 'mock', v.verifiedBy || null, v.verifiedAt || null]);
+     v.enrollmentStatus || '', v.enrollYear || '', v.provider || 'mock', v.verifyType || 'chsi', admissionImage,
+     v.verifiedBy || null, v.verifiedAt || null]);
 }
 
 /** 安全审计 H2：撤销接单资格（reject/revoke）——清空学信网字段与展示（chsi_verified=0、chsi_* 清空、
@@ -2168,8 +2174,13 @@ export async function dbListTeacherVerifications(db, status) {
   const rows = await dbAll(db, `SELECT v.*, u.username FROM teacher_verifications v
       JOIN users u ON u.id=v.user_id${where} ORDER BY v.created_at DESC`, args);
   // 安全审计 M1：verify_code 加密落库，管理端列表解密（管理员核验需明文查证，同 wechat 管理端解密口径）。
+  // v1.4.16：admission_image（录取通知书）同样加密，管理端列表解密供预览。
   // map 返回新对象（不改原 row——D1 返回行可能只读，ESM 严格模式赋值抛 TypeError → 列表 500 生产实证）
-  return Promise.all(rows.map(async r => ({ ...r, verify_code: (await decryptField(r.verify_code)) || '' })));
+  return Promise.all(rows.map(async r => ({
+    ...r,
+    verify_code: (await decryptField(r.verify_code)) || '',
+    admission_image: r.admission_image ? (await decryptField(r.admission_image)) || '' : '',
+  })));
 }
 
 // v1.2.0 T6：管理员按 id 查核验记录

@@ -360,10 +360,10 @@ export async function handleVerificationAction(db, id, body, req) {
       school, level, major, enrollmentStatus, enrollYear, verifiedBy: admin.id, verifiedAt: now,
     });
     await dbApplyChsiToProfile(db, v.user_id, { school, level, major, enrollmentStatus, enrollYear });
-    const text = `${globalThis.APP_CONSTANTS.UI.CHSI_NOTIFY_APPROVED}\n${globalThis.APP_CONSTANTS.UI.CHSI_NOTIFY_DETAIL}${school} · ${level}${major ? ' · ' + major : ''}`;
+    const text = `${globalThis.APP_CONSTANTS.UI[v.verify_type === 'admission' ? 'ADMISSION_NOTIFY_APPROVED' : 'CHSI_NOTIFY_APPROVED']}\n${globalThis.APP_CONSTANTS.UI.CHSI_NOTIFY_DETAIL}${school} · ${level}${major ? ' · ' + major : ''}`;
     await notifyUser(db, v.user_id, text);
     await logEvent(db, { action: 'admin.chsi.approve', actorUserId: admin.id, actorUsername: admin.username,
-      actorRole: 'admin', entity: 'user', entityId: v.user_id, detail: { school, level, major }, req });
+      actorRole: 'admin', entity: 'user', entityId: v.user_id, detail: { school, level, major, verifyType: v.verify_type }, req });
     return json({ ok: true });
   }
   if (action === 'reject' || action === 'revoke') {

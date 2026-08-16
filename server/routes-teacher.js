@@ -68,6 +68,26 @@ export async function handleVerifyChsi(db, body, req) {
   return json({ ok: true, status: 'pending', provider: v.provider });
 }
 
+// v1.4.16 大一新生录取通知书验证（学信网大一生未录入时的替代通道）：
+// 教师上传录取通知书整页照片 → 加密落库 → 进管理员核验队列（与学信网同一收口，管理员人工核对后开放接单资格）
+export async function handleVerifyAdmission(db, body, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  if (me.role !== 'teacher') return error(MSG.NO_PERMISSION, 403);
+  const image = String((body && body.image) || '').trim();
+  // 图片校验：data URL 非空、非 svg（网安全站拒 svg）、大小上限（同学信网截图 CREDENTIAL_MAX_BYTES）
+  if (!image.startsWith('data:image/')) return error(MSG.ADMISSION_IMAGE_INVALID);
+  if (image.startsWith('data:image/svg')) return error(MSG.ADMISSION_IMAGE_INVALID);
+  if (image.length > LIMITS.CREDENTIAL_MAX_BYTES) return error(MSG.ADMISSION_IMAGE_TOO_LARGE);
+  await dbUpsertTeacherVerification(db, {
+    userId: me.id, verifyCode: '', status: 'pending', provider: 'manual',
+    verifyType: 'admission', admissionImage: image,
+  });
+  await logEvent(db, { action: 'teacher.admission.submit', actorUserId: me.id, actorUsername: me.username,
+    actorRole: 'teacher', entity: 'user', entityId: me.id, detail: { status: 'pending', imageBytes: image.length }, req });
+  return json({ ok: true, status: 'pending', verifyType: 'admission' });
+}
+
 
 // ?userId= 缺省 = 本人（编辑预填）；传他人 id：
 //   未匹配 → 403（面板数据源是列表接口，不应走到这里）

@@ -75,6 +75,7 @@ test('openCaptchaModal：独立验证浮窗（canvas/轨道/滑块/提示）+ �
     createLinearGradient: () => ({ addColorStop: () => {} }),
     fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
     globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
+    beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {}, arc: () => {}, rect: () => {}, stroke: () => {},
     clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
@@ -101,6 +102,7 @@ test('B4 拼图交互：拖拽更新 --captcha-x + 命中缺口验证通过 + �
     createLinearGradient: () => ({ addColorStop: () => {} }),
     fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
     globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
+    beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {}, arc: () => {}, rect: () => {}, stroke: () => {},
     clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
@@ -143,7 +145,8 @@ test('B2 全域可达 + 右半缺口对齐即过：gap 边缘落在行程内，�
   const dom = new JSDOM('<html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/', runScripts: 'dangerously' });
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({
     createLinearGradient: () => ({ addColorStop: () => {} }), fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
-    globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '', clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
+    globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
+    beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {}, arc: () => {}, rect: () => {}, stroke: () => {}, clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
   load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
@@ -166,7 +169,8 @@ test('B2 失败重滚缺口：拖偏失败后目标重滚（新挑战）+ 旋钮
   const dom = new JSDOM('<html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/', runScripts: 'dangerously' });
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({
     createLinearGradient: () => ({ addColorStop: () => {} }), fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
-    globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '', clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
+    globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
+    beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {}, arc: () => {}, rect: () => {}, stroke: () => {}, clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);
   load(ctx, ['constants.js', 'app-display.js', 'app-state.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js']);
@@ -189,6 +193,7 @@ test('withCaptcha：存在并经 openCaptchaModal 拦截 action（生产门禁�
     createLinearGradient: () => ({ addColorStop: () => {} }),
     fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
     globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
+    beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {}, arc: () => {}, rect: () => {}, stroke: () => {},
     clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   const ctx = bootCtx(dom);

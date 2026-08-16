@@ -15,7 +15,7 @@ import { rateGate, corsPreflight, applySecurityHeaders } from './server/security
 import { initLogDb, bindLogDb, logRequest } from './server/log.js';
 import { bindTextAuditEnv } from './server/text-audit.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth, handleOtpRequest, handleBindPhone, handleBindEmail, handleUsernameStatus, handleChangeUsername, handleLoginWithCode, handleGetMyCreds, handleCheckInvite } from './server/routes-auth.js';
-import { handleGetProfile, handleSaveProfile, handleGetTeachers, handleVerifyChsi, handleChsiStatus } from './server/routes-teacher.js';
+import { handleGetProfile, handleSaveProfile, handleGetTeachers, handleVerifyChsi, handleChsiStatus, handleVerifyAdmission } from './server/routes-teacher.js';
 import { handleGetPrivacySettings, handleSetPrivacySettings } from './server/routes-settings.js';
 import {
   handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand, handleReopenDemand,
@@ -23,6 +23,7 @@ import {
   handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from './server/routes-demands.js';
 import { handleGetNotifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleAdminDeleteNotification } from './server/notify.js';
+import { handleCaptchaVerify } from './server/human-check.js';
 import {
   handleCreateContract, handleGetMyContracts,
   handleSignContract, handleModifyContract, handleCancelContract,
@@ -195,6 +196,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   if (p === '/api/teacher/profile' && method === 'GET') return await handleGetProfile(db, url, req);
   if (p === '/api/teacher/profile' && method === 'POST') return await handleSaveProfile(db, body, req);
   if (p === '/api/teacher/verify-chsi' && method === 'POST') return await handleVerifyChsi(db, body, req); // v1.2.0 T3：学信网验证码核验
+  if (p === '/api/teacher/verify-admission' && method === 'POST') return await handleVerifyAdmission(db, body, req); // v1.4.16：大一新生录取通知书验证
   if (p === '/api/teacher/verify-status' && method === 'GET') return await handleChsiStatus(db, req); // v1.2.0 T5：核验状态
   if (p === '/api/teachers' && method === 'GET') return await handleGetTeachers(db, req);
 
@@ -311,6 +313,9 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
 
   // 数据版本戳（v0.23.0 静默数据层）：客户端 8s 轮询探测；廉价单表读，无需鉴权（计数器无敏感性）
   if (p === '/api/data-version' && method === 'GET') return await handleGetDataVersion(db);
+
+  // v1.4.16 拼图验证码人机判定（无需鉴权，前端本地比对通过后提交轨迹；限流兜底防刷）
+  if (p === '/api/captcha/verify' && method === 'POST') return await handleCaptchaVerify(db, body, req);
 
   return error('Not Found', 404);
 }

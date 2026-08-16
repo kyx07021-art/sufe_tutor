@@ -12,7 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
 import { tokenDigest } from '../server/crypto.js';
 import { handleRegister } from '../server/routes-auth.js';
-import { handleVerifyChsi, handleChsiStatus, acceptEligibility } from '../server/routes-teacher.js';
+import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmission } from '../server/routes-teacher.js';
 import { handleCreateIntent } from '../server/routes-demands.js';
 import { handleVerificationAction } from '../server/routes-admin.js';
 import { handleLogin } from '../server/routes-auth.js';
@@ -150,4 +150,36 @@ test('管理端核验状态机与撤销：pending→approve 结构化录入；re
   // 非法动作 400
   const bad = await handleVerificationAction(db, v.id, { action: 'hack' }, reqOf(adminToken));
   assert.equal(bad.status, 400);
+});
+
+// v1.4.16 大一新生录取通知书验证（学信网暑期未录入的替代通道）：
+// 教师上传通知书图片 → pending 进管理员队列（verify_type='admission'）；svg/超限拒绝
+test('v1.4.16 录取通知书提交：pending 进队列 + svg/超限拒绝', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const token = await regTeacher(db, raw, 'adm1', '+8613999990001');
+  // 合法图片（png data URL）
+  const img = 'data:image/png;base64,' + 'A'.repeat(100);
+  let r = await handleVerifyAdmission(db, { image: img }, reqOf(token));
+  assert.equal(r.status, 200, '录取通知书提交成功');
+  const d = await r.json();
+  assert.equal(d.verifyType, 'admission');
+  assert.equal(d.status, 'pending', '进管理员核验队列');
+  const row = raw.prepare('SELECT verify_type, status FROM teacher_verifications WHERE user_id=?').get(raw.prepare("SELECT id FROM users WHERE username='adm1'").get().id);
+  assert.equal(row.verify_type, 'admission');
+  assert.equal(row.status, 'pending');
+  // svg 拒绝
+  r = await handleVerifyAdmission(db, { image: 'data:image/svg+xml;base64,xxx' }, reqOf(token));
+  assert.equal(r.status, 400, 'svg 拒收');
+  // 超限拒绝（> CREDENTIAL_MAX_BYTES）
+  const huge = 'data:image/png;base64,' + 'A'.repeat(600000);
+  r = await handleVerifyAdmission(db, { image: huge }, reqOf(token));
+  assert.equal(r.status, 400, '超限拒收');
+  // 非教师角色拒绝
+  raw.exec("INSERT INTO users (username,password_hash,salt,role) VALUES ('stu1','h','s','student')");
+  const stuId = raw.prepare("SELECT id FROM users WHERE username='stu1'").get().id;
+  const st = 'stu1-token';
+  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)').run(await tokenDigest(st), stuId, 'x', '2099-01-01 00:00:00');
+  r = await handleVerifyAdmission(db, { image: img }, reqOf(st));
+  assert.equal(r.status, 403, '学生角色拒绝');
 });
