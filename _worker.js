@@ -113,219 +113,33 @@ async function serveHtml(request, env, p, res) {
   return applySecurityHeaders(new Response(out, { status: 200, headers }), p);
 }
 
-// API 分发：纯路由，无副作用（留档在 fetch 层统一包裹）。
-// :id 路径统一经 idMatch 抽取（正则只写一次，杜绝 approve/reject 双 match 旧写法）
-function idMatch(p, pattern) {
-  const m = p.match(pattern);
-  return m ? parseInt(m[1], 10) : null;
-}
+// API 分发：声明式路由表（架构 v2）。批量只读/健康检查/保活为编排层特殊路由。
+import { createRouter } from './src/server/router.js';
+import { routes as apiRoutes } from './src/server/app.js';
 
-export async function routeApi(db, p, method, body, url, req, env) { // 导出供测试穿透路由接线（2026-08-09 审计：曾因 idMatch 下标残留致单条已读恒 400 而单测未覆盖）
-  // 认证
-  if (p === '/api/auth/register' && method === 'POST') return await handleRegister(db, body, req);
-  if (p === '/api/auth/login' && method === 'POST') return await handleLogin(db, body, req);
-  if (p === '/api/auth/check' && method === 'GET') return await handleCheckUsername(db, url);
-  if (p === '/api/auth/me' && method === 'GET') return await handleAuthMe(db, req);
-  if (p === '/api/auth/re-auth' && method === 'POST') return await handleReAuth(db, body, req);
-  // v0.26.0 验证码/凭证（A3/A5/A6/A7）
-  if (p === '/api/auth/otp/request' && method === 'POST') return await handleOtpRequest(db, body, req);
-  if (p === '/api/auth/phone/bind' && method === 'POST') return await handleBindPhone(db, body, req);
-  if (p === '/api/auth/email/bind' && method === 'POST') return await handleBindEmail(db, body, req);
-  if (p === '/api/auth/login/code' && method === 'POST') return await handleLoginWithCode(db, body, req);
-  if (p === '/api/user/username' && method === 'POST') return await handleChangeUsername(db, body, req);
-  if (p === '/api/user/username/status' && method === 'GET') return await handleUsernameStatus(db, req);
-  if (p === '/api/user/creds' && method === 'GET') return await handleGetMyCreds(db, req);
-  if (p === '/api/auth/check-invite' && method === 'POST') return await handleCheckInvite(db, body); // v1.2.0 T5：教师注册第一步邀请码预校验（只验证不消费）
-  if (p === '/api/auth/logout' && method === 'POST') return await handleLogout(db, req);
-  if (p === '/api/auth/sessions' && method === 'GET') return await handleListSessions(db, req);
-  if (p === '/api/auth/sessions/revoke' && method === 'POST') return await handleRevokeSession(db, body, req);
-  if (p === '/api/user/avatar' && method === 'POST') return await handleSaveAvatar(db, body, req);
-  if (p === '/api/user/deactivate' && method === 'POST') return await handleDeactivateAccount(db, body, req);
-  const userPublic = idMatch(p, /^\/api\/users\/(\d+)$/);
-  if (userPublic && method === 'GET') return await handleGetUserPublic(db, userPublic);
-
-  // 管理员
-  if (p === '/api/admin/invite' && method === 'POST') return await handleGenInvite(db, body, req);
-  if (p === '/api/admin/invites' && method === 'GET') return await handleListInvites(db, req); // v1.2.0 T4：邀请码管理列表
-  const inviteRevoke = idMatch(p, /^\/api\/admin\/invites\/([A-Za-z0-9]+)$/);
-  if (inviteRevoke && method === 'DELETE') return await handleRevokeInvite(db, inviteRevoke, req); // v1.2.0 T4：作废未用码
-  if (p === '/api/admin/verifications' && method === 'GET') return await handleListVerifications(db, url, req); // v1.2.0 T6：学信网核验队列
-  const verifAction = idMatch(p, /^\/api\/admin\/verifications\/(\d+)\/action$/);
-  if (verifAction && method === 'POST') return await handleVerificationAction(db, verifAction, body, req); // v1.2.0 T6：通过/拒绝+结构化录入
-  if (p === '/api/admin/stats' && method === 'GET') return await handleAdminStats(db, url, req);
-  if (p === '/api/admin/dashboard' && method === 'GET') return await handleAdminDashboard(db, url, req); // v1.5.0 观测面板聚合端点
-  if (p === '/api/admin/traffic' && method === 'GET') return await handleAdminTraffic(db, url, req);
-  if (p === '/api/admin/reviews' && method === 'GET') return await handleAdminReviews(db, url, req);
-  if (p === '/api/admin/logs' && method === 'GET') return await handleAdminLogs(db, url, req);
-  const logDecrypt = idMatch(p, /^\/api\/admin\/logs\/(\d+)\/decrypt$/);
-  if (logDecrypt && method === 'GET') return await handleAdminDecryptLog(db, logDecrypt, req);
-  const reviewApprove = idMatch(p, /^\/api\/admin\/reviews\/(\d+)\/approve$/);
-  if (reviewApprove && method === 'POST') return await handleReviewAction(db, reviewApprove, 'approve', body, req);
-  const reviewReject = idMatch(p, /^\/api\/admin\/reviews\/(\d+)\/reject$/);
-  if (reviewReject && method === 'POST') return await handleReviewAction(db, reviewReject, 'reject', body, req);
-  if (p === '/api/admin/users' && method === 'GET') return await handleAdminUsers(db, url, req);
-  if (p === '/api/admin/demands' && method === 'GET') return await handleAdminDemands(db, url, req);
-  if (p === '/api/admin/contracts' && method === 'GET') return await handleAdminListContracts(db, url, req);
-  const adminContractById = idMatch(p, /^\/api\/admin\/contracts\/(\d+)$/);
-  if (adminContractById && method === 'DELETE') return await handleAdminRemoveContract(db, adminContractById, body, req);
-  if (p === '/api/feedbacks' && method === 'POST') return await handleCreateFeedback(db, body, req);
-  if (p === '/api/feedbacks/mine' && method === 'GET') return await handleMyFeedbacks(db, req); // #165：我的反馈/投诉
-  if (p === '/api/feedbacks' && method === 'GET') return await handleAdminFeedbacks(db, url, req);
-  const feedbackResolve = idMatch(p, /^\/api\/feedbacks\/(\d+)\/resolve$/);
-  if (feedbackResolve && method === 'POST') return await handleResolveFeedback(db, feedbackResolve, body, req);
-  // R22：投诉独立通道（与反馈分表分通道；候选搜索/最近交互/我的投诉/管理员处理）
-  if (p === '/api/complaints' && method === 'POST') return await handleCreateComplaint(db, body, req);
-  if (p === '/api/complaints/mine' && method === 'GET') return await handleMyComplaints(db, req);
-  if (p === '/api/complaints/candidates' && method === 'GET') return await handleComplaintCandidates(db, url, req);
-  if (p === '/api/complaints/recent' && method === 'GET') return await handleComplaintRecent(db, url, req);
-  if (p === '/api/complaints' && method === 'GET') return await handleAdminComplaints(db, url, req);
-  const complaintResolve = idMatch(p, /^\/api\/complaints\/(\d+)\/resolve$/);
-  if (complaintResolve && method === 'POST') return await handleResolveComplaint(db, complaintResolve, req);
-  const complaintAttach = idMatch(p, /^\/api\/complaints\/(\d+)\/attachment$/); // U11：投诉附件懒加载
-  if (complaintAttach && method === 'GET') return await handleComplaintAttachment(db, complaintAttach, url, req);
-  const userBan = idMatch(p, /^\/api\/admin\/users\/(\d+)\/ban$/);
-  if (userBan && method === 'POST') return await handleBanUser(db, userBan, body, req);
-  const teacherVerify = idMatch(p, /^\/api\/admin\/teachers\/(\d+)\/verify$/);
-  if (teacherVerify && method === 'POST') return await handleVerifyTeacher(db, teacherVerify, body, req);
-  const adminDemand = idMatch(p, /^\/api\/admin\/demands\/(\d+)$/);
-  if (adminDemand && method === 'DELETE') return await handleAdminDeleteDemand(db, adminDemand, body, req);
-  const adminReviewById = idMatch(p, /^\/api\/admin\/reviews\/(\d+)$/);
-  if (adminReviewById && method === 'DELETE') return await handleAdminDeleteReview(db, adminReviewById, body, req);
-  const adminMessageById = idMatch(p, /^\/api\/admin\/messages\/(\d+)$/);
-  if (adminMessageById && method === 'DELETE') return await handleAdminDeleteMessage(db, adminMessageById, body, req);
-
-  // 教师
-  if (p === '/api/privacy-settings' && method === 'GET') return await handleGetPrivacySettings(db, req);
-  if (p === '/api/privacy-settings' && method === 'POST') return await handleSetPrivacySettings(db, body, req);
-  if (p === '/api/teacher/profile' && method === 'GET') return await handleGetProfile(db, url, req);
-  if (p === '/api/teacher/profile' && method === 'POST') return await handleSaveProfile(db, body, req);
-  if (p === '/api/teacher/verify-chsi' && method === 'POST') return await handleVerifyChsi(db, body, req); // v1.2.0 T3：学信网验证码核验
-  if (p === '/api/teacher/verify-admission' && method === 'POST') return await handleVerifyAdmission(db, body, req); // v1.4.16：大一新生录取通知书验证
-  if (p === '/api/teacher/verify-status' && method === 'GET') return await handleChsiStatus(db, req); // v1.2.0 T5：核验状态
-  if (p === '/api/teachers' && method === 'GET') return await handleGetTeachers(db, req);
-
-  // 学生需求
-  if (p === '/api/student/demands' && method === 'POST') return await handleCreateDemand(db, body, req);
-  if (p === '/api/student/demands' && method === 'GET') return await handleGetDemands(db, url, req);
-  const demandById = idMatch(p, /^\/api\/student\/demands\/(\d+)$/);
-  if (demandById && method === 'PUT') return await handleUpdateDemand(db, demandById, body, req);
-  if (demandById && method === 'DELETE') return await handleDeleteDemand(db, demandById, body, req);
-  const demandReopen = idMatch(p, /^\/api\/student\/demands\/(\d+)\/reopen$/);
-  if (demandReopen && method === 'POST') return await handleReopenDemand(db, demandReopen, body, req);
-
-  // 需求意向
-  const intentMatch = idMatch(p, /^\/api\/demands\/(\d+)\/intents$/);
-  if (intentMatch && method === 'POST') return await handleCreateIntent(db, intentMatch, body, req);
-  if (intentMatch && method === 'GET') return await handleGetIntents(db, intentMatch, req);
-  const intentResolve = idMatch(p, /^\/api\/intents\/(\d+)\/resolve$/);
-  if (intentResolve && method === 'POST') return await handleResolveIntent(db, intentResolve, body, req);
-
-  // 需求主动推送（学生 → 教师）+ 教师处理推送
-  if (p === '/api/demand-pushes' && method === 'POST') return await handlePushDemand(db, body, req);
-  if (p === '/api/demand-pushes' && method === 'GET') return await handleGetTeacherPushes(db, url, req);
-  const pushResolve = idMatch(p, /^\/api\/demand-pushes\/(\d+)\/resolve$/);
-  if (pushResolve && method === 'POST') return await handleResolvePush(db, pushResolve, body, req);
-
-  // 通知信息（全角色侧边栏模块）
-  if (p === '/api/notifications' && method === 'GET') return await handleGetNotifications(db, req);
-  if (p === '/api/notifications/read-all' && method === 'POST') return await handleMarkAllNotificationsRead(db, req); // 2026-08-09 反馈：离开通知页批量已读
-  const notifRead = idMatch(p, /^\/api\/notifications\/(\d+)\/read$/); // #151 单条已读（取代批量全读）
-  if (notifRead && method === 'POST') return await handleMarkNotificationRead(db, notifRead, req); // 2026-08-09 审计：#151 曾误传 notifRead[1]（idMatch 已返回数字，取下标恒 undefined → 恒 400，单条已读线上失效）
-  if (p === '/api/notifications/broadcast' && method === 'POST') return await handleAdminBroadcast(db, body, req);
-  if (p === '/api/admin/reencrypt' && method === 'POST') return await handleAdminReencrypt(db, body, req, env); // v1.5.0 密钥轮换（capToken 二次认证）
-  const notifDelete = idMatch(p, /^\/api\/admin\/notifications\/(\d+)$/);
-  if (notifDelete && method === 'DELETE') return await handleAdminDeleteNotification(db, notifDelete, req);
-
-  // 合同（起草 → 确认签约 → signed）
-  if (p === '/api/contracts' && method === 'POST') return await handleCreateContract(db, body, req);
-  if (p === '/api/contracts/my' && method === 'GET') return await handleGetMyContracts(db, url, req);
-  const contractSign = idMatch(p, /^\/api\/contracts\/(\d+)\/sign$/);
-  if (contractSign && method === 'POST') return await handleSignContract(db, contractSign, body, req);
-  const contractVerify = idMatch(p, /^\/api\/contracts\/(\d+)\/verify$/);
-  if (contractVerify && method === 'GET') return await handleVerifyContract(db, contractVerify, req);
-  const contractRevoke = idMatch(p, /^\/api\/contracts\/(\d+)\/revoke$/);
-  if (contractRevoke && method === 'POST') return await handleRevokeContract(db, contractRevoke, body, req);
-  const contractById = idMatch(p, /^\/api\/contracts\/(\d+)$/);
-  if (contractById && method === 'PUT') return await handleModifyContract(db, contractById, body, req);
-  if (contractById && method === 'DELETE') return await handleCancelContract(db, contractById, body, req);
-
-  // 发起签约（v0.24.0 极简签约流：加号栏「发起签约」→ 会话内签约请求气泡 → 对方确认/拒绝）
-  const convSigning = idMatch(p, /^\/api\/conversations\/(\d+)\/signing$/);
-  if (convSigning && method === 'POST') return await handleCreateSigning(db, { ...body, conversationId: convSigning }, req);
-  const convBindableDemands = idMatch(p, /^\/api\/conversations\/(\d+)\/bindable-demands$/);
-  if (convBindableDemands && method === 'GET') return await handleGetConversationBindableDemands(db, convBindableDemands, url, req);
-  const signingRespond = idMatch(p, /^\/api\/signing-requests\/(\d+)\/respond$/);
-  if (signingRespond && method === 'POST') return await handleRespondSigning(db, signingRespond, body, req);
-
-  // 教师荣誉奖项（v1.0 R2：提交/列表/删除 + 管理员审核）
-  if (p === '/api/teacher/awards' && method === 'POST') return await handleCreateAward(db, body, req);
-  if (p === '/api/teacher/awards' && method === 'GET') return await handleGetAwards(db, url, req);
-  const awardDelete = idMatch(p, /^\/api\/teacher\/awards\/(\d+)$/);
-  if (awardDelete && method === 'DELETE') return await handleDeleteAward(db, awardDelete, body, req);
-  if (p === '/api/admin/awards' && method === 'GET') return await handleAdminAwards(db, url, req);
-  const awardProof = idMatch(p, /^\/api\/admin\/awards\/(\d+)\/proof$/);
-  if (awardProof && method === 'GET') return await handleAdminAwardProof(db, awardProof, req);
-  const awardAction = idMatch(p, /^\/api\/admin\/awards\/(\d+)\/action$/);
-  if (awardAction && method === 'POST') return await handleAdminAwardAction(db, awardAction, body, req);
-
-  // 站内沟通
-  if (p === '/api/conversations' && method === 'GET') return await handleGetConversations(db, url, req);
-  const convRead = idMatch(p, /^\/api\/conversations\/(\d+)\/read$/);
-  if (convRead && method === 'POST') return await handleMarkRead(db, convRead, body, req);
-  const convMsgs = idMatch(p, /^\/api\/conversations\/(\d+)\/messages$/);
-  if (convMsgs && method === 'GET') return await handleGetMessages(db, convMsgs, url, req);
-  if (convMsgs && method === 'POST') return await handleSendMessage(db, convMsgs, body, req);
-  const msgAttach = p.match(/^\/api\/conversations\/(\d+)\/messages\/(\d+)\/attachment$/);
-  if (msgAttach && method === 'GET') return await handleGetAttachment(db, parseInt(msgAttach[1], 10), parseInt(msgAttach[2], 10), url, req);
-  if (p === '/api/uploads' && method === 'POST') return await handleCreateUpload(db, body, req);
-  const uploadById = idMatch(p, /^\/api\/uploads\/(\d+)$/);
-  if (uploadById && method === 'DELETE') return await handleDeleteUpload(db, uploadById, body, req);
-
-  // 评价
-  if (p === '/api/reviews' && method === 'POST') return await handleCreateReview(db, body, req);
-  if (p === '/api/reviews' && method === 'GET') return await handleGetReviews(db, url, req);
-  const reviewById = idMatch(p, /^\/api\/reviews\/(\d+)$/);
-  if (reviewById && method === 'PUT') return await handleUpdateReview(db, reviewById, body, req);
-
-  // 资料共享（section 字段预留分区，当前全在广场）
-  if (p === '/api/posts' && method === 'GET') return await handleListPosts(db, url, req);
-  if (p === '/api/posts' && method === 'POST') return await handleCreatePost(db, body, req);
-  if (p === '/api/posts/favorites/mine' && method === 'GET') return await handleMyFavorites(db, req); // R23 我的收藏
-  const postFav = idMatch(p, /^\/api\/posts\/(\d+)\/favorite$/);
-  if (postFav && method === 'POST') return await handleToggleFavorite(db, postFav, body, req);
-  const postLike = idMatch(p, /^\/api\/posts\/(\d+)\/like$/);
-  if (postLike && method === 'POST') return await handleToggleLike(db, postLike, body, req);
-  const postById = idMatch(p, /^\/api\/posts\/(\d+)$/);
-  if (postById && method === 'DELETE') return await handleDeletePost(db, postById, body, req);
-
-  // v0.26.0 D：统一内容审核/管理（D1 提取 + D2 处罚）
-  if (p === '/api/admin/content' && method === 'GET') return await handleAdminContent(db, url, req);
-  const contentAction = p.match(/^\/api\/admin\/content\/([a-z]+)\/(\d+)\/action$/);
-  if (contentAction && method === 'POST') return await handleContentAction(db, contentAction[1], parseInt(contentAction[2], 10), body, req);
-
-  // B2（v0.27.0 网络层重构）：批量只读端点（一次往返拉 N 个 GET；鉴权记忆化共享、边缘缓存复用）
-  if (p === '/api/batch' && method === 'POST') return await handleBatch(db, body, url, req, env);
-
-  // 健康检查
-  if (p === '/api/health') {
-    const gate = productionReady(env);
-    return json({ status: gate.ok ? 'ok' : 'not-ready', ready: gate.ok, checks: gate.checks, timestamp: new Date().toISOString() }, gate.ok ? 200 : 503);
+let dispatchApi = null;
+export async function routeApi(db, p, method, body, url, req, env) { // 导出供测试穿透路由接线
+  if (!dispatchApi) {
+    dispatchApi = createRouter([
+      ...apiRoutes,
+      {
+        method: 'POST', path: '/api/batch',
+        handler: async c => handleBatch(c.db, c.body, c.url, c.req, c.env),
+      },
+      {
+        method: 'GET', path: '/api/health',
+        handler: c => {
+          const gate = productionReady(c.env);
+          return json({ status: gate.ok ? 'ok' : 'not-ready', ready: gate.ok, checks: gate.checks, timestamp: new Date().toISOString() }, gate.ok ? 200 : 503);
+        },
+      },
+      {
+        method: 'GET', path: '/api/keepalive',
+        handler: async c => { await keepD1Warm(c.env); return json({ status: 'ok' }); },
+      },
+    ]);
   }
-
-  // D1 保活（v0.25.16）：Pages 无原生 cron，由独立保活 Worker 的 cron 每 5 分钟打本端点，
-  // 对业务/留档/台账三库 SELECT 1 保持唤醒（等效 scheduled handler 的保活逻辑）。纯读、无敏感数据。
-  if (p === '/api/keepalive' && method === 'GET') {
-    await keepD1Warm(env);
-    return json({ status: 'ok' });
-  }
-
-  // 数据版本戳（v0.23.0 静默数据层）：客户端 8s 轮询探测；廉价单表读，无需鉴权（计数器无敏感性）
-  if (p === '/api/data-version' && method === 'GET') return await handleGetDataVersion(db);
-
-  // v1.4.16 拼图验证码人机判定（无需鉴权，前端本地比对通过后提交轨迹；限流兜底防刷）
-  if (p === '/api/captcha/verify' && method === 'POST') return await handleCaptchaVerify(db, body, req);
-
-  return error('Not Found', 404);
+  return dispatchApi({ db, p, method, body, url, req, env });
 }
 
 // B6 公开列表边缘缓存（用户实测：游客 7s 出列表 / 教师列表 20s / 进模块拉表单 8s——D1 冷实例
