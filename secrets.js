@@ -27,7 +27,7 @@ globalThis.APP_SECRETS = {
   // ---- 验证码通道配置（真实投递：push.spug.cc，模板编码即调用凭证，只经 server/secrets.js 网关读取）----
   // 短信模板（用户提供）：您的验证码是${code}，${number}分钟内有效，如非本人操作请忽略。
   // 参数 to=11 位裸手机号 / code=验证码 / number=有效时长分钟数（v1.4.12 起 sms 走真实通道，不再 mock）
-  SMS_OTP_TEMPLATE_CODE: 'g5H9xV6xRKmOPMiq5aQiKA',
+  SMS_OTP_TEMPLATE_CODE: 'g5H9xV6xRKmOPMiq5aQiKA', // 明文存放属内测有意决策（见文件头）；公测迁 Worker Secrets 时随其他密钥一并轮换
   // 邮件模板正文：您正在进行${scene}，本次验证码为：${code}，请在 ${minute} 分钟内输入验证码完成验证
   EMAIL_OTP_TEMPLATE_CODE: 'v3aDVjBPM48JeX9M',
   // ---- 学信网核验通道配置（v1.2.0；缺省 manual = fail-closed，安全审计 H1）----

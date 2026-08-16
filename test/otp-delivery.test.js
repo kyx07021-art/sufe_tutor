@@ -16,11 +16,14 @@ import { initDb } from '../server/db.js';
 import { requestOtp } from '../server/otp.js';
 import { tokenDigest } from '../server/crypto.js';
 import { lastOtpSend, resetOtpStub, setOtpStubFail, lastOtpCode } from './_otp-stub.js';
+import { getSecret } from '../server/secrets.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
-// 模板编码回落 secrets.js 文件值（与生产一致）：
-const SMS_KEY = 'g5H9xV6xRKmOPMiq5aQiKA';
-const EMAIL_KEY = 'v3aDVjBPM48JeX9M';
+// 模板编码单源：从 secrets 网关读取（与生产同一回落链，改配置无需同步测试）
+const SMS_KEY = getSecret(null, 'SMS_OTP_TEMPLATE_CODE');
+const EMAIL_KEY = getSecret(null, 'EMAIL_OTP_TEMPLATE_CODE');
+assert.ok(SMS_KEY, 'secrets 需配置 SMS_OTP_TEMPLATE_CODE（断言请求形状的前提）');
+assert.ok(EMAIL_KEY, 'secrets 需配置 EMAIL_OTP_TEMPLATE_CODE');
 
 function d1Shim(raw) {
   return {

@@ -202,7 +202,10 @@ export async function requestOtp(db, { channel, target, scene }, req) {
   try {
     delivered = await deliverOtp({ channel: ch, target: t, code, scene: scene || (ch === 'email' ? '登录验证' : '身份验证') });
   } catch (e) {
-    const reason = String((e && e.message) || e).slice(0, 200);
+    // AbortError = 4s 超时，映射为可读留档文案；其余为通道拒绝/网络异常原始摘要（不含验证码）
+    const reason = (e && e.name === 'AbortError')
+      ? '发送超时（4s 未响应）'
+      : String((e && e.message) || e).slice(0, 200);
     await logEvent(db, { action: 'otp.send.fail', actorUsername: targetMask(t),
       entity: 'otp', detail: { channel: ch, reason }, req });
     console.warn('OTP 投递失败（已作废本次验证码）:', reason);
