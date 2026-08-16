@@ -14,3 +14,5 @@ push-retry.log
 _tmp_*/
 _tmp_*.log
 _audit_*.md
+
+dist/

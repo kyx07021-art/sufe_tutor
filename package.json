@@ -6,10 +6,14 @@
   "type": "module",
   "scripts": {
     "dev": "npx wrangler pages dev . --d1 DB --compatibility-date 2024-01-01",
-    "deploy": "npx wrangler pages deploy . --project-name sufe-tutor",
-    "test": "node --test \"test/*.test.js\""
+    "deploy": "npm run build && npx wrangler pages deploy dist --project-name sufe-tutor",
+    "test": "node --test \"test/*.test.js\"",
+    "build": "node scripts/build.mjs",
+    "deploy:dist": "npx wrangler pages deploy dist --project-name sufe-tutor",
+    "test:arch": "node --test test/architecture-v2.archtest.js"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "jsdom": "^30.0.1",
     "playwright": "^1.62.1"
   }
