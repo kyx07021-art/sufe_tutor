@@ -157,6 +157,7 @@ function _tourShowBubble(text) {
 function _tourPlace(el) {
   const rect = el.getBoundingClientRect();
   const hole = _tourEls.hole;
+  _tourEls.overlay.classList.remove('tour-overlay--dim'); // v1.4.7：洞显示时撤占位（洞内干净——overlay 无常驻背景）
   hole.classList.add('tour-hole--show');
   hole.style.width = `${rect.width}px`;
   hole.style.height = `${rect.height}px`;
@@ -167,6 +168,7 @@ function _tourPlace(el) {
 /** 亮区隐藏（等待目标出现期间） */
 function _tourHideHole() {
   _tourEls.hole.classList.remove('tour-hole--show');
+  _tourEls.overlay.classList.add('tour-overlay--dim'); // v1.4.7：洞隐藏时弱压暗占位（防闪回亮屏——需求五十三初衷，遮罩只此一层）
 }
 
 // ---- 就位稳定化：对滚动/动画不做特例，统一「先滚出目标 → 等入场动画结束 → 再定位亮区」----

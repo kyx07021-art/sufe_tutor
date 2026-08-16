@@ -1743,10 +1743,11 @@ html[data-ui-sampling] *::after {
    ============================================================ */
 .tour-overlay {
   position: fixed; inset: 0; z-index: 400;
-  /* 需求五十三：遮罩常置——引导全程恒有压暗底（原压暗仅靠洞的 box-shadow，
-     洞隐藏时闪回亮屏）。洞区经此底仍剩 .28 压暗（目标 72% 亮度），与洞外叠加总压暗拉开对比形成聚光。 */
-  background: rgba(17, 17, 20, .28);
+  /* v1.4.7（用户反馈：遮罩两层、亮区也灰）：overlay 无常驻背景——压暗只由 .tour-hole 的 box-shadow
+     承担（洞内透明干净，洞外 .4 一层）。洞隐藏时（等待/retry）由 .tour-overlay--dim 弱压暗占位防闪回
+     （需求五十三初衷保留，但不再全屏常驻造成两层）。 */
 }
+.tour-overlay--dim { background: rgba(17, 17, 20, .28); } /* 洞隐藏占位（_tourHideHole 加 / _tourPlace 撤） */
 .tour-hole {
   position: fixed; left: 0; top: 0; z-index: 2;
   width: 0; height: 0; opacity: 0;
