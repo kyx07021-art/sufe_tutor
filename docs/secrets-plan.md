@@ -4,7 +4,7 @@
 
 - `server/secrets.js` 只保留本地开发/测试的明文便利数据；`isProductionRuntime`（env 存在 `CF_PAGES_URL` / `CF_PAGES_COMMIT_SHA`）时绝不回落该文件。
 - 生产缺必需 Secret 时：Release Gate（`server/startup.js`）会让 `/api/*` 全部返回 503 not-ready，静态资源照常。
-- 学信网核验已固定 manual，无 mock/thirdparty；内容审核 L2（Anthropic）缺密钥会拒绝写请求。
+- 学信网核验已固定 manual，无 mock/thirdparty；内容审核 L2 使用 DeepSeek，缺密钥会拒绝写请求。
 
 ## 生产必需 Worker Secrets（缺一不可）
 
@@ -18,9 +18,11 @@
 | `LOG_ENCRYPT_KEY_OLD` | 旧留档钥（重加密完成前保留） |
 | `SMS_OTP_TEMPLATE_CODE` | spug.cc 短信模板编码（仓库旧值作废） |
 | `EMAIL_OTP_TEMPLATE_CODE` | 邮件模板编码（仓库旧值作废） |
-| `TEXT_AUDIT_API_KEY` | Anthropic API Key（L2 地址语义审核，fail-closed） |
+| `TEXT_AUDIT_API_KEY` | DeepSeek API Key（L2 地址语义审核，fail-closed；直接填 DeepSeek key 即可） |
 | `CHSI_PROVIDER` | 可缺省；只接受 `manual`，其他值会使 Release Gate 失败 |
 | `CRYPTO_REENCRYPT_DONE` | 重加密完成并删除旧钥后设为 `true`；此前必须保留 `*_OLD` |
+
+可选键：`TEXT_AUDIT_BASE_URL`（默认 `https://api.deepseek.com/chat/completions`）、`TEXT_AUDIT_MODEL`（默认 `deepseek-chat`）。
 
 上传示例：
 
@@ -41,7 +43,7 @@ npx wrangler pages secret put TEXT_AUDIT_API_KEY
 
 1. 上传上表全部 Secrets（先配好再推送代码，否则新版本 Release Gate 会把 API 全部 503）。
 2. 推送 v1.5.0；`curl https://sufe-tutor.pages.dev/api/health` 必须返回 `"status":"ok"`。
-3. 管理员口令由 `ADMIN_DEFAULT_PASSWORD` 在 initDb 中自动轮换；随后建议手动撤销旧会话。
+3. 管理员口令由 `ADMIN_DEFAULT_PASSWORD` 在 initDb 中自动轮换；旧名单外历史 admin 自动降为 student。
 4. 用新管理员口令执行一次性重加密；成功后把 `CRYPTO_REENCRYPT_DONE` 设为 `true`：
 
    ```bash
