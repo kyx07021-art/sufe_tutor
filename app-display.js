@@ -130,8 +130,8 @@
     demandScoreCell(cs) {
       const u = UI();
       const n = D.subjectName(cs.subject);
-      if (cs.grade || cs.mode === 'grade') return cs.grade ? `${n}: ${cs.grade}` : '';
-      if (cs.score !== '' && cs.score != null) return `${n}: ${cs.score}${u.SCORE_UNIT}/${cs.scale}${u.SCORE_SCALE_SUFFIX}`;
+      if (cs.grade || cs.mode === 'grade') return cs.grade ? (n ? `${n}: ${cs.grade}` : cs.grade) : ''; // 审计 nit：科目查无时不再裸冒号
+      if (cs.score !== '' && cs.score != null) return n ? `${n}: ${cs.score}${u.SCORE_UNIT}/${cs.scale}${u.SCORE_SCALE_SUFFIX}` : '';
       return '';
     },
 

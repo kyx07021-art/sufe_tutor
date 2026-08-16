@@ -70,15 +70,38 @@ export async function handleVerifyChsi(db, body, req) {
 
 // v1.4.16 大一新生录取通知书验证（学信网大一生未录入时的替代通道）：
 // 教师上传录取通知书整页照片 → 加密落库 → 进管理员核验队列（与学信网同一收口，管理员人工核对后开放接单资格）
+const ADMISSION_MIME_WHITELIST = { 'image/jpeg': [0xff, 0xd8, 0xff], 'image/png': [0x89, 0x50, 0x4e, 0x47], 'image/webp': [0x52, 0x49, 0x46, 0x46] };
+
+/** 校验录取通知书图片：data URL + MIME 白名单（大小写不敏感）+ magic bytes 校验（防任意数据入库/存储滥用） */
+function validateAdmissionImage(image) {
+  const m = /^data:(image\/[a-z+.-]+);base64,(.+)$/i.exec(image);
+  if (!m) return false;
+  const mime = m[1].toLowerCase();
+  const magic = ADMISSION_MIME_WHITELIST[mime];
+  if (!magic) return false; // 仅 jpeg/png/webp（svg 一律拒，网安全站拒 svg）
+  try {
+    const bytes = Uint8Array.from(atob(m[2].replace(/\s/g, '')), c => c.charCodeAt(0));
+    if (bytes.length < magic.length) return false;
+    // webp 是 RIFF....WEBP 容器，magic 前 4 字节 RIFF；特判
+    if (mime === 'image/webp') {
+      if (String.fromCharCode(...bytes.slice(0, 4)) !== 'RIFF' || String.fromCharCode(...bytes.slice(8, 12)) !== 'WEBP') return false;
+      return true;
+    }
+    return magic.every((b, i) => bytes[i] === b);
+  } catch { return false; }
+}
+
 export async function handleVerifyAdmission(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   if (me.role !== 'teacher') return error(MSG.NO_PERMISSION, 403);
   const image = String((body && body.image) || '').trim();
-  // 图片校验：data URL 非空、非 svg（网安全站拒 svg）、大小上限（同学信网截图 CREDENTIAL_MAX_BYTES）
   if (!image.startsWith('data:image/')) return error(MSG.ADMISSION_IMAGE_INVALID);
-  if (image.startsWith('data:image/svg')) return error(MSG.ADMISSION_IMAGE_INVALID);
   if (image.length > LIMITS.CREDENTIAL_MAX_BYTES) return error(MSG.ADMISSION_IMAGE_TOO_LARGE);
+  if (!validateAdmissionImage(image)) return error(MSG.ADMISSION_IMAGE_INVALID); // 审计修复：MIME 白名单 + magic bytes（svg 大小写变体也被白名单拒）
+  // 审计修复：已通过核验的教师不得反复提交打回 pending 骚扰队列（学籍变更走学信网重新验证，非本通道）
+  const existing = await dbGetTeacherVerification(db, me.id);
+  if (existing && existing.status === 'approved') return error(MSG.ADMISSION_ALREADY_VERIFIED, 409);
   await dbUpsertTeacherVerification(db, {
     userId: me.id, verifyCode: '', status: 'pending', provider: 'manual',
     verifyType: 'admission', admissionImage: image,

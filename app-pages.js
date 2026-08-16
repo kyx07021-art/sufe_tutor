@@ -1071,7 +1071,7 @@ function admissionImagePicked(input) {
   reader.onload = (e) => {
     const data = e.target.result;
     // 大小预检（data URL 长度超 CREDENTIAL_MAX_BYTES 会 413/400——前端先拦）
-    if (String(data).length > (CONFIG.ADMISSION_IMG_MAX || 500000)) { showToast(UI.ADMISSION_IMAGE_TOO_LARGE, 'error'); input.value = ''; return; }
+    if (String(data).length > CONFIG.ADMISSION_IMG_MAX) { showToast(UI.ADMISSION_IMAGE_TOO_LARGE, 'error'); input.value = ''; return; }
     window.__admissionImage = data; // 提交时读取（input.files 是活引用，清空后不可再读）
     if (preview) {
       preview.classList.remove('hidden');

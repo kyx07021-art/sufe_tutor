@@ -158,8 +158,8 @@ test('v1.4.16 录取通知书提交：pending 进队列 + svg/超限拒绝', asy
   const raw = rawOf(); const db = d1Shim(raw);
   await initDb(db, ENV);
   const token = await regTeacher(db, raw, 'adm1', '+8613999990001');
-  // 合法图片（png data URL）
-  const img = 'data:image/png;base64,' + 'A'.repeat(100);
+  // 合法图片（png data URL，真实 PNG magic bytes——v1.4.16 起 magic bytes 校验）
+  const img = 'data:image/png;base64,' + btoa('\x89PNG\r\n\x1a\n' + 'A'.repeat(50));
   let r = await handleVerifyAdmission(db, { image: img }, reqOf(token));
   assert.equal(r.status, 200, '录取通知书提交成功');
   const d = await r.json();

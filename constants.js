@@ -51,6 +51,7 @@ globalThis.APP_CONSTANTS = {
     DH_TTL_MS: 60000,                     // 会话数据层保底 TTL
     POSTS_SEARCH_DEBOUNCE_MS: 350,        // 帖子搜索防抖
     INVITE_CODE_LEN: 8,                   // 邀请码长度（与后端 LIMITS 同值）
+    ADMISSION_IMG_MAX: 500000,            // 录取通知书图片 data URL 上限（对齐后端 LIMITS.CREDENTIAL_MAX_BYTES；前端预检防 413）
     AVATAR_SIDE: 160, AVATAR_QUALITY: 0.85,
     CREDENTIAL_SIDE: 1000, CREDENTIAL_QUALITY: 0.8,
     REVIEW_COMMENT_MIN: 2,                // 评价最少字数

@@ -76,6 +76,7 @@ export const MSG = {
   CHSI_CODE_INVALID: '验证码格式不正确，请检查后重新输入',
   ADMISSION_IMAGE_INVALID: '录取通知书图片格式不正确（仅支持 jpg/png 等常见图片）',
   ADMISSION_IMAGE_TOO_LARGE: '录取通知书图片过大，请压缩后重新上传',
+  ADMISSION_ALREADY_VERIFIED: '你已通过核验，无需重复提交（学籍信息变更请通过学信网验证更新）',
   CHSI_VERIFY_REQUIRED: '请先完成学信网验证再使用接单功能',
   PROFILE_COMPLETE_REQUIRED: '请先完善个人资料（科目/报价/可授课时间/授课方式）再使用接单功能',
   NO_PERMISSION: '无权限',

@@ -9,8 +9,8 @@ export const ASSET_MANIFEST = {
     "style-posts.css": "style-posts.40f7400d.css",
     "style-chat.css": "style-chat.fb6db88c.css",
     "glass.css": "glass.bfcec76f.css",
-    "constants.js": "constants.583d0ca9.js",
-    "app-display.js": "app-display.cc6b0c53.js",
+    "constants.js": "constants.bd3b5cff.js",
+    "app-display.js": "app-display.43047274.js",
     "app-state.js": "app-state.f7553a25.js",
     "app-api.js": "app-api.13a4ee1a.js",
     "app-datahub.js": "app-datahub.8f51acfe.js",
@@ -29,11 +29,11 @@ export const ASSET_MANIFEST = {
     "app-chat.js": "app-chat.d7522aae.js",
     "app-contracts.js": "app-contracts.eeee2770.js",
     "app-chart.js": "app-chart.3c56e026.js",
-    "app-admin.js": "app-admin.c2bf2499.js",
+    "app-admin.js": "app-admin.bf79142e.js",
     "app-demands.js": "app-demands.f57fca7d.js",
     "app-teachers.js": "app-teachers.62550edd.js",
     "ui-scale-reflow.js": "ui-scale-reflow.c2bc51ee.js",
-    "app-pages.js": "app-pages.b3879e33.js",
+    "app-pages.js": "app-pages.5bc0e042.js",
     "app-complaints.js": "app-complaints.132a599d.js"
   }
 };

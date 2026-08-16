@@ -22,7 +22,9 @@ import { error } from './util.js';
 
 const PASS_SCORE = 70;
 const MIN_POINTS = 10;
+const MAX_POINTS = 2000; // 审计修复：后端轨迹点数硬上限（防单请求 CPU 放大；前端 cap 128，2000 为攻击面兜底）
 const REUSE_WINDOW_MS = 5 * 60 * 1000;
+const MAP_HARD_CAP = 10000; // 审计修复：防重放 Map 硬上限（超限整表清空，防持续注入膨胀）
 
 // 防重放：captchaId → 放行时间戳（内存 Map，isolate 内有效）
 const passedChallenges = new Map();
@@ -32,6 +34,7 @@ export function humanTrajectoryCheck(track) {
   if (!Array.isArray(track) || track.length < MIN_POINTS) {
     return { ok: false, score: 0, reason: '轨迹缺失或点数过少' };
   }
+  if (track.length > MAX_POINTS) return { ok: false, score: 0, reason: '轨迹点数异常' };
   const pts = track
     .map(p => ({ t: Number(p && p.t), x: Number(p && p.x), y: Number(p && p.y) }))
     .filter(p => Number.isFinite(p.t) && Number.isFinite(p.x) && Number.isFinite(p.y))
@@ -109,6 +112,7 @@ export function markChallengePassed(captchaId) {
   const prev = passedChallenges.get(captchaId);
   if (prev && now - prev < REUSE_WINDOW_MS) return false; // 已放行过 → 拒绝重放
   // 清理过期键（防 Map 膨胀）
+  if (passedChallenges.size > MAP_HARD_CAP) { passedChallenges.clear(); return true; } // 审计修复：硬上限整表清空（过期的反正已失效，全清最简）
   if (passedChallenges.size > 5000) {
     for (const [k, v] of passedChallenges) if (now - v >= REUSE_WINDOW_MS) passedChallenges.delete(k);
   }

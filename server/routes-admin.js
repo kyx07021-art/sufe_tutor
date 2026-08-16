@@ -355,8 +355,10 @@ export async function handleVerificationAction(db, id, body, req) {
     const enrollYear = String(body.enroll_year || '').trim().slice(0, 10);
     if (!school || !level) return error(MSG.INVALID_PARAMS, 400); // 院校/层次必填（结构化输入）
     const now = new Date().toISOString();
+    // 审计修复：审批必须透传原 verify_type/admission_image（否则 ON CONFLICT 无条件 SET 回落 chsi/清空原图 → 审核链断裂）
     await dbUpsertTeacherVerification(db, {
       userId: v.user_id, verifyCode: await decryptField(v.verify_code), status: 'approved', provider: v.provider || 'manual',
+      verifyType: v.verify_type || 'chsi', admissionImage: v.admission_image || '',
       school, level, major, enrollmentStatus, enrollYear, verifiedBy: admin.id, verifiedAt: now,
     });
     await dbApplyChsiToProfile(db, v.user_id, { school, level, major, enrollmentStatus, enrollYear });
@@ -368,8 +370,10 @@ export async function handleVerificationAction(db, id, body, req) {
   }
   if (action === 'reject' || action === 'revoke') {
     const reason = String(body.reason || '').trim().slice(0, 200);
+    // 审计修复：reject/revoke 透传原 verify_type/admission_image（防回落 chsi/清空原图，审核链可追溯）
     await dbUpsertTeacherVerification(db, {
       userId: v.user_id, verifyCode: await decryptField(v.verify_code), status: 'rejected', provider: v.provider || 'manual',
+      verifyType: v.verify_type || 'chsi', admissionImage: v.admission_image || '',
       verifiedBy: admin.id, verifiedAt: new Date().toISOString(),
     });
     // 安全审计 H2：reject/revoke 同步撤销接单资格 + 清空学信网展示字段（误批/欺诈核验可回收）

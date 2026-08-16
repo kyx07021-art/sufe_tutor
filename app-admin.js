@@ -695,7 +695,7 @@ async function loadAdminVerifications() {
   try {
     const r = await api('/api/admin/verifications?status=' + encodeURIComponent(status));
     const list = r.verifications || [];
-    window.__verifList = list; // viewAdmissionImage 取原图（列表接口已解密 admission_image）
+    _verifListCache = list; // 审计 nit：闭包化（viewAdmissionImage 取原图；不挂 window 全局）
     if (!list.length) { el.innerHTML = `<p class="profile-empty">${escHtml(UI.VERIF_EMPTY)}</p>`; return; }
     el.innerHTML = list.map(v => `<div class="list-card glass verif-card" data-id="${v.id}">
       <div class="verif-head">
@@ -718,9 +718,9 @@ async function loadAdminVerifications() {
 }
 
 /** v1.4.16：管理员查看录取通知书原图（大图浮窗；数据来自核验队列解密下发的 admission_image） */
+let _verifListCache = []; // 审计 nit：核验列表缓存（闭包模块级，替代 window 全局）
 function viewAdmissionImage(id) {
-  const card = document.querySelector(`.verif-card[data-id="${id}"]`);
-  const v = window.__verifList && window.__verifList.find(x => x.id === id);
+  const v = _verifListCache.find(x => x.id === id);
   const img = v && v.admission_image;
   if (!img) return;
   openModal({
