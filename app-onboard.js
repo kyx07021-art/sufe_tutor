@@ -360,7 +360,8 @@ function _tourOverlayClick(e) {
   e.preventDefault();
   e.stopPropagation();
   if (e.target.closest && e.target.closest('.tour-global-skip')) return; // 跳过按钮自身处理（inline stopPropagation 双保险）
-  const step = _tourSteps[_tourIdx];
+  let step = _tourSteps[_tourIdx];
+  while (typeof step === 'function') step = step(); // v1.4.8：函数式步骤求值后再 advance（透传 el.click 需要真实 target——生产验证 F2 抓出：demo conv 点击从未触发）
   if (!step) return;
   if (_tourIdx >= _tourSteps.length - 1) {
     // 末步：先收尾再执行动作——登录/资料栏步会跳走，不能留蒙层挡新视图
@@ -392,7 +393,8 @@ function _tourAdvanceAction(step) {
 /** 亮区跟随：窗口尺寸 / 滚动（capture 捕获内部滚动容器）时重新定位 */
 function _tourReposition() {
   if (!_tourActive) return;
-  const step = _tourSteps[_tourIdx];
+  let step = _tourSteps[_tourIdx];
+  while (typeof step === 'function') step = step(); // v1.4.8：函数式步骤求值（否则 target undefined → 亮区被 hide）
   if (!step) return;
   const el = _tourResolve(step);
   if (el) _tourPlace(el); else _tourHideHole();
@@ -550,7 +552,10 @@ function _tourDemoChatCleanup() {
   const pane = document.getElementById('chat-pane');
   if (pane && pane.querySelector('.chat-messages') && !chatConvId) pane.innerHTML = renderChatPlaceholder();
 }
-function tourStepConvItem()      { return { module: 'my-chats', target: { sel: '#conv-list .conv-item' }, text: UI.TOUR_STEP_CONV_ITEM }; }
+// v1.4.8 修复（生产验证 F2 失败：示例会话未注入）：tourStepMyChats 是 page 目标（点击才切页，
+// 数组生成时 conv-list 不存在——_tourDemoChatEnsure 在生成时执行永远 return）。注入移到切页后的
+// 本步（函数式——到达时页面已切 my-chats、conv-list 已渲染）——轮询等 renderConvList 完成再注入。
+function tourStepConvItem()      { return () => { _tourDemoChatEnsure(); return { module: 'my-chats', target: { sel: '#conv-list .conv-item' }, text: UI.TOUR_STEP_CONV_ITEM }; }; }
 function tourStepChatMessages()  { return { module: 'my-chats', target: { sel: '#chat-messages' }, text: UI.TOUR_STEP_CHAT_MESSAGES }; }
 function tourStepChatSend()      { return { module: 'my-chats', target: { sel: '#chat-send-btn' }, text: UI.TOUR_STEP_CHAT_SEND }; }
 function tourStepChatPlus()      { return { module: 'my-chats', target: { sel: '.chat-plus-btn' }, text: UI.TOUR_STEP_CHAT_PLUS }; }
