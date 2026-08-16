@@ -308,7 +308,8 @@ export const LIMITS = {
 // ============================================================
 // 文本审核 L2（v1.5.0 fail-closed）：模型与超时参数单源
 export const TEXT_AUDIT = {
-  MODEL: 'claude-sonnet-4-6',
+  BASE_URL: 'https://api.deepseek.com/chat/completions', // v1.5.0：DeepSeek OpenAI 兼容端点（可用 env TEXT_AUDIT_BASE_URL 覆盖）
+  MODEL: 'deepseek-chat',                                 // 可用 env TEXT_AUDIT_MODEL 覆盖
   TIMEOUT_MS: 4000,
 };
 

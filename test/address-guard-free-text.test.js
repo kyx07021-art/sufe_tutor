@@ -18,7 +18,7 @@ const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-
 const origFetch = globalThis.fetch;
 beforeEach(() => {
   bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
-  globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: '{"flagged": false}' }] }) });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false}' } }] }) });
 });
 afterEach(() => { bindTextAuditEnv(null); globalThis.fetch = origFetch; });
 

@@ -13,8 +13,8 @@ import { initDb } from '../server/db.js';
 import { tokenDigest } from '../server/crypto.js';
 import { handleSaveProfile } from '../server/routes-teacher.js';
 
-const SEMANTIC_PASS = () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: '{"flagged": false, "reason": "无住址信息"}' }] }) });
-const SEMANTIC_FLAG = () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: '{"flagged": true, "reason": "含方位描述可定位住址"}' }] }) });
+const SEMANTIC_PASS = () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false, "reason": "无住址信息"}' } }] }) });
+const SEMANTIC_FLAG = () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": true, "reason": "含方位描述可定位住址"}' } }] }) });
 
 test('L1 规则层：连字符变体与数字谐音后缀拦截（2788好 等）', async () => {
   // L1 命中在语义层之前返回，不依赖 AI 配置
@@ -35,8 +35,8 @@ test('L2 fail-closed：未配置密钥 → layer:error 拒绝写入', async () =
 test('L2 语义层：配置密钥 + AI 判含可定位住址 → 拦截（layer:ai）', async () => {
   const orig = globalThis.fetch;
   globalThis.fetch = async (url, opts) => {
-    assert.ok(String(url).includes('api.anthropic.com'), '走 Anthropic Messages API');
-    assert.ok(opts.headers['x-api-key'], '携带密钥');
+    assert.ok(String(url).includes('api.deepseek.com'), '走 DeepSeek chat/completions');
+    assert.ok(String(opts.headers.authorization).startsWith('Bearer '), '携带 DeepSeek Bearer 密钥');
     return SEMANTIC_FLAG();
   };
   bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
@@ -61,7 +61,7 @@ test('L2 语义层：AI 判未命中 → 放行；网络异常/非 JSON → fail
     assert.equal(netErr.ok, false, 'AI 异常 fail-closed 拒绝写入');
     assert.equal(netErr.layer, 'error');
     // 模型输出非 JSON → 拒绝
-    globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: '没法判断' }] }) });
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '没法判断' } }] }) });
     const parseErr = await auditFreeText('希望老师耐心一些，孩子基础一般');
     assert.equal(parseErr.ok, false, '解析失败 fail-closed');
     assert.equal(parseErr.layer, 'error');

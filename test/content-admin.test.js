@@ -25,7 +25,7 @@ function semanticPass() {
   bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
   globalThis.fetch = async (url, init) => {
     if (String(url).includes('push.spug.cc')) return otpFetch(url, init);
-    return { ok: true, json: async () => ({ content: [{ type: 'text', text: '{"flagged": false}' }] }) };
+    return { ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false}' } }] }) };
   };
 }
 

@@ -2,7 +2,7 @@
  * 文本审核咽喉 —— 全站自由文本字段统一审核入口（v1.5.0 起 fail-closed）
  *
  * L1 规则层（确定性主闸）：ADDRESS_GUARD 增强正则 + 数字谐音后缀表——拦模式变体（2788好）。
- * L2 语义层（外接必配）：Anthropic Messages API 判断自由文本是否含可定位住址描述
+ * L2 语义层（外接必配）：DeepSeek chat/completions（OpenAI 兼容）判断自由文本是否含可定位住址描述
  *   （门牌/楼栋/房间/方位描述）。密钥 env.TEXT_AUDIT_API_KEY。
  *
  * fail-closed 语义：生产未配置密钥 / 超时 / 接口异常 / 解析失败 → 拒绝写入
@@ -26,8 +26,9 @@ const HARMONIC_GUARD = new RegExp(
 // ============================================================
 // L2 语义层（v1.5.0：必配，fail-closed）
 // ============================================================
-const AUDIT_MODEL = TEXT_AUDIT.MODEL;         // 换模型只改 server/constants
 const AUDIT_TIMEOUT_MS = TEXT_AUDIT.TIMEOUT_MS; // 超时 = 拒绝写入（不再 fail-open）
+const auditModel = () => String(getSecret(AUDIT_ENV, 'TEXT_AUDIT_MODEL') || '').trim() || TEXT_AUDIT.MODEL;
+const auditBaseUrl = () => String(getSecret(AUDIT_ENV, 'TEXT_AUDIT_BASE_URL') || '').trim() || TEXT_AUDIT.BASE_URL;
 const AUDIT_SYSTEM = `你是地址合规审核员。判断给定文本是否包含能定位到具体住址/门牌/房间的信息——
 门牌号、楼栋号、单元号、房间号，或足以唯一确定住址的方位描述（如「对门」「上二楼」「左转第一间」）。
 只输出 JSON：{"flagged": true或false, "reason": "简短原因"}。flagged=true 表示文本含可定位住址信息。`;
@@ -42,25 +43,27 @@ async function auditSemantic(text) {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), AUDIT_TIMEOUT_MS);
     try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch(auditBaseUrl(), {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-api-key': key,
-          'anthropic-version': '2023-06-01',
+          authorization: `Bearer ${key}`,
         },
         body: JSON.stringify({
-          model: AUDIT_MODEL,
+          model: auditModel(),
+          messages: [
+            { role: 'system', content: AUDIT_SYSTEM },
+            { role: 'user', content: text },
+          ],
           max_tokens: 80,
-          system: AUDIT_SYSTEM,
-          messages: [{ role: 'user', content: text }],
+          temperature: 0,
         }),
         signal: ctrl.signal,
       });
       if (!res.ok) return UNAVAILABLE;
       const data = await res.json(); // 超时覆盖响应头 + 响应体读取全程
       clearTimeout(timer);
-      const out = (data.content || []).map(b => b.text || '').join('');
+      const out = String((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '');
       const m = out.match(/\{[\s\S]*\}/); // 模型可能夹散文，取 JSON 块
       const j = m ? JSON.parse(m[0]) : null;
       if (!j || typeof j.flagged !== 'boolean') return UNAVAILABLE;

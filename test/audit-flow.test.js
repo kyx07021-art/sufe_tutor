@@ -15,7 +15,7 @@ import { bindTextAuditEnv } from '../server/text-audit.js';
 const origFetch = globalThis.fetch;
 beforeEach(() => {
   bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
-  globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ type: 'text', text: '{"flagged": false, "reason": "无住址信息"}' }] }) });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false, "reason": "无住址信息"}' } }] }) });
 });
 afterEach(() => {
   bindTextAuditEnv(null);

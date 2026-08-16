@@ -21,7 +21,7 @@
         │    ├─ ADDRESS_GUARD：数字+门牌后缀（含中文数字/连字符/全角变体）
         │    └─ HARMONIC_GUARD：数字谐音后缀（2788好/昊/豪…，排除「号线」）
         └─ L2 语义层（可选外接，可配置）
-             └─ Anthropic Messages API：判断是否含可定位住址描述
+             └─ DeepSeek Messages API：判断是否含可定位住址描述
                   （门牌/楼栋/房间/方位描述如「对门」「上二楼」「左转第一间」）
 ```
 
@@ -30,7 +30,7 @@
 
 ## 配置（外接接口启用）
 
-1. Cloudflare Worker Secrets 添加 `TEXT_AUDIT_API_KEY`（Anthropic API key）。
+1. Cloudflare Worker Secrets 添加 `TEXT_AUDIT_API_KEY`（DeepSeek API key）。
 2. 语义层自动启用（L2）；未配置则仅规则层（L1），不影响上线。
 
 密钥读取走 `server/secrets.js` 网关（env 优先，回落本地 secrets.js），测试/本地可用
