@@ -14,8 +14,8 @@
 set -e
 TITLE="$1"; BODY="$2"
 if [ -z "$BODY" ]; then echo "用法: bash announce.sh \"标题\" \"本次更新\\n· 点一...\""; exit 1; fi
-ADMIN_USER="${SUFE_ADMIN_USER:-admin_sufe}"
-ADMIN_PASS="${SUFE_ADMIN_PASS:-admin_sufe}"
+ADMIN_USER="${SUFE_ADMIN_USER:-admin_sufe_07210}"
+ADMIN_PASS="${SUFE_ADMIN_PASS:?请设置 SUFE_ADMIN_PASS}"
 # 1) python json.dumps 生成合法 JSON（任何输入都转义，绝不手写）
 PAYLOAD="$(mktemp)" && trap 'rm -f "$PAYLOAD"' EXIT
 python - "$TITLE" "$BODY" "$PAYLOAD" <<'PY'

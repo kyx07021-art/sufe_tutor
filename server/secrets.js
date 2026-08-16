@@ -15,8 +15,8 @@
 // 仅本地开发 / 测试使用的明文数据（生产运行时永不读取）
 globalThis.APP_SECRETS = {
   // 本地管理员种子（生产用 Worker Secrets 覆盖）
-  ADMIN_USERNAMES: ['admin_sufe'],
-  ADMIN_DEFAULT_PASSWORD: 'admin_sufe',
+  ADMIN_USERNAMES: ['admin_sufe_07210'],
+  ADMIN_DEFAULT_PASSWORD: 'Nothing8tyou@', // 用户注：生产上线之后还是要避免管理员账户太容易被抓到，我改了下账密。如果迁移管理员账户名会导致什么问题，麻烦你自己处理好。
 
   // 本地日志留档加密密钥（AES-GCM-256，base64；生产用 Worker Secrets 覆盖）
   LOG_ENCRYPT_KEY: 'lkFHs0M1GcoyhNiixoI9VRfsLR03BbLc9OgwQOHVtiQ=',

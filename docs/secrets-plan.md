@@ -10,7 +10,7 @@
 
 | 键 | 说明 |
 |---|---|
-| `ADMIN_USERNAMES` | 管理员用户名（逗号分隔） |
+| `ADMIN_USERNAMES` | 管理员用户名（逗号分隔；可以换新账号，旧名单外的历史 admin 会在 initDb 迁移时自动降为 student） |
 | `ADMIN_DEFAULT_PASSWORD` | 轮换后的管理员口令；**不得等于历史值 `admin_sufe`**，建议 ≥12 位。首次发布时若与库内哈希不同会自动轮换 |
 | `FIELD_ENC_KEY` | AES-GCM-256 base64，字段加密新钥（建议与 LOG 不同） |
 | `FIELD_ENC_KEY_OLD` | 旧字段钥（重加密完成前保留） |

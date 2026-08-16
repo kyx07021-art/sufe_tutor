@@ -591,6 +591,17 @@ async function runFullMigration(db, env) {
     }
   }
 
+  // v1.5.0 管理员账号迁移：ADMIN_USERNAMES 变更时，旧名单之外的历史 admin 一律降为 student
+  // （不再保留第二个可登录的管理入口；新名单缺失时本地/测试仍可正常初始化）
+  if (adminNames.length) {
+    const oldAdmins = await dbAll(db, 'SELECT id, username FROM users WHERE role=?', ['admin']);
+    for (const a of oldAdmins) {
+      if (!adminNames.includes(a.username)) {
+        await dbRun(db, "UPDATE users SET role='student' WHERE id=?", [a.id]);
+      }
+    }
+  }
+
   // 留档表（模块5；绑定独立 LOG_DB 时此表建在业务库亦无害，查询走 getLogDb 路由）
   await initLogDb(db);
   await initMetrics(db); // v1.5.0 观测指标表（请求聚合）
