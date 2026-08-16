@@ -113,7 +113,7 @@ async function requestOtpCode(prefix, channel) {
   }
   sendBtn.disabled = true; // 立即灰化防连点（后端 60s 原子限频兜底）
   try {
-    const data = await api('/api/auth/otp/request', {
+    await api('/api/auth/otp/request', {
       method: 'POST',
       body: { channel: channel === 'email' ? 'email' : 'sms', target, scene: prefix === 'bind' ? '绑定验证' : prefix === 'register' ? '注册验证' : '登录验证' },
     });

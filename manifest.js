@@ -16,7 +16,7 @@ export const ASSET_MANIFEST = {
     "app-datahub.js": "app-datahub.8f51acfe.js",
     "app-anim.js": "app-anim.1f574d6f.js",
     "app-ui.js": "app-ui.21aa56fd.js",
-    "app-otp.js": "app-otp.b8f68913.js",
+    "app-otp.js": "app-otp.c2aab4ff.js",
     "app-captcha.js": "app-captcha.b6c54ad5.js",
     "app-onboard.js": "app-onboard.1bde97d0.js",
     "app-shell.js": "app-shell.5fd42550.js",
