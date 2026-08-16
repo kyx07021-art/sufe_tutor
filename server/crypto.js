@@ -118,7 +118,7 @@ export async function tokenDigest(token) {
 
 // ============================================================
 // 字段级加密（敏感列出门即解密；FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY）
-// 回落语义：FIELD_ENC_KEY 已配置（含非法值）即以其为准——非法值派生失败 → fail-open；
+// 回落语义：FIELD_ENC_KEY 已配置（含非法值）即以其为准——非法值派生失败 → 抛错（v1.4.14 fail-closed）；
 // 仅当 FIELD_ENC_KEY 未配置时才回落 LOG_ENCRYPT_KEY（内测共用密钥，与 log 留档同源）
 // ============================================================
 async function fieldKeyName() {
