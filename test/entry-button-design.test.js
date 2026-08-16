@@ -43,6 +43,8 @@ test('R28 CSS：光斑跟随变量 + 扫光 + 辉光边缘 + 弹簧按压（四�
     'hover 辉光边缘发光紫（v1.4.10：v1.4.4 改白后混入卡片原色——用户反馈改回紫）');
   assert.ok(css.includes('.entry:active { transform: translateY(1px) scale(.985);'),
     'active 弹簧按压（flat 触感）');
+  assert.ok(css.includes('height: 96px;') && css.includes('box-sizing: border-box'),
+    'v1.4.11：入口按钮固定高度 96px（min-height 是下限——不同分辨率换行仍撑高；固定后移动/PC 恒等高）');
   assert.ok(!css.includes('.entry:hover { background-color'), '不引入散装 hover 背景（走引擎 token）');
 });
 

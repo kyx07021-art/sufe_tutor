@@ -281,10 +281,10 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
   display: grid; grid-template-columns: auto 1fr auto; align-items: center;
   gap: 20px; width: 100%; text-align: left;
   color: var(--ink); /* 入口已接入标准玻璃（浅透镜），文字转深（原 --paper 白字配紫块） */
-  padding: 22px 26px; min-height: 96px; position: relative; overflow: hidden; isolation: isolate;
+  padding: 22px 26px; height: 96px; box-sizing: border-box; position: relative; overflow: hidden; isolation: isolate;
   transition: background-color var(--t-base) var(--ease-out), transform var(--t-base) var(--ease-snap);
   opacity: 0;
-} /* v1.4.10：min-height 统一两按钮等高（内容字数不同曾致高度差） */
+} /* v1.4.11：height 硬编码固定（min-height 是下限——25 字 desc 换行处仍撑高；固定后移动/PC 恒等高，内容超出由 overflow 裁剪） */
 /* 入口块：紫条已连根拔（悬停/聚焦左竖条是老效果，用户定性删）；悬停=箭头微动+整钮上浮（--g-raise） */
 .entry:focus-visible { outline-color: var(--accent-bright); transform: translateY(var(--g-raise, -1px)); }
 .entry-index { font-family: var(--font); font-size: 1.5rem; font-weight: 700; color: var(--accent-bright); letter-spacing: -.02em; }
