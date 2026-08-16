@@ -364,7 +364,7 @@ async function runFullMigration(db, env) {
       reviewed_at DATETIME, reviewed_by INTEGER,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-    // 合同（草案→签约全链路，见 server/contract.js；signed 状态即评价门槛 dbIsContracted 的放行条件）
+    // 合同（草案→签约全链路，见 server/contract.js；v1.4.14 起评价门槛 dbIsContracted 只认 signing_request signed——合同是附加保障非签约依据）
     db.prepare(CONTRACTS_DDL),
     db.prepare(`CREATE TABLE IF NOT EXISTS invite_codes (
       code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,

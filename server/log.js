@@ -174,7 +174,7 @@ async function flushPendingLogs(target, req) {
  */
 export async function logEvent(db, ev) {
   try {
-    const d = await encryptDetail(detailToJson(ev.detail, ev.detailMax)); // 正文加密后落库（无密钥环境退明文）
+    const d = await encryptDetail(detailToJson(ev.detail, ev.detailMax)); // 正文加密后落库（v1.4.14 fail-closed：无密钥抛错由本函数 try/catch 吞 → 留档不落、绝不落明文）
     const row = {
       schema_v: d.encrypted ? LOG_SCHEMA_V : 1,
       encrypted: d.encrypted,
