@@ -469,7 +469,7 @@ function startOnboardingTour() {
 // ---- 需求大厅（教师）----
 function tourStepBrowseDemands()    { return { module: 'browse-demands', target: { page: 'browse-demands' }, text: UI.TOUR_STEP_BROWSE_DEMANDS }; }
 function tourStepDemandList()       { return { module: 'browse-demands', target: { sel: '#demands-list' },   text: UI.TOUR_STEP_DEMAND_LIST }; }
-function tourStepDemandCard()       { return { module: 'browse-demands', target: { sel: '#demands-list .list-card--demand' }, text: UI.TOUR_STEP_DEMAND_CARD }; }
+function tourStepDemandCard(module = 'browse-demands') { return { module, target: { sel: module === 'my-demands' ? '#my-demands-list .list-card--demand' : '#demands-list .list-card--demand' }, text: UI.TOUR_STEP_DEMAND_CARD }; }
 // v1.4.4（用户反馈）：卡面介绍点击会打开详情浮窗——加详情介绍步 + 关闭步，不再让详情页晾在灰化区
 function tourStepDemandDetail(module = 'browse-demands')     { return { module, target: { sel: '.modal .demand-detail' }, text: UI.TOUR_STEP_DEMAND_DETAIL }; }
 function tourStepDemandDetailClose(module = 'browse-demands'){ return { module, target: { closeModal: true }, text: UI.TOUR_STEP_DEMAND_DETAIL_CLOSE }; }
@@ -481,8 +481,8 @@ function tourStepDemandIdTag()      { return { module: 'browse-demands', target:
 function tourStepBrowseTeachers()     { return { module: 'browse-teachers', target: { page: 'browse-teachers' }, text: UI.TOUR_STEP_BROWSE_TEACHERS }; }
 function tourStepBrowseTeachersPeer() { return { module: 'browse-teachers', target: { page: 'browse-teachers' }, text: UI.TOUR_STEP_BROWSE_TEACHERS_PEER }; }
 function tourStepTeachersList()       { return { module: 'browse-teachers', target: { sel: '#teachers-list' },   text: UI.TOUR_STEP_TEACHERS_LIST }; }
-function tourStepFilterToggle()       { return { module: 'browse-teachers', target: { sel: '#filter-toggle-btn' }, text: UI.TOUR_STEP_FILTER_TOGGLE }; }
-function tourStepFilterSubject()      { return { module: 'browse-teachers', target: { sel: '#filter-subject' },  text: UI.TOUR_STEP_FILTER_SUBJECT }; }
+function tourStepFilterToggle()       { return { module: 'browse-teachers', target: { sel: '#filter-toggle-btn' }, text: UI.TOUR_STEP_FILTER_TOGGLE, pass: false }; } // v1.4.7：打开筛选面板没人关（用户反馈）——点击拦截只讲解
+function tourStepFilterSubject()      { return { module: 'browse-teachers', target: { sel: '#filter-subject' },  text: UI.TOUR_STEP_FILTER_SUBJECT, pass: false }; } // v1.4.7：打开科目下拉没人关——点击拦截只讲解
 // 可点性在整卡（.list-card--teacher 承载点击），亮区改指整卡而非用户名文本
 function tourStepTeacherUsername()    { return { module: 'browse-teachers', target: { sel: '#teachers-list .list-card--teacher' }, text: UI.TOUR_STEP_TEACHER_USERNAME }; }
 function tourStepProfileClose()       { return { module: 'browse-teachers', target: { sel: '#profile-panel-close' }, text: UI.TOUR_STEP_PROFILE_CLOSE }; }
@@ -749,6 +749,7 @@ const TOUR_SCRIPTS = {
   studentUser: () => [
     tourStepMyDemands(),
     tourStepMyDemandsList(),
+    tourStepDemandCard('my-demands'),
     tourStepDemandDetail('my-demands'),
     tourStepDemandDetailClose('my-demands'),
     tourStepIntentToggle(),
