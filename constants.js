@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.4.8',
+  APP_VERSION: '1.4.9',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -1887,6 +1887,11 @@ globalThis.APP_CONSTANTS = {
     TOUR_DEMO_CHAT_NAME_STUDENT: '示例教师', // v1.4.4：学生用户引导中的示例会话（对侧角色）
     TOUR_DEMO_CHAT_PREVIEW: '示例会话：这里展示聊天窗口，还没有消息。', // v1.4.4
     TOUR_DEMO_CHAT_EMPTY: '示例会话：还没有消息，可以试试下方的输入框和 + 号。', // v1.4.4
+    TOUR_DEMO_CONTRACT_TITLE: '示例合同', // v1.4.9：示例合同卡（仿示例会话——新用户无合同，引导展示组件）
+    TOUR_DEMO_CONTRACT_HINT: '这里展示合同卡片：对方、科目、报价与状态都在这里，操作按钮在下方。',
+    TOUR_DEMO_CONTRACT_VIEW: '查看合同',
+    TOUR_DEMO_CONTRACT_MODIFY: '修改合同',
+    TOUR_DEMO_CONTRACT_CONFIRM: '确认合同',
     TOUR_STEP_DEMAND_INTENT_BTN: '「提交试课意向」按钮：觉得合适就点它，等学生确认后自动开启会话。',
     TOUR_STEP_DEMAND_ID_TAG: '需求编号 #0001：沟通时用它指代这条需求，对方一看就知道是哪条。',
     // —— 浏览教师（教师广场 / 教师同行）——

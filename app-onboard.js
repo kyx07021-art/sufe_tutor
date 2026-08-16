@@ -414,7 +414,9 @@ function _tourCleanup() {
   window.removeEventListener('resize', _tourReposition);
   window.removeEventListener('scroll', _tourReposition, { capture: true });
   window.removeEventListener('keydown', _tourKeydown); // 网安 M3：Esc 退出
+  _tourDemoDisabled = true; // v1.4.9：引导结束停示例注入轮询（防定时器挂事件循环）
   _tourDemoChatCleanup(); // v1.4.4：引导结束移除示例会话（完成/跳过/视图切走统一收尾）
+  _tourDemoContractCleanup(); // v1.4.9：引导结束移除示例合同（引导外自动隐藏）
 }
 
 /** 键盘 Esc 退出引导（网安 M3：主交互对键盘可达——Esc 等效「跳过」） */
@@ -427,6 +429,7 @@ function _tourKeydown(e) {
  *  sel 为常量选择器——信任边界注释：不对外部输入开放任意选择器 */
 function runTour(nameOrSteps) {
   _tourCleanup();
+  _tourDemoDisabled = false; // v1.4.9：新引导开始复位示例注入
   const steps = Array.isArray(nameOrSteps)
     ? nameOrSteps
     : (TOUR_SCRIPTS[nameOrSteps] ? TOUR_SCRIPTS[nameOrSteps]() : null);
@@ -485,8 +488,8 @@ function tourStepDemandIdTag()      { return { module: 'browse-demands', target:
 function tourStepBrowseTeachers()     { return { module: 'browse-teachers', target: { page: 'browse-teachers' }, text: UI.TOUR_STEP_BROWSE_TEACHERS }; }
 function tourStepBrowseTeachersPeer() { return { module: 'browse-teachers', target: { page: 'browse-teachers' }, text: UI.TOUR_STEP_BROWSE_TEACHERS_PEER }; }
 function tourStepTeachersList()       { return { module: 'browse-teachers', target: { sel: '#teachers-list' },   text: UI.TOUR_STEP_TEACHERS_LIST }; }
-function tourStepFilterToggle()       { return { module: 'browse-teachers', target: { sel: '#filter-toggle-btn' }, text: UI.TOUR_STEP_FILTER_TOGGLE, pass: false }; } // v1.4.7：打开筛选面板没人关（用户反馈）——点击拦截只讲解
-function tourStepFilterSubject()      { return { module: 'browse-teachers', target: { sel: '#filter-subject' },  text: UI.TOUR_STEP_FILTER_SUBJECT, pass: false }; } // v1.4.7：打开科目下拉没人关——点击拦截只讲解
+function tourStepFilterToggle()       { return { module: 'browse-teachers', target: { sel: '#filter-toggle-btn' }, text: UI.TOUR_STEP_FILTER_TOGGLE }; } // v1.4.9（用户纠正）：筛选按钮恢复透传——点击打开面板才能介绍筛选项；拦的是面板内的下拉点击
+function tourStepFilterSubject()      { return { module: 'browse-teachers', target: { sel: '#filter-subject' },  text: UI.TOUR_STEP_FILTER_SUBJECT, pass: false }; } // v1.4.7：打开科目下拉没人关（用户反馈）——点击拦截只讲解
 // 可点性在整卡（.list-card--teacher 承载点击），亮区改指整卡而非用户名文本
 function tourStepTeacherUsername()    { return { module: 'browse-teachers', target: { sel: '#teachers-list .list-card--teacher' }, text: UI.TOUR_STEP_TEACHER_USERNAME }; }
 function tourStepProfileClose()       { return { module: 'browse-teachers', target: { sel: '#profile-panel-close' }, text: UI.TOUR_STEP_PROFILE_CLOSE }; }
@@ -506,7 +509,9 @@ function tourStepPostsModal()     { return { module: 'resource-share', target: {
 //（空白会话记录，仅展示会话窗口组件；引导外自动隐藏——_tourDemoChatCleanup 在 _tourCleanup 统一移除）。
 function tourStepMyChats() { _tourDemoChatEnsure(); return { module: 'my-chats', target: { page: 'my-chats' }, text: UI.TOUR_STEP_MY_CHATS }; } // 注入轮询自续（_tourDemoChatEnsure 内 setTimeout 幂等重试——页面切到 my-chats、conv-list 渲染完成后注入），无需函数式
 // 注入示例会话：对侧角色命名（教师用户看到「示例学生」，学生用户看到「示例教师」）
+let _tourDemoDisabled = false; // v1.4.9：引导结束置 true——停示例注入轮询（防 setTimeout 递归挂事件循环；runTour 开头复位）
 function _tourDemoChatEnsure() {
+  if (_tourDemoDisabled || !_tourActive) return; // v1.4.9：仅引导激活期轮询（步骤数组生成时执行副作用——不跑 tour 则立即 return，防轮询挂事件循环）
   const list = document.getElementById('conv-list');
   if (!list || list.querySelector('.tour-demo-conv')) return;
   // v1.4.5（审计修复）：renderConvList 是异步——注入过早会被其 innerHTML 重建冲掉；
@@ -552,6 +557,30 @@ function _tourDemoChatCleanup() {
   const pane = document.getElementById('chat-pane');
   if (pane && pane.querySelector('.chat-messages') && !chatConvId) pane.innerHTML = renderChatPlaceholder();
 }
+
+// v1.4.9（用户需求）：示例合同——仿示例会话。新用户无合同，合同组件介绍无从谈起；
+// 引导期间注入示例合同卡（空白，展示合同卡组件：状态/操作按钮），引导外自动隐藏（_tourCleanup 统一移除）。
+function _tourDemoContractEnsure() {
+  if (_tourDemoDisabled || !_tourActive) return; // v1.4.9：同上——仅引导激活期轮询
+  const list = document.getElementById('my-contracts-list');
+  if (!list || list.querySelector('.tour-demo-contract')) return;
+  if (list.querySelector('.loader')) { setTimeout(_tourDemoContractEnsure, 200); return; } // 等 renderContracts 完成（防 innerHTML 重建冲掉）
+  const empty = list.querySelector('.empty-state');
+  if (empty) empty.remove();
+  list.insertAdjacentHTML('afterbegin', `<div class="list-card tour-demo-contract glass">
+    <div class="contract-demo-head">${escHtml(UI.TOUR_DEMO_CONTRACT_TITLE)}</div>
+    <p class="contract-demo-hint">${escHtml(UI.TOUR_DEMO_CONTRACT_HINT)}</p>
+    <div class="contract-actions">
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="event.stopPropagation()">${escHtml(UI.TOUR_DEMO_CONTRACT_VIEW)}</button>
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="event.stopPropagation()">${escHtml(UI.TOUR_DEMO_CONTRACT_MODIFY)}</button>
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" onclick="event.stopPropagation()">${escHtml(UI.TOUR_DEMO_CONTRACT_CONFIRM)}</button>
+    </div>
+  </div>`);
+}
+function _tourDemoContractCleanup() {
+  const list = document.getElementById('my-contracts-list');
+  if (list) list.querySelectorAll('.tour-demo-contract').forEach(el => el.remove());
+}
 // v1.4.8 修复（生产验证 F2 失败：示例会话未注入）：tourStepMyChats 是 page 目标（点击才切页，
 // 数组生成时 conv-list 不存在——_tourDemoChatEnsure 在生成时执行永远 return）。注入移到切页后的
 // 本步（函数式——到达时页面已切 my-chats、conv-list 已渲染）——轮询等 renderConvList 完成再注入。
@@ -569,7 +598,8 @@ const tourStepChatPlusDraft   = () => tourStepChatPlusItem(4, UI.TOUR_STEP_CHAT_
 // ---- 我的合同 ----
 function tourStepMyContracts()     { return { module: 'my-contracts', target: { page: 'my-contracts' }, text: UI.TOUR_STEP_MY_CONTRACTS }; }
 function tourStepContractsList()   { return { module: 'my-contracts', target: { sel: '#my-contracts-list' }, text: UI.TOUR_STEP_CONTRACTS_LIST }; }
-function tourStepContractCard()    { return { module: 'my-contracts', target: { sel: '#my-contracts-list .list-card' }, text: UI.TOUR_STEP_CONTRACT_CARD }; }
+// v1.4.9：函数式——切页后注入示例合同（tourStepMyContracts 是 page 目标生成时 contracts-list 不存在）
+function tourStepContractCard()    { return () => { _tourDemoContractEnsure(); return { module: 'my-contracts', target: { sel: '#my-contracts-list .list-card' }, text: UI.TOUR_STEP_CONTRACT_CARD }; }; }
 function tourStepContractActions() { return { module: 'my-contracts', target: { sel: '#my-contracts-list .contract-actions' }, text: UI.TOUR_STEP_CONTRACT_ACTIONS }; }
 
 // ---- 个人资料（教师编辑档案）----

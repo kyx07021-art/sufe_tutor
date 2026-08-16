@@ -1796,6 +1796,8 @@ html[data-ui-sampling] *::after {
   transition: background var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out);
 }
 .tour-global-skip:hover { background: var(--g-hover-wash); color: var(--ink); }
+.contract-demo-head { font-weight: 700; font-size: .95rem; color: var(--ink); }
+.contract-demo-hint { font-size: .8rem; color: var(--ink-2); line-height: 1.55; margin: 6px 0 10px; } /* v1.4.9：示例合同卡提示（展示组件骨架） */
 
 /* 需求五十三：减弱动效下亮区/气泡的延迟归零（全局规则只压 duration，transition/animation-delay 需显式清） */
 @media (prefers-reduced-motion: reduce) {
