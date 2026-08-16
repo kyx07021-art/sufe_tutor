@@ -2,9 +2,9 @@
 
 ## 现状（内测）
 
-- 全部敏感值明文存于仓库根 `secrets.js`（挂 `globalThis.APP_SECRETS`）。
-- 读取一律经 `server/secrets.js` 网关：`getSecret(env, key)` —— env（Worker Secrets）优先，回落本地文件。
-- `_worker.js` 对 `/secrets.js` 路径返回 404，公网无法下载。
+- 全部敏感值明文存于 `server/secrets.js`（v1.4.14 起数据与网关合并单文件，挂 `globalThis.APP_SECRETS`；原仓库根 `secrets.js` 已删除）。
+- 读取一律经 `server/secrets.js` 网关：`getSecret(env, key)` —— env（Worker Secrets）优先，回落本文件内联数据。
+- `_worker.js` 对 `server/` 目录整体返回 404，公网无法下载。
 
 ## 迁移动机
 
@@ -25,15 +25,15 @@
    键名与 `secrets.js` 完全一致 → 网关 env 优先链自动接管，**业务代码零改动**。
 
 2. **覆盖仓库内的旧文件**（把带敏感信息的版本从历史里挤掉）：
-   把 `secrets.js` 内容替换为占位版（所有值置空，仅留键与注释），commit + 强推：
+   把 `server/secrets.js` 内联数据替换为占位版（所有值置空，仅留键与注释），commit + 强推：
    ```bash
-   git add secrets.js && git commit -m "secrets 迁移 Worker Secrets，本地置空"
+   git add server/secrets.js && git commit -m "secrets 迁移 Worker Secrets，本地置空"
    git push            # 新推送覆盖远端文件
    ```
    注：git 历史里的旧值仍可追溯，如需彻底清除走 `git filter-repo` 重写历史 + 轮换全部凭证（管理员密码、LOG 密钥重新生成）。
 
-3. **加入 .gitignore**（占位版留存防 import 报错；或彻底删文件并把空值兜底写进网关）：
-   推荐保留占位版入库，不 ignore —— 避免新克隆环境缺文件时 `import '../secrets.js'` 直接炸。
+3. **加入 .gitignore**（占位版留存防 globalThis.APP_SECRETS 缺键；或彻底删数据并让网关空值兜底）：
+   推荐保留占位键入库，不 ignore —— 避免新克隆环境缺键时 `getSecret` 全空导致鉴权/加密路径不可用。
 
 4. **轮换**：迁移同时更换管理员密码与 `LOG_ENCRYPT_KEY`（换密钥后旧密文留档不可解，需先解密重加密一轮，或接受历史留档只读封存）。
 

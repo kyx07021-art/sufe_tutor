@@ -118,10 +118,6 @@ select.posts-sort {
 .post-fav:has(input:checked) .fav-icon { fill: var(--accent); stroke: var(--accent); }
 .post-fav:has(input:checked) .fav-label { color: var(--accent); }
 
-/* R23 视图切换（全部 / 我的收藏）：收编标准分段控件，工具栏内靠左、不抢搜索框宽度 */
-.posts-view-tabs { flex: 0 0 auto; }
-.posts-view-tabs .seg-tab { padding: 6px 14px; font-size: .8rem; font-weight: 700; }
-
 /* #161：详情浮窗 footer——点赞 pill 与删除分居两侧 */
 .post-detail-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-light); }
 .post-detail-body { margin-top: 10px; }
@@ -214,10 +210,6 @@ textarea.post-body-input { min-height: calc(200px * var(--ui-scale, 1)); font-si
   color: var(--warn-deep);
   font-size: .72rem; font-weight: 600;
 }
-
-/* ---------- 删除确认：小弹窗 ---------- */
-.post-confirm-modal { max-width: 400px; }
-.post-confirm-text { color: var(--ink-3); line-height: 1.6; }
 
 /* ---------- 窄屏：搜索框独占一行，卡片收紧 ---------- */
 @media (max-width: 640px) {

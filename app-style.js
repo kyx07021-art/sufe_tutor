@@ -12,10 +12,10 @@
  *   - 本模块：设置读/写接口（getStylePref/setStylePref），供外观设置页 chooser 使用；
  *   - 光球协调：applyOrbs 的 orbMode 读 <html data-style>（flat → hidden），单一协调点。
  */
+// 偏好解析单点（v1.4.14 合并首绘双份）：统一走 style-pref.js 的 window.__stylePref
+// （index.html 首绘 IIFE 与设置切换共用同一解析；本文件是懒加载域脚本，加载时单点早已就绪）
 function getStylePref() {
-  let p = 'liquid';
-  try { const v = localStorage.getItem(CONFIG.STYLE_KEY || 'sufe_style'); if (v === 'flat') p = v; } catch (e) {}
-  return p;
+  return typeof window.__stylePref === 'function' ? window.__stylePref() : 'liquid';
 }
 
 // 页面风格点按：写 localStorage → 调首绘单点应用（data-style + token 覆盖 + 光球定档）→ 切设置页按钮选中态

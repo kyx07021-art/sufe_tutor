@@ -768,6 +768,7 @@
       document.documentElement.style.setProperty('--ui-scale', (v / 100).toFixed(3));
     })();
   </script>
+  <script src="/style-pref.js"></script>
   <script>
     /* 页面风格注入（需求八·item4 外观包）：首帧前把偏好（localStorage 'sufe_style'，liquid 缺省）：
        1) <html data-style="liquid|flat">（光球档位协调 + 调试钩子）；
@@ -778,21 +779,14 @@
          光球 IIFE（后于本脚本）注入 --g-f-* / --lg-bg-blur 基础值，其末尾会再调本单点让包 token 最后落地
          ——保证「刷新进 flat」与「点按进 flat」同源。
        与主题注入同款「无 FOUC」；window.__applyPageStyle = app-style.js 设置切换共用单点。
-       本脚本必须先于光球脚本运行（applyOrbs 读 data-style 定档）。 */
+       本脚本必须先于光球脚本运行（applyOrbs 读 data-style 定档）。
+       偏好解析已收口 style-pref.js（window.__stylePref 单点，v1.4.14 删双份）；脚本未就绪兜底 liquid。 */
     (function () {
-      function stylePref() {
-        /* 解析逻辑与 app-style.js getStylePref 双份：内联首绘脚本跑在经典 window 无法 import app-*.js
-           键经 CONFIG.STYLE_KEY 单源，白名单与模块版一致，勿分叉 */
-        var KEY = ((window.APP_CONSTANTS || {}).CONFIG || {}).STYLE_KEY || 'sufe_style';
-        var p = 'liquid';
-        try { var v = localStorage.getItem(KEY); if (v === 'flat') p = v; } catch (e) {}
-        return p;
-      }
       function pageStyleApply() {
         /* PACKS 每次现读 window.APP_CONSTANTS（jsdom 两 realm 测试桥接后可实时拿到真包；生产首绘前即就绪） */
         var PACKS = (window.APP_CONSTANTS || {}).STYLE_PACKS || {};
         var root = document.documentElement;
-        var p = stylePref();
+        var p = typeof window.__stylePref === 'function' ? window.__stylePref() : 'liquid';
         root.dataset.style = p;
         var pack = PACKS[p] || {};
         var toks = pack.tokens || {};

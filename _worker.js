@@ -432,7 +432,7 @@ export default {
       return applySecurityHeaders(corsPreflight(), p);
     }
 
-    // 非 API 请求 → 静态文件。敏感路径一律 404：源码目录 server/、docs/、secrets.js（敏感配置）、
+    // 非 API 请求 → 静态文件。敏感路径一律 404：源码目录 server/（含敏感配置 server/secrets.js）、docs/、
     // 版本控制与构建残留（.git/、.wrangler/）、包清单（package*.json / node_modules/）、
     // 配置残留（wrangler.toml / robots.txt / sitemap.xml，网安报告 F-01d 收口）
     if (!p.startsWith('/api/')) {

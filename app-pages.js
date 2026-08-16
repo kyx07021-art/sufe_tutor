@@ -187,7 +187,7 @@ function confirmUsernameChange() {
   const input = document.getElementById('username-new-input');
   if (!input) return;
   const newName = input.value.trim();
-  if (newName.length < 3 || newName.length > 30) { showToast(UI.USERNAME_LENGTH_ERR, 'error'); return; }
+  if (newName.length < CONFIG.USERNAME_MIN || newName.length > CONFIG.USERNAME_MAX) { showToast(UI.USERNAME_LENGTH_ERR, 'error'); return; }
   if (!/^[\p{Script=Han}A-Za-z0-9_.\-]+$/u.test(newName) || newName.includes('@') || /^\d+$/.test(newName)) {
     showToast(UI.USERNAME_CHARS_ERR, 'error');
     return;
@@ -896,11 +896,11 @@ function openAwardModal() {
     style: `max-width:${CONFIG.MODAL_W_CONFIRM};`,
     body: `<div class="form-group">
         <label class="form-label">${UI.AWARD_TITLE_LABEL} <span class="req">*</span></label>
-        <input type="text" class="form-input" id="award-title" maxlength="60" placeholder="${UI.AWARD_TITLE_PLACEHOLDER}">
+        <input type="text" class="form-input" id="award-title" maxlength="${CONFIG.AWARD_TITLE_MAX}" placeholder="${UI.AWARD_TITLE_PLACEHOLDER}">
       </div>
       <div class="form-group">
         <label class="form-label">${UI.AWARD_ISSUER_LABEL}</label>
-        <input type="text" class="form-input" id="award-issuer" maxlength="60" placeholder="${UI.AWARD_ISSUER_PLACEHOLDER}">
+        <input type="text" class="form-input" id="award-issuer" maxlength="${CONFIG.AWARD_ISSUER_MAX}" placeholder="${UI.AWARD_ISSUER_PLACEHOLDER}">
       </div>
       <div class="form-group">
         <label class="form-label">${UI.AWARD_DATE_LABEL}</label>

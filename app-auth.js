@@ -232,7 +232,7 @@ async function regWizardNext() {
     const password = document.getElementById('register-password').value;
     const password2 = document.getElementById('register-password2').value;
     const ident = ((document.getElementById('register-identifier') || {}).value || '').trim();
-    if (!username || username.length < 3 || username.length > 30) { showToast(UI.USERNAME_LENGTH_ERR, 'error'); return; }
+    if (!username || username.length < CONFIG.USERNAME_MIN || username.length > CONFIG.USERNAME_MAX) { showToast(UI.USERNAME_LENGTH_ERR, 'error'); return; }
     if (password.length < 6) { showToast(UI.VALIDATE_PASSWORD, 'error'); return; }
     if (password !== password2) { showToast(UI.VALIDATE_PASSWORD_MISMATCH, 'error'); return; }
     const kind = classifyIdentifier(ident);

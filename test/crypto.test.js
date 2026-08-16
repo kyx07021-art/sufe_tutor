@@ -55,10 +55,10 @@ test('密钥轮换后的历史密文 → [undecryptable]（绝不空串）', asy
   assert.equal(await decryptField(enc), 'wechat:abc');
 });
 
-test('取不到密钥（非法 key 使 importKey 失败）：加密退明文、解历史密文标记 [encrypted]', async () => {
+test('取不到密钥（非法 key 使 importKey 失败）：加密抛错拒绝明文、解历史密文标记 [encrypted]', async () => {
   // 本地 secrets.js 必有真密钥（故意保留），无法用空 env 模拟无密钥——用非法 base64 逼派生走 catch → null
   bindCryptoEnv({ FIELD_ENC_KEY: '!!not-base64!!' });
-  assert.equal(await encryptField('plain'), 'plain');
+  await assert.rejects(() => encryptField('plain'), /fail-closed/, '无密钥加密抛错（v1.4.14 fail-closed，绝不落明文）');
   assert.equal(await decryptField('enc:v1:YWJj:ZGVm'), '[encrypted]');
 });
 

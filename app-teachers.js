@@ -333,13 +333,10 @@ async function openProfilePanel(userId) {
       }
     }
     // ③ 签约状态 + 评价（评价仅教师有；管理员看全状态管理视图）
+    // v1.4.14：signed 单一事实源 = 后端 profile 响应字段（学生视角按「已签约」signing_request signed 判定，
+    // 联系方式/写评价按钮据此开放）；前端不再自算（删 myContracts 文档合同判定，合同是附加保障非签约依据）
     let signed = false, reviewsData = null;
-    if (state.user) {
-      if (!state.myContracts.length) {
-        try { state.myContracts = (await dhGet('/api/contracts/my', { domain: 'contracts' })).contracts || []; } catch { /* 静默 */ }
-      }
-      signed = state.myContracts.some(c => c.status === STATUS.SIGNED && (c.student_user_id === userId || c.teacher_user_id === userId));
-    }
+    const isSelf = state.user && state.user.id === userId;
     if (isTeacher) {
       const isAdminViewer = state.user && state.user.role === 'admin';
       try {
@@ -358,13 +355,14 @@ async function openProfilePanel(userId) {
     }
     // ④ 私密字段（真实姓名/学信网截图/联系方式）：列表接口永不下发，仅本人或双向匹配后定点取回并入缓存行
     // （取过一次打标记，不重复请求；签约时后端追加返回联系方式，兑现「签约后展示」）
-    if (isTeacher && t && (t.matched || (state.user && state.user.id === t.user_id)) && !t._matchedDetailLoaded) {
+    if (isTeacher && t && (t.matched || isSelf) && !t._matchedDetailLoaded) {
       try {
         // F13：匹配私密详情改走 datahub（teachers 域，按 ?userId= 分键缓存 +
         // 版本探测刷新；per-session 客户端缓存，跨用户零泄露）
         const pd = await dhGet(`/api/teacher/profile?userId=${userId}`, { domain: 'teachers' });
         if (seq !== profilePanelSeq) return;
         if (pd.profile) Object.assign(t, { real_name: pd.profile.real_name || '', credential_image: pd.profile.credential_image || '', wechat: pd.profile.wechat || '', email: pd.profile.email || '' }); // 签约后后端追加返回联系方式，此处一并并入缓存行
+        signed = isSelf ? false : !!(pd.profile && pd.profile.signed); // 本人看自己不挂「已签约」tag；他人按后端判定
       } catch { /* 未匹配后端 403：按不可见处理 */ }
       t._matchedDetailLoaded = true;
     }

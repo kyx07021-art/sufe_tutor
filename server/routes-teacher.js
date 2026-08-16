@@ -87,8 +87,10 @@ export async function handleGetProfile(db, url, req) {
   if (me.id === targetId) return json({ profile }); // 本人：全字段
   const { wechat, email, real_name, credential_image, ...publicPart } = profile;
   if (!(await dbIsMatched(db, me.id, targetId))) return error(MSG.NO_PERMISSION, 403);
+  // v1.4.14 用户拍板：联系方式统一按「已签约」（dbIsContracted = signing_request signed）开放；
+  // signed 字段随响应下发（前端展示/写评价判定的单一事实源，不再自算）
   const signed = me.role === 'student' && (await dbIsContracted(db, me.id, targetId));
-  return json({ profile: { ...publicPart, real_name, credential_image, ...(signed ? { wechat, email } : {}), matched: true } });
+  return json({ profile: { ...publicPart, real_name, credential_image, ...(signed ? { wechat, email } : {}), signed, matched: true } });
 }
 
 export async function handleSaveProfile(db, body, req) {

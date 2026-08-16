@@ -10,8 +10,9 @@
  *   - 密码哈希 PBKDF2（参数单源自 constants.SECURITY）。
  *   - 字段级加密（encryptField/decryptField，FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY）
  *     与留档 detail 加密（encryptDetail/decryptDetail，LOG_ENCRYPT_KEY）——
- *     两者回落语义一致：无密钥退明文（内测兼容，已测试锁定）、解密失败标 [undecryptable]、
- *     无密钥解历史密文标 [encrypted]。明文回落路径 console.warn 显式告警（防配置失误静默降级）。
+ *     v1.4.14 起写路径 fail-closed：无密钥/加密失败一律抛错，绝不落明文（生产标准，配置事故显式失败）；
+ *     读路径降级不变：解密失败标 [undecryptable]、无密钥解历史密文标 [encrypted]（历史数据不炸）。
+ *   - 留档加密抛错由 logEvent 内部 try/catch 吞（留档不落、主流程不挂，见 log.js）。
  *
  * 密钥一律经 secrets 网关（getSecret：env Worker Secrets 优先，回落本地 secrets.js）。
  */
@@ -124,14 +125,15 @@ async function fieldKeyName() {
   return String(getSecret(CRYPTO_ENV, 'FIELD_ENC_KEY') || '') ? 'FIELD_ENC_KEY' : 'LOG_ENCRYPT_KEY';
 }
 
-/** 加密：空串原样；无密钥/加密失败退明文（fail-open 内测语义，console.warn 告警） */
+/** 加密（v1.4.14 起 fail-closed）：空串原样；无密钥/加密失败一律抛错——绝不明文落库（生产标准）。
+ *  配置事故（密钥缺失/非法）必须显式失败，而非静默降级出可逆数据。 */
 export async function encryptField(text) {
   const s = String(text || '');
   if (!s) return s;
   const key = await deriveKey(await fieldKeyName());
-  if (!key) { console.warn('encryptField: 字段密钥未配置，明文写入（内测兼容）'); return s; }
+  if (!key) throw new Error('encryptField: 字段密钥未配置（fail-closed，拒绝明文落库）');
   const ct = await encryptAes(key, s);
-  if (!ct) { console.warn('encryptField: 加密失败退明文'); return s; }
+  if (!ct) throw new Error('encryptField: 加密失败（fail-closed，拒绝明文落库）');
   return ct;
 }
 
@@ -146,13 +148,16 @@ export async function decryptField(text) {
 // ============================================================
 // 留档 detail 加密（LOG_ENCRYPT_KEY；加密后 schema_v=2、encrypted=1）
 // ============================================================
-/** 导出供 node --test 回归（test/log-crypto.test.js），语义不变 */
+/** 导出供 node --test 回归（test/log-crypto.test.js），语义不变；
+ *  v1.4.14 起 fail-closed：无密钥/加密失败抛错（logEvent 内部 try/catch 吞 → 留档不落，主流程不挂；
+ *  敏感 detail 绝不落明文——生产标准） */
 export async function encryptDetail(json) {
   if (json === null || json === undefined) return { text: null, encrypted: 0 };
   const key = await deriveKey('LOG_ENCRYPT_KEY');
-  if (!key) { console.warn('encryptDetail: LOG_ENCRYPT_KEY 未配置，明文留档（内测兼容）'); return { text: json, encrypted: 0 }; }
+  if (!key) throw new Error('encryptDetail: LOG_ENCRYPT_KEY 未配置（fail-closed，拒绝明文留档）');
   const ct = await encryptAes(key, json);
-  return ct ? { text: ct, encrypted: 1 } : { text: json, encrypted: 0 };
+  if (!ct) throw new Error('encryptDetail: 加密失败（fail-closed，拒绝明文留档）');
+  return { text: ct, encrypted: 1 };
 }
 
 export async function decryptDetail(text) {

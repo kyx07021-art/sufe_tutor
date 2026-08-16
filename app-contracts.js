@@ -513,7 +513,7 @@ async function openContractDraftModal(convId) {
         </div>
         <div class="form-group">
           <label class="form-label">${UI.LABEL_CONTRACT_LOCATION}</label>
-          <input type="text" class="form-input" id="contract-location" maxlength="100" placeholder="${UI.CONTRACT_LOCATION_PLACEHOLDER}">
+          <input type="text" class="form-input" id="contract-location" maxlength="${CONFIG.CONTRACT_LOCATION_MAX}" placeholder="${UI.CONTRACT_LOCATION_PLACEHOLDER}">
           <div class="form-note-block">${UI.CONTRACT_LOCATION_NOTE}</div>
         </div>
         <div class="form-group">
@@ -529,7 +529,7 @@ async function openContractDraftModal(convId) {
             <option value="other">${UI.PAY_METHOD_OTHER}</option>
           </select>
           <div class="form-other-wrap hidden" id="contract-pay-method-other-wrap">
-            <input type="text" class="form-input" id="contract-pay-method-other" maxlength="100" placeholder="${UI.CONTRACT_PAY_METHOD_OTHER_PLACEHOLDER}">
+            <input type="text" class="form-input" id="contract-pay-method-other" maxlength="${CONFIG.PAY_OTHER_MAX}" placeholder="${UI.CONTRACT_PAY_METHOD_OTHER_PLACEHOLDER}">
           </div>
         </div>
         <div class="form-group">
@@ -545,7 +545,7 @@ async function openContractDraftModal(convId) {
             <option value="other">${UI.TRIAL_PAY_OTHER}</option>
           </select>
           <div class="form-other-wrap hidden" id="contract-trial-pay-other-wrap">
-            <input type="text" class="form-input" id="contract-trial-pay-other" maxlength="100" placeholder="${UI.CONTRACT_TRIAL_PAY_OTHER_PLACEHOLDER}">
+            <input type="text" class="form-input" id="contract-trial-pay-other" maxlength="${CONFIG.PAY_OTHER_MAX}" placeholder="${UI.CONTRACT_TRIAL_PAY_OTHER_PLACEHOLDER}">
           </div>
         </div>
         <div class="form-group">

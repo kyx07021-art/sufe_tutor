@@ -24,10 +24,10 @@ test('null 不入密文：encrypted=0 原样 null', async () => {
   assert.deepEqual(await encryptDetail(null), { text: null, encrypted: 0 });
 });
 
-test('无密钥（非法 key 逼 logKey 走 null）：明文落库 + 历史密文标 [encrypted]', async () => {
+test('无密钥（非法 key 逼 logKey 走 null）：留档加密抛错拒绝明文 + 历史密文标 [encrypted]', async () => {
   // 本地 secrets.js 必有真密钥，无法用空 env 模拟无密钥——用非法 base64 逼 logKey() 走 catch → null
   bindLogDb({ LOG_ENCRYPT_KEY: '!!not-base64!!' });
-  assert.deepEqual(await encryptDetail('plain'), { text: 'plain', encrypted: 0 });
+  await assert.rejects(() => encryptDetail('plain'), /fail-closed/, '无密钥留档加密抛错（v1.4.14 fail-closed，敏感 detail 绝不落明文）');
   assert.equal(await decryptDetail('enc:v1:YWJj:ZGVm'), '[encrypted]');
 });
 

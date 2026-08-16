@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
 import { handleRespondSigning } from '../server/signing.js';
+import { dbIsContracted } from '../server/db.js';
 import { tokenDigest } from '../server/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -102,4 +103,21 @@ test('拒绝签约不依赖需求状态：需求已成交时拒绝仍放行', as
   const r = await handleRespondSigning(db, 1, { accept: false }, reqOf(token));
   assert.equal(r.status, 200, '拒绝不契约需求，无需需求守卫');
   assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=1').get().status, 'rejected');
+});
+
+// v1.4.14 口径回归（用户拍板）：联系方式/评价统一按「已签约」开放 = signing_request signed；
+// 文档合同 signed 不作依据（合同是附加保障），发起签约过程中（pending）不算。
+test('v1.4.14 dbIsContracted 口径：signing_request signed 放行；pending/仅文档合同 signed 不放行', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await seed(db, raw);
+  // 基线：无 signed 签约请求 → 不放行（pending = 发起签约中）
+  assert.equal(await dbIsContracted(db, 1, 2), false, 'pending 签约请求不放行');
+  assert.equal(await dbIsContracted(db, 1, 3), false, 'pending 不放行');
+  // 仅文档合同 signed、无 signing_request signed → 不放行（老逻辑放行，v1.4.14 起合同非签约依据）
+  raw.exec(`INSERT INTO contracts (conversation_id, drafter_user_id, method, plan, hourly_rate, status, version)
+    VALUES (1,2,'offline','每周末',150,'signed',1)`);
+  assert.equal(await dbIsContracted(db, 1, 2), false, '仅文档合同 signed、无 signing_request signed → 不放行');
+  // 会话 2 的 signing_request signed → 放行（已签约）
+  raw.exec(`UPDATE signing_requests SET status='signed' WHERE conversation_id=2`);
+  assert.equal(await dbIsContracted(db, 1, 3), true, 'signing_request signed → 放行（已签约）');
 });

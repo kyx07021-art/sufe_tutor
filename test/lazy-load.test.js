@@ -1,6 +1,6 @@
 /**
  * #175 领域脚本懒加载——首屏只载 boot 脚本，进入客户端才注入领域脚本
- *  - index.html 只同步引用 12 个 boot 脚本（constants/display/state/api/datahub/anim/ui/otp/captcha/onboard/shell/auth），
+ *  - index.html 只同步引用 13 个 boot 脚本（style-pref/constants/display/state/api/datahub/anim/ui/otp/captcha/onboard/shell/auth），
  *    领域脚本（region-data/style/region/posts/chat/contracts/chart/admin/demands/teachers/pages/complaints）不在其中
  *  - loadDomainScripts 幂等：领域函数已存在（测试 FILES 全载）即短路，不创建 script 标签
  *  - mdRender 已上移到 app-ui（boot 共享层）——登录前政策浮窗可用，不依赖领域脚本
@@ -12,11 +12,12 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 
-const BOOT = ['constants.js','app-display.js','app-state.js','app-api.js','app-datahub.js','app-anim.js','app-ui.js','app-otp.js','app-captcha.js','app-onboard.js','app-shell.js','app-auth.js'];
+const BOOT = ['style-pref.js','constants.js','app-display.js','app-state.js','app-api.js','app-datahub.js','app-anim.js','app-ui.js','app-otp.js','app-captcha.js','app-onboard.js','app-shell.js','app-auth.js'];
 const DOMAIN = ['region-data.js','app-style.js','app-region.js','app-posts.js','app-chat.js','app-contracts.js','app-chart.js','app-admin.js','app-demands.js','app-teachers.js','ui-scale-reflow.js','app-pages.js','app-complaints.js'];
 const ALL = [...BOOT, ...DOMAIN];
 
-test('index.html 只同步加载 12 个 boot 脚本，12 个领域脚本全部移除', () => {
+
+test('index.html 只同步加载 13 个 boot 脚本（含 style-pref），12 个领域脚本全部移除', () => {
   const html = readFileSync('./index.html', 'utf8');
   const refs = [...html.matchAll(/src="\/([a-z-]+\.js)"/g)].map(m => m[1]);
   assert.deepEqual([...refs].sort(), [...BOOT].sort(), '仅 boot 脚本在位');

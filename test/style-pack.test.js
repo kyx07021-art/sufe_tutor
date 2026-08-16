@@ -19,7 +19,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const FILES = [
-  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
+  'style-pref.js', 'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
   'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-style.js', 'app-onboard.js', 'app-region.js',
   'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
   'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',

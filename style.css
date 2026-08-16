@@ -1676,7 +1676,6 @@ html[data-ui-sampling] *::after {
 .modal-header h2 { font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; color: var(--ink); } /* v1.4.0：字重 800→700（原理#42 字重纪律：600/700 并存是混乱，标题用字号不用字重堆层次） */
 .modal-body { padding: 20px 24px 24px; }
 .modal-footer { margin-top: 22px; display: flex; gap: 10px; justify-content: flex-end; }
-.modal-footer-start { margin-right: auto; }
 /* 任务三需求表单 wizard：圆点步进进度条 + 分步页 + 页脚。
    v0.31.7 R3 重构（用户要求「页面切换用侧滑+淡出入而非无动画；进度点用线串起来」）：
    sliding track——8 步并排 flex，JS 只写 --dw-step-active（0 基索引）到 #demand-form，
@@ -2199,8 +2198,7 @@ body.profile-panel-closing .profile-panel {
   .demand-card-tools { width: 100%; flex-wrap: wrap; justify-content: flex-start; row-gap: 6px 10px; }
   .demand-card-foot { row-gap: 8px; }
   /* 匹配度按钮移动端独占一行（需求/教师卡统一） */
-  .list-card-title .tag-match,
-  .tc-name-row .tag-match { flex-basis: 100%; margin-left: 0; }
+  .list-card-title .tag-match { flex-basis: 100%; margin-left: 0; }
 }
 
 /* 教师端被推送需求的置顶卡：右侧 时间·说明·拒绝·确认 一行 */
@@ -2406,9 +2404,6 @@ body.profile-panel-closing .profile-panel {
 /* ===== A7内联样式改类 ===== */
 .text-ink-3 { color: var(--ink-3); }                 /* 档案不完整提示（--ink-3 ≠ --muted，独立语义类） */
 .img-broken { visibility: hidden; }                  /* 图片加载失败静默隐藏（保留占位，display 不动） */
-.ta-center { text-align: center; }                   /* index.html 居中块 */
-.invite-note { margin-bottom: 22px; }                /* 邀请码说明行距 */
-.invite-code-input { text-align: center; letter-spacing: .15em; font-weight: 600; } /* 邀请码输入 */
 
 /* M11：投诉与反馈通道选择浮窗——大按钮竖排 */
 .chooser-grid { display: flex; flex-direction: column; gap: 10px; padding: 4px 0; }

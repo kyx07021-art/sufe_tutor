@@ -1390,13 +1390,13 @@ export async function dbUpdateReview(db, reviewId, rating, comment) {
   if (wasApproved && teacherUserId) await dbRecomputeTeacherRating(db, teacherUserId);
 }
 
-// 签约门槛查询：该师生会话存在已签约合同（文档或发起签约请求）即放行评价
+// 签约门槛查询（v1.4.14 用户拍板：联系方式/评价统一按「已签约」开放——signing_request signed 即已签约；
+// 文档合同 signed 不作依据（合同是附加保障，与签约状态无关），发起签约过程中（pending）不算。
 export async function dbIsContracted(db, studentUserId, teacherUserId) {
   return !!(await dbGet(db,
     `SELECT 1 FROM conversations c
      WHERE c.student_user_id=? AND c.teacher_user_id=?
-       AND (EXISTS(SELECT 1 FROM contracts ct WHERE ct.conversation_id=c.id AND ct.status='signed')
-         OR EXISTS(SELECT 1 FROM signing_requests sr WHERE sr.conversation_id=c.id AND sr.status='signed'))
+       AND EXISTS(SELECT 1 FROM signing_requests sr WHERE sr.conversation_id=c.id AND sr.status='signed')
      LIMIT 1`,
     [studentUserId, teacherUserId]));
 }

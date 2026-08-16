@@ -12,7 +12,7 @@ globalThis.APP_CONSTANTS = {
   INVITE_GATE_DORMANT: false, // v1.2.0 T4：教师注册邀请码门控启用（无过期、一人使用即失效；与后端 server/constants.js INVITE_GATE_ENABLED 同步）
 
   // 版本号 x.y.z：x=0 内测 / 1 正式；y 每上线新模块/启用新功能 +1；z 每小修小补/审查去屎山推送 +1
-  APP_VERSION: '1.4.13',
+  APP_VERSION: '1.4.14',
 
   // ============================================================
   // 跨栈/前端共享数值配置（改交互参数只动这里；服务端同值键经 globalThis.APP_CONSTANTS.CONFIG 读取，
@@ -55,6 +55,10 @@ globalThis.APP_CONSTANTS = {
     CREDENTIAL_SIDE: 1000, CREDENTIAL_QUALITY: 0.8,
     REVIEW_COMMENT_MIN: 2,                // 评价最少字数
     DISPLAY_ID_PAD: 4,                    // 需求编号补零位数
+    USERNAME_MIN: 3, USERNAME_MAX: 30,    // 用户名长度下限/上限（前端校验与 server LIMITS.USERNAME_MIN/MAX 对齐，改值两处核对）
+    CONTRACT_LOCATION_MAX: 200,           // 合同地点输入上限（对齐 server LIMITS.CONTRACT_LOCATION_MAX）
+    PAY_OTHER_MAX: 100,                   // 合同「其他」付款方式/试课薪资自定义文本上限（对齐 server LIMITS.PAY_OTHER_MAX）
+    AWARD_TITLE_MAX: 60, AWARD_ISSUER_MAX: 60, // 奖项名称/颁发机构上限（对齐 server/awards.js 本地常量）
     TIME_SLOTS_MAX: 8,                    // 结构化时间组件条数上限（与 server LIMITS.TIME_SLOTS_MAX 对齐）
     PERSONALITY_TAGS_MAX: 3,              // 性格关键词上限（R2-3，前端 toggleTagPick 与服务端兜底同用）
     TEACHING_GOALS_MAX: 2,                // 教学目标上限（≤2，前后端同用）
