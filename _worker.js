@@ -16,41 +16,8 @@ import { recordRequestMetric, flushMetrics } from './server/telemetry.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './src/server/core/security.js';
 import { initLogDb, bindLogDb, logRequest } from './src/server/core/log.js';
 import { bindTextAuditEnv } from './src/server/core/text-audit.js';
-import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth, handleOtpRequest, handleBindPhone, handleBindEmail, handleUsernameStatus, handleChangeUsername, handleLoginWithCode, handleGetMyCreds, handleCheckInvite } from './server/routes-auth.js';
-import { handleGetProfile, handleSaveProfile, handleGetTeachers, handleVerifyChsi, handleChsiStatus, handleVerifyAdmission } from './server/routes-teacher.js';
-import { handleGetPrivacySettings, handleSetPrivacySettings } from './server/routes-settings.js';
-import {
-  handleCreateDemand, handleGetDemands, handleUpdateDemand, handleDeleteDemand, handleReopenDemand,
-  handleCreateIntent, handleGetIntents, handleResolveIntent,
-  handlePushDemand, handleGetTeacherPushes, handleResolvePush,
-} from './server/routes-demands.js';
-import { handleGetNotifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleAdminDeleteNotification } from './src/server/core/notify.js';
-import { handleCaptchaVerify } from './server/human-check.js';
-import {
-  handleCreateContract, handleGetMyContracts,
-  handleSignContract, handleModifyContract, handleCancelContract,
-  handleAdminListContracts, handleAdminRemoveContract, handleVerifyContract, handleRevokeContract,
-  initLedgerTable, bindLedgerDb,
-} from './server/contract.js';
-import { handleGetConversations, handleGetMessages, handleSendMessage, handleMarkRead, handleGetAttachment, handleGetConversationBindableDemands, handleCreateUpload, handleDeleteUpload } from './server/routes-chat.js';
-import { handleCreateReview, handleGetReviews, handleUpdateReview } from './server/routes-reviews.js';
-import {
-  handleGenInvite, handleListInvites, handleRevokeInvite, handleAdminStats, handleAdminTraffic,
-  handleListVerifications, handleVerificationAction,
-  handleAdminReviews, handleReviewAction, handleAdminUsers, handleBanUser,
-  handleAdminDemands, handleAdminDeleteDemand, handleAdminDeleteReview, handleAdminLogs, handleAdminDecryptLog, handleAdminBroadcast,
-  handleCreateFeedback, handleAdminFeedbacks, handleMyFeedbacks, handleResolveFeedback, handleAdminDeleteMessage, handleVerifyTeacher,
-  handleAdminReencrypt, handleAdminDashboard,
-} from './server/routes-admin.js';
-import { handleListPosts, handleCreatePost, handleToggleLike, handleDeletePost, handleMyFavorites, handleToggleFavorite } from './server/routes-posts.js';
-import {
-  handleCreateComplaint, handleMyComplaints, handleComplaintCandidates, handleComplaintRecent,
-  handleAdminComplaints, handleResolveComplaint, handleComplaintAttachment,
-} from './server/routes-complaints.js';
-import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/version.js';
-import { handleCreateSigning, handleRespondSigning } from './server/signing.js';
-import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction, handleAdminAwardProof } from './server/awards.js'; // v1.0 R2：教师荣誉奖项（奖状上传+管理员人工审核）
-import { handleAdminContent, handleContentAction } from './server/routes-audit.js'; // v0.26.0 D：统一内容审核/管理
+import { initLedgerTable, bindLedgerDb } from './server/contract.js';
+import { versionDomainOf, bumpVersions } from './server/version.js';
 import { auditBeforeWrite } from './src/server/core/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
 import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清单（push 前 node hash-assets.mjs 重新生成）
 

@@ -83,7 +83,7 @@ test('签约提示 + 起草合同浮窗：资金触点明示（.funds-note），
   const contracts = readFileSync('./app-contracts.js', 'utf8');
   const n = (contracts.match(/<p class="funds-note">\$\{UI\.FUNDS_NOTE\}<\/p>/g) || []).length;
   assert.ok(n >= 2, `签约浮窗 + 起草合同浮窗各一处（实际 ${n}）`);
-  const server = readFileSync('./server/contract.js', 'utf8');
+  const server = readFileSync('./src/server/domains/contract/api.js', 'utf8'); // V-1-4c：合同实体已迁入 contract/api.js，server/contract.js 仅为兼容 shim
   assert.ok(server.includes('不参与任何费用结算'), '合同条款声明不参与结算');
   assert.ok(server.includes('不代收、不代付'), '合同条款声明不代收代付');
   assert.ok(server.includes('站外自行协商并直接结算'), '合同条款要求站外直接结算');

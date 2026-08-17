@@ -453,14 +453,14 @@ test('v1.5.0 K7：已有管理员不会被历史默认口令覆写（非默认�
   assert.notEqual(afterNew.password_hash, before.password_hash, '非默认新口令轮换生效');
 });
 
-test('v1.5.0 管理员账号迁移：改 ADMIN_USERNAMES 后旧 admin 自动降为 student', async () => {
+test('v1.5.0 管理员账号迁移：改 ADMIN_USERNAMES 后旧 admin 彻底删除（不降级残留）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   await initDb(db, { ADMIN_USERNAMES: ['admin_old'], ADMIN_DEFAULT_PASSWORD: 'old-admin-pw-123' });
   const oldId = raw.prepare("SELECT id FROM users WHERE username='admin_old'").get().id;
   db.prepare(`INSERT OR REPLACE INTO schema_meta (k, v) VALUES ('schema', 0)`).run();
   await initDb(db, { ADMIN_USERNAMES: ['admin_new'], ADMIN_DEFAULT_PASSWORD: 'new-admin-pw-456' });
   const old = raw.prepare("SELECT role FROM users WHERE id=?").get(oldId);
-  assert.equal(old.role, 'student', '旧名单之外的历史 admin 已降级');
+  assert.equal(old, undefined, '旧名单之外的历史 admin 已连根删除');
   const fresh = raw.prepare("SELECT role FROM users WHERE username='admin_new'").get();
   assert.equal(fresh.role, 'admin', '新名单账号为 admin');
 });
