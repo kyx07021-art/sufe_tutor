@@ -1,4 +1,5 @@
 /** 跨栈数值/服务端非文案常量唯一源（V-1-1）。零依赖，纯数据。 */
+export const APP_VERSION = '1.5.0';   // 前端发版基线（dhCheckAppVersion 版本切换清缓存）
 export const CONFIG = {
 TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过期判定；服务端签发同值共享 config SECURITY.TOKEN_TTL_MS）
     BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）

@@ -69,9 +69,17 @@ test('前端边界：fetch 只在 api.js；feature 无内联 onclick/style/中�
   assert.ok(coreFiles.length > 0 && featureFiles.length > 0, 'core/features 文件非空');
   for (const f of [...coreFiles, ...featureFiles]) {
     const s = readFileSync(f, 'utf8');
-    if (!f.endsWith('core/api.js')) assert.ok(!s.includes('fetch('), `${f.replaceAll('\\', '/')} 不直接 fetch`);
-    assert.ok(!/onclick="/.test(s), `${f.replaceAll('\\', '/')} 无内联 onclick`);
-    assert.ok(!/style="/.test(s), `${f.replaceAll('\\', '/')} 无内联 style`);
-    assert.ok(!/[\u4e00-\u9fff]/.test(s), `${f.replaceAll('\\', '/')} 无中文文案`);
+    const rel = f.replaceAll('\\', '/');
+    if (f.endsWith('.js') && !rel.endsWith('core/api.js')) assert.ok(!/\bfetch\s*\(/.test(s), `${rel} 不直接 fetch`);
+    assert.ok(!/onclick=/.test(s), `${rel} 无内联 onclick`);
+    assert.ok(!/style=/.test(s), `${rel} 无内联 style`);
+    assert.ok(!/[\u4e00-\u9fff]/.test(s), `${rel} 无中文文案`);
   }
+});
+
+test('web/index.html 是干净 ESM 壳：无内联脚本/事件/样式', () => {
+  const html = read('web/index.html');
+  assert.ok(html.includes('type="module"'), 'module 入口存在');
+  assert.ok(!/<script(?![^>]*src=)[^>]*>[\s\S]*?<\/script>/.test(html), '无内联 script');
+  assert.ok(!/onclick=/.test(html) && !/style=/.test(html), '无内联 onclick/style');
 });
