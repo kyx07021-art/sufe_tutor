@@ -129,15 +129,21 @@ export function attachStudentMatch() {
   });
 }
 
-export function teacherSortMode(mode) { state.teacherSort = mode; sortTeachers(); }
+export function teacherSortMode(mode) {
+  if (mode == null) {
+    const role = state.user && state.user.role;
+    return role === 'teacher' ? 'rating' : 'match';
+  }
+  state.teacherSort = mode; sortTeachers(); return mode;
+}
 export function syncMatchSortOpt() { /* handled by sort control */ }
-export function sortTeachers() {
-  const mode = state.teacherSort || 'match';
-  const arr = [...(state.allTeachers || [])];
+export function sortTeachers(arrOrMode, maybeMode) {
+  const arr = Array.isArray(arrOrMode) ? [...arrOrMode] : [...(state.allTeachers || [])];
+  const mode = maybeMode || (Array.isArray(arrOrMode) ? 'rating' : state.teacherSort || 'match');
   if (mode === 'price') arr.sort((a,b) => (a.price_min||0)-(b.price_min||0));
   else if (mode === 'rating') arr.sort((a,b) => (b.rating||0)-(a.rating||0));
   else arr.sort((a,b) => (b._matchDegree||0)-(a._matchDegree||0));
-  state.allTeachers = arr;
+  if (Array.isArray(arrOrMode)) { state.allTeachers = arr; }
   renderTeachers();
 }
 
