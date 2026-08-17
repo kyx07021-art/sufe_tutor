@@ -87,7 +87,7 @@ export async function apiBatch(gets) {
  * XHR upload channel (chat uploads/complaint attachments reuse this single network path).
  * Accepts data URL payload and returns parsed JSON response. Abortable + progress callback.
  */
-export function apiUpload({ kind, fileData, fileName, thumb }, onProgress) {
+export function apiUpload({ kind, fileData, fileName, thumb }, onProgress, onXhr) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/uploads');
@@ -97,6 +97,7 @@ export function apiUpload({ kind, fileData, fileName, thumb }, onProgress) {
     xhr.upload.onprogress = e => {
       if (typeof onProgress === 'function') onProgress(e.lengthComputable ? e.loaded / e.total : null);
     };
+    if (typeof onXhr === 'function') onXhr(xhr);
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try { resolve(xhr.response || JSON.parse(xhr.responseText || '{}')); }
