@@ -5,7 +5,7 @@
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from './text.js';
 import { state } from '../../core/state.js';
-import { escHtml, fmtDateTime } from '../../core/dom.js';
+import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
 import { subjectNames, genderName, teacherGradeName, methodName, priceRangeText, ratingText, starsHtml, reviewStatusTagHtml } from '../../core/display.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 
@@ -13,6 +13,7 @@ export function renderTeacherCard(t, i) {
   const price = priceRangeText(t.price_min, t.price_max);
   return `<div class="list-card glass teacher-card" data-action="teacher.openProfile" data-id="${t.user_id}" data-reveal-index="${Math.min(i, 8)}">
     <div class="list-card-header">
+      ${renderAvatarHtml(t.avatar, t.real_name || t.username, 'tc-avatar')}
       <span class="list-card-title">${escHtml(t.real_name || t.username)}</span>
       <span class="tag glass glass--solid">${starsHtml(t.rating)} ${ratingText(t.rating)}</span>
     </div>
