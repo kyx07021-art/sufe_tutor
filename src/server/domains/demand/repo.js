@@ -5,7 +5,8 @@ import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { encryptField, decryptField } from '../../core/crypto.js';
 import { safeJsonArray, safeJsonObject } from '../../core/json.js';
 import { mapTeacherProfileRow } from '../teacher/repo.js';
-import { LIMITS, STATUS } from '../../../../server/constants.js';
+import { LIMITS } from '../../../shared/config.js';
+import { STATUS } from '../../../shared/enums.js';
 
 // 学生需求
 // ============================================================

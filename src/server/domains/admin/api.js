@@ -5,9 +5,10 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）。
  * 守卫统一走 requireAdmin（security.requireUser role='admin' 别名）。
  */
-import { json, error, genCode, toDbTime } from '../../core/util.js';
+import { json, error, errorMsg, genCode, toDbTime } from '../../core/util.js';
 import { requireAdmin } from '../../core/security.js';
-import { MSG, LIMITS } from '../../../../server/constants.js';
+import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
+import { LIMITS } from '../../../shared/config.js';
 import {
   dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode,
   dbGetUserStats, dbGetCount, dbGetCountWhere, dbGetReviewStats, dbGetInviteStats,
@@ -24,7 +25,6 @@ import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from '../../
 import { confirmDangerOtp } from '../../core/danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
 import { reencryptAll } from '../../../../server/reencrypt.js'; // v1.5.0 密钥轮换重加密（危险操作，capToken 门禁）
 import { getDashboardMetrics } from '../../../../server/telemetry.js'; // v1.5.0 观测 dashboard 数据
-import '../../../../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 import { dbBroadcastNotification, notifyUser } from '../../core/notify.js';
 
 // 邀请码有效期：一次性凭证 TTL 单源（constants.SECURITY.ONE_TIME_TTL_MS，与 capToken 同 5 分钟）
@@ -53,7 +53,7 @@ export async function handleRevokeInvite(db, code, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const ok = await dbRevokeInviteCode(db, code);
-  if (!ok) return error(MSG.INVITE_INVALID, 404);
+  if (!ok) return errorMsg('INVITE_INVALID', 404);
   await logEvent(db, { action: 'admin.invite.revoke', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'invite', entityId: code, detail: {}, req });
   return json({ ok: true });
@@ -145,7 +145,7 @@ export async function handleAdminUsers(db, url, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
   const role = url.searchParams.get('role');
-  if (!['student', 'teacher'].includes(role)) return error(MSG.INVALID_ROLE);
+  if (!['student', 'teacher'].includes(role)) return errorMsg('INVALID_ROLE');
   // 用户名搜索（q 可选）：LIKE 转义在数据层单点（dbSearchUsersByRole 同口径），管理员效率入口
   const q = String(url.searchParams.get('q') || '').trim();
   if (q) return json({ users: await dbSearchUsersByRole(db, role, q, 0, LIMITS.ADMIN_SEARCH_MAX) });
@@ -160,10 +160,10 @@ export async function handleBanUser(db, userId, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const target = await dbGetUserById(db, userId);
-  if (!target) return error(MSG.USER_NOT_FOUND, 404);
-  if (target.role === 'admin') return error(MSG.NO_PERMISSION, 403);
+  if (!target) return errorMsg('USER_NOT_FOUND', 404);
+  if (target.role === 'admin') return errorMsg('NO_PERMISSION', 403);
   // 封禁/解封 = 危险操作（同注销/签约口径），须 capToken 二次认证：管理员令牌被复用/泄露时封禁一击无效
-  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   const banned = body.banned ? 1 : 0;
   await dbSetUserBanned(db, userId, banned);
@@ -185,12 +185,12 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const existing = await dbGetDemandById(db, demandId);
-  if (!existing) return error(MSG.DEMAND_NOT_FOUND, 404);
+  if (!existing) return errorMsg('DEMAND_NOT_FOUND', 404);
   // 管理员可删全部需求（含已签约 contracted）；
   // 数据层 dbAdminForceDeleteDemand 同事务清 contracts/signing_requests 的 demand_id 引用再删需求，
   // F-03b 悬空不变量照守（常规非管理员路径仍走 dbDeleteDemand 的原子门禁）。
   const ok = await dbAdminForceDeleteDemand(db, demandId);
-  if (!ok) return error(MSG.DEMAND_NOT_FOUND, 409); // 行已被并发删除等
+  if (!ok) return errorMsg('DEMAND_NOT_FOUND', 409); // 行已被并发删除等
   await logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'demand', entityId: demandId, req });
   return json({ message: MSG.DEMAND_DELETED });
@@ -201,7 +201,7 @@ export async function handleAdminDeleteMessage(db, messageId, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const m = await dbGetMessageById(db, messageId);
-  if (!m) return error(MSG.MESSAGE_NOT_FOUND, 404);
+  if (!m) return errorMsg('MESSAGE_NOT_FOUND', 404);
   await dbDeleteMessage(db, messageId);
   await logEvent(db, { action: 'admin.message.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'message', entityId: messageId,
@@ -223,7 +223,7 @@ export async function handleAdminDecryptLog(db, logId, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
   const entry = await decryptLogEntry(db, logId);
-  if (!entry) return error(MSG.LOG_NOT_FOUND, 404);
+  if (!entry) return errorMsg('LOG_NOT_FOUND', 404);
   return json(entry);
 }
 
@@ -232,7 +232,7 @@ export async function handleAdminDecryptLog(db, logId, req) {
 export async function handleAdminReencrypt(db, body, req, env = null) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
-  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   const summary = await reencryptAll(db, env && env.LOG_DB); // 独立留档库一并重加密（N1 审计修复）
   await logEvent(db, { action: 'admin.crypto.reencrypt', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'system', entityId: 0, detail: summary, req });
@@ -245,11 +245,11 @@ export async function handleAdminBroadcast(db, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   // 广播影响全站用户 = 最高危管理操作，须 capToken 二次认证（同封禁/处罚口径）
-  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   const title = String(body.title || '').trim();
   const text = String(body.text || '').trim();
-  if (!text) return error(MSG.BROADCAST_EMPTY);
-  const message = title ? `${globalThis.APP_CONSTANTS.UI.NOTIFY_BROADCAST_PREFIX}${title}
+  if (!text) return errorMsg('BROADCAST_EMPTY');
+  const message = title ? `${SERVER_TEXT.NOTIFY_BROADCAST_PREFIX}${title}
 ${text}` : text;
   const count = await dbBroadcastNotification(db, message);
   await logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
@@ -290,34 +290,34 @@ export async function handleContentAction(db, type, id, body, req) {
   // 三段截断预算：reason/rule/summary 分预算，总长钉在 NOTIF_TEXT_MAX 内（单字段取满上限会组合超限被库层截断丢内容）
   const reason = String(body.reason || '').trim().slice(0, PENALTY_REASON_MAX);
   const rule = String(body.rule || '').trim().slice(0, PENALTY_RULE_MAX);
-  if (!['delete', 'remove', 'ban'].includes(action)) return error(MSG.INVALID_PARAMS);
-  if (!reason) return error(MSG.PENALTY_REASON_REQUIRED);
+  if (!['delete', 'remove', 'ban'].includes(action)) return errorMsg('INVALID_PARAMS');
+  if (!reason) return errorMsg('PENALTY_REASON_REQUIRED');
   // teacher 档案无硬删分支（doDeleteContent 跳过）——API 直发 delete/remove 直接拒绝，
   // 防「no-op 却回成功 + 发'移除内容'通知」的误导文案（UI 层已只给封禁）
-  if (type === 'teacher' && action !== 'ban') return error(MSG.INVALID_PARAMS);
+  if (type === 'teacher' && action !== 'ban') return errorMsg('INVALID_PARAMS');
   const label = TYPE_LABEL[type] || type;
 
   // 定位目标内容 + 作者（按类型取快照摘要，供处罚通知展示触发内容）
   let authorId = null, summary = '';
   switch (type) {
-    case 'post': { const p = await dbGetPostById(db, id); if (!p) return error(MSG.POST_NOT_FOUND, 404); authorId = p.user_id; summary = `${p.title || ''} ${p.body_md || ''}`; break; }
-    case 'demand': { const d = await dbGetDemandById(db, id); if (!d) return error(MSG.DEMAND_NOT_FOUND, 404); authorId = d.user_id; summary = String(d.additional_info || d.address || ''); break; }
-    case 'teacher': { const t = await dbGetTeacherProfile(db, id); if (!t) return error(MSG.USER_NOT_FOUND, 404); authorId = id; summary = `${t.intro || ''} ${t.address || ''} ${t.school || ''}`; break; }
-    case 'review': { const r = await dbGetReviewById(db, id); if (!r) return error(MSG.REVIEW_NOT_FOUND, 404); authorId = r.reviewer_user_id; summary = r.comment || ''; break; }
-    case 'message': { const m = await dbGetMessageById(db, id); if (!m) return error(MSG.MESSAGE_NOT_FOUND, 404); authorId = m.sender_user_id; summary = m.body || m.name || ''; break; }
-    case 'feedback': { const f = await dbGetFeedbackById(db, id); if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404); authorId = f.user_id; summary = `${f.title || ''} ${f.content || ''}`; break; }
-    case 'complaint': { const c = await dbGetComplaintById(db, id); if (!c) return error(MSG.COMPLAINT_NOT_FOUND, 404); authorId = c.user_id; summary = `${c.reason || ''} ${c.detail || ''}`; break; }
-    case 'upload': { const o = await dbGetUpload(db, id); if (!o) return error(MSG.INVALID_PARAMS, 404); authorId = o.user_id; summary = o.name || ''; break; }
-    case 'contract': { const c = await dbGetContractById(db, id); if (!c) return error(MSG.CONTRACT_NOT_FOUND, 404); authorId = c.drafter_user_id; summary = `${c.plan || ''} ${c.schedule || ''}`; break; }
-    case 'signing': { const s = await dbGetSigningById(db, id); if (!s) return error(MSG.CONTRACT_NOT_FOUND, 404); authorId = s.initiator_user_id; summary = `${s.price > 0 ? s.price + ' 元/时 ' : ''}${s.schedule || ''} ${s.method || ''}`; break; }
-    default: return error(MSG.INVALID_PARAMS);
+    case 'post': { const p = await dbGetPostById(db, id); if (!p) return errorMsg('POST_NOT_FOUND', 404); authorId = p.user_id; summary = `${p.title || ''} ${p.body_md || ''}`; break; }
+    case 'demand': { const d = await dbGetDemandById(db, id); if (!d) return errorMsg('DEMAND_NOT_FOUND', 404); authorId = d.user_id; summary = String(d.additional_info || d.address || ''); break; }
+    case 'teacher': { const t = await dbGetTeacherProfile(db, id); if (!t) return errorMsg('USER_NOT_FOUND', 404); authorId = id; summary = `${t.intro || ''} ${t.address || ''} ${t.school || ''}`; break; }
+    case 'review': { const r = await dbGetReviewById(db, id); if (!r) return errorMsg('REVIEW_NOT_FOUND', 404); authorId = r.reviewer_user_id; summary = r.comment || ''; break; }
+    case 'message': { const m = await dbGetMessageById(db, id); if (!m) return errorMsg('MESSAGE_NOT_FOUND', 404); authorId = m.sender_user_id; summary = m.body || m.name || ''; break; }
+    case 'feedback': { const f = await dbGetFeedbackById(db, id); if (!f) return errorMsg('FEEDBACK_NOT_FOUND', 404); authorId = f.user_id; summary = `${f.title || ''} ${f.content || ''}`; break; }
+    case 'complaint': { const c = await dbGetComplaintById(db, id); if (!c) return errorMsg('COMPLAINT_NOT_FOUND', 404); authorId = c.user_id; summary = `${c.reason || ''} ${c.detail || ''}`; break; }
+    case 'upload': { const o = await dbGetUpload(db, id); if (!o) return errorMsg('INVALID_PARAMS', 404); authorId = o.user_id; summary = o.name || ''; break; }
+    case 'contract': { const c = await dbGetContractById(db, id); if (!c) return errorMsg('CONTRACT_NOT_FOUND', 404); authorId = c.drafter_user_id; summary = `${c.plan || ''} ${c.schedule || ''}`; break; }
+    case 'signing': { const s = await dbGetSigningById(db, id); if (!s) return errorMsg('CONTRACT_NOT_FOUND', 404); authorId = s.initiator_user_id; summary = `${s.price > 0 ? s.price + ' 元/时 ' : ''}${s.schedule || ''} ${s.method || ''}`; break; }
+    default: return errorMsg('INVALID_PARAMS');
   }
-  if (!authorId) return error(MSG.USER_NOT_FOUND, 404);
+  if (!authorId) return errorMsg('USER_NOT_FOUND', 404);
   const author = await dbGetUserById(db, authorId);
   const authorName = author ? author.username : `用户#${authorId}`;
   // 处罚 = 危险操作（删除/封禁不可逆），须 capToken 二次认证；且不得处罚管理员账户
-  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
-  if (author && author.role === 'admin') return error(MSG.NO_PERMISSION, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
+  if (author && author.role === 'admin') return errorMsg('NO_PERMISSION', 403);
 
   // 执行处罚（teacher 档案不硬删——ban 作者即可；其余类型删除/下架）
   if (type !== 'teacher' && (action === 'delete' || action === 'remove')) {

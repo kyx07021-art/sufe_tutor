@@ -17,7 +17,7 @@
  * 密钥一律经 secrets 网关（getSecret：env Worker Secrets 优先，回落本地 secrets.js）。
  */
 import { getSecret } from '../../../server/secrets.js';
-import { SECURITY } from '../../../server/constants.js';
+import { SECURITY } from '../../shared/config.js';
 
 // ============================================================
 // 字节 <-> hex / b64

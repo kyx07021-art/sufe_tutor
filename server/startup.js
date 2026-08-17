@@ -9,10 +9,8 @@
  * 静态资源照常服务（发版脚本在 push 后 curl /api/health 判 ready，不 ready 视为部署失败）。
  */
 import { json } from '../src/server/core/util.js';
-import { INVITE_GATE_ENABLED, LEGACY_ADMIN_PASSWORD } from './constants.js';
+import { INVITE_GATE_ENABLED, INVITE_GATE_DORMANT, LEGACY_ADMIN_PASSWORD } from '../src/shared/config.js';
 import { isProductionRuntime } from './secrets.js';
-import '../constants.js'; // 副作用导入 globalThis.APP_CONSTANTS（邀请码门控前后端一致性检查）
-
 
 /** 只从 env 读（不看仓库文件回落）——Release Gate 检查的就是「Worker Secrets 是否真的配了」 */
 function envSecret(env, key) {
@@ -46,10 +44,9 @@ export function productionConfigChecks(env) {
   add('CRYPTO_ROTATION_READY', rotationDone || (envSecret(env, 'FIELD_ENC_KEY_OLD').length > 0 && envSecret(env, 'LOG_ENCRYPT_KEY_OLD').length > 0));
 
   // 教师注册邀请码门控：两种一致态都合法——启用（后端 true + 前端 false）或开放注册（后端 false + 前端 true）
-  const app = globalThis.APP_CONSTANTS || {};
   add('INVITE_GATE_CONSISTENT',
-    (INVITE_GATE_ENABLED === true && app.INVITE_GATE_DORMANT === false) ||
-    (INVITE_GATE_ENABLED === false && app.INVITE_GATE_DORMANT === true));
+    (INVITE_GATE_ENABLED === true && INVITE_GATE_DORMANT === false) ||
+    (INVITE_GATE_ENABLED === false && INVITE_GATE_DORMANT === true));
 
   return { ok: checks.every(c => c.pass), checks };
 }

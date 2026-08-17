@@ -18,6 +18,12 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 
+// V-1-1：服务端不再以副作用导入根 constants.js；本文件显式 vm 执行根 constants.js，
+// 以便用 UI 文案契约断言服务端通知文案与前端 UI 文案同源。
+const ROOT_AC = {};
+vm.runInNewContext(readFileSync('./constants.js', 'utf8'), ROOT_AC, { filename: 'constants.js' });
+const ROOT_UI = ROOT_AC.APP_CONSTANTS.UI;
+
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 // ==================== 服务端 ====================
@@ -125,10 +131,10 @@ test('标记处理：投诉回执专属文案；Bug/建议通用文案；幂等'
   const complaintId = (await dbGetFeedbackById(db, 1)).id; // dbGetFeedbackById 是 async，须 await 取 id
   await handleResolveFeedback(db, complaintId, {}, reqOf(adminToken));
   let n = raw.prepare('SELECT text FROM notifications ORDER BY id DESC LIMIT 1').get();
-  assert.equal(n.text, globalThis.APP_CONSTANTS.UI.FEEDBACK_COMPLAINT_RESOLVED, '投诉回执用专属文案');
+  assert.equal(n.text, ROOT_UI.FEEDBACK_COMPLAINT_RESOLVED, '投诉回执用专属文案');
   await handleResolveFeedback(db, 2, {}, reqOf(adminToken));
   n = raw.prepare('SELECT text FROM notifications ORDER BY id DESC LIMIT 1').get();
-  assert.equal(n.text, globalThis.APP_CONSTANTS.UI.FEEDBACK_RESOLVED, '建议回执用通用文案');
+  assert.equal(n.text, ROOT_UI.FEEDBACK_RESOLVED, '建议回执用通用文案');
   const before = raw.prepare('SELECT COUNT(*) c FROM notifications').get().c;
   await handleResolveFeedback(db, complaintId, {}, reqOf(adminToken)); // 已处理再点 → 不再发通知
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications').get().c, before, '幂等：已处理不重复通知');
@@ -290,7 +296,7 @@ test('M11+M12 关于平台：支持卡两按钮（投诉与反馈/我的投诉�
   const doc = dom.window.document;
   await vm.runInContext(`state.page = 'about'; enterAbout()`, ctx);
   const btns = [...doc.querySelectorAll('.about-feedback-btns button')];
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   assert.equal(btns.length, 2, '两个入口按钮（用户反馈+投诉→投诉与反馈；我的投诉+我的反馈→我的投诉与反馈）');
   assert.equal(btns[0].textContent, UI.BTN_COMPLAINT_FEEDBACK);
   assert.equal(btns[1].textContent, UI.BTN_MY_COMPLAINTS_FEEDBACK);
@@ -299,7 +305,7 @@ test('M11+M12 关于平台：支持卡两按钮（投诉与反馈/我的投诉�
 test('M11 投诉与反馈：chooser 浮窗三选（Bug/建议/投诉），选中后开对应专线浮窗', async () => {
   const { dom, ctx } = makeCtx();
   const doc = dom.window.document;
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   await vm.runInContext(`openFeedbackComplaintChooser()`, ctx);
   const items = doc.querySelectorAll('.chooser-grid .chooser-item');
   assert.equal(items.length, 3, '三选通道');
@@ -315,7 +321,7 @@ test('M11 投诉与反馈：chooser 浮窗三选（Bug/建议/投诉），选中
 test('R22 投诉独立浮窗：三 tab + pane 显隐 + 理由下拉栏；反馈浮窗已无投诉档', async () => {
   const { dom, ctx } = makeCtx();
   const doc = dom.window.document;
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
   assert.equal(doc.getElementById('complaint-modal-title').textContent, UI.COMPLAINT_MODAL_TITLE);
@@ -356,7 +362,7 @@ test('R22 最近联系的人：打开后按 tab 拉取并渲染 chips', async ()
 test('R22 对象选择与提交：选对象 + 理由 → POST /api/complaints；未选对象拦截', async () => {
   const { dom, ctx, complaints } = makeCtx();
   const doc = dom.window.document;
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
   // 未选对象提交 → 拦截提示，不发请求（v0.25.99：提示走底部 Toast）
@@ -377,7 +383,7 @@ test('R22 对象选择与提交：选对象 + 理由 → POST /api/complaints；
 test('R22 对象按 tab 隔离：学生 tab 选择不影响教师 tab，提交当前 tab', async () => {
   const { dom, ctx, complaints } = makeCtx();
   const doc = dom.window.document;
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
   await vm.runInContext(`pickComplaintTarget('teacher', 5, { dataset: { name: '李老师' } })`, ctx);
@@ -406,7 +412,7 @@ test('M12 我的投诉与反馈（合并）：投诉卡渲染对象/理由/状�
     { id: 1, target_type: 'teacher', target_snapshot: { name: '李老师' }, reason: '虚假信息或欺诈', detail: '多次迟到', status: 'open', created_at: '2026-08-09 10:00:00' },
   ] });
   const doc = dom.window.document;
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   await vm.runInContext(`openMyFeedback()`, ctx); // M12：合并入口统一走 openMyFeedback
   await tick();
   const cards = doc.querySelectorAll('.my-feedback-list .complaint-card');
@@ -433,7 +439,7 @@ test('M12 我的投诉与反馈（合并）：投诉卡渲染对象/理由/状�
 test('我的反馈浮窗：渲染类型/对象/状态 tag + Markdown 正文；空态', async () => {
   const { dom, ctx } = makeCtx({ mineRows: MINE });
   const doc = dom.window.document;
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   await vm.runInContext(`openMyFeedback()`, ctx);
   await tick();
   const cards = doc.querySelectorAll('.my-feedback-card');
@@ -474,7 +480,7 @@ test('U11 投诉浮窗：附件上传区（添加按钮 + 多选文件输入 + �
 test('U11 提交投诉：携带已传完附件 uploadIds；在途附件拦截提交', async () => {
   const { dom, ctx, complaints } = makeCtx();
   const doc = dom.window.document;
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
   // 桩两条暂存：一条就绪(uploadId=7)、一条在途(ready=false)——直接驱动 renderComplaintStage（FileReader 在 jsdom 不实现，桩化状态）
@@ -507,7 +513,7 @@ test('U11 提交投诉：携带已传完附件 uploadIds；在途附件拦截提
 test('U11 审查 F1：头部 ✕ 关闭后重开浮窗清旧暂存，新投诉不静默携带旧 uploadId', async () => {
   const { dom, ctx, complaints } = makeCtx();
   const doc = dom.window.document;
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   await vm.runInContext(`openComplaintModal()`, ctx);
   await tick();
   await vm.runInContext(`

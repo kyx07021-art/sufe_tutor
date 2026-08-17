@@ -3,7 +3,8 @@
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { dbRecomputeTeacherRating } from '../auth/repo.js';
-import { LIMITS, STATUS } from '../../../../server/constants.js';
+import { LIMITS } from '../../../shared/config.js';
+import { STATUS } from '../../../shared/enums.js';
 
 // ============================================================
 // 评价

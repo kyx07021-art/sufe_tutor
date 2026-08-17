@@ -4,7 +4,8 @@
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { safeJsonArray, safeJsonObject } from '../../core/json.js';
 import { likeEscape } from '../posts/repo.js';
-import { LIMITS, STATUS } from '../../../../server/constants.js';
+import { LIMITS } from '../../../shared/config.js';
+import { STATUS } from '../../../shared/enums.js';
 
 // 用户反馈（关于平台模块）
 // ============================================================

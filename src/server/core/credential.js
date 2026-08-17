@@ -14,7 +14,7 @@
  */
 import { dbGet, dbRun, toDbTime } from './util.js';
 import { encryptField, decryptField, tokenDigest } from './crypto.js';
-import { PHONE_HASH_COND, EMAIL_HASH_COND } from '../../../server/constants.js'; // 哈希列定位条件单源
+import { PHONE_HASH_COND, EMAIL_HASH_COND } from '../../shared/config.js'; // 哈希列定位条件单源
 
 // 凭证读取列集（登录识别/校验用，含口令列——仅登录/重认证路径出层）
 const USER_CRED_SQL = `SELECT id, username, role, avatar, banned, deactivated, password_hash, salt,

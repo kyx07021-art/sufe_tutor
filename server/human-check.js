@@ -123,11 +123,11 @@ export function markChallengePassed(captchaId) {
 // POST /api/captcha/verify { captchaId, offset, track } —— 拼图验证人机判定（无需鉴权，限流兜底）
 export async function handleCaptchaVerify(db, body, req) {
   const track = body && body.track;
-  if (!Array.isArray(track)) return error('轨迹数据缺失', 400);
+  if (!Array.isArray(track)) return error('轨迹数据缺失', 400, 'CAPTCHA_TRACK_MISSING');
   const captchaId = String((body && body.captchaId) || '').slice(0, 64);
   const check = humanTrajectoryCheck(track);
-  if (!check.ok) return error(`验证失败：${check.reason || '轨迹特征异常'}`, 403);
+  if (!check.ok) return error(`验证失败：${check.reason || '轨迹特征异常'}`, 403, 'CAPTCHA_VERIFY_FAILED');
   // 判定通过 → 一次性放行（防同一挑战重复使用）
-  if (!markChallengePassed(captchaId)) return error('验证已使用，请重新验证', 403);
+  if (!markChallengePassed(captchaId)) return error('验证已使用，请重新验证', 403, 'CAPTCHA_ALREADY_USED');
   return { ok: true, score: check.score };
 }

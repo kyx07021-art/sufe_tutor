@@ -6,7 +6,7 @@
  * 指标是观测数据（best-effort），多实例/重启造成分钟级少量丢失可接受。
  */
 import { dbAll, dbRun } from '../src/server/core/util.js';
-import { LIMITS } from './constants.js';
+import { LIMITS } from '../src/shared/config.js';
 
 const buckets = new Map();
 let lastFlush = 0;

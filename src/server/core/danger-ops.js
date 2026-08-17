@@ -19,7 +19,7 @@ import { dbRun, dbGet, toDbTime } from './util.js';
 import { authUser } from './security.js';
 import { getSessionByToken } from './session.js';
 import { bufToHex, tokenDigest } from './crypto.js';
-import { SECURITY } from '../../../server/constants.js';
+import { SECURITY } from '../../shared/config.js';
 
 /** 建表（幂等；initDb 调一次） */
 export async function initDangerCaps(db) {

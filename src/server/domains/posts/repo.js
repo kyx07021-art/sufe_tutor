@@ -3,7 +3,7 @@
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { safeJsonArray } from '../../core/json.js';
-import { LIMITS } from '../../../../server/constants.js';
+import { LIMITS } from '../../../shared/config.js';
 
 // ============================================================
 // 帖子（模块2：资料共享广场）

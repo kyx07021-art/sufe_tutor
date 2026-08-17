@@ -4,7 +4,8 @@
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { encryptField, decryptField } from '../../core/crypto.js';
 import { safeJsonArray, safeJsonObject } from '../../core/json.js';
-import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS } from '../../../../server/constants.js';
+import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS } from '../../../shared/config.js';
+import { STATUS } from '../../../shared/enums.js';
 
 // 教师档案
 // ============================================================

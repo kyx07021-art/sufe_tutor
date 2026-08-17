@@ -4,9 +4,11 @@
  * 职责：响应构造（json/error）、D1 查询薄封装（dbAll/dbGet/dbRun）、幂等加列（ensureColumns）、
  * 随机邀请码（genCode）、设备标签（deviceLabelFromUA）。
  * 无业务逻辑、无跨模块状态；是各层公共依赖的「最底层」。
- * 响应构造带 CORS 头（CORS_HEADERS 单源自 constants.js，预检与 json() 同源）。
+ * 响应构造带 CORS 头（CORS_HEADERS 单源自 src/shared/config.js，预检与 json() 同源）。
  */
-import { CORS_HEADERS, LIMITS, MSG, STATUS } from '../../../server/constants.js';
+import { CORS_HEADERS, LIMITS } from '../../shared/config.js';
+import { MSG, CODES } from '../../shared/codes.js';
+import { STATUS } from '../../shared/enums.js';
 
 // ============================================================
 // 响应构造
@@ -26,6 +28,19 @@ export function json(data, status = 200) {
  * @param code   稳定错误码（可选，如 'PROFILE_INCOMPLETE'）
  */
 export function error(msg, status = 400, code) { return json({ error: msg, code }, status); }
+
+/**
+ * 按 MSG key 出错误响应：{ error: MSG[key], code: CODES[key] }（仍回中文 msg，前端按 code 分支）。
+ * codeOverride 用于稳定码需要动态值的历史调用（如 CHSI_UNVERIFIED），显式覆盖 CODES 映射。
+ * @param key           MSG 键（如 'POST_NOT_FOUND'）
+ * @param status        HTTP 状态码（缺省 400）
+ * @param codeOverride  可选：显式稳定码（缺省取 CODES[key]）
+ */
+export function errorMsg(key, status = 400, codeOverride) {
+  const msg = MSG[key];
+  if (msg == null) throw new Error(`Unknown MSG key: ${key}`);
+  return error(msg, status, codeOverride !== undefined ? codeOverride : CODES[key]);
+}
 
 // ============================================================
 // D1 查询薄封装（数据层 / 路由层共用；换数据库时只需改这几处）
@@ -49,7 +64,7 @@ export async function dbRun(db, sql, params = []) {
 /**
  * 需求「活跃」统一谓词：业务路由判断需求可否操作（签约/意向/推送）一律走这里，
  * active == status==='open'（contracted 已成交 / revoked 已撤销未重开均非活跃）。
- * SQL 层字面量维持既有惯例（constants.js 头部注释），JS 判断层收敛到本函数。
+ * SQL 层字面量维持既有惯例（见共享常量文件头部注释），JS 判断层收敛到本函数。
  */
 // 库内 UTC 时间戳单点：入参 Date（缺省 now）→ 'YYYY-MM-DD HH:MM:SS'（UTC 秒级）。
 // SQL 层 UTC 比较一律传本函数产物（datetime('now','localtime') 是非 UTC 时区环境的时间域陷阱）

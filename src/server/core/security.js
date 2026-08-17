@@ -13,9 +13,10 @@
  *   - 低频危险键（登录/注册/重认证/三振/封禁）落 D1 rate_limits 表，跨实例生效、重启不清零。
  *   - 三振窗口语义内存与 D1 一致（strike.windowMs 内满 strike.count 次 → 封 block.windowMs）。
  */
-import { dbGet, dbRun, error } from './util.js';
+import { dbGet, dbRun, errorMsg } from './util.js';
 import { tokenDigest } from './crypto.js';
-import { MSG, RATE_LIMITS, SECURITY, SECURITY_HEADERS, CORS_HEADERS } from '../../../server/constants.js';
+import { MSG } from '../../shared/codes.js';
+import { RATE_LIMITS, SECURITY, SECURITY_HEADERS, CORS_HEADERS } from '../../shared/config.js';
 
 // ============================================================
 // 身份解析：全站一律凭 X-Auth-Token（登录签发，TTL 见 constants.SECURITY.TOKEN_TTL_MS，
@@ -46,7 +47,7 @@ export async function authUser(db, req) {
 
 /** 管理员判定两行式合一：非管理员（含无令牌/令牌失效）→ 403 响应；通过 → null */
 export function requireAdminOrError(user) {
-  return user && user.role === 'admin' ? null : error(MSG.ADMIN_ONLY, 403);
+  return user && user.role === 'admin' ? null : errorMsg('ADMIN_ONLY', 403);
 }
 
 /**
@@ -57,10 +58,10 @@ export function requireAdminOrError(user) {
  */
 export async function requireUser(db, req, role) {
   const user = await authUser(db, req);
-  if (!user) return { err: error(MSG.LOGIN_REQUIRED, 401) };
+  if (!user) return { err: errorMsg('LOGIN_REQUIRED', 401) };
   if (role && user.role !== role) {
-    const msg = role === 'admin' ? MSG.ADMIN_ONLY : role === 'student' ? MSG.STUDENT_ONLY : MSG.TEACHER_ONLY;
-    return { err: error(msg, 403) };
+    const key = role === 'admin' ? 'ADMIN_ONLY' : role === 'student' ? 'STUDENT_ONLY' : 'TEACHER_ONLY';
+    return { err: errorMsg(key, 403) };
   }
   return { user };
 }

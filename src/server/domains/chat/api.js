@@ -5,10 +5,12 @@
  * 安全补丁已并入主线：svg/html dataURL 黑名单（防钓鱼投递）、附件体积上限、暂存配额自愈+封顶、
  * 参与方 404 不泄露会话存在性。限额全部单源 constants.LIMITS。
  */
-import { json, error } from '../../core/util.js';
+import { json, error, errorMsg } from '../../core/util.js';
 import { requireUser } from '../../core/security.js';
 import { encryptField, decryptField } from '../../core/crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
-import { MSG, STATUS, LIMITS } from '../../../../server/constants.js';
+import { MSG } from '../../../shared/codes.js';
+import { STATUS } from '../../../shared/enums.js';
+import { LIMITS } from '../../../shared/config.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbMarkConversationRead,
   dbGetMessageAttachment, dbGetConversationBindableDemands,
@@ -24,7 +26,7 @@ const isParticipant = (conv, userId) =>
 // 不存在或非参与方统一 404（不向外透露会话存在性）；失败返 { err: Response }，成功返 { conv }
 async function loadConversationFor(db, conversationId, userId) {
   const conv = await dbGetConversationById(db, conversationId);
-  if (!conv || !isParticipant(conv, userId)) return { err: error(MSG.CONVERSATION_NOT_FOUND, 404) };
+  if (!conv || !isParticipant(conv, userId)) return { err: errorMsg('CONVERSATION_NOT_FOUND', 404) };
   return { conv };
 }
 
@@ -90,7 +92,7 @@ export async function handleGetAttachment(db, convId, messageId, url, req) {
   const g = await loadConversationFor(db, convId, me.id);
   if (g.err) return g.err;
   const m = await dbGetMessageAttachment(db, messageId, convId);
-  if (!m) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+  if (!m) return errorMsg('CONVERSATION_NOT_FOUND', 404);
   return json({ body: await decryptField(m.body), name: m.name || '' }); // N-05：附件密文出门解密
 }
 
@@ -102,21 +104,21 @@ export async function handleCreateUpload(db, body, req) {
   const kind = body.kind === 'image' ? 'image' : 'file';
   const content = String(body.fileData ?? '');
   const prefixOk = kind === 'image' ? content.startsWith('data:image/') : content.startsWith('data:');
-  if (!prefixOk || content.length > LIMITS.FILE_MAX_BYTES) return error(MSG.FILE_TOO_LARGE);
-  if (fileDataBlocked(content)) return error(MSG.FILE_TYPE_BLOCKED); // svg/html 黑名单对图片同样生效
+  if (!prefixOk || content.length > LIMITS.FILE_MAX_BYTES) return errorMsg('FILE_TOO_LARGE');
+  if (fileDataBlocked(content)) return errorMsg('FILE_TYPE_BLOCKED'); // svg/html 黑名单对图片同样生效
   // 缩略图（仅图片携带）：data:image 前缀 + 小体积钳制（防刷大字段）+ 黑名单同款拦截
   const thumbRaw = kind === 'image' ? String(body.thumb ?? '') : '';
-  if (thumbRaw && (!thumbRaw.startsWith('data:image/') || thumbRaw.length > LIMITS.THUMB_MAX_BYTES)) return error(MSG.FILE_TOO_LARGE);
-  if (thumbRaw && fileDataBlocked(thumbRaw)) return error(MSG.FILE_TYPE_BLOCKED);
+  if (thumbRaw && (!thumbRaw.startsWith('data:image/') || thumbRaw.length > LIMITS.THUMB_MAX_BYTES)) return errorMsg('FILE_TOO_LARGE');
+  if (thumbRaw && fileDataBlocked(thumbRaw)) return errorMsg('FILE_TYPE_BLOCKED');
   const name = String(body.fileName ?? '').slice(0, LIMITS.FILE_NAME_MAX);
   // 暂存区配额自愈 + 上限：先清本人滞留暂存件（窗口见 LIMITS.STALE_UPLOAD_WINDOW），再按每人封顶（防弃传暂存填满库 / 刷大字段）
   await dbPurgeStaleUploads(db, me.id);
-  if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return error(MSG.UPLOAD_STAGING_LIMIT); // 快路径
+  if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return errorMsg('UPLOAD_STAGING_LIMIT'); // 快路径
   // 网安 N-05：附件 dataURL 加密落库（暂存区与消息正文同口径；发送落消息时密文原样搬移，不再二次加密）；缩略图同款加密
   const contentEnc = await encryptField(content);
   const thumbEnc = thumbRaw ? await encryptField(thumbRaw) : '';
   const id = await dbCreateUpload(db, me.id, kind, contentEnc, name, thumbEnc); // 条件 INSERT 原子化：0 = 并发已满配额（TOCTOU 缺口补）
-  if (!id) return error(MSG.UPLOAD_STAGING_LIMIT);
+  if (!id) return errorMsg('UPLOAD_STAGING_LIMIT');
   return json({ id }, 201);
 }
 
@@ -125,7 +127,7 @@ export async function handleDeleteUpload(db, uploadId, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   const u = await dbGetUpload(db, uploadId);
-  if (!u || u.user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
+  if (!u || u.user_id !== me.id) return errorMsg('NO_PERMISSION', 403);
   await dbDeleteUpload(db, uploadId);
   return json({ ok: true });
 }
@@ -136,13 +138,13 @@ export async function handleSendMessage(db, convId, body, req) {
   const userId = me.id;
   const g = await loadConversationFor(db, convId, userId);
   if (g.err) return g.err;
-  if (g.conv.status !== STATUS.ACTIVE) return error(MSG.NO_PERMISSION, 403);
+  if (g.conv.status !== STATUS.ACTIVE) return errorMsg('NO_PERMISSION', 403);
 
   // 批量发送——一次写往返落多条（暂存附件确认 + 文字），2N+1 串行写 → 1。
   // 前端暂存附件已上传（带进度），发送阶段只凭 uploadId 落消息 + 删暂存；整批单事务 db.batch。
   // 单消息分支（body.body / body.uploadId / fileData 直发）已无前端调用者（前端恒发
   // batch），按「不保留向后兼容」连根删——text/image/file 直发语义全部由 batch 项覆盖。
-  if (!Array.isArray(body.batch)) return error(MSG.INVALID_PARAMS, 400);
+  if (!Array.isArray(body.batch)) return errorMsg('INVALID_PARAMS', 400);
   return handleSendBatch(db, convId, body.batch, userId, req);
 }
 
@@ -152,21 +154,21 @@ export async function handleSendMessage(db, convId, body, req) {
 // 校验与单条路径同口径（归属/长度），任一校验失败整批 400/404（不落半批）；db.batch 失败整体回滚。
 // INSERT SQL 收口 db.js 单源（dbPrepareMessageInsert）——自持一份会加列双处漂移。
 async function handleSendBatch(db, convId, batch, userId, req) {
-  if (!batch.length || batch.length > LIMITS.MSG_BATCH_MAX) return error(MSG.INVALID_PARAMS, 400);
+  if (!batch.length || batch.length > LIMITS.MSG_BATCH_MAX) return errorMsg('INVALID_PARAMS', 400);
   // 第一遍（for...of 保留 return 语义）：文字项校验 + 收集附件 id（非数字/重复整批拒绝）
   const uploadIds = [];
   const seenUploads = new Set(); // 审计 C-4：重复 uploadId 整批拒绝（防同附件双消息双删 + 乐观批序错位）
   for (const item of batch) {
     if (item && item.uploadId) {
       const upId = parseInt(item.uploadId);
-      if (Number.isNaN(upId) || seenUploads.has(upId)) return error(MSG.INVALID_PARAMS, 400);
+      if (Number.isNaN(upId) || seenUploads.has(upId)) return errorMsg('INVALID_PARAMS', 400);
       seenUploads.add(upId);
       uploadIds.push(upId);
     } else if (item && item.kind === 'text') {
       const content = String(item.body ?? '').trim();
-      if (!content || content.length > LIMITS.MESSAGE_MAX_LEN) return error(MSG.MESSAGE_TOO_LONG);
+      if (!content || content.length > LIMITS.MESSAGE_MAX_LEN) return errorMsg('MESSAGE_TOO_LONG');
     } else {
-      return error(MSG.INVALID_PARAMS, 400);
+      return errorMsg('INVALID_PARAMS', 400);
     }
   }
   // 第二遍：附件归属单查（B5 模式：N 串行 dbGetUpload → 1 次 WHERE IN，往返 N 读 → 1）
@@ -177,7 +179,7 @@ async function handleSendBatch(db, convId, batch, userId, req) {
   for (const item of batch) {
     if (item && item.uploadId) {
       const up = uploadById.get(parseInt(item.uploadId));
-      if (!up || up.user_id !== userId) return error(MSG.CONVERSATION_NOT_FOUND, 404);
+      if (!up || up.user_id !== userId) return errorMsg('CONVERSATION_NOT_FOUND', 404);
       items.push({ resultIndex: stmts.length, kind: up.kind, name: up.name });
       stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, up.kind, up.body, up.name, up.thumb)); // 密文随 uploads 转正
       stmts.push(dbPrepareUploadDelete(db).bind(up.id));
@@ -189,7 +191,7 @@ async function handleSendBatch(db, convId, batch, userId, req) {
   }
   let results;
   try { results = await db.batch(stmts); }
-  catch (e) { console.error('send batch failed:', e && e.message); return error(MSG.SERVER_ERROR, 500); }
+  catch (e) { console.error('send batch failed:', e && e.message); return errorMsg('SERVER_ERROR', 500); }
   const created = items.map(it => ({
     id: Number((results[it.resultIndex] && results[it.resultIndex].meta && results[it.resultIndex].meta.last_row_id) || 0),
     kind: it.kind, name: it.name,

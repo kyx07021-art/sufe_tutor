@@ -2,7 +2,8 @@
  * 奖项域数据层（V-1-4 从 server/awards.js 提取）：teacher_awards。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
-import { LIMITS, STATUS } from '../../../../server/constants.js';
+import { LIMITS } from '../../../shared/config.js';
+import { STATUS } from '../../../shared/enums.js';
 
 export const AWARD_TITLE_MAX = 60;
 export const AWARD_ISSUER_MAX = 60;

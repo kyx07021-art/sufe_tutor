@@ -21,11 +21,12 @@
  *                        唯一正解——验证码本就是我们生成的）；未来若验证码托管给服务商
  *                        （服务商存 code），可切 'provider' 接服务商校验 API。
  */
-import { dbGet, dbRun, dbAll, error, toDbTime } from './util.js';
+import { dbGet, dbRun, dbAll, error, errorMsg, toDbTime } from './util.js';
 import { tokenDigest } from './crypto.js';
-import { MSG, LIMITS } from '../../../server/constants.js';
+import { MSG } from '../../shared/codes.js';
+import { LIMITS, CONFIG } from '../../shared/config.js';
 import { getSecret } from '../../../server/secrets.js'; // SMS/EMAIL_OTP_TEMPLATE_CODE 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
-import '../../../constants.js'; // 地区前缀表数据单源：globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS（与前端同源）
+
 import { logEvent } from './log.js';
 
 // ============================================================
@@ -52,9 +53,9 @@ export async function initOtpTable(db) {
 // ============================================================
 // 目标格式校验（地区前缀 + 号码 pattern；邮箱标准正则）
 // ============================================================
-// 手机号地区表单源在根 constants.js CONFIG.PHONE_REGIONS（前端 app-otp.js 同读，杜绝双源漂移）。
+// 手机号地区表单源在 src/shared/config.js CONFIG.PHONE_REGIONS（前端 app-otp.js 同读，杜绝双源漂移）。
 // 当前收敛大陆单区（仅 +86）：前缀选项已连根移除，parsePhone 只认大陆号；接入国际短信时再加回。
-const PHONE_REGIONS = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS) || [];
+const PHONE_REGIONS = CONFIG.PHONE_REGIONS || [];
 
 /** 解析手机号前缀：遍历 PHONE_REGIONS（大陆单区 = 仅 +86）；返回 { prefix, number } 或 null */
 export function parsePhone(target) {
@@ -74,11 +75,12 @@ const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 /** 校验目标格式与长度；返回 { ok } 或 { ok:false, msg }（模块内使用） */
 function validateOtpTarget(channel, target) {
   const t = String(target || '').trim();
+  const key = channel === 'sms' ? 'PHONE_INVALID' : 'EMAIL_INVALID';
   if (!t || t.length > (channel === 'sms' ? LIMITS.PHONE_MAX : LIMITS.EMAIL_MAX)) {
-    return { ok: false, msg: channel === 'sms' ? MSG.PHONE_INVALID : MSG.EMAIL_INVALID };
+    return { ok: false, msg: MSG[key], key };
   }
-  if (channel === 'sms') return parsePhone(t) ? { ok: true } : { ok: false, msg: MSG.PHONE_INVALID };
-  return EMAIL_RE.test(t) ? { ok: true } : { ok: false, msg: MSG.EMAIL_INVALID };
+  if (channel === 'sms') return parsePhone(t) ? { ok: true } : { ok: false, msg: MSG[key], key };
+  return EMAIL_RE.test(t) ? { ok: true } : { ok: false, msg: MSG[key], key };
 }
 
 // ============================================================
@@ -155,7 +157,7 @@ async function deliverOtp({ channel, target, code, scene }) {
 export async function requestOtp(db, { channel, target, scene }, req) {
   const ch = channel === 'email' ? 'email' : 'sms';
   const v = validateOtpTarget(ch, target);
-  if (!v.ok) return { ok: false, err: error(v.msg) };
+  if (!v.ok) return { ok: false, err: errorMsg(v.key) };
   const t = String(target).trim();
   const [targetHash, code] = await Promise.all([tokenDigest(t), genOtpCode()]); // 六位数字明文验证码（本地变量，绝不进留档）
   const codeHash = await tokenDigest(String(code));
@@ -186,7 +188,8 @@ export async function requestOtp(db, { channel, target, scene }, req) {
       // 区分 60s 窗口与单日上限的文案（60s 更常见）
       const recent = await dbGet(db, 'SELECT 1 AS x FROM verification_codes WHERE channel=? AND target_hash=? AND used=0 AND created_at > datetime(\'now\', ?)',
         [ch, targetHash, '-' + Math.round(LIMITS.OTP_RESEND_WINDOW_MS / 1000) + ' seconds']);
-      return { ok: false, err: error(recent ? MSG.OTP_RESEND_LIMIT : MSG.OTP_DAILY_LIMIT, 429) };
+      if (recent) return { ok: false, err: errorMsg('OTP_RESEND_LIMIT', 429) };
+      return { ok: false, err: errorMsg('OTP_DAILY_LIMIT', 429) };
     }
     // 契约：同一联系方式发新码后，旧验证码凭证立刻过期销毁——
     // 限频已过（本请求成功插入新码），作废该目标其余未消费行（置 used，行保留供单日计数/审计；
@@ -197,7 +200,7 @@ export async function requestOtp(db, { channel, target, scene }, req) {
         [ch, targetHash, newId]);
     }
   } catch (e) {
-    return { ok: false, err: error(MSG.SERVER_ERROR, 500) }; // D1 异常保守拒绝（不 fail-open 出假验证码）
+    return { ok: false, err: errorMsg('SERVER_ERROR', 500) }; // D1 异常保守拒绝（不 fail-open 出假验证码）
   }
 
   // 投递失败（fail-closed 生产路径）：作废刚写入的验证码行（码没送达，留着只会被猜到/过期），
@@ -217,10 +220,10 @@ export async function requestOtp(db, { channel, target, scene }, req) {
       [ch, targetHash, codeHash]);
     // 通道业务拒绝（服务商操作提示，如未实名认证/余额不足）→ 透传用户自助，替代笼统「服务器内部错误」；
     // 网络/超时/配置类失败无用户可操作信息 → 保持 SERVER_ERROR
-    const userMsg = (e && e.code === 'OTP_CHANNEL_REJECT' && e.spugMsg)
-      ? MSG.OTP_SEND_FAILED_PREFIX + e.spugMsg
-      : MSG.SERVER_ERROR;
-    return { ok: false, err: error(userMsg, 500) };
+    if (e && e.code === 'OTP_CHANNEL_REJECT' && e.spugMsg) {
+      return { ok: false, err: error(`${MSG.OTP_SEND_FAILED_PREFIX}${e.spugMsg}`, 500, 'OTP_CHANNEL_REJECT') };
+    }
+    return { ok: false, err: errorMsg('SERVER_ERROR', 500) };
   }
   await logEvent(db, { action: 'otp.request', actorUsername: targetMask(t),
     entity: 'otp', detail: { channel: ch, requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）

@@ -3,7 +3,7 @@
  */
 import { dbAll, dbGet } from '../../core/util.js';
 import { safeJsonArray } from '../../core/json.js';
-import { LIMITS } from '../../../../server/constants.js';
+import { LIMITS } from '../../../shared/config.js';
 
 // ============================================================
 // 管理员统计

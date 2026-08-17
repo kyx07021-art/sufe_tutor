@@ -16,7 +16,7 @@
 import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
 import { authUser } from './security.js';
 import { bindCryptoEnv, encryptDetail, decryptDetail } from './crypto.js';
-import { LIMITS } from '../../../server/constants.js';
+import { LIMITS } from '../../shared/config.js';
 
 const LOG_SCHEMA_V = 2; // detail 加密方案版本（明文=1，加密=2；schema_v 列随加密版本递增）
 

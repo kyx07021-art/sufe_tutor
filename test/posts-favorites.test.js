@@ -21,6 +21,12 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
+// V-1-1：服务端不再以副作用导入根 constants.js；本文件显式 vm 执行根 constants.js，
+// 以便用 UI 文案契约断言前端收藏文案。
+const ROOT_AC = {};
+vm.runInNewContext(readFileSync('./constants.js', 'utf8'), ROOT_AC, { filename: 'constants.js' });
+const ROOT_UI = ROOT_AC.APP_CONSTANTS.UI;
+
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
@@ -211,9 +217,9 @@ test('R23 我的收藏视图：取消收藏就地移除卡；视图切换走 fav
   await vm.runInContext(`postsView = 'all'; togglePostsFav(); loadPosts()`, ctx); // 重置到 all 再 toggle 进 fav
   assert.equal(vm.runInContext('lastDhCall', ctx), '/api/posts/favorites/mine', '收藏视图走独立接口');
   assert.equal(dom.window.document.getElementById('posts-search').value, '', '切视图清空搜索框');
-  assert.equal(dom.window.document.getElementById('posts-fav-btn').textContent, globalThis.APP_CONSTANTS.UI.POSTS_FAV_ACTIVE, '进入收藏态按钮显示「√ 已进入我的收藏」');
+  assert.equal(dom.window.document.getElementById('posts-fav-btn').textContent, ROOT_UI.POSTS_FAV_ACTIVE, '进入收藏态按钮显示「√ 已进入我的收藏」');
   await vm.runInContext(`togglePostsFav(); loadPosts()`, ctx);
-  assert.equal(dom.window.document.getElementById('posts-fav-btn').textContent, globalThis.APP_CONSTANTS.UI.POSTS_VIEW_FAV, '再点回全部态按钮文案恢复');
+  assert.equal(dom.window.document.getElementById('posts-fav-btn').textContent, ROOT_UI.POSTS_VIEW_FAV, '再点回全部态按钮文案恢复');
 });
 
 // ==================== U10 网络层架构债（收藏/点赞延迟） ====================
@@ -261,7 +267,7 @@ test('U10 收藏乐观反馈：toast/文案立即（不等服务端）；成功�
   const label = dom.window.document.querySelector('.fav-label');
   box.checked = true; // 原生翻转
   vm.runInContext('togglePostFavorite(9, document.querySelector(".post-fav input"))', ctx); // 不 await：同步段先行
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   assert.ok(vm.runInContext('window.__toasts', ctx).includes(UI.POST_FAVORITED_TOAST), 'toast 在服务端返回前立即弹出');
   assert.equal(label.textContent, UI.BTN_FAVORITED, '文案立即翻为「已收藏」（服务端未回）');
   assert.equal(vm.runInContext('postsList[0].favorited', ctx), true, '数据源立即更新');
@@ -287,7 +293,7 @@ test('U10 收藏乐观失败：回滚文案/toast/数据到点前态', async () 
   const label = dom.window.document.querySelector('.fav-label');
   box.checked = false; // 取消收藏：原生翻转
   await vm.runInContext('togglePostFavorite(9, document.querySelector(".post-fav input"))', ctx);
-  const UI = globalThis.APP_CONSTANTS.UI;
+  const UI = ROOT_UI;
   assert.equal(box.checked, true, '失败回滚 checkbox 到点前态（已收藏）');
   assert.equal(label.textContent, UI.BTN_FAVORITED, '失败回滚文案到「已收藏」');
   assert.equal(vm.runInContext('postsList[0].favorited', ctx), true, '数据源回滚');

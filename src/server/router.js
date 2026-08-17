@@ -31,6 +31,6 @@ export function createRouter(routes) {
         return await r.handler({ ...ctx, params });
       }
     }
-    return error('Not Found', 404);
+    return error('Not Found', 404, 'ROUTE_NOT_FOUND');
   };
 }

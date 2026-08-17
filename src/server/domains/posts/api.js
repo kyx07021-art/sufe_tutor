@@ -6,10 +6,10 @@
  * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete / admin.post.delete
  * 契约：身份一律凭令牌（自报 userId 可冒名/越权）、管理员判定走 requireAdminOrError 单点。
  */
-import { json, error } from '../../core/util.js';
+import { json, error, errorMsg } from '../../core/util.js';
 import { authUser, requireUser, requireAdminOrError } from '../../core/security.js';
-import { MSG, LIMITS } from '../../../../server/constants.js';
-import '../../../../constants.js'; // 副作用导入必须保留：UI() 惰性读 globalThis.APP_CONSTANTS 依赖其就绪，删除即静默变 {error: undefined}
+import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
+import { LIMITS } from '../../../shared/config.js';
 import {
   dbListPosts, dbCreatePost, dbGetPostById, dbDeletePost, dbGetUserById, dbListMyFavoritePosts,
   dbCreatePostFavorite, dbDeletePostFavorite,
@@ -17,9 +17,9 @@ import {
 } from '../../../../server/db.js';
 import { logEvent } from '../../core/log.js';
 
-// 文案单源：帖子业务文案全部读 globalThis.APP_CONSTANTS.UI（与前端同源），
+// 文案单源：帖子业务文案全部读 SERVER_TEXT（过渡单源，与前端同义），
 // 本模块不自持 PMSG（与 constants UI 逐字重复的双源迟早漂移）
-const UI = () => (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.UI) || {};
+const UI = () => SERVER_TEXT;
 
 /**
  * GET /api/posts?sort=new|hot&section=&q=
@@ -48,9 +48,9 @@ export async function handleCreatePost(db, body, req) {
   const title = String(body.title || '').trim();
   const bodyMd = String(body.bodyMd || '');
 
-  if (!title) return error(UI().POST_TITLE_REQUIRED);
-  if (title.length > LIMITS.TITLE_MAX) return error(UI().POST_TITLE_TOO_LONG);
-  if (bodyMd.length > LIMITS.POST_BODY_MAX) return error(UI().POST_BODY_TOO_LONG);
+  if (!title) return error(UI().POST_TITLE_REQUIRED, 400, 'POST_TITLE_REQUIRED');
+  if (title.length > LIMITS.TITLE_MAX) return error(UI().POST_TITLE_TOO_LONG, 400, 'POST_TITLE_TOO_LONG');
+  if (bodyMd.length > LIMITS.POST_BODY_MAX) return error(UI().POST_BODY_TOO_LONG, 400, 'POST_BODY_TOO_LONG');
 
   const id = await dbCreatePost(db, userId, title, bodyMd);
 
@@ -74,7 +74,7 @@ export async function handleToggleLike(db, postId, body, req) {
 
   // U10（网络层架构债）：帖 + 本人点赞记录一步 batch 取回（原 2 次串行 D1 往返 → 1 次）
   const { post, like } = await dbGetPostLikeToggleRead(db, postId, userId);
-  if (!post) return error(MSG.POST_NOT_FOUND, 404, 'POST_NOT_FOUND');
+  if (!post) return errorMsg('POST_NOT_FOUND', 404, 'POST_NOT_FOUND');
 
   const liked = !like;
   // U10：写入 + 计数同步 + 计数回读同一 batch（原 3 次串行 → 1 次；点赞 6 次往返 → 3 次）
@@ -107,7 +107,7 @@ export async function handleToggleFavorite(db, postId, body, req) {
   if (err) return err;
   // U10（网络层架构债）：帖 + 本人收藏记录一步 batch 取回（原 2 次串行 D1 往返 → 1 次）
   const { post, fav } = await dbGetPostFavoriteToggleRead(db, postId, user.id);
-  if (!post) return error(MSG.POST_NOT_FOUND, 404, 'POST_NOT_FOUND');
+  if (!post) return errorMsg('POST_NOT_FOUND', 404, 'POST_NOT_FOUND');
 
   let favorited;
   if (fav) {
@@ -134,9 +134,9 @@ export async function handleDeletePost(db, postId, body, req) {
   if (err) return err;
 
   const post = await dbGetPostById(db, postId);
-  if (!post) return error(MSG.POST_NOT_FOUND, 404, 'POST_NOT_FOUND');
+  if (!post) return errorMsg('POST_NOT_FOUND', 404, 'POST_NOT_FOUND');
   const isAdmin = requireAdminOrError(user) === null; // 管理员判定单点
-  if (user.id !== Number(post.user_id) && !isAdmin) return error(UI().POST_DELETE_FORBIDDEN, 403); // 非作者且非管理员 → 拒
+  if (user.id !== Number(post.user_id) && !isAdmin) return error(UI().POST_DELETE_FORBIDDEN, 403, 'POST_DELETE_FORBIDDEN'); // 非作者且非管理员 → 拒
 
   await dbDeletePost(db, postId);
   await logEvent(db, {

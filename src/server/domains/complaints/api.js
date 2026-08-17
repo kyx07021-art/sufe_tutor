@@ -14,9 +14,11 @@
  *   GET  /api/complaints —— 管理员查看（status 可选过滤）
  *   POST /api/complaints/:id/resolve —— 管理员标记已处理并通知投诉人
  */
-import { json, error } from '../../core/util.js';
+import { json, error, errorMsg } from '../../core/util.js';
 import { requireUser, requireAdmin } from '../../core/security.js';
-import { MSG, STATUS, LIMITS } from '../../../../server/constants.js';
+import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
+import { STATUS } from '../../../shared/enums.js';
+import { LIMITS } from '../../../shared/config.js';
 import {
   dbCreateComplaint, dbCountComplaintsToday, dbGetComplaintsByUser, dbGetComplaintsAdmin,
   dbGetComplaintById, dbResolveComplaint, dbSearchUsersByRole, dbRecentInteractions, dbSearchPosts,
@@ -26,7 +28,6 @@ import {
 import { decryptField } from '../../core/crypto.js'; // U11：投诉附件密文出门解密（与聊天附件同口径）
 import { logEvent } from '../../core/log.js';
 import { notifyUser } from '../../core/notify.js';
-import '../../../../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 
 const TARGET_TYPES = ['teacher', 'student', 'post'];
 
@@ -50,13 +51,13 @@ export async function handleCreateComplaint(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   const targetType = body.targetType;
-  if (!TARGET_TYPES.includes(targetType)) return error(MSG.COMPLAINT_TARGET_REQUIRED, 400);
+  if (!TARGET_TYPES.includes(targetType)) return errorMsg('COMPLAINT_TARGET_REQUIRED', 400);
   const targetId = Number(body.targetId);
-  if (!Number.isInteger(targetId) || targetId <= 0) return error(MSG.COMPLAINT_TARGET_REQUIRED, 400);
+  if (!Number.isInteger(targetId) || targetId <= 0) return errorMsg('COMPLAINT_TARGET_REQUIRED', 400);
 
-  const reasons = (globalThis.APP_CONSTANTS.UI.COMPLAINT_REASONS) || [];
+  const reasons = SERVER_TEXT.COMPLAINT_REASONS || [];
   const reason = String(body.reason || '').trim();
-  if (!reasons.includes(reason)) return error(MSG.COMPLAINT_REASON_REQUIRED, 400);
+  if (!reasons.includes(reason)) return errorMsg('COMPLAINT_REASON_REQUIRED', 400);
   const detail = String(body.detail || '').trim().slice(0, LIMITS.COMPLAINT_DETAIL_MAX);
 
   // 附件：数量钳制 + 归属校验（仅本人暂存可复制，防借 id 搬运他人附件）
@@ -64,24 +65,24 @@ export async function handleCreateComplaint(db, body, req) {
   const uploadIds = Array.isArray(body.uploadIds)
     ? [...new Set(body.uploadIds.map(Number).filter(Number.isInteger))] // 审计 C-5：Set 去重（[1,1,1,1] 不再复制 4 份同附件）
     : [];
-  if (uploadIds.length > LIMITS.COMPLAINT_ATTACH_MAX) return error(MSG.COMPLAINT_ATTACH_TOO_MANY, 400);
+  if (uploadIds.length > LIMITS.COMPLAINT_ATTACH_MAX) return errorMsg('COMPLAINT_ATTACH_TOO_MANY', 400);
   const attachments = [];
   const uploadRows = uploadIds.length ? await dbGetUploads(db, uploadIds) : [];
   const uploadById = new Map(uploadRows.map(u => [u.id, u]));
   for (const id of uploadIds) {
     const up = uploadById.get(id);
-    if (!up || up.user_id !== me.id) return error(MSG.COMPLAINT_ATTACH_NOT_FOUND, 400);
+    if (!up || up.user_id !== me.id) return errorMsg('COMPLAINT_ATTACH_NOT_FOUND', 400);
     attachments.push({ kind: up.kind, name: up.name, body: up.body, thumb: up.thumb || '' });
   }
 
   const target = await resolveTarget(db, targetType, targetId);
-  if (!target) return error(MSG.COMPLAINT_TARGET_NOT_FOUND, 404);
+  if (!target) return errorMsg('COMPLAINT_TARGET_NOT_FOUND', 404);
   // 不能投诉自己：用户类型比对本人 id；帖子比对作者 id（resolveTarget 快照已带 authorId）
   const selfId = targetType === 'post' ? target.authorId : target.id;
-  if (selfId === me.id) return error(MSG.COMPLAINT_SELF_FORBIDDEN, 400);
+  if (selfId === me.id) return errorMsg('COMPLAINT_SELF_FORBIDDEN', 400);
 
   const today = await dbCountComplaintsToday(db, me.id);
-  if (today >= LIMITS.COMPLAINT_DAILY_LIMIT) return error(MSG.COMPLAINT_DAILY_LIMIT, 429);
+  if (today >= LIMITS.COMPLAINT_DAILY_LIMIT) return errorMsg('COMPLAINT_DAILY_LIMIT', 429);
 
   const complaintId = await dbCreateComplaint(db, me.id, targetType, targetId, target, reason, detail, attachments);
   // 复制成功即删暂存（best-effort：删失败由 30 分钟清理窗口兜底，不留孤儿大字段）
@@ -147,11 +148,11 @@ export async function handleComplaintAttachment(db, complaintId, url, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   const c = await dbGetComplaintById(db, complaintId);
-  if (!c) return error(MSG.COMPLAINT_NOT_FOUND, 404);
-  if (c.user_id !== me.id && me.role !== 'admin') return error(MSG.NO_PERMISSION, 403);
+  if (!c) return errorMsg('COMPLAINT_NOT_FOUND', 404);
+  if (c.user_id !== me.id && me.role !== 'admin') return errorMsg('NO_PERMISSION', 403);
   const idx = parseInt(url.searchParams.get('idx')) || 0;
   const a = (c.attachments || [])[idx];
-  if (!a) return error(MSG.COMPLAINT_ATTACH_NOT_FOUND, 404);
+  if (!a) return errorMsg('COMPLAINT_ATTACH_NOT_FOUND', 404);
   return json({ kind: a.kind, name: a.name, body: await decryptField(a.body) }); // N-05：附件密文出门解密
 }
 
@@ -160,11 +161,11 @@ export async function handleResolveComplaint(db, complaintId, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const c = await dbGetComplaintById(db, complaintId);
-  if (!c) return error(MSG.COMPLAINT_NOT_FOUND, 404);
+  if (!c) return errorMsg('COMPLAINT_NOT_FOUND', 404);
   if (c.status !== STATUS.RESOLVED) {
     await dbResolveComplaint(db, complaintId);
     const { notifyUser } = await import('../../core/notify.js');
-    await notifyUser(db, c.user_id, globalThis.APP_CONSTANTS.UI.FEEDBACK_COMPLAINT_RESOLVED);
+    await notifyUser(db, c.user_id, SERVER_TEXT.FEEDBACK_COMPLAINT_RESOLVED);
     await logEvent(db, { action: 'admin.complaint.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'complaint', entityId: complaintId,
       detail: { targetType: c.target_type, targetId: c.target_id }, req });
@@ -185,7 +186,7 @@ export async function handleCreateFeedback(db, body, req) {
   const subject = (kind === 'complaint' && ['teacher', 'student', 'platform'].includes(body.subject)) ? body.subject : '';
   const title = String(body.title || '').trim().slice(0, LIMITS.TITLE_MAX);
   const content = String(body.content || '').trim().slice(0, LIMITS.FEEDBACK_BODY_MAX);
-  if (!content) return error(MSG.FEEDBACK_EMPTY); // 反馈场景文案（原误用广播文案 BROADCAST_EMPTY，已修）
+  if (!content) return errorMsg('FEEDBACK_EMPTY'); // 反馈场景文案（原误用广播文案 BROADCAST_EMPTY，已修）
   const feedbackId = await dbCreateFeedback(db, userId, kind, title, content, subject);
   await logEvent(db, { action: 'feedback.create', actorUserId: userId, entity: 'feedback',
     entityId: feedbackId, detail: { kind, title, len: content.length }, req });
@@ -212,13 +213,13 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const f = await dbGetFeedbackById(db, feedbackId);
-  if (!f) return error(MSG.FEEDBACK_NOT_FOUND, 404);
+  if (!f) return errorMsg('FEEDBACK_NOT_FOUND', 404);
   if (f.status !== STATUS.RESOLVED) {
     await dbResolveFeedback(db, feedbackId);
     // #165：投诉受理回执单独特文案；Bug/建议走通用文案
     const text = f.kind === 'complaint'
-      ? globalThis.APP_CONSTANTS.UI.FEEDBACK_COMPLAINT_RESOLVED
-      : globalThis.APP_CONSTANTS.UI.FEEDBACK_RESOLVED;
+      ? SERVER_TEXT.FEEDBACK_COMPLAINT_RESOLVED
+      : SERVER_TEXT.FEEDBACK_RESOLVED;
     await notifyUser(db, f.user_id, text);
     await logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'feedback', entityId: feedbackId, detail: { kind: f.kind }, req });

@@ -2,7 +2,7 @@
  * teacher 域 schema（V-1-4b）：教师档案 / 学籍核验记录 DDL、列迁移与评分回填迁移。
  */
 import { dbRun } from '../../core/util.js';
-import { INITIAL_RATING, INITIAL_WEIGHT } from '../../../../server/constants.js';
+import { INITIAL_RATING, INITIAL_WEIGHT } from '../../../shared/config.js';
 
 export const TEACHER_PROFILES_DDL = `CREATE TABLE IF NOT EXISTS teacher_profiles (
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER UNIQUE NOT NULL,

@@ -4,9 +4,11 @@
  *       已有评价只能修改（修改后重回待审核）。
  * 依赖：util / security（requireUser）/ constants（校验文案/评分/评论限额）/ db / log。
  */
-import { json, error, isUniqueConflict } from '../../core/util.js';
+import { json, error, errorMsg, isUniqueConflict } from '../../core/util.js';
 import { requireUser, requireAdmin } from '../../core/security.js';
-import { MSG, STATUS, LIMITS } from '../../../../server/constants.js';
+import { MSG } from '../../../shared/codes.js';
+import { STATUS } from '../../../shared/enums.js';
+import { LIMITS } from '../../../shared/config.js';
 import {
   dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
   dbUpdateReview, dbIsContracted, dbGetReviewById,
@@ -17,20 +19,20 @@ import { logEvent } from '../../core/log.js';
 export async function handleCreateReview(db, body, req) {
   const { teacherUserId, rating, comment } = body;
   // 评分/评论长度限额单源 LIMITS（拒绝 2.5 / "3.5" / NaN）
-  if (!Number.isInteger(rating) || rating < LIMITS.RATING_MIN || rating > LIMITS.RATING_MAX) return error(MSG.RATING_RANGE);
-  if (!comment || comment.trim().length < LIMITS.COMMENT_MIN_LEN) return error(MSG.COMMENT_TOO_SHORT);
+  if (!Number.isInteger(rating) || rating < LIMITS.RATING_MIN || rating > LIMITS.RATING_MAX) return errorMsg('RATING_RANGE');
+  if (!comment || comment.trim().length < LIMITS.COMMENT_MIN_LEN) return errorMsg('COMMENT_TOO_SHORT');
 
   const { user: reviewer, err } = await requireUser(db, req, 'student');
   if (err) return err;
   const reviewerUserId = reviewer.id;
-  if (!(await dbIsContracted(db, reviewerUserId, teacherUserId))) return error(MSG.REVIEW_CONTRACT_ONLY, 403);
-  if (await dbGetReviewByPair(db, reviewerUserId, teacherUserId)) return error(MSG.REVIEW_EXISTS, 409);
+  if (!(await dbIsContracted(db, reviewerUserId, teacherUserId))) return errorMsg('REVIEW_CONTRACT_ONLY', 403);
+  if (await dbGetReviewByPair(db, reviewerUserId, teacherUserId)) return errorMsg('REVIEW_EXISTS', 409);
 
   let id;
   try {
     id = await dbCreateReview(db, teacherUserId, reviewerUserId, rating, comment.trim());
   } catch (err2) {
-    if (isUniqueConflict(err2)) return error(MSG.REVIEW_EXISTS, 409); // 唯一索引兜底（并发双发）
+    if (isUniqueConflict(err2)) return errorMsg('REVIEW_EXISTS', 409); // 唯一索引兜底（并发双发）
     throw err2;
   }
   await logEvent(db, { action: 'review.create', actorUserId: reviewerUserId, actorRole: 'student',
@@ -41,14 +43,14 @@ export async function handleCreateReview(db, body, req) {
 // 修改自己的评价（归属校验 + 重回待审核）
 export async function handleUpdateReview(db, reviewId, body, req) {
   const { rating, comment } = body;
-  if (!Number.isInteger(rating) || rating < LIMITS.RATING_MIN || rating > LIMITS.RATING_MAX) return error(MSG.RATING_RANGE);
-  if (!comment || comment.trim().length < LIMITS.COMMENT_MIN_LEN) return error(MSG.COMMENT_TOO_SHORT);
+  if (!Number.isInteger(rating) || rating < LIMITS.RATING_MIN || rating > LIMITS.RATING_MAX) return errorMsg('RATING_RANGE');
+  if (!comment || comment.trim().length < LIMITS.COMMENT_MIN_LEN) return errorMsg('COMMENT_TOO_SHORT');
 
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   const existing = await dbGetReviewById(db, reviewId);
-  if (!existing) return error(MSG.REVIEW_NOT_FOUND, 404);
-  if (existing.reviewer_user_id !== me.id) return error(MSG.NO_PERMISSION, 403);
+  if (!existing) return errorMsg('REVIEW_NOT_FOUND', 404);
+  if (existing.reviewer_user_id !== me.id) return errorMsg('NO_PERMISSION', 403);
   const reviewerUserId = me.id;
 
   await dbUpdateReview(db, reviewId, rating, comment.trim());
@@ -84,7 +86,7 @@ export async function handleReviewAction(db, reviewId, action, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const review = await dbGetReviewById(db, reviewId);
-  if (!review) return error(MSG.REVIEW_NOT_FOUND, 404); // 资源不存在统一 404（原误用默认 400）
+  if (!review) return errorMsg('REVIEW_NOT_FOUND', 404); // 资源不存在统一 404（原误用默认 400）
 
   const wasApproved = review.status === STATUS.APPROVED; // 改动前的状态（status 在下方才被更新）
   const status = action === 'approve' ? STATUS.APPROVED : STATUS.REJECTED;
@@ -104,7 +106,7 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const review = await dbGetReviewById(db, reviewId);
-  if (!review) return error(MSG.REVIEW_NOT_FOUND, 404);
+  if (!review) return errorMsg('REVIEW_NOT_FOUND', 404);
   await dbDeleteReview(db, reviewId);
   if (review.status === STATUS.APPROVED) await dbRecomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
   await logEvent(db, { action: 'admin.review.delete', actorUserId: admin.id, actorUsername: admin.username,

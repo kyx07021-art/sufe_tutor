@@ -13,9 +13,10 @@
  * 删除按 batch_id 整批删（同秒两批同文案也不会连带误删）。
  * 历史行 / 单点推送无 batch_id，按 id 单删。
  */
-import { dbAll, dbGet, dbRun, json, error, genCode, ensureColumns } from './util.js';
+import { dbAll, dbGet, dbRun, json, error, errorMsg, genCode, ensureColumns } from './util.js';
 import { authUser, requireAdmin } from './security.js';
-import { MSG, LIMITS } from '../../../server/constants.js';
+import { MSG } from '../../shared/codes.js';
+import { LIMITS } from '../../shared/config.js';
 import { logEvent } from './log.js';
 import { bumpVersions } from '../../../server/version.js'; // 通知插入统一 bump notifications 域
 
@@ -73,7 +74,7 @@ async function dbMarkNotificationRead(db, notifId, userId) {
 // GET /api/notifications → { notifications }（含 is_read，前端据此显示未读圆点；身份凭令牌）
 export async function handleGetNotifications(db, req) {
   const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  if (!me) return errorMsg('LOGIN_REQUIRED', 401);
   const notifications = await dbGetNotifications(db, me.id);
   return json({ notifications });
 }
@@ -81,9 +82,9 @@ export async function handleGetNotifications(db, req) {
 // POST /api/notifications/:id/read → 单条已读（#151 取代原批量全读；纯个人游标，不 bump 版本域）
 export async function handleMarkNotificationRead(db, notifId, req) {
   const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  if (!me) return errorMsg('LOGIN_REQUIRED', 401);
   const id = /^\d+$/.test(String(notifId)) ? Number(notifId) : 0;
-  if (!id) return error(MSG.INVALID_PARAMS, 400);
+  if (!id) return errorMsg('INVALID_PARAMS', 400);
   await dbMarkNotificationRead(db, id, me.id);
   return json({ ok: true });
 }
@@ -92,7 +93,7 @@ export async function handleMarkNotificationRead(db, notifId, req) {
 // 免逐条点击；纯个人游标，不 bump 版本域，与单条已读同口径。进入页面不再自动全读——未读呼吸先展示，切出才消）
 export async function handleMarkAllNotificationsRead(db, req) {
   const me = await authUser(db, req);
-  if (!me) return error(MSG.LOGIN_REQUIRED, 401);
+  if (!me) return errorMsg('LOGIN_REQUIRED', 401);
   await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0', [me.id]);
   return json({ ok: true });
 }

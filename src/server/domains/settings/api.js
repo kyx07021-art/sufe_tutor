@@ -5,9 +5,9 @@
  * 访客浏览过滤在 db 层（dbGetDemands forGuest / dbGetTeachers 游客分支），本文件只管读写。
  * 依赖：security（requireUser）、constants（MSG）、db、log。
  */
-import { json, error } from '../../core/util.js';
+import { json, error, errorMsg } from '../../core/util.js';
 import { requireUser } from '../../core/security.js';
-import { MSG } from '../../../../server/constants.js';
+import { MSG } from '../../../shared/codes.js';
 import { dbGetPrivacySettings, dbSetPrivacySettings } from '../../../../server/db.js';
 import { logEvent } from '../../core/log.js';
 
@@ -24,7 +24,7 @@ export async function handleSetPrivacySettings(db, body, req) {
   // 只接受 0/1（布尔归一）；其余/缺省 → undefined（保持原值）。至少一个有效字段才写。
   const norm = v => (v === 0 || v === 1 ? v : undefined);
   const p = norm(allowGuestProfile), d = norm(allowGuestDemand);
-  if (p === undefined && d === undefined) return error(MSG.INVALID_PARAMS);
+  if (p === undefined && d === undefined) return errorMsg('INVALID_PARAMS');
   const settings = await dbSetPrivacySettings(db, me.id, { allowGuestProfile: p, allowGuestDemand: d });
   await logEvent(db, { action: 'privacy.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ ...settings, ok: true });

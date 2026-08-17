@@ -4,7 +4,8 @@
  */
 import { dbAll, dbGet, dbRun, toDbTime } from '../../core/util.js';
 import { hashPassword } from '../../core/crypto.js';
-import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS, PHONE_HASH_COND, EMAIL_HASH_COND } from '../../../../server/constants.js';
+import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, PHONE_HASH_COND, EMAIL_HASH_COND } from '../../../shared/config.js';
+import { STATUS } from '../../../shared/enums.js';
 
 // 显式列集：凭证列（password_hash/salt）仅登录/重认证出层，其余列不随裸行外溢
 const USER_BY_USERNAME_SQL = 'SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE username=?';

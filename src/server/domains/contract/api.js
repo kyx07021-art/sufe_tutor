@@ -12,12 +12,14 @@
  *   本版修复：台账幂等（签约后 500 重试可补记）；revoked 需求不可绕过「手动重开」再签约；
  *   合同修改乐观锁改 version 整数（秒级 updated_at 同秒双改互相覆盖的缺陷）。
  */
-import { dbGet, dbAll, dbRun, json, error, toDbTime, isDemandActive } from '../../core/util.js';
+import { dbGet, dbAll, dbRun, json, error, errorMsg, toDbTime, isDemandActive } from '../../core/util.js';
 import { getLedgerDb } from './schema.js';
 import { requireUser, requireAdmin, requireAdminOrError } from '../../core/security.js';
 import { bufToHex, encryptField } from '../../core/crypto.js';
 import { confirmDangerOtp } from '../../core/danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
-import { MSG, STATUS, LIMITS } from '../../../../server/constants.js';
+import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
+import { STATUS } from '../../../shared/enums.js';
+import { LIMITS } from '../../../shared/config.js';
 import {
   dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin,
   dbDeleteContract, // 取消/撤销不再删行（合同保留），仅 admin remove 用
@@ -29,8 +31,7 @@ import {
 import { acceptEligibility } from '../teacher/api.js'; // v1.2.0 T3：教师接单资格（chsi 核验 + 必填齐全）
 import { notifyUser } from '../../core/notify.js';
 import { logEvent } from '../../core/log.js';
-import '../../../../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
-const UIC = globalThis.APP_CONSTANTS.UI;
+const UIC = SERVER_TEXT;
 
 // 根据草案信息生成正式合同正文。条款要素依《民法典》第四百七十条一般条款拟定。
 // 拆分：业务条款（服务内容/课时费/教学方案，可由双方协商修改）与法律条款
@@ -256,10 +257,10 @@ const nameOf = (conv, userId) => userId === conv.student_user_id ? conv.student_
 // 六个状态机 handler 的前置检查收敛于此；失败返 { err: Response }，调用方一行 `if (g.err) return g.err;`
 async function loadContractFor(db, contractId, userId, statuses) {
   const ct = await dbGetContractById(db, contractId);
-  if (!ct) return { err: error(MSG.CONTRACT_NOT_FOUND, 404) };
-  if (!statuses.includes(ct.status)) return { err: error(MSG.CONTRACT_STATE_INVALID, 409) };
+  if (!ct) return { err: errorMsg('CONTRACT_NOT_FOUND', 404) };
+  if (!statuses.includes(ct.status)) return { err: errorMsg('CONTRACT_STATE_INVALID', 409) };
   const conv = await dbGetConversationWithNames(db, ct.conversation_id);
-  if (!isParticipant(conv, userId)) return { err: error(MSG.NO_PERMISSION, 403) };
+  if (!isParticipant(conv, userId)) return { err: errorMsg('NO_PERMISSION', 403) };
   return { ct, conv };
 }
 
@@ -272,13 +273,16 @@ export async function handleCreateContract(db, body, req) {
   const userId = me.id;
   const conversationId = parseInt(body.conversationId);
   const conv = await dbGetConversationWithNames(db, conversationId);
-  if (!isParticipant(conv, userId)) return error(MSG.NO_PERMISSION, 403);
+  if (!isParticipant(conv, userId)) return errorMsg('NO_PERMISSION', 403);
 
   // v1.2.0 T3：签约创建 = 成交动作，教师方须过接单资格（学信网核验 + 必填齐全）——学生发起时校验对端教师
   const teacherId = me.role === 'teacher' ? userId : conv.teacher_user_id;
   const tProf = await dbGetTeacherProfile(db, teacherId);
   const el = acceptEligibility(tProf);
-  if (!el.ok) return error(el.reason === 'CHSI_UNVERIFIED' ? MSG.CHSI_VERIFY_REQUIRED : MSG.PROFILE_COMPLETE_REQUIRED, 403, el.reason);
+  if (!el.ok) {
+    const key = el.reason === 'CHSI_UNVERIFIED' ? 'CHSI_VERIFY_REQUIRED' : 'PROFILE_COMPLETE_REQUIRED';
+    return errorMsg(key, 403, el.reason || undefined);
+  }
 
   const method = body.method === 'offline' ? 'offline' : 'online';
   const plan = String(body.plan || '').slice(0, LIMITS.CONTRACT_PLAN_MAX);
@@ -288,11 +292,11 @@ export async function handleCreateContract(db, body, req) {
   // 薪资三要素：白名单枚举 + 「其他」自拟文字；首课日期取 yyyy-mm-dd（date input 原值）
   const payMethod = ['per_session', 'weekly', 'monthly', 'other'].includes(body.payMethod) ? body.payMethod : '';
   const payMethodOther = payMethod === 'other' ? String(body.payMethodOther || '').trim().slice(0, LIMITS.PAY_OTHER_MAX) : '';
-  if (payMethod === 'other' && !payMethodOther) return error(MSG.INVALID_PARAMS, 400);
+  if (payMethod === 'other' && !payMethodOther) return errorMsg('INVALID_PARAMS', 400);
   const firstLessonDate = /^\d{4}-\d{2}-\d{2}$/.test(String(body.firstLessonDate || '')) ? body.firstLessonDate : '';
   const trialPay = ['first_free', 'first_hour_free', 'normal', 'other'].includes(body.trialPay) ? body.trialPay : '';
   const trialPayOther = trialPay === 'other' ? String(body.trialPayOther || '').trim().slice(0, LIMITS.PAY_OTHER_MAX) : '';
-  if (trialPay === 'other' && !trialPayOther) return error(MSG.INVALID_PARAMS, 400);
+  if (trialPay === 'other' && !trialPayOther) return errorMsg('INVALID_PARAMS', 400);
   // 需求四·第3条：起草合同必须绑定「已签约」需求（发起签约确认 → demand contracted 后才可起草合同）。
   // 服务端强制 demandId，无 conv.demand_id 回落（会话与需求已解耦，同 signing 路径门禁）。
   // 归属硬校验：需求必须属于会话学生方（防越权绑他人需求）；状态须 contracted；一条需求只允许一份合同
@@ -300,17 +304,17 @@ export async function handleCreateContract(db, body, req) {
   // 签约成交方校验（教师方口径）：contracted 需求若由「别教师」的 signed 签约驱动，本会话不得绑它起草合同
   // （同对师生换会话可放行；另一教师签成的需求不可抢绑——签约成交方与合同缔结方必须同一教师）
   const demandId = Number(body.demandId);
-  if (!Number.isInteger(demandId) || demandId <= 0) return error(MSG.DEMAND_NOT_SIGNED, 410); // 起草合同必须选已签约需求
+  if (!Number.isInteger(demandId) || demandId <= 0) return errorMsg('DEMAND_NOT_SIGNED', 410); // 起草合同必须选已签约需求
   const dm = await dbGetDemandById(db, demandId);
-  if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404); // F-03b：需求已删（创建端复核；INSERT 守卫再堵 SELECT→INSERT 竞态窗口）
-  if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
-  if (dm.status !== STATUS.CONTRACTED) return error(MSG.DEMAND_NOT_SIGNED, 410);
+  if (!dm) return errorMsg('DEMAND_NOT_FOUND', 404); // F-03b：需求已删（创建端复核；INSERT 守卫再堵 SELECT→INSERT 竞态窗口）
+  if (dm.user_id !== conv.student_user_id) return errorMsg('NO_PERMISSION', 403);
+  if (dm.status !== STATUS.CONTRACTED) return errorMsg('DEMAND_NOT_SIGNED', 410);
   const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [demandId]);
-  if (dc) return error(MSG.DEMAND_CONTRACT_EXISTS, 409);
+  if (dc) return errorMsg('DEMAND_CONTRACT_EXISTS', 409);
   const crossSigned = await dbGet(db, `SELECT sr.id FROM signing_requests sr
     JOIN conversations c ON c.id=sr.conversation_id
     WHERE sr.demand_id=? AND sr.status='signed' AND c.teacher_user_id != ? LIMIT 1`, [demandId, conv.teacher_user_id]);
-  if (crossSigned) return error(MSG.DEMAND_NOT_SIGNED, 410);
+  if (crossSigned) return errorMsg('DEMAND_NOT_SIGNED', 410);
   let demandNo = dm.display_id ? String(dm.display_id).padStart(4, '0') : '';
   const md = buildContractMd({
     teacherName: conv.teacher_name, studentName: conv.student_name,
@@ -339,11 +343,11 @@ export async function handleCreateContract(db, body, req) {
   // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 demandId 门禁是快路径，此处是竞态闸门）；
   // 附加守卫：需求已被并发绑合同（另一会话）或需求被并发删除则同样 changes=0，判别后报对应用户可读错误
   if (!(res && res.meta && res.meta.changes > 0)) {
-    if (!(await dbGetDemandById(db, demandId))) return error(MSG.DEMAND_NOT_FOUND, 404);
+    if (!(await dbGetDemandById(db, demandId))) return errorMsg('DEMAND_NOT_FOUND', 404);
     const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [demandId]);
-    if (dc) return error(MSG.DEMAND_CONTRACT_EXISTS, 409);
+    if (dc) return errorMsg('DEMAND_CONTRACT_EXISTS', 409);
     // 剩余竞态：需求状态被并发改（非 contracted）或成交方被并发换教师——均为「该需求不可绑本合同」
-    return error(MSG.DEMAND_NOT_SIGNED, 410);
+    return errorMsg('DEMAND_NOT_SIGNED', 410);
   }
   const id = (res && res.meta && res.meta.last_row_id) || 0;
   if (id > 0) {
@@ -379,7 +383,7 @@ export async function handleSignContract(db, contractId, body, req) {
   if (g.err) return g.err;
   const { ct, conv } = g;
   // 危险操作二次认证（网安报告 F-05）：签约须凭 re-auth 换发的一次性 capToken
-  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   const signedCol = userId === ct.drafter_user_id ? 'drafter_signed_at' : 'other_signed_at';
@@ -398,7 +402,7 @@ export async function handleSignContract(db, contractId, body, req) {
     return json({ ok: true, signed: cur.ct.status === STATUS.SIGNED });
   }
   const updated = await dbGetContractById(db, contractId);
-  if (!updated) return error(MSG.CONTRACT_NOT_FOUND, 404); // 置位后对方并发撤销致行消失：干净 404，不抛 500
+  if (!updated) return errorMsg('CONTRACT_NOT_FOUND', 404); // 置位后对方并发撤销致行消失：干净 404，不抛 500
   const both = !!(updated.drafter_confirmed && updated.other_confirmed);
   // 重拼正文（第十条 签署记录内嵌签署人/时间）回写：version 乐观锁——
   // 并发双签时仅最后落定者的正文生效（版本已被抢跑的旧正文 changes=0 丢弃），杜绝旧签名块覆盖新状态
@@ -444,13 +448,13 @@ export async function handleModifyContract(db, contractId, body, req) {
   // 修改会重置双方确认（下方 drafter_confirmed=0/other_confirmed=0），已确认方改 = 变相撤回自己的
   // 签署承诺 → 必须拒绝。未确认方在对方已签后可改（改后对方确认随之重置，符合协商预期）。
   const myConfirmed = userId === ct.drafter_user_id ? !!ct.drafter_confirmed : !!ct.other_confirmed;
-  if (myConfirmed) return error(MSG.CONTRACT_LOCKED_AFTER_SIGN, 409);
+  if (myConfirmed) return errorMsg('CONTRACT_LOCKED_AFTER_SIGN', 409);
   const ver = parseInt(body.version);
-  if (!Number.isInteger(ver)) return error(MSG.INVALID_PARAMS, 400);
+  if (!Number.isInteger(ver)) return errorMsg('INVALID_PARAMS', 400);
   // 修改弹窗只放出业务条款——提交的 md 即新业务部分，法律条款由服务端固定重拼（不可修改）
   // 剥离提交内容中可能残留的标记及之后内容（前端 textarea 只放业务段，防御非前端客户端塞整段/重复提交）
   const md = String(body.contractMd || '').slice(0, LIMITS.CONTRACT_MD_MAX).split(CONTRACT_BUSINESS_END)[0].trim();
-  if (!md) return error(UIC.CONTRACT_EMPTY); // 用户可见文案单源 constants.js
+  if (!md) return error(UIC.CONTRACT_EMPTY, 400, 'CONTRACT_EMPTY'); // 用户可见文案单源 SERVER_TEXT（src/shared/codes.js）
   // 旧格式合同（正文无标记）：整段即业务，不再追加法律块——否则旧法律条款被当业务
   // 重拼，出现两份法律条款且旧条款从此落入可编辑区，破坏「法律条款不可修改」承诺
   const oldHasMarker = (ct.contract_md || '').includes(CONTRACT_BUSINESS_END);
@@ -472,7 +476,7 @@ export async function handleModifyContract(db, contractId, body, req) {
        drafter_signed_at='', other_signed_at='', status='signing', version=version+1, updated_at=datetime('now','localtime')
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
     [await encryptField(fullMd), oldBiz, contractId, ver]); // N-05：合同正文加密落库
-  if (!(upd && upd.meta && upd.meta.changes > 0)) return error(MSG.CONTRACT_MODIFIED_CONFLICT, 409, 'CONTRACT_MODIFIED_CONFLICT'); // 带稳定 code 供前端刷新版本号
+  if (!(upd && upd.meta && upd.meta.changes > 0)) return errorMsg('CONTRACT_MODIFIED_CONFLICT', 409, 'CONTRACT_MODIFIED_CONFLICT'); // 带稳定 code 供前端刷新版本号
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
   await logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
@@ -487,8 +491,8 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, me.id, [STATUS.SIGNED]); // 未签约的走取消流程
   if (g.err) return g.err;
   const { ct, conv } = g;
-  if (ct.revoked) return error(MSG.CONTRACT_ALREADY_REVOKED, 409); // 已撤销幂等拒绝
-  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403); // 二次认证（F-05）
+  if (ct.revoked) return errorMsg('CONTRACT_ALREADY_REVOKED', 409); // 已撤销幂等拒绝
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403); // 二次认证（F-05）
   // 撤销不删行——置 revoked 标记 + 撤销人 + 撤销时间，合同正文/台账保留存证；
   // 双方列表仍见该合同，右上角状态 tag 显示红色「已撤销」。条件 UPDATE 并发守卫（双撤销仅赢家副作用）。
   const upd = await dbRun(db,
@@ -496,8 +500,8 @@ export async function handleRevokeContract(db, contractId, body, req) {
      WHERE id=? AND revoked=0`, [me.id, contractId]);
   if (!(upd && upd.meta && upd.meta.changes > 0)) {
     const cur = await dbGetContractById(db, contractId);
-    if (cur && cur.revoked) return error(MSG.CONTRACT_ALREADY_REVOKED, 409); // 并发已撤销
-    return error(MSG.CONTRACT_NOT_FOUND, 404);
+    if (cur && cur.revoked) return errorMsg('CONTRACT_ALREADY_REVOKED', 409); // 并发已撤销
+    return errorMsg('CONTRACT_NOT_FOUND', 404);
   }
   // 撤销后释放绑定需求：contracted→revoked（待所有者手动重开；合同文档与需求解耦，但需求状态
   // 必须随撤销流转——否则需求永久滞留 contracted、无任何重开入口，与 STATUS.REVOKED 契约断线）
@@ -513,10 +517,10 @@ export async function handleVerifyContract(db, contractId, req) {
   const { user: me, err: authErr } = await requireUser(db, req);
   if (authErr) return authErr;
   const ct = await dbGetContractById(db, contractId);
-  if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
+  if (!ct) return errorMsg('CONTRACT_NOT_FOUND', 404);
   const conv = await dbGetConversationWithNames(db, ct.conversation_id);
   const isAdmin = requireAdminOrError(me) === null; // 管理员判定单点
-  if (!isAdmin && !isParticipant(conv, me.id)) return error(MSG.NO_PERMISSION, 403);
+  if (!isAdmin && !isParticipant(conv, me.id)) return errorMsg('NO_PERMISSION', 403);
   return json(await verifyContractLedger(db, contractId));
 }
 
@@ -533,7 +537,7 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const ct = await dbGetContractById(db, contractId);
-  if (!ct) return error(MSG.CONTRACT_NOT_FOUND, 404);
+  if (!ct) return errorMsg('CONTRACT_NOT_FOUND', 404);
   await dbDeleteContract(db, contractId);
   // 删除已签合同时同步释放绑定需求（contracted→revoked，待所有者手动重开）——
   // 否则需求永久滞留 contracted（不可见、不可 reopen），与撤销合同同径处理
@@ -561,13 +565,13 @@ export async function handleCancelContract(db, contractId, body, req) {
   if (g.err) return g.err;
   const { ct, conv } = g;
   // 危险操作（取消签署承诺）：密码重认证换 capToken（同签约/撤销口径，网安 F-05）
-  if (!(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   const myCol = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   const theirCol = userId === ct.drafter_user_id ? 'other_confirmed' : 'drafter_confirmed';
   const mySigned = userId === ct.drafter_user_id ? !!ct.drafter_confirmed : !!ct.other_confirmed;
   const bothSigned = mySigned && (!!ct[theirCol]);
-  if (bothSigned) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409); // 双方已签：走撤销合同（revoke）
+  if (bothSigned) return errorMsg('CONTRACT_CANCEL_SIGNED_BLOCKED', 409); // 双方已签：走撤销合同（revoke）
 
   // 条件 UPDATE 并发守卫：AND 当前状态，changes=0 方重读幂等（对方并发签约/改态时不产生副作用）。
   // 回退我方确认标志 + 签署时间，status 回 'signing'（待签约；对方未签则其确认本为空，保持）；
@@ -579,7 +583,7 @@ export async function handleCancelContract(db, contractId, body, req) {
      WHERE id=? AND status IN ('pending','signing')`, [contractId]);
   if (!(upd && upd.meta && upd.meta.changes > 0)) {
     const cur = await dbGetContractById(db, contractId);
-    if (cur && cur.status === STATUS.SIGNED && !cur.revoked) return error(MSG.CONTRACT_CANCEL_SIGNED_BLOCKED, 409);
+    if (cur && cur.status === STATUS.SIGNED && !cur.revoked) return errorMsg('CONTRACT_CANCEL_SIGNED_BLOCKED', 409);
     return json({ ok: true }); // 并发已取消：幂等返回
   }
   await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
@@ -596,13 +600,13 @@ export async function handleCreateSigning(db, body, req) {
   const userId = me.id;
   const conversationId = parseInt(body.conversationId);
   const conv = await dbGetConversationWithNames(db, conversationId);
-  if (!conv || (conv.student_user_id !== userId && conv.teacher_user_id !== userId)) return error(MSG.NO_PERMISSION, 403);
-  if (conv.status !== STATUS.ACTIVE) return error(MSG.NO_PERMISSION, 403); // 已关闭会话不可再发起签约（与发消息同款状态门禁）
+  if (!conv || (conv.student_user_id !== userId && conv.teacher_user_id !== userId)) return errorMsg('NO_PERMISSION', 403);
+  if (conv.status !== STATUS.ACTIVE) return errorMsg('NO_PERMISSION', 403); // 已关闭会话不可再发起签约（与发消息同款状态门禁）
 
   const price = Math.min(LIMITS.BUDGET_MAX, Math.max(0, parseInt(body.price) || 0)); // 报价钳制上限（LIMITS 单源）
-  if (price <= 0) return error(MSG.INVALID_PARAMS, 400); // 报价必填
+  if (price <= 0) return errorMsg('INVALID_PARAMS', 400); // 报价必填
   const schedule = String(body.schedule || '').trim().slice(0, LIMITS.SCHEDULE_MAX);
-  if (!schedule) return error(MSG.INVALID_PARAMS, 400); // 时间（自然语言）必填
+  if (!schedule) return errorMsg('INVALID_PARAMS', 400); // 时间（自然语言）必填
   const method = body.method === 'online' ? 'online' : 'offline'; // 线上/线下
 
   // 需求四·第2条：发起签约必须显式选择需求（body.demandId，前端下拉单选必选）。
@@ -612,14 +616,14 @@ export async function handleCreateSigning(db, body, req) {
   // 归属硬校验：需求必须属于会话学生方（学生发自己的 / 教师发会话学生方的需求，防越权绑他人需求）；
   // 状态须 open（已签约/已撤销的需求不可再发起签约，签约确认后需求由 handleRespondSigning 置 contracted）
   const demandId = Number(body.demandId);
-  if (!Number.isInteger(demandId) || demandId <= 0) return error(MSG.INVALID_PARAMS, 400);
+  if (!Number.isInteger(demandId) || demandId <= 0) return errorMsg('INVALID_PARAMS', 400);
   const dm = await dbGetDemandById(db, demandId);
-  if (!dm) return error(MSG.DEMAND_NOT_FOUND, 404);
-  if (dm.user_id !== conv.student_user_id) return error(MSG.NO_PERMISSION, 403);
-  if (!isDemandActive(dm.status)) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求活跃统一谓词（util.isDemandActive）
+  if (!dm) return errorMsg('DEMAND_NOT_FOUND', 404);
+  if (dm.user_id !== conv.student_user_id) return errorMsg('NO_PERMISSION', 403);
+  if (!isDemandActive(dm.status)) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410); // 需求活跃统一谓词（util.isDemandActive）
   // 同会话 pending 去重：已有待处理的签约请求则拒绝（防同会话堆积多条 pending 气泡、逐条确认变多签）
   const dup = await dbGetPendingSigningForConversation(db, conversationId);
-  if (dup) return error(MSG.SIGNING_ALREADY_PENDING, 409);
+  if (dup) return errorMsg('SIGNING_ALREADY_PENDING', 409);
 
   // 先落气泡（body 带临时 id），再建请求记录（message_id 关联），最后回填真实 id。
   // 任一步失败回滚气泡——防「死气泡」：id=0 却带可点按钮的 pending 签约请求（点了必 404 且永不可消解）
@@ -648,15 +652,15 @@ export async function handleRespondSigning(db, signingId, body, req) {
   if (authErr) return authErr;
   const userId = me.id;
   const sr = await dbGetSigningById(db, signingId);
-  if (!sr) return error(MSG.CONTRACT_NOT_FOUND, 404);
+  if (!sr) return errorMsg('CONTRACT_NOT_FOUND', 404);
   const conv = await dbGetConversationWithNames(db, sr.conversation_id);
-  if (!conv || (conv.student_user_id !== userId && conv.teacher_user_id !== userId)) return error(MSG.NO_PERMISSION, 403);
-  if (sr.initiator_user_id === userId) return error(MSG.NO_PERMISSION, 403); // 发起者不能确认自己的请求
-  if (sr.status !== STATUS.PENDING) return error(MSG.SIGNING_ALREADY_RESPONDED, 409); // 已回应过
+  if (!conv || (conv.student_user_id !== userId && conv.teacher_user_id !== userId)) return errorMsg('NO_PERMISSION', 403);
+  if (sr.initiator_user_id === userId) return errorMsg('NO_PERMISSION', 403); // 发起者不能确认自己的请求
+  if (sr.status !== STATUS.PENDING) return errorMsg('SIGNING_ALREADY_RESPONDED', 409); // 已回应过
 
   // S2-2 危险操作二次认证（限流审计 FAIL-2）：确认签约有交易后果（需求置 contracted + 自动拒绝其余
   // 意向/推送），同合同签署/撤销口径（网安 F-05）须凭 re-auth 换发的一次性 capToken；拒绝不需要。
-  if (accept && !(await confirmDangerOtp(db, req, body))) return error(MSG.REAUTH_FAILED, 403);
+  if (accept && !(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   const newStatus = accept ? STATUS.SIGNED : STATUS.REJECTED;
   // 赢家模式 + 需求态守卫：确认签约须需求仍 open（同需求多会话并存下，若另一会话已签约成交则拒绝——
@@ -669,10 +673,10 @@ export async function handleRespondSigning(db, signingId, body, req) {
   let demandContracted = false;
   if (accept && sr.demand_id) {
     const results = await dbConfirmSigning(db, signingId, sr.demand_id);
-    if (!(results[0] > 0)) return error(MSG.DEMAND_CONTRACTED_CLOSED, 410); // 需求已非 open（已回应由上行守卫拦）
+    if (!(results[0] > 0)) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410); // 需求已非 open（已回应由上行守卫拦）
     demandContracted = results[1] > 0;
   } else {
-    if (!(await dbRejectSigning(db, signingId))) return error(MSG.SIGNING_ALREADY_RESPONDED, 409); // 赢家模式
+    if (!(await dbRejectSigning(db, signingId))) return errorMsg('SIGNING_ALREADY_RESPONDED', 409); // 赢家模式
   }
 
   // 确认签约且需求收缩成功（赢家）：自动拒绝其余待处理意向/推送（整段副作用只由需求收缩赢家驱动，杜绝双通知双台账）

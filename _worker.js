@@ -9,8 +9,9 @@
  * 留档: routeApi 的应答经 logRequest 留档——仅写操作与失败请求（读/轮询流量不入留档，见 log.js）
  */
 import { initDb } from './server/db.js';
-import { json, error, parseBody } from './src/server/core/util.js';
-import { MSG } from './server/constants.js';
+import { json, error, errorMsg, parseBody } from './src/server/core/util.js';
+import { MSG } from './src/shared/codes.js';
+import { CONFIG } from './src/shared/config.js';
 import { productionReady, notReadyResponse } from './server/startup.js';
 import { recordRequestMetric, flushMetrics } from './server/telemetry.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './src/server/core/security.js';
@@ -166,16 +167,16 @@ async function writePublicListCache(url, jsonText) {
 // 共享 1 次 D1 鉴权；单子请求失败不阻断其余（结果带独立 status）。
 // 写操作禁止入 batch——写路径仍走单请求，保证错误码/toast/二次认证/留档语义。
 // 安全：子请求与直接 GET 权限面完全一致（不升级权限），batch 只省往返不改变路由语义。
-// 批量读上限单源：constants.js CONFIG.BATCH_GET_MAX（前端 dhBatchGet 按同值分块，杜绝整批超限 400）。
-// 读不到（异常环境）→ 0 = 整批拒绝（fail-closed，绝不放宽超限）；正常路径 APP_CONSTANTS 由
-// server/otp.js import '../constants.js' 的副作用注入，恒在——勿再加「|| 16」复制兜底（改值双源漂移）。
-const BATCH_MAX = (globalThis.APP_CONSTANTS && globalThis.APP_CONSTANTS.CONFIG && globalThis.APP_CONSTANTS.CONFIG.BATCH_GET_MAX) || 0;
+// 批量读上限单源：src/shared/config.js CONFIG.BATCH_GET_MAX（前端 dhBatchGet 按同值分块，杜绝整批超限 400）。
+// 读不到（异常环境）→ 0 = 整批拒绝（fail-closed，绝不放宽超限）；CONFIG 已由本文件
+// 顶部直接 import 共享常量，恒在——勿再加「|| 16」复制兜底（改值双源漂移）。
+const BATCH_MAX = CONFIG.BATCH_GET_MAX;
 async function handleBatch(db, body, url, req, env) {
   const gets = body && Array.isArray(body.gets) ? body.gets : null;
-  if (!gets || !gets.length || gets.length > BATCH_MAX) return error(MSG.INVALID_PARAMS, 400);
+  if (!gets || !gets.length || gets.length > BATCH_MAX) return errorMsg('INVALID_PARAMS', 400);
   const paths = gets.map(g => String(g));
   if (!paths.every(p => p.startsWith('/api/') && !/\s/.test(p) && p.length < 300)) {
-    return error(MSG.INVALID_PARAMS, 400); // 只允许 /api/ 相对路径（防外域/协议相对/注入）
+    return errorMsg('INVALID_PARAMS', 400); // 只允许 /api/ 相对路径（防外域/协议相对/注入）
   }
   const results = await Promise.all(paths.map(async sub => {
     try {
@@ -306,7 +307,7 @@ export default {
     let body = {};
     try { body = await parseBody(request); }
     catch (e) {
-      if (e && e.status === 413) { recordRequestMetric({ path: p, status: 413 }); return applySecurityHeaders(error(MSG.PAYLOAD_TOO_LARGE, 413), p); }
+      if (e && e.status === 413) { recordRequestMetric({ path: p, status: 413 }); return applySecurityHeaders(errorMsg('PAYLOAD_TOO_LARGE', 413), p); }
       body = {};
     }
 
@@ -314,7 +315,7 @@ export default {
     const ip = request.headers.get('CF-Connecting-IP') || 'anon';
     if (!(await rateGate(ip, p, request.method, body, Date.now(), db))) {
       recordRequestMetric({ path: p, status: 429, rateLimited: true });
-      return applySecurityHeaders(error(MSG.RATE_LIMITED, 429), p);
+      return applySecurityHeaders(errorMsg('RATE_LIMITED', 429), p);
     }
 
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
@@ -326,7 +327,7 @@ export default {
       const audit = await auditBeforeWrite({ path: p, method: request.method, body, ip, userId: null });
       if (audit.reject) {
         recordRequestMetric({ path: p, status: 400, durationMs: Date.now() - t0 });
-        return applySecurityHeaders(error(audit.reject, 400), p);
+        return applySecurityHeaders(error(audit.reject, 400, audit.code), p);
       }
       // B6 公开列表边缘缓存：GET 公开列表命中缓存 → 零 D1 零留档直接返回（冷启动治本）；
       // miss 走正常 handler 后把响应写入边缘缓存（waitUntil 托管，30s TTL 自愈）。
@@ -381,7 +382,7 @@ export default {
       recordRequestMetric({ path: p, status: 500, durationMs: Date.now() - t0 });
       ctx.waitUntil(flushMetrics(db));
       await logRequest(db, { method: request.method, path: p, body, status: 500, req: request, durationMs: Date.now() - t0 });
-      return applySecurityHeaders(error(MSG.SERVER_ERROR, 500), p); // 回显脱敏：不回传 err.message
+      return applySecurityHeaders(errorMsg('SERVER_ERROR', 500), p); // 回显脱敏：不回传 err.message
     }
   },
   // D1 保活（v0.22.8 + v0.25.16）：逻辑收敛到 keepD1Warm 单点（与 /api/keepalive 路由共用）。
