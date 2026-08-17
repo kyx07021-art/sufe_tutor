@@ -14,26 +14,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
-import vm from 'node:vm';
+import { showToast } from '../src/client/core/ui.js';
+import { CONFIG } from '../src/shared/config.js';
 
-function makeCtx() {
-  const html = '<!DOCTYPE html><html><body><div id="toast-container"></div><div id="modal-container"></div></body></html>';
-  const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true });
-  const w = dom.window;
-  const ctx = vm.createContext({
-    window: w, document: w.document,
-    getComputedStyle: w.getComputedStyle.bind(w),
-    localStorage: w.localStorage,
-    console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
-    clearTimeout: globalThis.clearTimeout, Request: globalThis.Request,
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
-  });
-  for (const f of ['constants.js', 'app-state.js', 'app-api.js', 'app-anim.js', 'app-ui.js']) {
-    vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
+async function waitFor(cond, timeout = 2000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    if (cond()) return true;
+    await new Promise(r => setTimeout(r, 20));
   }
-  return { ctx, dom };
+  return cond();
 }
 
 test('层级：toast 容器 z-index 高于 modal-overlay（浮于一切弹窗之上）', () => {
@@ -62,27 +52,20 @@ test('kind 全风格走 --g-fill/--g-fg，无 --g-surface 左竖条（v0.25.99 �
   }
 });
 
-// 轮询等待条件成立（防并行 CPU 竞争下固定 sleep 不可靠的 flake）
-async function waitFor(cond, timeout = 2000) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    if (cond()) return true;
-    await new Promise(r => setTimeout(r, 20));
-  }
-  return cond();
-}
-
 test('退场时序：驻留后切 .toast--out，退场动画后移除节点', async () => {
-  const { ctx, dom } = makeCtx();
-  // 短参数 + 轮询断言（不依赖固定 sleep，杜绝并行 flake）
-  vm.runInContext('CONFIG.TOAST_MS = 50; CONFIG.TOAST_FADE_MS = 40; showToast("x", "error");', ctx);
-  const el = dom.window.document.querySelector('#toast-container .toast');
-  assert.ok(el, 'toast 节点挂载');
-  const gotOut = await waitFor(() => el.classList.contains('toast--out'));
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="toast-container"></div></body></html>', { url: 'http://localhost/' });
+  globalThis.document = dom.window.document;
+  const oldMs = CONFIG.TOAST_MS, oldFade = CONFIG.TOAST_FADE_MS;
+  CONFIG.TOAST_MS = 50; CONFIG.TOAST_FADE_MS = 40;
+  showToast('x', 'error');
+  const el = globalThis.document.querySelector('#toast-container .toast');
+  const gotOut = await waitFor(() => el && el.classList.contains('toast--out'));
   assert.ok(gotOut, '驻留期后切 .toast--out');
-  assert.ok(el.isConnected, '退场动画期间节点仍在 DOM（动画播完才移除）');
-  const removed = await waitFor(() => !dom.window.document.querySelector('#toast-container .toast'));
+  assert.ok(el.isConnected, '退场动画期间节点仍在 DOM');
+  const removed = await waitFor(() => !globalThis.document.querySelector('#toast-container .toast'));
   assert.ok(removed, '退场动画后节点移除');
+  CONFIG.TOAST_MS = oldMs; CONFIG.TOAST_FADE_MS = oldFade;
+  delete globalThis.document;
 });
 
 test('连根删红例：alert 组件全站零残留（CSS 规则 / JS 函数 / 容器；注释留痕不算）', () => {
