@@ -9,9 +9,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { auditFreeText, bindTextAuditEnv } from '../src/server/core/text-audit.js';
-import { initDb } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import { handleSaveProfile } from '../server/routes-teacher.js';
+import { handleSaveProfile } from '../src/server/domains/teacher/api.js';
 
 const SEMANTIC_PASS = () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false, "reason": "无住址信息"}' } }] }) });
 const SEMANTIC_FLAG = () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": true, "reason": "含方位描述可定位住址"}' } }] }) });

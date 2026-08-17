@@ -7,7 +7,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { dbGetDemands } from '../server/db.js';
+import { dbGetDemands } from '../src/server/domains/demand/repo.js';
 
 function fakeDb(rowFactory) {
   const calls = [];

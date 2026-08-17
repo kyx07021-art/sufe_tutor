@@ -12,9 +12,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
-import { handleRespondSigning } from '../server/signing.js';
-import { dbIsContracted } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
+import { handleRespondSigning } from '../src/server/domains/contract/api.js';
+import { dbIsContracted } from '../src/server/domains/reviews/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

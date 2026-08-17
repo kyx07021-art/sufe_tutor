@@ -15,14 +15,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import {
-  initDb, dbUpsertTeacherProfile, dbGetTeacherProfile, dbGetContractById,
-  dbCreateMessage, dbGetMessageAttachment, dbGetTeachers,
-} from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbUpsertTeacherProfile, dbGetTeacherProfile, dbGetTeachers } from '../src/server/domains/teacher/repo.js';
+import { dbGetContractById } from '../src/server/domains/contract/repo.js';
+import { dbCreateMessage, dbGetMessageAttachment } from '../src/server/domains/chat/repo.js';
 import { dbRun } from '../src/server/core/util.js';
 import { issueAuthToken, getSessionByToken } from '../src/server/core/session.js';
 import { handleAdminDeleteNotification } from '../src/server/core/notify.js';
-import { handleLogout, handleLogin } from '../server/routes-auth.js';
+import { handleLogout, handleLogin } from '../src/server/domains/auth/api.js';
 import { logRequest, dbGetTrafficBuckets } from '../src/server/core/log.js';
 import { tokenDigest, encryptField, decryptField } from '../src/server/core/crypto.js';
 

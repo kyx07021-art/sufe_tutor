@@ -22,13 +22,14 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
-import {
-  initDb, dbGetDemands, dbListPosts, dbDeactivateUser, dbPurgeUserOwnedData, dbGetContractById,
-} from '../server/db.js';
-import {
-  initLedgerTable, handleCreateContract, handleSignContract, handleVerifyContract,
-} from '../server/contract.js';
-import { handleDeactivateAccount } from '../server/routes-auth.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbGetDemands } from '../src/server/domains/demand/repo.js';
+import { dbListPosts } from '../src/server/domains/posts/repo.js';
+import { dbDeactivateUser, dbPurgeUserOwnedData } from '../src/server/domains/auth/repo.js';
+import { dbGetContractById } from '../src/server/domains/contract/repo.js';
+import { initLedgerTable } from '../src/server/domains/contract/schema.js';
+import { handleCreateContract, handleSignContract, handleVerifyContract } from '../src/server/domains/contract/api.js';
+import { handleDeactivateAccount } from '../src/server/domains/auth/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

@@ -16,8 +16,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
-import { handleCreateUpload, handleSendMessage, handleGetMessages } from '../server/routes-chat.js';
+import { initDb } from '../src/server/core/db.js';
+import { handleCreateUpload, handleSendMessage, handleGetMessages } from '../src/server/domains/chat/api.js';
 import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

@@ -9,13 +9,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import { handleRegister, handleLogin } from '../server/routes-auth.js';
+import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
-import { handleCreatePost } from '../server/routes-posts.js';
-import { handleAdminContent, handleContentAction } from '../server/routes-audit.js';
+import { handleCreatePost } from '../src/server/domains/posts/api.js';
+import { handleAdminContent, handleContentAction } from '../src/server/domains/admin/api.js';
 import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -88,7 +88,7 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   await handleCreatePost(db, { title: '物理笔记', bodyMd: '牛顿三大定律总结' }, req({ 'X-Auth-Token': sData.authToken }));
   const t = await registerWithContact(db, req(), { username: 'bobt', password: 'pass123456', role: 'teacher' });
   const tData = await t.json();
-  const prof = await (await import('../server/routes-teacher.js')).handleSaveProfile(db, {
+  const prof = await (await import('../src/server/domains/teacher/api.js')).handleSaveProfile(db, {
     profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '注重方法', address: '浦东新区·花木街道', school: '上财' },
   }, req({ 'X-Auth-Token': tData.authToken }));
   assert.equal(prof.status, 200);
@@ -115,7 +115,7 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
 test('D1 键控化（v0.27.3 #21）：清单与表域单源——CONTENT_TYPES 每键可单查；无效 type → 空不崩溃', async () => {
   const { raw, db, req } = await setup();
   const token = await adminToken(db, raw);
-  const { CONTENT_TYPES } = await import('../server/db.js');
+  const { CONTENT_TYPES } = await import('../src/server/domains/admin/repo.js');
   // 每键可单类型提取（空表也 200 空列表）→ 清单由 CONTENT_SQL 键派生，不存在「漏列新表域」
   for (const key of CONTENT_TYPES) {
     const r = await handleAdminContent(db, new URL(`http://x/api/admin/content?type=${key}`), req({ 'X-Auth-Token': token }));
@@ -175,7 +175,7 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   const teaToken = (await teaReg.json()).authToken;
   await registerWithContact(db, req(), { username: 'stud0', password: 'pass123456', role: 'student' });
   // 建教师档案（teacher 类型处罚定位走 dbGetTeacherProfile，无档案行 → 404）
-  const prof = await (await import('../server/routes-teacher.js')).handleSaveProfile(db, {
+  const prof = await (await import('../src/server/domains/teacher/api.js')).handleSaveProfile(db, {
     profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '教法严谨', address: '浦东新区·陆家嘴街道', school: '上财' },
   }, req({ 'X-Auth-Token': teaToken }));
   assert.equal(prof.status, 200);

@@ -13,10 +13,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb, dbGetPostFavoriteToggleRead, dbGetPostLikeToggleRead, dbTogglePostLike, dbCreatePostFavorite } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbGetPostFavoriteToggleRead, dbGetPostLikeToggleRead, dbTogglePostLike, dbCreatePostFavorite } from '../src/server/domains/posts/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import { handleToggleFavorite, handleMyFavorites, handleListPosts, handleToggleLike } from '../server/routes-posts.js';
-import { dbPurgeUserOwnedData } from '../server/db.js';
+import { handleToggleFavorite, handleMyFavorites, handleListPosts, handleToggleLike } from '../src/server/domains/posts/api.js';
+import { dbPurgeUserOwnedData } from '../src/server/domains/auth/repo.js';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';

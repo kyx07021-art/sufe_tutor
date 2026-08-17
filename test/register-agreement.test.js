@@ -11,9 +11,9 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
 import { requestOtp } from '../src/server/core/otp.js';
-import { handleRegister } from '../server/routes-auth.js';
+import { handleRegister } from '../src/server/domains/auth/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 

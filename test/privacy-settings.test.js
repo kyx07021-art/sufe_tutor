@@ -8,10 +8,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb, dbGetPrivacySettings, dbSetPrivacySettings, dbGetDemands, dbGetTeachers } from '../server/db.js';
-import { handleGetPrivacySettings, handleSetPrivacySettings } from '../server/routes-settings.js';
-import { handleGetDemands } from '../server/routes-demands.js';
-import { handleGetTeachers } from '../server/routes-teacher.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbGetPrivacySettings, dbSetPrivacySettings } from '../src/server/domains/settings/repo.js';
+import { dbGetDemands } from '../src/server/domains/demand/repo.js';
+import { dbGetTeachers } from '../src/server/domains/teacher/repo.js';
+import { handleGetPrivacySettings, handleSetPrivacySettings } from '../src/server/domains/settings/api.js';
+import { handleGetDemands } from '../src/server/domains/demand/api.js';
+import { handleGetTeachers } from '../src/server/domains/teacher/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { versionDomainOf } from '../server/version.js';
 

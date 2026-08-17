@@ -13,9 +13,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb, dbGetDemandsByUser } from '../server/db.js';
-import { handleCreateSigning, handleRespondSigning } from '../server/signing.js';
-import { handleGetConversationBindableDemands } from '../server/routes-chat.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbGetDemandsByUser } from '../src/server/domains/demand/repo.js';
+import { handleCreateSigning, handleRespondSigning } from '../src/server/domains/contract/api.js';
+import { handleGetConversationBindableDemands } from '../src/server/domains/chat/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

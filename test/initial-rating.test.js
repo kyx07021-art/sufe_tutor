@@ -14,7 +14,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb, dbUpsertTeacherProfile } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbUpsertTeacherProfile } from '../src/server/domains/teacher/repo.js';
 import { INITIAL_RATING, INITIAL_WEIGHT } from '../server/constants.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

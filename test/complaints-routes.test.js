@@ -16,12 +16,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import {
-  handleCreateComplaint, handleMyComplaints, handleAdminComplaints,
-  handleComplaintCandidates, handleComplaintRecent, handleResolveComplaint,
-} from '../server/routes-complaints.js';
+import { handleCreateComplaint, handleMyComplaints, handleAdminComplaints, handleComplaintCandidates, handleComplaintRecent, handleResolveComplaint } from '../src/server/domains/complaints/api.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 

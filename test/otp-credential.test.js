@@ -11,17 +11,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { requestOtp, verifyOtp, parsePhone, classifyIdentifier, normalizeIdentifier } from '../src/server/core/otp.js';
 import {
   bindPhoneCredential, bindEmailCredential, updateUsernameCredential, getUsernameChangedAt,
   dbFindUserByPhoneHash, dbFindUserByEmailHash, dbPhoneTaken, dbEmailTaken,
 } from '../src/server/core/credential.js';
-import {
-  handleOtpRequest, handleBindPhone, handleChangeUsername, handleUsernameStatus,
-  handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister, handleGetMyCreds,
-} from '../server/routes-auth.js';
+import { handleOtpRequest, handleBindPhone, handleChangeUsername, handleUsernameStatus, handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister, handleGetMyCreds } from '../src/server/domains/auth/api.js';
 import { issueCapToken } from '../src/server/core/danger-ops.js';
 import { lastOtpCode, resetOtpStub } from './_otp-stub.js'; // 拦截真实发信（stub fetch：真实代码路径 + 捕获验证码）
 

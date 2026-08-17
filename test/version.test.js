@@ -17,7 +17,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
 import { initVersionTable, bumpVersions, getVersions, handleGetDataVersion, versionDomainOf } from '../server/version.js';
 import { initNotifyTable, notifyUser } from '../src/server/core/notify.js';
 

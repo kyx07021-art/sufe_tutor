@@ -6,7 +6,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyChain } from '../server/contract.js';
+import { verifyChain } from '../src/server/domains/contract/api.js';
 
 const hexOf = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 const sha256Hex = text => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(hexOf);

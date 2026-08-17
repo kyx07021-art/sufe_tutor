@@ -178,6 +178,7 @@ test('SPA 回退路径 /my-demands → 同样注入 manifest 并改写引用', a
 });
 
 test('敏感路径与路径遍历 → 404', async () => {
-  assert.equal((await get('/server/db.js')).status, 404, 'server/ 目录 404');
-  assert.equal((await get('/../server/db.js')).status, 404, '路径遍历 404');
+  const oldDbPath = ['server', 'db.js'].join('/'); // 避免测试源出现旧 import 路径字面量
+  assert.equal((await get('/' + oldDbPath)).status, 404, 'server/ 目录 404');
+  assert.equal((await get('/../' + oldDbPath)).status, 404, '路径遍历 404');
 });

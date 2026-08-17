@@ -11,7 +11,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb, dbUpsertTeacherProfile } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbUpsertTeacherProfile } from '../src/server/domains/teacher/repo.js';
 
 // node:sqlite → D1 形状薄封装（同 initdb-migration.test.js）
 function d1Shim(raw) {

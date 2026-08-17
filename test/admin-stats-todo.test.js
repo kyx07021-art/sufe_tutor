@@ -6,12 +6,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
-import { handleAdminStats, handleAdminDashboard } from '../server/routes-admin.js';
-import { handleLogin } from '../server/routes-auth.js';
+import { initDb } from '../src/server/core/db.js';
+import { handleAdminStats, handleAdminDashboard } from '../src/server/domains/admin/api.js';
+import { handleLogin } from '../src/server/domains/auth/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { requestOtp } from '../src/server/core/otp.js';
-import { handleRegister } from '../server/routes-auth.js';
+import { handleRegister } from '../src/server/domains/auth/api.js';
 import { lastOtpCode } from './_otp-stub.js';
 import { recordRequestMetric, flushMetrics } from '../server/telemetry.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 

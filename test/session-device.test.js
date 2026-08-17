@@ -16,7 +16,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
 import { issueAuthToken, getSessionByToken, listSessions, revokeSession } from '../src/server/core/session.js';
 
 // node:sqlite → D1 形状薄封装（同 initdb-migration.test.js）

@@ -14,8 +14,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
-import { initDb, dbCreatePush, dbGetPendingPushesForTeacher, dbCreateIntent, dbGetIntentTeachers } from '../server/db.js';
-import { handlePushDemand, handleCreateIntent } from '../server/routes-demands.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbCreatePush, dbGetPendingPushesForTeacher, dbCreateIntent, dbGetIntentTeachers } from '../src/server/domains/demand/repo.js';
+import { handlePushDemand, handleCreateIntent } from '../src/server/domains/demand/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

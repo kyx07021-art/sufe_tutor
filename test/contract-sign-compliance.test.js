@@ -21,9 +21,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
-import { initLedgerTable, handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract } from '../server/contract.js';
-import { dbGetContractById } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
+import { initLedgerTable } from '../src/server/domains/contract/schema.js';
+import { handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract } from '../src/server/domains/contract/api.js';
+import { dbGetContractById } from '../src/server/domains/contract/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

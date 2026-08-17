@@ -7,13 +7,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb, dbGetUpload } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbGetUpload } from '../src/server/domains/chat/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import { handleRegister, handleLogin } from '../server/routes-auth.js';
+import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
-import { handleCreateUpload } from '../server/routes-chat.js';
-import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction } from '../server/awards.js';
+import { handleCreateUpload } from '../src/server/domains/chat/api.js';
+import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction } from '../src/server/domains/awards/api.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {

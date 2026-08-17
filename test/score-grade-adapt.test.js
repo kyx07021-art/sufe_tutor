@@ -16,8 +16,8 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
-import { initDb } from '../server/db.js';
-import { handleCreateDemand } from '../server/routes-demands.js';
+import { initDb } from '../src/server/core/db.js';
+import { handleCreateDemand } from '../src/server/domains/demand/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

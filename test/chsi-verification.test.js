@@ -9,14 +9,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb } from '../server/db.js';
+import { initDb } from '../src/server/core/db.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { bindChsiEnv } from '../server/chsi.js';
-import { handleRegister, handleLogin } from '../server/routes-auth.js';
-import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmission } from '../server/routes-teacher.js';
-import { handleCreateIntent } from '../server/routes-demands.js';
-import { handleVerificationAction } from '../server/routes-admin.js';
-import { dbGetTeacherProfile, dbGetTeacherVerification } from '../server/db.js';
+import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
+import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmission } from '../src/server/domains/teacher/api.js';
+import { handleCreateIntent } from '../src/server/domains/demand/api.js';
+import { handleVerificationAction } from '../src/server/domains/teacher/api.js';
+import { dbGetTeacherProfile, dbGetTeacherVerification } from '../src/server/domains/teacher/repo.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

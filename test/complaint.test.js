@@ -9,9 +9,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initDb, dbCreateFeedback, dbGetFeedbacksByUser, dbGetFeedbackById, dbCreateComplaint } from '../server/db.js';
-import { handleCreateFeedback, handleMyFeedbacks, handleResolveFeedback } from '../server/routes-admin.js';
-import { handleCreateComplaint, handleMyComplaints, handleComplaintAttachment } from '../server/routes-complaints.js';
+import { initDb } from '../src/server/core/db.js';
+import { dbCreateFeedback, dbGetFeedbacksByUser, dbGetFeedbackById, dbCreateComplaint } from '../src/server/domains/complaints/repo.js';
+import { handleCreateFeedback, handleMyFeedbacks, handleResolveFeedback } from '../src/server/domains/complaints/api.js';
+import { handleCreateComplaint, handleMyComplaints, handleComplaintAttachment } from '../src/server/domains/complaints/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { LIMITS } from '../server/constants.js';
 import { readFileSync } from 'node:fs';
