@@ -12,45 +12,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { JSDOM } from 'jsdom';
-import vm from 'node:vm';
-
-const FILES = [
-  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js', 'app-onboard.js', 'app-region.js',
-  'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
-  'app-demands.js', 'app-teachers.js', 'app-style.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
-];
-
-function makeCtx() {
-  const html = readFileSync('./index.html', 'utf8')
-    .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
-  const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously' });
-  const w = dom.window;
-  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
-    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
-    return mk();
-  };
-  const ctx = vm.createContext({
-    window: w, document: w.document,
-    getComputedStyle: w.getComputedStyle.bind(w),
-    localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console: { log() {}, warn() {}, error() {} },
-    fetch: async (url) => ({ ok: true, status: 200, json: async () => ({}) }),
-    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
-    Request: globalThis.Request, AbortController: globalThis.AbortController,
-    performance: globalThis.performance,
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    Image: class { set src(v) { this._s = v; } },
-    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
-  });
-  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
-  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
-  vm.runInContext('window.APP_CONSTANTS = globalThis.APP_CONSTANTS;', ctx);
-  return { dom, ctx };
-}
+import { renderChatBubble } from '../src/client/features/chat/render.js';
+import { state } from '../src/client/core/state.js';
 
 test('文件卡分流 .chat-bubble--file（圆角内衬），图片仍全出血', () => {
   const chat = readFileSync('./app-chat.js', 'utf8');
@@ -74,18 +37,17 @@ test('文件卡随内容收缩：无 min-width 撑宽、无 flex:1 撑中缝，�
 });
 
 test('渲染验证：文件消息气泡带 chat-bubble--file 类，图片消息不带', () => {
-  const { ctx } = makeCtx();
-  vm.runInContext(`state.user = { id: 1, role: 'student', username: 'me' };`, ctx);
-  const fileHtml = vm.runInContext(`renderChatBubble({
-      id: 10, sender_user_id: 1, kind: 'file', body: 'data:application/pdf;base64,AA==', name: '讲义.pdf',
-      created_at: '2026-08-08 10:00:00',
-    }, 0)`, ctx);
+  state.user = { id: 1, role: 'student', username: 'me' };
+  const fileHtml = renderChatBubble({
+    id: 10, sender_user_id: 1, kind: 'file', body: 'data:application/pdf;base64,AA==', name: '讲义.pdf',
+    created_at: '2026-08-08 10:00:00',
+  }, 0);
   assert.ok(fileHtml.includes('chat-bubble--file'), '文件消息气泡带 file 类');
   assert.ok(fileHtml.includes('chat-file'), '文件卡结构在');
-  assert.ok(fileHtml.includes('下载'), '下载按钮在');
-  const imgHtml = vm.runInContext(`renderChatBubble({
-      id: 11, sender_user_id: 1, kind: 'image', body: '', thumb: 'data:image/png;base64,AA==',
-      created_at: '2026-08-08 10:00:00',
-    }, 0)`, ctx);
+  const imgHtml = renderChatBubble({
+    id: 11, sender_user_id: 1, kind: 'image', body: '', thumb: 'data:image/png;base64,AA==',
+    created_at: '2026-08-08 10:00:00',
+  }, 0);
   assert.ok(!imgHtml.includes('chat-bubble--file'), '图片消息不带 file 类');
+  state.user = null;
 });

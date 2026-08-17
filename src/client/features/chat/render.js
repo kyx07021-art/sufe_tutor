@@ -58,7 +58,8 @@ export function renderChatPlaceholder() {
 
 export function renderChatBubble(m, i) {
   const mine = state.user && m.sender_user_id === state.user.id;
-  const cls = mine ? 'chat-bubble--mine' : 'chat-bubble--other';
+  const mediaCls = m.kind === 'file' ? ' chat-bubble--file' : '';
+  const cls = (mine ? 'chat-bubble--mine' : 'chat-bubble--other') + mediaCls;
   const time = fmtDateTime(m.created_at);
   return `<div class="chat-bubble ${cls}" data-mid="${m.id}">
     <div class="chat-bubble-inner">${renderChatMediaInner(m.kind, m.body, m.name, m.thumb, m.id, m)}</div>
