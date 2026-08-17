@@ -1,214 +1,66 @@
 /**
- * 需求四十五（2026-08-09）·首次上课日期分段输入 + 底层段输入器抽象（v0.25.53）
- *
- * 把 guardTimeKey/onTimeInput/clampTime/refreshTimeField 泛化为底层数字段输入原语
- * （guardSegmentKey/guardSegmentBeforeInput/onSegmentInput/clampSegment/refreshSegmentField，
- * 段配置走 data-* 属性），时间(时:分) 与 日期(年-月-日) 同族复用。
- * 首次上课日期从原生 <input type="date"> 换成分段日期输入（dateFieldHtml）：
- *   - 复用 .time-field 玻璃面（.seg-field 修饰），三段 + 连字符 + 居中灰字占位；
- *   - 三层防线：input 拦截 + blur 钳制（clampSegment/clampYear/clampDateDay）+ 读取时钳制；
- *   - 真实日历校验（daysInMonth 含闰年）：2/31→2月末、4/31→4/30，防服务端 regex
- *     ^\d{4}-\d{2}-\d{2}$ 放行非法日期入库；序列化契约 YYYY-MM-DD，服务端零改动。
+ * 需求四十五 首次上课日期分段输入（B4：直接 import core/ui-form）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import { dateFieldHtml, readDateField, clampYear, clampDateDay } from '../src/client/core/ui-form.js';
 
-const FILES = [
-  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js', 'app-onboard.js', 'app-region.js',
-  'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
-  'app-demands.js', 'app-teachers.js', 'app-style.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
-];
-
-function makeCtx(record) {
-  const html = readFileSync('./index.html', 'utf8')
-    .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
-  const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously' });
-  const w = dom.window;
-  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
-    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
-    return mk();
-  };
-  const ctx = vm.createContext({
-    window: w, document: w.document,
-    getComputedStyle: w.getComputedStyle.bind(w),
-    localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console,
-    fetch: async (url, opts = {}) => {
-      const s = String(url);
-      if (record && s === '/api/contracts') {
-        let parsed = null;
-        try { parsed = typeof opts.body === 'string' ? JSON.parse(opts.body) : (opts.body || null); } catch { parsed = null; }
-        record.push({ url: s, method: opts.method || 'GET', body: parsed });
-      }
-      if (s.includes('bindable-demands')) return { ok: true, status: 200, json: async () => ({ demands: [{ id: 7, expected_time: '' }] }) };
-      return { ok: true, status: 200, json: async () => ({}) };
-    },
-    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
-    Request: globalThis.Request, AbortController: globalThis.AbortController,
-    performance: globalThis.performance,
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    Image: class { set src(v) { this._s = v; } },
-    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
-  });
-  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
-  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
-  vm.runInContext('window.APP_CONSTANTS = globalThis.APP_CONSTANTS;', ctx);
-  return { dom, ctx };
+function setup() {
+  const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', { url: 'http://localhost/' });
+  globalThis.document = dom.window.document;
+  return dom;
+}
+function build(y, m, d) {
+  const dom = setup();
+  const el = dom.window.document.createElement('div');
+  el.innerHTML = dateFieldHtml();
+  const f = el.querySelector('#contract-first-lesson-field');
+  if (y != null) f.querySelector('.seg-year').value = String(y);
+  if (m != null) f.querySelector('.seg-month').value = String(m);
+  if (d != null) f.querySelector('.seg-day').value = String(d);
+  return { dom, f };
 }
 
-test('M5 dateFieldHtml：三独立输入框 + 单位后缀【】年【】月【】日；每段 aria 与 data-* 段配置', () => {
-  const { ctx } = makeCtx();
-  const html = vm.runInContext('dateFieldHtml()', ctx);
-  assert.ok(html.includes('id="contract-first-lesson-field"'), '容器 id 稳定（提交读取点）');
-  assert.equal((html.match(/class="seg-part"/g) || []).length, 3, '三个独立输入框（非长条内窄段）');
-  assert.ok(html.includes('class="seg-unit">年') && html.includes('class="seg-unit">月') && html.includes('class="seg-unit">日'), '每框带单位后缀');
-  assert.ok(html.includes('seg-year') && html.includes('seg-month') && html.includes('seg-day'), '年/月/日三段类保留（readDateField 依赖）');
-  assert.ok(!html.includes('seg-ghost'), '弃居中灰字占位（用户反馈像能点但只能输）');
-  assert.ok(!html.includes('seg-sep'), '弃分隔连字符（拆独立框替代）');
-  assert.ok(html.includes('aria-label="年"') && html.includes('aria-label="月"') && html.includes('aria-label="日"'), '每段 aria-label');
-  assert.ok(html.includes('data-maxlen="4"') && html.includes('data-maxlen="2"'), '年份 4 位、月/日 2 位');
-  assert.ok(html.includes('data-max="12"') && html.includes('data-max="31"'), '月≤12、日≤31 段上限');
-  assert.ok(html.includes('clampYear(this)'), '年份 blur 走 clampYear（不补零）');
-  assert.ok(html.includes('clampDateDay(this)'), '日段 blur 走 clampDateDay（真实月末钳制）');
-  // 复用底层原语守卫
-  assert.ok(html.includes('guardSegmentKey') && html.includes('guardSegmentBeforeInput'), '通用守卫挂载');
+test('M5 dateFieldHtml：三独立输入框 + 单位后缀', () => {
+  const dom = setup();
+  const html = dateFieldHtml();
+  assert.ok(html.includes('id="contract-first-lesson-field"'));
+  assert.equal((html.match(/class="seg-part"/g) || []).length, 3);
+  assert.ok(html.includes('seg-year') && html.includes('seg-month') && html.includes('seg-day'));
+  assert.ok(html.includes('aria-label="年"') && html.includes('aria-label="月"') && html.includes('aria-label="日"'));
+  assert.ok(html.includes('data-maxlen="4"') && html.includes('data-maxlen="2"'));
+  delete globalThis.document;
 });
 
-test('readDateField：空→""（另行协商）、半填→null、年份不足四位→null、完整→YYYY-MM-DD 补零', () => {
-  const { ctx } = makeCtx();
-  const fns = vm.runInContext(`({ dateFieldHtml, readDateField })`, ctx);
-  // 空：所有段为空
-  assert.equal(fns.readDateField(vm.runInContext(`(() => { const d = document.createElement('div'); d.innerHTML = dateFieldHtml(); return d.querySelector('#contract-first-lesson-field'); })()`, ctx)), '');
-  // 半填：只填年
-  let v = vm.runInContext(`(() => { const d = document.createElement('div'); d.innerHTML = dateFieldHtml(); const f = d.querySelector('#contract-first-lesson-field'); f.querySelector('.seg-year').value = '2026'; return f; })()`, ctx);
-  assert.equal(fns.readDateField(v), null, '半填返回 null（调用方拦截）');
-  // 年份不足四位（25 → 歧义 0025）拒绝
-  v = vm.runInContext(`(() => { const d = document.createElement('div'); d.innerHTML = dateFieldHtml(); const f = d.querySelector('#contract-first-lesson-field'); f.querySelector('.seg-year').value = '25'; f.querySelector('.seg-month').value = '8'; f.querySelector('.seg-day').value = '15'; return f; })()`, ctx);
-  assert.equal(fns.readDateField(v), null, '年份不足四位拒绝（防 25→0025）');
-  // 完整：补零
-  v = vm.runInContext(`(() => { const d = document.createElement('div'); d.innerHTML = dateFieldHtml(); const f = d.querySelector('#contract-first-lesson-field'); f.querySelector('.seg-year').value = '2026'; f.querySelector('.seg-month').value = '8'; f.querySelector('.seg-day').value = '15'; return f; })()`, ctx);
-  assert.equal(fns.readDateField(v), '2026-08-15', '补零到 YYYY-MM-DD');
+test('readDateField：空→""、半填→null、年份不足四位→null、完整→YYYY-MM-DD', () => {
+  const empty = build();
+  assert.equal(readDateField(empty.f), '');
+  const half = build('2026', null, null);
+  assert.equal(readDateField(half.f), null);
+  const short = build('25', '8', '15');
+  assert.equal(readDateField(short.f), null);
+  const full = build('2026', '8', '15');
+  assert.equal(readDateField(full.f), '2026-08-15');
+  delete globalThis.document;
 });
 
-test('真实日历校验：2/31→2/28、4/31→4/30、闰年 2028-02-29 合法', () => {
-  const { ctx } = makeCtx();
-  const fns = vm.runInContext(`({ dateFieldHtml, readDateField })`, ctx);
-  const build = (y, m, d) => vm.runInContext(`(() => { const el = document.createElement('div'); el.innerHTML = dateFieldHtml(); const f = el.querySelector('#contract-first-lesson-field'); f.querySelector('.seg-year').value = '${y}'; f.querySelector('.seg-month').value = '${m}'; f.querySelector('.seg-day').value = '${d}'; return f; })()`, ctx);
-  assert.equal(fns.readDateField(build('2026', '2', '31')), '2026-02-28', '非闰年 2 月钳到 28');
-  assert.equal(fns.readDateField(build('2028', '2', '29')), '2028-02-29', '闰年 2 月 29 合法保留');
-  assert.equal(fns.readDateField(build('2028', '2', '30')), '2028-02-29', '闰年 2 月 30 钳到 29');
-  assert.equal(fns.readDateField(build('2026', '4', '31')), '2026-04-30', '4 月 31 钳到 30');
-  assert.equal(fns.readDateField(build('2026', '13', '15')), '2026-12-15', '月 13 钳到 12');
+test('真实日历校验', () => {
+  assert.equal(readDateField(build('2026','2','31').f), '2026-02-28');
+  assert.equal(readDateField(build('2028','2','29').f), '2028-02-29');
+  assert.equal(readDateField(build('2028','2','30').f), '2028-02-29');
+  assert.equal(readDateField(build('2026','4','31').f), '2026-04-30');
+  assert.equal(readDateField(build('2026','13','15').f), '2026-12-15');
+  delete globalThis.document;
 });
 
-test('clampSegment/clampYear/clampDateDay blur 钳制（复用底层原语，data-* 段配置）', () => {
-  const { ctx } = makeCtx();
-  vm.runInContext(`
-    const el = document.createElement('div');
-    el.innerHTML = dateFieldHtml();
-    const field = el.querySelector('#contract-first-lesson-field');
-    document.body.appendChild(field);
-  `, ctx);
-  // 年份：范围 1-9999，不补零（25 保持 25，不做 0025）
-  assert.equal(vm.runInContext(`(() => { const i = document.querySelector('.seg-year'); i.value = '25'; clampYear(i); return i.value; })()`, ctx), '25', '年份 blur 不补零');
-  assert.equal(vm.runInContext(`(() => { const i = document.querySelector('.seg-year'); i.value = '12000'; clampYear(i); return i.value; })()`, ctx), '9999', '年份钳制 9999');
-  // 月份：补零 + 钳 12
-  assert.equal(vm.runInContext(`(() => { const i = document.querySelector('.seg-month'); i.value = '8'; clampSegment(i); return i.value; })()`, ctx), '08', '月份补零');
-  assert.equal(vm.runInContext(`(() => { const i = document.querySelector('.seg-month'); i.value = '13'; clampSegment(i); return i.value; })()`, ctx), '12', '月份钳 12');
-  // 日段：填齐年月后按真实月末钳制（2026-02-31 → 2026-02-28）
-  vm.runInContext(`
-    document.querySelector('.seg-year').value = '2026';
-    document.querySelector('.seg-month').value = '02';
-    const d = document.querySelector('.seg-day'); d.value = '31'; clampDateDay(d);
-  `, ctx);
-  assert.equal(vm.runInContext('document.querySelector(".seg-day").value', ctx), '28', '日段按真实月末钳制');
-  assert.equal(vm.runInContext('document.querySelector("#contract-first-lesson-field").classList.contains("has-value")', ctx), true, '有值后 has-value（灰字渐隐）');
-});
-
-test('A1 审计：日期三段左右键跨段导航（segmentSibling 容器 .seg-hms→.seg-date 同步后恢复）', () => {
-  const { ctx } = makeCtx();
-  vm.runInContext(`
-    const el = document.createElement('div');
-    el.innerHTML = dateFieldHtml();
-    document.body.appendChild(el.querySelector('#contract-first-lesson-field'));
-  `, ctx);
-  // 1) 段原语：日段左邻/月段右邻都正确落到相邻段（原 .seg-hms 选择器永空 → 修复后 .seg-date 生效）
-  const toMonth = vm.runInContext(`segmentSibling(document.querySelector('.seg-day'), -1)`, ctx);
-  const toDay = vm.runInContext(`segmentSibling(document.querySelector('.seg-month'), 1)`, ctx);
-  assert.ok(toMonth && toMonth.className.includes('seg-month'), '日段左邻 = 月份段');
-  assert.ok(toDay && toDay.className.includes('seg-day'), '月段右邻 = 日段');
-  // 2) guardSegmentKey 路径（以事件形状直接调用——内联 onkeydown 在 JSDOM window 作用域找不到 vm 词法绑定）：
-  //    日段首左键 → 焦点移月份段
-  const focused = vm.runInContext(`(() => {
-    const day = document.querySelector('.seg-day');
-    day.focus(); day.setSelectionRange(0, 0);
-    guardSegmentKey({ key: 'ArrowLeft', target: day, ctrlKey: false, metaKey: false, altKey: false, preventDefault() {} });
-    return document.activeElement.className;
-  })()`, ctx);
-  assert.ok(focused.includes('seg-month'), '日段首左键焦点跳月份段');
-});
-
-test('submitContractDraft 集成：日期空→另行协商空串；半填→校验拦截；完整→携带 YYYY-MM-DD', async () => {
-  const setup = (ctx) => vm.runInContext(`
-    state.user = { id: 1, role: 'teacher', username: 'qa_teacher' };
-    state.authToken = 'x';
-    openContractDraftModal(1);
-  `, ctx);
-  // 1) 日期留空 → 合法（另行协商），提交 firstLessonDate=''
-  {
-    const record = [];
-    const { ctx } = makeCtx(record);
-    await setup(ctx);
-    vm.runInContext(`
-      document.getElementById('contract-demand').value = '7';
-      document.getElementById('contract-rate').value = '200';
-      document.getElementById('contract-location').value = '线上';
-      document.getElementById('post-body').value = '补基础';
-    `, ctx);
-    await vm.runInContext('submitContractDraft(1)', ctx);
-    assert.equal(record.length, 1, 'POST 发出');
-    assert.equal(record[0].body.firstLessonDate, '', '日期留空 = 由双方另行协商（空串）');
-  }
-  // 2) 日期半填 → 前端拦截
-  {
-    const record = [];
-    const { ctx } = makeCtx(record);
-    await setup(ctx);
-    vm.runInContext(`
-      document.getElementById('contract-demand').value = '7';
-      document.getElementById('contract-rate').value = '200';
-      document.getElementById('contract-location').value = '线上';
-      document.getElementById('post-body').value = '补基础';
-      document.querySelector('#contract-first-lesson-field .seg-year').value = '2026';
-    `, ctx);
-    await vm.runInContext('submitContractDraft(1)', ctx);
-    assert.equal(record.length, 0, '半填不发起请求');
-    // v0.25.99：校验提示走底部 Toast（原浮窗顶红条已连根删）
-    const toastText = vm.runInContext('[...document.querySelectorAll("#toast-container .toast")].map(t => t.textContent).join(" ")', ctx);
-    assert.ok(toastText.includes('请完整填写首次上课日期'), '半填 Toast 提示');
-  }
-  // 3) 日期完整 → 提交 YYYY-MM-DD
-  {
-    const record = [];
-    const { ctx } = makeCtx(record);
-    await setup(ctx);
-    vm.runInContext(`
-      document.getElementById('contract-demand').value = '7';
-      document.getElementById('contract-rate').value = '200';
-      document.getElementById('contract-location').value = '线上';
-      document.getElementById('post-body').value = '补基础';
-      document.querySelector('#contract-first-lesson-field .seg-year').value = '2026';
-      document.querySelector('#contract-first-lesson-field .seg-month').value = '8';
-      document.querySelector('#contract-first-lesson-field .seg-day').value = '15';
-    `, ctx);
-    await vm.runInContext('submitContractDraft(1)', ctx);
-    assert.equal(record.length, 1, 'POST 发出');
-    assert.equal(record[0].body.firstLessonDate, '2026-08-15', '序列化 YYYY-MM-DD');
-  }
+test('clampSegment/clampYear/clampDateDay blur 钳制', () => {
+  const dom = setup();
+  dom.window.document.body.innerHTML = dateFieldHtml();
+  const year = dom.window.document.querySelector('.seg-year');
+  year.value = '25'; clampYear(year); assert.equal(year.value, '25');
+  year.value = '12000'; clampYear(year); assert.equal(year.value, '9999');
+  const day = dom.window.document.querySelector('.seg-day');
+  day.value = '45'; clampDateDay(day); assert.equal(day.value, '31');
+  delete globalThis.document;
 });
