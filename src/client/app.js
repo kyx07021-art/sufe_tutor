@@ -15,6 +15,17 @@ import { renderGlassLineChart } from './core/chart.js';
 import { subjectName, starsHtml, diffLines } from './core/display.js';
 import { registerPage, enterClient, selectPage, showView, goHome, renderSidebar, updateNavbar, loadInto, setBadge } from './core/router.js';
 import { enterAbout } from './core/about.js';
+import authFeature from './features/auth/index.js';
+import regionFeature from './features/region/index.js';
+import postsFeature from './features/posts/index.js';
+import complaintsFeature from './features/complaints/index.js';
+import contractFeature from './features/contract/index.js';
+import chatFeature from './features/chat/index.js';
+import teacherFeature from './features/teacher/index.js';
+import studentFeature from './features/student/index.js';
+import settingsFeature from './features/settings/index.js';
+import adminFeature from './features/admin/index.js';
+import onboardFeature from './features/onboard/index.js';
 
 let booted = false;
 export function boot() {
@@ -26,6 +37,7 @@ export function boot() {
     installFormBindings();       // seg-input / time-slots dynamic bindings
     installBarWidthBindings();   // matchRowsHtml data-bar-w auto -> --bar-w
     bindUiScaleWheel();
+    [authFeature, regionFeature, postsFeature, complaintsFeature, contractFeature, chatFeature, teacherFeature, studentFeature, settingsFeature, adminFeature, onboardFeature].forEach(f => { if (f && typeof f.onLoad === 'function') f.onLoad(); });
     const saved = loadSession();
     if (saved) { state.user = saved.user; state.authToken = saved.authToken; }
   }
