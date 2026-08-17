@@ -9,6 +9,8 @@ import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '
 import { escHtml } from '../../core/dom.js';
 import { renderDemandCard, renderDemandModalHtml, renderPushBtn, renderIntentTeacherRow, setPushCooldown, pushCooldownLeft } from './render.js';
 import { buildStudentSubjectsHtml, buildStudentScoreRows } from '../region/render.js';
+import { SUFE_REGIONS } from '../../constants/region-data.js';
+import { STUDENT_GRADES } from '../../../shared/enums.js';
 
 export function loadMyDemands() {
   const el = document.getElementById('my-demands-list');
@@ -171,3 +173,9 @@ export async function doSubmitIntent(demandId) { return submitIntent(demandId); 
 export function showProfileIncompleteModal() { showToast(TEXT.PROFILE_INCOMPLETE_HINT, 'error'); }
 export function toggleDemandIntents() {}
 export function refreshIntentsBox() {}
+
+
+export function gradeOptionsForProvince(provinceId) {
+  if (SUFE_REGIONS.isFiveFour(provinceId)) return STUDENT_GRADES.filter(g => g.id !== 'p6');
+  return STUDENT_GRADES.filter(g => g.id !== 'prep');
+}
