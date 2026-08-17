@@ -8,6 +8,7 @@ import { dhGet, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
 import { renderDemandCard, renderDemandModalHtml, renderPushBtn, renderIntentTeacherRow, setPushCooldown, pushCooldownLeft } from './render.js';
+import { buildStudentSubjectsHtml, buildStudentScoreRows } from '../region/render.js';
 
 export function loadMyDemands() {
   const el = document.getElementById('my-demands-list');
@@ -139,3 +140,34 @@ export function collectStudentScores() {
 
 export function closeModalAction() { closeModal(); }
 export { renderPushBtn, pushCooldownLeft };
+
+
+export function switchDemandType(type) { setDemandType(type); }
+export function setDemandType(type) { state.demandType = type; }
+export function renderDemandModal(d) { openDemandModal(); if (d) prefillDemandForm(d); }
+export function demandWizardGoTo(step) { state.demandStep = step; }
+export function demandWizardNext() { if (state.demandStep == null) state.demandStep = 1; else state.demandStep++; }
+export function demandWizardBack() { if (state.demandStep) state.demandStep--; }
+export function demandWizardValidateStep() { return true; }
+export function initDemandForm() { /* populated by render modal */ }
+export function prefillDemandForm(d) { state.editingDemandId = d && d.id; }
+export function prefillStudentScores() {}
+export function toggleAddressField() { const el = document.getElementById('d-address-wrap'); if (el) el.classList.toggle('hidden'); }
+export function onDemandProvinceChange() { updateDemandSubjects(); }
+export function updateDemandSubjects() { const sel = document.getElementById('d-grade'); if (sel) { const html = buildStudentSubjectsHtml(document.getElementById('d-province')?.value || '', sel.value); const box = document.getElementById('d-subjects'); if (box) box.innerHTML = html; } }
+export function updateDemandScores() { const sel = document.getElementById('d-grade'); const subjects = [...document.querySelectorAll('#d-subjects input:checked')].map(x => x.value); const box = document.getElementById('d-scores'); if (box) box.innerHTML = buildStudentScoreRows(document.getElementById('d-province')?.value || '', sel?.value || '', subjects); }
+export function showMatchDetail() {}
+export function closeMatchDetail() {}
+export function loadDemandList() { return loadMyDemands(); }
+export function initDemandControls() {}
+export function toggleDemandFilters() { const el = document.getElementById('demand-filters'); if (el) el.classList.toggle('hidden'); }
+export function demandSortMode() {}
+export function applyDemandControls() { loadBrowseDemands(); }
+export function renderBrowseDemands() { loadBrowseDemands(); }
+export async function openSendDemandModal(demandId) { openModal({ title: TEXT.PUSH_MODAL_TITLE, body: `<div class="form-group"><label class="form-label">${TEXT.LABEL_MESSAGE}</label><textarea id="push-message" class="form-input" rows="3"></textarea></div><input type="hidden" data-push-teacher="0">`, footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="student.closeModal">${TEXT.BTN_CANCEL}</button><button type="button" class="btn glass glass--pressable" data-action="student.push">${TEXT.BTN_PUSH_DEMAND}</button>` }); }
+export function startPushCooldown(id) { setPushCooldown(id, 60); }
+export async function resolvePush(pushId, accept) { try { await api(`/api/demand-pushes/${pushId}/resolve`, { method: 'POST', body: { action: accept ? 'accept' : 'reject' } }); loadBrowseDemands(); } catch (err) { showToast(err.message); } }
+export async function doSubmitIntent(demandId) { return submitIntent(demandId); }
+export function showProfileIncompleteModal() { showToast(TEXT.PROFILE_INCOMPLETE_HINT, 'error'); }
+export function toggleDemandIntents() {}
+export function refreshIntentsBox() {}

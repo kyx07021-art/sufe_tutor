@@ -8,6 +8,8 @@ import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime } from '../../core/dom.js';
 import { demandOptionText, demandIdText, demandBudgetText, studentGradeName, expectedTimeText, subjectNames } from '../../core/display.js';
 import { buildStudentSubjectsHtml, buildStudentScoreRows } from '../region/render.js';
+import { SUFE_REGIONS } from '../../constants/region-data.js';
+import { STUDENT_GRADES } from '../../../shared/enums.js';
 
 export function renderDemandCard(d) {
   return `<div class="list-card glass demand-card" data-action="student.openDemand" data-id="${d.id}" data-reveal-index="0">
@@ -24,9 +26,14 @@ export function renderDemandCard(d) {
 }
 
 export function renderDemandModalHtml(d) {
+  const provinceOptions = SUFE_REGIONS.provinces.map(p => `<option value="${escHtml(p.id)}">${escHtml(p.name)}</option>`).join('');
   return `<div class="form-group">
+    <label class="form-label">${TEXT.LABEL_PROVINCE}</label>
+    <select class="form-select" id="d-province" data-change="student.provinceChange"><option value="">${TEXT.OPTION_PLACEHOLDER}</option>${provinceOptions}</select>
+  </div>
+  <div class="form-group">
     <label class="form-label">${TEXT.LABEL_STUDENT_GRADE}</label>
-    <select class="form-select" id="d-grade"></select>
+    <select class="form-select" id="d-grade" data-change="student.updateDemand">${STUDENT_GRADES.map(g => `<option value="${escHtml(g.id)}">${escHtml(g.name)}</option>`).join('')}</select>
   </div>
   <div class="form-group">
     <label class="form-label">${TEXT.LABEL_SUBJECTS}</label>
@@ -35,7 +42,18 @@ export function renderDemandModalHtml(d) {
   <div class="form-group">
     <label class="form-label">${TEXT.LABEL_SCORES}</label>
     <div id="d-scores"></div>
-  </div>`;
+  </div>
+  <div class="form-group">
+    <label class="form-label">${TEXT.LABEL_METHOD}</label>
+    <select class="form-select" id="d-method"><option value="offline">${TEXT.METHOD_OFFLINE}</option><option value="online">${TEXT.METHOD_ONLINE}</option></select>
+  </div>
+  <div class="form-group">
+    <label class="form-label">${TEXT.LABEL_BUDGET}</label>
+    <input type="number" id="d-budget-min" class="form-input" placeholder="${TEXT.BUDGET_MIN_PLACEHOLDER}"><input type="number" id="d-budget-max" class="form-input" placeholder="${TEXT.BUDGET_MAX_PLACEHOLDER}">
+  </div>
+  <div class="form-group"><label class="form-label">${TEXT.LABEL_PARENT_CONTACT}</label><input id="d-parent-contact" class="form-input"></div>
+  <div class="form-group"><label class="form-label">${TEXT.LABEL_STUDENT_CONTACT}</label><input id="d-student-contact" class="form-input"></div>
+  <div class="form-group"><label class="form-label">${TEXT.LABEL_ADDITIONAL_INFO}</label><textarea id="d-info" class="form-input" rows="3"></textarea></div>`;
 }
 
 export function renderPushBtn(d) {

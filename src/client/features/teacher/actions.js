@@ -8,6 +8,7 @@ import { dhGet, dhOnDomainRefresh } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml } from './render.js';
+import { matchDegree } from '../../core/match.js';
 
 let profilePanelUserId = null;
 
@@ -32,8 +33,14 @@ export function renderTeachers() {
 
 dhOnDomainRefresh('teachers', () => { renderTeachers(); });
 
-export function openProfilePanel(userId) {
-  const t = state.allTeachers.find(x => x.user_id === userId);
+export async function openProfilePanel(userId) {
+  let t = state.allTeachers.find(x => x.user_id === userId);
+  if (!t) {
+    try {
+      const data = await api(`/api/users/${userId}`, { method: 'GET' });
+      t = data.user || null;
+    } catch (err) { showToast(err.message); return; }
+  }
   if (!t) return;
   profilePanelUserId = userId;
   openModal({
@@ -98,3 +105,50 @@ export function confirmDeleteReview(id) {
 }
 
 export function closeModalAction() { closeModal(); }
+
+
+export function findCachedTeacher(userId) {
+  return state.allTeachers.find(x => x.user_id === userId) || null;
+}
+
+export function closeProfilePanel() { closeModal(); }
+export function profilePanelShowing() { return profilePanelUserId != null; }
+
+export function viewTeacherCredential(userId) {
+  const t = findCachedTeacher(userId);
+  if (!t || !t.credential_image) { showToast(TEXT.CREDENTIAL_VIEW, 'error'); return; }
+  openModal({ title: TEXT.CREDENTIAL_VIEW, body: `<div class="credential-view"><img src="${escHtml(t.credential_image)}" alt="${TEXT.CREDENTIAL_VIEW}"></div>` });
+}
+
+export function attachStudentMatch() {
+  const t = state.allTeachers || [];
+  state.allTeachers = t.map(teacher => {
+    const d = state.myDemands && state.myDemands[0];
+    if (!d) return teacher;
+    return { ...teacher, _matchDegree: matchDegree(teacher, d) };
+  });
+}
+
+export function teacherSortMode(mode) { state.teacherSort = mode; sortTeachers(); }
+export function syncMatchSortOpt() { /* handled by sort control */ }
+export function sortTeachers() {
+  const mode = state.teacherSort || 'match';
+  const arr = [...(state.allTeachers || [])];
+  if (mode === 'price') arr.sort((a,b) => (a.price_min||0)-(b.price_min||0));
+  else if (mode === 'rating') arr.sort((a,b) => (b.rating||0)-(a.rating||0));
+  else arr.sort((a,b) => (b._matchDegree||0)-(a._matchDegree||0));
+  state.allTeachers = arr;
+  renderTeachers();
+}
+
+export function openTeacherCard(id) { openProfilePanel(id); }
+export function toggleFilters() { const el = document.getElementById('teacher-filters'); if (el) el.classList.toggle('hidden'); }
+export function applyFilters() { renderTeachers(); }
+export function hasDaySlot(timeSlots, day) { return String(timeSlots||'').includes(day); }
+export function showTeacherMatchDetail(id) {
+  const t = findCachedTeacher(id);
+  const d = state.myDemands && state.myDemands[0];
+  if (!t || !d) return;
+  openModal({ title: TEXT.MATCH_T_TITLE, body: studentMatchDetailHtml(t, d) });
+}
+export function renderProfileInfoCard(t) { return renderProfilePanel(t, ''); }
