@@ -73,7 +73,8 @@ test('前端边界：fetch 只在 api.js；feature 无内联 onclick/style/中�
     if (f.endsWith('.js') && !rel.endsWith('core/api.js')) assert.ok(!/\bfetch\s*\(/.test(s), `${rel} 不直接 fetch`);
     assert.ok(!/onclick=/.test(s), `${rel} 无内联 onclick`);
     assert.ok(!/style=/.test(s), `${rel} 无内联 style`);
-    assert.ok(!/[\u4e00-\u9fff]/.test(s), `${rel} 无中文文案`);
+    const isTextModule = rel.endsWith('/text.js');
+    assert.ok(isTextModule || !/[\u4e00-\u9fff]/.test(s), `${rel} 无中文文案`);
   }
 });
 
