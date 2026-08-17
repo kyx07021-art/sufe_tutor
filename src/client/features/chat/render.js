@@ -59,12 +59,14 @@ export function renderChatPlaceholder() {
 export function renderChatBubble(m, i) {
   const mine = state.user && m.sender_user_id === state.user.id;
   const mediaCls = m.kind === 'file' ? ' chat-bubble--file' : '';
-  const cls = (mine ? 'chat-bubble--mine' : 'chat-bubble--other') + mediaCls;
+  const breathe = m.kind === 'signing_response' ? ' chat-bubble--breathe' : '';
+  const cls = (mine ? 'chat-bubble--mine' : 'chat-bubble--theirs') + mediaCls + breathe;
+  const msgCls = mine ? 'chat-msg--mine' : 'chat-msg--theirs';
   const time = fmtDateTime(m.created_at);
-  return `<div class="chat-bubble ${cls}" data-mid="${m.id}">
+  return `<div class="chat-msg ${msgCls}"><div class="chat-bubble ${cls}" data-mid="${m.id}">
     <div class="chat-bubble-inner">${renderChatMediaInner(m.kind, m.body, m.name, m.thumb, m.id, m)}</div>
     <span class="chat-bubble-time">${escHtml(time)}</span>
-  </div>`;
+  </div></div>`;
 }
 
 export function renderChatMediaInner(kind, body, name, thumb, mid, m) {
@@ -85,8 +87,16 @@ export function renderChatMediaInner(kind, body, name, thumb, mid, m) {
   if (kind === 'signing_request' || kind === 'signing_response') {
     let s = body;
     try { s = typeof body === 'string' ? JSON.parse(body) : body; } catch {}
-    const label = kind === 'signing_request' ? TEXT.CHAT_SIGNING_REQUEST_TITLE : TEXT.CHAT_SIGNING_RESPONSE_TITLE;
-    const isRecipient = !(state.user && m && m.sender_user_id === state.user.id);
+    const mineSender = state.user && m && m.sender_user_id === state.user.id;
+    const isRecipient = !mineSender;
+    const label = kind === 'signing_request' ? TEXT.CHAT_SIGNING_REQUEST_TITLE
+      : (mineSender ? TEXT.SIGNING_MY_CONFIRMED : TEXT.SIGNING_MY_REJECTED)
+        .replace('已', kind === 'signing_request' ? '已' : '已');
+    const label2 = kind === 'signing_response'
+      ? (s && s.accept === false
+        ? (mineSender ? TEXT.SIGNING_MY_REJECTED : TEXT.SIGNING_REJECTED_TEXT)
+        : (mineSender ? TEXT.SIGNING_MY_CONFIRMED : TEXT.SIGNING_REJECTED_TEXT))
+      : TEXT.CHAT_SIGNING_REQUEST_TITLE;
     const actions = kind === 'signing_request' && isRecipient && s.status === 'pending'
       ? `<span class="signing-bubble-actions">
           <button type="button" class="btn btn-sm glass glass--pressable" data-action="chat.respond" data-id="${escHtml(String(s.id || ''))}" data-accept="1">${TEXT.BTN_SIGNING_CONFIRM}</button>
@@ -94,9 +104,9 @@ export function renderChatMediaInner(kind, body, name, thumb, mid, m) {
         </span>`
       : '';
     return `<div class="chat-signing-bubble" data-signing-id="${escHtml(String(s.id || ''))}">
-      <p>${label}</p>
-      ${s.price != null ? `<p>${TEXT.CHAT_SIGNING_PRICE} ${escHtml(String(s.price))}${TEXT.PRICE_UNIT}</p>` : ''}
-      ${s.schedule ? `<p>${TEXT.CHAT_SIGNING_SCHEDULE} ${escHtml(expectedTimeText(s.schedule))}</p>` : ''}
+      <p>${label2}</p>
+      ${s.price != null ? `<p class="signing-bubble-row">${TEXT.CHAT_SIGNING_PRICE} ${escHtml(String(s.price))}${TEXT.PRICE_UNIT}</p>` : ''}
+      ${s.schedule ? `<p class="signing-bubble-row">${TEXT.CHAT_SIGNING_SCHEDULE} ${escHtml(expectedTimeText(s.schedule))}</p>` : ''}
       ${actions}
     </div>`;
   }
