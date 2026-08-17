@@ -17,7 +17,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { issueAuthToken, getSessionByToken, listSessions, revokeSession } from '../server/session.js';
+import { issueAuthToken, getSessionByToken, listSessions, revokeSession } from '../src/server/core/session.js';
 
 // node:sqlite → D1 形状薄封装（同 initdb-migration.test.js）
 function d1Shim(raw) {

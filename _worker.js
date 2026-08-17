@@ -9,13 +9,13 @@
  * 留档: routeApi 的应答经 logRequest 留档——仅写操作与失败请求（读/轮询流量不入留档，见 log.js）
  */
 import { initDb } from './server/db.js';
-import { json, error, parseBody } from './server/util.js';
+import { json, error, parseBody } from './src/server/core/util.js';
 import { MSG } from './server/constants.js';
 import { productionReady, notReadyResponse } from './server/startup.js';
 import { recordRequestMetric, flushMetrics } from './server/telemetry.js';
-import { rateGate, corsPreflight, applySecurityHeaders } from './server/security.js';
-import { initLogDb, bindLogDb, logRequest } from './server/log.js';
-import { bindTextAuditEnv } from './server/text-audit.js';
+import { rateGate, corsPreflight, applySecurityHeaders } from './src/server/core/security.js';
+import { initLogDb, bindLogDb, logRequest } from './src/server/core/log.js';
+import { bindTextAuditEnv } from './src/server/core/text-audit.js';
 import { handleRegister, handleLogin, handleCheckUsername, handleAuthMe, handleSaveAvatar, handleDeactivateAccount, handleGetUserPublic, handleListSessions, handleRevokeSession, handleLogout, handleReAuth, handleOtpRequest, handleBindPhone, handleBindEmail, handleUsernameStatus, handleChangeUsername, handleLoginWithCode, handleGetMyCreds, handleCheckInvite } from './server/routes-auth.js';
 import { handleGetProfile, handleSaveProfile, handleGetTeachers, handleVerifyChsi, handleChsiStatus, handleVerifyAdmission } from './server/routes-teacher.js';
 import { handleGetPrivacySettings, handleSetPrivacySettings } from './server/routes-settings.js';
@@ -24,7 +24,7 @@ import {
   handleCreateIntent, handleGetIntents, handleResolveIntent,
   handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from './server/routes-demands.js';
-import { handleGetNotifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleAdminDeleteNotification } from './server/notify.js';
+import { handleGetNotifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleAdminDeleteNotification } from './src/server/core/notify.js';
 import { handleCaptchaVerify } from './server/human-check.js';
 import {
   handleCreateContract, handleGetMyContracts,
@@ -51,7 +51,7 @@ import { handleGetDataVersion, versionDomainOf, bumpVersions } from './server/ve
 import { handleCreateSigning, handleRespondSigning } from './server/signing.js';
 import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction, handleAdminAwardProof } from './server/awards.js'; // v1.0 R2：教师荣誉奖项（奖状上传+管理员人工审核）
 import { handleAdminContent, handleContentAction } from './server/routes-audit.js'; // v0.26.0 D：统一内容审核/管理
-import { auditBeforeWrite } from './server/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
+import { auditBeforeWrite } from './src/server/core/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
 import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清单（push 前 node hash-assets.mjs 重新生成）
 
 // ============ 内容哈希虚拟版本化（v0.25.76 #169A）============

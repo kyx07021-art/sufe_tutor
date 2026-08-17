@@ -12,7 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb, dbCreateFeedback, dbGetFeedbacksByUser, dbGetFeedbackById, dbCreateComplaint } from '../server/db.js';
 import { handleCreateFeedback, handleMyFeedbacks, handleResolveFeedback } from '../server/routes-admin.js';
 import { handleCreateComplaint, handleMyComplaints, handleComplaintAttachment } from '../server/routes-complaints.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import { LIMITS } from '../server/constants.js';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';

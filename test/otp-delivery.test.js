@@ -13,8 +13,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { requestOtp } from '../server/otp.js';
-import { tokenDigest } from '../server/crypto.js';
+import { requestOtp } from '../src/server/core/otp.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import { lastOtpSend, resetOtpStub, setOtpStubFail, lastOtpCode } from './_otp-stub.js';
 import { getSecret } from '../server/secrets.js';
 

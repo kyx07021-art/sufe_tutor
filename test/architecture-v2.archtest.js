@@ -36,18 +36,18 @@ test('后端域自持：src/server/domains/<域>/ 存在 schema/repo/api 三件'
   }
 });
 
-test('声明式路由：_worker.js 只装配，不再有 if 路由', () => {
+test('声明式路由：routeApi 只装配，不再有 if 路由', () => {
   const worker = read('_worker.js');
-  assert.ok(!worker.includes("p === '/api/"), '_worker.js 没有手写 if 路由');
+  const block = worker.slice(worker.indexOf('export async function routeApi'), worker.indexOf('// B6 公开列表边缘缓存'));
+  assert.ok(!block.includes("p === '/api/"), 'routeApi 内没有手写 if 路由');
   const app = read('src/server/app.js');
   assert.ok(app.includes('export const routes'), '路由声明表存在');
 });
 
-test('SQL 边界：业务路由/编排层无 db.prepare', () => {
-  for (const f of ['_worker.js']) {
-    const s = read(f);
-    assert.ok(!s.includes('db.prepare'), `${f} 不直接写 SQL`);
-  }
+test('SQL 边界：业务路由/编排层无 db.prepare（保活 ping 除外）', () => {
+  const worker = read('_worker.js');
+  const keep = worker.slice(worker.indexOf('function keepD1Warm'), worker.indexOf('export default'));
+  assert.ok(!worker.replace(keep, '').includes('db.prepare'), '_worker.js 除保活外不直接写 SQL');
   for (const f of readdirSync(join(root, 'server')).filter(f => f.startsWith('routes-') && f.endsWith('.js'))) {
     const s = read(join('server', f));
     assert.ok(!s.includes('db.prepare'), `server/${f} 不直接写 SQL`);

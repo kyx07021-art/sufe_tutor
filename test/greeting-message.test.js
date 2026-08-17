@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { initDb, dbCreatePush, dbGetPendingPushesForTeacher, dbCreateIntent, dbGetIntentTeachers } from '../server/db.js';
 import { handlePushDemand, handleCreateIntent } from '../server/routes-demands.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 

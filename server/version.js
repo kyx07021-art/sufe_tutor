@@ -19,7 +19,7 @@
  *   - 计数器全局共享（非 per-user），无敏感性；客户端只对自身已缓存的域重拉，跨用户零影响。
  * 挂点：_worker.js 写咽喉（非 GET 成功响应统一分支），一个插入点覆盖全站写路径。
  */
-import { dbAll, dbRun, json } from './util.js';
+import { dbAll, dbRun, json } from '../src/server/core/util.js';
 
 export const DOMAINS = {
   DEMANDS: 'demands', TEACHERS: 'teachers', POSTS: 'posts',

@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
 import { initVersionTable, bumpVersions, getVersions, handleGetDataVersion, versionDomainOf } from '../server/version.js';
-import { initNotifyTable, notifyUser } from '../server/notify.js';
+import { initNotifyTable, notifyUser } from '../src/server/core/notify.js';
 
 function d1Shim(raw) {
   return {

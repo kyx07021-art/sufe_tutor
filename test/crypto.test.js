@@ -6,8 +6,8 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tokenDigest } from '../server/crypto.js';
-import { bindCryptoEnv, encryptField, decryptField } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
+import { bindCryptoEnv, encryptField, decryptField } from '../src/server/core/crypto.js';
 
 const KEY_A = Buffer.from('k'.repeat(32)).toString('base64'); // 32B → AES-256
 const KEY_B = Buffer.from('j'.repeat(32)).toString('base64');

@@ -14,16 +14,16 @@
  *   GET  /api/complaints —— 管理员查看（status 可选过滤）
  *   POST /api/complaints/:id/resolve —— 管理员标记已处理并通知投诉人
  */
-import { json, error } from './util.js';
-import { requireUser, requireAdmin } from './security.js';
+import { json, error } from '../src/server/core/util.js';
+import { requireUser, requireAdmin } from '../src/server/core/security.js';
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbCreateComplaint, dbCountComplaintsToday, dbGetComplaintsByUser, dbGetComplaintsAdmin,
   dbGetComplaintById, dbResolveComplaint, dbSearchUsersByRole, dbRecentInteractions, dbSearchPosts,
   dbGetUserById, dbGetPostById, dbGetUpload, dbGetUploads, dbDeleteUpload,
 } from './db.js';
-import { decryptField } from './crypto.js'; // U11：投诉附件密文出门解密（与聊天附件同口径）
-import { logEvent } from './log.js';
+import { decryptField } from '../src/server/core/crypto.js'; // U11：投诉附件密文出门解密（与聊天附件同口径）
+import { logEvent } from '../src/server/core/log.js';
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 
 const TARGET_TYPES = ['teacher', 'student', 'post'];
@@ -161,7 +161,7 @@ export async function handleResolveComplaint(db, complaintId, req) {
   if (!c) return error(MSG.COMPLAINT_NOT_FOUND, 404);
   if (c.status !== STATUS.RESOLVED) {
     await dbResolveComplaint(db, complaintId);
-    const { notifyUser } = await import('./notify.js');
+    const { notifyUser } = await import('../src/server/core/notify.js');
     await notifyUser(db, c.user_id, globalThis.APP_CONSTANTS.UI.FEEDBACK_COMPLAINT_RESOLVED);
     await logEvent(db, { action: 'admin.complaint.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'complaint', entityId: complaintId,

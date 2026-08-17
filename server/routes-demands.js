@@ -4,10 +4,10 @@
  *       db（数据层）、log（留档）、notify（通知）。身份一律凭令牌（requireUser）。
  * 关口模式：requireUser → 归属校验 → 状态机（条件 UPDATE 赢家）→ 副作用（logEvent/notifyUser）。
  */
-import { json, error, sanitizeTimeSlots, isUniqueConflict } from './util.js';
-import { authUser, requireUser } from './security.js';
+import { json, error, sanitizeTimeSlots, isUniqueConflict } from '../src/server/core/util.js';
+import { authUser, requireUser } from '../src/server/core/security.js';
 import { MSG, STATUS, LIMITS } from './constants.js';
-import { auditFreeText } from './text-audit.js';
+import { auditFreeText } from '../src/server/core/text-audit.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（系统通知文案单源，与前端共用）
 import {
@@ -17,8 +17,8 @@ import {
   dbUpsertConversation, dbGetTeacherProfile,
   dbCreatePush, dbGetPendingPushesForTeacher, dbGetPushById, dbResolvePush, dbAcceptPushAsIntent,
 } from './db.js';
-import { logEvent } from './log.js';
-import { notifyUser } from './notify.js';
+import { logEvent } from '../src/server/core/log.js';
+import { notifyUser } from '../src/server/core/notify.js';
 import { acceptEligibility } from './routes-teacher.js'; // v1.2.0 T3：接单资格统一判定（chsi 核验 + 必填齐全）
 
 const UIC = globalThis.APP_CONSTANTS.UI; // 接受/拒绝通知文案（constants.js 收口）

@@ -17,7 +17,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import {
   handleCreateComplaint, handleMyComplaints, handleAdminComplaints,
   handleComplaintCandidates, handleComplaintRecent, handleResolveComplaint,

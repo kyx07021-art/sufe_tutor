@@ -8,8 +8,8 @@
  * fail-closed 语义：生产未配置密钥 / 超时 / 接口异常 / 解析失败 → 拒绝写入
  * （返回 layer:'error'，调用方回 MSG.TEXT_AUDIT_UNAVAILABLE），绝不静默降级为仅 L1。
  */
-import { ADDRESS_GUARD, NUM_T, NUM_SEP, TEXT_AUDIT } from './constants.js';
-import { getSecret } from './secrets.js';
+import { ADDRESS_GUARD, NUM_T, NUM_SEP, TEXT_AUDIT } from '../../../server/constants.js';
+import { getSecret } from '../../../server/secrets.js';
 
 let AUDIT_ENV = null;
 /** 绑定审核环境（env 变更时调用；_worker.js initDb 时绑定） */

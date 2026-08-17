@@ -9,8 +9,8 @@
  *
  * 安全语义：只把 enc:v1: 密文用新钥重写；明文/空串不动；无法解密的行计数上报、绝不写成占位符。
  */
-import { dbAll, dbRun } from './util.js';
-import { decryptField, encryptField, decryptDetail, encryptDetail } from './crypto.js';
+import { dbAll, dbRun } from '../src/server/core/util.js';
+import { decryptField, encryptField, decryptDetail, encryptDetail } from '../src/server/core/crypto.js';
 import { safeJsonArray } from './db.js';
 
 // 字段加密列清单：表 → 列 → id 列（单点维护，新加密列上线必须在此登记）

@@ -15,7 +15,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
 import { handleRespondSigning } from '../server/signing.js';
 import { dbIsContracted } from '../server/db.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 

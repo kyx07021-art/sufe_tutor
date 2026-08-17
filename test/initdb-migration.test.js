@@ -19,12 +19,12 @@ import {
   initDb, dbUpsertTeacherProfile, dbGetTeacherProfile, dbGetContractById,
   dbCreateMessage, dbGetMessageAttachment, dbGetTeachers,
 } from '../server/db.js';
-import { dbRun } from '../server/util.js';
-import { issueAuthToken, getSessionByToken } from '../server/session.js';
-import { handleAdminDeleteNotification } from '../server/notify.js';
+import { dbRun } from '../src/server/core/util.js';
+import { issueAuthToken, getSessionByToken } from '../src/server/core/session.js';
+import { handleAdminDeleteNotification } from '../src/server/core/notify.js';
 import { handleLogout, handleLogin } from '../server/routes-auth.js';
-import { logRequest, dbGetTrafficBuckets } from '../server/log.js';
-import { tokenDigest, encryptField, decryptField } from '../server/crypto.js';
+import { logRequest, dbGetTrafficBuckets } from '../src/server/core/log.js';
+import { tokenDigest, encryptField, decryptField } from '../src/server/core/crypto.js';
 
 // node:sqlite → D1 形状薄封装
 function d1Shim(raw) {

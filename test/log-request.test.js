@@ -17,7 +17,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initLogDb, logRequest } from '../server/log.js';
+import { initLogDb, logRequest } from '../src/server/core/log.js';
 
 function makeShim(raw, calls) {
   return {

@@ -12,10 +12,10 @@
  *   本版修复：台账幂等（签约后 500 重试可补记）；revoked 需求不可绕过「手动重开」再签约；
  *   合同修改乐观锁改 version 整数（秒级 updated_at 同秒双改互相覆盖的缺陷）。
  */
-import { dbGet, dbAll, dbRun, json, error, ensureColumns, toDbTime } from './util.js';
-import { requireUser, requireAdmin, requireAdminOrError } from './security.js';
-import { bufToHex, encryptField } from './crypto.js';
-import { confirmDangerOtp } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
+import { dbGet, dbAll, dbRun, json, error, ensureColumns, toDbTime } from '../src/server/core/util.js';
+import { requireUser, requireAdmin, requireAdminOrError } from '../src/server/core/security.js';
+import { bufToHex, encryptField } from '../src/server/core/crypto.js';
+import { confirmDangerOtp } from '../src/server/core/danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin,
@@ -24,8 +24,8 @@ import {
   dbReleaseDemandAfterRevoke, // 撤销/管理员删合同后释放绑定需求（contracted→revoked）
 } from './db.js';
 import { acceptEligibility } from './routes-teacher.js'; // v1.2.0 T3：教师接单资格（chsi 核验 + 必填齐全）
-import { notifyUser } from './notify.js';
-import { logEvent } from './log.js';
+import { notifyUser } from '../src/server/core/notify.js';
+import { logEvent } from '../src/server/core/log.js';
 import '../constants.js'; // 副作用导入：一切发给用户看的文案统一走 globalThis.APP_CONSTANTS.UI（constants.js 收口）
 const UIC = globalThis.APP_CONSTANTS.UI;
 

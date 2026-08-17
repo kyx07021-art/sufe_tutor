@@ -18,7 +18,7 @@
  * 无状态性：判定为纯函数（track 特征 → 评分），不依赖服务端存储的答案（前端自算缺口答案，
  * 本模块只判人机，不校验 offset 正确性——答案校验仍在前端本地比对）。
  */
-import { error } from './util.js';
+import { error } from '../src/server/core/util.js';
 
 const PASS_SCORE = 70;
 const MIN_POINTS = 10;

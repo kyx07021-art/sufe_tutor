@@ -10,7 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import { bindChsiEnv } from '../server/chsi.js';
 import { handleRegister, handleLogin } from '../server/routes-auth.js';
 import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmission } from '../server/routes-teacher.js';
@@ -53,7 +53,7 @@ async function regTeacher(db, raw, username, phone) {
   const adminId = (db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").first() || {}).id || 1;
   const invite = 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();
   db.prepare('INSERT INTO invite_codes (code, created_by) VALUES (?,?)').run(invite, adminId);
-  const otp = await (await import('../server/otp.js')).requestOtp(db, { channel: 'sms', target: phone }, { headers: new Headers() });
+  const otp = await (await import('../src/server/core/otp.js')).requestOtp(db, { channel: 'sms', target: phone }, { headers: new Headers() });
   const reg = await handleRegister(db, { username, password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone, otpChannel: 'sms', code: lastOtpCode(phone), inviteCode: invite }, { headers: new Headers() });
   assert.equal(reg.status, 200);
   return (await reg.json()).authToken;

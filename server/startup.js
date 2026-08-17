@@ -8,7 +8,7 @@
  * 失败语义：生产缺任一必需 Secret / 配置仍在 mock → /api/* 一律 503 not-ready；
  * 静态资源照常服务（发版脚本在 push 后 curl /api/health 判 ready，不 ready 视为部署失败）。
  */
-import { json } from './util.js';
+import { json } from '../src/server/core/util.js';
 import { INVITE_GATE_ENABLED, LEGACY_ADMIN_PASSWORD } from './constants.js';
 import { isProductionRuntime } from './secrets.js';
 import '../constants.js'; // 副作用导入 globalThis.APP_CONSTANTS（邀请码门控前后端一致性检查）

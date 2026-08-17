@@ -5,9 +5,9 @@
  * 安全补丁已并入主线：svg/html dataURL 黑名单（防钓鱼投递）、附件体积上限、暂存配额自愈+封顶、
  * 参与方 404 不泄露会话存在性。限额全部单源 constants.LIMITS。
  */
-import { json, error } from './util.js';
-import { requireUser } from './security.js';
-import { encryptField, decryptField } from './crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
+import { json, error } from '../src/server/core/util.js';
+import { requireUser } from '../src/server/core/security.js';
+import { encryptField, decryptField } from '../src/server/core/crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbMarkConversationRead,
@@ -15,7 +15,7 @@ import {
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload,
   dbPrepareMessageInsert, dbPrepareUploadDelete,
 } from './db.js';
-import { logEvent } from './log.js';
+import { logEvent } from '../src/server/core/log.js';
 
 const isParticipant = (conv, userId) =>
   conv && (conv.student_user_id === userId || conv.teacher_user_id === userId);

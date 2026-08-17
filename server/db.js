@@ -6,17 +6,17 @@
  * （增/查/确认签约事务）已收口在本文件 mapper，signing.js 只调 dbXxx。
  * 换数据库时业务层只需重写本文件（咽喉层 util.js 的 dbAll/dbGet/dbRun 为通用封装）。
  */
-import { dbAll, dbGet, dbRun, ensureColumns } from './util.js';
-import { hashPassword, encryptField, decryptField, bindCryptoEnv } from './crypto.js'; // 密码哈希/敏感字段加密（网安报告 F-06）
+import { dbAll, dbGet, dbRun, ensureColumns } from '../src/server/core/util.js';
+import { hashPassword, encryptField, decryptField, bindCryptoEnv } from '../src/server/core/crypto.js'; // 密码哈希/敏感字段加密（网安报告 F-06）
 import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, STATUS, PHONE_HASH_COND, EMAIL_HASH_COND, LEGACY_ADMIN_PASSWORD } from './constants.js'; // PHONE/EMAIL_HASH_COND：哈希定位条件单源
 import { getSecret } from './secrets.js'; // 敏感配置唯一网关（env 优先，回落本地 secrets.js）
 import { initMetrics } from './telemetry.js'; // v1.5.0 观测指标表（请求聚合）
-import { initLogDb } from './log.js';
-import { initNotifyTable } from './notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
+import { initLogDb } from '../src/server/core/log.js';
+import { initNotifyTable } from '../src/server/core/notify.js'; // 通知表建表（独立模块，仅借 init，无循环依赖）
 import { initVersionTable } from './version.js'; // 数据版本戳表建表（仅借 init）
 import { initSigningTable } from './signing.js'; // 发起签约请求表建表（仅借 init）
-import { initDangerCaps } from './danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
-import { initOtpTable, bindOtpEnv } from './otp.js'; // 验证码表建表（独立模块，仅借 init，无循环依赖）
+import { initDangerCaps } from '../src/server/core/danger-ops.js'; // capToken 表建表（独立模块，仅借 init，无循环依赖）
+import { initOtpTable, bindOtpEnv } from '../src/server/core/otp.js'; // 验证码表建表（独立模块，仅借 init，无循环依赖）
 import { bindChsiEnv } from './chsi.js'; // 学信网核验 provider 部署级配置（缺省 manual fail-closed）
 import { initAwardsTable } from './awards.js'; // 教师荣誉奖项表建表（独立模块，仅借 init）
 

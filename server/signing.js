@@ -24,9 +24,9 @@
  * 需求四·第2条：发起签约显式绑定需求（body.demandId，前端「选择需求」下拉单选）；
  * 归属校验 = 需求必须属于会话学生方、状态 open（非 contracted/revoked）。
  */
-import { dbRun, json, error, isDemandActive } from './util.js'; // dbRun 仅供 initSigningTable 建表（自持表域 DDL）
-import { requireUser } from './security.js';
-import { confirmDangerOtp } from './danger-ops.js'; // S2-2：确认签约危险操作二次认证（网安 F-05 同口径）
+import { dbRun, json, error, isDemandActive } from '../src/server/core/util.js'; // dbRun 仅供 initSigningTable 建表（自持表域 DDL）
+import { requireUser } from '../src/server/core/security.js';
+import { confirmDangerOtp } from '../src/server/core/danger-ops.js'; // S2-2：确认签约危险操作二次认证（网安 F-05 同口径）
 import { MSG, STATUS, LIMITS } from './constants.js';
 import {
   dbGetConversationWithNames, dbGetDemandById, dbCreateMessage,
@@ -35,8 +35,8 @@ import {
   dbConfirmSigning, dbRejectSigning, dbSetMessageBody, dbDeleteMessage,
   dbResolveIntent, dbResolvePush,
 } from './db.js';
-import { notifyUser } from './notify.js';
-import { logEvent } from './log.js';
+import { notifyUser } from '../src/server/core/notify.js';
+import { logEvent } from '../src/server/core/log.js';
 import '../constants.js';
 const UIC = globalThis.APP_CONSTANTS.UI;
 

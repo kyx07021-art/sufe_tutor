@@ -9,7 +9,7 @@ import {
   handleCreateIntent, handleGetIntents, handleResolveIntent,
   handlePushDemand, handleGetTeacherPushes, handleResolvePush,
 } from '../../server/routes-demands.js';
-import { handleGetNotifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleAdminDeleteNotification } from '../../server/notify.js';
+import { handleGetNotifications, handleMarkNotificationRead, handleMarkAllNotificationsRead, handleAdminDeleteNotification } from './core/notify.js';
 import { handleCaptchaVerify } from '../../server/human-check.js';
 import {
   handleCreateContract, handleGetMyContracts,

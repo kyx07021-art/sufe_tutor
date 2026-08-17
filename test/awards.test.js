@@ -8,9 +8,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb, dbGetUpload } from '../server/db.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import { handleRegister, handleLogin } from '../server/routes-auth.js';
-import { requestOtp } from '../server/otp.js';
+import { requestOtp } from '../src/server/core/otp.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 import { handleCreateUpload } from '../server/routes-chat.js';
 import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction } from '../server/awards.js';

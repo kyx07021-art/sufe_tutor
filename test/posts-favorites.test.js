@@ -14,7 +14,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb, dbGetPostFavoriteToggleRead, dbGetPostLikeToggleRead, dbTogglePostLike, dbCreatePostFavorite } from '../server/db.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import { handleToggleFavorite, handleMyFavorites, handleListPosts, handleToggleLike } from '../server/routes-posts.js';
 import { dbPurgeUserOwnedData } from '../server/db.js';
 import { JSDOM } from 'jsdom';

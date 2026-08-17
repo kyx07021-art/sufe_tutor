@@ -12,17 +12,17 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { tokenDigest } from '../server/crypto.js';
-import { requestOtp, verifyOtp, parsePhone, classifyIdentifier, normalizeIdentifier } from '../server/otp.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
+import { requestOtp, verifyOtp, parsePhone, classifyIdentifier, normalizeIdentifier } from '../src/server/core/otp.js';
 import {
   bindPhoneCredential, bindEmailCredential, updateUsernameCredential, getUsernameChangedAt,
   dbFindUserByPhoneHash, dbFindUserByEmailHash, dbPhoneTaken, dbEmailTaken,
-} from '../server/credential.js';
+} from '../src/server/core/credential.js';
 import {
   handleOtpRequest, handleBindPhone, handleChangeUsername, handleUsernameStatus,
   handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister, handleGetMyCreds,
 } from '../server/routes-auth.js';
-import { issueCapToken } from '../server/danger-ops.js';
+import { issueCapToken } from '../src/server/core/danger-ops.js';
 import { lastOtpCode, resetOtpStub } from './_otp-stub.js'; // 拦截真实发信（stub fetch：真实代码路径 + 捕获验证码）
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

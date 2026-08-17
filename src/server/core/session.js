@@ -16,7 +16,7 @@
  */
 import { dbAll, dbGet, dbRun, toDbTime } from './util.js';
 import { bufToHex, tokenDigest } from './crypto.js';
-import { SECURITY } from './constants.js';
+import { SECURITY } from '../../../server/constants.js';
 
 // ============================================================
 // 会话签发 / 吊销

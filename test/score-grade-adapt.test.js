@@ -18,7 +18,7 @@ import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 import { initDb } from '../server/db.js';
 import { handleCreateDemand } from '../server/routes-demands.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 

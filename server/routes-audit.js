@@ -9,12 +9,12 @@
  *   处罚后自动通知作者（详细原因 + 触犯规则 + 触发内容摘要），处罚留档。
  *   审核者权限管理未来再说（当前 requireAdmin，与现有管理端同权）。
  */
-import { json, error } from './util.js';
-import { requireAdmin } from './security.js';
+import { json, error } from '../src/server/core/util.js';
+import { requireAdmin } from '../src/server/core/security.js';
 import { MSG, LIMITS } from './constants.js';
-import { notifyUser } from './notify.js';
-import { logEvent } from './log.js';
-import { confirmDangerOtp } from './danger-ops.js'; // 处罚（删除/封禁）危险操作二次认证（同注销/签约口径）
+import { notifyUser } from '../src/server/core/notify.js';
+import { logEvent } from '../src/server/core/log.js';
+import { confirmDangerOtp } from '../src/server/core/danger-ops.js'; // 处罚（删除/封禁）危险操作二次认证（同注销/签约口径）
 import {
   dbGetAllContentAdmin, dbGetPostById, dbGetDemandById, dbGetReviewById, dbGetMessageById,
   dbGetFeedbackById, dbGetComplaintById, dbGetUpload, dbGetUserById, dbGetTeacherProfile,

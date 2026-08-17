@@ -6,15 +6,15 @@
  *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
  * 依赖：util / security（requireUser）/ constants（校验文案/限额/门牌守卫）/ db / log。
  */
-import { json, error, sanitizeTimeSlots } from './util.js';
-import { authUser, requireUser } from './security.js';
+import { json, error, sanitizeTimeSlots } from '../src/server/core/util.js';
+import { authUser, requireUser } from '../src/server/core/security.js';
 import { MSG, LIMITS } from './constants.js';
-import { auditFreeText } from './text-audit.js';
+import { auditFreeText } from '../src/server/core/text-audit.js';
 import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
 import '../constants.js';   // 副作用导入：globalThis.APP_CONSTANTS（PERSONALITY_TAGS/NONACADEMIC_PROJECTS 白名单单源，与前端共用）
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, safeJsonArray } from './db.js';
 import { verifyChsiCode } from './chsi.js';
-import { logEvent } from './log.js';
+import { logEvent } from '../src/server/core/log.js';
 
 // ============================================================
 // 接单资格（v1.2.0 T3）：教师能接单 = 学信网核验通过（chsi_verified=1）

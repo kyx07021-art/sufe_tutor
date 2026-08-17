@@ -23,9 +23,9 @@
  */
 import { dbGet, dbRun, dbAll, error, toDbTime } from './util.js';
 import { tokenDigest } from './crypto.js';
-import { MSG, LIMITS } from './constants.js';
-import { getSecret } from './secrets.js'; // SMS/EMAIL_OTP_TEMPLATE_CODE 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
-import '../constants.js'; // 地区前缀表数据单源：globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS（与前端同源）
+import { MSG, LIMITS } from '../../../server/constants.js';
+import { getSecret } from '../../../server/secrets.js'; // SMS/EMAIL_OTP_TEMPLATE_CODE 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
+import '../../../constants.js'; // 地区前缀表数据单源：globalThis.APP_CONSTANTS.CONFIG.PHONE_REGIONS（与前端同源）
 import { logEvent } from './log.js';
 
 // ============================================================

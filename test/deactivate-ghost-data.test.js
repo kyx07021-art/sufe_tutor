@@ -29,7 +29,7 @@ import {
   initLedgerTable, handleCreateContract, handleSignContract, handleVerifyContract,
 } from '../server/contract.js';
 import { handleDeactivateAccount } from '../server/routes-auth.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 

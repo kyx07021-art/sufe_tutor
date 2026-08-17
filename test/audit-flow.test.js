@@ -9,8 +9,8 @@
  */
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { isContentWrite, auditBeforeWrite } from '../server/audit-flow.js';
-import { bindTextAuditEnv } from '../server/text-audit.js';
+import { isContentWrite, auditBeforeWrite } from '../src/server/core/audit-flow.js';
+import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 
 const origFetch = globalThis.fetch;
 beforeEach(() => {

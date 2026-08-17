@@ -6,7 +6,7 @@
  * 无业务逻辑、无跨模块状态；是各层公共依赖的「最底层」。
  * 响应构造带 CORS 头（CORS_HEADERS 单源自 constants.js，预检与 json() 同源）。
  */
-import { CORS_HEADERS, LIMITS, MSG, STATUS } from './constants.js';
+import { CORS_HEADERS, LIMITS, MSG, STATUS } from '../../../server/constants.js';
 
 // ============================================================
 // 响应构造

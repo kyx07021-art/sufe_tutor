@@ -9,14 +9,14 @@
  *   - 公开出口（教师卡片/资料右栏）只下发 approved；本人视角可见全部状态；
  *   - 每教师奖项上限 AWARDS_MAX 条（防刷）；删除奖项连带删除奖状 upload（防证明图泄漏）。
  */
-import { dbAll, dbGet, dbRun, json, error } from './util.js';
-import { requireUser, requireAdmin } from './security.js';
-import { confirmDangerOtp } from './danger-ops.js';
-import { notifyUser } from './notify.js';
-import { logEvent } from './log.js';
+import { dbAll, dbGet, dbRun, json, error } from '../src/server/core/util.js';
+import { requireUser, requireAdmin } from '../src/server/core/security.js';
+import { confirmDangerOtp } from '../src/server/core/danger-ops.js';
+import { notifyUser } from '../src/server/core/notify.js';
+import { logEvent } from '../src/server/core/log.js';
 import { MSG, LIMITS } from './constants.js';
 import { dbGetUpload, dbDeleteUpload } from './db.js';
-import { decryptField } from './crypto.js'; // 奖状证明解密读取（管理员审核出口）
+import { decryptField } from '../src/server/core/crypto.js'; // 奖状证明解密读取（管理员审核出口）
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
 
 const UIC = globalThis.APP_CONSTANTS.UI;

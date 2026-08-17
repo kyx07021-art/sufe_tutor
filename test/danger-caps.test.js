@@ -19,7 +19,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { issueCapToken, confirmDangerOtp, initDangerCaps } from '../server/danger-ops.js';
+import { issueCapToken, confirmDangerOtp, initDangerCaps } from '../src/server/core/danger-ops.js';
 
 // ============================================================
 // 内存表 fake D1（prepare/bind/all|first|run 链；按 SQL 表路由，表跨调用共享模拟 D1 全局性）

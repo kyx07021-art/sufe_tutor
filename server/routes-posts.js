@@ -6,8 +6,8 @@
  * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete / admin.post.delete
  * 契约：身份一律凭令牌（自报 userId 可冒名/越权）、管理员判定走 requireAdminOrError 单点。
  */
-import { json, error } from './util.js';
-import { authUser, requireUser, requireAdminOrError } from './security.js';
+import { json, error } from '../src/server/core/util.js';
+import { authUser, requireUser, requireAdminOrError } from '../src/server/core/security.js';
 import { MSG, LIMITS } from './constants.js';
 import '../constants.js'; // 副作用导入必须保留：UI() 惰性读 globalThis.APP_CONSTANTS 依赖其就绪，删除即静默变 {error: undefined}
 import {
@@ -15,7 +15,7 @@ import {
   dbCreatePostFavorite, dbDeletePostFavorite,
   dbGetPostLikeToggleRead, dbGetPostFavoriteToggleRead, dbTogglePostLike, // U10：批量读写 helper
 } from './db.js';
-import { logEvent } from './log.js';
+import { logEvent } from '../src/server/core/log.js';
 
 // 文案单源：帖子业务文案全部读 globalThis.APP_CONSTANTS.UI（与前端同源），
 // 本模块不自持 PMSG（与 constants UI 逐字重复的双源迟早漂移）

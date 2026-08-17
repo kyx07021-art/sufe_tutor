@@ -3,7 +3,7 @@
  * 路由声明：{ method, path, handler }；path 支持 ':param' 段（匹配一段非空路径）。
  * 先匹配静态路径，再匹配动态路径；未命中返回 404 响应。
  */
-import { error } from '../../server/util.js';
+import { error } from './core/util.js';
 
 function compile(path) {
   if (!path.includes(':')) return { kind: 'exact', path };

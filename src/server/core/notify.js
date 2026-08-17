@@ -15,9 +15,9 @@
  */
 import { dbAll, dbGet, dbRun, json, error, genCode, ensureColumns } from './util.js';
 import { authUser, requireAdmin } from './security.js';
-import { MSG, LIMITS } from './constants.js';
+import { MSG, LIMITS } from '../../../server/constants.js';
 import { logEvent } from './log.js';
-import { bumpVersions } from './version.js'; // 通知插入统一 bump notifications 域
+import { bumpVersions } from '../../../server/version.js'; // 通知插入统一 bump notifications 域
 
 // 建表（幂等；batch_id 为广播批标识，旧表经 ensureColumns 补列）
 export async function initNotifyTable(db) {

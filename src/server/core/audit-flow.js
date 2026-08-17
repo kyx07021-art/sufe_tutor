@@ -6,7 +6,7 @@
  * 调用点：_worker fetch 对内容域写请求统一调用。新增内容域写路径先在此登记。
  */
 import { auditFreeText } from './text-audit.js';
-import { MSG } from './constants.js';
+import { MSG } from '../../../server/constants.js';
 
 // ============================================================
 // 内容域写路径（创建 + 编辑全口径）

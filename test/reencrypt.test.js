@@ -8,9 +8,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { bindCryptoEnv, encryptField, decryptField, encryptDetail, decryptDetail } from '../server/crypto.js';
+import { bindCryptoEnv, encryptField, decryptField, encryptDetail, decryptDetail } from '../src/server/core/crypto.js';
 import { reencryptAll } from '../server/reencrypt.js';
-import { initLogDb } from '../server/log.js';
+import { initLogDb } from '../src/server/core/log.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 const b64buf = (fill, mark) => Buffer.from(new Uint8Array(32).fill(fill).map((v, i) => i === 31 ? mark : v)).toString('base64');

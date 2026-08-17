@@ -4,14 +4,14 @@
  * 依赖：util（响应构造/UA 标签）、crypto（口令哈希/令牌摘要）、session（令牌签发/会话管理）、
  *       security（身份解析）、constants（校验文案/限额）。
  */
-import { json, error, deviceLabelFromUA } from './util.js';
-import { hashPassword, verifyPassword, tokenDigest } from './crypto.js';
-import { authUser, requireUser, authRateBatch, authRateBlock } from './security.js';
+import { json, error, deviceLabelFromUA } from '../src/server/core/util.js';
+import { hashPassword, verifyPassword, tokenDigest } from '../src/server/core/crypto.js';
+import { authUser, requireUser, authRateBatch, authRateBlock } from '../src/server/core/security.js';
 import {
   issueAuthToken, listSessions, revokeSession,
   getSessionByToken, revokeToken,
-} from './session.js';
-import { issueCapToken, confirmDangerOtp, clearDangerCaps, clearDangerCapsForSession } from './danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）+ capToken 清理
+} from '../src/server/core/session.js';
+import { issueCapToken, confirmDangerOtp, clearDangerCaps, clearDangerCapsForSession } from '../src/server/core/danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）+ capToken 清理
 import { MSG, INVITE_GATE_ENABLED, LIMITS } from './constants.js';
 import {
   dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
@@ -23,9 +23,9 @@ import {
   updateUsernameCredential, getUsernameChangedAt,
   bindPhoneCredential, bindEmailCredential, dbPhoneTaken, dbEmailTaken,
   dbFindUserByPhoneHash, dbFindUserByEmailHash, dbGetMyCreds,
-} from './credential.js';
-import { requestOtp, verifyOtp, normalizeIdentifier, targetMask } from './otp.js';
-import { logEvent } from './log.js';
+} from '../src/server/core/credential.js';
+import { requestOtp, verifyOtp, normalizeIdentifier, targetMask } from '../src/server/core/otp.js';
+import { logEvent } from '../src/server/core/log.js';
 import '../constants.js'; // 注销墓碑文案走 globalThis.APP_CONSTANTS.UI
 
 export async function handleRegister(db, body, req) {

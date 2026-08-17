@@ -9,10 +9,10 @@ import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { tokenDigest, decryptField } from '../server/crypto.js';
+import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
 import { handleCreateDemand } from '../server/routes-demands.js';
 import { handleSaveProfile } from '../server/routes-teacher.js';
-import { bindTextAuditEnv } from '../server/text-audit.js';
+import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 const origFetch = globalThis.fetch;

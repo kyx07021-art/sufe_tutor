@@ -9,8 +9,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
 import { handleAdminStats, handleAdminDashboard } from '../server/routes-admin.js';
 import { handleLogin } from '../server/routes-auth.js';
-import { tokenDigest } from '../server/crypto.js';
-import { requestOtp } from '../server/otp.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
+import { requestOtp } from '../src/server/core/otp.js';
 import { handleRegister } from '../server/routes-auth.js';
 import { lastOtpCode } from './_otp-stub.js';
 import { recordRequestMetric, flushMetrics } from '../server/telemetry.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）

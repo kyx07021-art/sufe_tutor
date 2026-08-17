@@ -4,14 +4,14 @@
  *       已有评价只能修改（修改后重回待审核）。
  * 依赖：util / security（requireUser）/ constants（校验文案/评分/评论限额）/ db / log。
  */
-import { json, error, isUniqueConflict } from './util.js';
-import { requireUser } from './security.js';
+import { json, error, isUniqueConflict } from '../src/server/core/util.js';
+import { requireUser } from '../src/server/core/security.js';
 import { MSG, LIMITS } from './constants.js';
 import {
   dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
   dbUpdateReview, dbIsContracted, dbGetReviewById,
 } from './db.js';
-import { logEvent } from './log.js';
+import { logEvent } from '../src/server/core/log.js';
 
 export async function handleCreateReview(db, body, req) {
   const { teacherUserId, rating, comment } = body;

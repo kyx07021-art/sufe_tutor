@@ -3,8 +3,8 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）。
  * 守卫统一走 requireAdmin（security.requireUser role='admin' 别名），替代散落的 authUser+requireAdminOrError 样板。
  */
-import { json, error, genCode, toDbTime } from './util.js';
-import { requireUser, requireAdmin } from './security.js';
+import { json, error, genCode, toDbTime } from '../src/server/core/util.js';
+import { requireUser, requireAdmin } from '../src/server/core/security.js';
 import { MSG, STATUS, LIMITS, SECURITY } from './constants.js';
 import {
   dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode, dbClearChsiFromProfile, dbGetTeacherVerificationById, dbUpsertTeacherVerification, dbApplyChsiToProfile, dbListTeacherVerifications,
@@ -16,13 +16,13 @@ import {
   dbGetDemands, dbGetMessageById,
   dbCreateFeedback, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbGetFeedbacksByUser,
 } from './db.js';
-import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from './log.js';
-import { decryptField } from './crypto.js'; // M1 修复：管理端动作传解密验证码（避免双重加密）
-import { confirmDangerOtp } from './danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
+import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from '../src/server/core/log.js';
+import { decryptField } from '../src/server/core/crypto.js'; // M1 修复：管理端动作传解密验证码（避免双重加密）
+import { confirmDangerOtp } from '../src/server/core/danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
 import { reencryptAll } from './reencrypt.js'; // v1.5.0 密钥轮换重加密（危险操作，capToken 门禁）
 import { getDashboardMetrics } from './telemetry.js'; // v1.5.0 观测 dashboard 数据
 import '../constants.js'; // 用户可见文案统一走 globalThis.APP_CONSTANTS.UI
-import { dbBroadcastNotification, notifyUser } from './notify.js';
+import { dbBroadcastNotification, notifyUser } from '../src/server/core/notify.js';
 
 // 邀请码有效期：一次性凭证 TTL 单源（constants.SECURITY.ONE_TIME_TTL_MS，与 capToken 同 5 分钟）
 export async function handleGenInvite(db, body, req) {

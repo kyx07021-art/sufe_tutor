@@ -12,7 +12,7 @@ import { initDb, dbGetPrivacySettings, dbSetPrivacySettings, dbGetDemands, dbGet
 import { handleGetPrivacySettings, handleSetPrivacySettings } from '../server/routes-settings.js';
 import { handleGetDemands } from '../server/routes-demands.js';
 import { handleGetTeachers } from '../server/routes-teacher.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import { versionDomainOf } from '../server/version.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

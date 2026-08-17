@@ -5,8 +5,8 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bindLogDb } from '../server/log.js';
-import { encryptDetail, decryptDetail } from '../server/crypto.js';
+import { bindLogDb } from '../src/server/core/log.js';
+import { encryptDetail, decryptDetail } from '../src/server/core/crypto.js';
 
 const KEY_A = Buffer.from('k'.repeat(32)).toString('base64'); // 32B → AES-256
 const KEY_B = Buffer.from('j'.repeat(32)).toString('base64');

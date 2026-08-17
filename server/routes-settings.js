@@ -5,11 +5,11 @@
  * 访客浏览过滤在 db 层（dbGetDemands forGuest / dbGetTeachers 游客分支），本文件只管读写。
  * 依赖：security（requireUser）、constants（MSG）、db、log。
  */
-import { json, error } from './util.js';
-import { requireUser } from './security.js';
+import { json, error } from '../src/server/core/util.js';
+import { requireUser } from '../src/server/core/security.js';
 import { MSG } from './constants.js';
 import { dbGetPrivacySettings, dbSetPrivacySettings } from './db.js';
-import { logEvent } from './log.js';
+import { logEvent } from '../src/server/core/log.js';
 
 export async function handleGetPrivacySettings(db, req) {
   const { user: me, err } = await requireUser(db, req);

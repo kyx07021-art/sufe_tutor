@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeTimeSlots } from '../server/util.js';
+import { sanitizeTimeSlots } from '../src/server/core/util.js';
 
 const slot = (dow, start, end) => JSON.stringify([{ type: 'week', dow, start, end }]);
 const ok = r => !r.error && typeof r.value === 'string';

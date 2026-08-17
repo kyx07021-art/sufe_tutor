@@ -20,7 +20,7 @@ import { handleCreateSigning, handleRespondSigning } from '../server/signing.js'
 import { handleCreateContract } from '../server/contract.js';
 import { handleGetConversationBindableDemands } from '../server/routes-chat.js';
 import { dbGetMyConversations } from '../server/db.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 

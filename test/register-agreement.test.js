@@ -12,9 +12,9 @@ import { JSDOM } from 'jsdom';
 import vm from 'node:vm';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { requestOtp } from '../server/otp.js';
+import { requestOtp } from '../src/server/core/otp.js';
 import { handleRegister } from '../server/routes-auth.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };

@@ -5,7 +5,7 @@
  * 到 request_metrics 聚合表；管理员 dashboard 只读聚合表，不扫活动日志。
  * 指标是观测数据（best-effort），多实例/重启造成分钟级少量丢失可接受。
  */
-import { dbAll, dbRun } from './util.js';
+import { dbAll, dbRun } from '../src/server/core/util.js';
 import { LIMITS } from './constants.js';
 
 const buckets = new Map();

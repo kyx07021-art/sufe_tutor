@@ -10,13 +10,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../server/db.js';
-import { tokenDigest } from '../server/crypto.js';
+import { tokenDigest } from '../src/server/core/crypto.js';
 import { handleRegister, handleLogin } from '../server/routes-auth.js';
-import { requestOtp } from '../server/otp.js';
+import { requestOtp } from '../src/server/core/otp.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 import { handleCreatePost } from '../server/routes-posts.js';
 import { handleAdminContent, handleContentAction } from '../server/routes-audit.js';
-import { bindTextAuditEnv } from '../server/text-audit.js';
+import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 // 语义层测试通道：保留 OTP stub 的 push.spug.cc 拦截，其余请求按「AI 判未命中」应答。
