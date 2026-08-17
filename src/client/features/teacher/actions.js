@@ -140,16 +140,27 @@ export function syncMatchSortOpt() { /* handled by sort control */ }
 export function sortTeachers(arrOrMode, maybeMode) {
   const arr = Array.isArray(arrOrMode) ? [...arrOrMode] : [...(state.allTeachers || [])];
   const mode = maybeMode || (Array.isArray(arrOrMode) ? 'rating' : state.teacherSort || 'match');
-  if (mode === 'price') arr.sort((a,b) => (a.price_min||0)-(b.price_min||0));
+  if (mode === 'price') arr.sort((a,b) => (a.price_min == null ? 1 : 0) - (b.price_min == null ? 1 : 0) || (a.price_min||0)-(b.price_min||0));
   else if (mode === 'rating') arr.sort((a,b) => (b.rating||0)-(a.rating||0));
-  else arr.sort((a,b) => (b._matchDegree||0)-(a._matchDegree||0));
+  else arr.sort((a,b) => ((b._matchForStudent && b._matchForStudent.md) || b._matchDegree || 0) - ((a._matchForStudent && a._matchForStudent.md) || a._matchDegree || 0));
   if (Array.isArray(arrOrMode)) { state.allTeachers = arr; }
   renderTeachers();
 }
 
 export function openTeacherCard(id) { openProfilePanel(id); }
 export function toggleFilters() { const el = document.getElementById('teacher-filters'); if (el) el.classList.toggle('hidden'); }
-export function applyFilters() { renderTeachers(); }
+export function applyFilters() {
+  const method = document.getElementById('filter-method')?.value || '';
+  const day = document.getElementById('filter-day')?.value || '';
+  const verified = document.getElementById('filter-verified')?.value || '';
+  let list = [...(state.allTeachers || [])];
+  if (method) list = list.filter(t => (t.teaching_method || '') === method);
+  if (day) list = list.filter(t => hasDaySlot(t.time_slots, Number(day)));
+  if (verified === '1') list = list.filter(t => t.verified === 1);
+  else if (verified === '0') list = list.filter(t => !t.verified);
+  state.allTeachers = list;
+  renderTeachers();
+}
 export function hasDaySlot(timeSlots, day) { return String(timeSlots||'').includes(day); }
 export function showTeacherMatchDetail(id) {
   const t = findCachedTeacher(id);
