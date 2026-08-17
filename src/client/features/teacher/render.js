@@ -79,7 +79,7 @@ export function studentMatchDetailHtml(t, d) {
   const level = matchLevel(degree);
   const rows = matchRowsHtml(dims);
   const note = matchNoteHtml(t, d, degree);
-  return `<div class="match-detail">
+  return `<div class="match-detail match-detail--teacher">
     <p class="match-detail-title">${TEXT.MATCH_T_DEMAND_PREFIX}${degree}${TEXT.MATCH_T_PCT}</p>
     ${rows}
     ${note}
