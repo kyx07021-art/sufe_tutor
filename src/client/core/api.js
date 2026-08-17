@@ -45,7 +45,8 @@ async function doRequest(endpoint, config, sentToken) {
     return data;
   } catch (err) {
     clearTimeout(timer);
-    if (err === timeoutErr || (err && err.code !== undefined)) throw err;
+    if (err === timeoutErr || (err && err.isTimeout)) throw err;
+    if (res) throw err; // HTTP response already produced: preserve business error even without code
     const e = new Error(TEXT.NETWORK_ERROR);
     e.code = 'NETWORK_ERROR'; throw e;
   }
