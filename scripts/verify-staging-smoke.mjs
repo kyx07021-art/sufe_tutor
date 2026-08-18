@@ -45,14 +45,19 @@ function parseHeadersRules(src) {
   return rules;
 }
 const HEADERS_RULES = parseHeadersRules(readFileSync(resolve(DIST, '_headers'), 'utf8'));
+// Pages _headers 语义（审计 F1）：请求命中多个规则的 URL 模式时继承全部命中规则的响应头；
+// 同一 header 多规则命中时按更具体（段数多）规则覆盖。
 function headersFor(path) {
-  let best = null, bestSegs = -1;
+  const hits = [];
   for (const r of HEADERS_RULES) {
-    if (r.pattern === '/*') { if (0 > bestSegs) { bestSegs = 0; best = r; } continue; }
+    if (r.pattern === '/*') { hits.push({ r, segs: 0 }); continue; }
     const pat = r.pattern.replace(/\/\*$/, '');
-    if (path.startsWith(pat)) { const n = pat.split('/').length; if (n > bestSegs) { bestSegs = n; best = r; } }
+    if (path.startsWith(pat)) hits.push({ r, segs: pat.split('/').length });
   }
-  return best ? best.headers : {};
+  hits.sort((a, b) => b.segs - a.segs);
+  const merged = {};
+  for (const { r } of hits) Object.assign(merged, r.headers);
+  return merged;
 }
 
 // ---- D1 形状 shim（同 test/api-batch.test.js 口径）----

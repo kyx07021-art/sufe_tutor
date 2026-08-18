@@ -92,5 +92,13 @@ try {
   console.error('build check failed: dist/_worker.js cannot be imported by Node:', err && err.message);
   process.exit(1);
 }
+// V-4-1e 审计 F3 闸门：dist/assets/* 必须全为 esbuild 内容哈希名（_headers /assets/* immutable 的前提；
+// 非内容寻址文件被设 immutable 会 stale 一年）。esbuild 哈希 = [name]-[8 位 base62]。
+for (const f of readdirSync(join(DIST, 'assets'))) {
+  if (!/^[A-Za-z0-9_-]+-[A-Za-z0-9]{8}\.js$/.test(f)) {
+    console.error(`build check failed: dist/assets/${f} 不是 esbuild 内容哈希名（/assets/* immutable 不安全）`);
+    process.exit(1);
+  }
+}
 
 console.log('dist ready');

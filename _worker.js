@@ -278,8 +278,10 @@ export default {
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
       // 版本化形态但不在当前 manifest（部署竞态里浏览器可能带旧哈希 URL 撞新版本）→ 404，
-      // 绝不给 HTML 冒充脚本（SPA 回退会把 index.html 喂给 <script src>，报错且难排查）
-      if (/^\/([a-zA-Z0-9._\/-]+)\.([0-9a-f]{8})\.(js|css)$/.test(p)) {
+      // 绝不给 HTML 冒充脚本（SPA 回退会把 index.html 喂给 <script src>，报错且难排查）。
+      // V-4-1e 审计 F2：/assets/* 是 esbuild 内容哈希直服区（非 manifest 管理），8 位哈希全为 hex
+      // 时（概率 ~2.5e-7/文件）会被本正则误 404 → 显式排除。
+      if (!p.startsWith('/assets/') && /^\/([a-zA-Z0-9._\/-]+)\.([0-9a-f]{8})\.(js|css)$/.test(p)) {
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
       const res = await env.ASSETS.fetch(request);
