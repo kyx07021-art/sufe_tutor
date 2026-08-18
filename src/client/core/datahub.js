@@ -256,6 +256,16 @@ export function _dhResetForTests() {
   stopVersionProbe();
 }
 
+/**
+ * Test-only seed (pattern: _dhResetForTests): pre-fill the cache and the version
+ * baselines so probe-refresh tests start from a known stale state. cache entries
+ * are {endpoint, domain, data}; versions maps domain -> counter.
+ */
+export function _dhSeedForTests({ cache = [], versions = {} } = {}) {
+  for (const e of cache) dhCache.set(e.endpoint, { domain: e.domain, data: e.data, fetchedAt: Date.now() });
+  dhLastVersions = { ...versions };
+}
+
 if (typeof document !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && dhProbeTimer) dhProbeTick().catch(() => {});

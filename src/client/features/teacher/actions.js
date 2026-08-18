@@ -4,7 +4,7 @@
 import { TEXT } from './text.js';
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
-import { dhGet, dhOnDomainRefresh } from '../../core/datahub.js';
+import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand } from './render.js';
@@ -57,7 +57,22 @@ export async function attachStudentMatch(teachers) {
 
 export function studentOpenDemand() { return _studentOpenDemand; }
 
-dhOnDomainRefresh('teachers', () => { renderTeachers(); });
+// v1 parity (app-teachers.js): probe refresh replaces the cached array then re-hangs
+// state.allTeachers — cross-feature readers (openProfilePanel/findCachedTeacher) mirror
+// it, and an open list re-renders under the user's current filter/sort controls instead
+// of keeping deactivated-teacher cards until the next tab switch.
+export function registerTeacherDomainRefresh() {
+  dhOnDomainRefresh('teachers', () => {
+    const c = dhPeek('/api/teachers');
+    if (c && c.teachers) state.allTeachers = c.teachers;
+    if (state.page === 'browse-teachers') {
+      attachStudentMatch(state.allTeachers) // async (non-student exits early with a resolved promise)
+        .then(() => { if (state.page === 'browse-teachers') applyFilters(); }) // read current controls, keep user filter
+        .catch(() => { /* network blip: keep current render, next probe retries */ });
+    }
+  });
+}
+registerTeacherDomainRefresh();
 
 export async function openProfilePanel(userId) {
   let t = state.allTeachers.find(x => x.user_id === userId);
