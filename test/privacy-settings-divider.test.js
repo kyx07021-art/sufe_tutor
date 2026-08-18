@@ -13,8 +13,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STYLE_CSS } from './_css.js';
 
-const css = readFileSync('./style.css', 'utf8');
+const css = STYLE_CSS;
 
 test('R19 隐私区首行无上边线（标题单一分割线）', () => {
   assert.ok(/\.settings-section-title \+ \.settings-list \.settings-row:first-child \{ border-top: none; \}/.test(css),

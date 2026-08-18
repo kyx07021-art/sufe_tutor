@@ -24,6 +24,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STYLE_CSS } from './_css.js';
 
 function blockOf(css, selector) {
   // 匹配「selector 独占一行 + 换行后 {」的多行规则块（支持 CRLF，避开单行内联规则如 .filter-group .custom-select-trigger { font-size })
@@ -37,13 +38,13 @@ function blockOf(css, selector) {
 }
 
 test('P4 标准按钮高度 token：--btn-h 定义且 = 40px * ui-scale', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.ok(css.includes('--btn-h: calc(40px * var(--ui-scale, 1))'),
     '--btn-h = 40px * ui-scale（标准按钮高度）');
 });
 
 test('P4 页头排序触发器：布局适配 + 圆角对齐按钮 + 不再设死引擎变量', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const b = blockOf(css, '.page-header-actions .custom-select-trigger');
   assert.ok(b, '页头排序触发器布局规则存在');
   // 按钮面（磨砂/填充/弯月环/交互叠层）由 .btn .btn-soft .glass 组件提供（app-ui.js 挂类）——
@@ -56,7 +57,7 @@ test('P4 页头排序触发器：布局适配 + 圆角对齐按钮 + 不再设�
 });
 
 test('P4 页头筛选按钮：接 .btn 组件 + 布局适配（同字面 + 标准高度 + 12px 圆角对齐）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const b = blockOf(css, '.page-header-actions .filter-toggle');
   assert.ok(b, '页头筛选按钮布局规则存在（.filter-toggle）');
   assert.ok(b.includes('height: var(--btn-h)'), '筛选按钮也用标准按钮高度');
@@ -65,7 +66,7 @@ test('P4 页头筛选按钮：接 .btn 组件 + 布局适配（同字面 + 标�
 });
 
 test('P4 筛选项下拉：紧凑按钮字面 + 标准高度', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const b = blockOf(css, '.filter-group .custom-select-trigger');
   assert.ok(b, '筛选项下拉布局规则存在');
   assert.ok(!b.includes('--g-fill') && !b.includes('--g-frost'), '不再设引擎变量（按钮面由组件提供）');
@@ -92,7 +93,7 @@ test('P4 输入控件族排除 .glass 触发器：引擎 surface 不被 0-1-0 �
 });
 
 test('P4 非页头场景：表单/其他面板下拉保持输入控件族（不误伤）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.ok(css.includes('.custom-select-trigger {') || css.includes('.form-group .custom-select'),
     '输入控件族基础规则保留');
   assert.ok(css.includes('.page-header-actions .custom-select-trigger'), '排序覆盖限定页头');

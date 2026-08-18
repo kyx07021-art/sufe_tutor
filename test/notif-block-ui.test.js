@@ -38,6 +38,7 @@ import contractFeature from '../src/client/features/contract/index.js';
 import postsFeature from '../src/client/features/posts/index.js';
 import adminFeature from '../src/client/features/admin/index.js';
 import complaintsFeature from '../src/client/features/complaints/index.js';
+import { STYLE_CSS } from './_css.js';
 
 class MOStub { observe() {} disconnect() {} takeRecords() { return []; } }
 
@@ -303,7 +304,7 @@ test('#151 点击未读项 → 单条已读上报 + 遮罩/红点就地消除；
 });
 
 test('#151 呼吸遮罩样式在位（style.css 含 keyframes 与 .unread::after，左竖线已删）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.ok(css.includes('@keyframes notif-breathe'), '呼吸遮罩关键帧在位');
   assert.ok(css.includes('.notif-item.unread::after'), '未读遮罩伪元素规则在位');
   assert.ok(!css.includes('.notif-item.unread { --g-surface: inset 3px 0 0 var(--danger);'),
@@ -326,7 +327,7 @@ test('#151 单条已读上报失败 → 回滚：遮罩与点击入口恢复（�
 
 // 2026-08-09 反馈三项：呼吸加速 + 竖线连根删 + 离开通知页批量已读（看过即消）
 test('反馈-呼吸加速：notif-breathe 时长 0.9s + 中间关键帧', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const m = css.match(/animation: notif-breathe ([0-9.]+)s/);
   assert.ok(m, '呼吸动画时长在位');
   assert.equal(Number(m[1]), 0.9, '时长加快到 0.9s');
@@ -334,7 +335,7 @@ test('反馈-呼吸加速：notif-breathe 时长 0.9s + 中间关键帧', () => 
 });
 
 test('反馈-竖线连根删：.about-funds 与 .funds-note 不再带 border-left 强调', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   for (const cls of ['.about-funds', '.funds-note']) {
     const rule = css.split(cls + ' {')[1] || '';
     const block = '{' + rule.split('}')[0] + '}';

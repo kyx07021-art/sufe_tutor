@@ -15,8 +15,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STYLE_CSS } from './_css.js';
 
-const css = readFileSync('./style.css', 'utf8');
+const css = STYLE_CSS;
 
 test('R17 编辑页区段间分割线：非首段 title border-top + 行距拉长', () => {
   const block = css.match(/\.profile-form \.profile-group-title:not\(:first-child\),[\s\S]*?\n\}\n?/);

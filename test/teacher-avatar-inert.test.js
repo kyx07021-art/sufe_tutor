@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { renderAvatarHtml } from '../src/client/core/dom.js';
 import { renderTeacherCard } from '../src/client/features/teacher/render.js';
 import { state } from '../src/client/core/state.js';
+import { STYLE_CSS } from './_css.js';
 
 test('R13 renderAvatarHtml 非交互分支：恒 aria-hidden、无 avatar-btn/role/tabindex', () => {
   const img = renderAvatarHtml('/a.png', '张老师', 'tc-avatar');
@@ -34,7 +35,7 @@ test('R13 教师卡渲染：头像为非交互惰性组件', () => {
 });
 
 test('R13 .tc-avatar CSS：pointer-events:none + user-select:none', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const block = css.match(/\.tc-avatar \{[\s\S]*?\}/);
   assert.ok(block, '.tc-avatar 规则存在');
   assert.ok(/pointer-events:\s*none/.test(block[0]));

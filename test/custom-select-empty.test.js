@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { initCustomSelects } from '../src/client/core/ui.js';
+import { STYLE_CSS } from './_css.js';
 
 test('唯一 disabled 提示选项：触发器文字回落显示提示', () => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>', { url: 'http://localhost/' });
@@ -26,7 +27,7 @@ test('唯一 disabled 提示选项：触发器文字回落显示提示', () => {
 });
 
 test('触发器默认空纵向高度（min-height）防塌陷', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const block = (css.split('.custom-select-trigger {')[1] || '').split('}')[0];
   assert.ok(block.includes('min-height: calc(40px * var(--ui-scale, 1))'));
 });

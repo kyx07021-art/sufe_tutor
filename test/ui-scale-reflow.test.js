@@ -23,6 +23,7 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { CONFIG } from '../src/shared/config.js';
 import { uiScaleReflow } from '../src/client/core/ui-scale-reflow.js';
+import { STYLE_CSS } from './_css.js';
 
 const SRC = readFileSync('./src/client/core/ui-scale-reflow.js', 'utf8');
 
@@ -299,7 +300,7 @@ test('R4-4：定宽按钮 block rect 拉伸——预览视觉宽 90 不超缩（
 test('R4-7：采样禁全站 transition（data-ui-sampling 门控 + style.css 规则）', () => {
   assert.match(SRC, /docEl\.dataset\.uiSampling = "1"/, 'sampleTargets 挂 data-ui-sampling 门控');
   assert.match(SRC, /delete docEl\.dataset\.uiSampling/, '采样后移除门控（成对零残留）');
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.match(css, /html\[data-ui-sampling\] \*[\s\S]*?transition: none !important/, 'style.css 禁全站 transition 规则');
 });
 

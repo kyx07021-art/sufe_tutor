@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { renderSidebar } from '../src/client/core/router.js';
 import { state } from '../src/client/core/state.js';
+import { STYLE_CSS } from './_css.js';
 
 function setup() {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="sidebar-nav"></div><div id="sidebar-user"></div><div id="sidebar-invite"></div></body></html>', { url: 'http://localhost/' });
@@ -22,7 +23,7 @@ test('渲染后无 #sidebar-pill；active 高亮由条目自身承载', () => {
   assert.equal(dom.window.document.getElementById('sidebar-pill'), null);
   const item = dom.window.document.querySelector('#sidebar-nav .sidebar-item[data-page="about"]');
   assert.ok(item && item.classList.contains('active'));
-  const styleCss = readFileSync('./style.css', 'utf8');
+  const styleCss = STYLE_CSS;
   const activeRule = styleCss.match(/\.sidebar-item\.active\s*\{[^}]*\}/);
   assert.ok(activeRule);
   assert.doesNotMatch(styleCss, /\.sidebar-pill\s*\{/);

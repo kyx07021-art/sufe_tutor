@@ -9,6 +9,7 @@ import { renderPostCard } from '../src/client/features/posts/render.js';
 import { setPostsListForTest, togglePostLike } from '../src/client/features/posts/actions-list.js';
 import { postCardClick, openPostDetail } from '../src/client/features/posts/actions-editor.js';
 import { state } from '../src/client/core/state.js';
+import { POSTS_CSS } from './_css.js';
 
 function setup() {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="posts-list"></div><div id="modal-container"></div><div id="toast-container"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
@@ -92,7 +93,7 @@ test('togglePostLike 同步全部 like pill（列表卡 + 浮窗）', async () =
 });
 
 test('详情浮窗 CSS：md-preview--full、卡 hover 洗、标题按钮还原', () => {
-  const css = readFileSync('./style-posts.css', 'utf8');
+  const css = POSTS_CSS;
   assert.ok(css.includes('.md-preview--full { max-height: none; }'), '详情正文放开高度封顶');
   assert.ok(css.includes('.post-card {') && css.includes('cursor: pointer'), '卡片指针光标');
   assert.ok(css.includes('.post-title {') && /\.post-title \{[\s\S]*border: none;[\s\S]*background: none;/.test(css), '标题按钮还原为文本外观');

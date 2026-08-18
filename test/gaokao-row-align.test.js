@@ -17,8 +17,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STYLE_CSS } from './_css.js';
 
-const css = readFileSync('./style.css', 'utf8');
+const css = STYLE_CSS;
 
 test('R14 .grade-selector 值组件：flex-basis 0 + min-width 0（不触发父行 wrap、组内换行）', () => {
   const block = css.match(/\.grade-selector \{[\s\S]*?\}/);

@@ -17,11 +17,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { renderChatBubble, renderChatMediaInner } from '../src/client/features/chat/render.js';
 import { state } from '../src/client/core/state.js';
+import { CHAT_CSS } from './_css.js';
 
 test('文件卡分流 .chat-bubble--file（圆角内衬），图片仍全出血', () => {
   const chat = readFileSync('./app-chat.js', 'utf8');
   assert.ok(chat.includes("mediaCls = m.kind === 'file' ? ' chat-bubble--file' : ''"), '文件消息带 file 类、图片不带');
-  const css = readFileSync('./style-chat.css', 'utf8');
+  const css = CHAT_CSS;
   const fileRule = css.split('.chat-bubble--file {')[1] || '';
   assert.ok(fileRule.split('}')[0].includes('padding: 10px 12px'), '文件卡圆角内衬（内容不再戳出圆角）');
   // 图片全出血保持 padding:0
@@ -30,7 +31,7 @@ test('文件卡分流 .chat-bubble--file（圆角内衬），图片仍全出血'
 });
 
 test('文件卡随内容收缩：无 min-width 撑宽、无 flex:1 撑中缝，文件名截断后下载按钮紧随', () => {
-  const css = readFileSync('./style-chat.css', 'utf8');
+  const css = CHAT_CSS;
   const fileRule = (css.split('.chat-file {')[1] || '').split('}')[0];
   assert.ok(fileRule.includes('width: fit-content'), '卡片随内容收缩（不撑满气泡）');
   assert.ok(!fileRule.includes('min-width'), '无强制 min-width 190px（曾把短文件名撑出大中缝）');

@@ -9,6 +9,7 @@ import { renderPostCard } from '../src/client/features/posts/render.js';
 import { togglePostLike } from '../src/client/features/posts/actions-list.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { state } from '../src/client/core/state.js';
+import { POSTS_CSS } from './_css.js';
 
 function setup() {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="posts-list"></div></body></html>', { url: 'http://localhost/' });
@@ -27,7 +28,7 @@ test('点赞渲染：隐藏原生 checkbox checked 随 p.liked', () => {
   const html2 = renderPostCard({ id: 10, user_id: 39, username: '学生A', title: '讲义2', body_md: 'x', created_at: '2026-08-07 04:27:10', liked: false, like_count: 0 }, 0);
   assert.ok(/<input type="checkbox" aria-label/.test(html2));
   const glassCss = readFileSync('./glass.css', 'utf8');
-  const postsCss = readFileSync('./style-posts.css', 'utf8');
+  const postsCss = POSTS_CSS;
   assert.ok(glassCss.includes('.post-like:has(input:checked)'));
   assert.ok(postsCss.includes('.post-like:has(input:checked) .like-icon'));
   assert.ok(!postsCss.includes('.post-like.liked'));

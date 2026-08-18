@@ -6,9 +6,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { openContractDraftModal, contractToggleOther } from '../src/client/features/contract/actions-draft.js';
+import { STYLE_CSS } from './_css.js';
 
 test('CSS：.form-group > .form-other-wrap 独占整行（flex-basis:100%）且为 flex 容器（输入撑满）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const ruleBody = (css.split('.form-group > .form-other-wrap {')[1] || '').split('}')[0];
   assert.ok(ruleBody.includes('flex-basis: 100%'), '独占整行排下拉下方');
   assert.ok(ruleBody.includes('display: flex'), 'flex 容器（输入框撑满整行）');
@@ -16,7 +17,7 @@ test('CSS：.form-group > .form-other-wrap 独占整行（flex-basis:100%）且�
 });
 
 test('v0.25.94 输入框左对齐字段列：右推 calc(116px+22px)（label 列宽+列间距），不戳进 title 区', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const ruleBody = (css.split('.form-other-wrap .form-input {')[1] || '').split('}')[0];
   assert.ok(ruleBody.includes('margin-left: calc(116px + 22px)'), '输入框右推 label 列宽+列间距（对齐 select 字段列）');
   assert.ok(ruleBody.includes('flex: 1') && ruleBody.includes('min-width: 0'), '输入框仍撑满剩余字段列');

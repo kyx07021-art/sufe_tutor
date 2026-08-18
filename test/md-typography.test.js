@@ -22,9 +22,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STYLE_CSS, POSTS_CSS } from './_css.js';
 
-const posts = readFileSync('./style-posts.css', 'utf8');
-const style = readFileSync('./style.css', 'utf8');
+const posts = POSTS_CSS;
+const style = STYLE_CSS;
 
 test('R21④ 标题紧缩小阶梯：h1/h2 小字号（非浏览器巨大默认）', () => {
   assert.ok(/\.md-preview h1, \.md-preview h2[\s\S]*?font-size: 1\.02rem/.test(posts), 'md h1/h2 收敛到 1.02rem');

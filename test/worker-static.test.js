@@ -69,7 +69,7 @@ test('GET / → HTML 资产引用改写为哈希名 + 内联 manifest（懒加�
   assert.equal(res.status, 200);
   const html = await res.text();
   assert.ok(html.includes(`src="/${ASSET_MANIFEST.files['constants.js']}"`), 'boot 脚本引用改哈希名');
-  assert.ok(html.includes(`href="/${ASSET_MANIFEST.files['style.css']}"`), 'CSS 引用改哈希名');
+  assert.ok(html.includes(`href="/${ASSET_MANIFEST.files['tokens.css']}"`), 'CSS 引用改哈希名（V-2-5b tokens.css）');
   assert.ok(html.includes(`src="/${ASSET_MANIFEST.files['app-shell.js']}"`), 'app-shell 引用改哈希名');
   assert.ok(html.includes('window.ASSET_MANIFEST'), '内联 manifest 注入');
   assert.ok(!html.includes('src="/constants.js"'), '裸名引用已全部改写');
@@ -110,6 +110,16 @@ test('GET /<base>.<hash8>.js → base 内容 + Cache-Control immutable', async (
   const body = await res.text();
   assert.ok(body.includes('loadDomainScripts'), '回 base 文件真实内容（app-shell 含懒加载器）');
   assert.ok(!body.includes('<html'), '绝不给 HTML 冒充脚本');
+});
+
+test('GET /features/<base>.<hash8>.css → 子目录 base 内容 + immutable（F1 回归：V-2-5b 子目录版本化）', async () => {
+  const [base, hashed] = Object.entries(ASSET_MANIFEST.files).find(([b]) => b === 'features/chat.css');
+  assert.ok(hashed.startsWith('features/chat.'), 'manifest 含子目录条目');
+  const res = await get('/' + hashed);
+  assert.equal(res.status, 200, `子目录版本化 URL 200（不得 /features/features/ 404）`);
+  assert.equal(res.headers.get('cache-control'), 'public, max-age=31536000, immutable', '回 immutable');
+  const body = await res.text();
+  assert.ok(body.includes('.chat-bubble'), '回 features/chat.css 真实内容');
 });
 
 test('#260 空响应毒化防护：ASSETS 回 200 空 body 不进缓存（防哈希 URL 被空缓存永久毒化）', async () => {

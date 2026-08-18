@@ -5,13 +5,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CONFIG } from '../src/shared/config.js';
+import { STYLE_CSS } from './_css.js';
 
 test('筛选栏间距：U3 合并单行后由 .filter-row gap 承担', () => {
   assert.ok(Number.isInteger(CONFIG.FILTER_ROW_GAP) && CONFIG.FILTER_ROW_GAP >= 8, `FILTER_ROW_GAP=${CONFIG.FILTER_ROW_GAP}`);
   const html = readFileSync('./index.html', 'utf8');
   assert.ok(html.includes("set('--filter-row-gap'"));
   assert.ok(html.includes('C.FILTER_ROW_GAP'));
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const rowRule = css.split('.filter-row {')[1] || '';
   assert.ok(rowRule.split('}')[0].includes('gap: 16px'));
   assert.ok(!css.includes('.filter-row + .filter-row {'));

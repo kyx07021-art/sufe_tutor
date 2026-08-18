@@ -1,0 +1,149 @@
+/* features/complaints.css - R22 complaint channel (V-2-5b). */
+/* ============================================================
+   R22 投诉独立通道组件（app-complaints.js）
+   目标选择组件内部子件全用独立 cmp-* 类名——不在 .form-group 祖先
+   作用域内，杜绝复合组件隔离问题（整点下拉教训）。玻璃引擎 token 渲染。
+   ============================================================ */
+.complaint-tabs { margin-bottom: 16px; }
+.complaint-tabs .seg-tab { padding: 7px 14px; font-size: .8rem; font-weight: 700; }
+.complaint-pane { margin-bottom: 14px; }
+.cmp-block { display: flex; flex-direction: column; gap: 8px; }
+/* M10：最近联系区三 tab 至少一行同高预留（帖子 tab 无数据也占位，防三种界面尺寸不一） */
+.cmp-recent { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 30px; }
+.cmp-recent--reserved { min-height: 30px; pointer-events: none; }
+.cmp-recent-label { font-size: .78rem; color: var(--faint); }
+.cmp-chip {
+  border: 1px solid var(--g-border, rgba(255,255,255,.14));
+  border-radius: 999px; padding: 4px 12px; font-size: .8rem;
+  color: var(--ink); background: var(--g-fill-weak, rgba(255,255,255,.04));
+  cursor: pointer; transition: border-color .15s ease, background-color .15s ease;
+}
+.cmp-chip:hover { border-color: var(--g-fg, rgba(255,255,255,.35)); }
+.cmp-search { margin-top: 2px; }
+.cmp-results { display: flex; flex-direction: column; gap: 6px; }
+.cmp-result {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; padding: 9px 12px; text-align: left; border-radius: 10px;
+  color: var(--ink); cursor: pointer;
+}
+.cmp-result-name { font-size: .86rem; font-weight: 600; }
+.cmp-result-sub { font-size: .74rem; color: var(--faint); flex-shrink: 0; }
+.cmp-empty { font-size: .8rem; color: var(--faint); padding: 4px 2px; }
+.cmp-selected { display: flex; }
+/* M9：投诉对象从可叉小 tag 改「已选择：xxx + 更换」单选行 */
+.cmp-selected-line {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border-radius: var(--lg-r-sm); background: var(--g-accent-fill-soft);
+  font-size: .82rem; color: var(--ink);
+}
+.cmp-selected-line strong { font-weight: 700; }
+.cmp-selected-change { font-size: .78rem; color: var(--accent-deep); padding: 0; }
+.cmp-selected-change:hover { text-decoration: underline; }
+/* 最近候选选中态（单选高亮，radio 语义） */
+.cmp-chip.selected { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* 投诉卡（我的投诉 / 管理员投诉处理共用）：已处理整卡淡出 */
+.complaint-card--resolved { opacity: .62; }
+.complaint-tags { display: inline-flex; gap: 6px; }
+.complaint-detail { margin-top: 6px; white-space: pre-wrap; font-size: .82rem; color: var(--faint); }
+.complaint-foot { margin-top: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+/* U11 投诉附件：浮窗暂存区（按钮 + 复用 .chat-stage 预览）+ 卡片缩略行 */
+.complaint-attach-row { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+.complaint-attach-btn {
+  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  min-width: 84px; height: 64px; padding: 0 14px; cursor: pointer;
+  --g-r: 8px; font-size: .78rem; color: var(--ink-2);
+}
+.complaint-attach-row .chat-stage { padding: 0; }
+.complaint-attaches { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.complaint-attach {
+  position: relative; width: 48px; height: 48px; padding: 0; cursor: pointer;
+  --g-r: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center;
+  background-color: var(--g-fill-weak); border: none;
+}
+.complaint-attach img { width: 100%; height: 100%; object-fit: cover; }
+.complaint-attach--file { flex-direction: column; gap: 0; }
+
+/* 合同卡按钮行：签约/修改/查看在左，取消签约在同行的页面另一侧 */
+.contract-actions { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.contract-actions-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* 开始签约阅读区：合同全文限高滚动，滚到底+待够时长才解锁确认。
+   滚动条走引擎全局内嵌滚动条（glass.css）；.contract-md 全站为 no-op 标记类，样式自带 */
+.contract-sign-scroll {
+  max-height: 48vh;
+  overflow-y: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--g-border, rgba(255,255,255,.12));
+  border-radius: 12px;
+  line-height: 1.7;
+  font-size: .92rem;
+  color: var(--ink, inherit);
+  word-break: break-word;
+}
+.contract-sign-hint { margin-right: auto; line-height: 1.4; }
+/* v0.25.94：倒计时上「确认签约」按钮——按钮文本在「N秒后可确认签约」与「我已阅读并确认签约」间切换，
+   定最小宽度防秒级递减/切换时按钮左右抖（文本长度：30秒后…10字 ≈ 我已阅读…9字） */
+#contract-sign-btn { min-width: 172px; }
+
+/* 合同卡签署进度、签署弹窗前置告知、存证校验小面板 */
+.contract-sign-progress { margin-top: 10px; margin-bottom: 0; line-height: 1.5; }
+.contract-sign-progress:not(.text-muted) { color: var(--g-ok-fg, var(--ok)); }
+.contract-sign-disclose { margin-top: 10px; margin-bottom: 0; line-height: 1.6; padding: 0 2px; }
+.contract-verify-verdict { margin: 0 0 12px; font-weight: 600; line-height: 1.6; }
+.contract-verify--ok { color: var(--g-ok-fg, var(--ok)); }
+.contract-verify--bad { color: var(--danger); }
+.contract-verify-grid { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.contract-verify-row { display: flex; justify-content: space-between; align-items: baseline; gap: 14px; font-size: .88rem; line-height: 1.6; }
+.contract-verify-row code { word-break: break-all; max-width: 62%; text-align: right; }
+.contract-verify-hash { font-size: .78rem; }
+.contract-verify-list { display: flex; flex-direction: column; gap: 4px; padding-top: 10px; border-top: 1px solid var(--g-border, rgba(255,255,255,.1)); }
+.contract-verify-entry { display: flex; justify-content: space-between; gap: 14px; font-size: .84rem; color: var(--muted); line-height: 1.6; }
+
+/* 卡片浮入：通知/需求/教师信息卡统一动效（app.js initReveals 注入 .reveal 与错峰延迟） */
+/* 修复：transition 只在 .reveal.revealed 上——隐藏（加 .reveal）必须瞬时，
+   否则过渡 + --reveal-delay 会把卡片停在可见态造成「闪出→消失→再出现」（浏览器实测复现） */
+.reveal {
+  opacity: 0; transform: translateY(18px);
+}
+.reveal.revealed {
+  opacity: 1; transform: translateY(0);
+  transition: opacity .55s var(--ease-out) var(--reveal-delay, 0s),
+              transform .55s var(--ease-snap) var(--reveal-delay, 0s);
+}
+
+/* 账户设置：细线分隔的设置行（无白框），灰小标签 + 值 + 右侧修改按钮。
+   v0.20.0 删列表底部线：区边界统一由子标题 border-bottom 承担，列表自身不划线（否则单设置项区出现孤线） */
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4);
+  padding: 15px var(--sp-2); border-top: 1px solid var(--g-line-soft); /* 行分隔线视觉单源 --g-line-soft（glass 透白/light·flat 回落），禁裸 --line */
+}
+.settings-label { font-size: .7rem; font-weight: 700; color: var(--muted); letter-spacing: .06em; margin-bottom: 3px; }
+.settings-value { font-size: .9rem; font-weight: 600; color: var(--ink); }
+/* 头像行：无上边线，预览放大并上探越过原细线位置，让人看清头像 */
+.settings-row--avatar { border-top: none; padding: 22px var(--sp-2) 20px; align-items: center; }
+.settings-row--avatar .settings-label { margin-bottom: 9px; }
+.settings-avatar { width: 88px; height: 88px; font-size: 2.2rem; }
+.settings-logout { margin-top: 0; }
+/* 设置页区段大标题（外观设置/账户信息两区；与 about-title 同语言）：
+   子标题下方加分割线、上方不加；后续子标题与上一个设置项之间用大间距分区（~ 命中非相邻兄弟） */
+.settings-section-title {
+  font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
+  padding-bottom: var(--sp-3);
+  margin: 2px 0 var(--sp-4);
+  border-bottom: 1px solid var(--g-line-soft); /* 区段标题底线视觉单源 */
+}
+.settings-section-title ~ .settings-section-title { margin-top: var(--sp-6); } /* 外观区与账户区间距 */
+/* 区首项贴标题线：每区第一个设置项无上边线，行间线从第二项起（与头像行 border-top:none 同模式，防标题下双线） */
+.settings-section-title + * > .settings-row:first-child,
+.settings-section-title + .settings-row { border-top: none; }
+/* R19：隐私设置区首项被 .settings-list > #privacy-settings-list 包一层，上面的直接兄弟选择器
+   够不着 → 标题 border-bottom + 首行 border-top 双线。补同口径：标题后 .settings-list 内首行无上边线 */
+.settings-section-title + .settings-list .settings-row:first-child { border-top: none; }
+/* 外观主题三项：复用玻璃按钮，选中态走引擎 --g-fill 参数（accent-tint 底 + accent-deep 字）
+   v0.25.19 审计 G-09：补按钮族交互三参数（--g-hover 白洗/--g-raise 抬升/--g-scale 缩放），
+   与同族按钮交互语言一致；不整组并入按钮族以免吃掉选中态自设 --g-fill */
+.theme-opts, .orb-opts, .style-opts { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; }
+.theme-opt, .orb-opt, .style-opt { padding: calc(7px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); font-size: .78rem; font-weight: 700; color: var(--muted); --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97; } /* 需求六·item5：外观主题按钮随滑块；需求八·item3/4：光球三档、页面风格同款设置 chooser */
+.theme-opt--on, .orb-opt--on, .style-opt--on { --g-fill: var(--accent-tint); color: var(--accent-deep); }
+

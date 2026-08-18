@@ -1,0 +1,102 @@
+/* features/admin.css - admin dashboard + invite/CHSI queue (V-2-5b). */
+/* ============================================================
+   Admin Dashboard
+   ============================================================ */
+/* v1.5.0 观测面板：结论（5 KPI）→ 异常/分布明细两层 */
+.ops-kpi { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.ops-detail { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.ops-block { padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--g-line-soft); }
+.ops-block h4 { font-size: .72rem; font-weight: 700; color: var(--muted); letter-spacing: .05em; margin-bottom: var(--sp-2); }
+.ops-row { display: flex; justify-content: space-between; gap: var(--sp-3); padding: 6px 0; font-size: .8rem; border-bottom: 1px solid var(--line); }
+.ops-row:last-child { border-bottom: none; }
+.ops-row code { font-size: .76rem; color: var(--ink-2); }
+.ops-row span { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink); }
+@media (max-width: 860px) {
+  .ops-kpi { grid-template-columns: repeat(2, 1fr); }
+  .ops-detail { grid-template-columns: 1fr; }
+}
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-3); margin-bottom: var(--sp-6); }
+.stat-card { padding: var(--sp-5); position: relative; overflow: hidden; --g-lift: var(--glass-lift); --g-r: var(--lg-r-lg); } /* 左 3px 米色竖条(旧设计残留)已删：stat-card::after 在玻璃卡上成米色边缘 */
+.stat-card .stat-value { font-family: var(--font); font-size: 1.9rem; font-weight: 700; letter-spacing: -.03em; line-height: 1; }
+.stat-card .stat-label { font-size: .72rem; color: var(--muted); font-weight: 600; margin-top: var(--sp-2); letter-spacing: .03em; }
+.stat-card .stat-value.blue  { color: var(--accent-deep); }
+.stat-card .stat-value.green { color: var(--ok-deep); }
+.stat-card .stat-value.amber { color: var(--warn-deep); }
+.stat-card .stat-value.red   { color: var(--danger-deep); }
+
+.admin-panel { padding: 20px; margin-bottom: 14px; --g-fill: var(--g-fill-strong); --g-r: var(--lg-r); }
+.admin-panel h3 { font-size: .95rem; font-weight: 800; margin-bottom: 16px; color: var(--ink); letter-spacing: -.01em; }
+/* 管理面板内「最近注册/最近需求」行（原两处内联 flex 布局重复，抽类单源） */
+.recent-row { display: flex; justify-content: space-between; padding: var(--s2) 0; border-bottom: 1px solid var(--border-light); font-size: .8125rem; }
+
+/* 管理列表行（学生 / 教师 / 需求 / 评价管理共用） */
+.admin-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 14px;
+  padding: 14px 16px; margin-bottom: 8px;
+}
+.admin-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.admin-row-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .88rem; color: var(--ink); }
+.admin-row-line strong { font-weight: 800; }
+.admin-row-meta { font-size: .72rem; color: var(--muted); }
+.admin-row .review-text { font-size: .8rem; color: var(--ink-3); line-height: 1.5; }
+.admin-row-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; flex-wrap: wrap; }
+
+/* 卡片内「对方对我说的一句话」——淡紫消息色（同聊天气泡 --g-bubble-mine 语言）
+   完整渲染全文（white-space:pre-wrap + overflow-wrap:anywhere，无省略号），卡片随内容增高。
+   头部小标（学生留言/教师留言）+ 正文两级。玻璃件（glass）经引擎吃 --g-fill/--g-liquid/--g-r。 */
+.greet-bubble {
+  --g-fill: var(--g-bubble-mine);
+  --g-liquid: var(--g-liquid-sm);
+  --g-r: 10px;
+  margin-top: 12px;
+  padding: 9px 12px;
+}
+.greet-bubble-head {
+  font-size: .62rem; font-weight: 700; letter-spacing: .08em;
+  color: var(--accent-deep);
+  margin-bottom: 4px;
+}
+.greet-bubble-body {
+  font-size: .82rem; line-height: 1.62; color: var(--ink-2);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+/* 意向卡（admin-row）内紧凑变体：行自带 14px 内边距，上下留白收敛 */
+.greet-bubble--row { margin-top: 6px; }
+
+/* 打招呼消息输入（推送 / 意向浮窗内直排）：.form-label 的 flex:0 0 116px 只服务 form-group 行，
+   浮窗体无 form-group 包裹，需复位为块级标签 + 输入框撑满整行 */
+.greet-form-label {
+  flex: none; display: block; margin-bottom: 4px;
+  font-size: .8rem; font-weight: 700; color: var(--ink-3); letter-spacing: .02em;
+}
+.greet-input { width: 100%; flex: none; }
+
+/* 管理员需求分页「加载更多」（网安报告 F-09 keyset 游标翻页） */
+.list-more-row { display: flex; justify-content: center; padding: 10px 0 2px; }
+
+/* 教师详情弹窗内评价的管理操作 */
+.review-admin-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+/* 页头内联筛选下拉（如评价状态） */
+.filter-select-auto { width: auto; min-width: 120px; }
+
+/* ============================================================
+   v1.2.0 T4/T6：邀请码管理 + 学信网核验队列（管理员）
+   ============================================================ */
+.invite-actions-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.invite-actions-row .btn { flex: 1; }
+.invite-manager-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.invite-manager-table th { text-align: left; font-size: .72rem; font-weight: 600; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.invite-manager-table td { padding: 8px; border-bottom: 1px solid var(--line-soft, var(--line)); color: var(--ink); }
+.invite-m-code { font-family: var(--mono); letter-spacing: .04em; }
+.invite-m-meta { color: var(--muted); font-size: .78rem; }
+.verif-card { padding: 14px 16px; }
+.verif-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.verif-user { font-weight: 700; color: var(--ink); font-size: .95rem; }
+.verif-code { font-family: var(--mono); font-size: .78rem; color: var(--muted); letter-spacing: .03em; }
+.verif-meta { font-size: .74rem; color: var(--muted); margin-top: 3px; }
+.verif-result { font-size: .85rem; color: var(--ink); margin-top: 6px; }
+.verif-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft, var(--line)); }
+.verif-form-hint { font-size: .76rem; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
+.verif-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.verif-actions { display: flex; gap: 8px; margin-top: 10px; }

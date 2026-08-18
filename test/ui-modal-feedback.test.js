@@ -6,9 +6,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { THEME, STYLE_PACKS } from '../src/client/constants/theme.js';
 import { genderName } from '../src/client/core/display.js';
+import { STYLE_CSS } from './_css.js';
 
 test('U1：反馈浮窗已无内层分段（M11 三选后专线固定，.feedback-kind-row 连根删）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.ok(!css.includes('.feedback-kind-row {'), '反馈分段规则已删（A1 审计：chooser 三选即定 kind，内层切换是冗余入口）');
   const glass = readFileSync('./glass.css', 'utf8');
   const segTabRule = glass.split('.seg-tab {')[1] || '';
@@ -31,7 +32,7 @@ test('U3：历史/非法 gender（nonbinary）白名单消毒回落「不愿透�
 });
 
 test('U4：.modal 大扩散阴影压暗（弹窗矩形为透明孔），主题双端定义 --g-modal-dim', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const modalRule = css.split('#modal-container .modal {')[1] || '';
   assert.ok(modalRule.split('}')[0].includes('200vmax var(--g-modal-dim'), '弹窗挂 200vmax 压暗（四周灰化、弹窗自身透明孔）');
   assert.ok(modalRule.split('}')[0].includes('var(--g-lift)'), '引擎浮影保留（三件套 + 压暗同列表）');

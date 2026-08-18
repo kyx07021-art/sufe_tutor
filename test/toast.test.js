@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { showToast } from '../src/client/core/ui.js';
 import { CONFIG } from '../src/shared/config.js';
+import { STYLE_CSS } from './_css.js';
 
 async function waitFor(cond, timeout = 2000) {
   const start = Date.now();
@@ -27,7 +28,7 @@ async function waitFor(cond, timeout = 2000) {
 }
 
 test('层级：toast 容器 z-index 高于 modal-overlay（浮于一切弹窗之上）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const box = (css.split('#toast-container {')[1] || '').split('}')[0];
   assert.ok(box.includes('z-index: 300'), 'toast 容器 z-index: 300');
   const overlay = (css.split('.modal-overlay {')[1] || '').split('}')[0];
@@ -35,7 +36,7 @@ test('层级：toast 容器 z-index 高于 modal-overlay（浮于一切弹窗之
 });
 
 test('toast 定位：fixed 底部居中、flex 堆叠多条、指针穿透容器', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const box = (css.split('#toast-container {')[1] || '').split('}')[0];
   assert.ok(box.includes('position: fixed') && box.includes('bottom: 24px'), 'fixed 底部定位');
   assert.ok(box.includes('flex-direction: column') && box.includes('align-items: center'), 'flex 堆叠居中');
@@ -43,7 +44,7 @@ test('toast 定位：fixed 底部居中、flex 堆叠多条、指针穿透容器
 });
 
 test('kind 全风格走 --g-fill/--g-fg，无 --g-surface 左竖条（v0.25.99 教训）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   for (const kind of ['error', 'success', 'warn']) {
     const rule = (css.split(`.toast.toast--${kind} {`)[1] || '').split('}')[0];
     assert.ok(rule.includes('--g-fill'), `${kind} 态设底色`);
@@ -70,7 +71,7 @@ test('退场时序：驻留后切 .toast--out，退场动画后移除节点', as
 
 test('连根删红例：alert 组件全站零残留（CSS 规则 / JS 函数 / 容器；注释留痕不算）', () => {
   // 只查规则形式：.alert { / .alert-error { 等（注释里引用历史组件名的留痕允许）
-  const css = readFileSync('./style.css', 'utf8') + readFileSync('./glass.css', 'utf8');
+  const css = STYLE_CSS + readFileSync('./glass.css', 'utf8');
   assert.ok(!/\.alert\s*\{/.test(css), '无 .alert 基础规则');
   assert.ok(!/\.alert-(error|success|warn)\s*\{/.test(css), '无三色 alert 规则');
   assert.ok(!/\.gaokao-mismatch-warn[^}]*--g-surface/.test(css), '独立提示无 --g-surface 竖条');

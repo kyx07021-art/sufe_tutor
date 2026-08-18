@@ -1,0 +1,323 @@
+/* features/teacher.css - teacher cards/profile/awards/CHSI gate (V-2-5b). */
+/* ============================================================
+   教师卡：头像放大独占最左列（撑满卡片高度），id/评分/简介字号加大、
+   头像右侧左对齐（原空间关系保留）；右侧信息两行 + 方形发送按钮
+   ============================================================ */
+.list-card--teacher {
+  /* v1.3.0 结构性重构：grid（84px 头像列+右列堆叠）→ flex 纵向海报分区——
+     行1 头像+身份+评分（信任信号右对齐）、行2 报价焦点带、行3 科目、行4 动作右对齐 */
+  display: flex; flex-direction: column; gap: var(--sp-3);
+}
+/* 删手动直写 box-shadow，交还引擎 */
+.list-card--teacher { cursor: pointer; --g-hover: var(--g-hover-wash); }
+/* 框定固定正方形 108×108——此前 min-height + align-self:stretch，
+   卡片行高超过 108（右信息列多行）即被拉伸成椭圆；改 height 定高 + align-self:start 顶对齐。
+   外观即按钮组件版样式（.avatar glass 圆形、--g-r:50% 引擎圆角），只是无聚焦/交互（avatar-btn 已去） */
+/* R13：头像 = 惰性装饰组件——pointer-events:none（不独立可点，点击穿透到整卡）、
+   无 tabindex 不可聚焦、renderAvatarHtml 恒 aria-hidden；交互语言全归宿主卡片 */
+.tc-avatar {
+  width: 64px; height: 64px; font-size: 1.6rem; flex: 0 0 auto; /* v1.3.0：hero 头像（海报式行1） */
+  pointer-events: none; user-select: none;
+}
+/* 卡片布局契约：grid 只定列骨架（头像/身份列/右信息列），列内堆叠顺序一律由
+   DOM 在 flex 流里决定——增删内容只动 renderTeacherCard 的模板，CSS 不做行级摆放
+   （简介曾作为独立 grid 行，右列变高即沉底，是为本契约要消灭的债） */
+
+/* 头像（全站共用）：圆形（全站直角语言的特例，同语义红点）；
+   未上传 = id 首字符 + 米色底，上传图由 object-fit 居中铺满 */
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  overflow: hidden; /* G35：圆角交还引擎 --g-r:50%（glass.css:210），删潜伏直写 */
+  color: var(--ink);
+  font-family: var(--font); font-weight: 700; letter-spacing: -.02em; user-select: none;
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* 头像入口（个人信息右栏）：聚焦动效 = 悬停放大 + 墨色描边环。
+   唯一豁免：账户设置的头像预览（settings-avatar 不加 avatar--link） */
+.avatar-btn { display: inline-flex; cursor: pointer; }
+.avatar--link { transition: transform var(--t-fast) var(--ease-out), box-shadow var(--t-fast) var(--ease-out); }
+.avatar-btn:hover .avatar--link,
+.avatar-btn:focus-visible .avatar--link { transform: scale(1.09); box-shadow: 0 0 0 3px var(--g-ring); } /* G13：焦点环直写走引擎 --g-ring */
+
+/* 通用大图查看器（聊天图片放大 / 学信网截图预览共用，自 style-chat.css 迁入） */
+.image-viewer-modal { max-width: 92vw; width: auto; } /* G30：background 与 .modal 玻璃体重复，删 */
+.image-viewer-modal .modal-body { padding: 0; }
+.image-viewer-modal img { display: block; max-width: 88vw; max-height: 86vh; margin: 0 auto; }
+
+/* 教师档案页学信网截图控件：上传/查看按钮 + 内联「重新上传」小链 */
+.profile-credential-ctl { display: flex; align-items: center; gap: 12px; }
+/* 内联「重新上传」小链（glass 参数预设见 glass.css 按钮族；此处补结构样式） */
+.btn-link-inline {
+  display: inline-flex; align-items: center; gap: 6px; position: relative; overflow: hidden; isolation: isolate;
+  background: none; border: none; cursor: pointer;
+  padding: 5px 10px; font-size: .74rem; text-decoration: none;
+  transition: transform var(--t-fast) var(--ease-out);
+}
+
+/* ============================================================
+   个人信息右栏（openProfilePanel）：桌面端右侧 25vw 滑入，内容超长可滚动；
+   移动端定宽浮层 + 背景变暗。卡片白块直角、行间细线，账簿式对齐（title 最左、
+   信息自固定 px 处起）。z 150 低于弹窗(200)：评价表单弹窗可覆于其上。
+   ============================================================ */
+.profile-panel {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 150;
+  width: min(max(330px, 30vw), 460px); /* #156：PC 资料卡加宽（原 25vw→30vw），460px 上限防超大屏过宽；移动端 @media 覆盖不受影响 */
+  display: flex; flex-direction: column;
+
+  --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
+  transform: translateX(105%);
+  visibility: hidden; /* 原子隐藏由类状态决定：open 可见，动画结束 JS 移除类回此态 */
+}
+body.profile-panel-open .profile-panel {
+  transform: none;
+  visibility: visible;
+  /* 入栏动画：纯 transform keyframes，与 modal-in 同构（bdf 子树下纯 transform
+     animation 正常、opacity 帧才触发 983252）。0.20.8 用 transition 双向，用户在端 transform 冻结
+     （报「0.3s 原地消失」= transform 首帧卡死 + visibility 延迟生效）→ 改 animation 复刻 modal 可行路径。
+     关闭：JS 加 body.profile-panel-closing 播 panel-out，animationend 后移除类回 base。 */
+  animation: panel-in .3s var(--ease-snap);
+}
+body.profile-panel-closing .profile-panel {
+  animation: panel-out .3s var(--ease-snap) forwards; /* 出栏：纯 transform；forwards 保持屏外终态至类移除 */
+}
+@keyframes panel-in { from { transform: translateX(105%); } to { transform: none; } }
+@keyframes panel-out { from { transform: none; } to { transform: translateX(105%); } }
+.profile-panel-backdrop {
+  position: fixed; inset: 0; z-index: 145;
+  -webkit-backdrop-filter: var(--g-panel-backdrop-blur, blur(4px)); backdrop-filter: var(--g-panel-backdrop-blur, blur(4px)); /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=浮窗自灰），只留虚化；--g-panel-backdrop-blur 语义别名（需求八·item4 flat 包覆盖为 none） */
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s var(--ease-out);
+  display: none; /* 桌面端右栏视作屏幕延伸，不暗背景；仅移动端启用 */
+}
+.profile-panel-head {
+  flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 18px 13px;
+} /* G22：分隔线单源迁 glass.css（含宽/样式），此处删直写 */
+.profile-panel-title { font-size: 1.02rem; font-weight: 800; letter-spacing: -.01em; color: var(--ink); }
+.profile-panel-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 16px 18px 30px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.profile-loading { padding: 44px 0; text-align: center; color: var(--muted); font-size: .85rem; }
+.profile-card-title { margin-bottom: 10px; font-size: .78rem; font-weight: 700; letter-spacing: .05em; color: var(--ink); }
+.profile-empty { padding: 6px 0; font-size: .78rem; } /* padding/font-size 由 glass.css 底层组件承接，仅补内容排版 */
+
+/* 卡片①：头像 + 用户名 + 角色；已签约 → 头像右侧绿色小卡 */
+.profile-id-top { display: flex; align-items: center; gap: 12px; }
+.profile-avatar { width: 62px; height: 62px; font-size: 1.55rem; flex-shrink: 0; }
+.profile-signed-tag {
+  margin-left: 6px; /* 与头像拉开（gap 12px 之上再补，视觉上稍稍靠右） */
+  font-size: .72rem; font-weight: 700; letter-spacing: .05em; /* #159：实心高强调规格对齐 tag 族（原 .66rem/4px 9px → 30px 高小字，与 24px pill 族脱节） */
+  padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：已签约 tag 随滑块 */
+}
+.profile-id-name { margin-top: 12px; font-size: 1.12rem; font-weight: 800; letter-spacing: -.01em; overflow-wrap: anywhere; }
+.profile-id-role { margin-top: 4px; font-size: .7rem; font-weight: 600; color: var(--muted); letter-spacing: .14em; }
+
+/* 卡片②：账簿行 —— title 最左，信息自固定 78px 处统一开始，逐项成行 */
+/* 需求六·item1：条目小 title 由纵向居中改向上对齐（align-items: start = 对齐头部而非垂直居中）；
+   行间距由 --profile-row-gap 承担（去分隔线后多拉空隙，值单源 CONFIG.PROFILE_ROW_GAP）。 */
+.profile-row { display: grid; grid-template-columns: calc(70px * var(--ui-scale, 1)) 1fr; column-gap: 10px; padding: calc(var(--profile-row-gap, 22px) / 2) 0; align-items: start; } /* 需求六·item5：title 列宽随滑块（防大字换行） */
+.profile-row-k { padding-top: 2px; font-size: .68rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; } /* label 降级：小灰标签（Stripe 式 definition list），value 为主角 */
+.profile-row-v { font-size: .9rem; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
+.profile-row-v--muted { color: var(--muted); } /* 占位态：未填写 / 建立会话后展示 / 签约后展示——只改颜色不改字号（至高原则：同层信息同字号，用户批评未填/已填字号不一） */
+/* 需求六·item2：资料卡分组大 title —— 占满横向空位分隔不同类型资料（去行分隔线后的段分隔） */
+.profile-group-title {
+  margin: 14px 0 8px; /* #156：组标题行距压紧（原 22px 0 10px） */
+  margin-left: -8px; /* 大标题左凸——左对齐线突出来，不与字段标签共用同一条左对齐线
+    （.profile-form 内边距 8px，负 margin 把标题顶到表单最左缘；字段保持 +8px 缩进） */
+  font-size: 1.08rem; font-weight: 900; letter-spacing: .04em; color: var(--ink);
+}
+/* R17：大区段间插横向分割线 + 拉长行距——区段末尾与下一区段 title 之间（border-top 分隔 +
+   上下加大空隙），编辑页最后大区与保存按钮同理（.profile-form .form-actions，见下）。
+   首段「基本资料」不设上分割线（表单/卡顶部无前段）；卡片内评分行后第一个 title 属分段分隔，
+   照设（R18 同口径）。 */
+.profile-form .profile-group-title:not(:first-child),
+.profile-card .profile-group-title:not(:first-child) {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;   /* 区段间行距拉长（线前留白） */
+  padding-top: 16px;  /* 线后与 title 留白 */
+}
+.profile-form .form-actions {
+  border-top: 1px solid var(--line);
+  margin-top: 26px;   /* 最后大区与保存按钮：线前留白 */
+  padding-top: 20px;  /* 线后与按钮留白 */
+}
+/* ============================================================
+   教师资料卡排版（编辑页 .profile-form）样式与组件规则：
+   1. 分组标题 .profile-group-title（基本信息/学科/非学科/私密四区，app-pages.groupProfileForm
+      按 .form-group 索引逆序注入，幂等）：
+      - 字号 1.08rem 且字重 900 —— 必须明显大于字段标签 .form-label（0.8rem/700），
+        「大标题 ≠ 小标题」的层级靠字号+字重，不许同号（前车之鉴：0.8rem 同号被否）；
+      - margin-left: -8px 左凸：标题左对齐线突出来，不与字段标签共用同一条左线；
+      - 分组层级由标题承担 → 组内不再用分割线。
+   2. 组内分割线：.profile-form .form-group + .form-group { border-top: none } ——
+      全局 .form-group + .form-group 的细线被覆盖，分组视觉完全交给大标题。
+   3. 字段标签向上对齐：.profile-form .form-group { align-items: flex-start } +
+      .form-label { padding-top: 8px } —— 默认 align-items:center 会让标签垂直居中在
+      高控件（多行网格/成绩区/textarea）旁，视觉悬空；改顶对齐。
+   4. 复用约束：以上三条只作用域 .profile-form（编辑页），别把「去分割线/顶对齐」误用到
+      登录/注册等紧凑表单（它们仍需细线分隔与垂直居中）。
+   ============================================================ */
+/* 编辑页组内：分割线去净（分组由大标题承担）、字段标签组内向上对齐（align-items:center 会把标签
+   垂直居中在高度较高的控件旁，多行网格/成绩区下视觉悬空） */
+.profile-form .form-group + .form-group { border-top: none; }
+.profile-form .form-group { align-items: flex-start; padding: 8px 0; } /* #156：表单压紧——组行距 15px→8px（去横线后无需大空隙） */
+.profile-form .form-label { padding-top: calc(8px * var(--ui-scale, 1)); }
+/* 需求六·item3：私密资料项两行式灰字小提示（黑字值下方一行灰字，如「签约后展示联系方式」） */
+.profile-row-note { display: block; margin-top: 2px; font-size: .72rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.profile-tag { display: inline-block; margin: 0 6px 6px 0; padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 600; color: var(--ink); } /* 需求六·item5：资料卡 tag 随滑块 */ /* #159：横 padding 对齐 .tag 基类 */
+.profile-rating { display: inline-flex; align-items: center; gap: 8px; } /* 核心决策信息：评分行放大 */
+.profile-rating-num { font-variant-numeric: tabular-nums; } /* v1.4.2：详情页统一正文规格（字号字重继承 .profile-row-v）——用户批评详情页评分仍放大；等宽靠 tabular-nums 特性 */
+
+/* R2-3/R2-4 性格关键词 / 非学科项目 tag-pick pill：复用勾选框语义但不显示勾选框，
+   默认玻璃底（.glass 引擎），选中态软紫 tint + 紫环 */
+.tag-pick {
+  display: inline-block; margin: 0 6px 6px 0; padding: calc(4px * var(--ui-scale, 1)) calc(12px * var(--ui-scale, 1)); /* 需求六·item5：关键词 tag 随滑块 */
+  font-size: .74rem; font-weight: 600; color: var(--ink-2);
+  cursor: pointer; --g-r: 999px; /* 药丸：覆盖引擎默认圆角，玻璃体按此渲染 */
+  transition: color var(--t-fast) var(--ease-out);
+}
+.tag-pick:hover { color: var(--ink); }
+.tag-pick.selected { color: var(--ink); --g-fill: var(--accent-tint); --g-lift: var(--glass-lift-sm), 0 0 0 1.5px var(--g-ring); } /* v0.25.24 软紫 tint + 紫环 + 墨字（原整块品牌紫 + 白字） */
+
+/* R2-b 需求类型分段切换：旧类连根删，收编标准分段控件 .seg-tabs（glass.css 单点）。
+   JS 只切 .active/.hidden 类，零内联样式 */
+.demand-type-tabs { margin-bottom: 2px; }
+
+/* R2-4 非学科项目报价行：项目名(左) + min~max 区间(右，复用预算区间布局) */
+.nonacademic-price-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.na-project-name { flex: 0 0 88px; font-size: .8rem; font-weight: 600; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.na-range { flex: 1; display: flex; gap: 8px; align-items: center; min-width: 0; }
+.na-range .form-input { flex: 1; min-width: 0; }
+
+/* 卡片③：评价按钮三态（未签约灰禁 / 签约可写 / 已评价可改） */
+.profile-review-btn { margin-top: 10px; }
+.profile-review-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.profile-review-hint { margin-top: 8px; font-size: .72rem; line-height: 1.5; color: var(--muted); }
+.profile-card .review-mine-note { margin-top: 10px; }
+
+/* 移动端：定宽浮层 + 背景变暗（桌面 25vw 在窄屏过窄，改固定 px） */
+@media (max-width: 860px) {
+  .profile-panel { width: min(86vw, 340px); --g-lift: -8px 0 30px var(--g-panel-lift-m); } /* G12：外浮影走引擎参数 */
+  .profile-panel-backdrop { display: block; }
+  body.profile-panel-open .profile-panel-backdrop { opacity: 1; pointer-events: auto; }
+}
+
+/* 学生需求卡：头像占与教师卡同宽的左区，卡身整体右移 */
+.list-card--demand { display: flex; gap: var(--sp-4); align-items: flex-start; --g-hover: var(--g-hover-wash); } /* v1.4.0：需求卡同款 hover 提亮（与 teacher 卡一致——整卡可点必须有反馈，原理#87） */
+.demand-avatar { width: 72px; height: 72px; font-size: 2rem; }
+.demand-card-main { flex: 1; min-width: 0; }
+
+/* 教师卡海报式三层（信息取舍：卡面只留身份+决策锚点+教什么，其余收进资料右栏）：
+   L1 身份：姓名（最深最大）+ 学校·年级（次深）；L2 焦点：评分/报价（mono 等宽数字）；L3 静默：科目小灰。 */
+.tc-head { display: flex; align-items: center; gap: var(--sp-4); min-width: 0; } /* v1.3.0：行1 头像+身份+评分 */
+.tc-identity { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; align-self: center; }
+.tc-username {
+  font-weight: 700; font-size: 1.06rem; color: var(--ink); letter-spacing: -.01em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+} /* 可点性移交整卡（.list-card--teacher 聚焦效果），用户名不单独可点 */
+.tc-school { font-size: .8rem; font-weight: 400; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-rating { display: inline-flex; align-items: center; gap: 5px; margin-left: auto; flex: 0 0 auto; } /* v1.3.0：评分=信任信号，右对齐与身份同排（Airbnb 式） */
+.tc-rating .stars { font-size: .85rem; }
+.tc-rating-num { font-size: .88rem; font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; } /* 评分=信任信号：深色细字（数据不用彩色）；统一字体族不搞 mono 特例 */
+.tc-price { font-size: 1.3rem; } /* v1.3.0：报价焦点带（独立成行，大而轻） */
+.tc-num--price { font-size: 1.3rem; font-weight: 500; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; } /* 报价=数字焦点「大而轻」：大字号+细字重（500），统一字体族不搞 mono 特例 */
+.tc-unit { font-size: .72rem; font-weight: 400; color: var(--muted); margin-left: 2px; } /* 单位小灰：衬托数字焦点 */
+.tc-match { display: inline-flex; } /* 匹配度按钮不进 .tc-username 防 ellipsis 裁剪（需求五·item5） */
+.tc-match--hint { font-size: .72rem; color: var(--muted); } /* 学生无开放需求时匹配度位置小灰字提示 */
+.tc-subjects { font-size: .78rem; color: var(--muted); }
+.tc-bottom { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-4); margin-top: var(--sp-2); } /* v1.4.3：卡片底部左右两列解耦容器——左列内容右列动作，各自独立排版互不撑行 */
+.tc-bottom-left { flex: 1; min-width: 0; } /* 左列内容区：占剩余宽度，未来加元素纵向堆叠不影响右列 */
+.tc-bottom-right { flex-shrink: 0; } /* 右列动作区：宽度随内容，独立于左列 */
+.tc-intro { font-size: .82rem; color: var(--ink-2); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* v1.4.1：教师卡简介（信任内容），2 行截断，完整在资料栏 */
+.tc-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; justify-content: flex-end; } /* v1.3.0：动作区右对齐（匹配度/推送并排） */
+/* 方形「发送需求」按钮：呼应参考图 Model details 按钮位 */
+.tc-push-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .78rem; font-weight: 700; letter-spacing: .02em;
+  transition: background-color var(--t-base) var(--ease-out), color var(--t-base) var(--ease-out);
+}
+/* 悬停外观由 glass.css 统一（宝石体+同色光晕+提亮叠层）；此处不再重写 background，旧 var(--ink) 黑底已删 */
+.tc-push-btn:disabled { opacity: .55; cursor: default; }
+.tc-push-btn .arrow { transition: transform var(--t-base) var(--ease-out); }
+.tc-push-btn:hover:not(:disabled) .arrow { transform: translateX(3px); }
+
+/* ============================================================
+   教师荣誉奖项（v1.0 R2）
+   ============================================================ */
+/* 编辑页奖项管理行 */
+.award-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+.award-row + .award-row { border-top: 1px solid var(--g-line-soft, rgba(0,0,0,.06)); }
+.award-row-main { flex: 1; min-width: 0; }
+.award-title { font-size: .88rem; color: var(--text); font-weight: 600; }
+.award-issuer, .award-date { font-weight: 400; color: var(--muted); font-size: .8rem; }
+.award-note { font-size: .74rem; color: var(--danger); margin-top: 2px; }
+/* 添加弹窗奖状上传区 */
+.award-proof-box { width: 100%; }
+.award-proof-pick { display: flex; align-items: center; justify-content: center; min-height: 96px; border: 1px dashed var(--g-line-soft, rgba(0,0,0,.14)); border-radius: 12px; cursor: pointer; padding: 8px; overflow: hidden; }
+.award-proof-hint { font-size: .8rem; color: var(--muted); text-align: center; padding: 12px; }
+.award-proof-thumb { max-width: 100%; max-height: 180px; object-fit: contain; border-radius: 8px; }
+/* 教师卡荣誉徽章 */
+.award-badge { display: inline-flex; align-items: center; font-size: .68rem; padding: 1px 8px; margin-left: 6px; }
+/* 资料右栏荣誉区 */
+.profile-award-row { padding: 5px 0; font-size: .84rem; color: var(--text); }
+.profile-award-row + .profile-award-row { border-top: 1px dashed var(--g-line-soft, rgba(0,0,0,.06)); }
+.profile-award-issuer, .profile-award-date { color: var(--muted); font-size: .78rem; }
+/* 管理员审核卡 */
+.admin-award-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.admin-award-meta { font-size: .78rem; color: var(--muted); margin-bottom: 4px; }
+.admin-award-note { font-size: .76rem; color: var(--danger); margin-bottom: 4px; }
+
+/* 管理端统计页待办队列（渐进式披露：今日必办置顶） */
+.todo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.todo-item { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: .84rem; cursor: pointer; }
+.todo-count { min-width: 26px; text-align: center; font-weight: 800; font-size: 1.05rem; color: var(--muted); }
+.todo-count--hot { color: var(--accent); }
+.todo-label { flex: 1; text-align: left; }
+.todo-arrow { color: var(--muted); }
+
+/* 管理端用户搜索框（页头内联，窄幅不占整行） */
+.admin-search { max-width: 240px; flex: 0 1 auto; }
+
+/* 需求卡科目/成绩 pill（扫读优先于点号串；与教师 profile-tag 同玻璃小件语言） */
+.demand-subj-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.demand-subj-row--goals { margin-top: 8px; } /* v1.4.3：学习目标 tag 行（分数 pill 之下） */
+.demand-detail-contact-hint { font-size: .82rem; color: var(--muted); } /* v1.4.3：联系方式占位灰字（未签约） */
+.demand-subj-pill { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; font-size: .78rem; }
+.demand-subj-pill b { font-weight: 700; color: var(--ink); }
+
+/* 个人信息栏报价行（核心决策数值突出） */
+.profile-price { display: inline-flex; align-items: baseline; gap: 3px; }
+.profile-price-num { font-variant-numeric: tabular-nums; } /* v1.4.2：详情页统一正文规格（继承 .profile-row-v）——用户批评详情页报价仍放大加粗 */
+.profile-price-unit { font-size: .72rem; font-weight: 400; color: var(--muted); } /* 单位小灰 */
+
+/* ============================================================
+   v1.2.0 T5：学信网验证门（资料页）——显眼需求卡片 + 验证码输入 + 学信网信息只读展示
+   ============================================================ */
+.chsi-gate-card { padding: 22px 24px; margin-bottom: 18px; --g-fill: var(--g-card-fill); --g-frost: var(--g-f-card, blur(6px) saturate(180%) brightness(1.05)); --g-r: var(--lg-r); --g-lift: var(--glass-lift); }
+.chsi-gate-title { font-size: 1.02rem; font-weight: 700; color: var(--ink); margin-bottom: 12px; letter-spacing: -.01em; }
+.chsi-gate-steps { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; }
+.chsi-gate-steps li { font-size: .86rem; color: var(--ink-2); line-height: 1.5; }
+.chsi-gate-hint { font-size: .78rem; color: var(--muted); line-height: 1.6; margin-bottom: 14px; }
+.chsi-gate-input { max-width: 420px; }
+/* v1.4.16 录取通知书验证（大一新生）：切换链接 / 隐私声明 / 上传行 / 预览 */
+.admission-switch-link { display: inline-block; margin-top: 14px; padding: 0; border: none; background: none;
+  font-size: .78rem; color: var(--accent); text-decoration: underline; cursor: pointer; font-family: inherit; }
+.admission-switch-link:hover { color: var(--accent-deep, var(--accent)); }
+.chsi-gate-privacy { font-size: .74rem; color: var(--muted); line-height: 1.6; margin: 0 0 14px;
+  padding: 10px 12px; border-left: 3px solid var(--g-surface, var(--accent)); background: var(--g-paper-bright, transparent); border-radius: 0 8px 8px 0; }
+.admission-upload-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.admission-file-name { font-size: .78rem; color: var(--muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admission-preview { margin-bottom: 12px; }
+.admission-preview img { max-width: 100%; max-height: 220px; border-radius: var(--lg-r, 12px); border: 1px solid var(--g-line-soft, var(--line)); }
+.verif-admission-preview { margin: 6px 0 0; }
+
+.chsi-gate-pending { font-size: .88rem; color: var(--accent-deep); line-height: 1.6; } /* 待核验提示：状态语义可用强调色 */
+.chsi-info-card { padding: 18px 22px; margin-bottom: 18px; }
+.chsi-info-title { font-size: .86rem; font-weight: 700; color: var(--ink); margin-bottom: 10px; letter-spacing: .02em; }
+.chsi-info-row { display: flex; gap: 14px; padding: 5px 0; align-items: baseline; }
+.chsi-info-k { flex: 0 0 84px; font-size: .72rem; font-weight: 500; color: var(--muted); }
+.chsi-info-v { font-size: .9rem; color: var(--ink); overflow-wrap: anywhere; }
+

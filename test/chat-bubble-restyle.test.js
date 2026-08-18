@@ -8,6 +8,7 @@ import { JSDOM } from 'jsdom';
 import { THEME, STYLE_PACKS } from '../src/client/constants/theme.js';
 import { renderChatBubble, renderChatMediaInner } from '../src/client/features/chat/render.js';
 import { state } from '../src/client/core/state.js';
+import { CHAT_CSS } from './_css.js';
 
 test('主题气泡 token：浅/深两套近实色，系统为低对比中性（治鲜艳+过透）', () => {
   assert.match(THEME.light['--g-bubble-mine'], /^#/, '浅色 mine 近实色 hex（非半透明）');
@@ -39,7 +40,7 @@ test('图片消息：气泡内 img 直铺（无 chip 嵌套）', () => {
 });
 
 test('气泡圆角主值 16px（style-chat.css 单源）', () => {
-  const css = readFileSync('./style-chat.css', 'utf8');
+  const css = CHAT_CSS;
   const m = /\.chat-bubble\s*{[^}]*--g-r:\s*(\d+)px/.exec(css);
   assert.ok(m, 'style-chat.css 存在 .chat-bubble 主规则');
   assert.equal(m[1], '16', '主圆角 16px');

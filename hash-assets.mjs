@@ -40,7 +40,7 @@ const normLf = s => s.replace(/\r\n/g, '\n');
 export function renderManifest() {
   // index.html 引用的 js/css（base 名；本脚本不改写 index.html，改写由 worker 服务时做）
   const html = normLf(readFileSync('index.html', 'utf8'));
-  const refs = [...new Set([...html.matchAll(/(?:src|href)="\/([a-zA-Z0-9._-]+\.(?:js|css))"/g)].map(m => m[1]))];
+  const refs = [...new Set([...html.matchAll(/(?:src|href)="\/([a-zA-Z0-9._\/-]+\.(?:js|css))"/g)].map(m => m[1]))];
   const all = [...new Set([...refs, ...DOMAIN_FILES])];
 
   const files = {};

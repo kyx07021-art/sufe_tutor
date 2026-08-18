@@ -20,6 +20,7 @@ import { JSDOM } from 'jsdom';
 import { enterAbout } from '../src/client/core/about.js';
 import { TEXT } from '../src/client/constants/text.js';
 import { state } from '../src/client/core/state.js';
+import { STYLE_CSS, CHAT_CSS } from './_css.js';
 
 test('文案单源：FUNDS_NOTE（全文）/ FUNDS_NOTE_SHORT（短文）/ 关于页声明 / 新手导引条齐备且语义一致', () => {
   const note = TEXT.FUNDS_NOTE;
@@ -60,10 +61,10 @@ test('签约请求气泡 + 关于页：短声明与小节就位', () => {
   const pages = readFileSync('./app-pages.js', 'utf8');
   assert.ok(pages.includes('UI.ABOUT_FUNDS_TITLE'), '关于页资金小节标题');
   assert.ok(pages.includes('UI.ABOUT_FUNDS_TEXT'), '关于页资金小节正文');
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.ok(css.includes('.funds-note {'), '浮窗资金声明样式');
   assert.ok(css.includes('.about-funds {'), '关于页资金分块样式');
-  const chatCss = readFileSync('./style-chat.css', 'utf8');
+  const chatCss = CHAT_CSS;
   assert.ok(chatCss.includes('.signing-bubble-funds {'), '气泡短声明样式');
 });
 

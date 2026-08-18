@@ -1,0 +1,156 @@
+/* features/browse.css - browse/list + toast (V-2-5b). */
+/* ============================================================
+   Browse / List
+   ============================================================ */
+/* 壳内列表容器：滚动由 .client-main 承担 */
+.browse-list { padding-right: 6px; }
+
+
+/* 筛选面板（.drop-wrap 内：margin 会在收起态泄漏高度，间距改由内边距承担） */
+.filter-panel { margin-bottom: 0; padding: 18px; }
+.filter-row { display: flex; gap: 16px; flex-wrap: wrap; }
+/* U3+：筛选下拉已缩窄，PC 端一行放下——需求大厅 4 组、
+   教师筛选 7 组均并入一行 .filter-row。min-width 100px：7×100+6×16=796px ≤ .client-page 920px
+   容器内一行（原 120px 时 7 组 = 936px 必折行，教师筛选恒两行是根因）。
+   （原上下两排 .filter-row + .filter-row 纵向空隙规则随结构删除；--filter-row-gap 变量保留注入无害） */
+.filter-group { flex: 1; min-width: 100px; }
+.filter-label { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); margin-bottom: 5px; letter-spacing: .03em; }
+.filter-select {
+  width: 100%; padding: calc(8px * var(--ui-scale, 1)) calc(24px * var(--ui-scale, 1)) calc(8px * var(--ui-scale, 1)) 2px; border: none; outline: none; /* 需求六·item5：筛选下拉尺寸随滑块 */
+  background-color: currentColor; /* v0.20.0 箭头 mask+currentColor 随主题变 */
+  -webkit-mask: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 3px center / 10px 6px;
+  mask: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right 3px center / 10px 6px;
+  font-size: .8rem; appearance: none; text-align: left; cursor: pointer;
+}
+
+/* 列表卡（悬停聚焦动效已全量取消，入场统一走 .reveal 浮入管线） */
+.list-card {
+  padding: var(--card-pad); margin-bottom: var(--sp-3);
+  position: relative; overflow: hidden; isolation: isolate;
+}
+/* v1.4.0：卡片可点反馈（原理#87/#88）——整卡可点必须有 hover 提亮 + focus-visible 焦点环；
+   .glass 背景在 hover 时提亮（提亮面），focus 用品牌色焦点环（同按钮焦点环语言） */
+.list-card:focus-visible { outline: 2px solid var(--accent, #7c5cff); outline-offset: 2px; }
+.list-card-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--sp-3); gap: var(--sp-3); }
+/* 标题行改 inline-flex + gap——匹配度按钮 PC 同行、移动端独占一行；
+   gap 统一元素间距（学科/非学科 tag 与用户名不再紧贴） */
+.list-card-title { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); font-weight: 700; font-size: 1rem; color: var(--ink); letter-spacing: -.01em; }
+.list-card-meta { font-size: .74rem; color: var(--muted); font-weight: 500; }
+.list-card-body { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+.tag {
+  display: inline-flex; align-items: center; padding: calc(3px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); /* 需求六·item5：tag 尺寸随滑块 */
+  font-size: .72rem; font-weight: 600; color: var(--ink-3); letter-spacing: .01em;
+  white-space: nowrap; /* #159：原子 pill 永不碎行——长标签保持整体形状（chat-peer-tag 同款先例），
+     换行由外层 flex-wrap 整粒承接，杜绝单个 pill 断成两行 */
+}
+/* 需求五·item1 匹配度标准按钮：从 tag 升级按钮，按分值三色遮罩（阈值单源 CONFIG.MATCH_COLOR_HIGH/MID）。
+   三色 = 染色玻璃（--g-fill 低 alpha 语义色，字色对应深色），玻璃/涟漪/焦点环由 glass 引擎提供 */
+.match-btn {
+  display: inline-flex; align-items: center; gap: 2px;
+  padding: calc(4px * var(--ui-scale, 1)) calc(10px * var(--ui-scale, 1)); font-size: .72rem; font-weight: 800; letter-spacing: .02em; /* 需求六·item5：匹配度按钮随滑块 */
+  position: relative; cursor: pointer; border: none; font-family: inherit;
+  --g-hover: var(--g-hover-wash); --g-raise: -1px; --g-scale: .97; /* 补按钮族交互三参数（同 .theme-opt） */
+}
+.match-btn--hi  { --g-fill: var(--g-ok-fill);     color: var(--g-ok-fg); }
+.match-btn--mid { --g-fill: var(--g-warn-fill);   color: var(--warn-deep); }
+.match-btn--lo  { --g-fill: var(--g-danger-fill); color: var(--danger); }
+
+/* 匹配度明细悬浮卡：fixed + 顶层 z（同 .custom-select-panel 的 v0.19.25 架构债先例）——
+   absolute+卡内 z-index 会被 .list-card 的 isolation 压层、被 overflow:hidden 切边，
+   left/top 由 JS 锚定匹配度按钮下方；动画纯 transform（opacity+backdrop-filter 同元素=磨砂白板） */
+.match-detail {
+  position: fixed; z-index: 300;
+  width: min(300px, calc(100vw - 24px));
+  padding: 14px 16px 12px;
+  animation: match-detail-in .18s var(--ease-out);
+}
+@keyframes match-detail-in {
+  from { transform: translateY(-4px); }
+  to   { transform: none; }
+}
+/* R25：明细卡三色等级——等级类设 --md-bar（填充/数值标准色）与 --md-track（未填充淡色遮罩）。
+   与匹配度按钮同阈值（matchLevel ≥HIGH 绿 / ≥MID 黄 / 其余红）；缺数据维度 --skip 保持灰。 */
+.match-detail--hi  { --md-bar: var(--ok-deep);   --md-track: var(--ok-tint); }
+.match-detail--mid { --md-bar: var(--warn-deep); --md-track: var(--warn-tint); }
+.match-detail--lo  { --md-bar: var(--danger);    --md-track: var(--danger-tint); }
+/* 明细行逐条独立配色——每维按各自比例定色（阈值同 matchLevel），
+   不再随总匹配度卡级一股脑同色；缺数据维度无行级类（灰底走 --skip）。 */
+.match-row--hi  { --md-bar: var(--ok-deep);   --md-track: var(--ok-tint); }
+.match-row--mid { --md-bar: var(--warn-deep); --md-track: var(--warn-tint); }
+.match-row--lo  { --md-bar: var(--danger);    --md-track: var(--danger-tint); }
+.match-detail-head { display: flex; align-items: baseline; gap: 8px; }
+.match-detail-pct { font-size: 1.5rem; font-weight: 800; letter-spacing: -.02em; color: var(--md-bar); }
+.match-detail-title { font-size: .78rem; font-weight: 700; letter-spacing: .06em; color: var(--ink); }
+.match-detail-sub { margin: 2px 0 10px; font-size: .72rem; color: var(--muted); }
+.match-row + .match-row { margin-top: 8px; }
+.match-row-top { display: flex; justify-content: space-between; align-items: baseline; font-size: .74rem; }
+.match-row-k { font-weight: 700; color: var(--ink); }
+.match-row-s { font-weight: 800; color: var(--md-bar); }
+.match-row-s--skip { font-weight: 600; color: var(--muted); font-size: .68rem; }
+.match-bar { margin-top: 3px; height: 4px; border-radius: 999px; background: var(--md-track); overflow: hidden; }
+.match-bar i { display: block; height: 100%; border-radius: 999px; background: var(--md-bar); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--md-bar) 30%, transparent); width: var(--bar-w, 0%); } /* 填充=标准色实色 + 同色发丝（低分/纸面上可辨）；v0.25.81 A7：宽度 CSS 变量 */
+.match-bar--skip { background: var(--g-bar-soft); } /* 缺数据维度：灰底保持中性，不随等级显色 */
+.match-row-hint { display: block; margin-top: 2px; font-size: .68rem; color: var(--muted); }
+.match-note { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--g-line-soft); font-size: .66rem; line-height: 1.5; color: var(--muted); }
+
+/* 需求五·item5 学生端逐需求明细：卡片随内容动态拉长（B4 v0.27.2：去 overflow/限高——
+   原 JS 注入 max-height 320，内容超几个 px 即在比例条区右侧出诡异小滚动条） */
+.match-t-list { display: flex; flex-direction: column; gap: 8px; }
+.match-t-item { --g-fill: var(--g-fill-weak); --g-r: var(--lg-r-sm); padding: 8px 10px; }
+.match-t-head { margin-bottom: 6px; }
+.match-t-head-main { display: block; font-size: .74rem; font-weight: 800; color: var(--ink); line-height: 1.5; }
+
+/* Toast（全站轻提示，v0.25.99 升级全风格）：定位/入场/退场全在 CSS 呈现层。
+   JS 只增删节点 + 切 .toast--out 退场类。容器 #toast-container 固定底部中央、flex 堆叠多条；
+   kind 变体只换 --g-fill/--g-fg 底色+文字色，无左竖条（alert 系 --g-surface 左竖条连根拔） */
+#toast-container {
+  position: fixed; bottom: 24px; left: 0; right: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  z-index: 300; /* 高于 modal-overlay 200：浮于一切弹窗/面板之上 */
+  pointer-events: none; /* 容器不挡点击；toast 自身可点 */
+}
+.toast {
+  pointer-events: auto;
+  padding: 12px 24px; font-size: 0.875rem; font-weight: 500;
+  max-width: min(86vw, 440px); text-align: center;
+  animation: fadeUp .3s var(--ease-snap) both; /* 毛玻璃 transform 动画走 animation 纯 transform（禁 transition，Chromium 983252） */
+  transition: opacity .3s ease; /* 退场只淡 opacity，无 transform，transition 安全 */
+}
+.toast--out { opacity: 0; }
+/* info 走玻璃引擎默认（glass.css .toast 的 --g-fill-strong）；error/success/warn 换底色+文字色。
+   双类提特异性（0,2,0）压 glass.css 后加载的 .toast（0,1,0），颜色不被引擎默认覆盖 */
+.toast.toast--error { --g-fill: var(--g-danger-fill-soft); --g-fg: var(--danger-deep); }
+.toast.toast--success { --g-fill: var(--g-ok-fill); --g-fg: var(--ok-deep); }
+.toast.toast--warn { --g-fill: var(--g-warn-fill); --g-fg: var(--warn-deep); }
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+
+
+
+.list-card-detail { margin-top: 12px; font-size: .8rem; color: var(--ink-3); line-height: 1.6; }
+.list-card-contact {
+  margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line);
+  font-size: .8rem; color: var(--muted); display: flex; gap: 20px;
+}
+
+/* 评分星 */
+.stars { display: inline-flex; gap: 1px; font-size: .85rem; }
+.stars .star { color: var(--star-empty); }
+.stars .star.filled { color: var(--star); }
+
+/* 评价（教师弹窗内）：无框，细线分行 */
+.review-item { padding: 12px 2px; font-size: .8rem; }
+.review-item + .review-item { border-top: 1px solid var(--line); }
+.review-item .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+.review-item .review-author { font-weight: 700; color: var(--ink-3); }
+.review-item .review-date { font-size: .68rem; color: var(--muted); }
+.review-item .review-text { color: var(--ink-3); line-height: 1.5; }
+
+.empty-state { text-align: center; padding: 40px 24px; color: var(--ink-3); }
+.empty-state:not(:has(.loader, .spinner))::before { content: '—'; display: block; font-size: 1.6rem; line-height: 1; color: var(--faint); margin-bottom: 10px; }
+.empty-state p { font-size: .92rem; }
+

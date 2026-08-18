@@ -61,6 +61,8 @@ for (const name of readdirSync(ROOT)) {
   }
 }
 cpSync(join(ROOT, 'web/theme-init.js'), join(DIST, 'theme-init.js'));
+// V-2-5b CSS 重组：features/*.css 目录资产（根文件循环只拷根级文件）
+cpSync(join(ROOT, 'features'), join(DIST, 'features'), { recursive: true });
 
 // 部署自检：dist/_worker.js 必须是 esbuild 完整 bundle，且构建脚本绝不改写 esbuild 产物内容。
 // 失败历史：早前版本曾正则归一化 default export 并回写文件，把 420KB bundle 截成 129 字节。

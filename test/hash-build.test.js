@@ -32,8 +32,8 @@ test('versionedBase：仅放行 manifest 校验通过的版本化 URL', () => {
 });
 
 test('injectManifest：改写资产引用为哈希名 + 内联 manifest；非 js/css 不动', () => {
-  const out = injectManifest('<head><link rel="stylesheet" href="/style.css"><script src="/constants.js"></script></head><body>');
-  assert.ok(out.includes(`href="/${ASSET_MANIFEST.files['style.css']}"`), 'CSS 引用改哈希名');
+  const out = injectManifest('<head><link rel="stylesheet" href="/tokens.css"><script src="/constants.js"></script></head><body>');
+  assert.ok(out.includes(`href="/${ASSET_MANIFEST.files['tokens.css']}"`), 'CSS 引用改哈希名（V-2-5b tokens.css）');
   assert.ok(out.includes(`src="/${ASSET_MANIFEST.files['constants.js']}"`), 'JS 引用改哈希名');
   assert.ok(out.includes('window.ASSET_MANIFEST'), '内联 manifest 注入（懒加载器读取）');
   const img = injectManifest('<link rel="icon" href="/favicon.ico">');

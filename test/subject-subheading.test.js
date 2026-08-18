@@ -9,9 +9,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STYLE_CSS } from './_css.js';
 
 test('科目名 = 左对齐子标题：不右贴输入控件、定宽列 + 左对齐 + 子标题字重', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const rule = css.split('.gaokao-row .subject-name, .score-row .score-subject {')[1] || '';
   const body = rule.split('}')[0];
   assert.ok(body, '科目名规则存在（资料页 + 需求浮窗共用）');

@@ -9,8 +9,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STYLE_CSS } from './_css.js';
 
-const css = readFileSync('./style.css', 'utf8');
+const css = STYLE_CSS;
 const glass = readFileSync('./glass.css', 'utf8');
 const constants = readFileSync('./constants.js', 'utf8');
 

@@ -13,12 +13,22 @@
        Noto Sans SC 裁 900（全站 9 处，CSS 最近匹配回落 700）；500/700 大量使用保留，杜绝 CJK 假粗体 -->
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <noscript><link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet"></noscript>
-  <link rel="stylesheet" href="/style.css">
-  <!-- #176 领域样式异步化：style-chat/posts/region 只服务登录后领域页（首屏不参与），media=print
+  <!-- V-2-5b CSS 重组：tokens → base → features → responsive → glass（层叠顺序 = 原 style.css 全段 → 域异步 → glass 恒最后） -->
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/features/complaints.css">
+  <link rel="stylesheet" href="/features/browse.css">
+  <link rel="stylesheet" href="/features/admin.css">
+  <link rel="stylesheet" href="/features/teacher.css">
+  <link rel="stylesheet" href="/features/notif.css">
+  <link rel="stylesheet" href="/features/chart.css">
+  <link rel="stylesheet" href="/features/demand.css">
+  <link rel="stylesheet" href="/responsive.css">
+  <!-- 域样式异步化：chat/posts/region 只服务登录后领域页（首屏不参与），media=print
        异步下载不阻塞首绘；领域页在登录 + enterClient 后才渲染，届时已缓存，无 FOUC -->
-  <link rel="stylesheet" href="/style-region.css" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="/style-posts.css" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="/style-chat.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/features/chat.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/features/posts.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/features/region.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/glass.css">
   <noscript><style>.hand-part{opacity:.14!important;transform:none!important}.flow-field{opacity:.5!important}.eyebrow,.hero-title span,.stage-copy,.stage-kicker,.stage-note,.entry{opacity:1!important;transform:none!important}</style></noscript>
 

@@ -1,0 +1,26 @@
+/* features/demand.css - demand cards (V-2-5b). */
+/* ============================================================
+   需求卡海报式三层（v1.0.3：卡面只留学什么/年级方式/预算焦点/时间，
+   地区/性别/成绩/补充说明收进详情浮窗）+ 需求详情浮窗
+   ============================================================ */
+.demand-title { font-size: 1.3rem; font-weight: 700; color: var(--ink); letter-spacing: -.01em; margin-top: var(--sp-2); } /* v1.3.0：L1 科目=海报主标题（结构性升级） */
+.demand-sub { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-2); font-size: .83rem; color: var(--ink-3); } /* v1.3.0：L3 元数据合并一条（年级·方式·期望时间） */
+.demand-price { margin-top: var(--sp-3); } /* v1.3.0：L2 预算焦点带（独立成行） */
+.demand-budget { display: inline-flex; align-items: baseline; gap: 3px; }
+.demand-budget-num { font-size: 1.3rem; font-weight: 500; color: var(--ink); letter-spacing: -.02em; font-variant-numeric: tabular-nums; } /* 预算=数字焦点「大而轻」：统一字体族不搞 mono 特例 */
+.demand-budget-unit { font-size: .72rem; font-weight: 400; color: var(--muted); } /* 单位小灰 */
+.demand-budget--nego { font-size: .95rem; font-weight: 500; color: var(--ink-3); } /* 面议：无单位，弱一档；统一字体族 */
+/* 详情浮窗：分组流式排布（无表格），间距节奏与资料右栏同语言 */
+.demand-detail-head { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.demand-detail-avatar { width: 52px; height: 52px; font-size: 1.3rem; }
+.demand-detail-head-main { min-width: 0; }
+.demand-detail-name { font-size: 1.05rem; font-weight: 600; color: var(--ink); }
+.demand-detail-tags { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.demand-detail-sec { margin-top: var(--sp-5); }
+.demand-detail-rows { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-3); }
+.demand-detail-row { display: grid; grid-template-columns: calc(84px * var(--ui-scale, 1)) 1fr; column-gap: var(--sp-3); align-items: baseline; }
+.demand-detail-k { font-size: .78rem; font-weight: 600; color: var(--ink-3); letter-spacing: .02em; }
+.demand-detail-v { font-size: .9rem; color: var(--ink); overflow-wrap: anywhere; }
+.demand-detail-v--price { font-variant-numeric: tabular-nums; } /* v1.4.2：详情页统一正文规格（继承 .demand-detail-v）——用户批评详情页预算仍放大加粗 */
+.demand-detail-text { margin-top: 8px; font-size: .85rem; color: var(--ink-3); line-height: 1.65; }
+

@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { THEME, STYLE_PACKS } from '../src/client/constants/theme.js';
+import { STYLE_CSS } from './_css.js';
 
 test('glass.css：内生滚动条两条引擎路径在位（Firefox 细双色 / Chromium 胶囊伪元素 + 标准属性复位）', () => {
   const css = readFileSync('./glass.css', 'utf8');
@@ -38,7 +39,7 @@ test('滚动条 token 单源：THEME light/dark + flat 包覆盖，材质随外�
 });
 
 test('旧散装滚动条 CSS 已连根删（统一组件替代）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.ok(!/\.browse-list::-webkit-scrollbar/.test(css), '旧 .browse-list 滚动条组已删');
   assert.ok(!/\.custom-select-list::-webkit-scrollbar/.test(css), '旧 .custom-select-list 滚动条组已删');
   assert.ok(!/var\(--paper-3\)/.test(css.split('scrollbar')[1] || ''), '旧 thumb 纸面灰块已删');

@@ -5,11 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>经途·伴学信息门户 - 零佣金家教信息共享平台</title>
   <script src="/theme-init.js"></script>
-  <link rel="stylesheet" href="/style.css">
-  <!-- 域样式异步化（与 v1 同款）：只服务登录后领域页，首屏不参与，media=print 异步下载不阻塞首绘 -->
-  <link rel="stylesheet" href="/style-region.css" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="/style-posts.css" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="/style-chat.css" media="print" onload="this.media='all'">
+  <!-- V-2-5b CSS 重组：tokens → base → features → responsive → glass（层叠顺序同 v1） -->
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/base.css">
+  <link rel="stylesheet" href="/features/complaints.css">
+  <link rel="stylesheet" href="/features/browse.css">
+  <link rel="stylesheet" href="/features/admin.css">
+  <link rel="stylesheet" href="/features/teacher.css">
+  <link rel="stylesheet" href="/features/notif.css">
+  <link rel="stylesheet" href="/features/chart.css">
+  <link rel="stylesheet" href="/features/demand.css">
+  <link rel="stylesheet" href="/responsive.css">
+  <!-- 域样式异步化：chat/posts/region 只服务登录后领域页（首屏不参与），media=print 异步下载不阻塞首绘 -->
+  <link rel="stylesheet" href="/features/chat.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/features/posts.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/features/region.css" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/glass.css">
   <script type="module" src="/assets/app.js"></script>
 </head>

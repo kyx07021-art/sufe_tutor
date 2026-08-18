@@ -31,7 +31,7 @@ import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清�
 
 // 校验路径是否为 manifest 中的版本化资产 URL（/app-chat.<hash8>.js），是则回 base 名
 export function versionedBase(p) {
-  const m = p.match(/^\/([a-zA-Z0-9._-]+)\.([0-9a-f]{8})\.(js|css)$/);
+  const m = p.match(/^\/([a-zA-Z0-9._\/-]+)\.([0-9a-f]{8})\.(js|css)$/);
   if (!m) return null;
   const base = m[1] + '.' + m[3];
   const hashed = m[1] + '.' + m[2] + '.' + m[3];
@@ -50,7 +50,7 @@ function cacheableAsset(res) {
 // 改写 HTML 文档：资产引用 → 哈希名 + 内联 manifest（懒加载器读 window.ASSET_MANIFEST.files）
 export function injectManifest(html) {
   const files = ASSET_MANIFEST.files;
-  const out = html.replace(/(src|href)="\/([a-zA-Z0-9._-]+\.(?:js|css))"/g, (m, attr, base) => `${attr}="/${files[base] || base}"`);
+  const out = html.replace(/(src|href)="\/([a-zA-Z0-9._\/-]+\.(?:js|css))"/g, (m, attr, base) => `${attr}="/${files[base] || base}"`);
   return out.replace('</head>', `<script>window.ASSET_MANIFEST=${JSON.stringify(ASSET_MANIFEST)};</script></head>`);
 }
 
@@ -261,7 +261,7 @@ export default {
           // #260（v0.25.102）：命中空/无长度缓存不返回，直接回源覆盖（防历史毒化条目自愈）
           if (cached && cacheableAsset(cached)) return applySecurityHeaders(cached, p);
         }
-        const res = await env.ASSETS.fetch(new Request(new URL(vBase, url), request));
+        const res = await env.ASSETS.fetch(new Request(new URL('/' + vBase, url), request)); // F1 修复：vBase 子目录时按站点根解析（相对会重复目录段）
         if (res.ok) {
           const headers = new Headers(res.headers);
           headers.set('Cache-Control', 'public, max-age=31536000, immutable');
@@ -274,7 +274,7 @@ export default {
       }
       // 版本化形态但不在当前 manifest（部署竞态里浏览器可能带旧哈希 URL 撞新版本）→ 404，
       // 绝不给 HTML 冒充脚本（SPA 回退会把 index.html 喂给 <script src>，报错且难排查）
-      if (/^\/([a-zA-Z0-9._-]+)\.([0-9a-f]{8})\.(js|css)$/.test(p)) {
+      if (/^\/([a-zA-Z0-9._\/-]+)\.([0-9a-f]{8})\.(js|css)$/.test(p)) {
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
       const res = await env.ASSETS.fetch(request);

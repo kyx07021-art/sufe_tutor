@@ -63,6 +63,7 @@ import notifFeature from '../src/client/features/notif/index.js';
 import { chat } from '../src/client/features/chat/chat-state.js';
 import { stopChatPolling, chatTeardown } from '../src/client/features/chat/actions-list.js';
 import { loadBrowseDemands } from '../src/client/features/student/actions.js';
+import { STYLE_CSS } from './_css.js';
 
 class MOStub { observe() {} disconnect() {} takeRecords() { return []; } }
 
@@ -670,7 +671,7 @@ test('R27 dynamic hole binding: target drift repositions the hole, removal hides
 });
 
 test('tour CSS rules in place (style.css direct read, no DOM build)', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.ok(css.includes('.tour-overlay {'), 'overlay stays mounted');
   assert.ok(css.includes('.tour-overlay--dim { background: rgba(17, 17, 20, .28); }'), 'weak dim placeholder while the hole is hidden');
   assert.ok(css.includes('.tour-hole {') && css.includes('transition: opacity .26s ease-out .16s'), 'hole delayed fade-in');

@@ -11,9 +11,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { openModal } from '../src/client/core/ui-modal.js';
+import { STYLE_CSS } from './_css.js';
 
 test('modal--wide 规则就位：仅提升 max-width（不设 width），移动端受 width:100% 兜底不过宽', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   const ruleBody = (css.split('#modal-container .modal.modal--wide {')[1] || '').split('}')[0];
   assert.ok(ruleBody.includes('max-width: 760px'), '宽版弹窗 max-width 760px（PC 阅读舒适）');
   assert.ok(!ruleBody.includes('width: 100%'), '只提上限不设显式宽度——窄屏由 base width:100% 兜住（移动不过宽）');
@@ -37,7 +38,7 @@ test('文本浮窗全覆盖 modal--wide（政策/使用指南/合同查看/签�
   assert.ok(shell.includes("cls: 'modal--wide'"), '模块介绍浮窗拓宽');
   assert.ok((admin.match(/cls: 'modal--wide'/g) || []).length >= 2, '管理端帖子/合同全文拓宽');
   // 旧专用加宽类已删（统一走标准接口，不留特例）
-  assert.ok(!readFileSync('./style.css', 'utf8').includes('.module-info-modal'), 'module-info-modal 死规则已删');
+  assert.ok(!STYLE_CSS.includes('.module-info-modal'), 'module-info-modal 死规则已删');
 });
 
 test('渲染验证：openModal 带 cls 时宽版类落到 .modal 元素', () => {

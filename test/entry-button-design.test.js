@@ -10,6 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { STYLE_CSS } from './_css.js';
 
 test('R28 主页入口：两个 .entry 各挂 .entry-glow 光斑子元素', () => {
   const html = readFileSync('./index.html', 'utf8');
@@ -23,7 +24,7 @@ test('R28 主页入口：两个 .entry 各挂 .entry-glow 光斑子元素', () =
 });
 
 test('R28 CSS：光斑跟随变量 + 扫光 + 辉光边缘 + 弹簧按压（四件套）', () => {
-  const css = readFileSync('./style.css', 'utf8');
+  const css = STYLE_CSS;
   assert.ok(css.includes('.entry-glow {') && css.includes('radial-gradient(240px circle at var(--mx, 50%) var(--my, 50%)'),
     '光斑径向渐变跟随 --mx/--my（光标位置）');
   assert.ok(css.includes('.entry:hover .entry-glow, .entry:focus-visible .entry-glow { opacity: 1; }'),

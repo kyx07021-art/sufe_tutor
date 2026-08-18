@@ -1,0 +1,146 @@
+/* features/notif.css - notifications list (V-2-5b). */
+/* ============================================================
+   通知信息列表
+   ============================================================ */
+/* 屏蔽系统通知按钮（需求四·4b）+ 收藏 toggle（B7 返工：复用同一 SVG 勾）：标准按钮样式，无特殊颜色遮罩；
+   选中态 = 前置小勾（SVG 描边勾，非 √ 文本符号），颜色走 currentColor=--ok-deep 单源，按钮字色不变。
+   未选中时勾宽 0（不占位、文字居中与标准按钮一致）；选中时 12px 勾 + 8px 间距展开（宽度过渡即显勾）。
+   SVG data-uri 单源：.notif-block-btn 与 .posts-fav-btn 共用一条 ::before 规则，勿复制。 */
+.notif-block-btn { gap: 0; }
+.notif-block-btn::before, .posts-fav-btn::before {
+  content: ''; display: inline-block; flex: 0 0 auto;
+  width: 0; height: 12px; color: var(--ok-deep);
+  background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 6.5 L5 9.5 L10 3' fill='none' stroke='currentColor' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/></svg>") center/contain no-repeat;
+  transition: width var(--t-fast) var(--ease-out), margin-right var(--t-fast) var(--ease-out);
+}
+.notif-block-btn--on::before, .posts-fav-btn--on::before { width: 12px; margin-right: 8px; }
+
+.notif-item {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 16px; margin-bottom: 8px;
+  position: relative; overflow: hidden; /* #151：供未读呼吸遮罩定位并裁切到卡片圆角 */
+}
+/* #151：未读提醒由左侧红竖线改为整卡呼吸遮罩——危险色洗底淡入淡出（红点+加粗文字保留作
+   静态锚点）；点击消除（markNotifRead）去掉 .unread 后遮罩随伪元素消失。::after 带 pointer-events:none，
+   点击仍落在卡片本体；reduced-motion 由全站统一规则压到 1ms（style.css 底部）。 */
+.notif-item.unread::after {
+  content: ''; position: absolute; inset: 0;
+  background: var(--danger);
+  opacity: 0;
+  /* U9：呼吸再加速（原 1.4s 仍慢）+ 加 25/75 中间关键帧让曲线更细、无跳变感；
+     will-change: opacity 提示合成层（opacity 为合成属性，防整卡大区域重绘卡顿） */
+  animation: notif-breathe .9s ease-in-out infinite;
+  will-change: opacity;
+  pointer-events: none;
+}
+@keyframes notif-breathe {
+  0%, 100% { opacity: 0; }
+  25%, 75% { opacity: .09; }
+  50% { opacity: .13; }
+}
+.notif-dot { flex: 0 0 8px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-top: 7px; }
+.notif-dot.read { background: transparent; }
+.notif-body { flex: 1; min-width: 0; }
+.notif-text { font-size: .86rem; line-height: 1.65; color: var(--ink-3); }
+.notif-item.unread .notif-text { color: var(--ink); font-weight: 600; }
+.notif-time { font-family: var(--mono); font-size: .68rem; color: var(--muted); margin-top: 5px; }
+
+/* 发送需求弹窗：单选自己的需求 */
+.push-pick { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow-y: auto; }
+.push-pick-item {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+.push-pick-item:hover { border-color: var(--faint); }
+.push-pick-item input { margin-top: 3px; flex: 0 0 auto; }
+.push-pick-main { font-size: .86rem; font-weight: 700; color: var(--ink); }
+.push-pick-sub { font-size: .74rem; color: var(--muted); margin-top: 3px; }
+
+/* ---------- utilities ---------- */
+.hidden { display: none !important; }
+.text-muted { color: var(--muted); }
+.text-danger { color: var(--danger); } /* 危险状态文案（撤销合同/错误提示） */
+.text-sm { font-size: .8rem; }
+/* 散落内联 margin-bottom 收口为语义间距类（间距值自定，禁裸数字） */
+.spacer-sm { margin-bottom: 8px; }
+.spacer-md { margin-bottom: 12px; }
+.spacer-lg { margin-bottom: 16px; }
+.text-relaxed { line-height: 1.7; }
+/* 弹窗内「作者 · 时间」元信息行（原内联 margin-bottom） */
+.modal-sub-info { margin-bottom: 12px; }
+.review-mine-note { margin-top: 8px; font-size: .74rem; color: var(--muted); }
+.sidebar-version { margin-top: 8px; font-family: var(--mono); font-size: .58rem; letter-spacing: .12em; color: var(--ink-3); opacity: .45; text-align: right; } /* 侧边栏白卡底：小字版本号 */
+.demand-id-tag { font-family: var(--mono); font-size: .72rem; font-weight: 700; letter-spacing: .06em; color: var(--ink-3); margin-left: 6px; } /* v0.20.0 编号从气泡挪出，与时间标记同排（时间右侧） */
+.form-note-block { margin-top: 6px; font-size: .72rem; line-height: 1.5; color: var(--muted); } /* 表单字段下方灰字备注 */
+.form-group > .form-other-wrap { margin-top: 10px; flex-basis: 100%; display: flex; } /* 下拉选「其他」时展开的文字输入行——独占整行排下拉下方、输入撑满整行（曾与下拉+label 同排挤成 186px 错位；特异性须压过 .form-group > div 的 flex:1 1 0） */
+/* v0.25.87 R10 +：wrap 独占整行后左缘在表单最左
+   （= 116px label 列起点），输入框会从最左一直伸进标题列。右推 calc(116px + 22px)（.form-label flex:0 0 116px
+   + .form-group 列间距 22px 单源对照）使输入框左缘对齐 select/其他字段列（x=328），不再戳进 title 区。 */
+.form-other-wrap .form-input { flex: 1; min-width: 0; margin-left: calc(116px + 22px); }
+/* 低调危险操作（撤销合同/注销账户）：玻璃圆角小按钮 + 红色危险染色——圆角由 .glass 引擎统一
+   （旧 border-radius:0 与玻璃圆角竞争、方角胜出，已删；用户纪律：竞争删一方） */
+.btn-text-danger {
+  display: inline-flex; align-items: center; gap: 6px; position: relative; overflow: hidden; isolation: isolate;
+  background: none; border: none; cursor: pointer;
+  font-size: .72rem; text-decoration: none;
+  transition: transform var(--t-fast) var(--ease-out);
+}
+.settings-deactivate { margin-top: 14px; margin-left: 10px; }
+.username-deactivated { color: var(--muted); font-style: italic; } /* 已注销用户墓碑样式 */
+.danger-warn { font-size: .84rem; line-height: 1.75; color: var(--ink-3); } /* 危险操作弹窗的说明正文 */
+/* 加宽统一走 modal--wide，旧专用加宽类死规则已删 */
+.module-info-md { font-size: .86rem; line-height: 1.75; color: var(--ink-3); }
+.module-info-md h2 {
+  font-size: 1.02rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);
+  margin: 18px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--g-line-soft);
+}
+.module-info-md h2:first-child { margin-top: 0; }
+/* module-info 标题收敛——h2 原专属样式保留，补 h1/h3-h6 阶梯（原吃浏览器巨大默认） */
+.module-info-md h1 { font-size: 1.05rem; font-weight: 900; color: var(--ink); margin: 16px 0 7px; }
+.module-info-md h3 { font-size: .96rem; font-weight: 800; color: var(--ink-2); margin: 12px 0 5px; }
+.module-info-md h4 { font-size: .92rem; font-weight: 800; color: var(--ink-2); margin: 10px 0 4px; }
+.module-info-md h5 { font-size: .9rem; font-weight: 700; color: var(--ink-3); margin: 8px 0 3px; }
+.module-info-md h6 { font-size: .88rem; font-weight: 700; color: var(--ink-3); margin: 7px 0 3px; }
+.module-info-md h1:first-child, .module-info-md h3:first-child, .module-info-md h4:first-child,
+.module-info-md h5:first-child, .module-info-md h6:first-child { margin-top: 0; }
+.module-info-md p { margin: 6px 0; overflow-wrap: anywhere; }
+.module-info-md strong { color: var(--ink); font-weight: 800; }
+/* v0.25.94：模块介绍 md 列表同口径——全局 *{padding:0} 清零 ol/ul 默认缩进，无规则则编号从左边戳出正文 */
+.module-info-md ul, .module-info-md ol { margin: 6px 0 6px 20px; padding-left: 16px; }
+.module-info-md ul { list-style: disc; }
+.module-info-md ol { list-style: decimal; }
+.module-info-md li { margin: 2px 0; overflow-wrap: anywhere; }
+/* v0.25.94：模块介绍 md blockquote/img/code 同口径（引用随正文缩进、图片限宽、行内代码样式） */
+.module-info-md blockquote {
+  margin: 6px 0 6px 12px; padding: 4px 12px;
+  border-left: 3px solid var(--accent-tint, rgba(122,104,224,.3));
+  color: var(--ink-3); line-height: 1.75;
+}
+.module-info-md blockquote p { margin: 2px 0; }
+.module-info-md img { display: block; max-width: 100%; margin: 8px 0; border: 1px solid var(--border-light); }
+.module-info-md code {
+  font-family: var(--mono); font-size: .78em;
+  padding: 1px 5px; border-radius: 5px;
+  background: var(--g-fill-weak, rgba(255,255,255,.5));
+  color: var(--accent-deep, #4B3DB0);
+  overflow-wrap: anywhere;
+}
+/* 关于平台：纵向流程图（编号圆圈 + 圆间细连线 + 右侧简述），连线 min-height 保底不过短 */
+.about-flow { display: flex; flex-direction: column; padding: 4px 2px 0; }
+.about-flow-step { display: flex; gap: 14px; }
+.about-flow-rail { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+.about-flow-dot { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: .78rem; font-weight: 700; color: var(--ink); } /* G35：圆角交还引擎 --g-r:50%（glass.css:356） */
+.about-flow-line { width: 1.5px; flex: 1; min-height: 28px; margin: 5px 0; background: var(--line); }
+.about-flow-text { margin: 4px 0 20px; font-size: .86rem; line-height: 1.65; color: var(--ink-3); }
+.about-flow-step:last-child .about-flow-text { margin-bottom: 2px; }
+
+/* ---------- 尊重减弱动效偏好 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  /* 减弱动效：直接显示终态，不出现就绪前"幕布"空白 */
+  .hand-part { opacity: .14 !important; transform: none !important; }
+  .flow-field { opacity: .5 !important; }
+  .eyebrow, .hero-title span, .stage-copy, .stage-kicker, .stage-note, .entry { opacity: 1 !important; transform: none !important; }
+}
+
