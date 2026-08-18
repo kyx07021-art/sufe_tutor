@@ -3,8 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>V2 shell</title>
+  <title>经途·伴学信息门户 - 零佣金家教信息共享平台</title>
   <script src="/theme-init.js"></script>
+  <link rel="stylesheet" href="/style.css">
+  <!-- 域样式异步化（与 v1 同款）：只服务登录后领域页，首屏不参与，media=print 异步下载不阻塞首绘 -->
+  <link rel="stylesheet" href="/style-region.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/style-posts.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/style-chat.css" media="print" onload="this.media='all'">
+  <link rel="stylesheet" href="/glass.css">
   <script type="module" src="/assets/app.js"></script>
 </head>
 <body>
