@@ -99,11 +99,11 @@ function contentDiff(a, b) {
   const out = [];
   for (const t of Object.keys(b)) {
     if (t === 'users') {
-      if (a[t].digestMain !== b[t].digestMain) out.push(`${t}.主内容`);
-      if (a[t].digestNonAdminCred !== b[t].digestNonAdminCred) out.push(`${t}.非admin口令列`);
-      if (a[t].digestAdminCred !== b[t].digestAdminCred) out.push(`${t}.admin口令列(seedAdmins)`);
-    } else if (a[t].digest !== b[t].digest) {
-      out.push(`${t}.内容`);
+      if (a[t]?.digestMain !== b[t].digestMain) out.push(`${t}.主内容`);
+      if (a[t]?.digestNonAdminCred !== b[t].digestNonAdminCred) out.push(`${t}.非admin口令列`);
+      if (a[t]?.digestAdminCred !== b[t].digestAdminCred) out.push(`${t}.admin口令列(seedAdmins)`);
+    } else if (a[t]?.digest !== b[t].digest) {
+      out.push(`${t}.内容`); // 未来迁移新建表时 a[t] 为 undefined → 判为内容变化（审计硬化建议）
     }
   }
   return out;
