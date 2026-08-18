@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { renderPostCard } from '../src/client/features/posts/render.js';
-import { togglePostLike, setPostsEnsureAuth } from '../src/client/features/posts/actions-list.js';
+import { togglePostLike } from '../src/client/features/posts/actions-list.js';
+import { setEnsureAuth } from '../src/client/core/api.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -37,7 +38,7 @@ test('点赞成功：checked 以服务端 data.liked 收敛，计数随动', asy
   const dom = setup();
   const saved = globalThis.fetch;
   globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ liked: true, likeCount: 4 }) });
-  setPostsEnsureAuth(() => true);
+  setEnsureAuth(() => true);
   state.user = { id: 38, username: 'kkkk', role: 'teacher' };
   dom.window.document.getElementById('posts-list').innerHTML =
     `<label class="post-like glass" data-id="9"><input type="checkbox" aria-label="点赞"><span class="like-count">3</span></label>`;
@@ -54,7 +55,7 @@ test('点赞失败：回滚到点前态', async () => {
   const dom = setup();
   const saved = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error('网络错误'); };
-  setPostsEnsureAuth(() => true);
+  setEnsureAuth(() => true);
   state.user = { id: 38, username: 'kkkk', role: 'teacher' };
   dom.window.document.getElementById('posts-list').innerHTML =
     `<label class="post-like glass" data-id="9"><input type="checkbox" aria-label="点赞"><span class="like-count">3</span></label>`;
@@ -71,7 +72,7 @@ test('点赞失败：回滚到点前态', async () => {
 
 test('点赞访客：ensureAuth 拦截并回滚原生翻转', async () => {
   const dom = setup();
-  setPostsEnsureAuth(() => false);
+  setEnsureAuth(() => false);
   state.user = null;
   dom.window.document.getElementById('posts-list').innerHTML =
     `<label class="post-like glass" data-id="9"><input type="checkbox" aria-label="点赞"><span class="like-count">3</span></label>`;

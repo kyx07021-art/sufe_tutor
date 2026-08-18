@@ -15,9 +15,11 @@ import { stopBadgePoll } from '../src/client/core/router.js';
 import { stopVersionProbe } from '../src/client/core/datahub.js';
 import { closeAllModals } from '../src/client/core/ui.js';
 import authFeature from '../src/client/features/auth/index.js';
+import settingsFeature from '../src/client/features/settings/index.js';
 import * as auth from '../src/client/features/auth/actions.js';
 import * as render from '../src/client/features/auth/render.js';
 import { TEXT } from '../src/client/features/auth/text.js';
+import { TEXT as SETTINGS_TEXT } from '../src/client/features/settings/text.js';
 
 CONFIG.TOAST_MS = 10;
 CONFIG.TOAST_FADE_MS = 1;
@@ -42,7 +44,6 @@ const SHELL_HTML = `<!doctype html><html><body>
     <main id="client-main"><div id="navbar-actions"></div></main>
   </div>
   <div id="modal-container"></div><div id="toast-container"></div>
-  <span id="settings-phone-val"></span><span id="settings-email-val"></span>
 </body></html>`;
 
 function useDom(dom) {
@@ -100,6 +101,7 @@ function canvasMock(dom) {
     globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '',
     beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {},
     arc: () => {}, rect: () => {}, stroke: () => {}, clearRect: () => {}, drawImage: () => {},
+    fill: () => {}, // v1.4.17 parity: captcha destination-in/out fill (stub must mirror the call)
     getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
 }
@@ -338,16 +340,46 @@ test('logout cleanup: api logout, reset registry, state/arrays/session cleared, 
   assert.equal(document.getElementById('modal-container').innerHTML, '');
 });
 
-test('phone/email bind: modal fields + doBind body + masked value update', async (t) => {
+test('phone/email bind: production-shape settings DOM + click delegation + doBind + masked update', async (t) => {
   resetRuntime();
   makeDom();
   mountFeature(t);
-  let reloads = 0;
-  globalThis.loadMyCreds = () => { reloads++; };
+  // 六轮审计：裸 span 替身 + 未装 settings feature → 测试绿掩盖生产断。本轮：
+  // SHELL_HTML 裸 span 已删（文档序唯一 span 来自模板）、settings feature 真实安装、
+  // 绑定入口用真实 click 走 document 委托（auth/settings 两监听并存验证无互扰）
+  const offSettings = settingsFeature.onLoad();
+  t.after(() => offSettings());
+  document.body.insertAdjacentHTML('beforeend', '<div id="account-settings-content"></div>');
+  state.user = { id: 1, role: 'student', username: 'u_front' };
+  const { enterAccountSettings } = await import('../src/client/features/settings/actions.js');
+  enterAccountSettings();
+  await new Promise(r => setTimeout(r, 0)); // loadMyCreds（dhGet account 域）完成
   const calls = installFetch(defaultResponder({
     '/api/auth/phone/bind': { message: '', phone: '138****8000' },
     '/api/auth/email/bind': { message: '', email: 't***@example.com' },
   }));
+  const content = document.getElementById('account-settings-content');
+
+  // 生产形状：span 必须来自模板（SHELL_HTML 裸 span 已删，getElementById 命中的
+  // 就是模板内节点——loadMyCreds 摧毁 span / doBind 写错节点都会让断言变红）
+  assert.ok(document.getElementById('settings-phone-val'), '电话 span 存活（模板内唯一）');
+  assert.ok(document.getElementById('settings-email-val'), '邮箱 span 存活（模板内唯一）');
+  assert.equal(document.getElementById('settings-phone-val').textContent, SETTINGS_TEXT.SETTINGS_UNBOUND, '初始未绑定占位');
+  assert.equal(document.getElementById('settings-email-val').textContent, SETTINGS_TEXT.SETTINGS_UNBOUND, '邮箱行独立占位（v1 分行显示）');
+
+  // 绑定入口：模板按钮 + 真实 click 委托（六轮审计：曾整链不可达）
+  assert.ok(content.querySelector('[data-action="auth.openPhoneBind"]'), '电话修改按钮在模板');
+  assert.ok(content.querySelector('[data-action="auth.openEmailBind"]'), '邮箱修改按钮在模板');
+  assert.ok(content.querySelector('[data-action="settings.openUsernameChange"]'), '用户名修改按钮在模板');
+  assert.ok(content.querySelector('#avatar-file') && content.querySelector('label[for="avatar-file"]'), '头像上传行在模板（v1 parity）');
+  content.querySelector('[data-action="auth.openPhoneBind"]').click();
+  await new Promise(r => setTimeout(r, 0));
+  assert.ok(document.getElementById('modal-container').textContent.includes(TEXT.BIND_PHONE_TITLE), '真实点击打开电话绑定浮窗');
+  document.getElementById('modal-container').innerHTML = '';
+  content.querySelector('[data-action="auth.openEmailBind"]').click();
+  await new Promise(r => setTimeout(r, 0));
+  assert.ok(document.getElementById('modal-container').textContent.includes(TEXT.BIND_EMAIL_TITLE), '真实点击打开邮箱绑定浮窗');
+  document.getElementById('modal-container').innerHTML = '';
 
   auth.openPhoneBindModal();
   assert.ok(document.getElementById('modal-container').textContent.includes(TEXT.BIND_PHONE_TITLE));
@@ -356,7 +388,8 @@ test('phone/email bind: modal fields + doBind body + masked value update', async
   await auth.doBind('phone', true, '+8613800138000', '123456');
   assert.deepEqual(calls.find(c => c.url === '/api/auth/phone/bind').body,
     { phone: '+8613800138000', code: '123456' });
-  assert.equal(document.getElementById('settings-phone-val').textContent, '138****8000');
+  assert.equal(document.getElementById('settings-phone-val').textContent, '138****8000', '直写落在模板内存活 span 上');
+  assert.equal(document.getElementById('settings-email-val').textContent, SETTINGS_TEXT.SETTINGS_UNBOUND, '未绑的邮箱行保持占位');
 
   auth.openEmailBindModal();
   document.getElementById('bind-email').value = 'tutor@example.com';
@@ -364,9 +397,8 @@ test('phone/email bind: modal fields + doBind body + masked value update', async
   await auth.doBind('email', false, 'tutor@example.com', '654321');
   assert.deepEqual(calls.find(c => c.url === '/api/auth/email/bind').body,
     { email: 'tutor@example.com', code: '654321' });
-  assert.equal(document.getElementById('settings-email-val').textContent, 't***@example.com');
-  assert.equal(reloads, 2);
-  delete globalThis.loadMyCreds;
+  assert.equal(document.getElementById('settings-email-val').textContent, 't***@example.com', '邮箱直写生效');
+  assert.equal(document.getElementById('settings-phone-val').textContent, '138****8000', '电话行不被连带改动');
 });
 
 test('withCaptcha gates login/register/bind before any sensitive request', async (t) => {

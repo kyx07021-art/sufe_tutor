@@ -26,6 +26,8 @@ const ACTION_MAP = {
   'auth.wizardBack': actions.regWizardBack,
   'auth.handleLogin': actions.handleLogin,
   'auth.handleRegister': actions.handleRegister,
+  'auth.openPhoneBind': actions.openPhoneBindModal,
+  'auth.openEmailBind': actions.openEmailBindModal,
   'auth.submitPhoneBind': () => actions.submitBind('phone'),
   'auth.submitEmailBind': () => actions.submitBind('email'),
   'auth.closeModal': closeModal,

@@ -11,6 +11,7 @@ import { showToast, btnLoading, btnDone, closeAllModals, withCaptcha } from '../
 import { showView, stopBadgePoll, closeSidebar } from '../../core/router.js';
 import { afterAuthSuccess, setAuthReturnPage, roleHint } from './flow.js';
 import { classifyIdentifier, otpExhaustedReset } from './actions-otp.js';
+import { closeProfilePanel } from '../teacher/actions.js';
 
 export * from './flow.js';
 export * from './actions-register.js';
@@ -166,8 +167,9 @@ export function handleLogout() {
   const role = state.user ? state.user.role : '';
   if (state.authToken) api('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {});
   stopBadgePoll();
-  const stopChat = typeof globalThis !== 'undefined' ? globalThis.stopChatPolling : null;
-  if (typeof stopChat === 'function') stopChat();
+  // chat teardown (stop polling / abort staged uploads) is registered via
+  // registerLogoutReset — the v1 globalThis.stopChatPolling probe died with the
+  // ESM migration and has been removed (rule 18: delete upstream references).
   runLogoutResets();
   if (typeof globalThis !== 'undefined') globalThis._contractDraftDemands = null;
   state.user = null;
@@ -176,8 +178,7 @@ export function handleLogout() {
   state.guestRole = null;
   state.guestAuthMode = false;
   setAuthReturnPage(null);
-  const closeProfile = typeof globalThis !== 'undefined' ? globalThis.closeProfilePanel : null;
-  if (typeof closeProfile === 'function') closeProfile();
+  closeProfilePanel();
   state.allTeachers = [];
   state.adminTeachers = [];
   state.intentTeachers = [];

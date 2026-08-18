@@ -128,7 +128,7 @@ export function dhCheckAppVersion() {
   } catch { /* storage unavailable: skip version check */ }
 }
 
-const DH_PREFETCH = {
+export const DH_PREFETCH = {
   student: [
     ['/api/student/demands?scope=mine', 'demands'],
     ['/api/teachers', 'teachers'],
@@ -243,6 +243,17 @@ export function startVersionProbe() {
 
 export function stopVersionProbe() {
   if (dhProbeTimer) { clearInterval(dhProbeTimer); dhProbeTimer = null; }
+}
+
+/** Test-only reset: clears cache/inflight/baselines so direct-import tests are isolated. */
+export function _dhResetForTests() {
+  dhCache.clear();
+  dhInflight.clear();
+  dhRebinders.clear();
+  dhLastVersions = {};
+  dhEpoch = 0;
+  dhProbeBusy = false;
+  stopVersionProbe();
 }
 
 if (typeof document !== 'undefined') {

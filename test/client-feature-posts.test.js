@@ -4,6 +4,7 @@ import { JSDOM } from 'jsdom';
 import { renderPostCard, likePillHtml, favPillHtml, postsToolbarHtml } from '../src/client/features/posts/render.js';
 import { state } from '../src/client/core/state.js';
 import { postsList } from '../src/client/features/posts/actions-list.js';
+import { setEnsureAuth } from '../src/client/core/api.js';
 import * as actions from '../src/client/features/posts/actions.js';
 import { TEXT } from '../src/client/features/posts/text.js';
 
@@ -49,7 +50,7 @@ test('posts text: key parity with root constants.js sample', async () => {
 test('posts action: unauthenticated like reverts checkbox', () => {
   const dom = new JSDOM('<html><body><label class="post-like" data-id="7"><input type="checkbox" data-posts-like="7"><span class="like-count">1</span></label></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
-  actions.setPostsEnsureAuth(() => false);
+  setEnsureAuth(() => false); // posts gate is core api's ensureAuth (single source)
   const input = dom.window.document.querySelector('input');
   input.checked = true;
   actions.togglePostLike(7, input);
@@ -73,7 +74,7 @@ test('posts action: openPostDetail renders modal for item in postsList', () => {
 test('posts action: openFeedbackModal does not throw and has data-action footer', () => {
   const dom = new JSDOM('<html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
-  actions.setPostsEnsureAuth(() => true);
+  setEnsureAuth(() => true);
   actions.openFeedbackModal('bug');
   assert.ok(dom.window.document.getElementById('modal-container').innerHTML.includes('data-action="posts.submitFeedback"'));
   delete globalThis.document;

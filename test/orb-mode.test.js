@@ -1,142 +1,106 @@
 /**
- * 需求八·item3 背景光球外观三档（鲜艳=当前 / 淡雅=柔化 / 隐藏=纯净底）
- *
- * 真实 index.html DOM（内联光球 IIFE 首绘运行）+ 全脚本 vm 沙箱：
- *   - 默认 vivid：桌面 36 光球（matchMedia coarse=false），透明度 0.52~0.73、尺寸 10~28vmax；
- *   - __applyOrbs 可重入切档：hidden=0 光球 + 鼠标光隐藏；elegant=24 光球、透明度 0.13~0.26、尺寸 8~18vmax；
- *   - getOrbPref 默认 vivid / 非法值回落 vivid；
- *   - 设置页渲染光球三档（鲜艳/淡雅/隐藏），setOrbPref 写 localStorage + 调 __applyOrbs + 切选中态，
- *     且不影响主题选中态。
+ * 需求八·item3 背景光球外观三档（B4：直接 import appearance/settings ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import { applyOrbs } from '../src/client/core/appearance.js';
+import { getOrbPref, setOrbPref as storeOrbPref } from '../src/client/core/state.js';
+import { setOrbPref, enterAccountSettings } from '../src/client/features/settings/actions.js';
+import { state } from '../src/client/core/state.js';
 
-const FILES = [
-  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-style.js', 'app-onboard.js', 'app-region.js',
-  'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
-  'app-demands.js', 'app-teachers.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
-];
+function makeDom() {
+  const dom = new JSDOM('<!DOCTYPE html><html><head></head><body><div id="account-settings-content"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.localStorage = dom.window.localStorage;
+  dom.window.matchMedia = () => ({ matches: false, addEventListener() {} });
+  return dom;
+}
+function teardown() { delete globalThis.document; delete globalThis.window; delete globalThis.localStorage; }
 
-const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
-
-function makeCtx() {
-  const html = readFileSync('./index.html', 'utf8')
-    .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
-  const dom = new JSDOM(html, {
-    url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
-  });
-  const w = dom.window;
-  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
-    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
-    return mk();
+function orbSnapshot(dom) {
+  // 零内联样式契约：动态参数在 <style id="lg-orb-style"> 规则里，DOM 元素零 style 属性
+  const orbs = [...dom.window.document.querySelectorAll('.lg-orb')];
+  const styleEl = dom.window.document.getElementById('lg-orb-style');
+  const rules = styleEl ? styleEl.textContent : '';
+  // 每条 orb 规则取第一个 rgba（外圈透明度）；末尾渐变终点的 ,0) 不计入
+  const op = rules.split('}').map(rule => (rule.match(/rgba\(var\(--lg-orb-[a-i]\),([0-9.]+)/) || [])[1]).filter(v => v != null).map(parseFloat);
+  const sizes = (rules.match(/width:([0-9.]+)vmax/g) || []).map(s => parseFloat(s.slice(6)));
+  const glow = dom.window.document.querySelector('.lg-mouseglow');
+  return {
+    count: orbs.length,
+    inlineStyles: orbs.filter(o => o.getAttribute('style')).length,
+    opMin: op.length ? Math.min(...op) : null,
+    opMax: op.length ? Math.max(...op) : null,
+    sizeMin: sizes.length ? Math.min(...sizes) : null,
+    sizeMax: sizes.length ? Math.max(...sizes) : null,
+    glowDisplay: glow ? glow.style.display : null,
   };
-  const ctx = vm.createContext({
-    window: w, document: w.document,
-    getComputedStyle: w.getComputedStyle.bind(w),
-    localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console,
-    fetch: async (url, opts = {}) => {
-      const u = String(url);
-      if (u === '/api/notifications') return { ok: true, status: 200, json: async () => ({ notifications: [] }) };
-      if (u.includes('/api/student/demands')) return { ok: true, status: 200, json: async () => ({ demands: [] }) };
-      return { ok: true, status: 200, json: async () => ({}) };
-    },
-    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
-    Request: globalThis.Request, AbortController: globalThis.AbortController,
-    performance: globalThis.performance,
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    Image: class { set src(v) { this._s = v; } },
-    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
-  });
-  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
-  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
-  vm.runInContext(`globalThis.__toasts = []; showToast = (msg) => __toasts.push(msg);`, ctx);
-  return { dom, ctx };
-}
-
-async function setup(ctx, user) {
-  vm.runInContext(`try { localStorage.setItem('sufe_returning', '1'); } catch (e) {}`, ctx);
-  await tick(30);
-  vm.runInContext(`state.user = ${JSON.stringify(user)}; renderSidebar(); showView('client');`, ctx);
-}
-
-// 读取当前光球快照：数量 / 透明度区间 / 尺寸区间 / 鼠标光显隐
-function orbSnapshot(ctx) {
-  return vm.runInContext(`(() => {
-    const orbs = [...document.querySelectorAll('.lg-orb')];
-    const op = orbs.map(o => parseFloat((o.style.background.match(/rgba\\(var\\(--lg-orb-[a-i]\\),([0-9.]+)/) || [])[1] || '0'));
-    const sizes = orbs.map(o => parseFloat(o.style.width));
-    const glow = document.querySelector('.lg-mouseglow');
-    return {
-      count: orbs.length,
-      opMin: op.length ? Math.min(...op) : null,
-      opMax: op.length ? Math.max(...op) : null,
-      sizeMin: sizes.length ? Math.min(...sizes) : null,
-      sizeMax: sizes.length ? Math.max(...sizes) : null,
-      glowDisplay: glow ? glow.style.display : null,
-    };
-  })()`, ctx);
 }
 
 test('背景光球默认鲜艳：桌面 36 个、透明度 0.52~0.73、尺寸 10~28vmax', () => {
-  const { ctx } = makeCtx();
-  const s = orbSnapshot(ctx);
+  const dom = makeDom();
+  applyOrbs();
+  const s = orbSnapshot(dom);
   assert.equal(s.count, 36, '桌面 36 光球（matchMedia coarse=false）');
+  assert.equal(s.inlineStyles, 0, '零内联样式（视觉全在 CSS 层）');
   assert.ok(s.opMin >= 0.50 && s.opMin <= 0.54, `vivid 透明度下界 ~0.52，实际 ${s.opMin}`);
   assert.ok(s.opMax >= 0.71 && s.opMax <= 0.75, `vivid 透明度上界 ~0.73，实际 ${s.opMax}`);
   assert.ok(s.sizeMin >= 9 && s.sizeMin <= 11, `vivid 尺寸下界 ~10vmax，实际 ${s.sizeMin}`);
   assert.ok(s.sizeMax >= 26 && s.sizeMax <= 30, `vivid 尺寸上界 ~28vmax，实际 ${s.sizeMax}`);
+  teardown();
 });
 
-test('__applyOrbs 可重入切档：hidden 零光球+鼠标光隐藏；elegant 24 个柔化', () => {
-  const { ctx } = makeCtx();
-  vm.runInContext(`try { localStorage.setItem('sufe_orb', 'hidden'); } catch (e) {} window.__applyOrbs();`, ctx);
-  let s = orbSnapshot(ctx);
+test('applyOrbs 可重入切档：hidden 零光球+鼠标光隐藏；elegant 24 个柔化', () => {
+  const dom = makeDom();
+  globalThis.localStorage.setItem('sufe_orb', 'hidden');
+  applyOrbs();
+  let s = orbSnapshot(dom);
   assert.equal(s.count, 0, '隐藏档零光球（连球都不生成）');
   assert.equal(s.glowDisplay, 'none', '隐藏档鼠标光一并隐藏');
-
-  vm.runInContext(`try { localStorage.setItem('sufe_orb', 'elegant'); } catch (e) {} window.__applyOrbs();`, ctx);
-  s = orbSnapshot(ctx);
+  globalThis.localStorage.setItem('sufe_orb', 'elegant');
+  applyOrbs();
+  s = orbSnapshot(dom);
   assert.equal(s.count, 24, '淡雅桌面 24 光球');
   assert.ok(s.opMin >= 0.11 && s.opMin <= 0.15, `淡雅透明度下界 ~0.13，实际 ${s.opMin}`);
   assert.ok(s.opMax >= 0.24 && s.opMax <= 0.28, `淡雅透明度上界 ~0.26，实际 ${s.opMax}`);
   assert.ok(s.sizeMin >= 7 && s.sizeMin <= 9, `淡雅尺寸下界 ~8vmax，实际 ${s.sizeMin}`);
   assert.ok(s.sizeMax >= 16 && s.sizeMax <= 20, `淡雅尺寸上界 ~18vmax，实际 ${s.sizeMax}`);
+  teardown();
 });
 
 test('getOrbPref：缺省鲜艳 / 非法值回落鲜艳', () => {
-  const { ctx } = makeCtx();
-  assert.equal(vm.runInContext(`getOrbPref()`, ctx), 'vivid', '无偏好缺省鲜艳');
-  vm.runInContext(`try { localStorage.setItem('sufe_orb', 'bogus'); } catch (e) {}`, ctx);
-  assert.equal(vm.runInContext(`getOrbPref()`, ctx), 'vivid', '非法值回落鲜艳');
-  vm.runInContext(`try { localStorage.setItem('sufe_orb', 'elegant'); } catch (e) {}`, ctx);
-  assert.equal(vm.runInContext(`getOrbPref()`, ctx), 'elegant', '淡雅可读');
+  const dom = makeDom();
+  assert.equal(getOrbPref(), 'vivid', '无偏好缺省鲜艳');
+  globalThis.localStorage.setItem('sufe_orb', 'bogus');
+  assert.equal(getOrbPref(), 'vivid', '非法值回落鲜艳');
+  globalThis.localStorage.setItem('sufe_orb', 'elegant');
+  assert.equal(getOrbPref(), 'elegant', '淡雅可读');
+  teardown();
 });
 
 test('设置页渲染光球三档；setOrbPref 写偏好+重生成背景+切选中态，主题选中独立', async () => {
-  const { dom, ctx } = makeCtx();
+  const dom = makeDom();
+  state.user = { id: 1, role: 'student', username: 's', avatar: '' };
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) });
+  globalThis.setInterval = () => 1; globalThis.clearInterval = () => {};
+  globalThis.MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } };
+  enterAccountSettings();
   const doc = dom.window.document;
-  await setup(ctx, { role: 'student', id: 1, username: 's', avatar: '' });
-  await vm.runInContext(`state.page = 'account-settings'; enterAccountSettings()`, ctx);
   const opts = [...doc.querySelectorAll('.orb-opt')];
   assert.equal(opts.length, 3, '光球三档渲染');
   assert.deepEqual(opts.map(o => o.textContent), ['鲜艳', '淡雅', '隐藏'], '三档文案');
   assert.equal(doc.querySelector('.orb-opt--on').dataset.pref, 'vivid', '默认鲜艳选中');
   assert.equal(doc.querySelectorAll('.theme-opt--on').length, 1, '主题选中态在位');
-
-  await vm.runInContext(`setOrbPref('hidden')`, ctx);
+  setOrbPref('hidden');
   assert.equal(doc.querySelector('.orb-opt--on').dataset.pref, 'hidden', '选中态切到隐藏');
-  assert.equal(vm.runInContext(`(() => { try { return localStorage.getItem('sufe_orb'); } catch (e) { return ''; } })()`, ctx), 'hidden', '偏好持久化');
+  assert.equal(globalThis.localStorage.getItem('sufe_orb'), 'hidden', '偏好持久化');
   assert.equal(doc.querySelectorAll('.lg-orb').length, 0, '隐藏档立即生效');
   assert.equal(doc.querySelectorAll('.theme-opt--on').length, 1, '主题选中态不受光球切换影响');
-
-  await vm.runInContext(`setOrbPref('elegant')`, ctx);
+  setOrbPref('elegant');
   assert.equal(doc.querySelector('.orb-opt--on').dataset.pref, 'elegant', '选中态切到淡雅');
   assert.equal(doc.querySelectorAll('.lg-orb').length, 24, '淡雅档立即生效');
+  delete globalThis.setInterval; delete globalThis.clearInterval; delete globalThis.MutationObserver;
+  teardown();
 });

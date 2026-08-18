@@ -153,8 +153,11 @@ export async function doBind(kind, isPhone, target, code) {
       if (el) el.textContent = mask;
     }
     invalidate('account');
-    const load = typeof globalThis !== 'undefined' ? globalThis.loadMyCreds : null;
-    if (typeof load === 'function') load();
+    // No extra refresh needed here: the bound value was already written to
+    // #settings-phone-val / #settings-email-val above, and those spans stay alive
+    // because loadMyCreds (settings feature) writes their textContent separately
+    // instead of replacing their parent (v1 parity). invalidate('account') also
+    // drops the dhGet cache entry so the next settings load refetches creds.
   } catch (err) {
     if (err && err.code === 'OTP_EXHAUSTED') otpExhaustedReset('bind');
     showToast(err.message, 'error');

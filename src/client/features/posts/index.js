@@ -4,7 +4,6 @@
 import { TEXT } from './text.js';
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
-import { setPostsEnsureAuth } from './actions-list.js';
 
 const ACTION_MAP = {
   'posts.toggleFav': actions.togglePostsFav,
@@ -87,7 +86,6 @@ export default {
   pages: [],
   actions: ACTION_MAP,
   onLoad,
-  setEnsureAuth: setPostsEnsureAuth,
 };
 
 export { actions, TEXT };

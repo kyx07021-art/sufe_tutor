@@ -5,6 +5,7 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）
     CHAT_POLL_MS: 4000,                   // 聊天轮询间隔
     CHAT_SLIDE_DELAY_MS: 120,             // 会话滑动懒加载/自动增高延迟
+    CHAT_ATTACH_CONCURRENCY: 4,           // 附件懒加载并发波数（F11：串行 → ~N/4 波，每波一个 RTT）
     CHAT_BUBBLE_DELAY_MS: 12,             // 气泡错峰
     CHAT_FILE_MAX_BYTES: 500 * 1024,      // 前端图片压缩上限（后端 FILE_MAX_BYTES 700000 兜底）
     CHAT_IMG_MAX_SIDE: 900, CHAT_IMG_QUALITY: 0.82, // 聊天图片最长边/JPEG 质量（控制 D1 单元格体积）

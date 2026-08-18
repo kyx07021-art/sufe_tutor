@@ -6,10 +6,16 @@ import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 const ACTION_MAP = {
   'settings.closeModal': actions.closeModalAction,
+  'settings.openUsernameChange': actions.openUsernameChangeModal,
   'settings.submitUsername': actions.submitUsername,
   'settings.revokeDevice': el => actions.revokeDeviceSession(el.dataset.id),
   'settings.saveAvatar': actions.saveAvatar,
   'settings.deactivate': actions.confirmDeactivateAccount,
+  'settings.theme': el => actions.setThemePref(el.dataset.pref),
+  'settings.style': el => actions.setStylePref(el.dataset.pref),
+  'settings.orb': el => actions.setOrbPref(el.dataset.pref),
+  'settings.devices': actions.openDeviceManager,
+  'settings.logout': actions.confirmLogout,
 };
 let installed = false;
 function onActionClick(e) {
@@ -22,7 +28,9 @@ function onActionClick(e) {
 }
 function onChange(e) {
   const el = e.target;
-  if (el && el.dataset && el.dataset.settingsPrivacy) actions.setPrivacyField(el.dataset.settingsPrivacy, el.checked ? 1 : 0);
+  if (!el) return;
+  if (el.id === 'avatar-file') { actions.handleAvatarUpload(el); return; } // v1 onchange parity
+  if (el.dataset && el.dataset.settingsPrivacy) actions.setPrivacyField(el.dataset.settingsPrivacy, el.checked ? 1 : 0);
 }
 function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
@@ -30,7 +38,7 @@ function onLoad() {
   registerPage({ id: 'account-settings', roles: ['student','teacher','admin'], label: TEXT.PAGE_ACCOUNT_SETTINGS, desc: TEXT.PAGE_ACCOUNT_SETTINGS_DESC, auth: true, enter: () => actions.enterAccountSettings() });
   document.addEventListener('click', onActionClick);
   document.addEventListener('change', onChange);
-  return () => { document.removeEventListener('click', onActionClick); document.removeEventListener('change', onChange); installed = false; };
+  return () => { if (typeof document !== 'undefined') { document.removeEventListener('click', onActionClick); document.removeEventListener('change', onChange); } installed = false; };
 }
 export default { id: 'settings', text: TEXT, pages: [], actions: ACTION_MAP, onLoad };
 export { actions, TEXT };

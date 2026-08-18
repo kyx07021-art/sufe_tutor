@@ -146,19 +146,30 @@ function paintCaptcha() {
       fy = 10 + Math.random() * (H - 46); // 高度可变（不与有效缺口同行，增加"合不上"感）
       tries++;
     } while (tries < 20 && (Math.abs(fx - cutX) < 80 || fakes.some(f => Math.abs(f.x - fx) < 60)));
+    if (tries >= 20) {
+      // 随机约束耗尽：确定性左上/右下双槽兜底。几何保证：两槽与有效洞的垂直中心距
+      // 34/44、彼此 78，均 > 形状直径 32 → 三洞像素级恒不重叠（随机约束 |fx-cutX|>=80
+      // 与彼此 >=60 在 cutX 中部数学上不可满足；旧实现耗尽后两洞重叠 = 可见渲染缺陷，
+      // 且破坏「三洞互不重叠」不变量——验证脚本连通域断言依赖该不变量）。
+      fakes.length = 0;
+      fakes.push({ x: 24, y: 6 }, { x: W - 64, y: 84 });
+      break;
+    }
     fakes.push({ x: fx, y: fy });
+  }
+  fakes.forEach((f, i) => {
     const fs = fakeShapes[i % fakeShapes.length];
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
     ctx.fillStyle = 'rgba(0,0,0,1)';
-    drawGapShape(ctx, fx + SLIDER_W / 2, fy + SLIDER_H / 2, R, fs);
+    drawGapShape(ctx, f.x + SLIDER_W / 2, f.y + SLIDER_H / 2, R, fs);
     ctx.fill(); // ★ v1.4.17 修复：无效空缺同样必须 fill 才抠出透明洞
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,255,255,.85)';
     ctx.lineWidth = 2;
-    drawGapShape(ctx, fx + SLIDER_W / 2, fy + SLIDER_H / 2, R, fs);
+    drawGapShape(ctx, f.x + SLIDER_W / 2, f.y + SLIDER_H / 2, R, fs);
     ctx.stroke();
-  }
+  });
   // 复位滑块与轨迹
   _captchaOffset = 0; _captchaTrack = [];
   const track = document.getElementById('captcha-track');

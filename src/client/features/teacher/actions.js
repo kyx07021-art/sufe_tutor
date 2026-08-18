@@ -7,17 +7,22 @@ import { api } from '../../core/api.js';
 import { dhGet, dhOnDomainRefresh } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
-import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml } from './render.js';
-import { matchDegree } from '../../core/match.js';
+import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand } from './render.js';
+import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
+import { demandIsActive } from '../../core/display.js';
+import { positionFloatCard } from '../../core/anim.js';
 
 let profilePanelUserId = null;
+let _studentOpenDemand = false;
+let _matchDetailOpen = false;
 
 export function loadTeachers() {
   const el = document.getElementById('browse-teachers-list') || document.getElementById('teachers-list');
   if (!el) return;
   el.innerHTML = '<div class="empty-state">loading</div>';
-  return dhGet('/api/teachers', { domain: 'teachers' }).then(data => {
+  return dhGet('/api/teachers', { domain: 'teachers' }).then(async data => {
     state.allTeachers = data.teachers || [];
+    await attachStudentMatch(state.allTeachers);
     renderTeachers();
   }).catch(err => {
     el.innerHTML = `<div class="empty-state"><p>${TEXT.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
@@ -30,6 +35,27 @@ export function renderTeachers() {
   if (!state.allTeachers.length) { el.innerHTML = `<div class="empty-state">${TEXT.EMPTY_NO_TEACHERS}</div>`; return; }
   el.innerHTML = state.allTeachers.map(renderTeacherCard).join('');
 }
+
+export async function attachStudentMatch(teachers) {
+  if (!state.user || state.user.role !== 'student') { _studentOpenDemand = false; setStudentOpenDemand(false); return; }
+  for (const t of teachers) delete t._matchForStudent;
+  let demands = [];
+  try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands' })).demands || []; }
+  catch { demands = []; }
+  const open = demands.filter(d => demandIsActive(d));
+  _studentOpenDemand = open.length > 0;
+  setStudentOpenDemand(_studentOpenDemand);
+  if (!open.length) return;
+  for (const t of teachers) {
+    const items = open
+      .map(d => ({ d, md: matchDegree(t, d) }))
+      .filter(x => x.md != null)
+      .sort((a, b) => b.md - a.md);
+    if (items.length) t._matchForStudent = { md: items[0].md, items };
+  }
+}
+
+export function studentOpenDemand() { return _studentOpenDemand; }
 
 dhOnDomainRefresh('teachers', () => { renderTeachers(); });
 
@@ -120,15 +146,6 @@ export function viewTeacherCredential(userId) {
   openModal({ title: TEXT.CREDENTIAL_VIEW, body: `<div class="credential-view"><img src="${escHtml(t.credential_image)}" alt="${TEXT.CREDENTIAL_VIEW}"></div>` });
 }
 
-export function attachStudentMatch() {
-  const t = state.allTeachers || [];
-  state.allTeachers = t.map(teacher => {
-    const d = state.myDemands && state.myDemands[0];
-    if (!d) return teacher;
-    return { ...teacher, _matchDegree: matchDegree(teacher, d) };
-  });
-}
-
 export function teacherSortMode(mode) {
   if (mode == null) {
     const role = state.user && state.user.role;
@@ -140,9 +157,16 @@ export function syncMatchSortOpt() { /* handled by sort control */ }
 export function sortTeachers(arrOrMode, maybeMode) {
   const arr = Array.isArray(arrOrMode) ? [...arrOrMode] : [...(state.allTeachers || [])];
   const mode = maybeMode || (Array.isArray(arrOrMode) ? 'rating' : state.teacherSort || 'match');
-  if (mode === 'price') arr.sort((a,b) => (a.price_min == null ? 1 : 0) - (b.price_min == null ? 1 : 0) || (a.price_min||0)-(b.price_min||0));
+  if (mode === 'price') arr.sort((a,b) => (a.price_min == null ? Infinity : a.price_min) - (b.price_min == null ? Infinity : b.price_min));
   else if (mode === 'rating') arr.sort((a,b) => (b.rating||0)-(a.rating||0));
-  else arr.sort((a,b) => ((b._matchForStudent && b._matchForStudent.md) || b._matchDegree || 0) - ((a._matchForStudent && a._matchForStudent.md) || a._matchDegree || 0));
+  else if (mode === 'match') {
+    if (!arr.some(t => t._matchForStudent)) return; // no match context: keep server order
+    arr.sort((a,b) => {
+      const am = a._matchForStudent ? a._matchForStudent.md : -1;
+      const bm = b._matchForStudent ? b._matchForStudent.md : -1;
+      return bm - am;
+    });
+  }
   if (Array.isArray(arrOrMode)) { state.allTeachers = arr; }
   renderTeachers();
 }
@@ -164,8 +188,21 @@ export function applyFilters() {
 export function hasDaySlot(timeSlots, day) { return String(timeSlots||'').includes(day); }
 export function showTeacherMatchDetail(id) {
   const t = findCachedTeacher(id);
-  const d = state.myDemands && state.myDemands[0];
-  if (!t || !d) return;
-  openModal({ title: TEXT.MATCH_T_TITLE, body: studentMatchDetailHtml(t, d) });
+  if (!t || !t._matchForStudent) return;
+  if (_matchDetailOpen) { closeMatchDetail(); return; }
+  const btn = document.querySelector(`[data-action="teacher.matchDetail"][data-id="${id}"]`);
+  if (!btn) return;
+  btn.insertAdjacentHTML('afterend', studentMatchDetailHtml(t));
+  const card = btn.nextElementSibling;
+  if (!card || !card.classList.contains('match-detail')) return;
+  document.body.appendChild(card);
+  positionFloatCard(btn, card);
+  _matchDetailOpen = true;
+}
+
+export function closeMatchDetail() {
+  const el = document.querySelector('.match-detail--teacher');
+  if (el) el.remove();
+  _matchDetailOpen = false;
 }
 export function renderProfileInfoCard(t) { return renderProfilePanel(t, ''); }

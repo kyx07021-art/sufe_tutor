@@ -4,7 +4,6 @@
 import { TEXT } from './text.js';
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
-import { setComplaintsEnsureAuth } from './actions.js';
 import * as render from './render.js';
 
 const ACTION_MAP = {
@@ -86,7 +85,6 @@ export default {
   pages: [],
   actions: ACTION_MAP,
   onLoad,
-  setEnsureAuth: setComplaintsEnsureAuth,
 };
 
 export { actions };

@@ -43,7 +43,12 @@ test('R25 比例条逐条独立配色', () => {
 });
 
 test('R25 学生端明细卡：同时带 --teacher 结构变体与等级类', () => {
-  const html = studentMatchDetailHtml({ subjects:['math'], province:'shanghai', price_min:150, personality_tags:['patience'], gender:'male' }, { ...DEMAND, target_subjects:['math'] });
+  // studentMatchDetailHtml 新契约：单参数（带 _matchForStudent 的教师对象，形状同 attachStudentMatch 注入）
+  const teacher = { ...TEACHER, _matchForStudent: { md: 70, items: [{ d: { ...DEMAND, target_subjects: ['math'] }, md: 70 }] } };
+  const html = studentMatchDetailHtml(teacher);
   assert.ok(html.includes('match-detail--teacher'));
+  assert.ok(html.includes('match-detail--mid'), '等级类随最佳匹配度');
   assert.ok(html.includes('match-bar'));
+  assert.ok(html.includes('match-t-item'), '多需求逐一列出');
+  assert.equal(studentMatchDetailHtml({ ...TEACHER }), '', '无匹配语境返回空串（不渲染空卡）');
 });

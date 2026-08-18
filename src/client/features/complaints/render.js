@@ -62,11 +62,10 @@ function complaintAttachHtml(c) {
             <span class="chat-stage-ext">${escHtml(chatFileExt(a.name))}</span></button>`).join('')}</div>`;
 }
 
-export function chatFileExt(name) {
-  const i = String(name || '').lastIndexOf('.');
-  if (i < 0) return 'FILE';
-  return String(name).slice(i + 1).toUpperCase().slice(0, 4);
-}
+// Single source: v1 had one global chatFileExt (app-chat.js) shared by the complaints
+// UI — import + re-export the chat feature's copy instead of a divergent local variant.
+import { chatFileExt } from '../chat/render.js';
+export { chatFileExt };
 
 export function complaintCardHtml(c, opts = {}) {
   const resolved = c.status === 'resolved';

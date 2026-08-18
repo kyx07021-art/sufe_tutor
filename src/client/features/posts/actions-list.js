@@ -4,7 +4,7 @@
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from './text.js';
 import { state } from '../../core/state.js';
-import { api } from '../../core/api.js';
+import { api, ensureAuth } from '../../core/api.js';
 import { dhGet, dhReady, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { loadInto } from '../../core/router.js';
 import { escHtml, mdRender, fmtDateTime, loaderHtml } from '../../core/dom.js';
@@ -13,14 +13,16 @@ import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, mdEdito
 import { likePillHtml, favPillHtml, renderPostCard, postsToolbarHtml } from './render.js';
 
 export let postsList = [];
+export function setPostsListForTest(list) { postsList = list; }
 let postsUrl = '/api/posts?sort=new';
 let postsSearchTimer = null;
 let postsView = 'all';
 const postLikeSeq = {};
 const postFavSeq = {};
 
-let ensureAuth = () => true;
-export function setPostsEnsureAuth(fn) { if (typeof fn === 'function') ensureAuth = fn; }
+// Single source: core api's ensureAuth (wired by the auth feature at boot).
+// The private per-feature setter died with the ESM migration — tests that used
+// to stub it now wire core setEnsureAuth directly.
 export function postsAuth() { return ensureAuth(); }
 
 dhOnDomainRefresh('posts', () => {

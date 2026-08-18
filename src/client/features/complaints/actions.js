@@ -3,12 +3,13 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from './text.js';
-import { api, apiUpload } from '../../core/api.js';
+import { api, apiUpload, ensureAuth } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { loadInto, setBadge } from '../../core/router.js';
 import { escHtml } from '../../core/dom.js';
 import { openModal, closeModal, showToast, initCustomSelects, openImageViewer } from '../../core/ui.js';
 import { complaintModalBody, complaintCardHtml, chatFileExt } from './render.js';
+import { renderStageBox } from '../chat/render.js';
 
 const _cpSel = { teacher: null, student: null, post: null };
 let _cpTab = 'teacher';
@@ -18,9 +19,6 @@ let _cpTimer = null;
 const _cpRecentLoaded = new Set();
 let _cpStaged = [];
 let _cpStageSeq = 0;
-
-let ensureAuth = () => true;
-export function setComplaintsEnsureAuth(fn) { if (typeof fn === 'function') ensureAuth = fn; }
 
 export function openComplaintModal() {
   if (!ensureAuth()) return;
@@ -137,22 +135,6 @@ function shrinkImage(dataUrl, cb) {
   img.src = dataUrl;
 }
 
-function renderStageBox() {
-  const box = document.getElementById('complaint-stage');
-  if (!box) return;
-  if (!_cpStaged.length) { box.classList.add('hidden'); box.innerHTML = ''; return; }
-  box.classList.remove('hidden');
-  box.innerHTML = _cpStaged.map(it => {
-    const body = it.kind === 'image'
-      ? `<img src="${escHtml(it.thumb || it.dataUrl || '')}" alt="${escHtml(it.name)}">`
-      : `<span class="chat-stage-ext">${escHtml(chatFileExt(it.name))}</span>`;
-    return `<span class="chat-stage-item" data-stage-id="${it.id}">
-      <span class="chat-stage-preview">${body}</span>
-      ${it.progress < 100 ? `<span class="chat-stage-progress">${Math.round(it.progress || 0)}%</span>` : ''}
-      <button type="button" class="chat-stage-x" data-action="complaints.unstage" data-id="${it.id}" aria-label="remove">×</button>
-    </span>`;
-  }).join('');
-}
 
 export function complaintStageFiles(input) {
   const files = input ? [...input.files] : [];
@@ -164,7 +146,7 @@ export function complaintStageFiles(input) {
     if ((f.type || '').startsWith('image/')) {
       item.kind = 'image';
       _cpStaged.push(item);
-      renderStageBox();
+      renderComplaintStage();
       const reader = new FileReader();
       reader.onload = () => shrinkImage(reader.result, (url, thumb) => complaintDoUpload(item, url, thumb));
       reader.onerror = () => { complaintUnstage(item.id); showToast(TEXT.CHAT_FILE_TOO_LARGE); };
@@ -172,7 +154,7 @@ export function complaintStageFiles(input) {
     } else {
       if (f.size > CONFIG.CHAT_FILE_MAX_BYTES) { showToast(TEXT.CHAT_FILE_TOO_LARGE); return; }
       _cpStaged.push(item);
-      renderStageBox();
+      renderComplaintStage();
       const reader = new FileReader();
       reader.onload = () => complaintDoUpload(item, reader.result);
       reader.onerror = () => { complaintUnstage(item.id); showToast(TEXT.CHAT_FILE_TOO_LARGE); };
@@ -184,17 +166,17 @@ export function complaintStageFiles(input) {
 export async function complaintDoUpload(item, dataUrl, thumbUrl) {
   item.dataUrl = dataUrl;
   item.thumb = thumbUrl || '';
-  renderStageBox();
+  renderComplaintStage();
   try {
     const data = await apiUpload({ kind: item.kind, fileData: dataUrl, fileName: item.name, thumb: item.thumb || '' }, p => {
       item.progress = p == null ? 0 : Math.round(p * 100);
-      renderStageBox();
+      renderComplaintStage();
     });
     if (item._aborted) return;
     item.uploadId = data.id;
     item.progress = 100;
     item.ready = true;
-    renderStageBox();
+    renderComplaintStage();
   } catch (err) {
     if (item._aborted) return;
     complaintUnstage(item.id);
@@ -205,7 +187,7 @@ export async function complaintDoUpload(item, dataUrl, thumbUrl) {
 export function complaintUnstage(id) {
   const it = _cpStaged.find(x => x.id === id);
   _cpStaged = _cpStaged.filter(x => x.id !== id);
-  renderStageBox();
+  renderComplaintStage();
   if (it && it.uploadId) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {});
 }
 
@@ -220,7 +202,11 @@ export function complaintResetStage() {
   if (box) { box.classList.add('hidden'); box.innerHTML = ''; }
 }
 
-export function renderComplaintStage() { renderStageBox(); }
+// Shared stage box (chat render.js, v1 global component parity): the private copy
+// with invented preview/progress/x classes is gone — those classes have no CSS.
+export function renderComplaintStage() {
+  renderStageBox(_cpStaged, document.getElementById('complaint-stage'), 'complaints.unstage');
+}
 
 export function closeComplaintModal() {
   complaintResetStage();

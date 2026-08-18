@@ -33,6 +33,7 @@ export const TEXT = {
   CHAT_PREVIEW_ME_PREFIX: '我：',
   CHAT_PREVIEW_SIGNING_REQ: '[签约请求]',
   CHAT_PREVIEW_SIGNING_RESP: '[签约回应]',
+  CHAT_SEND_PARTIAL_FAILED: '部分消息未发送，已恢复输入',
   CHAT_SIGNING_METHOD: '方式',
   CHAT_SIGNING_MINE_TITLE: '你向对方发送了签约请求',
   CHAT_SIGNING_PRICE: '报价',

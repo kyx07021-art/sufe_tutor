@@ -99,12 +99,14 @@ function paintCaptcha() {
     pctx.save();
     pctx.globalCompositeOperation = 'destination-in';
     drawGapShape(pctx, SLIDER_W / 2, SLIDER_H / 2, R, shape);
+    pctx.fill(); // v1.4.17 parity: fill required to clip puzzle into shape (path-only = rectangle)
     pctx.restore();
   }
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';
   ctx.fillStyle = 'rgba(0,0,0,1)';
   drawGapShape(ctx, cutX + SLIDER_W / 2, cutY + SLIDER_H / 2, R, shape);
+  ctx.fill(); // v1.4.17 parity: fill required to punch the transparent hole
   ctx.restore();
   ctx.strokeStyle = 'rgba(255,255,255,.85)';
   ctx.lineWidth = 2;
@@ -119,18 +121,32 @@ function paintCaptcha() {
       fy = 10 + Math.random() * (H - 46);
       tries++;
     } while (tries < 20 && (Math.abs(fx - cutX) < 80 || fakes.some(f => Math.abs(f.x - fx) < 60)));
+    if (tries >= 20) {
+      // Random constraints exhausted: deterministic top-left / bottom-right slots.
+      // Geometry guarantee: vertical center distance to the real hole is 34/44 and
+      // 78 between the two decoys — all > shape diameter 32, so the three holes
+      // never overlap (the random constraints |fx-cutX|>=80 and pairwise >=60 are
+      // mathematically unsatisfiable for mid-range cutX; exhaustion used to leave
+      // overlapping decoys — a visible defect that also breaks the 3-hole invariant).
+      fakes.length = 0;
+      fakes.push({ x: 24, y: 6 }, { x: W - 64, y: 84 });
+      break;
+    }
     fakes.push({ x: fx, y: fy });
+  }
+  fakes.forEach((f, i) => {
     const fs = fakeShapes[i % fakeShapes.length];
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
     ctx.fillStyle = 'rgba(0,0,0,1)';
-    drawGapShape(ctx, fx + SLIDER_W / 2, fy + SLIDER_H / 2, R, fs);
+    drawGapShape(ctx, f.x + SLIDER_W / 2, f.y + SLIDER_H / 2, R, fs);
+    ctx.fill(); // v1.4.17 parity: decoy holes also need fill to punch through
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,255,255,.85)';
     ctx.lineWidth = 2;
-    drawGapShape(ctx, fx + SLIDER_W / 2, fy + SLIDER_H / 2, R, fs);
+    drawGapShape(ctx, f.x + SLIDER_W / 2, f.y + SLIDER_H / 2, R, fs);
     ctx.stroke();
-  }
+  });
   _captchaOffset = 0; _captchaTrack = [];
   const track = document.getElementById('captcha-track');
   const box = document.getElementById('captcha-box') || track;
@@ -219,4 +235,9 @@ export function withCaptcha(action) {
   if (typeof action !== 'function') return;
   if (typeof openCaptchaModal === 'function') openCaptchaModal({ onPass: action });
   else action();
+}
+
+/** Test-only hook: expose paint state for real-browser pixel verification (pattern: _dhResetForTests). */
+export function _captchaStateForTests() {
+  return { target: _captchaTarget, id: _captchaIdStr };
 }

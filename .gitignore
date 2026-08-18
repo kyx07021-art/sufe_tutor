@@ -16,3 +16,7 @@ _tmp_*.log
 _audit_*.md
 
 dist/
+
+# 测试分片运行产物（不提交）
+.test-shards/
+shard-runner.log

@@ -8,6 +8,7 @@ import { state, saveSession, loadSession, clearSession, setReturning, setLastGue
 import { api, setSessionBootValidating } from '../../core/api.js';
 import { dhInvalidateAll } from '../../core/datahub.js';
 import { showView, enterClient, pagesForRole, renderSidebar, stopBadgePoll } from '../../core/router.js';
+import { startOnboardingTour } from '../onboard/actions.js';
 
 let authReturnPage = null;
 
@@ -42,8 +43,9 @@ export async function afterAuthSuccess(isNew = false) {
   const back = authReturnPage;
   authReturnPage = null;
   await enterClient(back || undefined);
-  const tour = typeof globalThis !== 'undefined' ? globalThis.startOnboardingTour : null;
-  if (isNew && typeof tour === 'function') tour();
+  // v1 parity: brand-new registered users get the onboarding tour entry
+  // (v1 called the global; the ESM migration wires the onboard module directly)
+  if (isNew) startOnboardingTour();
 }
 
 export function handleFeatureClick(role) {
@@ -88,8 +90,8 @@ export function enterRolePreview(role) {
 
 export function exitCurrentIdentity() {
   stopBadgePoll();
-  const stopChat = typeof globalThis !== 'undefined' ? globalThis.stopChatPolling : null;
-  if (typeof stopChat === 'function') stopChat();
+  // chat cleanup is covered by the registered logout resets (chatTeardown) —
+  // the v1 globalThis.stopChatPolling probe died with the ESM migration
   runLogoutResets();
   setLastGuestRole(null);
   state.user = null;

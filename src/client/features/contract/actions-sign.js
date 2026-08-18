@@ -12,8 +12,6 @@ import { openModal, closeModal, showToast, confirm, withCaptcha, initCustomSelec
 import { renderContractDiff, splitContractBiz, stripContractMarker, verifyPanelHtml } from './render.js';
 import { loadMyContracts } from './actions-list.js';
 
-let ensureAuth = () => true;
-export function setContractEnsureAuth(fn) { if (typeof fn === 'function') ensureAuth = fn; }
 
 export function signReadHint() { return TEXT.SIGN_READ_HINT; }
 

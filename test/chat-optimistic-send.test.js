@@ -1,174 +1,174 @@
 /**
- * F10（v0.27.0 网络层重构）—— 聊天乐观发送回归
- *
- * 需求（用户：前端操作延迟）：发消息目前等响应才渲染气泡（1 次 RTT 卡顿感），
- * 全站最高频写操作应乐观——点发送即本地插入临时气泡，批量 POST 落库后替换真实 id，失败回滚。
- *
- * 覆盖（脚手架 #chat-messages/#chat-input/#chat-send-btn/#chat-stage，api 桩可控 Promise）：
- *   - 乐观：api 未返回前气泡已插入（负临时 data-mid），输入框已清空
- *   - 收敛：api 返回 {messages:[{id,...}]} 后临时 data-mid 替换为真实 id、chatLastMsgId 更新
- *   - 回滚：api 拒绝（audit-flow 驳回/网络错）→ 临时气泡移除 + 输入恢复 + 暂存恢复 + toast
- *   - 批量体：POST body 为 { batch:[{kind,uploadId},...{kind:'text',body}] }（一次往返）
- *   - 发送在途轮询关窗（chatOptimisticSending）
+ * F10 聊天乐观发送回归（B4：直接 import chat actions-send）。
+ * 覆盖审计要求：临时气泡内外 data-mid 同步替换、轮询关窗、去重、空响应回滚、
+ * 空会话占位清除、部分失败恢复、loading。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import { sendChatMessage } from '../src/client/features/chat/actions-send.js';
+import { chatPollTick } from '../src/client/features/chat/actions-list.js';
+import { chat } from '../src/client/features/chat/chat-state.js';
+import { state } from '../src/client/core/state.js';
 
-const FILES = [
-  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js', 'app-onboard.js', 'app-region.js',
-  'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
-  'app-demands.js', 'app-teachers.js', 'app-style.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
-];
+function setup() {
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="chat-messages"></div><textarea id="chat-input"></textarea><div id="chat-stage"></div><button id="chat-send-btn"></button><div id="toast-container"></div></body></html>', { url: 'http://localhost/' });
+  globalThis.document = dom.window.document;
+  state.user = { id: 1, role: 'student' };
+  state.page = 'my-chats'; // chatPollTick page guard: poll tests must exercise real guard order
+  chat.convId = 1; chat.staged = []; chat.lastMsgId = 0; chat.sending = false; chat.optimisticSending = false; chat.optimisticSeq = 0; chat.pollBusy = false;
+  return dom;
+}
+function teardown() { delete globalThis.document; state.page = null; state.user = null; }
 
-function makeCtx() {
-  const html = readFileSync('./index.html', 'utf8')
-    .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
-  const dom = new JSDOM(html, {
-    url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
-  });
-  const w = dom.window;
-  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
-    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
-    return mk();
-  };
-  w.matchMedia = () => ({ matches: false, addEventListener: () => {} }); // jsdom 缺省未实现 window.matchMedia
-  const ctx = vm.createContext({
-    window: w, document: w.document,
-    getComputedStyle: w.getComputedStyle.bind(w),
-    localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
-    clearTimeout: globalThis.clearTimeout, setInterval: globalThis.setInterval,
-    clearInterval: globalThis.clearInterval, Request: globalThis.Request,
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    Image: class { set src(v) { this._s = v; } },
-    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
-  });
-  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
-  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
-  vm.runInContext(`try { localStorage.setItem('sufe_returning', '1'); } catch (e) {}`, ctx);
-  return { ctx, dom };
+function setupFetch(impl) {
+  globalThis.fetch = impl;
 }
 
-/** 脚手架聊天帧：注入发送链路所需 DOM + 会话态；api 由宿主可控桩注入 */
-function scaffoldChat(ctx, dom) {
-  const doc = dom.window.document;
-  const main = doc.getElementById('client-main') || doc.body;
-  const box = doc.createElement('div'); box.id = 'chat-messages';
-  const input = doc.createElement('textarea'); input.id = 'chat-input'; input.value = '';
-  const stage = doc.createElement('div'); stage.id = 'chat-stage';
-  const btn = doc.createElement('button'); btn.id = 'chat-send-btn';
-  main.appendChild(box); main.appendChild(input); main.appendChild(stage); main.appendChild(btn);
-  vm.runInContext(`
-    state.user = { id: 1, role: 'student' };
-    chatConvId = 1;
-    chatStaged = [];
-    chatLastMsgId = 0;
-    chatOptimisticSending = false;
-    chatBumpConvPreview = () => {};   // 桩：不依赖会话列表/重渲染
-    chatScrollToBottom = () => {};    // 桩：jsdom 无 box.scrollTo
-  `, ctx);
-}
-
-test('乐观发送：api 未返回前气泡已插入（临时负 id）、输入已清空', async () => {
-  const { ctx, dom } = makeCtx();
-  scaffoldChat(ctx, dom);
+test('乐观发送：api 未返回前气泡已插入，输入已清空，轮询关窗', async () => {
+  const dom = setup();
   let resolveSend, capturedBody = null;
-  ctx.api = (url, opts) => new Promise(res => { resolveSend = res; capturedBody = opts.body; });
-  const doc = dom.window.document;
-  doc.getElementById('chat-input').value = '你好';
-
-  const p = vm.runInContext('sendChatMessage()', ctx);
-  await new Promise(r => setTimeout(r, 0)); // 微任务落到 await api
-  const bubbles = doc.querySelectorAll('#chat-messages .chat-msg');
-  assert.equal(bubbles.length, 1, 'api 未返回时乐观气泡已插入');
-  const mid = bubbles[0].dataset.mid;
-  assert.ok(Number(mid) < 0, `临时气泡为负 data-mid（实际=${mid}）`);
-  assert.ok(bubbles[0].textContent.includes('你好'), '气泡含消息文本');
-  assert.equal(doc.getElementById('chat-input').value, '', '输入框已乐观清空');
-  assert.ok(capturedBody, '已发出批量 POST');
-  // 跨 realm 归一化（vm 对象原型 ≠ 宿主原型，deepStrictEqual 因原型不等失败——CLAUDE.md 教训）
-  assert.deepEqual(JSON.parse(JSON.stringify(capturedBody.batch)), [{ kind: 'text', body: '你好' }], '批量体 = 单条文字（一次往返）');
-  assert.equal(vm.runInContext('chatOptimisticSending', ctx), true, '发送在途轮询关窗');
-
-  resolveSend({ messages: [{ id: 5, kind: 'text', name: '' }] });
+  setupFetch(async (url, opts) => new Promise(res => { resolveSend = () => res({ ok: true, status: 200, json: async () => ({ messages: [{ id: 5, kind: 'text', name: '' }] }) }); capturedBody = opts.body; }));
+  dom.window.document.getElementById('chat-input').value = '你好';
+  const p = sendChatMessage();
+  await new Promise(r => setTimeout(r, 0));
+  const bubbles = dom.window.document.querySelectorAll('#chat-messages .chat-bubble');
+  assert.equal(bubbles.length, 1);
+  assert.ok(Number(bubbles[0].dataset.mid) < 0);
+  assert.ok(bubbles[0].textContent.includes('你好'));
+  assert.equal(dom.window.document.getElementById('chat-input').value, '');
+  assert.deepEqual(JSON.parse(capturedBody).batch, [{ kind: 'text', body: '你好' }]);
+  assert.equal(chat.optimisticSending, true, '发送在途轮询关窗');
+  assert.equal(dom.window.document.getElementById('chat-send-btn').disabled, true, '发送按钮 loading');
+  resolveSend();
   await p;
-  assert.equal(vm.runInContext('chatOptimisticSending', ctx), false, '发送完成关窗复位');
-  const settled = doc.querySelector('#chat-messages .chat-msg');
-  assert.equal(settled.dataset.mid, '5', '响应后临时 data-mid 替换为真实 id');
-  assert.equal(vm.runInContext('chatLastMsgId', ctx), 5, 'chatLastMsgId 更新防重复拉回');
+  assert.equal(chat.optimisticSending, false);
+  const real = dom.window.document.querySelector('#chat-messages .chat-bubble');
+  assert.equal(real.dataset.mid, '5', '临时气泡替换为真实 id');
+  assert.ok(real.className.includes('chat-bubble--mine'), '替换后仍是自己的气泡（sender_user_id 不丢）');
+  assert.ok(real.textContent.includes('你好'), '替换后正文保留（body 不丢）');
+  assert.equal(dom.window.document.getElementById('chat-send-btn').disabled, false);
+  assert.equal(chat.lastMsgId, 5);
+  teardown();
 });
 
-test('乐观失败回滚：api 拒绝 → 气泡移除 + 输入恢复 + toast', async () => {
-  const { ctx, dom } = makeCtx();
-  scaffoldChat(ctx, dom);
-  ctx.api = () => Promise.reject(Object.assign(new Error('审核驳回'), { code: 'AUDIT_REJECT' }));
-  const doc = dom.window.document;
-  doc.getElementById('chat-input').value = '你好';
+test('空会话首条消息：乐观气泡插入前清除 empty-state 占位（v1 parity）', async () => {
+  const dom = setup();
+  let resolveSend;
+  setupFetch(async () => new Promise(res => { resolveSend = () => res({ ok: true, status: 200, json: async () => ({ messages: [{ id: 5, kind: 'text', name: '' }] }) }); }));
+  dom.window.document.getElementById('chat-messages').innerHTML = '<div class="empty-state empty-state--small"><p>还没有消息，先打个招呼吧</p></div>';
+  dom.window.document.getElementById('chat-input').value = '第一条';
+  const p = sendChatMessage();
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(dom.window.document.querySelector('#chat-messages .empty-state'), null, 'empty-state 已被清除');
+  assert.equal(dom.window.document.querySelectorAll('#chat-messages .chat-bubble').length, 1, '气泡已插入');
+  resolveSend();
+  await p;
+  teardown();
+});
 
-  await vm.runInContext('sendChatMessage()', ctx);
-  assert.equal(doc.querySelectorAll('#chat-messages .chat-msg').length, 0, '失败后乐观气泡移除');
-  assert.equal(doc.getElementById('chat-input').value, '你好', '失败后输入恢复（可重试）');
-  const toast = doc.querySelector('#toast-container');
-  assert.ok(toast && toast.textContent.length, '失败 toast 弹出');
-  assert.equal(vm.runInContext('chatOptimisticSending', ctx), false, '失败后关窗复位');
+test('乐观失败回滚：api 拒绝 → 气泡移除 + 输入恢复 + 暂存恢复 + toast', async () => {
+  const dom = setup();
+  setupFetch(async () => ({ ok: false, status: 400, json: async () => ({ error: '审核驳回' }) }));
+  chat.staged = [{ id: 1, kind: 'file', uploadId: 10, name: 'a.pdf', dataUrl: 'data:application/pdf;base64,AA', progress: 100, ready: true }];
+  dom.window.document.getElementById('chat-input').value = '你好';
+  await sendChatMessage();
+  assert.equal(dom.window.document.querySelectorAll('#chat-messages .chat-bubble').length, 0);
+  assert.equal(dom.window.document.getElementById('chat-input').value, '你好');
+  assert.equal(chat.staged.length, 1, '失败回滚恢复暂存区');
+  const stageHtml = dom.window.document.getElementById('chat-stage').innerHTML;
+  assert.ok(stageHtml.includes('chat-stage-item'), '暂存区 UI 已恢复渲染');
+  assert.ok(dom.window.document.querySelector('#toast-container').textContent.includes('审核驳回'));
+  assert.equal(chat.optimisticSending, false);
+  teardown();
 });
 
 test('乐观去重：在途轮询已抢插真实气泡 → 发送成功移除临时气泡（防双气泡）', async () => {
-  const { ctx, dom } = makeCtx();
-  scaffoldChat(ctx, dom);
+  const dom = setup();
   let resolveSend;
-  ctx.api = (url, opts) => {
-    if (opts && opts.method === 'POST') return new Promise(res => { resolveSend = res; });
-    return Promise.resolve({ messages: [] });
-  };
-  const doc = dom.window.document;
-  doc.getElementById('chat-input').value = '你好';
-  const p = vm.runInContext('sendChatMessage()', ctx);
+  setupFetch(async () => new Promise(res => { resolveSend = () => res({ ok: true, status: 200, json: async () => ({ messages: [{ id: 5, kind: 'text', name: '' }] }) }); }));
+  dom.window.document.getElementById('chat-input').value = '你好';
+  const p = sendChatMessage();
   await new Promise(r => setTimeout(r, 0));
-  const optimistic = doc.querySelector('#chat-messages .chat-msg');
-  assert.ok(Number(optimistic.dataset.mid) < 0, '乐观临时气泡已插入');
-  // 模拟在途轮询（发送发起前已发出、服务端 GET 排在 batch POST 后处理）抢插真实 id 气泡：
-  // 轮询去重查 data-mid 因临时气泡还是负 id 而 miss → 插了真实气泡
-  doc.querySelector('#chat-messages').insertAdjacentHTML('beforeend', `<div class="chat-msg" data-mid="5"></div>`);
-  resolveSend({ messages: [{ id: 5, kind: 'text', name: '' }] });
+  const optimistic = dom.window.document.querySelector('#chat-messages .chat-bubble');
+  assert.ok(Number(optimistic.dataset.mid) < 0);
+  // 模拟在途轮询已抢插真实 id（绕过 optimisticSending 的直接 DOM 写入）
+  dom.window.document.getElementById('chat-messages').insertAdjacentHTML('beforeend', '<div class="chat-msg"><div class="chat-bubble" data-mid="5">x</div></div>');
+  resolveSend();
   await p;
-  const bubbles = [...doc.querySelectorAll('#chat-messages .chat-msg')];
-  assert.equal(bubbles.length, 1, '发送成功后无双气泡（临时气泡被移除去重）');
-  assert.equal(bubbles[0].dataset.mid, '5', '仅剩轮询抢插的真实气泡');
+  const mids = [...dom.window.document.querySelectorAll('#chat-messages .chat-bubble')].map(b => b.dataset.mid);
+  assert.deepEqual(mids, ['5'], '无双气泡');
+  teardown();
 });
 
-test('批量附件：暂存附件（uploadId）+ 文字一次 POST，乐观气泡逐条插入', async () => {
-  const { ctx, dom } = makeCtx();
-  scaffoldChat(ctx, dom);
-  let resolveSend, capturedBody = null;
-  ctx.api = (url, opts) => new Promise(res => { resolveSend = res; capturedBody = opts.body; });
-  const doc = dom.window.document;
-  doc.getElementById('chat-input').value = '正文';
-  vm.runInContext(`
-    chatStaged = [
-      { id: 1, kind: 'image', uploadId: 10, name: 'a.jpg', dataUrl: 'data:image/jpeg;base64,AAA', ready: true },
-      { id: 2, kind: 'file', uploadId: 11, name: 'b.pdf', dataUrl: 'data:application/pdf;base64,BBB', ready: true },
-    ];
-  `, ctx);
+test('空响应回滚：api 返回 messages:[] → 临时气泡移除、输入恢复', async () => {
+  const dom = setup();
+  setupFetch(async () => ({ ok: true, status: 200, json: async () => ({ messages: [] }) }));
+  dom.window.document.getElementById('chat-input').value = '你好';
+  await sendChatMessage();
+  assert.equal(dom.window.document.querySelectorAll('#chat-messages .chat-bubble').length, 0);
+  assert.equal(dom.window.document.getElementById('chat-input').value, '你好', '未创建的文字恢复输入');
+  assert.equal(chat.lastMsgId, 0);
+  teardown();
+});
 
-  const p = vm.runInContext('sendChatMessage()', ctx);
-  await new Promise(r => setTimeout(r, 0));
-  assert.equal(doc.querySelectorAll('#chat-messages .chat-msg').length, 3, '2 附件 + 1 文字乐观气泡全插入');
-  assert.equal(vm.runInContext('chatStaged.length', ctx), 0, '暂存区已乐观清空');
-  assert.deepEqual(JSON.parse(JSON.stringify(capturedBody.batch)), [
-    { kind: 'image', uploadId: 10 }, { kind: 'file', uploadId: 11 }, { kind: 'text', body: '正文' },
-  ], '批量体 = 附件 uploadId + 文字（一次往返替代 2N+1 串行）');
+test('部分失败：服务端只回一部分 → 缺失文字恢复输入 + toast 提示', async () => {
+  const dom = setup();
+  // 批 = [图片, 文件, 文字]，服务端只创建了前两条（文字被驳回），模拟部分回执
+  chat.staged = [
+    { id: 1, kind: 'image', uploadId: 10, name: 'a.jpg', dataUrl: 'data:image/jpeg;base64,AAA', thumb: 'data:image/jpeg;base64,TH', ready: true },
+    { id: 2, kind: 'file', uploadId: 11, name: 'b.pdf', dataUrl: 'data:application/pdf;base64,BBB', ready: true },
+  ];
+  setupFetch(async () => ({ ok: true, status: 200, json: async () => ({ messages: [{ id: 6, kind: 'image', name: 'a.jpg' }, { id: 7, kind: 'file', name: 'b.pdf' }] }) }));
+  dom.window.document.getElementById('chat-input').value = '第二条';
+  await sendChatMessage();
+  const mids = [...dom.window.document.querySelectorAll('#chat-messages .chat-bubble')].map(b => b.dataset.mid);
+  assert.deepEqual(mids, ['6', '7'], '两条已创建消息替换为真实 id');
+  assert.equal(dom.window.document.getElementById('chat-input').value, '第二条', '缺失的文字恢复输入');
+  assert.ok(dom.window.document.querySelector('#toast-container').textContent.includes('部分消息未发送'), '部分失败 toast');
+  teardown();
+});
 
-  resolveSend({ messages: [
-    { id: 6, kind: 'image', name: 'a.jpg' }, { id: 7, kind: 'file', name: 'b.pdf' }, { id: 8, kind: 'text', name: '' },
-  ] });
-  await p;
-  const mids = [...doc.querySelectorAll('#chat-messages .chat-msg')].map(b => b.dataset.mid);
-  assert.deepEqual(mids, ['6', '7', '8'], '真实 id 按批序替换临时 id');
-  assert.equal(vm.runInContext('chatLastMsgId', ctx), 8, '取批内最大 id 防轮询重拉');
+test('图片/文件乐观气泡成功后内外 data-mid 都替换为真实 id；媒体 bump 不把 dataUrl 写进列表缓存', async () => {
+  const dom = setup();
+  chat.list = [{ id: 1, last_kind: 'text', last_body: '旧预览', last_sender: 1 }];
+  chat.staged = [
+    { id: 1, kind: 'image', uploadId: 10, name: 'a.jpg', dataUrl: 'data:image/jpeg;base64,AAA', thumb: 'data:image/jpeg;base64,TH', ready: true },
+    { id: 2, kind: 'file', uploadId: 11, name: 'b.pdf', dataUrl: 'data:application/pdf;base64,BBB', ready: true },
+  ];
+  setupFetch(async () => ({ ok: true, status: 200, json: async () => ({ messages: [{ id: 6, kind: 'image', name: 'a.jpg' }, { id: 7, kind: 'file', name: 'b.pdf' }] }) }));
+  await sendChatMessage();
+  const bubbles = [...dom.window.document.querySelectorAll('#chat-messages .chat-bubble')];
+  assert.deepEqual(bubbles.map(b => b.dataset.mid), ['6', '7']);
+  const inner = [...dom.window.document.querySelectorAll('#chat-messages img[data-action="chat.openImage"], #chat-messages a.chat-file-dl')];
+  assert.deepEqual(inner.map(b => b.dataset.mid || ''), ['6', ''], '图片按钮 data-mid 同步为真实 id');
+  assert.equal(inner[1].getAttribute('download'), 'b.pdf', '文件下载锚点带文件名');
+  // F7 调用点契约：媒体消息 bump 传 body:''（绝不把数百 KB dataUrl 写进会话列表缓存）
+  assert.equal(chat.list[0].last_kind, 'file', '预览 kind 为最后一条媒体');
+  assert.equal(chat.list[0].last_body, '', '媒体消息列表缓存 body 为空串');
+  teardown();
+});
+
+test('chatPollTick 在乐观发送期间直接短路（不拉取）', async () => {
+  const dom = setup();
+  let called = false;
+  setupFetch(async () => { called = true; return { ok: true, status: 200, json: async () => ({ messages: [] }) }; });
+  chat.optimisticSending = true;
+  await chatPollTick();
+  assert.equal(called, false, '乐观发送中轮询不发请求');
+  teardown();
+});
+
+test('chatPollTick 离开会话页/未登录直接短路（v1 page guard parity）', async () => {
+  const dom = setup();
+  let called = 0;
+  setupFetch(async () => { called++; return { ok: true, status: 200, json: async () => ({ messages: [] }) }; });
+  state.page = 'browse-teachers';
+  await chatPollTick();
+  assert.equal(called, 0, '不在会话页不拉取');
+  state.page = 'my-chats';
+  state.user = null;
+  await chatPollTick();
+  assert.equal(called, 0, '未登录不拉取');
+  teardown();
 });

@@ -25,7 +25,7 @@ export function setRouterAuthGuard(fn) { authGuard = typeof fn === 'function' ? 
 export function registerPage(page) {
   if (!page || !page.id || typeof page.enter !== 'function') return;
   const idx = featurePages.findIndex(p => p.id === page.id);
-  const rec = { id: page.id, label: page.label || page.id, desc: page.desc || '', enter: page.enter, auth: page.auth, roles: page.roles || [] };
+  const rec = { id: page.id, label: page.label || page.id, desc: page.desc || '', enter: page.enter, auth: page.auth, roles: page.roles || [], leave: typeof page.leave === 'function' ? page.leave : null };
   if (idx >= 0) featurePages[idx] = rec; else featurePages.push(rec);
 }
 export function unregisterPage(id) {
@@ -131,6 +131,10 @@ export function selectPage(pageId) {
   closeAllModals();
   document.querySelectorAll('#client-main .client-page').forEach(s => s.classList.toggle('hidden', s.dataset.page !== pageId));
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b => b.classList.toggle('active', b.dataset.page === pageId));
+  // leave hook: v1 parity — modules tear down page-local resources on switch
+  // (chat stops polling, aborts staged uploads, marks the open conversation read)
+  const prev = pagesForRole().find(p => p.id === prevPage);
+  if (prev && typeof prev.leave === 'function' && prevPage !== pageId) prev.leave();
   state.page = pageId;
   savePageState(pageId);
   const cfg = pagesForRole().find(p => p.id === pageId);

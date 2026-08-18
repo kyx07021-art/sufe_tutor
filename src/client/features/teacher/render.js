@@ -6,21 +6,38 @@ import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from './text.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
-import { subjectNames, genderName, teacherGradeName, methodName, priceRangeText, ratingText, starsHtml, reviewStatusTagHtml } from '../../core/display.js';
+import { subjectNames, genderName, teacherGradeName, methodName, priceRangeText, ratingText, starsHtml, reviewStatusTagHtml, demandOptionText } from '../../core/display.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 
+let _studentOpenDemand = false;
+export function setStudentOpenDemand(v) { _studentOpenDemand = !!v; }
+export function studentOpenDemand() { return _studentOpenDemand; }
+
 export function renderTeacherCard(t, i) {
-  const price = priceRangeText(t.price_min, t.price_max);
-  return `<div class="list-card glass teacher-card" data-action="teacher.openProfile" data-id="${t.user_id}" data-reveal-index="${Math.min(i, 8)}">
-    <div class="list-card-header">
-      ${renderAvatarHtml(t.avatar, t.real_name || t.username, 'tc-avatar')}
-      <span class="list-card-title">${escHtml(t.real_name || t.username)}</span>
-      <span class="tag glass glass--solid">${starsHtml(t.rating)} ${ratingText(t.rating)}</span>
+  const isStudent = state.user && state.user.role === 'student';
+  const grade = teacherGradeName(t.grade) || t.grade || '';
+  const subjectsLine = subjectNames(t.subjects).join('、');
+  const priceNum = priceRangeText(t.price_min, t.price_max, '');
+  const hasPrice = !!priceNum;
+  const matchBtn = t._matchForStudent
+    ? `<button type="button" class="tag-match match-btn match-btn--${matchLevel(t._matchForStudent.md)} glass glass--pressable" data-action="teacher.matchDetail" data-id="${t.user_id}" title="${TEXT.TAG_MATCH_TITLE}">${TEXT.TAG_MATCH}${t._matchForStudent.md}%${TEXT.TAG_MATCH_HINT}</button>`
+    : (isStudent && !_studentOpenDemand ? `<span class="tc-match--hint">${escHtml(TEXT.TAG_MATCH_NO_DEMAND)}</span>` : '');
+  return `<div class="list-card list-card--teacher glass" role="button" tabindex="0" aria-label="${TEXT.A11Y_VIEW_PROFILE}" data-action="teacher.openProfile" data-id="${t.user_id}" data-reveal-index="${Math.min(i || 0, 8)}">
+    <div class="tc-head">
+      ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
+      <div class="tc-identity">
+        <span class="tc-name tc-username">${escHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${TEXT.VERIFIED_TITLE}">${TEXT.VERIFIED_BADGE}</span>` : ''}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${TEXT.AWARD_SECTION_TITLE}">${TEXT.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
+        ${t.school || grade ? `<span class="tc-school">${escHtml([t.school, grade].filter(Boolean).join(' · '))}</span>` : ''}
+      </div>
+      <div class="tc-rating">${starsHtml(t.rating)}<span class="tc-rating-num">${ratingText(t.rating)}</span></div>
     </div>
-    <div class="list-card-body">
-      <span class="tag glass glass--solid">${escHtml(subjectNames(t.subjects))}</span>
-      ${price ? `<span class="tag tag-warn glass glass--solid">${escHtml(price)}</span>` : ''}
-      <span class="list-card-meta">${escHtml(t.school || '')}</span>
+    ${hasPrice ? `<div class="tc-price"><span class="tc-num tc-num--price">${escHtml(priceNum)}</span><span class="tc-unit">${escHtml(TEXT.PRICE_UNIT)}</span></div>` : ''}
+    ${subjectsLine ? `<div class="tc-subjects">${escHtml(subjectsLine)}</div>` : ''}
+    <div class="tc-bottom">
+      <div class="tc-bottom-left">${t.intro ? `<div class="tc-intro">${escHtml(t.intro)}</div>` : ''}</div>
+      <div class="tc-bottom-right">
+        <div class="tc-actions">${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}</div>
+      </div>
     </div>
   </div>`;
 }
@@ -73,16 +90,19 @@ export function renderProfileAwardsCard(a) {
   </div>`;
 }
 
-export function studentMatchDetailHtml(t, d) {
-  const dims = matchDims(t, d);
-  const degree = matchDegree(t, d);
-  const level = matchLevel(degree);
-  const rows = matchRowsHtml(dims);
-  const note = matchNoteHtml(t, d, degree);
-  return `<div class="match-detail match-detail--teacher">
-    <p class="match-detail-title">${TEXT.MATCH_T_DEMAND_PREFIX}${degree}${TEXT.MATCH_T_PCT}</p>
-    ${rows}
-    ${note}
+export function studentMatchDetailHtml(t) {
+  const m = t._matchForStudent;
+  if (!m) return '';
+  const note = matchNoteHtml();
+  const entries = m.items.map(({ d, md }) => {
+    const head = `<div class="match-t-head"><b class="match-t-head-main">${TEXT.MATCH_T_BRACKET_L}${TEXT.MATCH_T_DEMAND_PREFIX}${escHtml(demandOptionText(d))} ${TEXT.MATCH_T_PCT}${md}%${TEXT.MATCH_T_BRACKET_R}</b></div>`;
+    return `<div class="match-t-item glass glass--solid">${head}${matchRowsHtml(matchDims(t, d))}</div>`;
+  }).join('');
+  return `<div class="match-detail match-detail--teacher match-detail--${matchLevel(m.md)} glass glass--float" role="dialog" aria-label="${TEXT.MATCH_T_TITLE}">
+    <div class="match-detail-head"><span class="match-detail-pct">${m.md}%</span><span class="match-detail-title">${TEXT.MATCH_T_TITLE}</span></div>
+    <p class="match-detail-sub">${TEXT.MATCH_TEACHER_DETAIL_SUB}</p>
+    <div class="match-t-list">${entries}</div>
+    <p class="match-note">${note}</p>
   </div>`;
 }
 

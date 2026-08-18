@@ -4,8 +4,6 @@
 import { TEXT } from './text.js';
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
-import { setContractEnsureAuth } from './actions-sign.js';
-import { setDraftEnsureAuth } from './actions-draft.js';
 import { setChatConvById } from './actions-chat-bridge.js';
 
 const ACTION_MAP = {
@@ -78,7 +76,6 @@ export default {
   pages: [],
   actions: ACTION_MAP,
   onLoad,
-  setEnsureAuth: fn => { setContractEnsureAuth(fn); setDraftEnsureAuth(fn); },
   setChatConvById,
 };
 

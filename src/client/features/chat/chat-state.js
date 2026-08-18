@@ -9,6 +9,7 @@ export const chat = {
   pollBusy: false,
   sending: false,
   optimisticSending: false,
+  optimisticSeq: 0,
   pendingOpen: null,
   staged: [],
   stageSeq: 0,

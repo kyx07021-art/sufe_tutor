@@ -1,45 +1,20 @@
 /**
- * 会话数据层（app-datahub.js，v0.23.0 静默数据层）回归
- *
- * 覆盖：
- *   - dhGet 缓存命中/miss（二次读取零请求）
- *   - 并发同 key 共享在途请求（预取与默认 tab 首次加载撞车不双发）
- *   - dhPeek 保底 TTL 过期判定
- *   - dhInvalidateDomain 只清指定域 / dhInvalidateAll 全清
- *   - dhPrefetch 批量（B2/F3 v0.27.0）：一次 /api/batch 往返、单键失败静默不阻断其余
- *   - dhProbeTick：域计数变化只重拉变化域（批量）、探测失败保留基线、标签页隐藏暂停
- *   - dhBatchGet：缓存跳过/在途共享/一次批量/部分失败/域 rebinder 执行（F3）
- *   - dhGet forceRefresh 绕过缓存
- *   - startVersionProbe 启动即建基线 / stopVersionProbe 安全
- * 沙箱：constants + app-state + app-api + app-datahub（与 api-timeout.test.js 同款 vm 模式），
- * fetch 用可控 mock（按 URL 路由，Error 值模拟失败；POST /api/batch 特殊合成批量结果）。
+ * 会话数据层（core/datahub.js）回归（B4：直接 import ESM）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import {
+  dhGet, dhPeek, dhInvalidateDomain, dhInvalidateAll, dhPrefetch, dhBatchGet,
+  dhProbeTick, startVersionProbe, stopVersionProbe, dhOnDomainRefresh,
+  dhRefreshDomain, dhCheckAppVersion, DH_PREFETCH, _dhResetForTests,
+} from '../src/client/core/datahub.js';
+import { CONFIG, APP_VERSION } from '../src/shared/config.js';
 
-function makeCtx({ fetchImpl }) {
-  const sandbox = {
-    console,
-    setTimeout: globalThis.setTimeout,
-    clearTimeout: globalThis.clearTimeout,
-    setInterval: () => 99, clearInterval: () => {}, // 桩：探测轮询不真起定时器，防测试进程挂起
-    AbortController: globalThis.AbortController,
-    fetch: fetchImpl,
-    SUFE_DISPLAY: {},
-    document: { hidden: false, addEventListener: () => {} },
-  };
-  vm.createContext(sandbox);
-  for (const f of ['constants.js', 'app-state.js', 'app-api.js', 'app-datahub.js']) {
-    vm.runInContext(readFileSync('./' + f, 'utf8'), sandbox, { filename: f });
-  }
-  return sandbox;
+function setup() {
+  _dhResetForTests();
+  CONFIG.DH_TTL_MS = 600000;
 }
 
-/** 可控 fetch：按 URL 路由返回；值为 Error 则抛错（模拟网络/服务端失败）。
- *  POST /api/batch 特殊处理（B2/F3）：从 body.gets 逐 path 查 routes 合成批量结果，
- *  并记录每次批量请求的 paths 到 batchGets（供「批量合并/去重」断言）。 */
 function makeFetch() {
   const calls = [];
   const batchGets = [];
@@ -68,346 +43,338 @@ function makeFetch() {
 }
 
 test('dhGet：缓存命中即返，miss 才发请求', async () => {
+  setup();
   const { impl, calls, routes } = makeFetch();
   routes.set('/api/teachers', { teachers: [{ id: 1 }] });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  const a = await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.deepEqual(a, { teachers: [{ id: 1 }] });
-  const b = await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  globalThis.fetch = impl;
+  const a = await dhGet('/api/teachers', { domain: 'teachers' });
+  const b = await dhGet('/api/teachers', { domain: 'teachers' });
   assert.deepEqual(b, a);
   assert.equal(calls.length, 1, '第二次命中缓存，零请求');
 });
 
 test('dhGet：并发同 key 共享一个在途请求（预取与 tab 首载撞车不双发）', async () => {
+  setup();
   let resolveFn;
   const calls = [];
-  const ctx = makeCtx({ fetchImpl: (url) => { calls.push(String(url)); return new Promise(r => { resolveFn = r; }); } });
-  const p1 = vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  const p2 = vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  globalThis.fetch = (url) => { calls.push(String(url)); return new Promise(r => { resolveFn = r; }); };
+  const p1 = dhGet('/api/teachers', { domain: 'teachers' });
+  const p2 = dhGet('/api/teachers', { domain: 'teachers' });
   assert.equal(calls.length, 1, '并发应共享一个请求');
   resolveFn({ ok: true, status: 200, json: async () => ({ teachers: [{ id: 9 }] }) });
   const [a, b] = await Promise.all([p1, p2]);
-  assert.deepEqual(a, b, '两个调用方拿同一份数据');
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.equal(calls.length, 1, '请求完成后走缓存，不再发请求');
+  assert.deepEqual(a, b);
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  assert.equal(calls.length, 1);
 });
 
 test('dhPeek：保底 TTL 过期后视为未命中', async () => {
+  setup();
   const { impl, calls, routes } = makeFetch();
   routes.set('/api/teachers', { teachers: [] });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = -1;', ctx); // 立即过期
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.equal(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '过期应返回 null');
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.notEqual(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, 'TTL 内应命中');
-  assert.equal(calls.length, 2, '过期那次 miss 触发重拉');
+  globalThis.fetch = impl;
+  CONFIG.DH_TTL_MS = -1;
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  assert.equal(dhPeek('/api/teachers'), null, '过期应返回 null');
+  CONFIG.DH_TTL_MS = 600000;
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  assert.notEqual(dhPeek('/api/teachers'), null);
+  assert.equal(calls.length, 2);
 });
 
 test('dhInvalidateDomain：只清指定域；dhInvalidateAll 全清', async () => {
+  setup();
   const { impl, routes } = makeFetch();
   routes.set('/api/teachers', { teachers: [] });
   routes.set('/api/student/demands?scope=mine', { demands: [] });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  await vm.runInContext(`dhGet('/api/student/demands?scope=mine', { domain: 'demands' })`, ctx);
-  vm.runInContext(`dhInvalidateDomain('demands')`, ctx);
-  assert.equal(vm.runInContext(`dhPeek('/api/student/demands?scope=mine')`, ctx), null, 'demands 域应被清');
-  assert.notEqual(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, 'teachers 域不受牵连');
-  vm.runInContext('dhInvalidateAll()', ctx);
-  assert.equal(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '全清后 teachers 也空');
+  globalThis.fetch = impl;
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  await dhGet('/api/student/demands?scope=mine', { domain: 'demands' });
+  dhInvalidateDomain('demands');
+  assert.equal(dhPeek('/api/student/demands?scope=mine'), null);
+  assert.notEqual(dhPeek('/api/teachers'), null);
+  dhInvalidateAll();
+  assert.equal(dhPeek('/api/teachers'), null);
 });
 
 test('dhPrefetch：批量一次往返、单键失败静默，不阻断其余键（B2/F3）', async () => {
+  setup();
   const { impl, calls, routes, batchGets } = makeFetch();
-  routes.set('/api/teachers', new Error('boom')); // 该键失败
+  routes.set('/api/teachers', new Error('boom'));
   routes.set('/api/contracts/my', { contracts: [] });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  const r = await vm.runInContext('dhPrefetch("student")', ctx); // 绝不抛（Map 或空）
-  assert.equal(Object.prototype.toString.call(r), '[object Map]', '应返回 Map');
-  assert.equal(calls.filter(u => u === '/api/batch').length, 1, 'DH_PREFETCH 全键一次批量拉取');
-  assert.equal(calls.filter(u => u === '/api/contracts/my').length, 0, '子请求不再单独打网（走批量）');
-  assert.equal(vm.runInContext(`dhPeek('/api/contracts/my')`, ctx) !== null, true, '成功键已入缓存');
-  assert.equal(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '失败键不入缓存');
-  // 批量 payload 覆盖角色全部端点（含 B6 设置页四表单）
+  globalThis.fetch = impl;
+  const r = await dhPrefetch('student');
+  assert.equal(Object.prototype.toString.call(r), '[object Map]');
+  assert.equal(calls.filter(u => u === '/api/batch').length, 1);
+  assert.equal(calls.filter(u => u === '/api/contracts/my').length, 0);
+  assert.notEqual(dhPeek('/api/contracts/my'), null);
+  assert.equal(dhPeek('/api/teachers'), null);
   const lastGets = batchGets[batchGets.length - 1];
-  assert.ok(lastGets.includes('/api/contracts/my'), '批量应含 contracts/my');
-  assert.ok(lastGets.includes('/api/user/creds'), '批量应含设置页 creds（B6 account 域）');
+  assert.ok(lastGets.includes('/api/contracts/my'));
+  assert.ok(lastGets.includes('/api/user/creds'));
 });
 
 test('dhBatchGet：缓存命中键跳过、在途键共享、缺键一次批量（F3）', async () => {
+  setup();
   const { impl, calls, routes, batchGets } = makeFetch();
   routes.set('/api/teachers', { teachers: [{ id: 1 }] });
   routes.set('/api/notifications', { notifications: [] });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx); // 预置缓存
-  const r = await vm.runInContext(`dhBatchGet([{path:'/api/teachers',domain:'teachers'},{path:'/api/notifications',domain:'notifications'}])`, ctx);
-  assert.ok(r.has('/api/teachers'), '缓存命中键直出');
-  assert.ok(r.has('/api/notifications'), '缺键批量拉取');
+  globalThis.fetch = impl;
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  const r = await dhBatchGet([{ path: '/api/teachers', domain: 'teachers' }, { path: '/api/notifications', domain: 'notifications' }]);
+  assert.ok(r.has('/api/teachers'));
+  assert.ok(r.has('/api/notifications'));
   assert.equal(calls.filter(u => u === '/api/batch').length, 1);
-  assert.deepEqual(batchGets[0], ['/api/notifications'], '批量只拉缺键（teachers 已缓存不入批量）');
+  assert.deepEqual(batchGets[0], ['/api/notifications']);
 });
 
 test('dhProbeTick：域计数变化只重拉变化域（批量；不动未变域缓存）', async () => {
+  setup();
   const { impl, calls, routes, batchGets } = makeFetch();
   routes.set('/api/student/demands?scope=mine', { demands: [{ id: 1 }] });
   routes.set('/api/teachers', { teachers: [{ user_id: 1 }] });
   routes.set('/api/data-version', { versions: { demands: 1, teachers: 1 } });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/student/demands?scope=mine', { domain: 'demands' })`, ctx);
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  globalThis.fetch = impl;
+  await dhGet('/api/student/demands?scope=mine', { domain: 'demands' });
+  await dhGet('/api/teachers', { domain: 'teachers' });
   const demandsN0 = calls.filter(u => u === '/api/student/demands?scope=mine').length;
   const teachersN0 = calls.filter(u => u === '/api/teachers').length;
-
-  await vm.runInContext('dhProbeTick()', ctx); // tick1：建基线，prev undefined → 不重拉
-  assert.equal(calls.filter(u => u === '/api/batch').length, 0, '首次仅建基线，不重拉');
-
-  routes.set('/api/data-version', { versions: { demands: 2, teachers: 1 } }); // 仅 demands 变化
-  await vm.runInContext('dhProbeTick()', ctx);
+  await dhProbeTick();
+  assert.equal(calls.filter(u => u === '/api/batch').length, 0);
+  routes.set('/api/data-version', { versions: { demands: 2, teachers: 1 } });
+  await dhProbeTick();
   const batch = batchGets[batchGets.length - 1] || [];
-  assert.ok(batch.includes('/api/student/demands?scope=mine'), 'demands 变化应批量重拉该键');
-  assert.ok(!batch.includes('/api/teachers'), 'teachers 未变不应进批量');
-  assert.equal(calls.filter(u => u === '/api/teachers').length, teachersN0, 'teachers 未变不应重拉');
-  assert.equal(vm.runInContext(`dhPeek('/api/student/demands?scope=mine')`, ctx) !== null, true, '重拉后缓存更新');
+  assert.ok(batch.includes('/api/student/demands?scope=mine'));
+  assert.ok(!batch.includes('/api/teachers'));
+  assert.equal(calls.filter(u => u === '/api/teachers').length, teachersN0);
+  assert.notEqual(dhPeek('/api/student/demands?scope=mine'), null);
 });
 
 test('dhProbeTick：探测失败保留基线，不误触发全量重拉', async () => {
+  setup();
   const { impl, calls, routes, batchGets } = makeFetch();
   routes.set('/api/student/demands?scope=mine', { demands: [] });
   routes.set('/api/data-version', { versions: { demands: 1 } });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/student/demands?scope=mine', { domain: 'demands' })`, ctx);
-  await vm.runInContext('dhProbeTick()', ctx); // 基线 {demands:1}
+  globalThis.fetch = impl;
+  await dhGet('/api/student/demands?scope=mine', { domain: 'demands' });
+  await dhProbeTick();
   const demandsN0 = calls.filter(u => u === '/api/student/demands?scope=mine').length;
-
   routes.set('/api/data-version', new Error('探测断线'));
-  await vm.runInContext('dhProbeTick()', ctx); // 失败静默，不抛
-  assert.equal(calls.filter(u => u === '/api/batch').length, 0, '探测失败不批量重拉');
-  assert.equal(calls.filter(u => u === '/api/student/demands?scope=mine').length, demandsN0, '探测失败不重拉');
-
-  routes.set('/api/data-version', { versions: { demands: 2 } }); // 恢复后对比基线
-  await vm.runInContext('dhProbeTick()', ctx);
-  assert.equal(calls.filter(u => u === '/api/batch').length, 1, '基线保留，变化仍能检出（批量）');
+  await dhProbeTick();
+  assert.equal(calls.filter(u => u === '/api/batch').length, 0);
+  assert.equal(calls.filter(u => u === '/api/student/demands?scope=mine').length, demandsN0);
+  routes.set('/api/data-version', { versions: { demands: 2 } });
+  await dhProbeTick();
+  assert.equal(calls.filter(u => u === '/api/batch').length, 1);
 });
 
 test('dhProbeTick：标签页隐藏暂停探测', async () => {
+  setup();
   const { impl, calls, routes } = makeFetch();
   routes.set('/api/data-version', { versions: {} });
-  const ctx = makeCtx({ fetchImpl: impl });
-  ctx.document.hidden = true;
-  await vm.runInContext('dhProbeTick()', ctx);
-  assert.equal(calls.filter(u => u === '/api/data-version').length, 0, 'hidden 时不应发探测请求');
-  ctx.document.hidden = false;
-  await vm.runInContext('dhProbeTick()', ctx);
-  assert.equal(calls.filter(u => u === '/api/data-version').length, 1, '可见后正常探测');
+  globalThis.fetch = impl;
+  globalThis.document = { hidden: true, addEventListener() {} };
+  await dhProbeTick();
+  assert.equal(calls.filter(u => u === '/api/data-version').length, 0);
+  globalThis.document = { hidden: false, addEventListener() {} };
+  await dhProbeTick();
+  assert.equal(calls.filter(u => u === '/api/data-version').length, 1);
+  delete globalThis.document;
 });
 
 test('dhGet forceRefresh：绕过缓存重拉', async () => {
+  setup();
   let n = 0;
   const { impl, calls, routes } = makeFetch();
   routes.set('/api/teachers', () => ({ teachers: [{ n: ++n }] }));
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  const a = await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
+  globalThis.fetch = impl;
+  const a = await dhGet('/api/teachers', { domain: 'teachers' });
   assert.equal(a.teachers[0].n, 1);
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.equal(calls.length, 1, '缓存命中');
-  const b = await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers', forceRefresh: true })`, ctx);
-  assert.equal(b.teachers[0].n, 2, 'forceRefresh 应重拉新数据');
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  assert.equal(calls.length, 1);
+  const b = await dhGet('/api/teachers', { domain: 'teachers', forceRefresh: true });
+  assert.equal(b.teachers[0].n, 2);
   assert.equal(calls.length, 2);
 });
 
 test('startVersionProbe 立即建基线；stopVersionProbe 安全', async () => {
+  setup();
   const { impl, calls, routes } = makeFetch();
   routes.set('/api/data-version', { versions: {} });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('startVersionProbe()', ctx);
-  vm.runInContext('stopVersionProbe()', ctx);
-  await new Promise(r => setTimeout(r, 0)); // 等立即 tick 的微任务落定
-  assert.ok(calls.includes('/api/data-version'), '启动即探测建基线');
-  vm.runInContext('stopVersionProbe()', ctx); // 幂等：重复 stop 不炸
+  globalThis.fetch = impl;
+  globalThis.setInterval = () => 99; globalThis.clearInterval = () => {};
+  startVersionProbe();
+  stopVersionProbe();
+  await new Promise(r => setTimeout(r, 0));
+  assert.ok(calls.includes('/api/data-version'));
+  stopVersionProbe();
+  delete globalThis.setInterval; delete globalThis.clearInterval;
 });
 
 test('dhOnDomainRefresh：探测刷新后重挂函数执行、别名指向新缓存数组（审计 M1）', async () => {
+  setup();
   let alias = null;
   const { impl, routes } = makeFetch();
   routes.set('/api/teachers', { teachers: [{ user_id: 1, name: 'v1' }] });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  // 注册重挂：刷新后从缓存取新数组写进别名
-  vm.runInContext(`
-    dhOnDomainRefresh('teachers', () => {
-      const c = dhPeek('/api/teachers');
-      alias = c ? c.teachers : null;
-    });
-  `, ctx);
-  routes.set('/api/teachers', { teachers: [{ user_id: 1, name: 'v2' }] }); // 服务端数据变化
-  await vm.runInContext(`dhRefreshDomain('teachers')`, ctx);
-  assert.equal(vm.runInContext('alias[0].name', ctx), 'v2', '重挂后别名应指向新缓存数组');
+  globalThis.fetch = impl;
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  dhOnDomainRefresh('teachers', () => {
+    const c = dhPeek('/api/teachers');
+    alias = c ? c.teachers : null;
+  });
+  routes.set('/api/teachers', { teachers: [{ user_id: 1, name: 'v2' }] });
+  await dhRefreshDomain('teachers');
+  assert.equal(alias[0].name, 'v2');
 });
 
 test('dhGet 会话代次：登出后（dhInvalidateAll）在途请求回落后不写入缓存（审计 m1）', async () => {
+  setup();
   let resolveFn;
   const calls = [];
-  const ctx = makeCtx({ fetchImpl: (url) => { calls.push(String(url)); return new Promise(r => { resolveFn = r; }); } });
-  const p = vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx); // 在途
-  vm.runInContext('dhInvalidateAll()', ctx); // 会话切换
+  globalThis.fetch = (url) => { calls.push(String(url)); return new Promise(r => { resolveFn = r; }); };
+  const p = dhGet('/api/teachers', { domain: 'teachers' });
+  dhInvalidateAll();
   resolveFn({ ok: true, status: 200, json: async () => ({ teachers: [{ id: 1 }] }) });
   await p;
-  assert.equal(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '旧账户数据不得残留进缓存');
+  assert.equal(dhPeek('/api/teachers'), null);
 });
 
 test('dhProbeTick：域刷新失败保留旧基线，下轮重试（审计 m5，批量）', async () => {
+  setup();
   const { impl, calls, routes, batchGets } = makeFetch();
   routes.set('/api/student/demands?scope=mine', { demands: [{ id: 1 }] });
   routes.set('/api/data-version', { versions: { demands: 1 } });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/student/demands?scope=mine', { domain: 'demands' })`, ctx);
-  await vm.runInContext('dhProbeTick()', ctx); // 基线 {demands:1}
-
+  globalThis.fetch = impl;
+  await dhGet('/api/student/demands?scope=mine', { domain: 'demands' });
+  await dhProbeTick();
   routes.set('/api/data-version', { versions: { demands: 2 } });
-  routes.set('/api/student/demands?scope=mine', new Error('刷新失败')); // 域刷新失败
-  await vm.runInContext('dhProbeTick()', ctx);
-  routes.set('/api/student/demands?scope=mine', { demands: [{ id: 1 }] }); // 恢复
-  await vm.runInContext('dhProbeTick()', ctx);
-  assert.equal(calls.filter(u => u === '/api/batch').length, 2,
-    '失败那轮后基线保留，恢复后仍会重拉一次（批量）');
+  routes.set('/api/student/demands?scope=mine', new Error('刷新失败'));
+  await dhProbeTick();
+  routes.set('/api/student/demands?scope=mine', { demands: [{ id: 1 }] });
+  await dhProbeTick();
+  assert.equal(calls.filter(u => u === '/api/batch').length, 2);
 });
 
 test('dhCheckAppVersion：版本变化 → 强清缓存并覆写版本号；同版本 → 不动（v0.25.12 发版强清）', async () => {
+  setup();
   const store = new Map();
-  const ctx = makeCtx({ fetchImpl: () => Promise.resolve({ ok: true, status: 200, json: async () => ({ teachers: [] }) }) });
-  ctx.localStorage = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  const cur = vm.runInContext('String(APP_CONSTANTS.APP_VERSION)', ctx);
-  vm.runInContext('dhCheckAppVersion()', ctx); // boot 时 localStorage 未注入已静默跳过；此调用落版本基线
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.notEqual(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '先有缓存数据');
-  // 模拟发版：localStorage 版本为旧版本 → 强清缓存 + 覆写新版本号
-  vm.runInContext(`localStorage.setItem(DH_VERSION_KEY, '0.0.0')`, ctx);
-  vm.runInContext('dhCheckAppVersion()', ctx);
-  assert.equal(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '版本变化 → 整体作废缓存');
-  assert.equal(vm.runInContext('localStorage.getItem(DH_VERSION_KEY)', ctx), cur, '清后覆写为当前版本号');
-  // 同版本再查 → 不再误清
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  vm.runInContext('dhCheckAppVersion()', ctx);
-  assert.notEqual(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '同版本不误清');
+  globalThis.localStorage = {
+    getItem: k => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: k => store.delete(k),
+  };
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ teachers: [] }) });
+  dhCheckAppVersion();
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  assert.notEqual(dhPeek('/api/teachers'), null);
+  globalThis.localStorage.setItem('sufe_app_version', '0.0.0');
+  dhCheckAppVersion();
+  assert.equal(dhPeek('/api/teachers'), null);
+  assert.equal(globalThis.localStorage.getItem('sufe_app_version'), String(APP_VERSION));
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  dhCheckAppVersion();
+  assert.notEqual(dhPeek('/api/teachers'), null);
+  delete globalThis.localStorage;
 });
 
 test('T6 发版重预取：版本变化清缓存后进客户端 dhPrefetch 立即一次批量重灌（F7/F3）', async () => {
+  setup();
   const store = new Map();
   const { impl, calls, routes, batchGets } = makeFetch();
   routes.set('/api/teachers', { teachers: [{ id: 1 }] });
   routes.set('/api/contracts/my', { contracts: [] });
-  const ctx = makeCtx({ fetchImpl: impl });
-  ctx.localStorage = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  // boot：进客户端前已预取（旧版本数据在缓存里）
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.notEqual(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '旧版本缓存有数据');
+  globalThis.fetch = impl;
+  globalThis.localStorage = {
+    getItem: k => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+    removeItem: k => store.delete(k),
+  };
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  assert.notEqual(dhPeek('/api/teachers'), null);
   calls.length = 0; batchGets.length = 0;
-  // 发版：boot 期版本探针检测到版本变化 → 强清缓存 + 覆写版本号
-  vm.runInContext(`localStorage.setItem(DH_VERSION_KEY, '0.0.0')`, ctx);
-  vm.runInContext('dhCheckAppVersion()', ctx);
-  assert.equal(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '版本变化缓存全清');
-  // 进客户端（enterClient 内 dhPrefetch(role)）：一次批量重灌全部预取键
-  const r = await vm.runInContext('dhPrefetch("student")', ctx);
-  assert.equal(calls.filter(u => u === '/api/batch').length, 1, '发版后进客户端 = 1 次批量，无串行瀑布');
-  assert.notEqual(vm.runInContext(`dhPeek('/api/teachers')`, ctx), null, '批量重灌后教师缓存就绪');
-  assert.notEqual(vm.runInContext(`dhPeek('/api/contracts/my')`, ctx), null, '批量重灌后合同缓存就绪');
-  assert.equal(calls.filter(u => u === '/api/teachers').length, 0, '子请求不打网（全走批量）');
-  assert.equal(Object.prototype.toString.call(r), '[object Map]', '返回 Map');
+  globalThis.localStorage.setItem('sufe_app_version', '0.0.0');
+  dhCheckAppVersion();
+  assert.equal(dhPeek('/api/teachers'), null);
+  const r = await dhPrefetch('student');
+  assert.equal(calls.filter(u => u === '/api/batch').length, 1);
+  assert.notEqual(dhPeek('/api/teachers'), null);
+  assert.notEqual(dhPeek('/api/contracts/my'), null);
+  assert.equal(calls.filter(u => u === '/api/teachers').length, 0);
+  assert.equal(Object.prototype.toString.call(r), '[object Map]');
+  delete globalThis.localStorage;
 });
 
 test('B-2 分块：单域缓存键超 BATCH_GET_MAX 时 dhRefreshDomain 分块拉取不整批 400', async () => {
+  setup();
   const { impl, calls, routes, batchGets } = makeFetch();
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  // teachers 域累积 17 个 ?userId= 分键（教师详情面板逐个打开），超 CONFIG.BATCH_GET_MAX(16)
+  globalThis.fetch = impl;
   for (let i = 0; i < 17; i++) {
     routes.set(`/api/teacher/profile?userId=${i}`, { profile: { user_id: i, name: `t${i}` } });
-    await vm.runInContext(`dhGet('/api/teacher/profile?userId=${i}', { domain: 'teachers' })`, ctx);
+    await dhGet(`/api/teacher/profile?userId=${i}`, { domain: 'teachers' });
   }
-  assert.equal(vm.runInContext('dhCache.size', ctx), 17, '缓存已有 17 键');
   const before = batchGets.length;
-  const ok = await vm.runInContext('dhRefreshDomain("teachers")', ctx);
-  assert.equal(ok, true, '域刷新成功（不再整批 400 静默失败）');
+  const ok = await dhRefreshDomain('teachers');
+  assert.equal(ok, true);
   const newBatches = batchGets.slice(before);
-  assert.equal(newBatches.length, 2, '17 键分 2 块（16+1）');
-  assert.ok(newBatches[0].length <= 16 && newBatches[1].length <= 16, '每块 ≤ BATCH_GET_MAX');
-  assert.equal(newBatches.flat().length, 17, '两块合计覆盖全部 17 键');
-  // 刷新后缓存仍是 17 键（无键丢失）
-  assert.equal(vm.runInContext('dhCache.size', ctx), 17, '刷新后无键丢失');
+  assert.equal(newBatches.length, 2);
+  assert.ok(newBatches[0].length <= 16 && newBatches[1].length <= 16);
+  assert.equal(newBatches.flat().length, 17);
+  for (let i = 0; i < 17; i++) assert.notEqual(dhPeek(`/api/teacher/profile?userId=${i}`), null);
 });
 
 test('dhProbeTick：getVersions 全域补零后首写 0→1 触发重拉（审计 m1，批量）', async () => {
+  setup();
   const { impl, calls, routes, batchGets } = makeFetch();
   routes.set('/api/teachers', { teachers: [] });
   routes.set('/api/data-version', { versions: { demands: 0, teachers: 0 } });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 600000;', ctx);
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  await vm.runInContext('dhProbeTick()', ctx); // 基线 {teachers:0}
-  routes.set('/api/data-version', { versions: { demands: 0, teachers: 1 } }); // 全站首条教师相关写
-  await vm.runInContext('dhProbeTick()', ctx);
-  assert.equal(calls.filter(u => u === '/api/batch').length, 1, '0→1 应批量重拉');
-  assert.ok((batchGets[batchGets.length - 1] || []).includes('/api/teachers'), '0→1 批量应含 teachers');
+  globalThis.fetch = impl;
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  await dhProbeTick();
+  routes.set('/api/data-version', { versions: { demands: 0, teachers: 1 } });
+  await dhProbeTick();
+  assert.equal(calls.filter(u => u === '/api/batch').length, 1);
+  assert.ok((batchGets[batchGets.length - 1] || []).includes('/api/teachers'));
 });
 
-// B6（用户反馈「后台静默加载无效：挂机十分钟后点模块仍现场拉表单，且拉取要 8 秒」）：
-// 根因 = DH_TTL_MS 60s 保底 TTL——挂机期间预取数据过期，进模块缓存 miss 现场拉。
-// 修复 = 版本探测成功后续期全缓存（dhTouchAll）：数据版本一致则缓存长期有效，进任何模块秒开；
-// 探测停摆/失败时保留 TTL 兜底防陈旧。
-// 注：dhPeek 在 TTL 过期时主动删除缓存条目（防陈旧读取），所以「续期验证」不能先调 dhPeek——
-// 用 dhGet 的请求计数验证（续期成功 = 进模块 dhGet 命中缓存零请求，即用户「点模块秒开」的实测语义）
 test('B6 dhProbeTick：探测成功全缓存续期——TTL 过期后进模块零请求（不现场拉）', async () => {
+  setup();
   const { impl, calls, routes } = makeFetch();
   routes.set('/api/teachers', { teachers: [{ user_id: 1 }] });
   routes.set('/api/data-version', { versions: { teachers: 1 } });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 50;', ctx); // 极短 TTL 模拟挂机超时
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  await new Promise(r => setTimeout(r, 80)); // TTL 过期（条目仍在缓存，fetchedAt 旧）
+  globalThis.fetch = impl;
+  CONFIG.DH_TTL_MS = 50;
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  await new Promise(r => setTimeout(r, 80));
   const n0 = calls.filter(u => u === '/api/teachers').length;
-  await vm.runInContext('dhProbeTick()', ctx); // 挂机恢复：探测成功（数据版本未变）→ 续期
-  const data = await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.ok(Array.isArray(data.teachers), '续期后 dhGet 命中缓存返回数据');
-  assert.equal(calls.filter(u => u === '/api/teachers').length, n0, '续期后进模块零请求（缓存命中，不现场拉表单）');
+  await dhProbeTick();
+  const data = await dhGet('/api/teachers', { domain: 'teachers' });
+  assert.ok(Array.isArray(data.teachers));
+  assert.equal(calls.filter(u => u === '/api/teachers').length, n0);
 });
 
 test('B6 探测失败不续期：TTL 过期后 dhGet 现场拉（防陈旧兜底仍在）', async () => {
+  setup();
   const { impl, calls, routes } = makeFetch();
   routes.set('/api/teachers', { teachers: [{ user_id: 1 }] });
   routes.set('/api/data-version', { versions: { teachers: 1 } });
-  const ctx = makeCtx({ fetchImpl: impl });
-  vm.runInContext('CONFIG.DH_TTL_MS = 50;', ctx);
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  await new Promise(r => setTimeout(r, 80)); // TTL 过期
+  globalThis.fetch = impl;
+  CONFIG.DH_TTL_MS = 50;
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  await new Promise(r => setTimeout(r, 80));
   const n0 = calls.filter(u => u === '/api/teachers').length;
   routes.set('/api/data-version', new Error('探测断线'));
-  await vm.runInContext('dhProbeTick()', ctx); // 失败静默（不续期）
-  await vm.runInContext(`dhGet('/api/teachers', { domain: 'teachers' })`, ctx);
-  assert.equal(calls.filter(u => u === '/api/teachers').length, n0 + 1, '探测失败不续期，进模块现场拉（TTL 兜底）');
+  await dhProbeTick();
+  await dhGet('/api/teachers', { domain: 'teachers' });
+  assert.equal(calls.filter(u => u === '/api/teachers').length, n0 + 1);
 });
 
 test('B6 DH_PREFETCH：设置页四表单并入预取（account 域，登录即后台拉取）', () => {
-  const { impl } = makeFetch();
-  const ctx = makeCtx({ fetchImpl: impl });
-  const prefetch = vm.runInContext('DH_PREFETCH', ctx);
+  setup();
   const eps = ['/api/auth/sessions', '/api/privacy-settings', '/api/user/username/status', '/api/user/creds'];
   for (const role of ['student', 'teacher', 'admin']) {
-    const keys = prefetch[role].map(([e]) => e);
+    const keys = DH_PREFETCH[role].map(([e]) => e);
     for (const ep of eps) assert.ok(keys.includes(ep), `${role} 预取清单应含 ${ep}`);
-    assert.equal(prefetch[role].filter(([, d]) => d === 'account').length, 4, `${role} account 域端点 4 个`);
+    assert.equal(DH_PREFETCH[role].filter(([, d]) => d === 'account').length, 4, `${role} account 域端点 4 
+个`);
   }
 });
-

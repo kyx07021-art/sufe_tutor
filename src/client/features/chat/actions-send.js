@@ -1,44 +1,51 @@
 /**
- * chat feature actions: polling, send and upload pipeline.
+ * chat feature actions: polling, optimistic send and upload pipeline.
+ *
+ * Optimistic send contract (B4 audit):
+ * - temporary negative-id bubbles are rendered before the POST; input is cleared.
+ * - while an optimistic send is in flight, polling is paused (no duplicate bubble).
+ * - on success each temp bubble is replaced by a freshly rendered bubble merged
+ *   from the local message + the server receipt id (receipt only carries
+ *   {id,kind,name}; sender/body/thumb/created_at must come from the local copy,
+ *   otherwise own messages render as theirs with empty content);
+ *   if the real bubble already exists (polling race), the temp bubble is removed.
+ * - on failure/partial success temp bubbles are removed and text restored.
+ * - after send, the conversation list preview is bumped (parity with v1).
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from './text.js';
 import { chat } from './chat-state.js';
 import { state } from '../../core/state.js';
 import { api, apiUpload } from '../../core/api.js';
-import { showToast } from '../../core/ui.js';
-import { renderChatBubble, renderStageBox, chatFileExt, chatNowStamp } from './render.js';
+import { showToast, btnLoading, btnDone } from '../../core/ui.js';
+import { renderChatBubble, renderStageBox, chatNowStamp } from './render.js';
+import { chatBumpConvPreview } from './actions-list.js';
 
-export function chatStartPolling() {
-  stopChatPolling();
-  chat.pollTimer = setInterval(chatPollTick, CONFIG.CHAT_POLL_MS);
+function tempId() {
+  chat.optimisticSeq += 1;
+  return -(900000 + chat.optimisticSeq);
 }
 
-export function stopChatPolling() {
-  if (chat.pollTimer) { clearInterval(chat.pollTimer); chat.pollTimer = null; }
+function removeTempBubbles(ids) {
+  const box = document.getElementById('chat-messages');
+  if (!box) return;
+  for (const id of ids) {
+    const el = box.querySelector(`.chat-bubble[data-mid="${id}"]`);
+    if (el) el.closest('.chat-msg')?.remove();
+  }
 }
 
-export async function chatPollTick() {
-  if (!chat.convId || chat.pollBusy) return;
-  chat.pollBusy = true;
-  try {
-    const data = await api(`/api/conversations/${chat.convId}/messages?sinceId=${chat.lastMsgId}`, { method: 'GET' });
-    const msgs = data.messages || [];
-    if (msgs.length) {
-      const fresh = msgs.filter(m => m.id > chat.lastMsgId);
-      if (fresh.length) {
-        chat.lastMsgId = fresh[fresh.length - 1].id;
-        const box = document.getElementById('chat-messages');
-        if (box) {
-          const existing = new Set([...box.querySelectorAll('[data-mid]')].map(x => x.dataset.mid));
-          const html = fresh.filter(m => !existing.has(String(m.id))).map(renderChatBubble).join('');
-          if (html) box.insertAdjacentHTML('beforeend', html);
-        }
-        const box2 = document.getElementById('chat-messages'); if (box2) box2.scrollTop = box2.scrollHeight;
-      }
-    }
-  } catch { /* poll silently */ }
-  finally { chat.pollBusy = false; }
+function replaceTempWithReal(tempId, merged) {
+  const box = document.getElementById('chat-messages');
+  if (!box) return;
+  const temp = box.querySelector(`.chat-bubble[data-mid="${tempId}"]`);
+  if (!temp) return;
+  if (box.querySelector(`.chat-bubble[data-mid="${merged.id}"]`)) {
+    temp.closest('.chat-msg')?.remove();
+    return;
+  }
+  const msg = temp.closest('.chat-msg');
+  if (msg) msg.outerHTML = renderChatBubble(merged);
 }
 
 export async function sendChatMessage() {
@@ -50,40 +57,97 @@ export async function sendChatMessage() {
   if (staged.some(it => !it.ready)) { showToast(TEXT.CHAT_STAGE_WAIT); return; }
   if (!chat.convId) return;
   if (chat.sending) return;
+  const btn = document.getElementById('chat-send-btn');
   chat.sending = true;
+  chat.optimisticSending = true;
+  btnLoading(btn, TEXT.CHAT_BTN_SEND);
   const convId = chat.convId;
+  const originalText = text;
+  const optimistic = [];
+  const batch = staged.map(it => ({ kind: it.kind, uploadId: it.uploadId }));
+  if (text) batch.push({ kind: 'text', body: text });
+
+  // Server receipt only carries {id,kind,name}: keep the full local message with the
+  // temp bubble and merge on replace so sender/body/thumb/created_at survive.
+  batch.forEach((b, i) => {
+    const id = tempId();
+    const st = staged[i];
+    const m = {
+      id,
+      sender_user_id: state.user ? state.user.id : null,
+      kind: b.kind,
+      body: b.kind === 'text' ? b.body : (st ? st.dataUrl : ''),
+      name: st ? st.name : '',
+      thumb: st ? st.thumb || '' : '',
+      created_at: chatNowStamp(),
+    };
+    optimistic.push({ tempId: id, msg: m, text: b.kind === 'text' ? b.body : '' });
+    const box = document.getElementById('chat-messages');
+    if (box) {
+      // v1 parity: first message into an empty conversation removes the empty-state
+      // placeholder, otherwise the optimistic bubble stacks under it
+      if (box.querySelector('.empty-state')) box.innerHTML = '';
+      box.insertAdjacentHTML('beforeend', renderChatBubble(m));
+    }
+  });
+  const box = document.getElementById('chat-messages'); if (box) box.scrollTop = box.scrollHeight;
+  ta.value = '';
+  chatAutogrow(ta);
+  // clear the staging area immediately (v1 parity); restored on rollback below
+  chat.staged = [];
+  renderChatStage();
+
   try {
-    const batch = staged.map(it => ({ kind: it.kind, uploadId: it.uploadId }));
-    if (text) batch.push({ kind: 'text', body: text });
     const data = await api(`/api/conversations/${convId}/messages`, { method: 'POST', body: { batch } });
     if (chat.convId !== convId) return;
     const created = data.messages || [];
-    const local = batch.map((b, i) => ({
-      id: created[i] && created[i].id ? created[i].id : -(i + 1),
-      sender_user_id: state.user ? state.user.id : null,
-      kind: b.kind,
-      body: b.kind === 'text' ? b.body : (staged[i] ? staged[i].dataUrl : ''),
-      name: staged[i] ? staged[i].name : '',
-      created_at: chatNowStamp(),
-    }));
-    if (local.length) {
-      const maxId = local.reduce((m, x) => Math.max(m, x.id > 0 ? x.id : 0), chat.lastMsgId);
-      chat.lastMsgId = maxId;
-      const box = document.getElementById('chat-messages');
-      if (box) box.insertAdjacentHTML('beforeend', local.map(renderChatBubble).join(''));
-      const box2 = document.getElementById('chat-messages'); if (box2) box2.scrollTop = box2.scrollHeight;
+    const missingTexts = [];
+    optimistic.forEach((o, i) => {
+      const real = created[i];
+      if (real && real.id > 0) {
+        if (real.id > chat.lastMsgId) chat.lastMsgId = real.id;
+        replaceTempWithReal(o.tempId, { ...o.msg, id: real.id });
+      } else {
+        removeTempBubbles([o.tempId]);
+        if (o.msg.kind === 'text') missingTexts.push(o.text);
+      }
+    });
+    const tempIds = optimistic.map(o => o.tempId);
+    removeTempBubbles(tempIds);
+    if (missingTexts.length) {
+      const restored = [...missingTexts, ta.value].filter(Boolean).join('\n');
+      ta.value = restored;
+      chatAutogrow(ta);
+      showToast(TEXT.CHAT_SEND_PARTIAL_FAILED);
     }
-    chat.staged = [];
-    renderStageBox(chat.staged, document.getElementById('chat-stage'));
-    ta.value = '';
-    chatAutogrow(ta);
+    if (optimistic.length) {
+      const lastOp = optimistic[optimistic.length - 1].msg;
+      // v1 parity: media messages bump with an empty body — never stuff a full
+      // data URL (hundreds of KB) into the conversation list cache
+      chatBumpConvPreview(convId, {
+        body: lastOp.kind === 'text' ? lastOp.body : '',
+        kind: lastOp.kind,
+        name: lastOp.name || '',
+        created_at: lastOp.created_at,
+        sender_user_id: lastOp.sender_user_id,
+      });
+    }
   } catch (err) {
+    // rollback: remove optimistic bubbles + restore input and staging area
+    // (audit-flow rejection / network error are both retryable)
+    if (chat.convId === convId) {
+      removeTempBubbles(optimistic.map(o => o.tempId));
+      ta.value = originalText ? [originalText, ta.value].filter(Boolean).join('\n') : ta.value;
+      chatAutogrow(ta);
+      chat.staged = staged;
+      renderChatStage();
+    }
     showToast(err.message);
-  } finally { chat.sending = false; }
-}
-
-export function chatInputKeydown(e) {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+  } finally {
+    chat.sending = false;
+    chat.optimisticSending = false;
+    btnDone(btn, TEXT.CHAT_BTN_SEND);
+  }
 }
 
 export function chatAutogrow(ta) {
@@ -179,4 +243,7 @@ export function chatUnstage(id) {
   if (it && it.uploadId) api(`/api/uploads/${it.uploadId}`, { method: 'DELETE', body: {} }).catch(() => {});
 }
 
-
+export function renderChatStage() {
+  // renderStageBox owns the hidden toggle + innerHTML (single definition)
+  renderStageBox(chat.staged, document.getElementById('chat-stage'));
+}

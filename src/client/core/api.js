@@ -12,6 +12,13 @@ export function setSessionBootValidating(v) { sessionBootValidating = !!v; }
 
 let ensureAuthFn = null;
 export function setEnsureAuth(fn) { ensureAuthFn = typeof fn === 'function' ? fn : null; }
+/**
+ * Shared auth gate (single source): features that need "logged in or prompt" call
+ * this instead of keeping a private dead-wired copy. The auth feature wires the
+ * real implementation at boot via setEnsureAuth; unwired, it passes (tests/guests
+ * are still fenced by the router authGuard and server-side 401 handling).
+ */
+export function ensureAuth() { return ensureAuthFn ? ensureAuthFn() : true; }
 
 function handleDeadToken(sentToken) {
   if (sentToken && sentToken === lastHandled401Token) return;
