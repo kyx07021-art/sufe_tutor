@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <!-- 与 web/index.html 完全同源的严格 meta CSP（V-3-1d2）——验证四类注入面的真实浏览器拦截语义 -->
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'">
+  <title>CSP 注入面验证页（V-3-1e）</title>
+</head>
+<body>
+  <!-- 第一路：内联 script（应被 script-src 'self' 拦，__csp_inline 不得置位） -->
+  <script>window.__csp_inline = 1;</script>
+
+  <!-- 第二路：内联事件 handler（应被 script-src 拦，点击后 __csp_onclick 不得置位） -->
+  <button id="csp-onclick" onclick="window.__csp_onclick = 1">点我</button>
+
+  <!-- 第三路：<style> 元素注入（应被 style-src-elem 'self' 拦，.csp-elem-test 不得生效） -->
+  <style>.csp-elem-test{color:rgb(1,2,3)}</style>
+  <div id="csp-elem" class="csp-elem-test">style 元素注入面</div>
+
+  <!-- 第四路（放行面）：style 属性数据通道（style-src-attr 'unsafe-inline' 有意保留，c1/c2 的 CSS 变量通道依赖），
+       应生效——计算色必须为 rgb(9,8,7) -->
+  <div id="csp-attr" style="color:rgb(9,8,7)">style 属性数据通道</div>
+</body>
+</html>
