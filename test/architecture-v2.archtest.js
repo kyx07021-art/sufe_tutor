@@ -11,7 +11,8 @@
  *   7. V-3-1c3 CSP：core/features 零 <style> 元素注入（动态样式只走 CSS 自定义属性数据通道）；
  *   8. V-3-1d3 CSP：web/index.html 严格 meta CSP（script-src/style-src-elem 无 unsafe-inline）；
  *   9. V-3-2a0：region-data 单源（SUFE_REGIONS 唯一定义于 shared，client re-export）；
- *  10. V-3-2a0：CSS 分层加载序（tokens→base→features→responsive→glass）。
+ *  10. V-3-2a0：CSS 分层加载序（tokens→base→features→responsive→glass）；
+ *  11. V-3-2c：文档↔契约互检（architecture.md 契约清单与 archtest 双向对应，防文档漂移）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -143,5 +144,25 @@ test('CSS 分层加载序：web/index.html stylesheet 依 tokens→base→featur
     assert.ok(idx > prevIdx, `CSS 层序：${name} 在 ${prevName || '层首'} 之后（V-2-5b 加载序铁律）`);
     prevIdx = idx;
     prevName = name;
+  }
+});
+
+// V-3-2c 文档↔契约互检：docs/architecture.md 契约清单与 archtest 双向对应（防文档漂移）。
+// 文档新增/删除契约而测试不同步 → 本测试红。关键词 = 文档章节标题与 archtest 测试标题的共同子串。
+test('文档↔契约互检：architecture.md 契约清单与 archtest 双向对应（防文档漂移）', () => {
+  const doc = read('docs/architecture.md');
+  const testSrc = read('test/architecture-v2.archtest.js');
+  const titles = [...testSrc.matchAll(/^test\('([^']+)'/gm)].map(m => m[1]);
+  const keys = ['构建契约', '后端域自持', '声明式路由', 'SQL 边界', '前端模块自持', '前端边界', 'ESM 壳', '严格 meta CSP', 'region-data 单源', 'CSS 分层加载序'];
+  const tableRows = [...doc.matchAll(/^\|\s*(\d+)\s*\|/gm)].map(m => Number(m[1]));
+  assert.deepEqual(tableRows, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], '文档契约清单恰为 1..10');
+  for (const k of keys) {
+    const hits = titles.filter(t => t.includes(k));
+    assert.equal(hits.length, 1, `archtest 恰一个 test 对应「${k}」（实 ${hits.length}）`);
+  }
+  for (const t of titles) {
+    if (t.startsWith('文档↔契约互检')) continue; // 本互检元测试自身，非业务契约
+    const covered = keys.some(k => t.includes(k));
+    assert.ok(covered, `archtest 契约 test「${t}」在文档关键词中有对应（无孤儿契约）`);
   }
 });
