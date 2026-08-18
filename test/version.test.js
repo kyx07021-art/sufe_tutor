@@ -157,7 +157,7 @@ test('notifyUser 咽喉 bump notifications 域（对端红点 8s 内静默刷新
   const db = d1Shim(raw);
   await initVersionTable(db);
   await initNotifyTable(db); // notifyUser 落 notifications 表（FK 引用 users）
-  await notifyUser(db, 1, '测试通知');
+  await notifyUser(db, 1, 'INTENT_ACCEPTED', {});
   const v = await getVersions(db);
   assert.equal(v.notifications, 1, 'notifyUser 后 notifications 计数应 +1');
 });

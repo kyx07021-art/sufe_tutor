@@ -121,14 +121,17 @@ export async function handleMarkAllNotificationsRead(db, req) {
 export async function handleAdminDeleteNotification(db, notifId, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
-  const n = await dbGet(db, 'SELECT id, batch_id, text, created_at FROM notifications WHERE id=?', [notifId]);
+  const n = await dbGet(db, 'SELECT id, batch_id, text, params, created_at FROM notifications WHERE id=?', [notifId]);
   if (!n) return json({ ok: true, count: 0 });
   const res = n.batch_id
     ? await dbRun(db, 'DELETE FROM notifications WHERE batch_id=?', [n.batch_id])
     : await dbRun(db, 'DELETE FROM notifications WHERE id=?', [n.id]);
   const count = (res && res.meta && res.meta.changes) || 0;
+  // V-2-4 结构化行正文在 params.text（text 列留空），审计 len 取真实正文长
+  let bodyLen = (n.text || '').length;
+  if (!bodyLen && n.params) { try { const p = JSON.parse(n.params); bodyLen = (p.text || '').length; } catch { /* 损坏 params 视为无正文 */ } }
   await logEvent(db, { action: 'admin.notification.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'notification', entityId: notifId,
-    detail: { batch: count, len: (n.text || '').length }, req });
+    detail: { batch: count, len: bodyLen }, req });
   return json({ ok: true, count });
 }

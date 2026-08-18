@@ -265,10 +265,7 @@ const TYPE_LABEL = {
   contract: '合同', signing: '签约请求',
 };
 
-// 处罚通知三段截断预算（reason+rule+summary + 模板开销 ≤ NOTIF_TEXT_MAX=200）
-const PENALTY_REASON_MAX = 80;
-const PENALTY_RULE_MAX = 30;
-const PENALTY_SUMMARY_MAX = 40;
+// 处罚通知三段截断预算（LIMITS.PENALTY_*_MAX 单源）：结构化 params 落库，客户端渲染总长 <200（v1 库层 NOTIF_TEXT_MAX 语义保留）
 
 // GET /api/admin/content?type=post|demand|teacher|review|message|feedback|complaint|upload
 export async function handleAdminContent(db, url, req) {
@@ -286,9 +283,9 @@ export async function handleContentAction(db, type, id, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   const action = body.action;
-  // 三段截断预算：reason/rule/summary 分预算，总长钉在 NOTIF_TEXT_MAX 内（单字段取满上限会组合超限被库层截断丢内容）
-  const reason = String(body.reason || '').trim().slice(0, PENALTY_REASON_MAX);
-  const rule = String(body.rule || '').trim().slice(0, PENALTY_RULE_MAX);
+  // 三段截断预算：reason/rule/summary 分预算，总长钉在渲染预算内（单字段取满上限会组合超限被 v1 库层截断丢内容，故分字段各取上限）
+  const reason = String(body.reason || '').trim().slice(0, LIMITS.PENALTY_REASON_MAX);
+  const rule = String(body.rule || '').trim().slice(0, LIMITS.PENALTY_RULE_MAX);
   if (!['delete', 'remove', 'ban'].includes(action)) return errorMsg('INVALID_PARAMS');
   if (!reason) return errorMsg('PENALTY_REASON_REQUIRED');
   // teacher 档案无硬删分支（doDeleteContent 跳过）——API 直发 delete/remove 直接拒绝，
@@ -325,7 +322,7 @@ export async function handleContentAction(db, type, id, body, req) {
   if (action === 'ban') await dbSetUserBanned(db, authorId, 1);
 
   // 处罚后自动通知作者：V-2-4 结构化（label/rule/reason/summary/action 数据，文案客户端渲染）
-  const summaryClip = String(summary || '').slice(0, PENALTY_SUMMARY_MAX);
+  const summaryClip = String(summary || '').slice(0, LIMITS.PENALTY_SUMMARY_MAX);
   await notifyUser(db, authorId, 'CONTENT_PENALTY', {
     label, rule: rule || '', reason, summary: summaryClip, action,
   });
