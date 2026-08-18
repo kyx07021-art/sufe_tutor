@@ -15,6 +15,7 @@
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
+import { resolve, sep } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 // 保证 dist 新鲜（verify-captcha 同模式：本地自建验证面；execFileSync 参数数组避免 shell 注入面）
@@ -39,8 +40,12 @@ const server = createServer((req, res) => {
     res.end(readFileSync('test/csp-payload-verify.html')); return;
   }
   const file = u === '/' ? '/v2.html' : u;
+  // 路径遍历防御（安全审查）：realpath 约束在 dist/ 内，禁越界读
+  const safePath = resolve('dist', '.' + file);
+  const distRoot = resolve('dist');
+  if (!safePath.startsWith(distRoot + sep)) { res.writeHead(400); res.end(); return; }
   try {
-    const body = readFileSync('dist' + file);
+    const body = readFileSync(safePath);
     const type = file.endsWith('.js') ? 'application/javascript'
       : file.endsWith('.css') ? 'text/css'
       : file.endsWith('.html') ? 'text/html; charset=utf-8' : 'application/octet-stream';
@@ -53,14 +58,14 @@ const server = createServer((req, res) => {
 function fail(...a) { console.error('✖', ...a); process.exitCode = 1; }
 function ok(...a) { console.log('✔', ...a); }
 
-await new Promise(r => server.listen(port, r));
+await new Promise(r => server.listen(port, '127.0.0.1', r)); // 只绑回环，不外露网络接口
 const browser = await chromium.launch();
 
 try {
   // ---------- 1. 注入面四类真实拦截语义（fixture） ----------
   {
     const page = await browser.newPage();
-    // Chromium 的 CSP 违规走 CDP Log.entryAdded（source=security），不经 console API
+    // Chromium 的 CSP 违规走 CDP Log.entryAdded（source=security），亦经 console API（error 类型）可见（审计 a0bdd3b F1）
     const cdp = await page.context().newCDPSession(page);
     const cspViolations = [];
     await cdp.send('Log.enable'); // CDP 域必须先 enable 才派发 entryAdded

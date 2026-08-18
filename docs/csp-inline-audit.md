@@ -22,13 +22,17 @@ grep -rn "\beval(\|new Function\|Function(" src/client/ web/theme-init.js --incl
 | 1 | src/client/core/appearance.js:88-90 | 动态 `<style>`（lg-orb-style，orb 动态几何/配色/时长） | ✅ V-3-1c1（已迁 CSS 变量数据通道） |
 | 2 | src/client/core/ui-scale-reflow.js:224 | 动态 `<style>`（__ui-reflow-transforms，逐单元 transform + 静态 transition） | ✅ V-3-1c2（已迁 --ui-rf-transform 数据通道 + base.css 静态规则） |
 | 3 | web/index.html:20-22 | 3 处 `media="print" onload="this.media='all'"`（chat/posts/region 异步 CSS） | ✅ V-3-1b（已去，改外置 async-css.js） |
-| 4 | archtest 缺口 | 现有契约只查 `onclick=`/`style=`，漏 `onload=` 与 `createElement('style')` | V-3-1c3 |
+| 4 | archtest 缺口 | 现有契约只查 `onclick=`/`style=`，漏 `onload=` 与 `createElement('style')` | ✅ V-3-1c3（已补 onload= + createElement('style') 断言） |
 
 已确认干净：onclick/style 属性零残留；eval / new Function 零；web/index.html 无内联 script/style 标签（仅外部 script 引用）；theme-init.js 为外部 classic 脚本走 'self'。
 已收口（V-3-1c1/c2）：orb 动态几何/配色/时长改经 `--lg-*` 自定义属性数据通道（`el.style.setProperty`，style-src-attr 例外），视觉规则全在 glass.css `.lg-orb`（含缺省兜底），`lg-orb-style` 元素零存在；reflow 每单元 transform 改经 `--ui-rf-transform` 数据通道（identity 置 none），静态规则迁 base.css（含 `html[data-ui-reflowing]` 过渡门控，与 data-ui-previewing 互斥），`__ui-reflow-transforms` 元素零存在。v2 侧动态 `<style>` 注入已清零。
 
-## 收口顺序依赖
-- V-3-1b 去 3 处 onload → web/index.html 零内联事件属性
-- V-3-1c1/c2 迁移 2 处动态 style 注入 → v2 零 `<style>` 元素
-- V-3-1c3 archtest 增「零 createElement('style') + 零 style 属性」契约锁住
-- V-3-1d web/index.html 页级严格 meta CSP（script-src/style-src 无 unsafe-inline，与 `_headers` 取交集：v2 严格、v1 保持 loose）；`_headers` 的 unsafe-inline 保留到 V-4-1h
+## 收口状态
+- ✅ V-3-1b 去 3 处 onload → web/index.html 零内联事件属性（ded500e）
+- ✅ V-3-1c1/c2 迁移 2 处动态 style 注入 → v2 零 `<style>` 元素（a07dc19/7898da9）
+- ✅ V-3-1c3 archtest 增「零 createElement('style') + 零 onload/style 属性」契约（7d5a589）
+- ✅ V-3-1d1 injectManifest 区分 v1/v2——v2 ESM 页零内联 manifest（abc483a）
+- ✅ V-3-1d2 web/index.html 严格 meta CSP（script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'，最小化声明无 default-src；d72d53b）
+- ✅ V-3-1d3 archtest 增「严格 meta CSP」契约（b4b47c3）
+- ✅ V-3-1e 浏览器实机验证（test/verify-csp-strict.mjs：三路真拦 + style-attr 通道放行 + v2 全链路零 CSP 报错）
+- `_headers` 的 unsafe-inline 保留到 V-4-1h（v1 壳冻结）
