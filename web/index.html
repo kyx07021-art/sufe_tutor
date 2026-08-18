@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <!-- V-3-1d2 严格 meta CSP：最小化声明（无 default-src——防交集收紧 _headers 的 img-src data:/blob: 与 font-src）。
        script-src/style-src-elem 无 unsafe-inline（拦内联 script/<style> 元素）；style-src-attr 'unsafe-inline'
-       留 CSSOM 自定义属性数据通道（c1/c2 的 --lg-*/--ui-rf-transform）。多策略交集只收紧双方都声明的指令。 -->
+       承重面 = ui-modal 的 cssText 赋值（审计校正 a9d533cb：CSSOM setProperty 自定义属性本身不受 style-src-attr
+       管辖；cssText 才受拦）。多策略交集只收紧双方都声明的指令，XSS 面已由严格 script-src 闭合。 -->
   <meta http-equiv="Content-Security-Policy" content="script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'">
   <title>经途·伴学信息门户 - 零佣金家教信息共享平台</title>
   <script src="/theme-init.js"></script>
