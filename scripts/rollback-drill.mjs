@@ -8,7 +8,8 @@
  * 用法：node scripts/rollback-drill.mjs（需 wrangler 已认证 + git worktree 权限）。
  */
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -16,11 +17,14 @@ import { initDb } from '../src/server/core/db.js';
 import { d1Export, D1_DB_NAME } from './wrangler-d1.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const exportPath = join(root, '.drill', 'prod-export.sql');
-const migratedDb = join(root, '.drill', 'post-migration.sqlite');
-const WORKTREE = process.env.ROLLBACK_WORKTREE || (process.platform === 'win32'
-  ? join(process.env.TEMP || '', 'rollback-main')
-  : '/tmp/rollback-main');
+
+// 安全（提交审查 MEDIUM×2）：演练产物含生产数据（加密字段/哈希/邮箱）且 worktree 会被执行——
+// 一律用 mkdtempSync 私有目录（POSIX 0o700），禁可预测共享路径（/tmp 可被预置恶意文件）；
+// 显式 ROLLBACK_WORKTREE 仍允许（用户自选），但产物目录始终私有 + finally 清理。
+const DRILL_DIR = mkdtempSync(join(tmpdir(), 'sufe-drill-'));
+const exportPath = join(DRILL_DIR, 'prod-export.sql');
+const migratedDb = join(DRILL_DIR, 'post-migration.sqlite');
+const WORKTREE = process.env.ROLLBACK_WORKTREE || mkdtempSync(join(tmpdir(), 'sufe-rollback-main-'));
 
 let fail = 0;
 const check = (name, cond, detail = '') => {
@@ -112,9 +116,10 @@ process.exit(fail === 0 ? 0 : 1);
 
 console.log(`== V-4-1f 一键回滚演练（${D1_DB_NAME}）==\n`);
 
-// 1. 导出生产 + 迁移到 v8 + 序列化
-mkdirSync(dirname(exportPath), { recursive: true });
-if (!existsSync(exportPath)) { console.log('导出生产 D1…'); d1Export(D1_DB_NAME, exportPath); }
+// 1. 导出生产 + 迁移到 v8 + 序列化（DRILL_DIR 为 mkdtemp 私有目录，恒新）
+console.log('导出生产 D1…');
+d1Export(D1_DB_NAME, exportPath);
+chmodSync(exportPath, 0o600); // 生产导出含 PII/加密字段：owner-only（提交审查 MEDIUM）
 const raw = new DatabaseSync(':memory:');
 raw.exec('PRAGMA foreign_keys = ON');
 raw.exec(readFileSync(exportPath, 'utf8'));
@@ -123,13 +128,23 @@ await initDb(makeShim(raw), {});
 const ver8 = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get().v;
 check('迁移后 schema_meta 为最新版本', ver8 >= 8, `v=${ver8}`);
 raw.exec(`VACUUM INTO '${migratedDb.replaceAll('\\', '/')}'`);
+chmodSync(migratedDb, 0o600); // 生产副本含 PII/加密字段：owner-only（提交审查 MEDIUM）
 console.log(`已序列化迁移后副本：${migratedDb}`);
 raw.close();
 
-// 2. 确保回滚目标 worktree（main = v1.5.0 时代代码）
-if (!existsSync(join(WORKTREE, 'src', 'server', 'core', 'db.js'))) {
+// 2. 确保回滚目标 worktree（main = v1.5.0 时代代码）。
+// mkdtemp 私有目录已建（空）——git worktree add 接受空目录；显式 ROLLBACK_WORKTREE 若已是
+// 本仓库注册的 worktree 则复用（用户自选路径，责任在用户），否则全新 add。
+const worktreeHasMain = existsSync(join(WORKTREE, 'src', 'server', 'core', 'db.js'));
+if (!worktreeHasMain) {
   console.log(`git worktree add ${WORKTREE} main…`);
-  execFileSync('git', ['worktree', 'add', WORKTREE, 'main'], { cwd: root, stdio: 'inherit' });
+  try {
+    execFileSync('git', ['worktree', 'add', WORKTREE, 'main'], { cwd: root, stdio: 'inherit' });
+  } catch (e) {
+    // mkdtemp 空目录 + git 版本严格时可能拒绝已存在路径 → 移除空目录重试一次
+    try { rmSync(WORKTREE, { recursive: true, force: true }); } catch { /* ignore */ }
+    execFileSync('git', ['worktree', 'add', WORKTREE, 'main'], { cwd: root, stdio: 'inherit' });
+  }
 } else {
   console.log(`复用回滚目标 worktree：${WORKTREE}`);
 }
@@ -144,9 +159,10 @@ try {
 } catch (e) { oldExit = e.status ?? 1; }
 check('旧代码验收 harness 通过（exit 0）', oldExit === 0, `exit=${oldExit}`);
 
-// 清理
-try { execFileSync('git', ['worktree', 'remove', '--force', WORKTREE], { cwd: root, stdio: 'ignore' }); } catch { /* 已在外部清理 */ }
-rmSync(dirname(exportPath), { recursive: true, force: true });
-
 console.log(fail === 0 ? `\n演练通过（回滚数据兼容 + 服务恢复）` : `\n✖ 演练发现 ${fail} 项违规`);
+
+// finally 清理：私有 drill 目录（含生产副本）+ worktree（若非用户显式指定）
+try { execFileSync('git', ['worktree', 'remove', '--force', WORKTREE], { cwd: root, stdio: 'ignore' }); } catch { /* 已在外部清理 */ }
+if (!process.env.ROLLBACK_WORKTREE) rmSync(WORKTREE, { recursive: true, force: true });
+rmSync(DRILL_DIR, { recursive: true, force: true });
 process.exit(fail === 0 ? 0 : 1);
