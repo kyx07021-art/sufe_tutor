@@ -9,7 +9,9 @@
  *   5. 前端模块自持：src/client/core + src/client/features；
  *   6. fetch 只在 api.js；前端无内联 onclick/onload/style/中文文案；
  *   7. V-3-1c3 CSP：core/features 零 <style> 元素注入（动态样式只走 CSS 自定义属性数据通道）；
- *   8. V-3-1d3 CSP：web/index.html 严格 meta CSP（script-src/style-src-elem 无 unsafe-inline）。
+ *   8. V-3-1d3 CSP：web/index.html 严格 meta CSP（script-src/style-src-elem 无 unsafe-inline）；
+ *   9. V-3-2a0：region-data 单源（SUFE_REGIONS 唯一定义于 shared，client re-export）；
+ *  10. V-3-2a0：CSS 分层加载序（tokens→base→features→responsive→glass）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -104,4 +106,42 @@ test('web/index.html 严格 meta CSP：script-src/style-src-elem 无 unsafe-inli
   assert.ok(!/default-src/.test(meta[1]) || /img-src[^;]*data:/.test(meta[1]), '无 default-src 收紧 data: 通道（或 img-src 含 data:）');
   const dirs = meta[1].split(';').map(s => s.trim().split(/\s+/)[0]).filter(Boolean);
   assert.equal(new Set(dirs).size, dirs.length, '无重复指令（审计 O1：防分号后追加同指令等效放宽）');
+});
+
+// V-3-2a0：region-data 单源——SUFE_REGIONS 唯一定义在 src/shared/region-data.js（服务端亦复用），
+// client 侧经 constants/region-data.js re-export 保持分层入口，v2 侧零重定义。
+test('region-data 单源：SUFE_REGIONS 唯一定义于 shared/region-data.js，client 侧零重定义', () => {
+  const shared = read('src/shared/region-data.js');
+  assert.match(shared, /export const SUFE_REGIONS/, 'shared/region-data.js 定义 SUFE_REGIONS');
+  const clientEntry = read('src/client/constants/region-data.js');
+  assert.match(clientEntry, /export \{ SUFE_REGIONS \} from/, 'client 常量层为纯 re-export（分层入口）');
+  const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e =>
+    e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]);
+  const defs = [...walk(join(root, 'src/client')), ...walk(join(root, 'src/shared'))]
+    .filter(f => f.endsWith('.js'))
+    .filter(f => /\bconst SUFE_REGIONS\s*=/.test(readFileSync(f, 'utf8')));
+  assert.equal(defs.length, 1, 'v2 侧（client+shared）仅一处 SUFE_REGIONS 定义');
+  assert.equal(defs[0], join(root, 'src/shared', 'region-data.js'), '定义落位 shared 层');
+});
+
+// V-3-2a0：CSS 分层加载序——web/index.html stylesheet 依 tokens→base→features→responsive→glass 层叠
+test('CSS 分层加载序：web/index.html stylesheet 依 tokens→base→features→responsive→glass 层叠', () => {
+  const html = read('web/index.html');
+  const links = [...html.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"/g)].map(m => m[1]);
+  const layers = [
+    ['tokens.css', 'tokens'],
+    ['base.css', 'base'],
+    ['features/', 'features'],
+    ['responsive.css', 'responsive'],
+    ['glass.css', 'glass'],
+  ];
+  let prevName = null;
+  let prevIdx = -1;
+  for (const [prefix, name] of layers) {
+    const idx = links.findIndex(l => l.startsWith(prefix));
+    assert.ok(idx > -1, `CSS 层 ${name} 存在（${prefix}）`);
+    assert.ok(idx > prevIdx, `CSS 层序：${name} 在 ${prevName || '层首'} 之后（V-2-5b 加载序铁律）`);
+    prevIdx = idx;
+    prevName = name;
+  }
 });
