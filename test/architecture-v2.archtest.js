@@ -102,4 +102,6 @@ test('web/index.html 严格 meta CSP：script-src/style-src-elem 无 unsafe-inli
   assert.ok(/style-src-elem 'self'(?!\s*'unsafe-inline')/.test(meta[1]), 'style-src-elem 严格（无 unsafe-inline）');
   assert.ok(/style-src-attr 'unsafe-inline'/.test(meta[1]), 'style-src-attr 数据通道保留（ui-modal cssText 承重）');
   assert.ok(!/default-src/.test(meta[1]) || /img-src[^;]*data:/.test(meta[1]), '无 default-src 收紧 data: 通道（或 img-src 含 data:）');
+  const dirs = meta[1].split(';').map(s => s.trim().split(/\s+/)[0]).filter(Boolean);
+  assert.equal(new Set(dirs).size, dirs.length, '无重复指令（审计 O1：防分号后追加同指令等效放宽）');
 });
