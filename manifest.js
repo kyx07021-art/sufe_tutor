@@ -17,7 +17,7 @@ export const ASSET_MANIFEST = {
     "features/chat.css": "features/chat.fb6db88c.css",
     "features/posts.css": "features/posts.40f7400d.css",
     "features/region.css": "features/region.e5577254.css",
-    "glass.css": "glass.5f5aab4e.css",
+    "glass.css": "glass.c8ea2c9f.css",
     "constants.js": "constants.f4976133.js",
     "app-display.js": "app-display.1ea03b23.js",
     "app-state.js": "app-state.f7553a25.js",

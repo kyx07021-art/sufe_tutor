@@ -20,17 +20,21 @@ function makeDom() {
 function teardown() { delete globalThis.document; delete globalThis.window; delete globalThis.localStorage; }
 
 function orbSnapshot(dom) {
-  // 零内联样式契约：动态参数在 <style id="lg-orb-style"> 规则里，DOM 元素零 style 属性
+  // V-3-1c1 契约：零 <style> 注入（无 lg-orb-style 元素）；动态参数经 --lg-* 自定义属性
+  // 数据通道交给 CSS 呈现层——style 属性只含自定义属性、零样式声明（规则 44 呈现层铁律）
   const orbs = [...dom.window.document.querySelectorAll('.lg-orb')];
-  const styleEl = dom.window.document.getElementById('lg-orb-style');
-  const rules = styleEl ? styleEl.textContent : '';
-  // 每条 orb 规则取第一个 rgba（外圈透明度）；末尾渐变终点的 ,0) 不计入
-  const op = rules.split('}').map(rule => (rule.match(/rgba\(var\(--lg-orb-[a-i]\),([0-9.]+)/) || [])[1]).filter(v => v != null).map(parseFloat);
-  const sizes = (rules.match(/width:([0-9.]+)vmax/g) || []).map(s => parseFloat(s.slice(6)));
+  const op = orbs.map(o => parseFloat(o.style.getPropertyValue('--lg-op'))).filter(v => !Number.isNaN(v));
+  const sizes = orbs.map(o => parseFloat(o.style.getPropertyValue('--lg-w'))).filter(v => !Number.isNaN(v));
   const glow = dom.window.document.querySelector('.lg-mouseglow');
+  const nonCustom = orbs.filter(o => {
+    const decl = o.style;
+    for (let i = 0; i < decl.length; i++) if (!decl.item(i).startsWith('--')) return true;
+    return false;
+  });
   return {
     count: orbs.length,
-    inlineStyles: orbs.filter(o => o.getAttribute('style')).length,
+    hasStyleEl: !!dom.window.document.getElementById('lg-orb-style'),
+    customPropsOnly: nonCustom.length === 0,
     opMin: op.length ? Math.min(...op) : null,
     opMax: op.length ? Math.max(...op) : null,
     sizeMin: sizes.length ? Math.min(...sizes) : null,
@@ -44,7 +48,8 @@ test('背景光球默认鲜艳：桌面 36 个、透明度 0.52~0.73、尺寸 10
   applyOrbs();
   const s = orbSnapshot(dom);
   assert.equal(s.count, 36, '桌面 36 光球（matchMedia coarse=false）');
-  assert.equal(s.inlineStyles, 0, '零内联样式（视觉全在 CSS 层）');
+  assert.equal(s.hasStyleEl, false, '零 <style> 注入（CSP style-src-elem）');
+  assert.ok(s.customPropsOnly, 'style 属性只含 --lg-* 数据通道，零样式声明');
   assert.ok(s.opMin >= 0.50 && s.opMin <= 0.54, `vivid 透明度下界 ~0.52，实际 ${s.opMin}`);
   assert.ok(s.opMax >= 0.71 && s.opMax <= 0.75, `vivid 透明度上界 ~0.73，实际 ${s.opMax}`);
   assert.ok(s.sizeMin >= 9 && s.sizeMin <= 11, `vivid 尺寸下界 ~10vmax，实际 ${s.sizeMin}`);

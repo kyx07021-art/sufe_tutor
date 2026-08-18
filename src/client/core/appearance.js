@@ -81,16 +81,11 @@ export function applyOrbs() {
   const sizeSpan = (cfg.sizeMax || 0) - (cfg.sizeMin || 0);
   const opSpan = (cfg.opMax || 0) - (cfg.opMin || 0);
   const ORB_COLORS = ['--lg-orb-a','--lg-orb-b','--lg-orb-c','--lg-orb-d','--lg-orb-e','--lg-orb-f','--lg-orb-g','--lg-orb-h','--lg-orb-i'];
-  // Zero inline style (rule 44): each orb gets a class (.lg-orb--i{n}); dynamic
-  // geometry/color/duration live in a <style> sheet, DOM elements only carry classes.
-  let styleEl = document.getElementById('lg-orb-style');
-  if (!styleEl) {
-    styleEl = document.createElement('style');
-    styleEl.id = 'lg-orb-style';
-    document.head.appendChild(styleEl);
-  }
-  let html = '';
-  let css = '';
+  // V-3-1c1: zero <style> injection (CSP style-src-elem 'self'). Dynamic geometry/
+  // color/duration flow via CSS custom-property data channel (el.style.setProperty,
+  // style-src-attr exception); visual rules all live in glass.css .lg-orb with
+  // fallback defaults — rule 44 (rendering in CSS, JS carries data only) preserved.
+  const frag = document.createDocumentFragment();
   for (let oi = 0; oi < ORB_N; oi++) {
     const dir = oi % 6;
     const size = (cfg.sizeMin + (oi * 37) % (sizeSpan + 1)).toFixed(0);
@@ -102,12 +97,20 @@ export function applyOrbs() {
     const delay = (-((oi * 31) % 1000) / 100 * DUR).toFixed(1);
     const dur = (DUR * (0.8 + ((oi * 17) % 60) / 100)).toFixed(1);
     const color = ORB_COLORS[(oi * 5) % ORB_COLORS.length];
-    html += `<div class="lg-orb lg-orb--dir${dir} lg-orb--i${oi}"></div>`;
-    css += `.lg-orb--i${oi}{width:${size}vmax;height:${size}vmax;left:${left}vmax;top:${top}vmax;background:radial-gradient(circle,rgba(var(${color}),${op}),rgba(var(${color}),0) 66%);animation-duration:${dur}s;animation-delay:${delay}s}`;
+    const el = document.createElement('div');
+    el.className = `lg-orb lg-orb--dir${dir} lg-orb--i${oi}`;
+    el.style.setProperty('--lg-w', size + 'vmax');
+    el.style.setProperty('--lg-h', size + 'vmax');
+    el.style.setProperty('--lg-x', left + 'vmax');
+    el.style.setProperty('--lg-y', top + 'vmax');
+    el.style.setProperty('--lg-op', op);
+    el.style.setProperty('--lg-col', 'var(' + color + ')');
+    el.style.setProperty('--lg-dur', dur + 's');
+    el.style.setProperty('--lg-delay', delay + 's');
+    frag.appendChild(el);
   }
-  styleEl.textContent = css;
   bg.querySelectorAll('.lg-orb').forEach(n => n.remove());
-  bg.insertAdjacentHTML('afterbegin', html);
+  bg.insertBefore(frag, bg.firstChild);
   const finePointer = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer:fine)').matches;
   glow.style.display = (mode === 'hidden' || !finePointer) ? 'none' : '';
 }
