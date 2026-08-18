@@ -93,3 +93,21 @@ test('schema 版本落后：重跑全量迁移并更新版本到最新', async (
   // 全量迁移 = 19 表 CREATE 的 batch（batch:Nstmts 摘要；版本判断 batch 仅 2 stmts）
   assert.ok(delta.some(c => /^batch:([3-9]|\d{2,})stmts$/.test(c)), `版本落后时重跑全量迁移（实际调用：${delta.join(', ')}）`);
 });
+
+// V-4-1c 抓出：V-2-4a 给 initNotifyTable 加 type/params 列时未 bump SCHEMA_VERSION（7→8 漏步），
+// 存量 v7 库（schema_meta=7 + notifications 缺结构化列）在 initDb 版本判断下跳过全量迁移 → 缺列生产事故。
+// 回归钉死：版本 bump 必须覆盖「上一版本库」的待补列。
+test('版本落后到上一版（v7 存量库缺通知结构化列）：重跑迁移补 type/params', async (t) => {
+  const { raw, db } = setup(t);
+  await initDb(db, ENV); // 先建出最新全量
+  // 模拟 v7 存量生产形状：notifications 无 type/params 列 + schema_meta=7（本机 SQLite ≥3.35 支持 DROP COLUMN）
+  raw.exec('ALTER TABLE notifications DROP COLUMN type');
+  raw.exec('ALTER TABLE notifications DROP COLUMN params');
+  raw.exec("UPDATE schema_meta SET v=7 WHERE k='schema'");
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM pragma_table_info('notifications') WHERE name IN ('type','params')`).get().n, 0, '前置：notifications 无结构化列');
+  await initDb(db, ENV); // 版本落后 → 全量迁移
+  const cols = raw.prepare(`SELECT name FROM pragma_table_info('notifications')`).all().map(r => r.name);
+  assert.ok(cols.includes('type') && cols.includes('params'), `notifications 重跑迁移后补 type/params（实际列：${cols.join(',')}）`);
+  const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver.v, SCHEMA_VERSION, '重跑后版本更新到最新');
+});
