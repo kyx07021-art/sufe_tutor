@@ -5,7 +5,9 @@
 import { TEXT } from './text.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
-import { subjectNames, genderName, teacherGradeName, methodName, priceRangeText, ratingText, starsHtml, reviewStatusTagHtml, demandOptionText, usernameHtml, deactivatedTag } from '../../core/display.js';
+import { subjectNames, genderName, methodName, priceRangeText, usernameHtml, deactivatedTag } from '../../core/display.js';
+import { teacherGradeName, ratingText, starsHtml, reviewStatusTagHtml } from './display.js';
+import { demandOptionText } from '../student/display.js';
 import { matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student push button on teacher card
 

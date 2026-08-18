@@ -8,7 +8,8 @@ import { api, ensureAuth } from '../../core/api.js';
 import { dhGet, dhReady, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { loadInto } from '../../core/router.js';
 import { escHtml, mdRender, fmtDateTime, loaderHtml } from '../../core/dom.js';
-import { usernameHtml, deactivatedTag, feedbackKindName, feedbackKindCls, feedbackSubjectName } from '../../core/display.js';
+import { usernameHtml, deactivatedTag } from '../../core/display.js';
+import { feedbackKindName, feedbackKindCls, feedbackSubjectName } from '../complaints/display.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, mdEditorHtml, initCustomSelects } from '../../core/ui.js';
 import { likePillHtml, favPillHtml, renderPostCard, postsToolbarHtml } from './render.js';
 

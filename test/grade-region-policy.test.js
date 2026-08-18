@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { SUFE_REGIONS } from '../src/client/constants/region-data.js';
 import { STUDENT_GRADES } from '../src/shared/enums.js';
 import { gradeOptionsForProvince } from '../src/client/features/student/actions.js';
-import { studentGradeName } from '../src/client/core/display.js';
+import { studentGradeName } from '../src/client/features/student/display.js';
 
 test('M3 年级常量：STUDENT_GRADES 含 p6 与 prep', () => {
   const ids = STUDENT_GRADES.map(g => g.id);

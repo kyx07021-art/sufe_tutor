@@ -6,7 +6,9 @@ import { CONFIG } from '../../../shared/config.js';
 import { STATUS } from '../../../shared/enums.js';
 import { escHtml, fmtDateTime } from '../../core/dom.js';
 import { state } from '../../core/state.js';
-import { methodName, contractStatusMeta, demandIdText, demandOptionText, demandTargetNames, expectedTimeText, diffLines, deactivatedTag } from '../../core/display.js';
+import { methodName, deactivatedTag } from '../../core/display.js';
+import { contractStatusMeta, diffLines } from './display.js';
+import { demandIdText, demandOptionText, demandTargetNames, expectedTimeText } from '../student/display.js';
 import { mdRender } from '../../core/dom.js';
 import { TEXT } from './text.js';
 
@@ -109,5 +111,5 @@ export function verifyPanelHtml(contractId, data) {
       `<div class="contract-verify-entry"><span>#${e.seq == null ? '?' : e.seq}</span><span>${fmtDateTime(e.createdAt)}</span></div>`).join('')}</div>` : ''}`;
 }
 
-export { diffLines } from '../../core/display.js';
+export { diffLines } from './display.js';
 export { demandOptionText, expectedTimeText };

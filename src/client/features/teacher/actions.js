@@ -9,7 +9,7 @@ import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '
 import { escHtml } from '../../core/dom.js';
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
-import { demandIsActive } from '../../core/display.js';
+import { demandIsActive } from '../student/display.js';
 import { positionFloatCard } from '../../core/anim.js';
 
 let profilePanelUserId = null;

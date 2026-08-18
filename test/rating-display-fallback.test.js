@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ratingText, starsHtml } from '../src/client/core/display.js';
+import { ratingText, starsHtml } from '../src/client/features/teacher/display.js';
 
 test('R16 starsHtml/ratingText 缺省显示 4.5', () => {
   assert.equal(ratingText(''), '4.5', '空值兜底 4.5');

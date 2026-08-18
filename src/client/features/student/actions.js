@@ -12,7 +12,8 @@ import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleT
 import { escHtml, loaderHtml } from '../../core/dom.js';
 import { initReveals, positionFloatCard } from '../../core/anim.js';
 import { matchDegree, matchDetailHtml } from '../../core/match.js';
-import { demandIsActive, demandTargetNames, demandIdText, studentGradeName, provinceName, methodName } from '../../core/display.js';
+import { provinceName, methodName } from '../../core/display.js';
+import { demandIsActive, demandTargetNames, demandIdText, studentGradeName } from './display.js';
 import { renderDemandCard, renderDemandModalHtml, renderIntentTeacherRow, pushCooldownLeft, startPushCooldown, DEMAND_WIZARD_STEPS } from './render.js';
 import { buildStudentSubjectsHtml, buildStudentScoreRows, renderProvinceSelect, regionLockNote, gradeOptionsForProvince } from '../region/render.js';
 import { mountShanghaiAddrPicker, switchScoreMode, pickGrade, collectStudentScores } from '../region/actions.js';

@@ -16,7 +16,7 @@ import { JSDOM } from 'jsdom';
 import { state } from '../src/client/core/state.js';
 import { stopVersionProbe } from '../src/client/core/datahub.js';
 import { toggleTagPick } from '../src/client/core/ui.js';
-import { demandStudentGenderName } from '../src/client/core/display.js';
+import { genderName } from '../src/client/core/display.js';
 import {
   initDemandForm, prefillDemandForm, setDemandType,
   onDemandProvinceChange, toggleAddressField, _wizardResetForTests,
@@ -149,10 +149,10 @@ test('prefillDemandForm：非学科需求回填非学科勾选、偏好性格、
   teardown();
 });
 
-test('R2-11 学生性别展示：demandStudentGenderName（网安 L2 修复）', () => {
+test('R2-11 学生性别展示：genderName（网安 L2 修复）', () => {
   const { doc } = setup();
   // v1.0.3 卡面海报化后性别收进详情浮窗——断言改为两层：
-  // ①卡面零性别泄漏（信息取舍天然满足）②demandStudentGenderName 口径正确（male→男、''/nonbinary→空）
+  // ①卡面零性别泄漏（信息取舍天然满足）②genderName 口径正确（male→男、''/nonbinary→空）
   const snapshot = (gender) => {
     const card = renderDemandCard({
       id: 1, username: 'stu', student_grade: 'junior1', student_gender: gender,
@@ -166,7 +166,7 @@ test('R2-11 学生性别展示：demandStudentGenderName（网安 L2 修复）',
   };
   assert.ok(!snapshot('').includes('男') && !snapshot('').includes('女'), '空串(不愿透露)卡面不渲染性别');
   assert.ok(!snapshot('nonbinary').includes('男') && !snapshot('nonbinary').includes('女'), '历史 nonbinary 卡面不渲染性别（视同未填）');
-  assert.equal(demandStudentGenderName('male'), '男', 'male 口径正确（详情浮窗展示用）');
+  assert.equal(genderName('male'), '男', 'male 口径正确（详情浮窗展示用）');
   teardown();
 });
 

@@ -3,7 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { diffLines } from '../src/client/core/display.js';
+import { diffLines } from '../src/client/features/contract/display.js';
 
 const types = ops => [...ops.map(o => o.t)];
 

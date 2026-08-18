@@ -24,7 +24,8 @@ import { TEXT } from './text.js';
 import { chat } from './chat-state.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, loaderHtml, renderAvatarHtml } from '../../core/dom.js';
-import { usernameHtml, deactivatedTag, expectedTimeText } from '../../core/display.js';
+import { usernameHtml, deactivatedTag } from '../../core/display.js';
+import { expectedTimeText } from '../student/display.js';
 
 /** Peer info of a conversation from the viewer's perspective (v1 chatPeerOf parity). */
 export function chatPeerOf(c) {

@@ -3,7 +3,7 @@
  * No inline handlers or inline style attributes.
  */
 import { escHtml, fmtDateTime } from '../../core/dom.js';
-import { complaintTargetName } from '../../core/display.js';
+import { complaintTargetName } from './display.js';
 import { segTabsHtml } from '../../core/ui.js';
 import { TEXT } from './text.js';
 

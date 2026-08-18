@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { escHtml, escJsStr, fmtDateTime, fmtDate, mdRender, loaderHtml, renderAvatarHtml, componentShell, delegate } from '../src/client/core/dom.js';
-import { diffLines } from '../src/client/core/display.js';
+import { diffLines } from '../src/client/features/contract/display.js';
 import { btnLoading, btnDone, formatCountdown, checkboxItemsHtml, segTabsHtml, pickGrade, toggleTagPick, openModal, closeModal, closeAllModals, confirm, applyTabBindings, installUiBindings, installFormBindings } from '../src/client/core/ui.js';
 import { installGlobalInteractions } from '../src/client/core/anim.js';
 import { TEXT } from '../src/client/constants/text.js';

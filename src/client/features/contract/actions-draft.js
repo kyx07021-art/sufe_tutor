@@ -7,7 +7,7 @@ import { TEXT } from './text.js';
 import { api, ensureAuth } from '../../core/api.js';
 import { openModal, closeModal, showToast, initCustomSelects, syncCustomSelectText, withCaptcha } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml, validateTimeSlots, collectTimeSlots, prefillTimeSlots, dateFieldHtml, readDateField } from '../../core/ui-form.js';
-import { demandOptionText, demandTargetNames, expectedTimeText } from '../../core/display.js';
+import { demandOptionText, demandTargetNames, expectedTimeText } from '../student/display.js';
 import { loaderHtml, escHtml } from '../../core/dom.js';
 import { invalidate } from '../../core/datahub.js';
 import { chatConvById } from './actions-chat-bridge.js';

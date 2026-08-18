@@ -10,7 +10,7 @@ import { api } from '../../core/api.js';
 let feedbackKind = 'bug';
 import { openModal, closeModal, showToast, mdEditorHtml } from '../../core/ui.js';
 import { escHtml, mdRender, fmtDateTime, loaderHtml } from '../../core/dom.js';
-import { feedbackKindName, feedbackKindCls, feedbackSubjectName } from '../../core/display.js';
+import { feedbackKindName, feedbackKindCls, feedbackSubjectName } from '../complaints/display.js';
 
 export function openFeedbackComplaintChooser() {
   if (!ensureAuth()) return;

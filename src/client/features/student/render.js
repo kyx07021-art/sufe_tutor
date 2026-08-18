@@ -9,10 +9,9 @@
  */
 import { TEXT } from './text.js';
 import { escHtml, fmtDate, renderAvatarHtml } from '../../core/dom.js';
-import {
-  demandIdText, demandTargetNameList, studentGradeName, methodName, expectedTimeText,
-  provinceName, priceRangeText, usernameHtml, deactivatedTag, starsHtml,
-} from '../../core/display.js';
+import { methodName, provinceName, priceRangeText, usernameHtml, deactivatedTag } from '../../core/display.js';
+import { demandIdText, demandTargetNameList, studentGradeName, expectedTimeText } from './display.js';
+import { starsHtml } from '../teacher/display.js';
 import { matchDegree, matchLevel } from '../../core/match.js';
 import { CARET_SVG, segTabsHtml, checkboxItemsHtml } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml } from '../../core/ui-form.js';
