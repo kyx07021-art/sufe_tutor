@@ -152,10 +152,10 @@ function _tourScrollToEl(el) {
   if (!el || typeof el.scrollIntoView !== 'function') return; // jsdom has none (zero cost)
   const r = el.getBoundingClientRect();
   if (r.width <= 0 || r.height <= 0) return; // unlaid-out, skip
-  const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
+  const vw = window.innerWidth || document.documentElement.clientWidth || CONFIG.TOUR_VIEWPORT_W || 1024;
   const vp = _tourScrollViewport(el);
   const vr = vp.getBoundingClientRect();
-  const vh = vp.clientHeight || window.innerHeight || 768;
+  const vh = vp.clientHeight || window.innerHeight || CONFIG.TOUR_VIEWPORT_H || 768;
   const top = r.top - vr.top;
   const center = top + (r.bottom - r.top) / 2;
   const bandLo = CONFIG.TOUR_SCROLL_BAND_LO || 0.3;
@@ -228,8 +228,8 @@ function _tourPlaceStable(step) {
 function _tourPlaceBubble(rect) {
   const pos = _tourEls.pos;
   const gap = CONFIG.TOUR_GAP_PX || 16;
-  const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
-  const vh = window.innerHeight || document.documentElement.clientHeight || 768;
+  const vw = window.innerWidth || document.documentElement.clientWidth || CONFIG.TOUR_VIEWPORT_W || 1024;
+  const vh = window.innerHeight || document.documentElement.clientHeight || CONFIG.TOUR_VIEWPORT_H || 768;
   pos.style.transform = 'translate(-9999px,-9999px)'; // off-screen to measure real size
   const bw = _tourEls.bubble.offsetWidth || CONFIG.TOUR_BUBBLE_W || 300;
   const bh = _tourEls.bubble.offsetHeight || CONFIG.TOUR_BUBBLE_H || 90;

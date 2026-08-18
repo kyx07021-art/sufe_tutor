@@ -75,6 +75,7 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     TOUR_DEMO_POLL_MS: 200,               // 新手引导：demo 会话/合同注入轮询间隔（等列表渲染完成）
     TOUR_BUBBLE_W: 300, TOUR_BUBBLE_H: 90, // 新手引导：气泡回退尺寸（offsetWidth/Height 探测失败时）
     TOUR_BUBBLE_MARGIN: 8,                // 新手引导：气泡视口最小边距 px
+    TOUR_VIEWPORT_W: 1024, TOUR_VIEWPORT_H: 768, // 新手引导：视口尺寸几何兜底（innerWidth/clientHeight 为 0 时，jsdom 无布局）
     PROFILE_ROW_GAP: 11,                  // 需求六·item1：教师资料卡条目纵向间距 px；#156行距压半 22→11
     FILTER_ROW_GAP: 16,                   // 需求五：筛选面板多排下拉栏之间的纵向空隙 px（上下两排不能零空隙紧贴）
     UI_SCALE_MIN: 80, UI_SCALE_MAX: 120, UI_SCALE_DEFAULT: 100, UI_SCALE_STEP: 1, // 需求六·item5：UI 大小滑块范围/步进（百分比；100=现状；v0.25.12 上限扩到 120）
