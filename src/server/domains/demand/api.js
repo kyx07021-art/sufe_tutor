@@ -10,7 +10,7 @@ import { MSG } from '../../../shared/codes.js';
 import { STATUS, STUDENT_GRADES, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, SUBJECTS } from '../../../shared/enums.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
 import { auditFreeText } from '../../core/text-audit.js';
-import { SUFE_REGIONS } from '../../../../src/shared/region-data.js'; // V-2-4c 地区数据单源（省份校验单源）
+import { SUFE_REGIONS } from '../../../shared/region-data.js'; // V-2-4c 地区数据单源（省份校验单源）
 import {
   dbGetUserById, dbCreateDemand, dbGetDemands, dbGetDemandsByUser,
   dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbReopenDemand,

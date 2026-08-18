@@ -12,7 +12,7 @@ import { MSG } from '../../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
 import { TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, SUBJECTS, TEACHER_GRADES, GENDERS, VERIFY_TYPES } from '../../../shared/enums.js';
 import { auditFreeText } from '../../core/text-audit.js';
-import { SUFE_REGIONS } from '../../../../src/shared/region-data.js'; // V-2-4c 地区数据单源
+import { SUFE_REGIONS } from '../../../shared/region-data.js'; // V-2-4c 地区数据单源
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbListTeacherVerifications, dbGetTeacherVerificationById, dbApplyChsiToProfile, dbClearChsiFromProfile, dbSetTeacherVerified, safeJsonArray } from '../../../../server/db.js';
 import { verifyChsiCode } from '../../../../server/chsi.js';
 import { logEvent } from '../../core/log.js';
@@ -201,7 +201,7 @@ export async function handleSaveProfile(db, body, req) {
   // R2-6 擅长科目 / 高考成绩白名单（网安纵深防御，与需求侧 target_subjects 同款口径）：
   //   科目池 = constants SUBJECTS + region-data subjectNames 全量 id（含浙江技术等地区科目），
   //   与前端 teacherSubjectPool 同源；注入串/未知 id 一律丢弃，去重 + 按池大小封顶防铺量 DoS。
-  const R = SUFE_REGIONS || {};
+  const R = SUFE_REGIONS;
   const subjPool = new Set([
     ...SUBJECTS.map(s => s.id),
     ...Object.keys(R.subjectNames || {}),
