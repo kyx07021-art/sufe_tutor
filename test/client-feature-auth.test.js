@@ -1,12 +1,12 @@
 /**
  * Auth feature migration gate: registry/DOM/render parity for login, register
  * wizard + OTP + bind, logout cleanup, captcha gating on sensitive actions,
- * and >=3 request-body parity cases (classic vm app-auth/app-otp vs ESM).
+ * and request-body contract cases (login deviceId / register email channel —
+ * the vm-vs-ESM parity harness was removed with the vm classic-script loading).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
 import { JSDOM } from 'jsdom';
 import { CONFIG } from '../src/shared/config.js';
 import { TEXT as SHARED_TEXT } from '../src/client/constants/text.js';
@@ -436,103 +436,49 @@ test('withCaptcha gates login/register/bind before any sensitive request', async
   closeAllModals();
 });
 
-function makeOld(files, dom, responder) {
-  const w = dom.window;
-  const calls = [];
-  const ctx = vm.createContext({
-    window: w, document: w.document, localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
-    Request: globalThis.Request, AbortController: globalThis.AbortController,
-    performance: globalThis.performance, crypto: globalThis.crypto,
-    MutationObserver: class { observe() {} disconnect() {} },
-    Image: class { set src(v) { this._s = v; } },
-    requestAnimationFrame: cb => setTimeout(cb, 16), cancelAnimationFrame: () => {},
-    matchMedia: () => ({ matches: false, addEventListener() {} }),
-    fetch: async (url, opts = {}) => {
-      const u = String(url);
-      const body = opts.body && typeof opts.body === 'string' ? JSON.parse(opts.body) : opts.body;
-      calls.push({ url: u, opts, body });
-      return { ok: true, status: 200, json: async () => responder(u, opts, body) };
-    },
-    enterClient: async () => {}, dhInvalidateAll: () => {}, startOnboardingTour: () => {},
-  });
-  for (const f of files) vm.runInContext(rootFile(f), ctx, { filename: f });
-  vm.runInContext('APP_CONSTANTS.CONFIG.TOAST_MS = 10; APP_CONSTANTS.CONFIG.TOAST_FADE_MS = 1;', ctx);
-  return { ctx, calls, w };
-}
+// Request-body contract cases (v1-parity kept as direct ESM assertions — the vm
+// classic-script side is gone with B4). The OTP +86 normalization / scene body is
+// covered by the "OTP: classify/cooldown..." test above; these two add the login
+// deviceId and the register email-channel bodies.
 
-const OLD_FILES = ['constants.js', 'app-state.js', 'app-api.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-auth.js'];
-
-test('parity body 1: doLogin password mode old vm vs new actions', async (t) => {
+test('request body contract: password login carries identifier + deviceId', async (t) => {
   resetRuntime();
-  const loginShell = SHELL_HTML + `<input id="login-identifier"><input id="login-password"><input id="login-remember" type="checkbox"><button id="login-submit"></button>`;
-  const oldDom = new JSDOM(loginShell, { url: 'http://localhost/', pretendToBeVisual: true });
-  seedDevice(oldDom.window.localStorage);
-  const { ctx, calls: oldCalls } = makeOld(OLD_FILES, oldDom, () => ({ user: { id: 1, username: 'alice', role: 'student' }, authToken: 'tok-old' }));
-  vm.runInContext(`state.user=null; state.authToken=null; loginMode='password';`, ctx);
-  oldDom.window.document.getElementById('login-identifier').value = 'alice';
-  oldDom.window.document.getElementById('login-password').value = 'pw123456';
-  oldDom.window.document.getElementById('login-remember').checked = true;
-  await vm.runInContext(`doLogin('alice')`, ctx);
-
-  const newDom = new JSDOM(loginShell, { url: 'http://localhost/', pretendToBeVisual: true });
-  useDom(newDom);
-  t.after(() => { stopRuntimeTimers(); clearDomGlobals(); });
-  seedDevice(newDom.window.localStorage);
-  newDom.window.document.getElementById('login-identifier').value = 'alice';
-  newDom.window.document.getElementById('login-password').value = 'pw123456';
-  newDom.window.document.getElementById('login-remember').checked = true;
-  const newCalls = installFetch(defaultResponder({
-    '/api/auth/login': { user: { id: 1, username: 'alice', role: 'student' }, authToken: 'tok-new' },
+  makeDom();
+  mountFeature(t);
+  seedDevice(globalThis.localStorage);
+  const calls = installFetch(defaultResponder({
+    '/api/auth/login': { user: { id: 1, username: 'alice', role: 'student' }, authToken: 'tok-login' },
   }));
+  document.getElementById('login-identifier').value = 'alice';
+  document.getElementById('login-password').value = 'pw123456';
+  document.getElementById('login-remember').checked = true;
+
   await auth.doLogin('alice');
 
-  assert.deepEqual(newCalls[0].body, oldCalls[0].body);
-  assert.equal(oldCalls[0].url, '/api/auth/login');
-  assert.equal(newCalls[0].body.deviceId, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+  const body = calls.find(c => c.url === '/api/auth/login').body;
+  assert.equal(body.identifier, 'alice');
+  assert.equal(body.password, 'pw123456');
+  assert.equal(body.deviceId, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'); // seeded device id (32 chars)
   stopRuntimeTimers();
 });
 
-test('parity body 2: doRegister email channel old vm vs new actions', async (t) => {
+test('request body contract: register email channel sends email + otpChannel', async (t) => {
   resetRuntime();
-  const regShell = SHELL_HTML + `<button id="register-submit"></button>`;
-  const oldDom = new JSDOM(regShell, { url: 'http://localhost/', pretendToBeVisual: true });
-  seedDevice(oldDom.window.localStorage);
-  const { ctx, calls: oldCalls } = makeOld(OLD_FILES, oldDom, () => ({ user: { id: 2, username: 'stu1', role: 'student' }, authToken: 'tok-old' }));
-  await vm.runInContext(`doRegister('stu1','pw123456','student',true,true,{ident:'stu@example.com',code:'123456',kind:'email'})`, ctx);
-
-  const newDom = new JSDOM(regShell, { url: 'http://localhost/', pretendToBeVisual: true });
-  useDom(newDom);
-  t.after(() => { stopRuntimeTimers(); clearDomGlobals(); });
-  seedDevice(newDom.window.localStorage);
-  const newCalls = installFetch(defaultResponder({
-    '/api/auth/register': { user: { id: 2, username: 'stu1', role: 'student' }, authToken: 'tok-new' },
+  makeDom();
+  mountFeature(t);
+  seedDevice(globalThis.localStorage);
+  const calls = installFetch(defaultResponder({
+    '/api/auth/register': { user: { id: 2, username: 'stu1', role: 'student' }, authToken: 'tok-reg' },
   }));
+
   await auth.doRegister('stu1', 'pw123456', 'student', true, true,
     { ident: 'stu@example.com', code: '123456', kind: 'email' });
 
-  assert.deepEqual(newCalls[0].body, oldCalls[0].body);
-  assert.equal(oldCalls[0].body.email, 'stu@example.com');
-  assert.equal(oldCalls[0].body.otpChannel, 'email');
+  const body = calls.find(c => c.url === '/api/auth/register').body;
+  assert.equal(body.username, 'stu1');
+  assert.equal(body.email, 'stu@example.com');
+  assert.equal(body.code, '123456');
+  assert.equal(body.otpChannel, 'email');
+  assert.equal(body.deviceId, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
   stopRuntimeTimers();
-});
-
-test('parity body 3: requestOtpCode login bare CN mobile old vm vs new actions', async (t) => {
-  resetRuntime();
-  const otpShell = `<input id="login-identifier" value="13800138000"><input id="login-code"><button id="login-send"></button>`;
-  const oldDom = new JSDOM(otpShell, { url: 'http://localhost/', pretendToBeVisual: true });
-  const { ctx, calls: oldCalls } = makeOld(OLD_FILES, oldDom, () => ({}));
-  await vm.runInContext(`requestOtpCode('login','sms')`, ctx);
-  vm.runInContext(`otpExhaustedReset('login')`, ctx);
-
-  const newDom = new JSDOM(otpShell, { url: 'http://localhost/', pretendToBeVisual: true });
-  useDom(newDom);
-  t.after(() => { stopRuntimeTimers(); clearDomGlobals(); });
-  const newCalls = installFetch(defaultResponder({ '/api/auth/otp/request': {} }));
-  await auth.requestOtpCode('login', 'sms');
-  auth.otpExhaustedReset('login');
-
-  assert.deepEqual(newCalls[0].body, oldCalls[0].body);
-  assert.deepEqual(oldCalls[0].body, { channel: 'sms', target: '+8613800138000', scene: TEXT.OTP_SCENE_LOGIN });
 });

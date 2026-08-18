@@ -1,0 +1,17 @@
+import { JSDOM } from 'jsdom';
+import { CONFIG } from '../src/shared/config.js';
+import { state } from '../src/client/core/state.js';
+import authFeature from '../src/client/features/auth/index.js';
+import * as auth from '../src/client/features/auth/actions.js';
+const dom = new JSDOM('<!doctype html><html><body><div id="view-client"></div><div id="modal-container"></div><div id="toast-container"></div><input id="login-identifier"><input id="login-password"><button id="login-submit"></button></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
+globalThis.document = dom.window.document;
+globalThis.window = dom.window;
+globalThis.localStorage = dom.window.localStorage;
+globalThis.sessionStorage = dom.window.sessionStorage;
+authFeature.onLoad();
+globalThis.localStorage.setItem(CONFIG.DEVICE_ID_KEY, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
+globalThis.fetch = async (url, opts) => { console.log('FETCH', url, JSON.stringify(opts.body)); return { ok: true, status: 200, json: async () => ({ user: { id: 1, username: 'alice', role: 'student' }, authToken: 'tok' }) }; };
+document.getElementById('login-identifier').value = 'alice';
+document.getElementById('login-password').value = 'pw123456';
+await auth.doLogin('alice');
+console.log('stored after login:', globalThis.localStorage.getItem(CONFIG.DEVICE_ID_KEY));
