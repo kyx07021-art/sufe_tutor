@@ -20,6 +20,3 @@ dist/
 # 测试分片运行产物（不提交）
 .test-shards/
 shard-runner.log
-
-# D1 副本演练自产导出文件（不提交）
-.drill/
