@@ -19,15 +19,20 @@
  */
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initDb } from '../src/server/core/db.js';
 import { d1Export, D1_DB_NAME } from './wrangler-d1.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// 安全（同 rollback-drill 提交审查口径）：生产导出含 PII/加密字段——mkdtempSync 私有目录（POSIX 0o700）
+// + 导出文件 chmod 0o600 + finally 清理；--export 显式复用用户文件时不删。
+const DRILL_DIR = mkdtempSync(join(tmpdir(), 'sufe-drill-'));
 const argExport = process.argv.find((a, i) => a === '--export' && process.argv[i + 1]);
-const exportPath = argExport || join(root, '.drill', 'prod-export.sql');
+const exportPath = argExport || join(DRILL_DIR, 'prod-export.sql');
 
 let fail = 0;
 const check = (name, cond, detail = '') => {
@@ -117,13 +122,13 @@ const structuralDiff = (a, b) => {
 
 console.log(`== V-4-1c D1 副本迁移幂等演练（${D1_DB_NAME}）==\n`);
 
-// 1. 导出生产
-if (argExport || existsSync(exportPath)) {
+// 1. 导出生产（--export 复用用户文件；否则导出到私有 mkdtemp 目录并收紧权限）
+if (argExport) {
   console.log(`复用导出文件：${exportPath}`);
 } else {
-  mkdirSync(dirname(exportPath), { recursive: true });
   console.log('导出生产 D1（schema+数据）…');
   d1Export(D1_DB_NAME, exportPath);
+  chmodSync(exportPath, 0o600); // 生产导出含 PII/加密字段：owner-only
   console.log(`已导出：${exportPath}`);
 }
 
@@ -166,5 +171,5 @@ if (c2.some(x => x.endsWith('admin口令列(seedAdmins)'))) {
 }
 
 console.log(fail === 0 ? `\n演练通过（迁移幂等 + 数据保持）` : `\n✖ 演练发现 ${fail} 项违规`);
-if (!argExport) rmSync(dirname(exportPath), { recursive: true, force: true }); // 仅清理自产导出文件
+if (!argExport) rmSync(DRILL_DIR, { recursive: true, force: true }); // 仅清理自产私有导出目录
 process.exit(fail === 0 ? 0 : 1);
