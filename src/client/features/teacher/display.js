@@ -20,9 +20,11 @@ export function starsHtml(rating) {
 }
 export function ratingText(rating) { return (rating || 4.5).toFixed(1); }
 
-export function reviewStatusTagHtml(status) {
-  if (status === STATUS.APPROVED) return `<span class="tag tag-ok">${TEXT.STATUS_APPROVED}</span>`;
-  if (status === STATUS.REJECTED) return `<span class="tag tag-danger">${TEXT.STATUS_REJECTED}</span>`;
-  if (status === STATUS.PENDING) return `<span class="tag tag-warn">${TEXT.STATUS_PENDING}</span>`;
-  return '';
+/** Review moderation status -> {text, cls} meta (contractStatusMeta-style shape);
+ *  unknown status -> null (caller skips the tag). */
+export function reviewStatusMeta(status) {
+  if (status === STATUS.APPROVED) return { text: TEXT.STATUS_APPROVED, cls: 'tag-ok' };
+  if (status === STATUS.REJECTED) return { text: TEXT.STATUS_REJECTED, cls: 'tag-danger' };
+  if (status === STATUS.PENDING) return { text: TEXT.STATUS_PENDING, cls: 'tag-warn' };
+  return null;
 }

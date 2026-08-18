@@ -6,7 +6,7 @@ import { TEXT } from './text.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
 import { subjectNames, genderName, methodName, priceRangeText, usernameHtml, deactivatedTag } from '../../core/display.js';
-import { teacherGradeName, ratingText, starsHtml, reviewStatusTagHtml } from './display.js';
+import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from './display.js';
 import { demandOptionText } from '../student/display.js';
 import { matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student push button on teacher card
@@ -75,10 +75,12 @@ export function renderProfilePanel(p, matched) {
 }
 
 export function renderProfileReviewsCard(r) {
+  const statusMeta = reviewStatusMeta(r.status);
+  const statusTag = statusMeta ? `<span class="tag glass glass--solid ${statusMeta.cls}">${statusMeta.text}</span>` : '';
   return `<div class="list-card glass review-card">
     <div class="list-card-header">
       <span class="review-author">${usernameHtml(r.reviewer_name || '')}${deactivatedTag(r.reviewer_name)} ${starsHtml(r.rating)} ${ratingText(r.rating)}</span>
-      <span class="tag glass glass--solid ${reviewStatusTagHtml(r.status).cls}">${reviewStatusTagHtml(r.status).text}</span>
+      ${statusTag}
     </div>
     ${r.comment ? `<div class="list-card-detail">${escHtml(r.comment)}</div>` : ''}
     <div class="list-card-meta">${fmtDateTime(r.created_at)}</div>
