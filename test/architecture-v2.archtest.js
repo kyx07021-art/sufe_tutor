@@ -7,7 +7,8 @@
  *   3. 声明式路由：src/server/app.js 导出 routes，_worker.js 不再有 if 路由；
  *   4. SQL 只在 repo：server/routes-*.js 与 _worker.js 无 db.prepare/batch；
  *   5. 前端模块自持：src/client/core + src/client/features；
- *   6. fetch 只在 api.js；前端无内联 onclick/style/中文文案。
+ *   6. fetch 只在 api.js；前端无内联 onclick/onload/style/中文文案；
+ *   7. V-3-1c3 CSP：core/features 零 <style> 元素注入（动态样式只走 CSS 自定义属性数据通道）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,7 +62,7 @@ test('前端模块自持：src/client/core 与 src/client/features 存在', () =
   }
 });
 
-test('前端边界：fetch 只在 api.js；feature 无内联 onclick/style/中文文案', () => {
+test('前端边界：fetch 只在 api.js；core/features 零内联事件/样式属性 + 零 <style> 注入 + 零中文文案', () => {
   const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e =>
     e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]);
   const coreFiles = existsSync(join(root, 'src/client/core')) ? walk(join(root, 'src/client/core')) : [];
@@ -71,6 +72,10 @@ test('前端边界：fetch 只在 api.js；feature 无内联 onclick/style/中�
     const s = readFileSync(f, 'utf8');
     const rel = f.replaceAll('\\', '/');
     if (f.endsWith('.js') && !rel.endsWith('core/api.js')) assert.ok(!/\bfetch\s*\(/.test(s), `${rel} 不直接 fetch`);
+    // V-3-1c3 CSP 收口契约：动态样式只能走 CSS 自定义属性数据通道（el.style.setProperty），
+    // 零 <style> 元素注入（style-src-elem 'self' 硬约束）+ 零内联事件/样式属性（onload 曾漏查，V-3-1a 补）
+    assert.ok(!/createElement\(["']style["']\)/.test(s), `${rel} 零 <style> 元素注入`);
+    assert.ok(!/onload=/.test(s), `${rel} 无内联 onload`);
     assert.ok(!/onclick=/.test(s), `${rel} 无内联 onclick`);
     assert.ok(!/style=/.test(s), `${rel} 无内联 style`);
     const isTextModule = rel.endsWith('/text.js');
@@ -82,5 +87,5 @@ test('web/index.html 是干净 ESM 壳：无内联脚本/事件/样式', () => {
   const html = read('web/index.html');
   assert.ok(html.includes('type="module"'), 'module 入口存在');
   assert.ok(!/<script(?![^>]*src=)[^>]*>[\s\S]*?<\/script>/.test(html), '无内联 script');
-  assert.ok(!/onclick=/.test(html) && !/style=/.test(html), '无内联 onclick/style');
+  assert.ok(!/onclick=/.test(html) && !/onload=/.test(html) && !/style=/.test(html), '无内联事件/样式属性');
 });
