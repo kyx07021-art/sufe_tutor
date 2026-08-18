@@ -11,11 +11,10 @@ import { openProfilePanel } from '../teacher/actions.js';
 const ACTION_MAP = {
   'student.openDemand': el => actions.openDemandCard(Number(el.dataset.id)),
   'student.openModal': actions.openDemandModal,
-  'student.submitDemand': actions.handleSubmitDemand,
   'student.closeModal': actions.closeModalAction,
   'student.deleteDemand': el => actions.confirmDeleteDemand(Number(el.dataset.id)),
   'student.reopenDemand': el => actions.reopenDemand(Number(el.dataset.id)),
-  'student.editDemand': el => actions.renderDemandModal(Number(el.dataset.id)),
+  'student.editDemand': el => actions.openDemandModal(Number(el.dataset.id)), // audit fix: passthrough wrapper lost the id
   'student.push': el => actions.submitDemandPush(Number(el.dataset.teacher)),
   'student.openSendModal': el => actions.openSendDemandModal(Number(el.dataset.id)),
   'student.doSubmitIntent': el => actions.doSubmitIntent(Number(el.dataset.id)),
@@ -27,6 +26,10 @@ const ACTION_MAP = {
   'student.matchDetail': el => actions.showMatchDetail(Number(el.dataset.id)),
   'student.viewProfile': el => openProfilePanel(Number(el.dataset.id)),
   'student.goChat': el => goChatWithStudent(Number(el.dataset.id)),
+  // 8-step wizard nav (dw-footer) + tag-pick buttons (data-container/data-max)
+  'student.wizardNext': () => actions.demandWizardNext(),
+  'student.wizardBack': () => actions.demandWizardBack(),
+  'student.toggleTagPick': el => actions.toggleTagPickAction(el),
 };
 
 let installed = false;
@@ -41,24 +44,17 @@ function onActionClick(e) {
   fn(el, e);
 }
 
-function onChange(e) {
-  const el = e.target;
-  if (!el || !el.dataset) return;
-  if (el.dataset.change === 'student.provinceChange') actions.onDemandProvinceChange();
-  else if (el.dataset.change === 'student.updateDemand') actions.updateDemandSubjects();
-}
-
 function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
   installed = true;
   registerPage({ id: 'my-demands', roles: ['student'], label: TEXT.PAGE_MY_DEMANDS, desc: TEXT.PAGE_MY_DEMANDS_DESC, auth: true, enter: () => actions.loadMyDemands() });
   registerPage({ id: 'browse-demands', roles: ['teacher'], label: TEXT.PAGE_BROWSE_DEMANDS, desc: TEXT.PAGE_BROWSE_DEMANDS_DESC, auth: false, enter: () => actions.loadBrowseDemands() });
   document.addEventListener('click', onActionClick);
-  document.addEventListener('change', onChange);
+  // Form change listeners (province/method/grade/subjects/nonacademic) are direct bindings inside
+  // initDemandForm -- no change delegation needed here anymore (old student.* data-change attrs gone).
   const uninstallMatchClose = actions.installMatchDetailClose();
   return () => {
     document.removeEventListener('click', onActionClick);
-    document.removeEventListener('change', onChange);
     uninstallMatchClose();
     installed = false;
   };

@@ -3,10 +3,21 @@
  * Pure HTML builders (no inline handlers, no inline style).
  */
 import { SUFE_REGIONS as R } from '../../constants/region-data.js';
-import { SUBJECTS } from '../../../shared/enums.js';
+import { SUBJECTS, STUDENT_GRADES } from '../../../shared/enums.js';
 import { escHtml } from '../../core/dom.js';
 import { checkboxItemsHtml, segTabsHtml } from '../../core/ui.js';
 import { TEXT } from './text.js';
+
+// M3: grade options follow the region's school system -- five-four (Shanghai) has no primary-6 and
+// maps grade 6 to prep class; default six-three keeps primary-6 and drops prep.
+export function gradeOptionsForProvince(provinceId) {
+  const fiveFour = R.isFiveFour(provinceId);
+  return STUDENT_GRADES.filter(g => {
+    if (g.id === 'prep') return !!fiveFour;
+    if (g.id === 'p6') return !fiveFour;
+    return true;
+  });
+}
 
 function gkVal(v) {
   return escHtml(v === undefined || v === null ? '' : String(v));

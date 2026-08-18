@@ -11,9 +11,12 @@ import { state } from '../src/client/core/state.js';
 import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { closeAllModals } from '../src/client/core/ui.js';
-import { toggleDemandIntents, showMatchDetail, closeMatchDetail, openDemandModal, handleSubmitDemand, doSubmitIntent, toggleDemandFilters } from '../src/client/features/student/actions.js';
+import { toggleDemandIntents, showMatchDetail, closeMatchDetail, openDemandModal, handleSubmitDemand, doSubmitIntent, toggleDemandFilters, _wizardResetForTests } from '../src/client/features/student/actions.js';
 import { renderDemandCard } from '../src/client/features/student/render.js';
+import studentFeature from '../src/client/features/student/index.js';
 import { TEXT } from '../src/client/features/student/text.js';
+
+class MOStub { observe() {} disconnect() {} takeRecords() { return []; } }
 
 function setup(extraHtml = '') {
   const dom = new JSDOM(`<!doctype html><html><body><div id="modal-container"></div><div id="toast-container"></div>${extraHtml}</body></html>`, { url: 'http://localhost/', pretendToBeVisual: true });
@@ -21,8 +24,10 @@ function setup(extraHtml = '') {
   globalThis.window = dom.window;
   globalThis.localStorage = dom.window.localStorage;
   globalThis.sessionStorage = dom.window.sessionStorage;
+  globalThis.MutationObserver = MOStub; // initDemandForm → initCustomSelects needs it
   setEnsureAuth(() => true);
   _dhResetForTests();
+  _wizardResetForTests();
   closeAllModals();
   state.user = null; state.allTeachers = []; state.myDemands = []; state.browseDemands = [];
   return dom;
@@ -30,7 +35,9 @@ function setup(extraHtml = '') {
 function teardown() {
   stopVersionProbe();
   closeAllModals();
+  _wizardResetForTests();
   setEnsureAuth(null);
+  delete globalThis.MutationObserver;
   delete globalThis.fetch;
   delete globalThis.document; delete globalThis.window;
   delete globalThis.localStorage; delete globalThis.sessionStorage;
@@ -113,10 +120,11 @@ test('openDemandModal 编辑分支：拉最新 + 预填表单 + 保存走 PUT', 
   teardown();
 });
 
-// 审计阻断 A 破坏性用例①：上海线下需求编辑保存必须保留原地址（否则 PUT 关口 ADDRESS_REQUIRED 拒存）。
+// 上海线下需求编辑保存：全字段表单回填后随表单提交（地址/提交者/时间/标签/目标均来自表单，
+// 不再需要 merge-preserve——8 步向导已收集全部字段）。时间槽 '[]' 源数据 → 空槽 → ''（v1 契约）。
 // 注：openDemandModal 内部 invalidate('demands') 会把 state.myDemands 置 [] 再拉新，
 // 测试 stub 必须返回捕获快照（生产服务端返回新数组，天然无此问题）。
-test('编辑 merge-preserve：上海线下需求保存携带原地址（不被 ADDRESS_REQUIRED 拒）', async () => {
+test('编辑全字段表单：上海线下需求地址/提交者/标签/目标随表单回填提交', async () => {
   setup();
   state.user = { id: 40, username: '学生A', role: 'student' };
   const srcDemands = [{
@@ -142,19 +150,18 @@ test('编辑 merge-preserve：上海线下需求保存携带原地址（不被 A
   document.getElementById('d-method').value = 'offline';
   await handleSubmitDemand();
   assert.equal(calls[0].method, 'PUT', '编辑保存走 PUT');
-  assert.equal(calls[0].body.demand.address, '黄浦区·南京东路街道', '原地址被保留（表单无地址字段也不丢）');
-  assert.equal(calls[0].body.demand.submitter_type, 'parent', '原提交者类型保留');
-  assert.equal(calls[0].body.demand.expected_time, '[]', '原期望时间保留');
-  assert.deepEqual(calls[0].body.demand.preferred_personality_tags, ['patience'], '偏好性格保留');
-  assert.equal(calls[0].body.demand.preferred_teacher_gender, 'female', '偏好老师性别保留');
-  assert.deepEqual(calls[0].body.demand.teaching_goal, ['interest'], '教学目标保留');
+  assert.equal(calls[0].body.demand.address, '黄浦区·南京东路街道', '上海线下地址随表单提交');
+  assert.equal(calls[0].body.demand.submitter_type, 'parent', '提交者类型随表单提交');
+  assert.equal(calls[0].body.demand.expected_time, '', '时间槽空 → 空串（v1 契约：空槽不写 JSON）');
+  assert.deepEqual(calls[0].body.demand.preferred_personality_tags, ['patience'], '偏好性格随表单提交');
+  assert.equal(calls[0].body.demand.preferred_teacher_gender, 'female', '偏好老师性别随表单提交');
+  assert.deepEqual(calls[0].body.demand.teaching_goal, ['interest'], '教学目标随表单提交');
   teardown();
 });
 
-// 审计阻断 A 破坏性用例②：非学科需求编辑保存必须保留 target_type + skill_notes。
-// v2 精简表单只有学科技目，非学科项目勾不到——用户可能勾选一个可用学科技目后保存；
-// merge-preserve 必须不把 target_type 覆盖成 academic、不丢 skill_notes。
-test('编辑 merge-preserve：非学科需求保存保留 target_type 与 skill_notes', async () => {
+// 非学科需求编辑保存：8 步向导的非学科区块回填项目勾选 + 技能现状，保存随表单提交
+// （target_type 来自 P4 类型分段，skill_notes 来自 P5 技能文本框，不走合并回填）。
+test('编辑非学科需求：target_type/skill_notes 随非学科表单回填提交', async () => {
   setup();
   state.user = { id: 40, username: '学生A', role: 'student' };
   const srcDemands = [{
@@ -176,14 +183,13 @@ test('编辑 merge-preserve：非学科需求保存保留 target_type 与 skill_
     return { ok: true, status: 200, json: async () => ({}) };
   };
   await openDemandModal(4);
-  // 非学科项目不在精简表单科目池——用户勾一个可用学科技目以通过校验（模拟编辑尝试）
-  const math = [...document.querySelectorAll('#d-subjects input')].find(cb => cb.value === 'math');
-  assert.ok(math, '表单提供 math 科目');
-  math.checked = true;
+  assert.equal(document.getElementById('d-section-nonacademic').classList.contains('hidden'), false, '非学科区块回填可见');
+  assert.deepEqual([...document.querySelectorAll('#d-nonacademic input:checked')].map(cb => cb.value), ['music'], '非学科项目勾选回填');
   await handleSubmitDemand();
   assert.equal(calls[0].method, 'PUT', '编辑保存走 PUT');
-  assert.equal(calls[0].body.demand.target_type, 'nonacademic', 'target_type 不被覆盖成 academic');
-  assert.deepEqual(calls[0].body.demand.skill_notes, [{ project: 'music', note: '钢琴八级' }], 'skill_notes 保留');
+  assert.equal(calls[0].body.demand.target_type, 'nonacademic', 'target_type 来自 P4 类型分段');
+  assert.deepEqual(calls[0].body.demand.target_subjects, ['music'], '非学科项目随表单提交');
+  assert.deepEqual(calls[0].body.demand.skill_notes, [{ project: 'music', note: '钢琴八级' }], '技能现状随表单提交');
   teardown();
 });
 
@@ -213,5 +219,44 @@ test('toggleDemandFilters：折叠面板 id 与 v1 契约一致（demand-filter-
   assert.ok(!p.classList.contains('hidden'), '展开');
   toggleDemandFilters();
   assert.ok(p.classList.contains('hidden'), '再折叠');
+  teardown();
+});
+
+// 复审审计断线回归：student.editDemand 曾经包装 renderDemandModal(Number) → (n).id === undefined
+// → 误开「新建」空表单。现在 ACTION_MAP 直调 openDemandModal(id)，点编辑按钮必须开「编辑」标题表单。
+test('student.editDemand 接线：点编辑按钮经委托打开编辑表单（标题=编辑非新建）', async () => {
+  setup();
+  state.user = { id: 40, username: '学生A', role: 'student' };
+  const srcDemands = [{
+    id: 2, display_id: 7, student_grade: 'senior1', target_type: 'academic', target_subjects: ['math'],
+    current_scores: [], teaching_method: 'online', province: 'shanghai', budget_min: 100, budget_max: 200,
+    parent_contact: '13800138000', student_contact: '13900139000', additional_info: '补基础',
+    status: 'open', username: '学生A', avatar: '', created_at: '2026-08-07 04:27:09',
+  }];
+  state.myDemands = srcDemands;
+  globalThis.fetch = async (url, config = {}) => {
+    const u = String(url);
+    if (u.includes('scope=mine')) return { ok: true, status: 200, json: async () => ({ demands: srcDemands }) };
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  // NOTE: mount the card in a side host -- document.body.innerHTML would wipe #modal-container
+  setup('<div id="card-host"></div>');
+  state.user = { id: 40, username: '学生A', role: 'student' };
+  state.myDemands = srcDemands;
+  globalThis.fetch = async (url, config = {}) => {
+    const u = String(url);
+    if (u.includes('scope=mine')) return { ok: true, status: 200, json: async () => ({ demands: srcDemands }) };
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  const uninstall = studentFeature.onLoad(); // installs the data-action click delegation
+  document.getElementById('card-host').innerHTML = renderDemandCard(srcDemands[0], { editable: true });
+  const btn = document.querySelector('[data-action="student.editDemand"]');
+  assert.ok(btn, '编辑按钮渲染（editable 学生卡）');
+  btn.click();
+  await new Promise(r => setTimeout(r, 10)); // openDemandModal edit branch fetches scope=mine first
+  const title = document.querySelector('#modal-container .modal-header h2');
+  assert.ok(title, '弹窗已打开');
+  assert.equal(title.textContent, TEXT.MODAL_TITLE_DEMAND_EDIT, '编辑标题（非「提交学生需求」新建）');
+  uninstall();
   teardown();
 });

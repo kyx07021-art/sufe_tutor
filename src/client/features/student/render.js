@@ -14,9 +14,19 @@ import {
   provinceName, priceRangeText, usernameHtml, deactivatedTag, starsHtml,
 } from '../../core/display.js';
 import { matchDegree, matchLevel } from '../../core/match.js';
-import { CARET_SVG } from '../../core/ui.js';
-import { SUFE_REGIONS } from '../../constants/region-data.js';
-import { STUDENT_GRADES, STATUS, DEMAND_TYPES } from '../../../shared/enums.js';
+import { CARET_SVG, segTabsHtml, checkboxItemsHtml } from '../../core/ui.js';
+import { renderTimeSlotContainerHtml } from '../../core/ui-form.js';
+import { gradeOptionsForProvince } from '../region/render.js';
+import { STATUS, DEMAND_TYPES, GENDERS, TEACHING_METHODS, SUBJECTS, NONACADEMIC_PROJECTS, TEACHING_GOALS, PERSONALITY_TAGS } from '../../../shared/enums.js';
+import { CONFIG } from '../../../shared/config.js';
+
+// v1 parity: 8 wizard step labels (P4 split teaching-goal into P4 + teacher-pref into P6).
+// Single source for the wizard's step count (actions.demandWizardGoTo clamps to this length).
+export const DEMAND_WIZARD_STEPS = [
+  TEXT.DW_STEP_PROVINCE, TEXT.DW_STEP_METHOD, TEXT.DW_STEP_STUDENT,
+  TEXT.DW_STEP_SUBJECTS, TEXT.DW_STEP_SCORES, TEXT.DW_STEP_TEACHER_PREF,
+  TEXT.DW_STEP_BUDGET, TEXT.DW_STEP_SUBMIT,
+];
 
 export function renderDemandCard(d, opts = {}) {
   const { editable = false, admin = false, teacher = false, myTeacher = null } = opts;
@@ -99,38 +109,147 @@ export function renderDemandCard(d, opts = {}) {
   </div>`;
 }
 
-// v1 parity: demand form modal html. Edit branch preselects the province; remaining fields are
-// filled by actions.prefillDemandForm after the modal opens (race-guarded fetch).
-export function renderDemandModalHtml(d) {
-  const selProv = d ? d.province : '';
-  const provinceOptions = SUFE_REGIONS.provinces.map(p => `<option value="${escHtml(p.id)}"${p.id === selProv ? ' selected' : ''}>${escHtml(p.name)}</option>`).join('');
-  return `<div class="form-group">
-    <label class="form-label">${TEXT.LABEL_PROVINCE}</label>
-    <select class="form-select" id="d-province" data-change="student.provinceChange"><option value="">${TEXT.OPTION_PLACEHOLDER}</option>${provinceOptions}</select>
-  </div>
-  <div class="form-group">
-    <label class="form-label">${TEXT.LABEL_STUDENT_GRADE}</label>
-    <select class="form-select" id="d-grade" data-change="student.updateDemand">${STUDENT_GRADES.map(g => `<option value="${escHtml(g.id)}">${escHtml(g.name)}</option>`).join('')}</select>
-  </div>
-  <div class="form-group">
-    <label class="form-label">${TEXT.LABEL_SUBJECTS}</label>
-    <div id="d-subjects" class="checkbox-grid"></div>
-  </div>
-  <div class="form-group">
-    <label class="form-label">${TEXT.LABEL_SCORES}</label>
-    <div id="d-scores"></div>
-  </div>
-  <div class="form-group">
-    <label class="form-label">${TEXT.LABEL_METHOD}</label>
-    <select class="form-select" id="d-method"><option value="offline">${TEXT.METHOD_OFFLINE}</option><option value="online">${TEXT.METHOD_ONLINE}</option></select>
-  </div>
-  <div class="form-group">
-    <label class="form-label">${TEXT.LABEL_BUDGET}</label>
-    <input type="number" id="d-budget-min" class="form-input" placeholder="${TEXT.BUDGET_MIN_PLACEHOLDER}"><input type="number" id="d-budget-max" class="form-input" placeholder="${TEXT.BUDGET_MAX_PLACEHOLDER}">
-  </div>
-  <div class="form-group"><label class="form-label">${TEXT.LABEL_PARENT_CONTACT}</label><input id="d-parent-contact" class="form-input"></div>
-  <div class="form-group"><label class="form-label">${TEXT.LABEL_STUDENT_CONTACT}</label><input id="d-student-contact" class="form-input"></div>
-  <div class="form-group"><label class="form-label">${TEXT.LABEL_ADDITIONAL_INFO}</label><textarea id="d-info" class="form-input" rows="3"></textarea></div>`;
+// v1 parity (C batch): 8-step demand wizard form. DOM stays mounted across pages (display toggling
+// never unloads state); form novalidate -- per-page validation lives in actions.demandWizardValidateStep.
+// No inline handlers: nav/delete/cancel via data-action delegation, submit via form submit listener,
+// type tabs via seg-tab-change, tag-picks via student.toggleTagPick (actions/index wiring).
+export function renderDemandModalHtml(demand) {
+  // R2-b student gender: '' = not-say (default) + GENDERS male/female; teacher-side undeclared/nonbinary excluded
+  const studentGenders = [{ id: '', name: TEXT.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary')];
+  const prefGenders = GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary');
+  const selProv = demand && demand.province ? demand.province : '';
+  const tagPickBtn = (id, name, containerId, max) =>
+    `<button type="button" class="tag-pick glass glass--solid" data-action="student.toggleTagPick" data-container="${containerId}" data-max="${max}" data-id="${escHtml(id)}">${escHtml(name)}</button>`;
+  return `<form id="demand-form" novalidate>
+    <div class="dw-stepper" id="dw-stepper">
+      ${DEMAND_WIZARD_STEPS.map((s, i) => `<div class="dw-step-chip" data-step="${i + 1}" title="${s}"><span class="dw-step-chip-dot"></span><span class="dw-step-chip-label">${s}</span></div>`).join('')}
+    </div>
+    <div class="dw-steps-viewport">
+    <div class="dw-steps-track">
+    <div class="dw-step" data-step="1">
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_PROVINCE} <span class="req">*</span></label>
+        <span id="d-province-wrap"></span>
+        <div id="d-region-note"></div>
+      </div>
+    </div>
+    <div class="dw-step" data-step="2">
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_TEACHING_METHOD} <span class="req">*</span></label>
+        <select class="form-select" id="d-method">
+          ${TEACHING_METHODS.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
+        </select>
+      </div>
+      <p class="text-sm text-muted spacer-sm" id="d-method-note"></p>
+      <div id="d-address-section">
+        <div class="form-group">
+          <label class="form-label">${TEXT.LABEL_ADDRESS} <span class="req">*</span></label>
+          <div id="d-addr-picker" class="sh-addr-picker"></div>
+          <input type="hidden" id="d-address" placeholder="${TEXT.ADDRESS_PLACEHOLDER}">
+        </div>
+      </div>
+    </div>
+    <div class="dw-step" data-step="3">
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_STUDENT_GENDER}</label>
+        <select class="form-select" id="d-gender">
+          ${studentGenders.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_STUDENT_GRADE} <span class="req">*</span></label>
+        <select class="form-select" id="d-grade"${selProv ? '' : ' disabled'}>
+          <option value="">${selProv ? TEXT.OPTION_PLACEHOLDER : TEXT.SELECT_PROVINCE_FIRST}</option>${selProv ? gradeOptionsForProvince(selProv).map(g => `<option value="${g.id}">${g.name}</option>`).join('') : ''}
+        </select>
+      </div>
+    </div>
+    <div class="dw-step" data-step="4">
+      <div class="form-group">
+        ${segTabsHtml([
+          { key: DEMAND_TYPES.ACADEMIC, label: TEXT.LABEL_TYPE_ACADEMIC },
+          { key: DEMAND_TYPES.NONACADEMIC, label: TEXT.LABEL_TYPE_NONACADEMIC },
+        ], DEMAND_TYPES.ACADEMIC, { containerClass: 'demand-type-tabs', containerId: 'd-type-tabs', attr: 'type' })}
+      </div>
+      <div class="demand-section" id="d-section-academic">
+        <div class="form-group">
+          <label class="form-label">${TEXT.LABEL_TARGET_SUBJECTS} <span class="req">*</span>${TEXT.LABEL_MULTI_SUFFIX}</label>
+          <div class="checkbox-grid" id="d-subjects">${checkboxItemsHtml(SUBJECTS)}</div>
+        </div>
+      </div>
+      <div class="demand-section hidden" id="d-section-nonacademic">
+        <div class="form-group">
+          <label class="form-label">${TEXT.LABEL_TARGET_PROJECTS} <span class="req">*</span>${TEXT.LABEL_MULTI_SUFFIX}</label>
+          <div class="checkbox-grid" id="d-nonacademic">${checkboxItemsHtml(NONACADEMIC_PROJECTS)}</div>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_TEACHING_GOAL}${TEXT.TEACHING_GOALS_HINT.replace('{max}', CONFIG.TEACHING_GOALS_MAX)}</label>
+        <div id="d-teaching-goals">${TEACHING_GOALS.map(tag => tagPickBtn(tag.id, tag.name, 'd-teaching-goals', CONFIG.TEACHING_GOALS_MAX)).join('')}</div>
+      </div>
+    </div>
+    <div class="dw-step" data-step="5">
+      <div class="form-group">
+        <label class="form-label" id="d-scores-title">${TEXT.LABEL_CURRENT_SCORES}</label>
+        <div id="d-scores"><p class="text-sm text-muted">${TEXT.HINT_SELECT_TARGET_SUBJECTS}</p></div>
+        <div id="d-skill-notes" class="hidden"></div>
+      </div>
+    </div>
+    <div class="dw-step" data-step="6">
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_PREFERRED_PERSONALITY}${TEXT.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
+        <div id="d-personality-tags">${PERSONALITY_TAGS.map(tag => tagPickBtn(tag.id, tag.name, 'd-personality-tags', CONFIG.PERSONALITY_TAGS_MAX)).join('')}</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_PREFERRED_GENDER}</label>
+        <select class="form-select" id="d-pref-gender">
+          <option value="">${TEXT.OPTION_PREF_GENDER_ANY}</option>${prefGenders.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="dw-step" data-step="7">
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_BUDGET}</label>
+        <div class="range-row">
+          <input type="number" class="form-input" id="d-budget-min" placeholder="${TEXT.PLACEHOLDER_MIN}" min="0" step="1">
+          <span class="text-muted">~</span>
+          <input type="number" class="form-input" id="d-budget-max" placeholder="${TEXT.PLACEHOLDER_MAX}" min="0" step="1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_EXPECTED_TIME}</label>
+        <div id="d-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div>
+      </div>
+    </div>
+    <div class="dw-step" data-step="8">
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_SUBMITTER} <span class="req">*</span></label>
+        <select class="form-select" id="d-submitter">
+          <option value="parent">${TEXT.SUBMITTER_PARENT}</option><option value="student">${TEXT.SUBMITTER_STUDENT}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_PARENT_CONTACT} <span class="req">*</span><span class="form-label-note">${TEXT.CONTACT_AFTER_SIGN_NOTE}</span></label>
+        <input type="text" class="form-input" id="d-parent-contact" placeholder="${TEXT.CONTACT_PLACEHOLDER}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_STUDENT_CONTACT} <span class="req">*</span><span class="form-label-note">${TEXT.CONTACT_AFTER_SIGN_NOTE}</span></label>
+        <input type="text" class="form-input" id="d-student-contact" placeholder="${TEXT.CONTACT_PLACEHOLDER}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.LABEL_ADDITIONAL_INFO}</label>
+        <textarea class="form-input" id="d-info" rows="3" placeholder="${TEXT.DEMAND_INFO_PLACEHOLDER}"></textarea>
+      </div>
+    </div>
+    </div><!-- /dw-steps-track -->
+    </div><!-- /dw-steps-viewport -->
+    <div class="dw-footer">
+      ${demand ? `<button type="button" class="btn btn-sm btn-text-danger glass glass--pressable" data-action="student.deleteDemand" data-id="${demand.id}">${TEXT.BTN_DELETE_DEMAND}</button>` : ''}
+      <button type="button" class="btn btn-outline glass glass--pressable" data-action="student.closeModal">${TEXT.BTN_CANCEL}</button>
+      <button type="button" class="btn btn-outline glass glass--pressable hidden" id="dw-back" data-action="student.wizardBack">${TEXT.BTN_PREV_STEP}</button>
+      <button type="button" class="btn glass glass--pressable" id="dw-next" data-action="student.wizardNext">${TEXT.BTN_NEXT_STEP}</button>
+      <button type="submit" class="btn glass glass--pressable hidden" id="d-submit">${demand ? TEXT.BTN_SAVE_DEMAND : TEXT.BTN_SUBMIT_DEMAND}</button>
+    </div>
+  </form>`;
 }
 
 // v1 parity: teacher-card push button -- cooldown is a global per-minute limit shared by all push
