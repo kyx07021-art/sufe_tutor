@@ -15,3 +15,9 @@
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
+# V-4-1e staging 冒烟抓出：v2 ESM 资产（dist/assets/*，esbuild 内容哈希名）此前无 immutable，
+# 每次页面加载全量重下载 ~700KB。esbuild 名 = 内容寻址，同内容永不变名 → 可安全 immutable。
+# worker 的 versionedBase 只覆盖 manifest 清单内文件（根/features 哈希 CSS）；/assets/* 走 ASSETS 直服，故在此声明。
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
