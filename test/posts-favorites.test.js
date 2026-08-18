@@ -5,7 +5,7 @@
  *   - POST /api/posts/:id/favorite 切换收藏（登录；帖子不存在 404）；
  *   - GET /api/posts/favorites/mine 仅本人收藏、按收藏时间倒序、作者名 JOIN；
  *   - 列表接口凭令牌产出 favorited 布尔；注销清理 post_favorites；
- * 前端：
+ * 前端（B4：直接 import posts feature ESM）：
  *   - 卡片/详情渲染收藏 pill（checkbox checked 随 p.favorited，CSS :has 单源）；
  *   - toggle 调收藏接口、文案随状态切换；
  *   - 我的收藏视图取消收藏就地移除卡；视图切换走 favorites/mine 接口。
@@ -20,13 +20,17 @@ import { handleToggleFavorite, handleMyFavorites, handleListPosts, handleToggleL
 import { dbPurgeUserOwnedData } from '../src/server/domains/auth/repo.js';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
+import { state } from '../src/client/core/state.js';
+import { setEnsureAuth } from '../src/client/core/api.js';
+import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
+import { stopBadgePoll } from '../src/client/core/router.js';
+import { CONFIG } from '../src/shared/config.js';
+import { renderPostCard } from '../src/client/features/posts/render.js';
+import { postsList, setPostsListForTest, togglePostFavorite, togglePostsFav } from '../src/client/features/posts/actions-list.js';
+import { TEXT } from '../src/client/features/posts/text.js';
 
-// V-1-1：服务端不再以副作用导入根 constants.js；本文件显式 vm 执行根 constants.js，
-// 以便用 UI 文案契约断言前端收藏文案。
-const ROOT_AC = {};
-vm.runInNewContext(readFileSync('./constants.js', 'utf8'), ROOT_AC, { filename: 'constants.js' });
-const ROOT_UI = ROOT_AC.APP_CONSTANTS.UI;
+CONFIG.TOAST_MS = 10;
+CONFIG.TOAST_FADE_MS = 1;
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
@@ -125,102 +129,103 @@ test('R23 列表接口凭令牌产出 favorited；注销清理收藏', async () 
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM post_favorites WHERE user_id=?').get(t1.id).c, 0, '注销清理本人收藏');
 });
 
-// ==================== 前端 ====================
-function makeCtx() {
-  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="posts-content"></div><div id="posts-list"></div></body></html>', {
-    url: 'http://localhost/', pretendToBeVisual: true,
-  });
-  const w = dom.window;
-  return {
-    ctx: vm.createContext({
-      window: w, document: w.document,
-      getComputedStyle: w.getComputedStyle.bind(w),
-      localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-      console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout,
-      clearTimeout: globalThis.clearTimeout, Request: globalThis.Request,
-      MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    }),
-    dom,
-  };
+// ==================== 前端（B4：直接 import posts feature ESM） ====================
+// v2 形态：postsList/postsView 是 actions-list 模块级（postsView 无 setter，用 togglePostsFav 切换）；
+// ensureAuth 是 core/api 单源（setEnsureAuth 接线）；loadPosts 经 core/router loadInto 真渲染。
+
+const SHELL_HTML = `<!doctype html><html><body>
+  <div id="posts-content"></div>
+  <div id="posts-list"></div>
+  <div id="toast-container"></div>
+</body></html>`;
+
+function setup() {
+  const dom = new JSDOM(SHELL_HTML, { url: 'http://localhost/', pretendToBeVisual: true });
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  state.user = { id: 38, username: 'kkkk', role: 'teacher' };
+  state.authToken = null;
+  setEnsureAuth(() => true);
+  _dhResetForTests(); // 清 dhCache/版本基线，隔离各用例
+  return dom;
 }
-function loadCommon(ctx) {
-  for (const f of ['constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-    'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-posts.js']) {
-    vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
-  }
+function teardown() {
+  stopBadgePoll();
+  stopVersionProbe();
+  delete globalThis.fetch;
+  delete globalThis.document; delete globalThis.window;
+  delete globalThis.localStorage; delete globalThis.sessionStorage;
 }
+async function settle(ms = 30) { await new Promise(r => setTimeout(r, ms)); }
 
 test('R23 收藏渲染：书签 checkbox checked 随 p.favorited，卡片守卫含 .post-fav，CSS :has 单源', () => {
-  const { ctx } = makeCtx();
-  loadCommon(ctx);
-  vm.runInContext(`
-    setBadge = () => {}; initReveals = () => {}; showToast = () => {};
-    state.user = { id: 38, username: 'kkkk', role: 'teacher' };
-    postsList = [];
-  `, ctx);
-  const html = vm.runInContext(`renderPostCard({ id: 9, user_id: 39, username: '学生A', title: '讲义', body_md: '内容', created_at: '2026-08-07 04:27:09', liked: false, like_count: 1, favorited: true }, 0)`, ctx);
+  setup();
+  setPostsListForTest([]);
+  const html = renderPostCard({ id: 9, user_id: 39, username: '学生A', title: '讲义', body_md: '内容', created_at: '2026-08-07 04:27:09', liked: false, like_count: 1, favorited: true }, 0);
   assert.ok(html.includes('post-fav glass'), '渲染收藏 pill');
   assert.ok(/<input type="checkbox" checked /.test(html), 'favorited=true → input checked');
-  assert.ok(html.includes('已收藏'), '已收藏文案');
-  const html2 = vm.runInContext(`renderPostCard({ id: 10, user_id: 39, username: '学生A', title: '讲义2', body_md: 'x', created_at: '2026-08-07 04:27:10', liked: false, like_count: 0, favorited: false }, 0)`, ctx);
+  assert.ok(html.includes(TEXT.BTN_FAVORITED), '已收藏文案');
+  const html2 = renderPostCard({ id: 10, user_id: 39, username: '学生A', title: '讲义2', body_md: 'x', created_at: '2026-08-07 04:27:10', liked: false, like_count: 0, favorited: false }, 0);
   assert.ok(!/<input type="checkbox" checked/.test(html2), '未收藏无 checked');
-  assert.ok(html2.includes('收藏'), '未收藏文案');
-  const src = readFileSync('./app-posts.js', 'utf8');
+  assert.ok(html2.includes(TEXT.BTN_FAVORITE), '未收藏文案');
+  const src = readFileSync('./src/client/features/posts/index.js', 'utf8');
   assert.ok(src.includes(".closest('.post-like, .post-fav, .post-del')"), '卡片点击守卫含 .post-fav');
   assert.ok(readFileSync('./glass.css', 'utf8').includes('.post-fav:has(input:checked)'), 'glass.css 收藏态走 :has');
+  teardown();
 });
 
 test('R23 收藏成功：调 /api/posts/:id/favorite，checked 以服务端收敛、文案随动', async () => {
-  const { ctx, dom } = makeCtx();
-  loadCommon(ctx);
-  vm.runInContext(`
-    setBadge = () => {}; initReveals = () => {}; showToast = () => {};
-    ensureAuth = () => true;
-    api = async (url) => { lastFavCall = url; return { favorited: true }; };
-    state.user = { id: 38, username: 'kkkk', role: 'teacher' };
-    postsView = 'all'; postsList = [{ id: 9, favorited: false }];
-  `, ctx);
-  dom.window.document.getElementById('posts-list').innerHTML =
-    `<label class="post-fav glass" data-id="9"><input type="checkbox" aria-label="收藏" onchange="togglePostFavorite(9, this)"><span class="fav-label">收藏</span></label>`;
-  const box = dom.window.document.querySelector('.post-fav input');
+  setup();
+  setPostsListForTest([{ id: 9, favorited: false }]);
+  let lastFavCall = '';
+  globalThis.fetch = async (url) => { lastFavCall = String(url); return { ok: true, status: 200, json: async () => ({ favorited: true }) }; };
+  document.getElementById('posts-list').innerHTML =
+    `<label class="post-fav glass" data-id="9"><input type="checkbox" aria-label="收藏" data-posts-fav="9"><span class="fav-label">收藏</span></label>`;
+  const box = document.querySelector('.post-fav input');
   box.checked = true; // 模拟原生翻转
-  await vm.runInContext('togglePostFavorite(9, document.querySelector(".post-fav input"))', ctx);
-  assert.equal(vm.runInContext('lastFavCall', ctx), '/api/posts/9/favorite', '调收藏接口');
+  await togglePostFavorite(9, box);
+  assert.equal(lastFavCall, '/api/posts/9/favorite', '调收藏接口');
   assert.equal(box.checked, true, '服务端 favorited=true → checked 保持');
-  assert.equal(dom.window.document.querySelector('.fav-label').textContent, '已收藏', '文案随状态');
+  assert.equal(document.querySelector('.fav-label').textContent, TEXT.BTN_FAVORITED, '文案随状态');
+  teardown();
 });
 
 test('R23 我的收藏视图：取消收藏就地移除卡；视图切换走 favorites/mine 接口', async () => {
-  const { ctx, dom } = makeCtx();
-  loadCommon(ctx);
-  vm.runInContext(`
-    setBadge = () => {}; initReveals = () => {}; showToast = () => {};
-    ensureAuth = () => true;
-    api = async (url) => { lastFavCall = url; return { favorited: false }; };
-    dhGet = async (url) => { lastDhCall = url; return { posts: [] }; };
-    loadInto = async (elId, fetcher) => { await fetcher(); }; // 轻量 ctx 无 app-shell：仅执行 fetcher 记录接口
-    state.user = { id: 38, username: 'kkkk', role: 'teacher' };
-    postsView = 'fav'; postsList = [{ id: 9, favorited: true }];
-  `, ctx);
-  dom.window.document.getElementById('posts-list').innerHTML =
-    `<div class="post-card glass"><label class="post-fav glass" data-id="9"><input type="checkbox" checked aria-label="收藏" onchange="togglePostFavorite(9, this)"><span class="fav-label">已收藏</span></label></div>`;
-  const box = dom.window.document.querySelector('.post-fav input');
-  box.checked = false; // 模拟原生翻转（取消收藏）
-  await vm.runInContext('togglePostFavorite(9, document.querySelector(".post-fav input"))', ctx);
-  assert.equal(vm.runInContext('lastFavCall', ctx), '/api/posts/9/favorite', '调收藏接口');
-  assert.equal(dom.window.document.querySelectorAll('#posts-list .post-card').length, 0, '我的收藏视图取消收藏就地移除卡');
-  // 视图切换（M7：切卡改 toggle 按钮）：togglePostsFav → 清搜索框 + loadPosts 走 favorites/mine
-  dom.window.document.getElementById('posts-content').innerHTML =
+  setup();
+  setPostsListForTest([{ id: 9, favorited: true }]);
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    const u = String(url);
+    if (u.includes('/api/posts/favorites/mine') || u.includes('/api/posts?sort=')) return { ok: true, status: 200, json: async () => ({ posts: [] }) };
+    return { ok: true, status: 200, json: async () => ({ favorited: false }) };
+  };
+  // 收藏视图 toolbar + 列表容器（v2 postsView 模块级无 setter，用 togglePostsFav 从 all 切入 fav）
+  document.getElementById('posts-content').innerHTML =
     `<div class="posts-toolbar glass">
-      <button type="button" class="btn btn-sm posts-fav-btn" id="posts-fav-btn" onclick="togglePostsFav()">我的收藏</button>
+      <button type="button" class="btn btn-sm posts-fav-btn" id="posts-fav-btn">我的收藏</button>
       <input type="search" id="posts-search" value="旧值">
-    </div><div id="posts-list"></div>`;
-  await vm.runInContext(`postsView = 'all'; togglePostsFav(); loadPosts()`, ctx); // 重置到 all 再 toggle 进 fav
-  assert.equal(vm.runInContext('lastDhCall', ctx), '/api/posts/favorites/mine', '收藏视图走独立接口');
-  assert.equal(dom.window.document.getElementById('posts-search').value, '', '切视图清空搜索框');
-  assert.equal(dom.window.document.getElementById('posts-fav-btn').textContent, ROOT_UI.POSTS_FAV_ACTIVE, '进入收藏态按钮显示「√ 已进入我的收藏」');
-  await vm.runInContext(`togglePostsFav(); loadPosts()`, ctx);
-  assert.equal(dom.window.document.getElementById('posts-fav-btn').textContent, ROOT_UI.POSTS_VIEW_FAV, '再点回全部态按钮文案恢复');
+    </div>`;
+  togglePostsFav(); // all → fav：清搜索框 + 按钮切文案 + loadPosts 走 favorites/mine
+  await settle();
+  assert.equal(document.getElementById('posts-search').value, '', '切视图清空搜索框');
+  assert.equal(document.getElementById('posts-fav-btn').textContent, TEXT.POSTS_FAV_ACTIVE, '进入收藏态按钮显示「已进入我的收藏」');
+  assert.ok(calls.some(u => u === '/api/posts/favorites/mine'), '收藏视图走独立接口');
+  // 取消收藏就地移除卡
+  document.getElementById('posts-list').innerHTML =
+    `<div class="post-card glass"><label class="post-fav glass" data-id="9"><input type="checkbox" checked aria-label="已收藏" data-posts-fav="9"><span class="fav-label">已收藏</span></label></div>`;
+  const box = document.querySelector('.post-fav input');
+  box.checked = false; // 模拟原生翻转（取消收藏）
+  await togglePostFavorite(9, box);
+  assert.ok(calls.some(u => u === '/api/posts/9/favorite'), '调收藏接口');
+  assert.equal(document.querySelectorAll('#posts-list .post-card').length, 0, '我的收藏视图取消收藏就地移除卡');
+  // 再点回全部态
+  togglePostsFav();
+  await settle();
+  assert.equal(document.getElementById('posts-fav-btn').textContent, TEXT.POSTS_VIEW_FAV, '再点回全部态按钮文案恢复');
+  teardown();
 });
 
 // ==================== U10 网络层架构债（收藏/点赞延迟） ====================
@@ -251,51 +256,39 @@ test('U10 批量读写 helper：读批帖+本人记录一步取回；点赞写�
 });
 
 test('U10 收藏乐观反馈：toast/文案立即（不等服务端）；成功后服务端收敛', async () => {
-  const { ctx, dom } = makeCtx();
-  loadCommon(ctx);
-  vm.runInContext(`
-    setBadge = () => {}; initReveals = () => {};
-    showToast = (m) => { (window.__toasts || (window.__toasts = [])).push(m); };
-    ensureAuth = () => true;
-    window.__resolveApi = null;
-    api = () => new Promise(res => { window.__resolveApi = () => res({ favorited: true }); });
-    state.user = { id: 38, username: 'kkkk', role: 'teacher' };
-    postsView = 'all'; postsList = [{ id: 9, favorited: false }];
-  `, ctx);
-  dom.window.document.getElementById('posts-list').innerHTML =
-    `<label class="post-fav glass" data-id="9"><input type="checkbox" aria-label="收藏" onchange="togglePostFavorite(9, this)"><span class="fav-label">收藏</span></label>`;
-  const box = dom.window.document.querySelector('.post-fav input');
-  const label = dom.window.document.querySelector('.fav-label');
+  setup();
+  setPostsListForTest([{ id: 9, favorited: false }]);
+  let resolveApi = null;
+  globalThis.fetch = () => new Promise(res => { resolveApi = () => res({ ok: true, status: 200, json: async () => ({ favorited: true }) }); });
+  document.getElementById('posts-list').innerHTML =
+    `<label class="post-fav glass" data-id="9"><input type="checkbox" aria-label="收藏" data-posts-fav="9"><span class="fav-label">收藏</span></label>`;
+  const box = document.querySelector('.post-fav input');
+  const label = document.querySelector('.fav-label');
   box.checked = true; // 原生翻转
-  vm.runInContext('togglePostFavorite(9, document.querySelector(".post-fav input"))', ctx); // 不 await：同步段先行
-  const UI = ROOT_UI;
-  assert.ok(vm.runInContext('window.__toasts', ctx).includes(UI.POST_FAVORITED_TOAST), 'toast 在服务端返回前立即弹出');
-  assert.equal(label.textContent, UI.BTN_FAVORITED, '文案立即翻为「已收藏」（服务端未回）');
-  assert.equal(vm.runInContext('postsList[0].favorited', ctx), true, '数据源立即更新');
+  togglePostFavorite(9, box); // 不 await：同步段先行
+  const toast = document.querySelector('#toast-container .toast');
+  assert.ok(toast && toast.textContent.includes(TEXT.POST_FAVORITED_TOAST), 'toast 在服务端返回前立即弹出');
+  assert.equal(label.textContent, TEXT.BTN_FAVORITED, '文案立即翻为「已收藏」（服务端未回）');
+  assert.equal(postsList[0].favorited, true, '数据源立即更新');
   // 服务端 resolve → 收敛一致
-  await vm.runInContext('window.__resolveApi()', ctx);
-  await new Promise(r => setTimeout(r, 20));
-  assert.equal(label.textContent, UI.BTN_FAVORITED, '服务端 favorited=true 收敛一致');
+  resolveApi();
+  await settle(20);
+  assert.equal(label.textContent, TEXT.BTN_FAVORITED, '服务端 favorited=true 收敛一致');
+  teardown();
 });
 
 test('U10 收藏乐观失败：回滚文案/toast/数据到点前态', async () => {
-  const { ctx, dom } = makeCtx();
-  loadCommon(ctx);
-  vm.runInContext(`
-    setBadge = () => {}; initReveals = () => {}; showToast = () => {};
-    ensureAuth = () => true;
-    api = async () => { throw new Error('网络错误'); };
-    state.user = { id: 38, username: 'kkkk', role: 'teacher' };
-    postsView = 'all'; postsList = [{ id: 9, favorited: true }];
-  `, ctx);
-  dom.window.document.getElementById('posts-list').innerHTML =
-    `<label class="post-fav glass" data-id="9"><input type="checkbox" checked aria-label="收藏" onchange="togglePostFavorite(9, this)"><span class="fav-label">已收藏</span></label>`;
-  const box = dom.window.document.querySelector('.post-fav input');
-  const label = dom.window.document.querySelector('.fav-label');
+  setup();
+  setPostsListForTest([{ id: 9, favorited: true }]);
+  globalThis.fetch = async () => { throw new Error('网络错误'); };
+  document.getElementById('posts-list').innerHTML =
+    `<label class="post-fav glass" data-id="9"><input type="checkbox" checked aria-label="已收藏" data-posts-fav="9"><span class="fav-label">已收藏</span></label>`;
+  const box = document.querySelector('.post-fav input');
+  const label = document.querySelector('.fav-label');
   box.checked = false; // 取消收藏：原生翻转
-  await vm.runInContext('togglePostFavorite(9, document.querySelector(".post-fav input"))', ctx);
-  const UI = ROOT_UI;
+  await togglePostFavorite(9, box);
   assert.equal(box.checked, true, '失败回滚 checkbox 到点前态（已收藏）');
-  assert.equal(label.textContent, UI.BTN_FAVORITED, '失败回滚文案到「已收藏」');
-  assert.equal(vm.runInContext('postsList[0].favorited', ctx), true, '数据源回滚');
+  assert.equal(label.textContent, TEXT.BTN_FAVORITED, '失败回滚文案到「已收藏」');
+  assert.equal(postsList[0].favorited, true, '数据源回滚');
+  teardown();
 });

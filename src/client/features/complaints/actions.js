@@ -258,3 +258,15 @@ export async function resolveAdminComplaint(complaintId) {
     loadAdminComplaints();
   } catch (err) { showToast(err.message); }
 }
+
+// Test-only hooks (pattern: posts setPostsListForTest / datahub _dhResetForTests):
+// jsdom has no FileReader, so staged-attachment tests drive the stage state directly;
+// module-level state (tab/recent-loaded/staged) must be reset per test case.
+export function _cpStagedForTest(staged) { _cpStaged = staged || []; }
+export function _cpStagedSnapshotForTest() { return _cpStaged; }
+export function _cpResetForTests() {
+  if (_cpTimer != null) { clearTimeout(_cpTimer); _cpTimer = null; }
+  _cpSel.teacher = null; _cpSel.student = null; _cpSel.post = null;
+  _cpTab = 'teacher'; _cpReason = ''; _cpSeq = 0;
+  _cpRecentLoaded.clear(); _cpStaged = []; _cpStageSeq = 0;
+}
