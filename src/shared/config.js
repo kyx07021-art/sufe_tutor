@@ -178,6 +178,7 @@ export const SECURITY = {
   RATE_ROW_RETENTION: "-1 day",
   PBKDF2_ITERATIONS: 100000,
   PBKDF2_HASH: "SHA-512",
+  TOKEN_HASH_HEX_LEN: 64, // tokenDigest = SHA-256 → 64 位 hex（validate-prod-data 等工具据此校验库存摘要长度）
 };
 export const TEXT_AUDIT = {
   BASE_URL: "https://api.deepseek.com/chat/completions",
