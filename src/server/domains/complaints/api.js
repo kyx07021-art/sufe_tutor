@@ -208,7 +208,7 @@ export async function handleAdminFeedbacks(db, url, req) {
   return json({ feedbacks });
 }
 
-// POST /api/feedbacks/:id/resolve —— 管理员标记已处理，通知反馈提出者（body 不参与，通知文案取 UI.FEEDBACK_RESOLVED）
+// POST /api/feedbacks/:id/resolve —— 管理员标记已处理，通知反馈提出者（body 不参与，V-2-4 结构化通知：文案客户端 NOTIF_FEEDBACK_* 单源渲染）
 export async function handleResolveFeedback(db, feedbackId, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;

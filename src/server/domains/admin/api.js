@@ -265,7 +265,7 @@ const TYPE_LABEL = {
   contract: '合同', signing: '签约请求',
 };
 
-// 处罚通知三段截断预算（LIMITS.PENALTY_*_MAX 单源）：结构化 params 落库，客户端渲染总长 <200（v1 库层 NOTIF_TEXT_MAX 语义保留）
+// 处罚通知三段截断预算（LIMITS.PENALTY_*_MAX 单源）：结构化 params 落库，客户端渲染总长 <200（v1 库层 200 字上限语义保留）
 
 // GET /api/admin/content?type=post|demand|teacher|review|message|feedback|complaint|upload
 export async function handleAdminContent(db, url, req) {
