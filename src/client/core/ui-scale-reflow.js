@@ -230,7 +230,7 @@ function renderAt(scalePct) {
   }
 }
 function teardown() {
-  styleEl && (styleEl.textContent = ""), restoreTextSpans();
+  styleEl && (styleEl.textContent = "", styleEl.remove(), styleEl = null), restoreTextSpans();
   for (var i = 0; i < units.length; i++) units[i].el.removeAttribute("data-ui-reflow-unit");
   for (var stale = document.querySelectorAll("[data-ui-reflow-unit]"), s = 0; s < stale.length; s++) stale[s].removeAttribute("data-ui-reflow-unit");
   units = [], unitByEl = /* @__PURE__ */ new WeakMap(), active = !1;
