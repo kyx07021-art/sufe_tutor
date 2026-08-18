@@ -22,7 +22,7 @@ export const ASSET_MANIFEST = {
     "app-shell.js": "app-shell.5fd42550.js",
     "app-auth.js": "app-auth.ad8545e0.js",
     "style-pref.js": "style-pref.dd57f27f.js",
-    "region-data.js": "region-data.46b9f543.js",
+    "region-data.js": "region-data.734f8700.js",
     "app-style.js": "app-style.f0d2d4fe.js",
     "app-region.js": "app-region.2be1bf85.js",
     "app-posts.js": "app-posts.1cde9696.js",

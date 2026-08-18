@@ -10,9 +10,9 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import '../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（与服务端路由同路径）
+import { SUFE_REGIONS } from '../src/shared/region-data.js'; // V-2-4c 地区数据单源（服务端/客户端共用）
 
-const R = globalThis.SUFE_REGIONS;
+const R = SUFE_REGIONS;
 
 test('上海等第制：11 等第 × 3 分 70-40（含 B-/C-）', () => {
   const sh = R.gradeSystems.shanghai;

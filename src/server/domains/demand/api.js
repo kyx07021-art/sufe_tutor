@@ -10,7 +10,7 @@ import { MSG } from '../../../shared/codes.js';
 import { STATUS, STUDENT_GRADES, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, SUBJECTS } from '../../../shared/enums.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
 import { auditFreeText } from '../../core/text-audit.js';
-import '../../../../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS（省份校验单源）
+import { SUFE_REGIONS } from '../../../../src/shared/region-data.js'; // V-2-4c 地区数据单源（省份校验单源）
 import {
   dbGetUserById, dbCreateDemand, dbGetDemands, dbGetDemandsByUser,
   dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbReopenDemand,
@@ -116,7 +116,7 @@ function sanitizeDemand(d) {
   // 前端输入 max 已按 subjectMaxFor（省+年级，region-data 单源），服务端同口径兜底（防绕过前端直传 150）。
   // 只钳制分数模式（mode='score' 或 legacy scale>0）；等第模式无数值不改。非法项剔除。
   if (Array.isArray(d.current_scores)) {
-    const R = globalThis.SUFE_REGIONS;
+    const R = SUFE_REGIONS;
     d.current_scores = d.current_scores
       .slice(0, CONFIG.DEMAND_SCORE_MAX)
       .map(cs => {
@@ -142,7 +142,7 @@ export async function handleCreateDemand(db, body, req) {
   if (err) return err;
   const userId = me.id;
 
-  const R = globalThis.SUFE_REGIONS;
+  const R = SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return errorMsg('PROVINCE_REQUIRED');
   if (!R.allowsOffline(d.province)) d.teaching_method = 'online'; // 业务规则：线下许可省才可线下（region-data 数据驱动）
   const ts = sanitizeTimeSlots(d.expected_time);
@@ -158,7 +158,7 @@ export async function handleCreateDemand(db, body, req) {
   }
   // 需求五：地址结构化校验——线上不收集地址（清空）；线下（仅上海 allowed）必须合法「区·镇/街道」
   {
-    const R = globalThis.SUFE_REGIONS;
+    const R = SUFE_REGIONS;
     if (d.teaching_method === 'online') {
       d.address = '';
     } else if (!R || !R.isValidShanghaiAddr(d.address)) {
@@ -212,7 +212,7 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   const g = await loadOwnedDemand(db, demandId, me.id); // 已签约需求锁定，禁改（合同已绑定此需求）
   if (g.err) return g.err;
 
-  const R = globalThis.SUFE_REGIONS;
+  const R = SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return errorMsg('PROVINCE_REQUIRED');
   if (!R.allowsOffline(d.province)) d.teaching_method = 'online';
   const ts = sanitizeTimeSlots(d.expected_time);

@@ -12,7 +12,7 @@ import { MSG } from '../../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
 import { TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, SUBJECTS, TEACHER_GRADES, GENDERS, VERIFY_TYPES } from '../../../shared/enums.js';
 import { auditFreeText } from '../../core/text-audit.js';
-import '../../../../region-data.js'; // 副作用导入：globalThis.SUFE_REGIONS
+import { SUFE_REGIONS } from '../../../../src/shared/region-data.js'; // V-2-4c 地区数据单源
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbListTeacherVerifications, dbGetTeacherVerificationById, dbApplyChsiToProfile, dbClearChsiFromProfile, dbSetTeacherVerified, safeJsonArray } from '../../../../server/db.js';
 import { verifyChsiCode } from '../../../../server/chsi.js';
 import { logEvent } from '../../core/log.js';
@@ -128,7 +128,7 @@ export async function handleSaveProfile(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   if (me.role !== 'teacher') return errorMsg('NO_PERMISSION', 403); // 仅教师可建档案（防学生/管理员写 teacher_profiles）
-  if (!p.province || !globalThis.SUFE_REGIONS.isValidProvince(p.province)) return errorMsg('PROVINCE_REQUIRED');
+  if (!p.province || !SUFE_REGIONS.isValidProvince(p.province)) return errorMsg('PROVINCE_REQUIRED');
 
   // R2-5 报价区间化：price_min/price_max 各自钳制，保留 null=未填语义（不转 0，完整性门槛据此拦截）；
   // 有值夹到 [0, LIMITS.BUDGET_MAX]；max < min 时以 min 为准（同 sanitizeDemand 预算口径）
@@ -201,7 +201,7 @@ export async function handleSaveProfile(db, body, req) {
   // R2-6 擅长科目 / 高考成绩白名单（网安纵深防御，与需求侧 target_subjects 同款口径）：
   //   科目池 = constants SUBJECTS + region-data subjectNames 全量 id（含浙江技术等地区科目），
   //   与前端 teacherSubjectPool 同源；注入串/未知 id 一律丢弃，去重 + 按池大小封顶防铺量 DoS。
-  const R = globalThis.SUFE_REGIONS || {};
+  const R = SUFE_REGIONS || {};
   const subjPool = new Set([
     ...SUBJECTS.map(s => s.id),
     ...Object.keys(R.subjectNames || {}),
@@ -262,7 +262,7 @@ export async function handleSaveProfile(db, body, req) {
   }
   // 需求五：上海常住地结构化校验——非空则必须合法「区·镇/街道」；空 = 未填（不参与距离匹配）
   {
-    const R = globalThis.SUFE_REGIONS;
+    const R = SUFE_REGIONS;
     const addr = typeof p.address === 'string' ? p.address.trim() : '';
     if (addr && R && !R.isValidShanghaiAddr(addr)) return errorMsg('ADDRESS_REQUIRED');
     p.address = addr;

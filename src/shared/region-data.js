@@ -1,16 +1,10 @@
 /**
- * 地区数据单源 v1 壳遗留（V-2-4c）：v2 运行时单源已迁 src/shared/region-data.js
- * （服务端 import { SUFE_REGIONS }、客户端经 client/constants/region-data.js re-export）。
- * 本文件仅服务 build 复制的 v1 static shell（线上 `/` 当前生产页面），数据冻结不再开发。
- *
- * 旧双端共用：
- *   浏览器：<script src="/region-data.js"> 后取 globalThis.SUFE_REGIONS
- *   Worker：import '../region-data.js'（副作用导入）后取 globalThis.SUFE_REGIONS
- *
- * 数据基准：2026 年全国新高考改革（五批推进完毕）。区间档位为框架性编码，
- * 各省细则微调只需改本文件一个位置。
+ * 地区数据单源（V-2-4c：从 client/constants 提升到 shared，服务端与客户端共用；
+ * 客户端经 client/constants/region-data.js re-export 保持分层入口）。
  */
-(function () {
+import { FIVE_FOUR_PROVINCES } from './enums.js';
+
+
   // 浙江 2022 年 1 月选考起新制的 20 个赋分区间（赋分后区间，非固定卷面分区间）：
   // 卷面分按人数比例动态划分后等比例换算到区间内，1 分一档。
   // 边界来源（web 核实 2026-08-08）：浙江省教育考试院《关于进一步做好学考选考工作的通知》
@@ -358,11 +352,9 @@
     },
 
     // M3：学制地区差异——五四学制省份（小学五年+初中四年；六年级=初中预备班，无小学六年级）。
-    // 单源 FIVE_FOUR_PROVINCES（constants），此处读 globalThis.APP_CONSTANTS；默认六三学制。
+    // 单源 FIVE_FOUR_PROVINCES（shared/enums）；默认六三学制。
     isFiveFour(provinceId) {
-      const cfg = globalThis.APP_CONSTANTS || {};
-      const list = cfg.FIVE_FOUR_PROVINCES || [];
-      return list.includes(provinceId);
+      return FIVE_FOUR_PROVINCES.includes(provinceId);
     },
 
     // 学生科目池：地区 + 年级共同决定（需求 1.3）
@@ -387,6 +379,4 @@
       return this.COMPULSORY_LEVELS; // 小学/初中：通用等第
     },
   };
-
-  globalThis.SUFE_REGIONS = R;
-})();
+export const SUFE_REGIONS = R;
