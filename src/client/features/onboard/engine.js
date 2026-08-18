@@ -201,14 +201,15 @@ function _tourStartFollow(step) {
 /** Stable placement: scroll into view -> wait for entry animation -> place hole ->
  *  start dynamic follow. Common path (stable target, no animation) places
  *  synchronously — zero extra frames; only an animating ancestor enters the rAF
- *  wait (capped at 2s so an endless animation cannot wedge the hole). */
+ *  wait (capped at CONFIG.TOUR_ANIM_DEADLINE_MS so an endless animation cannot
+ *  wedge the hole). */
 function _tourPlaceStable(step) {
   const el = _tourResolve(step);
   if (!el) { _tourHideHole(); return; }
   const scrollEl = (step.scrollTo ? document.querySelector(step.scrollTo) : null) || el;
   _tourScrollToEl(scrollEl);
   if (!_tourAnimating(el) && !_tourAnimating(scrollEl)) { _tourPlace(el); _tourStartFollow(step); return; }
-  const deadline = Date.now() + 2000;
+  const deadline = Date.now() + (CONFIG.TOUR_ANIM_DEADLINE_MS || 2000);
   const tick = () => {
     if (!_tourActive) return;
     const cur = _tourResolve(step);
@@ -230,24 +231,25 @@ function _tourPlaceBubble(rect) {
   const vw = window.innerWidth || document.documentElement.clientWidth || 1024;
   const vh = window.innerHeight || document.documentElement.clientHeight || 768;
   pos.style.transform = 'translate(-9999px,-9999px)'; // off-screen to measure real size
-  const bw = _tourEls.bubble.offsetWidth || 300;
-  const bh = _tourEls.bubble.offsetHeight || 90;
+  const bw = _tourEls.bubble.offsetWidth || CONFIG.TOUR_BUBBLE_W || 300;
+  const bh = _tourEls.bubble.offsetHeight || CONFIG.TOUR_BUBBLE_H || 90;
+  const m = CONFIG.TOUR_BUBBLE_MARGIN || 8;
   let x, y;
   if (rect.right + gap + bw <= vw) {            // right first (top-aligned)
     x = rect.right + gap;
-    y = Math.max(8, Math.min(rect.top, vh - bh - 8));
+    y = Math.max(m, Math.min(rect.top, vh - bh - m));
   } else if (rect.left - gap - bw >= 0) {       // then left
     x = rect.left - gap - bw;
-    y = Math.max(8, Math.min(rect.top, vh - bh - 8));
+    y = Math.max(m, Math.min(rect.top, vh - bh - m));
   } else if (rect.bottom + gap + bh <= vh) {    // then below (left-aligned, clamped)
-    x = Math.max(8, Math.min(rect.left, vw - bw - 8));
+    x = Math.max(m, Math.min(rect.left, vw - bw - m));
     y = rect.bottom + gap;
   } else if (rect.top - gap - bh >= 0) {        // then above
-    x = Math.max(8, Math.min(rect.left, vw - bw - 8));
+    x = Math.max(m, Math.min(rect.left, vw - bw - m));
     y = rect.top - gap - bh;
   } else {                                      // tiny viewport: pin bottom (hole above)
-    x = 8;
-    y = vh - bh - 8;
+    x = m;
+    y = vh - bh - m;
   }
   pos.style.transform = `translate(${x}px, ${y}px)`;
 }
@@ -433,7 +435,7 @@ function _tourDemoChatEnsure() {
   const list = document.getElementById('my-chats-list');
   if (!list || list.querySelector('.tour-demo-conv')) return;
   if (list.querySelector('.loader')) {
-    setTimeout(_tourDemoChatEnsure, 200);
+    setTimeout(_tourDemoChatEnsure, CONFIG.TOUR_DEMO_POLL_MS || 200);
     return;
   }
   const empty = list.querySelector('.empty-state');
@@ -499,7 +501,7 @@ function _tourDemoContractEnsure() {
   const list = document.getElementById('my-contracts-list');
   if (!list || list.querySelector('.tour-demo-contract')) return;
   if (list.querySelector('.loader')) {
-    setTimeout(_tourDemoContractEnsure, 200);
+    setTimeout(_tourDemoContractEnsure, CONFIG.TOUR_DEMO_POLL_MS || 200);
     return;
   }
   const empty = list.querySelector('.empty-state');
