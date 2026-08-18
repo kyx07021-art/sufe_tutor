@@ -12,16 +12,11 @@
  *   （changed_db=false 且 changes=0）+ 3 次网络重试。
  * 用法：node scripts/validate-prod-data.mjs（需 wrangler 已认证）。
  */
-import { d1ReadQuery } from './wrangler-d1.mjs';
+import { d1ReadQuery, D1_DB_NAME } from './wrangler-d1.mjs';
 import { SUFE_REGIONS } from '../src/shared/region-data.js';
 import { NOTIFY_TYPES } from '../src/shared/codes.js';
 import { ROLES } from '../src/shared/enums.js';
 import { SECURITY } from '../src/shared/config.js';
-
-// 部署字面量（有意决定）：库名仅本脚本与 Pages 项目 D1 绑定使用（worker 经 binding 读取，不依赖库名），
-// 全仓无代码级第二引用；放 shared/config 会随客户端 bundle 泄出内部基建命名，故留脚本内并钉死契约。
-// 若改动绑定名，必须同步此处与 CLAUDE.md「常量约定」段落。
-const D1_DB_NAME = 'sufe-tutor-db-apac';
 
 const q = sql => d1ReadQuery(D1_DB_NAME, sql);
 

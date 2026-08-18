@@ -7,11 +7,16 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+// 部署字面量（有意决定，F4 裁决保留脚本层）：库名仅 wrangler D1 部署工具使用（worker 经 binding 读取，不依赖库名），
+// 全仓无运行时第二引用；放 shared/config 会随客户端 bundle 泄出内部基建命名，故留共享脚本层并钉死契约。
+// 若改动绑定名，必须同步此处与 CLAUDE.md「常量约定」段落。
+export const D1_DB_NAME = 'sufe-tutor-db-apac';
+
 const RETRIES = 3;
 const sleepSync = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 // 全局 wrangler 常见安装路径（Windows %APPDATA%\npm\node_modules；POSIX /usr/lib 或 /usr/local/lib）
-export function resolveWranglerBin() {
+function resolveWranglerBin() {
   const candidates = process.platform === 'win32' && process.env.APPDATA
     ? [join(process.env.APPDATA, 'npm', 'node_modules', 'wrangler', 'bin', 'wrangler.js')]
     : ['/usr/lib/node_modules/wrangler/bin/wrangler.js', '/usr/local/lib/node_modules/wrangler/bin/wrangler.js'];

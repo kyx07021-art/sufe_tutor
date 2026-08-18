@@ -1,24 +1,31 @@
 /**
  * V-4-1c D1 副本演练：迁移幂等实测（发布 2.0.0 前置）。
  *   1. 导出生产 D1（schema+数据）到本地 SQL；
- *   2. 载入全新本地 SQLite（foreign_keys=ON，镜像生产约束）→ 快照各表行数与列集；
+ *   2. 载入全新本地 SQLite（foreign_keys=ON，镜像生产约束）→ 快照各表 行数/列集/内容摘要；
  *   3. 跑真实迁移编排 initDb（src/server/core/db.js，与 2.0.0 部署同源）→ 断言无错 + notifications 补 type/params 列；
- *   4. 幂等：清 schema_meta 强制重跑全量迁移 → 断言第二次运行零新增变更（行数/列集全表一致）；
- *   5. 报告首次迁移的数据增量（预期：schema_meta +1；管理员硬删除等迁移变换逐项列明供人工裁决）。
+ *   4. 幂等：清 schema_meta 强制重跑全量迁移 → 断言第二次运行 行数/列集/内容 全表一致
+ *      （唯一已知良性例外 = seedAdmins 对既有 admin 重写 password_hash/salt，见下）；
+ *   5. 报告首次迁移的内容增量（预期：schema_meta 版本行 +1；admin 口令列重写 = 已知良性非幂等，逐项列明）。
+ *
+ * 已知良性非幂等（V-4-1c 独立审计 F1 裁决）：seedAdmins（auth/schema.js:82-97）对已存在的 admin
+ *   用户名，每次全量迁移都 hashPassword 新盐 → password_hash/salt 恒变。故 users 表内容摘要拆三份：
+ *   digestMain（除口令列外全内容，应恒稳）+ digestNonAdminCred（非 admin 行口令列，应恒稳）+
+ *   digestAdminCred（admin 行口令列，seedAdmins 良性可变，仅报告不判败）。其余表全列摘要。
+ *
  * 用法：node scripts/d1-migration-drill.mjs [--export <sql路径>]
  *   --export 复用已有导出文件则跳过远程导出；缺省自动导出生产库。
  * 注意：迁移读取的 ADMIN_USERNAMES 走 env 回落本地 secrets.js（生产用 Worker Secrets），
  *   演练中任何 admin 行删除都会显式报告，供人工对照生产名单裁决。
  */
+import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initDb } from '../src/server/core/db.js';
-import { d1Export } from './wrangler-d1.mjs';
+import { d1Export, D1_DB_NAME } from './wrangler-d1.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const DB_NAME = 'sufe-tutor-db-apac';
 const argExport = process.argv.find((a, i) => a === '--export' && process.argv[i + 1]);
 const exportPath = argExport || join(root, '.drill', 'prod-export.sql');
 
@@ -31,7 +38,6 @@ const check = (name, cond, detail = '') => {
 
 // ---- D1 形状 shim（同 test/api-batch.test.js 口径）：prepare→bind→all/first/run + batch ----
 function makeShim(raw) {
-  const exec = sql => { raw.exec(sql); };
   return {
     prepare(sql) {
       const st = { _sql: sql, _params: [], bind(...p) { st._params = p; return st; },
@@ -56,25 +62,60 @@ function makeShim(raw) {
   };
 }
 
-// ---- 快照：表名 → { count, cols[] }（业务表，排除 sqlite_sequence）----
+// ---- 内容摘要（sha256 逐行序列化；users 拆三份以隔离 seedAdmins 良性重写）----
+const USERS_EXCL = new Set(['password_hash', 'salt']);
+const rowDigest = (rows, excl) => {
+  const h = createHash('sha256');
+  for (const r of rows) {
+    const vals = excl ? Object.entries(r).filter(([k]) => !excl.has(k)).map(([, v]) => v) : Object.values(r);
+    h.update(JSON.stringify(vals)).update('\n');
+  }
+  return h.digest('hex');
+};
+
+// ---- 快照：表名 → { count, cols[], digest* }（业务表，排除 sqlite_% 系统表）----
 function snapshot(raw) {
   const out = {};
   const tables = raw.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`).all();
   for (const { name } of tables) {
-    const c = raw.prepare(`SELECT COUNT(*) AS n FROM "${name}"`).get().n;
+    const count = Number(raw.prepare(`SELECT COUNT(*) AS n FROM "${name}"`).get().n);
     const cols = raw.prepare(`PRAGMA table_info("${name}")`).all().map(r => r.name);
-    out[name] = { count: Number(c), cols };
+    const s = { count, cols };
+    if (name === 'users') {
+      const all = raw.prepare('SELECT * FROM users ORDER BY rowid').all();
+      s.digestMain = rowDigest(all, USERS_EXCL);                                    // 除口令列外全内容（应恒稳）
+      s.digestNonAdminCred = rowDigest(all.filter(r => r.role !== 'admin'), null); // 非 admin 口令列（应恒稳）
+      s.digestAdminCred = rowDigest(all.filter(r => r.role === 'admin'), null);    // admin 口令列（seedAdmins 良性可变）
+    } else {
+      s.digest = rowDigest(raw.prepare(`SELECT * FROM "${name}" ORDER BY rowid`).all(), null);
+    }
+    out[name] = s;
   }
   return out;
 }
 
-const diff = (a, b) => {
+// 内容差异（表.域），admin 口令列单独成项（判定时作为已知良性豁免）
+function contentDiff(a, b) {
+  const out = [];
+  for (const t of Object.keys(b)) {
+    if (t === 'users') {
+      if (a[t].digestMain !== b[t].digestMain) out.push(`${t}.主内容`);
+      if (a[t].digestNonAdminCred !== b[t].digestNonAdminCred) out.push(`${t}.非admin口令列`);
+      if (a[t].digestAdminCred !== b[t].digestAdminCred) out.push(`${t}.admin口令列(seedAdmins)`);
+    } else if (a[t].digest !== b[t].digest) {
+      out.push(`${t}.内容`);
+    }
+  }
+  return out;
+}
+const benignAdminCred = d => d.filter(x => !x.endsWith('admin口令列(seedAdmins)'));
+const structuralDiff = (a, b) => {
   const rows = Object.keys(b).filter(t => (a[t]?.count ?? 0) !== b[t].count).map(t => `${t}: ${a[t]?.count ?? 0}→${b[t].count}`);
   const colDiff = Object.keys(b).filter(t => JSON.stringify(a[t]?.cols) !== JSON.stringify(b[t].cols)).map(t => `${t} 列集变化`);
   return { rows, colDiff };
 };
 
-console.log(`== V-4-1c D1 副本迁移幂等演练（${DB_NAME}）==\n`);
+console.log(`== V-4-1c D1 副本迁移幂等演练（${D1_DB_NAME}）==\n`);
 
 // 1. 导出生产
 if (argExport || existsSync(exportPath)) {
@@ -82,7 +123,7 @@ if (argExport || existsSync(exportPath)) {
 } else {
   mkdirSync(dirname(exportPath), { recursive: true });
   console.log('导出生产 D1（schema+数据）…');
-  d1Export(DB_NAME, exportPath);
+  d1Export(D1_DB_NAME, exportPath);
   console.log(`已导出：${exportPath}`);
 }
 
@@ -98,30 +139,31 @@ const db = makeShim(raw);
 console.log('\n[运行 1] initDb 全量迁移…');
 await initDb(db, {});
 const after1 = snapshot(raw);
-const d1 = diff(before, after1);
+const s1 = structuralDiff(before, after1);
+const c1 = contentDiff(before, after1);
 check('首次迁移完成无错', true);
 check('notifications 补 type/params 列（V-2-4 结构化）',
   after1.notifications && after1.notifications.cols.includes('type') && after1.notifications.cols.includes('params'),
   after1.notifications ? after1.notifications.cols.join(',') : '表缺失');
-console.log(`首次迁移行数增量：${d1.rows.length ? d1.rows.join('；') : '无（纯幂等）'}`);
-if (d1.colDiff.length) { console.log(`首次迁移列集变化：${d1.colDiff.join('；')}`); }
-// 管理员行若被硬删除，显式报告供人工对照生产 ADMIN_USERNAMES 裁决
-const adminsBefore = before.users ? before.users.count : null;
-const adminsAfter = after1.users ? after1.users.count : null;
-if (adminsBefore != null && adminsAfter != null && adminsBefore !== adminsAfter) {
-  console.log(`⚠ 报告：users 行数 ${adminsBefore}→${adminsAfter}（admin 硬删除等迁移变换；演练 ADMIN_USERNAMES 走本地 secrets，须对照生产名单裁决）`);
-}
+console.log(`首次迁移结构增量：${s1.rows.length ? s1.rows.join('；') : '无（行数不变）'}${s1.colDiff.length ? `；${s1.colDiff.join('；')}` : '；列集仅 notifications 补列'}`);
+console.log(`首次迁移内容增量：${c1.length ? c1.join('；') : '无（内容全等）'}（admin 口令列 = seedAdmins 已知良性重写）`);
 
 // 4. 幂等：清 schema_meta 强制重跑
 console.log('\n[运行 2] 清 schema_meta 强制重跑全量迁移（幂等实测）…');
 raw.exec(`DELETE FROM schema_meta`);
 await initDb(db, {});
 const after2 = snapshot(raw);
-const d2 = diff(after1, after2);
+const s2 = structuralDiff(after1, after2);
+const c2 = contentDiff(after1, after2);
 check('第二次迁移运行完成无错', true);
-check('第二次运行零新增变更（行数一致）', d2.rows.length === 0, d2.rows.join('；') || '零增量');
-check('第二次运行列集全表一致', d2.colDiff.length === 0, d2.colDiff.join('；') || '零变化');
+check('第二次运行结构零变更（行数/列集全表一致）', s2.rows.length === 0 && s2.colDiff.length === 0,
+  [...s2.rows, ...s2.colDiff].join('；') || '零增量');
+check('第二次运行内容零变更（除 seedAdmins admin 口令良性重写）', benignAdminCred(c2).length === 0,
+  benignAdminCred(c2).join('；') || '零变化');
 check('schema_meta 收敛为单版本行', after2.schema_meta && after2.schema_meta.count === 1, after2.schema_meta ? String(after2.schema_meta.count) : '表缺失');
+if (c2.some(x => x.endsWith('admin口令列(seedAdmins)'))) {
+  console.log('ℹ 已知良性非幂等：seedAdmins 重写了既有 admin 口令哈希/盐（PBKDF2 新盐，同口令换盐，功能无影响）');
+}
 
 console.log(fail === 0 ? `\n演练通过（迁移幂等 + 数据保持）` : `\n✖ 演练发现 ${fail} 项违规`);
 if (!argExport) rmSync(dirname(exportPath), { recursive: true, force: true }); // 仅清理自产导出文件
