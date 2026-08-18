@@ -98,7 +98,7 @@ export function applyOrbs() {
     const dur = (DUR * (0.8 + ((oi * 17) % 60) / 100)).toFixed(1);
     const color = ORB_COLORS[(oi * 5) % ORB_COLORS.length];
     const el = document.createElement('div');
-    el.className = `lg-orb lg-orb--dir${dir}`; // --i{n} 类随 V-3-1c1 迁移删除（规则载体已并入 .lg-orb 变量通道，零消费者）
+    el.className = `lg-orb lg-orb--dir${dir}`; // --i{n} class removed in V-3-1c1 (rule carrier folded into .lg-orb var channel, zero consumers)
     el.style.setProperty('--lg-w', size + 'vmax');
     el.style.setProperty('--lg-h', size + 'vmax');
     el.style.setProperty('--lg-x', left + 'vmax');
