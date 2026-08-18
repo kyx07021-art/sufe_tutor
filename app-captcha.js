@@ -122,6 +122,7 @@ function paintCaptcha() {
     pctx.save();
     pctx.globalCompositeOperation = 'destination-in'; // 只保留形状内像素（背景原位裁剪）
     drawGapShape(pctx, SLIDER_W / 2, SLIDER_H / 2, R, shape);
+    pctx.fill(); // ★ v1.4.17 修复：必须 fill 才裁剪成形状（此前只建路径 → 拼图块仍是矩形）
     pctx.restore();
   }
   // 背景有效缺口：destination-out 抠出形状 + 白描边可见
@@ -129,6 +130,7 @@ function paintCaptcha() {
   ctx.globalCompositeOperation = 'destination-out';
   ctx.fillStyle = 'rgba(0,0,0,1)';
   drawGapShape(ctx, cutX + SLIDER_W / 2, cutY + SLIDER_H / 2, R, shape);
+  ctx.fill(); // ★ v1.4.17 修复：必须 fill 才抠出透明洞（此前只剩白线框、中央实心）
   ctx.restore();
   ctx.strokeStyle = 'rgba(255,255,255,.85)';
   ctx.lineWidth = 2;
@@ -150,6 +152,7 @@ function paintCaptcha() {
     ctx.globalCompositeOperation = 'destination-out';
     ctx.fillStyle = 'rgba(0,0,0,1)';
     drawGapShape(ctx, fx + SLIDER_W / 2, fy + SLIDER_H / 2, R, fs);
+    ctx.fill(); // ★ v1.4.17 修复：无效空缺同样必须 fill 才抠出透明洞
     ctx.restore();
     ctx.strokeStyle = 'rgba(255,255,255,.85)';
     ctx.lineWidth = 2;

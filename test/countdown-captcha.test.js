@@ -14,7 +14,7 @@ function setup() {
   dom.window.HTMLCanvasElement.prototype.getContext = () => ({
     createLinearGradient: () => ({ addColorStop: () => {} }), fillRect: () => {}, fillStyle: '', save: () => {}, restore: () => {},
     globalCompositeOperation: '', strokeRect: () => {}, lineWidth: 0, strokeStyle: '', beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {},
-    arc: () => {}, rect: () => {}, stroke: () => {}, clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
+    arc: () => {}, rect: () => {}, stroke: () => {}, fill: () => {}, clearRect: () => {}, drawImage: () => {}, getImageData: () => ({ data: new Uint8ClampedArray(6400) }),
   });
   return dom;
 }
@@ -56,4 +56,5 @@ test('withCaptcha：非函数直接返回', () => {
   const dom = setup();
   assert.equal(withCaptcha(5), undefined);
   delete globalThis.document;
+
 });
