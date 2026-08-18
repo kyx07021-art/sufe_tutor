@@ -88,11 +88,11 @@ export function mountShell() {
         ${page('my-demands', TEXT.PAGE_MY_DEMANDS, { actions: btnNewDemand, body: `<div class="browse-list" id="my-demands-list"></div>` })}
         ${page('browse-demands', TEXT.PAGE_BROWSE_DEMANDS, { actions: filterToggleBtn('student.toggleFilters', 'demand-filter-toggle-btn'), body: `
           <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">
-            <select class="filter-select" id="demand-sort"></select>
-            <label id="demand-filter-subject-label"></label><select class="filter-select" id="demand-filter-subject"></select>
-            <label id="demand-filter-grade-label"></label><select class="filter-select" id="demand-filter-grade"></select>
-            <label id="demand-filter-method-label"></label><select class="filter-select" id="demand-filter-method"></select>
-            <label id="demand-filter-province-label"></label><select class="filter-select" id="demand-filter-province"></select>
+            <select class="filter-select" id="demand-sort" data-change="demand.applyControls"></select>
+            <label id="demand-filter-subject-label"></label><select class="filter-select" id="demand-filter-subject" data-change="demand.applyControls"></select>
+            <label id="demand-filter-grade-label"></label><select class="filter-select" id="demand-filter-grade" data-change="demand.applyControls"></select>
+            <label id="demand-filter-method-label"></label><select class="filter-select" id="demand-filter-method" data-change="demand.applyControls"></select>
+            <label id="demand-filter-province-label"></label><select class="filter-select" id="demand-filter-province" data-change="demand.applyControls"></select>
           </div>
           <div class="browse-list" id="browse-demands-list"></div>` })}
         ${page('browse-teachers', TEXT.PAGE_BROWSE_TEACHERS, { actions: filterToggleBtn('teacher.toggleFilters', 'filter-toggle-btn'), body: `

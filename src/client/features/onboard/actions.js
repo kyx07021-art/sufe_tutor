@@ -1,20 +1,74 @@
 /**
- * onboard feature actions: first-visit modal and tour engine (ESM port).
+ * v2 onboard feature actions: first-visit modal, usage guide, guest browse and the
+ * tour entry points. No inline handlers (archtest) — modal buttons carry data-action
+ * handled by the onboard registry's click delegation.
+ * auth/flow.js statically imports startOnboardingTour from this module, so the
+ * enterRolePreview dependency is a call-time dynamic import (breaks the cycle).
  */
 import { TEXT } from './text.js';
 import { state, isReturning, setReturning } from '../../core/state.js';
-import { openModal, closeModal, showToast } from '../../core/ui.js';
+import { openModal, closeModal } from '../../core/ui.js';
+import { escHtml } from '../../core/dom.js';
+import { onboardContext, runTour, skipTour, startOnboardingTour, setTourScripts } from './engine.js';
+import { TOUR_SCRIPTS } from './tours.js';
 
+setTourScripts(TOUR_SCRIPTS); // engine reads the script table through this registry
+
+/** First-visit modal (policy summary; primary button depends on login state:
+ *  logged-in users dismiss; guests jump straight into the client as a student). */
+function openOnboarding() {
+  const ctx = onboardContext();
+  const policyItems = (TEXT.ONBOARD_POLICY || []).map(p =>
+    `<div class="onboard-policy-item"><span class="about-sec-mark glass" aria-hidden="true"></span><p>${escHtml(p)}</p></div>`).join('');
+  const primary = ctx.loggedIn
+    ? `<button type="button" class="btn glass glass--pressable" data-action="onboard.close">${escHtml(TEXT.ONBOARD_CONFIRM)}</button>`
+    : `<button type="button" class="btn glass glass--pressable" data-action="onboard.browseGuest">${escHtml(TEXT.ONBOARD_CONFIRM_BROWSE)}</button>`;
+  openModal({
+    title: TEXT.ONBOARD_TITLE,
+    closable: false,
+    body: `<p class="onboard-intro">${escHtml(TEXT.ONBOARD_INTRO)}</p><div class="onboard-policy">${policyItems}</div><p class="funds-note onboard-funds">${escHtml(TEXT.FUNDS_NOTE_SHORT)}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="onboard.usageGuide">${escHtml(TEXT.USAGE_GUIDE_BTN)}</button>${primary}`,
+  });
+}
+
+/** Init entry: only first visit opens the modal; the device marker is written here
+ *  (login/register also write it), so the guest landing respects it too. */
 export function showOnboardingIfNeeded() {
   if (isReturning()) return;
   setReturning();
-  openModal({ title: TEXT.ONBOARD_TITLE, body: `<p>${TEXT.ONBOARD_INTRO}</p>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="onboard.close">${TEXT.BTN_START}</button>` });
+  openOnboarding();
 }
 
-export function openOnboarding() { showOnboardingIfNeeded(); }
-export function openUsageGuide() { openModal({ title: TEXT.ONBOARD_TITLE, body: `<p>${TEXT.ONBOARD_GUIDE}</p>` }); }
-export function startOnboardingTour() { showToast(TEXT.ONBOARD_TOUR_START); }
-export function skipTour() { closeModal(); }
-export function runTour() { startOnboardingTour(); }
-export function browseAsGuest() { showToast(TEXT.ONBOARD_GUEST_HINT); }
+export { openOnboarding };
+
+/** Detailed usage guide: sectioned modal (also reachable from the about page). */
+export function openUsageGuide() {
+  const sections = (TEXT.USAGE_GUIDE_SECTIONS || []).map(s => `
+      <div class="usage-guide-section">
+        <h4 class="usage-guide-title">${escHtml(s.t)}</h4>
+        ${(s.p || []).map(p => `<p class="usage-guide-text">${escHtml(p)}</p>`).join('')}
+      </div>`).join('');
+  openModal({
+    title: TEXT.USAGE_GUIDE_TITLE,
+    cls: 'modal--wide',
+    body: `<div class="usage-guide">${sections}</div>`,
+    footer: `<button type="button" class="btn glass glass--pressable" data-action="onboard.close">${escHtml(TEXT.ONBOARD_CONFIRM)}</button>`,
+  });
+}
+
+/** First-visit "browse the client": close modal -> enter the role preview (await
+ *  render) -> auto-run the matching tour. Silent degrade on entry failure (network /
+ *  script 404): the landing entries stay usable, no tour on error. */
+export async function browseAsGuest(role) {
+  try {
+    closeModal();
+    const { enterRolePreview } = await import('../auth/flow.js'); // call-time: breaks the auth/flow <-> onboard cycle
+    await enterRolePreview(role);
+    startOnboardingTour();
+  } catch (err) {
+    console.warn('browseAsGuest', err);
+  }
+}
+
+export { startOnboardingTour, runTour, skipTour };
 export function closeOnboard() { closeModal(); }

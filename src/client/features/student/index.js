@@ -45,17 +45,28 @@ function onActionClick(e) {
   fn(el, e);
 }
 
+// Demand-hall sort/filter change delegation (B3): the five controls carry
+// data-change="demand.applyControls" (shell), re-rendering the cached browse list
+// locally with no network. Same pattern as posts.sort / complaints.reason / chat.
+function onChange(e) {
+  const el = e.target;
+  if (!el || !el.dataset || el.dataset.change !== 'demand.applyControls') return;
+  actions.applyDemandControls();
+}
+
 function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
   installed = true;
   registerPage({ id: 'my-demands', roles: ['student'], label: TEXT.PAGE_MY_DEMANDS, desc: TEXT.PAGE_MY_DEMANDS_DESC, auth: true, enter: () => actions.loadMyDemands() });
   registerPage({ id: 'browse-demands', roles: ['teacher'], label: TEXT.PAGE_BROWSE_DEMANDS, desc: TEXT.PAGE_BROWSE_DEMANDS_DESC, auth: false, enter: () => actions.loadBrowseDemands() });
   document.addEventListener('click', onActionClick);
+  document.addEventListener('change', onChange);
   // Form change listeners (province/method/grade/subjects/nonacademic) are direct bindings inside
   // initDemandForm -- no change delegation needed here anymore (old student.* data-change attrs gone).
   const uninstallMatchClose = actions.installMatchDetailClose();
   return () => {
     document.removeEventListener('click', onActionClick);
+    document.removeEventListener('change', onChange);
     uninstallMatchClose();
     installed = false;
   };

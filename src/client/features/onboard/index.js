@@ -1,9 +1,22 @@
 /**
  * onboard feature registry.
+ *
+ * Action map: first-visit modal buttons (onboard.*) plus the about-page revisit
+ * entries (about-usage-guide / about-revisit-tour — B2 wiring: core/about.js renders
+ * those buttons with data-action, this registry makes them live; the redundant
+ * CustomEvent('about-action') dispatch in about.js has no listener, no double fire).
  */
 import { TEXT } from './text.js';
 import * as actions from './actions.js';
-const ACTION_MAP = { 'onboard.close': actions.closeOnboard };
+
+const ACTION_MAP = {
+  'onboard.close': actions.closeOnboard,
+  'onboard.usageGuide': actions.openUsageGuide,
+  'onboard.browseGuest': () => actions.browseAsGuest('student'),
+  'about-usage-guide': actions.openUsageGuide,
+  'about-revisit-tour': actions.startOnboardingTour,
+};
+
 let installed = false;
 function onActionClick(e) {
   const el = e.target && e.target.closest ? e.target.closest('[data-action]') : null;

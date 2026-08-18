@@ -1,43 +1,74 @@
 /**
- * 新手引导多步走回归（需求三重构版）：引导引擎 + 五份引导脚本完整性与深度 + 主页简化首访浮窗
+ * D-3 onboarding feature regression (v2 ESM port of the v1 vm sandbox test):
+ * multi-step tour engine + five tour scripts integrity/depth + first-visit modal +
+ * B1/B2/B3 boot/entry/dead-control wiring.
  *
- * 在真实 index.html DOM + 全脚本 vm 沙箱中验证（同 demand-form-2b.test.js）：
- *   - runTour 步进：点击亮区 → 进入下一步（真实点击透传给目标本体）；
- *   - closeModal 步自动关闭当前弹窗（亮区指向弹窗本体 .modal，不再指向全屏 overlay —— 修复背景灰化消失 bug）；
- *   - 目标未挂载（.hidden 祖先内）rAF 轮询等待后定位；彻底缺失超时自动跳过继续下一步；
- *   - 右上角全局「跳过引导」按钮：引导全程常亮，点击整个引导收尾（跳过按钮新机制）；
- *   - 气泡内不再有「跳过」按钮（连根删）；
- *   - 每脚本每模块交互步数 ≥3（硬性要求：深度引导，探进模块真实转一圈）；
- *   - 全脚本 walk-through：逐脚本点亮区走完整流程，验证每步 target 的 page/sel 都存在且可解析；
- *   - startOnboardingTour 按登录态 + 角色选脚本（学生登录后 / 教师访客 / 管理员不引导）；
- *   - 「重温新手引导」入口迁移：侧边栏 .sidebar-revisit-btn 连根删，仅「关于平台」页保留；
- *   - 主页首访浮窗简化文案回归。
+ * Covers:
+ *   - runTour stepping: click the hole -> next step (real click pass-through to the target)
+ *   - closeModal steps point at the modal body (.modal) and auto-close on advance
+ *   - unmounted targets (.hidden ancestor) poll via rAF; missing targets auto-skip on timeout
+ *   - global skip button stays visible the whole tour and ends it on click
+ *   - startOnboardingTour picks the script by login state + role
+ *   - revisit entry migrated to the about page only (sidebar button removed)
+ *   - per-module interaction depth >= 3 in every script (hard requirement)
+ *   - script integrity: shapes valid, page ids registered, last step self
+ *   - full walk-throughs of all four user scripts (demo chat/contract injection asserted)
+ *   - first-visit modal: summarized policy + role-dependent primary button
+ *   - pass:false interception (intent CTA / notif block do not pass through)
+ *   - scroll architecture, animation stabilization, R27 dynamic hole binding
+ *   - CSS rules direct file read (overlay mount + hole/bubble delay)
+ *   - browseAsGuest / afterAuthSuccess tour wiring
+ *   - B1: showOnboardingIfNeeded first-visit semantics + app.js boot call site
+ *   - B2: about page revisit buttons real-clicked (usage guide modal + tour overlay)
+ *   - B3: browse-demands sort/filter controls re-render locally, no new network
  *
- * 沙箱细节：
- *   - jsdom 的 DOMContentLoaded 会在本测试脚本同步加载完毕后异步触发，app-shell 初始化会
- *     showView('landing')（重新隐藏 client 壳）+ 首访弹窗。故 setupClient 先等该事件跑完、
- *     并写 sufe_returning 屏蔽首访弹窗，再 showView('client')。
- *   - 内联 onclick 在 jsdom window 作用域解析函数名：把沙箱函数桥接到 window（真实浏览器
- *     <script> 顶层函数天然挂 window，vm 沙箱与 jsdom window 是两个 realm）。
- *   - 多模块列表（教师/需求/会话/合同/通知/帖子）数据依赖 API：makeCtx 的 fetch 按 endpoint
- *     回灌 API_DATA，使各模块列表真实渲染出卡片/条目，从而完整校验每步 target 选择器存在。
+ * Setup pattern (same discipline as notif-block-ui.test.js): feature onLoad
+ * "installed" flags are module-level singletons -- a mid-test assertion failure
+ * skips the uninstall and the next onLoad becomes a no-op. Every test that uses a
+ * feature onLoad must register a t.after cleanup that runs even on failure.
+ * Tour tests additionally skipTour() in teardown so the overlay listeners, demo
+ * injections and the rAF follow loop do not leak across tests.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
 
-const FILES = [
-  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js', 'app-onboard.js', 'app-region.js',
-  'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
-  'app-demands.js', 'app-teachers.js', 'app-style.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
-];
+import { state } from '../src/client/core/state.js';
+import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
+import { setEnsureAuth } from '../src/client/core/api.js';
+import { closeAllModals } from '../src/client/core/ui-modal.js';
+import { openModal } from '../src/client/core/ui.js';
+import { mountShell } from '../src/client/core/shell.js';
+import { renderSidebar, selectPage, showView, pagesForRole, stopBadgePoll } from '../src/client/core/router.js';
+import { CONFIG } from '../src/shared/config.js';
+import { TEXT } from '../src/client/constants/text.js';
+
+import { runTour, skipTour, startOnboardingTour, onboardContext } from '../src/client/features/onboard/engine.js';
+import { TOUR_SCRIPTS } from '../src/client/features/onboard/tours.js';
+import { showOnboardingIfNeeded, openOnboarding, browseAsGuest } from '../src/client/features/onboard/actions.js';
+import onboardFeature from '../src/client/features/onboard/index.js';
+import { afterAuthSuccess } from '../src/client/features/auth/flow.js';
+import authFeature from '../src/client/features/auth/index.js';
+import regionFeature from '../src/client/features/region/index.js';
+import postsFeature from '../src/client/features/posts/index.js';
+import complaintsFeature from '../src/client/features/complaints/index.js';
+import contractFeature from '../src/client/features/contract/index.js';
+import chatFeature from '../src/client/features/chat/index.js';
+import teacherFeature from '../src/client/features/teacher/index.js';
+import studentFeature from '../src/client/features/student/index.js';
+import settingsFeature from '../src/client/features/settings/index.js';
+import adminFeature from '../src/client/features/admin/index.js';
+import notifFeature from '../src/client/features/notif/index.js';
+import { chat } from '../src/client/features/chat/chat-state.js';
+import { stopChatPolling, chatTeardown } from '../src/client/features/chat/actions-list.js';
+import { loadBrowseDemands } from '../src/client/features/student/actions.js';
+
+class MOStub { observe() {} disconnect() {} takeRecords() { return []; } }
 
 const tick = (ms = 20) => new Promise(r => setTimeout(r, ms));
 
-// 各模块列表数据（使卡片/条目真实渲染，供每步 target 存在性校验）
+// ---- fixture data (same rows the v1 vm test used; every list renders a real card) ----
 const teacher = {
   user_id: 3, username: '张老师', avatar: '',
   province: 'shanghai', school: '示例大学', grade: 'freshman', gender: 'female',
@@ -68,88 +99,103 @@ const contract = {
 const notif = { id: 1, text: '有新的试课意向，请及时处理', is_read: 0, created_at: '2026-08-01T00:00:00Z' };
 const post = { id: 1, title: '高中数学笔记', body_md: '分享一份函数专题笔记', username: '张老师', user_id: 3, like_count: 2, liked: false, created_at: '2026-08-01T00:00:00Z' };
 
-const API_DATA = {
-  '/api/teachers': { teachers: [teacher] },
-  '/api/users/3': { user: { id: 3, username: '张老师', role: 'teacher', avatar: '' } },
-  '/api/reviews?teacherUserId=3': { reviews: [] },
-  '/api/teacher/profile?userId=3': { profile: { chsi_verified: 1, chsi_school: '示例大学' } }, // v1.4.5：带 userId 的档案同样已验证（否则 applyChsiGate 运行时翻转未验证——函数式步骤 skip 表单、walkScript 断言错位）
-  '/api/teacher/profile': { profile: { chsi_verified: 1, chsi_school: '示例大学' } }, // v1.2.0：tour 目标档案已核验（验证门不隐藏表单）
-  '/api/student/demands?scope=mine': { demands: [demand] },
-  '/api/student/demands?scope=for-teacher': { demands: [demand] },
-  '/api/student/demands': { demands: [demand] },
-  '/api/demand-pushes': { pushes: [] },
-  '/api/demands/1/intents': { teachers: [] },
-  '/api/conversations': { conversations: [conv] },
-  '/api/conversations/1/messages': { messages: [msg] },
-  '/api/contracts/my': { contracts: [contract] },
-  '/api/notifications': { notifications: [notif] },
-  '/api/posts?sort=new': { posts: [post] },
-  '/api/data-version': { versions: {} },
-};
-
-function makeCtx(apiData = API_DATA) {
-  const html = readFileSync('./index.html', 'utf8')
-    .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
-  const dom = new JSDOM(html, {
-    url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously',
+/** Fresh jsdom + globals + mounted shell + fetch stub (endpoint-keyed fixtures).
+ *  demandRows is overridable for the B3 sort/filter test. */
+function baseSetup({ demandRows = null } = {}) {
+  const dom = new JSDOM('<!doctype html><html><body><div id="app"></div></body></html>', {
+    url: 'http://localhost/', pretendToBeVisual: true,
   });
-  const w = dom.window;
-  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
-    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
-    return mk();
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  globalThis.MutationObserver = MOStub;
+  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+  globalThis.matchMedia = dom.window.matchMedia ? dom.window.matchMedia.bind(dom.window)
+    : () => ({ matches: false, addEventListener: () => {} });
+  globalThis.CustomEvent = dom.window.CustomEvent; // about.js dispatches a bare CustomEvent; jsdom dispatch needs its own realm instance
+  // rAF backed by unref'd timers so the R27 follow loop never holds the event loop
+  globalThis.requestAnimationFrame = cb => { const t = setTimeout(cb, 16); if (t && typeof t.unref === 'function') t.unref(); };
+  globalThis.cancelAnimationFrame = () => {};
+  setEnsureAuth(() => true);
+  _dhResetForTests();
+  closeAllModals();
+  state.user = null; state.guestRole = null; state.page = null;
+  state.myDemands = []; state.browseDemands = []; state.allTeachers = []; state.myContracts = [];
+  chat.convId = null; chat.list = []; chat.staged = []; chat.lastMsgId = 0; chat.pollTimer = null; chat.pendingOpen = null;
+  mountShell(); // #view-landing + #view-client + per-page sections + #modal-container + #toast-container
+  const fetched = [];
+  const demands = demandRows || [demand];
+  globalThis.fetch = async (url, opts = {}) => {
+    const u = String(url);
+    const method = (opts && opts.method) || 'GET';
+    fetched.push({ u, method });
+    if (u === '/api/teachers') return { ok: true, status: 200, json: async () => ({ teachers: [teacher] }) };
+    if (u === '/api/users/3') return { ok: true, status: 200, json: async () => ({ user: { id: 3, username: '张老师', role: 'teacher', avatar: '' } }) };
+    if (/^\/api\/reviews\?teacherUserId=/.test(u)) return { ok: true, status: 200, json: async () => ({ reviews: [] }) };
+    if (/^\/api\/teacher\/awards\?userId=/.test(u)) return { ok: true, status: 200, json: async () => ({ awards: [] }) };
+    if (u.includes('/api/student/demands')) return { ok: true, status: 200, json: async () => ({ demands }) };
+    if (u === '/api/demand-pushes') return { ok: true, status: 200, json: async () => ({ pushes: [] }) };
+    if (u === '/api/demands/1/intents') return { ok: true, status: 200, json: async () => ({ teachers: [] }) };
+    if (u === '/api/conversations') return { ok: true, status: 200, json: async () => ({ conversations: [conv] }) };
+    if (u === '/api/conversations/1/messages') return { ok: true, status: 200, json: async () => ({ messages: [msg] }) };
+    if (u === '/api/contracts/my') return { ok: true, status: 200, json: async () => ({ contracts: [contract] }) };
+    if (u === '/api/notifications') return { ok: true, status: 200, json: async () => ({ notifications: [notif] }) };
+    if (u === '/api/posts?sort=new') return { ok: true, status: 200, json: async () => ({ posts: [post] }) };
+    if (u === '/api/data-version') return { ok: true, status: 200, json: async () => ({ versions: {} }) };
+    return { ok: true, status: 200, json: async () => ({}) };
   };
-  const ctx = vm.createContext({
-    window: w, document: w.document,
-    getComputedStyle: w.getComputedStyle.bind(w),
-    localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console,
-    fetch: async (url) => ({ ok: true, status: 200, json: async () => apiData[url] ?? {} }),
-    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
-    Request: globalThis.Request, AbortController: globalThis.AbortController,
-    performance: globalThis.performance,
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    Image: class { set src(v) { this._s = v; } },
-    // R27：亮区动态跟随循环持续跑（rAF）——timer unref 防止跟随循环 keep event loop（测试进程正常退出）
-    requestAnimationFrame: (cb) => { const t = setTimeout(cb, 16); if (t && typeof t.unref === 'function') t.unref(); },
-    cancelAnimationFrame: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
-  });
-  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
-  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
-  // 桥接内联 onclick 引用的全局函数到 jsdom window（真实浏览器 <script> 顶层函数天然挂 window；
-  // 引导 walk-through 会真实点击多种内联 handler，故把 vm 全局函数全量桥接——除注入的运行期依赖）。
-  // 排除注入 globals（它们已有正确绑定，覆盖会改变 jsdom 行为，如 window.setTimeout 换成 node 版）。
-  vm.runInContext(`
-    var _INJECTED = ['window','document','getComputedStyle','localStorage','sessionStorage','console',
-      'fetch','setTimeout','clearTimeout','setInterval','clearInterval','Request','AbortController',
-      'performance','MutationObserver','Image','requestAnimationFrame','cancelAnimationFrame','matchMedia'];
-    Object.keys(globalThis).forEach(function (k) {
-      if (_INJECTED.indexOf(k) !== -1) return;
-      if (typeof globalThis[k] === 'function' && typeof window[k] !== 'function') {
-        try { window[k] = globalThis[k]; } catch (e) {}
-      }
-    });
-  `, ctx);
-  const fns = vm.runInContext(`({
-    startOnboardingTour, runTour, skipTour, openOnboarding,
-    TOUR_SCRIPTS, renderSidebar, selectPage, openModal, closeModal,
-  })`, ctx);
-  const UI = vm.runInContext('UI', ctx);
-  return { dom, ctx, fns, UI };
+  return { dom, fetched };
 }
 
-/** 等 jsdom DOMContentLoaded（app-shell 初始化 showView('landing') + 首访弹窗）跑完，再进客户端 */
-async function setupClient(ctx, { user = null, guestRole = null, page = null } = {}) {
-  vm.runInContext(`try { localStorage.setItem('sufe_returning', '1'); } catch (e) {}`, ctx);
-  await tick(30); // jsdom DOMContentLoaded 是异步任务，先放它跑完（showView('landing') 重藏 client 壳）
-  const userStr = user ? JSON.stringify(user) : 'null';
-  const guestStr = JSON.stringify(guestRole);
-  vm.runInContext(
-    `state.user = ${userStr}; state.guestRole = ${guestStr}; renderSidebar(); showView('client');${page ? ` selectPage('${page}');` : ''}`,
-    ctx,
-  );
-  await tick(30); // 放默认页数据加载（loadInto）落定，避免首步目标与数据竞态
+function teardown() {
+  try { skipTour(); } catch { /* window already gone */ } // remove any active overlay + demo injections + listeners
+  stopVersionProbe();
+  stopBadgePoll();
+  stopChatPolling();
+  chatTeardown();
+  if (typeof document !== 'undefined') closeAllModals();
+  setEnsureAuth(null);
+  delete globalThis.fetch;
+  delete globalThis.MutationObserver;
+  delete globalThis.getComputedStyle;
+  delete globalThis.matchMedia;
+  delete globalThis.CustomEvent;
+  delete globalThis.requestAnimationFrame;
+  delete globalThis.cancelAnimationFrame;
+  delete globalThis.localStorage; delete globalThis.sessionStorage;
+  delete globalThis.document; delete globalThis.window;
+  state.user = null; state.guestRole = null; state.page = null; state.view = 'landing';
+  state.myDemands = []; state.browseDemands = []; state.allTeachers = []; state.myContracts = [];
+  chat.convId = null; chat.list = []; chat.staged = []; chat.lastMsgId = 0; chat.pollTimer = null; chat.pendingOpen = null;
+}
+
+/** Run all feature onLoad (fills router registerPage + data-action delegation); return uninstall fns. */
+function installAll() {
+  return [authFeature, regionFeature, postsFeature, complaintsFeature, contractFeature,
+    chatFeature, teacherFeature, studentFeature, settingsFeature, adminFeature,
+    notifFeature, onboardFeature]
+    .map(f => (f && typeof f.onLoad === 'function' ? f.onLoad() : () => {}));
+}
+
+/** t.after cleanup that runs even on assertion failure -- prevents the installed-flag deadlock cascade. */
+function registerCleanup(t, uninstall) {
+  t.after(() => { try { uninstall.forEach(f => f()); } finally { teardown(); } });
+}
+
+/** Enter the client shell with a given identity/role and settle the initial page. */
+async function setupClient(t, { user = null, guestRole = null, page = null } = {}) {
+  const { dom, fetched } = baseSetup();
+  const uninstall = installAll();
+  registerCleanup(t, uninstall);
+  globalThis.localStorage.setItem('sufe_returning', '1'); // shield the first-visit modal
+  state.user = user;
+  state.guestRole = guestRole;
+  renderSidebar();
+  showView('client');
+  if (page) await selectPage(page);
+  await tick(40);
+  return { dom, fetched };
 }
 
 function waitFor(fn, timeoutMs = 9000) {
@@ -164,564 +210,604 @@ function waitFor(fn, timeoutMs = 9000) {
   });
 }
 
-/** 按模块统计某脚本的交互步数（末步 self 不计入模块） */
+/** Count interactive steps per module (the 'end' module is not counted). */
 function moduleCounts(steps) {
   const counts = {};
   for (let raw of steps) {
-    while (typeof raw === 'function') raw = raw(); // v1.4.4：函数式步骤求值（引擎同口径）
+    while (typeof raw === 'function') raw = raw();
     if (!raw || !raw.module || raw.module === 'end') continue;
     counts[raw.module] = (counts[raw.module] || 0) + 1;
   }
   return counts;
 }
 
-/** 逐脚本 walk-through：点亮区走完每一步，断言气泡文案 + 亮区就位（= target 可解析、sel 存在）。
- *  v1.4.5：与引擎 skip/retry 语义同步——skip 步骤引擎自动推进（无亮区不点击）、retry 等待就绪后重求值；
- *  断言用运行时求值（与引擎 _tourStartStep 同口径），展开结果不缓存。 */
-async function walkScript(ctx, fns, dom, scriptName) {
-  const rawSteps = fns.TOUR_SCRIPTS[scriptName]();
+const expand = raw => { let st = raw; while (typeof st === 'function') st = st(); return st; };
+
+/** Walk a script end-to-end: wait for the bubble text + placed hole, click to advance.
+ *  Page-target steps get a jsdom timing compensation (manual selectPage if the
+ *  pass-through click did not switch the page synchronously). Demo chat/contract
+ *  injection is asserted for the two logged-in scripts. */
+async function walkScript(t, dom, scriptName) {
   const doc = dom.window.document;
-  fns.runTour(scriptName);
+  const rawSteps = TOUR_SCRIPTS[scriptName]();
+  runTour(scriptName);
   const stepOf = i => { let s = rawSteps[i]; while (typeof s === 'function') s = s(); return s; };
+  const hasDemo = scriptName === 'teacherUser' || scriptName === 'studentUser';
   let i = 0;
   const t0 = Date.now();
   while (i < rawSteps.length && Date.now() - t0 < 30000) {
     const cur = stepOf(i);
-    if (cur.skip) { i++; continue; } // 引擎自动跳过（无亮区）——walk 轮次对齐
+    if (cur.skip) { i++; continue; } // engine auto-advances skipped steps (no hole)
     if (cur.retry) {
-      await waitFor(() => { const c = stepOf(i); return !c.retry && !c.skip; }, 6000); // 引擎停留重试：等就绪
+      await waitFor(() => { const c = stepOf(i); return !c.retry && !c.skip; }, 6000);
       continue;
+    }
+    if (hasDemo && cur.target && cur.target.sel === '#my-chats-list .conv-item') {
+      // Demo conversation: tourStepMyChats calls _tourDemoChatEnsure while _tourActive is
+      // still false (script factory runs before runTour sets the flag), so the injection
+      // actually happens when tourStepConvItem evaluates during the live tour -- assert it
+      // at the conv-item step where the demo row is the load-bearing target.
+      const demoOk = await waitFor(() => doc.querySelector('#my-chats-list .tour-demo-conv'), 9000);
+      assert.ok(demoOk, `${scriptName} step ${i + 1}: demo conversation injected`);
+    }
+    if (hasDemo && cur.target && cur.target.sel === '#my-contracts-list .list-card') {
+      const demoOk = await waitFor(() => doc.querySelector('#my-contracts-list .tour-demo-contract'), 9000);
+      assert.ok(demoOk, `${scriptName} step ${i + 1}: demo contract injected`);
     }
     const ok = await waitFor(() => {
       const b = doc.querySelector('.tour-bubble-text');
       const c = stepOf(i);
       return b && c && !c.skip && !c.retry && b.textContent === c.text && doc.querySelector('.tour-hole--show');
     }, 9000);
-    assert.ok(ok, `${scriptName} 第 ${i + 1}/${rawSteps.length} 步亮区就位（${cur.module}：${(cur.text || '').slice(0, 18)}…）`);
+    assert.ok(ok, `${scriptName} step ${i + 1}/${rawSteps.length} hole placed (${cur.module}: ${(cur.text || '').slice(0, 18)}...)`);
     doc.querySelector('.tour-hole').click();
     await tick(20);
-    // jsdom 时序补偿：page 目标步骤透传点击后若未切页（异步渲染竞态），手动切页——真实浏览器透传正常（生产冒烟已验证）
+    // jsdom timing compensation: a page-target step's pass-through click may not switch
+    // the page synchronously (async render race) -- select manually + settle.
     const wantedPage = cur.target && cur.target.page;
-    if (wantedPage && vm.runInContext('state.page', ctx) !== wantedPage) {
-      vm.runInContext(`selectPage('${wantedPage}')`, ctx);
+    if (wantedPage && state.page !== wantedPage) {
+      await selectPage(wantedPage);
       await tick(40);
+    }
+    if (hasDemo && cur.target && cur.target.sel === '#my-chats-list .conv-item') {
+      const frOk = await waitFor(() => doc.querySelector('#chat-frame .chat-messages'), 4000);
+      assert.ok(frOk, `${scriptName}: chat frame rendered after conv item click`);
     }
     i++;
   }
-  assert.equal(i, rawSteps.length, `${scriptName} 走完全部 ${rawSteps.length} 步`);
+  assert.equal(i, rawSteps.length, `${scriptName} walked all ${rawSteps.length} steps`);
   await waitFor(() => !doc.querySelector('.tour-overlay'), 3000);
-  assert.equal(doc.querySelector('.tour-overlay'), null, `${scriptName} 末步后蒙层拆除`);
+  assert.equal(doc.querySelector('.tour-overlay'), null, `${scriptName} overlay removed after last step`);
 }
 
-test('runTour 步进：点亮区 → 进入下一步（真实点击透传给侧边栏 tab）', async () => {
-  const { dom, ctx, fns } = makeCtx();
+// ---- engine stepping ----
+
+test('runTour step progression: click hole -> next step (real click pass-through to sidebar tab)', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'student' });
   const doc = dom.window.document;
-  await setupClient(ctx, { guestRole: 'student' });
-  fns.runTour([
-    { target: { page: 'browse-teachers' }, text: '第一步' },
-    { target: { page: 'about' }, text: '第二步' },
+  runTour([
+    { target: { page: 'browse-teachers' }, text: 'First step' },
+    { target: { page: 'about' }, text: 'Second step' },
   ]);
-  assert.ok(doc.querySelector('.tour-overlay'), '引导层已挂载');
-  assert.ok(doc.querySelector('.tour-hole--show'), '亮区就位');
-  assert.equal(doc.querySelector('.tour-bubble-text').textContent, '第一步', '初始为第一步文案');
-  assert.ok(doc.querySelector('.tour-global-skip'), '全局「跳过引导」按钮常亮');
-  assert.ok(!doc.querySelector('.tour-skip-btn'), '气泡内无「跳过」按钮（已连根删）');
+  assert.ok(doc.querySelector('.tour-overlay'), 'overlay mounted');
+  assert.ok(doc.querySelector('.tour-hole--show'), 'hole placed');
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, 'First step', 'initial bubble');
+  assert.ok(doc.querySelector('.tour-global-skip'), 'global skip button present whole tour');
+  assert.equal(doc.querySelector('.tour-global-skip').textContent, TEXT.TOUR_SKIP_GLOBAL, 'skip text from constants');
+  assert.equal(doc.querySelector('.tour-skip-btn'), null, 'no in-bubble skip button (removed with v1)');
 
   doc.querySelector('.tour-hole').click();
-  assert.equal(doc.querySelector('.tour-bubble-text').textContent, '第二步', '点击亮区进入下一步');
-  assert.ok(doc.querySelector('.tour-hole--show'), '第二步亮区就位（about tab 存在）');
-  assert.equal(vm.runInContext('state.page', ctx), 'browse-teachers', '透传点击真实切页');
+  await tick(20);
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, 'Second step', 'advance on hole click');
+  assert.ok(doc.querySelector('.tour-hole--show'), 'second step hole placed');
+  assert.equal(state.page, 'browse-teachers', 'pass-through click really switched the page');
 });
 
-test('closeModal 步：亮区指向弹窗本体 .modal（修复背景灰化消失）并自动关闭', async () => {
-  const { dom, ctx, fns } = makeCtx();
+test('closeModal step: hole resolves to the modal body and click auto-closes', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'student' });
   const doc = dom.window.document;
-  await setupClient(ctx, { guestRole: 'student' });
-  fns.openModal({ title: '测试弹窗', body: '内容' });
-  assert.ok(doc.querySelector('#modal-container .modal-overlay'), '弹窗已打开');
-
-  fns.runTour([
-    { target: { closeModal: true }, text: '关闭弹窗' },
-    { target: { page: 'about' }, text: '之后' },
+  openModal({ title: 'Test modal', body: 'content' });
+  assert.ok(doc.querySelector('#modal-container .modal-overlay .modal'), 'modal open');
+  runTour([
+    { target: { closeModal: true }, text: 'Close modal' },
+    { target: { page: 'about' }, text: 'After' },
   ]);
-  // 修复点：closeModal 步的亮区必须落在弹窗本体上（.modal 非全屏 overlay），
-  // 否则亮区=整个视口 → box-shadow 压暗被推出屏幕外 → 背景灰化消失
-  assert.equal(vm.runInContext('_tourResolve({ target: { closeModal: true } }) !== null', ctx), true, 'closeModal 解析到弹窗本体');
-  assert.ok(doc.querySelector('.tour-hole--show'), '亮区在弹窗上');
+  const placed = await waitFor(() => doc.querySelector('.tour-hole--show'), 3000);
+  assert.ok(placed, 'closeModal target resolved (hole on modal body)');
   doc.querySelector('.tour-hole').click();
-  assert.equal(doc.querySelector('#modal-container .modal-overlay'), null, '弹窗已自动关闭');
-  assert.equal(doc.querySelector('.tour-bubble-text').textContent, '之后', '进入下一步');
+  await tick(20);
+  assert.equal(doc.querySelector('#modal-container .modal-overlay'), null, 'modal auto-closed on advance');
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, 'After', 'advanced to next step');
 });
 
-test('目标未挂载：.hidden 祖先内等待 rAF 定位；彻底缺失超时自动跳过继续', async () => {
-  const { dom, ctx, fns } = makeCtx();
+test('unmounted target: waits inside .hidden ancestor; timeout auto-skips missing target', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'student' });
   const doc = dom.window.document;
-  await setupClient(ctx, { guestRole: 'student' });
-
-  // 案例一：目标在 .hidden 祖先内 → 轮询等待，移除 hidden 后定位
-  fns.runTour([
-    { target: { sel: '#profile-page-title' }, text: '等待目标' },
-    { target: { page: 'about' }, text: '之后' },
+  // case 1: target inside a .hidden ancestor -> rAF poll, place once revealed
+  const wrap = document.createElement('div');
+  wrap.className = 'hidden';
+  const t1 = document.createElement('div');
+  t1.id = 'wait-target';
+  wrap.appendChild(t1);
+  document.body.appendChild(wrap);
+  runTour([
+    { target: { sel: '#wait-target' }, text: 'Wait for target' },
+    { target: { page: 'about' }, text: 'After' },
   ]);
-  assert.equal(doc.querySelector('.tour-hole--show'), null, 'edit-profile 未展开，亮区暂不定位');
-  vm.runInContext(`document.querySelector('.client-page[data-page="edit-profile"]').classList.remove('hidden');`, ctx);
-  await tick(60);
-  assert.ok(doc.querySelector('.tour-hole--show'), '目标出现后亮区定位');
+  assert.equal(doc.querySelector('.tour-hole--show'), null, 'hidden ancestor: hole not placed');
+  wrap.classList.remove('hidden');
+  await tick(80);
+  assert.ok(doc.querySelector('.tour-hole--show'), 'revealed target: hole placed');
   doc.querySelector('.tour-hole').click();
-  assert.equal(doc.querySelector('.tour-bubble-text').textContent, '之后', '点击后进入下一步');
+  await tick(20);
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, 'After', 'advanced after reveal');
 
-  // 案例二：目标不存在 → 超时自动跳过继续下一步
-  vm.runInContext(`APP_CONSTANTS.CONFIG.TOUR_TARGET_TIMEOUT_MS = 80;`, ctx);
-  fns.runTour([
-    { target: { sel: '#definitely-not-here' }, text: '缺失目标' },
-    { target: { page: 'about' }, text: '跳过之后' },
+  // case 2: missing target -> timeout auto-skip to the next step
+  const prevTimeout = CONFIG.TOUR_TARGET_TIMEOUT_MS;
+  CONFIG.TOUR_TARGET_TIMEOUT_MS = 80;
+  t.after(() => { CONFIG.TOUR_TARGET_TIMEOUT_MS = prevTimeout; });
+  runTour([
+    { target: { sel: '#definitely-not-here' }, text: 'Missing target' },
+    { target: { page: 'about' }, text: 'After timeout' },
   ]);
-  assert.equal(doc.querySelector('.tour-bubble-text').textContent, '缺失目标');
-  await tick(240); // rAF 轮询 + 80ms 超时
-  assert.equal(doc.querySelector('.tour-bubble-text').textContent, '跳过之后', '超时自动跳过继续下一步');
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, 'Missing target');
+  await tick(240); // rAF poll + 80ms timeout
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, 'After timeout', 'timeout auto-skip');
 });
 
-test('全局「跳过引导」按钮：全程常亮，点击即收尾整个引导', async () => {
-  const { dom, ctx, fns, UI } = makeCtx();
+test('global skip button: visible whole tour, click ends it', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'student' });
   const doc = dom.window.document;
-  await setupClient(ctx, { guestRole: 'student' });
-  fns.runTour([
-    { target: { page: 'browse-teachers' }, text: '第一步' },
-    { target: { page: 'about' }, text: '第二步' },
+  runTour([
+    { target: { page: 'browse-teachers' }, text: 'First step' },
+    { target: { page: 'about' }, text: 'Second step' },
   ]);
-  assert.ok(doc.querySelector('.tour-overlay'), '引导运行中');
-  const skipBtn = doc.querySelector('.tour-global-skip');
-  assert.ok(skipBtn, '全局跳过按钮在引导全程存在');
-  assert.equal(skipBtn.textContent, UI.TOUR_SKIP_GLOBAL, '按钮文案单源');
+  assert.ok(doc.querySelector('.tour-overlay'), 'tour running');
   doc.querySelector('.tour-global-skip').click();
-  assert.equal(doc.querySelector('.tour-overlay'), null, '点全局跳过即收尾');
-  assert.equal(doc.querySelector('.tour-bubble-pos'), null, '气泡一并拆除');
+  await tick(10);
+  assert.equal(doc.querySelector('.tour-overlay'), null, 'global skip ends the tour');
+  assert.equal(doc.querySelector('.tour-bubble-pos'), null, 'bubble torn down with the overlay');
 });
 
-test('startOnboardingTour：按登录态 + 角色选脚本（学生登录后 / 教师访客 / 管理员不引导）', async () => {
-  const { dom, ctx, fns, UI } = makeCtx();
+test('startOnboardingTour picks the script by login state + role', async (t) => {
+  const { dom } = await setupClient(t);
   const doc = dom.window.document;
+  globalThis.localStorage.setItem('sufe_returning', '1');
 
-  // 学生登录后 → studentUser 首步 = 我的需求
-  await setupClient(ctx, { user: { role: 'student', id: 9, username: 's', avatar: '' } });
-  fns.startOnboardingTour();
-  assert.equal(doc.querySelector('.tour-bubble-text').textContent, UI.TOUR_STEP_MY_DEMANDS, '学生登录后走 studentUser');
-  doc.querySelector('.tour-global-skip').click();
+  // student logged in -> studentUser (first step = my demands)
+  state.user = { role: 'student', id: 9, username: 's', avatar: '' };
+  state.guestRole = null;
+  renderSidebar(); showView('client');
+  await selectPage('my-demands');
+  await tick(40);
+  startOnboardingTour();
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, TEXT.TOUR_STEP_MY_DEMANDS, 'student -> studentUser');
+  let ctx = onboardContext();
+  assert.equal(ctx.loggedIn, true, 'student context logged in');
+  assert.equal(ctx.role, 'student', 'student context role');
+  skipTour();
 
-  // 教师访客 → teacherGuest 首步 = 需求大厅
-  await setupClient(ctx, { guestRole: 'teacher' });
-  fns.startOnboardingTour();
-  assert.equal(doc.querySelector('.tour-bubble-text').textContent, UI.TOUR_STEP_BROWSE_DEMANDS, '教师访客走 teacherGuest');
-  doc.querySelector('.tour-global-skip').click();
+  // teacher guest -> teacherGuest (first step = browse demands)
+  state.user = null;
+  state.guestRole = 'teacher';
+  renderSidebar(); showView('client');
+  await selectPage('browse-demands');
+  await tick(40);
+  startOnboardingTour();
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, TEXT.TOUR_STEP_BROWSE_DEMANDS, 'teacher guest -> teacherGuest');
+  ctx = onboardContext();
+  assert.equal(ctx.loggedIn, false, 'guest context not logged in');
+  assert.equal(ctx.role, 'teacher', 'guest context role');
+  skipTour();
 
-  // 管理员走审核工作台脚本（统计待办 → 奖项审核 → 内容审核）
-  await setupClient(ctx, { user: { role: 'admin', id: 9, username: 'a', avatar: '' } });
-  fns.startOnboardingTour();
-  assert.ok(doc.querySelector('.tour-overlay'), '管理员引导（审核工作台）已挂载');
-  fns.skipTour();
+  // admin -> admin script (moderation console)
+  state.user = { role: 'admin', id: 9, username: 'a', avatar: '' };
+  state.guestRole = null;
+  renderSidebar(); showView('client');
+  await selectPage('admin-stats');
+  await tick(40);
+  startOnboardingTour();
+  assert.ok(doc.querySelector('.tour-overlay'), 'admin tour mounted');
+  assert.equal(doc.querySelector('.tour-bubble-text').textContent, TEXT.TOUR_STEP_ADMIN_STATS, 'admin -> admin script');
+  skipTour();
 });
 
-test('「重温新手引导」入口迁移：侧边栏连根删，仅「关于平台」页保留', async () => {
-  const { dom, ctx, fns, UI } = makeCtx();
+test('revisit entry migrated: no sidebar button, only the about page keeps it', async (t) => {
+  const { dom } = await setupClient(t, { user: { role: 'student', id: 9, username: 's', avatar: '' } });
   const doc = dom.window.document;
-  await setupClient(ctx, { user: { role: 'student', id: 9, username: 's', avatar: '' } });
-  assert.equal(doc.querySelector('.sidebar-revisit-btn'), null, '侧边栏个人信息栏无重温按钮');
-  assert.equal(doc.querySelector('.tour-revisit-btn'), null, '无任何残留重温按钮类');
-  // 关于页内容区仍保留入口（app-pages enterAbout 渲染）
-  vm.runInContext(`selectPage('about');`, ctx);
-  await tick(60);
+  assert.equal(doc.querySelector('.sidebar-revisit-btn'), null, 'no revisit button in the sidebar user bar');
+  assert.equal(doc.querySelector('.tour-revisit-btn'), null, 'no leftover revisit button class anywhere');
+  await selectPage('about');
+  await tick(40);
   const revisitBtns = [...doc.querySelectorAll('#about-content button')]
-    .filter(b => b.textContent.includes(UI.ONBOARD_REVISIT_BTN));
-  assert.ok(revisitBtns.length === 1, `关于页内容区恰有 1 个重温新手引导入口（实际 ${revisitBtns.length}）`);
+    .filter(b => b.textContent.includes(TEXT.ONBOARD_REVISIT_BTN));
+  assert.equal(revisitBtns.length, 1, `about page has exactly one revisit entry (got ${revisitBtns.length})`);
 });
 
-test('每脚本每模块交互步数 ≥3（深度引导硬性要求）', () => {
-  const { ctx, fns } = makeCtx();
-  vm.runInContext(`const info = document.getElementById('chsi-info'); if (info) info.classList.remove('hidden');`, ctx); // v1.4.5：模拟已验证（函数式步骤展开需要落定标记）
+test('every module has >= 3 interactive steps per script (hard depth requirement)', () => {
   const expected = {
     teacherGuest: ['browse-demands', 'browse-teachers', 'resource-share', 'about'],
     studentGuest: ['browse-teachers', 'about'],
-    teacherUser: ['browse-demands', 'browse-teachers', 'resource-share', 'my-chats', 'my-contracts', 'edit-profile', 'notifications', 'account-settings', 'about'],
+    teacherUser: ['browse-demands', 'browse-teachers', 'resource-share', 'my-chats', 'my-contracts', 'notifications', 'account-settings', 'about'],
     studentUser: ['my-demands', 'browse-teachers', 'my-chats', 'my-contracts', 'notifications', 'account-settings', 'about'],
   };
   for (const [name, modules] of Object.entries(expected)) {
-    const steps = fns.TOUR_SCRIPTS[name]();
+    const steps = TOUR_SCRIPTS[name]();
     const counts = moduleCounts(steps);
     for (const m of modules) {
-      assert.ok(counts[m] >= 3, `${name} 模块 ${m} 交互步数 ${counts[m] || 0} ≥3（实际 ${counts[m] || 0}）`);
+      assert.ok(counts[m] >= 3, `${name} module ${m} has ${counts[m] || 0} steps (need >= 3)`);
     }
-    // 该脚本不存在的模块不应出现
     for (const m of Object.keys(counts)) {
-      assert.ok(modules.includes(m), `${name} 不应出现模块 ${m}`);
+      assert.ok(modules.includes(m), `${name} must not contain module ${m}`);
     }
   }
 });
 
-test('脚本完整性：非空、target 形状合法、page id 存在于 ROLE_PAGES、末步为个人信息栏', () => {
-  const { ctx, fns } = makeCtx();
-  vm.runInContext(`const info = document.getElementById('chsi-info'); if (info) info.classList.remove('hidden');`, ctx); // v1.4.5：模拟已验证（函数式步骤展开需要落定标记）
-  const pageIds = vm.runInContext(`Object.values(ROLE_PAGES).flat().map(p => p.id)`, ctx);
+test('script integrity: non-empty, valid target shape, page ids registered, last step self', (t) => {
+  baseSetup();
+  const uninstall = installAll();
+  registerCleanup(t, uninstall);
+  const pageIds = new Set();
+  const combos = [
+    { user: { role: 'student', id: 1, username: 's' }, guestRole: null },
+    { user: { role: 'teacher', id: 1, username: 't' }, guestRole: null },
+    { user: { role: 'admin', id: 1, username: 'a' }, guestRole: null },
+    { user: null, guestRole: 'student' },
+    { user: null, guestRole: 'teacher' },
+  ];
+  for (const c of combos) { state.user = c.user; state.guestRole = c.guestRole; pagesForRole().forEach(p => pageIds.add(p.id)); }
   const scripts = {
-    teacherGuest: fns.TOUR_SCRIPTS.teacherGuest(),
-    studentGuest: fns.TOUR_SCRIPTS.studentGuest(),
-    teacherUser: fns.TOUR_SCRIPTS.teacherUser(),
-    studentUser: fns.TOUR_SCRIPTS.studentUser(),
-    admin: fns.TOUR_SCRIPTS.admin(),
+    teacherGuest: TOUR_SCRIPTS.teacherGuest(),
+    studentGuest: TOUR_SCRIPTS.studentGuest(),
+    teacherUser: TOUR_SCRIPTS.teacherUser(),
+    studentUser: TOUR_SCRIPTS.studentUser(),
+    admin: TOUR_SCRIPTS.admin(),
   };
-  const expand = raw => { let st = raw; while (typeof st === 'function') st = st(); return st; };
   for (const [name, steps] of Object.entries(scripts)) {
-    assert.ok(steps.length > 0, `${name} 非空`);
+    assert.ok(steps.length > 0, `${name} non-empty`);
     steps.forEach((raw, i) => {
       const s = expand(raw);
-      if (s.skip) return; // v1.4.5：skip 步骤（条件分支不成立时引擎直接推进）无文案/无亮区——跳过断言
-      assert.ok(s.text && s.text.length > 0, `${name} 第 ${i + 1} 步有文案`);
-      assert.ok(s.module, `${name} 第 ${i + 1} 步带模块标记`);
-      const t = s.target || {};
-      const shape = Object.keys(t).length === 1 && (t.page || t.sel || t.closeModal === true || t.self === true);
-      assert.ok(shape, `${name} 第 ${i + 1} 步 target 形状合法`);
-      if (t.page) assert.ok(pageIds.includes(t.page), `${name} 第 ${i + 1} 步引用存在的 page id: ${t.page}`);
-      if (t.sel) assert.ok(typeof t.sel === 'string' && /^[.#]/.test(t.sel), `${name} 第 ${i + 1} 步 sel 为合法选择器: ${t.sel}`);
+      assert.ok(s.text && s.text.length > 0, `${name} step ${i + 1} has text`);
+      assert.ok(s.module, `${name} step ${i + 1} has module`);
+      const tgt = s.target || {};
+      const shape = Object.keys(tgt).length === 1 && (tgt.page || tgt.sel || tgt.closeModal === true || tgt.self === true);
+      assert.ok(shape, `${name} step ${i + 1} target shape valid`);
+      if (tgt.page) assert.ok(pageIds.has(tgt.page), `${name} step ${i + 1} page registered: ${tgt.page}`);
+      if (tgt.sel) assert.ok(typeof tgt.sel === 'string' && /^[.#]/.test(tgt.sel), `${name} step ${i + 1} sel valid: ${tgt.sel}`);
     });
   }
-  assert.equal(scripts.teacherGuest[scripts.teacherGuest.length - 1].target.self, true, '教师登录前末步去登录');
-  assert.equal(scripts.studentGuest[scripts.studentGuest.length - 1].target.self, true, '学生登录前末步去登录');
-  assert.equal(scripts.teacherUser[scripts.teacherUser.length - 1].target.self, true, '教师登录后末步个人信息栏');
-  assert.equal(scripts.studentUser[scripts.studentUser.length - 1].target.self, true, '学生登录后末步个人信息栏');
+  assert.equal(expand(scripts.teacherGuest[scripts.teacherGuest.length - 1]).target.self, true, 'teacherGuest last step self');
+  assert.equal(expand(scripts.studentGuest[scripts.studentGuest.length - 1]).target.self, true, 'studentGuest last step self');
+  assert.equal(expand(scripts.teacherUser[scripts.teacherUser.length - 1]).target.self, true, 'teacherUser last step self');
+  assert.equal(expand(scripts.studentUser[scripts.studentUser.length - 1]).target.self, true, 'studentUser last step self');
+  assert.equal(scripts.admin.length, 3, 'admin script is exactly 3 steps');
 });
 
-// —— 四份脚本 walk-through：逐步点亮区，完整校验每步 target 的 page/sel 在真实 DOM 中可解析 ——
-test('teacherGuest 全流程 walk-through：需求大厅 → 教师同行 → 资料共享 → 关于 → 末步登录', async () => {
-  const { dom, ctx, fns } = makeCtx();
-  await setupClient(ctx, { guestRole: 'teacher' });
-  await walkScript(ctx, fns, dom, 'teacherGuest');
+// ---- full walk-throughs ----
+test('teacherGuest full walk-through: demand hall -> teacher peers -> resource share -> about -> login step', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'teacher' });
+  await walkScript(t, dom, 'teacherGuest');
 });
 
-test('studentGuest 全流程 walk-through：教师广场 → 关于 → 末步登录', async () => {
-  const { dom, ctx, fns } = makeCtx();
-  await setupClient(ctx, { guestRole: 'student' });
-  await walkScript(ctx, fns, dom, 'studentGuest');
+test('studentGuest full walk-through: teacher plaza -> about -> login step', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'student' });
+  await walkScript(t, dom, 'studentGuest');
 });
 
-test('teacherUser 全流程 walk-through：全部模块逐个深入 + 末步个人信息栏', async () => {
-  const { dom, ctx, fns } = makeCtx();
-  await setupClient(ctx, { user: { role: 'teacher', id: 3, username: 't', avatar: '' } });
-  // v1.4.5：函数式步骤等 applyChsiGate 落定标记（info 去 hidden = 已验证）——测试环境模拟已验证教师
-  vm.runInContext(`const info = document.getElementById('chsi-info'); if (info) info.classList.remove('hidden');`, ctx);
-  await tick(30);
-  await walkScript(ctx, fns, dom, 'teacherUser');
+test('teacherUser full walk-through: every module deep + demo chat/contract + final user bar', async (t) => {
+  const { dom } = await setupClient(t, { user: { role: 'teacher', id: 3, username: 't', avatar: '' } });
+  await walkScript(t, dom, 'teacherUser');
 });
 
-test('studentUser 全流程 walk-through：我的需求 → 教师广场 → 其余模块 + 末步个人信息栏', async () => {
-  const { dom, ctx, fns } = makeCtx();
-  await setupClient(ctx, { user: { role: 'student', id: 9, username: 's', avatar: '' } });
-  // v1.4.4：需求详情引导步需要 my-demands 有卡（详情浮窗由此打开）——注入 fixture 数据+卡 DOM
-  vm.runInContext(`
-    state.myDemands = [{ id: 1, display_id: 1, user_id: 9, username: 's', target_type: 'academic',
-      target_subjects: ['math'], student_grade: 'junior1', teaching_method: 'offline',
-      budget_min: 150, budget_max: 200, expected_time: '周六上午', status: 'open',
-      my_intent_status: null, intent_count: 0, pending_intents: 0,
-      current_scores: [], teaching_goal: [], skill_notes: [],
-      province: 'shanghai', address: '杨浦区·四平路街道', submitter_type: 'self', student_gender: 'female' }];
-    const list = document.getElementById('my-demands-list');
-    if (list) list.innerHTML = '<div class="list-card list-card--demand">数学</div>';
-    list.onclick = () => openDemandDetail(1); // 容器点击开详情（模拟真实卡点击；walkScript 第 1 步 selectPage 透传会关预开的 modal，故不能预先打开）
-  `, ctx);
-  await tick(30);
-  await walkScript(ctx, fns, dom, 'studentUser');
+test('studentUser full walk-through: my demands -> teacher plaza (push) -> rest + demo chat/contract + user bar', async (t) => {
+  const { dom } = await setupClient(t, { user: { role: 'student', id: 9, username: 's', avatar: '' } });
+  await walkScript(t, dom, 'studentUser');
 });
 
-test('主页首访浮窗简化：ONBOARD_POLICY 精简且聚焦基本流程', () => {
-  const { dom, fns, UI } = makeCtx();
-  const doc = dom.window.document;
-  assert.ok(UI.ONBOARD_POLICY.length <= 4, `简化后首访策略条目 ≤4（当前 ${UI.ONBOARD_POLICY.length}）`);
-  fns.openOnboarding();
+// ---- first-visit modal + interception ----
+
+test('first-visit modal: summarized policy + role-dependent primary button', (t) => {
+  baseSetup();
+  const uninstall = installAll();
+  registerCleanup(t, uninstall);
+  const doc = globalThis.document;
+  assert.ok(TEXT.ONBOARD_POLICY.length <= 4, `simplified policy <= 4 items (got ${TEXT.ONBOARD_POLICY.length})`);
+  openOnboarding(); // guest: no user/guestRole set
   const bodyText = doc.querySelector('#modal-container .modal-body').textContent;
-  assert.ok(bodyText.includes('学生：发布需求'), '简化文案含学生基本流程');
-  assert.ok(bodyText.includes('教师：浏览需求'), '简化文案含教师基本流程');
-  assert.ok(bodyText.includes('我的会话'), '简化文案提到站内沟通/签约');
+  assert.ok(bodyText.includes('学生：发布需求'), 'student basic flow mentioned');
+  assert.ok(bodyText.includes('教师：浏览需求'), 'teacher basic flow mentioned');
+  assert.ok(bodyText.includes('我的会话'), 'in-app chat/signing mentioned');
+  assert.ok(doc.querySelector('#modal-container [data-action="onboard.browseGuest"]'), 'guest primary = browse the client');
+  closeAllModals();
+  state.user = { role: 'student', id: 9, username: 's' };
+  openOnboarding(); // logged in
+  assert.ok(doc.querySelector('#modal-container [data-action="onboard.close"]'), 'logged-in primary = dismiss');
+  closeAllModals();
 });
 
-// ============ v0.25.38 引导架构升级：点击拦截 + 整卡亮区 + 功能栏介绍 + 滚动/动画稳定化 ============
-
-/** 教师导向需求大厅（渲染出「提交试课意向」按钮） */
-async function setupTeacherDemands(ctx) {
-  vm.runInContext(`
-    state.user = { id: 3, role: 'teacher', username: '张老师' };
-    renderSidebar(); showView('client'); selectPage('browse-demands');
-  `, ctx);
-  await tick(60);
-}
-
-test('点击拦截（pass:false）：提交试课意向/屏蔽系统通知不透传真实请求', async () => {
-  const { dom, ctx, fns } = makeCtx();
+test('pass:false interception: intent CTA does not pass through the real request', async (t) => {
+  const { dom, fetched } = await setupClient(t, { user: { role: 'teacher', id: 3, username: 't', avatar: '' }, page: 'browse-demands' });
   const doc = dom.window.document;
-  await setupClient(ctx, { guestRole: 'teacher' });
-  await setupTeacherDemands(ctx);
-  // 打桩真实请求入口（vm 全局 + jsdom window 双桥，覆盖内联 onclick 路径）
-  vm.runInContext(`
-    window.__intentCalls = 0; window.__notifBlockCalls = 0;
-    submitIntent = function () { window.__intentCalls++; };
-    toggleNotifBlock = function () { window.__notifBlockCalls++; };
-    try { window.submitIntent = submitIntent; window.toggleNotifBlock = toggleNotifBlock; } catch (e) {}
-  `, ctx);
-  // 意向步骤（pass:false）：点亮区推进，但真实按钮不被点击
-  fns.runTour([
-    { module: 'x', target: { sel: '#demands-list .btn-intent-cta' }, text: '试课意向', pass: false },
-    { module: 'x', target: { page: 'about' }, text: '之后' },
+  await waitFor(() => doc.querySelector('#browse-demands-list .btn-intent-cta'), 3000);
+  runTour([
+    { module: 'x', target: { sel: '#browse-demands-list .btn-intent-cta' }, text: 'Intent', pass: false },
+    { module: 'x', target: { page: 'about' }, text: 'After' },
   ]);
   await waitFor(() => doc.querySelector('.tour-hole--show'));
   doc.querySelector('.tour-hole').click();
   await tick(20);
-  assert.equal(vm.runInContext('window.__intentCalls', ctx), 0, 'pass:false 不触发 submitIntent');
-  // 对照：透传步骤仍真实点击（打开/切换页面类保留）
+  const intentPosts = fetched.filter(f => f.u === '/api/demands/1/intents' && f.method === 'POST');
+  assert.equal(intentPosts.length, 0, 'pass:false does not fire the intent request');
+  // contrast: pass-through steps still click for real (page switch)
   doc.querySelector('.tour-hole').click(); // about tab
   await tick(20);
-  assert.equal(vm.runInContext('state.page', ctx), 'about', '透传步骤仍真实切页');
+  assert.equal(state.page, 'about', 'pass-through step really switches the page');
 });
 
-test('点击拦截：屏蔽系统通知步骤（pass:false）不透传开关', async () => {
-  const { dom, ctx, fns } = makeCtx();
+test('pass:false interception: notif block switch is not toggled', async (t) => {
+  const { dom } = await setupClient(t, { user: { role: 'teacher', id: 3, username: 't', avatar: '' }, page: 'notifications' });
   const doc = dom.window.document;
-  await setupClient(ctx, { user: { role: 'teacher', id: 3, username: 't', avatar: '' } });
-  vm.runInContext(`
-    selectPage('notifications');
-  `, ctx);
-  await tick(60);
-  vm.runInContext(`
-    window.__notifBlockCalls = 0;
-    toggleNotifBlock = function () { window.__notifBlockCalls++; };
-    try { window.toggleNotifBlock = toggleNotifBlock; } catch (e) {}
-  `, ctx);
-  fns.runTour([
-    { module: 'notifications', target: { sel: '#btn-notif-block' }, text: '屏蔽通知', pass: false },
-    { module: 'notifications', target: { page: 'about' }, text: '之后' },
+  globalThis.localStorage.removeItem(CONFIG.NOTIF_BLOCK_KEY);
+  await waitFor(() => doc.querySelector('#btn-notif-block'), 3000);
+  runTour([
+    { module: 'notifications', target: { sel: '#btn-notif-block' }, text: 'Block', pass: false },
+    { module: 'notifications', target: { page: 'about' }, text: 'After' },
   ]);
   await waitFor(() => doc.querySelector('.tour-hole--show'));
   doc.querySelector('.tour-hole').click();
   await tick(20);
-  assert.equal(vm.runInContext('window.__notifBlockCalls', ctx), 0, '屏蔽系统通知不透传（真实偏好开关）');
+  assert.equal(globalThis.localStorage.getItem(CONFIG.NOTIF_BLOCK_KEY), null, 'preference switch not toggled by pass:false');
+  doc.querySelector('.tour-hole').click();
+  await tick(20);
+  assert.equal(state.page, 'about', 'pass-through step still switches');
 });
 
-test('教师名字步骤：target 为整卡（可点性移交整卡），亮区覆盖整卡', async () => {
-  const { ctx, fns, UI } = makeCtx();
-  const step = fns.TOUR_SCRIPTS.teacherGuest().find(s => s.text === UI.TOUR_STEP_TEACHER_USERNAME);
-  assert.ok(step, '教师名字步骤存在');
-  assert.equal(step.target.sel, '#teachers-list .list-card--teacher', '亮区指整卡而非用户名文本');
-  // 解析结果确为整卡元素（先渲染教师列表页）
-  await setupClient(ctx, { guestRole: 'student' });
-  vm.runInContext(`selectPage('browse-teachers');`, ctx);
-  await tick(80);
-  const resolved = vm.runInContext(`(() => { const el = _tourResolve(${JSON.stringify(step)}); return el ? el.className : null; })()`, ctx);
-  assert.ok(resolved && String(resolved).includes('list-card--teacher'), '解析到整卡元素（实际: ' + resolved + '）');
+test('teacher username step: hole targets the whole card, not the name text', async (t) => {
+  const steps = TOUR_SCRIPTS.teacherGuest();
+  const step = steps.find(s => s.text === TEXT.TOUR_STEP_TEACHER_USERNAME);
+  assert.ok(step, 'teacher username step exists');
+  assert.equal(step.target.sel, '#browse-teachers-list .list-card--teacher', 'hole covers the whole card');
+  const { dom } = await setupClient(t, { guestRole: 'student', page: 'browse-teachers' });
+  const doc = dom.window.document;
+  await waitFor(() => doc.querySelector('#browse-teachers-list .list-card--teacher'), 3000);
+  const card = doc.querySelector('#browse-teachers-list .list-card--teacher');
+  assert.ok(card && !card.closest('.hidden'), 'whole card is the resolved target');
 });
 
-test('会话 + 号功能栏：四个项目逐一聚焦介绍（pass:false 不透传）', async () => {
-  const { ctx, fns, UI } = makeCtx();
-  const steps = fns.TOUR_SCRIPTS.teacherUser();
-  const idx = steps.findIndex(s => s.text === UI.TOUR_STEP_CHAT_PLUS);
-  assert.ok(idx >= 0, '存在 + 号步骤');
+test('chat + feature bar: four pop items focused one by one (pass:false, no passthrough)', () => {
+  const steps = TOUR_SCRIPTS.teacherUser();
+  const idx = steps.findIndex(s => s.text === TEXT.TOUR_STEP_CHAT_PLUS);
+  assert.ok(idx >= 0, 'chat plus step exists');
   const items = steps.slice(idx + 1, idx + 5);
-  assert.equal(items.length, 4, '+ 号后接四个功能栏项目步骤');
-  const texts = [UI.TOUR_STEP_CHAT_PLUS_IMAGE, UI.TOUR_STEP_CHAT_PLUS_FILE, UI.TOUR_STEP_CHAT_PLUS_SIGNING, UI.TOUR_STEP_CHAT_PLUS_DRAFT];
+  assert.equal(items.length, 4, 'four items follow the plus step');
+  const texts = [TEXT.TOUR_STEP_CHAT_PLUS_IMAGE, TEXT.TOUR_STEP_CHAT_PLUS_FILE, TEXT.TOUR_STEP_CHAT_PLUS_SIGNING, TEXT.TOUR_STEP_CHAT_PLUS_DRAFT];
   items.forEach((s, i) => {
-    assert.equal(s.text, texts[i], `第 ${i + 1} 项文案`);
-    assert.equal(s.pass, false, '功能栏项目不透传（真实点击开弹窗/文件选择器）');
-    assert.equal(s.target.sel, `.chat-plus-pop .chat-pop-item:nth-child(${i + 1})`, '选择器指向第 N 个项目');
+    assert.equal(s.text, texts[i], `item ${i + 1} text`);
+    assert.equal(s.pass, false, 'feature bar items never pass through');
+    assert.equal(s.target.sel, `.chat-plus-pop .chat-pop-item:nth-child(${i + 1})`, 'selector points at item N');
   });
 });
 
-test('滚动架构：视口外目标自动滚入再定位；中心在 30%~70% 带内不滚；贴边可见也滚入中带（jsdom 打桩）', async () => {
-  const { ctx } = makeCtx();
-  vm.runInContext(`
-    window.__scrolled = 0;
-    window.Element.prototype.scrollIntoView = function () { window.__scrolled++; };
-  `, ctx);
-  // 视口外目标 → 滚入（__scrolled +1）
-  vm.runInContext(`
-    const t1 = document.createElement('div'); t1.id = 'scroll-far';
-    Object.defineProperty(t1, 'getBoundingClientRect', { value: () => ({ top: 3000, left: 0, bottom: 3100, right: 120, width: 120, height: 100 }) });
-    document.body.appendChild(t1);
-  `, ctx);
-  vm.runInContext('_tourScrollToEl(document.getElementById("scroll-far"))', ctx);
-  assert.equal(vm.runInContext('window.__scrolled', ctx), 1, '视口外目标被滚入');
-  // 中心在 30%~70% 带内且完全可见 → 不滚（侧栏/常驻元素天然命中，防无谓跳页）
-  vm.runInContext(`
-    const t2 = document.createElement('div'); t2.id = 'scroll-near';
-    Object.defineProperty(t2, 'getBoundingClientRect', { value: () => ({ top: 300, left: 10, bottom: 390, right: 200, width: 190, height: 90 }) });
-    document.body.appendChild(t2);
-  `, ctx);
-  vm.runInContext('_tourScrollToEl(document.getElementById("scroll-near"))', ctx);
-  assert.equal(vm.runInContext('window.__scrolled', ctx), 1, '带内可见目标不重复滚动');
-  // 需求五十四：完全可见但中心贴视口顶（7%）→ 仍滚入中带（+1 → 2）
-  vm.runInContext(`
-    const t3 = document.createElement('div'); t3.id = 'scroll-edge';
-    Object.defineProperty(t3, 'getBoundingClientRect', { value: () => ({ top: 10, left: 10, bottom: 100, right: 200, width: 190, height: 90 }) });
-    document.body.appendChild(t3);
-  `, ctx);
-  vm.runInContext('_tourScrollToEl(document.getElementById("scroll-edge"))', ctx);
-  assert.equal(vm.runInContext('window.__scrolled', ctx), 2, '贴边可见目标也滚入中带（30%~70% 硬性要求）');
+test('scroll architecture: far target scrolls in, in-band no scroll, edge-visible scrolls to band (jsdom stub)', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'student' });
+  const doc = dom.window.document;
+  dom.window.__scrolled = 0;
+  dom.window.Element.prototype.scrollIntoView = function () { dom.window.__scrolled++; };
+  const mk = (id, top, height) => {
+    const el = document.createElement('div');
+    el.id = id;
+    el.getBoundingClientRect = () => ({ top, left: 10, bottom: top + height, right: 200, width: 190, height });
+    document.body.appendChild(el);
+  };
+  mk('scroll-far', 3000, 100); // off-viewport -> must scroll
+  runTour([{ module: 'x', target: { sel: '#scroll-far' }, text: 'Far' }]);
+  await waitFor(() => doc.querySelector('.tour-hole--show'));
+  assert.equal(dom.window.__scrolled, 1, 'far target scrolled into the band');
+  skipTour();
+  mk('scroll-near', 300, 90); // center in 30%-70% band + fully visible -> no scroll
+  runTour([{ module: 'x', target: { sel: '#scroll-near' }, text: 'Near' }]);
+  await waitFor(() => doc.querySelector('.tour-hole--show'));
+  assert.equal(dom.window.__scrolled, 1, 'in-band visible target does not scroll');
+  skipTour();
+  mk('scroll-edge', 10, 90); // fully visible but center sticks to the viewport top -> scroll to band
+  runTour([{ module: 'x', target: { sel: '#scroll-edge' }, text: 'Edge' }]);
+  await waitFor(() => doc.querySelector('.tour-hole--show'));
+  assert.equal(dom.window.__scrolled, 2, 'edge-visible target also scrolls into the band');
+  skipTour();
 });
 
-test('动画稳定化：目标祖先链动画运行中 → 延迟到动画结束才定位亮区（修卡屏幕外）', async () => {
-  const { dom, ctx } = makeCtx();
+test('animation stabilization: running ancestor animation delays hole placement', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'student' });
   const doc = dom.window.document;
-  await setupClient(ctx, { guestRole: 'student' });
-  // 打桩：目标自身 getAnimations 首查运行中、之后空 → 亮区应先隐藏、rAF 后再定位
-  vm.runInContext(`
-    window.__animQueries = 0;
-    const t = document.createElement('div'); t.id = 'anim-target';
-    t.getAnimations = function () { window.__animQueries++; return window.__animQueries === 1 ? [{ playState: 'running' }] : []; };
-    Object.defineProperty(t, 'getBoundingClientRect', { value: () => ({ top: 20, left: 20, bottom: 80, right: 200, width: 180, height: 60 }) });
-    document.body.appendChild(t);
-  `, ctx);
-  vm.runInContext('runTour([{ module: "x", target: { sel: "#anim-target" }, text: "动画目标" }])', ctx);
-  assert.equal(vm.runInContext('window.__animQueries', ctx), 1, '首次检查检测到动画（进入等待）');
-  assert.equal(doc.querySelector('.tour-hole--show'), null, '动画运行中：亮区不定位（避免中间帧几何卡屏幕外）');
-  await tick(60); // rAF 后再查：动画结束 → 定位
-  assert.ok(doc.querySelector('.tour-hole--show'), '动画结束后亮区定位');
+  dom.window.__animQueries = 0;
+  const el = document.createElement('div');
+  el.id = 'anim-target';
+  el.getAnimations = function () { dom.window.__animQueries++; return dom.window.__animQueries === 1 ? [{ playState: 'running' }] : []; };
+  el.getBoundingClientRect = () => ({ top: 20, left: 20, bottom: 80, right: 200, width: 180, height: 60 });
+  document.body.appendChild(el);
+  runTour([{ module: 'x', target: { sel: '#anim-target' }, text: 'Animating' }]);
+  assert.equal(doc.querySelector('.tour-hole--show'), null, 'hole hidden while animation is running');
+  await tick(80); // rAF re-check: animation over -> place
+  assert.ok(doc.querySelector('.tour-hole--show'), 'hole placed after animation ends');
 });
 
-// ============ R27（v0.25.92）：亮区动态绑定——定位后目标位移即跟随重定位 ============
-test('R27 亮区动态绑定：定位后目标浮入位移 → 跟随重定位（根治先亮后浮入/筛选顶跑错位）', async () => {
-  const { dom, ctx } = makeCtx();
+test('R27 dynamic hole binding: target drift repositions the hole, removal hides it', async (t) => {
+  const { dom } = await setupClient(t, { guestRole: 'student' });
   const doc = dom.window.document;
-  await setupClient(ctx, { guestRole: 'student' });
-  // 目标初始 (20,20)，定位后模拟「浮入/列表重建挤压」位移到 (120,120)
-  vm.runInContext(`
-    const t = document.createElement('div'); t.id = 'drift-target';
-    let pos = 20;
-    t.getBoundingClientRect = function () { return { top: pos, left: pos, bottom: pos + 60, right: pos + 180, width: 180, height: 60 }; };
-    document.body.appendChild(t);
-    window.__driftMove = (v) => { pos = v; };
-  `, ctx);
-  vm.runInContext(`runTour([
-    { module: 'x', target: { sel: '#drift-target' }, text: '漂移目标' },
-    { module: 'x', target: { sel: '#drift-2' }, text: '下一步目标' },
-  ])`, ctx);
-  await tick(60); // 初始定位
+  let pos = 20;
+  const drift = document.createElement('div');
+  drift.id = 'drift-target';
+  drift.getBoundingClientRect = () => ({ top: pos, left: pos, bottom: pos + 60, right: pos + 180, width: 180, height: 60 });
+  document.body.appendChild(drift);
+  runTour([
+    { module: 'x', target: { sel: '#drift-target' }, text: 'Drift' },
+    { module: 'x', target: { sel: '#drift-2' }, text: 'Next' },
+  ]);
+  await tick(60);
   const hole = doc.querySelector('.tour-hole');
-  assert.ok(hole.classList.contains('tour-hole--show'), '初始定位就位');
-  assert.ok(hole.style.transform.includes('20px'), '亮区在初始位置（实际: ' + hole.style.transform + '）');
-  // 目标浮入位移 → 跟随循环下一帧重定位
-  vm.runInContext('window.__driftMove(120)', ctx);
+  assert.ok(hole.classList.contains('tour-hole--show'), 'initial placement');
+  assert.ok(hole.style.transform.includes('20px'), `hole at initial position (got ${hole.style.transform})`);
+  pos = 120; // target floats in
   await tick(60);
-  assert.ok(hole.style.transform.includes('120px'), '亮区跟随目标位移（实际: ' + hole.style.transform + '）');
-  // 目标被移除（页面重建间隙）→ 亮区隐藏；恢复后再次跟随
-  vm.runInContext('document.getElementById("drift-target").remove()', ctx);
+  assert.ok(hole.style.transform.includes('120px'), `hole follows the drift (got ${hole.style.transform})`);
+  document.getElementById('drift-target').remove();
   await tick(60);
-  assert.equal(doc.querySelector('.tour-hole--show'), null, '目标消失亮区隐藏');
-  // 步骤推进后跟随停止（不再污染下一步）；第二步指向新目标
-  vm.runInContext(`
-    const t2 = document.createElement('div'); t2.id = 'drift-2';
-    t2.getBoundingClientRect = function () { return { top: 300, left: 300, bottom: 360, right: 480, width: 180, height: 60 }; };
-    document.body.appendChild(t2);
-    window.__holeClicked = 0;
-  `, ctx);
-  // 重建 drift-target 供末步透传点击（引导第二步存在 → 非末步收尾路径）
-  vm.runInContext(`
-    const tr = document.createElement('div'); tr.id = 'drift-target';
-    tr.getBoundingClientRect = function () { return { top: 20, left: 20, bottom: 80, right: 200, width: 180, height: 60 }; };
-    document.body.appendChild(tr);
-  `, ctx);
-  hole.click(); // 推进到第二步
+  assert.equal(doc.querySelector('.tour-hole--show'), null, 'missing target hides the hole');
+  // advance to the next step: follow stops, hole re-targets drift-2
+  const t2 = document.createElement('div');
+  t2.id = 'drift-2';
+  t2.getBoundingClientRect = () => ({ top: 300, left: 300, bottom: 360, right: 480, width: 180, height: 60 });
+  document.body.appendChild(t2);
+  const t1b = document.createElement('div');
+  t1b.id = 'drift-target';
+  t1b.getBoundingClientRect = () => ({ top: 20, left: 20, bottom: 80, right: 200, width: 180, height: 60 });
+  document.body.appendChild(t1b); // rebuild for the last-step pass-through click path
+  hole.click();
   await tick(40);
-  assert.ok(doc.querySelector('.tour-hole--show'), '下一步亮区就位');
+  assert.ok(doc.querySelector('.tour-hole--show'), 'next step hole placed');
   const m2 = doc.querySelector('.tour-hole').style.transform;
-  assert.ok(m2.includes('300px'), '下一步亮区定位于新目标（实际: ' + m2 + '）');
+  assert.ok(m2.includes('300px'), `next step hole on the new target (got ${m2})`);
 });
 
-// 需求五十三（v0.25.61）：遮罩常置 + 亮区延时——overlay 恒压暗底（步骤间/目标等待不再闪回亮屏）、
-// 亮区延迟淡入、气泡随亮区延迟入场、reduced-motion 归零延迟
-test('需求五十三：遮罩常置 + 亮区延时（CSS 在位）', () => {
+test('tour CSS rules in place (style.css direct read, no DOM build)', () => {
   const css = readFileSync('./style.css', 'utf8');
-  assert.ok(css.includes('.tour-overlay {') && css.includes('rgba(17, 17, 20, .28)'),
-    'overlay 常置压暗底（遮罩全程恒在）');
-  assert.ok(css.includes('transition: opacity .26s ease-out .16s'),
-    '亮区延迟淡入（洞 opacity transition）');
-  assert.ok(css.includes('animation-delay: .18s') && css.includes('animation-fill-mode: backwards'),
-    '气泡随亮区延迟入场');
-  assert.ok(css.includes('.tour-hole { transition-delay: 0s; }'),
-    'reduced-motion 归零亮区延迟');
+  assert.ok(css.includes('.tour-overlay {'), 'overlay stays mounted');
+  assert.ok(css.includes('.tour-overlay--dim { background: rgba(17, 17, 20, .28); }'), 'weak dim placeholder while the hole is hidden');
+  assert.ok(css.includes('.tour-hole {') && css.includes('transition: opacity .26s ease-out .16s'), 'hole delayed fade-in');
+  assert.ok(css.includes('animation-delay: .18s') && css.includes('animation-fill-mode: backwards'), 'bubble delayed entry');
+  assert.ok(css.includes('.tour-hole { transition-delay: 0s; }'), 'reduced-motion zeroes the hole delay');
 });
 
-// ============ v1.0.8 Q3 新手引导接线回归（用户四连返工轮） ============
+// ---- auth wiring ----
 
-// 一分流程：首访「进客户端逛逛」→ await 游客客户端渲染完成 → 自动跑对应角色逛一圈 tour
-test('browseAsGuest：await 游客客户端渲染后自动跑对应角色 tour（studentGuest 首步）', async () => {
-  const { ctx, fns } = makeCtx();
-  await vm.runInContext(`
-    localStorage.removeItem('sufe_returning');
-    browseAsGuest('student');
-  `, ctx);
+test('browseAsGuest: enters guest client then auto-runs the matching tour (studentGuest first step)', async (t) => {
+  const { dom } = baseSetup();
+  const uninstall = installAll();
+  registerCleanup(t, uninstall);
+  globalThis.localStorage.removeItem('sufe_returning');
+  await browseAsGuest('student');
   await tick(250);
-  const st = await vm.runInContext(`({
-    tour: !!document.querySelector('.tour-overlay'),
+  const doc = dom.window.document;
+  const st = {
+    tour: !!doc.querySelector('.tour-overlay'),
     view: state.view,
     guestRole: state.guestRole,
-    firstText: (document.querySelector('.tour-bubble-text') || {}).textContent || '',
-  })`, ctx);
-  assert.equal(st.guestRole, 'student', '游客角色进入');
-  assert.equal(st.view, 'client', '客户端视图渲染完成');
-  assert.equal(st.tour, true, 'tour 层挂载（不再被 _tourInClientView 立即清理）');
-  assert.ok(st.firstText.includes('教师广场'), '首步 = studentGuest 逛教师广场（实际: ' + st.firstText.slice(0, 20) + '）');
-  await vm.runInContext('stopBadgePoll(); stopVersionProbe();', ctx); // enterClient 起两个 interval，测试结尾清理防事件循环不退出
+    firstText: (doc.querySelector('.tour-bubble-text') || {}).textContent || '',
+  };
+  assert.equal(st.guestRole, 'student', 'guest role entered');
+  assert.equal(st.view, 'client', 'client view rendered');
+  assert.equal(st.tour, true, 'tour layer mounted (not immediately torn down by _tourInClientView)');
+  assert.ok(st.firstText.includes('教师广场'), `first step = studentGuest teacher plaza (got ${st.firstText.slice(0, 20)})`);
 });
 
-// 二分流程：注册成功 afterAuthSuccess(true) → await enterClient 后自动跑对应角色详细指引 tour
-test('afterAuthSuccess(true)：注册成功自动跑对应角色详细指引 tour（studentUser 首步）', async () => {
-  const { ctx } = makeCtx();
-  await vm.runInContext(`
-    state.user = { id: 9, role: 'student', username: 's', avatar: '' };
-    state.authToken = 'tok';
-    afterAuthSuccess(true);
-  `, ctx);
+test('afterAuthSuccess(true): new registration auto-runs the tour (studentUser first step)', async (t) => {
+  const { dom } = baseSetup();
+  const uninstall = installAll();
+  registerCleanup(t, uninstall);
+  state.user = { id: 9, role: 'student', username: 's', avatar: '' };
+  state.authToken = 'tok';
+  await afterAuthSuccess(true);
   await tick(300);
-  const st = await vm.runInContext(`({
-    tour: !!document.querySelector('.tour-overlay'),
+  const doc = dom.window.document;
+  const st = {
+    tour: !!doc.querySelector('.tour-overlay'),
     view: state.view,
-    firstText: (document.querySelector('.tour-bubble-text') || {}).textContent || '',
-  })`, ctx);
-  assert.equal(st.view, 'client', '客户端视图');
-  assert.equal(st.tour, true, '注册成功自动跑 tour（isNew=true）');
-  assert.ok(st.firstText.includes('我的需求'), '首步 = studentUser 我的需求（实际: ' + st.firstText.slice(0, 20) + '）');
-  await vm.runInContext('stopBadgePoll(); stopVersionProbe();', ctx);
+    firstText: (doc.querySelector('.tour-bubble-text') || {}).textContent || '',
+  };
+  assert.equal(st.view, 'client', 'client view');
+  assert.equal(st.tour, true, 'new registration auto-runs the tour');
+  assert.ok(st.firstText.includes('我的需求'), `first step = studentUser my demands (got ${st.firstText.slice(0, 20)})`);
 });
 
-// 登录成功（isNew=false）不跑 tour——避免每次登录都弹引导
-test('afterAuthSuccess()（登录）：不跑 tour', async () => {
-  const { ctx } = makeCtx();
-  await vm.runInContext(`
-    state.user = { id: 9, role: 'student', username: 's', avatar: '' };
-    state.authToken = 'tok';
-    afterAuthSuccess();
-  `, ctx);
+test('afterAuthSuccess() (login): does not auto-run the tour', async (t) => {
+  const { dom } = baseSetup();
+  const uninstall = installAll();
+  registerCleanup(t, uninstall);
+  state.user = { id: 9, role: 'student', username: 's', avatar: '' };
+  state.authToken = 'tok';
+  await afterAuthSuccess();
   await tick(300);
-  const st = await vm.runInContext(`({ tour: !!document.querySelector('.tour-overlay'), view: state.view })`, ctx);
-  assert.equal(st.view, 'client', '客户端视图');
-  assert.equal(st.tour, false, '登录不自动跑 tour');
-  await vm.runInContext('stopBadgePoll(); stopVersionProbe();', ctx);
+  const doc = dom.window.document;
+  assert.equal(state.view, 'client', 'client view');
+  assert.equal(doc.querySelector('.tour-overlay'), null, 'plain login does not run the tour');
 });
 
-// v1.4.5（审计要求）：未验证学信网教师——验证门步显示验证门引导 + 表单步骤 skip（生产时序修复回归）
-test('学信网门控：未验证教师走验证门引导，表单步骤跳过（applyChsiGate 落定后）', async () => {
-  const { dom, ctx, fns, UI } = makeCtx();
-  await setupClient(ctx, { user: { role: 'teacher', id: 3, username: 't', avatar: '' } });
-  // 模拟未验证：applyChsiGate 落定 = gate 去 hidden（验证门填充）
-  vm.runInContext(`(() => {
-    const gate = document.getElementById('chsi-gate');
-    if (gate) gate.classList.remove('hidden');
-  })()`, ctx);
+// ---- B1/B2/B3 (BLOCKING regression fixes) ----
+
+test('B1 boot wiring: showOnboardingIfNeeded first-visit semantics + app.js call site', (t) => {
+  baseSetup();
+  const uninstall = installAll();
+  registerCleanup(t, uninstall);
+  const doc = globalThis.document;
+  globalThis.localStorage.removeItem('sufe_returning');
+  showOnboardingIfNeeded();
+  assert.ok(doc.querySelector('#modal-container .modal-overlay'), 'first visit: onboarding modal opens');
+  assert.equal(globalThis.localStorage.getItem('sufe_returning'), '1', 'first visit marker written');
+  closeAllModals();
+  showOnboardingIfNeeded(); // returning now -> no-op
+  assert.equal(doc.querySelector('#modal-container .modal-overlay'), null, 'returning visit: no modal');
+  const src = readFileSync('src/client/app.js', 'utf8');
+  assert.ok(src.includes('showOnboardingIfNeeded()'), 'app.js boot calls showOnboardingIfNeeded');
+});
+
+test('B2 about page revisit entries: real clicks open usage guide modal + start the tour overlay', async (t) => {
+  const { dom } = await setupClient(t, { user: { role: 'student', id: 9, username: 's', avatar: '' }, page: 'about' });
+  const doc = dom.window.document;
+  await waitFor(() => doc.querySelector('#about-content [data-action="about-usage-guide"]'), 3000);
+  // real click: usage guide modal
+  doc.querySelector('#about-content [data-action="about-usage-guide"]').click();
+  await tick(20);
+  const modal = doc.querySelector('#modal-container .modal-overlay');
+  assert.ok(modal, 'usage guide modal opens on click');
+  assert.equal(doc.querySelector('#modal-container .modal-header h2').textContent, TEXT.USAGE_GUIDE_TITLE, 'modal title');
+  assert.ok(TEXT.USAGE_GUIDE_SECTIONS.length > 0, 'usage guide has sections');
+  assert.ok(doc.querySelectorAll('#modal-container .usage-guide-section').length === TEXT.USAGE_GUIDE_SECTIONS.length, 'all sections rendered');
+  closeAllModals();
+  // real click: revisit tour -> overlay mounts with the studentUser first step
+  doc.querySelector('#about-content [data-action="about-revisit-tour"]').click();
   await tick(30);
-  const steps = fns.TOUR_SCRIPTS.teacherUser();
-  const expand = raw => { let st = raw; while (typeof st === 'function') st = st(); return st; };
-  const idxEdit = steps.findIndex(s => { const e = expand(s); return e.module === 'edit-profile' && e.text === UI.TOUR_STEP_EDIT_PROFILE; });
-  assert.ok(idxEdit >= 0, '找到 edit-profile 入口步');
-  const chsiStep = expand(steps[idxEdit + 1]);
-  assert.ok(chsiStep.target && chsiStep.target.sel === '#chsi-gate', '入口步后是验证门步（亮验证门）');
-  assert.ok(chsiStep.text.includes('学信网'), '验证门步文案引导学信网验证');
-  // 表单步骤全部 skip（未验证时表单隐藏）
-  for (let i = idxEdit + 2; i < idxEdit + 7; i++) {
-    const st = expand(steps[i]);
-    assert.ok(st.skip, `未验证教师第 ${i + 1} 步（表单介绍）应 skip`);
-  }
+  assert.ok(doc.querySelector('.tour-overlay'), 'revisit tour mounts the overlay');
+  const firstText = (doc.querySelector('.tour-bubble-text') || {}).textContent || '';
+  assert.ok(firstText.includes('我的需求'), `revisit tour starts studentUser (got ${firstText.slice(0, 20)})`);
+  skipTour();
+});
+
+test('B3 browse-demands sort/filter controls: change re-renders locally, no new network', async (t) => {
+  const demandA = { ...demand, id: 1, created_at: '2026-08-01T00:00:00Z' };
+  const demandB = { ...demand, id: 2, created_at: '2026-08-05T00:00:00Z', target_subjects: ['english'] };
+  const { dom, fetched } = baseSetup({ demandRows: [demandA, demandB] });
+  const uninstall = installAll();
+  registerCleanup(t, uninstall);
+  const doc = dom.window.document;
+  state.user = { role: 'teacher', id: 3, username: 't', avatar: '' };
+  state.guestRole = null;
+  renderSidebar();
+  showView('client');
+  state.page = 'browse-demands';
+  await loadBrowseDemands();
+  await tick(40);
+  const demandFetchCount = () => fetched.filter(f => f.u.includes('/api/student/demands')).length;
+  const before = demandFetchCount();
+  assert.ok(before >= 1, 'browse list loaded from the network');
+  const list = doc.getElementById('browse-demands-list');
+  assert.ok(list.querySelectorAll('.list-card--demand').length === 2, 'two demand cards rendered');
+  const htmlBefore = list.innerHTML;
+
+  // sort control: re-render in place, no loader / no network
+  const sort = doc.getElementById('demand-sort');
+  sort.value = 'newest';
+  sort.dispatchEvent(new dom.window.Event('change', { bubbles: true })); // data-change delegation lives on document
+  await tick(20);
+  assert.notEqual(list.innerHTML, htmlBefore, 'list re-rendered in place on sort change');
+  assert.equal(demandFetchCount(), before, 'no new demands request on sort change');
+  assert.ok(list.querySelectorAll('.list-card--demand').length === 2, 'sort keeps both cards');
+
+  // subject filter: local filter, no network
+  const subj = doc.getElementById('demand-filter-subject');
+  subj.value = 'math';
+  subj.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  await tick(20);
+  assert.equal(demandFetchCount(), before, 'no new demands request on subject filter change');
+  assert.equal(list.querySelectorAll('.list-card--demand').length, 1, 'subject filter keeps only math demands');
+  assert.ok(!list.textContent.includes('english'), 'non-math demand filtered out');
 });
