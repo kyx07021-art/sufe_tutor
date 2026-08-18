@@ -39,3 +39,12 @@ test('injectManifest：改写资产引用为哈希名 + 内联 manifest；非 js
   const img = injectManifest('<link rel="icon" href="/favicon.ico">');
   assert.ok(img.includes('href="/favicon.ico"'), '非 js/css 引用原样保留');
 });
+
+test('injectManifest V-3-1d：v2 ESM 页面零内联 manifest（引用改写保留）；v1 形态仍注入', () => {
+  const v2 = injectManifest('<head><link rel="stylesheet" href="/tokens.css"><script type="module" src="/assets/app.js"></script></head><body>');
+  assert.ok(v2.includes(`href="/${ASSET_MANIFEST.files['tokens.css']}"`), 'v2 CSS 引用仍改哈希名（immutable 缓存承重面不丢）');
+  assert.ok(!v2.includes('window.ASSET_MANIFEST'), 'v2 零内联 manifest（严格 script-src 前提）');
+  const v1 = injectManifest('<head><script src="/app-shell.js"></script></head><body>');
+  assert.ok(v1.includes(`src="/${ASSET_MANIFEST.files['app-shell.js']}"`), 'v1 引用改写保留');
+  assert.ok(v1.includes('window.ASSET_MANIFEST'), 'v1 仍注入内联 manifest（懒加载器依赖，判定信号不漂移）');
+});

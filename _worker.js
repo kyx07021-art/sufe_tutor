@@ -48,10 +48,15 @@ function cacheableAsset(res) {
 }
 
 // 改写 HTML 文档：资产引用 → 哈希名 + 内联 manifest（懒加载器读 window.ASSET_MANIFEST.files）
+// V-3-1d: v2 ESM 页面（type="module" 入口，web/index.html→dist/v2.html）零 ASSET_MANIFEST 运行时消费
+// （app.js 全静态导入、esbuild chunk 自动解析）——不注入内联 manifest，严格 script-src 'self' 才可能成立；
+// v1 壳懒加载器仍需内联注入（V-4-1h 删除 v1 后一并消失）。
 export function injectManifest(html) {
   const files = ASSET_MANIFEST.files;
   const out = html.replace(/(src|href)="\/([a-zA-Z0-9._\/-]+\.(?:js|css))"/g, (m, attr, base) => `${attr}="/${files[base] || base}"`);
-  return out.replace('</head>', `<script>window.ASSET_MANIFEST=${JSON.stringify(ASSET_MANIFEST)};</script></head>`);
+  return html.includes('type="module"')
+    ? out
+    : out.replace('</head>', `<script>window.ASSET_MANIFEST=${JSON.stringify(ASSET_MANIFEST)};</script></head>`);
 }
 
 // 改写后 HTML 的弱 ETag（改写 body 的哈希前 16 hex）——worker 必须自持 HTML 的 ETag：
