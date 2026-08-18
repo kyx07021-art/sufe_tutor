@@ -14,6 +14,7 @@ const ACTION_MAP = {
   'teacher.rejectReview': el => actions.adminReviewAction(Number(el.dataset.id), 'reject'),
   'teacher.deleteReview': el => actions.confirmDeleteReview(Number(el.dataset.id)),
   'teacher.matchDetail': el => actions.showTeacherMatchDetail(Number(el.dataset.id)),
+  'teacher.toggleFilters': actions.toggleFilters,
 };
 
 let installed = false;

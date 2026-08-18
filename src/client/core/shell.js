@@ -1,0 +1,127 @@
+/**
+ * v2 shell frame: landing + client shell (sidebar + per-page sections).
+ * No inline handlers (archtest): interactive elements use data-action delegation
+ * (auth.* / student.* / teacher.* / notif.*) or shell-level direct listeners
+ * (sidebar toggle/close, brand goHome). Idempotent: mountShell() early-returns once
+ * #view-client exists. auth owns #view-login/#view-register (mountView replaces them).
+ */
+import { TEXT } from '../constants/text.js';
+import { escHtml } from './dom.js';
+import { CARET_SVG } from './ui.js';
+import { goHome } from './router.js';
+
+function page(id, title, { actions = '', body = '' } = {}) {
+  return `<section class="client-page hidden" data-page="${id}">
+    <div class="page-header"><h2>${escHtml(title)}</h2>${actions}</div>
+    ${body}
+  </section>`;
+}
+
+const filterToggleBtn = (action, id) => `<button type="button" class="btn btn-soft glass glass--pressable filter-toggle" id="${id}" data-action="${action}">${escHtml(TEXT.FILTER_TOGGLE)} <span class="drop-caret">${CARET_SVG}</span></button>`;
+
+export function mountShell() {
+  const app = document.getElementById('app');
+  if (!app || app.querySelector('#view-client')) return;
+  const btnNewDemand = `<button type="button" class="btn btn-sm glass glass--pressable" id="btn-new-demand" data-action="student.openModal">+ ${escHtml(TEXT.BTN_NEW_DEMAND)}</button>`;
+  const notifBlockBtn = `<button type="button" class="btn btn-sm glass glass--pressable notif-block-btn" id="btn-notif-block" data-action="notif.toggleBlock">${escHtml(TEXT.NOTIF_BLOCK_OFF)}</button>`;
+  const entry = (idx, title, desc, role) => `<button type="button" class="entry glass" data-action="auth.enterGuest" data-role="${role}">
+    <span class="entry-glow" aria-hidden="true"></span>
+    <span class="entry-index">${idx}</span>
+    <span class="entry-body">
+      <span class="entry-title">${escHtml(title)}</span>
+      <span class="entry-desc">${escHtml(desc)}</span>
+    </span>
+    <span class="entry-arrow" aria-hidden="true">→</span>
+  </button>`;
+  app.innerHTML = `
+    <main class="landing" id="view-landing">
+      <section class="landing-stage">
+        <div class="stage-nav">
+          <div class="navbar-brand" id="navbar-brand" title="${escHtml(TEXT.APP_NAME)}">
+            <div class="navbar-logo" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+            <div>
+              <div class="navbar-title">${escHtml(TEXT.APP_NAME)}</div>
+              <div class="navbar-subtitle">${escHtml(TEXT.LANDING_SUBTITLE)}</div>
+            </div>
+          </div>
+          <div class="stage-nav-actions">
+            <button type="button" class="btn glass glass--pressable" data-action="auth.viewLogin">${escHtml(TEXT.NAV_LOGIN)}</button>
+            <button type="button" class="btn glass glass--pressable" data-action="auth.viewRegister">${escHtml(TEXT.NAV_REGISTER)}</button>
+          </div>
+        </div>
+        <div class="stage-deco-grid" aria-hidden="true"></div>
+        <div class="container stage-grid">
+          <div class="stage-left">
+            <div class="stage-text">
+              <p class="eyebrow"><span class="eyebrow-rule"></span>${escHtml(TEXT.LANDING_EYEBROW)}</p>
+              <h1 class="hero-title">${escHtml(TEXT.LANDING_TAGLINE)}</h1>
+              <p class="stage-copy">${escHtml(TEXT.LANDING_COPY)}</p>
+            </div>
+          </div>
+          <div class="stage-right">
+            <p class="stage-kicker">${escHtml(TEXT.LANDING_KICKER)}</p>
+            <div class="entry-list">
+              ${entry('01', TEXT.ENTRY_STUDENT_TITLE, TEXT.ENTRY_STUDENT_DESC, 'student')}
+              ${entry('02', TEXT.ENTRY_TEACHER_TITLE, TEXT.ENTRY_TEACHER_DESC, 'teacher')}
+            </div>
+            <p class="stage-note">${escHtml(TEXT.LANDING_NOTE)}</p>
+          </div>
+        </div>
+        <footer class="landing-footer"><div class="container">${escHtml(TEXT.LANDING_FOOTER)}</div></footer>
+      </section>
+    </main>
+    <div class="client-shell hidden" id="view-client">
+      <aside class="client-sidebar" id="client-sidebar">
+        <button type="button" class="sidebar-expand-toggle glass" data-action="shell.toggleSidebar" aria-label="${escHtml(TEXT.SIDEBAR_TOGGLE_ARIA)}">
+          <span class="expand-caret"></span>
+        </button>
+        <div class="sidebar-deco-grid" aria-hidden="true"></div>
+        <div class="sidebar-scroll">
+          <nav class="sidebar-nav" id="sidebar-nav" aria-label="${escHtml(TEXT.SIDEBAR_NAV_ARIA)}"></nav>
+          <button type="button" class="sidebar-close" data-action="shell.closeSidebar">✕ ${escHtml(TEXT.SIDEBAR_CLOSE)}</button>
+        </div>
+        <div class="sidebar-invite hidden" id="sidebar-invite"></div>
+        <div class="sidebar-user glass" id="sidebar-user"></div>
+      </aside>
+      <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+      <main class="client-main" id="client-main">
+        ${page('my-demands', TEXT.PAGE_MY_DEMANDS, { actions: btnNewDemand, body: `<div class="browse-list" id="my-demands-list"></div>` })}
+        ${page('browse-demands', TEXT.PAGE_BROWSE_DEMANDS, { actions: filterToggleBtn('student.toggleFilters', 'demand-filter-toggle-btn'), body: `
+          <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">
+            <select class="filter-select" id="demand-sort"></select>
+            <label id="demand-filter-subject-label"></label><select class="filter-select" id="demand-filter-subject"></select>
+            <label id="demand-filter-grade-label"></label><select class="filter-select" id="demand-filter-grade"></select>
+            <label id="demand-filter-method-label"></label><select class="filter-select" id="demand-filter-method"></select>
+            <label id="demand-filter-province-label"></label><select class="filter-select" id="demand-filter-province"></select>
+          </div>
+          <div class="browse-list" id="browse-demands-list"></div>` })}
+        ${page('browse-teachers', TEXT.PAGE_BROWSE_TEACHERS, { actions: filterToggleBtn('teacher.toggleFilters', 'filter-toggle-btn'), body: `
+          <div class="drop-wrap hidden" id="teacher-filters"></div>
+          <div class="browse-list" id="browse-teachers-list"></div>` })}
+        ${page('my-chats', TEXT.PAGE_MY_CHATS, { body: `
+          <div class="chats-list-title">${escHtml(TEXT.CHAT_TITLE)}</div>
+          <div class="browse-list" id="my-chats-list"></div>
+          <div class="chat-frame" id="chat-frame"></div>` })}
+        ${page('my-contracts', TEXT.PAGE_MY_CONTRACTS, { body: `<div class="browse-list" id="my-contracts-list"></div>` })}
+        ${page('resource-share', TEXT.PAGE_RESOURCE_SHARE, { body: `<div id="posts-content"></div>` })}
+        ${page('notifications', TEXT.PAGE_NOTIFICATIONS, { actions: notifBlockBtn, body: `<div class="browse-list" id="notifications-content"></div>` })}
+        ${page('account-settings', TEXT.PAGE_ACCOUNT_SETTINGS, { body: `<div id="account-settings-content"></div>` })}
+        ${page('admin-stats', TEXT.PAGE_ADMIN_STATS, { body: `<div id="admin-stats-box"></div><div id="admin-stats-content"></div>` })}
+        ${page('admin-complaint', TEXT.PAGE_ADMIN_COMPLAINT, { body: `<div id="admin-complaint-list"></div>` })}
+        ${page('about', TEXT.PAGE_ABOUT, { body: `<div id="about-content"></div>` })}
+      </main>
+    </div>
+    <div id="modal-container"></div>
+    <div id="toast-container"></div>
+  `;
+  // Shell-level direct listeners (no inline onclick)
+  const backdrop = document.getElementById('sidebar-backdrop');
+  if (backdrop) backdrop.addEventListener('click', () => { document.body.classList.remove('sidebar-open'); });
+  document.querySelectorAll('#view-client [data-action="shell.toggleSidebar"]').forEach(b =>
+    b.addEventListener('click', () => document.body.classList.toggle('sidebar-open')));
+  document.querySelectorAll('#view-client [data-action="shell.closeSidebar"]').forEach(b =>
+    b.addEventListener('click', () => document.body.classList.remove('sidebar-open')));
+  const brand = document.getElementById('navbar-brand');
+  if (brand) brand.addEventListener('click', goHome);
+  return app;
+}

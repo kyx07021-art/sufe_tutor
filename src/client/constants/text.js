@@ -1193,6 +1193,23 @@ export const TEXT = {
   "LIST_SEP": "、",
   "EMPTY_DASH": "—",
   "PRICE_FROM_SUFFIX": "起",
-  "PRICE_TO_PREFIX": "至"
+  "PRICE_TO_PREFIX": "至",
+  "APP_NAME": "经途·伴学信息门户",
+  "LANDING_SUBTITLE": "零佣金家教信息共享平台",
+  "LANDING_EYEBROW": "上海财经大学学生创立 · 运营至今",
+  "LANDING_TAGLINE": "找家教，零佣金更高效",
+  "LANDING_COPY": "由上海财经大学学生团队运营。平台不向老师抽佣，也不向学生收费：发布需求、浏览教师、站内沟通、正式签约都在这里完成，课费由双方自行结算。",
+  "LANDING_KICKER": "不抽佣 · 师生直接对接 · 信息透明",
+  "LANDING_NOTE": "教师不抽佣 · 学生免费 · 课费双方自行结算",
+  "LANDING_FOOTER": "© 2026 经途·伴学信息门户 · 由上财学生团队运营",
+  "ENTRY_STUDENT_TITLE": "我要找家教",
+  "ENTRY_STUDENT_DESC": "发布学习需求，浏览教师档案，匹配后直接沟通",
+  "ENTRY_TEACHER_TITLE": "我要做家教",
+  "ENTRY_TEACHER_DESC": "完善教师档案，浏览学生需求，确认意向后接单",
+  "SIDEBAR_TOGGLE_ARIA": "展开/收起侧边栏",
+  "SIDEBAR_NAV_ARIA": "主导航",
+  "SIDEBAR_CLOSE": "关闭菜单",
+  "BTN_NEW_DEMAND": "新建需求",
+  "FILTER_TOGGLE": "筛选"
 };
 export default TEXT;

@@ -5,9 +5,10 @@
 import { CONFIG, APP_VERSION } from '../../shared/config.js';
 import { TEXT } from '../constants/text.js';
 import { state, loadSeqs, savePageState, getLastPage } from './state.js';
-import { escHtml, renderAvatarHtml, loaderHtml } from './dom.js';
+import { escHtml, renderAvatarHtml, loaderHtml, mdRender } from './dom.js';
 import { roleLabel } from './display.js';
-import { closeAllModals } from './ui-modal.js';
+import { closeAllModals, openModal } from './ui-modal.js';
+import { notifBlockOn, isBroadcastNotif } from './notif-pref.js';
 import { initReveals } from './anim.js';
 import { applyTabBindings } from './ui.js';
 import { bindSegmentInputs, bindTimeSlotTree } from './ui-form.js';
@@ -126,13 +127,60 @@ export function renderSidebar() {
   if (invite) invite.classList.toggle('hidden', !isAdmin);
 }
 
+// Page-header "i" info button (v1 parity): selectPage injects it next to the active page
+// title; opens a standard modal with the module intro (TEXT.MODULE_INFO, md-rendered).
+function openModuleInfo(pageId) {
+  const cfg = pagesForRole().find(p => p.id === pageId);
+  const info = TEXT.MODULE_INFO && TEXT.MODULE_INFO[pageId];
+  if (!info) return;
+  openModal({ title: cfg ? cfg.label : '', cls: 'modal--wide', bodyCls: 'module-info-md', body: mdRender(info) });
+}
+function createModuleInfoBtn(pageId) {
+  const btn = document.createElement('span');
+  btn.className = 'page-header-info';
+  btn.setAttribute('role', 'button');
+  btn.setAttribute('tabindex', '0');
+  btn.setAttribute('aria-label', TEXT.MODULE_INFO_TIP);
+  btn.setAttribute('title', TEXT.MODULE_INFO_TIP);
+  btn.textContent = 'i';
+  btn.addEventListener('click', e => { e.stopPropagation(); openModuleInfo(pageId); });
+  btn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); openModuleInfo(pageId); } });
+  return btn;
+}
+function injectPageHeaderInfo(pageId) {
+  const old = document.querySelector('.page-header-info');
+  if (old) old.remove();
+  const hdr = document.querySelector('#client-main .client-page:not(.hidden) .page-header');
+  if (!hdr || pageId === 'my-chats') return; // chat draws its own title (chats-list-title)
+  const info = TEXT.MODULE_INFO && TEXT.MODULE_INFO[pageId];
+  if (!info) return;
+  const btn = createModuleInfoBtn(pageId);
+  // h2 + i must sit together on the left -- .page-header is space-between, so wrap h2
+  // in a .page-header-title group (idempotent: reuse an existing group).
+  const h2 = hdr.querySelector('h2');
+  if (h2) {
+    const p = h2.parentNode;
+    let group = p && p.classList && p.classList.contains('page-header-title') ? p : null;
+    if (!group) {
+      group = document.createElement('span');
+      group.className = 'page-header-title';
+      h2.parentNode.insertBefore(group, h2);
+      group.appendChild(h2);
+    }
+    group.appendChild(btn);
+  } else {
+    hdr.appendChild(btn);
+  }
+}
+
 export function selectPage(pageId) {
   const prevPage = state.page;
   closeAllModals();
   document.querySelectorAll('#client-main .client-page').forEach(s => s.classList.toggle('hidden', s.dataset.page !== pageId));
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b => b.classList.toggle('active', b.dataset.page === pageId));
   // leave hook: v1 parity — modules tear down page-local resources on switch
-  // (chat stops polling, aborts staged uploads, marks the open conversation read)
+  // (chat stops polling, aborts staged uploads, marks the open conversation read;
+  // notif batch-reads the notification page = seen-removed)
   const prev = pagesForRole().find(p => p.id === prevPage);
   if (prev && typeof prev.leave === 'function' && prevPage !== pageId) prev.leave();
   state.page = pageId;
@@ -141,6 +189,7 @@ export function selectPage(pageId) {
   if (cfg && cfg.auth !== false && authGuard) {
     if (!authGuard()) return;
   }
+  injectPageHeaderInfo(pageId);
   if (cfg && cfg.enter) cfg.enter();
   closeSidebar();
   const main = document.getElementById('client-main');
@@ -193,7 +242,7 @@ export async function refreshBadges() {
       dhGet('/api/notifications', { domain: 'notifications' }),
     ]);
     const chatUnread = (convData.conversations || []).reduce((s, c) => s + (c.unread_count || 0), 0);
-    const notifUnread = (notifData.notifications || []).filter(n => !n.is_read).length;
+    const notifUnread = (notifData.notifications || []).filter(n => !n.is_read && !(notifBlockOn() && isBroadcastNotif(n))).length;
     if (state.page !== 'my-chats') setBadge('my-chats', chatUnread);
     if (state.page !== 'notifications') setBadge('notifications', notifUnread);
     if (state.user.role === 'teacher') {

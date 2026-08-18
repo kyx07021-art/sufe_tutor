@@ -9,6 +9,7 @@ import { openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha,
 import { installFormBindings } from './core/ui-bindings.js';
 import { initReveals, installGlobalInteractions } from './core/anim.js';
 import { dhGet, dhBatchGet, dhInvalidateDomain, startVersionProbe } from './core/datahub.js';
+import { mountShell } from './core/shell.js';
 import { openCaptchaModal } from './core/captcha.js';
 import { matchDegree, matchDims, matchLevel, installBarWidthBindings } from './core/match.js';
 import { renderGlassLineChart } from './core/chart.js';
@@ -25,6 +26,7 @@ import teacherFeature from './features/teacher/index.js';
 import studentFeature from './features/student/index.js';
 import settingsFeature from './features/settings/index.js';
 import adminFeature from './features/admin/index.js';
+import notifFeature from './features/notif/index.js';
 import onboardFeature from './features/onboard/index.js';
 
 let booted = false;
@@ -37,9 +39,10 @@ export function boot() {
     installFormBindings();       // seg-input / time-slots dynamic bindings
     installBarWidthBindings();   // matchRowsHtml data-bar-w auto -> --bar-w
     bindUiScaleWheel();
-    [authFeature, regionFeature, postsFeature, complaintsFeature, contractFeature, chatFeature, teacherFeature, studentFeature, settingsFeature, adminFeature, onboardFeature].forEach(f => { if (f && typeof f.onLoad === 'function') f.onLoad(); });
+    mountShell(); // client frame + landing + per-page sections (static; features fill content on page enter)
+    [authFeature, regionFeature, postsFeature, complaintsFeature, contractFeature, chatFeature, teacherFeature, studentFeature, settingsFeature, adminFeature, notifFeature, onboardFeature].forEach(f => { if (f && typeof f.onLoad === 'function') f.onLoad(); });
     const saved = loadSession();
-    if (saved) { state.user = saved.user; state.authToken = saved.authToken; }
+    if (saved) { state.user = saved.user; state.authToken = saved.authToken; enterClient(); } // v1 parity: restored session enters the client, not the landing
   }
   return { state, api, apiBatch, apiUpload };
 }

@@ -10,7 +10,8 @@ import { openProfilePanel } from '../teacher/actions.js';
 
 const ACTION_MAP = {
   'student.openDemand': el => actions.openDemandCard(Number(el.dataset.id)),
-  'student.openModal': actions.openDemandModal,
+  'student.openModal': () => actions.openDemandModal(), // no-arg: always create-new (shell btn-new-demand)
+  'student.toggleFilters': () => actions.toggleDemandFilters(),
   'student.closeModal': actions.closeModalAction,
   'student.deleteDemand': el => actions.confirmDeleteDemand(Number(el.dataset.id)),
   'student.reopenDemand': el => actions.reopenDemand(Number(el.dataset.id)),

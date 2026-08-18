@@ -34,7 +34,9 @@ export function loadMyDemands() {
   el.innerHTML = '<div class="empty-state">loading</div>';
   return dhGet('/api/student/demands?scope=mine', { domain: 'demands' }).then(data => {
     state.myDemands = data.demands || [];
-    el.innerHTML = state.myDemands.map(renderDemandCard).join('') || `<div class="empty-state">${TEXT.EMPTY_NO_MY_DEMANDS}</div>`;
+    // v1 parity: owner cards render edit/reopen + intent toggle (editable:true). Was missing
+    // in the initial v2 port -- students could not manage their own demands.
+    el.innerHTML = state.myDemands.map(d => renderDemandCard(d, { editable: true })).join('') || `<div class="empty-state">${TEXT.EMPTY_NO_MY_DEMANDS}</div>`;
   }).catch(err => { el.innerHTML = `<div class="empty-state"><p>${escHtml(err.message)}</p></div>`; });
 }
 

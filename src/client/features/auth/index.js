@@ -6,6 +6,7 @@
 import { TEXT as SHARED_TEXT } from '../../constants/text.js';
 import { TEXT } from './text.js';
 import * as actions from './actions.js';
+import { handleFeatureClick } from './flow.js';
 import { loginViewHtml, registerViewHtml } from './render.js';
 import { state } from '../../core/state.js';
 import { setEnsureAuth } from '../../core/api.js';
@@ -17,6 +18,7 @@ const ACTION_MAP = {
   'auth.backLanding': () => showView('landing'),
   'auth.viewLogin': () => { showView('login'); actions.refreshAuthHeader(); },
   'auth.viewRegister': () => showView('register'),
+  'auth.enterGuest': (el) => handleFeatureClick(el.dataset.role), // landing entry: student/teacher guest preview
   'auth.toggleLoginMode': actions.toggleLoginMode,
   'auth.checkLoginUsername': actions.checkLoginUsernameDebounced,
   'auth.checkRegisterContact': actions.checkRegisterContact,
