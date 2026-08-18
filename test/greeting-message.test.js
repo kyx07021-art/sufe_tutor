@@ -12,8 +12,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { JSDOM } from 'jsdom';
-import { readFileSync } from 'node:fs';
-import vm from 'node:vm';
 import { initDb } from '../src/server/core/db.js';
 import { dbCreatePush, dbGetPendingPushesForTeacher, dbCreateIntent, dbGetIntentTeachers } from '../src/server/domains/demand/repo.js';
 import { handlePushDemand, handleCreateIntent } from '../src/server/domains/demand/api.js';
@@ -164,44 +162,41 @@ test('db 读取透传：dbGetPendingPushesForTeacher.push_message / dbGetIntentT
 });
 
 // ============================================================
-// 前端：渲染 + 浮窗（node:vm 模拟浏览器脚本全局）
+// 前端：渲染 + 浮窗（B4：直接 import student feature ESM）
 // ============================================================
-function makeCtx(html) {
-  const dom = new JSDOM(html || '<!DOCTYPE html><html><body><div id="modal-container"></div></body></html>', {
-    url: 'http://localhost/', pretendToBeVisual: true,
-  });
-  const w = dom.window;
-  return {
-    ctx: vm.createContext({
-      window: w, document: w.document,
-      getComputedStyle: w.getComputedStyle.bind(w),
-      localStorage: w.localStorage,
-      console, crypto: globalThis.crypto, fetch: globalThis.fetch, setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-      setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval, Request: globalThis.Request,
-      MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    }),
-    dom,
-  };
+import { renderDemandCard, renderIntentTeacherRow, _pushCooldownResetForTests } from '../src/client/features/student/render.js';
+import { openSendDemandModal, submitDemandPush, submitIntent, doSubmitIntent } from '../src/client/features/student/actions.js';
+import { state } from '../src/client/core/state.js';
+import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
+import { setEnsureAuth } from '../src/client/core/api.js';
+import { closeAllModals } from '../src/client/core/ui.js';
+
+const SHELL_HTML = '<!DOCTYPE html><html><body><div id="modal-container"></div></body></html>';
+
+function frontendSetup() {
+  const dom = new JSDOM(SHELL_HTML, { url: 'http://localhost/', pretendToBeVisual: true });
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  setEnsureAuth(() => true);
+  _dhResetForTests();
+  _pushCooldownResetForTests();
+  closeAllModals();
+  state.user = null; state.allTeachers = []; state.myDemands = []; state.browseDemands = [];
+  return dom;
 }
-function loadAppScripts(ctx) {
-  for (const f of ['constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-    'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-demands.js']) {
-    vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
-  }
-}
-function stubBasics(ctx) {
-  vm.runInContext(`
-    setBadge = () => {};
-    initReveals = () => {};
-    ensureAuth = () => true;
-    showToast = () => {};
-    invalidate = () => {};
-  `, ctx);
+function frontendTeardown() {
+  stopVersionProbe();
+  closeAllModals();
+  setEnsureAuth(null);
+  delete globalThis.fetch;
+  delete globalThis.document; delete globalThis.window;
+  delete globalThis.localStorage; delete globalThis.sessionStorage;
+  state.user = null; state.allTeachers = []; state.myDemands = []; state.browseDemands = [];
 }
 
 test('教师置顶推送卡：学生打招呼消息以引用块完整渲染（无省略号）', () => {
-  const { ctx } = makeCtx();
-  loadAppScripts(ctx);
   const pushDemand = {
     id: 3, user_id: 39, username: '学生A', display_id: 7, avatar: '',
     student_grade: 'senior1', student_gender: 'female', target_type: 'academic',
@@ -211,7 +206,7 @@ test('教师置顶推送卡：学生打招呼消息以引用块完整渲染（�
     push_id: 9, push_created_at: '2026-08-08 05:00:00', push_status: 'pending',
     push_message: '老师您好，孩子初二数学偏弱，看到您带过三届中考班，想请您试试。',
   };
-  const html = vm.runInContext(`renderDemandCard(${JSON.stringify(pushDemand)}, { push: ${JSON.stringify({ push_id: 9, push_created_at: '2026-08-08 05:00:00', push_status: 'pending', push_message: pushDemand.push_message })}, teacher: true, myTeacher: null })`, ctx);
+  const html = renderDemandCard(pushDemand, { push: { push_id: 9, push_created_at: '2026-08-08 05:00:00', push_status: 'pending', push_message: pushDemand.push_message }, teacher: true, myTeacher: null });
   assert.ok(html.includes('greet-bubble'), '渲染引用块');
   assert.ok(html.includes('学生留言'), '头标 GREET_HEAD_STUDENT');
   assert.ok(html.includes('老师您好，孩子初二数学偏弱，看到您带过三届中考班，想请您试试。'), '消息全文渲染（无省略号）');
@@ -219,13 +214,11 @@ test('教师置顶推送卡：学生打招呼消息以引用块完整渲染（�
 });
 
 test('学生意向卡：教师打招呼消息渲染在 meta 下方（卡片随内容增高）', () => {
-  const { ctx } = makeCtx();
-  loadAppScripts(ctx);
   const t = {
     user_id: 38, username: 'kkkk', rating: 4, province: 'shanghai', price_min: 150, price_max: 150,
     intent_id: 11, intent_status: 'pending', intent_message: '我教初中数学五年，带过三届中考班，对您孩子的分数情况很有把握。',
   };
-  const html = vm.runInContext(`renderIntentTeacherRow(${JSON.stringify(t)}, 3)`, ctx);
+  const html = renderIntentTeacherRow(t, 3);
   assert.ok(html.includes('greet-bubble'), '渲染引用块');
   assert.ok(html.includes('教师留言'), '头标 GREET_HEAD_TEACHER');
   assert.ok(html.includes('我教初中数学五年，带过三届中考班，对您孩子的分数情况很有把握。'), '消息全文渲染');
@@ -234,66 +227,74 @@ test('学生意向卡：教师打招呼消息渲染在 meta 下方（卡片随�
 });
 
 test('推送浮窗：含打招呼 textarea（maxlength 同源）+ 提交携带 message', async () => {
-  const { ctx, dom } = makeCtx('<div id="modal-container"></div>');
-  loadAppScripts(ctx);
-  stubBasics(ctx);
-  vm.runInContext(`
-    dhGet = async () => ({ demands: [{
+  frontendSetup();
+  const calls = [];
+  globalThis.fetch = async (url, config = {}) => {
+    const u = String(url);
+    if (u.includes('/api/demand-pushes')) {
+      calls.push({ url: u, opts: { method: config.method, body: config.body ? JSON.parse(config.body) : {} } });
+      return { ok: true, status: 200, json: async () => ({ message: 'ok' }) };
+    }
+    if (u.includes('demands')) return { ok: true, status: 200, json: async () => ({ demands: [{
       id: 1, user_id: 39, username: '学生A', student_grade: 'senior1', student_gender: 'female',
       target_subjects: ['math'], current_scores: [], teaching_method: 'offline', address: '杨浦区',
-      province: 'shanghai', budget_min: 0, budget_max: 0, status: 'open', display_id: 7 }] });
-    api = async (url, opts) => { globalThis.__apiCalls = (globalThis.__apiCalls || []).concat([{ url, opts }]); return { message: 'ok' }; };
-    state.user = { id: 40, username: '学生A', role: 'student' };
-    state.allTeachers = [{ user_id: 38, username: 'kkkk' }];
-    state.myDemands = [];
-  `, ctx);
+      province: 'shanghai', budget_min: 0, budget_max: 0, status: 'open', display_id: 7 }] }) };
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  state.user = { id: 40, username: '学生A', role: 'student' };
+  state.allTeachers = [{ user_id: 38, username: 'kkkk' }];
+  state.myDemands = [];
 
-  await vm.runInContext('openSendDemandModal(38)', ctx);
-  const modalBody = dom.window.document.querySelector('#modal-container .modal-body').innerHTML;
+  await openSendDemandModal(38);
+  const modalBody = document.querySelector('#modal-container .modal-body').innerHTML;
   assert.ok(modalBody.includes('push-greet'), '含打招呼 textarea');
   assert.ok(modalBody.includes('maxlength="300"'), 'maxlength 与服务端 GREETING_MSG_MAX 同源');
   assert.ok(modalBody.includes('和老师打个招呼'), '提示语');
 
   // 先选需求再填消息提交 → api body 携带 message
-  vm.runInContext(`document.querySelector('input[name="push-demand"]').checked = true;
-    document.getElementById('push-greet').value = ' 老师您好，想请您辅导孩子  '; submitDemandPush(38)`, ctx);
-  await new Promise(r => setTimeout(r, 10));
-  const calls = vm.runInContext('globalThis.__apiCalls', ctx);
+  document.querySelector('input[name="push-demand"]').checked = true;
+  document.getElementById('push-greet').value = ' 老师您好，想请您辅导孩子  ';
+  await submitDemandPush(38);
   assert.equal(calls.length, 1, '提交一次');
   assert.equal(calls[0].url, '/api/demand-pushes');
   assert.equal(calls[0].opts.body.message, '老师您好，想请您辅导孩子', 'message trim 后随提交');
+  frontendTeardown();
 });
 
 test('意向浮窗：打招呼 textarea + 提交携带 message；缺省可直提', async () => {
-  const { ctx, dom } = makeCtx('<div id="modal-container"></div>');
-  loadAppScripts(ctx);
-  stubBasics(ctx);
-  vm.runInContext(`
-    api = async (url, opts) => { globalThis.__apiCalls = (globalThis.__apiCalls || []).concat([{ url, opts }]); return { message: 'ok' }; };
-    state.user = { id: 38, username: 'kkkk', role: 'teacher' };
-    _browseDemands = [{ id: 5, user_id: 39, username: '学生A', display_id: 8, target_subjects: ['math'], target_type: 'academic' }];
-  `, ctx);
+  frontendSetup();
+  const calls = [];
+  globalThis.fetch = async (url, config = {}) => {
+    const u = String(url);
+    if (u.includes('/api/demands/5/intents')) {
+      calls.push({ url: u, opts: { method: config.method, body: config.body ? JSON.parse(config.body) : {} } });
+      return { ok: true, status: 200, json: async () => ({ message: 'ok' }) };
+    }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  state.user = { id: 38, username: 'kkkk', role: 'teacher' };
+  state.browseDemands = [{ id: 5, user_id: 39, username: '学生A', display_id: 8, target_subjects: ['math'], target_type: 'academic' }];
 
-  await vm.runInContext('submitIntent(5)', ctx);
-  const modalBody = dom.window.document.querySelector('#modal-container .modal-body').innerHTML;
+  await submitIntent(5);
+  const modalBody = document.querySelector('#modal-container .modal-body').innerHTML;
   assert.ok(modalBody.includes('intent-greet-5'), '含打招呼 textarea');
   assert.ok(modalBody.includes('maxlength="300"'), 'maxlength 同源');
   assert.ok(modalBody.includes('提交试课意向'), '标题由确认改为打招呼');
 
   // 填消息提交 → api body 携带 message
-  vm.runInContext(`document.getElementById('intent-greet-5').value = ' 我教初中数学五年，想试试  '; doSubmitIntent(5)`, ctx);
-  await new Promise(r => setTimeout(r, 10));
-  let calls = vm.runInContext('globalThis.__apiCalls', ctx);
+  document.getElementById('intent-greet-5').value = ' 我教初中数学五年，想试试  ';
+  await doSubmitIntent(5);
+  assert.ok(calls.length >= 1, '提交一次');
   assert.equal(calls[0].url, '/api/demands/5/intents');
   assert.equal(calls[0].opts.body.message, '我教初中数学五年，想试试', 'message trim 后随提交');
 
   // 缺省消息 → message 空串（可直接提交；重开浮窗清空再提，走真实 textarea 空值路径）
-  await vm.runInContext('submitIntent(5)', ctx);
-  vm.runInContext(`document.getElementById('intent-greet-5').value = ''; doSubmitIntent(5)`, ctx);
-  await new Promise(r => setTimeout(r, 10));
-  calls = vm.runInContext('globalThis.__apiCalls', ctx);
+  await submitIntent(5);
+  document.getElementById('intent-greet-5').value = '';
+  await doSubmitIntent(5);
   assert.equal(calls.length, 2, '第二次提交');
   assert.equal(calls[1].opts.body.message, '', '缺省 message 空串');
+  frontendTeardown();
 });
 
 // v1.4.13 审计发现（R2-T13）：dbFindUserById 曾只 SELECT id,role，调用点读 banned/deactivated 恒 undefined

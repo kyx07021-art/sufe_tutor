@@ -6,7 +6,7 @@ import { CONFIG } from '../../../shared/config.js';
 import { STATUS } from '../../../shared/enums.js';
 import { escHtml, fmtDateTime } from '../../core/dom.js';
 import { state } from '../../core/state.js';
-import { methodName, contractStatusMeta, demandIdText, demandOptionText, demandTargetNames, expectedTimeText, diffLines } from '../../core/display.js';
+import { methodName, contractStatusMeta, demandIdText, demandOptionText, demandTargetNames, expectedTimeText, diffLines, deactivatedTag } from '../../core/display.js';
 import { mdRender } from '../../core/dom.js';
 import { TEXT } from './text.js';
 
@@ -58,7 +58,7 @@ export function renderContractCard(c) {
   }
   return `<div class="list-card glass">
     <div class="list-card-header">
-      <span class="list-card-title">${escHtml(peerName)}</span>
+      <span class="list-card-title">${escHtml(peerName)}${deactivatedTag(peerName)}</span>
       <span class="tag glass glass--solid ${statusCls}">${statusText}</span>
     </div>
     <div class="list-card-body">

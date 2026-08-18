@@ -20,9 +20,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { JSDOM } from 'jsdom';
-import vm from 'node:vm';
 import { initDb } from '../src/server/core/db.js';
+import { isDeactivated, deactivatedTag } from '../src/client/core/display.js';
+import { renderDemandCard } from '../src/client/features/student/render.js';
+import { renderPostCard } from '../src/client/features/posts/render.js';
 import { dbGetDemands } from '../src/server/domains/demand/repo.js';
 import { dbListPosts } from '../src/server/domains/posts/repo.js';
 import { dbDeactivateUser, dbPurgeUserOwnedData } from '../src/server/domains/auth/repo.js';
@@ -215,78 +216,38 @@ test('handleDeactivateAccount 端到端：注销后合同正文逐字不变（�
 });
 
 // ============================================================
-// 前端：DISP 助手 + 七个渲染点 tag 注入 + CSS
+// 前端：display 助手 + 七个渲染点 tag 注入 + CSS（B4：直接 import ESM）
 // ============================================================
 
-const FILES = [
-  'constants.js', 'region-data.js', 'app-display.js', 'app-state.js', 'app-api.js',
-  'app-datahub.js', 'app-anim.js', 'app-ui.js', 'app-otp.js', 'app-captcha.js', 'app-onboard.js', 'app-region.js',
-  'app-posts.js', 'app-chat.js', 'app-contracts.js', 'app-chart.js', 'app-admin.js',
-  'app-demands.js', 'app-teachers.js', 'app-style.js', 'app-pages.js', 'app-shell.js', 'app-auth.js',
-];
-
-function makeCtx() {
-  const html = readFileSync('./index.html', 'utf8')
-    .replace(/<script src="\/app-[a-z-]+\.js"><\/script>/g, '');
-  const dom = new JSDOM(html, { url: 'http://localhost/', pretendToBeVisual: true, runScripts: 'dangerously' });
-  const w = dom.window;
-  w.HTMLCanvasElement.prototype.getContext = function () { // jsdom 无 canvas：patch 链式 2d 替身（app-captcha 进 boot FILES 后 vm 测试走到 canvas 路径）
-    const mk = () => new Proxy(() => {}, { get: (t, k) => (k === 'canvas' ? {} : mk()), apply: () => mk() });
-    return mk();
-  };
-  const ctx = vm.createContext({
-    window: w, document: w.document,
-    getComputedStyle: w.getComputedStyle.bind(w),
-    localStorage: w.localStorage, sessionStorage: w.sessionStorage,
-    console: { log() {}, warn() {}, error() {} },
-    fetch: async (url) => ({ ok: true, status: 200, json: async () => ({}) }),
-    setTimeout: globalThis.setTimeout, clearTimeout: globalThis.clearTimeout,
-    setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
-    Request: globalThis.Request, AbortController: globalThis.AbortController,
-    performance: globalThis.performance,
-    MutationObserver: class { observe() {} disconnect() {} takeRecords() { return []; } },
-    Image: class { set src(v) { this._s = v; } },
-    requestAnimationFrame: (cb) => setTimeout(cb, 16), cancelAnimationFrame: () => {},
-    matchMedia: () => ({ matches: false, addEventListener: () => {} }),
-  });
-  for (const f of FILES) vm.runInContext(readFileSync('./' + f, 'utf8'), ctx, { filename: f });
-  vm.runInContext(`if (typeof openCaptchaModal === 'function') { const _ocm = openCaptchaModal; openCaptchaModal = (o) => { if (o && o.onPass) o.onPass(); }; }`, ctx); // vm 测试直通拼图（生产走真验证）
-  vm.runInContext('window.APP_CONSTANTS = globalThis.APP_CONSTANTS;', ctx);
-  return { dom, ctx };
-}
-
-test('前端：DISP.isDeactivated / deactivatedTag 识别墓碑并渲染「一方已注销」tag', () => {
-  const { ctx } = makeCtx();
-  const tomb = vm.runInContext(`'${'已注销用户#7'}'`, ctx);
-  assert.equal(vm.runInContext('DISP.isDeactivated(' + JSON.stringify(tomb) + ')', ctx), true, '墓碑前缀命中');
-  assert.equal(vm.runInContext('DISP.isDeactivated("teacher_li")', ctx), false, '正常用户名不命中');
-  const tag = vm.runInContext('DISP.deactivatedTag(' + JSON.stringify(tomb) + ')', ctx);
+test('前端：isDeactivated / deactivatedTag 识别墓碑并渲染「一方已注销」tag', () => {
+  const tomb = '已注销用户#7';
+  assert.equal(isDeactivated(tomb), true, '墓碑前缀命中');
+  assert.equal(isDeactivated('teacher_li'), false, '正常用户名不命中');
+  const tag = deactivatedTag(tomb);
   assert.ok(tag.includes('tag-deactivated'), '渲染 tag 类');
-  assert.ok(tag.includes('一方已注销'), '文案单源 constants.UI.PEER_DEACTIVATED_TAG');
-  assert.equal(vm.runInContext('DISP.deactivatedTag("teacher_li")', ctx), '', '正常用户名无 tag');
+  assert.ok(tag.includes('一方已注销'), '文案单源 PEER_DEACTIVATED_TAG');
+  assert.equal(deactivatedTag('teacher_li'), '', '正常用户名无 tag');
 });
 
 test('前端：需求卡/帖子卡对端已注销时追加「一方已注销」tag', () => {
-  const { ctx } = makeCtx();
   const tomb = '已注销用户#7';
-  vm.runInContext(`state.user = { id: 1, role: 'student', username: 'me' };`, ctx);
-  const demandHtml = vm.runInContext(`renderDemandCard({
-      id: 3, user_id: 7, username: ${JSON.stringify(tomb)}, student_grade: 'senior1',
-      target_type: 'academic', target_subjects: ['math'], status: 'open', province: 'zhejiang',
-      teaching_method: 'offline', budget_min: 100, budget_max: 200,
-    }, {})`, ctx);
+  const demandHtml = renderDemandCard({
+    id: 3, user_id: 7, username: tomb, student_grade: 'senior1',
+    target_type: 'academic', target_subjects: ['math'], status: 'open', province: 'zhejiang',
+    teaching_method: 'offline', budget_min: 100, budget_max: 200,
+  }, {});
   assert.ok(demandHtml.includes('tag-deactivated'), '需求卡渲染一方已注销 tag');
   assert.ok(demandHtml.includes('一方已注销'), '需求卡 tag 文案');
-  const postHtml = vm.runInContext(`renderPostCard({
-      id: 5, user_id: 7, username: ${JSON.stringify(tomb)}, title: '题', body_md: '内容', like_count: 0,
-    }, 0)`, ctx);
+  const postHtml = renderPostCard({
+    id: 5, user_id: 7, username: tomb, title: '题', body_md: '内容', like_count: 0,
+  }, 0);
   assert.ok(postHtml.includes('tag-deactivated'), '帖子卡渲染一方已注销 tag');
   assert.ok(postHtml.includes('一方已注销'), '帖子卡 tag 文案');
   // 正常用户名不误伤
-  const normalDemand = vm.runInContext(`renderDemandCard({
-      id: 4, user_id: 8, username: 'teacher_li', student_grade: 'senior1',
-      target_type: 'academic', target_subjects: ['math'], status: 'open',
-    }, {})`, ctx);
+  const normalDemand = renderDemandCard({
+    id: 4, user_id: 8, username: 'teacher_li', student_grade: 'senior1',
+    target_type: 'academic', target_subjects: ['math'], status: 'open',
+  }, {});
   assert.ok(!normalDemand.includes('tag-deactivated'), '正常用户名需求卡无 tag');
 });
 
@@ -297,17 +258,17 @@ test('前端：CSS 提供 .tag-deactivated 中性弱玻璃面（注销是状态�
   assert.ok(rule.split('}')[0].includes('var(--muted)'), '灰字（弱语义，不惊扰）');
 });
 
-// 七个渲染点全部接入 DISP.deactivatedTag（防漏抄；漏一处即失败）
+// 七个渲染点全部接入 deactivatedTag（防漏抄；漏一处即失败）
 test('七个对端姓名渲染点全部接入一方已注销 tag', () => {
-  const chat = readFileSync('./app-chat.js', 'utf8');
-  const contracts = readFileSync('./app-contracts.js', 'utf8');
-  const demands = readFileSync('./app-demands.js', 'utf8');
-  const posts = readFileSync('./app-posts.js', 'utf8');
-  const teachers = readFileSync('./app-teachers.js', 'utf8');
-  assert.ok((chat.match(/DISP\.deactivatedTag\(peer\.name\)/g) || []).length >= 2, '会话左栏项 + 聊天窗头部两处');
-  assert.ok(contracts.includes('DISP.deactivatedTag(peerName)'), '合同卡');
-  assert.ok(demands.includes('DISP.deactivatedTag(d.username)'), '需求卡');
-  assert.ok(posts.includes('DISP.deactivatedTag(p.username)'), '帖子卡');
-  assert.ok(teachers.includes('DISP.deactivatedTag(base.username)'), '资料面板');
-  assert.ok(teachers.includes('DISP.deactivatedTag(r.reviewer_name)'), '评价卡');
+  const chat = readFileSync('./src/client/features/chat/render.js', 'utf8');
+  const contracts = readFileSync('./src/client/features/contract/render.js', 'utf8');
+  const demands = readFileSync('./src/client/features/student/render.js', 'utf8');
+  const posts = readFileSync('./src/client/features/posts/render.js', 'utf8');
+  const teachers = readFileSync('./src/client/features/teacher/render.js', 'utf8');
+  assert.ok((chat.match(/deactivatedTag\(peer\.name\)/g) || []).length >= 2, '会话左栏项 + 聊天窗头部两处');
+  assert.ok(contracts.includes('deactivatedTag(peerName)'), '合同卡');
+  assert.ok(demands.includes('deactivatedTag(d.username)'), '需求卡');
+  assert.ok(posts.includes('deactivatedTag(p.username)'), '帖子卡');
+  assert.ok(teachers.includes('deactivatedTag(p.username)'), '资料面板');
+  assert.ok(teachers.includes('deactivatedTag(r.reviewer_name)'), '评价卡');
 });

@@ -1,9 +1,12 @@
 /**
  * student/demand feature registry: my-demands + browse-demands pages.
+ * data-action/change delegation + match-detail close listeners (v1 parity).
  */
 import { TEXT } from './text.js';
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
+import { goChatWithStudent } from '../chat/actions-list.js';
+import { openProfilePanel } from '../teacher/actions.js';
 
 const ACTION_MAP = {
   'student.openDemand': el => actions.openDemandCard(Number(el.dataset.id)),
@@ -12,9 +15,18 @@ const ACTION_MAP = {
   'student.closeModal': actions.closeModalAction,
   'student.deleteDemand': el => actions.confirmDeleteDemand(Number(el.dataset.id)),
   'student.reopenDemand': el => actions.reopenDemand(Number(el.dataset.id)),
-  'student.push': el => actions.submitDemandPush(Number(el.dataset.id)),
-  'student.acceptIntent': el => actions.resolveIntent(Number(el.dataset.demand), Number(el.dataset.teacher)),
+  'student.editDemand': el => actions.renderDemandModal(Number(el.dataset.id)),
+  'student.push': el => actions.submitDemandPush(Number(el.dataset.teacher)),
+  'student.openSendModal': el => actions.openSendDemandModal(Number(el.dataset.id)),
+  'student.doSubmitIntent': el => actions.doSubmitIntent(Number(el.dataset.id)),
   'student.submitIntent': el => actions.submitIntent(Number(el.dataset.id)),
+  'student.acceptIntent': el => actions.resolveIntent(Number(el.dataset.demand), Number(el.dataset.teacher)),
+  'student.rejectIntent': el => actions.rejectIntent(Number(el.dataset.demand), Number(el.dataset.teacher)),
+  'student.resolvePush': el => actions.resolvePush(Number(el.dataset.id), el.dataset.result === 'accept'),
+  'student.toggleIntents': el => actions.toggleDemandIntents(Number(el.dataset.id)),
+  'student.matchDetail': el => actions.showMatchDetail(Number(el.dataset.id)),
+  'student.viewProfile': el => openProfilePanel(Number(el.dataset.id)),
+  'student.goChat': el => goChatWithStudent(Number(el.dataset.id)),
 };
 
 let installed = false;
@@ -29,14 +41,25 @@ function onActionClick(e) {
   fn(el, e);
 }
 
+function onChange(e) {
+  const el = e.target;
+  if (!el || !el.dataset) return;
+  if (el.dataset.change === 'student.provinceChange') actions.onDemandProvinceChange();
+  else if (el.dataset.change === 'student.updateDemand') actions.updateDemandSubjects();
+}
+
 function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
   installed = true;
   registerPage({ id: 'my-demands', roles: ['student'], label: TEXT.PAGE_MY_DEMANDS, desc: TEXT.PAGE_MY_DEMANDS_DESC, auth: true, enter: () => actions.loadMyDemands() });
   registerPage({ id: 'browse-demands', roles: ['teacher'], label: TEXT.PAGE_BROWSE_DEMANDS, desc: TEXT.PAGE_BROWSE_DEMANDS_DESC, auth: false, enter: () => actions.loadBrowseDemands() });
   document.addEventListener('click', onActionClick);
+  document.addEventListener('change', onChange);
+  const uninstallMatchClose = actions.installMatchDetailClose();
   return () => {
     document.removeEventListener('click', onActionClick);
+    document.removeEventListener('change', onChange);
+    uninstallMatchClose();
     installed = false;
   };
 }

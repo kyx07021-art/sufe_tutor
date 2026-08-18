@@ -2,12 +2,12 @@
  * teacher feature renderers: cards, profile panel, reviews, match detail.
  * No inline handlers or inline style attributes.
  */
-import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from './text.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
-import { subjectNames, genderName, teacherGradeName, methodName, priceRangeText, ratingText, starsHtml, reviewStatusTagHtml, demandOptionText } from '../../core/display.js';
-import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
+import { subjectNames, genderName, teacherGradeName, methodName, priceRangeText, ratingText, starsHtml, reviewStatusTagHtml, demandOptionText, usernameHtml, deactivatedTag } from '../../core/display.js';
+import { matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
+import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student push button on teacher card
 
 let _studentOpenDemand = false;
 export function setStudentOpenDemand(v) { _studentOpenDemand = !!v; }
@@ -36,7 +36,7 @@ export function renderTeacherCard(t, i) {
     <div class="tc-bottom">
       <div class="tc-bottom-left">${t.intro ? `<div class="tc-intro">${escHtml(t.intro)}</div>` : ''}</div>
       <div class="tc-bottom-right">
-        <div class="tc-actions">${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}</div>
+        <div class="tc-actions">${matchBtn ? `<span class="tc-match">${matchBtn}</span>` : ''}${isStudent ? renderPushBtn(t) : ''}</div>
       </div>
     </div>
   </div>`;
@@ -58,7 +58,7 @@ export function renderProfilePanel(p, matched) {
     ]},
   ];
   let html = `<div class="profile-panel">
-    <div class="profile-header"><span class="profile-name">${escHtml(p.real_name || p.username)}</span></div>`;
+    <div class="profile-header"><span class="profile-name">${escHtml(p.real_name || p.username)}${deactivatedTag(p.username)}</span></div>`;
   for (const g of groups) {
     html += `<div class="profile-group"><p class="profile-group-title">${escHtml(g.title)}</p>`;
     for (const [k,v] of g.rows) {
@@ -75,7 +75,7 @@ export function renderProfilePanel(p, matched) {
 export function renderProfileReviewsCard(r) {
   return `<div class="list-card glass review-card">
     <div class="list-card-header">
-      <span class="list-card-title">${starsHtml(r.rating)} ${ratingText(r.rating)}</span>
+      <span class="review-author">${usernameHtml(r.reviewer_name || '')}${deactivatedTag(r.reviewer_name)} ${starsHtml(r.rating)} ${ratingText(r.rating)}</span>
       <span class="tag glass glass--solid ${reviewStatusTagHtml(r.status).cls}">${reviewStatusTagHtml(r.status).text}</span>
     </div>
     ${r.comment ? `<div class="list-card-detail">${escHtml(r.comment)}</div>` : ''}

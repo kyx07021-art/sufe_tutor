@@ -14,7 +14,7 @@ import {
 
 export { openModal, closeModal, closeAllModals, confirm, openPolicyModal, openImageViewer, runPendingConfirm, runReAuth, withCaptcha, openCaptchaModal, showToast };
 
-const CARET_SVG = '<svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>';
+export const CARET_SVG = '<svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>';
 
 export function initCustomSelects(root) {
   (root || document).querySelectorAll('select.form-select, select.filter-select, select.time-pick-select').forEach(sel => {
