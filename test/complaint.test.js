@@ -15,9 +15,7 @@ import { handleCreateFeedback, handleMyFeedbacks, handleResolveFeedback } from '
 import { handleCreateComplaint, handleMyComplaints, handleComplaintAttachment } from '../src/server/domains/complaints/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { LIMITS } from '../server/constants.js';
-import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
-import vm from 'node:vm';
 import { state } from '../src/client/core/state.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
@@ -32,12 +30,6 @@ import {
   closeComplaintModal, submitComplaint, renderComplaintStage, _cpStagedForTest, _cpStagedSnapshotForTest, _cpResetForTests,
 } from '../src/client/features/complaints/actions.js';
 import { TEXT as TEXT_CP } from '../src/client/features/complaints/text.js';
-
-// 服务端通知文案断言（handleResolveFeedback 回执）仍走根 constants.js UI 块——V-2-4 通知 {type,params}
-// 结构化未完成前，服务端通知文案源未迁移。
-const ROOT_AC = {};
-vm.runInNewContext(readFileSync('./constants.js', 'utf8'), ROOT_AC, { filename: 'constants.js' });
-const ROOT_UI = ROOT_AC.APP_CONSTANTS.UI;
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
@@ -145,11 +137,11 @@ test('标记处理：投诉回执专属文案；Bug/建议通用文案；幂等'
   await dbCreateFeedback(db, stu, 'suggestion', '建议', '内容');
   const complaintId = (await dbGetFeedbackById(db, 1)).id; // dbGetFeedbackById 是 async，须 await 取 id
   await handleResolveFeedback(db, complaintId, {}, reqOf(adminToken));
-  let n = raw.prepare('SELECT text FROM notifications ORDER BY id DESC LIMIT 1').get();
-  assert.equal(n.text, ROOT_UI.FEEDBACK_COMPLAINT_RESOLVED, '投诉回执用专属文案');
+  let n = raw.prepare('SELECT type FROM notifications ORDER BY id DESC LIMIT 1').get();
+  assert.equal(n.type, 'FEEDBACK_COMPLAINT_RESOLVED', '投诉回执用专属类型');
   await handleResolveFeedback(db, 2, {}, reqOf(adminToken));
-  n = raw.prepare('SELECT text FROM notifications ORDER BY id DESC LIMIT 1').get();
-  assert.equal(n.text, ROOT_UI.FEEDBACK_RESOLVED, '建议回执用通用文案');
+  n = raw.prepare('SELECT type FROM notifications ORDER BY id DESC LIMIT 1').get();
+  assert.equal(n.type, 'FEEDBACK_RESOLVED', '建议回执用通用类型');
   const before = raw.prepare('SELECT COUNT(*) c FROM notifications').get().c;
   await handleResolveFeedback(db, complaintId, {}, reqOf(adminToken)); // 已处理再点 → 不再发通知
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications').get().c, before, '幂等：已处理不重复通知');

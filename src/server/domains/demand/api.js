@@ -6,7 +6,7 @@
  */
 import { json, errorMsg, sanitizeTimeSlots, isUniqueConflict } from '../../core/util.js';
 import { authUser, requireUser } from '../../core/security.js';
-import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
+import { MSG } from '../../../shared/codes.js';
 import { STATUS, STUDENT_GRADES, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, SUBJECTS } from '../../../shared/enums.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
 import { auditFreeText } from '../../core/text-audit.js';
@@ -22,26 +22,12 @@ import { logEvent } from '../../core/log.js';
 import { notifyUser } from '../../core/notify.js';
 import { acceptEligibility } from '../teacher/api.js'; // v1.2.0 T3：接单资格统一判定（chsi 核验 + 必填齐全）
 
-const UIC = SERVER_TEXT; // 接受/拒绝通知文案（codes.js SERVER_TEXT 过渡单源）
-
-// 委婉通知文案：拒绝/退回时给对方一个体面的交代（科目名经 region-data 解码；
-// R2-b 非学科需求显示 NONACADEMIC_PROJECTS 项目名，未知 id 回退通用文案）
-function demandSubjectsText(d) {
-  const R = globalThis.SUFE_REGIONS;
-  const UI = SERVER_TEXT;
-  const AC = { DEMAND_TYPES, NONACADEMIC_PROJECTS, SUBJECTS };
-  const ids = Array.isArray(d && d.target_subjects) ? d.target_subjects : [];
-  const names = ids.map(id => {
-    if (d && d.target_type === DEMAND_TYPES.NONACADEMIC) {
-      const p = (AC.NONACADEMIC_PROJECTS || []).find(x => x.id === id);
-      return p ? p.name : '';
-    }
-    return R.subjectNames[id] || '';
-  }).filter(Boolean).join('、');
-  return names || UI.NOTIFY_SUBJECTS_FALLBACK;
-}
-const pushRejectNote = d => SERVER_TEXT.NOTIFY_PUSH_REJECT.replace('{subjects}', demandSubjectsText(d));
-const intentRejectNote = d => SERVER_TEXT.NOTIFY_INTENT_REJECT.replace('{subjects}', demandSubjectsText(d));
+// V-2-4 结构化通知：拒绝/退回通知携带原始科目 id + 需求类型（target_type），
+// 科目名渲染移交客户端（SUFE_REGIONS + NONACADEMIC_PROJECTS 单源），服务端零文案。
+const rejectNotifParams = d => ({
+  subjects: Array.isArray(d && d.target_subjects) ? d.target_subjects : [],
+  target_type: (d && d.target_type) || DEMAND_TYPES.ACADEMIC,
+});
 
 // 需求输入硬化：预算钳到 [0, LIMITS.BUDGET_MAX] 且 max>=min；授课方式白名单（address 已改结构化
 // 「区·镇/街道」校验，不再自由文本门牌守卫——见 handleCreateDemand 内 isValidShanghaiAddr 分支）
@@ -342,10 +328,10 @@ export async function handleResolveIntent(db, intentId, body, req) {
   let conversationId = null;
   if (action === 'accept') {
     conversationId = await dbUpsertConversation(db, userId, intent.teacher_user_id, intent.demand_id);
-    await notifyUser(db, intent.teacher_user_id, UIC.INTENT_ACCEPTED_NOTIFY);
+    await notifyUser(db, intent.teacher_user_id, 'INTENT_ACCEPTED', {});
   } else {
     const d = await dbGetDemandById(db, intent.demand_id);
-    await notifyUser(db, intent.teacher_user_id, intentRejectNote(d));
+    await notifyUser(db, intent.teacher_user_id, 'INTENT_REJECTED', rejectNotifParams(d));
   }
   await logEvent(db, { action: `intent.${action}`, actorUserId: userId, actorRole: 'student',
     entity: 'intent', entityId: intentId,
@@ -418,11 +404,11 @@ export async function handleResolvePush(db, pushId, body, req) {
     if (!(await dbResolvePush(db, pushId, STATUS.ACCEPTED))) return errorMsg('INTENT_ALREADY_RESOLVED', 409);
     await dbAcceptPushAsIntent(db, push.demand_id, userId);
     await dbUpsertConversation(db, push.student_user_id, userId, push.demand_id);
-    await notifyUser(db, push.student_user_id, UIC.PUSH_ACCEPTED_NOTIFY);
+    await notifyUser(db, push.student_user_id, 'PUSH_ACCEPTED', {});
   } else {
     if (!(await dbResolvePush(db, pushId, STATUS.REJECTED))) return errorMsg('INTENT_ALREADY_RESOLVED', 409);
     const d = await dbGetDemandById(db, push.demand_id);
-    await notifyUser(db, push.student_user_id, pushRejectNote(d));
+    await notifyUser(db, push.student_user_id, 'PUSH_REJECTED', rejectNotifParams(d));
   }
   await logEvent(db, { action: `demand_push.${action}`, actorUserId: userId, actorRole: 'teacher',
     entity: 'demand_push', entityId: pushId,

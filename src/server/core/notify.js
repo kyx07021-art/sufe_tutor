@@ -3,9 +3,10 @@
  *
  * 设计：本模块自持建表 + 推送咽喉 + 数据层 + 路由 handler，外部只通过
  *   initNotifyTable(db)  建表（由 db.js 的 initDb 调一次）
- *   notifyUser(db, userId, text)  推送一条（咽喉：吞错不影响业务，截断 200 字）
+ *   notifyUser(db, userId, type, params)  推送一条结构化通知（V-2-4：type=NOTIFY_TYPES
+ *     键 + params 数据，文案渲染移交客户端 constants/text.js 单源；text 列新行留空，
+ *     旧行保留渲染串作历史兜底）
  *   handleGetNotifications / handleMarkNotificationRead  路由（#151：单条已读取代批量全读）
- * 通知文案由业务方（routes-* 在拒绝/退回等节点）按场景拼装后传入，保持委婉语气。
  * 依赖方向：util（db 薄封装 + 响应构造）/ security（authUser/requireAdmin）/ log（留档）。
  * 不依赖 db.js，避免循环。
  *
@@ -20,7 +21,7 @@ import { LIMITS } from '../../shared/config.js';
 import { logEvent } from './log.js';
 import { bumpVersions } from '../../../server/version.js'; // 通知插入统一 bump notifications 域
 
-// 建表（幂等；batch_id 为广播批标识，旧表经 ensureColumns 补列）
+// 建表（幂等；batch_id 为广播批标识，type/params 为 V-2-4 结构化通知，旧表经 ensureColumns 补列）
 export async function initNotifyTable(db) {
   await dbRun(db, `CREATE TABLE IF NOT EXISTS notifications (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,15 +32,20 @@ export async function initNotifyTable(db) {
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
   try { await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_notify_user ON notifications(user_id, is_read)'); }
   catch { /* 已存在则忽略 */ }
-  await ensureColumns(db, 'notifications', [['batch_id', 'TEXT DEFAULT NULL']]);
+  await ensureColumns(db, 'notifications', [
+    ['batch_id', 'TEXT DEFAULT NULL'],
+    ['type', 'TEXT DEFAULT NULL'],    // V-2-4: NOTIFY_TYPES 键（客户端渲染单源）
+    ['params', 'TEXT DEFAULT NULL'],  // V-2-4: type 对应参数的 JSON
+  ]);
 }
 
-/** 推送咽喉：任何通知失败都不应影响主业务；文案截断 LIMITS.NOTIF_TEXT_MAX 防异常长串 */
-export async function notifyUser(db, userId, text) {
-  if (!userId || !text) return;
+/** 推送咽喉：任何通知失败都不应影响主业务。type 为 NOTIFY_TYPES 键，params 为
+ *  渲染所需数据（客户端负责文案）；text 列新行写空、旧行保留历史渲染串兜底。 */
+export async function notifyUser(db, userId, type, params = {}) {
+  if (!userId || !type) return;
   try {
-    await dbRun(db, 'INSERT INTO notifications (user_id, text) VALUES (?,?)',
-      [userId, String(text).slice(0, LIMITS.NOTIF_TEXT_MAX)]);
+    await dbRun(db, 'INSERT INTO notifications (user_id, text, type, params) VALUES (?,?,?,?)',
+      [userId, '', type, JSON.stringify(params)]);
     // 通知插入即 bump notifications 域——所有业务方（意向/推送/合同/反馈等）
     // 的逐用户通知都经此咽喉，对端客户端 8s 内静默重拉红点。低频，不成放大；失败静默不影响主业务
     await bumpVersions(db, ['notifications']);
@@ -50,20 +56,31 @@ export async function notifyUser(db, userId, text) {
 
 /**
  * 管理员广播：一条 SELECT-INSERT 给全体用户各插一条，同批共享 batch_id（供整批删除）。
- * 公告含正文可较长，截断 LIMITS.BROADCAST_TEXT_MAX；返回发送条数
+ * 结构化：type='BROADCAST' + params {title, text}（标题前缀由客户端渲染拼装）；
+ * 正文截断 LIMITS.BROADCAST_TEXT_MAX；返回发送条数
  */
-export async function dbBroadcastNotification(db, text) {
+export async function dbBroadcastNotification(db, title, text) {
   const t = String(text || '').trim().slice(0, LIMITS.BROADCAST_TEXT_MAX);
   if (!t) return 0;
+  const titleC = String(title || '').trim().slice(0, LIMITS.BROADCAST_TITLE_MAX);
   const batchId = genCode(8);
+  const params = JSON.stringify({ title: titleC, text: t });
   // 已注销用户不收广播（否则 purge 后再广播会为墓碑用户补插幽灵通知）
-  const res = await dbRun(db, 'INSERT INTO notifications (user_id, text, batch_id) SELECT id, ?, ? FROM users WHERE deactivated=0', [t, batchId]);
+  const res = await dbRun(db, "INSERT INTO notifications (user_id, text, type, params, batch_id) SELECT id, '', 'BROADCAST', ?, ? FROM users WHERE deactivated=0", [params, batchId]);
   return (res && res.meta && res.meta.changes) || 0;
 }
 
+/** Mapper 单点：解析结构化 params JSON（损坏 JSON 回落 null，客户端走 type 缺失兜底） */
+function mapNotification(row) {
+  let params = null;
+  if (row.params) { try { params = JSON.parse(row.params); } catch { params = null; } }
+  return { ...row, params };
+}
+
 async function dbGetNotifications(db, userId) {
-  return await dbAll(db,
+  const rows = await dbAll(db,
     `SELECT * FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT ${LIMITS.NOTIF_LIST_MAX}`, [userId]);
+  return rows.map(mapNotification);
 }
 
 // 单条标记已读（#151：未读持久到点击消除；归属硬约束——只翻本人的通知行，跨用户调用静默 0 行）

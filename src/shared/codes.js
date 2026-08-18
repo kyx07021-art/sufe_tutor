@@ -121,6 +121,7 @@ export const MSG = {
   USERNAME_NEW_INVALID: "用户名只能包含中文、字母、数字及 _ . - （3-30 个字符），且不能为纯数字、不能含 @",
   USERNAME_CHANGED: "用户名修改成功",
   PENALTY_REASON_REQUIRED: "请填写处罚原因",
+  CONTENT_ACTION_DONE: "内容处理完成",
   REGISTER_SUCCESS: "注册成功",
   REAUTH_FAILED: "密码错误，请重新输入后再试",
   SERVER_ERROR: "刚刚的操作没有成功，请稍后重试；如果反复出现，请到「关于平台」反馈给我们。",
@@ -251,6 +252,7 @@ export const CODES = {
   USERNAME_NEW_INVALID: "AUTH_USERNAME_NEW_INVALID",
   USERNAME_CHANGED: "AUTH_USERNAME_CHANGED",
   PENALTY_REASON_REQUIRED: "COMMON_PENALTY_REASON_REQUIRED",
+  CONTENT_ACTION_DONE: "ADMIN_CONTENT_ACTION_DONE",
   REGISTER_SUCCESS: "AUTH_REGISTER_SUCCESS",
   REAUTH_FAILED: "AUTH_REAUTH_FAILED",
   SERVER_ERROR: "COMMON_SERVER_ERROR",
@@ -261,11 +263,13 @@ export const CODES = {
 export const NOTIFY_TYPES = {
   "INTENT_ACCEPTED": {},
   "INTENT_REJECTED": {
-    "subjects": 1
+    "subjects": 1,
+    "target_type": 1
   },
   "PUSH_ACCEPTED": {},
   "PUSH_REJECTED": {
-    "subjects": 1
+    "subjects": 1,
+    "target_type": 1
   },
   "CONTRACT_DRAFT_SENT": {
     "name": 1
@@ -318,28 +322,9 @@ export const NOTIFY_TYPES = {
 
 /** 服务端仍需要拼装的用户可见文案（V-2-4 迁 client/text.js 后删除） */
 export const SERVER_TEXT = {
-  NOTIFY_BROADCAST_PREFIX: "【系统通知】",
-  FEEDBACK_COMPLAINT_RESOLVED: "你的投诉已处理完毕，结果可以在「我的投诉与反馈」里查看。",
-  FEEDBACK_RESOLVED: "你反馈的问题已经处理好了。具体结果可以到「我的投诉与反馈」查看。",
-  NOTIFY_PUSH_REJECT: "关于「{subjects}」的家教需求，这位老师暂时排不开。我们会继续为你留意匹配的老师，有进展会在这里通知你。",
-  NOTIFY_INTENT_REJECT: "关于「{subjects}」的家教需求，学生已经和更合适的老师建立了联系。你的档案仍在教师广场展示，新的匹配机会会继续推送。",
-  NOTIFY_SUBJECTS_FALLBACK: "相关科目",
-  INTENT_ACCEPTED_NOTIFY: "学生已同意你的试课意向，会话已建立，请前往「我的会话」查看详情",
-  PUSH_ACCEPTED_NOTIFY: "教师已确认你发送的需求，会话已建立，请前往「我的会话」查看详情",
-  CONTRACT_DRAFT_SENT: "「{name}」发来一份合同草案，请前往「我的合同」查看并确认",
   CONTRACT_DRAFT_SENT_TOAST: "合同草案已发送，等待对方确认",
-  CONTRACT_SIGN_WAITING: "「{name}」已确认签约，请在「我的合同」内完成你的确认",
-  CONTRACT_MODIFIED: "「{name}」修改了合同内容，双方签约确认已重置，请重新查看",
-  CONTRACT_SIGNED: "双方已完成签约，合同生效。请按约定时间开始上课。",
-  CONTRACT_REVOKED_NOTIFY: "「{name}」已撤销双方签署的合同，活跃数据已抹除，存证留档保留。",
-  CONTRACT_CANCELLED: "「{name}」已取消签约，可于会话中继续商议细节",
-  SIGNING_REQUEST_SENT: "「{name}」向你发送了签约请求",
   SIGNING_REQUEST_SENT_TOAST: "签约请求已发送",
-  SIGNING_CONFIRMED: "对方已确认签约请求",
-  SIGNING_REJECTED: "对方已拒绝此次签约请求",
   CONTRACT_EMPTY: "合同内容不能为空",
-  AWARD_APPROVED_NOTIFY: "你的荣誉奖项「{title}」已通过审核，将展示在你的教师主页。",
-  AWARD_REJECTED_NOTIFY: "你的荣誉奖项「{title}」未通过审核，请登录查看驳回理由。",
   POST_TITLE_REQUIRED: "标题不能为空",
   POST_TITLE_TOO_LONG: "标题不能超过 60 个字符",
   POST_BODY_TOO_LONG: "正文不能超过 20000 个字符",
@@ -347,8 +332,4 @@ export const SERVER_TEXT = {
   POST_DELETE_FORBIDDEN: "仅作者本人可删除该帖子",
   POST_DELETED: "帖子已删除",
   COMPLAINT_REASONS: ["虚假信息或欺诈","侮辱谩骂或骚扰","侵犯隐私","违法违规内容","恶意营销或广告","其他"],
-  ADMISSION_NOTIFY_APPROVED: "录取通知书核验已通过，你的接单资格已开放",
-  CHSI_NOTIFY_APPROVED: "学信网学籍核验已通过",
-  CHSI_NOTIFY_DETAIL: "核验信息：",
-  CHSI_NOTIFY_REJECTED: "学信网学籍核验未通过，请重新提交验证码",
 };

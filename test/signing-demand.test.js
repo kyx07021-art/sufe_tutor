@@ -202,10 +202,10 @@ test('发起签约：通知文案带发送者用户名（学生发起 → 教师
   const { t1, s1Token, d1 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(d1), reqOf(s1Token));
   assert.equal(r.status, 201);
-  const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(t1);
+  const notif = raw.prepare('SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(t1);
   assert.ok(notif, '教师收到通知');
-  assert.ok(notif.text.includes('「s1」'), `通知含发送者用户名（实际：${notif.text}）`);
-  assert.ok(notif.text.includes('向你发送了签约请求'), '文案语义完整');
+  assert.equal(notif.type, 'SIGNING_REQUEST_SENT', '结构化通知类型');
+  assert.equal(JSON.parse(notif.params).name, 's1', '通知带发送者用户名');
 });
 
 test('发起签约：通知文案带发送者用户名（教师发起 → 学生收到「t1」）', async () => {
@@ -213,9 +213,10 @@ test('发起签约：通知文案带发送者用户名（教师发起 → 学生
   const { s1, t1Token, d1 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(d1), reqOf(t1Token));
   assert.equal(r.status, 201);
-  const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(s1);
+  const notif = raw.prepare('SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(s1);
   assert.ok(notif, '学生收到通知');
-  assert.ok(notif.text.includes('「t1」'), `通知含发送者用户名（实际：${notif.text}）`);
+  assert.equal(notif.type, 'SIGNING_REQUEST_SENT', '结构化通知类型');
+  assert.equal(JSON.parse(notif.params).name, 't1', '通知带发送者用户名');
 });
 
 // #157（v0.25.65）：我的需求排序——已签约沉底（开放/已撤销按时间在前，revoked 可重开归活跃侧）

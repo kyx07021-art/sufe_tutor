@@ -275,10 +275,11 @@ test('确认签约后：通知发起方「对方已确认签约请求」（不�
   const { id: srA } = await r.json();
   const res = await handleRespondSigning(db, srA, { accept: true, capToken: await capOf(raw, s1, s1SessionId) }, reqOf(s1Token));
   assert.equal(res.status, 200);
-  const notif = raw.prepare("SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
+  const notif = raw.prepare("SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
     .get((await raw.prepare('SELECT id FROM users WHERE username=?').get('t1')).id);
   assert.ok(notif, '发起方收到通知');
-  assert.equal(notif.text, '对方已确认签约请求', '通知统一「对方」，不带具体用户名（Q8）');
+  assert.equal(notif.type, 'SIGNING_CONFIRMED', '确认通知结构化 type');
+  assert.deepEqual(JSON.parse(notif.params), {}, '通知统一「对方」，不带具体用户名（Q8）');
 });
 
 test('拒绝签约后：通知发起方「对方已拒绝此次签约请求」（不带用户名）', async () => {
@@ -288,7 +289,8 @@ test('拒绝签约后：通知发起方「对方已拒绝此次签约请求」�
   const { id: srA } = await r.json();
   const res = await handleRespondSigning(db, srA, { accept: false }, reqOf(s1Token));
   assert.equal(res.status, 200);
-  const notif = raw.prepare("SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
+  const notif = raw.prepare("SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1")
     .get((await raw.prepare('SELECT id FROM users WHERE username=?').get('t1')).id);
-  assert.equal(notif.text, '对方已拒绝此次签约请求', '拒绝通知统一「对方」（Q8）');
+  assert.equal(notif.type, 'SIGNING_REJECTED', '拒绝通知结构化 type');
+  assert.deepEqual(JSON.parse(notif.params), {}, '拒绝通知统一「对方」（Q8）');
 });

@@ -360,7 +360,7 @@ export async function handleCreateContract(db, body, req) {
   }
   // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
   await dbCreateMessage(db, conversationId, userId, 'contract', 'contract_draft');
-  await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_DRAFT_SENT.replace('{name}', nameOf(conv, userId)));
+  await notifyUser(db, otherSide(conv, userId), 'CONTRACT_DRAFT_SENT', { name: nameOf(conv, userId) });
   await logEvent(db, { action: 'contract.create', actorUserId: userId, entity: 'contract', entityId: id,
     detail: { conversationId, method, rate }, req });
   return json({ id, message: UIC.CONTRACT_DRAFT_SENT_TOAST }, 201);
@@ -420,14 +420,14 @@ export async function handleSignContract(db, contractId, body, req) {
     // 双方同时签约仅一方 changes>0，防并发双副作用
     const claim = await dbRun(db, `UPDATE contracts SET status='signed', prev_business=NULL, version=version+1 WHERE id=? AND status='signing'`, [contractId]); // 签署确认后清空留痕（diff 仅存于重新确认窗口期）
     if (claim && claim.meta && claim.meta.changes > 0) {
-      await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGNED);
+      await notifyUser(db, otherSide(conv, userId), 'CONTRACT_SIGNED', {});
       // 留档保存合同原文（detailMax 放宽，加密后落库；撤销合同后仍可凭留档还原缔约内容）
       await logEvent(db, { action: 'contract.signed', actorUserId: userId, entity: 'contract', entityId: contractId,
         detail: { conversationId: updated.conversation_id, demandId: updated.demand_id, contentHash, contractMd: signedMd },
         detailMax: 60000, req });
     }
   } else {
-    await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_SIGN_WAITING.replace('{name}', nameOf(conv, userId)));
+    await notifyUser(db, otherSide(conv, userId), 'CONTRACT_SIGN_WAITING', { name: nameOf(conv, userId) });
     await logEvent(db, { action: 'contract.sign_partial', actorUserId: userId, entity: 'contract', entityId: contractId,
       detail: { signedBy: userId, contentHash, contractMd: signedMd }, detailMax: 60000, req });
   }
@@ -477,7 +477,7 @@ export async function handleModifyContract(db, contractId, body, req) {
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
     [await encryptField(fullMd), oldBiz, contractId, ver]); // N-05：合同正文加密落库
   if (!(upd && upd.meta && upd.meta.changes > 0)) return errorMsg('CONTRACT_MODIFIED_CONFLICT', 409, 'CONTRACT_MODIFIED_CONFLICT'); // 带稳定 code 供前端刷新版本号
-  await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_MODIFIED.replace('{name}', nameOf(conv, userId)));
+  await notifyUser(db, otherSide(conv, userId), 'CONTRACT_MODIFIED', { name: nameOf(conv, userId) });
   await logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
   return json({ ok: true });
 }
@@ -506,7 +506,7 @@ export async function handleRevokeContract(db, contractId, body, req) {
   // 撤销后释放绑定需求：contracted→revoked（待所有者手动重开；合同文档与需求解耦，但需求状态
   // 必须随撤销流转——否则需求永久滞留 contracted、无任何重开入口，与 STATUS.REVOKED 契约断线）
   await dbReleaseDemandAfterRevoke(db, ct.demand_id);
-  await notifyUser(db, otherSide(conv, me.id), UIC.CONTRACT_REVOKED_NOTIFY.replace('{name}', nameOf(conv, me.id)));
+  await notifyUser(db, otherSide(conv, me.id), 'CONTRACT_REVOKED', { name: nameOf(conv, me.id) });
   await logEvent(db, { action: 'contract.revoke', actorUserId: me.id, entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, note: 'contract_retained' }, req });
   return json({ ok: true });
@@ -586,7 +586,7 @@ export async function handleCancelContract(db, contractId, body, req) {
     if (cur && cur.status === STATUS.SIGNED && !cur.revoked) return errorMsg('CONTRACT_CANCEL_SIGNED_BLOCKED', 409);
     return json({ ok: true }); // 并发已取消：幂等返回
   }
-  await notifyUser(db, otherSide(conv, userId), UIC.CONTRACT_CANCELLED.replace('{name}', nameOf(conv, userId)));
+  await notifyUser(db, otherSide(conv, userId), 'CONTRACT_CANCELLED', { name: nameOf(conv, userId) });
   await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId,
     detail: { conversationId: ct.conversation_id, demandId: ct.demand_id, rollbackTo: 'signing' }, req });
   return json({ ok: true });
@@ -639,7 +639,7 @@ export async function handleCreateSigning(db, body, req) {
     throw e;
   }
 
-  await notifyUser(db, otherSide(conv, userId), UIC.SIGNING_REQUEST_SENT.replace('{name}', nameOf(conv, userId)));
+  await notifyUser(db, otherSide(conv, userId), 'SIGNING_REQUEST_SENT', { name: nameOf(conv, userId) });
   await logEvent(db, { action: 'signing.create', actorUserId: userId, entity: 'signing_request', entityId: id,
     detail: { conversationId, demandId, price, method }, req });
   return json({ id, message: UIC.SIGNING_REQUEST_SENT_TOAST }, 201);
@@ -704,7 +704,7 @@ export async function handleRespondSigning(db, signingId, body, req) {
     JSON.stringify({ requestId: signingId, accept }));
   // 通知统一「对方已确认/已拒绝」——通知不含用户 id
   await notifyUser(db, sr.initiator_user_id,
-    accept ? UIC.SIGNING_CONFIRMED : UIC.SIGNING_REJECTED);
+    accept ? 'SIGNING_CONFIRMED' : 'SIGNING_REJECTED', {});
   await logEvent(db, { action: `signing.${accept ? 'accept' : 'reject'}`, actorUserId: userId,
     entity: 'signing_request', entityId: signingId,
     detail: { conversationId: sr.conversation_id, demandId: sr.demand_id }, req });

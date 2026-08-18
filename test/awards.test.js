@@ -136,9 +136,11 @@ test('R2 公开视角仅 approved；本人全量；删除连带删奖状 upload�
   const pubList = (await pubOk.json()).awards;
   assert.equal(pubList.length, 1);
   assert.equal(pubList[0].title, '待审核奖');
-  // 通知作者
-  const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teacherId);
-  assert.ok(notif && notif.text.includes('已通过审核'), '审核通过通知作者');
+  // 通知作者（V-2-4 结构化：type + params）
+  const notif = raw.prepare('SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teacherId);
+  assert.ok(notif, '审核通过通知作者');
+  assert.equal(notif.type, 'AWARD_APPROVED', '结构化通知类型');
+  assert.equal(JSON.parse(notif.params).title, '待审核奖', '通知带奖项名');
   // 他人删除 → 403
   const delOther = await handleDeleteAward(db, aId, {}, req({ 'X-Auth-Token': otherTeacherToken }));
   assert.equal(delOther.status, 403);

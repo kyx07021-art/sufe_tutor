@@ -165,7 +165,7 @@ export async function handleResolveComplaint(db, complaintId, req) {
   if (c.status !== STATUS.RESOLVED) {
     await dbResolveComplaint(db, complaintId);
     const { notifyUser } = await import('../../core/notify.js');
-    await notifyUser(db, c.user_id, SERVER_TEXT.FEEDBACK_COMPLAINT_RESOLVED);
+    await notifyUser(db, c.user_id, 'FEEDBACK_COMPLAINT_RESOLVED', {});
     await logEvent(db, { action: 'admin.complaint.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'complaint', entityId: complaintId,
       detail: { targetType: c.target_type, targetId: c.target_id }, req });
@@ -217,10 +217,8 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
   if (f.status !== STATUS.RESOLVED) {
     await dbResolveFeedback(db, feedbackId);
     // #165：投诉受理回执单独特文案；Bug/建议走通用文案
-    const text = f.kind === 'complaint'
-      ? SERVER_TEXT.FEEDBACK_COMPLAINT_RESOLVED
-      : SERVER_TEXT.FEEDBACK_RESOLVED;
-    await notifyUser(db, f.user_id, text);
+    await notifyUser(db, f.user_id,
+      f.kind === 'complaint' ? 'FEEDBACK_COMPLAINT_RESOLVED' : 'FEEDBACK_RESOLVED', {});
     await logEvent(db, { action: 'admin.feedback.resolve', actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'feedback', entityId: feedbackId, detail: { kind: f.kind }, req });
   }

@@ -2,7 +2,8 @@
  * Shared notification preference (client-only localStorage) + broadcast classifier.
  * Single source for both the notif feature and router badge filtering:
  *   - notifBlockOn / setNotifBlock  -> CONFIG.NOTIF_BLOCK_KEY (sufe_block_broadcast)
- *   - isBroadcastNotif             -> TEXT.NOTIFY_BROADCAST_PREFIX prefix check
+ *   - isBroadcastNotif             -> type==='BROADCAST' (structured rows have empty
+ *     text) OR the legacy TEXT.NOTIFY_BROADCAST_PREFIX prefix check
  * Pure functions; no DOM access at module scope (call-time only).
  */
 import { CONFIG } from '../../shared/config.js';
@@ -17,5 +18,6 @@ export function setNotifBlock(v) {
 }
 
 export function isBroadcastNotif(n) {
-  return String(n.text || '').startsWith(TEXT.NOTIFY_BROADCAST_PREFIX);
+  if (n && n.type === 'BROADCAST') return true;
+  return String((n && n.text) || '').startsWith(TEXT.NOTIFY_BROADCAST_PREFIX);
 }

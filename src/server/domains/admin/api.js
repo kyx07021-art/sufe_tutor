@@ -7,7 +7,7 @@
  */
 import { json, error, errorMsg, genCode, toDbTime } from '../../core/util.js';
 import { requireAdmin } from '../../core/security.js';
-import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
+import { MSG } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';
 import {
   dbCreateInviteCode, dbListInviteCodes, dbRevokeInviteCode,
@@ -249,11 +249,10 @@ export async function handleAdminBroadcast(db, body, req) {
   const title = String(body.title || '').trim();
   const text = String(body.text || '').trim();
   if (!text) return errorMsg('BROADCAST_EMPTY');
-  const message = title ? `${SERVER_TEXT.NOTIFY_BROADCAST_PREFIX}${title}
-${text}` : text;
-  const count = await dbBroadcastNotification(db, message);
+  // V-2-4 结构化：type=BROADCAST + params {title,text}，前缀拼装移交客户端渲染
+  const count = await dbBroadcastNotification(db, title, text);
   await logEvent(db, { action: 'admin.notify.broadcast', actorUserId: admin.id, actorUsername: admin.username,
-    actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: message.length }, req });
+    actorRole: 'admin', entity: 'notification', entityId: 0, detail: { recipients: count, len: text.length }, req });
   return json({ ok: true, count });
 }
 
@@ -325,16 +324,16 @@ export async function handleContentAction(db, type, id, body, req) {
   }
   if (action === 'ban') await dbSetUserBanned(db, authorId, 1);
 
-  // 处罚后自动通知作者：详细原因 + 触犯规则 + 触发内容摘要（截断）
+  // 处罚后自动通知作者：V-2-4 结构化（label/rule/reason/summary/action 数据，文案客户端渲染）
   const summaryClip = String(summary || '').slice(0, PENALTY_SUMMARY_MAX);
-  const punish = action === 'ban' ? '封禁账户' : '移除内容';
-  const notifText = `你的${label}因违反规则「${rule || '平台规则'}」被管理员${punish}。原因：${reason}${summaryClip ? `。触发内容：${summaryClip}` : ''}`;
-  await notifyUser(db, authorId, notifText);
+  await notifyUser(db, authorId, 'CONTENT_PENALTY', {
+    label, rule: rule || '', reason, summary: summaryClip, action,
+  });
 
   await logEvent(db, { action: 'admin.content.action', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: type, entityId: id,
     detail: { action, reason, rule, targetAuthor: authorName, targetUserId: authorId }, req });
-  return json({ ok: true, message: `已${punish}${label}` });
+  return json({ ok: true, message: MSG.CONTENT_ACTION_DONE });
 }
 
 /** 按类型删除内容（数据层 mapper 单点；teacher 无硬删分支） */

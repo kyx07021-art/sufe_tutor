@@ -3,12 +3,10 @@ import { requireUser, requireAdmin } from '../../core/security.js';
 import { confirmDangerOtp } from '../../core/danger-ops.js';
 import { notifyUser } from '../../core/notify.js';
 import { logEvent } from '../../core/log.js';
-import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
+import { MSG } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';
 import { dbGetUpload, dbDeleteUpload } from '../../../../server/db.js';
 import { decryptField } from '../../core/crypto.js';
-
-const UIC = SERVER_TEXT;
 
 import { initAwardsTable, dbCreateAward, dbCountAwardsByTeacher, dbGetAwardById, dbGetAwardsByTeacher, dbGetAwardsAdmin, dbDeleteAward, dbSetAwardStatus, AWARDS_MAX, AWARD_STATUS, AWARD_TITLE_MAX, AWARD_ISSUER_MAX, AWARD_DATE_RE } from './repo.js';
 export { initAwardsTable, dbCreateAward, dbCountAwardsByTeacher, dbGetAwardById, dbGetAwardsByTeacher, dbGetAwardsAdmin, dbDeleteAward, dbSetAwardStatus, AWARD_STATUS };
@@ -95,7 +93,7 @@ export async function handleAdminAwardAction(db, awardId, body, req) {
   const status = action === 'approve' ? AWARD_STATUS.APPROVED : AWARD_STATUS.REJECTED;
   if (!(await dbSetAwardStatus(db, awardId, status, note))) return errorMsg('AWARD_STATE_INVALID', 409); // 非 pending（已审/并发双审）
   await notifyUser(db, a.teacher_user_id,
-    action === 'approve' ? UIC.AWARD_APPROVED_NOTIFY.replace('{title}', a.title) : UIC.AWARD_REJECTED_NOTIFY.replace('{title}', a.title));
+    action === 'approve' ? 'AWARD_APPROVED' : 'AWARD_REJECTED', { title: a.title });
   await logEvent(db, { action: `award.${action}`, actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'award', entityId: awardId,
     detail: { targetTeacher: a.teacher_user_id, title: a.title, note }, req });

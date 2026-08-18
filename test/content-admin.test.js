@@ -146,9 +146,12 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
   const del = await handleContentAction(db, 'post', postId, { action: 'delete', reason: '含详细门牌号，违反隐私红线', rule: '地址门控', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(del.status, 200, JSON.stringify(await del.json()));
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM posts WHERE id=?').get(postId).c, 0, '帖子已删除');
-  const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(sId);
-  assert.ok(notif && notif.text.includes('隐私红线') && notif.text.includes('地址门控'), '通知含原因+规则');
-  assert.ok(notif.text.includes('含详细门牌号'), '通知含触发内容摘要');
+  const notif = raw.prepare('SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(sId);
+  assert.equal(notif.type, 'CONTENT_PENALTY', '处罚通知走结构化 type');
+  const pn = JSON.parse(notif.params);
+  assert.equal(pn.rule, '地址门控', '通知含规则');
+  assert.ok(pn.reason.includes('隐私红线') && pn.reason.includes('含详细门牌号'), '通知含原因');
+  assert.ok(pn.summary.includes('违规帖子'), '通知含触发内容摘要（标题快照）');
   // 已删除内容再处罚 → 404 定位失败（用真实存在的帖子测 ban）
   const ban = await handleContentAction(db, 'post', postId, { action: 'ban', reason: '多次发布违规内容', rule: '内容安全' }, req({ 'X-Auth-Token': token }));
   assert.equal(ban.status, 404);
@@ -215,12 +218,16 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   const delC = await handleContentAction(db, 'contract', contractId, { action: 'delete', reason: longReason, rule: '地址门控与隐私红线，内容安全审核，恶意规避审核', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(delC.status, 200, JSON.stringify(await delC.json()));
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE id=?').get(contractId).c, 0, '合同已删除');
-  const notif = raw.prepare('SELECT text FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teaId);
+  const notif = raw.prepare('SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teaId);
   assert.ok(notif, '通知已生成');
-  assert.ok(notif.text.length <= 200, `通知总长 ${notif.text.length} ≤ 200`);
-  assert.ok(notif.text.includes('触发内容'), '触发内容摘要未被截断丢弃');
-  assert.ok(notif.text.includes('每周两次'), '摘要内容存活（三段预算保住 summary）');
-  assert.ok(notif.text.includes('地址门控与隐私红线'), '规则段存活（rule≤30 截断后前缀保留）');
+  assert.equal(notif.type, 'CONTENT_PENALTY', '处罚通知结构化 type');
+  const pn = JSON.parse(notif.params);
+  assert.equal(pn.rule, '地址门控与隐私红线，内容安全审核，恶意规避审核', 'rule 23 字 ≤ 30 预算不截断');
+  assert.equal(pn.reason.length, 80, 'reason 222 字截断到 80 预算');
+  assert.ok(pn.summary.includes('每周两次'), '摘要内容存活（summary≤40 保住关键词）');
+  const { notifTypeText } = await import('../src/client/features/notif/render.js');
+  const rendered = notifTypeText('CONTENT_PENALTY', pn);
+  assert.ok(rendered.length <= 200, `通知总长 ${rendered.length} ≤ 200`);
   const delS = await handleContentAction(db, 'signing', signingId, { action: 'delete', reason: '包含可定位地址', rule: '地址门控', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(delS.status, 200);
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests WHERE id=?').get(signingId).c, 0, '签约请求已删除');
