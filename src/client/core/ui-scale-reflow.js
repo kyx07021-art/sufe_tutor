@@ -1,5 +1,5 @@
 import { CONFIG } from "../../shared/config.js";
-var SAMPLE_STEP = 5, SAMPLES = [], LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool|user|text|invite|version|footnote|label|value|hint|desc|name|role|btn|select|sort|toggle|devices|section)([-_\s]|$)/i, FIXED_RE = /(^|[-_\s])(dot|point|pulse|thumb)([-_\s]|$)/i, FIXED_SELECTORS = [".ui-scale-slider"], SHELL_SELECTORS = [".navbar", ".client-sidebar", ".client-main"], EXCLUDE_SELECTORS = [".ui-scale-row", ".ui-scale-control", ".ui-scale-slider", ".toast", "#toast-container", ".modal", ".modal-overlay", "#modal-container"], DIVIDER_RE = /(^|[-_\s])(divider|separator|hr)([-_\s]|$)/i, units = [], unitByEl = /* @__PURE__ */ new WeakMap(), styleEl = null, sampledPage = null, active = !1, baseScale = 1;
+var SAMPLE_STEP = 5, SAMPLES = [], LAYOUT_RE = /(^|[-_\s])(card|row|grid|list|form|seg|tab|pill|tag|slot|pane|panel|notice|notif|msg|filter|toolbar|item|block|header|foot|page|search|chip|badge|profile|filter|tool|user|text|invite|version|footnote|label|value|hint|desc|name|role|btn|select|sort|toggle|devices|section)([-_\s]|$)/i, FIXED_RE = /(^|[-_\s])(dot|point|pulse|thumb)([-_\s]|$)/i, FIXED_SELECTORS = [".ui-scale-slider"], SHELL_SELECTORS = [".navbar", ".client-sidebar", ".client-main"], EXCLUDE_SELECTORS = [".ui-scale-row", ".ui-scale-control", ".ui-scale-slider", ".toast", "#toast-container", ".modal", ".modal-overlay", "#modal-container"], DIVIDER_RE = /(^|[-_\s])(divider|separator|hr)([-_\s]|$)/i, units = [], unitByEl = /* @__PURE__ */ new WeakMap(), sampledPage = null, active = !1, baseScale = 1;
 function cssVars(cfg) {
   cfg && cfg.UI_SCALE_REFLOW_SAMPLE_STEP && (SAMPLE_STEP = cfg.UI_SCALE_REFLOW_SAMPLE_STEP);
   var min = cfg && cfg.UI_SCALE_MIN || 80, max = cfg && cfg.UI_SCALE_MAX || 120;
@@ -217,22 +217,28 @@ function renderAt(scalePct) {
       } else
         u.sx = u.base.w > 0 && u._ancSx ? target.w / (u.base.w * u._ancSx) : 1, u.sy = u.base.h > 0 && u._ancSy ? target.h / (u.base.h * u._ancSy) : 1;
     }
-    for (var lines = [], k = 0; k < units.length; k++) {
+    // V-3-1c2: per-unit transform via --ui-rf-transform custom-property data channel
+    // (CSP style-src-elem 'self'); identity units get 'none' (no stacking context,
+    // same semantics as v1 rule-skip). Visual declarations live statically in base.css.
+    for (var k = 0; k < units.length; k++) {
       var un = units[k];
-      Math.abs(un.tx) < 0.5 && Math.abs(un.ty) < 0.5 && Math.abs(un.sx - 1) < 2e-3 && Math.abs(un.sy - 1) < 2e-3 || lines.push('[data-ui-reflow-unit="' + k + '"]{transform:translate(' + un.tx.toFixed(2) + "px," + un.ty.toFixed(2) + "px) scale(" + un.sx.toFixed(4) + "," + un.sy.toFixed(4) + ")}");
+      var tf = Math.abs(un.tx) < 0.5 && Math.abs(un.ty) < 0.5 && Math.abs(un.sx - 1) < 2e-3 && Math.abs(un.sy - 1) < 2e-3
+        ? "none"
+        : "translate(" + un.tx.toFixed(2) + "px," + un.ty.toFixed(2) + "px) scale(" + un.sx.toFixed(4) + "," + un.sy.toFixed(4) + ")";
+      un.el.style.setProperty("--ui-rf-transform", tf);
     }
-    styleEl || (styleEl = document.createElement("style"), styleEl.id = "__ui-reflow-transforms", document.head.appendChild(styleEl)), styleEl.textContent = `html[data-ui-reflowing] [data-ui-reflow-unit]{transition:none !important}
-[data-ui-reflow-unit]{transform-origin:0 0}
-` + lines.join(`
-`);
     for (var m = 0; m < units.length; m++)
       units[m].el.hasAttribute("data-ui-reflow-unit") || units[m].el.setAttribute("data-ui-reflow-unit", String(m));
   }
 }
+function clearUnit(el) {
+  el.removeAttribute("data-ui-reflow-unit");
+  el.style.removeProperty("--ui-rf-transform");
+}
 function teardown() {
-  styleEl && (styleEl.textContent = "", styleEl.remove(), styleEl = null), restoreTextSpans();
-  for (var i = 0; i < units.length; i++) units[i].el.removeAttribute("data-ui-reflow-unit");
-  for (var stale = document.querySelectorAll("[data-ui-reflow-unit]"), s = 0; s < stale.length; s++) stale[s].removeAttribute("data-ui-reflow-unit");
+  restoreTextSpans();
+  for (var i = 0; i < units.length; i++) clearUnit(units[i].el);
+  for (var stale = document.querySelectorAll("[data-ui-reflow-unit]"), s = 0; s < stale.length; s++) clearUnit(stale[s]);
   units = [], unitByEl = /* @__PURE__ */ new WeakMap(), active = !1;
 }
 function prepare() {

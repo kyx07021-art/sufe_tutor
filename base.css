@@ -1063,6 +1063,13 @@ html[data-ui-sampling] *::before,
 html[data-ui-sampling] *::after {
   transition: none !important;
 }
+/* V-3-1c2：reflow 引擎每单元 transform 走 --ui-rf-transform 自定义属性数据通道（JS setProperty，
+   样式声明零内联）；identity 单元置 none（不建 stacking context，与 v1 跳过规则语义等价）。
+   门控 html[data-ui-reflowing] 仅拖动预览期由 state.js 挂载（与 data-ui-previewing 互斥），
+   平时 transform 归 none 零干扰。特异性注记：本规则 (0,1,0) 低于旧注入式 [data-ui-reflow-unit="k"]
+   (0,1,1)——已实证当前 CSS 无 (0,1,0) transform 规则命中单元类；后续新增需自查。 */
+[data-ui-reflow-unit] { transform-origin: 0 0; transform: var(--ui-rf-transform, none); }
+html[data-ui-reflowing] [data-ui-reflow-unit] { transition: none !important; }
 .ui-scale-slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .ui-scale-val { flex: 0 0 auto; font-size: .82rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; min-width: 38px; text-align: right; }
 /* 新手引导浮窗：内测政策小盾标逐条，同关于页安全区语言 */

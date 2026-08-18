@@ -11,10 +11,10 @@
  * 本测试用 stub getBoundingClientRect 模拟真实重排目标（侧栏随缩放扩张 → 内容列右缘钉视口、
  * 左缘被顶右收窄的非均匀目标位），验证：
  *   1. prepare：采样档位 = [80,100,120]（CONFIG 单源 UI_SCALE_REFLOW_SAMPLE_STEP=20）；采样后 --ui-scale 还原；
- *   2. renderAt(100)：全恒等 → 样式表无 translate 规则（拖动起点零冗余）；
+ *   2. renderAt(100)：全恒等 → 无 translate 数据（全置 none，拖动起点零冗余）；
  *   3. renderAt(120)：非均匀收窄正确——顶栏钉宽 sy=1.2、侧栏 scale(1.2) 顶角锚定、内容列
  *      translate(48,12.8) scale(0.9538,1.2)（sx<1 = 真实收窄）、侧栏项 isText 等比 × 父链补偿收敛恒等；
- *   4. teardown：样式元素整节点移除 + data-ui-reflow-unit 属性全撤（成对零残留）；
+ *   4. teardown：--ui-rf-transform 数据 + data-ui-reflow-unit 属性全撤（成对零残留；V-3-1c2 零 <style> 注入）；
  *   5. 页面切换后 prepare 重采：新可见页单元收录、旧页单元移除。
  */
 import { test } from 'node:test';
@@ -81,26 +81,28 @@ function setup() {
   return dom;
 }
 function teardown() {
-  uiScaleReflow.teardown(); // 模块级 styleEl/units 清干净（直接 import 共享模块，必须成对复位）
+  uiScaleReflow.teardown(); // 模块级 units 清干净（直接 import 共享模块，必须成对复位）
   delete globalThis.window;
   delete globalThis.document;
   delete globalThis.getComputedStyle;
 }
 
-// 从样式表解析某元素（按其 data-ui-reflow-unit 索引）的 transform 规则
+// V-3-1c2：从单元元素读取 --ui-rf-transform 自定义属性数据通道（JS setProperty 注入的 transform 值）。
+// 'none'（identity 单元）→ rule ''（与 v1 跳过规则语义等价：无 transform 效果）
 function readTransform(id) {
   const el = document.getElementById(id);
-  const idx = el.getAttribute('data-ui-reflow-unit');
-  if (idx === null) return null;
-  const css = document.getElementById('__ui-reflow-transforms').textContent;
-  const m = css.match(new RegExp(`\\[data-ui-reflow-unit="${idx}"\\]\\{([^}]*)\\}`));
-  if (!m) return { tx: 0, ty: 0, sx: 1, sy: 1, rule: '' };
-  const t = m[1].match(/translate\(([-\d.]+)px,([-\d.]+)px\)/);
-  const s = m[1].match(/scale\(([-\d.]+),([-\d.]+)\)/);
-  return { tx: t ? +t[1] : 0, ty: t ? +t[2] : 0, sx: s ? +s[1] : 1, sy: s ? +s[2] : 1, rule: m[1] };
+  if (el.getAttribute('data-ui-reflow-unit') === null) return null;
+  const v = el.style.getPropertyValue('--ui-rf-transform');
+  if (!v || v === 'none') return { tx: 0, ty: 0, sx: 1, sy: 1, rule: '' };
+  const t = v.match(/translate\(([-\d.]+)px,([-\d.]+)px\)/);
+  const s = v.match(/scale\(([-\d.]+),([-\d.]+)\)/);
+  return { tx: t ? +t[1] : 0, ty: t ? +t[2] : 0, sx: s ? +s[1] : 1, sy: s ? +s[2] : 1, rule: v };
 }
 
-const hasTranslate = () => document.getElementById('__ui-reflow-transforms').textContent.includes('translate(');
+const hasTranslate = () => [...document.querySelectorAll('[data-ui-reflow-unit]')]
+  .some(el => el.style.getPropertyValue('--ui-rf-transform').includes('translate('));
+const hasTransformVars = () => [...document.querySelectorAll('*')]
+  .some(el => el.style.getPropertyValue('--ui-rf-transform') !== '');
 const reflowText = () => document.querySelectorAll('.ui-reflow-text').length;
 
 test('CONFIG 单源：UI_SCALE_REFLOW_SAMPLE_STEP=20 在 shared/config.js（UI_SCALE_MIN..MAX 整除步进）', () => {
@@ -116,7 +118,7 @@ test('prepare：采样档位 [80,100,120]；采样后 --ui-scale 还原（无闪
   teardown();
 });
 
-test('renderAt(100)：全恒等 → 样式表无 translate 规则（拖动起点零冗余）', () => {
+test('renderAt(100)：全恒等 → 无 translate 数据（全置 none，拖动起点零冗余）', () => {
   setup();
   uiScaleReflow.prepare(); uiScaleReflow.begin(); uiScaleReflow.renderAt(100);
   assert.equal(hasTranslate(), false, 'scale=100 无任何 translate 规则');
@@ -125,14 +127,13 @@ test('renderAt(100)：全恒等 → 样式表无 translate 规则（拖动起点
   teardown();
 });
 
-test('v0.31.5 P1：renderAt 样式表含过渡禁用规则（引擎 transform 过渡致预览滞后/偏小的根因修复）', () => {
-  setup();
-  uiScaleReflow.prepare(); uiScaleReflow.begin(); uiScaleReflow.renderAt(120);
-  const css = document.getElementById('__ui-reflow-transforms').textContent;
-  assert.ok(css.includes('html[data-ui-reflowing] [data-ui-reflow-unit]{transition:none !important}'),
+test('v0.31.5 P1：reflow 过渡禁用规则常驻 base.css（引擎 transform 过渡致预览滞后/偏小的根因修复）', () => {
+  assert.match(STYLE_CSS, /html\[data-ui-reflowing\]\s*\[data-ui-reflow-unit\]\s*\{\s*transition:\s*none\s*!important/,
     '预览期禁用引擎 transform 过渡（.glass transition .18s 会让 transform 从恒等动画起点——拖动中预览滞后偏小）');
-  assert.ok(css.includes('[data-ui-reflow-unit]{transform-origin:0 0}'), 'transform-origin 规则保留');
-  teardown();
+  assert.match(STYLE_CSS, /\[data-ui-reflow-unit\]\s*\{\s*transform-origin:\s*0\s*0/,
+    'transform-origin 规则保留');
+  assert.match(STYLE_CSS, /transform:\s*var\(--ui-rf-transform,\s*none\)/,
+    '单元 transform 消费 --ui-rf-transform 数据通道（缺省 none 兜底）');
 });
 
 test('renderAt(120)：非均匀真实重排（顶栏钉宽/侧栏扩张/内容列收窄 sx<1）', () => {
@@ -216,15 +217,15 @@ test('P3：分隔线单元——宽随布局、视觉高度恒 1px（不放大�
   teardown();
 });
 
-test('teardown：样式元素整节点移除 + data-ui-reflow-unit 属性全撤（成对零残留）', () => {
+test('teardown：--ui-rf-transform 数据与 data-ui-reflow-unit 属性全撤（成对零残留，零 <style> 注入）', () => {
   setup();
   uiScaleReflow.prepare(); uiScaleReflow.begin(); uiScaleReflow.renderAt(120);
-  assert.ok(hasTranslate(), '渲染期有 transform');
-  assert.ok(document.getElementById('__ui-reflow-transforms'), '渲染期样式元素在 DOM');
+  assert.ok(hasTranslate(), '渲染期有 transform 数据');
+  assert.ok(document.querySelectorAll('[data-ui-reflow-unit]').length > 0, '渲染期单元带属性');
+  assert.equal(document.getElementById('__ui-reflow-transforms'), null, '零 <style> 注入（CSP style-src-elem）');
   uiScaleReflow.teardown();
-  assert.equal(document.getElementById('__ui-reflow-transforms'), null,
-    '样式元素整节点移除（非仅清空——悬空引用即残留，v2 teardown 契约收紧）');
   assert.equal(document.querySelectorAll('[data-ui-reflow-unit]').length, 0, 'data-ui-reflow-unit 全撤');
+  assert.equal(hasTransformVars(), false, '--ui-rf-transform 数据零残留（数据通道与属性成对清）');
   teardown();
 });
 
