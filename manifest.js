@@ -5,7 +5,7 @@
 export const ASSET_MANIFEST = {
   "files": {
     "tokens.css": "tokens.197cd74f.css",
-    "base.css": "base.0e5d7200.css",
+    "base.css": "base.d77a500c.css",
     "features/complaints.css": "features/complaints.7bde5325.css",
     "features/browse.css": "features/browse.5c318665.css",
     "features/admin.css": "features/admin.37162900.css",
