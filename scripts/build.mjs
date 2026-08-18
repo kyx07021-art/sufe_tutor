@@ -61,6 +61,7 @@ for (const name of readdirSync(ROOT)) {
   }
 }
 cpSync(join(ROOT, 'web/theme-init.js'), join(DIST, 'theme-init.js'));
+cpSync(join(ROOT, 'web/async-css.js'), join(DIST, 'async-css.js')); // V-3-1b 异步 CSS media 交换
 // V-2-5b CSS 重组：features/*.css 目录资产（根文件循环只拷根级文件）
 cpSync(join(ROOT, 'features'), join(DIST, 'features'), { recursive: true });
 

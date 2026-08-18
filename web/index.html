@@ -16,11 +16,12 @@
   <link rel="stylesheet" href="/features/chart.css">
   <link rel="stylesheet" href="/features/demand.css">
   <link rel="stylesheet" href="/responsive.css">
-  <!-- 域样式异步化：chat/posts/region 只服务登录后领域页（首屏不参与），media=print 异步下载不阻塞首绘 -->
-  <link rel="stylesheet" href="/features/chat.css" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="/features/posts.css" media="print" onload="this.media='all'">
-  <link rel="stylesheet" href="/features/region.css" media="print" onload="this.media='all'">
+  <!-- 域样式异步化（V-3-1b）：data-async-css 由 /async-css.js 在加载后切 all，零内联事件属性 -->
+  <link rel="stylesheet" href="/features/chat.css" media="print" data-async-css>
+  <link rel="stylesheet" href="/features/posts.css" media="print" data-async-css>
+  <link rel="stylesheet" href="/features/region.css" media="print" data-async-css>
   <link rel="stylesheet" href="/glass.css">
+  <script src="/async-css.js"></script>
   <script type="module" src="/assets/app.js"></script>
 </head>
 <body>
