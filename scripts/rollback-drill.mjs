@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
-import { initDb } from '../src/server/core/db.js';
+import { initDb, SCHEMA_VERSION } from '../src/server/core/db.js';
 import { d1Export, D1_DB_NAME } from './wrangler-d1.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -102,8 +102,9 @@ check('schema_meta 未降级/未改写', ver() === verBefore, 'after=' + ver());
 const cols = raw.prepare("SELECT name FROM pragma_table_info('notifications')").all().map(r => r.name);
 check('v8 新增列回滚后仍保留', cols.includes('type') && cols.includes('params'), cols.join(','));
 const total = raw.prepare('SELECT COUNT(*) AS c FROM notifications').get().c;
-check('旧代码可读 notifications 全量行', total >= 0, 'rows=' + total);
-const info = raw.prepare("INSERT INTO notifications (user_id, text) VALUES (1, 'rollback-drill-old-write')").run();
+check('旧代码可读 notifications 全量行（生产有存量行）', total > 0, 'rows=' + total); // 审计 O1：非恒真式
+const uid = raw.prepare('SELECT id FROM users ORDER BY id LIMIT 1').get().id;
+const info = raw.prepare('INSERT INTO notifications (user_id, text) VALUES (?, ?)').run(uid, 'rollback-drill-old-write'); // 审计 O3：真实用户 id，防换数据集假失败
 const row = raw.prepare('SELECT text, type, params FROM notifications WHERE id=?').get(Number(info.lastInsertRowid));
 check('旧写 pattern 兼容（text-only → type/params NULL）', !!row && row.type === null && row.params === null && row.text === 'rollback-drill-old-write');
 const gate = productionReady({});
@@ -126,7 +127,7 @@ raw.exec(readFileSync(exportPath, 'utf8'));
 console.log('跑当前 initDb（模拟 2.0.0 迁移后状态）…');
 await initDb(makeShim(raw), {});
 const ver8 = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get().v;
-check('迁移后 schema_meta 为最新版本', ver8 >= 8, `v=${ver8}`);
+check('迁移后 schema_meta 为最新版本', ver8 >= SCHEMA_VERSION, `v=${ver8}`); // 审计 O5：单源 SCHEMA_VERSION 替代裸值 8
 raw.exec(`VACUUM INTO '${migratedDb.replaceAll('\\', '/')}'`);
 chmodSync(migratedDb, 0o600); // 生产副本含 PII/加密字段：owner-only（提交审查 MEDIUM）
 console.log(`已序列化迁移后副本：${migratedDb}`);
@@ -161,7 +162,8 @@ check('旧代码验收 harness 通过（exit 0）', oldExit === 0, `exit=${oldEx
 
 console.log(fail === 0 ? `\n演练通过（回滚数据兼容 + 服务恢复）` : `\n✖ 演练发现 ${fail} 项违规`);
 
-// finally 清理：私有 drill 目录（含生产副本）+ worktree（若非用户显式指定）
+// 收尾清理（顺序执行，非 try/finally——审计 O7：早抛异常时残留落私有 0o700 目录由 OS tmp 自回收）：
+// 私有 drill 目录（含生产副本）+ worktree（若非用户显式指定）
 try { execFileSync('git', ['worktree', 'remove', '--force', WORKTREE], { cwd: root, stdio: 'ignore' }); } catch { /* 已在外部清理 */ }
 if (!process.env.ROLLBACK_WORKTREE) rmSync(WORKTREE, { recursive: true, force: true });
 rmSync(DRILL_DIR, { recursive: true, force: true });
