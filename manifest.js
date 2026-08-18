@@ -17,7 +17,7 @@ export const ASSET_MANIFEST = {
     "app-anim.js": "app-anim.1f574d6f.js",
     "app-ui.js": "app-ui.21aa56fd.js",
     "app-otp.js": "app-otp.f3e6ea7b.js",
-    "app-captcha.js": "app-captcha.ee49f29a.js",
+    "app-captcha.js": "app-captcha.5a9b99cd.js",
     "app-onboard.js": "app-onboard.d80c072d.js",
     "app-shell.js": "app-shell.5fd42550.js",
     "app-auth.js": "app-auth.ad8545e0.js",
