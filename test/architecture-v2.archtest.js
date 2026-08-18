@@ -8,7 +8,8 @@
  *   4. SQL 只在 repo：server/routes-*.js 与 _worker.js 无 db.prepare/batch；
  *   5. 前端模块自持：src/client/core + src/client/features；
  *   6. fetch 只在 api.js；前端无内联 onclick/onload/style/中文文案；
- *   7. V-3-1c3 CSP：core/features 零 <style> 元素注入（动态样式只走 CSS 自定义属性数据通道）。
+ *   7. V-3-1c3 CSP：core/features 零 <style> 元素注入（动态样式只走 CSS 自定义属性数据通道）；
+ *   8. V-3-1d3 CSP：web/index.html 严格 meta CSP（script-src/style-src-elem 无 unsafe-inline）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -88,4 +89,17 @@ test('web/index.html 是干净 ESM 壳：无内联脚本/事件/样式', () => {
   assert.ok(html.includes('type="module"'), 'module 入口存在');
   assert.ok(!/<script(?![^>]*src=)[^>]*>[\s\S]*?<\/script>/.test(html), '无内联 script');
   assert.ok(!/onclick=/.test(html) && !/onload=/.test(html) && !/style=/.test(html), '无内联事件/样式属性');
+});
+
+// V-3-1d3 CSP 收口契约（架构层）：v2 页严格 meta CSP——script-src/style-src-elem 无 unsafe-inline，
+// 锁严格策略不退化（文档化来源，V-3-2a0）。最小化声明无 default-src（交集不收紧 data:/blob:）。
+test('web/index.html 严格 meta CSP：script-src/style-src-elem 无 unsafe-inline', () => {
+  const html = read('web/index.html');
+  const meta = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/);
+  assert.ok(meta, 'v2 页 meta CSP 存在');
+  assert.ok(/script-src 'self'(?!\s*'unsafe-inline')/.test(meta[1]), 'script-src 严格（无 unsafe-inline）');
+  assert.ok(!/script-src[^;]*'unsafe-eval'/.test(meta[1]), '无 unsafe-eval');
+  assert.ok(/style-src-elem 'self'(?!\s*'unsafe-inline')/.test(meta[1]), 'style-src-elem 严格（无 unsafe-inline）');
+  assert.ok(/style-src-attr 'unsafe-inline'/.test(meta[1]), 'style-src-attr 数据通道保留（ui-modal cssText 承重）');
+  assert.ok(!/default-src/.test(meta[1]) || /img-src[^;]*data:/.test(meta[1]), '无 default-src 收紧 data: 通道（或 img-src 含 data:）');
 });
