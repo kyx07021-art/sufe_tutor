@@ -26,6 +26,7 @@ import { initLedgerTable } from '../src/server/domains/contract/schema.js';
 import { handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract } from '../src/server/domains/contract/api.js';
 import { dbGetContractById, dbGetMyContracts } from '../src/server/domains/contract/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
+import { LIMITS } from '../src/shared/config.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
@@ -269,6 +270,22 @@ test('Z-5-F4 恢复路径：SIGNED 重签幂等补记台账缺口', async () => 
   const r4 = await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
   assert.equal(r4.status, 200);
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM contract_ledger').get().c, 1, '重复重签仍一条（幂等）');
+});
+
+// Z-5-O2/O3 回归：起草合同门禁补强——已关闭会话禁起草（原缺会话状态校验，同发起签约/发消息门禁）+ 时薪钳制 BUDGET_MAX（原无上限，可越限存储）
+test('Z-5-O2/O3 回归：关闭会话禁起草 + 时薪钳制 BUDGET_MAX', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { d1, idOf, t1S } = await seed(db, raw);
+  // O2：会话关闭 → 403
+  raw.prepare("UPDATE conversations SET status='closed' WHERE id=1").run();
+  const closed = await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token));
+  assert.equal(closed.status, 403, '关闭会话起草合同 → 403（修复前放行）');
+  // 恢复 active 后起草成功；O3：超大时薪被钳制
+  raw.prepare("UPDATE conversations SET status='active' WHERE id=1").run();
+  const body = { ...contractBody(1, d1), hourlyRate: 999999999 };
+  assert.equal((await handleCreateContract(db, body, reqOf(t1S.token))).status, 201, 'active 会话可起草');
+  const ct = await dbGetContractById(db, 1);
+  assert.equal(ct.hourly_rate, LIMITS.BUDGET_MAX, '时薪钳制为 BUDGET_MAX（修复前存 999999999）');
 });
 
 // Z-5-F5 回归：取消后正文第十条反映回退签署态（原只清列不清正文，对方仍见「已签署」）

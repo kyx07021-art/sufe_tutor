@@ -278,6 +278,8 @@ export async function handleCreateContract(db, body, req) {
   const conversationId = parseInt(body.conversationId);
   const conv = await dbGetConversationWithNames(db, conversationId);
   if (!isParticipant(conv, userId)) return errorMsg('NO_PERMISSION', 403);
+  // Z-5-O2：已关闭会话不可起草合同（与 handleCreateSigning/发消息同款状态门禁——关闭会话双方可见但禁写）
+  if (conv.status !== STATUS.ACTIVE) return errorMsg('NO_PERMISSION', 403);
 
   // v1.2.0 T3：签约创建 = 成交动作，教师方须过接单资格（学信网核验 + 必填齐全）——学生发起时校验对端教师
   const teacherId = me.role === 'teacher' ? userId : conv.teacher_user_id;
@@ -290,7 +292,7 @@ export async function handleCreateContract(db, body, req) {
 
   const method = body.method === 'offline' ? 'offline' : 'online';
   const plan = String(body.plan || '').slice(0, LIMITS.CONTRACT_PLAN_MAX);
-  const rate = Math.max(0, parseInt(body.hourlyRate) || 0);
+  const rate = Math.min(LIMITS.BUDGET_MAX, Math.max(0, parseInt(body.hourlyRate) || 0)); // Z-5-O3：时薪钳制 BUDGET_MAX（与签约请求同口径）
   const schedule = String(body.schedule || '').slice(0, LIMITS.CONTRACT_SCHEDULE_MAX);
   const location = String(body.location || '').slice(0, LIMITS.CONTRACT_LOCATION_MAX);
   // 薪资三要素：白名单枚举 + 「其他」自拟文字；首课日期取 yyyy-mm-dd（date input 原值）
