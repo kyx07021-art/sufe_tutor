@@ -1,7 +1,7 @@
 /**
  * 管理域数据层（V-1-4 从 server/db.js 提取）：统计/用户管理/统一内容提取。
  */
-import { dbAll, dbGet } from '../../core/util.js';
+import { dbAll, dbGet, dbRun } from '../../core/util.js'; // Z-6-F1：dbRevokeInviteCode/dbDeleteFeedback/dbDeleteComplaint 补 dbRun（断线修复）
 import { safeJsonArray } from '../../core/json.js';
 import { LIMITS } from '../../../shared/config.js';
 
