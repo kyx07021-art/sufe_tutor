@@ -3,13 +3,16 @@
  *   - 旧 FIELD_ENC_KEY 密文 → 新 FIELD_ENC_KEY 重写；
  *   - activity_log.detail 旧 LOG_ENCRYPT_KEY → 新 LOG_ENCRYPT_KEY 重写；
  *   - 无法解密的行只计数、不覆盖。
+ *   - A-12 分片：reencryptChunk 单调用 ≤ REENCRYPT_ROW_BUDGET 行，cursor 续跑；
+ *     分片汇总总计数 == 全量 reencryptAll；REENCRYPT_ROW_BUDGET ≤ 30 契约锁
+ *     （D1 Free 单调用 50 次查询上限，防未来调大导致生产重加密回归 COMMON_SERVER_ERROR）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { bindCryptoEnv, encryptField, decryptField, encryptDetail, decryptDetail } from '../src/server/core/crypto.js';
-import { reencryptAll } from '../server/reencrypt.js';
+import { reencryptAll, reencryptChunk, REENCRYPT_ROW_BUDGET } from '../server/reencrypt.js';
 import { initLogDb } from '../src/server/core/log.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -114,4 +117,72 @@ test('N1：独立 LOG_DB 场景重加密同时覆盖业务库与留档库', asyn
   const row = logRaw.prepare('SELECT detail FROM activity_log LIMIT 1').get();
   assert.notEqual(row.detail, oldDetail);
   assert.equal(await decryptDetail(row.detail), JSON.stringify({ action: 'audit', secret: 'old-log-db' }), '新钥可读独立留档库');
+});
+
+test('A-12：分片续跑总计数 == 全量 reencryptAll；段内恰满 budget 不重不漏', async () => {
+  // 造 >budget 的数据：45 行仅 phone + 20 行仅 email（多列 OR 混合，验证 WHERE 括号续跑不拉回）+ 45 附件 + 45 日志
+  const build = async () => {
+    const raw = new DatabaseSync(':memory:');
+    raw.exec('PRAGMA foreign_keys = ON');
+    const db = d1Shim(raw);
+    await initDb(db, ENV);
+    bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
+    for (let i = 0; i < 45; i++) raw.prepare("INSERT INTO users (username,password_hash,salt,role,phone) VALUES (?,?,?,?,?)").run('p' + i, 'h', 's', 'student', await encryptField('1390000' + String(1000 + i)));
+    for (let i = 0; i < 20; i++) raw.prepare("INSERT INTO users (username,password_hash,salt,role,email) VALUES (?,?,?,?,?)").run('e' + i, 'h', 's', 'student', await encryptField('e' + i + '@x.com'));
+    const uid = raw.prepare("SELECT id FROM users WHERE username='p0'").get().id;
+    for (let i = 0; i < 45; i++) raw.prepare('INSERT INTO complaints (user_id, target_type, target_id, attachments) VALUES (?, ?, ?, ?)').run(uid, 'teacher', i, JSON.stringify([{ body: await encryptField('data:image/' + i) }]));
+    for (let i = 0; i < 45; i++) raw.prepare('INSERT INTO activity_log (schema_v, encrypted, action, detail) VALUES (2, 1, ?, ?)').run('a' + i, (await encryptDetail(JSON.stringify({ i }))).text);
+    bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG, FIELD_ENC_KEY_OLD: OLD_FIELD });
+    return { raw, db };
+  };
+
+  // 全量
+  const a = await build();
+  const full = await reencryptAll(a.db);
+  // 分片续跑
+  const b = await build();
+  let cursor = null, chunked = { fields: 0, attachments: 0, logs: 0 }, calls = 0;
+  for (;;) {
+    const { summary, cursor: next } = await reencryptChunk(b.db, cursor);
+    chunked.fields += summary.fields.rewritten;
+    chunked.attachments += summary.attachments.rewritten;
+    chunked.logs += summary.logs.rewritten;
+    calls++;
+    if (!next) break;
+    cursor = next;
+  }
+  assert.equal(full.fields.rewritten, 65, '全量字段重写 65');
+  assert.equal(full.attachments.rewritten, 45, '全量附件重写 45'); // 审计建议：绝对锚（防两路径同错相等）
+  assert.equal(full.logs.rewritten, 45, '全量日志重写 45');
+  assert.equal(chunked.fields, full.fields.rewritten, '分片字段汇总 == 全量');
+  assert.equal(chunked.attachments, full.attachments.rewritten, '分片附件汇总 == 全量');
+  assert.equal(chunked.logs, full.logs.rewritten, '分片日志汇总 == 全量');
+  assert.ok(calls > 1, `段内恰满 budget 触发多调用续跑（calls=${calls}）`);
+  // 不重不漏：users 表行数不变（65 数据行 + 1 admin 种子）
+  const rows = b.raw.prepare('SELECT COUNT(*) AS n FROM users').get().n;
+  assert.equal(rows, 66, '无重复插入/处理（65 数据 + 1 admin 种子）');
+});
+
+test('A-12：REENCRYPT_ROW_BUDGET ≤ 30 契约（D1 单调用 50 查询上限防回归）', async () => {
+  // D1 Free 单调用 50 次查询上限；handler 固定开销（requireAdmin/confirmDangerOtp/logEvent/logRequest）
+  // ≈ 10 次 + 每段 1 次扫描 SELECT。budget 必须 ≤ 30 才保证单调用不超限——调大即回归生产事故。
+  assert.ok(REENCRYPT_ROW_BUDGET > 0 && REENCRYPT_ROW_BUDGET <= 30,
+    `REENCRYPT_ROW_BUDGET=${REENCRYPT_ROW_BUDGET} 超出 30 上限（防 D1 50 查询回归）`);
+});
+
+test('A-12：reencryptChunk 游标语义（首调无 cursor 返回续跑游标；日志取尽 done）', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
+  for (let i = 0; i < 5; i++) raw.prepare('INSERT INTO activity_log (schema_v, encrypted, action, detail) VALUES (2, 1, ?, ?)').run('a' + i, (await encryptDetail(JSON.stringify({ i }))).text);
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG, FIELD_ENC_KEY_OLD: OLD_FIELD });
+  // 首调：字段/附件空，日志 5 行 < budget → 一次完成，cursor=null
+  const first = await reencryptChunk(db, null);
+  assert.equal(first.cursor, null, '日志取尽 → cursor=null（全部完成）');
+  assert.equal(first.summary.logs.rewritten, 5, '首调全量日志重写');
+  // 幂等：完成后从头重跑（随机 IV 恒重写，无害）
+  const second = await reencryptChunk(db, null);
+  assert.equal(second.summary.logs.rewritten, 5, '幂等重跑');
 });
