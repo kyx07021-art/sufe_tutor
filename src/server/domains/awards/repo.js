@@ -3,13 +3,13 @@
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { LIMITS } from '../../../shared/config.js';
-import { STATUS } from '../../../shared/enums.js';
+import { STATUS, AWARD_STATUS } from '../../../shared/enums.js'; // Z-16-F4：AWARD_STATUS 单源 shared/enums，本地定义删除
 
 export const AWARD_TITLE_MAX = 60;
 export const AWARD_ISSUER_MAX = 60;
 export const AWARDS_MAX = 10;
 export const AWARD_DATE_RE = /^(?:\d{4}(?:-\d{2})?)?$/;
-export const AWARD_STATUS = { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected' };
+export { AWARD_STATUS }; // 单源 shared/enums.js，re-export 保 api.js 既有接口（Z-16-F4）
 
 export async function initAwardsTable(db) {
   await dbRun(db, `CREATE TABLE IF NOT EXISTS teacher_awards (
