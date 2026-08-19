@@ -4,8 +4,8 @@
 #   - HSTS / X-Content-Type-Options / Referrer-Policy 全站覆盖
 # 注意：此文件与页面 meta CSP 同源同策略（多策略取交集，浏览器强制）。V-4-1h h5a 收紧：
 #   - script-src 去 'unsafe-inline'（v1 壳内联 onclick 已删，v2 零内联脚本）；
-#   - style 拆分镜像 meta（style-src-elem 'self' 拦 <style> 注入 + style-src-attr 'unsafe-inline'
-#     保 ui-modal cssText 数据通道——合并式 style-src 'self' 会让 style-src-attr 交集为空断 cssText）；
+#   - style 拆分镜像 meta（style-src-elem 'self' 拦 <style> 注入；style-src-attr 'none'——h5a-g6
+#     实测定案：CSSOM cssText/setProperty 不受 style-src-attr 管辖，app 零内联 style 属性，无需例外）；
 #   - 删 Google Fonts/font-src 例外（v2 零外部字体，v1 壳随删除消失）。
 # Pages _headers 匹配规则：相对根路径 + 通配符；站点唯一 HTML 文档 = index.html（v2 壳）。
 # v0.19.35（网安报告 F-08）：规则从 /index.html 改 /*——生产首页是 "/" 的 SPA 回退，
@@ -15,7 +15,7 @@
   X-Content-Type-Options: nosniff
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Referrer-Policy: strict-origin-when-cross-origin
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 

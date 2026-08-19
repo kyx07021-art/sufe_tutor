@@ -4,8 +4,8 @@
  *
  * 验证目标：
  *   1. 注入面四类真实拦截语义（fixture 页与 web/index.html 同源严格 meta CSP）：
- *      内联 script / onclick handler / <style> 元素三路被拦；style 属性数据通道放行
- *      （style-src-attr 'unsafe-inline' 是有意保留，c1/c2 CSS 变量通道 + ui-modal cssText 依赖）。
+ *      内联 script / onclick handler / <style> 元素 / HTML style 属性四路全被拦（h5a-g6 起
+ *      style-src-attr 'none'；CSSOM cssText/setProperty 不受此指令管辖——F1 实测定案）。
  *   2. v2 真实页面（dist/index.html，build 产物）首绘/登录/客户端壳/领域页/弹窗零 CSP 报错：
  *      - returning 上下文（无 onboarding 弹窗）：landing 首绘 → 访客进客户端壳 → sidebar 领域页切换；
  *        另一次加载验证登录视图。
@@ -83,10 +83,10 @@ try {
     inlineRan ? fail('内联 script 未拦截（__csp_inline 被置位）') : ok('内联 script 被 script-src 拦');
     onclickRan ? fail('onclick handler 未拦截（__csp_onclick 被置位）') : ok('onclick handler 被 script-src 拦');
     elemColor === 'rgb(1, 2, 3)' ? fail(`<style> 元素注入未被拦（计算色 ${elemColor}）`) : ok('<style> 元素被 style-src-elem 拦');
-    attrColor === 'rgb(9, 8, 7)' ? ok(`style 属性数据通道放行（计算色 ${attrColor}）`) : fail(`style 属性数据通道被误拦（计算色 ${attrColor}）`);
-    cspViolations.length >= 3
-      ? ok(`三路被拦各触发 CSP 违规日志（CDP ${cspViolations.length} 条）`)
-      : fail(`CSP 违规日志不足（${cspViolations.length} 条，期望 ≥3 证明真实拦截）：`, cspViolations.join(' | '));
+    attrColor === 'rgb(9, 8, 7)' ? fail(`style 属性未被拦（计算色 ${attrColor}，style-src-attr 'none' 应收拦）`) : ok(`style 属性被 style-src-attr 'none' 拦（计算色 ${attrColor}）`);
+    cspViolations.length >= 4
+      ? ok(`四路被拦各触发 CSP 违规日志（CDP ${cspViolations.length} 条）`)
+      : fail(`CSP 违规日志不足（${cspViolations.length} 条，期望 ≥4 证明真实拦截）：`, cspViolations.join(' | '));
     await page.close();
   }
 

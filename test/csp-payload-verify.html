@@ -2,8 +2,8 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <!-- 与 web/index.html 完全同源的严格 meta CSP（V-3-1d2）——验证四类注入面的真实浏览器拦截语义 -->
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'">
+  <!-- 与 web/index.html 完全同源的严格 meta CSP（V-3-1d2，h5a-g6 收紧 style-src-attr 'none'）——验证四类注入面的真实浏览器拦截语义 -->
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self'; style-src-elem 'self'; style-src-attr 'none'">
   <title>CSP 注入面验证页（V-3-1e）</title>
 </head>
 <body>
@@ -17,8 +17,8 @@
   <style>.csp-elem-test{color:rgb(1,2,3)}</style>
   <div id="csp-elem" class="csp-elem-test">style 元素注入面</div>
 
-  <!-- 第四路（放行面）：style 属性数据通道（style-src-attr 'unsafe-inline' 有意保留，c1/c2 的 CSS 变量通道依赖），
-       应生效——计算色必须为 rgb(9,8,7) -->
-  <div id="csp-attr" style="color:rgb(9,8,7)">style 属性数据通道</div>
+  <!-- 第四路（h5a-g6 起为拦截面）：HTML style 属性（受 style-src-attr 管辖，现 'none' 应收拦）——计算色必须非 rgb(9,8,7)；
+       CSSOM cssText/setProperty 不受此指令管辖（F1 实测定案），app 生产代码零内联 style 属性 -->
+  <div id="csp-attr" style="color:rgb(9,8,7)">style 属性</div>
 </body>
 </html>

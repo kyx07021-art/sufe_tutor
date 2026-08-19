@@ -229,7 +229,7 @@ export const CORS_HEADERS = {
   'Access-Control-Allow-Headers': "Content-Type",
 };
 export const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   'Strict-Transport-Security': "max-age=31536000; includeSubDomains",
   'X-Content-Type-Options': "nosniff",
   'X-Frame-Options': "DENY",

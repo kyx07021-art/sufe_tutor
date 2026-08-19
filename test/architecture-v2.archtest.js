@@ -94,16 +94,19 @@ test('web/index.html 是干净 ESM 壳：无内联脚本/事件/样式', () => {
   assert.ok(!/onclick=/.test(html) && !/onload=/.test(html) && !/style=/.test(html), '无内联事件/样式属性');
 });
 
-// V-3-1d3 CSP 收口契约（架构层）：v2 页严格 meta CSP——script-src/style-src-elem 无 unsafe-inline，
-// 锁严格策略不退化（文档化来源，V-3-2a0）。最小化声明无 default-src（交集不收紧 data:/blob:）。
-test('web/index.html 严格 meta CSP：script-src/style-src-elem 无 unsafe-inline', () => {
+// V-3-1d3 + V-4-1h h5a-g6 CSP 收口契约（架构层）：v2 页严格 meta CSP——script-src/style-src-elem/
+// style-src-attr 均无 unsafe-inline（style-src-attr 'none'，h5a-g6 实测定案：CSSOM cssText/setProperty 不受
+// 该指令管辖，app 零内联 style 属性），锁严格策略不退化（文档化来源，V-3-2a0）。
+// 最小化声明无 default-src（交集不收紧 data:/blob:）。
+test('web/index.html 严格 meta CSP：script-src/style-src-elem/style-src-attr 均无 unsafe-inline；style-src-attr 为 none', () => {
   const html = read('web/index.html');
   const meta = html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)"/);
   assert.ok(meta, 'v2 页 meta CSP 存在');
   assert.ok(/script-src 'self'(?!\s*'unsafe-inline')/.test(meta[1]), 'script-src 严格（无 unsafe-inline）');
   assert.ok(!/script-src[^;]*'unsafe-eval'/.test(meta[1]), '无 unsafe-eval');
   assert.ok(/style-src-elem 'self'(?!\s*'unsafe-inline')/.test(meta[1]), 'style-src-elem 严格（无 unsafe-inline）');
-  assert.ok(/style-src-attr 'unsafe-inline'/.test(meta[1]), 'style-src-attr 数据通道保留（ui-modal cssText 承重）');
+  assert.ok(/style-src-attr 'none'/.test(meta[1]), 'style-src-attr 为 none（h5a-g6：CSSOM 不受辖，app 零内联 style 属性）');
+  assert.ok(!/style-src-attr[^;]*'unsafe-inline'/.test(meta[1]), 'style-src-attr 无 unsafe-inline（h5a-g6 收紧）');
   assert.ok(!/default-src/.test(meta[1]) || /img-src[^;]*data:/.test(meta[1]), '无 default-src 收紧 data: 通道（或 img-src 含 data:）');
   const dirs = meta[1].split(';').map(s => s.trim().split(/\s+/)[0]).filter(Boolean);
   assert.equal(new Set(dirs).size, dirs.length, '无重复指令（审计 O1：防分号后追加同指令等效放宽）');
