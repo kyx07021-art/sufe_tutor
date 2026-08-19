@@ -2,69 +2,10 @@
  * region feature actions: DOM mutations, collection and change handlers.
  * No inline handlers; used through data-action delegation or explicit calls.
  */
-import { CONFIG } from '../../../shared/config.js';
 import { SUFE_REGIONS as R } from '../../constants/region-data.js';
 import { TEXT } from '../../constants/text.js';
-import { checkboxItemsHtml, initCustomSelects, pickGrade } from '../../core/ui.js';
+import { pickGrade } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
-import { renderTeacherGaokaoEditor, teacherSubjectPool } from './render.js';
-
-export function currentGradYear() {
-  if (typeof document === 'undefined') return undefined;
-  const el = document.getElementById('profile-graduation-year');
-  if (!el) return undefined;
-  const v = String(el.value).trim();
-  if (!/^\d{4}$/.test(v)) return undefined;
-  const min = CONFIG.GRAD_YEAR_MIN != null ? CONFIG.GRAD_YEAR_MIN : 1980;
-  const max = CONFIG.GRAD_YEAR_MAX != null ? CONFIG.GRAD_YEAR_MAX : 2030;
-  return Math.min(max, Math.max(min, +v));
-}
-
-export function rebuildTeacherSubjects(provinceId) {
-  const el = document.getElementById('profile-subjects');
-  if (!el) return;
-  const checked = [...el.querySelectorAll('input:checked')].map(cb => cb.value);
-  el.innerHTML = checkboxItemsHtml(teacherSubjectPool(provinceId), checked);
-}
-
-export function onTeacherProvinceChange(provinceId) {
-  const sel = document.getElementById('profile-province');
-  const el = document.getElementById('profile-gaokao-scores');
-  const pid = provinceId != null ? provinceId : (sel ? sel.value : '');
-  if (!el) return;
-  rebuildTeacherSubjects(pid);
-  el.innerHTML = renderTeacherGaokaoEditor(pid, currentGradYear(), []);
-  if (typeof initCustomSelects === 'function') initCustomSelects(el);
-}
-
-export function onTeacherSubjectsChange() {
-  const sel = document.getElementById('profile-province');
-  const el = document.getElementById('profile-gaokao-scores');
-  if (!el) return;
-  const existing = collectTeacherGaokao();
-  el.innerHTML = renderTeacherGaokaoEditor(sel ? sel.value : '', currentGradYear(), existing);
-  if (typeof initCustomSelects === 'function') initCustomSelects(el);
-}
-
-export function onTeacherGradYearChange() {
-  onTeacherSubjectsChange();
-}
-
-export function pickGkPill(el) {
-  const group = el.closest('.gk-pill-group');
-  if (!group) return;
-  group.querySelectorAll('.gk-pill').forEach(o => o.classList.remove('selected'));
-  el.classList.add('selected');
-}
-
-export function pickGkTrack(el) {
-  pickGkPill(el);
-  const root = document.getElementById('profile-gaokao-scores');
-  if (!root) return;
-  root.querySelectorAll('[data-gk-track-row]').forEach(row => {
-    row.classList.toggle('hidden', row.dataset.gkTrackRow !== el.dataset.gkTrack);
-  });
-}
 
 export function switchScoreMode(btn) {
   const row = btn && btn.closest ? btn.closest('.score-row') : null;
@@ -131,30 +72,6 @@ export function syncShanghaiAddrPicker(prefix, hiddenId) {
   h.value = d && uSel.value ? R.buildShanghaiAddr(d.id, uSel.value) : '';
 }
 
-export function collectTeacherGaokao() {
-  const root = document.getElementById('profile-gaokao-scores');
-  const out = [];
-  if (!root) return out;
-  root.querySelectorAll('input[data-gk-type="score"][data-gk-subject]').forEach(inp => {
-    if (inp.closest('.hidden') || inp.value === '') return;
-    out.push({ subject: inp.dataset.gkSubject, score: +inp.value });
-  });
-  const firstPill = root.querySelector('[data-gk-role="first"] .gk-pill.selected');
-  const firstInput = root.querySelector('input[data-gk-role="first-score"]');
-  if (firstPill && firstInput && firstInput.value !== '') {
-    out.push({ subject: firstPill.dataset.gkFirst, score: +firstInput.value });
-  }
-  root.querySelectorAll('.grade-selector[data-gk-subject]').forEach(sel => {
-    if (sel.closest('.hidden')) return;
-    const s = sel.querySelector('.grade-option.selected');
-    if (s) out.push({ subject: sel.dataset.gkSubject, grade: s.dataset.grade });
-  });
-  root.querySelectorAll('select.gk-grade-select[data-gk-subject]').forEach(sel => {
-    if (sel.closest('.hidden') || !sel.value) return;
-    out.push({ subject: sel.dataset.gkSubject, grade: sel.value });
-  });
-  return out;
-}
 
 export function collectStudentScores() {
   const root = document.getElementById('d-scores');

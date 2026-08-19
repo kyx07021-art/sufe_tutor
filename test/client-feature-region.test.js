@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { renderProvinceSelect, regionLockNote, buildStudentSubjectsHtml, buildStudentScoreRows, renderTeacherGaokaoEditor, gaokaoPolicyMismatchCount, regionResolvePolicy } from '../src/client/features/region/render.js';
+import { renderProvinceSelect, regionLockNote, buildStudentSubjectsHtml, buildStudentScoreRows, regionResolvePolicy } from '../src/client/features/region/render.js';
 import { actions } from '../src/client/features/region/index.js';
 import { switchScoreMode } from '../src/client/features/region/actions.js';
 
@@ -34,16 +34,6 @@ test('region render: score rows contain seg tabs with data-tab-action and no inl
   assert.ok(!/onclick=/.test(html));
 });
 
-test('region render: teacher editor renders without inline handlers', () => {
-  const dom = new JSDOM('<html><body><div id="profile-subjects"></div><div id="profile-gaokao-scores"></div></body></html>', { url: 'http://localhost/' });
-  globalThis.document = dom.window.document;
-  const html = renderTeacherGaokaoEditor('zhejiang', undefined, []);
-  assert.ok(html.includes('gaokao-section'));
-  assert.ok(!/onclick=/.test(html));
-  assert.ok(!/style=/.test(html));
-  delete globalThis.document;
-});
-
 test('region actions: pickGrade toggles selected in grade selector', () => {
   const dom = new JSDOM('<html><body><div class="grade-selector"><span class="grade-option" data-grade="A">A</span><span class="grade-option" data-grade="B">B</span></div></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
@@ -54,12 +44,9 @@ test('region actions: pickGrade toggles selected in grade selector', () => {
   delete globalThis.document;
 });
 
-test('region pure: mismatch count and policy resolve', () => {
+test('region pure: policy resolve returns typed policy', () => {
   const pol = regionResolvePolicy('zhejiang', 2019);
   assert.ok(pol && pol.type);
-  const list = [{ subject: 'physics', grade: 'L1' }];
-  const n = gaokaoPolicyMismatchCount(pol, list);
-  assert.equal(typeof n, 'number');
 });
 
 

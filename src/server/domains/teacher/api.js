@@ -200,7 +200,7 @@ export async function handleSaveProfile(db, body, req) {
 
   // R2-6 擅长科目 / 高考成绩白名单（网安纵深防御，与需求侧 target_subjects 同款口径）：
   //   科目池 = constants SUBJECTS + region-data subjectNames 全量 id（含浙江技术等地区科目），
-  //   与前端 teacherSubjectPool 同源；注入串/未知 id 一律丢弃，去重 + 按池大小封顶防铺量 DoS。
+  //   与前端科目池同源（Z-11-F4 删 teacherSubjectPool 后此注释不再指前端函数）；注入串/未知 id 一律丢弃，去重 + 按池大小封顶防铺量 DoS。
   const R = SUFE_REGIONS;
   const subjPool = new Set([
     ...SUBJECTS.map(s => s.id),
