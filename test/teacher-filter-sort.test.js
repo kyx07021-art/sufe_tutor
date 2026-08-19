@@ -4,8 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { sortTeachers, teacherSortMode, applyFilters, hasDaySlot } from '../src/client/features/teacher/actions.js';
+import { sortTeachers, teacherSortMode, applyFilters, hasDaySlot, loadTeachers, teacherSortFromSelect } from '../src/client/features/teacher/actions.js';
 import { state } from '../src/client/core/state.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 const TEACHERS = [
   { user_id:1, username:'甲', rating:5, price_min:200, price_max:260, teaching_method:'online', time_slots:JSON.stringify([{type:'week',dow:1,start:'18:00',end:'20:00'}]), verified:1 },
@@ -69,4 +70,44 @@ test('applyFilters：方法/星期/认证叠加', () => {
   applyFilters();
   assert.deepEqual(state.allTeachers.map(t=>t.user_id), [1]);
   delete globalThis.document;
+});
+
+test('Q-4a-M1c：sortTeachers() 无参也写回 state（排序控件路径，原排序恒不生效）', () => {
+  const dom = setup();
+  state.teacherSort = 'price';
+  state.allTeachers = TEACHERS.map(t => ({...t}));
+  sortTeachers();
+  assert.deepEqual(state.allTeachers.map(t=>t.user_id), [2,3,1,4], 'price 排序写回 state');
+  delete globalThis.document;
+});
+
+test('Q-4a-M1c：teacherSortFromSelect 设 mode + 写回（排序控件 data-change 委托）', () => {
+  const dom = setup();
+  const sel = dom.window.document.createElement('select');
+  const opt = dom.window.document.createElement('option');
+  opt.value = 'rating'; sel.appendChild(opt); sel.value = 'rating';
+  state.allTeachers = TEACHERS.map(t => ({...t}));
+  teacherSortFromSelect(sel);
+  assert.equal(state.teacherSort, 'rating', 'teacherSort 更新');
+  assert.deepEqual(state.allTeachers.map(t=>t.user_id), [1,4,3,2], 'rating 排序生效');
+  delete globalThis.document;
+});
+
+test('Q-4a-M1b：loadTeachers 填充筛选/排序控件（原空死容器）', async () => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select><select id="filter-verified"></select><label id="teacher-sort-label"></label></body></html>', { url: 'http://localhost/' });
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  globalThis.MutationObserver = class { observe() {} };
+  state.user = { role: 'student', id: 1, username: 's' };
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ teachers: [] }) });
+  await loadTeachers();
+  assert.ok(dom.window.document.getElementById('teacher-sort').options.length > 1, '排序控件已填充');
+  assert.ok(dom.window.document.getElementById('filter-method').options.length > 1, '授课方式控件已填充');
+  assert.ok(dom.window.document.getElementById('filter-day').options.length > 1, '星期控件已填充');
+  assert.ok(dom.window.document.getElementById('filter-verified').options.length > 1, '认证控件已填充');
+  assert.equal(dom.window.document.getElementById('teacher-sort-label').textContent, TEXT.LABEL_SORT, '排序标签渲染');
+  delete globalThis.document; delete globalThis.window;
+  delete globalThis.localStorage; delete globalThis.sessionStorage; delete globalThis.MutationObserver; delete globalThis.fetch;
 });

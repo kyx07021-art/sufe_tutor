@@ -44,6 +44,14 @@ function onLoad() {
     enter: () => actions.loadTeachers(),
   });
   document.addEventListener('click', onActionClick);
+  // Q-4a-M1b/M1c: teacher sort/filter controls change delegation (shell data-change attrs)
+  function onChange(e) {
+    const el = e.target;
+    if (!el || !el.dataset) return;
+    if (el.dataset.change === 'teacher.applyFilters') { actions.applyFilters(); return; }
+    if (el.dataset.change === 'teacher.sort') { actions.teacherSortFromSelect(el); }
+  }
+  document.addEventListener('change', onChange);
   // Z-8-F1: avatar clicks are intercepted by anim.js capture and dispatch profile-panel-open
   // (core must not depend on features); the profile panel belongs to the teacher domain, so this
   // feature consumes the event (fixes dead avatar clicks across router/chat/student renderers)
@@ -51,6 +59,7 @@ function onLoad() {
   document.addEventListener('profile-panel-open', onProfileOpen);
   return () => {
     document.removeEventListener('click', onActionClick);
+    document.removeEventListener('change', onChange);
     document.removeEventListener('profile-panel-open', onProfileOpen);
     installed = false;
   };

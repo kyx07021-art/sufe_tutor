@@ -2,7 +2,7 @@
  * teacher feature actions: list, filters, profile panel, reviews.
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES, TEACHING_METHODS, WEEKDAYS } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums; Q-4a-M1b: filter options
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
@@ -17,9 +17,27 @@ let profilePanelUserId = null;
 let _studentOpenDemand = false;
 let _matchDetailOpen = false;
 
+// Q-4a-M1b: fill teacher sort/filter controls (shell provides empty container; was dead — toggle showed blank dropdown)
+function fillTeacherFilters() {
+  const fill = (id, opts) => {
+    const el = document.getElementById(id);
+    if (!el || el.options.length > 1) return; // idempotent
+    el.innerHTML = `<option value="">${escHtml(TEXT.DEMAND_FILTER_ALL)}</option>` + opts.map(o => `<option value="${escHtml(o.value)}">${escHtml(o.label)}</option>`).join('');
+  };
+  fill('filter-method', TEACHING_METHODS.map(m => ({ value: m.id, label: m.name })));
+  fill('filter-day', WEEKDAYS.map(d => ({ value: d.id, label: d.name })));
+  fill('filter-verified', [{ value: '1', label: TEXT.VERIFY_DONE }, { value: '0', label: TEXT.FILTER_UNVERIFIED }]);
+  fill('teacher-sort', [{ value: 'match', label: TEXT.TEACHER_SORT_MATCH }, { value: 'rating', label: TEXT.TEACHER_SORT_RATING }, { value: 'price', label: TEXT.TEACHER_SORT_PRICE }]);
+  const lbl = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  lbl('teacher-sort-label', TEXT.LABEL_SORT);
+  lbl('teacher-method-label', TEXT.LABEL_TEACHING_METHOD_PROFILE);
+  lbl('teacher-day-label', TEXT.LABEL_DAY);
+  lbl('teacher-verified-label', TEXT.LABEL_VERIFIED);
+}
 export function loadTeachers() {
   const el = document.getElementById('browse-teachers-list') || document.getElementById('teachers-list');
   if (!el) return;
+  fillTeacherFilters();
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   return dhGet('/api/teachers', { domain: 'teachers' }).then(async data => {
     state.allTeachers = data.teachers || [];
@@ -184,6 +202,11 @@ export function teacherSortMode(mode) {
   state.teacherSort = mode; sortTeachers(); return mode;
 }
 export function syncMatchSortOpt() { /* handled by sort control */ }
+export function teacherSortFromSelect(el) { // Q-4a-M1c: sort control change delegation
+  const v = el ? String(el.value || '') : '';
+  state.teacherSort = v || 'match';
+  sortTeachers();
+}
 export function sortTeachers(arrOrMode, maybeMode) {
   const arr = Array.isArray(arrOrMode) ? [...arrOrMode] : [...(state.allTeachers || [])];
   const mode = maybeMode || (Array.isArray(arrOrMode) ? 'rating' : state.teacherSort || 'match');
@@ -197,7 +220,7 @@ export function sortTeachers(arrOrMode, maybeMode) {
       return bm - am;
     });
   }
-  if (Array.isArray(arrOrMode)) { state.allTeachers = arr; }
+  if (Array.isArray(arrOrMode) || arrOrMode == null) { state.allTeachers = arr; } // Q-4a-M1c: write back on no-arg call too (sort control path was sorting a copy and never persisting)
   renderTeachers();
 }
 

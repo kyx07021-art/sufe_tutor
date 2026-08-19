@@ -1254,6 +1254,10 @@ export const TEXT = {
   "SETTINGS_USERNAME_CONFIRM": "确定修改用户名？",
   "SETTINGS_USERNAME_TITLE": "修改用户名",
   "DEMAND_DELETED_TOAST": "需求已删除",
-  "INTENT_RESOLVED_TOAST": "已同意，可在「我的会话」中开始对话"
+  "INTENT_RESOLVED_TOAST": "已同意，可在「我的会话」中开始对话",
+  "LABEL_SORT": "排序",           // Q-4a-M1b: teacher list filter/sort panel labels
+  "LABEL_DAY": "可授课日",
+  "LABEL_VERIFIED": "认证状态",
+  "FILTER_UNVERIFIED": "未认证"
 };
 export default TEXT;

@@ -99,7 +99,12 @@ export function mountShell() {
           </div>
           <div class="browse-list" id="browse-demands-list"></div>` })}
         ${page('browse-teachers', TEXT.PAGE_BROWSE_TEACHERS, { actions: filterToggleBtn('teacher.toggleFilters', 'filter-toggle-btn'), body: `
-          <div class="drop-wrap hidden" id="teacher-filters"></div>
+          <div class="filter-panel glass glass--solid hidden" id="teacher-filters"> <!-- Q-4a-M1b: teacher sort/filter controls (filled by teacher feature fillTeacherFilters; was empty dead container) -->
+            <label id="teacher-sort-label"></label><select class="filter-select" id="teacher-sort" data-change="teacher.sort"></select>
+            <label id="teacher-method-label"></label><select class="filter-select" id="filter-method" data-change="teacher.applyFilters"></select>
+            <label id="teacher-day-label"></label><select class="filter-select" id="filter-day" data-change="teacher.applyFilters"></select>
+            <label id="teacher-verified-label"></label><select class="filter-select" id="filter-verified" data-change="teacher.applyFilters"></select>
+          </div>
           <div class="browse-list" id="browse-teachers-list"></div>` })}
         ${page('my-chats', TEXT.PAGE_MY_CHATS, { flush: true, body: `
           <div class="chats-list-title">${escHtml(TEXT.CHAT_TITLE)}</div>
