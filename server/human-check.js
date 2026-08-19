@@ -127,7 +127,10 @@ export async function handleCaptchaVerify(db, body, req) {
   if (!Array.isArray(track)) return errorMsg('CAPTCHA_TRACK_MISSING', 400);
   const captchaId = String((body && body.captchaId) || '').slice(0, 64);
   const check = humanTrajectoryCheck(track);
-  if (!check.ok) return error(MSG.CAPTCHA_VERIFY_FAILED_PREFIX + (check.reason || MSG.CAPTCHA_VERIFY_FAILED), 403, 'CAPTCHA_VERIFY_FAILED');
+  if (!check.ok) {
+    const failMsg = MSG.CAPTCHA_VERIFY_FAILED_PREFIX + (check.reason || MSG.CAPTCHA_VERIFY_FAILED);
+    return error(failMsg, 403, 'CAPTCHA_VERIFY_FAILED');
+  }
   // 判定通过 → 一次性放行（防同一挑战重复使用）
   if (!markChallengePassed(captchaId)) return errorMsg('CAPTCHA_ALREADY_USED', 403);
   return { ok: true, score: check.score };
