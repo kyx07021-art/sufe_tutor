@@ -15,7 +15,7 @@ export async function dbGetUserStats(db) {
 }
 
 // 网安审计 N-17：表名白名单映射（消除调用方拼表名进 SQL 的注入形状；未知表返回 0 不炸）
-const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1, teacher_awards: 1, feedbacks: 1, complaints: 1 };
+const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1, teacher_awards: 1, feedbacks: 1, complaints: 1, teacher_verifications: 1 }; // Z-6-F2：dashboard 待办「教师核验」计数此前白名单缺表恒 0
 // 条件计数（统计页待办队列用）：表名必须过 COUNT_TABLES 白名单（防注入），
 // where 为内部硬编码字面量（status 枚举），禁止拼接用户输入
 export async function dbGetCountWhere(db, table, where) {

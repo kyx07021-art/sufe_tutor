@@ -105,3 +105,26 @@ test('v1.5.0 dashboard 端点：聚合指标 + 待办含核验队列 + 非管理
   const anon = await handleAdminDashboard(db, new URL('http://x/api/admin/dashboard'), { headers: new Headers() });
   assert.equal(anon.status, 401, '无令牌拒绝');
 });
+
+// Z-6-F2 回归：verificationsPending 真计数——修复前 COUNT_TABLES 漏 teacher_verifications，
+// 该计数恒 0；`typeof number` 断言锁不住修复（恒 0 也是 number），补非零断言
+test('Z-6-F2 回归：存在 pending 核验记录时 verificationsPending 非零', async () => {
+  const { raw, db } = await setup();
+  const target = '+8613911110009';
+  const otp = await requestOtp(db, { channel: 'sms', target }, { headers: new Headers() });
+  assert.ok(otp.ok);
+  const adminId = (db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").first() || {}).id || 1;
+  const invite = 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();
+  db.prepare('INSERT INTO invite_codes (code, created_by) VALUES (?,?)').run(invite, adminId);
+  const reg = await handleRegister(db, { username: 't_pend', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: lastOtpCode(target), inviteCode: invite }, { headers: new Headers() });
+  assert.equal(reg.status, 200);
+  const tId = raw.prepare("SELECT id FROM users WHERE username='t_pend'").get().id;
+  raw.prepare('INSERT INTO teacher_verifications (user_id, verify_code, status, verify_type) VALUES (?, ?, ?, ?)')
+    .run(tId, 'VC' + tId, 'pending', 'chsi'); // 造一条待审核验
+  const login = await handleLogin(db, { identifier: 'admin_sufe', password: 'test-pw-123' }, { headers: new Headers() });
+  const token = (await login.json()).authToken;
+  const r = await handleAdminDashboard(db, new URL('http://x/api/admin/dashboard'), { headers: new Headers({ 'X-Auth-Token': token }) });
+  assert.equal(r.status, 200);
+  const d = await r.json();
+  assert.equal(d.dashboard.todo.verificationsPending, 1, '待审核验 = 1（修复前恒 0）');
+});
