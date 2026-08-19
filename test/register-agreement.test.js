@@ -67,6 +67,27 @@ test('服务端：双同意 → 注册成功', async () => {
   assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM users WHERE username='u_ok'").get().c, 1);
 });
 
+test('Q-2a-F1 守护：check-then-act 窗口内并发插入 → dbCreateUser 撞 UNIQUE 分流 400 USERNAME_TAKEN', async () => {
+  const raw = new DatabaseSync(':memory:'); raw.exec('PRAGMA foreign_keys = ON');
+  const origPrepare = raw.prepare.bind(raw);
+  let sabotage = false;
+  // 在真实 sqlite 上拦截 INSERT INTO users，伪造 UNIQUE 冲突（模拟预检放行后、另一会话已插同用户名）
+  raw.prepare = (sql) => {
+    if (sabotage && /INSERT INTO users\b/i.test(sql)) {
+      const err = new Error('UNIQUE constraint failed: users.username');
+      return { bind: () => ({ run: () => { throw err; } }), run: () => { throw err; }, all: () => { throw err; }, get: () => { throw err; } };
+    }
+    return origPrepare(sql);
+  };
+  const db = d1Shim(raw); await initDb(db, ENV);
+  const target = '+8613933337777';
+  await requestOtp(db, { channel: 'sms', target }, reqOf());
+  sabotage = true; // 此刻预检（dbUsernameExistsStmt）已放行，INSERT 撞 UNIQUE → 必须分流 400 而非裸 500
+  const r = await serverHandleRegister(db, { username: 'u_race', password: 'pass123456', role: 'student', deviceId: 'd1', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: lastOtpCode(target) }, reqOf());
+  assert.equal(r.status, 400);
+  assert.equal((await r.json()).error, '用户名已被注册');
+});
+
 test('用户协议/隐私政策全文硬编码进 constants 且为 mdRender 可渲染语法', () => {
   assert.ok(TEXT.POLICY_AGREEMENT.startsWith('# 经世知途家教信息平台用户协议'));
   assert.ok(TEXT.POLICY_AGREEMENT.includes('## 一、总则'));

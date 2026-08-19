@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rateGate, authRateBatch, corsPreflight, applySecurityHeaders } from '../src/server/core/security.js';
+import { rateGate, authRateBatch, authUser, corsPreflight, applySecurityHeaders } from '../src/server/core/security.js';
 import { RATE_LIMITS, CORS_HEADERS, SECURITY_HEADERS } from '../src/shared/config.js';
 
 // stub db A：prepare/batch 抛错 → 各限流 D1 路径 catch 降级内存（rateGate 测试只判内存闸语义）
@@ -78,20 +78,43 @@ test('rateGate：登录/注册/重认证路径不占写闸（认证限流由 aut
   }
 });
 
-test('authRateBatch.verdict：block 行 / 写超限 / 认证超限 任一命中即拒，未超限放行', () => {
+test('authRateBatch.verdict：block 行 / 认证超限 命中即拒，写超限不再拒（Q-2a-F2），未超限放行', () => {
   const gate = authRateBatch(stubDbChain, uniqIp('batch'), 'login');
+  // Q-2a-F2 回滚重做：删 wSel 死 SELECT 后基础语句 = [block, wUp, aUp, aSel]，aN 移到 index 3
   const results = (block, wN, aN) => [
     { results: block ? [{}] : [] },
-    { results: [] },
-    { results: [{ n: wN }] },
-    { results: [] },
+    { results: [] }, // wUp（保留 upsert 维护写桶计数，verdict 不读）
+    { results: [] }, // aUp
     { results: [{ n: aN }] },
   ];
   // verdict 返回 0/1（truthy/falsy），用 assert.ok/equal 判
   assert.ok(!gate.verdict(results(false, 1, 1)), '未超限放行');
   assert.ok(gate.verdict(results(true, 1, 1)), 'block 行存在 → 拒');
-  assert.ok(gate.verdict(results(false, RATE_LIMITS.write.limit + 1, 1)), '写超限 → 拒');
+  // Q-2a-F2: 认证路径不再判写桶 w:ip——写超限不再拒（活跃用户写满不被误伤 429+三振），认证限流由 authKey 独立桶承担
+  assert.ok(!gate.verdict(results(false, RATE_LIMITS.write.limit + 1, 1)), '写超限不再拒（认证桶独立）');
   assert.ok(gate.verdict(results(false, 1, RATE_LIMITS.login.limit + 1)), '认证（login）超限 → 拒');
   // 边界：恰在 limit 内放行
   assert.ok(!gate.verdict(results(false, RATE_LIMITS.write.limit, RATE_LIMITS.login.limit)), '恰在 limit 内放行');
+});
+
+test('rateGate：OTP 请求专用 per-IP 桶（Q-2a-F3）——10/min 放行后第 11 次 429，换 IP 不受牵连', async () => {
+  const ip = uniqIp('otp');
+  // OTP 请求先过全局桶 + 写闸（POST，w:ip 计数 < 60 不触发）再过 otp 桶；stubDb 抛错降级内存判定
+  for (let i = 0; i < RATE_LIMITS.otp.limit; i++) {
+    assert.equal(await rateGate(ip, '/api/auth/otp/request', 'POST', {}, NOW, stubDb), true, `第 ${i + 1} 次放行`);
+  }
+  assert.equal(await rateGate(ip, '/api/auth/otp/request', 'POST', {}, NOW, stubDb), false, '第 11 次（> otp.limit 10）拒绝');
+  // 关键锁定：桶键是 o:${ip}（专用），其他 IP 不受该桶牵连
+  assert.equal(await rateGate(uniqIp('otp-other'), '/api/auth/otp/request', 'POST', {}, NOW, stubDb), true, '其他 IP 的 OTP 请求不受影响');
+});
+
+test('authUser：注销账户残留会话（deactivated=1, banned=0）令牌路径拒绝（Q-2a-F6）', async () => {
+  // Q-2a-F6 守护：dbDeactivateUser 恒同步写 banned=1+deactivated=1，常态由 banned 判定覆盖；
+  // 本用例锁「半程注销/异常状态 deactivated=1,banned=0」——删 deactivated 判定则该用户被放行（变异必红）。
+  const mkDb = user => ({ prepare() { return { bind() { return { first: async () => user, all: async () => ({ results: [] }) }; } }; } });
+  const req = { headers: { get: h => (h === 'X-Auth-Token' ? 'token-deactivated-user' : null) } };
+  assert.equal(await authUser(mkDb({ id: 1, username: 'u', role: 'student', avatar: '', banned: 0, deactivated: 1, token_expires: '2099-01-01 00:00:00' }), req), null, 'deactivated=1,banned=0 残留会话 → 拒绝');
+  const req2 = { headers: { get: h => (h === 'X-Auth-Token' ? 'token-normal-user' : null) } };
+  const u2 = await authUser(mkDb({ id: 2, username: 'u2', role: 'student', avatar: '', banned: 0, deactivated: 0, token_expires: '2099-01-01 00:00:00' }), req2);
+  assert.equal(u2 && u2.id, 2, '正常用户仍放行');
 });

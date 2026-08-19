@@ -89,7 +89,15 @@ export async function handleRegister(db, body, req) {
   }
 
   const { hash, salt } = await hashPassword(password);
-  const userId = await dbCreateUser(db, username, hash, salt, role);
+  let userId;
+  try {
+    userId = await dbCreateUser(db, username, hash, salt, role);
+  } catch (e) {
+    // Q-2a-F1: check-then-act 窗口内并发双注册同用户名，INSERT 撞 UNIQUE——分流为
+    // 业务冲突 400 USERNAME_TAKEN（errorMsg 默认 400），非冲突（D1 故障）上抛 500，不裸返 SERVER_ERROR。
+    if (!isUniqueConflict(e)) throw e;
+    return errorMsg('USERNAME_TAKEN');
+  }
   // 注册即绑定核心凭证（手机号/邮箱至少其一；验证码已先行通过）。
   // 绑定失败（并发占用抢先 UNIQUE 索引拦截）= 账户已建凭证未绑，违反「注册必绑」契约——
   // 回滚刚建用户拒绝注册（同 invite 消费失败的回滚口径）。
@@ -97,10 +105,11 @@ export async function handleRegister(db, body, req) {
     if (otpChannel === 'email') await bindEmailCredential(db, userId, contactTarget);
     else await bindPhoneCredential(db, userId, contactTarget);
   } catch (e) {
-    // Z-1-F7：先判别 UNIQUE 冲突（并发占用），非冲突（D1 故障/crypto fail-closed 无密钥）上抛 500——
-    // 原 catch 一律当并发占用处理，回滚用户误报 409，把真实故障也吞成了业务冲突
-    if (!isUniqueConflict(e)) throw e;
+    // Z-1-F7 + Q-2a-F4（回滚重做修订）：绑定失败一律先回滚刚建用户（无论 UNIQUE 冲突还是
+    // D1/crypto fail-closed 故障）——否则账户已建凭证未绑 = 孤儿账户。回滚后 UNIQUE（并发占用）
+    // 分流 400；非冲突（真实故障）上抛 500 保留故障可见性。
     await dbDeleteUser(db, userId);
+    if (!isUniqueConflict(e)) throw e;
     console.warn('注册绑定凭证失败（并发占用），已回滚账户:', e && e.message);
     return errorMsg('CONTACT_CONFLICT_RETRY', 409);
   }
@@ -177,6 +186,8 @@ export async function handleLogin(db, body, req) {
 export async function handleCheckUsername(db, url) {
   const identifier = (url.searchParams.get('identifier') || url.searchParams.get('username') || '').trim();
   if (!identifier) return json({ exists: false, kind: null });
+  // Q-2a-F5: 超长 identifier 早退（对齐 handleLogin 的 LOGIN_USERNAME_MAX 钳制，防超大参数直打 D1）
+  if (identifier.length > LIMITS.LOGIN_USERNAME_MAX) return json({ exists: false, kind: null });
   const { kind, target } = normalizeIdentifier(identifier);
   if (!kind) return json({ exists: false, kind: null });
   let user = null;

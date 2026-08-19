@@ -317,6 +317,11 @@ test('路由：五合一登录——手机号密码 / 邮箱密码 / 验证码�
   assert.deepEqual((await checkGhost.json()).exists, false);
   const checkGhostPhone = await handleCheckUsername(db, new URL('http://x/api/auth/check?identifier=13900000000'));
   assert.deepEqual((await checkGhostPhone.json()).exists, false);
+  // Q-2a-F5 守护：超长 identifier 早退（> LOGIN_USERNAME_MAX），零 D1 访问（传 null db 不炸）——
+  // 删钳制则超大参数直打 D1（变异必红）
+  const longIdent = 'x'.repeat(61);
+  const checkLong = await handleCheckUsername(null, new URL(`http://x/api/auth/check?identifier=${longIdent}`));
+  assert.deepEqual(await checkLong.json(), { exists: false, kind: null }, '超长 identifier 早退 exists:false');
 });
 
 // 过期用例：直接改库内 expires_at 验证 TTL 拦截
