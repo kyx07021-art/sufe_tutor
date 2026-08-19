@@ -17,15 +17,24 @@ function envSecret(env, key) {
   return env && env[key] != null && String(env[key]).trim() !== '' ? String(env[key]).trim() : '';
 }
 
+// Q-2a-F4: 密钥必须 base64 合法且解出 32 字节（AES-GCM-256），否则 encryptField 运行期抛错——
+// Gate 若只查非空会假绿，生产全写路径 500。全局 Buffer 在 build 打包成 _worker.js 前可用。
+const isAes256B64 = v => {
+  try {
+    const raw = Buffer.from(v, 'base64');
+    return raw.length === 32;
+  } catch { return false; }
+};
+
 /** 返回 { ok, checks:[{code, pass}] }。code 不携带任何秘密值。 */
 export function productionConfigChecks(env) {
   if (!isProductionRuntime(env)) return { ok: true, checks: [] };
   const checks = [];
   const add = (code, pass) => checks.push({ code, pass: !!pass });
 
-  // 必需加密/通道密钥（缺一 = 生产不 ready）
-  add('LOG_ENCRYPT_KEY', envSecret(env, 'LOG_ENCRYPT_KEY').length > 0);
-  add('FIELD_ENC_KEY', envSecret(env, 'FIELD_ENC_KEY').length > 0 && envSecret(env, 'FIELD_ENC_KEY') !== envSecret(env, 'LOG_ENCRYPT_KEY'));
+  // 必需加密/通道密钥（缺一/非法 = 生产不 ready；Q-2a-F4 补 base64 可导入校验防假绿）
+  add('LOG_ENCRYPT_KEY', isAes256B64(envSecret(env, 'LOG_ENCRYPT_KEY')));
+  add('FIELD_ENC_KEY', isAes256B64(envSecret(env, 'FIELD_ENC_KEY')) && envSecret(env, 'FIELD_ENC_KEY') !== envSecret(env, 'LOG_ENCRYPT_KEY'));
   add('SMS_OTP_TEMPLATE_CODE', envSecret(env, 'SMS_OTP_TEMPLATE_CODE').length > 0);
   add('EMAIL_OTP_TEMPLATE_CODE', envSecret(env, 'EMAIL_OTP_TEMPLATE_CODE').length > 0);
   add('TEXT_AUDIT_API_KEY', envSecret(env, 'TEXT_AUDIT_API_KEY').length > 0);
