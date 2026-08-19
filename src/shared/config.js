@@ -123,6 +123,7 @@ export const LIMITS = {
   FILE_NAME_MAX: 100,
   UPLOAD_STAGING_MAX: 12,
   MSG_BATCH_MAX: 13,
+  AUDIT_MAX_FIELDS: 3,                  // Q-2b-F1: 内容域写断点单请求最多审 N 个自由文本字段（防大 batch 放大 N 次 DeepSeek 调用）
   POST_BODY_MAX: 20000,
   FEEDBACK_BODY_MAX: 5000,
   COMPLAINT_DETAIL_MAX: 2000,
