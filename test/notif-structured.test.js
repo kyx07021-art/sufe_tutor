@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { notifyUser, dbBroadcastNotification, initNotifyTable, handleGetNotifications } from '../src/server/core/notify.js';
+import { logEvent, logDropStats } from '../src/server/core/log.js'; // Q-2b-F3/F4/F6 守护测试
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { TEXT } from '../src/client/constants/text.js';
 import { notifBodyText, notifTypeText, notifSubjectsText } from '../src/client/features/notif/render.js';
@@ -162,4 +163,48 @@ test('NOTIFY_TYPES registry completeness: every type has a client template', asy
     assert.ok(TEXT['NOTIF_' + type], `type ${type} has NOTIF_${type} template`);
   }
   assert.equal(notifTypeText('SIGNING_CONFIRMED', {}), TEXT.NOTIF_SIGNING_CONFIRMED);
+});
+
+// ========== Q-2b-F6/F4/F3 守护测试（Q-2a~Q-2e 审计 FAIL 点补齐，2026-08-20）==========
+// F6: notifyUser 错 type/多余 params 键拒绝写入 + 留档（变异删校验块 → 红）
+test('Q-2b-F6：notifyUser 错 type/多余键拒绝写入 + 留档 notify.invalid_*', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { stu } = await seed(db, raw);
+  await notifyUser(db, stu, 'NOT_A_TYPE', {});
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications').get().c, 0, '错 type 不落库');
+  assert.equal(raw.prepare("SELECT COUNT(*) c FROM activity_log WHERE action='notify.invalid_type'").get().c, 1, '错 type 留档 notify.invalid_type');
+  await notifyUser(db, stu, 'CONTRACT_DRAFT_SENT', { name: 'x', extra: 1 });
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications').get().c, 0, '多余 params 键不落库');
+  assert.equal(raw.prepare("SELECT COUNT(*) c FROM activity_log WHERE action='notify.invalid_params'").get().c, 1, '多余键留档 notify.invalid_params');
+  await notifyUser(db, stu, 'CONTRACT_DRAFT_SENT', { name: '合法' });
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications').get().c, 1, '合法调用仍落库');
+});
+
+// F4: 通知插入失败留档 notify.fail（变异删 catch 留档 → 红）
+test('Q-2b-F4：通知插入失败留档 notify.fail（不再静默吞）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { stu } = await seed(db, raw);
+  const origPrepare = db.prepare.bind(db);
+  db.prepare = (sql) => {
+    if (String(sql).includes('INSERT INTO notifications')) throw new Error('D1 down');
+    return origPrepare(sql);
+  };
+  await notifyUser(db, stu, 'INTENT_ACCEPTED', {});
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications').get().c, 0, '通知未落库');
+  assert.equal(raw.prepare("SELECT COUNT(*) c FROM activity_log WHERE action='notify.fail'").get().c, 1, '失败留档 notify.fail');
+});
+
+// F3: logEvent 写库失败 dropped 计数递增（变异删 droppedLogs++ → 红）
+test('Q-2b-F3：logEvent 写库失败 dropped 计数递增（零可观测性修复）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await seed(db, raw);
+  const before = logDropStats().dropped;
+  const origPrepare = db.prepare.bind(db);
+  db.prepare = (sql) => {
+    if (String(sql).includes('INSERT INTO activity_log')) throw new Error('log db down');
+    return origPrepare(sql);
+  };
+  await logEvent(db, { action: 'test.fail', actorUserId: 1, entity: 'x', detail: {} });
+  const after = logDropStats().dropped;
+  assert.ok(after > before, `dropped 递增（before=${before} after=${after}）`);
 });

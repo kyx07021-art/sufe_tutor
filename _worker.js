@@ -15,7 +15,7 @@ import { CONFIG } from './src/shared/config.js';
 import { productionReady, notReadyResponse } from './server/startup.js';
 import { recordRequestMetric, flushMetrics } from './server/telemetry.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './src/server/core/security.js';
-import { initLogDb, bindLogDb, logRequest } from './src/server/core/log.js';
+import { initLogDb, bindLogDb, logRequest, logDropStats } from './src/server/core/log.js'; // Q-2b-F3 收口：health 暴露留档失败计数（logDropStats 死导出消除）
 import { bindTextAuditEnv } from './src/server/core/text-audit.js';
 import { initLedgerTable, bindLedgerDb } from './src/server/domains/contract/schema.js'; // Z-15-F8：server/contract.js 死 shim 已删，直引真源
 import { versionDomainOf, bumpVersions } from './server/version.js';
@@ -100,7 +100,7 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
         method: 'GET', path: '/api/health',
         handler: c => {
           const gate = productionReady(c.env);
-          return json({ status: gate.ok ? 'ok' : 'not-ready', ready: gate.ok, checks: gate.checks, timestamp: new Date().toISOString() }, gate.ok ? 200 : 503);
+          return json({ status: gate.ok ? 'ok' : 'not-ready', ready: gate.ok, checks: gate.checks, timestamp: new Date().toISOString(), logDrop: logDropStats() }, gate.ok ? 200 : 503); // Q-2b-F3 收口：留档失败量级可观测（isolate 内累计）
         },
       },
       {
