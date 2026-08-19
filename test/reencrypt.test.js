@@ -187,3 +187,23 @@ test('A-12：reencryptChunk 游标语义（首调无 cursor 返回续跑游标�
   const second = await reencryptChunk(db, null);
   assert.equal(second.logs.rewritten, 5, '幂等重跑');
 });
+
+// ---------------- Q-2b 复审守护（F5：cursor 白名单校验 fail-closed） ----------------
+test('Q-2b-F5 守护：畸形游标形状抛错不静默 done（fail-closed 契约封口）', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  // 字符串游标（非对象）
+  await assert.rejects(() => reencryptChunk(db, 'oops'), /invalid cursor/);
+  // 非法 phase
+  await assert.rejects(() => reencryptChunk(db, { phase: 'hack', fieldsT: 0, afterId: 0 }), /invalid cursor\.phase/);
+  // fieldsT 非整数（字符串 'x'）——变异：若删 fieldsT/afterId 整数性校验，'x' 静默绑定
+  //   SELECT id > 'x' → 空集推进 → 整段跑完返 done（静默错乱，续跑错位），断言红
+  await assert.rejects(() => reencryptChunk(db, { phase: 'fields', fieldsT: 'x', afterId: 0 }), /invalid cursor/);
+  // afterId 负值
+  await assert.rejects(() => reencryptChunk(db, { phase: 'fields', fieldsT: 0, afterId: -1 }), /invalid cursor/);
+  // 合法游标正常执行（不抛）
+  const ok = await reencryptChunk(db, { phase: 'fields', fieldsT: 0, afterId: 0 });
+  assert.ok(ok && typeof ok.cursor === 'object', '合法游标正常执行并推进');
+});

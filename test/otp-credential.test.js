@@ -415,3 +415,24 @@ test('R6 新码作废旧码：同目标发新码后旧码立即失效', async ()
   // 新码有效
   assert.equal(await verifyOtp(db, { channel: 'sms', target, code: lastOtpCode(target) }), 'ok', '新码有效');
 });
+
+// ---------------- Q-2b 复审守护（F2：已送达即成功） ----------------
+test('Q-2b-F2 守护：OTP 已送达但日配额 upsert 失败仍返 ok（不假失败返 500）', async () => {
+  const { db } = await setup();
+  const target = '+8613812345999';
+  // 包裹 db：仅拦截「投递成功后的日配额 upsert」（INSERT INTO rate_limits）抛 D1 故障；
+  // 预读 SELECT rate_limits / verification_codes 写 / logEvent 均不受影响
+  const failing = new Proxy(db, {
+    get(t, prop) {
+      const v = Reflect.get(t, prop);
+      if (prop !== 'prepare') return v;
+      return (sql, ...rest) => (/INSERT INTO rate_limits/.test(String(sql)))
+        ? { bind: () => ({ run: async () => { throw new Error('mock D1 outage (upsert)'); } }) }
+        : t.prepare(sql, ...rest);
+    },
+  });
+  const r = await requestOtp(failing, { channel: 'sms', target }, authedReq(''));
+  assert.equal(r.ok, true, '投递成功 + 记账失败 → 已送达即成功，不返 500（假失败真送达重试烧配额）');
+  assert.match(String(lastOtpCode(target)), /^\d{6}$/, '验证码确实已投递');
+  // 变异：若去掉 upsert 的 try/catch（还原旧逻辑），upsert 抛错未捕获 → 测试断言失败（红）
+});
