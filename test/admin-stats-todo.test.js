@@ -4,6 +4,7 @@
  * 「加载失败: 服务器内部错误（旧文案）」），本测试钉死全链路：清库后状态 + 待办计数非零 + 全字段形状。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -15,7 +16,7 @@ import { handleRegister } from '../src/server/domains/auth/api.js';
 import { lastOtpCode } from './_otp-stub.js';
 import { recordRequestMetric, flushMetrics } from '../server/telemetry.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {
   return {
     prepare(sql) {

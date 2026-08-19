@@ -6,6 +6,7 @@
  *  - 前端（B4：直接 import complaints/posts/about ESM）：关于平台按钮（反馈/投诉/我的反馈）；
  *    投诉浮窗对象行显隐与标题切换；提交带 subject；我的反馈浮窗渲染（类型 tag/对象 tag/状态）与空态。
  */
+import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -31,7 +32,7 @@ import {
 } from '../src/client/features/complaints/actions.js';
 import { TEXT as TEXT_CP } from '../src/client/constants/text.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 // ==================== 服务端 ====================
 

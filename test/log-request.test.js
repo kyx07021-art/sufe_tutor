@@ -17,7 +17,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { initLogDb, logRequest } from '../src/server/core/log.js';
+import { initLogDb, logRequest, bindLogDb } from '../src/server/core/log.js';
+import { TEST_SECRETS } from './_test-secrets.js';
 
 function makeShim(raw, calls) {
   return {
@@ -48,6 +49,7 @@ function setup(t) {
   const raw = new DatabaseSync(':memory:');
   const calls = [];
   const db = makeShim(raw, calls);
+  bindLogDb(TEST_SECRETS); // 留档 detail 加密需 LOG_ENCRYPT_KEY（fail-open 已清，显式注入）
   t.after(() => { try { raw.close(); } catch { /* 已关 */ } });
   return { raw, db, calls };
 }

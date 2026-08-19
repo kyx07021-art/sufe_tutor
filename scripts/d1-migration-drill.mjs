@@ -14,8 +14,9 @@
  *
  * 用法：node scripts/d1-migration-drill.mjs [--export <sql路径>]
  *   --export 复用已有导出文件则跳过远程导出；缺省自动导出生产库。
- * 注意：迁移读取的 ADMIN_USERNAMES 走 env 回落本地 secrets.js（生产用 Worker Secrets），
- *   演练中任何 admin 行删除都会显式报告，供人工对照生产名单裁决。
+ * 注意：迁移读取的 ADMIN_USERNAMES 只走 env（生产用 Worker Secrets；演练不配置则名单为空，
+ *   不会 seed 新 admin——fail-open 已清，无仓库明文回落），演练中任何 admin 行删除都会显式
+ *   报告，供人工对照生产名单裁决。
  */
 import { createHash } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';

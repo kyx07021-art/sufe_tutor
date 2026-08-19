@@ -14,13 +14,14 @@
  *   - 单条路径（body 直发）语义不变（回归）
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { handleCreateUpload, handleSendMessage, handleGetMessages } from '../src/server/domains/chat/api.js';
 import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

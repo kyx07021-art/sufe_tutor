@@ -10,6 +10,7 @@
  *   - toggle 调收藏接口、文案随状态切换；
  *   - 我的收藏视图取消收藏就地移除卡；视图切换走 favorites/mine 接口。
  */
+import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -32,7 +33,7 @@ import { TEXT } from '../src/client/constants/text.js';
 CONFIG.TOAST_MS = 10;
 CONFIG.TOAST_FADE_MS = 1;
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

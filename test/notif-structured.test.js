@@ -9,6 +9,7 @@
  *    structured type and the legacy prefix.
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -18,7 +19,7 @@ import { TEXT } from '../src/client/constants/text.js';
 import { notifBodyText, notifTypeText, notifSubjectsText } from '../src/client/features/notif/render.js';
 import { isBroadcastNotif } from '../src/client/core/notif-pref.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

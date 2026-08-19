@@ -7,6 +7,7 @@
  *   - M1：verify_code 加密落库（库内非明文）
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -19,7 +20,7 @@ import { handleVerificationAction } from '../src/server/domains/teacher/api.js';
 import { dbGetTeacherProfile, dbGetTeacherVerification } from '../src/server/domains/teacher/repo.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

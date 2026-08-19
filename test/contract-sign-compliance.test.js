@@ -19,6 +19,7 @@
  *   - verify 响应含 entryList（逐条 seq + created_at）。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -28,7 +29,7 @@ import { dbGetContractById, dbGetMyContracts } from '../src/server/domains/contr
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { LIMITS } from '../src/shared/config.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

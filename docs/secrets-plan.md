@@ -2,7 +2,7 @@
 
 ## 现状
 
-- `server/secrets.js` 只保留本地开发/测试的明文便利数据；`isProductionRuntime`（env 存在 `CF_PAGES_URL` / `CF_PAGES_COMMIT_SHA`）时绝不回落该文件。
+- `server/secrets.js` 为纯 env 网关（fail-closed：只读 Worker Secrets / `.dev.vars` / 测试注入，仓库零明文密钥）；`isProductionRuntime`（env 存在 `CF_PAGES_URL` / `CF_PAGES_COMMIT_SHA`）语义保留供 Release Gate 判定。
 - 生产缺必需 Secret 时：Release Gate（`server/startup.js`）会让 `/api/*` 全部返回 503 not-ready，静态资源照常。
 - 学信网核验已固定 manual，无 mock/thirdparty；内容审核 L2 使用 DeepSeek，缺密钥会拒绝写请求。
 

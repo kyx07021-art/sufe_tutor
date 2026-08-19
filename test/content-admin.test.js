@@ -7,6 +7,7 @@
  *     （含原因/规则/触发内容摘要）+ 留档；缺原因 400；非管理员 403。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -18,7 +19,7 @@ import { handleCreatePost } from '../src/server/domains/posts/api.js';
 import { handleAdminContent, handleContentAction } from '../src/server/domains/admin/api.js';
 import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 // 语义层测试通道：保留 OTP stub 的 push.spug.cc 拦截，其余请求按「AI 判未命中」应答。
 const otpFetch = globalThis.fetch;
 function semanticPass() {

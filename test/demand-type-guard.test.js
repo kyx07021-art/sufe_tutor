@@ -13,6 +13,7 @@
  * D1 形状同 teacher-profile-guard.test.js：db.prepare(sql).bind(...).all()/.first()/.run() + db.batch。
  */
 import { test, beforeEach, afterEach } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -20,7 +21,7 @@ import { handleCreateDemand } from '../src/server/domains/demand/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 // V-4-1d QA 回归：文本审核咽喉绑定 + fetch mock（镜像生产配置；QA 最小 body 带真实 additional_info，
 // 无配置 auditSemantic fail-closed 回 TEXT_AUDIT_UNAVAILABLE，会掩盖被测的 500 崩溃路径）

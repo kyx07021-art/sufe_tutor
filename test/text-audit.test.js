@@ -6,6 +6,7 @@
  *   - 路由集成：教师档案 intro 谐音门牌 → 400。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { auditFreeText, bindTextAuditEnv } from '../src/server/core/text-audit.js';
@@ -87,7 +88,7 @@ test('L2 语义层：AI 判未命中 → 放行；网络异常/非 JSON → fail
 });
 
 // ---- 路由集成 ----
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {
   return {
     prepare(sql) {

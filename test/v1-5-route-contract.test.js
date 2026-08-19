@@ -3,6 +3,7 @@
  * 不访问网络；D1 用 node:sqlite shim。
  */
 import { test, before, after } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { routes } from '../src/server/app.js';
@@ -11,7 +12,7 @@ import { hashPassword } from '../src/server/core/crypto.js';
 import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 import { routeApi } from '../_worker.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'admin-pass-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'admin-pass-123' };
 const origFetch = globalThis.fetch;
 
 function d1Shim(raw) {

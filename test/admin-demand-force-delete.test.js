@@ -14,6 +14,7 @@
  *   - 常规 student 删除路径不受影响（contracted 仍拒删，F-03b 门禁保留）。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -21,7 +22,7 @@ import { handleAdminDeleteDemand } from '../src/server/domains/admin/api.js';
 import { handleDeleteDemand } from '../src/server/domains/demand/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

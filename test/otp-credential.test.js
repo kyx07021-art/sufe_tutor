@@ -9,6 +9,7 @@
  *     handleLogin（手机号/邮箱密码登录）/ handleLoginWithCode（验证码登录）/ handleCheckUsername（identifier 识别）。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -24,7 +25,7 @@ import { lastOtpCode, resetOtpStub, setOtpStubFail } from './_otp-stub.js'; // �
 import { dbGet, dbAll } from '../src/server/core/util.js';
 import { LIMITS } from '../src/shared/config.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {
   return {
     prepare(sql) {

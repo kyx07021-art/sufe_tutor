@@ -9,6 +9,7 @@
  * 不同正文 → 2 条且 seq/prev 链完整（幂等不误伤正文变化）。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -16,7 +17,7 @@ import { initLedgerTable } from '../src/server/domains/contract/schema.js';
 import { ledgerRecord, verifyChain } from '../src/server/domains/contract/api.js';
 import { dbGet, dbAll } from '../src/server/core/util.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

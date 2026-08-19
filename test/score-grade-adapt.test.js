@@ -1,6 +1,7 @@
 /**
  * B3 主科分数上限按年级适配（B4：前端直接 import ESM，服务端保留直测）。
  */
+import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
@@ -10,7 +11,7 @@ import { tokenDigest } from '../src/server/core/crypto.js';
 import { SUFE_REGIONS } from '../src/client/constants/region-data.js';
 import { buildStudentScoreRows } from '../src/client/features/region/render.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 test('B3 subjectMaxFor 省+年级单源', () => {
   assert.equal(SUFE_REGIONS.subjectMaxFor('jiangsu', 'chinese', 'p1'), 100);

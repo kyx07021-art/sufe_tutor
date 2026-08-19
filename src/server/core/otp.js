@@ -25,7 +25,7 @@ import { dbGet, dbRun, dbAll, error, errorMsg, toDbTime } from './util.js';
 import { tokenDigest } from './crypto.js';
 import { MSG } from '../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../shared/config.js';
-import { getSecret } from '../../../server/secrets.js'; // SMS/EMAIL_OTP_TEMPLATE_CODE 部署级配置经网关读取（env 优先，回落 secrets.js 文件）
+import { getSecret } from '../../../server/secrets.js'; // SMS/EMAIL_OTP_TEMPLATE_CODE 部署级配置经网关读取（只读 env，fail-closed 零仓库明文）
 
 import { logEvent } from './log.js';
 
@@ -93,7 +93,7 @@ function validateOtpTarget(channel, target) {
 const OTP_VERIFIER = 'local';
 
 // OTP 部署级配置经 env 绑定（bindOtpEnv，由 initDb 调用）后惰性读取——
-// 生产 env 无该键回落 secrets.js 文件（server/secrets.js 网关单点）。
+// 只读 env（Worker Secrets / .dev.vars / 测试注入），无该键 = 空串，deliverOtp fail-closed。
 let OTP_ENV = null;
 export function bindOtpEnv(env) { OTP_ENV = env; }
 const smsTemplateCode = () => String(getSecret(OTP_ENV, 'SMS_OTP_TEMPLATE_CODE') || '');

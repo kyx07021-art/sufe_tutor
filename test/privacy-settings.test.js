@@ -6,6 +6,7 @@
  *  - 隐私写 bump teachers+demands 版本域（访客可见性变化 → 两域缓存刷新）。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -18,7 +19,7 @@ import { handleGetTeachers } from '../src/server/domains/teacher/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { versionDomainOf } from '../server/version.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

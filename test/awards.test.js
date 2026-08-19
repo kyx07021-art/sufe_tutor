@@ -5,6 +5,7 @@
  *   - 管理员审核（capToken 二次认证 + 仅 pending 可审 + 驳回必填理由 + 通知作者 + 留档）
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -16,7 +17,7 @@ import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（�
 import { handleCreateUpload } from '../src/server/domains/chat/api.js';
 import { handleCreateAward, handleGetAwards, handleDeleteAward, handleAdminAwards, handleAdminAwardAction } from '../src/server/domains/awards/api.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {
   return {
     prepare(sql) {

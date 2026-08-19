@@ -17,6 +17,7 @@
  *     帖子卡/资料面板/评价卡）追加「一方已注销」中性灰 tag。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
@@ -33,7 +34,7 @@ import { handleCreateContract, handleSignContract, handleVerifyContract } from '
 import { handleDeactivateAccount } from '../src/server/domains/auth/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

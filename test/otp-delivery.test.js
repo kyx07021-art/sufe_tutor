@@ -10,20 +10,23 @@
  *     验证码行不复存在、响应无 code（fail-closed，绝不再静默出假码）。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { lastOtpSend, resetOtpStub, setOtpStubFail, lastOtpCode } from './_otp-stub.js';
-import { getSecret } from '../server/secrets.js';
-
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
-// 模板编码单源：从 secrets 网关读取（与生产同一回落链，改配置无需同步测试）
-const SMS_KEY = getSecret(null, 'SMS_OTP_TEMPLATE_CODE');
-const EMAIL_KEY = getSecret(null, 'EMAIL_OTP_TEMPLATE_CODE');
-assert.ok(SMS_KEY, 'secrets 需配置 SMS_OTP_TEMPLATE_CODE（断言请求形状的前提）');
-assert.ok(EMAIL_KEY, 'secrets 需配置 EMAIL_OTP_TEMPLATE_CODE');
+// 模板编码单源：测试显式注入 ENV（fail-open 已清，secrets 网关不再回落仓库明文；
+// bindOtpEnv 由 initDb(db, ENV) 绑定，requestOtp URL 构造与下方断言同源）
+const ENV = {...TEST_SECRETS, 
+  ADMIN_USERNAMES: ['admin_sufe'],
+  ADMIN_DEFAULT_PASSWORD: 'test-pw-123',
+  SMS_OTP_TEMPLATE_CODE: 'test-sms-template-code',
+  EMAIL_OTP_TEMPLATE_CODE: 'test-email-template-code',
+};
+const SMS_KEY = ENV.SMS_OTP_TEMPLATE_CODE;
+const EMAIL_KEY = ENV.EMAIL_OTP_TEMPLATE_CODE;
 
 function d1Shim(raw) {
   return {

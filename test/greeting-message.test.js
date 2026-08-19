@@ -9,6 +9,7 @@
  *     推送/意向浮窗含打招呼 textarea（maxlength 与服务端同源）且提交带上 message。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { JSDOM } from 'jsdom';
@@ -17,7 +18,7 @@ import { dbCreatePush, dbGetPendingPushesForTeacher, dbCreateIntent, dbGetIntent
 import { handlePushDemand, handleCreateIntent } from '../src/server/domains/demand/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 // ---- D1 shim（同 demand-type-guard：db.prepare().bind() + db.batch 事务） ----
 function d1Shim(raw) {

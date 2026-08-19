@@ -310,7 +310,7 @@ export default {
         .then(() => (env.LOG_DB ? initLogDb(env.LOG_DB) : undefined))
         .then(() => initLedgerTable(env.LEDGER_DB || env.DB))
         .catch(e => { env._dbInited = null; throw e; });
-      bindLogDb(env); // 管理员配置经 secrets 网关读取（env.Worker Secrets 优先，回落本地文件）
+      bindLogDb(env); // 管理员配置经 secrets 网关读取（只读 env：Worker Secrets / .dev.vars，fail-closed 零仓库明文）
       bindLedgerDb(env);
       bindTextAuditEnv(env); // 文本审核咽喉（text-audit）：v1.5.0 语义层缺密钥/异常拒绝写入（fail-closed）
     }

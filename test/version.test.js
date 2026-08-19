@@ -15,6 +15,7 @@
  * D1 形状：db.prepare(sql).bind(...).all()/.first()/.run() + db.batch([...])（与 initdb-migration.test.js 同款 shim）
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -51,7 +52,7 @@ function d1Shim(raw) {
   };
 }
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 
 test('versionDomainOf：纯认证/个人游标/待审核评价/邀请码不 bump', () => {

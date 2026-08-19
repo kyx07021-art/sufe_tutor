@@ -9,6 +9,7 @@
  *      下次部署回填命中 `price IS NOT NULL` 会把未报价静默误判为「报价 0」（0 是合法报价，完整性门槛被绕过）。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -41,7 +42,7 @@ function d1Shim(raw) {
     },
   };
 }
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 
 test('回填 A：存量单报价行 → price_min/max=price，且幂等', async () => {

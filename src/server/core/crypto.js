@@ -14,7 +14,7 @@
  *     读路径降级不变：解密失败标 [undecryptable]、无密钥解历史密文标 [encrypted]（历史数据不炸）。
  *   - 留档加密抛错由 logEvent 内部 try/catch 吞（留档不落、主流程不挂，见 log.js）。
  *
- * 密钥一律经 secrets 网关（getSecret：env Worker Secrets 优先，回落本地 secrets.js）。
+ * 密钥一律经 secrets 网关（getSecret：只读 env——Worker Secrets / .dev.vars / 测试注入，fail-closed 零仓库明文）。
  */
 import { getSecret } from '../../../server/secrets.js';
 import { SECURITY } from '../../shared/config.js';

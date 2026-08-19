@@ -47,7 +47,7 @@ const ENSURE_ORDER = ['auth', 'complaints', 'chat', 'teacher', 'demand', 'contra
 // postEnsure：先做跨域数据回填（chat 依赖 demand 列），最后 auth 收尾（旧管理员删除 / 用户名消毒）
 const POST_ENSURE_ORDER = ['chat', 'demand', 'teacher', 'contract', 'complaints', 'reviews', 'posts', 'settings', 'awards', 'admin', 'auth'];
 
-// 管理员配置统一经 secrets 网关读取（env 优先，回落本地 secrets.js）；兼容 env 为逗号分隔串 / 文件为数组
+// 管理员配置统一经 secrets 网关读取（只读 env：Worker Secrets / .dev.vars / 测试注入，fail-closed 零仓库明文）
 const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(s => s.trim()).filter(Boolean);
 
 // ============================================================

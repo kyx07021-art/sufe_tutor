@@ -1,6 +1,7 @@
 /**
  * 需求三十 · 注册须同意用户协议与隐私政策（B4：直接 import auth ESM）。
  */
+import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
@@ -17,7 +18,7 @@ import { state } from '../src/client/core/state.js';
 import { stopBadgePoll } from '../src/client/core/router.js';
 import { stopVersionProbe } from '../src/client/core/datahub.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

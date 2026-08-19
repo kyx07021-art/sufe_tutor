@@ -13,6 +13,7 @@
  * D1 形状同 signing-demand.test.js：db.prepare.bind.all/first/run + db.batch（事务 shim）。
  */
 import { test } from 'node:test';
+import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
@@ -22,7 +23,7 @@ import { handleGetConversationBindableDemands } from '../src/server/domains/chat
 import { dbGetMyConversations } from '../src/server/domains/chat/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
 function d1Shim(raw) {
   return {

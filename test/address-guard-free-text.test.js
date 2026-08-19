@@ -13,8 +13,9 @@ import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
 import { handleCreateDemand } from '../src/server/domains/demand/api.js';
 import { handleSaveProfile } from '../src/server/domains/teacher/api.js';
 import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
+import { TEST_SECRETS } from './_test-secrets.js';
 
-const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 const origFetch = globalThis.fetch;
 beforeEach(() => {
   bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
