@@ -6,6 +6,7 @@
  * enterRolePreview dependency is a call-time dynamic import (breaks the cycle).
  */
 import { TEXT } from './text.js';
+import { CONFIG } from '../../../shared/config.js';
 import { state, isReturning, setReturning } from '../../core/state.js';
 import { openModal, closeModal } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
@@ -26,6 +27,10 @@ function openOnboarding() {
   openModal({
     title: TEXT.ONBOARD_TITLE,
     closable: false,
+    // h5a-g2: explicit style goes through the ui-modal cssText data channel
+    // (style-src-attr 'unsafe-inline' bearing face); value = .modal default
+    // max-width (MODAL_W_ONBOARD single source), zero visual change.
+    style: `max-width:${CONFIG.MODAL_W_ONBOARD};`,
     body: `<p class="onboard-intro">${escHtml(TEXT.ONBOARD_INTRO)}</p><div class="onboard-policy">${policyItems}</div><p class="funds-note onboard-funds">${escHtml(TEXT.FUNDS_NOTE_SHORT)}</p>`,
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="onboard.usageGuide">${escHtml(TEXT.USAGE_GUIDE_BTN)}</button>${primary}`,
   });
