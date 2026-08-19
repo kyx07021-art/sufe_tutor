@@ -13,6 +13,7 @@ push-retry.log
 # 本地审计/临时产物（不提交）
 _tmp_*/
 _tmp_*.log
+_tmp_*.mjs
 _audit_*.md
 
 dist/
