@@ -22,6 +22,7 @@
  */
 import { TEXT } from './text.js';
 import { CONFIG } from '../../../shared/config.js';
+import { STATUS } from '../../../shared/enums.js'; // Z-16-F6: status literals via shared enums
 import { state, isReturning, registerLogoutReset } from '../../core/state.js';
 import { escHtml } from '../../core/dom.js';
 import { closeModal } from '../../core/ui.js';
@@ -473,7 +474,7 @@ export function demoOpenConversation() {
   const demoName = teacherView ? TEXT.TOUR_DEMO_CHAT_NAME_TEACHER : TEXT.TOUR_DEMO_CHAT_NAME_STUDENT;
   const demoRole = teacherView ? TEXT.CHAT_ROLE_STUDENT : TEXT.CHAT_ROLE_TEACHER;
   frame.innerHTML = renderChatFrame({
-    id: 'demo', status: 'active',
+    id: 'demo', status: STATUS.ACTIVE,
     student_name: demoName, teacher_name: demoName,
     student_user_id: null, teacher_user_id: null,
   });

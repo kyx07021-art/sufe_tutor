@@ -3,6 +3,7 @@
  * No inline handlers or inline style attributes.
  */
 import { escHtml, fmtDateTime } from '../../core/dom.js';
+import { STATUS } from '../../../shared/enums.js'; // Z-16-F6: status literals via shared enums
 import { complaintTargetName } from './display.js';
 import { segTabsHtml } from '../../core/ui.js';
 import { TEXT } from './text.js';
@@ -68,7 +69,7 @@ import { chatFileExt } from '../chat/render.js';
 export { chatFileExt };
 
 export function complaintCardHtml(c, opts = {}) {
-  const resolved = c.status === 'resolved';
+  const resolved = c.status === STATUS.RESOLVED;
   const snap = c.target_snapshot || {};
   const typeName = complaintTargetName(c.target_type);
   const foot = opts.foot ?? `<span class="list-card-meta">${TEXT.COMPLAINT_REPORTER_LABEL} ${escHtml(c.reporter)} · ${fmtDateTime(c.created_at)}</span>

@@ -3,6 +3,7 @@
  * empty and features call registerPage in later batches. Migrated from app-shell.js.
  */
 import { CONFIG, APP_VERSION } from '../../shared/config.js';
+import { STATUS } from '../../shared/enums.js'; // Z-16-F6: status literals via shared enums
 import { TEXT } from '../constants/text.js';
 import { state, loadSeqs, savePageState, getLastPage } from './state.js';
 import { escHtml, renderAvatarHtml, loaderHtml, mdRender } from './dom.js';
@@ -257,7 +258,7 @@ export async function refreshBadges() {
       setBadge('browse-demands', 0); setBadge('my-demands', 0);
       try {
         const fbData = await dhGet('/api/feedbacks', { domain: 'admin' });
-        if (state.page !== 'admin-feedback') setBadge('admin-feedback', (fbData.feedbacks || []).filter(f => f.status !== 'resolved').length);
+        if (state.page !== 'admin-feedback') setBadge('admin-feedback', (fbData.feedbacks || []).filter(f => f.status !== STATUS.RESOLVED).length);
       } catch { /* silent */ }
     }
   } catch { /* badge polling is silent */ }
