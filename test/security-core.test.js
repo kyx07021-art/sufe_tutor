@@ -80,17 +80,19 @@ test('rateGate：登录/注册/重认证路径不占写闸（认证限流由 aut
 
 test('authRateBatch.verdict：block 行 / 认证超限 命中即拒，写超限不再拒（Q-2a-F2），未超限放行', () => {
   const gate = authRateBatch(stubDbChain, uniqIp('batch'), 'login');
-  // Q-2a-F2 回滚重做：删 wSel 死 SELECT 后基础语句 = [block, wUp, aUp, aSel]，aN 移到 index 3
+  // Q-2a-F2 回滚重做：删 wSel 死 SELECT 后基础语句 = [block, wUp, aUp, aSel]，aN 移到 index 3。
+  // 审计 D2 修正：wN 承载进 index 1（wUp 位置 mock 成 SELECT 形状）——若未来有人加回写桶判定读 index 1，
+  // 写超限会翻 verdict → 下方「写超限不再拒」断言变红（原 wN 参数被丢弃 = 空断言无牙齿）。
   const results = (block, wN, aN) => [
     { results: block ? [{}] : [] },
-    { results: [] }, // wUp（保留 upsert 维护写桶计数，verdict 不读）
+    { results: [{ n: wN }] }, // wUp 位置（承载 wN；verdict 不读，仅作未来加回写桶判定的哨兵）
     { results: [] }, // aUp
     { results: [{ n: aN }] },
   ];
   // verdict 返回 0/1（truthy/falsy），用 assert.ok/equal 判
   assert.ok(!gate.verdict(results(false, 1, 1)), '未超限放行');
   assert.ok(gate.verdict(results(true, 1, 1)), 'block 行存在 → 拒');
-  // Q-2a-F2: 认证路径不再判写桶 w:ip——写超限不再拒（活跃用户写满不被误伤 429+三振），认证限流由 authKey 独立桶承担
+  // Q-2a-F2: 认证路径不再判写桶 w:ip——写超限（wN=61>60）不再拒（活跃用户写满不被误伤 429+三振），认证限流由 authKey 独立桶承担
   assert.ok(!gate.verdict(results(false, RATE_LIMITS.write.limit + 1, 1)), '写超限不再拒（认证桶独立）');
   assert.ok(gate.verdict(results(false, 1, RATE_LIMITS.login.limit + 1)), '认证（login）超限 → 拒');
   // 边界：恰在 limit 内放行

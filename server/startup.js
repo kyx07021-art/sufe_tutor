@@ -17,10 +17,11 @@ function envSecret(env, key) {
   return env && env[key] != null && String(env[key]).trim() !== '' ? String(env[key]).trim() : '';
 }
 
-// Q-2a-F4: 密钥必须 base64 合法且解出 32 字节（AES-GCM-256），否则 encryptField 运行期抛错——
-// Gate 若只查非空会假绿，生产全写路径 500。用 atob 判字节数（与 core/crypto.js 既有安全
-// base64 模式一致），不依赖全局 Buffer——workerd 运行时在未启用 nodejs_compat 时无 Buffer，
-// 依赖它会让 Gate 恒 not-ready → 全站 /api/* 503（Q-2a 审计实证，已回滚重做）。
+// Q-2a-F4: 密钥必须 base64 合法且解出恰 32 字节（AES-GCM-256）。防两种假绿：
+//  ① 非 base64/非法字符 → atob 抛错 → Gate not-ready（原只查非空会放行，encryptField 运行期抛错全写 500）；
+//  ② 16/24 字节合法 base64 → WebCrypto 不抛错但静默降级 AES-128/192（加密强度缩水），强制 32 字节防降级。
+// 用 atob 判字节数（与 core/crypto.js 既有安全 base64 模式一致），不依赖全局 Buffer——workerd 运行时
+// 在未启用 nodejs_compat 时无 Buffer，依赖它会让 Gate 恒 not-ready → 全站 /api/* 503（Q-2a 审计实证，已回滚重做）。
 const isAes256B64 = v => {
   try {
     return atob(String(v)).length === 32; // atob 输出串长度 = 原始字节数（每字节一 char）

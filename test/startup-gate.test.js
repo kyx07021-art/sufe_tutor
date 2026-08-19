@@ -62,7 +62,7 @@ test('生产密钥齐全 + 管理员轮换 + manual provider → ready', () => {
 });
 
 test('Q-2a-F4 守护：非法 base64 / 非 32 字节 base64 密钥 → not-ready（防假绿）', () => {
-  // 16 字节合法 base64（AES-GCM-256 需要 32 字节原始密钥，少于即运行期 importKey 抛错）
+  // 16 字节合法 base64（WebCrypto 不抛错但静默降级 AES-128——Gate 强制 32 字节防降级）
   const sixteenByte = 'MTIzNDU2Nzg5MDEyMzQ1Ng==';
   const g16 = productionConfigChecks({ ...goodSecrets, LOG_ENCRYPT_KEY: sixteenByte });
   assert.equal(g16.ok, false, '16 字节密钥不可用 → not-ready');
