@@ -222,6 +222,7 @@ export async function submitComplaint() {
   const uploadIds = _cpStaged.map(it => it.uploadId).filter(Boolean);
   try {
     await api('/api/complaints', { method: 'POST', body: { targetType: _cpTab, targetId: target.id, reason: _cpReason, detail, uploadIds } });
+    invalidate('admin'); // Q-3b-F5: new complaint is immediately visible to the admin list (/api/complaints caches under domain admin)
     complaintResetStage();
     closeModal();
     showToast(TEXT.COMPLAINT_SENT_TOAST);

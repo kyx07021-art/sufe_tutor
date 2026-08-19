@@ -123,6 +123,10 @@ export function versionDomainOf(pathname) {
   // 反馈（提交/处理）：管理端反馈列表（admin；处理还会 notifyUser → notifications 由咽喉 bump）
   if (p === '/api/feedbacks' || /^\/api\/feedbacks\/\d+\/resolve$/.test(p)) return [DOMAINS.ADMIN];
 
+  // Q-3b-F5：投诉（提交/处理）：管理端投诉列表（admin）——原零映射落 return []，跨端会话 admin
+  // 投诉列表缓存（域 admin）对新投诉永久陈旧
+  if (p === '/api/complaints' || /^\/api\/complaints\/\d+(\/resolve)?$/.test(p)) return [DOMAINS.ADMIN];
+
   // 管理系兜底（其余 admin 写）
   if (p.startsWith('/api/admin/')) return [DOMAINS.ADMIN];
 

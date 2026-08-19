@@ -104,6 +104,9 @@ test('versionDomainOf：教师/封禁/核验连带 admin；帖子/通知/反馈�
   assert.deepEqual(versionDomainOf('/api/admin/notifications/5'), ['notifications']);
   assert.deepEqual(versionDomainOf('/api/feedbacks'), ['admin']);
   assert.deepEqual(versionDomainOf('/api/feedbacks/5/resolve'), ['admin']);
+  // Q-3b-F5：投诉提交/处理 bump admin（原零映射落 return []，跨端 admin 投诉列表缓存永久陈旧）
+  assert.deepEqual(versionDomainOf('/api/complaints'), ['admin']);
+  assert.deepEqual(versionDomainOf('/api/complaints/5/resolve'), ['admin']);
 });
 
 test('versionDomainOf：管理员跨域连带（评价→teachers / 删需求→demands / 删消息→chat）', () => {

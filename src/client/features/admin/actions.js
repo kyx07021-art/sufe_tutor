@@ -114,7 +114,11 @@ export async function doSubmitContentPenalty(id, type) {
 
 export async function loadAdminPosts() {
   try {
-    const data = await dhGet('/api/posts?sort=new', { domain: 'admin' });
+    // Q-3b-F1: `/api/posts?sort=new` is shared with the posts domain; the cache key must carry
+    // domain 'posts' (datahub caches per-endpoint with a single domain slot). If an admin session
+    // writes domain='admin' first, invalidate('posts')/dhRefreshDomain('posts') miss and the list
+    // stays stale forever (server delete bumps only [POSTS]).
+    const data = await dhGet('/api/posts?sort=new', { domain: 'posts' });
     const el = document.getElementById('admin-posts-list');
     if (el) el.innerHTML = (data.posts || []).map(renderAdminPostRow).join('');
   } catch (err) { showToast(err.message); }
@@ -132,7 +136,7 @@ export function openPostViewModal(id) {
 export function adminDeletePost(id) {
   confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, needReAuth: true, onConfirm: async capToken => {
     withCaptcha(async () => {
-      try { await api(`/api/posts/${id}`, { method: 'DELETE', body: { capToken } }); showToast(TEXT.ADMIN_DONE); loadAdminPosts(); } catch (err) { showToast(err.message); }
+      try { await api(`/api/posts/${id}`, { method: 'DELETE', body: { capToken } }); invalidate('posts'); showToast(TEXT.ADMIN_DONE); loadAdminPosts(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write (loadAdminPosts reads dhGet cache)
     });
   }});
 }
@@ -148,7 +152,7 @@ export async function loadAdminContracts() {
 export function adminViewContract(id) { openModal({ title: TEXT.BTN_VIEW_CONTRACT, body: `<p>${String(id)}</p>` }); }
 export async function adminRemoveContract(id) {
   confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    try { await api(`/api/admin/contracts/${id}`, { method: 'DELETE', body: { capToken } }); showToast(TEXT.ADMIN_DONE); loadAdminContracts(); } catch (err) { showToast(err.message); }
+    try { await api(`/api/admin/contracts/${id}`, { method: 'DELETE', body: { capToken } }); invalidate('contracts'); showToast(TEXT.ADMIN_DONE); loadAdminContracts(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
   }});
 }
 
@@ -161,12 +165,12 @@ export async function loadAdminFeedback() {
 }
 
 export async function resolveAdminFeedback(id) {
-  try { await api(`/api/feedbacks/${id}/resolve`, { method: 'POST', body: {} }); showToast(TEXT.ADMIN_DONE); loadAdminFeedback(); } catch (err) { showToast(err.message); }
+  try { await api(`/api/feedbacks/${id}/resolve`, { method: 'POST', body: {} }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminFeedback(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
 }
 
 export function confirmBanUser(id, banned = true) {
   confirm({ title: TEXT.ADMIN_BAN, message: banned ? TEXT.ADMIN_BAN_CONFIRM : TEXT.ADMIN_UNBAN_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    try { await api(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned, capToken } }); showToast(TEXT.ADMIN_DONE); loadAdminUsers(); } catch (err) { showToast(err.message); }
+    try { await api(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned, capToken } }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminUsers(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
   }});
 }
 export function doBanUser(id) { return confirmBanUser(id, true); }
@@ -198,12 +202,12 @@ export async function loadAdminAwards() {
 }
 
 export function viewAwardProof(id) { openModal({ title: TEXT.ADMIN_AWARD_PROOF, body: `<p>${String(id)}</p>` }); }
-export function approveAward(id) { api(`/api/admin/awards/${id}/action`, { method: 'POST', body: { action: 'approve' } }).then(() => { showToast(TEXT.ADMIN_DONE); loadAdminAwards(); }).catch(err => showToast(err.message)); }
+export function approveAward(id) { api(`/api/admin/awards/${id}/action`, { method: 'POST', body: { action: 'approve' } }).then(() => { invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminAwards(); }).catch(err => showToast(err.message)); } // Q-3b-F3: invalidate after write
 export function rejectAwardModal(id) { openModal({ title: TEXT.ADMIN_AWARD_REJECT, body: `<div class="form-group"><label>${TEXT.ADMIN_REASON}</label><textarea id="award-reject-note" class="form-input"></textarea></div>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.submitAwardReject" data-id="${id}">${TEXT.BTN_CONFIRM}</button>` }); }
 export async function submitAwardReject(id) { return doAwardAction(id, 'reject'); }
 export async function doAwardAction(id, action) {
   const note = document.getElementById('award-reject-note')?.value || '';
-  try { await api(`/api/admin/awards/${id}/action`, { method: 'POST', body: { action, note } }); closeModal(); showToast(TEXT.ADMIN_DONE); loadAdminAwards(); } catch (err) { showToast(err.message); }
+  try { await api(`/api/admin/awards/${id}/action`, { method: 'POST', body: { action, note } }); closeModal(); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminAwards(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
 }
 
 export async function loadAdminVerifications() {
@@ -216,8 +220,8 @@ export async function loadAdminVerifications() {
 
 export function viewAdmissionImage(id) { openModal({ title: TEXT.ADMIN_ADMISSION_IMAGE, body: `<p>${String(id)}</p>` }); }
 export function renderVerifForm(v) { return `<div class="list-card glass">${escHtml(v.username || '')}</div>`; }
-export function verifApprove(id) { api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'approve', school: document.getElementById('verif-school')?.value || '', level: document.getElementById('verif-level')?.value || '' } }).then(() => { showToast(TEXT.ADMIN_DONE); loadAdminVerifications(); }).catch(err => showToast(err.message)); }
-export function verifRevoke(id) { api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'revoke' } }).then(() => { showToast(TEXT.ADMIN_DONE); loadAdminVerifications(); }).catch(err => showToast(err.message)); }
+export function verifApprove(id) { api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'approve', school: document.getElementById('verif-school')?.value || '', level: document.getElementById('verif-level')?.value || '' } }).then(() => { invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminVerifications(); }).catch(err => showToast(err.message)); } // Q-3b-F3: invalidate after write
+export function verifRevoke(id) { api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'revoke' } }).then(() => { invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminVerifications(); }).catch(err => showToast(err.message)); } // Q-3b-F3: invalidate after write
 export function verifReject(id) { return verifRevoke(id); }
 
 export function toggleTeacherVerify(userId) { api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: true } }).then(() => showToast(TEXT.ADMIN_DONE)).catch(err => showToast(err.message)); }

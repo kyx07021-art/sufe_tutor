@@ -8,7 +8,7 @@ import { TEXT } from '../../constants/text.js';
 import { chat } from './chat-state.js';
 import { state, registerLogoutReset } from '../../core/state.js';
 import { api, ensureAuth } from '../../core/api.js';
-import { dhGet } from '../../core/datahub.js';
+import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
 import { showToast } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js';
 import { selectPage, setBadge } from '../../core/router.js';
@@ -26,6 +26,19 @@ export function chatTeardown() {
 // v1 app-auth parity: logout always stops chat polling and clears staging
 // (prevents cross-account staged residue and orphan uploads on the server)
 registerLogoutReset(chatTeardown);
+
+// Q-3b-F2: chat cache re-bind — after dhRefreshDomain('chat') replaces the cache (version probe
+// detects a chat-domain bump), chat.list still holds the old array reference, so list rows keep
+// stale unread/preview counts while the badge poll (router reads dhGet directly) uses the new
+// cache -> red dot with no matching list row. Mirror the fresh cache back into chat.list.
+export function rebindChatCache() {
+  const d = dhPeek('/api/conversations');
+  if (d && Array.isArray(d.conversations)) {
+    chat.list = d.conversations;
+    renderConvList();
+  }
+}
+dhOnDomainRefresh('chat', rebindChatCache);
 
 /** Page leave hook (v1 selectPage parity): mark the open conversation read, then teardown. */
 export function chatLeavePage() {

@@ -118,6 +118,7 @@ export async function loadPrivacySettings() {
 export async function setPrivacyField(key, value) {
   try {
     await api('/api/privacy-settings', { method: 'POST', body: { [key]: value ? 1 : 0 } });
+    invalidate('account'); // Q-3b-F4: /api/privacy-settings caches under domain 'account' and the server never bumps it; without invalidate the toggle reverts to the old value after leaving/re-entering settings (the 60s TTL is also masked by dhTouchAll -> stale forever)
     showToast(TEXT.SETTINGS_SAVED);
   } catch (err) { showToast(err.message); }
 }

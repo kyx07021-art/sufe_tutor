@@ -5,11 +5,12 @@ import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import { api } from '../../core/api.js';
+import { invalidate } from '../../core/datahub.js'; // Q-3b-F3: invalidate after write
 import * as actions from './actions.js';
 const ACTION_MAP = {
   'admin.closeModal': actions.closeModalAction,
-  'admin.approveReview': el => api(`/api/admin/reviews/${el.dataset.id}/approve`, { method: 'POST', body: {} }).then(() => actions.loadAdminReviews()).catch(() => {}),
-  'admin.rejectReview': el => api(`/api/admin/reviews/${el.dataset.id}/reject`, { method: 'POST', body: {} }).then(() => actions.loadAdminReviews()).catch(() => {}),
+  'admin.approveReview': el => api(`/api/admin/reviews/${el.dataset.id}/approve`, { method: 'POST', body: {} }).then(() => { invalidate('admin'); actions.loadAdminReviews(); }).catch(() => {}), // Q-3b-F3
+  'admin.rejectReview': el => api(`/api/admin/reviews/${el.dataset.id}/reject`, { method: 'POST', body: {} }).then(() => { invalidate('admin'); actions.loadAdminReviews(); }).catch(() => {}), // Q-3b-F3
   'admin.penalty': el => actions.openContentPenaltyModal(el.dataset.id, el.dataset.type),
   'admin.submitPenalty': el => actions.doSubmitContentPenalty(el.dataset.id, el.dataset.type),
   'admin.deletePost': el => actions.adminDeletePost(Number(el.dataset.id)),
