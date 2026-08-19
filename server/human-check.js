@@ -18,7 +18,8 @@
  * 无状态性：判定为纯函数（track 特征 → 评分），不依赖服务端存储的答案（前端自算缺口答案，
  * 本模块只判人机，不校验 offset 正确性——答案校验仍在前端本地比对）。
  */
-import { error } from '../src/server/core/util.js';
+import { error, errorMsg } from '../src/server/core/util.js';
+import { MSG } from '../src/shared/codes.js';
 
 const PASS_SCORE = 70;
 const MIN_POINTS = 10;
@@ -32,21 +33,21 @@ const passedChallenges = new Map();
 /** 判定轨迹人机特征。返回 { ok, score(0-100), reason } */
 export function humanTrajectoryCheck(track) {
   if (!Array.isArray(track) || track.length < MIN_POINTS) {
-    return { ok: false, score: 0, reason: '轨迹缺失或点数过少' };
+    return { ok: false, score: 0, reason: MSG.CAPTCHA_REASON_FEW_POINTS };
   }
-  if (track.length > MAX_POINTS) return { ok: false, score: 0, reason: '轨迹点数异常' };
+  if (track.length > MAX_POINTS) return { ok: false, score: 0, reason: MSG.CAPTCHA_REASON_BAD_COUNT };
   const pts = track
     .map(p => ({ t: Number(p && p.t), x: Number(p && p.x), y: Number(p && p.y) }))
     .filter(p => Number.isFinite(p.t) && Number.isFinite(p.x) && Number.isFinite(p.y))
     .sort((a, b) => a.t - b.t);
-  if (pts.length < MIN_POINTS) return { ok: false, score: 0, reason: '轨迹点非法' };
+  if (pts.length < MIN_POINTS) return { ok: false, score: 0, reason: MSG.CAPTCHA_REASON_BAD_POINTS };
 
   const t0 = pts[0].t, x0 = pts[0].x;
   const xs = pts.map(p => p.x - x0);   // 相对起始的横向位移
   const ts = pts.map(p => p.t - t0);   // 相对起始的时间 ms
   const dur = ts[ts.length - 1];
   const dist = Math.abs(xs[xs.length - 1]);
-  if (!(dur > 0) || dist <= 0) return { ok: false, score: 0, reason: '轨迹无位移或时长非法' };
+  if (!(dur > 0) || dist <= 0) return { ok: false, score: 0, reason: MSG.CAPTCHA_REASON_NO_MOTION };
 
   // 逐段速度（px/ms）
   const speeds = [];
@@ -75,32 +76,32 @@ export function humanTrajectoryCheck(track) {
   // 1) 总时长区间（15）
   if (dur >= 400 && dur <= 3000) score += 15;
   else if (dur >= 250 && dur <= 4000) score += 8;
-  else reasons.push('时长异常');
+  else reasons.push(MSG.CAPTCHA_REASON_DURATION);
 
   // 2) 轨迹点密度（10）
   if (pts.length >= 20 && pts.length <= 120) score += 10;
   else if (pts.length >= 12) score += 5;
-  else reasons.push('点数过少');
+  else reasons.push(MSG.CAPTCHA_REASON_SPARSE);
 
   // 3) 速度曲线 慢-快-慢（25）：中段显著快于两端；末段减速（人类终点找手感）
   if (vMid > vStart * 1.2 && vMid > vEnd * 1.15 && vEnd < vMid * 0.9) score += 25;
   else if (vMid > vStart && vMid > vEnd) score += 12;
-  else reasons.push('速度曲线单调');
+  else reasons.push(MSG.CAPTCHA_REASON_MONOTONE);
 
   // 4) 非匀速性 CV（20）：人类 0.4+，机器匀速 <0.15
   if (cv >= 0.4) score += 20;
   else if (cv >= 0.2) score += 10;
-  else reasons.push('近匀速');
+  else reasons.push(MSG.CAPTCHA_REASON_UNIFORM);
 
   // 5) 垂直抖动（15）：人类 1-12px 自然微颤；机器 0 或过大
   if (ySd >= 1 && ySd <= 12) score += 15;
   else if (ySd > 0 && ySd <= 20) score += 7;
-  else reasons.push('无垂直抖动');
+  else reasons.push(MSG.CAPTCHA_REASON_NO_JITTER);
 
   // 6) 终点减速（15）：末段平均速度 < 中段（人类接近目标减速；机器匀速全程）
   if (vEnd < vMid * 0.85) score += 15;
   else if (vEnd < vMid) score += 8;
-  else reasons.push('终点未减速');
+  else reasons.push(MSG.CAPTCHA_REASON_NO_DECEL);
 
   return { ok: score >= PASS_SCORE, score, reason: score >= PASS_SCORE ? '' : reasons.join('、') };
 }
@@ -123,11 +124,11 @@ export function markChallengePassed(captchaId) {
 // POST /api/captcha/verify { captchaId, offset, track } —— 拼图验证人机判定（无需鉴权，限流兜底）
 export async function handleCaptchaVerify(db, body, req) {
   const track = body && body.track;
-  if (!Array.isArray(track)) return error('轨迹数据缺失', 400, 'CAPTCHA_TRACK_MISSING');
+  if (!Array.isArray(track)) return errorMsg('CAPTCHA_TRACK_MISSING', 400);
   const captchaId = String((body && body.captchaId) || '').slice(0, 64);
   const check = humanTrajectoryCheck(track);
-  if (!check.ok) return error(`验证失败：${check.reason || '轨迹特征异常'}`, 403, 'CAPTCHA_VERIFY_FAILED');
+  if (!check.ok) return error(MSG.CAPTCHA_VERIFY_FAILED_PREFIX + (check.reason || MSG.CAPTCHA_VERIFY_FAILED), 403, 'CAPTCHA_VERIFY_FAILED');
   // 判定通过 → 一次性放行（防同一挑战重复使用）
-  if (!markChallengePassed(captchaId)) return error('验证已使用，请重新验证', 403, 'CAPTCHA_ALREADY_USED');
+  if (!markChallengePassed(captchaId)) return errorMsg('CAPTCHA_ALREADY_USED', 403);
   return { ok: true, score: check.score };
 }

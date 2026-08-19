@@ -10,7 +10,12 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { humanTrajectoryCheck, markChallengePassed, handleCaptchaVerify } from '../server/human-check.js';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** 人样轨迹：慢-快-慢（frac - sin(2π·frac)/2π 位移，两端慢中间快）+ y 抖动 + 800ms + 60 点 */
 function humanTrack() {
@@ -72,4 +77,11 @@ test('路由 handleCaptchaVerify：人样轨迹通过 / 机器轨迹 403 / 重�
   assert.equal(replayR.status, 403, '同挑战重放 403');
   const noTrack = await handleCaptchaVerify(null, { captchaId: 'r3' }, req);
   assert.equal(noTrack.status, 400, '轨迹缺失 400');
+});
+
+test('Q-2h/Q-2i：human-check 文案单源（非注释代码零中文字符，变异：加回内联中文 → 红）', () => {
+  const src = readFileSync(join(ROOT, 'server/human-check.js'), 'utf8');
+  // strip 注释（// 行 + /* 块）后查中文字符——文案必须在 codes.js MSG，文档注释不受限
+  const noComment = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  assert.ok(!/[一-鿿]/.test(noComment), 'human-check.js 非注释代码零中文字符（文案在 codes.js MSG 单源）');
 });
