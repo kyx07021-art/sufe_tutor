@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { productionConfigChecks, productionReady, notReadyResponse } from '../server/startup.js';
-import { LEGACY_ADMIN_PASSWORD } from '../server/constants.js';
+import { LEGACY_ADMIN_PASSWORD } from '../src/shared/config.js';
 
 const PROD = { CF_PAGES_URL: 'https://sufe-tutor.pages.dev' };
 

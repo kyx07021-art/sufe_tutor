@@ -15,7 +15,7 @@ import { dbCreateFeedback, dbGetFeedbacksByUser, dbGetFeedbackById, dbCreateComp
 import { handleCreateFeedback, handleMyFeedbacks, handleResolveFeedback } from '../src/server/domains/complaints/api.js';
 import { handleCreateComplaint, handleMyComplaints, handleComplaintAttachment } from '../src/server/domains/complaints/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import { LIMITS } from '../server/constants.js';
+import { LIMITS } from '../src/shared/config.js';
 import { JSDOM } from 'jsdom';
 import { state } from '../src/client/core/state.js';
 import { setEnsureAuth } from '../src/client/core/api.js';

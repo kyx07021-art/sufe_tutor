@@ -33,12 +33,11 @@ export {
 };
 
 import {
-  mapDemandRow,
   dbCreateDemand, dbGetDemands, dbGetDemandsByUser, dbGetDemandById, dbUpdateDemand, dbDeleteDemand,
   dbAdminForceDeleteDemand, dbReopenDemand, dbReleaseDemandAfterRevoke,
   dbCreatePush, dbGetPendingPushesForTeacher, dbGetPushById, dbResolvePush, dbGetPendingPushesForDemand, dbAcceptPushAsIntent,
   dbCreateIntent, dbGetIntentTeachers, dbGetIntentWithDemand, dbResolveIntent, dbGetPendingIntentsForDemand,
-} from '../src/server/domains/demand/repo.js';
+} from '../src/server/domains/demand/repo.js'; // Q-2h-F2：mapDemandRow 导入未用未导出，死 import 清理（生产只在 demand/repo.js 内部用）
 
 export {
   dbCreateDemand, dbGetDemands, dbGetDemandsByUser, dbGetDemandById, dbUpdateDemand, dbDeleteDemand,

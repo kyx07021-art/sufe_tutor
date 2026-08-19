@@ -113,7 +113,7 @@ test('R22 自投诉拦截 + 每日限额', async () => {
   const myPost = raw.prepare("SELECT id FROM posts WHERE user_id=? ORDER BY id DESC LIMIT 1").get(s1.id).id;
   assert.equal((await handleCreateComplaint(db, bodyOf({ targetType: 'post', targetId: myPost, reason: '其他' }), reqOf(s1.token))).status, 400, '不能投诉自己帖子');
   // 每日限额：LIMITS.COMPLAINT_DAILY_LIMIT 次后 429
-  const LIMITS = (await import('../server/constants.js')).LIMITS;
+  const LIMITS = (await import('../src/shared/config.js')).LIMITS;
   for (let i = 0; i < LIMITS.COMPLAINT_DAILY_LIMIT; i++) {
     const r = await handleCreateComplaint(db, bodyOf({ targetType: 'teacher', targetId: t1.id, reason: '其他' }), reqOf(s1.token));
     assert.equal(r.status, 201, `第 ${i + 1} 次允许`);

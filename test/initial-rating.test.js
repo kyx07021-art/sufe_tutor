@@ -2,7 +2,7 @@
  * 需求十六（R16）·教师默认评分 4.5、默认权重 10、对所有用户应用
  *
  * 改动：
- *   - server/constants.js：INITIAL_RATING 4.0 → 4.5（INITIAL_WEIGHT 保持 10）；
+ *   - src/shared/config.js：INITIAL_RATING 4.0 → 4.5（INITIAL_WEIGHT 保持 10）；
  *   - server/db.js initDb 幂等回填：存量从未被评价的教师（rating_count=0，rating=旧默认）
  *     回填 4.5——「对所有用户应用」。
  *   - v0.25.103 B3：存量「有评论」教师同样按新默认 4.5 加权重算（此前只回填无评论教师，
@@ -17,7 +17,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { dbUpsertTeacherProfile } from '../src/server/domains/teacher/repo.js';
-import { INITIAL_RATING, INITIAL_WEIGHT } from '../server/constants.js';
+import { INITIAL_RATING, INITIAL_WEIGHT } from '../src/shared/config.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 

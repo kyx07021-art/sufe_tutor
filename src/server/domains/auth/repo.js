@@ -1,6 +1,6 @@
 /**
  * 认证域数据层（V-1-4 从 server/db.js 提取）：users / invite_codes / 用户私有数据清理。
- * 导入：core/util、core/crypto、server/constants。mapper 与 SQL 只在本文件。
+ * 导入：core/util、core/crypto、src/shared/config（常量单源）。mapper 与 SQL 只在本文件。
  */
 import { dbAll, dbGet, dbRun, toDbTime } from '../../core/util.js';
 import { hashPassword } from '../../core/crypto.js';
