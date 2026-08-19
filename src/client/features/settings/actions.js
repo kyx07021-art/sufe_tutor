@@ -61,6 +61,7 @@ export function enterAccountSettings() {
       <div class="settings-bottom-actions">
         <button type="button" class="btn btn-outline settings-devices-btn glass glass--pressable" data-action="settings.devices">${TEXT.SETTINGS_DEVICES}</button>
         <button type="button" class="btn settings-logout glass glass--pressable" data-action="settings.logout">${TEXT.BTN_LOGOUT}</button>
+        ${u.role !== ROLES.ADMIN ? `<button type="button" class="btn btn-danger settings-deactivate-btn glass glass--pressable" data-action="settings.openDeactivate">${TEXT.SETTINGS_DEACTIVATE_TITLE}</button>` : ''}
       </div>`;
     bindUiScaleSlider();
   }

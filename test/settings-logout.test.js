@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { confirmLogout } from '../src/client/features/settings/actions.js';
+import { confirmLogout, openDeactivateModal, enterAccountSettings } from '../src/client/features/settings/actions.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -66,4 +66,57 @@ test('confirmLogout：点取消不登出（弹窗关闭、状态保留）', asyn
   assert.ok(state.user && state.authToken, '会话状态保留');
   assert.equal(dom.window.document.querySelector('.modal'), null, '弹窗已关闭');
   delete globalThis.fetch; teardown();
+});
+
+// ===== Z-11-F3：注销账户 UI 入口（原 openDeactivateModal 零触发点，弹窗不可达）=====
+test('enterAccountSettings：非管理员渲染注销按钮（data-action=settings.openDeactivate）', async () => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="account-settings-content"></div></body></html>', { url: 'http://localhost/' });
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  globalThis.MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } };
+  state.user = { id: 7, role: 'student', username: '注销测试' };
+  state.authToken = 'tok-deact';
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) });
+  enterAccountSettings();
+  await new Promise(r => setTimeout(r, 0));
+  const btn = dom.window.document.querySelector('[data-action="settings.openDeactivate"]');
+  assert.ok(btn, '注销按钮已渲染');
+  assert.ok(btn.classList.contains('btn-danger'), '危险样式');
+  assert.ok(btn.textContent.includes('注销账户'), '按钮文案');
+  delete globalThis.fetch;
+  delete globalThis.document; delete globalThis.window;
+  delete globalThis.localStorage; delete globalThis.sessionStorage; delete globalThis.MutationObserver;
+});
+
+test('enterAccountSettings：管理员不渲染注销按钮（服务端禁 admin 注销）', async () => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="account-settings-content"></div></body></html>', { url: 'http://localhost/' });
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  globalThis.MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } };
+  state.user = { id: 8, role: 'admin', username: '管理员' };
+  state.authToken = 'tok-admin';
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({}) });
+  enterAccountSettings();
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(dom.window.document.querySelector('[data-action="settings.openDeactivate"]'), null, '管理员无注销按钮');
+  delete globalThis.fetch;
+  delete globalThis.document; delete globalThis.window;
+  delete globalThis.localStorage; delete globalThis.sessionStorage; delete globalThis.MutationObserver;
+});
+
+test('openDeactivateModal：弹窗含警告 + 取消/继续按钮，继续走 confirmDeactivateAccount 二次认证', () => {
+  const dom = setup();
+  openDeactivateModal();
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, '注销弹窗出现');
+  assert.ok(modal.textContent.includes('注销后账号将被墓碑化'), '警告文案在弹窗');
+  const cancelBtn = modal.querySelector('[data-action="settings.closeModal"]');
+  const contBtn = modal.querySelector('[data-action="settings.deactivate"]');
+  assert.ok(cancelBtn && contBtn, '取消/继续两按钮在');
+  assert.ok(contBtn.classList.contains('btn-danger'), '继续按钮危险样式');
+  teardown();
 });
