@@ -230,7 +230,11 @@ export function applyFilters() {
   const method = document.getElementById('filter-method')?.value || '';
   const day = document.getElementById('filter-day')?.value || '';
   const verified = document.getElementById('filter-verified')?.value || '';
-  let list = [...(state.allTeachers || [])];
+  // Q-4a-M1b audit FAIL fix: filter from the full cached source, NOT the previously-filtered
+  // display state — clearing a filter must restore the full list (was sticky until reload).
+  // Mirrors demand hall applyDemandControls. Falls back to state.allTeachers (first visit / no cache).
+  const full = ((dhPeek('/api/teachers') || {}).teachers) || null;
+  let list = [...((full && full.length ? full : state.allTeachers) || [])];
   if (method) list = list.filter(t => (t.teaching_method || '') === method);
   if (day) list = list.filter(t => hasDaySlot(t.time_slots, Number(day)));
   if (verified === '1') list = list.filter(t => t.verified === 1);

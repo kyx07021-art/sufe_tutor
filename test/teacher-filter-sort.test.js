@@ -93,6 +93,22 @@ test('Q-4a-M1c：teacherSortFromSelect 设 mode + 写回（排序控件 data-cha
   delete globalThis.document;
 });
 
+test('Q-4a-M1b 审计 FAIL：清除筛选恢复全量（非 sticky——从全量源过滤）', async () => {
+  const dom = setup();
+  state.user = { role: 'student', id: 1, username: 's' };
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ teachers: TEACHERS }) });
+  await loadTeachers(); // 填充 dhCache + state.allTeachers 全量
+  const method = dom.window.document.getElementById('filter-method');
+  method.value = 'online';
+  applyFilters();
+  assert.deepEqual(state.allTeachers.map(t => t.user_id), [1], '线上筛选生效');
+  method.value = '';
+  applyFilters();
+  assert.equal(state.allTeachers.length, TEACHERS.length, '清除筛选恢复全量（原 sticky 停留在子集）');
+  delete globalThis.document; delete globalThis.window;
+  delete globalThis.localStorage; delete globalThis.sessionStorage; delete globalThis.MutationObserver; delete globalThis.fetch;
+});
+
 test('Q-4a-M1b：loadTeachers 填充筛选/排序控件（原空死容器）', async () => {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select><select id="filter-verified"></select><label id="teacher-sort-label"></label></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
