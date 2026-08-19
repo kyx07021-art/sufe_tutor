@@ -41,8 +41,14 @@ function onLoad() {
     enter: () => actions.loadTeachers(),
   });
   document.addEventListener('click', onActionClick);
+  // Z-8-F1: avatar clicks are intercepted by anim.js capture and dispatch profile-panel-open
+  // (core must not depend on features); the profile panel belongs to the teacher domain, so this
+  // feature consumes the event (fixes dead avatar clicks across router/chat/student renderers)
+  const onProfileOpen = e => { if (e.detail && e.detail.userId) actions.openProfilePanel(Number(e.detail.userId)); };
+  document.addEventListener('profile-panel-open', onProfileOpen);
   return () => {
     document.removeEventListener('click', onActionClick);
+    document.removeEventListener('profile-panel-open', onProfileOpen);
     installed = false;
   };
 }

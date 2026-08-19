@@ -56,39 +56,14 @@
 }
 
 /* ============================================================
-   个人信息右栏（openProfilePanel）：桌面端右侧 25vw 滑入，内容超长可滚动；
-   移动端定宽浮层 + 背景变暗。卡片白块直角、行间细线，账簿式对齐（title 最左、
-   信息自固定 px 处起）。z 150 低于弹窗(200)：评价表单弹窗可覆于其上。
+   个人信息面板（openProfilePanel）：v2 起经 openModal 渲染（V-2 B2-D），modal 上下文静态展示。
+   卡片白块直角、行间细线，账簿式对齐（title 最左、信息自固定 px 处起）。
    ============================================================ */
 .profile-panel {
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 150;
-  width: min(max(330px, 30vw), 460px); /* #156：PC 资料卡加宽（原 25vw→30vw），460px 上限防超大屏过宽；移动端 @media 覆盖不受影响 */
+  /* Z-8-F1 重做：资料面板 v2 起由 openProfilePanel 经 openModal 渲染（V-2 B2-D），旧右抽屉定位
+     （fixed 右栏 + translateX(105%) + body.profile-panel-open 点亮）无 JS 驱动已死——modal 上下文静态展示 */
   display: flex; flex-direction: column;
-
-  --g-lift: -14px 0 44px var(--g-panel-lift); /* G12：外浮影走引擎参数 */
-  transform: translateX(105%);
-  visibility: hidden; /* 原子隐藏由类状态决定：open 可见，动画结束 JS 移除类回此态 */
-}
-body.profile-panel-open .profile-panel {
-  transform: none;
-  visibility: visible;
-  /* 入栏动画：纯 transform keyframes，与 modal-in 同构（bdf 子树下纯 transform
-     animation 正常、opacity 帧才触发 983252）。0.20.8 用 transition 双向，用户在端 transform 冻结
-     （报「0.3s 原地消失」= transform 首帧卡死 + visibility 延迟生效）→ 改 animation 复刻 modal 可行路径。
-     关闭：JS 加 body.profile-panel-closing 播 panel-out，animationend 后移除类回 base。 */
-  animation: panel-in .3s var(--ease-snap);
-}
-body.profile-panel-closing .profile-panel {
-  animation: panel-out .3s var(--ease-snap) forwards; /* 出栏：纯 transform；forwards 保持屏外终态至类移除 */
-}
-@keyframes panel-in { from { transform: translateX(105%); } to { transform: none; } }
-@keyframes panel-out { from { transform: none; } to { transform: translateX(105%); } }
-.profile-panel-backdrop {
-  position: fixed; inset: 0; z-index: 145;
-  -webkit-backdrop-filter: var(--g-panel-backdrop-blur, blur(4px)); backdrop-filter: var(--g-panel-backdrop-blur, blur(4px)); /* v0.19.35：背景加深连根删（用户指示：灰化背景透进玻璃=浮窗自灰），只留虚化；--g-panel-backdrop-blur 语义别名（需求八·item4 flat 包覆盖为 none） */
-  opacity: 0; pointer-events: none;
-  transition: opacity .3s var(--ease-out);
-  display: none; /* 桌面端右栏视作屏幕延伸，不暗背景；仅移动端启用 */
+  width: 100%;
 }
 .profile-panel-head {
   flex-shrink: 0; display: flex; align-items: center; justify-content: space-between;
@@ -197,13 +172,6 @@ body.profile-panel-closing .profile-panel {
 .profile-review-btn[disabled] { opacity: .45; cursor: not-allowed; }
 .profile-review-hint { margin-top: 8px; font-size: .72rem; line-height: 1.5; color: var(--muted); }
 .profile-card .review-mine-note { margin-top: 10px; }
-
-/* 移动端：定宽浮层 + 背景变暗（桌面 25vw 在窄屏过窄，改固定 px） */
-@media (max-width: 860px) {
-  .profile-panel { width: min(86vw, 340px); --g-lift: -8px 0 30px var(--g-panel-lift-m); } /* G12：外浮影走引擎参数 */
-  .profile-panel-backdrop { display: block; }
-  body.profile-panel-open .profile-panel-backdrop { opacity: 1; pointer-events: auto; }
-}
 
 /* 学生需求卡：头像占与教师卡同宽的左区，卡身整体右移 */
 .list-card--demand { display: flex; gap: var(--sp-4); align-items: flex-start; --g-hover: var(--g-hover-wash); } /* v1.4.0：需求卡同款 hover 提亮（与 teacher 卡一致——整卡可点必须有反馈，原理#87） */
