@@ -16,7 +16,7 @@
  */
 import { dbAll, dbGet, dbRun, json, error, errorMsg, genCode, ensureColumns } from './util.js';
 import { authUser, requireAdmin } from './security.js';
-import { MSG } from '../../shared/codes.js';
+import { MSG, NOTIFY_TYPES } from '../../shared/codes.js';
 import { LIMITS } from '../../shared/config.js';
 import { logEvent } from './log.js';
 import { bumpVersions } from '../../../server/version.js'; // 通知插入统一 bump notifications 域
@@ -40,16 +40,32 @@ export async function initNotifyTable(db) {
 }
 
 /** 推送咽喉：任何通知失败都不应影响主业务。type 为 NOTIFY_TYPES 键，params 为
- *  渲染所需数据（客户端负责文案）；text 列新行写空、旧行保留历史渲染串兜底。 */
+ *  渲染所需数据（客户端负责文案）；text 列新行写空、旧行保留历史渲染串兜底。
+ *  Q-2b-F4/F6：失败留档暴露缺口（不再静默吞）+ type/params 形状契约校验（fail-closed——
+ *  错 type/多余键拒绝写入，前端渲染空通知的数据腐坏不可见）。 */
 export async function notifyUser(db, userId, type, params = {}) {
   if (!userId || !type) return;
+  // Q-2b-F6: type 必须 ∈ NOTIFY_TYPES（错 type 静默落库 → 前端渲染空通知零可见）
+  const shape = NOTIFY_TYPES[type];
+  if (!shape) {
+    try { await logEvent(db, { action: 'notify.invalid_type', actorUserId: userId, entity: 'notification', detail: { type: String(type).slice(0, 60) } }); } catch { /* 留档失败不阻断 */ }
+    return;
+  }
+  // Q-2b-F6: params 键必须 ⊆ shape（多余键 = 形状漂移，后续渲染可能读错键）
+  const extra = Object.keys(params || {}).filter(k => !(k in shape));
+  if (extra.length) {
+    try { await logEvent(db, { action: 'notify.invalid_params', actorUserId: userId, entity: 'notification', detail: { type, extra } }); } catch { /* 留档失败不阻断 */ }
+    return;
+  }
   try {
     await dbRun(db, 'INSERT INTO notifications (user_id, text, type, params) VALUES (?,?,?,?)',
-      [userId, '', type, JSON.stringify(params)]);
+      [userId, '', type, JSON.stringify(params || {})]);
     // 通知插入即 bump notifications 域——所有业务方（意向/推送/合同/反馈等）
     // 的逐用户通知都经此咽喉，对端客户端 8s 内静默重拉红点。低频，不成放大；失败静默不影响主业务
     await bumpVersions(db, ['notifications']);
   } catch (e) {
+    // Q-2b-F4: 失败留档暴露缺口（原静默吞——交易结果通知（CONTRACT_SIGNED 等）D1 故障丢失无感知）
+    try { await logEvent(db, { action: 'notify.fail', actorUserId: userId, entity: 'notification', detail: { type, error: String((e && e.message) || e).slice(0, 200) } }); } catch { /* 留档失败不阻断 */ }
     console.warn('notify failed:', e && e.message);
   }
 }

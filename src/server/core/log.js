@@ -172,6 +172,14 @@ async function flushPendingLogs(target, req) {
  *   由 logRequest 在响应收尾统一 batch 落库（本请求全部业务留档 + 访问留档一次往返）；
  *   无 req（测试/系统事件）直接落，语义不变。
  */
+// Q-2b-F3: 留档失败计数——logEvent 吞 encryptDetail/写库失败零可观测性（密钥非法 base64 时全站
+// 审计静默停）。isolate 内累计 + 导出查询（admin 可经 /api/health 或后续 dashboard 观察，跨实例重启
+// 归零可接受——观测数据 best-effort，与 telemetry 同口径）。
+let droppedLogs = 0;
+export function logDropStats() {
+  return { dropped: droppedLogs };
+}
+
 export async function logEvent(db, ev) {
   try {
     const d = await encryptDetail(detailToJson(ev.detail, ev.detailMax)); // 正文加密后落库（v1.4.14 fail-closed：无密钥抛错由本函数 try/catch 吞 → 留档不落、绝不落明文）
@@ -192,7 +200,8 @@ export async function logEvent(db, ev) {
     if (ev.req && typeof ev.req === 'object') { collectLog(ev.req, row); return; }
     await writeLogRow(getLogDb(db), row);
   } catch (err) {
-    console.error('logEvent failed (swallowed):', err?.message || err);
+    droppedLogs++; // Q-2b-F3: 失败计数（每次吞错 +1，console 带累计暴露量级）
+    console.error(`logEvent failed (swallowed) #${droppedLogs}:`, err?.message || err);
   }
 }
 
