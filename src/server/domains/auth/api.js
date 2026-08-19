@@ -4,7 +4,7 @@
  * 依赖：util（响应构造/UA 标签）、crypto（口令哈希/令牌摘要）、session（令牌签发/会话管理）、
  *       security（身份解析）、constants（校验文案/限额）。
  */
-import { json, errorMsg, deviceLabelFromUA } from '../../core/util.js';
+import { json, errorMsg, deviceLabelFromUA, isUniqueConflict } from '../../core/util.js';
 import { hashPassword, verifyPassword, tokenDigest } from '../../core/crypto.js';
 import { authUser, requireUser, authRateBatch, authRateBlock } from '../../core/security.js';
 import {
@@ -97,6 +97,9 @@ export async function handleRegister(db, body, req) {
     if (otpChannel === 'email') await bindEmailCredential(db, userId, contactTarget);
     else await bindPhoneCredential(db, userId, contactTarget);
   } catch (e) {
+    // Z-1-F7：先判别 UNIQUE 冲突（并发占用），非冲突（D1 故障/crypto fail-closed 无密钥）上抛 500——
+    // 原 catch 一律当并发占用处理，回滚用户误报 409，把真实故障也吞成了业务冲突
+    if (!isUniqueConflict(e)) throw e;
     await dbDeleteUser(db, userId);
     console.warn('注册绑定凭证失败（并发占用），已回滚账户:', e && e.message);
     return errorMsg('CONTACT_CONFLICT_RETRY', 409);
@@ -149,12 +152,19 @@ export async function handleLogin(db, body, req) {
       entity: 'user', detail: { kind, identifier: targetMask(target) }, req });
     return errorMsg('LOGIN_FAILED', 401);
   }
+  // Z-1-F3：deactivated 检查提到 banned 之前——dbDeactivateUser 恒同步写 banned=1+deactivated=1，
+  // 原顺序致 deactivated 分支不可达（注销用户误收 ACCOUNT_BANNED 与误记 auth.login.banned；
+  // 承重面在验证码登录路径——密码路径因 dbDeactivateUser 清空 password_hash 先于 401 失败）
+  if (user.deactivated) {
+    await logEvent(db, { action: 'auth.login.deactivated', actorUserId: user.id, actorUsername: user.username,
+      actorRole: user.role, entity: 'user', entityId: user.id, req }); // Z-1-F4：补留档（同 banned 口径）
+    return errorMsg('ACCOUNT_DEACTIVATED', 403);
+  }
   if (user.banned) {
     await logEvent(db, { action: 'auth.login.banned', actorUserId: user.id, actorUsername: user.username,
       actorRole: user.role, entity: 'user', entityId: user.id, req });
     return errorMsg('ACCOUNT_BANNED', 403);
   }
-  if (user.deactivated) return errorMsg('ACCOUNT_DEACTIVATED', 403);
   const authToken = await issueAuthToken(db, user.id, deviceLabelFromUA(req && req.headers.get('user-agent')), body.deviceId);
   await logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, req });
@@ -429,8 +439,18 @@ export async function handleLoginWithCode(db, body, req) {
     if (otpR === 'exhausted') return errorMsg('OTP_EXHAUSTED', 400, 'OTP_EXHAUSTED');
     return errorMsg('OTP_INVALID_OR_EXPIRED', 400);
   }
-  if (user.banned) return errorMsg('ACCOUNT_BANNED', 403);
-  if (user.deactivated) return errorMsg('ACCOUNT_DEACTIVATED', 403);
+  // Z-1-F3/F4：与密码登录同口径——deactivated 先于 banned（dbDeactivateUser 恒同步写两者），
+  // 两分支均补留档（auth.login.deactivated / auth.login.banned，对照 handleLogin 形状）
+  if (user.deactivated) {
+    await logEvent(db, { action: 'auth.login.deactivated', actorUserId: user.id, actorUsername: user.username,
+      actorRole: user.role, entity: 'user', entityId: user.id, detail: { via: 'code', kind }, req });
+    return errorMsg('ACCOUNT_DEACTIVATED', 403);
+  }
+  if (user.banned) {
+    await logEvent(db, { action: 'auth.login.banned', actorUserId: user.id, actorUsername: user.username,
+      actorRole: user.role, entity: 'user', entityId: user.id, detail: { via: 'code', kind }, req });
+    return errorMsg('ACCOUNT_BANNED', 403);
+  }
   const authToken = await issueAuthToken(db, user.id, deviceLabelFromUA(req && req.headers.get('user-agent')), body.deviceId);
   await logEvent(db, { action: 'auth.login.success', actorUserId: user.id, actorUsername: user.username,
     actorRole: user.role, entity: 'user', entityId: user.id, detail: { via: 'code', kind }, req });

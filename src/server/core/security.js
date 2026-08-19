@@ -80,6 +80,8 @@ const rlSweep = now => {
   if (RL.hits.size < RATE_LIMITS.sweepSize) return;
   for (const [k, v] of RL.hits) if (v.reset < now) RL.hits.delete(k);
   for (const [k, until] of RL.blocked) if (until < now) RL.blocked.delete(k);
+  // Z-1-F5：strikes 未达封禁阈值的 IP 三元组随攻击 IP 累积，sweep 漏清致 isolate 内内存膨胀
+  for (const [k, s] of RL.strikes) if (s.reset < now) RL.strikes.delete(k);
 };
 
 // 内存命中计数：窗口内 +1，返回是否未超限
