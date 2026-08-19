@@ -103,6 +103,20 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   const post = data.items.find(i => i.type === 'post');
   assert.equal(post.author.username, 'alice');
   assert.equal(post.title, '物理笔记');
+  // Q-2i-M5d：CONTENT_MAPPER 派生 title 单源锁定（防模板/分隔符改动无测试拦截——审计发现 3）
+  const teacher = data.items.find(i => i.type === 'teacher');
+  assert.equal(teacher.title, '教师档案 · bobt', 'CONTENT_TITLE_TEACHER 模板 {name} 单源');
+  const carol = await registerWithContact(db, req(), { username: 'carol', password: 'pass123456', role: 'student' });
+  const carolData = await carol.json();
+  const demandApi = await import('../src/server/domains/demand/api.js');
+  const created = await demandApi.handleCreateDemand(db, {
+    demand: { province: 'shanghai', student_grade: 'senior1', student_gender: 'female', target_subjects: ['math'], current_scores: [], teaching_method: 'offline', address: '杨浦区·四平路街道', submitter_type: 'self', parent_contact: '13800000000', student_contact: '13800000000', additional_info: '' },
+  }, req({ 'X-Auth-Token': carolData.authToken }));
+  assert.equal(created.status, 200, '需求创建成功');
+  const r2 = await handleAdminContent(db, new URL('http://x/api/admin/content'), req({ 'X-Auth-Token': token }));
+  const data2 = await r2.json();
+  const demand = data2.items.find(i => i.type === 'demand');
+  assert.match(demand.title, /^需求 #\d+$/, 'CONTENT_TITLE_DEMAND 模板 {id} 单源');
   assert.ok(!('password_hash' in post), '不提取凭证列');
   assert.ok(!('parent_contact' in post), '不提取私密字段');
   // 非管理员（无令牌）→ 401（requireUser 无令牌语义；有令牌但非 admin 才是 403）
