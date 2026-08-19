@@ -22,6 +22,7 @@
 import { dbAll, dbRun } from '../src/server/core/util.js';
 import { decryptField, encryptField, decryptDetail, encryptDetail } from '../src/server/core/crypto.js';
 import { safeJsonArray } from './db.js';
+import { LIMITS } from '../src/shared/config.js';
 
 // 字段加密列清单：表 → 列（单点维护，新加密列上线必须在此登记）
 const FIELD_TABLES = [
@@ -36,10 +37,9 @@ const FIELD_TABLES = [
 
 const ENC_PREFIX = 'enc:v1:';
 
-// 单次 Worker 调用处理的密文行数上限：D1 Free 单调用 50 次查询预算，减 handler 固定开销
-// （requireAdmin/confirmDangerOtp/logEvent/logRequest ≈ 10 次）与每段 1 次扫描 SELECT 后留足余量。
-// REENCRYPT_ROW_BUDGET ≤ 30 的契约测试将在 A-12-4 补（锁定上限，防调大后单调用回归 D1 50 查询上限）。
-export const REENCRYPT_ROW_BUDGET = 20;
+// 真源 LIMITS.REENCRYPT_ROW_BUDGET（src/shared/config.js，规则 41 数值/限额单源）；
+// re-export 保持测试/调用方既有接口。≤30 契约由 test/reencrypt.test.js 锁定。
+export const REENCRYPT_ROW_BUDGET = LIMITS.REENCRYPT_ROW_BUDGET;
 
 const unreadable = pt => pt === '[encrypted]' || pt === '[undecryptable]';
 

@@ -169,6 +169,10 @@ export const LIMITS = {
   PHONE_MAX: 20,
   EMAIL_MAX: 100,
   USERNAME_COOLDOWN_MS: 604800000,
+  // 单次 Worker 调用处理的密文行数上限（A-12 定案）：D1 Free 单调用 50 次查询预算，
+  // 减 handler 固定开销（requireAdmin/confirmDangerOtp/logEvent/logRequest ≈ 10 次）与每段 1 次
+  // 扫描 SELECT 后留足余量。≤30 契约由 test/reencrypt.test.js 锁定（防调大后单调用回归 D1 上限）。
+  REENCRYPT_ROW_BUDGET: 20,
 };
 export const SECURITY = {
   TOKEN_TTL_MS: CONFIG.TOKEN_TTL_MS,
