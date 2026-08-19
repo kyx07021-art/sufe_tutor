@@ -58,9 +58,15 @@ export async function issueCapToken(db, req) {
   await dbRun(db, `DELETE FROM danger_caps WHERE user_id=? AND expires_at <= ?`, [userId, nowUtc]).catch(() => {});
   const token = bufToHex(crypto.getRandomValues(new Uint8Array(SECURITY.CAP_TOKEN_BYTES)));
   const exp = toDbTime(new Date(Date.now() + SECURITY.ONE_TIME_TTL_MS));
-  await dbRun(db, `INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)
-    ON CONFLICT(user_id, session_id) DO UPDATE SET token_hash=excluded.token_hash, expires_at=excluded.expires_at`,
-    [userId, sessionId, await tokenDigest(token), exp]).catch(() => {});
+  try {
+    await dbRun(db, `INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)
+      ON CONFLICT(user_id, session_id) DO UPDATE SET token_hash=excluded.token_hash, expires_at=excluded.expires_at`,
+      [userId, sessionId, await tokenDigest(token), exp]);
+  } catch {
+    // Z-1-F1：落库失败返回空串 → 调用方（auth handleReAuth）判空返 500 并告警，
+    // 绝不返回死 token（曾静默吞错返 token，D1 瞬时异常时 re-auth 假成功、后续危险操作恒 403）
+    return '';
+  }
   return token;
 }
 
