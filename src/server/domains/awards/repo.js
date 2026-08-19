@@ -5,9 +5,10 @@ import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { LIMITS } from '../../../shared/config.js';
 import { STATUS, AWARD_STATUS } from '../../../shared/enums.js'; // Z-16-F4：AWARD_STATUS 单源 shared/enums，本地定义删除
 
-export const AWARD_TITLE_MAX = 60;
-export const AWARD_ISSUER_MAX = 60;
-export const AWARDS_MAX = 10;
+// Z-16-F3：限额真源 LIMITS（shared/config.js，规则 41），re-export 保 api.js 既有接口
+export const AWARD_TITLE_MAX = LIMITS.AWARD_TITLE_MAX;
+export const AWARD_ISSUER_MAX = LIMITS.AWARD_ISSUER_MAX;
+export const AWARDS_MAX = LIMITS.AWARDS_MAX;
 export const AWARD_DATE_RE = /^(?:\d{4}(?:-\d{2})?)?$/;
 export { AWARD_STATUS }; // 单源 shared/enums.js，re-export 保 api.js 既有接口（Z-16-F4）
 

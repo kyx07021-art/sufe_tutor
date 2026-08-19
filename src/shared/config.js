@@ -42,7 +42,7 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     USERNAME_MIN: 3, USERNAME_MAX: 30,    // 用户名长度下限/上限（前端校验与 server LIMITS.USERNAME_MIN/MAX 对齐，改值两处核对）
     CONTRACT_LOCATION_MAX: 200,           // 合同地点输入上限（对齐 server LIMITS.CONTRACT_LOCATION_MAX）
     PAY_OTHER_MAX: 100,                   // 合同「其他」付款方式/试课薪资自定义文本上限（对齐 server LIMITS.PAY_OTHER_MAX）
-    AWARD_TITLE_MAX: 60, AWARD_ISSUER_MAX: 60, // 奖项名称/颁发机构上限（对齐 server/awards.js 本地常量）
+    AWARD_TITLE_MAX: 60, AWARD_ISSUER_MAX: 60, // 奖项名称/颁发机构上限（Z-16-F3：同值经 LIMITS.AWARD_TITLE_MAX/ISSUER_MAX 供服务端钳制，改值一处即两端生效）
     TIME_SLOTS_MAX: 8,                    // 结构化时间组件条数上限（与 server LIMITS.TIME_SLOTS_MAX 对齐）
     PERSONALITY_TAGS_MAX: 3,              // 性格关键词上限（R2-3，前端 toggleTagPick 与服务端兜底同用）
     TEACHING_GOALS_MAX: 2,                // 教学目标上限（≤2，前后端同用）
@@ -169,6 +169,10 @@ export const LIMITS = {
   PHONE_MAX: 20,
   EMAIL_MAX: 100,
   USERNAME_COOLDOWN_MS: 604800000,
+  // 荣誉奖项（Z-16-F3 单源）：TITLE/ISSUER 上限与前端 CONFIG 同值（改 CONFIG 一处即两端生效）；AWARDS_MAX 每教师奖项数上限
+  AWARD_TITLE_MAX: CONFIG.AWARD_TITLE_MAX,
+  AWARD_ISSUER_MAX: CONFIG.AWARD_ISSUER_MAX,
+  AWARDS_MAX: 10,
   // 单次 Worker 调用处理的密文行数上限（A-12 定案）：D1 Free 单调用 50 次查询预算，
   // 减 handler 固定开销（requireAdmin/confirmDangerOtp/logEvent/logRequest ≈ 10 次）与每段 1 次
   // 扫描 SELECT 后留足余量。≤30 契约由 test/reencrypt.test.js 锁定（防调大后单调用回归 D1 上限）。
