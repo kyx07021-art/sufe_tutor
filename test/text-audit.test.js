@@ -25,6 +25,24 @@ test('L1 规则层：连字符变体与数字谐音后缀拦截（2788好 等）
   assert.equal((await auditFreeText('')).ok, true, '空值放行');
 });
 
+// Z-2-F8 回归：4 位 19xx/20xx 年份（半角/全角/中文数字）后接谐音字不误判——合法内容不被 400 拒绝
+// （L1 放行后走语义层，需配置 key + 放行 stub）
+test('L1 规则层：年份（2019/1949/二〇二六）后接谐音字不误伤（Z-2-F8）', async () => {
+  const orig = globalThis.fetch;
+  globalThis.fetch = SEMANTIC_PASS;
+  bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
+  try {
+    assert.equal((await auditFreeText('2019好老师')).ok, true, '2019好 年份不误伤');
+    assert.equal((await auditFreeText('1949好日子')).ok, true, '1949好 年份不误伤');
+    assert.equal((await auditFreeText('二〇二六好')).ok, true, '中文数字年份（+谐音字）不误伤——真走 isYearLike');
+    assert.equal((await auditFreeText('二〇二六届毕业')).ok, true, '中文数字年份不误伤');
+    // 对照：真实门牌谐音仍拦（收窄不放过真门牌）
+    assert.equal((await auditFreeText('静安区2788好')).ok, false, '2788好 仍拦截');
+    // 多命中：同文本含年份 + 真门牌 → 任一非年份命中即拦（some 语义）
+    assert.equal((await auditFreeText('2019好老师 家在2788好对面')).ok, false, '多命中混合文本仍拦真门牌');
+  } finally { globalThis.fetch = orig; bindTextAuditEnv(null); }
+});
+
 test('L2 fail-closed：未配置密钥 → layer:error 拒绝写入', async () => {
   bindTextAuditEnv(null);
   const r = await auditFreeText('丁香国际对门学校上二楼左转第一间房');
