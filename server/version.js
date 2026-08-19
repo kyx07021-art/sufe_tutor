@@ -21,7 +21,8 @@
  */
 import { dbAll, dbRun, json } from '../src/server/core/util.js';
 
-export const DOMAINS = {
+// Z-15-F4：DOMAINS 仅本模块内部使用（无外部 import），去 export 关键字（死导出清理）
+const DOMAINS = {
   DEMANDS: 'demands', TEACHERS: 'teachers', POSTS: 'posts',
   CONTRACTS: 'contracts', CHAT: 'chat', NOTIFICATIONS: 'notifications', ADMIN: 'admin',
 };

@@ -329,7 +329,8 @@ export const DEMAND_TYPES = {
 };
 export const ROLES = { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' };
 export const VERIFY_TYPES = { CHSI: 'chsi', ADMISSION: 'admission' };
-export const CONTENT_TYPES = ['post','demand','teacher','review','message','feedback','complaint','upload','contract','signing'];
+// Z-15-F2：CONTENT_TYPES 硬编码数组删除——真源在 admin/repo.js CONTENT_SQL 键派生（增类型只改 CONTENT_SQL 单点），
+// 此处原为双源之一且全仓零消费（server/constants.js re-export 亦无人引 CONTENT_TYPES）
 export const COMPLAINT_TARGET_TYPES = ['teacher','student','post'];
 export const AWARD_STATUS = { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected' };
 export const DEACTIVATED_USER_PREFIX = '已注销用户';

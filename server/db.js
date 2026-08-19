@@ -21,7 +21,7 @@ export {
 };
 
 import {
-  dbGetTeacherProfile, dbIsMatched, dbUpsertTeacherProfile, dbGetTeachers, dbSetTeacherVerified, mapTeacherProfileRow,
+  dbGetTeacherProfile, dbIsMatched, dbUpsertTeacherProfile, dbGetTeachers, dbSetTeacherVerified,
   dbGetTeacherVerification, dbUpsertTeacherVerification, dbClearChsiFromProfile, dbApplyChsiToProfile,
   dbListTeacherVerifications, dbGetTeacherVerificationById,
 } from '../src/server/domains/teacher/repo.js';
@@ -76,8 +76,8 @@ import { dbListPosts, dbListMyFavoritePosts, dbCreatePostFavorite, dbDeletePostF
 import { dbCreateFeedback, dbGetFeedbacksByUser, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbCreateComplaint, dbCountComplaintsToday, dbGetComplaintsByUser, dbGetComplaintsAdmin, dbGetComplaintById, dbResolveComplaint, dbSearchUsersByRole, dbRecentInteractions, dbSearchPosts } from '../src/server/domains/complaints/repo.js';
 export { dbListPosts, dbListMyFavoritePosts, dbCreatePostFavorite, dbDeletePostFavorite, dbCreatePost, dbGetPostById, dbGetPostLikeToggleRead, dbGetPostFavoriteToggleRead, dbTogglePostLike, dbDeletePost, dbCreateFeedback, dbGetFeedbacksByUser, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbCreateComplaint, dbCountComplaintsToday, dbGetComplaintsByUser, dbGetComplaintsAdmin, dbGetComplaintById, dbResolveComplaint, dbSearchUsersByRole, dbRecentInteractions, dbSearchPosts };
 
-import { CONTENT_TYPES, dbGetUserStats, dbGetCountWhere, dbGetCount, dbGetReviewStats, dbGetInviteStats, dbListInviteCodes, dbRevokeInviteCode, dbGetRecentUsers, dbGetRecentDemands, dbGetStudentUsersAdmin, dbGetAllContentAdmin, dbDeleteFeedback, dbDeleteComplaint } from '../src/server/domains/admin/repo.js';
-export { CONTENT_TYPES, dbGetUserStats, dbGetCountWhere, dbGetCount, dbGetReviewStats, dbGetInviteStats, dbListInviteCodes, dbRevokeInviteCode, dbGetRecentUsers, dbGetRecentDemands, dbGetStudentUsersAdmin, dbGetAllContentAdmin, dbDeleteFeedback, dbDeleteComplaint };
+import { dbGetUserStats, dbGetCountWhere, dbGetCount, dbGetReviewStats, dbGetInviteStats, dbListInviteCodes, dbRevokeInviteCode, dbGetRecentUsers, dbGetRecentDemands, dbGetStudentUsersAdmin, dbGetAllContentAdmin, dbDeleteFeedback, dbDeleteComplaint } from '../src/server/domains/admin/repo.js';
+export { dbGetUserStats, dbGetCountWhere, dbGetCount, dbGetReviewStats, dbGetInviteStats, dbListInviteCodes, dbRevokeInviteCode, dbGetRecentUsers, dbGetRecentDemands, dbGetStudentUsersAdmin, dbGetAllContentAdmin, dbDeleteFeedback, dbDeleteComplaint };
 
 // v2 shim：迁移/初始化已迁至 src/server/core/db.js；本文件保留数据层 re-export 出口
 import { SCHEMA_VERSION, initDb } from '../src/server/core/db.js';
