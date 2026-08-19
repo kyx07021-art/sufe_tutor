@@ -10,9 +10,8 @@ import { uiScaleReflow } from './ui-scale-reflow.js';
 export const state = {
   user: null, authToken: null, view: 'landing', page: null,
   allTeachers: [], adminTeachers: [], intentTeachers: [],
-  myReviewOnModal: null,
   myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
-  inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null,
+  validatedInviteCode: null, // Q-4a-L3: removed dead fields myReviewOnModal / inviteTimerId / currentInviteCode (zero read/write beyond logout reset)
   guestRole: null, guestAuthMode: false,
 };
 

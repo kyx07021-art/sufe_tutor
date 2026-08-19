@@ -188,8 +188,6 @@ export function handleLogout() {
   state.adminPosts = [];
   state.adminContracts = [];
   state.myContracts = [];
-  state.inviteTimerId = null;
-  state.currentInviteCode = null;
   state.validatedInviteCode = null;
   clearSession(role);
   closeSidebar();

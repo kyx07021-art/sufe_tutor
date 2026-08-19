@@ -69,9 +69,9 @@ function resetRuntime() {
   stopVersionProbe();
   Object.assign(state, {
     user: null, authToken: null, view: 'landing', page: null,
-    allTeachers: [], adminTeachers: [], intentTeachers: [], myReviewOnModal: null,
+    allTeachers: [], adminTeachers: [], intentTeachers: [],
     myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
-    inviteTimerId: null, currentInviteCode: null, validatedInviteCode: null,
+    validatedInviteCode: null,
     guestRole: null, guestAuthMode: false,
   });
   auth.setAuthReturnPage(null);
