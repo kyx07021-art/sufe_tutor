@@ -4,7 +4,7 @@
  * 依赖：util（响应构造/UA 标签）、crypto（口令哈希/令牌摘要）、session（令牌签发/会话管理）、
  *       security（身份解析）、constants（校验文案/限额）。
  */
-import { json, errorMsg, deviceLabelFromUA, isUniqueConflict, parseIdParam} from "../../core/util.js";
+import { json, errorMsg, deviceLabelFromUA, isUniqueConflict, parseIdParam } from '../../core/util.js';
 import { hashPassword, verifyPassword, tokenDigest } from '../../core/crypto.js';
 import { authUser, requireUser, authRateBatch, authRateBlock } from '../../core/security.js';
 import {
@@ -252,7 +252,10 @@ export async function handleListSessions(db, req) {
   const curRow = await getSessionByToken(db, me.id, req.headers.get('X-Auth-Token'));
   const currentId = curRow?.session_id || '';
   const sessions = await listSessions(db, me.id);
-  return json({ sessions: sessions.map(s => ({ session_id: s.session_id, label: s.label, created_at: s.created_at, expires_at: s.expires_at, current: s.session_id === currentId })) });
+  // Q-2a-L4：库内 UTC 'YYYY-MM-DD HH:MM:SS' 不自描述时区，客户端裸 new Date() 会按本地解析（早 8 小时）——
+  // 出口统一转 ISO-8601 带 Z（any consumer Date.parse/new Date 均为 UTC 瞬间）。created_at/expires_at 同转。
+  const toIso = t => (t ? new Date(String(t).replace(' ', 'T') + 'Z').toISOString() : null);
+  return json({ sessions: sessions.map(s => ({ session_id: s.session_id, label: s.label, created_at: toIso(s.created_at), expires_at: toIso(s.expires_at), current: s.session_id === currentId })) });
 }
 
 // 逐端退登：按 session_id 吊销本人名下指定会话；吊销的若是当前设备（踢自己），
