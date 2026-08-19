@@ -17,6 +17,9 @@ const ACTION_MAP = {
   'posts.feedbackBug': () => { actions.closeModalAction(); actions.openFeedbackModal('bug'); },
   'posts.feedbackSuggestion': () => { actions.closeModalAction(); actions.openFeedbackModal('suggestion'); },
   'posts.openComplaint': actions.openComplaintAction,
+  // Z-9-F1: wire about-page feedback/my-feedback buttons (v2 data-action registration was lost; clicks were dead)
+  'about-feedback': () => actions.openFeedbackComplaintChooser(),
+  'about-my-feedback': () => actions.openMyFeedback(),
   'md-wrap': el => actions.mdWrap(el.dataset.md),
   'post-image': el => actions.insertPostImage(el),
   'post-preview': actions.openPostPreview,
