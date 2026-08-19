@@ -89,7 +89,7 @@ export async function reencryptChunk(db, cursor = null, logDb = null) {
       }
       budget -= rows.length;
     }
-    if (budget <= 0) return { summary, cursor: c };
+    if (budget <= 0) return { ...summary, cursor: c };
     c.phase = 'attachments'; c.afterId = 0;
   }
 
@@ -122,7 +122,7 @@ export async function reencryptChunk(db, cursor = null, logDb = null) {
     }
     budget -= rows.length;
     if (rows.length < limit) { c.phase = 'logs'; c.afterId = 0; } // 附件取尽 → 日志段
-    else { c.afterId = rows[rows.length - 1].id; return { summary, cursor: c }; } // 恰满 → 附件段续跑
+    else { c.afterId = rows[rows.length - 1].id; return { ...summary, cursor: c }; } // 恰满 → 附件段续跑
     // rows.length < limit 时 budget 必仍 > 0（rows.length < 原 budget），继续日志段
   }
 
@@ -141,9 +141,9 @@ export async function reencryptChunk(db, cursor = null, logDb = null) {
     await dbRun(logSource, 'UPDATE activity_log SET detail=? WHERE id=?', [next.text, row.id]);
     summary.logs.rewritten++;
   }
-  if (rows.length < limit) return { summary, cursor: null }; // 日志取尽 → 全部完成
+  if (rows.length < limit) return { ...summary, cursor: null }; // 日志取尽 → 全部完成
   c.afterId = rows[rows.length - 1].id;
-  return { summary, cursor: c };
+  return { ...summary, cursor: c };
 }
 
 /** 全量重加密（循环分片直至完成；对外语义与 v1.5.0 一致——测试用；生产端点走 reencryptChunk 分片续跑，见 A-12-2） */
@@ -151,7 +151,9 @@ export async function reencryptAll(db, logDb = null) {
   const total = { fields: zero(), attachments: zero(), logs: zero() };
   let cursor = null;
   for (;;) {
-    const { summary, cursor: next } = await reencryptChunk(db, cursor, logDb);
+    // Z-2-F4：reencryptChunk 归一扁平形状（fields/attachments/logs/cursor）——不再套 summary 包裹
+    const { fields, attachments, logs, cursor: next } = await reencryptChunk(db, cursor, logDb);
+    const summary = { fields, attachments, logs };
     for (const k of ['fields', 'attachments', 'logs']) {
       for (const key of ['scanned', 'rewritten', 'unreadable', 'skipped']) {
         total[k][key] += summary[k][key];
@@ -166,5 +168,6 @@ export async function reencryptAll(db, logDb = null) {
     unreadable: a.unreadable + b.unreadable,
     skipped: a.skipped + b.skipped,
   });
-  return { fields: total.fields, attachments: total.attachments, logs: total.logs, total: sum(sum(total.fields, total.attachments), total.logs) };
+  // Z-2-F4：形状与 reencryptChunk 对齐（含 cursor:null）
+  return { fields: total.fields, attachments: total.attachments, logs: total.logs, total: sum(sum(total.fields, total.attachments), total.logs), cursor: null };
 }

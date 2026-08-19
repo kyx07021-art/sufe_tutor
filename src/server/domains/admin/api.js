@@ -238,10 +238,11 @@ export async function handleAdminReencrypt(db, body, req, env = null) {
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   const cursor = (body && body.cursor) || null;
   const res = await reencryptChunk(db, cursor, env && env.LOG_DB); // 独立留档库一并重加密（N1 审计修复）
+  // Z-2-F4：reencryptChunk 扁平形状——logEvent 记出参 res.cursor（收尾轮 done=true 时入参 cursor 已过期）
   await logEvent(db, { action: 'admin.crypto.reencrypt', actorUserId: admin.id, actorUsername: admin.username,
-    actorRole: 'admin', entity: 'system', entityId: 0, detail: { cursor: cursor || null, done: !res.cursor, chunk: res.summary }, req });
+    actorRole: 'admin', entity: 'system', entityId: 0, detail: { cursor: res.cursor ?? null, done: !res.cursor, chunk: { fields: res.fields, attachments: res.attachments, logs: res.logs } }, req });
   return json({ ok: true, done: !res.cursor, cursor: res.cursor,
-    fields: res.summary.fields, attachments: res.summary.attachments, logs: res.summary.logs });
+    fields: res.fields, attachments: res.attachments, logs: res.logs });
 }
 
 // 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件：标题+正文，

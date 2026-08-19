@@ -143,10 +143,11 @@ test('A-12：分片续跑总计数 == 全量 reencryptAll；段内恰满 budget 
   const b = await build();
   let cursor = null, chunked = { fields: 0, attachments: 0, logs: 0 }, calls = 0;
   for (;;) {
-    const { summary, cursor: next } = await reencryptChunk(b.db, cursor);
-    chunked.fields += summary.fields.rewritten;
-    chunked.attachments += summary.attachments.rewritten;
-    chunked.logs += summary.logs.rewritten;
+    // Z-2-F4：reencryptChunk 归一扁平形状（fields/attachments/logs/cursor，无 summary 包裹）
+    const { fields, attachments, logs, cursor: next } = await reencryptChunk(b.db, cursor);
+    chunked.fields += fields.rewritten;
+    chunked.attachments += attachments.rewritten;
+    chunked.logs += logs.rewritten;
     calls++;
     if (!next) break;
     cursor = next;
@@ -178,11 +179,11 @@ test('A-12：reencryptChunk 游标语义（首调无 cursor 返回续跑游标�
   bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
   for (let i = 0; i < 5; i++) raw.prepare('INSERT INTO activity_log (schema_v, encrypted, action, detail) VALUES (2, 1, ?, ?)').run('a' + i, (await encryptDetail(JSON.stringify({ i }))).text);
   bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG, FIELD_ENC_KEY_OLD: OLD_FIELD });
-  // 首调：字段/附件空，日志 5 行 < budget → 一次完成，cursor=null
+  // 首调：字段/附件空，日志 5 行 < budget → 一次完成，cursor=null（Z-2-F4 扁平形状）
   const first = await reencryptChunk(db, null);
   assert.equal(first.cursor, null, '日志取尽 → cursor=null（全部完成）');
-  assert.equal(first.summary.logs.rewritten, 5, '首调全量日志重写');
+  assert.equal(first.logs.rewritten, 5, '首调全量日志重写');
   // 幂等：完成后从头重跑（随机 IV 恒重写，无害）
   const second = await reencryptChunk(db, null);
-  assert.equal(second.summary.logs.rewritten, 5, '幂等重跑');
+  assert.equal(second.logs.rewritten, 5, '幂等重跑');
 });
