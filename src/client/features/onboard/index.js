@@ -7,12 +7,13 @@
  * CustomEvent('about-action') dispatch in about.js has no listener, no double fire).
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import * as actions from './actions.js';
 
 const ACTION_MAP = {
   'onboard.close': actions.closeOnboard,
   'onboard.usageGuide': actions.openUsageGuide,
-  'onboard.browseGuest': () => actions.browseAsGuest('student'),
+  'onboard.browseGuest': () => actions.browseAsGuest(ROLES.STUDENT),
   'about-usage-guide': actions.openUsageGuide,
   'about-revisit-tour': actions.startOnboardingTour,
 };

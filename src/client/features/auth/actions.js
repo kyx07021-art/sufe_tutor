@@ -5,6 +5,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state, saveSession, loadSession, clearSession, getDeviceId, runLogoutResets } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { showToast, btnLoading, btnDone, closeAllModals, withCaptcha } from '../../core/ui.js';
@@ -47,10 +48,10 @@ export function refreshAuthHeader() {
   if (hint) { hint.textContent = ''; hint.classList.remove('login-hint--missing'); }
   if (link) link.textContent = TEXT.LOGIN_SWITCH_CODE;
   if (btn) { btn.disabled = true; btn.classList.add('disabled'); }
-  if (state.guestAuthMode && state.guestRole === 'teacher') {
+  if (state.guestAuthMode && state.guestRole === ROLES.TEACHER) {
     h.textContent = TEXT.AUTH_LOGIN_TITLE_TEACHER;
     p.textContent = TEXT.AUTH_LOGIN_SUB_TEACHER;
-  } else if (state.guestAuthMode && state.guestRole === 'student') {
+  } else if (state.guestAuthMode && state.guestRole === ROLES.STUDENT) {
     h.textContent = TEXT.AUTH_LOGIN_TITLE_STUDENT;
     p.textContent = TEXT.AUTH_LOGIN_SUB_STUDENT;
   } else {

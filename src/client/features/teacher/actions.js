@@ -2,6 +2,7 @@
  * teacher feature actions: list, filters, profile panel, reviews.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
@@ -37,7 +38,7 @@ export function renderTeachers() {
 }
 
 export async function attachStudentMatch(teachers) {
-  if (!state.user || state.user.role !== 'student') { _studentOpenDemand = false; setStudentOpenDemand(false); return; }
+  if (!state.user || state.user.role !== ROLES.STUDENT) { _studentOpenDemand = false; setStudentOpenDemand(false); return; }
   for (const t of teachers) delete t._matchForStudent;
   let demands = [];
   try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands' })).demands || []; }
@@ -81,7 +82,7 @@ export async function openProfilePanel(userId) {
   // Only logged-in students request it: guests would get 401 and be bounced to the login view by
   // api()'s dead-token handling (regression caught in re-review); guests/non-students fall through
   // to list data where signed is absent and the button stays hidden.
-  if (state.user && state.user.role === 'student') {
+  if (state.user && state.user.role === ROLES.STUDENT) {
     try {
       const data = await api(`/api/teacher/profile?userId=${userId}`, { method: 'GET' });
       if (data && data.profile) t = data.profile;
@@ -178,7 +179,7 @@ export function viewTeacherCredential(userId) {
 export function teacherSortMode(mode) {
   if (mode == null) {
     const role = state.user && state.user.role;
-    return role === 'teacher' ? 'rating' : 'match';
+    return role === ROLES.TEACHER ? 'rating' : 'match';
   }
   state.teacherSort = mode; sortTeachers(); return mode;
 }

@@ -3,6 +3,7 @@
  * data-action/change delegation + match-detail close listeners (v1 parity).
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 import { goChatWithStudent } from '../chat/actions-list.js';
@@ -57,8 +58,8 @@ function onChange(e) {
 function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
   installed = true;
-  registerPage({ id: 'my-demands', roles: ['student'], label: TEXT.PAGE_MY_DEMANDS, desc: TEXT.PAGE_MY_DEMANDS_DESC, auth: true, enter: () => actions.loadMyDemands() });
-  registerPage({ id: 'browse-demands', roles: ['teacher'], label: TEXT.PAGE_BROWSE_DEMANDS, desc: TEXT.PAGE_BROWSE_DEMANDS_DESC, auth: false, enter: () => actions.loadBrowseDemands() });
+  registerPage({ id: 'my-demands', roles: [ROLES.STUDENT], label: TEXT.PAGE_MY_DEMANDS, desc: TEXT.PAGE_MY_DEMANDS_DESC, auth: true, enter: () => actions.loadMyDemands() });
+  registerPage({ id: 'browse-demands', roles: [ROLES.TEACHER], label: TEXT.PAGE_BROWSE_DEMANDS, desc: TEXT.PAGE_BROWSE_DEMANDS_DESC, auth: false, enter: () => actions.loadBrowseDemands() });
   document.addEventListener('click', onActionClick);
   document.addEventListener('change', onChange);
   // Form change listeners (province/method/grade/subjects/nonacademic) are direct bindings inside

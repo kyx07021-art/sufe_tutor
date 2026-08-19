@@ -6,6 +6,7 @@
  */
 import {
   SUBJECTS, GENDERS, TEACHING_METHODS, DEACTIVATED_USER_PREFIX,
+  ROLES,
 } from '../../shared/enums.js';
 import { SUFE_REGIONS } from '../constants/region-data.js';
 import { TEXT } from '../constants/text.js';
@@ -45,7 +46,7 @@ export function provinceName(code) {
 }
 
 export function roleLabel(role) {
-  return role === 'student' ? TEXT.ROLE_STUDENT : role === 'teacher' ? TEXT.ROLE_TEACHER : TEXT.ADMIN_BADGE;
+  return role === ROLES.STUDENT ? TEXT.ROLE_STUDENT : role === ROLES.TEACHER ? TEXT.ROLE_TEACHER : TEXT.ADMIN_BADGE;
 }
 
 export function usernameHtml(name) {

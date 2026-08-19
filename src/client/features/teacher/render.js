@@ -3,6 +3,7 @@
  * No inline handlers or inline style attributes.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
 import { subjectNames, genderName, methodName, priceRangeText, usernameHtml, deactivatedTag } from '../../core/display.js';
@@ -16,7 +17,7 @@ export function setStudentOpenDemand(v) { _studentOpenDemand = !!v; }
 export function studentOpenDemand() { return _studentOpenDemand; }
 
 export function renderTeacherCard(t, i) {
-  const isStudent = state.user && state.user.role === 'student';
+  const isStudent = state.user && state.user.role === ROLES.STUDENT;
   const grade = teacherGradeName(t.grade) || t.grade || '';
   const subjectsLine = subjectNames(t.subjects).join('、');
   const priceNum = priceRangeText(t.price_min, t.price_max, '');

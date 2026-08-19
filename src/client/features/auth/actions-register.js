@@ -4,6 +4,7 @@
  */
 import { CONFIG, INVITE_GATE_DORMANT } from '../../../shared/config.js';
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state, saveSession, getDeviceId } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { showToast, btnLoading, btnDone, withCaptcha } from '../../core/ui.js';
@@ -23,7 +24,7 @@ export function switchRegisterRole(role) {
   const studentGroup = $('student-reg-group');
   const wizardRoot = $('teacher-wizard-root');
   if (!studentGroup || !wizardRoot) return;
-  if (role === 'teacher') {
+  if (role === ROLES.TEACHER) {
     if (!studentGroupTemplate) studentGroupTemplate = studentGroup.innerHTML;
     studentGroup.innerHTML = '';
     renderTeacherWizard();
@@ -112,7 +113,7 @@ export function handleRegister(e) {
     showToast(TEXT.AGREE_REQUIRED, 'error');
     return;
   }
-  if (role === 'teacher' && !INVITE_GATE_DORMANT && !state.validatedInviteCode) {
+  if (role === ROLES.TEACHER && !INVITE_GATE_DORMANT && !state.validatedInviteCode) {
     showToast(TEXT.VALIDATE_INVITE_FIRST, 'error');
     regWizardGoTo(0);
     return;
@@ -136,7 +137,7 @@ export async function doRegister(username, password, role, agreeAgreement, agree
     const btn = $('register-submit');
     btnLoading(btn, TEXT.LOADING_REGISTER);
     const body = { username, password, role, deviceId: getDeviceId(), agreeAgreement, agreePrivacy };
-    if (role === 'teacher' && state.validatedInviteCode) body.inviteCode = state.validatedInviteCode;
+    if (role === ROLES.TEACHER && state.validatedInviteCode) body.inviteCode = state.validatedInviteCode;
     if (contact.kind === 'phone') {
       body.phone = contact.ident.startsWith('+') ? contact.ident : '+86' + contact.ident;
       body.code = contact.code;
@@ -149,7 +150,7 @@ export async function doRegister(username, password, role, agreeAgreement, agree
     const data = await api('/api/auth/register', { method: 'POST', body });
     state.user = data.user;
     state.authToken = data.authToken || null;
-    if (role === 'teacher') state.validatedInviteCode = null;
+    if (role === ROLES.TEACHER) state.validatedInviteCode = null;
     saveSession(false);
     afterAuthSuccess(true).catch(err => console.warn('afterAuthSuccess', err));
   } catch (err) {

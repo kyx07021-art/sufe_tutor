@@ -6,6 +6,7 @@
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 
 const ACTION_MAP = {
   'notif.toggleBlock': () => actions.toggleNotifBlock(),
@@ -36,7 +37,7 @@ function onLoad() {
   installed = true;
   registerPage({
     id: 'notifications',
-    roles: ['student', 'teacher', 'admin'],
+    roles: Object.values(ROLES),
     label: TEXT.PAGE_NOTIFICATIONS,
     desc: TEXT.PAGE_NOTIFICATIONS_DESC,
     auth: true,

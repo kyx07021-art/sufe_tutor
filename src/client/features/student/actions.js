@@ -19,7 +19,7 @@ import { buildStudentSubjectsHtml, buildStudentScoreRows, renderProvinceSelect, 
 import { mountShanghaiAddrPicker, switchScoreMode, pickGrade, collectStudentScores } from '../region/actions.js';
 import { bindTimeSlotTree, validateTimeSlots, collectTimeSlots, prefillTimeSlots } from '../../core/ui-form.js';
 import { SUFE_REGIONS } from '../../constants/region-data.js';
-import { STUDENT_GRADES, STATUS, SUBJECTS, TEACHING_METHODS, DEMAND_TYPES, NONACADEMIC_PROJECTS } from '../../../shared/enums.js';
+import { STUDENT_GRADES, STATUS, SUBJECTS, TEACHING_METHODS, DEMAND_TYPES, NONACADEMIC_PROJECTS, ROLES } from '../../../shared/enums.js';
 import { CONFIG } from '../../../shared/config.js';
 
 export { gradeOptionsForProvince }; // region school-system single source (re-export for grade-region-policy tests)
@@ -48,7 +48,7 @@ export async function loadBrowseDemands() {
   if (!el) return;
   const seq = (loadSeqs['browse-demands'] = (loadSeqs['browse-demands'] || 0) + 1); // || 0 init: NaN !== NaN would drop first render
   const isGuest = !state.user;
-  const needTeachers = !isGuest && state.user.role === 'teacher' && !state.allTeachers.length;
+  const needTeachers = !isGuest && state.user.role === ROLES.TEACHER && !state.allTeachers.length;
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
     const [dData, pData, tData] = await Promise.all([
@@ -107,7 +107,7 @@ export function renderBrowseDemands(pushes, demands) {
   const el = document.getElementById('browse-demands-list') || document.getElementById('demands-list');
   if (!el) return;
   const isGuest = !state.user;
-  const myTeacher = (!isGuest && state.user && state.user.role === 'teacher')
+  const myTeacher = (!isGuest && state.user && state.user.role === ROLES.TEACHER)
     ? state.allTeachers.find(t => t.user_id === state.user.id) : null;
   const pushDemandIds = new Set(pushes.map(p => p.id));
   const pinned = pushes.map(p => renderDemandCard(p, { push: p, teacher: true, myTeacher })).join('');

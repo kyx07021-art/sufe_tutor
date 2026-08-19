@@ -2,6 +2,7 @@
  * posts feature registry: page registration + data-action/change/input delegation.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 
@@ -64,7 +65,7 @@ function onLoad() {
   installed = true;
   registerPage({
     id: 'resource-share',
-    roles: ['teacher'],
+    roles: [ROLES.TEACHER],
     label: TEXT.PAGE_RESOURCE_SHARE,
     desc: TEXT.PAGE_RESOURCE_SHARE_DESC,
     auth: false,

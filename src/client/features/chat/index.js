@@ -5,6 +5,7 @@
  * plus-menu close-outside behavior (v1 parity).
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 import { setChatConvById } from '../contract/actions-chat-bridge.js';
@@ -67,7 +68,7 @@ function onLoad() {
   installed = true;
   registerPage({
     id: 'my-chats',
-    roles: ['student', 'teacher'],
+    roles: [ROLES.STUDENT, ROLES.TEACHER],
     label: TEXT.PAGE_MY_CHATS,
     desc: TEXT.PAGE_MY_CHATS_DESC,
     auth: true,

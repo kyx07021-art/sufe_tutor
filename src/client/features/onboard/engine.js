@@ -22,7 +22,7 @@
  */
 import { TEXT } from './text.js';
 import { CONFIG } from '../../../shared/config.js';
-import { STATUS } from '../../../shared/enums.js'; // Z-16-F6: status literals via shared enums
+import { STATUS, ROLES } from '../../../shared/enums.js'; // Z-16-F6: status literals via shared enums
 import { state, isReturning, registerLogoutReset } from '../../core/state.js';
 import { escHtml } from '../../core/dom.js';
 import { closeModal } from '../../core/ui.js';
@@ -416,8 +416,8 @@ export function skipTour() { _tourCleanup(); }
 export function startOnboardingTour() {
   const ctx = onboardContext();
   const script = ctx.loggedIn
-    ? (ctx.role === 'admin' ? 'admin' : ctx.role === 'teacher' ? 'teacherUser' : 'studentUser')
-    : (ctx.role === 'teacher' ? 'teacherGuest' : 'studentGuest');
+    ? (ctx.role === ROLES.ADMIN ? 'admin' : ctx.role === ROLES.TEACHER ? 'teacherUser' : 'studentUser')
+    : (ctx.role === ROLES.TEACHER ? 'teacherGuest' : 'studentGuest');
   runTour(script);
 }
 
@@ -441,7 +441,7 @@ function _tourDemoChatEnsure() {
   }
   const empty = list.querySelector('.empty-state');
   if (empty) empty.remove();
-  const teacherView = state.user && state.user.role === 'teacher';
+  const teacherView = state.user && state.user.role === ROLES.TEACHER;
   const demoName = teacherView ? TEXT.TOUR_DEMO_CHAT_NAME_TEACHER : TEXT.TOUR_DEMO_CHAT_NAME_STUDENT;
   const demoRole = teacherView ? TEXT.CHAT_ROLE_STUDENT : TEXT.CHAT_ROLE_TEACHER;
   const btn = document.createElement('button');
@@ -470,7 +470,7 @@ export function demoOpenConversation() {
     b.classList.toggle('active', b.dataset.convId === 'demo'));
   const frame = document.getElementById('chat-frame');
   if (!frame) return;
-  const teacherView = state.user && state.user.role === 'teacher';
+  const teacherView = state.user && state.user.role === ROLES.TEACHER;
   const demoName = teacherView ? TEXT.TOUR_DEMO_CHAT_NAME_TEACHER : TEXT.TOUR_DEMO_CHAT_NAME_STUDENT;
   const demoRole = teacherView ? TEXT.CHAT_ROLE_STUDENT : TEXT.CHAT_ROLE_TEACHER;
   frame.innerHTML = renderChatFrame({

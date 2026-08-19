@@ -3,6 +3,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state, getThemePref, getUiScale, uiScaleFillPct, setUiScaleLive, commitUiScale, getOrbPref } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
@@ -106,8 +107,8 @@ export async function loadPrivacySettings() {
     const el = document.getElementById('privacy-settings') || document.getElementById('privacy-settings-list');
     if (el) {
       const role = state.user && state.user.role;
-      const profileHtml = role === 'teacher' ? `<label class="checkbox-item"><input type="checkbox" data-settings-privacy="allowGuestProfile"${data.allowGuestProfile ? ' checked' : ''}>${TEXT.SETTINGS_PRIVACY_PROFILE_LABEL}</label>` : '';
-      const demandHtml = role === 'student' ? `<label class="checkbox-item"><input type="checkbox" data-settings-privacy="allowGuestDemand"${data.allowGuestDemand ? ' checked' : ''}>${TEXT.SETTINGS_PRIVACY_DEMAND_LABEL}</label>` : '';
+      const profileHtml = role === ROLES.TEACHER ? `<label class="checkbox-item"><input type="checkbox" data-settings-privacy="allowGuestProfile"${data.allowGuestProfile ? ' checked' : ''}>${TEXT.SETTINGS_PRIVACY_PROFILE_LABEL}</label>` : '';
+      const demandHtml = role === ROLES.STUDENT ? `<label class="checkbox-item"><input type="checkbox" data-settings-privacy="allowGuestDemand"${data.allowGuestDemand ? ' checked' : ''}>${TEXT.SETTINGS_PRIVACY_DEMAND_LABEL}</label>` : '';
       el.innerHTML = profileHtml + demandHtml;
     }
   } catch { /* silent */ }

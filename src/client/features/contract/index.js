@@ -2,6 +2,7 @@
  * contract feature registry: my-contracts page + data-action delegation.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 import { setChatConvById } from './actions-chat-bridge.js';
@@ -53,7 +54,7 @@ function onLoad() {
   installed = true;
   registerPage({
     id: 'my-contracts',
-    roles: ['student', 'teacher'],
+    roles: [ROLES.STUDENT, ROLES.TEACHER],
     label: TEXT.PAGE_MY_CONTRACTS,
     desc: TEXT.PAGE_MY_CONTRACTS_DESC,
     auth: true,

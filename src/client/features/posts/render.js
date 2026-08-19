@@ -7,6 +7,7 @@ import { escHtml, fmtDateTime, loaderHtml } from '../../core/dom.js';
 import { state } from '../../core/state.js';
 import { usernameHtml, deactivatedTag } from '../../core/display.js';
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 
 export function likePillHtml(p) {
   return `<label class="post-like glass" data-id="${p.id}">
@@ -53,7 +54,7 @@ export function renderPostCard(p, i) {
 }
 
 export function postsToolbarHtml(postsView) {
-  const isTeacher = state.user && state.user.role === 'teacher';
+  const isTeacher = state.user && state.user.role === ROLES.TEACHER;
   return `<div class="posts-toolbar glass">
       <button type="button" class="btn btn-sm glass glass--pressable posts-fav-btn${postsView === 'fav' ? ' posts-fav-btn--on' : ''}" id="posts-fav-btn"
         data-action="posts.toggleFav" aria-pressed="${postsView === 'fav'}">${postsView === 'fav' ? TEXT.POSTS_FAV_ACTIVE : TEXT.POSTS_VIEW_FAV}</button>

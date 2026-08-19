@@ -3,7 +3,7 @@
  * empty and features call registerPage in later batches. Migrated from app-shell.js.
  */
 import { CONFIG, APP_VERSION } from '../../shared/config.js';
-import { STATUS } from '../../shared/enums.js'; // Z-16-F6: status literals via shared enums
+import { STATUS, ROLES } from '../../shared/enums.js'; // Z-16-F6: status literals via shared enums
 import { TEXT } from '../constants/text.js';
 import { state, loadSeqs, savePageState, getLastPage } from './state.js';
 import { escHtml, renderAvatarHtml, loaderHtml, mdRender } from './dom.js';
@@ -20,7 +20,7 @@ import { enterAbout } from './about.js';
 const VIEWS = ['landing', 'login', 'register', 'client'];
 const featurePages = [];
 const builtinPages = [
-  { id: 'about', roles: ['student', 'teacher', 'admin'], label: TEXT.PAGE_ABOUT, desc: TEXT.PAGE_ABOUT_DESC, enter: () => enterAbout(), auth: false },
+  { id: 'about', roles: Object.values(ROLES), label: TEXT.PAGE_ABOUT, desc: TEXT.PAGE_ABOUT_DESC, enter: () => enterAbout(), auth: false },
 ];
 let authGuard = null;
 export function setRouterAuthGuard(fn) { authGuard = typeof fn === 'function' ? fn : null; }
@@ -45,7 +45,7 @@ export function pagesForRole() {
 // role-first ids (student=my-demands / teacher=browse-demands / admin=admin-stats).
 const ROLE_FIRST_PAGE = { student: 'my-demands', teacher: 'browse-demands', admin: 'admin-stats' };
 export function defaultPageFor() {
-  if (!state.user) return state.guestRole === 'teacher' ? 'browse-demands' : 'browse-teachers';
+  if (!state.user) return state.guestRole === ROLES.TEACHER ? 'browse-demands' : 'browse-teachers';
   const role = state.user.role;
   const roleFeatures = featurePages.filter(p => !p.roles || !p.roles.length || p.roles.includes(role));
   const first = roleFeatures[0];
@@ -68,7 +68,7 @@ export function updateNavbar() {
   if (state.user) {
     const u = state.user;
     const rl = roleLabel(u.role);
-    el.innerHTML = `<div class="navbar-user"><span>${escHtml(u.username)}</span><span class="user-badge glass${u.role === 'admin' ? ' admin-badge glass' : ''}">${rl}</span></div>`;
+    el.innerHTML = `<div class="navbar-user"><span>${escHtml(u.username)}</span><span class="user-badge glass${u.role === ROLES.ADMIN ? ' admin-badge glass' : ''}">${rl}</span></div>`;
   } else {
     el.innerHTML = `<button type="button" class="btn glass glass--pressable" data-action="view-login">${TEXT.NAV_LOGIN}</button>
       <button type="button" class="btn glass glass--pressable" data-action="view-register">${TEXT.NAV_REGISTER}</button>`;
@@ -91,7 +91,7 @@ export async function enterClient(pageId) {
     startVersionProbe();
   } else if (state.guestRole) {
     startVersionProbe();
-    dhPrefetch(state.guestRole === 'teacher' ? 'teacher-guest' : 'student-guest');
+    dhPrefetch(state.guestRole === ROLES.TEACHER ? 'teacher-guest' : 'student-guest');
   }
   closeSidebar();
   const main = document.getElementById('client-main');
@@ -100,7 +100,7 @@ export async function enterClient(pageId) {
 
 export function renderSidebar() {
   const u = state.user;
-  const isAdmin = u && u.role === 'admin';
+  const isAdmin = u && u.role === ROLES.ADMIN;
   const userTarget = document.getElementById('sidebar-user');
   if (userTarget) {
     const userBlock = u ? `<button type="button" class="sidebar-user-top sidebar-user-btn" data-action="open-profile" data-profile-user-id="${u.id}" title="${TEXT.PROFILE_PANEL_TITLE}">
@@ -246,11 +246,11 @@ export async function refreshBadges() {
     const notifUnread = (notifData.notifications || []).filter(n => !n.is_read && !(notifBlockOn() && isBroadcastNotif(n))).length;
     if (state.page !== 'my-chats') setBadge('my-chats', chatUnread);
     if (state.page !== 'notifications') setBadge('notifications', notifUnread);
-    if (state.user.role === 'teacher') {
+    if (state.user.role === ROLES.TEACHER) {
       const pushData = await dhGet('/api/demand-pushes', { domain: 'demands' });
       if (state.page !== 'browse-demands') setBadge('browse-demands', (pushData.pushes || []).length);
       setBadge('my-demands', 0);
-    } else if (state.user.role === 'student') {
+    } else if (state.user.role === ROLES.STUDENT) {
       const demandData = await dhGet('/api/student/demands?scope=mine', { domain: 'demands' });
       setBadge('my-demands', (demandData.demands || []).filter(d => d.pending_intents > 0).length);
       setBadge('browse-demands', 0);

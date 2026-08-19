@@ -2,6 +2,7 @@
  * teacher feature registry: browse-teachers page + delegation.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 
@@ -36,7 +37,7 @@ function onLoad() {
   installed = true;
   registerPage({
     id: 'browse-teachers',
-    roles: ['student', 'teacher'],
+    roles: [ROLES.STUDENT, ROLES.TEACHER],
     label: TEXT.PAGE_BROWSE_TEACHERS,
     desc: TEXT.PAGE_BROWSE_TEACHERS_DESC,
     auth: false,

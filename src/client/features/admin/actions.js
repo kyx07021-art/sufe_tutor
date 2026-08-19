@@ -2,6 +2,7 @@
  * admin feature actions: stats, dashboard, users, demands, reviews, content, awards, verifications.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, confirm, withCaptcha } from '../../core/ui.js';
@@ -36,16 +37,16 @@ export async function loadAdminTraffic() {
 
 export function setTrafficRange() {}
 
-export async function loadAdminUsers(role = 'student') {
+export async function loadAdminUsers(role = ROLES.STUDENT) {
   try {
     const data = await dhGet(`/api/admin/users?role=${role}`, { domain: 'admin' });
-    const el = document.getElementById('admin-users-list') || (role === 'teacher' ? document.getElementById('admin-teachers-list') : document.getElementById('admin-students-list'));
+    const el = document.getElementById('admin-users-list') || (role === ROLES.TEACHER ? document.getElementById('admin-teachers-list') : document.getElementById('admin-students-list'));
     if (el) el.innerHTML = (data.users || []).map(renderAdminUserRow).join('');
   } catch (err) { showToast(err.message); }
 }
 
-export function loadAdminStudents() { return loadAdminUsers('student'); }
-export function loadAdminTeachers() { return loadAdminUsers('teacher'); }
+export function loadAdminStudents() { return loadAdminUsers(ROLES.STUDENT); }
+export function loadAdminTeachers() { return loadAdminUsers(ROLES.TEACHER); }
 export function adminUsersSearchDebounced() {}
 
 export function renderAdminUserRow(u) {

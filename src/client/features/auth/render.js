@@ -6,6 +6,7 @@
 import { CONFIG } from '../../../shared/config.js';
 import { escHtml } from '../../core/dom.js';
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 
 export function loginViewHtml() {
   return `<div class="auth-view hidden" id="view-login">
@@ -95,11 +96,11 @@ export function registerViewHtml() {
       <p>${escHtml(TEXT.REGISTER_SUB)}</p>
     </div>
     <div class="seg-tabs seg-tabs--role glass glass--solid" id="register-role-tabs">
-      <button type="button" class="seg-tab glass active" data-role="student" data-action="auth.switchRegisterRole">${escHtml(TEXT.REG_ROLE_STUDENT)}</button>
-      <button type="button" class="seg-tab glass" data-role="teacher" data-action="auth.switchRegisterRole">${escHtml(TEXT.REG_ROLE_TEACHER)}</button>
+      <button type="button" class="seg-tab glass active" data-role="${ROLES.STUDENT}" data-action="auth.switchRegisterRole">${escHtml(TEXT.REG_ROLE_STUDENT)}</button>
+      <button type="button" class="seg-tab glass" data-role="${ROLES.TEACHER}" data-action="auth.switchRegisterRole">${escHtml(TEXT.REG_ROLE_TEACHER)}</button>
     </div>
     <form data-submit="auth.handleRegister">
-      <input type="hidden" id="register-role" value="student">
+      <input type="hidden" id="register-role" value="${ROLES.STUDENT}">
       <div id="student-reg-group">
         ${studentRegisterFormHtml()}
       </div>

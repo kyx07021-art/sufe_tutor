@@ -2,6 +2,7 @@
  * settings feature registry: account-settings page.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 const ACTION_MAP = {
@@ -35,7 +36,7 @@ function onChange(e) {
 function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
   installed = true;
-  registerPage({ id: 'account-settings', roles: ['student','teacher','admin'], label: TEXT.PAGE_ACCOUNT_SETTINGS, desc: TEXT.PAGE_ACCOUNT_SETTINGS_DESC, auth: true, enter: () => actions.enterAccountSettings() });
+  registerPage({ id: 'account-settings', roles: Object.values(ROLES), label: TEXT.PAGE_ACCOUNT_SETTINGS, desc: TEXT.PAGE_ACCOUNT_SETTINGS_DESC, auth: true, enter: () => actions.enterAccountSettings() });
   document.addEventListener('click', onActionClick);
   document.addEventListener('change', onChange);
   return () => { if (typeof document !== 'undefined') { document.removeEventListener('click', onActionClick); document.removeEventListener('change', onChange); } installed = false; };

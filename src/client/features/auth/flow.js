@@ -4,6 +4,7 @@
  * actions.js and actions-register.js to avoid circular imports.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state, saveSession, loadSession, clearSession, setReturning, setLastGuestRole, runLogoutResets } from '../../core/state.js';
 import { api, setSessionBootValidating } from '../../core/api.js';
 import { dhInvalidateAll } from '../../core/datahub.js';
@@ -101,6 +102,6 @@ export function exitCurrentIdentity() {
 }
 
 export function roleHint(role) {
-  return role === 'teacher' ? TEXT.HINT_ROLE_TEACHER
-    : role === 'student' ? TEXT.HINT_ROLE_STUDENT : TEXT.HINT_ROLE_ADMIN;
+  return role === ROLES.TEACHER ? TEXT.HINT_ROLE_TEACHER
+    : role === ROLES.STUDENT ? TEXT.HINT_ROLE_STUDENT : TEXT.HINT_ROLE_ADMIN;
 }

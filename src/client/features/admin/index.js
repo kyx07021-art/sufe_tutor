@@ -2,6 +2,7 @@
  * admin feature registry: admin-stats page + delegation.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import { api } from '../../core/api.js';
 import * as actions from './actions.js';
@@ -26,7 +27,7 @@ function onActionClick(e) {
 function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
   installed = true;
-  registerPage({ id: 'admin-stats', roles: ['admin'], label: TEXT.PAGE_ADMIN_STATS, desc: TEXT.PAGE_ADMIN_STATS_DESC, auth: true, enter: () => actions.loadAdminStats() });
+  registerPage({ id: 'admin-stats', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_STATS, desc: TEXT.PAGE_ADMIN_STATS_DESC, auth: true, enter: () => actions.loadAdminStats() });
   document.addEventListener('click', onActionClick);
   return () => { document.removeEventListener('click', onActionClick); installed = false; };
 }

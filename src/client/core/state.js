@@ -4,7 +4,7 @@
  * logout reset registry.
  */
 import { CONFIG } from '../../shared/config.js';
-import { STATUS } from '../../shared/enums.js';
+import { STATUS, ROLES } from '../../shared/enums.js';
 import { uiScaleReflow } from './ui-scale-reflow.js';
 
 export const state = {
@@ -18,7 +18,7 @@ export const state = {
 
 export const loadSeqs = {};
 
-const ROLES = ['student', 'teacher', 'admin'];
+// Role source of truth is shared/enums ROLES (Z-16-F5: local array removed, consumers iterate Object.values)
 const sessionKey = role => `sufe_session_${role || ''}`;
 const CACHE_KEYS = { teachers: 'allTeachers', contracts: 'myContracts', demands: 'myDemands', intentTeachers: 'intentTeachers', posts: 'adminPosts' };
 const CACHE_DOMAINS = {
@@ -87,12 +87,12 @@ export function loadSession(role) {
   if (role) return loadSessionForRole(role);
   try {
     const last = safeGet(localStorage, 'sufe_last_role');
-    if (last && ROLES.includes(last)) {
+    if (last && Object.values(ROLES).includes(last)) {
       const s = loadSessionForRole(last);
       if (s) return s;
     }
   } catch { /* ignore */ }
-  for (const r of ROLES) {
+  for (const r of Object.values(ROLES)) {
     const s = loadSessionForRole(r);
     if (s) return s;
   }
@@ -110,7 +110,7 @@ const GUEST_ROLE_KEY = 'sufe_last_guest_role';
 export function savePageState(pageId) { if (!pageId) return; safeSet(localStorage, PAGE_STATE_KEY, pageId); }
 export function getLastPage() { return safeGet(localStorage, PAGE_STATE_KEY); }
 export function setLastGuestRole(role) { role ? safeSet(localStorage, GUEST_ROLE_KEY, role) : safeRemove(localStorage, GUEST_ROLE_KEY); }
-export function getLastGuestRole() { const r = safeGet(localStorage, GUEST_ROLE_KEY); return ROLES.includes(r) ? r : null; }
+export function getLastGuestRole() { const r = safeGet(localStorage, GUEST_ROLE_KEY); return Object.values(ROLES).includes(r) ? r : null; }
 
 export function getDeviceId() {
   try {

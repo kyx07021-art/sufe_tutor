@@ -2,6 +2,7 @@
  * complaints feature registry: page registration + data-action/change/seg-tab delegation.
  */
 import { TEXT } from './text.js';
+import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 import * as render from './render.js';
@@ -58,7 +59,7 @@ function onLoad() {
   installed = true;
   registerPage({
     id: 'admin-complaint',
-    roles: ['admin'],
+    roles: [ROLES.ADMIN],
     label: TEXT.PAGE_ADMIN_COMPLAINT,
     desc: TEXT.PAGE_ADMIN_COMPLAINT_DESC,
     auth: true,

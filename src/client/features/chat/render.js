@@ -19,7 +19,7 @@
  *   .chat-stage-ring; .chat-stage-item/.chat-stage-thumb/.chat-stage-name/
  *   .chat-stage-del — the preview/progress/x names are gone with v1's template).
  */
-import { STATUS } from '../../../shared/enums.js';
+import { STATUS, ROLES } from '../../../shared/enums.js';
 import { TEXT } from './text.js';
 import { chat } from './chat-state.js';
 import { state } from '../../core/state.js';
@@ -29,7 +29,7 @@ import { expectedTimeText } from '../student/display.js';
 
 /** Peer info of a conversation from the viewer's perspective (v1 chatPeerOf parity). */
 export function chatPeerOf(c) {
-  const isTeacherViewer = state.user && state.user.role === 'teacher';
+  const isTeacherViewer = state.user && state.user.role === ROLES.TEACHER;
   return {
     id: isTeacherViewer ? c.student_user_id : c.teacher_user_id,
     name: isTeacherViewer ? c.student_name : c.teacher_name,
