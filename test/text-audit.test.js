@@ -8,11 +8,8 @@
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
-import { DatabaseSync } from 'node:sqlite';
 import { auditFreeText, bindTextAuditEnv } from '../src/server/core/text-audit.js';
-import { initDb } from '../src/server/core/db.js';
-import { tokenDigest } from '../src/server/core/crypto.js';
-import { handleSaveProfile } from '../src/server/domains/teacher/api.js';
+import { auditBeforeWrite } from '../src/server/core/audit-flow.js';
 
 const SEMANTIC_PASS = () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false, "reason": "无住址信息"}' } }] }) });
 const SEMANTIC_FLAG = () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": true, "reason": "含方位描述可定位住址"}' } }] }) });
@@ -88,47 +85,17 @@ test('L2 语义层：AI 判未命中 → 放行；网络异常/非 JSON → fail
 });
 
 // ---- 路由集成 ----
-const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
-function d1Shim(raw) {
-  return {
-    prepare(sql) {
-      const st = { _sql: sql, _params: [], bind(...p) { st._params = p; return st; },
-        all(...p) { return { results: raw.prepare(st._sql).all(...(p.length ? p : st._params)) }; },
-        first(...p) { return raw.prepare(st._sql).get(...(p.length ? p : st._params)) ?? undefined; },
-        run(...p) { const info = raw.prepare(st._sql).run(...(p.length ? p : st._params)); return { meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } }; } };
-      return st;
-    },
-    async batch(stmts) {
-      raw.exec('BEGIN');
-      try { const out = [];
-        for (const s of stmts) {
-          if (/^\s*(SELECT|PRAGMA|WITH|EXPLAIN)/i.test(s._sql)) out.push({ results: raw.prepare(s._sql).all(...s._params) });
-          else { const info = raw.prepare(s._sql).run(...s._params); out.push({ meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } }); }
-        }
-        raw.exec('COMMIT'); return out;
-      } catch (e) { try { raw.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
-    },
-  };
-}
-test('路由集成：教师档案 intro 谐音门牌（2788好）→ 400；正常 intro 语义层放行', async () => {
-  const raw = new DatabaseSync(':memory:');
-  raw.exec('PRAGMA foreign_keys = ON');
-  const db = d1Shim(raw);
-  await initDb(db, ENV);
-  raw.exec(`INSERT INTO users (username,password_hash,salt,role) VALUES ('tea','h','s','teacher')`);
-  const id = raw.prepare("SELECT id FROM users WHERE username='tea'").get().id;
-  const token = 'tea-token';
-  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
-    .run(await tokenDigest(token), id, 'x', '2099-01-01 00:00:00');
-  const req = { headers: new Headers({ 'X-Auth-Token': token }) };
+// Q-2c-F5：域内联 audit 已删（_worker 全局断点 auditBeforeWrite 统一接管教师档案 intro/school 审计，
+// 避免 DeepSeek 双审翻倍）。路由集成语义（谐音门牌 400）改由全局断点直测锁定——
+// 这才是生产真实生效的审计面（_worker 对所有 /api/teacher/profile POST/PUT 调用 auditBeforeWrite）。
+test('Q-2c-F5 全局断点：教师档案 intro 谐音门牌（2788好）→ 拒绝；正常 intro 语义层放行', async () => {
   const orig = globalThis.fetch;
   globalThis.fetch = async () => SEMANTIC_PASS();
   bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'k' });
   try {
-    const base = { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200 };
-    const r = await handleSaveProfile(db, { profile: { ...base, intro: '家在2788好对面' } }, req);
-    assert.equal(r.status, 400, '谐音门牌写入教师 intro → 400');
-    const ok = await handleSaveProfile(db, { profile: { ...base, intro: '喜欢教学，注重方法' } }, req);
-    assert.equal(ok.status, 200, '正常 intro 放行');
+    const bad = await auditBeforeWrite({ path: '/api/teacher/profile', method: 'POST', body: { profile: { intro: '家在2788好对面' } } });
+    assert.ok(!bad.ok && bad.reject, '谐音门牌写入教师 intro → 全局断点拒绝');
+    const ok = await auditBeforeWrite({ path: '/api/teacher/profile', method: 'POST', body: { profile: { intro: '喜欢教学，注重方法' } } });
+    assert.equal(ok.ok, true, '正常 intro 放行');
   } finally { globalThis.fetch = orig; bindTextAuditEnv(null); }
 });

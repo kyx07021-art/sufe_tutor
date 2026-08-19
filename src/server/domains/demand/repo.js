@@ -181,9 +181,10 @@ export async function dbAdminForceDeleteDemand(db, id) {
 }
 
 // 需求重开（revoked→open）：条件 UPDATE 赢家模式，返回是否命中（防并发双触发）。
-// 同时复位意向锁 intent_locked（网安审计：锁只置位不复位，撤销→重开→重收意向流程会永久断裂）
+// Q-2c-F6: 删 intent_locked 死列引用（恒 0，无读写路径；并发赢家由 dbResolveIntent 的
+// status='pending' 条件 UPDATE 承担，意向锁早已废弃）。
 export async function dbReopenDemand(db, id) {
-  const r = await dbRun(db, `UPDATE student_demands SET status='open', intent_locked=0 WHERE id=? AND status='revoked'`, [id]);
+  const r = await dbRun(db, `UPDATE student_demands SET status='open' WHERE id=? AND status='revoked'`, [id]);
   return !!(r && r.meta && r.meta.changes > 0);
 }
 
@@ -196,18 +197,18 @@ export async function dbReleaseDemandAfterRevoke(db, demandId) {
   return !!(r && r.meta && r.meta.changes > 0);
 }
 
-// 需求意向单接受锁：条件 UPDATE 抢占（intent_locked 0→1），赢家才继续。
-// 防并发 accept 两条意向产生双 accepted + 双会话（审计发现的聚合不变量缺口）
 // ============================================================
 // 需求主动推送（学生 → 指定教师）
 // ============================================================
 // 推送创建原子化（同 dbCreateIntent，仅当需求 status='open' 才插入；changes=0 返回 0）
 // message = 学生打招呼消息（自我介绍+为什么选这位老师）
 export async function dbCreatePush(db, demandId, studentUserId, teacherUserId, message = '') {
+  // Q-2c-F7 BUG-N：同 dbCreateIntent——message 类型归一纵深防御（防对象落库 [object Object]）
+  const msg = String(message ?? '').slice(0, LIMITS.GREETING_MSG_MAX);
   const r = await dbRun(db,
     `INSERT INTO demand_pushes (demand_id, student_user_id, teacher_user_id, message)
      SELECT ?, ?, ?, ? FROM student_demands WHERE id=? AND status='open'`,
-    [demandId, studentUserId, teacherUserId, message, demandId]);
+    [demandId, studentUserId, teacherUserId, msg, demandId]);
   return (r && r.meta && r.meta.changes > 0) ? Number(r.meta.last_row_id) : 0;
 }
 
@@ -256,21 +257,23 @@ export async function dbAcceptPushAsIntent(db, demandId, teacherUserId) {
 // 意向会落在已关闭需求上。改为条件 INSERT：仅当需求 status='open' 才插入，changes=0 即需求非开放，
 // 调用方据返回 0 判定 410）。UNIQUE(demand_id, teacher_user_id) 冲突仍抛错由路由转 409
 export async function dbCreateIntent(db, demandId, teacherUserId, message = '') {
+  // Q-2c-F7 BUG-N：message 类型归一纵深防御——调用方已 String().trim()，此处兜底任何边界/未来调用方误传对象（[object Object] 落库）
+  const msg = String(message ?? '').slice(0, LIMITS.GREETING_MSG_MAX);
   const result = await dbRun(db,
     `INSERT INTO demand_intents (demand_id, teacher_user_id, message)
      SELECT ?, ?, ? FROM student_demands WHERE id=? AND status='open'`,
-    [demandId, teacherUserId, message, demandId]);
+    [demandId, teacherUserId, msg, demandId]);
   return (result && result.meta && result.meta.changes > 0) ? Number(result.meta.last_row_id) : 0;
 }
 
 export async function dbGetIntentTeachers(db, demandId) {
-  const rows = await dbAll(db, `SELECT tp.*, di.teacher_user_id AS user_id, u.username,
+  const rows = await dbAll(db, `SELECT tp.*, di.teacher_user_id AS user_id, u.username, u.avatar,
       di.id AS intent_id, di.status AS intent_status, di.created_at AS intent_created_at,
       di.message AS intent_message
     FROM demand_intents di
     JOIN users u ON u.id=di.teacher_user_id
     LEFT JOIN teacher_profiles tp ON tp.user_id=di.teacher_user_id
-    WHERE di.demand_id=? AND u.deactivated=0 -- 门控：已注销教师意向不进场
+    WHERE di.demand_id=? AND u.deactivated=0 AND u.banned=0 -- 门控：已注销/已封禁教师意向不进场（Q-2c-F3 补 banned，对齐 handlePushDemand 口径）
     ORDER BY di.created_at DESC`, [demandId]);
   // 附加意向自身字段（id/状态/时间），供学生端同意/拒绝按钮使用
   // 出口剥私密字段（mapper 出口剥私密字段契约）：

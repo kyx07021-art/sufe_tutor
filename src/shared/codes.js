@@ -303,6 +303,9 @@ export const NOTIFY_TYPES = {
   "VERIFY_REJECTED": {
     "reason": 1
   },
+  "VERIFY_REVOKED": {
+    "reason": 1
+  },
   "AWARD_APPROVED": {
     "title": 1
   },

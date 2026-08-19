@@ -61,6 +61,9 @@ export function notifTypeText(type, params) {
   if (type === 'VERIFY_REJECTED') {
     return p.reason ? `${TEXT.NOTIF_VERIFY_REJECTED}\n${p.reason}` : TEXT.NOTIF_VERIFY_REJECTED;
   }
+  if (type === 'VERIFY_REVOKED') {
+    return p.reason ? `${TEXT.NOTIF_VERIFY_REVOKED}\n${p.reason}` : TEXT.NOTIF_VERIFY_REVOKED;
+  }
   const tpl = TEXT['NOTIF_' + type];
   if (!tpl) return '';
   return tpl.replace(/\{(\w+)\}/g, (m, k) => {
