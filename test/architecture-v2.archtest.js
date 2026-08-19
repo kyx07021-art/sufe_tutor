@@ -71,7 +71,7 @@ test('前端模块自持：src/client/core 与 src/client/features 存在', () =
   }
 });
 
-test('前端边界：fetch 只在 api.js；core/features 零内联事件/样式属性 + 零 <style> 注入 + 零中文文案', () => {
+test('前端边界：fetch 只在 api.js；core/features 零源码内联事件/样式字面量（CSSOM 数据通道除外）+ 零 <style> 注入 + 零中文文案', () => {
   const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e =>
     e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]);
   const coreFiles = existsSync(join(root, 'src/client/core')) ? walk(join(root, 'src/client/core')) : [];
@@ -86,7 +86,9 @@ test('前端边界：fetch 只在 api.js；core/features 零内联事件/样式�
     const rel = f.replaceAll('\\', '/');
     if (f.endsWith('.js') && !rel.endsWith('core/api.js')) assert.ok(!/\bfetch\s*\(/.test(s), `${rel} 不直接 fetch`);
     // V-3-1c3 CSP 收口契约：动态样式只能走 CSS 自定义属性数据通道（el.style.setProperty），
-    // 零 <style> 元素注入（style-src-elem 'self' 硬约束）+ 零内联事件/样式属性（onload 曾漏查，V-3-1a 补）
+    // 零 <style> 元素注入（style-src-elem 'self' 硬约束）+ 零源码内联事件/样式字面量（onload 曾漏查，V-3-1a 补；
+    // Q-1-F4 措辞：style= 检查是源码字面量 grep，CSSOM 数据通道（setProperty/cssText）不受 style-src-attr 管辖，
+    // 运行时写 style 属性是 h5a-g6 豁免非违规，不在此契约范围）
     assert.ok(!/createElement\(["']style["']\)/.test(s), `${rel} 零 <style> 元素注入`);
     assert.ok(!/onload=/.test(s), `${rel} 无内联 onload`);
     assert.ok(!/onclick=/.test(s), `${rel} 无内联 onclick`);
