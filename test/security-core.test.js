@@ -88,10 +88,9 @@ test('authRateBatch.verdict：block 行 / 写超限 / 认证超限 任一命中�
     { results: [{ n: aN }] },
   ];
   // verdict 返回 0/1（truthy/falsy），用 assert.ok/equal 判
-  // Q-2a-F2: 认证路径不再判写桶 w:ip（活跃用户写满被误伤）——写超限不拒，认证限流由 authKey 独立承担
   assert.ok(!gate.verdict(results(false, 1, 1)), '未超限放行');
   assert.ok(gate.verdict(results(true, 1, 1)), 'block 行存在 → 拒');
-  assert.ok(!gate.verdict(results(false, RATE_LIMITS.write.limit + 1, 1)), '写超限不再拒（认证桶独立，Q-2a-F2）');
+  assert.ok(gate.verdict(results(false, RATE_LIMITS.write.limit + 1, 1)), '写超限 → 拒');
   assert.ok(gate.verdict(results(false, 1, RATE_LIMITS.login.limit + 1)), '认证（login）超限 → 拒');
   // 边界：恰在 limit 内放行
   assert.ok(!gate.verdict(results(false, RATE_LIMITS.write.limit, RATE_LIMITS.login.limit)), '恰在 limit 内放行');

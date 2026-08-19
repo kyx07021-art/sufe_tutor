@@ -212,10 +212,6 @@ export const RATE_LIMITS = {
   "limit": 30,
   "windowMs": 60000
 },
-  otp: {
-  "limit": 10,
-  "windowMs": 60000
-},
   strike: {
   "count": 3,
   "windowMs": 600000

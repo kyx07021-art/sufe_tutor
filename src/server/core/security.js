@@ -33,11 +33,9 @@ export async function authUser(db, req) {
   if (!token) return null;
   if (authMemo.has(req)) return authMemo.get(req);
   const p = (async () => {
-    const u = await dbGet(db, `SELECT u.id,u.username,u.role,u.avatar,u.banned,u.deactivated,s.expires_at AS token_expires
+    const u = await dbGet(db, `SELECT u.id,u.username,u.role,u.avatar,u.banned,s.expires_at AS token_expires
       FROM auth_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=?`, [await tokenDigest(token)]);
-    // Q-2a-F6: 注销账户若残留会话（半程注销故障），令牌路径与登录路径判定必须一致——
-    // 登录路径（handleLogin）查 deactivated，authUser 只查 banned 会口径分裂。
-    if (!u || u.banned || u.deactivated) return null;
+    if (!u || u.banned) return null;
     const exp = Date.parse(String(u.token_expires || '').replace(' ', 'T') + 'Z');
     if (!exp || exp < Date.now()) return null;
     return u;
@@ -174,8 +172,6 @@ export async function rateGate(ip, p, method, body, now, db) { // body 参数预
     if (!(await rlDual(db, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, `w:${ip}`, RATE_LIMITS.write.limit, RATE_LIMITS.write.windowMs, now))) { rlStrike(ip, now); return false; } // 同上：内存三振即可
   }
   if (p === '/api/auth/check' && !(await rlDual(db, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, `c:${ip}`, RATE_LIMITS.check.limit, RATE_LIMITS.check.windowMs, now))) return false;
-  // Q-2a-F3: OTP 请求专用 per-IP 桶——防短信/邮件轰炸成本放大（换 60 个号打真实投递通道）。
-  if (p === '/api/auth/otp/request' && !(await rlDual(db, RATE_LIMITS.otp.limit, RATE_LIMITS.otp.windowMs, `o:${ip}`, RATE_LIMITS.otp.limit, RATE_LIMITS.otp.windowMs, now))) return false;
   return true;
 }
 
@@ -205,10 +201,9 @@ export function authRateBatch(db, ip, kind, extraStmts = []) {
     ],
     verdict(results) {
       const blk = results[0] && results[0].results && results[0].results.length ? 1 : 0;
+      const wN = results[2] && results[2].results && results[2].results[0] ? results[2].results[0].n : 0;
       const aN = results[4] && results[4].results && results[4].results[0] ? results[4].results[0].n : 0;
-      // Q-2a-F2: 认证路径不再判写桶 w:ip（wN > write.limit）——活跃用户（高频聊天/共享 NAT）
-      // 写满 60/min 后登录被误伤 429 + 三振封禁。认证限流由 authKey 独立桶承担。
-      return blk || aN > cfg.limit;
+      return blk || wN > RATE_LIMITS.write.limit || aN > cfg.limit;
     },
     extra(results) { return results.slice(base); },
   };
