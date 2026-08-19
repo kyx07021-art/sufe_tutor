@@ -18,6 +18,7 @@ const ACTION_MAP = {
   'auth.viewLogin': () => { showView('login'); actions.refreshAuthHeader(); },
   'auth.viewRegister': () => showView('register'),
   'auth.enterGuest': (el) => handleFeatureClick(el.dataset.role), // landing entry: student/teacher guest preview
+  'auth-required': () => showView('login'), // audit fix (2026-08-19): router sidebar guest bar data-action=auth-required had zero handler (v1 inline ensureAuth binding lost in ESM migration)
   'auth.toggleLoginMode': actions.toggleLoginMode,
   'auth.checkLoginUsername': actions.checkLoginUsernameDebounced,
   'auth.checkRegisterContact': actions.checkRegisterContact,
