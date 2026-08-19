@@ -76,8 +76,12 @@ test('前端边界：fetch 只在 api.js；core/features 零内联事件/样式�
     e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]);
   const coreFiles = existsSync(join(root, 'src/client/core')) ? walk(join(root, 'src/client/core')) : [];
   const featureFiles = existsSync(join(root, 'src/client/features')) ? walk(join(root, 'src/client/features')) : [];
+  // Q-1-F2 复审计修复: 扫描范围扩到 src/client/constants——text.js 是中文哨兵实际落点（CONTRACT_BIZ_END），
+  // 不在扫描内会让「防 fromCharCode 回退」断言对哨兵所在模块零约束（变异验证: text.js 改回 fromCharCode 不红）。
+  const constantFiles = existsSync(join(root, 'src/client/constants')) ? walk(join(root, 'src/client/constants')) : [];
   assert.ok(coreFiles.length > 0 && featureFiles.length > 0, 'core/features 文件非空');
-  for (const f of [...coreFiles, ...featureFiles]) {
+  assert.ok(constantFiles.length > 0, 'constants 文件非空');
+  for (const f of [...coreFiles, ...featureFiles, ...constantFiles]) {
     const s = readFileSync(f, 'utf8');
     const rel = f.replaceAll('\\', '/');
     if (f.endsWith('.js') && !rel.endsWith('core/api.js')) assert.ok(!/\bfetch\s*\(/.test(s), `${rel} 不直接 fetch`);
@@ -87,11 +91,12 @@ test('前端边界：fetch 只在 api.js；core/features 零内联事件/样式�
     assert.ok(!/onload=/.test(s), `${rel} 无内联 onload`);
     assert.ok(!/onclick=/.test(s), `${rel} 无内联 onclick`);
     assert.ok(!/style=/.test(s), `${rel} 无内联 style`);
-    const isTextModule = rel.endsWith('/text.js');
-    assert.ok(isTextModule || !/[\u4e00-\u9fff]/.test(s), `${rel} 无中文文案`);
-    // Q-1-F2: block Chinese obfuscation via String.fromCharCode (CONTRACT_BIZ_END bypass);
-    // Chinese may only live in text.js literal form.
-    assert.ok(isTextModule || !/String\.fromCharCode/.test(s), `${rel} 禁 String.fromCharCode 藏中文`);
+    // 中文仅允许 constants/ 数据单源模块（text.js 文案 / region-data.js 省份 / theme.js 主题值）；
+    // core/features 禁中文（契约 6）；constants 中文字面量 OK 但 fromCharCode 全禁。
+    const isTextModule = rel.endsWith('/text.js') || rel.includes('/src/client/constants/');
+    assert.ok(isTextModule || !/[一-鿿]/.test(s), `${rel} 无中文文案`);
+    // Chinese may only live in text.js literal form; fromCharCode banned in every module (text.js included).
+    assert.ok(!/String\.fromCharCode/.test(s), `${rel} 禁 String.fromCharCode 藏中文（含 text.js——中文只能字面量）`);
   }
 });
 
