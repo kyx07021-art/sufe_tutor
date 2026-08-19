@@ -226,6 +226,6 @@ export async function dbDeleteUpload(db, uploadId) {
 
 // 批量事务内的上传删除语句（同 dbPrepareMessageInsert 模式）：DELETE SQL 单源在 db.js，
 // 路由层批量发送不得自持 SQL（加列/改表两处漂移）
-export function dbPrepareUploadDelete(db) { return db.prepare('DELETE FROM uploads WHERE id=?'); }
+export function dbPrepareUploadDelete(db) { return db.prepare('DELETE FROM uploads WHERE id=? AND user_id=?'); } // Z-4-F2：条件 DELETE 带归属（纵深防御——上层归属校验之外的 DB 层兜底；重复/误删同 id 异主零影响）
 
 // ============================================================

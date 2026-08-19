@@ -182,7 +182,7 @@ async function handleSendBatch(db, convId, batch, userId, req) {
       if (!up || up.user_id !== userId) return errorMsg('CONVERSATION_NOT_FOUND', 404);
       items.push({ resultIndex: stmts.length, kind: up.kind, name: up.name });
       stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, up.kind, up.body, up.name, up.thumb)); // 密文随 uploads 转正
-      stmts.push(dbPrepareUploadDelete(db).bind(up.id));
+      stmts.push(dbPrepareUploadDelete(db).bind(up.id, userId)); // Z-4-F2：归属条件 DELETE（id+user_id）
     } else if (item && item.kind === 'text') {
       const content = String(item.body ?? '').trim();
       items.push({ resultIndex: stmts.length, kind: 'text', name: '' });
