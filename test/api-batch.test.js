@@ -185,6 +185,8 @@ test('Z-1-F2 回归：auth/check 存在性探测禁止入 batch（裸路径/quer
     ['/api/auth/check?identifier=qa_s'],
     ['/api/auth/check?x=1&identifier=qa_s'],
     ['/api/auth/check#frag'],
+    ['/api/auth/check/'], // 尾部斜杠（URL 归一化后 pathname 仍带 /，显式拦截）
+    ['/api/../api/auth/check'], // 点段归一化（URL pathname → /api/auth/check，split 字符串比较漏网）
     ['/api/teachers', '/api/auth/check?identifier=qa_s'],
   ]) {
     const res = await worker.fetch(new Request('https://test.local/api/batch', {

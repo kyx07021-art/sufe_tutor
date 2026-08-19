@@ -182,8 +182,14 @@ async function handleBatch(db, body, url, req, env) {
   }
   // Z-1-F2：auth/check 是存在性探测端点，自带限流桶（RATE_LIMITS.check）；batch 子请求不经 rateGate，
   // 放行会以批量 GET 放大 ~32 倍探测速率绕过限流——禁止该路径入 batch，保持直接 GET 为唯一入口。
-  // 按 pathname 匹配（裸路径 + 任意 query/fragment 变体全拦，审计 FAIL 修正）
-  if (paths.some(p => p.split(/[?#]/)[0] === '/api/auth/check')) return errorMsg('INVALID_PARAMS', 400);
+  // 加固：判定与 handleBatch 子请求路由同解析器（new URL().pathname，router 精确匹配），消除
+  // split 字符串比较 vs 路由 URL 解析的类不一致（安全审查）；显式尾部斜杠 + 点段归一化变体同拦
+  const blockedAuthCheck = p => {
+    let pathname = p.split(/[?#]/)[0];
+    try { pathname = new URL(pathname, url.origin).pathname; } catch { /* 非法串保持原样比较 */ }
+    return pathname === '/api/auth/check' || pathname === '/api/auth/check/';
+  };
+  if (paths.some(blockedAuthCheck)) return errorMsg('INVALID_PARAMS', 400);
   const results = await Promise.all(paths.map(async sub => {
     try {
       const subUrl = new URL(sub, url.origin);
