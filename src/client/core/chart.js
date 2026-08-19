@@ -12,6 +12,10 @@ const fmtDefault = v => (v == null ? '—' : Number(v).toLocaleString('zh-CN'));
 // one (was accumulating one permanent listener per render — leak) and expose a dispose exit
 let currentResizeHandler = null;
 
+// Z-9-F4: deterministic gradient id counter (was Math.random — non-deterministic and
+// collision-prone across multiple charts in one document)
+let gradSeq = 0;
+
 export function niceTicks(min, max, count) {
   const span = max - min || 1;
   const rawStep = span / (count - 1);
@@ -96,7 +100,7 @@ export function renderGlassLineChart(container, opts = {}) {
     svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', opts.title || TEXT.CHART_DEFAULT_TITLE);
     svg.classList.add('chart-svg');
-    const gradId = 'chartgrad' + Math.random().toString(36).slice(2, 8);
+    const gradId = 'chartgrad' + (++gradSeq);
     svg.innerHTML = `
       <defs><linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="${C.color}" stop-opacity=".28"></stop>
