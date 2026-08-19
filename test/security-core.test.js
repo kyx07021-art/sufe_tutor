@@ -45,8 +45,12 @@ test('rateGate：auth/check 探测软限（窗口内 limit 次放行，超限 42
   for (let i = 0; i < RATE_LIMITS.check.limit; i++) {
     assert.equal(await rateGate(ip, '/api/auth/check', 'GET', {}, NOW, stubDb), true, `第 ${i + 1} 次放行`);
   }
-  assert.equal(await rateGate(ip, '/api/auth/check', 'GET', {}, NOW, stubDb), false, '超限即拒（check 为软限不记三振）');
-  assert.equal(await rateGate(ip, '/api/auth/check', 'GET', {}, NOW, stubDb), false, '持续拒绝');
+  // 超限累积 ≥ strike.count（3 次）：check 是软限不记三振（:174 超限 return false 无 rlStrike）
+  for (let i = 0; i < RATE_LIMITS.strike.count; i++) {
+    assert.equal(await rateGate(ip, '/api/auth/check', 'GET', {}, NOW, stubDb), false, `超限第 ${i + 1} 次拒绝`);
+  }
+  // 关键锁定：若 check 误记三振，3 次已触发封禁（:168 blocked）→ 同 ip 其他路径 GET 也被拒；软限下应放行
+  assert.equal(await rateGate(ip, '/api/posts', 'GET', {}, NOW, stubDb), true, '软限不三振——同 ip 其他路径不受封禁影响');
   // 窗口滚动（+windowMs+1s 严格大于 reset）后过期 → 放行
   assert.equal(await rateGate(ip, '/api/auth/check', 'GET', {}, NOW + RATE_LIMITS.check.windowMs + 1000, stubDb), true, '窗口重置后放行');
 });
@@ -66,9 +70,11 @@ test('rateGate：写路径超限 → 内存三振封禁（strike×3 → blocked 
 
 test('rateGate：登录/注册/重认证路径不占写闸（认证限流由 authRateBatch 路由批承担）', async () => {
   const ip = uniqIp('auth');
-  // 认证路径在 rateGate 内提前 return true（:170），但全局 g:ip 仍计数；多调几次验证不触写限流
-  for (let i = 0; i < 10; i++) {
-    assert.equal(await rateGate(ip, '/api/auth/login', 'POST', {}, NOW, stubDb), true, 'login 直放（写闸不消费）');
+  // 认证路径在 rateGate 内提前 return true（:170，写闸 w:ip 零消费）；循环数须 > write.limit，
+  // 否则若回归使 login 改走写闸（删 :170 提前 return），超写限前的放行无法观测差异
+  for (let i = 0; i < RATE_LIMITS.write.limit + 5; i++) {
+    assert.equal(await rateGate(ip, '/api/auth/login', 'POST', {}, NOW, stubDb), true,
+      `第 ${i + 1} 次 login 直放（${RATE_LIMITS.write.limit + 5} 次 > 写闸 ${RATE_LIMITS.write.limit}，写闸被消费则此处必 429）`);
   }
 });
 
