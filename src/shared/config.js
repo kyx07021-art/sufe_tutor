@@ -67,7 +67,7 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     MODAL_W_CONFIRM: '380px',             // 确认类弹窗宽度（散落 380/400/420/430/480 收敛）
     MODAL_W_SEND: '480px', MODAL_W_DEACTIVATE: '430px', MODAL_W_PROFILE_HINT: '420px',
     MODAL_W_INTENT_CONFIRM: '400px',        // 试课意向确认弹窗（散落硬编码宽度收进 CONFIG）
-    MODAL_W_ONBOARD: '580px',               // 首访 onboarding 弹窗宽度（= base.css .modal 默认 max-width，零布局变化；h5a-g2 承重面：显式 style 走 cssText 数据通道）
+    MODAL_W_ONBOARD: '580px',               // 首访 onboarding 弹窗宽度（= base.css .modal 默认 max-width，零布局变化；宽度单源化，h5a-g2）
     TOUR_TARGET_TIMEOUT_MS: 3000,         // 新手引导：目标未挂载 rAF 轮询超时，超时自动跳过该步
     TOUR_RETRY_MS: 350,                     // v1.4.5：函数式步骤停留重试间隔（学信网门控/异步渲染未就绪时）
     TOUR_GAP_PX: 16,                      // 新手引导：文字气泡与亮区间距（JS 定位用）

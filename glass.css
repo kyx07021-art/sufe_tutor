@@ -96,8 +96,9 @@ body { background: transparent; }
 .lg-bg { position: fixed; inset: 0; z-index: -2; overflow: hidden; pointer-events: none; }
 .lg-orb { position: absolute; border-radius: 50%; filter: blur(2px); will-change: transform;
   animation-timing-function: linear; animation-iteration-count: infinite;
-  /* V-3-1c1：几何/配色/时长经 --lg-* 自定义属性数据通道（JS setProperty，style-src-attr 例外）注入，
-     缺省兜底保证属性缺失时仍成球；视觉规则全在 CSS，JS 零样式声明（规则 44 不变）。 */
+  /* V-3-1c1：几何/配色/时长经 --lg-* 自定义属性数据通道（JS setProperty）注入，缺省兜底保证属性缺失时
+     仍成球；视觉规则全在 CSS，JS 零样式声明（规则 44 不变）。h5a-g6 注：CSSOM setProperty 不受
+     style-src-attr 管辖（F1 实测定案），非"例外"。 */
   width: var(--lg-w, 20vmax); height: var(--lg-h, 20vmax);
   left: var(--lg-x, -4vmax); top: var(--lg-y, 12vmax);
   background: radial-gradient(circle, rgba(var(--lg-col, 176,156,240), var(--lg-op, .5)), rgba(var(--lg-col, 176,156,240), 0) 66%);

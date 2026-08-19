@@ -1,6 +1,6 @@
 # CSP 收口·内联面基线清单（V-3-1a）
 
-范围：v2 页面（src/client + web/index.html）。v1 壳（根 index.html/app-*.js）已随 V-4-1h h2h3 删除，`_headers` 的 unsafe-inline 已随 V-4-1h h5a 收口（script-src 'self'；style-src-elem 'self' + style-src-attr 'unsafe-inline'）。
+范围：v2 页面（src/client + web/index.html）。v1 壳（根 index.html/app-*.js）已随 V-4-1h h2h3 删除，`_headers` 的 unsafe-inline 已随 V-4-1h h5a 收口（script-src 'self'；style-src-elem 'self'；style-src-attr 'none'——h5a-g6 实测定案：CSSOM cssText/setProperty 不受该指令管辖，见下）。
 
 验证命令（基线）：
 
@@ -25,14 +25,15 @@ grep -rn "\beval(\|new Function\|Function(" src/client/ web/theme-init.js --incl
 | 4 | archtest 缺口 | 现有契约只查 `onclick=`/`style=`，漏 `onload=` 与 `createElement('style')` | ✅ V-3-1c3（已补 onload= + createElement('style') 断言） |
 
 已确认干净：onclick/style 属性零残留；eval / new Function 零；web/index.html 无内联 script/style 标签（仅外部 script 引用）；theme-init.js 为外部 classic 脚本走 'self'。
-已收口（V-3-1c1/c2）：orb 动态几何/配色/时长改经 `--lg-*` 自定义属性数据通道（`el.style.setProperty`，style-src-attr 例外），视觉规则全在 glass.css `.lg-orb`（含缺省兜底），`lg-orb-style` 元素零存在；reflow 每单元 transform 改经 `--ui-rf-transform` 数据通道（identity 置 none），静态规则迁 base.css（含 `html[data-ui-reflowing]` 过渡门控，与 data-ui-previewing 互斥），`__ui-reflow-transforms` 元素零存在。v2 侧动态 `<style>` 注入已清零。
+已收口（V-3-1c1/c2）：orb 动态几何/配色/时长改经 `--lg-*` 自定义属性数据通道（`el.style.setProperty`——h5a-g6 注：CSSOM 操作不受 style-src-attr 管辖，非"例外"），视觉规则全在 glass.css `.lg-orb`（含缺省兜底），`lg-orb-style` 元素零存在；reflow 每单元 transform 改经 `--ui-rf-transform` 数据通道（identity 置 none），静态规则迁 base.css（含 `html[data-ui-reflowing]` 过渡门控，与 data-ui-previewing 互斥），`__ui-reflow-transforms` 元素零存在。v2 侧动态 `<style>` 注入已清零。
 
 ## 收口状态
 - ✅ V-3-1b 去 3 处 onload → web/index.html 零内联事件属性（ded500e）
 - ✅ V-3-1c1/c2 迁移 2 处动态 style 注入 → v2 零 `<style>` 元素（a07dc19/7898da9）
 - ✅ V-3-1c3 archtest 增「零 createElement('style') + 零 onload/style 属性」契约（7d5a589）
 - ✅ V-3-1d1 injectManifest 区分 v1/v2——v2 ESM 页零内联 manifest（abc483a）
-- ✅ V-3-1d2 web/index.html 严格 meta CSP（script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'，最小化声明无 default-src；d72d53b）
+- ✅ V-3-1d2 web/index.html 严格 meta CSP（script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'，最小化声明无 default-src；d72d53b）※后经 h5a-g6 收紧为 style-src-attr 'none'（见下）
 - ✅ V-3-1d3 archtest 增「严格 meta CSP」契约（b4b47c3）
-- ✅ V-3-1e 浏览器实机验证（test/verify-csp-strict.mjs：三路真拦 + style-attr 通道放行 + v2 全链路零 CSP 报错）
-- ✅ V-4-1h h5a `_headers`/SECURITY_HEADERS CSP 收紧收口：script-src 去 unsafe-inline（v1 壳已删），style 拆 style-src-elem 'self' + style-src-attr 'unsafe-inline'，删 font-src/Google Fonts 例外（46141a3）
+- ✅ V-3-1e 浏览器实机验证（test/verify-csp-strict.mjs：三路真拦 + style-attr 通道放行 + v2 全链路零 CSP 报错）※放行面断言经 h5a-g6 翻为拦截面
+- ✅ V-4-1h h5a `_headers`/SECURITY_HEADERS CSP 收紧收口：script-src 去 unsafe-inline（v1 壳已删），style 拆 style-src-elem 'self' + style-src-attr 'unsafe-inline'，删 font-src/Google Fonts 例外（46141a3）※style-src-attr 经 h5a-g6 收 'none'
+- ✅ V-4-1h h5a-g6 style-src-attr 'unsafe-inline'→'none'（ee6ed64）：CSSOM cssText/setProperty 不受 style-src-attr 管辖（仅 HTML style 属性/setAttribute 触发 CSP3 检查，Chromium 实测定案 F1），app 零内联 style 属性 → 收紧 'none' 零功能影响；meta/_headers/SECURITY_HEADERS/fixture 四处同步 + verify-csp-strict 四路全拦 + csp-strict.test.js 两处策略姿态锁

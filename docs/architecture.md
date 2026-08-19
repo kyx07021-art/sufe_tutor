@@ -83,7 +83,7 @@ web/index.html 是干净壳：唯一入口 `<script type="module" src="/assets/a
 
 ## 契约 8：严格 meta CSP
 
-web/index.html 页级严格 CSP：`script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'`（最小化声明，无 default-src）。与 `_headers` 站点级策略（V-4-1h h5a 起镜像同姿态：`script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; frame-ancestors 'none'`；API 层 `SECURITY_HEADERS`/config.js 同姿态）取交集：v2 内联 script/`<style>` 元素被拦，CSSOM 数据通道保留（style-src-attr，ui-modal cssText 承重）。v1 壳已随 V-4-1h 删除，`_headers` 已一并收口。**严禁为省事在 v2 加回 unsafe-inline 或声明 default-src 收紧 data:/blob:**。
+web/index.html 页级严格 CSP：`script-src 'self'; style-src-elem 'self'; style-src-attr 'none'`（最小化声明，无 default-src）。与 `_headers` 站点级策略（V-4-1h h5a 起镜像同姿态：`script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; frame-ancestors 'none'` 等；API 层 `SECURITY_HEADERS`/config.js 同姿态，csp-strict.test.js 姿态锁强制逐字一致）取交集：v2 内联 script/`<style>` 元素/HTML style 属性全被拦。**h5a-g6 实测定案（F1）**：CSSOM `cssText`/`setProperty` 不受 style-src-attr 管辖（仅 HTML 解析的 style 属性与 `setAttribute('style')` 触发 CSP3 检查），app 全源码零内联 style 属性——动态样式走 CSS 自定义属性数据通道（`el.style.setProperty('--x', v)`）零受限，故 style-src-attr 收紧为 'none' 无功能影响。v1 壳已随 V-4-1h 删除，`_headers` 已一并收口。**严禁为省事在 v2 加回 unsafe-inline 或声明 default-src 收紧 data:/blob:**。
 
 ## 契约 9：region-data 单源
 

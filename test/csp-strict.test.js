@@ -4,8 +4,8 @@
  *   1. meta CSP 存在且 script-src/style-src-elem/style-src-attr 均无 unsafe-inline（严格 script/style；
  *      style-src-attr 'none'——h5a-g6 实测定案：CSSOM cssText/setProperty 不受该指令管辖，app 零内联 style 属性）。
  *   2. 最小化声明：不收紧 data:/blob: 通道（无 default-src，或声明 img-src 时含 data:）。
- *   3. 注入面第四路（<style> 元素）页面源码零存在——内联 script/onclick/style 三路已由
- *      csp-async-css.test.js + archtest 覆盖，不重复。
+ *   3. 注入面第三路（<style> 元素）页面源码零存在——内联 script/onclick/style 属性三路已由
+ *      csp-async-css.test.js + archtest 覆盖，不重复（四路全拦的浏览器实测在 verify-csp-strict）。
  *   4. _headers 与 SECURITY_HEADERS 的 CSP 姿态锁（g1 审计缺口 2：防"改 _headers 漏 config.js"再犯）。
  */
 import { test } from 'node:test';
@@ -47,7 +47,7 @@ test('两处策略姿态锁：_headers 与 SECURITY_HEADERS 的 CSP 同姿态（
   assert.equal(headersPolicy, configPolicy, '两处策略逐字一致（同源同姿态）');
 });
 
-test('注入面第四路：web/index.html 零 <style> 元素', () => {
+test('注入面第三路：web/index.html 零 <style> 元素', () => {
   // 匹配完整 <style> 元素（含闭合标签）——注释文本里的 "<style>" 字面量不算注入面
   assert.ok(!/<style[\s>][\s\S]*?<\/style>/i.test(html), '零 <style> 元素（动态样式已全迁 CSS 变量数据通道，c1/c2）');
 });

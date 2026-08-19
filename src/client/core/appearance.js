@@ -82,9 +82,10 @@ export function applyOrbs() {
   const opSpan = (cfg.opMax || 0) - (cfg.opMin || 0);
   const ORB_COLORS = ['--lg-orb-a','--lg-orb-b','--lg-orb-c','--lg-orb-d','--lg-orb-e','--lg-orb-f','--lg-orb-g','--lg-orb-h','--lg-orb-i'];
   // V-3-1c1: zero <style> injection (CSP style-src-elem 'self'). Dynamic geometry/
-  // color/duration flow via CSS custom-property data channel (el.style.setProperty,
-  // style-src-attr exception); visual rules all live in glass.css .lg-orb with
-  // fallback defaults — rule 44 (rendering in CSS, JS carries data only) preserved.
+  // color/duration flow via CSS custom-property data channel (el.style.setProperty —
+  // h5a-g6 note: CSSOM is not governed by style-src-attr, F1 verified); visual rules
+  // all live in glass.css .lg-orb with fallback defaults — rule 44 (rendering in CSS,
+  // JS carries data only) preserved.
   const frag = document.createDocumentFragment();
   for (let oi = 0; oi < ORB_N; oi++) {
     const dir = oi % 6;
