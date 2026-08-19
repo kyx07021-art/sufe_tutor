@@ -171,8 +171,8 @@ ${plan || '（未填写）'}`;
   return contractWithLegal(biz);
 }
 
-// 台账建表/绑定已迁入 contract/schema.js（V-1-4b）；本文件只保留业务 handler 与链上记账。
-export { bindLedgerDb, initLedgerTable } from './schema.js';
+// 台账建表/绑定在 contract/schema.js（V-1-4b，Z-15-F8 后 _worker.js 直引 schema.js，本文件不再中转 re-export）；
+// 本文件只保留业务 handler 与链上记账。
 const sha256Hex = text => crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)).then(bufToHex);
 
 // 台账链哈希原文（网安报告 F-07）：content_hash 必须覆盖「正文 + contract_id + created_at + prev_hash」，
