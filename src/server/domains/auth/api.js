@@ -237,7 +237,8 @@ export async function handleSaveAvatar(db, body, req) {
   if (!me) return errorMsg('LOGIN_REQUIRED', 401);
   const avatar = String(body.avatar || '');
   // svg 一律拒绝：矢量可内嵌脚本，渲染路径的图片统一只放行位图（长度上限单源 LIMITS.AVATAR_MAX_BYTES）
-  if (!avatar.startsWith('data:image/') || avatar.startsWith('data:image/svg') || avatar.length > LIMITS.AVATAR_MAX_BYTES) return errorMsg('AVATAR_INVALID');
+  // Q-2a-L1：MIME 判定大小写不敏感（Data:Image/SVG 大写变体绕过旧 startsWith 字面量比较）
+  if (!/^data:image\//i.test(avatar) || /^data:image\/svg/i.test(avatar) || avatar.length > LIMITS.AVATAR_MAX_BYTES) return errorMsg('AVATAR_INVALID');
   await dbUpdateUserAvatar(db, me.id, avatar);
   await logEvent(db, { action: 'user.avatar.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
   return json({ ok: true });
