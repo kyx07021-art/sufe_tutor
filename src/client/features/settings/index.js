@@ -17,7 +17,7 @@ const ACTION_MAP = {
   'settings.orb': el => actions.setOrbPref(el.dataset.pref),
   'settings.devices': actions.openDeviceManager,
   'settings.logout': actions.confirmLogout,
-  'settings.openDeactivate': actions.openDeactivateModal, // Z-11-F3：注销入口（页底 danger 按钮 → 危险操作弹窗）
+  'settings.openDeactivate': actions.openDeactivateModal, // Z-11-F3: deactivate entry (bottom danger button -> reauth modal)
 };
 let installed = false;
 function onActionClick(e) {
