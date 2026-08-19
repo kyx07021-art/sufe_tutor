@@ -27,7 +27,10 @@ export function createRouter(routes) {
         const m = p.match(r.c.re);
         if (!m) continue;
         const params = {};
-        r.c.names.forEach((name, i) => { params[name] = decodeURIComponent(m[i + 1]); });
+        // Q-5-F1: path is already decoded once by the worker (decodeURIComponent on the full path
+        // before prefix checks). Re-decoding param segments double-decodes (%2F → '/' shape mismatch
+        // with the matched segment) and throws uncaught URIError on malformed '%' → 500 instead of 404.
+        r.c.names.forEach((name, i) => { params[name] = m[i + 1]; });
         return await r.handler({ ...ctx, params });
       }
     }

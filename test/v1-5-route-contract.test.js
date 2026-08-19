@@ -142,3 +142,12 @@ test('routeApi 代表路径内存冒烟：认证/读列表/写反馈/管理端/�
   const captcha = await call('POST', '/api/captcha/verify', { captchaId: 'x', offset: 0.5, track: Array.from({ length: 40 }, (_, i) => ({ t: i, x: i * 5, y: 0 })) });
   assert.equal(captcha.status, 403, '机器轨迹被拒');
 });
+
+test('Q-5-F1: 畸形/双解码参数 404 而非 500（无二次解码 URIError）', async () => {
+  // _worker 已对完整路径 decode 一次（畸形 % 保持原样）——routeApi 收到的 p 是已解码/保持原样的段；
+  // router 参数段二次 decode 会：①畸形 % 抛 URIError → 500 ②%2F 双解码成 id=abc/def 形状失配。
+  const malformed = await routeApi(db, '/api/users/%', 'GET', null, new URL('http://x/api/users/%'), { headers: new Headers() }, ENV);
+  assert.equal(malformed.status, 404, '畸形 % 参数 404 而非 500');
+  const double = await routeApi(db, '/api/users/abc%2Fdef', 'GET', null, new URL('http://x/api/users/abc%2Fdef'), { headers: new Headers() }, ENV);
+  assert.equal(double.status, 404, '已解码 %2F 参数 404（不二次解码成 id=abc/def）');
+});
