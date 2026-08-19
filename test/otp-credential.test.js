@@ -108,7 +108,7 @@ test('requestOtp：60s 重发限频 + 单日上限（服务端原子强制）', 
   raw.exec(`UPDATE verification_codes SET created_at=datetime('now','-2 hours')`); // UTC 存储域，用 UTC 挪时间
   const over = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
   assert.equal(over.ok, false);
-  assert.equal((await over.err.json()).error, '今日验证码发送次数已达上限，请明天再试');
+  assert.equal((await over.err.json()).error, '验证码发送次数已达上限，请在 24 小时后重试');
 });
 
 // Z-2-F1 回归：单日计数走 rate_limits 桶（v1.5.0 事故——verification_codes 行仅 5 分钟 TTL，
@@ -135,7 +135,7 @@ test('Z-2-F1 回归：未过期满额桶仍拒绝（缺陷 A 对照）', async (
     .run(key, LIMITS.OTP_DAILY_MAX);
   const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
   assert.equal(r.ok, false, '未过期满额桶应拒绝');
-  assert.equal((await r.err.json()).error, '今日验证码发送次数已达上限，请明天再试');
+  assert.equal((await r.err.json()).error, '验证码发送次数已达上限，请在 24 小时后重试');
 });
 
 test('Z-2-F1 回归：投递失败不烧日配额（缺陷 B）', async () => {

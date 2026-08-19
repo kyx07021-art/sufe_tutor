@@ -110,7 +110,7 @@ export const MSG = {
   PHONE_INVALID: "手机号格式不正确",
   EMAIL_INVALID: "邮箱格式不正确",
   OTP_RESEND_LIMIT: `发送过于频繁，请 ${CONFIG.OTP_RESEND_SEC} 秒后再试`,
-  OTP_DAILY_LIMIT: "今日验证码发送次数已达上限，请明天再试",
+  OTP_DAILY_LIMIT: "验证码发送次数已达上限，请在 24 小时后重试", // Q-2b-F8：实现为滚动 24h 窗口（reset_at=now+1day），文案称「今日/明天」误导——23:00 触顶锁到次日 23:00 非「明天」
   OTP_INVALID_OR_EXPIRED: "验证码错误或已过期",
   OTP_EXHAUSTED: "验证码错误次数过多，已失效，请重新获取",
   OTP_REQUIRED: "请输入验证码",
