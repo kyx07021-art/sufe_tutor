@@ -1,26 +1,27 @@
 /**
  * #174（v0.25.76）：内容哈希资产管线（worker 侧虚拟版本化）自检
  *  - 已提交 manifest.js 与当前源码哈希一致（源文件改动后忘跑 node hash-assets.mjs → 第一例即红）
- *  - renderManifest 确定性：两次调用产物逐字节相同
- *  - worker 静态辅助：versionedBase 只放行 manifest 校验通过的版本化 URL；injectManifest 改写引用 + 内联 manifest
+ *  - renderManifestV2 确定性：两次调用产物逐字节相同
+ *  - worker 静态辅助：versionedBase 只放行 manifest 校验通过的版本化 URL；injectManifest 改写引用（零内联 manifest）
+ * V-4-1h：v1 壳删除后 manifest 为纯 v2（CSS + web/ 脚本），renderManifest/DOMAIN_FILES 已删。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ASSET_MANIFEST } from '../manifest.js';
-import { renderManifest, renderManifestV2 } from '../hash-assets.mjs';
+import { renderManifestV2 } from '../hash-assets.mjs';
 import { versionedBase, injectManifest } from '../_worker.js';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
 
 test('manifest.js 与源码哈希一致（源文件改动后必须重跑 node hash-assets.mjs）', () => {
   const committed = readFileSync(REPO + 'manifest.js', 'utf8');
-  assert.equal(committed, renderManifest(), 'manifest.js 过期：commit 前先跑 node hash-assets.mjs');
+  assert.equal(committed, renderManifestV2(), 'manifest.js 过期：commit 前先跑 node hash-assets.mjs');
 });
 
-test('renderManifest 确定性：两次调用产物逐字节相同', () => {
-  assert.equal(renderManifest(), renderManifest(), '内容不变 → manifest 不变');
+test('renderManifestV2 确定性：两次调用产物逐字节相同', () => {
+  assert.equal(renderManifestV2(), renderManifestV2(), '内容不变 → manifest 不变');
 });
 
 test('versionedBase：仅放行 manifest 校验通过的版本化 URL', () => {
@@ -31,22 +32,14 @@ test('versionedBase：仅放行 manifest 校验通过的版本化 URL', () => {
   assert.equal(versionedBase('/api/data-version'), null, 'API 路径不匹配');
 });
 
-test('injectManifest：改写资产引用为哈希名 + 内联 manifest；非 js/css 不动', () => {
-  const out = injectManifest('<head><link rel="stylesheet" href="/tokens.css"><script src="/constants.js"></script></head><body>');
-  assert.ok(out.includes(`href="/${ASSET_MANIFEST.files['tokens.css']}"`), 'CSS 引用改哈希名（V-2-5b tokens.css）');
-  assert.ok(out.includes(`src="/${ASSET_MANIFEST.files['constants.js']}"`), 'JS 引用改哈希名');
-  assert.ok(out.includes('window.ASSET_MANIFEST'), '内联 manifest 注入（懒加载器读取）');
+test('injectManifest：改写资产引用为哈希名，零内联 manifest（v2 ESM 形态）', () => {
+  const out = injectManifest('<head><link rel="stylesheet" href="/tokens.css"><script type="module" src="/assets/app.js"></script><script src="/theme-init.js"></script></head><body>');
+  assert.ok(out.includes(`href="/${ASSET_MANIFEST.files['tokens.css']}"`), 'CSS 引用改哈希名');
+  assert.ok(out.includes(`src="/${ASSET_MANIFEST.files['theme-init.js']}"`), 'web/ 脚本引用改哈希名');
+  assert.ok(out.includes('src="/assets/app.js"'), 'esbuild 内容哈希区不改写（非 manifest 范畴）');
+  assert.ok(!out.includes('window.ASSET_MANIFEST'), 'v2 零内联 manifest（严格 script-src 前提，V-3-1d 契约）');
   const img = injectManifest('<link rel="icon" href="/favicon.ico">');
   assert.ok(img.includes('href="/favicon.ico"'), '非 js/css 引用原样保留');
-});
-
-test('injectManifest V-3-1d：v2 ESM 页面零内联 manifest（引用改写保留）；v1 形态仍注入', () => {
-  const v2 = injectManifest('<head><link rel="stylesheet" href="/tokens.css"><script type="module" src="/assets/app.js"></script></head><body>');
-  assert.ok(v2.includes(`href="/${ASSET_MANIFEST.files['tokens.css']}"`), 'v2 CSS 引用仍改哈希名（immutable 缓存承重面不丢）');
-  assert.ok(!v2.includes('window.ASSET_MANIFEST'), 'v2 零内联 manifest（严格 script-src 前提）');
-  const v1 = injectManifest('<head><script src="/app-shell.js"></script></head><body>');
-  assert.ok(v1.includes(`src="/${ASSET_MANIFEST.files['app-shell.js']}"`), 'v1 引用改写保留');
-  assert.ok(v1.includes('window.ASSET_MANIFEST'), 'v1 仍注入内联 manifest（懒加载器依赖，判定信号不漂移）');
 });
 
 // V-4-1h h1：renderManifestV2 工具链能力（自足 fixture，用真实 web/index.html + 根/web 资产）

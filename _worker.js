@@ -27,7 +27,7 @@ import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清�
 // （浏览器只请求哈希 URL），版本化 URL 经 manifest 校验后路由回 base 文件并回 immutable 缓存头。
 // 内容变 → 哈希变 → 新 URL；index.html no-cache 每次导航重验 → 零陈旧；base 名永不 immutable
 // （不是 manifest 放行的版本化 URL 一律拿不到 immutable）。manifest 由 node hash-assets.mjs
-// 生成（与 app-shell.js DOMAIN_FILES 同步），测试依旧读源码 base 名，零测试改动。
+// 生成（v2 源模式：web/index.html 引用 + web/ 子目录资产），测试依旧读源码 base 名，零测试改动。
 
 // 校验路径是否为 manifest 中的版本化资产 URL（/app-chat.<hash8>.js），是则回 base 名
 export function versionedBase(p) {
@@ -65,7 +65,7 @@ const etagOf = out =>
 
 const CONDITIONAL = new Set(['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since']);
 
-// 服务 HTML：改写资产引用 + 内联 manifest；用自身 ETag 驱动 304（index.html no-cache 每次导航重验）
+// 服务 HTML：改写资产引用为哈希名（v2 零内联 manifest）；用自身 ETag 驱动 304（index.html no-cache 每次导航重验）
 async function serveHtml(request, env, p, res) {
   const strip = new Headers(request.headers);
   for (const k of CONDITIONAL) strip.delete(k);
@@ -282,7 +282,7 @@ export default {
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
       const res = await env.ASSETS.fetch(request);
-      // HTML 文档（含 SPA 回退）：改写资产引用为哈希名 + 内联 manifest（懒加载器据此取哈希 URL）。
+      // HTML 文档（含 SPA 回退）：改写资产引用为哈希名（v2 零内联 manifest）。
       // ETag 由 worker 自持（改写 body 哈希）——沿用 ASSETS 原 ETag 会在只改资产不发版页面的发版后误判 304。
       // 304 响应无 content-type：按路径推断（/、/index.html、SPA 无扩展名路由均为 HTML）
       const isHtml = res.ok

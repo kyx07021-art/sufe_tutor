@@ -12,7 +12,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { showToast } from '../src/client/core/ui.js';
 import { CONFIG } from '../src/shared/config.js';
@@ -75,14 +75,15 @@ test('连根删红例：alert 组件全站零残留（CSS 规则 / JS 函数 / �
   assert.ok(!/\.alert\s*\{/.test(css), '无 .alert 基础规则');
   assert.ok(!/\.alert-(error|success|warn)\s*\{/.test(css), '无三色 alert 规则');
   assert.ok(!/\.gaokao-mismatch-warn[^}]*--g-surface/.test(css), '独立提示无 --g-surface 竖条');
-  const app = ['app-ui.js', 'app-posts.js', 'app-contracts.js', 'app-demands.js', 'app-pages.js',
-    'app-auth.js', 'app-complaints.js', 'app-teachers.js', 'app-region.js', 'app-anim.js', 'app-shell.js', 'app-chat.js']
-    .map(f => readFileSync('./' + f, 'utf8')).join('\n');
+  // V-4-1h：v1 app-*.js 已删；alert 零残留扫描改为 v2 全域源码（core + features）
+  const core = readdirSync('./src/client/core').filter(f => f.endsWith('.js')).map(f => readFileSync('./src/client/core/' + f, 'utf8')).join('\n');
+  const features = readdirSync('./src/client/features', { recursive: true }).filter(f => String(f).endsWith('.js')).map(f => readFileSync('./src/client/features/' + f, 'utf8')).join('\n');
+  const app = core + '\n' + features;
   assert.ok(!/function alertHtml|alertHtml\(/.test(app), 'JS 无 alertHtml 定义/调用');
   assert.ok(!app.includes("id=\"post-alert\"") && !app.includes("id=\"contract-alert\"") && !app.includes("id=\"demand-alert\"")
     && !app.includes("id=\"complaint-alert\"") && !app.includes("id=\"review-alert\"") && !app.includes("id=\"login-alert\"")
     && !app.includes("id=\"register-alert\"") && !app.includes("id=\"invite-gate-alert\"") && !app.includes("id=\"profile-alert\""),
     'JS 无任何 alert 容器渲染');
-  const html = readFileSync('./index.html', 'utf8');
-  assert.ok(!html.includes('-alert'), 'index.html 无 alert 容器');
+  const html = readFileSync('./web/index.html', 'utf8');
+  assert.ok(!html.includes('-alert'), 'web/index.html 无 alert 容器');
 });

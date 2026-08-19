@@ -140,11 +140,12 @@ test('text parity: every auth key matches shared text.js / old static shell verb
       else assert.equal(v, SHARED_TEXT[k], k);
     }
   }
-  const oldIndex = rootFile('index.html');
+  // V-4-1h：v1 静态壳已删，登录/注册文案单源 = features/auth/render.js 渲染输出（V-2-4a 服务端文案同源）
+  const shellHtml = render.loginViewHtml() + render.registerViewHtml();
   for (const v of [TEXT.LOGIN_IDENTIFIER_LABEL, TEXT.LOGIN_PASSWORD_LABEL, TEXT.LOGIN_REMEMBER,
     TEXT.LOGIN_CODE_HINT, TEXT.BTN_BACK, TEXT.BTN_GO_REGISTER, TEXT.REGISTER_TITLE, TEXT.REGISTER_SUB,
     TEXT.REG_ROLE_STUDENT, TEXT.REG_ROLE_TEACHER, TEXT.REGISTER_HAVE_ACCOUNT, TEXT.REGISTER_GO_LOGIN]) {
-    assert.ok(oldIndex.includes(v), v);
+    assert.ok(shellHtml.includes(v), v);
   }
 });
 

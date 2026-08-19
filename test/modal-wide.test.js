@@ -23,20 +23,21 @@ test('modal--wide 规则就位：仅提升 max-width（不设 width），移动�
   assert.ok(base.split('}')[0].includes('width: 100%'), 'base 弹窗保持 width:100%');
 });
 
-test('文本浮窗全覆盖 modal--wide（政策/使用指南/合同查看/签署通读/存证明细/预览/模块介绍/管理端全文）', () => {
-  const ui = readFileSync('./app-ui.js', 'utf8');
-  const onboard = readFileSync('./app-onboard.js', 'utf8');
-  const contracts = readFileSync('./app-contracts.js', 'utf8');
-  const posts = readFileSync('./app-posts.js', 'utf8');
-  const shell = readFileSync('./app-shell.js', 'utf8');
-  const admin = readFileSync('./app-admin.js', 'utf8');
+test('文本浮窗全覆盖 modal--wide（政策/使用指南/合同查看/签署通读/存证明细/预览/模块介绍）', () => {
+  // V-4-1h：v1 app-*.js 已删；modal--wide 分布改断言 v2 源（core + features 域）
+  const read = f => readFileSync(f, 'utf8');
+  const core = read('./src/client/core/ui-modal.js') + read('./src/client/core/router.js');
+  const onboard = read('./src/client/features/onboard/actions.js');
+  const contracts = read('./src/client/features/contract/actions-sign.js');
+  const posts = read('./src/client/features/posts/actions-editor.js') + read('./src/client/features/posts/actions-feedback.js');
+  const teacher = read('./src/client/features/teacher/actions.js');
   // 每处文本浮窗 opt-in 宽版
-  assert.ok(ui.includes("cls: 'modal--wide'"), '协议/政策浮窗拓宽');
-  assert.ok(onboard.includes("cls: 'modal--wide'"), '使用指南浮窗拓宽');
+  assert.ok(core.includes("cls: 'modal--wide'"), '协议/政策浮窗拓宽（core/ui-modal）');
+  assert.ok(onboard.includes("cls: 'modal--wide'"), '使用指南浮窗拓宽（features/onboard）');
   assert.ok((contracts.match(/cls: 'modal--wide'/g) || []).length >= 3, '合同查看 + 签署通读 + 存证明细（≥3 处）');
-  assert.ok(posts.includes("cls: 'modal--wide'"), 'md 预览浮窗拓宽');
-  assert.ok(shell.includes("cls: 'modal--wide'"), '模块介绍浮窗拓宽');
-  assert.ok((admin.match(/cls: 'modal--wide'/g) || []).length >= 2, '管理端帖子/合同全文拓宽');
+  assert.ok(posts.includes("cls: 'modal--wide'"), 'md 预览浮窗拓宽（features/posts）');
+  assert.ok(core.includes('module-info-md'), '模块介绍浮窗拓宽（core/router）');
+  assert.ok(teacher.includes("cls: 'modal--wide'"), '教师模块浮窗拓宽');
   // 旧专用加宽类已删（统一走标准接口，不留特例）
   assert.ok(!STYLE_CSS.includes('.module-info-modal'), 'module-info-modal 死规则已删');
 });

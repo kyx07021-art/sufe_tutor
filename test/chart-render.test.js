@@ -14,9 +14,8 @@ global.window = dom.window;
 global.document = dom.window.document;
 global.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
 
-// 经典脚本 IIFE：import 即执行并挂 window.renderGlassLineChart
-await import('../app-chart.js');
-const renderGlassLineChart = dom.window.renderGlassLineChart;
+// V-4-1h：v1 经典脚本 IIFE 已删；v2 = src/client/core/chart.js ESM（动态 import 保 jsdom 先建立）
+const { renderGlassLineChart } = await import('../src/client/core/chart.js');
 
 test('app-chart 渲染：小时粒度流量图产出完整图表结构', () => {
   const c = document.getElementById('c1');

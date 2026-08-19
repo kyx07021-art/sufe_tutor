@@ -33,7 +33,8 @@ test('触发器默认空纵向高度（min-height）防塌陷', () => {
 });
 
 test('签约/起草弹窗空态仍渲染灰字提示 option', () => {
-  const c = readFileSync('./app-contracts.js', 'utf8');
-  assert.ok(c.includes('SIGNING_NO_DEMAND_HINT'));
-  assert.ok(c.includes('CONTRACT_DEMANDS_EMPTY'));
+  // V-4-1h：v1 app-contracts.js 已删；空态提示在 v2 features/contract/actions-draft.js（TEXT 单源引用）
+  const c = readFileSync('./src/client/features/contract/actions-draft.js', 'utf8');
+  assert.ok(c.includes('TEXT.SIGNING_NO_DEMAND_HINT'), 'SIGNING_NO_DEMAND_HINT 单源引用');
+  assert.ok(c.includes('TEXT.CONTRACT_DEMANDS_EMPTY'), 'CONTRACT_DEMANDS_EMPTY 单源引用');
 });

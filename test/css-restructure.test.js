@@ -73,12 +73,10 @@ test('STYLE_CSS 拼接覆盖全部区块（tokens+base+各域+responsive 内容�
   }
 });
 
-test('两个 index.html 引用新 CSS 结构（同加载序）', () => {
-  for (const html of ['index.html', 'web/index.html']) {
-    const h = readFileSync(html, 'utf8');
-    const need = ['/tokens.css', '/base.css', '/responsive.css', '/glass.css', '/features/chat.css',
-      '/features/posts.css', '/features/region.css'];
-    for (const ref of need) assert.ok(h.includes(ref), `${html} 含 ${ref}`);
-    assert.ok(!h.includes('/style.css'), `${html} 不再引用 /style.css`);
-  }
+test('web/index.html（v2 唯一入口）引用新 CSS 结构（同加载序）', () => {
+  const h = readFileSync('web/index.html', 'utf8');
+  const need = ['/tokens.css', '/base.css', '/responsive.css', '/glass.css', '/features/chat.css',
+    '/features/posts.css', '/features/region.css'];
+  for (const ref of need) assert.ok(h.includes(ref), `web/index.html 含 ${ref}`);
+  assert.ok(!h.includes('/style.css'), 'web/index.html 不再引用 /style.css');
 });

@@ -20,7 +20,7 @@ import { state } from '../src/client/core/state.js';
 import { CHAT_CSS } from './_css.js';
 
 test('文件卡分流 .chat-bubble--file（圆角内衬），图片仍全出血', () => {
-  const chat = readFileSync('./app-chat.js', 'utf8');
+  const chat = readFileSync('./src/client/features/chat/render.js', 'utf8');
   assert.ok(chat.includes("mediaCls = m.kind === 'file' ? ' chat-bubble--file' : ''"), '文件消息带 file 类、图片不带');
   const css = CHAT_CSS;
   const fileRule = css.split('.chat-bubble--file {')[1] || '';

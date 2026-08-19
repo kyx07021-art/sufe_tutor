@@ -28,7 +28,8 @@ test('R15 .profile-card--id 变体类连根删（CSS 无规则）', () => {
 });
 
 test('R15 渲染模板不再输出 profile-card--id 类', () => {
-  const js = readFileSync('./app-teachers.js', 'utf8');
-  assert.ok(!/profile-card--id/.test(js), 'app-teachers.js 渲染无 --id 变体类');
-  assert.ok(js.includes('class="profile-card glass"'), '身份卡用统一 profile-card 基底');
+  // V-4-1h：v1 app-teachers.js 已删；教师卡渲染在 v2 features/teacher/render.js（统一 list-card 基底）
+  const render = readFileSync('./src/client/features/teacher/render.js', 'utf8');
+  assert.ok(!/profile-card--id/.test(render), 'v2 教师渲染无 --id 变体类');
+  assert.ok(render.includes('list-card list-card--teacher glass"'), '教师卡用统一 list-card 基底（尾部锚定，防前缀假命中）');
 });

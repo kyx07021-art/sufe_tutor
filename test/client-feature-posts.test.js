@@ -38,12 +38,9 @@ test('posts render: toolbar has data-action/input/change no inline', () => {
   state.user = null;
 });
 
-test('posts text: key parity with root constants.js sample', async () => {
-  const { readFileSync } = await import('node:fs');
-  const src = readFileSync('./constants.js', 'utf8');
+test('posts text keys present (v2 text.js 单源；v1 root constants 已删)', () => {
   for (const k of ['POSTS_EMPTY', 'POST_PUBLISHED', 'POST_TITLE_REQUIRED']) {
     assert.ok(TEXT[k], `${k} exists`);
-    assert.ok(src.includes(`${k}:`), `${k} in root constants`);
   }
 });
 

@@ -46,7 +46,7 @@
 
 ## 契约 1：构建契约
 
-`scripts/build.mjs` 是唯一构建入口，输出到 `dist/`（`npm run build` / `npm run deploy` 只部署 dist）。它做：esbuild 打包 `_worker.js`（连 server/ 与 manifest.js 成单文件）→ esbuild 分包客户端 ESM 到 `dist/assets/` → 拷贝 web/ 资产 → 生成 `dist/v2.html`（web/index.html 的 module 入口替换为哈希名）→ 自检（worker bundle 体积、无源码相对 import、可被 Node import）。
+`scripts/build.mjs` 是唯一构建入口，输出到 `dist/`（`npm run build` / `npm run deploy` 只部署 dist）。它做：esbuild 打包 `_worker.js`（连 server/ 与 manifest.js 成单文件）→ esbuild 分包客户端 ESM 到 `dist/assets/` → 拷贝 web/ 资产 → 生成 `dist/index.html`（web/index.html 的 module 入口替换为哈希名；V-4-1h 起 v2 直接作为站点入口）→ 自检（worker bundle 体积、无源码相对 import、可被 Node import）。
 
 `node hash-assets.mjs` 生成 `manifest.js`（内容哈希资产清单：base 名 → 哈希名），**commit 前必须重跑**（规则 54）。manifest.js 是唯一产物勿手改。
 

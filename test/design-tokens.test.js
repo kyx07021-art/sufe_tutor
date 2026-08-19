@@ -10,13 +10,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { STYLE_CSS } from './_css.js';
+import { THEME } from '../src/client/constants/theme.js';
 
 const css = STYLE_CSS;
 const glass = readFileSync('./glass.css', 'utf8');
-const constants = readFileSync('./constants.js', 'utf8');
 
 test('小灰字对比度：light muted 加深到 AA 档', () => {
-  assert.ok(constants.includes("'--text': '#16161A', '--muted': '#5A5A64'"), 'light --muted 已加深');
+  assert.equal(THEME.light['--text'], '#16161A', 'light --text');
+  assert.equal(THEME.light['--muted'], '#5A5A64', 'light --muted 已加深');
 });
 
 test('间距韵律尺 token 单源：4/8/12/16/20/24', () => {
@@ -46,7 +47,7 @@ test('按钮层级：主按钮白调面+发丝边，次按钮弱一档，危险�
   assert.ok(glass.includes('.btn-text-danger { --g-fg: var(--danger-deep'));
   assert.ok(glass.includes('--g-fill: var(--g-danger-fill)'));
   assert.ok(glass.includes('--g-border: 1px solid var(--g-danger-line)'));
-  assert.ok(constants.includes("'--g-danger-line'"), '危险边框 token 在 light/dark 有定义');
+  assert.ok(THEME.light['--g-danger-line'] && THEME.dark['--g-danger-line'], '危险边框 token 在 light/dark 有定义');
   assert.ok(glass.includes('.tc-push-btn, .chat-send'), '教师推送与聊天发送主按钮同层级');
 });
 

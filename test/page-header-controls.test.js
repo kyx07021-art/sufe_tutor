@@ -76,7 +76,8 @@ test('P4 筛选项下拉：紧凑按钮字面 + 标准高度', () => {
 });
 
 test('P4 按钮语境触发器 JS 挂标准按钮组件类（组件级按钮配置）', () => {
-  const js = readFileSync('./app-ui.js', 'utf8');
+  // V-4-1h：v1 app-ui.js 已删；按钮语境在 v2 src/client/core/ui.js
+  const js = readFileSync('./src/client/core/ui.js', 'utf8');
   assert.ok(/sel\.closest\('\.filter-group'\) \|\| sel\.closest\('\.page-header-actions'\)/.test(js),
     '按钮语境判定：筛选组/页头操作区');
   assert.ok(js.includes("'custom-select-trigger btn btn-soft glass glass--pressable'"),
@@ -102,11 +103,16 @@ test('P4 非页头场景：表单/其他面板下拉保持输入控件族（不�
 });
 
 test('P4 页头 HTML：教师信息/需求大厅排序+筛选按钮同页头动作容器', () => {
-  const html = readFileSync('./index.html', 'utf8');
-  assert.ok(html.includes('id="teacher-sort"') && html.includes('id="filter-toggle-btn"'),
-    '教师信息页排序+筛选按钮同页');
-  assert.ok(html.includes('id="demand-sort"') && html.includes('id="demand-filter-toggle-btn"'),
+  // V-4-1h：v1 静态壳已删；页头动作容器由 v2 shell.js 渲染（filterToggleBtn 模板 + demand-sort select）
+  const shell = readFileSync('./src/client/core/shell.js', 'utf8');
+  assert.ok(shell.includes('filterToggleBtn(\'teacher.toggleFilters\', \'filter-toggle-btn\')'),
+    '教师信息页筛选按钮在动作容器');
+  assert.ok(shell.includes('id="demand-sort"') && shell.includes("'demand-filter-toggle-btn'"),
     '需求大厅排序+筛选按钮同页');
-  assert.ok(html.includes('class="btn btn-soft glass glass--pressable filter-toggle" id="filter-toggle-btn"'),
-    '教师信息页筛选按钮接 .btn .btn-soft 按钮组件（v0.31.5 P4 补，与排序下拉同族）');
+  assert.ok(shell.includes('class="btn btn-soft glass glass--pressable filter-toggle" id="${id}"'),
+    '筛选按钮接 .btn .btn-soft 按钮组件（v0.31.5 P4 补）');
+  // 教师排序能力：actions.js sortTeachers + state.teacherSort（v2 排序下拉由教师域驱动）
+  const teaActions = readFileSync('./src/client/features/teacher/actions.js', 'utf8');
+  assert.ok(teaActions.includes('state.teacherSort') && teaActions.includes('sortTeachers'),
+    '教师排序能力由教师域 actions 驱动');
 });

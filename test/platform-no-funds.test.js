@@ -38,14 +38,16 @@ test('文案单源：FUNDS_NOTE（全文）/ FUNDS_NOTE_SHORT（短文）/ 关�
   assert.ok(aboutText.includes('请勿向平台支付任何费用'));
   const policy = TEXT.ONBOARD_POLICY;
   assert.ok(policy.length <= 4);
-  const onboard = readFileSync('./app-onboard.js', 'utf8');
+  // V-4-1h：v1 app-onboard.js 已删；资金导引条在 v2 features/onboard/actions.js（TEXT 单源）
+  const onboard = readFileSync('./src/client/features/onboard/actions.js', 'utf8');
   assert.ok(onboard.includes('funds-note onboard-funds'));
-  assert.ok(onboard.includes('UI.FUNDS_NOTE_SHORT'));
+  assert.ok(onboard.includes('TEXT.FUNDS_NOTE_SHORT'));
 });
 
 test('签约提示 + 起草合同浮窗：资金触点明示（.funds-note），服务端合同条款撇清平台资金责任', () => {
-  const contracts = readFileSync('./app-contracts.js', 'utf8');
-  const n = (contracts.match(/<p class="funds-note">\$\{UI\.FUNDS_NOTE\}<\/p>/g) || []).length;
+  // V-4-1h：v1 app-contracts.js 已删；资金触点渲染在 v2 features/contract/actions-draft.js（TEXT 单源）
+  const contracts = readFileSync('./src/client/features/contract/actions-draft.js', 'utf8');
+  const n = (contracts.match(/<p class="funds-note">\$\{TEXT\.FUNDS_NOTE\}<\/p>/g) || []).length;
   assert.ok(n >= 2, `签约浮窗 + 起草合同浮窗各一处（实际 ${n}）`);
   const server = readFileSync('./src/server/domains/contract/api.js', 'utf8'); // V-1-4c：合同实体已迁入 contract/api.js，server/contract.js 仅为兼容 shim
   assert.ok(server.includes('不参与任何费用结算'), '合同条款声明不参与结算');
@@ -55,12 +57,13 @@ test('签约提示 + 起草合同浮窗：资金触点明示（.funds-note），
 });
 
 test('签约请求气泡 + 关于页：短声明与小节就位', () => {
-  const chat = readFileSync('./app-chat.js', 'utf8');
+  // V-4-1h：v1 app-chat.js/app-pages.js 已删；v2 = features/chat/render.js + core/about.js
+  const chat = readFileSync('./src/client/features/chat/render.js', 'utf8');
   assert.ok(chat.includes('signing-bubble-funds'), '聊天签约气泡底部短声明');
-  assert.ok(chat.includes('UI.FUNDS_NOTE_SHORT'), '气泡短声明引用单源文案');
-  const pages = readFileSync('./app-pages.js', 'utf8');
-  assert.ok(pages.includes('UI.ABOUT_FUNDS_TITLE'), '关于页资金小节标题');
-  assert.ok(pages.includes('UI.ABOUT_FUNDS_TEXT'), '关于页资金小节正文');
+  assert.ok(chat.includes('TEXT.FUNDS_NOTE_SHORT'), '气泡短声明引用单源文案');
+  const about = readFileSync('./src/client/core/about.js', 'utf8');
+  assert.ok(about.includes('TEXT.ABOUT_FUNDS_TITLE'), '关于页资金小节标题');
+  assert.ok(about.includes('TEXT.ABOUT_FUNDS_TEXT'), '关于页资金小节正文');
   const css = STYLE_CSS;
   assert.ok(css.includes('.funds-note {'), '浮窗资金声明样式');
   assert.ok(css.includes('.about-funds {'), '关于页资金分块样式');

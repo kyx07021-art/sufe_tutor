@@ -13,14 +13,14 @@ import { readFileSync } from 'node:fs';
 import { STYLE_CSS } from './_css.js';
 
 test('R28 主页入口：两个 .entry 各挂 .entry-glow 光斑子元素', () => {
-  const html = readFileSync('./index.html', 'utf8');
-  const entries = [...html.matchAll(/<button class="entry glass"/g)];
-  assert.equal(entries.length, 2, '两个入口按钮');
-  const glowCount = [...html.matchAll(/<span class="entry-glow"/g)];
-  assert.equal(glowCount.length, 2, '每个入口一个光斑子元素');
-  // 光斑在按钮内部（同一 button 内）
-  assert.ok(html.includes('<button class="entry glass" onclick="handleFeatureClick(\'student\')">\n                <span class="entry-glow"'),
-    '光斑紧随按钮开始（学生入口）');
+  // V-4-1h：v1 静态壳已删；入口按钮由 v2 shell.js 渲染（entry 模板调用两次 + 光斑在按钮内部）
+  const shell = readFileSync('./src/client/core/shell.js', 'utf8');
+  const entries = [...shell.matchAll(/entry\('0\d', TEXT\.ENTRY_.+?_TITLE, TEXT\.ENTRY_.+?_DESC, '(student|teacher)'\)/g)];
+  assert.equal(entries.length, 2, '两个入口按钮模板调用（student/teacher）');
+  assert.equal((shell.match(/<span class="entry-glow"/g) || []).length, 1, '模板内含光斑子元素（复用模板）');
+  assert.ok(shell.includes(`<button type="button" class="entry glass" data-action="auth.enterGuest" data-role="\${role}">`),
+    '光斑紧随按钮开始（模板内同节点）');
+  assert.ok(entries.some(e => e[1] === 'student') && entries.some(e => e[1] === 'teacher'), '两个入口角色');
 });
 
 test('R28 CSS：光斑跟随变量 + 扫光 + 辉光边缘 + 弹簧按压（四件套）', () => {
@@ -50,9 +50,9 @@ test('R28 CSS：光斑跟随变量 + 扫光 + 辉光边缘 + 弹簧按压（四�
 });
 
 test('R28 JS：mousemove 委托只更新 .entry 的 --mx/--my（零内联视觉）', () => {
-  const auth = readFileSync('./app-auth.js', 'utf8');
-  assert.ok(auth.includes("e.target.closest ? e.target.closest('.entry') : null"),
-    'mousemove 委托命中 .entry');
+  // V-4-1h：v1 app-auth.js 已删；mousemove 委托在 v2 src/client/features/auth/index.js
+  const auth = readFileSync('./src/client/features/auth/index.js', 'utf8');
+  assert.ok(auth.includes("closest('.entry')"), 'mousemove 委托命中 .entry');
   assert.ok(auth.includes("setProperty('--mx'") && auth.includes("setProperty('--my'"),
     '更新光斑坐标变量');
   assert.ok(!auth.includes('entry-glow.style') && !auth.includes('entry-glow.classList'), 'JS 不直接操作光斑视觉（纯 CSS 层）');
