@@ -26,6 +26,7 @@ import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, loaderHtml, renderAvatarHtml } from '../../core/dom.js';
 import { usernameHtml, deactivatedTag } from '../../core/display.js';
 import { expectedTimeText } from '../student/display.js';
+import { chatPreviewText, signingMethodText, signingRequestTitle, signingResponseLabel, contractBubbleText, chatFileSize, chatFileExt } from './display.js'; // Z-10-F2: mappings in domain display
 
 /** Peer info of a conversation from the viewer's perspective (v1 chatPeerOf parity). */
 export function chatPeerOf(c) {
@@ -41,16 +42,7 @@ export function chatPeerOf(c) {
 export function renderConvItem(c) {
   const peer = chatPeerOf(c);
   const me = state.user ? state.user.id : null;
-  let preview = TEXT.CHAT_EMPTY_NO_MESSAGES;
-  if (c.last_kind === 'contract') {
-    preview = TEXT.CHAT_PREVIEW_CONTRACT;
-  } else if (c.last_kind === 'signing_request' || c.last_kind === 'signing_response') {
-    preview = c.last_kind === 'signing_request' ? TEXT.CHAT_PREVIEW_SIGNING_REQ : TEXT.CHAT_PREVIEW_SIGNING_RESP;
-  } else if (c.last_kind && c.last_kind !== 'text') {
-    preview = (c.last_sender === me ? TEXT.CHAT_PREVIEW_ME_PREFIX : '') + (c.last_kind === 'image' ? TEXT.CHAT_PREVIEW_IMAGE : TEXT.CHAT_PREVIEW_FILE);
-  } else if (c.last_body) {
-    preview = (c.last_sender === me ? TEXT.CHAT_PREVIEW_ME_PREFIX : '') + c.last_body;
-  }
+  const preview = chatPreviewText(c, me);
   const time = fmtDateTime(c.last_at || c.created_at);
   return `<button type="button" class="conv-item${c.id === chat.convId ? ' active' : ''}" data-action="chat.openConv" data-id="${c.id}">
     ${(c.unread_count || 0) > 0 ? `<span class="conv-unread-dot" data-unread-dot="${c.id}"></span>` : ''}
@@ -170,8 +162,8 @@ function renderSigningRequestBubble(m, mine, msgCls, sideCls, time) {
   const rejected = s.status === STATUS.REJECTED;
   const signed = s.status === STATUS.SIGNED;
   const price = Number(s.price) || 0;
-  const methodName = s.method === 'online' ? TEXT.SIGNING_METHOD_ONLINE : TEXT.SIGNING_METHOD_OFFLINE;
-  const title = mine ? TEXT.CHAT_SIGNING_MINE_TITLE : TEXT.CHAT_SIGNING_REQUEST_TITLE;
+  const methodName = signingMethodText(s.method);
+  const title = signingRequestTitle(mine);
   const actions = (pending && recipient && signingId)
     ? `<span class="signing-bubble-actions"><button type="button" class="btn btn-sm glass glass--pressable" data-action="chat.respond" data-id="${escHtml(signingId)}" data-accept="1">${TEXT.BTN_SIGNING_CONFIRM}</button><button type="button" class="btn btn-sm btn-outline glass glass--pressable" data-action="chat.respond" data-id="${escHtml(signingId)}" data-accept="0">${TEXT.BTN_SIGNING_REJECT}</button></span>`
     : '';
@@ -182,17 +174,14 @@ function renderSigningRequestBubble(m, mine, msgCls, sideCls, time) {
 function renderSigningResponseText(m, mine) {
   let r = {};
   try { r = typeof m.body === 'string' ? JSON.parse(m.body) : (m.body || {}); } catch { /* empty */ }
-  const label = mine
-    ? (r.accept ? TEXT.SIGNING_MY_CONFIRMED : TEXT.SIGNING_MY_REJECTED)
-    : (r.accept ? TEXT.SIGNING_CONFIRMED : TEXT.SIGNING_REJECTED);
-  return escHtml(label);
+  return escHtml(signingResponseLabel(mine, r.accept));
 }
 
 // contract bubble text goes directly into the bubble (v1 parity — no extra wrapper
 // class; a wrapper would need its own CSS rule and add zero visual value)
 function renderContractInner(m) {
   const mine = state.user && m.sender_user_id === state.user.id;
-  return escHtml(mine ? TEXT.CHAT_CONTRACT_BUBBLE_MINE : TEXT.CHAT_CONTRACT_BUBBLE_OTHER);
+  return escHtml(contractBubbleText(mine));
 }
 
 export function renderChatMediaInner(kind, body, name, thumb, mid) {
@@ -215,22 +204,6 @@ export function renderChatMediaInner(kind, body, name, thumb, mid) {
     </span>
     <a class="chat-file-dl" href="${escHtml(href)}" download="${escHtml(name || '')}">${TEXT.CHAT_DOWNLOAD}</a>
   </div>`;
-}
-
-export function chatFileSize(dataUrl) {
-  try {
-    const s = String(dataUrl || '');
-    const b64Idx = s.indexOf(';base64,');
-    const bytes = b64Idx >= 0 ? Math.round((s.length - b64Idx - 8) * 3 / 4) : s.length;
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1048576).toFixed(2)} MB`;
-  } catch { return ''; }
-}
-
-export function chatFileExt(name) {
-  const m = /\.([a-zA-Z0-9]+)$/.exec(name || '');
-  return m ? m[1].toUpperCase() : 'FILE';
 }
 
 /**

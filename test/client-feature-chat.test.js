@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderConvItem, renderChatBubble, renderChatMediaInner, chatFileSize, chatFileExt, renderChatPlaceholder } from '../src/client/features/chat/render.js';
+import { renderConvItem, renderChatBubble, renderChatMediaInner, renderChatPlaceholder } from '../src/client/features/chat/render.js';
+import { chatFileSize, chatFileExt } from '../src/client/features/chat/display.js'; // Z-10-F2: formatters in domain display
 import * as actions from '../src/client/features/chat/actions.js';
 import { state } from '../src/client/core/state.js';
 

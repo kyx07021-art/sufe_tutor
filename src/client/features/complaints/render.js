@@ -64,8 +64,9 @@ function complaintAttachHtml(c) {
 }
 
 // Single source: v1 had one global chatFileExt (app-chat.js) shared by the complaints
-// UI — import + re-export the chat feature's copy instead of a divergent local variant.
-import { chatFileExt } from '../chat/render.js';
+// UI — import + re-export the chat domain display's copy instead of a divergent local
+// variant (Z-10-F2: chat display mappings live in chat/display.js).
+import { chatFileExt } from '../chat/display.js';
 export { chatFileExt };
 
 export function complaintCardHtml(c, opts = {}) {
