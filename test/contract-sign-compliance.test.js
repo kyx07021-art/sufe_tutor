@@ -24,7 +24,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { initLedgerTable } from '../src/server/domains/contract/schema.js';
 import { handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract } from '../src/server/domains/contract/api.js';
-import { dbGetContractById } from '../src/server/domains/contract/repo.js';
+import { dbGetContractById, dbGetMyContracts } from '../src/server/domains/contract/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -227,4 +227,82 @@ test('R7 撤销合同：双方签后撤销 → 置 revoked 标记、合同保留
   // 双方已签后 cancel 走撤销引导（409）
   const cancelRes = await handleCancelContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
   assert.equal(cancelRes.status, 409, '双方已签不可取消，须撤销');
+});
+
+// Z-5-F4 回归：台账写入失败 → 合同仍进 signed（不卡死）——返 500 会卡在双方已确认的 signing 态
+// （审计实证：claim 之前返回 → 双 confirmed 无操作入口 → 不可恢复死锁）
+test('Z-5-F4 回归：台账失败不返 500，合同进 signed 缺口可 verify 暴露', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1, d1, idOf, t1S, s1S } = await seed(db, raw);
+  assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
+  await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  raw.exec('DROP TABLE contract_ledger'); // 制造台账写入失败（INSERT 抛错 → ledgerRecord 重试耗尽 throw）
+  const r2 = await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
+  assert.equal(r2.status, 200, '台账失败不返 500（原返 500 卡死双确认 signing 态）');
+  const data = await r2.json();
+  assert.equal(data.signed, true, '合同仍进 signed（不卡死）');
+  const ct = await dbGetContractById(db, 1);
+  assert.equal(ct.status, 'signed', '终态 signed（缺口经 verify 面板暴露，非静默）');
+});
+
+// Z-5-F4 (d) 恢复路径回归：合同已进 signed 但台账缺口（DROP 表）→ 重建台账表后对 SIGNED 合同
+// 重签 → 签署门禁含 SIGNED（复审 FAIL 点修复）→ flag UPDATE changes=0 → backfill 幂等补记。
+// 修复前该路径 409 CONTRACT_STATE_INVALID 不可达（backfill 死代码 + 误导注释）。
+test('Z-5-F4 恢复路径：SIGNED 重签幂等补记台账缺口', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { d1, idOf, t1S, s1S } = await seed(db, raw);
+  assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
+  await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  raw.exec('DROP TABLE contract_ledger'); // 制造台账失败（DROP 后 INSERT 抛错）
+  const r2 = await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
+  assert.equal(r2.status, 200);
+  assert.equal((await r2.json()).signed, true, '缺口后仍进 signed（不卡死）');
+  assert.equal((await dbGetContractById(db, 1)).status, 'signed');
+  await initLedgerTable(db); // 模拟运维修复：重建台账表（空表 = 缺口仍在）
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM contract_ledger').get().c, 0, '重建后空表（缺口存在）');
+  // 对已 signed 合同重签 → 门禁含 SIGNED 放行 → flag status 守卫 changes=0 → backfill 幂等补记
+  const r3 = await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  assert.equal(r3.status, 200, 'SIGNED 重签放行（修复前 409 CONTRACT_STATE_INVALID）');
+  assert.equal((await r3.json()).signed, true, '幂等返回已签署');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM contract_ledger').get().c, 1, 'backfill 幂等补记一条（缺口可恢复，非死代码）');
+  // 再次重签零副作用（幂等：NOT EXISTS 判定不重复挂链）
+  const r4 = await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
+  assert.equal(r4.status, 200);
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM contract_ledger').get().c, 1, '重复重签仍一条（幂等）');
+});
+
+// Z-5-F5 回归：取消后正文第十条反映回退签署态（原只清列不清正文，对方仍见「已签署」）
+test('Z-5-F5 回归：取消后正文重拼为回退签署态', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1, d1, idOf, t1S } = await seed(db, raw);
+  assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
+  await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  let ct = await dbGetContractById(db, 1);
+  assert.ok(ct.contract_md.includes('签署状态：已签署'), '前置：签署后正文已签署');
+  const res = await handleCancelContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  assert.equal(res.status, 200);
+  ct = await dbGetContractById(db, 1);
+  assert.ok(!ct.contract_md.includes('签署状态：已签署'), '取消后正文不再显示已签署（F5 修复：原正文残留）');
+  assert.equal((ct.contract_md.match(/待签署/g) || []).length, 2, '双方均回退待签署');
+});
+
+// Z-5-F7 回归：合同修改 prev_business 加密落库（与 contract_md 同 N-05 口径；mapper 出口解密）
+test('Z-5-F7 回归：prev_business 密文落库 + mapper 出口解密', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1, t1, d1, idOf, t1S, s1S } = await seed(db, raw);
+  assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
+  const ct0 = await dbGetContractById(db, 1);
+  const ver = ct0.version;
+  const upd = await handleModifyContract(db, 1, { contractMd: '补基础+真题演练', version: ver }, reqOf(s1S.token));
+  assert.equal(upd.status, 200);
+  const row = raw.prepare('SELECT prev_business FROM contracts WHERE id=1').get();
+  assert.ok(String(row.prev_business).startsWith('enc:v1:'), 'prev_business 密文落库（F7 修复：原明文）');
+  // 前端 diff 走列表接口（dbGetMyContracts mapper 出口解密）；dbGetContractById 不解密 prev_business
+  const ct = await dbGetContractById(db, 1);
+  assert.ok(String(ct.prev_business).startsWith('enc:v1:'), 'dbGetContractById 不透传明文（无泄漏面）');
+  const mine = await dbGetMyContracts(db, s1); // s1 为接收方（参与方）
+  const mineCt = mine.find(x => x.id === 1);
+  assert.ok(mineCt && mineCt.prev_business, '列表 mapper 出口有 prev_business');
+  assert.ok(!String(mineCt.prev_business).startsWith('enc:v1:'), '列表出口已解密为明文（前端 diff 可用）');
+  assert.ok(String(mineCt.prev_business).includes('家教服务合同'), 'prev_business = 修改前业务部分（diff 基线）');
 });

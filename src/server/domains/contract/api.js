@@ -382,8 +382,10 @@ export async function handleSignContract(db, contractId, body, req) {
   const { user: me, err: authErr } = await requireUser(db, req);
   if (authErr) return authErr;
   const userId = me.id;
-  // pending（收草案方直接确认签约，免去独立「确认草案」步骤）与 signing 均可签
-  const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
+  // pending（收草案方直接确认签约，免去独立「确认草案」步骤）与 signing 均可签；
+  // SIGNED 为 Z-5-F4 恢复路径入口：上一轮已落 signed 但台账失败的重试凭 capToken 幂等补记
+  // （flag UPDATE status 守卫不含 signed → changes=0 → 落入下方 backfill，零副作用）
+  const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
   if (g.err) return g.err;
   const { ct, conv } = g;
   // 危险操作二次认证（网安报告 F-05）：签约须凭 re-auth 换发的一次性 capToken
@@ -398,8 +400,8 @@ export async function handleSignContract(db, contractId, body, req) {
   if (!(flag && flag.meta && flag.meta.changes > 0)) {
     const cur = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
     if (cur.err) return cur.err;
+    // 上一轮已签约但台账写入失败（500）后的重试：幂等补记存证（网安报告 F-07：绝不静默断链）
     if (cur.ct.status === STATUS.SIGNED) {
-      // 上一轮已签约但台账写入失败（500）后的重试：幂等补记存证（网安报告 F-07：绝不静默断链）
       try { await ledgerRecord(db, contractId, cur.ct.contract_md); }
       catch (e) { console.error('contract ledger backfill failed:', e && e.message); }
     }
@@ -423,7 +425,14 @@ export async function handleSignContract(db, contractId, body, req) {
   // 幂等（同正文 NOT EXISTS 去重）——并发双签双方同正文只挂一条，签约后 500 重试可安全补记
   let contentHash = '';
   try { contentHash = await ledgerRecord(db, contractId, signedMd); }
-  catch (e) { console.error('contract ledger failed:', e && e.message); }
+  catch (e) {
+    // Z-5-F4：台账失败不吞错也不返 500——返 500 会卡在双方已确认的 signing 态（不可恢复死锁，
+    // 审计实测：claim 之前返回 → 双 confirmed 无操作入口）。继续 claim（合同进 signed），
+    // 缺口经 verify 面板（recorded=false）与留档 ledgerFailed 标记暴露；重试走 status=SIGNED 的
+    // 幂等补记分支（backfill）。绝不静默断链 = 缺口必须可检出，而非操作死锁。
+    console.error('contract ledger failed:', e && e.message);
+    contentHash = '';
+  }
   if (both) {
     // 合同文档与需求签约状态彻底解耦：文档 signed 不再触碰 student_demands
     // （需求签约关系由「发起签约」signing.js 的签约请求确认驱动）。条件 UPDATE 赢家模式——
@@ -433,13 +442,14 @@ export async function handleSignContract(db, contractId, body, req) {
       await notifyUser(db, otherSide(conv, userId), 'CONTRACT_SIGNED', {});
       // 留档保存合同原文（detailMax 放宽，加密后落库；撤销合同后仍可凭留档还原缔约内容）
       await logEvent(db, { action: 'contract.signed', actorUserId: userId, entity: 'contract', entityId: contractId,
-        detail: { conversationId: updated.conversation_id, demandId: updated.demand_id, contentHash, contractMd: signedMd },
+        detail: { conversationId: updated.conversation_id, demandId: updated.demand_id, contentHash,
+          ...(contentHash ? {} : { ledgerFailed: true }), contractMd: signedMd }, // Z-5-F4：台账缺口留档可查（非静默）
         detailMax: 60000, req });
     }
   } else {
     await notifyUser(db, otherSide(conv, userId), 'CONTRACT_SIGN_WAITING', { name: nameOf(conv, userId) });
     await logEvent(db, { action: 'contract.sign_partial', actorUserId: userId, entity: 'contract', entityId: contractId,
-      detail: { signedBy: userId, contentHash, contractMd: signedMd }, detailMax: 60000, req });
+      detail: { signedBy: userId, contentHash, ...(contentHash ? {} : { ledgerFailed: true }), contractMd: signedMd }, detailMax: 60000, req }); // Z-5-F4：台账缺口留档可查
   }
   return json({ ok: true, signed: both });
 }
@@ -485,7 +495,7 @@ export async function handleModifyContract(db, contractId, body, req) {
     `UPDATE contracts SET contract_md=?, prev_business=?, drafter_confirmed=0, other_confirmed=0,
        drafter_signed_at='', other_signed_at='', status='signing', version=version+1, updated_at=datetime('now','localtime')
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
-    [await encryptField(fullMd), oldBiz, contractId, ver]); // N-05：合同正文加密落库
+    [await encryptField(fullMd), await encryptField(oldBiz), contractId, ver]); // N-05：正文 + prev_business 加密落库（repo mapper 出口统一解密，与 contract_md 口径一致）
   if (!(upd && upd.meta && upd.meta.changes > 0)) return errorMsg('CONTRACT_MODIFIED_CONFLICT', 409, 'CONTRACT_MODIFIED_CONFLICT'); // 带稳定 code 供前端刷新版本号
   await notifyUser(db, otherSide(conv, userId), 'CONTRACT_MODIFIED', { name: nameOf(conv, userId) });
   await logEvent(db, { action: 'contract.modify', actorUserId: userId, entity: 'contract', entityId: contractId, req });
@@ -595,6 +605,13 @@ export async function handleCancelContract(db, contractId, body, req) {
     const cur = await dbGetContractById(db, contractId);
     if (cur && cur.status === STATUS.SIGNED && !cur.revoked) return errorMsg('CONTRACT_CANCEL_SIGNED_BLOCKED', 409);
     return json({ ok: true }); // 并发已取消：幂等返回
+  }
+  // Z-5-F5：取消后重拼正文（第十条 签署记录反映我方回退签署态）——原只清列不清正文，
+  // 对方仍见「已签署」；rebuildFullMd 按回退后的 signed_at 重建签名块，version 乐观锁防并发覆盖
+  const curCt = await dbGetContractById(db, contractId);
+  if (curCt && curCt.status === STATUS.SIGNING) {
+    await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
+      [await encryptField(rebuildFullMd(curCt, conv)), contractId, curCt.version]);
   }
   await notifyUser(db, otherSide(conv, userId), 'CONTRACT_CANCELLED', { name: nameOf(conv, userId) });
   await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId,
