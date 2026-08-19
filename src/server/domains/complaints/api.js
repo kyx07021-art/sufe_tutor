@@ -14,7 +14,7 @@
  *   GET  /api/complaints —— 管理员查看（status 可选过滤）
  *   POST /api/complaints/:id/resolve —— 管理员标记已处理并通知投诉人
  */
-import { json, errorMsg, parseIdParam} from "../../core/util.js";
+import { json, errorMsg, parseIdParam } from '../../core/util.js';
 import { requireUser, requireAdmin } from '../../core/security.js';
 import { SERVER_TEXT } from '../../../shared/codes.js';
 import { STATUS } from '../../../shared/enums.js';

@@ -4,7 +4,7 @@
  *       db（数据层）、log（留档）、notify（通知）。身份一律凭令牌（requireUser）。
  * 关口模式：requireUser → 归属校验 → 状态机（条件 UPDATE 赢家）→ 副作用（logEvent/notifyUser）。
  */
-import { json, errorMsg, sanitizeTimeSlots, isUniqueConflict, parseIdParam} from "../../core/util.js";
+import { json, errorMsg, sanitizeTimeSlots, isUniqueConflict, parseIdParam } from '../../core/util.js';
 import { authUser, requireUser } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { STATUS, STUDENT_GRADES, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, SUBJECTS } from '../../../shared/enums.js';

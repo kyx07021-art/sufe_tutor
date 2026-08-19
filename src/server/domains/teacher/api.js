@@ -6,7 +6,7 @@
  *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
  * 依赖：util / security（requireUser）/ constants（校验文案/限额/门牌守卫）/ db / log。
  */
-import { json, errorMsg, sanitizeTimeSlots, parseIdParam} from "../../core/util.js";
+import { json, errorMsg, sanitizeTimeSlots, parseIdParam } from '../../core/util.js';
 import { authUser, requireUser, requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';

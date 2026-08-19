@@ -12,7 +12,7 @@
  *   本版修复：台账幂等（签约后 500 重试可补记）；revoked 需求不可绕过「手动重开」再签约；
  *   合同修改乐观锁改 version 整数（秒级 updated_at 同秒双改互相覆盖的缺陷）。
  */
-import { dbGet, dbAll, dbRun, json, error, errorMsg, toDbTime, isDemandActive, parseIdParam} from "../../core/util.js";
+import { dbGet, dbAll, dbRun, json, error, errorMsg, toDbTime, isDemandActive, parseIdParam } from '../../core/util.js';
 import { getLedgerDb } from './schema.js';
 import { requireUser, requireAdmin, requireAdminOrError } from '../../core/security.js';
 import { bufToHex, encryptField } from '../../core/crypto.js';

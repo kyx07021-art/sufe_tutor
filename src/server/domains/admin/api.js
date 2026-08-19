@@ -5,7 +5,7 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）。
  * 守卫统一走 requireAdmin（security.requireUser role='admin' 别名）。
  */
-import { json, error, errorMsg, genCode, toDbTime, parseIdParam} from "../../core/util.js";
+import { json, error, errorMsg, genCode, toDbTime, parseIdParam } from '../../core/util.js';
 import { requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';

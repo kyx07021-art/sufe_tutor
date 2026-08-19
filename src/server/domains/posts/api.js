@@ -6,7 +6,7 @@
  * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete / admin.post.delete
  * 契约：身份一律凭令牌（自报 userId 可冒名/越权）、管理员判定走 requireAdminOrError 单点。
  */
-import { json, error, errorMsg, parseIdParam} from "../../core/util.js";
+import { json, error, errorMsg, parseIdParam } from '../../core/util.js';
 import { authUser, requireUser, requireAdminOrError } from '../../core/security.js';
 import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';

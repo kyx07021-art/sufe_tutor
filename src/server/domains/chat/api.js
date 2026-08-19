@@ -5,7 +5,7 @@
  * 安全补丁已并入主线：svg/html dataURL 黑名单（防钓鱼投递）、附件体积上限、暂存配额自愈+封顶、
  * 参与方 404 不泄露会话存在性。限额全部单源 constants.LIMITS。
  */
-import { json, error, errorMsg, parseIdParam} from "../../core/util.js";
+import { json, error, errorMsg, parseIdParam } from '../../core/util.js';
 import { requireUser } from '../../core/security.js';
 import { encryptField, decryptField } from '../../core/crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
 import { MSG } from '../../../shared/codes.js';

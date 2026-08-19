@@ -1,4 +1,4 @@
-import { json, errorMsg, parseIdParam} from "../../core/util.js";
+import { json, errorMsg, parseIdParam } from '../../core/util.js';
 import { requireUser, requireAdmin } from '../../core/security.js';
 import { confirmDangerOtp } from '../../core/danger-ops.js';
 import { notifyUser } from '../../core/notify.js';
