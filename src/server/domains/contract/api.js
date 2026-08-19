@@ -188,8 +188,11 @@ async function ledgerContentHash(contractId, contractMd, createdAt, prevHash) {
 // （原实现误接「全局末条」为 prev：第二份合同起的条目 prev_hash 非 GENESIS，verify 恒 invalid，已修）
 // 网安报告 F-07 原子化：prev 取数、seq 取号与插入同一条 INSERT 内完成，并把 JS 侧已见的 prev 回带
 // 作 WHERE 条件——并发记账时分叉方（库内 prev 已变）changes=0，重读重算重试，杜绝同 prev 双挂。
-// 幂等：同合同同正文已记账则直接返回既有 hash（签约后 500 的重试可安全补记，绝不重复挂链）
-async function ledgerRecord(db, contractId, contractMd) {
+// 幂等：同合同同正文已记账则直接返回既有 hash（签约后 500 的重试可安全补记，绝不重复挂链）。
+// Z-5-F3：幂等键 = contract_id + body_hash（与时间解耦）——content_hash 含秒级 createdAt，
+// 跨秒重试（如签约后 500、下一秒重试）会算出新 hash，按 content_hash 去重判定失效致重复挂链
+// Z-5-F3: exported for cross-second idempotency regression test (same pattern as verifyChain)
+export async function ledgerRecord(db, contractId, contractMd) {
   const target = getLedgerDb(db);
   const bodyHash = await sha256Hex(contractMd);
   const createdAt = toDbTime();
@@ -201,11 +204,11 @@ async function ledgerRecord(db, contractId, contractMd) {
       SELECT ?, ?, COALESCE((SELECT content_hash FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1),'GENESIS'),
              COALESCE((SELECT MAX(seq) FROM contract_ledger WHERE contract_id=?),0)+1, ?, ?
       WHERE COALESCE((SELECT content_hash FROM contract_ledger WHERE contract_id=? ORDER BY id DESC LIMIT 1),'GENESIS') = ?
-        AND NOT EXISTS (SELECT 1 FROM contract_ledger WHERE contract_id=? AND content_hash=?)`,
-      [contractId, contentHash, contractId, contractId, bodyHash, createdAt, contractId, prevHash, contractId, contentHash]);
+        AND NOT EXISTS (SELECT 1 FROM contract_ledger WHERE contract_id=? AND body_hash=?)`,
+      [contractId, contentHash, contractId, contractId, bodyHash, createdAt, contractId, prevHash, contractId, bodyHash]);
     if (r.meta.changes > 0) return contentHash;
-    // changes=0 可能是「抢链尾失败」或「已存在」——区分：已存在则直接返回既有 hash
-    const dup = await dbGet(target, 'SELECT content_hash FROM contract_ledger WHERE contract_id=? AND content_hash=?', [contractId, contentHash]);
+    // changes=0 可能是「抢链尾失败」或「已存在」——区分：同正文已记账则直接返回既有 hash（取最新一条）
+    const dup = await dbGet(target, 'SELECT content_hash FROM contract_ledger WHERE contract_id=? AND body_hash=? ORDER BY id DESC LIMIT 1', [contractId, bodyHash]);
     if (dup) return dup.content_hash;
   }
   throw new Error('ledger insert retry exhausted'); // 3 次仍未抢到链尾：台账写入失败让请求 500，绝不静默断链
