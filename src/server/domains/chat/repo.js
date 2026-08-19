@@ -48,7 +48,7 @@ export async function dbGetConversationWithNames(db, conversationId) {
 export async function dbGetConversationBindableDemands(db, conversationId, phase) {
   const cond = phase === 'contract'
     ? `AND sd.status='contracted'
-       AND NOT EXISTS (SELECT 1 FROM contracts ct WHERE ct.demand_id=sd.id AND ct.status IN ('pending','signing','signed'))
+       AND NOT EXISTS (SELECT 1 FROM contracts ct WHERE ct.demand_id=sd.id AND ct.status IN ('pending','signing','signed') AND ct.revoked=0) -- Q-2e-F1 收口：撤销合同不算进行中（本查询是生产起草下拉唯一数据源，漏排除则 409 死锁变空下拉死锁）
        AND NOT EXISTS (SELECT 1 FROM signing_requests sr JOIN conversations c2 ON c2.id=sr.conversation_id
             WHERE sr.demand_id=sd.id AND sr.status='signed' AND c2.teacher_user_id != c.teacher_user_id)`
     : `AND sd.status='open'`;

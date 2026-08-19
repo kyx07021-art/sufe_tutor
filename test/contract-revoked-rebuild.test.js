@@ -16,6 +16,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { initLedgerTable } from '../src/server/domains/contract/schema.js';
 import { handleCreateContract, handleSignContract, handleRevokeContract, handleCreateSigning, handleRespondSigning, handleCancelContract } from '../src/server/domains/contract/api.js';
+import { handleGetConversationBindableDemands } from '../src/server/domains/chat/api.js';
 import { handleReopenDemand } from '../src/server/domains/demand/api.js';
 import { dbGetContractById } from '../src/server/domains/contract/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
@@ -108,12 +109,22 @@ test('Q-2e-F1：撤销合同后重建合同不再死锁（起草→双签→撤�
   const dmd = raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1);
   assert.equal(dmd.status, 'contracted', '重签后需求 contracted');
 
+  // 生产实际入口收口（Q-2e-F1 复审抓出）：起草合同下拉 bindable-demands?phase=contract 是前端唯一
+  // 数据源（actions-draft.js:105），漏排除 revoked 则 409 死锁变空下拉死锁——重签后、重建前必须列出该需求
+  const dropBefore = await handleGetConversationBindableDemands(db, 1, new URL('http://localhost/api/conversations/1/bindable-demands?phase=contract'), reqOf(t1S.token));
+  assert.equal(dropBefore.status, 200);
+  assert.equal((await dropBefore.json()).demands.length, 1, '重签后起草下拉能列出该需求（变异：NOT EXISTS 不排除 revoked → 下拉 0 条 → 红）');
+
   // 5) 重建合同 —— 缺陷态恒 409；修复后 201（变异：闸门删 revoked=0 → 409 → 本断言红）
   const rebuild = await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token));
   assert.equal(rebuild.status, 201, '撤销合同不算进行中，可重建合同');
   assert.ok(raw.prepare('SELECT COUNT(*) AS c FROM contracts').get().c >= 2, '存在新合同行');
   const newest = raw.prepare('SELECT revoked FROM contracts ORDER BY id DESC LIMIT 1').get();
   assert.equal(newest.revoked, 0, '新合同未撤销');
+
+  // 重建后下拉空（新合同进行中占位，一条需求一份合同）
+  const dropAfter = await handleGetConversationBindableDemands(db, 1, new URL('http://localhost/api/conversations/1/bindable-demands?phase=contract'), reqOf(t1S.token));
+  assert.equal((await dropAfter.json()).demands.length, 0, '重建后下拉空（新合同进行中）');
 });
 
 // ---------------- Q-2e-F3 守护：起草入口剥离业务条款分隔符 ----------------
