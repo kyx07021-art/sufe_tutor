@@ -207,3 +207,32 @@ test('Q-2b-F5 守护：畸形游标形状抛错不静默 done（fail-closed 契�
   const ok = await reencryptChunk(db, { phase: 'fields', fieldsT: 0, afterId: 0 });
   assert.ok(ok && typeof ok.cursor === 'object', '合法游标正常执行并推进');
 });
+
+// ---------------- Q-2e-F2 守护（reencrypt 漏列 prev_business） ----------------
+test('Q-2e-F2 守护：contracts.prev_business 随合同正文一起重加密（轮换删旧钥后可解）', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  // 造会话 + 合同行（旧钥加密 contract_md + prev_business）
+  bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
+  raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('s1','h','s','student'),('t1','h','s','teacher')").run();
+  const t1 = raw.prepare("SELECT id FROM users WHERE username='t1'").get().id;
+  raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(1, t1);
+  const md = await encryptField('# 家教服务合同\n...');
+  const pb = await encryptField('每周六晚');
+  raw.prepare('INSERT INTO contracts (conversation_id, drafter_user_id, status, contract_md, prev_business) VALUES (?,?,?,?,?)')
+    .run(1, t1, 'signed', md, pb);
+
+  // 新钥轮换 + 旧钥候选，全量重加密
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, FIELD_ENC_KEY_OLD: OLD_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG });
+  await reencryptAll(db);
+
+  // 模拟删旧钥（生产轮换终态）：只留新钥解密——重加密后必须单钥可解，否则轮换删 *_OLD 后
+  // 解密失败 diff 退化 [undecryptable]。变异：FIELD_TABLES contracts 删 prev_business 登记 →
+  // prev_business 仍旧钥密文 → 单新钥解不出 → 断言红（旧断言「候选钥序解出」无牙齿，OLD 兜底也能解）
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG });
+  const row = raw.prepare('SELECT contract_md, prev_business FROM contracts').get();
+  assert.equal(await decryptField(row.contract_md), '# 家教服务合同\n...', 'contract_md 重加密后新钥可解');
+  assert.equal(await decryptField(row.prev_business), '每周六晚', 'prev_business 重加密后新钥可解（旧实现漏登记删旧钥即 [undecryptable]）');
+});

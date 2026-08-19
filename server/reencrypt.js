@@ -32,7 +32,7 @@ const FIELD_TABLES = [
   { table: 'teacher_verifications', cols: ['verify_code', 'admission_image'] },
   { table: 'uploads', cols: ['body', 'thumb'] },
   { table: 'messages', cols: ['body', 'thumb'] },
-  { table: 'contracts', cols: ['contract_md'] },
+  { table: 'contracts', cols: ['contract_md', 'prev_business'] }, // Q-2e-F2：prev_business 自 Z-5-F7 起加密落库，漏登记则轮换删旧钥后 diff 退化 [undecryptable]
 ];
 
 const ENC_PREFIX = 'enc:v1:';

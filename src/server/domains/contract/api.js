@@ -135,16 +135,19 @@ function rebuildFullMd(ct, conv) {
 // 注销用户名处理只走前端「一方已注销」tag（对端姓名 JOIN users 自然显示墓碑），不改 contract_md。
 
 function buildContractMd({ teacherName, studentName, method, schedule, location, plan, rate, createdAt, demandNo, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther }) {
+  // Q-2e-F3：用户可控字段剥离业务条款分隔符——恶意写入 CONTRACT_BUSINESS_END → rebuildFullMd
+  // 按首个分隔符截断永久丢业务尾部 + 法律条款拼错位（修改入口另有 split 截断兜底，起草入口统一守）
+  const stripSep = v => String(v ?? '').split(CONTRACT_BUSINESS_END).join('');
   const methodName = method === 'offline' ? '线下授课' : '线上授课';
-  const locationText = location || (method === 'offline' ? '甲方常住处或双方另行约定的地点' : '双方约定的线上课堂');
+  const locationText = stripSep(location) || (method === 'offline' ? '甲方常住处或双方另行约定的地点' : '双方约定的线上课堂');
   const PAY_METHOD_TEXT = { per_session: '次付（按次结算，每次课程结束后支付）', weekly: '周付（每周结算一次）', monthly: '月付（每月结算一次）' };
   const TRIAL_PAY_TEXT = { first_free: '第一次试课免费', first_hour_free: '第一小时免费，第二小时起按约定时薪收费', normal: '试课全程正常收费' };
-  const payText = payMethod === 'other' ? (payMethodOther || '由双方另行约定') : (PAY_METHOD_TEXT[payMethod] || '由双方另行约定');
-  const trialText = trialPay === 'other' ? (trialPayOther || '由双方另行约定') : (TRIAL_PAY_TEXT[trialPay] || '由双方另行约定');
+  const payText = payMethod === 'other' ? (stripSep(payMethodOther) || '由双方另行约定') : (PAY_METHOD_TEXT[payMethod] || '由双方另行约定');
+  const trialText = trialPay === 'other' ? (stripSep(trialPayOther) || '由双方另行约定') : (TRIAL_PAY_TEXT[trialPay] || '由双方另行约定');
   const biz = `# 家教服务合同
 
-**甲方（学生方）**：${studentName}
-**乙方（教师方）**：${teacherName}
+**甲方（学生方）**：${stripSep(studentName)}
+**乙方（教师方）**：${stripSep(teacherName)}
 ${demandNo ? `**关联需求编号**：#${demandNo}
 ` : ''}**签署日期**：${createdAt || ''}
 
@@ -154,8 +157,8 @@ ${demandNo ? `**关联需求编号**：#${demandNo}
 
 1. 授课方式：${methodName}。
 2. 授课科目与内容：详见本合同第三条「教学方案」。
-3. 首次上课日期：${firstLessonDate || '由双方另行协商确定'}。
-4. 授课时间：${schedule || '由双方另行协商确定'}。
+3. 首次上课日期：${stripSep(firstLessonDate) || '由双方另行协商确定'}。
+4. 授课时间：${stripSep(schedule) || '由双方另行协商确定'}。
 5. 授课地点：${locationText}。
 
 ## 第二条 课时费与支付
@@ -167,7 +170,7 @@ ${demandNo ? `**关联需求编号**：#${demandNo}
 
 ## 第三条 教学方案
 
-${plan || '（未填写）'}`;
+${stripSep(plan) || '（未填写）'}`;
   return contractWithLegal(biz);
 }
 
@@ -315,7 +318,9 @@ export async function handleCreateContract(db, body, req) {
   if (!dm) return errorMsg('DEMAND_NOT_FOUND', 404); // F-03b：需求已删（创建端复核；INSERT 守卫再堵 SELECT→INSERT 竞态窗口）
   if (dm.user_id !== conv.student_user_id) return errorMsg('NO_PERMISSION', 403);
   if (dm.status !== STATUS.CONTRACTED) return errorMsg('DEMAND_NOT_SIGNED', 410);
-  const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [demandId]);
+  // Q-2e-F1：闸门看 revoked——撤销合同行 status 仍 'signed'（撤销置 revoked=1 不删行），
+  // 不排除则撤销→释放需求→重开→重签后需求 contracted 但起草合同恒 409「已关联合同」无出口
+  const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') AND revoked=0 LIMIT 1`, [demandId]);
   if (dc) return errorMsg('DEMAND_CONTRACT_EXISTS', 409);
   const crossSigned = await dbGet(db, `SELECT sr.id FROM signing_requests sr
     JOIN conversations c ON c.id=sr.conversation_id
@@ -339,7 +344,7 @@ export async function handleCreateContract(db, body, req) {
     `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
         pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other, drafter_confirmed, status)
      SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?, 0, 'signing'
-     WHERE NOT EXISTS (SELECT 1 FROM contracts ct2 WHERE ct2.demand_id=? AND ct2.status IN ('pending','signing','signed'))
+     WHERE NOT EXISTS (SELECT 1 FROM contracts ct2 WHERE ct2.demand_id=? AND ct2.status IN ('pending','signing','signed') AND ct2.revoked=0) -- Q-2e-F1：撤销行不算进行中
        AND EXISTS (SELECT 1 FROM student_demands WHERE id=? AND status='contracted')
        AND NOT EXISTS (SELECT 1 FROM signing_requests sr JOIN conversations c2 ON c2.id=sr.conversation_id
             WHERE sr.demand_id=? AND sr.status='signed' AND c2.teacher_user_id != ?)`,
@@ -350,7 +355,7 @@ export async function handleCreateContract(db, body, req) {
   // 附加守卫：需求已被并发绑合同（另一会话）或需求被并发删除则同样 changes=0，判别后报对应用户可读错误
   if (!(res && res.meta && res.meta.changes > 0)) {
     if (!(await dbGetDemandById(db, demandId))) return errorMsg('DEMAND_NOT_FOUND', 404);
-    const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') LIMIT 1`, [demandId]);
+    const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') AND revoked=0 LIMIT 1`, [demandId]);
     if (dc) return errorMsg('DEMAND_CONTRACT_EXISTS', 409);
     // 剩余竞态：需求状态被并发改（非 contracted）或成交方被并发换教师——均为「该需求不可绑本合同」
     return errorMsg('DEMAND_NOT_SIGNED', 410);
@@ -390,6 +395,9 @@ export async function handleSignContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
   if (g.err) return g.err;
   const { ct, conv } = g;
+  // Q-2e-F4：已撤销合同（status 仍 'signed'）签什么都是误导——拒绝，且拦在 capToken 二次认证之前
+  // （不消耗用户一次性验证码）；Z-5-F4 恢复路径的 SIGNED 兜底只对「未撤销但台账失败」的重试生效
+  if (ct.revoked) return errorMsg('CONTRACT_ALREADY_REVOKED', 409);
   // 危险操作二次认证（网安报告 F-05）：签约须凭 re-auth 换发的一次性 capToken
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
@@ -610,10 +618,17 @@ export async function handleCancelContract(db, contractId, body, req) {
   }
   // Z-5-F5：取消后重拼正文（第十条 签署记录反映我方回退签署态）——原只清列不清正文，
   // 对方仍见「已签署」；rebuildFullMd 按回退后的 signed_at 重建签名块，version 乐观锁防并发覆盖
-  const curCt = await dbGetContractById(db, contractId);
+  // Q-2e-F5：version 竞态残留窗口——我方回退确认已成功但重拼正文 version 被对方并发改动
+  // → changes=0 正文未重拼，状态已回退但正文仍显示「已签署」；重读重拼一次（至多两轮）
+  let curCt = await dbGetContractById(db, contractId);
   if (curCt && curCt.status === STATUS.SIGNING) {
-    await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
-      [await encryptField(rebuildFullMd(curCt, conv)), contractId, curCt.version]);
+    for (let i = 0; i < 2; i++) {
+      const mdUpd = await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
+        [await encryptField(rebuildFullMd(curCt, conv)), contractId, curCt.version]);
+      if (mdUpd && mdUpd.meta && mdUpd.meta.changes > 0) break;
+      curCt = await dbGetContractById(db, contractId); // 并发抢跑：重读最新 version 再拼
+      if (!curCt || curCt.status !== STATUS.SIGNING) break;
+    }
   }
   await notifyUser(db, otherSide(conv, userId), 'CONTRACT_CANCELLED', { name: nameOf(conv, userId) });
   await logEvent(db, { action: 'contract.cancel', actorUserId: userId, entity: 'contract', entityId: contractId,
