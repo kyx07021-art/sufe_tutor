@@ -118,9 +118,7 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
         tp.wechat, tp.email, tp.time_slots, tp.teaching_method,
         tp.personality_tags, tp.nonacademic_projects, tp.nonacademic_prices,
         tp.graduation_year,
-        tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.school, tp.real_name,
-        tp.verified, tp.chsi_school, tp.chsi_level, tp.chsi_major, tp.chsi_status, tp.chsi_enroll_year, tp.chsi_verified,
-        tp.updated_at
+        tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.updated_at
       FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
       WHERE u.role='teacher' ORDER BY u.created_at DESC`);
     return await Promise.all(rows.map(async r => ({ ...(await mapTeacherProfileRow(r)), role: r.role, banned: r.banned, created_at: r.created_at })));
@@ -168,9 +166,6 @@ export async function dbGetTeacherVerification(db, userId) {
  *  安全审计 M1：verify_code 加密落库（学信网报告访问凭证，同 wechat/email 口径）——库泄露不暴露明文。 */
 export async function dbUpsertTeacherVerification(db, v) {
   const verifyCode = await encryptField(String(v.verifyCode || ''));
-  // Q-2c-F1: 入参 v.admissionImage 语义 = 明文（调用方已 decryptField）。原实现直接再 encryptField
-  // → 管理员 approve/reject/revoke 透传库中密文 enc1 二次加密 enc2，每次 admin 动作叠层（审核链数据腐坏）。
-  // verifyCode 分支早已解密（api.js:349/366），admission_image 此前漏解——本函数双加密点补对称。
   const admissionImage = v.admissionImage ? await encryptField(String(v.admissionImage)) : '';
   await dbRun(db, `INSERT INTO teacher_verifications
       (user_id, verify_code, status, school, level, major, enrollment_status, enroll_year, provider, verify_type, admission_image, verified_by, verified_at)

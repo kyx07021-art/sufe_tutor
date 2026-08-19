@@ -59,7 +59,7 @@ test('loadBrowseDemands 首次调用即渲染需求卡（首用回归；教师�
     id: 1, user_id: 39, username: '学生A', student_grade: 'senior1', student_gender: 'female',
     target_subjects: ['math'], current_scores: [], teaching_method: 'offline', address: '杨浦区',
     province: 'shanghai', budget_min: 0, budget_max: 0, status: 'open', display_id: 7,
-    my_intent_status: 'pending', avatar: '', created_at: '2026-08-07 04:27:09',
+    intent_locked: 0, my_intent_status: 'pending', avatar: '', created_at: '2026-08-07 04:27:09',
     pending_intents: 0, intent_count: 0,
   }]);
   await loadBrowseDemands();

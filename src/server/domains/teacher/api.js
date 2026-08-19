@@ -11,6 +11,7 @@ import { authUser, requireUser, requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
 import { TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, SUBJECTS, TEACHER_GRADES, GENDERS, VERIFY_TYPES } from '../../../shared/enums.js';
+import { auditFreeText } from '../../core/text-audit.js';
 import { SUFE_REGIONS } from '../../../shared/region-data.js'; // V-2-4c 地区数据单源
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbListTeacherVerifications, dbGetTeacherVerificationById, dbApplyChsiToProfile, dbClearChsiFromProfile, dbSetTeacherVerified, safeJsonArray } from '../../../../server/db.js';
 import { verifyChsiCode } from '../../../../server/chsi.js';
@@ -186,9 +187,8 @@ export async function handleSaveProfile(db, body, req) {
   if (p.nonacademic_prices != null) {
     if (!Array.isArray(p.nonacademic_prices)) return errorMsg('INVALID_PARAMS');
     const sel = new Set(p.nonacademic_projects);
-    const seen = new Set(); // Q-2c-F7 BUG-M：同一项目重复报价行只保留首条（防铺量/展示重复）
     p.nonacademic_prices = p.nonacademic_prices
-      .filter(it => it && typeof it === 'object' && typeof it.project === 'string' && sel.has(it.project) && !seen.has(it.project) && (seen.add(it.project), true))
+      .filter(it => it && typeof it === 'object' && typeof it.project === 'string' && sel.has(it.project))
       .map(it => {
         const min = clampPrice(it.price_min);
         const max = clampPrice(it.price_max);
@@ -213,14 +213,12 @@ export async function handleSaveProfile(db, body, req) {
     p.subjects = [];
   }
 
-  // 教师年级/性别白名单（同 teaching_method 静默回退口径）：非法/缺省回 ''（未填）；性别含历史 nonbinary 兼容
-  // Q-2c-F2: undefined/null 穿透白名单（原 `p.grade != null` 只拦非空非法值）→ repo 裸绑 undefined → 500
-  // （V-4-1d 同型在 teacher 侧未修）。统一 `!set.has(p.x || '')` 归一空串。
+  // 教师年级/性别白名单（同 teaching_method 静默回退口径）：非法回 ''（未填）；性别含历史 nonbinary 兼容
   const gradeSet = new Set(TEACHER_GRADES.map(g => g.id));
-  if (!gradeSet.has(p.grade || '')) p.grade = '';
+  if (p.grade != null && !gradeSet.has(p.grade)) p.grade = '';
   const genderSet = new Set(GENDERS.map(g => g.id));
   genderSet.add('nonbinary'); // 存量兼容：历史 nonbinary 保留，展示层已视同未填
-  if (!genderSet.has(p.gender || '')) p.gender = '';
+  if (p.gender != null && !genderSet.has(p.gender)) p.gender = '';
 
   // 高考成绩：数组、≤科目池封顶；每项 subject 在白名单；score 数值且钳到 [0, GAOKAO_SCORE_MAX]
   // （全政策单科最高 = 海南标准分 300，语数英 150/其他 100/旧综合 300 均在界内；分政策精度属前端按
@@ -252,9 +250,16 @@ export async function handleSaveProfile(db, body, req) {
   const credential = String(p.credential_image || '');
   // svg 一律拒绝：矢量可内嵌脚本（与 auth 域头像口径一致；上限单源 LIMITS.CREDENTIAL_MAX_BYTES）
   if (credential && (!credential.startsWith('data:image/') || credential.startsWith('data:image/svg') || credential.length > LIMITS.CREDENTIAL_MAX_BYTES)) return errorMsg('AVATAR_INVALID');
-  // Q-2c-F5: 自由文本（intro/school）门牌红线审计已由 _worker 全局断点 auditBeforeWrite
-  // 统一接管（AUDIT_MAP /api/teacher/profile → profile.intro/profile.school，POST/PUT 全覆盖），
-  // 域内不再重复调用 text-audit（原双审致 DeepSeek 调用翻倍）。合规红线不因字段绕行仍有效。
+  // 2026-08-09 审计 F-1/F-4：自由文本（intro/school）同守门牌红线；联系方式统一截断（db 层仅 real_name/intro/address/school 有切片）
+  // 需求五（2026-08-13）：address 改结构化「上海常住地」（区·镇/街道 picker），不再自由文本 → 移出门牌审核；
+  //   intro/school 仍为自由文本，保留 text-audit 咽喉（合规红线：详细门牌号不收集不因字段绕行）
+  for (const f of ['intro', 'school']) {
+    const audit = await auditFreeText(p[f]);
+    if (!audit.ok) {
+      if (audit.layer === 'error') return errorMsg('TEXT_AUDIT_UNAVAILABLE');
+      return errorMsg('ADDRESS_TOO_DETAILED'); // 合规红线：详细门牌号/可定位住址不收集
+    }
+  }
   // 需求五：上海常住地结构化校验——非空则必须合法「区·镇/街道」；空 = 未填（不参与距离匹配）
   {
     const R = SUFE_REGIONS;
@@ -287,8 +292,7 @@ export async function handleChsiStatus(db, req) {
   if (me.role !== 'teacher') return errorMsg('NO_PERMISSION', 403);
   const v = await dbGetTeacherVerification(db, me.id);
   if (!v) return json({ status: 'none' });
-  // Q-2c-F7 BUG-I：回传 verify_type——前端需区分 chsi（验证码核验）与 admission（录取通知书）通道渲染对应 UI
-  return json({ status: v.status, provider: v.provider, verify_type: v.verify_type });
+  return json({ status: v.status, provider: v.provider });
 }
 
 // ============================================================
@@ -343,7 +347,7 @@ export async function handleVerificationAction(db, id, body, req) {
     // 审计修复：审批必须透传原 verify_type/admission_image（否则 ON CONFLICT 无条件 SET 回落 chsi/清空原图 → 审核链断裂）
     await dbUpsertTeacherVerification(db, {
       userId: v.user_id, verifyCode: await decryptField(v.verify_code), status: 'approved', provider: v.provider || 'manual',
-      verifyType: v.verify_type || 'chsi', admissionImage: v.admission_image ? await decryptField(v.admission_image) : '',
+      verifyType: v.verify_type || 'chsi', admissionImage: v.admission_image || '',
       school, level, major, enrollmentStatus, enrollYear, verifiedBy: admin.id, verifiedAt: now,
     });
     await dbApplyChsiToProfile(db, v.user_id, { school, level, major, enrollmentStatus, enrollYear });
@@ -365,9 +369,7 @@ export async function handleVerificationAction(db, id, body, req) {
     });
     // 安全审计 H2：reject/revoke 同步撤销接单资格 + 清空学信网展示字段（误批/欺诈核验可回收）
     await dbClearChsiFromProfile(db, v.user_id);
-    // Q-2c-F7 BUG-H：revoke（撤销已通过资格）与 reject（拒绝待审）语义不同，
-    // 不再复用 VERIFY_REJECTED（「学信网核验未通过」对已通过用户是误导），revoke 用专用类型。
-    await notifyUser(db, v.user_id, action === 'revoke' ? 'VERIFY_REVOKED' : 'VERIFY_REJECTED', { reason: reason || '' });
+    await notifyUser(db, v.user_id, 'VERIFY_REJECTED', { reason: reason || '' });
     await logEvent(db, { action: action === 'revoke' ? 'admin.chsi.revoke' : 'admin.chsi.reject',
       actorUserId: admin.id, actorUsername: admin.username,
       actorRole: 'admin', entity: 'user', entityId: v.user_id, detail: { reason }, req });

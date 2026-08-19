@@ -177,7 +177,6 @@ export const TEXT = {
   "NOTIF_VERIFY_APPROVED_CHSI": "学信网学籍核验已通过",
   "NOTIF_VERIFY_DETAIL_PREFIX": "核验信息：",
   "NOTIF_VERIFY_REJECTED": "学信网学籍核验未通过，请重新提交验证码",
-  "NOTIF_VERIFY_REVOKED": "你的接单资格已被管理员撤销，可重新提交学信网核验",
   "NOTIF_AWARD_APPROVED": "你的荣誉奖项「{title}」已通过审核，将展示在你的教师主页。",
   "NOTIF_AWARD_REJECTED": "你的荣誉奖项「{title}」未通过审核，请登录查看驳回理由。",
   "NOTIF_CONTENT_PENALTY": "你的{label}因违反规则「{rule}」被管理员{action}。原因：{reason}",

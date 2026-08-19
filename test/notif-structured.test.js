@@ -126,7 +126,6 @@ test('notifBodyText renders each structured type to the v1-parity text', () => {
     ['VERIFY_APPROVED', { verifyType: 'admission', detail: '示例大学' },
       `录取通知书核验已通过，你的接单资格已开放\n核验信息：示例大学`],
     ['VERIFY_REJECTED', { reason: '图片模糊' }, `学信网学籍核验未通过，请重新提交验证码\n图片模糊`],
-    ['VERIFY_REVOKED', { reason: '材料造假' }, `你的接单资格已被管理员撤销，可重新提交学信网核验\n材料造假`],
     ['AWARD_APPROVED', { title: '数学竞赛' }, '你的荣誉奖项「数学竞赛」已通过审核，将展示在你的教师主页。'],
     ['CONTENT_PENALTY', { label: '帖子', rule: '广告', reason: '营销内容', summary: 'xxx', action: 'ban' },
       '你的帖子因违反规则「广告」被管理员封禁账户。原因：营销内容。触发内容：xxx'],
@@ -156,7 +155,7 @@ test('isBroadcastNotif: structured BROADCAST type and legacy prefix both classif
 // NOTIFY_TYPES registry is the single source: every type key has a NOTIF_<KEY> template
 test('NOTIFY_TYPES registry completeness: every type has a client template', async () => {
   const { NOTIFY_TYPES } = await import('../src/shared/codes.js');
-  const SPECIAL = ['VERIFY_APPROVED', 'VERIFY_REJECTED', 'VERIFY_REVOKED', 'CONTENT_PENALTY', 'BROADCAST']; // 特殊渲染（条件/子类组合），上面已逐型断言
+  const SPECIAL = ['VERIFY_APPROVED', 'VERIFY_REJECTED', 'CONTENT_PENALTY', 'BROADCAST']; // 特殊渲染（条件/子类组合），上面已逐型断言
   for (const type of Object.keys(NOTIFY_TYPES)) {
     if (SPECIAL.includes(type)) continue;
     assert.ok(TEXT['NOTIF_' + type], `type ${type} has NOTIF_${type} template`);
