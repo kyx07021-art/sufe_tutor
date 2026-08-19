@@ -10,9 +10,9 @@ import { methodName, deactivatedTag } from '../../core/display.js';
 import { contractStatusMeta, diffLines } from './display.js';
 import { demandIdText, demandOptionText, demandTargetNames, expectedTimeText } from '../student/display.js';
 import { mdRender } from '../../core/dom.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 
-export const CONTRACT_BIZ_END = TEXT.CONTRACT_BIZ_END;
+export const CONTRACT_BIZ_END = '<!-- ' + String.fromCharCode(0x4e1a, 0x52a1, 0x6761, 0x6b3e, 0x7ed3, 0x675f);
 
 export function splitContractBiz(md) {
   return String(md || '').split(CONTRACT_BIZ_END)[0].trim();

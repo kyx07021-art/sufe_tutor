@@ -12,7 +12,7 @@
  *   admin awards/content -> REMOVED (v2 admin-stats is the only admin page; JSON-dump stub pending admin parity)
  * Comment/selector sources are registered pages + renderers, never arbitrary input.
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { _tourDemoChatEnsure, _tourDemoContractEnsure } from './engine.js';
 
 // ---- demand hall (teacher view) ----

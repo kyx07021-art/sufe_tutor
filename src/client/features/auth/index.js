@@ -3,8 +3,7 @@
  * gateway (router guard + api 401 fallback) and installs root data-action
  * delegation for click / keydown / input / submit (no inline handlers).
  */
-import { TEXT as SHARED_TEXT } from '../../constants/text.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import * as actions from './actions.js';
 import { handleFeatureClick } from './flow.js';
 import { loginViewHtml, registerViewHtml } from './render.js';
@@ -33,8 +32,8 @@ const ACTION_MAP = {
   'auth.submitPhoneBind': () => actions.submitBind('phone'),
   'auth.submitEmailBind': () => actions.submitBind('email'),
   'auth.closeModal': closeModal,
-  'auth.openAgreement': () => openPolicyModal(SHARED_TEXT.POLICY_KEY_AGREEMENT),
-  'auth.openPrivacy': () => openPolicyModal(SHARED_TEXT.POLICY_KEY_PRIVACY),
+  'auth.openAgreement': () => openPolicyModal(TEXT.POLICY_KEY_AGREEMENT),
+  'auth.openPrivacy': () => openPolicyModal(TEXT.POLICY_KEY_PRIVACY),
 };
 
 let installed = false;

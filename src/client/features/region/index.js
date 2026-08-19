@@ -2,7 +2,7 @@
  * region feature registry: shared province/gaokao/address component actions.
  * This feature has no pages; it exports reusable actions and optional delegation.
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import * as actions from './actions.js';
 import * as render from './render.js';
 

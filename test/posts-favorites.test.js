@@ -27,7 +27,7 @@ import { stopBadgePoll } from '../src/client/core/router.js';
 import { CONFIG } from '../src/shared/config.js';
 import { renderPostCard } from '../src/client/features/posts/render.js';
 import { postsList, setPostsListForTest, togglePostFavorite, togglePostsFav } from '../src/client/features/posts/actions-list.js';
-import { TEXT } from '../src/client/features/posts/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 CONFIG.TOAST_MS = 10;
 CONFIG.TOAST_FADE_MS = 1;

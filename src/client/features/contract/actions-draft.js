@@ -3,7 +3,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEACHING_METHODS } from '../../../shared/enums.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { api, ensureAuth } from '../../core/api.js';
 import { openModal, closeModal, showToast, initCustomSelects, syncCustomSelectText, withCaptcha } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml, validateTimeSlots, collectTimeSlots, prefillTimeSlots, dateFieldHtml, readDateField } from '../../core/ui-form.js';

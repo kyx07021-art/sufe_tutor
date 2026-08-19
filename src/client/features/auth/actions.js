@@ -4,7 +4,7 @@
  * callers can `import * as auth from './actions.js'`.
  */
 import { CONFIG } from '../../../shared/config.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state, saveSession, loadSession, clearSession, getDeviceId, runLogoutResets } from '../../core/state.js';
 import { api } from '../../core/api.js';

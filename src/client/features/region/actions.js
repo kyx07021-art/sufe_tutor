@@ -4,7 +4,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { SUFE_REGIONS as R } from '../../constants/region-data.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { checkboxItemsHtml, initCustomSelects, pickGrade } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
 import { renderTeacherGaokaoEditor, teacherSubjectPool } from './render.js';

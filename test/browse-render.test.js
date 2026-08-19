@@ -10,7 +10,7 @@ import { JSDOM } from 'jsdom';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
 import { loadBrowseDemands, applyDemandControls } from '../src/client/features/student/actions.js';
-import { TEXT } from '../src/client/features/student/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 const SHELL_HTML = `<!doctype html><html><body>
   <div id="demands-list"></div>

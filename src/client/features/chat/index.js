@@ -4,7 +4,7 @@
  * click delegation, input autogrow, Enter-to-send, file change, dropzone, and the
  * plus-menu close-outside behavior (v1 parity).
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';

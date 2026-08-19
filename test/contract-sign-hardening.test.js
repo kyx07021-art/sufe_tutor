@@ -7,7 +7,7 @@ import { JSDOM } from 'jsdom';
 import { signContract, updateSignBtnState } from '../src/client/features/contract/actions-sign.js';
 import { state } from '../src/client/core/state.js';
 import { CONFIG } from '../src/shared/config.js';
-import { TEXT } from '../src/client/features/contract/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 const CONTRACT_MD = `# 家教服务合同\n\n第一条 服务内容\n...`;
 

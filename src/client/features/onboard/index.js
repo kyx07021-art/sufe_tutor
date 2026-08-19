@@ -6,7 +6,7 @@
  * those buttons with data-action, this registry makes them live; the redundant
  * CustomEvent('about-action') dispatch in about.js has no listener, no double fire).
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import * as actions from './actions.js';
 

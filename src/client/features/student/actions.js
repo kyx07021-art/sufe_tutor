@@ -4,7 +4,7 @@
  * Edit PUT is merge-preserve: fields the simplified form cannot edit are carried over from the
  * source demand so the full-column server UPDATE never drops data (audit blocking-fix A).
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { state, loadSeqs } from '../../core/state.js';
 import { api, ensureAuth } from '../../core/api.js';
 import { dhGet, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';

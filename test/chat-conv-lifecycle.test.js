@@ -26,7 +26,7 @@ import { state, runLogoutResets } from '../src/client/core/state.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { registerPage, selectPage } from '../src/client/core/router.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
-import { TEXT } from '../src/client/features/chat/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 const BASE_CONV = {
   id: 5, student_user_id: 9, teacher_user_id: 40, status: 'active',

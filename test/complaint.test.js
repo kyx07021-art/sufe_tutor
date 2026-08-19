@@ -23,13 +23,13 @@ import { closeModal, closeAllModals } from '../src/client/core/ui.js';
 import { enterAbout } from '../src/client/core/about.js';
 import { TEXT as TEXT_CORE } from '../src/client/constants/text.js';
 import { openFeedbackComplaintChooser, openFeedbackModal, openMyFeedback } from '../src/client/features/posts/actions-feedback.js';
-import { TEXT as TEXT_POST } from '../src/client/features/posts/text.js';
+import { TEXT as TEXT_POST } from '../src/client/constants/text.js';
 import {
   openComplaintModal, switchComplaintTab, switchComplaintReason, complaintSearch,
   pickComplaintTarget, complaintOpenAttachment,
   closeComplaintModal, submitComplaint, renderComplaintStage, _cpStagedForTest, _cpStagedSnapshotForTest, _cpResetForTests,
 } from '../src/client/features/complaints/actions.js';
-import { TEXT as TEXT_CP } from '../src/client/features/complaints/text.js';
+import { TEXT as TEXT_CP } from '../src/client/constants/text.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 

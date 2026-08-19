@@ -13,7 +13,7 @@ import { goChatWithStudent, loadConversations, stopChatPolling } from '../src/cl
 import { chat } from '../src/client/features/chat/chat-state.js';
 import { state } from '../src/client/core/state.js';
 import { stopVersionProbe } from '../src/client/core/datahub.js';
-import { TEXT } from '../src/client/features/chat/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 const BASE_CONV = {
   id: 5, student_user_id: 9, teacher_user_id: 40, status: 'active',

@@ -14,7 +14,7 @@ import { dhGet, dhPeek, dhReady, dhOnDomainRefresh } from '../../core/datahub.js
 import { loadInto, setBadge } from '../../core/router.js';
 import { notifBlockOn, setNotifBlock, isBroadcastNotif } from '../../core/notif-pref.js';
 import { renderNotifItem } from './render.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 
 let _notifList = [];
 

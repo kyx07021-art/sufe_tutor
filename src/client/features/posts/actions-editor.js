@@ -2,7 +2,7 @@
  * posts editor actions: create/detail/delete/broadcast.
  */
 import { CONFIG } from '../../../shared/config.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { invalidate } from '../../core/datahub.js';

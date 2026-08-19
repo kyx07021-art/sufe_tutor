@@ -4,7 +4,7 @@
  * Network access goes exclusively through core api().
  */
 import { CONFIG } from '../../../shared/config.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { invalidate } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { showToast, btnLoading, btnDone, bindCountdown, withCaptcha, openModal, closeModal } from '../../core/ui.js';

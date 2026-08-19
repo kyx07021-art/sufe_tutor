@@ -3,7 +3,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { STATUS } from '../../../shared/enums.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { state, registerLogoutReset } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { invalidate, dhGet } from '../../core/datahub.js';

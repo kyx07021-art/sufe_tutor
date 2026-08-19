@@ -2,7 +2,7 @@
  * teacher feature renderers: cards, profile panel, reviews, match detail.
  * No inline handlers or inline style attributes.
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';

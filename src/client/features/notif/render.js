@@ -9,7 +9,7 @@
  * Legacy rows (type NULL) fall back to their stored rendered text.
  */
 import { escHtml, fmtDateTime } from '../../core/dom.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { SUFE_REGIONS } from '../../constants/region-data.js';
 import { DEMAND_TYPES, NONACADEMIC_PROJECTS } from '../../../shared/enums.js';
 

@@ -2,7 +2,7 @@
  * student/demand feature registry: my-demands + browse-demands pages.
  * data-action/change delegation + match-detail close listeners (v1 parity).
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';

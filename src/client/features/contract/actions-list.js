@@ -1,7 +1,7 @@
 /**
  * contract feature actions: list load and refresh wiring.
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { state } from '../../core/state.js';
 import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { setBadge } from '../../core/router.js';

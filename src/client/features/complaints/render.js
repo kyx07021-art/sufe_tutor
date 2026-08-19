@@ -6,7 +6,7 @@ import { escHtml, fmtDateTime } from '../../core/dom.js';
 import { STATUS } from '../../../shared/enums.js'; // Z-16-F6: status literals via shared enums
 import { complaintTargetName } from './display.js';
 import { segTabsHtml } from '../../core/ui.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 
 export function complaintPickerHtml(type, withRecent) {
   const recent = withRecent

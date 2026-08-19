@@ -2,7 +2,7 @@
  * complaints feature actions: modal, picker, search, attachments, submit, admin.
  */
 import { CONFIG } from '../../../shared/config.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { api, apiUpload, ensureAuth } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { loadInto, setBadge } from '../../core/router.js';

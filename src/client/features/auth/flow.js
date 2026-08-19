@@ -3,7 +3,7 @@
  * post-auth entry, role preview/switch and identity teardown. Shared by
  * actions.js and actions-register.js to avoid circular imports.
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state, saveSession, loadSession, clearSession, setReturning, setLastGuestRole, runLogoutResets } from '../../core/state.js';
 import { api, setSessionBootValidating } from '../../core/api.js';

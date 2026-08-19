@@ -3,7 +3,7 @@
  * navigation. (chatStageRing/renderChatStage live in render.js / actions-send.js —
  * single definition each; chatInjectSignCaption lives in render.js.)
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { chat } from './chat-state.js';
 import { api } from '../../core/api.js';
 import { showToast, openImageViewer, confirm } from '../../core/ui.js';

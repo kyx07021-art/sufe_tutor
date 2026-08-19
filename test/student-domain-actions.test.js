@@ -14,7 +14,7 @@ import { closeAllModals } from '../src/client/core/ui.js';
 import { toggleDemandIntents, showMatchDetail, closeMatchDetail, openDemandModal, handleSubmitDemand, doSubmitIntent, toggleDemandFilters, _wizardResetForTests } from '../src/client/features/student/actions.js';
 import { renderDemandCard } from '../src/client/features/student/render.js';
 import studentFeature from '../src/client/features/student/index.js';
-import { TEXT } from '../src/client/features/student/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 class MOStub { observe() {} disconnect() {} takeRecords() { return []; } }
 

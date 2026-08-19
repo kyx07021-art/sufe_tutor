@@ -7,7 +7,7 @@
  * renderIntentTeacherRow with status tag + price + teacher greet; teacher-card push button with
  * global per-minute cooldown (v1 pushCooldownUntil).
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { escHtml, fmtDate, renderAvatarHtml } from '../../core/dom.js';
 import { methodName, provinceName, priceRangeText, usernameHtml, deactivatedTag } from '../../core/display.js';
 import { demandIdText, demandTargetNameList, studentGradeName, expectedTimeText } from './display.js';

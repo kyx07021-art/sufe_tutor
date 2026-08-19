@@ -18,8 +18,8 @@ import authFeature from '../src/client/features/auth/index.js';
 import settingsFeature from '../src/client/features/settings/index.js';
 import * as auth from '../src/client/features/auth/actions.js';
 import * as render from '../src/client/features/auth/render.js';
-import { TEXT } from '../src/client/features/auth/text.js';
-import { TEXT as SETTINGS_TEXT } from '../src/client/features/settings/text.js';
+import { TEXT } from '../src/client/constants/text.js';
+import { TEXT as SETTINGS_TEXT } from '../src/client/constants/text.js';
 
 CONFIG.TOAST_MS = 10;
 CONFIG.TOAST_FADE_MS = 1;
@@ -32,7 +32,6 @@ const FEATURE_FILES = [
   'src/client/features/auth/actions-register.js',
   'src/client/features/auth/actions-otp.js',
   'src/client/features/auth/flow.js',
-  'src/client/features/auth/text.js',
 ];
 
 const SHELL_HTML = `<!doctype html><html><body>

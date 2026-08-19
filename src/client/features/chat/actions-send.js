@@ -13,7 +13,7 @@
  * - after send, the conversation list preview is bumped (parity with v1).
  */
 import { CONFIG } from '../../../shared/config.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { chat } from './chat-state.js';
 import { state } from '../../core/state.js';
 import { api, apiUpload } from '../../core/api.js';

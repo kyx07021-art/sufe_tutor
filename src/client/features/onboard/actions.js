@@ -5,7 +5,7 @@
  * auth/flow.js statically imports startOnboardingTour from this module, so the
  * enterRolePreview dependency is a call-time dynamic import (breaks the cycle).
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { CONFIG } from '../../../shared/config.js';
 import { state, isReturning, setReturning } from '../../core/state.js';
 import { openModal, closeModal } from '../../core/ui.js';

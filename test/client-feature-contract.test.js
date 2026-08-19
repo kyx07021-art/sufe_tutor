@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { renderContractCard, splitContractBiz, stripContractMarker, renderContractDiff, contractSignProgress } from '../src/client/features/contract/render.js';
 import * as actions from '../src/client/features/contract/actions.js';
-import { TEXT } from '../src/client/features/contract/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 import { state } from '../src/client/core/state.js';
 
 test('contract render: card uses data-action and no inline', () => {

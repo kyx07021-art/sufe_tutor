@@ -3,7 +3,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { STATUS } from '../../../shared/enums.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { postsAuth as ensureAuth } from './actions-list.js';
 import { api } from '../../core/api.js';
 

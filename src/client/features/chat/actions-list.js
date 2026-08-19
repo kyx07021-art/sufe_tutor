@@ -4,7 +4,7 @@
  * lives in actions-send.js (which depends on this module's bump — one-way edge).
  */
 import { CONFIG } from '../../../shared/config.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { chat } from './chat-state.js';
 import { state, registerLogoutReset } from '../../core/state.js';
 import { api, ensureAuth } from '../../core/api.js';

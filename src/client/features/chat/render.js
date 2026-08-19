@@ -20,7 +20,7 @@
  *   .chat-stage-del — the preview/progress/x names are gone with v1's template).
  */
 import { STATUS, ROLES } from '../../../shared/enums.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { chat } from './chat-state.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, loaderHtml, renderAvatarHtml } from '../../core/dom.js';

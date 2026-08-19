@@ -2,7 +2,7 @@
  * posts feature actions: list load, like/fav, editor, delete, broadcast, feedback.
  */
 import { CONFIG } from '../../../shared/config.js';
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { state } from '../../core/state.js';
 import { api, ensureAuth } from '../../core/api.js';
 import { dhGet, dhReady, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';

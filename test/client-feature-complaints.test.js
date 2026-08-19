@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { complaintCardHtml, complaintModalBody, chatFileExt } from '../src/client/features/complaints/render.js';
 import * as actions from '../src/client/features/complaints/actions.js';
-import { TEXT } from '../src/client/features/complaints/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 test('complaints render: modal body has data-action/delegation and no inline', () => {
   const html = complaintModalBody('teacher');

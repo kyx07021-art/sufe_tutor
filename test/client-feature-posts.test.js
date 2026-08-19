@@ -6,7 +6,7 @@ import { state } from '../src/client/core/state.js';
 import { postsList } from '../src/client/features/posts/actions-list.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import * as actions from '../src/client/features/posts/actions.js';
-import { TEXT } from '../src/client/features/posts/text.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 test('posts render: card has no inline handlers/style', () => {
   state.user = { id: 1, role: 'teacher' };

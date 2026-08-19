@@ -20,7 +20,7 @@
  * the page-leave read-mark POST to a bogus id); a private flag tracks it instead.
  * Register a script registry via setTourScripts (tours.js), called from actions.js.
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { CONFIG } from '../../../shared/config.js';
 import { STATUS, ROLES } from '../../../shared/enums.js'; // Z-16-F6: status literals via shared enums
 import { state, isReturning, registerLogoutReset } from '../../core/state.js';

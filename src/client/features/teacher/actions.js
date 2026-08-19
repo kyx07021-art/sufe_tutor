@@ -1,7 +1,7 @@
 /**
  * teacher feature actions: list, filters, profile panel, reviews.
  */
-import { TEXT } from './text.js';
+import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
