@@ -121,3 +121,17 @@ test('吊销后同设备重登：槽位释放新建行（新 session_id）', asy
   const s2 = (await listSessions(db, uid))[0];
   assert.notEqual(s2.session_id, s.session_id, '新会话新 session_id');
 });
+
+test('Q-2a-L6：登录时全局清理过期会话（废弃账户过期行不留存，变异：限定 user_id → 红）', async () => {
+  const { raw, uid } = await setup();
+  const db = d1Shim(raw);
+  // 另一有效用户的过期会话（模拟废弃/不活跃账户的残留行）
+  await db.prepare(`INSERT INTO users (username, password_hash, salt, role) VALUES ('l6_other', 'x', 'salt', 'student')`).run();
+  const oid = raw.prepare('SELECT id FROM users WHERE username=?').get('l6_other').id;
+  await db.prepare(`INSERT INTO auth_sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)`).run(oid, 'dead-other', '2020-01-01 00:00:00');
+  await db.prepare(`INSERT INTO auth_sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)`).run(uid, 'dead-own', '2020-01-01 00:00:00');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM auth_sessions').get().n, 2, '预置 2 条过期会话');
+  await issueAuthToken(db, uid, 'Windows · Edge');
+  const after = raw.prepare('SELECT COUNT(*) AS n FROM auth_sessions').get().n;
+  assert.equal(after, 1, '两行过期全清 + 新行 1（废弃账户过期行也被清；变异 user_id=? 限定 → 其他用户过期行残留 → 红）');
+});

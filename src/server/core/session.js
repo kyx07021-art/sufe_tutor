@@ -41,7 +41,10 @@ export async function issueAuthToken(db, userId, label, deviceId) {
   const digest = await tokenDigest(token);
   const dev = typeof deviceId === 'string' && /^[0-9a-f]{32}$/.test(deviceId) ? deviceId : '';
   const stmts = [
-    db.prepare(`DELETE FROM auth_sessions WHERE user_id=? AND expires_at < datetime('now')`).bind(userId),
+    // Q-2a-L6：全局过期会话清理（不限 user_id）——废弃账户的过期行不再永久留存
+    // （原仅清本人，审计 L6：废弃用户过期行永不清 → D1 膨胀）。表小（活跃用户×设备数），
+    // 无索引全表 DELETE 成本可忽略；登录低频，锁竞争可接受。
+    db.prepare(`DELETE FROM auth_sessions WHERE expires_at < datetime('now')`),
   ];
   if (dev) {
     stmts.push(db.prepare(`INSERT INTO auth_sessions (token_hash, session_id, user_id, label, device_id, expires_at)
