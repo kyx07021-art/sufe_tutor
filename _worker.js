@@ -317,19 +317,20 @@ export default {
     await env._dbInited;
 
     const db = env.DB;
+    // Q-2a-L5：限流闸门前置 parseBody——rateGate 不消费 body（参数预留），超限请求在 body
+    // 被读取解析前直接 429（1.1MB 大 body 的 DoS 放大消除：限流拒绝不再为读 body 付带宽/CPU）。
+    const ip = request.headers.get('CF-Connecting-IP') || 'anon';
+    if (!(await rateGate(ip, p, request.method, null, Date.now(), db))) {
+      recordRequestMetric({ path: p, status: 429, rateLimited: true });
+      return applySecurityHeaders(errorMsg('RATE_LIMITED', 429), p);
+    }
+
     // 体积炸弹防护在 util.parseBody（Content-Length 短路 + 流式硬上限），失败 413 在此转响应
     let body = {};
     try { body = await parseBody(request); }
     catch (e) {
       if (e && e.status === 413) { recordRequestMetric({ path: p, status: 413 }); return applySecurityHeaders(errorMsg('PAYLOAD_TOO_LARGE', 413), p); }
       body = {};
-    }
-
-    // 限流闸门（网安咽喉；IP 取 CF-Connecting-IP；超限一律 429，细节不回显）
-    const ip = request.headers.get('CF-Connecting-IP') || 'anon';
-    if (!(await rateGate(ip, p, request.method, body, Date.now(), db))) {
-      recordRequestMetric({ path: p, status: 429, rateLimited: true });
-      return applySecurityHeaders(errorMsg('RATE_LIMITED', 429), p);
     }
 
     const t0 = Date.now(); // D：请求耗时（留档 duration_ms，可观测性）
