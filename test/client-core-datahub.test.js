@@ -76,7 +76,7 @@ test('domain invalidation / state invalidate / logout reset / version check', as
   await dhGet('/api/teachers', { domain: 'teachers' });
   dhCheckAppVersion();
   assert.equal(dhReady('/api/teachers'), false, '版本切换整缓存作废');
-  assert.equal(globalThis.localStorage.getItem('sufe_app_version'), '2.0.2');
+  assert.equal(globalThis.localStorage.getItem('sufe_app_version'), '2.0.3');
 
   await dhGet('/api/teachers', { domain: 'teachers' });
   runLogoutResets();
