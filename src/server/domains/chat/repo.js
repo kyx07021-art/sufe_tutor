@@ -107,7 +107,7 @@ export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_
     WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
 }
 
-// messages INSERT 单源：路由层批量发送（routes-chat）不得自持 SQL 直插——
+// messages INSERT 单源：路由层批量发送不得自持 SQL 直插——
 // 数据层单写原则旁支通路，messages 加列时两处只改一处必静默缺列。业务 SQL 只此一份，批量经
 // dbPrepareMessageInsert 取预编译语句，单条经 dbCreateMessage 落库。
 const MSG_INSERT_SQL = 'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb) VALUES (?,?,?,?,?,?)';

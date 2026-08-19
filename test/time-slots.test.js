@@ -1,7 +1,7 @@
 /**
  * 结构化期望开课时间服务端校验回归（v0.25.0 需求一）
  *
- * sanitizeTimeSlots（server/util.js 导出，v0.25.x 从 routes-demands.js 迁入；需求 expected_time
+ * sanitizeTimeSlots（server/util.js 导出，v0.25.x 从 demand 域迁入；需求 expected_time
  * 与教师档案 time_slots 共用同一实现）：库内 JSON
  * [{type:'week',dow:1..7,start:'HH:MM',end:'HH:MM'}] 白名单式校验。
  * 守卫 bug 类别：非 JSON/非数组入库、越界 dow、非法时刻、结束早于开始、

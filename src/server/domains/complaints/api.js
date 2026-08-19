@@ -174,7 +174,7 @@ export async function handleResolveComplaint(db, complaintId, req) {
 }
 
 // ============================================================
-// 用户反馈 / 投诉工单（V-1-4c 从 server/routes-admin.js 迁入；反馈与投诉共用 status 语义）
+// 用户反馈 / 投诉工单（V-1-4c 迁入；反馈与投诉共用 status 语义）
 // ============================================================
 // POST /api/feedbacks { kind, title, content } —— 全用户可提交（关于平台页「用户反馈」；身份凭令牌，防冒名）
 export async function handleCreateFeedback(db, body, req) {

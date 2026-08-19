@@ -1,6 +1,6 @@
 /**
  * 网安报告 F-07 哈希链完整性 —— verifyChain 回归测试（纯函数注入）
- * 固定向量：测试内实现与 server/contract.js ledgerContentHash 相同的拼装规则
+ * 固定向量：测试内实现与 contract/api.js ledgerContentHash 相同的拼装规则
  * （sha256(bodyHash|contractId|createdAt|prevHash)，bodyHash=sha256(正文)）构造合法链；
  * 实现一旦漂移，构造出的「合法链」必然验不过（golden-vector 对拍）。
  */

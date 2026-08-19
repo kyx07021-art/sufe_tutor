@@ -1,5 +1,5 @@
 /**
- * admin 域 API（V-1-4c 实体迁入：server/routes-admin.js + server/routes-audit.js）。
+ * admin 域 API（V-1-4c 实体迁入）。
  * 邀请码 / 统计 / 用户管理 / 需求管理 / 聊天管理 / 日志检索 / 广播 / 密钥轮换 / 统一内容审核。
  * 评价审核在 reviews/api.js；教师认证审核在 teacher/api.js；反馈工单在 complaints/api.js。
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）。
@@ -263,7 +263,7 @@ export async function handleAdminBroadcast(db, body, req) {
 }
 
 // ============================================================
-// D1/D2 统一内容审核（V-1-4c 从 server/routes-audit.js 迁入）
+// D1/D2 统一内容审核（V-1-4c 迁入）
 // ============================================================
 const TYPE_LABEL = {
   post: '帖子', demand: '需求', teacher: '教师档案', review: '评价',

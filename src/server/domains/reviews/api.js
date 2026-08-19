@@ -70,7 +70,7 @@ export async function handleGetReviews(db, url, req) {
 }
 
 // ============================================================
-// 管理员：评价审核（V-1-4c 从 server/routes-admin.js 迁入，reviews 域自持）
+// 管理员：评价审核（V-1-4c 迁入，reviews 域自持）
 // ============================================================
 export async function handleAdminReviews(db, url, req) {
   const { err } = await requireAdmin(db, req);

@@ -1,11 +1,11 @@
 /**
  * 学生需求侧扩充服务端校验回归（R2-b：需求类型 / 偏好性格 / 偏好性别 / 学生性别改造）
  *
- * handleCreateDemand（server/routes-demands.js）sanitizeDemand：
+ * handleCreateDemand（demand/api.js）sanitizeDemand：
  *   - target_type 白名单 ['academic','nonacademic']，非法静默回退 'academic'（不拒绝整个需求）；
  *   - target_subjects 按类型分流白名单：academic → SUBJECTS；nonacademic → NONACADEMIC_PROJECTS；
  *   - type==='nonacademic' 时 current_scores 强制置 []（非学科无成绩概念）；
- *   - preferred_personality_tags 数组、≤PERSONALITY_TAGS_MAX、白名单、去重（照抄 routes-teacher 2a 口径，
+ *   - preferred_personality_tags 数组、≤PERSONALITY_TAGS_MAX、白名单、去重（照抄 teacher/api.js 2a 口径，
  *     非法静默回退空数组，超限截断而非拒绝）；
  *   - preferred_teacher_gender 白名单 ['','male','female']，非法回退 ''（不限）；
  *   - student_gender 白名单 ['','male','female','nonbinary']，非法回退 ''；'' = 不愿透露（创建需求合法）。

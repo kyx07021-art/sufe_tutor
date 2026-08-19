@@ -103,7 +103,7 @@ import { FIVE_FOUR_PROVINCES } from './enums.js';
     // 省份 → 政策 + 赋分制（未显式列出的字段缺省 = 3+1+2 全国通用五等级）
     provincePolicy: {
       // 3+3（第一、二批）；offlineAllowed 数据驱动「线下授课允许省」（默认仅线上，
-      // v0.25.86 审计收敛：原'非上海锁线上'特判散落 app-region/app-demands/routes-demands 三处）
+      // v0.25.86 审计收敛：原'非上海锁线上'特判散落前端两处）
       shanghai: { policy: '3+3', gradeSystem: 'shanghai', offlineAllowed: true },
       zhejiang: { policy: '3+3', gradeSystem: 'zhejiang20', extraElective: 'technology' }, // 浙江 7 选 3 含技术；2022 选考起 20 区间新制
       beijing:  { policy: '3+3', gradeSystem: 'beijing' },

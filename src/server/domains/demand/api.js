@@ -77,7 +77,7 @@ function sanitizeDemand(d) {
   // 非学科需求无成绩概念：current_scores 强制置空
   if (d.target_type === DEMAND_TYPES.NONACADEMIC) d.current_scores = [];
   // R2-b 偏好老师性格：数组、≤PERSONALITY_TAGS_MAX、白名单、去重。
-  // 门禁语义：需求侧刻意「静默回退/静默截断」不拒绝整个需求（与 routes-teacher 档案侧的 400 拒绝不同——
+  // 门禁语义：需求侧刻意「静默回退/静默截断」不拒绝整个需求（与 teacher 档案侧的 400 拒绝不同——
   // 需求创建是用户高频动作，超限偏好不值得打回整张表单；测试 demand-type-guard.test.js 钉死该语义）
   const P = PERSONALITY_TAGS;
   const personalitySet = new Set(P.map(t => t.id));

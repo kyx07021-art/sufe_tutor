@@ -1,7 +1,7 @@
 /**
  * 教师档案扩展字段服务端校验回归（R2-5/R2-1/R2-2/R2-3/R2-4）
  *
- * handleSaveProfile（server/routes-teacher.js）：
+ * handleSaveProfile（teacher/api.js）：
  *   - price_min/price_max 各自钳制 [0, BUDGET_MAX]，max<min 以 min 为准，null=未填保留；
  *   - time_slots 与需求 expected_time 共用 sanitizeTimeSlots（server/util.js），空串合法；
  *   - teaching_method 白名单 ['online','offline','both']，非法值回退 '';

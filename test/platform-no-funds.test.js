@@ -5,7 +5,7 @@
  * 新手导引等位置以「用户一定能注意到且符合平台调性」的方式明确注明，撇清平台资金责任。
  *
  * 触点清单（本测试全量锁死，防漏抄）：
- *   1. 合同条款（server/contract.js 第二条·4）：平台不参与结算、不代收代付、站外结算、不担责
+ *   1. 合同条款（contract/api.js 第二条·4）：平台不参与结算、不代收代付、站外结算、不担责
  *   2. 签约提示（发起签约浮窗）：报价资金触点 `.funds-note`
  *   3. 起草合同浮窗：时薪资金触点 `.funds-note`
  *   4. 签约请求气泡（聊天窗）：短版资金声明 `.signing-bubble-funds`
@@ -49,7 +49,7 @@ test('签约提示 + 起草合同浮窗：资金触点明示（.funds-note），
   const contracts = readFileSync('./src/client/features/contract/actions-draft.js', 'utf8');
   const n = (contracts.match(/<p class="funds-note">\$\{TEXT\.FUNDS_NOTE\}<\/p>/g) || []).length;
   assert.ok(n >= 2, `签约浮窗 + 起草合同浮窗各一处（实际 ${n}）`);
-  const server = readFileSync('./src/server/domains/contract/api.js', 'utf8'); // V-1-4c：合同实体已迁入 contract/api.js，server/contract.js 仅为兼容 shim
+  const server = readFileSync('./src/server/domains/contract/api.js', 'utf8'); // V-1-4c：合同实体已迁入 contract/api.js，contract 实体已迁 contract/api.js
   assert.ok(server.includes('不参与任何费用结算'), '合同条款声明不参与结算');
   assert.ok(server.includes('不代收、不代付'), '合同条款声明不代收代付');
   assert.ok(server.includes('站外自行协商并直接结算'), '合同条款要求站外直接结算');

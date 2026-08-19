@@ -248,7 +248,7 @@ export async function handleSaveProfile(db, body, req) {
   }
 
   const credential = String(p.credential_image || '');
-  // svg 一律拒绝：矢量可内嵌脚本（与 routes-auth 头像口径一致；上限单源 LIMITS.CREDENTIAL_MAX_BYTES）
+  // svg 一律拒绝：矢量可内嵌脚本（与 auth 域头像口径一致；上限单源 LIMITS.CREDENTIAL_MAX_BYTES）
   if (credential && (!credential.startsWith('data:image/') || credential.startsWith('data:image/svg') || credential.length > LIMITS.CREDENTIAL_MAX_BYTES)) return errorMsg('AVATAR_INVALID');
   // 2026-08-09 审计 F-1/F-4：自由文本（intro/school）同守门牌红线；联系方式统一截断（db 层仅 real_name/intro/address/school 有切片）
   // 需求五（2026-08-13）：address 改结构化「上海常住地」（区·镇/街道 picker），不再自由文本 → 移出门牌审核；
@@ -296,7 +296,7 @@ export async function handleChsiStatus(db, req) {
 }
 
 // ============================================================
-// 管理员：教师认证审核（V-1-4c 从 server/routes-admin.js 迁入，teacher 域自持）
+// 管理员：教师认证审核（V-1-4c 迁入，teacher 域自持）
 // ============================================================
 // POST /api/admin/teachers/:id/verify { verified } —— 学籍认证审核（运营建议：管理员核对学信网截图后置 1）
 export async function handleVerifyTeacher(db, userId, body, req) {

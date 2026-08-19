@@ -1,5 +1,5 @@
 /**
- * 奖项域数据层（V-1-4 从 server/awards.js 提取）：teacher_awards。
+ * 奖项域数据层（V-1-4 提取）：teacher_awards。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { LIMITS } from '../../../shared/config.js';

@@ -1,12 +1,12 @@
 /**
- * 合同域数据层（V-1-4 从 server/db.js 提取）：contracts 读取/删除（状态机在 server/contract.js）。
+ * 合同域数据层（V-1-4 从 server/db.js 提取）：contracts 读取/删除（状态机在 contract/api.js）。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { decryptField } from '../../core/crypto.js';
 
-// 合同（纯数据层取行；状态机关口在 server/contract.js）
+// 合同（纯数据层取行；状态机关口在 contract/api.js）
 // ============================================================
-// 网安 N-05：contract_md 加密列，出门即解密（写点加密在 server/contract.js；老明文行经 decryptField 原样放行）
+// 网安 N-05：contract_md 加密列，出门即解密（写点加密在 contract/api.js；老明文行经 decryptField 原样放行）
 export async function dbGetContractById(db, id) {
   const row = await dbGet(db, 'SELECT * FROM contracts WHERE id=?', [id]);
   if (row) row.contract_md = await decryptField(row.contract_md);

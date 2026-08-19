@@ -1,5 +1,5 @@
 /**
- * awards 域 schema（V-1-4b）：教师荣誉奖项表 DDL 实体在 repo.js（旧 server/awards.js 全量迁入）。
+ * awards 域 schema（V-1-4b）：教师荣誉奖项表 DDL 实体在 repo.js（旧 awards 实现全量迁入）。
  */
 import { initAwardsTable } from './repo.js';
 export { initAwardsTable };

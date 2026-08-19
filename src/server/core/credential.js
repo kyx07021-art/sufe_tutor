@@ -5,7 +5,7 @@
  * 和「改用户名/绑定的过程」本身解耦——未来切换到手机号为核心凭证时，只把凭证更新接口换地方。
  *
  * 本模块 = 凭证域的编排咽喉：加密落库 / 哈希可查列维护 / 冷却时间戳。
- * 与改用户名过程（routes-auth 的弹窗/确认/冷却判定）解耦——过程只调本模块接口。
+ * 与改用户名过程（auth 域的弹窗/确认/冷却判定）解耦——过程只调本模块接口。
  *
  * 凭证域自持 users 表凭证列 SQL（phone/email/phone_hash/email_hash/username_changed_at），
  * 类 notify/contract/log 自持其表域的有意决定（CLAUDE.md）；users 主列（username/password_hash/

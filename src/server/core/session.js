@@ -2,7 +2,7 @@
  * 账户凭证管理层（目标分层：账户凭证管理）—— 登录会话 单点
  *
  * 收敛自：server/core.js 的 issueAuthToken / listSessions / revokeSession，
- * 并补 getSessionByToken / revokeToken 两个助手（routes-auth 三处内联反查收敛于此）。
+ * 并补 getSessionByToken / revokeToken 两个助手（auth 域三处内联反查收敛于此）。
  *
  * 令牌契约（网安报告 F-04）：
  *   - 登录/注册签发 48 位随机 hex 明文令牌回传请求头，库内只存 SHA-256 摘要（tokenDigest）。
@@ -57,7 +57,7 @@ export async function issueAuthToken(db, userId, label, deviceId) {
   return token;
 }
 
-/** 按令牌反查本人会话（routes-auth 三处内联反查收敛点）；无则 undefined */
+/** 按令牌反查本人会话（auth 域三处内联反查收敛点）；无则 undefined */
 export async function getSessionByToken(db, userId, token) {
   if (!token) return undefined;
   return await dbGet(db, 'SELECT session_id FROM auth_sessions WHERE user_id=? AND token_hash=?', [userId, await tokenDigest(token)]);
