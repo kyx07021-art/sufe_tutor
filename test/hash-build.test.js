@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ASSET_MANIFEST } from '../manifest.js';
-import { renderManifest } from '../hash-assets.mjs';
+import { renderManifest, renderManifestV2 } from '../hash-assets.mjs';
 import { versionedBase, injectManifest } from '../_worker.js';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
@@ -47,4 +47,23 @@ test('injectManifest V-3-1d：v2 ESM 页面零内联 manifest（引用改写保�
   const v1 = injectManifest('<head><script src="/app-shell.js"></script></head><body>');
   assert.ok(v1.includes(`src="/${ASSET_MANIFEST.files['app-shell.js']}"`), 'v1 引用改写保留');
   assert.ok(v1.includes('window.ASSET_MANIFEST'), 'v1 仍注入内联 manifest（懒加载器依赖，判定信号不漂移）');
+});
+
+// V-4-1h h1：renderManifestV2 工具链能力（自足 fixture，用真实 web/index.html + 根/web 资产）
+test('V-4-1h h1：renderManifestV2 覆盖 v2 资产（web/ 子目录解析 + /assets/ 过滤 + 零 v1 残留）', () => {
+  const m = renderManifestV2();
+  const files = JSON.parse(m.split('export const ASSET_MANIFEST = ')[1].replace(/;\s*$/, '')).files;
+  // v2 资产全覆盖：根 CSS + features/ 子目录 + web/ 子目录脚本
+  for (const want of ['tokens.css', 'base.css', 'glass.css', 'responsive.css',
+    'features/chat.css', 'features/posts.css', 'features/region.css', 'theme-init.js', 'async-css.js']) {
+    assert.ok(files[want], `manifest 含 ${want}`);
+    assert.match(files[want], /^[A-Za-z0-9_\/-]+\.([0-9a-f]{8})\.(js|css)$/, `${want} 哈希名格式`);
+  }
+  // 零 v1 壳资产（v2 源模式零 DOMAIN_FILES）
+  assert.ok(!Object.keys(files).some(k => k.startsWith('app-') || ['constants.js', 'region-data.js', 'style-pref.js', 'ui-scale-reflow.js'].includes(k)),
+    '零 v1 壳资产');
+  // 零 /assets/ 引用（esbuild 内容哈希直服区，非 manifest 范畴）
+  assert.ok(!Object.keys(files).some(k => k.startsWith('assets/')), '零 /assets/ 引用');
+  // 确定性
+  assert.equal(renderManifestV2(), renderManifestV2(), 'v2 模式确定性');
 });

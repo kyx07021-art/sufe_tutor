@@ -18,7 +18,7 @@
  * 用法：node hash-assets.mjs [输出路径]（默认 manifest.js）
  */
 import { createHash } from 'node:crypto';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const HASH_LEN = 8;
@@ -53,6 +53,33 @@ export function renderManifest() {
   return `/**
  * 自动生成 —— 勿手改：node hash-assets.mjs 重新生成（push 前运行）。
  * 内容哈希资产清单：base 名 → 哈希名；worker 服务 index.html 时改写引用 + 版本化路由。
+ */
+export const ASSET_MANIFEST = ${JSON.stringify({ files }, null, 2)};
+`;
+}
+
+/**
+ * v2 壳源模式（V-4-1h h1）：读 web/index.html 提取资产引用——
+ *  - web/ 子目录资产（theme-init.js / async-css.js）按 web/<base> 解析；
+ *  - 过滤 /assets/ 引用（esbuild 内容哈希直服区，非 manifest 范畴，_headers 已设 immutable）；
+ *  - 零 DOMAIN_FILES（v1 懒加载概念，v2 全静态 import）。
+ *  h1 阶段仅新增能力、不切实际输入（CLI 仍走 renderManifest 读根 index.html），
+ *  产物 manifest.js 不变、现有测试全绿；h2h3 才把 CLI 切到本模式。
+ */
+export function renderManifestV2() {
+  const html = normLf(readFileSync('web/index.html', 'utf8'));
+  const refs = [...new Set([...html.matchAll(/(?:src|href)="\/([a-zA-Z0-9._\/-]+\.(?:js|css))"/g)].map(m => m[1]))]
+    .filter(base => !base.startsWith('assets/'));
+  const files = {};
+  for (const base of refs) {
+    const srcPath = existsSync(base) ? base : `web/${base}`;
+    if (!existsSync(srcPath)) throw new Error(`hash-assets v2: 找不到资产 ${base}`);
+    const h = hash(normLf(readFileSync(srcPath, 'utf8')));
+    files[base] = base.replace(/\.(js|css)$/, `.${h}.$1`);
+  }
+  return `/**
+ * 自动生成 —— 勿手改：node hash-assets.mjs 重新生成（push 前运行）。
+ * v2 内容哈希资产清单（V-4-1h 起）：base 名 → 哈希名；worker 服务 HTML 时改写引用 + 版本化路由。
  */
 export const ASSET_MANIFEST = ${JSON.stringify({ files }, null, 2)};
 `;
