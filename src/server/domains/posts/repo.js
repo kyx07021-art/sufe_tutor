@@ -2,7 +2,6 @@
  * 帖子域数据层（V-1-4 从 server/db.js 提取）：posts / likes / favorites。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
-import { safeJsonArray } from '../../core/json.js';
 import { LIMITS } from '../../../shared/config.js';
 
 // ============================================================
