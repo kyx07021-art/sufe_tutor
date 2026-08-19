@@ -14,7 +14,10 @@ import {
 } from '../src/client/core/datahub.js';
 import { CONFIG } from '../src/shared/config.js';
 import { state } from '../src/client/core/state.js';
-import { loadAdminPosts, resolveAdminFeedback, loadAdminContracts } from '../src/client/features/admin/actions.js';
+import {
+  loadAdminPosts, resolveAdminFeedback, loadAdminContracts,
+  approveAward, doAwardAction, verifApprove, verifRevoke,
+} from '../src/client/features/admin/actions.js';
 import { setPrivacyField } from '../src/client/features/settings/actions.js';
 
 let dom;
@@ -68,6 +71,87 @@ test('Q-3b-F4：setPrivacyField 写后 invalidate(account)（隐私设置缓存�
     globalThis.fetch = async url => ({ ok: true, status: 200, json: async () => ({ ok: true }) });
     await setPrivacyField('allowGuestProfile', 0);
     assert.equal(dhPeek('/api/privacy-settings'), null, '写后 account 域缓存被清（变异：去掉 invalidate → 永久陈旧 → 红）');
+  } finally { teardown(); }
+});
+
+// Q-3b 复审（agent 2）：M-2 声称 7 处无守护——实际 5 处纯 api 直调可低成本补守护（approveAward/
+// doAwardAction/verifApprove/verifRevoke + index ACTION_MAP approveReview）。补变异守护如下。
+// 模式：api POST 分流 resolve（触发 invalidate），写后 reload（loadAdminX）的 dhGet 用 pending fetch
+// 保持断言窗口（invalidate 已清、重填未完成）。
+function pendingWriteFetch(actionUrlPart, reloadUrlPart) {
+  return async url => {
+    const u = String(url);
+    if (u.includes(actionUrlPart)) return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    if (reloadUrlPart && !u.includes(reloadUrlPart)) return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    return new Promise(() => {}); // reload 重拉 pending：缓存保持 invalidate 后的 null 窗口
+  };
+}
+
+test('Q-3b-F3b：approveAward 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
+  try {
+    globalThis.document = dom.window.document;
+    _dhResetForTests();
+    _dhSeedForTests({ cache: [{ endpoint: '/api/admin/awards', domain: 'admin', data: { awards: [{ id: 1 }] } }] });
+    globalThis.fetch = pendingWriteFetch('/api/admin/awards/1/action', '/api/admin/awards');
+    await approveAward(1); await new Promise(r => setTimeout(r, 10)); // non-async fire-and-forget .then: tick for invalidate
+    assert.equal(dhPeek('/api/admin/awards'), null, 'approve 写后 admin 域缓存清');
+  } finally { teardown(); }
+});
+
+test('Q-3b-F3c：doAwardAction(reject) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
+  try {
+    globalThis.document = dom.window.document;
+    _dhResetForTests();
+    _dhSeedForTests({ cache: [{ endpoint: '/api/admin/awards', domain: 'admin', data: { awards: [{ id: 1 }] } }] });
+    globalThis.fetch = pendingWriteFetch('/api/admin/awards/1/action', '/api/admin/awards');
+    await doAwardAction(1, 'reject');
+    assert.equal(dhPeek('/api/admin/awards'), null, 'reject 写后 admin 域缓存清');
+  } finally { teardown(); }
+});
+
+test('Q-3b-F3d：verifApprove 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
+  try {
+    globalThis.document = dom.window.document;
+    _dhResetForTests();
+    _dhSeedForTests({ cache: [{ endpoint: '/api/admin/verifications', domain: 'admin', data: { verifications: [{ id: 1 }] } }] });
+    globalThis.fetch = pendingWriteFetch('/api/admin/verifications/1/action', '/api/admin/verifications');
+    await verifApprove(1); await new Promise(r => setTimeout(r, 10));
+    assert.equal(dhPeek('/api/admin/verifications'), null, '核验 approve 写后 admin 域缓存清');
+  } finally { teardown(); }
+});
+
+test('Q-3b-F3e：verifRevoke 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
+  try {
+    globalThis.document = dom.window.document;
+    _dhResetForTests();
+    _dhSeedForTests({ cache: [{ endpoint: '/api/admin/verifications', domain: 'admin', data: { verifications: [{ id: 1 }] } }] });
+    globalThis.fetch = pendingWriteFetch('/api/admin/verifications/1/action', '/api/admin/verifications');
+    await verifRevoke(1); await new Promise(r => setTimeout(r, 10));
+    assert.equal(dhPeek('/api/admin/verifications'), null, '核验 revoke 写后 admin 域缓存清');
+  } finally { teardown(); }
+});
+
+test('Q-3b-F3f：admin.approveReview ACTION_MAP 写后 invalidate(admin)（复审 M-2 点名：纯 api 直调可低成本守护；变异：去掉 invalidate → 红）', async () => {
+  try {
+    globalThis.document = dom.window.document;
+    _dhResetForTests();
+    _dhSeedForTests({ cache: [{ endpoint: '/api/admin/reviews', domain: 'admin', data: { reviews: [{ id: 1 }] } }] });
+    const mod = await import('../src/client/features/admin/index.js');
+    let cleanup = null;
+    if (typeof mod.default.onLoad === 'function') cleanup = mod.default.onLoad();
+    globalThis.fetch = async url => {
+      const u = String(url);
+      if (u.includes('/reviews/1/approve')) return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      return new Promise(() => {}); // loadAdminReviews 重拉 pending：保持 invalidate 后窗口
+    };
+    const btn = document.createElement('button');
+    btn.dataset.action = 'admin.approveReview';
+    btn.dataset.id = '1';
+    document.body.appendChild(btn);
+    btn.click();
+    await new Promise(r => setTimeout(r, 10));
+    assert.equal(dhPeek('/api/admin/reviews'), null, 'approve 写后 admin 域缓存清');
+    if (cleanup) cleanup();
   } finally { teardown(); }
 });
 
