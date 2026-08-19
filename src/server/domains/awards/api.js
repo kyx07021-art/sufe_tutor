@@ -1,4 +1,4 @@
-import { json, errorMsg } from '../../core/util.js';
+import { json, errorMsg, parseIdParam} from "../../core/util.js";
 import { requireUser, requireAdmin } from '../../core/security.js';
 import { confirmDangerOtp } from '../../core/danger-ops.js';
 import { notifyUser } from '../../core/notify.js';
@@ -103,12 +103,11 @@ export async function handleAdminAwardAction(db, awardId, body, req) {
 // awards 域路由表（V-1-4c）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('POST', '/api/teacher/awards', c => handleCreateAward(c.db, c.body, c.req)),
   S('GET', '/api/teacher/awards', c => handleGetAwards(c.db, c.url, c.req)),
-  S('DELETE', '/api/teacher/awards/:id', c => handleDeleteAward(c.db, n(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/teacher/awards/:id', c => handleDeleteAward(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/admin/awards', c => handleAdminAwards(c.db, c.url, c.req)),
-  S('GET', '/api/admin/awards/:id/proof', c => handleAdminAwardProof(c.db, n(c.params.id), c.req)),
-  S('POST', '/api/admin/awards/:id/action', c => handleAdminAwardAction(c.db, n(c.params.id), c.body, c.req)),
+  S('GET', '/api/admin/awards/:id/proof', c => handleAdminAwardProof(c.db, parseIdParam(c.params.id), c.req)),
+  S('POST', '/api/admin/awards/:id/action', c => handleAdminAwardAction(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];

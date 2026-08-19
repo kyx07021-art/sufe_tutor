@@ -5,7 +5,7 @@
  * 管理员敏感操作一律发语义日志 admin.*（封禁、删除、审核、发码）。
  * 守卫统一走 requireAdmin（security.requireUser role='admin' 别名）。
  */
-import { json, error, errorMsg, genCode, toDbTime } from '../../core/util.js';
+import { json, error, errorMsg, genCode, toDbTime, parseIdParam} from "../../core/util.js";
 import { requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';
@@ -358,7 +358,6 @@ async function doDeleteContent(db, type, id) {
 // admin 域路由表（V-1-4c）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('POST', '/api/admin/invite', c => handleGenInvite(c.db, c.body, c.req)),
   S('GET', '/api/admin/invites', c => handleListInvites(c.db, c.req)),
@@ -367,14 +366,14 @@ export const routes = [
   S('GET', '/api/admin/dashboard', c => handleAdminDashboard(c.db, c.url, c.req)),
   S('GET', '/api/admin/traffic', c => handleAdminTraffic(c.db, c.url, c.req)),
   S('GET', '/api/admin/logs', c => handleAdminLogs(c.db, c.url, c.req)),
-  S('GET', '/api/admin/logs/:id/decrypt', c => handleAdminDecryptLog(c.db, n(c.params.id), c.req)),
+  S('GET', '/api/admin/logs/:id/decrypt', c => handleAdminDecryptLog(c.db, parseIdParam(c.params.id), c.req)),
   S('GET', '/api/admin/users', c => handleAdminUsers(c.db, c.url, c.req)),
   S('GET', '/api/admin/demands', c => handleAdminDemands(c.db, c.url, c.req)),
-  S('DELETE', '/api/admin/demands/:id', c => handleAdminDeleteDemand(c.db, n(c.params.id), c.body, c.req)),
-  S('POST', '/api/admin/users/:id/ban', c => handleBanUser(c.db, n(c.params.id), c.body, c.req)),
-  S('DELETE', '/api/admin/messages/:id', c => handleAdminDeleteMessage(c.db, n(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/admin/demands/:id', c => handleAdminDeleteDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('POST', '/api/admin/users/:id/ban', c => handleBanUser(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/admin/messages/:id', c => handleAdminDeleteMessage(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('POST', '/api/admin/reencrypt', c => handleAdminReencrypt(c.db, c.body, c.req, c.env)),
   S('POST', '/api/notifications/broadcast', c => handleAdminBroadcast(c.db, c.body, c.req)),
   S('GET', '/api/admin/content', c => handleAdminContent(c.db, c.url, c.req)),
-  S('POST', '/api/admin/content/:type/:id/action', c => handleContentAction(c.db, c.params.type, n(c.params.id), c.body, c.req)),
+  S('POST', '/api/admin/content/:type/:id/action', c => handleContentAction(c.db, c.params.type, parseIdParam(c.params.id), c.body, c.req)),
 ];

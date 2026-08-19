@@ -6,7 +6,7 @@
  * 关键动作发语义留档：post.create / post.like / post.unlike / post.delete / admin.post.delete
  * 契约：身份一律凭令牌（自报 userId 可冒名/越权）、管理员判定走 requireAdminOrError 单点。
  */
-import { json, error, errorMsg } from '../../core/util.js';
+import { json, error, errorMsg, parseIdParam} from "../../core/util.js";
 import { authUser, requireUser, requireAdminOrError } from '../../core/security.js';
 import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';
@@ -151,12 +151,11 @@ export async function handleDeletePost(db, postId, body, req) {
 // posts 域路由表（V-1-4c）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('GET', '/api/posts', c => handleListPosts(c.db, c.url, c.req)),
   S('POST', '/api/posts', c => handleCreatePost(c.db, c.body, c.req)),
   S('GET', '/api/posts/favorites/mine', c => handleMyFavorites(c.db, c.req)),
-  S('POST', '/api/posts/:id/favorite', c => handleToggleFavorite(c.db, n(c.params.id), c.body, c.req)),
-  S('POST', '/api/posts/:id/like', c => handleToggleLike(c.db, n(c.params.id), c.body, c.req)),
-  S('DELETE', '/api/posts/:id', c => handleDeletePost(c.db, n(c.params.id), c.body, c.req)),
+  S('POST', '/api/posts/:id/favorite', c => handleToggleFavorite(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('POST', '/api/posts/:id/like', c => handleToggleLike(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/posts/:id', c => handleDeletePost(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];

@@ -4,7 +4,7 @@
  *       已有评价只能修改（修改后重回待审核）。
  * 依赖：util / security（requireUser）/ constants（校验文案/评分/评论限额）/ db / log。
  */
-import { json, error, errorMsg, isUniqueConflict } from '../../core/util.js';
+import { json, error, errorMsg, isUniqueConflict, parseIdParam} from "../../core/util.js";
 import { requireUser, requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { STATUS } from '../../../shared/enums.js';
@@ -118,13 +118,12 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
 // reviews 域路由表（V-1-4c：评价 + 管理员评价审核）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('POST', '/api/reviews', c => handleCreateReview(c.db, c.body, c.req)),
   S('GET', '/api/reviews', c => handleGetReviews(c.db, c.url, c.req)),
-  S('PUT', '/api/reviews/:id', c => handleUpdateReview(c.db, n(c.params.id), c.body, c.req)),
+  S('PUT', '/api/reviews/:id', c => handleUpdateReview(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/admin/reviews', c => handleAdminReviews(c.db, c.url, c.req)),
-  S('POST', '/api/admin/reviews/:id/approve', c => handleReviewAction(c.db, n(c.params.id), 'approve', c.body, c.req)),
-  S('POST', '/api/admin/reviews/:id/reject', c => handleReviewAction(c.db, n(c.params.id), 'reject', c.body, c.req)),
-  S('DELETE', '/api/admin/reviews/:id', c => handleAdminDeleteReview(c.db, n(c.params.id), c.body, c.req)),
+  S('POST', '/api/admin/reviews/:id/approve', c => handleReviewAction(c.db, parseIdParam(c.params.id), 'approve', c.body, c.req)),
+  S('POST', '/api/admin/reviews/:id/reject', c => handleReviewAction(c.db, parseIdParam(c.params.id), 'reject', c.body, c.req)),
+  S('DELETE', '/api/admin/reviews/:id', c => handleAdminDeleteReview(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];

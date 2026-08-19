@@ -5,7 +5,7 @@
  * 安全补丁已并入主线：svg/html dataURL 黑名单（防钓鱼投递）、附件体积上限、暂存配额自愈+封顶、
  * 参与方 404 不泄露会话存在性。限额全部单源 constants.LIMITS。
  */
-import { json, error, errorMsg } from '../../core/util.js';
+import { json, error, errorMsg, parseIdParam} from "../../core/util.js";
 import { requireUser } from '../../core/security.js';
 import { encryptField, decryptField } from '../../core/crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
 import { MSG } from '../../../shared/codes.js';
@@ -231,13 +231,12 @@ async function handleSendBatch(db, convId, batch, userId, req) {
 // chat 域路由表（V-1-4c：会话 / 消息 / 附件）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('GET', '/api/conversations', c => handleGetConversations(c.db, c.url, c.req)),
-  S('POST', '/api/conversations/:id/read', c => handleMarkRead(c.db, n(c.params.id), c.body, c.req)),
-  S('GET', '/api/conversations/:id/messages', c => handleGetMessages(c.db, n(c.params.id), c.url, c.req)),
-  S('POST', '/api/conversations/:id/messages', c => handleSendMessage(c.db, n(c.params.id), c.body, c.req)),
-  S('GET', '/api/conversations/:id/messages/:mid/attachment', c => handleGetAttachment(c.db, n(c.params.id), n(c.params.mid), c.url, c.req)),
+  S('POST', '/api/conversations/:id/read', c => handleMarkRead(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('GET', '/api/conversations/:id/messages', c => handleGetMessages(c.db, parseIdParam(c.params.id), c.url, c.req)),
+  S('POST', '/api/conversations/:id/messages', c => handleSendMessage(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('GET', '/api/conversations/:id/messages/:mid/attachment', c => handleGetAttachment(c.db, parseIdParam(c.params.id), parseIdParam(c.params.mid), c.url, c.req)),
   S('POST', '/api/uploads', c => handleCreateUpload(c.db, c.body, c.req)),
-  S('DELETE', '/api/uploads/:id', c => handleDeleteUpload(c.db, n(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/uploads/:id', c => handleDeleteUpload(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];

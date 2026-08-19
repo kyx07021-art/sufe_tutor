@@ -4,7 +4,7 @@
  *       db（数据层）、log（留档）、notify（通知）。身份一律凭令牌（requireUser）。
  * 关口模式：requireUser → 归属校验 → 状态机（条件 UPDATE 赢家）→ 副作用（logEvent/notifyUser）。
  */
-import { json, errorMsg, sanitizeTimeSlots, isUniqueConflict } from '../../core/util.js';
+import { json, errorMsg, sanitizeTimeSlots, isUniqueConflict, parseIdParam} from "../../core/util.js";
 import { authUser, requireUser } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { STATUS, STUDENT_GRADES, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, SUBJECTS } from '../../../shared/enums.js';
@@ -429,17 +429,16 @@ export async function handleResolvePush(db, pushId, body, req) {
 // demand 域路由表（V-1-4c：需求 / 意向 / 推送）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('POST', '/api/student/demands', c => handleCreateDemand(c.db, c.body, c.req)),
   S('GET', '/api/student/demands', c => handleGetDemands(c.db, c.url, c.req)),
-  S('PUT', '/api/student/demands/:id', c => handleUpdateDemand(c.db, n(c.params.id), c.body, c.req)),
-  S('DELETE', '/api/student/demands/:id', c => handleDeleteDemand(c.db, n(c.params.id), c.body, c.req)),
-  S('POST', '/api/student/demands/:id/reopen', c => handleReopenDemand(c.db, n(c.params.id), c.body, c.req)),
-  S('POST', '/api/demands/:id/intents', c => handleCreateIntent(c.db, n(c.params.id), c.body, c.req)),
-  S('GET', '/api/demands/:id/intents', c => handleGetIntents(c.db, n(c.params.id), c.req)),
-  S('POST', '/api/intents/:id/resolve', c => handleResolveIntent(c.db, n(c.params.id), c.body, c.req)),
+  S('PUT', '/api/student/demands/:id', c => handleUpdateDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/student/demands/:id', c => handleDeleteDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('POST', '/api/student/demands/:id/reopen', c => handleReopenDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('POST', '/api/demands/:id/intents', c => handleCreateIntent(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('GET', '/api/demands/:id/intents', c => handleGetIntents(c.db, parseIdParam(c.params.id), c.req)),
+  S('POST', '/api/intents/:id/resolve', c => handleResolveIntent(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('POST', '/api/demand-pushes', c => handlePushDemand(c.db, c.body, c.req)),
   S('GET', '/api/demand-pushes', c => handleGetTeacherPushes(c.db, c.url, c.req)),
-  S('POST', '/api/demand-pushes/:id/resolve', c => handleResolvePush(c.db, n(c.params.id), c.body, c.req)),
+  S('POST', '/api/demand-pushes/:id/resolve', c => handleResolvePush(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];

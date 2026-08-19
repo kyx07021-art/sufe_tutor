@@ -12,7 +12,7 @@
  *   本版修复：台账幂等（签约后 500 重试可补记）；revoked 需求不可绕过「手动重开」再签约；
  *   合同修改乐观锁改 version 整数（秒级 updated_at 同秒双改互相覆盖的缺陷）。
  */
-import { dbGet, dbAll, dbRun, json, error, errorMsg, toDbTime, isDemandActive } from '../../core/util.js';
+import { dbGet, dbAll, dbRun, json, error, errorMsg, toDbTime, isDemandActive, parseIdParam} from "../../core/util.js";
 import { getLedgerDb } from './schema.js';
 import { requireUser, requireAdmin, requireAdminOrError } from '../../core/security.js';
 import { bufToHex, encryptField } from '../../core/crypto.js';
@@ -759,18 +759,17 @@ export async function handleRespondSigning(db, signingId, body, req) {
 // contract 域路由表（V-1-4c：合同 / 签约请求）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('POST', '/api/contracts', c => handleCreateContract(c.db, c.body, c.req)),
   S('GET', '/api/contracts/my', c => handleGetMyContracts(c.db, c.url, c.req)),
-  S('POST', '/api/contracts/:id/sign', c => handleSignContract(c.db, n(c.params.id), c.body, c.req)),
-  S('GET', '/api/contracts/:id/verify', c => handleVerifyContract(c.db, n(c.params.id), c.req)),
-  S('POST', '/api/contracts/:id/revoke', c => handleRevokeContract(c.db, n(c.params.id), c.body, c.req)),
-  S('PUT', '/api/contracts/:id', c => handleModifyContract(c.db, n(c.params.id), c.body, c.req)),
-  S('DELETE', '/api/contracts/:id', c => handleCancelContract(c.db, n(c.params.id), c.body, c.req)),
+  S('POST', '/api/contracts/:id/sign', c => handleSignContract(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('GET', '/api/contracts/:id/verify', c => handleVerifyContract(c.db, parseIdParam(c.params.id), c.req)),
+  S('POST', '/api/contracts/:id/revoke', c => handleRevokeContract(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('PUT', '/api/contracts/:id', c => handleModifyContract(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/contracts/:id', c => handleCancelContract(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/admin/contracts', c => handleAdminListContracts(c.db, c.url, c.req)),
-  S('DELETE', '/api/admin/contracts/:id', c => handleAdminRemoveContract(c.db, n(c.params.id), c.body, c.req)),
-  S('POST', '/api/conversations/:id/signing', c => handleCreateSigning(c.db, { ...c.body, conversationId: n(c.params.id) }, c.req)),
-  S('GET', '/api/conversations/:id/bindable-demands', c => handleGetConversationBindableDemands(c.db, n(c.params.id), c.url, c.req)),
-  S('POST', '/api/signing-requests/:id/respond', c => handleRespondSigning(c.db, n(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/admin/contracts/:id', c => handleAdminRemoveContract(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('POST', '/api/conversations/:id/signing', c => handleCreateSigning(c.db, { ...c.body, conversationId: parseIdParam(c.params.id) }, c.req)),
+  S('GET', '/api/conversations/:id/bindable-demands', c => handleGetConversationBindableDemands(c.db, parseIdParam(c.params.id), c.url, c.req)),
+  S('POST', '/api/signing-requests/:id/respond', c => handleRespondSigning(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];

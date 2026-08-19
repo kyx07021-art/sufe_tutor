@@ -14,7 +14,7 @@
  *   GET  /api/complaints —— 管理员查看（status 可选过滤）
  *   POST /api/complaints/:id/resolve —— 管理员标记已处理并通知投诉人
  */
-import { json, errorMsg } from '../../core/util.js';
+import { json, errorMsg, parseIdParam} from "../../core/util.js";
 import { requireUser, requireAdmin } from '../../core/security.js';
 import { SERVER_TEXT } from '../../../shared/codes.js';
 import { STATUS } from '../../../shared/enums.js';
@@ -229,17 +229,16 @@ export async function handleResolveFeedback(db, feedbackId, body, req) {
 // complaints 域路由表（V-1-4c：投诉 + 反馈工单）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('POST', '/api/complaints', c => handleCreateComplaint(c.db, c.body, c.req)),
   S('GET', '/api/complaints/mine', c => handleMyComplaints(c.db, c.req)),
   S('GET', '/api/complaints/candidates', c => handleComplaintCandidates(c.db, c.url, c.req)),
   S('GET', '/api/complaints/recent', c => handleComplaintRecent(c.db, c.url, c.req)),
   S('GET', '/api/complaints', c => handleAdminComplaints(c.db, c.url, c.req)),
-  S('POST', '/api/complaints/:id/resolve', c => handleResolveComplaint(c.db, n(c.params.id), c.req)),
-  S('GET', '/api/complaints/:id/attachment', c => handleComplaintAttachment(c.db, n(c.params.id), c.url, c.req)),
+  S('POST', '/api/complaints/:id/resolve', c => handleResolveComplaint(c.db, parseIdParam(c.params.id), c.req)),
+  S('GET', '/api/complaints/:id/attachment', c => handleComplaintAttachment(c.db, parseIdParam(c.params.id), c.url, c.req)),
   S('POST', '/api/feedbacks', c => handleCreateFeedback(c.db, c.body, c.req)),
   S('GET', '/api/feedbacks', c => handleAdminFeedbacks(c.db, c.url, c.req)),
   S('GET', '/api/feedbacks/mine', c => handleMyFeedbacks(c.db, c.req)),
-  S('POST', '/api/feedbacks/:id/resolve', c => handleResolveFeedback(c.db, n(c.params.id), c.body, c.req)),
+  S('POST', '/api/feedbacks/:id/resolve', c => handleResolveFeedback(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];

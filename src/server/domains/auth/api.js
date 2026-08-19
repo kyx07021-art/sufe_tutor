@@ -4,7 +4,7 @@
  * 依赖：util（响应构造/UA 标签）、crypto（口令哈希/令牌摘要）、session（令牌签发/会话管理）、
  *       security（身份解析）、constants（校验文案/限额）。
  */
-import { json, errorMsg, deviceLabelFromUA, isUniqueConflict } from '../../core/util.js';
+import { json, errorMsg, deviceLabelFromUA, isUniqueConflict, parseIdParam} from "../../core/util.js";
 import { hashPassword, verifyPassword, tokenDigest } from '../../core/crypto.js';
 import { authUser, requireUser, authRateBatch, authRateBlock } from '../../core/security.js';
 import {
@@ -492,7 +492,6 @@ export async function handleCheckInvite(db, body) {
 // auth 域路由表（V-1-4c：app.js 只拼接各域 routes）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('POST', '/api/auth/register', c => handleRegister(c.db, c.body, c.req)),
   S('POST', '/api/auth/login', c => handleLogin(c.db, c.body, c.req)),
@@ -512,5 +511,5 @@ export const routes = [
   S('POST', '/api/auth/sessions/revoke', c => handleRevokeSession(c.db, c.body, c.req)),
   S('POST', '/api/user/avatar', c => handleSaveAvatar(c.db, c.body, c.req)),
   S('POST', '/api/user/deactivate', c => handleDeactivateAccount(c.db, c.body, c.req)),
-  S('GET', '/api/users/:id', c => handleGetUserPublic(c.db, n(c.params.id))),
+  S('GET', '/api/users/:id', c => handleGetUserPublic(c.db, parseIdParam(c.params.id))),
 ];

@@ -6,7 +6,7 @@
  *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
  * 依赖：util / security（requireUser）/ constants（校验文案/限额/门牌守卫）/ db / log。
  */
-import { json, errorMsg, sanitizeTimeSlots } from '../../core/util.js';
+import { json, errorMsg, sanitizeTimeSlots, parseIdParam} from "../../core/util.js";
 import { authUser, requireUser, requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
@@ -382,7 +382,6 @@ export async function handleVerificationAction(db, id, body, req) {
 // teacher 域路由表（V-1-4c：含管理员教师认证审核）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
-const n = v => parseInt(v, 10);
 export const routes = [
   S('GET', '/api/teacher/profile', c => handleGetProfile(c.db, c.url, c.req)),
   S('POST', '/api/teacher/profile', c => handleSaveProfile(c.db, c.body, c.req)),
@@ -390,7 +389,7 @@ export const routes = [
   S('POST', '/api/teacher/verify-admission', c => handleVerifyAdmission(c.db, c.body, c.req)),
   S('GET', '/api/teacher/verify-status', c => handleChsiStatus(c.db, c.req)),
   S('GET', '/api/teachers', c => handleGetTeachers(c.db, c.req)),
-  S('POST', '/api/admin/teachers/:id/verify', c => handleVerifyTeacher(c.db, n(c.params.id), c.body, c.req)),
+  S('POST', '/api/admin/teachers/:id/verify', c => handleVerifyTeacher(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/admin/verifications', c => handleListVerifications(c.db, c.url, c.req)),
-  S('POST', '/api/admin/verifications/:id/action', c => handleVerificationAction(c.db, n(c.params.id), c.body, c.req)),
+  S('POST', '/api/admin/verifications/:id/action', c => handleVerificationAction(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];
