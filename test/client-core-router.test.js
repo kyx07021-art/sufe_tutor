@@ -41,7 +41,7 @@ test('showView/updateNavbar/renderSidebar/selectPage about builtin', async () =>
   state.user = null; state.guestRole = 'student'; state.page = null;
   renderSidebar();
   assert.equal(document.getElementById('sidebar-user').innerHTML.includes('vundefined'), false);
-  assert.ok(document.getElementById('sidebar-user').innerHTML.includes('v2.0.3'));
+  assert.ok(document.getElementById('sidebar-user').innerHTML.includes('v2.0.0'));
   showView('client');
   assert.equal(state.view, 'client');
   updateNavbar();

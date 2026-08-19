@@ -13,7 +13,7 @@ const PROD = { CF_PAGES_URL: 'https://sufe-tutor.pages.dev' };
 
 const goodSecrets = {
   ...PROD,
-  LOG_ENCRYPT_KEY: 'lkFHs0M1GcoyhNiixoI9VRfsLR03BbLc9OgwQOHVtiQ=',
+  LOG_ENCRYPT_KEY: 'TExMTExMTExMTExMTExMTExMTExMTExMTExMTExMTEw=', // 32 字节合法 base64 占位（非真实密钥）
   FIELD_ENC_KEY: 'DIFFERENT_FIELD_ENC_KEY_00000000000000000000',
   FIELD_ENC_KEY_OLD: 'OLD_FIELD_ENC_KEY_0000000000000000000000',
   LOG_ENCRYPT_KEY_OLD: 'OLD_LOG_ENCRYPT_KEY_0000000000000000000000',
@@ -71,7 +71,7 @@ test('notReadyResponse：503 + 只暴露检查码，不暴露秘密值', async (
   assert.ok(body.timestamp);
   assert.ok(Array.isArray(body.checks));
   assert.ok(!JSON.stringify(body).includes(LEGACY_ADMIN_PASSWORD));
-  assert.ok(!JSON.stringify(body).includes('g5H9xV6xRKmOPMiq5aQiKA'));
+  assert.ok(!JSON.stringify(body).includes(goodSecrets.SMS_OTP_TEMPLATE_CODE));
 });
 
 test('邀请码两种一致态：启用态与开放注册态都 ready；不一致 not-ready', () => {

@@ -33,8 +33,8 @@
 1. Cloudflare Worker Secrets 添加 `TEXT_AUDIT_API_KEY`（DeepSeek API key）。
 2. 语义层自动启用（L2）；未配置则仅规则层（L1），不影响上线。
 
-密钥读取走 `server/secrets.js` 网关（env 优先，回落本地 secrets.js），测试/本地可用
-`secrets.js` 里加 `TEXT_AUDIT_API_KEY`。
+密钥读取走 `server/secrets.js` 网关（只读 env：Worker Secrets / `.dev.vars` / 测试显式注入，
+仓库零明文密钥，fail-open 已清）。测试注入 `TEXT_AUDIT_API_KEY` 经 `test/_test-secrets.js`。
 
 ## 接入点（当前）
 
