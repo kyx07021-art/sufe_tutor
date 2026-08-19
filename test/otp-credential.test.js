@@ -20,7 +20,9 @@ import {
 } from '../src/server/core/credential.js';
 import { handleOtpRequest, handleBindPhone, handleChangeUsername, handleUsernameStatus, handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister, handleGetMyCreds } from '../src/server/domains/auth/api.js';
 import { issueCapToken } from '../src/server/core/danger-ops.js';
-import { lastOtpCode, resetOtpStub } from './_otp-stub.js'; // 拦截真实发信（stub fetch：真实代码路径 + 捕获验证码）
+import { lastOtpCode, resetOtpStub, setOtpStubFail } from './_otp-stub.js'; // 拦截真实发信（stub fetch：真实代码路径 + 捕获验证码）
+import { dbGet, dbAll } from '../src/server/core/util.js';
+import { LIMITS } from '../src/shared/config.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 function d1Shim(raw) {
@@ -106,6 +108,57 @@ test('requestOtp：60s 重发限频 + 单日上限（服务端原子强制）', 
   const over = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
   assert.equal(over.ok, false);
   assert.equal((await over.err.json()).error, '今日验证码发送次数已达上限，请明天再试');
+});
+
+// Z-2-F1 回归：单日计数走 rate_limits 桶（v1.5.0 事故——verification_codes 行仅 5 分钟 TTL，
+// 原 INSERT 内嵌日计数子查询只看近 5 分钟行，OTP_DAILY_MAX 恒不可达，短信轰炸第二道闸失效）。
+// 缺陷 A：预读必须过滤 reset_at（过期桶视为无桶，upsert 自然重置）——不过滤会致过期桶再锁 24h = 48h 锁死。
+// 缺陷 B：计数 +1 在 deliverOtp 成功之后——投递失败删行返回 500 不烧日配额。
+test('Z-2-F1 回归：rate_limits 过期桶放行重置（缺陷 A）', async () => {
+  const { raw, db } = await setup();
+  const target = '+8613812345680';
+  const key = `otp:sms:${await tokenDigest(target)}`;
+  raw.prepare(`INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, ?, datetime('now','localtime','-1 hour'))`)
+    .run(key, LIMITS.OTP_DAILY_MAX); // 满额桶但 reset_at 已过期（昨日）
+  const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  assert.equal(r.ok, true, '过期桶应放行（缺陷 A 修复）');
+  const row = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [key]);
+  assert.equal(row.n, 1, '过期桶 upsert 应重置 n=1');
+});
+
+test('Z-2-F1 回归：未过期满额桶仍拒绝（缺陷 A 对照）', async () => {
+  const { raw, db } = await setup();
+  const target = '+8613812345681';
+  const key = `otp:sms:${await tokenDigest(target)}`;
+  raw.prepare(`INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, ?, datetime('now','localtime','+1 day'))`)
+    .run(key, LIMITS.OTP_DAILY_MAX);
+  const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  assert.equal(r.ok, false, '未过期满额桶应拒绝');
+  assert.equal((await r.err.json()).error, '今日验证码发送次数已达上限，请明天再试');
+});
+
+test('Z-2-F1 回归：投递失败不烧日配额（缺陷 B）', async () => {
+  const { raw, db } = await setup();
+  const target = '+8613812345682';
+  const key = `otp:sms:${await tokenDigest(target)}`;
+  setOtpStubFail({ status: 500 }); // 服务商非 200
+  const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  setOtpStubFail(null); // resetOtpStub 只清 sent，failMode 需显式复位（防泄漏到后续用例）
+  assert.equal(r.ok, false, '投递失败应返回失败');
+  const row = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [key]);
+  assert.equal(row, undefined, '投递失败不应 upsert 配额（缺陷 B 修复）');
+  const rows = await dbAll(db, 'SELECT 1 AS x FROM verification_codes WHERE target_hash=? AND used=0', [await tokenDigest(target)]);
+  assert.equal(rows.length, 0, '投递失败应作废验证码行（无假码）');
+});
+
+test('Z-2-F1 回归：投递成功才烧配额（缺陷 B 对照）', async () => {
+  const { db } = await setup();
+  const target = '+8613812345683';
+  const key = `otp:sms:${await tokenDigest(target)}`;
+  const r = await requestOtp(db, { channel: 'sms', target }, authedReq(''));
+  assert.equal(r.ok, true, '投递成功应 ok');
+  const row = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [key]);
+  assert.equal(row.n, 1, '成功投递应计数 +1');
 });
 
 test('requestOtp：过期行清理（v0.27.3 #19：注释承诺的 DELETE 落地，防 verification_codes 膨胀）', async () => {

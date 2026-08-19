@@ -163,13 +163,27 @@ export async function requestOtp(db, { channel, target, scene }, req) {
   const codeHash = await tokenDigest(String(code));
   const expires = toDbTime(new Date(Date.now() + LIMITS.OTP_CODE_TTL_MS));
 
-  // 原子限频（赢家模式）：60s 内已发 / 单日超限 → 条件 INSERT 不命中（changes=0）拒绝。
+  // 原子限频（赢家模式）：60s 内已发 → 条件 INSERT 不命中（changes=0）拒绝。
   // 时间域纪律：created_at/expires_at 库内 UTC，SQL 层比较必须用 UTC
   // （datetime('now') 即 UTC；datetime('now','localtime') 是库内本地时区，与 UTC 存储域比较
   // 在中国时区恒判命中/过期——verifyOtp 早已 UTC 参数比较，此处一并对齐）。
   // 限频 INSERT 前必须先清该目标过期行（防 verification_codes 膨胀）。
   const nowUtc = toDbTime(new Date());
+  // Z-2-F1：单日上限独立计数走 rate_limits 桶——verification_codes 行仅 5 分钟 TTL，
+  // DELETE 清过期行会抹掉历史，原 INSERT 内嵌的日计数子查询只看得到近 5 分钟行，
+  // OTP_DAILY_MAX 恒不可达（短信轰炸第二道闸失效）。rate_limits reset_at 为 localtime 域，
+  // upsert/比较统一 localtime（与 security.js RATE_UPSERT_SQL 同口径，过期行由限流兜底清理）。
+  // 语义 =「成功投递次数」：预读桶 n（过滤 reset_at，过期桶视为无桶、upsert 自然重置——
+  // 复审修：此前不过滤致过期桶再锁 24h），通过后才 INSERT；计数 +1 在 deliverOtp 成功之后
+  //（复审修：此前 INSERT 后就 upsert，投递失败烧日配额）。60s 窗口拒绝的请求不计数。
+  const dayKey = `otp:${ch}:${targetHash}`; // 函数级提升：try 块（预读）与投递成功分支（upsert）共用
   try {
+    const dayRow = await dbGet(db, "SELECT n FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')", [dayKey]);
+    if (dayRow && dayRow.n >= LIMITS.OTP_DAILY_MAX) {
+      await logEvent(db, { action: 'otp.request.rate', actorUsername: targetMask(t),
+        entity: 'otp', detail: { channel: ch, reason: 'daily_limit' }, req });
+      return { ok: false, err: errorMsg('OTP_DAILY_LIMIT', 429) };
+    }
     // 清理过期行（防 verification_codes 膨胀）
     await dbRun(db, 'DELETE FROM verification_codes WHERE channel=? AND target_hash=? AND expires_at < ?',
       [ch, targetHash, nowUtc]);
@@ -177,19 +191,12 @@ export async function requestOtp(db, { channel, target, scene }, req) {
       SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS (
         SELECT 1 FROM verification_codes
         WHERE channel=? AND target_hash=? AND used=0 AND created_at > datetime('now', ?))
-        AND (SELECT COUNT(*) FROM verification_codes
-          WHERE channel=? AND target_hash=? AND created_at > datetime('now', ?)) < ?
       `, [ch, targetHash, codeHash, expires, nowUtc,
-          ch, targetHash, '-' + Math.round(LIMITS.OTP_RESEND_WINDOW_MS / 1000) + ' seconds',
-          ch, targetHash, '-1 day', LIMITS.OTP_DAILY_MAX]);
+          ch, targetHash, '-' + Math.round(LIMITS.OTP_RESEND_WINDOW_MS / 1000) + ' seconds']);
     if (!(r && r.meta && r.meta.changes > 0)) {
       await logEvent(db, { action: 'otp.request.rate', actorUsername: targetMask(t),
-        entity: 'otp', detail: { channel: ch, reason: 'resend_window_or_daily_limit' }, req });
-      // 区分 60s 窗口与单日上限的文案（60s 更常见）
-      const recent = await dbGet(db, 'SELECT 1 AS x FROM verification_codes WHERE channel=? AND target_hash=? AND used=0 AND created_at > datetime(\'now\', ?)',
-        [ch, targetHash, '-' + Math.round(LIMITS.OTP_RESEND_WINDOW_MS / 1000) + ' seconds']);
-      if (recent) return { ok: false, err: errorMsg('OTP_RESEND_LIMIT', 429) };
-      return { ok: false, err: errorMsg('OTP_DAILY_LIMIT', 429) };
+        entity: 'otp', detail: { channel: ch, reason: 'resend_window' }, req });
+      return { ok: false, err: errorMsg('OTP_RESEND_LIMIT', 429) };
     }
     // 契约：同一联系方式发新码后，旧验证码凭证立刻过期销毁——
     // 限频已过（本请求成功插入新码），作废该目标其余未消费行（置 used，行保留供单日计数/审计；
@@ -225,6 +232,12 @@ export async function requestOtp(db, { channel, target, scene }, req) {
     }
     return { ok: false, err: errorMsg('SERVER_ERROR', 500) };
   }
+  // Z-2-F1 复审修（缺陷 B）：单日计数 +1 在投递成功之后——投递失败删行返回 500 不烧日配额
+  await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime','+1 day'))
+    ON CONFLICT(bucket) DO UPDATE SET
+      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
+      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`,
+    [dayKey]);
   await logEvent(db, { action: 'otp.request', actorUsername: targetMask(t),
     entity: 'otp', detail: { channel: ch, requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）
   return { ok: true };
