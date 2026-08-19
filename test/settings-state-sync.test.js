@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { submitUsername, saveAvatar } from '../src/client/features/settings/actions.js';
+import { submitUsername, saveAvatar, bindUiScaleSlider } from '../src/client/features/settings/actions.js';
 import { state } from '../src/client/core/state.js';
 
 function canvasStub() {
@@ -78,5 +78,24 @@ test('改头像成功后 state.user.avatar 更新 + 侧栏重渲染（Q-4b-M2）
   await new Promise(r => setTimeout(r, 30));
   assert.equal(state.user.avatar, dataUrl, 'state.user.avatar 已更新');
   assert.ok(dom.window.document.getElementById('sidebar-user').textContent.includes('旧名'), '侧栏重渲染保留用户名');
+  delete globalThis.fetch; teardown();
+});
+
+test('Q-4b-M3：re-enter settings 页 window 监听只注册一次（原累积泄漏）', async () => {
+  const dom = setup('<div id="account-settings-content"></div>');
+  let uiScaleCount = 0;
+  const origAdd = dom.window.addEventListener.bind(dom.window);
+  dom.window.addEventListener = (t, fn, opts) => { if (t === 'sufe:ui-scale') uiScaleCount++; return origAdd(t, fn, opts); };
+  const render = () => {
+    dom.window.document.getElementById('account-settings-content').innerHTML = '<input type="range" id="ui-scale-slider" min="80" max="130" step="1" value="100"><span id="ui-scale-val">100%</span>';
+    bindUiScaleSlider();
+  };
+  render(); // 首次进入（slider1 绑定）
+  render(); // re-enter 重建 slider2 再绑定
+  assert.equal(uiScaleCount, 1, 'window 监听只注册一次（不随 re-enter 累积）');
+  // 触发 UI 缩放事件 → 当前 slider 显示同步（现查元素，不闭包游离旧 slider）
+  dom.window.dispatchEvent(new dom.window.Event('sufe:ui-scale'));
+  const valEl = dom.window.document.getElementById('ui-scale-val');
+  assert.ok(valEl && valEl.textContent.includes('%'), '缩放同步仍在工作');
   delete globalThis.fetch; teardown();
 });

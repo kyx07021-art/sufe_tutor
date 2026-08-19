@@ -7,7 +7,7 @@ import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared e
 import { state, getThemePref, getUiScale, uiScaleFillPct, setUiScaleLive, commitUiScale, getOrbPref } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
-import { renderSidebar } from '../../core/router.js'; // Q-4b-M2：用户名/头像修改后刷新侧栏（state.user 同步）
+import { renderSidebar } from '../../core/router.js'; // Q-4b-M2: refresh sidebar after username/avatar change (state.user sync)
 import { openModal, closeModal, showToast, confirm, withCaptcha, btnLoading, btnDone, bindCountdown } from '../../core/ui.js';
 import { setStylePref as applyStylePref, setThemePref as applyThemePref, setOrbPref as applyOrbPref, getStylePref } from '../../core/appearance.js';
 import { escHtml, renderAvatarHtml, loaderHtml } from '../../core/dom.js';
@@ -136,7 +136,7 @@ export async function submitUsername() {
       withCaptcha(async () => {
         await api('/api/user/username', { method: 'POST', body: { newUsername: username, capToken } });
         closeModal(); showToast(TEXT.SETTINGS_USERNAME_CHANGED); invalidate('account'); loadUsernameStatus();
-        if (state.user) { state.user.username = username; renderSidebar(); } // Q-4b-M2：改用户名后同步 state.user + 侧栏（原陈旧到下次登录）
+        if (state.user) { state.user.username = username; renderSidebar(); } // Q-4b-M2: sync state.user.username + sidebar (was stale until next login)
       });
     }});
   } catch (err) { showToast(err.message); }
@@ -163,7 +163,7 @@ export function openDeactivateModal() {
 
 export function confirmDeactivateAccount() {
   confirm({ title: TEXT.SETTINGS_DEACTIVATE_TITLE, message: TEXT.SETTINGS_DEACTIVATE_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    try { await api('/api/user/deactivate', { method: 'POST', body: { capToken } }); showToast(TEXT.SETTINGS_DEACTIVATED); handleLogout(); } catch (err) { showToast(err.message); } // Q-4b-M1：注销成功后登出——服务端已置 deactivated 拒令牌，本地须清态回 landing（否则停留已登录陈旧 UI，下次 API 才 401）
+    try { await api('/api/user/deactivate', { method: 'POST', body: { capToken } }); showToast(TEXT.SETTINGS_DEACTIVATED); handleLogout(); } catch (err) { showToast(err.message); } // Q-4b-M1: after deactivate, logout clears local session (server rejects token; stale login UI otherwise persists until next 401)
   }});
 }
 
@@ -183,7 +183,7 @@ export async function saveAvatar() {
   try {
     await api('/api/user/avatar', { method: 'POST', body: { avatar: window._avatarDataUrl } });
     closeModal(); showToast(TEXT.SETTINGS_AVATAR_SAVED); invalidate('account');
-    if (state.user) { state.user.avatar = window._avatarDataUrl; renderSidebar(); } // Q-4b-M2：改头像后同步 state.user + 侧栏（原陈旧到下次登录）
+    if (state.user) { state.user.avatar = window._avatarDataUrl; renderSidebar(); } // Q-4b-M2: sync state.user.avatar + sidebar (was stale until next login)
   } catch (err) { showToast(err.message); }
 }
 
@@ -205,6 +205,7 @@ export function commitUiScaleFromSlider(el) {
   if (valEl) valEl.textContent = v + '%';
   el.style.setProperty('--ui-fill', uiScaleFillPct(v) + '%');
 }
+let windowUiScaleBound = false; // Q-4b-M3: register window listener once — re-enter rebuilds slider and re-binds; old code leaked one listener per settings visit (stale innerHTML-rebuilt slider)
 export function bindUiScaleSlider() {
   const slider = document.getElementById('ui-scale-slider');
   if (!slider || slider.dataset.pointerBound) return;
@@ -241,11 +242,16 @@ export function bindUiScaleSlider() {
   slider.addEventListener('pointercancel', endDrag);
   slider.addEventListener('input', () => setUiScaleFromSlider(slider));
   slider.addEventListener('change', () => commitUiScaleFromSlider(slider));
-  if (typeof window !== 'undefined') {
-    window.addEventListener('sufe:ui-scale', () => {
+  if (typeof window !== 'undefined' && !windowUiScaleBound) {
+    windowUiScaleBound = true;
+    window.addEventListener('sufe:ui-scale', () => { // Q-4b-M3: look up current slider (not stale closure element); register once
       const synced = getUiScale();
-      if (drag) drag.startVal = synced;
-      refreshLabel(slider, synced);
+      const el = document.getElementById('ui-scale-slider');
+      if (!el) return;
+      el.value = synced;
+      el.style.setProperty('--ui-fill', uiScaleFillPct(synced) + '%');
+      const valEl = document.getElementById('ui-scale-val');
+      if (valEl) valEl.textContent = synced + '%';
     });
   }
 }
