@@ -9,7 +9,6 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { CONFIG } from '../src/shared/config.js';
-import { TEXT as SHARED_TEXT } from '../src/client/constants/text.js';
 import { state, registerLogoutReset } from '../src/client/core/state.js';
 import { stopBadgePoll } from '../src/client/core/router.js';
 import { stopVersionProbe } from '../src/client/core/datahub.js';
@@ -132,13 +131,8 @@ function seedDevice(storage) {
   storage.setItem(CONFIG.DEVICE_ID_KEY, 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
 }
 
-test('text parity: every auth key matches shared text.js / old static shell verbatim', () => {
-  for (const [k, v] of Object.entries(TEXT)) {
-    if (SHARED_TEXT[k] !== undefined) {
-      if (Array.isArray(v)) assert.deepEqual(v, SHARED_TEXT[k], k);
-      else assert.equal(v, SHARED_TEXT[k], k);
-    }
-  }
+test('text parity: auth render output carries the single-source text verbatim', () => {
+  // Z-11-F1 迁移后 TEXT 与 feature text.js 已同源（原双源漂移检测循环变恒真自比较，删除）；
   // V-4-1h：v1 静态壳已删，登录/注册文案单源 = features/auth/render.js 渲染输出（V-2-4a 服务端文案同源）
   const shellHtml = render.loginViewHtml() + render.registerViewHtml();
   for (const v of [TEXT.LOGIN_IDENTIFIER_LABEL, TEXT.LOGIN_PASSWORD_LABEL, TEXT.LOGIN_REMEMBER,
