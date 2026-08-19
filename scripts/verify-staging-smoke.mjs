@@ -1,6 +1,6 @@
 /**
- * V-4-1e staging 冒烟：真实部署产物（dist/_worker.js + dist/ + _headers）经真实 worker fetch 服务，
- * Playwright 浏览器实机验证 v2 页面 / 路由 / 静态资产哈希 / CSS 加载序 / 子目录版本化 URL。
+ * V-4-1e staging 冒烟（V-4-1h h5a 扩展）：真实部署产物（dist/_worker.js + dist/ + _headers）经真实 worker
+ * fetch 服务，Playwright 浏览器实机验证 v2 页面 / 路由 / 静态资产哈希 / CSS 加载序 / 子目录版本化 URL。
  * 不进 npm test glob，交付前手动跑。用法：node scripts/verify-staging-smoke.mjs
  *
  * 验证面：
@@ -11,6 +11,10 @@
  *   3. SPA 回退 /my-demands → 200 HTML（v2 壳，零内联；Pages ASSETS 无扩展名回退 index.html）。
  *   4. 浏览器 /：landing 渲染 + 访客进客户端壳（路由冒烟），零 pageerror/console error；
  *      ASSETS 桩解析真实 _headers 规则（/* 安全头 + CSP 与 meta 取交集，忠实生产响应头）。
+ *   5. h5a-g3：首访 onboarding 弹窗（独立 context 无 sufe_returning → 弹窗必出）在真实 _headers ∩ meta
+ *      双策略（g6 起 style-src-attr 'none'）下渲染 + browseGuest 进壳全链路零 console/PAGEERROR/CSP
+ *      违规——收紧后真实应用不破的负断言回归（CSSOM cssText/setProperty 不受 style-src-attr 管辖，
+ *      弹窗显式宽度仍生效，F1 实测定案）。
  */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
@@ -141,9 +145,15 @@ const server = createServer(async (req, res) => {
       body: req.method === 'GET' || req.method === 'HEAD' ? undefined : body,
     });
     const response = await worker.fetch(request, env, ctx);
+    const buf = await response.arrayBuffer(); // h5a-g3：读体提前到写头之前——page.close 竞态下先写头再读体失败会进 catch 重复 writeHead（ERR_HTTP_HEADERS_SENT）
+    if (res.writableEnded) return;            // 客户端已断开（page.close）：不重复写头
     res.writeHead(response.status, Object.fromEntries(response.headers));
-    res.end(Buffer.from(await response.arrayBuffer()));
-  } catch (e) { res.writeHead(500); res.end(String(e && e.message)); }
+    res.end(Buffer.from(buf));
+  } catch (e) {
+    if (res.writableEnded) return;
+    res.writeHead(500);
+    res.end(String(e && e.message));
+  }
 });
 
 await new Promise(r => server.listen(port, '127.0.0.1', r));
@@ -225,6 +235,26 @@ try {
     inShell ? ok('访客进客户端壳（路由冒烟）') : fail('客户端壳未渲染');
     const errors = consoleMsgs.filter(m => m.startsWith('PAGEERROR') || m.startsWith('error'));
     errors.length === 0 ? ok('浏览器零 pageerror/console error') : fail('浏览器报错：', errors.slice(0, 3).join(' | '));
+
+    // h5a-g3：首访 onboarding 弹窗冒烟——独立 context（默认 context 已写 sufe_returning='1'，
+    // localStorage 按 origin 在 context 内共享，会继承标记导致弹窗不出；newContext 无标记 → 首访必弹）。
+    // 真实 _headers ∩ meta 双策略（g6 起 style-src-attr 'none'）下弹窗渲染 + 引导关闭进壳全链路
+    // 零 console/PAGEERROR/CSP 违规 = 收紧后真实应用不破的负断言回归。
+    const modalCtx = await browser.newContext();
+    const modalPage = await modalCtx.newPage();
+    const modalMsgs = [];
+    modalPage.on('console', m => modalMsgs.push(m.text()));
+    modalPage.on('pageerror', e => modalMsgs.push('PAGEERROR: ' + e.message));
+    await modalPage.goto(base + '/', { waitUntil: 'load' });
+    await modalPage.waitForSelector('.onboard-intro', { timeout: 5000 });
+    ok('首访 onboarding 弹窗渲染（.onboard-intro）');
+    await modalPage.click('[data-action="onboard.browseGuest"]');
+    await modalPage.waitForSelector('#sidebar-nav .sidebar-item', { timeout: 5000 });
+    ok('弹窗引导关闭并进入客户端壳');
+    const modalErrors = modalMsgs.filter(m => /CSP|PAGEERROR|Content Security Policy/i.test(m));
+    modalErrors.length === 0 ? ok('onboarding 弹窗链路零 CSP 违规（真实 _headers ∩ meta）') : fail('弹窗链路报错：', modalErrors.slice(0, 3).join(' | '));
+    await modalPage.close();
+    await modalCtx.close();
     await browser.close();
   }
 
