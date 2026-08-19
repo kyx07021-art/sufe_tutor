@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { confirmLogout, openDeactivateModal, enterAccountSettings } from '../src/client/features/settings/actions.js';
+import { confirmLogout, openDeactivateModal, enterAccountSettings, confirmDeactivateAccount } from '../src/client/features/settings/actions.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -119,4 +119,29 @@ test('openDeactivateModal：弹窗含警告 + 取消/继续按钮，继续走 co
   assert.ok(cancelBtn && contBtn, '取消/继续两按钮在');
   assert.ok(contBtn.classList.contains('btn-danger'), '继续按钮危险样式');
   teardown();
+});
+
+// Q-4b-M1：注销成功后必须登出（handleLogout 清态回 landing）——服务端已置 deactivated 拒令牌，
+// 本地若停留已登录 UI，陈旧登录态直到下次 API 401 才清（UX 缺陷）。变异：删 handleLogout() → 红。
+test('confirmDeactivateAccount：二次认证成功后注销 + 自动登出（Q-4b-M1）', async () => {
+  const dom = setup();
+  let deactivateCalled = 0, logoutCalled = 0;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.endsWith('/api/auth/re-auth')) return { ok: true, status: 200, json: async () => ({ capToken: 'cap-deact' }) };
+    if (u.endsWith('/api/user/deactivate')) { deactivateCalled++; return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    if (u.endsWith('/api/auth/logout')) { logoutCalled++; return { ok: true, status: 200, json: async () => ({}) }; }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  confirmDeactivateAccount();
+  const pw = dom.window.document.getElementById('reauth-password');
+  assert.ok(pw, '二次认证密码输入出现');
+  pw.value = 'pass123456';
+  dom.window.document.querySelector('[data-action="ui.runReAuth"]').click();
+  await new Promise(r => setTimeout(r, 100)); // 覆盖 confirm 的 REAUTH_FOCUS_MS=50 聚焦 setTimeout（teardown 前触发，防 document 已删报错）
+  assert.equal(deactivateCalled, 1, '注销 API 被调一次');
+  assert.equal(logoutCalled, 1, '注销成功后登出 API 被调一次（陈旧登录态根治）');
+  assert.equal(state.user, null, '会话 user 清空');
+  assert.equal(state.authToken, null, 'authToken 清空');
+  delete globalThis.fetch; teardown();
 });

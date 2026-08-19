@@ -161,7 +161,7 @@ export function openDeactivateModal() {
 
 export function confirmDeactivateAccount() {
   confirm({ title: TEXT.SETTINGS_DEACTIVATE_TITLE, message: TEXT.SETTINGS_DEACTIVATE_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    try { await api('/api/user/deactivate', { method: 'POST', body: { capToken } }); showToast(TEXT.SETTINGS_DEACTIVATED); } catch (err) { showToast(err.message); }
+    try { await api('/api/user/deactivate', { method: 'POST', body: { capToken } }); showToast(TEXT.SETTINGS_DEACTIVATED); handleLogout(); } catch (err) { showToast(err.message); } // Q-4b-M1：注销成功后登出——服务端已置 deactivated 拒令牌，本地须清态回 landing（否则停留已登录陈旧 UI，下次 API 才 401）
   }});
 }
 
