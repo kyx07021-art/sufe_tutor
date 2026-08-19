@@ -102,9 +102,12 @@ export async function doSubmitContentPenalty(id, type) {
   const reason = document.getElementById('penalty-reason')?.value.trim();
   if (!reason) { showToast(TEXT.ADMIN_REASON_REQUIRED, 'error'); return; }
   try {
+    // Q-2f-M2：teacher 档案无硬删分支——服务端 handleContentAction 要求 type='teacher' 必须 action='ban'
+    // （否则 400）。UI 形状失配修复：teacher 提交 ban，其余提交 delete。
+    const action = type === 'teacher' ? 'ban' : 'delete';
     confirm({ title: TEXT.ADMIN_PENALTY, message: TEXT.ADMIN_PENALTY_CONFIRM, needReAuth: true, onConfirm: async capToken => {
       withCaptcha(async () => {
-        await api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action: 'delete', reason, capToken } });
+        await api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, capToken } });
         closeModal(); showToast(TEXT.ADMIN_DONE); loadAdminContent(type);
       });
     }});
