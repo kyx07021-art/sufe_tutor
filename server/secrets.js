@@ -16,6 +16,8 @@ export function isProductionRuntime(env) {
 
 export function getSecret(env, key) {
   const fromEnv = env && env[key];
-  if (fromEnv != null && fromEnv !== '') return fromEnv;
+  // Q-2h-L1：trim 统一（startup.js 原 envSecret 本地副本已收敛至此，规则 41 单源）——
+  // 密钥无有效前导/尾随空格，纯空格视为未配置
+  if (fromEnv != null && String(fromEnv).trim() !== '') return String(fromEnv).trim();
   return ''; // fail-closed：无 env 即空串，绝不回落仓库明文
 }

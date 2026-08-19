@@ -10,12 +10,7 @@
  */
 import { json } from '../src/server/core/util.js';
 import { INVITE_GATE_ENABLED, INVITE_GATE_DORMANT, LEGACY_ADMIN_PASSWORD } from '../src/shared/config.js';
-import { isProductionRuntime } from './secrets.js';
-
-/** 只从 env 读（不看仓库文件回落）——Release Gate 检查的就是「Worker Secrets 是否真的配了」 */
-function envSecret(env, key) {
-  return env && env[key] != null && String(env[key]).trim() !== '' ? String(env[key]).trim() : '';
-}
+import { isProductionRuntime, getSecret } from './secrets.js'; // Q-2h-L1: getSecret 单源（env trim 统一）
 
 // Q-2a-F4: 密钥必须 base64 合法且解出恰 32 字节（AES-GCM-256）。防两种假绿：
 //  ① 非 base64/非法字符 → atob 抛错 → Gate not-ready（原只查非空会放行，encryptField 运行期抛错全写 500）；
@@ -35,24 +30,24 @@ export function productionConfigChecks(env) {
   const add = (code, pass) => checks.push({ code, pass: !!pass });
 
   // 必需加密/通道密钥（缺一/非法 = 生产不 ready；Q-2a-F4 补 base64 可导入校验防假绿）
-  add('LOG_ENCRYPT_KEY', isAes256B64(envSecret(env, 'LOG_ENCRYPT_KEY')));
-  add('FIELD_ENC_KEY', isAes256B64(envSecret(env, 'FIELD_ENC_KEY')) && envSecret(env, 'FIELD_ENC_KEY') !== envSecret(env, 'LOG_ENCRYPT_KEY'));
-  add('SMS_OTP_TEMPLATE_CODE', envSecret(env, 'SMS_OTP_TEMPLATE_CODE').length > 0);
-  add('EMAIL_OTP_TEMPLATE_CODE', envSecret(env, 'EMAIL_OTP_TEMPLATE_CODE').length > 0);
-  add('TEXT_AUDIT_API_KEY', envSecret(env, 'TEXT_AUDIT_API_KEY').length > 0);
+  add('LOG_ENCRYPT_KEY', isAes256B64(getSecret(env, 'LOG_ENCRYPT_KEY')));
+  add('FIELD_ENC_KEY', isAes256B64(getSecret(env, 'FIELD_ENC_KEY')) && getSecret(env, 'FIELD_ENC_KEY') !== getSecret(env, 'LOG_ENCRYPT_KEY'));
+  add('SMS_OTP_TEMPLATE_CODE', getSecret(env, 'SMS_OTP_TEMPLATE_CODE').length > 0);
+  add('EMAIL_OTP_TEMPLATE_CODE', getSecret(env, 'EMAIL_OTP_TEMPLATE_CODE').length > 0);
+  add('TEXT_AUDIT_API_KEY', getSecret(env, 'TEXT_AUDIT_API_KEY').length > 0);
 
   // 管理员凭据已轮换（不允许沿用仓库历史明文）
-  const adminPassword = envSecret(env, 'ADMIN_DEFAULT_PASSWORD');
+  const adminPassword = getSecret(env, 'ADMIN_DEFAULT_PASSWORD');
   add('ADMIN_CREDENTIAL_ROTATED', adminPassword.length >= 12 && adminPassword !== LEGACY_ADMIN_PASSWORD);
-  add('ADMIN_USERNAMES', envSecret(env, 'ADMIN_USERNAMES').length > 0);
+  add('ADMIN_USERNAMES', getSecret(env, 'ADMIN_USERNAMES').length > 0);
 
   // 学信网核验：mock/thirdparty 占位均不允许出现在生产
-  const chsi = envSecret(env, 'CHSI_PROVIDER');
+  const chsi = getSecret(env, 'CHSI_PROVIDER');
   add('CHSI_PROVIDER_MANUAL', !chsi || chsi === 'manual');
 
   // 密钥轮换：迁移窗口内必须带旧钥；重加密完成并显式置位后允许只留新钥
-  const rotationDone = envSecret(env, 'CRYPTO_REENCRYPT_DONE') === 'true';
-  add('CRYPTO_ROTATION_READY', rotationDone || (envSecret(env, 'FIELD_ENC_KEY_OLD').length > 0 && envSecret(env, 'LOG_ENCRYPT_KEY_OLD').length > 0));
+  const rotationDone = getSecret(env, 'CRYPTO_REENCRYPT_DONE') === 'true';
+  add('CRYPTO_ROTATION_READY', rotationDone || (getSecret(env, 'FIELD_ENC_KEY_OLD').length > 0 && getSecret(env, 'LOG_ENCRYPT_KEY_OLD').length > 0));
 
   // 教师注册邀请码门控：两种一致态都合法——启用（后端 true + 前端 false）或开放注册（后端 false + 前端 true）
   add('INVITE_GATE_CONSISTENT',
