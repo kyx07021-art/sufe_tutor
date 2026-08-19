@@ -4,6 +4,7 @@
 import { dbAll, dbGet, dbRun } from '../../core/util.js'; // Z-6-F1：dbRevokeInviteCode/dbDeleteFeedback/dbDeleteComplaint 补 dbRun（断线修复）
 import { safeJsonArray } from '../../core/json.js';
 import { LIMITS } from '../../../shared/config.js';
+import { MSG } from '../../../shared/codes.js'; // Q-2i-M5：内容审核 title 文案单源
 
 // ============================================================
 // 管理员统计
@@ -116,17 +117,19 @@ const CONTENT_SQL = {
 // 类型清单由 CONTENT_SQL 的键派生（CONTENT_TYPES）——增类型只改 CONTENT_SQL + CONTENT_MAPPER
 // 两处同名键，清单自动跟随，杜绝「硬编码清单与表域错位」。
 // 无效 type（非键）→ 返回空列表，不再崩溃。
+// Q-2i-M5：title 显示文案 codes.js MSG 单源（原内联中文模板）
+const tpl = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? vars[k] : ''));
 const CONTENT_MAPPER = {
   post: r => ({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } }),
-  demand: r => ({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `需求 #${r.display_id || r.id}`, body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
-  teacher: r => ({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: `教师档案 · ${r.username || ''}`, body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} }),
-  review: r => ({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: `评价 ${r.rating} 星`, body: r.comment, status: r.status, created_at: r.created_at, extra: {} }),
-  message: r => ({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? '聊天消息' : `附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } }),
-  feedback: r => ({ type: 'feedback', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title || `反馈（${r.kind}）`, body: r.content, status: r.status, created_at: r.created_at, extra: { kind: r.kind } }),
-  complaint: r => ({ type: 'complaint', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `投诉 ${r.target_type} #${r.target_id}（${r.reason}）`, body: r.detail, status: r.status, created_at: r.created_at, extra: { target_type: r.target_type, target_id: r.target_id } }),
-  upload: r => ({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: `暂存附件（${r.kind}${r.name ? ' · ' + r.name : ''}）`, body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } }),
-  contract: r => ({ type: 'contract', id: r.id, author: { id: r.drafter_user_id, username: r.username, role: r.role }, title: '合同', body: [r.plan, r.schedule].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
-  signing: r => ({ type: 'signing', id: r.id, author: { id: r.initiator_user_id, username: r.username, role: r.role }, title: `签约请求 ${r.price > 0 ? r.price + ' 元/时' : ''}`, body: [r.schedule, r.method].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
+  demand: r => ({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_DEMAND, { id: r.display_id || r.id }), body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
+  teacher: r => ({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_TEACHER, { name: r.username || '' }), body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} }),
+  review: r => ({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_REVIEW, { rating: r.rating }), body: r.comment, status: r.status, created_at: r.created_at, extra: {} }),
+  message: r => ({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? MSG.CONTENT_TITLE_MESSAGE_TEXT : tpl(MSG.CONTENT_TITLE_MESSAGE_ATTACH, { kind: r.kind, name: r.name ? ' · ' + r.name : '' }), body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } }),
+  feedback: r => ({ type: 'feedback', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title || tpl(MSG.CONTENT_TITLE_FEEDBACK, { kind: r.kind }), body: r.content, status: r.status, created_at: r.created_at, extra: { kind: r.kind } }),
+  complaint: r => ({ type: 'complaint', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_COMPLAINT, { target: r.target_type, id: r.target_id, reason: r.reason }), body: r.detail, status: r.status, created_at: r.created_at, extra: { target_type: r.target_type, target_id: r.target_id } }),
+  upload: r => ({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_UPLOAD, { kind: r.kind, name: r.name ? ' · ' + r.name : '' }), body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } }),
+  contract: r => ({ type: 'contract', id: r.id, author: { id: r.drafter_user_id, username: r.username, role: r.role }, title: MSG.CONTENT_TITLE_CONTRACT, body: [r.plan, r.schedule].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
+  signing: r => ({ type: 'signing', id: r.id, author: { id: r.initiator_user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_SIGNING, { price: r.price > 0 ? r.price + MSG.CONTENT_PRICE_PER_HOUR : '' }), body: [r.schedule, r.method].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
 };
 
 function mapContentRows(t, rows, out) {

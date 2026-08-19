@@ -265,10 +265,11 @@ export async function handleAdminBroadcast(db, body, req) {
 // ============================================================
 // D1/D2 统一内容审核（V-1-4c 迁入）
 // ============================================================
-const TYPE_LABEL = {
-  post: '帖子', demand: '需求', teacher: '教师档案', review: '评价',
-  message: '聊天消息', feedback: '反馈', complaint: '投诉', upload: '附件',
-  contract: '合同', signing: '签约请求',
+const TYPE_LABEL = { // Q-2i-M5：显示文案 codes.js MSG 单源
+  post: MSG.CONTENT_LABEL_POST, demand: MSG.CONTENT_LABEL_DEMAND, teacher: MSG.CONTENT_LABEL_TEACHER,
+  review: MSG.CONTENT_LABEL_REVIEW, message: MSG.CONTENT_LABEL_MESSAGE, feedback: MSG.CONTENT_LABEL_FEEDBACK,
+  complaint: MSG.CONTENT_LABEL_COMPLAINT, upload: MSG.CONTENT_LABEL_UPLOAD,
+  contract: MSG.CONTENT_LABEL_CONTRACT, signing: MSG.CONTENT_LABEL_SIGNING,
 };
 
 // 处罚通知三段截断预算（LIMITS.PENALTY_*_MAX 单源）：结构化 params 落库，客户端渲染总长 <200（v1 库层 200 字上限语义保留）
