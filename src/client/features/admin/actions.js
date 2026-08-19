@@ -1,5 +1,17 @@
 /**
  * admin feature actions: stats, dashboard, users, demands, reviews, content, awards, verifications.
+ *
+ * Q-4b-M4 dormancy note: the admin management actions below loadAdminStats (loadAdminTraffic,
+ * loadAdminUsers/Students/Teachers, loadAdminDemands/Reviews/Content/Posts/Contracts/Feedback/
+ * Awards/Verifications, renderAdmin*Row, openContentPenaltyModal, submitContentPenalty,
+ * openPostViewModal, adminDeletePost, adminViewContract, adminRemoveContract, resolveAdminFeedback,
+ * confirmBanUser, generateInviteCode, openInviteManager, revokeInvite, viewAwardProof,
+ * approveAward, rejectAwardModal, submitAwardReject, doAwardAction, viewAdmissionImage,
+ * renderVerifForm, verifApprove/Revoke/Reject, toggleTeacherVerify, doTeacherVerify) have NO live
+ * UI trigger — the admin-stats page renders loadAdminStats() only. They await the pending B5
+ * admin-panel parity work and are consumed by tests (admin-client-actions, cache-invalidate-guard).
+ * Dormant per rule 35: zero live production reference, explicitly noted here (do not remove — B5
+ * depends on them; do not wire into ACTION_MAP before the admin panel exists).
  */
 import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
