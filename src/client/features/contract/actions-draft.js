@@ -89,12 +89,16 @@ export async function submitSigning(convId) {
   withCaptcha(() => doSubmitSigning(convId, { demandId, price, schedule, method }));
 }
 
+let signingBusy = false; // Q-4a-M2: double-submit guard — POST in-flight while modal closed via header X then reopened+resubmitted would create a duplicate signing request (mirrors contractDraftBusy)
 export async function doSubmitSigning(convId, { demandId, price, schedule, method }) {
+  if (signingBusy) return;
+  signingBusy = true;
   try {
     await api(`/api/conversations/${convId}/signing`, { method: 'POST', body: { demandId, price, schedule, method } });
     closeModal();
     showToast(TEXT.SIGNING_REQUEST_SENT_TOAST);
   } catch (err) { showToast(err.message); }
+  finally { signingBusy = false; }
 }
 
 
