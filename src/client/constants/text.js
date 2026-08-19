@@ -330,7 +330,6 @@ export const TEXT = {
   "DEACTIVATE_DONE_TOAST": "账户已注销",
   "REAUTH_PASSWORD_LABEL": "当前密码",
   "REAUTH_PASSWORD_HINT": "输入当前密码以确认此操作",
-  "DEACTIVATED_USER_PREFIX": "已注销用户",
   "PEER_DEACTIVATED_TAG": "一方已注销",
   "GUEST_NOT_LOGGED_IN": "未登录",
   "GUEST_TAP_TO_LOGIN": "点击登录以使用全部功能",
