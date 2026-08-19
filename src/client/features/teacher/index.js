@@ -7,6 +7,8 @@ import * as actions from './actions.js';
 
 const ACTION_MAP = {
   'teacher.openProfile': el => actions.openProfilePanel(Number(el.dataset.id)),
+  // Z-10-F1: write-review entry (profile panel button, teacherId read from module state — NOT el)
+  'teacher.openReview': () => actions.openReviewModal(),
   'teacher.closeReview': actions.closeModalAction,
   'teacher.submitReview': actions.submitReview,
   'teacher.setStars': el => actions.setReviewStars(el),

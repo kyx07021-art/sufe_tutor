@@ -76,6 +76,17 @@ registerTeacherDomainRefresh();
 
 export async function openProfilePanel(userId) {
   let t = state.allTeachers.find(x => x.user_id === userId);
+  // Z-10-F1: write-review gate data source — GET /api/teacher/profile carries server-side `signed`
+  // (student has contracted this teacher; single source of truth); list data lacks it.
+  // Only logged-in students request it: guests would get 401 and be bounced to the login view by
+  // api()'s dead-token handling (regression caught in re-review); guests/non-students fall through
+  // to list data where signed is absent and the button stays hidden.
+  if (state.user && state.user.role === 'student') {
+    try {
+      const data = await api(`/api/teacher/profile?userId=${userId}`, { method: 'GET' });
+      if (data && data.profile) t = data.profile;
+    } catch { /* fallback to list data */ }
+  }
   if (!t) {
     try {
       const data = await api(`/api/users/${userId}`, { method: 'GET' });
@@ -109,8 +120,11 @@ async function loadAwards(userId) {
   } catch { /* silent */ }
 }
 
+// Z-10-F1: openReviewModal reads the teacher from the module state set by openProfilePanel;
+// a null/undefined arg must NOT clobber it (the button's data-action passes no arg — clobbering
+// would make submitReview post teacherUserId=undefined and fail the contracted-gate 403).
 export function openReviewModal(teacherId) {
-  profilePanelUserId = teacherId;
+  if (teacherId != null) profilePanelUserId = teacherId;
   openModal({ title: TEXT.REVIEW_MODAL_TITLE_PREFIX, body: reviewModalHtml(), footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="teacher.closeReview">${TEXT.BTN_CANCEL}</button><button type="button" class="btn glass glass--pressable" data-action="teacher.submitReview">${TEXT.BTN_SUBMIT_REVIEW}</button>` });
 }
 

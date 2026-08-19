@@ -70,6 +70,11 @@ export function renderProfilePanel(p, matched) {
     html += '</div>';
   }
   if (matched) html += `<div class="profile-match">${matched}</div>`;
+  // Z-10-F1: write-review entry gated by server-side `signed` (student has contracted this teacher).
+  // The button's data-action passes no arg — openReviewModal keeps the module state set by openProfilePanel.
+  if (p.signed) {
+    html += `<div class="profile-review-entry"><button type="button" class="btn glass glass--pressable profile-review-btn" data-action="teacher.openReview">${TEXT.BTN_WRITE_REVIEW}</button></div>`;
+  }
   html += `<div class="profile-reviews" id="profile-reviews"></div><div class="profile-awards" id="profile-awards"></div>`;
   return html + '</div>';
 }
