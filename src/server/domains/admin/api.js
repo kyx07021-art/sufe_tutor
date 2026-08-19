@@ -312,12 +312,12 @@ export async function handleContentAction(db, type, id, body, req) {
     case 'complaint': { const c = await dbGetComplaintById(db, id); if (!c) return errorMsg('COMPLAINT_NOT_FOUND', 404); authorId = c.user_id; summary = `${c.reason || ''} ${c.detail || ''}`; break; }
     case 'upload': { const o = await dbGetUpload(db, id); if (!o) return errorMsg('INVALID_PARAMS', 404); authorId = o.user_id; summary = o.name || ''; break; }
     case 'contract': { const c = await dbGetContractById(db, id); if (!c) return errorMsg('CONTRACT_NOT_FOUND', 404); authorId = c.drafter_user_id; summary = `${c.plan || ''} ${c.schedule || ''}`; break; }
-    case 'signing': { const s = await dbGetSigningById(db, id); if (!s) return errorMsg('CONTRACT_NOT_FOUND', 404); authorId = s.initiator_user_id; summary = `${s.price > 0 ? s.price + ' 元/时 ' : ''}${s.schedule || ''} ${s.method || ''}`; break; }
+    case 'signing': { const s = await dbGetSigningById(db, id); if (!s) return errorMsg('CONTRACT_NOT_FOUND', 404); authorId = s.initiator_user_id; summary = `${s.price > 0 ? s.price + MSG.CONTENT_PRICE_PER_HOUR + ' ' : ''}${s.schedule || ''} ${s.method || ''}`; break; }
     default: return errorMsg('INVALID_PARAMS');
   }
   if (!authorId) return errorMsg('USER_NOT_FOUND', 404);
   const author = await dbGetUserById(db, authorId);
-  const authorName = author ? author.username : `用户#${authorId}`;
+  const authorName = author ? author.username : MSG.CONTENT_USER_TAG + authorId;
   // 处罚 = 危险操作（删除/封禁不可逆），须 capToken 二次认证；且不得处罚管理员账户
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   if (author && author.role === 'admin') return errorMsg('NO_PERMISSION', 403);
