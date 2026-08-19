@@ -135,12 +135,46 @@ try {
     await page.click('[data-action="auth.viewLogin"]');
     await page.waitForSelector('#login-title', { timeout: 5000 });
     ok('登录视图渲染（#login-title）');
+    // 规则 45 几何断言（2026-08-19 用户「登录/注册点进去空白」）：.auth-view 曾 flex:1 但
+    // body 非 flex → 登录视图掉出视口（y=100vh+），landing 隐藏后视口全空白；DOM 存在≠渲染正确。
+    const loginRect = await page.evaluate(() => {
+      const el = document.getElementById('view-login'); if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), vw: innerWidth, vh: innerHeight };
+    });
+    if (!loginRect) fail('view-login 不存在');
+    else if (loginRect.y < loginRect.vh && loginRect.y + loginRect.h > 0) ok('登录视图在视口内（几何实测）');
+    else fail('登录视图掉出视口', JSON.stringify(loginRect));
     const cspViol = consoleMsgs.filter(m => CSP_RE.test(m));
     cspViol.length === 0 ? ok('登录视图零 CSP 违规') : fail(`登录视图 CSP 违规 ${cspViol.length} 条：`, cspViol.join(' | '));
     await page.close();
   }
 
-  // ---------- 4. v2 真实页面：首访 onboarding 弹窗 ----------
+  // ---------- 3b. 首访 onboarding：点遮罩关闭负路径（规则 64/65；Z-14-F1 教训：只测 browseGuest 放行路径的盲区）----------
+  {
+    const page = await browser.newPage();
+    const consoleMsgs = [];
+    page.on('console', m => consoleMsgs.push(m.text()));
+    page.on('pageerror', e => consoleMsgs.push('PAGEERROR: ' + e.message));
+    await page.goto(base + '/', { waitUntil: 'load' });
+    await page.waitForSelector('.onboard-intro', { timeout: 5000 });
+    ok('首访 onboarding 弹窗渲染（.onboard-intro）');
+    const overlay = await page.$('.modal-overlay');
+    if (!overlay) { fail('modal-overlay 缺失（透明遮罩不存在的路径无需测）'); }
+    await page.mouse.click(20, 300); // 视口左侧、弹窗框体之外点遮罩（closable:true 必须关闭解锁页面）
+    await page.waitForTimeout(300);
+    const after = await page.evaluate(() => ({ overlay: !!document.querySelector('.modal-overlay'), intro: !!document.querySelector('.onboard-intro') }));
+    if (after.overlay || after.intro) { fail('点遮罩后弹窗未关闭：', JSON.stringify(after)); }
+    ok('点遮罩关闭弹窗解锁页面（closable:true）');
+    await page.click('[data-action="auth.viewLogin"]');
+    await page.waitForSelector('#login-title', { timeout: 5000 });
+    ok('遮罩关闭后登录按钮可点（#login-title）');
+    const cspViol = consoleMsgs.filter(m => CSP_RE.test(m));
+    cspViol.length === 0 ? ok('遮罩点击链路零 CSP 违规') : fail(`遮罩点击链路 CSP 违规 ${cspViol.length} 条：`, cspViol.join(' | '));
+    await page.close();
+  }
+
+  // ---------- 4. v2 真实页面：首访 onboarding 弹窗（browseGuest 放行路径）----------
   {
     const page = await browser.newPage();
     const consoleMsgs = [];

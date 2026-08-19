@@ -3,6 +3,7 @@
  * feature registry starts empty (registerPage) and is filled in B2.
  */
 import { state, loadSession, bindUiScaleWheel } from './core/state.js';
+import { initAppearance } from './core/appearance.js'; // root-cause fix (2026-08-19): boot must assemble appearance (applyTheme injects --g-grid & all theme vars; applyOrbs renders orbs)
 import { api, apiBatch, apiUpload, setEnsureAuth } from './core/api.js';
 import { escHtml, escJsStr, mdRender, delegate } from './core/dom.js';
 import { openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha, installUiBindings } from './core/ui.js';
@@ -43,6 +44,7 @@ export function boot() {
     installBarWidthBindings();   // matchRowsHtml data-bar-w auto -> --bar-w
     bindUiScaleWheel();
     mountShell(); // client frame + landing + per-page sections (static; features fill content on page enter)
+    initAppearance(); // root-cause fix: boot never assembled appearance -> --g-grid/glass vars not injected, zero orbs, homepage background layers gone
     [authFeature, regionFeature, postsFeature, complaintsFeature, contractFeature, chatFeature, teacherFeature, studentFeature, settingsFeature, adminFeature, notifFeature, onboardFeature].forEach(f => { if (f && typeof f.onLoad === 'function') f.onLoad(); });
     const saved = loadSession();
     if (saved) { state.user = saved.user; state.authToken = saved.authToken; enterClient(); } // v1 parity: restored session enters the client, not the landing

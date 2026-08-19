@@ -290,7 +290,10 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
 /* ============================================================
    Auth
    ============================================================ */
-.auth-view { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+/* 用户反馈「登录/注册点进去一片空白」（2026-08-19 实证）：auth 视图由 auth feature append 到 body
+   （非 #app）。原 flex:1 要求父容器 flex，但 body 非 flex、#app 独占 min-height:100vh → auth 视图掉到
+   视口外 y=100vh+，landing 隐藏后视口全空白。改 fixed 覆盖视口。 */
+.auth-view { position: fixed; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; padding: 40px 20px; overflow-y: auto; }
 .auth-card {
   padding: 44px 40px; width: 100%; max-width: 440px;
   position: relative; animation: rise .4s var(--ease-snap) both;
