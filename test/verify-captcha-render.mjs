@@ -1,8 +1,8 @@
 /**
  * 拼图验证码渲染回归（v1.4.17 起强制——渲染改动交付红线见 CLAUDE.md）：
  * playwright 真实浏览器 canvas 像素断言，防止 destination-out/in 缺 fill 类渲染 bug 再犯。
- * 覆盖双版本：经典版（/ = app-captcha.js，v1 生产路径）与迁移版（/v2 = src/client/core/captcha.js
- * esbuild bundle，V-2 生产路径）。用法：node test/verify-captcha-render.mjs
+ * 覆盖 v2 迁移版（/v2 = src/client/core/captcha.js esbuild bundle，V-2 生产路径；V-4-1h 后唯一形态，
+ * v1 经典 app-captcha.js 已删）。用法：node test/verify-captcha-render.mjs
  * （需 playwright chromium；不进 npm test glob，交付渲染改动前手动跑）
  *
  * 断言：①有效缺口中心 alpha=0（透明洞已抠出）②拼图块中心 alpha>0 且四角 alpha=0（已裁剪成形状非矩形）
@@ -35,8 +35,8 @@ const server = createServer((req, res) => {
     res.end(v2Js);
     return;
   }
-  // 验证页在 test/ 目录（不进 build 静态复制面）；'/' 为经典版、'/v2' 为迁移版
-  const file = u === '/' ? '/test/captcha-render-verify.html' : u === '/v2' ? '/test/captcha-render-verify-v2.html' : u;
+  // 验证页在 test/ 目录（不进 build 静态复制面）；'/v2' 为迁移版（V-4-1h 后唯一形态，v1 经典页已删）
+  const file = u === '/v2' ? '/test/captcha-render-verify-v2.html' : u;
   try {
     const body = readFileSync('.' + file);
     res.setHeader('Content-Type', file.endsWith('.js') ? 'application/javascript' : 'text/html');
@@ -95,9 +95,8 @@ async function verifyPage(path, label) {
   return ok;
 }
 
-const classicOk = await verifyPage('/', '经典版 app-captcha');
 const v2Ok = await verifyPage('/v2', '迁移版 core/captcha');
 
 await browser.close();
 server.close();
-process.exit(classicOk && v2Ok ? 0 : 1);
+process.exit(v2Ok ? 0 : 1);

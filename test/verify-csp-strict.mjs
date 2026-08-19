@@ -6,7 +6,7 @@
  *   1. 注入面四类真实拦截语义（fixture 页与 web/index.html 同源严格 meta CSP）：
  *      内联 script / onclick handler / <style> 元素三路被拦；style 属性数据通道放行
  *      （style-src-attr 'unsafe-inline' 是有意保留，c1/c2 CSS 变量通道 + ui-modal cssText 依赖）。
- *   2. v2 真实页面（dist/v2.html，build 产物）首绘/登录/客户端壳/领域页/弹窗零 CSP 报错：
+ *   2. v2 真实页面（dist/index.html，build 产物）首绘/登录/客户端壳/领域页/弹窗零 CSP 报错：
  *      - returning 上下文（无 onboarding 弹窗）：landing 首绘 → 访客进客户端壳 → sidebar 领域页切换；
  *        另一次加载验证登录视图。
  *      - fresh 上下文（首访）：onboarding 弹窗正常弹出与关闭。
@@ -39,7 +39,7 @@ const server = createServer((req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(readFileSync('test/csp-payload-verify.html')); return;
   }
-  const file = u === '/' ? '/v2.html' : u;
+  const file = u === '/' ? '/index.html' : u;
   // 路径遍历防御（安全审查）：realpath 约束在 dist/ 内，禁越界读
   const safePath = resolve('dist', '.' + file);
   const distRoot = resolve('dist');
@@ -97,7 +97,7 @@ try {
     page.on('console', m => consoleMsgs.push(m.text()));
     page.on('pageerror', e => consoleMsgs.push('PAGEERROR: ' + e.message));
     await page.addInitScript(() => { try { localStorage.setItem('sufe_returning', '1'); } catch {} });
-    await page.goto(base + '/v2.html', { waitUntil: 'load' });
+    await page.goto(base + '/', { waitUntil: 'load' });
     await page.waitForTimeout(1500); // boot + version probe settle
 
     const appChildren = await page.evaluate(() => {
@@ -130,7 +130,7 @@ try {
     page.on('console', m => consoleMsgs.push(m.text()));
     page.on('pageerror', e => consoleMsgs.push('PAGEERROR: ' + e.message));
     await page.addInitScript(() => { try { localStorage.setItem('sufe_returning', '1'); } catch {} });
-    await page.goto(base + '/v2.html', { waitUntil: 'load' });
+    await page.goto(base + '/', { waitUntil: 'load' });
     await page.waitForTimeout(1000);
     await page.click('[data-action="auth.viewLogin"]');
     await page.waitForSelector('#login-title', { timeout: 5000 });
@@ -146,7 +146,7 @@ try {
     const consoleMsgs = [];
     page.on('console', m => consoleMsgs.push(m.text()));
     page.on('pageerror', e => consoleMsgs.push('PAGEERROR: ' + e.message));
-    await page.goto(base + '/v2.html', { waitUntil: 'load' });
+    await page.goto(base + '/', { waitUntil: 'load' });
     await page.waitForSelector('.onboard-intro', { timeout: 5000 });
     ok('首访 onboarding 弹窗渲染（.onboard-intro）');
     await page.click('[data-action="onboard.browseGuest"]');

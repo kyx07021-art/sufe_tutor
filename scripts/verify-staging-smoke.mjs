@@ -4,12 +4,12 @@
  * 不进 npm test glob，交付前手动跑。用法：node scripts/verify-staging-smoke.mjs
  *
  * 验证面：
- *   1. GET /v2.html：worker 改写资产引用为哈希名 + 零内联 manifest（V-3-1d）；CSS 分层
+ *   1. GET /：worker 改写资产引用为哈希名 + 零内联 manifest（V-3-1d）；CSS 分层
  *      tokens→base→features→responsive→glass 加载序保持（V-2-5b 铁律）。
  *   2. 版本化资产：/features/<hash>.css（子目录，worker versionedBase）+ /assets/app-<hash>.js
  *      （esbuild 内容哈希，_headers /assets/* 规则）→ 200 + immutable。
- *   3. SPA 回退 /my-demands → 200 HTML（v1 壳注入，V-4-1h 前有效；Pages ASSETS 无扩展名回退 index.html）。
- *   4. 浏览器 /v2.html：landing 渲染 + 访客进客户端壳（路由冒烟），零 pageerror/console error；
+ *   3. SPA 回退 /my-demands → 200 HTML（v2 壳，零内联；Pages ASSETS 无扩展名回退 index.html）。
+ *   4. 浏览器 /：landing 渲染 + 访客进客户端壳（路由冒烟），零 pageerror/console error；
  *      ASSETS 桩解析真实 _headers 规则（/* 安全头 + CSP 与 meta 取交集，忠实生产响应头）。
  */
 import { chromium } from 'playwright';
@@ -103,7 +103,7 @@ function mockAssets() {
       if (p.includes('..')) return new Response('Not Found', { status: 404 });
       let rel = p === '/' ? 'index.html' : p.replace(/^\//, '');
       let safe = resolve(DIST, '.' + '/' + rel);
-      // Pages ASSETS SPA 回退：无扩展名的导航路径 → index.html（v1 壳，V-4-1h 前有效）
+      // Pages ASSETS SPA 回退：无扩展名的导航路径 → index.html（v2 壳，零内联）
       if (!existsSync(safe) && !/\.\w{1,6}$/.test(rel)) {
         rel = 'index.html';
         safe = resolve(DIST, rel);
@@ -154,10 +154,10 @@ const getText = async p => {
 };
 
 try {
-  // ---------- 1. /v2.html 引用改写 + CSS 分层序 + 零内联 manifest ----------
+  // ---------- 1. / 引用改写 + CSS 分层序 + 零内联 manifest ----------
   {
-    const { status, body } = await getText('/v2.html');
-    status === 200 ? ok('/v2.html → 200') : fail(`/v2.html → ${status}`);
+    const { status, body } = await getText('/');
+    status === 200 ? ok('/ → 200（v2 入口）') : fail('/ → ' + status);
     const links = [...body.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="\/([^"]+)"/g)].map(m => m[1]);
     const layerOrder = ['tokens.', 'base.', 'features/', 'responsive.', 'glass.'];
     let prevIdx = -1, prevName = null, orderOk = true;
@@ -185,7 +185,7 @@ try {
     r1.status === 200 ? ok(`子目录版本化 CSS（/${subCss}）→ 200`) : fail(`/${subCss} → ${r1.status}`);
     String(r1.headers.get('cache-control') || '').includes('immutable')
       ? ok(`子目录 CSS immutable（worker versionedBase）`) : fail(`子目录 CSS 无 immutable（${r1.headers.get('cache-control')}）`);
-    const { body } = await getText('/v2.html');
+    const { body } = await getText('/');
     const modSrc = body.match(/<script type="module" src="\/([^"]+)"/);
     if (modSrc) {
       const r2 = await getText('/' + modSrc[1]);
@@ -199,7 +199,7 @@ try {
   {
     const r = await getText('/my-demands');
     r.status === 200 && (r.headers.get('content-type') || '').includes('html')
-      ? ok('/my-demands SPA 回退 → 200 HTML（v1 壳注入，V-4-1h 前有效）') : fail(`/my-demands → ${r.status}`);
+      ? ok('/my-demands SPA 回退 → 200 HTML（v2 壳零内联）') : fail(`/my-demands → ${r.status}`);
   }
 
   // ---------- 4. 浏览器：v2 页面渲染 + 客户端路由 + /api 存活 ----------
@@ -210,13 +210,13 @@ try {
     page.on('console', m => consoleMsgs.push(m.type() + ': ' + m.text()));
     page.on('pageerror', e => consoleMsgs.push('PAGEERROR: ' + e.message));
     await page.addInitScript(() => { try { localStorage.setItem('sufe_returning', '1'); } catch {} });
-    await page.goto(base + '/v2.html', { waitUntil: 'load' });
+    await page.goto(base + '/', { waitUntil: 'load' });
     await page.waitForTimeout(1500);
     const appChildren = await page.evaluate(() => {
       const app = document.getElementById('app');
       return app ? app.children.length : -1;
     });
-    appChildren > 0 ? ok(`/v2.html 浏览器渲染（#app ${appChildren} 子节点）`) : fail('landing 未渲染');
+    appChildren > 0 ? ok(`/ 浏览器渲染（#app ${appChildren} 子节点）`) : fail('landing 未渲染');
     const health = await page.evaluate(() => fetch('/api/health').then(r => r.status).catch(e => 'ERR:' + e.message));
     health === 200 ? ok('/api/health 经真实 worker → 200') : fail(`/api/health → ${health}`);
     await page.click('[data-action="auth.enterGuest"]').catch(() => {});
