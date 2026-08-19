@@ -207,3 +207,17 @@ test('student_grade：非法值静默回退空串；合法值正常入库', asyn
   row = raw.prepare('SELECT student_grade FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
   assert.equal(row.student_grade, 'junior2', '合法年级正常入库');
 });
+
+// V-4-1d QA 抓到的生产 500：缺 current_scores 字段 → sanitizeDemand 未归一 → dbCreateDemand
+// JSON.stringify(undefined) 绑 SQL 参数 6 抛错（复现 _tmp_repro_demand.mjs 参数 6 绑定失败）。
+// 修复：current_scores 缺失归一 []（与 teaching_goal/skill_notes/personality_tags 同口径）。
+test('current_scores 缺失 → 归一空数组正常落库（QA 生产 500 回归）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, stu } = await seedStudent(db, raw);
+  // 显式 omit current_scores（模拟 API 客户端缺字段路径，QA 全链路原样 body）
+  const { current_scores, ...minimal } = baseDemand;
+  const r = await handleCreateDemand(db, { demand: minimal }, reqOf(token));
+  assert.equal(r.status, 200, '缺 current_scores 不得 500/抛错，实际 ' + r.status);
+  const row = raw.prepare('SELECT current_scores FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.current_scores, '[]', '缺失归一空数组落库');
+});

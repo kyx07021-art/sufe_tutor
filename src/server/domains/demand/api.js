@@ -112,6 +112,9 @@ function sanitizeDemand(d) {
   }
   // R2-11 学生性别：白名单 ['','male','female','nonbinary']，非法回退 ''（'' = 不愿透露）
   d.student_gender = DEMAND_GENDERS.has(d.student_gender) ? d.student_gender : '';
+  // V-4-1d QA 修复：current_scores 缺失归一 []（与 teaching_goal/skill_notes/personality_tags 同口径——
+  // 缺失时 dbCreateDemand 的 JSON.stringify(undefined) 绑 SQL 参数 6 抛错 → 生产 500 COMMON_SERVER_ERROR）
+  if (!Array.isArray(d.current_scores)) d.current_scores = [];
   // 平时成绩满分按省+年级钳制（region-data 政策单源）——
   // 前端输入 max 已按 subjectMaxFor（省+年级，region-data 单源），服务端同口径兜底（防绕过前端直传 150）。
   // 只钳制分数模式（mode='score' 或 legacy scale>0）；等第模式无数值不改。非法项剔除。
