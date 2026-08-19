@@ -20,7 +20,7 @@ export async function handleCreateReview(db, body, req) {
   const { teacherUserId, rating, comment } = body;
   // 评分/评论长度限额单源 LIMITS（拒绝 2.5 / "3.5" / NaN）
   if (!Number.isInteger(rating) || rating < LIMITS.RATING_MIN || rating > LIMITS.RATING_MAX) return errorMsg('RATING_RANGE');
-  if (!comment || comment.trim().length < LIMITS.COMMENT_MIN_LEN) return errorMsg('COMMENT_TOO_SHORT');
+  if (!comment || comment.trim().length < LIMITS.REVIEW_COMMENT_MIN) return errorMsg('COMMENT_TOO_SHORT');
 
   const { user: reviewer, err } = await requireUser(db, req, 'student');
   if (err) return err;
@@ -44,7 +44,7 @@ export async function handleCreateReview(db, body, req) {
 export async function handleUpdateReview(db, reviewId, body, req) {
   const { rating, comment } = body;
   if (!Number.isInteger(rating) || rating < LIMITS.RATING_MIN || rating > LIMITS.RATING_MAX) return errorMsg('RATING_RANGE');
-  if (!comment || comment.trim().length < LIMITS.COMMENT_MIN_LEN) return errorMsg('COMMENT_TOO_SHORT');
+  if (!comment || comment.trim().length < LIMITS.REVIEW_COMMENT_MIN) return errorMsg('COMMENT_TOO_SHORT');
 
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;

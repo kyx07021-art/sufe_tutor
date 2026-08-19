@@ -31,7 +31,6 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     POSTS_SEARCH_DEBOUNCE_MS: 350,        // 帖子搜索防抖
     INVITE_CODE_LEN: 8,                   // 邀请码长度（与后端 LIMITS 同值）
     ADMISSION_IMG_MAX: 500000,            // 录取通知书图片 data URL 上限（对齐后端 LIMITS.CREDENTIAL_MAX_BYTES；前端预检防 413）
-    REVIEW_COMMENT_MIN: 2,                // 评价最少字数
     DISPLAY_ID_PAD: 4,                    // 需求编号补零位数
     USERNAME_MIN: 3, USERNAME_MAX: 30,    // 用户名长度下限/上限（前端校验与 server LIMITS.USERNAME_MIN/MAX 对齐，改值两处核对）
     CONTRACT_LOCATION_MAX: 200,           // 合同地点输入上限（对齐 server LIMITS.CONTRACT_LOCATION_MAX）
@@ -92,7 +91,7 @@ export const LIMITS = {
   LOGIN_USERNAME_MAX: 60,
   LOGIN_PASSWORD_MAX: 72,
   INVITE_CODE_LEN: CONFIG.INVITE_CODE_LEN,
-  COMMENT_MIN_LEN: CONFIG.REVIEW_COMMENT_MIN,
+  REVIEW_COMMENT_MIN: 2,                // Q-2i-M1：评价最少字数（服务端限额，移入 LIMITS 单源）
   RATING_MIN: 1,
   RATING_MAX: 5,
   TITLE_MAX: CONFIG.POST_TITLE_MAX,
