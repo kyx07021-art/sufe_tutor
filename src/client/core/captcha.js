@@ -233,8 +233,7 @@ function failCaptcha(track, tip, knob) {
 
 export function withCaptcha(action) {
   if (typeof action !== 'function') return;
-  if (typeof openCaptchaModal === 'function') openCaptchaModal({ onPass: action });
-  else action();
+  openCaptchaModal({ onPass: action });
 }
 
 /** Test-only hook: expose paint state for real-browser pixel verification (pattern: _dhResetForTests). */
