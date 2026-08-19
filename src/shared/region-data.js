@@ -2,7 +2,7 @@
  * 地区数据单源（V-2-4c：从 client/constants 提升到 shared，服务端与客户端共用；
  * 客户端经 client/constants/region-data.js re-export 保持分层入口）。
  */
-import { FIVE_FOUR_PROVINCES } from './enums.js';
+import { FIVE_FOUR_PROVINCES, SUBJECTS } from './enums.js';
 
 
   // 浙江 2022 年 1 月选考起新制的 20 个赋分区间（赋分后区间，非固定卷面分区间）：
@@ -187,8 +187,9 @@ import { FIVE_FOUR_PROVINCES } from './enums.js';
     },
 
     subjectNames: {
-      chinese: '语文', math: '数学', english: '英语', physics: '物理', chemistry: '化学',
-      biology: '生物', history: '历史', geography: '地理', politics: '政治', technology: '技术',
+      // 基础科目名派生自 enums SUBJECTS（单源）；technology 为浙江高考附加科目，非 SUBJECTS 成员，本地补充
+      ...Object.fromEntries(SUBJECTS.map(s => [s.id, s.name])),
+      technology: '技术',
     },
     subjectMaxScore: { chinese: 150, math: 150, english: 150 }, // 其余默认 100（仅高中主科走此键；初中按省 middleScore）
 
