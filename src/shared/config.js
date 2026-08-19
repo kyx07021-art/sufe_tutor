@@ -123,6 +123,7 @@ export const LIMITS = {
   FILE_NAME_MAX: 100,
   UPLOAD_STAGING_MAX: 12,
   MSG_BATCH_MAX: 13,
+  CLIENT_KEY_MAX: 64,                  // Q-2d-F2: chat 批量发送幂等键长度上限（'批次键.条目序' 形态，服务端仅作唯一性去重不解析）
   AUDIT_MAX_FIELDS: 13,                  // Q-2b-F1: 内容域写断点单请求最多审 N 个自由文本字段（= MSG_BATCH_MAX 对齐——合同表单最多 6 字段、chat batch 单批上限 13 条均放行，>13 恶意超大 batch 拦截）
   POST_BODY_MAX: 20000,
   FEEDBACK_BODY_MAX: 5000,

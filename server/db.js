@@ -53,6 +53,7 @@ import {
   dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage, dbSetMessageBody,
   dbGetSigningById, dbDeleteSigning, dbGetPendingSigningForConversation, dbCreateSigning, dbConfirmSigning, dbRejectSigning,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload, dbPrepareUploadDelete,
+  dbGetMessagesByClientKeys,
 } from '../src/server/domains/chat/repo.js';
 
 export {
@@ -61,6 +62,7 @@ export {
   dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage, dbSetMessageBody,
   dbGetSigningById, dbDeleteSigning, dbGetPendingSigningForConversation, dbCreateSigning, dbConfirmSigning, dbRejectSigning,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload, dbPrepareUploadDelete,
+  dbGetMessagesByClientKeys,
 };
 
 import { dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin, dbDeleteContract } from '../src/server/domains/contract/repo.js';

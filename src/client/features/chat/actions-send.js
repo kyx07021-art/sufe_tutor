@@ -66,6 +66,16 @@ export async function sendChatMessage() {
   const optimistic = [];
   const batch = staged.map(it => ({ kind: it.kind, uploadId: it.uploadId }));
   if (text) batch.push({ kind: 'text', body: text });
+  // Q-2d-F2 idempotency: a failed send retried with unchanged content reuses the same
+  // batch keys (server dedups by key, so a timeout retry cannot insert twice); if the
+  // content fingerprint changes (user edits before resending) it is treated as a new send.
+  const fp = JSON.stringify([convId, batch]);
+  const batchKey = (chat.pendingBatchKey && chat.pendingBatchFp === fp)
+    ? chat.pendingBatchKey
+    : `sb${(++chat.optimisticSeq).toString(36)}-${Date.now().toString(36)}`;
+  chat.pendingBatchKey = batchKey;
+  chat.pendingBatchFp = fp;
+  const batchBody = batch.map((b, i) => ({ ...b, clientKey: `${batchKey}.${i}` }));
 
   // Server receipt only carries {id,kind,name}: keep the full local message with the
   // temp bubble and merge on replace so sender/body/thumb/created_at survive.
@@ -98,8 +108,10 @@ export async function sendChatMessage() {
   renderChatStage();
 
   try {
-    const data = await api(`/api/conversations/${convId}/messages`, { method: 'POST', body: { batch } });
+    const data = await api(`/api/conversations/${convId}/messages`, { method: 'POST', body: { batch: batchBody } });
     if (chat.convId !== convId) return;
+    chat.pendingBatchKey = null; // Q-2d-F2: successful send retires the key (next send is fresh)
+    chat.pendingBatchFp = '';
     const created = data.messages || [];
     const missingTexts = [];
     optimistic.forEach((o, i) => {

@@ -13,4 +13,7 @@ export const chat = {
   pendingOpen: null,
   staged: [],
   stageSeq: 0,
+  // Q-2d-F2 idempotency: retries reuse the same batch keys (server dedups by key); retired on success/content change
+  pendingBatchKey: null,
+  pendingBatchFp: '',
 };

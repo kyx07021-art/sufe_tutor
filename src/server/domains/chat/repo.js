@@ -82,11 +82,14 @@ export async function dbGetMyConversations(db, userId) {
     JOIN users ut ON ut.id=c.teacher_user_id
     LEFT JOIN (
       SELECT m.conversation_id, m.body, m.kind, m.created_at, m.sender_user_id
-      FROM messages m JOIN (SELECT conversation_id, MAX(id) AS mid FROM messages GROUP BY conversation_id) x
+      FROM messages m JOIN (
+        SELECT conversation_id, MAX(id) AS mid FROM messages
+        WHERE conversation_id IN (SELECT id FROM conversations WHERE student_user_id=? OR teacher_user_id=?) -- Q-2d-F5：最近消息聚合限定本用户会话集，全表 GROUP BY → 会话集内
+        GROUP BY conversation_id) x
         ON x.mid=m.id
     ) lm ON lm.conversation_id=c.id
     WHERE c.student_user_id=? OR c.teacher_user_id=?
-    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId]);
+    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId, userId, userId]);
 }
 
 // 标记已读：把我在该会话的已读游标推到最新一条消息（按角色更新对应列）
@@ -100,22 +103,36 @@ export async function dbMarkConversationRead(db, convId, userId) {
 export async function dbGetMessages(db, convId, sinceId = 0, limit = LIMITS.MSG_LIMIT) {
   // 图片/文件消息不在列表查询里下发 dataURL 本体（大字段懒加载，走 attachment 接口）；
   // 缩略图随列表下发（小字段）：thumb 列（加密）由路由层解密；图片无缩略图（历史数据）回 ''
-  return await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.name, m.created_at,
+  // Q-2d-F1：初始加载（sinceId=0）取最近 limit 条——先 DESC 取最新再反转成升序（前端按序渲染
+  // 并取末条 id 作轮询游标）；旧实现 sinceId=0 取最早 limit 条，长会话一打开就掉进最早历史，
+  // 轮询从最末条接续直接跳号断带。增量轮询（sinceId>0）保持升序追加新消息。
+  const rows = await dbAll(db, `SELECT m.id, m.conversation_id, m.sender_user_id, m.kind, m.name, m.created_at,
       CASE WHEN m.kind IN ('image','file') THEN '' ELSE m.body END AS body,
       CASE WHEN m.kind='image' THEN m.thumb ELSE '' END AS thumb
     FROM messages m
-    WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ASC LIMIT ?`, [convId, sinceId, limit]);
+    WHERE m.conversation_id=? AND m.id>? ORDER BY m.id ${sinceId ? 'ASC' : 'DESC'} LIMIT ?`, [convId, sinceId, limit]);
+  return sinceId ? rows : rows.reverse();
 }
 
 // messages INSERT 单源：路由层批量发送不得自持 SQL 直插——
 // 数据层单写原则旁支通路，messages 加列时两处只改一处必静默缺列。业务 SQL 只此一份，批量经
 // dbPrepareMessageInsert 取预编译语句，单条经 dbCreateMessage 落库。
-const MSG_INSERT_SQL = 'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb) VALUES (?,?,?,?,?,?)';
+const MSG_INSERT_SQL = 'INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb, client_key) VALUES (?,?,?,?,?,?,?)';
 export function dbPrepareMessageInsert(db) { return db.prepare(MSG_INSERT_SQL); }
 
 export async function dbCreateMessage(db, convId, senderUserId, kind, body, name = '', thumb = '') { // 缩略图随消息落库
-  const result = await dbRun(db, MSG_INSERT_SQL, [convId, senderUserId, kind, body, name, thumb]);
+  const result = await dbRun(db, MSG_INSERT_SQL, [convId, senderUserId, kind, body, name, thumb, null]); // Q-2d-F2：非 chat 域（合同/签约气泡）不带幂等键
   return Number(result.meta.last_row_id);
+}
+
+// Q-2d-F2：按幂等键批量查已落消息（handleSendBatch 去重判据——键全命中 = 超时重发，返回既有回执）
+export async function dbGetMessagesByClientKeys(db, convId, userId, keys) {
+  if (!keys || !keys.length) return [];
+  const placeholders = keys.map(() => '?').join(',');
+  return await dbAll(db,
+    `SELECT id, kind, name, client_key FROM messages
+     WHERE conversation_id=? AND sender_user_id=? AND client_key IN (${placeholders})`,
+    [convId, userId, ...keys]);
 }
 
 // 管理员删除消息前置查询：取会话/发送者/类型供留档

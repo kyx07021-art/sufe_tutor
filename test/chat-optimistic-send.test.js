@@ -37,7 +37,11 @@ test('乐观发送：api 未返回前气泡已插入，输入已清空，轮询�
   assert.ok(Number(bubbles[0].dataset.mid) < 0);
   assert.ok(bubbles[0].textContent.includes('你好'));
   assert.equal(dom.window.document.getElementById('chat-input').value, '');
-  assert.deepEqual(JSON.parse(capturedBody).batch, [{ kind: 'text', body: '你好' }]);
+  const sentBatch = JSON.parse(capturedBody).batch;
+  assert.equal(sentBatch.length, 1);
+  assert.equal(sentBatch[0].kind, 'text');
+  assert.equal(sentBatch[0].body, '你好');
+  assert.match(sentBatch[0].clientKey, /^sb.+\.0$/, 'Q-2d-F2：幂等键随批下发（批次键.条目序）');
   assert.equal(chat.optimisticSending, true, '发送在途轮询关窗');
   assert.equal(dom.window.document.getElementById('chat-send-btn').disabled, true, '发送按钮 loading');
   resolveSend();

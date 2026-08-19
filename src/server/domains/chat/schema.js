@@ -35,6 +35,7 @@ export const createStatements = [CONVERSATIONS_DDL, MESSAGES_DDL, UPLOADS_DDL];
 export const ensureColumns = [
   { table: 'messages', columns: [
     ['name', "TEXT NOT NULL DEFAULT ''"], ['thumb', "TEXT NOT NULL DEFAULT ''"],
+    ['client_key', 'TEXT'], // Q-2d-F2: chat 批量发送幂等键（服务端按键去重防超时重发落两条；NULL=老协议不带键）
   ] },
   { table: 'uploads', columns: [
     ['thumb', "TEXT NOT NULL DEFAULT ''"],
@@ -119,4 +120,8 @@ export async function migrate(db, ctx) {
   // Z-4-F1：idx_messages_conv 无条件路径（新库与换表库都建）——曾放在 migrateMessagesKind 条件分支内，
   // 新库 MESSAGES_DDL 已含终态 CHECK 短路跳过 → 索引永不创建，conversation_id+id 查询回退全表扫描
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, id)');
+  // Q-2d-F2：幂等键唯一索引（部分索引仅约束非空键）——check-then-insert 之外的 DB 级并发兜底，
+  // 同会话同发送者同键双写（双端并发重发竞态）→ 唯一约束兜底不落重复行
+  await dbRun(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_client_key
+    ON messages(conversation_id, sender_user_id, client_key) WHERE client_key IS NOT NULL`);
 }

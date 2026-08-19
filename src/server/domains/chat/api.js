@@ -15,7 +15,7 @@ import {
   dbGetMyConversations, dbGetConversationById, dbGetMessages, dbMarkConversationRead,
   dbGetMessageAttachment, dbGetConversationBindableDemands,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload,
-  dbPrepareMessageInsert, dbPrepareUploadDelete,
+  dbPrepareMessageInsert, dbPrepareUploadDelete, dbGetMessagesByClientKeys,
 } from '../../../../server/db.js';
 import { logEvent } from '../../core/log.js';
 
@@ -35,8 +35,16 @@ async function loadConversationFor(db, conversationId, userId) {
 const fileDataBlocked = content => {
   const c = String(content).toLowerCase();
   return c.startsWith('data:text/html') || c.startsWith('data:image/svg')
-      || c.startsWith('data:application/xhtml+xml') || c.startsWith('data:text/xml') || c.startsWith('data:application/xml');
+      || c.startsWith('data:application/xhtml+xml') || c.startsWith('data:text/xml') || c.startsWith('data:application/xml')
+      // Q-2d-F4：active-content 类补全（javascript/ecmascript data URL 可直接执行，拒绝投递）
+      || c.startsWith('data:application/javascript') || c.startsWith('data:application/x-javascript')
+      || c.startsWith('data:text/javascript') || c.startsWith('data:application/ecmascript') || c.startsWith('data:text/ecmascript');
 };
+
+// Q-2d-F4：附件文件名净化——剥离路径分隔（/、\，防 ../ 穿越/路径伪装）与控制字符（\x00-\x1f）
+const sanitizeFileName = v => String(v || '')
+  .replace(/[\\/\x00-\x1f]/g, '_')
+  .slice(0, LIMITS.FILE_NAME_MAX);
 
 export async function handleGetConversations(db, url, req) {
   const { user: me, err } = await requireUser(db, req);
@@ -110,7 +118,7 @@ export async function handleCreateUpload(db, body, req) {
   const thumbRaw = kind === 'image' ? String(body.thumb ?? '') : '';
   if (thumbRaw && (!thumbRaw.startsWith('data:image/') || thumbRaw.length > LIMITS.THUMB_MAX_BYTES)) return errorMsg('FILE_TOO_LARGE');
   if (thumbRaw && fileDataBlocked(thumbRaw)) return errorMsg('FILE_TYPE_BLOCKED');
-  const name = String(body.fileName ?? '').slice(0, LIMITS.FILE_NAME_MAX);
+  const name = sanitizeFileName(body.fileName); // Q-2d-F4：净化路径分隔/控制字符后落库
   // 暂存区配额自愈 + 上限：先清本人滞留暂存件（窗口见 LIMITS.STALE_UPLOAD_WINDOW），再按每人封顶（防弃传暂存填满库 / 刷大字段）
   await dbPurgeStaleUploads(db, me.id);
   if ((await dbCountUploads(db, me.id)) >= LIMITS.UPLOAD_STAGING_MAX) return errorMsg('UPLOAD_STAGING_LIMIT'); // 快路径
@@ -155,10 +163,12 @@ export async function handleSendMessage(db, convId, body, req) {
 // INSERT SQL 收口 db.js 单源（dbPrepareMessageInsert）——自持一份会加列双处漂移。
 async function handleSendBatch(db, convId, batch, userId, req) {
   if (!batch.length || batch.length > LIMITS.MSG_BATCH_MAX) return errorMsg('INVALID_PARAMS', 400);
-  // 第一遍（for...of 保留 return 语义）：文字项校验 + 收集附件 id（非数字/重复整批拒绝）
+  // 第一遍（for...of 保留 return 语义）：文字项校验 + 收集附件 id（非数字/重复整批拒绝）+ 逐项幂等键
   const uploadIds = [];
   const seenUploads = new Set(); // 审计 C-4：重复 uploadId 整批拒绝（防同附件双消息双删 + 乐观批序错位）
-  for (const item of batch) {
+  const clientKeys = batch.map(it => (it && typeof it.clientKey === 'string' ? it.clientKey.slice(0, LIMITS.CLIENT_KEY_MAX) : '')); // Q-2d-F2：空/非串视为不带键
+  for (let i = 0; i < batch.length; i++) {
+    const item = batch[i];
     if (item && item.uploadId) {
       const upId = parseInt(item.uploadId);
       if (Number.isNaN(upId) || seenUploads.has(upId)) return errorMsg('INVALID_PARAMS', 400);
@@ -166,27 +176,43 @@ async function handleSendBatch(db, convId, batch, userId, req) {
       uploadIds.push(upId);
     } else if (item && item.kind === 'text') {
       const content = String(item.body ?? '').trim();
-      if (!content || content.length > LIMITS.MESSAGE_MAX_LEN) return errorMsg('MESSAGE_TOO_LONG');
+      if (!content) return errorMsg('INVALID_PARAMS', 400); // Q-2d-F3：空消息是参数错误，不是"太长"
+      if (content.length > LIMITS.MESSAGE_MAX_LEN) return errorMsg('MESSAGE_TOO_LONG');
     } else {
       return errorMsg('INVALID_PARAMS', 400);
     }
+  }
+  // Q-2d-F2 幂等去重：整批全部带非空键且全部已落库 → 视为超时重发，返回既有回执（不重复落库、
+  // 不重复删暂存——首次成功已删 uploads，重发若再查附件归属必 404，早退是唯一正确路径）。
+  // 部分命中 = 键被复用的异常形状（客户端内容指纹已防）→ 409 拒绝，防半新半旧混插。
+  if (clientKeys.every(k => k)) {
+    const existing = await dbGetMessagesByClientKeys(db, convId, userId, clientKeys);
+    if (existing.length === batch.length) {
+      const byKey = new Map(existing.map(e => [e.client_key, e]));
+      return json({ messages: clientKeys.map(k => {
+        const e = byKey.get(k);
+        return { id: Number(e ? e.id : 0), kind: e ? e.kind : '', name: e ? e.name || '' : '' };
+      }) }, 201);
+    }
+    if (existing.length) return errorMsg('INVALID_PARAMS', 409);
   }
   // 第二遍：附件归属单查（B5 模式：N 串行 dbGetUpload → 1 次 WHERE IN，往返 N 读 → 1）
   const uploadRows = uploadIds.length ? await dbGetUploads(db, uploadIds) : [];
   const uploadById = new Map(uploadRows.map(u => [u.id, u]));
   const stmts = [];
   const items = []; // { resultIndex, kind, name }
-  for (const item of batch) {
+  for (let i = 0; i < batch.length; i++) {
+    const item = batch[i];
     if (item && item.uploadId) {
       const up = uploadById.get(parseInt(item.uploadId));
       if (!up || up.user_id !== userId) return errorMsg('CONVERSATION_NOT_FOUND', 404);
       items.push({ resultIndex: stmts.length, kind: up.kind, name: up.name });
-      stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, up.kind, up.body, up.name, up.thumb)); // 密文随 uploads 转正
+      stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, up.kind, up.body, up.name, up.thumb, clientKeys[i] || null)); // 密文随 uploads 转正
       stmts.push(dbPrepareUploadDelete(db).bind(up.id, userId)); // Z-4-F2：归属条件 DELETE（id+user_id）
     } else if (item && item.kind === 'text') {
       const content = String(item.body ?? '').trim();
       items.push({ resultIndex: stmts.length, kind: 'text', name: '' });
-      stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, 'text', content, '', ''));
+      stmts.push(dbPrepareMessageInsert(db).bind(convId, userId, 'text', content, '', '', clientKeys[i] || null));
     }
   }
   let results;
