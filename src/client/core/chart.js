@@ -8,6 +8,10 @@ import { TEXT } from '../constants/text.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const fmtDefault = v => (v == null ? '—' : Number(v).toLocaleString('zh-CN'));
 
+// Z-9-F3: module-level tracking of the current resize listener so re-renders detach the old
+// one (was accumulating one permanent listener per render — leak) and expose a dispose exit
+let currentResizeHandler = null;
+
 export function niceTicks(min, max, count) {
   const span = max - min || 1;
   const rawStep = span / (count - 1);
@@ -165,6 +169,9 @@ export function renderGlassLineChart(container, opts = {}) {
   draw();
   let t = null;
   const onResize = () => { clearTimeout(t); t = setTimeout(() => { if (container.isConnected) draw(); }, 120); };
+  // Z-9-F3: detach previous listener before attaching (one live listener at most, no accumulation)
+  if (currentResizeHandler) window.removeEventListener('resize', currentResizeHandler);
   window.addEventListener('resize', onResize);
-  return { refresh: () => draw() };
+  currentResizeHandler = onResize;
+  return { refresh: () => draw(), dispose: () => { window.removeEventListener('resize', onResize); if (currentResizeHandler === onResize) currentResizeHandler = null; } };
 }
