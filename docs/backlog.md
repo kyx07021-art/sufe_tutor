@@ -176,3 +176,8 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 - 现状：答案前端自算、本地比对（app-captcha.js），服务端防刷由 rate_limits 限流咽喉承担；"生产接入点"死代码已删。
 - ⚠️ **v1.4.13 已删除前端轨迹收集（_captchaTrack 时序点数组）与 captchaId（_captchaIdStr/_captchaId）——当时判为"无消费方上抛死数据"，未备注人机判定需恢复。实施本待办时必须按人机判定特征需求重新设计并恢复**（勿从 git 历史原样捞回旧格式，按判定算法需要的特征设计：时序 {t,x,y} + 总时长/速度/停顿/抖动/修正次数）。
 - 未来演进（业务逻辑内人机判定，无需服务端图片）：前端恢复轨迹收集并在验证通过时随 offset 一并提交 → 后端新增 POST /api/captcha/verify 或并入既有门禁请求：对轨迹做高置信度人机特征判定（成熟方案：速度曲线慢-快-慢、非匀速、停顿微调、自然抖动、总时长区间、轨迹点密度 30-120）→ 判定通过才放行；captchaId 恢复作一次性挑战标识防重放。服务端生成图片的完整版（后端 cutX）仍为远期可选。
+
+### V-4-1h h5a CSP 收紧系列观察项（2026-08-19，各基元独立审计遗留）
+- 🟡 **h5a-g6 姿态锁正则脆弱性**（csp-strict.test.js「两处策略姿态锁」）：_headers 用首匹配正则 `/Content-Security-Policy: ([^\n]+)/`，若未来 _headers 注释块加入含 `Content-Security-Policy: ` 字面量的示例行会被先行匹配（当前无此行，无实际误报；改法：锚定非注释行或按行号提取）。
+- 🟡 **h5a-g2 MODAL_W_ONBOARD 跨层镜像奇偶**：CONFIG `'580px'`（config.js:70）与 base.css:1225 `.modal` 默认 `max-width: 580px` 构成 CSS/JS 跨层双源镜像，无自动奇偶守卫；若 base.css 默认日后改宽（如 600px），onboarding 弹窗会与其他默认 modal 静默分叉（内联 max-width 自限宽不溢出，功能无害但视觉不一致）。改法：base.css 注释联动标注 + 奇偶校验测试，或改用 CSS 变量单源。
+- 🟡 **h5a-g3 staging 冒烟清洁性**（verify-staging-smoke.mjs，审计 PASS 后观察）：①handler `res.writableEnded` 注释"客户端已断开（page.close）"与 Node 实际语义出入——destroyed socket 下 writableEnded 仍 false，守卫是防御性保险（建议注释改述或补 `res.destroyed` 判断）；②完成日志仍打"V-4-1e staging 冒烟完成"，头部已标注 h5a 扩展（后缀未对齐）；③头部第 5 项"全链路零 console/PAGEERROR/CSP"措辞略宽于实际覆盖（实际断言只过滤 CSP 相关文本 + PAGEERROR 前缀，非 CSP 的 console error 由 section 4 覆盖）。
