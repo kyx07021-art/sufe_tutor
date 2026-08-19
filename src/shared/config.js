@@ -18,7 +18,7 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     GET_RETRY: 1,                         // F1：幂等 GET 网络抖动自动重试次数（fetch 瞬断/DNS/被拒 → 短退避重试自愈；超时/业务错误不重试）
     GET_RETRY_BACKOFF_MS: 300,            // F1：GET 重试退避（短，连不稳时快速自愈，不拖长感知延迟）
     BATCH_GET_MAX: 16,                    // B2：/api/batch 单次批量读上限（服务端 _worker.js 直接导入共享常量校验；前端 dhBatchGet 按此分块——单域缓存键可超限，整批超限会被服务端 400 整批拒绝 → 域刷新静默失效）
-    // 验证码/凭证（数据单源：前端 app-otp.js 与后端 server/otp.js 经 globalThis 同读）
+    // 验证码/凭证（数据单源：前端 src/client/features/auth/actions-otp.js 与后端 src/server/core/otp.js 双端 import 直读 shared config）
     PHONE_REGIONS: [                      // 手机号地区前缀表（固定 +86 前缀显示 + 服务端格式校验共用）
       // 收敛大陆单区（用户批评：多地区前缀"装模作样"）——①只对大陆号有裸号补 +86 适配
       // （CN_MOBILE），其他地区无裸号支持；②验证码生产恒 mock，真实短信服务商基本只支持大陆号；
@@ -236,7 +236,7 @@ export const SECURITY_HEADERS = {
   'Referrer-Policy': "strict-origin-when-cross-origin",
   'Permissions-Policy': "camera=(), microphone=(), geolocation=()",
 };
-// 前端教师注册门控休眠开关（根 constants.js 顶层同值；false=门控启用，true=开放注册休眠）
+// 前端教师注册门控休眠开关（shared config 单源；false=门控启用，true=开放注册休眠；v1 根 constants.js 镜像已随 V-4-1h 删除，消费方 server/startup.js + features/auth/actions-register.js 直读）
 export const INVITE_GATE_DORMANT = false;
 export const INVITE_GATE_ENABLED = true;
 export const LEGACY_ADMIN_PASSWORD = "admin_sufe";

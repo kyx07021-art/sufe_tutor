@@ -53,7 +53,7 @@ export async function initOtpTable(db) {
 // ============================================================
 // 目标格式校验（地区前缀 + 号码 pattern；邮箱标准正则）
 // ============================================================
-// 手机号地区表单源在 src/shared/config.js CONFIG.PHONE_REGIONS（前端 app-otp.js 同读，杜绝双源漂移）。
+// 手机号地区表单源在 src/shared/config.js CONFIG.PHONE_REGIONS（前端 src/client/features/auth/actions-otp.js 与本模块双端 import 直读，杜绝双源漂移）。
 // 当前收敛大陆单区（仅 +86）：前缀选项已连根移除，parsePhone 只认大陆号；接入国际短信时再加回。
 const PHONE_REGIONS = CONFIG.PHONE_REGIONS || [];
 
