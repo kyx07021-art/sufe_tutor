@@ -240,6 +240,7 @@ export function applyFilters() {
   if (verified === '1') list = list.filter(t => t.verified === 1);
   else if (verified === '0') list = list.filter(t => !t.verified);
   state.allTeachers = list;
+  if (state.teacherSort) sortTeachers(); // Q-4a 复审发现：筛选后重新应用排序（原回退服务端序）
   renderTeachers();
 }
 export function hasDaySlot(timeSlots, day) { // Q-4a-M1a: parse time_slots JSON and match dow exactly — old String.includes matched digits inside start/end times (e.g. dow=3, start '18:00' falsely matched day 1)

@@ -109,6 +109,29 @@ test('Q-4a-M1b 审计 FAIL：清除筛选恢复全量（非 sticky——从全�
   delete globalThis.localStorage; delete globalThis.sessionStorage; delete globalThis.MutationObserver; delete globalThis.fetch;
 });
 
+test('Q-4a 复审：筛选后保留排序态（原回退服务端序）', async () => {
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select><select id="filter-verified"></select></body></html>', { url: 'http://localhost/' });
+  globalThis.document = dom.window.document;
+  globalThis.window = dom.window;
+  globalThis.localStorage = dom.window.localStorage;
+  globalThis.sessionStorage = dom.window.sessionStorage;
+  globalThis.MutationObserver = class { observe() {} };
+  state.user = { role: 'student', id: 1, username: 's' };
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ teachers: TEACHERS }) });
+  await loadTeachers(); // 填充 dhCache + state.allTeachers 全量 + 排序控件 options
+  const sortSel = dom.window.document.getElementById('teacher-sort');
+  sortSel.value = 'rating';
+  teacherSortFromSelect(sortSel); // state.allTeachers → rating 序 [1,4,3,2]
+  const method = dom.window.document.getElementById('filter-method');
+  method.value = 'online';
+  applyFilters(); // 过滤 + 重排序
+  method.value = '';
+  applyFilters();
+  assert.deepEqual(state.allTeachers.map(t => t.user_id), [1, 4, 3, 2], '筛选后保留 rating 排序（原回退服务端序 [1,2,3,4]）');
+  delete globalThis.document; delete globalThis.window;
+  delete globalThis.localStorage; delete globalThis.sessionStorage; delete globalThis.MutationObserver; delete globalThis.fetch;
+});
+
 test('Q-4a-M1b：loadTeachers 填充筛选/排序控件（原空死容器）', async () => {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select><select id="filter-verified"></select><label id="teacher-sort-label"></label></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
