@@ -21,7 +21,7 @@ export async function dbSetPrivacySettings(db, userId, { allowGuestProfile, allo
   const p = allowGuestProfile === 0 ? 0 : (allowGuestProfile === undefined ? cur.allowGuestProfile : 1);
   const d = allowGuestDemand === 0 ? 0 : (allowGuestDemand === undefined ? cur.allowGuestDemand : 1);
   await dbRun(db, `INSERT INTO user_settings (user_id, allow_guest_profile, allow_guest_demand, updated_at)
-    VALUES (?, ?, ?, datetime('now','localtime'))
+    VALUES (?, ?, ?, datetime('now'))
     ON CONFLICT(user_id) DO UPDATE SET
       allow_guest_profile=excluded.allow_guest_profile,
       allow_guest_demand=excluded.allow_guest_demand,

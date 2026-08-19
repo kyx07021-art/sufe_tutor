@@ -6,20 +6,20 @@ export const POSTS_DDL = `CREATE TABLE IF NOT EXISTS posts (
       user_id INTEGER NOT NULL, section TEXT NOT NULL DEFAULT 'plaza',
       title TEXT NOT NULL, body_md TEXT NOT NULL DEFAULT '',
       like_count INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       updated_at DATETIME,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 export const POST_LIKES_DDL = `CREATE TABLE IF NOT EXISTS post_likes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       post_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       UNIQUE(post_id, user_id),
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 export const POST_FAVORITES_DDL = `CREATE TABLE IF NOT EXISTS post_favorites (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       post_id INTEGER NOT NULL, user_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       UNIQUE(post_id, user_id),
       FOREIGN KEY (post_id) REFERENCES posts(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;

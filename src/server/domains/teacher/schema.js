@@ -14,7 +14,7 @@ export const TEACHER_PROFILES_DDL = `CREATE TABLE IF NOT EXISTS teacher_profiles
       graduation_year INTEGER,
       rating REAL DEFAULT ${INITIAL_RATING},
       rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
-      updated_at DATETIME DEFAULT (datetime('now','localtime')),
+      updated_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 export const TEACHER_VERIFICATIONS_DDL = `CREATE TABLE IF NOT EXISTS teacher_verifications (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -26,7 +26,7 @@ export const TEACHER_VERIFICATIONS_DDL = `CREATE TABLE IF NOT EXISTS teacher_ver
       verify_type TEXT NOT NULL DEFAULT 'chsi',
       admission_image TEXT DEFAULT '',
       verified_by INTEGER DEFAULT NULL, verified_at DATETIME DEFAULT NULL,
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (verified_by) REFERENCES users(id))`;
 

@@ -406,7 +406,7 @@ export async function handleSignContract(db, contractId, body, req) {
   // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
   // 不产生任何改动；changes=0 方重读当前态幂等返回，不触发任何副作用。version 同步递增（乐观锁）
   // 同句置位 signed_at（服务端时间戳，UTC SQLite 格式），签名区块据此渲染
-  const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, ${signedCol}=datetime('now','localtime'), status='signing', version=version+1, updated_at=datetime('now','localtime') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
+  const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, ${signedCol}=datetime('now'), status='signing', version=version+1, updated_at=datetime('now') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
   if (!(flag && flag.meta && flag.meta.changes > 0)) {
     const cur = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
     if (cur.err) return cur.err;
@@ -503,7 +503,7 @@ export async function handleModifyContract(db, contractId, body, req) {
   // prev_business 留痕供前端 diff 高亮；乐观锁落 SQL WHERE（version 精确匹配）
   const upd = await dbRun(db,
     `UPDATE contracts SET contract_md=?, prev_business=?, drafter_confirmed=0, other_confirmed=0,
-       drafter_signed_at='', other_signed_at='', status='signing', version=version+1, updated_at=datetime('now','localtime')
+       drafter_signed_at='', other_signed_at='', status='signing', version=version+1, updated_at=datetime('now')
      WHERE id=? AND version=? AND status IN ('pending','signing')`,
     [await encryptField(fullMd), await encryptField(oldBiz), contractId, ver]); // N-05：正文 + prev_business 加密落库（repo mapper 出口统一解密，与 contract_md 口径一致）
   if (!(upd && upd.meta && upd.meta.changes > 0)) return errorMsg('CONTRACT_MODIFIED_CONFLICT', 409, 'CONTRACT_MODIFIED_CONFLICT'); // 带稳定 code 供前端刷新版本号
@@ -526,7 +526,7 @@ export async function handleRevokeContract(db, contractId, body, req) {
   // 撤销不删行——置 revoked 标记 + 撤销人 + 撤销时间，合同正文/台账保留存证；
   // 双方列表仍见该合同，右上角状态 tag 显示红色「已撤销」。条件 UPDATE 并发守卫（双撤销仅赢家副作用）。
   const upd = await dbRun(db,
-    `UPDATE contracts SET revoked=1, revoked_by=?, status='signed', version=version+1, updated_at=datetime('now','localtime')
+    `UPDATE contracts SET revoked=1, revoked_by=?, status='signed', version=version+1, updated_at=datetime('now')
      WHERE id=? AND revoked=0`, [me.id, contractId]);
   if (!(upd && upd.meta && upd.meta.changes > 0)) {
     const cur = await dbGetContractById(db, contractId);
@@ -609,7 +609,7 @@ export async function handleCancelContract(db, contractId, body, req) {
   const upd = await dbRun(db,
     `UPDATE contracts SET ${myCol}=0,
         ${userId === ct.drafter_user_id ? "drafter_signed_at=''" : "other_signed_at=''"},
-        status='signing', version=version+1, updated_at=datetime('now','localtime')
+        status='signing', version=version+1, updated_at=datetime('now')
      WHERE id=? AND status IN ('pending','signing')`, [contractId]);
   if (!(upd && upd.meta && upd.meta.changes > 0)) {
     const cur = await dbGetContractById(db, contractId);

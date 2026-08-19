@@ -244,8 +244,8 @@ export async function dbGetPendingPushesForDemand(db, demandId) {
 // DO UPDATE 覆写守卫：学生对意向的明确拒绝（status='rejected'）不可被推送确认静默撤销
 export async function dbAcceptPushAsIntent(db, demandId, teacherUserId) {
   await dbRun(db, `INSERT INTO demand_intents (demand_id,teacher_user_id,status,resolved_at)
-      VALUES (?,?,'accepted',datetime('now','localtime'))
-    ON CONFLICT(demand_id,teacher_user_id) DO UPDATE SET status='accepted', resolved_at=datetime('now','localtime')
+      VALUES (?,?,'accepted',datetime('now'))
+    ON CONFLICT(demand_id,teacher_user_id) DO UPDATE SET status='accepted', resolved_at=datetime('now')
       WHERE demand_intents.status <> 'rejected'`,
     [demandId, teacherUserId]);
 }
@@ -294,7 +294,7 @@ export async function dbGetIntentWithDemand(db, intentId) {
 
 export async function dbResolveIntent(db, intentId, status) {
   const res = await dbRun(db,
-    "UPDATE demand_intents SET status=?, resolved_at=datetime('now','localtime') WHERE id=? AND status='pending'",
+    "UPDATE demand_intents SET status=?, resolved_at=datetime('now') WHERE id=? AND status='pending'",
     [status, intentId]);
   return !!(res && res.meta && res.meta.changes > 0); // 仅赢家（changes>0）执行建会话/通知等副作用
 }

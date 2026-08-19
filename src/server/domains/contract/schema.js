@@ -24,8 +24,8 @@ export const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
   version INTEGER NOT NULL DEFAULT 0,
   revoked INTEGER NOT NULL DEFAULT 0,
   revoked_by INTEGER NOT NULL DEFAULT 0,
-  created_at DATETIME DEFAULT (datetime('now','localtime')),
-  updated_at DATETIME DEFAULT (datetime('now','localtime')),
+  created_at DATETIME DEFAULT (datetime('now')),
+  updated_at DATETIME DEFAULT (datetime('now')),
   FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`;
 
 export const createStatements = [CONTRACTS_DDL];
@@ -75,7 +75,7 @@ export async function initLedgerTable(db) {
     contract_id INTEGER NOT NULL,
     content_hash TEXT NOT NULL,
     prev_hash TEXT NOT NULL DEFAULT '',
-    created_at DATETIME DEFAULT (datetime('now','localtime')))`);
+    created_at DATETIME DEFAULT (datetime('now')))`);
   await addColumns(db, 'contract_ledger', [
     ['seq', 'INTEGER'],
     ['body_hash', "TEXT NOT NULL DEFAULT ''"],

@@ -8,7 +8,7 @@ export const REVIEWS_DDL = `CREATE TABLE IF NOT EXISTS reviews (
       reviewer_user_id INTEGER NOT NULL, rating INTEGER NOT NULL CHECK(rating>=1 AND rating<=5),
       comment TEXT NOT NULL, status TEXT DEFAULT 'pending'
         CHECK(status IN ('pending','approved','rejected')),
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       reviewed_at DATETIME, reviewed_by INTEGER,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`;
@@ -29,7 +29,7 @@ async function rebuildReviews(db) {
         reviewer_user_id INTEGER NOT NULL, rating INTEGER NOT NULL CHECK(rating>=1 AND rating<=5),
         comment TEXT NOT NULL, status TEXT DEFAULT 'pending'
           CHECK(status IN ('pending','approved','rejected')),
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         reviewed_at DATETIME, reviewed_by INTEGER,
         FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`;

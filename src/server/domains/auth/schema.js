@@ -13,13 +13,13 @@ export const USERS_DDL = `CREATE TABLE IF NOT EXISTS users (
       password_hash TEXT NOT NULL, salt TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
       banned INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME DEFAULT (datetime('now','localtime')))`;
+      created_at DATETIME DEFAULT (datetime('now')))`;
 export const AUTH_SESSIONS_DDL = `CREATE TABLE IF NOT EXISTS auth_sessions (
       token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL,
       session_id TEXT NOT NULL DEFAULT '',
       label TEXT NOT NULL DEFAULT '',
       device_id TEXT NOT NULL DEFAULT '',
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       expires_at DATETIME NOT NULL,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 export const RATE_LIMITS_DDL = `CREATE TABLE IF NOT EXISTS rate_limits (
@@ -28,7 +28,7 @@ export const RATE_LIMITS_DDL = `CREATE TABLE IF NOT EXISTS rate_limits (
       reset_at DATETIME NOT NULL)`;
 export const INVITE_CODES_DDL = `CREATE TABLE IF NOT EXISTS invite_codes (
       code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       used_by INTEGER DEFAULT NULL,
       used_at DATETIME DEFAULT NULL,
       FOREIGN KEY (created_by) REFERENCES users(id),
@@ -72,7 +72,7 @@ async function migrateTokenHashes(db) {
         session_id TEXT NOT NULL DEFAULT '',
         label TEXT NOT NULL DEFAULT '',
         device_id TEXT NOT NULL DEFAULT '',
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         expires_at DATETIME NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
     ]);
@@ -176,7 +176,7 @@ async function migrateLegacyRoles(db, adminNames) {
         password_hash TEXT NOT NULL, salt TEXT NOT NULL,
         role TEXT NOT NULL CHECK(role IN ('student','teacher','admin')),
         banned INTEGER NOT NULL DEFAULT 0,
-        created_at DATETIME DEFAULT (datetime('now','localtime')))`,
+        created_at DATETIME DEFAULT (datetime('now')))`,
     },
     {
       t: 'teacher_profiles',
@@ -193,7 +193,7 @@ async function migrateLegacyRoles(db, adminNames) {
         chsi_status TEXT DEFAULT '', chsi_enroll_year TEXT DEFAULT '', chsi_verified INTEGER NOT NULL DEFAULT 0,
         rating REAL DEFAULT ${INITIAL_RATING},
         rating_count INTEGER DEFAULT 0, rating_sum REAL DEFAULT 0,
-        updated_at DATETIME DEFAULT (datetime('now','localtime')),
+        updated_at DATETIME DEFAULT (datetime('now')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`,
     },
     {
@@ -214,7 +214,7 @@ async function migrateLegacyRoles(db, adminNames) {
         preferred_teacher_gender TEXT NOT NULL DEFAULT '',
         teaching_goal TEXT NOT NULL DEFAULT '[]',
         skill_notes TEXT NOT NULL DEFAULT '[]',
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`,
     },
     {
@@ -225,7 +225,7 @@ async function migrateLegacyRoles(db, adminNames) {
         reviewer_user_id INTEGER NOT NULL, rating INTEGER NOT NULL CHECK(rating>=1 AND rating<=5),
         comment TEXT NOT NULL, status TEXT DEFAULT 'pending'
           CHECK(status IN ('pending','approved','rejected')),
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         reviewed_at DATETIME, reviewed_by INTEGER,
         FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
@@ -235,7 +235,7 @@ async function migrateLegacyRoles(db, adminNames) {
       cols: ['code', 'created_by', 'created_at', 'used_by', 'used_at'],
       ddl: `CREATE TABLE invite_codes_new (
         code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         used_by INTEGER DEFAULT NULL,
         used_at DATETIME DEFAULT NULL,
         FOREIGN KEY (created_by) REFERENCES users(id),
@@ -247,7 +247,7 @@ async function migrateLegacyRoles(db, adminNames) {
       ddl: `CREATE TABLE demand_intents_new (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         demand_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         UNIQUE(demand_id, teacher_user_id),
         FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
         FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
@@ -264,7 +264,7 @@ async function migrateLegacyRoles(db, adminNames) {
         enrollment_status TEXT DEFAULT '', enroll_year TEXT DEFAULT '',
         provider TEXT NOT NULL DEFAULT 'manual',
         verified_by INTEGER DEFAULT NULL, verified_at DATETIME DEFAULT NULL,
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (verified_by) REFERENCES users(id))`,
     },
@@ -309,7 +309,7 @@ async function rebuildTables(db, adminNames) {
         reviewer_user_id INTEGER NOT NULL, rating INTEGER NOT NULL CHECK(rating>=1 AND rating<=5),
         comment TEXT NOT NULL, status TEXT DEFAULT 'pending'
           CHECK(status IN ('pending','approved','rejected')),
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         reviewed_at DATETIME, reviewed_by INTEGER,
         FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (reviewer_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
@@ -319,7 +319,7 @@ async function rebuildTables(db, adminNames) {
       cols: ['code', 'created_by', 'created_at', 'used_by', 'used_at'],
       ddl: `CREATE TABLE invite_codes_new (
         code TEXT PRIMARY KEY, created_by INTEGER NOT NULL,
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         used_by INTEGER DEFAULT NULL,
         used_at DATETIME DEFAULT NULL,
         FOREIGN KEY (created_by) REFERENCES users(id),

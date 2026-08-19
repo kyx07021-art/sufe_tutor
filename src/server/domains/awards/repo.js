@@ -22,7 +22,7 @@ export async function initAwardsTable(db) {
     proof_upload_id INTEGER,
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
     admin_note TEXT NOT NULL DEFAULT '',
-    created_at DATETIME DEFAULT (datetime('now','localtime')),
+    created_at DATETIME DEFAULT (datetime('now')),
     FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`);
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_awards_teacher ON teacher_awards(teacher_user_id, id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_awards_status ON teacher_awards(status, id)');

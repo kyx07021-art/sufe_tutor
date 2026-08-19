@@ -12,7 +12,7 @@ export const COMPLAINTS_DDL = `CREATE TABLE IF NOT EXISTS complaints (
       reason TEXT NOT NULL DEFAULT '',
       detail TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       resolved_at DATETIME,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 export const FEEDBACKS_DDL = `CREATE TABLE IF NOT EXISTS feedbacks (
@@ -23,7 +23,7 @@ export const FEEDBACKS_DDL = `CREATE TABLE IF NOT EXISTS feedbacks (
       title TEXT NOT NULL DEFAULT '',
       content TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 
 export const createStatements = [COMPLAINTS_DDL, FEEDBACKS_DDL];
@@ -53,7 +53,7 @@ export async function migrate(db, ctx) {
         title TEXT NOT NULL DEFAULT '',
         content TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','resolved')),
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`),
       db.prepare(`INSERT INTO feedbacks (id, user_id, kind, title, content, status, created_at)
         SELECT id, user_id, kind, title, content, status, created_at FROM feedbacks_old`),

@@ -7,7 +7,7 @@ export const CONVERSATIONS_DDL = `CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
       demand_id INTEGER, status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','closed')),
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       UNIQUE(student_user_id, teacher_user_id),
       FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -18,7 +18,7 @@ export const MESSAGES_DDL = `CREATE TABLE IF NOT EXISTS messages (
       kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract','signing_request','signing_response')),
       body TEXT NOT NULL DEFAULT '',
       name TEXT NOT NULL DEFAULT '', thumb TEXT NOT NULL DEFAULT '',
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
       FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 export const UPLOADS_DDL = `CREATE TABLE IF NOT EXISTS uploads (
@@ -27,7 +27,7 @@ export const UPLOADS_DDL = `CREATE TABLE IF NOT EXISTS uploads (
       kind TEXT NOT NULL CHECK(kind IN ('image','file')),
       body TEXT NOT NULL,
       name TEXT NOT NULL DEFAULT '',
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 
 export const createStatements = [CONVERSATIONS_DDL, MESSAGES_DDL, UPLOADS_DDL];
@@ -68,7 +68,7 @@ async function migrateMessagesKind(db) {
         kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract','signing_request','signing_response')),
         body TEXT NOT NULL DEFAULT '',
         name TEXT NOT NULL DEFAULT '', thumb TEXT NOT NULL DEFAULT '',
-        created_at DATETIME DEFAULT (datetime('now','localtime')),
+        created_at DATETIME DEFAULT (datetime('now')),
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
         FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
       db.prepare(`INSERT INTO messages (${carry.join(',')}) SELECT ${carry.join(',')} FROM messages_old`),
@@ -88,7 +88,7 @@ export async function initSigningTable(db) {
     schedule TEXT NOT NULL DEFAULT '',
     method TEXT NOT NULL DEFAULT 'offline',
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','signed','rejected')),
-    created_at DATETIME DEFAULT (datetime('now','localtime')),
+    created_at DATETIME DEFAULT (datetime('now')),
     responded_at DATETIME,
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     FOREIGN KEY (initiator_user_id) REFERENCES users(id) ON DELETE CASCADE)`);

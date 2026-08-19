@@ -51,7 +51,7 @@ export async function dbCreateComplaint(db, userId, targetType, targetId, snapsh
 // 今日投诉计数（防滥用：COMPLAINT_DAILY_LIMIT/日）
 export async function dbCountComplaintsToday(db, userId) {
   const row = await dbGet(db,
-    `SELECT COUNT(*) AS c FROM complaints WHERE user_id=? AND date(created_at)=date('now','localtime')`, [userId]);
+    `SELECT COUNT(*) AS c FROM complaints WHERE user_id=? AND date(created_at)=date('now')`, [userId]);
   return (row && row.c) || 0;
 }
 
@@ -81,7 +81,7 @@ export async function dbGetComplaintById(db, complaintId) {
 }
 
 export async function dbResolveComplaint(db, complaintId) {
-  await dbRun(db, `UPDATE complaints SET status='resolved', resolved_at=datetime('now','localtime') WHERE id=?`, [complaintId]);
+  await dbRun(db, `UPDATE complaints SET status='resolved', resolved_at=datetime('now') WHERE id=?`, [complaintId]);
 }
 
 // —— 投诉对象候选：按角色搜用户（id 精确 / 昵称模糊），排除自己 ——

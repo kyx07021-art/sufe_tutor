@@ -184,7 +184,7 @@ export async function dbCreateSigning(db, conversationId, demandId, userId, msgI
 // 返回 [srChanges, demandChanges]；auto-reject 副作用只由需求收缩赢家（demandChanges>0）驱动。
 export async function dbConfirmSigning(db, signingId, demandId) {
   const results = await db.batch([
-    db.prepare(`UPDATE signing_requests SET status='signed', responded_at=datetime('now','localtime')
+    db.prepare(`UPDATE signing_requests SET status='signed', responded_at=datetime('now')
       WHERE id=? AND status='pending'
       AND EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='open')`).bind(signingId, demandId),
     db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`).bind(demandId),
@@ -195,7 +195,7 @@ export async function dbConfirmSigning(db, signingId, demandId) {
 // 拒绝/收束签约单条（respond 拒绝分支 + 注销收束共用）：条件 UPDATE + changes 判定（赢家模式）
 export async function dbRejectSigning(db, signingId) {
   const res = await dbRun(db,
-    `UPDATE signing_requests SET status=?, responded_at=datetime('now','localtime') WHERE id=? AND status='pending'`,
+    `UPDATE signing_requests SET status=?, responded_at=datetime('now') WHERE id=? AND status='pending'`,
     [STATUS.REJECTED, signingId]);
   return !!(res && res.meta && res.meta.changes > 0);
 }
@@ -206,7 +206,7 @@ export async function dbRejectSigning(db, signingId) {
 // ============================================================
 // 暂存配额自愈：清本人滞留暂存件（窗口单源自 constants.LIMITS，防弃传暂存填满库）
 export async function dbPurgeStaleUploads(db, userId) {
-  await dbRun(db, `DELETE FROM uploads WHERE user_id=? AND created_at < datetime('now','localtime', ?)`,
+  await dbRun(db, `DELETE FROM uploads WHERE user_id=? AND created_at < datetime('now', ?)`,
     [userId, LIMITS.STALE_UPLOAD_WINDOW]);
 }
 

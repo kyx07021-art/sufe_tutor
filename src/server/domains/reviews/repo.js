@@ -75,7 +75,7 @@ export async function dbDeleteReview(db, reviewId) {
 
 export async function dbUpdateReviewStatus(db, reviewId, status) {
   await dbRun(db,
-    "UPDATE reviews SET status=?, reviewed_at=datetime('now','localtime') WHERE id=?",
+    "UPDATE reviews SET status=?, reviewed_at=datetime('now') WHERE id=?",
     [status, reviewId]);
 }
 

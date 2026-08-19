@@ -104,7 +104,7 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
     'SELECT id, message_id, price, schedule, method FROM signing_requests WHERE initiator_user_id=? AND status=?',
     [userId, STATUS.PENDING]);
   for (const sr of myPendingSignings) {
-    await dbRun(db, `UPDATE signing_requests SET status=?, responded_at=datetime('now','localtime') WHERE id=? AND status=?`,
+    await dbRun(db, `UPDATE signing_requests SET status=?, responded_at=datetime('now') WHERE id=? AND status=?`,
       [STATUS.REJECTED, sr.id, STATUS.PENDING]);
     if (sr.message_id) {
       await dbRun(db, 'UPDATE messages SET body=? WHERE id=?',
@@ -142,7 +142,7 @@ export async function dbFindValidInviteCode(db, code) {
 export async function dbUseInviteCode(db, code, userId) {
   // 赢家模式：并发双注册同码时仅 changes>0 的一方消费成功（防一枚码两人用，调用方回滚输家）
   const r = await dbRun(db,
-    "UPDATE invite_codes SET used_by=?, used_at=datetime('now','localtime') WHERE code=? AND used_by IS NULL",
+    "UPDATE invite_codes SET used_by=?, used_at=datetime('now') WHERE code=? AND used_by IS NULL",
     [userId, code]);
   return !!(r && r.meta && r.meta.changes > 0);
 }

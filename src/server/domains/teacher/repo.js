@@ -51,7 +51,7 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
       price=?,price_min=?,price_max=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,
       time_slots=?,teaching_method=?,personality_tags=?,nonacademic_projects=?,nonacademic_prices=?,
       graduation_year=?,
-      updated_at=datetime('now','localtime') WHERE user_id=?`,
+      updated_at=datetime('now') WHERE user_id=?`,
       [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
         timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, userId]);
   } else {

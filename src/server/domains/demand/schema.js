@@ -18,12 +18,12 @@ export const STUDENT_DEMANDS_DDL = `CREATE TABLE IF NOT EXISTS student_demands (
       preferred_teacher_gender TEXT NOT NULL DEFAULT '',
       teaching_goal TEXT NOT NULL DEFAULT '[]',
       skill_notes TEXT NOT NULL DEFAULT '[]',
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 export const DEMAND_INTENTS_DDL = `CREATE TABLE IF NOT EXISTS demand_intents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       demand_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       UNIQUE(demand_id, teacher_user_id),
       FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`;
@@ -31,7 +31,7 @@ export const DEMAND_PUSHES_DDL = `CREATE TABLE IF NOT EXISTS demand_pushes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       demand_id INTEGER NOT NULL, student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected')),
-      created_at DATETIME DEFAULT (datetime('now','localtime')),
+      created_at DATETIME DEFAULT (datetime('now')),
       UNIQUE(demand_id, teacher_user_id),
       FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
       FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
