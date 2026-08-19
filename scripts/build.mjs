@@ -13,7 +13,7 @@ import { pathToFileURL } from 'node:url';
 const ROOT = resolve(import.meta.dirname, '..');
 const DIST = join(ROOT, 'dist');
 const COPY_EXTS = new Set(['.html', '.js', '.css', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.ico']);
-const COPY_NAMES = new Set(['_headers', '_b2_home.png', 'hand-mask.png', 'hand-mask-rot.png', '创造亚当手部剪影.jpg']);
+const COPY_NAMES = new Set(['_headers', 'hand-mask.png', 'hand-mask-rot.png']);
 
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(DIST, { recursive: true });

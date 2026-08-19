@@ -26,8 +26,7 @@ import { RATE_LIMITS, SECURITY, SECURITY_HEADERS, CORS_HEADERS } from '../../sha
 // 请求级 auth 记忆化——同一请求内二次鉴权（logRequest 记 actor、
 // /api/batch 批量子请求并发）零额外 D1。WeakMap 键 req，请求结束即 GC，跨请求零泄漏；
 // 并发调用共享同一 Promise（batch 子请求并发不重复查）。安全：同请求令牌恒定（headers 不可变），
-// 记忆化无陈旧风险。不做跨请求会话缓存（登出/封禁即时失效 + 跨 isolate 无法全局失效，安全账不划算，
-// 见 docs/network-layer-redesign.md 有意不做清单）。
+// 记忆化无陈旧风险。不做跨请求会话缓存（登出/封禁即时失效 + 跨 isolate 无法全局失效，安全账不划算，有意不做）。
 const authMemo = new WeakMap();
 export async function authUser(db, req) {
   const token = req && req.headers && req.headers.get('X-Auth-Token');
