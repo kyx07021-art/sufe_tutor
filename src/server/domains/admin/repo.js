@@ -118,7 +118,7 @@ const CONTENT_SQL = {
 // 两处同名键，清单自动跟随，杜绝「硬编码清单与表域错位」。
 // 无效 type（非键）→ 返回空列表，不再崩溃。
 // Q-2i-M5：title 显示文案 codes.js MSG 单源（原内联中文模板）
-const tpl = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? vars[k] : ''));
+const tpl = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? vars[k] : m)); // Q-2i-M5c：未知变量保留原文——用户可控字段值内的 {ascii词}（如附件名 report{2024}.pdf）不再被吞掉
 const CONTENT_MAPPER = {
   post: r => ({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } }),
   demand: r => ({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_DEMAND, { id: r.display_id || r.id }), body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
