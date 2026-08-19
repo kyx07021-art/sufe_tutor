@@ -408,8 +408,14 @@ export async function handleSignContract(db, contractId, body, req) {
   // 重拼正文（第十条 签署记录内嵌签署人/时间）回写：version 乐观锁——
   // 并发双签时仅最后落定者的正文生效（版本已被抢跑的旧正文 changes=0 丢弃），杜绝旧签名块覆盖新状态
   const signedMd = rebuildFullMd(updated, conv);
-  await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
+  const mdUpdate = await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
     [await encryptField(signedMd), contractId, updated.version]);
+  // Z-2-F3：并发双签败者判定——正文覆盖的 version 乐观锁 changes=0（对方已抢先落定），
+  // 败者旧正文落台账会与当前双签正文失配（verify invalid）且多余通知——跳过台账/通知/留档，
+  // 返回未落定（前端刷新列表见真实状态；赢家口径同 handleRespondSigning 的 changes>0）
+  if (!(mdUpdate && mdUpdate.meta && mdUpdate.meta.changes > 0)) {
+    return json({ ok: false, signed: false });
+  }
   // 每次签署都落台账：正文已内嵌签署人/时间，content_hash 自然覆盖「谁签/何时签」；
   // 幂等（同正文 NOT EXISTS 去重）——并发双签双方同正文只挂一条，签约后 500 重试可安全补记
   let contentHash = '';
