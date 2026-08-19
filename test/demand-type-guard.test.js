@@ -12,14 +12,24 @@
  *
  * D1 形状同 teacher-profile-guard.test.js：db.prepare(sql).bind(...).all()/.first()/.run() + db.batch。
  */
-import { test } from 'node:test';
+import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { handleCreateDemand } from '../src/server/domains/demand/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
+import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 
 const ENV = { ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
+
+// V-4-1d QA 回归：文本审核咽喉绑定 + fetch mock（镜像生产配置；QA 最小 body 带真实 additional_info，
+// 无配置 auditSemantic fail-closed 回 TEXT_AUDIT_UNAVAILABLE，会掩盖被测的 500 崩溃路径）
+const origFetch = globalThis.fetch;
+beforeEach(() => {
+  bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false}' } }] }) });
+});
+afterEach(() => { bindTextAuditEnv(null); globalThis.fetch = origFetch; });
 
 function d1Shim(raw) {
   return {
@@ -210,14 +220,22 @@ test('student_grade：非法值静默回退空串；合法值正常入库', asyn
 
 // V-4-1d QA 抓到的生产 500：缺 current_scores 字段 → sanitizeDemand 未归一 → dbCreateDemand
 // JSON.stringify(undefined) 绑 SQL 参数 6 抛错（复现 _tmp_repro_demand.mjs 参数 6 绑定失败）。
-// 修复：current_scores 缺失归一 []（与 teaching_goal/skill_notes/personality_tags 同口径）。
-test('current_scores 缺失 → 归一空数组正常落库（QA 生产 500 回归）', async () => {
+// 修复：current_scores 缺失归一 []、submitter_type 缺失归一 'parent'
+//（与 teaching_goal/skill_notes/personality_tags 同口径；schema submitter_type NOT NULL 无默认值）。
+// 用 QA 全链路原样最小 body 实证：缺 current_scores + submitter_type + student_grade 等可选字段不得 500。
+test('QA 最小 body（缺 current_scores/submitter_type 等）→ 归一落库不 500（生产 500 回归）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token, stu } = await seedStudent(db, raw);
-  // 显式 omit current_scores（模拟 API 客户端缺字段路径，QA 全链路原样 body）
-  const { current_scores, ...minimal } = baseDemand;
+  // 精确复刻 QA 全链路 body：只有最小字段集，无 current_scores / submitter_type / student_grade / 联系方式
+  const minimal = {
+    province: 'shanghai', grade: 'senior1', target_subjects: ['math'],
+    expected_time: JSON.stringify([{ type: 'week', dow: 1, start: '18:00', end: '20:00' }]),
+    teaching_method: 'online', additional_info: 'QA 全链路测试', budget_min: 100, budget_max: 200,
+    title: 'QA 测试需求', description: '',
+  };
   const r = await handleCreateDemand(db, { demand: minimal }, reqOf(token));
-  assert.equal(r.status, 200, '缺 current_scores 不得 500/抛错，实际 ' + r.status);
-  const row = raw.prepare('SELECT current_scores FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(row.current_scores, '[]', '缺失归一空数组落库');
+  assert.equal(r.status, 200, '缺 current_scores/submitter_type 不得 500，实际 ' + r.status);
+  const row = raw.prepare('SELECT current_scores, submitter_type FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.current_scores, '[]', 'current_scores 缺失归一空数组落库');
+  assert.equal(row.submitter_type, 'parent', 'submitter_type 缺失归一 parent 落库（NOT NULL 无默认）');
 });

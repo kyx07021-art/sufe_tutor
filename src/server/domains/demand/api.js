@@ -115,6 +115,9 @@ function sanitizeDemand(d) {
   // V-4-1d QA 修复：current_scores 缺失归一 []（与 teaching_goal/skill_notes/personality_tags 同口径——
   // 缺失时 dbCreateDemand 的 JSON.stringify(undefined) 绑 SQL 参数 6 抛错 → 生产 500 COMMON_SERVER_ERROR）
   if (!Array.isArray(d.current_scores)) d.current_scores = [];
+  // V-4-1d QA 修复②：submitter_type 缺失/非法归一 'parent'（schema NOT NULL 无默认值；前端 prefill 同款
+  // 缺省；缺失时 dbCreateDemand/dbUpdateDemand 裸绑 undefined → 参数 12 抛错 → 生产 500 COMMON_SERVER_ERROR）
+  if (d.submitter_type !== 'student') d.submitter_type = 'parent';
   // 平时成绩满分按省+年级钳制（region-data 政策单源）——
   // 前端输入 max 已按 subjectMaxFor（省+年级，region-data 单源），服务端同口径兜底（防绕过前端直传 150）。
   // 只钳制分数模式（mode='score' 或 legacy scale>0）；等第模式无数值不改。非法项剔除。
