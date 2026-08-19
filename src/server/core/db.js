@@ -55,7 +55,7 @@ const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(
 // 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 8; // v2.0.0：initNotifyTable 补 V-2-4 通知结构化列 type/params（V-2-4a e2a5bf4 加列时漏 bump，存量 v7 库不跑迁移导致缺列——V-4-1c 演练抓出；存量 v7 库需跑全量迁移补列）
+export const SCHEMA_VERSION = 9; // v2.0.x：Z-4-F1 补 messages.kind CHECK signing_response + name/thumb 终态列（migrateMessagesKind 换表；漏 bump 致生产版本门控短路迁移永不执行——复审抓出，V-4-1c 同型事故；存量 v8 库需跑全量迁移换表）
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生

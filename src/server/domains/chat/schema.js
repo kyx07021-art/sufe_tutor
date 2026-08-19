@@ -15,8 +15,9 @@ export const CONVERSATIONS_DDL = `CREATE TABLE IF NOT EXISTS conversations (
 export const MESSAGES_DDL = `CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       conversation_id INTEGER NOT NULL, sender_user_id INTEGER NOT NULL,
-      kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract')),
+      kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract','signing_request','signing_response')),
       body TEXT NOT NULL DEFAULT '',
+      name TEXT NOT NULL DEFAULT '', thumb TEXT NOT NULL DEFAULT '',
       created_at DATETIME DEFAULT (datetime('now','localtime')),
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
       FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE)`;
@@ -44,10 +45,20 @@ export const ensureColumns = [
   ] },
 ];
 
-// messages.kind CHECK 迁移：约束缺 'contract'/'signing_request'/'signing_response' 即保数据换表
+// messages.kind CHECK 迁移：约束缺任一合法 kind 即保数据换表（SQLite CHECK 不可 ALTER，只能重建）。
+// Z-4-F1：探测旧表列动态 carry（旧库可能无 name/thumb 或只有部分），终态新表含 name/thumb 列；
+// 条件显式检查全部 6 个 kind（缺任一即换表）——修复前只查 contract+signing_request，
+// 中间态「有 signing_request 无 signing_response」会漏迁；无谓换表消除 = 终态库短路跳过。
+// 索引 idx_messages_conv 不在此处（曾因放条件分支内致新库短路跳过永不建索引——见 migrate postEnsure）
 async function migrateMessagesKind(db) {
   const msgMeta = await dbGet(db, `SELECT sql FROM sqlite_master WHERE type='table' AND name='messages'`);
-  if (msgMeta && msgMeta.sql && !(msgMeta.sql.includes("'contract'") && msgMeta.sql.includes("'signing_request'"))) {
+  if (!(msgMeta && msgMeta.sql)) return;
+  const kinds = ["'text'", "'image'", "'file'", "'contract'", "'signing_request'", "'signing_response'"];
+  if (!kinds.every(k => msgMeta.sql.includes(k))) {
+    const cols = (await dbGet(db, 'SELECT group_concat(name) AS names FROM pragma_table_info(\'messages\')'))?.names || '';
+    const have = new Set(cols.split(',').filter(Boolean));
+    const carry = ['id', 'conversation_id', 'sender_user_id', 'kind', 'body', 'created_at']
+      .concat(['name', 'thumb'].filter(c => have.has(c))); // 旧表已有 name/thumb 才随迁（无谓换表后数据保真）
     await db.batch([
       db.prepare(`ALTER TABLE messages RENAME TO messages_old`),
       db.prepare(`CREATE TABLE messages (
@@ -55,13 +66,12 @@ async function migrateMessagesKind(db) {
         conversation_id INTEGER NOT NULL, sender_user_id INTEGER NOT NULL,
         kind TEXT NOT NULL DEFAULT 'text' CHECK(kind IN ('text','image','file','contract','signing_request','signing_response')),
         body TEXT NOT NULL DEFAULT '',
+        name TEXT NOT NULL DEFAULT '', thumb TEXT NOT NULL DEFAULT '',
         created_at DATETIME DEFAULT (datetime('now','localtime')),
         FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
         FOREIGN KEY (sender_user_id) REFERENCES users(id) ON DELETE CASCADE)`),
-      db.prepare(`INSERT INTO messages (id, conversation_id, sender_user_id, kind, body, created_at)
-        SELECT id, conversation_id, sender_user_id, kind, body, created_at FROM messages_old`),
+      db.prepare(`INSERT INTO messages (${carry.join(',')}) SELECT ${carry.join(',')} FROM messages_old`),
       db.prepare(`DROP TABLE messages_old`),
-      db.prepare(`CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, id)`),
     ]);
   }
 }
@@ -106,4 +116,7 @@ export async function migrate(db, ctx) {
     WHERE demand_id IS NULL AND EXISTS (
       SELECT 1 FROM demand_pushes dp WHERE dp.teacher_user_id = conversations.teacher_user_id AND dp.status='accepted')`);
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_conv_teacher ON conversations(teacher_user_id, student_user_id)');
+  // Z-4-F1：idx_messages_conv 无条件路径（新库与换表库都建）——曾放在 migrateMessagesKind 条件分支内，
+  // 新库 MESSAGES_DDL 已含终态 CHECK 短路跳过 → 索引永不创建，conversation_id+id 查询回退全表扫描
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id, id)');
 }
