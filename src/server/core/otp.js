@@ -21,7 +21,7 @@
  *                        唯一正解——验证码本就是我们生成的）；未来若验证码托管给服务商
  *                        （服务商存 code），可切 'provider' 接服务商校验 API。
  */
-import { dbGet, dbRun, dbAll, error, errorMsg, toDbTime } from './util.js';
+import { dbGet, dbRun, dbAll, error, errorMsg, toDbTime, ensureColumns } from './util.js';
 import { tokenDigest } from './crypto.js';
 import { MSG } from '../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../shared/config.js';
@@ -42,11 +42,8 @@ export async function initOtpTable(db) {
     used INTEGER NOT NULL DEFAULT 0,
     attempts INTEGER NOT NULL DEFAULT 0, -- 输错次数（满 3 次即作废，须重新发码）
     created_at DATETIME DEFAULT (datetime('now')))`); // 库内 UTC（与 expires_at 统一域）
-  // 存量表补 attempts 列（幂等；新库 DDL 已带）
-  const cols = (await dbAll(db, 'PRAGMA table_info(verification_codes)')).map(c => c.name);
-  if (!cols.includes('attempts')) {
-    await dbRun(db, 'ALTER TABLE verification_codes ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0');
-  }
+  // Q-2g-L1：存量表补列走共享 ensureColumns（规则 12/41 单源；原手工内联 PRAGMA 探测已收敛）
+  await ensureColumns(db, 'verification_codes', [['attempts', 'INTEGER NOT NULL DEFAULT 0']]);
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_otp_target ON verification_codes(channel, target_hash, created_at)');
 }
 
