@@ -26,7 +26,13 @@ function openOnboarding() {
     : `<button type="button" class="btn glass glass--pressable" data-action="onboard.browseGuest">${escHtml(TEXT.ONBOARD_CONFIRM_BROWSE)}</button>`;
   openModal({
     title: TEXT.ONBOARD_TITLE,
-    closable: false,
+    // Z-14-F1 (2026-08-19 user report: login/register clicks dead): the first-visit modal
+    // must be dismissible by clicking the overlay. closable:false + transparent fullscreen
+    // modal-overlay (z-index 200, zero background) swallowed every click on the page below
+    // (login/register/browse buttons) with no feedback; the only exits were the tiny x or
+    // the browseGuest guide button (near-fullscreen on mobile hid the landing entirely).
+    // true: the guide still shows; a click anywhere dismisses it and unlocks the page.
+    closable: true,
     // h5a-g2: explicit width single-sourced in CONFIG (MODAL_W_ONBOARD = .modal
     // default max-width, zero visual change); passes through ui-modal cssText
     // (h5a-g6 note: CSSOM cssText is not governed by style-src-attr, F1 verified).
