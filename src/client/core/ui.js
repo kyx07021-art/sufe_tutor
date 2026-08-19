@@ -201,29 +201,6 @@ export function toggleTagPick(el, containerId, max) {
   el.classList.toggle('selected', nowSelected);
 }
 
-export function compressToDataURL(file, maxSide, quality, square) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error(TEXT.CREDENTIAL_PICK_HINT));
-    reader.onload = () => {
-      const img = new Image();
-      img.onerror = () => reject(new Error(TEXT.CREDENTIAL_PICK_HINT));
-      img.onload = () => {
-        let sx = 0, sy = 0, sw = img.width, sh = img.height, w, h;
-        if (square) { const side = Math.min(sw, sh); sx = (sw - side) / 2; sy = (sh - side) / 2; sw = sh = side; w = h = maxSide; }
-        else { const k = Math.min(1, maxSide / Math.max(sw, sh)); w = Math.round(sw * k); h = Math.round(sh * k); }
-        const cv = document.createElement('canvas');
-        cv.width = w; cv.height = h;
-        cv.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
-        resolve(cv.toDataURL('image/jpeg', quality));
-      };
-      img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
-
 export function mdEditorHtml({ rows = 7, placeholder = '', label = TEXT.POST_LABEL_BODY, labelFor = '' } = {}) {
   const forAttr = labelFor ? ` for="${labelFor}"` : '';
   return `<div class="form-group">

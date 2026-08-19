@@ -265,4 +265,3 @@ export async function refreshBadges() {
 }
 export function closeSidebar() { document.body.classList.remove('sidebar-open'); }
 export function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
-export function stopRouter() { stopBadgePoll(); stopVersionProbe(); }

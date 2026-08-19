@@ -437,7 +437,6 @@ export const TEXT = {
   "CREDENTIAL_UPLOADED_VIEW": "已上传，点击查看",
   "CREDENTIAL_VIEW": "点击查看",
   "CREDENTIAL_REUPLOAD": "重新上传",
-  "CREDENTIAL_PICK_HINT": "请选择图片文件",
   "CONTRACT_STATUS_SIGNING": "待签约",
   "CONTRACT_STATUS_SIGNED": "已签约",
   "CONTRACT_STATUS_REVOKED": "已撤销",

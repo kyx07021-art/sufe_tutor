@@ -10,7 +10,7 @@ import {
   savePageState, getLastPage, setLastGuestRole, getLastGuestRole, getDeviceId,
   getThemePref, storeThemePref, getOrbPref, setOrbPref, isReturning, setReturning,
   uiScaleClamp, getUiScale, applyUiScale, setUiScale, uiScaleFillPct,
-  registerLogoutReset, runLogoutResets, createSlice, setState,
+  registerLogoutReset, runLogoutResets,
 } from '../src/client/core/state.js';
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/' });
@@ -25,18 +25,10 @@ function wipeSession() {
   for (const k of Object.keys(w.sessionStorage)) w.sessionStorage.removeItem(k);
 }
 
-test('state 初始形态与 createSlice/setState', () => {
+test('state 初始形态', () => {
   assert.equal(state.user, null);
   assert.equal(STATUS.OPEN, 'open');
   assert.equal(STATUS.CONTRACTED, 'contracted');
-  const slice = createSlice('tmpList', [1]);
-  slice.set([2, 3]);
-  assert.deepEqual(state.tmpList, [2, 3]);
-  setState({ view: 'client', page: 'settings' });
-  assert.equal(state.view, 'client');
-  assert.equal(state.page, 'settings');
-  state.view = 'landing';
-  delete state.tmpList;
 });
 
 test('uiScale 钳制/换算/持久化', () => {

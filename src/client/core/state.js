@@ -281,10 +281,4 @@ const logoutResets = [];
 export function registerLogoutReset(fn) { if (typeof fn === 'function' && !logoutResets.includes(fn)) logoutResets.push(fn); }
 export function runLogoutResets() { for (const fn of logoutResets) { try { fn(); } catch { /* continue */ } } }
 
-export function createSlice(name, initial) {
-  state[name] = initial;
-  return { get: () => state[name], set: v => { state[name] = v; } };
-}
-export function setState(patch) { Object.assign(state, patch); }
-export function onState() { return () => {}; }
 export { STATUS };
