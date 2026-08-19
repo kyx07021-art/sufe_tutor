@@ -82,6 +82,15 @@ export function isDemandActive(status) {
 }
 
 /**
+ * 路由参数严格数字解析（Q-2a-L2）：仅接受纯十进制正整数（/^\d+$/）。
+ * '/api/users/1abc' → null（不命中），杜绝 parseInt 前缀截断（parseInt('1abc')===1）脏输入命中主键。
+ * 非法/非字符串返回 null；调用方以主键查询自然得到 404（WHERE id = NULL 不匹配任何行）。
+ */
+export function parseIdParam(v) {
+  return typeof v === 'string' && /^\d+$/.test(v) ? parseInt(v, 10) : null;
+}
+
+/**
  * 幂等加列迁移：PRAGMA 探测后再 ALTER（D1 无 ADD COLUMN IF NOT EXISTS）。
  * 唯一实现；db.js / log.js / contract.js 共用（原三份就地重复已收敛至此）。
  * @param db   D1 绑定
