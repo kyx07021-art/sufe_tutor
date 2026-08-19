@@ -114,6 +114,30 @@ export function applyOrbs() {
   bg.insertBefore(frag, bg.firstChild);
   const finePointer = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(pointer:fine)').matches;
   glow.style.display = (mode === 'hidden' || !finePointer) ? 'none' : '';
+  installMouseGlowFollow(glow);
+}
+
+// v1→v2 migration regression (2026-08-20): v1 index.html inline script had a mousemove
+// follower for .lg-mouseglow (rAF-throttled transform writes); v2 appearance.js built the
+// element without the follower → the glow orb sat frozen off-viewport. Restored with v1
+// semantics: mousemove stores coords, rAF writes at most once per frame; mouseout to window
+// hides, mouseover restores. transform/opacity writes go through el.style (CSSOM, h5a-g6
+// verified — not governed by style-src-attr).
+let _glowFollowInstalled = false;
+function installMouseGlowFollow(glow) {
+  if (_glowFollowInstalled || typeof window === 'undefined' || typeof requestAnimationFrame === 'undefined') return;
+  _glowFollowInstalled = true;
+  let gx = -200, gy = -200, glowRafPending = false;
+  const glowWrite = () => {
+    glowRafPending = false;
+    glow.style.transform = `translate3d(${gx}px,${gy}px,0) translate(-50%,-50%)`;
+  };
+  window.addEventListener('mousemove', (e) => {
+    gx = e.clientX; gy = e.clientY;
+    if (!glowRafPending) { glowRafPending = true; requestAnimationFrame(glowWrite); }
+  }, { passive: true });
+  window.addEventListener('mouseout', (e) => { if (!e.relatedTarget) glow.style.opacity = '0'; });
+  window.addEventListener('mouseover', () => { glow.style.opacity = String(getComputedStyle(document.documentElement).getPropertyValue('--lg-glow-op') || '.85'); });
 }
 
 export function getStylePref() {

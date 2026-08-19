@@ -114,8 +114,23 @@ function onLoad() {
   mountView('view-register', registerViewHtml());
   actions.refreshAuthHeader();
   actions.syncLoginCredGroups();
-  setRouterAuthGuard(actions.ensureAuth);
-  setEnsureAuth(actions.ensureAuth);
+  // A3 (v1→v2 migration regression, 2026-08-20): v1 showView('login') always called
+  // refreshAuthHeader() — login title switches by arrival path (guest redirected via
+  // ensureAuth shows guest-mode copy + form reset). v2 core/router.js showView is shared
+  // and must not depend on auth (circular-import ban), so the auth mount point wraps
+  // ensureAuth (still converging on the flow.js single gateway; "unique login path"
+  // contract preserved) — all three entry paths (selectPage auth marker / write-button
+  // guard / api 401 fallback) refresh the header through the wrapper.
+  const ensureAuth = () => {
+    const ok = actions.ensureAuth();
+    // Only refresh when the guard actually redirected to login (ok===false); an
+    // authenticated call must not touch the login form (it may not be mounted and
+    // refreshAuthHeader has async debounce tails that outlive the call).
+    if (!ok) actions.refreshAuthHeader();
+    return ok;
+  };
+  setRouterAuthGuard(ensureAuth);
+  setEnsureAuth(ensureAuth);
   const offs = [...bindDelegation(), installEntryGlow()];
   return () => { offs.forEach(off => off()); installed = false; };
 }

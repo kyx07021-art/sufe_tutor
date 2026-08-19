@@ -8,7 +8,7 @@ import { api, apiBatch, apiUpload, setEnsureAuth } from './core/api.js';
 import { escHtml, escJsStr, mdRender, delegate } from './core/dom.js';
 import { openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha, installUiBindings } from './core/ui.js';
 import { installFormBindings } from './core/ui-bindings.js';
-import { initReveals, installGlobalInteractions } from './core/anim.js';
+import { initReveals, installGlobalInteractions, installSiteReadyGate } from './core/anim.js';
 import { dhGet, dhBatchGet, dhInvalidateDomain, startVersionProbe } from './core/datahub.js';
 import { mountShell } from './core/shell.js';
 import { openCaptchaModal } from './core/captcha.js';
@@ -45,6 +45,7 @@ export function boot() {
     bindUiScaleWheel();
     mountShell(); // client frame + landing + per-page sections (static; features fill content on page enter)
     initAppearance(); // root-cause fix: boot never assembled appearance -> --g-grid/glass vars not injected, zero orbs, homepage background layers gone
+    installSiteReadyGate(); // regression fix: v1 entry-animation gate (dropped with v1 shell) -> .site-ready gates hero span/entry entrance from opacity 0
     [authFeature, regionFeature, postsFeature, complaintsFeature, contractFeature, chatFeature, teacherFeature, studentFeature, settingsFeature, adminFeature, notifFeature, onboardFeature].forEach(f => { if (f && typeof f.onLoad === 'function') f.onLoad(); });
     const saved = loadSession();
     if (saved) { state.user = saved.user; state.authToken = saved.authToken; enterClient(); } // v1 parity: restored session enters the client, not the landing

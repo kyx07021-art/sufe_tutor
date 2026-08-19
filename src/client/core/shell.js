@@ -11,8 +11,8 @@ import { CARET_SVG } from './ui.js';
 import { goHome } from './router.js';
 import { ROLES } from '../../shared/enums.js'; // Z-16-F5b: role literals via shared enums
 
-function page(id, title, { actions = '', body = '' } = {}) {
-  return `<section class="client-page hidden" data-page="${id}">
+function page(id, title, { actions = '', body = '', flush = false } = {}) {
+  return `<section class="client-page hidden${flush ? ' client-page--flush' : ''}" data-page="${id}">
     <div class="page-header"><h2>${escHtml(title)}</h2>${actions}</div>
     ${body}
   </section>`;
@@ -50,6 +50,7 @@ export function mountShell() {
             <button type="button" class="btn glass glass--pressable" data-action="auth.viewRegister">${escHtml(TEXT.NAV_REGISTER)}</button>
           </div>
         </div>
+        <div class="hand-mask" aria-hidden="true"><span class="hand-part hand-part--a"></span><span class="hand-part hand-part--b"></span></div>
         <div class="stage-deco-grid" aria-hidden="true"></div>
         <div class="container stage-grid">
           <div class="stage-left">
@@ -58,6 +59,7 @@ export function mountShell() {
               <h1 class="hero-title">${escHtml(TEXT.LANDING_TAGLINE)}</h1>
               <p class="stage-copy">${escHtml(TEXT.LANDING_COPY)}</p>
             </div>
+            <div class="flow-field" aria-hidden="true"></div>
           </div>
           <div class="stage-right">
             <p class="stage-kicker">${escHtml(TEXT.LANDING_KICKER)}</p>
@@ -74,7 +76,7 @@ export function mountShell() {
     <div class="client-shell hidden" id="view-client">
       <aside class="client-sidebar" id="client-sidebar">
         <button type="button" class="sidebar-expand-toggle glass" data-action="shell.toggleSidebar" aria-label="${escHtml(TEXT.SIDEBAR_TOGGLE_ARIA)}">
-          <span class="expand-caret"></span>
+          <svg class="expand-caret" width="12" height="8" viewBox="0 0 12 8" fill="none" aria-hidden="true"><path d="M2 1l4 4 4-4" stroke="currentColor" stroke-width="1.8"/></svg>
         </button>
         <div class="sidebar-deco-grid" aria-hidden="true"></div>
         <div class="sidebar-scroll">
@@ -99,7 +101,7 @@ export function mountShell() {
         ${page('browse-teachers', TEXT.PAGE_BROWSE_TEACHERS, { actions: filterToggleBtn('teacher.toggleFilters', 'filter-toggle-btn'), body: `
           <div class="drop-wrap hidden" id="teacher-filters"></div>
           <div class="browse-list" id="browse-teachers-list"></div>` })}
-        ${page('my-chats', TEXT.PAGE_MY_CHATS, { body: `
+        ${page('my-chats', TEXT.PAGE_MY_CHATS, { flush: true, body: `
           <div class="chats-list-title">${escHtml(TEXT.CHAT_TITLE)}</div>
           <div class="browse-list" id="my-chats-list"></div>
           <div class="chat-frame" id="chat-frame"></div>` })}
@@ -124,5 +126,22 @@ export function mountShell() {
     b.addEventListener('click', () => document.body.classList.remove('sidebar-open')));
   const brand = document.getElementById('navbar-brand');
   if (brand) brand.addEventListener('click', goHome);
+  // Regression fix (2026-08-20): v1 split the hero tagline into per-char spans for the 3-col
+  // grid + staggered rise animation (base.css .hero-title span / var(--i)). v2 rendered it as a
+  // single text node -> the 9 chars collapsed into one grid cell (broken layout). Re-split here with
+  // JS; --i is set via CSSOM setProperty (exempt from style-src-attr per h5a-g6), so no inline
+  // style attribute is produced and strict CSP holds.
+  const hero = app.querySelector('.hero-title');
+  if (hero) {
+    const text = hero.textContent;
+    hero.setAttribute('aria-label', text);
+    hero.replaceChildren(...[...text].map((c, i) => {
+      const s = document.createElement('span');
+      s.setAttribute('aria-hidden', 'true');
+      s.textContent = c;
+      s.style.setProperty('--i', String(i));
+      return s;
+    }));
+  }
   return app;
 }

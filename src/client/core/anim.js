@@ -100,6 +100,27 @@ export function positionFloatCard(btn, card) {
   card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
 }
 
+// Regression fix (2026-08-20): the v1 entry-animation gate lived in the v1 shell's inline
+// script and was dropped with the v1 shell (V-4-1h). Without .site-ready, landing hero spans
+// and entry buttons stay at their initial opacity 0 (their entrance animations are gated on
+// it) — the homepage rendered blank/transparent. Re-implemented here: add .site-ready once the
+// two hand-mask images are ready, with a 2.5s fallback so a slow asset never wedges the page.
+let siteReadyFired = false;
+export function installSiteReadyGate() {
+  if (typeof document === 'undefined' || typeof Image === 'undefined' || siteReadyFired) return;
+  const root = document.documentElement;
+  const fire = () => { if (!siteReadyFired) { siteReadyFired = true; root.classList.add('site-ready'); } };
+  let done = 0; const need = 3;
+  const tick = () => { if (++done >= need) fire(); };
+  ['/hand-mask.png', '/hand-mask-rot.png'].forEach(src => {
+    const im = new Image();
+    im.onload = im.onerror = tick;
+    im.src = src;
+  });
+  tick();
+  setTimeout(fire, 2500);
+}
+
 export function installGlobalInteractions() {
   if (installed || typeof document === 'undefined') return;
   installed = true;
@@ -144,4 +165,14 @@ export function installGlobalInteractions() {
       t.click();
     }
   });
+  // v1→v2 migration regression (2026-08-20): v1 app-ui.js had a global error capture that
+  // added img-broken to broken images (base.css .img-broken survived but v2 had no listener
+  // → broken-image placeholders stopped hiding). Restored with the v1 semantics.
+  document.addEventListener('error', e => {
+    const t = e.target;
+    if (t && t.tagName === 'IMG' && t.closest &&
+        t.closest('.avatar, .image-viewer-modal, .chat-bubble, .md-preview, .post-card, .conv-item')) {
+      t.classList.add('img-broken');
+    }
+  }, true);
 }
