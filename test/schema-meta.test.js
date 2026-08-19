@@ -112,3 +112,24 @@ test('版本落后到上一版（v7 存量库缺通知结构化列）：重跑�
   const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
   assert.equal(ver.v, SCHEMA_VERSION, '重跑后版本更新到最新');
 });
+
+// Q-2g 抓出（第三次踩坑）：Q-2d-F2 给 messages 加 client_key 列 + idx_messages_client_key 唯一索引时
+// 未 bump SCHEMA_VERSION（9→9 漏步）——存量 v9 库（schema_meta=9 + messages 缺 client_key）在 initDb
+// 版本判断下 `cur(9) >= 9` 短路跳过全量迁移 → client_key 永不补上 → 聊天发送/合同气泡全 500。
+// 回归钉死：版本 bump 必须覆盖「上一版本库」的待补列 + 索引（V-4-1c → Z-4-F1 → Q-2d-F2 同型）。
+test('版本落后到上一版（v9 存量库缺 messages.client_key）：重跑迁移补列 + 唯一索引', async (t) => {
+  const { raw, db } = setup(t);
+  await initDb(db, ENV); // 先建出最新全量
+  // 模拟 v9 存量生产形状：messages 无 client_key 列 + schema_meta=9（本机 SQLite ≥3.35 支持 DROP COLUMN）
+  raw.exec('DROP INDEX IF EXISTS idx_messages_client_key'); // v9 库本无此索引（Q-2d 才引入），先删再卸列
+  raw.exec('ALTER TABLE messages DROP COLUMN client_key');
+  raw.exec("UPDATE schema_meta SET v=9 WHERE k='schema'");
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM pragma_table_info('messages') WHERE name='client_key'`).get().n, 0, '前置：messages 无 client_key');
+  await initDb(db, ENV); // 版本落后 → 全量迁移
+  const cols = raw.prepare(`SELECT name FROM pragma_table_info('messages')`).all().map(r => r.name);
+  assert.ok(cols.includes('client_key'), 'messages 重跑迁移后补 client_key');
+  const idx = raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name='idx_messages_client_key'`).get().n;
+  assert.equal(idx, 1, 'idx_messages_client_key 唯一索引重建');
+  const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver.v, SCHEMA_VERSION, '重跑后版本更新到最新');
+});
