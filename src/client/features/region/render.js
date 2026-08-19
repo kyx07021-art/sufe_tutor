@@ -32,12 +32,11 @@ export function regionResolvePolicy(provinceId, year) {
 }
 
 
-export function renderProvinceSelect(selectId, selectedId, changeAction) {
+export function renderProvinceSelect(selectId, selectedId) { // Q-4b-L2: removed inert changeAction param (data-region-change was never consumed; callers bind change directly)
   const opts = R.provinces.map(p =>
     `<option value="${escHtml(p.id)}"${p.id === selectedId ? ' selected' : ''}>${escHtml(p.name)}</option>`
   ).join('');
-  const change = changeAction ? ` data-region-change="${escHtml(changeAction)}"` : '';
-  return `<select class="form-select" id="${escHtml(selectId)}"${change}>
+  return `<select class="form-select" id="${escHtml(selectId)}">
     <option value="">${TEXT.OPTION_PLACEHOLDER}</option>${opts}
   </select>`;
 }

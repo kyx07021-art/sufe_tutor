@@ -6,11 +6,11 @@ import { actions } from '../src/client/features/region/index.js';
 import { switchScoreMode } from '../src/client/features/region/actions.js';
 
 test('region render: province select has no inline handler and contains all provinces', () => {
-  // Z-11-F4 删除教师高考子系统后 data-region-change 无生产路由消费；renderProvinceSelect 仍发射该属性
-  // （通用参数机制保留），测试用中性 token 验证发射行为 + 零内联 handler
-  const html = renderProvinceSelect('d-province', 'shanghai', 'test.change');
+  // Q-4b-L2: inert changeAction param removed — data-region-change was never consumed anywhere
+  // (callers bind change directly); assert it no longer leaks into the DOM
+  const html = renderProvinceSelect('d-province', 'shanghai');
   assert.ok(html.includes('id="d-province"'));
-  assert.ok(html.includes('data-region-change="test.change"'));
+  assert.ok(!html.includes('data-region-change'), '死属性 data-region-change 已删');
   assert.ok(!/onchange=/.test(html));
   assert.ok(html.includes('>上海</option>'));
 });
