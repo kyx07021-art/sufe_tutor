@@ -43,7 +43,7 @@ export function pagesForRole() {
 // in registration order. B2 features call registerPage; while the registry is empty the
 // builtin about page must NOT become the login home page. Fallback keeps the old v1
 // role-first ids (student=my-demands / teacher=browse-demands / admin=admin-stats).
-const ROLE_FIRST_PAGE = { student: 'my-demands', teacher: 'browse-demands', admin: 'admin-stats' };
+const ROLE_FIRST_PAGE = { [ROLES.STUDENT]: 'my-demands', [ROLES.TEACHER]: 'browse-demands', [ROLES.ADMIN]: 'admin-stats' };
 export function defaultPageFor() {
   if (!state.user) return state.guestRole === ROLES.TEACHER ? 'browse-demands' : 'browse-teachers';
   const role = state.user.role;

@@ -9,6 +9,7 @@ import { TEXT } from '../constants/text.js';
 import { escHtml } from './dom.js';
 import { CARET_SVG } from './ui.js';
 import { goHome } from './router.js';
+import { ROLES } from '../../shared/enums.js'; // Z-16-F5b: role literals via shared enums
 
 function page(id, title, { actions = '', body = '' } = {}) {
   return `<section class="client-page hidden" data-page="${id}">
@@ -61,8 +62,8 @@ export function mountShell() {
           <div class="stage-right">
             <p class="stage-kicker">${escHtml(TEXT.LANDING_KICKER)}</p>
             <div class="entry-list">
-              ${entry('01', TEXT.ENTRY_STUDENT_TITLE, TEXT.ENTRY_STUDENT_DESC, 'student')}
-              ${entry('02', TEXT.ENTRY_TEACHER_TITLE, TEXT.ENTRY_TEACHER_DESC, 'teacher')}
+              ${entry('01', TEXT.ENTRY_STUDENT_TITLE, TEXT.ENTRY_STUDENT_DESC, ROLES.STUDENT)}
+              ${entry('02', TEXT.ENTRY_TEACHER_TITLE, TEXT.ENTRY_TEACHER_DESC, ROLES.TEACHER)}
             </div>
             <p class="stage-note">${escHtml(TEXT.LANDING_NOTE)}</p>
           </div>
