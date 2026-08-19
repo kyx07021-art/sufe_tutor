@@ -23,7 +23,7 @@ import {
 } from '../../../../server/db.js';
 import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from '../../core/log.js';
 import { confirmDangerOtp } from '../../core/danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
-import { reencryptAll } from '../../../../server/reencrypt.js'; // v1.5.0 密钥轮换重加密（危险操作，capToken 门禁）
+import { reencryptChunk } from '../../../../server/reencrypt.js'; // v1.5.0 密钥轮换重加密（危险操作，capToken 门禁；A-12 分片续跑）
 import { getDashboardMetrics } from '../../../../server/telemetry.js'; // v1.5.0 观测 dashboard 数据
 import { dbBroadcastNotification, notifyUser } from '../../core/notify.js';
 
@@ -229,14 +229,19 @@ export async function handleAdminDecryptLog(db, logId, req) {
 
 // v1.5.0 密钥轮换：管理员经二次认证触发全库密文重加密。
 // 契约：Worker Secrets 先同时配置新钥与 *_OLD 旧钥；成功后在发布层删除旧钥。无法解密的行只计数不覆盖。
+// A-12 分片：D1 Free 单调用 50 次查询上限，全量逐行重加密必超限——单次调用只处理
+// ≤REENCRYPT_ROW_BUDGET 行（reencryptChunk），body.cursor 透传续跑，done=true 才完成；
+// capToken 一次性，客户端每轮续跑需重新 re-auth 签发（脚本续跑循环在 A-12-3 落地）。
 export async function handleAdminReencrypt(db, body, req, env = null) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
-  const summary = await reencryptAll(db, env && env.LOG_DB); // 独立留档库一并重加密（N1 审计修复）
+  const cursor = (body && body.cursor) || null;
+  const res = await reencryptChunk(db, cursor, env && env.LOG_DB); // 独立留档库一并重加密（N1 审计修复）
   await logEvent(db, { action: 'admin.crypto.reencrypt', actorUserId: admin.id, actorUsername: admin.username,
-    actorRole: 'admin', entity: 'system', entityId: 0, detail: summary, req });
-  return json({ ok: true, summary });
+    actorRole: 'admin', entity: 'system', entityId: 0, detail: { cursor: cursor || null, done: !res.cursor, chunk: res.summary }, req });
+  return json({ ok: true, done: !res.cursor, cursor: res.cursor,
+    fields: res.summary.fields, attachments: res.summary.attachments, logs: res.summary.logs });
 }
 
 // 通知信息页「发通知」：管理员发送全体可见的系统公告（编辑器复用发帖组件：标题+正文，
