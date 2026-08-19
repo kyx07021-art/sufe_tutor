@@ -232,7 +232,7 @@ test('item6 意向行结构：学生自己需求卡（loadMyDemands editable 契
     id: 7, user_id: 39, username: '学生A', student_grade: 'senior1', student_gender: 'female',
     target_subjects: ['math'], current_scores: [], teaching_method: 'offline', address: '杨浦区',
     province: 'shanghai', budget_min: 0, budget_max: 0, status: 'open', display_id: 7,
-    intent_locked: 0, my_intent_status: '', avatar: '', created_at: '2026-08-07 04:27:09',
+    my_intent_status: '', avatar: '', created_at: '2026-08-07 04:27:09',
     pending_intents: 1, intent_count: 1,
   }] });
   const doc = dom.window.document;

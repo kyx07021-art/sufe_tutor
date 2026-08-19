@@ -15,7 +15,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { JSDOM } from 'jsdom';
 import { initDb } from '../src/server/core/db.js';
 import { dbCreatePush, dbGetPendingPushesForTeacher, dbCreateIntent, dbGetIntentTeachers } from '../src/server/domains/demand/repo.js';
-import { handlePushDemand, handleCreateIntent } from '../src/server/domains/demand/api.js';
+import { handlePushDemand, handleCreateIntent, handleResolveIntent, handleGetIntents } from '../src/server/domains/demand/api.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -87,6 +87,27 @@ async function seedDemand(db, raw, studentId) {
 // ============================================================
 // 服务端：推送 / 意向的打招呼消息
 // ============================================================
+
+test('Q-2c-F3 守护：封禁教师意向不可接受/列表滤除（不建死会话）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token: stuTok, id: stu } = await seedStudent(db, raw, 's_banned');
+  const { token: tchTok, id: tch } = await seedTeacher(db, raw, 't_banned', true);
+  const demandId = await seedDemand(db, raw, stu);
+  // 教师提交意向（ban 前）
+  let r = await handleCreateIntent(db, demandId, { message: '我来教' }, reqOf(tchTok));
+  assert.equal(r.status, 201, 'ban 前意向提交成功');
+  // 封禁教师（admin 操作直接置 banned=1）
+  raw.prepare('UPDATE users SET banned=1 WHERE id=?').run(tch);
+  // 学生看意向列表 → 封禁教师意向不进场
+  const list = await handleGetIntents(db, demandId, reqOf(stuTok));
+  const listData = await list.json();
+  assert.equal(listData.count, 0, '封禁教师意向不进列表');
+  // 学生 accept → 409 TEACHER_NOT_FOUND（不建死会话）
+  const intentRow = raw.prepare('SELECT id FROM demand_intents WHERE teacher_user_id=?').get(tch);
+  const acc = await handleResolveIntent(db, intentRow.id, { action: 'accept' }, reqOf(stuTok));
+  assert.equal(acc.status, 409, '封禁教师意向 accept → 409（不建死会话）');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM conversations').get().c, 0, '无会话落库');
+});
 
 test('handlePushDemand：message trim 后入库；超限 400 + GREETING_TOO_LONG；缺省空串', async () => {
   const raw = rawOf(); const db = d1Shim(raw);

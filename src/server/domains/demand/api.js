@@ -9,7 +9,6 @@ import { authUser, requireUser } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { STATUS, STUDENT_GRADES, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, SUBJECTS } from '../../../shared/enums.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
-import { auditFreeText } from '../../core/text-audit.js';
 import { SUFE_REGIONS } from '../../../shared/region-data.js'; // V-2-4c 地区数据单源（省份校验单源）
 import {
   dbGetUserById, dbCreateDemand, dbGetDemands, dbGetDemandsByUser,
@@ -59,7 +58,7 @@ function sanitizeDemand(d) {
   const gradeSet = new Set(STUDENT_GRADES.map(g => g.id));
   if (!gradeSet.has(d.student_grade)) d.student_grade = '';
   d.address = (typeof d.address === 'string' ? d.address : '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
-  // 2026-08-09 审计 F-1/F-4：补充说明是自由文本——上限截断；门牌守卫由调用方 auditFreeText 单独执行
+  // Q-2c-F5：补充说明是自由文本——上限截断；门牌守卫由 _worker 全局断点统一把关
   // （address 已结构化不再走守卫，仅 additional_info 保留咽喉——合规红线不因字段绕行）
   d.additional_info = (typeof d.additional_info === 'string' ? d.additional_info : '').slice(0, LIMITS.ADDITIONAL_INFO_MAX);
   d.parent_contact = (typeof d.parent_contact === 'string' ? d.parent_contact : '').slice(0, LIMITS.CONTACT_MAX);
@@ -155,13 +154,9 @@ export async function handleCreateDemand(db, body, req) {
   if (ts.error) return errorMsg('INVALID_TIME_SLOTS');
   d.expected_time = ts.value;
   sanitizeDemand(d); // 字段清理（预算钳制/白名单/截断）
-  // 需求五（2026-08-13）：address 改结构化（区·镇/街道 picker）→ 不再自由文本，移出门牌审核；
-  //   additional_info 仍为自由文本，保留 text-audit 咽喉（合规红线：详细门牌号不收集不因字段绕行）
-  const audit = await auditFreeText(d.additional_info);
-  if (!audit.ok) {
-    if (audit.layer === 'error') return errorMsg('TEXT_AUDIT_UNAVAILABLE');
-    return errorMsg('ADDRESS_TOO_DETAILED');
-  }
+  // Q-2c-F5（回滚重做）：additional_info 门牌红线审计已由 _worker 全局断点 auditBeforeWrite 统一接管
+  // （AUDIT_MAP /api/student/demands → demand.additional_info，POST/PUT 全覆盖），域内不再重复调用
+  // text-audit（原双审致 DeepSeek 调用翻倍）。合规红线不因字段绕行仍有效。
   // 需求五：地址结构化校验——线上不收集地址（清空）；线下（仅上海 allowed）必须合法「区·镇/街道」
   {
     const R = SUFE_REGIONS;
@@ -217,6 +212,9 @@ export async function handleUpdateDemand(db, demandId, body, req) {
   if (err) return err;
   const g = await loadOwnedDemand(db, demandId, me.id); // 已签约需求锁定，禁改（合同已绑定此需求）
   if (g.err) return g.err;
+  // Q-2c-F7 BUG-J：revoked 需求须先重开（/reopen）才能编辑——合同已撤销的需求是终态存证，
+  // 直接改会绕过状态机（重开时再改）。删除仍允许（handleDeleteDemand 走同一 loadOwnedDemand，此处不拦）。
+  if (g.existing.status === STATUS.REVOKED) return errorMsg('DEMAND_STATE_INVALID', 409);
 
   const R = SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return errorMsg('PROVINCE_REQUIRED');
@@ -310,7 +308,7 @@ export async function handleGetIntents(db, demandId, req) {
 
 // 学生处理意向：accept → 置 accepted 并建立（或复用）师生会话；reject → 置 rejected。
 // 顺序契约（与 handleResolvePush 对齐）：先查需求状态再写，杜绝「先写后判」窗口；
-// accept 前用 dbLockDemandIntent 抢占（条件 UPDATE），防同需求并发双 accepted + 双会话。
+// 并发双 accepted + 双会话由 dbResolveIntent 的 status='pending' 条件 UPDATE 赢家模式承担。
 export async function handleResolveIntent(db, intentId, body, req) {
   const { action } = body;
   if (!['accept', 'reject'].includes(action)) return errorMsg('INVALID_ACTION');
@@ -325,6 +323,10 @@ export async function handleResolveIntent(db, intentId, body, req) {
 
   const dNow = await dbGetDemandById(db, intent.demand_id);
   if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410); // 已撤销需求不可接受意向（须先重开）
+  // Q-2c-F3（回滚重做）：接受前重查教师 banned/deactivated——封禁/注销教师的待处理意向若被 accept
+  // 会建死会话（教师无法登录）。对齐 handlePushDemand 的 teacher.banned 过滤口径。
+  const teacher = await dbGetUserById(db, intent.teacher_user_id);
+  if (!teacher || teacher.banned || teacher.deactivated) return errorMsg('TEACHER_NOT_FOUND', 409);
   // 接受意向不再锁需求——一条需求允许任意多会话并存，
   // 仅当某会话「发起签约」成功签约时才自动拒绝其余（见 signing.js）
 

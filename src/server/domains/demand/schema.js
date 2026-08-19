@@ -42,7 +42,6 @@ export const createStatements = [STUDENT_DEMANDS_DDL, DEMAND_INTENTS_DDL, DEMAND
 export const ensureColumns = [
   { table: 'student_demands', columns: [
     ['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"],
-    ['intent_locked', 'INTEGER NOT NULL DEFAULT 0'],
     ['target_type', "TEXT NOT NULL DEFAULT 'academic'"],
     ['preferred_personality_tags', "TEXT NOT NULL DEFAULT '[]'"],
     ['preferred_teacher_gender', "TEXT NOT NULL DEFAULT ''"],

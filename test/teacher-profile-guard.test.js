@@ -171,6 +171,7 @@ test('非学科项目：白名单去重、报价钳制、project 不在 projects
     nonacademic_prices: [
       { project: 'music', price_min: -10, price_max: 9999999 },
       { project: 'chess', price_min: 200, price_max: 100 },
+      { project: 'chess', price_min: 300, price_max: 400 }, // Q-2c-F7 BUG-M：重复 project 只留首条
       { project: 'painting', price_min: 50, price_max: 80 }, // 未勾选项目 → 剔除
     ],
   } }, reqOf(token));
@@ -178,12 +179,13 @@ test('非学科项目：白名单去重、报价钳制、project 不在 projects
   const row = rowOf(raw, tea);
   assert.equal(row.nonacademic_projects, JSON.stringify(['music', 'chess']), '白名单过滤 + 去重');
   const prices = JSON.parse(row.nonacademic_prices);
-  assert.equal(prices.length, 2, '未勾选项目（painting）剔除');
+  assert.equal(prices.length, 2, '未勾选项目（painting）剔除 + 重复 project 只留一条');
   const music = prices.find(x => x.project === 'music');
   assert.equal(music.price_min, 0, 'music 负值钳到 0');
   assert.equal(music.price_max, 99999, 'music 超上限钳到 BUDGET_MAX');
   const chess = prices.find(x => x.project === 'chess');
   assert.equal(chess.price_max, 200, 'chess min=200 > max=100 → max 以 min 为准');
+  assert.equal(chess.price_max, 200, 'chess 重复行被去重（首条 200/100 保留，非 300/400）');
 });
 
 test('擅长科目白名单：合法入库、注入/未知 id 滤除去重、非数组 400（网安纵深防御）', async () => {
@@ -217,6 +219,13 @@ test('年级/性别白名单：合法入库、非法静默回退空串（性别�
   // 历史 nonbinary 保留（展示层视同未填）
   r = await handleSaveProfile(db, { profile: { ...baseProfile, gender: 'nonbinary' } }, reqOf(token));
   assert.equal(rowOf(raw, tea).gender, 'nonbinary', '历史 nonbinary 兼容保留');
+  // Q-2c-F2 守护：undefined/null 穿透白名单（原 `p.x != null` 只拦非空非法值）→ repo 裸绑 undefined → 500
+  for (const miss of [{ grade: undefined, gender: undefined }, { grade: null, gender: null }]) {
+    const rr = await handleSaveProfile(db, { profile: { ...baseProfile, ...miss } }, reqOf(token));
+    assert.equal(rr.status, 200, 'grade/gender undefined/null 归一空串不 500');
+    assert.equal(rowOf(raw, tea).grade, '', 'grade undefined/null 归一空串');
+    assert.equal(rowOf(raw, tea).gender, '', 'gender undefined/null 归一空串');
+  }
 });
 
 test('高考成绩白名单：subject 池过滤、score 钳到 [0,300]、非法 grade 丢弃、非数组 400', async () => {

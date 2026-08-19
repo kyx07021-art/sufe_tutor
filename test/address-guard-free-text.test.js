@@ -13,6 +13,7 @@ import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
 import { handleCreateDemand } from '../src/server/domains/demand/api.js';
 import { handleSaveProfile } from '../src/server/domains/teacher/api.js';
 import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
+import { auditBeforeWrite } from '../src/server/core/audit-flow.js'; // Q-2c-F5：门牌守卫审计面 = _worker 全局断点
 import { TEST_SECRETS } from './_test-secrets.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -77,43 +78,39 @@ const baseDemand = {
   student_contact: '13800000000', additional_info: '',
 };
 
-test('F-1 需求补充说明含门牌号 → 整单 400（与 address 同守）', async () => {
-  const raw = rawOf(); const db = d1Shim(raw);
-  const { stuToken } = await seed(db, raw);
-  const r = await handleCreateDemand(db, { demand: { ...baseDemand, additional_info: '家住静安区5号楼303室' } }, reqOf(stuToken));
-  assert.equal(r.status, 400, '门牌进补充说明被拒');
-  assert.equal(raw.prepare('SELECT COUNT(*) c FROM student_demands').get().c, 0, '无任何需求落库');
+test('F-1 需求补充说明含门牌号 → 全局断点拒绝（与 address 同守；Q-2c-F5 审计面收归 auditBeforeWrite）', async () => {
+  // Q-2c-F5：域内 audit 已删，门牌红线由 _worker 全局断点统一把关——直测 auditBeforeWrite 锁生产真实面
+  const g = await auditBeforeWrite({ path: '/api/student/demands', method: 'POST', body: { demand: { additional_info: '家住静安区5号楼303室' } } });
+  assert.ok(!g.ok && g.reject, '门牌进补充说明被拒');
 });
 
 test('v0.25.110 中文数字门牌不得绕过门控（贰柒捌捌号/五号楼/拾贰号室）', async () => {
-  const raw = rawOf(); const db = d1Shim(raw);
-  const { stuToken, teaToken } = await seed(db, raw);
-  // 用户实证：贰柒捌捌号（中文数字）曾绕过
-  // 需求五（v0.28.1）：address 字段已结构化（区·镇/街道选择器），自由文本无处写入门牌——
-  // 注入的裸地址串经 isValidShanghaiAddr 拒绝（400 ADDRESS_REQUIRED），守卫语义由 ADDRESS_GUARD 升级为结构校验；
-  // additional_info 仍走 auditFreeText 门牌咽喉（合规红线不因字段绕行）。
-  for (const [field, val] of [
-    ['additional_info', '家在贰柒捌捌号旁边'],
-    ['additional_info', '具体位置是三十八号楼'],
-    ['address', '上海市xx区xx路伍仟贰佰号'],
-    ['additional_info', '静安区壹拾贰号403室'],
+  // Q-2c-F5：additional_info 门牌守卫审计面 = _worker 全局断点（域内 audit 已删）——直测 auditBeforeWrite
+  // 用户实证：贰柒捌捌号（中文数字）曾绕过；address 已结构化（区·镇/街道 picker），裸地址串由 handler 结构校验拒绝
+  for (const val of ['家在贰柒捌捌号旁边', '具体位置是三十八号楼', '静安区壹拾贰号403室',
     // v0.25.113（用户实证）：数字位间夹分隔符（连字符/顿号/空格）曾绕过——贰-柒-捌-捌-号
-    ['additional_info', '浦东新区杨高中路贰-柒-捌-捌-号'],
-    ['additional_info', '杨高中路2-7-8-8号'],
-    ['address', '某某路二百·七十八·号'],
-  ]) {
-    const r = await handleCreateDemand(db, { demand: { ...baseDemand, [field]: val } }, reqOf(stuToken));
-    assert.equal(r.status, 400, `${field}「${val}」含中文数字门牌应被拒`);
+    '浦东新区杨高中路贰-柒-捌-捌-号', '杨高中路2-7-8-8号']) {
+    const g = await auditBeforeWrite({ path: '/api/student/demands', method: 'POST', body: { demand: { additional_info: val } } });
+    assert.ok(!g.ok && g.reject, `additional_info「${val}」含中文数字门牌应被拒`);
   }
-  // 教师 intro 中文数字门牌同守
-  const pw = await handleSaveProfile(db, { profile: { province: 'shanghai', price_min: 150, price_max: 200, intro: '家在八号楼二单元' } }, reqOf(teaToken));
-  assert.equal(pw.status, 400, '教师 intro 中文数字门牌被拒');
+  // 教师 intro 中文数字门牌同守（全局断点）
+  const gw = await auditBeforeWrite({ path: '/api/teacher/profile', method: 'POST', body: { profile: { intro: '家在八号楼二单元' } } });
+  assert.ok(!gw.ok && gw.reject, '教师 intro 中文数字门牌被拒');
+  // 裸地址串不再走 audit（address 非自由文本）——仍由 handler 结构化校验拒绝（ADDRESS_REQUIRED）
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { stuToken } = await seed(db, raw);
+  for (const addr of ['上海市xx区xx路伍仟贰佰号', '某某路二百·七十八·号']) {
+    const r = await handleCreateDemand(db, { demand: { ...baseDemand, address: addr } }, reqOf(stuToken));
+    assert.equal(r.status, 400, `裸地址串「${addr}」→ 结构化校验拒绝`);
+  }
   // 不误伤：号线（地铁/公交）、纯数字未足两位、楼层描述、纯路名无门牌放行
   for (const ok of ['地铁九号线站附近', '中山北路1234弄', '十二号线附近', '浦东新区杨高中路'] ) {
+    const g = await auditBeforeWrite({ path: '/api/student/demands', method: 'POST', body: { demand: { additional_info: ok } } });
+    assert.equal(g.ok, true, `「${ok}」audit 放行`);
     const r = await handleCreateDemand(db, { demand: { ...baseDemand, additional_info: ok } }, reqOf(stuToken));
     assert.equal(r.status, 200, `「${ok}」应放行`);
   }
-  assert.equal(raw.prepare('SELECT COUNT(*) c FROM student_demands').get().c >= 2, true, '放行项正常落库');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM student_demands').get().c >= 4, true, '放行项正常落库');
 });
 
 test('F-1 需求补充说明正常文本 → 201 + 超长截断到 ADDITIONAL_INFO_MAX', async () => {
@@ -127,13 +124,10 @@ test('F-1 需求补充说明正常文本 → 201 + 超长截断到 ADDITIONAL_IN
   assert.ok(row.additional_info.length <= 500, `补充说明截断到 500（实 ${row.additional_info.length}）`);
 });
 
-test('F-1 教师 intro/school 含门牌号 → 400（此前仅 address 有守卫）', async () => {
-  const raw = rawOf(); const db = d1Shim(raw);
-  const { teaToken } = await seed(db, raw);
-  const base = { province: 'shanghai', price_min: 150, price_max: 200 };
+test('F-1 教师 intro/school 含门牌号 → 全局断点拒绝（Q-2c-F5 审计面）', async () => {
   for (const [field, val] of [['intro', '家在8号楼702室'], ['school', '某某学院3号楼']]) {
-    const r = await handleSaveProfile(db, { profile: { ...base, [field]: val } }, reqOf(teaToken));
-    assert.equal(r.status, 400, `${field} 门牌被拒`);
+    const g = await auditBeforeWrite({ path: '/api/teacher/profile', method: 'POST', body: { profile: { [field]: val } } });
+    assert.ok(!g.ok && g.reject, `${field} 门牌被拒`);
   }
 });
 

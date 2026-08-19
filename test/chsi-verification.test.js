@@ -11,7 +11,7 @@ import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
-import { tokenDigest } from '../src/server/core/crypto.js';
+import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
 import { bindChsiEnv } from '../server/chsi.js';
 import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
 import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmission } from '../src/server/domains/teacher/api.js';
@@ -99,6 +99,39 @@ test('学信网核验全链路（manual）：提交 → pending → 管理员 ap
   assert.equal(acceptEligibility(await dbGetTeacherProfile(db, tid)).ok, true, '核验 + 必填齐全 = 可接单');
   const st = await handleChsiStatus(db, reqOf(token));
   assert.equal((await st.json()).status, 'approved');
+});
+
+test('Q-2c-F1 守护：approve/reject/revoke 三路径 admission_image 解密仍明文（不叠层 enc2）', async () => {
+  // 审计 FINDING 1 修复：原 reject/revoke 把库中密文 enc1 透传 repo 再 encryptField → enc2 叠层，
+  // decrypt 得到 enc1 密文串（数据腐坏）。三路径必须对称 decryptField 再重加密。
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const token = await regTeacher(db, raw, 't_adm', '+8613900000105');
+  const tid = raw.prepare("SELECT id FROM users WHERE username='t_adm'").get().id;
+  const img = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const adminToken = await adminTokenOf(db);
+  // reject 路径：pending → reject → 解密仍明文
+  await handleVerifyChsi(db, { code: 'ABCD1234EFGH' }, reqOf(token));
+  await handleVerifyAdmission(db, { image: img }, reqOf(token));
+  let v = await dbGetTeacherVerification(db, tid);
+  assert.equal(await decryptField(v.admission_image), img, '初始落库解密即明文');
+  let r = await handleVerificationAction(db, v.id, { action: 'reject', reason: '模糊' }, reqOf(adminToken));
+  assert.equal(r.status, 200);
+  v = await dbGetTeacherVerification(db, tid);
+  assert.equal(await decryptField(v.admission_image), img, 'reject 后解密仍明文（叠层 bug 时解密得 enc1 密文串）');
+  // approve + revoke 路径：重建 pending → approve → revoke → 解密仍明文
+  await handleVerifyChsi(db, { code: 'ABCD1234EFGH' }, reqOf(token));
+  await handleVerifyAdmission(db, { image: img }, reqOf(token));
+  v = await dbGetTeacherVerification(db, tid);
+  r = await handleVerificationAction(db, v.id, { action: 'approve', school: '上海财经大学', level: '本科', major: '金融', enrollment_status: '在籍', enroll_year: '2026' }, reqOf(adminToken));
+  assert.equal(r.status, 200);
+  v = await dbGetTeacherVerification(db, tid);
+  assert.equal(await decryptField(v.admission_image), img, 'approve 后解密仍明文');
+  r = await handleVerificationAction(db, v.id, { action: 'revoke', reason: '材料存疑' }, reqOf(adminToken));
+  assert.equal(r.status, 200);
+  v = await dbGetTeacherVerification(db, tid);
+  assert.equal(await decryptField(v.admission_image), img, 'revoke 后解密仍明文');
 });
 
 test('学信网 fail-closed：mock/thirdparty 等未知 provider → 503；格式非法 → 400', async () => {
