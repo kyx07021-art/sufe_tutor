@@ -9,7 +9,7 @@
 **谐音/语义级描述可以绕过纯正则**——「二期爸爸号」「2期8霸昊」「2788好」「丁香国际对门学校
 上二楼左转第一间房」。这类需要语义理解，规则层兜不住。
 
-## 架构：分层审核链（fail-open）
+## 架构：分层审核链（fail-closed）
 
 `server/text-audit.js` —— 全站自由文本统一审核入口。调用点签名固定 `auditFreeText(text)`，
 未来全站审核（帖子/评论/聊天/头像描述…）只在此模块演进策略，调用点不变。
@@ -25,13 +25,14 @@
                   （门牌/楼栋/房间/方位描述如「对门」「上二楼」「左转第一间」）
 ```
 
-- **fail-open**：L2 未配置密钥 / 超时（4s）/ 网络异常 → 回退 L1 结果，绝不阻塞提交。
-- **layer 标注**：`{ ok, layer: 'rule' | 'ai' }`，可审计是哪层拦截。
+- **fail-closed（v1.5.0 定案）**：L2 未配置密钥 / 超时（4s）/ 网络异常 / 解析失败 → `layer:'error'`，
+  调用方回 `MSG.TEXT_AUDIT_UNAVAILABLE` 拒绝写入，绝不静默降级为仅 L1、绝不明文落库。
+- **layer 标注**：`{ ok, layer: 'rule' | 'ai' | 'error' }`，可审计是哪层拦截。
 
 ## 配置（外接接口启用）
 
 1. Cloudflare Worker Secrets 添加 `TEXT_AUDIT_API_KEY`（DeepSeek API key）。
-2. 语义层自动启用（L2）；未配置则仅规则层（L1），不影响上线。
+2. 语义层自动启用（L2）；**未配置 = 生产内容写路径被拒**（fail-closed，绝不静默降级为仅 L1）。
 
 密钥读取走 `server/secrets.js` 网关（只读 env：Worker Secrets / `.dev.vars` / 测试显式注入，
 仓库零明文密钥，fail-open 已清）。测试注入 `TEXT_AUDIT_API_KEY` 经 `test/_test-secrets.js`。
