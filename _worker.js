@@ -17,7 +17,7 @@ import { recordRequestMetric, flushMetrics } from './server/telemetry.js';
 import { rateGate, corsPreflight, applySecurityHeaders } from './src/server/core/security.js';
 import { initLogDb, bindLogDb, logRequest } from './src/server/core/log.js';
 import { bindTextAuditEnv } from './src/server/core/text-audit.js';
-import { initLedgerTable, bindLedgerDb } from './server/contract.js';
+import { initLedgerTable, bindLedgerDb } from './src/server/domains/contract/schema.js'; // Z-15-F8：server/contract.js 死 shim 已删，直引真源
 import { versionDomainOf, bumpVersions } from './server/version.js';
 import { auditBeforeWrite } from './src/server/core/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
 import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清单（push 前 node hash-assets.mjs 重新生成）
