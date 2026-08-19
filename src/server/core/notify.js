@@ -28,7 +28,7 @@ export async function initNotifyTable(db) {
     user_id INTEGER NOT NULL,
     text TEXT NOT NULL,
     is_read INTEGER NOT NULL DEFAULT 0,
-    created_at DATETIME DEFAULT (datetime('now','localtime')),
+    created_at DATETIME DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
   try { await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_notify_user ON notifications(user_id, is_read)'); }
   catch { /* 已存在则忽略 */ }

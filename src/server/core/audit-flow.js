@@ -51,6 +51,9 @@ const AUDIT_MAP = [
  */
 export async function auditBeforeWrite({ path, method, body, ip, userId }) {
   if (!isContentWrite(path, method)) return { ok: true };
+  // Z-2-F7：合法 JSON 文本 null（parseBody 原样返回）无自由文本可审——放行，
+  // 否则 AUDIT_MAP pick(null) 解构属性 TypeError → 内容域写路径传 JSON null 即 500
+  if (body == null) return { ok: true };
   const item = {
     path, method, ip: ip || '', userId: userId || 0,
     body: typeof body === 'object' && body !== null ? { ...body } : body,

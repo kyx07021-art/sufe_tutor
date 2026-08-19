@@ -37,7 +37,7 @@ export async function initLogDb(db) {
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS activity_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      ts DATETIME DEFAULT (datetime('now','localtime')),
+      ts DATETIME DEFAULT (datetime('now')),
       schema_v INTEGER NOT NULL DEFAULT 1,
       encrypted INTEGER NOT NULL DEFAULT 0,
       actor_user_id INTEGER,

@@ -123,6 +123,14 @@ test('auditBeforeWrite L1 规则层：地铁「号线」不误伤、路名级别
   assert.equal(ok2.ok, true, '纯地点无门牌放行');
 });
 
+// Z-2-F7 回归：合法 JSON 文本 null 无自由文本可审 → 放行（修复前 AUDIT_MAP pick(null) TypeError → 500）
+test('auditBeforeWrite：JSON null body 放行（Z-2-F7 断线回归）', async () => {
+  const r = await auditBeforeWrite({ path: '/api/posts', method: 'POST', body: null });
+  assert.equal(r.ok, true, 'null body 放行（修复前 pick(null) TypeError → 500）');
+  const rUndef = await auditBeforeWrite({ path: '/api/reviews', method: 'POST', body: undefined });
+  assert.equal(rUndef.ok, true, 'undefined body 同样放行');
+});
+
 test('auditBeforeWrite 注册用户名与改用户名同守门牌红线', async () => {
   const regBad = await auditBeforeWrite({ path: '/api/auth/register', method: 'POST', body: { username: '静安区5号楼303室' } });
   assert.ok(regBad.reject, '注册用户名含门牌 → 拒');
