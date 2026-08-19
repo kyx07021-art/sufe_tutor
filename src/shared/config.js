@@ -6,7 +6,6 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     CHAT_POLL_MS: 4000,                   // 聊天轮询间隔
     CHAT_SLIDE_DELAY_MS: 120,             // 会话滑动懒加载/自动增高延迟
     CHAT_ATTACH_CONCURRENCY: 4,           // 附件懒加载并发波数（F11：串行 → ~N/4 波，每波一个 RTT）
-    CHAT_BUBBLE_DELAY_MS: 12,             // 气泡错峰
     CHAT_FILE_MAX_BYTES: 500 * 1024,      // 前端图片压缩上限（后端 FILE_MAX_BYTES 700000 兜底）
     CHAT_IMG_MAX_SIDE: 900, CHAT_IMG_QUALITY: 0.82, // 聊天图片最长边/JPEG 质量（控制 D1 单元格体积）
     CHAT_IMG_THUMB_SIDE: 128, CHAT_IMG_THUMB_QUALITY: 0.72, // 聊天图缩略图（预载立即展示，点开加载原图）
@@ -27,16 +26,11 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     ],
     OTP_RESEND_SEC: 60,                   // 验证码 60s 重发冷却（前端倒计时/灰化；服务端 LIMITS.OTP_RESEND_WINDOW_MS 同口径强制）
     DEMAND_SCORE_MAX: 12,                 // 需求「科目具体情况」成绩条目数上限（服务端 sanitizeDemand 同读钳制——v0.31.3 审计：原为幽灵引用 + 裸 12 兜底）
-    DOMAIN_SCRIPT_RETRY: 4,               // v0.25.100：领域脚本 404 重试次数（发布后边缘同步窗口 ~1-2 分钟，3s×4=12s 覆盖大部分窗口）
-    DOMAIN_SCRIPT_RETRY_MS: 3000,         // v0.25.100：领域脚本 404 重试间隔（延迟重试等边缘同步，保留页面状态）
-    DOMAIN_SCRIPT_TIMEOUT_MS: 6000,       // 审计：单脚本挂起下载（无 load/error，边缘节点吞请求）超时兜底——按失败走重试/自愈，绝不让 enterClient 永久等待
     VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
     DH_TTL_MS: 60000,                     // 会话数据层保底 TTL
     POSTS_SEARCH_DEBOUNCE_MS: 350,        // 帖子搜索防抖
     INVITE_CODE_LEN: 8,                   // 邀请码长度（与后端 LIMITS 同值）
     ADMISSION_IMG_MAX: 500000,            // 录取通知书图片 data URL 上限（对齐后端 LIMITS.CREDENTIAL_MAX_BYTES；前端预检防 413）
-    AVATAR_SIDE: 160, AVATAR_QUALITY: 0.85,
-    CREDENTIAL_SIDE: 1000, CREDENTIAL_QUALITY: 0.8,
     REVIEW_COMMENT_MIN: 2,                // 评价最少字数
     DISPLAY_ID_PAD: 4,                    // 需求编号补零位数
     USERNAME_MIN: 3, USERNAME_MAX: 30,    // 用户名长度下限/上限（前端校验与 server LIMITS.USERNAME_MIN/MAX 对齐，改值两处核对）
@@ -59,13 +53,11 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（undeclared/历史 nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
     MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px（B4：max-height 注入已删，卡片随内容拉长）
     MATCH_DETAIL_EDGE_MARGIN: 8,          // 匹配明细卡距屏幕左右缘最小边距 px
-    PANEL_CLOSE_TIMEOUT_MS: 600,          // 个人信息栏关闭兜底
     TOAST_MS: 2500, TOAST_FADE_MS: 300,   // Toast 时长
     REVEAL_DELAY_BASE: 80, REVEAL_DELAY_STEP: 45, REVEAL_DELAY_MAX: 360, // 卡片浮入错峰
     REAUTH_FOCUS_MS: 50,                  // 二次认证弹窗聚焦延迟
-    REOPEN_DELAY_MS: 800,                 // 邀请码确认→注册跳转 / 注销→登出延迟
     MODAL_W_CONFIRM: '380px',             // 确认类弹窗宽度（散落 380/400/420/430/480 收敛）
-    MODAL_W_SEND: '480px', MODAL_W_DEACTIVATE: '430px', MODAL_W_PROFILE_HINT: '420px',
+    MODAL_W_SEND: '480px',
     MODAL_W_INTENT_CONFIRM: '400px',        // 试课意向确认弹窗（散落硬编码宽度收进 CONFIG）
     MODAL_W_ONBOARD: '580px',               // 首访 onboarding 弹窗宽度（= base.css .modal 默认 max-width，零布局变化；宽度单源化，h5a-g2）
     TOUR_TARGET_TIMEOUT_MS: 3000,         // 新手引导：目标未挂载 rAF 轮询超时，超时自动跳过该步
@@ -228,9 +220,6 @@ export const RATE_LIMITS = {
   "windowMs": 900000
 },
 };
-export const CORS_ALLOWED_ORIGINS = [
-  "https://sufe-tutor.pages.dev"
-];
 export const CORS_HEADERS = {
   'Access-Control-Allow-Origin': "https://sufe-tutor.pages.dev",
   'Access-Control-Allow-Methods': "GET,POST,PUT,DELETE,OPTIONS",
