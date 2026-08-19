@@ -131,6 +131,20 @@ test('auditBeforeWrite：JSON null body 放行（Z-2-F7 断线回归）', async 
   assert.equal(rUndef.ok, true, 'undefined body 同样放行');
 });
 
+test('Q-2b-F1 预算守护：合同表单 6 字段放行（自定义结算/试课），>13 恶意 batch 拒绝', async () => {
+  // 审计 FAIL 修复：AUDIT_MAX_FIELDS=3 曾误伤合法合同起草（选「其他」结算/试课时 4+ 字段 → 400 TEXT_AUDIT_UNAVAILABLE 误导）
+  const contract6 = await auditBeforeWrite({ path: '/api/contracts', method: 'POST', body: {
+    plan: '补基础', schedule: '每周六晚', location: '线上课堂', payMethodOther: '每月微信转账', trialPayOther: '首节免费', contractMd: '按上海家教市场惯例' } });
+  assert.equal(contract6.ok, true, '合同 6 字段（自定义结算/试课）放行');
+  // > AUDIT_MAX_FIELDS(13) 的恶意大 batch 拒绝（fail-closed，防逐项打 DeepSeek 成本/DoS 放大）
+  const batch = Array.from({ length: 14 }, (_, i) => ({ kind: 'text', body: `普通消息${i}` }));
+  const big = await auditBeforeWrite({ path: '/api/conversations/1/messages', method: 'POST', body: { batch } });
+  assert.ok(!big.ok && big.reject, '14 条 batch（>13）拒绝');
+  assert.equal(big.code, 'INVALID_PARAMS', '预算溢出文案 = INVALID_PARAMS（不误用审核服务不可用）');
+  const batch13 = await auditBeforeWrite({ path: '/api/conversations/1/messages', method: 'POST', body: { batch: batch.slice(0, 13) } });
+  assert.equal(batch13.ok, true, '13 条 batch（= AUDIT_MAX_FIELDS）放行');
+});
+
 test('auditBeforeWrite 注册用户名与改用户名同守门牌红线', async () => {
   const regBad = await auditBeforeWrite({ path: '/api/auth/register', method: 'POST', body: { username: '静安区5号楼303室' } });
   assert.ok(regBad.reject, '注册用户名含门牌 → 拒');

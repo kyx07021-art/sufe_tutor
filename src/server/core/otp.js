@@ -233,13 +233,19 @@ export async function requestOtp(db, { channel, target, scene }, req) {
     return { ok: false, err: errorMsg('SERVER_ERROR', 500) };
   }
   // Z-2-F1 复审修（缺陷 B）：单日计数 +1 在投递成功之后——投递失败删行返回 500 不烧日配额
-  await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime','+1 day'))
-    ON CONFLICT(bucket) DO UPDATE SET
-      n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
-      reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`,
-    [dayKey]);
-  await logEvent(db, { action: 'otp.request', actorUsername: targetMask(t),
-    entity: 'otp', detail: { channel: ch, requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）
+  // Q-2b-F2（回滚重做）：upsert/logEvent 包 try/catch——D1 瞬时故障若在此返 500，验证码行已有效
+  // + 60s 窗口占用 + 日配额已烧 = 假失败真送达（用户已收到码却被告知失败，重试烧配额）。已送达即成功。
+  try {
+    await dbRun(db, `INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime','+1 day'))
+      ON CONFLICT(bucket) DO UPDATE SET
+        n = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.n + 1 ELSE 1 END,
+        reset_at = CASE WHEN rate_limits.reset_at > datetime('now','localtime') THEN rate_limits.reset_at ELSE excluded.reset_at END`,
+      [dayKey]);
+    await logEvent(db, { action: 'otp.request', actorUsername: targetMask(t),
+      entity: 'otp', detail: { channel: ch, requestId: delivered.requestId || '' }, req }); // request_id 落留档（查询投递状态用）
+  } catch (e) {
+    console.warn('OTP 已送达但记账/留档失败（不返 500）:', e && e.message);
+  }
   return { ok: true };
 }
 
