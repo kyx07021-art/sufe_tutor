@@ -186,3 +186,8 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 ### 需求 Z 审计遗留（2026-08-19）
 - 🟡 **Z-16-F11/F14 无法定义**：Z-16 面审计报告原文无 F11/F14 的描述条目（编号漂移/登记时占位），无任何待办内容可执行。若日后从会话记录找回原文再补，否则视为空条目弃置。
 - 🟡 **Z-10-F1 写评门禁数据源（已确认实现）**：GET /api/teacher/profile 的 `signed` 字段作写评门禁数据源已接线（teacher/actions.js:80），本条无遗留。
+
+### 需求 Q-3b 审计遗留（2026-08-20，独立审计 agent 抓出，休眠/self-heal 记 backlog 攒批）
+- 🟡 **Q-3b-L1 doSubmitContentPenalty 内容处罚删除不失效任何域**（admin/actions.js:107 POST /api/admin/content/:type/:id/action action='delete'；服务端 admin/api.js:288-355 按 type 硬删 post/demand/review/message/contract/complaint/upload/signing）：无任何 invalidate，且 versionDomainOf 对该路径只落 [ADMIN] 兜底（不 bump posts/contracts/chat/demands）→ 跨端永久陈旧（dhTouchAll 掩盖 TTL）。当前 loadAdminContent 无调用点（内容处罚 UI 死路径），一旦接线即复现 F1/F3 同型永久陈旧。修法：按 type 分支 invalidate 对应域（post→posts、contract→contracts、message→chat、demand→demands、review→admin）。
+- 🟡 **Q-3b-L2 submitFeedback 未补 invalidate('admin')**（posts/actions-feedback.js:52 POST /api/feedbacks）：同型 submitComplaint 已补（Q-3b-F5），/api/feedbacks POST 服务端已 bump [ADMIN]（version.js:124）探针 8s self-heal，非永久陈旧，但同会话 admin 反馈列表不即时刷新，一致性缺口。
+- 🟡 **Q-3b-L3 toggleTeacherVerify 未补 invalidate**（admin/actions.js:227 POST /api/admin/teachers/:id/verify 仅 toast）：服务端 bump [TEACHERS, ADMIN] 探针 self-heal，无即时 reload。verifApprove/Revoke 已补 invalidate（Q-3b-F3）而此路径未补，风格不一致。
