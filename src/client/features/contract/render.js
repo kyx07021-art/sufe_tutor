@@ -12,7 +12,10 @@ import { demandIdText, demandOptionText, demandTargetNames, expectedTimeText } f
 import { mdRender } from '../../core/dom.js';
 import { TEXT } from '../../constants/text.js';
 
-export const CONTRACT_BIZ_END = '<!-- ' + String.fromCharCode(0x4e1a, 0x52a1, 0x6761, 0x6b3e, 0x7ed3, 0x675f);
+// Sentinel prefix mirroring server CONTRACT_BUSINESS_END (contract/api.js). Lives in
+// text.js (the only contract-6 Chinese-allowed module) so the client never synthesizes
+// Chinese at runtime (Q-1-F1: char-code obfuscation was a real contract-6 bypass).
+export const CONTRACT_BIZ_END = TEXT.CONTRACT_BIZ_END;
 
 export function splitContractBiz(md) {
   return String(md || '').split(CONTRACT_BIZ_END)[0].trim();

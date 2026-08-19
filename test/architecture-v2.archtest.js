@@ -89,6 +89,9 @@ test('前端边界：fetch 只在 api.js；core/features 零内联事件/样式�
     assert.ok(!/style=/.test(s), `${rel} 无内联 style`);
     const isTextModule = rel.endsWith('/text.js');
     assert.ok(isTextModule || !/[\u4e00-\u9fff]/.test(s), `${rel} 无中文文案`);
+    // Q-1-F2: block Chinese obfuscation via String.fromCharCode (CONTRACT_BIZ_END bypass);
+    // Chinese may only live in text.js literal form.
+    assert.ok(isTextModule || !/String\.fromCharCode/.test(s), `${rel} 禁 String.fromCharCode 藏中文`);
   }
 });
 

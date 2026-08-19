@@ -154,6 +154,7 @@ export const TEXT = {
   "PUSH_ACCEPTED_TAG": "已确认",
   "PUSH_REJECTED_TAG": "已谢绝",
   "CONTRACT_DRAFT_SENT_TOAST": "合同草案已发送，等待对方确认",
+  "CONTRACT_BIZ_END": "<!-- 业务条款结束",
   "BTN_SEND_NOTIFICATION": "发通知",
   "NOTIFY_BROADCAST_PREFIX": "【系统通知】",
   "NOTIF_INTENT_ACCEPTED": "学生已同意你的试课意向，会话已建立，请前往「我的会话」查看详情",
