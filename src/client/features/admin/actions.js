@@ -35,6 +35,8 @@ export async function loadAdminTraffic() {
   } catch (err) { showToast(err.message); }
 }
 
+// Z-11-F5: dormant stub — traffic range selector for the admin traffic box (pending B5);
+// zero call sites, kept as a marker where the range UI hooks in. Delete with B5 migration.
 export function setTrafficRange() {}
 
 export async function loadAdminUsers(role = ROLES.STUDENT) {
@@ -47,6 +49,8 @@ export async function loadAdminUsers(role = ROLES.STUDENT) {
 
 export function loadAdminStudents() { return loadAdminUsers(ROLES.STUDENT); }
 export function loadAdminTeachers() { return loadAdminUsers(ROLES.TEACHER); }
+// Z-11-F5: dormant stub — debounced username search for the admin users list (pending B5);
+// zero call sites, kept as a marker where the search UI hooks in. Delete with B5 migration.
 export function adminUsersSearchDebounced() {}
 
 export function renderAdminUserRow(u) {
