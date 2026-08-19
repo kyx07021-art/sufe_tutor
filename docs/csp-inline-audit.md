@@ -1,6 +1,6 @@
 # CSP 收口·内联面基线清单（V-3-1a）
 
-范围：v2 页面（src/client + web/index.html）。v1 壳（根 index.html/app-*.js）冻结，随 V-4-1h 删除后 `_headers` 的 unsafe-inline 一并收口。
+范围：v2 页面（src/client + web/index.html）。v1 壳（根 index.html/app-*.js）已随 V-4-1h h2h3 删除，`_headers` 的 unsafe-inline 已随 V-4-1h h5a 收口（script-src 'self'；style-src-elem 'self' + style-src-attr 'unsafe-inline'）。
 
 验证命令（基线）：
 
@@ -35,4 +35,4 @@ grep -rn "\beval(\|new Function\|Function(" src/client/ web/theme-init.js --incl
 - ✅ V-3-1d2 web/index.html 严格 meta CSP（script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'，最小化声明无 default-src；d72d53b）
 - ✅ V-3-1d3 archtest 增「严格 meta CSP」契约（b4b47c3）
 - ✅ V-3-1e 浏览器实机验证（test/verify-csp-strict.mjs：三路真拦 + style-attr 通道放行 + v2 全链路零 CSP 报错）
-- `_headers` 的 unsafe-inline 保留到 V-4-1h（v1 壳冻结）
+- ✅ V-4-1h h5a `_headers`/SECURITY_HEADERS CSP 收紧收口：script-src 去 unsafe-inline（v1 壳已删），style 拆 style-src-elem 'self' + style-src-attr 'unsafe-inline'，删 font-src/Google Fonts 例外（46141a3）

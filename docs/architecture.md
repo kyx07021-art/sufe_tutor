@@ -83,7 +83,7 @@ web/index.html 是干净壳：唯一入口 `<script type="module" src="/assets/a
 
 ## 契约 8：严格 meta CSP
 
-web/index.html 页级严格 CSP：`script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'`（最小化声明，无 default-src）。与 `_headers` 站点级策略（含 unsafe-inline + frame-ancestors 'none'）取交集：v2 内联 script/`<style>` 元素被拦，CSSOM 数据通道保留（style-src-attr，ui-modal cssText 承重）。v1 壳（根 index.html）保持宽松，随 V-4-1h 删除后 `_headers` 一并收口。**严禁为省事在 v2 加回 unsafe-inline 或声明 default-src 收紧 data:/blob:**。
+web/index.html 页级严格 CSP：`script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'`（最小化声明，无 default-src）。与 `_headers` 站点级策略（V-4-1h h5a 起镜像同姿态：`script-src 'self'; style-src-elem 'self'; style-src-attr 'unsafe-inline'; frame-ancestors 'none'`；API 层 `SECURITY_HEADERS`/config.js 同姿态）取交集：v2 内联 script/`<style>` 元素被拦，CSSOM 数据通道保留（style-src-attr，ui-modal cssText 承重）。v1 壳已随 V-4-1h 删除，`_headers` 已一并收口。**严禁为省事在 v2 加回 unsafe-inline 或声明 default-src 收紧 data:/blob:**。
 
 ## 契约 9：region-data 单源
 

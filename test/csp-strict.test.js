@@ -22,7 +22,7 @@ test('严格 meta CSP：script-src/style-src-elem 无 unsafe-inline；style-src-
   assert.ok(/style-src-elem 'self'(?!\s*'unsafe-inline')/.test(csp), 'style-src-elem 仅 self（拦 <style> 元素与内联样式表）');
   assert.ok(/style-src-attr 'unsafe-inline'/.test(csp), 'style-src-attr 留 unsafe-inline（CSSOM 数据通道）');
   assert.ok(!/default-src/.test(csp) || /img-src[^;]*data:/.test(csp),
-    '最小化声明：无 default-src，或声明 img-src 时含 data:（防交集收紧 _headers 的 img-src data: blob: / font-src）');
+    '最小化声明：无 default-src，或声明 img-src 时含 data:（防交集收紧 _headers 的 img-src data: blob:）');
   const dirs = csp.split(';').map(s => s.trim().split(/\s+/)[0]).filter(Boolean);
   assert.equal(new Set(dirs).size, dirs.length, '无重复指令（审计 O1：防分号后追加同指令等效放宽，如 ; script-src \'unsafe-inline\'）');
 });
