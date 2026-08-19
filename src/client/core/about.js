@@ -7,8 +7,8 @@ import { escHtml } from './dom.js';
 import { initReveals } from './anim.js';
 
 export function enterAbout() {
-  const aboutTitle = document.getElementById('about-page-title');
-  if (aboutTitle) aboutTitle.textContent = TEXT.PAGE_ABOUT;
+  // Z-9-F8: removed dead #about-page-title lookup (no such element in v2 shell —
+  // the page header is rendered by shell.js page() with the section title)
   const steps = [
     TEXT.ABOUT_FLOW_STEP_1, TEXT.ABOUT_FLOW_STEP_2, TEXT.ABOUT_FLOW_STEP_3, TEXT.ABOUT_FLOW_STEP_4, TEXT.ABOUT_FLOW_STEP_5,
   ].map((s, i, arr) => `<div class="about-flow-step">
