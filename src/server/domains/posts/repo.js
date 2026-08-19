@@ -79,7 +79,7 @@ export async function dbCreatePost(db, userId, title, bodyMd) {
 }
 
 export async function dbGetPostById(db, postId) {
-  return await dbGet(db, 'SELECT id, user_id, title FROM posts WHERE id=?', [postId]);
+  return await dbGet(db, 'SELECT id, user_id, title, body_md FROM posts WHERE id=?', [postId]); // Z-6-F6：补 body_md（调用方读正文，原缺失返 undefined）
 }
 
 // U10（网络层架构债）：点赞/收藏切换把「读帖 + 读本人记录」合成一步 batch（串行 2 次往返 → 1 次）。

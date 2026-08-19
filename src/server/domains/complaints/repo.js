@@ -23,8 +23,8 @@ export async function dbGetFeedbacksByUser(db, userId) {
 
 export async function dbGetFeedbacksAdmin(db, status) {
   // 可选 status 下推过滤（白名单，防注入）；不传则返回全部。
-  // feedbacks.status 合法值仅 'open'/'resolved'（'pending' 会使「未处理」过滤恒空）
-  const where = (status === 'open' || status === 'resolved') ? ' WHERE f.status=?' : '';
+  // feedbacks.status 合法值仅 open/resolved（'pending' 会使「未处理」过滤恒空）——Z-6-F4：字面量走 STATUS
+  const where = (status === STATUS.OPEN || status === STATUS.RESOLVED) ? ' WHERE f.status=?' : '';
   const params = where ? [status] : [];
   return await dbAll(db,
     'SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id' + where + ` ORDER BY f.id DESC LIMIT ${LIMITS.FEEDBACK_ADMIN_MAX}`, params);
@@ -62,7 +62,8 @@ export async function dbGetComplaintsByUser(db, userId) {
 }
 
 export async function dbGetComplaintsAdmin(db, status) {
-  const where = (status === 'open' || status === 'resolved') ? ' WHERE c.status=?' : '';
+  // Z-6-F4：状态字面量走 STATUS（open/resolved）
+  const where = (status === STATUS.OPEN || status === STATUS.RESOLVED) ? ' WHERE c.status=?' : '';
   const params = where ? [status] : [];
   const rows = await dbAll(db,
     'SELECT c.*, u.username AS reporter FROM complaints c JOIN users u ON u.id = c.user_id' + where
