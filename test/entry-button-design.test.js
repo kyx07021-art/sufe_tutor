@@ -14,13 +14,14 @@ import { STYLE_CSS } from './_css.js';
 
 test('R28 主页入口：两个 .entry 各挂 .entry-glow 光斑子元素', () => {
   // V-4-1h：v1 静态壳已删；入口按钮由 v2 shell.js 渲染（entry 模板调用两次 + 光斑在按钮内部）
+  // Z-16-F5b：角色参数改 ROLES.STUDENT/ROLES.TEACHER 单源（值仍为 student/teacher）
   const shell = readFileSync('./src/client/core/shell.js', 'utf8');
-  const entries = [...shell.matchAll(/entry\('0\d', TEXT\.ENTRY_.+?_TITLE, TEXT\.ENTRY_.+?_DESC, '(student|teacher)'\)/g)];
+  const entries = [...shell.matchAll(/entry\('0\d', TEXT\.ENTRY_.+?_TITLE, TEXT\.ENTRY_.+?_DESC, ROLES\.(STUDENT|TEACHER)\)/g)];
   assert.equal(entries.length, 2, '两个入口按钮模板调用（student/teacher）');
   assert.equal((shell.match(/<span class="entry-glow"/g) || []).length, 1, '模板内含光斑子元素（复用模板）');
   assert.ok(shell.includes(`<button type="button" class="entry glass" data-action="auth.enterGuest" data-role="\${role}">`),
     '光斑紧随按钮开始（模板内同节点）');
-  assert.ok(entries.some(e => e[1] === 'student') && entries.some(e => e[1] === 'teacher'), '两个入口角色');
+  assert.ok(entries.some(e => e[1] === 'STUDENT') && entries.some(e => e[1] === 'TEACHER'), '两个入口角色');
 });
 
 test('R28 CSS：光斑跟随变量 + 扫光 + 辉光边缘 + 弹簧按压（四件套）', () => {
