@@ -5,8 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { renderContractCard } from '../src/client/features/contract/render.js';
-import { signContract, verifyContractLedgerUi, clearSigningTimer, closeModalAction } from '../src/client/features/contract/actions-sign.js';
+import { signContract, verifyContractLedgerUi, clearSigningTimer, closeModalAction, updateSignBtnState } from '../src/client/features/contract/actions-sign.js';
 import { state } from '../src/client/core/state.js';
+import { TEXT } from '../src/client/constants/text.js';
 
 function setup() {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="modal-container"></div></body></html>', { url: 'http://localhost/' });
@@ -86,5 +87,21 @@ test('存证校验小面板：展示指纹 + 台账明细', async () => {
   assert.ok(doc.querySelector('.contract-verify-hash').textContent.includes('abc123def456'));
   assert.equal(doc.querySelectorAll('.contract-verify-entry').length, 2);
   assert.ok(doc.querySelector('.contract-verify-entry').textContent.includes('#1'));
+  delete globalThis.document;
+});
+
+test('Q-4a-L1：倒计时结束未滚动时按钮显示滚动提示（非误导性确认文案）', () => {
+  const dom = setup();
+  const holder = dom.window.document.createElement('div');
+  holder.innerHTML = '<button type="button" id="contract-sign-btn" disabled></button><span id="contract-sign-hint"></span>';
+  dom.window.document.body.appendChild(holder);
+  dom.window._signingElapsed = true; dom.window._signingScrolled = false;
+  updateSignBtnState();
+  const btn = dom.window.document.getElementById('contract-sign-btn');
+  assert.equal(btn.disabled, true, '未滚动禁用');
+  assert.equal(btn.textContent, TEXT.SIGN_READ_HINT, '未滚动显示滚动提示（原误显确认文案）');
+  dom.window._signingScrolled = true;
+  updateSignBtnState();
+  assert.equal(btn.textContent, TEXT.SIGN_READ_DONE_BTN, '已滚动显示确认文案');
   delete globalThis.document;
 });

@@ -62,7 +62,7 @@ export function updateSignBtnState(remainSec, preserveText = false) {
   btn.disabled = !ready;
   if (ready) btn.textContent = TEXT.SIGN_READ_DONE_BTN;
   else if (remainSec != null) btn.textContent = TEXT.SIGN_COUNTDOWN_HINT.replace('{secs}', String(remainSec));
-  else if (!preserveText) btn.textContent = TEXT.SIGN_READ_DONE_BTN;
+  else if (!preserveText) btn.textContent = TEXT.SIGN_READ_HINT; // Q-4a-L1: elapsed-but-not-scrolled shows the scroll hint, not the misleading ready label (was 'I have read and confirm' while disabled)
   const hint = document.getElementById('contract-sign-hint');
   if (!hint) return;
   hint.textContent = ready ? TEXT.SIGN_READY_HINT : TEXT.SIGN_READ_HINT;
