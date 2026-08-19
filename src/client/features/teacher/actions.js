@@ -7,7 +7,7 @@ import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '../../core/ui.js';
-import { escHtml } from '../../core/dom.js';
+import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { demandIsActive } from '../student/display.js';
@@ -20,7 +20,7 @@ let _matchDetailOpen = false;
 export function loadTeachers() {
   const el = document.getElementById('browse-teachers-list') || document.getElementById('teachers-list');
   if (!el) return;
-  el.innerHTML = '<div class="empty-state">loading</div>';
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   return dhGet('/api/teachers', { domain: 'teachers' }).then(async data => {
     state.allTeachers = data.teachers || [];
     await attachStudentMatch(state.allTeachers);

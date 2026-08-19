@@ -32,7 +32,7 @@ let _matchDetailOpen = false;
 export function loadMyDemands() {
   const el = document.getElementById('my-demands-list');
   if (!el) return;
-  el.innerHTML = '<div class="empty-state">loading</div>';
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   return dhGet('/api/student/demands?scope=mine', { domain: 'demands' }).then(data => {
     state.myDemands = data.demands || [];
     // v1 parity: owner cards render edit/reopen + intent toggle (editable:true). Was missing
