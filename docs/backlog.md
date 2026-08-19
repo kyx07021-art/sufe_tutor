@@ -187,6 +187,10 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 - 🟡 **Z-16-F11/F14 无法定义**：Z-16 面审计报告原文无 F11/F14 的描述条目（编号漂移/登记时占位），无任何待办内容可执行。若日后从会话记录找回原文再补，否则视为空条目弃置。
 - 🟡 **Z-10-F1 写评门禁数据源（已确认实现）**：GET /api/teacher/profile 的 `signed` 字段作写评门禁数据源已接线（teacher/actions.js:80），本条无遗留。
 
+### 需求 Q 剩余审计项（2026-08-20，细节丢失/攒批登记）
+- 🟡 **Q-2i-M4 服务端 ROLES/STATUS 未收敛共享 enums**：服务端 domains 各 api/repo 大量裸 'student'/'teacher'/'open'/'pending' 等字面量，未引 src/shared/enums.js ROLES/STATUS。收敛 = 几百处等价替换（零行为变化）+ SQL 字面量（WHERE status='open'）本就不可用 JS enums（SQL 字符串）。改动面巨大、收益为架构一致性，攒批后续专项（勿混入 2.0.x 小修）。
+- 🟡 **Q-2i M6/M7 + L1-L9 / Q-2f L1-L7 描述丢失**：Q-2i/Q-2f 审计 agent transcript 未在主会话保留（压缩覆盖），摘要仅列 M1-M5 名（已修）+ L 项无细节。需重跑对应审计面复核或从 agent transcript 恢复后执行。
+
 ### 需求 Q-2a-L2 审计观察项（2026-08-20，独立审计 PASS 后观察）
 - 🟡 **handleCreateSigning 的 null→NaN 路径硬化**（contract/api.js:645 `parseInt(body.conversationId)`）：非法 id → parseIdParam null → `parseInt(null)`=NaN → `dbGetConversationWithNames(db, NaN)`。NaN 进 D1 绑定是 NULL 还是抛错未经测试锁定（改前即存在，L2b 严格改善无新 500 引入）。建议 handler 加 Number.isNaN 检查硬化（Q-2e 范围）。
 - 🟡 **路由级脏参数→404 集成测试缺失**（如 `GET /api/users/1abc` → 404）：单元测试锁 parseIdParam helper，handler null 安全依赖既有 dbGet→404 模式。可选加固：路由级集成测试锁脏参数 404。
