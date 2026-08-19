@@ -47,16 +47,13 @@ function cacheableAsset(res) {
   return cl !== null && Number(cl) > 0;
 }
 
-// 改写 HTML 文档：资产引用 → 哈希名 + 内联 manifest（懒加载器读 window.ASSET_MANIFEST.files）
-// V-3-1d: v2 ESM 页面（type="module" 入口，web/index.html→dist/v2.html）零 ASSET_MANIFEST 运行时消费
-// （app.js 全静态导入、esbuild chunk 自动解析）——不注入内联 manifest，严格 script-src 'self' 才可能成立；
-// v1 壳懒加载器仍需内联注入（V-4-1h 删除 v1 后一并消失）。
+// 改写 HTML 文档：资产引用 → 哈希名（浏览器只请求哈希 URL，版本化路由回 base + immutable）。
+// V-4-1h h2h3：v1 壳删除后唯一 HTML 形态为 v2 ESM 页（type="module" 全静态 import、esbuild chunk
+// 自动解析），零 ASSET_MANIFEST 运行时消费——内联 manifest 注入分支随 v1 懒加载器一并删除
+// （严格 script-src 'self' 的前提）。manifest 仅承载 CSS（根/features）与 web/ 脚本（theme-init/async-css）。
 export function injectManifest(html) {
   const files = ASSET_MANIFEST.files;
-  const out = html.replace(/(src|href)="\/([a-zA-Z0-9._\/-]+\.(?:js|css))"/g, (m, attr, base) => `${attr}="/${files[base] || base}"`);
-  return html.includes('type="module"')
-    ? out
-    : out.replace('</head>', `<script>window.ASSET_MANIFEST=${JSON.stringify(ASSET_MANIFEST)};</script></head>`);
+  return html.replace(/(src|href)="\/([a-zA-Z0-9._\/-]+\.(?:js|css))"/g, (m, attr, base) => `${attr}="/${files[base] || base}"`);
 }
 
 // 改写后 HTML 的弱 ETag（改写 body 的哈希前 16 hex）——worker 必须自持 HTML 的 ETag：

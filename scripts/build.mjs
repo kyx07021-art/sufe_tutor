@@ -50,10 +50,11 @@ const client = await build({
 });
 const entry = Object.keys(client.metafile.outputs).find(f => f.endsWith('.js') && readFileSync(f, 'utf8').includes('v2 client entry'));
 const appName = entry ? entry.split(/[\/]/).pop() : readdirSync(join(DIST, 'assets')).find(f => f.startsWith('app-') && f.endsWith('.js'));
+// V-4-1h h2h3：v2 页面直接作为站点入口 index.html（v1 壳已删，/ 承重；原 v2.html 过渡路径下线）
 const v2 = readFileSync(join(ROOT, 'web/index.html'), 'utf8').replace('/assets/app.js', `/assets/${appName}`);
-writeFileSync(join(DIST, 'v2.html'), v2);
+writeFileSync(join(DIST, 'index.html'), v2);
 
-// v1 static shell (unchanged production behavior).
+// v2 static assets (root CSS/features/web scripts + 图片；v1 壳删除后无根 html/js 回填)。
 for (const name of readdirSync(ROOT)) {
   if (name === '_worker.js' || name === 'manifest.js' || name === 'hash-assets.mjs') continue; // 构建产物已由 esbuild 落 dist，根源码不得回填覆盖
   if (COPY_NAMES.has(name) || (statSync(join(ROOT, name)).isFile() && COPY_EXTS.has(name.slice(name.lastIndexOf('.'))))) {

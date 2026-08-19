@@ -85,9 +85,9 @@ export const ASSET_MANIFEST = ${JSON.stringify({ files }, null, 2)};
 `;
 }
 
-// CLI 入口（被测试 import 时不执行）
+// CLI 入口（被测试 import 时不执行）。V-4-1h h2h3 起切 v2 源（根 index.html 已删，v1 壳下线）。
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   const outPath = process.argv[2] || 'manifest.js';
-  writeFileSync(outPath, renderManifest());
+  writeFileSync(outPath, renderManifestV2());
   console.log(`${outPath} generated`);
 }
