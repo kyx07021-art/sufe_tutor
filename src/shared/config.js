@@ -229,7 +229,7 @@ export const RATE_LIMITS = {
 export const CORS_HEADERS = {
   'Access-Control-Allow-Origin': "https://sufe-tutor.pages.dev",
   'Access-Control-Allow-Methods': "GET,POST,PUT,DELETE,OPTIONS",
-  'Access-Control-Allow-Headers': "Content-Type",
+  'Access-Control-Allow-Headers': "Content-Type, X-Auth-Token",
 };
 export const SECURITY_HEADERS = {
   'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",

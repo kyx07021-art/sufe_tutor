@@ -27,6 +27,11 @@ test('corsPreflight：返回带 CORS_HEADERS 的预检响应（头单源精确�
   }
 });
 
+test('Q-2a-L3：Allow-Headers 含 X-Auth-Token（身份头跨源预检放行；变异：去掉 → 红）', () => {
+  assert.ok(CORS_HEADERS['Access-Control-Allow-Headers'].split(',').map(s => s.trim()).includes('X-Auth-Token'),
+    'CORS Allow-Headers 必须包含 X-Auth-Token（当前前端唯一自定义请求头，src/client/core/api.js 发送）');
+});
+
 test('applySecurityHeaders：仅 /api/* 加安全头 + no-store，静态路径不碰', () => {
   const api = new Response('ok', { status: 200 });
   applySecurityHeaders(api, '/api/posts');
