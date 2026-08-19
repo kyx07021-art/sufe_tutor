@@ -3,10 +3,9 @@
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { encryptField, decryptField } from '../../core/crypto.js';
-import { safeJsonArray, safeJsonObject } from '../../core/json.js';
+import { safeJsonArray } from '../../core/json.js'; // Z-3-F3：safeJsonObject 零引用删除
 import { mapTeacherProfileRow } from '../teacher/repo.js';
 import { LIMITS } from '../../../shared/config.js';
-import { STATUS } from '../../../shared/enums.js';
 
 // 学生需求
 // ============================================================
@@ -276,8 +275,9 @@ export async function dbGetIntentTeachers(db, demandId) {
   // 附加意向自身字段（id/状态/时间），供学生端同意/拒绝按钮使用
   // 出口剥私密字段（mapper 出口剥私密字段契约）：
   // 联系方式签约后展示；真实姓名/学信网截图仅双向匹配后按档案端点定点取
+  // Z-3-F2：private:false 免逐行 AES 解密（出口本就剥私密字段，解密纯浪费——对照 dbGetTeachers 同口径）
   return (await Promise.all(rows.map(async r => ({
-    ...(await mapTeacherProfileRow(r)),
+    ...(await mapTeacherProfileRow(r, { private: false })),
     intent_id: r.intent_id, intent_status: r.intent_status, intent_created_at: r.intent_created_at,
     intent_message: r.intent_message || '', // 教师打招呼消息（SELECT 已取，出口透传；空串统一）
   })))).map(({ wechat, email, real_name, credential_image, matched, ...rest }) => rest);

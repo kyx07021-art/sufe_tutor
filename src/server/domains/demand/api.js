@@ -419,7 +419,8 @@ export async function handleResolvePush(db, pushId, body, req) {
   await logEvent(db, { action: `demand_push.${action}`, actorUserId: userId, actorRole: 'teacher',
     entity: 'demand_push', entityId: pushId,
     detail: { demandId: push.demand_id, studentUserId: push.student_user_id }, req });
-  return json({ message: 'ok', status: action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED });
+  // Z-3-F4：删死 message 载荷（内联 'ok' 违反成功 message 码化；前端自行 toast 不读该字段），status 语义回显保留
+  return json({ ok: true, status: action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED });
 }
 
 // ============================================================

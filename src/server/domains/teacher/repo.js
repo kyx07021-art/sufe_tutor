@@ -3,9 +3,8 @@
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { encryptField, decryptField } from '../../core/crypto.js';
-import { safeJsonArray, safeJsonObject } from '../../core/json.js';
-import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS } from '../../../shared/config.js';
-import { STATUS } from '../../../shared/enums.js';
+import { safeJsonArray } from '../../core/json.js'; // Z-3-F3：safeJsonObject 零引用删除
+import { LIMITS } from '../../../shared/config.js'; // Z-3-F3：INITIAL_RATING/INITIAL_WEIGHT 真正使用方在 auth/repo.js，此处零引用删除
 
 // 教师档案
 // ============================================================
