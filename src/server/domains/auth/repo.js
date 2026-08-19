@@ -6,6 +6,9 @@ import { dbAll, dbGet, dbRun, toDbTime } from '../../core/util.js';
 import { hashPassword } from '../../core/crypto.js';
 import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, PHONE_HASH_COND, EMAIL_HASH_COND } from '../../../shared/config.js';
 import { STATUS } from '../../../shared/enums.js';
+// 教师评分重算依赖：统计来自评价域、写库来自教师域（Z-5-F1 断线修复，补全两 helper）
+import { dbGetApprovedReviewStats } from '../reviews/repo.js';
+import { dbUpdateTeacherRating } from '../teacher/repo.js';
 
 // 显式列集：凭证列（password_hash/salt）仅登录/重认证出层，其余列不随裸行外溢
 const USER_BY_USERNAME_SQL = 'SELECT id, username, role, avatar, banned, deactivated, password_hash, salt FROM users WHERE username=?';

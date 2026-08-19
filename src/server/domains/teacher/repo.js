@@ -144,7 +144,7 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
   return await Promise.all(profiles.map(p => mapTeacherProfileRow(p, { private: false })));
 }
 
-async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {
+export async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {
   await dbRun(db,
     'UPDATE teacher_profiles SET rating=?, rating_count=?, rating_sum=? WHERE user_id=?',
     [rating, count, sum, teacherUserId]);

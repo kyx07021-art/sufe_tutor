@@ -83,7 +83,7 @@ export async function dbGetReviewById(db, reviewId) {
   return await dbGet(db, 'SELECT * FROM reviews WHERE id=?', [reviewId]);
 }
 
-async function dbGetApprovedReviewStats(db, teacherUserId) {
+export async function dbGetApprovedReviewStats(db, teacherUserId) {
   return await dbGet(db, `SELECT COUNT(*) as cnt, COALESCE(SUM(rating),0) as total
     FROM reviews WHERE teacher_user_id=? AND status='approved'`, [teacherUserId]);
 }
