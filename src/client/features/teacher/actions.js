@@ -215,7 +215,13 @@ export function applyFilters() {
   state.allTeachers = list;
   renderTeachers();
 }
-export function hasDaySlot(timeSlots, day) { return String(timeSlots||'').includes(day); }
+export function hasDaySlot(timeSlots, day) { // Q-4a-M1a: parse time_slots JSON and match dow exactly — old String.includes matched digits inside start/end times (e.g. dow=3, start '18:00' falsely matched day 1)
+  if (Array.isArray(timeSlots)) { /* already parsed */ }
+  else if (typeof timeSlots === 'string') { try { timeSlots = JSON.parse(timeSlots || '[]'); } catch { return false; } }
+  else return false;
+  if (!Array.isArray(timeSlots)) return false;
+  return timeSlots.some(t => Number(t && (t.dow ?? t.day)) === day);
+}
 export function showTeacherMatchDetail(id) {
   const t = findCachedTeacher(id);
   if (!t || !t._matchForStudent) return;

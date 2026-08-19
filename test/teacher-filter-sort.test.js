@@ -50,12 +50,16 @@ test('teacherSortMode 默认按角色', () => {
   delete globalThis.document;
 });
 
-test('hasDaySlot：JSON 星期命中/纯文本不参与', () => {
+test('hasDaySlot：JSON 星期命中/纯文本不参与（Q-4a-M1a 误匹配修复）', () => {
   const dom = setup();
   assert.equal(hasDaySlot(TEACHERS[0].time_slots, 1), true);
   assert.equal(hasDaySlot(TEACHERS[0].time_slots, 3), false);
   assert.equal(hasDaySlot('历史纯文本', 1), false);
   assert.equal(hasDaySlot('', 1), false);
+  // Q-4a-M1a: dow=3 但 start 时间含数字 1（18:00）——旧 String.includes 误命中 day=1（潜伏 bug）
+  const t5 = { ...TEACHERS[0], time_slots: JSON.stringify([{ type: 'week', dow: 3, start: '18:00', end: '20:00' }]) };
+  assert.equal(hasDaySlot(t5.time_slots, 1), false, 'dow=3 不命中 day=1（start 含 1 不误匹配）');
+  assert.equal(hasDaySlot(t5.time_slots, 3), true, 'dow=3 命中 day=3');
   delete globalThis.document;
 });
 
