@@ -7,6 +7,7 @@ import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared e
 import { state, getThemePref, getUiScale, uiScaleFillPct, setUiScaleLive, commitUiScale, getOrbPref } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
+import { renderSidebar } from '../../core/router.js'; // Q-4b-M2：用户名/头像修改后刷新侧栏（state.user 同步）
 import { openModal, closeModal, showToast, confirm, withCaptcha, btnLoading, btnDone, bindCountdown } from '../../core/ui.js';
 import { setStylePref as applyStylePref, setThemePref as applyThemePref, setOrbPref as applyOrbPref, getStylePref } from '../../core/appearance.js';
 import { escHtml, renderAvatarHtml, loaderHtml } from '../../core/dom.js';
@@ -135,6 +136,7 @@ export async function submitUsername() {
       withCaptcha(async () => {
         await api('/api/user/username', { method: 'POST', body: { newUsername: username, capToken } });
         closeModal(); showToast(TEXT.SETTINGS_USERNAME_CHANGED); invalidate('account'); loadUsernameStatus();
+        if (state.user) { state.user.username = username; renderSidebar(); } // Q-4b-M2：改用户名后同步 state.user + 侧栏（原陈旧到下次登录）
       });
     }});
   } catch (err) { showToast(err.message); }
@@ -181,6 +183,7 @@ export async function saveAvatar() {
   try {
     await api('/api/user/avatar', { method: 'POST', body: { avatar: window._avatarDataUrl } });
     closeModal(); showToast(TEXT.SETTINGS_AVATAR_SAVED); invalidate('account');
+    if (state.user) { state.user.avatar = window._avatarDataUrl; renderSidebar(); } // Q-4b-M2：改头像后同步 state.user + 侧栏（原陈旧到下次登录）
   } catch (err) { showToast(err.message); }
 }
 
