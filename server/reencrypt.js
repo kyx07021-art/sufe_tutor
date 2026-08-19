@@ -54,22 +54,7 @@ const zero = () => ({ scanned: 0, rewritten: 0, unreadable: 0, skipped: 0 });
  * 幂等/可续：任意中断后带上次 cursor 续跑，汇总各段总计数与一次性全量等价（A-12-4 契约测试补锁）。
  */
 export async function reencryptChunk(db, cursor = null, logDb = null) {
-  // Q-2b-F5: cursor 形状白名单校验（fail-closed）——恶意/畸形游标（字符串/非法 phase/NaN afterId）
-  // 原会静默 done 或绑定 undefined 500，端点契约未封口。非法即抛错，不静默错乱。
-  const PHASES = ['fields', 'attachments', 'logs'];
-  const c = cursor == null
-    ? { phase: 'fields', fieldsT: 0, afterId: 0 }
-    : (() => {
-        if (typeof cursor !== 'object' || cursor === null) throw new Error('reencrypt: invalid cursor shape');
-        const phase = cursor.phase;
-        if (!PHASES.includes(phase)) throw new Error('reencrypt: invalid cursor.phase');
-        const fieldsT = Number(cursor.fieldsT);
-        const afterId = Number(cursor.afterId);
-        if (!Number.isInteger(fieldsT) || fieldsT < 0 || !Number.isInteger(afterId) || afterId < 0) {
-          throw new Error('reencrypt: invalid cursor fieldsT/afterId');
-        }
-        return { phase, fieldsT, afterId };
-      })();
+  const c = cursor || { phase: 'fields', fieldsT: 0, afterId: 0 };
   const summary = { fields: zero(), attachments: zero(), logs: zero() };
   let budget = REENCRYPT_ROW_BUDGET;
 

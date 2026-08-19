@@ -7,7 +7,6 @@
  */
 import { auditFreeText } from './text-audit.js';
 import { MSG } from '../../shared/codes.js';
-import { LIMITS } from '../../shared/config.js';
 
 // ============================================================
 // 内容域写路径（创建 + 编辑全口径）
@@ -62,11 +61,6 @@ export async function auditBeforeWrite({ path, method, body, ip, userId }) {
   const rule = AUDIT_MAP.find(r => item.path.startsWith(r.prefix));
   if (!rule) return { ok: true }; // 非自由文本内容写（点赞/头像/附件等）直接放行
   const texts = (rule.pick(item.body) || []).filter(t => typeof t === 'string' && t.trim());
-  // Q-2b-F1: 单请求自由文本字段超预算 = 拒绝写入（fail-closed）——否则恶意大 batch 在 handler
-  // 校验前逐项顺序打 DeepSeek，N 次第三方调用 + 4N 秒挂起（成本/DoS 放大）。
-  if (texts.length > LIMITS.AUDIT_MAX_FIELDS) {
-    return { reject: MSG.TEXT_AUDIT_UNAVAILABLE, code: 'TEXT_AUDIT_UNAVAILABLE' };
-  }
   for (const t of texts) {
     const v = await auditFreeText(t);
     if (!v.ok) {
