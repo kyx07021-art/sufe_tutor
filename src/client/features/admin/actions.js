@@ -143,7 +143,7 @@ export function adminDeletePost(id) {
 
 export async function loadAdminContracts() {
   try {
-    const data = await dhGet('/api/admin/contracts', { domain: 'admin' });
+    const data = await dhGet('/api/admin/contracts', { domain: 'contracts' }); // Q-3b-M1: single slot for /api/admin/contracts (aligns DH_PREFETCH 'contracts' + invalidate('contracts'))
     const el = document.getElementById('admin-contracts-list');
     if (el) el.innerHTML = (data.contracts || []).map(c => `<div class="list-card glass">${escHtml(c.id || '')}</div>`).join('');
   } catch (err) { showToast(err.message); }

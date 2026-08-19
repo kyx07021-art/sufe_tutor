@@ -14,7 +14,7 @@ import {
 } from '../src/client/core/datahub.js';
 import { CONFIG } from '../src/shared/config.js';
 import { state } from '../src/client/core/state.js';
-import { loadAdminPosts, resolveAdminFeedback } from '../src/client/features/admin/actions.js';
+import { loadAdminPosts, resolveAdminFeedback, loadAdminContracts } from '../src/client/features/admin/actions.js';
 import { setPrivacyField } from '../src/client/features/settings/actions.js';
 
 let dom;
@@ -68,5 +68,18 @@ test('Q-3b-F4：setPrivacyField 写后 invalidate(account)（隐私设置缓存�
     globalThis.fetch = async url => ({ ok: true, status: 200, json: async () => ({ ok: true }) });
     await setPrivacyField('allowGuestProfile', 0);
     assert.equal(dhPeek('/api/privacy-settings'), null, '写后 account 域缓存被清（变异：去掉 invalidate → 永久陈旧 → 红）');
+  } finally { teardown(); }
+});
+
+test('Q-3b-M1：loadAdminContracts 域标签 contracts（审计 F1 完整性缺口：与 DH_PREFETCH /api/admin/contracts=\'contracts\' 及 adminRemoveContract invalidate(\'contracts\') 对齐）', async () => {
+  try {
+    globalThis.document = dom.window.document; // teardown 删除 document，重设（dom 为文件级 before 实例）
+    _dhResetForTests();
+    const list = document.createElement('div'); list.id = 'admin-contracts-list'; document.body.appendChild(list);
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ contracts: [{ id: 7 }] }) });
+    await loadAdminContracts();
+    // 缓存条目域必须是 'contracts'——invalidate('contracts') 命中（变异：域 admin → invalidate 不命中 → 非 null → 红）
+    dhInvalidateDomain('contracts');
+    assert.equal(dhPeek('/api/admin/contracts'), null, '域 contracts 被失效');
   } finally { teardown(); }
 });
