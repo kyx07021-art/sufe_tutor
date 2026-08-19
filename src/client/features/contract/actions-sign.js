@@ -4,7 +4,7 @@
 import { CONFIG } from '../../../shared/config.js';
 import { STATUS } from '../../../shared/enums.js';
 import { TEXT } from './text.js';
-import { state } from '../../core/state.js';
+import { state, registerLogoutReset } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { invalidate, dhGet } from '../../core/datahub.js';
 import { escHtml, mdRender, fmtDateTime } from '../../core/dom.js';
@@ -31,6 +31,7 @@ export function signContract(contractId) {
       <span class="text-sm text-muted contract-sign-hint" id="contract-sign-hint">${signReadHint()}</span>
       <button type="button" id="contract-sign-btn" class="btn glass glass--pressable" disabled data-action="contract.confirmSign">${TEXT.SIGN_COUNTDOWN_HINT.replace('{secs}', String(CONFIG.CONTRACT_SIGN_READ_SECONDS))}</button>`,
   });
+  clearSigningTimer(); // Z-10-F4: idempotent — reopening must not stack intervals
   window._signingOpenedAt = Date.now();
   window._signingTimer = setInterval(() => {
     const remain = Math.max(0, CONFIG.CONTRACT_SIGN_READ_SECONDS * 1000 - (Date.now() - window._signingOpenedAt));
@@ -69,7 +70,7 @@ export function updateSignBtnState(remainSec, preserveText = false) {
 
 export function confirmSignContract() {
   const id = window._signingContractId;
-  clearInterval(window._signingTimer);
+  clearSigningTimer();
   confirm({ message: TEXT.CONFIRM_SIGN_TWICE, onConfirm: () => {
     confirm({ message: TEXT.CONFIRM_SIGN_FINAL, needReAuth: true, onConfirm: async capToken => {
       withCaptcha(() => doSignContract(id, capToken));
@@ -249,4 +250,14 @@ export function preview() {
   });
 }
 
-export function closeModalAction() { closeModal(); }
+// Z-10-F4: clearSigningTimer single point — modal close (contract.closeModal), sign-confirm,
+// and logout (registerLogoutReset) all release the interval so it never keeps ticking detached
+export function clearSigningTimer() {
+  if (window._signingTimer) { clearInterval(window._signingTimer); window._signingTimer = null; }
+}
+
+export function closeModalAction() {
+  clearSigningTimer();
+  closeModal();
+}
+registerLogoutReset(clearSigningTimer);

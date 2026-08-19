@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { renderContractCard } from '../src/client/features/contract/render.js';
-import { signContract, verifyContractLedgerUi } from '../src/client/features/contract/actions-sign.js';
+import { signContract, verifyContractLedgerUi, clearSigningTimer, closeModalAction } from '../src/client/features/contract/actions-sign.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -46,6 +46,28 @@ test('签署弹窗：底部前置告知', async () => {
   assert.ok(disclose.textContent.includes('学生乙'));
   assert.ok(disclose.textContent.includes('可靠'));
   await new Promise(r => setTimeout(r, 20));
+  delete globalThis.document;
+});
+
+// Z-10-F4 回归：signing countdown timer 生命周期——clearSigningTimer 单点释放，
+// closeModalAction（contract.closeModal 取消按钮）清 timer，登出 reset 也清
+test('Z-10-F4: clearSigningTimer releases the interval and closeModalAction calls it', () => {
+  const dom = setup();
+  let cleared = 0;
+  const origClear = globalThis.clearInterval;
+  globalThis.clearInterval = () => { cleared++; };
+  globalThis.window._signingTimer = 42; // 模拟 openSigningModal 启动的 countdown
+  clearSigningTimer();
+  assert.equal(cleared, 1, 'clearInterval 被调用');
+  assert.equal(globalThis.window._signingTimer, null, '模块态清空（防重复清/泄漏）');
+  cleared = 0;
+  globalThis.window._signingTimer = 99;
+  closeModalAction(); // contract.closeModal 取消按钮路径
+  assert.equal(cleared, 1, '关闭弹窗即释放 countdown timer');
+  assert.equal(globalThis.window._signingTimer, null);
+  closeModalAction(); // 无 timer 时幂等
+  assert.equal(cleared, 1, '空 timer 幂等不清第二遍');
+  globalThis.clearInterval = origClear;
   delete globalThis.document;
 });
 
