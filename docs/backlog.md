@@ -142,8 +142,8 @@ app-chat.js:248,325-326,340 / app-contracts.js:62-99 / app-demands.js:613-662,96
 ### A3 routes-posts.js 本地 PMSG 文案单源违规（架构#3）
 PMSG 的 TITLE_REQUIRED/POST_PUBLISHED/POST_DELETED 与 constants UI 逐字重复 → 删 PMSG，改读 globalThis.APP_CONSTANTS.UI。
 
-### A4 CONFIG 孤儿常量（代码#3 / 架构#5）
-7 常量已定义但调用点用裸数字：CHAT_POLL_MS(app-chat.js:453)、CHAT_BUBBLE_DELAY_MS(:302)、POSTS_SEARCH_DEBOUNCE_MS(app-posts.js:53)、PUSH_COOLDOWN_SEC(app-demands.js:868)、REVIEW_COMMENT_MIN(app-teachers.js:611)、PANEL_CLOSE_TIMEOUT_MS(:355)、DISPLAY_ID_PAD(app-display.js:122)。调用点改引 CONFIG.*，或按删除优先删常量。
+### A4 CONFIG 孤儿常量（代码#3 / 架构#5）——已收口（Z-16-F1 2026-08-19）
+原 7 常量（CHAT_POLL_MS/CHAT_BUBBLE_DELAY_MS/POSTS_SEARCH_DEBOUNCE_MS/PUSH_COOLDOWN_SEC/REVIEW_COMMENT_MIN/PANEL_CLOSE_TIMEOUT_MS/DISPLAY_ID_PAD）在 v1→v2 迁移后：CHAT_BUBBLE_DELAY_MS/PANEL_CLOSE_TIMEOUT_MS 等 13 键被 Z-16-F1 实证全仓零消费删除（v0.25 时代机制），CHAT_POLL_MS/PUSH_COOLDOWN_SEC 等随 v2 迁移保留并继续单源使用。条目历史使命完成，保留备查。
 
 ### A5 signing.js 手写 SQL 绕过 db.js mapper（代码#6）
 signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原生 UPDATE/DELETE messages；:143-148 batch 手写 UPDATE student_demands → 收进 db.js mapper（自持表域：contract.js/signing.js 直连共享业务表需 db.js 头部注释补记）。
@@ -182,3 +182,7 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 - 🟡 **h5a-g2 MODAL_W_ONBOARD 跨层镜像奇偶**：CONFIG `'580px'`（config.js:70）与 base.css:1225 `.modal` 默认 `max-width: 580px` 构成 CSS/JS 跨层双源镜像，无自动奇偶守卫；若 base.css 默认日后改宽（如 600px），onboarding 弹窗会与其他默认 modal 静默分叉（内联 max-width 自限宽不溢出，功能无害但视觉不一致）。改法：base.css 注释联动标注 + 奇偶校验测试，或改用 CSS 变量单源。
 - 🟡 **h5a-g3 staging 冒烟清洁性**（verify-staging-smoke.mjs，审计 PASS 后观察）：①handler `res.writableEnded` 注释"客户端已断开（page.close）"与 Node 实际语义出入——destroyed socket 下 writableEnded 仍 false，守卫是防御性保险（建议注释改述或补 `res.destroyed` 判断）；②完成日志仍打"V-4-1e staging 冒烟完成"，头部已标注 h5a 扩展（后缀未对齐）；③头部第 5 项"全链路零 console/PAGEERROR/CSP"措辞略宽于实际覆盖（实际断言只过滤 CSP 相关文本 + PAGEERROR 前缀，非 CSP 的 console error 由 section 4 覆盖）。
 - 🟡 **需求 X 清理审计观察项**（2026-08-19）：①`docs/.obsidian/workspace.json` 残留已删文档编辑器打开态（Obsidian 自愈元数据，打开即丢弃，可顺手清）；②`keepalive-worker/.wrangler/` 缓存仍在（wrangler 可再生，位于保留的生产目录内，非漏删，可顺手清）。
+
+### 需求 Z 审计遗留（2026-08-19）
+- 🟡 **Z-16-F11/F14 无法定义**：Z-16 面审计报告原文无 F11/F14 的描述条目（编号漂移/登记时占位），无任何待办内容可执行。若日后从会话记录找回原文再补，否则视为空条目弃置。
+- 🟡 **Z-10-F1 写评门禁数据源（已确认实现）**：GET /api/teacher/profile 的 `signed` 字段作写评门禁数据源已接线（teacher/actions.js:80），本条无遗留。
