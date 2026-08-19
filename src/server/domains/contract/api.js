@@ -29,6 +29,7 @@ import {
   dbCreateSigning, dbConfirmSigning, dbRejectSigning, dbSetMessageBody, dbDeleteMessage, dbResolveIntent, dbResolvePush
 } from '../../../../server/db.js';
 import { acceptEligibility } from '../teacher/api.js'; // v1.2.0 T3：教师接单资格（chsi 核验 + 必填齐全）
+import { handleGetConversationBindableDemands } from '../chat/api.js'; // Z-5-F2：bindable-demands 路由 handler 在 chat 域，补 import 修复断线
 import { notifyUser } from '../../core/notify.js';
 import { logEvent } from '../../core/log.js';
 const UIC = SERVER_TEXT;
