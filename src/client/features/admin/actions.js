@@ -102,8 +102,8 @@ export async function doSubmitContentPenalty(id, type) {
   const reason = document.getElementById('penalty-reason')?.value.trim();
   if (!reason) { showToast(TEXT.ADMIN_REASON_REQUIRED, 'error'); return; }
   try {
-    // Q-2f-M2：teacher 档案无硬删分支——服务端 handleContentAction 要求 type='teacher' 必须 action='ban'
-    // （否则 400）。UI 形状失配修复：teacher 提交 ban，其余提交 delete。
+    // Q-2f-M2: teacher profile has no hard-delete branch — server handleContentAction
+    // requires action='ban' for type='teacher' (else 400). UI/API shape mismatch fix.
     const action = type === 'teacher' ? 'ban' : 'delete';
     confirm({ title: TEXT.ADMIN_PENALTY, message: TEXT.ADMIN_PENALTY_CONFIRM, needReAuth: true, onConfirm: async capToken => {
       withCaptcha(async () => {
