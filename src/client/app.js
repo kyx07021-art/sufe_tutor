@@ -5,7 +5,7 @@
 import { state, loadSession, bindUiScaleWheel } from './core/state.js';
 import { initAppearance } from './core/appearance.js'; // root-cause fix (2026-08-19): boot must assemble appearance (applyTheme injects --g-grid & all theme vars; applyOrbs renders orbs)
 import { api, apiBatch, apiUpload, setEnsureAuth } from './core/api.js';
-import { escHtml, escJsStr, mdRender, delegate } from './core/dom.js';
+import { escHtml, mdRender, delegate } from './core/dom.js';
 import { openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha, installUiBindings } from './core/ui.js';
 import { installFormBindings } from './core/ui-bindings.js';
 import { initReveals, installGlobalInteractions, installSiteReadyGate } from './core/anim.js';
@@ -59,7 +59,7 @@ export function boot() {
 
 export {
   state, api, apiBatch, apiUpload, setEnsureAuth,
-  escHtml, escJsStr, mdRender, delegate,
+  escHtml, mdRender, delegate,
   openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha,
   initReveals, dhGet, dhBatchGet, dhInvalidateDomain, startVersionProbe,
   openCaptchaModal, matchDegree, matchDims, matchLevel, renderGlassLineChart,

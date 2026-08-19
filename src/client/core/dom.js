@@ -7,13 +7,6 @@ export function escHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
-export function escJsStr(v) {
-  return String(v ?? '')
-    .replace(/\\/g, '\\')
-    .replace(/'/g, "\\'")
-    .replace(/[&"]/g, c => ({ '&': '&amp;', '"': '&quot;' }[c]));
-}
-
 export function fmtDateTime(s) {
   if (!s) return '';
   const str = String(s);

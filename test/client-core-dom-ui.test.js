@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { escHtml, escJsStr, fmtDateTime, fmtDate, mdRender, loaderHtml, renderAvatarHtml, componentShell, delegate } from '../src/client/core/dom.js';
+import { escHtml, fmtDateTime, fmtDate, mdRender, loaderHtml, renderAvatarHtml, componentShell, delegate } from '../src/client/core/dom.js';
 import { diffLines } from '../src/client/features/contract/display.js';
 import { btnLoading, btnDone, formatCountdown, checkboxItemsHtml, segTabsHtml, pickGrade, toggleTagPick, openModal, closeModal, closeAllModals, confirm, applyTabBindings, installUiBindings, installFormBindings } from '../src/client/core/ui.js';
 import { installGlobalInteractions } from '../src/client/core/anim.js';
@@ -19,10 +19,8 @@ globalThis.window = dom.window;
 globalThis.MutationObserver = class { observe() {} };
 globalThis.CustomEvent = dom.window.CustomEvent;
 
-test('escHtml/escJsStr parity semantics', () => {
+test('escHtml parity semantics', () => {
   assert.equal(escHtml(`<a b="c">'&`), '&lt;a b=&quot;c&quot;&gt;&#39;&amp;');
-    const jsOut = escJsStr("a'b<&");
-    assert.equal(jsOut, "a" + String.fromCharCode(92) + "'b<&amp;");
 });
 
 test('fmtDateTime/fmtDate', () => {
