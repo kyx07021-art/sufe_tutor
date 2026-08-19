@@ -180,6 +180,10 @@ async function handleBatch(db, body, url, req, env) {
   if (!paths.every(p => p.startsWith('/api/') && !/\s/.test(p) && p.length < 300)) {
     return errorMsg('INVALID_PARAMS', 400); // 只允许 /api/ 相对路径（防外域/协议相对/注入）
   }
+  // Z-1-F2：auth/check 是存在性探测端点，自带限流桶（RATE_LIMITS.check）；batch 子请求不经 rateGate，
+  // 放行会以批量 GET 放大 ~32 倍探测速率绕过限流——禁止该路径入 batch，保持直接 GET 为唯一入口。
+  // 按 pathname 匹配（裸路径 + 任意 query/fragment 变体全拦，审计 FAIL 修正）
+  if (paths.some(p => p.split(/[?#]/)[0] === '/api/auth/check')) return errorMsg('INVALID_PARAMS', 400);
   const results = await Promise.all(paths.map(async sub => {
     try {
       const subUrl = new URL(sub, url.origin);
@@ -331,6 +335,10 @@ export default {
       const audit = await auditBeforeWrite({ path: p, method: request.method, body, ip, userId: null });
       if (audit.reject) {
         recordRequestMetric({ path: p, status: 400, durationMs: Date.now() - t0 });
+        // Z-2-F2：审核拒绝是「写 + 400」最该留档的事件（log.js 契约：非 GET 与失败请求入留档），
+        // 原早退分支漏 logRequest 致审核事件在 activity_log 不可见——补统一落库点（同成功路径口径）
+        ctx.waitUntil(flushMetrics(db));
+        ctx.waitUntil(logRequest(db, { method: request.method, path: p, body, status: 400, req: request, durationMs: Date.now() - t0 }));
         return applySecurityHeaders(error(audit.reject, 400, audit.code), p);
       }
       // B6 公开列表边缘缓存：GET 公开列表命中缓存 → 零 D1 零留档直接返回（冷启动治本）；

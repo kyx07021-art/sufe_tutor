@@ -176,3 +176,27 @@ test('批量请求体不接写方法：子请求恒 GET 语义（服务端只读
   // 子路径按 GET 路由（单条已读是 POST 路由 → GET 404），证明批量子请求只走 GET 路由面
   assert.equal(results[0].status, 404, '写方法路径经 GET 面不存在 → 404（防批量伪装写）');
 });
+
+test('Z-1-F2 回归：auth/check 存在性探测禁止入 batch（裸路径/query 变体/混合批全拦 → 400）', async (t) => {
+  const { env } = await setup(t);
+  // 防 /api/batch 放大 ~32 倍探测速率绕过 RATE_LIMITS.check（batch 子请求不经 rateGate）
+  for (const gets of [
+    ['/api/auth/check'],
+    ['/api/auth/check?identifier=qa_s'],
+    ['/api/auth/check?x=1&identifier=qa_s'],
+    ['/api/auth/check#frag'],
+    ['/api/teachers', '/api/auth/check?identifier=qa_s'],
+  ]) {
+    const res = await worker.fetch(new Request('https://test.local/api/batch', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ gets }),
+    }), env, ctx);
+    assert.equal(res.status, 400, `batch 含 /api/auth/check 应 400：${JSON.stringify(gets)}`);
+  }
+  // 对照：不含 check 的正常批量仍 200（不误伤）
+  const ok = await worker.fetch(new Request('https://test.local/api/batch', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ gets: ['/api/teachers'] }),
+  }), env, ctx);
+  assert.equal(ok.status, 200, '正常批量不受影响');
+});
