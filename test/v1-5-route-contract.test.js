@@ -151,3 +151,28 @@ test('Q-5-F1: 畸形/双解码参数 404 而非 500（无二次解码 URIError�
   const double = await routeApi(db, '/api/users/abc%2Fdef', 'GET', null, new URL('http://x/api/users/abc%2Fdef'), { headers: new Headers() }, ENV);
   assert.equal(double.status, 404, '已解码 %2F 参数 404（不二次解码成 id=abc/def）');
 });
+
+test('AF-6: route-level dirty id params return 404, never 500', async () => {
+  // Q-2a-L2 observation: parseIdParam strict parsing is locked at unit level
+  // (test/parse-id-param.test.js); this locks the same guarantee at the route
+  // dispatch level. A dirty segment still matches the route regex
+  // (/api/users/:id compiles to ^/api/users/([^/]+)$), but the handler receives
+  // parseIdParam() === null and 404s via "WHERE id = NULL matches no row".
+  // Mutation: relaxing parseIdParam back to parseInt makes /api/users/1abc hit
+  // id=1 (the seeded admin row exists) -> 200 -> this test goes red.
+  const dirty = [
+    ['/api/users/1abc', 'prefix-digit truncation: parseInt("1abc")===1 would hit a primary key'],
+    ['/api/users/abc', 'fully non-numeric segment'],
+    ['/api/users/1.5', 'decimal'],
+    ['/api/users/0x10', 'hex form'],
+    ['/api/users/+7', 'sign prefix'],
+  ];
+  for (const [path, why] of dirty) {
+    const res = await call('GET', path);
+    assert.equal(res.status, 404, `${path} must be 404 (${why}), got ${res.status}`);
+  }
+  // /api/demands/:id has no GET route — a dirty path there must hit the router
+  // no-match 404 instead of surfacing as a 500.
+  const noMatch = await call('GET', '/api/demands/abc');
+  assert.equal(noMatch.status, 404, '/api/demands/abc must be 404 (no matching route), not 500');
+});
