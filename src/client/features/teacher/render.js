@@ -141,7 +141,10 @@ export function reviewModalHtml() {
 // profile-derived value is escHtml'd before interpolating into attributes.
 export function renderTeacherProfileForm(profile) {
   const p = profile || {};
-  const subjPool = [...SUBJECTS.map(s => s.id), ...Object.keys(SUFE_REGIONS.subjectNames || {})];
+  // F1d3: subjectNames is derived from SUBJECTS (plus region extras like ZJ technology), so the
+  // pool must be deduped — otherwise math/english etc. render as duplicate checkboxes and the
+  // collected subjects array repeats ids (server dedupes, but the UI shows duplicates).
+  const subjPool = [...new Set([...SUBJECTS.map(s => s.id), ...Object.keys(SUFE_REGIONS.subjectNames || {})])];
   const subjOptions = subjPool.map(id => ({ id, name: SUFE_REGIONS.subjectNames[id] || subjectNames(id) }));
   const escNum = v => (v != null ? escHtml(String(v)) : '');
   const gradYear = p.graduation_year != null ? p.graduation_year : '';

@@ -362,3 +362,77 @@ test('F1d2 科目勾选变化 → 编辑器重渲染（首选 pill 出现）', a
   assert.ok(el.querySelector('#tp-gaokao [data-gk-role="first"] .gk-pill'), '勾选 physics 后首选 pill 出现');
   teardown();
 });
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1 F1d3：收集/校验/提交。payload.profile 形状与服务端 handleSaveProfile 契约一致
+// （province/grade/gender/subjects/price/method/time_slots JSON 串/gaokao_scores 数组/
+// 非学科报价行/credential 回传）；必填校验失败零请求；成功回读刷新。
+// ─────────────────────────────────────────────────────────────
+
+const F3_SAVE_PROFILE = {
+  province: 'shanghai', teaching_method: 'online', grade: 'sophomore', gender: 'female',
+  subjects: ['math', 'english'], price_min: 100, price_max: 150,
+  time_slots: JSON.stringify([{ type: 'week', dow: 1, start: '18:00', end: '20:00' }]),
+  wechat: 'wx', email: 't@e.com', intro: 'hello', real_name: '王老师', school: '上财',
+};
+
+test('F1d3 提交：payload shape 与服务端契约一致 + 成功回读', async () => {
+  setup();
+  let postBody = null;
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') { postBody = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ message: 'ok' }) }; }
+    return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
+  };
+  await actions.enterTeacherProfile();
+  const el = dom.window.document.getElementById('teacher-profile-content');
+  el.querySelector('#tp-grad-year').value = '2022';
+  el.querySelector('#tp-gaokao input[data-gk-subject="math"]').value = '145'; // shanghai 3+3 主科
+  await actions.saveProfile();
+  assert.ok(postBody, 'POST /api/teacher/profile 已发出');
+  const p = postBody.profile;
+  assert.equal(p.province, 'shanghai');
+  assert.equal(p.grade, 'sophomore');
+  assert.equal(p.gender, 'female');
+  assert.deepEqual(p.subjects, ['math', 'english']);
+  assert.equal(p.price_min, '100');
+  assert.equal(p.price_max, '150');
+  assert.equal(p.teaching_method, 'online');
+  assert.equal(JSON.parse(p.time_slots)[0].dow, 1, 'time_slots JSON 串形状');
+  assert.ok(Array.isArray(p.gaokao_scores) && p.gaokao_scores.some(g => g.subject === 'math' && g.score === 145), 'gaokao_scores 收集（数学 145）');
+  assert.equal(p.credential_image, '', '空凭证回传空（不误清已有值）');
+  assert.equal(p.wechat, 'wx');
+  assert.equal(p.real_name, '王老师');
+  assert.equal(p.address, '', '无地址回传空');
+  teardown();
+});
+
+test('F1d3 必填校验：缺必填（空表单）→ toast + 零 POST', async () => {
+  setup();
+  let called = false;
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') { called = true; return { ok: true, json: async () => ({}) }; }
+    return { ok: true, status: 200, json: async () => ({ profile: null }) };
+  };
+  await actions.enterTeacherProfile();
+  await actions.saveProfile();
+  assert.equal(called, false, '零 POST 请求');
+  const toast = dom.window.document.getElementById('toast-container');
+  assert.ok(toast.textContent.includes('请完善教师档案必填项'), '必填提示 toast');
+  teardown();
+});
+
+test('F1d3 time_slots 必填：无时间段 → toast + 零 POST', async () => {
+  setup();
+  let called = false;
+  const profile = { province: 'shanghai', teaching_method: 'online', grade: 'sophomore', gender: 'female', subjects: ['math', 'english'], price_min: 100, price_max: 150 };
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') { called = true; return { ok: true, json: async () => ({}) }; }
+    return { ok: true, status: 200, json: async () => ({ profile }) };
+  };
+  await actions.enterTeacherProfile();
+  await actions.saveProfile();
+  assert.equal(called, false, '零 POST 请求');
+  const toast = dom.window.document.getElementById('toast-container');
+  assert.ok(toast.textContent.includes('可授课时间段'), '时间段必填提示');
+  teardown();
+});

@@ -7,14 +7,14 @@ import { CONFIG } from '../../../shared/config.js';
 import { SUFE_REGIONS } from '../../../shared/region-data.js'; // contract 9: province policy single source
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
-import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
+import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { demandIsActive } from '../student/display.js';
 import { positionFloatCard } from '../../core/anim.js';
-import { bindTimeSlotTree, prefillTimeSlots } from '../../core/ui-form.js';
+import { bindTimeSlotTree, prefillTimeSlots, validateTimeSlots, collectTimeSlots } from '../../core/ui-form.js';
 import { mountShanghaiAddrPicker } from '../region/actions.js';
 
 let profilePanelUserId = null;
@@ -278,6 +278,11 @@ export function renderProfileInfoCard(t) { return renderProfilePanel(t, ''); }
 // Z-3-F1 F1c: enter the teacher-profile page — GET own profile, render the edit form,
 // prefill time slots and the Shanghai address picker. Replacements (province→subjects,
 // nonacademic price rows, gaokao editor, save submit) land in F1d1/F1d2/F1d3.
+// F1d3: the Xuexin screenshot lives in teacher_profiles.credential_image (uploaded via the old
+// profile flow); profile save must echo the current value back or the dbUpsert overwrite clears it
+// (encryptField(profile.credential_image || '')). The v2 verification UI (F1e) writes the separate
+// admission image to teacher_verifications — this echo only preserves the existing credential.
+let _currentCredential = '';
 export async function enterTeacherProfile() {
   const el = document.getElementById('teacher-profile-content');
   if (!el) return;
@@ -285,12 +290,73 @@ export async function enterTeacherProfile() {
   try {
     const data = await api('/api/teacher/profile', { method: 'GET' });
     if (!el) return; // page switched away while loading
+    _currentCredential = data.profile ? (data.profile.credential_image || '') : '';
     el.innerHTML = renderTeacherProfileForm(data.profile || null);
     initTeacherProfileForm(data.profile || null);
   } catch (err) {
     if (!el) return;
     el.innerHTML = `<div class="empty-state"><p>${TEXT.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
+}
+
+// Z-3-F1 F1d3: collect every field from the form, validate the required set (F1c markers:
+// province/grade/gender/subjects/price/teaching method/time slots), POST to /api/teacher/profile,
+// toast success, then re-fetch to echo the saved state. In-flight guard = btnLoading disables the
+// button (F6); the teacher list cache is invalidated so the public card reflects the save (F7).
+export async function saveProfile() {
+  const val = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  const province = val('tp-province');
+  const grade = val('tp-grade');
+  const gender = val('tp-gender');
+  const subjects = [...document.querySelectorAll('#tp-subjects input:checked')].map(cb => cb.value);
+  const priceMin = val('tp-price-min');
+  const priceMax = val('tp-price-max');
+  const method = val('tp-method');
+  if (!province || !grade || !gender || !subjects.length || !priceMin || !method) {
+    showToast(TEXT.VALIDATE_TEACHER_PROFILE_REQUIRED, 'error'); return;
+  }
+  const ts = document.getElementById('tp-time-slots');
+  const timeErr = ts ? validateTimeSlots(ts) : '';
+  if (timeErr) { showToast(timeErr, 'error'); return; }
+  const timeSlots = ts ? collectTimeSlots(ts) : [];
+  if (!timeSlots.length) { showToast(TEXT.VALIDATE_SELECT_TIME_SLOTS, 'error'); return; }
+  if (priceMin && priceMax && +priceMin > +priceMax) { showToast(TEXT.VALIDATE_BUDGET_RANGE, 'error'); return; }
+  const personalityTags = [...document.querySelectorAll('#tp-personality .tag-pick.selected')].map(b => b.dataset.id);
+  const nonacademicProjects = [...document.querySelectorAll('#tp-nonacademic .tag-pick.selected')].map(b => b.dataset.id);
+  const nonacademicPrices = [...document.querySelectorAll('#tp-nonacademic-prices .price-row')].map(row => ({
+    project: row.dataset.project,
+    price_min: row.querySelector('[data-field="min"]').value,
+    price_max: row.querySelector('[data-field="max"]').value,
+  })).filter(r => r.price_min !== '' || r.price_max !== '');
+  const payload = { profile: {
+    province, grade, gender,
+    school: val('tp-school').trim(),
+    real_name: val('tp-real-name').trim(),
+    graduation_year: val('tp-grad-year'),
+    subjects,
+    price_min: priceMin,
+    price_max: priceMax,
+    teaching_method: method,
+    time_slots: JSON.stringify(timeSlots),
+    personality_tags: personalityTags,
+    nonacademic_projects: nonacademicProjects,
+    nonacademic_prices: nonacademicPrices,
+    gaokao_scores: collectTeacherGaokao(),
+    intro: val('tp-intro').trim(),
+    address: val('tp-address'),
+    wechat: val('tp-wechat').trim(),
+    email: val('tp-email').trim(),
+    credential_image: _currentCredential,
+  }};
+  const btn = document.querySelector('[data-action="teacher.saveProfile"]');
+  try {
+    if (btn) btnLoading(btn);
+    await api('/api/teacher/profile', { method: 'POST', body: payload });
+    invalidate('teachers'); // public card reflects the save (F7)
+    showToast(TEXT.SUCCESS_PROFILE_SAVED);
+    await enterTeacherProfile(); // re-fetch + re-render echoes the saved state
+  } catch (err) { showToast(err.message); }
+  finally { if (btn) btnDone(btn, TEXT.BTN_SAVE); }
 }
 
 // Z-3-F1 F1d1: field interactions on the teacher profile form. Idempotent — form.dataset

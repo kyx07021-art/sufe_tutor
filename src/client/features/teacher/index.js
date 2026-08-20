@@ -23,6 +23,8 @@ const ACTION_MAP = {
   // Z-3-F1 F1d2: gaokao editor first-subject / science-arts-track pill switches
   'teacher.pickGkPill': el => actions.pickGkPill(el),
   'teacher.pickGkTrack': el => actions.pickGkTrack(el),
+  // Z-3-F1 F1d3: profile form save (collect → validate → POST → toast + re-fetch)
+  'teacher.saveProfile': actions.saveProfile,
 };
 
 let installed = false;
