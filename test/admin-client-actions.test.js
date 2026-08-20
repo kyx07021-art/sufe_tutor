@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -156,5 +156,75 @@ test('U-3a rework F1：toggleTeacherVerify 走 confirm needReAuth，未确认零
   assert.ok(modal.querySelector('#reauth-password'), 'needReAuth 密码输入在位');
   assert.equal(verifyCalled, false, '未确认前零 POST');
   await new Promise(r => setTimeout(r, 80)); // let confirm's REAUTH_FOCUS_MS(50) timer settle before teardown clears document
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1/U-3k：邀请码管理——生成/列表表格/作废。纯标准接口消费（前后端解耦）。
+// G2：删表格列/revoke 按钮必红。
+// ─────────────────────────────────────────────────────────────
+
+test('U-3k generateInviteCode：POST 生成 → modal 显示 code + 复制按钮（data-action）', async () => {
+  const dom = setup();
+  let posted = false;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/admin/invite') && opts.method === 'POST') { posted = true; return { ok: true, status: 200, json: async () => ({ code: 'ABC123' }) }; }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  await generateInviteCode();
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(posted, 'POST /api/admin/invite');
+  assert.ok(modal, '弹窗出现');
+  assert.ok(modal.textContent.includes('ABC123'), '生成码展示');
+  assert.ok(modal.textContent.includes('无有效期'), '无有效期提示');
+  assert.ok(modal.querySelector('[data-action="admin.copyInvite"][data-code="ABC123"]'), '复制按钮带 code');
+  assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
+  teardown();
+});
+
+test('U-3k openInviteManager：GET 列表 → 表格（code/状态/使用者/时间/作废按钮）', async () => {
+  const dom = setup();
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/invites'), 'GET /api/admin/invites');
+    return { ok: true, status: 200, json: async () => ({ invites: [
+      { code: 'USED001', used_by: 9, used_by_username: '已用者', created_at: '2026-08-01 12:00:00' },
+      { code: 'ACTIVE01', used_by: null, created_at: '2026-08-02 12:00:00' },
+    ] }) };
+  };
+  openInviteManager();
+  await new Promise(r => setTimeout(r, 20)); // api then 回调落定
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, '弹窗出现');
+  assert.ok(modal.textContent.includes('USED001') && modal.textContent.includes('ACTIVE01'), '两码渲染');
+  assert.ok(modal.textContent.includes('已使用') && modal.textContent.includes('未使用'), '状态 tag');
+  assert.ok(modal.textContent.includes('已用者'), '使用者列');
+  const revokeBtn = modal.querySelector('[data-action="admin.revokeInvite"][data-code="ACTIVE01"]');
+  assert.ok(revokeBtn, '未使用码有作废按钮');
+  assert.ok(!modal.querySelector('[data-action="admin.revokeInvite"][data-code="USED001"]'), '已使用码无作废按钮');
+  assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
+  teardown();
+});
+
+test('U-3k openInviteManager 空列表：空态文案', async () => {
+  const dom = setup();
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ invites: [] }) });
+  openInviteManager();
+  await new Promise(r => setTimeout(r, 20));
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal.textContent.includes('还没有邀请码'), '空态文案');
+  teardown();
+});
+
+test('U-3k revokeInvite：confirm 确认 → DELETE → toast', async () => {
+  const dom = setup();
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/admin/invites/ACTIVE01') && opts.method === 'DELETE') return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    if (String(url).includes('/api/admin/invites')) return { ok: true, status: 200, json: async () => ({ invites: [] }) };
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  revokeInvite('ACTIVE01');
+  const confirmModal = dom.window.document.querySelector('.modal');
+  assert.ok(confirmModal, '确认弹窗出现');
+  assert.ok(confirmModal.textContent.includes('确认作废该邀请码吗'), '作废确认文案');
   teardown();
 });
