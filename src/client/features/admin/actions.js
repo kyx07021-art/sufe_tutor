@@ -18,7 +18,7 @@ import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared e
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, confirm, withCaptcha } from '../../core/ui.js';
-import { escHtml, fmtDateTime } from '../../core/dom.js';
+import { escHtml, fmtDateTime, loaderHtml } from '../../core/dom.js';
 import { priceRangeText } from '../../core/display.js';
 import { teacherGradeName, ratingText } from '../teacher/display.js'; // U-3a: teacher row meta (grade/rating) display mappings
 
@@ -58,7 +58,10 @@ export async function loadAdminStats() {
         ])}</div>` +
         `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_INVITES)}</h4>${adminOpsRows([
           [TEXT.ADMIN_STAT_INVITES_USED, inv.used], [TEXT.ADMIN_STAT_INVITES_ACTIVE, inv.active],
-        ])}</div>` +
+        ])}<div class="ops-row ops-row--actions">
+          <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.genInvite">${escHtml(TEXT.BTN_GENERATE_INVITE)}</button>
+          <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.openInviteManager">${escHtml(TEXT.ADMIN_INVITE)}</button>
+        </div></div>` +
         `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TODO)}</h4>${adminOpsRows([
           [TEXT.ADMIN_STAT_VERIFY_PENDING, dt.verificationsPending],
           [TEXT.ADMIN_STAT_REVIEWS_PENDING, dt.reviewsPending],
@@ -269,21 +272,52 @@ export function confirmBanUser(id, banned = true, role = ROLES.STUDENT) {
 }
 export function doBanUser(id) { return confirmBanUser(id, true); }
 
+// U-3k: invite-code issuance/management — v1-parity but data-action delegated (zero inline
+// handlers, contract 6). Pure API consumers: POST /api/admin/invite, GET /api/admin/invites,
+// DELETE /api/admin/invites/:code (backend business capability, no frontend coupling).
 export async function generateInviteCode() {
   try {
     const data = await api('/api/admin/invite', { method: 'POST', body: {} });
-    openModal({ title: TEXT.ADMIN_INVITE, body: `<code>${escHtml(data.code || '')}</code>` });
+    const code = data.code || '';
+    const body = `<div class="invite-new">
+      <p class="invite-code-text" id="invite-code-text">${escHtml(code)}</p>
+      <p class="text-sm text-muted">${escHtml(TEXT.INVITE_NO_EXPIRY)}</p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-soft glass glass--pressable" data-action="admin.copyInvite" data-code="${escHtml(code)}">${escHtml(TEXT.BTN_COPY_CODE)}</button>
+      </div>
+    </div>`;
+    openModal({ title: TEXT.ADMIN_INVITE, body, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
   } catch (err) { showToast(err.message); }
 }
 
 export function openInviteManager() {
+  openModal({ title: TEXT.ADMIN_INVITE, cls: 'modal--wide', body: `<div class="invite-manager" id="invite-manager-body"><div class="empty-state empty-state--small"><p>${loaderHtml('sm')}</p></div></div>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
   api('/api/admin/invites', { method: 'GET' }).then(data => {
-    openModal({ title: TEXT.ADMIN_INVITE, body: (data.invites || []).map(i => `<div class="list-card glass">${escHtml(i.code)}</div>`).join('') });
-  }).catch(err => showToast(err.message));
+    const list = data.invites || [];
+    const el = document.getElementById('invite-manager-body');
+    if (!el) return;
+    if (!list.length) { el.innerHTML = `<p class="profile-empty">${escHtml(TEXT.INVITE_MANAGER_EMPTY)}</p>`; return; }
+    el.innerHTML = `<table class="invite-manager-table">
+      <thead><tr><th>${escHtml(TEXT.INVITE_MANAGER_CODE)}</th><th>${escHtml(TEXT.INVITE_MANAGER_STATUS)}</th><th>${escHtml(TEXT.INVITE_MANAGER_USED_BY)}</th><th>${escHtml(TEXT.INVITE_MANAGER_CREATED)}</th><th></th></tr></thead>
+      <tbody>${list.map(inv => `<tr>
+        <td class="invite-m-code">${escHtml(inv.code)}</td>
+        <td>${inv.used_by ? `<span class="tag tag-ok glass glass--solid">${escHtml(TEXT.INVITE_MANAGER_USED)}</span>` : `<span class="tag tag-accent glass glass--solid">${escHtml(TEXT.INVITE_MANAGER_ACTIVE)}</span>`}</td>
+        <td>${inv.used_by ? escHtml(inv.used_by_username || ('#' + inv.used_by)) : '—'}</td>
+        <td class="invite-m-meta">${fmtDateTime(inv.created_at)}</td>
+        <td>${inv.used_by ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.revokeInvite" data-code="${escHtml(inv.code)}">${escHtml(TEXT.INVITE_MANAGER_REVOKE)}</button>`}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }).catch(err => { const el = document.getElementById('invite-manager-body'); if (el) el.innerHTML = `<p class="profile-empty">${escHtml(err.message)}</p>`; });
 }
 
 export function revokeInvite(code) {
-  api(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE' }).then(() => { showToast(TEXT.ADMIN_DONE); openInviteManager(); }).catch(err => showToast(err.message));
+  confirm({ title: TEXT.INVITE_MANAGER_TITLE, message: TEXT.INVITE_REVOKE_CONFIRM, onConfirm: () => {
+    api(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE' }).then(() => { showToast(TEXT.INVITE_MANAGER_REVOKED); openInviteManager(); }).catch(err => showToast(err.message));
+  }});
+}
+
+export function copyInviteCode(code) {
+  navigator.clipboard?.writeText(code).then(() => showToast(TEXT.SUCCESS_COPIED)).catch(() => showToast(TEXT.ERROR_COPY));
 }
 
 

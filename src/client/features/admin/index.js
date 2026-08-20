@@ -20,6 +20,11 @@ const ACTION_MAP = {
   'admin.viewProfile': el => actions.openProfilePanel(Number(el.dataset.id)),
   'admin.verifyTeacher': el => actions.toggleTeacherVerify(Number(el.dataset.id), true),
   'admin.unverify': el => actions.toggleTeacherVerify(Number(el.dataset.id), false),
+  // U-3k: invite-code issuance/management (admin-stats block + manager modal)
+  'admin.genInvite': actions.generateInviteCode,
+  'admin.openInviteManager': actions.openInviteManager,
+  'admin.revokeInvite': el => actions.revokeInvite(el.dataset.code),
+  'admin.copyInvite': el => actions.copyInviteCode(el.dataset.code),
 };
 let installed = false;
 function onActionClick(e) {
