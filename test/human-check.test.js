@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { humanTrajectoryCheck, markChallengePassed, handleCaptchaVerify } from '../server/human-check.js';
+import { humanTrajectoryCheck, markChallengePassed, handleCaptchaVerify, PASS_SCORE } from '../server/human-check.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -41,14 +41,14 @@ test('人样轨迹：慢快慢 + 抖动 + 合理时长 → 通过', () => {
   for (let i = 0; i < 5; i++) { // 多次随机抖动应稳定通过
     const r = humanTrajectoryCheck(humanTrack());
     assert.equal(r.ok, true, `第 ${i + 1} 条人样轨迹应通过，实际 score=${r.score} reason=${r.reason}`);
-    assert.ok(r.score >= 70);
+    assert.ok(r.score >= PASS_SCORE, `人样轨迹分数 ${r.score} 应 ≥ 放行阈值 ${PASS_SCORE}`);
   }
 });
 
 test('机器轨迹：匀速 + 瞬时 + 无抖动 → 拒绝', () => {
   const r = humanTrajectoryCheck(botTrack());
   assert.equal(r.ok, false, `机器轨迹应拒绝，实际 score=${r.score}`);
-  assert.ok(r.score < 70);
+  assert.ok(r.score < PASS_SCORE, `机器轨迹分数 ${r.score} 应 < 放行阈值 ${PASS_SCORE}`);
 });
 
 test('轨迹缺失 / 点数过少 / 非法点 → 拒绝', () => {
