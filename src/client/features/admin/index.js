@@ -13,6 +13,8 @@ const ACTION_MAP = {
   'admin.rejectReview': el => api(`/api/admin/reviews/${el.dataset.id}/reject`, { method: 'POST', body: {} }).then(() => { invalidate('admin'); actions.loadAdminReviews(); }).catch(() => {}), // Q-3b-F3
   'admin.penalty': el => actions.openContentPenaltyModal(el.dataset.id, el.dataset.type),
   'admin.submitPenalty': el => actions.doSubmitContentPenalty(el.dataset.id, el.dataset.type),
+  // U-3f: posts management — full-text view + remove (capToken via needReAuth confirm)
+  'admin.openPostView': el => actions.openPostViewModal(Number(el.dataset.id)),
   'admin.deletePost': el => actions.adminDeletePost(Number(el.dataset.id)),
   'admin.submitAwardReject': el => actions.doAwardAction(Number(el.dataset.id), 'reject'),
   // U-3d: award review — view proof, approve (confirm), reject (reason modal)

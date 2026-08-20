@@ -8,7 +8,7 @@ import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared e
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha } from '../../core/ui.js';
-import { escHtml, fmtDateTime, loaderHtml } from '../../core/dom.js';
+import { escHtml, fmtDateTime, loaderHtml, mdRender } from '../../core/dom.js'; // U-3f: post full-text modal via shared mdRender
 import { priceRangeText } from '../../core/display.js';
 import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from '../teacher/display.js'; // U-3a: teacher row meta; U-3c: review stars/status tag
 import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand card (admin:true reuse, W6)
@@ -242,6 +242,8 @@ export async function doSubmitContentPenalty(id, type) {
 }
 
 
+let _adminPostsCache = []; // U-3f: post full-text modal data source (closure, not window)
+
 export async function loadAdminPosts() {
   try {
     // Q-3b-F1: `/api/posts?sort=new` is shared with the posts domain; the cache key must carry
@@ -249,18 +251,42 @@ export async function loadAdminPosts() {
     // writes domain='admin' first, invalidate('posts')/dhRefreshDomain('posts') miss and the list
     // stays stale forever (server delete bumps only [POSTS]).
     const data = await dhGet('/api/posts?sort=new', { domain: 'posts' });
+    _adminPostsCache = data.posts || []; // U-3f: full-text modal data source (v1 parity: closure not window)
     const el = document.getElementById('admin-posts-list');
-    if (el) el.innerHTML = (data.posts || []).map(renderAdminPostRow).join('');
+    if (el) el.innerHTML = _adminPostsCache.length ? _adminPostsCache.map(renderAdminPostRow).join('') : `<p class="empty-state">${escHtml(TEXT.ADMIN_POSTS_EMPTY)}</p>`;
   } catch (err) { showToast(err.message); }
 }
 
+// U-3f: v1-parity admin post row — title + author + like count + created_at + view/remove
+// buttons (data-action delegation, zero inline). The remove button carries capToken via
+// adminDeletePost's needReAuth confirm (server now requires it for admin deletes).
 export function renderAdminPostRow(p) {
-  return `<div class="list-card glass admin-post-row"><span>${escHtml(p.title || '')}</span>
-    <button type="button" class="btn btn-sm btn-outline glass glass--pressable" data-action="admin.deletePost" data-id="${p.id}">${TEXT.BTN_DELETE}</button></div>`;
+  return `<div class="admin-row glass admin-post-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line">
+        <strong>${escHtml(p.title || '')}</strong>
+        <span class="text-muted">${escHtml(p.username || '')}</span>
+        <span class="list-card-meta">${p.like_count || 0} ${escHtml(TEXT.POST_LIKE_ARIA)}</span>
+      </div>
+      <div class="admin-row-meta">${fmtDateTime(p.created_at)}</div>
+    </div>
+    <div class="admin-row-actions">
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.openPostView" data-id="${p.id}">${escHtml(TEXT.BTN_VIEW)}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.deletePost" data-id="${p.id}">${escHtml(TEXT.BTN_REMOVE)}</button>
+    </div>
+  </div>`;
 }
 
+// U-3f: full-text modal — shared mdRender (core/dom.js) renders the post body.
 export function openPostViewModal(id) {
-  openModal({ title: TEXT.ADMIN_POST_VIEW, body: `<p>${String(id)}</p>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${TEXT.BTN_CLOSE}</button>` });
+  const p = _adminPostsCache.find(x => x.id === id);
+  if (!p) { showToast(TEXT.ADMIN_POST_NOT_FOUND, 'error'); return; }
+  openModal({
+    title: p.title || '', cls: 'modal--wide',
+    body: `<p class="text-sm text-muted modal-sub-info">${escHtml(p.username || '')} · ${fmtDateTime(p.created_at)}</p>
+      <div class="md-preview glass glass--solid">${mdRender(p.body_md || '')}</div>`,
+    footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>`,
+  });
 }
 
 export function adminDeletePost(id) {

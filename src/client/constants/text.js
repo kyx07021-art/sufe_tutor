@@ -455,6 +455,7 @@ export const TEXT = {
   "CONTRACT_VERIFY_CD_PREFIX": "#CD",
   "CONTRACT_VERIFY_ENTRY_UNIT": "条",
   "ADMIN_POSTS_EMPTY": "还没有教师发布资料，新帖子会出现在这里。",
+  "ADMIN_POST_NOT_FOUND": "没有找到这篇帖子",
   "PAGE_ADMIN_CONTRACTS": "合同管理",
   "PAGE_ADMIN_CONTRACTS_DESC": "查看全站合同与状态，仅用于处理异常数据",
   "ADMIN_CONTRACTS_EMPTY": "还没有合同记录。",
