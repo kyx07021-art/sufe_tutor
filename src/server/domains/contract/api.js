@@ -568,6 +568,8 @@ export async function handleAdminRemoveContract(db, contractId, body, req) {
   if (err) return err;
   const ct = await dbGetContractById(db, contractId);
   if (!ct) return errorMsg('CONTRACT_NOT_FOUND', 404);
+  // P12：管理员移除合同 = 危险操作（删除行 + 释放绑定需求），须 capToken 二次认证（同 U-3e/F 口径）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   await dbDeleteContract(db, contractId);
   // 删除已签合同时同步释放绑定需求（contracted→revoked，待所有者手动重开）——
   // 否则需求永久滞留 contracted（不可见、不可 reopen），与撤销合同同径处理
