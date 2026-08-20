@@ -7,8 +7,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRevoke, viewAdmissionImage } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
+import { _dhResetForTests } from '../src/client/core/datahub.js';
 
 function setup() {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="modal-container"></div><div id="toast-container"></div></body></html>', { url: 'http://localhost/' });
@@ -445,5 +446,126 @@ test('U-3d rejectAwardModal：驳回弹窗含理由输入 + 必填 hint + 确认
   assert.ok(modal.textContent.includes('驳回理由（必填，将通知教师）'), '必填 hint');
   assert.ok(modal.querySelector('[data-action="admin.submitAwardReject"][data-id="67"]'), '确认按钮带 id');
   assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1/U-3e：学信网核验队列——v1-parity 卡片（四态 tag + 验证码 + admission 预览 +
+// 结构化 approve 表单 / reject / revoke），危险操作走 needReAuth 二次认证。
+// G2：删 PENDING 表单/删 status tag/删 revoke 按钮必红。
+// ─────────────────────────────────────────────────────────────
+
+test('U-3e renderVerifCard pending：用户 + 验证码 + 待核验 tag + 结构化表单（5 输入 + approve/reject）', () => {
+  const html = renderVerifCard({ id: 80, username: '教师甲', user_id: 5, verify_type: 'chsi', verify_code: 'ABCD1234EFGH', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '', admission_image: '' });
+  assert.ok(html.includes('教师甲'), '用户名');
+  assert.ok(html.includes('ABCD1234EFGH'), '验证码明文（管理员核验用）');
+  assert.ok(html.includes('待核验'), 'pending 状态 tag');
+  assert.ok(html.includes('verif-school-80') && html.includes('verif-level-80') && html.includes('verif-major-80') && html.includes('verif-status-80') && html.includes('verif-year-80'), '5 个结构化输入');
+  assert.ok(html.includes('data-action="admin.verifApprove" data-id="80"'), 'approve 按钮委托');
+  assert.ok(html.includes('data-action="admin.verifReject" data-id="80"'), 'reject 按钮委托');
+  assert.ok(!html.includes('data-action="admin.verifRevoke"'), 'pending 无撤销按钮');
+  assert.ok(!/onclick=/.test(html), '零内联事件');
+});
+
+test('U-3e renderVerifCard approved：学籍结果行 + 撤销按钮 + 无表单', () => {
+  const html = renderVerifCard({ id: 81, username: '教师乙', user_id: 6, verify_type: 'chsi', verify_code: 'ABCD1234EFGH', status: 'approved', created_at: '2026-08-01 12:00:00', verified_at: '2026-08-02 12:00:00', school: '上海财经大学', level: '本科', major: '金融', enrollment_status: '在籍', enroll_year: '2026', admission_image: '' });
+  assert.ok(html.includes('已通过'), 'approved tag');
+  assert.ok(html.includes('上海财经大学 · 本科 · 金融 · 在籍 · 2026'), '学籍结果行');
+  assert.ok(html.includes('data-action="admin.verifRevoke" data-id="81"'), '撤销按钮');
+  assert.ok(!html.includes('verif-school-81'), 'approved 无表单');
+  assert.ok(!html.includes('data-action="admin.verifApprove"'), 'approved 无 approve 按钮');
+});
+
+test('U-3e renderVerifCard admission：录取通知书 tag + 无验证码标记 + 原图预览按钮', () => {
+  const html = renderVerifCard({ id: 82, username: '教师丙', user_id: 7, verify_type: 'admission', verify_code: '', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '', admission_image: 'data:image/png;base64,BBB' });
+  assert.ok(html.includes('录取通知书'), 'admission tag');
+  assert.ok(html.includes('录取通知书核验（无验证码）'), '无验证码标记');
+  assert.ok(html.includes('data-action="admin.viewAdmissionImage" data-id="82"'), '原图预览按钮');
+});
+
+test('U-3e loadAdminVerifications：带 status 参数请求 + 渲染 + 空态', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-verifications-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/verifications?status=pending'), 'status 参数下推');
+    return { ok: true, status: 200, json: async () => ({ verifications: [{ id: 83, username: '教师丁', user_id: 8, verify_type: 'chsi', verify_code: 'X', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '', admission_image: '' }] }) };
+  };
+  await loadAdminVerifications('pending');
+  assert.ok(list.innerHTML.includes('教师丁'), '核验行渲染');
+  teardown();
+});
+
+test('U-3e loadAdminVerifications 空列表：空态文案', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-verifications-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ verifications: [] }) });
+  await loadAdminVerifications();
+  assert.ok(list.innerHTML.includes('没有核验记录'), '空态文案');
+  teardown();
+});
+
+test('U-3e verifApprove 空 school/level：必填拦截零请求', async () => {
+  const dom = setup();
+  let apiCalls = 0;
+  globalThis.fetch = async () => { apiCalls++; return { ok: true, status: 200, json: async () => ({}) }; };
+  verifApprove(84); // no school/level inputs -> required toast
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal(apiCalls, 0, '必填未填零请求');
+  assert.ok(document.getElementById('toast-container')?.textContent.includes('院校与层次为必填项'), '必填提示 toast');
+  teardown();
+});
+
+test('U-3e verifApprove 带字段：confirm needReAuth 弹窗（含密码输入），未确认零 POST', async () => {
+  const dom = setup();
+  let posted = false;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/admin/verifications/85/action') && opts.method === 'POST') { posted = true; return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  const school = document.createElement('input'); school.id = 'verif-school-85'; school.value = '上海财经大学';
+  const level = document.createElement('input'); level.id = 'verif-level-85'; level.value = '本科';
+  document.body.appendChild(school); document.body.appendChild(level);
+  verifApprove(85);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, 'confirm 弹窗出现');
+  assert.ok(modal.querySelector('#reauth-password'), 'needReAuth 密码输入在位');
+  assert.equal(posted, false, '未确认前零 POST');
+  await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
+  teardown();
+});
+
+test('U-3e verifReject/verifRevoke：confirm needReAuth 弹窗（二次认证）', async () => {
+  const dom = setup();
+  verifReject(86);
+  const rm = dom.window.document.querySelector('.modal');
+  assert.ok(rm && rm.textContent.includes('确认拒绝该核验申请吗'), 'reject 确认弹窗');
+  assert.ok(rm.querySelector('#reauth-password'), 'reject needReAuth');
+  dom.window.document.querySelector('[data-action="ui.closeModal"]')?.click();
+  verifRevoke(87);
+  const vrm = dom.window.document.querySelector('.modal');
+  assert.ok(vrm && vrm.textContent.includes('确认撤销该教师的核验资格吗'), 'revoke 确认弹窗');
+  assert.ok(vrm.querySelector('#reauth-password'), 'revoke needReAuth');
+  await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
+  teardown();
+});
+
+test('U-3e viewAdmissionImage：从缓存列表取 admission_image 显示原图 modal', async () => {
+  const dom = setup();
+  _dhResetForTests(); // datahub cache is module-level shared across tests — clear stale /api/admin/verifications
+  // 先加载列表填缓存，再点预览
+  const list = document.createElement('div');
+  list.id = 'admin-verifications-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ verifications: [{ id: 88, username: '教师戊', user_id: 9, verify_type: 'admission', verify_code: '', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '', admission_image: 'data:image/png;base64,CCC' }] }) });
+  await loadAdminVerifications();
+  viewAdmissionImage(88);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, '原图弹窗出现');
+  const img = modal.querySelector('.verif-admission-img');
+  assert.ok(img && img.getAttribute('src').includes('data:image/png;base64,CCC'), '原图 dataUrl 渲染');
   teardown();
 });

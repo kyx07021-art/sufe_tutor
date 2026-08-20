@@ -16,7 +16,7 @@ import { CONFIG } from '../src/shared/config.js';
 import { state } from '../src/client/core/state.js';
 import {
   loadAdminPosts, resolveAdminFeedback, loadAdminContracts,
-  performAwardAction, verifApprove, verifRevoke,
+  performAwardAction, performVerifAction,
 } from '../src/client/features/admin/actions.js';
 import { setPrivacyField } from '../src/client/features/settings/actions.js';
 
@@ -109,24 +109,24 @@ test('Q-3b-F3c：performAwardAction(reject) 写后 invalidate(admin)（变异：
   } finally { teardown(); }
 });
 
-test('Q-3b-F3d：verifApprove 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
+test('Q-3b-F3d：performVerifAction(approve) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
   try {
     globalThis.document = dom.window.document;
     _dhResetForTests();
     _dhSeedForTests({ cache: [{ endpoint: '/api/admin/verifications', domain: 'admin', data: { verifications: [{ id: 1 }] } }] });
     globalThis.fetch = pendingWriteFetch('/api/admin/verifications/1/action', '/api/admin/verifications');
-    await verifApprove(1); await new Promise(r => setTimeout(r, 10));
+    await performVerifAction(1, { action: 'approve', school: 'X', level: '本科' }, { capToken: 'cap' });
     assert.equal(dhPeek('/api/admin/verifications'), null, '核验 approve 写后 admin 域缓存清');
   } finally { teardown(); }
 });
 
-test('Q-3b-F3e：verifRevoke 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
+test('Q-3b-F3e：performVerifAction(revoke) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
   try {
     globalThis.document = dom.window.document;
     _dhResetForTests();
     _dhSeedForTests({ cache: [{ endpoint: '/api/admin/verifications', domain: 'admin', data: { verifications: [{ id: 1 }] } }] });
     globalThis.fetch = pendingWriteFetch('/api/admin/verifications/1/action', '/api/admin/verifications');
-    await verifRevoke(1); await new Promise(r => setTimeout(r, 10));
+    await performVerifAction(1, { action: 'revoke' }, { capToken: 'cap' });
     assert.equal(dhPeek('/api/admin/verifications'), null, '核验 revoke 写后 admin 域缓存清');
   } finally { teardown(); }
 });
