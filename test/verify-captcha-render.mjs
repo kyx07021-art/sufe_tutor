@@ -12,6 +12,7 @@
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { resolve, sep } from 'node:path';
 import { build } from 'esbuild';
 
 const port = 8932;
@@ -28,6 +29,7 @@ const v2Bundle = await build({
 });
 const v2Js = v2Bundle.outputFiles[0].text;
 
+const serverRoot = resolve('.');
 const server = createServer((req, res) => {
   const u = (req.url || '/').split('?')[0];
   if (u === '/captcha-v2.js') {
@@ -36,14 +38,15 @@ const server = createServer((req, res) => {
     return;
   }
   // 验证页在 test/ 目录（不进 build 静态复制面）；'/v2' 为迁移版（V-4-1h 后唯一形态，v1 经典页已删）
-  const file = u === '/v2' ? '/test/captcha-render-verify-v2.html' : u;
+  const file = resolve('.', u === '/v2' ? 'test/captcha-render-verify-v2.html' : u.replace(/^\/+/, '')); // URL path 去前导 / 转相对（Windows resolve 绝对路径会逃到盘符根）
+  if (file !== serverRoot && !file.startsWith(serverRoot + sep)) { res.statusCode = 403; res.end('Forbidden'); return; } // 防路径遍历逃逸仓库根
   try {
-    const body = readFileSync('.' + file);
+    const body = readFileSync(file);
     res.setHeader('Content-Type', file.endsWith('.js') ? 'application/javascript' : 'text/html');
     res.end(body);
   } catch { res.statusCode = 404; res.end(); }
 });
-await new Promise(r => server.listen(port, r));
+await new Promise(r => server.listen(port, '127.0.0.1', r)); // 仅 loopback，防局域网访问
 
 const browser = await chromium.launch();
 

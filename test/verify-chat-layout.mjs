@@ -9,7 +9,7 @@
 import { createServer } from 'node:http';
 import { cwd } from 'node:process';
 import { readFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, sep } from 'node:path';
 import { createRequire } from 'node:module';
 const repo = cwd();
 const require = createRequire(repo + '/package.json');
@@ -17,13 +17,15 @@ const { chromium } = require('playwright');
 const port = 8942;
 const dist = join(repo, 'dist');
 
+const root = resolve(dist);
 const server = createServer((req, res) => {
   const u = (req.url || '/').split('?')[0];
-  const file = join(dist, u === '/' ? 'index.html' : u);
+  const file = resolve(dist, u === '/' ? 'index.html' : u.replace(/^\/+/, '')); // URL path 去前导 / 转相对（Windows resolve 绝对路径会逃到盘符根）
+  if (file !== root && !file.startsWith(root + sep)) { res.statusCode = 403; res.end('Forbidden'); return; } // 防路径遍历逃逸 dist
   if (existsSync(file)) { const t = file.endsWith('.js') ? 'application/javascript' : file.endsWith('.css') ? 'text/css' : file.endsWith('.html') ? 'text/html' : 'application/octet-stream'; res.setHeader('Content-Type', t); res.end(readFileSync(file)); }
   else { res.setHeader('Content-Type', 'text/html'); res.end(readFileSync(join(dist, 'index.html'))); }
 });
-await new Promise(r => server.listen(port, r));
+await new Promise(r => server.listen(port, '127.0.0.1', r)); // 仅 loopback，防局域网访问
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -49,7 +51,8 @@ const g = await page.evaluate(() => {
   return {
     vh,
     shell: !!document.querySelector('.chats-shell'),
-    listPane: !!document.querySelector('.chats-list-pane .conv-list #my-chats-list'),
+    listPane: !!document.querySelector('.chats-list-pane #my-chats-list'),
+    convList: !!document.querySelector('.chats-list-pane .conv-list'),
     chatPane: !!document.querySelector('.chat-pane #chat-frame'),
     listRect: rect(list),
     frameRect: rect(frame),
@@ -57,6 +60,6 @@ const g = await page.evaluate(() => {
 });
 console.log('GEOMETRY:', JSON.stringify(g));
 await browser.close(); server.close();
-const ok = g.shell && g.listPane && g.chatPane && g.listRect && g.listRect.inViewport && g.frameRect && g.frameRect.inViewport;
+const ok = g.shell && g.listPane && g.convList && g.chatPane && g.listRect && g.listRect.inViewport && g.frameRect && g.frameRect.inViewport;
 console.log(ok ? '✓ my-chats 布局：chats-shell 双栏 + 列表/聊天窗在视口内' : '✗ my-chats 布局异常（列表/聊天窗视口外 = 断线复发）');
 process.exit(ok ? 0 : 1);
