@@ -15,7 +15,7 @@ import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student
 import { checkboxItemsHtml } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml } from '../../core/ui-form.js';
 import { renderProvinceSelect, regionResolvePolicy } from '../region/render.js';
-import { SUFE_REGIONS } from '../../../shared/region-data.js'; // contract 9: single source for province/subject pools
+import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: single source for province/subject pools (T-6-F5: uniform re-export entry)
 
 let _studentOpenDemand = false;
 export function setStudentOpenDemand(v) { _studentOpenDemand = !!v; }
