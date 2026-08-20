@@ -66,3 +66,20 @@ test('Z-9-F3: repeated renders keep exactly one live resize listener; dispose re
   dom.window.removeEventListener = remSpy;
   void ctl1; void ctl2;
 });
+
+test('U-3j M-1: 双图同页各自 resize 重绘（单槽会让第二图移除第一图监听）', async () => {
+  const a = document.createElement('div');
+  const b = document.createElement('div');
+  document.body.append(a, b);
+  renderGlassLineChart(a, { title: 'A', data: [{ label: 'x', value: 1 }] });
+  renderGlassLineChart(b, { title: 'B', data: [{ label: 'x', value: 2 }] });
+  // marker 会被 draw() 的 container.innerHTML = '' 清空 → resize 重绘即消失
+  const marker = document.createElement('i');
+  marker.className = 'resize-marker';
+  a.appendChild(marker);
+  assert.ok(a.querySelector('.resize-marker'), 'marker 在位');
+  dom.window.dispatchEvent(new dom.window.Event('resize'));
+  await new Promise(r => setTimeout(r, 250)); // debounce 120ms
+  assert.ok(!a.querySelector('.resize-marker'), 'A 图 resize 后重绘（marker 被 draw 清空）——单槽 bug 下 A 监听被 B 移除、marker 保留');
+  a.remove(); b.remove();
+});

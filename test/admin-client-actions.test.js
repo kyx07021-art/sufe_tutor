@@ -7,7 +7,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback, doSubmitContentPenalty, performContentPenalty, contentTypeName } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback, doSubmitContentPenalty, performContentPenalty, contentTypeName, loadAdminTraffic } from '../src/client/features/admin/actions.js';
+import adminFeature from '../src/client/features/admin/index.js'; // U-3j L3: seg-tab-change routing
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -16,12 +17,14 @@ function setup() {
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
   globalThis.MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } };
+  globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window); // U-3j: chart.js renders via global getComputedStyle (browser alias)
   state.user = { id: 1, role: 'admin', username: 'admin_sufe' };
   state.authToken = 'tok-admin';
   return dom;
 }
 function teardown() {
   delete globalThis.document; delete globalThis.window; delete globalThis.MutationObserver;
+  delete globalThis.getComputedStyle;
   delete globalThis.fetch;
 }
 
@@ -885,5 +888,88 @@ test('U-3g adminViewContract：从缓存取合同 → 全文弹窗（modal--wide
   assert.ok(modal.classList.contains('modal--wide') && modal.querySelector('.contract-md'), '宽窗 + 合同样式容器');
   assert.ok(modal.querySelector('.md-preview') || modal.textContent.includes('家教服务合同'), 'md 全文渲染');
   assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// U-3j：流量统计页——range seg-tabs + 双图表 + 错误态 + seg-tab-change 路由委托
+// ─────────────────────────────────────────────────────────────
+
+test('U-3j loadAdminTraffic：range 下推 + 3 范围 tab 高亮 + 双图表容器 + 口径 hint（非 raw JSON dump）', async () => {
+  const dom = setup();
+  const box = document.createElement('div');
+  box.id = 'admin-traffic-box';
+  document.body.appendChild(box);
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/traffic?range=7d'), 'range 下推');
+    return { ok: true, status: 200, json: async () => ({ buckets: [{ label: '1', requests: 10, avgMs: 200 }, { label: '2', requests: 20, avgMs: 300 }], unit: 'day' }) };
+  };
+  await loadAdminTraffic('7d');
+  assert.equal(box.querySelectorAll('.seg-tab').length, 3, '3 个范围 tab');
+  assert.ok(box.querySelector('.seg-tab.active').dataset.range === '7d', '7d 高亮');
+  assert.ok(box.querySelector('#traffic-chart-req') && box.querySelector('#traffic-chart-lat'), '双图表容器');
+  assert.ok(box.querySelector('svg'), '折线图 svg 渲染');
+  assert.ok(box.innerHTML.includes('口径'), '口径 hint');
+  assert.ok(!/JSON\.stringify/.test(box.innerHTML), '非 raw JSON dump');
+  teardown();
+});
+
+test('U-3j loadAdminTraffic：buckets 缺失（L2 防护）+ 错误态', async () => {
+  const dom = setup();
+  const box = document.createElement('div');
+  box.id = 'admin-traffic-box';
+  document.body.appendChild(box);
+  // L2：200 + 缺 buckets 的畸形响应不抛（防护后空数据渲染）
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ unit: 'day' }) });
+  await loadAdminTraffic();
+  assert.ok(box.querySelector('.seg-tab'), '畸形响应仍渲染 tabs');
+  // 错误态
+  globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({ error: '流量数据不可用' }) });
+  await loadAdminTraffic();
+  assert.ok(box.innerHTML.includes('流量数据不可用'), '错误态');
+  teardown();
+});
+
+test('U-3j L3: seg-tab-change 委托路由 admin-traffic-tabs → loadAdminTraffic(key)', async () => {
+  const dom = setup();
+  const teardownFn = adminFeature.onLoad();
+  const box = document.createElement('div');
+  box.id = 'admin-traffic-box';
+  document.body.appendChild(box);
+  let seenUrl = null;
+  globalThis.fetch = async (url) => { seenUrl = String(url); return { ok: true, status: 200, json: async () => ({ buckets: [], unit: 'day' }) }; };
+  const tabs = document.createElement('div');
+  tabs.id = 'admin-traffic-tabs';
+  document.body.appendChild(tabs);
+  document.dispatchEvent(new dom.window.CustomEvent('seg-tab-change', { detail: { key: '7d', container: tabs } }));
+  await new Promise(r => setTimeout(r, 80));
+  assert.ok(seenUrl && seenUrl.includes('range=7d'), 'traffic tab 路由 7d: ' + seenUrl);
+  teardownFn();
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// U-3h F4：resolveFeedback 点击委托接线（U-3h 重做审计阻断项——按钮零 handler 是 1101 级）
+// ─────────────────────────────────────────────────────────────
+
+test('U-3h F4: 点击 [data-action="admin.resolveFeedback"] 触发 POST resolve + 重载（接线锁死）', async () => {
+  const dom = setup();
+  const teardownFn = adminFeature.onLoad();
+  const list = document.createElement('div');
+  list.id = 'admin-feedback-list';
+  document.body.appendChild(list);
+  let resolveUrl = null;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/resolve')) { resolveUrl = String(url); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return { ok: true, status: 200, json: async () => ({ feedbacks: [] }) };
+  };
+  const btn = document.createElement('button');
+  btn.dataset.action = 'admin.resolveFeedback';
+  btn.dataset.id = '3';
+  document.body.appendChild(btn);
+  btn.click();
+  await new Promise(r => setTimeout(r, 80));
+  assert.ok(resolveUrl && resolveUrl.endsWith('/api/feedbacks/3/resolve'), '点击委托触发 POST resolve（ACTION_MAP 有键）');
+  teardownFn();
   teardown();
 });

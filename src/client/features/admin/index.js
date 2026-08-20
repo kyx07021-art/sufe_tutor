@@ -46,11 +46,13 @@ const ACTION_MAP = {
   // U-3h: feedback review — mark resolved (light action, invalidate + reload)
   'admin.resolveFeedback': el => actions.resolveAdminFeedback(Number(el.dataset.id)),
 };
-// U-3i: admin seg-tabs (ui.js applyTabBindings dispatches seg-tab-change, bubbles to document).
-// Filter by container id so other features' seg-tabs don't trigger admin reloads.
+// U-3i/U-3j: admin seg-tabs (ui.js applyTabBindings dispatches seg-tab-change, bubbles to
+// document). Filter by container id so other features' seg-tabs don't trigger admin reloads.
 function onSegTab(e) {
   const tabs = e.detail && e.detail.container;
-  if (tabs && tabs.id === 'admin-content-tabs') actions.loadAdminContent(String(e.detail.key || ''));
+  if (!tabs) return;
+  if (tabs.id === 'admin-content-tabs') actions.loadAdminContent(String(e.detail.key || ''));
+  else if (tabs.id === 'admin-traffic-tabs') actions.loadAdminTraffic(String(e.detail.key || '24h'));
 }
 let installed = false;
 function onActionClick(e) {
