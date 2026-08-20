@@ -40,6 +40,9 @@ const ACTION_MAP = {
   'admin.verifReject': el => actions.verifReject(Number(el.dataset.id)),
   'admin.verifRejectConfirm': el => actions.verifRejectConfirm(Number(el.dataset.id)),
   'admin.verifRevoke': el => actions.verifRevoke(Number(el.dataset.id)),
+  // U-3g: contract management — full-text view (with diff) + remove (capToken via needReAuth confirm)
+  'admin.viewContract': el => actions.adminViewContract(Number(el.dataset.id)),
+  'admin.removeContract': el => actions.adminRemoveContract(Number(el.dataset.id)),
 };
 let installed = false;
 function onActionClick(e) {

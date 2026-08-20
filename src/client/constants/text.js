@@ -459,6 +459,7 @@ export const TEXT = {
   "PAGE_ADMIN_CONTRACTS": "合同管理",
   "PAGE_ADMIN_CONTRACTS_DESC": "查看全站合同与状态，仅用于处理异常数据",
   "ADMIN_CONTRACTS_EMPTY": "还没有合同记录。",
+  "ADMIN_CONTRACT_NOT_FOUND": "没有找到该合同",
   "BTN_REMOVE_CONTRACT": "移除合同",
   "CONFIRM_ADMIN_REMOVE_CONTRACT": "移除后合同彻底删除（操作留档保留）。确定移除该合同吗？",
   "ADMIN_CONTRACT_REMOVED_TOAST": "合同已移除",

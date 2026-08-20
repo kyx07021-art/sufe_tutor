@@ -9,9 +9,11 @@ import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha } from '../../core/ui.js';
 import { escHtml, fmtDateTime, loaderHtml, mdRender } from '../../core/dom.js'; // U-3f: post full-text modal via shared mdRender
-import { priceRangeText } from '../../core/display.js';
+import { priceRangeText, methodName } from '../../core/display.js'; // U-3g: contract method label
 import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from '../teacher/display.js'; // U-3a: teacher row meta; U-3c: review stars/status tag
 import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand card (admin:true reuse, W6)
+import { contractStatusMeta } from '../contract/display.js'; // U-3g: contract status tag (shared single source)
+import { splitContractBiz, stripContractMarker, renderContractDiff } from '../contract/render.js'; // U-3g: contract diff/full-text modal (W6 reuse)
 import { STATUS, AWARD_STATUS, VERIFY_TYPES } from '../../../shared/enums.js'; // U-3c review / U-3d award / U-3e verify-type gates (shared enums)
 
 function adminStatCards(pairs) {
@@ -297,15 +299,54 @@ export function adminDeletePost(id) {
   }});
 }
 
+// U-3g: contract management — v1-parity row (student×teacher + status tag + drafter/method/
+// rate/time) + full-text modal with modification diff + remove (capToken via needReAuth confirm).
+let _adminContractsCache = []; // contract full-text/diff modal data source (closure, not window)
+
 export async function loadAdminContracts() {
   try {
     const data = await dhGet('/api/admin/contracts', { domain: 'contracts' }); // Q-3b-M1: single slot for /api/admin/contracts (aligns DH_PREFETCH 'contracts' + invalidate('contracts'))
+    _adminContractsCache = data.contracts || [];
     const el = document.getElementById('admin-contracts-list');
-    if (el) el.innerHTML = (data.contracts || []).map(c => `<div class="list-card glass">${escHtml(c.id || '')}</div>`).join('');
+    if (el) el.innerHTML = _adminContractsCache.length ? _adminContractsCache.map(renderAdminContractRow).join('') : `<p class="empty-state">${escHtml(TEXT.ADMIN_CONTRACTS_EMPTY)}</p>`;
   } catch (err) { showToast(err.message); }
 }
 
-export function adminViewContract(id) { openModal({ title: TEXT.BTN_VIEW_CONTRACT, body: `<p>${String(id)}</p>` }); }
+export function renderAdminContractRow(c) {
+  const { text: statusText, cls: statusCls } = contractStatusMeta(c);
+  const methodNameText = methodName(c.method) || c.method;
+  return `<div class="admin-row glass admin-contract-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line">
+        <strong>${escHtml(c.student_name || '')} × ${escHtml(c.teacher_name || '')}</strong>
+        <span class="tag glass glass--solid ${statusCls}">${escHtml(statusText)}</span>
+      </div>
+      <div class="admin-row-meta">${escHtml(TEXT.ADMIN_CONTRACT_DRAFTER_PREFIX)}${escHtml(c.drafter_name || '')} · ${escHtml(methodNameText)} · ${c.hourly_rate}${escHtml(TEXT.PRICE_UNIT)} · ${fmtDateTime(c.updated_at)}</div>
+    </div>
+    <div class="admin-row-actions">
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewContract" data-id="${c.id}">${escHtml(TEXT.BTN_VIEW_CONTRACT)}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.removeContract" data-id="${c.id}">${escHtml(TEXT.BTN_REMOVE_CONTRACT)}</button>
+    </div>
+  </div>`;
+}
+
+// U-3g: full-text modal — modified contracts (prev_business set) render a diff block first
+// (renderContractDiff + splitContractBiz), then the current body via shared mdRender, with the
+// internal marker stripped (stripContractMarker single source).
+export function adminViewContract(id) {
+  const c = _adminContractsCache.find(x => x.id === id);
+  if (!c) { showToast(TEXT.ADMIN_CONTRACT_NOT_FOUND, 'error'); return; }
+  const diffHtml = c.prev_business ? renderContractDiff(c.prev_business, splitContractBiz(c.contract_md)) : '';
+  openModal({
+    title: diffHtml ? TEXT.CONTRACT_VIEW_DIFF_TITLE : TEXT.BTN_VIEW_CONTRACT,
+    cls: 'modal--wide', bodyCls: 'contract-md',
+    body: `${diffHtml ? `<div class="contract-diff-head">${escHtml(TEXT.CONTRACT_DIFF_HINT)}</div>
+      <div class="contract-diff">${diffHtml}</div>
+      <div class="contract-diff-divider"></div>` : ''}
+      ${mdRender(stripContractMarker(c.contract_md))}`,
+    footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>`,
+  });
+}
 export async function adminRemoveContract(id) {
   confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, needReAuth: true, onConfirm: async capToken => {
     try { await api(`/api/admin/contracts/${id}`, { method: 'DELETE', body: { capToken } }); invalidate('contracts'); showToast(TEXT.ADMIN_DONE); loadAdminContracts(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
