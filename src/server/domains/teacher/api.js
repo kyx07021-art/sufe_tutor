@@ -327,6 +327,9 @@ export async function handleVerificationAction(db, id, body, req) {
   if (err) return err;
   const v = await dbGetTeacherVerificationById(db, id);
   if (!v) return errorMsg('USER_NOT_FOUND', 404);
+  // P12 危险操作二次认证：批准/拒绝/撤销学籍核验资格均可逆影响接单资格，须 capToken
+  // （与 handleVerifyTeacher 同口径；U-3e 补齐此前缺口）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   const action = body.action;
   // 状态机（安全审计 H2 修复）：pending 才能 approve/reject；approved 才能 revoke（撤销已通过资格）
   if (action === 'approve' && v.status !== 'pending') return errorMsg('INVALID_ACTION', 409);

@@ -18,6 +18,7 @@ import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmi
 import { handleCreateIntent } from '../src/server/domains/demand/api.js';
 import { handleVerificationAction } from '../src/server/domains/teacher/api.js';
 import { dbGetTeacherProfile, dbGetTeacherVerification } from '../src/server/domains/teacher/repo.js';
+import { issueCapToken } from '../src/server/core/danger-ops.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -66,6 +67,13 @@ async function adminTokenOf(db) {
   return (await r.json()).authToken;
 }
 
+// U-3e：handleVerificationAction 是危险操作（P12，补 confirmDangerOtp 后）——每次调用前
+// 用 adminToken 签发一次性 capToken 传入 body（confirmDangerOtp 命中即删，须逐次新签发）。
+async function verifAction(db, adminToken, id, body) {
+  const capToken = await issueCapToken(db, reqOf(adminToken));
+  return handleVerificationAction(db, id, { ...body, capToken }, reqOf(adminToken));
+}
+
 test('学信网核验全链路（manual）：提交 → pending → 管理员 approve → 学籍自动填入 → 接单资格', async () => {
   const raw = rawOf();
   const db = d1Shim(raw);
@@ -88,7 +96,7 @@ test('学信网核验全链路（manual）：提交 → pending → 管理员 ap
   // 管理员 approve：结构化录入 → 自动填入档案
   const adminToken = await adminTokenOf(db);
   const v = await dbGetTeacherVerification(db, tid);
-  const ap = await handleVerificationAction(db, v.id, { action: 'approve', school: '上海财经大学', level: '本科', major: '金融', enrollment_status: '在籍', enroll_year: '2026' }, reqOf(adminToken));
+  const ap = await verifAction(db, adminToken, v.id, { action: 'approve', school: '上海财经大学', level: '本科', major: '金融', enrollment_status: '在籍', enroll_year: '2026' });
   assert.equal(ap.status, 200, 'approve 成功');
   const prof = await dbGetTeacherProfile(db, tid);
   assert.equal(prof.chsi_verified, true, 'approve 后 chsi_verified=1');
@@ -116,7 +124,7 @@ test('Q-2c-F1 守护：approve/reject/revoke 三路径 admission_image 解密仍
   await handleVerifyAdmission(db, { image: img }, reqOf(token));
   let v = await dbGetTeacherVerification(db, tid);
   assert.equal(await decryptField(v.admission_image), img, '初始落库解密即明文');
-  let r = await handleVerificationAction(db, v.id, { action: 'reject', reason: '模糊' }, reqOf(adminToken));
+  let r = await verifAction(db, adminToken, v.id, { action: 'reject', reason: '模糊' });
   assert.equal(r.status, 200);
   v = await dbGetTeacherVerification(db, tid);
   assert.equal(await decryptField(v.admission_image), img, 'reject 后解密仍明文（叠层 bug 时解密得 enc1 密文串）');
@@ -124,11 +132,11 @@ test('Q-2c-F1 守护：approve/reject/revoke 三路径 admission_image 解密仍
   await handleVerifyChsi(db, { code: 'ABCD1234EFGH' }, reqOf(token));
   await handleVerifyAdmission(db, { image: img }, reqOf(token));
   v = await dbGetTeacherVerification(db, tid);
-  r = await handleVerificationAction(db, v.id, { action: 'approve', school: '上海财经大学', level: '本科', major: '金融', enrollment_status: '在籍', enroll_year: '2026' }, reqOf(adminToken));
+  r = await verifAction(db, adminToken, v.id, { action: 'approve', school: '上海财经大学', level: '本科', major: '金融', enrollment_status: '在籍', enroll_year: '2026' });
   assert.equal(r.status, 200);
   v = await dbGetTeacherVerification(db, tid);
   assert.equal(await decryptField(v.admission_image), img, 'approve 后解密仍明文');
-  r = await handleVerificationAction(db, v.id, { action: 'revoke', reason: '材料存疑' }, reqOf(adminToken));
+  r = await verifAction(db, adminToken, v.id, { action: 'revoke', reason: '材料存疑' });
   assert.equal(r.status, 200);
   v = await dbGetTeacherVerification(db, tid);
   assert.equal(await decryptField(v.admission_image), img, 'revoke 后解密仍明文');
@@ -183,27 +191,27 @@ test('管理端核验状态机与撤销：pending→approve；revoke 撤销资�
   let v = await dbGetTeacherVerification(db, tid);
 
   // 非法动作 400
-  const bad = await handleVerificationAction(db, v.id, { action: 'hack' }, reqOf(adminToken));
+  const bad = await verifAction(db, adminToken, v.id, { action: 'hack' });
   assert.equal(bad.status, 400);
 
   // 已 pending 再 approve → 200，资格授予
-  const ap = await handleVerificationAction(db, v.id, { action: 'approve', school: '上海财经大学', level: '本科', major: '金融' }, reqOf(adminToken));
+  const ap = await verifAction(db, adminToken, v.id, { action: 'approve', school: '上海财经大学', level: '本科', major: '金融' });
   assert.equal(ap.status, 200);
   assert.equal((await dbGetTeacherProfile(db, tid)).chsi_verified, true, 'approve 后资格授予');
 
   // 已 approved 再 approve → 409（状态机）
   v = await dbGetTeacherVerification(db, tid);
-  const again = await handleVerificationAction(db, v.id, { action: 'approve', school: 'X大学', level: '本科' }, reqOf(adminToken));
+  const again = await verifAction(db, adminToken, v.id, { action: 'approve', school: 'X大学', level: '本科' });
   assert.equal(again.status, 409, '已 approved 再 approve → 409');
 
   // revoke：approved → rejected + 撤销资格
-  const rv = await handleVerificationAction(db, v.id, { action: 'revoke' }, reqOf(adminToken));
+  const rv = await verifAction(db, adminToken, v.id, { action: 'revoke' });
   assert.equal(rv.status, 200);
   assert.equal((await dbGetTeacherProfile(db, tid)).chsi_verified, false, 'revoke 后资格撤销');
   assert.equal((await dbGetTeacherVerification(db, tid)).status, 'rejected', '状态置 rejected');
 
   // 已 rejected 再 reject → 409
-  const rj = await handleVerificationAction(db, v.id, { action: 'reject' }, reqOf(adminToken));
+  const rj = await verifAction(db, adminToken, v.id, { action: 'reject' });
   assert.equal(rj.status, 409);
 });
 
@@ -227,6 +235,21 @@ test('v1.4.16 录取通知书提交：pending 进队列 + svg/超限拒绝', asy
   const huge = 'data:image/png;base64,' + 'A'.repeat(600000);
   r = await handleVerifyAdmission(db, { image: huge }, reqOf(token));
   assert.equal(r.status, 400, '超限拒收');
+
+// U-3e：P12 危险操作门禁——handleVerificationAction 无 capToken 必须 403
+// （变异：去掉 confirmDangerOtp → 200 → 红）
+test('U-3e 守护：handleVerificationAction 无 capToken → 403（危险操作二次认证）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const token = await regTeacher(db, raw, 't_cap', '+8613900000106');
+  const adminToken = await adminTokenOf(db);
+  await handleVerifyChsi(db, { code: 'ABCD1234EFGH' }, reqOf(token));
+  const tid = raw.prepare("SELECT id FROM users WHERE username='t_cap'").get().id;
+  const v = await dbGetTeacherVerification(db, tid);
+  const r = await handleVerificationAction(db, v.id, { action: 'approve', school: 'X大学', level: '本科' }, reqOf(adminToken));
+  assert.equal(r.status, 403, '无 capToken 拒绝');
+  assert.equal((await dbGetTeacherVerification(db, tid)).status, 'pending', '状态未被改动');
+});
   raw.exec("INSERT INTO users (username,password_hash,salt,role) VALUES ('stu1','h','s','student')");
   const stuId = raw.prepare("SELECT id FROM users WHERE username='stu1'").get().id;
   const st = 'stu1-token';
