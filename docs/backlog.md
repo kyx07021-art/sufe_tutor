@@ -215,3 +215,6 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 ### 需求 AC 移动端验证码框审计遗留（2026-08-20，独立审计 PASS 后轻级）
 - 🟡 **AC-OBS1 verify-otp-input.mjs 遮罩关闭用合成点击 **→ 弃置**（记录语义边界，真实点击负路径已由 verify-csp-strict.mjs:164 覆盖，AF-16）**（test/verify-otp-input.mjs `ov.click()` DOM 合成点击，e.target 强制=overlay 根节点恒真关闭）：真用户命中式点击在 375×667 视口中心落在弹窗卡片内（卡片占 x=20-355,y=58-609）→ e.target 为卡片子节点不会关闭。本测试仅作解锁页面 setup（几何断言是真正被测对象），真实点击负路径已由 verify-csp-strict.mjs:164 `page.mouse.click(20,300)` 覆盖。无需改，记录语义边界。
 - 🟡 **AC-OBS3 注册/绑定验证码行无直接几何断言 **→ ✅ AF-13**（三类表单逐表单几何断言：登录/注册/绑定 × 移动/桌面，变异牙齿实证）**：AC-2 只锁登录验证码行；注册（render.js:82/157 codeFieldHtml）与绑定（actions-otp.js:108/117）为同构标记（form-group > form-label + code-input-wrap），CSS 结构性命中三类、几何一致，但无逐类断言。攒批可加多表单用例。
+
+## 2026-08-20 反馈单巡检（P20，admin 巡检，AE/AF 上线后）
+- 🟡 **教程繁琐**（反馈 id=4/5/6，user_id=90，suggestion，已 resolved）：第一次进入平台的教程太过繁琐，建议精简到 5~6 步核心功能。→ 产品改进项：onboarding 引导精简（当前 onboarding-tour 步数多），攒批后续专项（非紧急，不混入 2.0.x 小修）。
