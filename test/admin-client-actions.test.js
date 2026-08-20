@@ -48,7 +48,7 @@ test('U-3i loadAdminContent：seg-tabs（全部 + 10 类型 + active）+ type �
   list.id = 'admin-content-list';
   document.body.appendChild(list);
   const tabs = document.createElement('div');
-  tabs.id = 'admin-content-tabs';
+  tabs.id = 'admin-content-tabs-slot'; // shell hosts the bare slot; segTabsHtml owns the only #admin-content-tabs
   document.body.appendChild(tabs);
   globalThis.fetch = async (url) => {
     assert.ok(String(url).includes('/api/admin/content?type=post'), 'type 下推');
@@ -942,7 +942,11 @@ test('U-3j L3: seg-tab-change 委托路由 admin-traffic-tabs → loadAdminTraff
   tabs.id = 'admin-traffic-tabs';
   document.body.appendChild(tabs);
   document.dispatchEvent(new dom.window.CustomEvent('seg-tab-change', { detail: { key: '7d', container: tabs } }));
-  await new Promise(r => setTimeout(r, 80));
+  // Poll until loadAdminTraffic has fully rendered (not just the fetch being called): the async
+  // render would otherwise keep touching document after teardown and throw "document is not
+  // defined" (the exact flaky failure the audits observed).
+  const t0 = Date.now();
+  while (!box.querySelector('.seg-tab') && Date.now() - t0 < 3000) await new Promise(r => setTimeout(r, 15));
   assert.ok(seenUrl && seenUrl.includes('range=7d'), 'traffic tab 路由 7d: ' + seenUrl);
   teardownFn();
   teardown();
@@ -968,8 +972,36 @@ test('U-3h F4: 点击 [data-action="admin.resolveFeedback"] 触发 POST resolve 
   btn.dataset.id = '3';
   document.body.appendChild(btn);
   btn.click();
-  await new Promise(r => setTimeout(r, 80));
+  // Poll instead of a fixed sleep (flaky under load — same pattern as U-3j L3).
+  const t0 = Date.now();
+  while (!resolveUrl && Date.now() - t0 < 3000) await new Promise(r => setTimeout(r, 15));
   assert.ok(resolveUrl && resolveUrl.endsWith('/api/feedbacks/3/resolve'), '点击委托触发 POST resolve（ACTION_MAP 有键）');
+  teardownFn();
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// U-3i L4（审计轻级观察）：admin-content-tabs 分支的 seg-tab-change 路由直测
+// ─────────────────────────────────────────────────────────────
+
+test('U-3i L4: seg-tab-change 委托路由 admin-content-tabs → loadAdminContent(key)', async () => {
+  const dom = setup();
+  const teardownFn = adminFeature.onLoad();
+  const list = document.createElement('div');
+  list.id = 'admin-content-list';
+  document.body.appendChild(list);
+  let seenUrl = null;
+  globalThis.fetch = async (url) => { seenUrl = String(url); return { ok: true, status: 200, json: async () => ({ items: [] }) }; };
+  const tabs = document.createElement('div');
+  tabs.id = 'admin-content-tabs';
+  document.body.appendChild(tabs);
+  document.dispatchEvent(new dom.window.CustomEvent('seg-tab-change', { detail: { key: 'post', container: tabs } }));
+  // Poll until loadAdminContent has rendered the real empty-state copy — NOT the initial loader
+  // (which is also .empty-state + loaderHtml) — so no async document access survives teardown
+  // (same flaky guard as U-3j L3; the loader/empty distinction is the subtle part).
+  const t0 = Date.now();
+  while (!list.innerHTML.includes('当前筛选条件下没有内容') && Date.now() - t0 < 3000) await new Promise(r => setTimeout(r, 15));
+  assert.ok(seenUrl && seenUrl.includes('/api/admin/content?type=post'), 'content tab 路由 post: ' + seenUrl);
   teardownFn();
   teardown();
 });

@@ -79,7 +79,9 @@ test('U-3j M-1: 双图同页各自 resize 重绘（单槽会让第二图移除�
   a.appendChild(marker);
   assert.ok(a.querySelector('.resize-marker'), 'marker 在位');
   dom.window.dispatchEvent(new dom.window.Event('resize'));
-  await new Promise(r => setTimeout(r, 250)); // debounce 120ms
+  // Poll instead of a fixed sleep (debounce 120ms; fixed 250ms is flaky under load).
+  const t0 = Date.now();
+  while (a.querySelector('.resize-marker') && Date.now() - t0 < 3000) await new Promise(r => setTimeout(r, 20));
   assert.ok(!a.querySelector('.resize-marker'), 'A 图 resize 后重绘（marker 被 draw 清空）——单槽 bug 下 A 监听被 B 移除、marker 保留');
   a.remove(); b.remove();
 });

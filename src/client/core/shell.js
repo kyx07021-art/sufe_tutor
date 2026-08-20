@@ -163,7 +163,7 @@ export function mountShell() {
         ${page('admin-posts', TEXT.PAGE_ADMIN_POSTS, { body: `<div class="browse-list" id="admin-posts-list"></div>` })}
         ${page('admin-contracts', TEXT.PAGE_ADMIN_CONTRACTS, { body: `<div class="browse-list" id="admin-contracts-list"></div>` })}
         ${page('admin-feedback', TEXT.PAGE_ADMIN_FEEDBACK, { body: `<div class="browse-list" id="admin-feedback-list"></div>` })}
-        ${page('admin-content', TEXT.PAGE_ADMIN_CONTENT, { body: `<div id="admin-content-tabs"></div><div class="browse-list" id="admin-content-list"></div>` })}
+        ${page('admin-content', TEXT.PAGE_ADMIN_CONTENT, { body: `<div id="admin-content-tabs-slot"></div><div class="browse-list" id="admin-content-list"></div>` })}
         ${page('admin-complaint', TEXT.PAGE_ADMIN_COMPLAINT, { body: `<div id="admin-complaint-list"></div>` })}
         ${page('about', TEXT.PAGE_ABOUT, { body: `<div id="about-content"></div>` })}
       </main>

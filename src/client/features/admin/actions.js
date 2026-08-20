@@ -251,7 +251,9 @@ let _adminContentType = ''; // current tab ('' = all); a penalty reloads into th
 
 export async function loadAdminContent(type = '') {
   _adminContentType = type;
-  const tabsEl = document.getElementById('admin-content-tabs');
+  // The shell hosts a bare #admin-content-tabs-slot; segTabsHtml owns the only #admin-content-tabs
+  // (single id in the DOM — the F1 redo audit flagged the previous duplicate-id HTML).
+  const tabsEl = document.getElementById('admin-content-tabs-slot');
   if (tabsEl) tabsEl.innerHTML = segTabsHtml(
     [{ key: '', label: TEXT.ADMIN_CONTENT_TYPE_ALL }].concat(ADMIN_CONTENT_TYPES.map(t => ({ key: t, label: contentTypeName(t) }))),
     type, { attr: 'type', containerId: 'admin-content-tabs' });

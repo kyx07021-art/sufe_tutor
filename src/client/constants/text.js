@@ -892,7 +892,7 @@ export const TEXT = {
   "ADMIN_AWARD_NONE": "当前没有待审核的奖项，新提交会出现在这里。",
   "ADMIN_PENALTY_REASON_PLACEHOLDER": "如：含详细门牌号，违反平台隐私红线",
   "ADMIN_PENALTY_RULE_PLACEHOLDER": "如：地址门控 / 内容安全",
-  "ADMIN_PENALTY_CONFIRM": "将{action}该内容并通知作者，确认继续？",
+  "ADMIN_PENALTY_CONFIRM": "将{action}并通知作者，确认继续？",
   "ADMIN_PENALTY_DONE": "已处理",
   "ADMIN_CONTENT_PENALTY_TITLE": "处罚{type} #{id}",
   "ADMIN_CONTENT_PENALTY_HINT": "处罚后将自动通知作者，附上原因、规则与触发内容摘要。",
