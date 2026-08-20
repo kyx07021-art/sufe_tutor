@@ -754,7 +754,8 @@ export function toggleTeacherVerify(userId, verified = true) {
     withCaptcha(async () => {
       try {
         await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: !!verified, capToken } });
-        invalidate('admin'); showToast(verified ? TEXT.ADMIN_DONE : TEXT.UNVERIFY_DONE); loadAdminTeachers();
+        invalidate('admin'); invalidate('teachers'); // AF-9: 'admin' refreshes the admin list; 'teachers' refreshes the public verified badge in the student browse list (server bumps both, Q-3b-L3)
+        showToast(verified ? TEXT.ADMIN_DONE : TEXT.UNVERIFY_DONE); loadAdminTeachers();
       } catch (err) { showToast(err.message); }
     });
   }});
