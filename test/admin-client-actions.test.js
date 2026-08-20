@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRevoke, viewAdmissionImage } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -570,5 +570,65 @@ test('U-3e viewAdmissionImage：从缓存列表取 admission_image 显示原图 
   assert.ok(modal, '原图弹窗出现');
   const img = modal.querySelector('.verif-admission-img');
   assert.ok(img && img.getAttribute('src').includes('data:image/png;base64,CCC'), '原图 dataUrl 渲染');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1/U-3f：帖子管理——v1-parity 行（标题/作者/点赞/时间 + 查看/删除）+ 全文弹窗
+// （mdRender）+ 空态。G2：删查看/删除按钮/全文渲染必红。
+// ─────────────────────────────────────────────────────────────
+
+test('U-3f renderAdminPostRow：标题 + 作者 + 点赞数 + 时间 + 查看/删除委托', () => {
+  const html = renderAdminPostRow({ id: 90, title: '数学讲义', username: '教师甲', like_count: 5, created_at: '2026-08-01 12:00:00' });
+  assert.ok(html.includes('数学讲义'), '标题');
+  assert.ok(html.includes('教师甲'), '作者');
+  assert.ok(html.includes('5 点赞'), '点赞数');
+  assert.ok(html.includes('data-action="admin.openPostView" data-id="90"'), '查看按钮委托');
+  assert.ok(html.includes('data-action="admin.deletePost" data-id="90"'), '删除按钮委托');
+  assert.ok(!/onclick=/.test(html), '零内联事件');
+});
+
+test('U-3f loadAdminPosts：拉取 /api/posts?sort=new 渲染行 + 空态', async () => {
+  const dom = setup();
+  _dhResetForTests();
+  const list = document.createElement('div');
+  list.id = 'admin-posts-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/posts?sort=new'), 'posts 域缓存 key 带 sort=new');
+    return { ok: true, status: 200, json: async () => ({ posts: [{ id: 91, title: '讲义乙', username: '教师乙', like_count: 2, created_at: '2026-08-01 12:00:00' }] }) };
+  };
+  await loadAdminPosts();
+  assert.ok(list.innerHTML.includes('讲义乙'), '帖子行渲染');
+  teardown();
+});
+
+test('U-3f loadAdminPosts 空列表：空态文案', async () => {
+  const dom = setup();
+  _dhResetForTests();
+  const list = document.createElement('div');
+  list.id = 'admin-posts-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ posts: [] }) });
+  await loadAdminPosts();
+  assert.ok(list.innerHTML.includes('还没有教师发布资料'), '空态文案');
+  teardown();
+});
+
+test('U-3f openPostViewModal：从缓存取帖子 → mdRender 全文弹窗（modal--wide）', async () => {
+  const dom = setup();
+  _dhResetForTests();
+  const list = document.createElement('div');
+  list.id = 'admin-posts-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ posts: [{ id: 92, title: '讲义丙', username: '教师丙', like_count: 0, created_at: '2026-08-01 12:00:00', body_md: '# 标题\n\n正文段落' }] }) });
+  await loadAdminPosts();
+  openPostViewModal(92);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, '全文弹窗出现');
+  assert.ok(modal.classList.contains('modal--wide'), '宽窗（管理端全文阅读）');
+  assert.ok(modal.textContent.includes('教师丙'), '作者 meta');
+  assert.ok(modal.querySelector('.md-preview'), 'md 渲染容器');
+  assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
   teardown();
 });

@@ -17,7 +17,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { dbGetPostFavoriteToggleRead, dbGetPostLikeToggleRead, dbTogglePostLike, dbCreatePostFavorite } from '../src/server/domains/posts/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import { handleToggleFavorite, handleMyFavorites, handleListPosts, handleToggleLike } from '../src/server/domains/posts/api.js';
+import { handleToggleFavorite, handleMyFavorites, handleListPosts, handleToggleLike, handleDeletePost } from '../src/server/domains/posts/api.js';
+import { issueCapToken } from '../src/server/core/danger-ops.js';
 import { dbPurgeUserOwnedData } from '../src/server/domains/auth/repo.js';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
@@ -68,8 +69,10 @@ async function seed(db, raw) {
   const mk = async (name) => {
     const u = raw.prepare('SELECT id FROM users WHERE username=?').get(name);
     const token = `${name}-token`;
-    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
-      .run(await tokenDigest(token), u.id, `sess-${name}`, '2099-01-01 00:00:00');
+    // session_id 必须显式给——auth_sessions.session_id DEFAULT ''，直接 INSERT 不给则 danger-ops
+    // currentSessionId 返回空 → issueCapToken 拒签（真实登录流程会生成随机 session_id）
+    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,session_id,label,expires_at) VALUES (?,?,?,?,?)')
+      .run(await tokenDigest(token), u.id, `sess-${name}`, `sess-${name}`, '2099-01-01 00:00:00');
     return { id: u.id, token };
   };
   const t1 = await mk('tea1'), t2 = await mk('tea2');
@@ -292,4 +295,37 @@ test('U10 收藏乐观失败：回滚文案/toast/数据到点前态', async () 
   assert.equal(label.textContent, TEXT.BTN_FAVORITED, '失败回滚文案到「已收藏」');
   assert.equal(postsList[0].favorited, true, '数据源回滚');
   teardown();
+});
+
+test('U-3f：handleDeletePost 管理员越权删除须 capToken（作者本人删除不触发）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  raw.exec(`INSERT INTO users (username,password_hash,salt,role) VALUES ('admin_x','h','s','admin'),('tea_x','h','s','teacher')`);
+  const mk = async (name) => {
+    const u = raw.prepare('SELECT id FROM users WHERE username=?').get(name);
+    const token = `${name}-token`;
+    // session_id 必须显式给——auth_sessions.session_id DEFAULT ''，直接 INSERT 不给则 danger-ops
+    // currentSessionId 返回空 → issueCapToken 拒签（真实登录流程会生成随机 session_id）
+    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,session_id,label,expires_at) VALUES (?,?,?,?,?)')
+      .run(await tokenDigest(token), u.id, `sess-${name}`, `sess-${name}`, '2099-01-01 00:00:00');
+    return { id: u.id, token };
+  };
+  const admin = await mk('admin_x'), tea = await mk('tea_x');
+  // 作者本人删除：日常操作，无需 capToken
+  raw.prepare("INSERT INTO posts (user_id, section, title, body_md) VALUES (?, 'plaza', '讲义X', 'X')").run(tea.id);
+  const pid = raw.prepare('SELECT id FROM posts ORDER BY id DESC LIMIT 1').get().id;
+  const byOwner = await handleDeletePost(db, pid, {}, reqOf(tea.token));
+  assert.equal(byOwner.status, 200, '作者本人删除正常');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM posts').get().c, 0, '帖子已删');
+  // 管理员越权删除：无 capToken → 403（U-3f 补门禁，P12）
+  raw.prepare("INSERT INTO posts (user_id, section, title, body_md) VALUES (?, 'plaza', '讲义Y', 'Y')").run(tea.id);
+  const pid2 = raw.prepare('SELECT id FROM posts ORDER BY id DESC LIMIT 1').get().id;
+  const noCap = await handleDeletePost(db, pid2, {}, reqOf(admin.token));
+  assert.equal(noCap.status, 403, '管理员无 capToken 拒绝');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM posts').get().c, 1, '帖子未被删');
+  // 管理员带 capToken → 200
+  const capToken = await issueCapToken(db, reqOf(admin.token));
+  const withCap = await handleDeletePost(db, pid2, { capToken }, reqOf(admin.token));
+  assert.equal(withCap.status, 200, '管理员带 capToken 删除成功');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM posts').get().c, 0, '帖子已删');
 });
