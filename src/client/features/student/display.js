@@ -36,12 +36,8 @@ export function demandOptionText(d) {
 
 export function expectedTimeText(raw) {
   if (!raw) return '';
-  // T-6-F3: teacher time_slots now arrives parsed (safeJsonArray output); string JSON retained
-  // for demand expected_time.
-  let arr = Array.isArray(raw) ? raw : null;
-  if (!arr) {
-    try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch { arr = null; }
-  }
+  let arr = null;
+  try { const p = JSON.parse(raw); if (Array.isArray(p)) arr = p; } catch { arr = null; }
   if (!arr) return String(raw);
   const texts = arr
     .filter(s => s && typeof s === 'object' && s.type === 'week')

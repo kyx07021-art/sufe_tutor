@@ -89,8 +89,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
     price_max: p.price_max != null ? p.price_max : null,
     price: p.price != null ? p.price : null,
     // R2-1/R2-2/R2-3/R2-4：教师档案扩展字段
-    // T-6-F3：time_slots 走 safeJsonArray（与 subjects/gaokao 同批 JSON 列对齐，服务端单点反序列化零例外）
-    time_slots: safeJsonArray(p.time_slots),
+    time_slots: p.time_slots || '',
     teaching_method: p.teaching_method || '',
     personality_tags: safeJsonArray(p.personality_tags),
     nonacademic_projects: safeJsonArray(p.nonacademic_projects),

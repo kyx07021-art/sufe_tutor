@@ -30,7 +30,7 @@ setEnsureAuth(() => true);
 
 const BASE_PROFILE = {
   user_id: 1, username: 'wang', real_name: '王老师', grade: 'senior1', school: '上财',
-  price_min: 100, price_max: 200, time_slots: [], gender: 'male',
+  price_min: 100, price_max: 200, time_slots: '', gender: 'male',
 };
 
 test('Z-10-F1: renderProfilePanel gates write-review button on server signed flag', () => {

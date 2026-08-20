@@ -247,7 +247,10 @@ export function applyFilters() {
   if (state.teacherSort) sortTeachers(); // re-apply sort after filtering (was falling back to server order)
   renderTeachers();
 }
-export function hasDaySlot(timeSlots, day) { // Q-4a-M1a: match dow exactly — old String.includes matched digits inside start/end times (e.g. dow=3, start '18:00' falsely matched day 1). T-6-F3: mapper emits parsed arrays (safeJsonArray) — no string form.
+export function hasDaySlot(timeSlots, day) { // Q-4a-M1a: parse time_slots JSON and match dow exactly — old String.includes matched digits inside start/end times (e.g. dow=3, start '18:00' falsely matched day 1)
+  if (Array.isArray(timeSlots)) { /* already parsed */ }
+  else if (typeof timeSlots === 'string') { try { timeSlots = JSON.parse(timeSlots || '[]'); } catch { return false; } }
+  else return false;
   if (!Array.isArray(timeSlots)) return false;
   return timeSlots.some(t => Number(t && (t.dow ?? t.day)) === day);
 }
@@ -465,9 +468,12 @@ export function initTeacherProfileForm(profile) {
   const subjects = document.getElementById('tp-subjects');
   if (subjects) subjects.addEventListener('change', refreshGaokaoEditor);
   renderNonacademicPriceRows(profile && profile.nonacademic_prices);
-  // F1d2 seed: the editor starts from the saved scores (array from the safeJsonArray mapper) and
-  // renders once — province/subject/year changes re-render later. T-6-F3: dead string branch removed.
-  const gkExisting = Array.isArray(profile && profile.gaokao_scores) ? profile.gaokao_scores : [];
+  // F1d2 seed: the editor starts from the saved scores (array from the safeJsonArray mapper, or a
+  // defensive string form) and renders once — province/subject/year changes re-render later.
+  const raw = profile && profile.gaokao_scores;
+  let gkExisting;
+  if (Array.isArray(raw)) gkExisting = raw;
+  else if (typeof raw === 'string') { try { gkExisting = JSON.parse(raw) || []; } catch { gkExisting = []; } }
   refreshGaokaoEditor(gkExisting);
   onTeacherProvinceChange(); // initial run: address area + method lock from saved province
 }
