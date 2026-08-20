@@ -5,7 +5,7 @@
  * 风控判定人类轨迹的核心不是「终点对不对」，而是「过程像不像人」——机器轨迹
  * （匀速、笔直、瞬间到达、无噪声）与人类轨迹（慢-快-慢变速、自然抖动、终点微调）差异显著。
  *
- * 本模块提取以下特征做多特征加权评分（满分 100，阈值 70 放行）：
+ * 本模块提取以下特征做多特征加权评分（满分 100，阈值 59 放行）：
  *   - 总时长区间      （人类 ~400-3000ms；机器常 <250ms 瞬时到达或匀速拖满）       权重 15
  *   - 轨迹点密度      （20-120 点；太少=跳点伪造、太多=事件刷屏）                   权重 10
  *   - 速度曲线        （人类 慢-快-慢：起段加速 + 末段减速；机器单调/匀速）          权重 25
@@ -22,7 +22,8 @@ import { error, errorMsg } from '../src/server/core/util.js';
 import { logEvent } from '../src/server/core/log.js';
 import { MSG } from '../src/shared/codes.js';
 
-const PASS_SCORE = 70;
+// 阈值 = 20 次真人拖动校准 mean−2σ（向下取整）；机器轨迹原始分恒 <15，59 不降低人机分辨力
+export const PASS_SCORE = 59;
 const MIN_POINTS = 10;
 const MAX_POINTS = 2000; // 审计修复：后端轨迹点数硬上限（防单请求 CPU 放大；前端 cap 128，2000 为攻击面兜底）
 const REUSE_WINDOW_MS = 5 * 60 * 1000;
