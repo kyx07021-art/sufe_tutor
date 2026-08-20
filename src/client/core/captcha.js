@@ -101,6 +101,13 @@ function paintCaptcha() {
     drawGapShape(pctx, SLIDER_W / 2, SLIDER_H / 2, R, shape);
     pctx.fill(); // v1.4.17 parity: fill required to clip puzzle into shape (path-only = rectangle)
     pctx.restore();
+    // R-4 full migration: white stroke follows the puzzle silhouette (same style as the
+    // background hole stroke below); element box-shadow stays rectangle so drop-shadow
+    // (base.css) handles the shape-following shadow instead.
+    pctx.strokeStyle = 'rgba(255,255,255,.85)';
+    pctx.lineWidth = 2;
+    drawGapShape(pctx, SLIDER_W / 2, SLIDER_H / 2, R, shape);
+    pctx.stroke();
   }
   ctx.save();
   ctx.globalCompositeOperation = 'destination-out';

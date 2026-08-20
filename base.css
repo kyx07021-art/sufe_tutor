@@ -424,7 +424,7 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 #captcha-canvas { width: 280px; height: 120px; border-radius: 10px; display: block; touch-action: none; }
 #captcha-puzzle { position: absolute; left: 0; top: 40px; width: 40px; height: 40px; pointer-events: none;
   transform: translateX(var(--captcha-x, 0px)); will-change: transform; z-index: 2;
-  box-shadow: 0 2px 8px rgba(0,0,0,.28); }
+  filter: drop-shadow(0 2px 8px rgba(0,0,0,.28)); } /* R-4 全迁移：阴影跟随异形 alpha（box-shadow 恒为矩形） */
 .captcha-slider-track { position: relative; width: 280px; height: 42px; border-radius: 21px; overflow: hidden;
   background: var(--g-fill, rgba(128,128,128,.14)); box-shadow: inset 0 1px 3px rgba(0,0,0,.12); }
 .captcha-slider-fill { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--captcha-x, 0px) + 40px);
