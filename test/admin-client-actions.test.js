@@ -380,18 +380,21 @@ test('U-3d loadAdminAwards：带 status 参数请求 + 渲染（G2 删 status �
 
 test('U-3d loadAdminAwards 无参数：读 #admin-awards-status 当前值保持筛选（G2 删 select 读取必红）', async () => {
   const dom = setup();
+  _dhResetForTests(); // datahub cache is module-level shared — clear stale /api/admin/awards entries so fetch is actually issued
   const list = document.createElement('div');
   list.id = 'admin-awards-list';
   document.body.appendChild(list);
   const sel = document.createElement('select');
   sel.id = 'admin-awards-status';
+  const opt = document.createElement('option'); opt.value = 'rejected'; opt.textContent = '已驳回';
+  sel.appendChild(opt); // G3: select value only applies when an option matches — empty select ignores .value
   sel.value = 'rejected';
   document.body.appendChild(sel);
-  globalThis.fetch = async (url) => {
-    assert.ok(String(url).includes('/api/admin/awards?status=rejected'), '从 select 读当前筛选值');
-    return { ok: true, status: 200, json: async () => ({ awards: [] }) };
-  };
+  let seenUrl = '';
+  // U-3d 审计 F1：断言移出 mock 内部——原先写在 mock 里被业务 catch 吞掉，删 select-read 不红（G2）
+  globalThis.fetch = async (url) => { seenUrl = String(url); return { ok: true, status: 200, json: async () => ({ awards: [] }) }; };
   await loadAdminAwards();
+  assert.ok(seenUrl.includes('/api/admin/awards?status=rejected'), '从 select 读当前筛选值（删 select-read 必红）');
   teardown();
 });
 

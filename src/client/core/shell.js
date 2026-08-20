@@ -144,9 +144,9 @@ export function mountShell() {
           <div class="filter-panel glass glass--solid" id="admin-awards-filter">
             <select class="filter-select" id="admin-awards-status" data-change="admin.filterAwards">
               <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
-              <option value="${AWARD_STATUS.PENDING}">${escHtml(TEXT.STATUS_PENDING)}</option>
-              <option value="${AWARD_STATUS.APPROVED}">${escHtml(TEXT.STATUS_APPROVED)}</option>
-              <option value="${AWARD_STATUS.REJECTED}">${escHtml(TEXT.STATUS_REJECTED)}</option>
+              <option value="${AWARD_STATUS.PENDING}">${escHtml(TEXT.AWARD_STATUS_PENDING)}</option>
+              <option value="${AWARD_STATUS.APPROVED}">${escHtml(TEXT.AWARD_STATUS_APPROVED)}</option>
+              <option value="${AWARD_STATUS.REJECTED}">${escHtml(TEXT.AWARD_STATUS_REJECTED)}</option>
             </select>
           </div>
           <div class="browse-list" id="admin-awards-list"></div>` })}

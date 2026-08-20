@@ -410,7 +410,6 @@ export function approveAward(id) {
   }});
 }
 export function rejectAwardModal(id) { openModal({ title: TEXT.ADMIN_AWARD_REJECT, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_AWARD_REJECT_HINT)}</label><textarea id="award-reject-note" class="form-input" placeholder="${escHtml(TEXT.ADMIN_AWARD_REJECT_PLACEHOLDER)}"></textarea></div>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.submitAwardReject" data-id="${id}">${TEXT.BTN_CONFIRM}</button>` }); }
-export async function submitAwardReject(id) { return doAwardAction(id, 'reject'); }
 export function doAwardAction(id, action) {
   const note = document.getElementById('award-reject-note')?.value || '';
   if (action === 'reject' && !note.trim()) { showToast(TEXT.ADMIN_AWARD_REJECT_REQUIRED, 'error'); return; }
