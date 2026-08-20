@@ -132,7 +132,7 @@ export function renderAdminUserRow(u, role) {
         ${u.verified ? `<span class="tag tag-ok glass glass--solid">${TEXT.VERIFIED_BADGE}</span>` : ''}
         ${u.banned ? `<span class="tag tag-danger glass glass--solid">${TEXT.TAG_BANNED}</span>` : ''}
       </div>
-      <div class="admin-row-meta">${meta} · ${TEXT.REGISTERED_AT_PREFIX}${fmtDateTime(u.created_at)}</div>
+      <div class="admin-row-meta">${escHtml(meta)} · ${escHtml(TEXT.REGISTERED_AT_PREFIX)}${escHtml(fmtDateTime(u.created_at))}</div>
     </div>
     <div class="admin-row-actions">
       ${role === ROLES.TEACHER ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewProfile" data-id="${uid}">${TEXT.BTN_VIEW_DETAIL}</button>` : ''}
