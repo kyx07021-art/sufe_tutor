@@ -21,6 +21,22 @@ function extractDirective(policy, name) {
   return part ? part.split(/\s+/).slice(1).join(' ') : null;
 }
 
+/**
+ * Extract the first Content-Security-Policy value from a _headers-style text.
+ * Skips blank lines and comment lines (optional whitespace then '#') so a
+ * future "# Content-Security-Policy: ..." example comment can never be
+ * mis-parsed as the real directive (backlog h5a-g6 hardening).
+ */
+function extractHeadersCsp(text) {
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const m = trimmed.match(/^Content-Security-Policy:\s*(.*)$/);
+    if (m) return m[1].trim();
+  }
+  return '';
+}
+
 test('严格 meta CSP：script-src/style-src-elem/style-src-attr 无 unsafe-inline；style-src-attr 为 none；不收紧 data:/blob:', () => {
   assert.ok(meta, 'meta CSP 存在');
   assert.ok(/script-src 'self'(?!\s*'unsafe-inline')/.test(csp), 'script-src 仅 self（拦内联 script）');
@@ -35,7 +51,7 @@ test('严格 meta CSP：script-src/style-src-elem/style-src-attr 无 unsafe-inli
 });
 
 test('两处策略姿态锁：_headers 与 SECURITY_HEADERS 的 CSP 同姿态（script-src/style-src-elem 无 unsafe-inline、style-src-attr none、无 font-src）', () => {
-  const headersPolicy = readFileSync('_headers', 'utf8').match(/Content-Security-Policy: ([^\n]+)/)?.[1] ?? '';
+  const headersPolicy = extractHeadersCsp(readFileSync('_headers', 'utf8'));
   const configPolicy = readFileSync('src/shared/config.js', 'utf8').match(/Content-Security-Policy['"]:\s*"([^"]+)"/)?.[1] ?? '';
   assert.ok(headersPolicy && configPolicy, '两处策略均存在');
   for (const [label, p] of [['_headers', headersPolicy], ['SECURITY_HEADERS', configPolicy]]) {
@@ -45,6 +61,25 @@ test('两处策略姿态锁：_headers 与 SECURITY_HEADERS 的 CSP 同姿态（
     assert.ok(!/font-src/.test(p) && !/fonts\.google/.test(p), `${label} 无 font-src/fonts.googleapis`);
   }
   assert.equal(headersPolicy, configPolicy, '两处策略逐字一致（同源同姿态）');
+});
+
+test('变异守护：_headers 注释示例行不误命中（首匹配只认非注释行，还原旧首匹配正则即红）', () => {
+  const realPolicy = "default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'";
+  const commentExample = "default-src 'self'; script-src 'unsafe-inline'";
+  // Mimic the real _headers shape: a # comment block (with an illustrative CSP
+  // example) precedes the real /* rule block. Old first-match regex would grab
+  // the comment's value; the hardened extractor must skip it.
+  const fragment = [
+    '# Content-Security-Policy: ' + commentExample,
+    '# (illustrative comment, never a real directive)',
+    '',
+    '/*',
+    '  X-Content-Type-Options: nosniff',
+    '  Content-Security-Policy: ' + realPolicy,
+    '*/',
+  ].join('\n');
+  assert.equal(extractHeadersCsp(fragment), realPolicy, '注释示例行被跳过，解析到真实指令');
+  assert.notEqual(extractHeadersCsp(fragment), commentExample, '绝不误取注释示例值');
 });
 
 test('注入面第三路：web/index.html 零 <style> 元素', () => {
