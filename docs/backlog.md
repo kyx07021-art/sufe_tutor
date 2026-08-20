@@ -207,3 +207,7 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 ### 需求 AB captcha MIME 错修复审计遗留（2026-08-20，独立审计 PASS 后非阻断，守卫已消除 MIME 症状）
 - 🟡 **AB-O1 三处懒加载 import 无 catch**（chat/actions-misc.js:65,73 `import('../contract/index.js')` + posts/actions-feedback.js:109 `openComplaintAction`）：部署竞态窗口内旧 tab 持旧 bundle 引用已删 chunk → 守卫已把 MIME 错转干净 404（该动作失败、刷新自愈，非持续断线）。修法 = 包 try/catch 静默降级（对齐 onboard/actions.js:76 先例）或改静态 import。攒批（勿混入 2.0.x 小修，捕获事件即整批发版）。
 - 🟡 **AB-O2 守卫扩展名正则 {1,6} 不覆盖超长扩展名**（_worker.js:307）：如 `.webmanifest` 理论边角，本应用无此类资产，无需处理。
+
+### 需求 AC 移动端验证码框审计遗留（2026-08-20，独立审计 PASS 后轻级）
+- 🟡 **AC-OBS1 verify-otp-input.mjs 遮罩关闭用合成点击**（test/verify-otp-input.mjs `ov.click()` DOM 合成点击，e.target 强制=overlay 根节点恒真关闭）：真用户命中式点击在 375×667 视口中心落在弹窗卡片内（卡片占 x=20-355,y=58-609）→ e.target 为卡片子节点不会关闭。本测试仅作解锁页面 setup（几何断言是真正被测对象），真实点击负路径已由 verify-csp-strict.mjs:164 `page.mouse.click(20,300)` 覆盖。无需改，记录语义边界。
+- 🟡 **AC-OBS3 注册/绑定验证码行无直接几何断言**：AC-2 只锁登录验证码行；注册（render.js:82/157 codeFieldHtml）与绑定（actions-otp.js:108/117）为同构标记（form-group > form-label + code-input-wrap），CSS 结构性命中三类、几何一致，但无逐类断言。攒批可加多表单用例。
