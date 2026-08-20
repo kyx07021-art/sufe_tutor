@@ -10,7 +10,7 @@ export const ASSET_MANIFEST = {
     "features/complaints.css": "features/complaints.7bde5325.css",
     "features/browse.css": "features/browse.5c318665.css",
     "features/admin.css": "features/admin.37162900.css",
-    "features/teacher.css": "features/teacher.25ef0352.css",
+    "features/teacher.css": "features/teacher.89abb39f.css",
     "features/notif.css": "features/notif.3302a503.css",
     "features/chart.css": "features/chart.d5150017.css",
     "features/demand.css": "features/demand.42d7da97.css",
