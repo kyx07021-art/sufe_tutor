@@ -318,11 +318,17 @@ export function openContentPenaltyModal(id, type) {
   });
 }
 
-// AF-7: per-type cache domain for content penalties. The server handleContentAction deletes
+// AF-7: per-type cache domains for content penalties. The server handleContentAction deletes
 // by type (post/demand/review/message/contract/feedback/complaint/upload/signing/teacher) but
 // bumps only [ADMIN] — cross-end stale data would linger until TTL/probe if we don't invalidate
-// the domain the deleted row was rendered from (Q-3b-L1).
-const CONTENT_DOMAIN_BY_TYPE = { post: 'posts', contract: 'contracts', message: 'chat', demand: 'demands' };
+// the domain(s) the deleted row was rendered from (Q-3b-L1). Values are domain arrays.
+// AF-7b redo (W29): teacher content penalties are always 'ban' (server rejects delete/remove) —
+// invalidate both 'teachers' (student-side public list visibility) AND 'admin' (admin user list
+// ban state); single-value mapping would have silently dropped the 'admin' invalidation.
+const CONTENT_DOMAIN_BY_TYPE = {
+  post: ['posts'], contract: ['contracts'], message: ['chat'], demand: ['demands'],
+  teacher: ['teachers', 'admin'],
+};
 
 export async function performContentPenalty(id, type, action, reason, rule, capToken) {
   // Write path exported for direct test (G1/G2): body shape matches server handleContentAction
@@ -347,7 +353,7 @@ export async function doSubmitContentPenalty(id, type, action) {
           const r = await performContentPenalty(id, type, action, reason, rule, capToken);
           showToast(r.message || TEXT.ADMIN_PENALTY_DONE, 'success');
           closeModal();
-          invalidate(CONTENT_DOMAIN_BY_TYPE[type] || 'admin'); // AF-7: invalidate the domain the deleted row was rendered from (server bumps only [ADMIN])
+          (CONTENT_DOMAIN_BY_TYPE[type] || ['admin']).forEach(invalidate); // AF-7/AF-7b: invalidate every domain the deleted/penalized row was rendered from (server bumps only [ADMIN])
           loadAdminContent(_adminContentType);
         } catch (err) { showToast(err.message, 'error'); }
       });
