@@ -107,7 +107,14 @@ export async function openMyFeedback() {
 export function closeModalAction() { closeModal(); }
 
 export async function openComplaintAction() {
-  closeModal();
-  const mod = await import('../complaints/index.js');
-  mod.actions.openComplaintModal();
+  // AB-O1: silent degrade on lazy-import failure (deploy-race: an old tab may reference a chunk
+  // already removed on redeploy — the SPA-fallback guard already turns the MIME error into a clean
+  // 404, so this just must not throw). Aligns with onboard/actions.js browseAsGuest precedent.
+  try {
+    closeModal();
+    const mod = await import('../complaints/index.js');
+    mod.actions.openComplaintModal();
+  } catch (err) {
+    console.warn('openComplaintAction', err);
+  }
 }
