@@ -202,3 +202,4 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 
 ### 需求 Z-3-F1 审计观察项（2026-08-20，F1d1 独立审计 PASS 后非阻塞遗留）
 - 🟡 **Z-3-F1-O1 nonacademic 标签无上限哨兵 99**（src/client/features/teacher/render.js:156 `tagPickBtn(n.id, n.name, 'tp-nonacademic', 99, ...)`）：`99` 是裸数字"无上限"哨兵。服务端对 nonacademic_projects 无数量上限（server/domains/teacher/api.js:180-185 仅白名单去重），10 个项目下 99 永不触顶，功能无碍；但 core/ui.js:194 `toggleTagPick` 语义支持 `max=0`（`max > 0` 即不钳制）。改法：`99` → `0`（带"0=无上限"注释）或具名常量。攒批清理。
+- 🟡 **Z-3-F1-O2 old 文理 track 分支无专用测试**（src/client/features/teacher/render.js:375-397）：F1d2 审计 PASS 后观察——5 个 F1d2 测试锁 hebei 3+1+2 / zhejiang 3+3 / 无省份 / 警告 / 重渲染，老文理 track 分支（science/arts pill 切换 + 分数行显隐）逻辑经人工核查正确但零测试覆盖。攒批补一条 xinjiang 双向 track 切换用例。
