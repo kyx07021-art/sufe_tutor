@@ -6,7 +6,7 @@ export const ASSET_MANIFEST = {
   "files": {
     "theme-init.js": "theme-init.ca6d2d50.js",
     "tokens.css": "tokens.197cd74f.css",
-    "base.css": "base.f0dc805b.css",
+    "base.css": "base.cf3adf9c.css",
     "features/complaints.css": "features/complaints.7bde5325.css",
     "features/browse.css": "features/browse.5c318665.css",
     "features/admin.css": "features/admin.37162900.css",
@@ -15,7 +15,7 @@ export const ASSET_MANIFEST = {
     "features/chart.css": "features/chart.d5150017.css",
     "features/demand.css": "features/demand.42d7da97.css",
     "responsive.css": "responsive.f9fd2539.css",
-    "features/chat.css": "features/chat.fb6db88c.css",
+    "features/chat.css": "features/chat.17a77827.css",
     "features/posts.css": "features/posts.40f7400d.css",
     "features/region.css": "features/region.e5577254.css",
     "glass.css": "glass.766d3ba4.css",
