@@ -125,8 +125,11 @@ export async function dbGetDemandsByUser(db, userId) {
 }
 
 // 单条需求也走 mapper（与列表同形状；调用方统一拿数组字段，裸行分叉已消灭）
-// 单条需求：出口经 mapDemandRow（与列表 dbGetDemands 同 mapper，形状一致：路由层零 JSON.parse、
-// mapper 出口剥私密字段；price 保留 null 语义）。
+// 单条需求：出口经 mapDemandRow（与开放列表 dbGetDemands 同 mapper，形状一致：路由层零 JSON.parse、
+// mapper 出口剥私密字段 parent_contact/student_contact；price 保留 null 语义）。
+// 跨出口契约：需要联系方式的单条场景（本人「我的需求」编辑回填）显式用 mapDemandRowFull
+// （dbGetDemandsByUser 同款，解密为 async）；当前 dbGetDemandById 调用方（admin 删除/内容审核、
+// 合同门禁/reopen）均不需要联系方式，走剥私密字段的 mapDemandRow 为正确设计。
 export async function dbGetDemandById(db, id) {
   const row = await dbGet(db, 'SELECT * FROM student_demands WHERE id=?', [id]);
   return row ? mapDemandRow(row) : null;
