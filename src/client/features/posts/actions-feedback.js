@@ -6,6 +6,7 @@ import { STATUS } from '../../../shared/enums.js';
 import { TEXT } from '../../constants/text.js';
 import { postsAuth as ensureAuth } from './actions-list.js';
 import { api } from '../../core/api.js';
+import { invalidate } from '../../core/datahub.js'; // AF-8: admin feedback list refresh after submit
 
 let feedbackKind = 'bug';
 import { openModal, closeModal, showToast, mdEditorHtml } from '../../core/ui.js';
@@ -50,6 +51,7 @@ export async function submitFeedback() {
   if (!content) { showToast(TEXT.FEEDBACK_EMPTY, 'error'); return; }
   try {
     await api('/api/feedbacks', { method: 'POST', body: { kind: feedbackKind, title, content } });
+    invalidate('admin'); // AF-8: refresh the admin feedback list immediately (same-session consistency, Q-3b-L2)
     closeModal();
     showToast(TEXT.FEEDBACK_SENT_TOAST);
   } catch (err) {
