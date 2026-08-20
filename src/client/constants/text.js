@@ -938,7 +938,7 @@ export const TEXT = {
   "CAPTCHA_ARIA": "拖动滑块完成拼图验证",
   "BTN_LOGOUT": "退出登录",
   "CONFIRM_LOGOUT": "退出后需要重新登录。确定退出当前账户吗？",
-  "SETTINGS_DEVICES": "登录设备",
+  "SETTINGS_DEVICES": "登录设备管理",
   "SETTINGS_PRIVACY_TITLE": "隐私设置",
   "SETTINGS_PRIVACY_ON": "允许",
   "SETTINGS_PRIVACY_OFF": "关闭",
