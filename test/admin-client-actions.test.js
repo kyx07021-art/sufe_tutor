@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -541,18 +541,75 @@ test('U-3e verifApprove 带字段：confirm needReAuth 弹窗（含密码输入�
   teardown();
 });
 
-test('U-3e verifReject/verifRevoke：confirm needReAuth 弹窗（二次认证）', async () => {
+test('U-3e verifReject：理由弹窗（可选 reason）→ confirm needReAuth 二次认证', async () => {
   const dom = setup();
   verifReject(86);
-  const rm = dom.window.document.querySelector('.modal');
-  assert.ok(rm && rm.textContent.includes('确认拒绝该核验申请吗'), 'reject 确认弹窗');
-  assert.ok(rm.querySelector('#reauth-password'), 'reject needReAuth');
-  dom.window.document.querySelector('[data-action="ui.closeModal"]')?.click();
+  let rm = dom.window.document.querySelector('.modal');
+  assert.ok(rm && rm.querySelector('#verif-reject-reason'), '理由 textarea 弹窗（L-1 接线）');
+  assert.ok(rm.textContent.includes('驳回理由（可选，将通知教师）'), '可选理由 hint');
+  // 填理由 → 确认（测试直调 verifRejectConfirm，等价 data-action 委托按钮）
+  rm.querySelector('#verif-reject-reason').value = '材料不清晰';
+  verifRejectConfirm(86);
+  const cm = dom.window.document.querySelector('.modal');
+  assert.ok(cm && cm.textContent.includes('确认拒绝该核验申请吗'), 'reject 确认弹窗');
+  assert.ok(cm.querySelector('#reauth-password'), 'reject needReAuth');
+  await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
+  teardown();
+});
+
+test('U-3e verifRevoke：confirm needReAuth 弹窗（二次认证）', async () => {
+  const dom = setup();
   verifRevoke(87);
   const vrm = dom.window.document.querySelector('.modal');
   assert.ok(vrm && vrm.textContent.includes('确认撤销该教师的核验资格吗'), 'revoke 确认弹窗');
   assert.ok(vrm.querySelector('#reauth-password'), 'revoke needReAuth');
   await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
+  teardown();
+});
+
+test('U-3e verifRejectConfirm：收集 reason → confirm needReAuth 弹窗', async () => {
+  const dom = setup();
+  const reason = document.createElement('textarea'); reason.id = 'verif-reject-reason'; reason.value = '材料不清晰';
+  document.body.appendChild(reason);
+  verifRejectConfirm(89);
+  const cm = dom.window.document.querySelector('.modal');
+  assert.ok(cm && cm.querySelector('#reauth-password'), 'needReAuth 确认弹窗');
+  assert.ok(cm.textContent.includes('确认拒绝该核验申请吗'), 'reject 确认文案');
+  await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
+  teardown();
+});
+
+test('U-3e performVerifAction reject：reason 透传到写路径 body（G2 删 reason 透传必红）', async () => {
+  const dom = setup();
+  let postedBody = null;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/admin/verifications/89/action') && opts.method === 'POST') postedBody = JSON.parse(opts.body);
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
+  };
+  await performVerifAction(89, { action: 'reject', reason: '材料不清晰' }, { capToken: 'cap-1' });
+  assert.equal(postedBody.action, 'reject', 'action 透传');
+  assert.equal(postedBody.reason, '材料不清晰', 'reason 透传（删透传必红）');
+  assert.equal(postedBody.capToken, 'cap-1', 'capToken 透传');
+  await new Promise(r => setTimeout(r, 10));
+  teardown();
+});
+
+test('U-3e loadAdminVerifications 无参数：读 #admin-verif-status 当前值保持筛选（G2 删 select 读取必红）', async () => {
+  const dom = setup();
+  _dhResetForTests();
+  const list = document.createElement('div');
+  list.id = 'admin-verifications-list';
+  document.body.appendChild(list);
+  const sel = document.createElement('select');
+  sel.id = 'admin-verif-status';
+  const opt = document.createElement('option'); opt.value = 'pending'; opt.textContent = '待核验';
+  sel.appendChild(opt); // G3: select value only applies when an option matches
+  sel.value = 'pending';
+  document.body.appendChild(sel);
+  let seenUrl = '';
+  globalThis.fetch = async (url) => { seenUrl = String(url); return { ok: true, status: 200, json: async () => ({ verifications: [] }) }; };
+  await loadAdminVerifications();
+  assert.ok(seenUrl.includes('/api/admin/verifications?status=pending'), '从 select 读当前筛选值（删 select-read 必红）');
   teardown();
 });
 

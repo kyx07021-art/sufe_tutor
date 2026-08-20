@@ -235,9 +235,17 @@ test('v1.4.16 录取通知书提交：pending 进队列 + svg/超限拒绝', asy
   const huge = 'data:image/png;base64,' + 'A'.repeat(600000);
   r = await handleVerifyAdmission(db, { image: huge }, reqOf(token));
   assert.equal(r.status, 400, '超限拒收');
+  raw.exec("INSERT INTO users (username,password_hash,salt,role) VALUES ('stu1','h','s','student')");
+  const stuId = raw.prepare("SELECT id FROM users WHERE username='stu1'").get().id;
+  const st = 'stu1-token';
+  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)').run(await tokenDigest(st), stuId, 'x', '2099-01-01 00:00:00');
+  r = await handleVerifyAdmission(db, { image: img }, reqOf(st));
+  assert.equal(r.status, 403, '学生角色拒绝');
+});
 
 // U-3e：P12 危险操作门禁——handleVerificationAction 无 capToken 必须 403
-// （变异：去掉 confirmDangerOtp → 200 → 红）
+// （变异：去掉 confirmDangerOtp → 200 → 红）。独立 test()，不嵌套进 v1.4.16 父测试
+// （U-3e 审计 M-1：嵌套会致父测试前序失败时本测试静默跳过，回归防线丢失）。
 test('U-3e 守护：handleVerificationAction 无 capToken → 403（危险操作二次认证）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   await initDb(db, ENV);
@@ -249,11 +257,4 @@ test('U-3e 守护：handleVerificationAction 无 capToken → 403（危险操作
   const r = await handleVerificationAction(db, v.id, { action: 'approve', school: 'X大学', level: '本科' }, reqOf(adminToken));
   assert.equal(r.status, 403, '无 capToken 拒绝');
   assert.equal((await dbGetTeacherVerification(db, tid)).status, 'pending', '状态未被改动');
-});
-  raw.exec("INSERT INTO users (username,password_hash,salt,role) VALUES ('stu1','h','s','student')");
-  const stuId = raw.prepare("SELECT id FROM users WHERE username='stu1'").get().id;
-  const st = 'stu1-token';
-  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)').run(await tokenDigest(st), stuId, 'x', '2099-01-01 00:00:00');
-  r = await handleVerifyAdmission(db, { image: img }, reqOf(st));
-  assert.equal(r.status, 403, '学生角色拒绝');
 });

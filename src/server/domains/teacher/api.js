@@ -10,7 +10,7 @@ import { json, errorMsg, sanitizeTimeSlots, parseIdParam } from '../../core/util
 import { authUser, requireUser, requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
-import { TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, SUBJECTS, TEACHER_GRADES, GENDERS, VERIFY_TYPES } from '../../../shared/enums.js';
+import { TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, SUBJECTS, TEACHER_GRADES, GENDERS } from '../../../shared/enums.js';
 import { SUFE_REGIONS } from '../../../shared/region-data.js'; // V-2-4c 地区数据单源
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbListTeacherVerifications, dbGetTeacherVerificationById, dbApplyChsiToProfile, dbClearChsiFromProfile, dbSetTeacherVerified, safeJsonArray } from '../../../../server/db.js';
 import { verifyChsiCode } from '../../../../server/chsi.js';
@@ -320,7 +320,7 @@ export async function handleListVerifications(db, url, req) {
   return json({ verifications: list });
 }
 
-// POST /api/admin/verifications/:id/action { action:'approve'|'reject', school, level, major, enrollment_status, enroll_year }
+// POST /api/admin/verifications/:id/action { action:'approve'|'reject'|'revoke', school, level, major, enrollment_status, enroll_year, reason }
 // approve：结构化录入学信网字段 + 自动填入教师档案 + 通知教师；reject：通知教师
 export async function handleVerificationAction(db, id, body, req) {
   const { admin, err } = await requireAdmin(db, req);

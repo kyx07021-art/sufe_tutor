@@ -12,7 +12,7 @@ import { escHtml, fmtDateTime, loaderHtml, mdRender } from '../../core/dom.js'; 
 import { priceRangeText } from '../../core/display.js';
 import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from '../teacher/display.js'; // U-3a: teacher row meta; U-3c: review stars/status tag
 import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand card (admin:true reuse, W6)
-import { STATUS, AWARD_STATUS } from '../../../shared/enums.js'; // U-3c: review status gate; U-3d: award status gate (shared enums)
+import { STATUS, AWARD_STATUS, VERIFY_TYPES } from '../../../shared/enums.js'; // U-3c review / U-3d award / U-3e verify-type gates (shared enums)
 
 function adminStatCards(pairs) {
   return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');
@@ -481,12 +481,12 @@ export function renderVerifCard(v) {
   return `<div class="list-card glass verif-card" data-id="${v.id}">
     <div class="verif-head">
       <span class="verif-user">${escHtml(v.username || ('#' + v.user_id))}</span>
-      ${v.verify_type === 'admission' ? `<span class="tag tag-accent glass glass--solid">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_TAG)}</span>` : ''}
+      ${v.verify_type === VERIFY_TYPES.ADMISSION ? `<span class="tag tag-accent glass glass--solid">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_TAG)}</span>` : ''}
       ${verifStatusTag(v.status)}
-      <span class="verif-code">${v.verify_type === 'admission' ? escHtml(TEXT.ADMIN_VERIF_ADMISSION_NO_CODE) : escHtml(v.verify_code)}</span>
+      <span class="verif-code">${v.verify_type === VERIFY_TYPES.ADMISSION ? escHtml(TEXT.ADMIN_VERIF_ADMISSION_NO_CODE) : escHtml(v.verify_code)}</span>
     </div>
     <div class="verif-meta">${fmtDateTime(v.created_at)}${v.verified_at ? ' · ' + fmtDateTime(v.verified_at) : ''}</div>
-    ${v.verify_type === 'admission' && v.admission_image ? `<div class="verif-admission-preview"><button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewAdmissionImage" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_VIEW_IMG)}</button></div>` : ''}
+    ${v.verify_type === VERIFY_TYPES.ADMISSION && v.admission_image ? `<div class="verif-admission-preview"><button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewAdmissionImage" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_VIEW_IMG)}</button></div>` : ''}
     ${v.status === STATUS.APPROVED ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>
       <div class="verif-actions"><button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.verifRevoke" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_REVOKE_BTN)}</button></div>` : ''}
     ${v.status === STATUS.PENDING ? renderVerifForm(v) : ''}
@@ -524,9 +524,16 @@ export function verifApprove(id) {
     withCaptcha(() => performVerifAction(id, body, { capToken }));
   }});
 }
+// L-1 (U-3e audit): reject collects an optional reason — server supports body.reason and sends
+// it in the VERIFY_REJECTED notification; without it the notified reason is always empty. The
+// optional reason is gathered in a modal, submit goes through needReAuth re-auth + captcha.
 export function verifReject(id) {
+  openModal({ title: TEXT.ADMIN_VERIF_REJECT_BTN, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_VERIF_REASON_PLACEHOLDER)}</label><textarea id="verif-reject-reason" class="form-input" rows="3"></textarea></div>`, footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CANCEL)}</button><button type="button" class="btn glass glass--pressable" data-action="admin.verifRejectConfirm" data-id="${id}">${escHtml(TEXT.BTN_CONFIRM)}</button>` });
+}
+export function verifRejectConfirm(id) {
+  const reason = document.getElementById('verif-reject-reason')?.value.trim() || '';
   confirm({ title: TEXT.ADMIN_VERIF_REJECT_BTN, message: TEXT.ADMIN_VERIF_REJECT_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performVerifAction(id, { action: 'reject' }, { capToken }));
+    withCaptcha(() => performVerifAction(id, { action: 'reject', reason }, { capToken }));
   }});
 }
 export function verifRevoke(id) {

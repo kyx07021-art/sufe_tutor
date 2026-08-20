@@ -38,6 +38,7 @@ const ACTION_MAP = {
   'admin.viewAdmissionImage': el => actions.viewAdmissionImage(Number(el.dataset.id)),
   'admin.verifApprove': el => actions.verifApprove(Number(el.dataset.id)),
   'admin.verifReject': el => actions.verifReject(Number(el.dataset.id)),
+  'admin.verifRejectConfirm': el => actions.verifRejectConfirm(Number(el.dataset.id)),
   'admin.verifRevoke': el => actions.verifRevoke(Number(el.dataset.id)),
 };
 let installed = false;
