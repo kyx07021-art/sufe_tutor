@@ -35,9 +35,21 @@ export function unregisterPage(id) {
   if (i >= 0) featurePages.splice(i, 1);
 }
 
+// 业务页优先排序（用户定案 2026-08-20）：核心业务页前置 + about 恒末尾，其余按注册序。
+// student: 我的需求→浏览教师；teacher: 我的资源→浏览需求。
+const CORE_PAGE_FIRST = {
+  [ROLES.STUDENT]: ['my-demands', 'browse-teachers'],
+  [ROLES.TEACHER]: ['resource-share', 'browse-demands'],
+};
 export function pagesForRole() {
   const role = state.user ? state.user.role : state.guestRole;
-  return [...builtinPages, ...featurePages].filter(p => !p.roles || !p.roles.length || p.roles.includes(role));
+  const all = [...builtinPages, ...featurePages].filter(p => !p.roles || !p.roles.length || p.roles.includes(role));
+  const ranked = [];
+  const core = CORE_PAGE_FIRST[role] || [];
+  core.forEach(id => { const i = all.findIndex(p => p.id === id); if (i >= 0) ranked.push(all.splice(i, 1)[0]); });
+  const ai = all.findIndex(p => p.id === 'about');
+  if (ai >= 0) all.push(all.splice(ai, 1)[0]); // about 恒末尾
+  return [...ranked, ...all];
 }
 // Logged-in default page equals old ROLE_PAGES[role][0]: first role-visible feature page
 // in registration order. B2 features call registerPage; while the registry is empty the
