@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -686,6 +686,61 @@ test('U-3f openPostViewModal：从缓存取帖子 → mdRender 全文弹窗（mo
   assert.ok(modal.classList.contains('modal--wide'), '宽窗（管理端全文阅读）');
   assert.ok(modal.textContent.includes('教师丙'), '作者 meta');
   assert.ok(modal.querySelector('.md-preview'), 'md 渲染容器');
+  assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1/U-3g：合同管理——v1-parity 行（签约双方 + 状态 tag + 起草人/方式/时薪/时间 + 查看/移除）
+// + 全文弹窗（改动 diff + mdRender）。G2：删状态 tag/查看按钮/全文渲染必红。
+// ─────────────────────────────────────────────────────────────
+
+test('U-3g renderAdminContractRow：签约双方 + 状态 tag + 起草人/方式/时薪/时间 + 查看/移除委托', () => {
+  const html = renderAdminContractRow({ id: 95, student_name: '学生甲', teacher_name: '教师乙', drafter_name: '学生甲', method: 'online', hourly_rate: 120, status: 'signed', updated_at: '2026-08-01 12:00:00' });
+  assert.ok(html.includes('学生甲 × 教师乙'), '签约双方');
+  assert.ok(html.includes('data-action="admin.viewContract" data-id="95"'), '查看按钮委托');
+  assert.ok(html.includes('data-action="admin.removeContract" data-id="95"'), '移除按钮委托');
+  assert.ok(html.includes('起草 '), '起草人前缀');
+  assert.ok(!/onclick=/.test(html), '零内联事件');
+});
+
+test('U-3g loadAdminContracts：渲染行 + 空态', async () => {
+  const dom = setup();
+  _dhResetForTests();
+  const list = document.createElement('div');
+  list.id = 'admin-contracts-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ contracts: [{ id: 96, student_name: '学生乙', teacher_name: '教师丙', drafter_name: '学生乙', method: 'online', hourly_rate: 100, status: 'signing', updated_at: '2026-08-01 12:00:00' }] }) });
+  await loadAdminContracts();
+  assert.ok(list.innerHTML.includes('学生乙 × 教师丙'), '合同行渲染');
+  teardown();
+});
+
+test('U-3g loadAdminContracts 空列表：空态文案', async () => {
+  const dom = setup();
+  _dhResetForTests();
+  const list = document.createElement('div');
+  list.id = 'admin-contracts-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ contracts: [] }) });
+  await loadAdminContracts();
+  assert.ok(list.innerHTML.includes('还没有合同记录'), '空态文案');
+  teardown();
+});
+
+test('U-3g adminViewContract：从缓存取合同 → 全文弹窗（modal--wide + contract-md + mdRender）', async () => {
+  const dom = setup();
+  _dhResetForTests();
+  const list = document.createElement('div');
+  list.id = 'admin-contracts-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ contracts: [{ id: 97, student_name: '学生丙', teacher_name: '教师丁', drafter_name: '学生丙', method: 'online', hourly_rate: 130, status: 'signed', updated_at: '2026-08-01 12:00:00', contract_md: '# 家教服务合同\n\n条款一', prev_business: '' }] }) });
+  await loadAdminContracts();
+  adminViewContract(97);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, '合同弹窗出现');
+  assert.ok(modal.classList.contains('modal--wide') && modal.querySelector('.contract-md'), '宽窗 + 合同样式容器');
+  assert.ok(modal.querySelector('.md-preview') || modal.textContent.includes('家教服务合同'), 'md 全文渲染');
   assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
   teardown();
 });

@@ -24,7 +24,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { initLedgerTable } from '../src/server/domains/contract/schema.js';
-import { handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract } from '../src/server/domains/contract/api.js';
+import { handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract, handleAdminRemoveContract } from '../src/server/domains/contract/api.js';
 import { dbGetContractById, dbGetMyContracts } from '../src/server/domains/contract/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { LIMITS } from '../src/shared/config.js';
@@ -323,4 +323,31 @@ test('Z-5-F7 回归：prev_business 密文落库 + mapper 出口解密', async (
   assert.ok(mineCt && mineCt.prev_business, '列表 mapper 出口有 prev_business');
   assert.ok(!String(mineCt.prev_business).startsWith('enc:v1:'), '列表出口已解密为明文（前端 diff 可用）');
   assert.ok(String(mineCt.prev_business).includes('家教服务合同'), 'prev_business = 修改前业务部分（diff 基线）');
+});
+
+// U-3g：管理员移除合同 = 危险操作（删除行 + 释放绑定需求），P12 须 capToken 二次认证。
+// 变异：去掉 handleAdminRemoveContract 的 confirmDangerOtp → 无 capToken 分支 200 → 红。
+test('U-3g：handleAdminRemoveContract 无 capToken 403 + 带 capToken 200', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { d1, idOf, t1S } = await seed(db, raw);
+  // admin 用户 + 会话（danger_caps 会话绑定）
+  raw.exec("INSERT INTO users (username,password_hash,salt,role) VALUES ('admin_x','h','s','admin')");
+  const adminSession = { token: 'admin-x-token', sessionId: 'sess-admin-x' };
+  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,session_id,label,expires_at) VALUES (?,?,?,?,?)')
+    .run(await tokenDigest(adminSession.token), idOf('admin_x'), adminSession.sessionId, 'x', '2099-01-01 00:00:00');
+  // 创建合同
+  const convId = raw.prepare('SELECT id FROM conversations ORDER BY id DESC LIMIT 1').get().id;
+  const cr = await handleCreateContract(db, contractBody(convId, d1), reqOf(t1S.token));
+  assert.equal(cr.status, 201, '合同创建');
+  const cid = raw.prepare('SELECT id FROM contracts ORDER BY id DESC LIMIT 1').get().id;
+  // 管理员无 capToken → 403，合同保留
+  const noCap = await handleAdminRemoveContract(db, cid, {}, reqOf(adminSession.token));
+  assert.equal(noCap.status, 403, '管理员无 capToken 拒绝');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM contracts').get().c, 1, '合同未被删');
+  // 管理员带 capToken → 200，合同删除 + 需求释放（contracted→revoked）
+  const cap = await capOf(raw, 'admin_x', adminSession.sessionId, idOf);
+  const withCap = await handleAdminRemoveContract(db, cid, { capToken: cap }, reqOf(adminSession.token));
+  assert.equal(withCap.status, 200, '管理员带 capToken 移除成功');
+  assert.equal(raw.prepare('SELECT COUNT(*) c FROM contracts').get().c, 0, '合同已删');
+  assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'revoked', '绑定需求释放为 revoked');
 });
