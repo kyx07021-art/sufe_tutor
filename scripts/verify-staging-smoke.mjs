@@ -11,10 +11,13 @@
  *   3. SPA 回退 /my-demands → 200 HTML（v2 壳，零内联；Pages ASSETS 无扩展名回退 index.html）。
  *   4. 浏览器 /：landing 渲染 + 访客进客户端壳（路由冒烟），零 pageerror/console error；
  *      ASSETS 桩解析真实 _headers 规则（/* 安全头 + CSP 与 meta 取交集，忠实生产响应头）。
- *   5. h5a-g3：首访 onboarding 弹窗（独立 context 无 sufe_returning → 弹窗必出）在真实 _headers ∩ meta
- *      双策略（g6 起 style-src-attr 'none'）下渲染 + browseGuest 进壳全链路零 console/PAGEERROR/CSP
- *      违规——收紧后真实应用不破的负断言回归（CSSOM cssText/setProperty 不受 style-src-attr 管辖，
- *      弹窗显式宽度仍生效，F1 实测定案）。
+ *   5. h5a-g3: first-visit onboarding modal (fresh context without sufe_returning -> modal must show)
+ *      renders under the real _headers ∩ meta dual policy (style-src-attr 'none' since g6) and the
+ *      browseGuest path into the shell stays clear of CSP violations / PAGEERRORs. The assertion only
+ *      filters CSP-related console text plus the PAGEERROR prefix; non-CSP console errors are covered
+ *      by item 4. Negative regression that the tightened real app remains intact (CSSOM
+ *      cssText/setProperty are not governed by style-src-attr; the explicit modal width still applies
+ *      — confirmed by F1 measurement).
  */
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
@@ -146,11 +149,11 @@ const server = createServer(async (req, res) => {
     });
     const response = await worker.fetch(request, env, ctx);
     const buf = await response.arrayBuffer(); // h5a-g3：读体提前到写头之前——page.close 竞态下先写头再读体失败会进 catch 重复 writeHead（ERR_HTTP_HEADERS_SENT）
-    if (res.writableEnded) return;            // 客户端已断开（page.close）：不重复写头
+    if (res.writableEnded || res.destroyed) return; // client gone (socket destroyed or end() already called): skip the response write
     res.writeHead(response.status, Object.fromEntries(response.headers));
     res.end(Buffer.from(buf));
   } catch (e) {
-    if (res.writableEnded) return;
+    if (res.writableEnded || res.destroyed) return; // client gone: skip the error response
     res.writeHead(500);
     res.end(String(e && e.message));
   }
@@ -258,7 +261,7 @@ try {
     await browser.close();
   }
 
-  console.log('\nV-4-1e staging 冒烟完成。');
+  console.log('\nV-4-1e staging 冒烟完成（V-4-1h h5a 扩展）。');
 } finally {
   server.close();
 }
