@@ -16,7 +16,7 @@ import { CONFIG } from '../src/shared/config.js';
 import { state } from '../src/client/core/state.js';
 import {
   loadAdminPosts, resolveAdminFeedback, loadAdminContracts,
-  approveAward, doAwardAction, verifApprove, verifRevoke,
+  performAwardAction, verifApprove, verifRevoke,
 } from '../src/client/features/admin/actions.js';
 import { setPrivacyField } from '../src/client/features/settings/actions.js';
 
@@ -87,24 +87,24 @@ function pendingWriteFetch(actionUrlPart, reloadUrlPart) {
   };
 }
 
-test('Q-3b-F3b：approveAward 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
+test('Q-3b-F3b：performAwardAction(approve) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
   try {
     globalThis.document = dom.window.document;
     _dhResetForTests();
     _dhSeedForTests({ cache: [{ endpoint: '/api/admin/awards', domain: 'admin', data: { awards: [{ id: 1 }] } }] });
     globalThis.fetch = pendingWriteFetch('/api/admin/awards/1/action', '/api/admin/awards');
-    await approveAward(1); await new Promise(r => setTimeout(r, 10)); // non-async fire-and-forget .then: tick for invalidate
+    await performAwardAction(1, 'approve', { capToken: 'cap' });
     assert.equal(dhPeek('/api/admin/awards'), null, 'approve 写后 admin 域缓存清');
   } finally { teardown(); }
 });
 
-test('Q-3b-F3c：doAwardAction(reject) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
+test('Q-3b-F3c：performAwardAction(reject) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
   try {
     globalThis.document = dom.window.document;
     _dhResetForTests();
     _dhSeedForTests({ cache: [{ endpoint: '/api/admin/awards', domain: 'admin', data: { awards: [{ id: 1 }] } }] });
     globalThis.fetch = pendingWriteFetch('/api/admin/awards/1/action', '/api/admin/awards');
-    await doAwardAction(1, 'reject');
+    await performAwardAction(1, 'reject', { note: 'n', capToken: 'cap' });
     assert.equal(dhPeek('/api/admin/awards'), null, 'reject 写后 admin 域缓存清');
   } finally { teardown(); }
 });

@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -331,5 +331,119 @@ test('U-3b F1：loadAdminDemands 在途守卫（并发加载只拉一次，双�
   const p2 = loadAdminDemands(false); // 模拟双击：第二个调用在第一个在途时被守卫拦截
   await Promise.all([p1, p2]);
   assert.equal(calls, 1, '在途守卫：并发加载只拉一次');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1/U-3d：奖项审核页——renderAdminAwardRow v1-parity（title+教师+状态 tag+驳回理由+凭证）、
+// 状态筛选、approve/reject 走 needReAuth 二次认证（服务端 confirmDangerOtp）。
+// G2：删 PENDING 按钮显隐/删 status tag/删凭证按钮必红。
+// ─────────────────────────────────────────────────────────────
+
+test('U-3d renderAdminAwardRow pending：标题 + 教师 + 状态 tag + 凭证 + approve/reject 委托', () => {
+  const html = renderAdminAwardRow({ id: 66, title: '一等奖学金', teacher_username: '教师甲', status: 'pending', admin_note: '', created_at: '2026-08-01 12:00:00', proof_upload_id: 8 });
+  assert.ok(html.includes('一等奖学金'), '奖项标题');
+  assert.ok(html.includes('教师：教师甲'), '教师标签');
+  assert.ok(html.includes('待审核'), 'pending 状态 tag');
+  assert.ok(html.includes('data-action="admin.viewAwardProof" data-id="66"'), '凭证查看按钮委托');
+  assert.ok(html.includes('data-action="admin.approveAward" data-id="66"'), '通过按钮委托');
+  assert.ok(html.includes('data-action="admin.rejectAwardModal" data-id="66"'), '驳回按钮委托');
+  assert.ok(!/onclick=/.test(html), '零内联事件');
+});
+
+test('U-3d renderAdminAwardRow 非 pending：无审核按钮 + 状态 tag + 驳回理由', () => {
+  const approved = renderAdminAwardRow({ id: 67, title: '二等奖', teacher_username: '教师乙', status: 'approved', admin_note: '', created_at: '2026-08-01 12:00:00', proof_upload_id: null });
+  assert.ok(approved.includes('已通过'), 'approved tag');
+  assert.ok(!approved.includes('data-action="admin.approveAward"'), 'approved 无通过按钮');
+  assert.ok(!approved.includes('data-action="admin.rejectAwardModal"'), 'approved 无驳回按钮');
+  assert.ok(!approved.includes('data-action="admin.viewAwardProof"'), '无凭证按钮（无 proof_upload_id）');
+  const rejected = renderAdminAwardRow({ id: 68, title: '三等奖', teacher_username: '教师丙', status: 'rejected', admin_note: '奖状模糊', created_at: '2026-08-01 12:00:00', proof_upload_id: null });
+  assert.ok(rejected.includes('已驳回'), 'rejected tag');
+  assert.ok(rejected.includes('驳回理由：奖状模糊'), '驳回理由渲染');
+  assert.ok(!rejected.includes('data-action="admin.approveAward"'), 'rejected 无审核按钮');
+});
+
+test('U-3d loadAdminAwards：带 status 参数请求 + 渲染（G2 删 status 下推必红）', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-awards-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/awards?status=pending'), 'status 参数下推');
+    return { ok: true, status: 200, json: async () => ({ awards: [{ id: 70, title: '国家级', teacher_username: '教师甲', status: 'pending', admin_note: '', created_at: '2026-08-01 12:00:00', proof_upload_id: null }] }) };
+  };
+  await loadAdminAwards('pending');
+  assert.ok(list.innerHTML.includes('国家级'), '奖项行渲染');
+  teardown();
+});
+
+test('U-3d loadAdminAwards 无参数：读 #admin-awards-status 当前值保持筛选（G2 删 select 读取必红）', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-awards-list';
+  document.body.appendChild(list);
+  const sel = document.createElement('select');
+  sel.id = 'admin-awards-status';
+  sel.value = 'rejected';
+  document.body.appendChild(sel);
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/awards?status=rejected'), '从 select 读当前筛选值');
+    return { ok: true, status: 200, json: async () => ({ awards: [] }) };
+  };
+  await loadAdminAwards();
+  teardown();
+});
+
+test('U-3d viewAwardProof：GET /api/admin/awards/:id/proof → 图片 modal（凭证数据通道）', async () => {
+  const dom = setup();
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/awards/66/proof'), '凭证接口');
+    return { ok: true, status: 200, json: async () => ({ dataUrl: 'data:image/png;base64,AAA' }) };
+  };
+  await viewAwardProof(66);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, '凭证弹窗出现');
+  const img = modal.querySelector('.award-proof-img');
+  assert.ok(img && img.getAttribute('src').includes('data:image/png;base64,AAA'), '图片 dataUrl 渲染');
+  teardown();
+});
+
+test('U-3d approveAward：confirm needReAuth 弹窗（含密码输入），未确认零 POST（锁 capToken 流程）', async () => {
+  const dom = setup();
+  let posted = false;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/admin/awards/66/action') && opts.method === 'POST') { posted = true; return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  approveAward(66);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, 'confirm 弹窗出现');
+  assert.ok(modal.textContent.includes('确定通过该奖项审核吗'), '通过确认文案');
+  assert.ok(modal.querySelector('#reauth-password'), 'needReAuth 密码输入在位（服务端 confirmDangerOtp）');
+  assert.equal(posted, false, '未确认前零 POST');
+  await new Promise(r => setTimeout(r, 80)); // let confirm's REAUTH_FOCUS_MS(50) timer settle before teardown clears document
+  teardown();
+});
+
+test('U-3d doAwardAction reject 空理由：toast 拦截零请求（服务端 reject 必须带 note）', async () => {
+  const dom = setup();
+  let apiCalls = 0;
+  globalThis.fetch = async () => { apiCalls++; return { ok: true, status: 200, json: async () => ({}) }; };
+  doAwardAction(66, 'reject'); // no #award-reject-note element -> note = ''
+  await new Promise(r => setTimeout(r, 20));
+  assert.equal(apiCalls, 0, '空理由零 POST');
+  assert.ok(document.getElementById('toast-container')?.textContent.includes('请填写驳回理由'), '必填提示 toast');
+  teardown();
+});
+
+test('U-3d rejectAwardModal：驳回弹窗含理由输入 + 必填 hint + 确认按钮', () => {
+  const dom = setup();
+  rejectAwardModal(67);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, '驳回弹窗出现');
+  assert.ok(modal.querySelector('#award-reject-note'), '理由 textarea');
+  assert.ok(modal.textContent.includes('驳回理由（必填，将通知教师）'), '必填 hint');
+  assert.ok(modal.querySelector('[data-action="admin.submitAwardReject"][data-id="67"]'), '确认按钮带 id');
+  assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
   teardown();
 });
