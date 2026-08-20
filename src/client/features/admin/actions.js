@@ -322,9 +322,7 @@ export function openContentPenaltyModal(id, type) {
 // by type (post/demand/review/message/contract/feedback/complaint/upload/signing/teacher) but
 // bumps only [ADMIN] — cross-end stale data would linger until TTL/probe if we don't invalidate
 // the domain the deleted row was rendered from (Q-3b-L1).
-// AF-7b: teacher content penalties are always 'ban' (server rejects delete/remove) which changes
-// the teacher's public visibility — invalidate the student-side 'teachers' list too (audit gap).
-const CONTENT_DOMAIN_BY_TYPE = { post: 'posts', contract: 'contracts', message: 'chat', demand: 'demands', teacher: 'teachers' };
+const CONTENT_DOMAIN_BY_TYPE = { post: 'posts', contract: 'contracts', message: 'chat', demand: 'demands' };
 
 export async function performContentPenalty(id, type, action, reason, rule, capToken) {
   // Write path exported for direct test (G1/G2): body shape matches server handleContentAction
