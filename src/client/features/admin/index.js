@@ -11,8 +11,8 @@ const ACTION_MAP = {
   'admin.closeModal': actions.closeModalAction,
   'admin.approveReview': el => api(`/api/admin/reviews/${el.dataset.id}/approve`, { method: 'POST', body: {} }).then(() => { invalidate('admin'); actions.loadAdminReviews(); }).catch(() => {}), // Q-3b-F3
   'admin.rejectReview': el => api(`/api/admin/reviews/${el.dataset.id}/reject`, { method: 'POST', body: {} }).then(() => { invalidate('admin'); actions.loadAdminReviews(); }).catch(() => {}), // Q-3b-F3
-  'admin.penalty': el => actions.openContentPenaltyModal(Number(el.dataset.id), el.dataset.type),
-  'admin.submitPenalty': el => actions.doSubmitContentPenalty(Number(el.dataset.id), el.dataset.type, el.dataset.actionType || 'remove'),
+  'admin.penalty': el => actions.openContentPenaltyModal(el.dataset.id, el.dataset.type),
+  'admin.submitPenalty': el => actions.doSubmitContentPenalty(el.dataset.id, el.dataset.type),
   // U-3f: posts management — full-text view + remove (capToken via needReAuth confirm)
   'admin.openPostView': el => actions.openPostViewModal(Number(el.dataset.id)),
   'admin.deletePost': el => actions.adminDeletePost(Number(el.dataset.id)),
@@ -46,12 +46,6 @@ const ACTION_MAP = {
   // U-3h: feedback review — mark resolved (light action, invalidate + reload)
   'admin.resolveFeedback': el => actions.resolveAdminFeedback(Number(el.dataset.id)),
 };
-// U-3i: content-review seg-tabs (ui.js applyTabBindings dispatches seg-tab-change, bubbles to
-// document). Filter by container id so other features' seg-tabs don't trigger admin reloads.
-function onSegTab(e) {
-  const tabs = e.detail && e.detail.container;
-  if (tabs && tabs.id === 'admin-content-tabs') actions.loadAdminContent(String(e.detail.key || ''));
-}
 let installed = false;
 function onActionClick(e) {
   const el = e.target && e.target.closest ? e.target.closest('[data-action]') : null;
@@ -79,7 +73,6 @@ function onLoad() {
   registerPage({ id: 'admin-feedback', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_FEEDBACK, desc: TEXT.PAGE_ADMIN_FEEDBACK_DESC, auth: true, enter: () => actions.loadAdminFeedback() });
   registerPage({ id: 'admin-content', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_CONTENT, desc: TEXT.PAGE_ADMIN_CONTENT_DESC, auth: true, enter: () => actions.loadAdminContent() });
   document.addEventListener('click', onActionClick);
-  document.addEventListener('seg-tab-change', onSegTab); // U-3i: content-review type tabs
   // U-3a: debounced username search on the admin students/teachers pages (input delegation)
   function onInput(e) {
     const el = e.target && e.target.closest ? e.target.closest('[data-input-action]') : null;
@@ -97,7 +90,7 @@ function onLoad() {
     else if (el.dataset.change === 'admin.filterVerif') actions.loadAdminVerifications(el.value);
   }
   document.addEventListener('change', onChange);
-  return () => { document.removeEventListener('click', onActionClick); document.removeEventListener('input', onInput); document.removeEventListener('change', onChange); document.removeEventListener('seg-tab-change', onSegTab); installed = false; };
+  return () => { document.removeEventListener('click', onActionClick); document.removeEventListener('input', onInput); document.removeEventListener('change', onChange); installed = false; };
 }
 export default { id: 'admin', text: TEXT, pages: [], actions: ACTION_MAP, onLoad };
 export { actions, TEXT };

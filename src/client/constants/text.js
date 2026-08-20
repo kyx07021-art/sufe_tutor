@@ -623,7 +623,6 @@ export const TEXT = {
   "ADMIN_SECTION_TOP_PATHS": "热点路径",
   "ADMIN_SECTION_STATUS": "状态分布",
   "ADMIN_CONTENT_TYPE_SIGNING": "签约请求",
-  "ADMIN_CONTENT_TYPE_ALL": "全部",
   "COMPLAINT_RESOLVED_TOAST": "已标记处理并通知投诉人",
   "SETTINGS_AVATAR": "账户头像",
   "BTN_UPLOAD_AVATAR": "上传头像",

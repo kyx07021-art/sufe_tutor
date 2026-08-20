@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, doSubmitContentPenalty, performContentPenalty, contentTypeName } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -39,14 +39,11 @@ test('loadAdminUsers：拉取后渲染用户名行到列表容器', async () => 
   teardown();
 });
 
-test('loadAdminContent：渲染 seg-tabs（全部 + 10 类型 + active 态）+ 按 type 拉取渲染内容行', async () => {
+test('loadAdminContent：按 type 拉取并渲染内容行', async () => {
   const dom = setup();
   const list = document.createElement('div');
   list.id = 'admin-content-list';
   document.body.appendChild(list);
-  const tabs = document.createElement('div');
-  tabs.id = 'admin-content-tabs';
-  document.body.appendChild(tabs);
   globalThis.fetch = async (url) => {
     assert.ok(String(url).includes('/api/admin/content?type=post'), 'type 下推');
     return { ok: true, status: 200, json: async () => ({ items: [{ id: 7, title: '某帖子', type: 'post' }] }) };
@@ -54,25 +51,6 @@ test('loadAdminContent：渲染 seg-tabs（全部 + 10 类型 + active 态）+ �
   await loadAdminContent('post');
   assert.ok(list.innerHTML.includes('某帖子'), '内容行渲染');
   assert.ok(list.querySelector('[data-action="admin.penalty"]'), '处罚按钮 data-action 委托');
-  const tabBtns = tabs.querySelectorAll('.seg-tab');
-  assert.equal(tabBtns.length, 11, '全部 + 10 类型 tab');
-  assert.ok(tabBtns[0].textContent.includes('全部'), '第一个 tab 是全部');
-  assert.ok(tabBtns[0].dataset.type === '', '全部 tab key 为空串');
-  assert.ok(tabs.querySelector('.seg-tab.active').dataset.type === 'post', '当前筛选 post 高亮');
-  teardown();
-});
-
-test('U-3i loadAdminContent：空态 + 错误态渲染', async () => {
-  const dom = setup();
-  const list = document.createElement('div');
-  list.id = 'admin-content-list';
-  document.body.appendChild(list);
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ items: [] }) });
-  await loadAdminContent();
-  assert.ok(list.innerHTML.includes('当前筛选条件下没有内容'), '空态文案');
-  globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({ error: '服务器错误' }) });
-  await loadAdminContent('post');
-  assert.ok(list.innerHTML.includes('服务器错误'), '错误态展示');
   teardown();
 });
 
@@ -123,83 +101,19 @@ test('U-3c loadAdminReviews：带 status 参数请求 + 渲染（G2 删 status �
   teardown();
 });
 
-test('U-3i renderAdminContentRow：完整 v1-parity 卡（type/status/role tag + body 摘要 + 作者/时间 + 处罚按钮）', () => {
-  const html = renderAdminContentRow({ id: 5, title: '违规帖子', type: 'post', status: 'pending', author: { id: 3, username: '学生甲', role: 'student' }, body: '内容摘要正文', created_at: '2026-08-01 12:00:00' });
+test('renderAdminContentRow：标题 + 处罚按钮 data-action/data-id/data-type', () => {
+  const html = renderAdminContentRow({ id: 5, title: '违规帖子', type: 'post' });
   assert.ok(html.includes('违规帖子'), '标题');
-  assert.ok(html.includes('帖子'), 'type tag');
-  assert.ok(html.includes('pending'), 'status tag');
-  assert.ok(html.includes('学生'), 'role tag');
-  assert.ok(html.includes('内容摘要正文'), 'body 摘要');
-  assert.ok(html.includes('学生甲') && html.includes('2026'), '作者 + 时间');
   assert.ok(html.includes('data-action="admin.penalty" data-id="5" data-type="post"'), '处罚按钮完整委托');
-  assert.ok(html.includes('删除') && html.includes('封禁作者'), 'post 显示删除/封禁双动作');
-  assert.ok(!/onclick=/.test(html), '零内联事件');
 });
 
-test('U-3i renderAdminContentRow teacher：只显示封禁（无删除动作）', () => {
-  const html = renderAdminContentRow({ id: 8, type: 'teacher', author: { id: 8, username: '教师甲', role: 'teacher' } });
-  assert.ok(html.includes('教师档案'), 'type tag');
-  assert.ok(html.includes('封禁作者'), '封禁按钮');
-  assert.ok(!html.includes('删除'), 'teacher 无删除动作');
-});
-
-test('openContentPenaltyModal post：reason 必填 + rule 输入 + 删除/封禁双按钮（data-action-type）', () => {
+test('openContentPenaltyModal：危险操作弹窗含理由输入 + 确认按钮', () => {
   const dom = setup();
   openContentPenaltyModal(21, 'post');
   const modal = dom.window.document.querySelector('.modal');
   assert.ok(modal, '弹窗出现');
-  assert.ok(modal.querySelector('#penalty-reason'), '理由输入');
-  assert.ok(modal.querySelector('#penalty-rule'), '触犯规则输入');
-  assert.ok(modal.querySelector('.form-hint'), '处罚说明 hint');
-  const remove = modal.querySelector('[data-action="admin.submitPenalty"][data-id="21"][data-type="post"][data-action-type="remove"]');
-  const ban = modal.querySelector('[data-action="admin.submitPenalty"][data-id="21"][data-type="post"][data-action-type="ban"]');
-  assert.ok(remove, '删除按钮带 id/type/action-type');
-  assert.ok(ban, '封禁按钮带 id/type/action-type');
-  teardown();
-});
-
-test('U-3i openContentPenaltyModal teacher：只给封禁按钮（Q-2f-M2 服务端拒 delete）', () => {
-  const dom = setup();
-  openContentPenaltyModal(99, 'teacher');
-  const modal = dom.window.document.querySelector('.modal');
-  assert.ok(modal, '弹窗出现');
-  assert.ok(modal.querySelector('[data-action-type="ban"]'), '封禁按钮');
-  assert.equal(modal.querySelectorAll('[data-action-type="remove"]').length, 0, '无删除按钮');
-  teardown();
-});
-
-test('U-3i openContentPenaltyModal：非法 type 回退 post 白名单（纵深防御）', () => {
-  const dom = setup();
-  openContentPenaltyModal(1, 'post<script>');
-  const modal = dom.window.document.querySelector('.modal');
-  assert.ok(modal.querySelector('[data-type="post"]'), '非法 type 回退 post');
-  assert.equal(modal.querySelectorAll('[data-type="post<script>"]').length, 0, '无注入 type');
-  teardown();
-});
-
-test('U-3i doSubmitContentPenalty：reason 为空直接提示不弹确认', () => {
-  const dom = setup();
-  openContentPenaltyModal(21, 'post');
-  document.getElementById('penalty-reason').value = '   ';
-  // 弹窗已开、reason 空白 → 应 toast 拦截（不触发 confirm 的 needReAuth 弹窗）
-  doSubmitContentPenalty(21, 'post', 'ban');
-  assert.ok(dom.window.document.querySelector('.modal'), '弹窗未被关闭（未走 closeModal+confirm 路径）');
-  assert.ok(dom.window.document.getElementById('toast-container').textContent.includes('处罚原因'), 'toast 提示原因必填');
-  teardown();
-});
-
-test('U-3i performContentPenalty：写路径 body shape 与 serveent 契约一致（G2 删字段必红）', async () => {
-  const dom = setup();
-  let captured = null;
-  globalThis.fetch = async (url, opts) => {
-    captured = { url: String(url), opts };
-    return { ok: true, status: 200, json: async () => ({ message: '已处理' }) };
-  };
-  const r = await performContentPenalty(21, 'post', 'ban', '含门牌号', '隐私红线', 'cap-xyz');
-  assert.ok(String(captured.url).endsWith('/api/admin/content/post/21/action'), '端点路径');
-  assert.deepEqual(JSON.parse(captured.opts.body), { action: 'ban', reason: '含门牌号', rule: '隐私红线', capToken: 'cap-xyz' }, 'body 形状');
-  assert.ok(captured.opts.method === 'POST', 'POST 方法');
-  assert.equal(r.message, '已处理', '返回消息');
+  assert.ok(modal.querySelector('#penalty-reason'), '理由 textarea');
+  assert.ok(modal.querySelector('[data-action="admin.submitPenalty"][data-id="21"][data-type="post"]'), '确认按钮带 id/type');
   teardown();
 });
 
