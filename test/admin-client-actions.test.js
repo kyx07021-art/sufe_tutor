@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -226,5 +226,59 @@ test('U-3k revokeInvite：confirm 确认 → DELETE → toast', async () => {
   const confirmModal = dom.window.document.querySelector('.modal');
   assert.ok(confirmModal, '确认弹窗出现');
   assert.ok(confirmModal.textContent.includes('确认作废该邀请码吗'), '作废确认文案');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1/U-3b：需求管理页——loadAdminDemands 复用 renderDemandCard(admin) + 分页 + admin 删除。
+// G2：删卡片渲染/删分页按钮必红。
+// ─────────────────────────────────────────────────────────────
+
+test('U-3b loadAdminDemands：renderDemandCard(admin) 渲染 + 空态 + 加载更多按钮', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-demands-list';
+  document.body.appendChild(list);
+  const demand = {
+    id: 9, display_id: 9, user_id: 5, username: '学生甲', avatar: '', status: 'open',
+    student_grade: 'senior1', student_gender: 'female', target_type: 'academic',
+    target_subjects: ['math'], current_scores: [], teaching_method: 'online',
+    budget_min: 100, budget_max: 200, created_at: '2026-08-01 12:00:00', target: null,
+  };
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/demands'), 'GET /api/admin/demands');
+    return { ok: true, status: 200, json: async () => ({ demands: [demand], nextCursor: 'cursor-2' }) };
+  };
+  await loadAdminDemands(true);
+  assert.ok(list.innerHTML.includes('学生甲'), '用户渲染');
+  assert.ok(list.innerHTML.includes('数学') || list.innerHTML.includes('math'), '科目渲染');
+  assert.ok(list.innerHTML.includes('data-action="admin.deleteDemand" data-id="9"'), 'admin 删除按钮委托');
+  assert.ok(list.innerHTML.includes('data-action="admin.loadMoreDemands"'), '加载更多按钮');
+  assert.ok(!/onclick=/.test(list.innerHTML), '零内联事件');
+  teardown();
+});
+
+test('U-3b loadAdminDemands 空列表：空态文案', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-demands-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ demands: [], nextCursor: null }) });
+  await loadAdminDemands(true);
+  assert.ok(list.innerHTML.includes('还没有学生发布需求'), '空态文案');
+  teardown();
+});
+
+test('U-3b adminDeleteDemand：confirm 确认 → DELETE /api/admin/demands/:id', async () => {
+  const dom = setup();
+  let deleted = false;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/admin/demands/9') && opts.method === 'DELETE') { deleted = true; return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return { ok: true, status: 200, json: async () => ({ demands: [], nextCursor: null }) };
+  };
+  adminDeleteDemand(9);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal && modal.textContent.includes('确定要删除这条需求吗'), '确认弹窗');
+  assert.equal(deleted, false, '确认前零 DELETE');
   teardown();
 });

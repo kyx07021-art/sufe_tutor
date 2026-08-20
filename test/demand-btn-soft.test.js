@@ -79,7 +79,7 @@ test('v0.25.94 意向行动作统一 btn-soft：查看/同意/拒绝（原 btn-o
 // v0.25.95（调试阶段放开）：管理员移除按钮放开到全部状态（含已签约 contracted）
 test('管理员视角：contracted 需求也渲染移除按钮（v0.25.95 放开）', () => {
   const adminContracted = renderCard({ status: 'contracted' }, { admin: true });
-  assert.ok(adminContracted.includes('data-action="student.deleteDemand" data-id="2"'), 'contracted 需求管理员可见移除按钮');
+  assert.ok(adminContracted.includes('data-action="admin.deleteDemand" data-id="2"'), 'contracted 需求管理员可见移除按钮（U-3b：admin 走 /api/admin/demands/:id）');
   assert.ok(adminContracted.includes('btn-soft'), '移除按钮走 btn-soft 统一外观');
   // 非管理员学生视角：contracted 仍不可编辑/下架（编辑门禁未动）
   const studentOwned = renderCard({ status: 'contracted' }, { editable: true });

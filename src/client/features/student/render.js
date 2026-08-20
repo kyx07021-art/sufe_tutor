@@ -60,7 +60,7 @@ export function renderDemandCard(d, opts = {}) {
   // Student/admin card ops (reopen/edit/remove) bottom-right
   const ownerActions = (editable && d.status === STATUS.REVOKED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="student.reopenDemand" data-id="${d.id}">${TEXT.BTN_REOPEN_DEMAND}</button>`
     : editable && d.status !== STATUS.CONTRACTED ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="student.editDemand" data-id="${d.id}">${TEXT.BTN_EDIT}</button>` : '')
-    + (admin ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="student.deleteDemand" data-id="${d.id}">${TEXT.BTN_REMOVE}</button>` : '');
+    + (admin ? `<button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.deleteDemand" data-id="${d.id}">${TEXT.BTN_REMOVE}</button>` : ''); // U-3b: admin removes via /api/admin/demands/:id (student path has ownership gate)
   // Budget "big-and-light": large thin number + small grey unit; negotiable without unit
   const budgetNum = (d.budget_min || d.budget_max)
     ? `${d.budget_min || TEXT.BUDGET_NO_LIMIT}~${d.budget_max || TEXT.BUDGET_NO_LIMIT}`

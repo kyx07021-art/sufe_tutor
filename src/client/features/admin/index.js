@@ -25,6 +25,9 @@ const ACTION_MAP = {
   'admin.openInviteManager': actions.openInviteManager,
   'admin.revokeInvite': el => actions.revokeInvite(el.dataset.code),
   'admin.copyInvite': el => actions.copyInviteCode(el.dataset.code),
+  // U-3b: demand management — admin remove (via /api/admin/demands/:id) + keyset load-more
+  'admin.deleteDemand': el => actions.adminDeleteDemand(Number(el.dataset.id)),
+  'admin.loadMoreDemands': actions.loadMoreAdminDemands,
 };
 let installed = false;
 function onActionClick(e) {

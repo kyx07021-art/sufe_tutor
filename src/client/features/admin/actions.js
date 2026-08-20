@@ -21,6 +21,7 @@ import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha 
 import { escHtml, fmtDateTime, loaderHtml } from '../../core/dom.js';
 import { priceRangeText } from '../../core/display.js';
 import { teacherGradeName, ratingText } from '../teacher/display.js'; // U-3a: teacher row meta (grade/rating) display mappings
+import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand card (admin:true reuse, W6)
 
 function adminStatCards(pairs) {
   return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');
@@ -151,12 +152,33 @@ export function renderAdminUserRow(u, role) {
   </div>`;
 }
 
-export async function loadAdminDemands() {
+// U-3b: admin demand list reuses the shared renderDemandCard (admin:true) — v1 parity without
+// a second renderer. Keyset pagination via nextCursor + load-more (reset=true clears the cursor).
+let _adminDemandsCursor = null;
+let _adminDemandsAll = [];
+export async function loadAdminDemands(reset = true) {
+  if (reset) { _adminDemandsCursor = null; _adminDemandsAll = []; }
   try {
-    const data = await dhGet('/api/admin/demands', { domain: 'admin' });
+    const qs = _adminDemandsCursor ? `?cursor=${encodeURIComponent(_adminDemandsCursor)}` : '';
+    const data = await api(`/api/admin/demands${qs}`, { method: 'GET' });
+    _adminDemandsAll = _adminDemandsAll.concat(data.demands || []);
+    _adminDemandsCursor = data.nextCursor || null;
     const el = document.getElementById('admin-demands-list');
-    if (el) el.innerHTML = (data.demands || []).map(d => `<div class="list-card glass">${escHtml(d.display_id || d.id)}</div>`).join('');
+    if (!el) return;
+    if (!_adminDemandsAll.length) { el.innerHTML = `<div class="empty-state"><p>${escHtml(TEXT.EMPTY_NO_DEMANDS)}</p></div>`; return; }
+    el.innerHTML = _adminDemandsAll.map(d => renderDemandCard(d, { admin: true })).join('')
+      + (_adminDemandsCursor ? `<div class="list-more-row"><button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.loadMoreDemands">${escHtml(TEXT.BTN_LOAD_MORE)}</button></div>` : '');
   } catch (err) { showToast(err.message); }
+}
+
+export function loadMoreAdminDemands() { return loadAdminDemands(false); }
+
+export function adminDeleteDemand(id) {
+  confirm({ title: TEXT.BTN_DELETE_DEMAND, message: TEXT.CONFIRM_DELETE_DEMAND, onConfirm: () => {
+    api(`/api/admin/demands/${id}`, { method: 'DELETE', body: {} })
+      .then(() => { invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminDemands(true); })
+      .catch(err => showToast(err.message)); // Q-3b-F3: invalidate after write
+  }});
 }
 
 export async function loadAdminReviews() {
