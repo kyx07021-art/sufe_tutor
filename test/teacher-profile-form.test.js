@@ -436,3 +436,68 @@ test('F1d3 time_slots 必填：无时间段 → toast + 零 POST', async () => {
   assert.ok(toast.textContent.includes('可授课时间段'), '时间段必填提示');
   teardown();
 });
+
+// F1d3 审计 GAP 补齐（独立审计 PASS 后覆盖空洞：GAP-A 凭证回传 / GAP-B 价格区间 /
+// GAP-C 回读刷新 / GAP-D 缓存失效——均锁真实行为，删逻辑必红）。
+
+test('F1d3 GAP-A 凭证回传：有存量凭证原样回传（防保存清空）', async () => {
+  setup();
+  let postBody = null;
+  const profile = { ...F3_SAVE_PROFILE, credential_image: 'data:image/png;base64,AAAA' };
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') { postBody = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ message: 'ok' }) }; }
+    return { ok: true, status: 200, json: async () => ({ profile }) };
+  };
+  await actions.enterTeacherProfile();
+  await actions.saveProfile();
+  assert.equal(postBody.profile.credential_image, 'data:image/png;base64,AAAA', '存量凭证原样回传（G2：删回传行必红）');
+  teardown();
+});
+
+test('F1d3 GAP-B 价格区间：max<min → toast + 零 POST', async () => {
+  setup();
+  let called = false;
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') { called = true; return { ok: true, json: async () => ({}) }; }
+    return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
+  };
+  await actions.enterTeacherProfile();
+  const el = dom.window.document.getElementById('teacher-profile-content');
+  el.querySelector('#tp-price-min').value = '150';
+  el.querySelector('#tp-price-max').value = '100';
+  await actions.saveProfile();
+  assert.equal(called, false, '零 POST');
+  const toast = dom.window.document.getElementById('toast-container');
+  assert.ok(toast.textContent.includes('最低价不能高于最高价'), '价格区间 toast');
+  teardown();
+});
+
+test('F1d3 GAP-C 成功回读：保存后重拉档案并重渲染', async () => {
+  setup();
+  let getCount = 0;
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') return { ok: true, status: 200, json: async () => ({ message: 'ok' }) };
+    getCount++;
+    return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
+  };
+  await actions.enterTeacherProfile();
+  const before = getCount;
+  await actions.saveProfile();
+  assert.ok(getCount >= before + 1, '保存后重拉档案（GET 次数增加）');
+  assert.ok(dom.window.document.getElementById('teacher-profile-content').querySelector('#teacher-profile-form'), '表单重渲染在位');
+  teardown();
+});
+
+test('F1d3 GAP-D 缓存失效：保存后 invalidate(teachers) 清公开列表缓存', async () => {
+  setup();
+  state.allTeachers = [{ user_id: 40 }]; // 预置陈旧缓存（G4：测试后重置）
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') return { ok: true, status: 200, json: async () => ({ message: 'ok' }) };
+    return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
+  };
+  await actions.enterTeacherProfile();
+  await actions.saveProfile();
+  assert.deepEqual(state.allTeachers, [], '保存后教师列表缓存被清空（F7）');
+  state.allTeachers = [];
+  teardown();
+});
