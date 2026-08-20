@@ -51,9 +51,13 @@ export async function dbDeleteUser(db, userId) {
   await dbRun(db, 'DELETE FROM users WHERE id=?', [userId]);
 }
 
-// 注销账户：用户名墓碑化 + 凭证清空 + 封禁/注销标记（墓碑全站展示 + 登录阻断）
+// 注销账户：用户名墓碑化 + 凭证清空（含联系方式四列）+ 封禁/注销标记（墓碑全站展示 + 登录阻断）。
+// AE-1：清 phone/phone_hash/email/email_hash 释放唯一索引 idx_users_phone_hash/idx_users_email_hash——
+// 否则注销后同一手机号/邮箱无法再次注册（dbPhoneTaken/dbEmailTaken 命中 → 409 PHONE/EMAIL_ALREADY_BOUND）。
+// 注销账户本就不可再登录（deactivated=1 + password_hash 清空），清联系方式零副作用。
 export async function dbDeactivateUser(db, userId, tombstone) {
-  await dbRun(db, `UPDATE users SET username=?, password_hash='', salt='', avatar='', banned=1, deactivated=1 WHERE id=?`,
+  await dbRun(db, `UPDATE users SET username=?, password_hash='', salt='', avatar='',
+    phone='', phone_hash='', email='', email_hash='', banned=1, deactivated=1 WHERE id=?`,
     [tombstone, userId]);
 }
 
