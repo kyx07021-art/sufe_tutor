@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -64,12 +64,40 @@ test('loadAdminFeedback：渲染反馈标题列表', async () => {
   teardown();
 });
 
-test('renderAdminReviewRow：评论 + approve/reject 委托按钮', () => {
-  const html = renderAdminReviewRow({ id: 9, comment: '评价内容' });
+test('renderAdminReviewRow pending：教师←评价者 + 星级 + 状态 tag + approve/reject 委托按钮', () => {
+  const html = renderAdminReviewRow({ id: 9, status: 'pending', teacher_name: '教师乙', reviewer_name: '学生甲', rating: 5, comment: '评价内容', created_at: '2026-08-01 12:00:00' });
+  assert.ok(html.includes('教师乙') && html.includes('学生甲'), '教师←评价者');
+  assert.ok(html.includes('★'), '星级');
+  assert.ok(html.includes('待审核'), '状态 tag');
   assert.ok(html.includes('评价内容'), '评论文本');
+  assert.ok(html.includes('注册于') || html.includes('2026'), '时间 meta');
   assert.ok(html.includes('data-action="admin.approveReview" data-id="9"'), '通过按钮委托');
   assert.ok(html.includes('data-action="admin.rejectReview" data-id="9"'), '拒绝按钮委托');
   assert.ok(!/onclick=/.test(html), '零内联事件');
+});
+
+test('renderAdminReviewRow 非 pending：无审核按钮 + 状态 tag（U-3c 显隐）', () => {
+  const approved = renderAdminReviewRow({ id: 10, status: 'approved', teacher_name: '教师乙', reviewer_name: '学生甲', rating: 4, comment: '通过', created_at: '2026-08-01 12:00:00' });
+  assert.ok(approved.includes('已通过'), 'approved tag');
+  assert.ok(!approved.includes('data-action="admin.approveReview"'), 'approved 无通过按钮');
+  assert.ok(!approved.includes('data-action="admin.rejectReview"'), 'approved 无拒绝按钮');
+  const rejected = renderAdminReviewRow({ id: 11, status: 'rejected', teacher_name: '教师丙', reviewer_name: '学生乙', rating: 2, comment: '拒', created_at: '2026-08-01 12:00:00' });
+  assert.ok(rejected.includes('已拒绝'), 'rejected tag');
+  assert.ok(!rejected.includes('data-action="admin.approveReview"'), 'rejected 无审核按钮');
+});
+
+test('U-3c loadAdminReviews：带 status 参数请求 + 渲染（G2 删 status 下推必红）', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-reviews-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/reviews?status=pending'), 'status 参数下推');
+    return { ok: true, status: 200, json: async () => ({ reviews: [{ id: 12, status: 'pending', teacher_name: '教师', reviewer_name: '学生', rating: 5, comment: '好', created_at: '2026-08-01 12:00:00' }] }) };
+  };
+  await loadAdminReviews('pending');
+  assert.ok(list.innerHTML.includes('好'), '评价渲染');
+  teardown();
 });
 
 test('renderAdminContentRow：标题 + 处罚按钮 data-action/data-id/data-type', () => {

@@ -20,8 +20,9 @@ import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha } from '../../core/ui.js';
 import { escHtml, fmtDateTime, loaderHtml } from '../../core/dom.js';
 import { priceRangeText } from '../../core/display.js';
-import { teacherGradeName, ratingText } from '../teacher/display.js'; // U-3a: teacher row meta (grade/rating) display mappings
+import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from '../teacher/display.js'; // U-3a: teacher row meta; U-3c: review stars/status tag
 import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand card (admin:true reuse, W6)
+import { STATUS } from '../../../shared/enums.js'; // U-3c: review status literal gate (shared enums)
 
 function adminStatCards(pairs) {
   return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');
@@ -185,18 +186,34 @@ export function adminDeleteDemand(id) {
   }});
 }
 
-export async function loadAdminReviews() {
+// U-3c: review moderation — status filter (service GET /api/admin/reviews?status=) + v1-parity row
+// (teacher←reviewer + stars + status tag + comment + time; approve/reject only while PENDING).
+export async function loadAdminReviews(status = '') {
   try {
-    const data = await dhGet('/api/admin/reviews', { domain: 'admin' });
+    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+    const data = await dhGet(`/api/admin/reviews${qs}`, { domain: 'admin' });
     const el = document.getElementById('admin-reviews-list');
     if (el) el.innerHTML = (data.reviews || []).map(renderAdminReviewRow).join('');
   } catch (err) { showToast(err.message); }
 }
 
 export function renderAdminReviewRow(r) {
-  return `<div class="list-card glass admin-review-row"><span>${escHtml(r.comment || '')}</span>
-    <button type="button" class="btn btn-sm glass glass--pressable" data-action="admin.approveReview" data-id="${r.id}">${TEXT.BTN_APPROVE}</button>
-    <button type="button" class="btn btn-sm btn-outline glass glass--pressable" data-action="admin.rejectReview" data-id="${r.id}">${TEXT.BTN_REJECT}</button></div>`;
+  const st = reviewStatusMeta(r.status);
+  return `<div class="admin-row glass admin-review-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line">
+        <strong>${escHtml(r.teacher_name || '')}</strong>
+        <span class="text-muted">←</span> ${escHtml(r.reviewer_name || '')}
+        ${starsHtml(r.rating)}${st ? `<span class="tag ${st.cls} glass glass--solid">${escHtml(st.text)}</span>` : ''}
+      </div>
+      <div class="review-text">${escHtml(r.comment || '')}</div>
+      <div class="admin-row-meta">${fmtDateTime(r.created_at)}</div>
+    </div>
+    <div class="admin-row-actions">
+      ${r.status === STATUS.PENDING ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.approveReview" data-id="${r.id}">${escHtml(TEXT.BTN_APPROVE)}</button>
+      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.rejectReview" data-id="${r.id}">${escHtml(TEXT.BTN_REJECT)}</button>` : ''}
+    </div>
+  </div>`;
 }
 
 export async function loadAdminContent(type = 'post') {

@@ -130,7 +130,16 @@ export function mountShell() {
         ${page('admin-students', TEXT.PAGE_ADMIN_STUDENTS, { body: `<div class="admin-search-wrap"><input type="search" class="form-input admin-search" id="admin-students-search" placeholder="${escHtml(TEXT.ADMIN_USER_SEARCH_PLACEHOLDER)}" data-input-action="admin.searchStudents"></div><div class="browse-list" id="admin-students-list"></div>` })}
         ${page('admin-teachers', TEXT.PAGE_ADMIN_TEACHERS, { body: `<div class="admin-search-wrap"><input type="search" class="form-input admin-search" id="admin-teachers-search" placeholder="${escHtml(TEXT.ADMIN_USER_SEARCH_PLACEHOLDER)}" data-input-action="admin.searchTeachers"></div><div class="browse-list" id="admin-teachers-list"></div>` })}
         ${page('admin-demands', TEXT.PAGE_ADMIN_DEMANDS, { body: `<div class="browse-list" id="admin-demands-list"></div>` })}
-        ${page('admin-reviews', TEXT.PAGE_ADMIN_REVIEWS, { body: `<div class="browse-list" id="admin-reviews-list"></div>` })}
+        ${page('admin-reviews', TEXT.PAGE_ADMIN_REVIEWS, { body: `
+          <div class="filter-panel glass glass--solid" id="admin-reviews-filter">
+            <select class="filter-select" id="admin-reviews-status" data-change="admin.filterReviews">
+              <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
+              <option value="pending">${escHtml(TEXT.STATUS_PENDING)}</option>
+              <option value="approved">${escHtml(TEXT.STATUS_APPROVED)}</option>
+              <option value="rejected">${escHtml(TEXT.STATUS_REJECTED)}</option>
+            </select>
+          </div>
+          <div class="browse-list" id="admin-reviews-list"></div>` })}
         ${page('admin-awards', TEXT.PAGE_ADMIN_AWARDS, { body: `<div class="browse-list" id="admin-awards-list"></div>` })}
         ${page('admin-verifications', TEXT.PAGE_ADMIN_VERIFICATIONS, { body: `<div class="browse-list" id="admin-verifications-list"></div>` })}
         ${page('admin-posts', TEXT.PAGE_ADMIN_POSTS, { body: `<div class="browse-list" id="admin-posts-list"></div>` })}

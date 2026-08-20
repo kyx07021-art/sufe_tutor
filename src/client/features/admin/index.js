@@ -64,7 +64,14 @@ function onLoad() {
     else if (el.dataset.inputAction === 'admin.searchTeachers') actions.adminUsersSearchDebounced(ROLES.TEACHER, el.value);
   }
   document.addEventListener('input', onInput);
-  return () => { document.removeEventListener('click', onActionClick); document.removeEventListener('input', onInput); installed = false; };
+  // U-3c: admin reviews status filter (change delegation)
+  function onChange(e) {
+    const el = e.target;
+    if (!el || !el.dataset) return;
+    if (el.dataset.change === 'admin.filterReviews') actions.loadAdminReviews(el.value);
+  }
+  document.addEventListener('change', onChange);
+  return () => { document.removeEventListener('click', onActionClick); document.removeEventListener('input', onInput); document.removeEventListener('change', onChange); installed = false; };
 }
 export default { id: 'admin', text: TEXT, pages: [], actions: ACTION_MAP, onLoad };
 export { actions, TEXT };

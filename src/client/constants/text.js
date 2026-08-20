@@ -107,6 +107,7 @@ export const TEXT = {
   "INVITE_MANAGER_CREATED": "创建时间",
   "INVITE_MANAGER_REVOKE": "作废",
   "INVITE_MANAGER_REVOKED": "邀请码已作废",
+  "LABEL_FILTER_ALL": "全部状态",
   "BTN_COPY_CODE": "复制邀请码",
   "ERROR_COPY": "复制失败",
   "INVITE_REVOKE_CONFIRM": "确认作废该邀请码吗？作废后不可恢复，已使用的邀请码不能作废。",
