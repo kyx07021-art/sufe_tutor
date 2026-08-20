@@ -363,6 +363,61 @@ test('F1d2 科目勾选变化 → 编辑器重渲染（首选 pill 出现）', a
   teardown();
 });
 
+// Z-3-F1-F1d2 O2: legacy "old" track (science/arts) — Xinjiang is still pre-reform in the
+// policy map, so renderTeacherGaokaoEditor takes the `else` branch (tracks from
+// policies.old.tracks, raw-score rows per track). Locks the bidirectional pill switch:
+// initial track = science (first key when both tracks are checked), row visibility toggles
+// by the hidden class, filled scores survive switching (rows are hidden, not removed), and
+// collectTeacherGaokao skips hidden-track rows so a filled arts score never leaks into the
+// science track collection (and vice versa).
+test('F1d2 old track 新疆：science/arts 双向切换 + 分数行显隐 + 跨切换不误归属', async () => {
+  const el = await setupForm({
+    province: 'xinjiang', teaching_method: 'online',
+    subjects: ['chinese', 'math', 'english', 'physics', 'chemistry', 'biology', 'history', 'geography', 'politics'],
+  });
+  const gk = el.querySelector('#tp-gaokao');
+  // ① initial track = science: both tracks checked → first Object.keys(tracks) key wins
+  const pills = [...gk.querySelectorAll('.gk-track-pills .gk-pill')];
+  assert.equal(pills.length, 2, '文理两个 track pill');
+  const sciencePill = pills.find(p => p.dataset.gkTrack === 'science');
+  const artsPill = pills.find(p => p.dataset.gkTrack === 'arts');
+  assert.ok(sciencePill && sciencePill.classList.contains('selected'), '初始 track = science');
+  assert.ok(artsPill && !artsPill.classList.contains('selected'), 'arts pill 初始未选中');
+  const scienceRows = [...gk.querySelectorAll('[data-gk-track-row="science"]')];
+  const artsRows = [...gk.querySelectorAll('[data-gk-track-row="arts"]')];
+  assert.equal(scienceRows.length, 3, '理科 3 行');
+  assert.equal(artsRows.length, 3, '文科 3 行');
+  assert.ok(scienceRows.every(r => !r.classList.contains('hidden')), 'science 行初始可见');
+  assert.ok(artsRows.every(r => r.classList.contains('hidden')), 'arts 行初始隐藏');
+  // main subjects are always collected regardless of the active track
+  gk.querySelector('input[data-gk-subject="chinese"]').value = '130';
+  // ② fill a science score then switch to arts
+  gk.querySelector('input[data-gk-subject="physics"]').value = '90';
+  actions.pickGkTrack(artsPill);
+  assert.ok(artsPill.classList.contains('selected'), '切 arts 后 pill 选中');
+  assert.ok(!sciencePill.classList.contains('selected'), 'science pill 取消选中');
+  assert.ok(scienceRows.every(r => r.classList.contains('hidden')), '切 arts 后 science 行隐藏');
+  assert.ok(artsRows.every(r => !r.classList.contains('hidden')), '切 arts 后 arts 行可见');
+  assert.equal(gk.querySelector('input[data-gk-subject="physics"]').value, '90', 'physics 已填分跨切换保留（DOM 保留，仅隐藏）');
+  assert.deepEqual(actions.collectTeacherGaokao(), [{ subject: 'chinese', score: 130 }], '隐藏 science 行跳过收集（arts 未填分 → 仅主科）');
+  // fill an arts score → collect includes the visible arts row + main subjects only
+  gk.querySelector('input[data-gk-subject="history"]').value = '85';
+  assert.deepEqual(actions.collectTeacherGaokao(), [
+    { subject: 'chinese', score: 130 }, { subject: 'history', score: 85 },
+  ], '收集含可见 arts 行（隐藏 science 行不含）');
+  // ③ switch back to science
+  actions.pickGkTrack(sciencePill);
+  assert.ok(sciencePill.classList.contains('selected'), '切回 science pill 选中');
+  assert.ok(scienceRows.every(r => !r.classList.contains('hidden')), '切回后 science 行可见');
+  assert.ok(artsRows.every(r => r.classList.contains('hidden')), '切回后 arts 行隐藏');
+  // ④ filled scores survive the round trip; arts history value never misattributes to science
+  assert.equal(gk.querySelector('input[data-gk-subject="physics"]').value, '90', 'physics 已填分仍保留');
+  assert.deepEqual(actions.collectTeacherGaokao(), [
+    { subject: 'chinese', score: 130 }, { subject: 'physics', score: 90 },
+  ], '切回 science 收集只含可见 science 行 + 主科（不含 history）');
+  teardown();
+});
+
 // ─────────────────────────────────────────────────────────────
 // Z-3-F1 F1d3：收集/校验/提交。payload.profile 形状与服务端 handleSaveProfile 契约一致
 // （province/grade/gender/subjects/price/method/time_slots JSON 串/gaokao_scores 数组/
