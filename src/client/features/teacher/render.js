@@ -210,6 +210,10 @@ export function renderTeacherProfileForm(profile) {
       <label class="form-label">${TEXT.LABEL_GAOKAO_SCORES}</label>
       <div id="tp-gaokao"><p class="text-sm text-muted">${TEXT.OPTION_PLACEHOLDER}</p></div>
     </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_PERSONALITY_TAGS}${TEXT.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
+      <div id="tp-personality">${tags}</div>
+    </div>
 
     <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_NONACADEMIC}</h3>
     <div class="form-group">

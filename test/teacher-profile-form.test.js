@@ -153,3 +153,118 @@ test('F1c 进入链路：加载失败 → 错误态渲染（零 JS 抛错）', a
   assert.ok(el.textContent.includes(TEXT.ERROR_LOAD_PREFIX), '错误前缀展示（api 包装层统一文案）');
   teardown();
 });
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1 F1d1：字段联动交互（省份→地址区显隐 + method 无条件锁定、personality/非学科
+// 标签点选 + 上限钳制、非学科报价行重渲染保留已填值、毕业年份钳制）。
+// F1d1-4 修复：直调 actions.*（不依赖点击委托）；被测 profile 初始不预选被测标签
+// （否则 toggle 不可观察 → 断言空转）。
+// ─────────────────────────────────────────────────────────────
+
+async function setupForm(profile) {
+  setup();
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ profile: profile || null }) });
+  await actions.enterTeacherProfile();
+  return dom.window.document.getElementById('teacher-profile-content');
+}
+
+test('F1d1 联动：method 无条件锁定（非上海强制 online，切上海恢复可选）', async () => {
+  // 非法保存态：beijing + offline（服务端无 province 门禁，前端是 parity guard）
+  const el = await setupForm({ province: 'beijing', teaching_method: 'offline' });
+  const method = el.querySelector('#tp-method');
+  const offlineOpt = method.querySelector('option[value="offline"]');
+  assert.equal(method.value, 'online', 'init 即强制 online（非法 offline 态被锁定）');
+  assert.ok(offlineOpt.disabled, 'offline 选项禁用（非上海）');
+  // 切上海 → offline 恢复可选且不翻转当前值
+  const prov = el.querySelector('#tp-province');
+  prov.value = 'shanghai';
+  prov.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.ok(!offlineOpt.disabled, '上海恢复 offline 可选');
+  assert.equal(method.value, 'online', '上海不强制翻转当前值');
+  method.value = 'offline';
+  // 切回北京 → 无条件强制 online
+  prov.value = 'beijing';
+  prov.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.equal(method.value, 'online', '切回非上海强制 online');
+  teardown();
+});
+
+test('F1d1 联动：地址区显隐 + 上海地址 picker 挂载 + hidden 同步', async () => {
+  const el = await setupForm({ province: 'shanghai', address: '浦东新区·张江镇' });
+  const addrSection = el.querySelector('#tp-addr-picker');
+  assert.ok(!addrSection.classList.contains('hidden'), '上海地址区可见');
+  assert.ok(el.querySelector('#tp-district'), '上海地址 picker 已挂载区 select');
+  assert.equal(el.querySelector('#tp-district').value, 'pudong', '区已选中');
+  assert.equal(el.querySelector('#tp-unit').value, '张江镇', '镇已选中');
+  // 切非上海 → 隐藏 + 清空 hidden
+  const prov = el.querySelector('#tp-province');
+  prov.value = 'beijing';
+  prov.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.ok(addrSection.classList.contains('hidden'), '非上海地址区隐藏');
+  assert.equal(el.querySelector('#tp-address').value, '', 'hidden 地址清空');
+  teardown();
+});
+
+test('F1d1 标签：personality 点选 + 上限钳制（toast 提示不选中）', async () => {
+  const el = await setupForm({}); // 初始不预选被测标签（F1d1-4）
+  const host = el.querySelector('#tp-personality');
+  assert.ok(host.querySelectorAll('.tag-pick').length > 0, 'personality 容器标签已注入（非死 UI）');
+  const tags = [...host.querySelectorAll('.tag-pick')];
+  assert.ok(tags.length > 3, '标签数多于上限，可测钳制');
+  for (const t of tags.slice(0, 3)) actions.teacherTagPick(t);
+  assert.equal(host.querySelectorAll('.tag-pick.selected').length, 3, '3 个选中（上限内）');
+  const overflow = tags[3];
+  actions.teacherTagPick(overflow);
+  assert.ok(!overflow.classList.contains('selected'), '超上限不选中');
+  const toast = dom.window.document.getElementById('toast-container');
+  assert.ok(toast.textContent.includes('最多选 3 个'), 'toast 提示上限');
+  // 取消一个 → 可再选
+  actions.teacherTagPick(tags[0]);
+  assert.ok(!tags[0].classList.contains('selected'), '取消选中');
+  actions.teacherTagPick(overflow);
+  assert.ok(overflow.classList.contains('selected'), '腾位后可再选');
+  teardown();
+});
+
+test('F1d1 非学科报价行：标签点选生成行 + 重渲染保留已填值（G2：删保留逻辑必红）', async () => {
+  const el = await setupForm({});
+  const host = el.querySelector('#tp-nonacademic-prices');
+  const music = el.querySelector('#tp-nonacademic .tag-pick[data-id="music"]');
+  actions.teacherTagPick(music);
+  let rows = host.querySelectorAll('.price-row');
+  assert.equal(rows.length, 1, '选中 music 生成 1 行');
+  rows[0].querySelector('[data-field="min"]').value = '200';
+  rows[0].querySelector('[data-field="max"]').value = '300';
+  // 再点 painting → 重渲染 → music 行已填值保留
+  const painting = el.querySelector('#tp-nonacademic .tag-pick[data-id="painting"]');
+  actions.teacherTagPick(painting);
+  rows = host.querySelectorAll('.price-row');
+  assert.equal(rows.length, 2, '两个选中项目两行');
+  const musicRow = [...rows].find(r => r.dataset.project === 'music');
+  assert.ok(musicRow, 'music 行在位');
+  assert.equal(musicRow.querySelector('[data-field="min"]').value, '200', 'min 已填值保留');
+  assert.equal(musicRow.querySelector('[data-field="max"]').value, '300', 'max 已填值保留');
+  // 取消 music → 行移除
+  actions.teacherTagPick(music);
+  rows = host.querySelectorAll('.price-row');
+  assert.equal(rows.length, 1, '取消后行移除');
+  teardown();
+});
+
+test('F1d1 毕业年份钳制 [1980, 2030]', async () => {
+  const el = await setupForm({});
+  const gradYear = el.querySelector('#tp-grad-year');
+  gradYear.value = '1900';
+  gradYear.dispatchEvent(new dom.window.Event('blur'));
+  assert.equal(gradYear.value, '1980', '下界钳制');
+  gradYear.value = '2050';
+  gradYear.dispatchEvent(new dom.window.Event('blur'));
+  assert.equal(gradYear.value, '2030', '上界钳制');
+  gradYear.value = '2022';
+  gradYear.dispatchEvent(new dom.window.Event('blur'));
+  assert.equal(gradYear.value, '2022', '范围内不变');
+  gradYear.value = '';
+  gradYear.dispatchEvent(new dom.window.Event('blur'));
+  assert.equal(gradYear.value, '', '空值保留空');
+  teardown();
+});

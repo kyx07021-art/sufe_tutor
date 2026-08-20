@@ -2,11 +2,13 @@
  * teacher feature actions: list, filters, profile panel, reviews.
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES, TEACHING_METHODS, WEEKDAYS } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums; Q-4a-M1b: filter options
+import { ROLES, TEACHING_METHODS, WEEKDAYS, NONACADEMIC_PROJECTS } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums; Q-4a-M1b: filter options; F1d1: price-row names
+import { CONFIG } from '../../../shared/config.js';
+import { SUFE_REGIONS } from '../../../shared/region-data.js'; // contract 9: province policy single source
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
-import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '../../core/ui.js';
+import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
@@ -284,13 +286,97 @@ export async function enterTeacherProfile() {
     const data = await api('/api/teacher/profile', { method: 'GET' });
     if (!el) return; // page switched away while loading
     el.innerHTML = renderTeacherProfileForm(data.profile || null);
-    const form = el.querySelector('#teacher-profile-form');
-    if (form) bindTimeSlotTree(form);
-    const ts = document.getElementById('tp-time-slots');
-    if (ts && data.profile && data.profile.time_slots) prefillTimeSlots(ts, data.profile.time_slots);
-    mountShanghaiAddrPicker('tp', (data.profile && data.profile.address) || '', { hiddenId: 'tp-address' });
+    initTeacherProfileForm(data.profile || null);
   } catch (err) {
     if (!el) return;
     el.innerHTML = `<div class="empty-state"><p>${TEXT.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   }
+}
+
+// Z-3-F1 F1d1: field interactions on the teacher profile form. Idempotent — form.dataset
+// guards re-entry (page re-enter re-renders innerHTML, so a fresh form gets fresh bindings).
+// Covers: province → address area + method online-lock, tag-picks, nonacademic price rows,
+// graduation-year clamp, time-slot tree, Shanghai address picker.
+export function initTeacherProfileForm(profile) {
+  const form = document.getElementById('teacher-profile-form');
+  if (!form || form.dataset.profileBound) return;
+  form.dataset.profileBound = '1';
+  bindTimeSlotTree(form);
+  const ts = document.getElementById('tp-time-slots');
+  if (ts && profile && profile.time_slots) prefillTimeSlots(ts, profile.time_slots);
+  const prov = document.getElementById('tp-province');
+  if (prov) prov.addEventListener('change', onTeacherProvinceChange);
+  const gradYear = document.getElementById('tp-grad-year');
+  if (gradYear) gradYear.addEventListener('blur', clampGradYear);
+  renderNonacademicPriceRows(profile && profile.nonacademic_prices);
+  onTeacherProvinceChange(); // initial run: address area + method lock from saved province
+}
+
+// Province switch: Shanghai shows the address picker (optional), others hide + clear it;
+// offline method is locked to online outside Shanghai (matches demand-side server gate).
+export function onTeacherProvinceChange() {
+  const prov = document.getElementById('tp-province');
+  const provId = prov ? prov.value : '';
+  const addrInput = document.getElementById('tp-address');
+  const addrSection = document.getElementById('tp-addr-picker');
+  const isShanghai = provId === 'shanghai';
+  if (!isShanghai && addrInput) addrInput.value = '';
+  if (addrSection) addrSection.classList.toggle('hidden', !isShanghai);
+  const method = document.getElementById('tp-method');
+  if (method) {
+    const onlineOnly = !SUFE_REGIONS.allowsOffline(provId);
+    [...method.options].forEach(o => { o.disabled = onlineOnly && o.value !== 'online'; });
+    // F1d1-1: unconditionally force online outside Shanghai (a saved offline value must not
+    // survive the switch — server has no province gate on teaching_method, so the frontend is
+    // the parity guard; matches student/actions.js toggleAddressField online-lock).
+    if (onlineOnly && method.value !== 'online') method.value = 'online';
+  }
+  if (isShanghai) {
+    mountShanghaiAddrPicker('tp', addrInput ? addrInput.value : '', { hiddenId: 'tp-address' });
+  }
+}
+
+// Graduation year clamp [CONFIG.GRAD_YEAR_MIN, CONFIG.GRAD_YEAR_MAX]; empty stays empty.
+export function clampGradYear() {
+  const el = document.getElementById('tp-grad-year');
+  if (!el || !el.value) return;
+  const n = Number(el.value);
+  if (!Number.isFinite(n)) { el.value = ''; return; }
+  el.value = String(Math.min(CONFIG.GRAD_YEAR_MAX, Math.max(CONFIG.GRAD_YEAR_MIN, n)));
+}
+
+// Tag-pick click (data-action=teacher.toggleTagPick): delegate to core toggleTagPick for the
+// max-clamp + toast, then re-render nonacademic price rows (they track the selected projects).
+export function teacherTagPick(el) {
+  toggleTagPick(el, el.dataset.container, Number(el.dataset.max));
+  if (el.dataset.container === 'tp-nonacademic') renderNonacademicPriceRows();
+}
+
+// Nonacademic price rows: one row per selected nonacademic project (project + min/max).
+// F1d1-2 fix: when called without a prices argument (tag re-click), preserve the values the
+// user already typed in the live DOM rows instead of wiping them from an empty map.
+export function renderNonacademicPriceRows(prices) {
+  const host = document.getElementById('tp-nonacademic-prices');
+  if (!host) return;
+  const selected = [...document.querySelectorAll('#tp-nonacademic .tag-pick.selected')].map(b => b.dataset.id);
+  if (!selected.length) { host.innerHTML = `<p class="text-sm text-muted">${TEXT.OPTION_PLACEHOLDER}</p>`; return; }
+  // Read live values from the existing rows (keyed by data-project) so a re-render never drops
+  // user input; the prices argument only seeds rows that have no live counterpart yet.
+  const live = {};
+  host.querySelectorAll('.price-row').forEach(row => {
+    const project = row.dataset.project;
+    const minEl = row.querySelector('[data-field="min"]');
+    const maxEl = row.querySelector('[data-field="max"]');
+    if (project) live[project] = { project, price_min: minEl ? minEl.value : '', price_max: maxEl ? maxEl.value : '' };
+  });
+  const byProject = new Map((prices || []).map(r => [r.project, r]));
+  host.innerHTML = selected.map(id => {
+    const r = live[id] || byProject.get(id) || {};
+    return `<div class="price-row" data-project="${escHtml(id)}">
+      <span class="price-row-name">${escHtml((NONACADEMIC_PROJECTS.find(n => n.id === id) || {}).name || id)}</span>
+      <input type="number" class="form-input" data-field="min" value="${r.price_min != null ? escHtml(String(r.price_min)) : ''}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MIN}">
+      <span class="text-muted">~</span>
+      <input type="number" class="form-input" data-field="max" value="${r.price_max != null ? escHtml(String(r.price_max)) : ''}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MAX}">
+    </div>`;
+  }).join('');
 }

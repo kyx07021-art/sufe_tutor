@@ -18,6 +18,8 @@ const ACTION_MAP = {
   'teacher.deleteReview': el => actions.confirmDeleteReview(Number(el.dataset.id)),
   'teacher.matchDetail': el => actions.showTeacherMatchDetail(Number(el.dataset.id)),
   'teacher.toggleFilters': actions.toggleFilters,
+  // Z-3-F1 F1d1: tag-pick toggles on the profile form (personality + nonacademic projects)
+  'teacher.toggleTagPick': el => actions.teacherTagPick(el),
 };
 
 let installed = false;
