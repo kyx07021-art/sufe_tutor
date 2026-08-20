@@ -278,7 +278,9 @@ export async function handleCreateContract(db, body, req) {
   const { user: me, err: authErr } = await requireUser(db, req);
   if (authErr) return authErr;
   const userId = me.id;
-  const conversationId = parseInt(body.conversationId);
+  const conversationId = parseInt(body.conversationId, 10);
+  // AF-5: illegal conversationId (parseInt(null)=NaN) must never reach D1 binding
+  if (!Number.isInteger(conversationId) || conversationId <= 0) return errorMsg('INVALID_PARAMS', 404);
   const conv = await dbGetConversationWithNames(db, conversationId);
   if (!isParticipant(conv, userId)) return errorMsg('NO_PERMISSION', 403);
   // Z-5-O2：已关闭会话不可起草合同（与 handleCreateSigning/发消息同款状态门禁——关闭会话双方可见但禁写）
@@ -644,7 +646,9 @@ export async function handleCreateSigning(db, body, req) {
   const { user: me, err: authErr } = await requireUser(db, req);
   if (authErr) return authErr;
   const userId = me.id;
-  const conversationId = parseInt(body.conversationId);
+  const conversationId = parseInt(body.conversationId, 10);
+  // AF-5: illegal conversationId (parseIdParam(null) -> parseInt=NaN) must never reach D1 binding
+  if (!Number.isInteger(conversationId) || conversationId <= 0) return errorMsg('INVALID_PARAMS', 404);
   const conv = await dbGetConversationWithNames(db, conversationId);
   if (!conv || (conv.student_user_id !== userId && conv.teacher_user_id !== userId)) return errorMsg('NO_PERMISSION', 403);
   if (conv.status !== STATUS.ACTIVE) return errorMsg('NO_PERMISSION', 403); // 已关闭会话不可再发起签约（与发消息同款状态门禁）
