@@ -17,7 +17,7 @@ import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
-import { openModal, closeModal, showToast, confirm, withCaptcha } from '../../core/ui.js';
+import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha } from '../../core/ui.js';
 import { escHtml, fmtDateTime, loaderHtml } from '../../core/dom.js';
 import { priceRangeText } from '../../core/display.js';
 import { teacherGradeName, ratingText } from '../teacher/display.js'; // U-3a: teacher row meta (grade/rating) display mappings
@@ -312,7 +312,7 @@ export function openInviteManager() {
 
 export function revokeInvite(code) {
   confirm({ title: TEXT.INVITE_MANAGER_TITLE, message: TEXT.INVITE_REVOKE_CONFIRM, onConfirm: () => {
-    api(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE' }).then(() => { showToast(TEXT.INVITE_MANAGER_REVOKED); openInviteManager(); }).catch(err => showToast(err.message));
+    api(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE' }).then(() => { showToast(TEXT.INVITE_MANAGER_REVOKED); closeAllModals(); openInviteManager(); }).catch(err => showToast(err.message)); // closeAllModals first: avoid stale manager modal stacking under the fresh one (U-3k audit LOW-1)
   }});
 }
 
