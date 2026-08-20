@@ -394,7 +394,8 @@ export function toggleAddressField() {
   if (!section || !addrInput) return;
   const prov = document.getElementById('d-province')?.value || '';
   const method = document.getElementById('d-method')?.value || '';
-  const show = prov === 'shanghai' && method === 'offline';
+  // T-6-F4: offline address field gated by province policy (allowsOffline), not a hardcoded id
+  const show = SUFE_REGIONS.allowsOffline(prov) && method === 'offline';
   if (!show) {
     section.classList.add('hidden');
     addrInput.value = '';
@@ -413,9 +414,9 @@ export async function handleSubmitDemand() {
   const province = document.getElementById('d-province')?.value || '';
   if (!province) { showToast(TEXT.VALIDATE_SELECT_PROVINCE, 'error'); return; }
   if (!document.getElementById('d-grade')?.value) { showToast(TEXT.VALIDATE_SELECT_GRADE, 'error'); return; }
-  // Address deep defense must stay in lockstep with toggleAddressField ("shanghai+offline only"):
-  // province-only checks would wrongly block shanghai+online submissions.
-  if (province === 'shanghai' && document.getElementById('d-method').value === 'offline' && !document.getElementById('d-address').value.trim()) {
+  // Address deep defense must stay in lockstep with toggleAddressField (offline-allowed province + offline only):
+  // province-only checks would wrongly block offline-allowed+online submissions. T-6-F4: allowsOffline single source.
+  if (SUFE_REGIONS.allowsOffline(province) && document.getElementById('d-method').value === 'offline' && !document.getElementById('d-address').value.trim()) {
     showToast(TEXT.VALIDATE_ADDRESS_REQUIRED, 'error'); return;
   }
   if (!document.getElementById('d-parent-contact')?.value.trim() || !document.getElementById('d-student-contact')?.value.trim()) {
@@ -883,7 +884,8 @@ export function demandWizardValidateStep(n) {
     return true; // address validation lives on P2 (method page, shanghai+offline only)
   }
   if (n === 2) {
-    const needAddr = gid('d-province').value === 'shanghai' && gid('d-method').value === 'offline';
+    // T-6-F4: offline-allowed province (allowsOffline single source)
+    const needAddr = SUFE_REGIONS.allowsOffline(gid('d-province').value) && gid('d-method').value === 'offline';
     if (needAddr && !gid('d-address').value.trim()) { showToast(TEXT.VALIDATE_ADDRESS_REQUIRED, 'error'); return false; }
     return true;
   }

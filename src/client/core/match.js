@@ -50,7 +50,8 @@ export function matchDims(t, d) {
   const online = d.teaching_method === 'online';
   let regionScore = null;
   let regionHint = TEXT.MATCH_DIM_SKIP;
-  if (!online && d.province === 'shanghai') {
+  // T-6-F4: offline-distance scoring gated by the data-driven province policy (allowsOffline), not a hardcoded id
+  if (!online && SUFE_REGIONS.allowsOffline(d.province)) {
     const tC = SUFE_REGIONS && SUFE_REGIONS.townCoordByAddr ? SUFE_REGIONS.townCoordByAddr(t.address) : null;
     const dC = SUFE_REGIONS && SUFE_REGIONS.townCoordByAddr ? SUFE_REGIONS.townCoordByAddr(d.address) : null;
     if (tC && dC) {

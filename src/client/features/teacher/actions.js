@@ -479,7 +479,7 @@ export function onTeacherProvinceChange() {
   const provId = prov ? prov.value : '';
   const addrInput = document.getElementById('tp-address');
   const addrSection = document.getElementById('tp-addr-picker');
-  const isShanghai = provId === 'shanghai';
+  const isShanghai = SUFE_REGIONS.allowsOffline(provId); // T-6-F4: province policy single source
   if (!isShanghai && addrInput) addrInput.value = '';
   if (addrSection) addrSection.classList.toggle('hidden', !isShanghai);
   const method = document.getElementById('tp-method');
