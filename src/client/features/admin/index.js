@@ -29,6 +29,19 @@ function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
   installed = true;
   registerPage({ id: 'admin-stats', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_STATS, desc: TEXT.PAGE_ADMIN_STATS_DESC, auth: true, enter: () => actions.loadAdminStats() });
+  // Z-3-F1/U-2: restore the 11 dormant admin modules (B5 admin-panel parity) — each page
+  // enters via its existing loader; content pages get their per-page rendering upgrades in U-3a..j.
+  registerPage({ id: 'admin-traffic', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_TRAFFIC, desc: TEXT.PAGE_ADMIN_TRAFFIC_DESC, auth: true, enter: () => actions.loadAdminTraffic() });
+  registerPage({ id: 'admin-students', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_STUDENTS, desc: TEXT.PAGE_ADMIN_STUDENTS_DESC, auth: true, enter: () => actions.loadAdminStudents() });
+  registerPage({ id: 'admin-teachers', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_TEACHERS, desc: TEXT.PAGE_ADMIN_TEACHERS_DESC, auth: true, enter: () => actions.loadAdminTeachers() });
+  registerPage({ id: 'admin-demands', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_DEMANDS, desc: TEXT.PAGE_ADMIN_DEMANDS_DESC, auth: true, enter: () => actions.loadAdminDemands() });
+  registerPage({ id: 'admin-reviews', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_REVIEWS, desc: TEXT.PAGE_ADMIN_REVIEWS_DESC, auth: true, enter: () => actions.loadAdminReviews() });
+  registerPage({ id: 'admin-awards', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_AWARDS, desc: TEXT.PAGE_ADMIN_AWARDS_DESC, auth: true, enter: () => actions.loadAdminAwards() });
+  registerPage({ id: 'admin-verifications', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_VERIFICATIONS, desc: TEXT.PAGE_ADMIN_VERIFICATIONS_DESC, auth: true, enter: () => actions.loadAdminVerifications() });
+  registerPage({ id: 'admin-posts', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_POSTS, desc: TEXT.PAGE_ADMIN_POSTS_DESC, auth: true, enter: () => actions.loadAdminPosts() });
+  registerPage({ id: 'admin-contracts', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_CONTRACTS, desc: TEXT.PAGE_ADMIN_CONTRACTS_DESC, auth: true, enter: () => actions.loadAdminContracts() });
+  registerPage({ id: 'admin-feedback', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_FEEDBACK, desc: TEXT.PAGE_ADMIN_FEEDBACK_DESC, auth: true, enter: () => actions.loadAdminFeedback() });
+  registerPage({ id: 'admin-content', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_CONTENT, desc: TEXT.PAGE_ADMIN_CONTENT_DESC, auth: true, enter: () => actions.loadAdminContent() });
   document.addEventListener('click', onActionClick);
   return () => { document.removeEventListener('click', onActionClick); installed = false; };
 }

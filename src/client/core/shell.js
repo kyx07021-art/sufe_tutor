@@ -126,6 +126,17 @@ export function mountShell() {
         ${page('notifications', TEXT.PAGE_NOTIFICATIONS, { actions: notifBlockBtn, body: `<div class="browse-list" id="notifications-content"></div>` })}
         ${page('account-settings', TEXT.PAGE_ACCOUNT_SETTINGS, { body: `<div id="account-settings-content"></div>` })}
         ${page('admin-stats', TEXT.PAGE_ADMIN_STATS, { body: `<div id="admin-stats-box"></div><div id="admin-stats-content"></div>` })}
+        ${page('admin-traffic', TEXT.PAGE_ADMIN_TRAFFIC, { body: `<div id="admin-traffic-box"></div>` })}
+        ${page('admin-students', TEXT.PAGE_ADMIN_STUDENTS, { body: `<div class="browse-list" id="admin-students-list"></div>` })}
+        ${page('admin-teachers', TEXT.PAGE_ADMIN_TEACHERS, { body: `<div class="browse-list" id="admin-teachers-list"></div>` })}
+        ${page('admin-demands', TEXT.PAGE_ADMIN_DEMANDS, { body: `<div class="browse-list" id="admin-demands-list"></div>` })}
+        ${page('admin-reviews', TEXT.PAGE_ADMIN_REVIEWS, { body: `<div class="browse-list" id="admin-reviews-list"></div>` })}
+        ${page('admin-awards', TEXT.PAGE_ADMIN_AWARDS, { body: `<div class="browse-list" id="admin-awards-list"></div>` })}
+        ${page('admin-verifications', TEXT.PAGE_ADMIN_VERIFICATIONS, { body: `<div class="browse-list" id="admin-verifications-list"></div>` })}
+        ${page('admin-posts', TEXT.PAGE_ADMIN_POSTS, { body: `<div class="browse-list" id="admin-posts-list"></div>` })}
+        ${page('admin-contracts', TEXT.PAGE_ADMIN_CONTRACTS, { body: `<div class="browse-list" id="admin-contracts-list"></div>` })}
+        ${page('admin-feedback', TEXT.PAGE_ADMIN_FEEDBACK, { body: `<div class="browse-list" id="admin-feedback-list"></div>` })}
+        ${page('admin-content', TEXT.PAGE_ADMIN_CONTENT, { body: `<div class="browse-list" id="admin-content-list"></div>` })}
         ${page('admin-complaint', TEXT.PAGE_ADMIN_COMPLAINT, { body: `<div id="admin-complaint-list"></div>` })}
         ${page('about', TEXT.PAGE_ABOUT, { body: `<div id="about-content"></div>` })}
       </main>
