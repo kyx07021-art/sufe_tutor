@@ -22,6 +22,11 @@
 import { dbAll, dbRun, json } from '../src/server/core/util.js';
 
 // Z-15-F4：DOMAINS 仅本模块内部使用（无外部 import），去 export 关键字（死导出清理）
+// T-6-F7 跨栈协议（勿轻改）：DOMAINS 是本模块与前端缓存失效协议的共享键——新增 bump 域必须同步
+// ① 本 DOMAINS + getVersions 默认 0 键 ② 前端 datahub.js DH_PREFETCH / dhGet 的缓存域键
+// （否则 bump 后 dhRefreshDomain 找不到缓存条目，静默失效）。前端特有域豁免：
+// 'account'（纯认证/个人游标，服务端不 bump，versionDomainOf 有意豁免）、'misc'（dhGet 默认域）。
+// 协议锁：test/data-version-protocol.test.js。
 const DOMAINS = {
   DEMANDS: 'demands', TEACHERS: 'teachers', POSTS: 'posts',
   CONTRACTS: 'contracts', CHAT: 'chat', NOTIFICATIONS: 'notifications', ADMIN: 'admin',
