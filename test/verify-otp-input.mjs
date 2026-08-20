@@ -28,8 +28,9 @@ await new Promise(r => server.listen(port, '127.0.0.1', r));
 const browser = await chromium.launch();
 
 const cases = [
-  { name: 'mobile-375', width: 375, height: 667, minVisible: 110, minWrap: 200, maxGap: 10 },
-  { name: 'desktop-1440', width: 1440, height: 900, minVisible: 80, minWrap: 180, maxGap: 30 },
+  { name: 'mobile-375', width: 375, height: 667, minVisible: 110, minWrap: 200, maxGap: 10, minGap: 0 },
+  // minGap:20 锁桌面列距 22px——AC-1 规则若被误移出 media 块泄漏到桌面，gap 变小即红（G2 牙齿）
+  { name: 'desktop-1440', width: 1440, height: 900, minVisible: 80, minWrap: 180, maxGap: 30, minGap: 20 },
 ];
 for (const vp of cases) {
   const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, isMobile: vp.width < 600, deviceScaleFactor: 1 });
@@ -69,6 +70,8 @@ for (const vp of cases) {
   assert.ok(geo.wrapWidth >= vp.minWrap, `${vp.name}: 输入框宽 ${geo.wrapWidth}px 应 ≥ ${vp.minWrap}px`);
   assert.ok(geo.gapBetweenLabelAndInput <= vp.maxGap,
     `${vp.name}: 输入框左缘到 label 间距 ${geo.gapBetweenLabelAndInput}px 应 ≤ ${vp.maxGap}px（顶到 label）`);
+  assert.ok(geo.gapBetweenLabelAndInput >= vp.minGap,
+    `${vp.name}: 间距 ${geo.gapBetweenLabelAndInput}px 应 ≥ ${vp.minGap}px（锁桌面 label 116px 列距不泄漏 AC-1）`);
   assert.ok(geo.inputX <= geo.wrapX + 1, `${vp.name}: 输入框与 wrap 同左缘`);
   console.log(`✔ ${vp.name}: 可视区 ${geo.visibleInput}px / wrap ${geo.wrapWidth}px / gap ${geo.gapBetweenLabelAndInput}px`);
   await ctx.close();
