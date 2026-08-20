@@ -214,7 +214,7 @@ function collectCaptchaDiag() {
 }
 function sendCaptchaDiag() {
   try {
-    fetch('/api/captcha/diag', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ diag: collectCaptchaDiag() }) }).catch(() => {});
+    import('./api.js').then(({ api }) => api('/api/captcha/diag', { method: 'POST', body: { diag: collectCaptchaDiag() } }).catch(() => {})).catch(() => {});
   } catch { /* best-effort, never blocks the verify flow */ }
 }
 

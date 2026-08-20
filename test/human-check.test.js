@@ -71,6 +71,7 @@ test('路由 handleCaptchaVerify：人样轨迹通过 / 机器轨迹 403 / 重�
   const req = { headers: new Headers() };
   const okR = await handleCaptchaVerify(null, { captchaId: 'r1', offset: 0.5, track: humanTrack() }, req);
   assert.equal(okR.ok, true, '人样轨迹路由通过');
+  assert.equal(okR.status, 200, '人样轨迹成功路径必须返回 200 Response（裸对象会经 applySecurityHeaders 恒 500）');
   const botR = await handleCaptchaVerify(null, { captchaId: 'r2', offset: 0.5, track: botTrack() }, req);
   assert.equal(botR.status, 403, '机器轨迹 403');
   const replayR = await handleCaptchaVerify(null, { captchaId: 'r1', offset: 0.5, track: humanTrack() }, req);

@@ -18,7 +18,7 @@
  * 无状态性：判定为纯函数（track 特征 → 评分），不依赖服务端存储的答案（前端自算缺口答案，
  * 本模块只判人机，不校验 offset 正确性——答案校验仍在前端本地比对）。
  */
-import { error, errorMsg } from '../src/server/core/util.js';
+import { error, errorMsg, json } from '../src/server/core/util.js';
 import { logEvent } from '../src/server/core/log.js';
 import { MSG } from '../src/shared/codes.js';
 
@@ -149,7 +149,7 @@ export async function handleCaptchaVerify(db, body, req) {
   }
   await logCaptchaResult(db, { action: 'captcha.verify.passed', entity: 'captcha', entityId: captchaId,
     detail: { ok: true, score: check.score, points: track.length }, req });
-  return { ok: true, score: check.score };
+  return json({ ok: true, score: check.score });
 }
 
 // TEMP diagnostic endpoint (production captcha alignment bug): snapshot actual/expected offset +
@@ -159,5 +159,5 @@ export async function handleCaptchaDiag(db, body, req) {
   const diag = body && body.diag;
   if (!diag || typeof diag !== 'object') return errorMsg('INVALID_PARAMS', 400);
   await logEvent(db, { action: 'captcha.diag', entity: 'captcha', entityId: 'diag', detail: { ...diag, ts: Date.now() }, req });
-  return { ok: true };
+  return json({ ok: true });
 }
