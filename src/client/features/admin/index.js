@@ -32,6 +32,11 @@ const ACTION_MAP = {
   // U-3b: demand management — admin remove (via /api/admin/demands/:id) + keyset load-more
   'admin.deleteDemand': el => actions.adminDeleteDemand(Number(el.dataset.id)),
   'admin.loadMoreDemands': actions.loadMoreAdminDemands,
+  // U-3e: verification queue — admission image preview + approve (structured form) / reject / revoke
+  'admin.viewAdmissionImage': el => actions.viewAdmissionImage(Number(el.dataset.id)),
+  'admin.verifApprove': el => actions.verifApprove(Number(el.dataset.id)),
+  'admin.verifReject': el => actions.verifReject(Number(el.dataset.id)),
+  'admin.verifRevoke': el => actions.verifRevoke(Number(el.dataset.id)),
 };
 let installed = false;
 function onActionClick(e) {
@@ -68,12 +73,13 @@ function onLoad() {
     else if (el.dataset.inputAction === 'admin.searchTeachers') actions.adminUsersSearchDebounced(ROLES.TEACHER, el.value);
   }
   document.addEventListener('input', onInput);
-  // U-3c: admin reviews status filter (change delegation); U-3d: admin awards status filter
+  // U-3c: admin reviews status filter; U-3d: admin awards status filter; U-3e: verif status filter
   function onChange(e) {
     const el = e.target;
     if (!el || !el.dataset) return;
     if (el.dataset.change === 'admin.filterReviews') actions.loadAdminReviews(el.value);
     else if (el.dataset.change === 'admin.filterAwards') actions.loadAdminAwards(el.value);
+    else if (el.dataset.change === 'admin.filterVerif') actions.loadAdminVerifications(el.value);
   }
   document.addEventListener('change', onChange);
   return () => { document.removeEventListener('click', onActionClick); document.removeEventListener('input', onInput); document.removeEventListener('change', onChange); installed = false; };

@@ -150,7 +150,16 @@ export function mountShell() {
             </select>
           </div>
           <div class="browse-list" id="admin-awards-list"></div>` })}
-        ${page('admin-verifications', TEXT.PAGE_ADMIN_VERIFICATIONS, { body: `<div class="browse-list" id="admin-verifications-list"></div>` })}
+        ${page('admin-verifications', TEXT.PAGE_ADMIN_VERIFICATIONS, { body: `
+          <div class="filter-panel glass glass--solid" id="admin-verif-filter">
+            <select class="filter-select" id="admin-verif-status" data-change="admin.filterVerif">
+              <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
+              <option value="${STATUS.PENDING}">${escHtml(TEXT.STATUS_PENDING)}</option>
+              <option value="${STATUS.APPROVED}">${escHtml(TEXT.STATUS_APPROVED)}</option>
+              <option value="${STATUS.REJECTED}">${escHtml(TEXT.STATUS_REJECTED)}</option>
+            </select>
+          </div>
+          <div class="browse-list" id="admin-verifications-list"></div>` })}
         ${page('admin-posts', TEXT.PAGE_ADMIN_POSTS, { body: `<div class="browse-list" id="admin-posts-list"></div>` })}
         ${page('admin-contracts', TEXT.PAGE_ADMIN_CONTRACTS, { body: `<div class="browse-list" id="admin-contracts-list"></div>` })}
         ${page('admin-feedback', TEXT.PAGE_ADMIN_FEEDBACK, { body: `<div class="browse-list" id="admin-feedback-list"></div>` })}

@@ -1,17 +1,7 @@
 /**
- * admin feature actions: stats, dashboard, users, demands, reviews, content, awards, verifications.
- *
- * Q-4b-M4 dormancy note: the admin management actions below loadAdminStats (loadAdminTraffic,
- * loadAdminUsers/Students/Teachers, loadAdminDemands/Reviews/Content/Posts/Contracts/Feedback/
- * Awards/Verifications, renderAdmin*Row, openContentPenaltyModal, submitContentPenalty,
- * openPostViewModal, adminDeletePost, adminViewContract, adminRemoveContract, resolveAdminFeedback,
- * confirmBanUser, generateInviteCode, openInviteManager, revokeInvite, viewAwardProof,
- * approveAward, rejectAwardModal, submitAwardReject, doAwardAction, viewAdmissionImage,
- * renderVerifForm, verifApprove/Revoke/Reject, toggleTeacherVerify, doTeacherVerify) have NO live
- * UI trigger — the admin-stats page renders loadAdminStats() only. They await the pending B5
- * admin-panel parity work and are consumed by tests (admin-client-actions, cache-invalidate-guard).
- * Dormant per rule 35: zero live production reference, explicitly noted here (do not remove — B5
- * depends on them; do not wire into ACTION_MAP before the admin panel exists).
+ * admin feature actions: stats, users, demands, reviews, content, awards, verifications, posts,
+ * contracts, feedback, invites, traffic. All admin pages are registered in index.js and wired
+ * via data-action delegation (U-3 series); each loader renders its per-page v1-parity card.
  */
 import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
@@ -437,19 +427,104 @@ export async function performAwardAction(id, action, { note = '', capToken } = {
   } catch (err) { showToast(err.message); }
 }
 
-export async function loadAdminVerifications() {
+// U-3e: verification review queue — v1-parity card (user + verify_type tag + status tag +
+// verify code + meta + admission preview + structured approve form / reject / revoke). All
+// danger ops wrapped in confirm needReAuth + captcha (server requires capToken per U-3e-s1).
+let _verifListCache = []; // admission-image lookup for viewAdmissionImage (v1 parity: closure, not window)
+
+export async function loadAdminVerifications(status) {
+  const el = document.getElementById('admin-verifications-list');
+  if (status === undefined) {
+    const sel = document.getElementById('admin-verif-status');
+    status = sel ? sel.value : 'all';
+  }
   try {
-    const data = await dhGet('/api/admin/verifications', { domain: 'admin' });
-    const el = document.getElementById('admin-verifications-list');
-    if (el) el.innerHTML = (data.verifications || []).map(v => `<div class="list-card glass">${escHtml(v.username || '')}</div>`).join('');
+    const qs = status && status !== 'all' ? `?status=${encodeURIComponent(status)}` : '';
+    const data = await dhGet(`/api/admin/verifications${qs}`, { domain: 'admin' });
+    _verifListCache = data.verifications || [];
+    if (el) el.innerHTML = _verifListCache.length ? _verifListCache.map(renderVerifCard).join('') : `<p class="empty-state">${escHtml(TEXT.ADMIN_VERIF_EMPTY)}</p>`;
   } catch (err) { showToast(err.message); }
 }
 
-export function viewAdmissionImage(id) { openModal({ title: TEXT.ADMIN_ADMISSION_IMAGE, body: `<p>${String(id)}</p>` }); }
-export function renderVerifForm(v) { return `<div class="list-card glass">${escHtml(v.username || '')}</div>`; }
-export function verifApprove(id) { api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'approve', school: document.getElementById('verif-school')?.value || '', level: document.getElementById('verif-level')?.value || '' } }).then(() => { invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminVerifications(); }).catch(err => showToast(err.message)); } // Q-3b-F3: invalidate after write
-export function verifRevoke(id) { api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'revoke' } }).then(() => { invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminVerifications(); }).catch(err => showToast(err.message)); } // Q-3b-F3: invalidate after write
-export function verifReject(id) { return verifRevoke(id); }
+function verifStatusTag(status) {
+  if (status === STATUS.APPROVED) return `<span class="tag tag-ok glass glass--solid">${escHtml(TEXT.VERIF_APPROVED)}</span>`;
+  if (status === STATUS.REJECTED) return `<span class="tag tag-danger glass glass--solid">${escHtml(TEXT.VERIF_REJECTED)}</span>`;
+  return `<span class="tag tag-warn glass glass--solid">${escHtml(TEXT.VERIF_PENDING)}</span>`;
+}
+
+export function renderVerifCard(v) {
+  return `<div class="list-card glass verif-card" data-id="${v.id}">
+    <div class="verif-head">
+      <span class="verif-user">${escHtml(v.username || ('#' + v.user_id))}</span>
+      ${v.verify_type === 'admission' ? `<span class="tag tag-accent glass glass--solid">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_TAG)}</span>` : ''}
+      ${verifStatusTag(v.status)}
+      <span class="verif-code">${v.verify_type === 'admission' ? escHtml(TEXT.ADMIN_VERIF_ADMISSION_NO_CODE) : escHtml(v.verify_code)}</span>
+    </div>
+    <div class="verif-meta">${fmtDateTime(v.created_at)}${v.verified_at ? ' · ' + fmtDateTime(v.verified_at) : ''}</div>
+    ${v.verify_type === 'admission' && v.admission_image ? `<div class="verif-admission-preview"><button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewAdmissionImage" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_VIEW_IMG)}</button></div>` : ''}
+    ${v.status === STATUS.APPROVED ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>
+      <div class="verif-actions"><button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.verifRevoke" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_REVOKE_BTN)}</button></div>` : ''}
+    ${v.status === STATUS.PENDING ? renderVerifForm(v) : ''}
+  </div>`;
+}
+
+// v1-parity structured approve form (5 fields; school+level required on submit).
+export function renderVerifForm(v) {
+  return `<div class="verif-form">
+    <p class="verif-form-hint">${escHtml(TEXT.ADMIN_VERIF_FORM_HINT)}</p>
+    <div class="verif-grid">
+      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_SCHOOL_LABEL)}</label><input type="text" class="form-input" id="verif-school-${v.id}" maxlength="30" placeholder="${escHtml(TEXT.ADMIN_VERIF_SCHOOL_PLACEHOLDER)}"></div>
+      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_LEVEL_LABEL)}</label><input type="text" class="form-input" id="verif-level-${v.id}" maxlength="20" placeholder="${escHtml(TEXT.ADMIN_VERIF_LEVEL_PLACEHOLDER)}"></div>
+      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_MAJOR_LABEL)}</label><input type="text" class="form-input" id="verif-major-${v.id}" maxlength="60" placeholder="${escHtml(TEXT.ADMIN_VERIF_MAJOR_PLACEHOLDER)}"></div>
+      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_STATUS_LABEL)}</label><input type="text" class="form-input" id="verif-status-${v.id}" maxlength="20" placeholder="${escHtml(TEXT.ADMIN_VERIF_STATUS_PLACEHOLDER)}"></div>
+      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_YEAR_LABEL)}</label><input type="text" class="form-input" id="verif-year-${v.id}" maxlength="10" placeholder="${escHtml(TEXT.ADMIN_VERIF_YEAR_PLACEHOLDER)}"></div>
+    </div>
+    <div class="verif-actions">
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.verifApprove" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_APPROVE_BTN)}</button>
+      <button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.verifReject" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_REJECT_BTN)}</button>
+    </div>
+  </div>`;
+}
+
+export function verifApprove(id) {
+  const g = s => ((document.getElementById(s) || {}).value || '').trim();
+  const body = {
+    action: 'approve',
+    school: g(`verif-school-${id}`), level: g(`verif-level-${id}`),
+    major: g(`verif-major-${id}`), enrollment_status: g(`verif-status-${id}`),
+    enroll_year: g(`verif-year-${id}`),
+  };
+  if (!body.school || !body.level) { showToast(TEXT.ADMIN_VERIF_APPROVE_REQUIRED, 'error'); return; }
+  confirm({ title: TEXT.ADMIN_VERIF_APPROVE_BTN, message: TEXT.ADMIN_VERIF_APPROVE_CONFIRM, needReAuth: true, onConfirm: capToken => {
+    withCaptcha(() => performVerifAction(id, body, { capToken }));
+  }});
+}
+export function verifReject(id) {
+  confirm({ title: TEXT.ADMIN_VERIF_REJECT_BTN, message: TEXT.ADMIN_VERIF_REJECT_CONFIRM, needReAuth: true, onConfirm: capToken => {
+    withCaptcha(() => performVerifAction(id, { action: 'reject' }, { capToken }));
+  }});
+}
+export function verifRevoke(id) {
+  confirm({ title: TEXT.ADMIN_VERIF_REVOKE_BTN, message: TEXT.ADMIN_VERIF_REVOKE_CONFIRM, needReAuth: true, onConfirm: capToken => {
+    withCaptcha(() => performVerifAction(id, { action: 'revoke' }, { capToken }));
+  }});
+}
+// U-3e: actual verification write path (all three confirm flows delegate here). Exported for
+// direct write-path testing — cache-invalidate-guard drives it, bypassing the confirm UI.
+export async function performVerifAction(id, body, { capToken } = {}) {
+  try {
+    await api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { ...body, capToken } });
+    invalidate('admin'); // Q-3b-F3: invalidate after write
+    showToast(body.action === 'approve' ? TEXT.ADMIN_VERIF_APPROVED_OK : body.action === 'revoke' ? TEXT.ADMIN_VERIF_REVOKED_OK : TEXT.ADMIN_VERIF_REJECTED_OK, 'success');
+    loadAdminVerifications();
+  } catch (err) { showToast(err.message); }
+}
+
+export function viewAdmissionImage(id) {
+  const v = _verifListCache.find(x => x.id === id);
+  if (!v) { showToast(TEXT.ADMIN_VERIF_NOT_FOUND, 'error'); return; }
+  openModal({ title: TEXT.ADMIN_ADMISSION_IMAGE, body: v.admission_image ? `<img class="verif-admission-img" src="${escHtml(v.admission_image)}" alt="">` : `<p>${escHtml(TEXT.ADMIN_VERIF_EMPTY)}</p>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
+}
 
 // U-3a rework (audit F1): verify/unverify is a danger op (server handleVerifyTeacher requires
 // confirmDangerOtp) — wrap in confirm needReAuth + withCaptcha, aligned with the ban path.
