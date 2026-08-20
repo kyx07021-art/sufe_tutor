@@ -102,15 +102,16 @@
 - **B2 `.form-select` v 箭头 background-image**（style.css:437-441）：非死代码，是无 JS 兜底（select 被 initCustomSelects 隐藏仅 JS 跑时；JS 挂时原生 select 仍需箭头），保留。
 
 ## 视觉实验（用户同意概念，需截图调参到美丽再上线）
-- **vivid「clear-over-vivid」宝石按钮**：✅ 彩色玻璃观感已由 0.18.11 的统一达成（按钮=填色卡 + 标准遮罩 + 折射），**无需**元素自绘或 backdrop 垫层。若用户进一步要"折射去弯折一块自有 vivid 渐变"的宝石感，才需正后方垫同形不透明 vivid 层、按钮毛度≈0（backdrop-filter 无法跳层，自有 background 不被折射，故需垫层）——此为可选增强，只出截图原型，给用户看再定推不推全站；**不要**为它再给按钮开特例渲染路径（违 best-part-is-no-part）。
+- **vivid「clear-over-vivid」宝石按钮** **AF-16 判定：可选增强**（用户再要求才出原型，不做全站）：✅ 彩色玻璃观感已由 0.18.11 的统一达成（按钮=填色卡 + 标准遮罩 + 折射），**无需**元素自绘或 backdrop 垫层。若用户进一步要"折射去弯折一块自有 vivid 渐变"的宝石感，才需正后方垫同形不透明 vivid 层、按钮毛度≈0（backdrop-filter 无法跳层，自有 background 不被折射，故需垫层）——此为可选增强，只出截图原型，给用户看再定推不推全站；**不要**为它再给按钮开特例渲染路径（违 best-part-is-no-part）。
 
 ## v0.21.0 全局重构后待办（2026-08-07 审计遗留，低危）
-- 前端 z-index 阶梯 / 860 断点 token 化（style.css :root 定义 --z-* / --bp-*，各文件统一引用；当前数值一致仅散落）
-- 管理员列表分页：评价/反馈/合同管理端列表加 keyset 游标（dbGetDemands admin 已有先例）
-- admin 统计页 loadAdminStats 对响应字段做可选链兜底（s.users?.total）
-- dbGetDemandById 单条/列表出口形状已对齐 mapper，跨出口契约注释待补
+- 前端 z-index 阶梯 / 860 断点 token 化（style.css :root 定义 --z-* / --bp-*，各文件统一引用；当前数值一致仅散落） **→ 保留专项**（全站 CSS 重构面，视觉回归风险，AF-16 判定攒批后续专项）
+- 管理员列表分页：评价/反馈/合同管理端列表加 keyset 游标（dbGetDemands admin 已有先例） **→ 保留专项**（功能改进，生产数据量小非紧急，AF-16 判定）
+- admin 统计页 loadAdminStats 对响应字段做可选链兜底（s.users?.total） **→ ✅ 已由 R-5b 结构化改造覆盖**（u/r/inv/t/dt/mt 全 `|| {}` + `v ?? 0` 兜底，AF-16 复核）
+- dbGetDemandById 单条/列表出口形状已对齐 mapper，跨出口契约注释待补 **→ ✅ AF-15**（跨出口契约注释补齐，含 mapDemandRowFull 联系方式差异说明）
 
 ## 🟡 性能优化备忘（2026-08-07，v0.22.5 SW+读缓存已落地后的其余杠杆）
+> **AF-16 判定**：构建哈希 → 已落地 hash-assets（P17）；JS 合并/内联 → 已落地 esbuild splitting；Early Hints → pages.dev 自动；China Network → 需 ICP 备案+企业版不可行（弃置）；日志保留期定期清理 → 归保留专项（需用户定保留期）。
 > 用户方向：服务器 ~190ms 但网页数秒，小站应压进百毫秒级甚至近零加载。已落地：v0.22.3 留档去读流量、v0.22.4 两个渲染 bug、v0.22.5 Service Worker（静态+公开读缓存）+ server/cache.js 公开读短 TTL。以下为暂缓的其余想法（未做，按优先级）：
 
 - **构建步骤 + 内容哈希文件名 + 长 immutable Cache-Control**（根治首访与 SW 部署陈旧）：当前资产无哈希、`must-revalidate` 每次全量重验（慢路径 23 资产 × ~300ms）。哈希化后浏览器/CDN 长缓存、部署即换 URL 无陈旧。**代价：引入构建步骤，动"零构建"哲学——需用户拍板。**
@@ -120,6 +121,7 @@
 - **日志保留期定期清理**：v0.22.3 后留档已 -96%，但长尾仍线性增长（~45MB/年）；可加保留期删除任务（如 90 天）。
 
 ## keepalive 与冷启动评估（2026-08-10，v0.26.12/0.26.13 网络层复盘，D2 结论文档）
+> **AF-16 判定：结论=保留**（keepalive 降级为保底保险，无待办）。
 - **结论：keepalive 已降级为保底保险，不再承担「首击唤醒」职责。**
   - 根因链回顾：Pages 多 isolate 各自冷启动 → 原 initDb 每次全量跑 19 表 CREATE + ~15 组 ensureColumns（≈13-20 次 D1 往返）× D1 冷连接 → 首击 6-25s 超时（v0.25.112 用户掐秒表：游客 7s / 教师列表 20s）。
   - v0.26.12 治本：initDb schema 版本判断（冷 isolate 首击 1 次 batch 命中已最新即跳过全量迁移）。生产验证（C4）：data-version 20 次 0 次 >5s、teachers 全 <1.7s。
@@ -130,6 +132,7 @@
 ## 2026-08-09 收尾全量审计遗留（代码/网安/架构三审计；关键+高危已随 v0.25.74 修掉，以下为系统性重构项）
 
 ### A1 前端状态字面量绕过 STATUS 常量（架构#2）
+> **AF-16 判定：过时弃置**——A1-A8 全部指向 v0.21 前 v1 文件（app-*.js 等），已随 V-4-1h 删 v1 壳连根消失（glob 实证）；A4 已收口（Z-16-F1）、A5 signing.js 已删（Z-15-F8）。
 app-chat.js:248,325-326,340 / app-contracts.js:62-99 / app-demands.js:613-662,969-970 / app-teachers.js:308,540,548 散落 `'active'/'contracted'/'pending'/'signed'/'rejected'` 裸字面量；后端全走 STATUS.*。改引 STATUS.*（app-state.js:20 已解构为全局词法绑定）。
 
 ### A2 显示映射重复，应收口 app-display.js（架构#4 / 代码#5）
@@ -173,41 +176,42 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 **放弃理由（用户决策：无更安全替代则去掉缓存）**：缓存核心风险是登出/封禁/停用须即时失效，而 Pages 多实例无法全局失效（实例 A 删会话行、实例 B 缓存仍放行 ≤TTL）——任何 TTL 窗口都引入「已封禁用户仍可操作」的安全窗口；D1 鉴权经 keepalive 保热后 ~ms 级，缓存收益与即时性风险不成比例。**保持每请求实时 D1 鉴权**（封禁/登出即时生效 = 最安全），不做会话缓存。若未来 D1 鉴权成为瓶颈，优先评估只读路径降频而非令牌缓存。
 
 ### 拼图验证码服务端化 + 真人判定（v1.4.13 清理特例后列为新功能待办；v1.4.15 用户拍板做后端人机判定）
+> **AF-16 判定：已落地**——human-check.js + POST /api/captcha/verify + 后端人机判定已实现；剩余「服务端生成图片」为远期可选。
 - 现状：答案前端自算、本地比对（app-captcha.js），服务端防刷由 rate_limits 限流咽喉承担；"生产接入点"死代码已删。
 - ⚠️ **v1.4.13 已删除前端轨迹收集（_captchaTrack 时序点数组）与 captchaId（_captchaIdStr/_captchaId）——当时判为"无消费方上抛死数据"，未备注人机判定需恢复。实施本待办时必须按人机判定特征需求重新设计并恢复**（勿从 git 历史原样捞回旧格式，按判定算法需要的特征设计：时序 {t,x,y} + 总时长/速度/停顿/抖动/修正次数）。
 - 未来演进（业务逻辑内人机判定，无需服务端图片）：前端恢复轨迹收集并在验证通过时随 offset 一并提交 → 后端新增 POST /api/captcha/verify 或并入既有门禁请求：对轨迹做高置信度人机特征判定（成熟方案：速度曲线慢-快-慢、非匀速、停顿微调、自然抖动、总时长区间、轨迹点密度 30-120）→ 判定通过才放行；captchaId 恢复作一次性挑战标识防重放。服务端生成图片的完整版（后端 cutX）仍为远期可选。
 
 ### V-4-1h h5a CSP 收紧系列观察项（2026-08-19，各基元独立审计遗留）
-- 🟡 **h5a-g6 姿态锁正则脆弱性**（csp-strict.test.js「两处策略姿态锁」）：_headers 用首匹配正则 `/Content-Security-Policy: ([^\n]+)/`，若未来 _headers 注释块加入含 `Content-Security-Policy: ` 字面量的示例行会被先行匹配（当前无此行，无实际误报；改法：锚定非注释行或按行号提取）。
-- 🟡 **h5a-g2 MODAL_W_ONBOARD 跨层镜像奇偶**：CONFIG `'580px'`（config.js:70）与 base.css:1225 `.modal` 默认 `max-width: 580px` 构成 CSS/JS 跨层双源镜像，无自动奇偶守卫；若 base.css 默认日后改宽（如 600px），onboarding 弹窗会与其他默认 modal 静默分叉（内联 max-width 自限宽不溢出，功能无害但视觉不一致）。改法：base.css 注释联动标注 + 奇偶校验测试，或改用 CSS 变量单源。
-- 🟡 **h5a-g3 staging 冒烟清洁性**（verify-staging-smoke.mjs，审计 PASS 后观察）：①handler `res.writableEnded` 注释"客户端已断开（page.close）"与 Node 实际语义出入——destroyed socket 下 writableEnded 仍 false，守卫是防御性保险（建议注释改述或补 `res.destroyed` 判断）；②完成日志仍打"V-4-1e staging 冒烟完成"，头部已标注 h5a 扩展（后缀未对齐）；③头部第 5 项"全链路零 console/PAGEERROR/CSP"措辞略宽于实际覆盖（实际断言只过滤 CSP 相关文本 + PAGEERROR 前缀，非 CSP 的 console error 由 section 4 覆盖）。
-- 🟡 **需求 X 清理审计观察项**（2026-08-19）：①`docs/.obsidian/workspace.json` 残留已删文档编辑器打开态（Obsidian 自愈元数据，打开即丢弃，可顺手清）；②`keepalive-worker/.wrangler/` 缓存仍在（wrangler 可再生，位于保留的生产目录内，非漏删，可顺手清）。
+- 🟡 **h5a-g6 姿态锁正则脆弱性 **→ ✅ AF-1**（extractHeadersCsp 锚定非注释行 + 变异守护）**（csp-strict.test.js「两处策略姿态锁」）：_headers 用首匹配正则 `/Content-Security-Policy: ([^\n]+)/`，若未来 _headers 注释块加入含 `Content-Security-Policy: ` 字面量的示例行会被先行匹配（当前无此行，无实际误报；改法：锚定非注释行或按行号提取）。
+- 🟡 **h5a-g2 MODAL_W_ONBOARD 跨层镜像奇偶 **→ ✅ AF-2**（base.css 联动注释 + test/modal-width-parity.test.js 奇偶锁 + manifest 重生成）**：CONFIG `'580px'`（config.js:70）与 base.css:1225 `.modal` 默认 `max-width: 580px` 构成 CSS/JS 跨层双源镜像，无自动奇偶守卫；若 base.css 默认日后改宽（如 600px），onboarding 弹窗会与其他默认 modal 静默分叉（内联 max-width 自限宽不溢出，功能无害但视觉不一致）。改法：base.css 注释联动标注 + 奇偶校验测试，或改用 CSS 变量单源。
+- 🟡 **h5a-g3 staging 冒烟清洁性 **→ ✅ AF-3**（writableEnded 注释改述 + res.destroyed + 日志/措辞对齐）**（verify-staging-smoke.mjs，审计 PASS 后观察）：①handler `res.writableEnded` 注释"客户端已断开（page.close）"与 Node 实际语义出入——destroyed socket 下 writableEnded 仍 false，守卫是防御性保险（建议注释改述或补 `res.destroyed` 判断）；②完成日志仍打"V-4-1e staging 冒烟完成"，头部已标注 h5a 扩展（后缀未对齐）；③头部第 5 项"全链路零 console/PAGEERROR/CSP"措辞略宽于实际覆盖（实际断言只过滤 CSP 相关文本 + PAGEERROR 前缀，非 CSP 的 console error 由 section 4 覆盖）。
+- 🟡 **需求 X 清理审计观察项 **→ ✅ AF-4a/4b**（workspace.json 删除 + keepalive-worker/.wrangler 清理）**（2026-08-19）：①`docs/.obsidian/workspace.json` 残留已删文档编辑器打开态（Obsidian 自愈元数据，打开即丢弃，可顺手清）；②`keepalive-worker/.wrangler/` 缓存仍在（wrangler 可再生，位于保留的生产目录内，非漏删，可顺手清）。
 
 ### 需求 Z 审计遗留（2026-08-19）
-- 🟡 **Z-16-F11/F14 无法定义**：Z-16 面审计报告原文无 F11/F14 的描述条目（编号漂移/登记时占位），无任何待办内容可执行。若日后从会话记录找回原文再补，否则视为空条目弃置。
-- 🟡 **Z-10-F1 写评门禁数据源（已确认实现）**：GET /api/teacher/profile 的 `signed` 字段作写评门禁数据源已接线（teacher/actions.js:80），本条无遗留。
+- 🟡 **Z-16-F11/F14 无法定义 **→ 弃置**（审计报告无描述条目，空条目弃置，AF-16）**：Z-16 面审计报告原文无 F11/F14 的描述条目（编号漂移/登记时占位），无任何待办内容可执行。若日后从会话记录找回原文再补，否则视为空条目弃置。
+- 🟡 **Z-10-F1 写评门禁数据源（已确认实现） **→ ✅ 弃置**（已确认实现，无遗留，AF-16）**：GET /api/teacher/profile 的 `signed` 字段作写评门禁数据源已接线（teacher/actions.js:80），本条无遗留。
 
 ### 需求 Q 剩余审计项（2026-08-20，细节丢失/攒批登记）
-- 🟡 **Q-2i-M4 服务端 ROLES/STATUS 未收敛共享 enums**：服务端 domains 各 api/repo 大量裸 'student'/'teacher'/'open'/'pending' 等字面量，未引 src/shared/enums.js ROLES/STATUS。收敛 = 几百处等价替换（零行为变化）+ SQL 字面量（WHERE status='open'）本就不可用 JS enums（SQL 字符串）。改动面巨大、收益为架构一致性，攒批后续专项（勿混入 2.0.x 小修）。
-- 🟡 **Q-2i M6/M7 + L1-L9 / Q-2f L1-L7 描述丢失**：Q-2i/Q-2f 审计 agent transcript 未在主会话保留（压缩覆盖），摘要仅列 M1-M5 名（已修）+ L 项无细节。需重跑对应审计面复核或从 agent transcript 恢复后执行。
+- 🟡 **Q-2i-M4 服务端 ROLES/STATUS 未收敛共享 enums **→ 保留专项**（几百处替换 + SQL 字面量不可用 JS enums，AF-16 判定攒批专项，勿混 2.0.x 小修）**：服务端 domains 各 api/repo 大量裸 'student'/'teacher'/'open'/'pending' 等字面量，未引 src/shared/enums.js ROLES/STATUS。收敛 = 几百处等价替换（零行为变化）+ SQL 字面量（WHERE status='open'）本就不可用 JS enums（SQL 字符串）。改动面巨大、收益为架构一致性，攒批后续专项（勿混入 2.0.x 小修）。
+- 🟡 **Q-2i M6/M7 + L1-L9 / Q-2f L1-L7 描述丢失 **→ 保留专项**（需重跑对应审计面复核，AF-16）**：Q-2i/Q-2f 审计 agent transcript 未在主会话保留（压缩覆盖），摘要仅列 M1-M5 名（已修）+ L 项无细节。需重跑对应审计面复核或从 agent transcript 恢复后执行。
 
 ### 需求 Q-2a-L2 审计观察项（2026-08-20，独立审计 PASS 后观察）
-- 🟡 **handleCreateSigning 的 null→NaN 路径硬化**（contract/api.js:645 `parseInt(body.conversationId)`）：非法 id → parseIdParam null → `parseInt(null)`=NaN → `dbGetConversationWithNames(db, NaN)`。NaN 进 D1 绑定是 NULL 还是抛错未经测试锁定（改前即存在，L2b 严格改善无新 500 引入）。建议 handler 加 Number.isNaN 检查硬化（Q-2e 范围）。
-- 🟡 **路由级脏参数→404 集成测试缺失**（如 `GET /api/users/1abc` → 404）：单元测试锁 parseIdParam helper，handler null 安全依赖既有 dbGet→404 模式。可选加固：路由级集成测试锁脏参数 404。
+- 🟡 **handleCreateSigning 的 null→NaN 路径硬化 **→ ✅ AF-5**（Number.isInteger + >0 守卫早退 404；AF-16 观察：body 字段 400 语义更精确 + 无专用守卫测试记 backlog）**（contract/api.js:645 `parseInt(body.conversationId)`）：非法 id → parseIdParam null → `parseInt(null)`=NaN → `dbGetConversationWithNames(db, NaN)`。NaN 进 D1 绑定是 NULL 还是抛错未经测试锁定（改前即存在，L2b 严格改善无新 500 引入）。建议 handler 加 Number.isNaN 检查硬化（Q-2e 范围）。
+- 🟡 **路由级脏参数→404 集成测试缺失 **→ ✅ AF-6**（/api/users/1abc 等 5 种脏段 + no-match 404 集成测试，变异牙齿实证）**（如 `GET /api/users/1abc` → 404）：单元测试锁 parseIdParam helper，handler null 安全依赖既有 dbGet→404 模式。可选加固：路由级集成测试锁脏参数 404。
 
 ### 需求 Q-3b 审计遗留（2026-08-20，独立审计 agent 抓出，休眠/self-heal 记 backlog 攒批）
-- 🟡 **Q-3b-L1 doSubmitContentPenalty 内容处罚删除不失效任何域**（admin/actions.js:107 POST /api/admin/content/:type/:id/action action='delete'；服务端 admin/api.js:288-355 按 type 硬删 post/demand/review/message/contract/complaint/upload/signing）：无任何 invalidate，且 versionDomainOf 对该路径只落 [ADMIN] 兜底（不 bump posts/contracts/chat/demands）→ 跨端永久陈旧（dhTouchAll 掩盖 TTL）。当前 loadAdminContent 无调用点（内容处罚 UI 死路径），一旦接线即复现 F1/F3 同型永久陈旧。修法：按 type 分支 invalidate 对应域（post→posts、contract→contracts、message→chat、demand→demands、review→admin）。
-- 🟡 **Q-3b-L2 submitFeedback 未补 invalidate('admin')**（posts/actions-feedback.js:52 POST /api/feedbacks）：同型 submitComplaint 已补（Q-3b-F5），/api/feedbacks POST 服务端已 bump [ADMIN]（version.js:124）探针 8s self-heal，非永久陈旧，但同会话 admin 反馈列表不即时刷新，一致性缺口。
-- 🟡 **Q-3b-L3 toggleTeacherVerify 未补 invalidate**（admin/actions.js:227 POST /api/admin/teachers/:id/verify 仅 toast）：服务端 bump [TEACHERS, ADMIN] 探针 self-heal，无即时 reload。verifApprove/Revoke 已补 invalidate（Q-3b-F3）而此路径未补，风格不一致。
+- 🟡 **Q-3b-L1 doSubmitContentPenalty 内容处罚删除不失效任何域 **→ ✅ AF-7 + AF-7b**（CONTENT_DOMAIN_BY_TYPE 按 type invalidate + teacher→teachers 补漏；AF-16 观察：AF-7/8/9 的 invalidate 无变异测试（G2 空洞）记 backlog 攒批补测）**（admin/actions.js:107 POST /api/admin/content/:type/:id/action action='delete'；服务端 admin/api.js:288-355 按 type 硬删 post/demand/review/message/contract/complaint/upload/signing）：无任何 invalidate，且 versionDomainOf 对该路径只落 [ADMIN] 兜底（不 bump posts/contracts/chat/demands）→ 跨端永久陈旧（dhTouchAll 掩盖 TTL）。当前 loadAdminContent 无调用点（内容处罚 UI 死路径），一旦接线即复现 F1/F3 同型永久陈旧。修法：按 type 分支 invalidate 对应域（post→posts、contract→contracts、message→chat、demand→demands、review→admin）。
+- 🟡 **Q-3b-L2 submitFeedback 未补 invalidate('admin') **→ ✅ AF-8**（POST /api/feedbacks 成功补 invalidate('admin')，对齐 submitComplaint 先例）**（posts/actions-feedback.js:52 POST /api/feedbacks）：同型 submitComplaint 已补（Q-3b-F5），/api/feedbacks POST 服务端已 bump [ADMIN]（version.js:124）探针 8s self-heal，非永久陈旧，但同会话 admin 反馈列表不即时刷新，一致性缺口。
+- 🟡 **Q-3b-L3 toggleTeacherVerify 未补 invalidate **→ ✅ 已由 U-3a 落地 admin + AF-9 补 teachers**（invalidate('admin') 已存在；AF-9 补 invalidate('teachers') 刷学生侧公开徽章）**（admin/actions.js:227 POST /api/admin/teachers/:id/verify 仅 toast）：服务端 bump [TEACHERS, ADMIN] 探针 self-heal，无即时 reload。verifApprove/Revoke 已补 invalidate（Q-3b-F3）而此路径未补，风格不一致。
 
 ### 需求 Z-3-F1 审计观察项（2026-08-20，F1d1 独立审计 PASS 后非阻塞遗留）
-- 🟡 **Z-3-F1-O1 nonacademic 标签无上限哨兵 99**（src/client/features/teacher/render.js:156 `tagPickBtn(n.id, n.name, 'tp-nonacademic', 99, ...)`）：`99` 是裸数字"无上限"哨兵。服务端对 nonacademic_projects 无数量上限（server/domains/teacher/api.js:180-185 仅白名单去重），10 个项目下 99 永不触顶，功能无碍；但 core/ui.js:194 `toggleTagPick` 语义支持 `max=0`（`max > 0` 即不钳制）。改法：`99` → `0`（带"0=无上限"注释）或具名常量。攒批清理。
-- 🟡 **Z-3-F1-O2 old 文理 track 分支无专用测试**（src/client/features/teacher/render.js:375-397）：F1d2 审计 PASS 后观察——5 个 F1d2 测试锁 hebei 3+1+2 / zhejiang 3+3 / 无省份 / 警告 / 重渲染，老文理 track 分支（science/arts pill 切换 + 分数行显隐）逻辑经人工核查正确但零测试覆盖。攒批补一条 xinjiang 双向 track 切换用例。
+- 🟡 **Z-3-F1-O1 nonacademic 标签无上限哨兵 99 **→ ✅ AF-10**（99 → 0，带 0=no cap 注释）**（src/client/features/teacher/render.js:156 `tagPickBtn(n.id, n.name, 'tp-nonacademic', 99, ...)`）：`99` 是裸数字"无上限"哨兵。服务端对 nonacademic_projects 无数量上限（server/domains/teacher/api.js:180-185 仅白名单去重），10 个项目下 99 永不触顶，功能无碍；但 core/ui.js:194 `toggleTagPick` 语义支持 `max=0`（`max > 0` 即不钳制）。改法：`99` → `0`（带"0=无上限"注释）或具名常量。攒批清理。
+- 🟡 **Z-3-F1-O2 old 文理 track 分支无专用测试 **→ ✅ AF-11**（xinjiang science/arts 双向切换用例，G2 牙齿实证）**（src/client/features/teacher/render.js:375-397）：F1d2 审计 PASS 后观察——5 个 F1d2 测试锁 hebei 3+1+2 / zhejiang 3+3 / 无省份 / 警告 / 重渲染，老文理 track 分支（science/arts pill 切换 + 分数行显隐）逻辑经人工核查正确但零测试覆盖。攒批补一条 xinjiang 双向 track 切换用例。
 
 ### 需求 AB captcha MIME 错修复审计遗留（2026-08-20，独立审计 PASS 后非阻断，守卫已消除 MIME 症状）
-- 🟡 **AB-O1 三处懒加载 import 无 catch**（chat/actions-misc.js:65,73 `import('../contract/index.js')` + posts/actions-feedback.js:109 `openComplaintAction`）：部署竞态窗口内旧 tab 持旧 bundle 引用已删 chunk → 守卫已把 MIME 错转干净 404（该动作失败、刷新自愈，非持续断线）。修法 = 包 try/catch 静默降级（对齐 onboard/actions.js:76 先例）或改静态 import。攒批（勿混入 2.0.x 小修，捕获事件即整批发版）。
-- 🟡 **AB-O2 守卫扩展名正则 {1,6} 不覆盖超长扩展名**（_worker.js:307）：如 `.webmanifest` 理论边角，本应用无此类资产，无需处理。
+- 🟡 **AB-O1 三处懒加载 import 无 catch **→ ✅ AF-12**（chat/actions-misc.js 两处 + posts/actions-feedback.js 一处，try/catch 静默降级对齐 browseAsGuest）**（chat/actions-misc.js:65,73 `import('../contract/index.js')` + posts/actions-feedback.js:109 `openComplaintAction`）：部署竞态窗口内旧 tab 持旧 bundle 引用已删 chunk → 守卫已把 MIME 错转干净 404（该动作失败、刷新自愈，非持续断线）。修法 = 包 try/catch 静默降级（对齐 onboard/actions.js:76 先例）或改静态 import。攒批（勿混入 2.0.x 小修，捕获事件即整批发版）。
+- 🟡 **AB-O2 守卫扩展名正则 {1,6} 不覆盖超长扩展名 **→ 弃置**（本应用无超长扩展名资产，AF-16）**（_worker.js:307）：如 `.webmanifest` 理论边角，本应用无此类资产，无需处理。
 
 ### 需求 AC 移动端验证码框审计遗留（2026-08-20，独立审计 PASS 后轻级）
-- 🟡 **AC-OBS1 verify-otp-input.mjs 遮罩关闭用合成点击**（test/verify-otp-input.mjs `ov.click()` DOM 合成点击，e.target 强制=overlay 根节点恒真关闭）：真用户命中式点击在 375×667 视口中心落在弹窗卡片内（卡片占 x=20-355,y=58-609）→ e.target 为卡片子节点不会关闭。本测试仅作解锁页面 setup（几何断言是真正被测对象），真实点击负路径已由 verify-csp-strict.mjs:164 `page.mouse.click(20,300)` 覆盖。无需改，记录语义边界。
-- 🟡 **AC-OBS3 注册/绑定验证码行无直接几何断言**：AC-2 只锁登录验证码行；注册（render.js:82/157 codeFieldHtml）与绑定（actions-otp.js:108/117）为同构标记（form-group > form-label + code-input-wrap），CSS 结构性命中三类、几何一致，但无逐类断言。攒批可加多表单用例。
+- 🟡 **AC-OBS1 verify-otp-input.mjs 遮罩关闭用合成点击 **→ 弃置**（记录语义边界，真实点击负路径已由 verify-csp-strict.mjs:164 覆盖，AF-16）**（test/verify-otp-input.mjs `ov.click()` DOM 合成点击，e.target 强制=overlay 根节点恒真关闭）：真用户命中式点击在 375×667 视口中心落在弹窗卡片内（卡片占 x=20-355,y=58-609）→ e.target 为卡片子节点不会关闭。本测试仅作解锁页面 setup（几何断言是真正被测对象），真实点击负路径已由 verify-csp-strict.mjs:164 `page.mouse.click(20,300)` 覆盖。无需改，记录语义边界。
+- 🟡 **AC-OBS3 注册/绑定验证码行无直接几何断言 **→ ✅ AF-13**（三类表单逐表单几何断言：登录/注册/绑定 × 移动/桌面，变异牙齿实证）**：AC-2 只锁登录验证码行；注册（render.js:82/157 codeFieldHtml）与绑定（actions-otp.js:108/117）为同构标记（form-group > form-label + code-input-wrap），CSS 结构性命中三类、几何一致，但无逐类断言。攒批可加多表单用例。
