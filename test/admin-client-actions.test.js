@@ -269,16 +269,39 @@ test('U-3b loadAdminDemands 空列表：空态文案', async () => {
   teardown();
 });
 
-test('U-3b adminDeleteDemand：confirm 确认 → DELETE /api/admin/demands/:id', async () => {
+test('U-3b adminDeleteDemand：confirm 确认 → DELETE /api/admin/demands/:id → 列表刷新（G1 写路径直测）', async () => {
   const dom = setup();
-  let deleted = false;
+  const list = document.createElement('div');
+  list.id = 'admin-demands-list';
+  document.body.appendChild(list);
+  let deleteCalls = 0, listFetches = 0;
   globalThis.fetch = async (url, opts) => {
-    if (String(url).includes('/api/admin/demands/9') && opts.method === 'DELETE') { deleted = true; return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
-    return { ok: true, status: 200, json: async () => ({ demands: [], nextCursor: null }) };
+    if (String(url).includes('/api/admin/demands/9') && opts.method === 'DELETE') { deleteCalls++; return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    if (String(url).includes('/api/admin/demands')) { listFetches++; return { ok: true, status: 200, json: async () => ({ demands: [], nextCursor: null }) }; }
+    return { ok: true, status: 200, json: async () => ({}) };
   };
   adminDeleteDemand(9);
   const modal = dom.window.document.querySelector('.modal');
   assert.ok(modal && modal.textContent.includes('确定要删除这条需求吗'), '确认弹窗');
-  assert.equal(deleted, false, '确认前零 DELETE');
+  assert.equal(deleteCalls, 0, '确认前零 DELETE');
+  // 点确认按钮（confirm 内部已绑定 runPendingConfirm → onConfirm）→ DELETE + 列表重拉
+  modal.querySelector('[data-action="ui.runPendingConfirm"]').click();
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(deleteCalls, 1, '确认后 DELETE 发出');
+  assert.ok(listFetches >= 1, '确认后列表重拉刷新');
+  teardown();
+});
+
+test('U-3b F1：loadAdminDemands 在途守卫（并发加载只拉一次，双击不重复追加）', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-demands-list';
+  document.body.appendChild(list);
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; await new Promise(r => setTimeout(r, 10)); return { ok: true, status: 200, json: async () => ({ demands: [], nextCursor: null }) }; };
+  const p1 = loadAdminDemands(false);
+  const p2 = loadAdminDemands(false); // 模拟双击：第二个调用在第一个在途时被守卫拦截
+  await Promise.all([p1, p2]);
+  assert.equal(calls, 1, '在途守卫：并发加载只拉一次');
   teardown();
 });

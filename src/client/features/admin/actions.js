@@ -156,7 +156,10 @@ export function renderAdminUserRow(u, role) {
 // a second renderer. Keyset pagination via nextCursor + load-more (reset=true clears the cursor).
 let _adminDemandsCursor = null;
 let _adminDemandsAll = [];
+let _adminDemandsBusy = false; // F6: in-flight guard — load-more double-click must not append twice (audit F1)
 export async function loadAdminDemands(reset = true) {
+  if (_adminDemandsBusy) return;
+  _adminDemandsBusy = true;
   if (reset) { _adminDemandsCursor = null; _adminDemandsAll = []; }
   try {
     const qs = _adminDemandsCursor ? `?cursor=${encodeURIComponent(_adminDemandsCursor)}` : '';
@@ -169,6 +172,7 @@ export async function loadAdminDemands(reset = true) {
     el.innerHTML = _adminDemandsAll.map(d => renderDemandCard(d, { admin: true })).join('')
       + (_adminDemandsCursor ? `<div class="list-more-row"><button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.loadMoreDemands">${escHtml(TEXT.BTN_LOAD_MORE)}</button></div>` : '');
   } catch (err) { showToast(err.message); }
+  finally { _adminDemandsBusy = false; }
 }
 
 export function loadMoreAdminDemands() { return loadAdminDemands(false); }
