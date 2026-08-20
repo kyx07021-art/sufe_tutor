@@ -121,6 +121,7 @@ export function mountShell() {
             </section>
           </div>` })}
         ${page('my-contracts', TEXT.PAGE_MY_CONTRACTS, { body: `<div class="browse-list" id="my-contracts-list"></div>` })}
+        ${page('teacher-profile', TEXT.PAGE_TEACHER_PROFILE, { body: `<div id="teacher-profile-content"></div>` })}
         ${page('resource-share', TEXT.PAGE_RESOURCE_SHARE, { body: `<div id="posts-content"></div>` })}
         ${page('notifications', TEXT.PAGE_NOTIFICATIONS, { actions: notifBlockBtn, body: `<div class="browse-list" id="notifications-content"></div>` })}
         ${page('account-settings', TEXT.PAGE_ACCOUNT_SETTINGS, { body: `<div id="account-settings-content"></div>` })}

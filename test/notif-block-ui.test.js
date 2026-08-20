@@ -219,6 +219,25 @@ test('shell 完整性（审计 F1/F2/F3 回归）：注册页容器全覆盖 + �
   assert.equal(landing.querySelector('[onclick]'), null, '落地页零内联 onclick');
 });
 
+// Z-3-F1 F1b：教师档案页注册 + sidebar 渲染（teacher 角色可见 teacher-profile 项 + 容器在位）
+test('Z-3-F1 F1b：teacher-profile 页注册、教师 sidebar 出现新页项、容器在位', async (t) => {
+  const { dom } = await enterNotifPage(t);
+  const doc = dom.window.document;
+  state.user = { role: 'teacher', id: 2, username: 'teacher', avatar: '' };
+  renderSidebar();
+  const items = [...doc.querySelectorAll('#sidebar-nav .sidebar-item')];
+  const profileItem = items.find(b => b.dataset.page === 'teacher-profile');
+  assert.ok(profileItem, '教师 sidebar 出现 teacher-profile 页项');
+  assert.ok(profileItem.textContent.includes(TEXT.PAGE_TEACHER_PROFILE), '页项标签 = PAGE_TEACHER_PROFILE');
+  assert.ok(!items.find(b => b.dataset.page === 'teacher-profile' && b.classList.contains('active')), '未选中时不激活');
+  const container = doc.querySelector('.client-page[data-page="teacher-profile"] #teacher-profile-content');
+  assert.ok(container, 'teacher-profile 容器在位（F1c 渲染目标）');
+  // 学生角色不可见（roles:[TEACHER]）
+  state.user = { role: 'student', id: 9, username: 'student', avatar: '' };
+  renderSidebar();
+  assert.ok(![...doc.querySelectorAll('#sidebar-nav .sidebar-item')].some(b => b.dataset.page === 'teacher-profile'), '学生角色不可见 teacher-profile');
+});
+
 test('item9 会话列表「会话」title 专属类在位（shell 静态提供）', async (t) => {
   const { dom } = await enterNotifPage(t);
   const doc = dom.window.document;
