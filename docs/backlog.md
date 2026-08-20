@@ -218,3 +218,9 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 
 ## 2026-08-20 反馈单巡检（P20，admin 巡检，AE/AF 上线后）
 - 🟡 **教程繁琐**（反馈 id=4/5/6，user_id=90，suggestion，已 resolved）：第一次进入平台的教程太过繁琐，建议精简到 5~6 步核心功能。→ 产品改进项：onboarding 引导精简（当前 onboarding-tour 步数多），攒批后续专项（非紧急，不混入 2.0.x 小修）。
+
+### 需求 T-6 修复批观察项（2026-08-21，独立审计 PASS 后非阻断遗留，攒批）
+- 🟡 **T-6-F1-OBS1 otp.js fallback 硬编码中文场景**（src/server/core/otp.js:214 `scene || (ch==='email' ? '登录验证' : '身份验证')`）：`'身份验证'` 不在 OTP_SCENES 内，属服务端防御性兜底（scene 白名单拒后置空时启用）。若未来改 OTP_SCENES.LOGIN，email 兜底陈旧——可拆独立基元纳入单源。
+- 🟡 **T-6-F1-OBS2 otp-delivery.test.js:80/85 场景字面量**：用 `'登录验证'` 字面量而非 OTP_SCENES.LOGIN（值未变仍绿；测试侧单源可后续对齐）。
+- 🟡 **T-6-F2-OBS dbGetStudentUsersAdmin 列表出口无 DB 直测**：仅学生搜索出口（dbAdminSearchUsers）被 admin-search-contract.test.js 真 sqlite 直测；两出口 SQL 逐字一致风险低，G1 完备可补一条列表出口直测。
+- 🟡 **T-6-F7-OBS getVersions 默认 0 键与 DOMAINS 一致性无锁**（server/version.js:50）：getVersions 硬编码 7 域默认 0 键，若 DOMAINS 加域漏补默认键，首次 bump 前响应无该域基线。协议锁测试（data-version-protocol.test.js）未覆盖此面，可后续补一致性断言。
