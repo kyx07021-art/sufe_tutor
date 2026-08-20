@@ -64,3 +64,20 @@ export function d1Export(dbName, outputPath) {
   runWrangler(['d1', 'export', dbName, '--remote', '--output', outputPath, '--skip-confirmation'],
     { maxBuffer: 100 * 1024 * 1024 });
 }
+
+/**
+ * D1 远程写查询（AE-3 存量清理用）：语义级写闸门——wrangler meta.changed_db 表示
+ * 「数据库是否被实际改动」，只有匹配并实际修改了行（changes>0）的写才为 true；
+ * SELECT/PRAGMA、匹配 0 行的写、SET 值未变的 no-op 写均返回 false。故调用方必须先确认
+ * 有行待改（如脚本先跑只读校验 residual>0）再调用——no-op 写会在闸门处被拒（fail-closed）。
+ * 返回 { results, changes }。只供存量数据修复脚本使用，业务写一律走 worker 数据层。
+ */
+export function d1WriteQuery(dbName, sql) {
+  const out = runWrangler(['d1', 'execute', dbName, '--remote', '--json', '--command', sql]);
+  const { results, meta } = JSON.parse(out)[0];
+  if (meta.changed_db !== true) {
+    // 区分「非写语句」与「写但未实际改动行」（no-op / 目标已被并发清理）——fail-closed，响亮失败
+    throw new Error(`写查询未实际改动行（changed_db=${meta.changed_db} changes=${meta.changes ?? 0}）——非写语句或匹配 0 行/值未变，拒绝执行: ${sql}`);
+  }
+  return { results: (results || []).map(r => ({ ...r })), changes: Number(meta.changes ?? 0) };
+}
