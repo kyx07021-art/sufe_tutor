@@ -1197,7 +1197,7 @@ export const TEXT = {
   "APP_NAME": "经途·伴学信息门户",
   "LANDING_SUBTITLE": "零佣金家教信息共享平台",
   "LANDING_EYEBROW": "上海财经大学学生创立 · 运营至今",
-  "LANDING_TAGLINE": "找家教，零佣金更高效",
+  "LANDING_TAGLINE": "找家教零佣金更高效",
   "LANDING_COPY": "由上海财经大学学生团队运营。平台不向老师抽佣，也不向学生收费：发布需求、浏览教师、站内沟通、正式签约都在这里完成，课费由双方自行结算。",
   "LANDING_KICKER": "不抽佣 · 师生直接对接 · 信息透明",
   "LANDING_NOTE": "教师不抽佣 · 学生免费 · 课费双方自行结算",
