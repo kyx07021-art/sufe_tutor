@@ -4,6 +4,7 @@
  * Network access goes exclusively through core api().
  */
 import { CONFIG } from '../../../shared/config.js';
+import { OTP_SCENES } from '../../../shared/enums.js';
 import { TEXT } from '../../constants/text.js';
 import { invalidate } from '../../core/state.js';
 import { api } from '../../core/api.js';
@@ -74,7 +75,7 @@ export async function requestOtpCode(prefix, channel) {
       body: {
         channel: channel === 'email' ? 'email' : 'sms',
         target,
-        scene: prefix === 'bind' ? TEXT.OTP_SCENE_BIND : prefix === 'register' ? TEXT.OTP_SCENE_REGISTER : TEXT.OTP_SCENE_LOGIN,
+        scene: prefix === 'bind' ? OTP_SCENES.BIND : prefix === 'register' ? OTP_SCENES.REGISTER : OTP_SCENES.LOGIN,
       },
     });
     showToast(TEXT.CODE_SENT, 'success');

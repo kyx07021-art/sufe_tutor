@@ -332,4 +332,7 @@ export const VERIFY_TYPES = { CHSI: 'chsi', ADMISSION: 'admission' };
 // Z-15-F2：CONTENT_TYPES 硬编码数组删除——真源在 admin/repo.js CONTENT_SQL 键派生（增类型只改 CONTENT_SQL 单点），
 // 此处原为双源之一且全仓零消费（server/constants.js re-export 亦无人引 CONTENT_TYPES）
 export const AWARD_STATUS = { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected' };
+// T-6-F1：OTP 请求 scene 业务枚举唯一源（值 = 现中文文案，零迁移；服务端 SCENE_WHITELIST 与前端 actions-otp 双端同源，
+// 消除「文案键当枚举」的 D4 注册表脆耦合——text.js 改文案不再导致 scene 落空回退默认模板）
+export const OTP_SCENES = { LOGIN: '登录验证', REGISTER: '注册验证', BIND: '绑定验证' };
 export const DEACTIVATED_USER_PREFIX = '已注销用户';

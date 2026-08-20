@@ -19,6 +19,7 @@ import * as auth from '../src/client/features/auth/actions.js';
 import * as render from '../src/client/features/auth/render.js';
 import { TEXT } from '../src/client/constants/text.js';
 import { TEXT as SETTINGS_TEXT } from '../src/client/constants/text.js';
+import { OTP_SCENES } from '../src/shared/enums.js';
 
 CONFIG.TOAST_MS = 10;
 CONFIG.TOAST_FADE_MS = 1;
@@ -261,7 +262,7 @@ test('OTP: classify/cooldown text, phone register scene and email login scene', 
 
   await auth.requestOtpCode('register', 'auto');
   const regCall = calls.find(c => c.url === '/api/auth/otp/request');
-  assert.deepEqual(regCall.body, { channel: 'sms', target: '+8613800138000', scene: TEXT.OTP_SCENE_REGISTER });
+  assert.deepEqual(regCall.body, { channel: 'sms', target: '+8613800138000', scene: OTP_SCENES.REGISTER });
   assert.equal(document.getElementById('register-send').disabled, true);
   assert.ok(document.getElementById('register-send').textContent.includes('后重发'));
   auth.otpExhaustedReset('register');
@@ -271,7 +272,7 @@ test('OTP: classify/cooldown text, phone register scene and email login scene', 
   document.getElementById('login-identifier').value = 'tutor@example.com';
   await auth.requestOtpCode('login', 'sms');
   const loginCall = calls.find(c => c.url === '/api/auth/otp/request' && c.body.channel === 'email');
-  assert.deepEqual(loginCall.body, { channel: 'email', target: 'tutor@example.com', scene: TEXT.OTP_SCENE_LOGIN });
+  assert.deepEqual(loginCall.body, { channel: 'email', target: 'tutor@example.com', scene: OTP_SCENES.LOGIN });
   auth.otpExhaustedReset('login');
 });
 

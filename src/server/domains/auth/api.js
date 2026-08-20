@@ -14,7 +14,7 @@ import {
 import { issueCapToken, confirmDangerOtp, clearDangerCaps, clearDangerCapsForSession } from '../../core/danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）+ capToken 清理
 import { MSG } from '../../../shared/codes.js';
 import { INVITE_GATE_ENABLED, LIMITS } from '../../../shared/config.js';
-import { DEACTIVATED_USER_PREFIX } from '../../../shared/enums.js';
+import { DEACTIVATED_USER_PREFIX, OTP_SCENES } from '../../../shared/enums.js';
 import {
   dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
   dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbDeleteUser,
@@ -340,8 +340,8 @@ export async function handleOtpRequest(db, body, req) {
   const norm = normalizeIdentifier(String(body.target || '').trim());
   if (channel === 'sms' && norm.kind !== 'phone') return errorMsg('PHONE_INVALID');
   if (channel === 'email' && norm.kind !== 'email') return errorMsg('EMAIL_INVALID');
-  // scene 白名单（邮件模板场景 ≤12 字、不含链接域名，防模板注入）：仅三种合法值，其余由 otp.js 兜底
-  const SCENE_WHITELIST = ['登录验证', '绑定验证', '注册验证'];
+  // scene 白名单（邮件模板场景 ≤12 字、不含链接域名，防模板注入）：共享枚举 OTP_SCENES 唯一源（T-6-F1，值不变零迁移）
+  const SCENE_WHITELIST = Object.values(OTP_SCENES);
   const sceneRaw = String(body.scene || '').trim().slice(0, 12);
   const scene = SCENE_WHITELIST.includes(sceneRaw) ? sceneRaw : '';
   const r = await requestOtp(db, { channel, target: norm.target, scene }, req);
