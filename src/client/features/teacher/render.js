@@ -8,7 +8,7 @@ import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
 import { subjectNames, genderName, methodName, priceRangeText, usernameHtml, deactivatedTag } from '../../core/display.js';
 import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from './display.js';
-import { demandOptionText } from '../student/display.js';
+import { demandOptionText, expectedTimeText } from '../student/display.js';
 import { matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student push button on teacher card
 
@@ -57,7 +57,7 @@ export function renderProfilePanel(p, matched) {
     { title: TEXT.SECTION_SUBJECTS, rows: [
       [TEXT.LABEL_PRICE, priceRangeText(p.price_min, p.price_max)],
       [TEXT.LABEL_TEACHING_METHOD_PROFILE, methodName(p.teaching_method)],
-      [TEXT.LABEL_TIME_SLOTS, p.time_slots],
+      [TEXT.LABEL_TIME_SLOTS, expectedTimeText(p.time_slots)],
     ]},
   ];
   let html = `<div class="profile-panel">
