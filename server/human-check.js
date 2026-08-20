@@ -19,6 +19,7 @@
  * 本模块只判人机，不校验 offset 正确性——答案校验仍在前端本地比对）。
  */
 import { error, errorMsg } from '../src/server/core/util.js';
+import { logEvent } from '../src/server/core/log.js';
 import { MSG } from '../src/shared/codes.js';
 
 const PASS_SCORE = 70;
@@ -122,6 +123,12 @@ export function markChallengePassed(captchaId) {
 }
 
 // POST /api/captcha/verify { captchaId, offset, track } —— 拼图验证人机判定（无需鉴权，限流兜底）
+// R-3c: captcha verify result must be observable (E1) — log pass/fail. Auditing must not
+// flip the verify verdict (E2): log failure is swallowed.
+async function logCaptchaResult(db, ev) {
+  try { await logEvent(db, ev); } catch { /* 留档失败不翻转 verify 结果 */ }
+}
+
 export async function handleCaptchaVerify(db, body, req) {
   const track = body && body.track;
   if (!Array.isArray(track)) return errorMsg('CAPTCHA_TRACK_MISSING', 400);
@@ -129,9 +136,17 @@ export async function handleCaptchaVerify(db, body, req) {
   const check = humanTrajectoryCheck(track);
   if (!check.ok) {
     const failMsg = MSG.CAPTCHA_VERIFY_FAILED_PREFIX + (check.reason || MSG.CAPTCHA_VERIFY_FAILED);
+    await logCaptchaResult(db, { action: 'captcha.verify.failed', entity: 'captcha', entityId: captchaId,
+      detail: { ok: false, score: check.score, reason: check.reason || null, points: track.length }, req });
     return error(failMsg, 403, 'CAPTCHA_VERIFY_FAILED');
   }
   // 判定通过 → 一次性放行（防同一挑战重复使用）
-  if (!markChallengePassed(captchaId)) return errorMsg('CAPTCHA_ALREADY_USED', 403);
+  if (!markChallengePassed(captchaId)) {
+    await logCaptchaResult(db, { action: 'captcha.verify.failed', entity: 'captcha', entityId: captchaId,
+      detail: { ok: false, reason: 'reuse', points: track.length }, req });
+    return errorMsg('CAPTCHA_ALREADY_USED', 403);
+  }
+  await logCaptchaResult(db, { action: 'captcha.verify.passed', entity: 'captcha', entityId: captchaId,
+    detail: { ok: true, score: check.score, points: track.length }, req });
   return { ok: true, score: check.score };
 }
