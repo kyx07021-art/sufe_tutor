@@ -62,16 +62,28 @@ export function chatOpenProfile(userId) {
 export async function chatPlusDraft() {
   closeChatPlus();
   if (chat.convId) {
-    const mod = await import('../contract/index.js');
-    mod.actions.openContractDraftModal(chat.convId);
+    // AB-O1: silent degrade on lazy-import failure (deploy-race stale-tab chunk 404 — the
+    // SPA-fallback guard already turns the MIME error into a clean 404). Aligns with
+    // onboard/actions.js browseAsGuest precedent.
+    try {
+      const mod = await import('../contract/index.js');
+      mod.actions.openContractDraftModal(chat.convId);
+    } catch (err) {
+      console.warn('chatPlusDraft', err);
+    }
   }
 }
 
 export async function chatPlusSigning() {
   closeChatPlus();
   if (chat.convId) {
-    const mod = await import('../contract/index.js');
-    mod.actions.openSigningModal(chat.convId);
+    // AB-O1: silent degrade on lazy-import failure (same deploy-race rationale as chatPlusDraft)
+    try {
+      const mod = await import('../contract/index.js');
+      mod.actions.openSigningModal(chat.convId);
+    } catch (err) {
+      console.warn('chatPlusSigning', err);
+    }
   }
 }
 
