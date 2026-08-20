@@ -107,9 +107,19 @@ export function mountShell() {
           </div>
           <div class="browse-list" id="browse-teachers-list"></div>` })}
         ${page('my-chats', TEXT.PAGE_MY_CHATS, { flush: true, body: `
-          <div class="chats-list-title">${escHtml(TEXT.CHAT_TITLE)}</div>
-          <div class="browse-list" id="my-chats-list"></div>
-          <div class="chat-frame" id="chat-frame"></div>` })}
+          <div class="chats-shell">
+            <aside class="chats-list-pane">
+              <div class="chats-list-head">
+                <div class="chats-list-title-group">
+                  <div class="chats-list-title">${escHtml(TEXT.CHAT_TITLE)}</div>
+                </div>
+              </div>
+              <div class="conv-list" id="my-chats-list"></div>
+            </aside>
+            <section class="chat-pane">
+              <div class="chat-frame" id="chat-frame"></div>
+            </section>
+          </div>` })}
         ${page('my-contracts', TEXT.PAGE_MY_CONTRACTS, { body: `<div class="browse-list" id="my-contracts-list"></div>` })}
         ${page('resource-share', TEXT.PAGE_RESOURCE_SHARE, { body: `<div id="posts-content"></div>` })}
         ${page('notifications', TEXT.PAGE_NOTIFICATIONS, { actions: notifBlockBtn, body: `<div class="browse-list" id="notifications-content"></div>` })}

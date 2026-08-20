@@ -83,6 +83,8 @@
   display: flex; flex-direction: column;
   min-height: 0; min-width: 0;
 }
+/* 聊天窗渲染容器撑满右栏（flex 链：.chat-pane → .chat-frame → .chat-messages flex:1） */
+.chat-pane > .chat-frame { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* ---------- 头部 ---------- */
 .chat-head {

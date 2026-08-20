@@ -225,6 +225,13 @@ test('item9 会话列表「会话」title 专属类在位（shell 静态提供�
   const title = doc.querySelector('.chats-list-title');
   assert.ok(title, '会话 title 元素在位');
   assert.equal(title.textContent, TEXT.CHAT_TITLE, '文案 = CHAT_TITLE');
+  // G5 回归：my-chats 必须为 .chats-shell 双栏结构（v1 结构在 V-4-1h 丢失 → client-page--flush
+  // height:100% 落在扁平子 div 上把列表/聊天窗推出视口外被 overflow:hidden 裁剪，页面只剩满高空块）
+  const shell = doc.querySelector('.chats-shell');
+  assert.ok(shell, 'chats-shell 双栏网格在位');
+  assert.ok(shell.querySelector('.chats-list-pane #my-chats-list'), '会话列表容器在左栏 conv-list 内');
+  assert.ok(shell.querySelector('.chats-list-pane .conv-list'), '左栏 conv-list 滚动容器在位');
+  assert.ok(shell.querySelector('.chat-pane #chat-frame'), '聊天窗容器在右栏 chat-pane 内');
 });
 
 test('item6 意向行结构：学生自己需求卡（loadMyDemands editable 契约）展开意向，用户名+星级包 intent-row-user、状态 tag 独立', async (t) => {
