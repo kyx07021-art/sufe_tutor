@@ -35,8 +35,9 @@ export function unregisterPage(id) {
   if (i >= 0) featurePages.splice(i, 1);
 }
 
-// 业务页优先排序（用户定案 2026-08-20）：核心业务页前置 + about 恒末尾，其余按注册序。
-// student: 我的需求→浏览教师；teacher: 我的资源→浏览需求。
+// Business pages rank before feature pages (user decision): core pages first, about always
+// last, the rest in registration order. student: my-demands then browse-teachers;
+// teacher: resource-share then browse-demands.
 const CORE_PAGE_FIRST = {
   [ROLES.STUDENT]: ['my-demands', 'browse-teachers'],
   [ROLES.TEACHER]: ['resource-share', 'browse-demands'],
@@ -48,7 +49,7 @@ export function pagesForRole() {
   const core = CORE_PAGE_FIRST[role] || [];
   core.forEach(id => { const i = all.findIndex(p => p.id === id); if (i >= 0) ranked.push(all.splice(i, 1)[0]); });
   const ai = all.findIndex(p => p.id === 'about');
-  if (ai >= 0) all.push(all.splice(ai, 1)[0]); // about 恒末尾
+  if (ai >= 0) all.push(all.splice(ai, 1)[0]); // about stays last
   return [...ranked, ...all];
 }
 // Logged-in default page equals old ROLE_PAGES[role][0]: first role-visible feature page
