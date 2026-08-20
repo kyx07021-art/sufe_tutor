@@ -199,8 +199,8 @@ async function verifyCaptcha() {
         method: 'POST',
         body: { captchaId: _captchaIdStr, offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack },
       });
-      if (!r || !r.ok) { failCaptcha(track, tip, knob); return; }
-    } catch { failCaptcha(track, tip, knob); return; }
+      if (!r || !r.ok) { failCaptcha(track, tip, knob, r && r.message); return; }
+    } catch (err) { failCaptcha(track, tip, knob, err && err.message); return; }
     knob.classList.add('captcha--pass');
     tip.textContent = TEXT.CAPTCHA_PASS;
     tip.classList.remove('captcha-tip--fail');
@@ -213,10 +213,11 @@ async function verifyCaptcha() {
   failCaptcha(track, tip, knob);
 }
 
-function failCaptcha(track, tip, knob) {
+function failCaptcha(track, tip, knob, detail) {
   knob.classList.add('captcha--fail');
   track.classList.add('captcha--shake');
-  tip.textContent = TEXT.CAPTCHA_FAIL;
+  // R-3d: show the server-side reason (trajectory score detail) when present, else the generic text.
+  tip.textContent = detail || TEXT.CAPTCHA_FAIL;
   tip.classList.add('captcha-tip--fail');
   if (_captchaResetTimer) clearTimeout(_captchaResetTimer);
   _captchaResetTimer = setTimeout(() => {
