@@ -9,7 +9,7 @@ import { TEXT } from '../constants/text.js';
 import { escHtml } from './dom.js';
 import { CARET_SVG } from './ui.js';
 import { goHome } from './router.js';
-import { ROLES } from '../../shared/enums.js'; // Z-16-F5b: role literals via shared enums
+import { ROLES, STATUS } from '../../shared/enums.js'; // Z-16-F5b: role literals via shared enums; U-3c: review filter literals single source
 
 function page(id, title, { actions = '', body = '', flush = false } = {}) {
   return `<section class="client-page hidden${flush ? ' client-page--flush' : ''}" data-page="${id}">
@@ -134,9 +134,9 @@ export function mountShell() {
           <div class="filter-panel glass glass--solid" id="admin-reviews-filter">
             <select class="filter-select" id="admin-reviews-status" data-change="admin.filterReviews">
               <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
-              <option value="pending">${escHtml(TEXT.STATUS_PENDING)}</option>
-              <option value="approved">${escHtml(TEXT.STATUS_APPROVED)}</option>
-              <option value="rejected">${escHtml(TEXT.STATUS_REJECTED)}</option>
+              <option value="${STATUS.PENDING}">${escHtml(TEXT.STATUS_PENDING)}</option>
+              <option value="${STATUS.APPROVED}">${escHtml(TEXT.STATUS_APPROVED)}</option>
+              <option value="${STATUS.REJECTED}">${escHtml(TEXT.STATUS_REJECTED)}</option>
             </select>
           </div>
           <div class="browse-list" id="admin-reviews-list"></div>` })}
