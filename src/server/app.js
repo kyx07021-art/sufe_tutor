@@ -19,7 +19,7 @@ import {
   handleAdminDeleteNotification,
 } from './core/notify.js';
 import { handleGetDataVersion } from '../../server/version.js';
-import { handleCaptchaVerify, handleCaptchaDiag } from '../../server/human-check.js';
+import { handleCaptchaVerify } from '../../server/human-check.js';
 
 const S = (method, path, handler) => ({ method, path, handler });
 
@@ -31,7 +31,6 @@ const specialRoutes = [
   S('DELETE', '/api/admin/notifications/:id', c => handleAdminDeleteNotification(c.db, parseIdParam(c.params.id), c.req)),
   S('GET', '/api/data-version', c => handleGetDataVersion(c.db)),
   S('POST', '/api/captcha/verify', c => handleCaptchaVerify(c.db, c.body, c.req)),
-  S('POST', '/api/captcha/diag', c => handleCaptchaDiag(c.db, c.body, c.req)), // 临时诊断端点，定位后移除
 ];
 
 export const routes = [

@@ -152,12 +152,3 @@ export async function handleCaptchaVerify(db, body, req) {
   return json({ ok: true, score: check.score });
 }
 
-// TEMP diagnostic endpoint (production captcha alignment bug): snapshot actual/expected offset +
-// geometry, logged via logEvent so admin can read back through the log decrypt API. Remove entirely
-// (this handler + app.js route + captcha.js reporter) once the root cause is located.
-export async function handleCaptchaDiag(db, body, req) {
-  const diag = body && body.diag;
-  if (!diag || typeof diag !== 'object') return errorMsg('INVALID_PARAMS', 400);
-  await logEvent(db, { action: 'captcha.diag', entity: 'captcha', entityId: 'diag', detail: { ...diag, ts: Date.now() }, req });
-  return json({ ok: true });
-}
