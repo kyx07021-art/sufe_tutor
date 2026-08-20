@@ -29,7 +29,11 @@ export function acceptEligibility(profile) {
   const subjects = safeJsonArray(profile.subjects);
   if (!subjects.length) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
   if (profile.price_min == null) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
-  if (!profile.time_slots) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
+  // T-6-F3: time_slots arrives as a parsed array from mapTeacherProfileRow (safeJsonArray output);
+  // length check keeps the empty-array gate airtight (a truthy [] must not pass) and is idempotent
+  // for any legacy string form. Mutation guard: reverting to `!profile.time_slots` turns [] truthy.
+  const timeSlots = safeJsonArray(profile.time_slots);
+  if (!timeSlots.length) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
   if (!profile.teaching_method) return { ok: false, reason: 'PROFILE_INCOMPLETE' };
   return { ok: true };
 }

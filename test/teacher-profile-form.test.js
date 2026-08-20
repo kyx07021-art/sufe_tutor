@@ -9,8 +9,8 @@
  *   - enterTeacherProfile：GET /api/teacher/profile → 渲染表单 → time_slots 预填 →
  *     Shanghai address picker 挂载（hidden 值同步）→ 失败路径错误态。
  *
- * 测试夹具必须用生产形状（G3）：time_slots = sanitizeTimeSlots 输出
- *   [{type:'week',dow,start,end}]（缺 type 会被 prefillTimeSlots 过滤 → 断言空转）。
+ * 测试夹具必须用生产形状（G3）：GET profile 的 time_slots = mapper 出口数组（T-6-F3 safeJsonArray）
+ *   [{type:'week',dow,start,end}]（缺 type 会被 prefillTimeSlots 过滤 → 断言空转）；提交 body 仍为 JSON 串。
  * 断言锁真实行为（G2）：删掉 prefillTimeSlots 调用测试必须变红。
  */
 import { test } from 'node:test';
@@ -50,8 +50,8 @@ const FULL_PROFILE = {
   school: '上海财经大学', real_name: '王老师', graduation_year: 2022,
   subjects: ['math', 'english'], price_min: 100, price_max: 150,
   teaching_method: 'online',
-  // PROD 形状：sanitizeTimeSlots 输出含 type:'week'（缺 type 会被 prefill 过滤）
-  time_slots: JSON.stringify([{ type: 'week', dow: 1, start: '18:00', end: '20:00' }]),
+  // PROD 形状：mapper 出口数组（T-6-F3 safeJsonArray），含 type:'week'（缺 type 会被 prefill 过滤）
+  time_slots: [{ type: 'week', dow: 1, start: '18:00', end: '20:00' }],
   personality_tags: ['patience'], nonacademic_projects: ['music'],
   nonacademic_prices: [{ project: 'music', price_min: 200, price_max: 300 }],
   intro: '多年教学经验', address: '浦东新区·张江镇',
@@ -422,12 +422,14 @@ test('F1d2 old track 新疆：science/arts 双向切换 + 分数行显隐 + 跨�
 // Z-3-F1 F1d3：收集/校验/提交。payload.profile 形状与服务端 handleSaveProfile 契约一致
 // （province/grade/gender/subjects/price/method/time_slots JSON 串/gaokao_scores 数组/
 // 非学科报价行/credential 回传）；必填校验失败零请求；成功回读刷新。
+// 注意：下方 F3_SAVE_PROFILE 是 GET 回读 fixture（:439 注入 profile 响应）——time_slots 为 mapper 出口数组；
+// 提交 body 的 time_slots 才是 JSON 串（:455 断言）。
 // ─────────────────────────────────────────────────────────────
 
 const F3_SAVE_PROFILE = {
   province: 'shanghai', teaching_method: 'online', grade: 'sophomore', gender: 'female',
   subjects: ['math', 'english'], price_min: 100, price_max: 150,
-  time_slots: JSON.stringify([{ type: 'week', dow: 1, start: '18:00', end: '20:00' }]),
+  time_slots: [{ type: 'week', dow: 1, start: '18:00', end: '20:00' }],
   wechat: 'wx', email: 't@e.com', intro: 'hello', real_name: '王老师', school: '上财',
 };
 

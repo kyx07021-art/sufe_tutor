@@ -61,5 +61,8 @@ test('时间组件：回填与上限', () => {
     { type:'week', dow:7, start:'09:00', end:'11:00' },
   ]));
   assert.equal(container.querySelectorAll('.time-slot').length, 2);
+  // T-6-F3: parsed-array form (teacher profile mapper output) — array branch direct coverage (G1)
+  prefillTimeSlots(container, [{ type: 'week', dow: 1, start: '10:00', end: '12:00' }]);
+  assert.equal(container.querySelectorAll('.time-slot').length, 3, '数组形态追加一行');
   delete globalThis.document;
 });

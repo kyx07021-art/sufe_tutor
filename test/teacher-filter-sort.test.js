@@ -9,10 +9,11 @@ import { state } from '../src/client/core/state.js';
 import { TEXT } from '../src/client/constants/text.js';
 
 const TEACHERS = [
-  { user_id:1, username:'甲', rating:5, price_min:200, price_max:260, teaching_method:'online', time_slots:JSON.stringify([{type:'week',dow:1,start:'18:00',end:'20:00'}]), verified:1 },
-  { user_id:2, username:'乙', rating:3, price_min:100, price_max:150, teaching_method:'offline', time_slots:JSON.stringify([{type:'week',dow:3,start:'16:00',end:'18:00'}]), verified:0 },
-  { user_id:3, username:'丙', rating:4, price_min:150, price_max:200, teaching_method:'both', time_slots:JSON.stringify([{type:'week',dow:1,start:'09:00',end:'12:00'},{type:'week',dow:5,start:'19:00',end:'21:00'}]), verified:1 },
-  { user_id:4, username:'丁', rating:4.5, price_min:null, price_max:null, teaching_method:'', time_slots:'历史纯文本', verified:0 },
+  // T-6-F3: teacher time_slots arrives parsed (safeJsonArray mapper output) — fixtures use arrays
+  { user_id:1, username:'甲', rating:5, price_min:200, price_max:260, teaching_method:'online', time_slots:[{type:'week',dow:1,start:'18:00',end:'20:00'}], verified:1 },
+  { user_id:2, username:'乙', rating:3, price_min:100, price_max:150, teaching_method:'offline', time_slots:[{type:'week',dow:3,start:'16:00',end:'18:00'}], verified:0 },
+  { user_id:3, username:'丙', rating:4, price_min:150, price_max:200, teaching_method:'both', time_slots:[{type:'week',dow:1,start:'09:00',end:'12:00'},{type:'week',dow:5,start:'19:00',end:'21:00'}], verified:1 },
+  { user_id:4, username:'丁', rating:4.5, price_min:null, price_max:null, teaching_method:'', time_slots:[], verified:0 },
 ];
 
 function setup() {
@@ -51,14 +52,15 @@ test('teacherSortMode 默认按角色', () => {
   delete globalThis.document;
 });
 
-test('hasDaySlot：JSON 星期命中/纯文本不参与（Q-4a-M1a 误匹配修复）', () => {
+test('hasDaySlot：数组星期命中/非数组拒绝（Q-4a-M1a 误匹配修复 + T-6-F3 mapper 出口数组）', () => {
   const dom = setup();
   assert.equal(hasDaySlot(TEACHERS[0].time_slots, 1), true);
   assert.equal(hasDaySlot(TEACHERS[0].time_slots, 3), false);
-  assert.equal(hasDaySlot('历史纯文本', 1), false);
+  assert.equal(hasDaySlot('历史纯文本', 1), false, '非数组拒绝（历史纯文本形态不再存在，防御断言）');
   assert.equal(hasDaySlot('', 1), false);
+  assert.equal(hasDaySlot(null, 1), false);
   // Q-4a-M1a: dow=3 但 start 时间含数字 1（18:00）——旧 String.includes 误命中 day=1（潜伏 bug）
-  const t5 = { ...TEACHERS[0], time_slots: JSON.stringify([{ type: 'week', dow: 3, start: '18:00', end: '20:00' }]) };
+  const t5 = { ...TEACHERS[0], time_slots: [{ type: 'week', dow: 3, start: '18:00', end: '20:00' }] };
   assert.equal(hasDaySlot(t5.time_slots, 1), false, 'dow=3 不命中 day=1（start 含 1 不误匹配）');
   assert.equal(hasDaySlot(t5.time_slots, 3), true, 'dow=3 命中 day=3');
   delete globalThis.document;

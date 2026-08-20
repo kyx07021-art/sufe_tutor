@@ -109,6 +109,23 @@ test('学信网核验全链路（manual）：提交 → pending → 管理员 ap
   assert.equal((await st.json()).status, 'approved');
 });
 
+test('T-6-F3 守护：time_slots 空数组（mapper 出口形状）→ acceptEligibility 不完整（G2 变异：还原 !profile.time_slots 必红）', async () => {
+  const raw = rawOf();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const token = await regTeacher(db, raw, 't_ts', '+8613900000107');
+  const tid = raw.prepare("SELECT id FROM users WHERE username='t_ts'").get().id;
+  // chsi 已核验 + 科目/报价/方式齐全，仅 time_slots 空（mapper 出口 []）——旧 `!profile.time_slots` 对 [] 恒放行
+  db.prepare("INSERT INTO teacher_profiles (user_id, chsi_verified, subjects, price_min, teaching_method) VALUES (?,1,'[\"math\"]',100,'online')").run(tid);
+  const prof = await dbGetTeacherProfile(db, tid);
+  assert.ok(Array.isArray(prof.time_slots), 'mapper 出口数组（T-6-F3）');
+  assert.equal(prof.time_slots.length, 0, '无授课时段 → 空数组');
+  assert.equal(acceptEligibility(prof).ok, false, 'subjects/price/method 齐但 time_slots 空 → 不完整（空数组 truthy 陷阱修复）');
+  // 补时段 → 可接单
+  db.prepare("UPDATE teacher_profiles SET time_slots='[{\"type\":\"week\",\"dow\":1,\"start\":\"18:00\",\"end\":\"20:00\"}]' WHERE user_id=?").run(tid);
+  assert.equal(acceptEligibility(await dbGetTeacherProfile(db, tid)).ok, true, '有授课时段可接单');
+});
+
 test('Q-2c-F1 守护：approve/reject/revoke 三路径 admission_image 解密仍明文（不叠层 enc2）', async () => {
   // 审计 FINDING 1 修复：原 reject/revoke 把库中密文 enc1 透传 repo 再 encryptField → enc2 叠层，
   // decrypt 得到 enc1 密文串（数据腐坏）。三路径必须对称 decryptField 再重加密。
