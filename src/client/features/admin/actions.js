@@ -292,11 +292,20 @@ export function openPostViewModal(id) {
 }
 
 export function adminDeletePost(id) {
-  confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    withCaptcha(async () => {
-      try { await api(`/api/posts/${id}`, { method: 'DELETE', body: { capToken } }); invalidate('posts'); showToast(TEXT.ADMIN_DONE); loadAdminPosts(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write (loadAdminPosts reads dhGet cache)
-    });
+  confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, needReAuth: true, onConfirm: capToken => {
+    withCaptcha(() => performPostDelete(id, capToken));
   }});
+}
+// U-3f: actual post-delete write path (adminDeletePost confirm delegates here). Exported for
+// direct write-path testing — U-3f audit F1 (G1/G2): the confirm path is captcha-gated, so the
+// write path is exercised directly, mirroring performAwardAction/performVerifAction.
+export async function performPostDelete(id, capToken) {
+  try {
+    await api(`/api/posts/${id}`, { method: 'DELETE', body: { capToken } });
+    invalidate('posts'); // Q-3b-F3: invalidate after write (loadAdminPosts reads dhGet cache)
+    showToast(TEXT.ADMIN_DONE);
+    loadAdminPosts();
+  } catch (err) { showToast(err.message); }
 }
 
 // U-3g: contract management — v1-parity row (student×teacher + status tag + drafter/method/
@@ -569,10 +578,11 @@ export function verifApprove(id) {
 // it in the VERIFY_REJECTED notification; without it the notified reason is always empty. The
 // optional reason is gathered in a modal, submit goes through needReAuth re-auth + captcha.
 export function verifReject(id) {
-  openModal({ title: TEXT.ADMIN_VERIF_REJECT_BTN, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_VERIF_REASON_PLACEHOLDER)}</label><textarea id="verif-reject-reason" class="form-input" rows="3"></textarea></div>`, footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CANCEL)}</button><button type="button" class="btn glass glass--pressable" data-action="admin.verifRejectConfirm" data-id="${id}">${escHtml(TEXT.BTN_CONFIRM)}</button>` });
+  openModal({ title: TEXT.ADMIN_VERIF_REJECT_BTN, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_VERIF_REASON_LABEL)}</label><textarea id="verif-reject-reason" class="form-input" rows="3" placeholder="${escHtml(TEXT.ADMIN_VERIF_REASON_PLACEHOLDER)}"></textarea></div>`, footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CANCEL)}</button><button type="button" class="btn glass glass--pressable" data-action="admin.verifRejectConfirm" data-id="${id}">${escHtml(TEXT.BTN_CONFIRM)}</button>` });
 }
 export function verifRejectConfirm(id) {
   const reason = document.getElementById('verif-reject-reason')?.value.trim() || '';
+  closeModal(); // close the reason modal before the reauth confirm (U-3e re-review obs: avoid two stacked modals)
   confirm({ title: TEXT.ADMIN_VERIF_REJECT_BTN, message: TEXT.ADMIN_VERIF_REJECT_CONFIRM, needReAuth: true, onConfirm: capToken => {
     withCaptcha(() => performVerifAction(id, { action: 'reject', reason }, { capToken }));
   }});

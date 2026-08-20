@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -546,7 +546,8 @@ test('U-3e verifReject：理由弹窗（可选 reason）→ confirm needReAuth �
   verifReject(86);
   let rm = dom.window.document.querySelector('.modal');
   assert.ok(rm && rm.querySelector('#verif-reject-reason'), '理由 textarea 弹窗（L-1 接线）');
-  assert.ok(rm.textContent.includes('驳回理由（可选，将通知教师）'), '可选理由 hint');
+  assert.ok(rm.textContent.includes('驳回理由（可选）'), 'label 文本');
+  assert.ok(rm.querySelector('#verif-reject-reason').getAttribute('placeholder').includes('将通知教师'), 'placeholder 语义');
   // 填理由 → 确认（测试直调 verifRejectConfirm，等价 data-action 委托按钮）
   rm.querySelector('#verif-reject-reason').value = '材料不清晰';
   verifRejectConfirm(86);
@@ -687,6 +688,29 @@ test('U-3f openPostViewModal：从缓存取帖子 → mdRender 全文弹窗（mo
   assert.ok(modal.textContent.includes('教师丙'), '作者 meta');
   assert.ok(modal.querySelector('.md-preview'), 'md 渲染容器');
   assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
+  teardown();
+});
+
+test('U-3f performPostDelete：DELETE body 带 capToken + invalidate(posts) + 列表重拉（G1/G2 写路径直测）', async () => {
+  const dom = setup();
+  _dhResetForTests();
+  const list = document.createElement('div');
+  list.id = 'admin-posts-list';
+  document.body.appendChild(list);
+  let deleteCalled = false, listFetches = 0;
+  globalThis.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.includes('/api/posts/93') && opts.method === 'DELETE') {
+      deleteCalled = true;
+      assert.equal(JSON.parse(opts.body).capToken, 'cap-post', 'capToken 透传（删 capToken 必红）');
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }
+    if (u.includes('/api/posts?sort=new')) { listFetches++; return { ok: true, status: 200, json: async () => ({ posts: [] }) }; }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  await performPostDelete(93, 'cap-post');
+  assert.equal(deleteCalled, true, 'DELETE 发出');
+  assert.ok(listFetches >= 1, '删除后列表重拉');
   teardown();
 });
 
