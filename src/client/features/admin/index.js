@@ -43,8 +43,6 @@ const ACTION_MAP = {
   // U-3g: contract management — full-text view (with diff) + remove (capToken via needReAuth confirm)
   'admin.viewContract': el => actions.adminViewContract(Number(el.dataset.id)),
   'admin.removeContract': el => actions.adminRemoveContract(Number(el.dataset.id)),
-  // U-3h: feedback review — mark resolved (light action, invalidate + reload)
-  'admin.resolveFeedback': el => actions.resolveAdminFeedback(Number(el.dataset.id)),
 };
 let installed = false;
 function onActionClick(e) {

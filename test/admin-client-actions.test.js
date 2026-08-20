@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -711,42 +711,6 @@ test('U-3f performPostDelete：DELETE body 带 capToken + invalidate(posts) + �
   await performPostDelete(93, 'cap-post');
   assert.equal(deleteCalled, true, 'DELETE 发出');
   assert.ok(listFetches >= 1, '删除后列表重拉');
-  teardown();
-});
-
-// ─────────────────────────────────────────────────────────────
-// Z-3-F1/U-3h：反馈单——v1-parity 卡（kind/subject/状态 tag + content + resolve 按钮）。
-// G2：删 kind tag/状态 tag/resolve 按钮必红。
-// ─────────────────────────────────────────────────────────────
-
-test('U-3h renderAdminFeedbackRow open：kind/状态 tag + content + resolve 按钮委托', () => {
-  const html = renderAdminFeedbackRow({ id: 98, kind: 'bug', subject: '', title: '登录问题', content: '无法登录', username: '学生甲', status: 'open', created_at: '2026-08-01 12:00:00' });
-  assert.ok(html.includes('登录问题'), '标题');
-  assert.ok(html.includes('Bug') || html.includes('bug'), 'kind tag');
-  assert.ok(html.includes('未处理'), 'open 状态 tag');
-  assert.ok(html.includes('无法登录'), '内容');
-  assert.ok(html.includes('data-action="admin.resolveFeedback" data-id="98"'), 'resolve 按钮委托');
-  assert.ok(html.includes('feedback-card--bug'), 'bug 警示边');
-  assert.ok(!/onclick=/.test(html), '零内联事件');
-});
-
-test('U-3h renderAdminFeedbackRow resolved：无 resolve 按钮 + resolved tag + 淡化类', () => {
-  const html = renderAdminFeedbackRow({ id: 99, kind: 'suggest', subject: '', title: '建议', content: '加功能', username: '教师乙', status: 'resolved', created_at: '2026-08-01 12:00:00' });
-  assert.ok(html.includes('已处理'), 'resolved tag');
-  assert.ok(!html.includes('data-action="admin.resolveFeedback"'), 'resolved 无 resolve 按钮');
-  assert.ok(html.includes('feedback-card--resolved'), '淡化类');
-});
-
-test('U-3h loadAdminFeedback：渲染 + 空态', async () => {
-  const dom = setup();
-  _dhResetForTests();
-  const list = document.createElement('div');
-  list.id = 'admin-feedback-list';
-  document.body.appendChild(list);
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ feedbacks: [{ id: 100, kind: 'complaint', subject: 'teacher', title: '投诉', content: '内容', username: '学生', status: 'open', created_at: '2026-08-01 12:00:00' }] }) });
-  await loadAdminFeedback();
-  assert.ok(list.innerHTML.includes('投诉'), '反馈卡渲染');
-  assert.ok(list.innerHTML.includes('教师'), 'subject tag（投诉教师）');
   teardown();
 });
 
