@@ -36,7 +36,7 @@ const BASE_CONV = {
 };
 
 function setup() {
-  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="my-chats-list"></div><div id="chat-frame"></div><div id="toast-container"></div></body></html>', { url: 'http://localhost/' });
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div class="chats-shell"><div class="chats-list-pane"><div id="my-chats-list"></div></div><div class="chat-pane"><div id="chat-frame"></div></div></div><div id="toast-container"></div></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
   globalThis.localStorage = dom.window.localStorage;
@@ -379,5 +379,35 @@ test('chatLeavePage / chatTeardown 导出存在且幂等（重复调用不抛错
   chatLeavePage();
   chatTeardown();
   assert.equal(chat.convId, null, '清理后会话态为空');
+  teardown();
+});
+
+// S-7a：移动端会话窗切换（features/chat.css ≤860px 契约）——openConversation 加
+// .chats-show-chat 切聊天窗，chatTeardown 移除回列表。夹具已带生产形状 .chats-shell。
+test('S-7a 移动端切换类：openConversation 加类、chatTeardown 移除、初始无类', async () => {
+  const dom = setup();
+  const shell = dom.window.document.querySelector('.chats-shell');
+  assert.ok(shell, '夹具含 .chats-shell 生产形状');
+  assert.ok(!shell.classList.contains('chats-show-chat'), '初始无类（默认显示列表）');
+  chat.list = [BASE_CONV];
+  globalThis.fetch = async url => {
+    if (msgsUrl(5).test(String(url))) return { ok: true, status: 200, json: async () => ({ messages: [{ id: 1, sender_user_id: 9, kind: 'text', body: 'hi', created_at: '2026-08-07 12:00:00' }] }) };
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  await openConversation(5);
+  assert.ok(shell.classList.contains('chats-show-chat'), 'openConversation 后类存在（聊天窗可见）');
+  chatTeardown();
+  assert.ok(!shell.classList.contains('chats-show-chat'), 'chatTeardown 后类移除（回列表）');
+  teardown();
+});
+
+// S-7a：消息拉取失败路径——类在渲染 frame 后、await 前同步加上，错误分支也必须显示聊天窗
+test('S-7a 错误路径：messages 加载失败类仍已加（聊天窗可见）', async () => {
+  const dom = setup();
+  const shell = dom.window.document.querySelector('.chats-shell');
+  chat.list = [BASE_CONV];
+  globalThis.fetch = async () => { throw new Error('boom'); };
+  await openConversation(5);
+  assert.ok(shell.classList.contains('chats-show-chat'), '错误路径聊天窗仍可见');
   teardown();
 });

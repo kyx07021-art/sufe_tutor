@@ -22,6 +22,12 @@ export function chatTeardown() {
   chat.convId = null;
   chat.lastMsgId = 0;
   chat.pollBusy = false;
+  // Mobile list/chat switch reset (features/chat.css ≤860px contract): back-to-list,
+  // page leave and logout all funnel through here; without the reset the class survives
+  // page switches (the .chats-shell is persistent DOM) and the next visit shows a stale
+  // chat pane instead of the default list.
+  const shell = document.querySelector('.chats-shell');
+  if (shell) shell.classList.remove('chats-show-chat');
 }
 // v1 app-auth parity: logout always stops chat polling and clears staging
 // (prevents cross-account staged residue and orphan uploads on the server)
@@ -131,6 +137,11 @@ export async function openConversation(convId) {
   markReadConv(convId); // unread dot off + active highlight (renderConvList re-renders both)
   const frame = document.getElementById('chat-frame');
   if (frame) frame.innerHTML = renderChatFrame(chatConvById(convId));
+  // Mobile switch to the chat pane (features/chat.css ≤860px media query). Set
+  // synchronously right after the frame renders — before the message fetch — so the
+  // pane is visible even on a load failure, not only on the happy path.
+  const shell = frame ? frame.closest('.chats-shell') : null;
+  if (shell) shell.classList.add('chats-show-chat');
   try {
     const data = await api(`/api/conversations/${convId}/messages`, { method: 'GET' });
     if (chat.convId !== convId) return; // stale response: user already switched conversations
