@@ -145,7 +145,8 @@ export function adminUsersSearchDebounced(role, q) {
 // show demand count; teacher rows show grade/rating/price + verify badge. Actions are wired
 // via ACTION_MAP (banUser/viewProfile/verifyTeacher/unverify).
 export function renderAdminUserRow(u, role) {
-  const uid = role === ROLES.TEACHER ? (u.user_id || u.id) : u.id;
+  // T-6-F2: student/teacher rows both expose user_id (dbGetStudentUsersAdmin / dbAdminSearchUsers / dbGetTeachers adminView) — no role branch
+  const uid = u.user_id;
   const meta = role === ROLES.TEACHER
     ? `${teacherGradeName(u.grade) || '—'} · ${ratingText(u.rating)}${TEXT.RATING_SCORE_SUFFIX} · ${priceRangeText(u.price_min, u.price_max, TEXT.PRICE_UNIT) || '?'}`
     : `${u.demand_count || 0}${TEXT.DEMAND_COUNT_SUFFIX}`;

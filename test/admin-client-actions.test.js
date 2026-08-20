@@ -35,7 +35,7 @@ test('loadAdminUsers：拉取后渲染用户名行到列表容器', async () => 
   document.body.appendChild(list);
   globalThis.fetch = async (url) => {
     assert.ok(String(url).includes('/api/admin/users?role=student'), '带 role 参数');
-    return { ok: true, status: 200, json: async () => ({ users: [{ id: 11, username: '学生甲', role: 'student' }, { id: 12, username: '学生乙', role: 'student' }] }) };
+    return { ok: true, status: 200, json: async () => ({ users: [{ user_id: 11, username: '学生甲', role: 'student' }, { user_id: 12, username: '学生乙', role: 'student' }] }) };
   };
   await loadAdminUsers('student');
   assert.ok(list.innerHTML.includes('学生甲') && list.innerHTML.includes('学生乙'), '两行用户名渲染');
@@ -245,7 +245,7 @@ test('U-3i performContentPenalty：写路径 body shape 与服务端契约一致
 // ─────────────────────────────────────────────────────────────
 
 test('U-3a renderAdminUserRow 学生行：用户名 + 需求数 + 注册时间 + 封禁按钮委托', () => {
-  const html = renderAdminUserRow({ id: 7, username: '学生甲', role: 'student', banned: 0, created_at: '2026-08-01 12:00:00', demand_count: 3 }, 'student');
+  const html = renderAdminUserRow({ user_id: 7, username: '学生甲', role: 'student', banned: 0, created_at: '2026-08-01 12:00:00', demand_count: 3 }, 'student');
   assert.ok(html.includes('学生甲'), '用户名');
   assert.ok(html.includes('3条需求') || html.includes('3 条需求'), '需求数 meta');
   assert.ok(html.includes('注册于'), '注册时间前缀');
@@ -255,7 +255,7 @@ test('U-3a renderAdminUserRow 学生行：用户名 + 需求数 + 注册时间 +
 });
 
 test('U-3a renderAdminUserRow 已封禁学生：显示封禁 tag + 解封按钮（banned=0）', () => {
-  const html = renderAdminUserRow({ id: 8, username: '封禁者', role: 'student', banned: 1, created_at: '2026-08-01 12:00:00' }, 'student');
+  const html = renderAdminUserRow({ user_id: 8, username: '封禁者', role: 'student', banned: 1, created_at: '2026-08-01 12:00:00' }, 'student');
   assert.ok(html.includes('已封禁'), '封禁 tag');
   assert.ok(html.includes('data-banned="0"'), '解封按钮');
 });

@@ -75,9 +75,9 @@ export async function dbGetRecentDemands(db, limit = LIMITS.RECENT_LIMIT) {
 // ============================================================
 // 管理员用户管理
 // ============================================================
-// 学生列表：LEFT JOIN 统计需求数
+// 学生列表：LEFT JOIN 统计需求数（T-6-F2：统一 user_id 出口，与教师出口/搜索出口同字段名，消前端 role 三元）
 export async function dbGetStudentUsersAdmin(db) {
-  return await dbAll(db, `SELECT u.id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
+  return await dbAll(db, `SELECT u.id AS user_id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
     FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
     WHERE u.role='student' GROUP BY u.id ORDER BY u.created_at DESC`);
 }
@@ -104,7 +104,7 @@ export async function dbAdminSearchUsers(db, role, q, limit = LIMITS.ADMIN_SEARC
       ORDER BY u.id DESC LIMIT ${limit}`, [like, num, num]);
     return await Promise.all(rows.map(async r => ({ ...(await mapTeacherProfileRow(r)), role: r.role, banned: r.banned, created_at: r.created_at })));
   }
-  return await dbAll(db, `SELECT u.id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
+  return await dbAll(db, `SELECT u.id AS user_id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
     FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
     WHERE u.role='student' AND (u.username LIKE ? ESCAPE '\\' OR (? > 0 AND u.id = ?))
     GROUP BY u.id ORDER BY u.id DESC LIMIT ${limit}`, [like, num, num]);

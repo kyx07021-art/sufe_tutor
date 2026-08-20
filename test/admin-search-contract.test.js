@@ -76,14 +76,14 @@ test('F2 守护：教师搜索返回完整行形状（user_id/grade/rating/price
   assert.ok(r.created_at, 'created_at 在位');
 });
 
-test('F2 守护：学生搜索返回完整行形状（id/demand_count/banned/created_at）', async () => {
+test('F2 守护：学生搜索返回完整行形状（user_id/demand_count/banned/created_at）', async () => {
   const raw = new DatabaseSync(':memory:');
   const db = d1Shim(raw);
   const { idOf } = await seed(db, raw);
   const rows = await dbAdminSearchUsers(db, 'student', '李');
   assert.equal(rows.length, 1, 'LIKE 命中李同学');
   const r = rows[0];
-  assert.equal(r.id, idOf('李同学'), 'id 对齐 dbGetStudentUsersAdmin 出口');
+  assert.equal(r.user_id, idOf('李同学'), 'user_id 对齐 dbGetStudentUsersAdmin 出口（T-6-F2 双出口同字段名）');
   assert.equal(r.username, '李同学');
   assert.equal(r.demand_count, 1, 'demand_count 在位（1 条需求）');
   assert.equal(r.banned, 0, 'banned 在位');
