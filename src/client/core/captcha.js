@@ -5,6 +5,10 @@
 import { CONFIG } from '../../shared/config.js';
 import { TEXT } from '../constants/text.js';
 import { openModal, closeModal } from './ui-modal.js';
+import { api } from './api.js'; // static import: a runtime import() here would fetch a chunk on every
+// verify (slider drag) — a stale page referencing a deleted chunk gets a text/html fallback and
+// throws "'text/html' is not a valid JavaScript MIME type." (production report). No import cycle
+// (api.js does not import captcha), so the static form is safe and eliminates the runtime fetch.
 
 const CAPTCHA_W = 280, CAPTCHA_H = 120, SLIDER_W = 40, SLIDER_H = 40;
 const CAPTCHA_MAX_X = CAPTCHA_W - SLIDER_W;
@@ -201,7 +205,6 @@ async function verifyCaptcha() {
   const diff = Math.abs(_captchaOffset - _captchaTarget);
   if (diff <= CAPTCHA_TOLERANCE) {
     try {
-      const { api } = await import('./api.js');
       const r = await api('/api/captcha/verify', {
         method: 'POST',
         body: { captchaId: _captchaIdStr, offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack },

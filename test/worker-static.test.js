@@ -53,15 +53,13 @@ function mockAssets() {
           headers: { 'content-type': isHtml ? 'text/html; charset=utf-8' : 'application/javascript', 'cache-control': 'max-age=0, must-revalidate', 'ETag': STORED_ETAG, 'Last-Modified': 'Tue, 01 Jan 2026 00:00:00 GMT', 'content-length': String(content.byteLength) },
         });
       }
-      // 无扩展名的导航路径 → SPA 回退 v2 HTML；有扩展名的缺失资产 → 404
-      if (!p.includes('.')) {
-        const html = readFileSync(REPO + 'web/index.html');
-        return new Response(html, {
-          status: 200,
-          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'max-age=0, must-revalidate', 'ETag': STORED_ETAG, 'content-length': String(html.byteLength) },
-        });
-      }
-      return new Response('Not Found', { status: 404 });
+      // Pages ASSETS 平台行为（生产实测 2026-08-20）：缺失路径一律 SPA 回退 index.html
+      // 200 text/html——无论有无扩展名。worker 守卫把「带扩展名却收到 HTML」判为冒充 → 真 404。
+      const html = readFileSync(REPO + 'web/index.html');
+      return new Response(html, {
+        status: 200,
+        headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'max-age=0, must-revalidate', 'ETag': STORED_ETAG, 'content-length': String(html.byteLength) },
+      });
     },
   };
 }
@@ -191,6 +189,21 @@ test('GET /<base>.css（裸名）→ 正常服务但绝不 immutable', async () 
 test('GET 不在 manifest 的哈希 URL → 404（部署竞态旧哈希防 HTML 冒充）', async () => {
   assert.equal((await get('/tokens.ffffffff.css')).status, 404);
   assert.equal((await get('/app-shell.5fd42550.js')).status, 404, 'v1 旧哈希已不在 manifest → 404');
+});
+
+test('缺失 /assets/*.js 被 ASSETS SPA 回退 HTML（Pages 生产形状）→ 守卫返回真 404 不喂 HTML', async () => {
+  // 生产事故（2026-08-20 用户报 "'text/html' is not a valid JavaScript MIME type"）：旧页面引用
+  // 已删 chunk → ASSETS 平台层回退 index.html 200 text/html → 浏览器把 HTML 当脚本执行。
+  // worker 守卫：带真实扩展名的路径收到 HTML 响应 = 回退冒充，必须真 404。
+  const res = await get('/assets/chunk-OLD.js');
+  assert.equal(res.status, 404, '带 .js 扩展名却收到 HTML → 守卫判冒充 → 404');
+  assert.ok(!(res.headers.get('content-type') || '').includes('text/html'), '绝不把 HTML 喂给 <script src>');
+  const res2 = await get('/assets/img.png');
+  assert.equal(res2.status, 404, '图片资产同样守卫');
+  // 无扩展名导航路径不受影响，仍 SPA 回退 v2 HTML
+  const spa = await get('/my-demands');
+  assert.equal(spa.status, 200);
+  assert.ok((spa.headers.get('content-type') || '').includes('text/html'));
 });
 
 test('SPA 回退路径 /my-demands → v2 HTML 改写引用 + 零内联 manifest', async () => {

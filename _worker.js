@@ -295,9 +295,18 @@ export default {
       // HTML 文档（含 SPA 回退）：改写资产引用为哈希名（v2 零内联 manifest）。
       // ETag 由 worker 自持（改写 body 哈希）——沿用 ASSETS 原 ETag 会在只改资产不发版页面的发版后误判 304。
       // 304 响应无 content-type：按路径推断（/、/index.html、SPA 无扩展名路由均为 HTML）
+      const ct = res.headers.get('content-type') || '';
       const isHtml = res.ok
-        ? (res.headers.get('content-type') || '').includes('text/html')
+        ? ct.includes('text/html')
         : /\.html?$/i.test(p) || !/\.[a-zA-Z0-9]{1,6}$/.test(p);
+      // SPA 回退冒充守卫（生产事故：请求已删旧 chunk /assets/<name>.js → ASSETS 平台层回退
+      // index.html 200 text/html → 浏览器把 HTML 当脚本执行报 "'text/html' is not a valid
+      // JavaScript MIME type."）。凡带真实文件扩展名（.js/.css/图片…）的路径却收到 HTML 响应
+      // = 回退冒充，一律真 404，绝不把 HTML 喂给 <script src>/<link>。真实资产响应 content-type
+      // 非 html，本守卫零误伤。
+      if (isHtml && !/\.html?$/i.test(p) && /\.[a-zA-Z0-9]{1,6}$/.test(p)) {
+        return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
+      }
       if (isHtml) return serveHtml(request, env, p, res);
       return applySecurityHeaders(res, p);
     }
