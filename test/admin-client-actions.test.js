@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback, doSubmitContentPenalty, performContentPenalty, contentTypeName } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -39,11 +39,14 @@ test('loadAdminUsers：拉取后渲染用户名行到列表容器', async () => 
   teardown();
 });
 
-test('loadAdminContent：按 type 拉取并渲染内容行', async () => {
+test('U-3i loadAdminContent：seg-tabs（全部 + 10 类型 + active）+ type 下推 + 列表 + 空态 + 错误态', async () => {
   const dom = setup();
   const list = document.createElement('div');
   list.id = 'admin-content-list';
   document.body.appendChild(list);
+  const tabs = document.createElement('div');
+  tabs.id = 'admin-content-tabs';
+  document.body.appendChild(tabs);
   globalThis.fetch = async (url) => {
     assert.ok(String(url).includes('/api/admin/content?type=post'), 'type 下推');
     return { ok: true, status: 200, json: async () => ({ items: [{ id: 7, title: '某帖子', type: 'post' }] }) };
@@ -51,6 +54,20 @@ test('loadAdminContent：按 type 拉取并渲染内容行', async () => {
   await loadAdminContent('post');
   assert.ok(list.innerHTML.includes('某帖子'), '内容行渲染');
   assert.ok(list.querySelector('[data-action="admin.penalty"]'), '处罚按钮 data-action 委托');
+  const tabBtns = tabs.querySelectorAll('.seg-tab');
+  assert.equal(tabBtns.length, 11, '全部 + 10 类型 tab');
+  assert.ok(tabBtns[0].textContent.includes('全部'), '第一个 tab 是全部');
+  assert.ok(tabs.querySelector('.seg-tab.active').dataset.type === 'post', '当前筛选 post 高亮');
+  // F1：容器内只有一层 .seg-tabs（segTabsHtml 自持 class），无嵌套空玻璃条
+  assert.equal(tabs.querySelectorAll('.seg-tabs').length, 1, '无嵌套 seg-tabs');
+  // 空态 + 错误态
+  _dhResetForTests();
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ items: [] }) });
+  await loadAdminContent();
+  assert.ok(list.innerHTML.includes('当前筛选条件下没有内容'), '空态文案');
+  globalThis.fetch = async () => ({ ok: false, status: 500, json: async () => ({ error: '服务器错误' }) });
+  await loadAdminContent('post');
+  assert.ok(list.innerHTML.includes('服务器错误'), '错误态展示');
   teardown();
 });
 
@@ -145,19 +162,77 @@ test('U-3c loadAdminReviews：带 status 参数请求 + 渲染（G2 删 status �
   teardown();
 });
 
-test('renderAdminContentRow：标题 + 处罚按钮 data-action/data-id/data-type', () => {
-  const html = renderAdminContentRow({ id: 5, title: '违规帖子', type: 'post' });
+test('U-3i renderAdminContentRow：完整卡（type/status/role tag + body 摘要 + 作者/时间）+ teacher only-ban + F4 rejected tag-warn', () => {
+  const html = renderAdminContentRow({ id: 5, title: '违规帖子', type: 'post', status: 'pending', author: { id: 3, username: '学生甲', role: 'student' }, body: '内容摘要正文', created_at: '2026-08-01 12:00:00' });
   assert.ok(html.includes('违规帖子'), '标题');
+  assert.ok(html.includes('>帖子<'), 'type tag 锁结构');
+  assert.ok(html.includes('tag-warn'), 'pending 警示 tag');
+  assert.ok(html.includes('学生'), 'role tag');
+  assert.ok(html.includes('内容摘要正文'), 'body 摘要');
+  assert.ok(html.includes('学生甲') && html.includes('2026'), '作者 + 时间');
   assert.ok(html.includes('data-action="admin.penalty" data-id="5" data-type="post"'), '处罚按钮完整委托');
+  assert.ok(html.includes('删除') && html.includes('封禁作者'), 'post 显示删除/封禁双动作');
+  assert.ok(!/onclick=/.test(html), '零内联事件');
+  // F4：rejected 也应是警示 tag（不是绿色通过态）
+  const rejected = renderAdminContentRow({ id: 9, type: 'review', status: 'rejected', author: { id: 8, username: '学生乙', role: 'student' } });
+  assert.ok(rejected.includes('tag-warn'), 'rejected 用 tag-warn');
+  assert.ok(!rejected.includes('tag-ok'), 'rejected 非绿色');
+  // teacher 只给封禁（Q-2f-M2 服务端拒 delete）
+  const teacher = renderAdminContentRow({ id: 8, type: 'teacher', author: { id: 8, username: '教师甲', role: 'teacher' } });
+  assert.ok(teacher.includes('教师档案'), 'teacher type tag');
+  assert.ok(teacher.includes('封禁作者'), '封禁按钮');
+  assert.ok(!teacher.includes('删除'), 'teacher 无删除动作');
 });
 
-test('openContentPenaltyModal：危险操作弹窗含理由输入 + 确认按钮', () => {
+test('U-3i openContentPenaltyModal：reason + rule + 删除/封禁双按钮（data-action-type）+ teacher only-ban + 白名单回退', () => {
   const dom = setup();
   openContentPenaltyModal(21, 'post');
   const modal = dom.window.document.querySelector('.modal');
   assert.ok(modal, '弹窗出现');
-  assert.ok(modal.querySelector('#penalty-reason'), '理由 textarea');
-  assert.ok(modal.querySelector('[data-action="admin.submitPenalty"][data-id="21"][data-type="post"]'), '确认按钮带 id/type');
+  assert.ok(modal.querySelector('#penalty-reason'), '理由输入');
+  assert.ok(modal.querySelector('#penalty-rule'), '触犯规则输入');
+  assert.ok(modal.querySelector('.form-hint'), '处罚说明 hint');
+  assert.ok(modal.querySelector('[data-action="admin.submitPenalty"][data-id="21"][data-type="post"][data-action-type="remove"]'), '删除按钮带 action-type');
+  assert.ok(modal.querySelector('[data-action="admin.submitPenalty"][data-id="21"][data-type="post"][data-action-type="ban"]'), '封禁按钮带 action-type');
+  teardown();
+  // teacher only-ban
+  const dom2 = setup();
+  openContentPenaltyModal(99, 'teacher');
+  const m2 = dom2.window.document.querySelector('.modal');
+  assert.ok(m2.querySelector('[data-action-type="ban"]'), 'teacher 封禁按钮');
+  assert.equal(m2.querySelectorAll('[data-action-type="remove"]').length, 0, 'teacher 无删除按钮');
+  teardown();
+  // 非法 type 回退 post（纵深防御）
+  const dom3 = setup();
+  openContentPenaltyModal(1, 'post<script>');
+  const m3 = dom3.window.document.querySelector('.modal');
+  assert.ok(m3.querySelector('[data-type="post"]'), '非法 type 回退 post');
+  assert.equal(m3.querySelectorAll('[data-type="post<script>"]').length, 0, '无注入 type');
+  teardown();
+});
+
+test('U-3i doSubmitContentPenalty：reason 空直接提示（F3 专用键）不弹确认', () => {
+  const dom = setup();
+  openContentPenaltyModal(21, 'post');
+  document.getElementById('penalty-reason').value = '   ';
+  doSubmitContentPenalty(21, 'post', 'ban');
+  assert.ok(dom.window.document.querySelector('.modal'), '弹窗未被关闭（未走 closeModal+confirm）');
+  assert.ok(dom.window.document.getElementById('toast-container').textContent.includes('请填写处罚原因'), 'F3 专用 reason toast');
+  teardown();
+});
+
+test('U-3i performContentPenalty：写路径 body shape 与服务端契约一致（G2 删字段必红）', async () => {
+  const dom = setup();
+  let captured = null;
+  globalThis.fetch = async (url, opts) => {
+    captured = { url: String(url), opts };
+    return { ok: true, status: 200, json: async () => ({ message: '已处理' }) };
+  };
+  const r = await performContentPenalty(21, 'post', 'ban', '含门牌号', '隐私红线', 'cap-xyz');
+  assert.ok(captured.url.endsWith('/api/admin/content/post/21/action'), '端点路径');
+  assert.deepEqual(JSON.parse(captured.opts.body), { action: 'ban', reason: '含门牌号', rule: '隐私红线', capToken: 'cap-xyz' }, 'body 形状');
+  assert.ok(captured.opts.method === 'POST', 'POST 方法');
+  assert.equal(r.message, '已处理', '返回消息');
   teardown();
 });
 

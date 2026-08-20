@@ -7,15 +7,15 @@ import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
-import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha } from '../../core/ui.js';
+import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha, segTabsHtml } from '../../core/ui.js';
 import { escHtml, fmtDateTime, loaderHtml, mdRender } from '../../core/dom.js'; // U-3f: post full-text modal via shared mdRender
-import { priceRangeText, methodName } from '../../core/display.js'; // U-3g: contract method label
+import { priceRangeText, methodName, roleLabel } from '../../core/display.js'; // U-3g: contract method label; U-3i: content author role tag
 import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from '../teacher/display.js'; // U-3a: teacher row meta; U-3c: review stars/status tag
 import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand card (admin:true reuse, W6)
 import { contractStatusMeta } from '../contract/display.js'; // U-3g: contract status tag (shared single source)
 import { splitContractBiz, stripContractMarker, renderContractDiff } from '../contract/render.js'; // U-3g: contract diff/full-text modal (W6 reuse)
 import { feedbackKindName, feedbackSubjectName, feedbackKindCls, isFeedbackBug } from '../complaints/display.js'; // U-3h: feedback kind/subject tags + bug edge (shared single source)
-import { STATUS, AWARD_STATUS, VERIFY_TYPES } from '../../../shared/enums.js'; // U-3c review / U-3d award / U-3e verify-type gates / U-3h resolved gate (shared enums)
+import { STATUS, AWARD_STATUS, VERIFY_TYPES, DEACTIVATED_USER_PREFIX } from '../../../shared/enums.js'; // U-3c review / U-3d award / U-3e verify-type / U-3h resolved / U-3i deactivated author (shared enums)
 
 function adminStatCards(pairs) {
   return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');
@@ -209,39 +209,115 @@ export function renderAdminReviewRow(r) {
   </div>`;
 }
 
-export async function loadAdminContent(type = 'post') {
+// U-3i: unified content-review page (W29 redo — audit F1-F5 fixed). Type list mirrors the
+// server CONTENT_SQL keys (admin/repo.js) — the server is the single source; the 10 labels
+// live in text.js. The seg-tabs container lives in shell.js as a bare #admin-content-tabs div
+// (F1: no nested .seg-tabs — segTabsHtml owns the .seg-tabs class via containerId, same as
+// the traffic page). Filter wiring via seg-tab-change delegation in index.js.
+const ADMIN_CONTENT_TYPES = ['post', 'demand', 'teacher', 'review', 'message', 'feedback', 'complaint', 'upload', 'contract', 'signing'];
+export const contentTypeName = t => ({
+  post: TEXT.ADMIN_CONTENT_TYPE_POST, demand: TEXT.ADMIN_CONTENT_TYPE_DEMAND, teacher: TEXT.ADMIN_CONTENT_TYPE_TEACHER,
+  review: TEXT.ADMIN_CONTENT_TYPE_REVIEW, message: TEXT.ADMIN_CONTENT_TYPE_MESSAGE, feedback: TEXT.ADMIN_CONTENT_TYPE_FEEDBACK,
+  complaint: TEXT.ADMIN_CONTENT_TYPE_COMPLAINT, upload: TEXT.ADMIN_CONTENT_TYPE_UPLOAD,
+  contract: TEXT.ADMIN_CONTENT_TYPE_CONTRACT, signing: TEXT.ADMIN_CONTENT_TYPE_SIGNING,
+}[t] || t);
+let _adminContentType = ''; // current tab ('' = all); a penalty reloads into this tab
+
+export async function loadAdminContent(type = '') {
+  _adminContentType = type;
+  const tabsEl = document.getElementById('admin-content-tabs');
+  if (tabsEl) tabsEl.innerHTML = segTabsHtml(
+    [{ key: '', label: TEXT.ADMIN_CONTENT_TYPE_ALL }].concat(ADMIN_CONTENT_TYPES.map(t => ({ key: t, label: contentTypeName(t) }))),
+    type, { attr: 'type', containerId: 'admin-content-tabs' });
+  const el = document.getElementById('admin-content-list');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
-    const data = await api(`/api/admin/content?type=${type}`, { method: 'GET' });
-    const el = document.getElementById('admin-content-list');
-    if (el) el.innerHTML = (data.items || []).map(renderAdminContentRow).join('');
-  } catch (err) { showToast(err.message); }
+    const data = await api(`/api/admin/content${type ? `?type=${encodeURIComponent(type)}` : ''}`);
+    const items = data.items || [];
+    if (!document.getElementById('admin-content-list')) return; // left the page mid-flight
+    if (!items.length) { el.innerHTML = `<div class="empty-state"><p>${escHtml(TEXT.ADMIN_CONTENT_EMPTY)}</p></div>`; return; }
+    el.innerHTML = items.map(renderAdminContentRow).join('');
+  } catch (err) {
+    if (document.getElementById('admin-content-list')) el.innerHTML = `<div class="empty-state"><p>${escHtml(err.message)}</p></div>`;
+  }
 }
 
 export function renderAdminContentRow(it) {
-  return `<div class="list-card glass admin-content-row"><span>${escHtml(it.title || it.id)}</span>
-    <button type="button" class="btn btn-sm btn-outline glass glass--pressable" data-action="admin.penalty" data-id="${it.id}" data-type="${escHtml(it.type || 'post')}">${TEXT.ADMIN_PENALTY}</button></div>`;
+  const author = it.author && it.author.username ? escHtml(it.author.username) : escHtml(DEACTIVATED_USER_PREFIX);
+  const roleTag = it.author && it.author.role ? `<span class="tag glass glass--solid">${escHtml(roleLabel(it.author.role))}</span>` : '';
+  // F4: rejected is a warn state too (a green 'approved-like' tag on rejected items was misleading)
+  const warnStatus = it.status === STATUS.OPEN || it.status === STATUS.PENDING || it.status === STATUS.REJECTED;
+  const statusTag = it.status ? `<span class="tag glass glass--solid ${warnStatus ? 'tag-warn' : 'tag-ok'}">${escHtml(it.status)}</span>` : '';
+  const onlyBan = it.type === 'teacher'; // Q-2f-M2: teacher profiles have no hard-delete branch
+  return `<div class="list-card glass content-card">
+    <div class="list-card-header">
+      <span class="list-card-title">${escHtml(it.title || it.type)}</span>
+      <span class="feedback-tags">
+        <span class="tag glass glass--solid">${escHtml(contentTypeName(it.type))}</span>
+        ${statusTag}${roleTag}
+      </span>
+    </div>
+    <div class="list-card-detail">${escHtml(String(it.body || '').slice(0, 160))}</div>
+    <div class="feedback-foot">
+      <span class="list-card-meta">${author} · ${fmtDateTime(it.created_at)}</span>
+      <div class="admin-row-actions">
+        <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.penalty" data-id="${it.id}" data-type="${escHtml(it.type || 'post')}">${onlyBan ? escHtml(TEXT.ADMIN_CONTENT_PENALTY_BAN) : escHtml(TEXT.ADMIN_CONTENT_PENALTY_DELETE) + ' / ' + escHtml(TEXT.ADMIN_CONTENT_PENALTY_BAN)}</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 export function openContentPenaltyModal(id, type) {
-  openModal({ title: TEXT.ADMIN_PENALTY, body: `<div class="form-group"><label>${TEXT.ADMIN_REASON}</label><textarea id="penalty-reason" class="form-input"></textarea></div>`, footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.closeModal">${TEXT.BTN_CANCEL}</button><button type="button" class="btn glass glass--pressable" data-action="admin.submitPenalty" data-id="${id}" data-type="${type}">${TEXT.BTN_CONFIRM}</button>` });
+  // v1-parity penalty modal — reason (required) + rule (offense ref) + delete/ban pair.
+  // teacher profiles offer ban only; type passes a whitelist before interpolation.
+  const onlyBan = type === 'teacher';
+  const t = /^[a-z]+$/.test(type) ? type : 'post';
+  openModal({
+    title: TEXT.ADMIN_CONTENT_PENALTY_TITLE.replace('{type}', contentTypeName(t)).replace('{id}', id),
+    body: `<div class="form-group">
+        <label class="form-label">${TEXT.ADMIN_CONTENT_PENALTY_REASON} <span class="req">*</span></label>
+        <input type="text" class="form-input" id="penalty-reason" maxlength="80" placeholder="${TEXT.ADMIN_PENALTY_REASON_PLACEHOLDER}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">${TEXT.ADMIN_CONTENT_PENALTY_RULE}</label>
+        <input type="text" class="form-input" id="penalty-rule" maxlength="30" placeholder="${TEXT.ADMIN_PENALTY_RULE_PLACEHOLDER}">
+      </div>
+      <p class="form-hint">${TEXT.ADMIN_CONTENT_PENALTY_HINT}</p>`,
+    footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.closeModal">${TEXT.BTN_CANCEL}</button>
+      ${onlyBan ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.submitPenalty" data-id="${id}" data-type="${t}" data-action-type="remove">${TEXT.ADMIN_CONTENT_PENALTY_DELETE}</button>`}
+      <button type="button" class="btn glass glass--pressable" data-action="admin.submitPenalty" data-id="${id}" data-type="${t}" data-action-type="ban">${TEXT.ADMIN_CONTENT_PENALTY_BAN}</button>`,
+  });
 }
 
-export async function submitContentPenalty(id, type) { return doSubmitContentPenalty(id, type); }
+export async function performContentPenalty(id, type, action, reason, rule, capToken) {
+  // Write path exported for direct test (G1/G2): body shape matches server handleContentAction
+  // exactly — action whitelist ['delete','remove','ban'], reason required.
+  return api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, rule, capToken } });
+}
 
-export async function doSubmitContentPenalty(id, type) {
+export async function doSubmitContentPenalty(id, type, action) {
+  // F3: reason-required toast uses the dedicated ADMIN_REASON_REQUIRED key. Reads reason + rule
+  // from the penalty form, closes it, then runs the capToken re-auth confirm (danger op).
   const reason = document.getElementById('penalty-reason')?.value.trim();
   if (!reason) { showToast(TEXT.ADMIN_REASON_REQUIRED, 'error'); return; }
-  try {
-    // Q-2f-M2: teacher profile has no hard-delete branch — server handleContentAction
-    // requires action='ban' for type='teacher' (else 400). UI/API shape mismatch fix.
-    const action = type === 'teacher' ? 'ban' : 'delete';
-    confirm({ title: TEXT.ADMIN_PENALTY, message: TEXT.ADMIN_PENALTY_CONFIRM, needReAuth: true, onConfirm: async capToken => {
+  const rule = document.getElementById('penalty-rule')?.value.trim() || '';
+  closeModal(); // close the penalty form before the re-auth confirm (two stacked modals are hostile)
+  confirm({
+    title: TEXT.ADMIN_CONTENT_PENALTY_TITLE.replace('{type}', contentTypeName(type)).replace('{id}', id),
+    message: TEXT.ADMIN_PENALTY_CONFIRM.replace('{action}', action === 'ban' ? TEXT.ADMIN_CONTENT_PENALTY_BAN : TEXT.ADMIN_CONTENT_PENALTY_DELETE),
+    needReAuth: true,
+    onConfirm: async capToken => {
       withCaptcha(async () => {
-        await api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, capToken } });
-        closeModal(); showToast(TEXT.ADMIN_DONE); loadAdminContent(type);
+        try {
+          const r = await performContentPenalty(id, type, action, reason, rule, capToken);
+          showToast(r.message || TEXT.ADMIN_PENALTY_DONE, 'success');
+          closeModal();
+          loadAdminContent(_adminContentType);
+        } catch (err) { showToast(err.message, 'error'); }
       });
-    }});
-  } catch (err) { showToast(err.message); }
+    },
+  });
 }
 
 
@@ -358,8 +434,10 @@ export function adminViewContract(id) {
   });
 }
 export async function adminRemoveContract(id) {
-  confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    try { await api(`/api/admin/contracts/${id}`, { method: 'DELETE', body: { capToken } }); invalidate('contracts'); showToast(TEXT.ADMIN_DONE); loadAdminContracts(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
+  // U-3g l1: v1-parity danger-op copy (permanent delete + audit trail kept) instead of the
+  // generic ADMIN_DELETE_CONFIRM — capToken ops should state the legal consequence.
+  confirm({ title: TEXT.BTN_DELETE, message: TEXT.CONFIRM_ADMIN_REMOVE_CONTRACT, needReAuth: true, onConfirm: async capToken => {
+    try { await api(`/api/admin/contracts/${id}`, { method: 'DELETE', body: { capToken } }); invalidate('contracts'); showToast(TEXT.ADMIN_CONTRACT_REMOVED_TOAST); loadAdminContracts(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
   }});
 }
 
