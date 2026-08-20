@@ -43,15 +43,14 @@ function onLoad() {
     auth: false,
     enter: () => actions.loadTeachers(),
   });
-  // Z-3-F1: teacher profile page (edit form is rendered by F1c; empty enter keeps the
-  // page navigable and the sidebar entry visible until the form lands)
+  // Z-3-F1: teacher profile page — enter fetches own profile and renders the edit form
   registerPage({
     id: 'teacher-profile',
     roles: [ROLES.TEACHER],
     label: TEXT.PAGE_TEACHER_PROFILE,
     desc: TEXT.PAGE_TEACHER_PROFILE_DESC,
     auth: true,
-    enter: () => {},
+    enter: () => actions.enterTeacherProfile(),
   });
   document.addEventListener('click', onActionClick);
   // Q-4a-M1b/M1c: teacher sort/filter controls change delegation (shell data-change attrs)

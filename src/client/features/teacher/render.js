@@ -3,7 +3,8 @@
  * No inline handlers or inline style attributes.
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES, SUBJECTS, TEACHER_GRADES, GENDERS, TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums; F1c: form whitelists
+import { CONFIG, LIMITS } from '../../../shared/config.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
 import { subjectNames, genderName, methodName, priceRangeText, usernameHtml, deactivatedTag } from '../../core/display.js';
@@ -11,6 +12,10 @@ import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from './dis
 import { demandOptionText, expectedTimeText } from '../student/display.js';
 import { matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student push button on teacher card
+import { checkboxItemsHtml } from '../../core/ui.js';
+import { renderTimeSlotContainerHtml } from '../../core/ui-form.js';
+import { renderProvinceSelect } from '../region/render.js';
+import { SUFE_REGIONS } from '../../../shared/region-data.js'; // contract 9: single source for province/subject pools
 
 let _studentOpenDemand = false;
 export function setStudentOpenDemand(v) { _studentOpenDemand = !!v; }
@@ -127,4 +132,115 @@ export function reviewModalHtml() {
     <label class="form-label">${TEXT.LABEL_REVIEW_CONTENT}</label>
     <textarea id="review-comment" class="form-input" rows="5" placeholder="${TEXT.REVIEW_COMMENT_PLACEHOLDER}"></textarea>
   </div>`;
+}
+
+// Z-3-F1 F1c: teacher profile edit form. Four sections matching the .profile-form
+// style system (basic / academic / non-academic / private). Pure HTML — no inline
+// handlers or styles; field ids are the F1d1/d2/d3 binding contract (tp-* prefix).
+// profile may be null (no saved profile yet) → empty form with defaults. Every
+// profile-derived value is escHtml'd before interpolating into attributes.
+export function renderTeacherProfileForm(profile) {
+  const p = profile || {};
+  const subjPool = [...SUBJECTS.map(s => s.id), ...Object.keys(SUFE_REGIONS.subjectNames || {})];
+  const subjOptions = subjPool.map(id => ({ id, name: SUFE_REGIONS.subjectNames[id] || subjectNames(id) }));
+  const escNum = v => (v != null ? escHtml(String(v)) : '');
+  const gradYear = p.graduation_year != null ? p.graduation_year : '';
+  const methodId = TEACHING_METHODS.some(m => m.id === p.teaching_method) ? p.teaching_method : '';
+  const grades = TEACHER_GRADES.map(g => `<option value="${escHtml(g.id)}"${g.id === p.grade ? ' selected' : ''}>${escHtml(g.name)}</option>`).join('');
+  const genders = GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary').map(g =>
+    `<option value="${escHtml(g.id)}"${g.id === p.gender ? ' selected' : ''}>${escHtml(g.name)}</option>`).join('');
+  const methods = TEACHING_METHODS.map(m => `<option value="${escHtml(m.id)}"${m.id === methodId ? ' selected' : ''}>${escHtml(m.name)}</option>`).join('');
+  const tagPickBtn = (id, name, containerId, max, checked) =>
+    `<button type="button" class="tag-pick glass glass--solid${checked ? ' selected' : ''}" data-action="teacher.toggleTagPick" data-container="${containerId}" data-max="${max}" data-id="${escHtml(id)}">${escHtml(name)}</button>`;
+  const tags = PERSONALITY_TAGS.map(t => tagPickBtn(t.id, t.name, 'tp-personality', CONFIG.PERSONALITY_TAGS_MAX, (p.personality_tags || []).includes(t.id))).join('');
+  const nonac = NONACADEMIC_PROJECTS.map(n => tagPickBtn(n.id, n.name, 'tp-nonacademic', 99, (p.nonacademic_projects || []).includes(n.id))).join('');
+
+  return `<form id="teacher-profile-form" class="profile-form" novalidate>
+    <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_BASIC}</h3>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_PROVINCE} <span class="req">*</span></label>
+      <span id="tp-province-wrap">${renderProvinceSelect('tp-province', p.province || '')}</span>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_GRADE} <span class="req">*</span></label>
+      <select class="form-select" id="tp-grade"><option value="">${TEXT.OPTION_PLACEHOLDER}</option>${grades}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_GENDER} <span class="req">*</span></label>
+      <select class="form-select" id="tp-gender"><option value="">${TEXT.OPTION_PLACEHOLDER}</option>${genders}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_SCHOOL}</label>
+      <input type="text" class="form-input" id="tp-school" value="${escHtml(p.school || '')}" maxlength="${LIMITS.CONTACT_MAX}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_REAL_NAME}</label>
+      <input type="text" class="form-input" id="tp-real-name" value="${escHtml(p.real_name || '')}" maxlength="${LIMITS.CONTACT_MAX}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_GRADUATION_YEAR}</label>
+      <div class="range-row">
+        <input type="number" class="form-input" id="tp-grad-year" value="${escNum(gradYear)}" min="${CONFIG.GRAD_YEAR_MIN}" max="${CONFIG.GRAD_YEAR_MAX}" placeholder="${TEXT.GRAD_YEAR_PLACEHOLDER}">
+        <span class="text-muted">${TEXT.GRAD_YEAR_SUFFIX}</span>
+      </div>
+    </div>
+
+    <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_ACADEMIC}</h3>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_SUBJECT} <span class="req">*</span>${TEXT.LABEL_MULTI_SUFFIX}</label>
+      <div class="checkbox-grid" id="tp-subjects">${checkboxItemsHtml(subjOptions, p.subjects)}</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_PRICE_RANGE} <span class="req">*</span></label>
+      <div class="range-row">
+        <input type="number" class="form-input" id="tp-price-min" value="${escNum(p.price_min)}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MIN}">
+        <span class="text-muted">~</span>
+        <input type="number" class="form-input" id="tp-price-max" value="${escNum(p.price_max)}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MAX}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_TEACHING_METHOD_PROFILE} <span class="req">*</span></label>
+      <select class="form-select" id="tp-method"><option value="">${TEXT.OPTION_PLACEHOLDER}</option>${methods}</select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_TIME_SLOTS} <span class="req">*</span></label>
+      <div id="tp-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_GAOKAO_SCORES}</label>
+      <div id="tp-gaokao"><p class="text-sm text-muted">${TEXT.OPTION_PLACEHOLDER}</p></div>
+    </div>
+
+    <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_NONACADEMIC}</h3>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_NONACADEMIC_PROJECTS}${TEXT.LABEL_MULTI_SUFFIX}</label>
+      <div id="tp-nonacademic">${nonac}</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_NONACADEMIC_PRICES}</label>
+      <div id="tp-nonacademic-prices"><p class="text-sm text-muted">${TEXT.OPTION_PLACEHOLDER}</p></div>
+    </div>
+
+    <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_PRIVATE}</h3>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_INTRO}</label>
+      <textarea id="tp-intro" class="form-input" rows="4">${escHtml(p.intro || '')}</textarea>
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_ADDRESS}</label>
+      <div id="tp-addr-picker" class="sh-addr-picker"></div>
+      <input type="hidden" id="tp-address" value="${escHtml(p.address || '')}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_WECHAT}</label>
+      <input type="text" class="form-input" id="tp-wechat" value="${escHtml(p.wechat || '')}" maxlength="${LIMITS.CONTACT_MAX}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">${TEXT.LABEL_EMAIL}</label>
+      <input type="text" class="form-input" id="tp-email" value="${escHtml(p.email || '')}" maxlength="${LIMITS.CONTACT_MAX}">
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn glass glass--pressable" data-action="teacher.saveProfile">${TEXT.BTN_SAVE}</button>
+    </div>
+  </form>`;
 }

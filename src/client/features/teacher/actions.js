@@ -8,10 +8,12 @@ import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
-import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand } from './render.js';
+import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { demandIsActive } from '../student/display.js';
 import { positionFloatCard } from '../../core/anim.js';
+import { bindTimeSlotTree, prefillTimeSlots } from '../../core/ui-form.js';
+import { mountShanghaiAddrPicker } from '../region/actions.js';
 
 let profilePanelUserId = null;
 let _studentOpenDemand = false;
@@ -270,3 +272,25 @@ export function closeMatchDetail() {
   _matchDetailOpen = false;
 }
 export function renderProfileInfoCard(t) { return renderProfilePanel(t, ''); }
+
+// Z-3-F1 F1c: enter the teacher-profile page — GET own profile, render the edit form,
+// prefill time slots and the Shanghai address picker. Replacements (province→subjects,
+// nonacademic price rows, gaokao editor, save submit) land in F1d1/F1d2/F1d3.
+export async function enterTeacherProfile() {
+  const el = document.getElementById('teacher-profile-content');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
+  try {
+    const data = await api('/api/teacher/profile', { method: 'GET' });
+    if (!el) return; // page switched away while loading
+    el.innerHTML = renderTeacherProfileForm(data.profile || null);
+    const form = el.querySelector('#teacher-profile-form');
+    if (form) bindTimeSlotTree(form);
+    const ts = document.getElementById('tp-time-slots');
+    if (ts && data.profile && data.profile.time_slots) prefillTimeSlots(ts, data.profile.time_slots);
+    mountShanghaiAddrPicker('tp', (data.profile && data.profile.address) || '', { hiddenId: 'tp-address' });
+  } catch (err) {
+    if (!el) return;
+    el.innerHTML = `<div class="empty-state"><p>${TEXT.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
+  }
+}
