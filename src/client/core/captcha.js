@@ -186,6 +186,38 @@ function bindCaptchaDrag() {
   knob.addEventListener('pointercancel', up);
 }
 
+// TEMP diagnostic patch (alignment bug): snapshot actual/expected offset + component geometry
+// on every verify failure and report to /api/captcha/diag for server-side logging. Remove entirely
+// (handler + route + this reporter) once the misalignment root cause is located.
+function collectCaptchaDiag() {
+  const rect = (id) => { const el = document.getElementById(id); if (!el) return null; const b = el.getBoundingClientRect(); return { x: +b.left.toFixed(1), y: +b.top.toFixed(1), w: +b.width.toFixed(1), h: +b.height.toFixed(1) }; };
+  const cv = document.getElementById('captcha-canvas');
+  const knob = document.getElementById('captcha-knob');
+  const transforms = [];
+  for (let el = document.getElementById('captcha-box'); el && el !== document.documentElement; el = el.parentElement) {
+    const cs = getComputedStyle(el);
+    if (cs.transform && cs.transform !== 'none') transforms.push({ cls: (el.className || '').slice(0, 60), transform: cs.transform });
+  }
+  const cvR = cv ? cv.getBoundingClientRect() : null;
+  const knobR = knob ? knob.getBoundingClientRect() : null;
+  return {
+    offset: _captchaOffset, target: _captchaTarget,
+    diff: Math.abs(_captchaOffset - _captchaTarget), tolerance: CAPTCHA_TOLERANCE, maxX: CAPTCHA_MAX_X,
+    vw: innerWidth, vh: innerHeight, dpr: devicePixelRatio,
+    canvas: rect('captcha-canvas'), track: rect('captcha-track'), knob: rect('captcha-knob'), puzzle: rect('captcha-puzzle'),
+    holeCenterX: cvR ? +(cvR.left + _captchaTarget * CAPTCHA_MAX_X + 20).toFixed(1) : null,
+    knobCenterX: knobR ? +(knobR.left + knobR.width / 2).toFixed(1) : null,
+    canvasLeft: cvR ? +cvR.left.toFixed(1) : null,
+    knobLeft: knobR ? +knobR.left.toFixed(1) : null,
+    transforms,
+  };
+}
+function sendCaptchaDiag() {
+  try {
+    fetch('/api/captcha/diag', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ diag: collectCaptchaDiag() }) }).catch(() => {});
+  } catch { /* best-effort, never blocks the verify flow */ }
+}
+
 async function verifyCaptcha() {
   const track = document.getElementById('captcha-track');
   const tip = document.getElementById('captcha-tip');
@@ -199,8 +231,8 @@ async function verifyCaptcha() {
         method: 'POST',
         body: { captchaId: _captchaIdStr, offset: Number(_captchaOffset.toFixed(3)), track: _captchaTrack },
       });
-      if (!r || !r.ok) { failCaptcha(track, tip, knob, r && r.message); return; }
-    } catch (err) { failCaptcha(track, tip, knob, err && err.message); return; }
+      if (!r || !r.ok) { sendCaptchaDiag(); failCaptcha(track, tip, knob, r && r.message); return; }
+    } catch (err) { sendCaptchaDiag(); failCaptcha(track, tip, knob, err && err.message); return; }
     knob.classList.add('captcha--pass');
     tip.textContent = TEXT.CAPTCHA_PASS;
     tip.classList.remove('captcha-tip--fail');
@@ -210,6 +242,7 @@ async function verifyCaptcha() {
     setTimeout(() => { closeModal(); if (cb) cb(); }, 260);
     return;
   }
+  sendCaptchaDiag();
   failCaptcha(track, tip, knob);
 }
 
