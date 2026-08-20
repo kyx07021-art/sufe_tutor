@@ -20,14 +20,58 @@ import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, confirm, withCaptcha } from '../../core/ui.js';
 import { escHtml } from '../../core/dom.js';
 
+function adminStatCards(pairs) {
+  return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');
+}
+
+function adminOpsRows(items) {
+  return items.map(([k, v]) => `<div class="ops-row"><span>${escHtml(k)}</span><code>${escHtml(String(v ?? 0))}</code></div>`).join('');
+}
+
+// R-5b: structured stats panel replacing raw JSON dump (labels via TEXT single source).
 export async function loadAdminStats() {
   try {
-    const [stats, dash] = await Promise.all([
+    const [statsRes, dashRes] = await Promise.all([
       api('/api/admin/stats', { method: 'GET' }),
       api('/api/admin/dashboard', { method: 'GET' }),
     ]);
+    const s = statsRes.stats || statsRes;
+    const d = dashRes.dashboard || dashRes;
+    const u = s.users || {}, r = s.reviews || {}, inv = s.invites || {}, t = s.todo || {};
+    const dt = d.todo || {}, mt = (d.metrics || {}).total || {};
+    const topPaths = (d.metrics || {}).topPaths || [];
+    const status = (d.metrics || {}).status || [];
     const el = document.getElementById('admin-stats-box') || document.getElementById('admin-stats-content');
-    if (el) el.textContent = JSON.stringify({ stats: stats.stats || stats, dashboard: dash.dashboard || dash });
+    if (!el) return;
+    el.innerHTML =
+      `<div class="stats-grid">${adminStatCards([
+        [TEXT.ADMIN_STAT_TOTAL_USERS, u.total], [TEXT.ADMIN_STAT_STUDENTS, u.students],
+        [TEXT.ADMIN_STAT_TEACHERS, u.teachers], [TEXT.ADMIN_STAT_PROFILES, s.profiles],
+        [TEXT.ADMIN_STAT_DEMANDS, s.demands],
+      ])}</div>` +
+      `<div class="ops-detail">` +
+        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_REVIEWS)}</h4>${adminOpsRows([
+          [TEXT.ADMIN_STAT_REVIEWS_TOTAL, r.total], [TEXT.ADMIN_STAT_REVIEWS_APPROVED, r.approved],
+          [TEXT.ADMIN_STAT_REVIEWS_PENDING, r.pending], [TEXT.ADMIN_STAT_REVIEWS_REJECTED, r.rejected],
+        ])}</div>` +
+        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_INVITES)}</h4>${adminOpsRows([
+          [TEXT.ADMIN_STAT_INVITES_USED, inv.used], [TEXT.ADMIN_STAT_INVITES_ACTIVE, inv.active],
+        ])}</div>` +
+        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TODO)}</h4>${adminOpsRows([
+          [TEXT.ADMIN_STAT_VERIFY_PENDING, dt.verificationsPending],
+          [TEXT.ADMIN_STAT_REVIEWS_PENDING, dt.reviewsPending],
+          [TEXT.ADMIN_STAT_AWARDS_PENDING, t.awardsPending],
+          [TEXT.ADMIN_STAT_FEEDBACKS_OPEN, t.feedbacksOpen],
+          [TEXT.ADMIN_STAT_COMPLAINTS_OPEN, t.complaintsOpen],
+        ])}</div>` +
+        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TRAFFIC)}</h4>${adminOpsRows([
+          [TEXT.ADMIN_STAT_REQUESTS, mt.requests], [TEXT.ADMIN_STAT_ERRORS, mt.errors],
+          [TEXT.ADMIN_STAT_SLOW, mt.slow], [TEXT.ADMIN_STAT_LIMITED, mt.limited],
+          [TEXT.ADMIN_STAT_AVG_MS, mt.avgMs],
+        ])}</div>` +
+      `</div>` +
+      (topPaths.length ? `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TOP_PATHS)}</h4>${adminOpsRows(topPaths.map(p => [p.path_group, p.count]))}</div>` : '') +
+      (status.length ? `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_STATUS)}</h4>${adminOpsRows(status.map(x => [x.status_group, x.count]))}</div>` : '');
   } catch (err) { showToast(err.message); }
 }
 
