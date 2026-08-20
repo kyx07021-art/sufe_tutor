@@ -28,6 +28,9 @@ globalThis.window = dom.window;
 globalThis.localStorage = dom.window.localStorage;
 globalThis.sessionStorage = dom.window.sessionStorage;
 globalThis.getComputedStyle = dom.window.getComputedStyle.bind(dom.window);
+// F1d2: initCustomSelects wraps the ZJ/Beijing 21-tier gk-grade-select with a MutationObserver —
+// the global must exist in jsdom or wrapping throws and the whole form init fails.
+globalThis.MutationObserver = dom.window.MutationObserver;
 setEnsureAuth(() => true);
 
 function setup() {
@@ -266,5 +269,96 @@ test('F1d1 毕业年份钳制 [1980, 2030]', async () => {
   gradYear.value = '';
   gradYear.dispatchEvent(new dom.window.Event('blur'));
   assert.equal(gradYear.value, '', '空值保留空');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1 F1d2：gaokao 高考成绩编辑器（渲染 / 收集 shape / 交互）。
+// 收集 shape 与服务端契约（teacher/api.js sanitize）一致：
+// [{subject, score?} | {subject, grade?}]，subject 白名单含浙江技术，
+// 主科原始分 / 再选等第，空行跳过，hidden track 行跳过。
+// ─────────────────────────────────────────────────────────────
+
+const GK_312_PROFILE = {
+  province: 'hebei', teaching_method: 'online',
+  subjects: ['chinese', 'math', 'english', 'physics', 'chemistry', 'biology', 'history'],
+  gaokao_scores: [{ subject: 'physics', score: 92 }, { subject: 'chemistry', grade: 'A' }],
+};
+
+test('F1d2 3+1+2 渲染：主科分数 + 首选 pill + 再选等第（收集 shape 契约）', async () => {
+  const el = await setupForm(GK_312_PROFILE);
+  const gk = el.querySelector('#tp-gaokao');
+  assert.ok(gk.querySelector('input[data-gk-subject="chinese"][data-gk-type="score"]'), '语文分数输入在位');
+  assert.equal(gk.querySelector('input[data-gk-subject="chinese"]').getAttribute('max'), '150', '主科满分 150');
+  const firstPills = [...gk.querySelectorAll('[data-gk-role="first"] .gk-pill')];
+  assert.equal(firstPills.length, 2, '首选两门 pill（物理/历史）');
+  const physPill = firstPills.find(p => p.dataset.gkFirst === 'physics');
+  assert.ok(physPill.classList.contains('selected'), 'physics pill 选中（有存量分）');
+  assert.equal(gk.querySelector('input[data-gk-role="first-score"]').value, '92', '首选分数回显');
+  const chemSel = gk.querySelector('.grade-selector[data-gk-subject="chemistry"]');
+  assert.ok(chemSel.querySelector('.grade-option[data-grade="A"]').classList.contains('selected'), 'chemistry 等第 A 选中');
+  // 收集 shape：主科空跳过 → physics 分数 + chemistry 等第（服务端契约形状）
+  assert.deepEqual(actions.collectTeacherGaokao(),
+    [{ subject: 'physics', score: 92 }, { subject: 'chemistry', grade: 'A' }]);
+  teardown();
+});
+
+test('F1d2 浙江 3+3：技术 extraElective 在位 + 20 区间 select 档位', async () => {
+  const el = await setupForm({
+    province: 'zhejiang', graduation_year: 2023, teaching_method: 'online',
+    subjects: ['chinese', 'math', 'english', 'physics', 'chemistry', 'technology'],
+  });
+  const gk = el.querySelector('#tp-gaokao');
+  assert.ok(gk.querySelector('[data-gk-check-row="technology"]'), '浙江技术科目行在位（extraElective）');
+  const techCtl = gk.querySelector('[data-gk-check-row="technology"] .gk-grade-select');
+  assert.ok(techCtl, '技术等第用 select（20 区间 > 11 档）');
+  assert.ok(techCtl.querySelector('option[value="I1"]'), '浙江 20 区间 I1 档在');
+  teardown();
+});
+
+test('F1d2 收集 shape：主科填分 + 首选换 pill 分数跟随（v1 误归属修复）', async () => {
+  const el = await setupForm(GK_312_PROFILE);
+  const gk = el.querySelector('#tp-gaokao');
+  gk.querySelector('input[data-gk-subject="chinese"]').value = '140';
+  gk.querySelector('input[data-gk-subject="math"]').value = '135';
+  const historyPill = [...gk.querySelectorAll('[data-gk-role="first"] .gk-pill')].find(p => p.dataset.gkFirst === 'history');
+  actions.pickGkPill(historyPill);
+  assert.ok(historyPill.classList.contains('selected'), 'history pill 选中');
+  const firstScore = gk.querySelector('input[data-gk-role="first-score"]');
+  assert.equal(firstScore.value, '', '切到无存量分 pill 分数清空');
+  firstScore.value = '85';
+  const physicsPill = gk.querySelector('[data-gk-role="first"] .gk-pill[data-gk-first="physics"]');
+  actions.pickGkPill(physicsPill);
+  assert.equal(firstScore.value, '92', '切回 physics 恢复存量分（不误归属 history 的 85）');
+  assert.deepEqual(actions.collectTeacherGaokao(), [
+    { subject: 'chinese', score: 140 }, { subject: 'math', score: 135 },
+    { subject: 'physics', score: 92 }, { subject: 'chemistry', grade: 'A' },
+  ]);
+  teardown();
+});
+
+test('F1d2 等第不匹配警告 + 无效省份提示', async () => {
+  const el = await setupForm({
+    province: 'hebei', teaching_method: 'online',
+    subjects: ['chinese', 'math', 'english', 'chemistry'],
+    gaokao_scores: [{ subject: 'chemistry', grade: 'X' }], // X 不在 standard5 A-E
+  });
+  const gk = el.querySelector('#tp-gaokao');
+  assert.ok(gk.querySelector('.gaokao-mismatch-warn'), '等第不匹配警告在位');
+  assert.ok(gk.querySelector('.gaokao-mismatch-warn').textContent.includes('1'), '警告计数 n=1');
+  teardown();
+  const el2 = await setupForm({ teaching_method: 'online' }); // 无省份
+  const gk2 = el2.querySelector('#tp-gaokao');
+  assert.ok(gk2.textContent.includes(TEXT.REGION_HINT_PICK_PROVINCE), '未选省份提示');
+  teardown();
+});
+
+test('F1d2 科目勾选变化 → 编辑器重渲染（首选 pill 出现）', async () => {
+  const el = await setupForm({ province: 'hebei', teaching_method: 'online', subjects: ['chinese', 'math', 'english'] });
+  assert.ok(el.querySelector('#tp-gaokao').textContent.includes(TEXT.REGION_HINT_FILL_ELECTIVE), '未勾再选科目 → 提示');
+  const physCb = el.querySelector('#tp-subjects input[value="physics"]');
+  physCb.checked = true;
+  physCb.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  assert.ok(el.querySelector('#tp-gaokao [data-gk-role="first"] .gk-pill'), '勾选 physics 后首选 pill 出现');
   teardown();
 });

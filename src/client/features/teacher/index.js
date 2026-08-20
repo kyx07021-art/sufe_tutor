@@ -20,6 +20,9 @@ const ACTION_MAP = {
   'teacher.toggleFilters': actions.toggleFilters,
   // Z-3-F1 F1d1: tag-pick toggles on the profile form (personality + nonacademic projects)
   'teacher.toggleTagPick': el => actions.teacherTagPick(el),
+  // Z-3-F1 F1d2: gaokao editor first-subject / science-arts-track pill switches
+  'teacher.pickGkPill': el => actions.pickGkPill(el),
+  'teacher.pickGkTrack': el => actions.pickGkTrack(el),
 };
 
 let installed = false;

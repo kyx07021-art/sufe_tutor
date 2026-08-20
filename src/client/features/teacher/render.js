@@ -14,7 +14,7 @@ import { matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/
 import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student push button on teacher card
 import { checkboxItemsHtml } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml } from '../../core/ui-form.js';
-import { renderProvinceSelect } from '../region/render.js';
+import { renderProvinceSelect, regionResolvePolicy } from '../region/render.js';
 import { SUFE_REGIONS } from '../../../shared/region-data.js'; // contract 9: single source for province/subject pools
 
 let _studentOpenDemand = false;
@@ -247,4 +247,153 @@ export function renderTeacherProfileForm(profile) {
       <button type="button" class="btn glass glass--pressable" data-action="teacher.saveProfile">${TEXT.BTN_SAVE}</button>
     </div>
   </form>`;
+}
+
+// Z-3-F1 F1d2: teacher gaokao score editor. Policy-driven (regionResolvePolicy + SUFE_REGIONS):
+// main subjects use raw scores, electives use grade conversion for grade systems,
+// raw scores for standard systems (Hainan 300). The collected shape matches the server contract
+// (server/domains/teacher/api.js sanitize): [{subject, score?} | {subject, grade?}], subject
+// whitelist incl. ZJ technology, score clamped [0, GAOKAO_SCORE_MAX], grade whitelist union.
+// Pure HTML — no inline handlers/styles; pills use data-action delegation (teacher.pickGkPill /
+// teacher.pickGkTrack / region.pickGrade). Reads the live checked subjects from #tp-subjects.
+function gkVal(v) {
+  return v === undefined || v === null || v === '' ? '' : escHtml(String(v));
+}
+
+// Count saved grades that the current policy's grade system does not offer (province/year switch
+// leaves stale grade-tier values — warn instead of silently dropping on save).
+export function gaokaoPolicyMismatchCount(pol, gaokaoList) {
+  if (!pol || !Array.isArray(gaokaoList) || !gaokaoList.length) return 0;
+  const gs = pol.gradeSystem;
+  if (!gs || gs.type !== 'grade' || !gs.levels || !gs.levels.length) return 0;
+  const ids = new Set(gs.levels.map(lv => lv.id));
+  return gaokaoList.filter(x => x && x.grade != null && x.grade !== '' && !ids.has(x.grade)).length;
+}
+
+function gkMainSection(mainIds, exOf) {
+  const names = SUFE_REGIONS.subjectNames;
+  let html = '<div class="gaokao-section">';
+  if (!mainIds || !mainIds.length) return html + `<p class="region-hint">${TEXT.REGION_HINT_FILL_MAIN}</p></div>`;
+  mainIds.forEach(sid => {
+    const ex = exOf(sid);
+    const max = SUFE_REGIONS.subjectMaxScore[sid] || 150;
+    html += `<div class="gaokao-row"><span class="subject-name">${escHtml(names[sid] || sid)}</span>
+      <input type="number" class="score-inline" data-gk-subject="${escHtml(sid)}" data-gk-type="score"
+        value="${gkVal(ex.score)}" placeholder="${TEXT.REGION_SCORE_PLACEHOLDER}" min="0" max="${max}">
+      <span class="score-max">/ ${max}</span></div>`;
+  });
+  return html + '</div>';
+}
+
+export function renderTeacherGaokaoEditor(provinceId, graduationYear, existing) {
+  const R = SUFE_REGIONS;
+  const names = R.subjectNames;
+  const list = Array.isArray(existing) ? existing : [];
+  const exOf = sid => list.find(x => x && x.subject === sid) || {};
+  const hasEx = sid => Object.keys(exOf(sid)).length > 0;
+  const checked = new Set([...document.querySelectorAll('#tp-subjects input:checked')].map(cb => cb.value));
+  if (!R.isValidProvince(provinceId)) {
+    return `<p class="text-sm text-muted">${TEXT.REGION_HINT_PICK_PROVINCE}</p>`;
+  }
+  const pol = regionResolvePolicy(provinceId, graduationYear || undefined);
+  let html = '';
+  const mismatches = gaokaoPolicyMismatchCount(pol, list);
+  if (mismatches > 0) {
+    html += `<div class="gaokao-mismatch-warn glass">${escHtml(TEXT.GAOKAO_POLICY_MISMATCH_WARN.replace('{n}', mismatches))}</div>`;
+  }
+  html += gkMainSection(pol.main.filter(sid => checked.has(sid)), exOf);
+  if (pol.type === '3+1+2') {
+    const firstChecked = pol.first.filter(sid => checked.has(sid));
+    const reChecked = pol.reassigned.filter(sid => checked.has(sid));
+    const gs = pol.gradeSystem || R.gradeSystems.standard5;
+    html += '<div class="gaokao-section">';
+    if (!firstChecked.length && !reChecked.length) {
+      html += `<p class="region-hint">${TEXT.REGION_HINT_FILL_ELECTIVE}</p>`;
+    } else {
+      if (firstChecked.length) {
+        const firstSel = firstChecked.find(hasEx) || firstChecked[0];
+        const firstEx = exOf(firstSel);
+        html += `<div class="gaokao-row"><span class="subject-name">${escHtml(TEXT.REGION_FIRST_SUBJECT_LABEL)}${firstChecked.length > 1 ? escHtml(TEXT.REGION_FIRST_TWO_HINT) : ''}</span>
+          <div class="gk-pill-group gk-first-pills" data-gk-role="first">
+            ${firstChecked.map(sid => `<span class="grade-option gk-pill glass glass--solid ${sid === firstSel ? 'selected' : ''}"
+              data-action="teacher.pickGkPill" data-gk-first="${escHtml(sid)}" role="button" tabindex="0">${escHtml(names[sid] || sid)}</span>`).join('')}
+          </div>
+          <input type="number" class="score-inline" data-gk-role="first-score" data-gk-type="score"
+            value="${gkVal(firstEx.score)}" placeholder="${TEXT.REGION_SCORE_PLACEHOLDER}" min="0" max="100">
+          <span class="score-max">/ 100</span>
+        </div>`;
+      }
+      html += reChecked.map(sid => {
+        const ex = exOf(sid);
+        return `<div class="gaokao-row" data-gk-check-row="${escHtml(sid)}">
+          <span class="subject-name">${escHtml(names[sid] || sid)}</span>
+          <div class="grade-selector" data-gk-subject="${escHtml(sid)}">
+            ${gs.levels.map(lv => `<span class="grade-option glass glass--solid ${ex.grade === lv.id ? 'selected' : ''}"
+              data-action="region.pickGrade" data-grade="${escHtml(lv.id)}" role="button" tabindex="0">${escHtml(lv.name)}</span>`).join('')}
+          </div></div>`;
+      }).join('');
+    }
+    html += '</div>';
+  } else if (pol.type === '3+3') {
+    const electives = (pol.extraElective ? [...pol.electives, pol.extraElective] : [...pol.electives])
+      .filter(sid => checked.has(sid));
+    const gs = pol.gradeSystem;
+    const isStandard = !!(gs && gs.type === 'standard');
+    const usePills = !!(gs && gs.type === 'grade' && gs.levels.length <= 11);
+    html += '<div class="gaokao-section">';
+    if (!electives.length) {
+      html += `<p class="region-hint">${TEXT.REGION_HINT_FILL_ELECTIVE}</p>`;
+    } else {
+      html += electives.map(sid => {
+        const ex = exOf(sid);
+        let ctl;
+        if (isStandard) {
+          const max = gs.max || 300;
+          ctl = `<input type="number" class="score-inline" data-gk-subject="${escHtml(sid)}" data-gk-type="score"
+            value="${gkVal(ex.score)}" placeholder="${TEXT.REGION_SCORE_PLACEHOLDER}" min="0" max="${max}">
+            <span class="score-max">/ ${max}</span><span class="region-max-note">${escHtml(TEXT.REGION_STANDARD_SCORE_NOTE)}</span>`;
+        } else if (usePills) {
+          ctl = `<div class="grade-selector" data-gk-subject="${escHtml(sid)}">
+            ${gs.levels.map(lv => `<span class="grade-option glass glass--solid ${ex.grade === lv.id ? 'selected' : ''}"
+              data-action="region.pickGrade" data-grade="${escHtml(lv.id)}" role="button" tabindex="0">${escHtml(lv.name)}</span>`).join('')}
+          </div>`;
+        } else if (gs && gs.type === 'grade') {
+          ctl = `<select class="form-select gk-grade-select" data-gk-subject="${escHtml(sid)}">
+            <option value="">${TEXT.REGION_GRADE_PLACEHOLDER}</option>
+            ${gs.levels.map(lv => `<option value="${escHtml(lv.id)}"${ex.grade === lv.id ? ' selected' : ''}>${escHtml(lv.name)}</option>`).join('')}
+          </select>`;
+        } else {
+          ctl = `<input type="number" class="score-inline" data-gk-subject="${escHtml(sid)}" data-gk-type="score"
+            value="${gkVal(ex.score)}" placeholder="${TEXT.REGION_SCORE_PLACEHOLDER}" min="0" max="100">
+            <span class="score-max">/ 100</span>`;
+        }
+        return `<div class="gaokao-row" data-gk-check-row="${escHtml(sid)}">
+          <span class="subject-name">${escHtml(names[sid] || sid)}</span>${ctl}</div>`;
+      }).join('');
+    }
+    html += '</div>';
+  } else {
+    const tracks = pol.tracks || { science: [], arts: [] };
+    const trackLabel = { science: TEXT.REGION_TRACK_SCIENCE, arts: TEXT.REGION_TRACK_ARTS };
+    let curTrack = Object.keys(tracks).find(tk => (tracks[tk] || []).some(sid => checked.has(sid)))
+      || Object.keys(tracks).find(tk => list.some(x => x && (tracks[tk] || []).includes(x.subject)))
+      || Object.keys(tracks)[0] || '';
+    html += `<div class="gaokao-section">
+      <div class="gaokao-row">
+        <div class="gk-pill-group gk-track-pills">
+          ${Object.keys(tracks).map(tk => `<span class="grade-option gk-pill glass glass--solid ${tk === curTrack ? 'selected' : ''}"
+            data-action="teacher.pickGkTrack" data-gk-track="${escHtml(tk)}" role="button" tabindex="0">${escHtml(trackLabel[tk] || tk)}</span>`).join('')}
+        </div>
+      </div>
+      ${Object.keys(tracks).map(tk => (tracks[tk] || []).filter(sid => checked.has(sid)).map(sid => {
+        const ex = exOf(sid);
+        return `<div class="gaokao-row ${tk === curTrack ? '' : 'hidden'}" data-gk-track-row="${escHtml(tk)}">
+          <span class="subject-name">${escHtml(names[sid] || sid)}</span>
+          <input type="number" class="score-inline" data-gk-subject="${escHtml(sid)}" data-gk-type="score"
+            value="${gkVal(ex.score)}" placeholder="${TEXT.REGION_SCORE_PLACEHOLDER}" min="0" max="100">
+          <span class="score-max">/ 100</span></div>`;
+      }).join('')).join('')}
+    </div>`;
+  }
+  return html;
 }

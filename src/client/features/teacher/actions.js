@@ -8,9 +8,9 @@ import { SUFE_REGIONS } from '../../../shared/region-data.js'; // contract 9: pr
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
-import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick } from '../../core/ui.js';
+import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
-import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm } from './render.js';
+import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { demandIsActive } from '../student/display.js';
 import { positionFloatCard } from '../../core/anim.js';
@@ -306,9 +306,26 @@ export function initTeacherProfileForm(profile) {
   if (ts && profile && profile.time_slots) prefillTimeSlots(ts, profile.time_slots);
   const prov = document.getElementById('tp-province');
   if (prov) prov.addEventListener('change', onTeacherProvinceChange);
+  // F1d2: gaokao editor re-renders when the province/year/subjects it depends on change.
+  // collectTeacherGaokao() preserves typed values across re-renders (same principle as the
+  // nonacademic price rows) so switching province never wipes the teacher's scores/grade tiers. This is a
+  // separate listener from onTeacherProvinceChange so the initial seed render is not re-collected
+  // (a second collect would drop saved grades the current policy cannot render, silently losing
+  // the gaokao-policy-mismatch warning and the stale grade).
+  if (prov) prov.addEventListener('change', refreshGaokaoEditor);
   const gradYear = document.getElementById('tp-grad-year');
   if (gradYear) gradYear.addEventListener('blur', clampGradYear);
+  if (gradYear) gradYear.addEventListener('change', refreshGaokaoEditor);
+  const subjects = document.getElementById('tp-subjects');
+  if (subjects) subjects.addEventListener('change', refreshGaokaoEditor);
   renderNonacademicPriceRows(profile && profile.nonacademic_prices);
+  // F1d2 seed: the editor starts from the saved scores (array from the safeJsonArray mapper, or a
+  // defensive string form) and renders once — province/subject/year changes re-render later.
+  const raw = profile && profile.gaokao_scores;
+  let gkExisting;
+  if (Array.isArray(raw)) gkExisting = raw;
+  else if (typeof raw === 'string') { try { gkExisting = JSON.parse(raw) || []; } catch { gkExisting = []; } }
+  refreshGaokaoEditor(gkExisting);
   onTeacherProvinceChange(); // initial run: address area + method lock from saved province
 }
 
@@ -334,6 +351,9 @@ export function onTeacherProvinceChange() {
   if (isShanghai) {
     mountShanghaiAddrPicker('tp', addrInput ? addrInput.value : '', { hiddenId: 'tp-address' });
   }
+  // F1d2: gaokao editor re-render on province switch is a SEPARATE listener in
+  // initTeacherProfileForm — keeping it out of here avoids the init double-render that would
+  // collect away saved grades the current policy cannot render (and the mismatch warning).
 }
 
 // Graduation year clamp [CONFIG.GRAD_YEAR_MIN, CONFIG.GRAD_YEAR_MAX]; empty stays empty.
@@ -379,4 +399,81 @@ export function renderNonacademicPriceRows(prices) {
       <input type="number" class="form-input" data-field="max" value="${r.price_max != null ? escHtml(String(r.price_max)) : ''}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MAX}">
     </div>`;
   }).join('');
+}
+
+// ── Z-3-F1 F1d2: teacher gaokao editor interactions ──────────────────────────
+
+// First/track pill switch (data-action=teacher.pickGkPill). Single-selection within the group.
+// For the 3+1+2 first-subject group the shared score input follows the pill: park the current
+// value on the outgoing pill (dataset, survives until re-render) and restore the incoming pill's
+// parked value — otherwise switching the first subject would misattribute a typed score (v1 bug).
+export function pickGkPill(el) {
+  const group = el.closest('.gk-pill-group');
+  if (!group) return;
+  const input = document.querySelector('input[data-gk-role="first-score"]');
+  const old = group.querySelector('.gk-pill.selected');
+  if (old && old !== el && input) old.dataset.gkScore = input.value;
+  group.querySelectorAll('.gk-pill').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  if (old && old !== el && input) {
+    input.value = el.dataset.gkScore != null ? el.dataset.gkScore : '';
+  }
+}
+
+// Track switch for the legacy science/arts tracks (data-action=teacher.pickGkTrack): pick the pill and
+// show only the chosen track's subject rows.
+export function pickGkTrack(el) {
+  pickGkPill(el);
+  const root = document.getElementById('tp-gaokao');
+  if (!root) return;
+  root.querySelectorAll('[data-gk-track-row]').forEach(row => {
+    row.classList.toggle('hidden', row.dataset.gkTrackRow !== el.dataset.gkTrack);
+  });
+}
+
+// Collect the editor into the server contract shape [{subject, score?} | {subject, grade?}]:
+// raw-score inputs (main/standard/first), the selected first pill + its score, and grade
+// selectors/selects (electives). Empty rows are skipped; hidden track rows are skipped.
+export function collectTeacherGaokao() {
+  const root = document.getElementById('tp-gaokao');
+  const out = [];
+  if (!root) return out;
+  root.querySelectorAll('input[data-gk-type="score"][data-gk-subject]').forEach(inp => {
+    if (inp.closest('.hidden') || inp.value === '') return;
+    out.push({ subject: inp.dataset.gkSubject, score: +inp.value });
+  });
+  const firstPill = root.querySelector('[data-gk-role="first"] .gk-pill.selected');
+  const firstInput = root.querySelector('input[data-gk-role="first-score"]');
+  if (firstPill && firstInput && firstInput.value !== '') {
+    out.push({ subject: firstPill.dataset.gkFirst, score: +firstInput.value });
+  }
+  root.querySelectorAll('.grade-selector[data-gk-subject]').forEach(sel => {
+    if (sel.closest('.hidden')) return;
+    const s = sel.querySelector('.grade-option.selected');
+    if (s) out.push({ subject: sel.dataset.gkSubject, grade: s.dataset.grade });
+  });
+  root.querySelectorAll('select.gk-grade-select[data-gk-subject]').forEach(sel => {
+    if (sel.closest('.hidden') || !sel.value) return;
+    out.push({ subject: sel.dataset.gkSubject, grade: sel.value });
+  });
+  return out;
+}
+
+// Re-render the gaokao editor into #tp-gaokao from the live province/year/checked subjects,
+// preserving typed values. existing is only provided on the initial seed (saved scores from the
+// profile); afterwards the live editor is collected first so re-renders never drop user input.
+// Custom selects (ZJ/Beijing 21-tier grade dropdowns) are re-initialized explicitly; the global
+// MutationObserver sweep is a fallback for dynamically injected selects.
+export function refreshGaokaoEditor(existing) {
+  const el = document.getElementById('tp-gaokao');
+  if (!el) return;
+  const prov = document.getElementById('tp-province');
+  const year = document.getElementById('tp-grad-year');
+  const list = existing !== undefined ? existing : collectTeacherGaokao();
+  el.innerHTML = renderTeacherGaokaoEditor(
+    prov ? prov.value : '',
+    year && year.value ? Number(year.value) : undefined,
+    list,
+  );
+  initCustomSelects(el);
 }
