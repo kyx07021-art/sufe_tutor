@@ -9,8 +9,10 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
 const BASE = 'https://sufe-tutor.pages.dev';
-const USER = 'qa_teacher';
-const PASS = 'SufeQa2026!';
+// 固定 QA 测试账户（项目契约，CLAUDE.md「常量约定 · 测试账户」明文），非生产秘密；
+// 仅测试数据、密码公开记录于项目文档，无需轮换。override via env if ever needed.
+const USER = process.env.QA_TEACHER_USER || 'qa_teacher';
+const PASS = process.env.QA_TEACHER_PASS || 'SufeQa2026!';
 let failures = 0;
 const fail = (...a) => { console.error('✖', ...a); failures++; };
 const ok = (...a) => { console.log('✔', ...a); };
