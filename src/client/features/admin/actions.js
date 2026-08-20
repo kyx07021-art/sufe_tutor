@@ -9,6 +9,7 @@ import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha, segTabsHtml } from '../../core/ui.js';
 import { escHtml, fmtDateTime, loaderHtml, mdRender } from '../../core/dom.js'; // U-3f: post full-text modal via shared mdRender
+import { renderGlassLineChart } from '../../core/chart.js'; // U-3j: traffic charts (W6 shared chart component)
 import { priceRangeText, methodName, roleLabel } from '../../core/display.js'; // U-3g: contract method label; U-3i: content author role tag
 import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from '../teacher/display.js'; // U-3a: teacher row meta; U-3c: review stars/status tag
 import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand card (admin:true reuse, W6)
@@ -83,17 +84,43 @@ export async function loadAdminDashboard() {
   } catch (err) { showToast(err.message); }
 }
 
-export async function loadAdminTraffic() {
+// U-3j: traffic dashboard — v1-parity range seg-tabs (24h/7d/30d) + two glass line charts
+// (requests + avg latency) via the shared renderGlassLineChart (W6 reuse, core/chart.js).
+// Range state lives in _trafficRange; the seg-tab-change delegation in index.js reloads it.
+let _trafficRange = '24h';
+const TRAFFIC_RANGES = [['24h', TEXT.TRAFFIC_RANGE_24H], ['7d', TEXT.TRAFFIC_RANGE_7D], ['30d', TEXT.TRAFFIC_RANGE_30D]];
+export async function loadAdminTraffic(range = '24h') {
+  _trafficRange = range;
+  const el = document.getElementById('admin-traffic-box');
+  if (!el) return;
+  el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
-    const data = await api('/api/admin/traffic', { method: 'GET' });
-    const el = document.getElementById('admin-traffic-box');
-    if (el) el.textContent = JSON.stringify(data.traffic || data);
-  } catch (err) { showToast(err.message); }
+    const d = await api(`/api/admin/traffic?range=${range}`);
+    el.innerHTML = segTabsHtml(TRAFFIC_RANGES.map(([r, label]) => ({ key: r, label })), range, { attr: 'range', containerId: 'admin-traffic-tabs' })
+      + `<p class="text-muted">${escHtml(TEXT.TRAFFIC_HINT)}</p>
+      <div id="traffic-chart-req"></div>
+      <div id="traffic-chart-lat"></div>`;
+    renderGlassLineChart(document.getElementById('traffic-chart-req'), {
+      title: TEXT.TRAFFIC_TITLE,
+      colorVar: '--chart-traffic',
+      data: d.buckets.map(b => ({ label: b.label, value: b.requests })),
+      unit: d.unit,
+      baselineAtZero: true,
+      statFmt: total => TEXT.TRAFFIC_TOTAL_FMT.replace('{n}', Number(total).toLocaleString('zh-CN')),
+    });
+    renderGlassLineChart(document.getElementById('traffic-chart-lat'), {
+      title: TEXT.TRAFFIC_LATENCY_TITLE,
+      colorVar: '--chart-latency',
+      data: d.buckets.map(b => ({ label: b.label, value: b.avgMs })),
+      unit: d.unit,
+      baselineAtZero: false,
+      valueFmt: v => (v == null ? '—' : `${Math.round(v)}${TEXT.TRAFFIC_MS_UNIT}`),
+      statFmt: (total, n) => (n ? TEXT.TRAFFIC_SAMPLE_FMT.replace('{n}', n) : ''),
+    });
+  } catch (err) {
+    if (document.getElementById('admin-traffic-box')) el.innerHTML = `<div class="empty-state"><p>${escHtml(err.message)}</p></div>`;
+  }
 }
-
-// Z-11-F5: dormant stub — traffic range selector for the admin traffic box (pending B5);
-// zero call sites, kept as a marker where the range UI hooks in. Delete with B5 migration.
-export function setTrafficRange() {}
 
 export async function loadAdminUsers(role = ROLES.STUDENT, q = '') {
   try {
