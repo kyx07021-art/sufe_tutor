@@ -16,7 +16,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { renderTeacherProfileForm } from '../src/client/features/teacher/render.js';
+import { renderTeacherProfileForm, renderTeacherVerifySection } from '../src/client/features/teacher/render.js';
 import * as actions from '../src/client/features/teacher/actions.js';
 import { state } from '../src/client/core/state.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
@@ -499,5 +499,94 @@ test('F1d3 GAP-D 缓存失效：保存后 invalidate(teachers) 清公开列表�
   await actions.saveProfile();
   assert.deepEqual(state.allTeachers, [], '保存后教师列表缓存被清空（F7）');
   state.allTeachers = [];
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1 F1e：核验区块（四态渲染 / chsi 格式预检 / admission 守卫 / 集成）。
+// FileReader 在 jsdom 不可用，admission 的 FileReader 路径由代码审查 + F1g 浏览器 QA 覆盖；
+// 这里锁四态渲染、chsi 预检（G2：删预检必红）、未选照片守卫、enterTeacherProfile 集成。
+// ─────────────────────────────────────────────────────────────
+
+test('F1e 核验四态渲染：none 双通道 / pending 按通道 / approved / rejected 可重提', () => {
+  // none → 双通道
+  let html = renderTeacherVerifySection(null);
+  assert.ok(html.includes(TEXT.VERIF_NONE), 'none 状态 tag');
+  assert.ok(html.includes('verify-chsi-pane') && html.includes('verify-admission-pane'), 'none 双通道');
+  assert.ok(html.includes(TEXT.ADMISSION_SWITCH_LINK), 'admission 切换链接');
+  // pending chsi → 等待文案，无表单
+  html = renderTeacherVerifySection({ status: 'pending', verify_type: 'chsi' });
+  assert.ok(html.includes(TEXT.VERIF_PENDING) && html.includes(TEXT.CHSI_GATE_PENDING), 'pending chsi 文案');
+  assert.ok(!html.includes('verify-chsi-pane'), 'pending 不渲染表单');
+  // pending admission → 录取通知书等待文案
+  html = renderTeacherVerifySection({ status: 'pending', verify_type: 'admission' });
+  assert.ok(html.includes(TEXT.ADMISSION_GATE_PENDING), 'pending admission 文案');
+  // approved → 通过 tag + 开放提示，无表单
+  html = renderTeacherVerifySection({ status: 'approved' });
+  assert.ok(html.includes(TEXT.VERIF_APPROVED), 'approved tag');
+  assert.ok(!html.includes('verify-chsi-pane'), 'approved 不渲染表单');
+  // rejected → 拒绝 tag + 双通道可重提
+  html = renderTeacherVerifySection({ status: 'rejected' });
+  assert.ok(html.includes(TEXT.VERIF_REJECTED), 'rejected tag');
+  assert.ok(html.includes('verify-chsi-pane'), 'rejected 可重提（双通道）');
+  // 契约 6：零内联事件/样式
+  assert.ok(!/onclick=/.test(html) && !/style=/.test(html), '零内联事件/样式');
+});
+
+test('F1e chsi 提交：空/非法格式 toast + 零 POST；合法 POST {code}', async () => {
+  setup();
+  let postBody = null;
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') { postBody = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return { ok: true, status: 200, json: async () => ({ profile: null }) };
+  };
+  await actions.enterTeacherProfile();
+  // 空验证码
+  await actions.submitVerifyChsi();
+  let toast = dom.window.document.getElementById('toast-container');
+  assert.ok(toast.textContent.includes('请输入学信网在线验证码'), '空验证码提示');
+  assert.equal(postBody, null, '空验证码零 POST');
+  // 非法格式（<12 位）
+  const codeInput = dom.window.document.getElementById('verify-chsi-code');
+  codeInput.value = 'abc';
+  await actions.submitVerifyChsi();
+  toast = dom.window.document.getElementById('toast-container');
+  assert.ok(toast.textContent.includes('验证码格式不正确'), '非法格式提示');
+  assert.equal(postBody, null, '非法格式零 POST');
+  // 合法 12 位 → POST {code}
+  codeInput.value = 'ABCD12345678';
+  await actions.submitVerifyChsi();
+  assert.ok(postBody, '合法验证码 POST');
+  assert.equal(postBody.code, 'ABCD12345678', 'POST body {code}');
+  teardown();
+});
+
+test('F1e admission 提交：未选照片 → toast + 零 POST', async () => {
+  setup();
+  let called = false;
+  globalThis.fetch = async (url, opts) => {
+    if ((opts || {}).method === 'POST') { called = true; return { ok: true, json: async () => ({}) }; }
+    return { ok: true, status: 200, json: async () => ({ profile: null }) };
+  };
+  await actions.enterTeacherProfile();
+  await actions.submitVerifyAdmission();
+  assert.equal(called, false, '零 POST');
+  const toast = dom.window.document.getElementById('toast-container');
+  assert.ok(toast.textContent.includes('录取通知书图片格式不正确'), '未选照片提示（staged 空）');
+  teardown();
+});
+
+test('F1e 集成：enterTeacherProfile 拉核验状态 + 渲染核验区块（pending）', async () => {
+  setup();
+  let verifyFetch = false;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('verify-status')) { verifyFetch = true; return { ok: true, status: 200, json: async () => ({ status: 'pending', verify_type: 'chsi' }) }; }
+    return { ok: true, status: 200, json: async () => ({ profile: null }) };
+  };
+  await actions.enterTeacherProfile();
+  assert.ok(verifyFetch, 'verify-status 已拉取');
+  const el = dom.window.document.getElementById('teacher-profile-content');
+  assert.ok(el.querySelector('#teacher-verify'), '核验区块渲染');
+  assert.ok(el.querySelector('#teacher-verify').textContent.includes(TEXT.CHSI_GATE_PENDING), 'pending 文案在位');
   teardown();
 });

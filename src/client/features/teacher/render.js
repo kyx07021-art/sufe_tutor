@@ -400,3 +400,55 @@ export function renderTeacherGaokaoEditor(provinceId, graduationYear, existing) 
   }
   return html;
 }
+
+// Z-3-F1 F1e: teacher verification block (CHSI code / admission letter). Four states from
+// GET /api/teacher/verify-status: none (not submitted) → submission channels; pending → channel-specific
+// waiting copy; approved → gate-open hint; rejected → status tag + re-submission channels.
+// Pure HTML — no inline handlers/styles; toggles/submits use data-action delegation.
+function verifyChsiPaneHtml() {
+  return `<div class="verify-pane" id="verify-chsi-pane">
+    <p class="text-sm text-muted">${escHtml(TEXT.CHSI_GATE_HINT)}</p>
+    <ul class="verify-steps">${(TEXT.CHSI_GATE_STEPS || []).map(s => `<li class="text-sm">${escHtml(s)}</li>`).join('')}</ul>
+    <div class="form-group">
+      <input type="text" class="form-input" id="verify-chsi-code" maxlength="16" autocomplete="off" placeholder="${escHtml(TEXT.CHSI_GATE_PLACEHOLDER)}">
+    </div>
+    <div class="form-actions">
+      <button type="button" class="btn glass glass--pressable" data-action="teacher.submitVerifyChsi">${escHtml(TEXT.CHSI_GATE_SUBMIT)}</button>
+    </div>
+    <button type="button" class="btn btn-soft glass glass--pressable" data-action="teacher.showVerifyAdmission">${escHtml(TEXT.ADMISSION_SWITCH_LINK)}</button>
+  </div>`;
+}
+
+function verifyAdmissionPaneHtml() {
+  return `<div class="verify-pane hidden" id="verify-admission-pane">
+    <p class="text-sm text-muted">${escHtml(TEXT.ADMISSION_SHOOT_HINT)}</p>
+    <p class="text-sm text-muted">${escHtml(TEXT.ADMISSION_PRIVACY_NOTE)}</p>
+    <div class="form-group">
+      <label class="btn btn-soft glass glass--pressable" for="verify-admission-file">${escHtml(TEXT.ADMISSION_UPLOAD_BTN)}</label>
+      <input type="file" id="verify-admission-file" class="sr-file-input" accept="image/jpeg,image/png,image/webp" data-action="teacher.stageAdmission">
+    </div>
+    <div class="verify-admission-preview hidden" id="verify-admission-preview"></div>
+    <div class="form-actions">
+      <button type="button" class="btn glass glass--pressable" data-action="teacher.submitVerifyAdmission">${escHtml(TEXT.ADMISSION_SUBMIT)}</button>
+    </div>
+    <button type="button" class="btn btn-soft glass glass--pressable" data-action="teacher.showVerifyChsi">${escHtml(TEXT.ADMISSION_GATE_BACK)}</button>
+  </div>`;
+}
+
+export function renderTeacherVerifySection(vs) {
+  const st = (vs && vs.status) || 'none';
+  const statusMap = { none: TEXT.VERIF_NONE, pending: TEXT.VERIF_PENDING, approved: TEXT.VERIF_APPROVED, rejected: TEXT.VERIF_REJECTED };
+  const tag = statusMap[st] || TEXT.VERIF_NONE;
+  let html = `<section class="verify-block glass" id="teacher-verify">
+    <h3 class="profile-group-title">${escHtml(TEXT.CHSI_GATE_TITLE)}</h3>
+    <div class="verify-status-row"><span class="tag glass glass--solid">${escHtml(tag)}</span></div>`;
+  if (st === 'approved') {
+    html += `<p class="text-sm text-muted">${escHtml(TEXT.CHSI_GATE_HINT)}</p>`;
+  } else if (st === 'pending') {
+    html += `<p class="text-sm text-muted">${escHtml(vs && vs.verify_type === 'admission' ? TEXT.ADMISSION_GATE_PENDING : TEXT.CHSI_GATE_PENDING)}</p>`;
+  } else {
+    // none / rejected: both submission channels (chsi default, admission via switch link)
+    html += verifyChsiPaneHtml() + verifyAdmissionPaneHtml();
+  }
+  return html + '</section>';
+}

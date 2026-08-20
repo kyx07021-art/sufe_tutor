@@ -394,6 +394,7 @@ export const TEXT = {
   "ADMISSION_IMAGE_INVALID": "录取通知书图片格式不正确（仅支持 jpg/png 等常见图片）",
   "ADMISSION_IMAGE_TOO_LARGE": "录取通知书图片过大，请压缩后重新上传",
   "CHSI_CODE_REQUIRED": "请输入学信网在线验证码",
+  "CHSI_CODE_INVALID": "验证码格式不正确，请检查后重新输入",
   "VERIF_NONE": "未提交核验",
   "VERIF_PENDING": "待核验",
   "VERIF_APPROVED": "已通过",

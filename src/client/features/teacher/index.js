@@ -25,6 +25,11 @@ const ACTION_MAP = {
   'teacher.pickGkTrack': el => actions.pickGkTrack(el),
   // Z-3-F1 F1d3: profile form save (collect → validate → POST → toast + re-fetch)
   'teacher.saveProfile': actions.saveProfile,
+  // Z-3-F1 F1e: verification block — chsi⇄admission pane toggle + both submit channels
+  'teacher.showVerifyChsi': actions.showVerifyChsi,
+  'teacher.showVerifyAdmission': actions.showVerifyAdmission,
+  'teacher.submitVerifyChsi': actions.submitVerifyChsi,
+  'teacher.submitVerifyAdmission': actions.submitVerifyAdmission,
 };
 
 let installed = false;
@@ -66,6 +71,8 @@ function onLoad() {
     if (!el || !el.dataset) return;
     if (el.dataset.change === 'teacher.applyFilters') { actions.applyFilters(); return; }
     if (el.dataset.change === 'teacher.sort') { actions.teacherSortFromSelect(el); }
+    // F1e: admission photo file picker (change, not click — file inputs are skipped in click delegation)
+    if (el.dataset.action === 'teacher.stageAdmission') { actions.stageAdmissionFile(el); }
   }
   document.addEventListener('change', onChange);
   // Z-8-F1: avatar clicks are intercepted by anim.js capture and dispatch profile-panel-open

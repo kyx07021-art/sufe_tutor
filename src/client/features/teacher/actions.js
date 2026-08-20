@@ -10,7 +10,7 @@ import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
-import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor } from './render.js';
+import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor, renderTeacherVerifySection } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { demandIsActive } from '../student/display.js';
 import { positionFloatCard } from '../../core/anim.js';
@@ -283,15 +283,20 @@ export function renderProfileInfoCard(t) { return renderProfilePanel(t, ''); }
 // (encryptField(profile.credential_image || '')). The v2 verification UI (F1e) writes the separate
 // admission image to teacher_verifications — this echo only preserves the existing credential.
 let _currentCredential = '';
+// F1e: staged admission photo (data URL) read from the file input; cleared after submit.
+let _pendingAdmission = '';
 export async function enterTeacherProfile() {
   const el = document.getElementById('teacher-profile-content');
   if (!el) return;
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   try {
-    const data = await api('/api/teacher/profile', { method: 'GET' });
+    const [data, verify] = await Promise.all([
+      api('/api/teacher/profile', { method: 'GET' }),
+      api('/api/teacher/verify-status', { method: 'GET' }).catch(() => null), // F1e: verify block is non-fatal
+    ]);
     if (!el) return; // page switched away while loading
     _currentCredential = data.profile ? (data.profile.credential_image || '') : '';
-    el.innerHTML = renderTeacherProfileForm(data.profile || null);
+    el.innerHTML = renderTeacherProfileForm(data.profile || null) + renderTeacherVerifySection(verify || null);
     initTeacherProfileForm(data.profile || null);
   } catch (err) {
     if (!el) return;
@@ -357,6 +362,84 @@ export async function saveProfile() {
     await enterTeacherProfile(); // re-fetch + re-render echoes the saved state
   } catch (err) { showToast(err.message); }
   finally { if (btn) btnDone(btn, TEXT.BTN_SAVE); }
+}
+
+// ── Z-3-F1 F1e: teacher verification block (chsi code / admission upload) ──────────
+
+// Re-fetch verify-status and re-render only the verify section (keeps the form edits intact).
+async function refreshVerifySection() {
+  const el = document.getElementById('teacher-verify');
+  if (!el) return;
+  try {
+    const verify = await api('/api/teacher/verify-status', { method: 'GET' });
+    el.outerHTML = renderTeacherVerifySection(verify || null);
+  } catch { /* keep current render */ }
+}
+
+// Toggle the two submission channels (chsi default; the "freshman" switch reveals admission).
+export function showVerifyChsi() {
+  document.getElementById('verify-chsi-pane')?.classList.remove('hidden');
+  document.getElementById('verify-admission-pane')?.classList.add('hidden');
+}
+export function showVerifyAdmission() {
+  document.getElementById('verify-admission-pane')?.classList.remove('hidden');
+  document.getElementById('verify-chsi-pane')?.classList.add('hidden');
+}
+
+// Chsi verification-code submit: pre-check the /^[A-Za-z0-9]{12,16}$/ format (matches
+// server CHSI_CODE_RE), POST, then re-render the verify section to the pending state.
+export async function submitVerifyChsi() {
+  const input = document.getElementById('verify-chsi-code');
+  const code = input ? input.value.trim() : '';
+  if (!code) { showToast(TEXT.CHSI_CODE_REQUIRED, 'error'); return; }
+  if (!/^[A-Za-z0-9]{12,16}$/.test(code)) { showToast(TEXT.CHSI_CODE_INVALID, 'error'); return; }
+  const btn = document.querySelector('[data-action="teacher.submitVerifyChsi"]');
+  try {
+    if (btn) btnLoading(btn);
+    await api('/api/teacher/verify-chsi', { method: 'POST', body: { code } });
+    showToast(TEXT.SUCCESS_PROFILE_SAVED);
+    await refreshVerifySection();
+  } catch (err) { showToast(err.message); }
+  finally { if (btn) btnDone(btn, TEXT.CHSI_GATE_SUBMIT); }
+}
+
+// Admission photo file change: read the picked file into a data URL (spread-copy the live
+// input.files reference then clear per P13), pre-check size against CONFIG.ADMISSION_IMG_MAX,
+// stage it for submit and show a preview. No programmatic .click() — the label for= opens it.
+export function stageAdmissionFile(input) {
+  const files = input ? [...input.files] : [];
+  if (input) input.value = '';
+  const f = files[0];
+  if (!f) return;
+  if (f.type && !/^image\/(jpeg|png|webp)$/i.test(f.type)) { showToast(TEXT.ADMISSION_IMAGE_INVALID, 'error'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = String(reader.result || '');
+    if (dataUrl.length > CONFIG.ADMISSION_IMG_MAX) { showToast(TEXT.ADMISSION_IMAGE_TOO_LARGE, 'error'); return; }
+    _pendingAdmission = dataUrl;
+    const preview = document.getElementById('verify-admission-preview');
+    if (preview) {
+      preview.classList.remove('hidden');
+      preview.innerHTML = `<img src="${escHtml(dataUrl)}" alt="">`;
+    }
+  };
+  reader.onerror = () => { showToast(TEXT.ADMISSION_IMAGE_INVALID, 'error'); };
+  reader.readAsDataURL(f);
+}
+
+// Submit the staged admission photo to POST /api/teacher/verify-admission (server re-validates
+// MIME whitelist + magic bytes), then re-render the verify section to the pending state.
+export async function submitVerifyAdmission() {
+  if (!_pendingAdmission) { showToast(TEXT.ADMISSION_IMAGE_INVALID, 'error'); return; }
+  const btn = document.querySelector('[data-action="teacher.submitVerifyAdmission"]');
+  try {
+    if (btn) btnLoading(btn);
+    await api('/api/teacher/verify-admission', { method: 'POST', body: { image: _pendingAdmission } });
+    _pendingAdmission = '';
+    showToast(TEXT.SUCCESS_PROFILE_SAVED);
+    await refreshVerifySection();
+  } catch (err) { showToast(err.message); }
+  finally { if (btn) btnDone(btn, TEXT.ADMISSION_SUBMIT); }
 }
 
 // Z-3-F1 F1d1: field interactions on the teacher profile form. Idempotent — form.dataset
