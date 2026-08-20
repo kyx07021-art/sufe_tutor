@@ -127,8 +127,8 @@ export function mountShell() {
         ${page('account-settings', TEXT.PAGE_ACCOUNT_SETTINGS, { body: `<div id="account-settings-content"></div>` })}
         ${page('admin-stats', TEXT.PAGE_ADMIN_STATS, { body: `<div id="admin-stats-box"></div><div id="admin-stats-content"></div>` })}
         ${page('admin-traffic', TEXT.PAGE_ADMIN_TRAFFIC, { body: `<div id="admin-traffic-box"></div>` })}
-        ${page('admin-students', TEXT.PAGE_ADMIN_STUDENTS, { body: `<div class="browse-list" id="admin-students-list"></div>` })}
-        ${page('admin-teachers', TEXT.PAGE_ADMIN_TEACHERS, { body: `<div class="browse-list" id="admin-teachers-list"></div>` })}
+        ${page('admin-students', TEXT.PAGE_ADMIN_STUDENTS, { body: `<div class="admin-search-wrap"><input type="search" class="form-input admin-search" id="admin-students-search" placeholder="${escHtml(TEXT.ADMIN_USER_SEARCH_PLACEHOLDER)}" data-input-action="admin.searchStudents"></div><div class="browse-list" id="admin-students-list"></div>` })}
+        ${page('admin-teachers', TEXT.PAGE_ADMIN_TEACHERS, { body: `<div class="admin-search-wrap"><input type="search" class="form-input admin-search" id="admin-teachers-search" placeholder="${escHtml(TEXT.ADMIN_USER_SEARCH_PLACEHOLDER)}" data-input-action="admin.searchTeachers"></div><div class="browse-list" id="admin-teachers-list"></div>` })}
         ${page('admin-demands', TEXT.PAGE_ADMIN_DEMANDS, { body: `<div class="browse-list" id="admin-demands-list"></div>` })}
         ${page('admin-reviews', TEXT.PAGE_ADMIN_REVIEWS, { body: `<div class="browse-list" id="admin-reviews-list"></div>` })}
         ${page('admin-awards', TEXT.PAGE_ADMIN_AWARDS, { body: `<div class="browse-list" id="admin-awards-list"></div>` })}

@@ -15,6 +15,11 @@ const ACTION_MAP = {
   'admin.submitPenalty': el => actions.doSubmitContentPenalty(el.dataset.id, el.dataset.type),
   'admin.deletePost': el => actions.adminDeletePost(Number(el.dataset.id)),
   'admin.submitAwardReject': el => actions.doAwardAction(Number(el.dataset.id), 'reject'),
+  // U-3a: user management rows — ban/unban (capToken re-auth), view profile, verify/unverify
+  'admin.banUser': el => actions.confirmBanUser(Number(el.dataset.id), el.dataset.banned !== '0', el.dataset.role || ROLES.STUDENT),
+  'admin.viewProfile': el => actions.openProfilePanel(Number(el.dataset.id)),
+  'admin.verifyTeacher': el => actions.toggleTeacherVerify(Number(el.dataset.id), true),
+  'admin.unverify': el => actions.toggleTeacherVerify(Number(el.dataset.id), false),
 };
 let installed = false;
 function onActionClick(e) {
@@ -43,7 +48,15 @@ function onLoad() {
   registerPage({ id: 'admin-feedback', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_FEEDBACK, desc: TEXT.PAGE_ADMIN_FEEDBACK_DESC, auth: true, enter: () => actions.loadAdminFeedback() });
   registerPage({ id: 'admin-content', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_CONTENT, desc: TEXT.PAGE_ADMIN_CONTENT_DESC, auth: true, enter: () => actions.loadAdminContent() });
   document.addEventListener('click', onActionClick);
-  return () => { document.removeEventListener('click', onActionClick); installed = false; };
+  // U-3a: debounced username search on the admin students/teachers pages (input delegation)
+  function onInput(e) {
+    const el = e.target && e.target.closest ? e.target.closest('[data-input-action]') : null;
+    if (!el) return;
+    if (el.dataset.inputAction === 'admin.searchStudents') actions.adminUsersSearchDebounced(ROLES.STUDENT, el.value);
+    else if (el.dataset.inputAction === 'admin.searchTeachers') actions.adminUsersSearchDebounced(ROLES.TEACHER, el.value);
+  }
+  document.addEventListener('input', onInput);
+  return () => { document.removeEventListener('click', onActionClick); document.removeEventListener('input', onInput); installed = false; };
 }
 export default { id: 'admin', text: TEXT, pages: [], actions: ACTION_MAP, onLoad };
 export { actions, TEXT };

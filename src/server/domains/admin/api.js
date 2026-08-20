@@ -14,7 +14,8 @@ import {
   dbGetUserStats, dbGetCount, dbGetCountWhere, dbGetReviewStats, dbGetInviteStats,
   dbGetRecentUsers, dbGetRecentDemands,
   dbGetDemandById, dbAdminForceDeleteDemand, dbDeleteMessage,
-  dbGetStudentUsersAdmin, dbGetTeachers, dbGetUserById, dbSetUserBanned, dbSearchUsersByRole,
+  dbGetStudentUsersAdmin, dbGetTeachers, dbGetUserById, dbSetUserBanned,
+  dbAdminSearchUsers,
   dbGetDemands, dbGetMessageById,
   dbGetAllContentAdmin, dbGetPostById, dbGetReviewById, dbGetFeedbackById, dbGetComplaintById,
   dbGetUpload, dbGetTeacherProfile, dbGetContractById, dbGetSigningById,
@@ -146,9 +147,9 @@ export async function handleAdminUsers(db, url, req) {
   if (err) return err;
   const role = url.searchParams.get('role');
   if (!['student', 'teacher'].includes(role)) return errorMsg('INVALID_ROLE');
-  // 用户名搜索（q 可选）：LIKE 转义在数据层单点（dbSearchUsersByRole 同口径），管理员效率入口
+  // 用户名搜索（q 可选）：LIKE 转义在数据层单点，返回与列表路径相同的完整行形状（U-3a F2）
   const q = String(url.searchParams.get('q') || '').trim();
-  if (q) return json({ users: await dbSearchUsersByRole(db, role, q, 0, LIMITS.ADMIN_SEARCH_MAX) });
+  if (q) return json({ users: await dbAdminSearchUsers(db, role, q) });
 
   const users = role === 'student'
     ? await dbGetStudentUsersAdmin(db)

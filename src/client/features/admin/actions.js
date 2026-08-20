@@ -18,7 +18,9 @@ import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared e
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, confirm, withCaptcha } from '../../core/ui.js';
-import { escHtml } from '../../core/dom.js';
+import { escHtml, fmtDateTime } from '../../core/dom.js';
+import { priceRangeText } from '../../core/display.js';
+import { teacherGradeName, ratingText } from '../teacher/display.js'; // U-3a: teacher row meta (grade/rating) display mappings
 
 function adminStatCards(pairs) {
   return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');
@@ -95,22 +97,55 @@ export async function loadAdminTraffic() {
 // zero call sites, kept as a marker where the range UI hooks in. Delete with B5 migration.
 export function setTrafficRange() {}
 
-export async function loadAdminUsers(role = ROLES.STUDENT) {
+export async function loadAdminUsers(role = ROLES.STUDENT, q = '') {
   try {
-    const data = await dhGet(`/api/admin/users?role=${role}`, { domain: 'admin' });
-    const el = document.getElementById('admin-users-list') || (role === ROLES.TEACHER ? document.getElementById('admin-teachers-list') : document.getElementById('admin-students-list'));
-    if (el) el.innerHTML = (data.users || []).map(renderAdminUserRow).join('');
+    const suffix = q ? `&q=${encodeURIComponent(q)}` : '';
+    const data = await dhGet(`/api/admin/users?role=${role}${suffix}`, { domain: 'admin' });
+    const el = document.getElementById(role === ROLES.TEACHER ? 'admin-teachers-list' : 'admin-students-list');
+    if (el) el.innerHTML = (data.users || []).map(u => renderAdminUserRow(u, role)).join('');
   } catch (err) { showToast(err.message); }
 }
 
 export function loadAdminStudents() { return loadAdminUsers(ROLES.STUDENT); }
 export function loadAdminTeachers() { return loadAdminUsers(ROLES.TEACHER); }
-// Z-11-F5: dormant stub — debounced username search for the admin users list (pending B5);
-// zero call sites, kept as a marker where the search UI hooks in. Delete with B5 migration.
-export function adminUsersSearchDebounced() {}
 
-export function renderAdminUserRow(u) {
-  return `<div class="list-card glass admin-user-row"><span>${escHtml(u.username)}</span><span class="tag glass glass--solid">${escHtml(u.role || '')}</span></div>`;
+// U-3a: debounced username search (300ms). Empty query falls back to the full list via the
+// server-side q branch (dbSearchUsersByRole single source). Timers cleared on re-entry.
+let _adminUsersSearchTimer = 0;
+export function adminUsersSearchDebounced(role, q) {
+  clearTimeout(_adminUsersSearchTimer);
+  _adminUsersSearchTimer = setTimeout(() => loadAdminUsers(role, String(q || '').trim()), 300);
+}
+
+// U-3a: v1-parity admin user row (data-action delegation, no inline handlers). Student rows
+// show demand count; teacher rows show grade/rating/price + verify badge. Actions are wired
+// via ACTION_MAP (banUser/viewProfile/verifyTeacher/unverify).
+export function renderAdminUserRow(u, role) {
+  const uid = role === ROLES.TEACHER ? (u.user_id || u.id) : u.id;
+  const meta = role === ROLES.TEACHER
+    ? `${teacherGradeName(u.grade) || '—'} · ${ratingText(u.rating)}${TEXT.RATING_SCORE_SUFFIX} · ${priceRangeText(u.price_min, u.price_max, TEXT.PRICE_UNIT) || '?'}`
+    : `${u.demand_count || 0}${TEXT.DEMAND_COUNT_SUFFIX}`;
+  return `<div class="admin-row glass admin-user-row">
+    <div class="admin-row-main">
+      <div class="admin-row-line">
+        <strong>${escHtml(u.username)}</strong>
+        ${u.verified ? `<span class="tag tag-ok glass glass--solid">${TEXT.VERIFIED_BADGE}</span>` : ''}
+        ${u.banned ? `<span class="tag tag-danger glass glass--solid">${TEXT.TAG_BANNED}</span>` : ''}
+      </div>
+      <div class="admin-row-meta">${meta} · ${TEXT.REGISTERED_AT_PREFIX}${fmtDateTime(u.created_at)}</div>
+    </div>
+    <div class="admin-row-actions">
+      ${role === ROLES.TEACHER ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewProfile" data-id="${uid}">${TEXT.BTN_VIEW_DETAIL}</button>` : ''}
+      ${role === ROLES.TEACHER && u.credential_image
+        ? (u.verified
+          ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.unverify" data-id="${uid}">${TEXT.UNVERIFY}</button>`
+          : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.verifyTeacher" data-id="${uid}">${TEXT.VERIFY_TEACHER}</button>`)
+        : ''}
+      ${u.banned
+        ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.banUser" data-id="${uid}" data-banned="0" data-role="${role}">${TEXT.BTN_UNBAN}</button>`
+        : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.banUser" data-id="${uid}" data-banned="1" data-role="${role}">${TEXT.BTN_BAN}</button>`}
+    </div>
+  </div>`;
 }
 
 export async function loadAdminDemands() {
@@ -227,9 +262,9 @@ export async function resolveAdminFeedback(id) {
   try { await api(`/api/feedbacks/${id}/resolve`, { method: 'POST', body: {} }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminFeedback(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
 }
 
-export function confirmBanUser(id, banned = true) {
+export function confirmBanUser(id, banned = true, role = ROLES.STUDENT) {
   confirm({ title: TEXT.ADMIN_BAN, message: banned ? TEXT.ADMIN_BAN_CONFIRM : TEXT.ADMIN_UNBAN_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    try { await api(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned, capToken } }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminUsers(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
+    try { await api(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned, capToken } }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminUsers(role); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write + refresh the list the ban came from (U-3a)
   }});
 }
 export function doBanUser(id) { return confirmBanUser(id, true); }
@@ -283,7 +318,25 @@ export function verifApprove(id) { api(`/api/admin/verifications/${id}/action`, 
 export function verifRevoke(id) { api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { action: 'revoke' } }).then(() => { invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminVerifications(); }).catch(err => showToast(err.message)); } // Q-3b-F3: invalidate after write
 export function verifReject(id) { return verifRevoke(id); }
 
-export function toggleTeacherVerify(userId) { api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: true } }).then(() => showToast(TEXT.ADMIN_DONE)).catch(err => showToast(err.message)); }
-export function doTeacherVerify(userId) { return toggleTeacherVerify(userId); }
+// U-3a rework (audit F1): verify/unverify is a danger op (server handleVerifyTeacher requires
+// confirmDangerOtp) — wrap in confirm needReAuth + withCaptcha, aligned with the ban path.
+export function toggleTeacherVerify(userId, verified = true) {
+  confirm({ title: TEXT.ADMIN_BAN, message: verified ? TEXT.VERIFY_TEACHER_CONFIRM : TEXT.UNVERIFY_CONFIRM, needReAuth: true, onConfirm: async capToken => {
+    withCaptcha(async () => {
+      try {
+        await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: !!verified, capToken } });
+        invalidate('admin'); showToast(verified ? TEXT.ADMIN_DONE : TEXT.UNVERIFY_DONE); loadAdminTeachers();
+      } catch (err) { showToast(err.message); }
+    });
+  }});
+}
+export function doTeacherVerify(userId) { return toggleTeacherVerify(userId, true); }
+export function doUnverify(userId) { return toggleTeacherVerify(userId, false); }
+
+// U-3a: open the teacher profile panel from an admin row. Delegated via the profile-panel-open
+// event (Z-8-F1 pattern) so admin does not depend on the teacher feature module directly.
+export function openProfilePanel(userId) {
+  document.dispatchEvent(new CustomEvent('profile-panel-open', { detail: { userId } }));
+}
 
 export function closeModalAction() { closeModal(); }

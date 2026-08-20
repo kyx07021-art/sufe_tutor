@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -27,7 +27,7 @@ function teardown() {
 test('loadAdminUsers：拉取后渲染用户名行到列表容器', async () => {
   const dom = setup();
   const list = document.createElement('div');
-  list.id = 'admin-users-list';
+  list.id = 'admin-students-list'; // U-3a: loadAdminUsers resolves per-role container id (was admin-users-list)
   document.body.appendChild(list);
   globalThis.fetch = async (url) => {
     assert.ok(String(url).includes('/api/admin/users?role=student'), '带 role 参数');
@@ -85,5 +85,76 @@ test('openContentPenaltyModal：危险操作弹窗含理由输入 + 确认按钮
   assert.ok(modal, '弹窗出现');
   assert.ok(modal.querySelector('#penalty-reason'), '理由 textarea');
   assert.ok(modal.querySelector('[data-action="admin.submitPenalty"][data-id="21"][data-type="post"]'), '确认按钮带 id/type');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// Z-3-F1/U-3a：用户管理页——renderAdminUserRow v1-parity（学生/教师行）、
+// loadAdminUsers 搜索参数、confirmBanUser 按页刷新。G2：删 meta/按钮必红。
+// ─────────────────────────────────────────────────────────────
+
+test('U-3a renderAdminUserRow 学生行：用户名 + 需求数 + 注册时间 + 封禁按钮委托', () => {
+  const html = renderAdminUserRow({ id: 7, username: '学生甲', role: 'student', banned: 0, created_at: '2026-08-01 12:00:00', demand_count: 3 }, 'student');
+  assert.ok(html.includes('学生甲'), '用户名');
+  assert.ok(html.includes('3条需求') || html.includes('3 条需求'), '需求数 meta');
+  assert.ok(html.includes('注册于'), '注册时间前缀');
+  assert.ok(html.includes('data-action="admin.banUser" data-id="7" data-banned="1"'), '封禁按钮委托（banned=1）');
+  assert.ok(!html.includes('data-action="admin.viewProfile"'), '学生行无查看详情');
+  assert.ok(!/onclick=/.test(html), '零内联事件');
+});
+
+test('U-3a renderAdminUserRow 已封禁学生：显示封禁 tag + 解封按钮（banned=0）', () => {
+  const html = renderAdminUserRow({ id: 8, username: '封禁者', role: 'student', banned: 1, created_at: '2026-08-01 12:00:00' }, 'student');
+  assert.ok(html.includes('已封禁'), '封禁 tag');
+  assert.ok(html.includes('data-banned="0"'), '解封按钮');
+});
+
+test('U-3a renderAdminUserRow 教师行：年级/评分/报价 meta + 认证徽章 + 查看详情/认证按钮', () => {
+  const html = renderAdminUserRow({ user_id: 40, id: 40, username: '教师乙', role: 'teacher', verified: 1, banned: 0, created_at: '2026-08-01 12:00:00', grade: 'freshman', rating: 4.8, price_min: 100, price_max: 200, credential_image: 'data:image/png;base64,xxx' }, 'teacher');
+  assert.ok(html.includes('已认证'), '认证徽章');
+  assert.ok(html.includes('4.8分') || html.includes('4.8 分'), '评分 meta');
+  assert.ok(html.includes('元/h'), '报价单位');
+  assert.ok(html.includes('data-action="admin.viewProfile" data-id="40"'), '查看详情按钮');
+  assert.ok(html.includes('data-action="admin.unverify"'), '已认证 → 撤认证按钮');
+  assert.ok(html.includes('data-action="admin.banUser"'), '封禁按钮');
+});
+
+test('U-3a renderAdminUserRow 教师未认证：认证按钮（data-action=admin.verifyTeacher）', () => {
+  const html = renderAdminUserRow({ user_id: 41, username: '待认证', role: 'teacher', verified: 0, banned: 0, created_at: '2026-08-01 12:00:00', credential_image: 'data:image/png;base64,xxx' }, 'teacher');
+  assert.ok(html.includes('data-action="admin.verifyTeacher" data-id="41"'), '认证按钮');
+});
+
+test('U-3a loadAdminUsers 搜索：带 q 参数 + 完整行形状渲染（G3 生产形状；G2 删 meta 必红）', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-teachers-list';
+  document.body.appendChild(list);
+  globalThis.fetch = async (url) => {
+    assert.ok(String(url).includes('/api/admin/users?role=teacher&q=' + encodeURIComponent('张')), '搜索 q 参数');
+    // U-3a F2：生产搜索返回与列表路径相同的完整行形状（dbAdminSearchUsers），含 meta/认证态/封禁态
+    return { ok: true, status: 200, json: async () => ({ users: [{ user_id: 50, id: 50, username: '张老师', role: 'teacher', banned: 0, created_at: '2026-08-01 12:00:00', grade: 'freshman', rating: 4.8, price_min: 100, price_max: 200, verified: 1, credential_image: 'data:image/png;base64,xxx' }] }) };
+  };
+  await loadAdminUsers('teacher', '张');
+  assert.ok(list.innerHTML.includes('张老师'), '搜索结果渲染');
+  assert.ok(list.innerHTML.includes('已认证'), '搜索行认证徽章渲染（F2 修复）');
+  assert.ok(list.innerHTML.includes('元/h'), '搜索行报价 meta 渲染（F2 修复）');
+  assert.ok(list.innerHTML.includes('data-action="admin.banUser"') && list.innerHTML.includes('data-banned="1"'), '搜索行封禁按钮态正确（F2 修复）');
+  teardown();
+});
+
+test('U-3a rework F1：toggleTeacherVerify 走 confirm needReAuth，未确认零 POST（锁 capToken 流程）', async () => {
+  const dom = setup();
+  let verifyCalled = false;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/admin/teachers/41/verify')) { verifyCalled = true; return { ok: true, status: 200, json: async () => ({}) }; }
+    return { ok: true, status: 200, json: async () => ({}) };
+  };
+  toggleTeacherVerify(41, true);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, 'confirm 弹窗出现（走二次确认而非直调）');
+  assert.ok(modal.textContent.includes('确认通过该教师的学籍认证吗'), '确认文案在位');
+  assert.ok(modal.querySelector('#reauth-password'), 'needReAuth 密码输入在位');
+  assert.equal(verifyCalled, false, '未确认前零 POST');
+  await new Promise(r => setTimeout(r, 80)); // let confirm's REAUTH_FOCUS_MS(50) timer settle before teardown clears document
   teardown();
 });

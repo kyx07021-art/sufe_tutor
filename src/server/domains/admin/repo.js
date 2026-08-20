@@ -5,6 +5,8 @@ import { dbAll, dbGet, dbRun } from '../../core/util.js'; // Z-6-F1：dbRevokeIn
 import { safeJsonArray } from '../../core/json.js';
 import { LIMITS } from '../../../shared/config.js';
 import { MSG } from '../../../shared/codes.js'; // Q-2i-M5：内容审核 title 文案单源
+import { mapTeacherProfileRow } from '../teacher/repo.js'; // U-3a F2: single-source teacher row decrypt for admin search
+import { likeEscape } from '../posts/repo.js'; // U-3a F2: shared LIKE-escape (same single source as complaints search)
 
 // ============================================================
 // 管理员统计
@@ -78,6 +80,34 @@ export async function dbGetStudentUsersAdmin(db) {
   return await dbAll(db, `SELECT u.id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
     FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
     WHERE u.role='student' GROUP BY u.id ORDER BY u.created_at DESC`);
+}
+
+// U-3a rework (audit F2): admin username search must return the FULL row shape the list path
+// uses — dbSearchUsersByRole (complaints domain) returns only {id,username,role}, which made
+// search rows lose banned/created_at/demand_count (student) and grade/rating/price/verified
+// (teacher). Reuses mapTeacherProfileRow (single-source decrypt) + likeEscape (posts/repo shared
+// tool, same LIKE-escape single source as complaints).
+export async function dbAdminSearchUsers(db, role, q, limit = LIMITS.ADMIN_SEARCH_MAX) {
+  const num = /^\d+$/.test(q) ? +q : 0;
+  const like = `%${likeEscape(q)}%`;
+  if (role === 'teacher') {
+    const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
+        tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.price_min, tp.price_max,
+        tp.wechat, tp.email, tp.time_slots, tp.teaching_method,
+        tp.personality_tags, tp.nonacademic_projects, tp.nonacademic_prices,
+        tp.graduation_year,
+        tp.rating, tp.rating_count, tp.province, tp.intro, tp.address, tp.school, tp.real_name,
+        tp.verified, tp.chsi_school, tp.chsi_level, tp.chsi_major, tp.chsi_status, tp.chsi_enroll_year, tp.chsi_verified,
+        tp.updated_at
+      FROM users u LEFT JOIN teacher_profiles tp ON tp.user_id=u.id
+      WHERE u.role='teacher' AND (u.username LIKE ? ESCAPE '\\' OR (? > 0 AND u.id = ?))
+      ORDER BY u.id DESC LIMIT ${limit}`, [like, num, num]);
+    return await Promise.all(rows.map(async r => ({ ...(await mapTeacherProfileRow(r)), role: r.role, banned: r.banned, created_at: r.created_at })));
+  }
+  return await dbAll(db, `SELECT u.id,u.username,u.role,u.banned,u.created_at,COUNT(sd.id) AS demand_count
+    FROM users u LEFT JOIN student_demands sd ON sd.user_id=u.id
+    WHERE u.role='student' AND (u.username LIKE ? ESCAPE '\\' OR (? > 0 AND u.id = ?))
+    GROUP BY u.id ORDER BY u.id DESC LIMIT ${limit}`, [like, num, num]);
 }
 
 // ============================================================
