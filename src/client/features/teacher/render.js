@@ -156,7 +156,8 @@ export function renderTeacherProfileForm(profile) {
   const tagPickBtn = (id, name, containerId, max, checked) =>
     `<button type="button" class="tag-pick glass glass--solid${checked ? ' selected' : ''}" data-action="teacher.toggleTagPick" data-container="${containerId}" data-max="${max}" data-id="${escHtml(id)}">${escHtml(name)}</button>`;
   const tags = PERSONALITY_TAGS.map(t => tagPickBtn(t.id, t.name, 'tp-personality', CONFIG.PERSONALITY_TAGS_MAX, (p.personality_tags || []).includes(t.id))).join('');
-  const nonac = NONACADEMIC_PROJECTS.map(n => tagPickBtn(n.id, n.name, 'tp-nonacademic', 99, (p.nonacademic_projects || []).includes(n.id))).join('');
+  // 0 = no cap: the server places no upper bound on nonacademic projects, so pass 0 to disable the max clamp.
+  const nonac = NONACADEMIC_PROJECTS.map(n => tagPickBtn(n.id, n.name, 'tp-nonacademic', 0, (p.nonacademic_projects || []).includes(n.id))).join('');
 
   return `<form id="teacher-profile-form" class="profile-form" novalidate>
     <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_BASIC}</h3>
