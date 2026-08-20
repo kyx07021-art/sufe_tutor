@@ -14,6 +14,7 @@ import { teacherGradeName, ratingText, starsHtml, reviewStatusMeta } from '../te
 import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand card (admin:true reuse, W6)
 import { contractStatusMeta } from '../contract/display.js'; // U-3g: contract status tag (shared single source)
 import { splitContractBiz, stripContractMarker, renderContractDiff } from '../contract/render.js'; // U-3g: contract diff/full-text modal (W6 reuse)
+import { feedbackKindName, feedbackSubjectName, feedbackKindCls } from '../complaints/display.js'; // U-3h: feedback kind/subject tags (shared single source)
 import { STATUS, AWARD_STATUS, VERIFY_TYPES } from '../../../shared/enums.js'; // U-3c review / U-3d award / U-3e verify-type gates (shared enums)
 
 function adminStatCards(pairs) {
@@ -362,12 +363,35 @@ export async function adminRemoveContract(id) {
   }});
 }
 
+// U-3h: feedback review — v1-parity card (bug/complaint warning edge + resolved fade + kind/subject
+// status tags + content + resolve button). Resolve stays a light action (no capToken; P12 lists
+// logout/revoke/sign as danger ops — marking a feedback resolved is not one).
 export async function loadAdminFeedback() {
   try {
     const data = await dhGet('/api/feedbacks', { domain: 'admin' });
     const el = document.getElementById('admin-feedback-list');
-    if (el) el.innerHTML = (data.feedbacks || []).map(f => `<div class="list-card glass">${escHtml(f.title || '')}</div>`).join('');
+    if (el) el.innerHTML = (data.feedbacks || []).length ? (data.feedbacks || []).map(renderAdminFeedbackRow).join('') : `<p class="empty-state">${escHtml(TEXT.ADMIN_FEEDBACK_EMPTY)}</p>`;
   } catch (err) { showToast(err.message); }
+}
+
+export function renderAdminFeedbackRow(f) {
+  const resolved = f.status === 'resolved';
+  const subject = feedbackSubjectName(f.subject); // non-complaint stays ''
+  return `<div class="list-card glass feedback-card${f.kind === 'bug' ? ' feedback-card--bug' : ''}${resolved ? ' feedback-card--resolved' : ''}">
+    <div class="list-card-header">
+      <span class="list-card-title">${escHtml(f.title || TEXT.BTN_FEEDBACK)}</span>
+      <span class="feedback-tags">
+        <span class="tag glass glass--solid ${feedbackKindCls(f.kind)}">${escHtml(feedbackKindName(f.kind))}</span>
+        ${subject ? `<span class="tag glass glass--solid tag-ok">${escHtml(subject)}</span>` : ''}
+        <span class="tag glass glass--solid ${resolved ? 'tag-ok' : 'tag-warn'}">${escHtml(resolved ? TEXT.FEEDBACK_STATUS_RESOLVED : TEXT.FEEDBACK_STATUS_OPEN)}</span>
+      </span>
+    </div>
+    <div class="list-card-detail feedback-content">${escHtml(f.content)}</div>
+    <div class="feedback-foot">
+      <span class="list-card-meta">${escHtml(f.username)} · ${fmtDateTime(f.created_at)}</span>
+      ${resolved ? '' : `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.resolveFeedback" data-id="${f.id}">${escHtml(TEXT.BTN_MARK_RESOLVED)}</button>`}
+    </div>
+  </div>`;
 }
 
 export async function resolveAdminFeedback(id) {
