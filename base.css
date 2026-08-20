@@ -466,6 +466,12 @@ textarea:-webkit-autofill, textarea:-webkit-autofill:focus {
 @media (max-width: 480px) {
   .code-send-btn { max-width: 92px; padding: 4px 6px; font-size: .66rem; }
   .code-input-wrap .form-input { padding-right: 104px; }
+  /* 移动端验证码行（登录/注册/绑定）：label 固定 116px + 列 gap 22px + 右缘按钮预留 104px
+     把输入可视区挤到 33px（375px 屏实测），6 位验证码 + placeholder 全被吞。gap 收窄 + label
+     按内容宽 → 输入框顶到 label、拉满剩余。必须高特异性（:470 .form-label 在本块之后，
+     同特异性源序后胜会覆盖失效）。 */
+  .form-group:has(.code-input-wrap) { gap: 8px; }
+  .form-group:has(.code-input-wrap) > .form-label { flex: 0 0 auto; min-width: 0; }
 }
 .form-label {
   flex: 0 0 116px; margin: 0;
