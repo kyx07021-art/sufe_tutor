@@ -855,6 +855,7 @@ export const TEXT = {
   "ADMIN_AWARD_APPROVE": "通过",
   "ADMIN_AWARD_REJECT": "驳回",
   "ADMIN_AWARD_REJECT_HINT": "驳回理由（必填，将通知教师）",
+  "ADMIN_AWARD_REJECT_REQUIRED": "请填写驳回理由",
   "ADMIN_AWARD_PROOF_VIEW": "查看奖状",
   "ADMIN_AWARD_NONE": "当前没有待审核的奖项，新提交会出现在这里。",
   "ADMIN_PENALTY_REASON_PLACEHOLDER": "如：含详细门牌号，违反平台隐私红线",

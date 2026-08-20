@@ -15,6 +15,10 @@ const ACTION_MAP = {
   'admin.submitPenalty': el => actions.doSubmitContentPenalty(el.dataset.id, el.dataset.type),
   'admin.deletePost': el => actions.adminDeletePost(Number(el.dataset.id)),
   'admin.submitAwardReject': el => actions.doAwardAction(Number(el.dataset.id), 'reject'),
+  // U-3d: award review — view proof, approve (confirm), reject (reason modal)
+  'admin.viewAwardProof': el => actions.viewAwardProof(Number(el.dataset.id)),
+  'admin.approveAward': el => actions.approveAward(Number(el.dataset.id)),
+  'admin.rejectAwardModal': el => actions.rejectAwardModal(Number(el.dataset.id)),
   // U-3a: user management rows — ban/unban (capToken re-auth), view profile, verify/unverify
   'admin.banUser': el => actions.confirmBanUser(Number(el.dataset.id), el.dataset.banned !== '0', el.dataset.role || ROLES.STUDENT),
   'admin.viewProfile': el => actions.openProfilePanel(Number(el.dataset.id)),
@@ -64,11 +68,12 @@ function onLoad() {
     else if (el.dataset.inputAction === 'admin.searchTeachers') actions.adminUsersSearchDebounced(ROLES.TEACHER, el.value);
   }
   document.addEventListener('input', onInput);
-  // U-3c: admin reviews status filter (change delegation)
+  // U-3c: admin reviews status filter (change delegation); U-3d: admin awards status filter
   function onChange(e) {
     const el = e.target;
     if (!el || !el.dataset) return;
     if (el.dataset.change === 'admin.filterReviews') actions.loadAdminReviews(el.value);
+    else if (el.dataset.change === 'admin.filterAwards') actions.loadAdminAwards(el.value);
   }
   document.addEventListener('change', onChange);
   return () => { document.removeEventListener('click', onActionClick); document.removeEventListener('input', onInput); document.removeEventListener('change', onChange); installed = false; };

@@ -9,7 +9,7 @@ import { TEXT } from '../constants/text.js';
 import { escHtml } from './dom.js';
 import { CARET_SVG } from './ui.js';
 import { goHome } from './router.js';
-import { ROLES, STATUS } from '../../shared/enums.js'; // Z-16-F5b: role literals via shared enums; U-3c: review filter literals single source
+import { ROLES, STATUS, AWARD_STATUS } from '../../shared/enums.js'; // Z-16-F5b: role literals via shared enums; U-3c: review filter literals single source; U-3d: award filter literals single source
 
 function page(id, title, { actions = '', body = '', flush = false } = {}) {
   return `<section class="client-page hidden${flush ? ' client-page--flush' : ''}" data-page="${id}">
@@ -140,7 +140,16 @@ export function mountShell() {
             </select>
           </div>
           <div class="browse-list" id="admin-reviews-list"></div>` })}
-        ${page('admin-awards', TEXT.PAGE_ADMIN_AWARDS, { body: `<div class="browse-list" id="admin-awards-list"></div>` })}
+        ${page('admin-awards', TEXT.PAGE_ADMIN_AWARDS, { body: `
+          <div class="filter-panel glass glass--solid" id="admin-awards-filter">
+            <select class="filter-select" id="admin-awards-status" data-change="admin.filterAwards">
+              <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
+              <option value="${AWARD_STATUS.PENDING}">${escHtml(TEXT.STATUS_PENDING)}</option>
+              <option value="${AWARD_STATUS.APPROVED}">${escHtml(TEXT.STATUS_APPROVED)}</option>
+              <option value="${AWARD_STATUS.REJECTED}">${escHtml(TEXT.STATUS_REJECTED)}</option>
+            </select>
+          </div>
+          <div class="browse-list" id="admin-awards-list"></div>` })}
         ${page('admin-verifications', TEXT.PAGE_ADMIN_VERIFICATIONS, { body: `<div class="browse-list" id="admin-verifications-list"></div>` })}
         ${page('admin-posts', TEXT.PAGE_ADMIN_POSTS, { body: `<div class="browse-list" id="admin-posts-list"></div>` })}
         ${page('admin-contracts', TEXT.PAGE_ADMIN_CONTRACTS, { body: `<div class="browse-list" id="admin-contracts-list"></div>` })}
