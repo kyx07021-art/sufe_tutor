@@ -1231,6 +1231,9 @@ html[data-ui-reflowing] [data-ui-reflow-unit] { transition: none !important; }
     v0.19.33 只改了 modal 自身的动画没改 overlay）→ 弹窗打开前 0.2s 是白板=「不毛」第一印象。
     删动画后与 profile-panel 路径同构：无 opacity 帧，backdrop 全程正常采样 */
 #modal-container .modal {
+  /* h5a-g2: default max-width mirrors CONFIG.MODAL_W_ONBOARD (src/shared/config.js);
+     onboarding passes that same width via ui-modal cssText. Keep both in sync —
+     locked by test/modal-width-parity.test.js. */
   width: 100%; max-width: 580px;
   margin: auto; position: relative; /* v0.25.10：max-height/内滚已删——滚动交 overlay */
   animation: modal-in .32s var(--ease-snap); /* v0.19.37：删 both——终态 transform 归 none，合成层释放（同 profile-panel 路径） */
