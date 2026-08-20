@@ -318,6 +318,12 @@ export function openContentPenaltyModal(id, type) {
   });
 }
 
+// AF-7: per-type cache domain for content penalties. The server handleContentAction deletes
+// by type (post/demand/review/message/contract/feedback/complaint/upload/signing/teacher) but
+// bumps only [ADMIN] — cross-end stale data would linger until TTL/probe if we don't invalidate
+// the domain the deleted row was rendered from (Q-3b-L1).
+const CONTENT_DOMAIN_BY_TYPE = { post: 'posts', contract: 'contracts', message: 'chat', demand: 'demands' };
+
 export async function performContentPenalty(id, type, action, reason, rule, capToken) {
   // Write path exported for direct test (G1/G2): body shape matches server handleContentAction
   // exactly — action whitelist ['delete','remove','ban'], reason required.
@@ -341,6 +347,7 @@ export async function doSubmitContentPenalty(id, type, action) {
           const r = await performContentPenalty(id, type, action, reason, rule, capToken);
           showToast(r.message || TEXT.ADMIN_PENALTY_DONE, 'success');
           closeModal();
+          invalidate(CONTENT_DOMAIN_BY_TYPE[type] || 'admin'); // AF-7: invalidate the domain the deleted row was rendered from (server bumps only [ADMIN])
           loadAdminContent(_adminContentType);
         } catch (err) { showToast(err.message, 'error'); }
       });
