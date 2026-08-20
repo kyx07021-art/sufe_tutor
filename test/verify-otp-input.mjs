@@ -77,7 +77,7 @@ const cases = [
     name: 'mobile-375', width: 375, height: 667,
     login: { minVisible: 110, minWrap: 200, maxGap: 10, minGap: 0 },
     // Register label = "手机验证码" (wider than "验证码") -> mobile visible ~98px (vs login 124px);
-    // floor 90 still fits 6 digits and sits far above the pre-fix squeeze (~1px).
+    // floor 90 still fits 6 digits and sits far above the pre-fix squeeze (33px, measured by mutation).
     register: { minVisible: 90, minWrap: 200, maxGap: 10, minGap: 0 },
     bind: { minVisible: 110, minWrap: 200, maxGap: 10, minGap: 0 },
   },
@@ -128,9 +128,10 @@ for (const vp of cases) {
   // --- bind modal OTP row (phone/email bind renders the same codeFieldHtml into the modal) ---
   // The bind buttons live in settings (auth:true, needs a login the static mock cannot
   // reach), so the test opens the modal through the real global delegation: make #view-client
-  // layoutable (the modal renders into #modal-container inside it) and inject a trigger that
-  // carries the same data-action the settings page uses. The modal itself is a fixed viewport
-  // overlay, so its OTP row geometry is identical to production regardless of the page behind.
+  // layoutable (the modal renders into the sibling #modal-container overlay) and inject a
+  // trigger that carries the same data-action the settings page uses. The modal is a fixed
+  // viewport overlay, so its OTP row geometry is identical to production regardless of the
+  // page behind.
   await page.evaluate(() => {
     const vc = document.getElementById('view-client');
     if (vc) vc.classList.remove('hidden');
