@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback } from '../src/client/features/admin/actions.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 
@@ -54,14 +54,58 @@ test('loadAdminContent：按 type 拉取并渲染内容行', async () => {
   teardown();
 });
 
-test('loadAdminFeedback：渲染反馈标题列表', async () => {
+test('U-3h loadAdminFeedback：kind/subject/状态 tag + 内容 + resolve 按钮 + 空态（M3 空态分支锁）', async () => {
   const dom = setup();
   const list = document.createElement('div');
   list.id = 'admin-feedback-list';
   document.body.appendChild(list);
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ feedbacks: [{ id: 3, title: '登录问题反馈' }] }) });
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ feedbacks: [{ id: 3, kind: 'bug', subject: 'platform', title: '登录问题反馈', content: '详情文本', status: 'open', username: '学生甲', created_at: '2026-08-01 12:00:00' }] }) });
   await loadAdminFeedback();
   assert.ok(list.innerHTML.includes('登录问题反馈'), '反馈标题渲染');
+  assert.ok(list.innerHTML.includes('>Bug<'), 'kind tag 锁具体结构（M2 非依赖 feedback-card--bug 类）');
+  assert.ok(list.innerHTML.includes('平台'), 'subject tag');
+  assert.ok(list.innerHTML.includes('详情文本'), '内容渲染');
+  assert.ok(list.innerHTML.includes('data-action="admin.resolveFeedback" data-id="3"'), 'resolve 按钮委托');
+  // M3：空态分支独立断言（G1 直接测，不靠渲染路径代偿；dhGet 缓存先 reset 防跨调用命中）
+  _dhResetForTests();
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ feedbacks: [] }) });
+  await loadAdminFeedback();
+  assert.ok(list.innerHTML.includes('还没有用户反馈'), '空态文案');
+  teardown();
+});
+
+test('U-3h renderAdminFeedbackRow：resolved 卡隐藏 resolve 按钮 + 状态 tag + 淡化类', () => {
+  const html = renderAdminFeedbackRow({ id: 4, kind: 'complaint', subject: 'teacher', title: '投诉', content: '内容', status: 'resolved', username: '学生乙', created_at: '2026-08-01 12:00:00' });
+  assert.ok(html.includes('已处理'), 'resolved 状态 tag');
+  assert.ok(!html.includes('data-action="admin.resolveFeedback"'), 'resolved 无 resolve 按钮');
+  assert.ok(html.includes('feedback-card--resolved'), '淡化类');
+  assert.ok(html.includes('>投诉<'), 'kind tag 结构（complaint）');
+  assert.ok(html.includes('>老师<') || html.includes('教师'), 'subject tag');
+  assert.ok(!/onclick=/.test(html), '零内联事件');
+  const open = renderAdminFeedbackRow({ id: 5, kind: 'suggestion', subject: '', title: '', content: '', status: 'open', username: '学生丙', created_at: '2026-08-01 12:00:00' });
+  assert.ok(open.includes('未命名反馈'), '空标题 fallback 语义键（L3）');
+  assert.ok(open.includes('data-action="admin.resolveFeedback" data-id="5"'), 'open 有 resolve 按钮');
+  assert.ok(!open.includes('tag-ok'), '无 subject tag（空 subject）');
+});
+
+test('U-3h resolveAdminFeedback：POST resolve + invalidate + 重载（M4 写路径直测）', async () => {
+  const dom = setup();
+  const list = document.createElement('div');
+  list.id = 'admin-feedback-list';
+  document.body.appendChild(list);
+  let resolveUrl = null;
+  let loadCount = 0;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/resolve')) { resolveUrl = String(url); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    loadCount++;
+    return { ok: true, status: 200, json: async () => ({ feedbacks: [{ id: 3, title: '待处理', status: 'resolved' }] }) };
+  };
+  await loadAdminFeedback();
+  const before = loadCount;
+  await resolveAdminFeedback(3);
+  assert.ok(resolveUrl && resolveUrl.endsWith('/api/feedbacks/3/resolve'), 'POST resolve 端点');
+  assert.ok(loadCount > before, 'resolve 后重载列表');
+  assert.ok(dom.window.document.getElementById('toast-container').textContent.includes('已标记处理'), '专用 toast（L1）');
   teardown();
 });
 

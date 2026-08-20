@@ -543,6 +543,7 @@ export const TEXT = {
   "FEEDBACK_STATUS_RESOLVED": "已处理",
   "BTN_MARK_RESOLVED": "标记已处理",
   "FEEDBACK_RESOLVED_TOAST": "已标记处理并通知提出者",
+  "FEEDBACK_UNTITLED": "未命名反馈",
   "COMPLAINT_MODAL_TITLE": "提交投诉",
   "COMPLAINT_TAB_TEACHER": "投诉教师",
   "COMPLAINT_TAB_STUDENT": "投诉学生",

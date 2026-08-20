@@ -6,8 +6,12 @@
  */
 import { TEXT } from '../../constants/text.js';
 
+// U-3h M2: single-source bug predicate (L2: admin feedback-card warning edge + kind tag
+// styling must not duplicate the kind->style mapping; also used internally below).
+export const isFeedbackBug = kind => kind === 'bug';
+
 export function feedbackKindName(kind) {
-  if (kind === 'bug') return TEXT.FEEDBACK_TAG_BUG;
+  if (isFeedbackBug(kind)) return TEXT.FEEDBACK_TAG_BUG;
   if (kind === 'complaint') return TEXT.FEEDBACK_TAG_COMPLAINT;
   return TEXT.FEEDBACK_TAG_SUGGEST;
 }
@@ -18,7 +22,7 @@ export function feedbackSubjectName(subject) {
   return '';
 }
 export function feedbackKindCls(kind) {
-  return kind === 'bug' ? 'tag-danger' : kind === 'complaint' ? 'tag-warn' : 'tag-accent';
+  return isFeedbackBug(kind) ? 'tag-danger' : kind === 'complaint' ? 'tag-warn' : 'tag-accent';
 }
 export function complaintTargetName(targetType) {
   if (targetType === 'teacher') return TEXT.COMPLAINT_TAB_TEACHER;
