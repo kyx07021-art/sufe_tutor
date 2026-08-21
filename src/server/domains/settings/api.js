@@ -5,7 +5,7 @@
  * 访客浏览过滤在 db 层（dbGetDemands forGuest / dbGetTeachers 游客分支），本文件只管读写。
  * 依赖：security（requireUser）、constants（MSG）、db、log。
  */
-import { json, error, errorMsg } from '../../core/util.js';
+import { json, errorMsg } from '../../core/util.js';
 import { requireUser } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { dbGetPrivacySettings, dbSetPrivacySettings } from '../../../../server/db.js';

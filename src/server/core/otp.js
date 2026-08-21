@@ -21,7 +21,7 @@
  *                        唯一正解——验证码本就是我们生成的）；未来若验证码托管给服务商
  *                        （服务商存 code），可切 'provider' 接服务商校验 API。
  */
-import { dbGet, dbRun, dbAll, error, errorMsg, toDbTime, ensureColumns } from './util.js';
+import { dbGet, dbRun, error, errorMsg, toDbTime, ensureColumns } from './util.js';
 import { tokenDigest } from './crypto.js';
 import { MSG } from '../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../shared/config.js';

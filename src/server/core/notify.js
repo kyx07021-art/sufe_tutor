@@ -14,7 +14,7 @@
  * 删除按 batch_id 整批删（同秒两批同文案也不会连带误删）。
  * 历史行 / 单点推送无 batch_id，按 id 单删。
  */
-import { dbAll, dbGet, dbRun, json, error, errorMsg, genCode, ensureColumns } from './util.js';
+import { dbAll, dbGet, dbRun, json, errorMsg, genCode, ensureColumns } from './util.js';
 import { authUser, requireAdmin } from './security.js';
 import { MSG, NOTIFY_TYPES } from '../../shared/codes.js';
 import { LIMITS } from '../../shared/config.js';
