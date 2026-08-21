@@ -419,6 +419,8 @@ export async function handleSignContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
   if (g.err) return g.err;
   const { ct, conv } = g;
+  // AI-2 生命周期门禁：关系已关闭（会话 closed）后禁止一切合同/签约写入操作；已签署/已撤销历史存证保留
+  if (conv.status !== STATUS.ACTIVE) return errorMsg('CONVERSATION_CLOSED', 403);
   // Q-2e-F4：已撤销合同（status 仍 'signed'）签什么都是误导——拒绝，且拦在 capToken 二次认证之前
   // （不消耗用户一次性验证码）；Z-5-F4 恢复路径的 SIGNED 兜底只对「未撤销但台账失败」的重试生效
   if (ct.revoked) return errorMsg('CONTRACT_ALREADY_REVOKED', 409);
@@ -498,6 +500,8 @@ export async function handleModifyContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
+  // AI-2 生命周期门禁：关系已关闭后禁止修改合同（历史存证保留）
+  if (conv.status !== STATUS.ACTIVE) return errorMsg('CONVERSATION_CLOSED', 403);
   // 我方已确认签约后关闭修改接口（对方/我方均不得再改自己已确认的合同）。
   // 修改会重置双方确认（下方 drafter_confirmed=0/other_confirmed=0），已确认方改 = 变相撤回自己的
   // 签署承诺 → 必须拒绝。未确认方在对方已签后可改（改后对方确认随之重置，符合协商预期）。
@@ -545,6 +549,8 @@ export async function handleRevokeContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, me.id, [STATUS.SIGNED]); // 未签约的走取消流程
   if (g.err) return g.err;
   const { ct, conv } = g;
+  // AI-2 生命周期门禁：关系已关闭后禁止撤销合同（已签署历史存证保留，如须撤销应在关闭关系前完成）
+  if (conv.status !== STATUS.ACTIVE) return errorMsg('CONVERSATION_CLOSED', 403);
   if (ct.revoked) return errorMsg('CONTRACT_ALREADY_REVOKED', 409); // 已撤销幂等拒绝
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403); // 二次认证（F-05）
   // 撤销不删行——置 revoked 标记 + 撤销人 + 撤销时间，合同正文/台账保留存证；
@@ -567,6 +573,8 @@ export async function handleRevokeContract(db, contractId, body, req) {
 }
 
 // GET /api/contracts/:id/verify —— 存证校验：重算文本哈希对比台账（仅会话参与方与管理员可用）
+// AI-2 有意决定：verify 为只读存证校验（零写入），关系关闭后仍须可校验历史合同存证（AI-1「已 signed/
+// revoked 历史存证保留」的访问入口）——故豁免 AI-2 生命周期门禁（其余 5 个写入 handler 均加门禁）。
 export async function handleVerifyContract(db, contractId, req) {
   const { user: me, err: authErr } = await requireUser(db, req);
   if (authErr) return authErr;
@@ -620,6 +628,8 @@ export async function handleCancelContract(db, contractId, body, req) {
   const g = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING]);
   if (g.err) return g.err;
   const { ct, conv } = g;
+  // AI-2 生命周期门禁：关系已关闭后禁止取消签约
+  if (conv.status !== STATUS.ACTIVE) return errorMsg('CONVERSATION_CLOSED', 403);
   // 危险操作（取消签署承诺）：密码重认证换 capToken（同签约/撤销口径，网安 F-05）
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
@@ -727,6 +737,8 @@ export async function handleRespondSigning(db, signingId, body, req) {
   if (!sr) return errorMsg('CONTRACT_NOT_FOUND', 404);
   const conv = await dbGetConversationWithNames(db, sr.conversation_id);
   if (!conv || (conv.student_user_id !== userId && conv.teacher_user_id !== userId)) return errorMsg('NO_PERMISSION', 403);
+  // AI-2 生命周期门禁：关系已关闭后禁止回应签约请求（pending 已被 AI-1 close 自动拒绝）
+  if (conv.status !== STATUS.ACTIVE) return errorMsg('CONVERSATION_CLOSED', 403);
   if (sr.initiator_user_id === userId) return errorMsg('NO_PERMISSION', 403); // 发起者不能确认自己的请求
   if (sr.status !== STATUS.PENDING) return errorMsg('SIGNING_ALREADY_RESPONDED', 409); // 已回应过
 
