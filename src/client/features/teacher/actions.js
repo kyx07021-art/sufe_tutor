@@ -2,9 +2,9 @@
  * teacher feature actions: list, filters, profile panel, reviews.
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES, TEACHING_METHODS, WEEKDAYS, NONACADEMIC_PROJECTS } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums; Q-4a-M1b: filter options; F1d1: price-row names
+import { ROLES, TEACHING_METHODS, WEEKDAYS, NONACADEMIC_PROJECTS } from '../../../shared/enums.js'; // filter options + price-row names
 import { CONFIG } from '../../../shared/config.js';
-import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: province policy single source (T-6-F5: uniform re-export entry)
+import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: province policy single source
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';

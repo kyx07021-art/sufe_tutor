@@ -5,7 +5,7 @@
  * plus-menu close-outside behavior (v1 parity).
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 import { setChatConvById } from '../contract/actions-chat-bridge.js';

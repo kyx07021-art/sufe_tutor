@@ -4,7 +4,7 @@
  */
 import { CONFIG, INVITE_GATE_DORMANT } from '../../../shared/config.js';
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import { state, saveSession, getDeviceId } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { showToast, btnLoading, btnDone, withCaptcha } from '../../core/ui.js';

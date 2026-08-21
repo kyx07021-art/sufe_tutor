@@ -3,7 +3,7 @@
  * No inline handlers or inline style attributes.
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES, SUBJECTS, TEACHER_GRADES, GENDERS, TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums; F1c: form whitelists
+import { ROLES, SUBJECTS, TEACHER_GRADES, GENDERS, TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS } from '../../../shared/enums.js'; // form whitelists
 import { CONFIG, LIMITS } from '../../../shared/config.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, renderAvatarHtml } from '../../core/dom.js';
@@ -15,7 +15,7 @@ import { renderPushBtn } from '../student/render.js'; // v1 parity (B4): student
 import { checkboxItemsHtml } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml } from '../../core/ui-form.js';
 import { renderProvinceSelect, regionResolvePolicy } from '../region/render.js';
-import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: single source for province/subject pools (T-6-F5: uniform re-export entry)
+import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: province/subject pools single source (re-export entry)
 
 let _studentOpenDemand = false;
 export function setStudentOpenDemand(v) { _studentOpenDemand = !!v; }

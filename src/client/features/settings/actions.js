@@ -3,7 +3,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import { state, getThemePref, getUiScale, uiScaleFillPct, setUiScaleLive, commitUiScale, getOrbPref } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';

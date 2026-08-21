@@ -7,7 +7,7 @@ import { escHtml, fmtDateTime, loaderHtml } from '../../core/dom.js';
 import { state } from '../../core/state.js';
 import { usernameHtml, deactivatedTag } from '../../core/display.js';
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 
 export function likePillHtml(p) {
   return `<label class="post-like glass" data-id="${p.id}">

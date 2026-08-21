@@ -3,7 +3,7 @@
  * empty and features call registerPage in later batches. Migrated from app-shell.js.
  */
 import { CONFIG, APP_VERSION } from '../../shared/config.js';
-import { STATUS, ROLES } from '../../shared/enums.js'; // Z-16-F6: status literals via shared enums
+import { STATUS, ROLES } from '../../shared/enums.js';
 import { TEXT } from '../constants/text.js';
 import { state, loadSeqs, savePageState, getLastPage } from './state.js';
 import { escHtml, renderAvatarHtml, loaderHtml, mdRender } from './dom.js';

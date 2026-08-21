@@ -4,7 +4,7 @@
  * via data-action delegation (U-3 series); each loader renders its per-page v1-parity card.
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha, segTabsHtml } from '../../core/ui.js';
@@ -16,7 +16,7 @@ import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand 
 import { contractStatusMeta } from '../contract/display.js'; // U-3g: contract status tag (shared single source)
 import { splitContractBiz, stripContractMarker, renderContractDiff } from '../contract/render.js'; // U-3g: contract diff/full-text modal (W6 reuse)
 import { feedbackKindName, feedbackSubjectName, feedbackKindCls, isFeedbackBug } from '../complaints/display.js'; // U-3h: feedback kind/subject tags + bug edge (shared single source)
-import { STATUS, AWARD_STATUS, VERIFY_TYPES, DEACTIVATED_USER_PREFIX } from '../../../shared/enums.js'; // U-3c review / U-3d award / U-3e verify-type / U-3h resolved / U-3i deactivated author (shared enums)
+import { STATUS, AWARD_STATUS, VERIFY_TYPES, DEACTIVATED_USER_PREFIX } from '../../../shared/enums.js'; // review/award/verify-type/resolved/deactivated shared literals
 
 function adminStatCards(pairs) {
   return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');

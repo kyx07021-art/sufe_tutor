@@ -9,7 +9,7 @@ import { TEXT } from '../constants/text.js';
 import { escHtml } from './dom.js';
 import { CARET_SVG } from './ui.js';
 import { goHome } from './router.js';
-import { ROLES, STATUS, AWARD_STATUS } from '../../shared/enums.js'; // Z-16-F5b: role literals via shared enums; U-3c: review filter literals single source; U-3d: award filter literals single source
+import { ROLES, STATUS, AWARD_STATUS } from '../../shared/enums.js'; // review/award filter literals single source
 
 function page(id, title, { actions = '', body = '', flush = false } = {}) {
   return `<section class="client-page hidden${flush ? ' client-page--flush' : ''}" data-page="${id}">

@@ -2,7 +2,7 @@
  * admin feature registry: admin-stats page + delegation.
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import { registerPage } from '../../core/router.js';
 import { api } from '../../core/api.js';
 import { invalidate } from '../../core/datahub.js'; // Q-3b-F3: invalidate after write

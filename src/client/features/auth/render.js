@@ -6,7 +6,7 @@
 import { CONFIG } from '../../../shared/config.js';
 import { escHtml } from '../../core/dom.js';
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 
 export function loginViewHtml() {
   return `<div class="auth-view hidden" id="view-login">

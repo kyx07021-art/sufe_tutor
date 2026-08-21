@@ -2,7 +2,7 @@
  * contract feature registry: my-contracts page + data-action delegation.
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 import { setChatConvById } from './actions-chat-bridge.js';

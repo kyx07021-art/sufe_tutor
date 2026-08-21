@@ -5,7 +5,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import { state, saveSession, loadSession, clearSession, getDeviceId, runLogoutResets } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { showToast, btnLoading, btnDone, closeAllModals, withCaptcha } from '../../core/ui.js';

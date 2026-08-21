@@ -7,7 +7,7 @@
  * CustomEvent('about-action') dispatch in about.js has no listener, no double fire).
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import * as actions from './actions.js';
 
 const ACTION_MAP = {

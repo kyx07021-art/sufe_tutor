@@ -3,7 +3,7 @@
  * No inline handlers or inline style attributes.
  */
 import { escHtml, fmtDateTime } from '../../core/dom.js';
-import { STATUS } from '../../../shared/enums.js'; // Z-16-F6: status literals via shared enums
+import { STATUS } from '../../../shared/enums.js';
 import { complaintTargetName } from './display.js';
 import { segTabsHtml } from '../../core/ui.js';
 import { TEXT } from '../../constants/text.js';

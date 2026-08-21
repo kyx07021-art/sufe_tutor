@@ -22,7 +22,7 @@
  */
 import { TEXT } from '../../constants/text.js';
 import { CONFIG } from '../../../shared/config.js';
-import { STATUS, ROLES } from '../../../shared/enums.js'; // Z-16-F6: status literals via shared enums
+import { STATUS, ROLES } from '../../../shared/enums.js';
 import { state, isReturning, registerLogoutReset } from '../../core/state.js';
 import { escHtml } from '../../core/dom.js';
 import { closeModal } from '../../core/ui.js';

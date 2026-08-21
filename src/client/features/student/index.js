@@ -3,7 +3,7 @@
  * data-action/change delegation + match-detail close listeners (v1 parity).
  */
 import { TEXT } from '../../constants/text.js';
-import { ROLES } from '../../../shared/enums.js'; // Z-16-F5: roles via shared enums
+import { ROLES } from '../../../shared/enums.js';
 import { registerPage } from '../../core/router.js';
 import * as actions from './actions.js';
 import { goChatWithStudent } from '../chat/actions-list.js';
