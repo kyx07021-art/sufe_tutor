@@ -730,13 +730,10 @@ export function openDemandCard(id) {
   if (!d) return;
   openModal({ title: demandIdText(d.display_id), body: `<div class="demand-detail">${escHtml(d.additional_info || '')}</div>` });
 }
-export function openDemandDetail(id) { openDemandCard(id); }
 
 export function closeModalAction() { closeModal(); }
 
 export function showProfileIncompleteModal() { showToast(TEXT.PROFILE_INCOMPLETE_HINT, 'error'); }
-
-export function loadDemandList() { return loadMyDemands(); }
 
 // ============================================================
 // Demand type tabs (R2-b) -- academic / non-academic section state
