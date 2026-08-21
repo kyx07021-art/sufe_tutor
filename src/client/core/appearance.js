@@ -30,8 +30,8 @@ export function applyTheme() {
 export function applyLg() {
   if (typeof document === 'undefined') return;
   const st = document.documentElement.style;
-  st.setProperty('--profile-row-gap', String(CONFIG.PROFILE_ROW_GAP || 22) + 'px');
-  st.setProperty('--filter-row-gap', String(CONFIG.FILTER_ROW_GAP || 16) + 'px');
+  st.setProperty('--profile-row-gap', String(CONFIG.PROFILE_ROW_GAP) + 'px');
+  st.setProperty('--filter-row-gap', String(CONFIG.FILTER_ROW_GAP) + 'px');
   st.setProperty('--lg-r-sm', String((LG.radius && LG.radius.sm) || 9) + 'px');
   st.setProperty('--lg-r', String((LG.radius && LG.radius.md) || 12) + 'px');
   st.setProperty('--lg-r-lg', String((LG.radius && LG.radius.lg) || 15) + 'px');

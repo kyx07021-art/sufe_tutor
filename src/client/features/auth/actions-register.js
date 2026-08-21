@@ -2,7 +2,7 @@
  * auth feature register actions: student single form, teacher 3-step wizard
  * (invite -> account -> contact verification), submit and validation.
  */
-import { CONFIG, INVITE_GATE_DORMANT } from '../../../shared/config.js';
+import { CONFIG, LIMITS, INVITE_GATE_DORMANT } from '../../../shared/config.js';
 import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js';
 import { state, saveSession, getDeviceId } from '../../core/state.js';
@@ -86,7 +86,7 @@ export async function regWizardNext() {
     if (!username || username.length < CONFIG.USERNAME_MIN || username.length > CONFIG.USERNAME_MAX) {
       showToast(TEXT.USERNAME_LENGTH_ERR, 'error'); return;
     }
-    if (password.length < 6) { showToast(TEXT.VALIDATE_PASSWORD, 'error'); return; }
+    if (password.length < LIMITS.PASSWORD_MIN) { showToast(TEXT.VALIDATE_PASSWORD, 'error'); return; }
     if (password !== password2) { showToast(TEXT.VALIDATE_PASSWORD_MISMATCH, 'error'); return; }
     const kind = classifyIdentifier(ident);
     if (kind !== 'phone' && kind !== 'email') { showToast(TEXT.CRED_IDENT_INVALID, 'error'); return; }

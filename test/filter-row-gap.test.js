@@ -15,7 +15,7 @@ const browse = readFileSync('./features/browse.css', 'utf8');
 test('筛选栏间距：U3 合并单行后由 .filter-row gap 承担', () => {
   assert.ok(Number.isInteger(CONFIG.FILTER_ROW_GAP) && CONFIG.FILTER_ROW_GAP >= 8, `FILTER_ROW_GAP=${CONFIG.FILTER_ROW_GAP}`);
   // 单源注入：appearance.js 把 CONFIG.FILTER_ROW_GAP 注入 --filter-row-gap 变量
-  assert.ok(appearance.includes("setProperty('--filter-row-gap', String(CONFIG.FILTER_ROW_GAP || 16) + 'px')"),
+  assert.ok(appearance.includes("setProperty('--filter-row-gap', String(CONFIG.FILTER_ROW_GAP) + 'px')"),
     '--filter-row-gap 由 appearance.js 从 CONFIG 单源注入');
   // 间距规则：.filter-row 单行 flex + gap 16px（v2 合并单行后无纵向空隙类）
   const rowRule = browse.split('.filter-row {')[1] || '';
