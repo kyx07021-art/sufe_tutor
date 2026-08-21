@@ -3,7 +3,7 @@
  */
 import { TEXT } from '../../constants/text.js';
 import { state } from '../../core/state.js';
-import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
+import { dhGet, dhPeek, dhOnDomainRefresh } from '../../core/datahub.js';
 import { setBadge } from '../../core/router.js';
 import { loaderHtml, escHtml } from '../../core/dom.js';
 import { initReveals } from '../../core/anim.js';
@@ -37,5 +37,3 @@ dhOnDomainRefresh('contracts', () => {
   const c = dhPeek('/api/contracts/my');
   if (c && c.contracts) state.myContracts = c.contracts;
 });
-
-export function invalidateContracts() { invalidate('contracts'); }

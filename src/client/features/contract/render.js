@@ -25,12 +25,6 @@ export function stripContractMarker(md) {
   return String(md || '').replace(new RegExp(CONTRACT_BIZ_END.replace(' ', '\\s*') + '[^\n]*\n?', 'g'), '');
 }
 
-export function contractActionable(c) {
-  const iAmDrafter = c.drafter_user_id === state.user.id;
-  if (c.status === STATUS.PENDING || c.status === STATUS.SIGNING) return !(iAmDrafter ? c.drafter_confirmed : c.other_confirmed);
-  return false;
-}
-
 export function contractSignProgress(c) {
   const studentSigned = (c.drafter_user_id === c.student_user_id ? c.drafter_confirmed : c.other_confirmed) ? 1 : 0;
   const teacherSigned = (c.drafter_user_id === c.teacher_user_id ? c.drafter_confirmed : c.other_confirmed) ? 1 : 0;
