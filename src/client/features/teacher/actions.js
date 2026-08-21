@@ -21,7 +21,7 @@ let profilePanelUserId = null;
 let _studentOpenDemand = false;
 let _matchDetailOpen = false;
 
-// Q-4a-M1b: fill teacher sort/filter controls (shell provides empty container; was dead — toggle showed blank dropdown)
+// fill sort/filter controls (shell provides the empty containers)
 function fillTeacherFilters() {
   const fill = (id, opts) => {
     const el = document.getElementById(id);

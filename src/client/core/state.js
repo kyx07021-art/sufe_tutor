@@ -11,7 +11,7 @@ export const state = {
   user: null, authToken: null, view: 'landing', page: null,
   allTeachers: [], adminTeachers: [], intentTeachers: [],
   myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
-  validatedInviteCode: null, // Q-4a-L3: removed dead fields myReviewOnModal / inviteTimerId / currentInviteCode (zero read/write beyond logout reset)
+  validatedInviteCode: null, // read/written only by logout reset
   guestRole: null, guestAuthMode: false,
 };
 

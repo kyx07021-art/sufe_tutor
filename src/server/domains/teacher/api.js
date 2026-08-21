@@ -315,7 +315,7 @@ export async function handleVerifyTeacher(db, userId, body, req) {
   return json({ ok: true, verified });
 }
 
-// v1.2.0 T6：学信网核验队列（manual provider：管理员查证后结构化录入）
+// 学信网核验队列（manual provider：管理员查证后结构化录入）
 export async function handleListVerifications(db, url, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;

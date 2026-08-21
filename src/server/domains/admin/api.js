@@ -28,7 +28,6 @@ import { reencryptChunk } from '../../../../server/reencrypt.js'; // v1.5.0 密�
 import { getDashboardMetrics } from '../../../../server/telemetry.js'; // v1.5.0 观测 dashboard 数据
 import { dbBroadcastNotification, notifyUser } from '../../core/notify.js';
 
-// 邀请码有效期：一次性凭证 TTL 单源（constants.SECURITY.ONE_TIME_TTL_MS，与 capToken 同 5 分钟）
 export async function handleGenInvite(db, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;

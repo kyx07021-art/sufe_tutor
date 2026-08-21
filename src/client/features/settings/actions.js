@@ -82,8 +82,6 @@ export async function loadUsernameStatus() {
   try {
     const d = await dhGet('/api/user/username/status', { domain: 'account' });
     if (!document.getElementById('username-change-btn')) return; // left the page
-    // defensive: canChange true or an invalid/absent cooldownMs → keep the button
-    // enabled without a countdown (mock/abnormal responses must not brick it)
     if (d.canChange === true || !isFinite(Number(d.cooldownMs)) || Number(d.cooldownMs) <= 0) return;
     bindCountdown(btn, { endAt: Date.now() + Number(d.cooldownMs), runningText: TEXT.USERNAME_COOLDOWN_BTN, onDone: () => { btn.textContent = TEXT.BTN_MODIFY; } });
   } catch { /* network blip: button stays enabled, server enforces the cooldown */ }
