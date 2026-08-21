@@ -100,3 +100,22 @@ test('全新元组 → 新建会话（INSERT OR IGNORE 路径不变）', async (
   assert.equal(row.status, 'active', '新会话 active');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM conversations').get().c, 2, '新元组新建会话（原有会话保留）');
 });
+
+// AI-6 O-1（审计观察项补测）：并发双配对——条件 UPDATE WHERE status='closed' 幂等（第二个请求
+// 发生时 status 已 active，不命中 closed 分支），恒一会话行 + 单次重启语义由 SQL 守卫承重
+test('并发双配对：closed 会话两个 dbUpsertConversation 并行 → 恒一会话行 + 重启 active', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1, t1, c1 } = await seed(db, raw, 'closed');
+  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
+    VALUES (?,'senior1','female','["math"]','[]','self','13800000000','13800000000','open')`).run(s1).lastInsertRowid);
+  const [idA, idB] = await Promise.all([
+    dbUpsertConversation(db, s1, t1, d1),
+    dbUpsertConversation(db, s1, t1, d1),
+  ]);
+  assert.equal(idA, c1, '并行 A 返回原会话 id');
+  assert.equal(idB, c1, '并行 B 返回原会话 id');
+  const row = raw.prepare('SELECT status, demand_id FROM conversations WHERE id=?').get(c1);
+  assert.equal(row.status, 'active', '重启 active（条件 UPDATE 幂等）');
+  assert.equal(row.demand_id, d1, 'demand 回填');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM conversations').get().c, 1, '恒一会话行（不新建）');
+});
