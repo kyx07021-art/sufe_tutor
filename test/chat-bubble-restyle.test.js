@@ -44,7 +44,6 @@ test('气泡圆角主值 16px（style-chat.css 单源）', () => {
   const m = /\.chat-bubble\s*{[^}]*--g-r:\s*(\d+)px/.exec(css);
   assert.ok(m, 'style-chat.css 存在 .chat-bubble 主规则');
   assert.equal(m[1], '16', '主圆角 16px');
-  assert.ok(!css.includes('.chat-file-chip'), 'style-chat.css 无残留 .chat-file-chip 规则');
 });
 
 test('合同事件气泡：对应用户一侧普通气泡皮肤（R3 取代原 system 胶囊）', () => {

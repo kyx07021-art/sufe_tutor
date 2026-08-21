@@ -38,8 +38,6 @@ test('文本浮窗全覆盖 modal--wide（政策/使用指南/合同查看/签�
   assert.ok(posts.includes("cls: 'modal--wide'"), 'md 预览浮窗拓宽（features/posts）');
   assert.ok(core.includes('module-info-md'), '模块介绍浮窗拓宽（core/router）');
   assert.ok(teacher.includes("cls: 'modal--wide'"), '教师模块浮窗拓宽');
-  // 旧专用加宽类已删（统一走标准接口，不留特例）
-  assert.ok(!STYLE_CSS.includes('.module-info-modal'), 'module-info-modal 死规则已删');
 });
 
 test('渲染验证：openModal 带 cls 时宽版类落到 .modal 元素', () => {

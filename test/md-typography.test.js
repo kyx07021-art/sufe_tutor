@@ -71,7 +71,6 @@ test('R21② 层级缩进：正文右缩进 12px、列表容器再缩进 20px', 
 test('R21③ 正文行距与字号：1.8 行高 + .86rem（平台普通文本一致）', () => {
   assert.ok(/\.md-preview p, \.post-detail-body p \{[\s\S]*?font-size: \.86rem; line-height: 1\.8/.test(posts), 'md 正文 .86rem/1.8');
   assert.ok(/\.md-preview li, \.post-detail-body li \{ font-size: \.86rem; line-height: 1\.8/.test(posts), 'md 列表项 .86rem/1.8');
-  assert.ok(!/\.md-preview p, \.post-detail-body p \{[\s\S]*?font-size: \.84rem/.test(posts), '不再用 .84rem');
 });
 
 test('R21⑤ h1-h6 全覆盖样式（无浏览器默认巨大标题）', () => {

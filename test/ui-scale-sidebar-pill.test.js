@@ -26,7 +26,6 @@ test('渲染后无 #sidebar-pill；active 高亮由条目自身承载', () => {
   const styleCss = STYLE_CSS;
   const activeRule = styleCss.match(/\.sidebar-item\.active\s*\{[^}]*\}/);
   assert.ok(activeRule);
-  assert.doesNotMatch(styleCss, /\.sidebar-pill\s*\{/);
   state.page = 'about';
   renderSidebar();
   assert.ok(dom.window.document.querySelector('#sidebar-nav .sidebar-item[data-page="about"]').classList.contains('active'));

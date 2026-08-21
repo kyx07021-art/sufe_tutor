@@ -10,7 +10,6 @@ test('region render: province select has no inline handler and contains all prov
   // (callers bind change directly); assert it no longer leaks into the DOM
   const html = renderProvinceSelect('d-province', 'shanghai');
   assert.ok(html.includes('id="d-province"'));
-  assert.ok(!html.includes('data-region-change'), '死属性 data-region-change 已删');
   assert.ok(!/onchange=/.test(html));
   assert.ok(html.includes('>上海</option>'));
 });

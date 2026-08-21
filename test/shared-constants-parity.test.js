@@ -50,14 +50,6 @@ test('服务端静态扫描：error(MSG. 与 8 处动态三元 error 调用已�
   files.push('_worker.js');
   const src = files.map(f => readFileSync(f, 'utf8')).join('\n');
   assert.doesNotMatch(src, /error\s*\(\s*MSG\./, '不得再出现 error(MSG. 直接调用');
-  const oldTernary = [
-    "error(recent ? MSG.OTP_RESEND_LIMIT",
-    "error(otpChannel === 'email' ? MSG.EMAIL_ALREADY_BOUND",
-    "error(otpR === 'exhausted' ? MSG.OTP_EXHAUSTED",
-    "error(el.reason === 'CHSI_UNVERIFIED' ? MSG.CHSI_VERIFY_REQUIRED",
-    "error(audit.layer === 'error' ? MSG.TEXT_AUDIT_UNAVAILABLE",
-  ];
-  for (const pattern of oldTernary) assert.ok(!src.includes(pattern), `8 处三元模式已清零：${pattern}`);
   assert.equal((src.match(/error\s*\([^)\n]*\?\s*MSG\./g) || []).length, 0, 'dynamic ternary error calls cleared');
   assert.equal(CODES.CHSI_UNVERIFIED, 'CHSI_UNVERIFIED', '动态 CHSI 资格码稳定');
 });
