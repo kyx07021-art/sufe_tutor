@@ -137,7 +137,7 @@ export async function dbSetUserBanned(db, userId, banned) {
 // 邀请码
 // ============================================================
 export async function dbFindValidInviteCode(db, code) {
-  // v1.2.0 T4：邀请码无过期时间（去掉 expires_at 条件），一人使用并成功注册后失效（used_by 非空）
+  // 邀请码无过期：一人使用并成功注册后失效（used_by 非空）
   return await dbGet(db,
     "SELECT * FROM invite_codes WHERE code=? AND used_by IS NULL",
     [code]);
@@ -152,7 +152,6 @@ export async function dbUseInviteCode(db, code, userId) {
 }
 
 export async function dbCreateInviteCode(db, code, adminId) {
-  // v1.2.0 T4：邀请码无过期时间（去掉 expires_at 列/参数）
   await dbRun(db,
     'INSERT INTO invite_codes (code,created_by) VALUES (?,?)',
     [code, adminId]);

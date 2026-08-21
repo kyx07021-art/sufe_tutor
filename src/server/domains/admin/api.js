@@ -33,7 +33,6 @@ export async function handleGenInvite(db, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
 
-  // v1.2.0 T4：邀请码无过期时间（去掉 expiresAt 参数），一人使用并成功注册后失效
   const code = genCode(LIMITS.INVITE_CODE_LEN);
   await dbCreateInviteCode(db, code, admin.id);
   await logEvent(db, { action: 'admin.invite.create', actorUserId: admin.id, actorUsername: admin.username,
@@ -41,7 +40,7 @@ export async function handleGenInvite(db, body, req) {
   return json({ code });
 }
 
-// v1.2.0 T4：邀请码管理模块——列表（含状态/使用者）
+// 邀请码管理：列表（含状态/使用者）
 export async function handleListInvites(db, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
@@ -49,7 +48,7 @@ export async function handleListInvites(db, req) {
   return json({ invites });
 }
 
-// v1.2.0 T4：作废未使用邀请码（已使用不可作废）
+// 作废未使用邀请码（已使用不可作废）
 export async function handleRevokeInvite(db, code, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;

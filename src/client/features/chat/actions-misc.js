@@ -77,7 +77,6 @@ export async function chatPlusDraft() {
 export async function chatPlusSigning() {
   closeChatPlus();
   if (chat.convId) {
-    // AB-O1: silent degrade on lazy-import failure (same deploy-race rationale as chatPlusDraft)
     try {
       const mod = await import('../contract/index.js');
       mod.actions.openSigningModal(chat.convId);

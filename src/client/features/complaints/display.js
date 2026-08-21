@@ -1,5 +1,5 @@
 /**
- * complaints domain display mappings (V-2-4b: moved out of core/display.js).
+ * complaints domain display mappings.
  * Pure functions; text from constants/text.js single source only.
  * Feedback/complaint kind + target labels are consumed by both posts (feedback
  * entry modal) and complaints features.

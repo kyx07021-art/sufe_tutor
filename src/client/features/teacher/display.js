@@ -1,5 +1,5 @@
 /**
- * teacher domain display mappings (V-2-4b: moved out of core/display.js).
+ * teacher domain display mappings.
  * Pure functions; text from constants/text.js + shared enums single source only.
  * Rating/stars/grade/review-status are teacher-profile display attrs, reused by
  * teacher and student (teacher card) features.

@@ -1,5 +1,5 @@
 /**
- * contract domain display mappings (V-2-4b: moved out of core/display.js).
+ * contract domain display mappings.
  * Pure functions; text from constants/text.js + shared enums single source only.
  */
 import { STATUS } from '../../../shared/enums.js';

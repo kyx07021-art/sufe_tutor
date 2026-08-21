@@ -1,6 +1,6 @@
 /**
- * chat domain display mappings (Z-10-F2: V-2-4b pattern — these were inline in
- * render.js). Pure functions; text from constants/text.js single source only.
+ * chat domain display mappings.
+ * Pure functions; text from constants/text.js single source only.
  */
 import { TEXT } from '../../constants/text.js';
 

@@ -41,21 +41,20 @@ export async function dbGetReviewStats(db) {
 }
 
 export async function dbGetInviteStats(db) {
-  // v1.2.0 T4：邀请码无过期时间——active = 未使用（used_by IS NULL）
   return await dbGet(db, `SELECT COUNT(*) as total,
     SUM(CASE WHEN used_by IS NOT NULL THEN 1 ELSE 0 END) as used,
     SUM(CASE WHEN used_by IS NULL THEN 1 ELSE 0 END) as active
     FROM invite_codes`);
 }
 
-/** v1.2.0 T4：邀请码列表（管理员管理模块）——含使用者用户名；未用在前，按创建倒序 */
+/** 邀请码列表（管理员管理模块）——含使用者用户名；未用在前，按创建倒序 */
 export async function dbListInviteCodes(db) {
   return await dbAll(db, `SELECT i.code, i.created_at, i.used_by, i.used_at, u.username AS used_by_username
     FROM invite_codes i LEFT JOIN users u ON u.id=i.used_by
     ORDER BY (i.used_by IS NOT NULL), i.created_at DESC LIMIT 200`);
 }
 
-/** v1.2.0 T4：作废未使用邀请码（已使用不可作废——使用即永久失效） */
+/** 作废未使用邀请码（已使用不可作废——使用即永久失效） */
 export async function dbRevokeInviteCode(db, code) {
   const r = await dbRun(db, 'DELETE FROM invite_codes WHERE code=? AND used_by IS NULL', [code]);
   return !!(r && r.meta && r.meta.changes > 0);

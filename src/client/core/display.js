@@ -1,6 +1,5 @@
 /**
- * v2 display core: cross-domain generic data->text mappings (V-2-4b moved domain-specific
- * mappings into each feature's display module). Pure functions; user-visible text comes
+ * v2 display core: cross-domain generic data->text mappings. Pure functions; user-visible text comes
  * from constants/text.js and shared enums single source. Feature display modules reuse
  * the cross-domain helpers here (enumName / subjectName / priceRangeText).
  */
