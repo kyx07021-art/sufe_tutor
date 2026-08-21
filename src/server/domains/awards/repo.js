@@ -78,4 +78,3 @@ export async function dbSetAwardStatus(db, id, status, note) {
     [status, note, id]);
   return !!(r && r.meta && r.meta.changes > 0);
 }
-
