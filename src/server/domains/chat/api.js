@@ -9,10 +9,10 @@ import { json, errorMsg, parseIdParam } from '../../core/util.js';
 import { requireUser } from '../../core/security.js';
 import { encryptField, decryptField } from '../../core/crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
 import { MSG } from '../../../shared/codes.js';
-import { STATUS } from '../../../shared/enums.js';
+import { STATUS, ROLES } from '../../../shared/enums.js';
 import { LIMITS } from '../../../shared/config.js';
 import {
-  dbGetMyConversations, dbGetConversationById, dbGetConversationWithNames, dbGetMessages, dbMarkConversationRead,
+  dbGetMyConversations, dbGetMyRelations, dbGetConversationById, dbGetConversationWithNames, dbGetMessages, dbMarkConversationRead,
   dbGetMessageAttachment, dbGetConversationBindableDemands,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload,
   dbPrepareMessageInsert, dbPrepareUploadDelete, dbGetMessagesByClientKeys, dbSetMessageBody,
@@ -113,6 +113,32 @@ export async function handleGetConversations(db, url, req) {
   if (err) return err;
   const conversations = await dbGetMyConversations(db, me.id);
   return json({ conversations });
+}
+
+// AI-7：统一关系清单——按双方元组聚合（会话状态/最后消息 + 最新 signing_contracts 状态 + 对端信息），
+// 供连线图/关系管理。仅读零写入；对端角色由 me.role 反推（会话双方必为 student/teacher 一各一，无 admin）。
+export async function handleGetMyRelations(db, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const rows = await dbGetMyRelations(db, me.id);
+  return json({ relations: rows.map(r => {
+    const isStudent = r.student_user_id === me.id;
+    return {
+      conversationId: r.id,
+      status: r.status,
+      other: {
+        id: isStudent ? r.teacher_user_id : r.student_user_id,
+        role: isStudent ? ROLES.TEACHER : ROLES.STUDENT,
+        name: isStudent ? r.teacher_name : r.student_name,
+        avatar: isStudent ? r.teacher_avatar : r.student_avatar,
+      },
+      last: r.last_kind ? { kind: r.last_kind, body: r.last_body || '', at: r.last_at, senderId: r.last_sender } : null,
+      signing: r.sc_id ? {
+        id: r.sc_id, stage: r.sc_stage, signingStatus: r.sc_signing_status,
+        contractStatus: r.sc_contract_status, revoked: Number(r.sc_revoked),
+      } : null,
+    };
+  }) });
 }
 
 // 标记已读：我的已读游标推到该会话最新一条（红点点掉即消的后端支撑）
@@ -295,6 +321,7 @@ async function handleSendBatch(db, convId, batch, userId, req) {
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [
   S('GET', '/api/conversations', c => handleGetConversations(c.db, c.url, c.req)),
+  S('GET', '/api/my-relations', c => handleGetMyRelations(c.db, c.req)),
   S('POST', '/api/conversations/:id/close', c => handleCloseConversation(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('POST', '/api/conversations/:id/read', c => handleMarkRead(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/conversations/:id/messages', c => handleGetMessages(c.db, parseIdParam(c.params.id), c.url, c.req)),

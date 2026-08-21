@@ -100,6 +100,36 @@ export async function dbGetMyConversations(db, userId) {
     ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId, userId, userId]);
 }
 
+// AI-7：统一关系清单——按双方元组聚合（会话 + 最后消息 + 最新 signing_contracts 状态），供连线图/关系管理。
+// 会话 = 双方元组（UNIQUE(student,teacher)）天然一一对应；最新签约/合同状态按元组 MAX(id) 取
+// （signing_contracts conversation_id 可能为 NULL——AI-4b 兜底 INSERT 行，故按元组聚合与 AI-1 级联口径一致）。
+// 显式列集（不用 c.*）：已读游标（student_last_read_id/teacher_last_read_id）不下发（同 dbGetMyConversations 低敏泄露收口）。
+export async function dbGetMyRelations(db, userId) {
+  return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.status, c.created_at,
+      us.username AS student_name, ut.username AS teacher_name,
+      us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
+      CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
+      lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
+      sc.id AS sc_id, sc.stage AS sc_stage, sc.signing_status AS sc_signing_status,
+      sc.contract_status AS sc_contract_status, sc.revoked AS sc_revoked
+    FROM conversations c
+    JOIN users us ON us.id=c.student_user_id
+    JOIN users ut ON ut.id=c.teacher_user_id
+    LEFT JOIN (
+      SELECT m.conversation_id, m.body, m.kind, m.created_at, m.sender_user_id
+      FROM messages m JOIN (
+        SELECT conversation_id, MAX(id) AS mid FROM messages
+        WHERE conversation_id IN (SELECT id FROM conversations WHERE student_user_id=? OR teacher_user_id=?)
+        GROUP BY conversation_id) x
+        ON x.mid=m.id
+    ) lm ON lm.conversation_id=c.id
+    LEFT JOIN signing_contracts sc ON sc.id = (
+      SELECT MAX(id) FROM signing_contracts sc2
+      WHERE sc2.student_user_id=c.student_user_id AND sc2.teacher_user_id=c.teacher_user_id)
+    WHERE c.student_user_id=? OR c.teacher_user_id=?
+    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId]);
+}
+
 // 标记已读：把我在该会话的已读游标推到最新一条消息（按角色更新对应列）
 export async function dbMarkConversationRead(db, convId, userId) {
   await dbRun(db, `UPDATE conversations SET

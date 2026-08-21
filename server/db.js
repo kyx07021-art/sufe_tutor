@@ -48,7 +48,7 @@ export {
 
 import {
   dbUpsertConversation, dbGetConversationById, dbGetConversationWithNames, dbGetConversationBindableDemands,
-  dbGetMyConversations, dbMarkConversationRead, dbGetMessages, dbPrepareMessageInsert, dbCreateMessage,
+  dbGetMyConversations, dbGetMyRelations, dbMarkConversationRead, dbGetMessages, dbPrepareMessageInsert, dbCreateMessage,
   dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage, dbSetMessageBody,
   dbGetSigningById, dbDeleteSigning, dbGetPendingSigningForConversation, dbCreateSigning, dbConfirmSigning, dbRejectSigning,
   dbCloseConversationCascade,
@@ -58,7 +58,7 @@ import {
 
 export {
   dbUpsertConversation, dbGetConversationById, dbGetConversationWithNames, dbGetConversationBindableDemands,
-  dbGetMyConversations, dbMarkConversationRead, dbGetMessages, dbPrepareMessageInsert, dbCreateMessage,
+  dbGetMyConversations, dbGetMyRelations, dbMarkConversationRead, dbGetMessages, dbPrepareMessageInsert, dbCreateMessage,
   dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage, dbSetMessageBody,
   dbGetSigningById, dbDeleteSigning, dbGetPendingSigningForConversation, dbCreateSigning, dbConfirmSigning, dbRejectSigning,
   dbCloseConversationCascade,
