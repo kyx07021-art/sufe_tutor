@@ -55,7 +55,7 @@ const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(
 // 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 12; // AI-4a: signing_contracts 合并表 + 存量迁移（signing 保留 id/合同合并/台账 remap；AI-3 双方元组列是前置）——AI-4b 读写切换须同批次部署（窗口期旧表数据不补迁），AI-5 删旧表后再 bump
+export const SCHEMA_VERSION = 13; // AI-5: 删旧表 signing_requests/contracts（AI-4a 数据已迁 + AI-4b 读写已切）+ 旧 DDL/ensureColumns/迁移块清理——同批部署需从 12 起（跳过 v12 的旧库不保迁移，W1）
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生

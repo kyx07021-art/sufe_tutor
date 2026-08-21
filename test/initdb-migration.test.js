@@ -172,7 +172,7 @@ test('全新库：initDb 完整可跑 + 管理员播种 + 子表 FK 正常', asy
   const admin = db.prepare("SELECT role FROM users WHERE username='admin_sufe'").first();
   assert.ok(admin && admin.role === 'admin');
   // 全表建成
-  for (const t of ['users', 'auth_sessions', 'teacher_profiles', 'student_demands', 'contracts', 'conversations', 'messages', 'notifications', 'danger_caps']) {
+  for (const t of ['users', 'auth_sessions', 'teacher_profiles', 'student_demands', 'signing_contracts', 'conversations', 'messages', 'notifications', 'danger_caps']) {
     const row = db.prepare("SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name=?").first(t);
     assert.ok(row, `表 ${t} 应已建成`);
   }

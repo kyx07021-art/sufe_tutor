@@ -1,5 +1,5 @@
 /**
- * chat 域 schema（V-1-4b）：会话 / 消息 / 附件 / 签约请求 DDL、列迁移与存量绑定回填。
+ * chat 域 schema（V-1-4b + AI-5）：会话 / 消息 / 附件 DDL、列迁移与存量绑定回填（签约请求表已并 signing_contracts）。
  */
 import { dbGet, dbRun } from '../../core/util.js';
 
@@ -44,12 +44,7 @@ export const ensureColumns = [
     ['student_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
     ['teacher_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
   ] },
-  // AI-3：signing_requests 自持双方元组（relation 抽象父类下平级子实体，业务不再依赖 conversation join；
-  // conversation_id 列保留作历史关联与 FK 级联，归属/门禁全走双方元组）
-  { table: 'signing_requests', columns: [
-    ['student_user_id', 'INTEGER'], ['teacher_user_id', 'INTEGER'],
-  ] },
-];
+]; // AI-5: signing_requests 表已删（AI-3 双方元组 ensureColumns 随表清理）
 
 // messages.kind CHECK 迁移：约束缺任一合法 kind 即保数据换表（SQLite CHECK 不可 ALTER，只能重建）。
 // Z-4-F1：探测旧表列动态 carry（旧库可能无 name/thumb 或只有部分），终态新表含 name/thumb 列；
@@ -82,29 +77,9 @@ async function migrateMessagesKind(db) {
   }
 }
 
-export async function initSigningTable(db) {
-  await dbRun(db, `CREATE TABLE IF NOT EXISTS signing_requests (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    conversation_id INTEGER NOT NULL,
-    demand_id INTEGER,
-    initiator_user_id INTEGER NOT NULL,
-    message_id INTEGER,
-    price REAL NOT NULL DEFAULT 0,
-    schedule TEXT NOT NULL DEFAULT '',
-    method TEXT NOT NULL DEFAULT 'offline',
-    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','signed','rejected')),
-    created_at DATETIME DEFAULT (datetime('now')),
-    responded_at DATETIME,
-    FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
-    FOREIGN KEY (initiator_user_id) REFERENCES users(id) ON DELETE CASCADE)`);
-  try { await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_signing_conv ON signing_requests(conversation_id, status)'); }
-  catch { /* 已存在则忽略 */ }
-}
-
 export async function migrate(db, ctx) {
   if (ctx.phase === 'postCreate') {
     await migrateMessagesKind(db);
-    await initSigningTable(db);
     return;
   }
   if (ctx.phase !== 'postEnsure') return;
@@ -129,9 +104,6 @@ export async function migrate(db, ctx) {
   // 同会话同发送者同键双写（双端并发重发竞态）→ 唯一约束兜底不落重复行
   await dbRun(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_client_key
     ON messages(conversation_id, sender_user_id, client_key) WHERE client_key IS NOT NULL`);
-  // AI-3：signing_requests 双方元组存量回填（按 conversation_id 反查会话，幂等只填空不覆写）
-  await dbRun(db, `UPDATE signing_requests SET
-      student_user_id = (SELECT c.student_user_id FROM conversations c WHERE c.id = signing_requests.conversation_id),
-      teacher_user_id = (SELECT c.teacher_user_id FROM conversations c WHERE c.id = signing_requests.conversation_id)
-    WHERE student_user_id IS NULL OR teacher_user_id IS NULL`);
+  // AI-5: 旧 signing_requests 表数据已由 AI-4a 迁入 signing_contracts、读写已由 AI-4b 全切——删表（幂等清理）
+  await dbRun(db, 'DROP TABLE IF EXISTS signing_requests');
 }

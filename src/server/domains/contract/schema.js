@@ -1,33 +1,8 @@
 /**
- * contract 域 schema（V-1-4b）：合同表 DDL / 存证台账 DDL / 列迁移 / 域专属迁移。
+ * contract 域 schema（V-1-4b + AI-4a/5）：signing_contracts 合并表 DDL（签约/合同同一实体不同 stage）/ 存证台账 DDL / 域专属迁移。
  */
 import { dbAll, dbGet, dbRun, ensureColumns as addColumns } from '../../core/util.js';
 import { decryptField } from '../../core/crypto.js'; // AI-4a: ledger rehash needs contract_md decrypt
-
-export const CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS contracts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  conversation_id INTEGER NOT NULL,
-  drafter_user_id INTEGER NOT NULL,
-  method TEXT NOT NULL DEFAULT 'online',
-  plan TEXT NOT NULL DEFAULT '',
-  hourly_rate INTEGER NOT NULL DEFAULT 0,
-  pay_method TEXT NOT NULL DEFAULT '',
-  pay_method_other TEXT NOT NULL DEFAULT '',
-  first_lesson_date TEXT NOT NULL DEFAULT '',
-  trial_pay TEXT NOT NULL DEFAULT '',
-  trial_pay_other TEXT NOT NULL DEFAULT '',
-  contract_md TEXT NOT NULL DEFAULT '',
-  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','signing','signed')),
-  drafter_confirmed INTEGER NOT NULL DEFAULT 0,
-  other_confirmed INTEGER NOT NULL DEFAULT 0,
-  drafter_signed_at TEXT NOT NULL DEFAULT '',
-  other_signed_at TEXT NOT NULL DEFAULT '',
-  version INTEGER NOT NULL DEFAULT 0,
-  revoked INTEGER NOT NULL DEFAULT 0,
-  revoked_by INTEGER NOT NULL DEFAULT 0,
-  created_at DATETIME DEFAULT (datetime('now')),
-  updated_at DATETIME DEFAULT (datetime('now')),
-  FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`;
 
 
 // AI-4a: signing/contract merged table (same entity, stage progresses signing->contract)
@@ -69,89 +44,20 @@ export const SIGNING_CONTRACTS_DDL = `CREATE TABLE IF NOT EXISTS signing_contrac
   updated_at DATETIME DEFAULT (datetime('now')),
   FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`;
 
-export const createStatements = [CONTRACTS_DDL, SIGNING_CONTRACTS_DDL];
+export const createStatements = [SIGNING_CONTRACTS_DDL]; // AI-5: 旧 contracts 表已删（AI-4a 迁移数据 + AI-4b 读写切换后唯一实体表）
 
-export const ensureColumns = [
-  { table: 'contracts', columns: [
-    ['demand_id', 'INTEGER'], ['schedule', "TEXT NOT NULL DEFAULT ''"], ['location', "TEXT NOT NULL DEFAULT ''"],
-    ['pay_method', "TEXT NOT NULL DEFAULT ''"], ['pay_method_other', "TEXT NOT NULL DEFAULT ''"],
-    ['first_lesson_date', "TEXT NOT NULL DEFAULT ''"], ['trial_pay', "TEXT NOT NULL DEFAULT ''"], ['trial_pay_other', "TEXT NOT NULL DEFAULT ''"],
-    ['version', 'INTEGER NOT NULL DEFAULT 0'],
-    ['prev_business', 'TEXT'],
-    ['drafter_signed_at', "TEXT NOT NULL DEFAULT ''"],
-    ['other_signed_at', "TEXT NOT NULL DEFAULT ''"],
-    ['revoked', 'INTEGER NOT NULL DEFAULT 0'],
-    ['revoked_by', 'INTEGER NOT NULL DEFAULT 0'],
-    // AI-3：contracts 自持双方元组（relation 抽象父类下平级子实体，业务不再依赖 conversation join；
-    // conversation_id 列保留作历史关联与 FK 级联，归属/门禁全走双方元组）
-    ['student_user_id', 'INTEGER'], ['teacher_user_id', 'INTEGER'],
-  ] },
-];
-
-// 旧预留 contracts 表（student/teacher 直连 + active/ended 状态）从未启用过：检测到旧形状即整体换新
-async function migrateContractsShape(db) {
-  const rows = (await dbAll(db, 'PRAGMA table_info(contracts)')).map(c => c.name);
-  if (rows.length && !rows.includes('conversation_id')) {
-    await dbRun(db, 'DROP TABLE contracts');
-    await dbRun(db, CONTRACTS_DDL);
-  }
-}
+// AI-5: signing_contracts DDL 完整自足（AI-4a 合并全字段），无补列需求——旧 contracts ensureColumns 随表删
+export const ensureColumns = [];
 
 export async function migrate(db, ctx) {
-  if (ctx.phase === 'postCreate') {
-    await migrateContractsShape(db);
-  } else if (ctx.phase === 'postEnsure') {
-    await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_contracts_conv ON contracts(conversation_id)');
-    await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_contracts_demand ON contracts(demand_id)');
-    // AI-4b：signing_contracts 热查询索引（起草定位/元组过滤/绑定下拉；postEnsure 幂等，本批 v11→v12 迁移必跑）
-    await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_conv ON signing_contracts(conversation_id, stage, signing_status)');
-    await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_demand ON signing_contracts(demand_id, stage)');
-    await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_tuple ON signing_contracts(student_user_id, teacher_user_id, stage)');
-    // AI-3：contracts 双方元组存量回填（按 conversation_id 反查会话，幂等只填空不覆写）
-    await dbRun(db, `UPDATE contracts SET
-        student_user_id = (SELECT c.student_user_id FROM conversations c WHERE c.id = contracts.conversation_id),
-        teacher_user_id = (SELECT c.teacher_user_id FROM conversations c WHERE c.id = contracts.conversation_id)
-      WHERE student_user_id IS NULL OR teacher_user_id IS NULL`);
-    // AI-4a: migrate signing_requests -> signing_contracts (keep original id so bubble body signing ids stay valid)
-    await dbRun(db, `INSERT OR IGNORE INTO signing_contracts
-      (id, student_user_id, teacher_user_id, demand_id, conversation_id, stage, signing_status,
-       initiator_user_id, price, schedule, method, message_id, responded_at, created_at)
-      SELECT id, student_user_id, teacher_user_id, demand_id, conversation_id, 'signing', status,
-             initiator_user_id, price, schedule, method, message_id, responded_at, created_at
-      FROM signing_requests`);
-    // AI-4a: contracts linked to a confirmed signing (same conversation+demand) merge into that row, stage -> contract
-    // F-3: JOIN 双方 demand_id 均 COALESCE(demand_id,-1) 归一（与 BUG-2 独立行同口径，NULL 语义一致）
-    await dbRun(db, `UPDATE signing_contracts SET
-        stage='contract', contract_status=ct.status, drafter_user_id=ct.drafter_user_id,
-        plan=ct.plan, hourly_rate=ct.hourly_rate, pay_method=ct.pay_method, pay_method_other=ct.pay_method_other,
-        schedule=ct.schedule, method=ct.method,
-        first_lesson_date=ct.first_lesson_date, trial_pay=ct.trial_pay, trial_pay_other=ct.trial_pay_other,
-        location=ct.location, contract_md=ct.contract_md, prev_business=ct.prev_business, version=ct.version,
-        drafter_confirmed=ct.drafter_confirmed, other_confirmed=ct.other_confirmed,
-        drafter_signed_at=ct.drafter_signed_at, other_signed_at=ct.other_signed_at,
-        revoked=ct.revoked, revoked_by=ct.revoked_by, legacy_contract_id=ct.id, updated_at=ct.updated_at
-      FROM contracts ct
-      WHERE signing_contracts.stage='signing' AND signing_contracts.signing_status='signed'
-        AND signing_contracts.conversation_id=ct.conversation_id
-        AND COALESCE(signing_contracts.demand_id,-1)=COALESCE(ct.demand_id,-1)`);
-    // AI-4a: contracts without a linked signing become standalone rows stage='contract'
-    // BUG-2: NOT EXISTS 用 COALESCE(demand_id,-1) 比较——NULL demand 合同复跑迁移不重复插行
-    // F-2: 裸 INSERT 加 OR IGNORE（与 migration a 对称，防悬空 NULL 违约崩全量迁移）
-    await dbRun(db, `INSERT OR IGNORE INTO signing_contracts
-      (student_user_id, teacher_user_id, demand_id, conversation_id, stage, signing_status, contract_status,
-       drafter_user_id, plan, hourly_rate, pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other,
-       schedule, method,
-       location, contract_md, prev_business, version, drafter_confirmed, other_confirmed,
-       drafter_signed_at, other_signed_at, revoked, revoked_by, legacy_contract_id, created_at, updated_at)
-      SELECT ct.student_user_id, ct.teacher_user_id, ct.demand_id, ct.conversation_id, 'contract', 'signed', ct.status,
-             ct.drafter_user_id, ct.plan, ct.hourly_rate, ct.pay_method, ct.pay_method_other, ct.first_lesson_date, ct.trial_pay, ct.trial_pay_other,
-             ct.schedule, ct.method,
-             ct.location, ct.contract_md, ct.prev_business, ct.version, ct.drafter_confirmed, ct.other_confirmed,
-             ct.drafter_signed_at, ct.other_signed_at, ct.revoked, ct.revoked_by, ct.id, ct.created_at, ct.updated_at
-      FROM contracts ct
-      WHERE NOT EXISTS (SELECT 1 FROM signing_contracts sc WHERE sc.conversation_id=ct.conversation_id
-        AND COALESCE(sc.demand_id,-1)=COALESCE(ct.demand_id,-1))`);
-  }
+  if (ctx.phase !== 'postEnsure') return;
+  // AI-5: 旧 contracts 表数据已由 AI-4a 迁入 signing_contracts、读写已由 AI-4b 全切——删表（幂等清理；
+  // 跳过 v12 的旧库不保迁移，W1 不保留向后兼容）
+  await dbRun(db, 'DROP TABLE IF EXISTS contracts');
+  // signing_contracts 热查询索引（起草定位/元组过滤/绑定下拉；postEnsure 幂等）
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_conv ON signing_contracts(conversation_id, stage, signing_status)');
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_demand ON signing_contracts(demand_id, stage)');
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_tuple ON signing_contracts(student_user_id, teacher_user_id, stage)');
 }
 
 // ============================================================
