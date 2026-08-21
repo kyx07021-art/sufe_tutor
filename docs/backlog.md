@@ -224,3 +224,17 @@ signing.js:161/168 与 dbResolveIntent/dbResolvePush 重复；:107/:110/:177 原
 - 🟡 **T-6-F1-OBS2 otp-delivery.test.js:80/85 场景字面量**：用 `'登录验证'` 字面量而非 OTP_SCENES.LOGIN（值未变仍绿；测试侧单源可后续对齐）。
 - 🟡 **T-6-F2-OBS dbGetStudentUsersAdmin 列表出口无 DB 直测**：仅学生搜索出口（dbAdminSearchUsers）被 admin-search-contract.test.js 真 sqlite 直测；两出口 SQL 逐字一致风险低，G1 完备可补一条列表出口直测。
 - 🟡 **T-6-F7-OBS getVersions 默认 0 键与 DOMAINS 一致性无锁**（server/version.js:50）：getVersions 硬编码 7 域默认 0 键，若 DOMAINS 加域漏补默认键，首次 bump 前响应无该域基线。协议锁测试（data-version-protocol.test.js）未覆盖此面，可后续补一致性断言。
+
+### 需求 AI 批观察项（2026-08-21，AI-10b 收口登记；AI-6/AI-7/AI-8/AI-9 独立审计 PASS 后非阻断遗留，攒批）
+- ✅ **AI-6-O1 并发双配对无显式测试** → 已在 AI-10a 补齐（conversation-reopen.test.js 并发双配对用例，条件 UPDATE 守卫承重面变异实证）。**AI-6 已收口。**
+- 🟡 **AI-7 低观察项 ×2**（GET /api/my-relations 聚合）：①排序平局 rowid 理论注记（last_at 相同时排序不稳定，理论边缘低影响）；②signing 聚合子查询走 idx_sc_tuple 可用不必须（当前 LEFT JOIN MAX(id) 聚合正确，性能可优化非必需）。
+- 🟡 **AI-8 L1/L2/L3**（DELETE /api/admin/relations）：L1 404 不消费 capToken 无测试兜底（chat/api.js:154-157 先 404 后 confirmDangerOtp 结构性保证，未来重排代码无测试兜底）；L2「评价保留」未直接测试（未种子 reviews 行断言存活；结构性保证充分——handler 零触及 reviews、删会话不删 users、reviews FK→users）；L3 `if (conv.demand_id)` 外层 guard 冗余（dbReleaseDemandAfterRevoke 内部已兜底 null）。
+- 🟡 **AI-9 O-2 中-轻 chatPollTick 轮询不处理快照状态翻转**（actions-list.js:210-241）：对端 close 后当前打开该会话的本端 frame 保持 active 可写（轮询无新消息时不感知），直到下次 openConversation（重开）或列表刷新才显示 closed；发送被服务端 403 兜底 + toast（actions-send.js:161）。最终一致 + 服务端兜底，非断线。修法 = chatPollTick 快照状态翻转检测（对齐 openConversation 的 wasClosed 翻转重渲染）。
+- 🟡 **AI-9 O-3 轻 verify-chat-layout.mjs 未覆盖 .chat-head-actions 几何断言**：结束关系按钮/动作组无渲染几何断言（S-5 verify 脚本同型补强）。
+- 🟡 **AI-9 O-4 轻 doCloseRelation 403 失败路径无直接测试**：endRelation 全链路测试覆盖成功/幂等/F6，403（REAUTH_FAILED）分支仅靠 catch toast 无断言。
+- ✅ **AI-9 O-1 变异声称差异** → 已在 AI-10a 修正测试注释精度（bf6e000，文档声称 vs 实际锁定数字对齐）。**已收口。**
+- 🟡 **AI-9 附带发现 · settings/actions.js:159 .btn-danger 死类**（既有遗留，非 AI-9 引入）：`.btn-danger` 类全仓无 CSS 规则（死类落回标准白按钮）。修法 = 删类名或补规则（对照 glass 体系，现吃引擎默认）。
+- 🟡 **AI-9 附带发现 · CHAT_CONVERSATION_CLOSED 前端无消费点**（AI-2 错误码）：前端无 code→toast 映射表，统一展示 MSG 中文，code 仅测试断言用——跨面注记（符合 D4 语义，前端零新增映射），可后续补前端 code 消费统一层。
+- 🟡 **frontend-decoupling.md 补 close/my-relations 接口条目**（需求 T 早于 AI-1 完结，文档未记录 AI-1 POST /api/conversations/:id/close + AI-7 GET /api/my-relations 两新接口）：docs/frontend-decoupling.md 标准业务接口清单需补两条（供新前端换壳接入）。
+- 🟡 **NO_PERMISSION 跨面注记**（chat/api.js:259 发送消息 + contract/api.js:686 创建类入口）：closed 会话创建/发送类入口返回 NO_PERMISSION 而非 CONVERSATION_CLOSED——与 AI-2 OBS-3 一致的有意设计（closed frame 不渲染 plus/输入栏，入口天然不可达，前端零影响）；跨面一致性注记，勿误当 bug。
+- 🟡 **CONTRACT_REVOKED 文案语义待核**（AI-1 观察项）：text.js「「{name}」已撤销双方签署的合同」文案 vs 级联收束（revoked_by=0 系统撤销）场景语义是否失准——AI-9 未核，攒批时对账。
