@@ -41,6 +41,9 @@ export const ensureColumns = [
     ['other_signed_at', "TEXT NOT NULL DEFAULT ''"],
     ['revoked', 'INTEGER NOT NULL DEFAULT 0'],
     ['revoked_by', 'INTEGER NOT NULL DEFAULT 0'],
+    // AI-3：contracts 自持双方元组（relation 抽象父类下平级子实体，业务不再依赖 conversation join；
+    // conversation_id 列保留作历史关联与 FK 级联，归属/门禁全走双方元组）
+    ['student_user_id', 'INTEGER'], ['teacher_user_id', 'INTEGER'],
   ] },
 ];
 
@@ -59,6 +62,11 @@ export async function migrate(db, ctx) {
   } else if (ctx.phase === 'postEnsure') {
     await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_contracts_conv ON contracts(conversation_id)');
     await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_contracts_demand ON contracts(demand_id)');
+    // AI-3：contracts 双方元组存量回填（按 conversation_id 反查会话，幂等只填空不覆写）
+    await dbRun(db, `UPDATE contracts SET
+        student_user_id = (SELECT c.student_user_id FROM conversations c WHERE c.id = contracts.conversation_id),
+        teacher_user_id = (SELECT c.teacher_user_id FROM conversations c WHERE c.id = contracts.conversation_id)
+      WHERE student_user_id IS NULL OR teacher_user_id IS NULL`);
   }
 }
 

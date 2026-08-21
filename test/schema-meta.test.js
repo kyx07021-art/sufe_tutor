@@ -133,3 +133,44 @@ test('版本落后到上一版（v9 存量库缺 messages.client_key）：重跑
   const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
   assert.equal(ver.v, SCHEMA_VERSION, '重跑后版本更新到最新');
 });
+
+// AI-3：signing_requests/contracts 自持双方元组（relation 抽象父类平级子实体，业务去 conversation join）。
+// 存量 v10 库缺 student_user_id/teacher_user_id 列 → initDb 版本落后重跑迁移补列 + 按 conversation_id 回填双方元组（幂等只填空）。
+test('版本落后到上一版（v10 存量库缺双方元组列）：重跑迁移补列 + 回填 + 幂等', async (t) => {
+  const { raw, db, calls } = setup(t);
+  await initDb(db, ENV); // 先建出最新全量
+  // 造一对师生 + 会话 + 签约 + 合同（存量行带 conversation_id）
+  const s = raw.prepare(`INSERT INTO users (username, password_hash, salt, role) VALUES ('ai_stu','x','x','student')`).run();
+  const studentId = Number(s.lastInsertRowid);
+  const tc = raw.prepare(`INSERT INTO users (username, password_hash, salt, role) VALUES ('ai_tea','x','x','teacher')`).run();
+  const teacherId = Number(tc.lastInsertRowid);
+  const cv = raw.prepare(`INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)`).run(studentId, teacherId);
+  const convId = Number(cv.lastInsertRowid);
+  const sr = raw.prepare(`INSERT INTO signing_requests (conversation_id, initiator_user_id, price, schedule, method) VALUES (?,?,100,'周一 18:00','online')`).run(convId, studentId);
+  const srId = Number(sr.lastInsertRowid);
+  const ct = raw.prepare(`INSERT INTO contracts (conversation_id, drafter_user_id, contract_md) VALUES (?,?,'md')`).run(convId, studentId);
+  const ctId = Number(ct.lastInsertRowid);
+  // 模拟 v10 存量生产形状：双方元组列缺失 + schema_meta=10（本机 SQLite ≥3.35 支持 DROP COLUMN）
+  raw.exec('ALTER TABLE signing_requests DROP COLUMN student_user_id');
+  raw.exec('ALTER TABLE signing_requests DROP COLUMN teacher_user_id');
+  raw.exec('ALTER TABLE contracts DROP COLUMN student_user_id');
+  raw.exec('ALTER TABLE contracts DROP COLUMN teacher_user_id');
+  raw.exec("UPDATE schema_meta SET v=10 WHERE k='schema'");
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM pragma_table_info('signing_requests') WHERE name='student_user_id'`).get().n, 0, '前置：signing_requests 无 student_user_id');
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM pragma_table_info('contracts') WHERE name='student_user_id'`).get().n, 0, '前置：contracts 无 student_user_id');
+  await initDb(db, ENV); // 版本落后 → 全量迁移补列 + 回填
+  const srRow = raw.prepare(`SELECT student_user_id, teacher_user_id FROM signing_requests WHERE id=?`).get(srId);
+  assert.equal(srRow.student_user_id, studentId, 'signing_requests 回填 student_user_id');
+  assert.equal(srRow.teacher_user_id, teacherId, 'signing_requests 回填 teacher_user_id');
+  const ctRow = raw.prepare(`SELECT student_user_id, teacher_user_id FROM contracts WHERE id=?`).get(ctId);
+  assert.equal(ctRow.student_user_id, studentId, 'contracts 回填 student_user_id');
+  assert.equal(ctRow.teacher_user_id, teacherId, 'contracts 回填 teacher_user_id');
+  const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver.v, SCHEMA_VERSION, '重跑后版本更新到最新');
+  // 幂等：二次 initDb 无任何 DDL/迁移调用
+  const n = calls.length;
+  await initDb(db, ENV);
+  const delta = calls.slice(n);
+  const ddl = delta.filter(c => /CREATE TABLE|ALTER TABLE|PRAGMA/.test(c));
+  assert.equal(ddl.length, 0, `二次 initDb 无 DDL（迁移幂等，实际：${delta.join(', ')}）`);
+});

@@ -44,6 +44,11 @@ export const ensureColumns = [
     ['student_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
     ['teacher_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
   ] },
+  // AI-3：signing_requests 自持双方元组（relation 抽象父类下平级子实体，业务不再依赖 conversation join；
+  // conversation_id 列保留作历史关联与 FK 级联，归属/门禁全走双方元组）
+  { table: 'signing_requests', columns: [
+    ['student_user_id', 'INTEGER'], ['teacher_user_id', 'INTEGER'],
+  ] },
 ];
 
 // messages.kind CHECK 迁移：约束缺任一合法 kind 即保数据换表（SQLite CHECK 不可 ALTER，只能重建）。
@@ -124,4 +129,9 @@ export async function migrate(db, ctx) {
   // 同会话同发送者同键双写（双端并发重发竞态）→ 唯一约束兜底不落重复行
   await dbRun(db, `CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_client_key
     ON messages(conversation_id, sender_user_id, client_key) WHERE client_key IS NOT NULL`);
+  // AI-3：signing_requests 双方元组存量回填（按 conversation_id 反查会话，幂等只填空不覆写）
+  await dbRun(db, `UPDATE signing_requests SET
+      student_user_id = (SELECT c.student_user_id FROM conversations c WHERE c.id = signing_requests.conversation_id),
+      teacher_user_id = (SELECT c.teacher_user_id FROM conversations c WHERE c.id = signing_requests.conversation_id)
+    WHERE student_user_id IS NULL OR teacher_user_id IS NULL`);
 }

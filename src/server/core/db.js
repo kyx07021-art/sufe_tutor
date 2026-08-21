@@ -55,7 +55,7 @@ const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(
 // 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 10; // Q-2d-F2（Q-2g 复审抓出）：chat.messages 加 client_key 列 + idx_messages_client_key 部分唯一索引（幂等键去重）——漏 bump 致生产 v9 库版本门控短路迁移永不执行、client_key 列永不补上 → 聊天发送全 500（V-4-1c/Z-4-F1 第三次踩坑，回归测试钉死）；v9 存量库需跑全量迁移补列
+export const SCHEMA_VERSION = 11; // AI-3：signing_requests/contracts 加 student_user_id/teacher_user_id 双方元组列（relation 抽象父类平级子实体，自持双方，业务去 conversation join）+ 存量回填——漏 bump 致存量 v10 库版本门控短路迁移永不执行、双方元组列永不补上 → AI-4/5/1/2 按双方元组查询/门禁全 500（Q-2g 教训第四次应用，回归测试钉死）
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生
