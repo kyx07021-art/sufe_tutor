@@ -14,7 +14,6 @@ import { startOnboardingTour } from '../onboard/actions.js';
 let authReturnPage = null;
 
 export function setAuthReturnPage(page) { authReturnPage = page; }
-export function getAuthReturnPage() { return authReturnPage; }
 
 export function ensureAuth() {
   if (state.user) return true;
