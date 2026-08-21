@@ -85,6 +85,10 @@ export function versionDomainOf(pathname) {
   if (/^\/api\/conversations\/\d+\/signing$/.test(p) ||
       /^\/api\/signing-requests\/\d+\/respond$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.CHAT, DOMAINS.DEMANDS];
 
+  // AI-1：结束关系——会话状态（chat）+ 合同级联收束（contracts）+ 需求释放（demands）三域失效
+  // （与 signing/respond 同域组；notifications 由 notifyUser 咽喉自 bump）
+  if (/^\/api\/conversations\/\d+\/close$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.CHAT, DOMAINS.DEMANDS];
+
   // 聊天系（高频写隔离：只 bump chat 域，不扰动其它域）
   if (/^\/api\/conversations\/\d+\/messages$/.test(p)) return [DOMAINS.CHAT];
 

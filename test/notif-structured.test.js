@@ -120,6 +120,7 @@ test('notifBodyText renders each structured type to the v1-parity text', () => {
     ['CONTRACT_DRAFT_SENT', { name: '张老师' }, '「张老师」发来一份合同草案，请前往「我的合同」查看并确认'],
     ['CONTRACT_SIGNED', {}, TEXT.NOTIF_CONTRACT_SIGNED],
     ['CONTRACT_REVOKED', { name: '张老师' }, '「张老师」已撤销双方签署的合同，活跃数据已抹除，存证留档保留。'],
+    ['CONVERSATION_CLOSED', { name: '张老师' }, '「张老师」已结束与你的合作关系，本会话已关闭。进行中的签约已自动取消，未完成的合同已自动撤销。'],
     ['SIGNING_REQUEST_SENT', { name: '张老师' }, '「张老师」向你发送了签约请求'],
     ['FEEDBACK_COMPLAINT_RESOLVED', {}, TEXT.NOTIF_FEEDBACK_COMPLAINT_RESOLVED],
     ['VERIFY_APPROVED', { verifyType: 'chsi', detail: '示例大学 · 大一' },

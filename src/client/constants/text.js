@@ -158,6 +158,7 @@ export const TEXT = {
   "NOTIF_SIGNING_REQUEST_SENT": "「{name}」向你发送了签约请求",
   "NOTIF_SIGNING_CONFIRMED": "对方已确认签约请求",
   "NOTIF_SIGNING_REJECTED": "对方已拒绝此次签约请求",
+  "NOTIF_CONVERSATION_CLOSED": "「{name}」已结束与你的合作关系，本会话已关闭。进行中的签约已自动取消，未完成的合同已自动撤销。",
   "NOTIF_FEEDBACK_RESOLVED": "你反馈的问题已经处理好了。具体结果可以到「我的投诉与反馈」查看。",
   "NOTIF_FEEDBACK_COMPLAINT_RESOLVED": "你的投诉已处理完毕，结果可以在「我的投诉与反馈」里查看。",
   "NOTIF_VERIFY_APPROVED_ADMISSION": "录取通知书核验已通过，你的接单资格已开放",

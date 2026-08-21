@@ -12,15 +12,22 @@ import { MSG } from '../../../shared/codes.js';
 import { STATUS } from '../../../shared/enums.js';
 import { LIMITS } from '../../../shared/config.js';
 import {
-  dbGetMyConversations, dbGetConversationById, dbGetMessages, dbMarkConversationRead,
+  dbGetMyConversations, dbGetConversationById, dbGetConversationWithNames, dbGetMessages, dbMarkConversationRead,
   dbGetMessageAttachment, dbGetConversationBindableDemands,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload,
-  dbPrepareMessageInsert, dbPrepareUploadDelete, dbGetMessagesByClientKeys,
+  dbPrepareMessageInsert, dbPrepareUploadDelete, dbGetMessagesByClientKeys, dbSetMessageBody,
+  dbCloseConversationCascade,
 } from '../../../../server/db.js';
 import { logEvent } from '../../core/log.js';
+import { notifyUser } from '../../core/notify.js'; // AI-1：结束关系通知（CONVERSATION_CLOSED 等）
+import { confirmDangerOtp } from '../../core/danger-ops.js'; // AI-1：危险操作二次认证（结束关系同撤销合同口径 F-05）
 
 const isParticipant = (conv, userId) =>
   conv && (conv.student_user_id === userId || conv.teacher_user_id === userId);
+
+// AI-1：会话参与方 helper（通知对端判定 + 名字取用；conv 经 dbGetConversationWithNames 带双方名）
+const otherSide = (conv, userId) => conv && (userId === conv.student_user_id ? conv.teacher_user_id : conv.student_user_id);
+const nameOf = (conv, userId) => conv && (userId === conv.student_user_id ? conv.student_name : conv.teacher_name);
 
 // 会话操作公共关口：取会话行 + 参与方校验（会话双方学生/教师）。
 // 不存在或非参与方统一 404（不向外透露会话存在性）；失败返 { err: Response }，成功返 { conv }
@@ -28,6 +35,58 @@ async function loadConversationFor(db, conversationId, userId) {
   const conv = await dbGetConversationById(db, conversationId);
   if (!conv || !isParticipant(conv, userId)) return { err: errorMsg('CONVERSATION_NOT_FOUND', 404) };
   return { conv };
+}
+
+// POST /api/conversations/:id/close —— 结束关系（AI-1）：会话 active→closed + 级联自动收束。
+// 级联（经双方元组，单 batch 原子）：pending 签约自动拒绝（需求保持 open）+ 进行中合同自动撤销
+// （revoked=1 + 释放绑定需求 contracted→revoked）；已成交未起草（signing signed）/已签署合同
+// （contract signed）保留历史存证（A5 终态门禁）。危险操作 capToken 二次认证（同撤销合同/签约 F-05 口径）。
+// 幂等：已 closed 再次 close 返回 alreadyClosed，不消耗 capToken、零级联重放；并发双 close 仅赢家跑副作用。
+export async function handleCloseConversation(db, conversationId, body, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const g = await loadConversationFor(db, conversationId, me.id); // 参与方校验 + 404 不泄露存在性
+  if (g.err) return g.err;
+  if (g.conv.status !== STATUS.ACTIVE) return json({ ok: true, alreadyClosed: true }); // 幂等短路，不消耗 capToken
+  // 危险操作二次认证：参与方校验之后、业务写入之前（非法态不消耗一次性 token）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
+
+  const conv = await dbGetConversationWithNames(db, conversationId); // 通知文案需要双方用户名
+  if (!conv) return errorMsg('CONVERSATION_NOT_FOUND', 404);
+  const res = await dbCloseConversationCascade(db, conversationId, conv.student_user_id, conv.teacher_user_id);
+  if (!res.closeWon) return json({ ok: true, alreadyClosed: true }); // 并发败者：对方已关，级联已被首赢家收束
+
+  // ---- 副作用（E2）：主结果（会话 closed + 级联落库）已定，通知/留档/气泡失败不翻转 ----
+  const other = otherSide(conv, me.id);
+  const myName = nameOf(conv, me.id);
+  let signingsRejected = 0, contractsRevoked = 0;
+  for (const s of res.rejected) {
+    if (!s.changes) continue; // 快照漂移：该行已被并发处理（如对端已确认签约）→ 零副作用
+    signingsRejected++;
+    // 气泡终态覆写（F4）：pending 签约气泡 body 停在 pending 会渲染可点按钮（点击恒 404/409）
+    if (s.message_id) {
+      await dbSetMessageBody(db, s.message_id,
+        JSON.stringify({ id: s.id, price: s.price, schedule: s.schedule, method: s.method, status: STATUS.REJECTED }));
+    }
+    if (s.initiator_user_id !== me.id) { // 关闭方发起的签约不自通知（关闭方已知自己的请求被自动取消）
+      await notifyUser(db, s.initiator_user_id, 'SIGNING_REJECTED', {});
+    }
+    await logEvent(db, { action: 'signing.auto_reject', actorRole: 'system', actorUserId: me.id,
+      entity: 'signing_contract', entityId: s.id,
+      detail: { conversationId, demandId: s.demand_id, reason: 'conversation_closed' }, req });
+  }
+  for (const c of res.revoked) {
+    if (!c.changes) continue;
+    contractsRevoked++;
+    await notifyUser(db, other, 'CONTRACT_REVOKED', { name: myName });
+    await logEvent(db, { action: 'contract.auto_revoke', actorRole: 'system', actorUserId: me.id,
+      entity: 'signing_contract', entityId: c.id,
+      detail: { conversationId, demandId: c.demand_id, reason: 'conversation_closed' }, req });
+  }
+  await notifyUser(db, other, 'CONVERSATION_CLOSED', { name: myName });
+  await logEvent(db, { action: 'conversation.close', actorUserId: me.id, entity: 'conversation', entityId: conversationId,
+    detail: { conversationId, closedBy: me.id, signingsRejected, contractsRevoked, demandsReleased: res.demandsReleased }, req });
+  return json({ ok: true, closed: true, signingsRejected, contractsRevoked });
 }
 
 // 文件类 dataURL 黑名单：html/svg 可投递钓鱼内容（现代浏览器阻断执行但仍可投递），一律拒收。
@@ -233,6 +292,7 @@ async function handleSendBatch(db, convId, batch, userId, req) {
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [
   S('GET', '/api/conversations', c => handleGetConversations(c.db, c.url, c.req)),
+  S('POST', '/api/conversations/:id/close', c => handleCloseConversation(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('POST', '/api/conversations/:id/read', c => handleMarkRead(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/conversations/:id/messages', c => handleGetMessages(c.db, parseIdParam(c.params.id), c.url, c.req)),
   S('POST', '/api/conversations/:id/messages', c => handleSendMessage(c.db, parseIdParam(c.params.id), c.body, c.req)),

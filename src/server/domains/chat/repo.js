@@ -200,6 +200,48 @@ export async function dbRejectSigning(db, signingId) {
   return !!(res && res.meta && res.meta.changes > 0);
 }
 
+// AI-1：结束关系原子事务——会话 active→closed + 级联自动收束（pending 签约拒绝 + 进行中合同撤销 + 需求释放）
+// 单 db.batch 原子。幂等/并发：会话 UPDATE 的 status='active' 守卫是承重闸门（并发双 close 仅赢家
+// closeWon=true 触发副作用；级联各行自身条件 UPDATE 幂等，重复 close 全 changes=0 零副作用）。
+// 级联按双方元组匹配（relationship 抽象父类的物理表达，不依赖 conversation_id——该列可 NULL、
+// AI-4b 兜底独立合同行也覆盖；命中 idx_sc_tuple 索引）。
+// 需求释放与合同撤销同事务（AI-1 有意决定：防「合同已 revoked 但需求滞留 contracted 死锁」，
+// Q-2e-F1 教训；SQL 与 demand/repo.js dbReleaseDemandAfterRevoke 同口径，batch 内联）。
+// 边界（A5 终态门禁由 WHERE 守卫天然保证）：已成交未起草（signing signed）/已签署合同（contract signed）/
+// 已拒绝/已撤销行全部不命中；已撤销合同置 revoked=1+contract_status='signed' 沿 handleRevokeContract 标记口径
+// （revoked 主导显示，contractStatusMeta 先判 revoked）。
+// 返回 { closeWon, rejected:[{行..., changes}], revoked:[{行..., changes}], demandsReleased }
+export async function dbCloseConversationCascade(db, conversationId, studentUserId, teacherUserId) {
+  const signings = await dbAll(db,
+    `SELECT id, demand_id, initiator_user_id, message_id, price, schedule, method
+     FROM signing_contracts
+     WHERE student_user_id=? AND teacher_user_id=? AND stage='signing' AND signing_status='pending'`,
+    [studentUserId, teacherUserId]);
+  const contracts = await dbAll(db,
+    `SELECT id, demand_id FROM signing_contracts
+     WHERE student_user_id=? AND teacher_user_id=? AND stage='contract'
+       AND contract_status IN ('pending','signing') AND revoked=0`,
+    [studentUserId, teacherUserId]);
+  const demandIds = [...new Set(contracts.map(c => c.demand_id).filter(Boolean))];
+  const stmts = [
+    db.prepare("UPDATE conversations SET status='closed' WHERE id=? AND status='active'").bind(conversationId),
+    ...signings.map(s => db.prepare(
+      `UPDATE signing_contracts SET signing_status=?, responded_at=datetime('now')
+       WHERE id=? AND stage='signing' AND signing_status='pending'`).bind(STATUS.REJECTED, s.id)),
+    ...contracts.map(c => db.prepare(
+      `UPDATE signing_contracts SET revoked=1, revoked_by=0, contract_status='signed', version=version+1, updated_at=datetime('now')
+       WHERE id=? AND stage='contract' AND contract_status IN ('pending','signing') AND revoked=0`).bind(c.id)),
+    ...demandIds.map(d => db.prepare(
+      `UPDATE student_demands SET status='revoked' WHERE id=? AND status='contracted'`).bind(d)),
+  ];
+  const results = await db.batch(stmts);
+  const changes = i => (results[i] && results[i].meta && results[i].meta.changes) || 0;
+  let idx = 1;
+  const rejected = signings.map(s => ({ ...s, changes: changes(idx++) }));
+  const revoked = contracts.map(c => ({ ...c, changes: changes(idx++) }));
+  return { closeWon: changes(0) > 0, rejected, revoked, demandsReleased: demandIds.length };
+}
+
 // ============================================================
 // 聊天附件暂存区（uploads）：文件拖入/选中即真实上传至此（XHR 进度），
 // 发送时凭 uploadId 确认落入 messages 后删除暂存

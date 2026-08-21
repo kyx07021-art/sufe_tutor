@@ -368,6 +368,9 @@ export const NOTIFY_TYPES = {
   },
   "SIGNING_CONFIRMED": {},
   "SIGNING_REJECTED": {},
+  "CONVERSATION_CLOSED": {
+    "name": 1
+  },
   "FEEDBACK_RESOLVED": {},
   "FEEDBACK_COMPLAINT_RESOLVED": {},
   "VERIFY_APPROVED": {
