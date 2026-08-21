@@ -188,7 +188,7 @@ test('bindable phase=contract：无本会话教师 signed signing 的 contracted
   assert.equal((await r.json()).demands.length, 0, '无本会话教师成交记录的需求不可起草（正向 EXISTS 排他）');
 });
 
-test('并发起草守卫（promote 路径）：双并发仅单赢——删 NOT EXISTS 活跃合同闸门 → 双成功红', async () => {
+test('并发起草守卫（promote 路径）：双并发仅单赢（WHERE stage/signing_status 写串行化闸门）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1 } = await seed(db, raw);
   assert.equal((await handleCreateSigning(db, signBody(), reqOf(t1.token))).status, 201);

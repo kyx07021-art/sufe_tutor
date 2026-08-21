@@ -345,8 +345,9 @@ export async function handleCreateContract(db, body, req) {
   let id = 0;
   if (signed) {
     if (signed.teacher_user_id !== conv.teacher_user_id) return errorMsg('DEMAND_NOT_SIGNED', 410); // 成交方须本会话教师
-    // 并发双起草闸门：WHERE stage='signing' AND signing_status='signed' 只放行尚未起草的行（写串行化，败者 changes=0）；
-    // NOT EXISTS(同需求活跃合同) + EXISTS(需求 contracted) 双守卫（同旧 INSERT 口径）
+    // 并发双起草闸门：WHERE stage='signing' AND signing_status='signed' 只放行尚未起草的行（写串行化，败者 changes=0，
+    // 这是并发承重闸门，测试 7 实测锁定）；NOT EXISTS(同需求活跃合同) 为纵深防御——结构性冗余（一条需求至多一条
+    // signed signing，dc 预检 + 需求态守卫先拦），删之零功能影响但保留防异常数据；EXISTS(需求 contracted) 同步守卫
     const upd = await dbRun(db,
       `UPDATE signing_contracts SET
          stage='contract', contract_status='signing', drafter_user_id=?, method=?, schedule=?, location=?, plan=?, hourly_rate=?,
