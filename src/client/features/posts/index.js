@@ -13,7 +13,6 @@ const ACTION_MAP = {
   'posts.submit': actions.submitPost,
   'posts.closeModal': actions.closeModalAction,
   'posts.confirmDelete': el => actions.postConfirmDelete(Number(el.dataset.id)),
-  'posts.submitBroadcast': actions.submitBroadcast,
   'posts.submitFeedback': actions.submitFeedback,
   'posts.feedbackBug': () => { actions.closeModalAction(); actions.openFeedbackModal('bug'); },
   'posts.feedbackSuggestion': () => { actions.closeModalAction(); actions.openFeedbackModal('suggestion'); },

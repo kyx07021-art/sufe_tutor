@@ -1,5 +1,5 @@
 /**
- * posts editor actions: create/detail/delete/broadcast.
+ * posts editor actions: create/detail/delete.
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from '../../constants/text.js';
@@ -11,9 +11,6 @@ import { usernameHtml, deactivatedTag } from '../../core/display.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, mdEditorHtml } from '../../core/ui.js';
 import { likePillHtml, favPillHtml } from './render.js';
 import { loadPosts, postsList, postsAuth as ensureAuth } from './actions-list.js';
-
-let refreshNotifications = () => {};
-export function setPostsRefreshNotifications(fn) { if (typeof fn === 'function') refreshNotifications = fn; }
 
 export function openPostEditor() {
   if (!ensureAuth()) return;
@@ -175,47 +172,5 @@ export function openPostDetail(id) {
   });
 }
 
-export function openBroadcastModal() {
-  openModal({
-    title: TEXT.BROADCAST_MODAL_TITLE,
-    closable: false,
-    body: `
-        <div class="form-group">
-          <label class="form-label" for="post-title">${TEXT.POST_LABEL_TITLE}</label>
-          <input type="text" id="post-title" class="form-input" maxlength="${CONFIG.POST_TITLE_MAX}" placeholder="${TEXT.BROADCAST_TITLE_PLACEHOLDER}" data-input="posts.titleCount">
-          <span class="title-count" id="post-title-count">0/${CONFIG.POST_TITLE_MAX}</span>
-        </div>
-        ${mdEditorHtml({ rows: 7, placeholder: TEXT.BROADCAST_BODY_PLACEHOLDER })}`,
-    footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="posts.closeModal">${TEXT.BTN_CANCEL}</button>
-          <button type="button" class="btn glass glass--pressable" id="broadcast-submit" data-action="posts.submitBroadcast">${TEXT.BTN_SEND_NOTIFICATION}</button>`,
-  });
-  const b = document.getElementById('post-body');
-  if (b) b.focus();
-}
-
-export async function submitBroadcast() {
-  const title = (document.getElementById('post-title').value || '').trim();
-  const text = (document.getElementById('post-body').value || '').trim();
-  if (!title) { showToast(TEXT.POST_TITLE_REQUIRED, 'error'); return; }
-  if (!text) { showToast(TEXT.VALIDATE_BROADCAST_EMPTY, 'error'); return; }
-  closeModal();
-  confirm({
-    title: TEXT.BROADCAST_MODAL_TITLE,
-    message: TEXT.BROADCAST_CONFIRM_TEXT,
-    needReAuth: true,
-    onConfirm: (capToken) => doBroadcast(title, text, capToken),
-  });
-}
-
-export async function doBroadcast(title, text, capToken) {
-  try {
-    await api('/api/notifications/broadcast', { method: 'POST', body: { title, text, capToken } });
-    closeModal();
-    showToast(TEXT.BROADCAST_SENT_TOAST);
-    if (state.page === 'notifications') refreshNotifications();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
-}
 
 
