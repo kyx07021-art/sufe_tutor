@@ -224,7 +224,6 @@ export async function dbListTeacherVerifications(db, status) {
   })));
 }
 
-// v1.2.0 T6：管理员按 id 查核验记录
 export async function dbGetTeacherVerificationById(db, id) {
   return await dbGet(db, 'SELECT * FROM teacher_verifications WHERE id=?', [id]);
 }

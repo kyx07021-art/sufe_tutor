@@ -181,7 +181,7 @@ export async function requestOtp(db, { channel, target, scene }, req) {
         entity: 'otp', detail: { channel: ch, reason: 'daily_limit' }, req });
       return { ok: false, err: errorMsg('OTP_DAILY_LIMIT', 429) };
     }
-    // 清理过期行（防 verification_codes 膨胀）
+    // 防 verification_codes 膨胀
     await dbRun(db, 'DELETE FROM verification_codes WHERE channel=? AND target_hash=? AND expires_at < ?',
       [ch, targetHash, nowUtc]);
     const r = await dbRun(db, `INSERT INTO verification_codes (channel, target_hash, code_hash, expires_at, created_at)

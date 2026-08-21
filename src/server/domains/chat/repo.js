@@ -145,7 +145,6 @@ export async function dbGetMessageAttachment(db, messageId, conversationId) {
   return await dbGet(db, 'SELECT body, name FROM messages WHERE id=? AND conversation_id=?', [messageId, conversationId]);
 }
 
-// 管理员删除单条消息（聊天内容管理）
 export async function dbDeleteMessage(db, messageId) {
   return dbRun(db, 'DELETE FROM messages WHERE id=?', [messageId]);
 }
@@ -210,7 +209,6 @@ export async function dbPurgeStaleUploads(db, userId) {
     [userId, LIMITS.STALE_UPLOAD_WINDOW]);
 }
 
-// 本人当前暂存件数（每人 12 件封顶用）
 export async function dbCountUploads(db, userId) {
   const row = await dbGet(db, 'SELECT COUNT(*) AS cnt FROM uploads WHERE user_id=?', [userId]);
   return row?.cnt || 0;

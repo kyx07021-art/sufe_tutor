@@ -74,7 +74,7 @@ export async function dbRecomputeTeacherRating(db, teacherUserId) {
 // JOIN username 处自然显示墓碑。学生侧需求（含联系方式）/意向/推送/自写评价一律删除
 // （网安报告 F-06：原实现漏删学生侧表，敏感数据永久保留）。
 export async function dbPurgeUserOwnedData(db, userId, role) {
-  await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=?', [userId]); // 注销即吊销全部设备的登录态
+  await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM notifications WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM feedbacks WHERE user_id=?', [userId]);
@@ -89,7 +89,6 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
     // 网安 N-12：已签约（contracted）需求不删、置 revoked 保留行——否则合同 demand_id 悬空（裸 INTEGER 无 FK）
     await dbRun(db, `DELETE FROM student_demands WHERE user_id=? AND status <> ?`, [userId, STATUS.CONTRACTED]);
     await dbRun(db, `UPDATE student_demands SET status=? WHERE user_id=? AND status=?`, [STATUS.REVOKED, userId, STATUS.CONTRACTED]);
-    // 删除本人对教师的评价并重算受影响教师评分
     await dbRun(db, 'DELETE FROM demand_pushes WHERE student_user_id=?', [userId]);
     const myReviews = await dbAll(db, 'SELECT id, teacher_user_id FROM reviews WHERE reviewer_user_id=?', [userId]);
     await dbRun(db, 'DELETE FROM reviews WHERE reviewer_user_id=?', [userId]);
@@ -123,12 +122,10 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
   await dbRun(db, `UPDATE messages SET body='', name='' WHERE sender_user_id=? AND kind IN ('text','image','file')`, [userId]);
 }
 
-// 账户设置：头像更新
 export async function dbUpdateUserAvatar(db, userId, avatar) {
   await dbRun(db, 'UPDATE users SET avatar=? WHERE id=?', [avatar, userId]);
 }
 
-// 管理员封禁 / 解封
 export async function dbSetUserBanned(db, userId, banned) {
   await dbRun(db, 'UPDATE users SET banned=? WHERE id=?', [banned, userId]);
 }
