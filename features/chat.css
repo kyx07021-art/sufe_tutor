@@ -101,6 +101,12 @@
 }
 .chat-peer-profile-btn:hover { color: var(--ink); transform: translateY(-1px); }
 
+/* AI-9: 会话头部右侧动作组——结束关系（危险）+ 资料按钮同排；组整体顶右，
+   组内 profile-btn 抵消原 margin-left:auto（收进组后由组承担推右） */
+.chat-head-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; flex-shrink: 0; }
+.chat-head-actions .chat-peer-profile-btn { margin-left: 0; }
+.chat-head-actions .btn-text-danger { font-size: .72rem; padding: 6px 10px; }
+
 .chat-peer-name {
   min-width: 0;
   font-size: 1.05rem; font-weight: 900; letter-spacing: -.01em; color: var(--ink);

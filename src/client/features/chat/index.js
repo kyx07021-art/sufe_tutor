@@ -22,6 +22,7 @@ const ACTION_MAP = {
   'chat.plusSigning': actions.chatPlusSigning,
   'chat.respond': el => actions.respondSigning(Number(el.dataset.id), el.dataset.accept === '1'),
   'chat.openProfile': el => actions.chatOpenProfile(Number(el.dataset.id)),
+  'chat.endRelation': el => actions.endRelation(Number(el.dataset.id)), // AI-9: end relation (danger confirm + capToken)
 };
 
 let installed = false;

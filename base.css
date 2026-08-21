@@ -1297,8 +1297,9 @@ html[data-ui-reflowing] [data-ui-reflow-unit] { transition: none !important; }
 @media (max-width: 480px) {
   .dw-step-chip-label { display: none; } /* 窄屏只留圆点步进 */
 }
-/* 确认弹窗正文（confirm() 原语）：统一间距，表头无独立层后正文自然流 */
-.confirm-msg { margin: 0 0 16px; }
+/* 确认弹窗正文（confirm() 原语）：统一间距，表头无独立层后正文自然流；
+   AI-9: pre-wrap 支持结构化多行危险正文（\n + · 行列表），既有单行 confirm 零影响 */
+.confirm-msg { margin: 0 0 16px; white-space: pre-wrap; line-height: 1.7; }
 /* 二次认证密码行（原内联 style 改类）：去 .form-group 上分隔线 + 错误行红字显隐 */
 .reauth-group { border-top: none !important; }
 .form-hint--error { color: var(--danger); }

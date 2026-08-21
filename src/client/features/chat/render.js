@@ -21,7 +21,7 @@
  */
 import { STATUS, ROLES } from '../../../shared/enums.js';
 import { TEXT } from '../../constants/text.js';
-import { chat } from './chat-state.js';
+import { chat, chatClosedNow } from './chat-state.js';
 import { state } from '../../core/state.js';
 import { escHtml, fmtDateTime, loaderHtml, renderAvatarHtml } from '../../core/dom.js';
 import { usernameHtml, deactivatedTag } from '../../core/display.js';
@@ -50,6 +50,7 @@ export function renderConvItem(c) {
     <span class="conv-item-top">
       <span class="conv-item-name">${usernameHtml(peer.name || TEXT.CHAT_UNKNOWN_USER)}${deactivatedTag(peer.name)}</span>
       <span class="conv-item-role glass glass--solid">${escHtml(peer.role)}</span>
+      ${c.status && c.status !== STATUS.ACTIVE ? `<span class="conv-item-role tag-closed glass glass--solid">${escHtml(TEXT.CHAT_STATUS_CLOSED)}</span>` : ''}
       <span class="conv-item-time">${escHtml(time)}</span>
     </span>
     <span class="conv-item-preview">${escHtml(preview)}</span>
@@ -70,12 +71,16 @@ export function renderChatFrame(conv) {
       <div class="chat-head-main">
         <span class="chat-peer-name">${peer.name ? usernameHtml(peer.name) : escHtml(TEXT.CHAT_UNKNOWN_USER)}${deactivatedTag(peer.name)}</span>
         <span class="chat-peer-tag glass glass--solid">${escHtml(peer.role)}</span>
+        ${closed ? `<span class="chat-peer-tag tag-closed glass glass--solid">${escHtml(TEXT.CHAT_STATUS_CLOSED)}</span>` : ''}
       </div>
-      ${peer.id ? `<button type="button" class="chat-peer-profile-btn" title="${TEXT.PROFILE_PANEL_TITLE}" data-action="chat.openProfile" data-id="${peer.id}">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
-          <circle cx="12" cy="8" r="3.6"/><path d="M4.6 19.4c1.6-3.3 4.2-5 7.4-5s5.8 1.7 7.4 5"/>
-        </svg>
-      </button>` : ''}
+      ${peer.id ? `<div class="chat-head-actions">
+        ${!closed ? `<button type="button" class="btn-text-danger glass chat-end-btn" data-action="chat.endRelation" data-id="${conv.id}">${escHtml(TEXT.CHAT_END_RELATION)}</button>` : ''}
+        <button type="button" class="chat-peer-profile-btn" title="${TEXT.PROFILE_PANEL_TITLE}" data-action="chat.openProfile" data-id="${peer.id}">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="8" r="3.6"/><path d="M4.6 19.4c1.6-3.3 4.2-5 7.4-5s5.8 1.7 7.4 5"/>
+          </svg>
+        </button>
+      </div>` : ''}
     </div>
     <div class="chat-messages" id="chat-messages"><div class="empty-state empty-state--small">${loaderHtml()}</div></div>
     <div class="chat-drop-hint hidden" id="chat-drop-hint">${TEXT.CHAT_DROP_HINT}</div>
@@ -164,11 +169,11 @@ function renderSigningRequestBubble(m, mine, msgCls, sideCls, time) {
   const price = Number(s.price) || 0;
   const methodName = signingMethodText(s.method);
   const title = signingRequestTitle(mine);
-  const actions = (pending && recipient && signingId)
+  const actions = (pending && recipient && signingId && !chatClosedNow())
     ? `<span class="signing-bubble-actions"><button type="button" class="btn btn-sm glass glass--pressable" data-action="chat.respond" data-id="${escHtml(signingId)}" data-accept="1">${TEXT.BTN_SIGNING_CONFIRM}</button><button type="button" class="btn btn-sm btn-outline glass glass--pressable" data-action="chat.respond" data-id="${escHtml(signingId)}" data-accept="0">${TEXT.BTN_SIGNING_REJECT}</button></span>`
     : '';
   const done = rejected ? ' signing-bubble--done' : '';
-  return `<div class="chat-msg ${msgCls}"><div class="chat-bubble glass ${sideCls} signing-bubble chat-bubble--breathe${done}" data-signing-id="${escHtml(signingId)}" data-mid="${m.id}"><div class="signing-bubble-title">${escHtml(title)}</div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_PRICE}</span><b>${price} ${TEXT.PRICE_UNIT}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(expectedTimeText(s.schedule))}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>${actions}${rejected ? `<p class="signing-bubble-status">${TEXT.SIGNING_REJECTED_TEXT}</p>` : ''}${signed ? `<p class="signing-bubble-signed-tip">${escHtml(TEXT.CHAT_SIGN_TIP)}</p><button type="button" class="btn glass glass--pressable signing-bubble-draft-btn" data-action="chat.plusDraft">${TEXT.CHAT_BTN_DRAFT_CONTRACT}</button>` : ''}${signed ? '' : `<p class="signing-bubble-funds">${TEXT.FUNDS_NOTE_SHORT}</p>`}</div>${time}</div>`;
+  return `<div class="chat-msg ${msgCls}"><div class="chat-bubble glass ${sideCls} signing-bubble chat-bubble--breathe${done}" data-signing-id="${escHtml(signingId)}" data-mid="${m.id}"><div class="signing-bubble-title">${escHtml(title)}</div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_PRICE}</span><b>${price} ${TEXT.PRICE_UNIT}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(expectedTimeText(s.schedule))}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>${actions}${rejected ? `<p class="signing-bubble-status">${TEXT.SIGNING_REJECTED_TEXT}</p>` : ''}${signed ? `<p class="signing-bubble-signed-tip">${escHtml(TEXT.CHAT_SIGN_TIP)}</p>${!chatClosedNow() ? `<button type="button" class="btn glass glass--pressable signing-bubble-draft-btn" data-action="chat.plusDraft">${TEXT.CHAT_BTN_DRAFT_CONTRACT}</button>` : ''}` : ''}${signed ? '' : `<p class="signing-bubble-funds">${TEXT.FUNDS_NOTE_SHORT}</p>`}</div>${time}</div>`;
 }
 
 function renderSigningResponseText(m, mine) {

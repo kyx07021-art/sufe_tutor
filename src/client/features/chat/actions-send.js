@@ -14,7 +14,7 @@
  */
 import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from '../../constants/text.js';
-import { chat } from './chat-state.js';
+import { chat, chatClosedNow } from './chat-state.js';
 import { state } from '../../core/state.js';
 import { api, apiUpload } from '../../core/api.js';
 import { showToast, btnLoading, btnDone } from '../../core/ui.js';
@@ -181,6 +181,9 @@ export function chatOnFilePicked(input) {
 }
 
 export function chatStageFiles(files) {
+  // AI-9: closed-conversation stage gate (stale-tab / drop-race fallback — the input bar is not
+  // rendered on a closed conversation; prevents orphan staged items lingering in memory)
+  if (chatClosedNow()) { showToast(TEXT.CHAT_CONV_CLOSED_MSG); return; }
   files.forEach(f => {
     const item = { id: ++chat.stageSeq, name: f.name || TEXT.CHAT_FILE_FALLBACK, progress: 0, ready: false, uploadId: null, dataUrl: '', thumb: '', kind: 'file' };
     if ((f.type || '').startsWith('image/')) {

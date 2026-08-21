@@ -4,12 +4,13 @@
  * single definition each; chatInjectSignCaption lives in render.js.)
  */
 import { TEXT } from '../../constants/text.js';
-import { chat } from './chat-state.js';
+import { chat, chatClosedNow } from './chat-state.js';
 import { api } from '../../core/api.js';
 import { showToast, openImageViewer, confirm } from '../../core/ui.js';
 import { renderChatPlaceholder, chatInjectSignCaption } from './render.js';
 import { chatStageFiles } from './actions-send.js';
-import { loadConversations, chatTeardown } from './actions-list.js';
+import { loadConversations, chatTeardown, openConversation, syncClosedConversation } from './actions-list.js';
+import { invalidate } from '../../core/datahub.js';
 import { openProfilePanel } from '../teacher/actions.js';
 
 // Dropzone is bound once at document level (the chat frame gets its innerHTML
@@ -38,7 +39,10 @@ export function chatBindDropzone() {
     e.preventDefault();
     const hint = frame.querySelector('.chat-drop-hint');
     if (hint) hint.classList.add('hidden');
-    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) chatStageFiles(e.dataTransfer.files);
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+      if (chatClosedNow()) { showToast(TEXT.CHAT_CONV_CLOSED_MSG); return; } // AI-9: closed-conversation drop gate
+      chatStageFiles(e.dataTransfer.files);
+    }
   });
 }
 
@@ -59,8 +63,51 @@ export function chatOpenProfile(userId) {
   openProfilePanel(id);
 }
 
+// F6: in-flight guard — confirm double-click / double POST (one attempt per conversation; same as signingBusy)
+let closeBusy = false;
+
+/**
+ * AI-9: end-relation entry (chat-head button) — danger confirm (needReAuth → capToken) → POST close → F7 sync.
+ * Server close validates capToken only (confirmDangerOtp), no captcha gate — same as the settings
+ * deactivate path; withCaptcha intentionally not added.
+ */
+export function endRelation(convId) {
+  const id = Number(convId);
+  if (!Number.isInteger(id) || !id) return; // C5 strict parse, dirty value early-return
+  confirm({
+    title: TEXT.CHAT_END_RELATION_TITLE,
+    message: TEXT.CHAT_END_RELATION_CONFIRM,
+    needReAuth: true,
+    okText: TEXT.CHAT_END_RELATION,
+    onConfirm: capToken => doCloseRelation(id, capToken),
+  });
+}
+
+async function doCloseRelation(convId, capToken) {
+  if (closeBusy) return;
+  closeBusy = true;
+  try {
+    const data = await api(`/api/conversations/${convId}/close`, { method: 'POST', body: { capToken } });
+    showToast(data.alreadyClosed ? TEXT.CHAT_END_RELATION_ALREADY : TEXT.CHAT_END_RELATION_DONE);
+    // F7: local sync (list tag / frame write-lock) + rule 43 post-action invalidation of the three
+    // domains (close cascade touches chat/contracts/demands; the version probe versionDomainOf
+    // already covers [CONTRACTS, CHAT, DEMANDS] as a second line — local invalidation is instant, no 8s wait)
+    syncClosedConversation(convId);
+    invalidate('chat'); invalidate('contracts'); invalidate('demands');
+    // Re-open the current conversation frame to run the closed branch (input-bar disabled + head
+    // closed tag) and show the cascade-rewritten bubble terminal states (AI-1 rewrote pending→rejected)
+    if (chat.convId === convId) openConversation(convId);
+  } catch (err) {
+    showToast(err.message); // 403 REAUTH_FAILED / network failure: zero state change, user can re-run confirm
+  } finally {
+    closeBusy = false;
+  }
+}
+
 export async function chatPlusDraft() {
   closeChatPlus();
+  // AI-9: closed-conversation pre-gate — avoid opening a draft modal doomed to 403 (stale-tab fallback)
+  if (chatClosedNow()) { showToast(TEXT.CHAT_CONV_CLOSED_MSG); return; }
   if (chat.convId) {
     // AB-O1: silent degrade on lazy-import failure (deploy-race stale-tab chunk 404 — the
     // SPA-fallback guard already turns the MIME error into a clean 404). Aligns with
@@ -76,6 +123,7 @@ export async function chatPlusDraft() {
 
 export async function chatPlusSigning() {
   closeChatPlus();
+  if (chatClosedNow()) { showToast(TEXT.CHAT_CONV_CLOSED_MSG); return; } // AI-9: same as chatPlusDraft
   if (chat.convId) {
     try {
       const mod = await import('../contract/index.js');

@@ -273,7 +273,7 @@ body { background: transparent; }
    液体边缘高光保留（--g-liquid 默认开启）——实心件同样需要珠圆玉润的液态感 */
 .glass--solid { --g-frost: none; } /* 实心小件：关磨砂 = 干净圆角填充 */
 .chat-stage-item, .chat-stage-thumb { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r-sm); --g-lift: var(--glass-lift-sm); }
-.tag, .conv-item-role, .chat-peer-tag, .device-current, .profile-tag {
+.tag, .conv-item-role, .chat-peer-tag, .device-current, .profile-tag, .tag-closed {
   --g-fill: var(--g-fill-strong); --g-r: 999px; --g-lift: var(--glass-lift-sm); --g-fg: var(--ink-2);
   --g-border: none; /* 实心小件 opt-out：flat 描边不落 pill/tag */
   white-space: nowrap; /* #159：原子 pill 家族统一不换行——长标签保持整粒（chat-peer-tag 原已有，收口到家族单点） */
@@ -421,6 +421,8 @@ body { background: transparent; }
 .tag-accent { --g-fill: var(--g-accent-fill); color: var(--accent-deep); }
 /* 一方已注销 tag——中性弱玻璃 + 灰字，注销是状态中性信息不惊扰（同 .post-like 弱面族） */
 .tag-deactivated { --g-fill: var(--g-fill-weak); color: var(--muted); }
+/* AI-9: 关系已结束 tag——终态中性弱玻璃 + 灰字（同 .tag-deactivated 口径：灰底灰字零惊扰，不加状态点） */
+.tag-closed { --g-fill: var(--g-fill-weak); color: var(--muted); }
 /* 反馈卡 Bug 红色警示 */
 /* 反馈 bug 卡：--g-surface 左红条连根拔——CSS 变量继承会把红条传给卡内所有 glass 子组件(tag/按钮)。
    v0.25.99：alert 警示条亦已删除，全站提示统一走 Toast，--g-surface 语义条机制不再用于任何提示组件 */

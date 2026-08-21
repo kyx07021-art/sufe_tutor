@@ -4,6 +4,7 @@
  * lives in actions-send.js (which depends on this module's bump — one-way edge).
  */
 import { CONFIG } from '../../../shared/config.js';
+import { STATUS } from '../../../shared/enums.js';
 import { TEXT } from '../../constants/text.js';
 import { chat } from './chat-state.js';
 import { state, registerLogoutReset } from '../../core/state.js';
@@ -100,6 +101,18 @@ export function renderConvList() {
   if (el) el.innerHTML = renderConvListHtml(chat.list);
 }
 
+/**
+ * AI-9: local sync of a conversation to closed after a close success / 403 correction
+ * (F7 immediate — not waiting for the next fetch). chat.list is a module-private array
+ * (invalidate only clears the datahub cache, not it), so it must be mutated in place +
+ * re-rendered; when the conversation is currently open, doCloseRelation re-opens the
+ * frame afterwards to run the closed branch.
+ */
+export function syncClosedConversation(convId) {
+  const c = chat.list.find(x => x.id === convId);
+  if (c && c.status !== STATUS.CLOSED) { c.status = STATUS.CLOSED; renderConvList(); }
+}
+
 /** Mark conversation read: local unread clear + re-render immediately, silent POST after. */
 export function markReadConv(convId) {
   const c = chat.list.find(x => x.id === convId);
@@ -151,7 +164,18 @@ export async function openConversation(convId) {
     // until the next full list reload)
     if (data.conversation) {
       const ex = chat.list.find(c => c.id === convId);
-      if (ex) { Object.assign(ex, data.conversation); renderConvList(); }
+      if (ex) {
+        const wasClosed = ex.status === STATUS.CLOSED;
+        Object.assign(ex, data.conversation);
+        renderConvList();
+        // AI-9: the peer closed the conversation (snapshot status flips active→closed) —
+        // input-bar disable / action-entry hiding is carried by the frame re-render (before
+        // this the list was updated only, leaving the frame writable until the next 403).
+        if (!wasClosed && ex.status === STATUS.CLOSED) {
+          const frame = document.getElementById('chat-frame');
+          if (frame) frame.innerHTML = renderChatFrame(chatConvById(convId));
+        }
+      }
     }
     const msgs = data.messages || [];
     const box = document.getElementById('chat-messages');
