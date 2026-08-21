@@ -69,8 +69,8 @@ async function call(method, path, body = null, token = null) {
   return routeApi(db, path, method, body, new URL(`http://x${path}`), { headers }, ENV);
 }
 
-test('路由表：115 条、method+path 唯一、关键路径字面量齐全', () => {
-  assert.equal(routes.length, 115, '迁移后路由数 115');
+test('路由表：116 条、method+path 唯一、关键路径字面量齐全', () => {
+  assert.equal(routes.length, 116, '迁移后路由数 116');
   const keys = new Set(routes.map(r => `${r.method} ${r.path}`));
   assert.equal(keys.size, routes.length, 'method+path 唯一');
   const required = [

@@ -6,7 +6,7 @@
  * 参与方 404 不泄露会话存在性。限额全部单源 constants.LIMITS。
  */
 import { json, errorMsg, parseIdParam } from '../../core/util.js';
-import { requireUser } from '../../core/security.js';
+import { requireUser, requireAdmin } from '../../core/security.js';
 import { encryptField, decryptField } from '../../core/crypto.js'; // 附件 dataURL 加密落库（网安 N-05）
 import { MSG } from '../../../shared/codes.js';
 import { STATUS, ROLES } from '../../../shared/enums.js';
@@ -16,7 +16,7 @@ import {
   dbGetMessageAttachment, dbGetConversationBindableDemands,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload,
   dbPrepareMessageInsert, dbPrepareUploadDelete, dbGetMessagesByClientKeys, dbSetMessageBody,
-  dbCloseConversationCascade,
+  dbCloseConversationCascade, dbGetConversationByTuple, dbDeleteConversation, dbReleaseDemandAfterRevoke,
 } from '../../../../server/db.js';
 import { logEvent } from '../../core/log.js';
 import { notifyUser } from '../../core/notify.js'; // AI-1：结束关系通知（CONVERSATION_CLOSED 等）
@@ -139,6 +139,28 @@ export async function handleGetMyRelations(db, req) {
       } : null,
     };
   }) });
+}
+
+// DELETE /api/admin/relations —— admin 永删关系（AI-8）：按双方元组删会话。
+// messages/signing_contracts 经 FK ON DELETE CASCADE 连带清理（chat/schema.js MESSAGES_DDL +
+// contract/schema.js SIGNING_CONTRACTS_DDL 实证）；绑定需求 dbReleaseDemandAfterRevoke 释放（contracted→revoked）。
+// 评价保留不随删（reviews 表 FK 指向 users 而非 conversations，天然保留）——公开审核内容，删之破坏评分历史（有意决定）。
+export async function handleAdminDeleteRelation(db, body, req) {
+  const { admin, err } = await requireAdmin(db, req);
+  if (err) return err;
+  const s = body && body.studentUserId, t = body && body.teacherUserId;
+  // C5 严格解析：正整数白名单（拒绝 NaN/负/小数/字符串注入，同 parseIdParam 语义）
+  if (!Number.isInteger(s) || s <= 0 || !Number.isInteger(t) || t <= 0) return errorMsg('INVALID_PARAMS', 400);
+  const conv = await dbGetConversationByTuple(db, s, t);
+  if (!conv) return errorMsg('CONVERSATION_NOT_FOUND', 404);
+  // P12：admin 永删关系 = 危险操作（删会话 + 级联消息/合同 + 释放需求），须 capToken 二次认证（同 handleAdminRemoveContract 口径）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
+  await dbDeleteConversation(db, conv.id);
+  if (conv.demand_id) await dbReleaseDemandAfterRevoke(db, conv.demand_id);
+  await logEvent(db, { action: 'admin.relation.remove', actorUserId: admin.id, actorUsername: admin.username,
+    actorRole: 'admin', entity: 'conversation', entityId: conv.id,
+    detail: { studentUserId: s, teacherUserId: t, demandId: conv.demand_id, status: conv.status }, req });
+  return json({ ok: true });
 }
 
 // 标记已读：我的已读游标推到该会话最新一条（红点点掉即消的后端支撑）
@@ -322,6 +344,7 @@ const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [
   S('GET', '/api/conversations', c => handleGetConversations(c.db, c.url, c.req)),
   S('GET', '/api/my-relations', c => handleGetMyRelations(c.db, c.req)),
+  S('DELETE', '/api/admin/relations', c => handleAdminDeleteRelation(c.db, c.body, c.req)),
   S('POST', '/api/conversations/:id/close', c => handleCloseConversation(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('POST', '/api/conversations/:id/read', c => handleMarkRead(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/conversations/:id/messages', c => handleGetMessages(c.db, parseIdParam(c.params.id), c.url, c.req)),

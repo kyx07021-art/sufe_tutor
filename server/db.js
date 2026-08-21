@@ -51,7 +51,7 @@ import {
   dbGetMyConversations, dbGetMyRelations, dbMarkConversationRead, dbGetMessages, dbPrepareMessageInsert, dbCreateMessage,
   dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage, dbSetMessageBody,
   dbGetSigningById, dbDeleteSigning, dbGetPendingSigningForConversation, dbCreateSigning, dbConfirmSigning, dbRejectSigning,
-  dbCloseConversationCascade,
+  dbCloseConversationCascade, dbGetConversationByTuple, dbDeleteConversation,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload, dbPrepareUploadDelete,
   dbGetMessagesByClientKeys,
 } from '../src/server/domains/chat/repo.js';
@@ -61,7 +61,7 @@ export {
   dbGetMyConversations, dbGetMyRelations, dbMarkConversationRead, dbGetMessages, dbPrepareMessageInsert, dbCreateMessage,
   dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage, dbSetMessageBody,
   dbGetSigningById, dbDeleteSigning, dbGetPendingSigningForConversation, dbCreateSigning, dbConfirmSigning, dbRejectSigning,
-  dbCloseConversationCascade,
+  dbCloseConversationCascade, dbGetConversationByTuple, dbDeleteConversation,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload, dbPrepareUploadDelete,
   dbGetMessagesByClientKeys,
 };

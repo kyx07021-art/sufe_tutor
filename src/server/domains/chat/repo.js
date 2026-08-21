@@ -36,6 +36,19 @@ export async function dbGetConversationById(db, id) {
   return await dbGet(db, 'SELECT * FROM conversations WHERE id=?', [id]);
 }
 
+// AI-8：按双方元组查会话（admin 永删关系定位用；与会话唯一约束 UNIQUE(student,teacher) 一致）
+export async function dbGetConversationByTuple(db, studentUserId, teacherUserId) {
+  return await dbGet(db,
+    'SELECT id, demand_id, status FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
+    [studentUserId, teacherUserId]);
+}
+
+// AI-8：删除会话（admin 永删关系；messages/signing_contracts 经 FK ON DELETE CASCADE 连带清理，
+// 无需逐表删——chat/schema.js MESSAGES_DDL + contract/schema.js SIGNING_CONTRACTS_DDL 实证）
+export async function dbDeleteConversation(db, conversationId) {
+  return await dbRun(db, 'DELETE FROM conversations WHERE id=?', [conversationId]);
+}
+
 // 会话行 + 双方用户名（合同模块的通知文案 / 对方判定 helper 共用；student_name/teacher_name 随行附带）
 export async function dbGetConversationWithNames(db, conversationId) {
   return await dbGet(db, `SELECT c.*, us.username AS student_name, ut.username AS teacher_name
