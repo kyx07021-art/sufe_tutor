@@ -218,11 +218,6 @@ export function _uiScalePreviewReset() {
     delete document.documentElement.dataset.uiPreviewing;
   }
 }
-export function _uiScaleReflowWarm() {
-  const R = uiScaleReflow;
-  if (!R || typeof document === 'undefined') return;
-  setTimeout(() => { try { R.prepare(); } catch { /* sampling failure falls back */ } }, CONFIG.UI_SCALE_REFLOW_WARM_DELAY_MS);
-}
 
 export function setUiScale(v) {
   const c = uiScaleClamp(v);
