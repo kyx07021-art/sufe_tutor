@@ -79,7 +79,3 @@ export async function dbSetAwardStatus(db, id, status, note) {
   return !!(r && r.meta && r.meta.changes > 0);
 }
 
-// ============================================================
-// 接口
-// ============================================================
-/** POST /api/teacher/awards —— 教师提交奖项（含奖状证明 uploadId） */

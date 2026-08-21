@@ -153,11 +153,3 @@ export async function dbCreateInviteCode(db, code, adminId) {
     'INSERT INTO invite_codes (code,created_by) VALUES (?,?)',
     [code, adminId]);
 }
-
-
-// ============================================================
-// JSON 列反序列化单点：subjects / gaokao_scores / target_subjects / current_scores
-// 四列在库里是 JSON 字符串，出 db.js 一律经此函数变数组——容错（脏数据不炸全列表），
-// 调用方拿到的永远是数组，严禁在路由层再 JSON.parse（双重解析会炸）
-// ============================================================
-// ============================================================
