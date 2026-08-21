@@ -41,6 +41,11 @@ function d1Shim(raw) {
   };
 }
 
+const sha256Hex = async text => {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
 async function setup() {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
@@ -77,4 +82,39 @@ test('Z-5-F3: 不同正文 → 独立记账 + 链完整（幂等不误伤正文�
   const ledger = await dbAll(db, 'SELECT content_hash, prev_hash, seq, body_hash, created_at FROM contract_ledger WHERE contract_id=2 ORDER BY id');
   const v = await verifyChain(ledger, { contractId: 2, contractMd: '正文B' });
   assert.equal(v.ok, true, '链结构 intact');
+});
+
+// AI-4a：台账 contract_id 旧 contracts.id → signing_contracts.id remap + content_hash 按新 id 重算 +
+// prev_hash 重链（BUG-1 修复：verifyChain 逐条比较 prev_hash === 上一条 content_hash；只改 content_hash
+// 不改 prev_hash，则多条目链 linksValid=false → verify invalid）。幂等：remap+重算 batch 原子，重跑零变更。
+test('AI-4a：台账 remap 旧 contract_id → signing_contracts.id + content_hash 重算 + prev_hash 重链（多条目链 verify 通过）', async () => {
+  const { raw, db } = await setup();
+  const s = raw.prepare(`INSERT INTO users (username,password_hash,salt,role) VALUES ('l_s1','x','x','student')`).run();
+  const s1 = Number(s.lastInsertRowid);
+  const t = raw.prepare(`INSERT INTO users (username,password_hash,salt,role) VALUES ('l_t1','x','x','teacher')`).run();
+  const t1 = Number(t.lastInsertRowid);
+  const cv = raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(s1, t1);
+  const convId = Number(cv.lastInsertRowid);
+  raw.prepare(`INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,stage,signing_status,contract_status,contract_md,legacy_contract_id) VALUES (?,?,?,?,?,?,?,?)`)
+    .run(s1, t1, convId, 'contract', 'signed', 'signed', 'md-content', 77);
+  const scId = raw.prepare('SELECT id FROM signing_contracts').get().id;
+  const bodyHash = await sha256Hex('md-content');
+  // 两条链（一次合作两次签署 = 常态）：row1 旧 content_hash 用旧 id=77 算；row2 prev=row1 旧 hash
+  const h1_old = await sha256Hex(`${bodyHash}|77|2026-08-01 00:00:00|GENESIS`);
+  const h2_old = await sha256Hex(`${bodyHash}|77|2026-08-02 00:00:00|${h1_old}`);
+  raw.prepare(`INSERT INTO contract_ledger (contract_id, content_hash, prev_hash, seq, body_hash, created_at) VALUES (77, ?, 'GENESIS', 1, ?, '2026-08-01 00:00:00')`).run(h1_old, bodyHash);
+  raw.prepare(`INSERT INTO contract_ledger (contract_id, content_hash, prev_hash, seq, body_hash, created_at) VALUES (77, ?, ?, 2, ?, '2026-08-02 00:00:00')`).run(h2_old, h1_old, bodyHash);
+  await initLedgerTable(db); // remap + 重算 + 重链
+  const rows = await dbAll(db, 'SELECT id, contract_id, content_hash, prev_hash, seq, body_hash, created_at FROM contract_ledger WHERE contract_id=? ORDER BY id ASC', [scId]);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].contract_id, scId, 'contract_id remap');
+  const chain = await verifyChain(rows, { contractId: scId, contractMd: 'md-content' });
+  assert.ok(chain.linksValid, `prev_hash 重链连续（BUG-1 修复）；row2.prev=${rows[1].prev_hash.slice(0,8)} row1.hash=${rows[0].content_hash.slice(0,8)}`);
+  assert.equal(chain.lastRehashValid, true, '末条重放一致（rehash 用新 id 同 verify 规则）');
+  assert.ok(chain.ok, '整链有效');
+  // 幂等：再跑零变更
+  const snapshot = JSON.stringify(rows.map(r => ({ id: r.id, contract_id: r.contract_id, content_hash: r.content_hash, prev_hash: r.prev_hash })));
+  await initLedgerTable(db);
+  const again = await dbAll(db, 'SELECT id, contract_id, content_hash, prev_hash FROM contract_ledger ORDER BY id');
+  assert.equal(JSON.stringify(again), snapshot, '幂等：重跑零变更');
 });
