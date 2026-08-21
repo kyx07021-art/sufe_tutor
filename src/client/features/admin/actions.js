@@ -524,7 +524,6 @@ export function confirmBanUser(id, banned = true, role = ROLES.STUDENT) {
     try { await api(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned, capToken } }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminUsers(role); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write + refresh the list the ban came from (U-3a)
   }});
 }
-export function doBanUser(id) { return confirmBanUser(id, true); }
 
 // U-3k: invite-code issuance/management — v1-parity but data-action delegated (zero inline
 // handlers, contract 6). Pure API consumers: POST /api/admin/invite, GET /api/admin/invites,
@@ -767,8 +766,6 @@ export function toggleTeacherVerify(userId, verified = true) {
     });
   }});
 }
-export function doTeacherVerify(userId) { return toggleTeacherVerify(userId, true); }
-export function doUnverify(userId) { return toggleTeacherVerify(userId, false); }
 
 // U-3a: open the teacher profile panel from an admin row. Delegated via the profile-panel-open
 // event (Z-8-F1 pattern) so admin does not depend on the teacher feature module directly.
