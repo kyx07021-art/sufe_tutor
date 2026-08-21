@@ -239,7 +239,10 @@ export async function dbCloseConversationCascade(db, conversationId, studentUser
   let idx = 1;
   const rejected = signings.map(s => ({ ...s, changes: changes(idx++) }));
   const revoked = contracts.map(c => ({ ...c, changes: changes(idx++) }));
-  return { closeWon: changes(0) > 0, rejected, revoked, demandsReleased: demandIds.length };
+  // 需求释放实际命中数（并发已释放的行 changes=0 不计入；审计 AI-1 发现 3 修正统计口径）
+  let demandsReleased = 0;
+  for (let j = 0; j < demandIds.length; j++) { if (changes(idx++) > 0) demandsReleased++; }
+  return { closeWon: changes(0) > 0, rejected, revoked, demandsReleased };
 }
 
 // ============================================================

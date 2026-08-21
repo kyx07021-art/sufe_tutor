@@ -13,9 +13,14 @@
  *   5. capToken 门禁：无/错 capToken → 403，会话仍 active 零级联。
  * 注意：initDb 的 seedAdmins 会先占 users id=1（admin_sufe）——所有种子 id 一律取 INSERT 返回值
  * （G3 夹具与生产形状一致），禁止硬编码（signing-contract-merged 的硬编码错位是既存脆弱项，见 AI-10a）。
- * 变异守护（G2，审计时逐项还原源做红→绿验证）：删会话 UPDATE 的 AND status='active' → 重复 close 重放级联红；
- * 删 reject 的 signing_status='pending' → signed signing 被误拒红；删 revoke 的 contract_status IN (...) AND revoked=0
- * → 已签署合同被误撤红；删需求释放语句 → 需求滞留 contracted 红；删 handler 的 closeWon 判定 → 并发败者重复副作用红。
+ * 变异守护（G2，审计时逐项还原源做红→绿验证，声称经审计实证校准）：
+ *   - 终态门禁 = SELECT 快照 + UPDATE 守卫双层——只删 UPDATE 守卫不红（signed 行不在快照数组），
+ *     完整还原双层（SELECT+UPDATE 两处过滤）→ 主链路「signed 保留」断言红；
+ *   - 删需求释放语句 → 需求滞留 contracted 红（精确）；
+ *   - 删 handler 的 closeWon 判定 → 并发测试 CONVERSATION_CLOSED 翻倍红（精确）；
+ *   - 删会话 UPDATE 的 AND status='active' → 红在并发测试（非幂等测试——幂等短路在 handler 层）；
+ *   - UPDATE 守卫的承重面 = 并发快照漂移保护（SELECT 后对端确认/推进 → 行状态变化不误伤），
+ *     由「快照漂移竞态」用例直接锁定。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -52,6 +57,33 @@ function d1Shim(raw) {
 }
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
+
+// 快照漂移 shim：仅对「会话关闭 batch」（首句 UPDATE conversations status='closed'）在事务内、级联语句
+// 执行前模拟「对端并发确认」把第一条 pending signing 置 signed——锁定 dbCloseConversationCascade 中
+// UPDATE 守卫（WHERE signing_status='pending'）的承重面：SELECT 快照后行状态被并发变更 → 该行 reject
+// changes=0 → 保留 signed、零副作用（不误伤）。只对 close batch 生效，避免误触其他 batch
+// （如 notifyUser→bumpVersions 的 batch 也会带 pending 行）。
+function driftShim(raw) {
+  const base = d1Shim(raw);
+  base.batch = async (stmts) => {
+    raw.exec('BEGIN');
+    try {
+      const isCloseBatch = stmts.length > 0 && /^UPDATE conversations SET status='closed'/.test(stmts[0]._sql || '');
+      if (isCloseBatch && raw.prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='signing_contracts'").get().c
+          && raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE signing_status='pending'").get().c) {
+        // 模拟并发：batch 事务内、级联语句执行前，对端确认了 pending 签约（快照漂移）
+        raw.prepare("UPDATE signing_contracts SET signing_status='signed', responded_at=datetime('now') WHERE id=(SELECT MIN(id) FROM signing_contracts WHERE signing_status='pending')").run();
+      }
+      const out = [];
+      for (const s of stmts) {
+        if (/^\s*(SELECT|PRAGMA|WITH|EXPLAIN)/i.test(s._sql)) out.push({ results: raw.prepare(s._sql).all(...s._params) });
+        else { const info = raw.prepare(s._sql).run(...s._params); out.push({ meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } }); }
+      }
+      raw.exec('COMMIT'); return out;
+    } catch (e) { try { raw.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
+  };
+  return base;
+}
 
 // capToken 签发（per-user-per-session）：uid 指定持卡用户（danger_caps 以 user_id+session_id 为主键）
 const capOf = async (raw, sessionId, uid, value = 'cap') => {
@@ -236,4 +268,19 @@ test('关闭方发起的 pending 签约不自通知（SIGNING_REJECTED 跳过 in
   const notifs = raw.prepare('SELECT type FROM notifications').all().map(n => n.type);
   assert.ok(!notifs.includes('SIGNING_REJECTED'), '关闭方自己的 pending 签约不自通知');
   assert.equal(notifs.filter(t => t === 'CONVERSATION_CLOSED').length, 1, '仅对端收 CONVERSATION_CLOSED');
+});
+
+test('快照漂移竞态：SELECT 快照后对端确认签约 → UPDATE 守卫不误伤（保留 signed、零副作用）', async () => {
+  const raw = rawOf(); const db = driftShim(raw); // batch 前模拟并发确认
+  const { s1, t1, c1 } = await seed(db, raw);
+  const d1 = seedDemand(raw, s1.uid, 'open');
+  assert.equal((await handleCreateSigning(db, { conversationId: c1, demandId: d1, price: 150, schedule: '每周六', method: 'offline' }, reqOf(t1.token))).status, 201);
+  const r = await handleCloseConversation(db, c1, { capToken: await capOf(raw, s1.sessionId, s1.uid) }, reqOf(s1.token));
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { ok: true, closed: true, signingsRejected: 0, contractsRevoked: 0 }, '漂移行 changes=0 → 不计副作用');
+  const row = raw.prepare('SELECT signing_status FROM signing_contracts WHERE demand_id=?').get(d1);
+  assert.equal(row.signing_status, 'signed', '快照漂移行未被误拒（UPDATE 守卫承重面）');
+  const types = raw.prepare('SELECT type FROM notifications').all().map(n => n.type);
+  assert.ok(!types.includes('SIGNING_REJECTED'), '漂移行零 SIGNING_REJECTED 通知');
+  assert.equal(types.filter(t => t === 'CONVERSATION_CLOSED').length, 1, '主结果赢家仍发 CONVERSATION_CLOSED');
 });

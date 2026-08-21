@@ -63,10 +63,13 @@ export async function handleCloseConversation(db, conversationId, body, req) {
   for (const s of res.rejected) {
     if (!s.changes) continue; // 快照漂移：该行已被并发处理（如对端已确认签约）→ 零副作用
     signingsRejected++;
-    // 气泡终态覆写（F4）：pending 签约气泡 body 停在 pending 会渲染可点按钮（点击恒 404/409）
+    // 气泡终态覆写（F4）：pending 签约气泡 body 停在 pending 会渲染可点按钮（点击恒 404/409）。
+    // try/catch（E2）：主结果（rejected 落库）已定，气泡渲染态失败不翻转 200（审计 AI-1 发现 2）
     if (s.message_id) {
-      await dbSetMessageBody(db, s.message_id,
-        JSON.stringify({ id: s.id, price: s.price, schedule: s.schedule, method: s.method, status: STATUS.REJECTED }));
+      try {
+        await dbSetMessageBody(db, s.message_id,
+          JSON.stringify({ id: s.id, price: s.price, schedule: s.schedule, method: s.method, status: STATUS.REJECTED }));
+      } catch { /* 气泡渲染态，失败不影响主结果 */ }
     }
     if (s.initiator_user_id !== me.id) { // 关闭方发起的签约不自通知（关闭方已知自己的请求被自动取消）
       await notifyUser(db, s.initiator_user_id, 'SIGNING_REJECTED', {});
