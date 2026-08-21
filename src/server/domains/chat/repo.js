@@ -9,17 +9,24 @@ import { STATUS } from '../../../shared/enums.js';
 // 会话与消息（模块4）
 // ============================================================
 
-// 同一师生对唯一会话（UNIQUE(student,teacher)）；已存在则返回既有 id
+// 同一师生对唯一会话（UNIQUE(student,teacher)）；已存在则返回既有 id。
+// AI-6 会话重启：命中 closed 行 → 重启原会话（status→active + demand 回填，历史保留）——
+// 用户模型「一对师生终身一个会话对象，closed 后再次合作 = 重启原会话，非新建」；双调用点
+// （意向/推送接受）经同一元组命中即重启。重启不重设已读游标/不删历史（历史保留）。
 export async function dbUpsertConversation(db, studentUserId, teacherUserId, demandId) {
   await dbRun(db,
     'INSERT OR IGNORE INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)',
     [studentUserId, teacherUserId, demandId || null]);
   const row = await dbGet(db,
-    'SELECT id, demand_id FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
+    'SELECT id, demand_id, status FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
     [studentUserId, teacherUserId]);
-  // INSERT OR IGNORE 命中既有会话时不更新任何列——旧会话 demand_id 为空必须回填，
-  // 否则教师起草合同选不到需求（会话需求绑定丢失事故根因）
-  if (row && !row.demand_id && demandId) {
+  // AI-6：closed → 重启（条件 UPDATE 幂等：并发双配对只一次生效；demand 回填为新合作需求）
+  if (row && row.status === STATUS.CLOSED) {
+    await dbRun(db, "UPDATE conversations SET status='active', demand_id=? WHERE id=? AND status='closed'",
+      [demandId || null, row.id]);
+  } else if (row && !row.demand_id && demandId) {
+    // INSERT OR IGNORE 命中既有会话时不更新任何列——旧会话 demand_id 为空必须回填，
+    // 否则教师起草合同选不到需求（会话需求绑定丢失事故根因）
     await dbRun(db, 'UPDATE conversations SET demand_id=? WHERE id=?', [demandId, row.id]);
   }
   return row?.id || null;
