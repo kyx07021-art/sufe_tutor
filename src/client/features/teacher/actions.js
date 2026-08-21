@@ -18,7 +18,6 @@ import { bindTimeSlotTree, prefillTimeSlots, validateTimeSlots, collectTimeSlots
 import { mountShanghaiAddrPicker } from '../region/actions.js';
 
 let profilePanelUserId = null;
-let _studentOpenDemand = false;
 let _matchDetailOpen = false;
 
 // fill sort/filter controls (shell provides the empty containers)
@@ -60,14 +59,13 @@ export function renderTeachers() {
 }
 
 export async function attachStudentMatch(teachers) {
-  if (!state.user || state.user.role !== ROLES.STUDENT) { _studentOpenDemand = false; setStudentOpenDemand(false); return; }
+  if (!state.user || state.user.role !== ROLES.STUDENT) { setStudentOpenDemand(false); return; }
   for (const t of teachers) delete t._matchForStudent;
   let demands = [];
   try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands' })).demands || []; }
   catch { demands = []; }
   const open = demands.filter(d => demandIsActive(d));
-  _studentOpenDemand = open.length > 0;
-  setStudentOpenDemand(_studentOpenDemand);
+  setStudentOpenDemand(open.length > 0);
   if (!open.length) return;
   for (const t of teachers) {
     const items = open
@@ -77,8 +75,6 @@ export async function attachStudentMatch(teachers) {
     if (items.length) t._matchForStudent = { md: items[0].md, items };
   }
 }
-
-export function studentOpenDemand() { return _studentOpenDemand; }
 
 // v1 parity (app-teachers.js): probe refresh replaces the cached array then re-hangs
 // state.allTeachers — cross-feature readers (openProfilePanel/findCachedTeacher) mirror
@@ -170,18 +166,6 @@ export function setReviewStars(el) {
   container.querySelectorAll('.star').forEach(s => s.classList.toggle('selected', Number(s.dataset.rating) <= Number(el.dataset.rating)));
 }
 
-export function adminReviewAction(id, action) {
-  if (action === 'approve') {
-    api(`/api/admin/reviews/${id}/approve`, { method: 'POST', body: {} }).then(() => { showToast(TEXT.SUCCESS_APPROVED); loadTeachers(); }).catch(err => showToast(err.message));
-  } else {
-    api(`/api/admin/reviews/${id}/reject`, { method: 'POST', body: {} }).then(() => { showToast(TEXT.SUCCESS_REJECTED); loadTeachers(); }).catch(err => showToast(err.message));
-  }
-}
-
-export function confirmDeleteReview(id) {
-  confirm({ title: TEXT.BTN_DELETE_REVIEW, message: TEXT.CONFIRM_DELETE_REVIEW, onConfirm: () => api(`/api/admin/reviews/${id}`, { method: 'DELETE', body: {} }).then(() => { showToast(TEXT.REVIEW_DELETED); loadTeachers(); }).catch(err => showToast(err.message)) });
-}
-
 export function closeModalAction() { closeModal(); }
 
 
@@ -190,13 +174,6 @@ export function findCachedTeacher(userId) {
 }
 
 export function closeProfilePanel() { closeModal(); }
-export function profilePanelShowing() { return profilePanelUserId != null; }
-
-export function viewTeacherCredential(userId) {
-  const t = findCachedTeacher(userId);
-  if (!t || !t.credential_image) { showToast(TEXT.CREDENTIAL_VIEW, 'error'); return; }
-  openModal({ title: TEXT.CREDENTIAL_VIEW, body: `<div class="credential-view"><img src="${escHtml(t.credential_image)}" alt="${TEXT.CREDENTIAL_VIEW}"></div>` });
-}
 
 export function teacherSortMode(mode) {
   if (mode == null) {
@@ -205,7 +182,6 @@ export function teacherSortMode(mode) {
   }
   state.teacherSort = mode; sortTeachers(); return mode;
 }
-export function syncMatchSortOpt() { /* handled by sort control */ }
 export function teacherSortFromSelect(el) { // Q-4a-M1c: sort control change delegation
   const v = el ? String(el.value || '') : '';
   state.teacherSort = v || 'match';
@@ -228,7 +204,6 @@ export function sortTeachers(arrOrMode, maybeMode) {
   renderTeachers();
 }
 
-export function openTeacherCard(id) { openProfilePanel(id); }
 export function toggleFilters() { const el = document.getElementById('teacher-filters'); if (el) el.classList.toggle('hidden'); }
 export function applyFilters() {
   const method = document.getElementById('filter-method')?.value || '';
@@ -270,7 +245,6 @@ export function closeMatchDetail() {
   if (el) el.remove();
   _matchDetailOpen = false;
 }
-export function renderProfileInfoCard(t) { return renderProfilePanel(t, ''); }
 
 // Z-3-F1 F1c: enter the teacher-profile page — GET own profile, render the edit form,
 // prefill time slots and the Shanghai address picker. Replacements (province→subjects,

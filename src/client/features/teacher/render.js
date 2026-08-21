@@ -19,7 +19,6 @@ import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: pr
 
 let _studentOpenDemand = false;
 export function setStudentOpenDemand(v) { _studentOpenDemand = !!v; }
-export function studentOpenDemand() { return _studentOpenDemand; }
 
 export function renderTeacherCard(t, i) {
   const isStudent = state.user && state.user.role === ROLES.STUDENT;

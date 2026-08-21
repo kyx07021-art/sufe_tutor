@@ -13,9 +13,6 @@ const ACTION_MAP = {
   'teacher.closeReview': actions.closeModalAction,
   'teacher.submitReview': actions.submitReview,
   'teacher.setStars': el => actions.setReviewStars(el),
-  'teacher.approveReview': el => actions.adminReviewAction(Number(el.dataset.id), 'approve'),
-  'teacher.rejectReview': el => actions.adminReviewAction(Number(el.dataset.id), 'reject'),
-  'teacher.deleteReview': el => actions.confirmDeleteReview(Number(el.dataset.id)),
   'teacher.matchDetail': el => actions.showTeacherMatchDetail(Number(el.dataset.id)),
   'teacher.toggleFilters': actions.toggleFilters,
   // Z-3-F1 F1d1: tag-pick toggles on the profile form (personality + nonacademic projects)
