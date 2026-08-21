@@ -50,11 +50,11 @@ export async function dbUpdateReview(db, reviewId, rating, comment) {
 // 签约门槛查询（v1.4.14 用户拍板：联系方式/评价统一按「已签约」开放——signing_request signed 即已签约；
 // 文档合同 signed 不作依据（合同是附加保障，与签约状态无关），发起签约过程中（pending）不算。
 export async function dbIsContracted(db, studentUserId, teacherUserId) {
+  // AI-4b：合并表自持元组——直查 signing_contracts，signing_status='signed' 即成交（v1.4.14 口径：不锁
+  // stage/revoked——推进到 contract 后 signing_status 仍 'signed'，撤销不收回签约状态）
   return !!(await dbGet(db,
-    `SELECT 1 FROM conversations c
-     WHERE c.student_user_id=? AND c.teacher_user_id=?
-       AND EXISTS(SELECT 1 FROM signing_requests sr WHERE sr.conversation_id=c.id AND sr.status='signed')
-     LIMIT 1`,
+    `SELECT 1 FROM signing_contracts sc WHERE sc.student_user_id=? AND sc.teacher_user_id=?
+       AND sc.signing_status='signed' LIMIT 1`,
     [studentUserId, teacherUserId]));
 }
 

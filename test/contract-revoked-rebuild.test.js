@@ -118,8 +118,8 @@ test('Q-2e-F1：撤销合同后重建合同不再死锁（起草→双签→撤�
   // 5) 重建合同 —— 缺陷态恒 409；修复后 201（变异：闸门删 revoked=0 → 409 → 本断言红）
   const rebuild = await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token));
   assert.equal(rebuild.status, 201, '撤销合同不算进行中，可重建合同');
-  assert.ok(raw.prepare('SELECT COUNT(*) AS c FROM contracts').get().c >= 2, '存在新合同行');
-  const newest = raw.prepare('SELECT revoked FROM contracts ORDER BY id DESC LIMIT 1').get();
+  assert.ok(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE stage='contract'").get().c >= 2, '存在新合同行');
+  const newest = raw.prepare("SELECT revoked FROM signing_contracts WHERE stage='contract' ORDER BY id DESC LIMIT 1").get();
   assert.equal(newest.revoked, 0, '新合同未撤销');
 
   // 重建后下拉空（新合同进行中占位，一条需求一份合同）

@@ -128,8 +128,8 @@ test('单方签署：signed_at 置位 + 正文该方已签署（含时间）+ �
   assert.ok(ct.contract_md.includes('签署状态：待签署'), '对方仍待签署');
   const n = raw.prepare('SELECT COUNT(*) AS c FROM contract_ledger WHERE contract_id=1').get().c;
   assert.equal(n, 1, '单方签署也落台账（不再仅双方确认后）');
-  const row = raw.prepare('SELECT status FROM contracts WHERE id=1').get();
-  assert.equal(row.status, 'signing', '单方签署后状态仍 signing');
+  const row = raw.prepare('SELECT contract_status FROM signing_contracts WHERE id=1').get();
+  assert.equal(row.contract_status, 'signing', '单方签署后状态仍 signing');
   // capToken 一次性：复用被拒（危险操作二次认证不可重放）
   const again = await handleSignContract(db, 1, { capToken: cap }, reqOf(t1S.token));
   assert.equal(again.status, 403, 'capToken 一次性，复用被拒');
@@ -313,7 +313,7 @@ test('Z-5-F7 回归：prev_business 密文落库 + mapper 出口解密', async (
   const ver = ct0.version;
   const upd = await handleModifyContract(db, 1, { contractMd: '补基础+真题演练', version: ver }, reqOf(s1S.token));
   assert.equal(upd.status, 200);
-  const row = raw.prepare('SELECT prev_business FROM contracts WHERE id=1').get();
+  const row = raw.prepare('SELECT prev_business FROM signing_contracts WHERE id=1').get();
   assert.ok(String(row.prev_business).startsWith('enc:v1:'), 'prev_business 密文落库（F7 修复：原明文）');
   // 前端 diff 走列表接口（dbGetMyContracts mapper 出口解密）；dbGetContractById 不解密 prev_business
   const ct = await dbGetContractById(db, 1);
@@ -339,15 +339,15 @@ test('U-3g：handleAdminRemoveContract 无 capToken 403 + 带 capToken 200', asy
   const convId = raw.prepare('SELECT id FROM conversations ORDER BY id DESC LIMIT 1').get().id;
   const cr = await handleCreateContract(db, contractBody(convId, d1), reqOf(t1S.token));
   assert.equal(cr.status, 201, '合同创建');
-  const cid = raw.prepare('SELECT id FROM contracts ORDER BY id DESC LIMIT 1').get().id;
+  const cid = raw.prepare("SELECT id FROM signing_contracts WHERE stage='contract' ORDER BY id DESC LIMIT 1").get().id;
   // 管理员无 capToken → 403，合同保留
   const noCap = await handleAdminRemoveContract(db, cid, {}, reqOf(adminSession.token));
   assert.equal(noCap.status, 403, '管理员无 capToken 拒绝');
-  assert.equal(raw.prepare('SELECT COUNT(*) c FROM contracts').get().c, 1, '合同未被删');
+  assert.equal(raw.prepare("SELECT COUNT(*) c FROM signing_contracts WHERE stage='contract'").get().c, 1, '合同未被删');
   // 管理员带 capToken → 200，合同删除 + 需求释放（contracted→revoked）
   const cap = await capOf(raw, 'admin_x', adminSession.sessionId, idOf);
   const withCap = await handleAdminRemoveContract(db, cid, { capToken: cap }, reqOf(adminSession.token));
   assert.equal(withCap.status, 200, '管理员带 capToken 移除成功');
-  assert.equal(raw.prepare('SELECT COUNT(*) c FROM contracts').get().c, 0, '合同已删');
+  assert.equal(raw.prepare("SELECT COUNT(*) c FROM signing_contracts WHERE stage='contract'").get().c, 0, '合同已删');
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'revoked', '绑定需求释放为 revoked');
 });

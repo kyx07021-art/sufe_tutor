@@ -110,7 +110,7 @@ test('发起签约：body 无 demandId → 400，不落库（无回落，杜绝�
   const { s1Token, d1 } = await seed(db, raw);
   const r = await handleCreateSigning(db, { conversationId: 1, demandId: undefined, price: 150, schedule: 'x', method: 'offline' }, reqOf(s1Token));
   assert.equal(r.status, 400, '缺 demandId 必须拒绝（原回落 conv.demand_id 可落 NULL 需求签约）');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests').get().c, 0);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts').get().c, 0);
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'open', '需求状态不受影响');
 });
 
@@ -120,7 +120,7 @@ test('发起签约：demandId 非法（非数字/0/负数/小数）→ 400，不
     const { s1Token } = await seed(db, raw);
     const r = await handleCreateSigning(db, { conversationId: 1, demandId: bad, price: 150, schedule: 'x', method: 'offline' }, reqOf(s1Token));
     assert.equal(r.status, 400, `demandId=${JSON.stringify(bad)} 应被拒`);
-    assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests').get().c, 0, `demandId=${JSON.stringify(bad)} 不落库`);
+    assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts').get().c, 0, `demandId=${JSON.stringify(bad)} 不落库`);
   }
 });
 
@@ -145,9 +145,9 @@ test('同需求两会话并发双确认：只单赢（一个 200 一个 410，si
   ]);
   const statuses = [resA.status, resB.status].sort();
   assert.deepEqual(statuses, [200, 403], '并发双确认只单赢（一个确认成功，另一个 cap 被消费被拒）');
-  assert.equal(raw.prepare(`SELECT COUNT(*) AS c FROM signing_requests WHERE status='signed'`).get().c, 1, '仅一条签约请求置 signed（杜绝双评价门槛）');
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS c FROM signing_contracts WHERE signing_status='signed'`).get().c, 1, '仅一条签约请求置 signed（杜绝双评价门槛）');
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'contracted', '需求收敛为 contracted');
-  assert.equal(raw.prepare(`SELECT COUNT(*) AS c FROM signing_requests WHERE status='pending'`).get().c, 1, '输家保持 pending（未被改 signed）');
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS c FROM signing_contracts WHERE signing_status='pending'`).get().c, 1, '输家保持 pending（未被改 signed）');
 });
 
 test('确认签约后同需求再发起签约被拒（410）', async () => {
@@ -189,11 +189,11 @@ test('起草合同：别教师签成的 contracted 需求 → 410；本会话同
   // t2 在 C2 起草合同绑 d1 → 410（d1 由别教师 t1 签成，签约成交方与合同缔结方必须同一教师）
   const r2 = await handleCreateContract(db, contractBody(2, d1), reqOf(t2Token));
   assert.equal(r2.status, 410, '别教师签成的需求不可跨会话抢绑起草合同');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts').get().c, 0, '被拒不落合同');
+  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE stage='contract'").get().c, 0, '被拒不落合同');
   // t1 在 C1 起草合同绑 d1 → 201（成交方本人）
   const r3 = await handleCreateContract(db, contractBody(1, d1), reqOf(t1Token));
   assert.equal(r3.status, 201, '签约成交教师本人可起草合同');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts').get().c, 1);
+  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE stage='contract'").get().c, 1);
 });
 
 test('起草合同：同需求重复起草 → 409（一条需求一份合同）', async () => {
@@ -234,10 +234,10 @@ test('v0.25.32 加固：起草合同后发起方不自动确认（drafter_confir
   const { t1Token, d2 } = await seed(db, raw);
   const r = await handleCreateContract(db, contractBody(1, d2), reqOf(t1Token));
   assert.equal(r.status, 201, '已签约（contracted）需求可起草合同');
-  const row = raw.prepare('SELECT drafter_confirmed, other_confirmed, status FROM contracts').get();
+  const row = raw.prepare("SELECT drafter_confirmed, other_confirmed, contract_status FROM signing_contracts WHERE stage='contract'").get();
   assert.equal(row.drafter_confirmed, 0, '发起方不自动置为已确认（原 drafter_confirmed=1 自动已签约）');
   assert.equal(row.other_confirmed, 0, '对方同样未确认');
-  assert.equal(row.status, 'signing', '状态为待签约：双方各自确认后才 signed');
+  assert.equal(row.contract_status, 'signing', '状态为待签约：双方各自确认后才 signed');
 });
 
 // ============ 4. bindable-demands phase=contract 别教师过滤 ============

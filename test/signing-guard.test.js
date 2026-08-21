@@ -58,8 +58,8 @@ async function seed(db, raw, demandStatus = 'open') {
   raw.exec(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact)
     VALUES (1,'senior1','female','["math"]','[]','self','13800000000','13800000000')`);
   raw.exec(`INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (1,2,1),(1,3,1)`);
-  raw.exec(`INSERT INTO signing_requests (conversation_id,demand_id,initiator_user_id,message_id,price,schedule,method,status)
-    VALUES (1,1,2,NULL,150,'每周六','offline','pending'),(2,1,3,NULL,150,'每周六','offline','pending')`);
+  raw.exec(`INSERT INTO signing_contracts (conversation_id,student_user_id,teacher_user_id,demand_id,initiator_user_id,message_id,price,schedule,method,stage,signing_status)
+    VALUES (1,1,2,1,2,NULL,150,'每周六','offline','signing','pending'),(2,1,3,1,3,NULL,150,'每周六','offline','signing','pending')`);
   if (demandStatus !== 'open') raw.exec(`UPDATE student_demands SET status='${demandStatus}' WHERE id=1`);
   const token = 'stu-token';
   // session_id 必须显式落非空值：confirmDangerOtp 对 '' 会话直接拒绝（生产 issueAuthToken 恒生成
@@ -87,7 +87,7 @@ test('需求态守卫：需求已签约成交后，另一会话的签约请求�
   // 学生再确认会话2的请求：需求已非 open → 410，请求保持 pending（不得双签）
   const r2 = await handleRespondSigning(db, 2, { accept: true, capToken: await capOf(raw, 'sess-stu', 'cap-stu-2') }, reqOf(token));
   assert.equal(r2.status, 410, '需求已成交：二次确认必须被拒');
-  assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=2').get().status, 'pending', '第二次签约请求不得置 signed');
+  assert.equal(raw.prepare('SELECT signing_status FROM signing_contracts WHERE id=2').get().signing_status, 'pending', '第二次签约请求不得置 signed');
 });
 
 test('需求态守卫：需求已撤销 → accept 410 且请求保持 pending', async () => {
@@ -95,7 +95,7 @@ test('需求态守卫：需求已撤销 → accept 410 且请求保持 pending',
   const { token } = await seed(db, raw, 'revoked');
   const r = await handleRespondSigning(db, 1, { accept: true, capToken: await capOf(raw) }, reqOf(token));
   assert.equal(r.status, 410);
-  assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=1').get().status, 'pending');
+  assert.equal(raw.prepare('SELECT signing_status FROM signing_contracts WHERE id=1').get().signing_status, 'pending');
 });
 
 test('拒绝签约不依赖需求状态：需求已成交时拒绝仍放行', async () => {
@@ -103,22 +103,23 @@ test('拒绝签约不依赖需求状态：需求已成交时拒绝仍放行', as
   const { token } = await seed(db, raw, 'contracted');
   const r = await handleRespondSigning(db, 1, { accept: false }, reqOf(token));
   assert.equal(r.status, 200, '拒绝不契约需求，无需需求守卫');
-  assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=1').get().status, 'rejected');
+  assert.equal(raw.prepare('SELECT signing_status FROM signing_contracts WHERE id=1').get().signing_status, 'rejected');
 });
 
-// v1.4.14 口径回归（用户拍板）：联系方式/评价统一按「已签约」开放 = signing_request signed；
-// 文档合同 signed 不作依据（合同是附加保障），发起签约过程中（pending）不算。
-test('v1.4.14 dbIsContracted 口径：signing_request signed 放行；pending/仅文档合同 signed 不放行', async () => {
+// v1.4.14 口径在合并模型下的演化（AI-4b 定案）：合同是签约的推进层级（用户模型），合同层行
+// signing_status 恒 'signed'——「已签约」= signing_status='signed'（任意 stage，不滤 revoked）。
+// 旧「仅文档合同 signed 不作依据」分支结构性消失（合并表一行即一实体）。联系方式/评价按成交开放。
+test('dbIsContracted 合并模型口径：signing_status signed 即已签约（含推进到 contract 的行）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   await seed(db, raw);
   // 基线：无 signed 签约请求 → 不放行（pending = 发起签约中）
   assert.equal(await dbIsContracted(db, 1, 2), false, 'pending 签约请求不放行');
   assert.equal(await dbIsContracted(db, 1, 3), false, 'pending 不放行');
-  // 仅文档合同 signed、无 signing_request signed → 不放行（老逻辑放行，v1.4.14 起合同非签约依据）
-  raw.exec(`INSERT INTO contracts (conversation_id, drafter_user_id, method, plan, hourly_rate, status, version)
-    VALUES (1,2,'offline','每周末',150,'signed',1)`);
-  assert.equal(await dbIsContracted(db, 1, 2), false, '仅文档合同 signed、无 signing_request signed → 不放行');
-  // 会话 2 的 signing_request signed → 放行（已签约）
-  raw.exec(`UPDATE signing_requests SET status='signed' WHERE conversation_id=2`);
-  assert.equal(await dbIsContracted(db, 1, 3), true, 'signing_request signed → 放行（已签约）');
+  // 会话 2 的签约请求 signed → 放行（已签约）
+  raw.exec(`UPDATE signing_contracts SET signing_status='signed' WHERE conversation_id=2`);
+  assert.equal(await dbIsContracted(db, 1, 3), true, 'signing_status signed → 放行（已签约）');
+  // 推进到合同层（起草后 stage='contract'）的行 signing_status 仍 'signed' → 仍放行（合并模型：合同是签约的推进层级）
+  raw.exec(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, method, plan, hourly_rate, stage, signing_status, contract_status, version)
+    VALUES (1,1,2,2,'offline','每周末',150,'contract','signed','signed',1)`);
+  assert.equal(await dbIsContracted(db, 1, 2), true, '合同层行 signing_status signed → 放行');
 });

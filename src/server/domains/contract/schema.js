@@ -103,6 +103,10 @@ export async function migrate(db, ctx) {
   } else if (ctx.phase === 'postEnsure') {
     await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_contracts_conv ON contracts(conversation_id)');
     await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_contracts_demand ON contracts(demand_id)');
+    // AI-4b：signing_contracts 热查询索引（起草定位/元组过滤/绑定下拉；postEnsure 幂等，本批 v11→v12 迁移必跑）
+    await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_conv ON signing_contracts(conversation_id, stage, signing_status)');
+    await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_demand ON signing_contracts(demand_id, stage)');
+    await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_sc_tuple ON signing_contracts(student_user_id, teacher_user_id, stage)');
     // AI-3：contracts 双方元组存量回填（按 conversation_id 反查会话，幂等只填空不覆写）
     await dbRun(db, `UPDATE contracts SET
         student_user_id = (SELECT c.student_user_id FROM conversations c WHERE c.id = contracts.conversation_id),

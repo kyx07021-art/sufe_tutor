@@ -1,5 +1,5 @@
 /**
- * 聊天域数据层（V-1-4 从 server/db.js 提取）：conversations / messages / uploads / signing_requests。
+ * 聊天域数据层（V-1-4 从 server/db.js 提取）：conversations / messages / uploads / signing_contracts（签约层）。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { mapDemandRow } from '../demand/repo.js';
@@ -48,9 +48,10 @@ export async function dbGetConversationWithNames(db, conversationId) {
 export async function dbGetConversationBindableDemands(db, conversationId, phase) {
   const cond = phase === 'contract'
     ? `AND sd.status='contracted'
-       AND NOT EXISTS (SELECT 1 FROM contracts ct WHERE ct.demand_id=sd.id AND ct.status IN ('pending','signing','signed') AND ct.revoked=0) -- Q-2e-F1 收口：撤销合同不算进行中（本查询是生产起草下拉唯一数据源，漏排除则 409 死锁变空下拉死锁）
-       AND NOT EXISTS (SELECT 1 FROM signing_requests sr JOIN conversations c2 ON c2.id=sr.conversation_id
-            WHERE sr.demand_id=sd.id AND sr.status='signed' AND c2.teacher_user_id != c.teacher_user_id)`
+       AND EXISTS (SELECT 1 FROM signing_contracts sc WHERE sc.demand_id=sd.id AND sc.stage='signing'
+            AND sc.signing_status='signed' AND sc.revoked=0 AND sc.teacher_user_id=c.teacher_user_id) -- AI-4b: 起草须本会话教师已成交（正向定位，防他师陈旧 signed 行误挡）
+       AND NOT EXISTS (SELECT 1 FROM signing_contracts sc2 WHERE sc2.demand_id=sd.id AND sc2.stage='contract'
+            AND sc2.contract_status IN ('pending','signing','signed') AND sc2.revoked=0) -- Q-2e-F1 收口：撤销合同不算进行中（本查询是生产起草下拉唯一数据源，漏排除则 409 死锁变空下拉死锁）`
     : `AND sd.status='open'`;
   const rows = await dbAll(db, `
     SELECT sd.*, u.username
@@ -155,26 +156,26 @@ export async function dbSetMessageBody(db, messageId, body) {
 }
 
 // ============================================================
-// 签约请求（signing_requests）——A5 收口：业务 SQL 自 signing.js 内收（DDL 仍由 signing.js 自持）
+// 签约请求（signing_contracts stage='signing' 层）——AI-4b 读写切换合并表（签约/合同同一实体不同 stage）
 // ============================================================
 export async function dbGetSigningById(db, id) {
-  return await dbGet(db, 'SELECT * FROM signing_requests WHERE id=?', [id]);
+  return await dbGet(db, "SELECT sc.*, sc.signing_status AS status FROM signing_contracts sc WHERE id=? AND stage='signing'", [id]);
 }
 
 /** 管理端硬删签约请求（D2 处罚；气泡消息本体留 messages，正文 JSON 自含快照不受影响） */
 export async function dbDeleteSigning(db, signingId) {
-  await dbRun(db, 'DELETE FROM signing_requests WHERE id=?', [signingId]);
+  await dbRun(db, "DELETE FROM signing_contracts WHERE id=? AND stage='signing'", [signingId]);
 }
 
 export async function dbGetPendingSigningForConversation(db, conversationId) {
   return await dbGet(db,
-    "SELECT id FROM signing_requests WHERE conversation_id=? AND status='pending' LIMIT 1", [conversationId]);
+    "SELECT id FROM signing_contracts WHERE conversation_id=? AND stage='signing' AND signing_status='pending' LIMIT 1", [conversationId]);
 }
 
-export async function dbCreateSigning(db, conversationId, demandId, userId, msgId, price, schedule, method) {
+export async function dbCreateSigning(db, conversationId, studentUserId, teacherUserId, demandId, userId, msgId, price, schedule, method) {
   const res = await dbRun(db,
-    'INSERT INTO signing_requests (conversation_id, demand_id, initiator_user_id, message_id, price, schedule, method) VALUES (?,?,?,?,?,?,?)',
-    [conversationId, demandId, userId, msgId, price, schedule, method]);
+    'INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, demand_id, initiator_user_id, message_id, price, schedule, method, stage, signing_status) VALUES (?,?,?,?,?,?,?,?,?,\'signing\',\'pending\')',
+    [conversationId, studentUserId, teacherUserId, demandId, userId, msgId, price, schedule, method]);
   return Number(res.meta.last_row_id);
 }
 
@@ -183,8 +184,8 @@ export async function dbCreateSigning(db, conversationId, demandId, userId, msgI
 // 返回 [srChanges, demandChanges]；auto-reject 副作用只由需求收缩赢家（demandChanges>0）驱动。
 export async function dbConfirmSigning(db, signingId, demandId) {
   const results = await db.batch([
-    db.prepare(`UPDATE signing_requests SET status='signed', responded_at=datetime('now')
-      WHERE id=? AND status='pending'
+    db.prepare(`UPDATE signing_contracts SET signing_status='signed', responded_at=datetime('now')
+      WHERE id=? AND stage='signing' AND signing_status='pending'
       AND EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='open')`).bind(signingId, demandId),
     db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`).bind(demandId),
   ]);
@@ -194,7 +195,7 @@ export async function dbConfirmSigning(db, signingId, demandId) {
 // 拒绝/收束签约单条（respond 拒绝分支 + 注销收束共用）：条件 UPDATE + changes 判定（赢家模式）
 export async function dbRejectSigning(db, signingId) {
   const res = await dbRun(db,
-    `UPDATE signing_requests SET status=?, responded_at=datetime('now') WHERE id=? AND status='pending'`,
+    `UPDATE signing_contracts SET signing_status=?, responded_at=datetime('now') WHERE id=? AND stage='signing' AND signing_status='pending'`,
     [STATUS.REJECTED, signingId]);
   return !!(res && res.meta && res.meta.changes > 0);
 }

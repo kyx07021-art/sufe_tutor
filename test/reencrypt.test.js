@@ -221,8 +221,8 @@ test('Q-2e-F2 守护：contracts.prev_business 随合同正文一起重加密（
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(1, t1);
   const md = await encryptField('# 家教服务合同\n...');
   const pb = await encryptField('每周六晚');
-  raw.prepare('INSERT INTO contracts (conversation_id, drafter_user_id, status, contract_md, prev_business) VALUES (?,?,?,?,?)')
-    .run(1, t1, 'signed', md, pb);
+  raw.prepare("INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, stage, signing_status, contract_status, contract_md, prev_business) VALUES (?,?,?,?,'contract','signed','signed',?,?)")
+    .run(1, 1, t1, t1, md, pb);
 
   // 新钥轮换 + 旧钥候选，全量重加密
   bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, FIELD_ENC_KEY_OLD: OLD_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG });
@@ -232,7 +232,7 @@ test('Q-2e-F2 守护：contracts.prev_business 随合同正文一起重加密（
   // 解密失败 diff 退化 [undecryptable]。变异：FIELD_TABLES contracts 删 prev_business 登记 →
   // prev_business 仍旧钥密文 → 单新钥解不出 → 断言红（旧断言「候选钥序解出」无牙齿，OLD 兜底也能解）
   bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG });
-  const row = raw.prepare('SELECT contract_md, prev_business FROM contracts').get();
+  const row = raw.prepare("SELECT contract_md, prev_business FROM signing_contracts WHERE stage='contract'").get();
   assert.equal(await decryptField(row.contract_md), '# 家教服务合同\n...', 'contract_md 重加密后新钥可解');
   assert.equal(await decryptField(row.prev_business), '每周六晚', 'prev_business 重加密后新钥可解（旧实现漏登记删旧钥即 [undecryptable]）');
 });

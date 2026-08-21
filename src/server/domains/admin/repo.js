@@ -136,10 +136,10 @@ const CONTENT_SQL = {
     FROM complaints c LEFT JOIN users u ON u.id=c.user_id ORDER BY c.id DESC LIMIT ?`,
   upload: `SELECT o.id, o.user_id, u.username, u.role, o.kind, o.name, o.created_at
     FROM uploads o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.id DESC LIMIT ?`,
-  contract: `SELECT c.id, c.drafter_user_id, u.username, u.role, c.plan, c.schedule, c.status, c.created_at
-    FROM contracts c LEFT JOIN users u ON u.id=c.drafter_user_id ORDER BY c.id DESC LIMIT ?`,
-  signing: `SELECT s.id, s.initiator_user_id, u.username, u.role, s.price, s.schedule, s.method, s.status, s.created_at
-    FROM signing_requests s LEFT JOIN users u ON u.id=s.initiator_user_id ORDER BY s.id DESC LIMIT ?`,
+  contract: `SELECT c.id, c.drafter_user_id, u.username, u.role, c.plan, c.schedule, c.contract_status AS status, c.created_at
+    FROM signing_contracts c LEFT JOIN users u ON u.id=c.drafter_user_id WHERE c.stage='contract' ORDER BY c.id DESC LIMIT ?`,
+  signing: `SELECT s.id, s.initiator_user_id, u.username, u.role, s.price, s.schedule, s.method, s.signing_status AS status, s.created_at
+    FROM signing_contracts s LEFT JOIN users u ON u.id=s.initiator_user_id WHERE s.stage='signing' ORDER BY s.id DESC LIMIT ?`,
 };
 
 // SQL 与行映射都按类型字符串键控（CONTENT_MAPPER[t]），

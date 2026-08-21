@@ -163,7 +163,7 @@ export async function dbDeleteDemand(db, id) {
   // 并发起草窗口内合同先落库则本删除不命中→false，杜绝悬空 demand_id（F-03b）
   const r = await dbRun(db,
     `DELETE FROM student_demands WHERE id=? AND NOT EXISTS (
-      SELECT 1 FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed'))`, [id, id]);
+      SELECT 1 FROM signing_contracts WHERE demand_id=? AND stage='contract' AND contract_status IN ('pending','signing','signed'))`, [id, id]);
   if (!(r && r.meta && r.meta.changes > 0)) return false;
   // demand_intents 经外键 ON DELETE CASCADE 级联清理，无需显式删（原冗余 DELETE 已删，避免误导读者以为级联不存在）
   return true;
@@ -171,16 +171,15 @@ export async function dbDeleteDemand(db, id) {
 
 // 管理员强制删除需求（含已签约 contracted）。
 // 与 dbDeleteDemand 的常规门禁（有 pending/signing/signed 合同引用即拒）并列——管理员路径
-// 放行全部状态，但 F-03b 不变量（demand_id 不悬空）仍需守住：contracts / signing_requests 的
-// demand_id 均为裸 INTEGER 无外键，悬空会致线上事故（F-03b），故同一事务内先清引用再删需求；
+// 放行全部状态，但 F-03b 不变量（demand_id 不悬空）仍需守住：signing_contracts 的
+// demand_id 为裸 INTEGER 无外键，悬空会致线上事故（F-03b），故同一事务内先清引用再删需求；
 // demand_intents / demand_pushes 经 FK ON DELETE CASCADE 级联。db.batch 隐式单事务。
 export async function dbAdminForceDeleteDemand(db, id) {
   const res = await db.batch([
-    db.prepare('UPDATE contracts SET demand_id=NULL WHERE demand_id=?').bind(id),
-    db.prepare('UPDATE signing_requests SET demand_id=NULL WHERE demand_id=?').bind(id),
+    db.prepare('UPDATE signing_contracts SET demand_id=NULL WHERE demand_id=?').bind(id),
     db.prepare('DELETE FROM student_demands WHERE id=?').bind(id),
   ]);
-  return !!(res && res[2] && res[2].meta && res[2].meta.changes > 0);
+  return !!(res && res[1] && res[1].meta && res[1].meta.changes > 0);
 }
 
 // 需求重开（revoked→open）：条件 UPDATE 赢家模式，返回是否命中（防并发双触发）。

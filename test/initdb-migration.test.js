@@ -290,11 +290,11 @@ test('N-05 加密列：合同正文/学信网截图/附件 写加密读解密、
   assert.equal(prof.credential_image, 'data:image/png;base64,CRED123');
 
   // 合同正文：加密写 → 读解密；老明文行原样放行（decryptField 向后兼容）
-  await dbRun(db, 'INSERT INTO contracts (conversation_id, drafter_user_id, contract_md) VALUES (?,?,?)', [conv, tea, await encryptField('合同正文X')]);
-  const cid = db.prepare('SELECT id FROM contracts ORDER BY id DESC LIMIT 1').first().id;
+  await dbRun(db, "INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, contract_md, stage, signing_status, contract_status) VALUES (?,?,?,?,?,'contract','signed','pending')", [conv, stu, tea, tea, await encryptField('合同正文X')]);
+  const cid = db.prepare("SELECT id FROM signing_contracts WHERE stage='contract' ORDER BY id DESC LIMIT 1").first().id;
   assert.equal((await dbGetContractById(db, cid)).contract_md, '合同正文X');
-  await dbRun(db, 'INSERT INTO contracts (conversation_id, drafter_user_id, contract_md) VALUES (?,?,?)', [conv, tea, '老明文合同']);
-  const oldCid = db.prepare("SELECT id FROM contracts WHERE contract_md='老明文合同'").first().id;
+  await dbRun(db, "INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, contract_md, stage, signing_status, contract_status) VALUES (?,?,?,?,?,'contract','signed','pending')", [conv, stu, tea, tea, '老明文合同']);
+  const oldCid = db.prepare("SELECT id FROM signing_contracts WHERE contract_md='老明文合同'").first().id;
   assert.equal((await dbGetContractById(db, oldCid)).contract_md, '老明文合同', '老明文合同行应原样放行');
 
   // 附件：消息正文加密落库、读侧 decryptField 还原（route 层解密等价的往返验证）

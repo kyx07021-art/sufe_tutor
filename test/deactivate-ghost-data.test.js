@@ -152,8 +152,8 @@ test('注销 purge：活跃需求删除、已签约需求转 revoked、意向/�
   const c2 = raw.prepare('SELECT id FROM conversations ORDER BY id DESC LIMIT 1').get().id;
   const msgId = raw.prepare("INSERT INTO messages (conversation_id, sender_user_id, kind, body) VALUES (?,?,?,?)")
     .run(c2, s2, 'signing_request', JSON.stringify({ id: 9, price: 100, schedule: '周六', method: 'offline', status: 'pending' })).lastInsertRowid;
-  raw.prepare('INSERT INTO signing_requests (conversation_id, initiator_user_id, message_id, price, schedule, method, status) VALUES (?,?,?,?,?,?,?)')
-    .run(c2, s2, Number(msgId), 100, '周六', 'offline', 'pending');
+  raw.prepare('INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, initiator_user_id, message_id, price, schedule, method, stage, signing_status) VALUES (?,?,?,?,?,?,?,?,\'signing\',\'pending\')')
+    .run(c2, s2, s1, s2, Number(msgId), 100, '周六', 'offline');
 
   await dbDeactivateUser(db, s2, '已注销用户#2');
   await dbPurgeUserOwnedData(db, s2, 'student');
@@ -164,8 +164,8 @@ test('注销 purge：活跃需求删除、已签约需求转 revoked、意向/�
   assert.equal(contractedRow.status, 'revoked', '已签约需求转 revoked（合同 demand_id 不悬空）');
   const pushCount = raw.prepare('SELECT COUNT(*) AS c FROM demand_pushes WHERE student_user_id=?').get(s2).c;
   assert.equal(pushCount, 0, '学生侧推送清空');
-  const sr = raw.prepare('SELECT status FROM signing_requests WHERE conversation_id=?').get(c2);
-  assert.equal(sr.status, 'rejected', '待处理签约请求收束为已拒绝（行保留为双方协商记录）');
+  const sr = raw.prepare('SELECT signing_status FROM signing_contracts WHERE conversation_id=?').get(c2);
+  assert.equal(sr.signing_status, 'rejected', '待处理签约请求收束为已拒绝（行保留为双方协商记录）');
   const bubble = raw.prepare('SELECT body FROM messages WHERE id=?').get(Number(msgId));
   const b = JSON.parse(bubble.body);
   assert.equal(b.status, 'rejected', '会话内 signing_request 气泡同步终态（接收方无死按钮）');

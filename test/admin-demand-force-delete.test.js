@@ -3,7 +3,7 @@
  *
  * 背景：原 handleAdminDeleteDemand 拦 CONTRACTED（「已签约需求禁删——合同 demand_id 会悬空」），
  * 数据层 dbDeleteDemand 也以 NOT EXISTS(活跃合同引用) 原子拒删（F-03b 防悬空，曾致线上事故）。
- * 调试阶段放开：管理员改走 dbAdminForceDeleteDemand——同一事务内先清 contracts / signing_requests
+ * 调试阶段放开：管理员改走 dbAdminForceDeleteDemand——同一事务内先清 signing_contracts
  * 的 demand_id 引用（两者均裸 INTEGER 无 FK），再删需求；demand_intents / demand_pushes 经 FK 级联。
  * 常规（非管理员）删除路径仍保留原子门禁。
  *
@@ -69,9 +69,9 @@ async function seed(db, raw) {
   const d1 = raw.prepare('SELECT id FROM student_demands ORDER BY id DESC LIMIT 1').get().id;
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)').run(s1, t1, d1);
   const conv = raw.prepare('SELECT id FROM conversations ORDER BY id DESC LIMIT 1').get().id;
-  // 引用 d1 的合同（signed）与签约请求（pending）
-  raw.prepare(`INSERT INTO contracts (conversation_id, drafter_user_id, method, status, demand_id) VALUES (?,?,'online','signed',?)`).run(conv, t1, d1);
-  raw.prepare(`INSERT INTO signing_requests (conversation_id, demand_id, initiator_user_id, status) VALUES (?,?,?,'pending')`).run(conv, d1, t1);
+  // 引用 d1 的合同行（stage='contract' signed）与签约行（stage='signing' pending）——同表两 stage 行
+  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, method, stage, signing_status, contract_status, demand_id) VALUES (?,?,?,?,'online','contract','signed','signed',?)`).run(conv, s1, t1, t1, d1);
+  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, demand_id, initiator_user_id, stage, signing_status) VALUES (?,?,?,?,?,'signing','pending')`).run(conv, s1, t1, d1, t1);
   const mkToken = async (name, role) => {
     const token = `${name}-token`;
     raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
@@ -87,10 +87,10 @@ test('管理员删除 contracted 需求 → 200；合同/签约请求 demand_id 
   const r = await handleAdminDeleteDemand(db, d1, {}, reqOf(adminToken));
   assert.equal(r.status, 200, '管理员可删已签约需求');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE id=?').get(d1).c, 0, '需求行已删');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE conversation_id=?').get(conv).c, 1, '合同本体保留');
-  assert.equal(raw.prepare('SELECT demand_id FROM contracts WHERE conversation_id=?').get(conv).demand_id, null, '合同 demand_id 清 NULL 不悬空');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests WHERE conversation_id=?').get(conv).c, 1, '签约请求保留');
-  assert.equal(raw.prepare('SELECT demand_id FROM signing_requests WHERE conversation_id=?').get(conv).demand_id, null, '签约请求 demand_id 清 NULL');
+  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE conversation_id=? AND stage='contract'").get(conv).c, 1, '合同本体保留');
+  assert.equal(raw.prepare("SELECT demand_id FROM signing_contracts WHERE conversation_id=? AND stage='contract'").get(conv).demand_id, null, '合同 demand_id 清 NULL 不悬空');
+  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE conversation_id=? AND stage='signing'").get(conv).c, 1, '签约请求保留');
+  assert.equal(raw.prepare("SELECT demand_id FROM signing_contracts WHERE conversation_id=? AND stage='signing'").get(conv).demand_id, null, '签约请求 demand_id 清 NULL');
 });
 
 test('常规学生删除路径不受影响：contracted 需求仍拒删（F-03b 门禁保留）', async () => {

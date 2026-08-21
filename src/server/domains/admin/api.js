@@ -186,7 +186,7 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return errorMsg('DEMAND_NOT_FOUND', 404);
   // 管理员可删全部需求（含已签约 contracted）；
-  // 数据层 dbAdminForceDeleteDemand 同事务清 contracts/signing_requests 的 demand_id 引用再删需求，
+  // 数据层 dbAdminForceDeleteDemand 同事务清 signing_contracts 的 demand_id 引用再删需求，
   // F-03b 悬空不变量照守（常规非管理员路径仍走 dbDeleteDemand 的原子门禁）。
   const ok = await dbAdminForceDeleteDemand(db, demandId);
   if (!ok) return errorMsg('DEMAND_NOT_FOUND', 409); // 行已被并发删除等

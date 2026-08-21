@@ -104,11 +104,11 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
   // 接收方点击必 404 死按钮（死签约请求）；也不可留 pending：注销者永不可回应、对方永远悬着。
   // 置 rejected = 单方 offer 收走（offer 作历史双方协商记录保留），气泡终态灰字「已拒绝此次签约请求」。
   const myPendingSignings = await dbAll(db,
-    'SELECT id, message_id, price, schedule, method FROM signing_requests WHERE initiator_user_id=? AND status=?',
-    [userId, STATUS.PENDING]);
+    'SELECT id, message_id, price, schedule, method FROM signing_contracts WHERE initiator_user_id=? AND stage=? AND signing_status=?',
+    [userId, 'signing', STATUS.PENDING]);
   for (const sr of myPendingSignings) {
-    await dbRun(db, `UPDATE signing_requests SET status=?, responded_at=datetime('now') WHERE id=? AND status=?`,
-      [STATUS.REJECTED, sr.id, STATUS.PENDING]);
+    await dbRun(db, `UPDATE signing_contracts SET signing_status=?, responded_at=datetime('now') WHERE id=? AND stage=? AND signing_status=?`,
+      [STATUS.REJECTED, sr.id, 'signing', STATUS.PENDING]);
     if (sr.message_id) {
       await dbRun(db, 'UPDATE messages SET body=? WHERE id=?',
         [JSON.stringify({ id: sr.id, price: sr.price, schedule: sr.schedule, method: sr.method, status: STATUS.REJECTED }), sr.message_id]);

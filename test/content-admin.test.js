@@ -202,13 +202,13 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   // 直接造会话 + 合同 + 签约请求（D1/D2 提取/处罚覆盖；完整签约流见 signing-hardening.test.js）
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(stuId, teaId);
   const convId = raw.prepare('SELECT MAX(id) AS id FROM conversations').get().id;
-  raw.prepare(`INSERT INTO contracts (conversation_id, drafter_user_id, method, plan, hourly_rate, pay_method, first_lesson_date, contract_md, status)
-    VALUES (?,?,?,?,?,?,?,?,?)`)
-    .run(convId, teaId, 'online', '每周两次，每次两小时，梳理高二数学', 200, 'wechat', '2026-08-20', '# 辅导计划', 'pending');
-  raw.prepare(`INSERT INTO signing_requests (conversation_id, initiator_user_id, price, schedule, method, status) VALUES (?,?,?,?,?,?)`)
-    .run(convId, teaId, 200, '每周六下午', 'online', 'pending');
-  const contractId = raw.prepare('SELECT MAX(id) AS id FROM contracts').get().id;
-  const signingId = raw.prepare('SELECT MAX(id) AS id FROM signing_requests').get().id;
+  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, method, plan, hourly_rate, pay_method, first_lesson_date, contract_md, stage, contract_status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,'contract','pending')`)
+    .run(convId, stuId, teaId, teaId, 'online', '每周两次，每次两小时，梳理高二数学', 200, 'wechat', '2026-08-20', '# 辅导计划');
+  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, initiator_user_id, price, schedule, method, stage, signing_status) VALUES (?,?,?,?,?,?,?,'signing','pending')`)
+    .run(convId, stuId, teaId, teaId, 200, '每周六下午', 'online');
+  const contractId = raw.prepare("SELECT MAX(id) AS id FROM signing_contracts WHERE stage='contract'").get().id;
+  const signingId = raw.prepare("SELECT MAX(id) AS id FROM signing_contracts WHERE stage='signing'").get().id;
 
   const token = await adminToken(db, raw);
   const rc = await handleAdminContent(db, new URL('http://x/api/admin/content?type=contract'), req({ 'X-Auth-Token': token }));
@@ -232,7 +232,7 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   const longReason = '发布包含完整门牌号码的内容，严重违反平台隐私保护红线，已多次警告仍不改正，'.repeat(6); // 222 字（≥200）
   const delC = await handleContentAction(db, 'contract', contractId, { action: 'delete', reason: longReason, rule: '地址门控与隐私红线，内容安全审核，恶意规避审核', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(delC.status, 200, JSON.stringify(await delC.json()));
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE id=?').get(contractId).c, 0, '合同已删除');
+  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE id=? AND stage='contract'").get(contractId).c, 0, '合同已删除');
   const notif = raw.prepare('SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teaId);
   assert.ok(notif, '通知已生成');
   assert.equal(notif.type, 'CONTENT_PENALTY', '处罚通知结构化 type');
@@ -245,7 +245,7 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   assert.ok(rendered.length <= 200, `通知总长 ${rendered.length} ≤ 200`);
   const delS = await handleContentAction(db, 'signing', signingId, { action: 'delete', reason: '包含可定位地址', rule: '地址门控', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(delS.status, 200);
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests WHERE id=?').get(signingId).c, 0, '签约请求已删除');
+  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE id=? AND stage='signing'").get(signingId).c, 0, '签约请求已删除');
   // teacher 档案 delete/remove → 400 拒绝（无硬删分支，API 直发不许 no-op 假装成功）
   const teaDel = await handleContentAction(db, 'teacher', teaId, { action: 'delete', reason: 'x', rule: 'x' }, req({ 'X-Auth-Token': token }));
   assert.equal(teaDel.status, 400, 'teacher delete 直接拒绝');

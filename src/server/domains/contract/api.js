@@ -322,11 +322,13 @@ export async function handleCreateContract(db, body, req) {
   if (dm.status !== STATUS.CONTRACTED) return errorMsg('DEMAND_NOT_SIGNED', 410);
   // Q-2e-F1：闸门看 revoked——撤销合同行 status 仍 'signed'（撤销置 revoked=1 不删行），
   // 不排除则撤销→释放需求→重开→重签后需求 contracted 但起草合同恒 409「已关联合同」无出口
-  const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') AND revoked=0 LIMIT 1`, [demandId]);
+  // Q-2e-F1：闸门看 revoked——撤销合同行 contract_status 仍 'signed'（撤销置 revoked=1 不删行），
+  // 不排除则撤销→释放需求→重开→重签后需求 contracted 但起草合同恒 409「已关联合同」无出口
+  const dc = await dbGet(db, `SELECT id FROM signing_contracts WHERE demand_id=? AND stage='contract' AND contract_status IN ('pending','signing','signed') AND revoked=0 LIMIT 1`, [demandId]);
   if (dc) return errorMsg('DEMAND_CONTRACT_EXISTS', 409);
-  const crossSigned = await dbGet(db, `SELECT sr.id FROM signing_requests sr
-    JOIN conversations c ON c.id=sr.conversation_id
-    WHERE sr.demand_id=? AND sr.status='signed' AND c.teacher_user_id != ? LIMIT 1`, [demandId, conv.teacher_user_id]);
+  const crossSigned = await dbGet(db, `SELECT sc.id FROM signing_contracts sc
+    JOIN conversations c ON c.id=sc.conversation_id
+    WHERE sc.demand_id=? AND sc.signing_status='signed' AND c.teacher_user_id != ? LIMIT 1`, [demandId, conv.teacher_user_id]);
   if (crossSigned) return errorMsg('DEMAND_NOT_SIGNED', 410);
   let demandNo = dm.display_id ? String(dm.display_id).padStart(4, '0') : '';
   const md = buildContractMd({
@@ -334,41 +336,60 @@ export async function handleCreateContract(db, body, req) {
     method, schedule, location, plan, rate, createdAt: new Date().toISOString().slice(0, 10), demandNo,
     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
   });
-  const mdEnc = await encryptField(md); // 网安 N-05：合同正文加密落库（读点经 db.js 解密，台账哈希走明文）
-  // 插入时正文不含签署记录（流水号须先有 id），拿到 id 后回写完整正文——
-  // 第十条 签署记录显示双方「待签署」；自愈：回写失败不影响签署（每次签署都会重拼正文）
-  const res = await dbRun(db,
-    // 发起方不再自动确认——起草后双方
-    // 各自走「读合同→滚到底+待够时长→二次确认→密码最终确认」显式签署，双方确认才 signed
-    // 无会话级「已存在进行中的合同」限制——会话级查任意状态合同
-    // 会把已拒绝/已撤销的历史合同也算「进行中」，阻塞重新起草；需求级门禁（ct2 只认 pending/signing/
-    // signed）才是「一条需求一份合同」的正确闸门。会话只绑一条需求，需求级门禁天然覆盖会话级。
-    `INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, method, schedule, location, plan, hourly_rate, contract_md,
-        pay_method, pay_method_other, first_lesson_date, trial_pay, trial_pay_other, drafter_confirmed, status)
-     SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?, 0, 'signing'
-     WHERE NOT EXISTS (SELECT 1 FROM contracts ct2 WHERE ct2.demand_id=? AND ct2.status IN ('pending','signing','signed') AND ct2.revoked=0) -- Q-2e-F1：撤销行不算进行中
-       AND EXISTS (SELECT 1 FROM student_demands WHERE id=? AND status='contracted')
-       AND NOT EXISTS (SELECT 1 FROM signing_requests sr JOIN conversations c2 ON c2.id=sr.conversation_id
-            WHERE sr.demand_id=? AND sr.status='signed' AND c2.teacher_user_id != ?)`,
-    [conversationId, userId, demandId, method, schedule, location, plan, rate, mdEnc,
-     payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
-     demandId, demandId, demandId, conv.teacher_user_id]);
-  // 并发双起草防护：NOT EXISTS 命中既有进行中合同则 changes=0，仅赢家继续（前置 demandId 门禁是快路径，此处是竞态闸门）；
-  // 附加守卫：需求已被并发绑合同（另一会话）或需求被并发删除则同样 changes=0，判别后报对应用户可读错误
-  if (!(res && res.meta && res.meta.changes > 0)) {
+  const mdEnc = await encryptField(md); // 网安 N-05：合同正文加密落库（读点经 repo 解密，台账哈希走明文）
+  // AI-4b：一次合作一条记录——起草 = 定位本会话已确认签约行 → 同行推进 stage（signing→contract），id 全程不变；
+  // 无 signed signing 行（如 admin 处罚删除）→ 兜底 INSERT 独立合同行（signing_status 兜底 'signed' 保成交语义 + dbIsContracted 放行）
+  const signed = await dbGet(db, `SELECT sc.id, sc.teacher_user_id FROM signing_contracts sc
+    WHERE sc.conversation_id=? AND sc.demand_id=? AND sc.stage='signing' AND sc.signing_status='signed' AND sc.revoked=0 LIMIT 1`,
+    [conversationId, demandId]);
+  let id = 0;
+  if (signed) {
+    if (signed.teacher_user_id !== conv.teacher_user_id) return errorMsg('DEMAND_NOT_SIGNED', 410); // 成交方须本会话教师
+    // 并发双起草闸门：WHERE stage='signing' AND signing_status='signed' 只放行尚未起草的行（写串行化，败者 changes=0）；
+    // NOT EXISTS(同需求活跃合同) + EXISTS(需求 contracted) 双守卫（同旧 INSERT 口径）
+    const upd = await dbRun(db,
+      `UPDATE signing_contracts SET
+         stage='contract', contract_status='signing', drafter_user_id=?, method=?, schedule=?, location=?, plan=?, hourly_rate=?,
+         pay_method=?, pay_method_other=?, first_lesson_date=?, trial_pay=?, trial_pay_other=?, contract_md=?,
+         drafter_confirmed=0, other_confirmed=0, drafter_signed_at='', other_signed_at='', prev_business=NULL,
+         version=0, updated_at=datetime('now')
+       WHERE id=? AND stage='signing' AND signing_status='signed' AND revoked=0
+         AND NOT EXISTS (SELECT 1 FROM signing_contracts sc2 WHERE sc2.demand_id=? AND sc2.stage='contract'
+              AND sc2.contract_status IN ('pending','signing','signed') AND sc2.revoked=0)
+         AND EXISTS (SELECT 1 FROM student_demands WHERE id=? AND status='contracted')`,
+      [userId, method, schedule, location, plan, rate, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther, mdEnc,
+       signed.id, demandId, demandId]);
+    if (upd && upd.meta && upd.meta.changes > 0) id = signed.id;
+  } else {
+    const res = await dbRun(db,
+      `INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, demand_id, stage, signing_status, contract_status,
+         drafter_user_id, method, schedule, location, plan, hourly_rate, contract_md, pay_method, pay_method_other,
+         first_lesson_date, trial_pay, trial_pay_other, drafter_confirmed)
+       SELECT ?,?,?,?, 'contract','signed','signing', ?,?,?,?,?,?,?,?,?,?,?,?, 0
+       WHERE NOT EXISTS (SELECT 1 FROM signing_contracts sc2 WHERE sc2.demand_id=? AND sc2.stage='contract'
+            AND sc2.contract_status IN ('pending','signing','signed') AND sc2.revoked=0) -- Q-2e-F1：撤销行不算进行中
+         AND EXISTS (SELECT 1 FROM student_demands WHERE id=? AND status='contracted')
+         AND NOT EXISTS (SELECT 1 FROM signing_contracts sc3 JOIN conversations c2 ON c2.id=sc3.conversation_id
+              WHERE sc3.demand_id=? AND sc3.signing_status='signed' AND c2.teacher_user_id != ?)`,
+      [conversationId, conv.student_user_id, conv.teacher_user_id, demandId,
+       userId, method, schedule, location, plan, rate, mdEnc, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther,
+       demandId, demandId, demandId, conv.teacher_user_id]);
+    if (res && res.meta && res.meta.changes > 0) id = (res.meta.last_row_id) || 0;
+  }
+  // 并发双起草/删除防护：changes=0 → 判别 404/409/410（同旧 INSERT 判别链）
+  if (!id) {
     if (!(await dbGetDemandById(db, demandId))) return errorMsg('DEMAND_NOT_FOUND', 404);
-    const dc = await dbGet(db, `SELECT id FROM contracts WHERE demand_id=? AND status IN ('pending','signing','signed') AND revoked=0 LIMIT 1`, [demandId]);
-    if (dc) return errorMsg('DEMAND_CONTRACT_EXISTS', 409);
+    const dc2 = await dbGet(db, `SELECT id FROM signing_contracts WHERE demand_id=? AND stage='contract' AND contract_status IN ('pending','signing','signed') AND revoked=0 LIMIT 1`, [demandId]);
+    if (dc2) return errorMsg('DEMAND_CONTRACT_EXISTS', 409);
     // 剩余竞态：需求状态被并发改（非 contracted）或成交方被并发换教师——均为「该需求不可绑本合同」
     return errorMsg('DEMAND_NOT_SIGNED', 410);
   }
-  const id = (res && res.meta && res.meta.last_row_id) || 0;
   if (id > 0) {
     const fullMd = md + buildSignatureBlock({
       studentName: conv.student_name, teacherName: conv.teacher_name,
       studentSignedAt: '', teacherSignedAt: '', contractId: id,
     });
-    await dbRun(db, `UPDATE contracts SET contract_md=? WHERE id=? AND status='signing'`,
+    await dbRun(db, `UPDATE signing_contracts SET contract_md=? WHERE id=? AND stage='contract' AND contract_status='signing'`,
       [await encryptField(fullMd), id]);
   }
   // 聊天窗合同事件气泡：落一条 kind=contract 的系统消息（文案由前端按查看者渲染），双方会话内均可见
@@ -408,7 +429,7 @@ export async function handleSignContract(db, contractId, body, req) {
   // 条件 UPDATE + changes 赢家模式：AND status 守卫确保对已离开 pending/signing 的合同（被取消/已签约）
   // 不产生任何改动；changes=0 方重读当前态幂等返回，不触发任何副作用。version 同步递增（乐观锁）
   // 同句置位 signed_at（服务端时间戳，UTC SQLite 格式），签名区块据此渲染
-  const flag = await dbRun(db, `UPDATE contracts SET ${col}=1, ${signedCol}=datetime('now'), status='signing', version=version+1, updated_at=datetime('now') WHERE id=? AND status IN ('pending','signing')`, [contractId]);
+  const flag = await dbRun(db, `UPDATE signing_contracts SET ${col}=1, ${signedCol}=datetime('now'), contract_status='signing', version=version+1, updated_at=datetime('now') WHERE id=? AND stage='contract' AND contract_status IN ('pending','signing')`, [contractId]);
   if (!(flag && flag.meta && flag.meta.changes > 0)) {
     const cur = await loadContractFor(db, contractId, userId, [STATUS.PENDING, STATUS.SIGNING, STATUS.SIGNED]);
     if (cur.err) return cur.err;
@@ -425,7 +446,7 @@ export async function handleSignContract(db, contractId, body, req) {
   // 重拼正文（第十条 签署记录内嵌签署人/时间）回写：version 乐观锁——
   // 并发双签时仅最后落定者的正文生效（版本已被抢跑的旧正文 changes=0 丢弃），杜绝旧签名块覆盖新状态
   const signedMd = rebuildFullMd(updated, conv);
-  const mdUpdate = await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
+  const mdUpdate = await dbRun(db, `UPDATE signing_contracts SET contract_md=?, version=version+1 WHERE id=? AND version=? AND stage='contract'`,
     [await encryptField(signedMd), contractId, updated.version]);
   // Z-2-F3：并发双签败者判定——正文覆盖的 version 乐观锁 changes=0（对方已抢先落定），
   // 败者旧正文落台账会与当前双签正文失配（verify invalid）且多余通知——跳过台账/通知/留档，
@@ -449,7 +470,7 @@ export async function handleSignContract(db, contractId, body, req) {
     // 合同文档与需求签约状态彻底解耦：文档 signed 不再触碰 student_demands
     // （需求签约关系由「发起签约」signing.js 的签约请求确认驱动）。条件 UPDATE 赢家模式——
     // 双方同时签约仅一方 changes>0，防并发双副作用
-    const claim = await dbRun(db, `UPDATE contracts SET status='signed', prev_business=NULL, version=version+1 WHERE id=? AND status='signing'`, [contractId]); // 签署确认后清空留痕（diff 仅存于重新确认窗口期）
+    const claim = await dbRun(db, `UPDATE signing_contracts SET contract_status='signed', prev_business=NULL, version=version+1 WHERE id=? AND stage='contract' AND contract_status='signing'`, [contractId]); // 签署确认后清空留痕（diff 仅存于重新确认窗口期）
     if (claim && claim.meta && claim.meta.changes > 0) {
       await notifyUser(db, otherSide(conv, userId), 'CONTRACT_SIGNED', {});
       // 留档保存合同原文（detailMax 放宽，加密后落库；撤销合同后仍可凭留档还原缔约内容）
@@ -504,9 +525,9 @@ export async function handleModifyContract(db, contractId, body, req) {
   // 修改即回退到签约选择态：双方确认清零 + 签署时间清零 + signing（双方重新确认）；
   // prev_business 留痕供前端 diff 高亮；乐观锁落 SQL WHERE（version 精确匹配）
   const upd = await dbRun(db,
-    `UPDATE contracts SET contract_md=?, prev_business=?, drafter_confirmed=0, other_confirmed=0,
-       drafter_signed_at='', other_signed_at='', status='signing', version=version+1, updated_at=datetime('now')
-     WHERE id=? AND version=? AND status IN ('pending','signing')`,
+    `UPDATE signing_contracts SET contract_md=?, prev_business=?, drafter_confirmed=0, other_confirmed=0,
+       drafter_signed_at='', other_signed_at='', contract_status='signing', version=version+1, updated_at=datetime('now')
+     WHERE id=? AND version=? AND stage='contract' AND contract_status IN ('pending','signing')`,
     [await encryptField(fullMd), await encryptField(oldBiz), contractId, ver]); // N-05：正文 + prev_business 加密落库（repo mapper 出口统一解密，与 contract_md 口径一致）
   if (!(upd && upd.meta && upd.meta.changes > 0)) return errorMsg('CONTRACT_MODIFIED_CONFLICT', 409, 'CONTRACT_MODIFIED_CONFLICT'); // 带稳定 code 供前端刷新版本号
   await notifyUser(db, otherSide(conv, userId), 'CONTRACT_MODIFIED', { name: nameOf(conv, userId) });
@@ -528,8 +549,8 @@ export async function handleRevokeContract(db, contractId, body, req) {
   // 撤销不删行——置 revoked 标记 + 撤销人 + 撤销时间，合同正文/台账保留存证；
   // 双方列表仍见该合同，右上角状态 tag 显示红色「已撤销」。条件 UPDATE 并发守卫（双撤销仅赢家副作用）。
   const upd = await dbRun(db,
-    `UPDATE contracts SET revoked=1, revoked_by=?, status='signed', version=version+1, updated_at=datetime('now')
-     WHERE id=? AND revoked=0`, [me.id, contractId]);
+    `UPDATE signing_contracts SET revoked=1, revoked_by=?, contract_status='signed', version=version+1, updated_at=datetime('now')
+     WHERE id=? AND stage='contract' AND revoked=0`, [me.id, contractId]);
   if (!(upd && upd.meta && upd.meta.changes > 0)) {
     const cur = await dbGetContractById(db, contractId);
     if (cur && cur.revoked) return errorMsg('CONTRACT_ALREADY_REVOKED', 409); // 并发已撤销
@@ -611,10 +632,10 @@ export async function handleCancelContract(db, contractId, body, req) {
   // 回退我方确认标志 + 签署时间，status 回 'signing'（待签约；对方未签则其确认本为空，保持）；
   // 我方的已签时间一并清（回退到"待我签署"的干净态，可重新确认签约）。
   const upd = await dbRun(db,
-    `UPDATE contracts SET ${myCol}=0,
+    `UPDATE signing_contracts SET ${myCol}=0,
         ${userId === ct.drafter_user_id ? "drafter_signed_at=''" : "other_signed_at=''"},
-        status='signing', version=version+1, updated_at=datetime('now')
-     WHERE id=? AND status IN ('pending','signing')`, [contractId]);
+        contract_status='signing', version=version+1, updated_at=datetime('now')
+     WHERE id=? AND stage='contract' AND contract_status IN ('pending','signing')`, [contractId]);
   if (!(upd && upd.meta && upd.meta.changes > 0)) {
     const cur = await dbGetContractById(db, contractId);
     if (cur && cur.status === STATUS.SIGNED && !cur.revoked) return errorMsg('CONTRACT_CANCEL_SIGNED_BLOCKED', 409);
@@ -627,7 +648,7 @@ export async function handleCancelContract(db, contractId, body, req) {
   let curCt = await dbGetContractById(db, contractId);
   if (curCt && curCt.status === STATUS.SIGNING) {
     for (let i = 0; i < 2; i++) {
-      const mdUpd = await dbRun(db, `UPDATE contracts SET contract_md=?, version=version+1 WHERE id=? AND version=?`,
+      const mdUpd = await dbRun(db, `UPDATE signing_contracts SET contract_md=?, version=version+1 WHERE id=? AND version=? AND stage='contract'`,
         [await encryptField(rebuildFullMd(curCt, conv)), contractId, curCt.version]);
       if (mdUpd && mdUpd.meta && mdUpd.meta.changes > 0) break;
       curCt = await dbGetContractById(db, contractId); // 并发抢跑：重读最新 version 再拼
@@ -682,7 +703,7 @@ export async function handleCreateSigning(db, body, req) {
   try {
     msgId = await dbCreateMessage(db, conversationId, userId, 'signing_request',
       JSON.stringify({ id: 0, price, schedule, method, status: STATUS.PENDING }));
-    id = await dbCreateSigning(db, conversationId, demandId, userId, msgId, price, schedule, method);
+    id = await dbCreateSigning(db, conversationId, conv.student_user_id, conv.teacher_user_id, demandId, userId, msgId, price, schedule, method);
     await dbSetMessageBody(db, msgId, JSON.stringify({ id, price, schedule, method, status: STATUS.PENDING }));
   } catch (e) {
     if (msgId != null) { try { await dbDeleteMessage(db, msgId); } catch { /* 回滚失败不影响主错误 */ } }

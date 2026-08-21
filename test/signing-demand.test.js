@@ -2,7 +2,7 @@
  * 发起签约绑定需求（需求四·第2/3条）回归
  *
  * handleCreateSigning 从 body.demandId 收需求（不再只用 conv.demand_id）：
- *   - 合法：会话学生方的 open 需求 → 201，signing_requests.demand_id 落库；
+ *   - 合法：会话学生方的 open 需求 → 201，signing_contracts.demand_id 落库；
  *   - 归属不符（他人需求）→ 403；需求不存在 → 404；已签约/已撤销 → 410；
  *   - 教师发起亦可绑定「会话学生方」的 open 需求（归属 = conv.student_user_id）。
  * handleRespondSigning 确认后需求状态 open → contracted（状态机迁移，含并发赢家语义由既有
@@ -94,8 +94,8 @@ test('发起签约：body.demandId 合法（会话学生方 open 需求）→ 20
   const { s1Token, d1 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(d1), reqOf(s1Token));
   assert.equal(r.status, 201, '学生发起绑定自己的开放需求应成功');
-  const sr = raw.prepare('SELECT demand_id FROM signing_requests').get();
-  assert.equal(sr.demand_id, d1, 'signing_requests.demand_id 落库为所选需求');
+  const sr = raw.prepare('SELECT demand_id FROM signing_contracts').get();
+  assert.equal(sr.demand_id, d1, 'signing_contracts.demand_id 落库为所选需求');
 });
 
 test('发起签约：教师发起亦可绑定「会话学生方」的 open 需求（归属 = conv.student_user_id）', async () => {
@@ -103,7 +103,7 @@ test('发起签约：教师发起亦可绑定「会话学生方」的 open 需�
   const { t1Token, d1 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(d1), reqOf(t1Token));
   assert.equal(r.status, 201, '教师发起绑定会话学生方的开放需求应成功');
-  const sr = raw.prepare('SELECT demand_id FROM signing_requests').get();
+  const sr = raw.prepare('SELECT demand_id FROM signing_contracts').get();
   assert.equal(sr.demand_id, d1);
 });
 
@@ -112,7 +112,7 @@ test('发起签约：归属不符（他人需求）→ 403，不落库', async (
   const { s1Token, d4 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(d4), reqOf(s1Token));
   assert.equal(r.status, 403, '绑定他人需求必须被拒');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests').get().c, 0);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts').get().c, 0);
 });
 
 test('发起签约：需求不存在 → 404', async () => {
@@ -120,7 +120,7 @@ test('发起签约：需求不存在 → 404', async () => {
   const { s1Token } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(9999), reqOf(s1Token));
   assert.equal(r.status, 404);
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests').get().c, 0);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts').get().c, 0);
 });
 
 test('发起签约：已签约（contracted）需求 → 410，不落库', async () => {
@@ -128,7 +128,7 @@ test('发起签约：已签约（contracted）需求 → 410，不落库', async
   const { s1Token, d2 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(d2), reqOf(s1Token));
   assert.equal(r.status, 410, '已签约成交的需求不可再发起签约');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests').get().c, 0);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts').get().c, 0);
 });
 
 test('发起签约：已撤销（revoked）需求 → 410，不落库', async () => {
@@ -136,7 +136,7 @@ test('发起签约：已撤销（revoked）需求 → 410，不落库', async ()
   const { s1Token, d3 } = await seed(db, raw);
   const r = await handleCreateSigning(db, signBody(d3), reqOf(s1Token));
   assert.equal(r.status, 410);
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_requests').get().c, 0);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts').get().c, 0);
 });
 
 const bindUrl = phase => new URL(`http://localhost/api/conversations/1/bindable-demands?phase=${phase}`);
@@ -156,10 +156,12 @@ test('bindable-demands phase=signing：只返会话学生方「开放」需求',
 
 test('bindable-demands phase=contract：只返会话学生方「已签约」且未绑合同的需求', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1Token, t1, d1, d2, d3 } = await seed(db, raw);
-  // 给 d2 挂一份进行中合同（signing）→ phase=contract 应剔除 d2
-  raw.prepare(`INSERT INTO contracts (conversation_id, drafter_user_id, demand_id, status)
-    VALUES (1, ?, ?, 'signing')`).run(t1, d2);
+  const { s1, s1Token, t1, d1, d2, d3 } = await seed(db, raw);
+  // 给 d2 挂已确认签约（signed signing）+ 进行中合同 → phase=contract 应剔除 d2（正向 EXISTS 命中、活跃合同 NOT EXISTS 排除）
+  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, demand_id, stage, signing_status)
+    VALUES (1,?,?,?,'signing','signed')`).run(s1, t1, d2);
+  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, demand_id, stage, contract_status)
+    VALUES (1,?,?,?,'contract','signing')`).run(s1, t1, d2);
   const r = await handleGetConversationBindableDemands(db, 1, bindUrl('contract'), reqOf(s1Token));
   assert.equal(r.status, 200);
   const { demands } = await r.json();
@@ -193,7 +195,7 @@ test('确认签约：需求状态 open → contracted，签约请求置 signed',
   const r2 = await handleRespondSigning(db, srId, { accept: true, capToken: await capOf(raw, s1, s1SessionId) }, reqOf(s1Token));
   assert.equal(r2.status, 200, '需求 open 时确认应成功');
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'contracted', '确认签约后需求置 contracted');
-  assert.equal(raw.prepare('SELECT status FROM signing_requests WHERE id=?').get(srId).status, 'signed', '签约请求置 signed');
+  assert.equal(raw.prepare('SELECT signing_status FROM signing_contracts WHERE id=?').get(srId).signing_status, 'signed', '签约请求置 signed');
 });
 
 // #152（v0.25.60）：发起签约通知带上发送者用户名——原模板无 {name} 占位 + nameOf 取错边，
