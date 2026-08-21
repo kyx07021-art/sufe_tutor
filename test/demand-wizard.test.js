@@ -271,8 +271,6 @@ test('v0.31.8 提交地址纵深防御含 method 判断（线下许可省+线上
   assert.match(src,
     /SUFE_REGIONS\.allowsOffline\(province\) && document\.getElementById\('d-method'\)\.value === 'offline' && !document\.getElementById\('d-address'\)\.value\.trim\(\)/,
     'handleSubmitDemand 地址检查含 method==offline（与 toggleAddressField 同口径）');
-  assert.doesNotMatch(src, /if \(province === 'shanghai' && !document\.getElementById\('d-address'\)\.value\.trim\(\)\)/,
-    '无旧口径残留（仅省份判断的误拦分支）');
   assert.doesNotMatch(src, /province === 'shanghai'/,
     'T-6-F4：无省 id 字面量硬编码（allowsOffline 单源）');
 });
