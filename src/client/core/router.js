@@ -277,4 +277,3 @@ export async function refreshBadges() {
   } catch { /* badge polling is silent */ }
 }
 export function closeSidebar() { document.body.classList.remove('sidebar-open'); }
-export function toggleSidebar() { document.body.classList.toggle('sidebar-open'); }
