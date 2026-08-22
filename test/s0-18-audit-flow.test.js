@@ -25,8 +25,8 @@
  *     and passes -> red.
  *   - change LIMITS.AUDIT_MAX_FIELDS away from MSG_BATCH_MAX -> the alignment lock goes red.
  *   - remove a CONTENT_WRITE_PREFIXES entry whose route still exists -> route cross-check red.
- *   - remove the firstMessage / additionalInfo AUDIT_MAP pick -> the corresponding free-text
- *     route is no longer audited -> the breakpoint L1 test goes red.
+ *   - remove the firstMessage / additionalInfo / settings-username AUDIT_MAP pick -> the
+ *     corresponding free-text route is no longer audited -> the breakpoint L1 test goes red.
  *   - auditBeforeWrite returns ok when auditFreeText reports layer:'error' -> red.
  */
 import { test, beforeEach, afterEach } from 'node:test';
@@ -74,6 +74,12 @@ function parseRegisteredRoutes() {
   const files = readdirSync(dir)
     .filter(d => existsSync(`${dir}${d}/api.js`))
     .map(d => `${dir}${d}/api.js`);
+  // Non-`api.js` route modules spread into app.js (auth/settings.js = consolidated settings
+  // surface, auth/verify.js = identity verification). Without them the "real registered route"
+  // cross-check misses these routes, so a stale freeTextRoutes entry would falsely pass.
+  for (const extra of ['src/server/domains/auth/settings.js', 'src/server/domains/auth/verify.js']) {
+    files.push(ROOT + extra);
+  }
   files.push(ROOT + 'src/server/app.js');
   const routes = [];
   const re = /S\(\s*'([A-Z]+)'\s*,\s*'([^']+)'/g;
@@ -109,6 +115,7 @@ test('S0-18 route cross-check: every user free-text write route is covered by a 
     ['POST', '/api/contracts'], ['PUT', '/api/contracts/:id'],
     ['POST', '/api/conversations/temp'], ['POST', '/api/conversations/:id/messages'],
     ['POST', '/api/auth/register'], ['POST', '/api/user/username'],
+    ['PUT', '/api/settings'],
     ['POST', '/api/user/avatar'], ['POST', '/api/uploads'],
   ];
   const registered = parseRegisteredRoutes();
@@ -184,6 +191,12 @@ test('S0-18 L1 through the breakpoint: door number in free text rejected, normal
   assert.ok(temp.reject, 'temp-conversation firstMessage door number -> rejected (mutation: drop firstMessage pick -> red)');
   assert.equal(temp.code, 'ADDRESS_TOO_DETAILED');
 
+  // PA-1a-F1: PUT /api/settings {username} bypassed the gate — the username whitelist allows
+  // door-number strings, so the consolidated settings surface must be audited like /api/user/username.
+  const settingsName = await auditBeforeWrite({ path: '/api/settings', method: 'PUT', body: { username: '漕溪北路999号' } });
+  assert.ok(settingsName.reject, 'settings username door number -> rejected (mutation: drop username pick -> red)');
+  assert.equal(settingsName.code, 'ADDRESS_TOO_DETAILED');
+
   const postBad = await auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: '学习笔记', bodyMd: '我家在静安区5号楼303室，欢迎上门' } });
   assert.ok(postBad.reject, 'post body door number -> rejected');
 
@@ -200,6 +213,7 @@ test('S0-18 isContentWrite: POST/PUT gated, GET/DELETE and non-content POSTs pas
   assert.equal(isContentWrite('/api/conversations/temp', 'POST'), true, 'temp conversation audited');
   assert.equal(isContentWrite('/api/posts', 'GET'), false, 'reads never audited');
   assert.equal(isContentWrite('/api/posts/3', 'DELETE'), false, 'deletes not audited');
+  assert.equal(isContentWrite('/api/settings', 'PUT'), true, 'settings PUT audited (username free-text)');
   assert.equal(isContentWrite('/api/auth/login', 'POST'), false, 'non-content POST not audited');
   assert.equal(isContentWrite('/api/notifications/read-all', 'POST'), false, 'side-effect-only POST not audited');
   assert.equal(isContentWrite('/api/signing-requests/5/respond', 'POST'), false, 'dead prefix removed');

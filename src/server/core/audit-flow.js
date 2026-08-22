@@ -18,7 +18,7 @@ import { LIMITS } from '../../shared/config.js';
 // firstMessage (I-23 temp conversation). Every prefix below must match a real registered
 // POST/PUT route — enforced by test/s0-18-audit-flow.test.js route cross-check.
 const CONTENT_WRITE_PREFIXES = [
-  '/api/posts', '/api/demands', '/api/teacher/profile', '/api/reviews',
+  '/api/posts', '/api/demands', '/api/teacher/profile', '/api/reviews', '/api/settings',
   '/api/feedbacks', '/api/complaints', '/api/uploads', '/api/contracts',
   '/api/conversations/', '/api/auth/register', '/api/user/username', '/api/user/avatar',
 ];
@@ -44,6 +44,9 @@ const AUDIT_MAP = [
       b.schedule,
     ] },
   { prefix: '/api/user/username',   pick: b => [b.newUsername] },
+  // /api/settings username is the same free-text field as /api/user/username (username whitelist
+  // allows door-number strings like "漕溪北路999号"), so it must pass the same address gate.
+  { prefix: '/api/settings',        pick: b => [b.username] },
 ];
 
 /**
