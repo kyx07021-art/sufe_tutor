@@ -245,3 +245,68 @@ I-16 适配：temp close = 删除会话行（FK 级联）+ 零通知；formal �
 
 ### M9 复核 v3 钉死（2026-08-22）
 匹配度响应字段统一 **matchScore**（0-100）/ **matchCount**（筛选命中数）——I-29 为准，S4/M9 拆解表述对齐；M7-12/13（命中分组纯函数 + 即时应用/动效重播）上提 M0 泛化（维度表驱动，M7 四维/M9 三维双消费）。
+
+## 19. 接口形状签发（I-01..46 权威形状，2026-08-22 主会话签发）
+
+> 依据 = 接口盘点 agent 草案 + S0-S6 拆解定案。裁决：①I-06 响应补 capToken（会话绑定一次性，调用方流程携带）②settings 收敛单一 `GET/PUT /api/settings`（部分更新按字段分支）+ `POST /api/settings/deactivate` ③I-25 保留 v2 路径 `GET /api/users/:id`。状态：I-01..43 = **ready**（接口可调，前端模块开发接入）；I-44..46 = **cap**（前端本轮不写，合同组件不建）。
+
+### 认证（I-01..07，M6 消费，ready）
+- **I-01** `POST /api/auth/otp/request` 公开｜`{ channel:'sms'|'email', target, scene? }`→`{ok}`｜per-IP 限流/60s/日限/三振
+- **I-02** `POST /api/auth/login/code` 公开｜`{ identifier, code, deviceId? }`→`{user:{id,username,role,avatar},authToken}`｜验码先行/banned·deactivated 验码后分支
+- **I-03** `POST /api/auth/register` 公开（teacher 须 inviteCode）｜`{username,password,role,inviteCode?,otpChannel,phone?|email?,code,agreeAgreement,agreePrivacy,deviceId?}`→`{user,authToken,message}`｜绑定失败回滚零孤儿
+- **I-04** `POST /api/auth/logout` 登录｜→`{ok}`｜吊销令牌+清 capToken
+- **I-05** `GET /api/auth/me` 登录｜→`{user:{id,username,role,avatar,teacherName?,contactMasks:{phone,email}}}`｜teacherName 空回退 username（前端）
+- **I-06** `POST /api/auth/verify` 登录｜`{credential:{type:'otp'|'password',value},captchaVerified:true}`→`{verified:true,capToken}`｜**capToken 签发（裁决①）**；三选二组合；无绑通道剔除
+- **I-07** `POST /api/captcha/verify` 公开｜`{captchaId,offset?,track[10-2000点]}`→`{ok,score}`｜PASS_SCORE 常量/防重放/留档不翻转
+
+### 用户与设置（I-08..14，M5 消费，ready）
+- **I-08** `GET /api/settings` 登录｜→`{user:{id,username,avatar,role,contactMasks},usernameStatus:{canChange,cooldownMs},blockSystemNotifications,notifyBroadcastMuted,devices:[{session_id,label,created_at,expires_at,current}]}`（收敛端点，裁决②）
+- **I-09** `PUT /api/settings` 登录｜部分更新按字段分支：`{username,capToken}`｜`{avatar:dataURL}`｜`{channel:'phone'|'email',target,code}`｜`{blockSystemNotifications}`｜`{notifyBroadcastMuted}`→`{ok,username?,phone?,email?脱敏}`
+- **I-10** `PUT /api/settings{username,capToken}` 登录+capToken｜7 天冷却/占用 409/墓碑前缀禁
+- **I-11** `PUT /api/settings{avatar:dataURL}` 登录｜位图白名单/≤AVATAR_MAX_BYTES/前端已裁切
+- **I-12** `PUT /api/settings{channel,target,code}` 登录｜验码先行/占用 409/脱敏回显
+- **I-13** `GET /api/auth/sessions`+`POST /api/auth/sessions/revoke{sessionId}` 登录｜列表零 token/revokedSelf 前端登出
+- **I-14** `POST /api/settings/deactivate{capToken}` 登录+capToken（admin 禁）｜清联系方式四列释放唯一索引（AE-1）/用户名墓碑
+
+### 关系与会话（I-15..25，M3/M4 消费，ready）
+- **I-15** `GET /api/my-relations` 登录｜`{relations:[{conversationId,status,tempStatus,tempInitiatorId,other:{id,role,name,avatar},last,signing|null}]}`｜signing 传 M4（合同灰掉）不供 M3 渲染
+- **I-16** `POST /api/conversations/:id/close{capToken}` 参与方+capToken｜temp=删行零通知 / formal=级联收束（进行中合同 revoked+需求释放+CONVERSATION_CLOSED）/幂等短路
+- **I-17** `GET /api/conversations` 登录｜行含 tempStatus/tempInitiatorId/quota/otherName（teacher_name 优先）｜init 仅发起方显/sent 接收方显
+- **I-18** `GET /api/conversations/:id/messages?sinceId=N` 参与方（temp init 非发起方 404）｜`{conversation:{...temp 字段},messages:[{id,sender_user_id,kind:'text'|'image'|'file'|'contract',name,body,thumb,created_at}]}`｜sinceId=0 取最近 N 条
+- **I-19/20/21** `POST /api/conversations/:id/messages` 参与方（closed 403）｜`{batch:[{kind:'text',body,clientKey}|{uploadId,clientKey}]}`→`{messages, tempQuota?, convStatus?}`｜temp 状态机并发送路径（init→sent 单 batch 原子）/clientKey 幂等/同批重复 uploadId 整批拒
+- **I-22** `POST /api/conversations/:id/read` 参与方｜已读游标推最新
+- **I-23** `POST /api/conversations/temp` 登录｜`{targetUserId,firstMessage≤1000}`→`{conversationId,status,tempStatus,tempInitiatorId,iAmInitiator,quota}`｜formal 已存在→reopen 复用 / temp 已存在→复用 / 无→init 新建
+- **I-24** 并入 I-17/18/19（quota/convStatus/tempStatus）｜TEMP_SEND_QUOTA=1 config 单源
+- **I-25** `GET /api/users/:id` 登录｜`{user:{id,username,role,avatar,name?}}`｜保留 v2 路径（裁决③）；封禁且未注销视同不存在；联系方式永不公开
+
+### 通知（I-26..28，M5 消费，ready）
+- **I-26** `GET /api/notifications` 登录｜`{notifications:[{id,type,title,content,created_at,is_read,avatar_src}]}`｜服务端按 blockSystemNotifications/notifyBroadcastMuted 过滤
+- **I-27** `POST /api/notifications/:id/read` + `POST /api/notifications/read-all` 登录｜归属硬约束（0 行不报错）
+- **I-28** 并入 I-09（blockSystemNotifications/notifyBroadcastMuted 布尔）
+
+### 教师广场（I-29..32，M7 消费，ready）
+- **I-29** `GET /api/teachers?sort=match|rating|exp|price&order=asc|desc&filters={subjects[],gender,personalities[],priceMin,priceMax}` 登录｜`{items:[{teacherId,name(teacher_name),avatar,rating,reviewCount,priceMin,priceMax,subjects:[{subject,score,full,awards[]}],bio,region,experienceYears,matchScore,matchCount,teachingMethod,timeSlots,personalityTags,verified,chsiVerified}],total}`｜price 中间价排序/match 降序/命中分组重排
+- **I-30** `GET /api/teachers/:id/profile` 登录｜全字段（见 S4-06）｜wechat/email/real_name/credential_image 永不下发
+- **I-31** `GET /api/reviews?teacherUserId` 登录｜`{reviews:[{id,rating,comment,status,reviewerName,created_at}],mine}`｜门禁 R3（会话+往来+核验 approved）
+- **I-32** 并入 I-29（matchScore/matchCount）｜权重 科目35/地区25/报价20/方式10/偏好10 单源 config
+
+### 需求（I-33..38，M8/M9 消费，ready）
+- **I-33** `GET /api/demands/mine` 登录+student｜行形状见下（单科目）｜status open/closed
+- **I-34** `GET /api/demands?sort=match|price&order&filters={subjects[],gender,priceMin,priceMax}` 登录｜行含 studentName/studentAvatar + 对应当前教师 matchScore/matchCount｜B1 排序筛选
+- **I-35** `POST /api/demands` 登录+student｜`{subject,grade,province,teachingMethod:'online'|'offline'|'both',currentScore?,addressArea?,expectedTime?,preferredTags?,preferredGender?,budgetMin,budgetMax,additionalInfo?}`→`{id,message}`｜单科目/非线下许可省强制 online/门牌全局断点
+- **I-36** `PUT /api/demands/:id` 归属｜同 I-35 覆盖式｜closed 不可改（DEMAND_STATE_INVALID）
+- **I-37** `DELETE /api/demands/:id` 归属｜无「已签约禁删」门禁（合同不绑需求）
+- **I-38** `GET /api/demands/:id` 登录｜单科目行形状+studentName/studentAvatar
+- 行形状：`{id,user_id,subject,targetType(派生),grade,province,teachingMethod,currentScore,currentScoreFull,addressArea,expectedTime,preferredTags,preferredGender,budgetMin,budgetMax,additionalInfo,status,createdAt}`
+
+### 教师端（I-39..43，M9 消费，ready）
+- **I-39** `GET /api/teacher/profile` 登录+teacher｜本人全字段（含 wechat/email/real_name/credential_image/teacher_name/experienceYears）｜他人访问 403
+- **I-40** `PUT /api/teacher/profile` 登录+teacher｜同 I-39 部分省略=保留原值｜teacher_name 可编辑/experience_years 非负整数钳
+- **I-41** `POST /api/teacher/verify-chsi{code:/^[A-Za-z0-9]{12,16}$/}` 登录+teacher｜→`{ok,status:'pending',provider}`｜已通过 409 禁反复
+- **I-42** `POST /api/teacher/verify-admission{image:dataURL}` 登录+teacher｜jpeg/png/webp magic bytes/≤CREDENTIAL_MAX_BYTES/svg 拒
+- **I-43** `GET /api/teacher/verify-status` 登录+teacher｜`{status:'none'|'pending'|'approved'|'rejected',provider?,verifyType?}`｜rejected 可重提
+
+### 合同（I-44..46，S5 独立化，**cap** 前端本轮不写）
+- **I-44** `GET /api/contracts` + `GET /api/contracts/:id` 登录｜行含 contractStatus 'signing'|'signed'+revoked/conversationId 可空/rate 泛化/version
+- **I-45** `POST /api/contracts` 登录+**capToken**｜`{conversationId?,method,plan,rate,schedule,location,payMethod,payMethodOther?,firstLessonDate?,trialPay?,trialPayOther?,capToken}`→`{id,message}`｜删 demandId/阶段推进
+- **I-46** `POST /api/contracts/:id/sign`｜`POST /api/contracts/:id/revoke`｜`PUT /api/contracts/:id{contractMd,version}`（乐观锁 409）｜`DELETE /api/contracts/:id`（单方回退）｜`GET /api/contracts/:id/verify`（只读豁免门禁）——全部 参与方+capToken（verify 只读）
