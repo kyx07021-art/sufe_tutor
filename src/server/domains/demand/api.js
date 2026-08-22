@@ -15,6 +15,9 @@ import {
   dbCreateDemand, dbGetDemands, dbGetDemandsByUser, dbGetDemandById, dbUpdateDemand, dbDeleteDemand,
   dbSetDemandStatus,
 } from './repo.js'; // L1：本域直连，不依赖遗留 server/db.js re-export 图（该图随 S1-S6 并行重写易断）
+import { matchDegree, matchCount } from '../teacher/match/index.js'; // PA-1d-F3：S4 匹配度纯函数单源（禁止复制实现）
+import { dbGetTeacherProfile } from '../teacher/repo.js'; // PA-1d-F3：教师档案 = match 上下文（I-34 对应当前教师）
+import { makeComparator } from '../teacher/list.js'; // PA-1d-F3：nulls-last 排序（教师广场 S4-12 同款复用）
 import { logEvent } from '../../core/log.js';
 
 // 单科目白名单（academic ∪ nonacademic）：创建/更新强制命中，否则 INVALID_PARAMS（单值无静默回退）
@@ -114,7 +117,7 @@ export async function handleGetMyDemands(db, req) {
   return json({ items: await dbGetDemandsByUser(db, me.id) });
 }
 
-// I-34 需求广场（B1 教师视角）：登录可见；排序 match（S3-15 占位）/price；筛选 subjects[]/gender/price 区间
+// I-34 需求广场（B1 教师视角）：登录可见；排序 match（PA-1d-F3 接 S4）/price；筛选 subjects[]/gender/price 区间
 export async function handleGetDemands(db, url, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
@@ -124,9 +127,31 @@ export async function handleGetDemands(db, url, req) {
   const fRaw = url.searchParams.get('filters');
   if (fRaw) { try { filters = JSON.parse(fRaw); } catch { filters = null; } }
   const demands = await dbGetDemands(db, { filters, sort, order });
-  // S3-15：matchScore/matchCount 依赖 S4 新匹配度，未接入前占位 null（前端按 null 回落不显示）
   // I-34 envelope: { items, total } — frontend demands-service reads json.items + json.total
-  return json({ items: demands.map(x => ({ ...x, matchScore: null, matchCount: null })), total: demands.length });
+  let items;
+  if (me.role === ROLES.TEACHER) {
+    // PA-1d-F3: 教师视角 matchScore/matchCount = 教师档案 × 需求（复用 S4 match 纯函数单源，
+    // normalizeTeacher 防御式消费 mapTeacherProfileRow 双命名行，无需复制实现）。无档案 → 两者 null
+    // （前端按 null 回落不显示），对齐 teacher/list.js S4-12 口径。
+    const profile = await dbGetTeacherProfile(db, me.id);
+    items = demands.map(d => {
+      if (profile) {
+        d.matchScore = matchDegree(profile, d);
+        d.matchCount = matchCount(profile, d);
+      } else {
+        d.matchScore = null;
+        d.matchCount = null;
+      }
+      return d;
+    });
+    // I-34 sort=match：按 matchScore 升降序（null 恒置后）；dbGetDemands 的 match 分支已按
+    // created_at 排序 → 稳定排序下同分保持时间序（无档案/全部 null → 纯时间序回落）。
+    if (sort === 'match') items.sort(makeComparator(x => x.matchScore, order));
+  } else {
+    // 非教师视角（学生/管理员浏览）：match 字段无意义 → null（与既有 S3-15 占位语义一致）
+    items = demands.map(x => ({ ...x, matchScore: null, matchCount: null }));
+  }
+  return json({ items, total: items.length });
 }
 
 // I-38 需求详情：可见性规则（interfaces §19）——owner（学生本人）任意状态可看；

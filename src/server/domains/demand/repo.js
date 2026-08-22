@@ -109,7 +109,8 @@ export async function dbGetDemandById(db, id) {
 /**
  * 广场列表（I-34）：status='open' + 已注销用户数据不进广场；可选筛选
  * （subjects[] 单科目白名单 / gender→preferred_gender / priceMin·priceMax 报价区间重叠）
- * 与排序（price→中间价；match→S3-15 依赖 S4 占位，未接前回落 created_at）。
+ * 与排序（price→中间价；match→created_at 时间序——matchScore 计算在 api.js 处理器按
+ * S4 匹配度单源执行（PA-1d-F3），本层时间序作为同分稳定排序基线）。
  * 出口 = mapDemandRow（无联系方式）+ studentName/studentAvatar。
  */
 export async function dbGetDemands(db, {
@@ -154,7 +155,7 @@ export async function dbGetDemands(db, {
   const dir = order === 'asc' ? 'ASC' : 'DESC';
   const orderBy = sort === 'price'
     ? `ORDER BY (COALESCE(sd.budget_min,0)+COALESCE(sd.budget_max,0))/2 ${dir}, sd.created_at DESC`
-    : `ORDER BY sd.created_at ${dir}, sd.id ${dir}`; // match 排序 S3-15 依赖 S4，占位回落时间序
+    : `ORDER BY sd.created_at ${dir}, sd.id ${dir}`; // match 排序在 api.js 处理器（PA-1d-F3 接 S4），此处时间序作同分稳定基线
   const rows = await dbAll(db, `${DEMANDS_SELECT} WHERE ${cond.join(' AND ')} ${orderBy} LIMIT ?`,
     [...params, LIMITS.PUBLIC_LIST_MAX]);
   return rows.map(mapDemandRow);
