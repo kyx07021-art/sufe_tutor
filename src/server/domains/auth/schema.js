@@ -43,7 +43,9 @@ export const ensureColumns = [
     ['email', "TEXT DEFAULT ''"], ['email_hash', "TEXT DEFAULT ''"],
     ['username_changed_at', 'DATETIME'],
     // S1-15..19 (I-08): notification prefs consumed by the consolidated /api/settings surface.
-    // ensureColumns runs unconditionally — no SCHEMA_VERSION bump needed (confirmed pattern).
+    // B1 discipline (mirrors core/db.js version gate): ensureColumns runs ONLY inside the version-gated
+    // full migration. Adding a column here WITHOUT bumping SCHEMA_VERSION +1 in the same change means the
+    // column is never created on live DBs already at the current version (three production incidents).
     ['blockSystemNotifications', 'INTEGER NOT NULL DEFAULT 0'],
     ['notifyBroadcastMuted', 'INTEGER NOT NULL DEFAULT 0'],
   ] },

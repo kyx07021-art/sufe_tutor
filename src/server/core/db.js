@@ -66,10 +66,12 @@ const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(
 // initDb uses the schema version gate: a cold isolate's first hit sends one batch
 // (CREATE schema_meta idempotent + SELECT version); if already current it skips the
 // full migration (~13-20 D1 round-trips would blow the cold-start budget).
-// Discipline: any create/add-column/migration change MUST bump SCHEMA_VERSION +1, otherwise
-// the version gate skips the migration and the column is never added (production incidents).
+// Discipline (B1): any schema change — create / add-column (incl. ensureColumns column additions) /
+// add-index-constraint / default change / migration — MUST bump SCHEMA_VERSION +1 in the same change;
+// otherwise the version gate skips the full migration (including ensureColumns) and the column is never
+// added on live DBs already at the current version (three production incidents).
 // ============================================================
-export const SCHEMA_VERSION = 17; // S5: contracts standalone table replaces signing_contracts (14 = S3-2 demand single-subject model; 15 = S5 standalone; 16 = S4-01 teacher_name/experience_years columns; 17 = S2-T1 temp conversation columns temp_status/temp_initiator_user_id + intents/pushes backfill removal)
+export const SCHEMA_VERSION = 17; // S5: contracts standalone table replaces signing_contracts (14 = S3-2 demand single-subject model; 15 = S5 standalone; 16 = S4-01 teacher_name/experience_years columns; 17 = S2-T1 temp conversation columns temp_status/temp_initiator_user_id + S1-15..19 notification prefs blockSystemNotifications/notifyBroadcastMuted + intents/pushes backfill removal)
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // field encryption keys (FIELD_ENC_KEY falls back to LOG_ENCRYPT_KEY); re-derived on env change
