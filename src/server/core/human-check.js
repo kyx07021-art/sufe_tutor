@@ -133,18 +133,41 @@ export function markChallengePassed(captchaId) {
 }
 
 /**
- * Read-only confirmation that a challenge was passed within the reuse window.
- * Pairs with markChallengePassed (which registers the pass): a consumer that trusts
- * the client's captchaVerified flag (e.g. handleVerifyIdentity) calls this to confirm
- * the client actually solved the puzzle. Deliberately non-destructive — a consume-once
- * policy, if ever desired, belongs on the consumer side so this anti-replay Map keeps a
- * single responsibility (register + query, never mutate on read).
+ * Confirmation that a challenge was passed within the reuse window, capped per captchaId.
+ * Pairs with markChallengePassed (which registers the pass): a consumer that trusts the
+ * client's captchaVerified flag (e.g. handleVerifyIdentity) calls this to confirm the
+ * client actually solved the puzzle.
+ *
+ * Per-captchaId confirmation budget (CAPTCHA_CONFIRM_LIMIT): each puzzle solve grants at
+ * most that many confirmations, so a single challenge cannot power an unbounded brute-force
+ * budget across the whole reuse window (PA-1a-F2). A destructive consume-once read was
+ * deliberately avoided — the verify modal (I-06) reuses the same captchaId across failed
+ * credential retries, so deleting the entry would break a legitimate retry (D5). Counting
+ * confirmations tolerates those retries while still capping what one solve is worth; the
+ * auth rate limit (authRateBatch, 8/10min) remains the primary defense.
  */
+export const CAPTCHA_CONFIRM_LIMIT = 5;
+const confirmations = new Map(); // captchaId -> { n, updatedAt }
 export function isChallengeVerified(captchaId) {
   if (!captchaId) return false;
+  const now = Date.now();
   const ts = passedChallenges.get(captchaId);
   // ts !== undefined (not truthiness): a stored timestamp may be 0 under a mocked clock.
-  return ts !== undefined && Date.now() - ts <= REUSE_WINDOW_MS;
+  if (ts === undefined || now - ts > REUSE_WINDOW_MS) return false;
+  const rec = confirmations.get(captchaId);
+  const n = (rec ? rec.n : 0) + 1;
+  if (n > CAPTCHA_CONFIRM_LIMIT) return false;
+  confirmations.set(captchaId, { n, updatedAt: now });
+  // Bound the confirmation map the same way markChallengePassed bounds the replay map:
+  // TTL-sweep once past 5000, hard-evict the oldest entry at MAP_HARD_CAP. Never fail open —
+  // a fresh captchaId (new puzzle solve) is always confirmable.
+  if (confirmations.size >= MAP_HARD_CAP) {
+    const oldestKey = confirmations.keys().next().value;
+    if (oldestKey !== undefined) confirmations.delete(oldestKey);
+  } else if (confirmations.size > 5000) {
+    for (const [k, v] of confirmations) if (now - v.updatedAt >= REUSE_WINDOW_MS) confirmations.delete(k);
+  }
+  return true;
 }
 
 /**

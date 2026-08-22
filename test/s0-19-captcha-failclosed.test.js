@@ -25,6 +25,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   humanTrajectoryCheck, markChallengePassed, isChallengeVerified, handleCaptchaVerify, PASS_SCORE,
+  CAPTCHA_CONFIRM_LIMIT,
 } from '../src/server/core/human-check.js';
 import { LIMITS, CONFIG } from '../src/shared/config.js';
 
@@ -105,10 +106,24 @@ test('S0-19：isChallengeVerified——放行后可确认 / 未放行拒绝 / �
   assert.equal(isChallengeVerified(''), false, '空 captchaId 拒绝');
   assert.equal(markChallengePassed('verify-now'), true, '放行登记');
   assert.equal(isChallengeVerified('verify-now'), true, '放行后可确认（窗口内）');
-  // read-only: the query never consumes — the entry survives so replay stays blocked
-  assert.equal(markChallengePassed('verify-now'), false, 'isChallengeVerified 是只读查询，不删键 → 重放仍拒');
+  // confirmation is counted, not consumed: the passedChallenges entry survives, so replay stays
+  // blocked (a destructive consume-once read would break the verify modal's legitimate retries)
+  assert.equal(markChallengePassed('verify-now'), false, 'isChallengeVerified 不删键 → 重放仍拒');
   t.mock.timers.tick(LIMITS.CAPTCHA_REUSE_WINDOW_MS + 1);
   assert.equal(isChallengeVerified('verify-now'), false, '窗口外过期拒绝（变异：isChallengeVerified 只查存在不查窗口 → 恒 true → 红）');
+});
+
+test('S0-19：isChallengeVerified 每 captchaId 确认限次——预算内放行 / 超预算拒绝 / 新挑战不误伤（变异去上限 → 红）', () => {
+  const id = 'verify-cap-budget';
+  assert.equal(markChallengePassed(id), true, '放行登记');
+  for (let i = 0; i < CAPTCHA_CONFIRM_LIMIT; i++) {
+    assert.equal(isChallengeVerified(id), true, `第 ${i + 1} 次确认在预算内`);
+  }
+  assert.equal(isChallengeVerified(id), false, '超预算确认拒绝（变异：去掉上限 → 恒 true → 红）');
+  // 新挑战（新 puzzle solve）= 新 captchaId → 首确认恒放行，上限不误伤合法新挑战
+  const fresh = 'verify-cap-fresh';
+  assert.equal(markChallengePassed(fresh), true, '新挑战放行登记');
+  assert.equal(isChallengeVerified(fresh), true, '新挑战首确认放行');
 });
 
 test('S0-19：留档失败不翻转 verdict（E2；变异去 logCaptchaResult try/catch → 红）', async () => {

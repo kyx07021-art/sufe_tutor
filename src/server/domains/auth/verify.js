@@ -6,14 +6,14 @@
  */
 import { json, errorMsg } from '../../core/util.js';
 import { verifyPassword } from '../../core/crypto.js';
-import { requireUser } from '../../core/security.js';
+import { authRateBatch, authRateBlock, requireUser } from '../../core/security.js';
 import { dbGetMyCreds } from '../../core/credential.js';
 import { verifyOtp, targetMask } from '../../core/otp.js';
 import { issueCapToken } from '../../core/danger-ops.js';
 import { logEvent } from '../../core/log.js';
 import { isChallengeVerified, CAPTCHA_ID_MAX } from '../../core/human-check.js';
 import { LIMITS } from '../../../shared/config.js';
-import { dbFindUserByUsername } from './repo.js';
+import { dbUserLookupStmt } from './repo.js';
 
 export async function handleVerifyIdentity(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
@@ -38,10 +38,22 @@ export async function handleVerifyIdentity(db, body, req) {
   const value = String(credential.value || '').trim();
   if (!value) return errorMsg('VERIFY_FAILED', 403);
 
+  // PA-1a-F2: B1 combined authentication rate limit (8/10min, shared with the re-auth bucket —
+  // verify issues the same one-time capToken as re-auth, so both share a per-IP budget). Placed
+  // after the captcha gate and the empty-value check so a flood of no-captcha / empty requests
+  // cannot drain a legitimate user's budget, and before the credential check so every attempted
+  // guess counts. Same batch pattern as handleLogin / handleReAuth; a D1 failure propagates to
+  // the fetch layer (500) rather than failing open.
+  const ip = req.headers.get('CF-Connecting-IP') || 'anon';
+  const gate = authRateBatch(db, ip, 'reauth', [dbUserLookupStmt(db, me.username)]);
+  const results = await db.batch(gate.stmts);
+  if (gate.verdict(results)) { await authRateBlock(db, ip); return errorMsg('RATE_LIMITED', 429); }
+  const uRow = gate.extra(results)[0];
+  const u = uRow && uRow.results ? uRow.results[0] : null;
+
   if (type === 'password') {
     // Password branch: length cap early-exit (avoid pointless PBKDF2), uniform failure message (no enumeration).
     if (value.length > LIMITS.LOGIN_PASSWORD_MAX) return errorMsg('VERIFY_FAILED', 403);
-    const u = await dbFindUserByUsername(db, me.username);
     if (!u || !(await verifyPassword(value, u.password_hash, u.salt))) {
       await logEvent(db, { action: 'auth.verify.failed', actorUsername: targetMask(me.username),
         entity: 'user', detail: { reason: 'password' }, req });

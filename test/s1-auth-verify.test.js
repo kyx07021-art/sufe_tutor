@@ -22,7 +22,7 @@ import { requestOtp } from '../src/server/core/otp.js';
 import { confirmDangerOtp } from '../src/server/core/danger-ops.js';
 import { handleAuthMe, handleRegister, handleBindPhone } from '../src/server/domains/auth/api.js';
 import { handleVerifyIdentity } from '../src/server/domains/auth/verify.js';
-import { markChallengePassed } from '../src/server/core/human-check.js';
+import { markChallengePassed, CAPTCHA_CONFIRM_LIMIT } from '../src/server/core/human-check.js';
 import { lastOtpCode, resetOtpStub } from './_otp-stub.js'; // stubs fetch so no real SMS/email is sent
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -217,4 +217,39 @@ test('POST /api/auth/verify: wrong OTP code -> 403 VERIFY_FAILED', async () => {
   const r = await handleVerifyIdentity(db, { credential: { type: 'otp', value: '000000' }, captchaVerified: true, captchaId }, authedReq(u.token));
   assert.equal(r.status, 403);
   assert.equal((await r.json()).code, 'AUTH_VERIFY_FAILED');
+});
+
+// ---------------- PA-1a-F2: verify auth rate limit + per-captchaId budget ----------------
+test('POST /api/auth/verify: password brute force rate-limited to 8/10min (reauth bucket; mutation: removing authRateBatch -> over-limit not rejected -> red)', async () => {
+  const { raw, db } = await setup();
+  const u = await registerUser(db, raw, 'verify_rl');
+  // Fresh captchaId per attempt — a real attacker solves a fresh puzzle each time, so the
+  // per-captchaId confirmation cap cannot mask the auth rate limit under test.
+  for (let i = 0; i < 8; i++) {
+    const captchaId = passCaptcha();
+    const r = await handleVerifyIdentity(db, { credential: { type: 'password', value: 'wrong-pass' }, captchaVerified: true, captchaId }, authedReq(u.token));
+    assert.equal(r.status, 403, `attempt ${i + 1} inside budget -> VERIFY_FAILED`);
+    assert.equal((await r.json()).code, 'AUTH_VERIFY_FAILED');
+  }
+  const captchaId = passCaptcha();
+  const r = await handleVerifyIdentity(db, { credential: { type: 'password', value: 'wrong-pass' }, captchaVerified: true, captchaId }, authedReq(u.token));
+  assert.equal(r.status, 429, '9th attempt over the 8/10min budget -> RATE_LIMITED');
+  assert.equal((await r.json()).code, 'COMMON_RATE_LIMITED');
+});
+
+test('POST /api/auth/verify: same captchaId grants at most 5 confirmations, retries inside budget are not false-positive (mutation: cap removed -> unbounded -> red)', async () => {
+  const { raw, db } = await setup();
+  const u = await registerUser(db, raw, 'verify_capbudget');
+  const captchaId = passCaptcha();
+  // Legitimate retry flow: the verify modal reuses the same captchaId across failed credential
+  // attempts (only a fresh puzzle solve rotates it). Within CAPTCHA_CONFIRM_LIMIT the retries
+  // must still be accepted (no false-positive on the legal path), then the cap rejects.
+  for (let i = 0; i < CAPTCHA_CONFIRM_LIMIT; i++) {
+    const r = await handleVerifyIdentity(db, { credential: { type: 'password', value: 'wrong-pass' }, captchaVerified: true, captchaId }, authedReq(u.token));
+    assert.equal(r.status, 403, `retry ${i + 1} inside the per-captchaId budget -> VERIFY_FAILED`);
+    assert.equal((await r.json()).code, 'AUTH_VERIFY_FAILED');
+  }
+  const r = await handleVerifyIdentity(db, { credential: { type: 'password', value: 'wrong-pass' }, captchaVerified: true, captchaId }, authedReq(u.token));
+  assert.equal(r.status, 403, '6th confirmation over the per-captchaId budget -> CAPTCHA_REQUIRED');
+  assert.equal((await r.json()).code, 'CAPTCHA_REQUIRED');
 });
