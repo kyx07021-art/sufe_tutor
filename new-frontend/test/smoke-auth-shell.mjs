@@ -67,6 +67,31 @@ const others = otherMethods(AUTH_SCENES.VERIFY, { phone: true, email: true }, AU
 assert(others.length === 2, 'otherMethods should return two alternatives')
 assert(!others.includes(AUTH_METHODS.OTP_PHONE), 'otherMethods should not include current')
 
+// login scene (PA-1h3-F1): both code channels + password always offered,
+// independent of contactMasks — a user's bound channels are unknown before login.
+const loginEmpty = availableMethods(AUTH_SCENES.LOGIN, {})
+assert(
+  loginEmpty.length === 3 &&
+    loginEmpty[0] === AUTH_METHODS.OTP_PHONE &&
+    loginEmpty[1] === AUTH_METHODS.OTP_EMAIL &&
+    loginEmpty[2] === AUTH_METHODS.PASSWORD,
+  'login available should be [otp_phone, otp_email, password] even with empty contactMasks, got: ' + loginEmpty.join(','),
+)
+const loginMasked = availableMethods(AUTH_SCENES.LOGIN, { phone: false, email: false })
+assert(
+  loginMasked.length === 3 && loginMasked[0] === AUTH_METHODS.OTP_PHONE,
+  'login available should ignore contactMasks (both code channels + password), got: ' + loginMasked.join(','),
+)
+assert(
+  defaultMethod(AUTH_SCENES.LOGIN, {}) === AUTH_METHODS.OTP_PHONE,
+  'login default should be otp_phone (first non-password in the always-on set)',
+)
+// verify scene STILL follows contactMasks (bound contacts known) — no regression
+assert(
+  availableMethods(AUTH_SCENES.VERIFY, {}).join(',') === AUTH_METHODS.PASSWORD,
+  'verify with empty masks should stay [password] (contactMasks still gates verify)',
+)
+
 // useAuthMethod: switch resets credential, invalid/same no-op, scene change resets
 const scene = ref(AUTH_SCENES.VERIFY)
 const masks = ref({ phone: true, email: true })
@@ -277,6 +302,57 @@ check((await page.textContent('.captcha-puzzle__tip')).includes('拖动滑块'),
 // close via backdrop (Esc needs focus inside the modal; after a mouse-only drag focus is on body)
 await page.mouse.click(20, 20)
 await modal.waitFor({ state: 'detached', timeout: 5000 })
+
+// --- login scene (PA-1h3-F1): no contactMasks -> dual channels visible + password login hits /auth/login ---
+// Mock the real password-login endpoint and capture the request body.
+const loginBodies = []
+await page.route('**/api/auth/login', (route) => {
+  const post = route.request().postData()
+  if (post) loginBodies.push(JSON.parse(post))
+  return route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ user: { id: 1, username: 'alice', role: 'student', avatar: '' }, authToken: 'login-token' }),
+  })
+})
+// Switch the preview to the login scene with NO bound contact channels.
+await page.locator('.auth-preview__row .ui-btn', { hasText: 'login' }).click()
+for (const label of ['phone', 'email']) {
+  const cb = page.locator('.ui-checkbtn', { hasText: label })
+  if ((await cb.getAttribute('aria-pressed')) === 'true') await cb.click()
+}
+const noteText = await page.textContent('.auth-preview__note')
+check(
+  noteText.includes('手机验证码 / 邮箱验证码 / 输入密码'),
+  'login available should list both code channels + password regardless of masks, note: ' + noteText,
+)
+await openModal()
+// Default method = phone code; the pick-2 switch shows email + password.
+check((await page.textContent('.otp-row__title')) === '手机验证码', 'login default method should be 手机验证码')
+const switchBtns = page.locator('.method-switch .ui-btn')
+check((await switchBtns.count()) === 2, 'login modal should show exactly two alternative methods')
+const switchLabels = await switchBtns.allTextContents()
+check(
+  switchLabels.includes('邮箱验证码验证') && switchLabels.includes('密码验证'),
+  'login switch should offer 邮箱验证码验证 + 密码验证, got: ' + switchLabels.join(', '),
+)
+// Switch to password, fill identifier + password, pass the puzzle, confirm.
+await page.locator('.method-switch .ui-btn', { hasText: '密码验证' }).click()
+await page.waitForSelector('.password-row')
+await page.locator('.password-row__identifier .ui-input__ta').fill('alice')
+await page.locator('.password-row__password .ui-input__ta').fill('secret123')
+await dragPuzzleTo(await page.evaluate(() => (window.__authPuzzleDebug || {}).target))
+await page.waitForTimeout(400)
+check(await confirmBtn.isEnabled(), 'login confirm should enable after identifier + password + puzzle')
+await confirmBtn.click()
+await modal.waitFor({ state: 'detached', timeout: 5000 })
+check((await modal.count()) === 0, 'login success should close the modal')
+check(
+  loginBodies.length === 1 &&
+    loginBodies[0].identifier === 'alice' &&
+    loginBodies[0].password === 'secret123',
+  'password login should POST /api/auth/login with {identifier,password}, got: ' + JSON.stringify(loginBodies),
+)
 
 // --- mobile 375 geometry ---
 const mobile = await browser.newPage({ viewport: { width: 375, height: 700 } })

@@ -57,7 +57,10 @@ AUTH_METHODS = Object.freeze({ OTP_PHONE:'otp_phone', OTP_EMAIL:'otp_email', PAS
 
 - `availableMethods(scene, masks)`：
   - register → `[otp_phone, otp_email]`（注册走验证码通道，无密码方式）
-  - login/verify → `[otp_phone?(masks.phone), otp_email?(masks.email), password]`（password 恒在末尾兜底）
+  - login → `[otp_phone, otp_email, password]`（登录前无法得知用户绑定通道，恒提供双通道；identifier 字段承载
+    用户名/手机号/邮箱，验证码通道跟随输入格式；不依赖 contactMasks）
+  - verify → `[otp_phone?(masks.phone), otp_email?(masks.email), password]`（登录用户已绑定通道已知，
+    验证码通道随 contactMasks 显隐；password 恒在末尾兜底）
 - `defaultMethod(scene, masks)` = available 中第一个非 password 者；全无 OTP → password（"永不默认密码"= 有 OTP 时永不以密码为默认）。
   - 四用例：`{phone:1,email:1}→otp_phone`；`{phone:1,email:0}→otp_phone`；`{phone:0,email:1}→otp_email`；`{phone:0,email:0}→password`
 - `otherMethods(scene,masks,current)` = available 中 ≠ current 者（三选二按钮 S1 恰好显示两种）。

@@ -27,7 +27,11 @@ export function isOtp(m) {
 /**
  * Methods available for a given scene, ordered by preference.
  * - register -> [otp_phone, otp_email] (registration is code-channel only, no password).
- * - login/verify -> [otp_phone? (masks.phone), otp_email? (masks.email), password] (password is always last).
+ * - login -> [otp_phone, otp_email, password] (the bound channels are unknown before
+ *   login, so both code channels and password are always offered; the identifier field
+ *   carries username/phone/email and the OTP channel follows whichever the user typed).
+ * - verify -> [otp_phone? (masks.phone), otp_email? (masks.email), password] (the
+ *   logged-in user's bound contacts are known, so code channels follow contactMasks).
  * A missing / undefined / null contactMasks is treated as an empty object.
  * @param {string} scene one of AUTH_SCENES
  * @param {object} [contactMasks] boolean contact availability, e.g. { phone: true, email: false }
@@ -38,6 +42,13 @@ export function availableMethods(scene, contactMasks = {}) {
   if (scene === AUTH_SCENES.REGISTER) {
     return [AUTH_METHODS.OTP_PHONE, AUTH_METHODS.OTP_EMAIL]
   }
+  if (scene === AUTH_SCENES.LOGIN) {
+    // Login scene: contactMasks must not gate availability — the user's bound
+    // channels are unknown until they sign in. Always offer both code channels
+    // plus password so a login without any bound contact still reaches password.
+    return [AUTH_METHODS.OTP_PHONE, AUTH_METHODS.OTP_EMAIL, AUTH_METHODS.PASSWORD]
+  }
+  // verify scene: code channels depend on the logged-in user's bound contacts.
   const list = []
   if (masks.phone) list.push(AUTH_METHODS.OTP_PHONE)
   if (masks.email) list.push(AUTH_METHODS.OTP_EMAIL)

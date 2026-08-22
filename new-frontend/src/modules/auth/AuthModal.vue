@@ -136,7 +136,10 @@ async function onConfirm() {
 async function onLogin() {
   const isCode = isOtp(current.value)
   try {
-    const r = await api(isCode ? '/auth/login/code' : '/auth/login/password', {
+    // I-02/I-03 split: code login -> POST /api/auth/login/code, password login ->
+    // POST /api/auth/login (handleLogin, body { identifier, password }). No
+    // /api/auth/login/password route exists — calling it 404s the login.
+    const r = await api(isCode ? '/auth/login/code' : '/auth/login', {
       method: 'POST',
       auth: false,
       body: isCode
