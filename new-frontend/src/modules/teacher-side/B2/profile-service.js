@@ -30,37 +30,40 @@ function numOrNull(v) {
 
 /**
  * Fetch the teacher's own profile (I-39) and normalize to the edit shape.
+ * The server wraps the profile row in `{ profile: {...} }` (handleGetProfile);
+ * a flat shape is accepted too for callers/tests passing the mapper output directly.
  * Missing fields get safe defaults (C3 normalization).
  * @returns {Promise<Object>}
  */
 export async function fetchMyProfile() {
   const json = await api('/teacher/profile')
   if (!json || typeof json !== 'object') return { ...DEFAULT_PROFILE }
+  const p = json.profile || json
   const arr = (v) => (Array.isArray(v) ? v.slice() : [])
   return {
-    teacherName: json.teacher_name || json.teacherName || '',
-    bio: json.bio || '',
-    region: json.region || json.addressArea || '',
-    priceMin: numOrNull(json.priceMin),
-    priceMax: numOrNull(json.priceMax),
+    teacherName: p.teacher_name || p.teacherName || '',
+    bio: p.bio || '',
+    region: p.region || p.addressArea || '',
+    priceMin: numOrNull(p.priceMin),
+    priceMax: numOrNull(p.priceMax),
     experienceYears:
-      json.experience_years != null && json.experience_years !== ''
-        ? Math.max(0, Number(json.experience_years) || 0)
+      p.experience_years != null && p.experience_years !== ''
+        ? Math.max(0, Number(p.experience_years) || 0)
         : 0,
-    gender: json.gender || '',
-    graduation: json.graduation || json.graduation_school || '',
-    timeSlots: arr(json.timeSlots),
-    personalityTags: arr(json.personalityTags),
-    subjects: Array.isArray(json.subjects)
-      ? json.subjects.map((s) => ({
+    gender: p.gender || '',
+    graduation: p.graduation || p.graduation_school || '',
+    timeSlots: arr(p.timeSlots),
+    personalityTags: arr(p.personalityTags),
+    subjects: Array.isArray(p.subjects)
+      ? p.subjects.map((s) => ({
           subject: (s && s.subject) || '',
           score: s && s.score != null ? s.score : null,
           full: s && s.full != null ? s.full : null,
           awards: Array.isArray(s && s.awards) ? s.awards.slice() : [],
         }))
       : [],
-    philosophy: json.philosophy || json.teaching_philosophy || '',
-    avatar: json.avatar || '',
+    philosophy: p.philosophy || p.teaching_philosophy || '',
+    avatar: p.avatar || '',
   }
 }
 
@@ -68,6 +71,8 @@ export async function fetchMyProfile() {
  * Save the teacher profile (I-40). Partial fields omitted keep the old value.
  * Field names follow the frozen contract (interfaces.md §19 I-40): snake_case
  * `teacher_name` / `experience_years`; the avatar is a separate write path (I-11).
+ * The body is wrapped in `{ profile: {...} }` to match handleSaveProfile's
+ * `const { profile: p } = body` destructure.
  * @param {Object} payload edit shape (camelCase internal)
  * @returns {Promise<Object>}
  */
@@ -75,18 +80,20 @@ export async function saveProfile(payload) {
   return api('/teacher/profile', {
     method: 'PUT',
     body: {
-      teacher_name: payload.teacherName,
-      bio: payload.bio,
-      region: payload.region,
-      priceMin: payload.priceMin,
-      priceMax: payload.priceMax,
-      experience_years: payload.experienceYears,
-      gender: payload.gender,
-      graduation: payload.graduation,
-      timeSlots: payload.timeSlots,
-      personalityTags: payload.personalityTags,
-      subjects: payload.subjects,
-      philosophy: payload.philosophy,
+      profile: {
+        teacher_name: payload.teacherName,
+        bio: payload.bio,
+        region: payload.region,
+        priceMin: payload.priceMin,
+        priceMax: payload.priceMax,
+        experience_years: payload.experienceYears,
+        gender: payload.gender,
+        graduation: payload.graduation,
+        timeSlots: payload.timeSlots,
+        personalityTags: payload.personalityTags,
+        subjects: payload.subjects,
+        philosophy: payload.philosophy,
+      },
     },
   })
 }

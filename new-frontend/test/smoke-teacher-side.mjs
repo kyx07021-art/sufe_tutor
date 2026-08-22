@@ -426,6 +426,10 @@ async function mockVerify(ctx, { status, provider }) {
   )
 }
 
+// Real I-39 shape: handleGetProfile wraps the profile row in `{ profile: {...} }`, and
+// mapTeacherProfileRow emits camelCase new-model fields (bio/region/priceMin/priceMax/
+// timeSlots/personalityTags) alongside v2 snake_case (teacher_name/experience_years).
+// graduation/philosophy are NOT emitted by the mapper (field-name alignment is PA-1d-F4).
 const PROFILE = {
   teacher_name: '王老师',
   bio: '十年一线教学',
@@ -434,11 +438,9 @@ const PROFILE = {
   priceMax: 400,
   experience_years: 10,
   gender: '男',
-  graduation: '华东师大',
   timeSlots: ['周一', '周三'],
   personalityTags: ['耐心', '严谨'],
   subjects: [{ subject: '数学', score: 145, full: 150, awards: ['市一等奖'] }],
-  philosophy: '因材施教',
   avatar: '',
 }
 
@@ -451,7 +453,8 @@ async function mockProfile(ctx, profile = PROFILE) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
     }
     getCount += 1
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile) })
+    // G3: match the real I-39 response envelope { profile } (was flat -> masked the bug)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ profile }) })
   })
   return () => ({ putBody, getCount })
 }
@@ -496,11 +499,15 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
   const getPutBody = await mockProfile(ctx)
   await p.goto(B2_URL, { waitUntil: 'networkidle' })
 
-  // edit card rendered + prefilled from I-39
+  // edit card rendered + prefilled from I-39 wrapped { profile } shape
   const card = await p.locator('.profile-edit__card').count()
   assert.equal(card, 1, 'edit card renders in approved state')
   const nameVal = await p.locator('#profile-edit-name input, #profile-edit-name textarea').first().inputValue()
   assert.equal(nameVal, '王老师', 'teacherName prefilled (D3 teacher name)')
+  const bioVal = await p.locator('input[aria-label="简介"], textarea[aria-label="简介"]').first().inputValue()
+  assert.equal(bioVal, '十年一线教学', 'bio prefilled from wrapped I-39')
+  const priceMinVal = await p.locator('input[aria-label="最低价"], textarea[aria-label="最低价"]').first().inputValue()
+  assert.equal(priceMinVal, '200', 'priceMin prefilled from wrapped I-39')
   const getCountBefore = getPutBody().getCount
 
   // mutation guard: empty teacherName -> validation blocks, no PUT
@@ -515,8 +522,9 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
   await p.locator('#profile-edit-name input, #profile-edit-name textarea').first().fill('王老师')
   await p.locator('.profile-edit__actions .ui-btn').first().click()
   await p.waitForTimeout(500)
-  const body = getPutBody().putBody
-  assert.ok(body, 'PUT /api/teacher/profile fired')
+  const raw = getPutBody().putBody
+  assert.ok(raw && typeof raw === 'object' && raw.profile, 'PUT body wrapped in { profile } (I-40)')
+  const body = raw.profile
   // I-40 contract field names (snake_case), not camelCase
   assert.equal(body.teacher_name, '王老师', 'I-40 teacher_name field')
   assert.equal(body.experience_years, 10, 'I-40 experience_years field')
