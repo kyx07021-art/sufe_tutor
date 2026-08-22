@@ -71,11 +71,11 @@ async function seed(db, raw) {
 test('notifyUser stores type + JSON params (text empty for new rows)', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stu } = await seed(db, raw);
-  await notifyUser(db, stu, 'INTENT_REJECTED', { subjects: ['math'], target_type: 'academic' });
+  await notifyUser(db, stu, 'CONTRACT_DRAFT_SENT', { name: '张老师' });
   const row = raw.prepare('SELECT user_id, text, type, params FROM notifications').get();
-  assert.equal(row.type, 'INTENT_REJECTED');
+  assert.equal(row.type, 'CONTRACT_DRAFT_SENT');
   assert.equal(row.text, '', '新结构化行 text 留空');
-  assert.deepEqual(JSON.parse(row.params), { subjects: ['math'], target_type: 'academic' });
+  assert.deepEqual(JSON.parse(row.params), { name: '张老师' });
 });
 
 test('GET /api/notifications maps params JSON to an object', async () => {
@@ -129,7 +129,6 @@ test('notifBodyText renders each structured type to the v1-parity text', () => {
       `录取通知书核验已通过，你的接单资格已开放\n核验信息：示例大学`],
     ['VERIFY_REJECTED', { reason: '图片模糊' }, `学信网学籍核验未通过，请重新提交验证码\n图片模糊`],
     ['VERIFY_REVOKED', { reason: '材料造假' }, `你的接单资格已被管理员撤销，可重新提交学信网核验\n材料造假`],
-    ['AWARD_APPROVED', { title: '数学竞赛' }, '你的荣誉奖项「数学竞赛」已通过审核，将展示在你的教师主页。'],
     ['CONTENT_PENALTY', { label: '帖子', rule: '广告', reason: '营销内容', summary: 'xxx', action: 'ban' },
       '你的帖子因违反规则「广告」被管理员封禁账户。原因：营销内容。触发内容：xxx'],
     ['CONTENT_PENALTY', { label: '评价', rule: '', reason: '不当言论', summary: '', action: 'remove' },
@@ -155,7 +154,9 @@ test('isBroadcastNotif: structured BROADCAST type and legacy prefix both classif
   assert.equal(isBroadcastNotif({ type: null, text: '普通旧通知' }), false);
 });
 
-// NOTIFY_TYPES registry is the single source: every type key has a NOTIF_<KEY> template
+// NOTIFY_TYPES registry is the write-side single source: every live type has a NOTIF_<KEY>
+// template. Render paths deliberately also handle legacy types not in the registry (historic
+// notification rows produced before INTENT/PUSH/SIGNING removal still render from TEXT).
 test('NOTIFY_TYPES registry completeness: every type has a client template', async () => {
   const { NOTIFY_TYPES } = await import('../src/shared/codes.js');
   const SPECIAL = ['VERIFY_APPROVED', 'VERIFY_REJECTED', 'VERIFY_REVOKED', 'CONTENT_PENALTY', 'BROADCAST']; // 特殊渲染（条件/子类组合），上面已逐型断言
@@ -190,7 +191,7 @@ test('Q-2b-F4：通知插入失败留档 notify.fail（不再静默吞）', asyn
     if (String(sql).includes('INSERT INTO notifications')) throw new Error('D1 down');
     return origPrepare(sql);
   };
-  await notifyUser(db, stu, 'INTENT_ACCEPTED', {});
+  await notifyUser(db, stu, 'CONTRACT_SIGNED', {});
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications').get().c, 0, '通知未落库');
   assert.equal(raw.prepare("SELECT COUNT(*) c FROM activity_log WHERE action='notify.fail'").get().c, 1, '失败留档 notify.fail');
 });

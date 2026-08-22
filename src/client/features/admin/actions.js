@@ -61,7 +61,6 @@ export async function loadAdminStats() {
         `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TODO)}</h4>${adminOpsRows([
           [TEXT.ADMIN_STAT_VERIFY_PENDING, dt.verificationsPending],
           [TEXT.ADMIN_STAT_REVIEWS_PENDING, dt.reviewsPending],
-          [TEXT.ADMIN_STAT_AWARDS_PENDING, t.awardsPending],
           [TEXT.ADMIN_STAT_FEEDBACKS_OPEN, t.feedbacksOpen],
           [TEXT.ADMIN_STAT_COMPLAINTS_OPEN, t.complaintsOpen],
         ])}</div>` +
