@@ -110,7 +110,8 @@ export async function handleCreateDemand(db, body, req) {
 export async function handleGetMyDemands(db, req) {
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
-  return json({ demands: await dbGetDemandsByUser(db, me.id) });
+  // I-33 envelope: { items } — frontend useDemands reads data.items (interfaces.md §19 I-33)
+  return json({ items: await dbGetDemandsByUser(db, me.id) });
 }
 
 // I-34 需求广场（B1 教师视角）：登录可见；排序 match（S3-15 占位）/price；筛选 subjects[]/gender/price 区间
@@ -124,7 +125,8 @@ export async function handleGetDemands(db, url, req) {
   if (fRaw) { try { filters = JSON.parse(fRaw); } catch { filters = null; } }
   const demands = await dbGetDemands(db, { filters, sort, order });
   // S3-15：matchScore/matchCount 依赖 S4 新匹配度，未接入前占位 null（前端按 null 回落不显示）
-  return json({ demands: demands.map(x => ({ ...x, matchScore: null, matchCount: null })) });
+  // I-34 envelope: { items, total } — frontend demands-service reads json.items + json.total
+  return json({ items: demands.map(x => ({ ...x, matchScore: null, matchCount: null })), total: demands.length });
 }
 
 // I-38 需求详情：可见性规则（interfaces §19）——owner（学生本人）任意状态可看；

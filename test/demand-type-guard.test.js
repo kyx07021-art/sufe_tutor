@@ -18,7 +18,7 @@ import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
-import { handleCreateDemand } from '../src/server/domains/demand/api.js';
+import { handleCreateDemand, handleGetMyDemands, handleGetDemands } from '../src/server/domains/demand/api.js';
 import { dbGetDemandById } from '../src/server/domains/demand/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
@@ -206,4 +206,44 @@ test('QA 最小 body（缺 currentScore/preferredTags/preferredGender 等）→ 
   assert.equal(row.preferred_tags, '[]', 'preferredTags 缺失归一空数组');
   assert.equal(row.preferred_gender, '', 'preferredGender 缺失归一空串');
   assert.equal(row.status, 'open', '默认 open');
+});
+
+// ---------------------------------------------------------------------------
+// PA-1d-F1: 列表信封对齐契约 {items}（I-33/I-34）。前端 useDemands/demands-service
+// 读 data.items（+ total），后端曾返回 {demands} 致生产恒空列表；smoke mock 按前端预期
+// {items} 造数掩盖了形状失配（Q-6 教训）。变异守护：信封改回 {demands} → 本测试红。
+// ---------------------------------------------------------------------------
+test('I-33 envelope: handleGetMyDemands returns { items } (no legacy { demands } key)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token } = await seedStudent(db, raw);
+  assert.equal((await handleCreateDemand(db, baseDemand, reqOf(token))).status, 200);
+  assert.equal((await handleCreateDemand(db, { ...baseDemand, subject: 'chinese' }, reqOf(token))).status, 200);
+
+  const r = await handleGetMyDemands(db, reqOf(token));
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.ok('items' in body, 'I-33 envelope uses items (frontend useDemands reads data.items)');
+  assert.ok(!('demands' in body), 'no legacy { demands } envelope key');
+  assert.ok(Array.isArray(body.items), 'items is an array');
+  assert.equal(body.items.length, 2, 'both own demands listed (incl. open)');
+  assert.ok(body.items.every(x => x.subject && x.status), 'row shape mapped (subject/status present)');
+});
+
+test('I-34 envelope: handleGetDemands returns { items, total } with matchScore/matchCount placeholders', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token } = await seedStudent(db, raw);
+  assert.equal((await handleCreateDemand(db, baseDemand, reqOf(token))).status, 200);
+  assert.equal((await handleCreateDemand(db, { ...baseDemand, subject: 'chinese' }, reqOf(token))).status, 200);
+
+  const r = await handleGetDemands(db, new URL('http://localhost/api/demands'), reqOf(token));
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.ok('items' in body, 'I-34 envelope uses items (frontend demands-service reads json.items)');
+  assert.ok(!('demands' in body), 'no legacy { demands } envelope key');
+  assert.ok('total' in body, 'I-34 exposes total (frontend demands-service reads json.total)');
+  assert.ok(Array.isArray(body.items), 'items is an array');
+  assert.equal(body.total, body.items.length, 'total equals items length');
+  assert.equal(body.items.length, 2, 'two open demands in the plaza');
+  assert.ok(body.items.every(x => x.matchScore === null && x.matchCount === null),
+    'S3-15 matchScore/matchCount placeholders null until S4 wires in');
 });
