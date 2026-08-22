@@ -176,10 +176,16 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
   // user_settings 表随之移除，保留访客过滤会让本查询依赖已删表；matched EXISTS 亦已删除。
   // award_count 子查询（teacher_awards）同步移除（S6 §17 awards 不上线），mapper 对缺列兜底 0。
   // viewerId 参数保留（调用方仍传），此处不再消费。
+  // PA-1d-F6 DoS guard: the public plaza list is capped at the same PUBLIC_LIST_MAX
+  // as the demand square (demand/repo.js) so a growing teacher_profiles table cannot
+  // force every request to load the whole table + per-row match computation.
+  // ORDER BY precedes LIMIT, so the truncation never breaks the SQL sort semantics;
+  // in-handler sort/filter (list.js) then operates on the capped set.
   const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id
     WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0
-    ORDER BY tp.updated_at DESC`);
+    ORDER BY tp.updated_at DESC
+    LIMIT ${LIMITS.PUBLIC_LIST_MAX}`);
   // 广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
   // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经
   // /api/teacher/profile 定点取回（该端点按 本人/双向匹配 门控，未匹配 403）。
