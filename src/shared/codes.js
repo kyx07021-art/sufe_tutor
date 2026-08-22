@@ -407,7 +407,6 @@ export const NOTIFY_TYPES = {
 /** 服务端仍需要拼装的用户可见文案（V-2-4 迁 client/text.js 后删除） */
 export const SERVER_TEXT = {
   CONTRACT_DRAFT_SENT_TOAST: "合同草案已发送，等待对方确认",
-  SIGNING_REQUEST_SENT_TOAST: "签约请求已发送",
   CONTRACT_EMPTY: "合同内容不能为空",
   POST_TITLE_REQUIRED: "标题不能为空",
   POST_TITLE_TOO_LONG: `标题不能超过 ${LIMITS.TITLE_MAX} 个字符`,
