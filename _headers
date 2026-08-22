@@ -1,26 +1,35 @@
-# Cloudflare Pages 原生响应头（静态资源层，不经 worker；网安报告 F-08 静态安全头补齐）
+# Cloudflare Pages 原生响应头（静态资源层，不经 worker；S0-23 新站 CSP 三源姿态）
 # worker 只处理 /api/* 的安全头（见 _worker.js applySecurityHeaders）；静态层在此统一加：
 #   - HTML 的 HTTP 级 CSP（frame-ancestors 'none' 防点击劫持，meta CSP 无法表达此指令）
 #   - HSTS / X-Content-Type-Options / Referrer-Policy 全站覆盖
-# 注意：此文件与页面 meta CSP 同源同策略（多策略取交集，浏览器强制）。V-4-1h h5a 收紧：
-#   - script-src 去 'unsafe-inline'（v1 壳内联 onclick 已删，v2 零内联脚本）；
-#   - style 拆分镜像 meta（style-src-elem 'self' 拦 <style> 注入；style-src-attr 'none'——h5a-g6
-#     实测定案：CSSOM cssText/setProperty 不受 style-src-attr 管辖，app 零内联 style 属性，无需例外）；
-#   - 删 Google Fonts/font-src 例外（v2 零外部字体，v1 壳随删除消失）。
-# Pages _headers 匹配规则：相对根路径 + 通配符；站点唯一 HTML 文档 = index.html（v2 壳）。
-# v0.19.35（网安报告 F-08）：规则从 /index.html 改 /*——生产首页是 "/" 的 SPA 回退，
-# 只挂 /index.html 时根路径与未知 SPA 路径裸奔；/* 统一覆盖根路径、SPA 回退与静态资源
+#   - HTML no-cache/must-revalidate（SPA 壳每次重新校验，新部署的资产哈希即时生效）
+# 三源逐字同姿态（契约 8，严格 meta CSP）：
+#   - 源 1（meta，Vite 构建注入，单源 new-frontend/src/constants/csp.js META_CSP）：
+#       script-src 'self'; style-src-elem 'self'; style-src-attr 'none'
+#     最小化声明，无 default-src：未列指令（img-src 等）在 meta 自身兜底放宽为 '*'，故 meta 不承担
+#     img-src 收紧——img-src data: blob: 保护来自源 2/3 的显式声明，多策略交集后生效（多策略取交集，
+#     任一策略未列即不限制，收紧来自双方都声明且更严的一侧）；声明 default-src 'self' 会经交集
+#     静默收紧 data:/blob: 通道（契约 8 禁之）。无 unsafe-inline。
+#   - 源 2（本文件站点级 CSP）镜像同姿态，并补 meta 无法表达的指令：img-src 'self' data: blob:
+#     （内联 data: 图片 + blob 预览）、connect-src 'self'（/api 同源）、base-uri/form-action 'self'、
+#     frame-ancestors 'none'。
+#   - 源 3（src/shared/config.js SECURITY_HEADERS）与本文件 CSP 逐字一致（csp-strict.test.js 姿态锁强制）。
+#   style-src-attr 'none' 为 h5a-g6 实测定案：CSSOM cssText/setProperty 不受其管辖，Vue 组件零内联
+#   style 属性，动态样式走 CSS 变量数据通道（setProperty），故收紧无功能影响。
+# Pages _headers 匹配规则：相对根路径 + 通配符；站点唯一 HTML 文档 = Vite 产物 dist/index.html。
+# /* 统一覆盖根路径、Pages 原生 SPA 回退（无扩展名路径 → index.html）与静态资源——根路径与未知
+# SPA 路径的回退 HTML 均须携带严格 CSP 与 no-cache。
 
 /*
+  Cache-Control: no-cache, must-revalidate
   X-Content-Type-Options: nosniff
   Strict-Transport-Security: max-age=31536000; includeSubDomains
   Referrer-Policy: strict-origin-when-cross-origin
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=()
 
-# V-4-1e staging 冒烟抓出：v2 ESM 资产（dist/assets/*，esbuild 内容哈希名）此前无 immutable，
-# 每次页面加载全量重下载 ~700KB。esbuild 名 = 内容寻址，同内容永不变名 → 可安全 immutable。
-# worker 的 versionedBase 只覆盖 manifest 清单内文件（根/features 哈希 CSS）；/assets/* 走 ASSETS 直服，故在此声明。
+# Vite 产物（new-frontend/dist/assets/*）内容哈希命名（如 index-CW2XfQw1.js），同内容永不变名 →
+# 可安全 immutable；`/*` 规则合并的其它安全头仍生效，仅 Cache-Control 被本规则覆盖。
 /assets/*
   Cache-Control: public, max-age=31536000, immutable

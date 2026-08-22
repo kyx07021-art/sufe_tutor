@@ -36,46 +36,40 @@ export {
 
 import {
   dbCreateDemand, dbGetDemands, dbGetDemandsByUser, dbGetDemandById, dbUpdateDemand, dbDeleteDemand,
-  dbAdminForceDeleteDemand, dbReopenDemand, dbReleaseDemandAfterRevoke,
-  dbCreatePush, dbGetPendingPushesForTeacher, dbGetPushById, dbResolvePush, dbGetPendingPushesForDemand, dbAcceptPushAsIntent,
-  dbCreateIntent, dbGetIntentTeachers, dbGetIntentWithDemand, dbResolveIntent, dbGetPendingIntentsForDemand,
-} from '../src/server/domains/demand/repo.js'; // Q-2h-F2：mapDemandRow 导入未用未导出，死 import 清理（生产只在 demand/repo.js 内部用）
+  dbAdminForceDeleteDemand, dbSetDemandStatus,
+} from '../src/server/domains/demand/repo.js'; // S2：intents/pushes removed; dbReopenDemand/dbReleaseDemandAfterRevoke 随 contracted/revoked 状态删除
 
 export {
   dbCreateDemand, dbGetDemands, dbGetDemandsByUser, dbGetDemandById, dbUpdateDemand, dbDeleteDemand,
-  dbAdminForceDeleteDemand, dbReopenDemand, dbReleaseDemandAfterRevoke,
-  dbCreatePush, dbGetPendingPushesForTeacher, dbGetPushById, dbResolvePush, dbGetPendingPushesForDemand, dbAcceptPushAsIntent,
-  dbCreateIntent, dbGetIntentTeachers, dbGetIntentWithDemand, dbResolveIntent, dbGetPendingIntentsForDemand,
+  dbAdminForceDeleteDemand, dbSetDemandStatus,
 };
 
 import {
-  dbUpsertConversation, dbGetConversationById, dbGetConversationWithNames, dbGetConversationBindableDemands,
+  dbUpsertConversation, dbGetConversationById, dbGetConversationWithNames,
   dbGetMyConversations, dbGetMyRelations, dbMarkConversationRead, dbGetMessages, dbPrepareMessageInsert, dbCreateMessage,
-  dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage, dbSetMessageBody,
-  dbGetSigningById, dbDeleteSigning, dbGetPendingSigningForConversation, dbCreateSigning, dbConfirmSigning, dbRejectSigning,
+  dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage,
   dbCloseConversationCascade, dbGetConversationByTuple, dbDeleteConversation,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload, dbPrepareUploadDelete,
   dbGetMessagesByClientKeys,
 } from '../src/server/domains/chat/repo.js';
 
 export {
-  dbUpsertConversation, dbGetConversationById, dbGetConversationWithNames, dbGetConversationBindableDemands,
+  dbUpsertConversation, dbGetConversationById, dbGetConversationWithNames,
   dbGetMyConversations, dbGetMyRelations, dbMarkConversationRead, dbGetMessages, dbPrepareMessageInsert, dbCreateMessage,
-  dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage, dbSetMessageBody,
-  dbGetSigningById, dbDeleteSigning, dbGetPendingSigningForConversation, dbCreateSigning, dbConfirmSigning, dbRejectSigning,
+  dbGetMessageById, dbGetMessageAttachment, dbDeleteMessage,
   dbCloseConversationCascade, dbGetConversationByTuple, dbDeleteConversation,
   dbPurgeStaleUploads, dbCountUploads, dbCreateUpload, dbGetUpload, dbGetUploads, dbDeleteUpload, dbPrepareUploadDelete,
   dbGetMessagesByClientKeys,
 };
 
-import { dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin, dbDeleteContract } from '../src/server/domains/contract/repo.js';
-export { dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin, dbDeleteContract };
+import { dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin, dbDeleteContract, dbCreateContract, dbSetContractMd } from '../src/server/domains/contract/repo.js';
+export { dbGetContractById, dbGetMyContracts, dbGetAllContractsAdmin, dbDeleteContract, dbCreateContract, dbSetContractMd };
 
-import { dbGetPrivacySettings, dbSetPrivacySettings } from '../src/server/domains/settings/repo.js';
-export { dbGetPrivacySettings, dbSetPrivacySettings };
+// S6: settings/repo.js no longer exports privacy-settings functions (domain rewritten to
+// notify-broadcast-muted only, which has no shim consumer) — dead import removed.
 
-import { dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair, dbUpdateReview, dbIsContracted, dbGetReviewsAdmin, dbDeleteReview, dbUpdateReviewStatus, dbGetReviewById } from '../src/server/domains/reviews/repo.js';
-export { dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair, dbUpdateReview, dbIsContracted, dbGetReviewsAdmin, dbDeleteReview, dbUpdateReviewStatus, dbGetReviewById };
+import { dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair, dbUpdateReview, dbGetReviewsAdmin, dbDeleteReview, dbUpdateReviewStatus, dbGetReviewById } from '../src/server/domains/reviews/repo.js';
+export { dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair, dbUpdateReview, dbGetReviewsAdmin, dbDeleteReview, dbUpdateReviewStatus, dbGetReviewById };
 
 import { dbListPosts, dbListMyFavoritePosts, dbCreatePostFavorite, dbDeletePostFavorite, dbCreatePost, dbGetPostById, dbGetPostLikeToggleRead, dbGetPostFavoriteToggleRead, dbTogglePostLike, dbDeletePost } from '../src/server/domains/posts/repo.js';
 import { dbCreateFeedback, dbGetFeedbacksByUser, dbGetFeedbacksAdmin, dbGetFeedbackById, dbResolveFeedback, dbCreateComplaint, dbCountComplaintsToday, dbGetComplaintsByUser, dbGetComplaintsAdmin, dbGetComplaintById, dbResolveComplaint, dbSearchUsersByRole, dbRecentInteractions, dbSearchPosts } from '../src/server/domains/complaints/repo.js';

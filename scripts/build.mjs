@@ -1,22 +1,44 @@
 #!/usr/bin/env node
 /**
- * v2 薄构建层：源码 → dist/（唯一部署对象）
- *   - esbuild 把 _worker.js 连同 server/、manifest.js 打成单文件 dist/_worker.js；
- *   - 静态资源（index.html/js/css/图片/_headers）复制进 dist；
- *   - server/、docs/、test/、node_modules 等源码不再上传，黑名单逻辑将在后续架构迁移中删除。
+ * 新站薄构建层：源码 → dist/（唯一部署对象）
+ *   - Vite 构建 new-frontend（Vue 3 + Vite：内容哈希资产 + 严格 meta CSP 注入，
+ *     见 new-frontend/vite.config.js）→ 拷贝 index.html + assets/*；
+ *   - esbuild 把 _worker.js 连同 server/ 打成单文件 dist/_worker.js；
+ *   - _headers（静态层安全头 + /assets/* immutable）复制进 dist；
+ *   - v2 内容哈希管线（hash-assets.mjs → manifest.js → worker 改写引用）已删除（S0-24 + S0-22）：
+ *     Vite 原生内容哈希 + _headers /assets/* immutable 已覆盖其职责；manifest.js 与 _worker.js
+ *     的 injectManifest/versionedBase 引用已随 S0-22 一并移除（HTML 原样透传，worker 零改写）。
+ *   - server/、docs/、test/、node_modules 等源码不再上传（部署对象固定 dist）。
  */
 import { build } from 'esbuild';
-import { cpSync, mkdirSync, rmSync, readdirSync, statSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { resolve, join, dirname } from 'node:path';
+import { cpSync, mkdirSync, rmSync, readdirSync, statSync, readFileSync, existsSync } from 'node:fs';
+import { resolve, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DIST = join(ROOT, 'dist');
-const COPY_NAMES = new Set(['_headers', 'hand-mask.png', 'hand-mask-rot.png']); // 非内容哈希资产（站点头/静态图，CSS 静态引用）手动清单
+const NEW_FRONTEND = join(ROOT, 'new-frontend');
 
+// 1) Vite 构建新前端（内容哈希资产 + meta CSP 注入，见 new-frontend/vite.config.js）
+const viteBin = join(NEW_FRONTEND, 'node_modules', 'vite', 'bin', 'vite.js');
+const vite = spawnSync(process.execPath, [viteBin, 'build'], { cwd: NEW_FRONTEND, stdio: 'inherit' });
+if (vite.error) {
+  console.error(`build failed: 无法运行 Vite（${vite.error.message}）——new-frontend 依赖是否已安装？`);
+  process.exit(1);
+}
+if (vite.status !== 0) {
+  console.error(`build failed: vite build 退出码 ${vite.status}`);
+  process.exit(vite.status ?? 1);
+}
+
+// 2) 组装最小可部署 dist/
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(DIST, { recursive: true });
+const nfDist = join(NEW_FRONTEND, 'dist');
+for (const e of readdirSync(nfDist)) cpSync(join(nfDist, e), join(DIST, e), { recursive: true });
 
+// 3) 后端 worker 单文件 bundle（_worker.js 编排层 + server/ 全量内联）
 await build({
   entryPoints: [join(ROOT, '_worker.js')],
   outfile: join(DIST, '_worker.js'),
@@ -30,47 +52,11 @@ await build({
   logLevel: 'info',
 });
 
-// Client chunks: esbuild code splitting (feature dynamic imports will join later batches).
-const client = await build({
-  entryPoints: [join(ROOT, 'src/client/app.js')],
-  outdir: join(DIST, 'assets'),
-  bundle: true,
-  splitting: true,
-  format: 'esm',
-  platform: 'browser',
-  target: 'es2018',
-  entryNames: '[name]-[hash]',
-  chunkNames: '[name]-[hash]',
-  legalComments: 'none',
-  minify: false,
-  sourcemap: false,
-  metafile: true,
-  logLevel: 'info',
-});
-const entry = Object.keys(client.metafile.outputs).find(f => f.endsWith('.js') && readFileSync(f, 'utf8').includes('v2 client entry'));
-const appName = entry ? entry.split(/[\/]/).pop() : readdirSync(join(DIST, 'assets')).find(f => f.startsWith('app-') && f.endsWith('.js'));
-// V-4-1h h2h3：v2 页面直接作为站点入口 index.html（v1 壳已删，/ 承重；原 v2.html 过渡路径下线）
-const v2 = readFileSync(join(ROOT, 'web/index.html'), 'utf8').replace('/assets/app.js', `/assets/${appName}`);
-writeFileSync(join(DIST, 'index.html'), v2);
+// 4) 静态层响应头（/* 安全头 + /assets/* immutable，见 _headers）
+cpSync(join(ROOT, '_headers'), join(DIST, '_headers'));
 
-// Z-12-F3：静态资产按 manifest.js 复制（hash-assets 自动生成的完整清单，杜绝手动清单漂移——
-// 新增资产只改源码 + 重跑 hash-assets，build 零维护）。源位置按清单键自动解析：根级 / web/ / features/。
-// 清单列出却定位不到源码 = 构建失败（fail-fast，防发陈旧前端）。
-const { ASSET_MANIFEST } = await import(pathToFileURL(join(ROOT, 'manifest.js')).href);
-for (const base of Object.keys(ASSET_MANIFEST.files)) {
-  const src = existsSync(join(ROOT, base)) ? join(ROOT, base)
-    : existsSync(join(ROOT, 'web', base)) ? join(ROOT, 'web', base)
-    : null;
-  if (!src) { console.error(`build failed: manifest 资产 ${base} 源码缺失（hash-assets 后须能定位）`); process.exit(1); }
-  const dest = join(DIST, base);
-  mkdirSync(dirname(dest), { recursive: true });
-  cpSync(src, dest);
-}
-// 非内容哈希资产（站点头 _headers / 静态图）手动清单
-for (const name of COPY_NAMES) cpSync(join(ROOT, name), join(DIST, name));
-
-// 部署自检：dist/_worker.js 必须是 esbuild 完整 bundle，且构建脚本绝不改写 esbuild 产物内容。
-// 失败历史：早前版本曾正则归一化 default export 并回写文件，把 420KB bundle 截成 129 字节。
+// 5) 构建自检
+//   a. dist/_worker.js 必须是 esbuild 完整 bundle（历史事故：早前版本曾正则归一化把 420KB bundle 截成 129 字节）。
 const workerPath = join(DIST, '_worker.js');
 const workerBytes = statSync(workerPath).size;
 if (workerBytes < 100000) {
@@ -96,13 +82,45 @@ try {
   console.error('build check failed: dist/_worker.js cannot be imported by Node:', err && err.message);
   process.exit(1);
 }
-// V-4-1e 审计 F3 闸门：dist/assets/* 必须全为 esbuild 内容哈希名（_headers /assets/* immutable 的前提；
-// 非内容寻址文件被设 immutable 会 stale 一年）。esbuild 哈希 = [name]-[8 位 base62]。
-for (const f of readdirSync(join(DIST, 'assets'))) {
-  if (!/^[A-Za-z0-9_-]+-[A-Za-z0-9]{8}\.js$/.test(f)) {
-    console.error(`build check failed: dist/assets/${f} 不是 esbuild 内容哈希名（/assets/* immutable 不安全）`);
+
+//   b. Vite 产物检查：index.html 的相对资产引用齐全；dist/assets/* 全为 Vite 内容哈希名
+//      （_headers /assets/* immutable 前提；非内容寻址文件被设 immutable 会 stale 一年）。
+//      Vite 内容哈希名 = [name]-[8 位 base64url 哈希].ext（如 index-CW2XfQw1.js / gallery-4-b-ZihcSF.png）。
+const htmlPath = join(DIST, 'index.html');
+if (!existsSync(htmlPath)) {
+  console.error('build check failed: dist/index.html 缺失（Vite 产物异常）');
+  process.exit(1);
+}
+const html = readFileSync(htmlPath, 'utf8');
+const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m => m[1]).filter(r => r.startsWith('./'));
+if (!refs.length) {
+  console.error('build check failed: dist/index.html 零相对资产引用（非 Vite SPA 形态）');
+  process.exit(1);
+}
+for (const r of refs) {
+  const rel = r.replace(/^\.\//, '').replace(/[?#].*$/, '');
+  if (!existsSync(join(DIST, rel))) {
+    console.error(`build check failed: dist/index.html 引用 ${r} 在 dist 不存在`);
     process.exit(1);
   }
 }
+const assetsDir = join(DIST, 'assets');
+if (!existsSync(assetsDir)) {
+  console.error('build check failed: dist/assets 缺失（Vite 产物异常）');
+  process.exit(1);
+}
+const viteAsset = /^(.*)-([A-Za-z0-9_-]{8})\.[A-Za-z0-9]+$/;
+function checkAsset(f, dir) {
+  const abs = join(dir, f);
+  if (statSync(abs).isDirectory()) {
+    for (const sub of readdirSync(abs)) checkAsset(sub, abs);
+    return;
+  }
+  if (!viteAsset.test(f)) {
+    console.error(`build check failed: ${join(dir, f)} 不是 Vite 内容哈希名（/assets/* immutable 不安全）`);
+    process.exit(1);
+  }
+}
+for (const f of readdirSync(assetsDir)) checkAsset(f, assetsDir);
 
 console.log('dist ready');

@@ -1,10 +1,10 @@
 /**
- * 聊天域数据层（V-1-4 从 server/db.js 提取）：conversations / messages / uploads / signing_contracts（签约层）。
+ * Chat domain data layer (extracted from server/db.js at V-1-4): conversations / messages / uploads.
+ * S5 landed the standalone contracts table (signing_contracts DROPPED) — this module has no signing layer.
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
-import { mapDemandRow } from '../demand/repo.js';
 import { LIMITS } from '../../../shared/config.js';
-import { STATUS } from '../../../shared/enums.js';
+import { STATUS, TEMP_STATUS } from '../../../shared/enums.js';
 
 // 会话与消息（模块4）
 // ============================================================
@@ -37,14 +37,38 @@ export async function dbGetConversationById(db, id) {
 }
 
 // AI-8：按双方元组查会话（admin 永删关系定位用；与会话唯一约束 UNIQUE(student,teacher) 一致）
+// S2-T3: tuple lookup also returns temp fields so api.js can decide formal reopen vs temp reuse (I-23).
 export async function dbGetConversationByTuple(db, studentUserId, teacherUserId) {
   return await dbGet(db,
-    'SELECT id, demand_id, status FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
+    'SELECT id, demand_id, status, temp_status, temp_initiator_user_id FROM conversations WHERE student_user_id=? AND teacher_user_id=?',
     [studentUserId, teacherUserId]);
 }
 
-// AI-8：删除会话（admin 永删关系；messages/signing_contracts 经 FK ON DELETE CASCADE 连带清理，
-// 无需逐表删——chat/schema.js MESSAGES_DDL + contract/schema.js SIGNING_CONTRACTS_DDL 实证）
+// S2-T3: temp conversation create (I-23). INSERT OR IGNORE so a concurrent duplicate tuple resolves
+// to the existing row (same pattern as dbUpsertConversation). A pre-existing formal conversation
+// (temp_status NULL) is returned unchanged — api.js decides formal reopen vs temp reuse from the
+// tuple lookup. Returns { id, temp_status, temp_initiator_user_id }, or null only on an impossible
+// state (no row found after the insert).
+export async function dbCreateTempConversation(db, studentUserId, teacherUserId, initiatorUserId) {
+  await dbRun(db,
+    `INSERT OR IGNORE INTO conversations (student_user_id, teacher_user_id, status, temp_status, temp_initiator_user_id)
+     VALUES (?,?,?,?,?)`,
+    [studentUserId, teacherUserId, STATUS.ACTIVE, TEMP_STATUS.INIT, initiatorUserId]);
+  const row = await dbGetConversationByTuple(db, studentUserId, teacherUserId);
+  if (!row) return null;
+  return { id: row.id, temp_status: row.temp_status, temp_initiator_user_id: row.temp_initiator_user_id };
+}
+
+// S2-T6: prepared advance for the temp state machine (init -> sent -> NULL). api.js binds
+// (next, convId, current) inside the same db.batch as the message insert so the transition is
+// atomic with the first message landing. changes>0 = transition won; changes=0 = row already moved
+// (concurrent/replay) and the caller skips temp-specific side effects.
+export function dbPrepareTempAdvance(db) {
+  return db.prepare('UPDATE conversations SET temp_status=? WHERE id=? AND temp_status=?');
+}
+
+// AI-8: delete conversation (admin relation purge; messages cascade via FK ON DELETE CASCADE —
+// chat/schema.js MESSAGES_DDL). Standalone contracts have no conversation FK (S5) so they survive.
 export async function dbDeleteConversation(db, conversationId) {
   return await dbRun(db, 'DELETE FROM conversations WHERE id=?', [conversationId]);
 }
@@ -58,32 +82,9 @@ export async function dbGetConversationWithNames(db, conversationId) {
     WHERE c.id = ?`, [conversationId]);
 }
 
-// 会话可绑定需求下拉单源（需求四·第2/3条：发起签约 / 起草合同共用）：
-//   phase='signing'   会话学生方「开放」需求（可发起签约）
-//   phase='contract'  会话学生方「已签约」需求（签约确认后可起草合同；已绑进行中/已签合同的需求除外；
-//                     且须由本会话教师促成签约——被别教师 signed 签约驱动的需求不列出，
-//                     防跨会话绑别教师签成的需求起草合同；同对师生换会话的 contracted 需求仍可列出）
-// 归属硬约束：只取会话学生方（sd.user_id = c.student_user_id），师生身份由路由层参与方校验保证；
-// 出口走 mapDemandRow（剥联系方式，师生双方均不可在绑定下拉里看到学生联系方式）
-export async function dbGetConversationBindableDemands(db, conversationId, phase) {
-  const cond = phase === 'contract'
-    ? `AND sd.status='contracted'
-       AND EXISTS (SELECT 1 FROM signing_contracts sc WHERE sc.demand_id=sd.id AND sc.stage='signing'
-            AND sc.signing_status='signed' AND sc.revoked=0 AND sc.teacher_user_id=c.teacher_user_id) -- AI-4b: 起草须本会话教师已成交（正向定位，防他师陈旧 signed 行误挡）
-       AND NOT EXISTS (SELECT 1 FROM signing_contracts sc2 WHERE sc2.demand_id=sd.id AND sc2.stage='contract'
-            AND sc2.contract_status IN ('pending','signing','signed') AND sc2.revoked=0) -- Q-2e-F1 收口：撤销合同不算进行中（本查询是生产起草下拉唯一数据源，漏排除则 409 死锁变空下拉死锁）`
-    : `AND sd.status='open'`;
-  const rows = await dbAll(db, `
-    SELECT sd.*, u.username
-    FROM student_demands sd
-    JOIN users u ON u.id=sd.user_id
-    JOIN conversations c ON c.id=?
-    WHERE sd.user_id=c.student_user_id ${cond}
-    ORDER BY sd.created_at DESC, sd.id DESC`, [conversationId]);
-  return rows.map(mapDemandRow);
-}
-
-// 我参与的会话列表（含对方用户名 + 最后一条消息预览 + 签约状态）
+// My participating conversations list (peer usernames + last-message preview + temp status).
+// S2-T4 temp visibility (I-17): init rows visible only to the initiator; sent/formal rows visible to both participants.
+// S2-T4 temp visibility (I-17): init rows visible only to the initiator; sent/formal rows visible to both participants.
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
   // contracted 字段连根拔——原仅供「签约确认后背景灰字提示」（.chat-sign-tip）判定，
@@ -91,6 +92,7 @@ export async function dbGetMyConversations(db, userId) {
   // 显式列集（不用 c.*）：双方已读游标（student_last_read_id/teacher_last_read_id）不下发，
   // 避免向对方暴露己方已读位置（低敏信息泄露面收口）
   return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.demand_id, c.status, c.created_at,
+      c.temp_status, c.temp_initiator_user_id,
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
@@ -109,22 +111,25 @@ export async function dbGetMyConversations(db, userId) {
         GROUP BY conversation_id) x
         ON x.mid=m.id
     ) lm ON lm.conversation_id=c.id
-    WHERE c.student_user_id=? OR c.teacher_user_id=?
-    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId, userId, userId]);
+    WHERE (c.student_user_id=? OR c.teacher_user_id=?)
+      AND (c.temp_status IS NULL OR c.temp_status <> 'init' OR c.temp_initiator_user_id = ?) -- S2-T4: init rows hidden from non-initiators (existence-leak prevention); sent/formal visible to both participants
+    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId, userId, userId, userId]);
 }
 
-// AI-7：统一关系清单——按双方元组聚合（会话 + 最后消息 + 最新 signing_contracts 状态），供连线图/关系管理。
-// 会话 = 双方元组（UNIQUE(student,teacher)）天然一一对应；最新签约/合同状态按元组 MAX(id) 取
-// （signing_contracts conversation_id 可能为 NULL——AI-4b 兜底 INSERT 行，故按元组聚合与 AI-1 级联口径一致）。
-// 显式列集（不用 c.*）：已读游标（student_last_read_id/teacher_last_read_id）不下发（同 dbGetMyConversations 低敏泄露收口）。
+// AI-7: unified relationship list — aggregate by two-party tuple (conversation + last message + latest
+// contracts status), for the relation graph / relationship management. Read-only.
+// The conversation is the tuple (UNIQUE(student,teacher)) one-to-one; the latest contract status is taken
+// by tuple MAX(id) (contracts.conversation_id may be NULL for standalone rows, matching AI-1 cascade scope).
+// Explicit column list (not c.*): read cursors (student_last_read_id/teacher_last_read_id) are not exposed
+// (same low-sensitivity leak closure as dbGetMyConversations).
 export async function dbGetMyRelations(db, userId) {
   return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.status, c.created_at,
+      c.temp_status, c.temp_initiator_user_id,
       us.username AS student_name, ut.username AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
       lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
-      sc.id AS sc_id, sc.stage AS sc_stage, sc.signing_status AS sc_signing_status,
-      sc.contract_status AS sc_contract_status, sc.revoked AS sc_revoked
+      sc.id AS sc_id, sc.contract_status AS sc_contract_status, sc.revoked AS sc_revoked
     FROM conversations c
     JOIN users us ON us.id=c.student_user_id
     JOIN users ut ON ut.id=c.teacher_user_id
@@ -136,8 +141,8 @@ export async function dbGetMyRelations(db, userId) {
         GROUP BY conversation_id) x
         ON x.mid=m.id
     ) lm ON lm.conversation_id=c.id
-    LEFT JOIN signing_contracts sc ON sc.id = (
-      SELECT MAX(id) FROM signing_contracts sc2
+    LEFT JOIN contracts sc ON sc.id = (
+      SELECT MAX(id) FROM contracts sc2
       WHERE sc2.student_user_id=c.student_user_id AND sc2.teacher_user_id=c.teacher_user_id)
     WHERE c.student_user_id=? OR c.teacher_user_id=?
     ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId]);
@@ -200,99 +205,50 @@ export async function dbDeleteMessage(db, messageId) {
   return dbRun(db, 'DELETE FROM messages WHERE id=?', [messageId]);
 }
 
-// 更新消息 body（signing.js 发起回填/终态覆写用；UPDATE 只此一处）
-export async function dbSetMessageBody(db, messageId, body) {
-  return dbRun(db, 'UPDATE messages SET body=? WHERE id=?', [body, messageId]);
+// S2-T6: CAS-guarded message insert for the temp state machine — the message only lands while the
+// conversation is still in the expected temp_state (mirrors dbPrepareTempAdvance's WHERE guard), so a
+// concurrent send that lost the transition inserts 0 rows (no ghost message past quota).
+export function dbPrepareTempMessageInsert(db) {
+  return db.prepare(`INSERT INTO messages (conversation_id, sender_user_id, kind, body, name, thumb, client_key)
+    SELECT ?,?,?,?,?,?,?
+    WHERE (SELECT temp_status FROM conversations WHERE id=?) IS ?`);
+}
+// S2-T6: CAS-guarded upload delete — a lost temp batch must not destroy the sender's staged upload.
+export function dbPrepareTempUploadDelete(db) {
+  return db.prepare(`DELETE FROM uploads WHERE id=? AND user_id=?
+    AND (SELECT temp_status FROM conversations WHERE id=?) IS ?`);
 }
 
-// ============================================================
-// 签约请求（signing_contracts stage='signing' 层）——AI-4b 读写切换合并表（签约/合同同一实体不同 stage）
-// ============================================================
-export async function dbGetSigningById(db, id) {
-  return await dbGet(db, "SELECT sc.*, sc.signing_status AS status FROM signing_contracts sc WHERE id=? AND stage='signing'", [id]);
-}
-
-/** 管理端硬删签约请求（D2 处罚；气泡消息本体留 messages，正文 JSON 自含快照不受影响） */
-export async function dbDeleteSigning(db, signingId) {
-  await dbRun(db, "DELETE FROM signing_contracts WHERE id=? AND stage='signing'", [signingId]);
-}
-
-export async function dbGetPendingSigningForConversation(db, conversationId) {
-  return await dbGet(db,
-    "SELECT id FROM signing_contracts WHERE conversation_id=? AND stage='signing' AND signing_status='pending' LIMIT 1", [conversationId]);
-}
-
-export async function dbCreateSigning(db, conversationId, studentUserId, teacherUserId, demandId, userId, msgId, price, schedule, method) {
-  const res = await dbRun(db,
-    'INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, demand_id, initiator_user_id, message_id, price, schedule, method, stage, signing_status) VALUES (?,?,?,?,?,?,?,?,?,\'signing\',\'pending\')',
-    [conversationId, studentUserId, teacherUserId, demandId, userId, msgId, price, schedule, method]);
-  return Number(res.meta.last_row_id);
-}
-
-// 确认签约原子事务：sr 置 signed + 需求置 contracted 同一 batch 事务，
-// 需求守卫 EXISTS(open) 防同需求多会话并发双签（后到的批事务守卫失败 → changes[0]=0 → 调用方 410）。
-// 返回 [srChanges, demandChanges]；auto-reject 副作用只由需求收缩赢家（demandChanges>0）驱动。
-export async function dbConfirmSigning(db, signingId, demandId) {
-  const results = await db.batch([
-    db.prepare(`UPDATE signing_contracts SET signing_status='signed', responded_at=datetime('now')
-      WHERE id=? AND stage='signing' AND signing_status='pending'
-      AND EXISTS(SELECT 1 FROM student_demands WHERE id=? AND status='open')`).bind(signingId, demandId),
-    db.prepare(`UPDATE student_demands SET status='contracted' WHERE id=? AND status='open'`).bind(demandId),
-  ]);
-  return results.map(r => (r && r.meta && r.meta.changes) || 0);
-}
-
-// 拒绝/收束签约单条（respond 拒绝分支 + 注销收束共用）：条件 UPDATE + changes 判定（赢家模式）
-export async function dbRejectSigning(db, signingId) {
-  const res = await dbRun(db,
-    `UPDATE signing_contracts SET signing_status=?, responded_at=datetime('now') WHERE id=? AND stage='signing' AND signing_status='pending'`,
-    [STATUS.REJECTED, signingId]);
-  return !!(res && res.meta && res.meta.changes > 0);
-}
-
-// AI-1：结束关系原子事务——会话 active→closed + 级联自动收束（pending 签约拒绝 + 进行中合同撤销 + 需求释放）
-// 单 db.batch 原子。幂等/并发：会话 UPDATE 的 status='active' 守卫是承重闸门（并发双 close 仅赢家
-// closeWon=true 触发副作用；级联各行自身条件 UPDATE 幂等，重复 close 全 changes=0 零副作用）。
-// 级联按双方元组匹配（relationship 抽象父类的物理表达，不依赖 conversation_id——该列可 NULL、
-// AI-4b 兜底独立合同行也覆盖；命中 idx_sc_tuple 索引）。
-// 需求释放与合同撤销同事务（AI-1 有意决定：防「合同已 revoked 但需求滞留 contracted 死锁」，
-// Q-2e-F1 教训；SQL 与 demand/repo.js dbReleaseDemandAfterRevoke 同口径，batch 内联）。
-// 边界（A5 终态门禁由 WHERE 守卫天然保证）：已成交未起草（signing signed）/已签署合同（contract signed）/
-// 已拒绝/已撤销行全部不命中；已撤销合同置 revoked=1+contract_status='signed' 沿 handleRevokeContract 标记口径
-// （revoked 主导显示，contractStatusMeta 先判 revoked）。
-// 返回 { closeWon, rejected:[{行..., changes}], revoked:[{行..., changes}], demandsReleased }
+// AI-1: end-relationship atomic transaction — conversation active→closed + cascading contract revoke.
+// S3/S5 single-subject + standalone contracts: the signing layer is gone (signing_contracts DROPPED by
+// S5); demand release no longer applies (demand status converges to open/closed, contracts do not bind
+// demands). Close only revokes in-progress contracts (contract_status='signing' AND revoked=0) matched
+// by the two-party tuple — the physical expression of the relationship abstraction, independent of
+// conversation_id (which may be NULL for standalone rows; hits idx_contracts_tuple).
+// Single db.batch, atomic. Idempotent/concurrent: the conversation UPDATE's status='active' guard is the
+// winner gate (concurrent double-close → only the winner runs side effects); each cascade row's own
+// conditional UPDATE is idempotent (re-close → all changes=0, zero side effects).
+// Boundary (A5 terminal-state gate, guaranteed by the WHERE guards): signed contracts (contract_status
+// 'signed') and already-revoked rows are not matched; the revoke marks revoked=1 + contract_status
+// 'signed' + revoked_by=0 (system), following handleRevokeContract's marking semantics.
+// Returns { closeWon, rejected: [], revoked: [{ id, conversation_id, changes }] } — rejected is always
+// empty (no signing layer to reject); the shape is kept so callers do not crash.
 export async function dbCloseConversationCascade(db, conversationId, studentUserId, teacherUserId) {
-  const signings = await dbAll(db,
-    `SELECT id, demand_id, initiator_user_id, message_id, price, schedule, method
-     FROM signing_contracts
-     WHERE student_user_id=? AND teacher_user_id=? AND stage='signing' AND signing_status='pending'`,
-    [studentUserId, teacherUserId]);
   const contracts = await dbAll(db,
-    `SELECT id, demand_id FROM signing_contracts
-     WHERE student_user_id=? AND teacher_user_id=? AND stage='contract'
-       AND contract_status IN ('pending','signing') AND revoked=0`,
+    `SELECT id, conversation_id FROM contracts
+     WHERE student_user_id=? AND teacher_user_id=? AND contract_status='signing' AND revoked=0`,
     [studentUserId, teacherUserId]);
-  const demandIds = [...new Set(contracts.map(c => c.demand_id).filter(Boolean))];
   const stmts = [
     db.prepare("UPDATE conversations SET status='closed' WHERE id=? AND status='active'").bind(conversationId),
-    ...signings.map(s => db.prepare(
-      `UPDATE signing_contracts SET signing_status=?, responded_at=datetime('now')
-       WHERE id=? AND stage='signing' AND signing_status='pending'`).bind(STATUS.REJECTED, s.id)),
     ...contracts.map(c => db.prepare(
-      `UPDATE signing_contracts SET revoked=1, revoked_by=0, contract_status='signed', version=version+1, updated_at=datetime('now')
-       WHERE id=? AND stage='contract' AND contract_status IN ('pending','signing') AND revoked=0`).bind(c.id)),
-    ...demandIds.map(d => db.prepare(
-      `UPDATE student_demands SET status='revoked' WHERE id=? AND status='contracted'`).bind(d)),
+      `UPDATE contracts SET revoked=1, revoked_by=0, contract_status='signed', version=version+1, updated_at=datetime('now')
+       WHERE id=? AND contract_status='signing' AND revoked=0`).bind(c.id)),
   ];
   const results = await db.batch(stmts);
   const changes = i => (results[i] && results[i].meta && results[i].meta.changes) || 0;
   let idx = 1;
-  const rejected = signings.map(s => ({ ...s, changes: changes(idx++) }));
-  const revoked = contracts.map(c => ({ ...c, changes: changes(idx++) }));
-  // 需求释放实际命中数（并发已释放的行 changes=0 不计入；审计 AI-1 发现 3 修正统计口径）
-  let demandsReleased = 0;
-  for (let j = 0; j < demandIds.length; j++) { if (changes(idx++) > 0) demandsReleased++; }
-  return { closeWon: changes(0) > 0, rejected, revoked, demandsReleased };
+  const revoked = contracts.map(c => ({ id: c.id, conversation_id: c.conversation_id, changes: changes(idx++) }));
+  return { closeWon: changes(0) > 0, rejected: [], revoked };
 }
 
 // ============================================================

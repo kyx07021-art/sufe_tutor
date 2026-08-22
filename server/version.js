@@ -15,7 +15,8 @@
  *     reviews、invite）一律不 bump——它们不改变任何用户可见的列表数据；
  *   - 聊天系只被「发消息/传附件」bump，且只落 chat 域——聊天是高频写，
  *     若落全局/多域会造成所有客户端重拉重列表（放大效应，按域拆的意义）；
- *   - 合同系同时 bump contracts + demands（合同状态改变需求可见性/状态）；
+ *   - contracts writes bump contracts + chat (S5: contracts independent of demands — the
+ *     write still drops a contract-draft bubble into the conversation, so chat stays);
  *   - 计数器全局共享（非 per-user），无敏感性；客户端只对自身已缓存的域重拉，跨用户零影响。
  * 挂点：_worker.js 写咽喉（非 GET 成功响应统一分支），一个插入点覆盖全站写路径。
  */
@@ -94,33 +95,30 @@ export function versionDomainOf(pathname) {
   // 附件暂存（拖入未发送，私有不入会话）——真正入会话由发消息路径 bump chat
   if (p === '/api/uploads' || /^\/api\/uploads\/\d+$/.test(p)) return [];
 
-  // 发起签约：创建/回应签约请求——合同域 + 聊天气泡 + 需求
-  // （确认后需求 contracted 并自动拒绝其余意向/推送，均属低频不构成放大）
-  if (/^\/api\/conversations\/\d+\/signing$/.test(p) ||
-      /^\/api\/signing-requests\/\d+\/respond$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.CHAT, DOMAINS.DEMANDS];
-
-  // AI-1：结束关系——会话状态（chat）+ 合同级联收束（contracts）+ 需求释放（demands）三域失效
-  // （与 signing/respond 同域组；notifications 由 notifyUser 咽喉自 bump）
-  if (/^\/api\/conversations\/\d+\/close$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.CHAT, DOMAINS.DEMANDS];
+  // S5: end relationship — conversation state (chat) + contract cascade settle (contracts).
+  // Contracts are independent of demands (S5), so no demands bump. notifications are bumped
+  // by the notifyUser choke point itself.
+  if (/^\/api\/conversations\/\d+\/close$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.CHAT];
 
   // 聊天系（高频写隔离：只 bump chat 域，不扰动其它域）
   if (/^\/api\/conversations\/\d+\/messages$/.test(p)) return [DOMAINS.CHAT];
 
-  // 需求系（学生需求 CRUD/重开、意向创建、推送创建）
-  if (p === '/api/student/demands' || p === '/api/demand-pushes' ||
-      /^\/api\/student\/demands\/\d+(\/reopen)?$/.test(p) ||
-      /^\/api\/demands\/\d+\/intents$/.test(p)) return [DOMAINS.DEMANDS];
+  // S2: temp conversation create (POST /api/conversations/temp) creates a conversation and sends
+  // the first message → the other participant's chat list must refresh (chat-only bump).
+  if (p === '/api/conversations/temp') return [DOMAINS.CHAT];
 
-  // 意向/推送处理：accept 会建会话（dbUpsertConversation）→ 连带 chat；低频，不构成高频写放大
-  if (/^\/api\/intents\/\d+\/resolve$/.test(p) ||
-      /^\/api\/demand-pushes\/\d+\/resolve$/.test(p)) return [DOMAINS.DEMANDS, DOMAINS.CHAT];
+  // 需求系（S3 单科目：/api/demands* CRUD + close/open 状态切换。intents/pushes removed by S2）
+  if (p === '/api/demands' ||
+      /^\/api\/demands\/\d+$/.test(p) ||
+      /^\/api\/demands\/\d+\/(close|open)$/.test(p)) return [DOMAINS.DEMANDS];
 
-  // 合同系：合同状态改变需求可见性 + 聊天窗落合同气泡 → 三域
+  // S5: contracts are independent (not bound to demands). A contract write still drops a
+  // contract-draft bubble into the conversation → keep chat; no demands bump.
   if (p === '/api/contracts' || /^\/api\/contracts\/\d+(\/(sign|revoke))?$/.test(p))
-    return [DOMAINS.CONTRACTS, DOMAINS.DEMANDS, DOMAINS.CHAT];
+    return [DOMAINS.CONTRACTS, DOMAINS.CHAT];
 
-  // 管理员删除合同：合同+需求+管理端列表
-  if (/^\/api\/admin\/contracts\/\d+$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.DEMANDS, DOMAINS.ADMIN];
+  // S5: admin deletes a contract — contracts + admin list; no demands (contracts independent).
+  if (/^\/api\/admin\/contracts\/\d+$/.test(p)) return [DOMAINS.CONTRACTS, DOMAINS.ADMIN];
 
   // 教师系（档案保存 / 管理员核验 / 封禁——封禁改教师列表可见性 + 管理端用户列表）
   if (p === '/api/teacher/profile') return [DOMAINS.TEACHERS];

@@ -365,10 +365,11 @@ export async function handleBindPhone(db, body, req) {
   const norm = normalizeIdentifier(String(body.phone || '').trim());
   if (norm.kind !== 'phone') return errorMsg('PHONE_INVALID');
   if (!String(body.code || '').trim()) return errorMsg('OTP_REQUIRED');
-  if (await dbPhoneTaken(db, norm.target)) return errorMsg('PHONE_ALREADY_BOUND', 409);
+  // I-12 验码先行：占用查在验码之后——只有持码者能触发 409，防手机号占用枚举（无码 400 OTP_REQUIRED、错码/已消费 400 OTP_INVALID_OR_EXPIRED，均不暴露占用）。
   const otpR = await verifyOtp(db, { channel: 'sms', target: norm.target, code: String(body.code).trim() });
   if (otpR === 'exhausted') return errorMsg('OTP_EXHAUSTED', 400, 'OTP_EXHAUSTED'); // 三振作废：必须重新发码（稳定 code 供前端分支）
   if (otpR !== 'ok') return errorMsg('OTP_INVALID_OR_EXPIRED');
+  if (await dbPhoneTaken(db, norm.target)) return errorMsg('PHONE_ALREADY_BOUND', 409);
   await bindPhoneCredential(db, me.id, norm.target); // 凭证更新独立环节（A4）：未来切手机号核心只改 credential.js
   await logEvent(db, { action: 'user.phone.bind', actorUserId: me.id, actorUsername: me.username,
     actorRole: me.role, entity: 'user', entityId: me.id, detail: { phone: maskPhone(norm.target) }, req });
@@ -382,10 +383,11 @@ export async function handleBindEmail(db, body, req) {
   const norm = normalizeIdentifier(String(body.email || '').trim());
   if (norm.kind !== 'email') return errorMsg('EMAIL_INVALID');
   if (!String(body.code || '').trim()) return errorMsg('OTP_REQUIRED');
-  if (await dbEmailTaken(db, norm.target)) return errorMsg('EMAIL_ALREADY_BOUND', 409);
+  // I-12 验码先行：占用查在验码之后——只有持码者能触发 409，防邮箱占用枚举（无码 400 OTP_REQUIRED、错码/已消费 400 OTP_INVALID_OR_EXPIRED，均不暴露占用）。
   const otpR = await verifyOtp(db, { channel: 'email', target: norm.target, code: String(body.code).trim() });
   if (otpR === 'exhausted') return errorMsg('OTP_EXHAUSTED', 400, 'OTP_EXHAUSTED'); // 三振作废：必须重新发码（稳定 code 供前端分支）
   if (otpR !== 'ok') return errorMsg('OTP_INVALID_OR_EXPIRED');
+  if (await dbEmailTaken(db, norm.target)) return errorMsg('EMAIL_ALREADY_BOUND', 409);
   await bindEmailCredential(db, me.id, norm.target);
   await logEvent(db, { action: 'user.email.bind', actorUserId: me.id, actorUsername: me.username,
     actorRole: me.role, entity: 'user', entityId: me.id, detail: { email: targetMask(norm.target) }, req });

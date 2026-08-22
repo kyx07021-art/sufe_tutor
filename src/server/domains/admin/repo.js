@@ -2,7 +2,6 @@
  * 管理域数据层（V-1-4 从 server/db.js 提取）：统计/用户管理/统一内容提取。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js'; // Z-6-F1：dbRevokeInviteCode/dbDeleteFeedback/dbDeleteComplaint 补 dbRun（断线修复）
-import { safeJsonArray } from '../../core/json.js';
 import { LIMITS } from '../../../shared/config.js';
 import { MSG } from '../../../shared/codes.js'; // Q-2i-M5：内容审核 title 文案单源
 import { mapTeacherProfileRow } from '../teacher/repo.js'; // U-3a F2: single-source teacher row decrypt for admin search
@@ -18,7 +17,7 @@ export async function dbGetUserStats(db) {
 }
 
 // 网安审计 N-17：表名白名单映射（消除调用方拼表名进 SQL 的注入形状；未知表返回 0 不炸）
-const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1, teacher_awards: 1, feedbacks: 1, complaints: 1, teacher_verifications: 1 }; // Z-6-F2：dashboard 待办「教师核验」计数此前白名单缺表恒 0
+const COUNT_TABLES = { teacher_profiles: 1, student_demands: 1, feedbacks: 1, complaints: 1, teacher_verifications: 1 }; // S6-A3: teacher_awards removed (awards offline, W1); Z-6-F2: teacher_verifications whitelist retained
 // 条件计数（统计页待办队列用）：表名必须过 COUNT_TABLES 白名单（防注入），
 // where 为内部硬编码字面量（status 枚举），禁止拼接用户输入
 export async function dbGetCountWhere(db, table, where) {
@@ -65,10 +64,10 @@ export async function dbGetRecentUsers(db, limit = LIMITS.RECENT_LIMIT) {
 }
 
 export async function dbGetRecentDemands(db, limit = LIMITS.RECENT_LIMIT) {
-  // R2-b：含 target_type，管理端统计「最近需求」按学科/非学科显示对应目标名
-  const rows = await dbAll(db, `SELECT sd.id,sd.student_grade,sd.target_subjects,sd.target_type,sd.created_at,u.username
+  // S3 单科目：subject 单值（原 target_subjects 数组），管理端统计「最近需求」按科目显示
+  const rows = await dbAll(db, `SELECT sd.id,sd.subject,sd.grade,sd.status,sd.created_at,u.username
     FROM student_demands sd JOIN users u ON sd.user_id=u.id ORDER BY sd.created_at DESC LIMIT ?`, [limit]);
-  return rows.map(d => ({ ...d, target_subjects: safeJsonArray(d.target_subjects) }));
+  return rows.map(d => ({ ...d, subject: d.subject || '' }));
 }
 
 // ============================================================
@@ -122,7 +121,7 @@ export async function dbAdminSearchUsers(db, role, q, limit = LIMITS.ADMIN_SEARC
 const CONTENT_SQL = {
   post: `SELECT p.id, p.user_id, u.username, u.role, p.section, p.title, p.body_md, p.like_count, p.created_at
     FROM posts p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT ?`,
-  demand: `SELECT sd.id, sd.user_id, u.username, u.role, sd.status, sd.target_subjects, sd.address, sd.additional_info, sd.display_id, sd.created_at
+  demand: `SELECT sd.id, sd.user_id, u.username, u.role, sd.status, sd.subject, sd.address_area, sd.additional_info, sd.created_at
     FROM student_demands sd LEFT JOIN users u ON u.id=sd.user_id ORDER BY sd.id DESC LIMIT ?`,
   teacher: `SELECT tp.user_id, u.username, u.role, tp.intro, tp.address, tp.school, tp.verified, tp.updated_at
     FROM teacher_profiles tp LEFT JOIN users u ON u.id=tp.user_id ORDER BY tp.updated_at DESC LIMIT ?`,
@@ -137,9 +136,7 @@ const CONTENT_SQL = {
   upload: `SELECT o.id, o.user_id, u.username, u.role, o.kind, o.name, o.created_at
     FROM uploads o LEFT JOIN users u ON u.id=o.user_id ORDER BY o.id DESC LIMIT ?`,
   contract: `SELECT c.id, c.drafter_user_id, u.username, u.role, c.plan, c.schedule, c.contract_status AS status, c.created_at
-    FROM signing_contracts c LEFT JOIN users u ON u.id=c.drafter_user_id WHERE c.stage='contract' ORDER BY c.id DESC LIMIT ?`,
-  signing: `SELECT s.id, s.initiator_user_id, u.username, u.role, s.price, s.schedule, s.method, s.signing_status AS status, s.created_at
-    FROM signing_contracts s LEFT JOIN users u ON u.id=s.initiator_user_id WHERE s.stage='signing' ORDER BY s.id DESC LIMIT ?`,
+    FROM contracts c LEFT JOIN users u ON u.id=c.drafter_user_id ORDER BY c.id DESC LIMIT ?`, // S6-A8: S5 standalone contracts table (no stage/signing layer)
 };
 
 // SQL 与行映射都按类型字符串键控（CONTENT_MAPPER[t]），
@@ -150,7 +147,7 @@ const CONTENT_SQL = {
 const tpl = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != null ? vars[k] : m)); // Q-2i-M5c：未知变量保留原文——用户可控字段值内的 {ascii词}（如附件名 report{2024}.pdf）不再被吞掉
 const CONTENT_MAPPER = {
   post: r => ({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } }),
-  demand: r => ({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_DEMAND, { id: r.display_id || r.id }), body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
+  demand: r => ({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_DEMAND, { id: r.id }), body: [r.subject, r.address_area, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }), // S3 单科目：subject 单值/display_id 删
   teacher: r => ({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_TEACHER, { name: r.username || '' }), body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} }),
   review: r => ({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_REVIEW, { rating: r.rating }), body: r.comment, status: r.status, created_at: r.created_at, extra: {} }),
   message: r => ({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? MSG.CONTENT_TITLE_MESSAGE_TEXT : tpl(MSG.CONTENT_TITLE_MESSAGE_ATTACH, { kind: r.kind, name: r.name ? ' · ' + r.name : '' }), body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } }),
@@ -158,7 +155,6 @@ const CONTENT_MAPPER = {
   complaint: r => ({ type: 'complaint', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_COMPLAINT, { target: r.target_type, id: r.target_id, reason: r.reason }), body: r.detail, status: r.status, created_at: r.created_at, extra: { target_type: r.target_type, target_id: r.target_id } }),
   upload: r => ({ type: 'upload', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_UPLOAD, { kind: r.kind, name: r.name ? ' · ' + r.name : '' }), body: '', status: '', created_at: r.created_at, extra: { kind: r.kind } }),
   contract: r => ({ type: 'contract', id: r.id, author: { id: r.drafter_user_id, username: r.username, role: r.role }, title: MSG.CONTENT_TITLE_CONTRACT, body: [r.plan, r.schedule].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
-  signing: r => ({ type: 'signing', id: r.id, author: { id: r.initiator_user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_SIGNING, { price: r.price > 0 ? r.price + MSG.CONTENT_PRICE_PER_HOUR : '' }), body: [r.schedule, r.method].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
 };
 
 function mapContentRows(t, rows, out) {
@@ -170,8 +166,7 @@ function mapContentRows(t, rows, out) {
 export const CONTENT_TYPES = Object.keys(CONTENT_SQL); // 单源：类型清单自动跟随 CONTENT_SQL 键
 
 export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUBLIC_LIST_MAX } = {}) {
-  // 补 contract（合同正文——最敏感的用户内容）与 signing（签约请求），
-  // 统一内容页现在可审全部用户可操作内容。
+  // 补 contract（合同正文——最敏感的用户内容），统一内容页现在可审全部用户可操作内容。
   const types = (type && CONTENT_SQL[type]) ? [type] : (type ? [] : CONTENT_TYPES);
   if (!types.length) return []; // 无效 type/空清单 → 空结果；不调 D1 batch([])（真实 D1 空数组 batch 会抛错，
     // 真实 D1 空数组 batch 会抛错，空清单必须提前 return（mock shim 同行为回归拦截）

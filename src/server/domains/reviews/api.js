@@ -1,17 +1,18 @@
 /**
  * 路由模块：评价（学生发表 / 修改 / 公开列表）
- * 规则：仅签约学生可评价（门禁经 dbIsContracted）；每名学生对每名教师限一条，
- *       已有评价只能修改（修改后重回待审核）。
- * 依赖：util / security（requireUser）/ constants（校验文案/评分/评论限额）/ db / log。
+ * 规则：评价资格经三条件模型（dbCanReview：会话存在 + 双方往来消息各≥1 + 教师核验 approved，
+ *       禁止评价自己）；每名学生对每名教师限一条，已有评价只能修改（修改后重回待审核）。
+ * 依赖：util / security（requireUser）/ eligibility（dbCanReview 三条件门禁）/ constants / db / log。
  */
 import { json, errorMsg, isUniqueConflict, parseIdParam } from '../../core/util.js';
 import { requireUser, requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { STATUS } from '../../../shared/enums.js';
 import { LIMITS } from '../../../shared/config.js';
+import { dbCanReview } from './eligibility.js';
 import {
   dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
-  dbUpdateReview, dbIsContracted, dbGetReviewById,
+  dbUpdateReview, dbGetReviewById,
   dbGetReviewsAdmin, dbUpdateReviewStatus, dbRecomputeTeacherRating, dbDeleteReview,
 } from '../../../../server/db.js';
 import { logEvent } from '../../core/log.js';
@@ -25,7 +26,14 @@ export async function handleCreateReview(db, body, req) {
   const { user: reviewer, err } = await requireUser(db, req, 'student');
   if (err) return err;
   const reviewerUserId = reviewer.id;
-  if (!(await dbIsContracted(db, reviewerUserId, teacherUserId))) return errorMsg('REVIEW_CONTRACT_ONLY', 403);
+  const eligibility = await dbCanReview(db, reviewerUserId, teacherUserId);
+  if (!eligibility.ok) {
+    // 三条件门禁（S6 定案②）：会话存在 + 双方往来消息各≥1 + 教师核验 approved；禁止评价自己。
+    // 错误码单源归 shared/codes.js（主会话落码 REVIEW_ELIGIBILITY / REVIEW_SELF_FORBIDDEN），
+    // 此处先复用既有键（403 NO_PERMISSION / 400 INVALID_PARAMS），主会话落码后替换。
+    if (eligibility.reason === 'SELF_REVIEW') return errorMsg('INVALID_PARAMS', 400);
+    return errorMsg('NO_PERMISSION', 403);
+  }
   if (await dbGetReviewByPair(db, reviewerUserId, teacherUserId)) return errorMsg('REVIEW_EXISTS', 409);
 
   let id;

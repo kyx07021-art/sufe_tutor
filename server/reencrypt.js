@@ -15,7 +15,7 @@
  * 只处理 ≤REENCRYPT_ROW_BUDGET 行密文，游标推进「字段表 → 投诉附件 → 日志」三段；
  * reencryptAll 为循环包装（测试/一次性全量场景语义不变，仅 shim 无 D1 上限时可用）。
  *
- * 游标续跑用 id（非 rowid）分页：三张涉及表均 id INTEGER PRIMARY KEY AUTOINCREMENT（id==rowid），
+ * 游标续跑用 id（非 rowid）分页：全部涉及表均 id INTEGER PRIMARY KEY AUTOINCREMENT（id==rowid），
  * 且 node:sqlite shim 对 INTEGER PRIMARY KEY 表不返回 rowid 键（SELECT rowid 只见 id），
  * 用 id 消除 shim/D1 分歧并使「段内恰满 budget 续跑」路径可在 shim 下实测。
  */
@@ -28,11 +28,11 @@ import { LIMITS } from '../src/shared/config.js';
 const FIELD_TABLES = [
   { table: 'users', cols: ['phone', 'email'] },
   { table: 'teacher_profiles', cols: ['wechat', 'email', 'real_name', 'credential_image'] },
-  { table: 'student_demands', cols: ['parent_contact', 'student_contact'] },
+  // S3: student_demands contact columns removed (parent_contact/student_contact no longer stored) - dropped from rotation list
   { table: 'teacher_verifications', cols: ['verify_code', 'admission_image'] },
   { table: 'uploads', cols: ['body', 'thumb'] },
   { table: 'messages', cols: ['body', 'thumb'] },
-  { table: 'signing_contracts', cols: ['contract_md', 'prev_business'] }, // AI-4b：业务读写已切合并表（Q-2e-F2：prev_business 加密落库，漏登记则轮换删旧钥后 diff 退化 [undecryptable]）
+  { table: 'contracts', cols: ['contract_md', 'prev_business'] }, // S5: standalone contracts table replaces signing_contracts (Q-2e-F2: prev_business encrypted, must be registered or key rotation leaves diff [undecryptable])
 ];
 
 const ENC_PREFIX = 'enc:v1:';

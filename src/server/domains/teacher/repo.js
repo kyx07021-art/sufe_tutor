@@ -5,6 +5,8 @@ import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { encryptField, decryptField } from '../../core/crypto.js';
 import { safeJsonArray } from '../../core/json.js'; // Z-3-F3：safeJsonObject 零引用删除
 import { LIMITS } from '../../../shared/config.js'; // Z-3-F3：INITIAL_RATING/INITIAL_WEIGHT 真正使用方在 auth/repo.js，此处零引用删除
+import { SUFE_REGIONS } from '../../../shared/region-data.js'; // S4-02：provinceName 单源（教师展示地区）
+import { mapDemandRow } from '../demand/repo.js'; // S4-02 W32：单科目新模型 canonical 需求映射（match 归一器消费 camelCase）
 
 // 教师档案
 // ============================================================
@@ -42,6 +44,9 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   const nonacademicPrices = JSON.stringify(Array.isArray(profile.nonacademic_prices) ? profile.nonacademic_prices : []); // R2-4 JSON 数组
   // R2-12 毕业年份：''/null/非法（routes 已回 ''）一律归一为 null 落库（null = 未填，按最新政策）
   const gradYear = profile.graduation_year != null && profile.graduation_year !== '' ? profile.graduation_year : null;
+  // S4-01/08：teacher_name（公开名，空回退 username）与 experience_years（非负整数，null=未填）
+  const teacherName = (profile.teacher_name || '').slice(0, LIMITS.REAL_NAME_MAX);
+  const expYears = profile.experience_years != null && profile.experience_years !== '' ? profile.experience_years : null;
 
   // price 列保留 = price_min 同步镜像：INSERT/UPDATE 显式写 price=priceMin，
   // 防新行吃 DEFAULT 0 后，被存量回填 `WHERE price_min IS NULL AND price IS NOT NULL` 误抓成「报价 0」。
@@ -50,17 +55,18 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
     await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
       price=?,price_min=?,price_max=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,
       time_slots=?,teaching_method=?,personality_tags=?,nonacademic_projects=?,nonacademic_prices=?,
-      graduation_year=?,
+      graduation_year=?, teacher_name=?, experience_years=?,
       updated_at=datetime('now') WHERE user_id=?`,
       [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
-        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, userId]);
+        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, teacherName, expYears, userId]);
   } else {
     await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,
         price,price_min,price_max,wechat,email,intro,address,school,real_name,credential_image,
-        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year,
+        teacher_name, experience_years)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
-        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear]);
+        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, teacherName, expYears]);
   }
 }
 
@@ -68,8 +74,8 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
 // 网安报告 F-06：wechat/email/real_name 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
 // 网安 N-05：credential_image 同款加密列，出门解密
-// 数据最小化：private:false 时私密字段不解密、置空——广场列表非匹配行（viewerId 缺省或未匹配）
-// 一律裁剪，服务端硬把关（前端仅按 matched/signed 门控显示，但数据此前已随列表发给所有人）
+// 数据最小化：private:false 时私密字段不解密、置空——广场列表一律裁剪（无论 viewer 是否匹配），
+// 服务端硬把关；私密字段仅经 /api/teacher/profile 定点门控取回（S4-02：matched 标记已从列表移除）
 export async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) {
   const [wechat, email, realName, credentialImage] = includePrivate
     ? await Promise.all([
@@ -78,7 +84,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
     : ['', '', '', ''];
   return {
     id: p.id, user_id: p.user_id, username: p.username,
-    province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
+    province: p.province || '', grade: p.grade, gender: p.gender || '', intro: p.intro || '', address: p.address || '',
     school: p.school || '', real_name: realName || '', credential_image: credentialImage || '',
     verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
     award_count: p.award_count != null ? Number(p.award_count) : 0, // 已审核荣誉奖项数（公开）
@@ -104,13 +110,29 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
     chsi_status: p.chsi_status || '', chsi_enroll_year: p.chsi_enroll_year || '',
     chsi_verified: p.chsi_verified ? true : false,
     wechat, email, avatar: p.avatar || '',
-    rating: p.rating, rating_count: p.rating_count, matched: p.matched ? true : false,
+    rating: p.rating, rating_count: p.rating_count,
+    // S4-02 新模型公开字段（I-29 列表 / I-39 档案）：驼峰命名，供新前端消费；v2 蛇形字段保留不动。
+    // 缺列兜底用 != null / || '' —— teacher_name/experience_years 由并行 schema 基元落库，落库前 undefined 不炸。
+    teacher_name: p.teacher_name || '',
+    name: (p.teacher_name && p.teacher_name.trim()) || p.username || '',
+    teacherId: p.user_id != null ? Number(p.user_id) : null,
+    experience_years: p.experience_years != null ? Number(p.experience_years) : null,
+    experienceYears: p.experience_years != null ? Number(p.experience_years) : null,
+    priceMin: p.price_min != null ? p.price_min : null,
+    priceMax: p.price_max != null ? p.price_max : null,
+    teachingMethod: p.teaching_method || '',
+    timeSlots: safeJsonArray(p.time_slots),
+    personalityTags: safeJsonArray(p.personality_tags),
+    bio: p.intro || '',
+    region: SUFE_REGIONS.provinceName(p.province),
+    reviewCount: p.rating_count != null ? Number(p.rating_count) : 0,
+    chsiVerified: p.chsi_verified ? true : false,
   };
 }
 
 // 教师列表统一出口（合并 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎）：
-// 广场视图（默认）：viewerId 有值（登录态）时附 matched 标记（双向匹配 = 与该教师已建立会话），
-//   前端据此决定是否拉取真实姓名/学信网截图等仅匹配可见字段；
+// 广场视图（默认）：viewerId 有值（登录态）时跳过 allow_guest_profile 访客过滤（已登录用户可看全部可见教师）；
+//   S4-02：matched EXISTS 子查询已移除（列表不再下发双向匹配标记，仅匹配可见字段改经 /api/teacher/profile 定点门控）；
 // adminView：管理端教师管理列表——LEFT JOIN（无档案教师也显示）+ 附 role/banned/created_at
 export async function dbGetTeachers(db, { adminView = false, viewerId = null } = {}) {
   if (adminView) {
@@ -126,24 +148,31 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
       WHERE u.role='teacher' ORDER BY u.created_at DESC`);
     return await Promise.all(rows.map(async r => ({ ...(await mapTeacherProfileRow(r)), role: r.role, banned: r.banned, created_at: r.created_at })));
   }
-  const matchedSel = viewerId
-    ? `EXISTS(SELECT 1 FROM conversations cv WHERE (cv.student_user_id=? AND cv.teacher_user_id=tp.user_id) OR (cv.student_user_id=tp.user_id AND cv.teacher_user_id=?)) AS matched`
-    : '0 AS matched';
-  const params = viewerId ? [viewerId, viewerId] : [];
-  // 访客可见性——游客只看 allow_guest_profile=1 的教师（无 user_settings 行=默认可见）
-  const joinUs = viewerId ? '' : ' LEFT JOIN user_settings us ON us.user_id=tp.user_id';
-  const privWhere = viewerId ? '' : ' AND COALESCE(us.allow_guest_profile, 1) = 1';
-  const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar, ${matchedSel},
-    (SELECT COUNT(*) FROM teacher_awards a WHERE a.teacher_user_id=tp.user_id AND a.status='approved') AS award_count
-    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id${joinUs}
-    WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0${privWhere}
-    ORDER BY tp.updated_at DESC`, params);
+  // S4-02：访客可见性（allow_guest_profile / user_settings JOIN）已删——S6 §17「无访客浏览」，
+  // user_settings 表随之移除，保留访客过滤会让本查询依赖已删表；matched EXISTS 亦已删除。
+  // award_count 子查询（teacher_awards）同步移除（S6 §17 awards 不上线），mapper 对缺列兜底 0。
+  // viewerId 参数保留（调用方仍传），此处不再消费。
+  const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar
+    FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id
+    WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0
+    ORDER BY tp.updated_at DESC`);
   // 广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
   // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经
   // /api/teacher/profile 定点取回（该端点按 本人/双向匹配 门控，未匹配 403）。
   // 收益：列表免逐行 AES 解密 + payload 瘦身（含 base64 学信网截图）+ 数据最小化。
   // award_count：已通过审核的荣誉奖项数（教师卡荣誉徽章；公开信息，无需解密）
   return await Promise.all(profiles.map(p => mapTeacherProfileRow(p, { private: false })));
+}
+
+// S4-02：最接近的一个 OPEN 需求（I-32 匹配上下文；D1 契约）。
+// 经 demand 域 canonical mapper 映射（S3 单科目新模型 camelCase：subject/addressArea/
+// preferredTags/preferredGender/budgetMin/budgetMax）——匹配归一器直接消费；无开放需求返回 null。
+export async function dbGetStudentOpenDemand(db, userId) {
+  const row = await dbGet(db,
+    `SELECT * FROM student_demands WHERE user_id=? AND status='open' ORDER BY created_at DESC, id DESC LIMIT 1`,
+    [userId]);
+  if (!row) return null;
+  return mapDemandRow(row);
 }
 
 export async function dbUpdateTeacherRating(db, teacherUserId, rating, count, sum) {

@@ -1,30 +1,32 @@
 /**
- * 设置域数据层（V-1-4 从 server/db.js 提取）：user_settings 访客可见性。
+ * settings 域数据层（S6-S4）：通知屏蔽偏好——users.notifyBroadcastMuted 列读写。
+ *
+ * privacy（user_settings 访客可见性）随 S6 定案⑥ 删除（W1：新站无访客浏览）。
+ *
+ * 列归属：users.notifyBroadcastMuted 由 auth 域 schema 声明（跨域补列既有机制，
+ * auth/schema.js ensureColumns）；本文件只做数据层读写。auth/settings.js（S1 收敛
+ * /api/settings 面）当前内联 UPDATE/SELECT 该列——若主会话裁定收敛，可改调本文件
+ * 函数（单源，规则 W6）。
  */
 import { dbGet, dbRun } from '../../core/util.js';
 
-// 隐私设置：访客可见性控制
-// user_settings 无行 = 全默认可见（COALESCE 1）；upsert 单点写
-// ============================================================
-export async function dbGetPrivacySettings(db, userId) {
-  const row = await dbGet(db,
-    'SELECT allow_guest_profile, allow_guest_demand FROM user_settings WHERE user_id=?', [userId]);
-  return {
-    allowGuestProfile: row ? row.allow_guest_profile : 1,
-    allowGuestDemand: row ? row.allow_guest_demand : 1,
-  };
+// Strict boolean normalizer: only literal 0/1/true/false (+ JSON string forms).
+// Returns 1 | 0 | null (null = invalid/absent → caller keeps the stored value).
+function normalizeMuted(v) {
+  if (v === true || v === 1 || v === '1' || v === 'true') return 1;
+  if (v === false || v === 0 || v === '0' || v === 'false') return 0;
+  return null;
 }
 
-// 显式传 0 才关（=== 0 → 0，其余一律 1）；两字段任一缺失保持原值（undefined 走原值）
-export async function dbSetPrivacySettings(db, userId, { allowGuestProfile, allowGuestDemand } = {}) {
-  const cur = await dbGetPrivacySettings(db, userId);
-  const p = allowGuestProfile === 0 ? 0 : (allowGuestProfile === undefined ? cur.allowGuestProfile : 1);
-  const d = allowGuestDemand === 0 ? 0 : (allowGuestDemand === undefined ? cur.allowGuestDemand : 1);
-  await dbRun(db, `INSERT INTO user_settings (user_id, allow_guest_profile, allow_guest_demand, updated_at)
-    VALUES (?, ?, ?, datetime('now'))
-    ON CONFLICT(user_id) DO UPDATE SET
-      allow_guest_profile=excluded.allow_guest_profile,
-      allow_guest_demand=excluded.allow_guest_demand,
-      updated_at=excluded.updated_at`, [userId, p, d]);
-  return dbGetPrivacySettings(db, userId);
+export async function dbGetNotifyBroadcastMuted(db, userId) {
+  const row = await dbGet(db, 'SELECT notifyBroadcastMuted FROM users WHERE id=?', [userId]);
+  return row ? !!row.notifyBroadcastMuted : false;
+}
+
+export async function dbSetNotifyBroadcastMuted(db, userId, muted) {
+  const v = normalizeMuted(muted);
+  if (v !== null) {
+    await dbRun(db, 'UPDATE users SET notifyBroadcastMuted=? WHERE id=?', [v, userId]);
+  }
+  return dbGetNotifyBroadcastMuted(db, userId);
 }

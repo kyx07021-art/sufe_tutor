@@ -12,12 +12,15 @@ import { LIMITS } from '../../shared/config.js';
 // ============================================================
 // 内容域写路径（创建 + 编辑全口径）
 // ============================================================
+// S0-18 rebuilt against the current route table (S2/S3 delivery): dead prefixes removed
+// (signing-requests merged into signing_contracts, teacher/awards + intents/pushes gone),
+// /api/demands flattened to body.additionalInfo, /api/conversations/ now also extracts
+// firstMessage (I-23 temp conversation). Every prefix below must match a real registered
+// POST/PUT route — enforced by test/s0-18-audit-flow.test.js route cross-check.
 const CONTENT_WRITE_PREFIXES = [
-  '/api/posts', '/api/student/demands', '/api/demands/', '/api/intents',
-  '/api/demand-pushes', '/api/teacher/profile', '/api/reviews',
+  '/api/posts', '/api/demands', '/api/teacher/profile', '/api/reviews',
   '/api/feedbacks', '/api/complaints', '/api/uploads', '/api/contracts',
-  '/api/conversations/', '/api/signing-requests', '/api/teacher/awards',
-  '/api/auth/register', '/api/user/username', '/api/user/avatar',
+  '/api/conversations/', '/api/auth/register', '/api/user/username', '/api/user/avatar',
 ];
 
 export function isContentWrite(path, method) {
@@ -29,21 +32,18 @@ export function isContentWrite(path, method) {
 const AUDIT_MAP = [
   { prefix: '/api/posts',           pick: b => [b.title, b.bodyMd] },
   { prefix: '/api/auth/register',  pick: b => [b.username] }, // 用户名白名单可拼出门牌文本，与改用户名同守
-  { prefix: '/api/student/demands', pick: b => [b.demand?.additional_info] },
-  { prefix: '/api/demands/',        pick: b => [b.message] },
-  { prefix: '/api/intents',         pick: b => [b.message] },
-  { prefix: '/api/demand-pushes',   pick: b => [b.message] },
+  { prefix: '/api/demands',         pick: b => [b.additionalInfo] }, // S3 单科目：body 直传，自由文本字段 = additionalInfo（门牌红线咽喉）
   { prefix: '/api/teacher/profile', pick: b => [b.profile?.intro, b.profile?.school] },
   { prefix: '/api/reviews',         pick: b => [b.comment] },
   { prefix: '/api/feedbacks',       pick: b => [b.title, b.content] },
   { prefix: '/api/complaints',      pick: b => [b.reason, b.detail] },
   { prefix: '/api/contracts',       pick: b => [b.plan, b.schedule, b.location, b.payMethodOther, b.trialPayOther, b.contractMd] },
   { prefix: '/api/conversations/',  pick: b => [
+      b.firstMessage, // I-23: temp conversation first message is real user free-text (stored as a chat message)
       ...(Array.isArray(b.batch) ? b.batch.map(i => i && i.body) : []),
       b.schedule,
     ] },
   { prefix: '/api/user/username',   pick: b => [b.newUsername] },
-  { prefix: '/api/teacher/awards',   pick: b => [b.title, b.issuer] },
 ];
 
 /**

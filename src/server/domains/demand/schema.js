@@ -1,73 +1,56 @@
 /**
- * demand 域 schema（V-1-4b）：学生需求 / 意向 / 推送 DDL、列迁移与存量编号回填。
+ * demand 域 schema（S3 单科目新模型）：学生需求单科目化 DDL / 列迁移 / 热点索引。
+ *
+ * §15 定案：①联系方式整列删除（parent_contact/student_contact/address_detail/submitter_type 不存储）
+ * ②teaching_method 三态 online/offline/both ③target_type 由 subject 派生（不落库）
+ * ④display_id 删除 ⑤intents/pushes 归 S2 统一删除（表在 postEnsure 幂等 DROP）
+ * ⑥状态收敛 open/closed（删 contracted/revoked）。
+ *
+ * 旧表（v13 前）迁移：数据拆分（target_subjects 数组→单科目拆行 + current_scores 单值化）由
+ * scripts/migrate-demands-single-subject.mjs（S3-3）在部署前对生产库执行；本文件 DDL 面向新形状，
+ * 存量库经 ensureColumns 补新列（旧列残留不主动删——W1 无兼容层，S5 收口时随表重建一并清理）。
  */
 import { dbAll, dbRun } from '../../core/util.js';
 
 export const STUDENT_DEMANDS_DDL = `CREATE TABLE IF NOT EXISTS student_demands (
       id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
-      student_grade TEXT NOT NULL, student_gender TEXT NOT NULL,
-      target_subjects TEXT NOT NULL, current_scores TEXT NOT NULL,
-      teaching_method TEXT NOT NULL DEFAULT 'offline',
-      address TEXT DEFAULT '', address_detail TEXT DEFAULT '',
+      subject TEXT NOT NULL,                -- 单科目（原 target_subjects 数组 → 单值；academic: SUBJECTS / nonacademic: NONACADEMIC_PROJECTS）
+      grade TEXT NOT NULL,                  -- 原 student_grade（p1..senior3 / prep）
+      province TEXT DEFAULT '',
+      teaching_method TEXT NOT NULL DEFAULT 'online',   -- 三态 online/offline/both（§15②）
+      current_score TEXT DEFAULT '',        -- 原 current_scores 数组 → 单值（分数串或等第字母）
+      address_area TEXT DEFAULT '',         -- 原 address（结构化「区·镇/街道」；online 清空，offline/both 仅上海合法）
       expected_time TEXT DEFAULT '',
+      preferred_tags TEXT NOT NULL DEFAULT '[]',        -- 原 preferred_personality_tags（性格标签 JSON 数组）
+      preferred_gender TEXT NOT NULL DEFAULT '',        -- 原 preferred_teacher_gender（''=不限 / male / female）
       budget_min REAL DEFAULT 0, budget_max REAL DEFAULT 0,
-      submitter_type TEXT NOT NULL, parent_contact TEXT NOT NULL,
-      student_contact TEXT NOT NULL, additional_info TEXT DEFAULT '',
-      target_type TEXT NOT NULL DEFAULT 'academic',
-      preferred_personality_tags TEXT NOT NULL DEFAULT '[]',
-      preferred_teacher_gender TEXT NOT NULL DEFAULT '',
-      teaching_goal TEXT NOT NULL DEFAULT '[]',
-      skill_notes TEXT NOT NULL DEFAULT '[]',
+      additional_info TEXT DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'open',  -- 状态收敛 open/closed（§15⑥；历史 contracted/revoked 迁移见 S3-3 脚本）
       created_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`;
-export const DEMAND_INTENTS_DDL = `CREATE TABLE IF NOT EXISTS demand_intents (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      demand_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
-      created_at DATETIME DEFAULT (datetime('now')),
-      UNIQUE(demand_id, teacher_user_id),
-      FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
-      FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`;
-export const DEMAND_PUSHES_DDL = `CREATE TABLE IF NOT EXISTS demand_pushes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      demand_id INTEGER NOT NULL, student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected')),
-      created_at DATETIME DEFAULT (datetime('now')),
-      UNIQUE(demand_id, teacher_user_id),
-      FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
-      FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
-      FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`;
 
-export const createStatements = [STUDENT_DEMANDS_DDL, DEMAND_INTENTS_DDL, DEMAND_PUSHES_DDL];
+export const createStatements = [STUDENT_DEMANDS_DDL];
 
+// 存量库（旧形状）补新列：CREATE IF NOT EXISTS 对新库零生效，这里兜底旧库升级路径——
+// subject/grade 等新列缺则补，旧列（target_subjects 等）不主动删（S2/S5 表重建时随清理）。
 export const ensureColumns = [
   { table: 'student_demands', columns: [
-    ['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"], ['display_id', 'INTEGER'], ['expected_time', "TEXT DEFAULT ''"],
-    ['target_type', "TEXT NOT NULL DEFAULT 'academic'"],
-    ['preferred_personality_tags', "TEXT NOT NULL DEFAULT '[]'"],
-    ['preferred_teacher_gender', "TEXT NOT NULL DEFAULT ''"],
-    ['teaching_goal', "TEXT NOT NULL DEFAULT '[]'"],
-    ['skill_notes', "TEXT NOT NULL DEFAULT '[]'"],
-  ] },
-  { table: 'demand_intents', columns: [
-    ['status', "TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected'))"],
-    ['resolved_at', 'DATETIME'],
-    ['message', "TEXT NOT NULL DEFAULT ''"],
-  ] },
-  { table: 'demand_pushes', columns: [
-    ['message', "TEXT NOT NULL DEFAULT ''"],
+    ['province', "TEXT DEFAULT ''"], ['status', "TEXT NOT NULL DEFAULT 'open'"],
+    ['subject', "TEXT NOT NULL DEFAULT ''"], ['grade', "TEXT NOT NULL DEFAULT ''"],
+    ['teaching_method', "TEXT NOT NULL DEFAULT 'online'"],
+    ['current_score', "TEXT DEFAULT ''"], ['address_area', "TEXT DEFAULT ''"],
+    ['preferred_tags', "TEXT NOT NULL DEFAULT '[]'"],
+    ['preferred_gender', "TEXT NOT NULL DEFAULT ''"],
   ] },
 ];
 
 export async function migrate(db, ctx) {
   if (ctx.phase !== 'postEnsure') return;
-  // 存量需求编号补发：按 id 依次取号（已编号跳过，幂等）
-  const unnumbered = await dbAll(db, 'SELECT id FROM student_demands WHERE display_id IS NULL ORDER BY id');
-  for (const r of unnumbered) {
-    await dbRun(db, 'UPDATE student_demands SET display_id=(SELECT COALESCE(MAX(display_id),0)+1 FROM student_demands) WHERE id=?', [r.id]);
-  }
-  // 热点查询索引（须在所有补列之后）
+  // 热点查询索引（单科目模型：广场按 subject/status/budget 筛选 + 我的需求按 user_id）
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_demands_created ON student_demands(created_at, id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_demands_user ON student_demands(user_id)');
-  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_intents_demand_status ON demand_intents(demand_id, status)');
-  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_pushes_teacher ON demand_pushes(teacher_user_id, status)');
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_demands_subject_status ON student_demands(subject, status)');
+  // S2 (intents/pushes removed): drop legacy tables idempotently so existing DBs converge.
+  await dbRun(db, 'DROP TABLE IF EXISTS demand_intents');
+  await dbRun(db, 'DROP TABLE IF EXISTS demand_pushes');
 }

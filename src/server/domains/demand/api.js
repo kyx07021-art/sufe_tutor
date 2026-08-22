@@ -1,444 +1,226 @@
 /**
- * 路由模块：学生需求（增删改查）+ 需求意向 + 学生→教师主动推送
- * 依赖：util（响应构造/钳制）、security（requireUser 守卫）、constants（MSG/STATUS/LIMITS）、
- *       db（数据层）、log（留档）、notify（通知）。身份一律凭令牌（requireUser）。
- * 关口模式：requireUser → 归属校验 → 状态机（条件 UPDATE 赢家）→ 副作用（logEvent/notifyUser）。
+ * 路由模块：学生需求（单科目新模型 CRUD + 广场 + 开放/关闭）。
+ *
+ * §15 定案：联系方式不存储、teaching_method 三态、target_type 派生、display_id 删除、
+ * intents/pushes 归 S2 删、状态收敛 open/closed。接口形状见 interfaces.md §19 I-33..38。
+ * 身份一律凭令牌（requireUser）；写操作关口 = 归属校验 → 状态门禁 → 数据层 → logEvent。
  */
-import { json, errorMsg, sanitizeTimeSlots, isUniqueConflict, parseIdParam } from '../../core/util.js';
-import { authUser, requireUser } from '../../core/security.js';
+import { json, errorMsg, sanitizeTimeSlots, parseIdParam } from '../../core/util.js';
+import { requireUser } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
-import { STATUS, STUDENT_GRADES, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, SUBJECTS } from '../../../shared/enums.js';
+import { STATUS, ROLES, STUDENT_GRADES, PERSONALITY_TAGS, SUBJECTS, NONACADEMIC_PROJECTS, TEACHING_METHOD } from '../../../shared/enums.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
-import { SUFE_REGIONS } from '../../../shared/region-data.js'; // V-2-4c 地区数据单源（省份校验单源）
+import { SUFE_REGIONS } from '../../../shared/region-data.js';
 import {
-  dbGetUserById, dbCreateDemand, dbGetDemands, dbGetDemandsByUser,
-  dbGetDemandById, dbUpdateDemand, dbDeleteDemand, dbReopenDemand,
-  dbCreateIntent, dbGetIntentTeachers, dbGetIntentWithDemand, dbResolveIntent,
-  dbUpsertConversation, dbGetTeacherProfile,
-  dbCreatePush, dbGetPendingPushesForTeacher, dbGetPushById, dbResolvePush, dbAcceptPushAsIntent,
-} from '../../../../server/db.js';
+  dbCreateDemand, dbGetDemands, dbGetDemandsByUser, dbGetDemandById, dbUpdateDemand, dbDeleteDemand,
+  dbSetDemandStatus,
+} from './repo.js'; // L1：本域直连，不依赖遗留 server/db.js re-export 图（该图随 S1-S6 并行重写易断）
 import { logEvent } from '../../core/log.js';
-import { notifyUser } from '../../core/notify.js';
-import { acceptEligibility } from '../teacher/api.js'; // v1.2.0 T3：接单资格统一判定（chsi 核验 + 必填齐全）
 
-// V-2-4 结构化通知：拒绝/退回通知携带原始科目 id + 需求类型（target_type），
-// 科目名渲染移交客户端（SUFE_REGIONS + NONACADEMIC_PROJECTS 单源），服务端零文案。
-const rejectNotifParams = d => ({
-  subjects: Array.isArray(d && d.target_subjects) ? d.target_subjects : [],
-  target_type: (d && d.target_type) || DEMAND_TYPES.ACADEMIC,
-});
-
-// 需求输入硬化：预算钳到 [0, LIMITS.BUDGET_MAX] 且 max>=min；授课方式白名单（address 已改结构化
-// 「区·镇/街道」校验，不再自由文本门牌守卫——见 handleCreateDemand 内 isValidShanghaiAddr 分支）
-const clampBudget = v => { const n = Number(v); return Number.isFinite(n) ? Math.min(LIMITS.BUDGET_MAX, Math.max(0, n)) : 0; };
-// 需求类型白名单（R2-b）：academic 学科 / nonacademic 非学科，非法回退 academic（静默不拒需求）。
-// 取值单源 constants DEMAND_TYPES（与前端同文件，禁止散落字面量）
-const TARGET_TYPES = (() => {
-  const DT = DEMAND_TYPES;
-  return [DT.ACADEMIC || 'academic', DT.NONACADEMIC || 'nonacademic'];
-})();
-// 学生性别白名单（R2-11）：'' = 不愿透露（需求侧合法空串，default）；male/female/nonbinary 兼容存量数据
-const DEMAND_GENDERS = new Set(['', 'male', 'female', 'nonbinary']);
-// 偏好老师性别白名单（R2-b）：'' = 不限 / male / female
+// 单科目白名单（academic ∪ nonacademic）：创建/更新强制命中，否则 INVALID_PARAMS（单值无静默回退）
+const SUBJECT_IDS = new Set([
+  ...SUBJECTS.map(s => s.id),
+  ...NONACADEMIC_PROJECTS.map(p => p.id),
+]);
+const GRADE_IDS = new Set(STUDENT_GRADES.map(g => g.id));
 const PREFERRED_GENDERS = new Set(['', 'male', 'female']);
-// 目标 id 白名单按需求类型分流（网安审计：target_subjects 未校验即原样入库，DISP.subjectNames 对未知科目回显原值 →
-// 学生账号可注入 <img onerror> 触发管理员统计页存储型 XSS。academic → SUBJECTS；nonacademic → NONACADEMIC_PROJECTS）
-function targetIdSetForType(type) {
-  const AC = { DEMAND_TYPES, NONACADEMIC_PROJECTS, SUBJECTS };
-  const list = type === (AC.DEMAND_TYPES || {}).NONACADEMIC ? (AC.NONACADEMIC_PROJECTS || []) : (AC.SUBJECTS || []);
-  return new Set(list.map(x => x.id));
-}
+const TEACHING_METHODS_SET = new Set([TEACHING_METHOD.ONLINE, TEACHING_METHOD.OFFLINE, TEACHING_METHOD.BOTH]);
+
+// 预算钳制（单源 LIMITS.BUDGET_MAX）且 max>=min
+const clampBudget = v => { const n = Number(v); return Number.isFinite(n) ? Math.min(LIMITS.BUDGET_MAX, Math.max(0, n)) : 0; };
+
+/**
+ * 需求输入硬化（单科目）：预算钳制 / 白名单 / 截断。非法单值（科目/年级/方式）一律拒绝
+ * （I-35 单科目提交，非 v2 数组静默回退语义）；偏好类静默回退/截断（高频表单不因超额打回整表）。
+ */
 function sanitizeDemand(d) {
-  d.budget_min = clampBudget(d.budget_min);
-  d.budget_max = clampBudget(d.budget_max);
-  if (d.budget_max < d.budget_min) d.budget_max = d.budget_min;
-  d.teaching_method = ['online', 'offline'].includes(d.teaching_method) ? d.teaching_method : 'offline';
-  // v1.3.1 修复：student_grade 白名单（此前无校验——生产脏数据 'grade7' 入库泄漏到卡片）；
-  // 非法回退空串（需求创建高频动作，静默回退不拒绝整表——与 target_type 非法回退 academic 同口径）
-  const gradeSet = new Set(STUDENT_GRADES.map(g => g.id));
-  if (!gradeSet.has(d.student_grade)) d.student_grade = '';
-  d.address = (typeof d.address === 'string' ? d.address : '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
-  // Q-2c-F5：补充说明是自由文本——上限截断；门牌守卫由 _worker 全局断点统一把关
-  // （address 已结构化不再走守卫，仅 additional_info 保留咽喉——合规红线不因字段绕行）
-  d.additional_info = (typeof d.additional_info === 'string' ? d.additional_info : '').slice(0, LIMITS.ADDITIONAL_INFO_MAX);
-  d.parent_contact = (typeof d.parent_contact === 'string' ? d.parent_contact : '').slice(0, LIMITS.CONTACT_MAX);
-  d.student_contact = (typeof d.student_contact === 'string' ? d.student_contact : '').slice(0, LIMITS.CONTACT_MAX);
-  // R2-b 需求类型：白名单，非法回退 'academic'
-  d.target_type = TARGET_TYPES.includes(d.target_type) ? d.target_type : 'academic';
-  // 目标科目/项目按类型分流白名单过滤，注入串被丢弃；去重 + 按池大小封顶（网安 M1：防重复 id
-  // 铺量放大存储与广场列表响应体积 DoS）；非数组（字符串等）强制归空数组（网安 L1，与教师侧口径一致）
-  const idSet = targetIdSetForType(d.target_type);
-  if (Array.isArray(d.target_subjects)) {
-    d.target_subjects = [...new Set(d.target_subjects.filter(sid => typeof sid === 'string' && idSet.has(sid)))].slice(0, idSet.size);
-  } else {
-    d.target_subjects = [];
-  }
-  // 非学科需求无成绩概念：current_scores 强制置空
-  if (d.target_type === DEMAND_TYPES.NONACADEMIC) d.current_scores = [];
-  // R2-b 偏好老师性格：数组、≤PERSONALITY_TAGS_MAX、白名单、去重。
-  // 门禁语义：需求侧刻意「静默回退/静默截断」不拒绝整个需求（与 teacher 档案侧的 400 拒绝不同——
-  // 需求创建是用户高频动作，超限偏好不值得打回整张表单；测试 demand-type-guard.test.js 钉死该语义）
+  d.budgetMin = clampBudget(d.budgetMin);
+  d.budgetMax = clampBudget(d.budgetMax);
+  if (d.budgetMax < d.budgetMin) d.budgetMax = d.budgetMin; // 倒挂 → 上限抬齐下限（与 v2 同口径，不拒绝整表）
+
+  if (!SUBJECT_IDS.has(d.subject)) return { error: errorMsg('INVALID_PARAMS') };
+  if (!GRADE_IDS.has(d.grade)) return { error: errorMsg('INVALID_PARAMS') };
+  if (!TEACHING_METHODS_SET.has(d.teachingMethod)) d.teachingMethod = TEACHING_METHOD.ONLINE;
+
+  d.additionalInfo = (typeof d.additionalInfo === 'string' ? d.additionalInfo : '').slice(0, LIMITS.ADDITIONAL_INFO_MAX);
+
+  // 偏好老师性格：白名单、去重、≤PERSONALITY_TAGS_MAX（静默截断不拒绝整表）
   const P = PERSONALITY_TAGS;
   const personalitySet = new Set(P.map(t => t.id));
-  const personalityMax = CONFIG.PERSONALITY_TAGS_MAX;
-  if (!Array.isArray(d.preferred_personality_tags)) d.preferred_personality_tags = [];
-  d.preferred_personality_tags = [...new Set(d.preferred_personality_tags
-    .filter(id => typeof id === 'string' && personalitySet.has(id)))].slice(0, personalityMax);
-  // R2-b 偏好老师性别：白名单 ['','male','female']，非法回退 ''（不限）
-  d.preferred_teacher_gender = PREFERRED_GENDERS.has(d.preferred_teacher_gender) ? d.preferred_teacher_gender : '';
-  // 教学目标白名单（≤TEACHING_GOALS_MAX、TEACHING_GOALS 池、去重；静默截断不拒绝整表）
-  const TG = TEACHING_GOALS;
-  const goalSet = new Set(TG.map(t => t.id));
-  const goalMax = CONFIG.TEACHING_GOALS_MAX;
-  if (!Array.isArray(d.teaching_goal)) d.teaching_goal = [];
-  d.teaching_goal = [...new Set(d.teaching_goal.filter(id => typeof id === 'string' && goalSet.has(id)))].slice(0, goalMax);
-  // 非学科技能现状 [{project, note}]——project 白名单（NONACADEMIC_PROJECTS）+ note 截断；
-  // 仅非学科类型保留（学科需求强制清空，同 current_scores 口径）。非法项剔除。
-  if (d.target_type === DEMAND_TYPES.NONACADEMIC) {
-    const NP = NONACADEMIC_PROJECTS;
-    const projectSet = new Set(NP.map(p => p.id));
-    const noteMax = CONFIG.SKILL_NOTE_MAX;
-    if (!Array.isArray(d.skill_notes)) d.skill_notes = [];
-    // 上限 = 非学科项目池大小（去重后每项目至多一条，与成绩行上限语义不同）
-    d.skill_notes = d.skill_notes.slice(0, NP.length)
-      .map(sn => {
-        if (!sn || typeof sn !== 'object' || typeof sn.project !== 'string' || !projectSet.has(sn.project)) return null;
-        return { project: sn.project, note: (typeof sn.note === 'string' ? sn.note : '').slice(0, noteMax) };
-      })
-      .filter(Boolean);
+  if (!Array.isArray(d.preferredTags)) d.preferredTags = [];
+  d.preferredTags = [...new Set(d.preferredTags
+    .filter(id => typeof id === 'string' && personalitySet.has(id)))].slice(0, CONFIG.PERSONALITY_TAGS_MAX);
+
+  // 偏好老师性别：白名单 ['','male','female']，非法回退 ''（不限）
+  d.preferredGender = PREFERRED_GENDERS.has(d.preferredGender) ? d.preferredGender : '';
+
+  // 平时成绩（单科目）：数字 → 钳 [0, subjectMaxFor]（region-data 单源）；等第字母保留原样；空/缺失/纯空白 → ''
+  const cs = typeof d.currentScore === 'string' ? d.currentScore.trim() : '';
+  if (d.currentScore == null || cs === '') {
+    d.currentScore = '';
   } else {
-    d.skill_notes = [];
+    const max = SUFE_REGIONS.subjectMaxFor(d.province, d.subject, d.grade);
+    const n = Number(cs);
+    d.currentScore = Number.isFinite(n) && cs !== ''
+      ? String(Math.min(max, Math.max(0, n)))
+      : cs.slice(0, 4); // 等第制（A/B/C/D 等）非数字串，截断防脏（L4：先 trim 再判定）
   }
-  // R2-11 学生性别：白名单 ['','male','female','nonbinary']，非法回退 ''（'' = 不愿透露）
-  d.student_gender = DEMAND_GENDERS.has(d.student_gender) ? d.student_gender : '';
-  // V-4-1d QA 修复：current_scores 缺失归一 []（与 teaching_goal/skill_notes/personality_tags 同口径——
-  // 缺失时 dbCreateDemand 的 JSON.stringify(undefined) 绑 SQL 参数 6 抛错 → 生产 500 COMMON_SERVER_ERROR）
-  if (!Array.isArray(d.current_scores)) d.current_scores = [];
-  // V-4-1d QA 修复②：submitter_type 缺失/非法归一 'parent'（schema NOT NULL 无默认值；前端 prefill 同款
-  // 缺省；缺失时 dbCreateDemand/dbUpdateDemand 裸绑 undefined → 参数 12 抛错 → 生产 500 COMMON_SERVER_ERROR）
-  if (d.submitter_type !== 'student') d.submitter_type = 'parent';
-  // 平时成绩满分按省+年级钳制（region-data 政策单源）——
-  // 前端输入 max 已按 subjectMaxFor（省+年级，region-data 单源），服务端同口径兜底（防绕过前端直传 150）。
-  // 只钳制分数模式（mode='score' 或 legacy scale>0）；等第模式无数值不改。非法项剔除。
-  if (Array.isArray(d.current_scores)) {
-    const R = SUFE_REGIONS;
-    d.current_scores = d.current_scores
-      .slice(0, CONFIG.DEMAND_SCORE_MAX)
-      .map(cs => {
-        if (!cs || typeof cs !== 'object' || typeof cs.subject !== 'string' || !R.subjectNames[cs.subject]) return null;
-        if (cs.mode === 'score' || Number(cs.scale) > 0) {
-          const max = R.subjectMaxFor(d.province, cs.subject, d.student_grade);
-          const n = Number(cs.score);
-          if (!isFinite(n) || n < 0) { cs.score = ''; }
-          else if (n > max) { cs.score = String(max); }
-          cs.scale = max; // 满分随学段（前端同源）
-        }
-        return cs;
-      })
-      .filter(Boolean);
-  }
+
   return d;
 }
 
+// 地址校验：线上清空；线下/均可（offline/both）必须合法「区·镇/街道」（仅线下许可省可用，region-data 数据驱动）
+function validateAddress(d) {
+  if (d.teachingMethod === TEACHING_METHOD.ONLINE) { d.addressArea = ''; return null; }
+  if (!SUFE_REGIONS.isValidShanghaiAddr(d.addressArea)) return errorMsg('ADDRESS_REQUIRED');
+  return null;
+}
+
+// ============================================================
+// 创建 / 我的 / 广场 / 详情 / 更新 / 删除 / 状态切换
+// ============================================================
+// I-35 创建需求：单科目提交，body 直传（无 v2 {demand} 包装）
 export async function handleCreateDemand(db, body, req) {
-  const { demand: d = {} } = body;
-  if (typeof d !== 'object' || d === null) return errorMsg('INVALID_PARAMS'); // 空 body 兜底
+  const d = body || {};
+  if (typeof d !== 'object' || Array.isArray(d)) return errorMsg('INVALID_PARAMS');
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
   const userId = me.id;
 
   const R = SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return errorMsg('PROVINCE_REQUIRED');
-  if (!R.allowsOffline(d.province)) d.teaching_method = 'online'; // 业务规则：线下许可省才可线下（region-data 数据驱动）
-  const ts = sanitizeTimeSlots(d.expected_time);
+  if (!R.allowsOffline(d.province)) d.teachingMethod = TEACHING_METHOD.ONLINE; // 线下许可省才可线下
+
+  const s = sanitizeDemand(d);
+  if (s && s.error instanceof Response) return s.error; // 仅失败哨兵是 Response；防 body 用户可控 error 字段冒充（C4）
+  const aErr = validateAddress(d);
+  if (aErr) return aErr;
+
+  const ts = sanitizeTimeSlots(d.expectedTime);
   if (ts.error) return errorMsg('INVALID_TIME_SLOTS');
-  d.expected_time = ts.value;
-  sanitizeDemand(d); // 字段清理（预算钳制/白名单/截断）
-  // Q-2c-F5（回滚重做）：additional_info 门牌红线审计已由 _worker 全局断点 auditBeforeWrite 统一接管
-  // （AUDIT_MAP /api/student/demands → demand.additional_info，POST/PUT 全覆盖），域内不再重复调用
-  // text-audit（原双审致 DeepSeek 调用翻倍）。合规红线不因字段绕行仍有效。
-  // 需求五：地址结构化校验——线上不收集地址（清空）；线下（仅上海 allowed）必须合法「区·镇/街道」
-  {
-    const R = SUFE_REGIONS;
-    if (d.teaching_method === 'online') {
-      d.address = '';
-    } else if (!R || !R.isValidShanghaiAddr(d.address)) {
-      return errorMsg('ADDRESS_REQUIRED');
-    }
-  }
-  if (!d.target_subjects || !d.target_subjects.length) return errorMsg('INVALID_PARAMS'); // 白名单过滤后为空：无有效科目
+  d.expectedTime = ts.value;
 
   const id = await dbCreateDemand(db, userId, d);
   await logEvent(db, { action: 'demand.create', actorUserId: userId, actorRole: 'student',
-    entity: 'demand', entityId: id, detail: { province: d.province, method: d.teaching_method }, req });
+    entity: 'demand', entityId: id, detail: { province: d.province, method: d.teachingMethod, subject: d.subject }, req });
   return json({ id, message: MSG.DEMAND_SUBMITTED });
 }
 
-// 需求列表三视角，scope 显式选择（身份一律凭令牌，自报 id 的查询参数已废除）。
-// 联系方式脱敏已下沉 db.js mapDemandRow 默认出口（任何出口都拿不到），此处不再重复裁剪：
-//   （缺省）      公开广场：排除 contracted/revoked，访客可用
-//   scope=mine        我的需求：含联系方式（mapDemandRowFull），仅本人
-//   scope=for-teacher 教师大厅视角：每条附本人 my_intent_status（按钮三态用）
-export async function handleGetDemands(db, url, req) {
-  const scope = url.searchParams.get('scope') || '';
-  if (scope === 'mine') {
-    const { user: me, err } = await requireUser(db, req);
-    if (err) return err;
-    return json({ demands: await dbGetDemandsByUser(db, me.id) });
-  }
-  if (scope === 'for-teacher') {
-    const { user: me, err } = await requireUser(db, req, 'teacher'); // 角色门（只验登录会被学生冒充教师视角）
-    if (err) return err;
-    return json({ demands: await dbGetDemands(db, { teacherUserId: me.id }) });
-  }
-  // 默认视图同时服务登录学生与游客——游客（无令牌）只见 allow_guest_demand=1 的需求
-  const me = await authUser(db, req);
-  return json({ demands: await dbGetDemands(db, { forGuest: !me }) });
+// I-33 我的需求（学生本人；含已关闭）
+export async function handleGetMyDemands(db, req) {
+  const { user: me, err } = await requireUser(db, req, 'student');
+  if (err) return err;
+  return json({ demands: await dbGetDemandsByUser(db, me.id) });
 }
 
-// 需求写操作关口：404 存在 → 403 归属 → 409 已签约锁定（update/delete 共用；服务端写入路径硬门禁）
+// I-34 需求广场（B1 教师视角）：登录可见；排序 match（S3-15 占位）/price；筛选 subjects[]/gender/price 区间
+export async function handleGetDemands(db, url, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const sort = url.searchParams.get('sort') || '';
+  const order = url.searchParams.get('order') === 'asc' ? 'asc' : 'desc';
+  let filters = null;
+  const fRaw = url.searchParams.get('filters');
+  if (fRaw) { try { filters = JSON.parse(fRaw); } catch { filters = null; } }
+  const demands = await dbGetDemands(db, { filters, sort, order });
+  // S3-15：matchScore/matchCount 依赖 S4 新匹配度，未接入前占位 null（前端按 null 回落不显示）
+  return json({ demands: demands.map(x => ({ ...x, matchScore: null, matchCount: null })) });
+}
+
+// I-38 需求详情：可见性规则（interfaces §19）——owner（学生本人）任意状态可看；
+// teacher 角色仅 OPEN 可看（广场浏览）；其他角色/无归属 → 404 DEMAND_NOT_FOUND（不泄漏存在性）。
+export async function handleGetDemandDetail(db, demandId, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const demand = await dbGetDemandById(db, demandId);
+  if (!demand) return errorMsg('DEMAND_NOT_FOUND', 404);
+  const isOwner = demand.user_id === me.id;
+  if (!isOwner && (me.role !== ROLES.TEACHER || demand.status !== STATUS.OPEN || demand.studentBanned)) {
+    return errorMsg('DEMAND_NOT_FOUND', 404); // 非 owner 教师看不到 closed/被处罚学生需求；其余一律视同不存在
+  }
+  return json({ demand });
+}
+
+// 写操作关口：404 存在 → 403 归属
 async function loadOwnedDemand(db, demandId, userId) {
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return { err: errorMsg('DEMAND_NOT_FOUND', 404) };
   if (existing.user_id !== userId) return { err: errorMsg('NO_PERMISSION', 403) };
-  if (existing.status === STATUS.CONTRACTED) return { err: errorMsg('DEMAND_CONTRACTED_LOCKED', 409) };
   return { existing };
 }
 
+// I-36 更新需求（归属；closed 不可改）
 export async function handleUpdateDemand(db, demandId, body, req) {
-  const { demand: d = {} } = body;
-  if (typeof d !== 'object' || d === null) return errorMsg('INVALID_PARAMS');
+  const d = body || {};
+  if (typeof d !== 'object' || Array.isArray(d)) return errorMsg('INVALID_PARAMS');
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
-  const g = await loadOwnedDemand(db, demandId, me.id); // 已签约需求锁定，禁改（合同已绑定此需求）
+  const g = await loadOwnedDemand(db, demandId, me.id);
   if (g.err) return g.err;
-  // Q-2c-F7 BUG-J：revoked 需求须先重开（/reopen）才能编辑——合同已撤销的需求是终态存证，
-  // 直接改会绕过状态机（重开时再改）。删除仍允许（handleDeleteDemand 走同一 loadOwnedDemand，此处不拦）。
-  if (g.existing.status === STATUS.REVOKED) return errorMsg('DEMAND_STATE_INVALID', 409);
+  if (g.existing.status === STATUS.CLOSED) return errorMsg('DEMAND_STATE_INVALID', 409); // I-36：closed 不可改
 
   const R = SUFE_REGIONS;
   if (!d.province || !R.isValidProvince(d.province)) return errorMsg('PROVINCE_REQUIRED');
-  if (!R.allowsOffline(d.province)) d.teaching_method = 'online';
-  const ts = sanitizeTimeSlots(d.expected_time);
+  if (!R.allowsOffline(d.province)) d.teachingMethod = TEACHING_METHOD.ONLINE;
+  const s = sanitizeDemand(d);
+  if (s && s.error instanceof Response) return s.error; // 仅失败哨兵是 Response；防 body 用户可控 error 字段冒充（C4）
+  const aErr = validateAddress(d);
+  if (aErr) return aErr;
+  const ts = sanitizeTimeSlots(d.expectedTime);
   if (ts.error) return errorMsg('INVALID_TIME_SLOTS');
-  d.expected_time = ts.value;
-  sanitizeDemand(d);
-  // 需求五：地址结构化校验（同 handleCreateDemand）——线上清空；线下（上海）必须合法「区·镇/街道」
-  if (d.teaching_method === 'online') {
-    d.address = '';
-  } else if (!R.isValidShanghaiAddr(d.address)) {
-    return errorMsg('ADDRESS_REQUIRED');
-  }
-  if (!d.target_subjects || !d.target_subjects.length) return errorMsg('INVALID_PARAMS'); // 白名单过滤后为空
+  d.expectedTime = ts.value;
 
-  await dbUpdateDemand(db, demandId, d);
+  // L2/L3：条件 UPDATE（status='open' 守卫）changes 判定——并发关闭/删除下不命中 → 404/409 而非假成功
+  if (!(await dbUpdateDemand(db, demandId, d))) {
+    const cur = await dbGetDemandById(db, demandId);
+    if (!cur) return errorMsg('DEMAND_NOT_FOUND', 404);
+    return errorMsg('DEMAND_STATE_INVALID', 409); // closed（并发窗口内被关）→ I-36 不可改
+  }
   await logEvent(db, { action: 'demand.update', actorUserId: me.id, actorRole: 'student',
-    entity: 'demand', entityId: demandId, detail: { province: d.province, method: d.teaching_method }, req });
+    entity: 'demand', entityId: demandId, detail: { province: d.province, method: d.teachingMethod, subject: d.subject }, req });
   return json({ message: MSG.DEMAND_UPDATED });
 }
 
+// I-37 删除需求（归属；无「已签约禁删」门禁——合同不绑定需求）
 export async function handleDeleteDemand(db, demandId, body, req) {
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
-  const g = await loadOwnedDemand(db, demandId, me.id); // 已签约需求禁删（会使合同 demand_id 悬空）
+  const g = await loadOwnedDemand(db, demandId, me.id);
   if (g.err) return g.err;
-  const ok = await dbDeleteDemand(db, demandId); // 数据层门禁：pending/signing 合同引用时拒绝（防悬空，F-03b）
-  if (!ok) return errorMsg('DEMAND_CONTRACTED_LOCKED', 409);
+  if (!(await dbDeleteDemand(db, demandId))) return errorMsg('DEMAND_NOT_FOUND', 404);
   await logEvent(db, { action: 'demand.delete', actorUserId: me.id, actorRole: 'student',
     entity: 'demand', entityId: demandId, req });
   return json({ message: MSG.DEMAND_DELETED });
 }
 
-// POST /api/student/demands/:id/reopen —— 重开「合同已撤销」的需求（仅所有者；revoked→open 重回广场接收意向）
-// 撤销合同不自动重开（防锁定扰动），由此处手动触发；条件 UPDATE 赢家模式防并发双触发
-export async function handleReopenDemand(db, demandId, body, req) {
+// S3-13 开放/关闭切换（归属；条件 UPDATE 赢家模式防并发双切）
+async function toggleStatus(db, demandId, body, req, targetStatus) {
   const { user: me, err } = await requireUser(db, req, 'student');
   if (err) return err;
-  const existing = await dbGetDemandById(db, demandId);
-  if (!existing) return errorMsg('DEMAND_NOT_FOUND', 404);
-  if (existing.user_id !== me.id) return errorMsg('NO_PERMISSION', 403);
-  if (existing.status !== STATUS.REVOKED) return errorMsg('DEMAND_STATE_INVALID', 409);
-  if (!(await dbReopenDemand(db, demandId))) return errorMsg('DEMAND_STATE_INVALID', 409); // 条件 UPDATE 赢家模式
-  await logEvent(db, { action: 'demand.reopen', actorUserId: me.id, entity: 'demand', entityId: demandId,
-    detail: { from: STATUS.REVOKED }, req });
-  return json({ message: MSG.DEMAND_REOPENED });
+  const g = await loadOwnedDemand(db, demandId, me.id);
+  if (g.err) return g.err;
+  if (g.existing.status === targetStatus) return errorMsg('DEMAND_STATE_INVALID', 409); // 已处目标态
+  const from = targetStatus === STATUS.CLOSED ? STATUS.OPEN : STATUS.CLOSED;
+  if (!(await dbSetDemandStatus(db, demandId, from, targetStatus))) return errorMsg('DEMAND_STATE_INVALID', 409);
+  await logEvent(db, { action: `demand.${targetStatus}`, actorUserId: me.id, actorRole: 'student',
+    entity: 'demand', entityId: demandId, detail: { from, to: targetStatus }, req });
+  return json({ message: targetStatus === STATUS.CLOSED ? MSG.DEMAND_CLOSED : MSG.DEMAND_OPENED, status: targetStatus });
 }
 
-// --- 需求意向（前端四态按钮 UI：my_intent_status 三态 + 撤销重提） ---
-export async function handleCreateIntent(db, demandId, body, req) {
-  // 教师打招呼消息（Airbnb 租客对房东式；自我介绍+为什么关注此需求）；可选，trim 后超限拒绝
-  const message = String(body.message ?? '').trim();
-  if (message.length > LIMITS.GREETING_MSG_MAX) return errorMsg('GREETING_TOO_LONG', 400);
-  const { user: me, err } = await requireUser(db, req, 'teacher');
-  if (err) return err;
-  const userId = me.id;
-  const demand0 = await dbGetDemandById(db, demandId);
-  if (!demand0) return errorMsg('DEMAND_NOT_FOUND', 404);
-  if (demand0.status === STATUS.CONTRACTED || demand0.status === STATUS.REVOKED) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410); // 已签约/已撤销需求停止接收意向（服务端硬门禁；撤销后须重开）
-
-  // 接单资格门槛（v1.2.0 T3 升级）：学信网核验通过 + 资料必填齐全（科目/报价/时间/方式）——统一 acceptEligibility 判定
-  const p = await dbGetTeacherProfile(db, userId);
-  const el = acceptEligibility(p);
-  if (!el.ok) {
-    const key = el.reason === 'CHSI_UNVERIFIED' ? 'CHSI_VERIFY_REQUIRED' : 'PROFILE_COMPLETE_REQUIRED';
-    return errorMsg(key, 403, el.reason || undefined);
-  }
-
-  try {
-    const id = await dbCreateIntent(db, demandId, userId, message); // 条件 INSERT 原子化：0 = 检查与插入之间需求被签/撤
-    if (!id) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410);
-    await logEvent(db, { action: 'intent.create', actorUserId: userId, actorUsername: me.username,
-      actorRole: 'teacher', entity: 'demand', entityId: demandId, detail: { intentId: id }, req });
-    return json({ id, message: MSG.INTENT_SUBMITTED }, 201);
-  } catch (err2) {
-    if (isUniqueConflict(err2)) return errorMsg('INTENT_DUPLICATE', 409);
-    throw err2;
-  }
-}
-
-export async function handleGetIntents(db, demandId, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  const demand = await dbGetDemandById(db, demandId);
-  if (!demand) return errorMsg('DEMAND_NOT_FOUND', 404);
-  if (demand.user_id !== me.id) return errorMsg('NO_PERMISSION', 403); // 仅需求所有者可见意向列表
-  const teachers = await dbGetIntentTeachers(db, demandId);
-  return json({ demandId, count: teachers.length, teachers });
-}
-
-// 学生处理意向：accept → 置 accepted 并建立（或复用）师生会话；reject → 置 rejected。
-// 顺序契约（与 handleResolvePush 对齐）：先查需求状态再写，杜绝「先写后判」窗口；
-// 并发双 accepted + 双会话由 dbResolveIntent 的 status='pending' 条件 UPDATE 赢家模式承担。
-export async function handleResolveIntent(db, intentId, body, req) {
-  const { action } = body;
-  if (!['accept', 'reject'].includes(action)) return errorMsg('INVALID_ACTION');
-  const { user: me, err } = await requireUser(db, req, 'student');
-  if (err) return err;
-  const userId = me.id;
-
-  const intent = await dbGetIntentWithDemand(db, intentId);
-  if (!intent) return errorMsg('INTENT_NOT_FOUND', 404);
-  if (intent.demand_owner !== userId) return errorMsg('NO_PERMISSION', 403);
-  if (intent.status !== STATUS.PENDING) return errorMsg('INTENT_ALREADY_RESOLVED', 409);
-
-  const dNow = await dbGetDemandById(db, intent.demand_id);
-  if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410); // 已撤销需求不可接受意向（须先重开）
-  // Q-2c-F3（回滚重做）：接受前重查教师 banned/deactivated——封禁/注销教师的待处理意向若被 accept
-  // 会建死会话（教师无法登录）。对齐 handlePushDemand 的 teacher.banned 过滤口径。
-  const teacher = await dbGetUserById(db, intent.teacher_user_id);
-  if (!teacher || teacher.banned || teacher.deactivated) return errorMsg('TEACHER_NOT_FOUND', 409);
-  // 接受意向不再锁需求——一条需求允许任意多会话并存，
-  // 仅当某会话「发起签约」成功签约时才自动拒绝其余（见 signing.js）
-
-  const status = action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED;
-  if (!(await dbResolveIntent(db, intentId, status))) return errorMsg('INTENT_ALREADY_RESOLVED', 409); // 条件 UPDATE 赢家才继续，杜绝并发双通知
-
-  let conversationId = null;
-  if (action === 'accept') {
-    conversationId = await dbUpsertConversation(db, userId, intent.teacher_user_id, intent.demand_id);
-    await notifyUser(db, intent.teacher_user_id, 'INTENT_ACCEPTED', {});
-  } else {
-    const d = await dbGetDemandById(db, intent.demand_id);
-    await notifyUser(db, intent.teacher_user_id, 'INTENT_REJECTED', rejectNotifParams(d));
-  }
-  await logEvent(db, { action: `intent.${action}`, actorUserId: userId, actorRole: 'student',
-    entity: 'intent', entityId: intentId,
-    detail: { demandId: intent.demand_id, teacherUserId: intent.teacher_user_id, conversationId }, req });
-  return json({ message: MSG.INTENT_RESOLVED, status, conversationId });
-}
+export const handleCloseDemand = (db, demandId, body, req) => toggleStatus(db, demandId, body, req, STATUS.CLOSED);
+export const handleOpenDemand = (db, demandId, body, req) => toggleStatus(db, demandId, body, req, STATUS.OPEN);
 
 // ============================================================
-// 学生主动推送需求给指定教师 / 教师处理推送
-// ============================================================
-export async function handlePushDemand(db, body, req) {
-  const { teacherUserId, demandId } = body;
-  // 学生打招呼消息（自我介绍+为什么选这位老师）；可选，trim 后超限拒绝
-  let message = String(body.message ?? '').trim();
-  if (message.length > LIMITS.GREETING_MSG_MAX) return errorMsg('GREETING_TOO_LONG', 400);
-  const { user: me, err } = await requireUser(db, req, 'student');
-  if (err) return err;
-  const userId = me.id;
-  const teacher = await dbGetUserById(db, teacherUserId);
-  if (!teacher || teacher.role !== 'teacher' || teacher.banned || teacher.deactivated) return errorMsg('TEACHER_NOT_FOUND', 404); // 封禁/注销教师不可被推送（网安审计）
-  const demand = await dbGetDemandById(db, demandId);
-  if (!demand) return errorMsg('DEMAND_NOT_FOUND', 404);
-  if (demand.user_id !== userId) return errorMsg('NO_PERMISSION', 403);
-  if (demand.status === STATUS.CONTRACTED || demand.status === STATUS.REVOKED) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410); // 已签约/已撤销需求不可再推送
-
-  try {
-    const id = await dbCreatePush(db, demandId, userId, teacherUserId, message); // 条件 INSERT 原子化：0 = 需求已非开放
-    if (!id) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410);
-    await logEvent(db, { action: 'demand.push', actorUserId: userId, actorRole: 'student',
-      entity: 'demand_push', entityId: id, detail: { teacherUserId, demandId }, req });
-    return json({ id, message: MSG.PUSH_SUBMITTED }, 201);
-  } catch (err2) {
-    if (isUniqueConflict(err2)) return errorMsg('PUSH_DUPLICATE', 409);
-    throw err2;
-  }
-}
-
-// 教师端：本人的待处理推送列表（需求大厅置顶 + 红点计数同源；身份凭令牌）
-export async function handleGetTeacherPushes(db, url, req) {
-  const { user: me, err } = await requireUser(db, req, 'teacher'); // 教师角色门（同 handleResolvePush，防学生空探）
-  if (err) return err;
-  const pushes = await dbGetPendingPushesForTeacher(db, me.id);
-  return json({ pushes });
-}
-
-// 教师确认 / 拒绝推送。确认 = 写已接受意向 + 建会话；拒绝 = 仅标记 + 委婉通知学生
-export async function handleResolvePush(db, pushId, body, req) {
-  const { action } = body;
-  if (!['accept', 'reject'].includes(action)) return errorMsg('INVALID_ACTION');
-  const { user: me, err } = await requireUser(db, req, 'teacher');
-  if (err) return err;
-  const userId = me.id;
-  const push = await dbGetPushById(db, pushId);
-  if (!push) return errorMsg('INTENT_NOT_FOUND', 404);
-  if (push.teacher_user_id !== userId) return errorMsg('NO_PERMISSION', 403);
-  if (push.status !== STATUS.PENDING) return errorMsg('INTENT_ALREADY_RESOLVED', 409);
-
-  if (action === 'accept') {
-    // v1.2.0 T3：推送接受 = 接单动作，须过接单资格（学信网核验 + 必填齐全）
-    const prof = await dbGetTeacherProfile(db, userId);
-    const el = acceptEligibility(prof);
-    if (!el.ok) {
-      const key = el.reason === 'CHSI_UNVERIFIED' ? 'CHSI_VERIFY_REQUIRED' : 'PROFILE_COMPLETE_REQUIRED';
-      return errorMsg(key, 403, el.reason || undefined);
-    }
-    const dNow = await dbGetDemandById(db, push.demand_id);
-    if (!dNow || dNow.status === STATUS.CONTRACTED || dNow.status === STATUS.REVOKED) return errorMsg('DEMAND_CONTRACTED_CLOSED', 410); // 已签约/已撤销需求不可再确认
-    // 确认推送不再锁需求——一条需求允许多会话并存，
-    // 仅「发起签约」成功签约时才自动拒绝其余（见 signing.js）
-    if (!(await dbResolvePush(db, pushId, STATUS.ACCEPTED))) return errorMsg('INTENT_ALREADY_RESOLVED', 409);
-    await dbAcceptPushAsIntent(db, push.demand_id, userId);
-    await dbUpsertConversation(db, push.student_user_id, userId, push.demand_id);
-    await notifyUser(db, push.student_user_id, 'PUSH_ACCEPTED', {});
-  } else {
-    if (!(await dbResolvePush(db, pushId, STATUS.REJECTED))) return errorMsg('INTENT_ALREADY_RESOLVED', 409);
-    const d = await dbGetDemandById(db, push.demand_id);
-    await notifyUser(db, push.student_user_id, 'PUSH_REJECTED', rejectNotifParams(d));
-  }
-  await logEvent(db, { action: `demand_push.${action}`, actorUserId: userId, actorRole: 'teacher',
-    entity: 'demand_push', entityId: pushId,
-    detail: { demandId: push.demand_id, studentUserId: push.student_user_id }, req });
-  // Z-3-F4：删死 message 载荷（内联 'ok' 违反成功 message 码化；前端自行 toast 不读该字段），status 语义回显保留
-  return json({ ok: true, status: action === 'accept' ? STATUS.ACCEPTED : STATUS.REJECTED });
-}
-
-// ============================================================
-// demand 域路由表（V-1-4c：需求 / 意向 / 推送）
+// demand 域路由表（S3 新模型：I-33..38 + 开放/关闭；intents/pushes 归 S2 删）
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [
-  S('POST', '/api/student/demands', c => handleCreateDemand(c.db, c.body, c.req)),
-  S('GET', '/api/student/demands', c => handleGetDemands(c.db, c.url, c.req)),
-  S('PUT', '/api/student/demands/:id', c => handleUpdateDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
-  S('DELETE', '/api/student/demands/:id', c => handleDeleteDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
-  S('POST', '/api/student/demands/:id/reopen', c => handleReopenDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
-  S('POST', '/api/demands/:id/intents', c => handleCreateIntent(c.db, parseIdParam(c.params.id), c.body, c.req)),
-  S('GET', '/api/demands/:id/intents', c => handleGetIntents(c.db, parseIdParam(c.params.id), c.req)),
-  S('POST', '/api/intents/:id/resolve', c => handleResolveIntent(c.db, parseIdParam(c.params.id), c.body, c.req)),
-  S('POST', '/api/demand-pushes', c => handlePushDemand(c.db, c.body, c.req)),
-  S('GET', '/api/demand-pushes', c => handleGetTeacherPushes(c.db, c.url, c.req)),
-  S('POST', '/api/demand-pushes/:id/resolve', c => handleResolvePush(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('POST', '/api/demands', c => handleCreateDemand(c.db, c.body, c.req)),
+  S('GET', '/api/demands/mine', c => handleGetMyDemands(c.db, c.req)),
+  S('GET', '/api/demands', c => handleGetDemands(c.db, c.url, c.req)),
+  S('GET', '/api/demands/:id', c => handleGetDemandDetail(c.db, parseIdParam(c.params.id), c.req)),
+  S('PUT', '/api/demands/:id', c => handleUpdateDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('DELETE', '/api/demands/:id', c => handleDeleteDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('POST', '/api/demands/:id/close', c => handleCloseDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
+  S('POST', '/api/demands/:id/open', c => handleOpenDemand(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];

@@ -47,17 +47,6 @@ export async function dbUpdateReview(db, reviewId, rating, comment) {
   if (wasApproved && teacherUserId) await dbRecomputeTeacherRating(db, teacherUserId);
 }
 
-// 签约门槛查询（v1.4.14 用户拍板：联系方式/评价统一按「已签约」开放——signing_request signed 即已签约；
-// 文档合同 signed 不作依据（合同是附加保障，与签约状态无关），发起签约过程中（pending）不算。
-export async function dbIsContracted(db, studentUserId, teacherUserId) {
-  // AI-4b：合并表自持元组——直查 signing_contracts，signing_status='signed' 即成交（v1.4.14 口径：不锁
-  // stage/revoked——推进到 contract 后 signing_status 仍 'signed'，撤销不收回签约状态）
-  return !!(await dbGet(db,
-    `SELECT 1 FROM signing_contracts sc WHERE sc.student_user_id=? AND sc.teacher_user_id=?
-       AND sc.signing_status='signed' LIMIT 1`,
-    [studentUserId, teacherUserId]));
-}
-
 // 管理端评价查询：可按状态 / 教师过滤（评价管理页与教师详情内评价栏共用）
 export async function dbGetReviewsAdmin(db, { status, teacherUserId } = {}) {
   let sql = `SELECT r.*, u1.username as reviewer_name, u2.username as teacher_name

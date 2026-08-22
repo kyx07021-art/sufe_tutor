@@ -1,40 +1,17 @@
 /**
- * 路由模块：隐私设置——访客可见性控制
- * GET  /api/privacy-settings   读本人设置（requireUser）
- * POST /api/privacy-settings   写（requireUser）；字段显式 0 关闭、缺省保持原值
- * 访客浏览过滤在 db 层（dbGetDemands forGuest / dbGetTeachers 游客分支），本文件只管读写。
- * 依赖：security（requireUser）、constants（MSG）、db、log。
+ * settings 域路由（S6 定案⑥ + S6-S4）。
+ *
+ * privacy（GET/POST /api/privacy-settings）已随定案⑥ 删除（W1：新站无访客浏览，
+ * 列表门禁 = 登录，privacy 是死能力）。
+ *
+ * 收敛后的 GET/PUT /api/settings + POST /api/settings/deactivate 由 auth 域
+ * （auth/settings.js，S1-15..19）注册——其中 PUT /api/settings 的 Branch 4 已处理
+ * blockSystemNotifications / notifyBroadcastMuted 布尔写（严格 0/1 归一，写后
+ * logEvent action:'user.settings.prefs'）。本域**不再重复注册** PUT /api/settings：
+ * S1 并行已注册，重复即路由冲突（裁定留主会话组装，见交付报告）。
+ *
+ * S6-S4 数据层（dbGetNotifyBroadcastMuted / dbSetNotifyBroadcastMuted）在
+ * settings/repo.js；广播类通知渲染按偏好过滤由 S0 的 core/notify.js 读取
+ * users.notifyBroadcastMuted 实现（S6-N3 广播归 S0/N3，本基元只保证列存在 + 写端点）。
  */
-import { json, errorMsg } from '../../core/util.js';
-import { requireUser } from '../../core/security.js';
-import { MSG } from '../../../shared/codes.js';
-import { dbGetPrivacySettings, dbSetPrivacySettings } from '../../../../server/db.js';
-import { logEvent } from '../../core/log.js';
-
-export async function handleGetPrivacySettings(db, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  return json(await dbGetPrivacySettings(db, me.id));
-}
-
-export async function handleSetPrivacySettings(db, body, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  const { allowGuestProfile, allowGuestDemand } = body || {};
-  // 只接受 0/1（布尔归一）；其余/缺省 → undefined（保持原值）。至少一个有效字段才写。
-  const norm = v => (v === 0 || v === 1 ? v : undefined);
-  const p = norm(allowGuestProfile), d = norm(allowGuestDemand);
-  if (p === undefined && d === undefined) return errorMsg('INVALID_PARAMS');
-  const settings = await dbSetPrivacySettings(db, me.id, { allowGuestProfile: p, allowGuestDemand: d });
-  await logEvent(db, { action: 'privacy.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
-  return json({ ...settings, ok: true });
-}
-
-// ============================================================
-// settings 域路由表（V-1-4c）
-// ============================================================
-const S = (method, path, handler) => ({ method, path, handler });
-export const routes = [
-  S('GET', '/api/privacy-settings', c => handleGetPrivacySettings(c.db, c.req)),
-  S('POST', '/api/privacy-settings', c => handleSetPrivacySettings(c.db, c.body, c.req)),
-];
+export const routes = [];

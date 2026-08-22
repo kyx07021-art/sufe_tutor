@@ -42,6 +42,10 @@ export const ensureColumns = [
     ['phone', "TEXT DEFAULT ''"], ['phone_hash', "TEXT DEFAULT ''"],
     ['email', "TEXT DEFAULT ''"], ['email_hash', "TEXT DEFAULT ''"],
     ['username_changed_at', 'DATETIME'],
+    // S1-15..19 (I-08): notification prefs consumed by the consolidated /api/settings surface.
+    // ensureColumns runs unconditionally — no SCHEMA_VERSION bump needed (confirmed pattern).
+    ['blockSystemNotifications', 'INTEGER NOT NULL DEFAULT 0'],
+    ['notifyBroadcastMuted', 'INTEGER NOT NULL DEFAULT 0'],
   ] },
   { table: 'auth_sessions', columns: [
     ['device_id', "TEXT NOT NULL DEFAULT ''"],
@@ -53,7 +57,6 @@ export const ensureColumns = [
 // ============================================================
 async function cleanupLegacyLeftovers(db) {
   await db.batch([
-    db.prepare('DROP TABLE IF EXISTS _demand_intents_old'),
     db.prepare('DROP TABLE IF EXISTS _invite_codes_old'),
     db.prepare('DROP TABLE IF EXISTS _reviews_old'),
     db.prepare('DROP TABLE IF EXISTS _student_demands_old'),
@@ -240,17 +243,6 @@ async function migrateLegacyRoles(db, adminNames) {
         used_at DATETIME DEFAULT NULL,
         FOREIGN KEY (created_by) REFERENCES users(id),
         FOREIGN KEY (used_by) REFERENCES users(id))`,
-    },
-    {
-      t: 'demand_intents',
-      cols: ['id', 'demand_id', 'teacher_user_id', 'created_at'],
-      ddl: `CREATE TABLE demand_intents_new (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        demand_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
-        created_at DATETIME DEFAULT (datetime('now')),
-        UNIQUE(demand_id, teacher_user_id),
-        FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE CASCADE,
-        FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE)`,
     },
     {
       // 教师学信网核验记录（验证码 + 核验结果；provider=manual 管理员核验，v1.5.0 起无 mock/thirdparty）

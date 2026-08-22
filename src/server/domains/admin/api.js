@@ -18,9 +18,9 @@ import {
   dbAdminSearchUsers,
   dbGetDemands, dbGetMessageById,
   dbGetAllContentAdmin, dbGetPostById, dbGetReviewById, dbGetFeedbackById, dbGetComplaintById,
-  dbGetUpload, dbGetTeacherProfile, dbGetContractById, dbGetSigningById,
+  dbGetUpload, dbGetTeacherProfile, dbGetContractById,
   dbDeletePost, dbDeleteReview, dbDeleteFeedback, dbDeleteComplaint, dbDeleteUpload,
-  dbDeleteContract, dbDeleteSigning,
+  dbDeleteContract,
 } from '../../../../server/db.js';
 import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from '../../core/log.js';
 import { confirmDangerOtp } from '../../core/danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
@@ -31,6 +31,8 @@ import { dbBroadcastNotification, notifyUser } from '../../core/notify.js';
 export async function handleGenInvite(db, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
+  // 生成邀请码 = 发码写操作（管理员令牌被复用/泄露时发码即无效），须 capToken 二次认证（同封禁/广播口径）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   const code = genCode(LIMITS.INVITE_CODE_LEN);
   await dbCreateInviteCode(db, code, admin.id);
@@ -39,7 +41,9 @@ export async function handleGenInvite(db, body, req) {
   return json({ code });
 }
 
-// 邀请码管理：列表（含状态/使用者）
+// 邀请码管理：列表（含状态/使用者）。
+// 只读列表不要求 capToken——capToken 是一次性敏感操作凭证，只用于有副作用的写操作（生成/作废）；
+// 列表零副作用，仅 requireAdmin 门禁足够（对齐 admin 域全部只读端点，如 stats/logs/content 列表）。
 export async function handleListInvites(db, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
@@ -47,10 +51,11 @@ export async function handleListInvites(db, req) {
   return json({ invites });
 }
 
-// 作废未使用邀请码（已使用不可作废）
-export async function handleRevokeInvite(db, code, req) {
+// 作废未使用邀请码（已使用不可作废）。作废 = 删除写操作，须 capToken 二次认证（同生成口径）
+export async function handleRevokeInvite(db, code, body, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   const ok = await dbRevokeInviteCode(db, code);
   if (!ok) return errorMsg('INVITE_INVALID', 404);
   await logEvent(db, { action: 'admin.invite.revoke', actorUserId: admin.id, actorUsername: admin.username,
@@ -69,14 +74,13 @@ export async function handleAdminStats(db, url, req) {
   const invites = await dbGetInviteStats(db) || { total:0, used:0, active:0 };
   const recentUsers = await dbGetRecentUsers(db);
   const recentDemands = await dbGetRecentDemands(db);
-  // 待办计数（管理员今日必办：待审核项 + 未处理反馈/投诉）
-  const awardsPending = await dbGetCountWhere(db, 'teacher_awards', "status='pending'");
+  // 待办计数（管理员今日必办：未处理反馈/投诉）
   const feedbacksOpen = await dbGetCountWhere(db, 'feedbacks', "status='open'");
   const complaintsOpen = await dbGetCountWhere(db, 'complaints', "status='open'");
 
   return json({
     stats: { users, profiles, demands, reviews, invites, recentUsers, recentDemands,
-      todo: { awardsPending, feedbacksOpen, complaintsOpen } }
+      todo: { feedbacksOpen, complaintsOpen } }
   });
 }
 
@@ -93,7 +97,6 @@ export async function handleAdminDashboard(db, url, req) {
   const todo = {
     verificationsPending: await dbGetCountWhere(db, 'teacher_verifications', "status='pending'"),
     reviewsPending: reviews ? Number(reviews.pending || 0) : 0,
-    awardsPending: await dbGetCountWhere(db, 'teacher_awards', "status='pending'"),
     feedbacksOpen: await dbGetCountWhere(db, 'feedbacks', "status='open'"),
     complaintsOpen: await dbGetCountWhere(db, 'complaints', "status='open'"),
   };
@@ -172,7 +175,7 @@ export async function handleBanUser(db, userId, body, req) {
   return json({ message: banned ? MSG.BANNED : MSG.UNBANNED, banned });
 }
 
-// GET /api/admin/demands —— 管理员全量需求（含已签约；广场端点恒定排除 contracted，管理员页需独立全量端点）
+// GET /api/admin/demands —— 管理员全量需求（含已关闭；广场端点恒定排除非 open 状态，管理员页需独立全量端点）
 export async function handleAdminDemands(db, url, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
@@ -185,9 +188,8 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   if (err) return err;
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return errorMsg('DEMAND_NOT_FOUND', 404);
-  // 管理员可删全部需求（含已签约 contracted）；
-  // 数据层 dbAdminForceDeleteDemand 同事务清 signing_contracts 的 demand_id 引用再删需求，
-  // F-03b 悬空不变量照守（常规非管理员路径仍走 dbDeleteDemand 的原子门禁）。
+  // 管理员可删全部需求（含已关闭）；合同不绑定需求（S5 独立化），删除无需联动清理，
+  // 与常规路径 dbDeleteDemand 同口径（S3 单科目模型无悬空引用事故面）。
   const ok = await dbAdminForceDeleteDemand(db, demandId);
   if (!ok) return errorMsg('DEMAND_NOT_FOUND', 409); // 行已被并发删除等
   await logEvent(db, { action: 'admin.demand.delete', actorUserId: admin.id, actorUsername: admin.username,
@@ -268,12 +270,12 @@ const TYPE_LABEL = { // Q-2i-M5：显示文案 codes.js MSG 单源
   post: MSG.CONTENT_LABEL_POST, demand: MSG.CONTENT_LABEL_DEMAND, teacher: MSG.CONTENT_LABEL_TEACHER,
   review: MSG.CONTENT_LABEL_REVIEW, message: MSG.CONTENT_LABEL_MESSAGE, feedback: MSG.CONTENT_LABEL_FEEDBACK,
   complaint: MSG.CONTENT_LABEL_COMPLAINT, upload: MSG.CONTENT_LABEL_UPLOAD,
-  contract: MSG.CONTENT_LABEL_CONTRACT, signing: MSG.CONTENT_LABEL_SIGNING,
+  contract: MSG.CONTENT_LABEL_CONTRACT,
 };
 
 // 处罚通知三段截断预算（LIMITS.PENALTY_*_MAX 单源）：结构化 params 落库，客户端渲染总长 <200（v1 库层 200 字上限语义保留）
 
-// GET /api/admin/content?type=post|demand|teacher|review|message|feedback|complaint|upload
+// GET /api/admin/content?type=post|demand|teacher|review|message|feedback|complaint|upload|contract
 export async function handleAdminContent(db, url, req) {
   const { admin, err } = await requireAdmin(db, req);
   if (err) return err;
@@ -303,7 +305,7 @@ export async function handleContentAction(db, type, id, body, req) {
   let authorId = null, summary = '';
   switch (type) {
     case 'post': { const p = await dbGetPostById(db, id); if (!p) return errorMsg('POST_NOT_FOUND', 404); authorId = p.user_id; summary = `${p.title || ''} ${p.body_md || ''}`; break; }
-    case 'demand': { const d = await dbGetDemandById(db, id); if (!d) return errorMsg('DEMAND_NOT_FOUND', 404); authorId = d.user_id; summary = String(d.additional_info || d.address || ''); break; }
+    case 'demand': { const d = await dbGetDemandById(db, id); if (!d) return errorMsg('DEMAND_NOT_FOUND', 404); authorId = d.user_id; summary = String(d.additionalInfo || d.addressArea || ''); break; } // S3 单科目字段名
     case 'teacher': { const t = await dbGetTeacherProfile(db, id); if (!t) return errorMsg('USER_NOT_FOUND', 404); authorId = id; summary = `${t.intro || ''} ${t.address || ''} ${t.school || ''}`; break; }
     case 'review': { const r = await dbGetReviewById(db, id); if (!r) return errorMsg('REVIEW_NOT_FOUND', 404); authorId = r.reviewer_user_id; summary = r.comment || ''; break; }
     case 'message': { const m = await dbGetMessageById(db, id); if (!m) return errorMsg('MESSAGE_NOT_FOUND', 404); authorId = m.sender_user_id; summary = m.body || m.name || ''; break; }
@@ -311,7 +313,6 @@ export async function handleContentAction(db, type, id, body, req) {
     case 'complaint': { const c = await dbGetComplaintById(db, id); if (!c) return errorMsg('COMPLAINT_NOT_FOUND', 404); authorId = c.user_id; summary = `${c.reason || ''} ${c.detail || ''}`; break; }
     case 'upload': { const o = await dbGetUpload(db, id); if (!o) return errorMsg('INVALID_PARAMS', 404); authorId = o.user_id; summary = o.name || ''; break; }
     case 'contract': { const c = await dbGetContractById(db, id); if (!c) return errorMsg('CONTRACT_NOT_FOUND', 404); authorId = c.drafter_user_id; summary = `${c.plan || ''} ${c.schedule || ''}`; break; }
-    case 'signing': { const s = await dbGetSigningById(db, id); if (!s) return errorMsg('CONTRACT_NOT_FOUND', 404); authorId = s.initiator_user_id; summary = `${s.price > 0 ? s.price + MSG.CONTENT_PRICE_PER_HOUR + ' ' : ''}${s.schedule || ''} ${s.method || ''}`; break; }
     default: return errorMsg('INVALID_PARAMS');
   }
   if (!authorId) return errorMsg('USER_NOT_FOUND', 404);
@@ -350,7 +351,6 @@ async function doDeleteContent(db, type, id) {
     case 'complaint': await dbDeleteComplaint(db, id); break;
     case 'upload': await dbDeleteUpload(db, id); break;
     case 'contract': await dbDeleteContract(db, id); break;
-    case 'signing': await dbDeleteSigning(db, id); break;
   }
 }
 
@@ -361,7 +361,7 @@ const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [
   S('POST', '/api/admin/invite', c => handleGenInvite(c.db, c.body, c.req)),
   S('GET', '/api/admin/invites', c => handleListInvites(c.db, c.req)),
-  S('DELETE', '/api/admin/invites/:code', c => handleRevokeInvite(c.db, c.params.code, c.req)),
+  S('DELETE', '/api/admin/invites/:code', c => handleRevokeInvite(c.db, c.params.code, c.body, c.req)),
   S('GET', '/api/admin/stats', c => handleAdminStats(c.db, c.url, c.req)),
   S('GET', '/api/admin/dashboard', c => handleAdminDashboard(c.db, c.url, c.req)),
   S('GET', '/api/admin/traffic', c => handleAdminTraffic(c.db, c.url, c.req)),

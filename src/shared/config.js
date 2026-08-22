@@ -30,6 +30,8 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
       { prefix: '+86', name: '中国大陆', pattern: /^1[3-9]\d{9}$/ },
     ],
     OTP_RESEND_SEC: 60,                   // 验证码 60s 重发冷却（前端倒计时/灰化；服务端 LIMITS.OTP_RESEND_WINDOW_MS 同口径强制）
+    // 滑动拼图人机判定（S0-19 单源）：偏移容差 CONFIG 供前端本地答案比对；服务端 PASS_SCORE/防重放窗口在 LIMITS
+    CAPTCHA_TOLERANCE: 0.08,              // 滑块缺口偏移容差（前端本地比对答案用；服务端只判人机不校验 offset 正确性）
     DEMAND_SCORE_MAX: 12,                 // 需求「科目具体情况」成绩条目数上限（服务端 sanitizeDemand 同读钳制——v0.31.3 审计：原为幽灵引用 + 裸 12 兜底）
     VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
     DH_TTL_MS: 60000,                     // 会话数据层保底 TTL
@@ -40,7 +42,6 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     USERNAME_MIN: 3, USERNAME_MAX: 30,    // 用户名长度下限/上限（前端校验与 server LIMITS.USERNAME_MIN/MAX 对齐，改值两处核对）
     CONTRACT_LOCATION_MAX: 200,           // 合同地点输入上限（对齐 server LIMITS.CONTRACT_LOCATION_MAX）
     PAY_OTHER_MAX: 100,                   // 合同「其他」付款方式/试课薪资自定义文本上限（对齐 server LIMITS.PAY_OTHER_MAX）
-    AWARD_TITLE_MAX: 60, AWARD_ISSUER_MAX: 60, // 奖项名称/颁发机构上限（Z-16-F3：同值经 LIMITS.AWARD_TITLE_MAX/ISSUER_MAX 供服务端钳制，改值一处即两端生效）
     TIME_SLOTS_MAX: 8,                    // 结构化时间组件条数上限（与 server LIMITS.TIME_SLOTS_MAX 对齐）
     PERSONALITY_TAGS_MAX: 3,              // 性格关键词上限（R2-3，前端 toggleTagPick 与服务端兜底同用）
     TEACHING_GOALS_MAX: 2,                // 教学目标上限（≤2，前后端同用）
@@ -121,6 +122,10 @@ export const LIMITS = {
   AVATAR_MAX_BYTES: 20000,
   CREDENTIAL_MAX_BYTES: CONFIG.ADMISSION_IMG_MAX,
   MESSAGE_MAX_LEN: 2000,
+  // S2-T2: temp conversation send quota (initiator can send 1 message before receiver replies to formalize)
+  TEMP_SEND_QUOTA: 1,
+  // S2-T2: I-23 firstMessage length cap
+  TEMP_FIRST_MSG_MAX: 1000,
   FILE_MAX_BYTES: 700000,
   THUMB_MAX_BYTES: 20000,
   FILE_NAME_MAX: 100,
@@ -166,10 +171,9 @@ export const LIMITS = {
   PHONE_MAX: 20,
   EMAIL_MAX: 100,
   USERNAME_COOLDOWN_MS: 604800000,
-  // 荣誉奖项（Z-16-F3 单源）：TITLE/ISSUER 上限与前端 CONFIG 同值（改 CONFIG 一处即两端生效）；AWARDS_MAX 每教师奖项数上限
-  AWARD_TITLE_MAX: CONFIG.AWARD_TITLE_MAX,
-  AWARD_ISSUER_MAX: CONFIG.AWARD_ISSUER_MAX,
-  AWARDS_MAX: 10,
+  // 滑动拼图人机判定（S0-19 单源，服务端 src/server/core/human-check.js 直读；偏移容差在前端 CONFIG）
+  CAPTCHA_PASS_SCORE: 59,                 // 人机判定放行阈值（20 次真人拖动校准 mean−2σ 取整；机器轨迹原始分恒 <15）
+  CAPTCHA_REUSE_WINDOW_MS: 5 * 60 * 1000, // 同 captchaId 放行后防重放窗口（内存 Map，isolate 内有效）
   // 单次 Worker 调用处理的密文行数上限（A-12 定案）：D1 Free 单调用 50 次查询预算，
   // 减 handler 固定开销（requireAdmin/confirmDangerOtp/logEvent/logRequest ≈ 10 次）与每段 1 次
   // 扫描 SELECT 后留足余量。≤30 契约由 test/reencrypt.test.js 锁定（防调大后单调用回归 D1 上限）。
@@ -235,7 +239,7 @@ export const CORS_HEADERS = {
   'Access-Control-Allow-Headers': "Content-Type, X-Auth-Token",
 };
 export const SECURITY_HEADERS = {
-  'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+  'Content-Security-Policy': "script-src 'self'; style-src-elem 'self'; style-src-attr 'none'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   'Strict-Transport-Security': "max-age=31536000; includeSubDomains",
   'X-Content-Type-Options': "nosniff",
   'X-Frame-Options': "DENY",
@@ -248,6 +252,11 @@ export const INVITE_GATE_ENABLED = true;
 export const LEGACY_ADMIN_PASSWORD = "admin_sufe";
 export const INITIAL_RATING = 4.5;
 export const INITIAL_WEIGHT = 10;
+// S4-13: new-model server-side match-degree weights (sum = 100; I-32 contract).
+// Distinct from v2 client CONFIG.MATCH_WEIGHT (subject 45/region 15/budget 15/personality 15/gender 10) —
+// the new model adds a teaching-method dimension and rebalances toward region/price.
+// Single source of truth for src/server/domains/teacher/match/*.
+export const MATCH_WEIGHTS = { subject: 35, region: 25, budget: 20, method: 10, personality: 5, gender: 5 };
 export const NUM_T = "[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億]";
 export const NUM_SEP = "[-·、．.，, ]";
 export const ADDRESS_GUARD = /(?:(?:[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億][-·、．.，, ]?)+[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億][-·、．.，, ]?号(?!线)|(?:[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億][-·、．.，, ]?)*[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億][-·、．.，, ]?(?:号楼|室|栋|单元|门牌))/;

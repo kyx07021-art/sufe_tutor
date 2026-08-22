@@ -1,23 +1,25 @@
 /**
- * 路由模块：教师（档案读写 / 教师列表）
- * 档案可见性三级（身份一律凭令牌）：
- *   本人       全字段（含联系方式/真实姓名/学信网截图，供编辑表单预填）
- *   双向匹配   公开档案 + 真实姓名 + 学信网截图（联系方式仍按「签约后展示」规则不下发）
- *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
+ * 路由模块：教师（档案读写 / 教师列表 / 学信网核验）
+ * 档案可见性（S4-03/06，身份一律凭令牌）：
+ *   本人       GET /api/teacher/profile 全字段（含联系方式/真实姓名/学信网截图，供编辑表单预填）；
+ *             ?userId= 指向他人一律 403（不再有「双向匹配/已签约」他人可见路径，S4-07 删门禁）
+ *   公开        GET /api/teachers/:id/profile 公开详情 + GET /api/teachers 列表——
+ *             wechat/email/real_name/credential_image 永不下发
  * 依赖：util / security（requireUser）/ constants（校验文案/限额/门牌守卫）/ db / log。
  */
 import { json, errorMsg, sanitizeTimeSlots, parseIdParam } from '../../core/util.js';
-import { authUser, requireUser, requireAdmin } from '../../core/security.js';
+import { requireUser, requireAdmin } from '../../core/security.js';
 import { MSG } from '../../../shared/codes.js';
 import { LIMITS, CONFIG } from '../../../shared/config.js';
 import { TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, SUBJECTS, TEACHER_GRADES, GENDERS } from '../../../shared/enums.js';
 import { SUFE_REGIONS } from '../../../shared/region-data.js'; // V-2-4c 地区数据单源
-import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched, dbIsContracted, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbListTeacherVerifications, dbGetTeacherVerificationById, dbApplyChsiToProfile, dbClearChsiFromProfile, dbSetTeacherVerified, safeJsonArray } from '../../../../server/db.js';
+import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbListTeacherVerifications, dbGetTeacherVerificationById, dbApplyChsiToProfile, dbClearChsiFromProfile, dbSetTeacherVerified, safeJsonArray } from '../../../../server/db.js';
 import { verifyChsiCode } from '../../../../server/chsi.js';
 import { logEvent } from '../../core/log.js';
 import { decryptField } from '../../core/crypto.js';
 import { confirmDangerOtp } from '../../core/danger-ops.js';
 import { notifyUser } from '../../core/notify.js';
+import { handleGetTeachers } from './list.js'; // S4-09..12 教师广场列表（排序/筛选/匹配度）
 
 // ============================================================
 // 接单资格（v1.2.0 T3）：教师能接单 = 学信网核验通过（chsi_verified=1）
@@ -49,6 +51,10 @@ export async function handleVerifyChsi(db, body, req) {
   if (!v.ok) return v.code === 'CHSI_PROVIDER_INVALID'
     ? errorMsg('CHSI_UNAVAILABLE', 503)
     : errorMsg('CHSI_CODE_INVALID');
+  // I-41/S4-04：已通过核验的教师不得反复提交打回 pending 骚扰队列（与 admission 通道同口径；
+  // 学籍变更走管理员撤销后重验，非本通道）
+  const existing = await dbGetTeacherVerification(db, me.id);
+  if (existing && existing.status === 'approved') return errorMsg('ADMISSION_ALREADY_VERIFIED', 409);
   await dbUpsertTeacherVerification(db, {
     userId: me.id, verifyCode: code, status: 'pending', provider: v.provider,
   });
@@ -101,28 +107,17 @@ export async function handleVerifyAdmission(db, body, req) {
 }
 
 
-// ?userId= 缺省 = 本人（编辑预填）；传他人 id：
-//   未匹配 → 403（面板数据源是列表接口，不应走到这里）
-//   双向匹配 → 公开档案 + 真实姓名 + 学信网截图
-//   已签约   → 再追加联系方式（微信/邮箱，「签约后展示」规则的兑现层）
+// I-39 / S4-03：只返回本人档案（全字段，含联系方式/真实姓名/学信网截图，供编辑表单预填）。
+// ?userId= 若存在且非本人 → 403（联系方式与私密认证字段仅本人可见；他人可见路径已由
+// GET /api/teachers/:id/profile 公开详情取代，S4-07 删匹配/签约可见性门禁）。
 export async function handleGetProfile(db, url, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
-  const targetId = parseInt(url.searchParams.get('userId')) || me.id;
-  // 被封禁且未注销的账户视同不存在（与 handleGetUserPublic 口径一致，不泄露封禁态）；本人不受影响（authUser 已拦封禁者）
-  if (targetId !== me.id) {
-    const target = await dbGetUserById(db, targetId);
-    if (target && target.banned && !target.deactivated) return errorMsg('USER_NOT_FOUND', 404);
-  }
-  const profile = await dbGetTeacherProfile(db, targetId);
+  const paramUserId = url.searchParams.get('userId');
+  if (paramUserId && Number(paramUserId) !== me.id) return errorMsg('NO_PERMISSION', 403);
+  const profile = await dbGetTeacherProfile(db, me.id);
   if (!profile) return json({ profile: null });
-  if (me.id === targetId) return json({ profile }); // 本人：全字段
-  const { wechat, email, real_name, credential_image, ...publicPart } = profile;
-  if (!(await dbIsMatched(db, me.id, targetId))) return errorMsg('NO_PERMISSION', 403);
-  // v1.4.14 用户拍板：联系方式统一按「已签约」（dbIsContracted = signing_request signed）开放；
-  // signed 字段随响应下发（前端展示/写评价判定的单一事实源，不再自算）
-  const signed = me.role === 'student' && (await dbIsContracted(db, me.id, targetId));
-  return json({ profile: { ...publicPart, real_name, credential_image, ...(signed ? { wechat, email } : {}), signed, matched: true } });
+  return json({ profile }); // 本人：全字段（mapper 出门即解密）
 }
 
 export async function handleSaveProfile(db, body, req) {
@@ -226,6 +221,21 @@ export async function handleSaveProfile(db, body, req) {
   genderSet.add('nonbinary'); // 存量兼容：历史 nonbinary 保留，展示层已视同未填
   if (!genderSet.has(p.gender || '')) p.gender = '';
 
+  // S4-08/I-40 教师公开展示名（teacher_name 列，空时回退 username）：trim + 截断到 REAL_NAME_MAX
+  // （展示名上限，同 real_name 口径）；缺省保留原值（部分省略 = 不改该字段）
+  if (p.teacher_name != null) p.teacher_name = String(p.teacher_name).trim().slice(0, LIMITS.REAL_NAME_MAX);
+
+  // S4-10/I-40 教学年限（experience_years 列，公开）：''/null/undefined → null（未填）；
+  // 否则必须为非负整数（严格校验，宽松强转被拒——' 3'、'3.0'、'3abc' 一律 400；小整数不钳制）
+  const expYears = p.experience_years;
+  if (expYears == null || expYears === '') {
+    p.experience_years = null;
+  } else {
+    const expN = Number(expYears);
+    if (!Number.isInteger(expN) || expN < 0) return errorMsg('INVALID_PARAMS', 400);
+    p.experience_years = expN;
+  }
+
   // 高考成绩：数组、≤科目池封顶；每项 subject 在白名单；score 数值且钳到 [0, GAOKAO_SCORE_MAX]
   // （全政策单科最高 = 海南标准分 300，语数英 150/其他 100/旧综合 300 均在界内；分政策精度属前端按
   // 地区+毕业年份渲染职责，服务端只做纵深防御）；grade 等第 id 白名单（region-data 全档位并集）。
@@ -275,13 +285,17 @@ export async function handleSaveProfile(db, body, req) {
   return json({ message: MSG.PROFILE_SAVED });
 }
 
-// 教师广场列表：联系方式（签约后展示）与私密认证字段（真实姓名/学信网截图，双向匹配后按
-// /api/teacher/profile 定点取）永不下发列表；登录态附 matched 标记供前端判定可见性
-export async function handleGetTeachers(db, req) {
-  const me = await authUser(db, req); // 访客可浏览公开列表，令牌非必需
-  const teachers = (await dbGetTeachers(db, { viewerId: me ? me.id : null }))
-    .map(({ wechat, email, real_name, credential_image, ...rest }) => rest);
-  return json({ teachers });
+/** GET /api/teachers/:id/profile —— 教师公开详情（I-30 / S4-06）。
+ *  登录可见（requireUser，与 I-29 列表同级门禁）；dbGetTeacherProfile 返回全字段（mapper 出门解密），
+ *  这里剥离四个私密字段——wechat/email/real_name/credential_image 永不下发（仅本人经 /api/teacher/profile 取回）。 */
+export async function handleGetTeacherPublic(db, id, req) {
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const profile = await dbGetTeacherProfile(db, id);
+  if (!profile) return errorMsg('USER_NOT_FOUND', 404);
+  // I-30 / S4-06：联系方式 / 真实姓名 / 学信网截图永不公开
+  const { wechat, email, real_name, credential_image, ...publicPart } = profile;
+  return json({ profile: publicPart });
 }
 
 /** GET /api/teacher/verify-status —— 学信网核验状态（none 未提交 / pending 待管理员核验 / approved 已通过） */
@@ -291,8 +305,9 @@ export async function handleChsiStatus(db, req) {
   if (me.role !== 'teacher') return errorMsg('NO_PERMISSION', 403);
   const v = await dbGetTeacherVerification(db, me.id);
   if (!v) return json({ status: 'none' });
-  // Q-2c-F7 BUG-I：回传 verify_type——前端需区分 chsi（验证码核验）与 admission（录取通知书）通道渲染对应 UI
-  return json({ status: v.status, provider: v.provider, verify_type: v.verify_type });
+  // Q-2c-F7 BUG-I：回传 verify_type——前端需区分 chsi（验证码核验）与 admission（录取通知书）通道渲染对应 UI。
+  // I-43：同时下发 camelCase verifyType（新前端契约）与 snake_case verify_type（v2 契约），双键兼容。
+  return json({ status: v.status, provider: v.provider, verify_type: v.verify_type, verifyType: v.verify_type });
 }
 
 // ============================================================
@@ -392,10 +407,12 @@ const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [
   S('GET', '/api/teacher/profile', c => handleGetProfile(c.db, c.url, c.req)),
   S('POST', '/api/teacher/profile', c => handleSaveProfile(c.db, c.body, c.req)),
+  S('PUT', '/api/teacher/profile', c => handleSaveProfile(c.db, c.body, c.req)), // I-40：与 POST 同 handler（部分省略=保留原值）
   S('POST', '/api/teacher/verify-chsi', c => handleVerifyChsi(c.db, c.body, c.req)),
   S('POST', '/api/teacher/verify-admission', c => handleVerifyAdmission(c.db, c.body, c.req)),
   S('GET', '/api/teacher/verify-status', c => handleChsiStatus(c.db, c.req)),
   S('GET', '/api/teachers', c => handleGetTeachers(c.db, c.req)),
+  S('GET', '/api/teachers/:id/profile', c => handleGetTeacherPublic(c.db, parseIdParam(c.params.id), c.req)), // I-30：公开详情，私密字段永不下发
   S('POST', '/api/admin/teachers/:id/verify', c => handleVerifyTeacher(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/admin/verifications', c => handleListVerifications(c.db, c.url, c.req)),
   S('POST', '/api/admin/verifications/:id/action', c => handleVerificationAction(c.db, parseIdParam(c.params.id), c.body, c.req)),

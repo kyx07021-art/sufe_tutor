@@ -1,5 +1,10 @@
 /**
  * 投诉/反馈域数据层（V-1-4 从 server/db.js 提取）：feedbacks / complaints / 候选搜索。
+ * S6-C4（2026-08-22，new-site）：feedbacks 匿名身份模型——
+ *   - dbCreateFeedback 签名改为对象参数（匿名：userId 可空 + clientToken；contact/attrs 落库）。
+ *   - dbGetFeedbacksByUser 支持 { userId }（登录）或 { clientToken }（匿名）两种身份查询。
+ *   - dbGetFeedbacksAdmin 改 LEFT JOIN（匿名行 user_id 为 NULL，INNER JOIN 会丢匿名反馈）。
+ *   - attrs JSON 列经 safeJsonObject mapper 单点反序列化（匿名举报元数据）。
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { safeJsonArray, safeJsonObject } from '../../core/json.js';
@@ -7,35 +12,52 @@ import { likeEscape } from '../posts/repo.js';
 import { LIMITS } from '../../../shared/config.js';
 import { STATUS } from '../../../shared/enums.js';
 
-// 用户反馈（关于平台模块）
+// 用户反馈（关于平台模块；匿名身份 = client_token 列，登录身份 = user_id 列）
 // ============================================================
-export async function dbCreateFeedback(db, userId, kind, title, content, subject = '') {
+export async function dbCreateFeedback(db, { userId = null, clientToken = '', kind, title, content, subject = '', contact = '', attrs = '{}' }) {
   const res = await dbRun(db,
-    'INSERT INTO feedbacks (user_id, kind, title, content, subject) VALUES (?,?,?,?,?)',
-    [userId, kind, title, content, subject]);
+    'INSERT INTO feedbacks (user_id, client_token, kind, title, content, subject, contact, attrs) VALUES (?,?,?,?,?,?,?,?)',
+    [userId ?? null, clientToken, kind, title, content, subject, contact, attrs]);
   return (res && res.meta && res.meta.last_row_id) || 0;
 }
 
-// 我的反馈/投诉列表——用户侧状态跟踪闭环（本人可见，无他人数据）
-export async function dbGetFeedbacksByUser(db, userId) {
-  return await dbAll(db, `SELECT * FROM feedbacks WHERE user_id=? ORDER BY id DESC LIMIT ${LIMITS.FEEDBACK_MINE_MAX}`, [userId]);
+// 我的反馈/投诉列表——按身份查询：登录走 user_id，匿名走 client_token（只回本端工单，不泄他人）。
+// 两者互斥调用：匿名行 user_id 恒 NULL，登录行 client_token 恒 ''。
+export async function dbGetFeedbacksByUser(db, { userId = null, clientToken = '' }) {
+  let rows;
+  if (userId != null) {
+    rows = await dbAll(db, `SELECT * FROM feedbacks WHERE user_id=? ORDER BY id DESC LIMIT ${LIMITS.FEEDBACK_MINE_MAX}`, [userId]);
+  } else if (clientToken) {
+    rows = await dbAll(db, `SELECT * FROM feedbacks WHERE client_token=? AND user_id IS NULL ORDER BY id DESC LIMIT ${LIMITS.FEEDBACK_MINE_MAX}`, [clientToken]);
+  } else {
+    rows = [];
+  }
+  return rows.map(mapFeedback);
 }
 
 export async function dbGetFeedbacksAdmin(db, status) {
   // 可选 status 下推过滤（白名单，防注入）；不传则返回全部。
+  // S6-C4：匿名反馈 user_id 为 NULL，LEFT JOIN 才能带出（INNER JOIN 会静默丢匿名行）。
   // feedbacks.status 合法值仅 open/resolved（'pending' 会使「未处理」过滤恒空）——Z-6-F4：字面量走 STATUS
   const where = (status === STATUS.OPEN || status === STATUS.RESOLVED) ? ' WHERE f.status=?' : '';
   const params = where ? [status] : [];
-  return await dbAll(db,
-    'SELECT f.*, u.username FROM feedbacks f JOIN users u ON u.id = f.user_id' + where + ` ORDER BY f.id DESC LIMIT ${LIMITS.FEEDBACK_ADMIN_MAX}`, params);
+  const rows = await dbAll(db,
+    'SELECT f.*, u.username FROM feedbacks f LEFT JOIN users u ON u.id = f.user_id' + where + ` ORDER BY f.id DESC LIMIT ${LIMITS.FEEDBACK_ADMIN_MAX}`, params);
+  return rows.map(mapFeedback);
 }
 
 export async function dbGetFeedbackById(db, feedbackId) {
-  return await dbGet(db, 'SELECT * FROM feedbacks WHERE id=?', [feedbackId]);
+  const row = await dbGet(db, 'SELECT * FROM feedbacks WHERE id=?', [feedbackId]);
+  return row ? mapFeedback(row) : null;
 }
 
 export async function dbResolveFeedback(db, feedbackId) {
   await dbRun(db, `UPDATE feedbacks SET status='resolved' WHERE id=?`, [feedbackId]);
+}
+
+// attrs JSON 列反序列化单点（mapper 唯一出口；损坏/标量回落 {}）
+function mapFeedback(row) {
+  return { ...row, attrs: safeJsonObject(row.attrs) };
 }
 
 // ============================================================

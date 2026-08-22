@@ -3,8 +3,9 @@
  * 特殊路由（通知 / 数据版本 / 验证码）属于 core 或根基础设施，保留在本文件。
  */
 import { routes as authRoutes } from './domains/auth/api.js';
+import { settingsRoutes } from './domains/auth/settings.js';
+import { verifyRoutes } from './domains/auth/verify.js';
 import { routes as teacherRoutes } from './domains/teacher/api.js';
-import { routes as settingsRoutes } from './domains/settings/api.js';
 import { routes as demandRoutes } from './domains/demand/api.js';
 import { routes as chatRoutes } from './domains/chat/api.js';
 import { routes as contractRoutes } from './domains/contract/api.js';
@@ -19,7 +20,7 @@ import {
   handleAdminDeleteNotification,
 } from './core/notify.js';
 import { handleGetDataVersion } from '../../server/version.js';
-import { handleCaptchaVerify } from '../../server/human-check.js';
+import { handleCaptchaVerify } from './core/human-check.js';
 
 const S = (method, path, handler) => ({ method, path, handler });
 
@@ -35,8 +36,9 @@ const specialRoutes = [
 
 export const routes = [
   ...authRoutes,
-  ...teacherRoutes,
   ...settingsRoutes,
+  ...verifyRoutes,
+  ...teacherRoutes,
   ...demandRoutes,
   ...chatRoutes,
   ...contractRoutes,

@@ -8,6 +8,8 @@ export const CONVERSATIONS_DDL = `CREATE TABLE IF NOT EXISTS conversations (
       student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
       demand_id INTEGER, status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','closed')),
       created_at DATETIME DEFAULT (datetime('now')),
+      temp_status TEXT DEFAULT NULL CHECK(temp_status IS NULL OR temp_status IN ('init','sent')),
+      temp_initiator_user_id INTEGER DEFAULT NULL,
       UNIQUE(student_user_id, teacher_user_id),
       FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
       FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -43,6 +45,10 @@ export const ensureColumns = [
   { table: 'conversations', columns: [
     ['student_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
     ['teacher_last_read_id', 'INTEGER NOT NULL DEFAULT 0'],
+    // S2-T1: temp conversation state machine (init -> sent -> formal). NULL = formal conversation.
+    ['temp_status', "TEXT DEFAULT NULL CHECK(temp_status IS NULL OR temp_status IN ('init','sent'))"],
+    // S2-T1: initiator of a temp conversation; retained as wasTemp once formalized.
+    ['temp_initiator_user_id', 'INTEGER DEFAULT NULL'],
   ] },
 ]; // AI-5: signing_requests 表已删（AI-3 双方元组 ensureColumns 随表清理）
 
@@ -83,19 +89,8 @@ export async function migrate(db, ctx) {
     return;
   }
   if (ctx.phase !== 'postEnsure') return;
-  // 存量会话需求绑定修复：旧会话 demand_id 为空 → 从已接受意向 / 已接受推送反查回填（幂等，仅填空不覆写）
-  await dbRun(db, `UPDATE conversations SET demand_id = (
-      SELECT di.demand_id FROM demand_intents di
-      WHERE di.teacher_user_id = conversations.teacher_user_id AND di.status='accepted' AND di.demand_id IS NOT NULL
-      ORDER BY di.id DESC LIMIT 1)
-    WHERE demand_id IS NULL AND EXISTS (
-      SELECT 1 FROM demand_intents di WHERE di.teacher_user_id = conversations.teacher_user_id AND di.status='accepted')`);
-  await dbRun(db, `UPDATE conversations SET demand_id = (
-      SELECT dp.demand_id FROM demand_pushes dp
-      WHERE dp.teacher_user_id = conversations.teacher_user_id AND dp.status='accepted' AND dp.demand_id IS NOT NULL
-      ORDER BY dp.id DESC LIMIT 1)
-    WHERE demand_id IS NULL AND EXISTS (
-      SELECT 1 FROM demand_pushes dp WHERE dp.teacher_user_id = conversations.teacher_user_id AND dp.status='accepted')`);
+  // S2: demand_intents / demand_pushes tables are deleted (S2 intents/pushes removal).
+  // The legacy conversation.demand_id backfill from accepted intents/pushes no longer applies.
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_conv_teacher ON conversations(teacher_user_id, student_user_id)');
   // Z-4-F1：idx_messages_conv 无条件路径（新库与换表库都建）——曾放在 migrateMessagesKind 条件分支内，
   // 新库 MESSAGES_DDL 已含终态 CHECK 短路跳过 → 索引永不创建，conversation_id+id 查询回退全表扫描

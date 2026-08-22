@@ -5,7 +5,6 @@
 import { dbAll, dbGet, dbRun, toDbTime } from '../../core/util.js';
 import { hashPassword } from '../../core/crypto.js';
 import { INITIAL_RATING, INITIAL_WEIGHT, LIMITS, PHONE_HASH_COND, EMAIL_HASH_COND } from '../../../shared/config.js';
-import { STATUS } from '../../../shared/enums.js';
 // 教师评分重算依赖：统计来自评价域、写库来自教师域（Z-5-F1 断线修复，补全两 helper）
 import { dbGetApprovedReviewStats } from '../reviews/repo.js';
 import { dbUpdateTeacherRating } from '../teacher/repo.js';
@@ -71,8 +70,8 @@ export async function dbRecomputeTeacherRating(db, teacherUserId) {
 }
 
 // 注销清理：吊销全部登录态 + 单方数据全删；双方共享数据（会话/聊天/合同）匿名化本人侧后保留，
-// JOIN username 处自然显示墓碑。学生侧需求（含联系方式）/意向/推送/自写评价一律删除
-// （网安报告 F-06：原实现漏删学生侧表，敏感数据永久保留）。
+// JOIN username 处自然显示墓碑。学生侧需求（含联系方式）/自写评价一律删除
+// （网安报告 F-06：原实现漏删学生侧表，敏感数据永久保留；intents/pushes 归 S2 删，无清理面）。
 export async function dbPurgeUserOwnedData(db, userId, role) {
   await dbRun(db, 'DELETE FROM auth_sessions WHERE user_id=?', [userId]);
   await dbRun(db, 'DELETE FROM teacher_profiles WHERE user_id=?', [userId]);
@@ -85,35 +84,18 @@ export async function dbPurgeUserOwnedData(db, userId, role) {
   await dbRun(db, 'DELETE FROM posts WHERE user_id=?', [userId]);
 
   if (role === 'student') {
-    // 学生侧：删自建需求（级联删意向/推送，含联系方式与地址）。
-    // 网安 N-12：已签约（contracted）需求不删、置 revoked 保留行——否则合同 demand_id 悬空（裸 INTEGER 无 FK）
-    await dbRun(db, `DELETE FROM student_demands WHERE user_id=? AND status <> ?`, [userId, STATUS.CONTRACTED]);
-    await dbRun(db, `UPDATE student_demands SET status=? WHERE user_id=? AND status=?`, [STATUS.REVOKED, userId, STATUS.CONTRACTED]);
-    await dbRun(db, 'DELETE FROM demand_pushes WHERE student_user_id=?', [userId]);
+    // 学生侧：删自建需求。S3 单科目：状态收敛 open/closed、合同不绑定需求（S5 独立化），
+    // 无「已签约保留」顾虑——无条件全删（原 contracted 保留/置 revoked 的 N-12 逻辑随旧状态机废止）。
+    await dbRun(db, 'DELETE FROM student_demands WHERE user_id=?', [userId]);
     const myReviews = await dbAll(db, 'SELECT id, teacher_user_id FROM reviews WHERE reviewer_user_id=?', [userId]);
     await dbRun(db, 'DELETE FROM reviews WHERE reviewer_user_id=?', [userId]);
     for (const rv of myReviews) await dbRecomputeTeacherRating(db, rv.teacher_user_id);
   } else if (role === 'teacher') {
-    // 教师侧：删其发出的意向/收到的推送；被评价记录保留（评价格局归学生，教师不可自删）
-    await dbRun(db, 'DELETE FROM demand_intents WHERE teacher_user_id=?', [userId]);
-    await dbRun(db, 'DELETE FROM demand_pushes WHERE teacher_user_id=?', [userId]);
+    // 教师侧：被评价记录保留（评价格局归学生，教师不可自删）
   }
 
-  // 注销幽灵数据：发起方的待处理签约请求收束为「已拒绝」终态——行 + 会话内气泡同步终态。
-  // 不能 DELETE：气泡自包含（kind='signing_request' 渲染自 body JSON），行删了气泡仍显 pending 按钮、
-  // 接收方点击必 404 死按钮（死签约请求）；也不可留 pending：注销者永不可回应、对方永远悬着。
-  // 置 rejected = 单方 offer 收走（offer 作历史双方协商记录保留），气泡终态灰字「已拒绝此次签约请求」。
-  const myPendingSignings = await dbAll(db,
-    'SELECT id, message_id, price, schedule, method FROM signing_contracts WHERE initiator_user_id=? AND stage=? AND signing_status=?',
-    [userId, 'signing', STATUS.PENDING]);
-  for (const sr of myPendingSignings) {
-    await dbRun(db, `UPDATE signing_contracts SET signing_status=?, responded_at=datetime('now') WHERE id=? AND stage=? AND signing_status=?`,
-      [STATUS.REJECTED, sr.id, 'signing', STATUS.PENDING]);
-    if (sr.message_id) {
-      await dbRun(db, 'UPDATE messages SET body=? WHERE id=?',
-        [JSON.stringify({ id: sr.id, price: sr.price, schedule: sr.schedule, method: sr.method, status: STATUS.REJECTED }), sr.message_id]);
-    }
-  }
+  // S1-04: signing branch removed — the new-site model has no signing_contracts table (S5 contract
+  // independentization drops it). Deactivation no longer terminates pending signing requests.
 
   // 匿名化本人发出的聊天正文与附件（会话/合同行保留，正文清空 + 墓碑用户名显示，符合 F-06 保留分级）。
   // image/file 消息的 dataURL 本体（最高 700KB）与文件名同样清空（不只清 kind='text'），

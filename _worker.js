@@ -20,68 +20,12 @@ import { bindTextAuditEnv } from './src/server/core/text-audit.js';
 import { initLedgerTable, bindLedgerDb } from './src/server/domains/contract/schema.js'; // Z-15-F8：server/contract.js 死 shim 已删，直引真源
 import { versionDomainOf, bumpVersions } from './server/version.js';
 import { auditBeforeWrite } from './src/server/core/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
-import { ASSET_MANIFEST } from './manifest.js'; // #169A 内容哈希资产清单（push 前 node hash-assets.mjs 重新生成）
 
-// ============ 内容哈希虚拟版本化（v0.25.76 #169A）============
-// 设计：不提交哈希副本、不改写 index.html 源码——由 worker 服务时把资产引用改写成哈希名
-// （浏览器只请求哈希 URL），版本化 URL 经 manifest 校验后路由回 base 文件并回 immutable 缓存头。
-// 内容变 → 哈希变 → 新 URL；index.html no-cache 每次导航重验 → 零陈旧；base 名永不 immutable
-// （不是 manifest 放行的版本化 URL 一律拿不到 immutable）。manifest 由 node hash-assets.mjs
-// 生成（v2 源模式：web/index.html 引用 + web/ 子目录资产），测试依旧读源码 base 名，零测试改动。
-
-// 校验路径是否为 manifest 中的版本化资产 URL（/app-chat.<hash8>.js），是则回 base 名
-export function versionedBase(p) {
-  const m = p.match(/^\/([a-zA-Z0-9._\/-]+)\.([0-9a-f]{8})\.(js|css)$/);
-  if (!m) return null;
-  const base = m[1] + '.' + m[3];
-  const hashed = m[1] + '.' + m[2] + '.' + m[3];
-  return ASSET_MANIFEST.files[base] === hashed ? base : null;
-}
-
-// #260（v0.25.102）：空响应毒化缓存防护——哈希 URL 永不失效，一个 200 空 body 的缓存条目会永久毒化该资产。
-// 实证：部署滚动窗口曾把空 glass.css 写进 Cache API，生产 glass.9381f43f.css 恒 0 字节、玻璃引擎整体失效
-// （base 路径/带 query 均 40172 字节，唯无 query 哈希 URL 命中空缓存）。规则：content-length 为 0 或缺失
-// （无法证明非空）的响应既不出缓存也不进缓存。
-function cacheableAsset(res) {
-  const cl = res.headers.get('content-length');
-  return cl !== null && Number(cl) > 0;
-}
-
-// 改写 HTML 文档：资产引用 → 哈希名（浏览器只请求哈希 URL，版本化路由回 base + immutable）。
-// V-4-1h h2h3：v1 壳删除后唯一 HTML 形态为 v2 ESM 页（type="module" 全静态 import、esbuild chunk
-// 自动解析），零 ASSET_MANIFEST 运行时消费——内联 manifest 注入分支随 v1 懒加载器一并删除
-// （严格 script-src 'self' 的前提）。manifest 仅承载 CSS（根/features）与 web/ 脚本（theme-init/async-css）。
-export function injectManifest(html) {
-  const files = ASSET_MANIFEST.files;
-  return html.replace(/(src|href)="\/([a-zA-Z0-9._\/-]+\.(?:js|css))"/g, (m, attr, base) => `${attr}="/${files[base] || base}"`);
-}
-
-// 改写后 HTML 的弱 ETag（改写 body 的哈希前 16 hex）——worker 必须自持 HTML 的 ETag：
-// 存储的 index.html 在"只改资产不动页面"的发版里字节不变，若沿用 ASSETS 的原 ETag，
-// 重验请求会命中旧 ETag 得 304，浏览器继续用上一版哈希引用 → 新部署下旧哈希 404（审计发现）。
-const etagOf = out =>
-  crypto.subtle.digest('SHA-256', new TextEncoder().encode(out))
-    .then(d => '"' + [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16) + '"');
-
-const CONDITIONAL = new Set(['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since']);
-
-// 服务 HTML：改写资产引用为哈希名（v2 零内联 manifest）；用自身 ETag 驱动 304（index.html no-cache 每次导航重验）
-async function serveHtml(request, env, p, res) {
-  const strip = new Headers(request.headers);
-  for (const k of CONDITIONAL) strip.delete(k);
-  const htmlReq = new Request(request.url, { method: request.method, headers: strip });
-  const stored = res.ok ? res : await env.ASSETS.fetch(htmlReq); // res 304 时回退无条件重取
-  if (!stored.ok) return applySecurityHeaders(stored, p);
-  const out = injectManifest(await stored.text());
-  const etag = await etagOf(out);
-  if (request.headers.get('if-none-match') === etag) {
-    return applySecurityHeaders(new Response(null, { status: 304, headers: { ETag: etag } }), p);
-  }
-  const headers = new Headers(stored.headers);
-  headers.delete('Content-Length'); headers.delete('ETag'); headers.delete('Last-Modified');
-  headers.set('ETag', etag);
-  return applySecurityHeaders(new Response(out, { status: 200, headers }), p);
-}
+// ============ Vite content-hash direct serving (S0-24 decision) ============
+// New-site build pipeline = Vite (new-frontend -> dist/assets/* content-hashed names); the HTML
+// references hashed assets via relative `./assets/` URLs with zero worker rewriting; /assets/*
+// immutable is handled by the _headers static layer. The v2 content-hash virtualization pipeline
+// (hash-assets -> manifest -> injectManifest -> versionedBase) has been fully removed (S0-22).
 
 // API 分发：声明式路由表（架构 v2）。批量只读/健康检查/保活为编排层特殊路由。
 import { createRouter } from './src/server/router.js';
@@ -114,12 +58,18 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
 
 // B6 公开列表边缘缓存（用户实测：游客 7s 出列表 / 教师列表 20s / 进模块拉表单 8s——D1 冷实例
 // 偶发 ~6s 慢往返按 worker 实例隔离，keepalive 只热它所在实例，用户请求路由到其他实例仍冷）。
-// 公开列表（教师 / 需求广场 / 帖子）命中边缘缓存零碰 D1，跨用户共享、冷实例也秒开。
+// 公开列表（教师 / 帖子）命中边缘缓存零碰 D1，跨用户共享、冷实例也秒开。
 // 一致性：TTL 30s 自愈（公开列表低频变更，发布/审核后 30s 内可见）。
 // 【外部审查 1101 修】仅匿名请求参与缓存（无 X-Auth-Token）——登录用户请求的响应含 per-user
-// 字段（posts.liked/favorited、teachers.matched、demands 观众变体），共享缓存跨用户下发即泄露；
+// 字段（posts.liked/favorited、teachers.matched），共享缓存跨用户下发即泄露；
 // 访客请求无 per-user 数据，是冷启动缓存的目标受众。登录用户走实时 routeApi 保私有正确。
 // 无 caches 环境（本地 dev / vm 测试）回落直取（可用性 fallback，不改变鉴权与数据）。
+// S0-22 evaluation: /api/teachers (teacher/list.js authUser optional) and /api/posts
+// (posts/api.js authUser optional) still return 200 to anonymous requests in the current
+// implementation, so the cache write gate (status===200) can fire -> cache is alive, retained.
+// /api/demands (demand/api.js requireUser) is login-gated; anonymous 401 means the cache write
+// gate never fires -> dead branch, removed from the predicate (interface I-34 login-visible;
+// if the frontend later stops anonymous access to teachers/posts, remove the whole block).
 const PUBLIC_LIST_TTL_S = 30;
 export function isAnonymous(request) {
   return !request.headers.get('X-Auth-Token');
@@ -127,7 +77,6 @@ export function isAnonymous(request) {
 export function isPublicListCacheable(p, url) {
   if (p === '/api/teachers') return true;                 // 教师列表（公开，含筛选 query 变体）
   if (p === '/api/posts') return true;                    // 资料广场（公开）
-  if (p === '/api/student/demands' && !url.searchParams.has('scope')) return true; // 需求广场（无 scope=公开）
   return false;
 }
 
@@ -261,39 +210,10 @@ export default {
           p.startsWith('/.claude/') || p.startsWith('/.github/') || p === '/.claude' || p === '/.github') { // 本地配置/CI 目录不入静态面（网安审计）
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
-      // 版本化资产路由（#169A + v0.25.83 边缘缓存）：manifest 校验放行的哈希 URL → base 文件 + immutable。
-      // 边缘缓存（Cache API）：内容哈希寻址的 URL 永不失效，可安全缓存到 Cloudflare 边缘——跨用户首访
-      // 也命中（此前响应头虽 immutable，但 CDN 边缘不缓存 worker 响应，新用户首访仍回源）。本地 dev /
-      // 无 caches 环境（测试）自动回落直取。
-      const vBase = versionedBase(p);
-      if (vBase) {
-        const cache = typeof caches !== 'undefined' ? caches.default : null;
-        if (cache) {
-          const cached = await cache.match(new Request(url));
-          // #260（v0.25.102）：命中空/无长度缓存不返回，直接回源覆盖（防历史毒化条目自愈）
-          if (cached && cacheableAsset(cached)) return applySecurityHeaders(cached, p);
-        }
-        const res = await env.ASSETS.fetch(new Request(new URL('/' + vBase, url), request)); // F1 修复：vBase 子目录时按站点根解析（相对会重复目录段）
-        if (res.ok) {
-          const headers = new Headers(res.headers);
-          headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-          const out = new Response(res.body, { status: res.status, headers });
-          // 空响应（content-length 0/缺失）不进缓存——哈希 URL 永不失效，空缓存会永久毒化生产
-          if (cache && cacheableAsset(res)) ctx.waitUntil(cache.put(new Request(url), out.clone()));
-          return applySecurityHeaders(out, p);
-        }
-        return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
-      }
-      // 版本化形态但不在当前 manifest（部署竞态里浏览器可能带旧哈希 URL 撞新版本）→ 404，
-      // 绝不给 HTML 冒充脚本（SPA 回退会把 index.html 喂给 <script src>，报错且难排查）。
-      // V-4-1e 审计 F2：/assets/* 是 esbuild 内容哈希直服区（非 manifest 管理），8 位哈希全为 hex
-      // 时（概率 ~2.5e-7/文件）会被本正则误 404 → 显式排除。
-      if (!p.startsWith('/assets/') && /^\/([a-zA-Z0-9._\/-]+)\.([0-9a-f]{8})\.(js|css)$/.test(p)) {
-        return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
-      }
       const res = await env.ASSETS.fetch(request);
-      // HTML 文档（含 SPA 回退）：改写资产引用为哈希名（v2 零内联 manifest）。
-      // ETag 由 worker 自持（改写 body 哈希）——沿用 ASSETS 原 ETag 会在只改资产不发版页面的发版后误判 304。
+      // HTML documents (incl. SPA fallback): Vite already wrote `./assets/` hashed references into
+      // the HTML, so the worker passes it through verbatim with zero rewriting. ETag/304 is handled
+      // natively by ASSETS (no rewriting -> no ETag drift; the worker no longer self-holds).
       // 304 响应无 content-type：按路径推断（/、/index.html、SPA 无扩展名路由均为 HTML）
       const ct = res.headers.get('content-type') || '';
       const isHtml = res.ok
@@ -307,7 +227,6 @@ export default {
       if (isHtml && !/\.html?$/i.test(p) && /\.[a-zA-Z0-9]{1,6}$/.test(p)) {
         return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
       }
-      if (isHtml) return serveHtml(request, env, p, res);
       return applySecurityHeaders(res, p);
     }
 

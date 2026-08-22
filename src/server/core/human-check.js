@@ -1,5 +1,5 @@
 /**
- * 拼图验证码人机判定咽喉（S0-19，搬运自 server/human-check.js v2；新站路由归 S0-21）
+ * 拼图验证码人机判定咽喉（S0-19；新站路由归 S0-21）
  *
  * 成熟方案（极验 / 顶象 / 易盾滑块风控原理，调研见会话记录）：
  * 风控判定人类轨迹的核心不是「终点对不对」，而是「过程像不像人」——机器轨迹
@@ -31,8 +31,8 @@ export const PASS_SCORE = LIMITS.CAPTCHA_PASS_SCORE;
 const MIN_POINTS = 10;
 const MAX_POINTS = 2000; // 后端轨迹点数硬上限（防单请求 CPU 放大；前端 cap 128，2000 为攻击面兜底）
 const REUSE_WINDOW_MS = LIMITS.CAPTCHA_REUSE_WINDOW_MS;
-const MAP_HARD_CAP = 10000; // 防重放 Map 硬上限（超限整表清空，防持续注入膨胀）
-const CAPTCHA_ID_MAX = 64;
+const MAP_HARD_CAP = 10000; // 防重放 Map 硬上限（超限逐出最旧键腾位，防持续注入膨胀；绝不清表、绝不未登记即放行）
+export const CAPTCHA_ID_MAX = 64;
 
 // 防重放：captchaId → 放行时间戳（内存 Map，isolate 内有效）
 const passedChallenges = new Map();
@@ -118,14 +118,33 @@ export function markChallengePassed(captchaId) {
   if (!captchaId) return false;
   const now = Date.now();
   const prev = passedChallenges.get(captchaId);
-  if (prev && now - prev < REUSE_WINDOW_MS) return false; // 已放行过 → 拒绝重放
-  // 清理过期键（防 Map 膨胀）
-  if (passedChallenges.size > MAP_HARD_CAP) { passedChallenges.clear(); return true; } // 硬上限整表清空（过期的反正已失效，全清最简）
-  if (passedChallenges.size > 5000) {
+  // prev !== undefined (not truthiness): a stored timestamp may be 0 under a mocked clock.
+  if (prev !== undefined && now - prev < REUSE_WINDOW_MS) return false; // 已放行过 → 拒绝重放
+  if (passedChallenges.size >= MAP_HARD_CAP) {
+    // 硬上限 → 逐出最旧键腾位（Map 插入序 = 最旧在前，TTL 等价逐出），
+    // 绝不 fail-open：始终先登记当前挑战再放行（旧实现 clear+return true 丢全部反重放态 + 当前未登记）
+    const oldestKey = passedChallenges.keys().next().value;
+    if (oldestKey !== undefined) passedChallenges.delete(oldestKey);
+  } else if (passedChallenges.size > 5000) {
     for (const [k, v] of passedChallenges) if (now - v >= REUSE_WINDOW_MS) passedChallenges.delete(k);
   }
   passedChallenges.set(captchaId, now);
   return true;
+}
+
+/**
+ * Read-only confirmation that a challenge was passed within the reuse window.
+ * Pairs with markChallengePassed (which registers the pass): a consumer that trusts
+ * the client's captchaVerified flag (e.g. handleVerifyIdentity) calls this to confirm
+ * the client actually solved the puzzle. Deliberately non-destructive — a consume-once
+ * policy, if ever desired, belongs on the consumer side so this anti-replay Map keeps a
+ * single responsibility (register + query, never mutate on read).
+ */
+export function isChallengeVerified(captchaId) {
+  if (!captchaId) return false;
+  const ts = passedChallenges.get(captchaId);
+  // ts !== undefined (not truthiness): a stored timestamp may be 0 under a mocked clock.
+  return ts !== undefined && Date.now() - ts <= REUSE_WINDOW_MS;
 }
 
 /**
