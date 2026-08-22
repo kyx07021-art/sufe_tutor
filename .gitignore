@@ -21,3 +21,8 @@ dist/
 # 测试分片运行产物（不提交）
 .test-shards/
 shard-runner.log
+
+# Obsidian 编辑器状态（不提交）
+docs/.obsidian/workspace.json
+docs/.obsidian/graph.json
+docs/.obsidian/hotkeys.json
