@@ -20,7 +20,7 @@ import { MSG, NOTIFY_TYPES } from '../../shared/codes.js';
 import { LIMITS } from '../../shared/config.js';
 import { logEvent } from './log.js';
 import { safeJsonObject } from './json.js'; // JSON column deserialization single-point
-import { bumpVersions } from '../../../server/version.js'; // 通知插入统一 bump notifications 域
+import { renderNotification } from './notif-render.js'; // I-26 title/content/avatar_src 渲染单源
 
 // 建表（幂等；batch_id 为广播批标识，type/params 为 V-2-4 结构化通知，旧表经 ensureColumns 补列）
 export async function initNotifyTable(db) {
@@ -61,9 +61,7 @@ export async function notifyUser(db, userId, type, params = {}) {
   try {
     await dbRun(db, 'INSERT INTO notifications (user_id, text, type, params) VALUES (?,?,?,?)',
       [userId, '', type, JSON.stringify(params || {})]);
-    // 通知插入即 bump notifications 域——所有业务方（意向/推送/合同/反馈等）
-    // 的逐用户通知都经此咽喉，对端客户端 8s 内静默重拉红点。低频，不成放大；失败静默不影响主业务
-    await bumpVersions(db, ['notifications']);
+    // 客户端数据版本协议已删除（PA-1i-F1）：新前端零消费，通知插入不再 bump notifications 域。
   } catch (e) {
     // Q-2b-F4: 失败留档暴露缺口（原静默吞——交易结果通知（CONTRACT_SIGNED 等）D1 故障丢失无感知）
     try { await logEvent(db, { action: 'notify.fail', actorUserId: userId, entity: 'notification', detail: { type, error: String((e && e.message) || e).slice(0, 200) } }); } catch { /* 留档失败不阻断 */ }
@@ -87,9 +85,16 @@ export async function dbBroadcastNotification(db, title, text) {
   return (res && res.meta && res.meta.changes) || 0;
 }
 
-/** Mapper 单点：解析结构化 params JSON 列（经 json.js 反序列化咽喉；损坏/标量回落 null，客户端走 type 缺失兜底） */
+/** Mapper 单点：解析结构化 params JSON 列（经 json.js 反序列化咽喉；损坏/标量回落 null），
+ *  并按 I-26 渲染 title/content/avatar_src（PA-1a2-F1：服务端渲染替代客户端渲染）。
+ *  旧行（type 缺失）无渲染条目 → title/avatar_src 走兜底、content 用存储 text。 */
 function mapNotification(row) {
-  return { ...row, params: safeJsonObject(row.params, null) };
+  const mapped = { ...row, params: safeJsonObject(row.params, null) };
+  const rendered = renderNotification(mapped.type, mapped.params);
+  mapped.title = rendered.title;
+  mapped.content = rendered.content || mapped.text || '';
+  mapped.avatar_src = rendered.avatar_src;
+  return mapped;
 }
 
 async function dbGetNotifications(db, userId) {
@@ -103,11 +108,23 @@ async function dbMarkNotificationRead(db, notifId, userId) {
   await dbRun(db, 'UPDATE notifications SET is_read=1 WHERE id=? AND user_id=? AND is_read=0', [notifId, userId]);
 }
 
-// GET /api/notifications → { notifications }（含 is_read，前端据此显示未读圆点；身份凭令牌）
+// GET /api/notifications → { notifications }（I-26：每行含 title/content/avatar_src 渲染字段，
+// 服务端已按用户偏好过滤——blockSystemNotifications 滤系统类通知、notifyBroadcastMuted 滤广播）
 export async function handleGetNotifications(db, req) {
   const me = await authUser(db, req);
   if (!me) return errorMsg('LOGIN_REQUIRED', 401);
-  const notifications = await dbGetNotifications(db, me.id);
+  // 偏好读取（users 列，settings 域 PUT /api/settings 写入；0/1 布尔）
+  const prefs = await dbGet(db, 'SELECT blockSystemNotifications, notifyBroadcastMuted FROM users WHERE id=?', [me.id]);
+  const blockSystem = !!(prefs && prefs.blockSystemNotifications);
+  const mutedBroadcast = !!(prefs && prefs.notifyBroadcastMuted);
+  let notifications = await dbGetNotifications(db, me.id);
+  if (blockSystem || mutedBroadcast) {
+    notifications = notifications.filter((n) => {
+      if (mutedBroadcast && n.type === 'BROADCAST') return false;
+      if (blockSystem && n.avatar_src === 'system') return false;
+      return true;
+    });
+  }
   return json({ notifications });
 }
 
