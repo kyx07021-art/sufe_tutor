@@ -29,6 +29,19 @@
  * sub-systems are in S2's deletion scope (§15⑤), so this is intentional; it is surfaced in
  * the --apply output.
  *
+ * NOTE (R-1 · conversations preservation): chat/schema.js declares
+ *   conversations.demand_id REFERENCES student_demands(id) ON DELETE SET NULL,
+ * so dropping the legacy table would NULL out every conversation's demand link. This migration
+ * preserves the link with two co-operating mechanisms:
+ *   1. id preservation — each legacy row's FIRST split row keeps the legacy id (AUTOINCREMENT
+ *      continues past the largest preserved id), so the old demand_id value resolves to a valid
+ *      row in the new table after the swap. This alone would be enough if the DROP did not fire
+ *      FK actions, but it does.
+ *   2. snapshot-restore — because D1 enforces foreign keys always-on and cannot toggle
+ *      `PRAGMA foreign_keys`, the ON DELETE SET NULL from the DROP cannot be prevented. So the
+ *      old id → conversation mapping is snapshotted before the DROP and re-applied after the
+ *      swap (the preserved ids are valid in the new table). The local path mirrors the SQL path.
+ *
  * Modes:
  *   node scripts/migrate-demands-single-subject.mjs --dry-run    # read-only statistics
  *   node scripts/migrate-demands-single-subject.mjs --apply      # execute the migration
@@ -111,7 +124,7 @@ function scoreOf(entry) {
 }
 
 function emptyStats() {
-  return { total: 0, dropped: 0, newRowCount: 0, status: { open: 0, closed: 0 } };
+  return { total: 0, dropped: 0, newRowCount: 0, remapped: 0, status: { open: 0, closed: 0 } };
 }
 function bumpStatus(stats, status) {
   if (status === 'closed') stats.status.closed++;
@@ -135,6 +148,7 @@ export function computeMigratedRows(rows, { hasSubject = false } = {}) {
     // Already-migrated row in a mixed-shape table: carry the new columns through untouched.
     if (hasSubject && r.subject != null && String(r.subject).trim() !== '') {
       const row = {
+        _legacyId: r.id,               // memory-only: source legacy id, never written to the DB
         user_id: r.user_id,
         subject: String(r.subject).trim(),
         grade: r.grade ?? r.student_grade ?? '',
@@ -178,6 +192,7 @@ export function computeMigratedRows(rows, { hasSubject = false } = {}) {
         continue;
       }
       const row = {
+        _legacyId: r.id,               // memory-only: source legacy id, never written to the DB
         user_id: r.user_id,
         subject,
         grade: r.student_grade ?? '',
@@ -201,6 +216,45 @@ export function computeMigratedRows(rows, { hasSubject = false } = {}) {
 
   stats.newRowCount = out.length;
   return { rows: out, warnings, stats };
+}
+
+/**
+ * Partition migrated rows into explicit-id rows (the first split row per legacy id) and auto rows,
+ * and return the preserved legacy ids. Single source for the R-1 id-preservation strategy shared by
+ * the local (runMigrationOnLocal) and SQL (buildApplySql) paths — applyRemote uses the same
+ * preservedIds so the post-apply conversations restore expectation matches what the SQL restores.
+ */
+export function partitionPreservedRows(newRows) {
+  const explicitRows = [];
+  const autoRows = [];
+  const seenLegacy = new Set();
+  for (const r of newRows) {
+    const legacyId = r._legacyId;
+    if (legacyId != null && !seenLegacy.has(legacyId)) {
+      seenLegacy.add(legacyId);
+      explicitRows.push(r);
+    } else {
+      autoRows.push(r);
+    }
+  }
+  return { explicitRows, autoRows, preservedIds: [...seenLegacy].map(Number) };
+}
+
+/**
+ * R-1 · conversations.demand_id restore expectation (Gap 2) — pure.
+ * D1 keeps FKs always-on: DROP TABLE student_demands fires ON DELETE SET NULL on every conversation
+ * with a non-NULL demand_id, and the buildApplySql snapshot-restore re-points exactly the
+ * conversations whose demand_id is a preserved legacy id. So after a successful apply,
+ * COUNT(conversations.demand_id IS NOT NULL) must equal the number of conversations whose pre-apply
+ * demand_id ∈ preservedIds. Pure so the remote post-check (applyRemote) and the test suite share one
+ * source of truth.
+ * @param {Array<number|null>} conversationDemandIds  pre-apply conversations.demand_id values
+ * @param {number[]}            preservedIds          preserved legacy ids (partitionPreservedRows)
+ * @returns {number} expected post-apply COUNT(*) WHERE demand_id IS NOT NULL
+ */
+export function expectedRestoredConversationCount(conversationDemandIds, preservedIds) {
+  const preserved = new Set(preservedIds.map(Number));
+  return conversationDemandIds.filter(id => id != null && preserved.has(Number(id))).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -242,19 +296,63 @@ export function runMigrationOnLocal(raw, { tableName = 'student_demands', keepOl
   const newTable = `${tableName}_new`;
   raw.exec(`DROP TABLE IF EXISTS "${newTable}"`);
   raw.exec(STUDENT_DEMANDS_NEW_DDL.replaceAll('student_demands_new', newTable));
+
+  // ---- R-1 · id preservation (Approach B, explicit-first) ----
+  // Every legacy id's FIRST split row keeps the legacy id; all other split rows go through
+  // AUTOINCREMENT. Inserting the explicit-id rows FIRST guarantees AUTOINCREMENT continues past
+  // the largest preserved id, so it can never collide with another preserved legacy id. Because
+  // conversations.demand_id still holds the old id, it resolves to the first split row after the
+  // swap — no per-row remap UPDATE is needed (the least code that stays correct on D1, where the
+  // pure-SQL path cannot know AUTOINCREMENT ids in advance).
+  const { explicitRows, autoRows, preservedIds } = partitionPreservedRows(newRows);
   const insert = raw.prepare(
-    `INSERT INTO "${newTable}" (user_id, subject, grade, province, teaching_method, current_score,
+    `INSERT INTO "${newTable}" (id, user_id, subject, grade, province, teaching_method, current_score,
        address_area, expected_time, preferred_tags, preferred_gender,
        budget_min, budget_max, additional_info, status, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-  for (const r of newRows) {
-    insert.run(r.user_id, r.subject, r.grade, r.province, r.teaching_method, r.current_score,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  for (const r of explicitRows) {
+    const legacyId = Number(r._legacyId);
+    if (!Number.isInteger(legacyId)) throw new Error(`非法 legacy id（${String(r._legacyId)}），无法保留原 id`);
+    insert.run(legacyId, r.user_id, r.subject, r.grade, r.province, r.teaching_method, r.current_score,
       r.address_area, r.expected_time, r.preferred_tags, r.preferred_gender,
       r.budget_min, r.budget_max, r.additional_info, r.status, r.created_at);
   }
+  for (const r of autoRows) {
+    insert.run(null, r.user_id, r.subject, r.grade, r.province, r.teaching_method, r.current_score,
+      r.address_area, r.expected_time, r.preferred_tags, r.preferred_gender,
+      r.budget_min, r.budget_max, r.additional_info, r.status, r.created_at);
+  }
+
+  // ---- R-1 · conversations snapshot-restore ----
+  // chat/schema.js declares conversations.demand_id REFERENCES student_demands(id) ON DELETE SET NULL.
+  // D1 enforces FKs always-on and cannot toggle `PRAGMA foreign_keys`, so the DROP below would NULL
+  // every conversation's demand link. We snapshot the old-id → conversation mapping in memory and
+  // re-apply it after the swap — the preserved ids are valid in the new table, so the restore's FK
+  // check passes. Local path mirrors the buildApplySql snapshot-restore so both behave identically.
+  const convCols = describeTable(raw, 'conversations');
+  const hasConversations = convCols.includes('id') && convCols.includes('demand_id');
+  let convSnapshot = null;
+  if (hasConversations && preservedIds.length > 0) {
+    const withDemand = raw.prepare('SELECT id AS conversation_id, demand_id FROM conversations WHERE demand_id IS NOT NULL').all();
+    convSnapshot = withDemand.filter(c => {
+      const d = Number(c.demand_id);
+      return Number.isInteger(d) && preservedIds.includes(d);
+    });
+  }
+
   if (keepOld) raw.exec(`ALTER TABLE "${tableName}" RENAME TO "${tableName}_legacy"`);
   else raw.exec(`DROP TABLE "${tableName}"`);
   raw.exec(`ALTER TABLE "${newTable}" RENAME TO "${tableName}"`);
+
+  let remapped = 0;
+  if (convSnapshot && convSnapshot.length > 0) {
+    const upd = raw.prepare('UPDATE conversations SET demand_id = ? WHERE id = ?');
+    for (const c of convSnapshot) {
+      upd.run(Number(c.demand_id), c.conversation_id);
+      remapped++;
+    }
+  }
+  stats.remapped = remapped;
 
   return { alreadyMigrated: false, warnings, stats, rows: newRows };
 }
@@ -271,18 +369,46 @@ function sq(value) {
 export function buildApplySql(newRows, { keepOld = false } = {}) {
   const stmts = [];
   stmts.push(STUDENT_DEMANDS_NEW_DDL);
-  for (const r of newRows) {
-    stmts.push(`INSERT INTO student_demands_new (user_id, subject, grade, province, teaching_method,
-        current_score, address_area, expected_time, preferred_tags, preferred_gender,
-        budget_min, budget_max, additional_info, status, created_at)
-      VALUES (${sq(r.user_id)}, ${sq(r.subject)}, ${sq(r.grade)}, ${sq(r.province)}, ${sq(r.teaching_method)},
-        ${sq(r.current_score)}, ${sq(r.address_area)}, ${sq(r.expected_time)}, ${sq(r.preferred_tags)},
-        ${sq(r.preferred_gender)}, ${sq(r.budget_min)}, ${sq(r.budget_max)}, ${sq(r.additional_info)},
-        ${sq(r.status)}, ${sq(r.created_at)})`);
+  // R-1 · id preservation (same explicit-first strategy as runMigrationOnLocal, so the local path
+  // and the D1 path are behaviourally identical). The first split row per legacy id is INSERTed with
+  // an explicit `id = legacy id`; every other split row is AUTOINCREMENT.
+  const { explicitRows, autoRows, preservedIds } = partitionPreservedRows(newRows);
+  const baseCols = `user_id, subject, grade, province, teaching_method, current_score,
+      address_area, expected_time, preferred_tags, preferred_gender,
+      budget_min, budget_max, additional_info, status, created_at`;
+  const baseVals = r => `${sq(r.user_id)}, ${sq(r.subject)}, ${sq(r.grade)}, ${sq(r.province)}, ${sq(r.teaching_method)},
+      ${sq(r.current_score)}, ${sq(r.address_area)}, ${sq(r.expected_time)}, ${sq(r.preferred_tags)},
+      ${sq(r.preferred_gender)}, ${sq(r.budget_min)}, ${sq(r.budget_max)}, ${sq(r.additional_info)},
+      ${sq(r.status)}, ${sq(r.created_at)}`;
+  for (const r of explicitRows) {
+    const legacyId = Number(r._legacyId);
+    if (!Number.isInteger(legacyId)) throw new Error(`非法 legacy id（${String(r._legacyId)}），无法保留原 id`);
+    stmts.push(`INSERT INTO student_demands_new (id, ${baseCols}) VALUES (${legacyId}, ${baseVals(r)})`);
+  }
+  for (const r of autoRows) {
+    stmts.push(`INSERT INTO student_demands_new (${baseCols}) VALUES (${baseVals(r)})`);
+  }
+  // R-1 · conversations snapshot-restore (D1 keeps FKs always-on; `PRAGMA foreign_keys` cannot be
+  // toggled there). Snapshot the old-id → conversation mapping, DROP (which fires ON DELETE SET NULL
+  // and NULLs every conversation.demand_id), swap the new table into place, then re-point the
+  // conversations from the snapshot — preserved ids are valid in the new table, so the FK check
+  // passes at commit. Conversations whose legacy demand was dropped (no preserved id) stay NULL.
+  if (preservedIds.length > 0) {
+    // Unique intermediate name + self-heal on re-run (a partial prior run could have left it behind).
+    stmts.push('DROP TABLE IF EXISTS _s3_conv_demand_snapshot');
+    stmts.push(`CREATE TABLE _s3_conv_demand_snapshot AS
+      SELECT id AS conversation_id, demand_id FROM conversations
+      WHERE demand_id IS NOT NULL AND demand_id IN (${preservedIds.map(Number).join(', ')})`);
   }
   if (keepOld) stmts.push('ALTER TABLE student_demands RENAME TO student_demands_legacy');
   else stmts.push('DROP TABLE student_demands');
   stmts.push('ALTER TABLE student_demands_new RENAME TO student_demands');
+  if (preservedIds.length > 0) {
+    stmts.push(`UPDATE conversations SET demand_id = (
+        SELECT s.demand_id FROM _s3_conv_demand_snapshot s WHERE s.conversation_id = conversations.id)
+      WHERE id IN (SELECT conversation_id FROM _s3_conv_demand_snapshot) AND demand_id IS NULL`);
+    stmts.push('DROP TABLE _s3_conv_demand_snapshot');
+  }
   // Hot-path indexes (mirror demand/schema.js migrate()) so the migrated table is queryable immediately.
   stmts.push('CREATE INDEX IF NOT EXISTS idx_demands_created ON student_demands(created_at, id)');
   stmts.push('CREATE INDEX IF NOT EXISTS idx_demands_user ON student_demands(user_id)');
@@ -357,8 +483,29 @@ async function applyRemote({ keepOld }) {
   if (!keepOld) {
     console.log('\n⚠ DROP 旧表将级联删除 demand_intents / demand_pushes 行（S2 统一删除范围内，有意行为）。');
   }
-  console.log('\n生成迁移 SQL 并执行…');
 
+  // ---- R-1 · conversations.demand_id 恢复后置校验（Gap 2）----
+  // 仅重建路径（!keepOld）有 DROP，故只有它面临「DROP 触发 FK ON DELETE SET NULL → 恢复 UPDATE 被中断」
+  // 的缺口：中断后会话 demand_id 全 NULL，而新表已就位 → 重跑因 alreadyMigrated 短路、无法自愈，
+  // 后置校验是唯一安全网。采用「恢复数匹配」口径：apply 前捕获全部会话 demand_id 值，经纯函数
+  // expectedRestoredConversationCount 算出应恢复数（只计 demand_id ∈ 保留 id 的会话——引用被丢弃需求
+  // 的会话本就会失去关联，不计入），apply 后断言非空数 === 应恢复数。应恢复数为 0（无关联可保）则跳过。
+  const { preservedIds } = partitionPreservedRows(newRows);
+  let expectedRestored = null;
+  if (!keepOld) {
+    try {
+      const convCols = d1ReadQuery(D1_DB_NAME, 'PRAGMA table_info(conversations)').map(c => c.name);
+      if (convCols.includes('demand_id')) {
+        const before = d1ReadQuery(D1_DB_NAME, 'SELECT demand_id FROM conversations').map(r => r.demand_id);
+        expectedRestored = expectedRestoredConversationCount(before, preservedIds);
+      }
+    } catch {
+      // conversations 为可选侧表：不存在时无关联可保，后置校验无断言目标。
+      expectedRestored = null;
+    }
+  }
+
+  console.log('\n生成迁移 SQL 并执行…');
   const dir = mkdtempSync(join(tmpdir(), 'sufe-demand-migrate-'));
   const sqlPath = join(dir, 'migrate.sql');
   try {
@@ -382,6 +529,20 @@ async function applyRemote({ keepOld }) {
     process.exitCode = 1;
   } else {
     console.log('✔ 迁移后校验通过（subject 列存在 / 旧数组列已删 / 无空 subject 行）。');
+  }
+
+  // R-1 · conversations.demand_id 恢复断言（应恢复数 > 0 才断言；为 0 = 无关联可保，跳过）。
+  if (expectedRestored != null && expectedRestored > 0) {
+    const restored = Number(d1ReadQuery(D1_DB_NAME,
+      'SELECT COUNT(*) AS n FROM conversations WHERE demand_id IS NOT NULL')[0].n);
+    if (restored !== expectedRestored) {
+      console.error(`✖ 迁移后校验失败：conversations.demand_id 未恢复（应恢复 ${expectedRestored}，实际非空 ${restored}）。`);
+      process.exitCode = 1;
+    } else {
+      console.log(`✔ conversations.demand_id 恢复校验通过（非空 ${restored}/${expectedRestored}）。`);
+    }
+  } else if (expectedRestored != null) {
+    console.log('conversations 无关联可保（apply 前应恢复数为 0），跳过恢复校验。');
   }
 }
 

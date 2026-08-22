@@ -27,6 +27,8 @@ import {
   describeTable,
   buildApplySql,
   hasUnmigratedRows,
+  partitionPreservedRows,
+  expectedRestoredConversationCount,
 } from '../scripts/migrate-demands-single-subject.mjs';
 import { STUDENT_DEMANDS_DDL } from '../src/server/domains/demand/schema.js';
 
@@ -175,6 +177,26 @@ function insertOld(raw, r) {
       r.preferred_teacher_gender, r.province, r.status, r.created_at);
 }
 
+/**
+ * conversations fixture — same shape & FK semantics as src/server/domains/chat/schema.js
+ * CONVERSATIONS_DDL: `demand_id REFERENCES student_demands(id) ON DELETE SET NULL`.
+ * Must be called AFTER the legacy demands exist (the conversation INSERTs reference demand ids).
+ */
+function addConversations(raw, rows) {
+  raw.exec(`CREATE TABLE conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+    demand_id INTEGER,
+    status TEXT NOT NULL DEFAULT 'active',
+    created_at DATETIME DEFAULT (datetime('now')),
+    UNIQUE(student_user_id, teacher_user_id),
+    FOREIGN KEY (student_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (teacher_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (demand_id) REFERENCES student_demands(id) ON DELETE SET NULL)`);
+  const ins = raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)');
+  for (const [s, t, d] of rows) ins.run(s, t, d);
+}
+
 test('runMigrationOnLocal: old shape rebuilt into new shape with correct split/status/idempotency', () => {
   const raw = rawOf();
   buildOldSchema(raw);
@@ -223,6 +245,56 @@ test('runMigrationOnLocal: --keep-old preserves the legacy table', () => {
   assert.ok(legacyCols.includes('target_subjects'), 'legacy table preserved with old shape');
   assert.equal(Number(raw.prepare('SELECT COUNT(*) n FROM student_demands_legacy').get().n), 1);
   assert.equal(Number(raw.prepare('SELECT COUNT(*) n FROM student_demands').get().n), 2, 'split rows present');
+});
+
+test('runMigrationOnLocal: conversations.demand_id re-pointed to the new table (R-1 FK SET NULL survival)', () => {
+  const raw = rawOf();
+  buildOldSchema(raw);
+  insertOld(raw, legacyRow({ id: 1, user_id: 1, status: 'open' }));       // legacy 1 -> math (keeps id 1) + physics (auto)
+  insertOld(raw, legacyRow({ id: 2, user_id: 2, target_subjects: '["chinese"]',
+    current_scores: '[{"subject":"chinese","mode":"grade","scale":0,"score":"","grade":"B"}]', status: 'contracted' })); // legacy 2 -> chinese (keeps id 2)
+  addConversations(raw, [[1, 2, 1], [2, 1, 2]]); // two conversations point at legacy demands 1 and 2
+
+  const r = runMigrationOnLocal(raw);
+  assert.equal(r.alreadyMigrated, false);
+
+  // Old table is dropped; the new table holds the preserved first-row ids.
+  assert.deepEqual(describeTable(raw, 'student_demands_legacy'), [], 'legacy table is dropped (non-keepOld)');
+  assert.equal(raw.prepare('SELECT subject FROM student_demands WHERE id = 1').get()?.subject, 'math',
+    'preserved id 1 = first split row of legacy demand 1');
+  assert.equal(raw.prepare('SELECT subject FROM student_demands WHERE id = 2').get()?.subject, 'chinese',
+    'preserved id 2 = legacy demand 2');
+
+  // MUTATION GUARD (G2): conversations.demand_id must NOT be NULL. The DROP fires the
+  // ON DELETE SET NULL FK (chat/schema.js); if the snapshot-restore block in runMigrationOnLocal is
+  // deleted, demand_id stays NULL (the old id no longer resolves) and this assertion turns red.
+  const convs = raw.prepare('SELECT id, demand_id FROM conversations ORDER BY id').all();
+  assert.deepEqual(convs.map(c => c.demand_id), [1, 2], 'conversations re-pointed to preserved ids');
+  const orphans = raw.prepare(`SELECT c.id FROM conversations c
+    LEFT JOIN student_demands d ON d.id = c.demand_id
+    WHERE c.demand_id IS NOT NULL AND d.id IS NULL`).all();
+  assert.equal(orphans.length, 0, 'no dangling demand references');
+  assert.equal(r.stats.remapped, 2, 'stats.remapped counts the re-pointed conversations');
+});
+
+test('runMigrationOnLocal: --keep-old also preserves conversations.demand_id', () => {
+  const raw = rawOf();
+  buildOldSchema(raw);
+  insertOld(raw, legacyRow({ id: 1, user_id: 1, status: 'open' }));       // legacy 1 -> math (id 1) + physics (auto)
+  insertOld(raw, legacyRow({ id: 2, user_id: 2, target_subjects: '["chinese"]', current_scores: '[]', status: 'open' })); // legacy 2 -> chinese (id 2)
+  addConversations(raw, [[1, 2, 1], [2, 1, 2]]);
+
+  const r = runMigrationOnLocal(raw, { keepOld: true });
+  assert.equal(r.alreadyMigrated, false);
+  // keepOld keeps the legacy table; conversations still resolve to valid demand ids.
+  assert.ok(describeTable(raw, 'student_demands_legacy').includes('target_subjects'));
+  const convs = raw.prepare('SELECT id, demand_id FROM conversations ORDER BY id').all();
+  assert.deepEqual(convs.map(c => c.demand_id), [1, 2]);
+  const orphans = raw.prepare(`SELECT c.id FROM conversations c
+    LEFT JOIN student_demands d ON d.id = c.demand_id
+    WHERE c.demand_id IS NOT NULL AND d.id IS NULL`).all();
+  assert.equal(orphans.length, 0, 'no dangling demand references under --keep-old');
+  assert.equal(r.stats.remapped, 2);
 });
 
 test('runMigrationOnLocal: mixed shape (subject column present + empty-subject rows) re-split correctly', () => {
@@ -289,6 +361,7 @@ test('buildApplySql: valid SQL that round-trips split rows into the new table', 
   // Executing the SQL against an old-shape DB reproduces the local migration result.
   const raw = rawOf();
   buildOldSchema(raw);
+  addConversations(raw, []); // production shape has the conversations table (the snapshot SQL reads it)
   insertOld(raw, legacyRow({ status: 'open' }));
   raw.exec(sql);
   const newRows = raw.prepare('SELECT subject, current_score, status FROM student_demands ORDER BY subject').all();
@@ -296,6 +369,102 @@ test('buildApplySql: valid SQL that round-trips split rows into the new table', 
   assert.equal(newRows.find(x => x.subject === 'math').current_score, '120');
   assert.equal(newRows.find(x => x.subject === 'physics').current_score, 'A');
   assert.ok(newRows.every(x => x.status === 'open'));
+  raw.close();
+});
+
+test('buildApplySql: conversation snapshot-restore SQL preserves demand links (R-1, production path)', () => {
+  // Mirror of the local runMigrationOnLocal R-1 test, but through the generated --apply SQL file.
+  const raw = rawOf();
+  buildOldSchema(raw);
+  insertOld(raw, legacyRow({ id: 1, user_id: 1, status: 'open' }));        // legacy 1 -> math (id 1) + physics (auto)
+  insertOld(raw, legacyRow({ id: 2, user_id: 2, target_subjects: '["chinese"]', current_scores: '[]', status: 'open' }));
+  addConversations(raw, [[1, 2, 1], [2, 1, 2]]);
+
+  const { rows } = computeMigratedRows(
+    raw.prepare('SELECT * FROM student_demands').all(), { hasSubject: false });
+  const sql = buildApplySql(rows, { keepOld: false });
+  assert.ok(sql.includes('_s3_conv_demand_snapshot'), 'snapshot table is emitted');
+  assert.ok(sql.includes('UPDATE conversations SET demand_id'), 'restore UPDATE is emitted');
+  assert.ok(sql.includes('DROP TABLE _s3_conv_demand_snapshot'), 'snapshot cleaned up');
+
+  raw.exec(sql);
+  const convs = raw.prepare('SELECT id, demand_id FROM conversations ORDER BY id').all();
+  assert.deepEqual(convs.map(c => c.demand_id), [1, 2], 'SQL path re-points conversations to preserved ids');
+  // MUTATION GUARD (G2 · Gap 1): the demand_id [1,2] + zero-dangling assertions above cannot see a
+  // silent association swap. Without id-preservation the split rows are AUTOINCREMENTed in emit
+  // order (math→1, physics→2, chinese→3) and the snapshot-restore re-points conversation 2 to id 2
+  // = physics instead of chinese — the ids still resolve, so nothing dangles, but the link is wrong.
+  // The subject content locks the preserved-id → subject pairing (mirror of the local R-1 test).
+  assert.equal(raw.prepare('SELECT subject FROM student_demands WHERE id = 1').get()?.subject, 'math',
+    'preserved id 1 = math (first split of legacy demand 1)');
+  assert.equal(raw.prepare('SELECT subject FROM student_demands WHERE id = 2').get()?.subject, 'chinese',
+    'preserved id 2 = chinese (first split of legacy demand 2)');
+  const orphans = raw.prepare(`SELECT c.id FROM conversations c
+    LEFT JOIN student_demands d ON d.id = c.demand_id
+    WHERE c.demand_id IS NOT NULL AND d.id IS NULL`).all();
+  assert.equal(orphans.length, 0, 'no dangling demand references after SQL apply');
+  assert.deepEqual(describeTable(raw, 'student_demands_legacy'), [], 'old table dropped');
+  raw.close();
+});
+
+// ---------------------------------------------------------------------------
+// R-1 · id-preservation source + applyRemote restore expectation (Gap 2)
+// ---------------------------------------------------------------------------
+test('partitionPreservedRows: first split row per legacy id is explicit, the rest are AUTOINCREMENT', () => {
+  const { rows } = computeMigratedRows([
+    legacyRow({ id: 1, target_subjects: '["math","physics"]' }),
+    legacyRow({ id: 2, target_subjects: '["chinese"]' }),
+  ]);
+  const { explicitRows, autoRows, preservedIds } = partitionPreservedRows(rows);
+  assert.deepEqual(preservedIds, [1, 2], 'both legacy ids are preserved');
+  assert.deepEqual(explicitRows.map(r => r.subject), ['math', 'chinese'],
+    'first split row per legacy id keeps the id');
+  assert.deepEqual(autoRows.map(r => r.subject), ['physics'],
+    'only the second split row of the multi-subject legacy demand goes through AUTOINCREMENT');
+});
+
+test('expectedRestoredConversationCount: only preserved-id links count as restorable (Gap 2)', () => {
+  // Conversations referencing a preserved legacy demand come back after the restore UPDATE;
+  // conversations referencing a dropped legacy demand (empty target_subjects) are NOT in the
+  // snapshot and correctly fall out of the expectation (their link is legitimately lost).
+  const preserved = [1, 2];
+  assert.equal(expectedRestoredConversationCount([1, 2, 3], preserved), 2,
+    'dropped-demand link (3) is not restorable');
+  assert.equal(expectedRestoredConversationCount([null, 1, 99], preserved), 1,
+    'null / non-preserved links do not count');
+  assert.equal(expectedRestoredConversationCount([1, 2], []), 0,
+    'no preserved ids → nothing restorable');
+  assert.equal(expectedRestoredConversationCount([], [1, 2]), 0);
+});
+
+test('buildApplySql: post-apply conversations demand_id count equals the restore expectation (Gap 2)', () => {
+  // Wire the applyRemote post-check logic (expectedRestoredConversationCount + post non-NULL count)
+  // to the SQL path on a local DB. One conversation references a legacy demand that is dropped
+  // (empty target_subjects), so its link is legitimately lost; the other two must be restored.
+  const raw = rawOf();
+  buildOldSchema(raw);
+  raw.prepare("INSERT INTO users (username, role) VALUES ('s3','student')").run();
+  insertOld(raw, legacyRow({ id: 1, user_id: 1, status: 'open' }));        // legacy 1 -> math (id 1) + physics (auto)
+  insertOld(raw, legacyRow({ id: 2, user_id: 2, target_subjects: '["chinese"]', current_scores: '[]', status: 'open' }));
+  insertOld(raw, legacyRow({ id: 3, user_id: 1, target_subjects: '[]', status: 'open' })); // dropped
+  addConversations(raw, [[1, 2, 1], [2, 1, 2], [3, 1, 3]]); // conversation on dropped demand 3
+
+  const { rows: newRows } = computeMigratedRows(
+    raw.prepare('SELECT * FROM student_demands').all(), { hasSubject: false });
+  const { preservedIds } = partitionPreservedRows(newRows);
+  const before = raw.prepare('SELECT demand_id FROM conversations').all().map(r => r.demand_id);
+  const expected = expectedRestoredConversationCount(before, preservedIds);
+  assert.equal(expected, 2, 'two conversations are restorable, the dropped-demand one is not');
+
+  // MUTATION GUARD (G2 · Gap 2): delete the snapshot-restore (DROP then leaves every demand_id NULL)
+  // → restored !== expected → this assertion turns red.
+  const sql = buildApplySql(newRows, { keepOld: false });
+  raw.exec(sql);
+  const restored = Number(raw.prepare('SELECT COUNT(*) n FROM conversations WHERE demand_id IS NOT NULL').get().n);
+  assert.equal(restored, expected,
+    'post-apply non-NULL demand_id count matches the restore expectation (applyRemote net)');
+  assert.deepEqual(raw.prepare('SELECT id, demand_id FROM conversations ORDER BY id').all()
+    .map(c => c.demand_id), [1, 2, null], 'preserved links restored; dropped-demand link stays NULL');
   raw.close();
 });
 
