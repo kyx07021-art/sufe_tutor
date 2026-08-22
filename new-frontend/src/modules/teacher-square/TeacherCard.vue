@@ -1,0 +1,268 @@
+<script setup>
+import { computed } from 'vue'
+import UiCard from '@/components/ui/UiCard.vue'
+import UiIcon from '@/components/ui/UiIcon.vue'
+import { TEACHER_SQUARE_TEXT as T } from '@/constants/m-teacher-square.js'
+
+/**
+ * TeacherCard - M7-17 teacher card render (four layers, A1.1 business card)
+ * -------------------------------------------------------
+ * - Shell: M0 UiCard variant A1 (interactive); clicking forwards `click`.
+ * - Layer 1 header: avatar right (~30%, rounded --radius-img; neutral circle
+ *   fallback) + bold teacher NAME (name field, NOT username) + star row
+ *   (yellow 'star-filled' icon + rating + (reviewCount) in gray). Header height
+ *   is driven by the avatar diameter; name + stars center against the avatar.
+ * - Layer 2 bio: gray-75, smaller, wraps; left edge 5% / right edge 10% of card.
+ * - Layer 3 price: bold black, built from priceMin/priceMax via
+ *   T.PRICE_RANGE / T.PRICE_FROM / T.PRICE_TO / T.PRICE_NA.
+ * - Layer 4 subject rows: brand-purple dot + subject name + `score/full` +
+ *   optional awards (gray-75), space-separated, line-height 1x font.
+ * - Optional top-right badge: T.MATCH_COUNT when the `count` prop > 0.
+ * - All text via {{ }} interpolation (Vue auto-escapes); zero v-html, zero raw
+ *   CJK in template/comments (copy comes from T only), zero inline style/event.
+ */
+const props = defineProps({
+  teacher: { type: Object, required: true },
+  /** match-group count; > 0 renders the "hit N" badge top-right */
+  count: { type: Number, default: 0 },
+})
+
+const emit = defineEmits(['click'])
+
+const hasAvatar = computed(() => !!props.teacher.avatar)
+
+const ratingText = computed(() => {
+  const r = props.teacher.rating
+  return typeof r === 'number' && Number.isFinite(r) ? r.toFixed(1) : ''
+})
+
+const showStars = computed(() => ratingText.value !== '' || props.teacher.reviewCount > 0)
+const showBadge = computed(() => props.count > 0)
+
+const priceText = computed(() => {
+  const min = props.teacher.priceMin
+  const max = props.teacher.priceMax
+  const hasMin = typeof min === 'number' && Number.isFinite(min)
+  const hasMax = typeof max === 'number' && Number.isFinite(max)
+  if (hasMin && hasMax) return T.PRICE_RANGE(min, max)
+  if (hasMin) return T.PRICE_FROM(min)
+  if (hasMax) return T.PRICE_TO(max)
+  return T.PRICE_NA
+})
+
+const subjectRows = computed(() =>
+  (Array.isArray(props.teacher.subjects) ? props.teacher.subjects : []).map((s) => {
+    const score = s.score
+    const full = s.full
+    return {
+      name: s.subject ?? s.name ?? '',
+      scoreText: score != null && full != null ? `${score}/${full}` : '',
+      awards: s.awards ?? '',
+    }
+  }),
+)
+
+function onClick() {
+  emit('click')
+}
+</script>
+
+<template>
+  <UiCard variant="A1" class="teacher-card" @click="onClick">
+    <div class="teacher-card__inner">
+      <div v-if="showBadge" class="teacher-card__badge">{{ T.MATCH_COUNT(count) }}</div>
+
+      <div class="teacher-card__header">
+        <div class="teacher-card__identity">
+          <div class="teacher-card__name">{{ teacher.name }}</div>
+          <div v-if="showStars" class="teacher-card__stars">
+            <UiIcon name="star-filled" :size="16" class="teacher-card__star" aria-hidden="true" />
+            <span v-if="ratingText" class="teacher-card__rating">{{ ratingText }}</span>
+            <span v-if="teacher.reviewCount > 0" class="teacher-card__reviews">
+              {{ T.RATING_COUNT(teacher.reviewCount) }}
+            </span>
+          </div>
+        </div>
+        <div class="teacher-card__avatar">
+          <img
+            v-if="hasAvatar"
+            class="teacher-card__avatar-img"
+            :src="teacher.avatar"
+            :alt="teacher.name"
+          />
+          <span v-else class="teacher-card__avatar-fallback" aria-hidden="true"></span>
+        </div>
+      </div>
+
+      <p v-if="teacher.bio" class="teacher-card__bio">{{ teacher.bio }}</p>
+
+      <div class="teacher-card__price">{{ priceText }}</div>
+
+      <ul v-if="subjectRows.length" class="teacher-card__subjects">
+        <li v-for="(row, i) in subjectRows" :key="row.name || i" class="teacher-card__subject">
+          <UiIcon name="dot" :size="10" class="teacher-card__dot" aria-hidden="true" />
+          <span class="teacher-card__subject-name">{{ row.name }}</span>
+          <span v-if="row.scoreText" class="teacher-card__subject-score">{{ row.scoreText }}</span>
+          <span v-if="row.awards" class="teacher-card__subject-awards">{{ row.awards }}</span>
+        </li>
+      </ul>
+    </div>
+  </UiCard>
+</template>
+
+<style scoped>
+.teacher-card {
+  /* avatar diameter driven header height (56px = space-6 + space-4), token-composed */
+  --card-avatar-d: calc(var(--space-6) + var(--space-4));
+}
+
+.teacher-card__inner {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  /* top reserves the top-right badge; left 5% / right 10% of card width */
+  padding: var(--space-5) 10% var(--space-4) 5%;
+  min-width: 0;
+}
+
+.teacher-card__badge {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-2);
+  font-size: var(--fs-xs);
+  line-height: 1;
+  color: var(--gray-60);
+  background: var(--gray-10);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.teacher-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.teacher-card__identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.teacher-card__name {
+  font-weight: 700;
+  color: var(--ink);
+  line-height: var(--lh-tight);
+}
+
+.teacher-card__stars {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.teacher-card__star {
+  color: var(--warn);
+  flex: none;
+}
+
+.teacher-card__rating {
+  color: var(--ink);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.teacher-card__reviews {
+  color: var(--gray-50);
+  font-size: var(--fs-sm);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.teacher-card__avatar {
+  flex: none;
+  width: var(--card-avatar-d);
+  height: var(--card-avatar-d);
+}
+
+.teacher-card__avatar-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: var(--radius-img);
+}
+
+.teacher-card__avatar-fallback {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-circle);
+  background: var(--gray-20);
+}
+
+.teacher-card__bio {
+  margin: 0;
+  color: var(--gray-75);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.teacher-card__price {
+  font-weight: 700;
+  color: var(--ink);
+  line-height: var(--lh-tight);
+}
+
+.teacher-card__subjects {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.teacher-card__subject {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+  line-height: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.teacher-card__subject > * {
+  min-width: 0;
+}
+
+.teacher-card__dot {
+  color: var(--brand);
+  flex: none;
+  align-self: center;
+}
+
+.teacher-card__subject-name {
+  color: var(--ink);
+}
+
+.teacher-card__subject-score {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.teacher-card__subject-awards {
+  color: var(--gray-75);
+}
+</style>

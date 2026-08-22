@@ -11,7 +11,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
 page.on('console', (m) => m.type() === 'error' && errors.push('console: ' + m.text()))
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message))
 
-await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/?page=preview', { waitUntil: 'networkidle' })
 
 // -- dropdown multi-column panel (16 subjects -> 2 columns) --
 await page.locator('.ui-dropdown').nth(1).click()

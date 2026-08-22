@@ -8,10 +8,13 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/smoke-preview.mjs && node test/smoke-inputs.mjs && node test/smoke-modals.mjs && node test/csp-prod.mjs"
+    "test": "node --test test/chat-*.mjs test/csp-meta-strict.test.mjs",
+    "test:unit": "node --test test/chat-*.mjs test/csp-meta-strict.test.mjs",
+    "test:smoke": "node test/smoke-preview.mjs && node test/smoke-inputs.mjs && node test/smoke-modals.mjs && node test/smoke-shell.mjs && node test/smoke-auth-shell.mjs && node test/smoke-chat-shell.mjs && node test/smoke-landing.mjs && node test/smoke-my-demands.mjs && node test/smoke-notifications.mjs && node test/smoke-relations.mjs && node test/smoke-teacher-side.mjs && node test/smoke-teacher-square.mjs && node test/csp-prod.mjs"
   },
   "dependencies": {
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",

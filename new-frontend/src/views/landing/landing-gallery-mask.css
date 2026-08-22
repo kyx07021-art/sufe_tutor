@@ -1,0 +1,28 @@
+/* ==========================================================================
+   landing-gallery-mask.css - M1-08 corridor edge fade mask
+   --------------------------------------------------------------------------
+   - Static horizontal mask on the corridor viewport: images near the left/right
+     edges are progressively masked (edge fade-out, ~--gallery-mask-w wide).
+   - POSITION-ONLY: the gradient depends on x-coordinate, never on movement
+     direction (a static mask-image satisfies this).
+   - Purely visual; does not affect layout or cause horizontal overflow.
+   - Consumes tokens only: --gallery-mask-w (mask band) + --gray-100 (opaque
+     mask stop). Imported by LandingGallery.vue (assembled by the module lead).
+   ========================================================================== */
+
+.landing-gallery__viewport {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    var(--gray-100) var(--gallery-mask-w),
+    var(--gray-100) calc(100% - var(--gallery-mask-w)),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    var(--gray-100) var(--gallery-mask-w),
+    var(--gray-100) calc(100% - var(--gallery-mask-w)),
+    transparent
+  );
+}

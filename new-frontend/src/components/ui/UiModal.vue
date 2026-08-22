@@ -88,7 +88,7 @@ defineExpose({ close })
         @keydown="onKeydown"
       >
         <div class="ui-modal__backdrop"></div>
-        <div class="ui-modal__panel" :style="width ? { '--modal-w': width } : null">
+        <div ref="panelRef" class="ui-modal__panel" :style="width ? { '--modal-w': width } : null">
           <slot />
         </div>
       </div>

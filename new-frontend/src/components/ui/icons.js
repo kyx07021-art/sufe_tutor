@@ -23,6 +23,10 @@ import FileTxt from '@/assets/svg/file-txt.svg'
 import FileMp3 from '@/assets/svg/file-mp3.svg'
 import FileMp4 from '@/assets/svg/file-mp4.svg'
 import FileUnknown from '@/assets/svg/file-unknown.svg'
+import Globe from '@/assets/svg/globe.svg'
+import MapPin from '@/assets/svg/map-pin.svg'
+import Clock from '@/assets/svg/clock.svg'
+import Smile from '@/assets/svg/smile.svg'
 
 /**
  * Site-wide SVG icon registry (single source)
@@ -55,4 +59,8 @@ export const iconRegistry = {
   'file-mp3': FileMp3,
   'file-mp4': FileMp4,
   'file-unknown': FileUnknown,
+  globe: Globe,
+  'map-pin': MapPin,
+  clock: Clock,
+  smile: Smile,
 }

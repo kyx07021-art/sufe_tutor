@@ -7,7 +7,11 @@
  *   component constants.
  */
 
+export { TEACHER_SQUARE_TEXT } from './m-teacher-square.js'
+
 export const UI_COPY = {
+  /** Generic network failure message (core/api.js single-point API client) */
+  NETWORK_ERROR: '网络异常，请稍后重试',
   /** Dropdown list accessibility label */
   DROPDOWN_LIST: '下拉选项',
   /** Modal close button accessibility label */
@@ -52,3 +56,8 @@ export const UI_CONSTANTS = {
   /** Variable input set: rightmost 10% empty zone (remove/add column) */
   VARSET_REMOVE_ZONE_PCT: 10,
 }
+
+export { CHAT_COPY } from './m-chat.js'
+export { LANDING_COPY, MIRROR_COPY } from './m-landing.js'
+export { TEACHER_COPY, SUBJECT_OPTIONS } from './m-teacher-side.js'
+export { AUTH_COPY } from './m-auth.js'

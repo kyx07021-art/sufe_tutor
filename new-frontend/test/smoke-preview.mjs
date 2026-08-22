@@ -1,6 +1,7 @@
 /**
  * M0 preview page smoke test (dev server + Playwright)
  * - Asserts: preview renders with zero console errors / zero pageerrors; core components present and interactive; geometry assertions.
+ * - The M0 showcase lives behind `/?page=preview` (pages.js registry; M1 made the landing page the `/` default).
  * - Run: node test/smoke-preview.mjs (requires dev server on port 5199)
  */
 import { chromium } from 'playwright'
@@ -17,7 +18,7 @@ page.on('console', (msg) => {
 page.on('pageerror', (err) => errors.push('pageerror: ' + err.message))
 page.on('requestfailed', (req) => errors.push('requestfailed: ' + req.url() + ' ' + (req.failure()?.errorText || '')))
 
-await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+await page.goto(BASE + '/?page=preview', { waitUntil: 'networkidle' })
 
 // core sections render
 const title = await page.textContent('.pv__title')
@@ -71,7 +72,7 @@ mobile.on('console', (msg) => {
   if (msg.type() === 'error') errors.push('mobile console: ' + msg.text())
 })
 mobile.on('pageerror', (err) => errors.push('mobile pageerror: ' + err.message))
-await mobile.goto(BASE + '/', { waitUntil: 'networkidle' })
+await mobile.goto(BASE + '/?page=preview', { waitUntil: 'networkidle' })
 
 const badField = await mobile.evaluate(() => {
   const vw = window.innerWidth
