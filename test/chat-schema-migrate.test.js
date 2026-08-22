@@ -144,3 +144,79 @@ test('Z-4-F1: v8 存量库（5-kind + name/thumb 带数据）initDb 重跑迁移
   const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
   assert.equal(ver.v, SCHEMA_VERSION, '版本更新到最新');
 });
+
+// ==================== S2-T1: temp conversation columns ====================
+// temp_status / temp_initiator_user_id on conversations (interfaces.md §17/§19 I-23/I-24):
+// NULL = formal conversation; 'init' = only initiator sees, quota 1; 'sent' = receiver sees + can reply.
+// temp_initiator_user_id is retained as wasTemp once a temp conversation is formalized.
+
+test('S2-T1: fresh DB via initDb has temp_status / temp_initiator_user_id columns with CHECK', async () => {
+  const { raw } = await setup();
+  const names = raw.prepare("SELECT name FROM pragma_table_info('conversations')").all().map(r => r.name);
+  assert.ok(names.includes('temp_status'), 'conversations must have temp_status column');
+  assert.ok(names.includes('temp_initiator_user_id'), 'conversations must have temp_initiator_user_id column');
+  // CHECK semantics: NULL allowed (formal), 'init'/'sent' allowed, any other value rejected.
+  assert.throws(
+    () => raw.prepare("INSERT INTO conversations (student_user_id, teacher_user_id, temp_status) VALUES (1, 2, 'bogus')").run(),
+    /CHECK/, 'invalid temp_status must be rejected by the CHECK constraint');
+  raw.prepare("INSERT INTO conversations (student_user_id, teacher_user_id, temp_status) VALUES (1, 2, 'init')").run();
+  assert.equal(raw.prepare("SELECT temp_status FROM conversations WHERE student_user_id=1").get().temp_status, 'init');
+});
+
+test('S2-T1: old DB (conversations without temp columns) initDb re-run adds columns idempotently and keeps rows', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = OFF');
+  // Pre-create the pre-S2-T1 conversations shape (no temp columns), then stamp the schema below current.
+  raw.exec(`CREATE TABLE conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+    demand_id INTEGER, status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','closed')),
+    created_at DATETIME DEFAULT (datetime('now')),
+    UNIQUE(student_user_id, teacher_user_id))`);
+  raw.exec(`CREATE TABLE schema_meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL)`);
+  raw.prepare("INSERT INTO schema_meta (k, v) VALUES ('schema', 14)").run();
+  raw.prepare("INSERT INTO conversations (student_user_id, teacher_user_id, status) VALUES (1, 2, 'active')").run();
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const cols = raw.prepare("SELECT name FROM pragma_table_info('conversations')").all().map(r => r.name);
+  assert.ok(cols.includes('temp_status'), 'temp_status added on upgrade');
+  assert.ok(cols.includes('temp_initiator_user_id'), 'temp_initiator_user_id added on upgrade');
+  const row = raw.prepare("SELECT student_user_id, temp_status, temp_initiator_user_id FROM conversations").get();
+  assert.equal(row.student_user_id, 1, 'existing row preserved');
+  assert.equal(row.temp_status, null, 'existing row temp_status defaults NULL');
+  assert.equal(row.temp_initiator_user_id, null, 'existing row temp_initiator_user_id defaults NULL');
+  // Idempotent re-run: second initDb does not error, columns stay, version advances to latest.
+  await initDb(db, ENV);
+  const cols2 = raw.prepare("SELECT name FROM pragma_table_info('conversations')").all().map(r => r.name);
+  assert.ok(cols2.includes('temp_status') && cols2.includes('temp_initiator_user_id'), 'columns stable on re-run');
+  const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver.v, SCHEMA_VERSION, 'schema version updated to latest');
+});
+
+test('S2-T1: mutation guard — reverting temp ensureColumns entries leaves old DB missing columns', async () => {
+  const convSpec = chatSchema.ensureColumns.find(s => s.table === 'conversations');
+  assert.ok(convSpec, 'conversations ensureColumns spec must exist');
+  const saved = convSpec.columns;
+  try {
+    // Simulate reverting the S2-T1 ensureColumns addition: an old DB would be marked migrated
+    // (version gate passes) yet stay missing the temp columns — the production incident this guards.
+    convSpec.columns = saved.filter(([name]) => name !== 'temp_status' && name !== 'temp_initiator_user_id');
+    const raw = new DatabaseSync(':memory:');
+    raw.exec('PRAGMA foreign_keys = OFF');
+    raw.exec(`CREATE TABLE conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      student_user_id INTEGER NOT NULL, teacher_user_id INTEGER NOT NULL,
+      demand_id INTEGER, status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','closed')),
+      created_at DATETIME DEFAULT (datetime('now')),
+      UNIQUE(student_user_id, teacher_user_id))`);
+    raw.exec(`CREATE TABLE schema_meta (k TEXT PRIMARY KEY, v INTEGER NOT NULL)`);
+    raw.prepare("INSERT INTO schema_meta (k, v) VALUES ('schema', 14)").run();
+    const db = d1Shim(raw);
+    await initDb(db, ENV);
+    const names = raw.prepare("SELECT name FROM pragma_table_info('conversations')").all().map(r => r.name);
+    assert.ok(!names.includes('temp_status'), 'mutation: temp_status must be absent when ensureColumns entry reverted');
+    assert.ok(!names.includes('temp_initiator_user_id'), 'mutation: temp_initiator_user_id must be absent when ensureColumns entry reverted');
+  } finally {
+    convSpec.columns = saved;
+  }
+});

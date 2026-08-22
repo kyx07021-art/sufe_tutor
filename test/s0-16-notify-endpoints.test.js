@@ -107,7 +107,7 @@ test('S0-16 handleGetNotifications: unauthenticated -> 401', async () => {
 test('S0-16 mark-read ownership: cross-user call is ok with 0 rows flipped (no leakage)', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { a, bToken } = await seed(db, raw);
-  await notifyUser(db, a, 'INTENT_ACCEPTED', {});
+  await notifyUser(db, a, 'CONTRACT_SIGNED', {});
   const nA = raw.prepare('SELECT id FROM notifications WHERE user_id=?').get(a).id;
   const res = await handleMarkNotificationRead(db, nA, reqOf(bToken));
   assert.equal(res.status, 200, 'cross-user call returns idempotent ok, never errors');
@@ -118,7 +118,7 @@ test('S0-16 mark-read ownership: cross-user call is ok with 0 rows flipped (no l
 test('S0-16 mark-read: unknown / already-read id -> 200 idempotent, no error on 0 rows', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { a, aToken } = await seed(db, raw);
-  await notifyUser(db, a, 'INTENT_ACCEPTED', {});
+  await notifyUser(db, a, 'CONTRACT_SIGNED', {});
   const nA = raw.prepare('SELECT id FROM notifications WHERE user_id=?').get(a).id;
   const req = reqOf(aToken);
   assert.equal((await handleMarkNotificationRead(db, 999999, req)).status, 200, 'unknown id -> ok (0 rows)');
@@ -139,8 +139,8 @@ test('S0-16 mark-read: invalid id -> 400 (strict parse)', async () => {
 test('S0-16 read-all ownership: only the caller unread cleared', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { a, b, aToken } = await seed(db, raw);
-  await notifyUser(db, a, 'INTENT_ACCEPTED', {});
-  await notifyUser(db, b, 'INTENT_ACCEPTED', {});
+  await notifyUser(db, a, 'CONTRACT_SIGNED', {});
+  await notifyUser(db, b, 'CONTRACT_SIGNED', {});
   const res = await handleMarkAllNotificationsRead(db, reqOf(aToken));
   assert.equal(res.status, 200);
   assert.equal(raw.prepare('SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0').get(a).c, 0,

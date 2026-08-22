@@ -1,10 +1,11 @@
 /**
  * AI-6：会话重启 reopen——dbUpsertConversation 命中 closed 行 → 重启原会话
  * （status→active + demand 回填，历史保留）；用户模型「一对师生终身一个会话对象，
- * closed 后再次合作 = 重启原会话，非新建」；双调用点（意向/推送接受）经同一元组命中。
+ * closed 后再次合作 = 重启原会话，非新建」；双调用点（意向/推送接受——intents/pushes 归 S2 删）
+ * 经同一元组命中。
  *
- * 本测试数据层直测 dbUpsertConversation（AI-6 为数据层基元；调用点 handleResolveIntent/
- * handleResolvePush 的完整链路由既有 demand 测试覆盖）。变异守护：删重启 UPDATE →
+ * 本测试数据层直测 dbUpsertConversation（AI-6 为数据层基元；原 handleResolveIntent/
+ * handleResolvePush 调用点随 S2 intents/pushes 删除）。变异守护：删重启 UPDATE →
  * closed 会话再配对不重启（红）。
  */
 import { test } from 'node:test';
@@ -55,8 +56,8 @@ async function seed(db, raw, convStatus = 'active') {
 test('closed 会话再配对 → 重启 active + demand 回填 + 返回同一会话 id', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, c1 } = await seed(db, raw, 'closed');
-  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-    VALUES (?,'senior1','female','["math"]','[]','self','13800000000','13800000000','open')`).run(s1).lastInsertRowid);
+  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id, subject, grade, province, status)
+    VALUES (?,'math','senior1','shanghai','open')`).run(s1).lastInsertRowid);
   const id = await dbUpsertConversation(db, s1, t1, d1);
   assert.equal(id, c1, '重启返回原会话 id（终身一会话，非新建）');
   const row = raw.prepare('SELECT status, demand_id FROM conversations WHERE id=?').get(c1);
@@ -78,8 +79,8 @@ test('重启保留历史：消息与已读游标不重置', async () => {
 test('active 会话再次配对 → 不重启不重置（幂等无副作用）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, c1 } = await seed(db, raw, 'active');
-  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-    VALUES (?,'senior1','female','["math"]','[]','self','13800000000','13800000000','open')`).run(s1).lastInsertRowid);
+  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id, subject, grade, province, status)
+    VALUES (?,'math','senior1','shanghai','open')`).run(s1).lastInsertRowid);
   await dbUpsertConversation(db, s1, t1, d1); // 首次：active 会话 demand_id 为空时回填（既有行为，非重启）
   const before = raw.prepare('SELECT status, demand_id, student_last_read_id FROM conversations WHERE id=?').get(c1);
   const id = await dbUpsertConversation(db, s1, t1, d1); // 再次：幂等零变化
@@ -92,8 +93,8 @@ test('全新元组 → 新建会话（INSERT OR IGNORE 路径不变）', async (
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1 } = await seed(db, raw, 'closed'); // 已有 s1-t1 会话；新建 s2-t1 元组
   const s2 = Number(raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('s2','h','s','student')").run().lastInsertRowid);
-  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-    VALUES (?,'senior1','female','["math"]','[]','self','13800000000','13800000000','open')`).run(s2).lastInsertRowid);
+  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id, subject, grade, province, status)
+    VALUES (?,'math','senior1','shanghai','open')`).run(s2).lastInsertRowid);
   const id = await dbUpsertConversation(db, s2, t1, d1);
   assert.ok(id > 0, '新建会话返回 id');
   const row = raw.prepare('SELECT status FROM conversations WHERE id=?').get(id);
@@ -107,8 +108,8 @@ test('全新元组 → 新建会话（INSERT OR IGNORE 路径不变）', async (
 test('并发双配对：closed 会话两个 dbUpsertConversation 并行 → 恒一会话行 + 重启 active', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, c1 } = await seed(db, raw, 'closed');
-  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-    VALUES (?,'senior1','female','["math"]','[]','self','13800000000','13800000000','open')`).run(s1).lastInsertRowid);
+  const d1 = Number(raw.prepare(`INSERT INTO student_demands (user_id, subject, grade, province, status)
+    VALUES (?,'math','senior1','shanghai','open')`).run(s1).lastInsertRowid);
   const [idA, idB] = await Promise.all([
     dbUpsertConversation(db, s1, t1, d1),
     dbUpsertConversation(db, s1, t1, d1),

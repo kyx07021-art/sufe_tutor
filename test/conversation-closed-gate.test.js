@@ -1,7 +1,8 @@
 /**
- * AI-2：合同/签约操作生命周期门禁——关系已关闭（会话 status='closed'）后，5 个写入 handler
- * （sign/modify/revoke/cancel/respond）一律 403 CONVERSATION_CLOSED；verify（只读存证校验）豁免
+ * AI-2：合同操作生命周期门禁——关系已关闭（会话 status='closed'）后，4 个写入 handler
+ * （sign/modify/revoke/cancel）一律 403 CONVERSATION_CLOSED；verify（只读存证校验）豁免
  * （AI-1「已 signed/revoked 历史存证保留」的访问入口，AI-2 有意决定注释）。
+ * S3/S5：签约层（signing_requests / respond）已删除——门禁只覆盖独立 contracts 表的操作。
  *
  * 本测试直接手工置会话 status='closed'（不经 AI-1 级联——聚焦门禁本身；合同行保留原状态以通过
  * loadContractFor 白名单走到门禁）。变异守护：删任一 handler 的门禁行 → 403 变非 403（红）。
@@ -15,7 +16,7 @@ import { initLedgerTable } from '../src/server/domains/contract/schema.js'; // v
 import { encryptField } from '../src/server/core/crypto.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import {
-  handleSignContract, handleModifyContract, handleRevokeContract, handleCancelContract, handleVerifyContract, handleRespondSigning,
+  handleSignContract, handleModifyContract, handleRevokeContract, handleCancelContract, handleVerifyContract,
 } from '../src/server/domains/contract/api.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -44,7 +45,7 @@ function d1Shim(raw) {
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
-// 种子：s1/t1 + 会话（close 参数控制初始状态）+ 三行 signing_contracts（signing 合同 / signed 合同 / pending 签约）
+// 种子：s1/t1 + 会话（close 参数控制初始状态）+ 两行 contracts（signing 合同 / signed 合同）
 async function seed(db, raw, { closed = false } = {}) {
   await initDb(db, ENV);
   await initLedgerTable(db); // worker 启动链 initDb → initLedgerTable（verify 存证校验读台账表）
@@ -62,19 +63,15 @@ async function seed(db, raw, { closed = false } = {}) {
   };
   const s1 = await mk('s1', s1Id), t1 = await mk('t1', t1Id);
   const mdEnc = await encryptField('测试合同正文');
-  // 进行中合同（stage=contract, contract_status='signing'）——modify/cancel/sign 门禁目标
+  // 进行中合同（contract_status='signing'）——modify/cancel/sign 门禁目标
   const icId = Number(raw.prepare(
-    `INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,stage,signing_status,contract_status,initiator_user_id,price,schedule,method,drafter_user_id,contract_md)
-     VALUES (?,?,?,'contract','signed','signing',?,150,'x','offline',?,?)`).run(s1Id, t1Id, c1, t1Id, t1Id, mdEnc).lastInsertRowid);
-  // 已签署合同（stage=contract, contract_status='signed' + 双确认）——revoke 门禁目标 + verify 豁免目标
+    `INSERT INTO contracts (student_user_id,teacher_user_id,conversation_id,contract_status,drafter_user_id,contract_md,plan,rate)
+     VALUES (?,?,?,'signing',?,?,?,150)`).run(s1Id, t1Id, c1, t1Id, mdEnc, '每周两次').lastInsertRowid);
+  // 已签署合同（contract_status='signed' + 双确认）——revoke 门禁目标 + verify 豁免目标
   const scId = Number(raw.prepare(
-    `INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,stage,signing_status,contract_status,initiator_user_id,price,schedule,method,drafter_user_id,contract_md,drafter_confirmed,other_confirmed)
-     VALUES (?,?,?,'contract','signed','signed',?,150,'x','offline',?,?,1,1)`).run(s1Id, t1Id, c1, t1Id, t1Id, mdEnc).lastInsertRowid);
-  // pending 签约（stage='signing', signing_status='pending'）——respond 门禁目标
-  const psId = Number(raw.prepare(
-    `INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,stage,signing_status,contract_status,initiator_user_id,price,schedule,method,drafter_user_id)
-     VALUES (?,?,?,'signing','pending','',?,150,'x','offline',0)`).run(s1Id, t1Id, c1, t1Id).lastInsertRowid);
-  return { s1, t1, c1, icId, scId, psId };
+    `INSERT INTO contracts (student_user_id,teacher_user_id,conversation_id,contract_status,drafter_user_id,contract_md,plan,rate,drafter_confirmed,other_confirmed)
+     VALUES (?,?,?,'signed',?,?,?,150,1,1)`).run(s1Id, t1Id, c1, t1Id, mdEnc, '每周两次').lastInsertRowid);
+  return { s1, t1, c1, icId, scId };
 }
 
 // 断言门禁错误码（D3 失败语义）：403 + code='CHAT_CONVERSATION_CLOSED'——删门禁后落 REAUTH_FAILED（也是 403）仍会红
@@ -89,17 +86,15 @@ test('关系已关闭：sign/modify/cancel 对进行中合同 403 CONVERSATION_C
   await closedCode(await handleModifyContract(db, icId, { contractMd: 'x', version: 0 }, req));
   await closedCode(await handleCancelContract(db, icId, {}, req));
   // 门禁在业务门禁（status/revoked/capToken）之前：无 capToken 也 403（而非 REAUTH_FAILED），合同行零变化
-  const row = raw.prepare('SELECT contract_status, revoked FROM signing_contracts WHERE id=?').get(icId);
+  const row = raw.prepare('SELECT contract_status, revoked FROM contracts WHERE id=?').get(icId);
   assert.deepEqual([row.contract_status, row.revoked], ['signing', 0], '合同行零变化');
 });
 
-test('关系已关闭：revoke 对已签署合同 403；respond 对 pending 签约 403', async () => {
+test('关系已关闭：revoke 对已签署合同 403（签约层 respond 门禁随 S5 删除）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { t1, s1, scId, psId } = await seed(db, raw, { closed: true });
+  const { t1, scId } = await seed(db, raw, { closed: true });
   await closedCode(await handleRevokeContract(db, scId, {}, reqOf(t1.token)));
-  await closedCode(await handleRespondSigning(db, psId, { accept: false }, reqOf(s1.token)));
-  assert.equal(raw.prepare('SELECT revoked FROM signing_contracts WHERE id=?').get(scId).revoked, 0, '已签署合同零变化');
-  assert.equal(raw.prepare('SELECT signing_status FROM signing_contracts WHERE id=?').get(psId).signing_status, 'pending', 'pending 签约零变化');
+  assert.equal(raw.prepare('SELECT revoked FROM contracts WHERE id=?').get(scId).revoked, 0, '已签署合同零变化');
 });
 
 test('verify 豁免：关系已关闭仍可校验历史合同存证（只读）', async () => {

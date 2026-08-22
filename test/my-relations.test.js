@@ -1,10 +1,13 @@
 /**
  * AI-7：统一关系清单接口 GET /api/my-relations——按双方元组聚合（会话状态/最后消息 +
- * 最新 signing_contracts 状态 + 对端信息），供连线图/关系管理。仅读零写入。
+ * 最新合同状态 + 对端信息），供连线图/关系管理。仅读零写入。
  *
- * 数据层直测 dbGetMyRelations + handler 形状（handleGetMyRelations 只做 requireUser + 映射，
- * 无业务门禁）。变异守护：删 LEFT JOIN signing_contracts 聚合 → SQL 占位符失配查询崩（4 红，
- * 未登录 401 仍绿）→ 还原 5/5 绿（聚合 JOIN 承重实证）。
+ * S5 独立合同：contracts 表替代 signing_contracts（无 stage/signing_status）。关系清单的
+ * 「signing」聚合字段改由 contracts 派生（按双方元组 MAX(id) 取最新合同行：
+ * { id, contractStatus, revoked }）。interfaces I-15 保留 signing 字段下发（M4 合同灰掉判断）。
+ *
+ * 当前可跑用例：全部（S2 已落地 dbGetMyRelations LEFT JOIN contracts + handler 映射
+ * signing:{ id, contractStatus, revoked }，interfaces I-15）。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -59,11 +62,19 @@ async function seed(db, raw) {
   return { s1, t1, t2, c1, c2, s1a: await mk('s1', s1), t1a: await mk('t1', t1), t2a: await mk('t2', t2) };
 }
 
-const mkSigning = (raw, s, t, c, stage, signingStatus, contractStatus) =>
-  Number(raw.prepare(`INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,stage,signing_status,contract_status)
-    VALUES (?,?,?,?,?,?)`).run(s, t, c, stage, signingStatus, contractStatus).lastInsertRowid);
+// S5 独立合同：contracts 表（无 stage/signing_status）。播种直接 INSERT。
+const mkContract = (raw, s, t, c, contractStatus, revoked = 0) =>
+  Number(raw.prepare(`INSERT INTO contracts (student_user_id,teacher_user_id,conversation_id,contract_status,revoked)
+    VALUES (?,?,?,?,?)`).run(s, t, c, contractStatus, revoked).lastInsertRowid);
 
-test('聚合：对端信息 + 最后消息 + active 状态', async () => {
+test('未登录 → 401', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await seed(db, raw);
+  const r = await handleGetMyRelations(db, reqOf('bad-token'));
+  assert.equal(r.status, 401);
+});
+
+test('聚合：对端信息 + 最后消息 + active 状态（无合同 → signing null）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1a, t1, c1 } = await seed(db, raw);
   const r = await handleGetMyRelations(db, reqOf(s1a.token));
@@ -73,19 +84,19 @@ test('聚合：对端信息 + 最后消息 + active 状态', async () => {
   assert.deepEqual(rel.other, { id: t1, role: 'teacher', name: 't1', avatar: '' }, '对端 = 教师侧');
   assert.deepEqual(rel.last, { kind: 'text', body: '你好同学', at: rel.last.at, senderId: t1 }, '最后消息 = t1 发的 text');
   assert.ok(rel.last.at, 'last_at 存在');
-  assert.equal(rel.signing, null, '无签约行 → null');
+  assert.equal(rel.signing, null, '无合同行 → null');
 });
 
-test('最新 signing_contracts 状态按双方元组 MAX(id) 聚合', async () => {
+test('最新合同状态按双方元组 MAX(id) 聚合（contracts 模型）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, c1, s1a } = await seed(db, raw);
-  // 旧合作已签署合同（contract signed）+ 新合作 pending 签约 → 取新行（MAX id）
-  mkSigning(raw, s1, t1, c1, 'contract', 'signed', 'signed');
-  const latest = mkSigning(raw, s1, t1, c1, 'signing', 'pending', '');
+  // 旧合作已签署合同 + 新合作进行中合同 → 取新行（MAX id）
+  mkContract(raw, s1, t1, c1, 'signed');
+  const latest = mkContract(raw, s1, t1, c1, 'signing');
   const r = await handleGetMyRelations(db, reqOf(s1a.token));
   const rel = (await r.json()).relations.find(x => x.conversationId === c1);
-  assert.deepEqual(rel.signing, { id: latest, stage: 'signing', signingStatus: 'pending', contractStatus: '', revoked: 0 },
-    'signing 取最新行（元组 MAX id），revoked 数值化');
+  assert.deepEqual(rel.signing, { id: latest, contractStatus: 'signing', revoked: 0 },
+    'signing 取最新合同行（元组 MAX id），revoked 数值化');
 });
 
 test('多会话按最后消息时间排序 + closed 会话照常列出', async () => {
@@ -105,11 +116,4 @@ test('无消息会话 → last null；teacher 视角 → other=student', async (
   const rel = (await r.json()).relations.find(x => x.conversationId === c2);
   assert.equal(rel.last, null, 'c2 无消息 → last null');
   assert.deepEqual(rel.other, { id: s1, role: 'student', name: 's1', avatar: '' }, 'teacher 视角对端 = 学生');
-});
-
-test('未登录 → 401', async () => {
-  const raw = rawOf(); const db = d1Shim(raw);
-  await seed(db, raw);
-  const r = await handleGetMyRelations(db, reqOf('bad-token'));
-  assert.equal(r.status, 401);
 });

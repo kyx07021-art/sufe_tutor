@@ -3,7 +3,7 @@
  *
  * 覆盖：
  *   - versionDomainOf 域映射表：纯认证/个人游标路径不 bump、聊天高频写隔离、
- *     合同系三域（contracts+demands+chat）、意向/推送接受连带 chat、
+ *     合同系 contracts+chat（S5 独立化去 demands）、意向/推送接受连带 chat、
  *     管理员跨域连带（评价→teachers / 删需求→demands / 删消息→chat）、
  *     附件暂存不 bump、注销清内容多域
  *   - initDb 经 initVersionTable 建表；bumpVersions 逐域自增 + 单域失败不 abort 其余；
@@ -72,25 +72,31 @@ test('versionDomainOf：聊天系只落 chat 域（高频写隔离）', () => {
   assert.deepEqual(versionDomainOf('/api/conversations/5/messages'), ['chat']);
 });
 
-test('versionDomainOf：需求系 → demands；意向/推送处理连带 chat（accept 建会话）', () => {
-  for (const p of ['/api/student/demands', '/api/student/demands/5', '/api/student/demands/5/reopen',
-    '/api/demands/5/intents', '/api/demand-pushes']) {
+test('versionDomainOf：需求系 → demands；intents/pushes 已随 S2 删除不再 bump', () => {
+  for (const p of ['/api/demands', '/api/demands/5', '/api/demands/5/close', '/api/demands/5/open']) {
     assert.deepEqual(versionDomainOf(p), ['demands'], p);
   }
-  assert.deepEqual(versionDomainOf('/api/intents/5/resolve'), ['demands', 'chat']);
-  assert.deepEqual(versionDomainOf('/api/demand-pushes/5/resolve'), ['demands', 'chat']);
+  // S2 (intents/pushes removed): these paths no longer resolve to any domain
+  assert.deepEqual(versionDomainOf('/api/demands/5/intents'), []);
+  assert.deepEqual(versionDomainOf('/api/demand-pushes'), []);
+  assert.deepEqual(versionDomainOf('/api/intents/5/resolve'), []);
+  assert.deepEqual(versionDomainOf('/api/demand-pushes/5/resolve'), []);
 });
 
-test('versionDomainOf：合同系三域（contracts + demands + chat 气泡）；管理删合同连带 admin', () => {
+test('versionDomainOf：合同系 contracts+chat（S5 去 demands）；管理删合同连带 admin', () => {
   for (const p of ['/api/contracts', '/api/contracts/5', '/api/contracts/5/sign', '/api/contracts/5/revoke']) {
-    assert.deepEqual(versionDomainOf(p), ['contracts', 'demands', 'chat'], p);
+    assert.deepEqual(versionDomainOf(p), ['contracts', 'chat'], p);
   }
-  assert.deepEqual(versionDomainOf('/api/admin/contracts/5'), ['contracts', 'demands', 'admin']);
+  assert.deepEqual(versionDomainOf('/api/admin/contracts/5'), ['contracts', 'admin']);
 });
 
-test('versionDomainOf：发起签约（创建/回应）归 contracts+chat+demands（v0.24.0）', () => {
-  assert.deepEqual(versionDomainOf('/api/conversations/5/signing'), ['contracts', 'chat', 'demands']);
-  assert.deepEqual(versionDomainOf('/api/signing-requests/7/respond'), ['contracts', 'chat', 'demands']);
+test('versionDomainOf：结束关系 close → contracts+chat（S5 合同独立化去 demands）', () => {
+  assert.deepEqual(versionDomainOf('/api/conversations/5/close'), ['contracts', 'chat']);
+});
+
+test('versionDomainOf：S5 删签约层——signing/signing-requests 路径不再 bump（回落 []）', () => {
+  assert.deepEqual(versionDomainOf('/api/conversations/5/signing'), []);
+  assert.deepEqual(versionDomainOf('/api/signing-requests/7/respond'), []);
 });
 
 test('versionDomainOf：教师/封禁/核验连带 admin；帖子/通知/反馈归属', () => {
@@ -143,7 +149,7 @@ test('域隔离铁律：聊天写绝不连带 demands 计数（防高频写放�
   const db = d1Shim(rawOf());
   await initDb(db, ENV);
   await bumpVersions(db, versionDomainOf('/api/conversations/5/messages'));
-  await bumpVersions(db, versionDomainOf('/api/student/demands'));
+  await bumpVersions(db, versionDomainOf('/api/demands'));
   const v = await getVersions(db);
   assert.equal(v.chat, 1);
   assert.equal(v.demands, 1);
@@ -161,7 +167,7 @@ test('notifyUser 咽喉 bump notifications 域（对端红点 8s 内静默刷新
   const db = d1Shim(raw);
   await initVersionTable(db);
   await initNotifyTable(db); // notifyUser 落 notifications 表（FK 引用 users）
-  await notifyUser(db, 1, 'INTENT_ACCEPTED', {});
+  await notifyUser(db, 1, 'CONTRACT_SIGNED', {});
   const v = await getVersions(db);
   assert.equal(v.notifications, 1, 'notifyUser 后 notifications 计数应 +1');
 });

@@ -15,7 +15,6 @@ import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
 import { bindChsiEnv } from '../server/chsi.js';
 import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
 import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmission } from '../src/server/domains/teacher/api.js';
-import { handleCreateIntent } from '../src/server/domains/demand/api.js';
 import { handleVerificationAction } from '../src/server/domains/teacher/api.js';
 import { dbGetTeacherProfile, dbGetTeacherVerification } from '../src/server/domains/teacher/repo.js';
 import { issueCapToken } from '../src/server/core/danger-ops.js';
@@ -178,21 +177,8 @@ test('学信网 fail-closed：mock/thirdparty 等未知 provider → 503；格�
   assert.equal((await none.json()).status, 'pending');
 });
 
-test('接单门禁：未核验教师提交意向/推送接受 → 403', async () => {
-  const raw = rawOf();
-  const db = d1Shim(raw);
-  await initDb(db, ENV);
-  const token = await regTeacher(db, raw, 't_gate', '+8613900000103');
-  const tid = raw.prepare("SELECT id FROM users WHERE username='t_gate'").get().id;
-  db.prepare("INSERT INTO teacher_profiles (user_id, province, grade, gender, subjects, price_min, price_max, time_slots, teaching_method) VALUES (?,?,?,?,?,?,?,?,?)")
-    .run(tid, 'shanghai', 'freshman', 'male', '["math"]', 100, 200, '[{"day":"sat"}]', 'online');
-  db.prepare("INSERT INTO student_demands (user_id, student_grade, student_gender, target_subjects, current_scores, submitter_type, parent_contact, student_contact, status) VALUES (1,'g1','f','[]','[]','self','1','2','open')").run();
-  const d1 = db.prepare('SELECT id FROM student_demands ORDER BY id DESC LIMIT 1').first().id;
-  const r = await handleCreateIntent(db, d1, { message: '' }, reqOf(token));
-  assert.equal(r.status, 403, '未核验提交意向被拦');
-  const j = await r.json();
-  assert.ok(j.code === 'CHSI_UNVERIFIED', '原因 CHSI_UNVERIFIED');
-});
+// S2 (intents/pushes removed): the "unverified teacher cannot submit an intent" gate test is
+// obsolete — acceptEligibility still guards teacher-side actions via its own tests above.
 
 test('管理端核验状态机与撤销：pending→approve；revoke 撤销资格；非法状态 409', async () => {
   const raw = rawOf();

@@ -1,8 +1,9 @@
 /**
- * 网安报告 F-09 —— 管理员需求 keyset 游标分页回归：
+ * 网安报告 F-09 —— 管理员需求 keyset 游标分页回归（S3 单科目新模型）：
  * 无 cursor → 纯倒序无 WHERE、LIMIT 51；有 cursor → 复合条件 (created_at,id)；
  * 51 行 → hasMore 且 nextCursor=末行编码；50 行 → nextCursor=null（不再 LIMIT 300 硬截断）；
- * mapper 出口剥除联系方式/门牌（mapDemandRow），Full 变体解密回填。
+ * mapper 出口（mapDemandRow）= 单科目业务形状（subject/targetType/preferredTags 等），
+ * 联系方式/门牌列不存储（S3 §15 整列删除）→ 任何出口拿不到，无 Full 解密变体。
  * fake D1：db.prepare(sql).bind(...).all() 链捕获 SQL/params。
  */
 import test from 'node:test';
@@ -31,10 +32,10 @@ function fakeDb(rowFactory) {
 function makeRow(id, createdAt) {
   return {
     id, user_id: 1, username: 'u', avatar: '',
-    student_grade: '高一', student_gender: 'male', target_subjects: '["数学"]', current_scores: '[]',
-    teaching_method: 'offline', address: '', address_detail: '门牌号不该出门',
-    expected_time: '', budget_min: 0, budget_max: 0, submitter_type: 'parent',
-    parent_contact: '13800138000', student_contact: '13900139000', additional_info: '',
+    subject: 'math', grade: 'senior1', province: 'shanghai',
+    teaching_method: 'online', current_score: '120', address_area: '',
+    expected_time: '', preferred_tags: '["patience"]', preferred_gender: 'female',
+    budget_min: 0, budget_max: 0, additional_info: '', status: 'open',
     created_at: createdAt,
   };
 }
@@ -73,14 +74,23 @@ test('50 行 → nextCursor=null（到尾）', async () => {
   assert.equal(out.nextCursor, null);
 });
 
-test('mapper 出口：mapDemandRow 剥联系方式与门牌；Full 解密回填', async () => {
+test('mapper 出口：单科目业务形状 + JSON 列 safeJsonArray；联系方式/门牌永不出口', async () => {
   const rows = [makeRow(1, '2026-06-01 00:00:00')];
-  const out = await dbGetDemands(fakeDb(() => rows), { admin: true }); // Full 路径（管理员）
+  const out = await dbGetDemands(fakeDb(() => rows), { admin: true });
   const d = out.demands[0];
-  assert.equal(d.parent_contact, '13800138000', 'Full 解密回填');
-  assert.equal(d.student_contact, '13900139000');
-  assert.ok(!('address_detail' in d), '门牌永不出口');
-  assert.deepEqual(d.target_subjects, ['数学'], 'JSON 列走 safeJsonArray');
+  assert.equal(d.subject, 'math', '单科目');
+  assert.equal(d.targetType, 'academic', 'targetType 由 subject 派生');
+  assert.equal(d.grade, 'senior1');
+  assert.equal(d.province, 'shanghai');
+  assert.equal(d.teachingMethod, 'online');
+  assert.equal(d.currentScore, '120');
+  assert.deepEqual(d.preferredTags, ['patience'], 'JSON 列走 safeJsonArray');
+  assert.equal(d.preferredGender, 'female');
+  assert.equal(d.status, 'open');
+  // S3 §15：联系方式/门牌列不存储 → 任何出口都拿不到（无 Full 解密变体）
+  for (const k of ['parent_contact', 'student_contact', 'submitter_type', 'address_detail']) {
+    assert.ok(!(k in d), `${k} 永不出口`);
+  }
 });
 
 test('空表 → 空列表 + nextCursor=null', async () => {

@@ -22,23 +22,26 @@ afterEach(() => {
   globalThis.fetch = origFetch;
 });
 
-test('isContentWrite：内容域写路径白名单', () => {
+test('isContentWrite：内容域写路径白名单（S0-18 对齐当前路由）', () => {
   assert.equal(isContentWrite('/api/posts', 'POST'), true, '发帖');
-  assert.equal(isContentWrite('/api/student/demands', 'POST'), true, '发布需求');
+  assert.equal(isContentWrite('/api/demands', 'POST'), true, '发布需求（S3 扁平 body）');
+  assert.equal(isContentWrite('/api/demands/9', 'PUT'), true, '编辑需求');
   assert.equal(isContentWrite('/api/teacher/profile', 'POST'), true, '保存教师档案');
+  assert.equal(isContentWrite('/api/teacher/profile', 'PUT'), true, '保存教师档案 PUT 变体');
   assert.equal(isContentWrite('/api/reviews', 'POST'), true, '提交评价');
   assert.equal(isContentWrite('/api/feedbacks', 'POST'), true, '提交反馈');
   assert.equal(isContentWrite('/api/complaints', 'POST'), true, '提交投诉');
   assert.equal(isContentWrite('/api/auth/register', 'POST'), true, '注册');
   assert.equal(isContentWrite('/api/uploads', 'POST'), true, '暂存附件');
+  assert.equal(isContentWrite('/api/conversations/temp', 'POST'), true, '临时会话（I-23 firstMessage）');
   assert.equal(isContentWrite('/api/conversations/12/messages', 'POST'), true, '聊天消息');
   assert.equal(isContentWrite('/api/conversations/12/messages', 'PUT'), true, '聊天消息 PUT 变体');
-  assert.equal(isContentWrite('/api/conversations/12/signing', 'POST'), true, '发起签约');
-  assert.equal(isContentWrite('/api/signing-requests/5/respond', 'POST'), true, '签约请求回复');
-  assert.equal(isContentWrite('/api/demands/3/intents', 'POST'), true, '创建需求意向');
-  assert.equal(isContentWrite('/api/intents/9/resolve', 'POST'), true, '处理需求意向');
-  assert.equal(isContentWrite('/api/demand-pushes', 'POST'), true, '学生推送需求');
-  assert.equal(isContentWrite('/api/demand-pushes/8/resolve', 'POST'), true, '教师处理推送');
+  // S2 (intents/pushes removed) + S0-18 (dead prefixes removed): these are no longer content write paths
+  assert.equal(isContentWrite('/api/intents/9/resolve', 'POST'), false, '处理需求意向（已随 S2 删除）');
+  assert.equal(isContentWrite('/api/demand-pushes', 'POST'), false, '学生推送需求（已随 S2 删除）');
+  assert.equal(isContentWrite('/api/demand-pushes/8/resolve', 'POST'), false, '教师处理推送（已随 S2 删除）');
+  assert.equal(isContentWrite('/api/signing-requests/5/respond', 'POST'), false, '签约请求回复（签约已并入 signing_contracts）');
+  assert.equal(isContentWrite('/api/teacher/awards', 'POST'), false, '教师奖项（已随 S6 下线）');
   assert.equal(isContentWrite('/api/contracts', 'POST'), true, '起草合同');
   assert.equal(isContentWrite('/api/user/avatar', 'POST'), true, '上传头像');
   assert.equal(isContentWrite('/api/posts', 'GET'), false, '读不审核');
@@ -78,8 +81,7 @@ test('auditBeforeWrite L1 规则层（S2-1）：自由文本字段含门牌号 �
   assert.ok(chatBad.reject, '聊天消息含门牌 → 拒');
   const chatOk = await auditBeforeWrite({ path: '/api/conversations/12/messages', method: 'POST', body: { batch: [{ kind: 'text', body: '您到地铁站了吗？' }] } });
   assert.equal(chatOk.ok, true, '聊天正常 → 放行');
-  const pushBad = await auditBeforeWrite({ path: '/api/demand-pushes', method: 'POST', body: { message: '老师您好，家住5号楼303室' } });
-  assert.ok(pushBad.reject, '打招呼消息含门牌 → 拒');
+  // S2 (intents/pushes removed): demand-push greeting is no longer an audited content write
   const fbBad = await auditBeforeWrite({ path: '/api/feedbacks', method: 'POST', body: { title: '建议', content: '我家小区门口有 xx路88号' } });
   assert.ok(fbBad.reject, '反馈含门牌 → 拒');
   const like = await auditBeforeWrite({ path: '/api/posts/3/like', method: 'POST', body: {} });
@@ -101,15 +103,20 @@ test('auditBeforeWrite L1 规则层（S2-1）：自由文本字段含门牌号 �
   assert.equal(contractModOk.ok, true, '合同修改正常 → 放行');
 });
 
-test('auditBeforeWrite L1 嵌套 body：需求/教师档案字段在 body.demand / body.profile 下（外部审计断线回归）', async () => {
-  // 断线 1：/api/student/demands 创建+编辑 body 为 { demand: { additional_info } }——曾读扁平字段规则恒空转
-  const demBad = await auditBeforeWrite({ path: '/api/student/demands', method: 'POST', body: { demand: { additional_info: '补充：家在静安区5号楼303室' } } });
-  assert.ok(demBad.reject, '需求创建嵌套 additional_info 含门牌 → 拒');
-  const demEditBad = await auditBeforeWrite({ path: '/api/student/demands/9', method: 'PUT', body: { demand: { additional_info: '住在xx路88号' } } });
-  assert.ok(demEditBad.reject, '需求编辑嵌套 additional_info 含门牌 → 拒（编辑路径无路由层兜底，全赖此层）');
-  const demOk = await auditBeforeWrite({ path: '/api/student/demands', method: 'POST', body: { demand: { additional_info: '希望周末上课' } } });
+test('auditBeforeWrite L1 规则层：需求扁平 additionalInfo / 教师档案嵌套 profile 门牌拦截（外部审计断线回归）', async () => {
+  // S3 单科目重构：/api/demands 创建+编辑 body 扁平为 { additionalInfo }——曾读旧 { demand: { additional_info } } 规则恒空转
+  const demBad = await auditBeforeWrite({ path: '/api/demands', method: 'POST', body: { additionalInfo: '补充：家在静安区5号楼303室' } });
+  assert.ok(demBad.reject, '需求创建扁平 additionalInfo 含门牌 → 拒');
+  const demEditBad = await auditBeforeWrite({ path: '/api/demands/9', method: 'PUT', body: { additionalInfo: '住在xx路88号' } });
+  assert.ok(demEditBad.reject, '需求编辑扁平 additionalInfo 含门牌 → 拒');
+  const demOk = await auditBeforeWrite({ path: '/api/demands', method: 'POST', body: { additionalInfo: '希望周末上课' } });
   assert.equal(demOk.ok, true, '需求正常 → 放行');
-  // 断线 2：/api/teacher/profile body 为 { profile: { intro, school } }
+  // I-23：临时会话 firstMessage 是真实用户自由文本（落库为聊天消息），必须同守门牌红线
+  const tempBad = await auditBeforeWrite({ path: '/api/conversations/temp', method: 'POST', body: { targetUserId: 9, firstMessage: '老师您好，我家在8号楼702室' } });
+  assert.ok(tempBad.reject, '临时会话 firstMessage 含门牌 → 拒');
+  const tempOk = await auditBeforeWrite({ path: '/api/conversations/temp', method: 'POST', body: { targetUserId: 9, firstMessage: '老师您好，想约周六试课' } });
+  assert.equal(tempOk.ok, true, '临时会话正常 → 放行');
+  // 教师档案 body 仍为 { profile: { intro, school } }
   const profBad = await auditBeforeWrite({ path: '/api/teacher/profile', method: 'POST', body: { profile: { intro: '大家好，家在杨高中路88号', school: '华师大' } } });
   assert.ok(profBad.reject, '教师档案嵌套 intro 含门牌 → 拒');
   const profOk = await auditBeforeWrite({ path: '/api/teacher/profile', method: 'POST', body: { profile: { intro: '专注高中数学辅导', school: '华东师范大学' } } });

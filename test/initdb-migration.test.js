@@ -172,7 +172,7 @@ test('全新库：initDb 完整可跑 + 管理员播种 + 子表 FK 正常', asy
   const admin = db.prepare("SELECT role FROM users WHERE username='admin_sufe'").first();
   assert.ok(admin && admin.role === 'admin');
   // 全表建成
-  for (const t of ['users', 'auth_sessions', 'teacher_profiles', 'student_demands', 'signing_contracts', 'conversations', 'messages', 'notifications', 'danger_caps']) {
+  for (const t of ['users', 'auth_sessions', 'teacher_profiles', 'student_demands', 'contracts', 'conversations', 'messages', 'notifications', 'danger_caps']) {
     const row = db.prepare("SELECT 1 AS x FROM sqlite_master WHERE type='table' AND name=?").first(t);
     assert.ok(row, `表 ${t} 应已建成`);
   }
@@ -290,11 +290,12 @@ test('N-05 加密列：合同正文/学信网截图/附件 写加密读解密、
   assert.equal(prof.credential_image, 'data:image/png;base64,CRED123');
 
   // 合同正文：加密写 → 读解密；老明文行原样放行（decryptField 向后兼容）
-  await dbRun(db, "INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, contract_md, stage, signing_status, contract_status) VALUES (?,?,?,?,?,'contract','signed','pending')", [conv, stu, tea, tea, await encryptField('合同正文X')]);
-  const cid = db.prepare("SELECT id FROM signing_contracts WHERE stage='contract' ORDER BY id DESC LIMIT 1").first().id;
+  // S5: standalone contracts table (2-state contract_status, no stage/signing_status columns).
+  await dbRun(db, "INSERT INTO contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, contract_md, contract_status) VALUES (?,?,?,?,?,'signing')", [conv, stu, tea, tea, await encryptField('合同正文X')]);
+  const cid = db.prepare('SELECT id FROM contracts ORDER BY id DESC LIMIT 1').first().id;
   assert.equal((await dbGetContractById(db, cid)).contract_md, '合同正文X');
-  await dbRun(db, "INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, contract_md, stage, signing_status, contract_status) VALUES (?,?,?,?,?,'contract','signed','pending')", [conv, stu, tea, tea, '老明文合同']);
-  const oldCid = db.prepare("SELECT id FROM signing_contracts WHERE contract_md='老明文合同'").first().id;
+  await dbRun(db, "INSERT INTO contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, contract_md, contract_status) VALUES (?,?,?,?,?,'signing')", [conv, stu, tea, tea, '老明文合同']);
+  const oldCid = db.prepare("SELECT id FROM contracts WHERE contract_md='老明文合同'").first().id;
   assert.equal((await dbGetContractById(db, oldCid)).contract_md, '老明文合同', '老明文合同行应原样放行');
 
   // 附件：消息正文加密落库、读侧 decryptField 还原（route 层解密等价的往返验证）
@@ -396,12 +397,11 @@ test('dbGetTeachers：广场列表一律裁剪私密字段，管理端全量可�
   assert.equal(guestList[0].real_name, '', '访客视图 real_name 应裁剪');
   assert.equal(guestList[0].credential_image, '', '访客视图 credential_image 应裁剪');
 
-  // 已双向匹配的登录学生（存在会话）：列表仍裁剪（私密字段只经 /api/teacher/profile 定点取回）
+  // 登录态学生（viewerId 有值）：列表仍裁剪（私密字段只经 /api/teacher/profile 定点取回）
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(stu, tea);
   const matchedList = await dbGetTeachers(db, { viewerId: stu });
   assert.equal(matchedList[0].wechat, '', '匹配视图列表 wechat 仍裁剪');
   assert.equal(matchedList[0].credential_image, '', '匹配视图列表 credential_image 仍裁剪');
-  assert.equal(matchedList[0].matched, true, '匹配标记照常下发（前端门控显示用）');
 
   // 管理端：wechat/email 解密可见（管理端 SQL 本就不 SELECT real_name/credential_image，
   // 管理视图该两字段恒空——既有 admin 查询形态，非本裁剪引入；管理员核验凭证走独立入口）

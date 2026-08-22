@@ -16,12 +16,15 @@
  * Plus: PASS_SCORE / replay window / tolerance single-source lock against config
  * (mutation: module falls back to a local literal -> red).
  */
+// NOTE (F-3): the hard-cap test below leaves the module-level passedChallenges map FULL (~10000
+// entries) for the rest of this file's process. Any test added AFTER it must not assume an empty/small
+// map — either add it before the hard-cap test, or use distinct captchaIds and assert on its own flow.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  humanTrajectoryCheck, markChallengePassed, handleCaptchaVerify, PASS_SCORE,
+  humanTrajectoryCheck, markChallengePassed, isChallengeVerified, handleCaptchaVerify, PASS_SCORE,
 } from '../src/server/core/human-check.js';
 import { LIMITS, CONFIG } from '../src/shared/config.js';
 
@@ -96,6 +99,18 @@ test('S0-19：handleCaptchaVerify 全路径——人 200 / 机器 403 / 缺轨�
   assert.equal(missing.status, 400, '轨迹缺失 400');
 });
 
+test('S0-19：isChallengeVerified——放行后可确认 / 未放行拒绝 / 窗口外过期（变异删窗口判定 → 红）', (t) => {
+  t.mock.timers.enable({ apis: ['Date'] });
+  assert.equal(isChallengeVerified('never-marked'), false, '从未放行的 captchaId 拒绝');
+  assert.equal(isChallengeVerified(''), false, '空 captchaId 拒绝');
+  assert.equal(markChallengePassed('verify-now'), true, '放行登记');
+  assert.equal(isChallengeVerified('verify-now'), true, '放行后可确认（窗口内）');
+  // read-only: the query never consumes — the entry survives so replay stays blocked
+  assert.equal(markChallengePassed('verify-now'), false, 'isChallengeVerified 是只读查询，不删键 → 重放仍拒');
+  t.mock.timers.tick(LIMITS.CAPTCHA_REUSE_WINDOW_MS + 1);
+  assert.equal(isChallengeVerified('verify-now'), false, '窗口外过期拒绝（变异：isChallengeVerified 只查存在不查窗口 → 恒 true → 红）');
+});
+
 test('S0-19：留档失败不翻转 verdict（E2；变异去 logCaptchaResult try/catch → 红）', async () => {
   const throwingLog = async () => { throw new Error('log db down'); };
   const ok = await handleCaptchaVerify(null, { captchaId: 'e2-pass', track: humanTrack() }, req(), throwingLog);
@@ -128,12 +143,26 @@ test('S0-19：留档副作用实际发生且含观测字段（E1；变异删 log
   assert.ok(fail.detail.reason, '拒绝原因入留档');
 });
 
+test('S0-19：防重放硬上限——满表逐出最旧 + 当前挑战必登记，绝不清表 fail-open（变异旧 clear+return true → 红）', () => {
+  // 塞满 MAP_HARD_CAP(10000) 的唯一挑战 → 最后一次迭代 size>=10000 触发硬上限逐出；此后每次插入逐出 1 条，size 恒 ≤10000
+  for (let i = 0; i < 10001; i++) {
+    assert.equal(markChallengePassed(`cap-fill-${i}`), true, `填充第 ${i + 1} 次应放行`);
+  }
+  // 触发硬上限分支：新挑战必须被登记（变异：旧实现 clear+return true 未登记 → 二次仍 true → 红）
+  const fresh = 'cap-fresh-after-full';
+  assert.equal(markChallengePassed(fresh), true, '硬上限分支下新挑战放行');
+  assert.equal(markChallengePassed(fresh), false, '放行后当前挑战必须已登记 → 重放拒绝（变异：clear+return true → 未登记 → true → 红）');
+  // 清表变异第二向：老挑战不得因清表被遗忘（变异 clear 后全部可重放 → 红）
+  assert.equal(markChallengePassed('cap-fill-5000'), false, '硬上限逐出只丢最旧一条，其余已登记挑战仍防重放（变异：整表清空 → 可重放 → true → 红）');
+});
+
 test('S0-19：PASS_SCORE / 防重放窗口 / TOLERANCE 单源在 shared/config.js（变异改本地字面量 → 红）', () => {
   assert.equal(LIMITS.CAPTCHA_PASS_SCORE, 59, 'config 单源放行阈值');
   assert.equal(LIMITS.CAPTCHA_REUSE_WINDOW_MS, 5 * 60 * 1000, 'config 单源防重放窗口');
   assert.equal(CONFIG.CAPTCHA_TOLERANCE, 0.08, 'config 单源前端偏移容差');
   const src = readFileSync(ROOT + 'src/server/core/human-check.js', 'utf8');
   const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, ''); // strip comments
+  assert.doesNotMatch(code, /[一-鿿]/, '非注释代码零中文字符（文案单源 codes.js MSG；变异加回内联中文 → 红）'); // Q-2h/Q-2i guard preserved from test/human-check.test.js
   assert.match(code, /LIMITS\.CAPTCHA_PASS_SCORE/, 'PASS_SCORE 从 config 读取（变异：本地字面量 → 红）');
   assert.match(code, /LIMITS\.CAPTCHA_REUSE_WINDOW_MS/, '防重放窗口从 config 读取');
   assert.doesNotMatch(code, /PASS_SCORE\s*=\s*59/, '无本地阈值字面量');

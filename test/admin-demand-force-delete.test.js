@@ -1,17 +1,14 @@
 /**
- * v0.25.95（调试阶段放开）：管理员可移除全部需求（含已签约 contracted）。
+ * 管理员可移除全部需求（S3 单科目新模型：无「已签约禁删」门禁）。
  *
- * 背景：原 handleAdminDeleteDemand 拦 CONTRACTED（「已签约需求禁删——合同 demand_id 会悬空」），
- * 数据层 dbDeleteDemand 也以 NOT EXISTS(活跃合同引用) 原子拒删（F-03b 防悬空，曾致线上事故）。
- * 调试阶段放开：管理员改走 dbAdminForceDeleteDemand——同一事务内先清 signing_contracts
- * 的 demand_id 引用（两者均裸 INTEGER 无 FK），再删需求；demand_intents / demand_pushes 经 FK 级联。
- * 常规（非管理员）删除路径仍保留原子门禁。
+ * S5 合同独立化：contracts 表无 demand_id（standalone 证据记录，不绑定需求）→ 删除需求不触碰合同；
+ * conversations.demand_id 经 FK ON DELETE SET NULL 自动置空（旧 F-03b 手动清引用逻辑随合同独立删除）。
+ * 学生删除路径保留归属门禁（非本人 → 403 NO_PERMISSION）。
  *
  * 本测试覆盖：
- *   - 管理员删除 contracted 需求 → 200；需求行删除；
- *   - 引用合同 demand_id 被清 NULL（不悬空，合同本体保留）；
- *   - 引用签约请求 demand_id 被清 NULL（请求保留）；
- *   - 常规 student 删除路径不受影响（contracted 仍拒删，F-03b 门禁保留）。
+ *   - 管理员删除需求 → 200；需求行删除；合同独立保留；会话 demand_id 经 FK SET NULL；
+ *   - 学生删除本人需求 → 200；非本人 → 403（归属门禁）；
+ *   - 管理员删除不存在需求 → 404。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -56,49 +53,52 @@ function d1Shim(raw) {
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
-/** 播种：admin + s1 学生 + t1 教师；d1 = s1 的 contracted 需求；C1=s1-t1；合同+签约请求各一条引用 d1 */
+/** 播种：admin + s1/s2 学生 + t1 教师；d1 = s1 的 open 需求；C1=s1-t1；一条 S5 standalone 合同引用 C1 */
 async function seed(db, raw) {
   await initDb(db, ENV);
   // admin_sufe 由 initDb 按 ENV.ADMIN_USERNAMES 种子创建（upsert），此处只插业务用户
   raw.exec(`INSERT INTO users (username,password_hash,salt,role) VALUES
-    ('s1','h','s','student'),('t1','h','s','teacher')`);
+    ('s1','h','s','student'),('s2','h','s','student'),('t1','h','s','teacher')`);
   const idOf = name => raw.prepare('SELECT id FROM users WHERE username=?').get(name).id;
-  const s1 = idOf('s1'), t1 = idOf('t1');
-  raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-    VALUES (?,?,?,?,?,?,?,?,?)`).run(s1, 'senior1', 'female', '["math"]', '[]', 'self', '13800000000', '13800000000', 'contracted');
+  const s1 = idOf('s1'), s2 = idOf('s2'), t1 = idOf('t1');
+  raw.prepare(`INSERT INTO student_demands (user_id, subject, grade, province, teaching_method, status)
+    VALUES (?,?,?,?,?,?)`).run(s1, 'math', 'senior1', 'shanghai', 'online', 'open');
   const d1 = raw.prepare('SELECT id FROM student_demands ORDER BY id DESC LIMIT 1').get().id;
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)').run(s1, t1, d1);
   const conv = raw.prepare('SELECT id FROM conversations ORDER BY id DESC LIMIT 1').get().id;
-  // 引用 d1 的合同行（stage='contract' signed）与签约行（stage='signing' pending）——同表两 stage 行
-  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, method, stage, signing_status, contract_status, demand_id) VALUES (?,?,?,?,'online','contract','signed','signed',?)`).run(conv, s1, t1, t1, d1);
-  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, demand_id, initiator_user_id, stage, signing_status) VALUES (?,?,?,?,?,'signing','pending')`).run(conv, s1, t1, d1, t1);
-  const mkToken = async (name, role) => {
+  // S5 standalone contract（无 demand_id 列）：独立证据记录，删除需求不应触碰
+  raw.prepare(`INSERT INTO contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, contract_status)
+    VALUES (?,?,?,?,'signed')`).run(conv, s1, t1, t1);
+  const mkToken = async (name) => {
     const token = `${name}-token`;
     raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
       .run(await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00');
     return token;
   };
-  return { s1, t1, d1, conv, adminToken: await mkToken('admin_sufe', 'admin'), s1Token: await mkToken('s1', 'student') };
+  return { s1, s2, t1, d1, conv, adminToken: await mkToken('admin_sufe'), s1Token: await mkToken('s1'), s2Token: await mkToken('s2') };
 }
 
-test('管理员删除 contracted 需求 → 200；合同/签约请求 demand_id 清 NULL（不悬空），合同本体保留', async () => {
+test('管理员删除需求 → 200；需求行删除；合同独立保留；会话 demand_id 经 FK SET NULL', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { d1, conv, adminToken } = await seed(db, raw);
   const r = await handleAdminDeleteDemand(db, d1, {}, reqOf(adminToken));
-  assert.equal(r.status, 200, '管理员可删已签约需求');
+  assert.equal(r.status, 200, '管理员可删任何需求（无签约禁删门禁）');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE id=?').get(d1).c, 0, '需求行已删');
-  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE conversation_id=? AND stage='contract'").get(conv).c, 1, '合同本体保留');
-  assert.equal(raw.prepare("SELECT demand_id FROM signing_contracts WHERE conversation_id=? AND stage='contract'").get(conv).demand_id, null, '合同 demand_id 清 NULL 不悬空');
-  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE conversation_id=? AND stage='signing'").get(conv).c, 1, '签约请求保留');
-  assert.equal(raw.prepare("SELECT demand_id FROM signing_contracts WHERE conversation_id=? AND stage='signing'").get(conv).demand_id, null, '签约请求 demand_id 清 NULL');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE conversation_id=?').get(conv).c, 1, '合同独立保留（不随需求删除）');
+  assert.equal(raw.prepare('SELECT demand_id FROM conversations WHERE id=?').get(conv).demand_id, null, '会话 demand_id 经 FK ON DELETE SET NULL 置空');
 });
 
-test('常规学生删除路径不受影响：contracted 需求仍拒删（F-03b 门禁保留）', async () => {
+test('学生删除：本人需求 → 200；非本人 → 403（归属门禁）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { d1, s1Token } = await seed(db, raw);
-  const r = await handleDeleteDemand(db, d1, {}, reqOf(s1Token));
-  assert.equal(r.status, 409, '非管理员删 contracted 仍被拒');
+  const { d1, s1Token, s2Token } = await seed(db, raw);
+  // 非本人删除 → 403，需求保留
+  const r2 = await handleDeleteDemand(db, d1, {}, reqOf(s2Token));
+  assert.equal(r2.status, 403, '非本人删除被拒');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE id=?').get(d1).c, 1, '需求未删');
+  // 本人删除 → 200
+  const r1 = await handleDeleteDemand(db, d1, {}, reqOf(s1Token));
+  assert.equal(r1.status, 200, '本人删除成功');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE id=?').get(d1).c, 0, '需求已删');
 });
 
 test('管理员删除不存在需求 → 404', async () => {

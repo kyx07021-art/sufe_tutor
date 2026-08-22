@@ -109,8 +109,9 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   const carol = await registerWithContact(db, req(), { username: 'carol', password: 'pass123456', role: 'student' });
   const carolData = await carol.json();
   const demandApi = await import('../src/server/domains/demand/api.js');
+  // S3 单科目模型：扁平 body（subject/grade/province + 上海 offline 需 addressArea；原 v2 多科目/联系字段已删）
   const created = await demandApi.handleCreateDemand(db, {
-    demand: { province: 'shanghai', student_grade: 'senior1', student_gender: 'female', target_subjects: ['math'], current_scores: [], teaching_method: 'offline', address: '杨浦区·四平路街道', submitter_type: 'self', parent_contact: '13800000000', student_contact: '13800000000', additional_info: '' },
+    province: 'shanghai', subject: 'math', grade: 'senior1', teachingMethod: 'offline', currentScore: '', addressArea: '杨浦区·四平路街道', expectedTime: '', preferredTags: [], preferredGender: '', budgetMin: 150, budgetMax: 200, additionalInfo: '',
   }, req({ 'X-Auth-Token': carolData.authToken }));
   assert.equal(created.status, 200, '需求创建成功');
   const r2 = await handleAdminContent(db, new URL('http://x/api/admin/content'), req({ 'X-Auth-Token': token }));
@@ -186,7 +187,7 @@ test('D2：处罚——delete 删帖 + ban 封禁作者 + 自动通知作者 + �
   assert.equal(bannedUser.status, 401);
 });
 
-test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', async () => {
+test('D1/D2：合同提取 + 处罚（审查补丁覆盖）', async () => {
   const { raw, db, req } = await setup();
   semanticPass();
   const teaReg = await registerWithContact(db, req(), { username: 'teach0', password: 'pass123456', role: 'teacher' });
@@ -199,16 +200,13 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   assert.equal(prof.status, 200);
   const teaId = raw.prepare("SELECT id FROM users WHERE username='teach0'").get().id;
   const stuId = raw.prepare("SELECT id FROM users WHERE username='stud0'").get().id;
-  // 直接造会话 + 合同 + 签约请求（D1/D2 提取/处罚覆盖；完整签约流见 signing-hardening.test.js）
+  // 直接造会话 + 合同（S5 独立 contracts 表：无 stage/signing_status；签约层已删，D1/D2 不再提取 signing 类型）
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(stuId, teaId);
   const convId = raw.prepare('SELECT MAX(id) AS id FROM conversations').get().id;
-  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, method, plan, hourly_rate, pay_method, first_lesson_date, contract_md, stage, contract_status)
-    VALUES (?,?,?,?,?,?,?,?,?,?,'contract','pending')`)
+  raw.prepare(`INSERT INTO contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, method, plan, rate, pay_method, first_lesson_date, contract_md, contract_status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,'signing')`)
     .run(convId, stuId, teaId, teaId, 'online', '每周两次，每次两小时，梳理高二数学', 200, 'wechat', '2026-08-20', '# 辅导计划');
-  raw.prepare(`INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, initiator_user_id, price, schedule, method, stage, signing_status) VALUES (?,?,?,?,?,?,?,'signing','pending')`)
-    .run(convId, stuId, teaId, teaId, 200, '每周六下午', 'online');
-  const contractId = raw.prepare("SELECT MAX(id) AS id FROM signing_contracts WHERE stage='contract'").get().id;
-  const signingId = raw.prepare("SELECT MAX(id) AS id FROM signing_contracts WHERE stage='signing'").get().id;
+  const contractId = raw.prepare("SELECT MAX(id) AS id FROM contracts").get().id;
 
   const token = await adminToken(db, raw);
   const rc = await handleAdminContent(db, new URL('http://x/api/admin/content?type=contract'), req({ 'X-Auth-Token': token }));
@@ -217,12 +215,6 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   assert.ok(contract, '合同被提取');
   assert.equal(contract.author.username, 'teach0');
   assert.ok(String(contract.body).includes('每周两次'), '合同正文含 plan/schedule');
-  const rs = await handleAdminContent(db, new URL('http://x/api/admin/content?type=signing'), req({ 'X-Auth-Token': token }));
-  assert.equal(rs.status, 200);
-  const signing = (await rs.json()).items.find(i => i.id === signingId);
-  assert.ok(signing, '签约请求被提取');
-  assert.equal(signing.author.username, 'teach0');
-  assert.ok(String(signing.body).includes('每周六'), '签约正文含 schedule');
 
   // 处罚：超长原因+超长规则 → 通知三段截断预算生效（审查补丁：三段分预算）。
   // 真实回归：reason 222 字（≥200，旧逻辑取满 200 后仍余 148）+ rule 23 字（旧逻辑 100），
@@ -232,7 +224,7 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   const longReason = '发布包含完整门牌号码的内容，严重违反平台隐私保护红线，已多次警告仍不改正，'.repeat(6); // 222 字（≥200）
   const delC = await handleContentAction(db, 'contract', contractId, { action: 'delete', reason: longReason, rule: '地址门控与隐私红线，内容安全审核，恶意规避审核', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
   assert.equal(delC.status, 200, JSON.stringify(await delC.json()));
-  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE id=? AND stage='contract'").get(contractId).c, 0, '合同已删除');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE id=?').get(contractId).c, 0, '合同已删除');
   const notif = raw.prepare('SELECT type, params FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 1').get(teaId);
   assert.ok(notif, '通知已生成');
   assert.equal(notif.type, 'CONTENT_PENALTY', '处罚通知结构化 type');
@@ -243,9 +235,10 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   const { notifTypeText } = await import('../src/client/features/notif/render.js');
   const rendered = notifTypeText('CONTENT_PENALTY', pn);
   assert.ok(rendered.length <= 200, `通知总长 ${rendered.length} ≤ 200`);
-  const delS = await handleContentAction(db, 'signing', signingId, { action: 'delete', reason: '包含可定位地址', rule: '地址门控', capToken: await capOf(raw, token) }, req({ 'X-Auth-Token': token }));
-  assert.equal(delS.status, 200);
-  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE id=? AND stage='signing'").get(signingId).c, 0, '签约请求已删除');
+  // S6-A8：signing 类型已删（S5 独立化），内容审核不再识别 signing → 无效 type 400
+  // （type 白名单校验在 capToken 校验之前，故无需 capToken；capOf 不消费会残留同会话 UNIQUE 冲突）
+  const delS = await handleContentAction(db, 'signing', contractId, { action: 'delete', reason: '包含可定位地址', rule: '地址门控' }, req({ 'X-Auth-Token': token }));
+  assert.equal(delS.status, 400, 'signing 类型已删，返回 INVALID_PARAMS');
   // teacher 档案 delete/remove → 400 拒绝（无硬删分支，API 直发不许 no-op 假装成功）
   const teaDel = await handleContentAction(db, 'teacher', teaId, { action: 'delete', reason: 'x', rule: 'x' }, req({ 'X-Auth-Token': token }));
   assert.equal(teaDel.status, 400, 'teacher delete 直接拒绝');

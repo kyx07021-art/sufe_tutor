@@ -243,11 +243,25 @@ test('路由：发码/绑定/用户名修改/冷却状态', async () => {
   const code = lastOtpCode('13812345678');
   assert.match(String(code), /^\d{6}$/);
 
-  // 绑定
+  // 绑定（I-12 验码先行：占用查在验码之后——只有持码者能触发 409，防枚举）
   const bind = await handleBindPhone(db, { phone: '+8613812345678', code }, authedReq(u.token));
   assert.equal(bind.status, 200, `绑定应成功: ${JSON.stringify(await bind.json())}`);
+  // 第一次绑定已消费该验证码；重复绑定同号 + 同码 → 验码先行失败（码已消费）→ 400 OTP_INVALID_OR_EXPIRED。
+  // Mutation guard: if handleBindPhone is reverted to occupied-check-first, this second call
+  // would hit the occupied 409 and this assertion goes red — locking the I-12 verify-first order.
   const dup = await handleBindPhone(db, { phone: '+8613812345678', code }, authedReq(u.token));
-  assert.equal(dup.status, 409, '重复绑定同号 → 409');
+  const dupData = await dup.json();
+  assert.equal(dup.status, 400, `verify-first: consumed code → 400 OTP_INVALID_OR_EXPIRED (not 409): ${JSON.stringify(dupData)}`);
+  assert.equal(dupData.code, 'AUTH_OTP_INVALID_OR_EXPIRED', 'consumed code maps to OTP_INVALID_OR_EXPIRED');
+  // 占用 409 路径：直接种一枚全新验证码（绕过 60s 重发窗口），验码通过后触发占用查 → 409。
+  await raw.prepare(
+    `INSERT INTO verification_codes (channel, target_hash, code_hash, expires_at, used, attempts)
+     VALUES ('sms', ?, ?, datetime('now', '+1 hour'), 0, 0)`
+  ).run(await tokenDigest('+8613812345678'), await tokenDigest('123456'));
+  const dupOccupied = await handleBindPhone(db, { phone: '+8613812345678', code: '123456' }, authedReq(u.token));
+  const dupOccupiedData = await dupOccupied.json();
+  assert.equal(dupOccupied.status, 409, `verify passes + same phone occupied → 409: ${JSON.stringify(dupOccupiedData)}`);
+  assert.equal(dupOccupiedData.code, 'AUTH_PHONE_ALREADY_BOUND', 'occupied bind maps to PHONE_ALREADY_BOUND');
 
   // 用户名修改：冷却前 400；新用户名非法 400
   const before = await handleUsernameStatus(db, authedReq(u.token));

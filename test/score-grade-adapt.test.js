@@ -1,5 +1,5 @@
 /**
- * B3 主科分数上限按年级适配（B4：前端直接 import ESM，服务端保留直测）。
+ * B3 主科分数上限按年级适配（S3 单科目新模型：current_score 单值文本钳制）。
  */
 import { TEST_SECRETS } from './_test-secrets.js';
 import { test } from 'node:test';
@@ -79,38 +79,32 @@ async function seedStudent(db, raw, username = 'stu1') {
   return { token, uid };
 }
 
-const baseDemand = { province: 'jiangsu', student_gender: 'male',
-  target_subjects: ['chinese', 'math'], teaching_method: 'online',
-  address: '杨浦区', budget_min: 0, budget_max: 0,
-  submitter_type: 'parent', parent_contact: '13800138000', student_contact: '13900139000', additional_info: '' };
+// S3 单科目直接 body：jiangsu 非线下许可省 → 强制 online，无需地址
+const baseDemand = { province: 'jiangsu', subject: 'chinese', grade: 'p1', teachingMethod: 'online', budgetMin: 0, budgetMax: 0 };
 
 test('B3 服务端钳制：小学一年级语文 150 → 100', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token } = await seedStudent(db, raw);
-  const res = await handleCreateDemand(db, { demand: { ...baseDemand, student_grade: 'p1', current_scores: [{ subject: 'chinese', mode: 'score', scale: 150, score: '150' }] } }, { headers: new Headers({ 'X-Auth-Token': token }) });
+  const res = await handleCreateDemand(db, { ...baseDemand, grade: 'p1', currentScore: '150' }, { headers: new Headers({ 'X-Auth-Token': token }) });
   assert.equal(res.status, 200);
-  const row = raw.prepare('SELECT current_scores FROM student_demands ORDER BY id DESC LIMIT 1').get();
-  const scores = JSON.parse(row.current_scores);
-  assert.equal(scores[0].score, '100');
-  assert.equal(scores[0].scale, 100);
+  const row = raw.prepare('SELECT current_score FROM student_demands ORDER BY id DESC LIMIT 1').get();
+  assert.equal(row.current_score, '100', 'subjectMaxFor(jiangsu,chinese,p1)=100 钳制');
 });
 
 test('B3 服务端钳制：高中 150 保持', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token } = await seedStudent(db, raw, 'stu2');
-  const res = await handleCreateDemand(db, { demand: { ...baseDemand, student_grade: 'senior3', current_scores: [{ subject: 'chinese', mode: 'score', scale: 150, score: '150' }] } }, { headers: new Headers({ 'X-Auth-Token': token }) });
+  const res = await handleCreateDemand(db, { ...baseDemand, grade: 'senior3', currentScore: '150' }, { headers: new Headers({ 'X-Auth-Token': token }) });
   assert.equal(res.status, 200);
-  const row = raw.prepare('SELECT current_scores FROM student_demands ORDER BY id DESC LIMIT 1').get();
-  const scores = JSON.parse(row.current_scores);
-  assert.equal(scores[0].score, '150');
+  const row = raw.prepare('SELECT current_score FROM student_demands ORDER BY id DESC LIMIT 1').get();
+  assert.equal(row.current_score, '150', '高中主科 150 保持');
 });
 
-test('B3 服务端钳制：等第模式不改数值', async () => {
+test('B3 服务端钳制：等第字母不改数值', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token } = await seedStudent(db, raw, 'stu3');
-  const res = await handleCreateDemand(db, { demand: { ...baseDemand, student_grade: 'p1', target_subjects: ['chinese'], current_scores: [{ subject: 'chinese', mode: 'grade', scale: 0, score: '', grade: 'A' }] } }, { headers: new Headers({ 'X-Auth-Token': token }) });
+  const res = await handleCreateDemand(db, { ...baseDemand, grade: 'p1', currentScore: 'A' }, { headers: new Headers({ 'X-Auth-Token': token }) });
   assert.equal(res.status, 200);
-  const row = raw.prepare('SELECT current_scores FROM student_demands ORDER BY id DESC LIMIT 1').get();
-  const scores = JSON.parse(row.current_scores);
-  assert.equal(scores[0].grade, 'A');
+  const row = raw.prepare('SELECT current_score FROM student_demands ORDER BY id DESC LIMIT 1').get();
+  assert.equal(row.current_score, 'A', '等第字母原样保留');
 });

@@ -221,7 +221,8 @@ test('Q-2e-F2 守护：contracts.prev_business 随合同正文一起重加密（
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(1, t1);
   const md = await encryptField('# 家教服务合同\n...');
   const pb = await encryptField('每周六晚');
-  raw.prepare("INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, stage, signing_status, contract_status, contract_md, prev_business) VALUES (?,?,?,?,'contract','signed','signed',?,?)")
+  // S5: standalone contracts table (2-state contract_status, no stage/signing_status columns).
+  raw.prepare("INSERT INTO contracts (conversation_id, student_user_id, teacher_user_id, drafter_user_id, contract_status, contract_md, prev_business) VALUES (?,?,?,?,'signing',?,?)")
     .run(1, 1, t1, t1, md, pb);
 
   // 新钥轮换 + 旧钥候选，全量重加密
@@ -232,7 +233,113 @@ test('Q-2e-F2 守护：contracts.prev_business 随合同正文一起重加密（
   // 解密失败 diff 退化 [undecryptable]。变异：FIELD_TABLES contracts 删 prev_business 登记 →
   // prev_business 仍旧钥密文 → 单新钥解不出 → 断言红（旧断言「候选钥序解出」无牙齿，OLD 兜底也能解）
   bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG });
-  const row = raw.prepare("SELECT contract_md, prev_business FROM signing_contracts WHERE stage='contract'").get();
+  const row = raw.prepare('SELECT contract_md, prev_business FROM contracts').get();
   assert.equal(await decryptField(row.contract_md), '# 家教服务合同\n...', 'contract_md 重加密后新钥可解');
   assert.equal(await decryptField(row.prev_business), '每周六晚', 'prev_business 重加密后新钥可解（旧实现漏登记删旧钥即 [undecryptable]）');
+});
+
+// ---------------- S0-20 守护（F1：四表漏登记变异守护——teacher_profiles / teacher_verifications / uploads / messages） ----------------
+// Each table previously had zero direct mutation guard: removing its FIELD_TABLES entry (key rotation
+// would then leave the encrypted columns on the old key -> [undecryptable] after *_OLD is deleted)
+// left the suite green. These tests make each table's rotation a first-class guarded behavior (G1/G2).
+
+test('S0-20 守护：teacher_profiles 的 wechat/email/real_name/credential_image 随轮换重加密（删登记即 [undecryptable]）', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  // seed a teacher_profiles row with old-key ciphertext (real schema shape: G3)
+  bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
+  raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('tp1','h','s','teacher')").run();
+  const uid = raw.prepare("SELECT id FROM users WHERE username='tp1'").get().id;
+  const wechat = await encryptField('wx:tp1');
+  const email = await encryptField('tp1@example.com');
+  const realName = await encryptField('张三');
+  const credImg = await encryptField('data:image/png;base64,iVBOR');
+  raw.prepare('INSERT INTO teacher_profiles (user_id, wechat, email, real_name, credential_image) VALUES (?,?,?,?,?)')
+    .run(uid, wechat, email, realName, credImg);
+
+  // rotation window: new key + old key candidate, re-encrypt everything
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, FIELD_ENC_KEY_OLD: OLD_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG });
+  await reencryptAll(db);
+
+  // post-rotation end state: only the new key remains (OLD deleted). Single new key must decrypt.
+  // Mutation: removing this table from FIELD_TABLES leaves the columns as old-key ciphertext ->
+  // single-new-key decrypt fails ([undecryptable]) -> red.
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG });
+  const row = raw.prepare('SELECT wechat, email, real_name, credential_image FROM teacher_profiles WHERE user_id=?').get(uid);
+  assert.equal(await decryptField(row.wechat), 'wx:tp1', 'wechat re-encrypted under new key');
+  assert.equal(await decryptField(row.email), 'tp1@example.com', 'email re-encrypted under new key');
+  assert.equal(await decryptField(row.real_name), '张三', 'real_name re-encrypted under new key');
+  assert.equal(await decryptField(row.credential_image), 'data:image/png;base64,iVBOR', 'credential_image re-encrypted under new key');
+});
+
+test('S0-20 守护：teacher_verifications 的 verify_code/admission_image 随轮换重加密（删登记即 [undecryptable]）', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
+  raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('tv1','h','s','teacher')").run();
+  const uid = raw.prepare("SELECT id FROM users WHERE username='tv1'").get().id;
+  const verifyCode = await encryptField('CHSI20260822');
+  const admissionImg = await encryptField('data:image/jpeg;base64,abc');
+  raw.prepare('INSERT INTO teacher_verifications (user_id, verify_code, admission_image) VALUES (?,?,?)')
+    .run(uid, verifyCode, admissionImg);
+
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, FIELD_ENC_KEY_OLD: OLD_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG });
+  await reencryptAll(db);
+
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG });
+  const row = raw.prepare('SELECT verify_code, admission_image FROM teacher_verifications WHERE user_id=?').get(uid);
+  assert.equal(await decryptField(row.verify_code), 'CHSI20260822', 'verify_code re-encrypted under new key');
+  assert.equal(await decryptField(row.admission_image), 'data:image/jpeg;base64,abc', 'admission_image re-encrypted under new key');
+});
+
+test('S0-20 守护：uploads 的 body/thumb 随轮换重加密（删登记即 [undecryptable]）', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
+  raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('up1','h','s','teacher')").run();
+  const uid = raw.prepare("SELECT id FROM users WHERE username='up1'").get().id;
+  const body = await encryptField('data:image/png;base64,body');
+  const thumb = await encryptField('data:image/png;base64,thumb');
+  raw.prepare('INSERT INTO uploads (user_id, kind, body, thumb) VALUES (?,?,?,?)')
+    .run(uid, 'image', body, thumb);
+
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, FIELD_ENC_KEY_OLD: OLD_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG });
+  await reencryptAll(db);
+
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG });
+  const row = raw.prepare('SELECT body, thumb FROM uploads WHERE user_id=?').get(uid);
+  assert.equal(await decryptField(row.body), 'data:image/png;base64,body', 'body re-encrypted under new key');
+  assert.equal(await decryptField(row.thumb), 'data:image/png;base64,thumb', 'thumb re-encrypted under new key');
+});
+
+test('S0-20 守护：messages 的 body/thumb 随轮换重加密（删登记即 [undecryptable]）', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  await initDb(db, ENV);
+  bindCryptoEnv({ FIELD_ENC_KEY: OLD_FIELD, LOG_ENCRYPT_KEY: OLD_LOG });
+  raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('ms1','h','s','student')").run();
+  raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('mt1','h','s','teacher')").run();
+  const sId = raw.prepare("SELECT id FROM users WHERE username='ms1'").get().id;
+  const tId = raw.prepare("SELECT id FROM users WHERE username='mt1'").get().id;
+  raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(sId, tId);
+  const convId = raw.prepare('SELECT id FROM conversations WHERE student_user_id=? AND teacher_user_id=?').get(sId, tId).id;
+  const body = await encryptField('hello from student');
+  const thumb = await encryptField('data:image/png;base64,thumb');
+  raw.prepare("INSERT INTO messages (conversation_id, sender_user_id, kind, body, thumb) VALUES (?,?,?,?,?)")
+    .run(convId, sId, 'text', body, thumb);
+
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, FIELD_ENC_KEY_OLD: OLD_FIELD, LOG_ENCRYPT_KEY: NEW_LOG, LOG_ENCRYPT_KEY_OLD: OLD_LOG });
+  await reencryptAll(db);
+
+  bindCryptoEnv({ FIELD_ENC_KEY: NEW_FIELD, LOG_ENCRYPT_KEY: NEW_LOG });
+  const row = raw.prepare('SELECT body, thumb FROM messages WHERE conversation_id=?').get(convId);
+  assert.equal(await decryptField(row.body), 'hello from student', 'body re-encrypted under new key');
+  assert.equal(await decryptField(row.thumb), 'data:image/png;base64,thumb', 'thumb re-encrypted under new key');
 });

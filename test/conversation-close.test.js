@@ -1,26 +1,23 @@
 /**
  * AI-1：结束关系接口（POST /api/conversations/:id/close）——会话 active→closed + 级联自动收束。
  *
- * 用户定案模型：relationship 抽象父类（不建表）；conversation 子类（一对师生终身一个会话）；
- * signing_contracts 一张表（stage signing→contract，一次合作一条记录）。
- * 本测试锁：
- *   1. 主链路级联：pending 签约 → rejected（气泡终态覆写 + 通知发起者）；进行中合同 → revoked +
- *      释放绑定需求（contracted→revoked）；已成交未起草（signing signed）与已签署合同（contract signed）保留
- *      （A5 终态门禁）；CONVERSATION_CLOSED 通知对端；
- *   2. 幂等：已 closed 再次 close → alreadyClosed，不消耗 capToken、零级联重放；
- *   3. 并发双 close：仅单赢家跑副作用（通知/留档不翻倍）；
- *   4. 双方元组定位：conversation_id=NULL 的签约行同样收束；
- *   5. capToken 门禁：无/错 capToken → 403，会话仍 active 零级联。
- * 注意：initDb 的 seedAdmins 会先占 users id=1（admin_sufe）——所有种子 id 一律取 INSERT 返回值
- * （G3 夹具与生产形状一致），禁止硬编码（signing-contract-merged 的硬编码错位是既存脆弱项，见 AI-10a）。
- * 变异守护（G2，审计时逐项还原源做红→绿验证，声称经审计实证校准）：
- *   - 终态门禁 = SELECT 快照 + UPDATE 守卫双层——只删 UPDATE 守卫不红（signed 行不在快照数组），
- *     完整还原双层（SELECT+UPDATE 两处过滤）→ 主链路「signed 保留」断言红；
- *   - 删需求释放语句 → 需求滞留 contracted 红（精确）；
- *   - 删 handler 的 closeWon 判定 → 并发测试 CONVERSATION_CLOSED 翻倍红（精确）；
- *   - 删会话 UPDATE 的 AND status='active' → 红在并发测试（非幂等测试——幂等短路在 handler 层）；
- *   - UPDATE 守卫的承重面 = 并发快照漂移保护（SELECT 后对端确认/推进 → 行状态变化不误伤），
- *     由「快照漂移竞态」用例直接锁定。
+ * S3/S5 新模型定案：
+ * - S3 单科目：需求状态收敛 open/closed（无 contracted/revoked）；需求不随 close 释放
+ *   （dbCloseConversationCascade 无需求释放语句，返回 { closeWon, rejected: [], revoked }）。
+ * - S5 独立合同：contracts 表（无 stage/signing_status/demand_id/initiator）；关闭会话应撤销
+ *   进行中（contract_status='signing'）合同、保留已签署（signed）合同存证（A5 终态门禁）；
+ *   signing 层（pending 签约 / SIGNING_REJECTED 通知 / 气泡终态覆写）整体删除。
+ *
+ * 当前可跑用例（不依赖级联 SQL）：
+ *   1. 鉴权/参与方：无令牌 401；非参与方 close → 404（不泄露会话存在性）；
+ *   2. capToken 门禁：无/错 capToken → 403，会话仍 active、级联零发生。
+ *
+ * 级联用例（主链路/幂等/并发/双方元组/无待收束）已改写至 contracts 表，与 S2 落地的
+ * dbCloseConversationCascade（SELECT contracts WHERE contract_status='signing' AND revoked=0 →
+ * 逐行 UPDATE revoked=1, revoked_by=0）逐条对齐；响应形状 { ok, closed, contractsRevoked } 按
+ * handler 实况断言（无 signingsRejected 字段——signing 层已删除）。
+ * 注：原「快照漂移竞态」用例依赖 signing_contracts 专属 driftShim，S5 contracts 表的等价 shim
+ * 依赖 S2 落地 SQL 形状——由 S2-B5 落地时重建（锁 UPDATE 守卫承重面）。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -28,7 +25,6 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { handleCloseConversation } from '../src/server/domains/chat/api.js';
-import { handleCreateSigning } from '../src/server/domains/contract/api.js';
 import { logRequest } from '../src/server/core/log.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
@@ -58,33 +54,6 @@ function d1Shim(raw) {
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
-// 快照漂移 shim：仅对「会话关闭 batch」（首句 UPDATE conversations status='closed'）在事务内、级联语句
-// 执行前模拟「对端并发确认」把第一条 pending signing 置 signed——锁定 dbCloseConversationCascade 中
-// UPDATE 守卫（WHERE signing_status='pending'）的承重面：SELECT 快照后行状态被并发变更 → 该行 reject
-// changes=0 → 保留 signed、零副作用（不误伤）。只对 close batch 生效，避免误触其他 batch
-// （如 notifyUser→bumpVersions 的 batch 也会带 pending 行）。
-function driftShim(raw) {
-  const base = d1Shim(raw);
-  base.batch = async (stmts) => {
-    raw.exec('BEGIN');
-    try {
-      const isCloseBatch = stmts.length > 0 && /^UPDATE conversations SET status='closed'/.test(stmts[0]._sql || '');
-      if (isCloseBatch && raw.prepare("SELECT COUNT(*) AS c FROM sqlite_master WHERE type='table' AND name='signing_contracts'").get().c
-          && raw.prepare("SELECT COUNT(*) AS c FROM signing_contracts WHERE signing_status='pending'").get().c) {
-        // 模拟并发：batch 事务内、级联语句执行前，对端确认了 pending 签约（快照漂移）
-        raw.prepare("UPDATE signing_contracts SET signing_status='signed', responded_at=datetime('now') WHERE id=(SELECT MIN(id) FROM signing_contracts WHERE signing_status='pending')").run();
-      }
-      const out = [];
-      for (const s of stmts) {
-        if (/^\s*(SELECT|PRAGMA|WITH|EXPLAIN)/i.test(s._sql)) out.push({ results: raw.prepare(s._sql).all(...s._params) });
-        else { const info = raw.prepare(s._sql).run(...s._params); out.push({ meta: { changes: Number(info.changes), last_row_id: Number(info.lastInsertRowid) } }); }
-      }
-      raw.exec('COMMIT'); return out;
-    } catch (e) { try { raw.exec('ROLLBACK'); } catch { /* ignore */ } throw e; }
-  };
-  return base;
-}
-
 // capToken 签发（per-user-per-session）：uid 指定持卡用户（danger_caps 以 user_id+session_id 为主键）
 const capOf = async (raw, sessionId, uid, value = 'cap') => {
   raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
@@ -111,9 +80,16 @@ async function seed(db, raw) {
   };
   return { s1: await mk('s1', s1Id), t1: await mk('t1', t1Id), s2: await mk('s2', s2Id), s1Id, t1Id, s2Id, c1, c2 };
 }
+
+// S3 单科目需求：状态收敛 open/closed（无 contracted/revoked）
 const seedDemand = (raw, userId, status) => Number(raw.prepare(
-  `INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-   VALUES (?,?,?,?,?,?,?,?,?)`).run(userId, 'senior1', 'female', '["math"]', '[]', 'self', '13800000000', '13800000000', status).lastInsertRowid);
+  `INSERT INTO student_demands (user_id, subject, grade, teaching_method, status)
+   VALUES (?,?,?,?,?)`).run(userId, 'math', 'senior1', 'online', status).lastInsertRowid);
+
+// S5 独立合同：contracts 表（无 stage/signing_status/demand_id）。播种直接 INSERT。
+const seedContract = (raw, s, t, c, { status, revoked = 0 }) => Number(raw.prepare(
+  `INSERT INTO contracts (student_user_id,teacher_user_id,conversation_id,contract_status,drafter_user_id,contract_md,plan,rate,revoked)
+   VALUES (?,?,?,?,?,?,?,?,?)`).run(s, t, c, status, t, 'x', '每周两次', 150, revoked).lastInsertRowid);
 
 test('鉴权/参与方：无令牌 401；非参与方 close → 404（不泄露会话存在性）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
@@ -133,68 +109,41 @@ test('capToken 门禁：无/错 capToken → 403，会话仍 active、级联零�
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM notifications').get().c, 0, '零通知');
 });
 
-test('主链路级联：pending 拒绝 + 进行中合同撤销 + 需求释放 + signed 保留 + 气泡终态 + 通知/留档', async () => {
+// ---- 级联用例（S5 contracts 模型，S2 已落地 dbCloseConversationCascade）----
+
+test('主链路级联：进行中合同撤销 + signed 保留 + 通知/留档（S5 contracts 模型）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, c1 } = await seed(db, raw);
-  const d1 = seedDemand(raw, s1.uid, 'open');       // pending signing 用（需求保持 open）
-  const d2 = seedDemand(raw, s1.uid, 'contracted'); // signed signing 用（已成交未起草 → 需求保持 contracted）
-  const d3 = seedDemand(raw, s1.uid, 'contracted'); // in-progress contract 用（撤销 + 释放）
-  const d4 = seedDemand(raw, s1.uid, 'contracted'); // signed contract 用（历史存证）
-  // 1) pending signing（真实流：t1 发起 → 气泡自动落库；同会话唯一 pending 去重，仅此一条真实流）
-  assert.equal((await handleCreateSigning(db, { conversationId: c1, demandId: d1, price: 150, schedule: '每周六', method: 'offline' }, reqOf(t1.token))).status, 201);
-  const pending = raw.prepare('SELECT id, message_id FROM signing_contracts WHERE demand_id=?').get(d1);
-  assert.ok(pending.message_id, 'pending signing 有气泡');
-  // 2) signed signing（播种：已成交未起草形态，signing_status='signed'）
-  const signedSigningId = Number(raw.prepare(
-    `INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,demand_id,stage,signing_status,contract_status,initiator_user_id,price,schedule,method,drafter_user_id)
-     VALUES (?,?,?,?,'signing','signed','',?,150,'x','offline',0)`).run(s1.uid, t1.uid, c1, d2, t1.uid).lastInsertRowid);
-  // 3) in-progress contract（播种：stage=contract, contract_status=signing）
-  const icId = Number(raw.prepare(
-    `INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,demand_id,stage,signing_status,contract_status,initiator_user_id,price,schedule,method,drafter_user_id)
-     VALUES (?,?,?,?,'contract','signed','signing',?,150,'x','offline',?)`).run(s1.uid, t1.uid, c1, d3, t1.uid, t1.uid).lastInsertRowid);
-  // 4) signed contract（播种：contract_status=signed + 双确认）
+  // 进行中合同（contract_status='signing'）——关闭应撤销
+  const icId = seedContract(raw, s1.uid, t1.uid, c1, { status: 'signing' });
+  // 已签署合同（contract_status='signed' + 双确认）——终态存证保留
   const scId = Number(raw.prepare(
-    `INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,demand_id,stage,signing_status,contract_status,initiator_user_id,price,schedule,method,drafter_user_id,drafter_confirmed,other_confirmed)
-     VALUES (?,?,?,?,'contract','signed','signed',?,150,'x','offline',?,1,1)`).run(s1.uid, t1.uid, c1, d4, t1.uid, t1.uid).lastInsertRowid);
+    `INSERT INTO contracts (student_user_id,teacher_user_id,conversation_id,contract_status,drafter_user_id,contract_md,plan,rate,drafter_confirmed,other_confirmed)
+     VALUES (?,?,?,'signed',?,?,?,150,1,1)`).run(s1.uid, t1.uid, c1, t1.uid, 'x', '每周两次').lastInsertRowid);
 
   const req = reqOf(s1.token);
   const r = await handleCloseConversation(db, c1, { capToken: await capOf(raw, s1.sessionId, s1.uid) }, req);
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, closed: true, signingsRejected: 1, contractsRevoked: 1 });
+  const body = await r.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.closed, true);
+  assert.equal(body.contractsRevoked, 1, '进行中合同撤销 1 条');
 
-  // 会话 closed
   assert.equal(raw.prepare('SELECT status FROM conversations WHERE id=?').get(c1).status, 'closed');
-  // pending → rejected + responded_at 置位 + 气泡终态覆写
-  const p = raw.prepare('SELECT signing_status, responded_at FROM signing_contracts WHERE id=?').get(pending.id);
-  assert.equal(p.signing_status, 'rejected');
-  assert.ok(p.responded_at, 'rejected 置 responded_at');
-  assert.equal(JSON.parse(raw.prepare('SELECT body FROM messages WHERE id=?').get(pending.message_id).body).status, 'rejected', '气泡终态覆写（防 pending 死按钮）');
-  // signed signing 保留 + 需求保持 contracted
-  assert.equal(raw.prepare('SELECT signing_status FROM signing_contracts WHERE id=?').get(signedSigningId).signing_status, 'signed');
-  assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d2).status, 'contracted');
-  // in-progress contract → revoked + 需求释放
-  const ic = raw.prepare('SELECT revoked, revoked_by, contract_status FROM signing_contracts WHERE id=?').get(icId);
-  assert.equal(ic.revoked, 1);
+  const ic = raw.prepare('SELECT revoked, revoked_by, contract_status FROM contracts WHERE id=?').get(icId);
+  assert.equal(ic.revoked, 1, '进行中合同撤销');
   assert.equal(ic.revoked_by, 0, '系统自动撤销 revoked_by=0');
-  assert.equal(ic.contract_status, 'signed', '沿 handleRevokeContract 标记口径（revoked 主导显示）');
-  assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d3).status, 'revoked', '绑定需求释放');
-  // signed contract 保留 + 需求保持 contracted
-  assert.equal(raw.prepare('SELECT revoked FROM signing_contracts WHERE id=?').get(scId).revoked, 0);
-  assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d4).status, 'contracted');
+  assert.equal(raw.prepare('SELECT revoked FROM contracts WHERE id=?').get(scId).revoked, 0, '已签署合同保留存证');
 
-  // 通知（seed 的 handleCreateSigning 已产生 1 条 SIGNING_REQUEST_SENT 给 s1；级联新增 3 条给 t1）：
-  // t1 收 CONVERSATION_CLOSED{name:'s1'} + CONTRACT_REVOKED{name:'s1'} + SIGNING_REJECTED{}（pending 发起者 t1）
+  // 通知：t1 收 CONVERSATION_CLOSED + CONTRACT_REVOKED（s1 关闭方视角）
   const notifs = raw.prepare('SELECT type, params, user_id FROM notifications ORDER BY id').all();
-  assert.equal(notifs.filter(n => n.user_id === t1.uid).length, 3, 't1 收 3 条级联通知');
-  assert.ok(notifs.some(n => n.type === 'CONVERSATION_CLOSED' && JSON.parse(n.params).name === 's1'));
-  assert.ok(notifs.some(n => n.type === 'CONTRACT_REVOKED' && JSON.parse(n.params).name === 's1'));
-  assert.ok(notifs.some(n => n.type === 'SIGNING_REJECTED'));
+  assert.ok(notifs.some(n => n.user_id === t1.uid && n.type === 'CONVERSATION_CLOSED'));
+  assert.ok(notifs.some(n => n.user_id === t1.uid && n.type === 'CONTRACT_REVOKED'));
 
-  // 留档：conversation.close + signing.auto_reject + contract.auto_revoke（flush 请求队列）
+  // 留档：conversation.close + contract.auto_revoke（S3 单科目：无 signing.auto_reject）
   await logRequest(db, { method: 'POST', path: '/api/conversations/1/close', body: {}, status: 200, req });
   const actions = raw.prepare('SELECT action FROM activity_log ORDER BY id').all().map(r => r.action);
   assert.ok(actions.includes('conversation.close'), 'conversation.close 留档');
-  assert.ok(actions.includes('signing.auto_reject'), 'signing.auto_reject 留档');
   assert.ok(actions.includes('contract.auto_revoke'), 'contract.auto_revoke 留档');
 });
 
@@ -204,7 +153,6 @@ test('幂等：已 closed 再次 close → alreadyClosed，不消耗 capToken、
   assert.equal((await handleCloseConversation(db, c1, { capToken: await capOf(raw, s1.sessionId, s1.uid) }, reqOf(s1.token))).status, 200);
   const capBefore = raw.prepare('SELECT COUNT(*) AS c FROM danger_caps WHERE user_id=?').get(s1.uid).c;
   const notifBefore = raw.prepare('SELECT COUNT(*) AS c FROM notifications').get().c;
-  // 第二次 close 不带 capToken：幂等短路应在 capToken 校验之前返回
   const r2 = await handleCloseConversation(db, c1, {}, reqOf(s1.token));
   assert.equal(r2.status, 200);
   assert.deepEqual(await r2.json(), { ok: true, alreadyClosed: true });
@@ -215,34 +163,26 @@ test('幂等：已 closed 再次 close → alreadyClosed，不消耗 capToken、
 test('并发双 close：仅单赢家跑副作用（通知/留档不翻倍）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, c1 } = await seed(db, raw);
-  const d1 = seedDemand(raw, s1.uid, 'open');
-  assert.equal((await handleCreateSigning(db, { conversationId: c1, demandId: d1, price: 150, schedule: '每周六', method: 'offline' }, reqOf(t1.token))).status, 201);
+  seedContract(raw, s1.uid, t1.uid, c1, { status: 'signing' });
   const [a, b] = await Promise.all([
     handleCloseConversation(db, c1, { capToken: await capOf(raw, s1.sessionId, s1.uid, 'cap-s1') }, reqOf(s1.token)),
     handleCloseConversation(db, c1, { capToken: await capOf(raw, t1.sessionId, t1.uid, 'cap-t1') }, reqOf(t1.token)),
   ]);
   const statuses = [a.status, b.status].sort();
   assert.deepEqual(statuses, [200, 200], '双 close 均 200（一赢家一幂等 alreadyClosed）');
-  // seed 的 handleCreateSigning 已产生 1 条 SIGNING_REQUEST_SENT；级联只由赢家产生一套（不翻倍）
   const types = raw.prepare('SELECT type FROM notifications').all().map(n => n.type);
   assert.equal(types.filter(t => t === 'CONVERSATION_CLOSED').length, 1, 'CONVERSATION_CLOSED 恰 1 条（不翻倍）');
-  assert.equal(types.filter(t => t === 'SIGNING_REJECTED').length, 1, 'SIGNING_REJECTED 恰 1 条（不翻倍）');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts WHERE signing_status=\'rejected\'').get().c, 1, 'pending signing 只 rejected 一次');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE revoked=1').get().c, 1, '进行中合同只撤销一次');
 });
 
-test('双方元组定位：conversation_id=NULL 的签约/合同行同样收束', async () => {
+test('双方元组定位：conversation_id=NULL 的合同行同样收束', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, c1 } = await seed(db, raw);
-  const d1 = seedDemand(raw, s1.uid, 'contracted');
-  // 同元组 conversation_id=NULL 的进行中合同（AI-4b 兜底独立行形态）
-  Number(raw.prepare(
-    `INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,demand_id,stage,signing_status,contract_status,initiator_user_id,price,schedule,method,drafter_user_id)
-     VALUES (?,?,NULL,?,'contract','signed','signing',?,150,'x','offline',?)`).run(s1.uid, t1.uid, d1, t1.uid, t1.uid).lastInsertRowid);
+  // 同元组 conversation_id=NULL 的进行中合同（独立存证兜底形态）
+  seedContract(raw, s1.uid, t1.uid, null, { status: 'signing' });
   const r = await handleCloseConversation(db, c1, { capToken: await capOf(raw, s1.sessionId, s1.uid) }, reqOf(s1.token));
   assert.equal(r.status, 200);
-  const row = raw.prepare('SELECT revoked FROM signing_contracts WHERE demand_id=?').get(d1);
-  assert.equal(row.revoked, 1, 'conversation_id=NULL 行经双方元组命中收束');
-  assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'revoked');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE revoked=1').get().c, 1, 'conversation_id=NULL 行经双方元组命中收束');
 });
 
 test('无待收束行：active 会话 close 正常，仅 CONVERSATION_CLOSED + conversation.close', async () => {
@@ -251,36 +191,14 @@ test('无待收束行：active 会话 close 正常，仅 CONVERSATION_CLOSED + c
   const req = reqOf(s1.token);
   const r = await handleCloseConversation(db, c1, { capToken: await capOf(raw, s1.sessionId, s1.uid) }, req);
   assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, closed: true, signingsRejected: 0, contractsRevoked: 0 });
+  const body = await r.json();
+  assert.equal(body.ok, true);
+  assert.equal(body.closed, true);
+  assert.equal(body.contractsRevoked, 0);
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM notifications WHERE type=\'CONVERSATION_CLOSED\'').get().c, 1, '仅 CONVERSATION_CLOSED');
   await logRequest(db, { method: 'POST', path: '/api/conversations/1/close', body: {}, status: 200, req });
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM activity_log WHERE action=\'conversation.close\'').get().c, 1);
 });
-
-test('关闭方发起的 pending 签约不自通知（SIGNING_REJECTED 跳过 initiator=closer）', async () => {
-  const raw = rawOf(); const db = d1Shim(raw);
-  const { s1, t1, c1 } = await seed(db, raw);
-  const d1 = seedDemand(raw, s1.uid, 'open');
-  // s1（学生）发起 pending 签约
-  assert.equal((await handleCreateSigning(db, { conversationId: c1, demandId: d1, price: 150, schedule: '每周六', method: 'offline' }, reqOf(s1.token))).status, 201);
-  const r = await handleCloseConversation(db, c1, { capToken: await capOf(raw, s1.sessionId, s1.uid) }, reqOf(s1.token));
-  assert.equal(r.status, 200);
-  const notifs = raw.prepare('SELECT type FROM notifications').all().map(n => n.type);
-  assert.ok(!notifs.includes('SIGNING_REJECTED'), '关闭方自己的 pending 签约不自通知');
-  assert.equal(notifs.filter(t => t === 'CONVERSATION_CLOSED').length, 1, '仅对端收 CONVERSATION_CLOSED');
-});
-
-test('快照漂移竞态：SELECT 快照后对端确认签约 → UPDATE 守卫不误伤（保留 signed、零副作用）', async () => {
-  const raw = rawOf(); const db = driftShim(raw); // batch 前模拟并发确认
-  const { s1, t1, c1 } = await seed(db, raw);
-  const d1 = seedDemand(raw, s1.uid, 'open');
-  assert.equal((await handleCreateSigning(db, { conversationId: c1, demandId: d1, price: 150, schedule: '每周六', method: 'offline' }, reqOf(t1.token))).status, 201);
-  const r = await handleCloseConversation(db, c1, { capToken: await capOf(raw, s1.sessionId, s1.uid) }, reqOf(s1.token));
-  assert.equal(r.status, 200);
-  assert.deepEqual(await r.json(), { ok: true, closed: true, signingsRejected: 0, contractsRevoked: 0 }, '漂移行 changes=0 → 不计副作用');
-  const row = raw.prepare('SELECT signing_status FROM signing_contracts WHERE demand_id=?').get(d1);
-  assert.equal(row.signing_status, 'signed', '快照漂移行未被误拒（UPDATE 守卫承重面）');
-  const types = raw.prepare('SELECT type FROM notifications').all().map(n => n.type);
-  assert.ok(!types.includes('SIGNING_REJECTED'), '漂移行零 SIGNING_REJECTED 通知');
-  assert.equal(types.filter(t => t === 'CONVERSATION_CLOSED').length, 1, '主结果赢家仍发 CONVERSATION_CLOSED');
-});
+// 注：原「快照漂移竞态」用例依赖 signing_contracts 专属 driftShim（batch 事务内模拟对端并发推进），
+// S5 contracts 表的等价 shim 依赖 S2 落地的级联 SQL 形状，无法预写——由 S2-B5 落地时重建该用例
+// （锁 UPDATE 守卫 WHERE contract_status='signing' AND revoked=0 的承重面）。

@@ -22,7 +22,7 @@ test('合同卡签署进度：signing 态甲方/乙方各自已签/待签；sign
   const dom = setup();
   state.user = { id: 1, role: 'student', username: '乙' };
   state.myContracts = [{ id: 9, drafter_user_id: 2, student_user_id: 1, teacher_user_id: 2,
-    teacher_name: '甲', student_name: '乙', method: 'online', hourly_rate: 150,
+    teacher_name: '甲', student_name: '乙', method: 'online', rate: 150,
     contract_md: '', status: 'signing', drafter_confirmed: 1, other_confirmed: 0 }];
   const html = renderContractCard(state.myContracts[0]);
   assert.ok(html.includes('甲方待签'));
@@ -38,7 +38,7 @@ test('签署弹窗：底部前置告知', async () => {
   const dom = setup();
   state.user = { id: 1, role: 'student', username: '学生乙' };
   state.myContracts = [{ id: 7, drafter_user_id: 2, student_user_id: 1, teacher_user_id: 2,
-    teacher_name: '甲', student_name: '乙', method: 'online', hourly_rate: 200,
+    teacher_name: '甲', student_name: '乙', method: 'online', rate: 200,
     contract_md: '# 家教服务合同\n\n**甲方**：乙\n**乙方**：甲', status: 'signing',
     drafter_confirmed: 0, other_confirmed: 0 }];
   signContract(7);

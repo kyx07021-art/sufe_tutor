@@ -1,6 +1,8 @@
 /**
- * AI-8：admin 永删关系 DELETE /api/admin/relations——按双方元组删会话（FK 级联 messages/signing_contracts）
- * + 绑定需求 dbReleaseDemandAfterRevoke 释放 + 评价保留不随删 + capToken 二次认证 + logEvent。
+ * AI-8：admin 永删关系 DELETE /api/admin/relations——按双方元组删会话（FK 级联 messages）。
+ * S3/S5 单科目+独立合同：contracts 无 conversation FK（独立存证，删会话不删 signed/revoked 合同——
+ * contracts 行保留）；需求不随删释放（状态收敛 open/closed，无 revoked 语义）。
+ * + 评价保留不随删 + capToken 二次认证 + logEvent。
  *
  * 变异守护：删 dbDeleteConversation → 会话仍存在（红）→ 还原绿。
  */
@@ -40,7 +42,7 @@ function d1Shim(raw) {
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
-// 种子：admin + s1/t1 + 会话 + 消息 + 签约合同行 + contracted 需求 + token（G3：全部 lastInsertRowid）
+// 种子：admin + s1/t1 + 会话 + 消息 + 合同行 + open 需求 + token（G3：全部 lastInsertRowid）
 async function seed(db, raw) {
   await initDb(db, ENV);
   const ins = sql => Number(raw.prepare(sql).run().lastInsertRowid);
@@ -48,10 +50,11 @@ async function seed(db, raw) {
   const t1 = ins("INSERT INTO users (username,password_hash,salt,role) VALUES ('t1','h','s','teacher')");
   const c1 = ins(`INSERT INTO conversations (student_user_id, teacher_user_id, status) VALUES (${s1},${t1},'active')`);
   raw.prepare("INSERT INTO messages (conversation_id, sender_user_id, kind, body) VALUES (?,?,?,?)").run(c1, t1, 'text', '你好');
-  raw.prepare(`INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,stage,signing_status,contract_status)
-    VALUES (?,?,?,'contract','signed','signing')`).run(s1, t1, c1);
-  const d1 = ins(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-    VALUES (${s1},'senior1','female','["math"]','[]','self','13800000000','13800000000','contracted')`);
+  // S5 独立合同：contracts 表（无 conversation FK——删会话不级联删合同，独立存证）
+  raw.prepare(`INSERT INTO contracts (student_user_id,teacher_user_id,conversation_id,contract_status,drafter_user_id,plan,rate)
+    VALUES (?,?,?,'signing',?,'每周两次',150)`).run(s1, t1, c1, t1);
+  const d1 = ins(`INSERT INTO student_demands (user_id, subject, grade, province, status)
+    VALUES (${s1},'math','senior1','shanghai','open')`);
   raw.prepare('UPDATE conversations SET demand_id=? WHERE id=?').run(d1, c1);
   const mk = async (name, uid) => {
     const token = `${name}-token`, sessionId = `sess-${name}`;
@@ -66,7 +69,7 @@ async function seed(db, raw) {
   return { s1, t1, c1, d1, adm, s1a, t1a, cap };
 }
 
-test('admin 永删关系：会话+级联消息/签约合同删除 + 需求释放 + logEvent', async () => {
+test('admin 永删关系：会话+级联消息删除 + 合同保留（独立存证）+ 需求不动 + logEvent', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { adm, s1, t1, c1, d1, cap } = await seed(db, raw);
   const req = reqOf(adm.token); // 同一对象引用贯穿 handler + logRequest（logEvent 入队 WeakMap 键 req，新对象 flush 不到）
@@ -74,8 +77,8 @@ test('admin 永删关系：会话+级联消息/签约合同删除 + 需求释放
   assert.equal(r.status, 200);
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM conversations').get().c, 0, '会话删除');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages').get().c, 0, '消息 FK 级联删');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts').get().c, 0, '签约合同 FK 级联删');
-  assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'revoked', '绑定需求释放');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts').get().c, 1, '合同保留（独立存证，无 conversation FK 级联）');
+  assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'open', '需求不随删释放（无 revoked 语义）');
   // logEvent 请求级队列：logRequest 收尾统一 flush 落库（req 必须在 meta 内——签名 (db, meta)，第 3 参被忽略）
   await logRequest(db, { method: 'DELETE', path: '/api/admin/relations', body: {}, status: 200, req });
   const lg = raw.prepare("SELECT action FROM activity_log WHERE action='admin.relation.remove'").all();

@@ -102,7 +102,7 @@ test('鉴权批量：带令牌子请求正常取数', async (t) => {
   await env.DB.prepare(`INSERT INTO notifications (user_id, text) VALUES (?, '测试通知')`).run(sid);
   const res = await worker.fetch(new Request('https://test.local/api/batch', {
     method: 'POST', headers: { 'content-type': 'application/json', 'X-Auth-Token': 'batch-test-token' },
-    body: JSON.stringify({ gets: ['/api/notifications', '/api/student/demands?scope=mine'] }),
+    body: JSON.stringify({ gets: ['/api/notifications', '/api/demands/mine'] }),
   }), env, ctx);
   assert.equal(res.status, 200);
   const { results } = JSON.parse(await res.text());
@@ -110,7 +110,7 @@ test('鉴权批量：带令牌子请求正常取数', async (t) => {
   assert.equal(byPath['/api/notifications'].status, 200, '带令牌通知 200');
   assert.ok(Array.isArray(byPath['/api/notifications'].data.notifications), '通知数组');
   assert.equal(byPath['/api/notifications'].data.notifications[0].text, '测试通知');
-  assert.equal(byPath['/api/student/demands?scope=mine'].status, 200, '带令牌我的需求 200');
+  assert.equal(byPath['/api/demands/mine'].status, 200, '带令牌我的需求 200');
 });
 
 test('匿名公开列表子请求命中边缘缓存（零 D1 直返）', async (t) => {

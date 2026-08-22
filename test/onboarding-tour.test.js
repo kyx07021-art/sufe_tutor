@@ -94,8 +94,8 @@ const conv = {
 const msg = { id: 1, sender_user_id: 9, kind: 'text', body: '你好', created_at: '2026-08-01T00:00:00Z' };
 const contract = {
   id: 1, student_user_id: 9, student_name: '学生小李', teacher_user_id: 3, teacher_name: '张老师',
-  drafter_user_id: 3, status: 'signing', method: 'online', hourly_rate: 120,
-  demand_display_id: 1, contract_md: '', prev_business: '', updated_at: '2026-08-01T00:00:00Z',
+  drafter_user_id: 3, status: 'signing', method: 'online', rate: 120,
+  contract_md: '', prev_business: '', updated_at: '2026-08-01T00:00:00Z',
 };
 const notif = { id: 1, text: '有新的试课意向，请及时处理', is_read: 0, created_at: '2026-08-01T00:00:00Z' };
 const post = { id: 1, title: '高中数学笔记', body_md: '分享一份函数专题笔记', username: '张老师', user_id: 3, like_count: 2, liked: false, created_at: '2026-08-01T00:00:00Z' };

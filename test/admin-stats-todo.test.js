@@ -1,7 +1,8 @@
 /**
- * v1.0.1 回归（生产 500 事故根因）：handleAdminStats 统计端点含 R3 待办计数（awardsPending/
- * feedbacksOpen/complaintsOpen）——dbGetCountWhere 曾漏 import（ReferenceError → 500，生产统计页
+ * v1.0.1 回归（生产 500 事故根因）：handleAdminStats 统计端点含 R3 待办计数（feedbacksOpen/
+ * complaintsOpen）——dbGetCountWhere 曾漏 import（ReferenceError → 500，生产统计页
  * 「加载失败: 服务器内部错误（旧文案）」），本测试钉死全链路：清库后状态 + 待办计数非零 + 全字段形状。
+ * S6-A3（awards 下线 W1）：teacher_awards 待办计数已删，测试同步去 awards 断言与直插。
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -56,7 +57,6 @@ test('统计端点：清库后状态 200 + 待办计数字段在位（import 断
   assert.equal(r.status, 200, '清库后统计端点 200（曾 ReferenceError → 500）');
   const d = await r.json();
   assert.equal(typeof d.stats.users.total, 'number', 'users.total 数字');
-  assert.equal(typeof d.stats.todo.awardsPending, 'number', '待办奖项计数在位');
   assert.equal(typeof d.stats.todo.feedbacksOpen, 'number', '待办反馈计数在位');
   assert.equal(typeof d.stats.todo.complaintsOpen, 'number', '待办投诉计数在位');
   assert.ok(Array.isArray(d.stats.recentUsers), '最近用户数组');
@@ -64,7 +64,7 @@ test('统计端点：清库后状态 200 + 待办计数字段在位（import 断
 
 test('统计端点：有数据时待办计数非零', async () => {
   const { raw, db } = await setup();
-  // 造一条待审奖项 + 一条开放反馈 + 一条开放投诉（教师注册+奖项直插/反馈直插）
+  // 造一条开放反馈 + 一条开放投诉（教师注册 + 反馈/投诉直插）；S6-A3 已删 teacher_awards 待办
   const target = '+8613911110001';
   const otp = await requestOtp(db, { channel: 'sms', target }, { headers: new Headers() });
   assert.ok(otp.ok);
@@ -75,7 +75,6 @@ test('统计端点：有数据时待办计数非零', async () => {
   const reg = await handleRegister(db, { username: 't_stats', password: 'pass123456', role: 'teacher', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: lastOtpCode(target), inviteCode: invite }, { headers: new Headers() });
   assert.equal(reg.status, 200);
   const tId = raw.prepare("SELECT id FROM users WHERE username='t_stats'").get().id;
-  raw.prepare("INSERT INTO teacher_awards (teacher_user_id, title, status) VALUES (?, '奖项A', 'pending')").run(tId);
   raw.prepare("INSERT INTO feedbacks (user_id, kind, title, content, status) VALUES (?, 'suggestion', 't', 'c', 'open')").run(tId);
   raw.prepare("INSERT INTO complaints (user_id, reason, detail, status, target_type, target_id) VALUES (?, 'r', 'd', 'open', 'teacher', 999)").run(tId);
 
@@ -84,7 +83,6 @@ test('统计端点：有数据时待办计数非零', async () => {
   const r = await handleAdminStats(db, new URL('http://x/api/admin/stats'), { headers: new Headers({ 'X-Auth-Token': token }) });
   assert.equal(r.status, 200);
   const d = await r.json();
-  assert.equal(d.stats.todo.awardsPending, 1, '待审奖项 = 1');
   assert.equal(d.stats.todo.feedbacksOpen, 1, '开放反馈 = 1');
   assert.equal(d.stats.todo.complaintsOpen, 1, '开放投诉 = 1');
 });

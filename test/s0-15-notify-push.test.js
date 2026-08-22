@@ -75,7 +75,7 @@ async function seed(db, raw) {
 test('S0-15 initNotifyTable: idempotent — re-call preserves rows, no duplicate columns, index present', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stu } = await seed(db, raw); // initDb already created the table via initNotifyTable
-  await notifyUser(db, stu, 'INTENT_ACCEPTED', {});
+  await notifyUser(db, stu, 'CONTRACT_SIGNED', {});
   const before = raw.prepare('SELECT COUNT(*) c FROM notifications').get().c;
   await initNotifyTable(db); // mutation: unconditional CREATE / DROP+recreate -> throws or loses rows -> red
   await initNotifyTable(db); // second re-call must also be a no-op

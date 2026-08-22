@@ -83,63 +83,63 @@ async function seed(db, raw) {
     stuToken: await mkToken('stu'), teaToken: await mkToken('tea'), adminToken: await mkToken('admin_sufe') };
 }
 
-test('创建反馈：投诉 + 合法对象落库 subject；非投诉恒空；白名单外 kind 回落建议', async () => {
+test('创建反馈：举报 + 合法对象落库 subject；非举报恒空；白名单外 kind 回落建议', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stu, stuToken } = await seed(db, raw);
-  const c = await handleCreateFeedback(db, { kind: 'complaint', subject: 'teacher', title: '老师迟到', content: '多次迟到' }, reqOf(stuToken));
+  const c = await handleCreateFeedback(db, { kind: 'report', subject: 'teacher', title: '老师迟到', content: '多次迟到' }, reqOf(stuToken));
   assert.equal(c.status, 201);
   const row = raw.prepare('SELECT * FROM feedbacks ORDER BY id DESC LIMIT 1').get();
-  assert.equal(row.kind, 'complaint'); assert.equal(row.subject, 'teacher'); assert.equal(row.user_id, stu);
+  assert.equal(row.kind, 'report'); assert.equal(row.subject, 'teacher'); assert.equal(row.user_id, stu);
 
   // 非法对象 → 空；kind 白名单外 → suggestion 且 subject 恒空
-  await handleCreateFeedback(db, { kind: 'complaint', subject: 'hacker', title: 'x', content: '内容' }, reqOf(stuToken));
+  await handleCreateFeedback(db, { kind: 'report', subject: 'hacker', title: 'x', content: '内容' }, reqOf(stuToken));
   let r = raw.prepare('SELECT * FROM feedbacks ORDER BY id DESC LIMIT 1').get();
-  assert.equal(r.subject, '', '非法投诉对象消毒为空');
+  assert.equal(r.subject, '', '非法举报对象消毒为空');
   await handleCreateFeedback(db, { kind: 'spam', subject: 'platform', title: 'x', content: '内容' }, reqOf(stuToken));
   r = raw.prepare('SELECT * FROM feedbacks ORDER BY id DESC LIMIT 1').get();
-  assert.equal(r.kind, 'suggestion', '白名单外 kind 回落建议'); assert.equal(r.subject, '', '非投诉 subject 恒空');
+  assert.equal(r.kind, 'suggestion', '白名单外 kind 回落建议'); assert.equal(r.subject, '', '非举报 subject 恒空');
   // 普通 bug 带 subject → 空（不信任客户端）
   await handleCreateFeedback(db, { kind: 'bug', subject: 'teacher', title: 'x', content: '内容' }, reqOf(stuToken));
   r = raw.prepare('SELECT * FROM feedbacks ORDER BY id DESC LIMIT 1').get();
   assert.equal(r.kind, 'bug'); assert.equal(r.subject, '');
 });
 
-test('创建反馈：空正文 400；requireUser 守卫', async () => {
+test('创建反馈：空正文 400；匿名须 clientToken（坏令牌无 clientToken → 400）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stuToken } = await seed(db, raw);
-  const e = await handleCreateFeedback(db, { kind: 'complaint', subject: 'platform', title: '', content: '  ' }, reqOf(stuToken));
+  const e = await handleCreateFeedback(db, { kind: 'report', subject: 'platform', title: '', content: '  ' }, reqOf(stuToken));
   assert.equal(e.status, 400, '空正文被拒');
-  const unauth = await handleCreateFeedback(db, { kind: 'complaint', subject: 'platform', title: 'x', content: '内容' }, reqOf('bad-token'));
-  assert.equal(unauth.status, 401, '无令牌被拒');
+  const anonNoToken = await handleCreateFeedback(db, { kind: 'report', subject: 'platform', title: 'x', content: '内容' }, reqOf('bad-token'));
+  assert.equal(anonNoToken.status, 400, '坏令牌且无 clientToken 被拒（匿名身份缺失）');
 });
 
-test('我的反馈：requireUser 守卫 + 用户隔离（只回本人、不泄他人）', async () => {
+test('我的反馈：无身份 401；登录 user id 隔离（只回本人、不泄他人）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stu, tea, stuToken, teaToken } = await seed(db, raw);
-  await dbCreateFeedback(db, stu, 'complaint', '投诉A', '内容A', 'teacher');
-  await dbCreateFeedback(db, tea, 'bug', 'BugB', '内容B');
-  const unauth = await handleMyFeedbacks(db, reqOf('bad'));
-  assert.equal(unauth.status, 401, '未登录被拒');
-  const mine = await handleMyFeedbacks(db, reqOf(stuToken));
+  await dbCreateFeedback(db, { userId: stu, kind: 'report', title: '投诉A', content: '内容A', subject: 'teacher' });
+  await dbCreateFeedback(db, { userId: tea, kind: 'bug', title: 'BugB', content: '内容B' });
+  const noIdentity = await handleMyFeedbacks(db, new URL('http://x/api/feedbacks/mine'), { headers: new Headers() });
+  assert.equal(noIdentity.status, 401, '无身份（未登录且无 clientToken）被拒');
+  const mine = await handleMyFeedbacks(db, new URL('http://x/api/feedbacks/mine'), reqOf(stuToken));
   assert.equal(mine.status, 200);
   const list = (await mine.json()).feedbacks;
   assert.equal(list.length, 1, '只看得到本人 1 条');
-  assert.equal(list[0].kind, 'complaint'); assert.equal(list[0].subject, 'teacher');
-  const t = await handleMyFeedbacks(db, reqOf(teaToken));
+  assert.equal(list[0].kind, 'report'); assert.equal(list[0].subject, 'teacher');
+  const t = await handleMyFeedbacks(db, new URL('http://x/api/feedbacks/mine'), reqOf(teaToken));
   const tList = (await t.json()).feedbacks;
   assert.equal(tList.length, 1, '教师看到自己的');
   assert.equal(tList[0].kind, 'bug');
 });
 
-test('标记处理：投诉回执专属文案；Bug/建议通用文案；幂等', async () => {
+test('标记处理：举报回执专属文案；Bug/建议通用文案；幂等', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stu, adminToken } = await seed(db, raw);
-  await dbCreateFeedback(db, stu, 'complaint', '投诉', '内容', 'platform');
-  await dbCreateFeedback(db, stu, 'suggestion', '建议', '内容');
+  await dbCreateFeedback(db, { userId: stu, kind: 'report', title: '投诉', content: '内容', subject: 'platform' });
+  await dbCreateFeedback(db, { userId: stu, kind: 'suggestion', title: '建议', content: '内容' });
   const complaintId = (await dbGetFeedbackById(db, 1)).id; // dbGetFeedbackById 是 async，须 await 取 id
   await handleResolveFeedback(db, complaintId, {}, reqOf(adminToken));
   let n = raw.prepare('SELECT type FROM notifications ORDER BY id DESC LIMIT 1').get();
-  assert.equal(n.type, 'FEEDBACK_COMPLAINT_RESOLVED', '投诉回执用专属类型');
+  assert.equal(n.type, 'FEEDBACK_COMPLAINT_RESOLVED', '举报回执用专属类型');
   await handleResolveFeedback(db, 2, {}, reqOf(adminToken));
   n = raw.prepare('SELECT type FROM notifications ORDER BY id DESC LIMIT 1').get();
   assert.equal(n.type, 'FEEDBACK_RESOLVED', '建议回执用通用类型');
@@ -150,13 +150,13 @@ test('标记处理：投诉回执专属文案；Bug/建议通用文案；幂等'
   assert.equal(unauth.status, 401, '非管理员被拒');
 });
 
-test('CHECK 迁移放行 complaint 写入；dbGetFeedbacksByUser 逆序', async () => {
+test('CHECK 迁移放行 report 写入；dbGetFeedbacksByUser 逆序', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { stu, tea, stuToken } = await seed(db, raw);
-  await dbCreateFeedback(db, stu, 'complaint', '一', 'A', 'student');
-  await dbCreateFeedback(db, stu, 'bug', '二', 'B');
-  await dbCreateFeedback(db, tea, 'suggestion', '三', 'C');
-  const mine = await dbGetFeedbacksByUser(db, stu);
+  const { stu, tea } = await seed(db, raw);
+  await dbCreateFeedback(db, { userId: stu, kind: 'report', title: '一', content: 'A', subject: 'student' });
+  await dbCreateFeedback(db, { userId: stu, kind: 'bug', title: '二', content: 'B' });
+  await dbCreateFeedback(db, { userId: tea, kind: 'suggestion', title: '三', content: 'C' });
+  const mine = await dbGetFeedbacksByUser(db, { userId: stu });
   assert.deepEqual(mine.map(f => f.title), ['二', '一'], '逆序（新在前）且只含本人');
   assert.equal(mine[1].subject, 'student');
 });

@@ -52,9 +52,9 @@ async function seed(db, raw) {
   // 教师档案（完整 meta 字段：grade/rating/price/verified；credential_image 留空走 decryptField(null)）
   raw.prepare(`INSERT INTO teacher_profiles (user_id, grade, rating, rating_count, rating_sum, price_min, price_max, verified, province, subjects)
     VALUES (?,?,?,?,?,?,?,?,?,?)`).run(t1, 'freshman', 4.8, 5, 24, 100, 200, 1, 'shanghai', '["math"]');
-  // 学生需求（demand_count 计数源）
-  raw.prepare(`INSERT INTO student_demands (user_id, student_grade, student_gender, target_subjects, current_scores, submitter_type, parent_contact, student_contact, status)
-    VALUES (?,?,'female','["math"]','[]','self','13800000000','13800000000','open')`).run(s1, 'senior1');
+  // 学生需求（demand_count 计数源；S3 单科目：subject/grade 单值）
+  raw.prepare(`INSERT INTO student_demands (user_id, subject, grade, province, status)
+    VALUES (?,'math','senior1','shanghai','open')`).run(s1);
   return { idOf };
 }
 

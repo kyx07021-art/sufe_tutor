@@ -8,7 +8,7 @@ import { state } from '../src/client/core/state.js';
 
 test('contract render: card uses data-action and no inline', () => {
   state.user = { id: 1 };
-  const c = { id: 1, drafter_user_id: 1, student_user_id: 2, teacher_user_id: 1, student_name: '学生', teacher_name: '老师', method: 'online', hourly_rate: 200, status: 'signing', drafter_confirmed: false, other_confirmed: false, demand_display_id: 1, updated_at: '2026-08-17 12:00:00' };
+  const c = { id: 1, drafter_user_id: 1, student_user_id: 2, teacher_user_id: 1, student_name: '学生', teacher_name: '老师', method: 'online', rate: 200, status: 'signing', drafter_confirmed: false, other_confirmed: false, updated_at: '2026-08-17 12:00:00' };
   const html = renderContractCard(c);
   assert.ok(html.includes('data-action="contract.sign"'));
   assert.ok(!/onclick=/.test(html));

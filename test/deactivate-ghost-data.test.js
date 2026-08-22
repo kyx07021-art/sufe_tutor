@@ -6,8 +6,8 @@
  * （墓碑只改了 users.username，合同正文里的原名仍可被对方读到，墓碑机制被绕过）。
  *
  * 改造（双保险：门控是皮带、purge 是吊带）：
- *   广场门控：dbGetDemands / dbListPosts / dbGetPendingPushesForTeacher / dbGetIntentTeachers /
- *     dbGetApprovedReviews 全部加 u.deactivated=0；广播通知不带已注销用户。
+ *   广场门控：dbGetDemands / dbListPosts / dbGetApprovedReviews 全部加 u.deactivated=0；
+ *     （intents/pushes 已随 S2 删除，无对应门控面）广播通知不带已注销用户。
  *   purge 收束：注销时删尽单方数据；发起方待处理签约请求收束为「已拒绝」终态（行 + 会话气泡
  *     同步终态，防接收方死按钮 404——不能 DELETE，气泡自包含渲染 body JSON）。
  *   合同不可修改性铁律（v0.25.46 返工）：合同正文一个字都不许碰——注销绝不改写 contract_md
@@ -88,19 +88,23 @@ async function seed(raw, db) {
   raw.prepare('INSERT INTO teacher_profiles (user_id, province, grade, gender, subjects, price_min, price_max, time_slots, teaching_method, chsi_verified) VALUES (?,?,?,?,?,?,?,?,?,1)')
     .run(t1, 'shanghai', 'freshman', 'male', '["math"]', 100, 200, '[{"day":"sat"}]', 'online');
   const demand = (uid, status) => {
-    raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-      VALUES (?,?,?,?,?,?,?,?,?)`).run(uid, 'senior1', 'female', '["math"]', '[]', 'self', '13800000000', '13800000000', status);
+    // S3 单科目新模型：subject 单值 + grade/province/teaching_method/current_score/address_area 等新列；
+    // 联系方式（parent/student_contact）、display_id 等整列删除。
+    raw.prepare(`INSERT INTO student_demands (user_id,subject,grade,province,teaching_method,current_score,address_area,expected_time,preferred_tags,preferred_gender,budget_min,budget_max,additional_info,status)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+      .run(uid, 'math', 'senior1', 'shanghai', 'offline', '', '黄浦区·南京东路街道', '', '[]', '', 100, 200, '', status);
     return raw.prepare('SELECT id FROM student_demands ORDER BY id DESC LIMIT 1').get().id;
   };
-  const d1 = demand(s1, 'contracted'); // 起草合同只能绑已签约需求
-  const d2 = demand(s2, 'open');       // 幽灵需求（s2 待注销）
-  const d3 = demand(s1, 'open');       // 大厅对照组
+  const d1 = demand(s1, 'closed'); // S3：状态仅 open/closed——closed 不进广场；合同创建不依赖需求状态（S5 独立，conversation active 即可）
+  const d2 = demand(s2, 'open');   // 幽灵需求（s2 待注销）
+  const d3 = demand(s1, 'open');   // 大厅对照组
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)').run(s1, t1, d1);
   return { s1, s2, t1, d1, d2, d3, s1S: await mkSession(raw, 's1'), s2S: await mkSession(raw, 's2'), t1S: await mkSession(raw, 't1') };
 }
 
-const contractBody = (convId, demandId) => ({
-  conversationId: convId, demandId, method: 'online', plan: '补基础', hourlyRate: 150,
+// S5：合同独立化——全字段自填 INSERT，不绑需求（无 demandId）；时薪字段为 rate（旧 hourlyRate 已删）。
+const contractBody = (convId) => ({
+  conversationId: convId, method: 'online', plan: '补基础', rate: 150,
   schedule: '每周六晚', location: '线上', payMethod: 'per_session', payMethodOther: '',
   firstLessonDate: '2026-09-01', trialPay: 'normal', trialPayOther: '',
 });
@@ -116,10 +120,10 @@ test('广场门控：已注销学生的活跃需求不进需求大厅', async ()
   await dbDeactivateUser(db, s2, '已注销用户#2');
   const demands = await dbGetDemands(db, {});
   assert.equal(demands.length, 1, '大厅只留活跃学生 s1 的需求');
-  assert.equal(demands[0].username, 's1', '幽灵需求（s2 的 d2）被门控拒绝');
+  assert.equal(demands[0].studentName, 's1', '幽灵需求（s2 的 d2）被门控拒绝（mapper 出口 studentName）');
   // 管理员视图不受门控（管理端须见全量，墓碑用户名原样呈现）
   const admin = await dbGetDemands(db, { admin: true });
-  assert.ok(admin.demands.some(x => x.username.startsWith('已注销用户#')), '管理员视图保留全量（含已注销者需求行，墓碑呈现）');
+  assert.ok(admin.demands.some(x => x.studentName.startsWith('已注销用户#')), '管理员视图保留全量（含已注销者需求行，墓碑呈现）');
 });
 
 test('广场门控：已注销用户的帖子不进资料广场', async () => {
@@ -137,38 +141,29 @@ test('广场门控：已注销用户的帖子不进资料广场', async () => {
 // 服务端：purge 收束（吊带）——单方数据带根拔 + 签约请求收束终态
 // ============================================================
 
-test('注销 purge：活跃需求删除、已签约需求转 revoked、意向/推送清空、签约请求收束「已拒绝」终态', async () => {
+// S3 单科目 + S5 合同独立：注销 purge 语义收敛——学生全部需求删除（无 contracted/revoked 保留，
+// 合同不绑需求）；intents/pushes/signing_contracts 已随 S2/S5 删除，无清理面；聊天正文/附件匿名化保留。
+test('注销 purge：学生全部需求删除（open+closed）；聊天正文与附件文件名匿名化', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
-  const { s1, s2, t1 } = await seed(raw, db);
-  // s2 有：活跃需求（删）、已签约需求（转 revoked）、对 t1 的推送、t1 对 s2 需求的意向、一条待处理签约请求（收束）
-  raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status)
-    VALUES (?,?,?,?,?,?,?,?,?)`).run(s2, 'senior1', 'female', '["math"]', '[]', 'self', '13800000000', '13800000000', 'contracted');
-  const contractedId = raw.prepare('SELECT id FROM student_demands ORDER BY id DESC LIMIT 1').get().id;
-  raw.prepare('INSERT INTO demand_pushes (student_user_id, teacher_user_id, demand_id, status) VALUES (?,?,?,?)')
-    .run(s2, t1, contractedId, 'pending');
-  raw.prepare('INSERT INTO demand_intents (teacher_user_id, demand_id, status) VALUES (?,?,?)').run(t1, contractedId, 'pending');
-  // s2 发起一条待处理签约请求（往 s1 方向；会话内落 signing_request 气泡）
+  const { s1, s2 } = await seed(raw, db);
+  // s2 另有一条手动 closed 需求（seed 已有 open 的 d2）——purge 后 open/closed 全部删除
+  raw.prepare(`INSERT INTO student_demands (user_id,subject,grade,province,teaching_method,current_score,address_area,expected_time,preferred_tags,preferred_gender,budget_min,budget_max,additional_info,status)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+    .run(s2, 'english', 'junior1', 'shanghai', 'online', '', '', '', '[]', '', 100, 200, '', 'closed');
+  // s2 发一条聊天正文（purge 后匿名化清空 body/name）
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)').run(s2, s1, null);
   const c2 = raw.prepare('SELECT id FROM conversations ORDER BY id DESC LIMIT 1').get().id;
-  const msgId = raw.prepare("INSERT INTO messages (conversation_id, sender_user_id, kind, body) VALUES (?,?,?,?)")
-    .run(c2, s2, 'signing_request', JSON.stringify({ id: 9, price: 100, schedule: '周六', method: 'offline', status: 'pending' })).lastInsertRowid;
-  raw.prepare('INSERT INTO signing_contracts (conversation_id, student_user_id, teacher_user_id, initiator_user_id, message_id, price, schedule, method, stage, signing_status) VALUES (?,?,?,?,?,?,?,?,\'signing\',\'pending\')')
-    .run(c2, s2, s1, s2, Number(msgId), 100, '周六', 'offline');
+  const msgId = raw.prepare("INSERT INTO messages (conversation_id, sender_user_id, kind, body, name) VALUES (?,?,?,?,?)")
+    .run(c2, s2, 'text', '这是我的手机号 13800000000', 'photo.jpg').lastInsertRowid;
 
   await dbDeactivateUser(db, s2, '已注销用户#2');
   await dbPurgeUserOwnedData(db, s2, 'student');
 
-  const openCount = raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE user_id=? AND status=?').get(s2, 'open').c;
-  assert.equal(openCount, 0, '活跃需求连根拔');
-  const contractedRow = raw.prepare('SELECT status FROM student_demands WHERE id=?').get(contractedId);
-  assert.equal(contractedRow.status, 'revoked', '已签约需求转 revoked（合同 demand_id 不悬空）');
-  const pushCount = raw.prepare('SELECT COUNT(*) AS c FROM demand_pushes WHERE student_user_id=?').get(s2).c;
-  assert.equal(pushCount, 0, '学生侧推送清空');
-  const sr = raw.prepare('SELECT signing_status FROM signing_contracts WHERE conversation_id=?').get(c2);
-  assert.equal(sr.signing_status, 'rejected', '待处理签约请求收束为已拒绝（行保留为双方协商记录）');
-  const bubble = raw.prepare('SELECT body FROM messages WHERE id=?').get(Number(msgId));
-  const b = JSON.parse(bubble.body);
-  assert.equal(b.status, 'rejected', '会话内 signing_request 气泡同步终态（接收方无死按钮）');
+  const s2Count = raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE user_id=?').get(s2).c;
+  assert.equal(s2Count, 0, '注销学生全部需求删除（open+closed；合同独立无「已签约保留」语义）');
+  const msgRow = raw.prepare('SELECT body, name FROM messages WHERE id=?').get(Number(msgId));
+  assert.equal(msgRow.body, '', '聊天正文匿名化清空');
+  assert.equal(msgRow.name, '', '附件文件名清空');
 });
 
 // ============================================================
@@ -178,7 +173,8 @@ test('注销 purge：活跃需求删除、已签约需求转 revoked、意向/�
 test('合同不可修改性：注销不改 contract_md（业务头/签署记录保持原文），台账不追加，verify 仍通过', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, d1, s1S, t1S } = await seed(raw, db);
-  assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
+  // S5：起草合同是危险操作（confirmDangerOtp）——须带起草方一次性 capToken
+  assert.equal((await handleCreateContract(db, { ...contractBody(1), capToken: await capOf(raw, 't1', t1S.sessionId) }, reqOf(t1S.token))).status, 201);
   await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId) }, reqOf(t1S.token));
   await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId) }, reqOf(s1S.token));
   const before = await dbGetContractById(db, 1);
@@ -204,7 +200,8 @@ test('合同不可修改性：注销不改 contract_md（业务头/签署记录�
 test('handleDeactivateAccount 端到端：注销后合同正文逐字不变（一字不碰）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, d1, s1S, t1S } = await seed(raw, db);
-  assert.equal((await handleCreateContract(db, contractBody(1, d1), reqOf(t1S.token))).status, 201);
+  // S5：起草合同是危险操作（confirmDangerOtp）——须带起草方一次性 capToken
+  assert.equal((await handleCreateContract(db, { ...contractBody(1), capToken: await capOf(raw, 't1', t1S.sessionId) }, reqOf(t1S.token))).status, 201);
   await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId) }, reqOf(t1S.token));
   await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId) }, reqOf(s1S.token));
   const before = await dbGetContractById(db, 1);

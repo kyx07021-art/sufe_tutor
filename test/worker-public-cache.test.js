@@ -84,14 +84,14 @@ async function setup(t) {
 }
 
 // ---------------- 纯逻辑 ----------------
-test('isPublicListCacheable：公开列表可缓存，私有变体不缓存', () => {
+test('isPublicListCacheable：公开列表可缓存，登录门禁/私有变体不缓存', () => {
   const url = p => new URL('https://test.local' + p);
   assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers')), true);
   assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers?subject=数学')), true, '筛选 query 变体同样公开');
   assert.equal(isPublicListCacheable('/api/posts', url('/api/posts?sort=new')), true);
-  assert.equal(isPublicListCacheable('/api/student/demands', url('/api/student/demands')), true, '无 scope = 需求广场公开');
-  assert.equal(isPublicListCacheable('/api/student/demands', url('/api/student/demands?scope=mine')), false, 'scope=mine 私有不缓存');
-  assert.equal(isPublicListCacheable('/api/student/demands', url('/api/student/demands?scope=for-teacher')), false);
+  // S0-22：/api/demands 为登录门禁（requireUser），匿名 401 → 缓存写门永不触发，死分支已移除
+  assert.equal(isPublicListCacheable('/api/demands', url('/api/demands')), false, '需求广场登录门禁，不缓存');
+  assert.equal(isPublicListCacheable('/api/demands/mine', url('/api/demands/mine')), false, '我的需求私有不缓存');
   assert.equal(isPublicListCacheable('/api/contracts/my', url('/api/contracts/my')), false, '私有端点不缓存');
   assert.equal(isPublicListCacheable('/api/notifications', url('/api/notifications')), false);
 });
@@ -116,23 +116,21 @@ test('整 worker：公开列表首请求 miss→D1→写缓存；二次请求命
   assert.equal(calls.length, dbCallsAfterFirst, '二次请求零 DB 查询（缓存命中，冷启动治本）');
 });
 
-test('整 worker：私有变体（scope=mine）不写缓存', async (t) => {
+test('整 worker：私有变体（mine）不写缓存', async (t) => {
   installCache();
   const { env } = await setup(t);
   const get = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
-  await get('/api/student/demands?scope=mine');
-  assert.equal(cacheStore.has('https://test.local/api/student/demands?scope=mine'), false, '私有需求不缓存');
+  await get('/api/demands/mine');
+  assert.equal(cacheStore.has('https://test.local/api/demands/mine'), false, '私有需求不缓存');
 });
 
-test('整 worker：需求广场（无 scope）首请求写缓存，二次命中零 DB', async (t) => {
+test('整 worker：需求广场（登录可见 I-34）匿名访问不写缓存', async (t) => {
   installCache();
-  const { env, calls } = await setup(t);
+  const { env } = await setup(t);
   const get = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
-  await get('/api/student/demands');
-  assert.equal(cacheStore.has('https://test.local/api/student/demands'), true, '需求广场缓存');
-  const n = calls.length;
-  await get('/api/student/demands');
-  assert.equal(calls.length, n, '二次请求零 DB 查询');
+  // GET /api/demands is login-required (I-34): anonymous -> 401, cache pipeline needs anonymous + 200, so no cache write.
+  await get('/api/demands');
+  assert.equal(cacheStore.has('https://test.local/api/demands'), false, '登录可见需求广场匿名访问不缓存');
 });
 
 // ---------------- fail-open ----------------
@@ -188,9 +186,9 @@ test('匿名门：登录请求不写缓存，也不命中匿名缓存（防 per-
   assert.equal(anonRes.status, 200, '匿名仍命中缓存');
 });
 
-test('isPublicListCacheable 保持公开判定（匿名门在 fetch 层，纯函数只判端点）', () => {
+test('isPublicListCacheable 保持公开判定（匿名门在 fetch 层，纯函数只判端点；demands 已移除 S0-22）', () => {
   const url = p => new URL('https://test.local' + p);
   assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers')), true);
   assert.equal(isPublicListCacheable('/api/posts', url('/api/posts')), true);
-  assert.equal(isPublicListCacheable('/api/student/demands', url('/api/student/demands')), true);
+  assert.equal(isPublicListCacheable('/api/demands', url('/api/demands')), false, 'demands 登录门禁，S0-22 移除');
 });

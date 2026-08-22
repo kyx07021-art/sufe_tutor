@@ -1,14 +1,15 @@
 /**
- * 学生需求侧扩充服务端校验回归（R2-b：需求类型 / 偏好性格 / 偏好性别 / 学生性别改造）
+ * 需求域服务端校验回归（S3 单科目新模型，§15）
  *
- * handleCreateDemand（demand/api.js）sanitizeDemand：
- *   - target_type 白名单 ['academic','nonacademic']，非法静默回退 'academic'（不拒绝整个需求）；
- *   - target_subjects 按类型分流白名单：academic → SUBJECTS；nonacademic → NONACADEMIC_PROJECTS；
- *   - type==='nonacademic' 时 current_scores 强制置 []（非学科无成绩概念）；
- *   - preferred_personality_tags 数组、≤PERSONALITY_TAGS_MAX、白名单、去重（照抄 teacher/api.js 2a 口径，
- *     非法静默回退空数组，超限截断而非拒绝）；
- *   - preferred_teacher_gender 白名单 ['','male','female']，非法回退 ''（不限）；
- *   - student_gender 白名单 ['','male','female','nonbinary']，非法回退 ''；'' = 不愿透露（创建需求合法）。
+ * handleCreateDemand（demand/api.js）sanitizeDemand + 地址门禁：
+ *   - subject 单值白名单（SUBJECTS ∪ NONACADEMIC_PROJECTS），非法 → INVALID_PARAMS（400，拒绝不静默）；
+ *   - grade 单值白名单（STUDENT_GRADES），非法 → INVALID_PARAMS（400）；
+ *   - province 必填且合法（PROVINCE_REQUIRED）；非线下许可省强制 online；
+ *   - teachingMethod online 清空地址；offline/both 必须合法「区·镇/街道」上海地址（ADDRESS_REQUIRED）；
+ *   - preferredTags 数组、≤PERSONALITY_TAGS_MAX、白名单、去重（非法静默回退空数组，超限截断而非拒绝）；
+ *   - preferredGender 白名单 ['','male','female']，非法回退 ''（不限）；
+ *   - currentScore 单值文本：数字钳 [0, subjectMaxFor]（region-data 单源），等第字母保留，缺失空串；
+ *   - targetType 由 subject 派生（academic/nonacademic），不落库。
  *
  * D1 形状同 teacher-profile-guard.test.js：db.prepare(sql).bind(...).all()/.first()/.run() + db.batch。
  */
@@ -18,19 +19,10 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { handleCreateDemand } from '../src/server/domains/demand/api.js';
+import { dbGetDemandById } from '../src/server/domains/demand/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
-
-// V-4-1d QA 回归：文本审核咽喉绑定 + fetch mock（镜像生产配置；QA 最小 body 带真实 additional_info，
-// 无配置 auditSemantic fail-closed 回 TEXT_AUDIT_UNAVAILABLE，会掩盖被测的 500 崩溃路径）
-const origFetch = globalThis.fetch;
-beforeEach(() => {
-  bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' });
-  globalThis.fetch = async () => ({ ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false}' } }] }) });
-});
-afterEach(() => { bindTextAuditEnv(null); globalThis.fetch = origFetch; });
 
 function d1Shim(raw) {
   return {
@@ -73,170 +65,145 @@ async function seedStudent(db, raw) {
   return { token, stu };
 }
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
-const baseDemand = { province: 'shanghai', student_grade: 'senior1', student_gender: 'male',
-  target_subjects: ['math'], current_scores: [], teaching_method: 'offline',
-  address: '杨浦区·四平路街道', budget_min: 0, budget_max: 0, // 需求五：线下单地址须合法「区·镇/街道」（'杨浦区' 单区名已不合法）
-  submitter_type: 'parent', parent_contact: '13800138000', student_contact: '13900139000', additional_info: '' };
+// S3 单科目直接 body（无 v2 {demand} 包装）；线下合法上海地址
+const baseDemand = { province: 'shanghai', grade: 'senior1', subject: 'math',
+  teachingMethod: 'offline', addressArea: '杨浦区·四平路街道', budgetMin: 0, budgetMax: 0, additionalInfo: '' };
 
-test('target_type：非法值静默回退 academic；nonacademic 按项目白名单并强制清成绩', async () => {
+test('subject 白名单：非法科目 400 不落库；academic/nonacademic 派生 targetType', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token, stu } = await seedStudent(db, raw);
-  // 非法 target_type → 回退 academic（不拒绝），科目按 SUBJECTS 白名单
-  let r = await handleCreateDemand(db, { demand: { ...baseDemand, target_type: 'hacker' } }, reqOf(token));
-  assert.equal(r.status, 200, '非法 target_type 不拒绝，静默回退');
-  let row = raw.prepare('SELECT target_type, target_subjects, current_scores FROM student_demands WHERE user_id=?').get(stu);
-  assert.equal(row.target_type, 'academic', '非法 target_type 回退 academic');
-  assert.deepEqual(JSON.parse(row.target_subjects), ['math']);
-  // nonacademic：项目白名单（music/chess 合法，未知 id 剔除）+ current_scores 强制置空
-  r = await handleCreateDemand(db, { demand: {
-    ...baseDemand,
-    target_type: 'nonacademic',
-    target_subjects: ['music', 'hacker', 'chess'],
-    current_scores: [{ subject: 'math', mode: 'score', scale: 150, score: '90' }],
-  } }, reqOf(token));
+  // 非法科目 → 拒绝（单科目无 v2 数组静默回退）
+  let r = await handleCreateDemand(db, { ...baseDemand, subject: 'hacker' }, reqOf(token));
+  assert.equal(r.status, 400, '非法科目拒绝，实际 ' + r.status);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE user_id=?').get(stu).c, 0, '未落库');
+  // 学科科目（math）入库，targetType 派生 academic
+  r = await handleCreateDemand(db, baseDemand, reqOf(token));
   assert.equal(r.status, 200);
-  row = raw.prepare('SELECT target_type, target_subjects, current_scores FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(row.target_type, 'nonacademic');
-  assert.deepEqual(JSON.parse(row.target_subjects), ['music', 'chess'], '非学科项目白名单过滤');
-  assert.equal(row.current_scores, '[]', 'nonacademic 强制清成绩');
+  let row = raw.prepare('SELECT id, subject, status FROM student_demands WHERE user_id=?').get(stu);
+  assert.equal(row.subject, 'math');
+  assert.equal(row.status, 'open');
+  assert.equal((await dbGetDemandById(db, row.id)).targetType, 'academic', 'math → academic');
+  // 非学科项目（music）入库，targetType 派生 nonacademic
+  r = await handleCreateDemand(db, { ...baseDemand, subject: 'music' }, reqOf(token));
+  assert.equal(r.status, 200);
+  row = raw.prepare('SELECT id, subject FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.subject, 'music', '非学科项目白名单入库');
+  assert.equal((await dbGetDemandById(db, row.id)).targetType, 'nonacademic', 'music → nonacademic');
 });
 
-test('target_subjects 去重 + 按池封顶（网安 M1）；非数组归空被拒（网安 L1）', async () => {
+test('grade：非法值 400（拒绝不静默回退空串）；合法值正常入库', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token, stu } = await seedStudent(db, raw);
-  // 重复 id 铺量 → 去重后只留唯一值（防存储/响应放大）
-  let r = await handleCreateDemand(db, { demand: { ...baseDemand, target_subjects: Array(500).fill('math') } }, reqOf(token));
-  assert.equal(r.status, 200);
-  let row = raw.prepare('SELECT target_subjects FROM student_demands WHERE user_id=?').get(stu);
-  assert.deepEqual(JSON.parse(row.target_subjects), ['math'], '重复 id 去重');
-  // 超池数量 → 按池大小封顶（academic 池 9 个）
-  r = await handleCreateDemand(db, { demand: { ...baseDemand, target_subjects: ['math','physics','chemistry','biology','history','geography','politics','chinese','english','math'] } }, reqOf(token));
-  assert.equal(r.status, 200);
-  row = raw.prepare('SELECT target_subjects FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(JSON.parse(row.target_subjects).length, 9, '去重后按池封顶 9');
-  // 非数组（字符串）→ 归空数组 → 路由无有效科目拒绝（与教师侧 INVALID_PARAMS 口径一致）
-  r = await handleCreateDemand(db, { demand: { ...baseDemand, target_subjects: 'attack' } }, reqOf(token));
-  assert.equal(r.status, 400, '非数组 target_subjects 拒绝（不静默落库脏字符串）');
+  const r = await handleCreateDemand(db, { ...baseDemand, grade: 'grade7' }, reqOf(token));
+  assert.equal(r.status, 400, '非法年级拒绝整表（S3 白名单拒绝语义），实际 ' + r.status);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE user_id=?').get(stu).c, 0, '未落库');
+  const r2 = await handleCreateDemand(db, { ...baseDemand, grade: 'junior2' }, reqOf(token));
+  assert.equal(r2.status, 200);
+  const row = raw.prepare('SELECT grade FROM student_demands WHERE user_id=?').get(stu);
+  assert.equal(row.grade, 'junior2', '合法年级正常入库');
 });
 
-test('preferred_personality_tags：≤3、白名单去重、超限截断、非数组回退空', async () => {
+test('province：非法/缺失 400；非线下许可省强制 online 且清空地址', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, stu } = await seedStudent(db, raw);
+  let r = await handleCreateDemand(db, { ...baseDemand, province: 'atlantis' }, reqOf(token));
+  assert.equal(r.status, 400, '非法省份拒绝');
+  r = await handleCreateDemand(db, { ...baseDemand, province: '' }, reqOf(token));
+  assert.equal(r.status, 400, '缺失省份拒绝');
+  // 非线下许可省（beijing）：offline 请求被强制 online，地址清空，仍 200
+  r = await handleCreateDemand(db, { ...baseDemand, province: 'beijing', teachingMethod: 'offline', addressArea: '黄浦区·四平路街道' }, reqOf(token));
+  assert.equal(r.status, 200, '非线下许可省强制 online 不拒绝');
+  const row = raw.prepare('SELECT teaching_method, address_area FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.teaching_method, 'online', '强制 online');
+  assert.equal(row.address_area, '', '地址被清空');
+});
+
+test('teachingMethod 地址门禁：online 清空地址；offline/both 须合法上海地址', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, stu } = await seedStudent(db, raw);
+  // online：即使带地址也被清空
+  let r = await handleCreateDemand(db, { ...baseDemand, teachingMethod: 'online', addressArea: '黄浦区·南京东路街道' }, reqOf(token));
+  assert.equal(r.status, 200);
+  let row = raw.prepare('SELECT teaching_method, address_area FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.address_area, '', 'online 清空地址');
+  // offline：非法地址（单区名不合法）→ ADDRESS_REQUIRED 拒绝
+  r = await handleCreateDemand(db, { ...baseDemand, teachingMethod: 'offline', addressArea: '杨浦区' }, reqOf(token));
+  assert.equal(r.status, 400, 'offline 非法地址拒绝');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE user_id=?').get(stu).c, 1, '非法地址不落库');
+  // offline：合法地址入库
+  r = await handleCreateDemand(db, { ...baseDemand, teachingMethod: 'offline', addressArea: '杨浦区·四平路街道' }, reqOf(token));
+  assert.equal(r.status, 200);
+  row = raw.prepare('SELECT address_area FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.address_area, '杨浦区·四平路街道', '合法地址入库');
+});
+
+test('preferredTags：≤3、白名单去重、超限截断、非数组回退空', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token, stu } = await seedStudent(db, raw);
   // 白名单外 id 剔除 + 去重
-  let r = await handleCreateDemand(db, { demand: { ...baseDemand, preferred_personality_tags: ['patience', 'hacker', 'patience', 'strict'] } }, reqOf(token));
+  let r = await handleCreateDemand(db, { ...baseDemand, preferredTags: ['patience', 'hacker', 'patience', 'strict'] }, reqOf(token));
   assert.equal(r.status, 200);
-  let row = raw.prepare('SELECT preferred_personality_tags FROM student_demands WHERE user_id=?').get(stu);
-  assert.deepEqual(JSON.parse(row.preferred_personality_tags), ['patience', 'strict'], '白名单过滤 + 去重');
-  // 超限 4 个合法 → 静默截断到 3（不拒绝）
-  r = await handleCreateDemand(db, { demand: { ...baseDemand, preferred_personality_tags: ['patience', 'strict', 'humorous', 'gentle'] } }, reqOf(token));
+  let row = raw.prepare('SELECT preferred_tags FROM student_demands WHERE user_id=?').get(stu);
+  assert.deepEqual(JSON.parse(row.preferred_tags), ['patience', 'strict'], '白名单过滤 + 去重');
+  // 超限 4 个合法 → 静默截断到 3（不拒绝整表）
+  r = await handleCreateDemand(db, { ...baseDemand, preferredTags: ['patience', 'strict', 'humorous', 'gentle'] }, reqOf(token));
   assert.equal(r.status, 200, '超限不拒绝，截断到 PERSONALITY_TAGS_MAX');
-  row = raw.prepare('SELECT preferred_personality_tags FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(JSON.parse(row.preferred_personality_tags).length, 3, '超限截断到 3');
+  row = raw.prepare('SELECT preferred_tags FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(JSON.parse(row.preferred_tags).length, 3, '超限截断到 3');
   // 非数组 → 静默回退空数组
-  r = await handleCreateDemand(db, { demand: { ...baseDemand, preferred_personality_tags: 'patience' } }, reqOf(token));
+  r = await handleCreateDemand(db, { ...baseDemand, preferredTags: 'patience' }, reqOf(token));
   assert.equal(r.status, 200);
-  row = raw.prepare('SELECT preferred_personality_tags FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.deepEqual(JSON.parse(row.preferred_personality_tags), [], '非数组回退空数组');
+  row = raw.prepare('SELECT preferred_tags FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.deepEqual(JSON.parse(row.preferred_tags), [], '非数组回退空数组');
 });
 
-test('preferred_teacher_gender：白名单入库、非法回退空串', async () => {
+test('preferredGender：白名单入库、非法回退空串', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token, stu } = await seedStudent(db, raw);
-  let r = await handleCreateDemand(db, { demand: { ...baseDemand, preferred_teacher_gender: 'female' } }, reqOf(token));
+  let r = await handleCreateDemand(db, { ...baseDemand, preferredGender: 'female' }, reqOf(token));
   assert.equal(r.status, 200);
-  let row = raw.prepare('SELECT preferred_teacher_gender FROM student_demands WHERE user_id=?').get(stu);
-  assert.equal(row.preferred_teacher_gender, 'female');
-  r = await handleCreateDemand(db, { demand: { ...baseDemand, preferred_teacher_gender: 'hacker' } }, reqOf(token));
+  let row = raw.prepare('SELECT preferred_gender FROM student_demands WHERE user_id=?').get(stu);
+  assert.equal(row.preferred_gender, 'female');
+  r = await handleCreateDemand(db, { ...baseDemand, preferredGender: 'hacker' }, reqOf(token));
   assert.equal(r.status, 200);
-  row = raw.prepare('SELECT preferred_teacher_gender FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(row.preferred_teacher_gender, '', '非法偏好性别回退空串');
+  row = raw.prepare('SELECT preferred_gender FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.preferred_gender, '', '非法偏好性别回退空串');
 });
 
-test('student_gender 空串合法（不愿透露默认）：创建成功；非法值回退空串', async () => {
+test('currentScore：数字钳制 [0, subjectMaxFor]、等第字母保留、缺失空串', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token, stu } = await seedStudent(db, raw);
-  let r = await handleCreateDemand(db, { demand: { ...baseDemand, student_gender: '' } }, reqOf(token));
-  assert.equal(r.status, 200, '空串 = 不愿透露，创建成功');
-  let row = raw.prepare('SELECT student_gender FROM student_demands WHERE user_id=?').get(stu);
-  assert.equal(row.student_gender, '');
-  r = await handleCreateDemand(db, { demand: { ...baseDemand, student_gender: 'attack' } }, reqOf(token));
-  assert.equal(r.status, 200, '非法性别不拒绝');
-  row = raw.prepare('SELECT student_gender FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(row.student_gender, '', '非法性别回退空串');
+  // 缺失 → ''
+  let r = await handleCreateDemand(db, baseDemand, reqOf(token));
+  assert.equal(r.status, 200);
+  let row = raw.prepare('SELECT current_score FROM student_demands WHERE user_id=?').get(stu);
+  assert.equal(row.current_score, '', '缺失 currentScore → 空串');
+  // 数字超上限 → 钳到 subjectMaxFor（上海 senior1 数学 = 150）
+  r = await handleCreateDemand(db, { ...baseDemand, currentScore: '200' }, reqOf(token));
+  assert.equal(r.status, 200);
+  row = raw.prepare('SELECT current_score FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.current_score, '150', '数字钳制到满分');
+  // 等第字母保留原样
+  r = await handleCreateDemand(db, { ...baseDemand, currentScore: 'A' }, reqOf(token));
+  assert.equal(r.status, 200);
+  row = raw.prepare('SELECT current_score FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.current_score, 'A', '等第字母原样保留');
 });
 
-// v0.31.7 R1/R2：教学目标白名单（≤2、TEACHING_GOALS 池、去重）；技能现状仅非学科保留、project 白名单、note 截断
-test('teaching_goal：≤2、白名单去重、超限截断；skill_notes 仅非学科保留 + project 白名单 + note 截断', async () => {
+test('QA 最小 body（缺 currentScore/preferredTags/preferredGender 等）→ 归一落库不 500', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { token, stu } = await seedStudent(db, raw);
-  // 教学目标：白名单外剔除、去重、超 2 截断
-  let r = await handleCreateDemand(db, { demand: {
-    ...baseDemand,
-    teaching_goal: ['score', 'hacker', 'interest', 'score', 'habit'], // hacker 剔除 + score 去重 + 超 2 截断
-  } }, reqOf(token));
-  assert.equal(r.status, 200, '教学目标超限静默截断不拒绝');
-  let row = raw.prepare('SELECT teaching_goal FROM student_demands WHERE user_id=?').get(stu);
-  assert.deepEqual(JSON.parse(row.teaching_goal), ['score', 'interest'], '教学目标白名单去重 + ≤2 截断');
-  // 非数组 → 归空数组（不落脏）
-  r = await handleCreateDemand(db, { demand: { ...baseDemand, teaching_goal: 'attack' } }, reqOf(token));
-  assert.equal(r.status, 200);
-  row = raw.prepare('SELECT teaching_goal FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.deepEqual(JSON.parse(row.teaching_goal), [], '非数组 teaching_goal 归空');
-  // 非学科技能现状：project 白名单、note 截断、学科需求强制清空
-  const longNote = 'x'.repeat(500);
-  r = await handleCreateDemand(db, { demand: {
-    ...baseDemand,
-    target_type: 'nonacademic', target_subjects: ['music'],
-    teaching_goal: ['interest'], current_scores: [],
-    skill_notes: [{ project: 'music', note: longNote }, { project: 'hacker', note: '注入' }, { project: 'code', note: 'Python' }, 'junk'],
-  } }, reqOf(token));
-  assert.equal(r.status, 200);
-  row = raw.prepare('SELECT skill_notes, teaching_goal FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  const notes = JSON.parse(row.skill_notes);
-  assert.deepEqual(notes.map(n => n.project), ['music', 'code'], 'skill_notes project 白名单 + 非法项剔除');
-  assert.equal(notes.find(n => n.project === 'music').note.length, 300, 'note 截断到 SKILL_NOTE_MAX=300');
-  assert.deepEqual(JSON.parse(row.teaching_goal), ['interest'], '非学科教学目标照常保留');
-  // 学科需求：skill_notes 强制清空（同 current_scores 口径）
-  r = await handleCreateDemand(db, { demand: { ...baseDemand, skill_notes: [{ project: 'music', note: '不该存' }] } }, reqOf(token));
-  assert.equal(r.status, 200);
-  row = raw.prepare('SELECT skill_notes FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(row.skill_notes, '[]', '学科需求 skill_notes 强制清空');
-});
-
-// v1.3.0 修复：student_grade 白名单（此前无校验——生产脏数据 'grade7' 泄漏到卡片英文原文）
-test('student_grade：非法值静默回退空串；合法值正常入库', async () => {
-  const raw = rawOf(); const db = d1Shim(raw);
-  const { token, stu } = await seedStudent(db, raw);
-  // 非法年级（脏数据 'grade7' 同款）→ 静默回退空（不拒绝整表，与 target_type 非法回退同口径）
-  const r = await handleCreateDemand(db, { demand: { ...baseDemand, student_grade: 'grade7' } }, reqOf(token));
-  assert.equal(r.status, 200, '非法年级不拒绝整表，实际 ' + r.status);
-  let row = raw.prepare('SELECT student_grade FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(row.student_grade, '', '非法年级回退空串');
-  // 合法年级正常入库
-  const r2 = await handleCreateDemand(db, { demand: { ...baseDemand, student_grade: 'junior2' } }, reqOf(token));
-  assert.equal(r2.status, 200);
-  row = raw.prepare('SELECT student_grade FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(row.student_grade, 'junior2', '合法年级正常入库');
-});
-
-// V-4-1d QA 抓到的生产 500：缺 current_scores 字段 → sanitizeDemand 未归一 → dbCreateDemand
-// JSON.stringify(undefined) 绑 SQL 参数 6 抛错（复现 _tmp_repro_demand.mjs 参数 6 绑定失败）。
-// 修复：current_scores 缺失归一 []、submitter_type 缺失归一 'parent'
-//（与 teaching_goal/skill_notes/personality_tags 同口径；schema submitter_type NOT NULL 无默认值）。
-// 用 QA 全链路原样最小 body 实证：缺 current_scores + submitter_type + student_grade 等可选字段不得 500。
-test('QA 最小 body（缺 current_scores/submitter_type 等）→ 归一落库不 500（生产 500 回归）', async () => {
-  const raw = rawOf(); const db = d1Shim(raw);
-  const { token, stu } = await seedStudent(db, raw);
-  // 精确复刻 QA 全链路 body：只有最小字段集，无 current_scores / submitter_type / student_grade / 联系方式
+  // 最小字段集：province + subject + grade + budget（单科目无 currentScore/preferredTags 等可选字段）
   const minimal = {
-    province: 'shanghai', grade: 'senior1', target_subjects: ['math'],
-    expected_time: JSON.stringify([{ type: 'week', dow: 1, start: '18:00', end: '20:00' }]),
-    teaching_method: 'online', additional_info: 'QA 全链路测试', budget_min: 100, budget_max: 200,
-    title: 'QA 测试需求', description: '',
+    province: 'shanghai', grade: 'senior1', subject: 'math',
+    expectedTime: JSON.stringify([{ type: 'week', dow: 1, start: '18:00', end: '20:00' }]),
+    teachingMethod: 'online', additionalInfo: 'QA 全链路测试', budgetMin: 100, budgetMax: 200,
   };
-  const r = await handleCreateDemand(db, { demand: minimal }, reqOf(token));
-  assert.equal(r.status, 200, '缺 current_scores/submitter_type 不得 500，实际 ' + r.status);
-  const row = raw.prepare('SELECT current_scores, submitter_type FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
-  assert.equal(row.current_scores, '[]', 'current_scores 缺失归一空数组落库');
-  assert.equal(row.submitter_type, 'parent', 'submitter_type 缺失归一 parent 落库（NOT NULL 无默认）');
+  const r = await handleCreateDemand(db, minimal, reqOf(token));
+  assert.equal(r.status, 200, '缺可选字段不得 500，实际 ' + r.status);
+  const row = raw.prepare('SELECT current_score, preferred_tags, preferred_gender, status FROM student_demands WHERE user_id=? ORDER BY id DESC LIMIT 1').get(stu);
+  assert.equal(row.current_score, '', 'currentScore 缺失归一空串');
+  assert.equal(row.preferred_tags, '[]', 'preferredTags 缺失归一空数组');
+  assert.equal(row.preferred_gender, '', 'preferredGender 缺失归一空串');
+  assert.equal(row.status, 'open', '默认 open');
 });

@@ -53,9 +53,9 @@ function setup(t) {
 }
 
 const REQUIRED_TABLES = ['users', 'auth_sessions', 'rate_limits', 'teacher_profiles', 'student_demands',
-  'reviews', 'invite_codes', 'demand_intents', 'conversations', 'messages', 'posts', 'post_likes',
-  'post_favorites', 'complaints', 'demand_pushes', 'uploads', 'feedbacks', 'user_settings',
-  'signing_contracts', 'schema_meta']; // AI-5: contracts/signing_requests 旧表已删
+  'reviews', 'invite_codes', 'conversations', 'messages', 'posts', 'post_likes',
+  'post_favorites', 'complaints', 'uploads', 'feedbacks',
+  'contracts', 'schema_meta']; // S5: merged signing_contracts -> standalone contracts; S2: intents/pushes removed; S6: user_settings dropped (privacy decommissioned)
 
 test('首次 initDb：建 schema_meta 版本 + 全部表齐全', async (t) => {
   const { raw, db } = setup(t);
@@ -135,29 +135,79 @@ test('版本落后到上一版（v9 存量库缺 messages.client_key）：重跑
 });
 
 
-// AI-5：旧 signing_requests/contracts 表清理——数据已由 AI-4a 迁入 signing_contracts、读写已由 AI-4b
-// 全切，本步 DROP 旧表（幂等）。存量 v12 库（含旧表 + schema_meta=12）重跑迁移 → 旧表删 + 数据保留 + 版本 13。
-test('版本落后到上一版（v12 存量库含旧表）：重跑迁移删旧表 + signing_contracts 数据保留', async (t) => {
+// S5-02: merged signing_contracts table (AI-4a) -> standalone contracts table migration.
+// Legacy DB re-run copies stage='contract' rows 1:1 (contract number #CD{id} and ledger contract_id
+// stay unchanged -> zero remap), maps ''/'pending' contract_status -> 'signing', generalizes hourly_rate
+// -> rate, then DROPs signing_contracts. Re-run is a no-op (idempotent).
+test('S5 migration: legacy signing_contracts -> standalone contracts (id 1:1 / status mapping / rate generalization / old table dropped / idempotent)', async (t) => {
   const { raw, db } = setup(t);
-  await initDb(db, ENV); // 先建最新全量（v13，无旧表）
-  const s = raw.prepare(`INSERT INTO users (username,password_hash,salt,role) VALUES ('d_s1','x','x','student')`).run();
-  const s1 = Number(s.lastInsertRowid);
-  const tc = raw.prepare(`INSERT INTO users (username,password_hash,salt,role) VALUES ('d_t1','x','x','teacher')`).run();
-  const t1 = Number(tc.lastInsertRowid);
-  const cv = raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(s1, t1);
-  const convId = Number(cv.lastInsertRowid);
-  raw.prepare(`INSERT INTO signing_contracts (student_user_id,teacher_user_id,conversation_id,stage,signing_status,contract_status) VALUES (?,?,?,'contract','signed','signed')`)
+  await initDb(db, ENV); // build the latest full schema first (contracts exists, no signing_contracts)
+  // seed users + a conversation (contracts carries no FK; the conversation row is only the historical link shape)
+  const s1 = Number(raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('s5_s1','x','x','student')").run().lastInsertRowid);
+  const t1 = Number(raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES ('s5_t1','x','x','teacher')").run().lastInsertRowid);
+  const convId = Number(raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id) VALUES (?,?)').run(s1, t1).lastInsertRowid);
+  // seed the legacy merged table with the exact AI-4a SIGNING_CONTRACTS_DDL shape (signing layer +
+  // contract layer). Every contract field is NOT NULL DEFAULT in the real merged table, so the S5
+  // migration SELECT reads non-NULL values into the standalone contracts NOT NULL columns.
+  raw.exec(`CREATE TABLE signing_contracts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_user_id INTEGER NOT NULL,
+    teacher_user_id INTEGER NOT NULL,
+    demand_id INTEGER,
+    conversation_id INTEGER,
+    stage TEXT NOT NULL DEFAULT 'signing' CHECK(stage IN ('signing','contract')),
+    signing_status TEXT NOT NULL DEFAULT 'pending' CHECK(signing_status IN ('pending','signed','rejected')),
+    initiator_user_id INTEGER NOT NULL DEFAULT 0,
+    price REAL NOT NULL DEFAULT 0,
+    schedule TEXT NOT NULL DEFAULT '',
+    method TEXT NOT NULL DEFAULT 'offline',
+    message_id INTEGER,
+    responded_at DATETIME,
+    contract_status TEXT NOT NULL DEFAULT '' CHECK(contract_status IN ('','pending','signing','signed')),
+    drafter_user_id INTEGER NOT NULL DEFAULT 0,
+    plan TEXT NOT NULL DEFAULT '',
+    hourly_rate INTEGER NOT NULL DEFAULT 0,
+    pay_method TEXT NOT NULL DEFAULT '',
+    pay_method_other TEXT NOT NULL DEFAULT '',
+    first_lesson_date TEXT NOT NULL DEFAULT '',
+    trial_pay TEXT NOT NULL DEFAULT '',
+    trial_pay_other TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT '',
+    contract_md TEXT NOT NULL DEFAULT '',
+    prev_business TEXT,
+    version INTEGER NOT NULL DEFAULT 0,
+    drafter_confirmed INTEGER NOT NULL DEFAULT 0,
+    other_confirmed INTEGER NOT NULL DEFAULT 0,
+    drafter_signed_at TEXT NOT NULL DEFAULT '',
+    other_signed_at TEXT NOT NULL DEFAULT '',
+    revoked INTEGER NOT NULL DEFAULT 0,
+    revoked_by INTEGER NOT NULL DEFAULT 0,
+    legacy_contract_id INTEGER,
+    created_at DATETIME DEFAULT (datetime('now')),
+    updated_at DATETIME DEFAULT (datetime('now')))`);
+  raw.prepare("INSERT INTO signing_contracts (id, student_user_id, teacher_user_id, conversation_id, demand_id, stage, contract_status, hourly_rate, drafter_user_id, contract_md, prev_business) VALUES (7,?,?,?,555,'contract','pending',150,?,?,?)")
+    .run(s1, t1, convId, t1, 'migrated-body-A', 'prior-business-A');
+  raw.prepare("INSERT INTO signing_contracts (id, student_user_id, teacher_user_id, conversation_id, stage, contract_status, hourly_rate, drafter_user_id, contract_md) VALUES (8,?,?,?, 'contract','signed',200,?,?)")
+    .run(s1, t1, convId, t1, 'migrated-body-B');
+  // signing-layer row must NOT be copied (the signing layer is dropped wholesale, S5-19)
+  raw.prepare("INSERT INTO signing_contracts (id, student_user_id, teacher_user_id, conversation_id, stage, signing_status, hourly_rate) VALUES (9,?,?,?, 'signing','pending',0)")
     .run(s1, t1, convId);
-  // 模拟 v12 存量形状：旧表仍在（含 AI-3 双方元组列）+ schema_meta=12
-  raw.exec('CREATE TABLE contracts (id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id INTEGER NOT NULL, drafter_user_id INTEGER NOT NULL)');
-  raw.exec('CREATE TABLE signing_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, conversation_id INTEGER NOT NULL, initiator_user_id INTEGER NOT NULL)');
-  raw.exec("UPDATE schema_meta SET v=12 WHERE k='schema'");
-  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='contracts'`).get().n, 1, '前置：旧 contracts 表存在');
-  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='signing_requests'`).get().n, 1, '前置：旧 signing_requests 表存在');
-  await initDb(db, ENV); // 版本落后 → 全量迁移 → postEnsure DROP 旧表
-  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='contracts'`).get().n, 0, 'contracts 已删');
-  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='signing_requests'`).get().n, 0, 'signing_requests 已删');
-  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM signing_contracts').get().c, 1, 'signing_contracts 数据保留');
+  // simulate a legacy DB: one schema version behind + the merged table present
+  raw.prepare("UPDATE schema_meta SET v=? WHERE k='schema'").run(SCHEMA_VERSION - 1);
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='signing_contracts'`).get().n, 1, 'precondition: legacy signing_contracts table exists');
+  await initDb(db, ENV); // version behind -> full migration -> postEnsure S5-02 copy + DROP
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='contracts'`).get().n, 1, 'contracts table exists');
+  const rows = raw.prepare('SELECT id, contract_status, rate, contract_md, prev_business, conversation_id FROM contracts ORDER BY id').all().map(r => ({ ...r }));
+  assert.equal(rows.length, 2, 'only stage=contract rows migrated (signing layer dropped)');
+  assert.deepEqual(rows[0], { id: 7, contract_status: 'signing', rate: 150, contract_md: 'migrated-body-A', prev_business: 'prior-business-A', conversation_id: convId }, 'pending -> signing mapping + hourly_rate -> rate + id 1:1');
+  assert.deepEqual(rows[1], { id: 8, contract_status: 'signed', rate: 200, contract_md: 'migrated-body-B', prev_business: null, conversation_id: convId }, 'signed passes through + id 1:1');
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='signing_contracts'`).get().n, 0, 'signing_contracts dropped');
   const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
-  assert.equal(ver.v, SCHEMA_VERSION, '重跑后版本更新到最新');
+  assert.equal(ver.v, SCHEMA_VERSION, 'version updated to latest after migration');
+  // idempotent: re-trigger full migration (signing_contracts gone -> copy skipped) -> contracts data unchanged
+  raw.prepare("UPDATE schema_meta SET v=? WHERE k='schema'").run(SCHEMA_VERSION - 1);
+  await initDb(db, ENV);
+  assert.equal(raw.prepare('SELECT COUNT(*) AS n FROM contracts').get().n, 2, 'idempotent re-run leaves contracts data unchanged');
+  const ver2 = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
 });

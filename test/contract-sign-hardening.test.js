@@ -19,7 +19,7 @@ function setup() {
   globalThis.MutationObserver = class { observe() {} disconnect() {} takeRecords() { return []; } };
   state.user = { id: 1, role: 'teacher', username: '甲' };
   state.myContracts = [{ id: 7, drafter_user_id: 2, student_user_id: 1, teacher_name: '甲', student_name: '乙',
-    method: 'online', hourly_rate: 200, contract_md: CONTRACT_MD, status: 'signing',
+    method: 'online', rate: 200, contract_md: CONTRACT_MD, status: 'signing',
     drafter_confirmed: 0, other_confirmed: 0 }];
   return dom;
 }

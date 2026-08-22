@@ -21,7 +21,7 @@ test('dist/_worker.js size > 100KB, no source-relative imports, bundle markers p
   for (const bad of ['from "./server/', 'from "./src/', "from './server/", "from './src/"]) {
     assert.ok(!src.includes(bad), `must not contain ${bad}`);
   }
-  assert.ok(src.includes('injectManifest') || src.includes('worker_default'), 'bundle markers missing');
+  assert.ok(src.includes('worker_default'), 'bundle markers missing'); // S0-22: injectManifest/versionedBase removed; worker_default is the sole esbuild default-export marker
 });
 
 test('esbuild write:false compiles _worker.js to a complete output file', async () => {
@@ -39,7 +39,7 @@ test('esbuild write:false compiles _worker.js to a complete output file', async 
   const out = result.outputFiles[0];
   assert.ok(out, 'esbuild output missing worker bundle');
   assert.ok(out.contents.byteLength > 100000, `esbuild output too small: ${out.contents.byteLength}`);
-  assert.ok(out.text.includes('injectManifest') || out.text.includes('worker_default'));
+  assert.ok(out.text.includes('worker_default'));
 });
 
 test('dist/_worker.js is importable and default export is an object/function', async () => {
