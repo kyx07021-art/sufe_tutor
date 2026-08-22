@@ -4,8 +4,8 @@
  * -----------------------------------------------------------------
  * - One B1-style card per conversation: round avatar + name (top) / last message
  *   (bottom, max 70% width ellipsis) + right-hand time (ended shows the fixed CLOSED_LABEL).
- * - Card click clears unread (M4-05 unreadOpenFromCard) then emits 'open' -> ChatPage
- *   activates the conversation + mobile pane switch (P22).
+ * - Card click emits 'open' -> ChatPage -> openConversation, which marks the
+ *   conversation read (M4-05 openFromCard local dot clear + I-22 server read cursor).
  * - M4-03 negative path: an ended (closed) card stays clickable to view read-only history
  *   (the send-gate lives in ChatConversationPane / state.isChatInputVisible), but it is
  *   visually grayed and never shows an unread red dot.
@@ -14,7 +14,6 @@ import { computed } from 'vue'
 import { chatState } from '../state.js'
 import { CHAT_COPY } from '@/constants/ui.js'
 import { formatListTime } from '../logic/timeFormat.js'
-import { unreadOpenFromCard } from '../logic/unread.js'
 import UiIcon from '@/components/ui/UiIcon.vue'
 
 const emit = defineEmits(['open'])
@@ -32,9 +31,9 @@ function showDot(c) {
   return c.status !== 'closed' && c.unread > 0
 }
 
-/** Card click: clear unread (M4-05 openFromCard) then open the conversation. */
+/** Card click: open the conversation (read-marking single point lives in
+ *  openConversation -> markConversationRead). */
 function onCardClick(c) {
-  unreadOpenFromCard(chatState.conversations, c.conversationId)
   emit('open', c.conversationId)
 }
 </script>

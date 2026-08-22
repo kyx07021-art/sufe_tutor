@@ -68,19 +68,10 @@ const source = readFileSync(COMPONENT, 'utf8')
 
 /* ============ 3. Source-level wiring locks (DOM behavior needs Playwright) ============ */
 {
-  // The pane imports the unread helper from the module single source.
-  assert.match(
-    source,
-    /import\s*\{[^}]*unreadOpenFromCard[^}]*\}\s*from\s*'\.\.\/logic\/unread\.js'/,
-    'ChatListPane imports unreadOpenFromCard from logic/unread.js',
-  )
-  // The card click goes through onCardClick (clears unread then emits open).
+  // The pane's click responsibility is limited to emitting 'open'; the unread-dot
+  // clear + I-22 read-cursor POST are centralized in the store single point
+  // (openConversation -> markConversationRead), locked by test/chat-read.mjs.
   assert.match(source, /@click="onCardClick\(c\)"/, 'card click wired to onCardClick')
-  assert.match(
-    source,
-    /unreadOpenFromCard\(\s*chatState\.conversations,\s*c\.conversationId\s*\)/,
-    'onCardClick clears unread from chatState.conversations',
-  )
   assert.match(source, /emit\('open',\s*c\.conversationId\)/, 'onCardClick emits open')
   // The red dot is gated by showDot(c).
   assert.match(

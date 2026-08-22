@@ -18,6 +18,10 @@
  *      lives in m-chat.js), zero inline event/style attrs, zero v-html, zero
  *      <style> injection.
  *  14. Zero console errors / pageerrors / CSP violations.
+ *  15. M4-14 honest cap: picking an attachment never POSTs /api/uploads (S2), so
+ *      no orphan upload is staged while the attach-and-send UI is capped.
+ *      G2 mutation guard: reverting onAttach to the real uploader makes the
+ *      upload counter assertion go red.
  *
  * Run: node test/smoke-chat-shell.mjs   (self-starts a Vite dev server; or set
  *      BASE=http://host:port to reuse a running server)
@@ -192,6 +196,8 @@ function json(route, payload, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(payload) })
 }
 
+const readPosts = []
+
 try {
   const browser = await chromium.launch()
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
@@ -204,12 +210,19 @@ try {
     if (/Content Security Policy/i.test(entry.text)) csp.push(entry.text)
   })
 
-  /* ---- mock the standard chat interface caps (I-17/18/19/15) ---- */
+  /* ---- mock the standard chat interface caps (I-17/18/19/15) ----
+     S2 /api/uploads is counted, not fulfilled: the honest-cap assertion below
+     proves picking an attachment NEVER reaches the upload endpoint. ---- */
+  let uploadPosts = 0
   await page.route('**/api/**', async (route) => {
     const req = route.request()
     const url = new URL(req.url())
     const method = req.method()
     const path = url.pathname
+    if (method === 'POST' && path === '/api/uploads') {
+      uploadPosts += 1
+      return json(route, { id: 9000 })
+    }
     if (method === 'GET' && path === '/api/conversations') {
       return json(route, { conversations: FIXTURE_CONVERSATIONS })
     }
@@ -234,6 +247,12 @@ try {
         clientKey: item.clientKey,
       }))
       return json(route, { messages: echoes })
+    }
+    // I-22 mark-read endpoint: opening a conversation POSTs here; the server read
+    // cursor advances and the unread count decrements (PA-1h2-M5).
+    if (method === 'POST' && /^\/api\/conversations\/\d+\/read$/.test(path)) {
+      readPosts.push(path)
+      return json(route, { ok: true })
     }
     if (method === 'GET' && path === '/api/my-relations') {
       return json(route, {
@@ -288,6 +307,15 @@ try {
   ok((await page.locator('.chat-bubble').count()) === 2, 'M4-07: conv1 renders 2 text bubbles')
   ok((await page.locator('.chat-image').count()) === 1, 'M4-07: conv1 renders 1 image bubble')
 
+  /* -- 4b. M4-05 + I-22 read-marking: opening a conversation fires POST /read + dot clears -- */
+  ok((await page.locator('.chat-card').nth(0).locator('.chat-card__dot').count()) === 1, 'I-22: conv1 shows an unread dot before opening')
+  const readBefore = readPosts.length
+  await page.locator('.chat-card').nth(0).click()
+  await page.waitForTimeout(250)
+  ok(readPosts.length === readBefore + 1, 'I-22: opening conv1 fires the read endpoint')
+  ok(readPosts[readPosts.length - 1] === '/api/conversations/1/read', 'I-22: read endpoint path is POST /api/conversations/1/read')
+  ok((await page.locator('.chat-card').nth(0).locator('.chat-card__dot').count()) === 0, 'I-22: conv1 unread dot cleared after opening')
+
   /* -- 5. M4-08 bubble <=70% max-width geometry (G5) -- */
   const bgeo = await page.evaluate(() => {
     const bubble = document.querySelector('.chat-bubble__bubble')
@@ -326,6 +354,22 @@ try {
   ok((await page.locator('.chat-input__sheet.is-open').count()) === 1, 'M4-20: attachment sheet opens')
   ok((await page.locator('.chat-input__toggle.is-open').count()) === 1, 'M4-20: plus toggle rotates (is-open)')
   ok((await page.locator('.chat-input__attach').count()) === 2, 'M4-21: attach buttons (image/file) wired')
+
+  /* -- 8b. M4-14 honest cap: picking an attachment never uploads (no orphan) --
+     G2 mutation guard: if onAttach were reverted to wire the real S2 uploader,
+     the POST /api/uploads mock would be hit (uploadPosts -> 1) and this
+     counter===0 assertion would go red. */
+  await page.locator('.chat-input__toggle').click()
+  await page.waitForTimeout(250)
+  await page.setInputFiles('#chat-input-img', {
+    name: 'cap.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64'),
+  })
+  await page.waitForTimeout(300)
+  ok(uploadPosts === 0, 'M4-14 cap: picking an image never POSTs /api/uploads (orphan prevention)')
+  const capToast = await page.locator('.ui-toast').allTextContents()
+  ok(capToast.some((t) => t.includes('附件发送功能待接入')), 'M4-14 cap: ATTACH_CAP toast shown')
   await page.locator('.chat-input__toggle').click()
   await page.waitForTimeout(250)
 
@@ -386,6 +430,9 @@ try {
     }
     if (url.pathname === '/api/conversations/1/messages' && req.method() === 'GET') {
       return json(route, { messages: FIXTURE_CONV1 })
+    }
+    if (url.pathname === '/api/conversations/1/read' && req.method() === 'POST') {
+      return json(route, { ok: true })
     }
     return route.continue()
   })

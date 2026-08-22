@@ -9,6 +9,7 @@ import { sendMessages, createClientKey } from './logic/send.js'
 import { pollOnce, PREVIEW_KIND, createPoller } from './logic/polling.js'
 import { endSession, createEndSessionStore } from './logic/endSession.js'
 import { applyTempSent, applyFormal, initTemp } from './logic/tempConversation.js'
+import { unreadOpenFromCard } from './logic/unread.js'
 
 /**
  * state.js - C2 chat module store + input-visibility single point + assembly actions.
@@ -74,7 +75,30 @@ export const activeConversation = computed(
 export function openConversation(id) {
   chatState.activeConversationId = id
   chatState.mobilePane = 'chat'
+  markConversationRead(id)
   loadMessages(id)
+}
+
+/**
+ * Mark a conversation read (I-22): clear the local unread dot (M4-05 openFromCard)
+ * and persist the read cursor server-side via POST /api/conversations/:id/read.
+ * Fired on every openConversation — opening a conversation IS the read trigger
+ * (interfaces.md I-22: "read cursor advances to the latest"; the server unread
+ * count decrements). The server call is fire-and-forget and non-fatal: a failure
+ * leaves the local dot cleared and the next open retries the idempotent POST; the
+ * failure is logged (E1), never swallowed silently.
+ * @param {number} convId  conversation id
+ * @param {Function} [apiFn]  network fn following the core api() signature
+ *   (injectable for Node tests; defaults to the module single-point api)
+ * @returns {number|null}  the resulting unread value (0), or null when the row is missing
+ */
+export function markConversationRead(convId, apiFn = api) {
+  const next = unreadOpenFromCard(chatState.conversations, convId)
+  if (next == null) return null
+  apiFn(`/conversations/${convId}/read`, { method: 'POST', auth: true }).catch((err) => {
+    console.warn(`markConversationRead failed (conv ${convId}): ${err && err.message}`)
+  })
+  return next
 }
 
 /** Mobile back to the list pane. */

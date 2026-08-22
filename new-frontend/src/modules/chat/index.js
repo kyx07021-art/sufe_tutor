@@ -23,6 +23,7 @@ export {
   chatState,
   activeConversation,
   openConversation,
+  markConversationRead,
   backToList,
   isChatInputVisible,
   setCurrentUser,
