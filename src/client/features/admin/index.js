@@ -16,11 +16,6 @@ const ACTION_MAP = {
   // U-3f: posts management — full-text view + remove (capToken via needReAuth confirm)
   'admin.openPostView': el => actions.openPostViewModal(Number(el.dataset.id)),
   'admin.deletePost': el => actions.adminDeletePost(Number(el.dataset.id)),
-  'admin.submitAwardReject': el => actions.doAwardAction(Number(el.dataset.id), 'reject'),
-  // U-3d: award review — view proof, approve (confirm), reject (reason modal)
-  'admin.viewAwardProof': el => actions.viewAwardProof(Number(el.dataset.id)),
-  'admin.approveAward': el => actions.approveAward(Number(el.dataset.id)),
-  'admin.rejectAwardModal': el => actions.rejectAwardModal(Number(el.dataset.id)),
   // U-3a: user management rows — ban/unban (capToken re-auth), view profile, verify/unverify
   'admin.banUser': el => actions.confirmBanUser(Number(el.dataset.id), el.dataset.banned !== '0', el.dataset.role || ROLES.STUDENT),
   'admin.viewProfile': el => actions.openProfilePanel(Number(el.dataset.id)),
@@ -74,7 +69,6 @@ function onLoad() {
   registerPage({ id: 'admin-teachers', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_TEACHERS, desc: TEXT.PAGE_ADMIN_TEACHERS_DESC, auth: true, enter: () => actions.loadAdminTeachers() });
   registerPage({ id: 'admin-demands', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_DEMANDS, desc: TEXT.PAGE_ADMIN_DEMANDS_DESC, auth: true, enter: () => actions.loadAdminDemands() });
   registerPage({ id: 'admin-reviews', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_REVIEWS, desc: TEXT.PAGE_ADMIN_REVIEWS_DESC, auth: true, enter: () => actions.loadAdminReviews() });
-  registerPage({ id: 'admin-awards', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_AWARDS, desc: TEXT.PAGE_ADMIN_AWARDS_DESC, auth: true, enter: () => actions.loadAdminAwards() });
   registerPage({ id: 'admin-verifications', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_VERIFICATIONS, desc: TEXT.PAGE_ADMIN_VERIFICATIONS_DESC, auth: true, enter: () => actions.loadAdminVerifications() });
   registerPage({ id: 'admin-posts', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_POSTS, desc: TEXT.PAGE_ADMIN_POSTS_DESC, auth: true, enter: () => actions.loadAdminPosts() });
   registerPage({ id: 'admin-contracts', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_CONTRACTS, desc: TEXT.PAGE_ADMIN_CONTRACTS_DESC, auth: true, enter: () => actions.loadAdminContracts() });
@@ -90,12 +84,11 @@ function onLoad() {
     else if (el.dataset.inputAction === 'admin.searchTeachers') actions.adminUsersSearchDebounced(ROLES.TEACHER, el.value);
   }
   document.addEventListener('input', onInput);
-  // U-3c: admin reviews status filter; U-3d: admin awards status filter; U-3e: verif status filter
+  // U-3c: admin reviews status filter; U-3e: verif status filter
   function onChange(e) {
     const el = e.target;
     if (!el || !el.dataset) return;
     if (el.dataset.change === 'admin.filterReviews') actions.loadAdminReviews(el.value);
-    else if (el.dataset.change === 'admin.filterAwards') actions.loadAdminAwards(el.value);
     else if (el.dataset.change === 'admin.filterVerif') actions.loadAdminVerifications(el.value);
   }
   document.addEventListener('change', onChange);

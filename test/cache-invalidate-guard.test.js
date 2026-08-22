@@ -15,8 +15,7 @@ import {
 import { CONFIG } from '../src/shared/config.js';
 import { state } from '../src/client/core/state.js';
 import {
-  loadAdminPosts, resolveAdminFeedback, loadAdminContracts,
-  performAwardAction, performVerifAction,
+  loadAdminPosts, resolveAdminFeedback, loadAdminContracts, performVerifAction,
 } from '../src/client/features/admin/actions.js';
 import { setPrivacyField } from '../src/client/features/settings/actions.js';
 
@@ -74,8 +73,6 @@ test('Q-3b-F4：setPrivacyField 写后 invalidate(account)（隐私设置缓存�
   } finally { teardown(); }
 });
 
-// Q-3b 复审（agent 2）：M-2 声称 7 处无守护——实际 5 处纯 api 直调可低成本补守护（approveAward/
-// doAwardAction/verifApprove/verifRevoke + index ACTION_MAP approveReview）。补变异守护如下。
 // 模式：api POST 分流 resolve（触发 invalidate），写后 reload（loadAdminX）的 dhGet 用 pending fetch
 // 保持断言窗口（invalidate 已清、重填未完成）。
 function pendingWriteFetch(actionUrlPart, reloadUrlPart) {
@@ -86,28 +83,6 @@ function pendingWriteFetch(actionUrlPart, reloadUrlPart) {
     return new Promise(() => {}); // reload 重拉 pending：缓存保持 invalidate 后的 null 窗口
   };
 }
-
-test('Q-3b-F3b：performAwardAction(approve) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
-  try {
-    globalThis.document = dom.window.document;
-    _dhResetForTests();
-    _dhSeedForTests({ cache: [{ endpoint: '/api/admin/awards', domain: 'admin', data: { awards: [{ id: 1 }] } }] });
-    globalThis.fetch = pendingWriteFetch('/api/admin/awards/1/action', '/api/admin/awards');
-    await performAwardAction(1, 'approve', { capToken: 'cap' });
-    assert.equal(dhPeek('/api/admin/awards'), null, 'approve 写后 admin 域缓存清');
-  } finally { teardown(); }
-});
-
-test('Q-3b-F3c：performAwardAction(reject) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
-  try {
-    globalThis.document = dom.window.document;
-    _dhResetForTests();
-    _dhSeedForTests({ cache: [{ endpoint: '/api/admin/awards', domain: 'admin', data: { awards: [{ id: 1 }] } }] });
-    globalThis.fetch = pendingWriteFetch('/api/admin/awards/1/action', '/api/admin/awards');
-    await performAwardAction(1, 'reject', { note: 'n', capToken: 'cap' });
-    assert.equal(dhPeek('/api/admin/awards'), null, 'reject 写后 admin 域缓存清');
-  } finally { teardown(); }
-});
 
 test('Q-3b-F3d：performVerifAction(approve) 写后 invalidate(admin)（变异：去掉 invalidate → 红）', async () => {
   try {

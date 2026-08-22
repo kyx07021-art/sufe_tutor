@@ -1,5 +1,5 @@
 /**
- * admin feature actions: stats, users, demands, reviews, content, awards, verifications, posts,
+ * admin feature actions: stats, users, demands, reviews, content, verifications, posts,
  * contracts, feedback, invites, traffic. All admin pages are registered in index.js and wired
  * via data-action delegation (U-3 series); each loader renders its per-page v1-parity card.
  */
@@ -16,7 +16,7 @@ import { renderDemandCard } from '../student/render.js'; // U-3b: shared demand 
 import { contractStatusMeta } from '../contract/display.js'; // U-3g: contract status tag (shared single source)
 import { splitContractBiz, stripContractMarker, renderContractDiff } from '../contract/render.js'; // U-3g: contract diff/full-text modal (W6 reuse)
 import { feedbackKindName, feedbackSubjectName, feedbackKindCls, isFeedbackBug } from '../complaints/display.js'; // U-3h: feedback kind/subject tags + bug edge (shared single source)
-import { STATUS, AWARD_STATUS, VERIFY_TYPES, DEACTIVATED_USER_PREFIX } from '../../../shared/enums.js'; // review/award/verify-type/resolved/deactivated shared literals
+import { STATUS, VERIFY_TYPES, DEACTIVATED_USER_PREFIX } from '../../../shared/enums.js'; // review/verify-type/resolved/deactivated shared literals
 
 function adminStatCards(pairs) {
   return pairs.map(([k, v]) => `<div class="stat-card"><div class="stat-value">${escHtml(String(v ?? 0))}</div><div class="stat-label">${escHtml(k)}</div></div>`).join('');
@@ -416,7 +416,7 @@ export function adminDeletePost(id) {
 }
 // U-3f: actual post-delete write path (adminDeletePost confirm delegates here). Exported for
 // direct write-path testing — U-3f audit F1 (G1/G2): the confirm path is captcha-gated, so the
-// write path is exercised directly, mirroring performAwardAction/performVerifAction.
+// write path is exercised directly, mirroring performVerifAction.
 export async function performPostDelete(id, capToken) {
   try {
     await api(`/api/posts/${id}`, { method: 'DELETE', body: { capToken } });
@@ -570,79 +570,6 @@ export function revokeInvite(code) {
 
 export function copyInviteCode(code) {
   navigator.clipboard?.writeText(code).then(() => showToast(TEXT.SUCCESS_COPIED)).catch(() => showToast(TEXT.ERROR_COPY));
-}
-
-
-// U-3d: award moderation — status filter + v1-parity row (teacher + status tag + admin note +
-// proof view + approve/reject while PENDING). Undefined status reads the current select value so
-// post-write refreshes (approve/reject) keep the active filter instead of resetting to All.
-export async function loadAdminAwards(status) {
-  const el = document.getElementById('admin-awards-list');
-  if (status === undefined) {
-    const sel = document.getElementById('admin-awards-status');
-    status = sel ? sel.value : '';
-  }
-  try {
-    const qs = status ? `?status=${encodeURIComponent(status)}` : '';
-    const data = await dhGet(`/api/admin/awards${qs}`, { domain: 'admin' });
-    if (el) el.innerHTML = (data.awards || []).map(renderAdminAwardRow).join('');
-  } catch (err) { showToast(err.message); }
-}
-
-function awardStatusTag(status) {
-  if (status === AWARD_STATUS.APPROVED) return `<span class="tag tag-ok glass glass--solid">${escHtml(TEXT.AWARD_STATUS_APPROVED)}</span>`;
-  if (status === AWARD_STATUS.REJECTED) return `<span class="tag tag-danger glass glass--solid">${escHtml(TEXT.AWARD_STATUS_REJECTED)}</span>`;
-  return `<span class="tag tag-warn glass glass--solid">${escHtml(TEXT.AWARD_STATUS_PENDING)}</span>`;
-}
-
-export function renderAdminAwardRow(a) {
-  return `<div class="admin-row glass admin-award-row">
-    <div class="admin-row-main">
-      <div class="admin-row-line">
-        <strong>${escHtml(a.title || '')}</strong>
-        ${escHtml(TEXT.ADMIN_AWARD_TEACHER_LABEL)}：${escHtml(a.teacher_username || '—')}
-        ${awardStatusTag(a.status)}
-      </div>
-      ${a.admin_note ? `<div class="admin-award-note">${escHtml(TEXT.AWARD_REJECTED_NOTE_PREFIX)}${escHtml(a.admin_note)}</div>` : ''}
-      <div class="admin-row-meta">${fmtDateTime(a.created_at)}</div>
-    </div>
-    <div class="admin-row-actions">
-      ${a.proof_upload_id ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewAwardProof" data-id="${a.id}">${escHtml(TEXT.ADMIN_AWARD_PROOF_VIEW)}</button>` : ''}
-      ${a.status === AWARD_STATUS.PENDING ? `<button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.approveAward" data-id="${a.id}">${escHtml(TEXT.ADMIN_AWARD_APPROVE)}</button>
-      <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.rejectAwardModal" data-id="${a.id}">${escHtml(TEXT.ADMIN_AWARD_REJECT)}</button>` : ''}
-    </div>
-  </div>`;
-}
-
-// U-3d: fetch the stored proof image and show it in a modal (GET /api/admin/awards/:id/proof).
-export async function viewAwardProof(id) {
-  try {
-    const d = await api(`/api/admin/awards/${id}/proof`, { method: 'GET' });
-    openModal({ title: TEXT.ADMIN_AWARD_PROOF, body: d.dataUrl ? `<img class="award-proof-img" src="${escHtml(d.dataUrl)}" alt="">` : `<p>${escHtml(TEXT.ADMIN_AWARD_NONE)}</p>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
-  } catch (err) { showToast(err.message); }
-}
-export function approveAward(id) {
-  // Server handleAdminAwardAction is a danger op (confirmDangerOtp) — re-auth + captcha,
-  // aligned with the ban/penalty paths.
-  confirm({ title: TEXT.ADMIN_AWARD_APPROVE, message: TEXT.ADMIN_AWARD_APPROVE_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performAwardAction(id, 'approve', { capToken }));
-  }});
-}
-export function rejectAwardModal(id) { openModal({ title: TEXT.ADMIN_AWARD_REJECT, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_AWARD_REJECT_HINT)}</label><textarea id="award-reject-note" class="form-input" placeholder="${escHtml(TEXT.ADMIN_AWARD_REJECT_PLACEHOLDER)}"></textarea></div>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.submitAwardReject" data-id="${id}">${TEXT.BTN_CONFIRM}</button>` }); }
-export function doAwardAction(id, action) {
-  const note = document.getElementById('award-reject-note')?.value || '';
-  if (action === 'reject' && !note.trim()) { showToast(TEXT.ADMIN_AWARD_REJECT_REQUIRED, 'error'); return; }
-  confirm({ title: TEXT.ADMIN_AWARD_REJECT, message: TEXT.ADMIN_AWARD_REJECT_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performAwardAction(id, action, { note, capToken }));
-  }});
-}
-// U-3d: actual award write path (both confirm flows delegate here). Exported for direct
-// write-path testing — Q-3b-F3b/F3c invalidate guard drives it, bypassing the confirm UI.
-export async function performAwardAction(id, action, { note = '', capToken } = {}) {
-  try {
-    await api(`/api/admin/awards/${id}/action`, { method: 'POST', body: { action, note, capToken } });
-    closeModal(); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminAwards(); // Q-3b-F3: invalidate after write
-  } catch (err) { showToast(err.message); }
 }
 
 // U-3e: verification review queue — v1-parity card (user + verify_type tag + status tag +

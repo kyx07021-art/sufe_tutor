@@ -9,7 +9,7 @@
  *   #filter-subject     -> REMOVED (v2 teacher filter panel is empty; teacher-parity batch pending)
  *   .profile-panel-close -> closeModal (v2 profile opens as a modal)
  *   edit-profile module -> REMOVED (v2 has no edit-profile page; chsi steps removed with it)
- *   admin awards/content -> REMOVED (v2 admin-stats is the only admin page; JSON-dump stub pending admin parity)
+ *   admin content -> REMOVED (v2 admin-stats is the only admin page; JSON-dump stub pending admin parity)
  * Comment/selector sources are registered pages + renderers, never arbitrary input.
  */
 import { TEXT } from '../../constants/text.js';

@@ -26,7 +26,6 @@ const PAGES = [
   ['admin-teachers', 'admin-teachers-list'],
   ['admin-demands', 'admin-demands-list'],
   ['admin-reviews', 'admin-reviews-list'],
-  ['admin-awards', 'admin-awards-list'],
   ['admin-verifications', 'admin-verifications-list'],
   ['admin-posts', 'admin-posts-list'],
   ['admin-contracts', 'admin-contracts-list'],

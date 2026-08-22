@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback, doSubmitContentPenalty, performContentPenalty, contentTypeName, loadAdminTraffic } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback, doSubmitContentPenalty, performContentPenalty, contentTypeName, loadAdminTraffic } from '../src/client/features/admin/actions.js';
 import adminFeature from '../src/client/features/admin/index.js'; // U-3j L3: seg-tab-change routing
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
@@ -458,123 +458,6 @@ test('U-3b F1：loadAdminDemands 在途守卫（并发加载只拉一次，双�
 });
 
 // ─────────────────────────────────────────────────────────────
-// Z-3-F1/U-3d：奖项审核页——renderAdminAwardRow v1-parity（title+教师+状态 tag+驳回理由+凭证）、
-// 状态筛选、approve/reject 走 needReAuth 二次认证（服务端 confirmDangerOtp）。
-// G2：删 PENDING 按钮显隐/删 status tag/删凭证按钮必红。
-// ─────────────────────────────────────────────────────────────
-
-test('U-3d renderAdminAwardRow pending：标题 + 教师 + 状态 tag + 凭证 + approve/reject 委托', () => {
-  const html = renderAdminAwardRow({ id: 66, title: '一等奖学金', teacher_username: '教师甲', status: 'pending', admin_note: '', created_at: '2026-08-01 12:00:00', proof_upload_id: 8 });
-  assert.ok(html.includes('一等奖学金'), '奖项标题');
-  assert.ok(html.includes('教师：教师甲'), '教师标签');
-  assert.ok(html.includes('待审核'), 'pending 状态 tag');
-  assert.ok(html.includes('data-action="admin.viewAwardProof" data-id="66"'), '凭证查看按钮委托');
-  assert.ok(html.includes('data-action="admin.approveAward" data-id="66"'), '通过按钮委托');
-  assert.ok(html.includes('data-action="admin.rejectAwardModal" data-id="66"'), '驳回按钮委托');
-  assert.ok(!/onclick=/.test(html), '零内联事件');
-});
-
-test('U-3d renderAdminAwardRow 非 pending：无审核按钮 + 状态 tag + 驳回理由', () => {
-  const approved = renderAdminAwardRow({ id: 67, title: '二等奖', teacher_username: '教师乙', status: 'approved', admin_note: '', created_at: '2026-08-01 12:00:00', proof_upload_id: null });
-  assert.ok(approved.includes('已通过'), 'approved tag');
-  assert.ok(!approved.includes('data-action="admin.approveAward"'), 'approved 无通过按钮');
-  assert.ok(!approved.includes('data-action="admin.rejectAwardModal"'), 'approved 无驳回按钮');
-  assert.ok(!approved.includes('data-action="admin.viewAwardProof"'), '无凭证按钮（无 proof_upload_id）');
-  const rejected = renderAdminAwardRow({ id: 68, title: '三等奖', teacher_username: '教师丙', status: 'rejected', admin_note: '奖状模糊', created_at: '2026-08-01 12:00:00', proof_upload_id: null });
-  assert.ok(rejected.includes('已驳回'), 'rejected tag');
-  assert.ok(rejected.includes('驳回理由：奖状模糊'), '驳回理由渲染');
-  assert.ok(!rejected.includes('data-action="admin.approveAward"'), 'rejected 无审核按钮');
-});
-
-test('U-3d loadAdminAwards：带 status 参数请求 + 渲染（G2 删 status 下推必红）', async () => {
-  const dom = setup();
-  const list = document.createElement('div');
-  list.id = 'admin-awards-list';
-  document.body.appendChild(list);
-  globalThis.fetch = async (url) => {
-    assert.ok(String(url).includes('/api/admin/awards?status=pending'), 'status 参数下推');
-    return { ok: true, status: 200, json: async () => ({ awards: [{ id: 70, title: '国家级', teacher_username: '教师甲', status: 'pending', admin_note: '', created_at: '2026-08-01 12:00:00', proof_upload_id: null }] }) };
-  };
-  await loadAdminAwards('pending');
-  assert.ok(list.innerHTML.includes('国家级'), '奖项行渲染');
-  teardown();
-});
-
-test('U-3d loadAdminAwards 无参数：读 #admin-awards-status 当前值保持筛选（G2 删 select 读取必红）', async () => {
-  const dom = setup();
-  _dhResetForTests(); // datahub cache is module-level shared — clear stale /api/admin/awards entries so fetch is actually issued
-  const list = document.createElement('div');
-  list.id = 'admin-awards-list';
-  document.body.appendChild(list);
-  const sel = document.createElement('select');
-  sel.id = 'admin-awards-status';
-  const opt = document.createElement('option'); opt.value = 'rejected'; opt.textContent = '已驳回';
-  sel.appendChild(opt); // G3: select value only applies when an option matches — empty select ignores .value
-  sel.value = 'rejected';
-  document.body.appendChild(sel);
-  let seenUrl = '';
-  // U-3d 审计 F1：断言移出 mock 内部——原先写在 mock 里被业务 catch 吞掉，删 select-read 不红（G2）
-  globalThis.fetch = async (url) => { seenUrl = String(url); return { ok: true, status: 200, json: async () => ({ awards: [] }) }; };
-  await loadAdminAwards();
-  assert.ok(seenUrl.includes('/api/admin/awards?status=rejected'), '从 select 读当前筛选值（删 select-read 必红）');
-  teardown();
-});
-
-test('U-3d viewAwardProof：GET /api/admin/awards/:id/proof → 图片 modal（凭证数据通道）', async () => {
-  const dom = setup();
-  globalThis.fetch = async (url) => {
-    assert.ok(String(url).includes('/api/admin/awards/66/proof'), '凭证接口');
-    return { ok: true, status: 200, json: async () => ({ dataUrl: 'data:image/png;base64,AAA' }) };
-  };
-  await viewAwardProof(66);
-  const modal = dom.window.document.querySelector('.modal');
-  assert.ok(modal, '凭证弹窗出现');
-  const img = modal.querySelector('.award-proof-img');
-  assert.ok(img && img.getAttribute('src').includes('data:image/png;base64,AAA'), '图片 dataUrl 渲染');
-  teardown();
-});
-
-test('U-3d approveAward：confirm needReAuth 弹窗（含密码输入），未确认零 POST（锁 capToken 流程）', async () => {
-  const dom = setup();
-  let posted = false;
-  globalThis.fetch = async (url, opts) => {
-    if (String(url).includes('/api/admin/awards/66/action') && opts.method === 'POST') { posted = true; return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
-    return { ok: true, status: 200, json: async () => ({}) };
-  };
-  approveAward(66);
-  const modal = dom.window.document.querySelector('.modal');
-  assert.ok(modal, 'confirm 弹窗出现');
-  assert.ok(modal.textContent.includes('确定通过该奖项审核吗'), '通过确认文案');
-  assert.ok(modal.querySelector('#reauth-password'), 'needReAuth 密码输入在位（服务端 confirmDangerOtp）');
-  assert.equal(posted, false, '未确认前零 POST');
-  await new Promise(r => setTimeout(r, 80)); // let confirm's REAUTH_FOCUS_MS(50) timer settle before teardown clears document
-  teardown();
-});
-
-test('U-3d doAwardAction reject 空理由：toast 拦截零请求（服务端 reject 必须带 note）', async () => {
-  const dom = setup();
-  let apiCalls = 0;
-  globalThis.fetch = async () => { apiCalls++; return { ok: true, status: 200, json: async () => ({}) }; };
-  doAwardAction(66, 'reject'); // no #award-reject-note element -> note = ''
-  await new Promise(r => setTimeout(r, 20));
-  assert.equal(apiCalls, 0, '空理由零 POST');
-  assert.ok(document.getElementById('toast-container')?.textContent.includes('请填写驳回理由'), '必填提示 toast');
-  teardown();
-});
-
-test('U-3d rejectAwardModal：驳回弹窗含理由输入 + 必填 hint + 确认按钮', () => {
-  const dom = setup();
-  rejectAwardModal(67);
-  const modal = dom.window.document.querySelector('.modal');
-  assert.ok(modal, '驳回弹窗出现');
-  assert.ok(modal.querySelector('#award-reject-note'), '理由 textarea');
-  assert.ok(modal.textContent.includes('驳回理由（必填，将通知教师）'), '必填 hint');
-  assert.ok(modal.querySelector('[data-action="admin.submitAwardReject"][data-id="67"]'), '确认按钮带 id');
-  assert.ok(!/onclick=/.test(modal.innerHTML), '零内联事件');
-  teardown();
-});
-
-// ─────────────────────────────────────────────────────────────
 // Z-3-F1/U-3e：学信网核验队列——v1-parity 卡片（四态 tag + 验证码 + admission 预览 +
 // 结构化 approve 表单 / reject / revoke），危险操作走 needReAuth 二次认证。
 // G2：删 PENDING 表单/删 status tag/删 revoke 按钮必红。
@@ -842,7 +725,7 @@ test('U-3f performPostDelete：DELETE body 带 capToken + invalidate(posts) + �
 // ─────────────────────────────────────────────────────────────
 
 test('U-3g renderAdminContractRow：签约双方 + 状态 tag + 起草人/方式/时薪/时间 + 查看/移除委托', () => {
-  const html = renderAdminContractRow({ id: 95, student_name: '学生甲', teacher_name: '教师乙', drafter_name: '学生甲', method: 'online', hourly_rate: 120, status: 'signed', updated_at: '2026-08-01 12:00:00' });
+  const html = renderAdminContractRow({ id: 95, student_name: '学生甲', teacher_name: '教师乙', drafter_name: '学生甲', method: 'online', rate: 120, status: 'signed', updated_at: '2026-08-01 12:00:00' });
   assert.ok(html.includes('学生甲 × 教师乙'), '签约双方');
   assert.ok(html.includes('data-action="admin.viewContract" data-id="95"'), '查看按钮委托');
   assert.ok(html.includes('data-action="admin.removeContract" data-id="95"'), '移除按钮委托');
@@ -856,7 +739,7 @@ test('U-3g loadAdminContracts：渲染行 + 空态', async () => {
   const list = document.createElement('div');
   list.id = 'admin-contracts-list';
   document.body.appendChild(list);
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ contracts: [{ id: 96, student_name: '学生乙', teacher_name: '教师丙', drafter_name: '学生乙', method: 'online', hourly_rate: 100, status: 'signing', updated_at: '2026-08-01 12:00:00' }] }) });
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ contracts: [{ id: 96, student_name: '学生乙', teacher_name: '教师丙', drafter_name: '学生乙', method: 'online', rate: 100, status: 'signing', updated_at: '2026-08-01 12:00:00' }] }) });
   await loadAdminContracts();
   assert.ok(list.innerHTML.includes('学生乙 × 教师丙'), '合同行渲染');
   teardown();
@@ -880,7 +763,7 @@ test('U-3g adminViewContract：从缓存取合同 → 全文弹窗（modal--wide
   const list = document.createElement('div');
   list.id = 'admin-contracts-list';
   document.body.appendChild(list);
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ contracts: [{ id: 97, student_name: '学生丙', teacher_name: '教师丁', drafter_name: '学生丙', method: 'online', hourly_rate: 130, status: 'signed', updated_at: '2026-08-01 12:00:00', contract_md: '# 家教服务合同\n\n条款一', prev_business: '' }] }) });
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ contracts: [{ id: 97, student_name: '学生丙', teacher_name: '教师丁', drafter_name: '学生丙', method: 'online', rate: 130, status: 'signed', updated_at: '2026-08-01 12:00:00', contract_md: '# 家教服务合同\n\n条款一', prev_business: '' }] }) });
   await loadAdminContracts();
   adminViewContract(97);
   const modal = dom.window.document.querySelector('.modal');

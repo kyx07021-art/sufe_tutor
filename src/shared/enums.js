@@ -334,9 +334,10 @@ export const VERIFY_TYPES = { CHSI: 'chsi', ADMISSION: 'admission' };
 export const DEMAND_STATUS = { OPEN: STATUS.OPEN, CLOSED: STATUS.CLOSED }; // S3 §15: demand status converges to open/closed
 export const TEACHING_METHOD = { ONLINE: 'online', OFFLINE: 'offline', BOTH: 'both' }; // S3 §15: three states; ids mirror TEACHING_METHODS array entries
 export const CONTRACT_STATUS = { SIGNING: STATUS.SIGNING, SIGNED: STATUS.SIGNED, REVOKED: STATUS.REVOKED }; // S5 §16: contract_status + revoked marker
+// S2-T2: temp conversation state machine (NULL = formal, see S2 §17)
+export const TEMP_STATUS = { INIT: 'init', SENT: 'sent' };
 // Z-15-F2：CONTENT_TYPES 硬编码数组删除——真源在 admin/repo.js CONTENT_SQL 键派生（增类型只改 CONTENT_SQL 单点），
 // 此处原为双源之一且全仓零消费（server/constants.js re-export 亦无人引 CONTENT_TYPES）
-export const AWARD_STATUS = { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected' };
 // T-6-F1：OTP 请求 scene 业务枚举唯一源（值 = 现中文文案，零迁移；服务端 SCENE_WHITELIST 与前端 actions-otp 双端同源，
 // 消除「文案键当枚举」的 D4 注册表脆耦合——text.js 改文案不再导致 scene 落空回退默认模板）
 export const OTP_SCENES = { LOGIN: '登录验证', REGISTER: '注册验证', BIND: '绑定验证' };

@@ -24,7 +24,7 @@ test('U-4 admin 13 管理页 registerPage 接线 + enter 非空函数', () => {
   const ids = pages.map(p => p.id);
   const EXPECTED = [
     'admin-stats', 'admin-traffic', 'admin-students', 'admin-teachers', 'admin-demands', 'admin-reviews',
-    'admin-awards', 'admin-verifications', 'admin-posts', 'admin-contracts', 'admin-feedback', 'admin-content',
+    'admin-verifications', 'admin-posts', 'admin-contracts', 'admin-feedback', 'admin-content',
     'admin-complaint', 'about',
   ];
   for (const id of EXPECTED) {

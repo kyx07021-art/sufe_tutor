@@ -9,7 +9,7 @@ import { TEXT } from '../constants/text.js';
 import { escHtml } from './dom.js';
 import { CARET_SVG } from './ui.js';
 import { goHome } from './router.js';
-import { ROLES, STATUS, AWARD_STATUS } from '../../shared/enums.js'; // review/award filter literals single source
+import { ROLES, STATUS } from '../../shared/enums.js'; // review/verify filter literals single source
 
 function page(id, title, { actions = '', body = '', flush = false } = {}) {
   return `<section class="client-page hidden${flush ? ' client-page--flush' : ''}" data-page="${id}">
@@ -140,16 +140,6 @@ export function mountShell() {
             </select>
           </div>
           <div class="browse-list" id="admin-reviews-list"></div>` })}
-        ${page('admin-awards', TEXT.PAGE_ADMIN_AWARDS, { body: `
-          <div class="filter-panel glass glass--solid" id="admin-awards-filter">
-            <select class="filter-select" id="admin-awards-status" data-change="admin.filterAwards">
-              <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
-              <option value="${AWARD_STATUS.PENDING}">${escHtml(TEXT.AWARD_STATUS_PENDING)}</option>
-              <option value="${AWARD_STATUS.APPROVED}">${escHtml(TEXT.AWARD_STATUS_APPROVED)}</option>
-              <option value="${AWARD_STATUS.REJECTED}">${escHtml(TEXT.AWARD_STATUS_REJECTED)}</option>
-            </select>
-          </div>
-          <div class="browse-list" id="admin-awards-list"></div>` })}
         ${page('admin-verifications', TEXT.PAGE_ADMIN_VERIFICATIONS, { body: `
           <div class="filter-panel glass glass--solid" id="admin-verif-filter">
             <select class="filter-select" id="admin-verif-status" data-change="admin.filterVerif">

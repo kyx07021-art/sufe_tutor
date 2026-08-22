@@ -13,7 +13,7 @@ import complaintsFeature from '../src/client/features/complaints/index.js'; // a
 
 const ADMIN_MANAGEMENT_PAGES = [
   'admin-stats', 'admin-traffic', 'admin-students', 'admin-teachers', 'admin-demands',
-  'admin-reviews', 'admin-awards', 'admin-verifications', 'admin-posts', 'admin-contracts',
+  'admin-reviews', 'admin-verifications', 'admin-posts', 'admin-contracts',
   'admin-feedback', 'admin-content', 'admin-complaint',
 ];
 
@@ -51,7 +51,7 @@ test('U-2 注册表：admin onLoad 注册 13 个管理页（删任一 registerPa
 test('U-2 进入链路：13 管理页 enter 空数据不炸（空态渲染）', async () => {
   const dom = setup();
   for (const id of ['admin-traffic', 'admin-students', 'admin-teachers', 'admin-demands',
-    'admin-reviews', 'admin-awards', 'admin-verifications', 'admin-posts',
+    'admin-reviews', 'admin-verifications', 'admin-posts',
     'admin-contracts', 'admin-feedback', 'admin-content']) {
     const list = document.createElement('div');
     list.id = id.replace('admin-', 'admin-') + (id.includes('traffic') ? '-box' : '-list');
@@ -63,7 +63,7 @@ test('U-2 进入链路：13 管理页 enter 空数据不炸（空态渲染）', 
   for (const [page, loader] of [
     ['admin-traffic', actions.loadAdminTraffic], ['admin-students', actions.loadAdminStudents],
     ['admin-teachers', actions.loadAdminTeachers], ['admin-demands', actions.loadAdminDemands],
-    ['admin-reviews', actions.loadAdminReviews], ['admin-awards', actions.loadAdminAwards],
+    ['admin-reviews', actions.loadAdminReviews],
     ['admin-verifications', actions.loadAdminVerifications], ['admin-posts', actions.loadAdminPosts],
     ['admin-contracts', actions.loadAdminContracts], ['admin-feedback', actions.loadAdminFeedback],
     ['admin-content', actions.loadAdminContent],
