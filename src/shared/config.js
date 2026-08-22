@@ -249,7 +249,6 @@ export const SECURITY_HEADERS = {
 // 前端教师注册门控休眠开关（shared config 单源；false=门控启用，true=开放注册休眠；v1 根 constants.js 镜像已随 V-4-1h 删除，消费方 server/startup.js + features/auth/actions-register.js 直读）
 export const INVITE_GATE_DORMANT = false;
 export const INVITE_GATE_ENABLED = true;
-export const LEGACY_ADMIN_PASSWORD = "admin_sufe";
 export const INITIAL_RATING = 4.5;
 export const INITIAL_WEIGHT = 10;
 // S4-13: new-model server-side match-degree weights (sum = 100; I-32 contract).

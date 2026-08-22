@@ -5,7 +5,8 @@
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { hashPassword } from '../../core/crypto.js';
-import { INITIAL_RATING, LEGACY_ADMIN_PASSWORD } from '../../../shared/config.js';
+import { LEGACY_ADMIN_PASSWORD } from '../../core/legacy-credentials.js';
+import { INITIAL_RATING } from '../../../shared/config.js';
 import { dbPurgeUserOwnedData } from './repo.js';
 
 export const USERS_DDL = `CREATE TABLE IF NOT EXISTS users (

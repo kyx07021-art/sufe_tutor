@@ -9,7 +9,8 @@
  * 静态资源照常服务（发版脚本在 push 后 curl /api/health 判 ready，不 ready 视为部署失败）。
  */
 import { json } from '../src/server/core/util.js';
-import { INVITE_GATE_ENABLED, INVITE_GATE_DORMANT, LEGACY_ADMIN_PASSWORD } from '../src/shared/config.js';
+import { LEGACY_ADMIN_PASSWORD } from '../src/server/core/legacy-credentials.js';
+import { INVITE_GATE_ENABLED, INVITE_GATE_DORMANT } from '../src/shared/config.js';
 import { isProductionRuntime, getSecret } from './secrets.js'; // Q-2h-L1: getSecret 单源（env trim 统一）
 
 // Q-2a-F4: 密钥必须 base64 合法且解出恰 32 字节（AES-GCM-256）。防两种假绿：
