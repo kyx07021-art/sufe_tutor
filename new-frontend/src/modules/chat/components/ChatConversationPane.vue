@@ -11,9 +11,9 @@
  * - Polling (M4-32) starts on mount and stops on unmount (F3); the end-session gate
  *   (M4-25) grays out the "End Session" entry when the I-15 relation carries a contract.
  * - Backend-pending surfaces carry an honest data-cap: the end-session write obtains
- *   its capToken through the M6 identity-auth flow (openEndSessionVerify) and the
- *   attachment stage pipeline POSTs the staged file to S2 /api/uploads (real
- *   uploader); the attachment SEND entry itself is still capped (ATTACH_CAP toast).
+ *   its capToken through the M6 identity-auth flow (openEndSessionVerify); the
+ *   attachment entry is fully capped (ATTACH_CAP toast) — picking a file never
+ *   POSTs to S2 /api/uploads, so no orphan upload is staged server-side.
  * - Contract 6: zero Chinese, zero inline event/style attributes, zero v-html,
  *   zero <style> injection.
  */
@@ -30,13 +30,11 @@ import {
   startActivePolling,
   stopActivePolling,
 } from '../state.js'
-import { api } from '@/core/api.js'
 import { CHAT_COPY } from '@/constants/ui.js'
 import { showToast } from '@/composables/useToast.js'
 import { useScrollFade } from '@/composables/useScrollFade'
 import { deriveTempHint } from '../logic/tempConversation.js'
 import { canEnd } from '../logic/endSession.js'
-import { stageAttachment, createRealUploader, CancelledError } from '../logic/upload.js'
 import ChatTopBar from './ChatTopBar.vue'
 import ChatMessageList from './ChatMessageList.vue'
 import ChatHintText from './ChatHintText.vue'
@@ -109,18 +107,13 @@ function onSend(text) {
   scrollToBottom()
 }
 
-/* ---- attachments (M4-14/21): real S2 uploader wired; the SEND entry stays capped
-   (ATTACH_CAP toast) until the attach-and-send UI lands. ---- */
-const realUploader = createRealUploader(api)
-function onAttach(file) {
-  const task = stageAttachment(file, { onProgress: () => {}, uploader: realUploader })
-  task.promise
-    .then(() => showToast(CHAT_COPY.ATTACH_CAP))
-    .catch((err) => {
-      // E1: a failed stage is never silent. A user-initiated cancel stays quiet.
-      if (err instanceof CancelledError) return
-      showToast(CHAT_COPY.UPLOAD_FAILED)
-    })
+/* ---- attachments (M4-14/21): the attach-and-send UI is not landed, so the whole
+   entry is an honest cap. Picking a file only toasts ATTACH_CAP — it NEVER stages
+   or uploads to S2 /api/uploads, because a staged upload without a send path would
+   be an orphan (garbage row on the server). The upload pipeline (logic/upload.js)
+   stays module-exported for when the attach-and-send UI lands. ---- */
+function onAttach() {
+  showToast(CHAT_COPY.ATTACH_CAP)
 }
 
 /* ---- scrolling (chat stick-to-bottom convention) ---- */
