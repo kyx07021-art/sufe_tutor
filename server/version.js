@@ -23,14 +23,23 @@ import { dbAll, dbRun, json } from '../src/server/core/util.js';
 
 // Z-15-F4：DOMAINS 仅本模块内部使用（无外部 import），去 export 关键字（死导出清理）
 // T-6-F7 跨栈协议（勿轻改）：DOMAINS 是本模块与前端缓存失效协议的共享键——新增 bump 域必须同步
-// ① 本 DOMAINS + getVersions 默认 0 键 ② 前端 datahub.js DH_PREFETCH / dhGet 的缓存域键
+// ① 本 DOMAINS（getVersions 默认 0 键由它派生，见 DEFAULT_VERSIONS）② 前端缓存域键
 // （否则 bump 后 dhRefreshDomain 找不到缓存条目，静默失效）。前端特有域豁免：
 // 'account'（纯认证/个人游标，服务端不 bump，versionDomainOf 有意豁免）、'misc'（dhGet 默认域）。
 // 协议锁：test/data-version-protocol.test.js。
+// S0-13 skeleton note: the 7 current domains map to the current v2 route surface. New-site
+// route changes (S2 temp conversations, S3 single-subject demands, S5 independent contracts,
+// S6 admin) must add/remove DOMAINS entries here AND sync the client cache keys in the same
+// commit; versionDomainOf path branches are edited by the owning S2-S6 domain primitives.
 const DOMAINS = {
   DEMANDS: 'demands', TEACHERS: 'teachers', POSTS: 'posts',
   CONTRACTS: 'contracts', CHAT: 'chat', NOTIFICATIONS: 'notifications', ADMIN: 'admin',
 };
+
+// S0-13: single-source zero baseline derived from DOMAINS — adding a bump domain cannot
+// silently drift getVersions' default keys (drift = client baseline missing the key → the
+// first 0→1 write never triggers a refresh). T-6-F7 protocol lock covers both directions.
+const DEFAULT_VERSIONS = Object.fromEntries(Object.values(DOMAINS).map(k => [k, 0]));
 
 export async function initVersionTable(db) {
   await dbRun(db, `CREATE TABLE IF NOT EXISTS data_versions (
@@ -52,7 +61,7 @@ export async function bumpVersions(db, domains) {
 
 /** 恒返回全部域、未 bump 的补 0——客户端基线即有键，0→1 首次写入才能正确触发重拉 */
 export async function getVersions(db) {
-  const versions = { demands: 0, teachers: 0, posts: 0, contracts: 0, chat: 0, notifications: 0, admin: 0 };
+  const versions = { ...DEFAULT_VERSIONS };
   const rows = await dbAll(db, 'SELECT domain, counter FROM data_versions');
   for (const r of rows) versions[r.domain] = r.counter;
   return versions;
@@ -64,9 +73,14 @@ export async function handleGetDataVersion(db) {
 }
 
 /**
- * 写路径 → 受影响数据域（可多域）。纯函数，路径与 _worker.js routeApi 一一对应，勿加未注册路由。
+ * 写路径 → 受影响数据域（可多域）。纯函数，路径与 routeApi 一一对应，勿加未注册路由。
  * 管理员跨域连带 bump、意向/推送接受建会话连带 chat、合同落聊天气泡连带 chat、
  * 注销清内容连带多域；附件暂存不 bump（私有不入会话，发消息路径才 bump chat）。
+ * S0-13 skeleton: this is the single mapping surface for write→domain invalidation. New-site
+ * route rewrites land here with their owning S2-S6 primitive (S2 temp conversation close =
+ * chat-only; S3 demands; S5 contracts independent = drop signing branches; S6 awards removed).
+ * Keep branch order: no-bump fast-paths first, then coarse prefixes (admin/*) last as the
+ * fall-through bucket. Never add a path that is not registered in the router (dead mapping).
  */
 export function versionDomainOf(pathname) {
   const p = pathname || '';
