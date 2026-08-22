@@ -94,7 +94,6 @@ export function renderChatFrame(conv) {
                <div class="chat-plus-pop glass glass--float">
                  <label class="chat-pop-item" for="chat-image-input">${TEXT.CHAT_ATTACH_IMAGE}</label>
                  <label class="chat-pop-item" for="chat-file-input">${TEXT.CHAT_ATTACH_FILE}</label>
-                 <button type="button" class="chat-pop-item" data-action="chat.plusSigning">${TEXT.SIGNING_MODAL_TITLE}</button>
                  <button type="button" class="chat-pop-item" data-action="chat.plusDraft">${TEXT.CHAT_BTN_DRAFT_CONTRACT}</button>
                </div>
                <input type="file" id="chat-image-input" accept="image/*" class="sr-file-input" data-action="chat.image">

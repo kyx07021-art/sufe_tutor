@@ -30,7 +30,6 @@ test('contract render: diff uses old t shape', () => {
 test('contract action: signing helpers exist', () => {
   assert.equal(typeof actions.signContract, 'function');
   assert.equal(typeof actions.signReadHint, 'function');
-  assert.equal(typeof actions.openSigningModal, 'function');
   assert.equal(typeof actions.openContractDraftModal, 'function');
 });
 

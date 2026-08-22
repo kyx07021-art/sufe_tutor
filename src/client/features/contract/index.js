@@ -20,7 +20,6 @@ const ACTION_MAP = {
   'contract.closeModal': actions.closeModalAction,
   'contract.mdWrap': el => actions.mdWrap(el.dataset.md),
   'contract.preview': actions.preview,
-  'contract.submitSigning': el => actions.submitSigning(Number(el.dataset.id)),
   'contract.submitDraft': el => actions.submitContractDraft(Number(el.dataset.id)),
   'contract.signScroll': actions.onContractSignScroll,
 };
@@ -40,8 +39,7 @@ function onActionClick(e) {
 function onChange(e) {
   const el = e.target;
   if (!el || !el.dataset || !el.dataset.change) return;
-  if (el.dataset.change === 'contract.prefillSigningTimeSlots') actions.prefillSigningTimeSlots();
-  else if (el.dataset.change === 'contract.toggleOther') actions.contractToggleOther(el.id, el.dataset.other);
+  if (el.dataset.change === 'contract.toggleOther') actions.contractToggleOther(el.id, el.dataset.other);
 }
 
 function onScroll(e) {

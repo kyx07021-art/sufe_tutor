@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { renderChatFrame, renderConvItem } from '../src/client/features/chat/render.js';
-import { openSigningModal, openContractDraftModal, doSubmitSigning, submitContractDraft } from '../src/client/features/contract/actions-draft.js';
+import { openContractDraftModal, submitContractDraft } from '../src/client/features/contract/actions-draft.js';
 import { state } from '../src/client/core/state.js';
 
 function setup() {
@@ -65,23 +65,6 @@ test('renderConvItem：会话列表项不再含「已签约」tag', () => {
   assert.ok(!html.includes('已签约'), '会话项不得含「已签约」文字');
 });
 
-test('openSigningModal：请求 phase=signing 需求，下拉每项含 #编号 · 目标名', async () => {
-  const dom = setup();
-  let requestedUrl;
-  globalThis.fetch = async url => { requestedUrl = String(url); return { ok: true, status: 200, json: async () => ({ demands: [
-    { id: 1, user_id: 39, display_id: 7, target_subjects: ['math'], target_type: 'academic', budget_min: 100, budget_max: 200 },
-    { id: 2, user_id: 39, display_id: 8, target_subjects: ['english'], target_type: 'academic', budget_min: 0, budget_max: 0 },
-  ] }) }; };
-  await openSigningModal(1);
-  assert.ok(requestedUrl.includes('phase=signing'), '发起签约应请求 signing 阶段需求');
-  const sel = dom.window.document.getElementById('signing-demand');
-  assert.ok(sel, 'signing-demand select 在 DOM');
-  const optTexts = [...sel.options].map(o => o.textContent);
-  assert.ok(optTexts.some(t => t.includes('#0007')), '下拉含需求编号 #0007');
-  assert.ok(optTexts.some(t => t.includes('数学')), '下拉含目标名（数学）');
-  delete globalThis.fetch; teardown();
-});
-
 test('openContractDraftModal：S5 独立合同不绑需求——不再请求 bindable-demands，无 contract-demand 下拉', async () => {
   const dom = setup();
   let demanded = false;
@@ -92,29 +75,6 @@ test('openContractDraftModal：S5 独立合同不绑需求——不再请求 bin
   assert.equal(dom.window.document.getElementById('contract-demand'), null, '无 contract-demand 下拉');
   assert.ok(modal.includes('contract-form'), '合同表单在');
   assert.ok(dom.window.document.getElementById('contract-rate'), '合同字段（时薪）在');
-  delete globalThis.fetch; teardown();
-});
-
-test('submitSigning：未选需求被校验拦截，不发起请求；doSubmitSigning 携带 demandId', async () => {
-  const dom = setup();
-  let posted = null;
-  globalThis.fetch = async (url, opts) => {
-    if (opts && opts.method === 'POST') { posted = { url: String(url), body: JSON.parse(opts.body) }; }
-    return { ok: true, status: 200, json: async () => ({}) };
-  };
-  dom.window.document.getElementById('modal-container').innerHTML = `
-    <div class="modal"><div class="modal-body">
-      <select class="form-select" id="signing-demand"><option value="">请选择</option><option value="7">#0007</option></select>
-      <input id="signing-price" value="150"><select id="signing-method"><option value="offline" selected>线下</option></select>
-      <div id="signing-time-slots" class="time-slots"><div class="time-slot"><select class="slot-dow"><option value="1">周一</option></select></div></div>
-    </div></div>`;
-  const { submitSigning } = await import('../src/client/features/contract/actions-draft.js');
-  await submitSigning(1);
-  assert.equal(posted, null, '未选需求不应发请求');
-  await doSubmitSigning(1, { demandId: 7, price: 150, schedule: '每周一 18:00-20:00', method: 'offline' });
-  assert.ok(posted, 'doSubmitSigning 发请求');
-  assert.equal(posted.body.demandId, 7, '请求体携带 demandId');
-  assert.ok(String(posted.body.schedule).includes('周一'), 'schedule 为格式化时间段');
   delete globalThis.fetch; teardown();
 });
 

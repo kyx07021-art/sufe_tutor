@@ -44,11 +44,12 @@ test('文案单源：FUNDS_NOTE（全文）/ FUNDS_NOTE_SHORT（短文）/ 关�
   assert.ok(onboard.includes('TEXT.FUNDS_NOTE_SHORT'));
 });
 
-test('签约提示 + 起草合同浮窗：资金触点明示（.funds-note），服务端合同条款撇清平台资金责任', () => {
-  // V-4-1h：v1 app-contracts.js 已删；资金触点渲染在 v2 features/contract/actions-draft.js（TEXT 单源）
+test('起草合同浮窗：资金触点明示（.funds-note），服务端合同条款撇清平台资金责任', () => {
+  // V-4-1h：v1 app-contracts.js 已删；资金触点渲染在 v2 features/contract/actions-draft.js（TEXT 单源）。
+  // S5 签约弹窗已下线（OBS-1），起草合同浮窗仍保留资金声明。
   const contracts = readFileSync('./src/client/features/contract/actions-draft.js', 'utf8');
   const n = (contracts.match(/<p class="funds-note">\$\{TEXT\.FUNDS_NOTE\}<\/p>/g) || []).length;
-  assert.ok(n >= 2, `签约浮窗 + 起草合同浮窗各一处（实际 ${n}）`);
+  assert.ok(n >= 1, `起草合同浮窗资金触点明示（实际 ${n}）`);
   const server = readFileSync('./src/server/domains/contract/api.js', 'utf8'); // V-1-4c：合同实体已迁入 contract/api.js，contract 实体已迁 contract/api.js
   assert.ok(server.includes('不参与任何费用结算'), '合同条款声明不参与结算');
   assert.ok(server.includes('不代收、不代付'), '合同条款声明不代收代付');

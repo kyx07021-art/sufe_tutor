@@ -121,19 +121,6 @@ export async function chatPlusDraft() {
   }
 }
 
-export async function chatPlusSigning() {
-  closeChatPlus();
-  if (chatClosedNow()) { showToast(TEXT.CHAT_CONV_CLOSED_MSG); return; } // AI-9: same as chatPlusDraft
-  if (chat.convId) {
-    try {
-      const mod = await import('../contract/index.js');
-      mod.actions.openSigningModal(chat.convId);
-    } catch (err) {
-      console.warn('chatPlusSigning', err);
-    }
-  }
-}
-
 export async function respondSigning(signingId, accept) {
   const doRespond = async capToken => {
     try {

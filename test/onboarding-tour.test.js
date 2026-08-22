@@ -575,13 +575,14 @@ test('teacher username step: hole targets the whole card, not the name text', as
   assert.ok(card && !card.closest('.hidden'), 'whole card is the resolved target');
 });
 
-test('chat + feature bar: four pop items focused one by one (pass:false, no passthrough)', () => {
+test('chat + feature bar: three pop items focused one by one (pass:false, no passthrough)', () => {
+  // S5: 发起签约入口已下线（OBS-1）——+ 菜单仅剩 图片/文件/起草合同 三项。
   const steps = TOUR_SCRIPTS.teacherUser();
   const idx = steps.findIndex(s => s.text === TEXT.TOUR_STEP_CHAT_PLUS);
   assert.ok(idx >= 0, 'chat plus step exists');
-  const items = steps.slice(idx + 1, idx + 5);
-  assert.equal(items.length, 4, 'four items follow the plus step');
-  const texts = [TEXT.TOUR_STEP_CHAT_PLUS_IMAGE, TEXT.TOUR_STEP_CHAT_PLUS_FILE, TEXT.TOUR_STEP_CHAT_PLUS_SIGNING, TEXT.TOUR_STEP_CHAT_PLUS_DRAFT];
+  const items = steps.slice(idx + 1, idx + 4);
+  assert.equal(items.length, 3, 'three items follow the plus step');
+  const texts = [TEXT.TOUR_STEP_CHAT_PLUS_IMAGE, TEXT.TOUR_STEP_CHAT_PLUS_FILE, TEXT.TOUR_STEP_CHAT_PLUS_DRAFT];
   items.forEach((s, i) => {
     assert.equal(s.text, texts[i], `item ${i + 1} text`);
     assert.equal(s.pass, false, 'feature bar items never pass through');

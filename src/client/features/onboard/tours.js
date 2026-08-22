@@ -60,8 +60,7 @@ const tourStepChatPlus = () => ({ module: 'my-chats', target: { sel: '.chat-plus
 const tourStepChatPlusItem = (i, text) => ({ module: 'my-chats', target: { sel: `.chat-plus-pop .chat-pop-item:nth-child(${i})` }, text, pass: false });
 const tourStepChatPlusImage = () => tourStepChatPlusItem(1, TEXT.TOUR_STEP_CHAT_PLUS_IMAGE);
 const tourStepChatPlusFile = () => tourStepChatPlusItem(2, TEXT.TOUR_STEP_CHAT_PLUS_FILE);
-const tourStepChatPlusSigning = () => tourStepChatPlusItem(3, TEXT.TOUR_STEP_CHAT_PLUS_SIGNING);
-const tourStepChatPlusDraft = () => tourStepChatPlusItem(4, TEXT.TOUR_STEP_CHAT_PLUS_DRAFT);
+const tourStepChatPlusDraft = () => tourStepChatPlusItem(3, TEXT.TOUR_STEP_CHAT_PLUS_DRAFT);
 
 // ---- my contracts ----
 // Demo contract: same idea — inject one to introduce the contract card while active.
@@ -182,7 +181,6 @@ export const TOUR_SCRIPTS = {
     tourStepChatPlus(),
     tourStepChatPlusImage(),
     tourStepChatPlusFile(),
-    tourStepChatPlusSigning(),
     tourStepChatPlusDraft(),
     tourStepMyContracts(),
     tourStepContractsList(),
@@ -231,7 +229,6 @@ export const TOUR_SCRIPTS = {
     tourStepChatPlus(),
     tourStepChatPlusImage(),
     tourStepChatPlusFile(),
-    tourStepChatPlusSigning(),
     tourStepChatPlusDraft(),
     tourStepMyContracts(),
     tourStepContractsList(),
