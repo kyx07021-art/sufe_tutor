@@ -55,9 +55,11 @@ const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
 // 管理员删除需求 = 危险操作 capToken：直接落 danger_caps 行（真实 confirmDangerOtp SQL 全链路，
 // 会话绑定 + 命中即删）。expires_at 取 2099 规避时区比较伪象（同 content-admin 口径）。
+// DELETE-then-INSERT 幂等：同 (user_id, session_id) 旧 cap 残留即撞主键，先清旧行再插新行。
 async function capOf(raw, token) {
   const sess = raw.prepare('SELECT user_id, session_id FROM auth_sessions WHERE token_hash=?').get(await tokenDigest(token));
   const cap = `cap-${Math.random().toString(36).slice(2)}`;
+  raw.prepare('DELETE FROM danger_caps WHERE user_id=? AND session_id=?').run(sess.user_id, sess.session_id);
   raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
     .run(sess.user_id, sess.session_id, await tokenDigest(cap), '2099-01-01 00:00:00');
   return cap;
