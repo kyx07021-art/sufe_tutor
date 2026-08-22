@@ -2,7 +2,7 @@
 import { useRouter } from 'vue-router'
 import { UiButton } from '@/components/ui/index.js'
 import ChatBubbleSvg from '@/assets/svg/chat-bubble.svg'
-import { getPageByPath, pagesByRole } from './page-registry.js'
+import { pagesByRole } from './page-registry.js'
 import { authStore } from './auth-store.js'
 import { SHELL_COPY } from '@/constants/m-shell.js'
 
@@ -11,11 +11,12 @@ import { SHELL_COPY } from '@/constants/m-shell.js'
  * -------------------------------------------------------
  * - UiButton variant "B" (bare short capsule, no fill/border) with the chat-bubble
  *   SVG as its inner content.
- * - Click resolves the C2 conversations page: first by exact path '/conversations',
- *   falling back to the current role's pages matching name 'conversations' or
- *   meta.c2. Navigates to the resolved page when found; stays inert otherwise.
- * - data-cap="M4.c2" marks the interface cap waiting for the M4 conversation page
- *   registration (no navigation until that page exists).
+ * - Click resolves the C2 conversation page from the current role's registered pages
+ *   by the interface-cap marker meta.c2 (M4's chat page carries it, path /chat).
+ *   Navigates to the resolved page when found; stays inert otherwise.
+ * - data-cap="M4.c2" marks the interface cap; meta.c2 on the chat page is its registry
+ *   side, so the button and the page stay aligned by identifier, not a hardcoded path
+ *   (a dead /conversations lookup left the button inert - PA-1h2-M2).
  * - aria-label sourced from SHELL_COPY.CHAT_LABEL (single source, no raw copy).
  * - Zero inline style/event attributes; comments English (contract 6).
  */
@@ -23,9 +24,7 @@ import { SHELL_COPY } from '@/constants/m-shell.js'
 const router = useRouter()
 
 function openConversations() {
-  const target =
-    getPageByPath('/conversations') ||
-    pagesByRole(authStore.user?.role).find((p) => p.name === 'conversations' || p.meta?.c2)
+  const target = pagesByRole(authStore.user?.role).find((p) => p.meta?.c2)
   if (target) router.push(target.path)
 }
 </script>

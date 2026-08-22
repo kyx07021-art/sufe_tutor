@@ -4,6 +4,8 @@
  * - shell/page-registry.js's import.meta.glob auto-collects every module's pages.js.
  * - Page definition: { path, name, roles?, component, meta? }; roles present = role gate.
  * - C2 chat page is shared by student/teacher (logged-in), path /chat.
+ * - meta.c2 marks this page as the C2 conversation page (interface-cap identifier:
+ *   the shell ChatButton carries data-cap="M4.c2" and resolves its target by meta.c2).
  */
 import { ChatPage } from './index.js'
 import { ROLES } from '@/modules/shell/auth-store.js'
@@ -15,6 +17,6 @@ export const pages = [
     name: 'chat',
     roles: [ROLES.STUDENT, ROLES.TEACHER],
     component: ChatPage,
-    meta: { tab: true, title: CHAT_COPY.PAGE_TITLE },
+    meta: { tab: true, title: CHAT_COPY.PAGE_TITLE, c2: true },
   },
 ]

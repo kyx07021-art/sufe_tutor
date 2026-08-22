@@ -43,6 +43,33 @@ const STUDENT_USER = { id: 1, username: 'qa_student', role: 'student', avatar: '
  * set, and an `other` object { id, role, name, avatar? } — the fail-closed
  * parser rejects rows missing those. `last`/`signing` are optional object|null.
  */
+/**
+ * I-17 conversation-list fixture for the chat page (/chat) cases. Shape mirrors
+ * src/modules/chat/state.js normalizeConversationRow's contract branch
+ * (conversationId / otherName / avatar / lastMessage / lastAt / status / unread /
+ * tempStatus / tempInitiatorId / quotaRemaining / iAmInitiator). The student role
+ * defaults to /chat after restore, so every authed scenario mounts ChatPage and
+ * fires GET /api/conversations - the mock must answer it or the browser logs 4+
+ * "Failed to load resource ... 404" console errors (the PA-1h2-F1 loader gap).
+ */
+const CONVERSATIONS_FIXTURE = {
+  conversations: [
+    {
+      conversationId: 1,
+      otherName: '王老师',
+      avatar: '',
+      lastMessage: '好的，我们周六见',
+      lastAt: null,
+      status: 'active',
+      unread: 0,
+      tempStatus: null,
+      tempInitiatorId: null,
+      quotaRemaining: null,
+      iAmInitiator: false,
+    },
+  ],
+}
+
 const RELATIONS_FIXTURE = {
   relations: [
     {
@@ -252,6 +279,13 @@ function installApiMock(page) {
     if (url.includes('/api/my-relations') && method === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RELATIONS_FIXTURE) })
     }
+    // I-17 conversation-list endpoint: ChatPage.onMounted -> loadConversations fires
+    // GET /api/conversations on every /chat mount (the student role default page).
+    // Without this branch the browser logs "Failed to load resource ... 404" console
+    // errors and the final zero-violation assertion fails (PA-1h2-F1 loader gap).
+    if (method === 'GET' && url.includes('/api/conversations') && !url.includes('/messages')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CONVERSATIONS_FIXTURE) })
+    }
     // The student role-default page is /chat, whose ChatConversationPane mounts
     // during the restore/login flows and fires loadMessages + startActivePolling
     // against /api/conversations/*/messages. An empty window is a valid I-18
@@ -432,6 +466,26 @@ test('browser: shell routing + auth flows (real dist)', async () => {
     )
     assert.equal(relOverflowDesktop, false, 'relations board must not overflow at 1440px')
 
+    /* --- ChatButton: top-bar C2 entry navigates to the chat page (PA-1h2-M2) --- */
+    // From /relations, clicking the top-bar chat-bubble button must enter the M4
+    // chat page. The button resolves the C2 page by its interface-cap marker meta.c2
+    // (data-cap="M4.c2" on the button); a dead hardcoded path lookup or a name
+    // mismatch leaves the route inert, so this is a G2 mutation guard for the
+    // chat/pages.js meta.c2 alignment.
+    const chatBtn = authed.locator('.chat-btn')
+    assert.ok((await chatBtn.count()) >= 1, 'top bar must render the ChatButton')
+    await chatBtn.click()
+    await authed.waitForFunction(() => window.__APP__.router.currentRoute.value.path === '/chat', null, {
+      timeout: 8000,
+    })
+    const chatPath = await authed.evaluate(() => window.__APP__.router.currentRoute.value.path)
+    assert.equal(chatPath, '/chat', 'ChatButton must navigate to the C2 chat page (/chat)')
+    // The /api/conversations mock feeds one I-17 row -> the chat list renders a card
+    // (functional: the conversation page is reachable and populated, not a blank shell).
+    await authed.waitForSelector('.chat-card', { timeout: 8000 })
+    const chatCardCount = await authed.locator('.chat-card').count()
+    assert.ok(chatCardCount >= 1, 'chat list must render the mocked conversation row')
+
     /* --- /relations compact: 375px no horizontal overflow (G5) --- */
     // Fresh context: browser.newPage() shares the default context's storage with
     // `authed`, which is logged in (token + lastPage in sessionStorage). An
@@ -477,7 +531,7 @@ test('browser: shell routing + auth flows (real dist)', async () => {
     await anonCtx.close()
 
     /* --- 401 single-point dead-token fallback (PA-1g-F2: concurrent burst -> one toast) --- */
-    // Three parallel authenticated requests all 401 together - the exact reported
+    // Three parallel authenticated requests all 401 together — the exact reported
     // failure (first-screen burst stacking 3 "login expired" toasts). The dead-token
     // fallback must still clear state exactly once and announce exactly one toast.
     await authed.evaluate(() =>

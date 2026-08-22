@@ -234,9 +234,9 @@ C4 内容 = 设置/关于平台/用户反馈 三项（M5 提供），本批用 `
 aria-label = SHELL_COPY.NOTIFY_LABEL。
 
 ### 4.6 ChatButton.vue（M2-06）
-信息气泡 SVG（`chat-bubble.svg`）按钮 B 短胶囊。点击：`pagesByRole(authStore.user.role)` 中找会话页
-（或 `getPageByPath('/conversations')`），有 → `router.push(目标)`；无 → 不跳（data-cap 标记，等待 M4 注册）。
-aria-label = SHELL_COPY.CHAT_LABEL。
+信息气泡 SVG（`chat-bubble.svg`）按钮 B 短胶囊。点击：`pagesByRole(authStore.user.role)` 中按接口帽标记
+`meta.c2` 找 C2 会话页（M4 chat 页携带，路径 /chat），有 → `router.push(目标)`；无 → 不跳
+（data-cap="M4.c2" 标记，等待 C2 页注册）。aria-label = SHELL_COPY.CHAT_LABEL。
 
 ### 4.7 TabBar.vue（M2-07）
 居中模块选项卡。数据 = `pagesByRole(authStore.user.role).filter(p => p.meta?.tab !== false)`（按 pages 顺序）。
