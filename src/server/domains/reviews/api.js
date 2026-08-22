@@ -70,7 +70,12 @@ export async function handleUpdateReview(db, reviewId, body, req) {
 // 公开列表（仅已通过）+ 「我的评价」（mine：凭令牌取本人任意状态的私有态，供写/改评价判定；
 // 访客无令牌则 mine=null，公开列表照常可见）
 export async function handleGetReviews(db, url, req) {
-  const teacherUserId = parseInt(url.searchParams.get('teacherUserId'));
+  // PA-1f-F3 / C5 strict query parsing: teacherUserId must be /^\d+$/ (parseIdParam precedent).
+  // Dirty input ('5abc', empty string) -> 400 INVALID_PARAMS; no parseInt prefix-truncation hitting the PK.
+  // Absent param -> null (route-smoke path: returns an empty approved list, as before).
+  const rawTeacherId = url.searchParams.get('teacherUserId');
+  if (rawTeacherId !== null && !/^\d+$/.test(rawTeacherId)) return errorMsg('INVALID_PARAMS', 400);
+  const teacherUserId = rawTeacherId === null ? null : Number(rawTeacherId);
   const reviews = await dbGetApprovedReviews(db, teacherUserId);
   const me = (await requireUser(db, req)).user || null; // 访客无令牌：err 分支 user 为 undefined → 公开列表照常
   const mine = me ? await dbGetReviewByPair(db, me.id, teacherUserId) : null;
@@ -84,7 +89,11 @@ export async function handleAdminReviews(db, url, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
   const status = url.searchParams.get('status') || '';
-  const teacherUserId = parseInt(url.searchParams.get('teacherUserId')) || 0;
+  // PA-1f-F3 / C5: optional teacherUserId filter must be /^\d+$/; dirty input -> 400;
+  // absent -> null (no teacher filter in dbGetReviewsAdmin).
+  const rawTeacherId = url.searchParams.get('teacherUserId');
+  if (rawTeacherId !== null && !/^\d+$/.test(rawTeacherId)) return errorMsg('INVALID_PARAMS', 400);
+  const teacherUserId = rawTeacherId === null ? null : Number(rawTeacherId);
   const reviews = await dbGetReviewsAdmin(db, { status, teacherUserId });
   return json({ reviews });
 }
