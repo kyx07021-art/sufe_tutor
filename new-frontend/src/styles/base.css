@@ -17,6 +17,12 @@
 html {
   overflow-x: clip; /* guard against horizontal overflow (clip does not create a scroll container) */
   -webkit-text-size-adjust: 100%;
+  /* Whole-UI scale consumer for the settings "interface scale" control (M5-10):
+     --ui-scale is set on the document root via CSSOM setProperty. The token system
+     is px-based (no rem propagation), so a root font-size factor would be a no-op;
+     zoom reflows the entire UI and is the single point that makes the factor visible.
+     Default (unset) = 1 -> no change. */
+  zoom: var(--ui-scale, 1);
 }
 
 html,
