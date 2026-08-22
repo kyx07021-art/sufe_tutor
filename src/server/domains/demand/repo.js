@@ -113,7 +113,7 @@ export async function dbGetDemandById(db, id) {
  * 出口 = mapDemandRow（无联系方式）+ studentName/studentAvatar。
  */
 export async function dbGetDemands(db, {
-  admin = false, cursor = null, filters = null, sort = '', order = 'desc', forGuest = false, studentUserId = null,
+  admin = false, cursor = null, filters = null, sort = '', order = 'desc', studentUserId = null,
 } = {}) {
   if (admin) {
     // 管理端全量（含已关闭；keyset 游标分页）；新模型无联系方式，不需要 full 变体
@@ -140,7 +140,6 @@ export async function dbGetDemands(db, {
   const cond = [], params = [];
   cond.push("sd.status='open'", 'u.deactivated=0', 'u.banned=0'); // M1：被处罚学生需求不进广场（对齐教师侧口径）
   if (studentUserId) { cond.push('sd.user_id=?'); params.push(studentUserId); }
-  if (forGuest) { cond.push('(SELECT COALESCE(us.allow_guest_demand,1) FROM user_settings us WHERE us.user_id=sd.user_id)=1'); }
   const f = filters || {};
   if (Array.isArray(f.subjects) && f.subjects.length) {
     cond.push(`sd.subject IN (${f.subjects.map(() => '?').join(',')})`);
