@@ -115,9 +115,15 @@ export function rebuildFullMd(ct, conv) {
   const md = String(ct.contract_md || '');
   if (!md.includes(CONTRACT_BUSINESS_END)) return md;
   const biz = md.split(CONTRACT_BUSINESS_END)[0].trim();
+  // drafter_signed_at / other_signed_at are keyed by "who drafted" (not by role), but the block
+  // renders by role (甲方=student / 乙方=teacher) since the drafter may be either party
+  // (handleCreateContract allows a student or teacher to draft). Map via the contract's own tuple
+  // so a teacher-drafted contract does not swap the two timestamps into the wrong party row (PA-1e-F1).
+  const studentSignedAt = ct.drafter_user_id === ct.student_user_id ? ct.drafter_signed_at : ct.other_signed_at;
+  const teacherSignedAt = ct.drafter_user_id === ct.teacher_user_id ? ct.drafter_signed_at : ct.other_signed_at;
   return contractWithLegal(biz) + buildSignatureBlock({
     studentName: conv.student_name, teacherName: conv.teacher_name,
-    studentSignedAt: ct.drafter_signed_at || '', teacherSignedAt: ct.other_signed_at || '',
+    studentSignedAt: studentSignedAt || '', teacherSignedAt: teacherSignedAt || '',
     contractId: ct.id,
   });
 }
@@ -373,6 +379,8 @@ export async function handleSignContract(db, contractId, body, req) {
   // Dangerous operation (binding transaction): fresh capToken required
   if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
+  // The confirmed/signed_at columns are keyed by "who drafted" (drafter vs other), not by role —
+  // rebuildFullMd maps them back to 甲方/乙方 using the contract's own tuple (PA-1e-F1).
   const col = userId === ct.drafter_user_id ? 'drafter_confirmed' : 'other_confirmed';
   const signedCol = userId === ct.drafter_user_id ? 'drafter_signed_at' : 'other_signed_at';
   // Conditional UPDATE + changes winner: the status guard means a contract already cancelled or

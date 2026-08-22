@@ -32,7 +32,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { initLedgerTable } from '../src/server/domains/contract/schema.js';
-import { handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract, handleAdminRemoveContract } from '../src/server/domains/contract/api.js';
+import { handleCreateContract, handleSignContract, handleModifyContract, handleVerifyContract, handleCancelContract, handleRevokeContract, handleAdminRemoveContract, rebuildFullMd } from '../src/server/domains/contract/api.js';
 import { dbGetContractById, dbGetMyContracts } from '../src/server/domains/contract/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 import { LIMITS } from '../src/shared/config.js';
@@ -186,6 +186,43 @@ test('双方签署：status=signed + 正文双方已签署 + 台账两条 + veri
   assert.equal(data.entryList.length, 2, 'verify 回传逐条台账明细');
   assert.equal(data.entryList[0].seq, 1);
   assert.ok(data.entryList[0].createdAt, '条目含记档时间');
+});
+
+// PA-1e-F1 regression: the signature block renders timestamps by role (甲方=student / 乙方=teacher),
+// NOT by drafter/other. The drafter may be either party (handleCreateContract), so a teacher-drafted
+// contract must show the teacher's time in 乙方 and the student's time in 甲方 — the old hardcoded
+// drafter->student mapping swapped the two timestamps and mislabeled a student-first partial sign
+// as the teacher having already signed (evidence mislabel A1/D3).
+test('PA-1e-F1 回归：签名块按角色取列（教师起草时甲乙时间互换修复）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { idOf, t1S, s1S } = await seed(db, raw);
+  // teacher drafts -> drafter_user_id = teacher; the teacher sign time lives in drafter_signed_at
+  assert.equal((await handleCreateContract(db, await draftOf(raw, 't1', t1S.sessionId, idOf, 1), reqOf(t1S.token))).status, 201);
+  // student signs first (partial sign): student time lands in other_signed_at
+  const r1 = await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId, idOf) }, reqOf(s1S.token));
+  assert.equal(r1.status, 200);
+  assert.equal((await r1.json()).signed, false, '学生先签仍未 signed');
+  // the flow writes datetime('now') (second resolution) so both values may be indistinguishable —
+  // force distinct timestamps, then re-render to lock the role mapping itself.
+  const tSignedAt = '2026-08-23 10:00:00', sSignedAt = '2026-08-23 11:00:00';
+  raw.prepare("UPDATE contracts SET other_signed_at=?, contract_status='signing' WHERE id=1").run(sSignedAt);
+  let md = rebuildFullMd(await dbGetContractById(db, 1), { student_name: 's1', teacher_name: 't1' });
+  // isolate the Article-10 signature block (the business section also carries 甲方/乙方 header lines)
+  const sig = md.split('## 第十条 签署记录')[1];
+  let afterStudent = sig.split('**甲方（学生方）**')[1];
+  let afterTeacher = sig.split('**乙方（教师方）**')[1];
+  assert.ok(afterStudent.includes('签署状态：已签署　签署时间：' + sSignedAt), '学生先签：甲方（学生）行展示学生时间（修复前误为待签署）');
+  assert.ok(afterTeacher.includes('签署状态：待签署'), '学生先签：乙方（教师）行仍待签署（修复前被误判为教师已签）');
+  // teacher signs too -> both columns set; the body must show 甲方=学生时间 乙方=教师时间
+  const r2 = await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token));
+  assert.equal(r2.status, 200);
+  assert.equal((await r2.json()).signed, true, '双方签后 signed');
+  raw.prepare('UPDATE contracts SET drafter_signed_at=?, other_signed_at=? WHERE id=1').run(tSignedAt, sSignedAt);
+  md = rebuildFullMd(await dbGetContractById(db, 1), { student_name: 's1', teacher_name: 't1' });
+  afterStudent = md.split('## 第十条 签署记录')[1].split('**甲方（学生方）**')[1];
+  afterTeacher = md.split('## 第十条 签署记录')[1].split('**乙方（教师方）**')[1];
+  assert.ok(afterStudent.includes('签署状态：已签署　签署时间：' + sSignedAt), '甲方（学生）行展示学生时间（修复前展示教师时间）');
+  assert.ok(afterTeacher.includes('签署状态：已签署　签署时间：' + tSignedAt), '乙方（教师）行展示教师时间（修复前展示学生时间）');
 });
 
 test('修改合同（v0.25.87 R6）：已确认方禁改（409）；未确认方修改 → 清空 signed_at/confirmed 重建「待签署」', async () => {
