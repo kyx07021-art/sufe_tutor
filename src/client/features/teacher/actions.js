@@ -10,7 +10,7 @@ import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
-import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor, renderTeacherVerifySection } from './render.js';
+import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor, renderTeacherVerifySection } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { demandIsActive } from '../student/display.js';
 import { positionFloatCard } from '../../core/anim.js';
@@ -120,7 +120,6 @@ export async function openProfilePanel(userId) {
     body: renderProfilePanel(t, ''),
   });
   loadReviews(userId);
-  loadAwards(userId);
 }
 
 async function loadReviews(userId) {
@@ -128,14 +127,6 @@ async function loadReviews(userId) {
     const data = await api(`/api/reviews?teacherUserId=${userId}`, { method: 'GET' });
     const box = document.querySelector('#modal-container .profile-reviews');
     if (box) box.innerHTML = (data.reviews || []).map(renderProfileReviewsCard).join('') || `<div class="empty-state">${TEXT.EMPTY_NO_REVIEWS}</div>`;
-  } catch { /* silent */ }
-}
-
-async function loadAwards(userId) {
-  try {
-    const data = await api(`/api/teacher/awards?userId=${userId}`, { method: 'GET' });
-    const box = document.querySelector('#modal-container .profile-awards');
-    if (box) box.innerHTML = (data.awards || []).map(renderProfileAwardsCard).join('');
   } catch { /* silent */ }
 }
 

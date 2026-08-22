@@ -33,7 +33,7 @@ export function renderTeacherCard(t, i) {
     <div class="tc-head">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">
-        <span class="tc-name tc-username">${escHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${TEXT.VERIFIED_TITLE}">${TEXT.VERIFIED_BADGE}</span>` : ''}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${TEXT.AWARD_SECTION_TITLE}">${TEXT.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
+        <span class="tc-name tc-username">${escHtml(t.username)}${t.verified ? ` <span class="glass glass--solid" title="${TEXT.VERIFIED_TITLE}">${TEXT.VERIFIED_BADGE}</span>` : ''}</span>
         ${t.school || grade ? `<span class="tc-school">${escHtml([t.school, grade].filter(Boolean).join(' · '))}</span>` : ''}
       </div>
       <div class="tc-rating">${starsHtml(t.rating)}<span class="tc-rating-num">${ratingText(t.rating)}</span></div>
@@ -80,7 +80,7 @@ export function renderProfilePanel(p, matched) {
   if (p.signed) {
     html += `<div class="profile-review-entry"><button type="button" class="btn glass glass--pressable profile-review-btn" data-action="teacher.openReview">${TEXT.BTN_WRITE_REVIEW}</button></div>`;
   }
-  html += `<div class="profile-reviews" id="profile-reviews"></div><div class="profile-awards" id="profile-awards"></div>`;
+  html += `<div class="profile-reviews" id="profile-reviews"></div>`;
   return html + '</div>';
 }
 
@@ -94,13 +94,6 @@ export function renderProfileReviewsCard(r) {
     </div>
     ${r.comment ? `<div class="list-card-detail">${escHtml(r.comment)}</div>` : ''}
     <div class="list-card-meta">${fmtDateTime(r.created_at)}</div>
-  </div>`;
-}
-
-export function renderProfileAwardsCard(a) {
-  return `<div class="list-card glass award-card">
-    <div class="list-card-header"><span class="list-card-title">${escHtml(a.title)}</span><span class="tag glass glass--solid">${escHtml(a.date || '')}</span></div>
-    ${a.issuer ? `<div class="list-card-meta">${escHtml(a.issuer)}</div>` : ''}
   </div>`;
 }
 
