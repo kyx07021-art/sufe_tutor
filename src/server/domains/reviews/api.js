@@ -15,6 +15,7 @@ import {
   dbUpdateReview, dbGetReviewById,
   dbGetReviewsAdmin, dbUpdateReviewStatus, dbRecomputeTeacherRating, dbDeleteReview,
 } from '../../../../server/db.js';
+import { confirmDangerOtp } from '../../core/danger-ops.js'; // P12: dangerous operations require capToken (same as ban/content-penalty path)
 import { logEvent } from '../../core/log.js';
 
 export async function handleCreateReview(db, body, req) {
@@ -104,6 +105,8 @@ export async function handleReviewAction(db, reviewId, action, body, req) {
   if (err) return err;
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return errorMsg('REVIEW_NOT_FOUND', 404); // 资源不存在统一 404（原误用默认 400）
+  // 审核 = 危险操作（改状态 + 触发评分重算，管理员令牌复用/泄露时一击改公开评分），须 capToken 二次认证（P12 同封禁/处罚口径）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
 
   const wasApproved = review.status === STATUS.APPROVED; // 改动前的状态（status 在下方才被更新）
   const status = action === 'approve' ? STATUS.APPROVED : STATUS.REJECTED;
@@ -124,6 +127,8 @@ export async function handleAdminDeleteReview(db, reviewId, body, req) {
   if (err) return err;
   const review = await dbGetReviewById(db, reviewId);
   if (!review) return errorMsg('REVIEW_NOT_FOUND', 404);
+  // 删除评价 = 危险操作（不可逆 + 触发评分重算），须 capToken 二次认证（P12 同封禁/处罚口径）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   await dbDeleteReview(db, reviewId);
   if (review.status === STATUS.APPROVED) await dbRecomputeTeacherRating(db, review.teacher_user_id); // 删除已通过评价 → 教师评分重算
   await logEvent(db, { action: 'admin.review.delete', actorUserId: admin.id, actorUsername: admin.username,

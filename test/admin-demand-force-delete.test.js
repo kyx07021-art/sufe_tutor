@@ -53,6 +53,16 @@ function d1Shim(raw) {
 const rawOf = () => { const r = new DatabaseSync(':memory:'); r.exec('PRAGMA foreign_keys = ON'); return r; };
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 
+// 管理员删除需求 = 危险操作 capToken：直接落 danger_caps 行（真实 confirmDangerOtp SQL 全链路，
+// 会话绑定 + 命中即删）。expires_at 取 2099 规避时区比较伪象（同 content-admin 口径）。
+async function capOf(raw, token) {
+  const sess = raw.prepare('SELECT user_id, session_id FROM auth_sessions WHERE token_hash=?').get(await tokenDigest(token));
+  const cap = `cap-${Math.random().toString(36).slice(2)}`;
+  raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
+    .run(sess.user_id, sess.session_id, await tokenDigest(cap), '2099-01-01 00:00:00');
+  return cap;
+}
+
 /** 播种：admin + s1/s2 学生 + t1 教师；d1 = s1 的 open 需求；C1=s1-t1；一条 S5 standalone 合同引用 C1 */
 async function seed(db, raw) {
   await initDb(db, ENV);
@@ -71,8 +81,11 @@ async function seed(db, raw) {
     VALUES (?,?,?,?,'signed')`).run(conv, s1, t1, t1);
   const mkToken = async (name) => {
     const token = `${name}-token`;
-    raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
-      .run(await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00');
+    // session_id 必须非空：capToken 会话绑定（confirmDangerOtp DELETE WHERE session_id=?），
+    // NULL session_id 在 SQL 中永不相等 → cap 恒不命中。
+    const sessionId = `sess-${Math.random().toString(36).slice(2)}`;
+    raw.prepare('INSERT INTO auth_sessions (session_id, token_hash, user_id, label, expires_at) VALUES (?,?,?,?,?)')
+      .run(sessionId, await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00');
     return token;
   };
   return { s1, s2, t1, d1, conv, adminToken: await mkToken('admin_sufe'), s1Token: await mkToken('s1'), s2Token: await mkToken('s2') };
@@ -81,11 +94,22 @@ async function seed(db, raw) {
 test('管理员删除需求 → 200；需求行删除；合同独立保留；会话 demand_id 经 FK SET NULL', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { d1, conv, adminToken } = await seed(db, raw);
-  const r = await handleAdminDeleteDemand(db, d1, {}, reqOf(adminToken));
+  const r = await handleAdminDeleteDemand(db, d1, { capToken: await capOf(raw, adminToken) }, reqOf(adminToken));
   assert.equal(r.status, 200, '管理员可删任何需求（无签约禁删门禁）');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE id=?').get(d1).c, 0, '需求行已删');
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM contracts WHERE conversation_id=?').get(conv).c, 1, '合同独立保留（不随需求删除）');
   assert.equal(raw.prepare('SELECT demand_id FROM conversations WHERE id=?').get(conv).demand_id, null, '会话 demand_id 经 FK ON DELETE SET NULL 置空');
+});
+
+// PA-1f-F1：管理员删除需求是危险操作（P12），无 capToken 必须 403（变异实证：删
+// handleAdminDeleteDemand 的 confirmDangerOtp → 本测试红）。404 先于 capToken 不消费。
+test('PA-1f-F1：admin delete demand 无 capToken → 403 且需求保留', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { d1, adminToken } = await seed(db, raw);
+  const r = await handleAdminDeleteDemand(db, d1, {}, reqOf(adminToken));
+  assert.equal(r.status, 403, '无 capToken 删除被拒');
+  assert.equal((await r.json()).code, 'AUTH_REAUTH_FAILED', '403 稳定错误码 AUTH_REAUTH_FAILED');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM student_demands WHERE id=?').get(d1).c, 1, '需求保留');
 });
 
 test('学生删除：本人需求 → 200；非本人 → 403（归属门禁）', async () => {

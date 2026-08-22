@@ -188,6 +188,8 @@ export async function handleAdminDeleteDemand(db, demandId, body, req) {
   if (err) return err;
   const existing = await dbGetDemandById(db, demandId);
   if (!existing) return errorMsg('DEMAND_NOT_FOUND', 404);
+  // 管理员删除需求 = 危险操作（不可逆），须 capToken 二次认证（P12 同封禁/处罚口径）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   // 管理员可删全部需求（含已关闭）；合同不绑定需求（S5 独立化），删除无需联动清理，
   // 与常规路径 dbDeleteDemand 同口径（S3 单科目模型无悬空引用事故面）。
   const ok = await dbAdminForceDeleteDemand(db, demandId);
@@ -203,6 +205,8 @@ export async function handleAdminDeleteMessage(db, messageId, body, req) {
   if (err) return err;
   const m = await dbGetMessageById(db, messageId);
   if (!m) return errorMsg('MESSAGE_NOT_FOUND', 404);
+  // 管理员删除消息 = 危险操作（不可逆），须 capToken 二次认证（P12 同封禁/处罚口径）
+  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
   await dbDeleteMessage(db, messageId);
   await logEvent(db, { action: 'admin.message.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'message', entityId: messageId,

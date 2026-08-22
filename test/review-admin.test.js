@@ -61,6 +61,16 @@ async function adminToken(db, raw) {
 }
 const req = token => ({ headers: new Headers(token ? { 'X-Auth-Token': token } : {}) });
 
+// 审核危险操作 capToken：直接落 danger_caps 行（真实 confirmDangerOtp SQL 全链路，
+// 会话绑定 + 命中即删）。expires_at 取 2099 规避时区比较伪象（同 content-admin 口径）。
+async function capOf(raw, token) {
+  const sess = raw.prepare('SELECT user_id, session_id FROM auth_sessions WHERE token_hash=?').get(await tokenDigest(token));
+  const cap = `cap-${Math.random().toString(36).slice(2)}`;
+  raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
+    .run(sess.user_id, sess.session_id, await tokenDigest(cap), '2099-01-01 00:00:00');
+  return cap;
+}
+
 test('Q-6-M1：review approve 后教师评分按公式重算 + 幂等（不漂移）', async () => {
   const raw = new DatabaseSync(':memory:');
   raw.exec('PRAGMA foreign_keys = ON');
@@ -68,7 +78,7 @@ test('Q-6-M1：review approve 后教师评分按公式重算 + 幂等（不漂�
   const { teaId, reviewId } = await seed(db, raw);
   const token = await adminToken(db, raw);
 
-  const res = await handleReviewAction(db, reviewId, 'approve', {}, req(token));
+  const res = await handleReviewAction(db, reviewId, 'approve', { capToken: await capOf(raw, token) }, req(token));
   assert.equal(res.status, 200, 'approve 成功');
   const row = raw.prepare('SELECT rating, rating_count, rating_sum FROM teacher_profiles WHERE user_id=?').get(teaId);
   const expected = (INITIAL_RATING * INITIAL_WEIGHT + 5) / (INITIAL_WEIGHT + 1);
@@ -77,7 +87,7 @@ test('Q-6-M1：review approve 后教师评分按公式重算 + 幂等（不漂�
   assert.equal(row.rating_sum, 5, '和 5');
 
   // 幂等：已 approved 再 approve → wasApproved=true 重算同值（stats 不变）
-  const res2 = await handleReviewAction(db, reviewId, 'approve', {}, req(token));
+  const res2 = await handleReviewAction(db, reviewId, 'approve', { capToken: await capOf(raw, token) }, req(token));
   assert.equal(res2.status, 200);
   const row2 = raw.prepare('SELECT rating FROM teacher_profiles WHERE user_id=?').get(teaId);
   assert.ok(Math.abs(row2.rating - expected) < 1e-9, '幂等 approve 不漂移');
@@ -90,9 +100,9 @@ test('Q-6-M1：reject 原已通过评价摘掉评分（重算回落）', async (
   const { teaId, reviewId } = await seed(db, raw);
   const token = await adminToken(db, raw);
 
-  await handleReviewAction(db, reviewId, 'approve', {}, req(token));
+  await handleReviewAction(db, reviewId, 'approve', { capToken: await capOf(raw, token) }, req(token));
   const before = raw.prepare('SELECT rating FROM teacher_profiles WHERE user_id=?').get(teaId).rating;
-  await handleReviewAction(db, reviewId, 'reject', {}, req(token)); // wasApproved → 摘掉评分
+  await handleReviewAction(db, reviewId, 'reject', { capToken: await capOf(raw, token) }, req(token)); // wasApproved → 摘掉评分
   const after = raw.prepare('SELECT rating FROM teacher_profiles WHERE user_id=?').get(teaId).rating;
   assert.ok(after < before, `reject 已通过评价后评分回落 (${after} < ${before})`);
   assert.ok(Math.abs(after - INITIAL_RATING) < 1e-9, '回落到初始分');
@@ -105,10 +115,39 @@ test('Q-6-M1：admin delete 已通过评价重算评分', async () => {
   const { teaId, reviewId } = await seed(db, raw);
   const token = await adminToken(db, raw);
 
-  await handleReviewAction(db, reviewId, 'approve', {}, req(token));
-  const res = await handleAdminDeleteReview(db, reviewId, {}, req(token));
+  await handleReviewAction(db, reviewId, 'approve', { capToken: await capOf(raw, token) }, req(token));
+  const res = await handleAdminDeleteReview(db, reviewId, { capToken: await capOf(raw, token) }, req(token));
   assert.equal(res.status, 200, 'delete 成功');
   const row = raw.prepare('SELECT rating, rating_count FROM teacher_profiles WHERE user_id=?').get(teaId);
   assert.equal(row.rating_count, 0, '计数清零');
   assert.ok(Math.abs(row.rating - INITIAL_RATING) < 1e-9, '回落到初始分');
+});
+
+// PA-1f-F1：评价审核是危险操作（P12），无 capToken 必须 403（变异实证：删 handleReviewAction
+// 的 confirmDangerOtp → 本测试红）。capToken 消费即删，逐次新签发。
+test('PA-1f-F1：review approve 无 capToken → 403 且评价未动', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  const { teaId, reviewId } = await seed(db, raw);
+  const token = await adminToken(db, raw);
+
+  const res = await handleReviewAction(db, reviewId, 'approve', {}, req(token));
+  assert.equal(res.status, 403, '无 capToken 审核被拒');
+  assert.equal((await res.json()).code, 'AUTH_REAUTH_FAILED', '403 稳定错误码 AUTH_REAUTH_FAILED');
+  const row = raw.prepare('SELECT status FROM reviews WHERE id=?').get(reviewId);
+  assert.equal(row.status, 'pending', '评价状态未变');
+  assert.equal(raw.prepare('SELECT rating_count FROM teacher_profiles WHERE user_id=?').get(teaId).rating_count, 0, '未触发评分重算');
+});
+
+test('PA-1f-F1：admin delete review 无 capToken → 403 且评价保留', async () => {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw);
+  const { reviewId } = await seed(db, raw);
+  const token = await adminToken(db, raw);
+
+  const res = await handleAdminDeleteReview(db, reviewId, {}, req(token));
+  assert.equal(res.status, 403, '无 capToken 删除被拒');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM reviews WHERE id=?').get(reviewId).c, 1, '评价保留');
 });
