@@ -90,7 +90,14 @@ test('I-30 public detail: wechat/email/real_name/credential_image never returned
   assert.equal(p.teacher_name, '王老师');
   assert.equal(p.name, '王老师');
   assert.equal(p.experience_years, 5);
-  assert.ok(Array.isArray(p.subjects) && p.subjects.includes('math'));
+  assert.ok(Array.isArray(p.subjects) && p.subjects.some(s => s && s.subject === 'math'));
+  // PA-1d-F5 变异守护：subjects 必须为 I-29 对象数组 {subject,score,full,awards[]}——
+  // mapper 退回字符串 id 数组时 find(s=>s.subject) 取不到条目、断言红。
+  const mathSubject = p.subjects.find(s => s && s.subject === 'math');
+  assert.ok(mathSubject, 'subjects 含 math 对象条目');
+  assert.equal(mathSubject.score, null, '无 gaokao_scores → score 为 null');
+  assert.equal(mathSubject.full, 150, 'math gaokao 满分 150（senior 口径）');
+  assert.deepEqual(mathSubject.awards, [], 'awards 为空占位数组');
 });
 
 test('I-29 list: items never carry wechat/email/real_name/credential_image; match fields null without a demand', async () => {

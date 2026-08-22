@@ -70,6 +70,30 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   }
 }
 
+// I-29 subject rows: { subject, score, full, awards[] } per teacher subject id.
+// `subject` is the academic subject id; `score` is the teacher's recorded gaokao score
+// for that subject (gaokao_scores row) when present, else null; `full` is the gaokao
+// full score for the subject; `awards` stays an empty placeholder (no award data yet).
+// The full score follows the senior-high gaokao convention (chinese/math/english 150,
+// others 100) via region-data subjectMaxFor's senior branch — a university teacher grade
+// would otherwise fall through to the conservative 100 fallback for every subject.
+const GAOKAO_FULL_STAGE_GRADE = 'senior3';
+function teacherSubjectRows(p, gaokaoScores) {
+  const ids = safeJsonArray(p.subjects).filter(x => typeof x === 'string' && x);
+  const gkBySubject = new Map();
+  for (const g of Array.isArray(gaokaoScores) ? gaokaoScores : []) {
+    if (g && typeof g.subject === 'string') gkBySubject.set(g.subject, g);
+  }
+  return ids.map(id => {
+    const gk = gkBySubject.get(id);
+    const score = gk && gk.score != null ? Number(gk.score) : null;
+    const full = gk && gk.full != null
+      ? Number(gk.full)
+      : (SUFE_REGIONS.subjectMaxFor(p.province, id, GAOKAO_FULL_STAGE_GRADE) || 0);
+    return { subject: id, score, full, awards: [] };
+  });
+}
+
 // 教师行映射器：教师列表 / 意向教师列表 / 本人档案共用，返回形状永远一致
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
 // 网安报告 F-06：wechat/email/real_name 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
@@ -88,7 +112,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
     school: p.school || '', real_name: realName || '', credential_image: credentialImage || '',
     verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
     award_count: p.award_count != null ? Number(p.award_count) : 0, // 已审核荣誉奖项数（公开）
-    subjects: safeJsonArray(p.subjects),
+    subjects: teacherSubjectRows(p, safeJsonArray(p.gaokao_scores)),
     gaokao_scores: safeJsonArray(p.gaokao_scores),
     // R2-5 报价区间化：price_min/price_max 保留 null=未填（完整性门槛据此拦截）；price 保留供历史兼容，前端不再用
     price_min: p.price_min != null ? p.price_min : null,
