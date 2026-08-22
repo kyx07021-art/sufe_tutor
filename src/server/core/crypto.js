@@ -41,10 +41,17 @@ const bytesToB64 = bytes => {
 // ============================================================
 // AES-GCM 原语
 // ============================================================
-/** b64 密钥 → AES-GCM CryptoKey；非法密钥返回 null（不抛，调用方按无密钥语义回落） */
+/**
+ * b64 密钥 → AES-GCM CryptoKey；非法密钥返回 null（不抛，调用方按无密钥语义回落）。
+ * S0-06/Q-2a-F4: AES-256 only — a 16/24-byte raw key is rejected here (not just at the startup
+ * release gate) so a valid-base64 short key cannot silently downgrade the cipher to AES-128/192
+ * at the encryption choke itself. deriveKey then yields null and the write paths fail closed.
+ */
 async function aesKeyFromB64(b64) {
   try {
-    return await crypto.subtle.importKey('raw', b64ToBytes(b64), 'AES-GCM', false, ['encrypt', 'decrypt']);
+    const raw = b64ToBytes(b64);
+    if (raw.length !== 32) return null;
+    return await crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
   } catch { return null; }
 }
 
