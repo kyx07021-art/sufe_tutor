@@ -34,7 +34,6 @@ test('chat actions: conversation helpers exist', () => {
   assert.equal(typeof actions.openConversation, 'function');
   assert.equal(typeof actions.sendChatMessage, 'function');
   assert.equal(typeof actions.stopChatPolling, 'function');
-  assert.equal(typeof actions.respondSigning, 'function');
 });
 
 test('chat placeholder is non-empty', () => {

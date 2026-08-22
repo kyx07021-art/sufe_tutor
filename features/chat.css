@@ -282,7 +282,6 @@
 .signing-bubble-row + .signing-bubble-row { margin-top: 1px; } /* 信息行紧凑相邻 */
 .signing-bubble-row span { color: var(--muted); flex-shrink: 0; }
 .signing-bubble-row b { font-weight: 600; text-align: right; word-break: break-all; }
-.signing-bubble-actions { display: flex; gap: 8px; margin-top: 6px; justify-content: center; }
 .signing-bubble-status { margin: 4px 0 0; font-size: .7rem; color: var(--muted); text-align: center; }
 .signing-bubble--done { opacity: .55; } /* 拒绝：气泡整体变灰 */
 

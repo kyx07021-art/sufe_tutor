@@ -19,7 +19,6 @@ const ACTION_MAP = {
   'chat.unstage': el => actions.chatUnstage(Number(el.dataset.id)),
   'chat.openImage': (el, e) => actions.chatOpenImage(Number(el.dataset.mid), e.target.closest('img') || null),
   'chat.plusDraft': actions.chatPlusDraft,
-  'chat.respond': el => actions.respondSigning(Number(el.dataset.id), el.dataset.accept === '1'),
   'chat.openProfile': el => actions.chatOpenProfile(Number(el.dataset.id)),
   'chat.endRelation': el => actions.endRelation(Number(el.dataset.id)), // AI-9: end relation (danger confirm + capToken)
 };

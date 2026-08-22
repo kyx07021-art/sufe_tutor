@@ -1,13 +1,13 @@
 /**
- * chat feature actions: dropzone, plus menu, signing responses, image viewer,
- * navigation. (chatStageRing/renderChatStage live in render.js / actions-send.js —
+ * chat feature actions: dropzone, plus menu, image viewer, navigation.
+ * (chatStageRing/renderChatStage live in render.js / actions-send.js —
  * single definition each; chatInjectSignCaption lives in render.js.)
  */
 import { TEXT } from '../../constants/text.js';
 import { chat, chatClosedNow } from './chat-state.js';
 import { api } from '../../core/api.js';
 import { showToast, openImageViewer, confirm } from '../../core/ui.js';
-import { renderChatPlaceholder, chatInjectSignCaption } from './render.js';
+import { renderChatPlaceholder } from './render.js';
 import { chatStageFiles } from './actions-send.js';
 import { loadConversations, chatTeardown, openConversation, syncClosedConversation } from './actions-list.js';
 import { invalidate } from '../../core/datahub.js';
@@ -119,31 +119,6 @@ export async function chatPlusDraft() {
       console.warn('chatPlusDraft', err);
     }
   }
-}
-
-export async function respondSigning(signingId, accept) {
-  const doRespond = async capToken => {
-    try {
-      await api(`/api/signing-requests/${signingId}/respond`, { method: 'POST', body: accept ? { accept, capToken } : { accept } });
-      document.querySelectorAll(`[data-signing-id="${signingId}"]`).forEach(el => {
-        const actions = el.querySelector('.signing-bubble-actions');
-        if (actions) actions.remove();
-        if (!accept) {
-          el.classList.add('signing-bubble--done');
-          const status = el.querySelector('.signing-bubble-status');
-          if (status) status.textContent = TEXT.SIGNING_REJECTED_TEXT;
-          else { const p = document.createElement('p'); p.className = 'signing-bubble-status'; p.textContent = TEXT.SIGNING_REJECTED_TEXT; el.appendChild(p); }
-        }
-      });
-      if (accept) chatInjectSignCaption(signingId);
-      showToast(accept ? TEXT.SIGNING_MY_CONFIRMED : TEXT.SIGNING_MY_REJECTED);
-    } catch (err) { showToast(err.message); }
-  };
-  if (accept) {
-    confirm({ message: TEXT.CONFIRM_SIGNING_ACCEPT, needReAuth: true, onConfirm: capToken => doRespond(capToken) });
-    return;
-  }
-  doRespond();
 }
 
 export function backToConvList() {

@@ -18,7 +18,8 @@ test('signing_request：我方发起 → mine 侧大气泡 + 「你向对方发�
   const theirs = render({ kind:'signing_request', sender_user_id:2, id:12, created_at:'2026-08-08 12:00:00', body:JSON.stringify({ id:'6', price:200, schedule:'周六下午', method:'online', status:'pending' }) });
   assert.ok(theirs.includes('chat-msg--theirs') && theirs.includes('chat-bubble--theirs'));
   assert.ok(theirs.includes('对方向你发送了签约请求'), '接收方标题');
-  assert.ok(theirs.includes('data-action="chat.respond"') && theirs.includes('data-accept="1"') && theirs.includes('data-accept="0"'));
+  assert.ok(!theirs.includes('data-action="chat.respond"'), '历史签约气泡不再渲染确认/拒绝按钮（S5 端点已删）');
+  assert.ok(theirs.includes('签约流程已下线'), '接收方待处理气泡显示历史留痕提示');
   assert.ok(theirs.includes('signing-bubble-row'), '报价/时间/方式信息行在');
   assert.ok(theirs.includes('150') === false && mine.includes('150'), 'mine 侧报价行在（theirs 是 200）');
   assert.ok(theirs.includes('200'), 'theirs 报价行在');

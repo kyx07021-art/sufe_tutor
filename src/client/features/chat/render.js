@@ -12,7 +12,8 @@
  *   List messages carry no dataURL body; thumb-only images render inline, files and
  *   thumb-less images render a loading skeleton refilled by chatLazyLoadAttachments.
  * - signing_request: title is sender-perspective (mine = CHAT_SIGNING_MINE_TITLE),
- *   with price/schedule/method rows, pending actions for the recipient, rejected
+ *   with price/schedule/method rows; recipient pending shows a read-only retired-flow
+ *   hint (S5 removed the respond endpoint — no confirm/reject buttons), rejected
  *   done-state, signed tip + draft button, funds note while not signed.
  * - CSS class contract: every class emitted here must exist in style-chat.css
  *   (.chat-msg-time not .chat-bubble-time; .ring-track/.ring-bar inside
@@ -168,11 +169,15 @@ function renderSigningRequestBubble(m, mine, msgCls, sideCls, time) {
   const price = Number(s.price) || 0;
   const methodName = signingMethodText(s.method);
   const title = signingRequestTitle(mine);
-  const actions = (pending && recipient && signingId && !chatClosedNow())
-    ? `<span class="signing-bubble-actions"><button type="button" class="btn btn-sm glass glass--pressable" data-action="chat.respond" data-id="${escHtml(signingId)}" data-accept="1">${TEXT.BTN_SIGNING_CONFIRM}</button><button type="button" class="btn btn-sm btn-outline glass glass--pressable" data-action="chat.respond" data-id="${escHtml(signingId)}" data-accept="0">${TEXT.BTN_SIGNING_REJECT}</button></span>`
+  // S5 retired the v2 signing flow (endpoints deleted): historical signing_request
+  // bubbles are now read-only. The recipient of a still-pending request sees a
+  // non-clickable status hint instead of confirm/reject buttons (those would 404
+  // against the removed respond endpoint).
+  const retiredHint = (pending && recipient)
+    ? `<p class="signing-bubble-status">${escHtml(TEXT.SIGNING_REQUEST_RETIRED_HINT)}</p>`
     : '';
   const done = rejected ? ' signing-bubble--done' : '';
-  return `<div class="chat-msg ${msgCls}"><div class="chat-bubble glass ${sideCls} signing-bubble chat-bubble--breathe${done}" data-signing-id="${escHtml(signingId)}" data-mid="${m.id}"><div class="signing-bubble-title">${escHtml(title)}</div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_PRICE}</span><b>${price} ${TEXT.PRICE_UNIT}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(expectedTimeText(s.schedule))}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>${actions}${rejected ? `<p class="signing-bubble-status">${TEXT.SIGNING_REJECTED_TEXT}</p>` : ''}${signed ? `<p class="signing-bubble-signed-tip">${escHtml(TEXT.CHAT_SIGN_TIP)}</p>${!chatClosedNow() ? `<button type="button" class="btn glass glass--pressable signing-bubble-draft-btn" data-action="chat.plusDraft">${TEXT.CHAT_BTN_DRAFT_CONTRACT}</button>` : ''}` : ''}${signed ? '' : `<p class="signing-bubble-funds">${TEXT.FUNDS_NOTE_SHORT}</p>`}</div>${time}</div>`;
+  return `<div class="chat-msg ${msgCls}"><div class="chat-bubble glass ${sideCls} signing-bubble chat-bubble--breathe${done}" data-signing-id="${escHtml(signingId)}" data-mid="${m.id}"><div class="signing-bubble-title">${escHtml(title)}</div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_PRICE}</span><b>${price} ${TEXT.PRICE_UNIT}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(expectedTimeText(s.schedule))}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>${retiredHint}${rejected ? `<p class="signing-bubble-status">${TEXT.SIGNING_REJECTED_TEXT}</p>` : ''}${signed ? `<p class="signing-bubble-signed-tip">${escHtml(TEXT.CHAT_SIGN_TIP)}</p>${!chatClosedNow() ? `<button type="button" class="btn glass glass--pressable signing-bubble-draft-btn" data-action="chat.plusDraft">${TEXT.CHAT_BTN_DRAFT_CONTRACT}</button>` : ''}` : ''}${signed ? '' : `<p class="signing-bubble-funds">${TEXT.FUNDS_NOTE_SHORT}</p>`}</div>${time}</div>`;
 }
 
 function renderSigningResponseText(m, mine) {
