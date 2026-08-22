@@ -153,3 +153,12 @@ export async function dbCreateInviteCode(db, code, adminId) {
     'INSERT INTO invite_codes (code,created_by) VALUES (?,?)',
     [code, adminId]);
 }
+
+// teacher_name display field is added by the teacher domain (S4) on the new site; safe-read here
+// so auth/me returns it once the column exists, and '' before that (frontend falls back to username).
+export async function dbGetTeacherName(db, userId) {
+  const cols = await dbAll(db, 'PRAGMA table_info(teacher_profiles)');
+  if (!cols.some(c => c.name === 'teacher_name')) return '';
+  const row = await dbGet(db, 'SELECT teacher_name FROM teacher_profiles WHERE user_id=?', [userId]);
+  return (row && row.teacher_name) || '';
+}

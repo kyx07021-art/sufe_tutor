@@ -11,6 +11,7 @@ import {
   dbFindUserByUsername, dbUserLookupStmt, dbUsernameExistsStmt, dbUserPhoneHashStmt, dbUserEmailHashStmt,
   dbGetUserById, dbCreateUser, dbDeleteUser, dbDeactivateUser, dbRecomputeTeacherRating, dbPurgeUserOwnedData,
   dbUpdateUserAvatar, dbSetUserBanned, dbFindValidInviteCode, dbUseInviteCode, dbCreateInviteCode,
+  dbGetTeacherName,
 } from '../src/server/domains/auth/repo.js';
 
 export {
@@ -18,6 +19,7 @@ export {
   dbFindUserByUsername, dbUserLookupStmt, dbUsernameExistsStmt, dbUserPhoneHashStmt, dbUserEmailHashStmt,
   dbGetUserById, dbCreateUser, dbDeleteUser, dbDeactivateUser, dbRecomputeTeacherRating, dbPurgeUserOwnedData,
   dbUpdateUserAvatar, dbSetUserBanned, dbFindValidInviteCode, dbUseInviteCode, dbCreateInviteCode,
+  dbGetTeacherName,
 };
 
 import {
