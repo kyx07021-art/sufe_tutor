@@ -429,6 +429,12 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
   let tempConvStatus = null; // 'temp' | 'active' | null (added to the response)
   if (tempStatus) {
     if (tempStatus === TEMP_STATUS.INIT) {
+      // I-24 (PA-1c-F1): the initiator's temp quota is exactly one message. The temp-advance CAS
+      // guard only validates temp_status, not how many messages ride the batch, so an unguarded
+      // multi-item batch would blast up to MSG_BATCH_MAX messages at a stranger. Non-initiators
+      // are 404'd in loadConversationFor, so reaching here with init implies the sender is the
+      // initiator — enforce batch.length === 1.
+      if (batch.length !== 1) return errorMsg('INVALID_PARAMS', 400);
       tempAdvance = { next: TEMP_STATUS.SENT, current: TEMP_STATUS.INIT };
       tempConvStatus = 'temp';
     } else if (tempStatus === TEMP_STATUS.SENT) {

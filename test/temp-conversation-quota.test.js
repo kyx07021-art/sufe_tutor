@@ -86,6 +86,26 @@ describe('S2 temp conversation quota & validation', () => {
     // 409 assertion red. Not runnable here without editing src — verified manually at audit time.
   });
 
+  test('PA-1c-F1: initiator sends a 2+ item batch on an init temp → 400 INVALID_PARAMS (quota is exactly one message)', async () => {
+    const raw = rawOf(); const db = d1Shim(raw);
+    const { s1, t1 } = await seed(db, raw);
+    const c = await (await handleCreateTempConversation(db, { targetUserId: t1.uid }, reqOf(s1.token))).json();
+    const convId = c.conversationId;
+    assert.equal(c.tempStatus, TEMP_STATUS.INIT, 'precondition: init row, quota 1');
+
+    const multi = await handleSendMessage(db, convId, { batch: [{ kind: 'text', body: 'a' }, { kind: 'text', body: 'b' }] }, reqOf(s1.token));
+    assert.equal(multi.status, 400, 'multi-item batch on an init temp is rejected');
+    assert.equal((await multi.json()).code, CODES.INVALID_PARAMS, 'stable INVALID_PARAMS code');
+    assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages WHERE conversation_id=?').get(convId).c, 0, 'nothing landed');
+    assert.equal(raw.prepare('SELECT temp_status FROM conversations WHERE id=?').get(convId).temp_status, TEMP_STATUS.INIT, 'state not advanced by the rejected batch');
+
+    const single = await handleSendMessage(db, convId, { batch: [{ kind: 'text', body: 'ok' }] }, reqOf(s1.token));
+    assert.equal(single.status, 201, 'a single message on an init temp still lands');
+    assert.equal(raw.prepare('SELECT temp_status FROM conversations WHERE id=?').get(convId).temp_status, TEMP_STATUS.SENT, 'first message formalizes');
+    // Mutation intent (G2): removing the batch.length === 1 guard in handleSendBatch turns the
+    // multi-item 400 assertion red (it would return 201 and land 2 messages). Verified at audit time.
+  });
+
   test('non-initiator GET messages / send on an init temp → 404 (existence not leaked)', async () => {
     const raw = rawOf(); const db = d1Shim(raw);
     const { s1, t1 } = await seed(db, raw);
