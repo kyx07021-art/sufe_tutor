@@ -22,6 +22,7 @@ import {
   normalizeConversationRow,
   applyConversations,
   loadConversations,
+  setCurrentUser,
   chatState,
 } from '../src/modules/chat/state.js'
 
@@ -131,6 +132,14 @@ ok(chatState.activeConversationId === 7, 'load: first row becomes active on succ
 resetStore()
 await loadConversations({ id: 1, role: 'student' }, async () => [rawRow])
 ok(chatState.conversations.length === 1, 'load: array payload accepted')
+
+/* ============ 5. setCurrentUser (F2): bubble-ownership source is writable ============ */
+resetStore()
+ok(chatState.currentUserId === null, 'set: currentUserId starts null (no fake default)')
+setCurrentUser(7)
+ok(chatState.currentUserId === 7, 'set: writes the signed-in id')
+setCurrentUser(null)
+ok(chatState.currentUserId === null, 'set: null clears on sign-out')
 
 if (errors.length) {
   console.log('CHAT CONVERSATIONS TEST FAIL')

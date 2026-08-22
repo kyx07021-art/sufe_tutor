@@ -8,17 +8,27 @@
  * - Route: registered via src/modules/chat/pages.js (shell/page-registry.js's
  *   import.meta.glob collects module pages.js; M2-08 in-memory history router, path /chat).
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import ChatListPane from './components/ChatListPane.vue'
 import ChatConversationPane from './components/ChatConversationPane.vue'
 import { authStore } from '../shell/auth-store.js'
-import { chatState, openConversation, loadConversations } from './state.js'
+import { chatState, openConversation, loadConversations, setCurrentUser } from './state.js'
 
 const paneClass = computed(() => (chatState.mobilePane === 'chat' ? 'chat--chat' : 'chat--list'))
 
-// Page-entry assembly (F1): load the I-17 conversation list once on mount. The
-// router gate runs before /chat mounts, so authStore.user is present in production;
-// in the isolated test harness it is null and the list degrades silently to empty.
+// Page-entry assembly (F2): keep the chat store's currentUserId in sync with the
+// authenticated user. immediate fires when the session is already restored (the
+// router gate runs before /chat mounts), and later login/logout flips are caught by
+// the watcher. Bubble ownership (mine vs peer) and optimistic-send sender ids derive
+// from this id - a hardcoded value rendered peers as mine (PA-1h2-F2).
+watch(
+  () => authStore.user?.id ?? null,
+  (id) => setCurrentUser(id),
+  { immediate: true },
+)
+
+// Page-entry assembly (F1): load the I-17 conversation list once on mount. In the
+// isolated test harness authStore.user is null and the list degrades silently to empty.
 onMounted(() => {
   loadConversations(authStore.user)
 })

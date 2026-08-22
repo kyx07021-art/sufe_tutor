@@ -25,6 +25,7 @@ export {
   openConversation,
   backToList,
   isChatInputVisible,
+  setCurrentUser,
   normalizeConversationRow,
   applyConversations,
   loadConversations,

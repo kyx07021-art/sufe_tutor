@@ -49,8 +49,8 @@ export const chatState = reactive({
   activeConversationId: null,
   /** 'list' | 'chat' - mobile (<=600px) visible pane; ignored on desktop. */
   mobilePane: 'list',
-  /** Signed-in user id (assembly-injected; harness fixture = 1, real auth writes it). */
-  currentUserId: 1,
+  /** Signed-in user id (assembly-injected from authStore.user.id; null until known). */
+  currentUserId: null,
   /** convId -> message rows (I-18 normalized, oldest first). */
   messages: {},
   /** convId -> polling cursor (sinceId). */
@@ -80,6 +80,16 @@ export function openConversation(id) {
 /** Mobile back to the list pane. */
 export function backToList() {
   chatState.mobilePane = 'list'
+}
+
+/**
+ * Set the signed-in user id (assembly-injected from authStore.user.id once auth is
+ * ready). Feeds bubble ownership (mine vs peer), optimistic-send sender ids and the
+ * unread / temp-formal decisions — a hardcoded value made peers render as mine.
+ * @param {number|null} id  the current user's id, or null when signed out
+ */
+export function setCurrentUser(id) {
+  chatState.currentUserId = id
 }
 
 /** M4-25: end-session in-flight query (feeds ChatEndConfirmModal busy prop). */

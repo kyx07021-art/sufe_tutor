@@ -362,8 +362,10 @@ try {
   ok((await page.locator('.chat-input__ta').count()) === 1, 'M4-27: input visible while quota left')
   await page.locator('.chat-input__ta').fill('老师您好')
   await page.keyboard.press('Enter')
-  await page.waitForTimeout(350)
-  ok((await page.locator('.chat-input__ta').count()) === 0, 'M4-27: input hidden after temp quota spent')
+  // poll for the input bar to disappear (temp quota spent); give the optimistic
+  // send + echo round-trip generous room on loaded CI machines.
+  const tempInputGone = await page.waitForSelector('.chat-input__ta', { state: 'detached', timeout: 4000 }).then(() => true).catch(() => false)
+  ok(tempInputGone, 'M4-27: input hidden after temp quota spent')
   const hintSent = (await page.locator('.chat-hint__text').textContent()) || ''
   ok(hintSent.includes('等待对方回复'), 'M4-26: sent hint shows after first temp message')
 
