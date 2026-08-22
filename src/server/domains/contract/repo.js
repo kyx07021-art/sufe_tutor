@@ -10,8 +10,9 @@ import { decryptField } from '../../core/crypto.js';
 // ============================================================
 // 网安 N-05：contract_md / prev_business 加密列，出门即解密（写点加密在 contract/api.js；老明文行经 decryptField 原样放行）
 export async function dbGetContractById(db, id) {
-  // contract_status AS status 别名供 handler 零改动读 ct.status；无 stage 过滤（独立表两态直读）
-  const row = await dbGet(db, "SELECT c.*, c.contract_status AS status FROM contracts c WHERE id=?", [id]);
+  // contract_status AS status 别名供 handler 零改动读 ct.status；contractStatus 对齐 I-44 契约
+  // （新前端读 contractStatus，status 保留供内部/旧消费）；无 stage 过滤（独立表两态直读）
+  const row = await dbGet(db, "SELECT c.*, c.contract_status AS status, c.contract_status AS contractStatus FROM contracts c WHERE id=?", [id]);
   if (row) row.contract_md = await decryptField(row.contract_md);
   if (row && row.prev_business) row.prev_business = await decryptField(row.prev_business);
   return row;
@@ -20,7 +21,7 @@ export async function dbGetContractById(db, id) {
 // 我参与的合同列表（含双方用户名，「我的合同」页用）
 export async function dbGetMyContracts(db, userId) {
   // 行自持双方元组——JOIN users 取名；不绑需求（无 student_demands join / demand_display_id）
-  const rows = await dbAll(db, `SELECT c.*, c.contract_status AS status,
+  const rows = await dbAll(db, `SELECT c.*, c.contract_status AS status, c.contract_status AS contractStatus,
       us.username AS student_name, ut.username AS teacher_name
     FROM contracts c
     JOIN users us ON us.id = c.student_user_id
@@ -37,7 +38,7 @@ export async function dbGetMyContracts(db, userId) {
 // 管理员全量合同列表（含双方用户名 + 起草者用户名；管理员合同页用）
 export async function dbGetAllContractsAdmin(db) {
   // 自持元组 + users 取名；drafter_user_id 恒真实，INNER JOIN 安全
-  const rows = await dbAll(db, `SELECT c.*, c.contract_status AS status,
+  const rows = await dbAll(db, `SELECT c.*, c.contract_status AS status, c.contract_status AS contractStatus,
       us.username AS student_name, ut.username AS teacher_name, du.username AS drafter_name
     FROM contracts c
     JOIN users us ON us.id = c.student_user_id
