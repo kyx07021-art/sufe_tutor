@@ -41,7 +41,6 @@ function onChange(e) {
   const el = e.target;
   if (!el || !el.dataset || !el.dataset.change) return;
   if (el.dataset.change === 'contract.prefillSigningTimeSlots') actions.prefillSigningTimeSlots();
-  else if (el.dataset.change === 'contract.prefillDraft') actions.prefillContractFromDemand();
   else if (el.dataset.change === 'contract.toggleOther') actions.contractToggleOther(el.id, el.dataset.other);
 }
 

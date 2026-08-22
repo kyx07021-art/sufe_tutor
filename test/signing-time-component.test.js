@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { openSigningModal, prefillSigningTimeSlots, doSubmitSigning, openContractDraftModal, prefillContractFromDemand, submitContractDraft } from '../src/client/features/contract/actions-draft.js';
+import { openSigningModal, prefillSigningTimeSlots, doSubmitSigning, openContractDraftModal, submitContractDraft } from '../src/client/features/contract/actions-draft.js';
 import { state } from '../src/client/core/state.js';
 
 const DEMAND_SLOTS = JSON.stringify([{ type: 'week', dow: 1, start: '18:00', end: '20:00' }]);
@@ -69,29 +69,28 @@ test('合同草拟弹窗：含结构化时间组件、无旧自由文本 schedul
   teardown();
 });
 
-test('prefillContractFromDemand：按需求 expected_time 预填（仅未填时）', async () => {
-  const dom = setup();
-  await openContractDraftModal(1);
-  window._contractDraftDemands = [{ id: 7, expected_time: DEMAND_SLOTS }];
-  dom.window.document.getElementById('contract-demand').value = '7';
-  prefillContractFromDemand();
-  assert.equal(dom.window.document.querySelectorAll('#contract-time-slots .time-slot').length, 1);
-  assert.equal(dom.window.document.querySelector('#contract-time-slots .slot-dow').value, '1');
-  teardown();
-});
-
-test('submitContractDraft：提交 body.schedule 为格式化人类串', async () => {
+test('submitContractDraft：S5 无绑定模型——无需求预填，全字段自填；提交 body.schedule 为格式化人类串且不带 demandId', async () => {
   const record = [];
   const dom = setup(record);
   await openContractDraftModal(1);
-  window._contractDraftDemands = [{ id: 7, expected_time: DEMAND_SLOTS }];
-  dom.window.document.getElementById('contract-demand').value = '7';
+  // S5 起草不绑需求：无需求下拉，也无需求预填。时间槽由用户自填（全字段自填语义）。
+  const ts = dom.window.document.getElementById('contract-time-slots');
+  const row = dom.window.document.createElement('div');
+  row.className = 'time-slot';
+  row.innerHTML = `
+    <select class="slot-dow"><option value="1" selected>周一</option></select>
+    <div class="time-range">
+      <div class="time-field" data-time-role="start"><div class="time-hms"><input class="slot-time-hh" value="18"><span>:</span><input class="slot-time-mm" value="00"></div></div>
+      <span class="time-slot-tilde">~</span>
+      <div class="time-field" data-time-role="end"><div class="time-hms"><input class="slot-time-hh" value="20"><span>:</span><input class="slot-time-mm" value="00"></div></div>
+    </div>`;
+  ts.insertBefore(row, ts.querySelector('.time-slots-add'));
   dom.window.document.getElementById('contract-rate').value = '200';
   dom.window.document.getElementById('contract-location').value = '线上';
   dom.window.document.getElementById('post-body').value = '补基础';
-  prefillContractFromDemand();
   await submitContractDraft(1);
   assert.equal(record.length, 1);
   assert.equal(record[0].body.schedule, '周一 18:00-20:00');
+  assert.equal('demandId' in record[0].body, false, 'S5 请求体不含 demandId');
   teardown();
 });

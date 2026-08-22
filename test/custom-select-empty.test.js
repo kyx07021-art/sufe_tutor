@@ -32,9 +32,10 @@ test('触发器默认空纵向高度（min-height）防塌陷', () => {
   assert.ok(block.includes('min-height: calc(40px * var(--ui-scale, 1))'));
 });
 
-test('签约/起草弹窗空态仍渲染灰字提示 option', () => {
-  // V-4-1h：v1 app-contracts.js 已删；空态提示在 v2 features/contract/actions-draft.js（TEXT 单源引用）
+test('签约弹窗空态仍渲染灰字提示 option', () => {
+  // V-4-1h：v1 app-contracts.js 已删；空态提示在 v2 features/contract/actions-draft.js（TEXT 单源引用）。
+  // S5 合同独立不绑需求：起草弹窗已无需求下拉（CONTRACT_DEMANDS_EMPTY 键随 S5 移除），仅签约弹窗保留空态提示。
   const c = readFileSync('./src/client/features/contract/actions-draft.js', 'utf8');
   assert.ok(c.includes('TEXT.SIGNING_NO_DEMAND_HINT'), 'SIGNING_NO_DEMAND_HINT 单源引用');
-  assert.ok(c.includes('TEXT.CONTRACT_DEMANDS_EMPTY'), 'CONTRACT_DEMANDS_EMPTY 单源引用');
+  assert.ok(!c.includes('CONTRACT_DEMANDS_EMPTY'), 'CONTRACT_DEMANDS_EMPTY 已随 S5 起草无绑定删除');
 });

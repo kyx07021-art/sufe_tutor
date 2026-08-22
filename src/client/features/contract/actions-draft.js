@@ -5,14 +5,11 @@ import { CONFIG } from '../../../shared/config.js';
 import { TEACHING_METHODS } from '../../../shared/enums.js';
 import { TEXT } from '../../constants/text.js';
 import { api, ensureAuth } from '../../core/api.js';
-import { openModal, closeModal, showToast, initCustomSelects, syncCustomSelectText, withCaptcha } from '../../core/ui.js';
+import { openModal, closeModal, showToast, initCustomSelects, withCaptcha } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml, validateTimeSlots, collectTimeSlots, prefillTimeSlots, dateFieldHtml, readDateField } from '../../core/ui-form.js';
-import { demandOptionText, demandTargetNames, expectedTimeText } from '../student/display.js';
+import { demandOptionText, expectedTimeText } from '../student/display.js';
 import { loaderHtml, escHtml } from '../../core/dom.js';
 import { invalidate } from '../../core/datahub.js';
-import { chatConvById } from './actions-chat-bridge.js';
-
-export { chatConvById };
 
 function collectScheduleText(containerId) {
   const container = document.getElementById(containerId);
@@ -104,41 +101,22 @@ export async function doSubmitSigning(convId, { demandId, price, schedule, metho
 
 export async function openContractDraftModal(convId) {
   if (!ensureAuth()) return;
-  openModal({ title: null, closable: false, body: loaderHtml() });
-  let demands = [], demandsFailed = false;
-  try { const data = await api(`/api/conversations/${convId}/bindable-demands?phase=contract`); demands = data.demands || []; }
-  catch { demandsFailed = true; }
-  const conv = chatConvById ? chatConvById(convId) : null;
-  const preselect = (conv && demands.find(d => d.id === conv.demand_id)) || null;
-  window._contractDraftDemands = demands;
   openModal({
     title: TEXT.DRAFT_MODAL_TITLE,
     closable: false,
-    replace: true,
     cls: 'contract-form',
-    body: draftBody(demands, preselect, demandsFailed),
+    body: draftBody(),
     footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="contract.closeModal">${TEXT.BTN_CANCEL}</button>
           <button type="button" class="btn glass glass--pressable" data-action="contract.submitDraft" data-id="${convId}">${TEXT.BTN_SEND}</button>`,
   });
-  if (demandsFailed) showToast(TEXT.CONTRACT_DEMANDS_LOAD_FAIL, 'error');
   const m = document.getElementById('contract-method');
   if (m && m.closest) initCustomSelects(m.closest('.modal'));
   contractToggleOther('contract-pay-method', 'contract-pay-method-other-wrap');
   contractToggleOther('contract-trial-pay', 'contract-trial-pay-other-wrap');
-  prefillContractFromDemand();
 }
 
-function draftBody(demands, preselect, demandsFailed) {
-  const opts = demands.length
-    ? (preselect
-      ? demands.map(d => `<option value="${d.id}"${d.id === preselect.id ? ' selected' : ''}>${escHtml(demandOptionText(d))}</option>`).join('')
-      : `<option value="" selected disabled>${TEXT.CONTRACT_DEMANDS_SIGNED_HINT}</option>` + demands.map(d => `<option value="${d.id}">${escHtml(demandOptionText(d))}</option>`).join(''))
-    : `<option value="" disabled>${TEXT.CONTRACT_DEMANDS_EMPTY}</option>`;
+function draftBody() {
   return `
-        <div class="form-group">
-          <label class="form-label">${TEXT.LABEL_CONTRACT_DEMAND} <span class="req">*</span></label>
-          <select class="form-select" id="contract-demand" data-change="contract.prefillDraft">${opts}</select>
-        </div>
         <div class="form-group">
           <label class="form-label">${TEXT.LABEL_CONTRACT_METHOD}</label>
           <select class="form-select" id="contract-method">
@@ -206,26 +184,6 @@ export function contractToggleOther(selectId, wrapId) {
   if (sel && wrap) wrap.classList.toggle('hidden', sel.value !== 'other');
 }
 
-export function prefillContractFromDemand() {
-  const sel = document.getElementById('contract-demand');
-  if (!sel) return;
-  const d = (window._contractDraftDemands || []).find(x => String(x.id) === sel.value);
-  if (!d) return;
-  if (d.teaching_method) {
-    const mSel = document.getElementById('contract-method');
-    if (mSel && [...mSel.options].some(o => o.value === d.teaching_method)) { mSel.value = d.teaching_method; syncCustomSelectText(mSel); }
-  }
-  const rateEl = document.getElementById('contract-rate');
-  if (rateEl && !rateEl.value && (d.budget_min || d.budget_max)) {
-    rateEl.value = Math.round(((+d.budget_min || 0) + (+d.budget_max || 0)) / 2) || (+d.budget_max || +d.budget_min);
-  }
-  const plan = document.getElementById('post-body');
-  const subjLine = demandTargetNames(d.target_subjects, d.target_type);
-  if (plan && !plan.value.trim() && subjLine) { plan.value = `${TEXT.CONTRACT_SUBJECT_LINE_PREFIX}${subjLine}\n\n`; }
-  const ts = document.getElementById('contract-time-slots');
-  if (ts && !ts.querySelectorAll('.time-slot').length) prefillTimeSlots(ts, d.expected_time || '');
-}
-
 let contractDraftBusy = false;
 
 export async function submitContractDraft(convId) {
@@ -237,8 +195,6 @@ export async function submitContractDraft(convId) {
   const firstLessonDateRaw = readDateField(document.getElementById('contract-first-lesson-field'));
   const trialPay = document.getElementById('contract-trial-pay').value;
   const trialPayOther = trialPay === 'other' ? (document.getElementById('contract-trial-pay-other').value || '').trim() : '';
-  const demandId = parseInt(document.getElementById('contract-demand').value) || null;
-  if (!demandId) { showToast(TEXT.CONTRACT_REQUIRE_SIGNED, 'error'); return; }
   if (!rate || +rate <= 0) { showToast(TEXT.VALIDATE_CONTRACT_RATE, 'error'); return; }
   if (payMethod === 'other' && !payMethodOther) { showToast(TEXT.VALIDATE_CONTRACT_PAY_METHOD_OTHER, 'error'); return; }
   if (trialPay === 'other' && !trialPayOther) { showToast(TEXT.VALIDATE_CONTRACT_TRIAL_PAY_OTHER, 'error'); return; }
@@ -252,7 +208,7 @@ export async function submitContractDraft(convId) {
   try {
     const schedule = collectScheduleText('contract-time-slots');
     const location = (document.getElementById('contract-location').value || '').trim();
-    const data = await api('/api/contracts', { method: 'POST', body: { conversationId: convId, method, plan, rate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
+    const data = await api('/api/contracts', { method: 'POST', body: { conversationId: convId, method, plan, rate: +rate, schedule, location, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
     invalidate('contracts');
     closeModal();
     showToast(data.message || TEXT.CONTRACT_DRAFT_SENT_TOAST);

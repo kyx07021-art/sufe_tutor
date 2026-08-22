@@ -172,7 +172,6 @@ export function handleLogout() {
   // registerLogoutReset — the v1 globalThis.stopChatPolling probe died with the
   // ESM migration and has been removed (rule 18: delete upstream references).
   runLogoutResets();
-  if (typeof globalThis !== 'undefined') globalThis._contractDraftDemands = null;
   state.user = null;
   state.authToken = null;
   state.page = null;

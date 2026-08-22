@@ -82,39 +82,16 @@ test('openSigningModal：请求 phase=signing 需求，下拉每项含 #编号 �
   delete globalThis.fetch; teardown();
 });
 
-test('openContractDraftModal：请求 phase=contract，含「仅已签约需求」提示，下拉含 #编号', async () => {
+test('openContractDraftModal：S5 独立合同不绑需求——不再请求 bindable-demands，无 contract-demand 下拉', async () => {
   const dom = setup();
-  let requestedUrl;
-  globalThis.fetch = async url => { requestedUrl = String(url); return { ok: true, status: 200, json: async () => ({ demands: [
-    { id: 1, user_id: 39, display_id: 7, target_subjects: ['math'], target_type: 'academic', budget_min: 100, budget_max: 200 },
-  ] }) }; };
+  let demanded = false;
+  globalThis.fetch = async url => { if (String(url).includes('bindable-demands')) demanded = true; return { ok: true, status: 200, json: async () => ({ demands: [] }) }; };
   await openContractDraftModal(1);
+  assert.equal(demanded, false, 'S5 起草不再请求 bindable-demands（合同不绑需求）');
   const modal = dom.window.document.getElementById('modal-container').innerHTML;
-  assert.ok(requestedUrl.includes('phase=contract'), '起草合同应请求 contract 阶段需求');
-  assert.ok(!modal.includes('contract-demand-hint'), 'U7：外置长提示行已删（并入下拉占位）');
-  assert.ok(modal.includes('仅已签约需求可继续签合同'), '下拉占位文案 = 缩短提示');
-  const sel = dom.window.document.getElementById('contract-demand');
-  assert.ok(sel, 'contract-demand select 在 DOM');
-  assert.ok([...sel.options].some(o => o.textContent.includes('#0007')), '下拉含需求编号 #0007');
-  assert.ok(![...sel.options].some(o => o.textContent.includes('不关联需求')), '不再提供「不关联需求」空选项');
-  delete globalThis.fetch; teardown();
-});
-
-test('openContractDraftModal：会话绑定需求不在可绑列表时置空占位（不静默回退首项，v0.25.15 审计修复）', async () => {
-  const dom = setup();
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ demands: [
-    { id: 1, user_id: 39, display_id: 7, target_subjects: ['math'], target_type: 'academic', budget_min: 100, budget_max: 200 },
-  ] }) });
-  const { chatConvById } = await import('../src/client/features/contract/actions-chat-bridge.js');
-  // The module uses a setter; simplest is to seed the conversation via chat bridge registry.
-  const { chat } = await import('../src/client/features/chat/chat-state.js');
-  chat.list = [{ id: 1, student_user_id: 39, teacher_user_id: 40, demand_id: 999 }];
-  await openContractDraftModal(1);
-  const sel = dom.window.document.getElementById('contract-demand');
-  const opts = [...sel.options];
-  assert.equal(opts[0].value, '', '首项为占位空值');
-  assert.ok(opts[0].disabled && opts[0].selected, '占位 option 选中且禁选');
-  assert.ok(!opts.some(o => o.selected && o.value !== ''), '无任何真实需求被静默预选');
+  assert.equal(dom.window.document.getElementById('contract-demand'), null, '无 contract-demand 下拉');
+  assert.ok(modal.includes('contract-form'), '合同表单在');
+  assert.ok(dom.window.document.getElementById('contract-rate'), '合同字段（时薪）在');
   delete globalThis.fetch; teardown();
 });
 
@@ -141,24 +118,27 @@ test('submitSigning：未选需求被校验拦截，不发起请求；doSubmitSi
   delete globalThis.fetch; teardown();
 });
 
-test('submitContractDraft：未选已签约需求被校验拦截（v0.25.99 走 Toast）', async () => {
+test('submitContractDraft：S5 无绑定模型——无需求门禁，直接 POST /api/contracts 且不带 demandId', async () => {
   const dom = setup();
   let posted = null;
   globalThis.fetch = async (url, opts) => {
-    if (opts && opts.method === 'POST') posted = opts.body;
+    if (opts && opts.method === 'POST') posted = { url: String(url), body: JSON.parse(opts.body) };
     return { ok: true, status: 200, json: async () => ({}) };
   };
   dom.window.document.getElementById('modal-container').innerHTML = `
     <div class="modal"><div class="modal-body">
-      <select class="form-select" id="contract-demand"><option value="" disabled>暂无</option></select>
       <input id="contract-rate" value="150"><select id="contract-method"><option value="online">线上</option></select>
-      <input id="contract-pay-method" value="per_session"><div id="contract-pay-method-other-wrap" class="hidden"></div>
-      <input id="contract-trial-pay" value="first_free"><div id="contract-trial-pay-other-wrap" class="hidden"></div>
+      <select id="contract-pay-method"><option value="per_session">次付</option></select><div id="contract-pay-method-other-wrap" class="hidden"></div>
+      <select id="contract-trial-pay"><option value="first_free">首次免费</option></select><div id="contract-trial-pay-other-wrap" class="hidden"></div>
       <div id="contract-first-lesson-field"></div>
-      <textarea id="post-body">方案</textarea>
+      <textarea id="post-body">补基础</textarea>
+      <input id="contract-location" value="线上">
+      <div id="contract-time-slots" class="time-slots"></div>
     </div></div>`;
   await submitContractDraft(1);
-  assert.equal(posted, null, '未选需求不发请求');
-  assert.ok(dom.window.document.querySelector('#toast-container').textContent.includes('选择已签约需求'), '走 Toast 校验');
+  assert.ok(posted, 'S5 起草无需求绑定校验，直接 POST');
+  assert.equal(posted.url, '/api/contracts');
+  assert.equal(posted.body.conversationId, 1, '携带会话上下文');
+  assert.equal('demandId' in posted.body, false, '请求体不含 demandId');
   delete globalThis.fetch; teardown();
 });
