@@ -125,6 +125,20 @@ test('Q-2d-F2 幂等：部分键命中 → 409（键被复用的异常形状）'
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages').get().c, 1, '不混插新消息');
 });
 
+test('PA-1c-F2: duplicate clientKey in the same batch → 400 INVALID_PARAMS (not a 500 on the unique index)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1Token } = await seed(db, raw);
+  const dup = await handleSendMessage(db, 1, {
+    batch: [{ kind: 'text', body: 'a', clientKey: 'sbD.0' }, { kind: 'text', body: 'b', clientKey: 'sbD.0' }],
+  }, reqOf(t1Token));
+  assert.equal(dup.status, 400, 'duplicate clientKey rejected as 400');
+  assert.equal((await dup.json()).code, 'COMMON_INVALID_PARAMS', 'stable INVALID_PARAMS code');
+  assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages').get().c, 0, 'nothing landed');
+  // Mutation intent (G2): removing the seenClientKeys dedup in handleSendBatch turns the 400
+  // assertion red (the two identical client_keys would hit idx_messages_client_key and return a
+  // 500 SERVER_ERROR). Verified at audit time.
+});
+
 test('Q-2d-F2 幂等：不带键（老协议）正常落库 client_key=NULL', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { t1Token } = await seed(db, raw);

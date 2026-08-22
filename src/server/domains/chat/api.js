@@ -389,9 +389,13 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
   // 第一遍（for...of 保留 return 语义）：文字项校验 + 收集附件 id（非数字/重复整批拒绝）+ 逐项幂等键
   const uploadIds = [];
   const seenUploads = new Set(); // 审计 C-4：重复 uploadId 整批拒绝（防同附件双消息双删 + 乐观批序错位）
+  const seenClientKeys = new Set(); // PA-1c-F2 (C-4): duplicate clientKey in one batch → 400, not a 500 on idx_messages_client_key
   const clientKeys = batch.map(it => (it && typeof it.clientKey === 'string' ? it.clientKey.slice(0, LIMITS.CLIENT_KEY_MAX) : '')); // Q-2d-F2：空/非串视为不带键
   for (let i = 0; i < batch.length; i++) {
     const item = batch[i];
+    const ck = clientKeys[i]; // PA-1c-F2: normalized per-item key; '' = no key (not deduped)
+    if (ck && seenClientKeys.has(ck)) return errorMsg('INVALID_PARAMS', 400);
+    if (ck) seenClientKeys.add(ck);
     if (item && item.uploadId) {
       const upId = parseInt(item.uploadId);
       if (Number.isNaN(upId) || seenUploads.has(upId)) return errorMsg('INVALID_PARAMS', 400);
