@@ -63,7 +63,7 @@ export function chatOpenProfile(userId) {
   openProfilePanel(id);
 }
 
-// F6: in-flight guard — confirm double-click / double POST (one attempt per conversation; same as signingBusy)
+// F6: in-flight guard — confirm double-click / double POST (one attempt per conversation; same as closeBusy)
 let closeBusy = false;
 
 /**
