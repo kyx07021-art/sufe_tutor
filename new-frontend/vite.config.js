@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import svgLoader from 'vite-svg-loader'
 import { META_CSP_TAG } from './src/constants/csp.js'
+import { APP_VERSION } from '../src/shared/config.js'
 
 /**
  * M0 new-frontend build config
@@ -14,10 +15,16 @@ import { META_CSP_TAG } from './src/constants/csp.js'
  * - Strict CSP: dev mode does NOT inject the meta tag (Vite HMR needs runtime style injection);
  *   build injects via the injectCspMeta plugin, consuming the single source
  *   src/constants/csp.js META_CSP_TAG (contract 8, locked by csp-meta-strict.test.mjs).
+ * - Frontend version single source (PA-1i-F2): the AboutModal version line consumes the
+ *   __APP_VERSION__ define symbol, injected verbatim from src/shared/config.js APP_VERSION
+ *   (S0-01). No hardcoded version literal lives in the frontend.
  * - Component discipline: JS only toggles classes / CSSOM data channel (setProperty), zero inline event/style attrs.
  */
 export default defineConfig({
   plugins: [vue(), svgLoader(), injectCspMeta()],
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   base: './',
   resolve: {
     alias: {

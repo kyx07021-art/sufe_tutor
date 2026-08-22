@@ -3,6 +3,7 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import svgLoader from 'vite-svg-loader'
 import { META_CSP_TAG } from './src/constants/csp.js'
+import { APP_VERSION } from '../src/shared/config.js'
 
 /**
  * M5 standalone preview build (test isolation)
@@ -10,9 +11,14 @@ import { META_CSP_TAG } from './src/constants/csp.js'
  *   against a stable snapshot, free of dev-server HMR interference from parallel modules.
  * - Also injects the strict meta CSP (same plugin + single source as the main build)
  *   so the smoke test can assert CSP compliance.
+ * - Same frontend version single source as the main build (PA-1i-F2): the AboutModal
+ *   version line consumes __APP_VERSION__, injected from src/shared/config.js APP_VERSION.
  */
 export default defineConfig({
   plugins: [vue(), svgLoader(), injectCspMeta()],
+  define: {
+    __APP_VERSION__: JSON.stringify(APP_VERSION),
+  },
   base: './',
   resolve: {
     alias: {

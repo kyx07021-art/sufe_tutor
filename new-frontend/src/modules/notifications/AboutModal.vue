@@ -10,19 +10,17 @@ import { NOTIF_COPY } from '@/constants/m-notifications'
  * - Body shows the platform display name, a version line and the copyright
  *   line. Content is left-aligned and vertically centered with generous
  *   spacing (--space-5 / --space-6).
- * - APP_VERSION is the only hardcoded value in this component: a version number
- *   defined once here. The platform display name comes from NOTIF_COPY.PLATFORM_NAME
- *   (copy single source, contract 6).
+ * - The version number is injected at build/transform time by Vite define
+ *   (__APP_VERSION__), sourced verbatim from src/shared/config.js APP_VERSION
+ *   (S0-01 single source, PA-1i-F2). No hardcoded version literal lives here.
  * - Zero inline style attributes / v-html / runtime <style> injection.
  */
-const APP_VERSION = '0.0.1'
-
 defineProps({
   open: { type: Boolean, default: false },
 })
 const emit = defineEmits(['close'])
 
-const versionLine = `${NOTIF_COPY.ABOUT_VERSION} ${APP_VERSION}`
+const versionLine = `${NOTIF_COPY.ABOUT_VERSION} ${__APP_VERSION__}`
 </script>
 
 <template>
