@@ -253,11 +253,18 @@ await page.waitForTimeout(400)
 if ((await page.locator('.nt-detail').count()) !== 0) errors.push('detail view did not close on back')
 if ((await page.locator('.nt-card').count()) !== 3) errors.push('list did not restore after back')
 
-/* ---- M5-04: closing the modal fires the batch read (silent) ---- */
+/* ---- M5-04: closing the modal fires the batch read (silent, per-id) ---- */
+// PA-1h2-M3: the exit batch read must mark ONLY the revealed+unread ids via per-id
+// POST /api/notifications/:id/read - never read-all (which marks every unseen row).
+// Mock ids: 1 unread (opened -> already read), 2 already-read (must NOT be re-marked),
+// 3 unread+revealed (must be the batch target).
 await page.locator('.ui-modala1__close').first().click()
 await page.waitForTimeout(500)
 if ((await page.locator('.ui-modal').count()) !== 0) errors.push('notification modal did not close')
-if (apiState.readAllCalls === 0) errors.push('batch read-all not fired on modal close')
+if (apiState.readAllCalls !== 0) errors.push('batch exit read fired read-all (must be per-id): ' + apiState.readAllCalls)
+const singleIds = apiState.singleReadCalls.join(',')
+if (!singleIds.includes('3')) errors.push('batch exit read did not mark revealed unread id 3: ' + singleIds)
+if (singleIds.includes('2')) errors.push('batch exit read marked already-read id 2: ' + singleIds)
 
 /* ---- M5-06 + M5-13 about ---- */
 await moreBtn.click()

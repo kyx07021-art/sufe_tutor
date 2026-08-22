@@ -7,7 +7,9 @@
  *   (mutation anchor: deleting the rollback leaves a failed read permanently read).
  * - Batch exit read only targets ids the assembly REVEALED during this opening,
  *   and among those only the still-unread ones; unseen notifications keep their
- *   red dot (review note 3). It is silent on success - no toast here.
+ *   red dot (review note 3). Persistence goes through per-id POST
+ *   /api/notifications/:id/read (never read-all, which would mark unseen rows too).
+ *   It is silent on success - no toast here.
  * - No user-visible text lives in this file; every error is delegated through
  *   onError so the assembly decides how to surface it.
  */
@@ -59,9 +61,10 @@ export function useReadSemantics({ onError } = {}) {
 
   /**
    * Batch silent read on modal exit: mark read exactly the ids that were revealed
-   * and are still unread. Rollback every target to its previous value + onError
-   * on failure (mutation anchor: deleting the rollback leaves failed batch reads
-   * showing as permanently read). Silent on success.
+   * and are still unread. Persist per-id via POST /api/notifications/:id/read (NOT
+   * read-all, which would mark unseen notifications read too). Rollback every target
+   * to its previous value + onError on failure (mutation anchor: deleting the
+   * rollback leaves failed batch reads showing as permanently read). Silent on success.
    * @param {Array<string|number>} [seenIds] ids revealed this opening; when omitted,
    *   the internally tracked `revealed` set is used.
    */
@@ -77,7 +80,9 @@ export function useReadSemantics({ onError } = {}) {
     })
 
     try {
-      return await api('/notifications/read-all', { method: 'POST' })
+      return await Promise.all(
+        targets.map((id) => api('/notifications/' + encodeURIComponent(id) + '/read', { method: 'POST' })),
+      )
     } catch (e) {
       targets.forEach((id) => setItemRead(id, prev.get(id) ?? false))
       notifyError(e)
