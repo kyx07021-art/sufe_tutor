@@ -305,6 +305,43 @@ test('I-15 my-relations includes tempStatus / tempInitiatorId', async () => {
   assert.equal(rel.tempInitiatorId, s1, 'tempInitiatorId exposed on relation');
 });
 
+test('NJ-S1 security: non-initiator POST temp on a peer-init init conv → 404 (I-24 create-path gate)', async () => {
+  // Student s1 creates an init temp toward t1 (no firstMessage → stays init). Teacher t1 then
+  // POSTs temp for the same tuple — t1 is NOT the initiator of the init row and must get 404
+  // (existence leak prevention), NOT the reused record. Tuple is UNIQUE, so no new row is created.
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1, t1, s1a, t1a } = await seed(db, raw);
+  const created = await handleCreateTempConversation(db, { targetUserId: t1 }, reqOf(s1a.token));
+  const cid = (await created.json()).conversationId;
+  const r = await handleCreateTempConversation(db, { targetUserId: s1 }, reqOf(t1a.token));
+  assert.equal(r.status, 404, 'non-initiator on a peer-init init conv gets 404 (no existence leak)');
+  // initiator still sees their own init conv (unchanged, not hijacked)
+  const g = await handleGetMessages(db, cid, msgUrl(cid), reqOf(s1a.token));
+  assert.equal(g.status, 200, 'initiator still owns the init conv');
+});
+
+test('NJ-S2 security: my-relations hides peer-init init temp from non-initiator (I-24 list gate)', async () => {
+  // s1 creates an init temp toward t1 (stays init). t1's relation list must NOT include the conv;
+  // s1's own list must include it. After s1 advances to sent, both see it (same visibility rule
+  // as I-17 list test, asserted here through dbGetMyRelations).
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1, s1, s1a, t1a } = await seed(db, raw);
+  const created = await handleCreateTempConversation(db, { targetUserId: t1 }, reqOf(s1a.token));
+  const cid = (await created.json()).conversationId;
+  // non-initiator (t1): init conv absent
+  const r1 = await handleGetMyRelations(db, reqOf(t1a.token));
+  assert.equal(r1.status, 200);
+  assert.ok(!(await r1.json()).relations.some(x => x.conversationId === cid), 'init conv hidden from non-initiator in relations');
+  // initiator (s1): init conv present
+  const r2 = await handleGetMyRelations(db, reqOf(s1a.token));
+  assert.equal(r2.status, 200);
+  assert.ok((await r2.json()).relations.some(x => x.conversationId === cid), 'initiator sees own init conv in relations');
+  // advance to sent → visible to both
+  await handleSendMessage(db, cid, { batch: [{ kind: 'text', body: 'first' }] }, reqOf(s1a.token));
+  const r3 = await handleGetMyRelations(db, reqOf(t1a.token));
+  assert.ok((await r3.json()).relations.some(x => x.conversationId === cid), 'sent conv visible to non-initiator in relations');
+});
+
 test('auth/validation: unauthenticated → 401; non-opposite role target → 404; missing target → 404', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, s1a, t1a } = await seed(db, raw);

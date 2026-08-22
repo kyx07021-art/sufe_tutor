@@ -84,7 +84,6 @@ export async function dbGetConversationWithNames(db, conversationId) {
 
 // My participating conversations list (peer usernames + last-message preview + temp status).
 // S2-T4 temp visibility (I-17): init rows visible only to the initiator; sent/formal rows visible to both participants.
-// S2-T4 temp visibility (I-17): init rows visible only to the initiator; sent/formal rows visible to both participants.
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
   // contracted 字段连根拔——原仅供「签约确认后背景灰字提示」（.chat-sign-tip）判定，
@@ -144,8 +143,9 @@ export async function dbGetMyRelations(db, userId) {
     LEFT JOIN contracts sc ON sc.id = (
       SELECT MAX(id) FROM contracts sc2
       WHERE sc2.student_user_id=c.student_user_id AND sc2.teacher_user_id=c.teacher_user_id)
-    WHERE c.student_user_id=? OR c.teacher_user_id=?
-    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId]);
+    WHERE (c.student_user_id=? OR c.teacher_user_id=?)
+      AND (c.temp_status IS NULL OR c.temp_status <> 'init' OR c.temp_initiator_user_id = ?) -- I-24: init rows hidden from non-initiators (same rule as dbGetMyConversations S2-T4); sent/formal visible to both participants
+    ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId, userId]);
 }
 
 // 标记已读：把我在该会话的已读游标推到最新一条消息（按角色更新对应列）

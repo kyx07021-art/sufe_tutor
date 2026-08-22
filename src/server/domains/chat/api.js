@@ -157,6 +157,12 @@ export async function handleCreateTempConversation(db, body, req) {
       return json({ conversationId: existing.id, status: STATUS.ACTIVE, tempStatus: null, tempInitiatorId: null, iAmInitiator: false, quota: null });
     }
     // Temp conversation already exists: reuse in its current state.
+    // I-24/I-18: init is visible only to its initiator — a non-initiator must not learn the
+    // session exists (same rule as the send path above). The tuple is UNIQUE, so a fresh create
+    // would collide anyway; 404 surfaces "no usable conversation" without leaking the init row.
+    if (existing.temp_status === TEMP_STATUS.INIT && existing.temp_initiator_user_id !== me.id) {
+      return errorMsg('CONVERSATION_NOT_FOUND', 404);
+    }
     return json({
       conversationId: existing.id,
       status: existing.status || STATUS.ACTIVE,
