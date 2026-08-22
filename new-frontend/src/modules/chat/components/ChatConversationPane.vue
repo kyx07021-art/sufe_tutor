@@ -158,7 +158,10 @@ watch(
 
 onMounted(() => {
   loadRelations()
-  loadMessages(chatState.activeConversationId)
+  // The conversation list (I-17) loads asynchronously after the panes mount
+  // (ChatPage.onMounted -> loadConversations); skip a message load for a not-yet
+  // known conversation to avoid a spurious /conversations/null/messages 404.
+  if (chatState.activeConversationId != null) loadMessages(chatState.activeConversationId)
   startActivePolling()
   mql = window.matchMedia('(max-width: 600px)')
   syncMobile()

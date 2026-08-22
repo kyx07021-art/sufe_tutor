@@ -1,9 +1,9 @@
 import { reactive, computed } from 'vue'
-import { DEMO_CONVERSATIONS } from './demoData.js'
 import { api } from '../../core/api.js'
 import { showToast } from '../../composables/useToast.js'
 import { CHAT_COPY } from '../../constants/m-chat.js'
 import { getIface } from '../shell/ifaces.js'
+import { ROLES } from '../shell/auth-store.js'
 import { normalizeMessage, sliceTail, advanceCursor } from './logic/messages.js'
 import { sendMessages, createClientKey } from './logic/send.js'
 import { pollOnce, PREVIEW_KIND, createPoller } from './logic/polling.js'
@@ -13,9 +13,11 @@ import { applyTempSent, applyFormal, initTemp } from './logic/tempConversation.j
 /**
  * state.js - C2 chat module store + input-visibility single point + assembly actions.
  * -----------------------------------------------------------------------------------
- * - Store is seeded with DEMO_CONVERSATIONS; real I-17/I-18 data flows through the
- *   assembly loaders (loadMessages / loadRelations) and degrades silently to empty
- *   when the backend is not ready (non-fatal).
+ * - Conversation list is loaded from I-17 via loadConversations() on page entry: there
+ *   is no fixture seed, the shell renders only real rows and degrades silently to an
+ *   empty list when the backend is not ready (non-fatal). The first loaded row becomes
+ *   the active conversation (desktop opens it immediately) without touching mobilePane,
+ *   so the mobile shell still starts on the list pane (P22 negative path).
  * - `isChatInputVisible` is the module's ONLY input-visibility decision, shared by
  *   M4-06c (ended read-only gate) + M4-27 (temp quota) - never re-implemented.
  * - Action layer (M4-07/25/26/30/32 wiring): loadMessages / sendText /
@@ -43,8 +45,8 @@ let activePoller = null
  * tempInitiatorId / quotaRemaining / iAmInitiator.
  */
 export const chatState = reactive({
-  conversations: [...DEMO_CONVERSATIONS],
-  activeConversationId: DEMO_CONVERSATIONS[0]?.conversationId ?? null,
+  conversations: [],
+  activeConversationId: null,
   /** 'list' | 'chat' - mobile (<=600px) visible pane; ignored on desktop. */
   mobilePane: 'list',
   /** Signed-in user id (assembly-injected; harness fixture = 1, real auth writes it). */
@@ -107,6 +109,78 @@ export function isChatInputVisible(state) {
   if (conv.status === 'closed') return false
   if (conv.tempStatus && conv.tempStatus !== 'init' && conv.iAmInitiator && conv.quotaRemaining === 0) return false
   return true
+}
+
+/* ================= Conversation list (I-17) ================= */
+
+/**
+ * Normalize one I-17 conversation row into the store row shape (single source).
+ * Accepts BOTH the contract shape (interfaces.md §19: conversationId / otherName /
+ * avatar / lastMessage / lastAt / status / unread / tempStatus / tempInitiatorId /
+ * quotaRemaining / iAmInitiator) AND the current backend raw shape (id /
+ * student_name / teacher_name / student_avatar / teacher_avatar / last_body /
+ * last_kind / last_at / last_sender / unread_count + tempStatus / tempInitiatorId /
+ * iAmInitiator / quota). The backend is being unified to the contract shape
+ * (PA-1c-F3); this keeps the consumer robust meanwhile.
+ * @param {object} c  raw row
+ * @param {object} [me]  current user { id, role }; picks the other-party name/avatar
+ * @returns {object|null} store row, or null when the row is unusable
+ */
+export function normalizeConversationRow(c, me) {
+  if (!c || (c.conversationId == null && c.id == null)) return null
+  const isTeacher = me && me.role === ROLES.TEACHER
+  return {
+    conversationId: c.conversationId ?? c.id,
+    // I-17: otherName prefers the teacher side when the role is unknown.
+    otherName: c.otherName ?? (isTeacher ? c.student_name : c.teacher_name) ?? '',
+    avatar: c.avatar ?? (isTeacher ? c.student_avatar : c.teacher_avatar) ?? '',
+    lastMessage: c.lastMessage ?? c.last_body ?? '',
+    lastMessageKind: c.lastMessageKind ?? c.last_kind ?? null,
+    lastAt: c.lastAt ?? c.last_at ?? null,
+    status: c.status ?? 'active',
+    unread: c.unread ?? c.unread_count ?? 0,
+    tempStatus: c.tempStatus ?? null,
+    tempInitiatorId: c.tempInitiatorId ?? null,
+    quotaRemaining: c.quotaRemaining ?? c.quota ?? 0,
+    iAmInitiator: c.iAmInitiator ?? (me && c.tempInitiatorId != null && c.tempInitiatorId === me.id),
+  }
+}
+
+/**
+ * Apply a set of I-17 raw rows to the store (replace any placeholder rows).
+ * The first row becomes the active conversation when none is active yet and its
+ * recent messages are loaded, matching the previous fixture-seed behavior of
+ * opening a conversation immediately on desktop; mobilePane is intentionally left
+ * untouched so mobile still starts on the list pane (P22 negative path).
+ * @param {Array<object>} rows  raw I-17 rows
+ * @param {object} [me]  current user { id, role }
+ * @returns {Array<object>} the normalized rows stored
+ */
+export function applyConversations(rows, me) {
+  const normalized = (rows || []).map((c) => normalizeConversationRow(c, me)).filter(Boolean)
+  chatState.conversations = normalized
+  if (chatState.activeConversationId == null && normalized.length > 0) {
+    chatState.activeConversationId = normalized[0].conversationId
+    loadMessages(normalized[0].conversationId)
+  }
+  return normalized
+}
+
+/**
+ * Load the conversation list (I-17) and replace the store rows. Failure degrades
+ * silently to an empty list (non-fatal). `apiFn` is injectable for Node tests; it
+ * defaults to the module single-point api.
+ * @param {object} [me]  current user { id, role } (used for other-party naming)
+ * @param {Function} [apiFn]  network fn following the core api() signature
+ */
+export async function loadConversations(me, apiFn = api) {
+  try {
+    const payload = await apiFn('/conversations', { auth: true })
+    const raw = Array.isArray(payload) ? payload : (payload && payload.conversations) || []
+    applyConversations(raw, me)
+  } catch {
+    chatState.conversations = chatState.conversations || []
+  }
 }
 
 /* ================= Message loading (M4-07, I-18 tail cursor) ================= */

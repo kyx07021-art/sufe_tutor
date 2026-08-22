@@ -14,8 +14,9 @@
  *  10. M4-22/23/24 top bar + more dropdown + end-session confirm modal.
  *  11. M4-25 gray-out gate (I-15 relation with contract -> End Session disabled).
  *  12. M4-26/27 temp conversation: init hint + quota input hidden after send.
- *  13. Contract-6 static scan: zero CJK in chat module source (copy + demoData
- *      exempt), zero inline event/style attrs, zero v-html, zero <style> injection.
+ *  13. Contract-6 static scan: zero CJK in chat module source (copy is data and
+ *      lives in m-chat.js), zero inline event/style attrs, zero v-html, zero
+ *      <style> injection.
  *  14. Zero console errors / pageerrors / CSP violations.
  *
  * Run: node test/smoke-chat-shell.mjs   (self-starts a Vite dev server; or set
@@ -148,8 +149,6 @@ function collectFiles(dir, out = []) {
   return out
 }
 for (const file of collectFiles(CHAT_DIR)) {
-  const base = file.split(/[\\/]/).pop()
-  if (base === 'demoData.js') continue // dev fixture: demo names are data, not copy
   const src = readFileSync(file, 'utf8')
   if (cjkRe.test(src)) ok(false, `contract 6: CJK in ${file}`)
   if (file.endsWith('.vue')) {
@@ -176,6 +175,19 @@ const FIXTURE_CONV1 = [
   { id: 3, sender_user_id: 2, kind: 'image', name: '', body: PNG, thumb: PNG, created_at: '2026-08-22T10:33:00' },
 ]
 
+// I-17 conversation list rows in the REAL backend shape (dbGetMyConversations raw
+// row + handleGetConversations camelCase temp fields): id / student_name /
+// teacher_name / student_avatar / teacher_avatar / last_body / last_kind / last_at /
+// last_sender / unread_count + tempStatus / tempInitiatorId / iAmInitiator / quota.
+// The harness mounts ChatPage without auth (role unknown), so normalizeConversationRow
+// maps otherName to teacher_name (the I-17 "teacher_name preferred" fallback).
+const FIXTURE_CONVERSATIONS = [
+  { id: 1, student_user_id: 1, teacher_user_id: 2, status: 'active', student_name: '张三', teacher_name: '李老师', student_avatar: '', teacher_avatar: '', last_body: '好的，明天下午三点见。', last_kind: 'text', last_at: '2026-08-22T10:31:00', last_sender: 2, unread_count: 1, tempStatus: null, tempInitiatorId: null, iAmInitiator: false, quota: 1 },
+  { id: 2, student_user_id: 1, teacher_user_id: 3, status: 'active', student_name: '张三', teacher_name: '王老师', student_avatar: '', teacher_avatar: '', last_body: '课件我发你邮箱了。', last_kind: 'text', last_at: '2026-08-21T09:00:00', last_sender: 3, unread_count: 0, tempStatus: null, tempInitiatorId: null, iAmInitiator: false, quota: 1 },
+  { id: 3, student_user_id: 1, teacher_user_id: 4, status: 'closed', student_name: '张三', teacher_name: '赵老师', student_avatar: '', teacher_avatar: '', last_body: '感谢本次课程，下次再约。', last_kind: 'text', last_at: '2026-08-19T18:30:00', last_sender: 4, unread_count: 0, tempStatus: null, tempInitiatorId: null, iAmInitiator: false, quota: 0 },
+  { id: 4, student_user_id: 1, teacher_user_id: 5, status: 'active', student_name: '张三', teacher_name: '刘老师', student_avatar: '', teacher_avatar: '', last_body: '', last_kind: null, last_at: '2026-08-22T11:00:00', last_sender: 1, unread_count: 0, tempStatus: 'init', tempInitiatorId: 1, iAmInitiator: true, quota: 1 },
+]
+
 function json(route, payload, status = 200) {
   return route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(payload) })
 }
@@ -198,6 +210,9 @@ try {
     const url = new URL(req.url())
     const method = req.method()
     const path = url.pathname
+    if (method === 'GET' && path === '/api/conversations') {
+      return json(route, { conversations: FIXTURE_CONVERSATIONS })
+    }
     if (method === 'GET' && path === '/api/conversations/1/messages') {
       const since = Number(url.searchParams.get('sinceId') || 0)
       return json(route, { messages: FIXTURE_CONV1.filter((m) => m.id > since) })
@@ -361,6 +376,9 @@ try {
   await mob.route('**/api/**', async (route) => {
     const req = route.request()
     const url = new URL(req.url())
+    if (url.pathname === '/api/conversations' && req.method() === 'GET') {
+      return json(route, { conversations: FIXTURE_CONVERSATIONS.slice(0, 1) })
+    }
     if (url.pathname === '/api/my-relations') {
       return json(route, { relations: [{ conversationId: 1, status: 'active', tempStatus: null, tempInitiatorId: null, signing: null }] })
     }

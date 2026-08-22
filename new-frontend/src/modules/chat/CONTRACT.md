@@ -10,7 +10,6 @@
 | `components/ChatConversationPane.vue` | M4-02 顶部淡出遮罩 + M4-06a 框架布局 + M4-06c 已结束只读门禁 | 遮罩 pointer-events:none；输入槽由 `isChatInputVisible` 单点门禁 |
 | `state.js` | **输入框隐藏单点**（M4-06c/27/29 共用） | `isChatInputVisible(state)` = ended + temp-quota 双 flag |
 | `components/ChatListPane.vue` | 选择栏骨架（M4-03/04/05 细化） | 卡片结构 + 选中/已结束状态类就位 |
-| `demoData.js` | 骨架种子（M4-03/07 接入真实数据后替换） | 字段名对齐 I-17 行 |
 | `index.js` | 模块统一出口 | 模块外只从这里 import |
 | `pages.js`（模块内） | 页面注册（路径 /chat，student/teacher 门禁） | shell/page-registry.js 的 import.meta.glob 收集；M2-08 内存历史路由 |
 | `src/constants/m-chat.js` | 文案单源（收口汇 ui.js） | `import { CHAT_COPY } from '@/constants/ui.js'` |
