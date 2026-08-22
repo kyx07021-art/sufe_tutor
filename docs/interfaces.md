@@ -113,3 +113,135 @@
 - **cap（前端不写）**：I-44..46 合同
 
 > 阶段二签发动作：对每条 v2-ready 接口核对 v2 形状与新模型差异（单科目/无联系方式/临时会话），对 new 接口设计 dummy 形状，cap 接口记录预留形状。签发后每条更新为 `ready`（形状冻结），后端实现完成前前端一律接接口帽。
+
+## 12. new 接口 dummy 形状定稿（阶段二签发，2026-08-22 六点）
+
+> 形状按计划书表现设计；两端（前端接口帽 / 后端实现）都以本节为准。后端实现完成前，前端一律接本形状的 dummy。v2-ready 接口的形状核对（与新模型差异）随各模块拆解结果签发。
+
+### I-23 发起临时会话（new · cap）
+```
+POST /api/conversations/temp
+Auth: 登录
+body: { targetUserId: int, firstMessage: string ≤ 1000 }
+200: { conversationId: int, status: 'temp'|'active', quotaRemaining: int /* 0|1，发起方发首条后为 0 */ }
+409: 已存在正式会话 → 返回既有会话 { conversationId, status:'active' }
+404: 目标用户不存在 / 非发消息前置用户详情
+```
+语义：大厅「发消息」→ 无既有会话则生成临时会话；发起方发首条消息后 `quotaRemaining:0`（前端输入框消失，物理阻止更多消息）；对方回复后 `status:'active'`（正式会话，双方提示文本驱动）。发起后对方会话列表不显示，直到对方回复。
+
+### I-24 临时会话配额与转正式（new · 并入会话/消息接口）
+```
+GET /api/conversations/:id  → 200 含 { convStatus: 'temp'|'active'|'closed' }
+POST /api/conversations/:id/messages → 200 含 { tempQuota: 0|1, convStatus }
+   （temp 下发起方第 2 条：403 TEMP_QUOTA_EXHAUSTED，服务端兜底；前端输入框消失为主防线）
+```
+语义：前端 C2.6 提示文本由 `convStatus + tempQuota` 驱动（「当前为临时会话，在对方回复前，你最多可发送1条消息」/「对方最多可发送1条消息，你回复后将建立正式会话」/「你们已完成互发消息」）。
+
+### I-29 教师列表响应（v2-ready 改造 · 加字段）
+```
+GET /api/teachers?sort=match|rating|exp|price&order=asc|desc&filters={subjects[],gender,personalities[],priceMin,priceMax}
+200: { items: [{ teacherId, name(教师名), avatar, rating, reviewCount, priceMin, priceMax,
+                subjects: [{subject, score, full, awards[]}], bio, region,
+                matchScore: int /* 0-100，新匹配度 */, matchCount: int /* 筛选命中数 */ }], total }
+```
+语义：`sort=price` 按 `(priceMin+priceMax)/2` 中间价；筛选命中 → 命中数分组重排（命中数高的组在前，组内按排序偏好）。
+
+### I-32 新匹配度（new · 字段级，S4 实现）
+```
+matchScore 0-100：学生需求 vs 教师资料——科目匹配/授课方式/地区可及/报价区间/偏好性格命中加权。
+matchCount：筛选维度（科目/性别/性格/报价区间）中命中的个数。
+```
+排序 `sort=match` 按 matchScore 降序；筛选后按 matchCount 分组。
+
+## 13. 阶段二契约定案（模块拆解反馈签发，2026-08-22）
+
+### I-06 二次身份验证（定案形状）
+```
+POST /api/auth/verify
+Auth: 登录 + 场景（capToken 由调用方流程提供）
+body: { credential: { type: 'otp'|'password', value: string },
+        captchaVerified: true }   // 拼图已先经 I-07 验证置位（前端状态）
+200: { verified: true } | 401/403
+```
+定案理由：计划书 C5「确认按钮只在验证码和拼图都通过之后亮起」→ 拼图先行 I-07 验证，灰态判据 = 凭证完整（验证码 6 位 / 密码非空）+ 拼图已通过；I-06 提交只带凭证，验证码/密码合法性服务端判定。
+
+### I-05 恢复当前用户（加字段）
+```
+GET /api/auth/me
+200: { user: { id, username, role, avatar, 教师名?, ...,
+              contactMasks: { phone: boolean, email: boolean } } }
+```
+定案理由：M6-3 默认认证方式判定（有手机→手机验证码/仅邮箱→邮箱/永不默认密码）。**只给布尔不给值**（联系方式永不公开红线）。
+
+### openIdentityAuth 对外签名（M6-11 契约）
+`openIdentityAuth({ onVerified })` —— 供结束关系等 capToken 二次认证场景呼出；成功回调 onVerified()，取消/失败不回调。
+
+### OTP 冷却常量归属
+进新站全局单源（后端 shared/config 对应物），M6-5 引用；不散落裸值。
+
+## 14. 阶段二契约定案（M3 反馈签发）
+
+### 合同边处理（M3 决策 2）
+关系图本轮**只渲染会话边**，不渲染合同边（合同前端组件本轮不写，用户定案）；M3-01 边模型只建会话边、忽略 `relation.signing`。I-15 响应中的 `signing` 字段**保留不下发**给 M3 消费，但传给 M4（「有合同则结束会话按钮灰掉」判断用，计划书 C2.4）。
+
+### z-order token
+关系图层级 token（底板 0/虚线 1/头像 2/卡 3）由 M3-02 模块内定值，不上提 M0。
+
+## 15. 阶段二契约定案（S3/M5/M9 反馈签发，2026-08-22）
+
+### S3 需求域定案（S3-0）
+①联系方式整列删除（不存储，用户自行在会话中提供）②teaching_method 三态 online/offline/both ③target_type 由 subject 派生 ④display_id 删除 ⑤demand_intents/demand_pushes 归 S2 统一删除（被临时会话取代）⑥status 收敛 open/closed。
+I-33~38 更新：创建/更新需求 body 含 subject(单科目)/grade/province/teaching_method/current_score/address_area/expected_time/preferred_tags/preferred_gender/budget/additional_info；联系方式字段不存在。
+
+### M9 D2 跨模块共享组件裁决
+①排序筛选第二三上边栏机制（M7-04..13 与 M9-B1-3..5 双消费）→ **落 M0 共享组件**（走 §3.4 解冻程序补进 M0）②教师详情卡三栏结构（M7-18..21 与 M9-B2-3 双消费）→ **落 M0 共享组件**③头像居中裁切最大圆（M5-09 与 M9-B2-6 双消费）→ **M0 共享工具**。M0 完成后由主会话按解冻程序补这三件。
+
+### M5 反馈匿名身份模型（公开接口）
+新增公开接口（无需身份验证硬约束）：
+```
+POST /api/feedbacks      // 匿名提交：body { kind: bug|suggestion|report, title, content, contact?, attrs{} }
+GET  /api/feedbacks/mine // 匿名工单：header/query 传 clientToken（客户端本地生成 UUID 存 sessionStorage）
+```
+匿名身份 = 客户端生成 clientToken 随请求传参；登录用户可用同一接口（user id 优先）。后端 S6 实现。
+
+### I-26/I-27/I-28 形状（M5 消费）
+I-26 GET /api/notifications → { items: [{ id, type, title, content, created_at, is_read, avatar_src: 'user'|'system' }] }
+I-27 POST /api/notifications/read（body {ids} 单条）/ POST /api/notifications/read-all（批量）
+I-28 屏蔽系统通知 = PUT /api/settings { blockSystemNotifications: boolean }（服务端过滤下发）
+
+## 16. 阶段二契约定案（S1/S5 反馈签发，2026-08-22）
+
+### S1 决策点
+D1 C5 verify = I-06（§13 已签，POST /api/auth/verify，credential + captchaVerified，三选二组合签发一次性 capToken）。
+D2 设备管理路径**保留 v2** `GET /api/auth/sessions` + `POST /api/auth/sessions/revoke`（auth 域实现，I-13 指向此处；前端 M5-11 接入）。
+D3 遗留一次性迁移（migrateLegacyRoles/rebuildTables/sanitizeUsernames/cleanLegacyAuthTokenColumns）**删除**（生产 D1 已终态，W1）。
+D4 otp/credential 核心**归 S1**（S0 不重复）。
+邀请码门控保留搬运（新站教师注册需邀请码，产品如需放开另行定案）。
+
+### S5 合同独立化
+①contracts 独立表，删 stage/signing_status/demand_id/initiator_user_id/message_id/responded_at/price/签约 schedule；保留合同字段 + hourly_rate 泛化 rate（四档计费）②状态机 contract_status ∈ {signing, signed} + revoked 标记 ③conversation_id 可空历史关联、FK 不级联删合同（独立存证）④capToken 二次认证入起草（I-45）⑤存证链 ledger 保留（AI-4a 终态版）⑥NOTIFY_TYPES 删签约 3 键、保合同 6 键。
+
+## 17. 阶段二契约定案（S2/S4 反馈签发，2026-08-22）
+
+### S4 决策点
+D1 匹配度需求上下文 = 服务端取该学生**最近一条 open 需求**；无需求 match=null 不参与排序（前端零传参）。
+D2 经验 = teacher_profiles 新增 **experience_years** 列（教师可编辑、公开下发）。
+D3 匹配度权重初值（总和 100，S4-13 微调）：科目 35 / 地区 25 / 报价 20 / 方式 10 / 偏好 10（性格 5+性别 5）。
+D4 教师名 = teacher_profiles 新增 **teacher_name** 列（可编辑、公开、空回退 username）。
+D5 报价排序 = 中间价 (min+max)/2、单边用单边、双 null 置后；列表门禁 = 登录。
+
+### S2 临时会话（temp）契约
+I-23 发起：POST /api/conversations/temp → 已存在 formal（active/closed）reopen 复用；已存在 temp 复用；无 → 新建 init 行（temp_initiator=me）。响应 { conversationId, status, tempStatus, tempInitiatorId, iAmInitiator, quota }。
+I-24 状态机：init（仅发起方可见可发、配额 1）→ 首条落库事务→sent（接收方可见+红点+可回复、发起方 409 TEMP_QUOTA_EXCEEDED）→ 接收方回复→formal（temp_status→NULL、temp_initiator 保留=wasTemp，前端推导三条提示文本）。
+I-17 列表：init 仅发起方显（0 消息也显）/接收方 init 隐藏、sent 显；响应行含 tempStatus/tempInitiatorId/quota。
+I-18 详情：init 非发起方 404（防存在性泄露）。
+I-16 适配：temp close = 删除会话行（FK 级联）+ 零通知；formal 照旧 close 级联+CONVERSATION_CLOSED。temp close 保留 capToken。
+
+### S6 定案（2026-08-22）
+通知核心咽喉（notifyUser/建表/读/已读）归 **S0**；S6 管理面=广播+批删+类型重登记。评价资格（R3 新信任模型）= 三方会话存在 + 双方往来消息各≥1 + 教师核验 approved。**awards 不上线**（W1 删，通知类型去 AWARD_*）；**privacy 设置删除**（无访客浏览，W1）。屏蔽偏好 = users.notify_broadcast_muted 列 + `PUT /api/settings { notifyBroadcastMuted }`（布尔，广播类渲染过滤）。
+
+## 18. 登录/注册归属裁决（M1-M3 复核发现，2026-08-22）
+计划书无独立登录/注册页；唯一认证载体 = **C5 身份认证浮窗（M6）**。裁决：**不建独立登录/注册页面模块**。M6 C5 浮窗扩为三场景（登录 I-02 / 注册 I-03 / 敏感操作二次验证 I-06 verify 三选二）。M2 边界「登录注册页面归 M1」修正为：认证载体 = M6 openIdentityAuth 三场景；authStore（M2-10）提供登录/注册动作；401 兜底（M2-12）+ 路由守卫（M2-09）重定向 openIdentityAuth；落地页两按钮（M1-03）触发。M6 补 M6-13 注册模式基元（角色选择+邀请码门控+I-03）。
+
+### M9 复核 v3 钉死（2026-08-22）
+匹配度响应字段统一 **matchScore**（0-100）/ **matchCount**（筛选命中数）——I-29 为准，S4/M9 拆解表述对齐；M7-12/13（命中分组纯函数 + 即时应用/动效重播）上提 M0 泛化（维度表驱动，M7 四维/M9 三维双消费）。

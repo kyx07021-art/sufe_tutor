@@ -1,0 +1,171 @@
+/* ==========================================================================
+   tokens.css - M0 design token single source (new frontend - JingShiZhiTu)
+   -------------------------------------------------------
+   - Single site-wide token table. All components consume variable names only;
+     raw values are forbidden outside this file.
+   - Light theme = 80% white / 10% gray-black / 10% brand purple; dark theme
+     overrides the same variable names via html[data-theme="dark"].
+   - Border width and line color are unified site-wide (--border-w + --line = gray-50).
+   - Default gray text is gray-50; informational text is gray-75.
+   - Motion durations are in the 100ms class: one master variable --dur-xs with
+     multipliers (sm=2x / base=3x / md=4x / lg=5x / xl=7x).
+   - Components only consume variable names; when adding a new value, check here first.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* -- Brand purple (medium saturation, rich; light / dark variants) -- */
+  --brand: #6c5ce7;            /* light variant brand purple (single source, change brand here) */
+  --brand-hover: #5b4bd6;      /* dark fill hover: grayscale -15 */
+  --brand-active: #4938c0;     /* dark fill active: grayscale -30 */
+  --brand-bright: #7f6df3;     /* brightened: step dot current point / emphasis */
+  --brand-soft: #eceafc;       /* high lightness low saturation: chat own bubble pale purple (color filter single source) */
+  --brand-ink: #ffffff;        /* text inside brand fill (white) */
+  --brand-disabled: #cbc4ec;   /* disabled: lightness -> (orig+100)/2 + half saturation */
+
+  --danger: #e5484d;           /* danger action red */
+  --danger-hover: #d33a3f;     /* dark fill hover */
+  --danger-active: #b92d32;    /* dark fill active */
+  --danger-ink: #ffffff;
+  --danger-disabled: #eccbcd;
+  --warn: #f5b301;             /* yellow star (optional unfilled) */
+  --success: #27a15f;          /* green check (filled) */
+
+  /* -- Grayscale (X gray = X% ink + white) -- */
+  --gray-0: #ffffff;
+  --gray-10: #e6e6e6;          /* focus fill / selected tab */
+  --gray-15: #d9d9d9;          /* button hover fill */
+  --gray-20: #cccccc;          /* unknown file logo background */
+  --gray-30: #b3b3b3;          /* input placeholder / button click fill */
+  --gray-40: #999999;
+  --gray-50: #808080;          /* default gray text / site-wide divider color */
+  --gray-60: #666666;          /* button hover text / S1 underline text */
+  --gray-70: #4d4d4d;
+  --gray-75: #404040;          /* informational display text */
+  --gray-80: #333333;
+  --gray-90: #1a1a1a;          /* primary text gray-black */
+  --gray-100: #000000;
+
+  /* -- Surface / ink -- */
+  --paper: #ffffff;            /* page background / component background */
+  --paper-raised: #ffffff;     /* overlay background (modal / dropdown) */
+  --ink: var(--gray-90);       /* primary text */
+
+  /* -- Borders (unified site-wide: width + color single source) -- */
+  --border-w: 1px;
+  --border-w-thick: 2px;
+  --line: var(--gray-50);      /* site-wide divider = gray-50 */
+
+  /* -- Radii -- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;        /* capsule: two half-circles + zero vertical line */
+  --radius-circle: 50%;
+  --radius-img: 20px;          /* image rounded crop */
+
+  /* -- Spacing (8px base scale) -- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 40px;
+  --space-7: 64px;
+  --space-8: 100px;
+  --page-inset: var(--space-8); /* page edge blank (landing 100px each side, components must not exceed) */
+
+  /* -- Font size / line height -- */
+  --font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --fs-base: 16px;             /* universal base font size */
+  --fs-sm: 14px;
+  --fs-xs: 12px;
+  --fs-lg: 20px;
+  --fs-xl: 28px;
+  --fs-display: clamp(40px, 6vw, 76px); /* landing hero display */
+  --lh-body: 1.6;
+  --lh-tight: 1.3;
+
+  /* -- Motion duration (100ms master + multipliers) -- */
+  --dur-xs: 100ms;             /* 1x hover fill spread */
+  --dur-sm: 200ms;             /* 2x text/SVG color transition */
+  --dur-base: 300ms;           /* 3x fade-in / collapse / generic */
+  --dur-md: 400ms;             /* 4x keyboard focus slow spread */
+  --dur-lg: 500ms;             /* 5x scroll in/out */
+  --dur-xl: 700ms;             /* 7x click ripple */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+  /* -- Shadows (levels: overlay / dropdown / input) -- */
+  --shadow-float: 0 16px 48px rgba(30, 30, 60, 0.12);   /* modal / dropdown A: wide gradient shadow */
+  --shadow-float-sm: 0 6px 20px rgba(30, 30, 60, 0.10); /* dropdown B: smaller shadow */
+  --shadow-input: 0 2px 10px rgba(30, 30, 60, 0.06);    /* chat input floating feel */
+
+  /* -- Modals -- */
+  --modal-w: 30%;              /* PC centered width 30% */
+  --modal-w-mobile: 80%;       /* mobile 80% */
+  --modal-mask-h: 32px;        /* scroll fade mask height */
+  --overlay: rgba(20, 20, 40, 0.1); /* modal backdrop: very light, layering carried by the modal shadow */
+
+  /* -- Input A -- */
+  --input-h: 44px;
+  --input-pad-y: 11px;         /* (44 - 20 line height) / 2 ~ single-line vertical center */
+  --input-pad-x: var(--space-4);
+  --input-lh: 20px;
+  --input-radius: calc(var(--input-h) / 2); /* capsule radius */
+
+  /* -- Buttons (semantic aliases consumed by UiButton) -- */
+  --btn-hover-bg: var(--gray-15);
+  --btn-click-bg: var(--gray-30);
+  --btn-hover-ink: var(--gray-60);
+  --btn-lift: -1px;            /* A-series button hover micro-lift */
+  --btn-arrow-shift: 4px;      /* A1/B1 arrow focus shift */
+
+  /* -- Scroll reveal (landing) -- */
+  --reveal-y: 24px;
+}
+
+/* -- Dark mode reserved: future html[data-theme="dark"] flips the same variable names, zero component changes -- */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #17171f;
+  --paper-raised: #1f1f2a;
+  --ink: #ececf2;
+  --gray-0: #17171f;
+  --gray-10: #2a2a38;
+  --gray-15: #343440;
+  --gray-20: #3f3f4d;
+  --gray-30: #56566a;
+  --gray-40: #717183;
+  --gray-50: #8b8b9c;
+  --gray-60: #a1a1ae;
+  --gray-70: #b6b6c0;
+  --gray-75: #c2c2cc;
+  --gray-80: #d2d2da;
+  --gray-90: #e6e6ec;
+  --brand: #8f7bff;
+  --brand-hover: #a296ff;
+  --brand-active: #b5aaff;
+  --brand-bright: #a99bff;
+  --brand-soft: #262133;
+  --brand-ink: #17171f;
+  --brand-disabled: #3d3a52;
+  --danger: #ff6b70;
+  --danger-hover: #ff8589;
+  --danger-active: #ff9ea1;
+  --danger-ink: #17171f;
+  --danger-disabled: #5a3a3d;
+  --warn: #f5c84e;
+  --success: #4cc38a;
+}
+
+/* Shared ripple keyframes: consumed by every component's .is-rippling layer.
+   Defined globally so all scoped components reference the same animation name
+   (useRipple / vRipple match it by the "ui-ripple" prefix). */
+@keyframes ui-ripple {
+  0%   { transform: scale(0); opacity: 1; }
+  30%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
