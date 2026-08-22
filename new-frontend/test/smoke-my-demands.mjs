@@ -14,10 +14,11 @@
  * 运行：node test/smoke-my-demands.mjs（需 dev server 于 :5199；BASE 可覆盖）
  */
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { register } from 'node:module'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { chromium } from 'playwright'
-import { dhGet, dhSet, dhHas, dhInvalidate, dhFetch } from '../src/core/datahub.js'
+import { dhGet, dhSet, dhHas, dhInvalidate, dhFetch, dhClearAll } from '../src/core/datahub.js'
 import {
   MY_DEMANDS_COPY,
   DEMAND_SCORE_TEMPLATE,
@@ -123,7 +124,57 @@ async function unitDatahub() {
 
   dhInvalidate('unit-a')
   check(dhHas('unit-a') === false, 'unit: invalidate removes key')
+
+  // dhClearAll (PA-1g-F1): every domain key must be dropped at once, no residue
+  dhSet('demands', { items: [1] })
+  dhSet('teachers', { items: [2] })
+  dhClearAll()
+  check(dhHas('demands') === false, 'unit: dhClearAll must drop the demands key')
+  check(dhHas('teachers') === false, 'unit: dhClearAll must drop the teachers key')
+  check(dhGet('demands') === undefined, 'unit: dhClearAll must leave no residue')
   console.log('  [unit] datahub cache semantics ok')
+}
+
+/* ---------- 1b. PA-1g-F1 登出/401 清空 datahub（真实模块行为测试，防跨用户缓存残留） ---------- */
+/**
+ * PA-1g-F1 (1101): the datahub module cache is process-wide and keyed by business
+ * domain only (no user identity). Logout and the 401 dead-token fallback MUST clear
+ * the whole cache, otherwise a second user in the same tab reads the first user's
+ * cached data (the my-demands list holds private info). This imports the REAL
+ * auth-actions.logout / handle-dead-token.handleDeadToken - the Vite `@` alias is
+ * resolved for Node via a node:module resolve hook - seeds the cache with multiple
+ * domains, and asserts every key is gone. Mutation guard: deleting either dhClearAll
+ * call makes the matching assertion red.
+ */
+async function unitAuthClearsDatahub() {
+  const srcUrl = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), '..', 'src') + '/').href
+  const hook = 'data:text/javascript,' + encodeURIComponent(`
+    let base = ''
+    export function initialize(data) { base = data.src }
+    export async function resolve(specifier, context, nextResolve) {
+      if (specifier.startsWith('@/')) return nextResolve(new URL(specifier.slice(2), base).href, context)
+      return nextResolve(specifier, context)
+    }
+  `)
+  register(hook, { data: { src: srcUrl } })
+
+  const { logout } = await import('../src/modules/shell/auth-actions.js')
+  const { handleDeadToken } = await import('../src/modules/shell/handle-dead-token.js')
+
+  // logout: every domain key must be dropped
+  dhSet('demands', { items: [1] })
+  dhSet('teachers', { items: [2] })
+  await logout()
+  check(dhHas('demands') === false, 'logout: datahub must drop the demands cache (PA-1g-F1 cross-user leak)')
+  check(dhHas('teachers') === false, 'logout: datahub must drop the teachers cache (PA-1g-F1 cross-user leak)')
+
+  // 401 dead-token fallback: same guarantee
+  dhSet('demands', { items: [3] })
+  dhSet('contracts', { items: [4] })
+  handleDeadToken({ silent: true })
+  check(dhHas('demands') === false, '401: handleDeadToken must drop the demands cache (PA-1g-F1 cross-user leak)')
+  check(dhHas('contracts') === false, '401: handleDeadToken must drop the contracts cache (PA-1g-F1 cross-user leak)')
+  console.log('  [unit] logout/401 clear datahub cache ok')
 }
 
 /* ---------- 2. region 数据形状单元（M8-15，上海预备班前置） ---------- */
@@ -578,6 +629,7 @@ async function gridOverflow() {
 
 /* ---------- run ---------- */
 await unitDatahub()
+await unitAuthClearsDatahub()
 await unitRegion()
 await unitPageRegistration()
 await desktop()

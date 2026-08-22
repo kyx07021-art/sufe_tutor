@@ -31,6 +31,14 @@ export function dhInvalidate(...keys) {
 }
 
 /**
+ * Clear the entire cache. Logout and the 401 dead-token fallback call this so a
+ * second user in the same tab never reads the previous user's cached domain data.
+ */
+export function dhClearAll() {
+  cache.clear()
+}
+
+/**
  * Fetch-if-missing: returns the cached value when present, otherwise runs the fetcher
  * and caches its result. force bypasses the cache (used after invalidate on page refresh).
  */

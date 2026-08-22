@@ -1,5 +1,6 @@
 import { setAuth, persistAuth, clearAuth } from './auth-store.js'
 import { api } from '@/core/api.js'
+import { dhClearAll } from '@/core/datahub.js'
 import { clearLastPage } from './last-page.js'
 import { runCleanupCallbacks } from './cleanup-registry.js'
 
@@ -43,5 +44,6 @@ export async function logout() {
   }
   clearAuth()
   clearLastPage()
+  dhClearAll()
   runCleanupCallbacks()
 }

@@ -15,6 +15,7 @@
 import { clearAuth } from './auth-store.js'
 import { runCleanupCallbacks } from './cleanup-registry.js'
 import { clearLastPage } from './last-page.js'
+import { dhClearAll } from '@/core/datahub.js'
 import { showToast } from '@/composables/useToast.js'
 import { SHELL_COPY } from '@/constants/m-shell.js'
 
@@ -28,6 +29,7 @@ export function setDeadTokenRedirect(fn) {
 export function handleDeadToken({ silent = false } = {}) {
   clearAuth()
   clearLastPage()
+  dhClearAll()
   runCleanupCallbacks()
   if (!silent) showToast(SHELL_COPY.LOGIN_EXPIRED)
   if (redirectHandler) redirectHandler()
