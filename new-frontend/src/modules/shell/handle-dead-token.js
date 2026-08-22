@@ -8,11 +8,13 @@
  *   cleanup callbacks (stop polling / timers / listeners), shows the "login expired"
  *   toast (unless silent), then triggers the router redirect handler injected by
  *   router-guard (back to landing + open login).
- * - Idempotent: repeated calls are safe — every step is a no-op once the cleared
- *   state is reached, and the toast/redirect only fire per call.
+ * - Toast dedup (PA-1g-F2): concurrent 401s (a first-screen burst of parallel
+ *   fetches all failing together) each dispatch 'auth:dead'; only the first call
+ *   announces the toast, the rest of the burst are silenced. Cleanup + redirect
+ *   stay idempotent and run on every call.
  */
 
-import { clearAuth } from './auth-store.js'
+import { authStore, clearAuth } from './auth-store.js'
 import { runCleanupCallbacks } from './cleanup-registry.js'
 import { clearLastPage } from './last-page.js'
 import { dhClearAll } from '@/core/datahub.js'
@@ -22,16 +24,30 @@ import { SHELL_COPY } from '@/constants/m-shell.js'
 let redirectHandler = null
 let listenerInstalled = false
 
+/**
+ * One-shot toast guard (PA-1g-F2): armed when a login-expiry toast is announced,
+ * so a concurrent burst of 401s only announces once. Re-armed lazily — a fresh
+ * session (authStore.token truthy again on a later handleDeadToken call) means the
+ * next 401 is a DISTINCT expiry event and must announce once more. An anonymous
+ * 401 (no live session) never announces.
+ */
+let toastAnnounced = false
+
 export function setDeadTokenRedirect(fn) {
   redirectHandler = fn
 }
 
 export function handleDeadToken({ silent = false } = {}) {
+  if (authStore.token && toastAnnounced) toastAnnounced = false
+  const hadSession = Boolean(authStore.token)
   clearAuth()
   clearLastPage()
   dhClearAll()
   runCleanupCallbacks()
-  if (!silent) showToast(SHELL_COPY.LOGIN_EXPIRED)
+  if (!silent && hadSession && !toastAnnounced) {
+    toastAnnounced = true
+    showToast(SHELL_COPY.LOGIN_EXPIRED)
+  }
   if (redirectHandler) redirectHandler()
 }
 

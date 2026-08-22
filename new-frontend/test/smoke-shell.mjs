@@ -14,7 +14,7 @@ import { test } from 'node:test'
 import assert from 'node:assert'
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
 
 import {
@@ -147,6 +147,56 @@ test('auth-store: expired local remember token degrades to session', () => {
   assert.equal(read.token, 'session-token') // local expired -> dropped, session wins
   assert.equal(read.remember, false)
   assert.equal(loc.getItem('authToken'), null) // expired local keys cleared
+})
+
+/* ------------------------------------------------------------------ *
+ * Unit: handle-dead-token toast dedup (PA-1g-F2)
+ * ------------------------------------------------------------------ */
+
+test('dead-token: concurrent 401s announce one toast; fresh session re-arms (PA-1g-F2)', async () => {
+  // Resolve the Vite `@` alias for the REAL handle-dead-token module in Node
+  // (same hook pattern as smoke-my-demands.mjs PA-1g-F1).
+  const srcUrl = pathToFileURL(path.join(__dirname, '..', 'src') + '/').href
+  const hook = 'data:text/javascript,' + encodeURIComponent(`
+    let base = ''
+    export function initialize(data) { base = data.src }
+    export async function resolve(specifier, context, nextResolve) {
+      if (specifier.startsWith('@/')) return nextResolve(new URL(specifier.slice(2), base).href, context)
+      return nextResolve(specifier, context)
+    }
+  `)
+  const { register } = await import('node:module')
+  register(hook, { data: { src: srcUrl } })
+
+  const { handleDeadToken } = await import('../src/modules/shell/handle-dead-token.js')
+  const { toastState } = await import('../src/composables/useToast.js')
+  const { setAuth, clearAuth } = await import('../src/modules/shell/auth-store.js')
+
+  // showToast schedules auto-dismiss via window.setTimeout; stub it as a no-op so
+  // toasts stay mounted for the whole assertion window. window.sessionStorage is
+  // absent -> the try/catch-guarded storage helpers degrade silently.
+  const prevWindow = globalThis.window
+  globalThis.window = { setTimeout: () => {} }
+  try {
+    // logged-in burst of 3 concurrent 401s -> exactly one announcement
+    setAuth({ token: 't1', user: { id: 1 } })
+    handleDeadToken()
+    handleDeadToken()
+    handleDeadToken()
+    assert.equal(toastState.items.length, 1, '3 concurrent 401s must announce exactly one toast (PA-1g-F2)')
+
+    // fresh session (re-login) + a later 401 = a distinct expiry -> announced again
+    setAuth({ token: 't2', user: { id: 2 } })
+    handleDeadToken()
+    assert.equal(toastState.items.length, 2, 'a fresh expiry after re-login must announce once more (PA-1g-F2)')
+
+    // no live session + 401 -> never announce "login expired"
+    clearAuth()
+    handleDeadToken()
+    assert.equal(toastState.items.length, 2, 'an anonymous 401 must not announce login-expired (PA-1g-F2)')
+  } finally {
+    globalThis.window = prevWindow
+  }
 })
 
 /* ------------------------------------------------------------------ *
@@ -426,8 +476,17 @@ test('browser: shell routing + auth flows (real dist)', async () => {
     await anon.close()
     await anonCtx.close()
 
-    /* --- 401 single-point dead-token fallback --- */
-    await authed.evaluate(() => window.__APP__.api('/forced-401').catch(() => {}))
+    /* --- 401 single-point dead-token fallback (PA-1g-F2: concurrent burst -> one toast) --- */
+    // Three parallel authenticated requests all 401 together - the exact reported
+    // failure (first-screen burst stacking 3 "login expired" toasts). The dead-token
+    // fallback must still clear state exactly once and announce exactly one toast.
+    await authed.evaluate(() =>
+      Promise.all([
+        window.__APP__.api('/forced-401').catch(() => {}),
+        window.__APP__.api('/forced-401').catch(() => {}),
+        window.__APP__.api('/forced-401').catch(() => {}),
+      ]),
+    )
     await authed.waitForFunction(() => window.__APP__.router.currentRoute.value.path === '/', null, { timeout: 8000 })
     await authed.waitForTimeout(300)
     const dead = await authed.evaluate(() => ({
@@ -439,7 +498,7 @@ test('browser: shell routing + auth flows (real dist)', async () => {
     assert.equal(dead.user, null, '401 must clear authStore.user')
     assert.equal(dead.sess, null, '401 must clear the session storage token')
     const toastCount = await authed.locator('.ui-toast').count()
-    assert.ok(toastCount >= 1, 'dead-token fallback should show the login-expired toast')
+    assert.equal(toastCount, 1, '3 concurrent 401s must show exactly one login-expired toast (PA-1g-F2)')
     const toastText = await authed.locator('.ui-toast').first().textContent()
     assert.ok(
       toastText.includes(SHELL_COPY.LOGIN_EXPIRED),
