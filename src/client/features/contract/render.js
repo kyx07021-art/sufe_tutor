@@ -62,7 +62,7 @@ export function renderContractCard(c) {
     </div>
     <div class="list-card-body">
       <span class="tag glass glass--solid">${escHtml(methodNameText)}</span>
-      <span class="tag tag-warn glass glass--solid">${c.hourly_rate}${TEXT.PRICE_UNIT}</span>
+      <span class="tag tag-warn glass glass--solid">${c.rate}${TEXT.PRICE_UNIT}</span>
       ${c.demand_display_id ? `<span class="tag glass glass--solid">${escHtml(demandIdText(c.demand_display_id))}</span>` : ''}
       <span class="list-card-meta">${fmtDateTime(c.updated_at)}</span>
     </div>

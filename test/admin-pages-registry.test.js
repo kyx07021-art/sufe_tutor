@@ -1,5 +1,5 @@
 /**
- * U-4: admin registry completeness — the 13 admin pages must all be registerPage'd with a
+ * U-4: admin registry completeness — the 12 admin management pages must all be registerPage'd with a
  * real enter function (no dormant empty enter), visible for the admin role. Catches the
  * v2 "module defined but never assembled" / dormant-page class (Z-14-F2 / U-3 series).
  */
@@ -11,7 +11,7 @@ import { pagesForRole } from '../src/client/core/router.js';
 import adminFeature from '../src/client/features/admin/index.js';
 import complaintsFeature from '../src/client/features/complaints/index.js';
 
-test('U-4 admin 13 管理页 registerPage 接线 + enter 非空函数', () => {
+test('U-4 admin 12 管理页 registerPage 接线 + enter 非空函数', () => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;

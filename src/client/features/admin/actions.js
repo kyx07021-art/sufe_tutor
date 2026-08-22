@@ -448,7 +448,7 @@ export function renderAdminContractRow(c) {
         <strong>${escHtml(c.student_name || '')} × ${escHtml(c.teacher_name || '')}</strong>
         <span class="tag glass glass--solid ${statusCls}">${escHtml(statusText)}</span>
       </div>
-      <div class="admin-row-meta">${escHtml(TEXT.ADMIN_CONTRACT_DRAFTER_PREFIX)}${escHtml(c.drafter_name || '')} · ${escHtml(methodNameText)} · ${c.hourly_rate}${escHtml(TEXT.PRICE_UNIT)} · ${fmtDateTime(c.updated_at)}</div>
+      <div class="admin-row-meta">${escHtml(TEXT.ADMIN_CONTRACT_DRAFTER_PREFIX)}${escHtml(c.drafter_name || '')} · ${escHtml(methodNameText)} · ${c.rate}${escHtml(TEXT.PRICE_UNIT)} · ${fmtDateTime(c.updated_at)}</div>
     </div>
     <div class="admin-row-actions">
       <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewContract" data-id="${c.id}">${escHtml(TEXT.BTN_VIEW_CONTRACT)}</button>

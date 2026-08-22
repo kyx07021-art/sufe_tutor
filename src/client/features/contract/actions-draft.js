@@ -252,7 +252,7 @@ export async function submitContractDraft(convId) {
   try {
     const schedule = collectScheduleText('contract-time-slots');
     const location = (document.getElementById('contract-location').value || '').trim();
-    const data = await api('/api/contracts', { method: 'POST', body: { conversationId: convId, method, plan, hourlyRate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
+    const data = await api('/api/contracts', { method: 'POST', body: { conversationId: convId, method, plan, rate: +rate, schedule, location, demandId, payMethod, payMethodOther, firstLessonDate, trialPay, trialPayOther } });
     invalidate('contracts');
     closeModal();
     showToast(data.message || TEXT.CONTRACT_DRAFT_SENT_TOAST);
