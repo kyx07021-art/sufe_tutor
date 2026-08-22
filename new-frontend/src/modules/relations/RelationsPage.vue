@@ -23,10 +23,12 @@ import RelationAvatar from './RelationAvatar.vue'
 import RelationLines from './RelationLines.vue'
 import RelationCard from './RelationCard.vue'
 import RelationsStates from './RelationsStates.vue'
+import RelationProfileModal from './RelationProfileModal.vue'
 import { fetchMyRelations } from './data.js'
 import { layoutCircle } from './layout.js'
 import { planRelationCards } from './card-layout.js'
 import { isFlowAllowed } from './flow.js'
+import { openRelationConversation } from './actions.js'
 import { RELATIONS_COPY, RELATIONS_GEOMETRY } from '@/constants/m-relations.js'
 import './flow.css'
 
@@ -37,8 +39,6 @@ const props = defineProps({
     default: () => ({ name: RELATIONS_COPY.SELF_NAME, avatar: '' }),
   },
 })
-
-const emit = defineEmits(['open-conversation', 'open-profile'])
 
 // --- responsive geometry: narrow viewports (< COMPACT_BREAKPOINT) use compact
 //     avatar sizes so the concentric ring + avatars fit inside 375px without
@@ -52,6 +52,8 @@ const RADIUS_MIN = computed(() => (compact.value ? RELATIONS_GEOMETRY.RADIUS_MIN
 const phase = ref('loading') // 'loading' | 'error' | 'ready'
 const errorMsg = ref('')
 const model = ref(null) // { nodes, edges, total }
+/** M3-01 node whose profile modal is open (null when closed). */
+const selectedProfile = ref(null)
 
 // Center (self) avatar node, derived reactively from the `self` prop so M2 can
 // supply the real user (name/avatar) after auth without a page remount.
@@ -165,13 +167,22 @@ function onResize() {
   measureBoard()
 }
 
+/** Card click -> open the conversation page at that conversation (wired, PA-1h2-M1).
+ *  A navigation failure is non-fatal: the chat store is already activated and the
+ *  conversation stays reachable through the chat list (teacher-square precedent). */
 function onOpenConversation(payload) {
-  emit('open-conversation', payload && payload.conversationId)
+  const id = payload && payload.conversationId
+  if (id == null) return
+  openRelationConversation(id).catch(() => {})
 }
 
-/** Avatar click -> open the other user's profile (M7 wires the panel later). */
+/** Avatar click -> open the other party's profile modal. The self node (userId 0)
+ *  has no profile and is a no-op (kept interactive for board affordance). */
 function onAvatarClick(userId) {
-  emit('open-profile', userId)
+  if (userId == null || userId <= 0) return
+  const hit = positions.value.find((p) => p.node.userId === userId)
+  if (!hit) return
+  selectedProfile.value = hit.node
 }
 
 // --- lifecycle ---
@@ -275,6 +286,13 @@ onBeforeUnmount(() => {
         />
       </div>
     </template>
+
+    <RelationProfileModal
+      :open="!!selectedProfile"
+      :peer="selectedProfile"
+      @update:open="(v) => { if (!v) selectedProfile = null }"
+      @open-conversation="onOpenConversation"
+    />
   </div>
 </template>
 

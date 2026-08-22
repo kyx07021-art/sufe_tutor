@@ -44,6 +44,7 @@ async function pureChecks() {
   const data = await import(pathToFileURL(join(MOD, 'data.js')).href)
   const layout = await import(pathToFileURL(join(MOD, 'layout.js')).href)
   const curve = await import(pathToFileURL(join(MOD, 'curve.js')).href)
+  const actions = await import(pathToFileURL(join(MOD, 'actions.js')).href)
 
   console.log('— pure checks —')
 
@@ -175,6 +176,28 @@ async function pureChecks() {
   else ok('curve bend increases N=2 (' + c2off + ') < N=3 (' + c3off + ')')
   if (curve.buildCurves(0, from, to).length !== 0) fail('curve N=0 -> []')
   else ok('curve N=0 -> []')
+
+  // --- PA-1h2-M1: open-conversation wiring (actions.js) ---
+  // The card click must (1) activate the chat store with the conversation id and
+  // (2) deep-link the router to /chat?conv=<id>. Deps are injected so plain Node
+  // can exercise the wiring without loading the Vite-only '@/' alias.
+  {
+    const opened = []
+    const pushed = []
+    await actions.openRelationConversation(42, {
+      openChat: (id) => opened.push(id),
+      push: async (route) => pushed.push(route),
+    })
+    if (opened[0] !== 42) fail('openRelationConversation must activate the chat store with the conversation id (got ' + opened[0] + ')')
+    const route = pushed[0]
+    if (!(route && route.path === actions.RELATIONS_CHAT_ROUTE && route.query && route.query.conv === '42')) fail('openRelationConversation must push ' + actions.RELATIONS_CHAT_ROUTE + '?conv=42')
+    else ok('openRelationConversation wires chat activation + ' + actions.RELATIONS_CHAT_ROUTE + '?conv deep-link')
+    // null guard: a card without a conversation id must not fire any navigation.
+    let calls = 0
+    await actions.openRelationConversation(null, { openChat: () => calls++, push: async () => { calls++ } })
+    if (calls !== 0) fail('openRelationConversation must no-op for null/undefined conversationId')
+    else ok('openRelationConversation null guard')
+  }
 }
 
 // ============================================================
@@ -204,6 +227,12 @@ async function browserChecks(base) {
           ],
         }),
       }),
+    )
+    // PA-1h2-M1: the card/avatar click activates the chat store, which fires
+    // /conversations/<id>/messages (loadMessages). Intercept so the harness stays
+    // backend-free and the wiring is asserted on the store, not on network noise.
+    await page.route('**/api/conversations/**', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) }),
     )
     await page.addInitScript(() => localStorage.setItem('authToken', 'smoke-token'))
     await page.goto(base + '/test/harness-relations.html', { waitUntil: 'networkidle' })
@@ -324,6 +353,39 @@ async function browserChecks(base) {
 
     if (consoleErrs.length) fail('console/pageerror: ' + consoleErrs.join(' | '))
     else ok('zero console/pageerror')
+
+    // ---- PA-1h2-M1: dead-UI wiring (open-conversation / open-profile) ----
+    // Card click must open the conversation page at that conversation: the harness
+    // has no router install (router push degrades to a guarded no-op navigation),
+    // so the observable wiring is the chat-store activation the page performs
+    // before pushing. First float card maps to conversationId 1.
+    await page.locator('.rel-card__btn').first().click()
+    await page.waitForFunction(() => window.__REL_TEST__ && window.__REL_TEST__.chatState.activeConversationId === 1)
+    const activeAfterCard = await page.evaluate(() => window.__REL_TEST__.chatState.activeConversationId)
+    if (activeAfterCard !== 1) fail('card click must open conversation 1 (chat store), got ' + activeAfterCard)
+    else ok('card click activates conversation 1 in the chat store')
+
+    // Avatar click must open the peer profile modal (open-profile wiring). The
+    // 2nd other avatar is node 102 (single active edge -> conversationId 2), so
+    // the modal's open-chat entry exercises a NEW conversation (not the one the
+    // card click already activated).
+    await page.locator('.rel-avatar:not(.rel-avatar--self)').nth(1).click()
+    const profileOpen = await page.locator('.rel-profile').isVisible()
+    if (!profileOpen) fail('avatar click must open the peer profile modal')
+    else ok('avatar click opens the peer profile modal')
+
+    // The modal's open-chat entry must jump into that peer's conversation (node
+    // 102 -> conversationId 2) and then close itself.
+    await page.locator('.rel-profile__chat').click()
+    await page.waitForFunction(() => window.__REL_TEST__ && window.__REL_TEST__.chatState.activeConversationId === 2)
+    const activeAfterModalChat = await page.evaluate(() => window.__REL_TEST__.chatState.activeConversationId)
+    if (activeAfterModalChat !== 2) fail('modal open-chat must open conversation 2, got ' + activeAfterModalChat)
+    const modalClosed = await page.locator('.rel-profile').count()
+    if (modalClosed !== 0) fail('profile modal must close after open-chat')
+    if (activeAfterModalChat === 2 && modalClosed === 0) ok('profile modal open-chat routes conversation 2 and closes')
+
+    if (consoleErrs.length) fail('console/pageerror after wiring: ' + consoleErrs.join(' | '))
+    else ok('zero console/pageerror after wiring')
 
     // ended cards (2 closed relations in the fixture) are grayed but clickable
     const endedCard = page.locator('.rel-card__btn--ended')

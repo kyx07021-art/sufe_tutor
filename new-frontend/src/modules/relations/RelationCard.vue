@@ -88,6 +88,9 @@ function open() {
   top: var(--card-y);
   width: var(--card-w);
   transform: translate(-50%, -50%);
+  /* Re-enable events: the board's cards layer is pointer-events:none (PA-1h2-M1)
+     so avatars below it stay clickable; each card opts back in. */
+  pointer-events: auto;
 }
 
 /* -- List layout (card list below the board): static block, x/y ignored. -- */

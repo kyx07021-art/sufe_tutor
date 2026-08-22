@@ -85,5 +85,10 @@ const boardStyle = computed(() => ({
 
 .relations-board__layer--cards {
   z-index: var(--rz-card);
+  /* The cards layer is a full-board surface; only the cards themselves are
+     interactive. pointer-events:none on the layer lets the avatars below it
+     (z-index --rz-avatar) receive their clicks — without it the layer swallows
+     every avatar click (F4 dead UI, PA-1h2-M1). The cards re-enable events. */
+  pointer-events: none;
 }
 </style>

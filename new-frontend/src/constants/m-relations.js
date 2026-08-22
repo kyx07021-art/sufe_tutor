@@ -29,6 +29,11 @@ export const RELATIONS_COPY = {
   LOAD_FAILED: '关系加载失败',
   EMPTY: '暂无关系',
   RETRY: '重试',
+  /** Peer profile modal (PA-1h2-M1 open-profile wiring) */
+  PROFILE_TITLE: '用户档案',
+  ROLE_TEACHER: '教师',
+  ROLE_STUDENT: '学生',
+  OPEN_CHAT: '去聊天',
 }
 
 /* Diameter constants defined once so the radius floors below are derived from
