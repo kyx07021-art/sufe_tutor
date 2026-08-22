@@ -9,6 +9,7 @@ import {
   startVersionProbe, stopVersionProbe,
 } from '../src/client/core/datahub.js';
 import { invalidate, runLogoutResets } from '../src/client/core/state.js';
+import { APP_VERSION } from '../src/shared/config.js';
 import { JSDOM } from 'jsdom';
 
 const dom = new JSDOM('<!doctype html><html></html>', { url: 'http://localhost/' });
@@ -76,7 +77,7 @@ test('domain invalidation / state invalidate / logout reset / version check', as
   await dhGet('/api/teachers', { domain: 'teachers' });
   dhCheckAppVersion();
   assert.equal(dhReady('/api/teachers'), false, '版本切换整缓存作废');
-  assert.equal(globalThis.localStorage.getItem('sufe_app_version'), '2.0.0');
+  assert.equal(globalThis.localStorage.getItem('sufe_app_version'), String(APP_VERSION));
 
   await dhGet('/api/teachers', { domain: 'teachers' });
   runLogoutResets();

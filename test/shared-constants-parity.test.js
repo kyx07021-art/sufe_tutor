@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { CONFIG, INVITE_GATE_DORMANT } from '../src/shared/config.js';
-import { STATUS, SUBJECTS, STUDENT_GRADES, FIVE_FOUR_PROVINCES, TEACHER_GRADES, GENDERS, TEACHING_METHODS, WEEKDAYS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES } from '../src/shared/enums.js';
+import { STATUS, SUBJECTS, STUDENT_GRADES, FIVE_FOUR_PROVINCES, TEACHER_GRADES, GENDERS, TEACHING_METHODS, WEEKDAYS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, TEACHING_GOALS, DEMAND_TYPES, DEMAND_STATUS, TEACHING_METHOD, CONTRACT_STATUS } from '../src/shared/enums.js';
 import { MSG, CODES, NOTIFY_TYPES } from '../src/shared/codes.js';
 
 test('CONFIG：核心常量在位且门控开关同源', () => {
@@ -31,9 +31,20 @@ test('CODES：每个 MSG key 都有唯一 code，且稳定 code 不被改值', (
   assert.deepEqual(new Set(codeKeys), new Set([...keys, ...dynamicCodes]), 'CODES = MSG 键 + 动态码 CHSI_UNVERIFIED');
   const vals = Object.values(CODES);
   assert.equal(new Set(vals).size, vals.length, 'CODES 值唯一');
+  assert.ok(vals.every(v => typeof v === 'string' && v.length > 0), 'S0-02: 每个 CODES 值为非空字符串（error(MSG) 恒非空 code）');
   for (const stable of ['OTP_EXHAUSTED', 'POST_NOT_FOUND', 'CONTRACT_MODIFIED_CONFLICT', 'PROFILE_INCOMPLETE', 'CHSI_UNVERIFIED']) {
     assert.equal(CODES[stable], stable, `${stable} 保持稳定值`);
   }
+});
+
+test('S0-03 新模型枚举：teaching_method 三态 / 需求 status open·closed / 合同 contract_status + revoked', () => {
+  assert.deepEqual(DEMAND_STATUS, { OPEN: 'open', CLOSED: 'closed' }, 'S3 §15：需求状态收敛 open/closed');
+  assert.deepEqual(TEACHING_METHOD, { ONLINE: 'online', OFFLINE: 'offline', BOTH: 'both' }, 'S3 §15：teaching_method 三态');
+  assert.deepEqual(CONTRACT_STATUS, { SIGNING: 'signing', SIGNED: 'signed', REVOKED: 'revoked' }, 'S5 §16：contract_status + revoked 标记');
+  const methodIds = TEACHING_METHODS.map(t => t.id);
+  for (const v of Object.values(TEACHING_METHOD)) assert.ok(methodIds.includes(v), `${v} ∈ TEACHING_METHODS ids（防双源漂移）`);
+  assert.equal(DEMAND_STATUS.OPEN, STATUS.OPEN, 'DEMAND_STATUS 派生自 STATUS 单源');
+  assert.equal(CONTRACT_STATUS.SIGNING, STATUS.SIGNING, 'CONTRACT_STATUS 派生自 STATUS 单源');
 });
 
 test('服务端静态扫描：error(MSG. 与 8 处动态三元 error 调用已清零', () => {

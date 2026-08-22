@@ -5,6 +5,7 @@ import { state } from '../src/client/core/state.js';
 import { registerPage, unregisterPage, pagesForRole, defaultPageFor, showView, updateNavbar, renderSidebar, selectPage, loadInto, setBadge } from '../src/client/core/router.js';
 import { segTabsHtml } from '../src/client/core/ui.js';
 import { matchRowsHtml } from '../src/client/core/match.js';
+import { APP_VERSION } from '../src/shared/config.js';
 
 const dom = new JSDOM(`<!doctype html><html><body>
   <div id="view-landing"></div><div id="view-client" class="hidden"></div>
@@ -41,7 +42,7 @@ test('showView/updateNavbar/renderSidebar/selectPage about builtin', async () =>
   state.user = null; state.guestRole = 'student'; state.page = null;
   renderSidebar();
   assert.equal(document.getElementById('sidebar-user').innerHTML.includes('vundefined'), false);
-  assert.ok(document.getElementById('sidebar-user').innerHTML.includes('v2.0.0'));
+  assert.ok(document.getElementById('sidebar-user').innerHTML.includes('v' + APP_VERSION));
   showView('client');
   assert.equal(state.view, 'client');
   updateNavbar();

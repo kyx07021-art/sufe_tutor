@@ -329,6 +329,11 @@ export const DEMAND_TYPES = {
 };
 export const ROLES = { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' };
 export const VERIFY_TYPES = { CHSI: 'chsi', ADMISSION: 'admission' };
+// S0-03: new-site model enums (single-source; values derived from STATUS where they already exist).
+// v2 legacy keys (STATUS.CONTRACTED/REVOKED etc.) retained until S3/S6 converge — S0 定案: only move mechanism, don't delete.
+export const DEMAND_STATUS = { OPEN: STATUS.OPEN, CLOSED: STATUS.CLOSED }; // S3 §15: demand status converges to open/closed
+export const TEACHING_METHOD = { ONLINE: 'online', OFFLINE: 'offline', BOTH: 'both' }; // S3 §15: three states; ids mirror TEACHING_METHODS array entries
+export const CONTRACT_STATUS = { SIGNING: STATUS.SIGNING, SIGNED: STATUS.SIGNED, REVOKED: STATUS.REVOKED }; // S5 §16: contract_status + revoked marker
 // Z-15-F2：CONTENT_TYPES 硬编码数组删除——真源在 admin/repo.js CONTENT_SQL 键派生（增类型只改 CONTENT_SQL 单点），
 // 此处原为双源之一且全仓零消费（server/constants.js re-export 亦无人引 CONTENT_TYPES）
 export const AWARD_STATUS = { PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected' };

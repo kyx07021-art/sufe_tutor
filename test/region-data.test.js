@@ -124,3 +124,11 @@ test('新设 2026 单位坐标就位：嘉定·菊园街道 / 娄塘镇（行政
   assert.ok(Math.abs(jy.lat - 31.37) < 0.05 && Math.abs(jy.lng - 121.23) < 0.05, `菊园街道坐标 ${JSON.stringify(jy)} 应在嘉定城区`);
   assert.ok(Math.abs(lt.lat - 31.43) < 0.05 && Math.abs(lt.lng - 121.22) < 0.05, `娄塘镇坐标 ${JSON.stringify(lt)} 应在嘉定北部`);
 });
+
+// S0-04：allowsOffline 语义锁——仅上海可线下授课（S4/M8 地址条件依赖：非上海强制 online）
+test('allowsOffline：仅上海返回 true，其余 30 省全 false', () => {
+  assert.equal(R.allowsOffline('shanghai'), true, '上海允许线下');
+  for (const p of R.provinces) {
+    if (p.id !== 'shanghai') assert.equal(R.allowsOffline(p.id), false, `${p.id} 不应允许线下（数据驱动默认仅线上）`);
+  }
+});
