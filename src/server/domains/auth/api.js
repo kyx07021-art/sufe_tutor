@@ -19,6 +19,7 @@ import {
   dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
   dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbDeleteUser,
   dbUserLookupStmt, dbUsernameExistsStmt, dbUserPhoneHashStmt, dbUserEmailHashStmt,
+  dbGetTeacherName,
 } from '../../../../server/db.js';
 // 凭证域：凭证更新独立环节 + 验证码咽喉 + 登录识别
 import {
@@ -225,10 +226,18 @@ export async function handleDeactivateAccount(db, body, req) {
 }
 
 // GET /api/auth/me —— 凭令牌取当前用户（刷新保活：前端持久化 token 后不再重放密码登录）
+// I-05: adds teacherName ('' when no teacher_profiles row; frontend falls back to username)
+// plus contactMasks {phone, email} — masked values only, never plaintext (P5 hard-mask).
 export async function handleAuthMe(db, req) {
   const me = await authUser(db, req); // authUser 的 SELECT 已含 avatar，无需二次查询
   if (!me) return errorMsg('LOGIN_REQUIRED', 401);
-  return json({ user: { id: me.id, username: me.username, role: me.role, avatar: me.avatar || '' } });
+  const [teacherName, creds] = await Promise.all([
+    dbGetTeacherName(db, me.id), dbGetMyCreds(db, me.id),
+  ]);
+  return json({ user: {
+    id: me.id, username: me.username, role: me.role, avatar: me.avatar || '',
+    teacherName, contactMasks: { phone: maskPhone(creds.phone), email: targetMask(creds.email) },
+  } });
 }
 
 // 账户设置：头像上传。前端已按居中最大内切圆裁成 160px dataURL，此处校验长度后落 users.avatar
