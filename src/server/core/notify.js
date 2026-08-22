@@ -19,6 +19,7 @@ import { authUser, requireAdmin } from './security.js';
 import { MSG, NOTIFY_TYPES } from '../../shared/codes.js';
 import { LIMITS } from '../../shared/config.js';
 import { logEvent } from './log.js';
+import { safeJsonObject } from './json.js'; // JSON column deserialization single-point
 import { bumpVersions } from '../../../server/version.js'; // 通知插入统一 bump notifications 域
 
 // 建表（幂等；batch_id 为广播批标识，type/params 为 V-2-4 结构化通知，旧表经 ensureColumns 补列）
@@ -86,11 +87,9 @@ export async function dbBroadcastNotification(db, title, text) {
   return (res && res.meta && res.meta.changes) || 0;
 }
 
-/** Mapper 单点：解析结构化 params JSON（损坏 JSON 回落 null，客户端走 type 缺失兜底） */
+/** Mapper 单点：解析结构化 params JSON 列（经 json.js 反序列化咽喉；损坏/标量回落 null，客户端走 type 缺失兜底） */
 function mapNotification(row) {
-  let params = null;
-  if (row.params) { try { params = JSON.parse(row.params); } catch { params = null; } }
-  return { ...row, params };
+  return { ...row, params: safeJsonObject(row.params, null) };
 }
 
 async function dbGetNotifications(db, userId) {
@@ -145,7 +144,10 @@ export async function handleAdminDeleteNotification(db, notifId, req) {
   const count = (res && res.meta && res.meta.changes) || 0;
   // V-2-4 结构化行正文在 params.text（text 列留空），审计 len 取真实正文长
   let bodyLen = (n.text || '').length;
-  if (!bodyLen && n.params) { try { const p = JSON.parse(n.params); bodyLen = (p.text || '').length; } catch { /* 损坏 params 视为无正文 */ } }
+  if (!bodyLen && n.params) {
+    const p = safeJsonObject(n.params, null); // corrupt params treated as no body
+    if (p) bodyLen = String(p.text || '').length;
+  }
   await logEvent(db, { action: 'admin.notification.delete', actorUserId: admin.id, actorUsername: admin.username,
     actorRole: 'admin', entity: 'notification', entityId: notifId,
     detail: { batch: count, len: bodyLen }, req });

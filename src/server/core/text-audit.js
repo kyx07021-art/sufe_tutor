@@ -10,6 +10,7 @@
  */
 import { ADDRESS_GUARD, NUM_T, NUM_SEP, TEXT_AUDIT } from '../../shared/config.js';
 import { getSecret } from '../../../server/secrets.js';
+import { safeJsonObject } from './json.js'; // JSON deserialization single-point
 
 let AUDIT_ENV = null;
 /** 绑定审核环境（env 变更时调用；_worker.js initDb 时绑定） */
@@ -75,7 +76,7 @@ async function auditSemantic(text) {
       clearTimeout(timer);
       const out = String((data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '');
       const m = out.match(/\{[\s\S]*\}/); // 模型可能夹散文，取 JSON 块
-      const j = m ? JSON.parse(m[0]) : null;
+      const j = m ? safeJsonObject(m[0], null) : null; // LLM-response JSON block extraction (non-column parse; routed through single-point for uniformity)
       if (!j || typeof j.flagged !== 'boolean') return UNAVAILABLE;
       return j.flagged
         ? { ok: false, layer: 'ai', reason: 'ADDRESS_TOO_DETAILED' }
