@@ -81,7 +81,11 @@ function convertToWire(slots) {
 }
 
 /**
- * Map the reactive form to the I-35 POST/PUT body (empty optionals -> null, numerics as numbers).
+ * Map the reactive form to the I-35 POST/PUT body (empty optionals -> null; budget as numbers).
+ * - currentScore stays a string: the backend sanitizer accepts only strings (numeric strings are
+ *   clamped server-side, grade letters like 'A'/'B+' are kept verbatim). Number coercion would
+ *   turn 'B+' into NaN and '140' into a number type, both of which the string-only sanitizer
+ *   silently drops (PA-1d-F2).
  * - currentScoreFull is omitted: the backend derives the full from the subject (repo subjectMaxFor).
  * - expectedTime is the backend JSON wire string.
  */
@@ -91,7 +95,7 @@ export function demandPayload(form) {
     grade: form.grade || '',
     province: form.province || '',
     teachingMethod: form.teachingMethod || '',
-    currentScore: form.currentScore === '' || form.currentScore == null ? null : Number(form.currentScore),
+    currentScore: form.currentScore === '' || form.currentScore == null ? null : String(form.currentScore),
     addressArea: form.addressArea || '',
     expectedTime: formatTimeSlots(form.expectedTime),
     preferredTags: Array.isArray(form.preferredTags) ? form.preferredTags.slice() : [],

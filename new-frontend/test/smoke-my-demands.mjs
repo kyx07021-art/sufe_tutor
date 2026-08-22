@@ -9,8 +9,9 @@
  *   ③ I-33 数据接入：X-Auth-Token 注入 / 缓存命中不重拉 / invalidate 后重拉 / 401 清 token + auth:dead
  *   ④ 卡片 A2.1 结构（成绩/省份+方式/地址/时间/偏好/性别/简介/CTA）+ M9 教师模式复用 shape
  *   ⑤ 上海预备班：省份=上海 时年级下拉含「预备班」且不含「小学六年级」
- *   ⑥ 步进浮窗 create/edit/delete（I-35 提交 body：grade id / expectedTime JSON 串 / 数字预算 / 无 currentScoreFull）
+ *   ⑥ 步进浮窗 create/edit/delete（I-35 提交 body：grade id / expectedTime JSON 串 / 数字预算 / currentScore 字符串往返 / 无 currentScoreFull）
  *   ⑦ 零 console/pageerror/requestfailed
+ *   ⑧ currentScore 字符串往返（PA-1d-F2 守护）：等第 'B+' / 数字 '140' 直传字符串，不 Number 强转
  * 运行：node test/smoke-my-demands.mjs（需 dev server 于 :5199；BASE 可覆盖）
  */
 import { readFileSync } from 'node:fs'
@@ -455,7 +456,9 @@ async function wizard() {
   await page.locator('.ui-checkbtn', { hasText: '线上' }).click()
   await clickFooterBtn(page) // -> page 2
 
-  await clickFooterBtn(page) // score optional -> page 3
+  // step 2 (score, M8-09): fill a numeric raw score - must round-trip to the backend as a string (PA-1d-F2)
+  await page.locator('.step-score__raw .ui-input__ta').nth(0).fill('140')
+  await clickFooterBtn(page) // score page -> page 3
   check((await page.locator('.ui-fieldinput', { hasText: '地址' }).count()) === 0, 'wizard: address must be hidden for online-only province')
 
   // step 3：填一个时间段（周三 18:00-20:00），提交 body 里 expectedTime 必须是 JSON wire 串
@@ -485,7 +488,10 @@ async function wizard() {
     created[0] && created[0].expectedTime === JSON.stringify([{ type: 'week', dow: 3, start: '18:00', end: '20:00' }]),
     'wizard: payload expectedTime must be the JSON wire string: ' + JSON.stringify(created[0]),
   )
-  check(created[0] && created[0].currentScore === null, 'wizard: payload currentScore must be number/null, got: ' + JSON.stringify(created[0].currentScore))
+  check(
+    created[0] && created[0].currentScore === '140',
+    'wizard: payload currentScore must round-trip as a string (PA-1d-F2), got: ' + JSON.stringify(created[0].currentScore),
+  )
   check(created[0] && !('currentScoreFull' in created[0]), 'wizard: payload must NOT include currentScoreFull (backend derives from subject)')
   check((await page.locator('.ui-step').count()) === 0, 'wizard: modal did not close after create')
   check((await page.locator('.demand-grid .demand-card').count()) === 1, 'wizard: created card not shown after reload')
@@ -627,6 +633,38 @@ async function gridOverflow() {
   console.log('  [browser] grid >3 cards geometry ok')
 }
 
+/* ---------- 10. Playwright：currentScore 字符串往返（PA-1d-F2 守护） ---------- */
+async function scorePayload() {
+  const browser = await chromium.launch()
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('score console: ' + m.text()) })
+  page.on('pageerror', (e) => errors.push('score pageerror: ' + e.message))
+
+  await page.addInitScript(() => sessionStorage.setItem('authToken', 'test-token'))
+  await page.goto(BASE + '/preview/my-demands.html', { waitUntil: 'networkidle' })
+
+  // Exercise the real demandPayload through the Vite module graph (the exact function the wizard
+  // submit path uses). Mutation guard: reverting demandForm.js to Number(form.currentScore) makes
+  // 'B+' -> NaN and '140' -> number, both failing the string assertions below.
+  const r = await page.evaluate(async () => {
+    const m = await import('/src/modules/my-demands/demandForm.js')
+    const base = m.emptyDemandForm()
+    return {
+      grade: m.demandPayload({ ...base, currentScore: 'B+' }).currentScore,
+      numeric: m.demandPayload({ ...base, currentScore: '140' }).currentScore,
+      empty: m.demandPayload({ ...base, currentScore: '' }).currentScore,
+      missing: m.demandPayload({ ...base, currentScore: null }).currentScore,
+    }
+  })
+  check(r.grade === 'B+', 'score: grade letter currentScore must round-trip as string, got: ' + JSON.stringify(r.grade))
+  check(r.numeric === '140', 'score: numeric currentScore must round-trip as string, got: ' + JSON.stringify(r.numeric))
+  check(r.empty === null, 'score: empty currentScore must be null, got: ' + JSON.stringify(r.empty))
+  check(r.missing === null, 'score: missing currentScore must be null, got: ' + JSON.stringify(r.missing))
+
+  await browser.close()
+  console.log('  [browser] currentScore string round-trip ok (PA-1d-F2)')
+}
+
 /* ---------- run ---------- */
 await unitDatahub()
 await unitAuthClearsDatahub()
@@ -638,6 +676,7 @@ await unauthorized()
 await wizard()
 await shanghaiPrep()
 await gridOverflow()
+await scorePayload()
 
 if (errors.length) {
   console.log('SMOKE MY-DEMANDS FAIL')
@@ -645,6 +684,6 @@ if (errors.length) {
   process.exit(1)
 } else {
   console.log(
-    'SMOKE MY-DEMANDS PASS: grid geometry (1440+375), >3-card geometry (F-10/G5), I-33 load/token/cache/invalidate/401, card A2.1 shape + M9 teacher reuse, shanghai prep-grade, wizard I-35 wire contract, zero console',
+    'SMOKE MY-DEMANDS PASS: grid geometry (1440+375), >3-card geometry (F-10/G5), I-33 load/token/cache/invalidate/401, card A2.1 shape + M9 teacher reuse, shanghai prep-grade, wizard I-35 wire contract, currentScore string round-trip (PA-1d-F2), zero console',
   )
 }
