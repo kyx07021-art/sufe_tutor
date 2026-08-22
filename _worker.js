@@ -58,25 +58,26 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
 
 // B6 公开列表边缘缓存（用户实测：游客 7s 出列表 / 教师列表 20s / 进模块拉表单 8s——D1 冷实例
 // 偶发 ~6s 慢往返按 worker 实例隔离，keepalive 只热它所在实例，用户请求路由到其他实例仍冷）。
-// 公开列表（教师 / 帖子）命中边缘缓存零碰 D1，跨用户共享、冷实例也秒开。
+// 公开列表（帖子）命中边缘缓存零碰 D1，跨用户共享、冷实例也秒开。
 // 一致性：TTL 30s 自愈（公开列表低频变更，发布/审核后 30s 内可见）。
 // 【外部审查 1101 修】仅匿名请求参与缓存（无 X-Auth-Token）——登录用户请求的响应含 per-user
-// 字段（posts.liked/favorited、teachers.matched），共享缓存跨用户下发即泄露；
+// 字段（posts.liked/favorited），共享缓存跨用户下发即泄露；
 // 访客请求无 per-user 数据，是冷启动缓存的目标受众。登录用户走实时 routeApi 保私有正确。
 // 无 caches 环境（本地 dev / vm 测试）回落直取（可用性 fallback，不改变鉴权与数据）。
-// S0-22 evaluation: /api/teachers (teacher/list.js authUser optional) and /api/posts
-// (posts/api.js authUser optional) still return 200 to anonymous requests in the current
-// implementation, so the cache write gate (status===200) can fire -> cache is alive, retained.
-// /api/demands (demand/api.js requireUser) is login-gated; anonymous 401 means the cache write
-// gate never fires -> dead branch, removed from the predicate (interface I-34 login-visible;
-// if the frontend later stops anonymous access to teachers/posts, remove the whole block).
+// S0-22 evaluation: /api/posts (posts/api.js authUser optional) still returns 200 to anonymous
+// requests, so the cache write gate (status===200) can fire -> cache is alive, retained.
+// PA-1d-F7: /api/teachers is now login-gated (I-29 requireUser, consistent with the demand
+// plaza I-34); anonymous 401 means the cache write gate never fires, so its predicate branch
+// was removed as dead logic. /api/demands (demand/api.js requireUser) is likewise login-gated;
+// anonymous 401 means the cache write gate never fires -> dead branch, removed from the
+// predicate (interface I-34 login-visible; if the frontend later stops anonymous access to
+// posts, remove the whole block).
 const PUBLIC_LIST_TTL_S = 30;
 export function isAnonymous(request) {
   return !request.headers.get('X-Auth-Token');
 }
 export function isPublicListCacheable(p, url) {
-  if (p === '/api/teachers') return true;                 // 教师列表（公开，含筛选 query 变体）
-  if (p === '/api/posts') return true;                    // 资料广场（公开）
+  if (p === '/api/posts') return true;                    // 资料广场（公开，authUser optional）
   return false;
 }
 

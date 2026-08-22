@@ -119,6 +119,15 @@ test('I-29 list: items never carry wechat/email/real_name/credential_image; matc
   assert.equal(row.teacherId, tea);
 });
 
+test('I-29 list: anonymous request is rejected with 401 (login-gated, PA-1d-F7)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await seed(db, raw);
+  // No X-Auth-Token header -> requireUser rejects before any data is read.
+  const res = await handleGetTeachers(db, new Request('http://x/api/teachers', { method: 'GET' }));
+  assert.equal(res.status, 401, 'anonymous teacher list must be login-gated');
+  // Mutation guard: reverting the handler to authUser (optional auth) makes this 200 -> red.
+});
+
 test('I-40 profile save persists teacher_name + experience_years', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { tea, tToken } = await seed(db, raw);

@@ -85,14 +85,15 @@ test('基本批量：公开 + 私有混合子请求逐 path 返回 status/data',
   const { env } = await setup(t);
   const res = await worker.fetch(new Request('https://test.local/api/batch', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ gets: ['/api/teachers', '/api/notifications'] }),
+    body: JSON.stringify({ gets: ['/api/posts', '/api/notifications'] }),
   }), env, ctx);
   assert.equal(res.status, 200);
   const { results } = JSON.parse(await res.text());
   assert.equal(results.length, 2);
   const byPath = Object.fromEntries(results.map(r => [r.path, r]));
-  assert.equal(byPath['/api/teachers'].status, 200, '公开教师列表 200');
-  assert.ok(Array.isArray(byPath['/api/teachers'].data.teachers), '教师数据数组');
+  // PA-1d-F7：/api/teachers 已登录门禁（I-29），匿名批量不再有公开列表样例——公开样例用 /api/posts。
+  assert.equal(byPath['/api/posts'].status, 200, '公开帖子列表 200');
+  assert.ok(Array.isArray(byPath['/api/posts'].data.posts), '帖子数据数组');
   assert.equal(byPath['/api/notifications'].status, 401, '无令牌私有端点 401（单子请求失败不阻断其余）');
 });
 
@@ -116,38 +117,38 @@ test('鉴权批量：带令牌子请求正常取数', async (t) => {
 test('匿名公开列表子请求命中边缘缓存（零 D1 直返）', async (t) => {
   installCache();
   const { env, calls } = await setup(t);
-  // 先预热公开列表边缘缓存
-  await worker.fetch(new Request('https://test.local/api/teachers'), env, ctx);
-  assert.ok(cacheStore.has('https://test.local/api/teachers'), '公开列表已写边缘缓存');
+  // 先预热公开列表边缘缓存（/api/posts；/api/teachers 已登录门禁 PA-1d-F7，不再预热）
+  await worker.fetch(new Request('https://test.local/api/posts'), env, ctx);
+  assert.ok(cacheStore.has('https://test.local/api/posts'), '公开列表已写边缘缓存');
   const callsBefore = calls.length;
   const res = await worker.fetch(new Request('https://test.local/api/batch', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ gets: ['/api/teachers'] }), // 仅已预热键，验证子请求命中缓存零 D1
+    body: JSON.stringify({ gets: ['/api/posts'] }), // 仅已预热键，验证子请求命中缓存零 D1
   }), env, ctx);
   assert.equal(res.status, 200);
   const { results } = JSON.parse(await res.text());
-  const teachers = results.find(r => r.path === '/api/teachers');
-  assert.equal(teachers.status, 200, '教师子请求 200（边缘缓存命中）');
-  assert.ok(Array.isArray(teachers.data.teachers), '缓存数据');
+  const posts = results.find(r => r.path === '/api/posts');
+  assert.equal(posts.status, 200, '帖子子请求 200（边缘缓存命中）');
+  assert.ok(Array.isArray(posts.data.posts), '缓存数据');
   assert.equal(calls.length, callsBefore, '公开列表子请求命中缓存零 D1');
 });
 
 test('匿名公开列表子请求 miss 写回边缘缓存（B2 审计：访客批量预取也温缓存）', async (t) => {
   installCache();
   const { env, calls } = await setup(t);
-  assert.ok(!cacheStore.has('https://test.local/api/teachers'), '初始边缘缓存未预热');
+  assert.ok(!cacheStore.has('https://test.local/api/posts'), '初始边缘缓存未预热');
   // 批量子请求 miss → 走 D1 → 写回（否则访客预取全走批量时边缘缓存永不被预热）
   const res = await worker.fetch(new Request('https://test.local/api/batch', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ gets: ['/api/teachers'] }),
+    body: JSON.stringify({ gets: ['/api/posts'] }),
   }), env, ctx);
   assert.equal(res.status, 200);
-  assert.ok(cacheStore.has('https://test.local/api/teachers'), '批量子请求 miss 后写回边缘缓存');
+  assert.ok(cacheStore.has('https://test.local/api/posts'), '批量子请求 miss 后写回边缘缓存');
   // 写回后下一个匿名批量子请求直读缓存（零 D1）
   const callsBefore = calls.length;
   const res2 = await worker.fetch(new Request('https://test.local/api/batch', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ gets: ['/api/teachers'] }),
+    body: JSON.stringify({ gets: ['/api/posts'] }),
   }), env, ctx);
   assert.equal(res2.status, 200);
   assert.equal(calls.length, callsBefore, '写回后第二个批量子请求命中缓存零 D1');
@@ -198,7 +199,7 @@ test('Z-1-F2 回归：auth/check 存在性探测禁止入 batch（裸路径/quer
   // 对照：不含 check 的正常批量仍 200（不误伤）
   const ok = await worker.fetch(new Request('https://test.local/api/batch', {
     method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ gets: ['/api/teachers'] }),
+    body: JSON.stringify({ gets: ['/api/posts'] }),
   }), env, ctx);
   assert.equal(ok.status, 200, '正常批量不受影响');
 });

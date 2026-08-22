@@ -2,8 +2,8 @@
  * B6 公开列表边缘缓存（v0.26.6）：冷启动 D1 慢往返治本——公开列表命中 Cache API 零碰 D1。
  *
  * 覆盖：
- *   - isPublicListCacheable 纯逻辑：教师/帖子/需求广场（无 scope）公开可缓存；
- *     scope=mine 等私有变体不缓存；
+ *   - isPublicListCacheable 纯逻辑：帖子（公开，authUser optional）可缓存；
+ *     教师列表（I-29 登录门禁）/需求广场（I-34 登录门禁）/scope=mine 等私有变体不缓存；
  *   - 整 worker.fetch 集成：首次请求 miss → D1 → 响应写边缘缓存（Cache-Control s-maxage=30）；
  *     二次请求命中缓存 → DB 零查询（冷启动治本实证）；
  *   - 私有端点不缓存（cacheStore 无对应键）；
@@ -76,19 +76,22 @@ async function setup(t) {
   t.after(() => { try { raw.close(); } catch { /* 已关 */ } });
   // initDb 幂等（worker.fetch 首次请求会再跑，CREATE IF NOT EXISTS 无害）——先建表再预置数据
   await initDb(env.DB, env);
-  // 预置一个教师（含 profile 基础列，其余列 ensureColumns 默认）供公开列表查询
+  // 预置一个教师（含 profile 基础列，其余列 ensureColumns 默认）供教师列表查询
   await env.DB.prepare(`INSERT INTO users (username, password_hash, salt, role) VALUES ('qa_t1', 'x', 'salt', 'teacher')`).run();
   const uid = raw.prepare('SELECT id FROM users WHERE username=?').get('qa_t1').id;
   await env.DB.prepare(`INSERT INTO teacher_profiles (user_id, subjects, price) VALUES (?, '数学', 150)`).run(uid);
+  // 预置一条帖子（/api/posts 匿名公开可读，PA-1d-F7 后教师列表已登录门禁，缓存管道用例走帖子）
+  await env.DB.prepare(`INSERT INTO posts (user_id, section, title, body_md) VALUES (?, 'plaza', '测试帖', '正文')`).run(uid);
   return { raw, env, calls };
 }
 
 // ---------------- 纯逻辑 ----------------
-test('isPublicListCacheable：公开列表可缓存，登录门禁/私有变体不缓存', () => {
+test('isPublicListCacheable：帖子公开可缓存；教师列表/需求广场登录门禁与私有变体不缓存', () => {
   const url = p => new URL('https://test.local' + p);
-  assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers')), true);
-  assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers?subject=数学')), true, '筛选 query 变体同样公开');
   assert.equal(isPublicListCacheable('/api/posts', url('/api/posts?sort=new')), true);
+  // PA-1d-F7：/api/teachers 为登录门禁（I-29 requireUser），匿名 401 → 缓存写门永不触发，死分支已移除
+  assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers')), false, '教师列表登录门禁，不缓存');
+  assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers?subject=数学')), false, '筛选 query 变体同样登录门禁');
   // S0-22：/api/demands 为登录门禁（requireUser），匿名 401 → 缓存写门永不触发，死分支已移除
   assert.equal(isPublicListCacheable('/api/demands', url('/api/demands')), false, '需求广场登录门禁，不缓存');
   assert.equal(isPublicListCacheable('/api/demands/mine', url('/api/demands/mine')), false, '我的需求私有不缓存');
@@ -102,15 +105,15 @@ test('整 worker：公开列表首请求 miss→D1→写缓存；二次请求命
   const { env, calls } = await setup(t);
   const get = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
 
-  const first = await get('/api/teachers');
+  const first = await get('/api/posts');
   assert.equal(first.status, 200);
   const firstBody = JSON.parse(await first.text());
-  assert.ok(Array.isArray(firstBody.teachers), '教师列表返回数组');
-  assert.equal(cacheStore.has('https://test.local/api/teachers'), true, '首请求后响应已写边缘缓存');
-  assert.ok(Array.isArray(JSON.parse(cacheStore.get('https://test.local/api/teachers')).teachers), '缓存条目为完整 JSON 文本');
+  assert.ok(Array.isArray(firstBody.posts), '帖子列表返回数组');
+  assert.equal(cacheStore.has('https://test.local/api/posts'), true, '首请求后响应已写边缘缓存');
+  assert.ok(Array.isArray(JSON.parse(cacheStore.get('https://test.local/api/posts')).posts), '缓存条目为完整 JSON 文本');
 
   const dbCallsAfterFirst = calls.length;
-  const second = await get('/api/teachers');
+  const second = await get('/api/posts');
   assert.equal(second.status, 200);
   assert.deepEqual(JSON.parse(await second.text()), firstBody, '缓存命中返回相同数据');
   assert.equal(calls.length, dbCallsAfterFirst, '二次请求零 DB 查询（缓存命中，冷启动治本）');
@@ -133,15 +136,26 @@ test('整 worker：需求广场（登录可见 I-34）匿名访问不写缓存',
   assert.equal(cacheStore.has('https://test.local/api/demands'), false, '登录可见需求广场匿名访问不缓存');
 });
 
+test('整 worker：教师列表（I-29 登录门禁）匿名访问 401 且不写缓存', async (t) => {
+  installCache();
+  const { env } = await setup(t);
+  const get = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
+  // PA-1d-F7: GET /api/teachers is login-required (I-29) — anonymous -> 401, and since the
+  // cache pipeline requires anonymous + 200, no cache write ever happens.
+  const res = await get('/api/teachers');
+  assert.equal(res.status, 401, '匿名教师列表被登录门禁拒绝');
+  assert.equal(cacheStore.has('https://test.local/api/teachers'), false, '登录门禁列表匿名 401 不写缓存');
+});
+
 // ---------------- fail-open ----------------
 test('无 caches 环境回落直取（fail-open：缓存缺失不阻断主流程）', async (t) => {
   const saved = globalThis.caches;
   try {
     delete globalThis.caches;
     const { env } = await setup(t);
-    const res = await worker.fetch(new Request('https://test.local/api/teachers'), env, ctx);
+    const res = await worker.fetch(new Request('https://test.local/api/posts'), env, ctx);
     assert.equal(res.status, 200, '无 caches 仍正常返回（本地 dev / 旧测试环境兼容）');
-    assert.ok(Array.isArray(JSON.parse(await res.text()).teachers));
+    assert.ok(Array.isArray(JSON.parse(await res.text()).posts));
   } finally {
     globalThis.caches = saved;
   }
@@ -153,13 +167,13 @@ test('缓存命中并发：两个请求同时命中同一缓存条目，body 均
   installCache();
   const { env } = await setup(t);
   const get = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
-  await get('/api/teachers'); // 首请求写缓存
-  const [r1, r2] = await Promise.all([get('/api/teachers'), get('/api/teachers')]);
+  await get('/api/posts'); // 首请求写缓存
+  const [r1, r2] = await Promise.all([get('/api/posts'), get('/api/posts')]);
   assert.equal(r1.status, 200, '并发命中第 1 个 200');
   assert.equal(r2.status, 200, '并发命中第 2 个 200（clone 后 body 流各自独立，无流锁 500）');
   const b1 = JSON.parse(await r1.text());
   const b2 = JSON.parse(await r2.text());
-  assert.ok(Array.isArray(b1.teachers) && Array.isArray(b2.teachers), '两个并发响应 body 均可完整读取');
+  assert.ok(Array.isArray(b1.posts) && Array.isArray(b2.posts), '两个并发响应 body 均可完整读取');
 });
 
 // 外部审查 1101（生产事故级）：共享 Cache 曾把登录用户的 per-user 字段跨用户下发——
@@ -171,24 +185,24 @@ test('匿名门：登录请求不写缓存，也不命中匿名缓存（防 per-
   const anon = (p) => worker.fetch(new Request('https://test.local' + p), env, ctx);
   const authed = (p) => worker.fetch(new Request('https://test.local' + p, { headers: { 'X-Auth-Token': 'some-token' } }), env, ctx);
 
-  // ① 匿名首请求写缓存
-  await anon('/api/teachers');
-  assert.equal(cacheStore.has('https://test.local/api/teachers'), true, '匿名请求写缓存');
-  // ② 登录请求（同 URL）不命中缓存——走 routeApi 实时（响应可能含 matched/liked 等 per-user 字段）
-  const authedRes = await authed('/api/teachers');
+  // ① 匿名首请求写缓存（帖子公开；教师列表已登录门禁 PA-1d-F7，非缓存目标）
+  await anon('/api/posts');
+  assert.equal(cacheStore.has('https://test.local/api/posts'), true, '匿名请求写缓存');
+  // ② 登录请求（同 URL）不命中缓存——走 routeApi 实时（响应可能含 liked/favorited 等 per-user 字段）
+  const authedRes = await authed('/api/posts');
   assert.equal(authedRes.status, 200, '登录请求正常返回');
-  assert.ok(cacheStore.has('https://test.local/api/teachers'), '缓存条目仍为匿名写入的原样（未被登录响应覆盖）');
+  assert.ok(cacheStore.has('https://test.local/api/posts'), '缓存条目仍为匿名写入的原样（未被登录响应覆盖）');
   // ③ 登录请求（带 token）不写缓存
   await authed('/api/posts?sort=new');
   assert.equal(cacheStore.has('https://test.local/api/posts?sort=new'), false, '登录请求不写共享缓存（per-user 数据不跨用户下发）');
   // ④ 匿名命中不受登录请求影响
-  const anonRes = await anon('/api/teachers');
+  const anonRes = await anon('/api/posts');
   assert.equal(anonRes.status, 200, '匿名仍命中缓存');
 });
 
-test('isPublicListCacheable 保持公开判定（匿名门在 fetch 层，纯函数只判端点；demands 已移除 S0-22）', () => {
+test('isPublicListCacheable 仅帖子公开可缓存（匿名门在 fetch 层；教师列表 PA-1d-F7 / demands S0-22 登录门禁已移除）', () => {
   const url = p => new URL('https://test.local' + p);
-  assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers')), true);
   assert.equal(isPublicListCacheable('/api/posts', url('/api/posts')), true);
+  assert.equal(isPublicListCacheable('/api/teachers', url('/api/teachers')), false, '教师列表登录门禁（I-29），PA-1d-F7 移除');
   assert.equal(isPublicListCacheable('/api/demands', url('/api/demands')), false, 'demands 登录门禁，S0-22 移除');
 });

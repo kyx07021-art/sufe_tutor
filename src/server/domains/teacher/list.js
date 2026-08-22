@@ -19,7 +19,7 @@
  * works whichever shape mapTeacherProfileRow outputs when the parallel mapper lands.
  */
 import { json } from '../../core/util.js';
-import { authUser } from '../../core/security.js';
+import { requireUser } from '../../core/security.js';
 import { dbGetTeachers, dbGetStudentOpenDemand } from './repo.js';
 import { matchDegree, matchCount } from './match/index.js';
 
@@ -169,13 +169,16 @@ export function applyFilters(teachers, filters = {}) {
   return out;
 }
 
-/** GET /api/teachers —— plaza list (I-29). Public: anonymous viewers get the list without match fields. */
+/** GET /api/teachers —— plaza list (I-29). Login-gated: interfaces.md I-29 requires an
+ *  authenticated user (no guest browsing, S6 §17), consistent with the demand plaza (I-34)
+ *  which is requireUser. Anonymous requests get a 401. */
 export async function handleGetTeachers(db, req) {
-  const me = await authUser(db, req); // optional auth; the list stays publicly reachable
-  const teachers = await dbGetTeachers(db, { viewerId: me ? me.id : null });
+  const { user: me, err } = await requireUser(db, req);
+  if (err) return err;
+  const teachers = await dbGetTeachers(db, { viewerId: me.id });
 
   // S4-12: match fields only for a logged-in student with an open demand; otherwise both null.
-  if (me && me.role === 'student') {
+  if (me.role === 'student') {
     const demand = await dbGetStudentOpenDemand(db, me.id);
     for (const t of teachers) {
       if (demand) {
