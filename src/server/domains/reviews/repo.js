@@ -18,7 +18,8 @@ export async function dbCreateReview(db, teacherUserId, reviewerUserId, rating, 
 
 export async function dbGetApprovedReviews(db, teacherUserId) {
   // 门控：已注销评价者/被评教师的数据不对外（教师注销后评价行保留留档，但不再经此公开出口）
-  return await dbAll(db, `SELECT r.*, u.username as reviewer_name
+  // reviewerName = 契约 I-31 键（新前端 DetailMiddle 消费）；reviewer_name 保留（v2 旧前端渲染路径）
+  return await dbAll(db, `SELECT r.*, u.username as reviewer_name, u.username as reviewerName
     FROM reviews r JOIN users u ON r.reviewer_user_id=u.id
     WHERE r.teacher_user_id=? AND r.status='approved'
       AND u.deactivated=0
@@ -49,7 +50,8 @@ export async function dbUpdateReview(db, reviewId, rating, comment) {
 
 // 管理端评价查询：可按状态 / 教师过滤（评价管理页与教师详情内评价栏共用）
 export async function dbGetReviewsAdmin(db, { status, teacherUserId } = {}) {
-  let sql = `SELECT r.*, u1.username as reviewer_name, u2.username as teacher_name
+  // reviewerName = 契约 I-31 键；reviewer_name 保留（v2 旧前端 admin 渲染路径）
+  let sql = `SELECT r.*, u1.username as reviewer_name, u1.username as reviewerName, u2.username as teacher_name
     FROM reviews r JOIN users u1 ON r.reviewer_user_id=u1.id JOIN users u2 ON r.teacher_user_id=u2.id`;
   const cond = [], params = [];
   if (status) { cond.push('r.status=?'); params.push(status); }
