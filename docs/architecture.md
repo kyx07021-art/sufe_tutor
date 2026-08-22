@@ -2,7 +2,7 @@
 
 面向后续功能开发。目标：增删改查任何功能都像搭积木——每块积木职责单一、接口明确。
 
-**本文档与 `test/architecture-v2.archtest.js` 的 10 条架构契约一一对应（V-3-2a）**：每条契约在下文有对应章节；「文档提及的契约均能在测试中找到」由 V-3-2c 的互检断言锁住，防文档漂移。
+**本文档与 `test/architecture-v2.archtest.js` 的 11 条架构契约一一对应（V-3-2a + V-3-2c 互检契约）**：v2 架构契约门禁经 `npm run test:arch:v2` 受控；新站架构契约独立见 `test/architecture-new-site.archtest.js`（门禁 `npm run test:arch`）。每条契约在下文有对应章节；「文档提及的契约均能在测试中找到」由 V-3-2c 的互检断言锁住，防文档漂移。
 
 ## 分层总览（v2）
 
@@ -132,7 +132,7 @@ web/index.html 页级严格 CSP：`script-src 'self'; style-src-elem 'self'; sty
 
 ## 上线检查清单
 
-1. `node hash-assets.mjs`（manifest 与源码一致）→ `npm test` → `npm run test:arch` → `npm run build` 全绿。
+1. `node hash-assets.mjs`（manifest 与源码一致）→ `npm test` → `npm run test:arch:v2` → `npm run build` 全绿。
 2. commit + push（Git 自动部署；github 抽风用 push-retry.sh 后台线程）。
 3. curl /api/health 验线上 + 反馈单巡检。
 4. 渲染/安全改动交付前手动跑浏览器验证（`node test/verify-csp-strict.mjs` / `node test/verify-captcha-render.mjs`）。

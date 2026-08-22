@@ -56,8 +56,8 @@
 跨面对账归属写死（Z/Q 先例）：契约 6 形态 / 缓存 invalidate / 通知结构化 / SUFE_REGIONS / chat 竞态 / schema 机制，每面报告加「跨面归属」注记。
 
 ### 阶段 3 · 回归与验证
-- **上线检查清单**（固化顺序，规则 P17/P20）：`node hash-assets.mjs` → `npm test` → `npm run test:arch` → `npm run build` → commit+push（后台重试线程 P16）→ `/api/health` 验线上 → 反馈单巡检（P20）。
-- **验证脚本套件**：`verify-csp-strict.mjs`（CSP 三路真拦 + 全链路零违规 + 几何断言）、`verify-captcha-render.mjs`（像素级验证）、`verify-staging-smoke.mjs`（真实部署产物 + Playwright + SPA 回退）。
+- **上线检查清单**（固化顺序，规则 P17/P20）：`node hash-assets.mjs` → `npm test` → `npm run test:arch:v2` → `npm run build` → commit+push（后台重试线程 P16）→ `/api/health` 验线上 → 反馈单巡检（P20）。
+- **验证脚本套件**：`verify-csp-strict.mjs`（CSP 三路真拦 + 全链路零违规 + 几何断言）、`verify-captcha-render.mjs`（像素级验证）、`verify-site-smoke.mjs`（真实部署产物 + Playwright + SPA 回退；接替已删的 v2 专用 verify-staging-smoke.mjs）。
 - **变异守护（G2）**：锁定真实行为的断言做还原验证（还原修复 → 断言变红），不只断言"不炸"。
 - **负路径断言（W43）**：验证脚本必须含「用户可能尝试但被拦的路径」负用例（点遮罩 / 点弹窗外 / 点被覆盖元素 / 移动端），不只 happy path。
 - **几何断言（G5）**：元素在视口内 / 不溢出，不只 DOM 存在。

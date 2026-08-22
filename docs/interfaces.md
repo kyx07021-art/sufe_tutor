@@ -160,7 +160,8 @@ matchCount：筛选维度（科目/性别/性格/报价区间）中命中的个�
 POST /api/auth/verify
 Auth: 登录 + 场景（capToken 由调用方流程提供）
 body: { credential: { type: 'otp'|'password', value: string },
-        captchaVerified: true }   // 拼图已先经 I-07 验证置位（前端状态）
+        captchaVerified: true,     // 拼图已先经 I-07 验证置位（前端状态）
+        captchaId: string }        // I-07 放行的 captchaId（服务端 isChallengeVerified 确认，#108）
 200: { verified: true } | 401/403
 ```
 定案理由：计划书 C5「确认按钮只在验证码和拼图都通过之后亮起」→ 拼图先行 I-07 验证，灰态判据 = 凭证完整（验证码 6 位 / 密码非空）+ 拼图已通过；I-06 提交只带凭证，验证码/密码合法性服务端判定。
@@ -256,7 +257,7 @@ I-16 适配：temp close = 删除会话行（FK 级联）+ 零通知；formal �
 - **I-03** `POST /api/auth/register` 公开（teacher 须 inviteCode）｜`{username,password,role,inviteCode?,otpChannel,phone?|email?,code,agreeAgreement,agreePrivacy,deviceId?}`→`{user,authToken,message}`｜绑定失败回滚零孤儿
 - **I-04** `POST /api/auth/logout` 登录｜→`{ok}`｜吊销令牌+清 capToken
 - **I-05** `GET /api/auth/me` 登录｜→`{user:{id,username,role,avatar,teacherName?,contactMasks:{phone,email}}}`｜teacherName 空回退 username（前端）
-- **I-06** `POST /api/auth/verify` 登录｜`{credential:{type:'otp'|'password',value},captchaVerified:true}`→`{verified:true,capToken}`｜**capToken 签发（裁决①）**；三选二组合；无绑通道剔除
+- **I-06** `POST /api/auth/verify` 登录｜`{credential:{type:'otp'|'password',value},captchaVerified:true,captchaId}`→`{verified:true,capToken}`｜**capToken 签发（裁决①）**；三选二组合；无绑通道剔除；captchaId 服务端确认（isChallengeVerified，#108）
 - **I-07** `POST /api/captcha/verify` 公开｜`{captchaId,offset?,track[10-2000点]}`→`{ok,score}`｜PASS_SCORE 常量/防重放/留档不翻转
 
 ### 用户与设置（I-08..14，M5 消费，ready）
@@ -310,3 +311,15 @@ I-16 适配：temp close = 删除会话行（FK 级联）+ 零通知；formal �
 - **I-44** `GET /api/contracts` + `GET /api/contracts/:id` 登录｜行含 contractStatus 'signing'|'signed'+revoked/conversationId 可空/rate 泛化/version
 - **I-45** `POST /api/contracts` 登录+**capToken**｜`{conversationId?,method,plan,rate,schedule,location,payMethod,payMethodOther?,firstLessonDate?,trialPay?,trialPayOther?,capToken}`→`{id,message}`｜删 demandId/阶段推进
 - **I-46** `POST /api/contracts/:id/sign`｜`POST /api/contracts/:id/revoke`｜`PUT /api/contracts/:id{contractMd,version}`（乐观锁 409）｜`DELETE /api/contracts/:id`（单方回退）｜`GET /api/contracts/:id/verify`（只读豁免门禁）——全部 参与方+capToken（verify 只读）
+
+### S2 temp contract lock（S2-T0 契约冻结 · 2026-08-22）
+
+临时会话接口形状**以 §17（S2 临时会话契约）与 §19（I-15..25 权威形状）为准**，字段名/错误码/状态冻结如下。**本文件 §12 的旧草稿字段 `quotaRemaining`、错误码 `TEMP_QUOTA_EXHAUSTED` 与 403 状态已过时，以本节/§17/§19 为准**。
+
+- **I-23** `POST /api/conversations/temp`（登录）｜`{targetUserId:int, firstMessage:string≤1000}` → `{conversationId, status:'active'|'closed', tempStatus:'init'|'sent'|null, tempInitiatorId:int|null, iAmInitiator:boolean, quota:int|null}`｜formal 已存在→reopen 复用 / temp 已存在→复用 / 无→init 新建（带 firstMessage 时 init→sent 同事务原子）。
+- **I-24 状态机** init（仅发起方可见可发、配额 1）→ 首条发送事务→sent（接收方可见+可回复；发起方超配 **409 `TEMP_QUOTA_EXCEEDED`**）→ 接收方回复→formal（temp_status→NULL、temp_initiator_user_id 保留=wasTemp）。发送响应含 `{tempQuota:0|1, convStatus:'temp'|'active'}`。
+- **I-17 列表** 行含 `tempStatus`/`tempInitiatorId`/`quota`/`iAmInitiator`；init 仅发起方显、接收方 init 隐藏、sent 双方显。
+- **I-18 详情** init 非发起方 404（防存在性泄露）。
+- **I-16 close** temp=删除会话行（FK 级联删消息）+ 零通知 + capToken 保留；formal 走 AI-1 close 级联收束。
+- **I-15 关系** 行含 `tempStatus`/`tempInitiatorId`（转正式后保留 wasTemp）。
+- **服务端常量单源（S2-T2）**：`TEMP_STATUS={INIT:'init',SENT:'sent'}`、`LIMITS.TEMP_SEND_QUOTA=1`、`LIMITS.TEMP_FIRST_MSG_MAX=1000`、`MSG/CODES.TEMP_QUOTA_EXCEEDED`。本形状由 `test/temp-contract-shape.test.js` 静态锁定。

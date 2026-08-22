@@ -80,4 +80,15 @@ AB 共用：C0 LOGO；C1 关系管理→C1.1 关系卡片；C2 会话页（C2.1 
 
 ---
 
-*文档聚合：ADR 0002（技术栈）、ADR 0003（认证/路由）、ADR 0004（组件契约）、docs/frontend-decoupling.md（接口清单）、docs/interface-mapping.md（页面×接口映射）。新前端工程启动时复制本文件到工程根并随实现更新。*
+---
+
+## 8. 当前状态（2026-08-22，阶段一+二完成）
+
+- **工程位置**：`代码仓库/new-frontend/`（Vue 3.5 + Vite 5，new-site 分支）。
+- **M0 组件库已交付**（独立审计 PASS）：`src/components/ui/` 19 个 SFC（UiButton 九变体/UiCard/UiDropdown+Panel/UiCheckButton/UiInput/UiCaptchaInput/UiComboInput/UiVariableInputSet/UiFieldInput/UiFieldDisplay/UiModal/UiModalA1/UiConfirmModalA1/UiStepModal/UiAlertModal/UiText/UiToast/UiIcon）+ 25 SVG + 9 composable；`src/styles/tokens.css` 全 token 单源；`vite.config.js` 生产注入严格 meta CSP。
+- **接口权威形状**：`docs/interfaces.md` §19（I-01..43 ready / I-44..46 cap；含 settings 收敛、I-06 capToken、I-25 v2 路径三裁决）。**接口帽** = 未就绪占位 `data-cap="<接口名>"`。
+- **基元清单**：`docs/module-plans/SUMMARY.md`（全站 ≈340 基元）+ 各 `M*.md`/`S*.md` + `TEST-INVENTORY.md`（v2 测试三档盘点）。
+- **测试框架（定案）**：后端 `node --test`；前端 `node --test` + Playwright 实机（`new-frontend/test/smoke-*.mjs`），**不引 Vitest/jsdom**。
+- **M0 共享件解冻清单**（阶段三 M7/M9 首消费者建入 M0）：排序/筛选第二三上边栏、教师详情卡三栏、头像居中裁切最大圆、命中分组纯函数+即时应用/动效重播机制（维度表驱动）。
+
+*文档聚合：ADR 0002/0003/0004、docs/interfaces.md（§19 权威接口）、docs/module-plans/*（基元清单）、docs/新前端需求.md（用户计划书真源）。新前端工程启动时复制本文件到工程根并随实现更新。*

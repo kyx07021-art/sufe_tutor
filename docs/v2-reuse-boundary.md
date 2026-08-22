@@ -49,12 +49,13 @@
 - 复用方式：**整体照搬**。新站用户体系不变，安全模型逐字节继承。
 
 ### A2 根 server/ 基础设施
-位置：根 `server/{db,secrets,version,human-check,chsi,telemetry,startup,reencrypt}.js`（注意：在仓库根 `server/`，不是 `src/server/`）
+位置：根 `server/{db,secrets,version,chsi,telemetry,startup,reencrypt}.js`（注意：在仓库根 `server/`，不是 `src/server/`）
 - `db.js`：数据访问兼容出口，全部 11 个域 `api.js` 共同 import 的读写入口。
 - `secrets.js`：fail-closed 密钥链（只读 env，crypto/db/otp/text-audit 消费），仓库零明文密钥。
-- `version.js`：版本号表 init/bump；`human-check.js`：captcha 校验 handler；`chsi.js`：Chsi（学信网）env 绑定。
+- `version.js`：版本号表 init/bump；`chsi.js`：Chsi（学信网）env 绑定。
 - `telemetry.js`：遥测；`startup.js`：release gate（密钥完备性校验，fail-closed 全站 503 兜底）。
 - `reencrypt.js`：密钥轮换分片机制（游标分片，供后续轮换复用）。
+- 注：`human-check.js`（captcha 校验 handler）已于 S0-21 迁入 `src/server/core/human-check.js`（新站咽喉），不再在根 server/。
 - 配套运维脚本：`scripts/reencrypt-production.sh`（cursor 续跑循环，驱动 reencrypt 轮换），随 A2 保留。
 - 复用方式：**整体照搬**（新站如不涉学信网核验，`chsi.js` 可删）。
 
@@ -92,7 +93,7 @@
 - 验收三条件 + A1-G5 通用审计契约（已上提全项目 CLAUDE.md）。
 - `test/` 分片机制（`scripts/gen-shards.mjs`/根 `run-shards.sh`）+ 变异守护方法论（G2）。
 - `test/verify-*.mjs` 浏览器实机验证范式（CSP 四路拦截/captcha 像素/聊天布局几何/OTP 输入/教师档案/admin 面板）。
-- `scripts/verify-staging-smoke.mjs`：真实部署产物 + Playwright 冒烟范式。
+- `scripts/verify-site-smoke.mjs`：真实部署产物 + Playwright 冒烟范式（接替已删的 v2 专用 verify-staging-smoke.mjs）。
 - `architecture-v2.archtest.js` 契约测试范式：新站建立自己的契约清单（结构契约 + 有牙齿断言 + 变异负例）。
 - `.github/workflows/ci.yml` CI 管线。
 - 复用方式：**范式整体迁移**，测试本体按新站重写（C 档）。
