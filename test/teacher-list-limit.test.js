@@ -109,3 +109,141 @@ test('admin view stays uncapped (management list not limited by PUBLIC_LIST_MAX)
   assert.equal(adminList.length, LIMITS.PUBLIC_LIST_MAX + 5,
     'adminView is NOT truncated — management list keeps the full table');
 });
+
+// ============================================================================
+// PA-1d-F6b fixture: 250 teachers — the 50 OLDEST carry price 50 / subjects
+// ['english'] / rating 5 / experience 10 / gender 'female' / tags ['patience'];
+// the 200 NEWEST carry price 300 / subjects ['math'] / rating 1 / experience 1 /
+// gender 'male' / tags ['punctual']. The PUBLIC_LIST_MAX=200 cap truncates the
+// table to the 200 newest, so JS-only sort/filter over that truncated set would
+// NEVER see an old row. The SQL pushdown (buildTeacherPublicQuery) applies
+// filters + ORDER BY BEFORE the LIMIT, so every assertion below targets a row that
+// lives ONLY in the older-50 block — any revert to the JS-on-truncated-set
+// behavior makes them red (G2 mutation guard).
+// ============================================================================
+async function seedTeacher250(raw) {
+  const n = LIMITS.PUBLIC_LIST_MAX + 50; // 250
+  for (let i = 0; i < n; i++) {
+    raw.prepare("INSERT INTO users (username,password_hash,salt,role) VALUES (?,?,'s','teacher')").run(`u${i}`, 'h');
+  }
+  const rows = raw.prepare("SELECT id FROM users WHERE role='teacher' ORDER BY id").all();
+  const ins = raw.prepare(`INSERT INTO teacher_profiles
+    (user_id, price_min, price_max, subjects, rating, experience_years, gender, personality_tags, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?)`);
+  for (const r of rows.slice(0, 50)) { // 50 oldest
+    ins.run(r.id, 50, 50, '["english"]', 5, 10, 'female', '["patience"]', '2026-01-01 00:00:00');
+  }
+  for (const r of rows.slice(50)) { // 200 newest
+    ins.run(r.id, 300, 300, '["math"]', 1, 1, 'male', '["punctual"]', '2026-08-01 00:00:00');
+  }
+}
+
+async function seedStudentWithDemand(raw, subject) {
+  const token = await seedStudent(raw);
+  const stu = raw.prepare("SELECT id FROM users WHERE username='s1'").get().id;
+  raw.prepare("INSERT INTO student_demands (user_id, subject, grade, province) VALUES (?,?,'senior3','shanghai')")
+    .run(stu, subject);
+  return token;
+}
+
+const LIST = url => new Request('http://x/api/teachers' + url, { method: 'GET', headers: { 'X-Auth-Token': 'stu-token' } });
+
+test('PA-1d-F6b: sort=price ASC ranks the global cheapest (older rows survive truncation)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await seedTeacher250(raw);
+  await seedStudent(raw);
+  const res = await handleGetTeachers(db, LIST('?sort=price&order=asc'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.items.length, LIMITS.PUBLIC_LIST_MAX, 'capped at PUBLIC_LIST_MAX');
+  assert.equal(body.items[0].priceMin, 50, 'global cheapest (old teacher) leads price-ASC — not the recent-200 (300) set');
+  assert.ok(body.items.some(i => i.priceMin === 50), 'price-50 rows present despite living outside the recent-200');
+});
+
+test('PA-1d-F6b: sort=rating DESC ranks the global highest rating (old 5.0 leads)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await seedTeacher250(raw);
+  await seedStudent(raw);
+  const res = await handleGetTeachers(db, LIST('?sort=rating&order=desc'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.items[0].rating, 5, 'highest rating (old teacher) leads rating-DESC');
+  assert.ok(body.items.some(i => i.rating === 5), 'rating-5 rows present');
+});
+
+test('PA-1d-F6b: sort=exp DESC ranks the global highest experience (old 10y leads)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await seedTeacher250(raw);
+  await seedStudent(raw);
+  const res = await handleGetTeachers(db, LIST('?sort=exp&order=desc'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.items[0].experienceYears, 10, 'highest experience (old teacher) leads exp-DESC');
+  assert.ok(body.items.some(i => i.experienceYears === 10), '10y rows present');
+});
+
+test('PA-1d-F6b: subjects filter applied in SQL BEFORE the LIMIT (old english teachers survive)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await seedTeacher250(raw);
+  await seedStudent(raw);
+  const res = await handleGetTeachers(db, LIST('?subjects=english'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.items.length, 50, '50 english teachers returned — JS-on-truncated would see 0 (all recent are math)');
+  assert.ok(body.items.every(i => Array.isArray(i.subjects) && i.subjects.some(s => s && s.subject === 'english')));
+});
+
+test('PA-1d-F6b: price filter applied in SQL BEFORE the LIMIT (priceMax=100 keeps only the old 50)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await seedTeacher250(raw);
+  await seedStudent(raw);
+  const res = await handleGetTeachers(db, LIST('?priceMax=100'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.items.length, 50, 'priceMax=100 keeps only the old 50 — JS-on-truncated would see 0');
+  assert.ok(body.items.every(i => i.priceMin === 50));
+});
+
+test('PA-1d-F6b: gender filter applied in SQL BEFORE the LIMIT (female keeps only the old 50)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await seedTeacher250(raw);
+  await seedStudent(raw);
+  const res = await handleGetTeachers(db, LIST('?gender=female'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.items.length, 50, 'gender=female keeps only the old 50 — JS-on-truncated would see 0');
+});
+
+test('PA-1d-F6b: personalities filter applied in SQL BEFORE the LIMIT (patience keeps only the old 50)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await seedTeacher250(raw);
+  await seedStudent(raw);
+  const res = await handleGetTeachers(db, LIST('?personalities=patience'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.items.length, 50, 'personalities=patience keeps only the old 50 — JS-on-truncated would see 0');
+});
+
+test('PA-1d-F6b: sort=match ranks within the capped set (documented boundary)', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  await seedTeacher250(raw);
+  await seedStudentWithDemand(raw, 'math'); // open demand matches the RECENT teachers
+  const res = await handleGetTeachers(db, LIST('?sort=match&order=desc'));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.items.length, LIMITS.PUBLIC_LIST_MAX, 'match ranks the capped set, not the whole table');
+  // capped set = the 200 newest (math) teachers — they all get a non-null match score
+  assert.ok(body.items[0].matchScore != null, 'math teachers get a match score');
+  const scores = body.items.map(i => i.matchScore ?? -1);
+  for (let i = 1; i < scores.length; i++) {
+    assert.ok(scores[i] <= scores[i - 1], `match-DESC non-increasing at ${i}`);
+  }
+});

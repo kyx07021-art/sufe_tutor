@@ -154,11 +154,69 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
   };
 }
 
+// PA-1d-F6b: build the public-plaza WHERE / ORDER BY from the I-29 filter conditions and
+// SQL-expressible sorts. Everything is applied BEFORE the PUBLIC_LIST_MAX LIMIT (the caller
+// appends it), so global sort/filter semantics survive a table larger than the cap — the
+// old in-handler JS sort/filter ran over the truncated "most recent PUBLIC_LIST_MAX" set,
+// which silently dropped older rows from every sort/filter result.
+//
+// - filters: subjects / gender / personalities (JSON-array columns, matched exactly via
+//   json_each — the parse-then-compare equivalent of safeJsonArray, NOT substring LIKE)
+//   and price range overlap (teacher [price_min, price_max], null = unbounded). A teacher
+//   with no price at all is excluded when a price filter is active (I-29 contract).
+// - sort: price (midpoint, single-side uses the present side, both-null LAST), rating,
+//   experience. All three use a null-last flag so missing keys sort to the end regardless
+//   of asc/desc — the same semantics as list.js makeComparator. sort='match' is NOT
+//   expressible here (needs the student's open demand + per-row match/profile data); the
+//   handler passes sort=null and ranks the capped set in JS (documented boundary).
+function buildTeacherPublicQuery(filters, sort, order) {
+  const cond = ["u.role='teacher'", 'u.banned=0', 'u.deactivated=0'];
+  const params = [];
+  const f = filters || {};
+  const subjectIds = Array.isArray(f.subjects) ? f.subjects.filter(x => typeof x === 'string' && x) : [];
+  if (subjectIds.length) {
+    // json_valid() short-circuits the EXISTS so a malformed cell cannot 5xx the whole list
+    // (C4: a corrupt row must not take down every request; safeJsonArray tolerates it in JS).
+    cond.push(`EXISTS (SELECT 1 FROM json_each(tp.subjects) je WHERE json_valid(tp.subjects) AND je.value IN (${subjectIds.map(() => '?').join(',')}))`);
+    params.push(...subjectIds);
+  }
+  if (typeof f.gender === 'string' && f.gender) {
+    cond.push('tp.gender = ?');
+    params.push(f.gender);
+  }
+  const personalityIds = Array.isArray(f.personalities) ? f.personalities.filter(x => typeof x === 'string' && x) : [];
+  if (personalityIds.length) {
+    cond.push(`EXISTS (SELECT 1 FROM json_each(tp.personality_tags) je WHERE json_valid(tp.personality_tags) AND je.value IN (${personalityIds.map(() => '?').join(',')}))`);
+    params.push(...personalityIds);
+  }
+  const pmin = f.priceMin != null ? Number(f.priceMin) : null;
+  const pmax = f.priceMax != null ? Number(f.priceMax) : null;
+  if (pmin != null || pmax != null) {
+    cond.push('(tp.price_min IS NOT NULL OR tp.price_max IS NOT NULL)'); // 报价完全未填教师不参与报价筛选
+    if (pmax != null) { cond.push('(tp.price_min IS NULL OR tp.price_min <= ?)'); params.push(pmax); }
+    if (pmin != null) { cond.push('(tp.price_max IS NULL OR tp.price_max >= ?)'); params.push(pmin); }
+  }
+  const dir = order === 'asc' ? 'ASC' : 'DESC';
+  let orderBy = 'ORDER BY tp.updated_at DESC'; // 默认 / sort=match 回退时间序
+  if (sort === 'price') {
+    orderBy = `ORDER BY
+      CASE WHEN tp.price_min IS NULL AND tp.price_max IS NULL THEN 1 ELSE 0 END ASC,
+      (COALESCE(tp.price_min, tp.price_max) + COALESCE(tp.price_max, tp.price_min)) / 2.0 ${dir},
+      tp.updated_at DESC`;
+  } else if (sort === 'rating') {
+    orderBy = `ORDER BY CASE WHEN tp.rating IS NULL THEN 1 ELSE 0 END ASC, tp.rating ${dir}, tp.updated_at DESC`;
+  } else if (sort === 'exp') {
+    orderBy = `ORDER BY CASE WHEN tp.experience_years IS NULL THEN 1 ELSE 0 END ASC, tp.experience_years ${dir}, tp.updated_at DESC`;
+  }
+  return { where: cond.join(' AND '), params, orderBy };
+}
+
 // 教师列表统一出口（合并 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎）：
 // 广场视图（默认）：viewerId 有值（登录态）时跳过 allow_guest_profile 访客过滤（已登录用户可看全部可见教师）；
 //   S4-02：matched EXISTS 子查询已移除（列表不再下发双向匹配标记，仅匹配可见字段改经 /api/teacher/profile 定点门控）；
-// adminView：管理端教师管理列表——LEFT JOIN（无档案教师也显示）+ 附 role/banned/created_at
-export async function dbGetTeachers(db, { adminView = false, viewerId = null } = {}) {
+// adminView：管理端教师管理列表——LEFT JOIN（无档案教师也显示）+ 附 role/banned/created_at。
+// 公开分支接收 I-29 filters / sort / order 并在 SQL 层应用（PA-1d-F6b）——sort='match' 由调用方以 null 传入。
+export async function dbGetTeachers(db, { adminView = false, viewerId = null, filters = null, sort = '', order = 'desc' } = {}) {
   if (adminView) {
     const rows = await dbAll(db, `SELECT u.id AS user_id, u.username, u.role, u.banned, u.created_at,
         tp.id, tp.grade, tp.gender, tp.subjects, tp.gaokao_scores, tp.price, tp.price_min, tp.price_max,
@@ -179,13 +237,14 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
   // PA-1d-F6 DoS guard: the public plaza list is capped at the same PUBLIC_LIST_MAX
   // as the demand square (demand/repo.js) so a growing teacher_profiles table cannot
   // force every request to load the whole table + per-row match computation.
-  // ORDER BY precedes LIMIT, so the truncation never breaks the SQL sort semantics;
-  // in-handler sort/filter (list.js) then operates on the capped set.
+  // PA-1d-F6b: filters + SQL-expressible sorts are pushed into the SELECT (buildTeacherPublicQuery)
+  // and applied before the LIMIT — the truncation never breaks global sort/filter semantics.
+  const { where, params, orderBy } = buildTeacherPublicQuery(filters, sort, order);
   const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id
-    WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0
-    ORDER BY tp.updated_at DESC
-    LIMIT ${LIMITS.PUBLIC_LIST_MAX}`);
+    WHERE ${where}
+    ${orderBy}
+    LIMIT ${LIMITS.PUBLIC_LIST_MAX}`, params);
   // 广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
   // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经
   // /api/teacher/profile 定点取回（该端点按 本人/双向匹配 门控，未匹配 403）。
