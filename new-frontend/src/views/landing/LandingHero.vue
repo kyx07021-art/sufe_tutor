@@ -8,11 +8,30 @@
  * - Two large A1 buttons below-left / below-right; their combined width equals
  *   the headline width (single-column `minmax(0,max-content)` grid, buttons
  *   split the actions track 1fr/1fr).
- * - Clicking is an interface cap for now: `data-cap` marks where the M2 routing
- *   contract plugs in (enter student/teacher client). No navigation until M2.
+ * - CTA wiring (PA-1h1-F1): the `data-cap` seam is consumed here — an
+ *   unauthenticated visitor opens the identity-auth overlay (register scene,
+ *   the user picks the role), a logged-in visitor routes to the CTA role's
+ *   default page (the router guard fail-closes a role mismatch to the user's
+ *   own role default).
  */
+import { useRouter } from 'vue-router'
 import UiButton from '@/components/ui/UiButton.vue'
 import { LANDING_COPY } from '@/constants/m-landing.js'
+import { authStore } from '@/modules/shell/auth-store.js'
+import { defaultPageForRole } from '@/modules/shell/page-registry.js'
+import { getIface } from '@/modules/shell/ifaces.js'
+
+const router = useRouter()
+
+function onEnter(role) {
+  if (authStore.token) {
+    const def = defaultPageForRole(role)
+    if (def) router.push(def)
+    return
+  }
+  const open = getIface('openIdentityAuth')
+  if (open) open({ mode: 'register' })
+}
 </script>
 
 <template>
@@ -24,6 +43,7 @@ import { LANDING_COPY } from '@/constants/m-landing.js'
         size="lg"
         class="landing-hero__btn"
         data-cap="enter.student"
+        @click="onEnter('student')"
         >{{ LANDING_COPY.HERO_CTO_STUDENT }}</UiButton
       >
       <UiButton
@@ -31,6 +51,7 @@ import { LANDING_COPY } from '@/constants/m-landing.js'
         size="lg"
         class="landing-hero__btn"
         data-cap="enter.teacher"
+        @click="onEnter('teacher')"
         >{{ LANDING_COPY.HERO_CTO_TEACHER }}</UiButton
       >
     </div>
