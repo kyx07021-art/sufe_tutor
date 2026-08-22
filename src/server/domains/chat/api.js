@@ -210,16 +210,33 @@ export async function handleGetConversations(db, url, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   const conversations = await dbGetMyConversations(db, me.id);
-  // S2-T4 (I-17): expose camelCase temp fields alongside existing list fields; strip the raw
-  // snake_case temp columns (the repo SELECT returns them; the API surface exposes tempStatus/
-  // tempInitiatorId per the I-17 contract).
-  return json({ conversations: conversations.map(({ temp_status, temp_initiator_user_id, ...c }) => ({
-    ...c,
-    tempStatus: temp_status || null,
-    tempInitiatorId: temp_initiator_user_id || null,
-    iAmInitiator: !!temp_initiator_user_id && temp_initiator_user_id === me.id,
-    quota: quotaOf({ temp_status, temp_initiator_user_id }, me.id),
-  })) });
+  // I-17 (interfaces.md §19): camelCase contract row. The peer is the opposite party of the
+  // two-party tuple (one student + one teacher); otherName is the peer display name (teacher_name
+  // preferred when the peer is a teacher, username fallback via the repo SQL) and avatar the peer
+  // avatar. The raw snake_case columns are intentionally not spread — the API surface is the contract.
+  return json({ conversations: conversations.map(c => {
+    const peerIsTeacher = c.student_user_id === me.id; // I am the student → the peer is the teacher
+    const otherName = peerIsTeacher ? (c.teacher_name || c.student_name || '') : (c.student_name || c.teacher_name || '');
+    const avatar = peerIsTeacher ? (c.teacher_avatar || c.student_avatar || '') : (c.student_avatar || c.teacher_avatar || '');
+    return {
+      conversationId: c.id,
+      status: c.status,
+      otherName,
+      avatar,
+      // Image/file messages carry no text preview (same rule as the repo last_body CASE).
+      lastMessage: c.last_kind && (c.last_kind === 'image' || c.last_kind === 'file') ? '' : (c.last_body || ''),
+      lastMessageKind: c.last_kind || null,
+      lastAt: c.last_at || null,
+      unread: Number(c.unread_count) || 0,
+      tempStatus: c.temp_status || null,
+      tempInitiatorId: c.temp_initiator_user_id || null,
+      iAmInitiator: !!c.temp_initiator_user_id && c.temp_initiator_user_id === me.id,
+      // I-17 quota semantics: quota = original temp allocation (TEMP_SEND_QUOTA), quotaRemaining =
+      // what the current user still has (quotaOf); both null for a formal conversation.
+      quota: c.temp_status ? LIMITS.TEMP_SEND_QUOTA : null,
+      quotaRemaining: quotaOf({ temp_status: c.temp_status, temp_initiator_user_id: c.temp_initiator_user_id }, me.id),
+    };
+  }) });
 }
 
 // AI-7: unified relationship list — aggregate by two-party tuple (conversation state / last message /

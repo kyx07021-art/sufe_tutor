@@ -90,9 +90,10 @@ export async function dbGetMyConversations(db, userId) {
   // 提示已并入签约请求气泡底下（status='signed' 模板渲染），会话列表字段无消费者后删除。
   // 显式列集（不用 c.*）：双方已读游标（student_last_read_id/teacher_last_read_id）不下发，
   // 避免向对方暴露己方已读位置（低敏信息泄露面收口）
+  // I-17/PA-1c-F3：teacher_name 取教师公开名（teacher_profiles.teacher_name 空回退 username）。
   return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.demand_id, c.status, c.created_at,
       c.temp_status, c.temp_initiator_user_id,
-      us.username AS student_name, ut.username AS teacher_name,
+      us.username AS student_name, COALESCE(NULLIF(tp.teacher_name, ''), ut.username) AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
       lm.kind AS last_kind, lm.created_at AS last_at, lm.sender_user_id AS last_sender,
@@ -102,6 +103,7 @@ export async function dbGetMyConversations(db, userId) {
     FROM conversations c
     JOIN users us ON us.id=c.student_user_id
     JOIN users ut ON ut.id=c.teacher_user_id
+    LEFT JOIN teacher_profiles tp ON tp.user_id = ut.id
     LEFT JOIN (
       SELECT m.conversation_id, m.body, m.kind, m.created_at, m.sender_user_id
       FROM messages m JOIN (

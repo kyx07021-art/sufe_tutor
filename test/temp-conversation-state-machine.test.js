@@ -99,16 +99,17 @@ describe('S2 temp conversation state machine', () => {
     // 2) I-18: non-initiator (teacher) reading an init temp → 404 (existence-leak prevention).
     assert.equal((await handleGetMessages(db, convId, msgUrl(convId), reqOf(t1.token))).status, 404);
 
-    // 3) I-17: init visible to the initiator only, with temp fields + quota 1.
+    // 3) I-17: init visible to the initiator only, with temp fields + quota/quotaRemaining 1.
     const s1List = (await (await handleGetConversations(db, listUrl(), reqOf(s1.token))).json()).conversations;
-    const initRow = s1List.find(x => x.id === convId);
+    const initRow = s1List.find(x => x.conversationId === convId);
     assert.ok(initRow, 'initiator sees the init conversation (0 messages still shown)');
     assert.equal(initRow.tempStatus, TEMP_STATUS.INIT);
     assert.equal(initRow.tempInitiatorId, s1.uid);
     assert.equal(initRow.iAmInitiator, true);
     assert.equal(initRow.quota, 1);
+    assert.equal(initRow.quotaRemaining, 1);
     const t1ListInit = (await (await handleGetConversations(db, listUrl(), reqOf(t1.token))).json()).conversations;
-    assert.equal(t1ListInit.find(x => x.id === convId), undefined, 'non-initiator does NOT see the init conversation');
+    assert.equal(t1ListInit.find(x => x.conversationId === convId), undefined, 'non-initiator does NOT see the init conversation');
 
     // 4) Initiator's first message advances init→sent atomically (I-24): tempQuota 0, convStatus temp.
     const first = await handleSendMessage(db, convId, { batch: [{ kind: 'text', body: 'hi, I need a tutor' }] }, reqOf(s1.token));
@@ -120,16 +121,17 @@ describe('S2 temp conversation state machine', () => {
     assert.equal(raw.prepare('SELECT temp_status FROM conversations WHERE id=?').get(convId).temp_status, TEMP_STATUS.SENT);
     assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM messages WHERE conversation_id=?').get(convId).c, 1, 'first message landed');
 
-    // 5) I-17: sent visible to both; initiator quota 0, receiver quota 1 + red dot (unread 1).
+    // 5) I-17: sent visible to both; initiator quotaRemaining 0, receiver quotaRemaining 1 + red dot (unread 1).
     const t1List = (await (await handleGetConversations(db, listUrl(), reqOf(t1.token))).json()).conversations;
-    const sentRow = t1List.find(x => x.id === convId);
+    const sentRow = t1List.find(x => x.conversationId === convId);
     assert.ok(sentRow, 'receiver sees the sent conversation');
     assert.equal(sentRow.tempStatus, TEMP_STATUS.SENT);
     assert.equal(sentRow.iAmInitiator, false);
     assert.equal(sentRow.quota, 1);
-    assert.equal(sentRow.unread_count, 1, 'receiver gets a red dot for the unread first message');
+    assert.equal(sentRow.quotaRemaining, 1);
+    assert.equal(sentRow.unread, 1, 'receiver gets a red dot for the unread first message');
     const s1ListSent = (await (await handleGetConversations(db, listUrl(), reqOf(s1.token))).json()).conversations;
-    assert.equal(s1ListSent.find(x => x.id === convId).quota, 0, 'initiator over quota on sent');
+    assert.equal(s1ListSent.find(x => x.conversationId === convId).quotaRemaining, 0, 'initiator over quota on sent');
 
     // 6) Receiver replies → formalizes: temp_status NULL, temp_initiator retained (= wasTemp).
     const reply = await handleSendMessage(db, convId, { batch: [{ kind: 'text', body: 'sure, tell me your grade' }] }, reqOf(t1.token));
@@ -217,14 +219,14 @@ describe('S2 temp conversation state machine', () => {
 
     const list = async who => (await (await handleGetConversations(db, listUrl(), reqOf(who.token))).json()).conversations;
     // init: s1 (initiator) sees it, t1 (non-initiator) hidden
-    assert.ok((await list(s1)).some(x => x.id === initConv && x.tempStatus === TEMP_STATUS.INIT), 'initiator sees init row');
-    assert.equal((await list(t1)).some(x => x.id === initConv), false, 'non-initiator init row hidden');
+    assert.ok((await list(s1)).some(x => x.conversationId === initConv && x.tempStatus === TEMP_STATUS.INIT), 'initiator sees init row');
+    assert.equal((await list(t1)).some(x => x.conversationId === initConv), false, 'non-initiator init row hidden');
     // sent: both s1 (initiator) and t2 (receiver) see it
-    assert.ok((await list(s1)).some(x => x.id === sentConv && x.tempStatus === TEMP_STATUS.SENT), 'initiator sees sent row');
-    assert.ok((await list(t2)).some(x => x.id === sentConv && x.tempStatus === TEMP_STATUS.SENT && x.quota === 1), 'receiver sees sent row with quota 1');
+    assert.ok((await list(s1)).some(x => x.conversationId === sentConv && x.tempStatus === TEMP_STATUS.SENT), 'initiator sees sent row');
+    assert.ok((await list(t2)).some(x => x.conversationId === sentConv && x.tempStatus === TEMP_STATUS.SENT && x.quotaRemaining === 1), 'receiver sees sent row with quotaRemaining 1');
     // formal: both s2 and t1 see it, tempStatus null
-    assert.ok((await list(s2)).some(x => x.id === formalConv && x.tempStatus === null), 'student sees formal row');
-    assert.ok((await list(t1)).some(x => x.id === formalConv && x.tempStatus === null), 'teacher sees formal row');
+    assert.ok((await list(s2)).some(x => x.conversationId === formalConv && x.tempStatus === null), 'student sees formal row');
+    assert.ok((await list(t1)).some(x => x.conversationId === formalConv && x.tempStatus === null), 'teacher sees formal row');
   });
 
   test('I-15 relations expose tempStatus/tempInitiatorId on the relation object', async () => {

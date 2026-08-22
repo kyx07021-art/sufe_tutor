@@ -230,35 +230,37 @@ test('I-17 list visibility: init hidden from non-initiator; sent visible to both
   // init state: initiator sees it, non-initiator does not
   const listIRes = await handleGetConversations(db, new URL('http://localhost/api/conversations'), reqOf(s1a.token));
   const listI = await listIRes.json();
-  const idsI = listI.conversations.map(c => c.id);
+  const idsI = listI.conversations.map(c => c.conversationId);
   assert.ok(idsI.includes(cid), 'initiator sees own init conv');
   const listNRes = await handleGetConversations(db, new URL('http://localhost/api/conversations'), reqOf(t1a.token));
   const listN = await listNRes.json();
-  const idsN = listN.conversations.map(c => c.id);
+  const idsN = listN.conversations.map(c => c.conversationId);
   assert.ok(!idsN.includes(cid), 'non-initiator does NOT see init conv');
 
   // advance to sent: both see it
   await handleSendMessage(db, cid, { batch: [{ kind: 'text', body: 'first' }] }, reqOf(s1a.token));
   const listISRes = await handleGetConversations(db, new URL('http://localhost/api/conversations'), reqOf(s1a.token));
   const listIS = await listISRes.json();
-  const idsIS = listIS.conversations.map(c => c.id);
+  const idsIS = listIS.conversations.map(c => c.conversationId);
   assert.ok(idsIS.includes(cid), 'initiator still sees sent conv');
   const listNSRes = await handleGetConversations(db, new URL('http://localhost/api/conversations'), reqOf(t1a.token));
   const listNS = await listNSRes.json();
-  const idsNS = listNS.conversations.map(c => c.id);
+  const idsNS = listNS.conversations.map(c => c.conversationId);
   assert.ok(idsNS.includes(cid), 'non-initiator now sees sent conv');
 
   // list mapping exposes temp fields (camelCase) for the sent conv
-  const rowIS = listIS.conversations.find(c => c.id === cid);
+  const rowIS = listIS.conversations.find(c => c.conversationId === cid);
   assert.equal(rowIS.tempStatus, 'sent');
   assert.equal(rowIS.tempInitiatorId, s1);
   assert.equal(rowIS.iAmInitiator, true);
-  assert.equal(rowIS.quota, 0);
-  const rowNS = listNS.conversations.find(c => c.id === cid);
+  assert.equal(rowIS.quota, 1, 'quota = original temp allocation');
+  assert.equal(rowIS.quotaRemaining, 0, 'initiator used their quota');
+  const rowNS = listNS.conversations.find(c => c.conversationId === cid);
   assert.equal(rowNS.tempStatus, 'sent');
   assert.equal(rowNS.tempInitiatorId, s1);
   assert.equal(rowNS.iAmInitiator, false);
-  assert.equal(rowNS.quota, 1, 'receiver quota 1 on sent temp');
+  assert.equal(rowNS.quota, 1, 'quota = original temp allocation');
+  assert.equal(rowNS.quotaRemaining, 1, 'receiver quota remaining 1 on sent temp');
 });
 
 test('I-16 temp close: capToken required, deletes row + messages (FK cascade), zero notification', async () => {
