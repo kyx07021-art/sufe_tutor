@@ -9,14 +9,14 @@
  *     notify.invalid_type / notify.invalid_params — never silently stored (a stored row with a
  *     bad type would render as an empty notification client-side, invisible corruption).
  *   - S0 keeps the full v2 type set as an intermediate state (type reduction is S6-N2).
- *   - A successful push bumps the 'notifications' version domain (client cache invalidation).
+ *   - A successful push stores a structured row (PA-1i-F1 removed the version-domain bump:
+ *     the client data-version protocol is zero-consumed by the new frontend).
  *
  * Mutations (reverting each fix makes these assertions go red):
  *   - initNotifyTable: remove IF NOT EXISTS -> second call throws "table already exists";
  *     DROP+recreate would lose rows -> red.
  *   - notifyUser: remove the type-registry check -> a wrong-type row is stored -> red.
  *   - notifyUser: remove the params-subset check -> an extra-key row is stored -> red.
- *   - notifyUser: remove bumpVersions -> the notifications version counter stays 0 -> red.
  */
 import { test } from 'node:test';
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -108,7 +108,7 @@ test('S0-15 notifyUser contract: extra params keys refused + recorded notify.inv
   assert.ok(log, 'invalid params recorded (E1)');
 });
 
-test('S0-15 notifyUser valid push: stores structured row and bumps notifications version domain', async () => {
+test('S0-15 notifyUser valid push: stores structured row', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { stu } = await seed(db, raw);
   await notifyUser(db, stu, 'CONTRACT_DRAFT_SENT', { name: '张老师' });
@@ -116,9 +116,6 @@ test('S0-15 notifyUser valid push: stores structured row and bumps notifications
   assert.equal(row.type, 'CONTRACT_DRAFT_SENT');
   assert.equal(row.text, '', 'structured rows leave text empty (client renders from type+params)');
   assert.deepEqual(JSON.parse(row.params), { name: '张老师' });
-  const v = raw.prepare("SELECT counter FROM data_versions WHERE domain='notifications'").get();
-  assert.ok(v && v.counter >= 1,
-    'notifications version domain bumped (mutation: drop bumpVersions -> counter stays 0 -> red)');
 });
 
 test('S0-15 middle state: every registered v2 type passes the push contract (reduction deferred to S6-N2)', async () => {

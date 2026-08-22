@@ -70,10 +70,10 @@ async function call(method, path, body = null, token = null) {
   return routeApi(db, path, method, body, new URL(`http://x${path}`), { headers, url: `http://x${path}` }, ENV);
 }
 
-test('路由表：110 条、method+path 唯一、关键路径字面量齐全', () => {
+test('路由表：109 条、method+path 唯一、关键路径字面量齐全', () => {
   // S3 单科目 demand 模型：旧 /api/student/demands* 与 intents/pushes 已删（S2），
   // demand 域只剩 8 条：POST/GET mine/GET/GET :id/PUT/DELETE/close/open。
-  assert.equal(routes.length, 110, '迁移后路由数 110（S3 demand 单科目 8 条 + S2 删 intents/pushes + S5 合同合并 + S1 auth/settings 收敛）');
+  assert.equal(routes.length, 109, '迁移后路由数 109（S3 demand 单科目 8 条 + S2 删 intents/pushes + S5 合同合并 + S1 auth/settings 收敛 + PA-1i-F1 删 GET /api/data-version）');
   const keys = new Set(routes.map(r => `${r.method} ${r.path}`));
   assert.equal(keys.size, routes.length, 'method+path 唯一');
   // S5 合同独立化：contract 域恰好 10 条（S5-14 与 interfaces I-44/45/46 对齐）。
@@ -107,7 +107,7 @@ test('路由表：110 条、method+path 唯一、关键路径字面量齐全', (
     // S5 合同独立化：新模型路由（含新增 GET /api/contracts/:id）
     ['GET', '/api/contracts'], ['GET', '/api/contracts/:id'], ['POST', '/api/contracts'], ['GET', '/api/contracts/:id/verify'],
     ['GET', '/api/reviews'], ['POST', '/api/feedbacks'], ['POST', '/api/complaints'],
-    ['GET', '/api/admin/stats'], ['GET', '/api/admin/content'], ['GET', '/api/data-version'],
+    ['GET', '/api/admin/stats'], ['GET', '/api/admin/content'],
     ['POST', '/api/captcha/verify'],
   ];
   for (const [method, path] of required) {
@@ -175,8 +175,6 @@ test('routeApi 代表路径内存冒烟：认证/读列表/写反馈/管理端/�
   assert.equal(myComplaints.status, 200);
   const notifications = await call('GET', '/api/notifications', null, tokens.student);
   assert.equal(notifications.status, 200);
-  const dataVersion = await call('GET', '/api/data-version');
-  assert.equal(dataVersion.status, 200);
   const stats = await call('GET', '/api/admin/stats', null, tokens.admin);
   assert.equal(stats.status, 200);
   const dashboard = await call('GET', '/api/admin/dashboard', null, tokens.admin);

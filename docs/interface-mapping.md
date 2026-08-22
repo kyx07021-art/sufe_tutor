@@ -143,7 +143,7 @@
 | 设置（账户） | `GET /api/user/creds`、`GET /api/user/username/status`、`POST /api/user/username`（cap）、`POST /api/user/avatar`、`POST /api/auth/phone|email/bind` | 登录（cap 标注处） | ✅ |
 | 设置（设备） | `GET /api/auth/sessions`、`POST /api/auth/sessions/revoke` | 登录 | ✅ |
 | 注销账户 | `POST /api/user/deactivate` | 登录 + **cap** | ✅ |
-| C4.2 关于 | （版本探针 `GET /api/data-version` 可选） | 公开 | ✅ |
+| C4.2 关于 | （`GET /api/data-version` 已随 PA-1i-F1 删除——客户端数据版本协议新前端零消费） | 公开 | ✅ |
 | C4.3 反馈 | `POST /api/feedbacks`；我的反馈 `GET /api/feedbacks/mine`、`GET /api/complaints/mine`；投诉候选 `GET /api/complaints/recent?target=`、`/candidates?target=&q=`；提交投诉 `POST /api/complaints` | 登录 | ✅ |
 | 二次认证 | `POST /api/auth/re-auth` → `{capToken}`（全部 cap 操作的共同前置） | 登录 | ✅ |
 

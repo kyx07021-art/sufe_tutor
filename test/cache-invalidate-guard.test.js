@@ -4,7 +4,7 @@
  *   - F3：admin 写操作成功后 invalidate 对应域（loadAdminX 走 dhGet 缓存，不失效读旧）
  *   - F4：setPrivacyField 成功后 invalidate('account')（/api/privacy-settings 域 account 且服务端不 bump）
  *   - F2 独立于 test/chat-rebind-guard.test.js（需依赖源码 import 注册存活，_dhResetForTests 会清 dhRebinders）
- *   - F5 服务端 versionDomainOf 映射在 test/version.test.js 补断言
+ *   - F5 服务端数据版本映射随 PA-1i-F1 删除（客户端数据版本协议零消费，server/version.js 已删）
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';

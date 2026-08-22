@@ -21,7 +21,6 @@ import { getSecret } from '../../../server/secrets.js';
 import { initMetrics } from '../../../server/telemetry.js';
 import { initLogDb } from './log.js';
 import { initNotifyTable } from './notify.js';
-import { initVersionTable } from '../../../server/version.js';
 import { initDangerCaps } from './danger-ops.js';
 import { initOtpTable, bindOtpEnv } from './otp.js';
 import { bindChsiEnv } from '../../../server/chsi.js';
@@ -125,10 +124,10 @@ async function runFullMigration(db, env) {
     }
   }
 
-  // Stage 5: non-domain tables (notifications / version / danger-caps / OTP) — must precede postEnsure,
+  // Stage 5: non-domain tables (notifications / danger-caps / OTP) — must precede postEnsure,
   // the auth "old-admin purge" reads notifications etc. which need to exist by then.
+  // data_versions 表（客户端数据版本协议）随 PA-1i-F1 删除——新前端对该协议零消费。
   await initNotifyTable(db);
-  await initVersionTable(db);
   await initDangerCaps(db);
   await initOtpTable(db);
 

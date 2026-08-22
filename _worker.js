@@ -18,7 +18,6 @@ import { rateGate, corsPreflight, applySecurityHeaders } from './src/server/core
 import { initLogDb, bindLogDb, logRequest, logDropStats } from './src/server/core/log.js'; // Q-2b-F3 收口：health 暴露留档失败计数（logDropStats 死导出消除）
 import { bindTextAuditEnv } from './src/server/core/text-audit.js';
 import { initLedgerTable, bindLedgerDb } from './src/server/domains/contract/schema.js'; // Z-15-F8：server/contract.js 死 shim 已删，直引真源
-import { versionDomainOf, bumpVersions } from './server/version.js';
 import { auditBeforeWrite } from './src/server/core/audit-flow.js'; // v0.26.0 E：高频轻量日常审核断点
 
 // ============ Vite content-hash direct serving (S0-24 decision) ============
@@ -305,20 +304,15 @@ export default {
           try { return applySecurityHeaders(json(JSON.parse(text)), p); } catch { /* 文本异常：回落原 res */ }
         }
       }
-      // 数据版本戳（v0.23.0 静默数据层）：写操作成功在写咽喉 bump 受影响域。
-      // waitUntil 包裹——workerd 会掐断未完成的悬浮 Promise；版本戳失败静默
-      // （bumpVersions 内吞错），不影响主业务。
+      // 数据版本戳（v0.23.0 静默数据层）已删除（PA-1i-F1）：新前端（new-frontend）对客户端数据
+      // 版本协议零消费（grep 实证），旧 v2 客户端随壳下线。写操作不再 bump 数据域版本。
       // 会话缓存已整体迁至客户端（app-datahub.js）：服务端读缓存（v0.22.5/8 按身份分桶）
       // 随 v0.23.0 删除——同身份重复读由客户端缓存覆盖（60s TTL + 8s 版本探测刷新），
       // per-user 数据在浏览器侧天然按会话隔离，跨用户零泄露面更小。
-      if (request.method !== 'GET' && res.status < 400) {
-        const domains = versionDomainOf(p);
-        if (domains.length) ctx.waitUntil(bumpVersions(env.DB, domains));
-      }
       // 留档改 ctx.waitUntil 托管（U10 v0.25.106）：响应路径不再等待留档写库——每写请求省 1 次 D1 往返
       // （登录 6.4s→~4.4s，网络层架构债专项第一步）。workerd 的 ctx.waitUntil 是官方保活通道，
-      // 保证留档完成（非悬浮 Promise；历史 0 留档事故是裸 await 后响应结束被掐断，waitUntil 正确托管，
-      // _worker 已用于 bumpVersions 同款）。logRequest 内部吞错，留档失败绝不阻断响应。
+      // 保证留档完成（非悬浮 Promise；历史 0 留档事故是裸 await 后响应结束被掐断，waitUntil 正确托管）。
+      // logRequest 内部吞错，留档失败绝不阻断响应。
       // logRequest 兼作本请求全部留档的统一落库点（B4：业务 logEvent 队列 + 本条访问留档一次 batch）
       const finalMs = Date.now() - t0;
       recordRequestMetric({ path: p, status: res.status, durationMs: finalMs });
