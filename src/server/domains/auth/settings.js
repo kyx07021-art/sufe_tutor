@@ -28,12 +28,11 @@ import { MSG } from '../../../shared/codes.js';
 import { dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbFindUserByUsername } from './repo.js';
 
 /**
- * Local maskPhone mirrors auth/api.js's helper (not exported there; extracting it to a
- * shared module would create a circular import because api.js imports this module's
- * settingsRoutes). Future shared extraction noted — both copies must stay in sync.
+ * Single-source maskPhone (PA-1a-F3: v2 settings surface convergence). auth/api.js imports
+ * this export for handleAuthMe so there is exactly ONE implementation across both surfaces.
  * Masked display only, never a security boundary.
  */
-function maskPhone(phone) {
+export function maskPhone(phone) {
   const s = String(phone || '');
   if (!s) return ''; // unbound → empty string → frontend falls back to "unbound" placeholder
   const m = s.match(/^(\+\d+)(\d{3})\d{4}(\d{4})$/);

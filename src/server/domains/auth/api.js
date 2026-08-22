@@ -6,29 +6,32 @@
  */
 import { json, errorMsg, deviceLabelFromUA, isUniqueConflict, parseIdParam } from '../../core/util.js';
 import { hashPassword, verifyPassword, tokenDigest } from '../../core/crypto.js';
-import { authUser, requireUser, authRateBatch, authRateBlock } from '../../core/security.js';
+import { authUser, authRateBatch, authRateBlock } from '../../core/security.js';
 import {
   issueAuthToken, listSessions, revokeSession,
   getSessionByToken, revokeToken,
 } from '../../core/session.js';
-import { issueCapToken, confirmDangerOtp, clearDangerCaps, clearDangerCapsForSession } from '../../core/danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）+ capToken 清理
+import { issueCapToken, clearDangerCapsForSession } from '../../core/danger-ops.js'; // 危险操作二次认证（D1 持久化，跨实例一致，网安审计 N-02）+ capToken 清理
 import { MSG } from '../../../shared/codes.js';
 import { INVITE_GATE_ENABLED, LIMITS } from '../../../shared/config.js';
 import { DEACTIVATED_USER_PREFIX, OTP_SCENES } from '../../../shared/enums.js';
 import {
   dbFindUserByUsername, dbCreateUser, dbFindValidInviteCode, dbUseInviteCode,
-  dbGetUserById, dbDeactivateUser, dbPurgeUserOwnedData, dbUpdateUserAvatar, dbDeleteUser,
+  dbGetUserById, dbDeleteUser,
   dbUserLookupStmt, dbUsernameExistsStmt, dbUserPhoneHashStmt, dbUserEmailHashStmt,
   dbGetTeacherName,
 } from '../../../../server/db.js';
 // 凭证域：凭证更新独立环节 + 验证码咽喉 + 登录识别
 import {
-  updateUsernameCredential, getUsernameChangedAt,
   bindPhoneCredential, bindEmailCredential, dbPhoneTaken, dbEmailTaken,
   dbFindUserByPhoneHash, dbFindUserByEmailHash, dbGetMyCreds,
 } from '../../core/credential.js';
 import { requestOtp, verifyOtp, normalizeIdentifier, targetMask } from '../../core/otp.js';
 import { logEvent } from '../../core/log.js';
+// 账户设置单源（PA-1a-F3：deactivate/avatar/username/绑定/creds 旧 v2 端点收敛转发到
+// auth/settings.js —— 新前端只消费 GET/PUT /api/settings + POST /api/settings/deactivate，
+// 旧端点保留为显式转发，兼容 audit-flow 前缀与未部署的 v2 壳）
+import { handleGetSettings, handleUpdateSettings, handleDeactivateSettings, maskPhone } from './settings.js';
 
 export async function handleRegister(db, body, req) {
   const { username, password, role, inviteCode } = body;
@@ -206,25 +209,6 @@ export async function handleGetUserPublic(db, userId) {
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' } });
 }
 
-// POST /api/user/deactivate —— 注销账户：用户名墓碑化（「已注销用户#id」，后缀避 UNIQUE 冲突）+
-// 凭证清空 + 单方关联数据全删（档案/通知/反馈/帖子/点赞/暂存附件）；需求/会话/合同/评价等
-// 双方数据保留，JOIN username 处自然显示墓碑。危险操作二次认证 = 密码换 5 分钟一次性 capToken（danger-ops.issueCapToken）
-export async function handleDeactivateAccount(db, body, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  if (me.role === 'admin') return errorMsg('NO_PERMISSION', 403); // 管理员禁止注销，防管理面板孤岛化
-  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
-  const tombstone = `${DEACTIVATED_USER_PREFIX}#${me.id}`;
-  await dbDeactivateUser(db, me.id, tombstone);
-  await dbPurgeUserOwnedData(db, me.id, me.role); // 按角色清理单方数据 + 匿名化本人聊天正文
-  // 合同正文一字不碰（签署后不可修改是合同的立身之本）——注销不改 contract_md，
-  // 对端「一方已注销」tag 由前端 JOIN users 墓碑名自然呈现（合同是双方数据，对方本就知道本人用户名）
-  await clearDangerCaps(db, me.id); // 注销即清全部 capToken（防 danger_caps 孤儿行残留）
-  await logEvent(db, { action: 'user.deactivate', actorUserId: me.id, actorUsername: tombstone,
-    actorRole: me.role, entity: 'user', entityId: me.id, req });
-  return json({ ok: true });
-}
-
 // GET /api/auth/me —— 凭令牌取当前用户（刷新保活：前端持久化 token 后不再重放密码登录）
 // I-05: adds teacherName ('' when no teacher_profiles row; frontend falls back to username)
 // plus contactMasks {phone, email} — masked values only, never plaintext (P5 hard-mask).
@@ -238,19 +222,6 @@ export async function handleAuthMe(db, req) {
     id: me.id, username: me.username, role: me.role, avatar: me.avatar || '',
     teacherName, contactMasks: { phone: maskPhone(creds.phone), email: targetMask(creds.email) },
   } });
-}
-
-// 账户设置：头像上传。前端已按居中最大内切圆裁成 160px dataURL，此处校验长度后落 users.avatar
-export async function handleSaveAvatar(db, body, req) {
-  const me = await authUser(db, req);
-  if (!me) return errorMsg('LOGIN_REQUIRED', 401);
-  const avatar = String(body.avatar || '');
-  // svg 一律拒绝：矢量可内嵌脚本，渲染路径的图片统一只放行位图（长度上限单源 LIMITS.AVATAR_MAX_BYTES）
-  // Q-2a-L1：MIME 判定大小写不敏感（Data:Image/SVG 大写变体绕过旧 startsWith 字面量比较）
-  if (!/^data:image\//i.test(avatar) || /^data:image\/svg/i.test(avatar) || avatar.length > LIMITS.AVATAR_MAX_BYTES) return errorMsg('AVATAR_INVALID');
-  await dbUpdateUserAvatar(db, me.id, avatar);
-  await logEvent(db, { action: 'user.avatar.update', actorUserId: me.id, entity: 'user', entityId: me.id, req });
-  return json({ ok: true });
 }
 
 // 账户设置 · 登录设备管理：列出本人全部会话（新→旧），逐条标注 current 供前端区分「当前设备」。
@@ -333,15 +304,7 @@ export async function handleReAuth(db, body, req) {
 // ============================================================
 // 验证码 / 凭证扩展
 // ============================================================
-// 手机号脱敏展示（+8613812345678 → 138****5678）；非手机格式原样截断
-function maskPhone(phone) {
-  const s = String(phone || '');
-  if (!s) return ''; // 未绑定：空串 → 前端回落「未绑定」占位（B5 修复：原空串被 slice 成 '***'）
-  const m = s.match(/^(\+\d+)(\d{3})\d{4}(\d{4})$/);
-  if (m) return `${m[2]}****${m[3]}`;
-  return s.slice(0, 3) + '***';
-}
-
+// maskPhone 单源自 auth/settings.js（handleAuthMe 消费；绑定/creds 已收敛转发到 settings）
 // POST /api/auth/otp/request { channel, target } —— 请求验证码（登录/绑定共用；无需鉴权，限流兜底防骚扰）。
 // 真实通道投递（v1.4.12：sms 走 push.spug.cc 短信、email 走邮件；绝不返回验证码明文，失败 500 由前端提示重试）。
 export async function handleOtpRequest(db, body, req) {
@@ -358,82 +321,8 @@ export async function handleOtpRequest(db, body, req) {
   return json({ ok: true });
 }
 
-// POST /api/auth/phone/bind { phone, code } —— 绑定手机号（requireUser + 验证码校验 + 占用查）
-export async function handleBindPhone(db, body, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  const norm = normalizeIdentifier(String(body.phone || '').trim());
-  if (norm.kind !== 'phone') return errorMsg('PHONE_INVALID');
-  if (!String(body.code || '').trim()) return errorMsg('OTP_REQUIRED');
-  // I-12 验码先行：占用查在验码之后——只有持码者能触发 409，防手机号占用枚举（无码 400 OTP_REQUIRED、错码/已消费 400 OTP_INVALID_OR_EXPIRED，均不暴露占用）。
-  const otpR = await verifyOtp(db, { channel: 'sms', target: norm.target, code: String(body.code).trim() });
-  if (otpR === 'exhausted') return errorMsg('OTP_EXHAUSTED', 400, 'OTP_EXHAUSTED'); // 三振作废：必须重新发码（稳定 code 供前端分支）
-  if (otpR !== 'ok') return errorMsg('OTP_INVALID_OR_EXPIRED');
-  if (await dbPhoneTaken(db, norm.target)) return errorMsg('PHONE_ALREADY_BOUND', 409);
-  await bindPhoneCredential(db, me.id, norm.target); // 凭证更新独立环节（A4）：未来切手机号核心只改 credential.js
-  await logEvent(db, { action: 'user.phone.bind', actorUserId: me.id, actorUsername: me.username,
-    actorRole: me.role, entity: 'user', entityId: me.id, detail: { phone: maskPhone(norm.target) }, req });
-  return json({ ok: true, message: MSG.BIND_SUCCESS, phone: maskPhone(norm.target) });
-}
-
-// POST /api/auth/email/bind { email, code } —— 绑定邮箱（同手机号，A6）
-export async function handleBindEmail(db, body, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  const norm = normalizeIdentifier(String(body.email || '').trim());
-  if (norm.kind !== 'email') return errorMsg('EMAIL_INVALID');
-  if (!String(body.code || '').trim()) return errorMsg('OTP_REQUIRED');
-  // I-12 验码先行：占用查在验码之后——只有持码者能触发 409，防邮箱占用枚举（无码 400 OTP_REQUIRED、错码/已消费 400 OTP_INVALID_OR_EXPIRED，均不暴露占用）。
-  const otpR = await verifyOtp(db, { channel: 'email', target: norm.target, code: String(body.code).trim() });
-  if (otpR === 'exhausted') return errorMsg('OTP_EXHAUSTED', 400, 'OTP_EXHAUSTED'); // 三振作废：必须重新发码（稳定 code 供前端分支）
-  if (otpR !== 'ok') return errorMsg('OTP_INVALID_OR_EXPIRED');
-  if (await dbEmailTaken(db, norm.target)) return errorMsg('EMAIL_ALREADY_BOUND', 409);
-  await bindEmailCredential(db, me.id, norm.target);
-  await logEvent(db, { action: 'user.email.bind', actorUserId: me.id, actorUsername: me.username,
-    actorRole: me.role, entity: 'user', entityId: me.id, detail: { email: targetMask(norm.target) }, req });
-  return json({ ok: true, message: MSG.BIND_SUCCESS, email: targetMask(norm.target) });
-}
-
-// GET /api/user/username/status —— 用户名修改冷却状态（前端按钮倒计时/灰化依据）
-export async function handleUsernameStatus(db, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  const changedAt = await getUsernameChangedAt(db, me.id);
-  let cooldownMs = 0;
-  if (changedAt) {
-    const t = Date.parse(String(changedAt).replace(' ', 'T') + 'Z');
-    if (isFinite(t)) cooldownMs = Math.max(0, LIMITS.USERNAME_COOLDOWN_MS - (Date.now() - t));
-  }
-  return json({ canChange: cooldownMs <= 0, cooldownMs, changedAt: changedAt || '' });
-}
-
-// POST /api/user/username { newUsername, capToken } —— 修改用户名（A5）
-// 危险操作二次认证（capToken）+ 7 天冷却 + 格式校验 + 占用查 → 凭证更新独立环节（A4）。
-// 管理员用户名不动（防管理面板标识漂移）。修改成功后前端本地更新 + /api/auth/me 自然返回新名。
-export async function handleChangeUsername(db, body, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  if (me.role === 'admin') return errorMsg('NO_PERMISSION', 403);
-  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
-  const newName = String(body.newUsername || '').trim();
-  if (newName.length < LIMITS.USERNAME_MIN || newName.length > LIMITS.USERNAME_MAX) return errorMsg('USERNAME_LENGTH');
-  // 用户名规则：白名单字符 + 不含 @ + 非纯数字（登录唯一输入框按格式初判，纯数字/含@会歧义为手机号/邮箱）
-  if (!/^[\p{Script=Han}A-Za-z0-9_.\-]+$/u.test(newName)) return errorMsg('USERNAME_NEW_INVALID');
-  if (newName.includes('@') || /^\d+$/.test(newName)) return errorMsg('USERNAME_NEW_INVALID');
-  const tombPrefix = DEACTIVATED_USER_PREFIX;
-  if (tombPrefix && newName.startsWith(tombPrefix)) return errorMsg('USERNAME_NEW_INVALID');
-  if (newName === me.username) return errorMsg('USERNAME_NEW_INVALID');
-  const changedAt = await getUsernameChangedAt(db, me.id);
-  if (changedAt) {
-    const t = Date.parse(String(changedAt).replace(' ', 'T') + 'Z');
-    if (isFinite(t) && Date.now() - t < LIMITS.USERNAME_COOLDOWN_MS) return errorMsg('USERNAME_COOLDOWN');
-  }
-  if (await dbFindUserByUsername(db, newName)) return errorMsg('USERNAME_TAKEN');
-  await updateUsernameCredential(db, me.id, newName);
-  await logEvent(db, { action: 'user.username.change', actorUserId: me.id, actorUsername: me.username,
-    actorRole: me.role, entity: 'user', entityId: me.id, detail: { from: me.username, to: newName }, req });
-  return json({ ok: true, message: MSG.USERNAME_CHANGED, username: newName });
-}
+// 旧 v2 账户设置端点（deactivate / avatar / username / username-status / bind / creds）已收敛：
+// 实现在 auth/settings.js 单源，路由表下方向 settings 显式转发（PA-1a-F3）。
 
 // POST /api/auth/login/code { identifier, code } —— 验证码登录（A7：手机验证码/邮箱验证码两种通路）。
 // identifier 仅接受手机号/邮箱（用户名无验证码通道）；命中账户 + verifyOtp 通过 → 签发登录令牌。
@@ -483,15 +372,6 @@ export async function handleLoginWithCode(db, body, req) {
   return json({ user: { id: user.id, username: user.username, role: user.role, avatar: user.avatar || '' }, authToken });
 }
 
-// GET /api/user/creds —— 本人已绑凭证（脱敏出口：手机号 138****5678、邮箱 a***@x.com）。
-// 仅本人可读（requireUser）；设置页展示绑定状态用。明文凭证绝不进响应体
-export async function handleGetMyCreds(db, req) {
-  const { user: me, err } = await requireUser(db, req);
-  if (err) return err;
-  const creds = await dbGetMyCreds(db, me.id);
-  return json({ phone: maskPhone(creds.phone), email: targetMask(creds.email) });
-}
-
 // POST /api/auth/check-invite —— 教师注册第一步「邀请码」服务端预校验（v1.2.0 T5：只验证不消费，
 // 消费在注册时 dbUseInviteCode 赢家模式——并发双注册同码仅一方成功）
 export async function handleCheckInvite(db, body) {
@@ -513,17 +393,26 @@ export const routes = [
   S('GET', '/api/auth/me', c => handleAuthMe(c.db, c.req)),
   S('POST', '/api/auth/re-auth', c => handleReAuth(c.db, c.body, c.req)),
   S('POST', '/api/auth/otp/request', c => handleOtpRequest(c.db, c.body, c.req)),
-  S('POST', '/api/auth/phone/bind', c => handleBindPhone(c.db, c.body, c.req)),
-  S('POST', '/api/auth/email/bind', c => handleBindEmail(c.db, c.body, c.req)),
+  // ---- 旧 v2 账户设置端点：显式转发到 auth/settings.js 单源（PA-1a-F3）----
+  S('POST', '/api/auth/phone/bind', c => handleUpdateSettings(c.db, { channel: 'phone', target: c.body && c.body.phone, code: c.body && c.body.code }, c.req)),
+  S('POST', '/api/auth/email/bind', c => handleUpdateSettings(c.db, { channel: 'email', target: c.body && c.body.email, code: c.body && c.body.code }, c.req)),
   S('POST', '/api/auth/login/code', c => handleLoginWithCode(c.db, c.body, c.req)),
-  S('POST', '/api/user/username', c => handleChangeUsername(c.db, c.body, c.req)),
-  S('GET', '/api/user/username/status', c => handleUsernameStatus(c.db, c.req)),
-  S('GET', '/api/user/creds', c => handleGetMyCreds(c.db, c.req)),
+  S('POST', '/api/user/username', c => handleUpdateSettings(c.db, { username: c.body && c.body.newUsername, capToken: c.body && c.body.capToken }, c.req)),
+  S('GET', '/api/user/username/status', async c => {
+    const r = await handleGetSettings(c.db, c.req);
+    if (r.status !== 200) return r;
+    return json((await r.json()).usernameStatus);
+  }),
+  S('GET', '/api/user/creds', async c => {
+    const r = await handleGetSettings(c.db, c.req);
+    if (r.status !== 200) return r;
+    return json((await r.json()).user.contactMasks);
+  }),
   S('POST', '/api/auth/check-invite', c => handleCheckInvite(c.db, c.body)),
   S('POST', '/api/auth/logout', c => handleLogout(c.db, c.req)),
   S('GET', '/api/auth/sessions', c => handleListSessions(c.db, c.req)),
   S('POST', '/api/auth/sessions/revoke', c => handleRevokeSession(c.db, c.body, c.req)),
-  S('POST', '/api/user/avatar', c => handleSaveAvatar(c.db, c.body, c.req)),
-  S('POST', '/api/user/deactivate', c => handleDeactivateAccount(c.db, c.body, c.req)),
+  S('POST', '/api/user/avatar', c => handleUpdateSettings(c.db, { avatar: c.body && c.body.avatar }, c.req)),
+  S('POST', '/api/user/deactivate', c => handleDeactivateSettings(c.db, c.body, c.req)),
   S('GET', '/api/users/:id', c => handleGetUserPublic(c.db, parseIdParam(c.params.id))),
 ];

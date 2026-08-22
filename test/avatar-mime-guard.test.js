@@ -6,7 +6,7 @@ import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
-import { handleSaveAvatar } from '../src/server/domains/auth/api.js';
+import { handleUpdateSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: avatar 收敛到 settings 单源（原 handleSaveAvatar 删除）
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -51,23 +51,23 @@ test('Q-2a-L1：头像 SVG MIME 大小写变体一律拒收（Data:Image/SVG 大
   const raw = rawOf(); const db = d1Shim(raw);
   const { token } = await seed(db, raw);
   // 小写 svg 拒绝
-  let r = await handleSaveAvatar(db, { avatar: 'data:image/svg+xml;base64,xxx' }, reqOf(token));
+  let r = await handleUpdateSettings(db, { avatar: 'data:image/svg+xml;base64,xxx' }, reqOf(token));
   assert.equal(r.status, 400);
   assert.equal((await r.json()).code, 'TEACHER_AVATAR_INVALID');
   // 大小写变体一律拒收——真绕过是「前缀正确小写 + 类型大写」'data:image/SVG'（旧 startsWith
   // 字面量比较大小写敏感 → 放行落库）；全大写/首字母大写因第一个条件 startsWith 大小写敏感本身就被拒
   //（变异：还原字面量 startsWith → 'data:image/SVG+xml' 放行落库 → 红）
   for (const v of ['data:image/SVG+xml;base64,xxx', 'data:image/SvG;base64,xxx', 'Data:Image/SVG+xml;base64,xxx', 'DATA:IMAGE/SVG;BASE64,xxx', 'data:image/svg;base64,xxx']) {
-    r = await handleSaveAvatar(db, { avatar: v }, reqOf(token));
+    r = await handleUpdateSettings(db, { avatar: v }, reqOf(token));
     assert.equal(r.status, 400, `${v} 大小写变体拒收`);
   }
   // 非 image 拒绝
-  r = await handleSaveAvatar(db, { avatar: 'data:text/html;base64,xxx' }, reqOf(token));
+  r = await handleUpdateSettings(db, { avatar: 'data:text/html;base64,xxx' }, reqOf(token));
   assert.equal(r.status, 400, 'html 拒收');
   // 超长拒绝
-  r = await handleSaveAvatar(db, { avatar: 'data:image/png;base64,' + 'A'.repeat(20001) }, reqOf(token));
+  r = await handleUpdateSettings(db, { avatar: 'data:image/png;base64,' + 'A'.repeat(20001) }, reqOf(token));
   assert.equal(r.status, 400, '超长拒收');
   // 位图放行
-  const ok = await handleSaveAvatar(db, { avatar: 'data:image/png;base64,iVBORw0KGgo=' }, reqOf(token));
+  const ok = await handleUpdateSettings(db, { avatar: 'data:image/png;base64,iVBORw0KGgo=' }, reqOf(token));
   assert.equal(ok.status, 200, '位图放行');
 });

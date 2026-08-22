@@ -31,7 +31,7 @@ import { dbDeactivateUser, dbPurgeUserOwnedData } from '../src/server/domains/au
 import { dbGetContractById } from '../src/server/domains/contract/repo.js';
 import { initLedgerTable } from '../src/server/domains/contract/schema.js';
 import { handleCreateContract, handleSignContract, handleVerifyContract } from '../src/server/domains/contract/api.js';
-import { handleDeactivateAccount } from '../src/server/domains/auth/api.js';
+import { handleDeactivateSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: 注销收敛到 settings 单源（原 handleDeactivateAccount 删除）
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -197,7 +197,7 @@ test('合同不可修改性：注销不改 contract_md（业务头/签署记录�
   assert.equal(data.valid, true, '哈希链校验通过');
 });
 
-test('handleDeactivateAccount 端到端：注销后合同正文逐字不变（一字不碰）', async () => {
+test('handleDeactivateSettings 端到端：注销后合同正文逐字不变（一字不碰）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { s1, t1, d1, s1S, t1S } = await seed(raw, db);
   // S5：起草合同是危险操作（confirmDangerOtp）——须带起草方一次性 capToken
@@ -206,7 +206,7 @@ test('handleDeactivateAccount 端到端：注销后合同正文逐字不变（�
   await handleSignContract(db, 1, { capToken: await capOf(raw, 's1', s1S.sessionId) }, reqOf(s1S.token));
   const before = await dbGetContractById(db, 1);
   const cap = await capOf(raw, 's1', s1S.sessionId);
-  const res = await handleDeactivateAccount(db, { capToken: cap }, reqOf(s1S.token));
+  const res = await handleDeactivateSettings(db, { capToken: cap }, reqOf(s1S.token));
   assert.equal(res.status, 200);
   const ct = await dbGetContractById(db, 1);
   assert.equal(ct.contract_md, before.contract_md, '注销接口不碰合同正文');

@@ -17,7 +17,8 @@ import { initDb } from '../src/server/core/db.js';
 import { lastOtpCode } from './_otp-stub.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
-import { handleRegister, handleLogin, handleDeactivateAccount } from '../src/server/domains/auth/api.js';
+import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
+import { handleDeactivateSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: 注销收敛到 settings 单源（原 handleDeactivateAccount 删除）
 import { dbCreateUser, dbDeactivateUser } from '../src/server/domains/auth/repo.js';
 import { bindPhoneCredential, bindEmailCredential, dbPhoneTaken, dbEmailTaken } from '../src/server/core/credential.js';
 
@@ -56,7 +57,7 @@ const regBody = (username, phone) => ({
   phone, otpChannel: 'sms', code: lastOtpCode(phone),
 });
 
-// 走 handleDeactivateAccount 全链路注销（capToken 二次认证路径，与生产一致）；返回注销后 uid（注销后用户名墓碑化，按名查不可用）
+// 走 handleDeactivateSettings 全链路注销（capToken 二次认证路径，与生产一致）；返回注销后 uid（注销后用户名墓碑化，按名查不可用）
 async function deactivateViaApi(raw, db, authToken, username) {
   const uid = idOf(raw, username);
   const sess = raw.prepare('SELECT session_id FROM auth_sessions WHERE user_id=?').get(uid);
@@ -64,7 +65,7 @@ async function deactivateViaApi(raw, db, authToken, username) {
   const cap = 'cap-' + username;
   raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
     .run(uid, sess.session_id, await tokenDigest(cap), '2099-01-01 00:00:00');
-  return { uid, res: await handleDeactivateAccount(db, { capToken: cap }, reqOf(authToken)) };
+  return { uid, res: await handleDeactivateSettings(db, { capToken: cap }, reqOf(authToken)) };
 }
 
 test('注销释放联系方式：phone_hash/email_hash 清空 + 唯一索引释放 + 同联系方式可再绑定', async () => {

@@ -5,7 +5,8 @@
  *   - otp.requestOtp：真实通道投递（stub 捕获 6 位验证码）、60s 重发限频、单日上限、格式校验；
  *   - otp.verifyOtp：正确/错误/一次性消费/过期；
  *   - credential：bindPhone/bindEmail + 哈希可查列定位 + 占用查 + username 变更冷却；
- *   - 路由集成：handleOtpRequest / handleBindPhone / handleChangeUsername / handleUsernameStatus /
+ *   - 路由集成：handleOtpRequest / handleUpdateSettings（绑定/改用户名，PA-1a-F3 收敛）/
+ *     handleGetSettings（username-status/creds，PA-1a-F3 收敛）/
  *     handleLogin（手机号/邮箱密码登录）/ handleLoginWithCode（验证码登录）/ handleCheckUsername（identifier 识别）。
  */
 import { test } from 'node:test';
@@ -19,7 +20,8 @@ import {
   bindPhoneCredential, bindEmailCredential, updateUsernameCredential, getUsernameChangedAt,
   dbFindUserByPhoneHash, dbFindUserByEmailHash, dbPhoneTaken, dbEmailTaken,
 } from '../src/server/core/credential.js';
-import { handleOtpRequest, handleBindPhone, handleChangeUsername, handleUsernameStatus, handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister, handleGetMyCreds } from '../src/server/domains/auth/api.js';
+import { handleOtpRequest, handleLogin, handleLoginWithCode, handleCheckUsername, handleRegister } from '../src/server/domains/auth/api.js';
+import { handleUpdateSettings, handleGetSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: bind/username/status/creds 收敛到 settings 单源
 import { issueCapToken } from '../src/server/core/danger-ops.js';
 import { lastOtpCode, resetOtpStub, setOtpStubFail } from './_otp-stub.js'; // 拦截真实发信（stub fetch：真实代码路径 + 捕获验证码）
 import { dbGet, dbAll } from '../src/server/core/util.js';
@@ -59,6 +61,17 @@ async function setup() {
 
 function authedReq(token) {
   return { headers: new Headers({ 'X-Auth-Token': token }) };
+}
+
+// PA-1a-F3: v2 username-status / creds 读端点已收敛到 GET /api/settings（settings 单源）。
+// 这两个助手把 settings 快照裁剪回旧端点的响应形状。
+async function settingsUsernameStatus(db, req) {
+  const r = await handleGetSettings(db, req);
+  return (await r.json()).usernameStatus;
+}
+async function settingsContactMasks(db, req) {
+  const r = await handleGetSettings(db, req);
+  return (await r.json()).user.contactMasks;
 }
 
 async function registerUser(db, raw, username, role = 'student') {
@@ -243,13 +256,13 @@ test('路由：发码/绑定/用户名修改/冷却状态', async () => {
   const code = lastOtpCode('13812345678');
   assert.match(String(code), /^\d{6}$/);
 
-  // 绑定（I-12 验码先行：占用查在验码之后——只有持码者能触发 409，防枚举）
-  const bind = await handleBindPhone(db, { phone: '+8613812345678', code }, authedReq(u.token));
+  // 绑定（I-12 验码先行：占用查在验码之后——只有持码者能触发 409，防枚举）——PA-1a-F3 收敛到 settings 单源
+  const bind = await handleUpdateSettings(db, { channel: 'phone', target: '+8613812345678', code }, authedReq(u.token));
   assert.equal(bind.status, 200, `绑定应成功: ${JSON.stringify(await bind.json())}`);
   // 第一次绑定已消费该验证码；重复绑定同号 + 同码 → 验码先行失败（码已消费）→ 400 OTP_INVALID_OR_EXPIRED。
-  // Mutation guard: if handleBindPhone is reverted to occupied-check-first, this second call
+  // Mutation guard: if handleUpdateSettings bind branch is reverted to occupied-check-first, this second call
   // would hit the occupied 409 and this assertion goes red — locking the I-12 verify-first order.
-  const dup = await handleBindPhone(db, { phone: '+8613812345678', code }, authedReq(u.token));
+  const dup = await handleUpdateSettings(db, { channel: 'phone', target: '+8613812345678', code }, authedReq(u.token));
   const dupData = await dup.json();
   assert.equal(dup.status, 400, `verify-first: consumed code → 400 OTP_INVALID_OR_EXPIRED (not 409): ${JSON.stringify(dupData)}`);
   assert.equal(dupData.code, 'AUTH_OTP_INVALID_OR_EXPIRED', 'consumed code maps to OTP_INVALID_OR_EXPIRED');
@@ -258,32 +271,31 @@ test('路由：发码/绑定/用户名修改/冷却状态', async () => {
     `INSERT INTO verification_codes (channel, target_hash, code_hash, expires_at, used, attempts)
      VALUES ('sms', ?, ?, datetime('now', '+1 hour'), 0, 0)`
   ).run(await tokenDigest('+8613812345678'), await tokenDigest('123456'));
-  const dupOccupied = await handleBindPhone(db, { phone: '+8613812345678', code: '123456' }, authedReq(u.token));
+  const dupOccupied = await handleUpdateSettings(db, { channel: 'phone', target: '+8613812345678', code: '123456' }, authedReq(u.token));
   const dupOccupiedData = await dupOccupied.json();
   assert.equal(dupOccupied.status, 409, `verify passes + same phone occupied → 409: ${JSON.stringify(dupOccupiedData)}`);
   assert.equal(dupOccupiedData.code, 'AUTH_PHONE_ALREADY_BOUND', 'occupied bind maps to PHONE_ALREADY_BOUND');
 
-  // 用户名修改：冷却前 400；新用户名非法 400
-  const before = await handleUsernameStatus(db, authedReq(u.token));
-  const beforeData = await before.json();
+  // 用户名修改：冷却前 400；新用户名非法 400 —— PA-1a-F3 收敛到 settings 单源
+  const beforeData = await settingsUsernameStatus(db, authedReq(u.token));
   assert.equal(beforeData.canChange, true);
-  const change = await handleChangeUsername(db, { newUsername: 'carol_x', capToken: '' }, authedReq(u.token));
+  const change = await handleUpdateSettings(db, { username: 'carol_x', capToken: '' }, authedReq(u.token));
   assert.equal(change.status, 403, '无 capToken → 重认证失败');
   // 正确 capToken（issueCapToken 直接返回 token 字符串）
   const capToken = await issueCapToken(db, authedReq(u.token));
-  const okChange = await handleChangeUsername(db, { newUsername: 'carol_x', capToken }, authedReq(u.token));
+  const okChange = await handleUpdateSettings(db, { username: 'carol_x', capToken }, authedReq(u.token));
   assert.equal(okChange.status, 200, `改用户名应成功: ${JSON.stringify(await okChange.json())}`);
   assert.equal(raw.prepare('SELECT username FROM users WHERE id=?').get(u.id).username, 'carol_x');
-  const after = await handleUsernameStatus(db, authedReq(u.token));
-  assert.equal((await after.json()).canChange, false, '改后进入 7 天冷却');
+  const afterData = await settingsUsernameStatus(db, authedReq(u.token));
+  assert.equal(afterData.canChange, false, '改后进入 7 天冷却');
   // capToken 一次性：每次危险操作前重新签发
-  const cooldownHit = await handleChangeUsername(db, { newUsername: 'carol_y', capToken: await issueCapToken(db, authedReq(u.token)) }, authedReq(u.token));
+  const cooldownHit = await handleUpdateSettings(db, { username: 'carol_y', capToken: await issueCapToken(db, authedReq(u.token)) }, authedReq(u.token));
   assert.equal(cooldownHit.status, 400, '冷却期内再改 → 400');
 
   // 非法新用户名（含@ / 纯数字）
-  const bad1 = await handleChangeUsername(db, { newUsername: 'a@b', capToken: await issueCapToken(db, authedReq(u.token)) }, authedReq(u.token));
+  const bad1 = await handleUpdateSettings(db, { username: 'a@b', capToken: await issueCapToken(db, authedReq(u.token)) }, authedReq(u.token));
   assert.equal(bad1.status, 400);
-  const bad2 = await handleChangeUsername(db, { newUsername: '123456', capToken: await issueCapToken(db, authedReq(u.token)) }, authedReq(u.token));
+  const bad2 = await handleUpdateSettings(db, { username: '123456', capToken: await issueCapToken(db, authedReq(u.token)) }, authedReq(u.token));
   assert.equal(bad2.status, 400);
 });
 
@@ -348,26 +360,25 @@ test('verifyOtp：过期验证码拒绝（TTL 5 分钟）', async () => {
 });
 
 // B5 回归（用户反馈：未绑定也显示 ***、绑定后先闪「未绑定」再更新）：
-// 未绑定 handleGetMyCreds 返回空串（前端回落「未绑定」占位，而非 '***'）；绑定后返回脱敏缩略。
+// 未绑定 creds 返回空串（前端回落「未绑定」占位，而非 '***'）；绑定后返回脱敏缩略。
+// PA-1a-F3：creds 读端点收敛到 GET /api/settings 的 user.contactMasks（settings 单源）。
 // v1.0 R7：注册必绑手机号（registerUser 走短信验证码注册），故新建用户 phone 为脱敏缩略而非空串；
 // 未绑定语义改为「邮箱未绑 → 空串」验证（手机号已由注册绑定）。
-test('B5 handleGetMyCreds：未绑定返回空串（回落「未绑定」），绑定后返回脱敏缩略', async () => {
+test('B5 contactMasks：未绑定返回空串（回落「未绑定」），绑定后返回脱敏缩略', async () => {
   const { raw, db } = await setup();
   const u = await registerUser(db, raw, 'b5user');
-  const r0 = await handleGetMyCreds(db, authedReq(u.token));
-  assert.equal(r0.status, 200);
-  const d0 = await r0.json();
+  const r0 = await settingsContactMasks(db, authedReq(u.token));
+  const d0 = r0;
   assert.match(d0.phone, /^139\*{4}\d{4}$/, '注册已绑手机号 → 脱敏缩略');
   assert.equal(d0.email, '', '未绑定邮箱返回空串');
   // 绑定手机号后返回脱敏缩略
   const otp = await requestOtp(db, { channel: 'sms', target: '+8613812345678' }, authedReq(''));
   assert.equal(otp.ok, true);
-  const bind = await handleBindPhone(db, { phone: '+8613812345678', code: lastOtpCode('+8613812345678') }, authedReq(u.token));
+  const bind = await handleUpdateSettings(db, { channel: 'phone', target: '+8613812345678', code: lastOtpCode('+8613812345678') }, authedReq(u.token));
   assert.equal(bind.status, 200);
   const bindData = await bind.json();
   assert.equal(bindData.phone, '138****5678', 'bind 接口返回脱敏缩略');
-  const r1 = await handleGetMyCreds(db, authedReq(u.token));
-  const d1 = await r1.json();
+  const d1 = await settingsContactMasks(db, authedReq(u.token));
   assert.equal(d1.phone, '138****5678', '绑定后 creds 返回脱敏缩略');
   assert.equal(d1.email, '', '邮箱仍未绑定（空串回落占位）');
 });

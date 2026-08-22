@@ -20,7 +20,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { confirmDangerOtp } from '../src/server/core/danger-ops.js';
-import { handleAuthMe, handleRegister, handleBindPhone } from '../src/server/domains/auth/api.js';
+import { handleAuthMe, handleRegister } from '../src/server/domains/auth/api.js';
+import { handleUpdateSettings } from '../src/server/domains/auth/settings.js'; // PA-1a-F3: bind 收敛到 settings 单源
 import { handleVerifyIdentity } from '../src/server/domains/auth/verify.js';
 import { markChallengePassed, CAPTCHA_CONFIRM_LIMIT } from '../src/server/core/human-check.js';
 import { lastOtpCode, resetOtpStub } from './_otp-stub.js'; // stubs fetch so no real SMS/email is sent
@@ -111,7 +112,7 @@ test('GET /api/auth/me: contactMasks.phone reflects the bound phone mask', async
   // Bind a known second phone; the mask in /api/auth/me must reflect it.
   const otp = await requestOtp(db, { channel: 'sms', target: '+8613812345678' }, authedReq(''));
   assert.ok(otp.ok, 'code send ok');
-  const bind = await handleBindPhone(db, { phone: '+8613812345678', code: lastOtpCode('+8613812345678') }, authedReq(u.token));
+  const bind = await handleUpdateSettings(db, { channel: 'phone', target: '+8613812345678', code: lastOtpCode('+8613812345678') }, authedReq(u.token));
   assert.equal(bind.status, 200, `bind should succeed: ${JSON.stringify(await bind.json())}`);
   const r = await handleAuthMe(db, authedReq(u.token));
   const data = await r.json();
