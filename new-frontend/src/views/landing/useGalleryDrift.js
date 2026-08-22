@@ -12,6 +12,10 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
  *   flips while running).
  * - The M1-06 scroll listener owns the scrollLeft modulo wrap; this composable
  *   only ever increases scrollLeft.
+ * - F3 idempotency: bind() is guarded against re-binding the same element. The
+ *   post-flush watch and onMounted both fire on first mount; without the guard
+ *   the element would gain two IntersectionObservers and unbind() would leak
+ *   the first one.
  */
 export function useGalleryDrift(viewportRef, { speed = 40 } = {}) {
   const isDrifting = ref(false)
@@ -66,6 +70,7 @@ export function useGalleryDrift(viewportRef, { speed = 40 } = {}) {
   }
 
   function bind(target) {
+    if (el === target) return
     el = target
     if (!el) return
     el.addEventListener('pointerenter', onEnter)
