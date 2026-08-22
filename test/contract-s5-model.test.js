@@ -26,7 +26,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { initLedgerTable, migrate as migrateContractSchema } from '../src/server/domains/contract/schema.js';
 import {
-  handleCreateContract, handleSignContract, handleRevokeContract, handleCancelContract,
+  handleCreateContract, handleSignContract, handleModifyContract, handleRevokeContract, handleCancelContract,
   handleVerifyContract, handleGetContractById, ledgerRecord, verifyChain, CONTRACT_BUSINESS_END,
 } from '../src/server/domains/contract/api.js';
 import { dbGetContractById } from '../src/server/domains/contract/repo.js';
@@ -426,6 +426,34 @@ test('Q-2e-F3: draft entry strips the business separator injected in schedule/pl
   // Any injected extra separator must be stripped (mutation: stripSep removed -> split length 3 -> red).
   assert.equal(ct.contract_md.split(SEP).length, 2, 'SEP appears only once (platform template)');
   assert.ok(!ct.contract_md.includes('恶意尾部<!-- 业务条款结束'), 'injected separator no longer forms a marker');
+});
+
+// PA-1e-F2: a signing-state contract whose body was edited after a partial sign must NOT verify
+// as invalid. The ledger holds the partial-sign body; handleModifyContract changes the body without
+// touching the ledger, so replaying the current draft body against the stale tail would misreport
+// invalid. The verify gate limits chain validation to the signed terminal state (revoked rows keep
+// status 'signed', so retained evidence still verifies).
+test('PA-1e-F2: signing-state verify reports not-signed (no false invalid) after an edit following a partial sign', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { idOf, t1S, s1S } = await seed(db, raw);
+  assert.equal((await handleCreateContract(db, { ...contractBody(1), capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token))).status, 201);
+  // Partial sign -> ledger gains one entry with the partial-sign body.
+  assert.equal((await handleSignContract(db, 1, { capToken: await capOf(raw, 't1', t1S.sessionId, idOf) }, reqOf(t1S.token))).status, 200);
+  assert.equal(ledgerCount(raw, 1), 1, 'precondition: partial sign recorded one ledger entry');
+  assert.equal((await dbGetContractById(db, 1)).status, 'signing', 'precondition: still signing');
+  // The unconfirmed party edits the body (does not append the ledger) -> the ledger tail is now stale.
+  const ver = (await dbGetContractById(db, 1)).version;
+  assert.equal((await handleModifyContract(db, 1, { contractMd: '补基础+真题演练', version: ver }, reqOf(s1S.token))).status, 200);
+  assert.equal(ledgerCount(raw, 1), 1, 'modify does not append the ledger');
+  // Verify must not report invalid: a signing-state contract is a draft, not committed evidence.
+  const v = await handleVerifyContract(db, 1, reqOf(s1S.token));
+  assert.equal(v.status, 200);
+  const data = await v.json();
+  // Mutation: dropping the signing-state gate (reverting to unconditional verifyContractLedger)
+  // replays the edited body against the stale partial-sign tail -> data.valid becomes false -> red.
+  assert.equal(data.valid, undefined, 'signing-state verify returns no validity verdict (not invalid)');
+  assert.equal(data.signed, false, 'signing-state verify reports not-signed');
+  assert.equal(data.status, 'signing', 'signing-state verify reports current status');
 });
 
 // ============================================================

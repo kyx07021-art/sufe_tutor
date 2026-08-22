@@ -525,6 +525,14 @@ export async function handleVerifyContract(db, contractId, req) {
   if (!ct) return errorMsg('CONTRACT_NOT_FOUND', 404);
   const isAdmin = requireAdminOrError(me) === null;
   if (!isAdmin && !isParticipant(ct, me.id)) return errorMsg('NO_PERMISSION', 403);
+  // PA-1e-F2: ledger-chain verification is only meaningful once the contract is committed to a
+  // signed terminal state. A signing-state contract is an in-flight draft: the ledger may hold a
+  // stale partial-sign entry (handleModifyContract changes the body without touching the ledger),
+  // so replaying the current draft body against that stale tail would misreport invalid. Report
+  // "not signed — nothing committed to verify" instead of a false validity verdict.
+  if (ct.status !== CONTRACT_STATUS.SIGNED) {
+    return json({ recorded: false, signed: false, status: ct.status });
+  }
   return json(await verifyContractLedger(db, contractId));
 }
 
