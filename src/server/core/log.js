@@ -263,7 +263,10 @@ export async function logRequest(db, { method, path, body, status, req, duration
 const TRAFFIC_BUCKET_FMT = { hour: '%Y-%m-%d %H:00', day: '%Y-%m-%d' };
 export async function dbGetTrafficBuckets(db, unit, fromTs) {
   const fmt = TRAFFIC_BUCKET_FMT[unit] || TRAFFIC_BUCKET_FMT.hour; // 白名单内插值，无注入面
-  return await dbAll(db,
+  // http.* access rows land in the log db (getLogDb) when LOG_DB is bound — traffic stats must read from
+  // the same target as queryLog / decryptLogEntry, or the admin traffic view is always empty under LOG_DB.
+  const target = getLogDb(db);
+  return await dbAll(target,
     `SELECT strftime('${fmt}', ts) AS bucket, COUNT(*) AS requests, ROUND(AVG(duration_ms), 1) AS avg_ms
      FROM activity_log WHERE action LIKE 'http.%' AND ts >= ?
      GROUP BY bucket ORDER BY bucket`, [fromTs]);

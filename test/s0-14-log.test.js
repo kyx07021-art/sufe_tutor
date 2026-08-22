@@ -183,3 +183,28 @@ test('S0-14 dbGetTrafficBuckets: aggregates http.* access rows into buckets', as
   assert.equal(Number(rows[0].requests), 2, 'counts only http.* rows (auth.login excluded)');
   assert.equal(Number(rows[0].avg_ms), 20, 'average duration of the http rows');
 });
+
+test('S0-14 dbGetTrafficBuckets: reads the bound LOG_DB, not the business db (mutation: direct db -> red)', async (t) => {
+  const bizRaw = new DatabaseSync(':memory:');
+  bizRaw.exec('PRAGMA foreign_keys = ON');
+  const biz = d1Shim(bizRaw);
+  const logRaw = new DatabaseSync(':memory:');
+  const log = d1Shim(logRaw);
+  t.after(() => { try { bizRaw.close(); } catch { /* ignore */ } try { logRaw.close(); } catch { /* ignore */ } });
+
+  bindLogDb({ ...TEST_SECRETS, LOG_DB: log });
+  await initLogDb(log); // independent log schema
+  await initLogDb(biz); // business db has the table too, but traffic stats must NOT read it while LOG_DB is bound
+
+  const ts = new Date();
+  const dbTs = toDbTime(ts);
+  bizRaw.prepare("INSERT INTO activity_log (action, duration_ms, ts) VALUES (?,?,?)").run('http.GET.ok', 999, dbTs); // ignored
+  logRaw.prepare("INSERT INTO activity_log (action, duration_ms, ts) VALUES (?,?,?)").run('http.GET.ok', 10, dbTs);
+  logRaw.prepare("INSERT INTO activity_log (action, duration_ms, ts) VALUES (?,?,?)").run('http.GET.ok', 30, dbTs);
+
+  const from = toDbTime(new Date(ts.getTime() - 3600 * 1000));
+  const rows = await dbGetTrafficBuckets(biz, 'hour', from);
+  assert.equal(rows.length, 1, 'one bucket from the LOG_DB rows');
+  assert.equal(Number(rows[0].requests), 2, 'counts LOG_DB rows only — business-db row excluded (mutation: direct db -> red)');
+  assert.equal(Number(rows[0].avg_ms), 20, 'average from the LOG_DB rows');
+});
