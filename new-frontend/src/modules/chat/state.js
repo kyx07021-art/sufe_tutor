@@ -1,9 +1,9 @@
 import { reactive, computed } from 'vue'
 import { api } from '../../core/api.js'
 import { showToast } from '../../composables/useToast.js'
-import { CHAT_COPY, LIST_POLL_MS } from '../../constants/m-chat.js'
+import { CHAT_COPY } from '../../constants/m-chat.js'
 import { getIface } from '../shell/ifaces.js'
-import { ROLES, authStore } from '../shell/auth-store.js'
+import { ROLES } from '../shell/auth-store.js'
 import { normalizeMessage, sliceTail, advanceCursor } from './logic/messages.js'
 import { sendMessages, createClientKey } from './logic/send.js'
 import { pollOnce, PREVIEW_KIND, createPoller } from './logic/polling.js'
@@ -443,43 +443,5 @@ export function stopActivePolling() {
   if (activePoller) {
     activePoller.stop()
     activePoller = null
-  }
-}
-
-/** F3 conversation-list poller singleton (start is idempotent, stop cleans up). */
-let listPoller = null
-
-/**
- * Start periodic I-17 conversation-list refresh (PA-2-F12). The message poll
- * above only covers the ACTIVE conversation; a conversation newly opened by the
- * other party would never appear in the receiver's list until a page re-entry.
- * This poller re-fetches the whole list on a slower cadence (LIST_POLL_MS), so
- * new rows surface with their unread/status while the page stays open.
- *
- * Testable: `apiFn` and `intervalMs` are injectable for Node smoke tests; the
- * default apiFn is the module single-point api and the default interval is the
- * LIST_POLL_MS constant. F3 idempotent: a second start on an already-running
- * poller is a no-op, never a second timer.
- * @param {{ apiFn?: Function, intervalMs?: number }} [opts]
- * @returns {{ start:()=>void, stop:()=>void, active:boolean }}
- */
-export function startListPolling({ apiFn = api, intervalMs = LIST_POLL_MS } = {}) {
-  if (listPoller) return listPoller
-  listPoller = createPoller({
-    apiFn,
-    intervalMs,
-    onTick: async (fn) => {
-      await loadConversations(authStore.user, fn)
-    },
-  })
-  listPoller.start()
-  return listPoller
-}
-
-/** Stop the conversation-list poller (F3 cleanup; component unmount / logout). */
-export function stopListPolling() {
-  if (listPoller) {
-    listPoller.stop()
-    listPoller = null
   }
 }

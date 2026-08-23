@@ -8,18 +8,11 @@
  * - Route: registered via src/modules/chat/pages.js (shell/page-registry.js's
  *   import.meta.glob collects module pages.js; M2-08 in-memory history router, path /chat).
  */
-import { computed, onBeforeUnmount, onMounted, watch } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import ChatListPane from './components/ChatListPane.vue'
 import ChatConversationPane from './components/ChatConversationPane.vue'
 import { authStore } from '../shell/auth-store.js'
-import {
-  chatState,
-  openConversation,
-  loadConversations,
-  setCurrentUser,
-  startListPolling,
-  stopListPolling,
-} from './state.js'
+import { chatState, openConversation, loadConversations, setCurrentUser } from './state.js'
 
 const paneClass = computed(() => (chatState.mobilePane === 'chat' ? 'chat--chat' : 'chat--list'))
 
@@ -34,15 +27,11 @@ watch(
   { immediate: true },
 )
 
-// Page-entry assembly (F1): load the I-17 conversation list once on mount and
-// keep it refreshed so a conversation newly opened by the other party surfaces
-// without a page re-entry (PA-2-F12). In the isolated test harness authStore.user
-// is null and the list degrades silently to empty.
+// Page-entry assembly (F1): load the I-17 conversation list once on mount. In the
+// isolated test harness authStore.user is null and the list degrades silently to empty.
 onMounted(() => {
   loadConversations(authStore.user)
-  startListPolling()
 })
-onBeforeUnmount(() => stopListPolling())
 </script>
 
 <template>

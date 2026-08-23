@@ -124,13 +124,3 @@ export const CHAT_COPY = {
   /** 二次认证提示 */
   END_REAUTH_HINT: '该操作需要重新验证身份，确认后请按提示完成验证。',
 }
-
-/**
- * LIST_POLL_MS - I-17 conversation-list refresh interval (PA-2-F12).
- * The list is polled at a slower cadence than the active-conversation message
- * poll (3s) so a conversation newly opened by the other party appears in the
- * receiver's list without a page re-entry, while the list fetch stays cheap.
- * Mirrors the notifications module's NOTIF_POLL_MS placement precedent
- * (module constants file as single source).
- */
-export const LIST_POLL_MS = 10000
