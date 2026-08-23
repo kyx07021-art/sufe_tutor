@@ -52,6 +52,10 @@ const STUDENT_USER = { id: 1, username: 'qa_student', role: 'student', avatar: '
  * fires GET /api/conversations - the mock must answer it or the browser logs 4+
  * "Failed to load resource ... 404" console errors (the PA-1h2-F1 loader gap).
  */
+// I-26 notifications fixture (mutable): [] keeps the badge hidden; a row with
+// is_read:false drives the red dot visible (PA-2-F13 positive path).
+let notificationsFixture = []
+
 const CONVERSATIONS_FIXTURE = {
   conversations: [
     {
@@ -301,14 +305,30 @@ function installApiMock(page) {
     }
     // I-26 notifications: NotifyButton mounts with the logged-in shell and starts
     // the badge poll (GET /api/notifications). Without this branch the 404 fallback
-    // below logs a console error and the zero-violation assertion fails. An empty
-    // list (unread=0) keeps the dot-hidden path deterministic for the shell case.
+    // below logs a console error and the zero-violation assertion fails. The
+    // fixture is mutable so the test can flip between empty (dot hidden) and one
+    // unread (dot shown) without re-installing the mock.
     if (url.includes('/api/notifications') && method === 'GET') {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ notifications: [] }),
+        body: JSON.stringify({ notifications: notificationsFixture }),
       })
+    }
+    // I-27 mark-read (per-id + read-all): the C3 modal fires POST
+    // /api/notifications/:id/read on exit-read for each unread revealed card, and
+    // the card detail marks single reads the same way. Without this branch the
+    // POST falls through to the 404 stub and the zero-violation assertion fails.
+    // Flip the matching fixture item read so the persisted store matches.
+    if (url.includes('/api/notifications') && method === 'POST') {
+      const m = url.match(/\/api\/notifications\/(\d+)\/read$/)
+      if (m) {
+        const id = m[1]
+        notificationsFixture = notificationsFixture.map((n) =>
+          String(n.id) === id ? { ...n, is_read: true } : n,
+        )
+      }
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
     }
     if (url.includes('/api/forced-401')) {
       return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 'UNAUTHORIZED' }) })
@@ -506,9 +526,17 @@ test('browser: shell routing + auth flows (real dist)', async () => {
     await authed.waitForSelector('.notify-btn__icon', { timeout: 8000 })
     const dotCount = await authed.locator('.notify-btn__dot').count()
     assert.equal(dotCount, 0, 'unread dot must be hidden when the notification list is empty')
-    // Click opens the C3 notifications overlay (interface cap wiring).
+    // Positive path (PA-2-F13): an unread notification must turn the dot on.
+    // Flip the mutable fixture to one unread, then open C3 — openC3 calls the
+    // app's loadNotifications, which writes notifyState -> unreadCountRef bumps
+    // and the dot appears while the modal is still open.
+    notificationsFixture = [{ id: 9, title: '测试通知', content: 'unread', created_at: '2026-08-23T10:00:00', is_read: false }]
     await notifyBtn.click()
     await authed.waitForSelector('.ui-modal', { timeout: 8000 })
+    await authed.waitForSelector('.notify-btn__dot', { timeout: 8000 })
+    const dotVisible = await authed.locator('.notify-btn__dot').count()
+    assert.equal(dotVisible, 1, 'unread dot must show when an unread notification exists')
+    notificationsFixture = []
     await authed.mouse.click(20, 20)
     await authed.waitForSelector('.ui-modal', { state: 'detached', timeout: 8000 })
 
