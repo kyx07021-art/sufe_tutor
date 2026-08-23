@@ -8,7 +8,14 @@
  *   `province` (required). Missing fields get safe defaults (C3 covers undefined/null).
  * - buildSaveBody builds the I-40 PUT `{ profile }` body with the frozen camelCase field
  *   set (interfaces.md §19); `subjects` collapses each row to { subject, score }.
+ * - formatTimeSlots renders structured time-slot rows as readable Chinese text; the
+ *   structured rows (not free text) are what the save path sends back (I-40 time_slots
+ *   requires the {type:'week',dow,start,end} object-row shape server-side).
  */
+import { MY_DEMANDS_COPY } from '../../../constants/m-my-demands.js'
+
+// Single source for weekday labels (shared with my-demands TimeSlotEditor; dow 1..7 order).
+const DAY_LABELS = MY_DEMANDS_COPY.DAY_LABELS
 
 export const DEFAULT_PROFILE = {
   teacherName: '',
@@ -81,6 +88,28 @@ export function normalizeProfile(p) {
  * @param {Object} payload edit shape (camelCase internal)
  * @returns {Object} `{ profile: {...} }`
  */
+/**
+ * Format structured time-slot rows [{type:'week',dow,start,end}] into readable text like
+ * 'Mon 18:00-20:00, Wed 09:00-11:00' (weekday labels from the single DAY_LABELS source).
+ * Unknown/malformed rows are skipped.
+ * Pure + node-testable; used by the B2 edit card for read-only display while the save
+ * path keeps the structured rows (I-40 requires the object-row shape server-side).
+ * @param {Array} rows time-slot object rows
+ * @returns {string} readable text ('' when empty/invalid)
+ */
+export function formatTimeSlots(rows) {
+  if (!Array.isArray(rows)) return ''
+  const parts = []
+  for (const it of rows) {
+    if (!it || typeof it !== 'object') continue
+    const day = DAY_LABELS[Number(it.dow) - 1]
+    if (!day) continue
+    if (typeof it.start !== 'string' || typeof it.end !== 'string') continue
+    parts.push(`${day} ${it.start}-${it.end}`)
+  }
+  return parts.join('、')
+}
+
 export function buildSaveBody(payload) {
   const subjects = (Array.isArray(payload && payload.subjects) ? payload.subjects : []).map(
     (s) => ({

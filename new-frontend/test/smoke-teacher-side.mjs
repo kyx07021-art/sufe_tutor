@@ -246,6 +246,23 @@ test('PA-1d-F4: buildSaveBody sends camelCase I-40 field set with province requi
   assert.deepEqual(empty.profile.subjects, [])
 })
 
+test('PA-1d-F4: formatTimeSlots renders structured rows as readable text, save keeps object rows', async () => {
+  const { formatTimeSlots } = await import('../src/modules/teacher-side/B2/profile-model.js')
+  const rows = [
+    { type: 'week', dow: 1, start: '18:00', end: '20:00' },
+    { type: 'week', dow: 3, start: '09:00', end: '11:00' },
+  ]
+  assert.equal(formatTimeSlots(rows), '周一 18:00-20:00、周三 09:00-11:00')
+  assert.equal(formatTimeSlots([]), '')
+  assert.equal(formatTimeSlots(null), '')
+  // malformed rows are skipped, never thrown
+  assert.equal(formatTimeSlots([{ dow: 9, start: 'a' }, 'x', null]), '')
+  // structured rows survive the round-trip (never collapsed to free text)
+  const { buildSaveBody } = await import('../src/modules/teacher-side/B2/profile-model.js')
+  const body = buildSaveBody({ region: 'shanghai', timeSlots: rows })
+  assert.deepEqual(body.profile.timeSlots, rows, 'save body keeps structured object rows')
+})
+
 /* ================= pure: match grouping (B1-5d1) ================= */
 test('matchGroup groups by matchCount desc and hides zero-hit items when filters active', async () => {
   const { matchGroup, computeMatchCount, filterItems } = await import(

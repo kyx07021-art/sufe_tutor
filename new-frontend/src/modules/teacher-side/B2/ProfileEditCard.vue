@@ -16,6 +16,7 @@ import { TEACHER_COPY } from '@/constants/ui.js'
 import { UiButton, UiInput } from '@/components/ui/index.js'
 import SubjectEditor from './SubjectEditor.vue'
 import AvatarEditor from './AvatarEditor.vue'
+import { formatTimeSlots } from './profile-model.js'
 
 const props = defineProps({
   profile: { type: Object, default: null },
@@ -37,6 +38,9 @@ const experienceYears = ref('')
 const gender = ref('')
 const graduationYear = ref('')
 const timeSlots = ref('')
+// Structured time-slot rows ({type:'week',dow,start,end}) preserved as-is for the I-40
+// save path; `timeSlots` (above) is only the read-only Chinese display of these rows.
+const timeSlotsData = ref([])
 const personalityTags = ref('')
 const subjects = ref({ subjects: [], philosophy: '' })
 const avatar = ref('')
@@ -62,7 +66,8 @@ function fill(p) {
   experienceYears.value = p.experienceYears != null ? String(p.experienceYears) : ''
   gender.value = p.gender || ''
   graduationYear.value = p.graduationYear != null ? String(p.graduationYear) : ''
-  timeSlots.value = (p.timeSlots || []).join('、')
+  timeSlotsData.value = Array.isArray(p.timeSlots) ? p.timeSlots.slice() : []
+  timeSlots.value = formatTimeSlots(timeSlotsData.value)
   personalityTags.value = (p.personalityTags || []).join('、')
   subjects.value = { subjects: p.subjects || [], philosophy: p.philosophy || '' }
   avatar.value = p.avatar || ''
@@ -111,7 +116,7 @@ function onSave() {
     experienceYears: experienceYears.value === '' ? 0 : Number(experienceYears.value),
     gender: gender.value,
     graduationYear: graduationYear.value,
-    timeSlots: splitList(timeSlots.value),
+    timeSlots: timeSlotsData.value,
     personalityTags: splitList(personalityTags.value),
     subjects: subjects.value.subjects,
     philosophy: subjects.value.philosophy,
@@ -166,7 +171,8 @@ function onSave() {
       <div class="profile-edit__field">
         <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_TIME }}</span>
         <UiInput
-          v-model="timeSlots"
+          :model-value="timeSlots"
+          readonly
           :aria-label="TEACHER_COPY.B2_FIELD_TIME"
           :placeholder="TEACHER_COPY.B2_FIELD_TIME"
           width="100%"
