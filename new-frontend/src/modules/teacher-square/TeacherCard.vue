@@ -59,7 +59,7 @@ const subjectRows = computed(() =>
     return {
       raw,
       key: raw || i,
-      name: subjectLabel(raw), // PA-2-F9: backend stores English id -> Chinese label
+      name: subjectLabel(raw), // backend stores English id -> Chinese label
       scoreText: score != null && full != null ? `${score}/${full}` : '',
       awards: s.awards ?? '',
     }

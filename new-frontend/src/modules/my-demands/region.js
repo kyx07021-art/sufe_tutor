@@ -103,9 +103,9 @@ export const SUBJECTS = [
 ]
 
 /**
- * Backend subject id -> display label (PA-2-F9/F10). The backend stores/returns
- * English ids ('math'); every render point must map to the Chinese label. Unknown
- * ids fall back to the raw value (never blank).
+ * Backend subject id -> display label. The backend stores/returns English ids
+ * ('math'); every render point must map to the Chinese label. Unknown ids fall
+ * back to the raw value (never blank).
  */
 export function subjectLabel(id) {
   const s = SUBJECTS.find((x) => x.value === id)

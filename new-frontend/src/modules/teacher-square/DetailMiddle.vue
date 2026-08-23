@@ -32,7 +32,7 @@ const props = defineProps({
 /** Normalize subject blocks; each subject carries its own awards[] list. */
 const subjects = computed(() =>
   (Array.isArray(props.teacher.subjects) ? props.teacher.subjects : []).map((s) => ({
-    name: subjectLabel(s.subject ?? ''), // PA-2-F9: backend English id -> Chinese label
+    name: subjectLabel(s.subject ?? ''), // backend English id -> Chinese label
     score: s.score,
     full: s.full,
     awards: Array.isArray(s.awards) ? s.awards.filter(Boolean) : [],
