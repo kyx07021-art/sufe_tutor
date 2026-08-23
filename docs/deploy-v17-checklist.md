@@ -24,6 +24,11 @@
 | `teacher_verifications` | 教师核验状态（2 approved/2 pending/1 rejected） | 5 |
 | `schema_meta` | 版本元数据（保留以走 v13→v18 迁移链） | 1 |
 
+> **口径注记（PA-2b F6）**：上表是**表级**保留集行数。教师广场（学生侧）列出的是有档案的教师
+> （`teacher_profiles JOIN users`）= 11；`users` 中 `role='teacher'` 的**账户**数（管理端教师列表
+> 经 `users LEFT JOIN teacher_profiles` 展示）可能多于 11（含未补全档案的账户）。两数差异属
+> 预期（档案是可迁移字段子集），非数据丢失。
+
 **丢弃集（DROP，业务历史数据全删）**：`conversations/messages/uploads`（聊天）· `student_demands`（需求）· `signing_contracts/contract_ledger`（签约/合同/台账）· `posts/post_likes/post_favorites`（帖子）· `reviews`（评价）· `complaints/feedbacks`（投诉/反馈）· `notifications`（通知）· `auth_sessions/rate_limits/verification_codes/danger_caps`（会话/限流/验证码/capToken 运行时）· `invite_codes`（邀请码）· `demand_intents/demand_pushes/teacher_awards/user_settings/data_versions/request_metrics`（S 域已删旧表 + 观测表）。
 
 **方案**：保留集表原位保留（一个字节不动），只 DROP 业务表 → 部署新站后 worker initDb 自动跑 v13→v18（保留集表 ensureColumns 补列 + 业务表重建为空）。**不搬 activity_log 3403 行 → 零数据丢失风险；生产写操作最小化（一个 DROP SQL）。**
