@@ -116,10 +116,14 @@ defineExpose({ close })
   box-sizing: border-box;
   width: var(--modal-w, 30%);
   max-width: 100%;
+  /* PA-2-F2: taller-than-viewport content must scroll, not clip (mobile register
+     modal was 914px high with the confirm button unreachable below the fold). */
+  max-height: calc(100dvh - var(--modal-vpad, 32px));
   background: var(--paper-raised);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float);
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* enter/leave */
