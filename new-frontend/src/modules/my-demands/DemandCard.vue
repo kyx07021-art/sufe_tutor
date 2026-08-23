@@ -10,7 +10,7 @@ import {
   DEMAND_GENDER_LABEL,
 } from '@/constants/m-my-demands.js'
 import { displayTimeSlots } from './demandForm.js'
-import { provinceLabel, gradeLabel, tagLabel } from './region.js'
+import { provinceLabel, gradeLabel, tagLabel, subjectLabel } from './region.js'
 
 /**
  * DemandCard - A2.1 demand card (domain renderer, reused by M9 B1 teacher plaza)
@@ -32,9 +32,9 @@ const emit = defineEmits(['select'])
 const methodLabel = (m) => DEMAND_METHOD_LABEL[m] || m || ''
 const genderLabel = (g) => DEMAND_GENDER_LABEL[g] || g || ''
 
-/** title = subject + '·' + grade */
+/** title = subjectLabel(subject) + '·' + grade (subject is a backend English id) */
 const title = computed(() => {
-  const s = props.demand.subject || ''
+  const s = subjectLabel(props.demand.subject || '')
   const g = gradeLabel(props.demand.grade)
   return [s, g].filter(Boolean).join('·')
 })
