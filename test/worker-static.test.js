@@ -132,4 +132,7 @@ test('sensitive paths and path traversal -> 404', async () => {
   assert.equal((await get('/' + oldDbPath)).status, 404, 'server/ directory 404');
   assert.equal((await get('/../' + oldDbPath)).status, 404, 'path traversal 404');
   assert.equal((await get('/package.json')).status, 404, 'package manifest 404');
+  assert.equal((await get('/docs')).status, 404, 'bare /docs path 404 (PA-3-F5, parity with /server)');
+  assert.equal((await get('/docs/')).status, 404, '/docs/ directory 404');
+  assert.equal((await get('/server')).status, 404, 'bare /server path 404');
 });
