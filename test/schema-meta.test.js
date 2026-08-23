@@ -161,6 +161,42 @@ test('v18 存量库缺 teacher_profiles.philosophy → initDb 重跑迁移补列
   assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
 });
 
+// PA-3-F2 (B1): reviews (teacher_user_id,status) index added with SCHEMA_VERSION 18->19. A legacy v18 DB
+// (schema_meta=18 + reviews missing idx_reviews_teacher_status) must re-run the full migration and gain the
+// index — otherwise the version gate skips the migration and the index is never added on live DBs.
+// Mutation guard: reverting the bump (SCHEMA_VERSION 18) makes the v=18 gate skip the migration and the
+// index never appears -> red (V-4-1c -> Z-4-F1 -> Q-2g-F1 same incident class).
+test('v18 存量库缺 reviews (teacher_user_id,status) 索引 → initDb 重跑迁移补索引 + 幂等', async (t) => {
+  const { raw, db } = setup(t);
+  await initDb(db, ENV); // build the latest full schema first (idx_reviews_teacher_status present)
+  raw.exec('DROP INDEX IF EXISTS idx_reviews_teacher_status'); // v18 production shape: no teacher_user_id prefix index
+  // Pin the simulated version to 18 (the version BEFORE this change) rather than SCHEMA_VERSION-1
+  // so the mutation guard holds: if the 18->19 bump is reverted, cur(18) >= 18 short-circuits the
+  // migration, the index is never re-created, and the assertion below goes red.
+  raw.prepare("UPDATE schema_meta SET v=18 WHERE k='schema'").run();
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name='idx_reviews_teacher_status'`).get().n, 0, 'precondition: reviews lacks idx_reviews_teacher_status');
+  await initDb(db, ENV); // version behind (18 < 19) -> full migration -> postCreate creates the index
+  const idx = raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name='idx_reviews_teacher_status'`).get().n;
+  assert.equal(idx, 1, 'idx_reviews_teacher_status rebuilt after migration');
+  const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver.v, SCHEMA_VERSION, 'version updated to latest');
+  // idempotent: re-trigger full migration (index already present -> CREATE INDEX IF NOT EXISTS no-op)
+  raw.prepare("UPDATE schema_meta SET v=18 WHERE k='schema'").run();
+  await initDb(db, ENV);
+  const ver2 = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
+});
+
+// PA-3-F2 (G2): the new index actually serves the teacher_user_id prefix lookup — EXPLAIN QUERY PLAN for the
+// dbGetApprovedReviews / dbGetApprovedReviewStats WHERE shape must SEARCH USING idx_reviews_teacher_status
+// (not a table scan). Mutating (dropping) the index makes the assertion red.
+test('idx_reviews_teacher_status 服务 teacher_user_id 前缀查找（EXPLAIN QUERY PLAN 用索引）', async (t) => {
+  const { raw, db } = setup(t);
+  await initDb(db, ENV);
+  const detail = raw.prepare(`EXPLAIN QUERY PLAN SELECT AVG(rating), COUNT(*) FROM reviews WHERE teacher_user_id=1 AND status='approved'`).all().map(r => r.detail);
+  assert.ok(detail.some(d => /USING INDEX idx_reviews_teacher_status/.test(d)), `EXPLAIN 应走 idx_reviews_teacher_status（实际：${detail.join(' | ')}）`);
+});
+
 // S5-02: merged signing_contracts table (AI-4a) -> standalone contracts table migration.
 // Legacy DB re-run copies stage='contract' rows 1:1 (contract number #CD{id} and ledger contract_id
 // stay unchanged -> zero remap), maps ''/'pending' contract_status -> 'signing', generalizes hourly_rate
