@@ -43,13 +43,9 @@ export const TEACHER_SQUARE_TEXT = {
   REVIEW_COUNT: (n) => `${n} 人评分`,
 
   // ---- third top bar filters (M7-07..11) ----
-  // Subject / personality option pools (data single source for the filter cards;
-  // kept here so component templates stay CJK-free, contract 6).
-  SUBJECT_OPTIONS: [
-    '数学', '物理', '化学', '生物', '语文', '英语', '历史', '地理', '政治',
-    '钢琴', '绘画', '编程', '围棋', '书法', '舞蹈', '声乐',
-  ],
-  PERSONALITY_OPTIONS: ['耐心', '幽默', '负责', '严格', '热情', '温柔'],
+  // Subject / personality option pools live in modules/my-demands/region.js
+  // (English ids + Chinese labels, backend-aligned, PA-2-F4). This copy module
+  // keeps only the display strings below.
   FILTER_TITLE_SUBJECT: '擅长科目',
   FILTER_TITLE_GENDER: '教师性别',
   FILTER_TITLE_PERSONALITY: '教师性格',

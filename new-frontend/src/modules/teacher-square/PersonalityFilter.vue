@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiCheckButton from '@/components/ui/UiCheckButton.vue'
 import { useAnchoredPanel } from '@/composables/useAnchoredPanel'
 import { TEACHER_SQUARE_TEXT as T } from '@/constants/m-teacher-square.js'
+import { PERSONALITY_TAGS, tagLabel } from '@/modules/my-demands/region.js'
 import ArrowDown from '@/assets/svg/arrow-down.svg'
 
 /**
@@ -12,10 +13,13 @@ import ArrowDown from '@/assets/svg/arrow-down.svg'
  *   left-aligned) below. Resting text = T.FILTER_ALL_PERSONALITY; once tags are
  *   selected the trigger shows them comma-joined with a single-line ellipsis.
  * - Clicking the trigger opens a Teleported panel listing every tag in
- *   T.PERSONALITY_OPTIONS as UiCheckButton rows (single column, variant B).
- *   Rows toggle in/out and the panel stays open while toggling (multi-select).
- *   It closes on click-outside (capture-phase pointerdown) or Escape (which
- *   returns focus to the trigger).
+ *   region.js PERSONALITY_TAGS as UiCheckButton rows (single column, variant B).
+ *   Toggling mutates the selection array of ENGLISH ids only (PA-2-F4: the
+ *   backend /api/teachers matches personalities by English id while the previous
+ *   copy pool used Chinese labels, so any personality filter returned zero
+ *   cards); labels come from tagLabel(). Rows toggle in/out and the panel stays
+ *   open while toggling (multi-select). It closes on click-outside (capture-phase
+ *   pointerdown) or Escape (which returns focus to the trigger).
  * - Any-hit matching semantics belong to the match engine
  *   (match-dimensions.js personality dimension), not to this component.
  * - Emits: update:modelValue(next array), change(next array).
@@ -41,7 +45,7 @@ const selected = computed(() => (Array.isArray(props.modelValue) ? props.modelVa
 const isSelected = (tag) => selected.value.includes(tag)
 
 const displayText = computed(() =>
-  selected.value.length ? selected.value.join(T.FILTER_JOIN) : T.FILTER_ALL_PERSONALITY,
+  selected.value.length ? selected.value.map(tagLabel).join(T.FILTER_JOIN) : T.FILTER_ALL_PERSONALITY,
 )
 
 function toggleTag(tag) {
@@ -120,12 +124,12 @@ onBeforeUnmount(() => {
         >
           <div class="pf-panel__list">
             <UiCheckButton
-              v-for="tag in T.PERSONALITY_OPTIONS"
-              :key="tag"
+              v-for="tag in PERSONALITY_TAGS"
+              :key="tag.value"
               variant="B"
-              :model-value="isSelected(tag)"
-              :label="tag"
-              @update:model-value="toggleTag(tag)"
+              :model-value="isSelected(tag.value)"
+              :label="tag.label"
+              @update:model-value="toggleTag(tag.value)"
             />
           </div>
         </div>

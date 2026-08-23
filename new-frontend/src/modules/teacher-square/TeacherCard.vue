@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiIcon from '@/components/ui/UiIcon.vue'
 import { TEACHER_SQUARE_TEXT as T } from '@/constants/m-teacher-square.js'
+import { subjectLabel } from '@/modules/my-demands/region.js'
 
 /**
  * TeacherCard - M7-17 teacher card render (four layers, A1.1 business card)
@@ -51,11 +52,14 @@ const priceText = computed(() => {
 })
 
 const subjectRows = computed(() =>
-  (Array.isArray(props.teacher.subjects) ? props.teacher.subjects : []).map((s) => {
+  (Array.isArray(props.teacher.subjects) ? props.teacher.subjects : []).map((s, i) => {
     const score = s.score
     const full = s.full
+    const raw = s.subject ?? s.name ?? ''
     return {
-      name: s.subject ?? s.name ?? '',
+      raw,
+      key: raw || i,
+      name: subjectLabel(raw), // PA-2-F9: backend stores English id -> Chinese label
       scoreText: score != null && full != null ? `${score}/${full}` : '',
       awards: s.awards ?? '',
     }
@@ -99,7 +103,7 @@ function onClick() {
       <div class="teacher-card__price">{{ priceText }}</div>
 
       <ul v-if="subjectRows.length" class="teacher-card__subjects">
-        <li v-for="(row, i) in subjectRows" :key="row.name || i" class="teacher-card__subject">
+        <li v-for="row in subjectRows" :key="row.key" class="teacher-card__subject">
           <UiIcon name="dot" :size="10" class="teacher-card__dot" aria-hidden="true" />
           <span class="teacher-card__subject-name">{{ row.name }}</span>
           <span v-if="row.scoreText" class="teacher-card__subject-score">{{ row.scoreText }}</span>

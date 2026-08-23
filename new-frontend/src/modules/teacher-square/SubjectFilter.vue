@@ -4,6 +4,7 @@ import UiButton from '@/components/ui/UiButton.vue'
 import UiCheckButton from '@/components/ui/UiCheckButton.vue'
 import ArrowDown from '@/assets/svg/arrow-down.svg'
 import { TEACHER_SQUARE_TEXT as T } from '@/constants/m-teacher-square.js'
+import { SUBJECTS, subjectLabel } from '@/modules/my-demands/region.js'
 
 /**
  * SubjectFilter - M7-08 subject filter card (double-column multi-select)
@@ -12,9 +13,12 @@ import { TEACHER_SQUARE_TEXT as T } from '@/constants/m-teacher-square.js'
  *   trigger below. Resting text = T.FILTER_ALL_SUBJECT; once subjects are
  *   selected the trigger shows the comma-joined names, ellipsis-truncated.
  * - Clicking the trigger opens a panel (absolutely positioned below the card)
- *   listing every subject from T.SUBJECT_OPTIONS as a two-column vertical
- *   checkbox list (UiCheckButton variant B). Toggling mutates the selection
- *   array only; any-hit semantics belong to the match engine (M7-12).
+ *   listing every subject (region.js SUBJECTS = backend English ids) as a
+ *   two-column vertical checkbox list (UiCheckButton variant B). Toggling
+ *   mutates the selection array of ENGLISH ids only (PA-2-F4: previously the
+ *   panel used Chinese labels while the backend /api/teachers returns ids, so
+ *   any filter choice returned zero cards); any-hit semantics belong to the
+ *   match engine (M7-12).
  * - Open state is owned here: click outside / Escape close the panel; the
  *   panel is clamped horizontally so it never overflows the 375px viewport.
  * - Contract 6: zero inline event/style attrs, zero v-html, zero raw CJK in
@@ -36,10 +40,10 @@ const selected = computed(() =>
 )
 const hasSelection = computed(() => selected.value.length > 0)
 const displayText = computed(() =>
-  hasSelection.value ? selected.value.join(', ') : T.FILTER_ALL_SUBJECT,
+  hasSelection.value ? selected.value.map(subjectLabel).join(', ') : T.FILTER_ALL_SUBJECT,
 )
 /** two vertical columns -> rows = ceil(options / 2) */
-const panelRows = Math.ceil(T.SUBJECT_OPTIONS.length / 2)
+const panelRows = Math.ceil(SUBJECTS.length / 2)
 
 function isSelected(subject) {
   return selected.value.includes(subject)
@@ -145,12 +149,12 @@ onBeforeUnmount(() => {
         :style="{ '--sf-rows': panelRows }"
       >
         <UiCheckButton
-          v-for="s in T.SUBJECT_OPTIONS"
-          :key="s"
+          v-for="s in SUBJECTS"
+          :key="s.value"
           variant="B"
-          :model-value="isSelected(s)"
-          :label="s"
-          @click="toggleSubject(s)"
+          :model-value="isSelected(s.value)"
+          :label="s.label"
+          @click="toggleSubject(s.value)"
         />
       </div>
     </Transition>

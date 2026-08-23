@@ -28,6 +28,7 @@ import {
   fetchTeachers,
 } from '../src/modules/teacher-square/teachers-api.js'
 import { MOCK_TEACHER_ITEMS } from '../src/modules/teacher-square/mock-data.js'
+import { SUBJECTS, PERSONALITY_TAGS, subjectLabel, tagLabel } from '../src/modules/my-demands/region.js'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const MOD = join(ROOT, 'src', 'modules', 'teacher-square')
@@ -68,10 +69,12 @@ assert.deepEqual(sortTeachers([A, B, C], { key: 'price', order: 'desc' }).map((x
 ok('sort: mid price (single/double sided) + both-null last (mutation-guarded)')
 
 // ---- M7-12: hit-count accumulation + grouping (mutation targets) ----
-const X = mk({ name: 'X', subjects: [{ subject: '数学' }], gender: 'male', personalityTags: ['耐心'], rating: 2.0 })
-const Y = mk({ name: 'Y', subjects: [{ subject: '英语' }], gender: 'female', personalityTags: ['严格'], rating: 5.0 })
-const Z = mk({ name: 'Z', subjects: [{ subject: '物理' }], gender: 'female', personalityTags: [], rating: 4.0, priceMin: 1000, priceMax: 2000 })
-const filters = { subjects: ['数学'], gender: 'male', personalities: ['耐心'], priceMin: 50, priceMax: 400 }
+// PA-2-F4: fixtures use BACKEND English ids (subjects/personalityTags) — the
+// production shape the filter cards now emit (G3).
+const X = mk({ name: 'X', subjects: [{ subject: 'math' }], gender: 'male', personalityTags: ['patience'], rating: 2.0 })
+const Y = mk({ name: 'Y', subjects: [{ subject: 'english' }], gender: 'female', personalityTags: ['strict'], rating: 5.0 })
+const Z = mk({ name: 'Z', subjects: [{ subject: 'physics' }], gender: 'female', personalityTags: [], rating: 4.0, priceMin: 1000, priceMax: 2000 })
+const filters = { subjects: ['math'], gender: 'male', personalities: ['patience'], priceMin: 50, priceMax: 400 }
 
 assert.equal(computeMatchCount(X, filters, TEACHER_MATCH_DIMENSIONS), 4) // subjects+gender+personality+price
 assert.equal(computeMatchCount(Y, filters, TEACHER_MATCH_DIMENSIONS), 1) // price only
@@ -94,7 +97,7 @@ ok('match-group: hit-count accumulation + grouping reorder (mutation-guarded)')
 // ---- M7-01: I-29 mapping + query builder + fetch stub ----
 const raw = {
   teacherId: 42, name: '王老师', rating: 4.8, reviewCount: 23, priceMin: 150, priceMax: 250,
-  subjects: [{ subject: '数学' }], bio: 'hi', region: '上海', experienceYears: 7,
+  subjects: [{ subject: 'math' }], bio: 'hi', region: '上海', experienceYears: 7,
   matchScore: 91, matchCount: 3,
 }
 const mapped = mapTeacherResponse(raw)
@@ -106,10 +109,26 @@ assert.equal(mapped.matchCount, 3)
 
 const q = buildTeachersQuery({
   sort: 'price', order: 'asc',
-  filters: { subjects: ['数学', '英语'], gender: 'male', personalities: ['耐心'], priceMin: 100, priceMax: 300 },
+  filters: { subjects: ['math', 'english'], gender: 'male', personalities: ['patience'], priceMin: 100, priceMax: 300 },
 })
 assert.ok(q.includes('sort=price'))
-assert.ok(q.includes('subjects=' + encodeURIComponent('数学,英语')))
+assert.ok(q.includes('subjects=' + encodeURIComponent('math,english')))
+
+// ---- PA-2-F4: filter values are BACKEND English ids, labels Chinese ----
+// The option pools the filter cards now render (region.js SUBJECTS /
+// PERSONALITY_TAGS) must serialize English ids into the I-29 query and hit
+// English-id teacher rows in the local match engine (previously Chinese labels
+// reached both -> any selection returned zero cards).
+assert.ok(SUBJECTS.some((s) => s.value === 'math'), 'region SUBJECTS must carry backend English id math')
+assert.ok(PERSONALITY_TAGS.some((t) => t.value === 'patience'), 'region PERSONALITY_TAGS must carry backend English id patience')
+assert.equal(subjectLabel('math'), '数学')
+assert.equal(tagLabel('patience'), '耐心')
+const qF4 = buildTeachersQuery({ filters: { subjects: [SUBJECTS[1].value], personalities: [PERSONALITY_TAGS[0].value] } })
+assert.ok(qF4.includes('subjects=math') || qF4.includes('subjects=' + SUBJECTS[1].value), 'subject filter must serialize English id')
+assert.ok(qF4.includes('personalities=' + PERSONALITY_TAGS[0].value), 'personality filter must serialize English id')
+const hitMath = computeMatchCount(mk({ subjects: [{ subject: 'math' }] }), { subjects: ['math'] }, TEACHER_MATCH_DIMENSIONS)
+assert.ok(hitMath > 0, 'local match must hit a math teacher with the English id')
+ok('PA-2-F4: subject/personality option pools emit backend English ids (labels Chinese)')
 
 const fr = await fetchTeachers({ fetcher: async () => ({ items: [raw], total: 1 }) })
 assert.equal(fr.ok, true)
@@ -194,6 +213,27 @@ async function browserChecks(base) {
     if (thirdBar !== 1) fail('filter button did not open the third top bar')
     else ok('filter button opens the third top bar (FilterReveal + ThirdBar)')
 
+    // ---- PA-2-F4: subject filter emits backend English id, matches English-id rows ----
+    await page.locator('.subject-filter__trigger').click()
+    await page.waitForTimeout(300)
+    await page.locator('.subject-filter__panel .ui-checkbtn', { hasText: '数学' }).click()
+    await page.waitForTimeout(400)
+    const mathCards = await page.locator('.card-grid .teacher-card').count()
+    if (mathCards !== 2) fail('subject=数学 should keep 2 math teachers (李/赵), got ' + mathCards)
+    else ok('subject filter emits English id + local match hits math teachers')
+    const subjTrigger = await page.locator('.subject-filter__trigger').textContent()
+    if (!subjTrigger.includes('数学')) fail('subject trigger should show Chinese label 数学, got ' + subjTrigger)
+    else ok('subject trigger shows Chinese label (subjectLabel)')
+    const cardSubjName = await page.locator('.card-grid .teacher-card__subject-name').first().textContent()
+    if (cardSubjName !== '数学') fail('teacher card subject should render Chinese label 数学, got ' + cardSubjName)
+    else ok('PA-2-F9: teacher card subject row renders Chinese label (not English id)')
+    // clear the subject selection (deselect) -> back to all 6
+    await page.locator('.subject-filter__panel .ui-checkbtn', { hasText: '数学' }).click()
+    await page.waitForTimeout(400)
+    const clearedCount = await page.locator('.card-grid .teacher-card').count()
+    if (clearedCount !== 6) fail('deselect subject should restore 6 cards, got ' + clearedCount)
+    else ok('subject filter deselect restores full list')
+
     await page.locator('.gender-filter__trigger').click()
     await page.waitForTimeout(300)
     await page.locator('.gender-filter__panel .ui-checkbtn', { hasText: '女' }).click()
@@ -226,6 +266,11 @@ async function browserChecks(base) {
       tempCalled = true
       route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ conversationId: 77, status: 'temp', tempStatus: 'init' }) })
     })
+    // after send, navigateToConversation mounts ChatPage which marks the opened
+    // conversation read via POST /api/conversations/:id/read (G3: mock the real
+    // backend endpoint, else the browser logs a 404 and the smoke red-flags it)
+    await page.route('**/api/conversations/*/read', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }))
     await sendBtn.click()
     await page.waitForTimeout(600)
     if (!tempCalled) fail('send-message should POST /api/conversations/temp')

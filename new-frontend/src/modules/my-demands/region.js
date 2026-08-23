@@ -102,6 +102,16 @@ export const SUBJECTS = [
   { value: 'language', label: '语言口语' },
 ]
 
+/**
+ * Backend subject id -> display label (PA-2-F9/F10). The backend stores/returns
+ * English ids ('math'); every render point must map to the Chinese label. Unknown
+ * ids fall back to the raw value (never blank).
+ */
+export function subjectLabel(id) {
+  const s = SUBJECTS.find((x) => x.value === id)
+  return s ? s.label : (id || '')
+}
+
 /** Main-subject default full scores (M8-09 raw mode; unlisted subjects default to 100). */
 export const SUBJECT_FULL_SCORE = {
   chinese: 150,

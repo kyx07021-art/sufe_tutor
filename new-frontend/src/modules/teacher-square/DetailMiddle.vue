@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import RatingStars from './RatingStars.vue'
 import { TEACHER_SQUARE_TEXT as T } from '@/constants/m-teacher-square.js'
+import { subjectLabel } from '@/modules/my-demands/region.js'
 
 /**
  * DetailMiddle - M7-20 detail modal middle column (subjects + featured review)
@@ -31,7 +32,7 @@ const props = defineProps({
 /** Normalize subject blocks; each subject carries its own awards[] list. */
 const subjects = computed(() =>
   (Array.isArray(props.teacher.subjects) ? props.teacher.subjects : []).map((s) => ({
-    name: s.subject ?? '',
+    name: subjectLabel(s.subject ?? ''), // PA-2-F9: backend English id -> Chinese label
     score: s.score,
     full: s.full,
     awards: Array.isArray(s.awards) ? s.awards.filter(Boolean) : [],
