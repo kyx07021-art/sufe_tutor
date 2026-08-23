@@ -83,8 +83,8 @@ try {
   process.exit(1);
 }
 
-//   b. Vite 产物检查：index.html 的 /assets/ 绝对资产引用齐全（base:'/'）；dist/assets/* 全为
-//      Vite 内容哈希名（_headers /assets/* immutable 前提；非内容寻址文件被设 immutable 会 stale 一年）。
+//   b. Vite 产物检查：index.html 的相对资产引用齐全；dist/assets/* 全为 Vite 内容哈希名
+//      （_headers /assets/* immutable 前提；非内容寻址文件被设 immutable 会 stale 一年）。
 //      Vite 内容哈希名 = [name]-[8 位 base64url 哈希].ext（如 index-CW2XfQw1.js / gallery-4-b-ZihcSF.png）。
 const htmlPath = join(DIST, 'index.html');
 if (!existsSync(htmlPath)) {
@@ -92,24 +92,17 @@ if (!existsSync(htmlPath)) {
   process.exit(1);
 }
 const html = readFileSync(htmlPath, 'utf8');
-// base:'/' (PA-2-F14): absolute /assets/* refs so a deep-link SPA fallback still
-// resolves from the site root. Refs must be absolute-rooted, not './relative'
-// (which would resolve against the deep path and 404).
-const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m => m[1]).filter(r => /^\/assets\//.test(r));
+const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m => m[1]).filter(r => r.startsWith('./'));
 if (!refs.length) {
-  console.error('build check failed: dist/index.html 零 /assets/ 绝对资产引用（非 Vite SPA 形态）');
+  console.error('build check failed: dist/index.html 零相对资产引用（非 Vite SPA 形态）');
   process.exit(1);
 }
 for (const r of refs) {
-  const rel = r.replace(/^\/assets\//, 'assets/').replace(/[?#].*$/, '');
+  const rel = r.replace(/^\.\//, '').replace(/[?#].*$/, '');
   if (!existsSync(join(DIST, rel))) {
     console.error(`build check failed: dist/index.html 引用 ${r} 在 dist 不存在`);
     process.exit(1);
   }
-}
-if (/"(?:src|href)="\.\//.test(html)) {
-  console.error('build check failed: dist/index.html 残留相对 ./asset 引用（base 应为 \'/\'）');
-  process.exit(1);
 }
 const assetsDir = join(DIST, 'assets');
 if (!existsSync(assetsDir)) {

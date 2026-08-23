@@ -10,10 +10,7 @@ import { APP_VERSION } from '../src/shared/config.js'
  * -------------------------------------------------------
  * - Vue 3 SFC + vite-svg-loader (.svg -> Vue components, currentColor inherited).
  * - Output: dist/ SPA (index.html + assets/*); served by _worker.js on final merge.
- * - base: '/' - absolute asset paths so a deep-link SPA fallback (/teacher/profile
- *   serving index.html) still resolves /assets/* from the site root. Relative
- *   './assets/*' would resolve against the deep path (/teacher/assets/* -> 404,
- *   PA-2-F14). Deploy target is the domain root (wrangler pages deploy dist).
+ * - base: './' - relative asset paths, deployable at any static path.
  * - target es2018 - matches the v2 deployment surface (old-browser compatible).
  * - Strict CSP: dev mode does NOT inject the meta tag (Vite HMR needs runtime style injection);
  *   build injects via the injectCspMeta plugin, consuming the single source
@@ -28,7 +25,7 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
-  base: '/',
+  base: './',
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
