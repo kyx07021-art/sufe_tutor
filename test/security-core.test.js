@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rateGate, authRateBatch, authUser, corsPreflight, applySecurityHeaders } from '../src/server/core/security.js';
+import { rateGate, authRateBatch, authRateBlock, authUser, corsPreflight, applySecurityHeaders } from '../src/server/core/security.js';
 import { RATE_LIMITS, CORS_HEADERS, SECURITY_HEADERS } from '../src/shared/config.js';
 
 // stub db A：prepare/batch 抛错 → 各限流 D1 路径 catch 降级内存（rateGate 测试只判内存闸语义）
@@ -102,6 +102,24 @@ test('authRateBatch.verdict：block 行 / 认证超限 命中即拒，写超限�
   assert.ok(gate.verdict(results(false, 1, RATE_LIMITS.login.limit + 1)), '认证（login）超限 → 拒');
   // 边界：恰在 limit 内放行
   assert.ok(!gate.verdict(results(false, RATE_LIMITS.write.limit, RATE_LIMITS.login.limit)), '恰在 limit 内放行');
+});
+
+test('PA-2-F8：block 幂等不续期——已封禁 IP 的 authRateBlock 不重置 block deadline（防重试自我延续锁死）', async () => {
+  const ip = uniqIp('block-noreextend');
+  const t0 = NOW;
+  // 首次三振封禁（authRateBlock 注入 now，避免真实时钟依赖）
+  for (let i = 0; i < RATE_LIMITS.strike.count; i++) {
+    await authRateBlock(stubDb, ip, t0);
+  }
+  // 封禁期内继续触发 authRateBlock（模拟重试循环 9 次）：修复后 block deadline 不变
+  // （无修复则每满 strike.count 次续期到 t1+windowMs → 到期准时解除断言红）
+  for (let i = 0; i < RATE_LIMITS.strike.count * 3; i++) {
+    await authRateBlock(stubDb, ip, t0 + 60_000);
+  }
+  assert.equal(await rateGate(ip, '/api/posts', 'POST', {}, t0 + RATE_LIMITS.block.windowMs - 1, stubDb), false,
+    '到期前 1s 仍封禁（deadline 未被续期到 t1+windowMs）');
+  assert.equal(await rateGate(ip, '/api/posts', 'POST', {}, t0 + RATE_LIMITS.block.windowMs + 1, stubDb), true,
+    '到期准时解除（变异：删 rlStrike 已封短路 → 此处仍封 → 红）');
 });
 
 test('rateGate：OTP 请求专用 per-IP 桶（Q-2a-F3）——10/min 放行后第 11 次 429，换 IP 不受牵连', async () => {
