@@ -15,6 +15,7 @@ _tmp_*/
 _tmp_*.log
 _tmp_*.mjs
 _audit_*.md
+.probe/
 
 dist/
 
@@ -26,3 +27,6 @@ shard-runner.log
 docs/.obsidian/workspace.json
 docs/.obsidian/graph.json
 docs/.obsidian/hotkeys.json
+
+# Vite dev/preview timestamp snapshots (never commit)
+new-frontend/vite.config.js.timestamp-*
