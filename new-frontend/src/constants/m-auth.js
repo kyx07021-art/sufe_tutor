@@ -60,4 +60,6 @@ export const AUTH_COPY = {
   /** Register scene: agreement checkboxes */
   AGREE_AGREEMENT: '我已阅读并同意平台服务协议',
   AGREE_PRIVACY: '我已阅读并同意隐私政策',
+  /** Register scene: flip-to-login link (PA-2-F1: landing has no other login entry) */
+  HAVE_ACCOUNT: '已有账号？去登录',
 }

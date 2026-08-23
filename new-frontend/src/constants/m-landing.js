@@ -14,6 +14,8 @@ export const LANDING_COPY = {
   HERO_CTO_STUDENT: '我要找家教',
   /** Hero secondary CTA (right): enter the teacher client */
   HERO_CTO_TEACHER: '我要做家教',
+  /** Hero login link for returning users (PA-2-F1: hero CTAs open register only) */
+  HERO_LOGIN: '已有账号？登录',
   /** SLOGAN (big black, centered) */
   SLOGAN: '测试文本测试文本',
   /** Placeholder body: 20 x "测试文本" (gray, ~1/3 page width block) */

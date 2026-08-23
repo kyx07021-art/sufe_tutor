@@ -32,6 +32,12 @@ function onEnter(role) {
   const open = getIface('openIdentityAuth')
   if (open) open({ mode: 'register' })
 }
+
+/** PA-2-F1: returning users need a visible login entry from the landing page. */
+function onLogin() {
+  const open = getIface('openIdentityAuth')
+  if (open) open({ mode: 'login' })
+}
 </script>
 
 <template>
@@ -55,6 +61,13 @@ function onEnter(role) {
         >{{ LANDING_COPY.HERO_CTO_TEACHER }}</UiButton
       >
     </div>
+    <button
+      v-if="!authStore.token"
+      type="button"
+      class="landing-hero__login"
+      data-cap="enter.login"
+      @click="onLogin"
+    >{{ LANDING_COPY.HERO_LOGIN }}</button>
   </section>
 </template>
 
@@ -92,6 +105,21 @@ function onEnter(role) {
   width: 100%; /* fill each actions track (capsule shape kept) */
   font-weight: 700;
 }
+
+/* PA-2-F1: returning-user login entry (quiet gray link below the CTAs) */
+.landing-hero__login {
+  justify-self: center;
+  margin-top: var(--space-4);
+  border: none;
+  background: transparent;
+  padding: var(--space-2) var(--space-4);
+  color: var(--gray-60);
+  font-size: var(--fs-sm);
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--dur-sm) var(--ease-out);
+}
+.landing-hero__login:hover { color: var(--ink); }
 
 /* Narrow screens: column = container width, headline may wrap, buttons stack */
 @media (max-width: 768px) {

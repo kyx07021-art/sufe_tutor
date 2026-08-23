@@ -24,6 +24,7 @@ import { useConfirmSubmit } from './useConfirmSubmit.js'
 import { AUTH_SCENES, AUTH_METHODS, isOtp } from './authMethod.js'
 import { api } from '@/core/api.js'
 import { setAuth, persistAuth } from '@/modules/shell/auth-store.js'
+import { openIdentityAuth } from './authState.js'
 import { showToast } from '@/composables/useToast'
 import { AUTH_COPY } from '@/constants/m-auth.js'
 
@@ -112,6 +113,15 @@ function finishSuccess() {
 function close() {
   emit('close')
   emit('update:open', false)
+}
+
+/** PA-2-F1: register visitor flips to the login scene (same exit contract preserved). */
+function onSwitchToLogin() {
+  openIdentityAuth({
+    mode: 'login',
+    contactMasks: props.contactMasks,
+    onVerified: props.onVerified,
+  })
 }
 
 async function onConfirm() {
@@ -204,6 +214,7 @@ function applyAuthSession(r) {
       :open="open"
       v-model:valid="registerValid"
       @submit="onRegister"
+      @switch-login="onSwitchToLogin"
     />
     <template v-else>
       <OtpRow

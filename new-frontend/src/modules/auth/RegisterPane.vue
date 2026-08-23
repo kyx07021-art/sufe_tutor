@@ -28,7 +28,7 @@ const props = defineProps({
   valid: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['submit', 'close', 'update:valid'])
+const emit = defineEmits(['submit', 'close', 'update:valid', 'switch-login'])
 
 const role = ref('')
 const inviteCode = ref('')
@@ -187,6 +187,12 @@ defineExpose({ canSubmit, submit })
     </div>
 
     <CaptchaPuzzle ref="puzzleRef" @verified="puzzlePassed = true" />
+
+    <button
+      type="button"
+      class="register-pane__switch-login"
+      @click="emit('switch-login')"
+    >{{ AUTH_COPY.HAVE_ACCOUNT }}</button>
   </div>
 </template>
 
@@ -232,4 +238,18 @@ defineExpose({ canSubmit, submit })
   gap: var(--space-2);
   min-width: 0;
 }
+
+/* PA-2-F1: flip-to-login link (quiet gray link, no border, no capsule) */
+.register-pane__switch-login {
+  align-self: center;
+  border: none;
+  background: transparent;
+  padding: var(--space-2) 0;
+  color: var(--gray-60);
+  font-size: var(--fs-sm);
+  line-height: 1;
+  cursor: pointer;
+  transition: color var(--dur-sm) var(--ease-out);
+}
+.register-pane__switch-login:hover { color: var(--ink); }
 </style>
