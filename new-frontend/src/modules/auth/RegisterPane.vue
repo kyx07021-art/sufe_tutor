@@ -177,7 +177,8 @@ defineExpose({ canSubmit, submit })
     <UiInput
       :model-value="password"
       :placeholder="AUTH_COPY.SET_PASSWORD_PLACEHOLDER"
-      class="register-pane__field"
+      type="password"
+      class="register-pane__field register-pane__password"
       @update:model-value="(v) => (password = v)"
     />
 

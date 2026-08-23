@@ -36,6 +36,8 @@ const props = defineProps({
   /** underline right inset override (captcha input: right 30% shifted further left) */
   underlineInsetRight: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  /** native input kind: textarea (default, auto-grows) | password (masked input, shoulder-surfing guard) */
+  type: { type: String, default: 'textarea', validator: (v) => ['textarea', 'password'].includes(v) },
 })
 
 const emit = defineEmits(['update:modelValue', 'send', 'focus', 'blur', 'input'])
@@ -89,7 +91,7 @@ function filterValue(raw) {
 
 function autoResize() {
   const ta = taRef.value
-  if (!ta) return
+  if (!ta || props.type !== 'textarea') return
   ta.style.height = 'auto'
   const h = Math.max(baseH.value, ta.scrollHeight)
   ta.style.height = h + 'px'
@@ -155,7 +157,23 @@ defineExpose({
     :style="rootStyle"
   >
     <div class="ui-input__main">
+      <input
+        v-if="type === 'password'"
+        ref="taRef"
+        class="ui-input__native"
+        type="password"
+        :value="modelValue"
+        :aria-label="placeholder || undefined"
+        :disabled="disabled"
+        @input="onInput"
+        @focus="onFocus"
+        @blur="onBlur"
+        @keydown="onKeydown"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
+      />
       <textarea
+        v-else
         ref="taRef"
         class="ui-input__ta"
         :value="modelValue"
@@ -211,7 +229,8 @@ defineExpose({
   position: relative;
 }
 
-.ui-input__ta {
+.ui-input__ta,
+.ui-input__native {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -226,8 +245,10 @@ defineExpose({
   resize: none;
   overflow: hidden;
 }
-.ui-input__ta::placeholder { color: transparent; }
-.ui-input.is-disabled .ui-input__ta { cursor: default; }
+.ui-input__ta::placeholder,
+.ui-input__native::placeholder { color: transparent; }
+.ui-input.is-disabled .ui-input__ta,
+.ui-input.is-disabled .ui-input__native { cursor: default; }
 
 /* placeholder: present when empty and not focused (gray-30, same font size) */
 .ui-input__placeholder {

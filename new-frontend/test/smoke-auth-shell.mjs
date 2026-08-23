@@ -340,7 +340,7 @@ check(
 await page.locator('.method-switch .ui-btn', { hasText: '密码验证' }).click()
 await page.waitForSelector('.password-row')
 await page.locator('.password-row__identifier .ui-input__ta').fill('alice')
-await page.locator('.password-row__password .ui-input__ta').fill('secret123')
+await page.locator('.password-row__password .ui-input__native').fill('secret123')
 await dragPuzzleTo(await page.evaluate(() => (window.__authPuzzleDebug || {}).target))
 await page.waitForTimeout(400)
 check(await confirmBtn.isEnabled(), 'login confirm should enable after identifier + password + puzzle')
@@ -353,6 +353,19 @@ check(
     loginBodies[0].password === 'secret123',
   'password login should POST /api/auth/login with {identifier,password}, got: ' + JSON.stringify(loginBodies),
 )
+
+// --- register scene (PA-2-F6 redo): register password must also be a masked native input ---
+await page.locator('.auth-preview__row .ui-btn', { hasText: 'register' }).click()
+await openModal()
+await page.waitForSelector('.register-pane')
+// The password field is a native type=password input (shoulder-surfing guard), not a textarea.
+const regPw = page.locator('.register-pane__password .ui-input__native')
+await regPw.waitFor({ state: 'visible', timeout: 5000 })
+const regPwTag = await regPw.evaluate((el) => el.tagName + ':' + el.type)
+check(regPwTag === 'INPUT:password', 'register password should be INPUT:password, got: ' + regPwTag)
+await page.mouse.click(20, 20)
+await modal.waitFor({ state: 'detached', timeout: 5000 })
+check((await modal.count()) === 0, 'register modal should close via backdrop')
 
 // --- mobile 375 geometry ---
 const mobile = await browser.newPage({ viewport: { width: 375, height: 700 } })
