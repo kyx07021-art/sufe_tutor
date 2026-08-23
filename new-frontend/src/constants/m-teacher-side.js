@@ -60,7 +60,15 @@ export const TEACHER_COPY = {
   B2_FIELD_PHILOSOPHY: '教学理念',
   B2_ADD_SUBJECT: '新增科目',
   B2_REMOVE_ROW: '移除该科目',
-  B2_REQUIRED_ERR: '请完整填写必填项',
+  /* B2-5 local validation: each failure names the offending field so a partial
+     edit (e.g. bio-only) surfaces the actual gap instead of a vague "fill required"
+     (PA-2-F15). */
+  B2_REQUIRED_TEACHER_NAME: '请填写教师名',
+  B2_REQUIRED_REGION: '请填写所在地址',
+  B2_REQUIRED_PRICE_MIN: '价格下限无效',
+  B2_REQUIRED_PRICE_MAX: '价格上限无效',
+  B2_REQUIRED_PRICE_RANGE: '价格下限不能高于上限',
+  B2_REQUIRED_EXP_YEARS: '教学经验需为数字',
   B2_PLACEHOLDER_SUBJECT: '科目',
   B2_PLACEHOLDER_SCORE: '分数',
   B2_PLACEHOLDER_FULL: '满分',

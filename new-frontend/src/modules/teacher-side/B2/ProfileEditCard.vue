@@ -84,16 +84,19 @@ watch(
 
 /* ---- validation (B2-5 local pre-check; mutation guard: deleting this lets bad input through) ---- */
 function validate() {
-  if (!teacherName.value.trim()) return TEACHER_COPY.B2_REQUIRED_ERR
-  // region holds the province pinyin id; I-40 requires province (mutation guard locked in smoke)
-  if (!region.value.trim()) return TEACHER_COPY.B2_REQUIRED_ERR
+  // Each failure names the offending field (PA-2-F15): a partial edit like a
+  // bio-only change must say which required field is still missing, not a vague
+  // "fill required" string. `region` holds the province pinyin id; I-40 requires
+  // province (mutation guard locked in smoke).
+  if (!teacherName.value.trim()) return TEACHER_COPY.B2_REQUIRED_TEACHER_NAME
+  if (!region.value.trim()) return TEACHER_COPY.B2_REQUIRED_REGION
   const lo = priceMin.value === '' ? null : Number(priceMin.value)
   const hi = priceMax.value === '' ? null : Number(priceMax.value)
-  if (lo != null && (!Number.isFinite(lo) || lo < 0)) return TEACHER_COPY.B2_REQUIRED_ERR
-  if (hi != null && (!Number.isFinite(hi) || hi < 0)) return TEACHER_COPY.B2_REQUIRED_ERR
-  if (lo != null && hi != null && lo > hi) return TEACHER_COPY.B2_REQUIRED_ERR
+  if (lo != null && (!Number.isFinite(lo) || lo < 0)) return TEACHER_COPY.B2_REQUIRED_PRICE_MIN
+  if (hi != null && (!Number.isFinite(hi) || hi < 0)) return TEACHER_COPY.B2_REQUIRED_PRICE_MAX
+  if (lo != null && hi != null && lo > hi) return TEACHER_COPY.B2_REQUIRED_PRICE_RANGE
   if (experienceYears.value !== '' && !/^\d+$/.test(experienceYears.value)) {
-    return TEACHER_COPY.B2_REQUIRED_ERR
+    return TEACHER_COPY.B2_REQUIRED_EXP_YEARS
   }
   return ''
 }

@@ -626,6 +626,9 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
   const errText = await p.locator('.profile-edit__error').count()
   assert.ok(errText >= 1, 'validation error shown for empty teacherName')
   assert.equal(getPutBody().putBody, null, 'no PUT when validation fails')
+  // PA-2-F15: the message names the missing field (not a vague "fill required").
+  const errMsg = (await p.locator('.profile-edit__error').first().innerText()).trim()
+  assert.ok(errMsg.includes('教师名'), 'teacherName gap named in the error: ' + errMsg)
 
   // mutation guard: empty region (province) -> validation blocks, no PUT (I-40 province required)
   await p.locator('#profile-edit-name input, #profile-edit-name textarea').first().fill('王老师')
