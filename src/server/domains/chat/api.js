@@ -435,7 +435,7 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
       const byKey = new Map(existing.map(e => [e.client_key, e]));
       return json({ messages: clientKeys.map(k => {
         const e = byKey.get(k);
-        return { id: Number(e ? e.id : 0), kind: e ? e.kind : '', name: e ? e.name || '' : '' };
+        return { id: Number(e ? e.id : 0), kind: e ? e.kind : '', name: e ? e.name || '' : '', clientKey: k };
       }) }, 201);
     }
     if (existing.length) return errorMsg('INVALID_PARAMS', 409);
@@ -511,9 +511,13 @@ async function handleSendBatch(db, convId, batch, userId, req, conv) {
   if (tempAdvance && ((results[advanceIdx] && results[advanceIdx].meta && results[advanceIdx].meta.changes) || 0) === 0) {
     return errorMsg('TEMP_QUOTA_EXCEEDED', 409);
   }
-  const created = items.map(it => ({
+  const created = items.map((it, i) => ({
     id: Number((results[it.resultIndex] && results[it.resultIndex].meta && results[it.resultIndex].meta.last_row_id) || 0),
     kind: it.kind, name: it.name,
+    // PA-2-F3: echo the idempotency key so the front-end can replace its optimistic
+    // pending row (realByKey in chat/logic/send.js) — without this the client shows
+    // every own message twice (optimistic row + polled real row, ids never dedupe).
+    clientKey: clientKeys[i] || '',
   }));
   await logEvent(db, { action: 'chat.send_batch', actorUserId: userId, entity: 'conversation', entityId: convId,
     detail: { count: created.length, kinds: created.map(c => c.kind) }, req });

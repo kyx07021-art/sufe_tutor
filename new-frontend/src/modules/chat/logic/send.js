@@ -188,13 +188,19 @@ export async function sendMessages({ apiFn, convId, batch, currentUserId, messag
     const response = await apiFn(`/conversations/${convId}/messages`, { method: 'POST', body })
 
     // Success: replace each temp row with the real row matched by clientKey
-    // (I-19 response messages echo the same clientKey). A temp row whose key is
-    // absent from the response stays pending — the next poll (M4-32) reconciles.
+    // (I-19 response messages echo the same clientKey). The server echo is a
+    // minimal row ({id, kind, name, clientKey}); merge it under the optimistic
+    // row so the display fields (body / sender_user_id / created_at / thumb)
+    // survive until the next poll reconciles with the full row (PA-2-F3: a bare
+    // `{ ...real }` replacement blanked the bubble for up to one poll cycle).
+    // A temp row whose key is absent from the response stays pending — the next
+    // poll (M4-32) reconciles.
     const realByKey = new Map((response?.messages || []).map((m) => [m.clientKey, m]))
     const finalMessages = optimisticMessages.map((row) => {
       if (!row.pending) return row
       const real = realByKey.get(row.clientKey)
-      return real ? { ...real, pending: false } : row
+      // tempId is an optimistic-only marker; drop it once the server row lands.
+      return real ? { ...real, ...row, id: real.id, pending: false, tempId: undefined } : row
     })
 
     return {

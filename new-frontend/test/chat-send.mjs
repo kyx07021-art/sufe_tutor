@@ -94,7 +94,9 @@ ok(dedupBatchByClientKey([{ kind: 'text', body: 'keyless' }], []).length === 1, 
     sentBody = opts.body
     return d.promise
   }
-  const serverRow = { id: 100, sender_user_id: 7, kind: 'text', body: 'hi', clientKey: 'ck-9', created_at: '2026-08-22T00:00:00Z' }
+  // Real backend echo shape (PA-2-F3 / G3): minimal row — { id, kind, name, clientKey }.
+  // No body/sender_user_id/created_at — the merge must keep them from the optimistic row.
+  const serverRow = { id: 100, kind: 'text', name: '', clientKey: 'ck-9' }
   const original = [BASE_ROW]
   let pendingSeen = null
   const p = sendMessages({
@@ -125,6 +127,10 @@ ok(dedupBatchByClientKey([{ kind: 'text', body: 'keyless' }], []).length === 1, 
   ok(result.messages[1].tempId === undefined, 'success: tempId gone')
   ok(result.messages[1].pending === false, 'success: pending flag dropped')
   ok(result.messages[1].clientKey === 'ck-9', 'success: real row carries clientKey')
+  // PA-2-F3 regression lock: display fields must survive the minimal echo merge.
+  ok(result.messages[1].body === 'hi', 'success: optimistic body survives the echo merge (PA-2-F3)')
+  ok(result.messages[1].sender_user_id === 7, 'success: optimistic sender survives the echo merge (PA-2-F3)')
+  ok(result.messages[1].created_at === '2026-08-22T00:00:00Z' || typeof result.messages[1].created_at === 'string', 'success: created_at present (PA-2-F3)')
   ok(result.messages[0] === BASE_ROW, 'success: pre-existing row untouched')
   ok(calls === 1, 'success: apiFn still called once')
 }

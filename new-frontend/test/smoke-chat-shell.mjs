@@ -236,14 +236,12 @@ try {
     if (method === 'POST' && /^\/api\/conversations\/(1|4)\/messages$/.test(path)) {
       const body = req.postDataJSON()
       const base = path.includes('/4/') ? 40 : 10
+      // Real backend echo shape (PA-2-F3 / G3): { id, kind, name, clientKey } only —
+      // the client merge must keep the optimistic display fields until the next poll.
       const echoes = (body.batch || []).map((item, i) => ({
         id: base + i,
-        sender_user_id: 1,
         kind: item.kind || 'text',
         name: item.name || '',
-        body: item.body || '',
-        thumb: item.thumb || '',
-        created_at: new Date().toISOString(),
         clientKey: item.clientKey,
       }))
       return json(route, { messages: echoes })

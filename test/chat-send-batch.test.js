@@ -86,7 +86,11 @@ test('批量：多附件（uploadId）+ 文字一次落库，响应消息数组�
   const [imgId, fileId] = await stageTwoUploads(db, raw, t1Token);
 
   const sent = await handleSendMessage(db, 1, {
-    batch: [{ kind: 'image', uploadId: imgId }, { kind: 'file', uploadId: fileId }, { kind: 'text', body: '你好' }],
+    batch: [
+      { kind: 'image', uploadId: imgId, clientKey: 'ck-batch-a' },
+      { kind: 'file', uploadId: fileId, clientKey: 'ck-batch-b' },
+      { kind: 'text', body: '你好', clientKey: 'ck-batch-c' },
+    ],
   }, reqOf(t1Token));
   assert.equal(sent.status, 201);
   const { messages } = await sent.json();
@@ -95,6 +99,9 @@ test('批量：多附件（uploadId）+ 文字一次落库，响应消息数组�
   assert.equal(messages[1].kind, 'file');
   assert.equal(messages[2].kind, 'text');
   assert.ok(messages[0].id > 0 && messages[2].id > messages[0].id, 'id 按落库序递增');
+  // PA-2-F3: 响应必须回显每条的 clientKey（前端乐观行替换依赖它）——缺回显 → 前端双行并存。
+  assert.deepEqual(messages.map(m => m.clientKey), ['ck-batch-a', 'ck-batch-b', 'ck-batch-c'],
+    '响应 messages 必须逐条回显请求的 clientKey');
 
   // 落库断言：3 条消息 + 暂存已删
   const cnt = raw.prepare('SELECT COUNT(*) AS c FROM messages').get().c;
