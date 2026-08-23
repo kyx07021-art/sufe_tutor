@@ -86,6 +86,32 @@ await page.waitForTimeout(200)
 const greenCheck = await fieldSec.locator('.ui-fieldinput--filled .ui-fieldinput__mark-icon').count()
 if (greenCheck !== 1) errors.push('filled should show green check')
 
+// -- PA-2-F5: IME composition guard (Enter mid-composition must NOT send) --
+const ime = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+ime.on('console', (m) => m.type() === 'error' && errors.push('ime console: ' + m.text()))
+ime.on('pageerror', (e) => errors.push('ime pageerror: ' + e.message))
+await ime.goto(BASE + '/test/harness-ime-guard.html', { waitUntil: 'networkidle' })
+await ime.locator('.ui-input__ta').focus()
+await ime.locator('.ui-input__ta').press('a')
+const imeSends0 = await ime.evaluate(() => window.__sendCount())
+if (imeSends0 !== 0) errors.push('ime guard: baseline send count should be 0, got ' + imeSends0)
+// simulate IME: compositionstart -> Enter (candidate confirm) -> compositionend
+await ime.evaluate(() => {
+  const ta = window.__imeTa()
+  ta.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }))
+  ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+  ta.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }))
+})
+await ime.waitForTimeout(200)
+const imeSends1 = await ime.evaluate(() => window.__sendCount())
+if (imeSends1 !== 0) errors.push('PA-2-F5: Enter mid-composition MUST NOT send (confirmed pinyin), got ' + imeSends1)
+// plain Enter after composition ends -> exactly one send
+await ime.locator('.ui-input__ta').press('Enter')
+await ime.waitForTimeout(200)
+const imeSends2 = await ime.evaluate(() => window.__sendCount())
+if (imeSends2 !== 1) errors.push('PA-2-F5: plain Enter after composition should send exactly once, got ' + imeSends2)
+await ime.close()
+
 await browser.close()
 if (errors.length) {
   console.log('INPUT SMOKE FAIL')

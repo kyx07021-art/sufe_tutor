@@ -42,6 +42,7 @@ const emit = defineEmits(['update:modelValue', 'send', 'focus', 'blur', 'input']
 
 const taRef = ref(null)
 const focused = ref(false)
+const composing = ref(false)
 const fieldCtx = injectFieldContext()
 const fieldFill = injectFieldFill()
 
@@ -104,7 +105,19 @@ function onInput(e) {
   autoResize()
 }
 
+function onCompositionStart() {
+  composing.value = true
+}
+
+function onCompositionEnd() {
+  composing.value = false
+}
+
 function onKeydown(e) {
+  // PA-2-F5 (IME guard): Enter mid-composition confirms the pinyin candidate,
+  // it must never "send" (would fire a second OTP/send with the half-composed
+  // value). Same contract as ChatInputBar.shouldSendKey.
+  if (composing.value) return
   if (e.key === 'Enter' && props.sendOnEnter) {
     if (e.shiftKey || e.ctrlKey || e.metaKey) return // manual newline
     e.preventDefault()
@@ -153,6 +166,8 @@ defineExpose({
         @focus="onFocus"
         @blur="onBlur"
         @keydown="onKeydown"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
       ></textarea>
       <span v-if="showPlaceholder" class="ui-input__placeholder" aria-hidden="true">{{ placeholder }}</span>
       <span class="ui-input__underline" :class="{ 'is-visible': focused }"></span>
