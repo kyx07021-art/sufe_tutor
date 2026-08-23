@@ -24,7 +24,11 @@ import {
   loadConversations,
   setCurrentUser,
   chatState,
+  startListPolling,
+  stopListPolling,
 } from '../src/modules/chat/state.js'
+import { deriveTempHint } from '../src/modules/chat/logic/tempConversation.js'
+import { authStore, setAuth, clearAuth } from '../src/modules/shell/auth-store.js'
 
 const errors = []
 const ok = (cond, msg) => { if (!cond) errors.push(msg) }
@@ -140,6 +144,78 @@ setCurrentUser(7)
 ok(chatState.currentUserId === 7, 'set: writes the signed-in id')
 setCurrentUser(null)
 ok(chatState.currentUserId === null, 'set: null clears on sign-out')
+
+/* ============ 6. startListPolling (PA-2-F12): a conversation newly opened by the
+   other party surfaces in the list via poll, without a page re-entry ============ */
+stopListPolling() // ensure no leftover poller from any prior run
+resetStore()
+chatState.activeConversationId = 99 // sentinel: keep the poll from auto-loading messages
+setAuth({ token: 't', user: { id: 1, role: 'student' } })
+const listCalls = []
+let listResp = { conversations: [] }
+const listApi = async (path, init) => {
+  listCalls.push([path, init])
+  return listResp
+}
+// First fetch: empty list -> store stays empty.
+await loadConversations(authStore.user, listApi)
+ok(chatState.conversations.length === 0, 'list-poll: empty list leaves store empty')
+// The other party opens a new conversation server-side; the next tick must surface it.
+listResp = { conversations: [rawRow] }
+const beforeCalls = listCalls.length
+const p1 = startListPolling({ apiFn: listApi, intervalMs: 20 })
+const p2 = startListPolling({ apiFn: listApi, intervalMs: 20 })
+ok(p1 === p2, 'list-poll: start is F3-idempotent (same singleton, no second timer)')
+await new Promise((r) => setTimeout(r, 150))
+ok(
+  chatState.conversations.length === 1 && chatState.conversations[0].conversationId === 7,
+  'list-poll: newly-opened conversation surfaces without page re-entry',
+)
+ok(listCalls.length > beforeCalls, 'list-poll: I-17 endpoint re-polled on the timer')
+ok(chatState.activeConversationId === 99, 'list-poll: existing active conversation preserved')
+stopListPolling()
+const afterStop = listCalls.length
+await new Promise((r) => setTimeout(r, 70))
+ok(listCalls.length === afterStop, 'list-poll: stop clears the timer (no further polls)')
+clearAuth()
+ok(authStore.user === null, 'list-poll: auth cleared after test')
+
+/* ============ 7. wasTemp derivation (PA-2-F12 audit): a formalized temp keeps
+   its "converted" hint across list-poll full-row replacements ============ */
+// Formalized temp, initiator side: server row has tempStatus null + tempInitiatorId
+// = me.id -> wasTemp true -> deriveTempHint 'formal' (never-temp rows stay silent).
+const formalInitiator = normalizeConversationRow(
+  { id: 8, student_user_id: 1, teacher_user_id: 2, tempStatus: null, tempInitiatorId: 1 },
+  { id: 1, role: 'student' },
+)
+ok(formalInitiator.wasTemp === true, 'wasTemp: initiator of a formalized temp derives true')
+ok(deriveTempHint(formalInitiator) === 'formal', 'wasTemp: initiator keeps the formal hint after a list poll')
+// Receiver side of the same row: tempInitiatorId != me.id -> wasTemp false (the
+// hint is the initiator's signal; receiver rows stay hint-less, pre-poll behavior).
+const formalReceiver = normalizeConversationRow(
+  { id: 8, student_user_id: 1, teacher_user_id: 2, tempStatus: null, tempInitiatorId: 1 },
+  { id: 2, role: 'teacher' },
+)
+ok(formalReceiver.wasTemp === false, 'wasTemp: receiver of a formalized temp stays false')
+ok(deriveTempHint(formalReceiver) === null, 'wasTemp: receiver gets no formal hint')
+// Never-temp row: tempInitiatorId null -> wasTemp false.
+const neverTemp = normalizeConversationRow(
+  { id: 9, student_user_id: 1, teacher_user_id: 2, tempStatus: null, tempInitiatorId: null },
+  { id: 1, role: 'student' },
+)
+ok(neverTemp.wasTemp === false, 'wasTemp: never-temp conversation stays false')
+
+// End-to-end (the audit's regression): a list-poll replacement of a formalized
+// temp row must keep the initiator's formal hint visible.
+resetStore()
+applyConversations(
+  [{ id: 8, student_user_id: 1, teacher_user_id: 2, tempStatus: null, tempInitiatorId: 1 }],
+  { id: 1, role: 'student' },
+)
+ok(
+  deriveTempHint(chatState.conversations[0]) === 'formal',
+  'wasTemp: list-poll replacement keeps the formal hint (PA-2-F12 regression)',
+)
 
 if (errors.length) {
   console.log('CHAT CONVERSATIONS TEST FAIL')
