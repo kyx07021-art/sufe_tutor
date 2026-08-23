@@ -63,3 +63,16 @@ export const AUTH_COPY = {
   /** Register scene: flip-to-login link (PA-2-F1: landing has no other login entry) */
   HAVE_ACCOUNT: '已有账号？去登录',
 }
+
+/**
+ * AUTH_SCENES (english UI scene) -> server OTP scene value (mirrors
+ * src/shared/enums.js OTP_SCENES, same literal strings). The server whitelists
+ * the OTP scene against Object.values(OTP_SCENES); english AUTH_SCENES values
+ * would never match, silently falling back to ''. verify = BIND (bound-contact
+ * re-authentication, matching the v2 `prefix==='bind'` mapping).
+ */
+export const OTP_SCENE_OF = {
+  login: '登录验证',
+  register: '注册验证',
+  verify: '绑定验证',
+}

@@ -115,7 +115,16 @@ assert(am.current.value === AUTH_METHODS.OTP_PHONE, 'scene change should recompu
 assert(am.credential.value === '', 'scene change should clear credential')
 assert(isOtp(AUTH_METHODS.OTP_PHONE) && !isOtp(AUTH_METHODS.PASSWORD), 'isOtp classification')
 
-console.log('STATE MACHINE PASS: four cases + switch reset')
+// PA-2-F7: AUTH_SCENES (english) -> server OTP scene literal (OTP_SCENES mirror).
+// The server whitelists scene against Object.values(OTP_SCENES); without this
+// translation the request silently falls back to '' (mail template scene empty).
+const { OTP_SCENE_OF } = await import('../src/constants/m-auth.js')
+assert(OTP_SCENE_OF[AUTH_SCENES.LOGIN] === '登录验证', 'login -> server 登录验证')
+assert(OTP_SCENE_OF[AUTH_SCENES.REGISTER] === '注册验证', 'register -> server 注册验证')
+assert(OTP_SCENE_OF[AUTH_SCENES.VERIFY] === '绑定验证', 'verify -> server 绑定验证 (BIND semantics)')
+assert(OTP_SCENE_OF['bogus'] === undefined, 'unknown scene maps to undefined (server falls back to \'\')')
+
+console.log('STATE MACHINE PASS: four cases + switch reset + OTP scene mapping')
 
 /* ================================================================== *
  * 1b. Contract 6 scan: zero CJK in auth module source.
