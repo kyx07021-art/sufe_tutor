@@ -172,6 +172,80 @@ test('contract 6: zero Chinese literals in teacher-side module source', async ()
   assert.deepEqual(hits, [], 'zero Chinese literals across teacher-side module (contract 6)')
 })
 
+/* ================= pure: PA-1d-F4 profile model (I-39 edit shape / I-40 save body) ================= */
+test('PA-1d-F4: normalizeProfile maps I-39 row to edit shape (region = province id, graduationYear rename)', async () => {
+  const { normalizeProfile } = await import(
+    '../src/modules/teacher-side/B2/profile-model.js'
+  )
+  const n = normalizeProfile(PROFILE)
+  assert.equal(n.teacherName, '王老师')
+  assert.equal(n.bio, '十年一线教学')
+  assert.equal(n.region, 'shanghai', 'region = province pinyin id (I-40 province source)')
+  assert.equal(n.addressArea, '上海市杨浦区')
+  assert.equal(n.teachingMethod, 'offline')
+  assert.equal(n.experienceYears, 10)
+  assert.equal(n.graduationYear, 2015, 'graduation_year -> graduationYear')
+  assert.equal(n.gender, '男')
+  assert.deepEqual(n.timeSlots, ['周一', '周三'])
+  assert.deepEqual(n.personalityTags, ['耐心', '严谨'])
+  assert.deepEqual(n.subjects, [{ subject: '数学', score: 145, full: 150, awards: ['市一等奖'] }])
+
+  // C3: missing/null fields -> safe defaults (no throw)
+  const sparse = normalizeProfile(null)
+  assert.equal(sparse.teacherName, '')
+  assert.equal(sparse.region, '')
+  assert.equal(sparse.graduationYear, '')
+  assert.equal(sparse.experienceYears, 0)
+  assert.deepEqual(sparse.subjects, [])
+  const sparse2 = normalizeProfile({ teacher_name: '李老师', province: 'zhejiang', graduation_year: 2020 })
+  assert.equal(sparse2.teacherName, '李老师')
+  assert.equal(sparse2.region, 'zhejiang')
+  assert.equal(sparse2.graduationYear, 2020)
+})
+
+test('PA-1d-F4: buildSaveBody sends camelCase I-40 field set with province required (mutation: drop province -> red)', async () => {
+  const { buildSaveBody } = await import(
+    '../src/modules/teacher-side/B2/profile-model.js'
+  )
+  const body = buildSaveBody({
+    teacherName: '王老师',
+    bio: '十年一线教学',
+    region: 'shanghai',
+    addressArea: '上海市杨浦区',
+    teachingMethod: 'offline',
+    priceMin: 200,
+    priceMax: 400,
+    experienceYears: 10,
+    gender: '男',
+    graduationYear: '2015',
+    timeSlots: ['周一', '周三'],
+    personalityTags: ['耐心', '严谨'],
+    subjects: [{ subject: '数学', score: 145, full: 150, awards: ['市一等奖'] }],
+    philosophy: '因材施教',
+  })
+  assert.ok(body.profile, 'wrapped in { profile } (I-40)')
+  const p = body.profile
+  assert.equal(p.province, 'shanghai', 'province mapped from region (required)')
+  assert.equal(p.teacherName, '王老师')
+  assert.equal(p.bio, '十年一线教学')
+  assert.equal(p.addressArea, '上海市杨浦区')
+  assert.equal(p.teachingMethod, 'offline')
+  assert.equal(p.priceMin, 200)
+  assert.equal(p.priceMax, 400)
+  assert.equal(p.experienceYears, 10)
+  assert.equal(p.gender, '男')
+  assert.equal(p.graduationYear, '2015', 'graduationYear field name (not graduation)')
+  assert.deepEqual(p.timeSlots, ['周一', '周三'])
+  assert.deepEqual(p.personalityTags, ['耐心', '严谨'])
+  assert.deepEqual(p.subjects, [{ subject: '数学', score: 145 }], 'subjects collapsed to { subject, score }')
+  assert.equal(p.philosophy, '因材施教')
+  assert.equal('avatar' in p, false, 'avatar not part of I-40 payload (I-11 separate)')
+
+  // C3: empty/absent subjects -> [] (no throw)
+  const empty = buildSaveBody({ region: 'shanghai', subjects: null })
+  assert.deepEqual(empty.profile.subjects, [])
+})
+
 /* ================= pure: match grouping (B1-5d1) ================= */
 test('matchGroup groups by matchCount desc and hides zero-hit items when filters active', async () => {
   const { matchGroup, computeMatchCount, filterItems } = await import(
@@ -427,19 +501,23 @@ async function mockVerify(ctx, { status, provider }) {
 }
 
 // Real I-39 shape: handleGetProfile wraps the profile row in `{ profile: {...} }`, and
-// mapTeacherProfileRow emits camelCase new-model fields (bio/region/priceMin/priceMax/
-// timeSlots/personalityTags) alongside v2 snake_case (teacher_name/experience_years).
-// graduation/philosophy are NOT emitted by the mapper (field-name alignment is PA-1d-F4).
+// mapTeacherProfileRow emits camelCase new-model fields (bio/priceMin/priceMax/timeSlots/
+// personalityTags/teachingMethod) alongside snake_case (teacher_name/experience_years/
+// province/address/graduation_year). PA-1d-F4: `region` edit field = province pinyin id;
+// the save body sends camelCase I-40 with `province` required.
 const PROFILE = {
   teacher_name: '王老师',
   bio: '十年一线教学',
-  region: '上海',
+  province: 'shanghai',
+  address: '上海市杨浦区',
+  teaching_method: 'offline',
   priceMin: 200,
   priceMax: 400,
   experience_years: 10,
   gender: '男',
   timeSlots: ['周一', '周三'],
   personalityTags: ['耐心', '严谨'],
+  graduation_year: 2015,
   subjects: [{ subject: '数学', score: 145, full: 150, awards: ['市一等奖'] }],
   avatar: '',
 }
@@ -508,6 +586,20 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
   assert.equal(bioVal, '十年一线教学', 'bio prefilled from wrapped I-39')
   const priceMinVal = await p.locator('input[aria-label="最低价"], textarea[aria-label="最低价"]').first().inputValue()
   assert.equal(priceMinVal, '200', 'priceMin prefilled from wrapped I-39')
+  // UiInput derives the input aria-label from `placeholder`; the region/graduation fields
+  // have none, so target them by their field label block.
+  const regionVal = await p
+    .locator('.profile-edit__field', { hasText: '地址' })
+    .locator('.ui-input textarea')
+    .first()
+    .inputValue()
+  assert.equal(regionVal, 'shanghai', 'region prefill = province pinyin id (PA-1d-F4)')
+  const gradVal = await p
+    .locator('.profile-edit__field', { hasText: '毕业院校' })
+    .locator('.ui-input textarea')
+    .first()
+    .inputValue()
+  assert.equal(gradVal, '2015', 'graduationYear prefill (PA-1d-F4 rename)')
   const getCountBefore = getPutBody().getCount
 
   // mutation guard: empty teacherName -> validation blocks, no PUT
@@ -518,18 +610,37 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
   assert.ok(errText >= 1, 'validation error shown for empty teacherName')
   assert.equal(getPutBody().putBody, null, 'no PUT when validation fails')
 
-  // fill name + save -> PUT posts the edit payload + read-back refresh (F7 mutation guard)
+  // mutation guard: empty region (province) -> validation blocks, no PUT (I-40 province required)
   await p.locator('#profile-edit-name input, #profile-edit-name textarea').first().fill('王老师')
+  await p
+    .locator('.profile-edit__field', { hasText: '地址' })
+    .locator('.ui-input textarea')
+    .first()
+    .fill('')
+  await p.locator('.profile-edit__actions .ui-btn').first().click()
+  await p.waitForTimeout(300)
+  assert.equal(getPutBody().putBody, null, 'no PUT when province (region) empty')
+  await p
+    .locator('.profile-edit__field', { hasText: '地址' })
+    .locator('.ui-input textarea')
+    .first()
+    .fill('shanghai')
+
+  // fill name + save -> PUT posts the I-40 camelCase payload + read-back refresh (F7 mutation guard)
   await p.locator('.profile-edit__actions .ui-btn').first().click()
   await p.waitForTimeout(500)
   const raw = getPutBody().putBody
   assert.ok(raw && typeof raw === 'object' && raw.profile, 'PUT body wrapped in { profile } (I-40)')
   const body = raw.profile
-  // I-40 contract field names (snake_case), not camelCase
-  assert.equal(body.teacher_name, '王老师', 'I-40 teacher_name field')
-  assert.equal(body.experience_years, 10, 'I-40 experience_years field')
+  // I-40 contract field names (camelCase), not snake_case
+  assert.equal(body.province, 'shanghai', 'I-40 province required (from region)')
+  assert.equal(body.teacherName, '王老师', 'I-40 teacherName field')
+  assert.equal(body.experienceYears, 10, 'I-40 experienceYears field')
   assert.equal(body.priceMin, 200)
-  assert.ok(Array.isArray(body.subjects), 'subjects array in payload')
+  assert.equal(body.addressArea, '上海市杨浦区', 'I-40 addressArea passthrough')
+  assert.equal(body.teachingMethod, 'offline', 'I-40 teachingMethod passthrough')
+  assert.equal(body.graduationYear, '2015', 'I-40 graduationYear field (renamed from graduation)')
+  assert.deepEqual(body.subjects, [{ subject: '数学', score: 145 }], 'subjects collapsed to { subject, score }')
   assert.equal('avatar' in body, false, 'avatar not part of I-40 payload (I-11 separate)')
   assert.ok(getPutBody().getCount > getCountBefore, 'read-back refresh after save (F7)')
 

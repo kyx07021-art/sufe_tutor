@@ -11,6 +11,7 @@
 import { onMounted, ref } from 'vue'
 import { TEACHER_COPY } from '@/constants/ui.js'
 import { showToast } from '@/composables/useToast.js'
+import { dhInvalidate } from '@/core/datahub.js'
 import { fetchVerifyStatus } from './verify-service.js'
 import { fetchMyProfile, saveProfile } from './profile-service.js'
 import VerifyGate from './VerifyGate.vue'
@@ -55,11 +56,10 @@ async function onSave(payload) {
   try {
     await saveProfile(payload)
     showToast(TEACHER_COPY.B2_SAVED)
+    // invalidate the public teacher profile cache (F7: write -> invalidate -> next read refetches)
+    dhInvalidate('teachers')
     // read-back refresh (F7): keep the edit card in sync with server truth
     profile.value = await fetchMyProfile()
-    // invalidate the public teacher profile cache.
-    // TEMPORARY: core datahub (M2) is the eventual cache owner; this is the seam.
-    //   invalidate('teachers')
   } catch (e) {
     showToast(e && e.message ? e.message : TEACHER_COPY.B1_ERROR)
   } finally {

@@ -10,8 +10,8 @@
 
 - I-34 `GET /api/demands?sort=match|price&order=asc|desc&filters={subjects[],gender,priceMin,priceMax}` login
   → `{ items: [{ id, user_id, subject, targetType, grade, province, teachingMethod, currentScore, currentScoreFull, addressArea, expectedTime, preferredTags, preferredGender, budgetMin, budgetMax, additionalInfo, status, createdAt, studentName, studentAvatar, matchScore, matchCount }], total }`
-- I-39 `GET /api/teacher/profile` login+teacher → full own profile (teacher_name/experienceYears/wechat/email/real_name/credential_image/subjects/bio/region/priceMin/priceMax/timeSlots/personalityTags/gender/graduation)
-- I-40 `PUT /api/teacher/profile` login+teacher → partial omit = keep old; teacher_name editable; experience_years non-neg int clamp
+- I-39 `GET /api/teacher/profile` login+teacher → full own profile (teacher_name/experienceYears/wechat/email/real_name/credential_image/subjects/bio/province/address/priceMin/priceMax/timeSlots/personalityTags/teaching_method/gender/graduation_year)
+- I-40 `PUT /api/teacher/profile` login+teacher → **camelCase full field set** (PA-1d-F4): province(required)/teacherName/bio/addressArea/teachingMethod/priceMin/priceMax/experienceYears/gender/graduationYear/timeSlots/personalityTags/subjects[{subject,score}]/philosophy, wrapped `{ profile }`; partial omit = keep old; teacherName editable; experienceYears non-neg int clamp
 - I-41 `POST /api/teacher/verify-chsi{code:/^[A-Za-z0-9]{12,16}$/}` → `{ok,status:'pending',provider}` (approved 409)
 - I-42 `POST /api/teacher/verify-admission{image:dataURL}` → jpeg/png/webp magic bytes/≤CREDENTIAL_MAX_BYTES/svg reject
 - I-43 `GET /api/teacher/verify-status` → `{status:'none'|'pending'|'approved'|'rejected',provider?,verifyType?}` (rejected re-submit ok)
@@ -73,14 +73,16 @@ module lead after the SA3 session was interrupted mid-write.
 ④ filter immediate apply + re-anim → browser filter test (4 cards after 数学 select + reset to 8 +
    B1-4 mask tap dismiss); re-anim = deep watch on filters -> replay() (animateKey remount)
 ⑤ D3 teacher-name → B2 edit-card prefill assert ('王老师')
-⑥ save write-path → B2 browser test (validation blocks empty name + PUT posts I-40 snake_case
-   teacher_name/experience_years, no avatar, + read-back GET increments); cache-invalidate seam
-   pending datahub (M2) — documented, NOT a locked mutation guard yet
+⑥ save write-path → B2 browser test (validation blocks empty name + empty province; PUT posts
+   I-40 camelCase province/teacherName/experienceYears/graduationYear/subjects[{subject,score}],
+   no avatar, + read-back GET increments + dhInvalidate('teachers') after save); pure
+   normalizeProfile/buildSaveBody unit guards lock the I-39->edit and edit->I-40 mappings
 ⑦ avatar max-circle geometry → useAvatarCrop pure asserts (800x600 → {cx:400,cy:300,r:300})
 
 ## Audit round (2026-08-22) — 3 independent read-only agents, findings closed
-- 1101-1 I-40 field names: saveProfile now sends snake_case `teacher_name`/`experience_years` per
-  interfaces.md §19 (was camelCase -> silent non-persistence); avatar removed from I-40 payload (I-11 separate).
+- 1101-1 I-40 field names: saveProfile sends the frozen I-40 camelCase field set per
+  interfaces.md §19 (PA-1d-F4: province required from region; graduationYear; subjects collapsed
+  to { subject, score }); avatar removed from I-40 payload (I-11 separate).
 - Contract 6: 6 hardcoded Chinese placeholders -> TEACHER_COPY keys; 4 Chinese comments -> English;
   zero-Chinese lock test added (smoke).
 - B1-5d2 re-anim: dead `onFilterChange` removed; deep watch on filters -> replay() (was: list updated

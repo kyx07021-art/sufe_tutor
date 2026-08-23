@@ -7,7 +7,7 @@
  * - Prefill from the `profile` prop (I-39 shape via profile-service) when it arrives;
  *   while absent shows a loading state.
  * - Fields: teacherName / bio / priceMin+priceMax / region / timeSlots / experienceYears /
- *   personalityTags / gender / graduation (+ SubjectEditor for B2-4 + AvatarEditor B2-6).
+ *   personalityTags / gender / graduationYear (+ SubjectEditor for B2-4 + AvatarEditor B2-6).
  * - Save (B2-5 collect/validate): local validation -> emit `save` with the edit payload;
  *   the write path (POST I-40 -> read-back -> invalidate) lives at MyInfo.
  */
@@ -26,11 +26,16 @@ const emit = defineEmits(['save'])
 const teacherName = ref('')
 const bio = ref('')
 const region = ref('')
+/* addressArea / teachingMethod have no inputs in this minimal card (B2-3);
+   they pass through the prefilled I-39 value so the I-40 complete field set
+   never blanks them on save. */
+const addressArea = ref('')
+const teachingMethod = ref('')
 const priceMin = ref('')
 const priceMax = ref('')
 const experienceYears = ref('')
 const gender = ref('')
-const graduation = ref('')
+const graduationYear = ref('')
 const timeSlots = ref('')
 const personalityTags = ref('')
 const subjects = ref({ subjects: [], philosophy: '' })
@@ -50,11 +55,13 @@ function fill(p) {
   teacherName.value = p.teacherName || ''
   bio.value = p.bio || ''
   region.value = p.region || ''
+  addressArea.value = p.addressArea || ''
+  teachingMethod.value = p.teachingMethod || ''
   priceMin.value = p.priceMin != null ? String(p.priceMin) : ''
   priceMax.value = p.priceMax != null ? String(p.priceMax) : ''
   experienceYears.value = p.experienceYears != null ? String(p.experienceYears) : ''
   gender.value = p.gender || ''
-  graduation.value = p.graduation || ''
+  graduationYear.value = p.graduationYear != null ? String(p.graduationYear) : ''
   timeSlots.value = (p.timeSlots || []).join('、')
   personalityTags.value = (p.personalityTags || []).join('、')
   subjects.value = { subjects: p.subjects || [], philosophy: p.philosophy || '' }
@@ -73,6 +80,8 @@ watch(
 /* ---- validation (B2-5 local pre-check; mutation guard: deleting this lets bad input through) ---- */
 function validate() {
   if (!teacherName.value.trim()) return TEACHER_COPY.B2_REQUIRED_ERR
+  // region holds the province pinyin id; I-40 requires province (mutation guard locked in smoke)
+  if (!region.value.trim()) return TEACHER_COPY.B2_REQUIRED_ERR
   const lo = priceMin.value === '' ? null : Number(priceMin.value)
   const hi = priceMax.value === '' ? null : Number(priceMax.value)
   if (lo != null && (!Number.isFinite(lo) || lo < 0)) return TEACHER_COPY.B2_REQUIRED_ERR
@@ -95,11 +104,13 @@ function onSave() {
     teacherName: teacherName.value.trim(),
     bio: bio.value,
     region: region.value,
+    addressArea: addressArea.value,
+    teachingMethod: teachingMethod.value,
     priceMin: priceMin.value === '' ? null : Number(priceMin.value),
     priceMax: priceMax.value === '' ? null : Number(priceMax.value),
     experienceYears: experienceYears.value === '' ? 0 : Number(experienceYears.value),
     gender: gender.value,
-    graduation: graduation.value,
+    graduationYear: graduationYear.value,
     timeSlots: splitList(timeSlots.value),
     personalityTags: splitList(personalityTags.value),
     subjects: subjects.value.subjects,
@@ -191,7 +202,7 @@ function onSave() {
       <div class="profile-edit__field">
         <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_GRADUATION }}</span>
         <UiInput
-          v-model="graduation"
+          v-model="graduationYear"
           :aria-label="TEACHER_COPY.B2_FIELD_GRADUATION"
           width="100%"
         />
