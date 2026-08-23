@@ -206,9 +206,7 @@ export const RATE_LIMITS = {
   "windowMs": 60000
 },
   login: {
-  // PA-2-F8: 8→30——共享 NAT/并发代理下 8/10min 会确定性误伤合法登录（D5 限额对齐真实业务上限）；
-  // 30/10min 仍远低于真实爆破预算（密码强度 + 全局 300/min + 三振封禁兜底）
-  "limit": 30,
+  "limit": 8,
   "windowMs": 600000
 },
   register: {

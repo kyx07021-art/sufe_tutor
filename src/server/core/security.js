@@ -94,11 +94,7 @@ const rlBump = (key, limit, windowMs, now) => {
 };
 
 // 内存三振（与 D1 rlStrikeD1 同窗口语义：strike.windowMs 内满 strike.count 次 → 封 block.windowMs）
-// PA-2-F8：已封禁 IP 直接短路（不累计 strikes、不重置 block deadline）——否则认证路由对每个
-// 429 都调 authRateBlock → rlStrike，每满 strike.count 次就把 block 续期到一个全新窗口，
-// 重试循环自我延续锁死（实证：并发 agent 打满登录桶后纯 D1 过期永不解除，需清桶+重部署才恢复）
 const rlStrike = (ip, now) => {
-  if ((RL.blocked.get(ip) || 0) > now) return;
   let s = RL.strikes.get(ip);
   if (!s || s.reset < now) s = { n: 0, reset: now + RATE_LIMITS.strike.windowMs };
   s.n += 1;
@@ -150,10 +146,6 @@ const rateWindowArg = windowMs => '+' + Math.round(windowMs / 1000) + ' seconds'
 
 const rlStrikeD1 = async (db, ip) => {
   try {
-    // PA-2-F8：D1 block 行已存活则短路——INSERT OR REPLACE 会每次重写 reset_at 到全新窗口，
-    // 认证路由对每个 429 都调 authRateBlock → 并发/持续重试让 block 行永不过期（跨实例自我延续）。
-    const live = await dbGet(db, "SELECT 1 AS b FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')", [`block:${ip}`]);
-    if (live) return;
     const b = rateWindowArg(RATE_LIMITS.block.windowMs);
     await dbRun(db, RATE_UPSERT_SQL, [`strike:${ip}`, rateWindowArg(RATE_LIMITS.strike.windowMs)]);
     const st = await dbGet(db, 'SELECT n FROM rate_limits WHERE bucket=?', [`strike:${ip}`]);
@@ -223,10 +215,9 @@ export function authRateBatch(db, ip, kind, extraStmts = []) {
   };
 }
 
-/** 认证限流超限的三振封禁（内存 + D1 跨实例，同 rateGate 的 global/write 路径）
- *  now 可选注入（测试确定性；生产默认 Date.now()） */
-export async function authRateBlock(db, ip, now = Date.now()) {
-  rlStrike(ip, now);
+/** 认证限流超限的三振封禁（内存 + D1 跨实例，同 rateGate 的 global/write 路径） */
+export async function authRateBlock(db, ip) {
+  rlStrike(ip, Date.now());
   await rlStrikeD1(db, ip);
 }
 
