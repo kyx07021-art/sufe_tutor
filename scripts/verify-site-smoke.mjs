@@ -10,10 +10,12 @@
  *
  * Hard gates (deployment surface; these are the pre-publish bar):
  *   1. /api/health                -> 200 + ready:true; logDrop counter observable (E1)
- *   2. /                          -> 200 HTML: #app mount, strict meta CSP, relative ./assets/
- *                                     hashed refs, zero inline manifest
+ *   2. /                          -> 200 HTML: #app mount, strict meta CSP, absolute /assets/
+ *                                     hashed refs (base '/', PA-2-F14), zero inline manifest
  *   3. /assets/<hash>.js          -> 200 + Cache-Control immutable (Vite content hash + _headers)
  *   4. extension-less SPA path    -> 200 HTML (Pages fallback, worker passes through)
+ *   4.5 deep link (/teacher/profile) -> SPA fallback HTML whose /assets/* resolve from the
+ *                                     site root (base './' regression would 404 every script)
  *   5. /assets/<missing>.js       -> 404 (SPA-impersonation guard: never feed HTML to <script>)
  *   6. /server/secrets.js         -> 404 (sensitive-path gate)
  *   7. auth/notify route wiring   -> POST /api/auth/login bad creds -> 401 AUTH_LOGIN_FAILED;
@@ -196,10 +198,12 @@ try {
       ? ok('meta CSP injected (Vite injectCspMeta)') : fail('meta CSP missing');
     body.includes("script-src 'self'") && body.includes("style-src-attr 'none'")
       ? ok('meta CSP strict posture (script-src self / style-src-attr none)') : fail('meta CSP posture regressed');
-    const assetRefs = [...body.matchAll(/(?:src|href)="\.\/assets\/([^"]+)"/g)].map(m => m[1]);
-    assetRefs.length > 0 ? ok(`relative ./assets/ refs present (${assetRefs.length})`) : fail('zero relative asset refs (not Vite SPA shape)');
+    const assetRefs = [...body.matchAll(/(?:src|href)="\/assets\/([^"]+)"/g)].map(m => m[1]);
+    assetRefs.length > 0 ? ok(`absolute /assets/ refs present (${assetRefs.length})`) : fail('zero absolute asset refs (not Vite SPA shape)');
     assetRefs.every(n => /^[A-Za-z0-9_.-]+-[A-Za-z0-9_-]{8}\.[A-Za-z0-9]+$/.test(n))
       ? ok('all asset refs are Vite content-hashed names') : fail('non-hashed asset ref found');
+    /(?:src|href)="\.\//.test(body)
+      ? fail('relative ./asset ref present (base must be \'/\', PA-2-F14)') : ok('zero relative ./asset refs');
     body.includes('window.ASSET_MANIFEST')
       ? fail('inline manifest present (v2 pipeline remnant)') : ok('zero inline manifest (v2 hash pipeline removed)');
   }
@@ -207,7 +211,7 @@ try {
   // ---------- 3. content-hashed asset -> 200 + immutable ----------
   {
     const { body } = await getText('/');
-    const jsRef = (body.match(/src="\.\/assets\/([^"]+\.js)"/) || [])[1];
+    const jsRef = (body.match(/src="\/assets\/([^"]+\.js)"/) || [])[1];
     if (jsRef) {
       const r = await getText('/assets/' + jsRef);
       r.status === 200 ? ok(`/assets/${jsRef} -> 200`) : fail(`/assets/${jsRef} -> ${r.status}`);
@@ -225,6 +229,26 @@ try {
     const r = await getText('/some-non-api-route');
     r.status === 200 && (r.headers.get('content-type') || '').includes('html')
       ? ok('/some-non-api-route SPA fallback -> 200 HTML') : fail(`/some-non-api-route -> ${r.status}`);
+  }
+
+  // ---------- 4.5. deep-link asset resolution (PA-2-F14 regression) ----------
+  // A deep-link SPA fallback (/teacher/profile -> index.html) must still reference
+  // its assets with absolute /assets/* paths. base:'./' would emit ./assets/*, which
+  // the browser resolves against /teacher/ -> /teacher/assets/* 404 (white page).
+  {
+    const { status, body } = await getText('/teacher/profile');
+    status === 200 ? ok('deep link /teacher/profile -> 200 (SPA fallback)') : fail(`deep link -> ${status}`);
+    const jsRef = (body.match(/src="\/assets\/([^"]+\.js)"/) || [])[1];
+    if (jsRef) {
+      ok('deep-link fallback HTML references assets absolutely (/assets/*)');
+      const okAsset = await getText('/assets/' + jsRef);
+      okAsset.status === 200 ? ok(`/assets/${jsRef} -> 200 (root asset reachable)`) : fail(`/assets/${jsRef} -> ${okAsset.status}`);
+    } else {
+      fail('deep-link fallback HTML missing absolute /assets/ ref');
+    }
+    /(?:src|href)="\.\//.test(body)
+      ? fail('deep-link fallback HTML has relative ./asset ref (base must be \'/\', PA-2-F14)')
+      : ok('deep-link fallback HTML has zero relative ./asset refs');
   }
 
   // ---------- 5. SPA-impersonation guard: missing .js -> 404 (never HTML to <script>) ----------
