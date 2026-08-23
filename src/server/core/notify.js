@@ -31,8 +31,12 @@ export async function initNotifyTable(db) {
     is_read INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE)`);
-  try { await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_notify_user ON notifications(user_id, is_read)'); }
-  catch { /* 已存在则忽略 */ }
+  // PA-3-F3（PA-3d L2）：原 (user_id, is_read) 不覆盖 dbGetNotifications 的 ORDER BY id DESC → 每用户
+  // 通知按 id 内存排序。改 (user_id, id DESC)（is_read 过滤为低频残余——markAllRead/markRead 的
+  // is_read=0 谓词经 user_id 前缀命中索引后过滤，可接受）。SQLite 不能 ALTER INDEX：DROP 旧 + CREATE 新，
+  // 两者均 IF EXISTS 幂等（全量迁移 Stage 5 内执行，存量库一并重建）。
+  await dbRun(db, 'DROP INDEX IF EXISTS idx_notify_user');
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_notify_user ON notifications(user_id, id DESC)');
   await ensureColumns(db, 'notifications', [
     ['batch_id', 'TEXT DEFAULT NULL'],
     ['type', 'TEXT DEFAULT NULL'],    // V-2-4: NOTIFY_TYPES 键（客户端渲染单源）

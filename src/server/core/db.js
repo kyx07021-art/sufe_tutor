@@ -70,7 +70,7 @@ const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(
 // otherwise the version gate skips the full migration (including ensureColumns) and the column is never
 // added on live DBs already at the current version (three production incidents).
 // ============================================================
-export const SCHEMA_VERSION = 19; // S5: contracts standalone table replaces signing_contracts (14 = S3-2 demand single-subject model; 15 = S5 standalone; 16 = S4-01 teacher_name/experience_years columns; 17 = S2-T1 temp conversation columns temp_status/temp_initiator_user_id + S1-15..19 notification prefs blockSystemNotifications/notifyBroadcastMuted + intents/pushes backfill removal; 18 = PA-1d-F4 teacher_profiles philosophy column; 19 = PA-3-F2 reviews (teacher_user_id,status) index)
+export const SCHEMA_VERSION = 20; // S5: contracts standalone table replaces signing_contracts (14 = S3-2 demand single-subject model; 15 = S5 standalone; 16 = S4-01 teacher_name/experience_years columns; 17 = S2-T1 temp conversation columns temp_status/temp_initiator_user_id + S1-15..19 notification prefs blockSystemNotifications/notifyBroadcastMuted + intents/pushes backfill removal; 18 = PA-1d-F4 teacher_profiles philosophy column; 19 = PA-3-F2 reviews (teacher_user_id,status) index; 20 = PA-3-F3 posts idx_posts_created + notifications (user_id,id DESC) index reshape)
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // field encryption keys (FIELD_ENC_KEY falls back to LOG_ENCRYPT_KEY); re-derived on env change

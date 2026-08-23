@@ -197,6 +197,67 @@ test('idx_reviews_teacher_status 服务 teacher_user_id 前缀查找（EXPLAIN Q
   assert.ok(detail.some(d => /USING INDEX idx_reviews_teacher_status/.test(d)), `EXPLAIN 应走 idx_reviews_teacher_status（实际：${detail.join(' | ')}）`);
 });
 
+// PA-3-F3 (B1): posts idx_posts_created index added with SCHEMA_VERSION 19->20. A legacy v19 DB
+// (schema_meta=19 + posts missing idx_posts_created) must re-run the full migration and gain the index —
+// otherwise the version gate skips the migration and the index is never added on live DBs.
+// Mutation guard: reverting the bump (SCHEMA_VERSION 19) makes the v=19 gate skip the migration and the
+// index never appears -> red (V-4-1c -> Z-4-F1 -> Q-2g-F1 same incident class).
+test('v19 存量库缺 posts (created_at,id) 索引 → initDb 重跑迁移补索引 + 幂等', async (t) => {
+  const { raw, db } = setup(t);
+  await initDb(db, ENV); // build the latest full schema first (idx_posts_created present)
+  raw.exec('DROP INDEX IF EXISTS idx_posts_created'); // v19 production shape: no created_at prefix index
+  // Pin the simulated version to 19 (the version BEFORE this change) rather than SCHEMA_VERSION-1
+  // so the mutation guard holds: if the 19->20 bump is reverted, cur(19) >= 19 short-circuits the
+  // migration, the index is never re-created, and the assertion below goes red.
+  raw.prepare("UPDATE schema_meta SET v=19 WHERE k='schema'").run();
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name='idx_posts_created'`).get().n, 0, 'precondition: posts lacks idx_posts_created');
+  await initDb(db, ENV); // version behind (19 < 20) -> full migration -> postCreate creates the index
+  const idx = raw.prepare(`SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name='idx_posts_created'`).get().n;
+  assert.equal(idx, 1, 'idx_posts_created rebuilt after migration');
+  const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver.v, SCHEMA_VERSION, 'version updated to latest');
+  // idempotent: re-trigger full migration (index already present -> CREATE INDEX IF NOT EXISTS no-op)
+  raw.prepare("UPDATE schema_meta SET v=19 WHERE k='schema'").run();
+  await initDb(db, ENV);
+  const ver2 = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
+});
+
+// PA-3-F3 (B1): notifications idx_notify_user reshaped (user_id,is_read) -> (user_id,id DESC) with
+// SCHEMA_VERSION 19->20. A legacy v19 DB (schema_meta=19 + idx_notify_user still the old shape) must
+// re-run the full migration and have the index reshaped (DROP + CREATE in initNotifyTable) — otherwise
+// the version gate skips Stage 5 and live DBs keep the non-covering (user_id,is_read) index.
+// Mutation guard: reverting the bump (SCHEMA_VERSION 19) skips the migration and the old shape persists -> red.
+test('v19 存量库 idx_notify_user 旧形状 (user_id,is_read) → initDb 重跑迁移重建为 (user_id,id DESC) + 幂等', async (t) => {
+  const { raw, db } = setup(t);
+  await initDb(db, ENV); // build the latest full schema first (idx_notify_user = (user_id,id DESC))
+  // simulate the v19 production shape: the old (user_id, is_read) index
+  raw.exec('DROP INDEX IF EXISTS idx_notify_user');
+  raw.exec('CREATE INDEX idx_notify_user ON notifications(user_id, is_read)');
+  raw.prepare("UPDATE schema_meta SET v=19 WHERE k='schema'").run();
+  assert.match(raw.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_notify_user'").get().sql, /\(user_id, is_read\)/, 'precondition: idx_notify_user is the old (user_id,is_read) shape');
+  await initDb(db, ENV); // version behind (19 < 20) -> full migration -> initNotifyTable DROP + CREATE
+  assert.match(raw.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_notify_user'").get().sql, /\(user_id, id DESC\)/, 'idx_notify_user reshaped to (user_id, id DESC)');
+  const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver.v, SCHEMA_VERSION, 'version updated to latest');
+  // idempotent: re-trigger full migration (already new shape -> DROP IF EXISTS + CREATE IF NOT EXISTS no-op)
+  raw.prepare("UPDATE schema_meta SET v=19 WHERE k='schema'").run();
+  await initDb(db, ENV);
+  const ver2 = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
+  assert.match(raw.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND name='idx_notify_user'").get().sql, /\(user_id, id DESC\)/, 'idempotent re-run keeps the new shape');
+});
+
+// PA-3-F3 (G2): idx_posts_created actually serves dbListPosts ORDER BY created_at DESC, id DESC —
+// EXPLAIN QUERY PLAN for the exact dbListPosts sort shape must SCAN USING INDEX idx_posts_created
+// (not a table scan + temp sort). Mutating (dropping) the index makes the assertion red.
+test('idx_posts_created 服务 dbListPosts ORDER BY created_at DESC, id DESC（EXPLAIN QUERY PLAN 用索引）', async (t) => {
+  const { raw, db } = setup(t);
+  await initDb(db, ENV);
+  const detail = raw.prepare(`EXPLAIN QUERY PLAN SELECT p.id, p.title FROM posts p LEFT JOIN users u ON u.id = p.user_id WHERE u.deactivated = 0 ORDER BY p.created_at DESC, p.id DESC LIMIT 200`).all().map(r => r.detail);
+  assert.ok(detail.some(d => /USING INDEX idx_posts_created/.test(d)), `EXPLAIN 应走 idx_posts_created（实际：${detail.join(' | ')}）`);
+});
+
 // S5-02: merged signing_contracts table (AI-4a) -> standalone contracts table migration.
 // Legacy DB re-run copies stage='contract' rows 1:1 (contract number #CD{id} and ledger contract_id
 // stay unchanged -> zero remap), maps ''/'pending' contract_status -> 'signing', generalizes hourly_rate
