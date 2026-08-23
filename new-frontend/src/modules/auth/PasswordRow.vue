@@ -7,8 +7,7 @@
  *   is switched away (switchMethod resets the credential buffer).
  * - Optional identifier field (login scene, password login): shown only when the
  *   parent supplies an identifierPlaceholder.
- * - PA-2-F6: the password input is UiInput type="password" (native masked input,
- *   no shoulder-surfing exposure; the identifier field stays a textarea).
+ * - Masking is a follow-up (M0 UiInput is a textarea); collected as plain text now.
  */
 import { UiInput } from '@/components/ui/index.js'
 import { AUTH_COPY } from '@/constants/m-auth.js'
@@ -38,7 +37,6 @@ const emit = defineEmits(['update:value', 'update:identifier'])
       :model-value="value"
       :placeholder="AUTH_COPY.PASSWORD_PLACEHOLDER"
       filter="none"
-      type="password"
       class="password-row__password"
       @update:model-value="(v) => emit('update:value', v)"
     />
