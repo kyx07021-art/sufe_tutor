@@ -1,7 +1,7 @@
 import { reactive, computed } from 'vue'
 import { api } from '../../core/api.js'
 import { showToast } from '../../composables/useToast.js'
-import { CHAT_COPY, LIST_POLL_MS } from '../../constants/m-chat.js'
+import { CHAT_COPY, CHAT_POLL_MS, LIST_POLL_MS } from '../../constants/m-chat.js'
 import { getIface } from '../shell/ifaces.js'
 import { ROLES, authStore } from '../shell/auth-store.js'
 import { normalizeMessage, sliceTail, advanceCursor } from './logic/messages.js'
@@ -411,7 +411,7 @@ export function startActivePolling() {
   if (activePoller) return activePoller
   activePoller = createPoller({
     apiFn: api,
-    intervalMs: 3000,
+    intervalMs: CHAT_POLL_MS,
     onTick: async () => {
       const convId = chatState.activeConversationId
       if (convId == null) return

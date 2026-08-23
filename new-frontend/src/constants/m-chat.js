@@ -134,3 +134,11 @@ export const CHAT_COPY = {
  * (module constants file as single source).
  */
 export const LIST_POLL_MS = 10000
+
+/**
+ * CHAT_POLL_MS - active-conversation message-poll interval (PA-3-F4).
+ * The active chat polls its I-18 sinceId cursor at this cadence; the
+ * conversation list polls slower (LIST_POLL_MS). Module constants file is
+ * the single source (mirrors LIST_POLL_MS / NOTIF_POLL_MS precedent).
+ */
+export const CHAT_POLL_MS = 3000

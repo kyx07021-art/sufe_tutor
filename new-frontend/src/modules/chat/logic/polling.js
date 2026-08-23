@@ -29,6 +29,7 @@
 
 import { normalizeMessage, dedupByMid, advanceCursor } from './messages.js'
 import { unreadReceive } from './unread.js'
+import { CHAT_POLL_MS } from '../../../constants/m-chat.js'
 
 /** Preview kind hints written onto the I-17 conversation row. */
 export const PREVIEW_KIND = {
@@ -123,12 +124,12 @@ function bumpPreview(conversations, convId, incoming, currentUserId) {
  * that fire while the previous one is still in flight.
  * @param {object} opts
  * @param {(path:string)=>Promise<*>} opts.apiFn       - raw HTTP caller (forwarded to onTick).
- * @param {number} [opts.intervalMs=3000]              - poll interval in ms.
+ * @param {number} [opts.intervalMs=CHAT_POLL_MS]       - poll interval in ms.
  * @param {(apiFn:Function)=>Promise<void>} opts.onTick - poll closure; receives apiFn,
  *   typically calling pollOnce with its captured state and writing the result.
  * @returns {{start:()=>void, stop:()=>void, active:boolean}}
  */
-export function createPoller({ apiFn, intervalMs = 3000, onTick }) {
+export function createPoller({ apiFn, intervalMs = CHAT_POLL_MS, onTick }) {
   let timer = null
   let busy = false
 
