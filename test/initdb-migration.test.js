@@ -24,6 +24,7 @@ import { dbRun } from '../src/server/core/util.js';
 import { issueAuthToken, getSessionByToken } from '../src/server/core/session.js';
 import { handleAdminDeleteNotification } from '../src/server/core/notify.js';
 import { handleLogout, handleLogin } from '../src/server/domains/auth/api.js';
+import { RATE_LIMITS } from '../src/shared/config.js'; // PA-2-F8: login limit 动态引用（8→30）
 import { logRequest, dbGetTrafficBuckets } from '../src/server/core/log.js';
 import { tokenDigest, encryptField, decryptField } from '../src/server/core/crypto.js';
 
@@ -366,16 +367,16 @@ test('流量监测聚合：dbGetTrafficBuckets 按桶统计请求数与平均耗
   assert.equal(daily[0].requests, 3);
 });
 
-test('登录限流：第 9 次超限 429（authRateBatch D1 计数）', async () => {
+test('登录限流：第 limit+1 次超限 429（authRateBatch D1 计数；PA-2-F8 动态引用 RATE_LIMITS.login.limit）', async () => {
   const raw = rawOf();
   const db = d1Shim(raw);
   await initDb(db, ENV);
   const req = new Request('https://t.test', { method: 'POST', headers: { 'CF-Connecting-IP': '9.9.9.9' } });
   let last;
-  for (let i = 0; i < 8; i++) last = await handleLogin(db, { username: 'admin_sufe', password: 'wrong' }, req);
-  assert.equal(last.status, 401); // 前 8 次计数≤8 仍放行
-  const ninth = await handleLogin(db, { username: 'admin_sufe', password: 'wrong' }, req);
-  assert.equal(ninth.status, 429); // 第 9 次计数 9>8 → 超限
+  for (let i = 0; i < RATE_LIMITS.login.limit; i++) last = await handleLogin(db, { username: 'admin_sufe', password: 'wrong' }, req);
+  assert.equal(last.status, 401); // 前 limit 次计数≤limit 仍放行
+  const over = await handleLogin(db, { username: 'admin_sufe', password: 'wrong' }, req);
+  assert.equal(over.status, 429); // 第 limit+1 次超限
 });
 
 test('dbGetTeachers：广场列表一律裁剪私密字段，管理端全量可见（v0.22.8 数据最小化）', async () => {

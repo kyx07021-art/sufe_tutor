@@ -9,7 +9,8 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rateGate, authRateBatch, authUser, corsPreflight, applySecurityHeaders } from '../src/server/core/security.js';
+import { DatabaseSync } from 'node:sqlite';
+import { rateGate, authRateBatch, authRateBlock, authUser, corsPreflight, applySecurityHeaders } from '../src/server/core/security.js';
 import { RATE_LIMITS, CORS_HEADERS, SECURITY_HEADERS } from '../src/shared/config.js';
 
 // stub db A：prepare/batch 抛错 → 各限流 D1 路径 catch 降级内存（rateGate 测试只判内存闸语义）
@@ -102,6 +103,68 @@ test('authRateBatch.verdict：block 行 / 认证超限 命中即拒，写超限�
   assert.ok(gate.verdict(results(false, 1, RATE_LIMITS.login.limit + 1)), '认证（login）超限 → 拒');
   // 边界：恰在 limit 内放行
   assert.ok(!gate.verdict(results(false, RATE_LIMITS.write.limit, RATE_LIMITS.login.limit)), '恰在 limit 内放行');
+});
+
+test('PA-2-F8：block 幂等不续期——已封禁 IP 的 authRateBlock 不重置内存 block deadline（防重试自我延续锁死）', async () => {
+  const ip = uniqIp('block-noreextend');
+  const t0 = NOW;
+  // 首次三振封禁（authRateBlock 注入 now，避免真实时钟依赖）
+  for (let i = 0; i < RATE_LIMITS.strike.count; i++) {
+    await authRateBlock(stubDb, ip, t0);
+  }
+  // 封禁期内继续触发 authRateBlock（模拟重试循环 9 次）：修复后 block deadline 不变
+  // （无修复则每满 strike.count 次续期到 t1+windowMs → 到期准时解除断言红）
+  for (let i = 0; i < RATE_LIMITS.strike.count * 3; i++) {
+    await authRateBlock(stubDb, ip, t0 + 60_000);
+  }
+  assert.equal(await rateGate(ip, '/api/posts', 'POST', {}, t0 + RATE_LIMITS.block.windowMs - 1, stubDb), false,
+    '到期前 1s 仍封禁（deadline 未被续期到 t1+windowMs）');
+  assert.equal(await rateGate(ip, '/api/posts', 'POST', {}, t0 + RATE_LIMITS.block.windowMs + 1, stubDb), true,
+    '到期准时解除（变异：删 rlStrike 已封短路 → 此处仍封 → 红）');
+});
+
+// PA-2-F8 D1 侧（跨 isolate 承重面）：真实 sqlite 验证 rlStrikeD1 对存活 block 行不续期。
+// 时钟注入只覆盖内存路径；D1 用真实 DB 时钟，直接操纵行 reset_at 而非注入 now。
+function makeRateDb() {
+  const raw = new DatabaseSync(':memory:');
+  raw.exec('CREATE TABLE rate_limits (bucket TEXT PRIMARY KEY, n INTEGER NOT NULL DEFAULT 0, reset_at DATETIME NOT NULL)');
+  const db = {
+    prepare(sql) {
+      const st = { _sql: sql, _params: [], bind(...p) { st._params = p; return st; },
+        first(...p) { return raw.prepare(st._sql).get(...(p.length ? p : st._params)) ?? undefined; },
+        run(...p) { return raw.prepare(st._sql).run(...(p.length ? p : st._params)); } };
+      return st;
+    },
+  };
+  db.raw = raw;
+  return db;
+}
+
+test('PA-2-F8：D1 block 行存活时 authRateBlock 不续期（真实 sqlite；变异：删 rlStrikeD1 存活短路 → 红）', async () => {
+  const db = makeRateDb();
+  const ip = 'd1-live-' + Date.now();
+  db.raw.prepare("INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime','+5 minutes'))")
+    .run(`block:${ip}`);
+  const before = db.raw.prepare('SELECT reset_at FROM rate_limits WHERE bucket=?').get(`block:${ip}`).reset_at;
+  // 存活 block 行在窗口内被反复 authRateBlock → INSERT OR REPLACE 续期会改 reset_at
+  for (let i = 0; i < RATE_LIMITS.strike.count * 3; i++) {
+    await authRateBlock(db, ip, NOW + 60_000);
+  }
+  const after = db.raw.prepare('SELECT reset_at FROM rate_limits WHERE bucket=?').get(`block:${ip}`).reset_at;
+  assert.equal(after, before, '存活 block 行的 reset_at 必须逐字不变（无续期）');
+});
+
+test('PA-2-F8：D1 block 行过期后可重新封禁（短路过期分支放行三振）', async () => {
+  const db = makeRateDb();
+  const ip = 'd1-expired-' + Date.now();
+  db.raw.prepare("INSERT INTO rate_limits (bucket, n, reset_at) VALUES (?, 1, datetime('now','localtime','-1 minutes'))")
+    .run(`block:${ip}`);
+  for (let i = 0; i < RATE_LIMITS.strike.count; i++) {
+    await authRateBlock(db, ip, NOW + 60_000);
+  }
+  const live = db.raw.prepare("SELECT 1 AS b FROM rate_limits WHERE bucket=? AND reset_at > datetime('now','localtime')")
+    .get(`block:${ip}`);
+  assert.ok(live, '过期 block 行不短路，3 次 strike 后重新封禁（新的存活 block 行）');
 });
 
 test('rateGate：OTP 请求专用 per-IP 桶（Q-2a-F3）——10/min 放行后第 11 次 429，换 IP 不受牵连', async () => {
