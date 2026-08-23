@@ -414,6 +414,13 @@ const regPw = page.locator('.register-pane__password .ui-input__native')
 await regPw.waitFor({ state: 'visible', timeout: 5000 })
 const regPwTag = await regPw.evaluate((el) => el.tagName + ':' + el.type)
 check(regPwTag === 'INPUT:password', 'register password should be INPUT:password, got: ' + regPwTag)
+// PA-2a 4: the teacher invite-code field carries a concise explicit aria-label
+// ('邀请码'), not the verbose placeholder text (UiInput ariaLabel precedence).
+await page.locator('.register-pane .ui-btn', { hasText: '我是教师' }).click()
+const inviteInput = page.locator('.register-pane [aria-label="邀请码"]')
+await inviteInput.waitFor({ state: 'visible', timeout: 5000 })
+const inviteAria = await inviteInput.getAttribute('aria-label')
+check(inviteAria === '邀请码', 'invite input aria-label should be 邀请码, got: ' + inviteAria)
 await page.mouse.click(20, 20)
 await modal.waitFor({ state: 'detached', timeout: 5000 })
 check((await modal.count()) === 0, 'register modal should close via backdrop')

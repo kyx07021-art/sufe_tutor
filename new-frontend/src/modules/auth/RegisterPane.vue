@@ -138,6 +138,7 @@ defineExpose({ canSubmit, submit })
       v-if="isTeacher"
       :model-value="inviteCode"
       :placeholder="AUTH_COPY.INVITE_PLACEHOLDER"
+      :aria-label="AUTH_COPY.INVITE_LABEL"
       class="register-pane__field"
       @update:model-value="(v) => (inviteCode = v)"
     />

@@ -36,6 +36,8 @@ const props = defineProps({
   /** underline right inset override (captcha input: right 30% shifted further left) */
   underlineInsetRight: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  /** explicit accessible name (concise label wins over the verbose placeholder) */
+  ariaLabel: { type: String, default: '' },
   /** native input kind: textarea (default, auto-grows) | password (masked input, shoulder-surfing guard) */
   type: { type: String, default: 'textarea', validator: (v) => ['textarea', 'password'].includes(v) },
 })
@@ -163,7 +165,7 @@ defineExpose({
         class="ui-input__native"
         type="password"
         :value="modelValue"
-        :aria-label="placeholder || undefined"
+        :aria-label="ariaLabel || placeholder || undefined"
         :disabled="disabled"
         @input="onInput"
         @focus="onFocus"
@@ -178,7 +180,7 @@ defineExpose({
         class="ui-input__ta"
         :value="modelValue"
         rows="1"
-        :aria-label="placeholder || undefined"
+        :aria-label="ariaLabel || placeholder || undefined"
         :disabled="disabled"
         @input="onInput"
         @focus="onFocus"
