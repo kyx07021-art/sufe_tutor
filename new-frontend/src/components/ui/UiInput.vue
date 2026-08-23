@@ -20,6 +20,8 @@ const props = defineProps({
   placeholder: { type: String, default: '' },
   /** input filter: none | digits | phone | idcard | alnum */
   filter: { type: String, default: 'none' },
+  /** render shape: 'textarea' (auto-growing) | 'password' (native masked input, PA-2-F6) */
+  type: { type: String, default: 'textarea', validator: (v) => ['textarea', 'password'].includes(v) },
   maxLength: { type: Number, default: 0 },
   /** grow direction: down | up (up needs module to bottom-anchor) */
   growDirection: { type: String, default: 'down', validator: (v) => ['down', 'up'].includes(v) },
@@ -88,6 +90,7 @@ function filterValue(raw) {
 }
 
 function autoResize() {
+  if (props.type !== 'textarea') return // native input has no auto-grow
   const ta = taRef.value
   if (!ta) return
   ta.style.height = 'auto'
@@ -156,6 +159,7 @@ defineExpose({
   >
     <div class="ui-input__main">
       <textarea
+        v-if="type === 'textarea'"
         ref="taRef"
         class="ui-input__ta"
         :value="modelValue"
@@ -169,6 +173,21 @@ defineExpose({
         @compositionstart="onCompositionStart"
         @compositionend="onCompositionEnd"
       ></textarea>
+      <input
+        v-else
+        ref="taRef"
+        type="password"
+        class="ui-input__native"
+        :value="modelValue"
+        :aria-label="placeholder || undefined"
+        :disabled="disabled"
+        @input="onInput"
+        @focus="onFocus"
+        @blur="onBlur"
+        @keydown="onKeydown"
+        @compositionstart="onCompositionStart"
+        @compositionend="onCompositionEnd"
+      />
       <span v-if="showPlaceholder" class="ui-input__placeholder" aria-hidden="true">{{ placeholder }}</span>
       <span class="ui-input__underline" :class="{ 'is-visible': focused }"></span>
     </div>
@@ -211,7 +230,8 @@ defineExpose({
   position: relative;
 }
 
-.ui-input__ta {
+.ui-input__ta,
+.ui-input__native {
   display: block;
   box-sizing: border-box;
   width: 100%;
@@ -226,7 +246,10 @@ defineExpose({
   resize: none;
   overflow: hidden;
 }
-.ui-input__ta::placeholder { color: transparent; }
+/* password native input: no line-wrap, single-line box (PA-2-F6 masked form) */
+.ui-input__native { height: var(--input-h); }
+.ui-input__ta::placeholder,
+.ui-input__native::placeholder { color: transparent; }
 .ui-input.is-disabled .ui-input__ta { cursor: default; }
 
 /* placeholder: present when empty and not focused (gray-30, same font size) */
