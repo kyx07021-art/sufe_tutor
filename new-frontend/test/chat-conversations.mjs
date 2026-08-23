@@ -24,7 +24,10 @@ import {
   loadConversations,
   setCurrentUser,
   chatState,
+  startListPolling,
+  stopListPolling,
 } from '../src/modules/chat/state.js'
+import { authStore, setAuth, clearAuth } from '../src/modules/shell/auth-store.js'
 
 const errors = []
 const ok = (cond, msg) => { if (!cond) errors.push(msg) }
@@ -140,6 +143,41 @@ setCurrentUser(7)
 ok(chatState.currentUserId === 7, 'set: writes the signed-in id')
 setCurrentUser(null)
 ok(chatState.currentUserId === null, 'set: null clears on sign-out')
+
+/* ============ 6. startListPolling (PA-2-F12): a conversation newly opened by the
+   other party surfaces in the list via poll, without a page re-entry ============ */
+stopListPolling() // ensure no leftover poller from any prior run
+resetStore()
+chatState.activeConversationId = 99 // sentinel: keep the poll from auto-loading messages
+setAuth({ token: 't', user: { id: 1, role: 'student' } })
+const listCalls = []
+let listResp = { conversations: [] }
+const listApi = async (path, init) => {
+  listCalls.push([path, init])
+  return listResp
+}
+// First fetch: empty list -> store stays empty.
+await loadConversations(authStore.user, listApi)
+ok(chatState.conversations.length === 0, 'list-poll: empty list leaves store empty')
+// The other party opens a new conversation server-side; the next tick must surface it.
+listResp = { conversations: [rawRow] }
+const beforeCalls = listCalls.length
+const p1 = startListPolling({ apiFn: listApi, intervalMs: 20 })
+const p2 = startListPolling({ apiFn: listApi, intervalMs: 20 })
+ok(p1 === p2, 'list-poll: start is F3-idempotent (same singleton, no second timer)')
+await new Promise((r) => setTimeout(r, 150))
+ok(
+  chatState.conversations.length === 1 && chatState.conversations[0].conversationId === 7,
+  'list-poll: newly-opened conversation surfaces without page re-entry',
+)
+ok(listCalls.length > beforeCalls, 'list-poll: I-17 endpoint re-polled on the timer')
+ok(chatState.activeConversationId === 99, 'list-poll: existing active conversation preserved')
+stopListPolling()
+const afterStop = listCalls.length
+await new Promise((r) => setTimeout(r, 70))
+ok(listCalls.length === afterStop, 'list-poll: stop clears the timer (no further polls)')
+clearAuth()
+ok(authStore.user === null, 'list-poll: auth cleared after test')
 
 if (errors.length) {
   console.log('CHAT CONVERSATIONS TEST FAIL')
