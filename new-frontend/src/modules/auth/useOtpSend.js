@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { api } from '@/core/api.js'
 import { showToast } from '@/composables/useToast'
 import { UI_COPY } from '@/constants/ui.js'
-import { AUTH_COPY, OTP_SCENE_OF } from '@/constants/m-auth.js'
+import { AUTH_COPY, buildOtpRequestBody } from '@/constants/m-auth.js'
 
 /**
  * useOtpSend - M6-5 send-verification-code chain (I-01)
@@ -13,8 +13,8 @@ import { AUTH_COPY, OTP_SCENE_OF } from '@/constants/m-auth.js'
  *   arms the resend countdown on the captcha input.
  * - `target` is omitted when the caller has no value (verify scene: the server
  *   resolves the logged-in user's bound contact from the session).
- * - `scene` is an AUTH_SCENES value (english); the server whitelists OTP scene
- *   literals (OTP_SCENES), so the boundary translates it here (PA-2-F7).
+ * - Body assembly (incl. AUTH_SCENES -> OTP scene literal translation, PA-2-F7)
+ *   is delegated to the pure, directly-tested buildOtpRequestBody.
  */
 export function useOtpSend() {
   const sending = ref(false)
@@ -23,8 +23,7 @@ export function useOtpSend() {
     if (sending.value) return false
     sending.value = true
     try {
-      const body = { channel, scene: OTP_SCENE_OF[scene] || '' }
-      if (target) body.target = String(target).trim()
+      const body = buildOtpRequestBody({ channel, target, scene })
       const r = await api('/auth/otp/request', { method: 'POST', auth: false, body })
       if (r && r.ok === false) {
         showToast(AUTH_COPY.OTP_SEND_FAIL)

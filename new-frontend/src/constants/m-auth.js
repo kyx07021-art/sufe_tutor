@@ -76,3 +76,28 @@ export const OTP_SCENE_OF = {
   register: '注册验证',
   verify: '绑定验证',
 }
+
+/**
+ * otpSceneFor - translate an AUTH_SCENES (english) value to the server OTP scene
+ * literal consumed by POST /api/auth/otp/request (PA-2-F7). Unknown values map to
+ * '' so the server's whitelist check (`Object.values(OTP_SCENES).includes(scene)`)
+ * cleanly falls back to '' (deliverOtp default) instead of a foreign literal.
+ * Kept as a named pure function so the translation + fallback are directly
+ * testable (G1) rather than being an inline expression inside useOtpSend.
+ */
+export function otpSceneFor(authScene) {
+  return OTP_SCENE_OF[authScene] || ''
+}
+
+/**
+ * buildOtpRequestBody - build the POST /api/auth/otp/request body (pure, testable;
+ * the send chain in useOtpSend delegates here). channel passed through; scene
+ * translated via otpSceneFor; target trimmed or omitted when empty. Extracted as a
+ * named pure function so the translation CONSUMPTION is locked by a direct test
+ * (G1), not just the mapping table (PA-2-F7 audit observation).
+ */
+export function buildOtpRequestBody({ channel, target, scene }) {
+  const body = { channel, scene: otpSceneFor(scene) }
+  if (target) body.target = String(target).trim()
+  return body
+}

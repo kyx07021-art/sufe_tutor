@@ -118,13 +118,43 @@ assert(isOtp(AUTH_METHODS.OTP_PHONE) && !isOtp(AUTH_METHODS.PASSWORD), 'isOtp cl
 // PA-2-F7: AUTH_SCENES (english) -> server OTP scene literal (OTP_SCENES mirror).
 // The server whitelists scene against Object.values(OTP_SCENES); without this
 // translation the request silently falls back to '' (mail template scene empty).
-const { OTP_SCENE_OF } = await import('../src/constants/m-auth.js')
-assert(OTP_SCENE_OF[AUTH_SCENES.LOGIN] === '登录验证', 'login -> server 登录验证')
-assert(OTP_SCENE_OF[AUTH_SCENES.REGISTER] === '注册验证', 'register -> server 注册验证')
-assert(OTP_SCENE_OF[AUTH_SCENES.VERIFY] === '绑定验证', 'verify -> server 绑定验证 (BIND semantics)')
-assert(OTP_SCENE_OF['bogus'] === undefined, 'unknown scene maps to undefined (server falls back to \'\')')
+// otpSceneFor is the named function useOtpSend calls at the boundary, so these
+// assertions lock the consumption path (G1) — an inline-table regression where
+// useOtpSend stops translating would not change the table but would break here.
+const { otpSceneFor, buildOtpRequestBody } = await import('../src/constants/m-auth.js')
+assert(otpSceneFor(AUTH_SCENES.LOGIN) === '登录验证', 'login -> server 登录验证')
+assert(otpSceneFor(AUTH_SCENES.REGISTER) === '注册验证', 'register -> server 注册验证')
+assert(otpSceneFor(AUTH_SCENES.VERIFY) === '绑定验证', 'verify -> server 绑定验证 (BIND semantics)')
+assert(otpSceneFor('bogus') === '', 'unknown scene maps to \'\' (server falls back cleanly)')
+// Consumption-path lock (F7 audit observation): the OTP send body must translate
+// at the boundary. Asserting buildOtpRequestBody (the function useOtpSend calls)
+// directly catches a regression where the send chain stops translating (an
+// inline-table test of OTP_SCENE_OF alone would not).
+assert(
+  buildOtpRequestBody({ channel: 'sms', scene: AUTH_SCENES.REGISTER }).scene === '注册验证',
+  'useOtpSend body.scene = 注册验证 (register)',
+)
+assert(
+  buildOtpRequestBody({ channel: 'email', scene: AUTH_SCENES.LOGIN }).scene === '登录验证',
+  'useOtpSend body.scene = 登录验证 (login)',
+)
+assert(
+  buildOtpRequestBody({ channel: 'sms', scene: AUTH_SCENES.VERIFY }).scene === '绑定验证',
+  'useOtpSend body.scene = 绑定验证 (verify -> BIND)',
+)
+const targetBody = buildOtpRequestBody({ channel: 'sms', scene: AUTH_SCENES.LOGIN, target: ' 13800000000 ' })
+assert(
+  JSON.stringify(targetBody) === JSON.stringify({ channel: 'sms', scene: '登录验证', target: '13800000000' }),
+  'useOtpSend body trims target: ' + JSON.stringify(targetBody),
+)
+const emptyTargetBody = buildOtpRequestBody({ channel: 'sms', scene: AUTH_SCENES.LOGIN, target: '' })
+assert(emptyTargetBody.target === undefined, 'useOtpSend body omits empty target: ' + JSON.stringify(emptyTargetBody))
+assert(
+  buildOtpRequestBody({ channel: 'sms', scene: 'bogus' }).scene === '',
+  'useOtpSend unknown scene -> \'\' in the request body',
+)
 
-console.log('STATE MACHINE PASS: four cases + switch reset + OTP scene mapping')
+console.log('STATE MACHINE PASS: four cases + switch reset + OTP scene mapping + body builder')
 
 /* ================================================================== *
  * 1b. Contract 6 scan: zero CJK in auth module source.
@@ -152,6 +182,18 @@ if (cjkHits.length) {
   process.exit(1)
 }
 console.log('CONTRACT 6 PASS: zero CJK in auth module source')
+
+// PA-2-F7 consumption-path lock: useOtpSend must translate the OTP scene at the
+// boundary by calling buildOtpRequestBody (whose behavior the unit assertions
+// above lock). A regression where the send chain stops translating would leave
+// buildOtpRequestBody unused (a dead import the bundler may keep) — this source
+// check closes the blind spot a pure function-definition test cannot.
+const otpSendSrc = readFileSync(join(__dirname, '..', 'src', 'modules', 'auth', 'useOtpSend.js'), 'utf8')
+if (!/buildOtpRequestBody\(/.test(otpSendSrc)) {
+  console.log('AUTH OTP SCENE FAIL: useOtpSend.js 不再调用 buildOtpRequestBody（翻译被绕过）')
+  process.exit(1)
+}
+console.log('OTP SCENE CONSUMPTION PASS: useOtpSend 调用 buildOtpRequestBody')
 
 /* ================================================================== *
  * 2. Browser smoke (dev server)
