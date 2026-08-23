@@ -9,6 +9,9 @@
  *   promote to core/display when the second consumer lands.
  */
 
+/** Slow unread-badge poll interval (ms); mirrors shared BADGE_POLL_MS. */
+export const NOTIF_POLL_MS = 30000
+
 export const NOTIF_COPY = {
   /* ---- auth gate ---- */
   LOGIN_REQUIRED: '请先登录',

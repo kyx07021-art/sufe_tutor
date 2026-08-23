@@ -23,7 +23,7 @@ import { login, register, logout } from '@/modules/shell/auth-actions.js'
 import { registerIface } from '@/modules/shell/ifaces.js'
 import { restoreSession } from '@/modules/shell/session-restore.js'
 import { installDeadTokenListener } from '@/modules/shell/handle-dead-token.js'
-import { openC3, openC4, openSettings, openAbout, openFeedback } from '@/modules/notifications/index.js'
+import { openC3, openC4, openSettings, openAbout, openFeedback, unreadCountRef } from '@/modules/notifications/index.js'
 import './styles/tokens.css'
 import './styles/base.css'
 
@@ -35,6 +35,9 @@ registerIface('openC4', openC4)
 registerIface('openSettings', openSettings)
 registerIface('openAbout', openAbout)
 registerIface('openFeedback', openFeedback)
+// Reactive unread count (I-26 derived) so the shell envelope button shows the
+// red dot without coupling to the M5 data module.
+registerIface('unreadCount', unreadCountRef)
 
 const app = createApp(App)
 app.use(router)

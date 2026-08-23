@@ -299,6 +299,17 @@ function installApiMock(page) {
       }
       return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 'UNAUTHORIZED' }) })
     }
+    // I-26 notifications: NotifyButton mounts with the logged-in shell and starts
+    // the badge poll (GET /api/notifications). Without this branch the 404 fallback
+    // below logs a console error and the zero-violation assertion fails. An empty
+    // list (unread=0) keeps the dot-hidden path deterministic for the shell case.
+    if (url.includes('/api/notifications') && method === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ notifications: [] }),
+      })
+    }
     if (url.includes('/api/forced-401')) {
       return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 'UNAUTHORIZED' }) })
     }
@@ -485,6 +496,21 @@ test('browser: shell routing + auth flows (real dist)', async () => {
     await authed.waitForSelector('.chat-card', { timeout: 8000 })
     const chatCardCount = await authed.locator('.chat-card').count()
     assert.ok(chatCardCount >= 1, 'chat list must render the mocked conversation row')
+
+    /* --- NotifyButton: unread red dot reflects the I-26 list (PA-2-F13) --- */
+    // The envelope button renders in the authed top bar and mounts a badge poll.
+    // With the empty-notifications mock the dot must be hidden; after a
+    // mark-as-read-free reload the count derives from the mocked list (unread=0).
+    const notifyBtn = authed.locator('.notify-btn')
+    assert.ok((await notifyBtn.count()) >= 1, 'top bar must render the NotifyButton')
+    await authed.waitForSelector('.notify-btn__icon', { timeout: 8000 })
+    const dotCount = await authed.locator('.notify-btn__dot').count()
+    assert.equal(dotCount, 0, 'unread dot must be hidden when the notification list is empty')
+    // Click opens the C3 notifications overlay (interface cap wiring).
+    await notifyBtn.click()
+    await authed.waitForSelector('.ui-modal', { timeout: 8000 })
+    await authed.mouse.click(20, 20)
+    await authed.waitForSelector('.ui-modal', { state: 'detached', timeout: 8000 })
 
     /* --- /relations compact: 375px no horizontal overflow (G5) --- */
     // Fresh context: browser.newPage() shares the default context's storage with

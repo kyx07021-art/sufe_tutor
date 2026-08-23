@@ -20,4 +20,14 @@ export {
   closeFeedback,
 } from './overlay.js'
 
+export {
+  notifyState,
+  unreadCountRef,
+  loadNotifications,
+  markNotificationRead,
+  markAllRead,
+  startNotifyPolling,
+  stopNotifyPolling,
+} from './data.js'
+
 export { default as M5Host } from './M5Host.vue'

@@ -9,9 +9,10 @@
  * - formatNotificationTime: C2.3 time display format (shared by card and detail; may be
  *   promoted to core/display when M4 conversation cards need it).
  */
-import { reactive } from 'vue'
+import { computed, reactive } from 'vue'
 import { api } from '@/core/api.js'
-import { NOTIF_COPY } from '@/constants/m-notifications'
+import { NOTIF_COPY, NOTIF_POLL_MS } from '@/constants/m-notifications'
+import { createPoller } from '@/modules/chat/index.js'
 
 export const notifyState = reactive({
   items: [],
@@ -30,9 +31,7 @@ export function getNotifications() {
 }
 
 /** unread count derives from the cache (single source for the envelope red dot). */
-export function unreadCount() {
-  return notifyState.items.filter((i) => !i.is_read).length
-}
+export const unreadCountRef = computed(() => notifyState.items.filter((i) => !i.is_read).length)
 
 export async function loadNotifications() {
   notifyState.loading = true
@@ -66,6 +65,34 @@ export async function markAllRead() {
     })
   } catch (e) {
     notifyState.error = (e && e.message) || NOTIF_COPY.NOTIF_LOAD_ERROR
+  }
+}
+
+/** Single badge poller (F3: idempotent start/stop; only one timer ever exists). */
+let notifyPoller = null
+
+/**
+ * Start the slow unread-badge poll (I-26). Driven by the shell envelope button's
+ * component lifecycle (mounted => logged-in shell), so the poll is naturally
+ * auth-gated: it never runs for guests, and unmount on logout/401 stops it.
+ * Reuses the shared createPoller (W6) — no second timer implementation.
+ */
+export function startNotifyPolling() {
+  if (notifyPoller) return notifyPoller
+  notifyPoller = createPoller({
+    apiFn: api,
+    intervalMs: NOTIF_POLL_MS,
+    onTick: () => loadNotifications(),
+  })
+  notifyPoller.start()
+  return notifyPoller
+}
+
+/** Stop the badge poll (idempotent). */
+export function stopNotifyPolling() {
+  if (notifyPoller) {
+    notifyPoller.stop()
+    notifyPoller = null
   }
 }
 
