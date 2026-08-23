@@ -169,6 +169,32 @@ if (!reduced) {
   }
 }
 
+// ---- 8b. Corridor wheel (PA-2a 3): vertical wheel over the gallery scrolls it
+// horizontally and the page scrollY stays put (N-F5 carried into the new site) ----
+await page.evaluate(() => {
+  const vp = document.querySelector('.landing-gallery__viewport')
+  vp.scrollIntoView({ block: 'center' })
+})
+await page.waitForTimeout(200)
+const vpBox2 = await page.locator('.landing-gallery__viewport').boundingBox()
+await page.mouse.move(vpBox2.x + vpBox2.width / 2, vpBox2.y + vpBox2.height / 2)
+const wheelBefore = await page.evaluate(() => ({
+  s: document.querySelector('.landing-gallery__viewport').scrollLeft,
+  y: window.scrollY,
+}))
+await page.mouse.wheel(0, 240)
+await page.waitForTimeout(150)
+const wheelAfter = await page.evaluate(() => ({
+  s: document.querySelector('.landing-gallery__viewport').scrollLeft,
+  y: window.scrollY,
+}))
+if (wheelAfter.s - wheelBefore.s < 40) {
+  errors.push(`corridor wheel should scroll horizontally (before=${wheelBefore.s.toFixed(0)} after=${wheelAfter.s.toFixed(0)})`)
+}
+if (Math.abs(wheelAfter.y - wheelBefore.y) > 2) {
+  errors.push(`corridor wheel must not scroll the page (scrollY ${wheelBefore.y} -> ${wheelAfter.y})`)
+}
+
 // ---- 9. Scroll reveal + re-register (M1-11) ----
 // Scroll back to top first: the corridor steps above scrolled the SLOGAN into
 // view, so it is now re-registered (pending) after leaving the viewport upward.
