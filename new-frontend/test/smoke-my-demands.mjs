@@ -52,7 +52,7 @@ const timeLine = (dow, start, end) => `每周${WEEKDAY_CHARS[dow - 1]} ${start}-
  */
 const FIXTURES = [
   {
-    id: 1, user_id: 10, subject: '语文', grade: 'p3', // p3 = 小学三年级
+    id: 1, user_id: 10, subject: 'chinese', grade: 'p3', // p3 = 小学三年级
     province: '上海', teachingMethod: 'both', currentScore: 130, currentScoreFull: 150,
     addressArea: '杨浦区·五角场街道',
     expectedTime: JSON.stringify([{ type: 'week', dow: 7, start: '14:00', end: '16:00' }]),
@@ -60,14 +60,14 @@ const FIXTURES = [
     additionalInfo: '需要夯实基础，侧重阅读与背诵。',
   },
   {
-    id: 2, user_id: 10, subject: '数学', grade: 'junior1', // junior1 = 初一
+    id: 2, user_id: 10, subject: 'math', grade: 'junior1', // junior1 = 初一
     province: '湖北', teachingMethod: 'online', currentScore: 92, currentScoreFull: 100,
     expectedTime: JSON.stringify([{ type: 'week', dow: 3, start: '18:00', end: '20:00' }]),
     preferredTags: ['responsible'], preferredGender: 'male',
     additionalInfo: '希望系统梳理代数。',
   },
   {
-    id: 3, user_id: 10, subject: '英语', grade: 'senior1', // senior1 = 高一
+    id: 3, user_id: 10, subject: 'english', grade: 'senior1', // senior1 = 高一
     province: '浙江', teachingMethod: 'offline', addressArea: '西湖区·文三路',
     expectedTime: JSON.stringify([{ type: 'week', dow: 2, start: '19:00', end: '21:00' }]),
     preferredTags: [], preferredGender: 'female',
@@ -78,25 +78,25 @@ const FIXTURES = [
 /** >3 卡片网格用例（F-10/G5）：4 行数据 + 加号槽 = 5 个网格子项 */
 const GRID_FIXTURES = [
   {
-    id: 11, user_id: 10, subject: '语文', grade: 'p3', province: '上海', teachingMethod: 'both',
+    id: 11, user_id: 10, subject: 'chinese', grade: 'p3', province: '上海', teachingMethod: 'both',
     currentScore: 130, currentScoreFull: 150, addressArea: '杨浦区·五角场街道',
     expectedTime: JSON.stringify([{ type: 'week', dow: 7, start: '14:00', end: '16:00' }]),
     preferredTags: ['humorous', 'patience'], preferredGender: 'female', additionalInfo: '夯实基础。',
   },
   {
-    id: 12, user_id: 10, subject: '数学', grade: 'junior1', province: '湖北', teachingMethod: 'online',
+    id: 12, user_id: 10, subject: 'math', grade: 'junior1', province: '湖北', teachingMethod: 'online',
     currentScore: 92, currentScoreFull: 100,
     expectedTime: JSON.stringify([{ type: 'week', dow: 3, start: '18:00', end: '20:00' }]),
     preferredTags: ['responsible'], preferredGender: 'male', additionalInfo: '系统梳理代数。',
   },
   {
-    id: 13, user_id: 10, subject: '英语', grade: 'senior1', province: '浙江', teachingMethod: 'offline',
+    id: 13, user_id: 10, subject: 'english', grade: 'senior1', province: '浙江', teachingMethod: 'offline',
     addressArea: '西湖区·文三路',
     expectedTime: JSON.stringify([{ type: 'week', dow: 2, start: '19:00', end: '21:00' }]),
     preferredTags: [], preferredGender: 'female', additionalInfo: '备战托福基础。',
   },
   {
-    id: 14, user_id: 10, subject: '物理', grade: 'junior2', province: '江苏', teachingMethod: 'online',
+    id: 14, user_id: 10, subject: 'physics', grade: 'junior2', province: '江苏', teachingMethod: 'online',
     currentScore: 80, currentScoreFull: 100,
     expectedTime: JSON.stringify([{ type: 'week', dow: 5, start: '16:00', end: '18:00' }]),
     preferredTags: ['logical'], preferredGender: 'female', additionalInfo: '查漏补缺。',
