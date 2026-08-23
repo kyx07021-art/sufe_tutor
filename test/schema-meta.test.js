@@ -135,6 +135,32 @@ test('版本落后到上一版（v9 存量库缺 messages.client_key）：重跑
 });
 
 
+// PA-1d-F4 (B1): teacher_profiles philosophy column added with SCHEMA_VERSION 17->18. A legacy v17 DB
+// (schema_meta=17 + teacher_profiles missing philosophy) must re-run the full migration and gain the
+// column — otherwise the version gate skips ensureColumns and the column is never added on live DBs.
+// Mutation guard: reverting the bump (SCHEMA_VERSION 17) makes the v=17 gate skip the migration and the
+// philosophy column never appears -> red.
+test('v18 存量库缺 teacher_profiles.philosophy → initDb 重跑迁移补列 + 幂等', async (t) => {
+  const { raw, db } = setup(t);
+  await initDb(db, ENV); // build the latest full schema first (teacher_profiles has philosophy)
+  raw.exec('ALTER TABLE teacher_profiles DROP COLUMN philosophy'); // v17 production shape: no philosophy
+  // Pin the simulated version to 17 (the version BEFORE the philosophy column) rather than
+  // SCHEMA_VERSION-1 so the mutation guard holds: if the 17->18 bump is reverted, cur(17) >= 17
+  // short-circuits the migration, the column is never added, and the assertion below goes red.
+  raw.prepare("UPDATE schema_meta SET v=17 WHERE k='schema'").run();
+  assert.equal(raw.prepare(`SELECT COUNT(*) AS n FROM pragma_table_info('teacher_profiles') WHERE name='philosophy'`).get().n, 0, 'precondition: teacher_profiles has no philosophy');
+  await initDb(db, ENV); // version behind (17 < 18) -> full migration -> ensureColumns adds philosophy
+  const cols = raw.prepare(`SELECT name FROM pragma_table_info('teacher_profiles')`).all().map(r => r.name);
+  assert.ok(cols.includes('philosophy'), 'teacher_profiles gains philosophy column');
+  const ver = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver.v, SCHEMA_VERSION, 'version updated to latest');
+  // idempotent: re-trigger full migration (column already present -> ensureColumns no-op)
+  raw.prepare("UPDATE schema_meta SET v=17 WHERE k='schema'").run();
+  await initDb(db, ENV);
+  const ver2 = raw.prepare("SELECT v FROM schema_meta WHERE k='schema'").get();
+  assert.equal(ver2.v, SCHEMA_VERSION, 'idempotent re-run still ends at latest version');
+});
+
 // S5-02: merged signing_contracts table (AI-4a) -> standalone contracts table migration.
 // Legacy DB re-run copies stage='contract' rows 1:1 (contract number #CD{id} and ledger contract_id
 // stay unchanged -> zero remap), maps ''/'pending' contract_status -> 'signing', generalizes hourly_rate

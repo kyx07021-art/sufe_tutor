@@ -14,6 +14,7 @@ import { LIMITS, CONFIG } from '../../../shared/config.js';
 import { TEACHING_METHODS, PERSONALITY_TAGS, NONACADEMIC_PROJECTS, SUBJECTS, TEACHER_GRADES, GENDERS } from '../../../shared/enums.js';
 import { SUFE_REGIONS } from '../../../shared/region-data.js'; // V-2-4c 地区数据单源
 import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetUserById, dbGetTeacherVerification, dbUpsertTeacherVerification, dbListTeacherVerifications, dbGetTeacherVerificationById, dbApplyChsiToProfile, dbClearChsiFromProfile, dbSetTeacherVerified, safeJsonArray } from '../../../../server/db.js';
+import { GAOKAO_FULL_STAGE_GRADE } from './repo.js'; // PA-1d-F4: full-score derivation grade stage (single source with the mapper)
 import { verifyChsiCode } from '../../../../server/chsi.js';
 import { logEvent } from '../../core/log.js';
 import { decryptField } from '../../core/crypto.js';
@@ -120,12 +121,54 @@ export async function handleGetProfile(db, url, req) {
   return json({ profile }); // 本人：全字段（mapper 出门即解密）
 }
 
+// I-40 (PA-1d-F4): camelCase field aliases -> DB snake_case columns. A body key present in either
+// form marks the DB column as explicitly provided (merge semantics: partial save = keep old value).
+const PROFILE_FIELD_ALIASES = {
+  region: 'province',
+  teacherName: 'teacher_name',
+  priceMin: 'price_min',
+  priceMax: 'price_max',
+  experienceYears: 'experience_years',
+  graduationYear: 'graduation_year',
+  timeSlots: 'time_slots',
+  personalityTags: 'personality_tags',
+  teachingMethod: 'teaching_method',
+  gaokaoScores: 'gaokao_scores',
+  nonacademicProjects: 'nonacademic_projects',
+  nonacademicPrices: 'nonacademic_prices',
+  bio: 'intro',
+  addressArea: 'address',
+  realName: 'real_name',
+  credentialImage: 'credential_image',
+};
+// Columns dbUpsertTeacherProfile can write; stray/unknown body keys are ignored (C3/C4 defensiveness).
+const WRITABLE_PROFILE_COLUMNS = new Set([
+  'province', 'grade', 'gender', 'subjects', 'gaokao_scores', 'price_min', 'price_max',
+  'wechat', 'email', 'intro', 'address', 'school', 'real_name', 'credential_image',
+  'time_slots', 'teaching_method', 'personality_tags', 'nonacademic_projects', 'nonacademic_prices',
+  'graduation_year', 'teacher_name', 'experience_years', 'philosophy',
+]);
+
 export async function handleSaveProfile(db, body, req) {
-  const { profile: p = {} } = body;
-  if (typeof p !== 'object' || p === null) return errorMsg('INVALID_PARAMS'); // 空 body 兜底
+  const { profile: raw = {} } = body;
+  if (typeof raw !== 'object' || raw === null) return errorMsg('INVALID_PARAMS'); // 空 body 兜底
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   if (me.role !== 'teacher') return errorMsg('NO_PERMISSION', 403); // 仅教师可建档案（防学生/管理员写 teacher_profiles）
+
+  // I-40 dual-receive: normalize camelCase aliases to DB snake_case columns; keep v2 keys as-is.
+  // `provided` tracks which DB columns were explicitly supplied so the repo can merge (UPDATE only
+  // provided columns) instead of a full overwrite — omitted fields keep their stored value.
+  const p = { ...raw };
+  const provided = new Set();
+  for (const key of Object.keys(raw)) {
+    const col = PROFILE_FIELD_ALIASES[key] || key;
+    if (!WRITABLE_PROFILE_COLUMNS.has(col)) continue; // stray/unknown key: ignore, don't 5xx (C4)
+    provided.add(col);
+    if (col !== key) p[col] = raw[key];
+  }
+  if (provided.size === 0) return errorMsg('INVALID_PARAMS'); // nothing to update
+
   if (!p.province || !SUFE_REGIONS.isValidProvince(p.province)) return errorMsg('PROVINCE_REQUIRED');
 
   // R2-5 报价区间化：price_min/price_max 各自钳制，保留 null=未填语义（不转 0，完整性门槛据此拦截）；
@@ -151,10 +194,14 @@ export async function handleSaveProfile(db, body, req) {
   };
   p.graduation_year = clampGradYear(p.graduation_year);
 
-  // R2-1 可授课时间段：与需求 expected_time 同格式、同一 sanitizeTimeSlots 校验（可选，空串合法）
-  const ts = sanitizeTimeSlots(p.time_slots);
-  if (ts.error) return errorMsg('INVALID_TIME_SLOTS');
-  p.time_slots = ts.value;
+  // R2-1 可授课时间段：与需求 expected_time 同格式、同一 sanitizeTimeSlots 校验（可选，空串合法）。
+  // I-40 双收：对象数组 shape（JSON.stringify 后校验）或既有序列化 JSON 串；缺省 = 保留原值（merge）。
+  if (provided.has('time_slots')) {
+    const rawTs = Array.isArray(p.time_slots) ? JSON.stringify(p.time_slots) : p.time_slots;
+    const ts = sanitizeTimeSlots(rawTs);
+    if (ts.error) return errorMsg('INVALID_TIME_SLOTS');
+    p.time_slots = ts.value;
+  }
 
   // R2-2 授课方式：白名单读 TEACHING_METHODS 单源（与前端 constants 同源，改 id 服务端不静默失配），非法值回退 ''（未填）
   const methodSet = new Set(TEACHING_METHODS.map(m => m.id));
@@ -207,7 +254,32 @@ export async function handleSaveProfile(db, body, req) {
   ]);
   if (p.subjects != null) {
     if (!Array.isArray(p.subjects)) return errorMsg('INVALID_PARAMS');
-    p.subjects = [...new Set(p.subjects.filter(id => typeof id === 'string' && subjPool.has(id)))].slice(0, subjPool.size);
+    if (p.subjects.length === 0) {
+      p.subjects = [];
+    } else if (typeof p.subjects[0] === 'string') {
+      // v2 legacy shape: string id array — filter to the subject pool + dedupe (existing behavior)
+      p.subjects = [...new Set(p.subjects.filter(id => typeof id === 'string' && subjPool.has(id)))].slice(0, subjPool.size);
+    } else if (typeof p.subjects[0] === 'object' && p.subjects[0] !== null) {
+      // I-40 new shape: object rows [{subject, score?, full?}] — subject id must be in the pool;
+      // `score` normalized to a finite number (clamped to [0, GAOKAO_SCORE_MAX]); `full` derived by
+      // region/grade (frontend value ignored); stored as the same object-array shape the mapper emits
+      // (teacherSubjectRows), so read-back is consistent (PA-1d-F4).
+      const seen = new Set();
+      p.subjects = p.subjects
+        .filter(it => it && typeof it === 'object' && typeof it.subject === 'string' && subjPool.has(it.subject) && !seen.has(it.subject) && (seen.add(it.subject), true))
+        .slice(0, subjPool.size)
+        .map(it => {
+          let score = null;
+          if (it.score != null) {
+            const n = Number(it.score);
+            if (Number.isFinite(n)) score = Math.min(LIMITS.GAOKAO_SCORE_MAX, Math.max(0, n));
+          }
+          const full = SUFE_REGIONS.subjectMaxFor(p.province, it.subject, GAOKAO_FULL_STAGE_GRADE) || 0;
+          return { subject: it.subject, score, full, awards: [] };
+        });
+    } else {
+      return errorMsg('INVALID_PARAMS'); // mixed/foreign element type — reject, don't guess (C5)
+    }
   } else {
     p.subjects = [];
   }
@@ -234,6 +306,12 @@ export async function handleSaveProfile(db, body, req) {
     const expN = Number(expYears);
     if (!Number.isInteger(expN) || expN < 0) return errorMsg('INVALID_PARAMS', 400);
     p.experience_years = expN;
+  }
+
+  // I-40 教学理念（philosophy 列，公开）：trim + 截断到 ADDITIONAL_INFO_MAX（教学理念是较长自由文本）。
+  // 缺省 = 保留原值（merge 由 repo 按 provided 落）；显式 ''/null 允许清空。
+  if (provided.has('philosophy') && p.philosophy != null) {
+    p.philosophy = String(p.philosophy).trim().slice(0, LIMITS.ADDITIONAL_INFO_MAX);
   }
 
   // 高考成绩：数组、≤科目池封顶；每项 subject 在白名单；score 数值且钳到 [0, GAOKAO_SCORE_MAX]
@@ -278,7 +356,7 @@ export async function handleSaveProfile(db, body, req) {
   }
   if (typeof p.wechat === 'string') p.wechat = p.wechat.slice(0, LIMITS.CONTACT_MAX);
   if (typeof p.email === 'string') p.email = p.email.slice(0, LIMITS.CONTACT_MAX);
-  await dbUpsertTeacherProfile(db, me.id, { ...p, credential_image: credential }); // 只能写自己的档案
+  await dbUpsertTeacherProfile(db, me.id, { ...p, credential_image: credential }, provided); // 只能写自己的档案；provided 驱动 merge UPDATE
   // 留档不带 detail：档案含联系方式 / 真实姓名 / 学信网截图等敏感字段，不落留档库
   await logEvent(db, { action: 'teacher.profile.save', actorUserId: me.id, actorRole: 'teacher',
     entity: 'teacher_profile', entityId: me.id, req });

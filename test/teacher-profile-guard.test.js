@@ -198,11 +198,14 @@ test('擅长科目白名单：合法入库、注入/未知 id 滤除去重、非
   // 非数组 → 400
   r = await handleSaveProfile(db, { profile: { ...baseProfile, subjects: 'math,physics' } }, reqOf(token));
   assert.equal(r.status, 400, 'subjects 非数组拒绝');
-  // 缺省 → 空数组
+  // 缺省 → 保留原值（PA-1d-F4 I-40 合并语义：部分省略 = 不改该字段，非清空）
   const { subjects, ...noSubj } = baseProfile;
   r = await handleSaveProfile(db, { profile: noSubj }, reqOf(token));
-  assert.equal(r.status, 200);
-  assert.equal(rowOf(raw, tea).subjects, '[]', '缺省 subjects 落空数组');
+  assert.equal(r.status, 200, '缺省 subjects 不报错');
+  assert.equal(rowOf(raw, tea).subjects, '["math","technology"]', '缺省 subjects 保留原值（merge，不落空数组）');
+  // 显式空数组 → 清空（显式提供 = 写入）
+  r = await handleSaveProfile(db, { profile: { ...baseProfile, subjects: [] } }, reqOf(token));
+  assert.equal(rowOf(raw, tea).subjects, '[]', '显式空数组清空');
 });
 
 test('年级/性别白名单：合法入库、非法静默回退空串（性别含历史 nonbinary）', async () => {

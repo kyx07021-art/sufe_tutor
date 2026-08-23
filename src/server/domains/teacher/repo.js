@@ -23,50 +23,78 @@ export async function dbIsMatched(db, userIdA, userIdB) {
     [userIdA, userIdB, userIdB, userIdA]));
 }
 
-export async function dbUpsertTeacherProfile(db, userId, profile) {
+// Columns written by dbUpsertTeacherProfile, in INSERT order. `price` is the legacy mirror of
+// price_min (kept in sync: writing price_min also writes price so a fresh row cannot eat the
+// DEFAULT 0 and later be mis-backfilled as "price 0").
+const WRITE_COLUMNS = [
+  'province', 'grade', 'gender', 'subjects', 'gaokao_scores',
+  'price', 'price_min', 'price_max', 'wechat', 'email', 'intro', 'address', 'school',
+  'real_name', 'credential_image', 'time_slots', 'teaching_method',
+  'personality_tags', 'nonacademic_projects', 'nonacademic_prices',
+  'graduation_year', 'teacher_name', 'experience_years', 'philosophy',
+];
+
+// Prepare one teacher_profiles column value from the normalized profile object.
+// Encryption columns are re-encrypted here; JSON columns serialized; absent/null free-text
+// fields fall back to '' / null so a fresh INSERT row never carries undefined.
+async function prepareProfileValue(profile, column) {
+  switch (column) {
+    case 'province': return profile.province || '';
+    case 'grade': return profile.grade;
+    case 'gender': return profile.gender;
+    case 'subjects': return JSON.stringify(profile.subjects);
+    case 'gaokao_scores': return JSON.stringify(profile.gaokao_scores);
+    case 'price': return profile.price_min != null ? profile.price_min : null;
+    case 'price_min': return profile.price_min != null ? profile.price_min : null;
+    case 'price_max': return profile.price_max != null ? profile.price_max : null;
+    case 'wechat': return await encryptField(profile.wechat || '');
+    case 'email': return await encryptField(profile.email || '');
+    case 'intro': return (profile.intro || '').slice(0, LIMITS.INTRO_MAX);
+    case 'address': return (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX);
+    case 'school': return (profile.school || '').slice(0, LIMITS.SCHOOL_MAX);
+    case 'real_name': return await encryptField((profile.real_name || '').slice(0, LIMITS.REAL_NAME_MAX));
+    case 'credential_image': return await encryptField(profile.credential_image || '');
+    case 'time_slots': return profile.time_slots || '';
+    case 'teaching_method': return profile.teaching_method || '';
+    case 'personality_tags': return JSON.stringify(Array.isArray(profile.personality_tags) ? profile.personality_tags : []);
+    case 'nonacademic_projects': return JSON.stringify(Array.isArray(profile.nonacademic_projects) ? profile.nonacademic_projects : []);
+    case 'nonacademic_prices': return JSON.stringify(Array.isArray(profile.nonacademic_prices) ? profile.nonacademic_prices : []);
+    case 'graduation_year': return profile.graduation_year != null && profile.graduation_year !== '' ? profile.graduation_year : null;
+    case 'teacher_name': return (profile.teacher_name || '').slice(0, LIMITS.REAL_NAME_MAX);
+    case 'experience_years': return profile.experience_years != null && profile.experience_years !== '' ? profile.experience_years : null;
+    case 'philosophy': return (profile.philosophy || '').slice(0, LIMITS.ADDITIONAL_INFO_MAX);
+    default: throw new Error(`Unknown teacher_profile column: ${column}`);
+  }
+}
+
+// 写路径（handleSaveProfile 调用）：`provided` = Set of DB columns the client explicitly supplied.
+//   - existing row  → merge UPDATE: only provided columns are written; omitted columns keep their
+//     stored value (I-40 partial save = keep old). `price` mirrors `price_min` when the latter is written.
+//   - fresh row     → INSERT every writable column; absent fields fall back to empty/null defaults
+//     (JSON arrays '[]', time_slots/teaching_method '', prices null) — matches the legacy full-write shape.
+// 网安 F-06/N-05：wechat/email/real_name/credential_image 加密落库（D1 泄露/备份不暴露教师私密信息）。
+export async function dbUpsertTeacherProfile(db, userId, profile, provided) {
   const existing = await dbGet(db, 'SELECT id FROM teacher_profiles WHERE user_id=?', [userId]);
-  const subjects = JSON.stringify(profile.subjects);
-  const gaokao = JSON.stringify(profile.gaokao_scores);
-  // 网安报告 F-06：wechat/email/real_name 加密落库（D1 泄露/备份不暴露教师私密信息；real_name 截断先于加密）
-  // 网安 N-05：credential_image（学信网截图 dataURL）同款加密——D1 泄露/备份不暴露证件图
-  const [wechat, email, realName, credentialImage] = await Promise.all([
-    encryptField(profile.wechat || ''), encryptField(profile.email || ''),
-    encryptField((profile.real_name || '').slice(0, LIMITS.REAL_NAME_MAX)), encryptField(profile.credential_image || ''),
-  ]);
+  const has = k => !provided || provided.has(k);
 
-  // R2-5 报价区间化：price_min/price_max 保留 null=未填语义（完整性门槛据此拦截，勿落 0）；0 是合法报价
-  const priceMin = profile.price_min != null ? profile.price_min : null;
-  const priceMax = profile.price_max != null ? profile.price_max : null;
-  const timeSlots = profile.time_slots || ''; // R2-1 结构化时间段 JSON（空串 = 未填）
-  const teachingMethod = profile.teaching_method || ''; // R2-2 授课方式白名单（routes 已校验）
-  const personalityTags = JSON.stringify(Array.isArray(profile.personality_tags) ? profile.personality_tags : []); // R2-3 JSON 数组
-  const nonacademicProjects = JSON.stringify(Array.isArray(profile.nonacademic_projects) ? profile.nonacademic_projects : []); // R2-4 JSON 数组
-  const nonacademicPrices = JSON.stringify(Array.isArray(profile.nonacademic_prices) ? profile.nonacademic_prices : []); // R2-4 JSON 数组
-  // R2-12 毕业年份：''/null/非法（routes 已回 ''）一律归一为 null 落库（null = 未填，按最新政策）
-  const gradYear = profile.graduation_year != null && profile.graduation_year !== '' ? profile.graduation_year : null;
-  // S4-01/08：teacher_name（公开名，空回退 username）与 experience_years（非负整数，null=未填）
-  const teacherName = (profile.teacher_name || '').slice(0, LIMITS.REAL_NAME_MAX);
-  const expYears = profile.experience_years != null && profile.experience_years !== '' ? profile.experience_years : null;
-
-  // price 列保留 = price_min 同步镜像：INSERT/UPDATE 显式写 price=priceMin，
-  // 防新行吃 DEFAULT 0 后，被存量回填 `WHERE price_min IS NULL AND price IS NOT NULL` 误抓成「报价 0」。
-  // 语义：price 为只读残留（历史迁移用），业务读写一律走 price_min/price_max。
   if (existing) {
-    await dbRun(db, `UPDATE teacher_profiles SET province=?,grade=?,gender=?,subjects=?,gaokao_scores=?,
-      price=?,price_min=?,price_max=?,wechat=?,email=?,intro=?,address=?,school=?,real_name=?,credential_image=?,
-      time_slots=?,teaching_method=?,personality_tags=?,nonacademic_projects=?,nonacademic_prices=?,
-      graduation_year=?, teacher_name=?, experience_years=?,
-      updated_at=datetime('now') WHERE user_id=?`,
-      [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
-        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, teacherName, expYears, userId]);
+    const columns = [];
+    for (const col of WRITE_COLUMNS) {
+      if (col === 'price') { if (has('price_min')) columns.push('price'); continue; }
+      if (has(col)) columns.push(col);
+    }
+    if (columns.length === 0) return; // empty partial update = no-op
+    const values = [];
+    for (const col of columns) values.push(await prepareProfileValue(profile, col));
+    const setSql = columns.map(c => `${c}=?`).join(', ');
+    await dbRun(db, `UPDATE teacher_profiles SET ${setSql}, updated_at=datetime('now') WHERE user_id=?`,
+      [...values, userId]);
   } else {
-    await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,
-        price,price_min,price_max,wechat,email,intro,address,school,real_name,credential_image,
-        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year,
-        teacher_name, experience_years)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
-        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, teacherName, expYears]);
+    const values = [];
+    for (const col of WRITE_COLUMNS) values.push(await prepareProfileValue(profile, col));
+    const placeholders = WRITE_COLUMNS.map(() => '?').join(', ');
+    await dbRun(db, `INSERT INTO teacher_profiles (user_id, ${WRITE_COLUMNS.join(', ')}) VALUES (?, ${placeholders})`,
+      [userId, ...values]);
   }
 }
 
@@ -77,9 +105,26 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 // The full score follows the senior-high gaokao convention (chinese/math/english 150,
 // others 100) via region-data subjectMaxFor's senior branch — a university teacher grade
 // would otherwise fall through to the conservative 100 fallback for every subject.
-const GAOKAO_FULL_STAGE_GRADE = 'senior3';
+export const GAOKAO_FULL_STAGE_GRADE = 'senior3';
 function teacherSubjectRows(p, gaokaoScores) {
-  const ids = safeJsonArray(p.subjects).filter(x => typeof x === 'string' && x);
+  const raw = safeJsonArray(p.subjects);
+  // PA-1d-F4 (I-40): subjects stored as the object-array shape the mapper emits —
+  // [{subject, score, full, awards}] — read the rows back directly (the write path normalizes
+  // score to a number and derives `full` from region/grade, so a stored row is already canonical).
+  if (Array.isArray(raw) && raw.length && raw.every(x => x && typeof x === 'object' && !Array.isArray(x))) {
+    return raw
+      .filter(x => typeof x.subject === 'string' && x.subject)
+      .map(x => ({
+        subject: x.subject,
+        score: x.score != null && Number.isFinite(Number(x.score)) ? Number(x.score) : null,
+        full: x.full != null && Number.isFinite(Number(x.full))
+          ? Number(x.full)
+          : (SUFE_REGIONS.subjectMaxFor(p.province, x.subject, GAOKAO_FULL_STAGE_GRADE) || 0),
+        awards: Array.isArray(x.awards) ? x.awards : [],
+      }));
+  }
+  // v2 legacy shape: string id array — merge with gaokao_scores (existing behavior).
+  const ids = raw.filter(x => typeof x === 'string' && x);
   const gkBySubject = new Map();
   for (const g of Array.isArray(gaokaoScores) ? gaokaoScores : []) {
     if (g && typeof g.subject === 'string') gkBySubject.set(g.subject, g);
@@ -148,6 +193,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
     timeSlots: safeJsonArray(p.time_slots),
     personalityTags: safeJsonArray(p.personality_tags),
     bio: p.intro || '',
+    philosophy: p.philosophy || '',
     region: SUFE_REGIONS.provinceName(p.province),
     reviewCount: p.rating_count != null ? Number(p.rating_count) : 0,
     chsiVerified: p.chsi_verified ? true : false,
