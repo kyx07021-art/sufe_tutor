@@ -55,6 +55,11 @@ export async function routeApi(db, p, method, body, url, req, env) { // 导出�
   return dispatchApi({ db, p, method, body, url, req, env });
 }
 
+// PA-2f LOW-1：health/keepalive 是探活端点（独立保活 Worker cron + 发版脚本 readiness 检查），
+// 豁免 rateGate——探活永不 429，也不消耗探活 IP 的用户流量 global 桶（300/min 共享桶被探活挤占
+// 会确定性误伤该 IP 的真实用户请求；探活端点本身零用户数据面，无滥用面）。
+const PROBE_PATHS = new Set(['/api/health', '/api/keepalive']);
+
 // B6 公开列表边缘缓存（用户实测：游客 7s 出列表 / 教师列表 20s / 进模块拉表单 8s——D1 冷实例
 // 偶发 ~6s 慢往返按 worker 实例隔离，keepalive 只热它所在实例，用户请求路由到其他实例仍冷）。
 // 公开列表（帖子）命中边缘缓存零碰 D1，跨用户共享、冷实例也秒开。
@@ -248,9 +253,11 @@ export default {
     // Q-2a-L5：限流闸门前置 parseBody——rateGate 不消费 body（参数预留），超限请求在 body
     // 被读取解析前直接 429（1.1MB 大 body 的 DoS 放大消除：限流拒绝不再为读 body 付带宽/CPU）。
     const ip = request.headers.get('CF-Connecting-IP') || 'anon';
-    if (!(await rateGate(ip, p, request.method, null, Date.now(), db))) {
-      recordRequestMetric({ path: p, status: 429, rateLimited: true });
-      return applySecurityHeaders(errorMsg('RATE_LIMITED', 429), p);
+    if (!PROBE_PATHS.has(p)) {
+      if (!(await rateGate(ip, p, request.method, null, Date.now(), db))) {
+        recordRequestMetric({ path: p, status: 429, rateLimited: true });
+        return applySecurityHeaders(errorMsg('RATE_LIMITED', 429), p);
+      }
     }
 
     // 体积炸弹防护在 util.parseBody（Content-Length 短路 + 流式硬上限），失败 413 在此转响应
