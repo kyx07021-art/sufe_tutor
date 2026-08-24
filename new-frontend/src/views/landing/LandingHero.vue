@@ -32,7 +32,19 @@ function onEnter(role) {
     return
   }
   const open = getIface('openIdentityAuth')
-  if (open) open({ mode: 'register' })
+  if (open) {
+    open({
+      mode: 'register',
+      // AK-L-F1: finishSuccess() fires onVerified once the modal closes — route
+      // straight into the client so a fresh login/register doesn't leave the user
+      // stranded on the hero needing a second CTA click. Role comes from the real
+      // authenticated user (register lets them pick their own role).
+      onVerified: () => {
+        const def = defaultPageForRole(authStore.user?.role)
+        if (def) router.push(def)
+      },
+    })
+  }
 }
 </script>
 

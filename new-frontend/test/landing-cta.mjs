@@ -32,6 +32,11 @@ function installApiMock(page) {
     if (url.includes('/api/auth/me') && method === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: STUDENT_USER }) })
     }
+    // AK-L-F1: password login returns a real session so finishSuccess() fires
+    // and the hero's onVerified routes into the client.
+    if (url.includes('/api/auth/login') && method === 'POST' && !url.includes('/code')) {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: STUDENT_USER, authToken: VALID_TOKEN }) })
+    }
     if (url.includes('/api/conversations') && method === 'GET') {
       if (url.includes('/messages')) {
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ messages: [] }) })
@@ -100,6 +105,68 @@ test('F1: logged-in student CTA routes to a student-gated page', async () => {
       )
       const modal = await page.locator('.ui-modal').count()
       assert.equal(modal, 0, 'logged-in CTA must not open the auth modal')
+      assert.deepEqual(errors, [], 'zero console/pageerror expected, got: ' + errors.join(' | '))
+    } finally {
+      await page.close()
+    }
+  } finally {
+    await browser.close()
+  }
+})
+
+/** Drag the puzzle knob to a normalized offset (0..1); CaptchaPuzzle exposes
+    its current offset via window.__authPuzzleDebug (local pass, AK-A1a). */
+async function dragPuzzleTo(page, offset) {
+  const knob = page.locator('.captcha-puzzle__knob')
+  await knob.waitFor({ state: 'visible', timeout: 5000 })
+  const box = await knob.boundingBox()
+  if (!box) throw new Error('puzzle knob missing')
+  const dbg = await page.evaluate(() => window.__authPuzzleDebug || { offset: 0 })
+  const scale = await page.evaluate(() => {
+    const cv = document.querySelector('.captcha-puzzle__canvas')
+    return cv ? cv.clientWidth / 280 : 1
+  })
+  const current = (dbg.offset || 0) * 240 * scale
+  const desired = Math.max(0, Math.min(1, offset)) * 240 * scale
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box.x + box.width / 2 + (desired - current), box.y + box.height / 2, { steps: 8 })
+  await page.mouse.up()
+}
+
+test('AK-L-F1: a fresh login from the hero routes into the client (no stranded landing)', async () => {
+  const browser = await chromium.launch()
+  try {
+    const { page, errors } = await gotoLanding(browser)
+    try {
+      // CTA -> register modal -> flip to the login scene (switch keeps onVerified).
+      await page.click('.landing-hero__btn[data-cap="enter.student"]')
+      await page.waitForSelector('.ui-modal', { timeout: 5000 })
+      await page.click('.auth-shell__switch-login')
+      // password method: identifier + password + puzzle + confirm
+      await page.locator('.method-switch .ui-btn', { hasText: '密码验证' }).click()
+      await page.locator('.password-row__identifier .ui-input__ta').fill('alice')
+      await page.locator('.password-row__password .ui-input__native').fill('secret123')
+      await dragPuzzleTo(page, await page.evaluate(() => (window.__authPuzzleDebug || {}).target))
+      await page.waitForTimeout(300)
+      const confirmBtn = page.locator('.auth-shell__footer .ui-btn--fill-brand')
+      await confirmBtn.waitFor({ state: 'visible' })
+      if (await confirmBtn.isDisabled()) throw new Error('confirm should enable after credential + puzzle')
+      await confirmBtn.click()
+      // onVerified routes into the client automatically.
+      await page.waitForFunction(() => window.__APP__.router.currentRoute.value.path !== '/', null, { timeout: 8000 })
+      const state = await page.evaluate(() => ({
+        path: window.__APP__.router.currentRoute.value.path,
+        roles: window.__APP__.router.currentRoute.value.meta.roles || [],
+      }))
+      assert.ok(
+        state.roles.includes('student'),
+        'post-login must land on a student-gated route (AK-L-F1), got ' + JSON.stringify(state),
+      )
+      // the modal close runs its transition — wait for it to finish, then assert gone
+      await page.waitForFunction(() => document.querySelectorAll('.ui-modal').length === 0, null, { timeout: 5000 })
+      const modal = await page.locator('.ui-modal').count()
+      assert.equal(modal, 0, 'auth modal must close after login')
       assert.deepEqual(errors, [], 'zero console/pageerror expected, got: ' + errors.join(' | '))
     } finally {
       await page.close()
