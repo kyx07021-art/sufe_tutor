@@ -12,9 +12,6 @@ export const SHELL_COPY = {
   LOGIN_EXPIRED: '登录已过期，请重新登录',
   /** landing placeholder (M1 pending) */
   LANDING_PENDING: '经世知途·信息门户平台',
-  /** top bar brand name (AK-N-B4, alongside the LOGO). Full name matches the hero;
-      the shorter "经世知途" is a candidate - awaiting user confirmation (W38). */
-  LOGO_NAME: '经世知途·信息门户平台',
   /** client shell home placeholder */
   HOME_PLACEHOLDER: '客户端页面建设中，请从顶部选项卡进入模块',
   /** dev preview page title */
