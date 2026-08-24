@@ -217,11 +217,15 @@ cdp.on('Log.entryAdded', ({ entry }) => {
 })
 
 // mock the auth APIs the modal consumes; record the I-06 verify bodies so we can
-// assert the server-confirmed captchaId is echoed (#108).
+// assert the locally generated captchaId is echoed. The puzzle must pass WITHOUT
+// any /api/captcha/verify call (AK-A1a local-only pass) — count instead of mock
+// so an accidental round-trip both fails (404) and trips the counter assertion.
 const verifyBodies = []
-await page.route('**/api/captcha/verify', (route) =>
-  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }),
-)
+let captchaVerifyCalls = 0
+await page.route('**/api/captcha/verify', (route) => {
+  captchaVerifyCalls++
+  return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' })
+})
 await page.route('**/api/auth/verify', (route) => {
   const post = route.request().postData()
   if (post) verifyBodies.push(JSON.parse(post))
@@ -452,8 +456,12 @@ check(consoleErrors.length === 0, 'zero console/pageerror expected: ' + consoleE
 check(csp.length === 0, 'zero CSP violations expected: ' + csp.join(' | '))
 check(mobileErrors.length === 0, 'mobile zero console/pageerror expected: ' + mobileErrors.join(' | '))
 check(
+  captchaVerifyCalls === 0,
+  'puzzle must pass locally without any POST /api/captcha/verify (AK-A1a): ' + captchaVerifyCalls + ' call(s)',
+)
+check(
   verifyBodies.length > 0 && verifyBodies.some((b) => b.captchaVerified === true && b.captchaId && b.captchaId.length > 0),
-  'I-06 verify body must echo the server-confirmed captchaId (CaptchaPuzzle emits its own id)',
+  'I-06 verify body must echo the locally generated captchaId (CaptchaPuzzle emits its own id)',
 )
 
 if (errors.length) {

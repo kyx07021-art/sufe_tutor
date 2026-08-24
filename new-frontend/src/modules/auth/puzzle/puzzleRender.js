@@ -7,7 +7,9 @@
  *   gradient + 420 noise dots, one real gap + 2 interference holes, white
  *   stroke that follows the silhouette (CSP-safe: canvas drawing only).
  * - Returns { target, shape, id } for the interaction layer (M6-8b) to compare
- *   drag offset against the normalized target and to send captchaId to I-07.
+ *   drag offset against the normalized target. Alignment is judged in the browser
+ *   (isPuzzleAligned); the id is echoed on the I-06 verify body (anti-abuse UX
+ *   gate, NOT an auth boundary — the server no longer confirms the challenge).
  */
 export const PUZZLE_W = 280
 export const PUZZLE_H = 120
@@ -15,6 +17,21 @@ export const SLIDER_W = 40
 export const SLIDER_H = 40
 export const PUZZLE_MAX_X = PUZZLE_W - SLIDER_W // 240
 export const PUZZLE_TOLERANCE = 0.08
+
+/**
+ * Local alignment check (AK-A1a): the puzzle passes in-browser, no server
+ * round-trip. Tolerance is inclusive on the boundary.
+ * @param {number} offset  normalized drag offset 0..1
+ * @param {number} target  normalized gap target 0..1
+ * @param {number} [tolerance] override (defaults to PUZZLE_TOLERANCE)
+ * @returns {boolean} aligned within tolerance
+ */
+export function isPuzzleAligned(offset, target, tolerance = PUZZLE_TOLERANCE) {
+  const o = Number(offset)
+  const t = Number(target)
+  if (!Number.isFinite(o) || !Number.isFinite(t)) return false
+  return Math.abs(o - t) <= tolerance
+}
 export const GAP_SHAPES = ['square', 'circle', 'triangle', 'diamond', 'pentagon']
 
 const SLIDER_R = SLIDER_W / 2 - 4 // 16, shape radius
