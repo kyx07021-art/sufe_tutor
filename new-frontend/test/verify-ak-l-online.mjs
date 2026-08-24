@@ -20,6 +20,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
 import { chromium } from 'playwright'
+// AK-N-A4: the piece-vs-gap assertion derives from the same PUZZLE_H/SLIDER_H
+// constants as smoke-auth-shell — never a hard-coded px (a 96/32 literal would
+// silently misreport the deployed bundle after the AK-N-A4 96->56 shrink).
+import { PUZZLE_H, SLIDER_H } from '../src/modules/auth/puzzle/puzzleRender.js'
 
 const BASE = process.env.BASE || 'https://sufe-tutor.pages.dev'
 const QA = { username: process.env.QA_USER || 'qa_student', password: process.env.QA_PASS || 'SufeQa2026!' }
@@ -89,9 +93,9 @@ async function assertRegisterFits(page, label, viewport) {
     const cv = document.querySelector('.captcha-puzzle__canvas')
     return cv ? cv.clientWidth / 280 : 1
   })
-  const cutY = (96 - 32) / 2 // PUZZLE_H 96, SLIDER_H 32 (puzzleRender)
+  const cutY = (PUZZLE_H - SLIDER_H) / 2
   assert.ok(piece && Math.abs(piece.top - cutY * scale) <= 1, label + ': piece top must sit on the gap (cutY ' + cutY + ' x scale ' + scale.toFixed(2) + ' = ' + (cutY * scale).toFixed(1) + ', got ' + (piece ? piece.top.toFixed(1) : 'null') + ')')
-  assert.ok(piece && Math.abs(piece.height - 32 * scale) <= 1, label + ': piece height must match SLIDER_H (' + (32 * scale).toFixed(1) + ', got ' + (piece ? piece.height.toFixed(1) : 'null') + ')')
+  assert.ok(piece && Math.abs(piece.height - SLIDER_H * scale) <= 1, label + ': piece height must match SLIDER_H (' + (SLIDER_H * scale).toFixed(1) + ', got ' + (piece ? piece.height.toFixed(1) : 'null') + ')')
 }
 
 test('root boots the AK-L build with zero console/pageerror', async () => {

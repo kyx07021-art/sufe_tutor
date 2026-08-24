@@ -246,6 +246,14 @@ onBeforeUnmount(() => {
 <style scoped>
 .captcha-puzzle {
   --puzzle-scale: 1;
+  /* AK-N-A4: puzzle is the SECONDARY graphic — "the register page text is the
+     master". Track height is capped at 3x the in-track hint font (3*12px=36px);
+     the knob contact shrinks to 32px. Both are single-sourced here so the CSS
+     never hard-codes a px that could desync from the constants (AK-L-F3 lesson:
+     SLIDER_H 40->32 left the piece CSS at 40px and desynced it ~11px). */
+  --track-h: 36px;
+  --track-r: calc(var(--track-h) / 2);
+  --knob-s: 32px;
   position: relative;
   /* AK-A2: fill the auth content column (UiInput/CaptchaPuzzle share the same
      width contract); --puzzle-scale auto-upscales the 280px drawing (liveScale). */
@@ -282,9 +290,9 @@ onBeforeUnmount(() => {
 .captcha-puzzle__track {
   position: relative;
   box-sizing: border-box;
-  height: calc(40px * var(--puzzle-scale));
+  height: calc(var(--track-h) * var(--puzzle-scale));
   margin-top: var(--space-3);
-  border-radius: calc(20px * var(--puzzle-scale));
+  border-radius: calc(var(--track-r) * var(--puzzle-scale));
   background: var(--gray-10);
   overflow: hidden;
   touch-action: none;
@@ -333,8 +341,8 @@ onBeforeUnmount(() => {
   left: 0;
   z-index: 2;
   box-sizing: border-box;
-  width: calc(40px * var(--puzzle-scale));
-  height: calc(40px * var(--puzzle-scale));
+  width: calc(var(--knob-s) * var(--puzzle-scale));
+  height: calc(var(--knob-s) * var(--puzzle-scale));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -342,7 +350,7 @@ onBeforeUnmount(() => {
   background: var(--paper-raised);
   box-shadow: var(--shadow-input);
   color: var(--ink);
-  font-size: calc(18px * var(--puzzle-scale));
+  font-size: calc(16px * var(--puzzle-scale));
   cursor: grab;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
