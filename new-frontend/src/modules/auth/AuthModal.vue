@@ -206,6 +206,8 @@ function applyAuthSession(r) {
     :open="open"
     :scene="scene"
     :contact-masks="contactMasks"
+    :show-switch-login="scene !== AUTH_SCENES.VERIFY"
+    @switch-login="onSwitchToLogin"
     @close="close"
   >
     <RegisterPane
@@ -214,7 +216,6 @@ function applyAuthSession(r) {
       :open="open"
       v-model:valid="registerValid"
       @submit="onRegister"
-      @switch-login="onSwitchToLogin"
     />
     <template v-else>
       <OtpRow

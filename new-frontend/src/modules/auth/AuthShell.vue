@@ -24,6 +24,10 @@ const props = defineProps({
   /** contactMasks passed through (not consumed here) */
   contactMasks: { type: Object, default: () => ({}) },
   closeOnOutside: { type: Boolean, default: true },
+  /** AK-A14: show the flip-to-login underlined link under the title. Only the
+      login/register scenes offer it — verify is an authenticated re-auth flow
+      and must never invite a "go login" escape. */
+  showSwitchLogin: { type: Boolean, default: false },
 })
 
 /** Scene-welcoming title (single source = AUTH_COPY.TITLE_BY_SCENE, keys =
@@ -31,7 +35,7 @@ const props = defineProps({
  *  future scene id never renders an empty header. */
 const title = computed(() => AUTH_COPY.TITLE_BY_SCENE[props.scene] || AUTH_COPY.TITLE_BY_SCENE.login)
 
-const emit = defineEmits(['close', 'update:open'])
+const emit = defineEmits(['close', 'update:open', 'switch-login'])
 
 function close() {
   emit('close')
@@ -49,6 +53,16 @@ function close() {
   >
     <div class="auth-shell">
       <h2 class="auth-shell__title">{{ title }}</h2>
+      <!-- AK-A14: flip-to-login underlined link, centered directly under the
+           title (login/register only; the shell's showSwitchLogin prop is set
+           by AuthModal from the scene). S1 = underline text link (same visual
+           as the AK-A9 register channel switch). -->
+      <UiButton
+        v-if="showSwitchLogin"
+        variant="S1"
+        class="auth-shell__switch-login"
+        @click="emit('switch-login')"
+      >{{ AUTH_COPY.HAVE_ACCOUNT }}</UiButton>
       <div class="auth-shell__body">
         <slot />
       </div>
@@ -98,6 +112,14 @@ function close() {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* AK-A14: flip-to-login link centered under the title. S1 variant is a
+   text-only underlined link (height:auto), so only centering + no-shrink
+   matter here — no box sizing involved. */
+.auth-shell__switch-login {
+  flex: none;
+  align-self: center;
 }
 
 .auth-shell__body {

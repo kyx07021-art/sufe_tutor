@@ -6,7 +6,7 @@
  *   the flip-to-login switch), a logged-in visitor is routed to the CTA role's
  *   default page. There is NO standalone "已有账号？登录" link on the hero
  *   (the returning-user login path lives inside the auth modal, PA-2-F1 seam
- *   retained as the register-pane switch).
+ *   retained as the shell switch-login link, AK-A14).
  * - Asserts: (1) anonymous landing renders no `.landing-hero__login` link (G2:
  *   re-adding it goes red); (2) the hero CTA opens the register modal with the
  *   flip-to-login switch; (3) the switch flips the register pane to the login
@@ -100,8 +100,8 @@ test('AK-B1: anonymous hero CTA opens the register modal with the flip-to-login 
       await page.click('.landing-hero__btn[data-cap="enter.student"]')
       await page.waitForSelector('.ui-modal', { timeout: 5000 })
       assert.equal(await page.locator('.register-pane').count(), 1, 'anonymous CTA must open the register pane')
-      const switchLink = page.locator('.register-pane__switch-login')
-      assert.equal(await switchLink.count(), 1, 'register pane must expose the flip-to-login switch')
+      const switchLink = page.locator('.auth-shell__switch-login')
+      assert.equal(await switchLink.count(), 1, 'auth shell must expose the flip-to-login switch')
       assert.equal(await switchLink.isVisible(), true, 'flip-to-login switch must be visible')
       assert.deepEqual(errors, [], 'zero console/pageerror expected, got: ' + errors.join(' | '))
     } finally {
@@ -120,8 +120,8 @@ test('AK-B1: register pane flips to the login scene via the switch link', async 
       // The returning-user login path lives inside the auth modal (PA-2-F1 seam).
       await page.click('.landing-hero__btn[data-cap="enter.student"]')
       await page.waitForSelector('.register-pane', { timeout: 5000 })
-      assert.equal(await page.locator('.register-pane__switch-login').count(), 1, 'register pane must expose the flip-to-login link')
-      await page.click('.register-pane__switch-login')
+      assert.equal(await page.locator('.auth-shell__switch-login').count(), 1, 'auth shell must expose the flip-to-login link')
+      await page.click('.auth-shell__switch-login')
       await page.waitForFunction(
         () => !document.querySelector('.register-pane'),
         null,
