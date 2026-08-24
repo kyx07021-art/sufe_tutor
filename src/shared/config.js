@@ -30,8 +30,6 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
       { prefix: '+86', name: '中国大陆', pattern: /^1[3-9]\d{9}$/ },
     ],
     OTP_RESEND_SEC: 60,                   // 验证码 60s 重发冷却（前端倒计时/灰化；服务端 LIMITS.OTP_RESEND_WINDOW_MS 同口径强制）
-    // 滑动拼图人机判定（S0-19 单源）：偏移容差 CONFIG 供前端本地答案比对；服务端 PASS_SCORE/防重放窗口在 LIMITS
-    CAPTCHA_TOLERANCE: 0.08,              // 滑块缺口偏移容差（前端本地比对答案用；服务端只判人机不校验 offset 正确性）
     DEMAND_SCORE_MAX: 12,                 // 需求「科目具体情况」成绩条目数上限（服务端 sanitizeDemand 同读钳制——v0.31.3 审计：原为幽灵引用 + 裸 12 兜底）
     VERSION_PROBE_MS: 30000,              // 数据版本探测间隔（每个在线客户端每秒一条探测会放大冷启动/留档成本；30s 内静默拉取变化域仍足够灵敏）
     DH_TTL_MS: 60000,                     // 会话数据层保底 TTL
@@ -171,9 +169,6 @@ export const LIMITS = {
   PHONE_MAX: 20,
   EMAIL_MAX: 100,
   USERNAME_COOLDOWN_MS: 604800000,
-  // 滑动拼图人机判定（S0-19 单源，服务端 src/server/core/human-check.js 直读；偏移容差在前端 CONFIG）
-  CAPTCHA_PASS_SCORE: 59,                 // 人机判定放行阈值（20 次真人拖动校准 mean−2σ 取整；机器轨迹原始分恒 <15）
-  CAPTCHA_REUSE_WINDOW_MS: 5 * 60 * 1000, // 同 captchaId 放行后防重放窗口（内存 Map，isolate 内有效）
   // 单次 Worker 调用处理的密文行数上限（A-12 定案）：D1 Free 单调用 50 次查询预算，
   // 减 handler 固定开销（requireAdmin/confirmDangerOtp/logEvent/logRequest ≈ 10 次）与每段 1 次
   // 扫描 SELECT 后留足余量。≤30 契约由 test/reencrypt.test.js 锁定（防调大后单调用回归 D1 上限）。

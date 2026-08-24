@@ -1,6 +1,6 @@
 /**
  * 架构 v2 声明式路由表（V-1-4c：每个 domain 自持 routes，app.js 只做拼接）。
- * 特殊路由（通知 / 验证码）属于 core 或根基础设施，保留在本文件。
+ * 特殊路由（通知）属于 core 或根基础设施，保留在本文件。
  */
 import { routes as authRoutes } from './domains/auth/api.js';
 import { settingsRoutes } from './domains/auth/settings.js';
@@ -19,8 +19,6 @@ import {
   handleGetNotifications, handleMarkNotificationRead, handleMarkAllNotificationsRead,
   handleAdminDeleteNotification,
 } from './core/notify.js';
-import { handleCaptchaVerify } from './core/human-check.js';
-
 const S = (method, path, handler) => ({ method, path, handler });
 
 // core 通知 + 根基础设施的特殊路由（不进任何 domain 的 routes）
@@ -29,7 +27,6 @@ const specialRoutes = [
   S('POST', '/api/notifications/read-all', c => handleMarkAllNotificationsRead(c.db, c.req)),
   S('POST', '/api/notifications/:id/read', c => handleMarkNotificationRead(c.db, parseIdParam(c.params.id), c.req)),
   S('DELETE', '/api/admin/notifications/:id', c => handleAdminDeleteNotification(c.db, parseIdParam(c.params.id), c.req)),
-  S('POST', '/api/captcha/verify', c => handleCaptchaVerify(c.db, c.body, c.req)),
 ];
 
 export const routes = [

@@ -160,7 +160,7 @@
 
 | 方法 | 路径 | 业务能力 | 门禁 | 说明 |
 |---|---|---|---|---|
-| POST | `/api/captcha/verify` | 滑块拼图验证 | 公开 | `{captchaId, offset, track}` → `{ok, message?, score?}`；前端防线 |
+| ~~POST~~ | ~~`/api/captcha/verify`~~ | 滑块拼图验证 | — | **removed (AK-A1b)**：拼图改前端本地判定（PUZZLE_TOLERANCE），无服务端端点 |
 | GET | `/api/data-version` | 版本探针（域计数器） | 公开 | 缓存失效协议（见 §4 M4） |
 | POST | `/api/batch` | 批量 GET 聚合 | 子请求同权限面 | `{gets:[paths]}` → `{results}`；前端优化通道，可弃用直连各 GET |
 
@@ -188,8 +188,8 @@
 
 真源：`src/server/app.js:36-49` routes 数组（11 域 routes + 6 特殊路由）+ `_worker.js:93-110` routeApi 额外 3 条。**共 116 条分发路由**（app.js 113 + routeApi 3），与 route 契约测试 `test/v1-5-route-contract.test.js`（断言 `routes.length === 113`）精确一致。
 
-- 按域分布：auth 19 / admin 17 / contract 12 / demand 11 / complaints 11（含 feedbacks）/ teacher 9 / chat 7 / reviews 7 / posts 6 / awards 6 / settings 2 + 通知 4 + 版本/captcha 2 + batch/health/keepalive 3。
-- **特殊路由**：通知（list/read/read-all/管理员删）、`GET /api/data-version`、`POST /api/captcha/verify`；routeApi：`POST /api/batch`（禁 `/api/auth/check` 子路径，Z-1-F2）、`GET /api/health`（release gate 503）、`GET /api/keepalive`（D1 三库保温）。
+- 按域分布：auth 19 / admin 17 / contract 12 / demand 11 / complaints 11（含 feedbacks）/ teacher 9 / chat 7 / reviews 7 / posts 6 / awards 6 / settings 2 + 通知 4 + 版本 1 + batch/health/keepalive 3。（captcha 端点已随 AK-A1b 删除。）
+- **特殊路由**：通知（list/read/read-all/管理员删）、`GET /api/data-version`；routeApi：`POST /api/batch`（禁 `/api/auth/check` 子路径，Z-1-F2）、`GET /api/health`（release gate 503）、`GET /api/keepalive`（D1 三库保温）。（`POST /api/captcha/verify` 已随 AK-A1b 删除——拼图改前端本地判定，无服务端端点。）
 - **路径命名正交性**：全部 116 条路径为业务能力导向，**零前端组织词**（无 `/api/pages/`、`/api/sidebar`、模块名、页面 id、侧栏序）。`student/teacher/admin` 前缀是业务角色/资源归属；`my/mine` 是 REST 资源限定符；`scope=`/`phase=`/`sinceId=`/`sort=`/`q=`/`status=`/`target=`/`range=`/`cursor=`/`idx=` 全是业务/数据语义，非布局语义。响应形状为扁平领域对象数组，不携带布局/排版字段。
 
 ---
@@ -288,7 +288,7 @@
 | 通知中心 | `GET /api/notifications`、`POST :id/read`、`/read-all` |
 | 投诉/反馈 | `GET /api/complaints/recent?target=`、`/candidates?target=&q=`、`POST /api/complaints`、`GET /mine`、`/:id/attachment`、`POST /api/feedbacks`、`GET /api/feedbacks/mine` |
 | 隐私设置 | `GET/POST /api/privacy-settings` |
-| 滑块验证码 | `POST /api/captcha/verify`（前端防线；`score` 仅诊断） |
+| 滑块验证码 | 无服务端端点（AK-A1b）；前端本地判定 `PUZZLE_TOLERANCE` |
 | 管理端 11 模块 | 见 §1.12 各独立标准接口 |
 
 **接口帽模式**：新前端未就绪的页面/组件对接的接口打 `dummy` 标记（接口已定义、UI 未接线），沿用现有 B5 休眠注记惯例。

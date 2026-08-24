@@ -8,13 +8,12 @@
  *   严格 meta CSP（Vite 注入 + 三源锁）；
  *   删除（引用已删/废弃的 v2 结构）：web/index.html 层叠加载序、src/client 分层、architecture.md 互检
  *   （新站自有文档体系，v2 文档不承担契约互检）。
- *   新增：dist 不含 manifest.js（S0-24 Vite 内容哈希取代 v2 manifest 管线）；
- *   app.js 引 core/human-check（S0-21，非 server/human-check）；前端样式单源（tokens→base 依序）。
+ *   新增：dist 不含 manifest.js（S0-24 Vite 内容哈希取代 v2 manifest 管线）；前端样式单源（tokens→base 依序）。
  *
  * 契约清单（S0-26 验收边界：结构契约 + CSP 三源锁 + 零裸值 + 变异负例）：
  *   1. 构建契约：scripts/build.mjs 存在，deploy/build 接线 dist；dist 不含 manifest.js；
  *   2. 后端域自持：src/server/domains/<域>/{schema,repo,api} 三件套；
- *   3. 声明式路由：app.js 导出 routes（域拼接 + core 特殊路由）；app.js 引 core/human-check；
+ *   3. 声明式路由：app.js 导出 routes（域拼接 + core 特殊路由）；
  *      _worker.js routeApi 只装配（createRouter）零手写 if 路由；
  *   4. SQL 边界：domains/<域>/api.js 与 _worker.js（除保活）零 db.prepare；
  *   5. 前端模块自持：new-frontend/src/modules/<域>/ 自持页注册 + core/components/constants/router 分层；
@@ -71,14 +70,14 @@ test('后端域自持：src/server/domains/<域>/ 存在 schema/repo/api 三件'
 });
 
 /* ------------------------------------------------------------------ *
- * 3. 声明式路由 + core/human-check 落位
+ * 3. 声明式路由
  * ------------------------------------------------------------------ */
 test('声明式路由：app.js 导出 routes；routeApi 只装配零手写 if 路由', () => {
   const app = read('src/server/app.js');
   assert.ok(app.includes('export const routes'), 'app.js 导出 routes（域 routes + 特殊路由拼接）');
-  // S0-21：captcha handler 落位 src/server/core/human-check.js，禁止回退根 server/human-check。
-  assert.ok(app.includes("from './core/human-check.js'"), 'app.js 引 core/human-check');
-  assert.ok(!app.includes('server/human-check'), 'app.js 不引 server/human-check');
+  // AK-A1b：captcha 服务端路由已删（拼图改 client-side UX 门禁，无 I-07 端点）——app.js 零 captcha 引用。
+  assert.ok(!app.includes('captcha'), 'app.js 零 captcha 引用（AK-A1b 删 I-07 路由）');
+  assert.ok(!app.includes('human-check'), 'app.js 零 human-check 引用（模块已删）');
   const worker = read('_worker.js');
   const start = worker.indexOf('export async function routeApi');
   const brace = worker.indexOf('{', start);

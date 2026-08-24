@@ -24,7 +24,7 @@
 | 注册（学生/教师） | `POST /api/auth/register` → `{user, authToken}` | 公开 | ✅ |
 | 教师邀请码 | `POST /api/auth/check-invite` → `{ok}` | 公开 | ✅ |
 | 验证码请求 | `POST /api/auth/otp/request` → `{ok}` | 公开 | ✅ |
-| 滑块验证码 | `POST /api/captcha/verify` | 公开 | ✅ |
+| 滑块验证码 | 无服务端端点（AK-A1b）；前端本地判定 `PUZZLE_TOLERANCE` | 公开 | — |
 
 ## A 学生客户端
 

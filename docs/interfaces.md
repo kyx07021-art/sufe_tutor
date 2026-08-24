@@ -18,8 +18,8 @@
 | I-03 | 注册 | 注册 | POST /api/auth/register | 公开 | v2-ready | 需单科目新模型无关 |
 | I-04 | 登出 | 上边栏 | POST /api/auth/logout | 登录 | v2-ready | — |
 | I-05 | 恢复当前用户 | 上边栏/路由守卫 | GET /api/auth/me | 登录 | v2-ready | 401 → 引导登录 |
-| I-06 | 二次身份验证（验证码+拼图） | C5 身份认证组件 | POST /api/auth/verify | 登录+capToken | v2-ready | 形状按计划书 C5 确认（手机/邮箱/密码三选二 + 拼图） |
-| I-07 | 滑动拼图验证 | C5 | POST /api/captcha/verify | 公开 | v2-ready | human-check.js 考古搬运 |
+| I-06 | 二次身份验证 | C5 身份认证组件 | POST /api/auth/verify | 登录+capToken | v2-ready | 形状按计划书 C5 确认（手机/邮箱/密码三选二）；拼图 = client-side UX 门禁，服务端不确认（AK-A1b） |
+| I-07 | 滑动拼图验证 | C5 | ~~POST /api/captcha/verify~~ | — | **removed (AK-A1b)** | 服务端端点已删；拼图改前端本地判定（PUZZLE_TOLERANCE），无 round-trip |
 
 ## 2. 用户与设置（C4 设置）
 
@@ -160,11 +160,11 @@ matchCount：筛选维度（科目/性别/性格/报价区间）中命中的个�
 POST /api/auth/verify
 Auth: 登录 + 场景（capToken 由调用方流程提供）
 body: { credential: { type: 'otp'|'password', value: string },
-        captchaVerified: true,     // 拼图已先经 I-07 验证置位（前端状态）
-        captchaId: string }        // I-07 放行的 captchaId（服务端 isChallengeVerified 确认，#108）
-200: { verified: true } | 401/403
+        captchaVerified: true,     // 拼图本地判定通过后置位（前端状态；服务端忽略此字段，AK-A1b）
+        captchaId: string }        // 前端本地生成的关联 id（服务端不确认，AK-A1b）
+200: { verified: true, capToken } | 401/403
 ```
-定案理由：计划书 C5「确认按钮只在验证码和拼图都通过之后亮起」→ 拼图先行 I-07 验证，灰态判据 = 凭证完整（验证码 6 位 / 密码非空）+ 拼图已通过；I-06 提交只带凭证，验证码/密码合法性服务端判定。
+定案理由：计划书 C5「确认按钮只在验证码和拼图都通过之后亮起」→ 拼图先行本地判定，灰态判据 = 凭证完整（验证码 6 位 / 密码非空）+ 拼图已通过；I-06 提交带凭证 + 拼图 flag，凭证合法性服务端判定。AK-A1b：拼图 = client-side anti-abuse UX 门禁（真实防线 = 服务端凭证 + authRateBatch 限流），captchaVerified/captchaId 为被忽略的额外字段。
 
 ### I-05 恢复当前用户（加字段）
 ```
@@ -213,7 +213,7 @@ I-28 屏蔽系统通知 = PUT /api/settings { blockSystemNotifications: boolean 
 ## 16. 阶段二契约定案（S1/S5 反馈签发，2026-08-22）
 
 ### S1 决策点
-D1 C5 verify = I-06（§13 已签，POST /api/auth/verify，credential + captchaVerified，三选二组合签发一次性 capToken）。
+D1 C5 verify = I-06（§13 已签，POST /api/auth/verify，credential + captchaVerified，三选二组合签发一次性 capToken）。AK-A1b：服务端不再确认拼图，captchaVerified/captchaId 为被忽略的额外字段。
 D2 设备管理路径**保留 v2** `GET /api/auth/sessions` + `POST /api/auth/sessions/revoke`（auth 域实现，I-13 指向此处；前端 M5-11 接入）。
 D3 遗留一次性迁移（migrateLegacyRoles/rebuildTables/sanitizeUsernames/cleanLegacyAuthTokenColumns）**删除**（生产 D1 已终态，W1）。
 D4 otp/credential 核心**归 S1**（S0 不重复）。
@@ -257,8 +257,8 @@ I-16 适配：temp close = 删除会话行（FK 级联）+ 零通知；formal �
 - **I-03** `POST /api/auth/register` 公开（teacher 须 inviteCode）｜`{username,password,role,inviteCode?,otpChannel,phone?|email?,code,agreeAgreement,agreePrivacy,deviceId?}`→`{user,authToken,message}`｜绑定失败回滚零孤儿
 - **I-04** `POST /api/auth/logout` 登录｜→`{ok}`｜吊销令牌+清 capToken
 - **I-05** `GET /api/auth/me` 登录｜→`{user:{id,username,role,avatar,teacherName?,contactMasks:{phone,email}}}`｜teacherName 空回退 username（前端）
-- **I-06** `POST /api/auth/verify` 登录｜`{credential:{type:'otp'|'password',value},captchaVerified:true,captchaId}`→`{verified:true,capToken}`｜**capToken 签发（裁决①）**；三选二组合；无绑通道剔除；captchaId 服务端确认（isChallengeVerified，#108）
-- **I-07** `POST /api/captcha/verify` 公开｜`{captchaId,offset?,track[10-2000点]}`→`{ok,score}`｜PASS_SCORE 常量/防重放/留档不翻转
+- **I-06** `POST /api/auth/verify` 登录｜`{credential:{type:'otp'|'password',value},captchaVerified:true,captchaId}`→`{verified:true,capToken}`｜**capToken 签发（裁决①）**；三选二组合；无绑通道剔除；captchaId/captchaVerified 为被忽略的额外字段（服务端不确认，AK-A1b）
+- **I-07** `~~POST /api/captcha/verify~~` **removed (AK-A1b)**｜拼图改前端本地判定（PUZZLE_TOLERANCE），零 round-trip；服务端端点已删
 
 ### 用户与设置（I-08..14，M5 消费，ready）
 - **I-08** `GET /api/settings` 登录｜→`{user:{id,username,avatar,role,contactMasks},usernameStatus:{canChange,cooldownMs},blockSystemNotifications,notifyBroadcastMuted,devices:[{session_id,label,created_at,expires_at,current}]}`（收敛端点，裁决②）

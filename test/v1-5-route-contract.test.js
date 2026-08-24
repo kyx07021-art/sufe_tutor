@@ -70,10 +70,10 @@ async function call(method, path, body = null, token = null) {
   return routeApi(db, path, method, body, new URL(`http://x${path}`), { headers, url: `http://x${path}` }, ENV);
 }
 
-test('路由表：109 条、method+path 唯一、关键路径字面量齐全', () => {
+test('路由表：108 条、method+path 唯一、关键路径字面量齐全', () => {
   // S3 单科目 demand 模型：旧 /api/student/demands* 与 intents/pushes 已删（S2），
   // demand 域只剩 8 条：POST/GET mine/GET/GET :id/PUT/DELETE/close/open。
-  assert.equal(routes.length, 109, '迁移后路由数 109（S3 demand 单科目 8 条 + S2 删 intents/pushes + S5 合同合并 + S1 auth/settings 收敛 + PA-1i-F1 删 GET /api/data-version）');
+  assert.equal(routes.length, 108, '迁移后路由数 108（S3 demand 单科目 8 条 + S2 删 intents/pushes + S5 合同合并 + S1 auth/settings 收敛 + PA-1i-F1 删 GET /api/data-version + AK-A1b 删 POST /api/captcha/verify）');
   const keys = new Set(routes.map(r => `${r.method} ${r.path}`));
   assert.equal(keys.size, routes.length, 'method+path 唯一');
   // S5 合同独立化：contract 域恰好 10 条（S5-14 与 interfaces I-44/45/46 对齐）。
@@ -108,7 +108,6 @@ test('路由表：109 条、method+path 唯一、关键路径字面量齐全', (
     ['GET', '/api/contracts'], ['GET', '/api/contracts/:id'], ['POST', '/api/contracts'], ['GET', '/api/contracts/:id/verify'],
     ['GET', '/api/reviews'], ['POST', '/api/feedbacks'], ['POST', '/api/complaints'],
     ['GET', '/api/admin/stats'], ['GET', '/api/admin/content'],
-    ['POST', '/api/captcha/verify'],
   ];
   for (const [method, path] of required) {
     assert.ok(keys.has(`${method} ${path}`), `关键路径缺失 ${method} ${path}`);
@@ -181,8 +180,6 @@ test('routeApi 代表路径内存冒烟：认证/读列表/写反馈/管理端/�
   assert.equal(dashboard.status, 200);
   const content = await call('GET', '/api/admin/content', null, tokens.admin);
   assert.equal(content.status, 200);
-  const captcha = await call('POST', '/api/captcha/verify', { captchaId: 'x', offset: 0.5, track: Array.from({ length: 40 }, (_, i) => ({ t: i, x: i * 5, y: 0 })) });
-  assert.equal(captcha.status, 403, '机器轨迹被拒');
 });
 
 test('Q-5-F1: 畸形/双解码参数 404 而非 500（无二次解码 URIError）', async () => {

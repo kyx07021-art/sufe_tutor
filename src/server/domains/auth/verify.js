@@ -1,8 +1,11 @@
 /**
  * 二次身份验证（C5 / I-06）：POST /api/auth/verify —— 已登录用户执行敏感操作前的一次性身份复核。
  * 三选二 UI 由前端呈现（手机验证码 / 邮箱验证码 / 密码），服务端只校验用户提交的 ONE 凭证
- * （OTP 为默认分支：手机号优先、邮箱兜底；无绑通道剔除）+ 拼图人机 flag，通过后签发一次性 capToken。
+ * （OTP 为默认分支：手机号优先、邮箱兜底；无绑通道剔除），通过后签发一次性 capToken。
  * capToken 语义复用 danger-ops.issueCapToken（与 re-auth 同款，D1 持久化跨实例）。
+ *
+ * AK-A1b：拼图为 client-side anti-abuse UX 门禁（前端本地判定，captchaVerified/captchaId
+ * 仅为关联 id 被忽略的额外字段），真实防线 = 服务端凭证（OTP/密码）+ 下方 authRateBatch 限流。
  */
 import { json, errorMsg } from '../../core/util.js';
 import { verifyPassword } from '../../core/crypto.js';
@@ -11,27 +14,12 @@ import { dbGetMyCreds } from '../../core/credential.js';
 import { verifyOtp, targetMask } from '../../core/otp.js';
 import { issueCapToken } from '../../core/danger-ops.js';
 import { logEvent } from '../../core/log.js';
-import { isChallengeVerified, CAPTCHA_ID_MAX } from '../../core/human-check.js';
 import { LIMITS } from '../../../shared/config.js';
 import { dbUserLookupStmt } from './repo.js';
 
 export async function handleVerifyIdentity(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
-
-  // Human-check gate: the client sets captchaVerified=true after I-07 (slide puzzle) passes,
-  // and echoes the captchaId it submitted. The captchaId is server-confirmed here
-  // (isChallengeVerified) so a forged captchaVerified flag cannot skip the bot slow-down
-  // without actually solving the puzzle. captcha is an anti-abuse layer over the real
-  // credential check below (OTP/password are strictly server-verified) — it is NOT an auth
-  // boundary, so a crafted request only ever skips the slow-down, never gains capability.
-  if (body.captchaVerified !== true) return errorMsg('CAPTCHA_REQUIRED', 403);
-  const captchaId = String(body.captchaId || '').slice(0, CAPTCHA_ID_MAX);
-  if (!isChallengeVerified(captchaId)) {
-    await logEvent(db, { action: 'auth.verify.failed', actorUsername: targetMask(me.username),
-      entity: 'user', detail: { reason: 'captcha' }, req });
-    return errorMsg('CAPTCHA_REQUIRED', 403);
-  }
 
   const credential = body.credential || {};
   const type = credential.type === 'password' ? 'password' : 'otp';
@@ -40,10 +28,11 @@ export async function handleVerifyIdentity(db, body, req) {
 
   // PA-1a-F2: B1 combined authentication rate limit (8/10min, shared with the re-auth bucket —
   // verify issues the same one-time capToken as re-auth, so both share a per-IP budget). Placed
-  // after the captcha gate and the empty-value check so a flood of no-captcha / empty requests
-  // cannot drain a legitimate user's budget, and before the credential check so every attempted
-  // guess counts. Same batch pattern as handleLogin / handleReAuth; a D1 failure propagates to
-  // the fetch layer (500) rather than failing open.
+  // after the empty-value check so a flood of empty requests cannot drain a legitimate user's
+  // budget, and before the credential check so every attempted guess counts. Same batch pattern
+  // as handleLogin / handleReAuth; a D1 failure propagates to the fetch layer (500) rather than
+  // failing open. AK-A1b: this rate limit is the primary anti-bruteforce defense now that the
+  // server no longer confirms the client-side captcha.
   const ip = req.headers.get('CF-Connecting-IP') || 'anon';
   const gate = authRateBatch(db, ip, 'reauth', [dbUserLookupStmt(db, me.username)]);
   const results = await db.batch(gate.stmts);
