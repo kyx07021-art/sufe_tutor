@@ -12,11 +12,9 @@ import { authOverlay } from './authState.js'
  * -------------------------------------------------------
  * - POST /api/auth/verify (logged-in) with body
  *   { credential: { type: 'otp' | 'password', value }, captchaVerified: true,
- *     captchaId }. The slider puzzle passes locally first (M6-8b local pass,
- *   AK-A1a); the locally generated captchaId is echoed here as a correlation id
- *   (anti-abuse UX gate, NOT an auth boundary — the server no longer confirms
- *   the challenge; server-verified credential + auth rate limits are the real
- *   defense).
+ *     captchaId }. The slider puzzle is verified first (M6-8b -> I-07) and the
+ *   server-confirmed captchaId is echoed here so a forged captchaVerified flag
+ *   cannot skip the puzzle (server-side isChallengeVerified check).
  * - Returns true on success so the caller can run onVerified + close; false on
  *   failure (modal stays open). Busy guard (F6) prevents double submits.
  * - The response carries a fresh capToken for the calling flow (interfaces.md

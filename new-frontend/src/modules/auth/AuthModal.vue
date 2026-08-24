@@ -47,7 +47,7 @@ const { submitting: confirmSubmitting, submit: verifySubmit } = useConfirmSubmit
 const identifier = ref('')
 const puzzleRef = ref(null)
 const puzzlePassed = ref(false)
-/** The locally generated captchaId from the passed puzzle, echoed on the I-06 verify body (AK-A1b: server no longer confirms). */
+/** The server-confirmed captchaId from the passed puzzle, echoed on the I-06 verify body. */
 const puzzleCaptchaId = ref('')
 const otpRowRef = ref(null)
 const registerPaneRef = ref(null)
