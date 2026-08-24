@@ -1,7 +1,6 @@
 <script setup>
 import { computed, provide, ref } from 'vue'
 import { FIELD_CTX_KEY, FIELD_FILL_KEY } from '@/composables/useFieldContext'
-import StarFilled from '@/assets/svg/star-filled.svg'
 import Check from '@/assets/svg/check.svg'
 
 /**
@@ -9,9 +8,10 @@ import Check from '@/assets/svg/check.svg'
  * -------------------------------------------------------
  * - Wide and flat, stackable vertically; white fill no border; 5% left / 10% right blank.
  * - Layout: left 5%~25% black bold title + status mark; left 30%~90% is the input component zone.
- * - Status marks (thin, light SVG strokes):
- *   - required unfilled: red star   - optional unfilled (not touched): yellow star   - filled: green check
- *   Once an optional item is interacted with (caret summoned / dropdown opened etc.) the yellow star disappears for this mother-component opening.
+ * - Status marks (TASK C, user AK-N-㊱: the required marker is an asterisk character,
+ *   NOT a five-pointed star — the star glyph is reserved for rating stars):
+ *   - required unfilled: red asterisk *   - optional unfilled (not touched): yellow asterisk *   - filled: green check
+ *   Once an optional item is interacted with (caret summoned / dropdown opened etc.) the yellow asterisk disappears for this mother-component opening.
  * - Input components inside the zone default to gray-10 background (fill='auto' resolves via FIELD_FILL_KEY).
  * - Row spacing between items is large (>= 2x text height).
  */
@@ -48,15 +48,19 @@ const status = computed(() => {
 </script>
 
 <template>
-  <div class="ui-fieldinput" :class="`ui-fieldinput--${status}`">
+  <div
+    class="ui-fieldinput"
+    :class="`ui-fieldinput--${status}`"
+    :aria-required="required || undefined"
+  >
     <div class="ui-fieldinput__label">
       <span class="ui-fieldinput__title">{{ title }}</span>
       <span v-if="status !== 'touched'" class="ui-fieldinput__mark">
-        <StarFilled
+        <span
           v-if="status === 'required-empty' || status === 'optional-empty'"
-          class="ui-fieldinput__mark-icon"
+          class="ui-fieldinput__mark-char"
           aria-hidden="true"
-        />
+        >*</span>
         <Check v-else-if="status === 'filled'" class="ui-fieldinput__mark-icon" aria-hidden="true" />
       </span>
     </div>
@@ -100,9 +104,14 @@ const status = computed(() => {
   width: v-bind(markSize + 'px');
   height: v-bind(markSize + 'px');
 }
+/* required / optional markers are asterisk characters (TASK C, AK-N-㊱) */
+.ui-fieldinput__mark-char {
+  font-size: v-bind((markSize + 2) + 'px');
+  line-height: 1;
+}
 
-.ui-fieldinput--required-empty .ui-fieldinput__mark-icon { color: var(--danger); }
-.ui-fieldinput--optional-empty .ui-fieldinput__mark-icon { color: var(--warn); }
+.ui-fieldinput--required-empty .ui-fieldinput__mark-char { color: var(--danger); }
+.ui-fieldinput--optional-empty .ui-fieldinput__mark-char { color: var(--warn); }
 .ui-fieldinput--filled .ui-fieldinput__mark-icon { color: var(--success); }
 
 .ui-fieldinput__content {

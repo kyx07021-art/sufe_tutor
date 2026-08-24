@@ -223,22 +223,26 @@ await page.waitForTimeout(200)
 const afterRemove = await varSetSec.locator('.ui-varset__row').count()
 if (afterRemove !== beforeRows) errors.push('remove row failed')
 
-// -- info input area status marks --
+// -- info input area status marks (TASK C: asterisk character, not five-pointed star) --
 const fieldSec = page.locator('.pv__sec', { hasText: 'Info Input Area' })
-// required unfilled -> red star
-const redStar = await fieldSec.locator('.ui-fieldinput--required-empty .ui-fieldinput__mark-icon').count()
-if (redStar < 1) errors.push('required empty should show red star')
-// optional unfilled -> yellow star
-const yellowStar = await fieldSec.locator('.ui-fieldinput--optional-empty .ui-fieldinput__mark-icon').count()
-if (yellowStar !== 1) errors.push('optional empty should show yellow star')
-// interact with optional (schedule input focus) -> yellow star disappears
+// required unfilled -> red asterisk
+const redMark = await fieldSec.locator('.ui-fieldinput--required-empty .ui-fieldinput__mark-char').count()
+const redText = redMark ? await fieldSec.locator('.ui-fieldinput--required-empty .ui-fieldinput__mark-char').first().textContent() : ''
+if (redMark < 1) errors.push('required empty should show a mark')
+if (redText !== '*') errors.push('required empty mark should be the asterisk *, got ' + JSON.stringify(redText))
+// optional unfilled -> yellow asterisk
+const yellowMark = await fieldSec.locator('.ui-fieldinput--optional-empty .ui-fieldinput__mark-char').count()
+const yellowText = yellowMark ? await fieldSec.locator('.ui-fieldinput--optional-empty .ui-fieldinput__mark-char').first().textContent() : ''
+if (yellowMark !== 1) errors.push('optional empty should show a yellow mark')
+if (yellowText !== '*') errors.push('optional empty mark should be the asterisk *, got ' + JSON.stringify(yellowText))
+// interact with optional (schedule input focus) -> yellow asterisk disappears
 const fieldInputs = fieldSec.locator('.ui-input__ta')
 await fieldInputs.nth(1).focus()
 await page.waitForTimeout(200)
 await fieldInputs.nth(1).blur()
 await page.waitForTimeout(200)
 const yellowAfterTouch = await fieldSec.locator('.ui-fieldinput--optional-empty').count()
-if (yellowAfterTouch !== 0) errors.push('yellow star should disappear after interaction (optional -> touched)')
+if (yellowAfterTouch !== 0) errors.push('yellow asterisk should disappear after interaction (optional -> touched)')
 // fill required -> green check
 await fieldInputs.nth(0).fill('Higher Math')
 await page.waitForTimeout(200)
