@@ -184,8 +184,12 @@ watch(
 .st-section {
   min-height: 320px;
 }
+/* AK-N-G1: three-tier gap rhythm - sections (large blocks) separated by
+   --space-5 (24px), NOT --space-6 (40px). Field groups inside a section stay
+   at --space-4 (group tier); the whole right column reads as one continuous
+   panel instead of separate pasted blocks. */
 .st-section + .st-section {
-  margin-top: var(--space-6);
+  margin-top: var(--space-5);
 }
 .st-section__title {
   font-size: var(--fs-lg);
