@@ -87,26 +87,49 @@ if (pinned.name !== 'ui-ripple' || pinned.dur !== '0.2s') {
   errors.push('AK-H1: .is-rippling ::after should run ui-ripple 0.2s, got ' + JSON.stringify(pinned))
 }
 
-// -- AK-H2: the spread origin freezes while is-rippling (click layer does not
-// chase the mouse). Pin the rippling state + origin, dispatch a pointermove at a
-// different position (synchronous through useRipple's el listener), assert the
-// origin stays put. Mutation: remove the is-rippling guard in
-// useRipple.onPointerMove -> this turns red.
+// -- AK-H5: the ripple origin NEVER chases the mouse. Even WITHOUT is-rippling,
+// a pointermove must not re-aim --mx/--my (mutation: restore setPoint in
+// useRipple.onPointerMove -> this turns red).
 const frozenOrigin = await page.evaluate(() => {
   const btn = document.querySelector('.ui-checkbtn')
-  btn.classList.add('is-rippling')
   btn.style.setProperty('--mx', '10px')
   btn.style.setProperty('--my', '20px')
   const r = btn.getBoundingClientRect()
   btn.dispatchEvent(new PointerEvent('pointermove', {
     bubbles: true, cancelable: true, clientX: r.left + 120, clientY: r.top + 30,
   }))
-  const res = { mx: btn.style.getPropertyValue('--mx'), my: btn.style.getPropertyValue('--my') }
-  btn.classList.remove('is-rippling')
-  return res
+  return { mx: btn.style.getPropertyValue('--mx'), my: btn.style.getPropertyValue('--my') }
 })
 if (frozenOrigin.mx !== '10px' || frozenOrigin.my !== '20px') {
-  errors.push('AK-H2: spread origin must freeze while is-rippling, got mx=' + frozenOrigin.mx + ' my=' + frozenOrigin.my)
+  errors.push('AK-H5: ripple origin must not chase the mouse (button-own mask), got mx=' + frozenOrigin.mx + ' my=' + frozenOrigin.my)
+}
+// -- AK-H5 geometry: the hover cover (::before) stays pinned to the button
+// center even after an off-center click origin bleeds into --mx/--my — the
+// click layer owns --mx/--my, the hover layer must NOT consume it (else the
+// gray cover shifts and its edge peeks outside the button, the user symptom).
+// Mutation: restore `left: var(--mx, 50%)` on ::before -> this turns red.
+const coverCheck = await page.evaluate(() => {
+  const btn = document.querySelector('.ui-checkbtn')
+  const r = btn.getBoundingClientRect()
+  btn.style.setProperty('--mx', '12px')
+  btn.style.setProperty('--my', '26px')
+  const before = getComputedStyle(btn, '::before')
+  const res = {
+    left: parseFloat(before.left),
+    top: parseFloat(before.top),
+    centerX: r.width / 2,
+    centerY: r.height / 2,
+  }
+  btn.style.removeProperty('--mx')
+  btn.style.removeProperty('--my')
+  return res
+})
+if (Math.abs(coverCheck.left - coverCheck.centerX) > 1 || Math.abs(coverCheck.top - coverCheck.centerY) > 1) {
+  errors.push(
+    'AK-H5: hover cover must stay centered regardless of --mx/--my (left=' +
+      coverCheck.left.toFixed(1) + ' top=' + coverCheck.top.toFixed(1) +
+      ' vs center ' + coverCheck.centerX.toFixed(1) + ',' + coverCheck.centerY.toFixed(1) + ')',
+  )
 }
 
 // -- input filtering (digits only) --

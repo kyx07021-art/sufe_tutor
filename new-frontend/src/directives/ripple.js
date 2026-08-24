@@ -43,12 +43,10 @@ function ripple(el, lx, ly) {
 function onMove(e) {
   const el = e.currentTarget
   if (isBlocked(el)) return
-  // AK-H2: freeze the click/focus spread origin while it animates (does not chase
-  // the mouse; the hover layer keeps following).
-  if (el.classList.contains('is-rippling')) return
+  // AK-H5: the ripple origin never chases the mouse (hover layer pinned to the
+  // button center in CSS, click layer fixed at the trigger point); pointermove
+  // only refreshes the cover diameter so size changes keep a covering circle.
   updateCover(el)
-  const p = toLocal(el, e.clientX, e.clientY)
-  setPoint(el, p[0], p[1])
 }
 
 function onDown(e) {

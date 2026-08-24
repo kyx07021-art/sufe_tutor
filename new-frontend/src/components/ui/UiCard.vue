@@ -85,8 +85,9 @@ function onKeydown(e) {
 .ui-card::after {
   content: "";
   position: absolute;
-  left: var(--mx, 50%);
-  top: var(--my, 50%);
+  /* AK-H5: hover layer pinned to center; click layer owns --mx/--my. */
+  left: 50%;
+  top: 50%;
   width: var(--btn-d, 900px);
   height: var(--btn-d, 900px);
   margin-left: calc(var(--btn-d, 900px) / -2);
@@ -114,7 +115,7 @@ function onKeydown(e) {
   to { transform: scale(1); }
 }
 
-.ui-card::after { background: var(--gray-30); }
+.ui-card::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--gray-30); }
 .ui-card.is-rippling::after {
   animation: ui-ripple var(--dur-sm) var(--ease-out) forwards; /* AK-H1: 0.1s spread */
 }

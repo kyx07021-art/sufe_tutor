@@ -182,8 +182,9 @@ function onKeydown(e) {
 .ui-checkbtn::after {
   content: "";
   position: absolute;
-  left: var(--mx, 50%);
-  top: var(--my, 50%);
+  /* AK-H5: hover layer pinned to center; click layer owns --mx/--my. */
+  left: 50%;
+  top: 50%;
   width: var(--btn-d, 600px);
   height: var(--btn-d, 600px);
   margin-left: calc(var(--btn-d, 600px) / -2);
@@ -210,7 +211,7 @@ function onKeydown(e) {
   from { transform: scale(0); }
   to { transform: scale(1); }
 }
-.ui-checkbtn::after { background: var(--btn-click-bg); }
+.ui-checkbtn::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--btn-click-bg); }
 .ui-checkbtn.is-rippling::after {
   animation: ui-ripple var(--btn-dur-click) var(--ease-out) forwards;
 }

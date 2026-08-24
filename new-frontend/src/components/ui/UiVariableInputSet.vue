@@ -173,8 +173,9 @@ const atMax = computed(() => props.max > 0 && list.value.length >= props.max)
 .ui-varset__add::after {
   content: "";
   position: absolute;
-  left: var(--mx, 50%);
-  top: var(--my, 50%);
+  /* AK-H5: hover layer pinned to center; click layer owns --mx/--my. */
+  left: 50%;
+  top: 50%;
   width: var(--btn-d, 120px);
   height: var(--btn-d, 120px);
   margin-left: calc(var(--btn-d, 120px) / -2);
@@ -205,7 +206,7 @@ const atMax = computed(() => props.max > 0 && list.value.length >= props.max)
   to { transform: scale(1); }
 }
 .ui-varset__remove::after,
-.ui-varset__add::after { background: var(--gray-30); }
+.ui-varset__add::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--gray-30); }
 .ui-varset__remove.is-rippling::after,
 .ui-varset__add.is-rippling::after {
   animation: ui-ripple var(--dur-sm) var(--ease-out) forwards; /* AK-H1: 0.1s spread */

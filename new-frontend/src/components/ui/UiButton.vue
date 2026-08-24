@@ -217,8 +217,10 @@ defineExpose({ el })
 .ui-btn::after {
   content: "";
   position: absolute;
-  left: var(--mx, 50%);
-  top: var(--my, 50%);
+  /* AK-H5: the hover layer (::before) stays pinned to the button center; the
+     click layer (::after) overrides to the trigger point via --mx/--my. */
+  left: 50%;
+  top: 50%;
   width: var(--btn-d, 600px);
   height: var(--btn-d, 600px);
   margin-left: calc(var(--btn-d, 600px) / -2);
@@ -249,8 +251,9 @@ defineExpose({ el })
   to { transform: scale(1); }
 }
 
-/* click dark layer: one-shot animation (spread to fill -> fade back evenly) */
-.ui-btn::after { background: var(--btn-click-bg); }
+/* click dark layer: one-shot animation (spread to fill -> fade back evenly);
+   owns the --mx/--my trigger point (AK-H5). */
+.ui-btn::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--btn-click-bg); }
 .ui-btn.is-rippling::after {
   animation: ui-ripple var(--btn-dur-click) var(--ease-out) forwards;
 }

@@ -136,8 +136,9 @@ function onSelect(value) {
 .ui-combo__v::after {
   content: "";
   position: absolute;
-  left: var(--mx, 50%);
-  top: var(--my, 50%);
+  /* AK-H5: hover layer pinned to center; click layer owns --mx/--my. */
+  left: 50%;
+  top: 50%;
   width: var(--btn-d, 200px);
   height: var(--btn-d, 200px);
   margin-left: calc(var(--btn-d, 200px) / -2);
@@ -164,7 +165,7 @@ function onSelect(value) {
   from { transform: scale(0); }
   to { transform: scale(1); }
 }
-.ui-combo__v::after { background: var(--gray-30); }
+.ui-combo__v::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--gray-30); }
 .ui-combo__v.is-rippling::after {
   animation: ui-ripple var(--dur-sm) var(--ease-out) forwards; /* AK-H1: 0.1s spread */
 }
