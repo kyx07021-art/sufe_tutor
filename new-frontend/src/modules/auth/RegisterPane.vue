@@ -30,7 +30,11 @@ const props = defineProps({
 
 const emit = defineEmits(['submit', 'close', 'update:valid'])
 
-const role = ref('')
+// AK-I1: default-select the student role — the role picker opens with a choice
+// already made (student, gray-10 filled), so the first-time user sees the
+// selected state immediately. The AK-A10 requirement covered the default
+// selection too; the original implementation dropped it by leaving role empty.
+const role = ref('student')
 const inviteCode = ref('')
 const channel = ref('phone')
 const identifier = ref('')
@@ -109,7 +113,7 @@ watch(
   () => props.open,
   (v) => {
     if (!v) return
-    role.value = ''
+    role.value = 'student' // AK-I1: reopening the modal re-selects the default role
     inviteCode.value = ''
     channel.value = 'phone'
     identifier.value = ''
