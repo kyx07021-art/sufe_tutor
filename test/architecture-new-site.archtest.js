@@ -147,10 +147,8 @@ test('前端模块自持：new-frontend/src/modules 自持页注册 + core/compo
 const DATA_ALLOWLIST = new Set([
   'new-frontend/src/modules/chat/demoData.js',          // C2 骨架演示夹具（非用户文案）
   'new-frontend/src/modules/teacher-square/mock-data.js', // M7 I-29 预览 mock
-  'new-frontend/src/modules/notifications/data.js',      // M5 通知数据层（含时间格式注释）
   'new-frontend/src/modules/my-demands/region.js',       // M8 域数据（S3 region 契约落地后改 re-export）
   'new-frontend/src/modules/my-demands/MyDemandsPreview.vue', // M9 dev-only 预览夹具
-  'new-frontend/src/modules/my-demands/steps/TimeSlotEditor.vue', // M9 WIP 时段默认值
 ]);
 
 test('前端边界：fetch 单点；零 v-html/内联事件/样式属性/<style> 注入/fromCharCode；中文只在常量+数据模块', () => {

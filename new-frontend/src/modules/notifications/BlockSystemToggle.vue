@@ -9,7 +9,7 @@ import { api } from '@/core/api.js'
  * BlockSystemToggle - M5-03 block-system-notifications checkbox
  * -------------------------------------------------------
  * - Checkbox row (UiCheckbox: square box + check, no stretch) toggling the
- *   server-side blockSystemNotifications preference (I-28). AK-C9-F9 (#4): the
+ *   server-side blockSystemNotifications preference (I-28). AK-C2-F9 (#4): the
  *   boolean preference is checkbox-shaped — a UiCheckButton would stretch right
  *   on select (the exact 'button elongates' anti-pattern the user rejected).
  * - Single source of truth = notifyState.blockSystem (data.js). The client
