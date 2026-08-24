@@ -12,16 +12,11 @@
  *   gate, NOT an auth boundary — the server no longer confirms the challenge).
  */
 export const PUZZLE_W = 280
-/* AK-L-F3: 120 -> 96 (compact auth modal). AK-N-A4: 96 -> 56 — the puzzle is a
-   secondary graphic component, "the register page text is the master"; the canvas
-   is a wide short strip (5:1), not a dominating block. The piece stays glued to
-   the gap via the derived --piece-top/--piece-h CSSOM channel in CaptchaPuzzle.
-   Floor: the interference-hole random slot fy = 10 + rand*(H-46) needs H >= 46
-   to stay positive; 56 keeps the slots in-canvas (see paintCaptcha). */
-export const PUZZLE_H = 56
+/* AK-L-F3: 120 -> 96 (compact auth modal; the piece stays glued to the gap via
+   the derived --piece-top/--piece-h CSSOM channel in CaptchaPuzzle). */
+export const PUZZLE_H = 96
 export const SLIDER_W = 40
-/* AK-L-F3: 40 -> 32 (squish heights). SLIDER_H must stay >= 2*SLIDER_R (16) so
-   the gap shapes (radius 16, diameter 32) never clip inside the piece canvas. */
+/* AK-L-F3: 40 -> 32 (squish heights, font sizes untouched). */
 export const SLIDER_H = 32
 export const PUZZLE_MAX_X = PUZZLE_W - SLIDER_W // 240
 export const PUZZLE_TOLERANCE = 0.08
@@ -161,10 +156,8 @@ export function paintCaptcha(ctx, pctx) {
       // The random constraints |fx-cutX|>=80 and pairwise >=60 are mathematically
       // unsatisfiable for mid-range cutX; exhaustion used to leave overlapping
       // decoys — a visible defect that also breaks the 3-hole invariant.
-      // AK-N-A4: PUZZLE_H 96 -> 56 — the old y=84 fallback landed BELOW the
-      // canvas (decoy silently invisible); pick a bottom slot that stays in-canvas.
       fakes.length = 0
-      fakes.push({ x: 24, y: 6 }, { x: W - 64, y: Math.max(8, H - 36) })
+      fakes.push({ x: 24, y: 6 }, { x: W - 64, y: 84 })
       break
     }
     fakes.push({ x: fx, y: fy })

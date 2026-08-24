@@ -20,10 +20,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
 import { chromium } from 'playwright'
-// AK-N-A4: piece geometry derives from the same PUZZLE_H/SLIDER_H constants as
-// smoke-auth-shell — never hard-coded px (a 96/32 literal would silently go red
-// after the AK-N-A4 96->64 shrink and misreport the deployed bundle).
-import { PUZZLE_H, SLIDER_H } from '../src/modules/auth/puzzle/puzzleRender.js'
 
 const BASE = process.env.BASE || 'https://sufe-tutor.pages.dev'
 const QA = { username: process.env.QA_USER || 'qa_student', password: process.env.QA_PASS || 'SufeQa2026!' }
