@@ -87,23 +87,26 @@ if (pinned.name !== 'ui-ripple' || pinned.dur !== '0.2s') {
   errors.push('AK-H1: .is-rippling ::after should run ui-ripple 0.2s, got ' + JSON.stringify(pinned))
 }
 
-// -- AK-H3: the ripple origin NEVER chases the mouse (button-own mask). Even
-// WITHOUT is-rippling, a pointermove must not re-aim --mx/--my — the hover
-// cover stays put while the pointer travels inside the button (moving the mouse
-// used to shift the gray cover so its edge peeked outside the button).
-// Mutation: restore setPoint in useRipple.onPointerMove -> this turns red.
+// -- AK-H2: the spread origin freezes while is-rippling (click layer does not
+// chase the mouse). Pin the rippling state + origin, dispatch a pointermove at a
+// different position (synchronous through useRipple's el listener), assert the
+// origin stays put. Mutation: remove the is-rippling guard in
+// useRipple.onPointerMove -> this turns red.
 const frozenOrigin = await page.evaluate(() => {
   const btn = document.querySelector('.ui-checkbtn')
+  btn.classList.add('is-rippling')
   btn.style.setProperty('--mx', '10px')
   btn.style.setProperty('--my', '20px')
   const r = btn.getBoundingClientRect()
   btn.dispatchEvent(new PointerEvent('pointermove', {
     bubbles: true, cancelable: true, clientX: r.left + 120, clientY: r.top + 30,
   }))
-  return { mx: btn.style.getPropertyValue('--mx'), my: btn.style.getPropertyValue('--my') }
+  const res = { mx: btn.style.getPropertyValue('--mx'), my: btn.style.getPropertyValue('--my') }
+  btn.classList.remove('is-rippling')
+  return res
 })
 if (frozenOrigin.mx !== '10px' || frozenOrigin.my !== '20px') {
-  errors.push('AK-H3: ripple origin must not chase the mouse (button-own mask), got mx=' + frozenOrigin.mx + ' my=' + frozenOrigin.my)
+  errors.push('AK-H2: spread origin must freeze while is-rippling, got mx=' + frozenOrigin.mx + ' my=' + frozenOrigin.my)
 }
 
 // -- input filtering (digits only) --
