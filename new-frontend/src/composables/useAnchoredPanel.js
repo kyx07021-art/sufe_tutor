@@ -9,6 +9,10 @@ import { computed, nextTick, onBeforeUnmount, reactive } from 'vue'
  * - matchWidth: panel width = trigger element width (common for dropdown buttons)
  * - gap: spacing between panel and trigger
  * - place() is called after the panel mounts / when options change / on scroll / on resize.
+ * - Root zoom (--ui-scale via SettingsAppearance) is respected: the trigger rect is in
+ *   visual space, the fixed panel lives in layout space, so the anchor is divided by the
+ *   zoom factor (AK-N-H2). Open panels are re-placed on a scale change because the
+ *   settings control dispatches a synthetic window resize (the same listener used here).
  * - Returns a style (computed) for :style binding (explicit stringification, avoiding reactive :style binding uncertainty).
  */
 export function useAnchoredPanel(panelRef, triggerRef, {
@@ -34,46 +38,68 @@ export function useAnchoredPanel(panelRef, triggerRef, {
   }))
 
   let placed = false
+  // Natural (un-stretched) panel width in layout px, cached per mounted panel element.
+  // The minWidth/matchWidth stretch overwrites the panel width, so offsetWidth can no
+  // longer be trusted after the first place; caching the first measurement keeps the
+  // stretch decision stable across scroll / resize / zoom re-places.
+  let naturalPanel = null
+  let naturalW = null
 
   function place() {
     const panel = panelRef.value
     const trigger = triggerRef.value
     if (!panel || !trigger) return
     const tr = trigger.getBoundingClientRect()
-    const pw = panel.offsetWidth
-    const ph = panel.offsetHeight
-    const vw = window.innerWidth
-    const vh = window.innerHeight
+    // Root zoom (--ui-scale on <html>) scales the whole UI: getBoundingClientRect is
+    // in visual (post-zoom) space while fixed left/top/width live in layout (pre-zoom)
+    // space. Run all anchor math in visual space, then divide the final left/top/width
+    // by the zoom factor so the fixed panel is not scaled a second time (AK-N-H2).
+    const zoom = parseFloat(getComputedStyle(document.documentElement).zoom) || 1
     const dir = typeof align === 'string' ? align : align.value
     const ax = typeof alignX === 'string' ? alignX : alignX.value
+
+    if (panel !== naturalPanel) {
+      naturalPanel = panel
+      // A stale minWidth/matchWidth width from a previous open is still held in the
+      // reactive pos.width, so this fresh element may mount already stretched. Clear
+      // the inline width on the element itself (CSSOM data channel) so offsetWidth
+      // reads the natural unstretched width; place() re-applies the correct width
+      // for this open below.
+      panel.style.width = ''
+      naturalW = panel.offsetWidth
+    }
+    const pwV = naturalW * zoom
+    const phV = panel.offsetHeight * zoom
+    const twV = tr.width
+
+    // effective visual width after the optional stretch up to the trigger width
+    const stretch = matchWidth || (minWidth && (dir === 'down' || dir === 'up') && !matchWidth && pwV < twV)
+    const effW = stretch ? twV : pwV
 
     let left = 0
     let top = 0
     if (dir === 'up') {
-      left = ax === 'right' ? tr.right - pw : ax === 'center' ? tr.left + tr.width / 2 - pw / 2 : tr.left
-      top = tr.top - ph - gap
+      left = ax === 'right' ? tr.right - effW : ax === 'center' ? tr.left + tr.width / 2 - effW / 2 : tr.left
+      top = tr.top - phV - gap
     } else if (dir === 'left') {
-      left = tr.left - pw - gap
+      left = tr.left - effW - gap
       top = tr.top
     } else if (dir === 'right') {
       left = tr.right + gap
       top = tr.top
     } else {
       // down
-      left = ax === 'right' ? tr.right - pw : ax === 'center' ? tr.left + tr.width / 2 - pw / 2 : tr.left
+      left = ax === 'right' ? tr.right - effW : ax === 'center' ? tr.left + tr.width / 2 - effW / 2 : tr.left
       top = tr.bottom + gap
     }
 
-    // viewport clamp (4px margin)
-    left = Math.max(4, Math.min(left, vw - pw - 4))
-    top = Math.max(4, Math.min(top, vh - ph - 4))
+    // viewport clamp (4px visual margin, using the effective width)
+    left = Math.max(4, Math.min(left, window.innerWidth - effW - 4))
+    top = Math.max(4, Math.min(top, window.innerHeight - phV - 4))
 
-    pos.left = Math.round(left)
-    pos.top = Math.round(top)
-    pos.width = matchWidth ? tr.width + 'px' : ''
-    if (minWidth && (dir === 'down' || dir === 'up') && !matchWidth) {
-      if (pw < tr.width) pos.width = tr.width + 'px'
-    }
+    pos.left = Math.round(left / zoom)
+    pos.top = Math.round(top / zoom)
+    pos.width = stretch ? effW / zoom + 'px' : ''
     pos.visibility = 'visible'
     placed = true
   }

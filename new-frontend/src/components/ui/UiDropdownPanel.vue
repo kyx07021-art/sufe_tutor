@@ -31,6 +31,12 @@ const props = defineProps({
   minWidth: { type: Boolean, default: true },
   /** panel min width (CSS length) */
   minWidthPx: { type: String, default: '' },
+  /** explicit panel width (CSS length). Viewport-clamped by the anchor. */
+  width: { type: String, default: '' },
+  /** accessibility role for slot panels (options grid stays listbox/option) */
+  role: { type: String, default: 'listbox' },
+  /** accessibility label for slot panels (options grid uses the shared dropdown copy) */
+  ariaLabel: { type: String, default: UI_COPY.DROPDOWN_LIST },
 })
 
 const emit = defineEmits(['select', 'close', 'update:modelValue'])
@@ -102,11 +108,12 @@ watch(
         ref="panelRef"
         class="ui-droppanel"
         :class="[`ui-droppanel--${variant.toLowerCase()}`, { 'ui-droppanel--multi': isMulti }]"
-        :style="[panelStyle, minWidthPx ? { minWidth: minWidthPx } : null]"
-        role="listbox"
-        :aria-label="UI_COPY.DROPDOWN_LIST"
+        :style="[panelStyle, minWidthPx ? { minWidth: minWidthPx } : null, width ? { width } : null]"
+        :role="role"
+        :aria-label="ariaLabel"
       >
-        <div class="ui-droppanel__grid" :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }">
+        <slot v-if="$slots.default" />
+        <div v-else class="ui-droppanel__grid" :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }">
           <button
             v-for="it in items"
             :key="it.value"
@@ -207,6 +214,14 @@ watch(
 .ui-drop-right-leave-to { opacity: 0; transform: translateX(-6px); }
 
 @media (prefers-reduced-motion: reduce) {
-  .ui-droppanel { transition: none; }
+  /* the summon float-in/fade lives on the Transition classes, not the panel */
+  .ui-drop-down-enter-active,
+  .ui-drop-down-leave-active,
+  .ui-drop-up-enter-active,
+  .ui-drop-up-leave-active,
+  .ui-drop-left-enter-active,
+  .ui-drop-left-leave-active,
+  .ui-drop-right-enter-active,
+  .ui-drop-right-leave-active { transition: none; }
 }
 </style>

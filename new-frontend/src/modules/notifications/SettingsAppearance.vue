@@ -73,6 +73,10 @@ function selectTheme(value) {
 function selectScale(value) {
   scale.value = value
   document.documentElement.style.setProperty('--ui-scale', String(SCALE_FACTORS[value]))
+  // Re-place any anchored panel that is currently open: useAnchoredPanel binds a window
+  // resize listener for the whole time a panel is open, so a synthetic resize re-runs its
+  // place() against the new zoom (AK-N-H2). No new global listener is added (F3).
+  window.dispatchEvent(new Event('resize'))
   // Genuinely live (user⑯): base.css `html { zoom: var(--ui-scale, 1) }` reflows the
   // whole UI immediately, so the selected factor is real. Server persist of the scale
   // is deferred to the I-09 settings path; the control is honest about applying the
