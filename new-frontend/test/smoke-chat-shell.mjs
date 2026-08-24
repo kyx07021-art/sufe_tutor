@@ -329,6 +329,12 @@ try {
     ok(bgeo.bw <= bgeo.aw * 0.7 + 2, `M4-08: bubble <=70% width (${bgeo.bw}/${bgeo.aw})`)
   }
 
+  /* -- AK-C2-F8: load-more is a data-cap (I-18 has no backward paging, so
+     hasMore stays false) — the list must never render a dead load-more
+     button. The @load-more binding is wired to the real chain (onLoadMore)
+     so a future S2 backward-paging contract needs no parent change. -- */
+  ok((await page.locator('.chat-msg-list__more').count()) === 0, 'AK-C2-F8: no dead load-more button while hasMore=false (data-cap)')
+
   /* -- 6. M4-10 image bubble -> large-image viewer -- */
   await page.locator('.chat-image__btn').click()
   await page.waitForSelector('.chat-image__viewer')

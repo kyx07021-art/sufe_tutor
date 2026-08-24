@@ -25,6 +25,7 @@ import {
   isEndSessionBusy,
   loadRelations,
   loadMessages,
+  loadMoreMessages,
   sendText,
   closeConversation,
   startActivePolling,
@@ -57,6 +58,15 @@ const messages = computed(() => chatState.messages[chatState.activeConversationI
 const loading = computed(() => !!chatState.messagesLoading[chatState.activeConversationId])
 const hasMore = computed(() => !!chatState.hasMore[chatState.activeConversationId])
 const currentUserId = computed(() => chatState.currentUserId)
+
+/** AK-C2-F8: wire the list's load-more request to the real chain instead of an
+    empty lambda (F4). Backward paging is a data-cap: I-18 only serves sinceId
+    forward paging, so state.hasMore stays false and the list never renders the
+    button today — this binding exists so a future S2 backward-paging contract
+    only implements loadMoreMessages internally, no parent change needed. */
+function onLoadMore() {
+  loadMoreMessages()
+}
 
 /* ---- temp conversation hint (M4-26/28/29) ---- */
 const tempHint = computed(() => {
@@ -192,7 +202,7 @@ onBeforeUnmount(() => {
           :loading="loading"
           :has-more="hasMore"
           :current-user-id="currentUserId"
-          @load-more="() => {}"
+          @load-more="onLoadMore"
         />
         <p v-if="!loading && !messages.length && !tempHint" class="chat-conv__empty">
           {{ CHAT_COPY.NO_MESSAGES }}
