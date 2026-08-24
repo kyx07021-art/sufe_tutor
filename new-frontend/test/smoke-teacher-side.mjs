@@ -610,12 +610,13 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
   // edit card rendered + prefilled from I-39 wrapped { profile } shape
   const card = await p.locator('.profile-edit__card').count()
   assert.equal(card, 1, 'edit card renders in approved state')
-  // AK-C2-F4 (#7 field title single source): EVERY B2 field label carries
+  // AK-C2-F4 (#7 field title single source): EVERY B2 field label in the
+  // approved view (ProfileEditCard 9 + embedded SubjectEditor 2) carries
   // .ui-title-sm with the shared 8px air / weight 700 / ink. Count-based (not
   // .first()) so removing the class from ANY label turns the assertion red
   // (G2 — the first-run .first() assertion was blind to partial regression).
   const b2Labels = await p.evaluate(() => {
-    const els = [...document.querySelectorAll('.profile-edit__label')]
+    const els = [...document.querySelectorAll('.profile-edit__label, .subject-editor__label')]
     return {
       total: els.length,
       shared: els.filter((el) => el.classList.contains('ui-title-sm')).length,
@@ -627,8 +628,8 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
         : null,
     }
   })
-  assert.equal(b2Labels.total, 9, 'profile edit card must render 9 field labels, got ' + b2Labels.total)
-  assert.equal(b2Labels.shared, 9, 'every field label must carry .ui-title-sm, got ' + b2Labels.shared)
+  assert.equal(b2Labels.total, 11, 'approved view must render 11 field labels (9 card + 2 subject editor), got ' + b2Labels.total)
+  assert.equal(b2Labels.shared, 11, 'every field label must carry .ui-title-sm, got ' + b2Labels.shared)
   assert.equal(b2Labels.sample.marginTop, '8px', 'field label air = --space-2 (AK-C2-F4)')
   assert.equal(b2Labels.sample.weight, '700', 'field label weight via .ui-title-sm (AK-C2-F4)')
   const nameVal = await p.locator('#profile-edit-name input, #profile-edit-name textarea').first().inputValue()
