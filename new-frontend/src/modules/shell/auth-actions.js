@@ -37,13 +37,17 @@ export async function register(payload) {
 }
 
 export async function logout() {
-  try {
-    await api('/auth/logout', { method: 'POST' })
-  } catch (e) {
+  // AK-L-F4: clear local state immediately (F7) — the local session must never
+  // wait on the network revocation. api() snapshots the token synchronously at
+  // call time, so `pending` still carries X-Auth-Token to the server; it just
+  // settles in the background. Reordering these two steps (await first) leaves
+  // the user "logged in" for the whole network RTT after the landing shows.
+  const pending = api('/auth/logout', { method: 'POST' }).catch(() => {
     /* idempotent: a revoked/already-logged-out token must still clear local state */
-  }
+  })
   clearAuth()
   clearLastPage()
   dhClearAll()
   runCleanupCallbacks()
+  await pending
 }

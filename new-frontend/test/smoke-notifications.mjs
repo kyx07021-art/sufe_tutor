@@ -122,9 +122,14 @@ await page.route('**/api/notifications**', (route) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
   }
 })
-await page.route('**/api/auth/logout', (route) =>
-  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }),
-)
+await page.route('**/api/auth/logout', async (route) => {
+  // AK-L-F4: hold the revocation ~600ms so the smoke can prove local state
+  // clears WITHOUT waiting for the network (F7 optimistic clear in
+  // auth-actions.logout). Revert the ordering (await the API before clearAuth)
+  // and this turns red: the session key still exists at 400ms.
+  await new Promise((r) => setTimeout(r, 600))
+  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
+})
 await page.route('**/api/settings', (route) => {
   const req = route.request()
   if (req.method() === 'GET') {
@@ -444,6 +449,15 @@ await page.waitForTimeout(350)
 const logoutLabel = await page.locator('.m5-more__item').nth(3).textContent().catch(() => '')
 if (!logoutLabel.includes('退出登录')) errors.push('AK-L-F2: 4th more row should be 退出登录, got: ' + logoutLabel)
 await page.locator('.m5-more__item').nth(3).click()
+// AK-L-F4: the local session (sessionStorage authToken, written by the harness's
+// persistAuth) must clear BEFORE the 600ms-delayed revocation resolves — logout
+// clears optimistically (F7). 400ms < 600ms: a reverted await-first ordering
+// times out red here.
+const clearedEarly = await page
+  .waitForFunction(() => sessionStorage.getItem('authToken') === null, null, { timeout: 400, polling: 20 })
+  .then(() => true)
+  .catch(() => false)
+if (!clearedEarly) errors.push('AK-L-F4: local session must clear without waiting for the network revocation')
 await page.waitForTimeout(500)
 // logged out -> the guest envelope re-arms: a notification click now toasts 请先登录
 await notifBtn.click()
