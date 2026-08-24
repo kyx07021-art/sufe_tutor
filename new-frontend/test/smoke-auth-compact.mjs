@@ -10,8 +10,9 @@
  *   --input-h 44->40 (pad-y 10), --btn-h 52->44, shell gap 24->16,
  *   padding 40/24/24->24/24/16, body gap 16->12, register-pane gap 16->12,
  *   otp/password-row gap 12->8, puzzle track margin 12->8.
- * - Font sizes untouched: title --fs-xl 28, inputs/buttons --fs-base 16,
- *   checkbox label --fs-sm 14, .ui-title-sm margin stays 8px (AK-A8 lock).
+ * - Font sizes never shrink: inputs/buttons --fs-base 16, checkbox label
+ *   --fs-sm 14; title --fs-lg 20 (AK-A13 scene header); .ui-title-sm margin
+ *   stays 8px (AK-A8 lock).
  * - G2 mutation targets (each deletion must turn its assertion red):
  *   M1 remove --input-h:40 override -> input height assertion red
  *   M2 remove --btn-h:44 override -> button height assertion red
@@ -192,4 +193,4 @@ if (failures > 0) {
   console.log('COMPACT SMOKE FAIL: ' + failures + ' assertion(s) failed')
   process.exit(1)
 }
-console.log('COMPACT SMOKE PASS: vertical pin + compact tokens + font sizes untouched')
+console.log('COMPACT SMOKE PASS: vertical pin + compact tokens + font sizes never shrunk')
