@@ -36,6 +36,11 @@ export function getPageByPath(path) {
 }
 
 export function defaultPageForRole(role) {
+  // AK-N-B1: the role's plaza page (meta.home) is the default — the logical
+  // entry point (plaza -> own items -> chat -> relations), not the alphabetically
+  // first tab. Falls back to the first tab page, then any gated page.
+  const home = pages.find((p) => p.roles && p.roles.includes(role) && p.meta && p.meta.home === true)
+  if (home) return home.path
   const a = pages.find((p) => p.roles && p.roles.includes(role) && p.meta && p.meta.tab !== false)
   if (a) return a.path
   const b = pages.find((p) => p.roles && p.roles.includes(role))

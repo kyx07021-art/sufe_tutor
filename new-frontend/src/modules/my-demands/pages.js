@@ -18,6 +18,6 @@ export const pages = [
     name: 'my-demands',
     roles: [ROLES.STUDENT],
     component: MyDemandsPage,
-    meta: { tab: true, title: MY_DEMANDS_COPY.PAGE_TITLE },
+    meta: { tab: true, title: MY_DEMANDS_COPY.PAGE_TITLE, tabOrder: 20 },
   },
 ]

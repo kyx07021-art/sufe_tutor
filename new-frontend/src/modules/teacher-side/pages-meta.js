@@ -9,7 +9,9 @@
 import { TEACHER_COPY } from '../../constants/m-teacher-side.js'
 
 export const TEACHER_PAGES_META = [
-  { path: '/teacher/demands', name: 'B1', roles: ['teacher'], meta: { title: TEACHER_COPY.B1_TITLE } },
-  { path: '/teacher/profile', name: 'B2', roles: ['teacher'], meta: { title: TEACHER_COPY.B2_TITLE } },
-  { path: '/teacher/resources', name: 'B3', roles: ['teacher'], meta: { title: TEACHER_COPY.B3_TITLE } },
+  // AK-N-B1: B1 demand plaza is the teacher default page (meta.home); tabOrder
+  // encodes the logical progression plaza -> own items -> chat -> relations (TabBar sorts by it).
+  { path: '/teacher/demands', name: 'B1', roles: ['teacher'], meta: { title: TEACHER_COPY.B1_TITLE, home: true, tabOrder: 10 } },
+  { path: '/teacher/profile', name: 'B2', roles: ['teacher'], meta: { title: TEACHER_COPY.B2_TITLE, tabOrder: 20 } },
+  { path: '/teacher/resources', name: 'B3', roles: ['teacher'], meta: { title: TEACHER_COPY.B3_TITLE, tabOrder: 25 } },
 ]

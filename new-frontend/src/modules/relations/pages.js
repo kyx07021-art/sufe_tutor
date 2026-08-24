@@ -14,6 +14,6 @@ export const pages = [
     name: 'relations',
     roles: ['student', 'teacher'],
     component: RelationsPage,
-    meta: { title: RELATIONS_COPY.PAGE_TITLE, tab: true },
+    meta: { title: RELATIONS_COPY.PAGE_TITLE, tab: true, tabOrder: 40 },
   },
 ]

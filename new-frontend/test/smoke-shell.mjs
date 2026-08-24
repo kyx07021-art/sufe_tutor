@@ -13,6 +13,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
 import { spawn } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { chromium } from 'playwright'
@@ -35,6 +36,7 @@ const BASE = process.env.BASE || `http://localhost:${PORT}`
 
 const VALID_TOKEN = 'test-valid-token'
 const STUDENT_USER = { id: 1, username: 'qa_student', role: 'student', avatar: '' }
+const TEACHER_USER = { id: 2, username: 'qa_teacher', role: 'teacher', avatar: '' }
 
 /**
  * I-15 `GET /api/my-relations` fixture for the /relations integration case.
@@ -230,6 +232,13 @@ test('dead-token: concurrent 401s announce one toast; fresh session re-arms (PA-
   }
 })
 
+test('contract: logo.svg is the four-square mark (AK-N-B3)', () => {
+  const src = readFileSync(path.join(ROOT, 'src', 'assets', 'svg', 'logo.svg'), 'utf8')
+  const rects = (src.match(/<rect\b/g) || []).length
+  assert.equal(rects, 4, 'AK-N-B3: logo must be a 2x2 four-square grid (was a single square with a hole)')
+  assert.ok(src.includes('fill="var(--brand)"'), 'AK-N-B3: the bottom-right square must be brand purple')
+})
+
 /* ------------------------------------------------------------------ *
  * Browser smoke (real dist)
  * ------------------------------------------------------------------ */
@@ -264,7 +273,7 @@ function startPreview() {
   })
 }
 
-function installApiMock(page) {
+function installApiMock(page, authedUser = STUDENT_USER) {
   return page.route('**/api/**', (route) => {
     const req = route.request()
     const url = req.url()
@@ -274,7 +283,7 @@ function installApiMock(page) {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ user: STUDENT_USER, authToken: VALID_TOKEN }),
+        body: JSON.stringify({ user: authedUser, authToken: VALID_TOKEN }),
       })
     }
     if (url.includes('/api/auth/logout') && method === 'POST') {
@@ -283,15 +292,27 @@ function installApiMock(page) {
     if (url.includes('/api/my-relations') && method === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(RELATIONS_FIXTURE) })
     }
+    // I-29 teacher list: the student role default page is /teacher-square (AK-N-B1),
+    // so every authed student restore mounts TeacherSquarePage and fires
+    // GET /api/teachers - answer an empty list to keep the shell test free of
+    // incidental 404 console noise.
+    if (url.includes('/api/teachers') && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], total: 0 }) })
+    }
+    // I-33/34 demand list: the teacher role default page is /teacher/demands
+    // (AK-N-B1), so an authed teacher restore mounts the B1 demand plaza and
+    // fires GET /api/demands - answer an empty list.
+    if (url.includes('/api/demands') && method === 'GET') {
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ items: [], total: 0 }) })
+    }
     // I-17 conversation-list endpoint: ChatPage.onMounted -> loadConversations fires
-    // GET /api/conversations on every /chat mount (the student role default page).
-    // Without this branch the browser logs "Failed to load resource ... 404" console
-    // errors and the final zero-violation assertion fails (PA-1h2-F1 loader gap).
+    // GET /api/conversations on every /chat mount (reached via the ChatButton below
+    // and by manual navigation). Without this branch the browser logs "Failed to load
+    // resource ... 404" console errors and the final zero-violation assertion fails.
     if (method === 'GET' && url.includes('/api/conversations') && !url.includes('/messages')) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CONVERSATIONS_FIXTURE) })
     }
-    // The student role-default page is /chat, whose ChatConversationPane mounts
-    // during the restore/login flows and fires loadMessages + startActivePolling
+    // The C2 chat page's ChatConversationPane fires loadMessages + startActivePolling
     // against /api/conversations/*/messages. An empty window is a valid I-18
     // response and keeps the shell test free of incidental 404 console noise.
     if (method === 'GET' && url.includes('/api/conversations/') && url.includes('/messages')) {
@@ -299,7 +320,7 @@ function installApiMock(page) {
     }
     if (url.includes('/api/auth/me')) {
       if (token === VALID_TOKEN) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: STUDENT_USER }) })
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: authedUser }) })
       }
       return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ code: 'UNAUTHORIZED' }) })
     }
@@ -397,11 +418,15 @@ test('browser: shell routing + auth flows (real dist)', async () => {
     await seedAuth(authed, VALID_TOKEN, STUDENT_USER)
     await authed.goto(BASE + '/', { waitUntil: 'networkidle' })
     await authed.waitForFunction(() => window.__APP__ && window.__APP__.authStore.ready === true)
-    // Role default page is the first role-gated tab for the restored role (other
-    // modules register student tabs, e.g. /chat), NOT necessarily /home. Assert the
-    // app left the landing and entered a gated shell page.
+    // AK-N-B1: the role default page is the plaza (meta.home), NOT the first
+    // alphabetically-registered tab. A student must land on /teacher-square
+    // (广场 -> 自己的东西 -> 会话 -> 关系 progression), not /chat.
     try {
-      await authed.waitForFunction(() => window.__APP__.router.currentRoute.value.path !== '/', null, { timeout: 8000 })
+      await authed.waitForFunction(
+        () => window.__APP__.router.currentRoute.value.path === '/teacher-square',
+        null,
+        { timeout: 8000 },
+      )
     } catch (e) {
       const diag = await authed
         .evaluate(() => ({
@@ -414,7 +439,7 @@ test('browser: shell routing + auth flows (real dist)', async () => {
           body: document.body ? document.body.innerHTML.slice(0, 200) : '(no body)',
         }))
         .catch((de) => ({ evalErr: de.message }))
-      throw new Error('restore did not leave landing. diag=' + JSON.stringify(diag) + ' capturedErrors=' + errors.join(' | '))
+      throw new Error('student restore did not enter /teacher-square. diag=' + JSON.stringify(diag) + ' capturedErrors=' + errors.join(' | '))
     }
     const restored = await authed.evaluate(() => ({
       role: window.__APP__.authStore.user.role,
@@ -422,10 +447,87 @@ test('browser: shell routing + auth flows (real dist)', async () => {
       token: window.__APP__.authStore.token,
     }))
     assert.equal(restored.role, 'student')
-    assert.notEqual(restored.path, '/', 'restore must enter a gated shell page')
+    assert.equal(restored.path, '/teacher-square', 'AK-N-B1: student default page must be the teacher-square plaza')
     assert.equal(restored.token, VALID_TOKEN)
     const topbarCount = await authed.locator('.topbar').count()
     assert.ok(topbarCount >= 1, 'top bar should render inside the shell')
+
+    /* --- AK-N-B1: tab order = 广场 -> 自己的东西 -> 会话 -> 关系 --- */
+    const studentTabs = await authed.locator('.tabbar__tab').allTextContents()
+    assert.deepEqual(
+      studentTabs,
+      ['教师广场', '我的需求', '会话', '关系管理'],
+      'AK-N-B1: student tab order must be plaza -> own (my-demands) -> chat -> relations, got: ' + studentTabs.join(','),
+    )
+
+    /* --- AK-N-B2: the three top-bar icons share one spec (20px glyph, 40px carrier) --- */
+    // Chat bubble (ChatButton), envelope (NotifyButton) and the placeholder person
+    // (UserArea) must be identical glyph size + carrier size. Reverting the person
+    // icon to 32px / gray-50 makes the glyph assertion red (G2 mutation guard).
+    const iconSpecs = await authed.evaluate(() => {
+      const pick = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        return { w: Math.round(r.width), h: Math.round(r.height) }
+      }
+      return {
+        chat: pick('.chat-btn__svg'),
+        notify: pick('.notify-btn__svg'),
+        person: pick('.user-area__avatar-placeholder'),
+        chatCarrier: pick('.chat-btn'),
+        notifyCarrier: pick('.notify-btn'),
+        personCarrier: pick('.user-area__avatar-btn'),
+      }
+    })
+    for (const k of ['chat', 'notify', 'person']) {
+      assert.deepEqual(iconSpecs[k], { w: 20, h: 20 }, `AK-N-B2: top-bar icon "${k}" must be 20x20, got ${JSON.stringify(iconSpecs[k])}`)
+    }
+    for (const k of ['chatCarrier', 'notifyCarrier', 'personCarrier']) {
+      assert.deepEqual(iconSpecs[k], { w: 40, h: 40 }, `AK-N-B2: top-bar icon carrier "${k}" must be 40x40, got ${JSON.stringify(iconSpecs[k])}`)
+    }
+    const personColor = await authed.evaluate(() => {
+      const el = document.querySelector('.user-area__avatar-placeholder')
+      return el ? getComputedStyle(el).color : null
+    })
+    assert.equal(personColor, 'rgb(26, 26, 26)', 'AK-N-B2: placeholder person icon must be ink (was gray-50)')
+
+    /* --- AK-N-B4: top-left brand = LOGO + platform name in a B button --- */
+    // The top bar brand must be the LOGO glyph + the full platform name (single
+    // source SHELL_COPY.LOGO_NAME), not a bare logo. Reverting the name (or the
+    // full-name copy) makes this assertion red (G2 mutation guard).
+    const logoNameCount = await authed.locator('.topbar-logo__name').count()
+    assert.ok(logoNameCount >= 1, 'AK-N-B4: top bar must render the platform name next to the LOGO')
+    const logoNameText = await authed.textContent('.topbar-logo__name')
+    assert.equal(logoNameText, SHELL_COPY.LOGO_NAME, 'AK-N-B4: platform name must be the SHELL_COPY.LOGO_NAME single source')
+    const logoGlyphCount = await authed.locator('.topbar-logo__svg').count()
+    assert.ok(logoGlyphCount >= 1, 'AK-N-B4: top bar must render the LOGO glyph')
+
+    /* --- AK-N-B1: teacher default page = /teacher/demands (B1 demand plaza) --- */
+    const teacherCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+    const teacherPage = await teacherCtx.newPage()
+    const teacherErrors = []
+    captureErrors(teacherPage, teacherErrors)
+    await installApiMock(teacherPage, TEACHER_USER)
+    await seedAuth(teacherPage, VALID_TOKEN, TEACHER_USER)
+    await teacherPage.goto(BASE + '/', { waitUntil: 'networkidle' })
+    await teacherPage.waitForFunction(() => window.__APP__ && window.__APP__.authStore.ready === true)
+    await teacherPage.waitForFunction(
+      () => window.__APP__.router.currentRoute.value.path === '/teacher/demands',
+      null,
+      { timeout: 8000 },
+    )
+    const teacherDefaultPath = await teacherPage.evaluate(() => window.__APP__.router.currentRoute.value.path)
+    assert.equal(teacherDefaultPath, '/teacher/demands', 'AK-N-B1: teacher default page must be the B1 demand plaza')
+    const teacherTabs = await teacherPage.locator('.tabbar__tab').allTextContents()
+    assert.deepEqual(
+      teacherTabs,
+      ['需求广场', '我的信息', '资料广场', '会话', '关系管理'],
+      'AK-N-B1: teacher tab order must be plaza -> own -> chat -> relations, got: ' + teacherTabs.join(','),
+    )
+    errors.push(...teacherErrors)
+    await teacherPage.close()
+    await teacherCtx.close()
 
     /* --- role gate: a student must not reach a teacher-only page (redirect) --- */
     const teacherRouteRegistered = await authed.evaluate(() =>

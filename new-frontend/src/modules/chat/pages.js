@@ -17,6 +17,6 @@ export const pages = [
     name: 'chat',
     roles: [ROLES.STUDENT, ROLES.TEACHER],
     component: ChatPage,
-    meta: { tab: true, title: CHAT_COPY.PAGE_TITLE, c2: true },
+    meta: { tab: true, title: CHAT_COPY.PAGE_TITLE, c2: true, tabOrder: 30 },
   },
 ]

@@ -14,6 +14,6 @@ export const pages = [
     name: 'teacher-square',
     roles: ['student'],
     component: TeacherSquarePage,
-    meta: { title: T.PAGE_TITLE },
+    meta: { title: T.PAGE_TITLE, home: true, tabOrder: 10 },
   },
 ]

@@ -24,7 +24,11 @@ const route = useRoute()
 const router = useRouter()
 
 const tabs = computed(() =>
-  pagesByRole(authStore.user?.role).filter((p) => p.meta?.tab !== false),
+  pagesByRole(authStore.user?.role)
+    .filter((p) => p.meta?.tab !== false)
+    // AK-N-B1: sort by meta.tabOrder (plaza 10 -> own items 20 -> chat 30 -> relations 40),
+    // pages without a tabOrder keep their registry order at the tail.
+    .sort((a, b) => (a.meta?.tabOrder ?? 100) - (b.meta?.tabOrder ?? 100)),
 )
 
 const currentPath = computed(() => route.path)
