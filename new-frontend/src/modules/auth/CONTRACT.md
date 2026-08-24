@@ -72,6 +72,7 @@ AUTH_METHODS = Object.freeze({ OTP_PHONE:'otp_phone', OTP_EMAIL:'otp_email', PAS
 - 渲染：随机线性渐变底 + 420 噪声点（1.2px）；随机目标 `target ∈ [16, MAX_X-24]/MAX_X`；切口 `cutX=target*MAX_X, cutY=(H-SLIDER_H)/2`；拼图块=切口图像 `destination-in` 裁形状 + 白色描边（rgba(255,255,255,.85) 2px，跟随异形轮廓）；背景缺口 `destination-out` 打洞 + 同描边；2 个干扰洞（随机 24+ 范围，穷举回退确定性左上/右下槽，三洞间距 > 直径 32 不重叠）。
 - 交互：pointerdown/move/up + setPointerCapture；`--captcha-x` CSS 变量数据通道（setProperty，CSP 安全）。
 - 验证（AK-A1a 本地判定）：释放时 `isPuzzleAligned(offset,target,TOLERANCE)`（`|offset-target|<=0.08` 浏览器本地比对）→ 即时 emit('verified')，零网络往返；失败 → shake 类 + 420ms 后重置重绘。tip 文案走 AUTH_COPY（CAPTCHA_TIP/PASS/FAIL/ARIA，v2 逐字）。拼图为反滥用 UX 门禁非认证边界（真实防线=服务端凭证+限流，AK-A1b 后服务端不再确认挑战）。
+- 提示语义（AK-A3）：持久提示 CAPTCHA_TIP 入轨道内 `.captcha-puzzle__hint`（绝对居中，--fs-xs 12px，被 `.captcha-puzzle__fill` 遮罩盖住左侧随拖动，pass 时 is-pass 淡出）；轨道下方 `.captcha-puzzle__tip` 收敛为纯 PASS/FAIL 状态行（idle 时 display:none）。DOM 序钉死 hint < fill < knob。
 
 ## 6. 接口契约（interfaces.md §19 权威，M6 消费）
 > 路径为线上完整形态；调用侧经 `@/core/api.js` 的 `api()` 调用时**省略 `/api` 前缀**（api() 自动前置）。
