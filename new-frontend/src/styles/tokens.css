@@ -80,6 +80,11 @@
   --space-8: 100px;
   --page-inset: var(--space-8); /* page edge blank (landing 100px each side, components must not exceed) */
 
+  /* -- Settings panel (AK-N-G2): account-row label column width. The username /
+     avatar / contact rows share one grid label column so their values align on
+     the same baseline (single source; raw 96px duplicated nowhere else). -- */
+  --settings-label-w: 96px;
+
   /* -- Font size / line height -- */
   --font-sans: system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --fs-base: 16px;             /* universal base font size */

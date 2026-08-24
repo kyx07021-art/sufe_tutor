@@ -98,7 +98,6 @@ function onSubmit() {
           v-else
           variant="B"
           size="sm"
-          width="220px"
           @click="openBind('phone')"
         >{{ NOTIF_COPY.SETTINGS_BIND }}</UiButton>
       </div>
@@ -111,7 +110,6 @@ function onSubmit() {
           v-else
           variant="B"
           size="sm"
-          width="220px"
           @click="openBind('email')"
         >{{ NOTIF_COPY.SETTINGS_BIND }}</UiButton>
       </div>
@@ -170,21 +168,22 @@ function onSubmit() {
 </template>
 
 <style scoped>
-/* Single settings row: label + control on one flex line, no divider (flat design). */
+/* AK-N-G2: contact row shares the settings grid baseline — a fixed label column
+   (--settings-label-w) + a 1fr value column (aligned with username / avatar).
+   Label aligns to the top because the value column holds two lines (phone + email).
+   Single settings row: label + control, no divider (flat design). */
 .sc-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--settings-label-w) 1fr;
   align-items: flex-start;
   gap: var(--space-4);
 }
 .sc-label {
-  flex: none;
-  width: 96px;
   font-size: var(--fs-base);
   color: var(--ink);
   line-height: 1.4;
 }
 .sc-control {
-  flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;

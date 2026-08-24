@@ -95,7 +95,7 @@ async function submitEdit() {
     <div v-else class="su-edit">
       <template v-if="!editing">
         <span class="su-edit__value">{{ username }}</span>
-        <UiButton variant="B" class="su-edit__edit-btn" @click="startEdit">
+        <UiButton variant="B" size="sm" class="su-edit__edit-btn" @click="startEdit">
           {{ NOTIF_COPY.SETTINGS_EDIT }}
         </UiButton>
       </template>
@@ -133,23 +133,25 @@ async function submitEdit() {
 </template>
 
 <style scoped>
+/* AK-N-G2: username row shares the settings grid baseline — a fixed label column
+   (--settings-label-w) + a 1fr value column. The value column content (value +
+   edit button) is left-aligned so the row aligns with avatar / contact rows. */
 .su-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--settings-label-w) 1fr;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-4);
   min-height: 44px;
   box-sizing: border-box;
 }
 .su-row__label {
-  flex: none;
   color: var(--ink);
   font-size: var(--fs-base);
 }
 .su-readonly {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--space-4);
   min-width: 0;
 }
@@ -164,7 +166,7 @@ async function submitEdit() {
 .su-edit {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--space-4);
   min-width: 0;
 }
@@ -172,16 +174,15 @@ async function submitEdit() {
   color: var(--ink);
   font-size: var(--fs-base);
 }
+/* AK-N-G2: edit action is UiButton B sm — same variant + size as the avatar
+   "change" and contact "bind" triggers (no per-button width overrides). */
 .su-edit__edit-btn {
   flex: none;
-  --btn-w: 80px;
-  --btn-h: 34px;
-  --btn-fs: var(--fs-sm);
 }
 .su-edit__form {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: var(--space-3);
   min-width: 0;
 }

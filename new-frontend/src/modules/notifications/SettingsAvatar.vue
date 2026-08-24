@@ -160,17 +160,18 @@ async function onSave() {
 </template>
 
 <style scoped>
-/* Row: label left, control group right; spacing only, no dividers (plan :559). */
+/* AK-N-G2: avatar row shares the settings grid baseline — a fixed label column
+   (--settings-label-w) + a 1fr value column (aligned with username / contact).
+   Row: label left, control group right; spacing only, no dividers (plan :559). */
 .sv-avatar {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--settings-label-w) 1fr;
   align-items: center;
-  flex-wrap: wrap;
   gap: var(--space-4);
   box-sizing: border-box;
   min-width: 0;
 }
 .sv-avatar__label {
-  flex: none;
   color: var(--ink);
   font-size: var(--fs-base);
   line-height: 1.3;
@@ -201,21 +202,32 @@ async function onSave() {
   object-fit: cover;
   object-position: center;
 }
-/* change trigger: label styled as button B (no fill, no border, black text). */
+/* AK-N-G2: the "change" trigger must remain a <label> (label-for opens the file
+   picker; P13 forbids programmatic .click()). A literal UiButton cannot sit inside
+   the label — clicks on nested interactive content suppress the label's activation
+   (HTML spec), breaking the picker. So the label is styled to be visually identical
+   to UiButton B sm: same capsule radius, same 120x40 size, gray-10 hover fill. */
 .sv-avatar__change {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 120px;
+  height: 40px;
+  border-radius: calc(40px / 2);
   color: var(--ink);
-  font-size: var(--fs-base);
+  font-size: var(--fs-sm);
   line-height: 1;
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: color var(--dur-sm) var(--ease-out);
+  transition: background var(--dur-xs) var(--ease-out);
 }
 .sv-avatar__change:hover {
-  color: var(--gray-60);
+  background: var(--gray-10);
 }
 .sv-avatar__error {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   margin: 0;
   font-size: var(--fs-sm);
   color: var(--danger);
