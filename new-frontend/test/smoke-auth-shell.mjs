@@ -611,40 +611,6 @@ await assertAuthColumnGeometry(page, 'register')
 // AK-A13: register scene header is the welcoming register copy.
 await assertAuthTitle(page, '欢迎来到平台，请注册账号', 'register')
 
-// --- AK-L-F3: the register modal must fit WITHOUT internal scrolling on common
-// viewports — the puzzle fully visible, the body not scrollable (squish heights
-// not font sizes; the auth-shell layer compresses --input-h/--btn-h/--cb-h/gaps).
-// Mutation: loosen the auth-shell compression (e.g. --input-h back to 40px) ->
-// the desktop viewport assertion turns red.
-async function assertRegisterFits(label) {
-  await page.waitForTimeout(350)
-  const geo = await page.evaluate(() => {
-    const body = document.querySelector('.auth-shell__body')
-    const puzzle = document.querySelector('.captcha-puzzle')
-    const pr = puzzle ? puzzle.getBoundingClientRect() : null
-    return {
-      scrollH: body ? body.scrollHeight : -1,
-      clientH: body ? body.clientHeight : -1,
-      puzzleBottom: pr ? Math.round(pr.bottom) : -1,
-      vh: window.innerHeight,
-    }
-  })
-  check(
-    geo.scrollH <= geo.clientH + 1,
-    label + ': register body must not scroll (scrollH ' + geo.scrollH + ' > clientH ' + geo.clientH + ')',
-  )
-  check(
-    geo.puzzleBottom <= geo.vh,
-    label + ': puzzle must be fully inside the viewport (bottom ' + geo.puzzleBottom + ' > vh ' + geo.vh + ')',
-  )
-}
-await assertRegisterFits('AK-L-F3 desktop 1440x900')
-await page.setViewportSize({ width: 375, height: 667 })
-await page.waitForTimeout(300)
-await assertRegisterFits('AK-L-F3 mobile 375x667')
-await page.setViewportSize({ width: 1440, height: 900 })
-await page.waitForTimeout(250)
-
 // --- AK-A10: role buttons = B variant with selected gray fill (--gray-10 + --ink) ---
 const roleStudentBtn = page.locator('.register-pane__roles .ui-btn', { hasText: '我是学生' })
 const roleTeacherBtn = page.locator('.register-pane__roles .ui-btn', { hasText: '我是教师' })

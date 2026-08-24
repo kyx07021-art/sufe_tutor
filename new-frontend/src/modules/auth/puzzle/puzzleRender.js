@@ -12,9 +12,9 @@
  *   gate, NOT an auth boundary — the server no longer confirms the challenge).
  */
 export const PUZZLE_W = 280
-export const PUZZLE_H = 96
+export const PUZZLE_H = 120
 export const SLIDER_W = 40
-export const SLIDER_H = 32
+export const SLIDER_H = 40
 export const PUZZLE_MAX_X = PUZZLE_W - SLIDER_W // 240
 export const PUZZLE_TOLERANCE = 0.08
 
