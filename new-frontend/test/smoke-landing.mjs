@@ -69,7 +69,11 @@ const firstImgW = await page
   .locator('.landing-gallery__track img')
   .first()
   .evaluate((el) => el.offsetWidth)
-if (Math.abs(firstImgW - 800) > 1) errors.push('corridor image width should be 800, got ' + firstImgW)
+// AK-B4a: images shrink from 800px to ~1/4 viewport via clamp(240px, 26vw, 440px).
+const expectedImgW = Math.min(440, Math.max(240, 0.26 * (await page.evaluate(() => window.innerWidth))))
+if (Math.abs(firstImgW - expectedImgW) > 2) {
+  errors.push(`corridor image width should be ${expectedImgW.toFixed(1)}, got ${firstImgW}`)
+}
 
 const initScroll = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
 // The corridor lands on the middle copy at mount, then idle drift (M1-07b) moves

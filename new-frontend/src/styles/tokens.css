@@ -130,7 +130,7 @@
   /* -- Landing (M1): landing-only layout tokens -- */
   --landing-inset: 5%;                 /* landing side empty zone (left/right 5%) */
   --landing-hero-h: 75vh;              /* hero = 3/4 of the initial viewport */
-  --gallery-img-w: 800px;              /* gallery image fixed width (4:3, non-responsive) */
+  --gallery-img-w: clamp(240px, 26vw, 440px); /* gallery image width: ~1/4 viewport, capped (4:3, responsive) */
   --gallery-gap: var(--space-5);       /* gallery image row gap (each copy is an exact period) */
   --gallery-mask-w: 50px;              /* gallery edge fade mask width (position-only, direction-independent) */
   --gallery-shrink-min: 0.72;          /* gallery edge shrink lower bound (never 0) */

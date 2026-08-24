@@ -3,8 +3,8 @@
  * LandingGallery - M1 image corridor (structure M1-06 + drag M1-07a + drift
  * M1-07b + edge mask M1-08 + edge shrink M1-09)
  * ----------------------------------------------------------------------------
- * - 800px rounded images (4:3), three identical copies of the 8-image sequence
- *   in one flex track (a single period = 8 images + 8 gaps, so each copy is an
+ * - Responsive rounded images (4:3, width from --gallery-img-w), three identical
+ *   copies of the 8-image sequence in one flex track (a single period = 8 images + 8 gaps, so each copy is an
  *   exact `scrollWidth / 3` period -> scrollLeft modulo wrap is pixel-exact).
  * - scrollLeft is modulo-wrapped into [seqW, 2*seqW) on every scroll (M1-06):
  *   the middle copy is always the visible "real" one; jumping a full period
@@ -135,9 +135,10 @@ onBeforeUnmount(() => {
   width: max-content;
 }
 
-/* Fixed 800px images, each with a trailing gap => every copy is an exact period
-   (8 x 800 + 8 x gap = scrollWidth / 3). base.css `img { max-width:100% }` would
-   crush them on narrow screens, so it is explicitly disabled here.
+/* Responsive-width images (--gallery-img-w), each with a trailing gap => every
+   copy is an exact period (8 x imgW + 8 x gap = scrollWidth / 3). base.css
+   `img { max-width:100% }` would crush them on narrow screens, so it is
+   explicitly disabled here.
    --g-scale is set per image by useGalleryShrink (M1-09); transform only (the
    mask owns the fade, opacity is never animated per-image). */
 .landing-gallery__track img {
