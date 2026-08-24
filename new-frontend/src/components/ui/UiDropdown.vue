@@ -129,4 +129,8 @@ function onClose() {
 .ui-dropdown__btn.is-open .ui-dropdown__v {
   transform: rotate(180deg);
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-dropdown__v { transition: none; }
+}
 </style>
