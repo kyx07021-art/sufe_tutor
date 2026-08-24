@@ -49,10 +49,14 @@ onBeforeUnmount(() => stopNotifyPolling())
 </template>
 
 <style scoped>
-/* Short capsule: override M0 button size tokens (scoped selector beats .ui-btn). */
+/* Short capsule: override M0 button size tokens (scoped selector beats .ui-btn).
+   AK-N-B2: --btn-pad: 0 matches the ChatButton / UserArea avatar carriers so the
+   three top-bar icon buttons share one true 40x40 box (the default half-radius
+   pad would widen the border-box past 40px and clip the glyph). */
 .notify-btn {
   --btn-w: 40px;
   --btn-h: 40px;
+  --btn-pad: 0;
 }
 
 /* Icon wrapper anchors the absolute-positioned unread dot at the top-right. */
