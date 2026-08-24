@@ -97,7 +97,7 @@ async function onFileChange(e) {
 
 <template>
   <div class="verify-admission">
-    <p class="verify-admission__label ui-title-sm">{{ TEACHER_COPY.B2_ADMISSION_LABEL }}</p>
+    <p class="verify-admission__label">{{ TEACHER_COPY.B2_ADMISSION_LABEL }}</p>
     <label class="verify-admission__entry">
       <span class="verify-admission__alt">{{ TEACHER_COPY.B2_ADMISSION_ALT }}</span>
       <input
@@ -122,6 +122,11 @@ async function onFileChange(e) {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
+}
+.verify-admission__label {
+  font-weight: 700;
+  color: var(--ink);
+  line-height: var(--lh-tight);
 }
 .verify-admission__entry {
   display: inline-flex;

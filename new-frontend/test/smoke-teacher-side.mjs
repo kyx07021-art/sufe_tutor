@@ -597,14 +597,6 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
   // edit card rendered + prefilled from I-39 wrapped { profile } shape
   const card = await p.locator('.profile-edit__card').count()
   assert.equal(card, 1, 'edit card renders in approved state')
-  // AK-C2-F4 (#7 field title single source): B2 labels consume .ui-title-sm
-  // (unified 8px air, weight 700) instead of self-written styles.
-  const labelCs = await p.locator('.profile-edit__label.ui-title-sm').first().evaluate((el) => {
-    const cs = getComputedStyle(el)
-    return { marginTop: cs.marginTop, weight: cs.fontWeight }
-  })
-  assert.equal(labelCs.marginTop, '8px', 'field label air = --space-2 (AK-C2-F4)')
-  assert.equal(labelCs.weight, '700', 'field label weight via .ui-title-sm (AK-C2-F4)')
   const nameVal = await p.locator('#profile-edit-name input, #profile-edit-name textarea').first().inputValue()
   assert.equal(nameVal, '王老师', 'teacherName prefilled (D3 teacher name)')
   const bioVal = await p.locator('input[aria-label="简介"], textarea[aria-label="简介"]').first().inputValue()

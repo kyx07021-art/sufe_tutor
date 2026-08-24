@@ -86,7 +86,7 @@ watch(
 
 <template>
   <div class="subject-editor">
-    <p class="subject-editor__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_SUBJECTS }}</p>
+    <p class="subject-editor__label">{{ TEACHER_COPY.B2_FIELD_SUBJECTS }}</p>
 
     <div v-if="!rows.length" class="subject-editor__empty">{{ TEACHER_COPY.B1_EMPTY }}</div>
 
@@ -130,7 +130,7 @@ watch(
       <UiButton variant="S" @click="addRow">{{ TEACHER_COPY.B2_ADD_SUBJECT }}</UiButton>
     </div>
 
-    <p class="subject-editor__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_PHILOSOPHY }}</p>
+    <p class="subject-editor__label">{{ TEACHER_COPY.B2_FIELD_PHILOSOPHY }}</p>
     <UiInput
       :model-value="philosophy"
       :placeholder="TEACHER_COPY.B2_FIELD_PHILOSOPHY"
@@ -148,6 +148,11 @@ watch(
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
+}
+.subject-editor__label {
+  font-weight: 700;
+  color: var(--ink);
+  line-height: var(--lh-tight);
 }
 .subject-editor__empty {
   color: var(--gray-50);

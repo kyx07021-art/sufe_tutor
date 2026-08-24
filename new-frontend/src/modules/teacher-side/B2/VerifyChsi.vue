@@ -48,7 +48,7 @@ async function onSubmit() {
 <template>
   <div class="verify-chsi">
     <label class="verify-chsi__label">
-      <span class="verify-chsi__label-text ui-title-sm">{{ TEACHER_COPY.B2_CHSI_LABEL }}</span>
+      <span class="verify-chsi__label-text">{{ TEACHER_COPY.B2_CHSI_LABEL }}</span>
       <UiInput
         v-model="code"
         :placeholder="TEACHER_COPY.B2_CHSI_PLACEHOLDER"
@@ -86,6 +86,11 @@ async function onSubmit() {
   gap: var(--space-2);
   width: 100%;
   min-width: 0;
+}
+.verify-chsi__label-text {
+  font-weight: 700;
+  color: var(--ink);
+  line-height: var(--lh-tight);
 }
 .verify-chsi__submit {
   margin-top: var(--space-1);
