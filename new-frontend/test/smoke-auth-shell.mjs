@@ -570,6 +570,40 @@ await openModal()
 await page.waitForSelector('.register-pane')
 await assertUiTitleComputedStyle(page, '.register-pane__title', 'register title')
 await assertAuthColumnGeometry(page, 'register')
+
+// --- AK-A10: role buttons = B variant with selected gray fill (--gray-10 + --ink) ---
+const roleStudentBtn = page.locator('.register-pane__roles .ui-btn', { hasText: '我是学生' })
+const roleTeacherBtn = page.locator('.register-pane__roles .ui-btn', { hasText: '我是教师' })
+await roleStudentBtn.waitFor({ state: 'visible', timeout: 5000 })
+const roleStyle = (loc) =>
+  loc.evaluate((el) => {
+    const cs = getComputedStyle(el)
+    return { bg: cs.backgroundColor, color: cs.color }
+  })
+// resting (no selection yet): B variant transparent fill + ink text
+let roleSt = await roleStyle(roleStudentBtn)
+check(roleSt.bg === 'rgba(0, 0, 0, 0)', 'AK-A10: unselected student button should have transparent fill, got ' + roleSt.bg)
+check(roleSt.color === 'rgb(26, 26, 26)', 'AK-A10: unselected student button text should be --ink, got ' + roleSt.color)
+// select student -> is-active: gray-10 fill, text stays ink (AK-B3 black-text principle)
+await roleStudentBtn.click()
+await page.waitForTimeout(250)
+roleSt = await roleStyle(roleStudentBtn)
+check(roleSt.bg === 'rgb(230, 230, 230)', 'AK-A10: selected student button should fill --gray-10 rgb(230,230,230), got ' + roleSt.bg)
+check(roleSt.color === 'rgb(26, 26, 26)', 'AK-A10: selected student button text should stay --ink rgb(26,26,26), got ' + roleSt.color)
+// unselected teacher keeps transparent fill
+roleSt = await roleStyle(roleTeacherBtn)
+check(roleSt.bg === 'rgba(0, 0, 0, 0)', 'AK-A10: unselected teacher button should have transparent fill, got ' + roleSt.bg)
+// switch to teacher -> active moves, student loses fill
+await roleTeacherBtn.click()
+await page.waitForTimeout(250)
+roleSt = await roleStyle(roleTeacherBtn)
+check(roleSt.bg === 'rgb(230, 230, 230)', 'AK-A10: selected teacher button should fill --gray-10, got ' + roleSt.bg)
+roleSt = await roleStyle(roleStudentBtn)
+check(roleSt.bg === 'rgba(0, 0, 0, 0)', 'AK-A10: student button loses fill when teacher selected, got ' + roleSt.bg)
+// back to student so the register flow continues on student (re-clicked below)
+await roleStudentBtn.click()
+await page.waitForTimeout(250)
+
 // The password field is a native type=password input (shoulder-surfing guard), not a textarea.
 const regPw = page.locator('.register-pane__password .ui-input__native')
 await regPw.waitFor({ state: 'visible', timeout: 5000 })

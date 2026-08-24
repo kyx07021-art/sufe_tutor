@@ -220,7 +220,10 @@ defineExpose({ canSubmit, submit })
   gap: var(--space-3);
   min-width: 0;
 }
-.register-pane__roles .is-active { color: var(--gray-60); }
+/* AK-A10: selected role = gray-10 fill + ink text (selected state expressed by
+   fill, not gray text — black text stays black, AK-B3). B variant has no resting
+   background, so the fill follows the capsule contour on the button root. */
+.register-pane__roles .is-active { background: var(--gray-10); color: var(--ink); }
 
 .register-pane__channel-switch {
   flex: none;
