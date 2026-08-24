@@ -798,9 +798,18 @@ check(
 check((await page.textContent('.otp-row__title')) === '手机验证码', 'AK-A9: default title 手机验证码')
 const titleBoxA9 = await page.locator('.otp-row__title').boundingBox()
 const linkBoxA9 = await chSwitch.boundingBox()
+// AK-N-A3: the channel-switch link is the title's attached action — it must HUG
+// the title right edge (~--space-3 = 12px), not be shoved to the far side of the
+// row. Mutation: restore `justify-content: space-between` -> the gap grows to
+// 200px+ and this red. (Vertical centering on the same baseline is also locked.)
+const titleLinkGapA9 = titleBoxA9 && linkBoxA9 ? linkBoxA9.x - (titleBoxA9.x + titleBoxA9.width) : -1
 check(
   titleBoxA9 && linkBoxA9 && linkBoxA9.x > titleBoxA9.x + titleBoxA9.width,
   'AK-A9: switch link should sit right of the method title',
+)
+check(
+  titleLinkGapA9 >= 8 && titleLinkGapA9 <= 18,
+  'AK-N-A3: switch link should hug the title (~12px gap, got ' + titleLinkGapA9 + 'px) — space-between would push it 200px+ away',
 )
 check(
   titleBoxA9 &&

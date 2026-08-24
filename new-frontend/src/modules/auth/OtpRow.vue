@@ -79,7 +79,17 @@ defineExpose({ startCountdown })
 .otp-row__title-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* AK-N-A3: the channel-switch link is the small title's attached action, so it
+     HUGS the title (flex-start + --space-3 = 12px), not space-between which
+     shoved it to the far edge of a 300px+ row. Special-case rationale: spatial
+     proximity = functional association (U2) — the user reads the "switch to
+     email/phone register" link as belonging to the OTP method title, not to the
+     form's far corner.
+     Impact boundary: this row is shared by login/verify/register OtpRow; the
+     suffix slot is only populated by the register scene, and for a single-child
+     row flex-start renders identically to space-between (zero visual change in
+     login/verify). */
+  justify-content: flex-start;
   gap: var(--space-3);
   width: 100%;
   min-width: 0;
