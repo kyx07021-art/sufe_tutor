@@ -53,19 +53,18 @@ const boardStyle = computed(() => ({
   --rz-avatar: 2;
   --rz-card: 3;
 
-  /* -- dot-grid tokens (module single source for M3-02) -- */
-  --grid-size: 28px;
-  --grid-dot: color-mix(in srgb, var(--ink) 15%, transparent);
-
   position: relative;
   overflow: hidden;
   background-color: var(--paper);
-  /* Fallback for browsers without color-mix: gray-90 (#1a1a1a) at 15% (light-theme ink).
-     Dark-theme ink is near-white, so the fallback stays slightly dark — acceptable. */
-  background-image: radial-gradient(rgba(26, 26, 26, 0.15) 1px, transparent 1.6px);
-  /* Preferred: theme-aware 15% ink dot (flips automatically in dark mode). */
-  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.6px);
-  background-size: var(--grid-size) var(--grid-size);
+  /* Dot-grid array: same faint dot grid as the page background. The --dot-*
+     tokens are the single source, defined on .relations-page and inherited here
+     (fallbacks keep the board self-contained when mounted without the page). */
+  background-image: radial-gradient(
+    var(--dot-color, color-mix(in srgb, var(--gray-20) 45%, transparent))
+      calc(var(--dot-d, 2px) / 2),
+    transparent calc(var(--dot-d, 2px) / 2 + 0.6px)
+  );
+  background-size: var(--dot-size, 28px) var(--dot-size, 28px);
 }
 
 /* -- Layers: absolutely positioned full-board surfaces anchored to the board. -- */

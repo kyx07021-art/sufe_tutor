@@ -304,6 +304,20 @@ onBeforeUnmount(() => {
   min-height: 100%;
   padding: var(--space-5) var(--space-3) var(--space-6);
   overflow: hidden;
+
+  /* -- dot-array tokens (single source: the page + the board inherit these) -- */
+  --dot-size: 28px;             /* grid spacing (background-size) */
+  --dot-d: 2px;                 /* dot diameter (radial-gradient radius = d/2) */
+  --dot-color: color-mix(in srgb, var(--gray-20) 45%, transparent);
+  /* Decorative dot array behind all content (pure CSS radial-gradient, zero DOM
+     nodes); a faint gray well below content contrast so it never competes with
+     the relations map or the empty state. Static background, no motion. */
+  background-color: var(--paper);
+  background-image: radial-gradient(
+    var(--dot-color) calc(var(--dot-d) / 2),
+    transparent calc(var(--dot-d) / 2 + 0.6px)
+  );
+  background-size: var(--dot-size) var(--dot-size);
 }
 .relations-page__title {
   font-size: var(--fs-lg);

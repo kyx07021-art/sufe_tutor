@@ -262,6 +262,18 @@ async function browserChecks(base) {
     if (!/radial-gradient/.test(gridBg)) fail('board dot grid missing')
     else ok('dot grid (radial-gradient) present')
 
+    // AK-N-F1: page-level dot array behind the whole main panel (single source
+    // --dot-*). The board and the page must share the same faint dot grid.
+    const pageBg = await page.locator('.relations-page').evaluate((el) => getComputedStyle(el).backgroundImage)
+    if (!/radial-gradient/.test(pageBg)) fail('relations page dot array missing')
+    else ok('relations page dot array (radial-gradient) present')
+    const dotTokens = await page.locator('.relations-page').evaluate((el) => {
+      const s = getComputedStyle(el)
+      return { size: s.getPropertyValue('--dot-size').trim(), d: s.getPropertyValue('--dot-d').trim() }
+    })
+    if (dotTokens.size !== '28px' || dotTokens.d !== '2px') fail('--dot-* tokens not resolvable: ' + JSON.stringify(dotTokens))
+    else ok('--dot-* tokens resolve on the page (size 28px / diameter 2px)')
+
     // z-order tokens single source
     const z = await page.evaluate(() => {
       const board = document.querySelector('.relations-board')
