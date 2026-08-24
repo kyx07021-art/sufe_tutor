@@ -81,7 +81,11 @@ function close() {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);                          /* AK-A12: 24 -> 16 (compact rhythm) */
+  /* AK-A12: 24 -> 16 (compact rhythm). AK-N-A1: 16 -> 12 — the register form now
+     owns a three-tier rhythm inside the body, so the shell's own inter-region gap
+     (title / body / footer) can stay tighter; verify/login are short flows and
+     read the same way. Impact boundary: all auth scenes, only the shell frame. */
+  gap: var(--space-3);
   width: 100%;
   min-width: 0;
   max-width: 100%;
@@ -96,8 +100,8 @@ function close() {
   overflow: hidden;
   padding: var(--space-5) var(--space-5) var(--space-4); /* AK-A12: 40/24/24 -> 24/24/16 */
   /* AK-A12: captcha container + its send button resolve border-radius from this
-     root token (22px default); re-point them at the compact 40px-input capsule. */
-  --input-radius: 20px;
+     root token (22px default); re-point them at the compact 32px-input capsule. */
+  --input-radius: 16px;
 }
 
 .auth-shell__title {
@@ -144,23 +148,33 @@ function close() {
    symmetric whitespace automatically. Scoped to .auth-shell__body descendants. */
 .auth-shell__body :deep(.ui-input) {
   --input-w: 100%;
-  --input-h: 36px;      /* AK-A12: 44 -> 40; AK-L-F3: 40 -> 36 (squish heights) */
-  --input-pad-y: 8px;   /* (36 - 20 lh) / 2, single-line vertical center */
+  /* AK-A12: 44 -> 40 -> 36; AK-N-A1: 36 -> 32. Squish heights, never font sizes
+     (principle 5 / user #12) — the 16px text + 20px line-height keep their size,
+     only the vertical padding shrinks (6px top/bottom). Necessity: the register
+     form carries a three-tier rhythm (AK-N-A1) that would otherwise push the
+     375x667 modal past its viewport cap; the 4px-per-input reclaim funds it. */
+  --input-h: 32px;
+  --input-pad-y: 6px;   /* (32 - 20 lh) / 2, single-line vertical center */
 }
 /* captcha row must see the same --input-h so its send button resolves the
    compact capsule radius from --input-radius (inherited from .auth-shell) */
 .auth-shell__body :deep(.ui-captcha) {
-  --input-h: 36px;
+  --input-h: 32px;
 }
-/* buttons 52 -> 44 -> 40 (>= tap floor); S/S1 text variants are height:auto, unaffected */
+/* buttons 52 -> 44 -> 40 -> 36 (>= 32px floor, readable 16px text); S/S1 text
+   variants are height:auto, unaffected. AK-N-A1: 40 -> 36 to fund the rhythm. */
 .auth-shell :deep(.ui-btn) {
-  --btn-h: 40px;
+  --btn-h: 36px;
 }
-.auth-shell__body :deep(.register-pane) { gap: var(--space-1); }  /* AK-A12: 16 -> 12; AK-L-F3: 12 -> 4 */
+/* AK-N-A1: the register-pane gap override was REMOVED — the register form now
+   owns its three-tier rhythm (inline / group / section) in RegisterPane.vue. Keeping a
+   flat shell-level gap here would fight that rhythm (specificity tie, source
+   order fragile). Verify/login flows are unaffected: their OtpRow/PasswordRow
+   keep the compact override below. */
 .auth-shell__body :deep(.otp-row),
 .auth-shell__body :deep(.password-row) { gap: var(--space-1); }    /* AK-A12: 12 -> 8; AK-L-F3: 8 -> 4 */
-.auth-shell__body :deep(.captcha-puzzle__track) { margin-top: var(--space-1); } /* AK-A12: 12 -> 8; AK-L-F3: 8 -> 4 */
-.auth-shell__body :deep(.ui-checkbox) { --cb-h: 24px; }            /* AK-L-F3: 30 -> 24 */
+.auth-shell__body :deep(.captcha-puzzle__track) { margin-top: var(--space-1); } /* AK-A12: 12 -> 8; AK-L-F3: 8 -> 4 (verify/login only; register re-overrides in RegisterPane) */
+.auth-shell__body :deep(.ui-checkbox) { --cb-h: 22px; }            /* AK-L-F3: 30 -> 24; AK-N-A1: 24 -> 22 (fund the rhythm; font stays --fs-sm 14px) */
 
 .auth-shell__footer {
   display: flex;

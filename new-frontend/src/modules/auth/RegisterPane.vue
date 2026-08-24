@@ -204,10 +204,31 @@ defineExpose({ canSubmit, submit })
 </template>
 
 <style scoped>
+/* ==========================================================================
+   Register pane vertical rhythm (AK-N-A1, user feedback #1)
+   -------------------------------------------------------
+   Three-tier gap system (U1: "related groups tight, big groups loose" — a
+   breathing rhythm, NOT uniform enlargement):
+     inline tier (within a field, e.g. checkbox rows / OTP id<->code) -> --space-2 (8px)
+     group tier (between fields, e.g. OTP<->username<->password)      -> --space-3 (12px)
+     block tier (module boundaries: password<->privacy, privacy<->puzzle,
+           and the breathing zone around the two small field titles)
+       -> --space-4 (16px) PLUS the small title's own 8px margin
+          (.ui-title-sm, AK-A8 single source) = ~24px perceived blank line.
+
+   Scope / impact boundary (why this is scoped here, not global):
+   - This block ONLY shapes the register form. Verify/login keep AuthShell's
+     compact override (they are short flows and never had the cramped rhythm).
+   - Every value is a spacing token (--space-*) — no raw px — so tomorrow's
+     token retune propagates without touching component CSS.
+   - The AuthShell `:deep(.register-pane){ gap }` flatten was REMOVED (this
+     component now owns the register rhythm; the shell only compresses heights).
+   ========================================================================== */
 .register-pane {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  /* group-tier baseline. Block-tier boundaries below add margin-top on top of this. */
+  gap: var(--space-3);
   width: 100%;
   min-width: 0;
 }
@@ -231,11 +252,38 @@ defineExpose({ canSubmit, submit })
   width: 100%;
 }
 
+/* block-tier boundary #1: password -> privacy. The agreements block is a legal module,
+   so it is separated from the credential fields by a full module-tier gap
+   (12px base + 8px margin = 20px). */
 .register-pane__agreements {
+  margin-top: var(--space-2);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-1); /* AK-A7: tight row gap between the two agreement checkboxes */
+  /* inline tier: the two agreement checkboxes are sub-items of one field (AK-A7). */
+  gap: var(--space-2);
   min-width: 0;
+}
+
+/* block-tier boundary #2: privacy -> puzzle. The slider is a secondary graphic module
+   (AK-N-A4: "the register text is the master"), given its own module-tier air.
+   :deep reaches the CaptchaPuzzle root class (parent-scoped). */
+.register-pane :deep(.captcha-puzzle) {
+  margin-top: var(--space-2);
+}
+
+/* OTP group internals, register-only (verify/login keep AuthShell's compact
+   override): the identifier <-> code inputs are sub-fields of one OTP entry
+   (inline tier). The small "phone verification code" title's own .ui-title-sm bottom margin
+   (8px) adds on top -> title<->identifier reads ~16px, a visible blank line
+   under the title. */
+.register-pane :deep(.otp-row) {
+  gap: var(--space-2);
+}
+
+/* The puzzle's stage -> track gap inside the module (was flattened to 4px by
+   AuthShell; restore the inline-tier gap so the track reads as part of the puzzle). */
+.register-pane :deep(.captcha-puzzle__track) {
+  margin-top: var(--space-2);
 }
 </style>

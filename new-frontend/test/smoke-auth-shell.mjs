@@ -685,10 +685,58 @@ async function assertRegisterFits(label) {
     label + ': puzzle piece height must match SLIDER_H (' + (SLIDER_H * scale).toFixed(1) + ', got ' + (piece ? piece.height.toFixed(1) : 'null') + ')',
   )
 }
+
+/**
+ * AK-N-A1 (G2 lock): the register pane's three-tier vertical rhythm —
+ *   inline tier (within a field, e.g. checkbox rows / OTP id<->code) = --space-2 (8px)
+ *   group tier (between fields, e.g. OTP<->username<->password)      = --space-3 (12px)
+ *   section tier (module boundaries: password<->privacy, privacy<->puzzle, and
+ *     the breathing zone above/below the two small field titles)     = --space-4 (16px)
+ *     + the small title's own .ui-title-sm 8px margin (AK-A8 single source)
+ * These are measured as the real gutters between sibling elements. Each mutation
+ * (flatten the pane gap to --space-1, drop the agreements/puzzle margin-top,
+ * shrink the checkbox gap back to --space-1) turns its own assertion red.
+ */
+async function assertRegisterRhythm(label) {
+  await page.waitForTimeout(350)
+  const gaps = await page.evaluate(() => {
+    const pane = document.querySelector('.register-pane')
+    const children = [...pane.children]
+    const gut = (a, b) => Math.round(b.getBoundingClientRect().top - a.getBoundingClientRect().bottom)
+    const agrs = [...document.querySelectorAll('.register-pane__agreements .ui-checkbox')]
+    const otpTitle = document.querySelector('.otp-row__title')
+    return {
+      paneGap: getComputedStyle(pane).gap,
+      titleRoles: gut(children[0], children[1]), // 选择身份 below -> roles (section tier)
+      // 手机验证码 above = roles bottom -> the TITLE TEXT top (includes the
+      // .ui-title-sm 8px top margin inside the otp-row, so the perceived blank
+      // line under the section-tier pane gap is what matters to the eye).
+      rolesOtpTitle: Math.round(otpTitle.getBoundingClientRect().top - children[1].getBoundingClientRect().bottom),
+      otpUser: gut(children[2], children[3]), // OTP -> username (group tier)
+      userPass: gut(children[3], children[4]), // username -> password (group tier)
+      passAgr: gut(children[4], children[5]), // password -> privacy (section tier)
+      agrPuzzle: gut(children[5], children[6]), // privacy -> puzzle (section tier)
+      agrGap: Math.round(agrs[1].getBoundingClientRect().top - agrs[0].getBoundingClientRect().bottom), // inline tier
+      otpGap: getComputedStyle(document.querySelector('.otp-row')).gap, // inline tier
+    }
+  })
+  check(gaps.paneGap === '12px', label + ': register-pane base gap should be 12px (--space-3 group tier), got ' + gaps.paneGap)
+  check(gaps.otpUser === 12, label + ': OTP->username should be 12px (group tier), got ' + gaps.otpUser)
+  check(gaps.userPass === 12, label + ': username->password should be 12px (group tier), got ' + gaps.userPass)
+  // section tier = 16px pane gap + 8px title margin (title rows) / 8px margin (agr+puzzle)
+  check(gaps.titleRoles >= 18, label + ': 选择身份 title below should read a section-tier blank line (>=18px, got ' + gaps.titleRoles + ')')
+  check(gaps.rolesOtpTitle >= 18, label + ': 手机验证码 title above should read a section-tier blank line (>=18px, got ' + gaps.rolesOtpTitle + ')')
+  check(gaps.passAgr >= 18, label + ': password->privacy should be section tier (>=18px, got ' + gaps.passAgr + ')')
+  check(gaps.agrPuzzle >= 18, label + ': privacy->puzzle should be section tier (>=18px, got ' + gaps.agrPuzzle + ')')
+  check(gaps.agrGap === 8, label + ': checkbox row gap should be 8px (--space-2 inline tier), got ' + gaps.agrGap)
+  check(gaps.otpGap === '8px', label + ': OTP id<->code gap should be 8px (--space-2 inline tier), got ' + gaps.otpGap)
+}
 await assertRegisterFits('AK-L-F3 desktop 1440x900')
+await assertRegisterRhythm('AK-N-A1 desktop 1440x900')
 await page.setViewportSize({ width: 375, height: 667 })
 await page.waitForTimeout(300)
 await assertRegisterFits('AK-L-F3 mobile 375x667')
+await assertRegisterRhythm('AK-N-A1 mobile 375x667')
 await page.setViewportSize({ width: 1440, height: 900 })
 await page.waitForTimeout(250)
 
@@ -828,7 +876,9 @@ check(agreeGeo.fs === '14px', 'AK-A7: label should be 14px (--fs-sm), got ' + ag
 check(agreeGeo.rowH <= 34, 'AK-A7: compact row height (<=34), got ' + agreeGeo.rowH)
 check(agreeGeo.boxLeftGap <= 1, 'AK-A7: box should hug the container left edge, gap ' + agreeGeo.boxLeftGap)
 check(agreeGeo.rowW < 220, 'AK-A7: row must not be the default 220px button width, got ' + agreeGeo.rowW)
-// tight row gap (--space-1 = 4px)
+// AK-N-A1 inline-tier row gap (--space-2 = 8px): the two agreement checkboxes are
+// sub-items of one field; 8px is the tightest tier of the register rhythm (was a
+// cramped 4px). Mutation: flatten back to --space-1 -> this goes red.
 const agreeGap = await page.evaluate(() => {
   const rows = [...document.querySelectorAll('.register-pane__agreements .ui-checkbox')]
   if (rows.length < 2) return -1
@@ -836,7 +886,7 @@ const agreeGap = await page.evaluate(() => {
   const b = rows[1].getBoundingClientRect()
   return Math.round(b.top - a.bottom)
 })
-check(agreeGap === 4, 'AK-A7: tight row gap should be 4px (--space-1), got ' + agreeGap)
+check(agreeGap === 8, 'AK-N-A1: checkbox row gap should be 8px (--space-2 inline tier), got ' + agreeGap)
 // interaction: click -> checked + brand fill + check visible; width must NOT stretch
 const wBefore = agreeGeo.rowW
 await row1.locator('.ui-checkbox__box').click()
