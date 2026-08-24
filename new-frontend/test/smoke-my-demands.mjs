@@ -465,6 +465,11 @@ async function wizard() {
   await page.locator('.ts-editor__add').click()
   await page.waitForTimeout(200)
   const tsRow = page.locator('.ts-editor__row').first()
+  // AK-C2-F6: the added row's default day must come from DAY_LABELS[0] (single
+  // source), not a hardcoded literal (G2: swapping the reference to a wrong
+  // weekday turns this assertion red).
+  const tsRowDayDefault = await tsRow.locator('.ui-dropdown').textContent()
+  check(tsRowDayDefault.includes('周一'), 'ts add row default day = DAY_LABELS[0], got ' + tsRowDayDefault)
   await tsRow.locator('.ui-dropdown').click()
   await page.waitForTimeout(160)
   await page.locator('.ui-droppanel__item', { hasText: '周三' }).click()

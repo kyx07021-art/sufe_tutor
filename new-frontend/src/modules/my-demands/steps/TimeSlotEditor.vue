@@ -23,7 +23,9 @@ const DAY_OPTIONS = MY_DEMANDS_COPY.DAY_LABELS.map((d) => ({ value: d, label: d 
 const rows = () => (Array.isArray(props.modelValue) ? props.modelValue.slice() : [])
 
 function addRow() {
-  emit('update:modelValue', [...rows(), { day: '周一', start: '', end: '' }])
+  /* AK-C2-F6: default day comes from DAY_LABELS[0] (single source), never a
+     raw literal — a weekday-label rename must not leave a stale hardcoded row. */
+  emit('update:modelValue', [...rows(), { day: MY_DEMANDS_COPY.DAY_LABELS[0], start: '', end: '' }])
 }
 
 function removeRow(i) {
