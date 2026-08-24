@@ -36,6 +36,9 @@ const props = defineProps({
   width: { type: String, default: '' },
   /** underline right inset override (captcha input: right 30% shifted further left) */
   underlineInsetRight: { type: String, default: '' },
+  /** show the remaining-chars counter under the input on focus (AK-A6: captcha
+      input is fixed-length — the count is redundant noise, so it opts out) */
+  showCounter: { type: Boolean, default: true },
   disabled: { type: Boolean, default: false },
   /** explicit accessible name (concise label wins over the verbose placeholder) */
   ariaLabel: { type: String, default: '' },
@@ -70,6 +73,7 @@ const remaining = computed(() =>
 )
 const showCounter = computed(
   () =>
+    props.showCounter &&
     focused.value &&
     props.maxLength > 0 &&
     remaining.value < UI_CONSTANTS.INPUT_COUNTER_SHOW_THRESHOLD,

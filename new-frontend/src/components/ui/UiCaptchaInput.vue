@@ -65,6 +65,7 @@ defineExpose({ startCountdown, isCounting: counting.active })
         :disabled="disabled"
         width="100%"
         underline-inset-right="calc(30% + 8px)"
+        :show-counter="false"
         @update:model-value="(v) => emit('update:modelValue', v)"
         @send="emit('send')"
       />
