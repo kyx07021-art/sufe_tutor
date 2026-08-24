@@ -79,6 +79,42 @@ const sendFocused = await page.evaluate(() => {
 if (!sendFocused.fv) errors.push('AK-A4: captcha send should match :focus-visible on keyboard focus')
 if (!sendFocused.shadow.includes('inset')) errors.push('AK-A4: focused captcha send should show an inset focus ring, got ' + sendFocused.shadow)
 
+// -- AK-A5: underline sits 2px below the text zone + horizontal wipe motion --
+await page.locator('.ui-input__ta').first().focus()
+await page.waitForTimeout(300) // wipe transition settles
+const ulState = await page.evaluate(() => {
+  const root = document.querySelector('.ui-input')
+  const ta = root.querySelector('.ui-input__ta')
+  const ul = root.querySelector('.ui-input__underline')
+  const cs = getComputedStyle(ta)
+  const ucs = getComputedStyle(ul)
+  const textBottom = ta.getBoundingClientRect().top + parseFloat(cs.paddingTop) + parseFloat(cs.lineHeight)
+  return {
+    gap: Math.round(ul.getBoundingClientRect().top - textBottom),
+    scaleX: ucs.transform, // matrix(1,...) after focus extend
+    transition: ucs.transitionProperty,
+    origin: ucs.transformOrigin, // 'left center' resolves to '0px <h>' when focused
+  }
+})
+if (ulState.gap !== 2) errors.push('AK-A5: underline should sit 2px below the text baseline, got ' + ulState.gap + 'px')
+if (!ulState.scaleX.includes('matrix(1,')) errors.push('AK-A5: focused underline should be fully extended (scaleX 1), got ' + ulState.scaleX)
+if (!ulState.transition.includes('transform')) errors.push('AK-A5: underline wipe must be transition-driven, got transition ' + ulState.transition)
+// focus extends LEFT->RIGHT: origin pinned at the left edge (computed originX = 0px)
+const ulOriginX = parseFloat(ulState.origin.split(' ')[0])
+if (Math.round(ulOriginX) !== 0) errors.push('AK-A5: focus must extend from the left edge, got originX=' + ulState.origin)
+// blur -> erases right->left (scaleX back to 0, origin flips to the right edge;
+// computed transform-origin resolves to pixels = the element's right edge)
+await page.locator('.ui-input__ta').first().blur()
+await page.waitForTimeout(300)
+const ulAfter = await page.evaluate(() => {
+  const ul = document.querySelector('.ui-input__underline')
+  const ucs = getComputedStyle(ul)
+  const originX = parseFloat(ucs.transformOrigin.split(' ')[0])
+  return { scaleX: ucs.transform, originX, rightEdge: ul.offsetWidth }
+})
+if (!ulAfter.scaleX.includes('matrix(0,')) errors.push('AK-A5: blurred underline should be fully erased (scaleX 0), got ' + ulAfter.scaleX)
+if (Math.round(ulAfter.originX) !== Math.round(ulAfter.rightEdge)) errors.push('AK-A5: erase should originate from the right edge, got originX=' + ulAfter.originX + ' rightEdge=' + ulAfter.rightEdge)
+
 // -- variable input set: add + remove row --
 const varSetSec = page.locator('.pv__sec', { hasText: 'Variable Input' })
 const beforeRows = await varSetSec.locator('.ui-varset__row').count()

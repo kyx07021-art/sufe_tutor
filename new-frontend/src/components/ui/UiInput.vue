@@ -8,7 +8,8 @@ import { injectFieldContext, injectFieldFill } from '@/composables/useFieldConte
  * -------------------------------------------------------
  * - Capsule shape (zero vertical line), white fill no border; focus smoothly fades to gray-10.
  * - Placeholder text is gray-30, present only when empty and not focused.
- * - On focus a thin line appears 5px above the bottom (divider config), under the text.
+ * - On focus a thin line appears 2px below the text baseline (AK-A5: position derived
+ *   from input-h - pad-y - line-height; wipes in left->right, wipes out right->left).
  * - Char limit: when remaining < 60, a second line under the input shows remaining chars (<10 red); released on blur.
  * - Auto-grows on newline into a rounded rectangle; Enter sends (shift/ctrl+enter for manual newline); grow direction configurable (default down).
  * - Text-type filtering (digits only etc.) strips illegal chars on input.
@@ -25,7 +26,7 @@ const props = defineProps({
   growDirection: { type: String, default: 'down', validator: (v) => ['down', 'up'].includes(v) },
   /** whether Enter sends (false = Enter inserts newline) */
   sendOnEnter: { type: Boolean, default: true },
-  /** taller input (lift should be a whole-line multiple; text top-aligned, underline still 5px from bottom) */
+  /** taller input (lift should be a whole-line multiple; text top-aligned; underline position is token-derived, not height-bound) */
   minHeight: { type: String, default: '' },
   fill: {
     type: String,
@@ -267,18 +268,28 @@ defineExpose({
   overflow: hidden;
 }
 
-/* underline: 5px above bottom, left/right = capsule straight-segment bounds (apply divider config) */
+/* underline: 2px below the text zone (single-line baseline), left/right = capsule
+   straight-segment bounds (apply divider config). AK-A5: derived from the same
+   tokens (input-h - pad-y - line-height) so pad/line-height changes keep it glued;
+   the previous fixed bottom:5px sat ~7px below the text and read as "too high".
+   Wipe motion: the line appears by extending left->right and disappears by erasing
+   right->left. The origin flips with state — at scaleX(1) the origin switch is
+   imperceptible, so both directions transition cleanly from the same property. */
 .ui-input__underline {
   position: absolute;
   left: var(--input-radius);
   right: var(--input-underline-r);
-  bottom: 5px;
+  bottom: calc(var(--input-h) - var(--input-pad-y) - var(--input-lh) - 3px);
   height: 1px;
   background: var(--line);
-  opacity: 0;
-  transition: opacity var(--dur-sm) var(--ease-out);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: transform var(--dur-sm) var(--ease-out);
 }
-.ui-input__underline.is-visible { opacity: 1; }
+.ui-input__underline.is-visible {
+  transform-origin: left center;
+  transform: scaleX(1);
+}
 
 /* remaining chars: released on blur (v-if), <10 red */
 .ui-input__counter {
@@ -293,5 +304,6 @@ defineExpose({
 
 @media (prefers-reduced-motion: reduce) {
   .ui-input { transition: none; }
+  .ui-input__underline { transition: none; }
 }
 </style>
