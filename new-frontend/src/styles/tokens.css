@@ -177,9 +177,12 @@ html[data-theme="dark"] {
 
 /* Shared ripple keyframes: consumed by every component's .is-rippling layer.
    Defined globally so all scoped components reference the same animation name
-   (useRipple / vRipple match it by the "ui-ripple" prefix). */
+   (useRipple / vRipple match it by the "ui-ripple" prefix).
+   AK-H1: the spread to scale(1) now happens over the FIRST HALF of the animation
+   (was 30%), so with a 200ms duration the fill reaches the button's own diagonal
+   in 100ms (0.1s) and the second half fades it out. */
 @keyframes ui-ripple {
   0%   { transform: scale(0); opacity: 1; }
-  30%  { transform: scale(1); opacity: 1; }
+  50%  { transform: scale(1); opacity: 1; }
   100% { transform: scale(1); opacity: 0; }
 }

@@ -166,7 +166,7 @@ function onSelect(value) {
 }
 .ui-combo__v::after { background: var(--gray-30); }
 .ui-combo__v.is-rippling::after {
-  animation: ui-ripple var(--dur-xl) var(--ease-out) forwards;
+  animation: ui-ripple var(--dur-sm) var(--ease-out) forwards; /* AK-H1: 0.1s spread */
 }
 
 .ui-combo__v-icon {

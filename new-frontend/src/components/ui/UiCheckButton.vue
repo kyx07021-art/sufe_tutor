@@ -102,7 +102,7 @@ function onKeydown(e) {
   --btn-dur-color: var(--dur-sm);
   --btn-dur-focus: var(--dur-md);
   --btn-dur-out: var(--dur-md);
-  --btn-dur-click: var(--dur-xl);
+  --btn-dur-click: var(--dur-sm); /* AK-H1: 200ms total, spread reaches full in 100ms (0.1s) */
   --checkbtn-stretch: 44px;
 
   position: relative;

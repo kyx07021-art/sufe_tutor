@@ -10,7 +10,8 @@ import { onBeforeUnmount, onMounted } from 'vue'
  *   animationend removes the class. ui-ripple is defined globally in tokens.css (no scoped suffix);
  *   we still match animationName by prefix as a defensive measure.
  * - --btn-d is recomputed on every cover call (and on pointermove) so size changes after the first
- *   render (e.g. UiCheckButton stretching on select) still get a fully covering ripple circle.
+ *   render (e.g. UiCheckButton stretching on select) still get a fully covering ripple circle;
+ *   diameter = the element diagonal (AK-H1: spread to the button's own size, not diagonal*2).
  * - disabled skips all coordinate writes and ripples (disabled visuals are handled by CSS .is-disabled).
  */
 export function useRipple(elRef, { disabled = null } = {}) {
@@ -18,7 +19,11 @@ export function useRipple(elRef, { disabled = null } = {}) {
 
   function updateCover() {
     if (!el) return
-    const d = Math.hypot(el.offsetWidth || 0, el.offsetHeight || 0) * 2
+    // AK-H1: diameter = the element diagonal (smallest circle that covers the
+    // button) — NOT diagonal*2. The old 2x overflow spread to ~600px circles and
+    // read as an instant full-screen flash (user: "spread only to the button's
+    // own size").
+    const d = Math.hypot(el.offsetWidth || 0, el.offsetHeight || 0)
     el.style.setProperty('--btn-d', d.toFixed(1) + 'px')
   }
 
@@ -47,6 +52,10 @@ export function useRipple(elRef, { disabled = null } = {}) {
 
   function onPointerMove(e) {
     if (isBlocked()) return
+    // AK-H2: while a click/focus spread is animating, freeze the origin — the
+    // ripple starts from the first pointer position and must NOT chase the mouse
+    // (hover layer keeps following the pointer; only the click layer freezes).
+    if (el.classList.contains('is-rippling')) return
     updateCover()
     const p = toLocal(e.clientX, e.clientY)
     setPoint(p[0], p[1])

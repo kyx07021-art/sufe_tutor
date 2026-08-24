@@ -10,7 +10,8 @@ import { isRef } from 'vue'
  */
 
 function updateCover(el) {
-  const d = Math.hypot(el.offsetWidth || 0, el.offsetHeight || 0) * 2
+  // AK-H1: diameter = element diagonal (covers the button itself, not 2x overflow).
+  const d = Math.hypot(el.offsetWidth || 0, el.offsetHeight || 0)
   el.style.setProperty('--btn-d', d.toFixed(1) + 'px')
 }
 
@@ -42,6 +43,9 @@ function ripple(el, lx, ly) {
 function onMove(e) {
   const el = e.currentTarget
   if (isBlocked(el)) return
+  // AK-H2: freeze the click/focus spread origin while it animates (does not chase
+  // the mouse; the hover layer keeps following).
+  if (el.classList.contains('is-rippling')) return
   updateCover(el)
   const p = toLocal(el, e.clientX, e.clientY)
   setPoint(el, p[0], p[1])

@@ -208,7 +208,7 @@ const atMax = computed(() => props.max > 0 && list.value.length >= props.max)
 .ui-varset__add::after { background: var(--gray-30); }
 .ui-varset__remove.is-rippling::after,
 .ui-varset__add.is-rippling::after {
-  animation: ui-ripple var(--dur-xl) var(--ease-out) forwards;
+  animation: ui-ripple var(--dur-sm) var(--ease-out) forwards; /* AK-H1: 0.1s spread */
 }
 
 @media (prefers-reduced-motion: reduce) {

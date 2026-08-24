@@ -134,7 +134,7 @@ defineExpose({ el })
   --btn-dur-color: var(--dur-sm);
   --btn-dur-focus: var(--dur-md);
   --btn-dur-out: var(--dur-md);
-  --btn-dur-click: var(--dur-xl);
+  --btn-dur-click: var(--dur-sm); /* AK-H1: 200ms total, spread reaches full in 100ms (0.1s) */
   --btn-arrow-shift: 4px;
 
   position: relative;
@@ -281,17 +281,23 @@ defineExpose({ el })
 }
 
 /* =========== non-white fill palettes (brand purple / danger red) ===========
+   AK-J1: the fill is expressed through --btn-bg (not a direct background), so the
+   A/C capsule rule `background: var(--btn-bg, var(--paper))` picks it up. A direct
+   `background: var(--brand)` here has specificity (0,1,0) and was silently
+   overridden by the earlier pill rule (0,2,0) — enabled fill buttons rendered
+   paper-white (the gray-out was the only state that looked right). Setting the
+   variable makes the fill win regardless of specificity.
    dark fills: grayscale -15/-30 + hue saturation +10/+20 (token precomputed);
    inner text stays white (button color brand-ink/danger-ink inherited by label/arrow). */
 .ui-btn--fill-brand {
-  background: var(--brand);
+  --btn-bg: var(--brand);
   border-color: transparent;
   color: var(--brand-ink);
   --btn-hover-bg: var(--brand-hover);
   --btn-click-bg: var(--brand-active);
 }
 .ui-btn--fill-danger {
-  background: var(--danger);
+  --btn-bg: var(--danger);
   border-color: transparent;
   color: var(--danger-ink);
   --btn-hover-bg: var(--danger-hover);

@@ -158,7 +158,7 @@ defineExpose({ startCountdown, isCounting: counting.active })
 }
 .ui-captcha__send::after { background: var(--gray-30); }
 .ui-captcha__send.is-rippling::after {
-  animation: ui-ripple var(--dur-xl) var(--ease-out) forwards;
+  animation: ui-ripple var(--dur-sm) var(--ease-out) forwards; /* AK-H1: 0.1s spread */
 }
 
 .ui-captcha__send-text {
