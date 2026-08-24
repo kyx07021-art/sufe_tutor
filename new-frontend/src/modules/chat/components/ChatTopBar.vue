@@ -12,6 +12,9 @@
  *   lives in logic/endSession.js, M4-25, and is passed in by the parent).
  * - Ended conversations hide the more button entirely (already-ended cannot be
  *   ended again).
+ * - Both the more trigger and the End Session entry are standard UiButtons
+ *   (ADR 0004 single implementation + variant props). The dropdown entry follows
+ *   the MoreMenu precedent: a left-aligned UiButton B.
  * - Dropdown is a minimal custom panel reusing the M0 composables
  *   (useAnchoredPanel positioning + useFocusTrap Tab trapping) so the anchoring
  *   math and focus behavior come from the shared layer, not re-implemented here.
@@ -42,7 +45,8 @@ const emit = defineEmits(['back', 'end-session'])
 const open = ref(false)
 const btnRef = ref(null)
 const panelRef = ref(null)
-const triggerEl = computed(() => btnRef.value)
+/* The more trigger is a UiButton; its root button element is exposed via el. */
+const triggerEl = computed(() => btnRef.value && btnRef.value.el)
 const { style: panelStyle, placeNextTick, bind, unbind } = useAnchoredPanel(panelRef, triggerEl, {
   align: 'down',
   alignX: 'right',
@@ -66,7 +70,7 @@ function onEndSession() {
 function onDocPointerDown(e) {
   if (!open.value) return
   const p = panelRef.value
-  const t = btnRef.value
+  const t = btnRef.value && btnRef.value.el
   if (p && p.contains(e.target)) return
   if (t && t.contains(e.target)) return
   open.value = false
@@ -107,10 +111,11 @@ onBeforeUnmount(() => {
 
     <span class="chat-topbar__peer">{{ peerName }}</span>
 
-    <button
+    <UiButton
       v-if="!isEnded"
       ref="btnRef"
-      type="button"
+      variant="B"
+      circle
       class="chat-topbar__more"
       :class="{ 'is-open': open }"
       :aria-label="CHAT_COPY.TOP_MORE_ARIA"
@@ -119,7 +124,7 @@ onBeforeUnmount(() => {
       @click="toggle"
     >
       <span class="chat-topbar__dots" aria-hidden="true">···</span>
-    </button>
+    </UiButton>
   </header>
 
   <Teleport to="body">
@@ -132,8 +137,8 @@ onBeforeUnmount(() => {
         role="listbox"
         :aria-label="CHAT_COPY.TOP_MORE_ARIA"
       >
-        <button
-          type="button"
+        <UiButton
+          variant="B"
           class="chat-more-panel__item"
           :class="{ 'is-disabled': !canEnd }"
           :disabled="!canEnd"
@@ -143,7 +148,7 @@ onBeforeUnmount(() => {
           @click="onEndSession"
         >
           {{ CHAT_COPY.DROP_END_SESSION }}
-        </button>
+        </UiButton>
       </div>
     </Transition>
   </Teleport>
@@ -173,26 +178,12 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
-/* ---- more button (M4-23 trigger): clean minimal 3-dot ---- */
-.chat-topbar__more {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background var(--dur-sm) var(--ease-out);
-}
-.chat-topbar__more:hover,
-.chat-topbar__more:focus-visible,
-.chat-topbar__more.is-open {
-  background: var(--gray-10);
+/* ---- more button (M4-23 trigger): standard UiButton circle B; the "···"
+     glyph keeps the existing 3-dot look, hover/focus ripple is UiButton's.
+     Compact 32px circle (token override, beats the 52px UiButton default). ---- */
+.chat-topbar .chat-topbar__more {
+  --btn-h: 32px;
+  --btn-w: 32px;
 }
 .chat-topbar__dots {
   font-size: var(--fs-lg);
@@ -211,35 +202,12 @@ onBeforeUnmount(() => {
   border: var(--border-w) solid var(--line);
   box-shadow: var(--shadow-float-sm);
 }
-.chat-more-panel__item {
-  display: block;
+/* End Session entry: a left-aligned UiButton B filling the panel (MoreMenu
+   precedent). Disabled (M4-25 gray-out) is UiButton's is-disabled. */
+.chat-more-panel .chat-more-panel__item {
   width: 100%;
-  box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--fs-base);
-  line-height: 1;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-  user-select: none;
-}
-.chat-more-panel__item:hover,
-.chat-more-panel__item:focus-visible {
-  outline: none;
-  background: var(--gray-10);
-}
-/* M4-25 gray-out gate UI surface: disabled entry is grayed and inert */
-.chat-more-panel__item.is-disabled {
-  color: var(--gray-50);
-  cursor: default;
-}
-.chat-more-panel__item.is-disabled:hover,
-.chat-more-panel__item.is-disabled:focus-visible {
-  background: transparent;
+  --btn-w: 100%;
+  justify-content: flex-start;
 }
 
 /* ---- summon float-in + fade (down direction) ---- */

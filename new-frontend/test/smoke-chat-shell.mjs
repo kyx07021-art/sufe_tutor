@@ -143,6 +143,7 @@ const cjkRe = /[一-鿿]/
 const inlineAttrRe = /\sonclick=|\sonload=|\sonchange=|\sonerror=|\sstyle=/
 const vhtmlRe = /\sv-html=/
 const styleInjectRe = /createElement\(['"]style['"]\)/
+const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
 function collectFiles(dir, out = []) {
   for (const name of readdirSync(dir)) {
     const full = join(dir, name)
@@ -152,16 +153,32 @@ function collectFiles(dir, out = []) {
   }
   return out
 }
+// ADR 0004 single-implementation migration guard: native interactive elements
+// must live in the standard component library (UiButton/UiInput). Explicit
+// boundary allowlist:
+//   ChatListPane.vue   - compound conversation card (avatar+name+preview+time+dot);
+//                        no standard card-button exists -> marked boundary acceptable.
+//   ChatImageBubble.vue - image-thumbnail zoom target, a specialized interactive
+//                        element, not an icon/action button -> boundary acceptable.
+// file inputs (type="file") are legitimate label-for pickers (iOS-safe).
+const NATIVE_INTERACTIVE_BOUNDARY = new Set(['ChatListPane.vue', 'ChatImageBubble.vue'])
 for (const file of collectFiles(CHAT_DIR)) {
   const src = readFileSync(file, 'utf8')
   if (cjkRe.test(src)) ok(false, `contract 6: CJK in ${file}`)
   if (file.endsWith('.vue')) {
     if (inlineAttrRe.test(src)) ok(false, `contract 6: inline event/style attr in ${file}`)
     if (vhtmlRe.test(src)) ok(false, `contract 6: v-html in ${file}`)
+    const base = file.split(/[\\/]/).pop()
+    if (!NATIVE_INTERACTIVE_BOUNDARY.has(base)) {
+      const body = stripComments(src)
+      if (/<button[\s>]/.test(body)) ok(false, `contract 6: native <button> in ${file} (migrate to UiButton)`)
+      if (/<textarea[\s>]/.test(body)) ok(false, `contract 6: native <textarea> in ${file} (migrate to UiInput)`)
+      if (/<input(?![^>]*type=["']file["'])[\s>]/.test(body)) ok(false, `contract 6: native non-file <input> in ${file} (migrate to standard component)`)
+    }
   }
   if (styleInjectRe.test(src)) ok(false, `contract 6: <style> injection in ${file}`)
 }
-ok(true, 'contract 6: chat module source clean (zero CJK / inline attrs / v-html / style injection)')
+ok(true, 'contract 6: chat module source clean (zero CJK / inline attrs / v-html / style injection / native interactive elements)')
 
 /* ============ Browser harness checks ============ */
 let server
@@ -345,8 +362,8 @@ try {
   await page.waitForTimeout(250)
 
   /* -- 7. M4-17/18/30 optimistic text send -- */
-  ok((await page.locator('.chat-input__ta').count()) === 1, 'M4-17: input bar renders for active conv')
-  await page.locator('.chat-input__ta').fill('你好，我是学生')
+  ok((await page.locator('.chat-conv__input-slot .ui-input__ta').count()) === 1, 'M4-17: input bar renders for active conv')
+  await page.locator('.chat-conv__input-slot .ui-input__ta').fill('你好，我是学生')
   await page.keyboard.press('Enter')
   await page.waitForTimeout(350)
   const sentTexts = await page.locator('.chat-bubble__text').allTextContents()
@@ -407,12 +424,12 @@ try {
   await page.waitForTimeout(250)
   const hintInit = (await page.locator('.chat-hint__text').textContent()) || ''
   ok(hintInit.includes('临时会话'), 'M4-26: temp init hint shows')
-  ok((await page.locator('.chat-input__ta').count()) === 1, 'M4-27: input visible while quota left')
-  await page.locator('.chat-input__ta').fill('老师您好')
+  ok((await page.locator('.chat-conv__input-slot .ui-input__ta').count()) === 1, 'M4-27: input visible while quota left')
+  await page.locator('.chat-conv__input-slot .ui-input__ta').fill('老师您好')
   await page.keyboard.press('Enter')
   // poll for the input bar to disappear (temp quota spent); give the optimistic
   // send + echo round-trip generous room on loaded CI machines.
-  const tempInputGone = await page.waitForSelector('.chat-input__ta', { state: 'detached', timeout: 4000 }).then(() => true).catch(() => false)
+  const tempInputGone = await page.waitForSelector('.chat-conv__input-slot .ui-input__ta', { state: 'detached', timeout: 4000 }).then(() => true).catch(() => false)
   ok(tempInputGone, 'M4-27: input hidden after temp quota spent')
   const hintSent = (await page.locator('.chat-hint__text').textContent()) || ''
   ok(hintSent.includes('等待对方回复'), 'M4-26: sent hint shows after first temp message')

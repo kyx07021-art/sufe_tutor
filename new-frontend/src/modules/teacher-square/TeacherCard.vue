@@ -52,18 +52,24 @@ const priceText = computed(() => {
 })
 
 const subjectRows = computed(() =>
-  (Array.isArray(props.teacher.subjects) ? props.teacher.subjects : []).map((s, i) => {
-    const score = s.score
-    const full = s.full
-    const raw = s.subject ?? s.name ?? ''
-    return {
-      raw,
-      key: raw || i,
-      name: subjectLabel(raw), // backend stores English id -> Chinese label
-      scoreText: score != null && full != null ? `${score}/${full}` : '',
-      awards: s.awards ?? '',
-    }
-  }),
+  (Array.isArray(props.teacher.subjects) ? props.teacher.subjects : [])
+    .map((s, i) => {
+      const score = s.score
+      const full = s.full
+      const raw = s.subject ?? s.name ?? ''
+      return {
+        raw,
+        key: raw || i,
+        name: subjectLabel(raw), // backend stores English id -> Chinese label
+        scoreText: score != null && full != null ? `${score}/${full}` : '',
+        // AK-N-D1: normalize an awards ARRAY (e.g. []) to a joined string so an
+        // empty array is falsy and never renders as a literal "[]" bracket leak.
+        awards: Array.isArray(s.awards) ? s.awards.filter(Boolean).join(' ') : (s.awards ?? ''),
+      }
+    })
+    // AK-N-D1: drop rows that carry no displayable content (empty name/score/
+    // awards) so an empty-ish subject entry renders no section and no brackets.
+    .filter((row) => row.name || row.scoreText || row.awards),
 )
 
 function onClick() {

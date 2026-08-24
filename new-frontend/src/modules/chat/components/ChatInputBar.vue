@@ -5,21 +5,18 @@
  * - M4-17 layout: 60px capsule, pill radius, paper fill, gray-50 hairline,
  *   --shadow-input float. The parent input slot pads the 10px bottom gap;
  *   this component renders only the capsule + attachment sheet.
- * - M4-18 send: Enter (no modifier, not composing) commits the trimmed draft;
- *   IME composition is tracked (compositionstart/end) so Enter NEVER sends
- *   mid-composition (candidate insertion only — W43 IME mutation). Shift /
- *   Ctrl / Meta + Enter insert a newline (never send). Escape clears the draft
- *   and closes the sheet if open. The decision is the pure `shouldSendKey`
- *   helper (exposed via defineExpose; mirrored in test/chat-input.mjs).
- * - M4-19 auto-grow: the textarea grows with content up to GROW_MAX_PX then
- *   scrolls internally; height/overflow go through the CSSOM data channel
- *   (--ta-h / --ta-scroll custom properties via setProperty — CSP contract 8
- *   style-src-attr 'none' does NOT govern CSSOM setProperty). The send button
- *   stays bottom-aligned (flex-end) as the capsule grows.
+ * - M4-18 send: the IME decision (Enter mid-composition NEVER sends — W43),
+ *   modifier newline (Shift/Ctrl/Meta+Enter) and Enter-to-send are owned by the
+ *   standard UiInput (sendOnEnter). This layer only trims, guards empty/busy,
+ *   refocuses after commit, and handles Escape (clears the draft + closes the
+ *   sheet — UiInput does not own Escape).
+ * - M4-19 auto-grow: UiInput owns autoResize (CSSOM inline height). The
+ *   textarea is clamped here to GROW_MAX_PX (max-height + overflow) so a long
+ *   draft scrolls internally instead of growing past the capsule. The send
+ *   button stays bottom-aligned (flex-end) as the capsule grows.
  * - M4-20 plus rotation: the leading toggle rotates the `plus` icon 45deg to a
- *   close glyph when the sheet opens (pure CSS class toggle .is-open, no icon
- *   swap — a rotated plus reads as an ×; plus.svg and close.svg share the same
- *   stroke geometry so the affordance is consistent).
+ *   close glyph when the sheet opens (pure CSS class toggle .is-open on the
+ *   UiButton, no icon swap). The toggle is a standard UiButton circle B.
  * - M4-21 attachment sheet: slides up under the capsule; two label-for file
  *   inputs (iOS-safe — label activation, never a programmatic file-input
  *   click). Picking an image/file emits attach-image / attach-file; the input
@@ -35,7 +32,9 @@
  *   attach-image(file: File)    — image picked from the attachment sheet.
  *   attach-file(file: File)     — file picked from the attachment sheet.
  */
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
+import UiButton from '@/components/ui/UiButton.vue'
+import UiInput from '@/components/ui/UiInput.vue'
 import UiIcon from '@/components/ui/UiIcon.vue'
 import { CHAT_COPY } from '@/constants/ui.js'
 
@@ -47,86 +46,48 @@ const props = defineProps({
 const emit = defineEmits(['send', 'attach-image', 'attach-file'])
 
 const draft = ref('')
-const composing = ref(false)
 const sheetOpen = ref(false)
-const taRef = ref(null)
+const inputRef = ref(null)
 
 /** Auto-grow clamp (max input height, ~3-4 lines). Single source in this component. */
 const GROW_MAX_PX = 120
 
-/**
- * Pure send decision (single source). A keydown SHOULD send iff:
- *   - not inside an IME composition (Enter mid-composition inserts the
- *     candidate, never sends — W43), AND
- *   - key is Enter, AND
- *   - no modifier (Shift/Ctrl/Meta+Enter are manual newline).
- * Everything else (Escape, letters, arrows) returns false; Escape is handled
- * separately by the component (clears draft). Exposed via defineExpose and
- * mirrored in test/chat-input.mjs (module lead verifies parity).
- * @param {{ key: string, shiftKey?: boolean, ctrlKey?: boolean, metaKey?: boolean }} e event-like object
- * @param {boolean} composing IME composition in progress
- * @returns {boolean}
- */
-function shouldSendKey(e, composing) {
-  if (composing) return false
-  if (!e || e.key !== 'Enter') return false
-  if (e.shiftKey || e.ctrlKey || e.metaKey) return false
-  return true
-}
-
 const canSend = computed(() => draft.value.trim().length > 0 && !props.sending)
 
-/** Grow the textarea via the CSSOM data channel (--ta-h / --ta-scroll). */
-function autoGrow() {
-  const ta = taRef.value
-  if (!ta) return
-  ta.style.setProperty('--ta-h', 'auto')
-  const h = Math.min(ta.scrollHeight, GROW_MAX_PX)
-  ta.style.setProperty('--ta-h', `${h}px`)
-  ta.style.setProperty('--ta-scroll', ta.scrollHeight > GROW_MAX_PX ? 'auto' : 'hidden')
-}
-
-function onInput(e) {
-  draft.value = e.target.value
-  autoGrow()
-}
-
-function onCompositionStart() {
-  composing.value = true
-}
-
-function onCompositionEnd() {
-  composing.value = false
-}
-
-/** Commit the draft (trimmed): emit + clear + shrink + refocus. No-op when busy or empty. */
-function commitSend() {
+/**
+ * Commit a draft (trimmed): emit + clear + refocus. No-op when busy or empty.
+ * Both the Enter path (UiInput @send) and the Send-button path call this, so
+ * the trim / empty / busy guard is a single point (F6).
+ * @param {string} text raw draft value from UiInput
+ */
+function commitSend(text) {
   if (props.sending) return
-  const text = draft.value.trim()
-  if (!text) return
-  emit('send', text)
+  const trimmed = String(text ?? '').trim()
+  if (!trimmed) return
+  emit('send', trimmed)
   draft.value = ''
-  // Re-measure on next tick so the textarea value has reset before shrinking.
-  nextTick(autoGrow)
-  taRef.value?.focus()
+  // Re-measure + refocus on next tick so the draft reset lands before focus.
+  nextTick(() => inputRef.value && inputRef.value.focus())
 }
 
-function onKeydown(e) {
+/** UiInput Enter-send handler (M4-18). UiInput owns the IME guard (W43) + the
+ *  modifier-newline decision; this layer only applies the trim/empty/busy gate. */
+function onUiSend(text) {
+  commitSend(text)
+}
+
+/** Escape clears the draft and closes the sheet (wrapper-level keydown;
+ *  UiInput owns Enter only, Escape is not part of its contract). */
+function onWrapKeydown(e) {
   if (e.key === 'Escape') {
     draft.value = ''
     sheetOpen.value = false
-    nextTick(autoGrow)
-    return
   }
-  if (!shouldSendKey(e, composing.value)) return
-  // Enter without modifier, not composing -> never inserts a newline.
-  e.preventDefault()
-  commitSend()
 }
 
 function onSendClick() {
   if (!canSend.value) return
-  commitSend()
+  commitSend(draft.value)
 }
 
 function toggleSheet() {
@@ -145,19 +106,18 @@ function onFilePick(e) {
   e.target.value = '' // allow re-picking the same file
 }
 
-onMounted(autoGrow)
-
 defineExpose({
-  shouldSendKey,
-  focus: () => taRef.value && taRef.value.focus(),
+  focus: () => inputRef.value && inputRef.value.focus(),
 })
 </script>
 
 <template>
   <div class="chat-input" :class="{ 'is-sheet-open': sheetOpen }">
     <div class="chat-input__capsule">
-      <button
-        type="button"
+      <UiButton
+        variant="B"
+        circle
+        size="sm"
         class="chat-input__toggle"
         :class="{ 'is-open': sheetOpen }"
         :aria-label="CHAT_COPY.ATTACH_TOGGLE_ARIA"
@@ -166,30 +126,31 @@ defineExpose({
         @click="toggleSheet"
       >
         <UiIcon name="plus" class="chat-input__toggle-icon" :size="22" />
-      </button>
+      </UiButton>
 
-      <textarea
-        ref="taRef"
-        class="chat-input__ta"
-        rows="1"
-        :value="draft"
+      <UiInput
+        ref="inputRef"
+        v-model="draft"
+        class="chat-input__field"
         :placeholder="CHAT_COPY.INPUT_PLACEHOLDER"
         :aria-label="CHAT_COPY.INPUT_PLACEHOLDER"
-        @input="onInput"
-        @keydown="onKeydown"
-        @compositionstart="onCompositionStart"
-        @compositionend="onCompositionEnd"
-      ></textarea>
+        fill="bare"
+        send-on-enter
+        @send="onUiSend"
+        @keydown="onWrapKeydown"
+      />
 
-      <button
-        type="button"
+      <UiButton
+        variant="B"
+        circle
+        size="sm"
         class="chat-input__send"
         :disabled="!canSend"
         :aria-label="CHAT_COPY.SEND_BTN_ARIA"
         @click="onSendClick"
       >
-        <UiIcon name="paper-plane" class="chat-input__send-icon" :size="22" />
-      </button>
+        <UiIcon name="paper-plane" :size="22" />
+      </UiButton>
     </div>
 
     <div
@@ -254,80 +215,31 @@ defineExpose({
   box-shadow: 0 0 0 2px var(--brand), var(--shadow-input);
 }
 
-/* -- M4-20 leading toggle: plus rotates 45deg to a close glyph when open -- */
-.chat-input__toggle {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: var(--icon-btn);
-  height: var(--icon-btn);
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--ink);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: background var(--dur-sm) var(--ease-out);
-}
-.chat-input__toggle:hover { background: var(--gray-10); }
-.chat-input__toggle:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--brand); }
-
-.chat-input__toggle-icon {
-  display: block;
+/* -- M4-20 leading toggle: a standard UiButton circle B. The plus icon rotates
+     45deg to a close glyph when open (hover/focus ripple is UiButton's). -- */
+.chat-input__toggle :deep(.chat-input__toggle-icon) {
   transition: transform var(--dur-base) var(--ease-out);
 }
-.chat-input__toggle.is-open .chat-input__toggle-icon { transform: rotate(45deg); }
+.chat-input__toggle.is-open :deep(.chat-input__toggle-icon) {
+  transform: rotate(45deg);
+}
 
-/* -- M4-19 auto-grow textarea (height/overflow via CSSOM data channel) -- */
-.chat-input__ta {
+/* -- input field: fill the capsule. UiInput owns the textarea visuals; this
+     scope only clamps auto-growth to GROW_MAX_PX so a long draft scrolls
+     internally instead of pushing the capsule past the page (M4-19). -- */
+.chat-input__field {
   flex: 1;
   min-width: 0;
-  box-sizing: border-box;
-  min-height: var(--input-h);
-  height: var(--ta-h, var(--input-h));
-  padding: var(--input-pad-y) 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--fs-base);
-  line-height: var(--input-lh);
-  resize: none;
-  overflow-y: var(--ta-scroll, hidden);
+  --input-w: 100%;
+}
+.chat-input .chat-input__field :deep(.ui-input__ta) {
+  max-height: 120px;
+  overflow-y: auto;
   scrollbar-width: thin;
 }
-.chat-input__ta::placeholder { color: var(--gray-30); }
 
-/* -- M4-18 send button (bottom-aligned via flex-end, disabled when empty/sending) -- */
-.chat-input__send {
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
-  width: var(--icon-btn);
-  height: var(--icon-btn);
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--gray-90);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition:
-    background var(--dur-sm) var(--ease-out),
-    color var(--dur-sm) var(--ease-out);
-}
-.chat-input__send:hover:not(:disabled) { background: var(--gray-10); }
-.chat-input__send:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--brand); }
-.chat-input__send:disabled {
-  color: var(--gray-50);
-  cursor: default;
-  background: transparent;
-}
+/* -- M4-18 send button: a standard UiButton circle B. Disabled (empty /
+     sending) state is UiButton's is-disabled (grayed). -- */
 
 /* -- M4-21 attachment sheet: slides up under the capsule (class toggled) -- */
 .chat-input__sheet {
@@ -408,9 +320,7 @@ defineExpose({
 
 @media (prefers-reduced-motion: reduce) {
   .chat-input__capsule,
-  .chat-input__toggle,
-  .chat-input__toggle-icon,
-  .chat-input__send,
+  .chat-input__toggle :deep(.chat-input__toggle-icon),
   .chat-input__sheet,
   .chat-input__sheet.is-open,
   .chat-input__attach { transition: none; }

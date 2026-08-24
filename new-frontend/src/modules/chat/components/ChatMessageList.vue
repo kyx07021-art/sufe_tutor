@@ -25,6 +25,7 @@
  * injection; JS only toggles classes.
  */
 import { CHAT_COPY } from '@/constants/ui.js'
+import UiButton from '@/components/ui/UiButton.vue'
 import ChatBubble from './ChatBubble.vue'
 import ChatImageBubble from './ChatImageBubble.vue'
 import ChatFileBubble from './ChatFileBubble.vue'
@@ -47,14 +48,14 @@ function isMine(m) {
 
 <template>
   <div class="chat-msg-list">
-    <button
+    <UiButton
       v-if="hasMore"
-      type="button"
+      variant="S1"
       class="chat-msg-list__more"
       @click="emit('load-more')"
     >
       {{ CHAT_COPY.LOAD_MORE }}
-    </button>
+    </UiButton>
 
     <p v-if="loading && !messages.length" class="chat-msg-list__loading">
       {{ CHAT_COPY.MESSAGES_LOADING }}
@@ -91,15 +92,7 @@ function isMine(m) {
 
 .chat-msg-list__more {
   align-self: center;
-  padding: var(--space-2) var(--space-4);
-  border: 0;
-  border-radius: var(--radius-pill);
-  background: transparent;
-  color: var(--gray-50);
-  font-size: var(--fs-sm);
-  cursor: pointer;
 }
-.chat-msg-list__more:hover { color: var(--ink); }
 
 .chat-msg-list__loading {
   padding: var(--space-6) var(--space-4);
