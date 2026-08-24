@@ -400,6 +400,27 @@ check(await confirmBtn.isDisabled(), 'confirm should be disabled initially')
 check((await page.locator('.captcha-puzzle__canvas').count()) === 1, 'puzzle canvas missing')
 check((await page.locator('.captcha-puzzle__track').count()) === 1, 'puzzle track missing')
 check((await page.locator('.captcha-puzzle__knob').count()) === 1, 'puzzle knob missing')
+// AK-N-A4 (G2): the puzzle is a SECONDARY graphic — "the register text is the
+// master". Track base height must be <= 3x the in-track hint font (3*12=36px;
+// user corrected: "your track is larger than 3x the grey text, that's the
+// problem" — direction is shrink, never grow). Knob contact shrinks to 32px.
+// Mutations: restore track 40px / knob 40px -> their assertions red.
+const pzSize = await page.evaluate(() => {
+  const track = document.querySelector('.captcha-puzzle__track')
+  const knob = document.querySelector('.captcha-puzzle__knob')
+  const hint = document.querySelector('.captcha-puzzle__hint')
+  const cv = document.querySelector('.captcha-puzzle__canvas')
+  const cs = getComputedStyle(track)
+  const scale = cv ? cv.clientWidth / 280 : 1
+  return {
+    trackBase: parseFloat(cs.getPropertyValue('--track-h')) || parseFloat(cs.height) / scale,
+    knobBase: parseFloat(getComputedStyle(knob).width) / scale,
+    hintFs: getComputedStyle(hint).fontSize,
+  }
+})
+check(pzSize.trackBase <= 36.5, 'AK-N-A4: track base height must be <= 36px (3x hint 12px), got ' + pzSize.trackBase)
+check(pzSize.hintFs === '12px', 'AK-N-A4: in-track hint stays --fs-xs 12px, got ' + pzSize.hintFs)
+check(Math.abs(pzSize.knobBase - 32) <= 1, 'AK-N-A4: knob contact should be 32px (shrunk from 40), got ' + pzSize.knobBase)
 
 // blocked path A: panel-interior click does NOT close
 await page.locator('.auth-shell__title').click()
