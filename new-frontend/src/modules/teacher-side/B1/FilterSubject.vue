@@ -2,15 +2,21 @@
 /**
  * FilterSubject - B1-5a subject filter card (two-column checkbox grid)
  * -------------------------------------------------------
- * - Renders SUBJECT_OPTIONS as a 2-column grid of toggle chips.
- * - v-model: modelValue = string[] of selected subjects.
+ * - Renders SUBJECTS (region.js, backend English ids + Chinese labels) as a
+ *   2-column grid of toggle chips. C2-F1: previously used the Chinese-label
+ *   SUBJECT_OPTIONS array — the emitted value (the Chinese label) never matched
+ *   the backend English subject id on demand cards (item.subject is an English
+ *   id), so any subject filter returned zero results (PA-2-F4 fixed the same bug
+ *   on teacher-square; this propagates it to teacher-side B1).
+ * - v-model: modelValue = string[] of selected subject VALUE ids (English).
  * - Clicking toggles membership; the new array is emitted as a fresh copy.
  */
-import { TEACHER_COPY, SUBJECT_OPTIONS } from '@/constants/ui.js'
+import { TEACHER_COPY } from '@/constants/ui.js'
+import { SUBJECTS } from '@/modules/my-demands/region.js'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
-  options: { type: Array, default: () => SUBJECT_OPTIONS },
+  options: { type: Array, default: () => SUBJECTS },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -31,14 +37,14 @@ function toggle(subject) {
   <div class="filter-subject" role="group" :aria-label="TEACHER_COPY.B1_FILTER_SUBJECT">
     <div class="filter-subject__grid">
       <button
-        v-for="subject in options"
-        :key="subject"
+        v-for="s in options"
+        :key="s.value"
         type="button"
         class="filter-subject__item"
-        :class="{ 'is-checked': isChecked(subject) }"
-        :aria-pressed="isChecked(subject)"
-        @click="toggle(subject)"
-      >{{ subject }}</button>
+        :class="{ 'is-checked': isChecked(s.value) }"
+        :aria-pressed="isChecked(s.value)"
+        @click="toggle(s.value)"
+      >{{ s.label }}</button>
     </div>
   </div>
 </template>

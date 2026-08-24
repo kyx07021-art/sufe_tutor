@@ -77,17 +77,3 @@ export const TEACHER_COPY = {
   B3_TITLE: '资料广场',
   B3_PLACEHOLDER: '资料广场建设中',
 }
-
-/** Demand subject options (mirrors backend SUBJECTS enum; pending shared enums when S3/S4 lands). */
-export const SUBJECT_OPTIONS = [
-  '语文',
-  '数学',
-  '英语',
-  '物理',
-  '化学',
-  '生物',
-  '政治',
-  '历史',
-  '地理',
-  '科学',
-]

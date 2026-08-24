@@ -59,5 +59,5 @@ export const UI_CONSTANTS = {
 
 export { CHAT_COPY } from './m-chat.js'
 export { LANDING_COPY, MIRROR_COPY } from './m-landing.js'
-export { TEACHER_COPY, SUBJECT_OPTIONS } from './m-teacher-side.js'
+export { TEACHER_COPY } from './m-teacher-side.js'
 export { AUTH_COPY, OTP_SCENE_OF } from './m-auth.js'

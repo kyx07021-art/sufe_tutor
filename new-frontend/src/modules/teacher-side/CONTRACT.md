@@ -61,8 +61,10 @@ module lead after the SA3 session was interrupted mid-write.
 - `useAvatarCrop.js` = M5-09b / M9-B2-6 shared (built by ME); pure geometry node-testable.
 - **fetch single point**: all M9 services use `@/core/api.js` `api()` (AUTH_TOKEN_KEY='authToken'). The earlier
   SA2 note about 'auth:token' is obsolete — reconciled.
-- Subject list `SUBJECT_OPTIONS` in m-teacher-side.js pending backend SUBJECTS enum (S3/S4) — coordinator to reconcile
-  against the single-source subject list when the backend contract lands.
+- Subject list: reconciled (C2-F1). `SUBJECT_OPTIONS` (Chinese-label array) deleted;
+  `FilterSubject` now renders `SUBJECTS` from `@/modules/my-demands/region.js` (backend
+  English ids + Chinese labels) so the emitted filter values match `item.subject` on
+  demand cards (same fix PA-2-F4 applied to teacher-square).
 - Save write path (B2-5) invalidate seam: MyInfo.onSave does read-back refresh (F7); the cache-invalidate call is a
   documented TEMPORARY seam pending core/datahub (M2). Coordinator wires `invalidate('teachers')` when datahub lands.
 

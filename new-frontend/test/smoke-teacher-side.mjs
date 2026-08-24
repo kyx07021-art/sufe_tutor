@@ -41,7 +41,7 @@ test('I-34 mapping reads matchScore/matchCount explicitly + normalizes missing f
   )
   const item = mapDemandItem({
     id: 7,
-    subject: '数学',
+    subject: 'math',
     grade: '高二',
     teachingMethod: 'offline',
     currentScore: 80,
@@ -54,7 +54,7 @@ test('I-34 mapping reads matchScore/matchCount explicitly + normalizes missing f
   })
   assert.equal(item.matchScore, 92, 'matchScore explicitly read')
   assert.equal(item.matchCount, 3, 'matchCount explicitly read')
-  assert.equal(item.subject, '数学')
+  assert.equal(item.subject, 'math')
   assert.equal(item.budgetMin, 200)
 
   // missing fields -> safe defaults (C3)
@@ -188,7 +188,7 @@ test('PA-1d-F4: normalizeProfile maps I-39 row to edit shape (region = province 
   assert.equal(n.gender, '男')
   assert.deepEqual(n.timeSlots, ['周一', '周三'])
   assert.deepEqual(n.personalityTags, ['耐心', '严谨'])
-  assert.deepEqual(n.subjects, [{ subject: '数学', score: 145, full: 150, awards: ['市一等奖'] }])
+  assert.deepEqual(n.subjects, [{ subject: 'math', score: 145, full: 150, awards: ['市一等奖'] }])
 
   // C3: missing/null fields -> safe defaults (no throw)
   const sparse = normalizeProfile(null)
@@ -220,7 +220,7 @@ test('PA-1d-F4: buildSaveBody sends camelCase I-40 field set with province requi
     graduationYear: '2015',
     timeSlots: ['周一', '周三'],
     personalityTags: ['耐心', '严谨'],
-    subjects: [{ subject: '数学', score: 145, full: 150, awards: ['市一等奖'] }],
+    subjects: [{ subject: 'math', score: 145, full: 150, awards: ['市一等奖'] }],
     philosophy: '因材施教',
   })
   assert.ok(body.profile, 'wrapped in { profile } (I-40)')
@@ -237,7 +237,7 @@ test('PA-1d-F4: buildSaveBody sends camelCase I-40 field set with province requi
   assert.equal(p.graduationYear, '2015', 'graduationYear field name (not graduation)')
   assert.deepEqual(p.timeSlots, ['周一', '周三'])
   assert.deepEqual(p.personalityTags, ['耐心', '严谨'])
-  assert.deepEqual(p.subjects, [{ subject: '数学', score: 145 }], 'subjects collapsed to { subject, score }')
+  assert.deepEqual(p.subjects, [{ subject: 'math', score: 145 }], 'subjects collapsed to { subject, score }')
   assert.equal(p.philosophy, '因材施教')
   assert.equal('avatar' in p, false, 'avatar not part of I-40 payload (I-11 separate)')
 
@@ -273,12 +273,12 @@ test('matchGroup groups by matchCount desc and hides zero-hit items when filters
     { key: 'g', active: (f) => !!f.gender, matches: (it, f) => it.gender === f.gender },
   ]
   const items = [
-    { id: 1, subject: '数学', gender: 'male' },
-    { id: 2, subject: '数学', gender: 'female' },
-    { id: 3, subject: '英语', gender: 'male' },
-    { id: 4, subject: '英语', gender: 'female' },
+    { id: 1, subject: 'math', gender: 'male' },
+    { id: 2, subject: 'math', gender: 'female' },
+    { id: 3, subject: 'english', gender: 'male' },
+    { id: 4, subject: 'english', gender: 'female' },
   ]
-  const filters = { subjects: ['数学'], gender: 'male' }
+  const filters = { subjects: ['math'], gender: 'male' }
   assert.equal(computeMatchCount(items[0], filters, dims), 2)
   assert.equal(computeMatchCount(items[1], filters, dims), 1)
   assert.equal(computeMatchCount(items[3], filters, dims), 0)
@@ -295,7 +295,7 @@ test('matchGroup groups by matchCount desc and hides zero-hit items when filters
   assert.equal(all.length, 1)
   assert.equal(all[0].count, null)
   assert.equal(all[0].items.length, 4)
-  assert.equal(filterItems(items, { subjects: ['英语'] }, dims).length, 2)
+  assert.equal(filterItems(items, { subjects: ['english'] }, dims).length, 2)
 })
 
 /* ================= browser: grid geometry + zero console/CSP ================= */
@@ -331,7 +331,7 @@ async function mockDemands(pageOrCtx, items, status = 200) {
 
 const DEMANDS = Array.from({ length: 8 }, (_, i) => ({
   id: i + 1,
-  subject: i % 2 ? '数学' : '英语',
+  subject: i % 2 ? 'math' : 'english',
   grade: '高二',
   teachingMethod: 'offline',
   currentScore: 70 + i,
@@ -535,7 +535,7 @@ const PROFILE = {
   timeSlots: ['周一', '周三'],
   personalityTags: ['耐心', '严谨'],
   graduation_year: 2015,
-  subjects: [{ subject: '数学', score: 145, full: 150, awards: ['市一等奖'] }],
+  subjects: [{ subject: 'math', score: 145, full: 150, awards: ['市一等奖'] }],
   avatar: '',
 }
 
@@ -660,7 +660,7 @@ test('browser: B2 approved state renders edit card, save posts I-40, validation 
   assert.equal(body.addressArea, '上海市杨浦区', 'I-40 addressArea passthrough')
   assert.equal(body.teachingMethod, 'offline', 'I-40 teachingMethod passthrough')
   assert.equal(body.graduationYear, '2015', 'I-40 graduationYear field (renamed from graduation)')
-  assert.deepEqual(body.subjects, [{ subject: '数学', score: 145 }], 'subjects collapsed to { subject, score }')
+  assert.deepEqual(body.subjects, [{ subject: 'math', score: 145 }], 'subjects collapsed to { subject, score }')
   assert.equal('avatar' in body, false, 'avatar not part of I-40 payload (I-11 separate)')
   assert.ok(getPutBody().getCount > getCountBefore, 'read-back refresh after save (F7)')
 
