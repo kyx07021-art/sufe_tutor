@@ -98,7 +98,6 @@ function onKeydown(e) {
   --btn-radius: calc(var(--btn-h) / 2);
   --btn-hover-bg: var(--gray-15);
   --btn-click-bg: var(--gray-30);
-  --btn-hover-ink: var(--gray-60);
   --btn-dur-in: var(--dur-xs);
   --btn-dur-color: var(--dur-sm);
   --btn-dur-focus: var(--dur-md);
@@ -224,11 +223,12 @@ function onKeydown(e) {
   transition: color var(--btn-dur-color) var(--ease-out);
 }
 
-/* B-series no lift */
+/* B-series no lift. AK-C2-F1 (#2 black-is-black): the hover graying of label +
+   check text was removed — focus/hover is a "can click" cue, not a "goes gray"
+   state; only the background ripple communicates hover (principle 2, same as
+   UiButton AK-B3). */
 @media (hover: hover) and (pointer: fine) {
   .ui-checkbtn--a:hover { transform: translateY(var(--btn-lift)); }
-  .ui-checkbtn:hover .ui-checkbtn__label,
-  .ui-checkbtn:hover .ui-checkbtn__check { color: var(--btn-hover-ink); }
 }
 
 /* disabled */
