@@ -143,6 +143,13 @@ function onClick() {
 .teacher-card {
   /* avatar diameter driven header height (56px = space-6 + space-4), token-composed */
   --card-avatar-d: calc(var(--space-6) + var(--space-4));
+  /* AK-N-D4 special case: a card may be empty but never "flat" - enforce a
+     horizontal-A4 minimum 297:210 (height >= 0.707 x width). Deliberate design
+     constant from the user's "cards may be empty but never flat" requirement.
+     Boundary: aspect-ratio only sets the transferred height FLOOR - content
+     taller than 0.707x width grows the card normally (never clipped, never
+     capped). Applies to every teacher card via this one class. */
+  aspect-ratio: 297 / 210;
 }
 
 .teacher-card__inner {

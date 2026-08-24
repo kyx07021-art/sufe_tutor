@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import assert from 'node:assert/strict'
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
+const A4_MIN = 210 / 297 // AK-N-D4 "horizontal A4" min height / width ratio ~0.707
 
 let base = process.env.BASE
 let server = null
@@ -62,6 +63,22 @@ try {
     assert.ok(idText.includes('ID 11'), 'D2: user id shown right of avatar, got: ' + idText)
     assert.equal(await full.locator('.rating-stars').count(), 1, 'D2: RatingStars component used on the card')
     console.log('  ok  D2 avatar-leftmost + id/rating beside it')
+  }
+
+  /* ============================ AK-N-D4 ============================ */
+  {
+    const cardBox = await minimal.boundingBox()
+    assert.ok(cardBox, 'D4: minimal card has a box')
+    assert.ok(
+      cardBox.height >= cardBox.width * A4_MIN - 1,
+      `D4: minimal card height ${cardBox.height.toFixed(1)} >= 0.707 x width ${(cardBox.width * A4_MIN).toFixed(1)}`,
+    )
+    const fullBox = await full.boundingBox()
+    assert.ok(
+      fullBox.height >= fullBox.width * A4_MIN - 1,
+      `D4: full card height ${fullBox.height.toFixed(1)} >= 0.707 x width ${(fullBox.width * A4_MIN).toFixed(1)}`,
+    )
+    console.log('  ok  D4 min-height ratio (empty + full)')
   }
 
   if (errors.length) throw new Error('console/pageerror: ' + errors.join(' | '))
