@@ -19,7 +19,7 @@
 | M5-00 入口接线 | `index.js` + `M5Host.vue` + `MoreMenu.vue`(底座) | openC3/openC4/openSettings, overlay | data/auth/core-api/m-notifications/M0 |
 | M5-01 通知数据层 | `data.js` | notifyState/loadNotifications/unreadCountRef/markNotificationRead/markAllRead/startNotifyPolling/stopNotifyPolling/formatNotificationTime | core-api/m-notifications |
 | M5-02 通知卡片 | `NotificationCard.vue` | NotificationCard（props item, emits open） | M0 UiCard/UiIcon/m-notifications/data.format |
-| M5-03 屏蔽系统通知 | `BlockSystemToggle.vue` | BlockSystemToggle（I-28 持久化 + 列表过滤） | M0 UiCheckButton/core-api/data/m-notifications |
+| M5-03 屏蔽系统通知 | `BlockSystemToggle.vue` | BlockSystemToggle（I-28 持久化 + 列表过滤） | M0 UiCheckbox/core-api/data/m-notifications |
 | M5-04 已读语义 | `read.js` | useReadSemantics（单条+退出批量静默+失败回滚） | data/core-api |
 | M5-05 详情页+切换动效 | `NotificationDetail.vue` | NotificationDetail（props item, emits back/close） | M0/m-notifications |
 | M5-06 更多下拉栏（SVG+保留区） | `MoreMenu.vue`（终版） | MoreMenu（props open/trigger, emits close/open-settings/open-about/open-feedback） | M0 useAnchoredPanel/UiButton/m-notifications |

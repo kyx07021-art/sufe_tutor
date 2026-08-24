@@ -1,15 +1,17 @@
 <script setup>
 import { ref } from 'vue'
-import { UiCheckButton } from '@/components/ui/index.js'
+import { UiCheckbox } from '@/components/ui/index.js'
 import { NOTIF_COPY } from '@/constants/m-notifications'
 import { notifyState, setBlockSystem, loadNotifications } from './data.js'
 import { api } from '@/core/api.js'
 
 /**
- * BlockSystemToggle - M5-03 block-system-notifications checkbox B
+ * BlockSystemToggle - M5-03 block-system-notifications checkbox
  * -------------------------------------------------------
- * - Checkbox B (UiCheckButton variant B) toggling the server-side
- *   blockSystemNotifications preference (I-28).
+ * - Checkbox row (UiCheckbox: square box + check, no stretch) toggling the
+ *   server-side blockSystemNotifications preference (I-28). AK-C9-F9 (#4): the
+ *   boolean preference is checkbox-shaped — a UiCheckButton would stretch right
+ *   on select (the exact 'button elongates' anti-pattern the user rejected).
  * - Single source of truth = notifyState.blockSystem (data.js). The client
  *   does NOT re-filter; after a successful PUT the list is re-fetched so the
  *   server-filtered result is reflected (mutation anchor: removing the
@@ -53,11 +55,9 @@ async function onToggle(next) {
 
 <template>
   <div class="bst">
-    <UiCheckButton
-      variant="B"
+    <UiCheckbox
       :model-value="notifyState.blockSystem"
       :label="NOTIF_COPY.NOTIF_BLOCK_SYSTEM"
-      :checked-label="NOTIF_COPY.NOTIF_BLOCK_SYSTEM_ON"
       :disabled="busy || disabled"
       @update:model-value="onToggle"
     />

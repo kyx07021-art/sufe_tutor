@@ -207,8 +207,18 @@ if (cardTitles.length !== 3) errors.push('card titles count mismatch: ' + cardTi
 if (!cardTitles.some((t) => t.includes('张三'))) errors.push('user notification missing')
 if (!cardTitles.some((t) => t.includes('合同待确认'))) errors.push('system notification missing')
 
-// M5-03: block-system toggle present in the modal
-if ((await page.locator('.nt-toggle .ui-checkbtn').count()) === 0) errors.push('block-system toggle missing')
+// M5-03 / AK-C9-F9 (#4): block-system toggle is a checkbox row (box + check) —
+// present in the modal and must NOT stretch its width when selected (the
+// UiCheckButton right-stretch anti-pattern the user rejected).
+const bst = page.locator('.nt-toggle .ui-checkbox')
+if ((await bst.count()) !== 1) errors.push('AK-C9-F9: block-system toggle should be a UiCheckbox (box + check), got ' + (await bst.count()))
+const bstW0 = await bst.evaluate((el) => el.getBoundingClientRect().width)
+await bst.click()
+await page.waitForTimeout(300)
+const bstW1 = await bst.evaluate((el) => el.getBoundingClientRect().width)
+if (Math.abs(bstW1 - bstW0) > 1) errors.push('AK-C9-F9: checkbox must not stretch on select (' + bstW0 + '->' + bstW1 + ')')
+await bst.click() // restore unchecked state, then wait for the re-fetch to settle
+await page.waitForTimeout(600)
 
 // avatar branch / red dots / ellipsis / divider geometry (M5-02)
 if ((await page.locator('.nt-card__avatar.is-system').count()) !== 1) errors.push('system avatar branch count')
@@ -378,7 +388,7 @@ await page.waitForTimeout(400)
 await notifBtn.click()
 await page.locator('.nt-card').first().waitFor({ timeout: 3000 }).catch(() => {})
 await page.waitForTimeout(300)
-await page.locator('.nt-toggle .ui-checkbtn').click()
+await page.locator('.nt-toggle .ui-checkbox').click()
 await page.waitForTimeout(600)
 if (!apiState.blockSystem) errors.push('block-system PUT not persisted to test state')
 const systemAfter = await page.locator('.nt-card__avatar.is-system').count()

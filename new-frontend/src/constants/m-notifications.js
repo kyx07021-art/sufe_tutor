@@ -26,7 +26,6 @@ export const NOTIF_COPY = {
   NOTIF_LOAD_ERROR: '通知加载失败，请稍后重试',
   NOTIF_BACK: '回到通知页',
   NOTIF_BLOCK_SYSTEM: '屏蔽系统通知',
-  NOTIF_BLOCK_SYSTEM_ON: '已屏蔽系统通知',
   NOTIF_AVATAR_SYSTEM: '系统通知',
   NOTIF_AVATAR_USER: '用户通知',
 
