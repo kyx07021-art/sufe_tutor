@@ -117,7 +117,7 @@ function onSendMessage() {
 
 /* vertical divider between columns (desktop); the first column has none */
 .teacher-detail-modal__col + .teacher-detail-modal__col {
-  border-left: var(--border-w) solid var(--line);
+  border-left: var(--border-w) solid var(--divider);
 }
 
 .teacher-detail-modal__state {
@@ -135,7 +135,7 @@ function onSendMessage() {
   }
   .teacher-detail-modal__col + .teacher-detail-modal__col {
     border-left: none;
-    border-top: var(--border-w) solid var(--line);
+    border-top: var(--border-w) solid var(--divider);
   }
 }
 </style>

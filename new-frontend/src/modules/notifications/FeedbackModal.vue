@@ -117,7 +117,7 @@ watch(
 .fb-divider {
   flex: none;
   width: 1px;
-  background: var(--line);
+  background: var(--divider);
 }
 /* right column: scrollable body + anonymous note pinned below */
 .fb-main {

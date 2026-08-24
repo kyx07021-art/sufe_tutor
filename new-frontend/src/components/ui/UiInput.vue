@@ -294,7 +294,7 @@ defineExpose({
   right: var(--input-underline-r);
   bottom: calc(var(--input-h) - var(--input-pad-y) - var(--input-lh) - 3px);
   height: 1px;
-  background: var(--line);
+  background: var(--divider);
   transform: scaleX(0);
   transform-origin: right center;
   transition: transform var(--dur-sm) var(--ease-out);

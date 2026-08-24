@@ -326,7 +326,7 @@ function leaveStepHidden() {
   font-weight: 600;
   padding-bottom: 8px;
   margin-bottom: 16px;
-  border-bottom: var(--border-w) solid var(--line);
+  border-bottom: var(--border-w) solid var(--divider);
 }
 .pv__row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
 .pv__row--cards { align-items: stretch; }

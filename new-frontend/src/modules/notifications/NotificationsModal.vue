@@ -174,7 +174,7 @@ async function onBack() {
 /* inset divider: does NOT touch the modal edges (plan C3) */
 .nt-divider {
   height: 1px;
-  background: var(--line);
+  background: var(--divider);
   margin: 0 var(--space-4);
   flex: none;
 }

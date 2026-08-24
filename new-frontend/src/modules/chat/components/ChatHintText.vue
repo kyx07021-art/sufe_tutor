@@ -39,7 +39,7 @@ defineProps({
 .chat-hint::after {
   content: '';
   flex: 1; /* grow to fill the space left over by the text */
-  border-top: var(--border-w) solid var(--line);
+  border-top: var(--border-w) solid var(--divider);
 }
 
 .chat-hint__text {

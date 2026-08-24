@@ -95,7 +95,7 @@ function onCardClick(c) {
   width: 100%;
   padding: var(--space-3) var(--space-4);
   background: var(--paper);
-  border-bottom: var(--border-w) solid var(--gray-10);
+  border-bottom: var(--border-w) solid var(--divider);
   text-align: left;
   cursor: pointer;
   transition: background var(--dur-base) var(--ease-out);

@@ -5,7 +5,9 @@
      raw values are forbidden outside this file.
    - Light theme = 80% white / 10% gray-black / 10% brand purple; dark theme
      overrides the same variable names via html[data-theme="dark"].
-   - Border width and line color are unified site-wide (--border-w + --line = gray-50).
+   - Border width + line color unified site-wide: --border-w + --line = gray-50 for
+     control borders (input frames / triggers / panel boundaries / card strokes);
+     --divider = gray-20 for content divider lines (AK-N-㉘, revised to 20-degree).
    - Default gray text is gray-50; informational text is gray-75.
    - Motion durations are in the 100ms class: one master variable --dur-xs with
      multipliers (sm=2x / base=3x / md=4x / lg=5x / xl=7x).
@@ -55,7 +57,8 @@
   /* -- Borders (unified site-wide: width + color single source) -- */
   --border-w: 1px;
   --border-w-thick: 2px;
-  --line: var(--gray-50);      /* site-wide divider = gray-50 */
+  --line: var(--gray-50);      /* control border / field frame (kept gray-50) */
+  --divider: var(--gray-20);   /* content divider line = 20-degree gray (AK-N-㉘, revised) */
 
   /* -- Radii -- */
   --radius-xs: 4px;            /* small square radius (AK-A7 checkbox box) */

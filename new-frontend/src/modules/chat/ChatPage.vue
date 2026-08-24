@@ -66,7 +66,7 @@ onBeforeUnmount(() => stopListPolling())
 .chat__list {
   flex: 0 0 20%; /* list pane = 20% of viewport width (plan L395) */
   min-width: 0;
-  border-right: var(--border-w) solid var(--line); /* thin divider between panes */
+  border-right: var(--border-w) solid var(--divider); /* thin divider between panes */
   background: var(--paper); /* white fill */
   overflow-y: auto;
 }

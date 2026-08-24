@@ -171,7 +171,7 @@ watch(
 .st-divider {
   flex: none;
   width: 1px;
-  background: var(--line);
+  background: var(--divider);
 }
 .st-scroll {
   position: relative;

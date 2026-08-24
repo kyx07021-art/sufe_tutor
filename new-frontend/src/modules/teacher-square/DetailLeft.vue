@@ -132,7 +132,7 @@ const idText = computed(() => `${T.ID_PREFIX} ${props.teacher.teacherId ?? ''}`.
 .detail-left__divider {
   flex: 0 0 auto;
   margin-top: auto;
-  border-top: var(--border-w) solid var(--line);
+  border-top: var(--border-w) solid var(--divider);
 }
 
 /* -- Lower block: profile title + bio body, ~5% left inset via the column

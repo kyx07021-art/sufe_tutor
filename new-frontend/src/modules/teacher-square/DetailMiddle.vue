@@ -134,7 +134,7 @@ const ratingNum = computed(() =>
 
 .dm-divider {
   margin: var(--space-5) 0;
-  border-top: var(--border-w) solid var(--line);
+  border-top: var(--border-w) solid var(--divider);
 }
 
 .dm-rating {

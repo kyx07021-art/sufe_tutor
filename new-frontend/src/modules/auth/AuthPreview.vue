@@ -92,7 +92,7 @@ function open() {
   font-weight: 600;
   padding-bottom: var(--space-2);
   margin-bottom: var(--space-3);
-  border-bottom: var(--border-w) solid var(--line);
+  border-bottom: var(--border-w) solid var(--divider);
 }
 .auth-preview__row {
   display: flex;

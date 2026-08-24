@@ -96,7 +96,7 @@ function onSend() {
 }
 .dr__divider {
   margin-top: var(--space-4);
-  border-top: var(--border-w) solid var(--line);
+  border-top: var(--border-w) solid var(--divider);
 }
 .dr__send {
   margin-top: auto;
