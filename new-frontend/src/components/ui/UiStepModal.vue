@@ -298,28 +298,22 @@ defineExpose({ goNext, goPrev, enterHidden })
 }
 
 /* -- top bar -- */
-/* AK-N-P1: title (left) + dot group (right) form one aligned whole: both are
-   vertically centered on the same centerline, both are inset from their own
-   edge by the bar padding (--space-5, echoing UiModalA1), and a rhythm gap
-   (--space-4) separates the two groups. The dot group stays a tight cluster
-   (fixed --space-2 gap), right-aligned via margin-left:auto — no 30/70 grid
-   hard split, no justify-content: space-between spreading the two ends. */
 .ui-step__bar {
   position: relative;
   z-index: 2;
-  display: flex;
+  display: grid;
+  grid-template-columns: 30% 70%;
   align-items: center;
-  gap: var(--space-4);
   height: var(--modala1-bar-h, 52px);
   box-sizing: border-box;
-  padding: 0 var(--space-5);
   background: var(--paper-raised);
 }
 
-/* left: title (edge inset absorbed by the bar padding; page-change side masks overlay the title-zone edges) */
+/* left 30%: title (5% left inset) + page-change side masks */
 .ui-step__title-zone {
   position: relative;
-  min-width: 0;
+  grid-column: 1;
+  padding-left: 5%;
   overflow: hidden;
   align-self: stretch;
   display: flex;
@@ -360,15 +354,13 @@ defineExpose({ goNext, goPrev, enterHidden })
 .ui-step-title-prev-enter-from { opacity: 0; transform: translateX(-28px); }
 .ui-step-title-prev-leave-to { opacity: 0; transform: translateX(28px); }
 
-/* right: dot group — tight cluster with a fixed uniform gap, pushed to the
-   right by margin-left:auto but inset from the edge by the bar padding
-   (--space-5, echoing the left inset) */
+/* right 70%: dots */
 .ui-step__dots {
+  grid-column: 2;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-left: auto;
-  flex: none;
+  justify-content: space-between;
+  padding: 0 10%;
 }
 .ui-step__dot {
   flex: none;
