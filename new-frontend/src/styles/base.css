@@ -83,6 +83,32 @@ a {
   outline-offset: 2px;
 }
 
+/* -- AK-A11: platform scrollbars. The default OS scrollbar is a square corner
+   that overlaps rounded panel corners (left round / right square). A thin,
+   rounded, tokenized scrollbar keeps every scrollable surface (modals, lists)
+   consistent and preserves the panel radius. WebKit thumb is rounded via a
+   transparent border + background-clip; Firefox maps to the same tokens. -- */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gray-30) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gray-30);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gray-50);
+}
+
 /* -- Accessibility: reduced-motion fallback (except where components explicitly opt out, e.g. landing scroll reveal) -- */
 @media (prefers-reduced-motion: reduce) {
   *,
