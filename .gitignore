@@ -30,3 +30,8 @@ docs/.obsidian/hotkeys.json
 
 # Vite dev/preview timestamp snapshots (never commit)
 new-frontend/vite.config.js.timestamp-*
+
+# test-run screenshots (regenerated on every smoke run)
+test/*.png
+new-frontend/test/*.png
+new-frontend/new-frontend/test/*.png
