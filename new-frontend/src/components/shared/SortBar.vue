@@ -48,16 +48,12 @@ const emit = defineEmits(['update:modelValue'])
   line-height: 1;
   transition: color var(--dur-sm) var(--ease-out), background-color var(--dur-sm) var(--ease-out);
 }
-.sort-bar__tab:hover,
-.sort-bar__tab:focus-visible {
-  color: var(--gray-60);
-}
+/* AK-C2-F3 (#2 black-is-black): hover/focus no longer grays the tab text —
+   focus is a "can click" cue, not a "goes gray" state. The active tab is the
+   only one with a fill (gray-10); the resting tab stays ink on hover (cursor
+   pointer communicates affordance). */
 .sort-bar__tab.is-active {
   background: var(--gray-10);
-  color: var(--ink);
-}
-.sort-bar__tab.is-active:hover,
-.sort-bar__tab.is-active:focus-visible {
   color: var(--ink);
 }
 @media (prefers-reduced-motion: reduce) {

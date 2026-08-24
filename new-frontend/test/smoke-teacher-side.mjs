@@ -382,6 +382,19 @@ test('browser: B1 grid renders 4 columns desktop / 2 columns mobile, no overflow
   const overflow = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
   assert.equal(overflow, false, 'no desktop overflow')
 
+  // AK-C2-F3 (#2 black-is-black): the INACTIVE sort tab must keep ink on
+  // hover (the active tab never grayed — it had the is-active ink exception;
+  // C2-F3's behavior change lives on the inactive tab). Park the pointer
+  // before reading the baseline so a stale hover state can't blind it.
+  await p.mouse.move(4, 4)
+  await p.waitForTimeout(150)
+  const inactTab = p.locator('.sort-bar__tab:not(.is-active)').first()
+  const inactInkBefore = await inactTab.evaluate((el) => getComputedStyle(el).color)
+  await inactTab.hover()
+  await p.waitForTimeout(250)
+  const inactInkAfter = await inactTab.evaluate((el) => getComputedStyle(el).color)
+  assert.equal(inactInkAfter, inactInkBefore, 'inactive sort tab hover must keep ink, got ' + inactInkAfter)
+
   // card click -> cap toast (B1-7 seam)
   await p.locator('.b1-card').first().click()
   await p.waitForTimeout(200)
