@@ -120,7 +120,7 @@ defineExpose({ canSubmit, submit })
 
 <template>
   <div class="register-pane">
-    <p class="register-pane__title">{{ AUTH_COPY.ROLE_LABEL }}</p>
+    <p class="register-pane__title ui-title-sm">{{ AUTH_COPY.ROLE_LABEL }}</p>
     <div class="register-pane__roles">
       <UiButton
         variant="B"
@@ -205,12 +205,6 @@ defineExpose({ canSubmit, submit })
   gap: var(--space-4);
   width: 100%;
   min-width: 0;
-}
-
-.register-pane__title {
-  font-weight: 700;
-  color: var(--ink);
-  line-height: var(--lh-tight);
 }
 
 .register-pane__roles {

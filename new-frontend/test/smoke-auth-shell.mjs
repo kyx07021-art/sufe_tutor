@@ -328,6 +328,26 @@ async function assertAuthColumnGeometry(page, label) {
   check(scale >= 1, label + ': puzzle should upscale to fill the content column, scale=' + scale.toFixed(2))
 }
 
+/**
+ * AK-A8 (G2 lock): every field-level title must consume the shared .ui-title-sm
+ * utility (single source in base.css). Computed-style assertions lock the actual
+ * applied value — a regression that deletes the shared rule (or stops a consumer
+ * from using it) turns margin back to 0px and these go red. margin 8px = --space-2;
+ * weight 700; color rgb(26,26,26) = --ink (#1a1a1a / --gray-90).
+ */
+async function assertUiTitleComputedStyle(page, selector, label) {
+  const el = page.locator(selector).first()
+  await el.waitFor({ state: 'visible' })
+  const st = await el.evaluate((node) => {
+    const cs = getComputedStyle(node)
+    return { marginTop: cs.marginTop, marginBottom: cs.marginBottom, fontWeight: cs.fontWeight, color: cs.color }
+  })
+  check(st.marginTop === '8px', label + ': ui-title-sm margin-top should be 8px (--space-2), got ' + st.marginTop)
+  check(st.marginBottom === '8px', label + ': ui-title-sm margin-bottom should be 8px (--space-2), got ' + st.marginBottom)
+  check(st.fontWeight === '700', label + ': ui-title-sm font-weight should be 700, got ' + st.fontWeight)
+  check(st.color === 'rgb(26, 26, 26)', label + ': ui-title-sm color should be rgb(26,26,26) (--ink), got ' + st.color)
+}
+
 // --- open the modal ---
 await openModal()
 check((await modal.count()) === 1, 'modal did not open')
@@ -336,6 +356,7 @@ await assertAuthColumnGeometry(page, 'verify')
 // title + method title + cancel
 check((await page.textContent('.auth-shell__title')) === '请验证身份', 'title should be 请验证身份')
 check((await page.textContent('.otp-row__title')) === '手机验证码', 'default method should be 手机验证码')
+await assertUiTitleComputedStyle(page, '.otp-row__title', 'verify otp title')
 check((await cancelBtn.textContent()) === '取消', 'cancel button should be 取消')
 
 // confirm gray-state: disabled initially
@@ -510,6 +531,7 @@ await openModal()
 await assertAuthColumnGeometry(page, 'login')
 // Default method = phone code; the pick-2 switch shows email + password.
 check((await page.textContent('.otp-row__title')) === '手机验证码', 'login default method should be 手机验证码')
+await assertUiTitleComputedStyle(page, '.otp-row__title', 'login otp title')
 const switchBtns = page.locator('.method-switch .ui-btn')
 check((await switchBtns.count()) === 2, 'login modal should show exactly two alternative methods')
 const switchLabels = await switchBtns.allTextContents()
@@ -520,6 +542,7 @@ check(
 // Switch to password, fill identifier + password, pass the puzzle, confirm.
 await page.locator('.method-switch .ui-btn', { hasText: '密码验证' }).click()
 await page.waitForSelector('.password-row')
+await assertUiTitleComputedStyle(page, '.password-row__title', 'login password title')
 await assertAuthColumnGeometry(page, 'login-password')
 await page.locator('.password-row__identifier .ui-input__ta').fill('alice')
 await page.locator('.password-row__password .ui-input__native').fill('secret123')
@@ -540,6 +563,7 @@ check(
 await page.locator('.auth-preview__row .ui-btn', { hasText: 'register' }).click()
 await openModal()
 await page.waitForSelector('.register-pane')
+await assertUiTitleComputedStyle(page, '.register-pane__title', 'register title')
 await assertAuthColumnGeometry(page, 'register')
 // The password field is a native type=password input (shoulder-surfing guard), not a textarea.
 const regPw = page.locator('.register-pane__password .ui-input__native')

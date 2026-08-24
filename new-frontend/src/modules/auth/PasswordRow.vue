@@ -25,7 +25,7 @@ const emit = defineEmits(['update:value', 'update:identifier'])
 
 <template>
   <div class="password-row">
-    <p class="password-row__title">{{ AUTH_COPY.METHOD_TITLE.password }}</p>
+    <p class="password-row__title ui-title-sm">{{ AUTH_COPY.METHOD_TITLE.password }}</p>
     <UiInput
       v-if="identifierPlaceholder"
       :model-value="identifier"
@@ -52,12 +52,6 @@ const emit = defineEmits(['update:value', 'update:identifier'])
   gap: var(--space-3);
   width: 100%;
   min-width: 0;
-}
-
-.password-row__title {
-  font-weight: 700;
-  color: var(--ink);
-  line-height: var(--lh-tight);
 }
 
 .password-row__identifier {

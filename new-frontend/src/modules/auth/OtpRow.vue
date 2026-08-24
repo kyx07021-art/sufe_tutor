@@ -40,7 +40,7 @@ defineExpose({ startCountdown })
 
 <template>
   <div class="otp-row">
-    <p class="otp-row__title">{{ AUTH_COPY.METHOD_TITLE[method] }}</p>
+    <p class="otp-row__title ui-title-sm">{{ AUTH_COPY.METHOD_TITLE[method] }}</p>
     <UiInput
       v-if="identifierPlaceholder"
       :model-value="identifier"
@@ -68,12 +68,6 @@ defineExpose({ startCountdown })
   gap: var(--space-3);
   width: 100%;
   min-width: 0;
-}
-
-.otp-row__title {
-  font-weight: 700;
-  color: var(--ink);
-  line-height: var(--lh-tight);
 }
 
 .otp-row__identifier {
