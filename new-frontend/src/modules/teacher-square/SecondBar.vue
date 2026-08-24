@@ -47,9 +47,15 @@ const TABS = computed(() => [
       class="second-bar__tabs"
       @update:model-value="emit('update:sortKey', $event)"
     />
+    <!-- ㉕ SPECIAL CASE: the filter button must NOT eat the default 220x52 A1 size —
+         it is compact (96x40 via size=sm + width override) to share one height tier
+         with the OrderToggle (40px) and the SortBar tabs. Impact scope: the teacher-square
+         second bar only; UiButton's sm tier stays the global compact size. -->
     <UiButton
       v-if="showFilter"
       variant="A1"
+      size="sm"
+      width="96px"
       class="second-bar__filter"
       :lift="false"
       :disabled="disabled"

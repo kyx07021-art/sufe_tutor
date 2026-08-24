@@ -229,35 +229,74 @@ async function browserChecks(base) {
       else ok('AK-C2-F5: four filter card titles unified on .ui-title-sm')
     }
 
+    // ---- AK-N-㉛: four filter triggers share one silhouette (44 / radius-md / --line / fs-sm) ----
+    const triggerGeo = await page.evaluate(() => {
+      const els = [...document.querySelectorAll('.filter-trigger__btn')]
+      return els.map((el) => {
+        const cs = getComputedStyle(el)
+        const r = el.getBoundingClientRect()
+        return {
+          height: r.height,
+          radius: cs.borderTopLeftRadius,
+          border: cs.borderTopWidth + ' ' + cs.borderTopColor,
+          font: cs.fontSize,
+        }
+      })
+    })
+    // 4 dropdown triggers (subject/gender/personality) + price input pair share 44/12/1px gray-50/14
+    const dropdowns = triggerGeo.slice(0, 3)
+    const badGeo = triggerGeo.filter(
+      (g) => Math.abs(g.height - 44) > 1 || g.radius !== '12px' || g.border !== '1px rgb(128, 128, 128)' || g.font !== '14px',
+    )
+    if (dropdowns.length !== 3) fail('AK-N-㉛: expected 3 dropdown filter triggers, got ' + dropdowns.length)
+    else if (badGeo.length) fail('AK-N-㉛: trigger silhouette not unified (44/12px/1px gray-50/14px), got ' + JSON.stringify(triggerGeo))
+    else ok('AK-N-㉛: 3 dropdown triggers unified on 44px / radius-md / 1px gray-50 / fs-sm')
+    // price inputs: same outer height + radius + border as the dropdown triggers
+    // (.price-filter__input is the UiInput root element — class passthrough onto .ui-input)
+    const priceGeo = await page.evaluate(() => {
+      const els = [...document.querySelectorAll('.price-filter__input')]
+      return els.map((el) => {
+        const cs = getComputedStyle(el)
+        const r = el.getBoundingClientRect()
+        return { height: r.height, radius: cs.borderTopLeftRadius, border: cs.borderTopWidth + ' ' + cs.borderTopColor }
+      })
+    })
+    if (priceGeo.length !== 2) fail('AK-N-㉛: expected 2 price inputs, got ' + priceGeo.length)
+    else {
+      const badPrice = priceGeo.filter((g) => Math.abs(g.height - 44) > 1 || g.radius !== '12px' || g.border !== '1px rgb(128, 128, 128)')
+      if (badPrice.length) fail('AK-N-㉛: price inputs must match trigger silhouette (44/12px/1px gray-50), got ' + JSON.stringify(priceGeo))
+      else ok('AK-N-㉛: price input pair matches the trigger silhouette (44 / radius-md / --line)')
+    }
+
     // ---- PA-2-F4: subject filter emits backend English id, matches English-id rows ----
-    await page.locator('.subject-filter__trigger').click()
+    await page.locator('.filter-trigger__btn[aria-label="擅长科目"]').click()
     await page.waitForTimeout(300)
-    await page.locator('.subject-filter__panel .ui-checkbtn', { hasText: '数学' }).click()
+    await page.locator('.ui-droppanel[aria-label="擅长科目"] .ui-checkbtn', { hasText: '数学' }).click()
     await page.waitForTimeout(400)
     const mathCards = await page.locator('.card-grid .teacher-card').count()
     if (mathCards !== 2) fail('subject=数学 should keep 2 math teachers (李/赵), got ' + mathCards)
     else ok('subject filter emits English id + local match hits math teachers')
-    const subjTrigger = await page.locator('.subject-filter__trigger').textContent()
+    const subjTrigger = await page.locator('.filter-trigger__btn[aria-label="擅长科目"]').textContent()
     if (!subjTrigger.includes('数学')) fail('subject trigger should show Chinese label 数学, got ' + subjTrigger)
     else ok('subject trigger shows Chinese label (subjectLabel)')
     const cardSubjName = await page.locator('.card-grid .teacher-card__subject-name').first().textContent()
     if (cardSubjName !== '数学') fail('teacher card subject should render Chinese label 数学, got ' + cardSubjName)
     else ok('PA-2-F9: teacher card subject row renders Chinese label (not English id)')
     // clear the subject selection (deselect) -> back to all 6
-    await page.locator('.subject-filter__panel .ui-checkbtn', { hasText: '数学' }).click()
+    await page.locator('.ui-droppanel[aria-label="擅长科目"] .ui-checkbtn', { hasText: '数学' }).click()
     await page.waitForTimeout(400)
     const clearedCount = await page.locator('.card-grid .teacher-card').count()
     if (clearedCount !== 6) fail('deselect subject should restore 6 cards, got ' + clearedCount)
     else ok('subject filter deselect restores full list')
 
-    await page.locator('.gender-filter__trigger').click()
+    await page.locator('.filter-trigger__btn[aria-label="教师性别"]').click()
     await page.waitForTimeout(300)
-    await page.locator('.gender-filter__panel .ui-checkbtn', { hasText: '女' }).click()
+    await page.locator('.ui-droppanel[aria-label="教师性别"] .ui-checkbtn', { hasText: '女' }).click()
     await page.waitForTimeout(300)
     const femaleCount = await page.locator('.card-grid .teacher-card').count()
     if (femaleCount !== 3) fail('gender=女 should keep 3 female teachers, got ' + femaleCount)
     else ok('gender filter immediate-applies (dropZeroHit -> 3 female cards)')
-    const genderTrigger = await page.locator('.gender-filter__trigger').textContent()
+    const genderTrigger = await page.locator('.filter-trigger__btn[aria-label="教师性别"]').textContent()
     if (!genderTrigger.includes('女')) fail('gender trigger should show 女, got ' + genderTrigger)
     else ok('gender trigger reflects the selection')
 

@@ -88,16 +88,16 @@ test('control borders stay var(--line) = gray-50; flipping to var(--divider) tur
     const flipped = src.replace(re, (m) => m.replace('var(--line)', 'var(--divider)'))
     assert.ok(!re.test(flipped), `${rel}: ${label} mutation to var(--divider) is caught`)
   }
-  // the shared filter trigger (AK-N-㉛) has BOTH a button frame and a panel boundary
-  // (>= 2 var(--line) control borders); the three filter cards consume it unchanged.
-  // Guarded by existsSync: FilterTrigger.vue lands in a sibling AK-N-㉛ commit, so this
-  // lock is dormant at the divider commit and activates once the shared component is in.
+  // the shared filter trigger (AK-N-㉛) keeps its button frame as a control border;
+  // its panel boundary delegates to the UiDropdownPanel core (.ui-droppanel--b, locked
+  // in the cases list above). Guarded by existsSync: FilterTrigger.vue lands in a
+  // sibling AK-N-㉛ commit, so this lock is dormant at the divider commit and activates
+  // once the shared component is in.
   const triggerRel = 'components/shared/FilterTrigger.vue'
   const triggerPath = join(ROOT, triggerRel)
   if (existsSync(triggerPath)) {
     const trigger = readFileSync(triggerPath, 'utf8')
     assert.match(trigger, /\.filter-trigger__btn\s*\{[^}]*border:\s*var\(--border-w\)\s+solid\s+var\(--line\)/, 'filter trigger button keeps control border')
-    assert.match(trigger, /\.filter-trigger__panel\s*\{[^}]*border:\s*var\(--border-w\)\s+solid\s+var\(--line\)/, 'filter trigger panel keeps control border')
-    assert.ok((trigger.match(/var\(--line\)/g) || []).length >= 2, 'filter trigger keeps >= 2 var(--line) control borders')
+    assert.ok((trigger.match(/var\(--line\)/g) || []).length >= 1, 'filter trigger keeps >= 1 var(--line) control border')
   }
 })
