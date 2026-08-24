@@ -222,9 +222,7 @@ onBeforeUnmount(() => {
 .captcha-puzzle {
   --puzzle-scale: 1;
   position: relative;
-  /* AK-A2: fill the auth content column (UiInput/CaptchaPuzzle share the same
-     width contract); --puzzle-scale auto-upscales the 280px drawing (liveScale). */
-  width: 100%;
+  width: 280px;
   max-width: 100%;
   min-width: 0;
 }

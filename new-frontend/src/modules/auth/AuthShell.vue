@@ -84,18 +84,6 @@ function close() {
   gap: var(--space-4);
   min-width: 0;
   width: 100%;
-  /* AK-A2: horizontal centering anchor. Every auth field fills the column
-     (--input-w:100% below) so this is a no-op today; it pins the centered
-     contract for any future non-full-width child (e.g. narrower groups). */
-  align-items: center;
-}
-/* AK-A2: unify every identity-auth field to the full content-column width.
-   UiInput's intrinsic default --input-w:280px would leave plain inputs 280px
-   left-aligned while the captcha row (100%) and the puzzle mismatch. Overriding
-   --input-w to 100% here fills the column; the centered modal column yields
-   symmetric whitespace automatically. Scoped to .auth-shell__body descendants. */
-.auth-shell__body :deep(.ui-input) {
-  --input-w: 100%;
 }
 
 .auth-shell__footer {
