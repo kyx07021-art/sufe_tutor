@@ -620,6 +620,10 @@ check(
   'AK-A9: email placeholder 邮箱',
 )
 check((await regIdentA9e.inputValue()) === '', 'AK-A9: switching clears the stale identifier')
+check(
+  (await page.locator('.ui-captcha .ui-input__ta').inputValue()) === '',
+  'AK-A9: switching clears the stale code',
+)
 check((await page.locator('.ui-captcha__send').count()) === 1, 'AK-A9: send button re-rendered after remount')
 // switch back to phone so the register flow continues on default channel
 await page.locator('.register-pane__channel-switch').click()
