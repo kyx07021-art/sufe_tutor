@@ -18,8 +18,9 @@ import { subjectLabel } from '@/modules/my-demands/region.js'
  * - Layer 2 bio: gray-75, smaller, wraps; left edge 5% / right edge 10% of card.
  * - Layer 3 price: bold black, built from priceMin/priceMax via
  *   T.PRICE_RANGE / T.PRICE_FROM / T.PRICE_TO / T.PRICE_NA.
- * - Layer 4 subject rows: brand-purple dot + subject name + `score/full` +
- *   optional awards (gray-75), space-separated, line-height 1x font.
+ * - Layer 4 subject rows (AK-N-D6): enlarged brand-purple dot + subject name +
+ *   `score/full` + optional awards, ALL 75-gray info text, space-separated,
+ *   comfortable line-height so many subjects wrap without crowding.
  * - Optional top-right badge: T.MATCH_COUNT when the `count` prop > 0.
  * - All text via {{ }} interpolation (Vue auto-escapes); zero v-html, zero raw
  *   CJK in template/comments (copy comes from T only), zero inline style/event.
@@ -129,7 +130,7 @@ function onClick() {
 
       <ul v-if="subjectRows.length" class="teacher-card__subjects">
         <li v-for="row in subjectRows" :key="row.key" class="teacher-card__subject">
-          <UiIcon name="dot" :size="10" class="teacher-card__dot" aria-hidden="true" />
+          <UiIcon name="dot" :size="12" class="teacher-card__dot" aria-hidden="true" />
           <span class="teacher-card__subject-name">{{ row.name }}</span>
           <span v-if="row.scoreText" class="teacher-card__subject-score">{{ row.scoreText }}</span>
           <span v-if="row.awards" class="teacher-card__subject-awards">{{ row.awards }}</span>
@@ -286,9 +287,10 @@ function onClick() {
   list-style: none;
   margin: 0;
   padding: 0;
+  /* AK-N-D6: --space-2 row gap so many subjects never crowd together. */
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   min-width: 0;
 }
 
@@ -297,7 +299,9 @@ function onClick() {
   flex-wrap: wrap;
   align-items: baseline;
   column-gap: var(--space-2);
-  line-height: 1;
+  /* AK-N-D6: --lh-tight keeps wrapped subject lines readable (was line-height 1,
+     which made two-line names collide - the "squeezed" look the user flagged). */
+  line-height: var(--lh-tight);
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -306,18 +310,25 @@ function onClick() {
   min-width: 0;
 }
 
+/* AK-N-D6 special case: the subject dot is a deliberate 12px brand-purple
+   marker (enlarged from 10px so it reads as a proper bullet before each
+   subject). Size is a hardcoded px on the shared UiIcon `size` prop - the only
+   dot in this card, scoped to .teacher-card__dot, never a layout driver. */
 .teacher-card__dot {
   color: var(--brand);
   flex: none;
   align-self: center;
 }
 
+/* AK-N-D6: subject text is 75-gray information text (name + score/full);
+   awards already were gray-75. Kept off --ink so the subject block reads as
+   secondary info under the bold price row. */
 .teacher-card__subject-name {
-  color: var(--ink);
+  color: var(--gray-75);
 }
 
 .teacher-card__subject-score {
-  color: var(--ink);
+  color: var(--gray-75);
   white-space: nowrap;
 }
 

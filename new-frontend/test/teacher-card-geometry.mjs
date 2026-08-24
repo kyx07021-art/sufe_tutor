@@ -98,6 +98,17 @@ try {
     console.log('  ok  D5 first row aligned + lower blocks free-stacked')
   }
 
+  /* ============================ AK-N-D6 ============================ */
+  {
+    const nameColor = await full.locator('.teacher-card__subject-name').first().evaluate((el) => getComputedStyle(el).color)
+    assert.equal(nameColor, 'rgb(64, 64, 64)', 'D6: subject name is 75-gray (info text)')
+    const scoreColor = await full.locator('.teacher-card__subject-score').first().evaluate((el) => getComputedStyle(el).color)
+    assert.equal(scoreColor, 'rgb(64, 64, 64)', 'D6: subject score is 75-gray')
+    const dotBox = await full.locator('.teacher-card__dot').first().boundingBox()
+    assert.ok(dotBox && dotBox.width >= 11, 'D6: brand-purple subject dot enlarged (>= 11px), got ' + (dotBox && dotBox.width))
+    console.log('  ok  D6 subject 75-gray text + enlarged brand dot')
+  }
+
   if (errors.length) throw new Error('console/pageerror: ' + errors.join(' | '))
   console.log('TEACHER-CARD GEOMETRY PASS')
 } finally {
