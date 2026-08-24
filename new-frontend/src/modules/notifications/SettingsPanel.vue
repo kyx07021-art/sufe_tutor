@@ -1,6 +1,6 @@
 <script setup>
 import { nextTick, ref, watch } from 'vue'
-import { UiModalA1 } from '@/components/ui/index.js'
+import { NavTab, UiModalA1 } from '@/components/ui/index.js'
 import { NOTIF_COPY } from '@/constants/m-notifications'
 import { loadSettings } from './settings-data.js'
 import SettingsUsername from './SettingsUsername.vue'
@@ -87,19 +87,12 @@ watch(
     @close="emit('close')"
   >
     <div class="st-settings">
-      <nav class="st-nav" aria-label="settings">
-        <button
-          v-for="(s, i) in sections"
-          :key="s.id"
-          type="button"
-          class="st-nav__item"
-          :class="{ 'is-active': active === i }"
-          :aria-current="active === i ? 'true' : undefined"
-          @click="goTo(i)"
-        >
-          {{ s.label }}
-        </button>
-      </nav>
+      <NavTab
+        :items="sections"
+        :model-value="active"
+        aria-label="settings"
+        @select="goTo"
+      />
       <div class="st-divider" aria-hidden="true"></div>
       <div ref="scrollRef" class="st-scroll" @scroll.passive="onScroll">
         <section
@@ -135,37 +128,6 @@ watch(
   display: flex;
   height: min(520px, 62vh);
   box-sizing: border-box;
-}
-.st-nav {
-  flex: none;
-  width: 160px;
-  box-sizing: border-box;
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  background: var(--paper-raised);
-}
-.st-nav__item {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: left;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--fs-base);
-  line-height: 1.3;
-  cursor: pointer;
-  transition: background var(--dur-sm) var(--ease-out);
-}
-.st-nav__item:hover,
-.st-nav__item.is-active {
-  background: var(--gray-10);
-}
-.st-nav__item.is-active {
-  font-weight: 500;
 }
 /* center divider line between the two columns */
 .st-divider {

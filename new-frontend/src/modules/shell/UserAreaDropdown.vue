@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { UiButton } from '@/components/ui/index.js'
 import UserArea from './UserArea.vue'
 import { getIface } from './ifaces.js'
 import { SHELL_COPY } from '@/constants/m-shell.js'
@@ -14,8 +15,13 @@ import Dot from '@/assets/svg/dot.svg'
  *   M5's MoreMenu renders the real C4 panel and manages its own reserved area
  *   + dismissal, so this component never force-closes it.
  * - While M5 is not wired (`getIface('openC4')` undefined) the component shows
- *   a `data-cap="M5.c4"` placeholder panel with three button-B rows (settings /
+ *   a `data-cap="M5.c4"` placeholder panel with three UiButton B rows (settings /
  *   about / feedback) so the top bar is fully interactive pre-integration.
+ * - The wrapper div is the interactive trigger (hover + keyboard): role="button"
+ *   + tabindex="0" make it the focus target for the Enter/Space/Escape handlers,
+ *   replacing the former focusable-but-decorative inner <button> (UserArea is now
+ *   a plain presentational div). Keyboard contract preserved: Tab focuses the
+ *   wrapper, Enter/Space open the C4 dropdown, Escape dismisses it.
  * - Reserved-area semantics (placeholder case): the panel is rendered INSIDE
  *   this wrapper (absolutely positioned at top:100%), so `mouseleave` fires
  *   only when the pointer fully leaves wrapper + panel. Moving from the user
@@ -68,6 +74,8 @@ const menuItems = [
     ref="zoneEl"
     class="user-area-dropdown"
     :aria-label="SHELL_COPY.USER_MENU_LABEL"
+    role="button"
+    tabindex="0"
     @mouseenter="activate"
     @mouseleave="deactivate"
     @keydown.enter.prevent="activate"
@@ -82,18 +90,20 @@ const menuItems = [
       data-cap="M5.c4"
       role="menu"
     >
-      <button
+      <UiButton
         v-for="item in menuItems"
         :key="item.cap"
-        type="button"
+        variant="B"
         class="user-area-dropdown__item"
         :data-cap="item.cap"
         role="menuitem"
         @click="item.run"
       >
-        <Dot class="user-area-dropdown__item-icon" aria-hidden="true" />
-        <span>{{ item.label }}</span>
-      </button>
+        <span class="user-area-dropdown__opt">
+          <Dot class="user-area-dropdown__opt-icon" aria-hidden="true" />
+          <span>{{ item.label }}</span>
+        </span>
+      </UiButton>
     </div>
   </div>
 </template>
@@ -120,33 +130,22 @@ const menuItems = [
   box-shadow: var(--shadow-float-sm);
 }
 
-/* Item = button B row: bare black text, small rounded hit, gray-10 focus fill. */
+/* Placeholder row = UiButton B (aligns with the MoreMenu B-row precedent):
+   full-width, left-aligned bare text row; the ripple/hover fill and focus ring
+   come from UiButton's own scoped styles. */
 .user-area-dropdown__item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
   width: 100%;
-  box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--fs-base);
-  line-height: 1;
-  text-align: left;
-  white-space: nowrap;
-  cursor: pointer;
-  user-select: none;
-}
-.user-area-dropdown__item:hover,
-.user-area-dropdown__item:focus-visible {
-  outline: none;
-  background: var(--gray-10);
+  --btn-w: 100%;
+  justify-content: flex-start;
 }
 
-/* Left small SVG pattern (dot) inside each row. */
-.user-area-dropdown__item-icon {
+/* Left small SVG pattern (dot) + label, spaced like the MoreMenu option rows. */
+.user-area-dropdown__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.user-area-dropdown__opt-icon {
   flex: none;
   width: 16px;
   height: 16px;

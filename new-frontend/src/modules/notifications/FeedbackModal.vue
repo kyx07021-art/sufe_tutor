@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch } from 'vue'
-import { UiModalA1 } from '@/components/ui/index.js'
+import { NavTab, UiModalA1 } from '@/components/ui/index.js'
 import { NOTIF_COPY } from '@/constants/m-notifications'
 import FeedbackForm from './FeedbackForm.vue'
 import FeedbackTickets from './FeedbackTickets.vue'
@@ -49,19 +49,12 @@ watch(
     @close="emit('close')"
   >
     <div class="fb-feedback">
-      <nav class="fb-nav" aria-label="feedback">
-        <button
-          v-for="(t, i) in tabs"
-          :key="t.id"
-          type="button"
-          class="fb-nav__item"
-          :class="{ 'is-active': active === i }"
-          :aria-current="active === i ? 'true' : undefined"
-          @click="active = i"
-        >
-          {{ t.label }}
-        </button>
-      </nav>
+      <NavTab
+        :items="tabs"
+        v-model="active"
+        width="140px"
+        aria-label="feedback"
+      />
       <div class="fb-divider" aria-hidden="true"></div>
       <div class="fb-main">
         <div class="fb-scroll">
@@ -79,39 +72,6 @@ watch(
   display: flex;
   height: min(460px, 62vh);
   box-sizing: border-box;
-}
-/* left column: tab switcher (same visual language as the settings nav) */
-.fb-nav {
-  flex: none;
-  width: 140px;
-  box-sizing: border-box;
-  padding: var(--space-3);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  background: var(--paper-raised);
-}
-/* small rounded button B: resting transparent, active gray-10 fill; no dividers between items */
-.fb-nav__item {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: left;
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--ink);
-  font-size: var(--fs-base);
-  line-height: 1.3;
-  cursor: pointer;
-  transition: background var(--dur-sm) var(--ease-out);
-}
-.fb-nav__item:hover,
-.fb-nav__item.is-active {
-  background: var(--gray-10);
-}
-.fb-nav__item.is-active {
-  font-weight: 500;
 }
 /* center 1px vertical divider between the two columns */
 .fb-divider {
