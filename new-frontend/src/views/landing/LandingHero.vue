@@ -8,11 +8,13 @@
  * - Two large A1 buttons below-left / below-right; their combined width equals
  *   the headline width (single-column `minmax(0,max-content)` grid, buttons
  *   split the actions track 1fr/1fr).
- * - CTA wiring (PA-1h1-F1): the `data-cap` seam is consumed here — an
- *   unauthenticated visitor opens the identity-auth overlay (register scene,
- *   the user picks the role), a logged-in visitor routes to the CTA role's
- *   default page (the router guard fail-closes a role mismatch to the user's
- *   own role default).
+ * - CTA wiring (PA-1h1-F1 + AK-B1): the two hero CTAs are THE client entry —
+ *   an unauthenticated visitor opens the identity-auth overlay (register scene,
+ *   the user picks the role; the register pane carries the flip-to-login switch
+ *   so returning users reach the login scene from the modal), a logged-in
+ *   visitor routes to the CTA role's default page (the router guard fail-closes
+ *   a role mismatch to the user's own role default). No standalone login link
+ *   lives on the hero (AK-B1: the CTAs own the entry; login is inside the modal).
  */
 import { useRouter } from 'vue-router'
 import UiButton from '@/components/ui/UiButton.vue'
@@ -31,12 +33,6 @@ function onEnter(role) {
   }
   const open = getIface('openIdentityAuth')
   if (open) open({ mode: 'register' })
-}
-
-/** PA-2-F1: returning users need a visible login entry from the landing page. */
-function onLogin() {
-  const open = getIface('openIdentityAuth')
-  if (open) open({ mode: 'login' })
 }
 </script>
 
@@ -61,13 +57,6 @@ function onLogin() {
         >{{ LANDING_COPY.HERO_CTO_TEACHER }}</UiButton
       >
     </div>
-    <button
-      v-if="!authStore.token"
-      type="button"
-      class="landing-hero__login"
-      data-cap="enter.login"
-      @click="onLogin"
-    >{{ LANDING_COPY.HERO_LOGIN }}</button>
   </section>
 </template>
 
@@ -105,21 +94,6 @@ function onLogin() {
   width: 100%; /* fill each actions track (capsule shape kept) */
   font-weight: 700;
 }
-
-/* PA-2-F1: returning-user login entry (quiet gray link below the CTAs) */
-.landing-hero__login {
-  justify-self: center;
-  margin-top: var(--space-4);
-  border: none;
-  background: transparent;
-  padding: var(--space-2) var(--space-4);
-  color: var(--gray-60);
-  font-size: var(--fs-sm);
-  line-height: 1;
-  cursor: pointer;
-  transition: color var(--dur-sm) var(--ease-out);
-}
-.landing-hero__login:hover { color: var(--ink); }
 
 /* Narrow screens: column = container width, headline may wrap, buttons stack */
 @media (max-width: 768px) {
