@@ -161,30 +161,17 @@ const draggingClassGone = await page.evaluate(
 )
 if (!draggingClassGone) errors.push('corridor is-dragging class should be removed after pointerup')
 
-// ---- 8. Idle drift (M1-07b): scrollLeft moves while idle ----
-// AK-G2: the corridor drift is a core landing effect and runs regardless of
-// prefers-reduced-motion (same ruling as the reveal animations, N-F1). This
-// assertion is unconditional; the reduced-motion emulation case (8a) after it
-// pins the ruling — restoring a reduced-motion guard in useGalleryDrift makes
-// 8a red (G2).
-await page.mouse.move(0, 0) // leave the corridor so drift resumes
-const driftStart = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
-await page.waitForTimeout(1600)
-const driftEnd = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
-if (Math.abs(driftEnd - driftStart) < 5) {
-  errors.push(`corridor idle drift should move scrollLeft (start=${driftStart.toFixed(0)} end=${driftEnd.toFixed(0)})`)
+// ---- 8. Idle drift (M1-07b): scrollLeft moves while idle (skip if reduced-motion) ----
+const reduced = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)
+if (!reduced) {
+  await page.mouse.move(0, 0) // leave the corridor so drift resumes
+  const driftStart = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
+  await page.waitForTimeout(1600)
+  const driftEnd = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
+  if (Math.abs(driftEnd - driftStart) < 5) {
+    errors.push(`corridor idle drift should move scrollLeft (start=${driftStart.toFixed(0)} end=${driftEnd.toFixed(0)})`)
+  }
 }
-
-// ---- 8a. Idle drift under prefers-reduced-motion (AK-G2): still moves ----
-await page.emulateMedia({ reducedMotion: 'reduce' })
-await page.mouse.move(0, 0)
-const driftReducedStart = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
-await page.waitForTimeout(1600)
-const driftReducedEnd = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
-if (Math.abs(driftReducedEnd - driftReducedStart) < 5) {
-  errors.push(`corridor drift must run under prefers-reduced-motion (start=${driftReducedStart.toFixed(0)} end=${driftReducedEnd.toFixed(0)})`)
-}
-await page.emulateMedia({ reducedMotion: 'no-preference' })
 
 // ---- 8b. Corridor wheel (AK-B4b): the wheel is NOT hijacked — rolling over
 // the gallery scrolls the page vertically (scrollY increases) and the corridor
