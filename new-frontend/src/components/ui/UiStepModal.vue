@@ -10,8 +10,12 @@ import { UI_COPY } from '@/constants/ui.js'
  * UiStepModal - Step modal A (plan "modal styles - step modal A")
  * -------------------------------------------------------
  * - Multi-page step-by-step form; each page is packaged as card B; page-change animation (slide left/right in/out + fade, clipped at the modal edge).
- * - Top bar left 30%: step stage title (5% left inset, independent in/out animation + side masks);
- *   right 70%: step dot indicator (fixed-px dots, <= 4% width; current dot brand-bright, visited stays purple, unvisited gray-15, smooth color transition).
+ * - Top bar is one flex row: the title group (left) and the dot group (right) share
+ *   the bar vertical centerline; both are inset from their own edge by the bar padding
+ *   (--space-5 = 24px), separated by a rhythm gap (--space-4); the dot group is a tight
+ *   uniform cluster (fixed --space-2 gap) right-aligned via margin-left:auto.
+ *   Title: independent in/out animation + side masks; dots: current dot brand-bright
+ *   (scale 1.18), visited stays purple, unvisited gray-15, smooth color transition.
  * - Bottom two wide buttons: left button B1 with left arrow "prev" (grayed on first page), right brand-purple A1 "next" (last page becomes A without arrow "submit").
  *   Right button grays out = current page required fields incomplete (canNext, computed by module).
  * - Hidden page: does not count as a page, no dot; only reachable via buttons, enters from the right, exits to the right; enters/exits use the page-change animation;
@@ -298,22 +302,28 @@ defineExpose({ goNext, goPrev, enterHidden })
 }
 
 /* -- top bar -- */
+/* AK-N-P1: title (left) + dot group (right) form one aligned whole: both are
+   vertically centered on the same centerline, both are inset from their own
+   edge by the bar padding (--space-5, echoing UiModalA1), and a rhythm gap
+   (--space-4) separates the two groups. The dot group stays a tight cluster
+   (fixed --space-2 gap), right-aligned via margin-left:auto — no 30/70 grid
+   hard split, no justify-content: space-between spreading the two ends. */
 .ui-step__bar {
   position: relative;
   z-index: 2;
-  display: grid;
-  grid-template-columns: 30% 70%;
+  display: flex;
   align-items: center;
+  gap: var(--space-4);
   height: var(--modala1-bar-h, 52px);
   box-sizing: border-box;
+  padding: 0 var(--space-5);
   background: var(--paper-raised);
 }
 
-/* left 30%: title (5% left inset) + page-change side masks */
+/* left: title (edge inset absorbed by the bar padding; page-change side masks overlay the title-zone edges) */
 .ui-step__title-zone {
   position: relative;
-  grid-column: 1;
-  padding-left: 5%;
+  min-width: 0;
   overflow: hidden;
   align-self: stretch;
   display: flex;
@@ -354,13 +364,15 @@ defineExpose({ goNext, goPrev, enterHidden })
 .ui-step-title-prev-enter-from { opacity: 0; transform: translateX(-28px); }
 .ui-step-title-prev-leave-to { opacity: 0; transform: translateX(28px); }
 
-/* right 70%: dots */
+/* right: dot group — tight cluster with a fixed uniform gap, pushed to the
+   right by margin-left:auto but inset from the edge by the bar padding
+   (--space-5, echoing the left inset) */
 .ui-step__dots {
-  grid-column: 2;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 10%;
+  gap: var(--space-2);
+  margin-left: auto;
+  flex: none;
 }
 .ui-step__dot {
   flex: none;
