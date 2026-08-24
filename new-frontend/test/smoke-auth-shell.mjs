@@ -363,6 +363,15 @@ check(await confirmBtn.isDisabled(), 'confirm should stay disabled until puzzle 
 await dragPuzzleTo(await page.evaluate(() => (window.__authPuzzleDebug || {}).target))
 await page.waitForTimeout(400)
 check((await page.textContent('.captcha-puzzle__tip')).includes('验证通过'), 'puzzle should pass')
+// AK-A3 (G2): the in-track hint must fade out on success — lock is-pass +
+// opacity 0 so the pass-fade is NOT a decoration (mutation: delete
+// hint.classList.add('is-pass') in verify() must go red).
+const hintPass = await page.evaluate(() => {
+  const h = document.querySelector('.captcha-puzzle__hint')
+  return h ? { isPass: h.classList.contains('is-pass'), opacity: getComputedStyle(h).opacity } : null
+})
+check(hintPass && hintPass.isPass, 'AK-A3: hint should carry is-pass on success (G2 pass-fade lock)')
+check(hintPass && hintPass.opacity === '0', 'AK-A3: hint opacity should be 0 after pass, got ' + (hintPass && hintPass.opacity))
 check(await confirmBtn.isEnabled(), 'confirm should enable after code + puzzle pass')
 
 // blocked path B: a covered behind-button is NOT triggered through the overlay
@@ -404,11 +413,72 @@ check((await modal.count()) === 0, 'confirm (I-06) should close the modal')
 // --- reopen -> puzzle FAIL path (drag to far right, deterministic wrong) ---
 await openModal()
 await dragPuzzleTo(1)
+// AK-A3: at full-right drag the fill must cover the hint's left half. Measure
+// while offset=1 (before the fail path resets).
+const a3mask = await page.evaluate(() => {
+  const hint = document.querySelector('.captcha-puzzle__hint')
+  const fill = document.querySelector('.captcha-puzzle__fill')
+  if (!hint || !fill) return null
+  const hr = hint.getBoundingClientRect()
+  const fr = fill.getBoundingClientRect()
+  return { fillRight: fr.right, hintLeft: hr.x, hintRight: hr.right }
+})
+check(a3mask, 'AK-A3: hint/fill present for mask assert')
+if (a3mask) {
+  check(
+    a3mask.fillRight >= a3mask.hintLeft + (a3mask.hintRight - a3mask.hintLeft) / 2,
+    'AK-A3: fill must cover at least the hint left half, fillRight=' + a3mask.fillRight.toFixed(1) + ' hintRight=' + a3mask.hintRight.toFixed(1),
+  )
+}
 await page.waitForTimeout(200)
 const failTip = await page.textContent('.captcha-puzzle__tip')
 check(failTip.includes('没对准缺口'), 'wrong drag should fail with 没对准缺口, got: ' + failTip)
 await page.waitForTimeout(600) // auto reset + repaint
-check((await page.textContent('.captcha-puzzle__tip')).includes('拖动滑块'), 'puzzle should auto-reset after fail')
+check((await page.textContent('.captcha-puzzle__hint')).includes('拖动滑块'), 'in-track hint should show 拖动滑块 after auto-reset')
+
+// --- AK-A3: in-track hint geometry ---
+const a3 = await page.evaluate(() => {
+  const track = document.querySelector('.captcha-puzzle__track')
+  const hint = document.querySelector('.captcha-puzzle__hint')
+  const fill = document.querySelector('.captcha-puzzle__fill')
+  const knob = document.querySelector('.captcha-puzzle__knob')
+  const tip = document.querySelector('.captcha-puzzle__tip')
+  if (!track || !hint || !fill || !knob) return null
+  const tr = track.getBoundingClientRect()
+  const hr = hint.getBoundingClientRect()
+  const fr = fill.getBoundingClientRect()
+  const cs = getComputedStyle(hint)
+  const hc = hr.x + hr.width / 2
+  const tc = tr.x + tr.width / 2
+  return {
+    hint: { x: hr.x, right: hr.right, y: hr.y, bottom: hr.bottom, w: hr.width, h: hr.height, fontSize: cs.fontSize },
+    track: { x: tr.x, right: tr.right, y: tr.y, bottom: tr.bottom, w: tr.width, h: tr.height },
+    fill: { right: fr.right, x: fr.x },
+    knob: { x: knob.getBoundingClientRect().x },
+    tipDisplay: tip ? getComputedStyle(tip).display : 'missing',
+    centerDelta: Math.abs(hc - tc),
+    // DOM order pins stacking: hint < fill < knob (firstElementChild chain).
+    order: [track.children[0].className, track.children[1].className, track.children[2].className].join(' '),
+  }
+})
+check(a3, 'AK-A3: hint/fill/knob/track present')
+if (a3) {
+  // hint inside the track (1px tolerance)
+  check(
+    a3.hint.x >= a3.track.x - 1 && a3.hint.right <= a3.track.right + 1 && a3.hint.y >= a3.track.y - 1 && a3.hint.bottom <= a3.track.bottom + 1,
+    'AK-A3: hint must be inside the track, hint=' + JSON.stringify(a3.hint) + ' track=' + JSON.stringify(a3.track),
+  )
+  // horizontally centered in the track
+  check(a3.centerDelta <= 2, 'AK-A3: hint must be horizontally centered in track, delta=' + a3.centerDelta.toFixed(1))
+  // smaller than the old --fs-sm (14px) — fixed --fs-xs (12px)
+  check(a3.hint.fontSize === '12px', 'AK-A3: hint font-size should be 12px (--fs-xs), got ' + a3.hint.fontSize)
+  // stacking: hint < fill < knob (fill covers hint's left as knob passes)
+  check(a3.order === 'captcha-puzzle__hint captcha-puzzle__fill captcha-puzzle__knob', 'AK-A3: DOM order must be hint < fill < knob, got ' + a3.order)
+  // fill starts at 0 (no mask before dragging)
+  check(Math.abs(a3.fill.right - a3.fill.x) <= 1, 'AK-A3: fill should be zero-width initially')
+  // idle status line hidden — the in-track hint is the only prompt
+  check(a3.tipDisplay === 'none', 'AK-A3: idle tip should be display:none, got ' + a3.tipDisplay)
+}
 // close via backdrop (Esc needs focus inside the modal; after a mouse-only drag focus is on body)
 await page.mouse.click(20, 20)
 await modal.waitFor({ state: 'detached', timeout: 5000 })

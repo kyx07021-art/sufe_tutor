@@ -36,6 +36,7 @@ const pieceRef = ref(null)
 const trackRef = ref(null)
 const knobRef = ref(null)
 const tipRef = ref(null)
+const hintRef = ref(null)
 
 const st = {
   target: 0,
@@ -58,7 +59,12 @@ function paint() {
   st.offset = 0
   st.pass = false
   boxRef.value?.style.setProperty('--captcha-x', '0px')
-  tipRef.value && (tipRef.value.textContent = AUTH_COPY.CAPTCHA_TIP)
+  // AK-A3: the persistent hint (in-track) resets to the tip text; the status
+  // line below the track stays empty until pass/fail. is-pass fades the hint
+  // out on success (CSS), removed here so a repaint restores it.
+  hintRef.value && (hintRef.value.textContent = AUTH_COPY.CAPTCHA_TIP)
+  hintRef.value?.classList.remove('is-pass')
+  tipRef.value && (tipRef.value.textContent = '')
   tipRef.value?.classList.remove('is-fail', 'is-pass')
   // clear knob/track state classes on every repaint (v2 reset parity):
   // a previous fail/pass must not leave a red/green arrow or a stuck shake.
@@ -140,6 +146,7 @@ function verify() {
   const knob = knobRef.value
   const tip = tipRef.value
   const track = trackRef.value
+  const hint = hintRef.value
   if (!knob || !tip || !track) return
   // AK-A1a: local-only alignment check — no I-07 round-trip wait. The captcha is
   // an anti-abuse UX gate, not an auth boundary (server-verified credential +
@@ -150,6 +157,9 @@ function verify() {
     knob.classList.add('is-pass')
     tip.textContent = AUTH_COPY.CAPTCHA_PASS
     tip.classList.add('is-pass')
+    // AK-A3: fade the in-track hint out on success so the green pass status is
+    // the only message (the hint's left half may be covered mid-drag otherwise).
+    hint?.classList.add('is-pass')
     publishDebug()
     emit('verified', st.id)
     return
@@ -202,6 +212,10 @@ onBeforeUnmount(() => {
       ></canvas>
     </div>
     <div ref="trackRef" class="captcha-puzzle__track">
+      <!-- AK-A3: persistent hint lives INSIDE the track as the first child so the
+           fill overlay (absolute, follows --captcha-x) covers its left side as the
+           knob passes; DOM order hint < fill < knob pins the stacking. -->
+      <span ref="hintRef" class="captcha-puzzle__hint" aria-hidden="true">{{ AUTH_COPY.CAPTCHA_TIP }}</span>
       <div class="captcha-puzzle__fill" aria-hidden="true"></div>
       <div
         ref="knobRef"
@@ -214,7 +228,9 @@ onBeforeUnmount(() => {
         @pointercancel="onCancel"
       >➜</div>
     </div>
-    <p ref="tipRef" class="captcha-puzzle__tip">{{ AUTH_COPY.CAPTCHA_TIP }}</p>
+    <!-- AK-A3: tip is now a pure pass/fail status line (idle hidden via CSS); the
+         persistent hint lives inside the track. -->
+    <p ref="tipRef" class="captcha-puzzle__tip"></p>
   </div>
 </template>
 
@@ -266,9 +282,34 @@ onBeforeUnmount(() => {
   animation: puzzle-shake 420ms var(--ease-out);
 }
 
+/* AK-A3: persistent hint centered in the track grey area, slightly smaller than
+   the old below-track line (--fs-sm 14px -> --fs-xs 12px). Rendered under the
+   fill (z 0 < 1) so the fill covers its left side as the knob passes; fades out
+   on success (is-pass). pointer-events:none so it never blocks drags. */
+.captcha-puzzle__hint {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-2);
+  font-size: var(--fs-xs);
+  color: var(--gray-60);
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  transition: opacity var(--dur-sm) var(--ease-out);
+}
+.captcha-puzzle__hint.is-pass {
+  opacity: 0;
+}
+
 .captcha-puzzle__fill {
   position: absolute;
   inset: 0 auto 0 0;
+  z-index: 1;
   width: calc(var(--captcha-x, 0px) * var(--puzzle-scale));
   background: var(--brand-soft);
   pointer-events: none;
@@ -278,6 +319,7 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 0;
   left: 0;
+  z-index: 2;
   box-sizing: border-box;
   width: calc(40px * var(--puzzle-scale));
   height: calc(40px * var(--puzzle-scale));
@@ -302,12 +344,15 @@ onBeforeUnmount(() => {
   color: var(--danger);
 }
 
+/* AK-A3: tip is now a pure pass/fail status line — hidden when idle so the
+   in-track hint is the only prompt. */
 .captcha-puzzle__tip {
   margin-top: var(--space-2);
   font-size: var(--fs-sm);
   color: var(--gray-60);
   line-height: var(--lh-tight);
 }
+.captcha-puzzle__tip:not(.is-pass):not(.is-fail) { display: none; }
 .captcha-puzzle__tip.is-fail { color: var(--danger); }
 .captcha-puzzle__tip.is-pass { color: var(--success); }
 
@@ -319,5 +364,6 @@ onBeforeUnmount(() => {
 
 @media (prefers-reduced-motion: reduce) {
   .captcha-puzzle__track { transition: none; animation: none; }
+  .captcha-puzzle__hint { transition: none; }
 }
 </style>
