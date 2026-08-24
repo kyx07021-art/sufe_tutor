@@ -546,6 +546,98 @@ const regPw = page.locator('.register-pane__password .ui-input__native')
 await regPw.waitFor({ state: 'visible', timeout: 5000 })
 const regPwTag = await regPw.evaluate((el) => el.tagName + ':' + el.type)
 check(regPwTag === 'INPUT:password', 'register password should be INPUT:password, got: ' + regPwTag)
+
+// --- AK-A7: agreement checkboxes (compact checkbox rows, box + check, no stretch) ---
+const agreeRows = page.locator('.register-pane__agreements .ui-checkbox')
+check((await agreeRows.count()) === 2, 'AK-A7: should be exactly 2 agreement checkbox rows')
+const row1 = agreeRows.nth(0)
+check((await row1.locator('.ui-checkbox__native').count()) === 1, 'AK-A7: row should carry a native checkbox input')
+const row1Label = await row1.locator('.ui-checkbox__label').textContent()
+check(row1Label.includes('平台服务协议'), 'AK-A7: first agreement text, got: ' + row1Label)
+const row1Native = row1.locator('.ui-checkbox__native')
+check((await row1Native.isChecked()) === false, 'AK-A7: unchecked initially')
+// geometry: 18x18 box, 4px radius, 14px label, left-aligned, compact row
+const agreeGeo = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('.register-pane__agreements .ui-checkbox')]
+  const row = rows[0]
+  const box = row.querySelector('.ui-checkbox__box')
+  const label = row.querySelector('.ui-checkbox__label')
+  const container = document.querySelector('.register-pane__agreements')
+  const rowR = row.getBoundingClientRect()
+  const boxR = box.getBoundingClientRect()
+  const contR = container.getBoundingClientRect()
+  return {
+    boxW: Math.round(boxR.width), boxH: Math.round(boxR.height),
+    radius: getComputedStyle(box).borderRadius,
+    fs: getComputedStyle(label).fontSize,
+    rowH: Math.round(rowR.height),
+    boxLeftGap: Math.round(boxR.left - contR.left),
+    rowW: Math.round(rowR.width),
+  }
+})
+check(agreeGeo.boxW === 18 && agreeGeo.boxH === 18, 'AK-A7: box should be 18x18, got ' + agreeGeo.boxW + 'x' + agreeGeo.boxH)
+check(agreeGeo.radius === '4px', 'AK-A7: box radius should be 4px (--radius-xs), got ' + agreeGeo.radius)
+check(agreeGeo.fs === '14px', 'AK-A7: label should be 14px (--fs-sm), got ' + agreeGeo.fs)
+check(agreeGeo.rowH <= 34, 'AK-A7: compact row height (<=34), got ' + agreeGeo.rowH)
+check(agreeGeo.boxLeftGap <= 1, 'AK-A7: box should hug the container left edge, gap ' + agreeGeo.boxLeftGap)
+check(agreeGeo.rowW < 220, 'AK-A7: row must not be the default 220px button width, got ' + agreeGeo.rowW)
+// tight row gap (--space-1 = 4px)
+const agreeGap = await page.evaluate(() => {
+  const rows = [...document.querySelectorAll('.register-pane__agreements .ui-checkbox')]
+  if (rows.length < 2) return -1
+  const a = rows[0].getBoundingClientRect()
+  const b = rows[1].getBoundingClientRect()
+  return Math.round(b.top - a.bottom)
+})
+check(agreeGap === 4, 'AK-A7: tight row gap should be 4px (--space-1), got ' + agreeGap)
+// interaction: click -> checked + brand fill + check visible; width must NOT stretch
+const wBefore = agreeGeo.rowW
+await row1.locator('.ui-checkbox__box').click()
+await page.waitForTimeout(250)
+check((await row1Native.isChecked()) === true, 'AK-A7: native checked after click')
+const wAfter = await row1.evaluate((el) => Math.round(el.getBoundingClientRect().width))
+check(wAfter === wBefore, 'AK-A7: row width must NOT stretch on select (before ' + wBefore + ' after ' + wAfter + ')')
+const checkedState = await page.evaluate(() => {
+  const box = document.querySelector('.register-pane__agreements .ui-checkbox .ui-checkbox__box')
+  const check = box.querySelector('.ui-checkbox__check')
+  return { bg: getComputedStyle(box).backgroundColor, op: getComputedStyle(check).opacity }
+})
+check(checkedState.bg === 'rgb(108, 92, 231)', 'AK-A7: selected box should fill brand, got ' + checkedState.bg)
+check(checkedState.op === '1', 'AK-A7: check svg should be visible on select, got ' + checkedState.op)
+await row1.locator('.ui-checkbox__box').click()
+await page.waitForTimeout(250)
+check((await row1Native.isChecked()) === false, 'AK-A7: unchecked after 2nd click')
+// keyboard: Space toggles the native checkbox on the second row
+const row2 = agreeRows.nth(1)
+await row2.locator('.ui-checkbox__native').focus()
+await page.keyboard.press('Space')
+await page.waitForTimeout(100)
+check((await row2.locator('.ui-checkbox__native').isChecked()) === true, 'AK-A7: Space should check the row')
+await page.keyboard.press('Space')
+await page.waitForTimeout(100)
+check((await row2.locator('.ui-checkbox__native').isChecked()) === false, 'AK-A7: Space should uncheck the row')
+// v-model data chain: agreements drive the register confirm gate (G2 lock)
+await page.locator('.register-pane .ui-btn', { hasText: '我是学生' }).click()
+const ident = page.locator('.otp-row__identifier .ui-input__ta')
+await ident.fill('13800000001')
+await page.locator('.ui-captcha .ui-input__ta').fill('123456')
+await page.locator('.register-pane__field .ui-input__ta').first().fill('testuser')
+await page.locator('.register-pane__password .ui-input__native').fill('Password123!')
+await dragPuzzleTo(await page.evaluate(() => (window.__authPuzzleDebug || {}).target))
+await page.waitForTimeout(250)
+const regConfirmBtn = page.locator('.auth-shell__footer .ui-btn', { hasText: '确认' })
+check((await regConfirmBtn.isDisabled()) === true, 'AK-A7: confirm should be disabled before agreements are checked')
+await agreeRows.nth(0).locator('.ui-checkbox__box').click()
+await page.waitForTimeout(200)
+check((await regConfirmBtn.isDisabled()) === true, 'AK-A7: confirm stays disabled with only one agreement')
+await agreeRows.nth(1).locator('.ui-checkbox__box').click()
+await page.waitForTimeout(200)
+check((await regConfirmBtn.isDisabled()) === false, 'AK-A7: confirm should enable once both agreements are checked')
+// restore both agreements (leave the register form untouched for the teacher step)
+await agreeRows.nth(0).locator('.ui-checkbox__box').click()
+await agreeRows.nth(1).locator('.ui-checkbox__box').click()
+await page.waitForTimeout(150)
+
 // PA-2a 4: the teacher invite-code field carries a concise explicit aria-label
 // ('邀请码'), not the verbose placeholder text (UiInput ariaLabel precedence).
 await page.locator('.register-pane .ui-btn', { hasText: '我是教师' }).click()

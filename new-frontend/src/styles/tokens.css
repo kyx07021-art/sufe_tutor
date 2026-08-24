@@ -58,6 +58,7 @@
   --line: var(--gray-50);      /* site-wide divider = gray-50 */
 
   /* -- Radii -- */
+  --radius-xs: 4px;            /* small square radius (AK-A7 checkbox box) */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;

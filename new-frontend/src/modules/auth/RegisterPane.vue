@@ -14,7 +14,7 @@
  * - State resets every time the modal opens.
  */
 import { computed, ref, watch } from 'vue'
-import { UiButton, UiInput, UiCheckButton } from '@/components/ui/index.js'
+import { UiButton, UiInput, UiCheckbox } from '@/components/ui/index.js'
 import OtpRow from './OtpRow.vue'
 import CaptchaPuzzle from './CaptchaPuzzle.vue'
 import { useOtpSend } from './useOtpSend.js'
@@ -184,8 +184,8 @@ defineExpose({ canSubmit, submit })
     />
 
     <div class="register-pane__agreements">
-      <UiCheckButton v-model="agreeAgreement" variant="B" :label="AUTH_COPY.AGREE_AGREEMENT" />
-      <UiCheckButton v-model="agreePrivacy" variant="B" :label="AUTH_COPY.AGREE_PRIVACY" />
+      <UiCheckbox v-model="agreeAgreement" :label="AUTH_COPY.AGREE_AGREEMENT" />
+      <UiCheckbox v-model="agreePrivacy" :label="AUTH_COPY.AGREE_PRIVACY" />
     </div>
 
     <CaptchaPuzzle ref="puzzleRef" @verified="puzzlePassed = true" />
@@ -237,7 +237,7 @@ defineExpose({ canSubmit, submit })
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-2);
+  gap: var(--space-1); /* AK-A7: tight row gap between the two agreement checkboxes */
   min-width: 0;
 }
 
