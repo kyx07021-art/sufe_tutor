@@ -495,13 +495,45 @@ test('browser: shell routing + auth flows (real dist)', async () => {
     /* --- AK-N-B4: top-left brand = LOGO + platform name in a B button --- */
     // The top bar brand must be the LOGO glyph + the full platform name (single
     // source SHELL_COPY.LOGO_NAME), not a bare logo. Reverting the name (or the
-    // full-name copy) makes this assertion red (G2 mutation guard).
+    // full-name copy) makes the DOM-presence assertion red (G2 mutation guard).
     const logoNameCount = await authed.locator('.topbar-logo__name').count()
     assert.ok(logoNameCount >= 1, 'AK-N-B4: top bar must render the platform name next to the LOGO')
     const logoNameText = await authed.textContent('.topbar-logo__name')
     assert.equal(logoNameText, SHELL_COPY.LOGO_NAME, 'AK-N-B4: platform name must be the SHELL_COPY.LOGO_NAME single source')
     const logoGlyphCount = await authed.locator('.topbar-logo__svg').count()
     assert.ok(logoGlyphCount >= 1, 'AK-N-B4: top bar must render the LOGO glyph')
+    // Layout geometry (G5): the name must sit a full --space-4 (16px) to the right
+    // of the LOGO, on the same horizontal baseline (±2px), and the whole brand row
+    // must stay inside the 40px button. Reverting the flex row on the button label
+    // (the vertical-stacking FAIL: name lands under the LOGO) makes the gap and
+    // baseline assertions red; removing the name nulls the geometry object (G2).
+    const brandGeo = await authed.evaluate(() => {
+      const btn = document.querySelector('.topbar-logo')
+      const svg = document.querySelector('.topbar-logo__svg')
+      const name = document.querySelector('.topbar-logo__name')
+      if (!btn || !svg || !name) return null
+      const b = btn.getBoundingClientRect()
+      const s = svg.getBoundingClientRect()
+      const n = name.getBoundingClientRect()
+      return {
+        btn: { left: b.left, right: b.right, top: b.top, bottom: b.bottom },
+        svg: { left: s.left, right: s.right, top: s.top, bottom: s.bottom },
+        name: { left: n.left, right: n.right, top: n.top, bottom: n.bottom },
+      }
+    })
+    assert.ok(brandGeo, 'AK-N-B4: brand geometry must resolve (button/svg/name all in DOM)')
+    const brandGap = brandGeo.name.left - brandGeo.svg.right
+    assert.ok(brandGap >= 16, `AK-N-B4: name must sit >= --space-4(16px) right of the LOGO, gap was ${brandGap}px`)
+    const brandBaseline = Math.abs(brandGeo.name.top - brandGeo.svg.top)
+    assert.ok(brandBaseline <= 2, `AK-N-B4: LOGO and name must share one horizontal baseline (tol ±2), diff ${brandBaseline}px`)
+    assert.ok(
+      brandGeo.name.right <= brandGeo.btn.right + 0.5,
+      `AK-N-B4: the button must contain the whole brand name (name.right ${brandGeo.name.right} > btn.right ${brandGeo.btn.right})`,
+    )
+    assert.ok(
+      brandGeo.name.top >= brandGeo.btn.top - 0.5 && brandGeo.name.bottom <= brandGeo.btn.bottom + 0.5,
+      'AK-N-B4: the brand name must fit vertically inside the button',
+    )
 
     /* --- AK-N-B1: teacher default page = /teacher/demands (B1 demand plaza) --- */
     const teacherCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
@@ -756,6 +788,15 @@ test('browser: shell routing + auth flows (real dist)', async () => {
       () => document.documentElement.scrollWidth > window.innerWidth + 1,
     )
     assert.equal(shellOverflow, false, 'shell top bar must not overflow at 375px')
+    // AK-N-B4 at 375px: the brand name renders with the single-source copy and the
+    // top bar does not push the page wider (asserted above). On a 375px shell the
+    // name ellipsizes — shrinking to nothing when the right cluster + tabs take
+    // priority — without spilling off-screen (G5 "不溢出" contract; the desktop
+    // geometry block above owns the gap/baseline/containment assertions).
+    const brandNameMobile = await shellMobile.locator('.topbar-logo__name').count()
+    assert.ok(brandNameMobile >= 1, 'AK-N-B4: brand name must render at 375px')
+    const brandNameMobileText = await shellMobile.textContent('.topbar-logo__name')
+    assert.equal(brandNameMobileText, SHELL_COPY.LOGO_NAME, 'AK-N-B4: brand name single source must hold at 375px')
     errors.push(...shellErrors)
     await shellMobile.close()
 
