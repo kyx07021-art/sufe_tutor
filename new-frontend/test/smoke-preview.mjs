@@ -28,6 +28,45 @@ if (!title || !title.includes('M0')) errors.push('preview title missing')
 const btnCount = await page.locator('.ui-btn').count()
 if (btnCount < 20) errors.push('unexpected button count: ' + btnCount)
 
+// -- AK-B3: A/A1/B/B1 keep black text & SVG on hover/focus; only text variant S grays --
+// black text stays black: the grayed hover ink was removed from the A-family.
+const btnInk = 'rgb(26, 26, 26)' // --ink / --gray-90
+const btnGray = 'rgb(102, 102, 102)' // --gray-60 (S keeps graying)
+// variant A label stays ink on hover
+await page.locator('.ui-btn--a').first().hover()
+await page.waitForTimeout(350) // --btn-dur-color (200ms) settles
+const aHoverColor = await page.evaluate(() => getComputedStyle(document.querySelector('.ui-btn--a .ui-btn__label')).color)
+if (aHoverColor !== btnInk) errors.push('AK-B3: variant A label must stay ink on hover, got ' + aHoverColor)
+// variant A1 arrow stays ink AND still shifts right (focus displacement preserved)
+await page.locator('.ui-btn--a1').first().hover()
+await page.waitForTimeout(350)
+const a1Hover = await page.evaluate(() => {
+  const b = document.querySelector('.ui-btn--a1')
+  const ar = b.querySelector('.ui-btn__arrow')
+  const m = getComputedStyle(ar).transform.match(/matrix\(([^)]+)\)/)
+  return { color: getComputedStyle(ar).color, tx: m ? parseFloat(m[1].split(',')[4]) : null }
+})
+if (a1Hover.color !== btnInk) errors.push('AK-B3: variant A1 arrow must stay ink on hover, got ' + a1Hover.color)
+if (a1Hover.tx !== 4) errors.push('AK-B3: A1 arrow must still shift right 4px on hover, got tx=' + a1Hover.tx)
+// variant S keeps its gray text on hover (special variant, unchanged)
+await page.locator('.ui-btn--s').first().hover()
+await page.waitForTimeout(350)
+const sHoverColor = await page.evaluate(() => getComputedStyle(document.querySelector('.ui-btn--s .ui-btn__label')).color)
+if (sHoverColor !== btnGray) errors.push('AK-B3: variant S must keep gray text on hover, got ' + sHoverColor)
+// keyboard focus (same rule surface as hover) keeps the A label ink
+await page.locator('body').click({ position: { x: 8, y: 8 } })
+await page.waitForTimeout(200)
+await page.keyboard.press('Tab')
+await page.waitForTimeout(350)
+const aFocus = await page.evaluate(() => {
+  const el = document.activeElement
+  if (!el || !el.classList.contains('ui-btn')) return { focused: false }
+  return { focused: true, fv: el.matches(':focus-visible'), color: getComputedStyle(el.querySelector('.ui-btn__label')).color }
+})
+if (!aFocus.focused) errors.push('AK-B3: Tab should focus a ui-btn for the focus assertion, got ' + JSON.stringify(aFocus))
+if (!aFocus.fv) errors.push('AK-B3: focused button should match :focus-visible')
+if (aFocus.color !== btnInk) errors.push('AK-B3: variant A label must stay ink on keyboard focus, got ' + aFocus.color)
+
 // icons
 const iconCount = await page.locator('.ui-icon').count()
 if (iconCount < 10) errors.push('unexpected icon count: ' + iconCount)

@@ -120,7 +120,6 @@
   /* -- Buttons (semantic aliases consumed by UiButton) -- */
   --btn-hover-bg: var(--gray-15);
   --btn-click-bg: var(--gray-30);
-  --btn-hover-ink: var(--gray-60);
   --btn-lift: -1px;            /* A-series button hover micro-lift */
   --btn-arrow-shift: 4px;      /* A1/B1 arrow focus shift */
 

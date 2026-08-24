@@ -130,7 +130,6 @@ defineExpose({ el })
   --btn-gap: 1em;                      /* text <-> arrow ~ one full-width space */
   --btn-hover-bg: var(--gray-15);
   --btn-click-bg: var(--gray-30);
-  --btn-hover-ink: var(--gray-60);
   --btn-dur-in: var(--dur-xs);
   --btn-dur-color: var(--dur-sm);
   --btn-dur-focus: var(--dur-md);
@@ -272,13 +271,9 @@ defineExpose({ el })
     color var(--btn-dur-color) var(--ease-out);
 }
 
-/* hover: text/SVG fade to gray-60; arrow focus shift (direction follows arrow) */
+/* arrow focus shift only (direction follows arrow); text/SVG stays ink on hover/focus
+   (AK-B3: black text stays black — only text variant S grays, via its own rule below) */
 @media (hover: hover) and (pointer: fine) {
-  .ui-btn:hover .ui-btn__label,
-  .ui-btn:hover .ui-btn__arrow,
-  .ui-btn:focus-visible .ui-btn__label,
-  .ui-btn:focus-visible .ui-btn__arrow { color: var(--btn-hover-ink); }
-
   .ui-btn:hover .ui-btn__arrow,
   .ui-btn:focus-visible .ui-btn__arrow { transform: translateX(var(--btn-arrow-shift)); }
   .ui-btn--arrow-left:hover .ui-btn__arrow,
@@ -287,14 +282,13 @@ defineExpose({ el })
 
 /* =========== non-white fill palettes (brand purple / danger red) ===========
    dark fills: grayscale -15/-30 + hue saturation +10/+20 (token precomputed);
-   inner text stays white (--btn-hover-ink overridden to brand ink). */
+   inner text stays white (button color brand-ink/danger-ink inherited by label/arrow). */
 .ui-btn--fill-brand {
   background: var(--brand);
   border-color: transparent;
   color: var(--brand-ink);
   --btn-hover-bg: var(--brand-hover);
   --btn-click-bg: var(--brand-active);
-  --btn-hover-ink: var(--brand-ink);
 }
 .ui-btn--fill-danger {
   background: var(--danger);
@@ -302,7 +296,6 @@ defineExpose({ el })
   color: var(--danger-ink);
   --btn-hover-bg: var(--danger-hover);
   --btn-click-bg: var(--danger-active);
-  --btn-hover-ink: var(--danger-ink);
 }
 
 /* A-series hover micro-lift (B/B1/B2/S/S1 no lift; no-lift explicitly disables, e.g. dropdown buttons) */
