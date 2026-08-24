@@ -5,7 +5,7 @@
  *   so on mobile the confirm button (y≈714+) was permanently unreachable.
  *   Fix = panel max-height + overflow-y:auto (PA-2-F2).
  * - AK-A12 (now): the auth shell is structurally pinned — shell fills the capped
- *   panel (height:100%, overflow:hidden) and only the BODY scrolls; title +
+ *   panel budget (max-height, overflow:hidden) and only the BODY scrolls; title +
  *   footer stay on-screen, so the confirm button never requires scrolling to
  *   reach (principle 5 压高不压字: compact rhythm, font sizes untouched).
  * - Asserts (G5): panel does not scroll as a unit (scrollHeight <= clientHeight),
@@ -69,7 +69,7 @@ test('AK-A12: mobile register modal is pinned (panel never scrolls, confirm alwa
         }
       })
       // AK-A12: panel bounded by viewport AND does not scroll as a unit
-      // (shell is height:100% + overflow:hidden; the body scrolls internally).
+      // (shell is capped by max-height + overflow:hidden; the body scrolls internally).
       assert.ok(Number.isFinite(dims.maxHeight) && dims.maxHeight <= 667 - 8, 'panel max-height must be viewport-bounded, got ' + dims.maxHeight)
       assert.ok(dims.panelScrollH <= dims.panelClientH + 1, 'panel must not scroll as a unit, got scroll=' + dims.panelScrollH + ' client=' + dims.panelClientH)
       assert.ok(dims.bodyScrollH >= dims.bodyClientH, 'body should be the internal scroll container, got scroll=' + dims.bodyScrollH + ' client=' + dims.bodyClientH)

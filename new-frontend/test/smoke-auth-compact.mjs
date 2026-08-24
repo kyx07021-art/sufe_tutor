@@ -3,7 +3,7 @@
  * ---------------------------------------------------------------------
  * - User feedback: the auth float should not scroll; register/login compact —
  *   squish component heights, never font sizes (principle 5 压高不压字).
- * - Structural pin: AuthShell fills the capped panel (height:100% + overflow
+ * - Structural pin: AuthShell caps itself to the panel budget (max-height + overflow
  *   hidden); only .auth-shell__body scrolls internally, so the title + footer
  *   stay on-screen and the confirm button never requires scrolling to reach.
  * - Compact tokens (AuthShell scoped overrides, global values untouched):
@@ -15,7 +15,7 @@
  * - G2 mutation targets (each deletion must turn its assertion red):
  *   M1 remove --input-h:40 override -> input height assertion red
  *   M2 remove --btn-h:44 override -> button height assertion red
- *   M3 remove structural pin (height:100%/overflow:hidden) -> mobile register
+ *   M3 remove structural pin (max-height/overflow:hidden) -> mobile register
  *      confirm visibility red
  *   M4 remove register-pane/otp-row gap overrides -> gap assertions red
  *   M5 shrink a font-size -> font-size assertion red
