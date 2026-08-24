@@ -300,18 +300,18 @@ await page.waitForTimeout(350)
 await page.locator('.m5-more__item').nth(2).click() // 用户反馈
 await page.waitForTimeout(400)
 if ((await page.locator('.fb-feedback').count()) === 0) errors.push('feedback modal did not open')
-const fbTabs = await page.locator('.fb-nav__item').count()
+const fbTabs = await page.locator('.fb-feedback .nav-tab__item').count()
 if (fbTabs !== 2) errors.push('feedback tab count: ' + fbTabs)
 if ((await page.locator('.ui-input').count()) < 2) errors.push('feedback form fields missing')
 // switch to 我的工单 -> tickets load
-await page.locator('.fb-nav__item').nth(1).click()
+await page.locator('.fb-feedback .nav-tab__item').nth(1).click()
 await page.locator('.ft__card').first().waitFor({ timeout: 3000 }).catch(() => {})
 await page.waitForTimeout(300)
 const ticketCount = await page.locator('.ft__card').count()
 if (ticketCount !== 1) errors.push('ticket card count: ' + ticketCount)
 // M5-15 anonymity mutation guard: submit a feedback and assert the POST carries
 // no auth token (only clientToken) - dropping auth:false in api() -> red.
-await page.locator('.fb-nav__item').nth(0).click()
+await page.locator('.fb-feedback .nav-tab__item').nth(0).click()
 await page.waitForTimeout(300)
 await page.locator('.ff-control .ui-input__ta').nth(0).fill('匿名反馈标题')
 await page.locator('.ff-control .ui-input__ta').nth(1).fill('匿名反馈内容')
@@ -358,7 +358,7 @@ if (!apiState.lastAvatarDataUrl) {
 }
 
 // M5-07: nav count, center divider, no item dividers
-const navCount = await page.locator('.st-nav__item').count()
+const navCount = await page.locator('.st-settings .nav-tab__item').count()
 if (navCount !== 4) errors.push('settings nav item count: ' + navCount)
 if ((await page.locator('.st-settings .st-divider').count()) !== 1) errors.push('center divider count')
 const itemDivider = await page.evaluate(() => {
@@ -370,7 +370,7 @@ const itemDivider = await page.evaluate(() => {
 if (itemDivider) errors.push('setting items have dividers (should have none)')
 
 // two-way sync #1: click 外观 -> right column scrolls
-await page.locator('.st-nav__item').nth(1).click()
+await page.locator('.st-settings .nav-tab__item').nth(1).click()
 await page.waitForTimeout(700)
 const scrollTopAfter = await page.evaluate(() => {
   const sc = document.querySelector('.st-scroll')
@@ -402,7 +402,7 @@ await page.evaluate(() => {
 })
 await page.waitForTimeout(200)
 const lastActive = await page.evaluate(() => {
-  const items = document.querySelectorAll('.st-nav__item')
+  const items = document.querySelectorAll('.st-settings .nav-tab__item')
   return items[items.length - 1].classList.contains('is-active')
 })
 if (!lastActive) errors.push('right scroll did not sync left highlight')
