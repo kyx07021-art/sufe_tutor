@@ -111,6 +111,11 @@ defineExpose({ startCountdown, isCounting: counting.active })
   cursor: pointer;
   font-size: var(--fs-base);
   line-height: 1;
+  /* AK-A4: capsule interaction zone. The button sits inside the pill container
+     (--input-radius = --input-h / 2), so its focus ring must follow the pill
+     contour instead of a square inset edge. Parent overflow:hidden already clips
+     the outer right; this rounds the visible focus box to the same contour. */
+  border-radius: var(--input-radius);
   overflow: hidden;
   user-select: none;
   -webkit-tap-highlight-color: transparent;

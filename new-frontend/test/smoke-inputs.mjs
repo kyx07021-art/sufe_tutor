@@ -52,6 +52,33 @@ await page.waitForTimeout(300)
 const comboInputVal = await page.locator('.ui-combo .ui-input__ta').first().inputValue()
 if (!comboInputVal) errors.push('combo input did not fill after select')
 
+// -- AK-A4: inner buttons inside pill containers get the capsule interaction zone --
+// The send-code and combo-V buttons live inside pill inputs (--input-radius = --input-h/2
+// = 22px), so their focus ring must follow the pill contour instead of a square inset edge.
+const capR = await page.evaluate(() => {
+  const send = document.querySelector('.ui-captcha__send')
+  const v = document.querySelector('.ui-combo__v')
+  return { send: send ? getComputedStyle(send).borderRadius : null, v: v ? getComputedStyle(v).borderRadius : null }
+})
+if (capR.send !== '22px') errors.push('AK-A4: captcha send button should be a capsule (border-radius 22px), got ' + capR.send)
+if (capR.v !== '22px') errors.push('AK-A4: combo V button should be a capsule (border-radius 22px), got ' + capR.v)
+// focus ring is actually active on real keyboard focus. A plain focus() after mouse
+// interaction does not match :focus-visible, so reset to keyboard mode with a body
+// click + Tab loop until the send button owns the focus (probed: 26 tabs on 1440px).
+await page.locator('body').click({ position: { x: 8, y: 8 } })
+let sendHit = false
+for (let i = 0; i < 60 && !sendHit; i++) {
+  await page.keyboard.press('Tab')
+  sendHit = await page.evaluate(() => document.activeElement?.classList?.contains('ui-captcha__send') || false)
+}
+if (!sendHit) errors.push('AK-A4: Tab focus never reached captcha send (DOM order drift)')
+const sendFocused = await page.evaluate(() => {
+  const el = document.querySelector('.ui-captcha__send')
+  return { fv: el.matches(':focus-visible'), shadow: getComputedStyle(el).boxShadow }
+})
+if (!sendFocused.fv) errors.push('AK-A4: captcha send should match :focus-visible on keyboard focus')
+if (!sendFocused.shadow.includes('inset')) errors.push('AK-A4: focused captcha send should show an inset focus ring, got ' + sendFocused.shadow)
+
 // -- variable input set: add + remove row --
 const varSetSec = page.locator('.pv__sec', { hasText: 'Variable Input' })
 const beforeRows = await varSetSec.locator('.ui-varset__row').count()

@@ -122,6 +122,10 @@ function onSelect(value) {
   background: transparent;
   color: var(--ink);
   cursor: pointer;
+  /* AK-A4: capsule interaction zone — same rationale as .ui-captcha__send:
+     the V button sits inside the pill container, so its focus ring must follow
+     the pill contour (--input-radius) instead of a square inset edge. */
+  border-radius: var(--input-radius);
   overflow: hidden;
   -webkit-tap-highlight-color: transparent;
 }
