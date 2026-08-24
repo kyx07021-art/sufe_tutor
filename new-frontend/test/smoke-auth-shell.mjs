@@ -5,7 +5,8 @@
  *   - Four contactMasks combos -> default method (有手机→手机 / 仅邮箱→邮箱 / 永不默认密码 / 全无→密码兜底)
  *   - switchMethod clears the credential buffer + bumps resetTick; invalid/same no-op; scene change resets.
  * Browser (dev server :5199, /preview/auth.html harness, Playwright):
- *   - Shell open/close: title "请验证身份", method title "手机验证码", cancel button, confirm gray-state.
+ *   - Shell open/close: scene-welcoming title (AK-A13: verify 请验证身份 / login 欢迎回来，请登录 /
+ *     register 欢迎来到平台，请注册账号, centered + 20px), method title "手机验证码", cancel button, confirm gray-state.
  *   - Backdrop click closes / cancel closes / no residue (no .ui-modal, body scroll unlocked).
  *   - Blocked paths: panel-interior click does NOT close; a covered behind-button is NOT triggered;
  *     dragging the puzzle to a wrong offset FAILs (shake + tip), to the target PASSes locally
@@ -329,6 +330,35 @@ async function assertAuthColumnGeometry(page, label) {
 }
 
 /**
+ * AK-A13 (G5 + G2): the modal header title is scene-welcoming copy from the
+ * single-source AUTH_COPY.TITLE_BY_SCENE map (keys = AUTH_SCENES values),
+ * horizontally centered, and sized at the compact float's --fs-lg (20px, down
+ * from 28px). The text assertion locks the single-source wiring — a regression
+ * that reverts to a fixed generic TITLE (or drops the scene lookup) turns the
+ * login/register expectations red.
+ */
+async function assertAuthTitle(page, expected, label) {
+  await page.waitForTimeout(350) // wait out the modal open transition (--dur-base)
+  const title = page.locator('.auth-shell__title')
+  await title.waitFor({ state: 'visible' })
+  const text = (await title.textContent()).trim()
+  check(text === expected, `${label}: shell title should be "${expected}", got "${text}"`)
+  const st = await title.evaluate((el) => {
+    const cs = getComputedStyle(el)
+    const tr = el.getBoundingClientRect()
+    const pr = document.querySelector('.ui-modal__panel').getBoundingClientRect()
+    return {
+      align: cs.textAlign,
+      fontSize: cs.fontSize,
+      centerDelta: Math.abs(tr.x + tr.width / 2 - (pr.x + pr.width / 2)),
+    }
+  })
+  check(st.align === 'center', `${label}: shell title should be text-align:center, got ${st.align}`)
+  check(st.fontSize === '20px', `${label}: shell title font-size should be 20px (--fs-lg), got ${st.fontSize}`)
+  check(st.centerDelta <= 2, `${label}: shell title should be horizontally centered in the panel, delta=${st.centerDelta.toFixed(1)}`)
+}
+
+/**
  * AK-A8 (G2 lock): every field-level title must consume the shared .ui-title-sm
  * utility (single source in base.css). Computed-style assertions lock the actual
  * applied value — a regression that deletes the shared rule (or stops a consumer
@@ -353,8 +383,8 @@ await openModal()
 check((await modal.count()) === 1, 'modal did not open')
 await assertAuthColumnGeometry(page, 'verify')
 
-// title + method title + cancel
-check((await page.textContent('.auth-shell__title')) === '请验证身份', 'title should be 请验证身份')
+// title + method title + cancel (AK-A13: verify scene keeps the generic header)
+await assertAuthTitle(page, '请验证身份', 'verify')
 check((await page.textContent('.otp-row__title')) === '手机验证码', 'default method should be 手机验证码')
 await assertUiTitleComputedStyle(page, '.otp-row__title', 'verify otp title')
 check((await cancelBtn.textContent()) === '取消', 'cancel button should be 取消')
@@ -529,6 +559,8 @@ check(
 )
 await openModal()
 await assertAuthColumnGeometry(page, 'login')
+// AK-A13: login scene header is the welcoming login copy.
+await assertAuthTitle(page, '欢迎回来，请登录', 'login')
 // Default method = phone code; the pick-2 switch shows email + password.
 check((await page.textContent('.otp-row__title')) === '手机验证码', 'login default method should be 手机验证码')
 await assertUiTitleComputedStyle(page, '.otp-row__title', 'login otp title')
@@ -570,6 +602,8 @@ await openModal()
 await page.waitForSelector('.register-pane')
 await assertUiTitleComputedStyle(page, '.register-pane__title', 'register title')
 await assertAuthColumnGeometry(page, 'register')
+// AK-A13: register scene header is the welcoming register copy.
+await assertAuthTitle(page, '欢迎来到平台，请注册账号', 'register')
 
 // --- AK-A10: role buttons = B variant with selected gray fill (--gray-10 + --ink) ---
 const roleStudentBtn = page.locator('.register-pane__roles .ui-btn', { hasText: '我是学生' })

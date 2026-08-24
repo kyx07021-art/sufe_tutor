@@ -9,8 +9,14 @@
  * - Copy only; no numbers or business literals (those belong to tokens/config).
  */
 export const AUTH_COPY = {
-  /** Modal header, large black title (plan doc C5) */
-  TITLE: '请验证身份',
+  /** Scene-based modal header title (AK-A13). Keys = AUTH_SCENES values. The
+      modal title is scene-welcoming copy — not a fixed "verify identity" string.
+      Rendered by AuthShell (falls back to `login` for unknown scene values). */
+  TITLE_BY_SCENE: {
+    login: '欢迎回来，请登录',
+    register: '欢迎来到平台，请注册账号',
+    verify: '请验证身份',
+  },
   /** Info input area title, mapped by current auth method (keys = AUTH_METHODS string values) */
   METHOD_TITLE: {
     otp_phone: '手机验证码',

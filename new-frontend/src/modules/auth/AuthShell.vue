@@ -12,18 +12,24 @@
  * - UiModal already handles body-scroll-lock release + Teleport teardown, so a
  *   closed shell leaves no residue.
  */
+import { computed } from 'vue'
 import { UiModal, UiButton } from '@/components/ui/index.js'
 import { AUTH_COPY } from '@/constants/m-auth.js'
 import { UI_COPY } from '@/constants/ui.js'
 
-defineProps({
+const props = defineProps({
   open: { type: Boolean, default: false },
-  /** scene id is passed through (not consumed here) for future shell variants */
+  /** scene id selects the welcoming header title (AK-A13: TITLE_BY_SCENE) */
   scene: { type: String, default: 'login' },
   /** contactMasks passed through (not consumed here) */
   contactMasks: { type: Object, default: () => ({}) },
   closeOnOutside: { type: Boolean, default: true },
 })
+
+/** Scene-welcoming title (single source = AUTH_COPY.TITLE_BY_SCENE, keys =
+ *  AUTH_SCENES values). Fall back to the login title for unknown scenes so a
+ *  future scene id never renders an empty header. */
+const title = computed(() => AUTH_COPY.TITLE_BY_SCENE[props.scene] || AUTH_COPY.TITLE_BY_SCENE.login)
 
 const emit = defineEmits(['close', 'update:open'])
 
@@ -36,13 +42,13 @@ function close() {
 <template>
   <UiModal
     :open="open"
-    :label="AUTH_COPY.TITLE"
+    :label="title"
     width="440px"
     :close-on-outside="closeOnOutside"
     @close="close"
   >
     <div class="auth-shell">
-      <h2 class="auth-shell__title">{{ AUTH_COPY.TITLE }}</h2>
+      <h2 class="auth-shell__title">{{ title }}</h2>
       <div class="auth-shell__body">
         <slot />
       </div>
@@ -82,10 +88,13 @@ function close() {
 
 .auth-shell__title {
   flex: none;
-  font-size: var(--fs-xl);
+  /* AK-A13: 28px -> 20px (compact float context; user asked for a smaller
+     header). 20px = --fs-lg; never a raw px. */
+  font-size: var(--fs-lg);
   font-weight: 700;
   color: var(--ink);
   line-height: var(--lh-tight);
+  text-align: center;   /* AK-A13: top title horizontally centered */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
