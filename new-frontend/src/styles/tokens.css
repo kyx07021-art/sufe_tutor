@@ -108,6 +108,7 @@
   --modal-w: 30%;              /* PC centered width 30% */
   --modal-w-mobile: 80%;       /* mobile 80% */
   --modal-mask-h: 32px;        /* scroll fade mask height */
+  --modal-vpad: 32px;          /* modal panel vertical breathing room (panel max-height = 100dvh - this; AK-A12 single source) */
   --overlay: rgba(20, 20, 40, 0.1); /* modal backdrop: very light, layering carried by the modal shadow */
 
   /* -- Input A -- */

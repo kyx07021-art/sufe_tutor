@@ -1,14 +1,18 @@
 /**
- * mobile-register-modal.mjs - PA-2-F2 mobile register modal reachability
+ * mobile-register-modal.mjs - register modal reachability (PA-2-F2 + AK-A12)
  * ---------------------------------------------------------------------
- * - PA-2f HIGH-1: the register modal panel was `overflow:hidden` with no
- *   max-height, so on a 375px viewport the 914px-high content clipped and the
- *   confirm button (y≈714+) was permanently unreachable (no scroll possible).
- * - Asserts (G5 geometry + the fix): the panel is a scroll container with a
- *   viewport-bounded max-height, and the confirm button can be scrolled into
- *   the viewport on mobile; desktop stays reachable without scrolling.
- * - Real dev server (BASE, default :5173), /api/** mocked (same as
- *   landing-login-entry.mjs). Run: node --test test/mobile-register-modal.mjs
+ * - PA-2f HIGH-1 (history): the panel was `overflow:hidden` with no max-height,
+ *   so on mobile the confirm button (y≈714+) was permanently unreachable.
+ *   Fix = panel max-height + overflow-y:auto (PA-2-F2).
+ * - AK-A12 (now): the auth shell is structurally pinned — shell fills the capped
+ *   panel (height:100%, overflow:hidden) and only the BODY scrolls; title +
+ *   footer stay on-screen, so the confirm button never requires scrolling to
+ *   reach (principle 5 压高不压字: compact rhythm, font sizes untouched).
+ * - Asserts (G5): panel does not scroll as a unit (scrollHeight <= clientHeight),
+ *   body is the internal scroll container, and the confirm button is visible in
+ *   the viewport WITHOUT scrollIntoView — a stronger reachability guarantee than
+ *   PA-2-F2. Desktop same (zero panel scroll). Real dev server (BASE, default
+ *   :5173), /api/** mocked. Run: node --test test/mobile-register-modal.mjs
  */
 import { test } from 'node:test'
 import assert from 'node:assert'
@@ -46,33 +50,36 @@ async function openRegisterModal(browser, viewport) {
   return { page, errors }
 }
 
-test('PA-2-F2: mobile register modal is a scrollable viewport-bounded panel (confirm reachable)', async () => {
+test('AK-A12: mobile register modal is pinned (panel never scrolls, confirm always visible)', async () => {
   const browser = await chromium.launch()
   try {
     const { page, errors } = await openRegisterModal(browser, { width: 375, height: 667 })
     try {
-      const panel = await page.evaluate(() => {
+      const dims = await page.evaluate(() => {
         const p = document.querySelector('.ui-modal__panel')
+        const body = document.querySelector('.auth-shell__body')
         const cs = getComputedStyle(p)
         return {
           overflowY: cs.overflowY,
           maxHeight: parseFloat(cs.maxHeight),
-          clientHeight: p.clientHeight,
-          scrollHeight: p.scrollHeight,
+          panelClientH: p.clientHeight,
+          panelScrollH: p.scrollHeight,
+          bodyClientH: body.clientHeight,
+          bodyScrollH: body.scrollHeight,
         }
       })
-      // The fix: panel is a scroll container bounded by the viewport.
-      assert.ok(panel.overflowY === 'auto', 'panel must scroll, got overflowY=' + panel.overflowY)
-      assert.ok(Number.isFinite(panel.maxHeight) && panel.maxHeight <= 667 - 8, 'panel max-height must be viewport-bounded, got ' + panel.maxHeight)
-      assert.ok(panel.scrollHeight >= panel.clientHeight, 'register content is taller than the bounded panel (scrollable)')
+      // AK-A12: panel bounded by viewport AND does not scroll as a unit
+      // (shell is height:100% + overflow:hidden; the body scrolls internally).
+      assert.ok(Number.isFinite(dims.maxHeight) && dims.maxHeight <= 667 - 8, 'panel max-height must be viewport-bounded, got ' + dims.maxHeight)
+      assert.ok(dims.panelScrollH <= dims.panelClientH + 1, 'panel must not scroll as a unit, got scroll=' + dims.panelScrollH + ' client=' + dims.panelClientH)
+      assert.ok(dims.bodyScrollH >= dims.bodyClientH, 'body should be the internal scroll container, got scroll=' + dims.bodyScrollH + ' client=' + dims.bodyClientH)
 
-      // The confirm button must be reachable by scrolling.
+      // The confirm button must be visible WITHOUT scrolling (footer pinned).
       const confirmBtn = page.locator('.auth-shell__footer .ui-btn--fill-brand')
-      await confirmBtn.scrollIntoViewIfNeeded()
       const box = await confirmBtn.boundingBox()
       assert.ok(box, 'confirm button must have a bounding box')
-      assert.ok(box.y + box.height <= 667 + 1, 'confirm button must be within the viewport after scroll, got bottom=' + (box.y + box.height))
-      assert.ok(box.y >= 0, 'confirm button must not be above the viewport, got y=' + box.y)
+      assert.ok(box.y + box.height <= 667 + 1, 'confirm must be in the viewport without scrolling, got bottom=' + (box.y + box.height))
+      assert.ok(box.y >= 0, 'confirm must not be above the viewport, got y=' + box.y)
       assert.deepEqual(errors, [], 'zero console/pageerror expected, got: ' + errors.join(' | '))
     } finally {
       await page.close()
@@ -82,18 +89,29 @@ test('PA-2-F2: mobile register modal is a scrollable viewport-bounded panel (con
   }
 })
 
-test('PA-2-F2: desktop register modal stays reachable by scrolling (no regression)', async () => {
+test('AK-A12: desktop register modal is pinned (no panel scroll, confirm in viewport)', async () => {
   const browser = await chromium.launch()
   try {
     const { page, errors } = await openRegisterModal(browser, { width: 1440, height: 900 })
     try {
-      // Content is tall (register form + PA-2-F1 switch link); the bounded panel
-      // must let the confirm button scroll into view on desktop too.
+      const dims = await page.evaluate(() => {
+        const p = document.querySelector('.ui-modal__panel')
+        const body = document.querySelector('.auth-shell__body')
+        return {
+          panelClientH: p.clientHeight,
+          panelScrollH: p.scrollHeight,
+          bodyClientH: body.clientHeight,
+          bodyScrollH: body.scrollHeight,
+        }
+      })
+      // Desktop register (student) must fit without ANY scrolling after the
+      // AK-A12 compact rhythm.
+      assert.ok(dims.panelScrollH <= dims.panelClientH + 1, 'desktop panel must not scroll, got scroll=' + dims.panelScrollH + ' client=' + dims.panelClientH)
+      assert.ok(dims.bodyScrollH <= dims.bodyClientH + 1, 'desktop body should fit (register student), got scroll=' + dims.bodyScrollH + ' client=' + dims.bodyClientH)
       const confirmBtn = page.locator('.auth-shell__footer .ui-btn--fill-brand')
-      await confirmBtn.scrollIntoViewIfNeeded()
       const box = await confirmBtn.boundingBox()
       assert.ok(box, 'confirm button must have a bounding box')
-      assert.ok(box.y + box.height <= 900 + 1, 'desktop confirm must be in viewport after scroll, got bottom=' + (box.y + box.height))
+      assert.ok(box.y + box.height <= 900 + 1, 'desktop confirm must be in viewport without scrolling, got bottom=' + (box.y + box.height))
       assert.ok(box.y >= 0, 'desktop confirm must not be above the viewport, got y=' + box.y)
       assert.deepEqual(errors, [], 'zero console/pageerror expected, got: ' + errors.join(' | '))
     } finally {

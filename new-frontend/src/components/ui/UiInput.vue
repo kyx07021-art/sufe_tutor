@@ -64,6 +64,15 @@ const baseH = computed(() => {
     const n = parseInt(props.minHeight, 10)
     if (!Number.isNaN(n)) return n
   }
+  // AK-A12: the textarea baseline must follow the --input-h token (a parent
+  // like the auth shell compresses it to 40px via :deep override). Inline
+  // height beats CSS min-height, so JS must read the token or the override
+  // never lands. Default consumers keep 44 (unresolved token / no override).
+  const el = taRef.value
+  if (el) {
+    const v = parseInt(getComputedStyle(el).getPropertyValue('--input-h'), 10)
+    if (Number.isFinite(v) && v > 0) return v
+  }
   return 44
 })
 

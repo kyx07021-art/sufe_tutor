@@ -61,14 +61,27 @@ function close() {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);                          /* AK-A12: 24 -> 16 (compact rhythm) */
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  padding: var(--space-6) var(--space-5) var(--space-5);
+  /* AK-A12: structural pin - the shell caps itself to the viewport budget and
+     never scrolls as a unit (overflow:hidden); the BODY scrolls internally so
+     the title + footer stay on-screen and the confirm button never requires
+     scrolling to reach (principle 5: squish heights, never font sizes). The
+     explicit max-height mirrors the panel's cap: percentage height would
+     resolve against the panel's auto height and fail to pin. PA-2-F2's panel
+     max-height stays as the outer guard. */
+  max-height: calc(100dvh - var(--modal-vpad, 32px));
+  overflow: hidden;
+  padding: var(--space-5) var(--space-5) var(--space-4); /* AK-A12: 40/24/24 -> 24/24/16 */
+  /* AK-A12: captcha container + its send button resolve border-radius from this
+     root token (22px default); re-point them at the compact 40px-input capsule. */
+  --input-radius: 20px;
 }
 
 .auth-shell__title {
+  flex: none;
   font-size: var(--fs-xl);
   font-weight: 700;
   color: var(--ink);
@@ -81,9 +94,13 @@ function close() {
 .auth-shell__body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);                          /* AK-A12: 16 -> 12 */
   min-width: 0;
   width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   /* AK-A2: horizontal centering anchor. Every auth field fills the column
      (--input-w:100% below) so this is a no-op today; it pins the centered
      contract for any future non-full-width child (e.g. narrower groups). */
@@ -96,7 +113,22 @@ function close() {
    symmetric whitespace automatically. Scoped to .auth-shell__body descendants. */
 .auth-shell__body :deep(.ui-input) {
   --input-w: 100%;
+  --input-h: 40px;      /* AK-A12: 44 -> 40 (>= tap floor); font-size unchanged */
+  --input-pad-y: 10px;  /* (40 - 20 lh) / 2, single-line vertical center */
 }
+/* captcha row must see the same --input-h so its send button resolves the
+   compact capsule radius from --input-radius (inherited from .auth-shell) */
+.auth-shell__body :deep(.ui-captcha) {
+  --input-h: 40px;
+}
+/* buttons 52 -> 44 (>= tap floor); S/S1 text variants are height:auto, unaffected */
+.auth-shell :deep(.ui-btn) {
+  --btn-h: 44px;
+}
+.auth-shell__body :deep(.register-pane) { gap: var(--space-3); }  /* AK-A12: 16 -> 12 */
+.auth-shell__body :deep(.otp-row),
+.auth-shell__body :deep(.password-row) { gap: var(--space-2); }    /* AK-A12: 12 -> 8 */
+.auth-shell__body :deep(.captcha-puzzle__track) { margin-top: var(--space-2); } /* AK-A12: 12 -> 8 */
 
 .auth-shell__footer {
   display: flex;
@@ -104,6 +136,7 @@ function close() {
   justify-content: flex-end;
   gap: var(--space-3);
   min-width: 0;
+  flex: none;           /* AK-A12: footer pinned, never scrolls away */
 }
 /* C5 "two wide buttons": cancel (footer-left) + confirm (footer-right) share the footer width equally */
 .auth-shell__footer :deep(.ui-btn) {
