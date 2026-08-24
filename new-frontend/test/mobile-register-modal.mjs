@@ -29,9 +29,6 @@ function installApiMock(page) {
     if (url.includes('/api/auth/me') && method === 'GET') {
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ user: null }) })
     }
-    if (url.includes('/api/captcha')) {
-      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, captchaId: 'test-captcha' }) })
-    }
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) })
   })
 }
