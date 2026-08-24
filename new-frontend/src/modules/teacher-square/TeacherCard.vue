@@ -154,6 +154,11 @@ function onClick() {
 
 .teacher-card__inner {
   box-sizing: border-box;
+  /* AK-N-D5: first row (header) is the aligned row; everything below is
+     free-stacked in a plain flex column - no grid/table forcing any column
+     alignment across rows. Blocks (bio / price / subjects) each start at the
+     same left edge and flow with a uniform --space-3 gap; text inside a block
+     may wrap independently. */
   display: flex;
   flex-direction: column;
   gap: var(--space-3);

@@ -81,6 +81,23 @@ try {
     console.log('  ok  D4 min-height ratio (empty + full)')
   }
 
+  /* ============================ AK-N-D5 ============================ */
+  {
+    const innerStyle = await full.locator('.teacher-card__inner').evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return { display: cs.display, direction: cs.flexDirection }
+    })
+    assert.equal(innerStyle.display, 'flex', 'D5: inner block is flex (not grid-forced)')
+    assert.equal(innerStyle.direction, 'column', 'D5: inner block free-stacks vertically')
+    // First row (header) is the aligned row; price stacks after it.
+    const innerBox = await full.locator('.teacher-card__inner').boundingBox()
+    const headerBox = await full.locator('.teacher-card__header').boundingBox()
+    const priceBox = await full.locator('.teacher-card__price').boundingBox()
+    assert.ok(headerBox.y >= innerBox.y - 1, 'D5: header is the first row')
+    assert.ok(priceBox.y > headerBox.y + headerBox.height, 'D5: price stacks below the header row')
+    console.log('  ok  D5 first row aligned + lower blocks free-stacked')
+  }
+
   if (errors.length) throw new Error('console/pageerror: ' + errors.join(' | '))
   console.log('TEACHER-CARD GEOMETRY PASS')
 } finally {
