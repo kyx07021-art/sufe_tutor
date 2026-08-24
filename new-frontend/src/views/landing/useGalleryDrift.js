@@ -8,8 +8,9 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
  * - Pauses while: the pointer hovers the viewport, a drag is in progress
  *   (viewport has the `is-dragging` class added by M1-07a), the document is
  *   hidden, or the corridor is scrolled out of view (IntersectionObserver).
- * - Respects prefers-reduced-motion: never drifts when reduced (and stops if it
- *   flips while running).
+ * - Does NOT respect prefers-reduced-motion: the idle corridor motion is a core
+ *   landing design effect (same ruling as the reveal animations, N-F1) — it must
+ *   stay visible even when the OS requests reduced motion.
  * - The M1-06 scroll listener owns the scrollLeft modulo wrap; this composable
  *   only ever increases scrollLeft.
  * - F3 idempotency: bind() is guarded against re-binding the same element. The
@@ -26,14 +27,9 @@ export function useGalleryDrift(viewportRef, { speed = 40 } = {}) {
   let hovering = false
   let inView = true
   let observer = null
-  let reduced = false
-
-  const reducedQuery = typeof window !== 'undefined'
-    ? window.matchMedia('(prefers-reduced-motion: reduce)')
-    : null
 
   function start() {
-    if (!el || reduced || !inView || hovering || document.hidden || raf) return
+    if (!el || !inView || hovering || document.hidden || raf) return
     isDrifting.value = true
     lastTs = performance.now()
     raf = requestAnimationFrame(tick)
@@ -47,7 +43,7 @@ export function useGalleryDrift(viewportRef, { speed = 40 } = {}) {
 
   function tick(ts) {
     raf = 0
-    if (reduced || !inView || hovering || document.hidden) return
+    if (!inView || hovering || document.hidden) return
     const delta = (ts - lastTs) / 1000
     lastTs = ts
     el.scrollLeft += speed * delta
@@ -87,17 +83,7 @@ export function useGalleryDrift(viewportRef, { speed = 40 } = {}) {
       )
       observer.observe(el)
     }
-    if (reducedQuery) {
-      reduced = reducedQuery.matches
-      reducedQuery.addEventListener('change', onReducedChange)
-    }
     start()
-  }
-
-  function onReducedChange() {
-    reduced = reducedQuery.matches
-    if (reduced) stop()
-    else start()
   }
 
   function unbind() {
@@ -109,7 +95,6 @@ export function useGalleryDrift(viewportRef, { speed = 40 } = {}) {
       observer.disconnect()
       observer = null
     }
-    if (reducedQuery) reducedQuery.removeEventListener('change', onReducedChange)
     stop()
     el = null
   }
