@@ -17,6 +17,8 @@ const props = defineProps({
   sortKey: { type: String, default: 'match' },
   order: { type: String, default: 'desc' },
   showFilter: { type: Boolean, default: true },
+  /** root loading state -> all leaf controls (sort/order/filter) stop */
+  disabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['update:sortKey', 'update:order', 'filter-click'])
@@ -33,17 +35,26 @@ const TABS = computed(() => [
   <div class="second-bar">
     <OrderToggle
       :order="order"
+      :disabled="disabled"
       :aria-label="order === 'desc' ? T.SORT_DESC : T.SORT_ASC"
       @update:order="emit('update:order', $event)"
     />
     <SortBar
       :options="TABS"
       :model-value="sortKey"
+      :disabled="disabled"
       :aria-label="T.SORT_ARIA"
       class="second-bar__tabs"
       @update:model-value="emit('update:sortKey', $event)"
     />
-    <UiButton v-if="showFilter" variant="A1" class="second-bar__filter" :lift="false" @click="emit('filter-click')">
+    <UiButton
+      v-if="showFilter"
+      variant="A1"
+      class="second-bar__filter"
+      :lift="false"
+      :disabled="disabled"
+      @click="emit('filter-click')"
+    >
       {{ T.FILTER }}
     </UiButton>
   </div>

@@ -15,11 +15,14 @@ import SortDesc from '@/assets/svg/sort-desc.svg'
 const props = defineProps({
   order: { type: String, default: 'desc' },
   ariaLabel: { type: String, default: '' },
+  /** root loading state -> leaf stops: suppress interaction + hover/active fill */
+  disabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['toggle', 'update:order'])
 
 function onToggle() {
+  if (props.disabled) return
   const next = props.order === 'desc' ? 'asc' : 'desc'
   emit('toggle', next)
   emit('update:order', next)
@@ -30,9 +33,10 @@ function onToggle() {
   <button
     type="button"
     class="order-toggle"
-    :class="{ 'is-asc': order === 'asc' }"
+    :class="{ 'is-asc': order === 'asc', 'is-disabled': disabled }"
     :aria-label="ariaLabel || undefined"
     :aria-pressed="order === 'asc'"
+    :disabled="disabled"
     @click="onToggle"
   >
     <SortDesc v-if="order === 'desc'" class="order-toggle__icon" aria-hidden="true" />
@@ -74,6 +78,23 @@ function onToggle() {
   width: 20px;
   height: 20px;
   color: currentColor;
+}
+/* disabled (root loading -> leaf stop): no hover/active fill, icon gray-50
+   (via color: currentColor), no focus ring, no transition. */
+.order-toggle.is-disabled {
+  cursor: default;
+  color: var(--gray-50);
+  transition: none;
+}
+.order-toggle.is-disabled:hover,
+.order-toggle.is-disabled:focus-visible {
+  background: transparent;
+}
+.order-toggle.is-disabled:active {
+  background: transparent;
+}
+.order-toggle.is-disabled:focus-visible {
+  box-shadow: none;
 }
 @media (prefers-reduced-motion: reduce) {
   .order-toggle { transition: none; }

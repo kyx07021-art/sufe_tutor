@@ -13,8 +13,15 @@ const props = defineProps({
   /** active key */
   modelValue: { type: String, default: '' },
   ariaLabel: { type: String, default: '' },
+  /** root loading state -> leaf stops: suppress interaction + fill animation */
+  disabled: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue'])
+
+function onSelect(key) {
+  if (props.disabled) return
+  emit('update:modelValue', key)
+}
 </script>
 
 <template>
@@ -23,11 +30,12 @@ const emit = defineEmits(['update:modelValue'])
       v-for="opt in options"
       :key="opt.key"
       class="sort-bar__tab"
-      :class="{ 'is-active': opt.key === modelValue }"
+      :class="{ 'is-active': opt.key === modelValue, 'is-disabled': disabled }"
       type="button"
       role="tab"
       :aria-selected="opt.key === modelValue"
-      @click="emit('update:modelValue', opt.key)"
+      :disabled="disabled"
+      @click="onSelect(opt.key)"
     >
       <span class="sort-bar__label">{{ opt.label }}</span>
     </button>
@@ -55,6 +63,20 @@ const emit = defineEmits(['update:modelValue'])
 .sort-bar__tab.is-active {
   background: var(--gray-10);
   color: var(--ink);
+}
+/* disabled (root loading -> leaf stop): text gray-50, no fill, no transition.
+   Placed after .is-active so the transparent background wins on the selected tab —
+   the whole control reads inert while data is in flight. */
+.sort-bar__tab.is-disabled {
+  cursor: default;
+  color: var(--gray-50);
+  background: transparent;
+  transition: none;
+}
+.sort-bar__tab.is-disabled:hover,
+.sort-bar__tab.is-disabled:focus-visible {
+  color: var(--gray-50);
+  background: transparent;
 }
 @media (prefers-reduced-motion: reduce) {
   .sort-bar__tab {

@@ -142,6 +142,7 @@ onMounted(load)
     <SecondBar
       :sort-key="sortKey"
       :order="order"
+      :disabled="status === 'loading'"
       @update:sort-key="onSortKeyChange"
       @update:order="onOrderChange"
       @filter-click="toggleFilters"

@@ -162,10 +162,11 @@ function onCardOpen(demand) {
       <SortBar
         :options="sortOptions"
         :model-value="sort"
+        :disabled="loading"
         aria-label="sort"
         @update:model-value="onSortSelect"
       />
-      <OrderToggle :order="order" aria-label="order" @toggle="onToggleOrder" />
+      <OrderToggle :order="order" :disabled="loading" aria-label="order" @toggle="onToggleOrder" />
       <span class="b1__bar-spacer" />
       <FilterReveal
         :open="filterOpen"
