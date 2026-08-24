@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "node --test test/chat-*.mjs test/csp-meta-strict.test.mjs test/app-version.test.mjs",
     "test:unit": "node --test test/chat-*.mjs test/csp-meta-strict.test.mjs test/app-version.test.mjs",
-    "test:smoke": "node test/smoke-preview.mjs && node test/smoke-inputs.mjs && node test/smoke-captcha-counter.mjs && node test/smoke-scrollbar.mjs && node test/smoke-modals.mjs && node test/smoke-shell.mjs && node test/smoke-auth-shell.mjs && node test/smoke-chat-shell.mjs && node test/smoke-landing.mjs && node test/smoke-my-demands.mjs && node test/smoke-notifications.mjs && node test/smoke-relations.mjs && node test/smoke-sort-disabled.mjs && node test/smoke-teacher-side.mjs && node test/smoke-teacher-square.mjs && node test/csp-prod.mjs"
+    "test:smoke": "node test/smoke-preview.mjs && node test/smoke-inputs.mjs && node test/smoke-captcha-counter.mjs && node test/smoke-scrollbar.mjs && node test/smoke-modals.mjs && node test/smoke-shell.mjs && node test/smoke-auth-shell.mjs && node test/smoke-chat-shell.mjs && node test/smoke-landing.mjs && node test/smoke-my-demands.mjs && node test/smoke-notifications.mjs && node test/smoke-relations.mjs && node test/smoke-sort-disabled.mjs && node test/smoke-teacher-side.mjs && node test/smoke-teacher-square.mjs && node test/teacher-card-geometry.mjs && node test/csp-prod.mjs"
   },
   "dependencies": {
     "vue": "^3.5.13",
