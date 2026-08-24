@@ -207,6 +207,8 @@ defineExpose({ canSubmit, submit })
 .register-pane {
   display: flex;
   flex-direction: column;
+  /* rhythm is compressed by the auth-shell layer (AK-A12 / AK-L-F3); keep the
+     component default here so the value stays single-sourced */
   gap: var(--space-4);
   width: 100%;
   min-width: 0;
@@ -235,7 +237,8 @@ defineExpose({ canSubmit, submit })
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--space-1); /* AK-A7: tight row gap between the two agreement checkboxes */
+  /* AK-A7: tight row gap; checkbox height compressed by the auth-shell layer */
+  gap: var(--space-1);
   min-width: 0;
 }
 </style>
