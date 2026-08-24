@@ -96,7 +96,8 @@ export function stopNotifyPolling() {
   }
 }
 
-/** C2.3 time display: today "x时x分前" / yesterday "昨天" / same-year "x月x日" / older "x年x月x日". */
+/** C2.3 time display: today = minutes-ago copy, yesterday = the yesterday label,
+    same-year = month-day copy, older = full-date copy (all from NOTIF_COPY). */
 export function formatNotificationTime(iso) {
   if (!iso) return ''
   const d = new Date(iso)
