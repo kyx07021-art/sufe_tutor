@@ -52,6 +52,18 @@ try {
     console.log('  ok  D1 empty-subject/awards leak guard')
   }
 
+  /* ============================ AK-N-D2 ============================ */
+  {
+    const avatarBox = await full.locator('.teacher-card__avatar').boundingBox()
+    const identityBox = await full.locator('.teacher-card__identity').boundingBox()
+    assert.ok(avatarBox && identityBox, 'D2: avatar + identity present')
+    assert.ok(avatarBox.x < identityBox.x, 'D2: avatar is leftmost (left of identity)')
+    const idText = await full.locator('.teacher-card__id').textContent()
+    assert.ok(idText.includes('ID 11'), 'D2: user id shown right of avatar, got: ' + idText)
+    assert.equal(await full.locator('.rating-stars').count(), 1, 'D2: RatingStars component used on the card')
+    console.log('  ok  D2 avatar-leftmost + id/rating beside it')
+  }
+
   if (errors.length) throw new Error('console/pageerror: ' + errors.join(' | '))
   console.log('TEACHER-CARD GEOMETRY PASS')
 } finally {
