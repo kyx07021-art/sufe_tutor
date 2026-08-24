@@ -48,7 +48,11 @@ export const AUTH_COPY = {
   ROLE_LABEL: '选择身份',
   ROLE_STUDENT: '我是学生',
   ROLE_TEACHER: '我是教师',
-  /** Register scene: OTP channel switch */
+  /** Register scene: OTP channel switch (AK-A9) — the single underlined link
+      right of the OTP method title names the channel you switch TO */
+  CHANNEL_SWITCH_TO_PHONE: '改为手机注册',
+  CHANNEL_SWITCH_TO_EMAIL: '改为邮箱注册',
+  /** Register scene: OTP channel labels (kept — SettingsContact consumes them) */
   CHANNEL_PHONE: '手机',
   CHANNEL_EMAIL: '邮箱',
   /** Register scene: account field placeholders */

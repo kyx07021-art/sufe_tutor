@@ -7,6 +7,9 @@
  *   30% send button B that does not fall onto the input).
  * - Optional identifier field (login/register scenes): shown only when the parent
  *   supplies an identifierPlaceholder (bound-contact verify needs no identifier).
+ * - Optional `title-suffix` slot: rendered in a flex row right of the method
+ *   title (AK-A9 register scene uses it for the channel-switch link; login/verify
+ *   pass no slot -> the row holds only the title, zero visual change).
  * - Emits `send` on the send-button click; the parent runs the I-01 chain (M6-5)
  *   and on success calls startCountdown(sec) here to arm the cooldown.
  */
@@ -40,7 +43,10 @@ defineExpose({ startCountdown })
 
 <template>
   <div class="otp-row">
-    <p class="otp-row__title ui-title-sm">{{ AUTH_COPY.METHOD_TITLE[method] }}</p>
+    <div class="otp-row__title-row">
+      <p class="otp-row__title ui-title-sm">{{ AUTH_COPY.METHOD_TITLE[method] }}</p>
+      <slot name="title-suffix" />
+    </div>
     <UiInput
       v-if="identifierPlaceholder"
       :model-value="identifier"
@@ -65,6 +71,15 @@ defineExpose({ startCountdown })
 .otp-row {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
+  width: 100%;
+  min-width: 0;
+}
+
+.otp-row__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: var(--space-3);
   width: 100%;
   min-width: 0;

@@ -45,6 +45,19 @@ const puzzleRef = ref(null)
 const otpRowRef = ref(null)
 const { sending, send } = useOtpSend()
 
+const channelSwitchLabel = computed(() =>
+  channel.value === 'phone' ? AUTH_COPY.CHANNEL_SWITCH_TO_EMAIL : AUTH_COPY.CHANNEL_SWITCH_TO_PHONE,
+)
+
+/** AK-A9: the single underlined link right of the OTP title flips the register
+    channel; clears the channel-specific identifier + code so a stale phone/email
+    value (and its OTP) never leaks into the other channel. */
+function switchChannel() {
+  channel.value = channel.value === 'phone' ? 'email' : 'phone'
+  identifier.value = ''
+  code.value = ''
+}
+
 const isTeacher = computed(() => role.value === 'teacher')
 const otpMethod = computed(() => (channel.value === 'phone' ? AUTH_METHODS.OTP_PHONE : AUTH_METHODS.OTP_EMAIL))
 const identifierPlaceholder = computed(() =>
@@ -143,21 +156,9 @@ defineExpose({ canSubmit, submit })
       @update:model-value="(v) => (inviteCode = v)"
     />
 
-    <div class="register-pane__channel">
-      <UiButton
-        variant="S1"
-        :class="{ 'is-active': channel === 'phone' }"
-        @click="channel = 'phone'"
-      >{{ AUTH_COPY.CHANNEL_PHONE }}</UiButton>
-      <UiButton
-        variant="S1"
-        :class="{ 'is-active': channel === 'email' }"
-        @click="channel = 'email'"
-      >{{ AUTH_COPY.CHANNEL_EMAIL }}</UiButton>
-    </div>
-
     <OtpRow
       ref="otpRowRef"
+      :key="'otp-reg-' + channel"
       :method="otpMethod"
       :value="code"
       :identifier="identifier"
@@ -167,7 +168,13 @@ defineExpose({ canSubmit, submit })
       @update:value="(v) => (code = v)"
       @update:identifier="(v) => (identifier = v)"
       @send="onSendOtp"
-    />
+    >
+      <template #title-suffix>
+        <UiButton variant="S1" class="register-pane__channel-switch" @click="switchChannel">
+          {{ channelSwitchLabel }}
+        </UiButton>
+      </template>
+    </OtpRow>
 
     <UiInput
       :model-value="username"
@@ -215,13 +222,9 @@ defineExpose({ canSubmit, submit })
 }
 .register-pane__roles .is-active { color: var(--gray-60); }
 
-.register-pane__channel {
-  display: flex;
-  align-items: center;
-  gap: var(--space-5);
-  min-width: 0;
+.register-pane__channel-switch {
+  flex: none;
 }
-.register-pane__channel .is-active { color: var(--ink); }
 
 .register-pane__field {
   width: 100%;

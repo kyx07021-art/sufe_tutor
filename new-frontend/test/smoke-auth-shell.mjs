@@ -532,6 +532,11 @@ await assertAuthColumnGeometry(page, 'login')
 // Default method = phone code; the pick-2 switch shows email + password.
 check((await page.textContent('.otp-row__title')) === '手机验证码', 'login default method should be 手机验证码')
 await assertUiTitleComputedStyle(page, '.otp-row__title', 'login otp title')
+// AK-A9: the channel-switch link is register-only (login/verify pass no title-suffix slot)
+check(
+  (await page.locator('.otp-row__title-row .ui-btn').count()) === 0,
+  'AK-A9: login scene should have no channel-switch link in the title row',
+)
 const switchBtns = page.locator('.method-switch .ui-btn')
 check((await switchBtns.count()) === 2, 'login modal should show exactly two alternative methods')
 const switchLabels = await switchBtns.allTextContents()
@@ -570,6 +575,60 @@ const regPw = page.locator('.register-pane__password .ui-input__native')
 await regPw.waitFor({ state: 'visible', timeout: 5000 })
 const regPwTag = await regPw.evaluate((el) => el.tagName + ':' + el.type)
 check(regPwTag === 'INPUT:password', 'register password should be INPUT:password, got: ' + regPwTag)
+
+// --- AK-A9: phone/email channel switch = one underlined link right of the OTP title ---
+check(
+  (await page.locator('.register-pane__channel').count()) === 0,
+  'AK-A9: channel tab group should be removed',
+)
+const chSwitch = page.locator('.register-pane__channel-switch')
+await chSwitch.waitFor({ state: 'visible', timeout: 5000 })
+check(
+  (await chSwitch.textContent()) === '改为邮箱注册',
+  'AK-A9: default phone channel offers 改为邮箱注册, got: ' + (await chSwitch.textContent()),
+)
+check((await page.textContent('.otp-row__title')) === '手机验证码', 'AK-A9: default title 手机验证码')
+const titleBoxA9 = await page.locator('.otp-row__title').boundingBox()
+const linkBoxA9 = await chSwitch.boundingBox()
+check(
+  titleBoxA9 && linkBoxA9 && linkBoxA9.x > titleBoxA9.x + titleBoxA9.width,
+  'AK-A9: switch link should sit right of the method title',
+)
+check(
+  titleBoxA9 &&
+    linkBoxA9 &&
+    Math.abs(linkBoxA9.y + linkBoxA9.height / 2 - (titleBoxA9.y + titleBoxA9.height / 2)) < 6,
+  'AK-A9: switch link vertically centered on the title row',
+)
+const regIdentA9 = page.locator('.otp-row__identifier .ui-input__ta')
+check(
+  (await page.locator('.otp-row__identifier .ui-input__placeholder').textContent()) === '手机号',
+  'AK-A9: phone placeholder 手机号',
+)
+await regIdentA9.fill('13800000001')
+await page.locator('.ui-captcha .ui-input__ta').first().fill('123456')
+await chSwitch.click()
+await page.waitForTimeout(250) // wait out the :key remount
+check(
+  (await page.locator('.register-pane__channel-switch').textContent()) === '改为手机注册',
+  'AK-A9: after switch the link offers 改为手机注册',
+)
+check((await page.textContent('.otp-row__title')) === '邮箱验证码', 'AK-A9: title flips to 邮箱验证码')
+const regIdentA9e = page.locator('.otp-row__identifier .ui-input__ta')
+check(
+  (await page.locator('.otp-row__identifier .ui-input__placeholder').textContent()) === '邮箱',
+  'AK-A9: email placeholder 邮箱',
+)
+check((await regIdentA9e.inputValue()) === '', 'AK-A9: switching clears the stale identifier')
+check((await page.locator('.ui-captcha__send').count()) === 1, 'AK-A9: send button re-rendered after remount')
+// switch back to phone so the register flow continues on default channel
+await page.locator('.register-pane__channel-switch').click()
+await page.waitForTimeout(250)
+check((await page.textContent('.otp-row__title')) === '手机验证码', 'AK-A9: switch back restores 手机验证码')
+check(
+  (await page.locator('.register-pane__channel-switch').textContent()) === '改为邮箱注册',
+  'AK-A9: back on phone the link offers 改为邮箱注册',
+)
 
 // --- AK-A7: agreement checkboxes (compact checkbox rows, box + check, no stretch) ---
 const agreeRows = page.locator('.register-pane__agreements .ui-checkbox')
