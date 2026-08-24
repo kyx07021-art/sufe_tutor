@@ -1,20 +1,24 @@
 <script setup>
 /**
- * CaptchaPuzzle - M6-8b sliding-puzzle interaction + verification (I-07)
+ * CaptchaPuzzle - M6-8b sliding-puzzle interaction + local pass (AK-A1a)
  * -------------------------------------------------------
- * - Ports v2 captcha.js drag/verify semantics: paint via puzzleRender (M6-8a),
- *   pointer drag with setPointerCapture, track points (<=128), release ->
- *   |offset-target| <= TOLERANCE -> POST /captcha/verify (I-07) -> verified.
+ * - Ports v2 captcha.js drag semantics: paint via puzzleRender (M6-8a),
+ *   pointer drag with setPointerCapture, release -> isPuzzleAligned checks
+ *   |offset-target| <= TOLERANCE locally -> immediate pass (no network wait).
+ * - Anti-abuse UX gate, NOT an auth boundary: real protection is the
+ *   server-verified credential + OTP/password + auth rate limits. The locally
+ *   generated captchaId is echoed on the I-06 verify body as a correlation id;
+ *   the server no longer confirms the challenge (server gate = AK-A1b).
  * - CSP-safe: slider position rides a CSSOM data channel (--captcha-x / --puzzle-scale
  *   setProperty on the box); zero inline style attributes.
  * - Responsive: --puzzle-scale shrinks the 280px drawing on narrow parents; the
  *   drag math divides client movement by the live scale.
- * - Fail -> shake + reset + repaint after 420ms; pass -> emit('verified', captchaId) once —
- *   the id is echoed on the I-06 verify body so the server can confirm the challenge passed.
+ * - Fail -> shake + reset + repaint after 420ms; pass -> emit('verified', captchaId) once.
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   paintCaptcha,
+  isPuzzleAligned,
   PUZZLE_W,
   PUZZLE_H,
   SLIDER_W,
@@ -22,7 +26,6 @@ import {
   PUZZLE_MAX_X,
   PUZZLE_TOLERANCE,
 } from './puzzle/puzzleRender.js'
-import { api } from '@/core/api.js'
 import { AUTH_COPY } from '@/constants/m-auth.js'
 
 const emit = defineEmits(['verified'])
@@ -39,7 +42,6 @@ const st = {
   id: '',
   offset: 0,
   drag: null,
-  track: [],
   pass: false,
   resetTimer: null,
 }
@@ -54,7 +56,6 @@ function paint() {
   st.target = r.target
   st.id = r.id
   st.offset = 0
-  st.track = []
   st.pass = false
   boxRef.value?.style.setProperty('--captcha-x', '0px')
   tipRef.value && (tipRef.value.textContent = AUTH_COPY.CAPTCHA_TIP)
@@ -105,8 +106,7 @@ function onDown(e) {
     st.resetTimer = null
   }
   const scale = liveScale()
-  st.drag = { startClientX: e.clientX, startX: st.offset * PUZZLE_MAX_X, scale, startT: Date.now() }
-  st.track = []
+  st.drag = { startClientX: e.clientX, startX: st.offset * PUZZLE_MAX_X, scale }
   if (typeof knobRef.value.setPointerCapture === 'function') {
     knobRef.value.setPointerCapture(e.pointerId)
   }
@@ -119,17 +119,14 @@ function onMove(e) {
   const next = Math.max(0, Math.min(PUZZLE_MAX_X, startX + (e.clientX - startClientX) / scale))
   st.offset = next / PUZZLE_MAX_X
   boxRef.value?.style.setProperty('--captcha-x', `${next}px`)
-  if (st.track.length < 128) {
-    st.track.push({ t: Date.now() - st.drag.startT, x: e.clientX, y: e.clientY })
-  }
   publishDebug()
 }
 
-async function onUp() {
+function onUp() {
   if (!st.drag) return
   st.drag = null
   trackRef.value.classList.remove('is-dragging')
-  await verify()
+  verify()
 }
 
 function onCancel() {
@@ -139,37 +136,21 @@ function onCancel() {
   paint()
 }
 
-async function verify() {
+function verify() {
   const knob = knobRef.value
   const tip = tipRef.value
   const track = trackRef.value
   if (!knob || !tip || !track) return
-  const diff = Math.abs(st.offset - st.target)
-  if (diff <= PUZZLE_TOLERANCE) {
-    try {
-      const r = await api('/captcha/verify', {
-        method: 'POST',
-        auth: false,
-        body: {
-          captchaId: st.id,
-          offset: Number(st.offset.toFixed(3)),
-          track: st.track,
-        },
-      })
-      if (!r || !r.ok) {
-        fail()
-        return
-      }
-    } catch (err) {
-      fail()
-      return
-    }
+  // AK-A1a: local-only alignment check — no I-07 round-trip wait. The captcha is
+  // an anti-abuse UX gate, not an auth boundary (server-verified credential +
+  // OTP/password + auth rate limits are the real defense). The locally generated
+  // captchaId is still echoed on the I-06 verify body as a correlation id.
+  if (isPuzzleAligned(st.offset, st.target, PUZZLE_TOLERANCE)) {
     st.pass = true
     knob.classList.add('is-pass')
     tip.textContent = AUTH_COPY.CAPTCHA_PASS
     tip.classList.add('is-pass')
     publishDebug()
-    // emit the server-confirmed captchaId so the caller can echo it on the verify (I-06) body.
     emit('verified', st.id)
     return
   }

@@ -8,7 +8,8 @@
  *   - Shell open/close: title "请验证身份", method title "手机验证码", cancel button, confirm gray-state.
  *   - Backdrop click closes / cancel closes / no residue (no .ui-modal, body scroll unlocked).
  *   - Blocked paths: panel-interior click does NOT close; a covered behind-button is NOT triggered;
- *     dragging the puzzle to a wrong offset FAILs (shake + tip), to the target PASSes (I-07 mocked).
+ *     dragging the puzzle to a wrong offset FAILs (shake + tip), to the target PASSes locally
+ *     (AK-A1a: isPuzzleAligned in-browser, zero /api/captcha/verify calls).
  *   - Confirm gate: disabled until (6-digit code + puzzle passed) -> enabled -> confirm (I-06 mocked) closes.
  *   - 375px mobile: zero horizontal overflow; title/cancel/puzzle inside the viewport.
  *   - Zero console errors / pageerrors / CSP violations.
@@ -217,11 +218,15 @@ cdp.on('Log.entryAdded', ({ entry }) => {
 })
 
 // mock the auth APIs the modal consumes; record the I-06 verify bodies so we can
-// assert the server-confirmed captchaId is echoed (#108).
+// assert the locally generated captchaId is echoed (#108). AK-A1a: the puzzle
+// passes locally — the /api/captcha/verify endpoint must NEVER be called (the
+// route below counts + 404s; the final assertion requires captchaVerifyCalls===0).
 const verifyBodies = []
-await page.route('**/api/captcha/verify', (route) =>
-  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }),
-)
+let captchaVerifyCalls = 0
+await page.route('**/api/captcha/verify', (route) => {
+  captchaVerifyCalls++
+  return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({}) })
+})
 await page.route('**/api/auth/verify', (route) => {
   const post = route.request().postData()
   if (post) verifyBodies.push(JSON.parse(post))
@@ -453,8 +458,9 @@ check(csp.length === 0, 'zero CSP violations expected: ' + csp.join(' | '))
 check(mobileErrors.length === 0, 'mobile zero console/pageerror expected: ' + mobileErrors.join(' | '))
 check(
   verifyBodies.length > 0 && verifyBodies.some((b) => b.captchaVerified === true && b.captchaId && b.captchaId.length > 0),
-  'I-06 verify body must echo the server-confirmed captchaId (CaptchaPuzzle emits its own id)',
+  'I-06 verify body must echo the locally generated captchaId (CaptchaPuzzle emits its own id)',
 )
+check(captchaVerifyCalls === 0, 'AK-A1a: puzzle passes locally — /api/captcha/verify must never be called, got ' + captchaVerifyCalls)
 
 if (errors.length) {
   console.log('AUTH SMOKE FAIL')

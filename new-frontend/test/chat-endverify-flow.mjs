@@ -37,7 +37,8 @@ const CAP = 'CAP-TOKEN-123'
 
 // Node-safe fetch stub for the injected core/api.js single point: the verify
 // submit POSTs /api/auth/verify and parks the returned capToken. The last verify
-// body is captured so we can lock the server-confirmed captchaId echo (I-06 + #108).
+// body is captured so we can lock the locally generated captchaId echo (I-06 +
+// #108; AK-A1a local pass, server no longer confirms the puzzle).
 let lastVerifyBody = null
 globalThis.fetch = async (url, opts) => {
   if (url === '/api/auth/verify' && opts && opts.body) lastVerifyBody = JSON.parse(opts.body)
@@ -79,7 +80,7 @@ function resetOverlay() {
   const { submit } = useConfirmSubmit()
   const submitOk = await submit({ type: 'password', value: 's3cret', captchaId: 'cap-end' })
   ok(submitOk === true, 'S1: verify submit succeeds')
-  ok(lastVerifyBody && lastVerifyBody.captchaId === 'cap-end', 'S1: verify body echoes the server-confirmed captchaId (G2: removing the echo makes this red)')
+  ok(lastVerifyBody && lastVerifyBody.captchaId === 'cap-end', 'S1: verify body echoes the locally generated captchaId (G2: removing the echo makes this red)')
   ok(authOverlay.capToken === CAP, 'S1: submit parks the fresh capToken on the overlay')
 
   const delivered = resolveAuthExit(AUTH_EXITS.VERIFIED)
