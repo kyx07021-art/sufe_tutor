@@ -136,7 +136,7 @@ function onSave() {
       <div class="profile-edit__head">
         <AvatarEditor :src="avatar" @avatar-updated="avatar = $event" />
         <div class="profile-edit__name">
-          <label class="profile-edit__label" for="profile-edit-name">
+          <label class="profile-edit__label ui-title-sm" for="profile-edit-name">
             {{ TEACHER_COPY.B2_FIELD_TEACHER_NAME }}
           </label>
           <UiInput
@@ -149,7 +149,7 @@ function onSave() {
       </div>
 
       <div class="profile-edit__field">
-        <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_BIO }}</span>
+        <span class="profile-edit__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_BIO }}</span>
         <UiInput
           v-model="bio"
           :aria-label="TEACHER_COPY.B2_FIELD_BIO"
@@ -159,7 +159,7 @@ function onSave() {
       </div>
 
       <div class="profile-edit__field">
-        <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_PRICE }}</span>
+        <span class="profile-edit__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_PRICE }}</span>
         <div class="profile-edit__price">
           <UiInput v-model="priceMin" filter="digits" :aria-label="TEACHER_COPY.B1_PRICE_MIN" :placeholder="TEACHER_COPY.B1_PRICE_MIN" width="110px" />
           <UiInput v-model="priceMax" filter="digits" :aria-label="TEACHER_COPY.B1_PRICE_MAX" :placeholder="TEACHER_COPY.B1_PRICE_MAX" width="110px" />
@@ -167,12 +167,12 @@ function onSave() {
       </div>
 
       <div class="profile-edit__field">
-        <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_AREA }}</span>
+        <span class="profile-edit__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_AREA }}</span>
         <UiInput v-model="region" :aria-label="TEACHER_COPY.B2_FIELD_AREA" width="100%" />
       </div>
 
       <div class="profile-edit__field">
-        <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_TIME }}</span>
+        <span class="profile-edit__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_TIME }}</span>
         <UiInput
           :model-value="timeSlots"
           readonly
@@ -183,7 +183,7 @@ function onSave() {
       </div>
 
       <div class="profile-edit__field">
-        <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_EXP }}</span>
+        <span class="profile-edit__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_EXP }}</span>
         <UiInput
           v-model="experienceYears"
           filter="digits"
@@ -194,7 +194,7 @@ function onSave() {
       </div>
 
       <div class="profile-edit__field">
-        <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_PERSONALITY }}</span>
+        <span class="profile-edit__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_PERSONALITY }}</span>
         <UiInput
           v-model="personalityTags"
           :aria-label="TEACHER_COPY.B2_FIELD_PERSONALITY"
@@ -204,12 +204,12 @@ function onSave() {
       </div>
 
       <div class="profile-edit__field">
-        <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_GENDER }}</span>
+        <span class="profile-edit__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_GENDER }}</span>
         <UiInput v-model="gender" :aria-label="TEACHER_COPY.B2_FIELD_GENDER" width="120px" />
       </div>
 
       <div class="profile-edit__field">
-        <span class="profile-edit__label">{{ TEACHER_COPY.B2_FIELD_GRADUATION }}</span>
+        <span class="profile-edit__label ui-title-sm">{{ TEACHER_COPY.B2_FIELD_GRADUATION }}</span>
         <UiInput
           v-model="graduationYear"
           :aria-label="TEACHER_COPY.B2_FIELD_GRADUATION"
@@ -262,11 +262,6 @@ function onSave() {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-}
-.profile-edit__label {
-  font-weight: 700;
-  color: var(--ink);
-  line-height: var(--lh-tight);
 }
 .profile-edit__field {
   display: flex;
