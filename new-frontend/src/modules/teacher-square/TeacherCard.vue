@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import UiCard from '@/components/ui/UiCard.vue'
 import UiIcon from '@/components/ui/UiIcon.vue'
+import RatingStars from './RatingStars.vue'
 import { TEACHER_SQUARE_TEXT as T } from '@/constants/m-teacher-square.js'
 import { subjectLabel } from '@/modules/my-demands/region.js'
 
@@ -9,10 +10,11 @@ import { subjectLabel } from '@/modules/my-demands/region.js'
  * TeacherCard - M7-17 teacher card render (four layers, A1.1 business card)
  * -------------------------------------------------------
  * - Shell: M0 UiCard variant A1 (interactive); clicking forwards `click`.
- * - Layer 1 header: avatar right (~30%, rounded --radius-img; neutral circle
- *   fallback) + bold teacher NAME (name field, NOT username) + star row
- *   (yellow 'star-filled' icon + rating + (reviewCount) in gray). Header height
- *   is driven by the avatar diameter; name + stars center against the avatar.
+ * - Layer 1 header (AK-N-D2): avatar LEFTMOST (rounded --radius-img; neutral
+ *   circle fallback) then identity beside it = bold teacher NAME + a sub-line
+ *   with the numeric user id ("ID <teacherId>") + the shared RatingStars row
+ *   (rating + reviewCount in gray). Header height is driven by the avatar
+ *   diameter; name/id/stars center against the avatar.
  * - Layer 2 bio: gray-75, smaller, wraps; left edge 5% / right edge 10% of card.
  * - Layer 3 price: bold black, built from priceMin/priceMax via
  *   T.PRICE_RANGE / T.PRICE_FROM / T.PRICE_TO / T.PRICE_NA.
@@ -36,6 +38,16 @@ const ratingText = computed(() => {
   const r = props.teacher.rating
   return typeof r === 'number' && Number.isFinite(r) ? r.toFixed(1) : ''
 })
+
+/** Numeric rating for RatingStars (clamped inside the component); null -> 0. */
+const ratingNumber = computed(() =>
+  typeof props.teacher.rating === 'number' && Number.isFinite(props.teacher.rating)
+    ? props.teacher.rating
+    : 0,
+)
+
+/** "ID <teacherId>" - mirrors DetailLeft's identity label. */
+const idText = computed(() => `${T.ID_PREFIX} ${props.teacher.teacherId ?? ''}`.trim())
 
 const showStars = computed(() => ratingText.value !== '' || props.teacher.reviewCount > 0)
 const showBadge = computed(() => props.count > 0)
@@ -83,16 +95,6 @@ function onClick() {
       <div v-if="showBadge" class="teacher-card__badge">{{ T.MATCH_COUNT(count) }}</div>
 
       <div class="teacher-card__header">
-        <div class="teacher-card__identity">
-          <div class="teacher-card__name">{{ teacher.name }}</div>
-          <div v-if="showStars" class="teacher-card__stars">
-            <UiIcon name="star-filled" :size="16" class="teacher-card__star" aria-hidden="true" />
-            <span v-if="ratingText" class="teacher-card__rating">{{ ratingText }}</span>
-            <span v-if="teacher.reviewCount > 0" class="teacher-card__reviews">
-              {{ T.RATING_COUNT(teacher.reviewCount) }}
-            </span>
-          </div>
-        </div>
         <div class="teacher-card__avatar">
           <img
             v-if="hasAvatar"
@@ -101,6 +103,23 @@ function onClick() {
             :alt="teacher.name"
           />
           <span v-else class="teacher-card__avatar-fallback" aria-hidden="true"></span>
+        </div>
+        <div class="teacher-card__identity">
+          <div class="teacher-card__name">{{ teacher.name }}</div>
+          <div class="teacher-card__sub">
+            <span v-if="idText" class="teacher-card__id">{{ idText }}</span>
+            <span v-if="showStars" class="teacher-card__stars">
+              <RatingStars
+                :score="ratingNumber"
+                :size="14"
+                class="teacher-card__stars-comp"
+              />
+              <span v-if="ratingText" class="teacher-card__rating">{{ ratingText }}</span>
+              <span v-if="teacher.reviewCount > 0" class="teacher-card__reviews">
+                {{ T.RATING_COUNT(teacher.reviewCount) }}
+              </span>
+            </span>
+          </div>
         </div>
       </div>
 
@@ -168,6 +187,22 @@ function onClick() {
   line-height: var(--lh-tight);
 }
 
+/* AK-N-D2: the sub-line right of the avatar = user id + star row, one baseline. */
+.teacher-card__sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.teacher-card__id {
+  color: var(--gray-75);
+  font-size: var(--fs-sm);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .teacher-card__stars {
   display: flex;
   flex-wrap: wrap;
@@ -176,8 +211,10 @@ function onClick() {
   min-width: 0;
 }
 
-.teacher-card__star {
-  color: var(--warn);
+/* Shared RatingStars at 14px: small enough to sit beside the id on the sub-line
+   (--fs-sm scale); the numeric rating + review count follow on the same line.
+   Deliberate size choice, token-aligned, not a runtime style injection. */
+.teacher-card__stars-comp {
   flex: none;
 }
 
