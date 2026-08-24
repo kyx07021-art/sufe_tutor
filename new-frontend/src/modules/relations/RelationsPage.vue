@@ -29,7 +29,6 @@ import { layoutCircle } from './layout.js'
 import { planRelationCards } from './card-layout.js'
 import { isFlowAllowed } from './flow.js'
 import { openRelationConversation } from './actions.js'
-import { authStore } from '@/modules/shell/auth-store.js'
 import { RELATIONS_COPY, RELATIONS_GEOMETRY } from '@/constants/m-relations.js'
 import './flow.css'
 
@@ -66,15 +65,6 @@ const selfNode = computed(() => ({
   status: 'active',
   edgeCount: 0,
 }))
-
-/** Current user's avatar for the empty state. The `self` prop is the standalone
- *  render override; when it carries no avatar we fall back to the live
- *  authStore user so the empty state shows the signed-in user's avatar (AK-N-F2). */
-const selfAvatar = computed(() => {
-  const fromProp = props.self && props.self.avatar
-  const fromStore = authStore.user && authStore.user.avatar
-  return fromProp || fromStore || ''
-})
 
 const board = ref(null)
 const boardSize = reactive({ w: 0, h: 0 })
@@ -222,7 +212,6 @@ onBeforeUnmount(() => {
       v-if="phase === 'loading' || phase === 'error' || isEmpty"
       :state="phase === 'loading' ? 'loading' : phase === 'error' ? 'error' : 'empty'"
       :message="phase === 'error' ? errorMsg : ''"
-      :self-avatar="selfAvatar"
       @retry="retry"
     />
 

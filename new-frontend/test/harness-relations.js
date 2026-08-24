@@ -7,7 +7,6 @@
 import { createApp } from 'vue'
 import RelationsPage from '../src/modules/relations/RelationsPage.vue'
 import { chatState } from '../src/modules/chat/index.js'
-import { authStore } from '../src/modules/shell/auth-store.js'
 import UiToast from '../src/components/ui/UiToast.vue'
 import '../src/styles/tokens.css'
 import '../src/styles/base.css'
@@ -19,10 +18,5 @@ app.mount('#app')
 createApp(UiToast).mount('#app-toast')
 
 // Test hook (smoke-relations.mjs): expose the chat store so the open-conversation
-// wiring can be asserted, and the auth store so the empty-state avatar (which
-// reads authStore.user.avatar) can be exercised. Same ESM module instances the
-// page imports.
-window.__REL_TEST__ = {
-  chatState,
-  setUser: (user) => { authStore.user = user },
-}
+// wiring can be asserted. Same ESM module instance the page's dynamic import uses.
+window.__REL_TEST__ = { chatState }
