@@ -3,10 +3,13 @@
  * FilterGender - B1-5b preferred-gender filter card (single-select)
  * -------------------------------------------------------
  * - Three options in one row: male / female / any (the "any" option clears to '').
+ * - Rendered as shared UiCheckButton variant B (AK-N-㉛: standard components, not
+ *   hand-written buttons); the active row gets a gray-10 fill (AK-I selected fill).
  * - v-model: modelValue = '' | 'male' | 'female'.
  * - Clicking a value selects it (re-click keeps it selected); clicking "any" clears to ''.
  */
 import { TEACHER_COPY } from '@/constants/ui.js'
+import UiCheckButton from '@/components/ui/UiCheckButton.vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -27,16 +30,15 @@ function select(value) {
 
 <template>
   <div class="filter-gender" role="radiogroup" :aria-label="TEACHER_COPY.B1_FILTER_GENDER">
-    <button
+    <UiCheckButton
       v-for="opt in options"
       :key="opt.value || 'any'"
-      type="button"
-      class="filter-gender__item"
-      :class="{ 'is-checked': modelValue === opt.value }"
-      role="radio"
-      :aria-checked="modelValue === opt.value"
-      @click="select(opt.value)"
-    >{{ opt.label }}</button>
+      variant="B"
+      :model-value="modelValue === opt.value"
+      :label="opt.label"
+      :fill="modelValue === opt.value ? 'gray-10' : 'auto'"
+      @update:model-value="select(opt.value)"
+    />
   </div>
 </template>
 
@@ -45,36 +47,21 @@ function select(value) {
   display: flex;
   gap: var(--space-2);
 }
-.filter-gender__item {
+/* equal-share full-width B rows; active = gray-10 fill, check reserved */
+.filter-gender :deep(.ui-checkbtn) {
   flex: 1 1 0;
   min-width: 0;
-  box-sizing: border-box;
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-w) solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  color: var(--ink);
-  font-size: var(--fs-sm);
-  line-height: 1.3;
-  text-align: center;
-  cursor: pointer;
-  transition:
-    background var(--dur-sm) var(--ease-out),
-    border-color var(--dur-sm) var(--ease-out);
+  --btn-w: 100%;
+  --btn-h: 40px;
+  --btn-fs: var(--fs-sm);
+  --btn-pad: var(--space-3);
+  --btn-radius: var(--radius-sm);
 }
-.filter-gender__item:hover {
-  background: var(--gray-10);
+.filter-gender :deep(.ui-checkbtn.is-checked) {
+  width: 100%;
 }
-.filter-gender__item.is-checked {
-  background: var(--gray-10);
-  border-color: var(--ink);
-}
-.filter-gender__item:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--brand);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .filter-gender__item { transition: none; }
+.filter-gender :deep(.ui-checkbtn__check),
+.filter-gender :deep(.ui-checkbtn.is-checked .ui-checkbtn__check) {
+  width: 28px;
 }
 </style>

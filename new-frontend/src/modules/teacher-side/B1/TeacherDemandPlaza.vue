@@ -24,6 +24,7 @@ import {
   activeDimCount,
 } from '@/components/shared/useMatchGroup.js'
 import SortBar from '@/components/shared/SortBar.vue'
+import UiButton from '@/components/ui/UiButton.vue'
 import { loadDemands } from './demands-service.js'
 import { compareBySort } from './demands-model.js'
 import { loadSortState, saveSortState, resetFilters } from './sort-state.js'
@@ -178,9 +179,9 @@ function onCardOpen(demand) {
           <FilterGender v-model="filters.gender" />
           <FilterPrice v-model="priceFilter" />
           <div class="b1__filters-reset">
-            <button type="button" class="b1__reset" @click="resetAllFilters">
+            <UiButton variant="S1" class="b1__reset" @click="resetAllFilters">
               {{ TEACHER_COPY.B1_FILTER_RESET }}
-            </button>
+            </UiButton>
           </div>
         </div>
       </FilterReveal>
@@ -272,16 +273,7 @@ function onCardOpen(demand) {
   justify-content: flex-end;
   align-items: center;
 }
-.b1__reset {
-  font-size: var(--fs-sm);
-  color: var(--gray-60);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.b1__reset:hover,
-.b1__reset:focus-visible {
-  color: var(--ink);
-}
+/* reset link styling is UiButton variant S1 (underlined gray-60, focus -> ink) */
 .b1__state {
   padding: var(--space-7) 0;
   text-align: center;

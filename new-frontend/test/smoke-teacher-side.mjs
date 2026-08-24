@@ -473,7 +473,8 @@ test('browser: filter immediate apply (B1-5a/5d2) updates the grid without conso
   await p.waitForTimeout(400)
 
   // select 数学 (half of the 8 mock items are 数学) -> 4 cards, all with 数学
-  await p.locator('.filter-subject__item', { hasText: '数学' }).click()
+  // (AK-N-㉛: subject chips are now shared UiCheckButton rows, not hand-written buttons)
+  await p.locator('.filter-subject__grid .ui-checkbtn', { hasText: '数学' }).click()
   await p.waitForTimeout(500)
   const cards = await p.locator('.b1-card').count()
   assert.equal(cards, 4, 'subject filter keeps only 数学 items')

@@ -3,16 +3,17 @@
  * FilterSubject - B1-5a subject filter card (two-column checkbox grid)
  * -------------------------------------------------------
  * - Renders SUBJECTS (region.js, backend English ids + Chinese labels) as a
- *   2-column grid of toggle chips. C2-F1: previously used the Chinese-label
- *   SUBJECT_OPTIONS array — the emitted value (the Chinese label) never matched
- *   the backend English subject id on demand cards (item.subject is an English
- *   id), so any subject filter returned zero results (PA-2-F4 fixed the same bug
- *   on teacher-square; this propagates it to teacher-side B1).
+ *   2-column grid of shared UiCheckButton variant B toggle rows (AK-N-㉛: standard
+ *   components, not hand-written buttons); the active row gets a gray-10 fill
+ *   (AK-I selected fill). C2-F1: the emitted value must be the backend English id,
+ *   never the Chinese label, else any subject filter returns zero results
+ *   (PA-2-F4 fixed the same bug on teacher-square; this propagates it to teacher-side B1).
  * - v-model: modelValue = string[] of selected subject VALUE ids (English).
  * - Clicking toggles membership; the new array is emitted as a fresh copy.
  */
 import { TEACHER_COPY } from '@/constants/ui.js'
 import { SUBJECTS } from '@/modules/my-demands/region.js'
+import UiCheckButton from '@/components/ui/UiCheckButton.vue'
 
 const props = defineProps({
   modelValue: { type: Array, default: () => [] },
@@ -36,15 +37,15 @@ function toggle(subject) {
 <template>
   <div class="filter-subject" role="group" :aria-label="TEACHER_COPY.B1_FILTER_SUBJECT">
     <div class="filter-subject__grid">
-      <button
+      <UiCheckButton
         v-for="s in options"
         :key="s.value"
-        type="button"
-        class="filter-subject__item"
-        :class="{ 'is-checked': isChecked(s.value) }"
-        :aria-pressed="isChecked(s.value)"
-        @click="toggle(s.value)"
-      >{{ s.label }}</button>
+        variant="B"
+        :model-value="isChecked(s.value)"
+        :label="s.label"
+        :fill="isChecked(s.value) ? 'gray-10' : 'auto'"
+        @update:model-value="toggle(s.value)"
+      />
     </div>
   </div>
 </template>
@@ -55,35 +56,20 @@ function toggle(subject) {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
 }
-.filter-subject__item {
-  box-sizing: border-box;
+/* full-width B rows that never stretch out of the grid cell on select */
+.filter-subject__grid :deep(.ui-checkbtn) {
+  width: 100%;
   min-width: 0;
-  padding: var(--space-2) var(--space-3);
-  border: var(--border-w) solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  color: var(--ink);
-  font-size: var(--fs-sm);
-  line-height: 1.3;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background var(--dur-sm) var(--ease-out),
-    border-color var(--dur-sm) var(--ease-out);
+  --btn-h: 40px;
+  --btn-fs: var(--fs-sm);
+  --btn-pad: var(--space-3);
+  --btn-radius: var(--radius-sm);
 }
-.filter-subject__item:hover {
-  background: var(--gray-10);
+.filter-subject__grid :deep(.ui-checkbtn.is-checked) {
+  width: 100%;
 }
-.filter-subject__item.is-checked {
-  background: var(--gray-10);
-  border-color: var(--ink);
-}
-.filter-subject__item:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--brand);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .filter-subject__item { transition: none; }
+.filter-subject__grid :deep(.ui-checkbtn__check),
+.filter-subject__grid :deep(.ui-checkbtn.is-checked .ui-checkbtn__check) {
+  width: 28px;
 }
 </style>
