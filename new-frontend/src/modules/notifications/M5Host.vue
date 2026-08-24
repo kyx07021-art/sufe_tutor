@@ -15,6 +15,21 @@ import MoreMenu from './MoreMenu.vue'
 import SettingsPanel from './SettingsPanel.vue'
 import AboutModal from './AboutModal.vue'
 import FeedbackModal from './FeedbackModal.vue'
+import { logout } from '@/modules/shell/auth-actions.js'
+import { useRouter } from 'vue-router'
+
+// AK-L-F2: the M5 preview harness mounts M5Host standalone (no router), where
+// useRouter() resolves undefined — navigate only when a router is present.
+const router = useRouter()
+
+/** AK-L-F2: C4 logout — close the dropdown, clear the session, land back on the
+    landing page. auth-actions.logout() is the single exit (auth + storage +
+    datahub cache + shell cleanup callbacks). */
+function onLogout() {
+  closeC4()
+  logout()
+  if (router) router.push('/')
+}
 
 /**
  * M5Host - M5 overlay tree assembly
@@ -34,6 +49,7 @@ import FeedbackModal from './FeedbackModal.vue'
     @open-settings="openSettings"
     @open-about="openAbout"
     @open-feedback="openFeedback"
+    @open-logout="onLogout"
   />
   <SettingsPanel :open="overlay.settings" @close="closeSettings" />
   <AboutModal :open="overlay.about" @close="closeAbout" />

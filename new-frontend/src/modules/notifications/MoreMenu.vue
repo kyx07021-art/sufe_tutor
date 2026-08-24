@@ -24,7 +24,7 @@ const props = defineProps({
   open: { type: Boolean, default: false },
   trigger: { type: Object, default: null },
 })
-const emit = defineEmits(['close', 'open-settings', 'open-about', 'open-feedback'])
+const emit = defineEmits(['close', 'open-settings', 'open-about', 'open-feedback', 'open-logout'])
 
 const panelRef = ref(null)
 const triggerRef = computed(() => props.trigger)
@@ -164,6 +164,9 @@ function pickAbout() {
 function pickFeedback() {
   emit('open-feedback')
 }
+function pickLogout() {
+  emit('open-logout')
+}
 </script>
 
 <template>
@@ -200,6 +203,14 @@ function pickFeedback() {
             <span class="m5-more__opt">
               <UiIcon name="mail" :size="18" class="m5-more__opt-icon" />
               <span class="m5-more__opt-text">{{ NOTIF_COPY.MORE_FEEDBACK }}</span>
+            </span>
+          </UiButton>
+        </div>
+        <div class="m5-more__item" data-cap="m5-15-logout">
+          <UiButton variant="B" class="m5-more__btn" @click="pickLogout">
+            <span class="m5-more__opt">
+              <UiIcon name="arrow-left" :size="18" class="m5-more__opt-icon" />
+              <span class="m5-more__opt-text">{{ NOTIF_COPY.MORE_LOGOUT }}</span>
             </span>
           </UiButton>
         </div>

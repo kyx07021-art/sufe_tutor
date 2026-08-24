@@ -122,6 +122,9 @@ await page.route('**/api/notifications**', (route) => {
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) })
   }
 })
+await page.route('**/api/auth/logout', (route) =>
+  route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) }),
+)
 await page.route('**/api/settings', (route) => {
   const req = route.request()
   if (req.method() === 'GET') {
@@ -179,9 +182,10 @@ await moreBtn.click()
 await page.waitForTimeout(350)
 if ((await page.locator('.m5-more').count()) === 0) errors.push('more dropdown did not open (guest)')
 const optCount = await page.locator('.m5-more__item').count()
-if (optCount !== 3) errors.push('more dropdown option count: ' + optCount)
+// AK-L-F2: settings / about / feedback + logout (the C4 dropdown gained a 4th row)
+if (optCount !== 4) errors.push('more dropdown option count: ' + optCount)
 const iconCount = await page.locator('.m5-more__opt-icon').count()
-if (iconCount !== 3) errors.push('more dropdown SVG icon count: ' + iconCount)
+if (iconCount !== 4) errors.push('more dropdown SVG icon count: ' + iconCount)
 await page.locator('.m5-more__item').first().click()
 await page.waitForTimeout(400)
 if ((await page.locator('.st-settings').count()) !== 0) errors.push('guest settings: window opened while not authed')
@@ -427,6 +431,25 @@ await page.setViewportSize({ width: 375, height: 700 })
 await page.waitForTimeout(300)
 const mobileSettingsOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)
 if (mobileSettingsOverflow) errors.push('375 horizontal overflow (settings)')
+
+/* ---- AK-L-F2: C4 gained a logout row; clicking it clears the session ---- */
+await page.setViewportSize({ width: 1440, height: 900 })
+await page.waitForTimeout(200)
+// close the settings modal left open by the previous section (its backdrop
+// would intercept the more-button click)
+await page.locator('.ui-modala1__close').first().click().catch(() => {})
+await page.waitForTimeout(300)
+await moreBtn.click()
+await page.waitForTimeout(350)
+const logoutLabel = await page.locator('.m5-more__item').nth(3).textContent().catch(() => '')
+if (!logoutLabel.includes('退出登录')) errors.push('AK-L-F2: 4th more row should be 退出登录, got: ' + logoutLabel)
+await page.locator('.m5-more__item').nth(3).click()
+await page.waitForTimeout(500)
+// logged out -> the guest envelope re-arms: a notification click now toasts 请先登录
+await notifBtn.click()
+await page.waitForTimeout(400)
+const logoutToast = await page.locator('.ui-toast').first().textContent().catch(() => '')
+if (!logoutToast.includes('请先登录')) errors.push('AK-L-F2: after logout the guest envelope must re-arm (请先登录), got: ' + logoutToast)
 
 await page.screenshot({ path: 'test/smoke-notifications.png', fullPage: true })
 

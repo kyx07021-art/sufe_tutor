@@ -42,6 +42,7 @@ export const NOTIF_COPY = {
   MORE_SETTINGS: '设置',
   MORE_ABOUT: '关于平台',
   MORE_FEEDBACK: '用户反馈',
+  MORE_LOGOUT: '退出登录',
 
   /* ---- settings window (M5-07 skeleton + M5-08..12 rows) ---- */
   SETTINGS_TITLE: '设置',
