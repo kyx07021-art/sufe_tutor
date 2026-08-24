@@ -101,8 +101,17 @@ function liveScale() {
   return cv ? cv.clientWidth / PUZZLE_W : 1
 }
 
+/** Puzzle-piece vertical origin = (canvas height - slider height) / 2. Exposed
+    as CSSOM variables so the piece stays glued to the gap when PUZZLE_H /
+    SLIDER_H change — the CSS must never hard-code these px (AK-L-F3 audit: a
+    SLIDER_H 40->32 change left the piece CSS at 40px and desynced the piece
+    from the gap by ~11px). */
+const PIECE_TOP = (PUZZLE_H - SLIDER_H) / 2
+
 function updateScale() {
   boxRef.value?.style.setProperty('--puzzle-scale', liveScale().toFixed(4))
+  boxRef.value?.style.setProperty('--piece-top', PIECE_TOP + 'px')
+  boxRef.value?.style.setProperty('--piece-h', SLIDER_H + 'px')
 }
 
 function onDown(e) {
@@ -260,9 +269,12 @@ onBeforeUnmount(() => {
 .captcha-puzzle__piece {
   position: absolute;
   left: 0;
-  top: calc(40px * var(--puzzle-scale));
+  /* AK-L-F3: top/height come from the derived --piece-top/--piece-h CSSOM
+     channel (CaptchaPuzzle.updateScale), never hard-coded px — keeps the piece
+     glued to the gap under any PUZZLE_H/SLIDER_H change. width = SLIDER_W (40). */
+  top: calc(var(--piece-top, 40px) * var(--puzzle-scale));
   width: calc(40px * var(--puzzle-scale));
-  height: calc(40px * var(--puzzle-scale));
+  height: calc(var(--piece-h, 40px) * var(--puzzle-scale));
   transform: translateX(calc(var(--captcha-x, 0px) * var(--puzzle-scale)));
   pointer-events: none;
 }

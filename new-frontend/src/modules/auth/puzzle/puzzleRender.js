@@ -12,9 +12,12 @@
  *   gate, NOT an auth boundary — the server no longer confirms the challenge).
  */
 export const PUZZLE_W = 280
-export const PUZZLE_H = 120
+/* AK-L-F3: 120 -> 96 (compact auth modal; the piece stays glued to the gap via
+   the derived --piece-top/--piece-h CSSOM channel in CaptchaPuzzle). */
+export const PUZZLE_H = 96
 export const SLIDER_W = 40
-export const SLIDER_H = 40
+/* AK-L-F3: 40 -> 32 (squish heights, font sizes untouched). */
+export const SLIDER_H = 32
 export const PUZZLE_MAX_X = PUZZLE_W - SLIDER_W // 240
 export const PUZZLE_TOLERANCE = 0.08
 

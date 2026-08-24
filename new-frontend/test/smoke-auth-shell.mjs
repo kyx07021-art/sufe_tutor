@@ -30,6 +30,9 @@ import {
   isOtp,
 } from '../src/modules/auth/authMethod.js'
 import { useAuthMethod } from '../src/modules/auth/useAuthMethod.js'
+// AK-L-F3: puzzle constants are imported at test scope so the piece-vs-gap
+// alignment assertion derives the expected geometry from the same source.
+import { PUZZLE_H, SLIDER_H } from '../src/modules/auth/puzzle/puzzleRender.js'
 
 /* ================================================================== *
  * 1. Node unit: state machine (four contactMasks combos + switch reset)
@@ -610,6 +613,63 @@ await assertUiTitleComputedStyle(page, '.register-pane__title', 'register title'
 await assertAuthColumnGeometry(page, 'register')
 // AK-A13: register scene header is the welcoming register copy.
 await assertAuthTitle(page, '欢迎来到平台，请注册账号', 'register')
+
+// --- AK-L-F3: the register modal must fit WITHOUT internal scrolling on common
+// viewports — the puzzle fully visible, the body not scrollable (squish heights
+// not font sizes; the auth-shell layer compresses --input-h/--btn-h/--cb-h/gaps).
+// Mutation: loosen the auth-shell compression (e.g. --input-h back to 40px) ->
+// the mobile scroll assertion turns red.
+async function assertRegisterFits(label) {
+  await page.waitForTimeout(350)
+  const geo = await page.evaluate(() => {
+    const body = document.querySelector('.auth-shell__body')
+    const puzzle = document.querySelector('.captcha-puzzle')
+    const pr = puzzle ? puzzle.getBoundingClientRect() : null
+    return {
+      scrollH: body ? body.scrollHeight : -1,
+      clientH: body ? body.clientHeight : -1,
+      puzzleBottom: pr ? Math.round(pr.bottom) : -1,
+      vh: window.innerHeight,
+    }
+  })
+  check(
+    geo.scrollH <= geo.clientH + 1,
+    label + ': register body must not scroll (scrollH ' + geo.scrollH + ' > clientH ' + geo.clientH + ')',
+  )
+  check(
+    geo.puzzleBottom <= geo.vh,
+    label + ': puzzle must be fully inside the viewport (bottom ' + geo.puzzleBottom + ' > vh ' + geo.vh + ')',
+  )
+  // Piece-vs-gap alignment (AK-L-F3 audit): the slider piece must sit exactly on
+  // the gap cut and match SLIDER_H — the CSS derives top/height from
+  // --piece-top/--piece-h (puzzle constants), so a desynced hard-coded px
+  // (e.g. reverting the CSS to 40px) turns this red.
+  const piece = await page.evaluate(() => {
+    const el = document.querySelector('.captcha-puzzle__piece')
+    if (!el) return null
+    const cs = getComputedStyle(el)
+    return { top: parseFloat(cs.top), height: parseFloat(cs.height) }
+  })
+  const scale = await page.evaluate(() => {
+    const cv = document.querySelector('.captcha-puzzle__canvas')
+    return cv ? cv.clientWidth / 280 : 1
+  })
+  const cutY = (PUZZLE_H - SLIDER_H) / 2
+  check(
+    piece && Math.abs(piece.top - cutY * scale) <= 1,
+    label + ': puzzle piece top must sit on the gap (cutY ' + cutY + ' x scale ' + scale.toFixed(2) + ' = ' + (cutY * scale).toFixed(1) + ', got ' + (piece ? piece.top.toFixed(1) : 'null') + ')',
+  )
+  check(
+    piece && Math.abs(piece.height - SLIDER_H * scale) <= 1,
+    label + ': puzzle piece height must match SLIDER_H (' + (SLIDER_H * scale).toFixed(1) + ', got ' + (piece ? piece.height.toFixed(1) : 'null') + ')',
+  )
+}
+await assertRegisterFits('AK-L-F3 desktop 1440x900')
+await page.setViewportSize({ width: 375, height: 667 })
+await page.waitForTimeout(300)
+await assertRegisterFits('AK-L-F3 mobile 375x667')
+await page.setViewportSize({ width: 1440, height: 900 })
+await page.waitForTimeout(250)
 
 // --- AK-A10: role buttons = B variant with selected gray fill (--gray-10 + --ink) ---
 const roleStudentBtn = page.locator('.register-pane__roles .ui-btn', { hasText: '我是学生' })
