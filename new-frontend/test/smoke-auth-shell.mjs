@@ -275,9 +275,58 @@ async function openModal() {
   await modal.waitFor({ state: 'visible', timeout: 5000 })
 }
 
+/**
+ * AK-A2 horizontal-axis contract (G5 geometry): every identity-auth field
+ * (captcha row / puzzle / identifier / password / register fields) must fill
+ * the .auth-shell__body content column and sit left-right aligned to it — the
+ * centered modal column then yields symmetric whitespace automatically. The
+ * puzzle canvas must upscale (clientWidth/280 >= 1) to fill the column.
+ */
+async function assertAuthColumnGeometry(page, label) {
+  // Wait out the modal open transition (--dur-base 300ms) — boundingBox during the
+  // transform animation measures a mid-scale frame and fails the geometry asserts.
+  await page.waitForTimeout(350)
+  const body = await page.locator('.auth-shell__body').boundingBox()
+  check(body, label + ': .auth-shell__body missing')
+  if (!body) return
+  const targets = [
+    '.ui-captcha',
+    '.captcha-puzzle',
+    '.password-row__identifier .ui-input',
+    '.password-row__password .ui-input',
+    // register fields: .register-pane__field is the UiInput root class on the
+    // invite/username/password fields. NOT `.register-pane .ui-input` — that also
+    // matches the captcha row's inner input (right side has the send button, not
+    // full-width by design).
+    '.register-pane__field',
+  ]
+  for (const sel of targets) {
+    const n = await page.locator(sel).count()
+    for (let i = 0; i < n; i++) {
+      const b = await page.locator(sel).nth(i).boundingBox()
+      check(b, label + ': ' + sel + '[' + i + '] missing')
+      if (!b) continue
+      check(
+        Math.abs(b.width - body.width) <= 1,
+        label + ': ' + sel + '[' + i + '] width ' + b.width.toFixed(1) + ' != body ' + body.width.toFixed(1),
+      )
+      check(
+        Math.abs(b.x - body.x) <= 1 && Math.abs(b.x + b.width - (body.x + body.width)) <= 1,
+        label + ': ' + sel + '[' + i + '] not left-right aligned to body (x=' + b.x.toFixed(1) + ')',
+      )
+    }
+  }
+  const scale = await page.evaluate(() => {
+    const cv = document.querySelector('.captcha-puzzle__canvas')
+    return cv ? cv.clientWidth / 280 : 0
+  })
+  check(scale >= 1, label + ': puzzle should upscale to fill the content column, scale=' + scale.toFixed(2))
+}
+
 // --- open the modal ---
 await openModal()
 check((await modal.count()) === 1, 'modal did not open')
+await assertAuthColumnGeometry(page, 'verify')
 
 // title + method title + cancel
 check((await page.textContent('.auth-shell__title')) === '请验证身份', 'title should be 请验证身份')
@@ -383,6 +432,7 @@ check(
   'login available should list both code channels + password regardless of masks, note: ' + noteText,
 )
 await openModal()
+await assertAuthColumnGeometry(page, 'login')
 // Default method = phone code; the pick-2 switch shows email + password.
 check((await page.textContent('.otp-row__title')) === '手机验证码', 'login default method should be 手机验证码')
 const switchBtns = page.locator('.method-switch .ui-btn')
@@ -395,6 +445,7 @@ check(
 // Switch to password, fill identifier + password, pass the puzzle, confirm.
 await page.locator('.method-switch .ui-btn', { hasText: '密码验证' }).click()
 await page.waitForSelector('.password-row')
+await assertAuthColumnGeometry(page, 'login-password')
 await page.locator('.password-row__identifier .ui-input__ta').fill('alice')
 await page.locator('.password-row__password .ui-input__native').fill('secret123')
 await dragPuzzleTo(await page.evaluate(() => (window.__authPuzzleDebug || {}).target))
@@ -414,6 +465,7 @@ check(
 await page.locator('.auth-preview__row .ui-btn', { hasText: 'register' }).click()
 await openModal()
 await page.waitForSelector('.register-pane')
+await assertAuthColumnGeometry(page, 'register')
 // The password field is a native type=password input (shoulder-surfing guard), not a textarea.
 const regPw = page.locator('.register-pane__password .ui-input__native')
 await regPw.waitFor({ state: 'visible', timeout: 5000 })
@@ -426,6 +478,7 @@ const inviteInput = page.locator('.register-pane [aria-label="邀请码"]')
 await inviteInput.waitFor({ state: 'visible', timeout: 5000 })
 const inviteAria = await inviteInput.getAttribute('aria-label')
 check(inviteAria === '邀请码', 'invite input aria-label should be 邀请码, got: ' + inviteAria)
+await assertAuthColumnGeometry(page, 'register-teacher')
 await page.mouse.click(20, 20)
 await modal.waitFor({ state: 'detached', timeout: 5000 })
 check((await modal.count()) === 0, 'register modal should close via backdrop')
