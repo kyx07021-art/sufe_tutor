@@ -378,6 +378,23 @@ const scrollTopAfter = await page.evaluate(() => {
 })
 if (scrollTopAfter <= 0) errors.push('left click did not scroll right column')
 
+// M5-10 UI-scale honesty (user⑯ "界面缩放可用但还是 toast '该功能开发中'"): the
+// scale control is genuinely live - clicking 大 applies --ui-scale (html zoom 1.1)
+// AND must NOT show the "开发中" placeholder toast. Mutation guard: restoring
+// showToast(NOTIF_COPY.CAP_TOAST) inside selectScale turns the no-CAP-toast
+// assertion red.
+const scaleBtns = await page.locator('.sa-scale-btn').count()
+if (scaleBtns !== 3) errors.push('ui-scale: expected 3 scale buttons, got ' + scaleBtns)
+const zoomBefore = await page.evaluate(() => getComputedStyle(document.documentElement).zoom)
+await page.locator('.sa-scale-btn').nth(2).click() // 大 = 1.1
+await page.waitForTimeout(400)
+const zoomAfter = await page.evaluate(() => getComputedStyle(document.documentElement).zoom)
+if (zoomAfter !== '1.1') errors.push('ui-scale: zoom did not apply after clicking 大 (got ' + zoomAfter + ')')
+if (zoomBefore === zoomAfter) errors.push('ui-scale: zoom unchanged after clicking 大 (was ' + zoomBefore + ')')
+const scaleToasts = await page.locator('.ui-toast').allTextContents().catch(() => [])
+if (scaleToasts.some((t) => t.includes('开发中')))
+  errors.push('ui-scale: scale selection showed a 开发中 placeholder toast: ' + JSON.stringify(scaleToasts))
+
 // two-way sync #2: scroll right to bottom -> last nav highlighted
 await page.evaluate(() => {
   const sc = document.querySelector('.st-scroll')

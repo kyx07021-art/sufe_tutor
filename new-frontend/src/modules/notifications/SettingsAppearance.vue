@@ -17,11 +17,16 @@ import { NOTIF_COPY } from '@/constants/m-notifications'
  *   SETTINGS_SCALE_SMALL / SETTINGS_SCALE_MEDIUM / SETTINGS_SCALE_LARGE.
  *   Selecting applies a local `--ui-scale` factor on the document root via CSSOM
  *   setProperty (the style-src-attr 'none' data channel; `--ui-scale` only).
- * - CAP (m5-10-theme / m5-10-ui-scale): the settings schema does not define
- *   `theme` / `ui-scale` yet, so server persist is intentionally NOT wired
- *   (settings-data.updateSettings is the agreed I-09 path and will replace the
- *   CAP toast once the schema lands). Both controls work locally; each selection
- *   shows CAP_TOAST to keep the cap honest.
+ * - Theme is still CAP (m5-10-theme): the settings schema does not define
+ *   `theme` yet, so server persist is intentionally NOT wired (settings-data
+ *   updateSettings is the agreed I-09 path and will replace the CAP toast once
+ *   the schema lands). The dropdown works locally (data-theme flips the dark
+ *   palette); each selection shows CAP_TOAST to keep the cap honest.
+ * - UI scale is genuinely live (user⑯): `--ui-scale` is consumed by base.css
+ *   `html { zoom: var(--ui-scale, 1) }`, so the whole UI reflows immediately on
+ *   selection. Server persist of the scale is deferred to the same I-09 path,
+ *   but the control is honest - no "development" placeholder toast, the zoom
+ *   simply applies (cap marker removed).
  * - PROPS: none. EMITS: none. Self-contained: reads the live document state on
  *   setup so the controls reflect the current palette / scale.
  * - Contract 6: zero raw CJK (copy via NOTIF_COPY), zero inline style attributes
@@ -68,10 +73,10 @@ function selectTheme(value) {
 function selectScale(value) {
   scale.value = value
   document.documentElement.style.setProperty('--ui-scale', String(SCALE_FACTORS[value]))
-  // CAP m5-10-ui-scale: settings schema has no `ui-scale` field yet. The buttons
-  // apply the factor locally; persist is intentionally not wired (updateSettings
-  // replaces this toast when the schema lands).
-  showToast(NOTIF_COPY.CAP_TOAST)
+  // Genuinely live (user⑯): base.css `html { zoom: var(--ui-scale, 1) }` reflows the
+  // whole UI immediately, so the selected factor is real. Server persist of the scale
+  // is deferred to the I-09 settings path; the control is honest about applying the
+  // zoom now, no "development" placeholder toast.
 }
 </script>
 
@@ -97,7 +102,6 @@ function selectScale(value) {
         class="sa-control sa-scale-group"
         role="group"
         aria-labelledby="sa-scale-label"
-        data-cap="m5-10-ui-scale"
       >
         <UiButton
           v-for="opt in SCALE_OPTIONS"
