@@ -5,7 +5,8 @@ import { onBeforeUnmount, onMounted } from 'vue'
  * -------------------------------------------------------
  * - CSSOM data channel (el.style.setProperty), CSP style-src-attr 'none' compatible.
  * - Coordinate contract: always "component-local coordinates" (left/top relative to the component), consistent with the CSS --mx/--my semantics.
- *   pointermove/pointerdown each do one rect conversion; keyboard has no pointer -> component center.
+ *   pointerdown does one rect conversion; keyboard has no pointer -> component center.
+ *   pointermove never re-aims the origin (AK-H3) — it only refreshes --btn-d.
  * - Click dark layer: add .is-rippling -> one-shot keyframes (ui-ripple) spread to fill + fade back;
  *   animationend removes the class. ui-ripple is defined globally in tokens.css (no scoped suffix);
  *   we still match animationName by prefix as a defensive measure.
@@ -50,15 +51,16 @@ export function useRipple(elRef, { disabled = null } = {}) {
     el.classList.add('is-rippling')
   }
 
-  function onPointerMove(e) {
+  function onPointerMove() {
     if (isBlocked()) return
-    // AK-H2: while a click/focus spread is animating, freeze the origin — the
-    // ripple starts from the first pointer position and must NOT chase the mouse
-    // (hover layer keeps following the pointer; only the click layer freezes).
-    if (el.classList.contains('is-rippling')) return
+    // AK-H3: the ripple origin NEVER chases the mouse. The cover is the button's
+    // own mask, fixed at the trigger point (pointerdown / keyboard center; the
+    // hover layer keeps the CSS default 50%/50% = the button center). Pointer
+    // motion only refreshes --btn-d so size changes (e.g. UiCheckButton
+    // stretching on select) keep a fully covering circle. Without this, moving
+    // the mouse inside the button shifts the gray cover and its edge peeks
+    // outside the button (user: "button's own mask, must not follow the mouse").
     updateCover()
-    const p = toLocal(e.clientX, e.clientY)
-    setPoint(p[0], p[1])
   }
 
   function onPointerDown(e) {
