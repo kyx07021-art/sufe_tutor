@@ -98,7 +98,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="pf">
-    <span class="pf__title">{{ T.FILTER_TITLE_PERSONALITY }}</span>
+    <span class="ui-title-sm">{{ T.FILTER_TITLE_PERSONALITY }}</span>
     <button
       ref="triggerRef"
       type="button"
@@ -146,11 +146,6 @@ onBeforeUnmount(() => {
   max-width: 100%;
 }
 
-.pf__title {
-  color: var(--gray-60);
-  font-size: var(--fs-sm);
-  line-height: var(--lh-tight);
-}
 
 /* trigger: rounded rectangle, left-aligned text, trailing chevron */
 .pf__trigger {

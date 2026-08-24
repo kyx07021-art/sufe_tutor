@@ -103,7 +103,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="gender-filter">
-    <span class="gender-filter__title">{{ T.FILTER_TITLE_GENDER }}</span>
+    <span class="ui-title-sm">{{ T.FILTER_TITLE_GENDER }}</span>
     <button
       ref="triggerRef"
       type="button"
@@ -152,11 +152,6 @@ onBeforeUnmount(() => {
   width: var(--gender-w);
   max-width: 100%;
   min-width: 0;
-}
-.gender-filter__title {
-  font-size: var(--fs-sm);
-  line-height: var(--lh-tight);
-  color: var(--ink);
 }
 .gender-filter__trigger {
   display: inline-flex;

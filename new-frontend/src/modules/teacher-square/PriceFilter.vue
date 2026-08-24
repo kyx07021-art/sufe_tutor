@@ -58,7 +58,7 @@ function onMaxInput(e) {
 
 <template>
   <div class="pf">
-    <div class="pf__title">{{ T.FILTER_TITLE_PRICE }}</div>
+    <div class="ui-title-sm">{{ T.FILTER_TITLE_PRICE }}</div>
     <div class="pf__row">
       <input
         class="pf__input"
@@ -92,13 +92,6 @@ function onMaxInput(e) {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-}
-.pf__title {
-  margin-bottom: 1em; /* one character-height line spacing above the trigger row */
-  color: var(--ink);
-  font-size: var(--fs-base);
-  line-height: var(--lh-body);
-  text-align: left;
 }
 .pf__row {
   display: flex;

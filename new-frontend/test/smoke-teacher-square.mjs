@@ -213,6 +213,22 @@ async function browserChecks(base) {
     if (thirdBar !== 1) fail('filter button did not open the third top bar')
     else ok('filter button opens the third top bar (FilterReveal + ThirdBar)')
 
+    // ---- AK-C2-F5 (#7 field title single source): four filter card titles
+    // unify on .ui-title-sm (8px air, weight 700, ink) ----
+    const titleCs = await page.evaluate(() => {
+      const titles = [...document.querySelectorAll('.tsq__third-bar .ui-title-sm')]
+      return titles.map((el) => {
+        const cs = getComputedStyle(el)
+        return { marginTop: cs.marginTop, weight: cs.fontWeight, color: cs.color }
+      })
+    })
+    if (titleCs.length < 4) fail('AK-C2-F5: four filter card titles must carry .ui-title-sm, got ' + titleCs.length)
+    else {
+      const bad = titleCs.filter((t) => t.marginTop !== '8px' || t.weight !== '700' || t.color !== 'rgb(26, 26, 26)')
+      if (bad.length) fail('AK-C2-F5: filter titles must unify on ui-title-sm (8px/700/ink), got ' + JSON.stringify(titleCs))
+      else ok('AK-C2-F5: four filter card titles unified on .ui-title-sm')
+    }
+
     // ---- PA-2-F4: subject filter emits backend English id, matches English-id rows ----
     await page.locator('.subject-filter__trigger').click()
     await page.waitForTimeout(300)

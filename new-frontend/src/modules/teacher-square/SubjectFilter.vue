@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="rootRef" class="subject-filter">
-    <p class="subject-filter__title">{{ T.FILTER_TITLE_SUBJECT }}</p>
+    <p class="ui-title-sm">{{ T.FILTER_TITLE_SUBJECT }}</p>
 
     <UiButton
       variant="C"
@@ -166,12 +166,6 @@ onBeforeUnmount(() => {
   position: relative;
   width: 100%;
   min-width: 0;
-}
-.subject-filter__title {
-  margin: 0 0 var(--space-2);
-  font-size: var(--fs-sm);
-  line-height: 1.4;
-  color: var(--gray-60);
 }
 .subject-filter__trigger {
   width: 100%;
