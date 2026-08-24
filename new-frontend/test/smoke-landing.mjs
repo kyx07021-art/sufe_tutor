@@ -161,17 +161,30 @@ const draggingClassGone = await page.evaluate(
 )
 if (!draggingClassGone) errors.push('corridor is-dragging class should be removed after pointerup')
 
-// ---- 8. Idle drift (M1-07b): scrollLeft moves while idle (skip if reduced-motion) ----
-const reduced = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)
-if (!reduced) {
-  await page.mouse.move(0, 0) // leave the corridor so drift resumes
-  const driftStart = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
-  await page.waitForTimeout(1600)
-  const driftEnd = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
-  if (Math.abs(driftEnd - driftStart) < 5) {
-    errors.push(`corridor idle drift should move scrollLeft (start=${driftStart.toFixed(0)} end=${driftEnd.toFixed(0)})`)
-  }
+// ---- 8. Idle drift (M1-07b): scrollLeft moves while idle ----
+// AK-M: the idle drift is a core landing-design animation and must keep moving
+// under prefers-reduced-motion too (N-F1 precedent — the user asked for it to
+// auto-scroll and runs with reduced motion, so a reduced gate stopped it
+// deterministically). The reduced sub-check below is the G2 guard: re-adding
+// the reduced gate (the AK-G-era code) turns it red.
+await page.mouse.move(0, 0) // leave the corridor so drift resumes
+const driftStart = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
+await page.waitForTimeout(1600)
+const driftEnd = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
+if (Math.abs(driftEnd - driftStart) < 5) {
+  errors.push(`corridor idle drift should move scrollLeft (start=${driftStart.toFixed(0)} end=${driftEnd.toFixed(0)})`)
 }
+// AK-M reduced sub-check: flip the media condition and confirm the drift keeps moving.
+await page.emulateMedia({ reducedMotion: 'reduce' })
+await page.waitForTimeout(300)
+const redStart = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
+await page.waitForTimeout(1200)
+const redEnd = await page.evaluate(() => document.querySelector('.landing-gallery__viewport').scrollLeft)
+if (Math.abs(redEnd - redStart) < 5) {
+  errors.push(`AK-M: corridor idle drift must continue under prefers-reduced-motion (start=${redStart.toFixed(0)} end=${redEnd.toFixed(0)})`)
+}
+await page.emulateMedia({ reducedMotion: 'no-preference' })
+await page.waitForTimeout(200)
 
 // ---- 8b. Corridor wheel (AK-B4b): the wheel is NOT hijacked — rolling over
 // the gallery scrolls the page vertically (scrollY increases) and the corridor
