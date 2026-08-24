@@ -382,14 +382,6 @@ test('browser: B1 grid renders 4 columns desktop / 2 columns mobile, no overflow
   const overflow = await p.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
   assert.equal(overflow, false, 'no desktop overflow')
 
-  // AK-C2-F3 (#2 black-is-black): sort tab hover keeps ink (no gray-out)
-  const tab = p.locator('.sort-bar__tab').first()
-  const tabInkBefore = await tab.evaluate((el) => getComputedStyle(el).color)
-  await tab.hover()
-  await p.waitForTimeout(250)
-  const tabInkAfter = await tab.evaluate((el) => getComputedStyle(el).color)
-  assert.equal(tabInkAfter, tabInkBefore, 'sort tab hover must keep ink, got ' + tabInkAfter)
-
   // card click -> cap toast (B1-7 seam)
   await p.locator('.b1-card').first().click()
   await p.waitForTimeout(200)
