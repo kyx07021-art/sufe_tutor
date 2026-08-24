@@ -35,6 +35,19 @@ await page.waitForTimeout(300)
 if (await cb.evaluate((el) => el.classList.contains('is-checked'))) errors.push('check A did not deselect')
 const cbWidth2 = await cb.evaluate((el) => el.offsetWidth)
 if (cbWidth2 >= cbWidth) errors.push('check A did not shrink after deselect')
+// AK-C2-F2 (#2 black-is-black): hover must NOT gray the label/check text —
+// focus/hover is a "can click" cue, only the background ripple changes.
+// Read the resting baseline with the pointer parked AWAY from the button
+// first: a prior click leaves the pointer over it, which would gray the
+// baseline and make the assertion blind (G2: restoring the graying rule must
+// turn this red — baseline ink vs hover gray-60).
+await page.mouse.move(4, 4) // park the pointer off the button
+await page.waitForTimeout(150)
+const cbInkBefore = await cb.evaluate((el) => getComputedStyle(el.querySelector('.ui-checkbtn__label')).color)
+await cb.hover()
+await page.waitForTimeout(250)
+const cbInkAfter = await cb.evaluate((el) => getComputedStyle(el.querySelector('.ui-checkbtn__label')).color)
+if (cbInkAfter !== cbInkBefore) errors.push('AK-C2-F2: checkbtn hover must keep label black (ink), got ' + cbInkAfter)
 
 // -- input filtering (digits only) --
 const numInput = page.locator('.ui-input__ta').nth(1)
