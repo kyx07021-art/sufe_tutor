@@ -173,8 +173,10 @@ if (!reduced) {
   }
 }
 
-// ---- 8b. Corridor wheel (PA-2a 3): vertical wheel over the gallery scrolls it
-// horizontally and the page scrollY stays put (N-F5 carried into the new site) ----
+// ---- 8b. Corridor wheel (AK-B4b): the wheel is NOT hijacked — rolling over
+// the gallery scrolls the page vertically (scrollY increases) and the corridor
+// scrollLeft stays put (the corridor does not own the wheel gesture).
+// Drag / touch still move the corridor horizontally (M1-07a). ----
 await page.evaluate(() => {
   const vp = document.querySelector('.landing-gallery__viewport')
   vp.scrollIntoView({ block: 'center' })
@@ -192,11 +194,16 @@ const wheelAfter = await page.evaluate(() => ({
   s: document.querySelector('.landing-gallery__viewport').scrollLeft,
   y: window.scrollY,
 }))
-if (wheelAfter.s - wheelBefore.s < 40) {
-  errors.push(`corridor wheel should scroll horizontally (before=${wheelBefore.s.toFixed(0)} after=${wheelAfter.s.toFixed(0)})`)
+// The wheel scrolls the page: scrollY must rise. G2: re-adding a preventDefault
+// wheel handler makes this assertion red.
+if (wheelAfter.y - wheelBefore.y < 100) {
+  errors.push(`corridor wheel should scroll the page (scrollY ${wheelBefore.y} -> ${wheelAfter.y})`)
 }
-if (Math.abs(wheelAfter.y - wheelBefore.y) > 2) {
-  errors.push(`corridor wheel must not scroll the page (scrollY ${wheelBefore.y} -> ${wheelAfter.y})`)
+// The corridor must not move from the wheel; idle drift pauses on hover, so only
+// a small residual (drift resuming after the page scroll pulls the pointer off)
+// is allowed. A wheel-to-horizontal mapping would move it by ~240px (red).
+if (Math.abs(wheelAfter.s - wheelBefore.s) > 20) {
+  errors.push(`corridor wheel must not scroll the corridor horizontally (scrollLeft ${wheelBefore.s.toFixed(0)} -> ${wheelAfter.s.toFixed(0)})`)
 }
 
 // ---- 9. Scroll reveal + re-register (M1-11) ----

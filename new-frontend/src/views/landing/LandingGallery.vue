@@ -19,7 +19,6 @@ import { LANDING_COPY } from '@/constants/m-landing.js'
 import { useGalleryDrag } from './useGalleryDrag'
 import { useGalleryDrift } from './useGalleryDrift'
 import { useGalleryShrink } from './useGalleryShrink'
-import { useGalleryWheel } from './useGalleryWheel'
 import './landing-gallery-mask.css'
 import gallery1 from '@/assets/img/gallery-1.png'
 import gallery2 from '@/assets/img/gallery-2.png'
@@ -36,11 +35,10 @@ const viewport = ref(null)
 let seqW = 0
 let raf = 0
 
-// M1-07a / M1-07b / M1-09 (+ wheel): bind to the same viewport element
+// M1-07a / M1-07b / M1-09: bind to the same viewport element
 const { isDragging } = useGalleryDrag(viewport)
 useGalleryDrift(viewport, { speed: 40 })
 useGalleryShrink(viewport)
-useGalleryWheel(viewport)
 
 function measureSeqW() {
   const el = viewport.value
