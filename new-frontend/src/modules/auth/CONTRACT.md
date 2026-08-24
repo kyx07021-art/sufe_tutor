@@ -33,7 +33,7 @@ AUTH_METHODS = Object.freeze({ OTP_PHONE:'otp_phone', OTP_EMAIL:'otp_email', PAS
 | M6-4 | 验证码输入行 | `src/modules/auth/OtpRow.vue` | props: `method,value,countdown,sendDisabled,identifier,identifierPlaceholder,identifierFilter`; emits: `update:value,update:identifier,send`; exposes: `startCountdown(sec)` | M0 UiCaptchaInput/UiInput; m-auth |
 | M6-6 | 密码输入模式 | `src/modules/auth/PasswordRow.vue` | props: `value,identifier,identifierPlaceholder`; emits: `update:value,update:identifier` | M0 UiInput; m-auth |
 | M6-7 | 三选二按钮 S1 | `src/modules/auth/MethodSwitch.vue` | props: `methods,current`; emits: `select` | M0 UiButton; m-auth |
-| M6-8b | 拼图交互+本地验证 | `src/modules/auth/CaptchaPuzzle.vue` | emits: `verified(captchaId)`; exposes: `reset()` | puzzleRender; m-auth |
+| M6-8b | 拼图交互+验证 | `src/modules/auth/CaptchaPuzzle.vue` | emits: `verified(captchaId)`; exposes: `reset()` | puzzleRender; api; m-auth |
 | M6-5 | 发送验证码链路 | `src/modules/auth/useOtpSend.js` | `useOtpSend()` → `{sending,send({channel,target,scene})→Promise<boolean>}`（成功 toast=UI_COPY.OTP_SENT） | api; useCountdown; useToast; ui.js |
 | M6-9 | 底部按钮行+灰态门禁 | `src/modules/auth/AuthFooter.vue` | props: `canConfirm,busy`; emits: `confirm` | M0 UiButton; m-auth |
 | M6-10 | 确认提交链路（I-06） | `src/modules/auth/useConfirmSubmit.js` | `useConfirmSubmit()` → `{submitting,submit({type,value,captchaId})→Promise<boolean>}`（body `{credential:{type,value},captchaVerified:true,captchaId}`；captchaId 由 CaptchaPuzzle verified 事件传出，#108） | api; useToast |
@@ -71,7 +71,7 @@ AUTH_METHODS = Object.freeze({ OTP_PHONE:'otp_phone', OTP_EMAIL:'otp_email', PAS
 - 常量（v2 captcha.js 原值）：`PUZZLE_W=280, PUZZLE_H=120, SLIDER_W=40, SLIDER_H=40, PUZZLE_MAX_X=240, TOLERANCE=0.08`；`GAP_SHAPES=['square','circle','triangle','diamond','pentagon']`；形状半径 `R = SLIDER_W/2 - 4 = 16`。
 - 渲染：随机线性渐变底 + 420 噪声点（1.2px）；随机目标 `target ∈ [16, MAX_X-24]/MAX_X`；切口 `cutX=target*MAX_X, cutY=(H-SLIDER_H)/2`；拼图块=切口图像 `destination-in` 裁形状 + 白色描边（rgba(255,255,255,.85) 2px，跟随异形轮廓）；背景缺口 `destination-out` 打洞 + 同描边；2 个干扰洞（随机 24+ 范围，穷举回退确定性左上/右下槽，三洞间距 > 直径 32 不重叠）。
 - 交互：pointerdown/move/up + setPointerCapture；`--captcha-x` CSS 变量数据通道（setProperty，CSP 安全）；轨迹数组 ≤128 点 `{t,x,y}`。
-- 验证（AK-A1a 本地判定）：释放时 `isPuzzleAligned(offset,target,PUZZLE_TOLERANCE=0.08)` 本地比对 → 命中即同步 emit('verified')，**零网络往返**；失败 → shake 类 + 420ms 后重置重绘。tip 文案走 AUTH_COPY（CAPTCHA_TIP/PASS/FAIL/ARIA，v2 逐字）。captcha = 反滥用 UX 门禁非认证边界（真实防线 = 服务端凭证 + OTP/密码 + authRateBatch 限流）；本地生成 captchaId 仅作关联 id 回传 I-06，服务端不再确认（A1b）。
+- 验证：释放时 `|offset-target| <= 0.08` → `api('/captcha/verify',{method:'POST',auth:false,body:{captchaId,offset,track}})` → `ok` → emit('verified')；失败 → shake 类 + 420ms 后重置重绘。tip 文案走 AUTH_COPY（CAPTCHA_TIP/PASS/FAIL/ARIA，v2 逐字）。
 
 ## 6. 接口契约（interfaces.md §19 权威，M6 消费）
 > 路径为线上完整形态；调用侧经 `@/core/api.js` 的 `api()` 调用时**省略 `/api` 前缀**（api() 自动前置）。
@@ -80,7 +80,7 @@ AUTH_METHODS = Object.freeze({ OTP_PHONE:'otp_phone', OTP_EMAIL:'otp_email', PAS
 - **I-02** `POST /api/auth/login/code` 公开 auth:false｜`{identifier,code,deviceId?}`→`{user,authToken}`
 - **I-03** `POST /api/auth/register` 公开 auth:false（teacher 须 inviteCode）｜`{username,password,role,inviteCode?,otpChannel,phone?|email?,code,agreeAgreement,agreePrivacy,deviceId?}`→`{user,authToken,message}`
 - **I-06** `POST /api/auth/verify` 登录 auth:true｜`{credential:{type:'otp'|'password',value},captchaVerified:true,captchaId}`→`{verified:true,capToken}`
-- **I-07** `POST /api/captcha/verify` 新前端已不消费（AK-A1a 本地判定）；端点归属 A1b 处置（删/休眠）。
+- **I-07** `POST /api/captcha/verify` 公开 auth:false｜`{captchaId,offset?,track[10-2000点]}`→`{ok,score}`
 - I-05 `GET /api/auth/me` → `{user:{...,contactMasks:{phone,email}}}`（只给布尔不给值；M6-3 默认判定输入）
 
 ## 7. 分界注记（防双份清理）
