@@ -113,6 +113,8 @@ const atMax = computed(() => props.max > 0 && list.value.length >= props.max)
 
 /* X: inside the right 10% blank, horizontally aligned with the input, vertically centered */
 .ui-varset__remove {
+  /* ripple mask duration (single source for createRipple rAF + CSS fade) */
+  --btn-dur-click: var(--dur-sm);
   position: absolute;
   right: calc(var(--space-2) + 1%);
   top: 50%;
@@ -142,6 +144,8 @@ const atMax = computed(() => props.max > 0 && list.value.length >= props.max)
 
 /* plus: below the rows, aligned to the set's left edge */
 .ui-varset__add {
+  /* ripple mask duration (single source for createRipple rAF + CSS fade) */
+  --btn-dur-click: var(--dur-sm);
   margin-top: var(--space-4);
   width: 40px;
   height: 40px;
@@ -166,51 +170,62 @@ const atMax = computed(() => props.max > 0 && list.value.length >= props.max)
   cursor: default;
 }
 
-/* ripple (X/plus, white round button B) */
+/* ripple (single-path dynamics; the ripple IS the mask - TASK A; vRipple driven) */
 .ui-varset__remove::before,
 .ui-varset__remove::after,
 .ui-varset__add::before,
 .ui-varset__add::after {
   content: "";
   position: absolute;
-  /* AK-H5: hover layer pinned to center; click layer owns --mx/--my. */
-  left: 50%;
-  top: 50%;
-  width: var(--btn-d, 120px);
-  height: var(--btn-d, 120px);
-  margin-left: calc(var(--btn-d, 120px) / -2);
-  margin-top: calc(var(--btn-d, 120px) / -2);
   border-radius: 50%;
-  transform: scale(0);
-  opacity: 0;
   pointer-events: none;
+  opacity: 0;
 }
 .ui-varset__remove::before,
 .ui-varset__add::before {
-  background: var(--gray-15);
+  left: 50%;
+  top: 50%;
+  width: var(--btn-d, 900px);
+  height: var(--btn-d, 900px);
+  margin-left: calc(var(--btn-d, 900px) / -2);
+  margin-top: calc(var(--btn-d, 900px) / -2);
+  background: var(--gray-10);
   transform: scale(1);
-  opacity: 0;
   transition: opacity var(--dur-md) var(--ease-out);
 }
 @media (hover: hover) and (pointer: fine) {
   .ui-varset__remove:hover::before,
-  .ui-varset__add:hover::before,
-  .ui-varset__remove:focus-visible::before,
-  .ui-varset__add:focus-visible::before {
+  .ui-varset__add:hover::before {
     opacity: 1;
-    animation: ui-varset-in var(--dur-xs) var(--ease-out) forwards;
+    animation: ui-fill-in var(--dur-xs) var(--ease-out) forwards;
   }
 }
-@keyframes ui-varset-in {
-  from { transform: scale(0); }
-  to { transform: scale(1); }
-}
 .ui-varset__remove::after,
-.ui-varset__add::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--gray-30); }
+.ui-varset__add::after {
+  left: var(--mx, 50%);
+  top: var(--my, 50%);
+  width: var(--ripple-unit, 2px);
+  height: var(--ripple-unit, 2px);
+  margin-left: 0;
+  margin-top: 0;
+  background: var(--gray-20);
+  transform: translate(-50%, -50%) scale(0);
+}
 .ui-varset__remove.is-rippling::after,
 .ui-varset__add.is-rippling::after {
-  animation: ui-ripple var(--dur-sm) var(--ease-out) forwards; /* AK-H1: 0.1s spread */
+  transform: translate(-50%, -50%) scale(var(--r));
+  animation: ui-ripple var(--btn-dur-click) var(--ease-out) forwards;
 }
+.ui-varset__remove.is-rippling::before,
+.ui-varset__add.is-rippling::before {
+  opacity: 0;
+  transition: none;
+}
+/* disabled: no ripple layers (TASK B) */
+.ui-varset__remove.is-disabled::before,
+.ui-varset__remove.is-disabled::after,
+.ui-varset__add.is-disabled::before,
+.ui-varset__add.is-disabled::after { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   .ui-varset__remove,
@@ -218,6 +233,15 @@ const atMax = computed(() => props.max > 0 && list.value.length >= props.max)
   .ui-varset__remove::before,
   .ui-varset__remove::after,
   .ui-varset__add::before,
-  .ui-varset__add::after { transition: none; animation: none; }
+  .ui-varset__add::after { transition: none; animation: none; transform: none; }
+  .ui-varset__remove:hover::before,
+  .ui-varset__add:hover::before { opacity: 1; transform: scale(1); }
+  .ui-varset__remove.is-rippling::after,
+  .ui-varset__add.is-rippling::after {
+    transform: translate(-50%, -50%) scale(var(--r));
+    opacity: 1;
+  }
+  .ui-varset__remove.is-rippling::before,
+  .ui-varset__add.is-rippling::before { opacity: 0; }
 }
 </style>

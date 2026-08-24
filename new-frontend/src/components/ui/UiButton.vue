@@ -128,8 +128,8 @@ defineExpose({ el })
   --btn-pad: calc(var(--btn-h) / 2);   /* >= half-radius: text endpoints stay inside the two half-circle centers */
   --btn-radius: calc(var(--btn-h) / 2);/* capsule: exact half-circles at both ends */
   --btn-gap: 1em;                      /* text <-> arrow ~ one full-width space */
-  --btn-hover-bg: var(--gray-15);
-  --btn-click-bg: var(--gray-30);
+  --btn-hover-bg: var(--gray-10);
+  --btn-click-bg: var(--gray-20);
   --btn-dur-in: var(--dur-xs);
   --btn-dur-color: var(--dur-sm);
   --btn-dur-focus: var(--dur-md);
@@ -157,7 +157,9 @@ defineExpose({ el })
   cursor: pointer;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  transition: transform var(--btn-dur-color) var(--ease-out);
+  transition:
+    transform var(--btn-dur-color) var(--ease-out),
+    box-shadow var(--btn-dur-focus) var(--ease-out);
 }
 
 /* variant resting */
@@ -212,50 +214,61 @@ defineExpose({ el })
 /* focus ring (radius follows capsule, box-shadow not clipped by overflow) */
 .ui-btn:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--brand); }
 
-/* =========== dual circle layers (ripple) =========== */
+/* =========== ripple (single-path dynamics; the ripple IS the mask) ===========
+   TASK A. Two pseudo-element layers:
+   - ::before = hover fill: a --btn-d circle pinned to the button center, scales
+     0->1 through the shared ui-fill-in keyframes (independent hover semantics).
+   - ::after  = click/keyboard ripple: a 2px circle at --mx/--my scaled by --r.
+     rAF (createRipple) drives --mx/--my from the trigger point to the center while
+     --r grows 0 -> hypot/2+2, so the circle covers the whole button from any click
+     point. Opacity fades in over the first half (ui-ripple keyframes) then STAYS 1:
+     the ripple IS the final mask, cleared on pointerleave/blur. While rippling the
+     ::before hover layer is hidden (exactly one overlay on the button). */
 .ui-btn::before,
 .ui-btn::after {
   content: "";
   position: absolute;
-  /* AK-H5: the hover layer (::before) stays pinned to the button center; the
-     click layer (::after) overrides to the trigger point via --mx/--my. */
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+}
+/* hover fill: a --btn-d circle centered on the button; scale 0->1 via ui-fill-in */
+.ui-btn::before {
   left: 50%;
   top: 50%;
-  width: var(--btn-d, 600px);
-  height: var(--btn-d, 600px);
-  margin-left: calc(var(--btn-d, 600px) / -2);
-  margin-top: calc(var(--btn-d, 600px) / -2);
-  border-radius: 50%;
-  transform: scale(0);
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* hover pale-gray layer: cascade opacity + animation drives transform only
-   (opacity in cascade rules, on unhover the :hover mismatch triggers base transition to fade back evenly) */
-.ui-btn::before {
+  width: var(--btn-d, 900px);
+  height: var(--btn-d, 900px);
+  margin-left: calc(var(--btn-d, 900px) / -2);
+  margin-top: calc(var(--btn-d, 900px) / -2);
   background: var(--btn-hover-bg);
   transform: scale(1);
-  opacity: 0;
   transition: opacity var(--btn-dur-out) var(--ease-out);
 }
 @media (hover: hover) and (pointer: fine) {
-  .ui-btn:hover::before,
-  .ui-btn:focus-visible::before {
+  .ui-btn:hover::before {
     opacity: 1;
-    animation: ui-btn-hover-in var(--btn-dur-in) var(--ease-out) forwards;
+    animation: ui-fill-in var(--btn-dur-in) var(--ease-out) forwards;
   }
 }
-@keyframes ui-btn-hover-in {
-  from { transform: scale(0); }
-  to { transform: scale(1); }
+/* click/keyboard ripple: 2px base at --mx/--my, scaled by --r (driven by rAF) */
+.ui-btn::after {
+  left: var(--mx, 50%);
+  top: var(--my, 50%);
+  width: var(--ripple-unit, 2px);
+  height: var(--ripple-unit, 2px);
+  margin-left: 0;
+  margin-top: 0;
+  background: var(--btn-click-bg);
+  transform: translate(-50%, -50%) scale(0);
 }
-
-/* click dark layer: one-shot animation (spread to fill -> fade back evenly);
-   owns the --mx/--my trigger point (AK-H5). */
-.ui-btn::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--btn-click-bg); }
 .ui-btn.is-rippling::after {
+  transform: translate(-50%, -50%) scale(var(--r));
   animation: ui-ripple var(--btn-dur-click) var(--ease-out) forwards;
+}
+/* while the ripple (mask) is active, hide the hover layer: exactly one overlay */
+.ui-btn.is-rippling::before {
+  opacity: 0;
+  transition: none;
 }
 
 /* =========== content layer =========== */
@@ -275,12 +288,13 @@ defineExpose({ el })
 }
 
 /* arrow focus shift only (direction follows arrow); text/SVG stays ink on hover/focus
-   (AK-B3: black text stays black — only text variant S grays, via its own rule below) */
+   (AK-B3: black text stays black — only text variant S grays, via its own rule below).
+   Disabled guard: the arrow must not move while the button is disabled (TASK B, T1). */
 @media (hover: hover) and (pointer: fine) {
-  .ui-btn:hover .ui-btn__arrow,
-  .ui-btn:focus-visible .ui-btn__arrow { transform: translateX(var(--btn-arrow-shift)); }
-  .ui-btn--arrow-left:hover .ui-btn__arrow,
-  .ui-btn--arrow-left:focus-visible .ui-btn__arrow { transform: translateX(calc(var(--btn-arrow-shift) * -1)); }
+  .ui-btn:not(.is-disabled):hover .ui-btn__arrow,
+  .ui-btn:not(.is-disabled):focus-visible .ui-btn__arrow { transform: translateX(var(--btn-arrow-shift)); }
+  .ui-btn--arrow-left:not(.is-disabled):hover .ui-btn__arrow,
+  .ui-btn--arrow-left:not(.is-disabled):focus-visible .ui-btn__arrow { transform: translateX(calc(var(--btn-arrow-shift) * -1)); }
 }
 
 /* =========== non-white fill palettes (brand purple / danger red) ===========
@@ -340,13 +354,18 @@ defineExpose({ el })
 
 /* =========== reduced-motion fallback =========== */
 @media (prefers-reduced-motion: reduce) {
+  .ui-btn,
   .ui-btn::before,
   .ui-btn::after,
   .ui-btn.is-rippling::after,
   .ui-btn__label,
-  .ui-btn__arrow { animation: none; transition: none; }
-  .ui-btn:hover::before,
-  .ui-btn:focus-visible::before { opacity: 1; transform: scale(1); }
-  .ui-btn::after { opacity: 0; }
+  .ui-btn__arrow { animation: none; transition: none; transform: none; }
+  .ui-btn:hover::before { opacity: 1; transform: scale(1); }
+  /* the ripple-as-mask still appears instantly at full coverage */
+  .ui-btn.is-rippling::after {
+    transform: translate(-50%, -50%) scale(var(--r));
+    opacity: 1;
+  }
+  .ui-btn.is-rippling::before { opacity: 0; }
 }
 </style>

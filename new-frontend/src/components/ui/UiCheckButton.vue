@@ -96,8 +96,8 @@ function onKeydown(e) {
   --btn-fs: 16px;
   --btn-pad: calc(var(--btn-h) / 2);
   --btn-radius: calc(var(--btn-h) / 2);
-  --btn-hover-bg: var(--gray-15);
-  --btn-click-bg: var(--gray-30);
+  --btn-hover-bg: var(--gray-10);
+  --btn-click-bg: var(--gray-20);
   --btn-dur-in: var(--dur-xs);
   --btn-dur-color: var(--dur-sm);
   --btn-dur-focus: var(--dur-md);
@@ -126,7 +126,8 @@ function onKeydown(e) {
   -webkit-tap-highlight-color: transparent;
   transition:
     width var(--dur-sm) var(--ease-out),
-    transform var(--btn-dur-color) var(--ease-out);
+    transform var(--btn-dur-color) var(--ease-out),
+    box-shadow var(--btn-dur-focus) var(--ease-out);
 }
 .ui-checkbtn--a { --btn-bg: var(--paper); border-color: var(--ink); }
 .ui-checkbtn--b { border-color: transparent; }
@@ -166,6 +167,9 @@ function onKeydown(e) {
   from { transform: scale(0.4); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+/* disabled guard: the check loses its brand saturation (TASK B) */
+.ui-checkbtn.is-disabled .ui-checkbtn__check-svg { color: var(--gray-50); }
+.ui-checkbtn.is-disabled .ui-checkbtn__check-svg { animation: none; }
 
 /* label: one in normal flow + one hidden for measuring */
 .ui-checkbtn__label {
@@ -177,43 +181,49 @@ function onKeydown(e) {
   position: absolute;
 }
 
-/* ripple (same as button) */
+/* ripple (single-path dynamics; the ripple IS the mask - TASK A) */
 .ui-checkbtn::before,
 .ui-checkbtn::after {
   content: "";
   position: absolute;
-  /* AK-H5: hover layer pinned to center; click layer owns --mx/--my. */
-  left: 50%;
-  top: 50%;
-  width: var(--btn-d, 600px);
-  height: var(--btn-d, 600px);
-  margin-left: calc(var(--btn-d, 600px) / -2);
-  margin-top: calc(var(--btn-d, 600px) / -2);
   border-radius: 50%;
-  transform: scale(0);
-  opacity: 0;
   pointer-events: none;
+  opacity: 0;
 }
 .ui-checkbtn::before {
+  left: 50%;
+  top: 50%;
+  width: var(--btn-d, 900px);
+  height: var(--btn-d, 900px);
+  margin-left: calc(var(--btn-d, 900px) / -2);
+  margin-top: calc(var(--btn-d, 900px) / -2);
   background: var(--btn-hover-bg);
   transform: scale(1);
-  opacity: 0;
   transition: opacity var(--btn-dur-out) var(--ease-out);
 }
 @media (hover: hover) and (pointer: fine) {
-  .ui-checkbtn:hover::before,
-  .ui-checkbtn:focus-visible::before {
+  .ui-checkbtn:hover::before {
     opacity: 1;
-    animation: ui-checkbtn-hover-in var(--btn-dur-in) var(--ease-out) forwards;
+    animation: ui-fill-in var(--btn-dur-in) var(--ease-out) forwards;
   }
 }
-@keyframes ui-checkbtn-hover-in {
-  from { transform: scale(0); }
-  to { transform: scale(1); }
+.ui-checkbtn::after {
+  left: var(--mx, 50%);
+  top: var(--my, 50%);
+  width: var(--ripple-unit, 2px);
+  height: var(--ripple-unit, 2px);
+  margin-left: 0;
+  margin-top: 0;
+  background: var(--btn-click-bg);
+  transform: translate(-50%, -50%) scale(0);
 }
-.ui-checkbtn::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--btn-click-bg); }
 .ui-checkbtn.is-rippling::after {
+  transform: translate(-50%, -50%) scale(var(--r));
   animation: ui-ripple var(--btn-dur-click) var(--ease-out) forwards;
+}
+.ui-checkbtn.is-rippling::before {
+  opacity: 0;
+  transition: none;
 }
 
 /* content layer above ripple */
@@ -229,13 +239,14 @@ function onKeydown(e) {
    state; only the background ripple communicates hover (principle 2, same as
    UiButton AK-B3). */
 @media (hover: hover) and (pointer: fine) {
-  .ui-checkbtn--a:hover { transform: translateY(var(--btn-lift)); }
+  .ui-checkbtn--a:not(.is-disabled):hover { transform: translateY(var(--btn-lift)); }
 }
 
 /* disabled */
 .ui-checkbtn.is-disabled {
   cursor: default;
   color: var(--gray-50);
+  transition: none; /* stretch / lift transitions stop while disabled (TASK B) */
 }
 .ui-checkbtn.is-disabled::before,
 .ui-checkbtn.is-disabled::after { display: none; }
@@ -246,9 +257,13 @@ function onKeydown(e) {
   .ui-checkbtn::after,
   .ui-checkbtn.is-rippling::after,
   .ui-checkbtn__check,
-  .ui-checkbtn__label { transition: none; animation: none; }
-  .ui-checkbtn:hover::before,
-  .ui-checkbtn:focus-visible::before { opacity: 1; transform: scale(1); }
-  .ui-checkbtn::after { opacity: 0; }
+  .ui-checkbtn__label,
+  .ui-checkbtn__check-svg { transition: none; animation: none; transform: none; }
+  .ui-checkbtn:hover::before { opacity: 1; transform: scale(1); }
+  .ui-checkbtn.is-rippling::after {
+    transform: translate(-50%, -50%) scale(var(--r));
+    opacity: 1;
+  }
+  .ui-checkbtn.is-rippling::before { opacity: 0; }
 }
 </style>

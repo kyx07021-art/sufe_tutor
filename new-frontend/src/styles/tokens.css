@@ -31,7 +31,7 @@
   --danger-active: #b92d32;    /* dark fill active */
   --danger-ink: #ffffff;
   --danger-disabled: #eccbcd;
-  --warn: #f5b301;             /* yellow star (optional unfilled) */
+  --warn: #f5b301;             /* yellow asterisk (optional unfilled) */
   --success: #27a15f;          /* green check (filled) */
 
   /* -- Grayscale (X gray = X% ink + white) -- */
@@ -90,11 +90,33 @@
   --fs-base: 16px;             /* universal base font size */
   --fs-sm: 14px;
   --fs-xs: 12px;
+  --fs-md: 18px;               /* medium: secondary headings / emphasized field value */
   --fs-lg: 20px;
   --fs-xl: 28px;
+  --fs-page-title: 24px;       /* page title: client page headings */
   --fs-display: clamp(40px, 6vw, 76px); /* landing hero display */
   --lh-body: 1.6;
   --lh-tight: 1.3;
+
+  /* -- Text semantic colors (AK-N-㉚: components consume meaning, not raw gray) -- */
+  --text-primary: var(--ink);        /* primary text */
+  --text-secondary: var(--gray-75);  /* informational display text */
+  --text-tertiary: var(--gray-60);   /* secondary labels / captions */
+  --text-muted: var(--gray-50);      /* default gray text */
+  --text-placeholder: var(--gray-50);/* input placeholder */
+  --text-disabled: var(--gray-40);   /* disabled control text */
+  --text-link: var(--brand);         /* interactive link text */
+
+  /* -- Control height ladder (AK-N-㉛: filter triggers / inputs share one height step) -- */
+  --ctrl-h-sm: 40px;
+  --ctrl-h-md: 44px;
+  --ctrl-h-lg: 52px;
+
+  /* -- Font weight ladder (AK-N-㉚: no bare weights in components) -- */
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
 
   /* -- Motion duration (100ms master + multipliers) -- */
   --dur-xs: 100ms;             /* 1x hover fill spread */
@@ -127,8 +149,10 @@
   --input-radius: calc(var(--input-h) / 2); /* capsule radius */
 
   /* -- Buttons (semantic aliases consumed by UiButton) -- */
-  --btn-hover-bg: var(--gray-15);
-  --btn-click-bg: var(--gray-30);
+  /* Secondary motion fills are the weakest gray step (10/20) so hover/ripple never
+     out-shout the content (coordinator gray downgrade: 15/30 -> 10/20). */
+  --btn-hover-bg: var(--gray-10);
+  --btn-click-bg: var(--gray-20);
   --btn-lift: -1px;            /* A-series button hover micro-lift */
   --btn-arrow-shift: 4px;      /* A1/B1 arrow focus shift */
 
@@ -185,12 +209,22 @@ html[data-theme="dark"] {
 
 /* Shared ripple keyframes: consumed by every component's .is-rippling layer.
    Defined globally so all scoped components reference the same animation name
-   (useRipple / vRipple match it by the "ui-ripple" prefix).
-   AK-H1: the spread to scale(1) now happens over the FIRST HALF of the animation
-   (was 30%), so with a 200ms duration the fill reaches the button's own diagonal
-   in 100ms (0.1s) and the second half fades it out. */
+   (createRipple / vRipple match it by the "ui-ripple" prefix).
+   TASK A single-path dynamics: the SPREAD (scale + origin convergence) is driven by
+   rAF via --mx/--my/--r (createRipple), so this keyframe only animates opacity —
+   fades in over the FIRST HALF, then stays fully visible (the ripple IS the mask;
+   animation-fill-mode: forwards keeps it until pointerleave/blur clears .is-rippling). */
 @keyframes ui-ripple {
-  0%   { transform: scale(0); opacity: 1; }
-  50%  { transform: scale(1); opacity: 1; }
-  100% { transform: scale(1); opacity: 0; }
+  0%   { opacity: 0; }
+  50%  { opacity: 1; }
+  100% { opacity: 1; }
+}
+
+/* Shared hover fill: every component's hover gray scales 0->1 from the component
+   center. Previously each of the six ripple components carried a byte-identical
+   private copy (ui-btn-hover-in / ui-checkbtn-hover-in / ui-card-hover-in /
+   ui-combo-v-in / ui-captcha-hover-in / ui-varset-in) — merged here as single source. */
+@keyframes ui-fill-in {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
 }

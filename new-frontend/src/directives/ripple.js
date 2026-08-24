@@ -1,107 +1,37 @@
 import { isRef } from 'vue'
+import { createRipple } from '@/composables/createRipple'
 
 /**
- * v-ripple - ripple directive (v-for dynamic buttons / any clickable element)
- * -------------------------------------------------------
- * - Usage: <button v-ripple>...</button>; pairs with the CSS dual circle layers (::before hover / ::after click) consuming --mx/--my/--btn-d.
- * - Coordinate contract = component-local coordinates; CSSOM setProperty writes --mx/--my (CSP compatible).
- * - Keyboard activation (Enter/Space) spreads from the element center; disabled elements are skipped.
- * - animationend removes .is-rippling (ui-ripple is global in tokens.css; matched by prefix defensively).
+ * v-ripple - directive thin shell over createRipple (TASK A single-path dynamics).
+ * -------------------------------------------------------------------------------
+ * - Usage: <button v-ripple>...</button>; pairs with the CSS dual circle layers
+ *   (::before hover fill / ::after click ripple = mask) consuming --mx/--my/--r/--btn-d.
+ * - Coordinate contract = component-local coordinates; CSSOM setProperty writes
+ *   --mx/--my/--r (CSP style-src-attr 'none' compatible).
+ * - Keyboard activation (Enter/Space) spreads from the element center; disabled elements
+ *   are skipped. animationend carries an e.target === el guard so a child animation
+ *   (e.g. the check SVG) bubbling up cannot clear the mask.
+ * - The ripple IS the mask: it stays visible after the spread until pointerleave/blur.
  */
 
-function updateCover(el) {
-  // AK-H1: diameter = element diagonal (covers the button itself, not 2x overflow).
-  const d = Math.hypot(el.offsetWidth || 0, el.offsetHeight || 0)
-  el.style.setProperty('--btn-d', d.toFixed(1) + 'px')
-}
-
-function toLocal(el, clientX, clientY) {
-  const r = el.getBoundingClientRect()
-  return [clientX - r.left, clientY - r.top]
-}
-
-function setPoint(el, lx, ly) {
-  el.style.setProperty('--mx', Math.round(lx) + 'px')
-  el.style.setProperty('--my', Math.round(ly) + 'px')
-}
-
-function isBlocked(el) {
-  if (el.disabled) return true
-  if (el.__rippleDisabled && el.__rippleDisabled()) return true
-  return false
-}
-
-function ripple(el, lx, ly) {
-  if (isBlocked(el)) return
-  updateCover(el)
-  if (lx !== undefined) setPoint(el, lx, ly)
-  el.classList.remove('is-rippling')
-  void el.offsetWidth
-  el.classList.add('is-rippling')
-}
-
-function onMove(e) {
-  const el = e.currentTarget
-  if (isBlocked(el)) return
-  // AK-H5: the ripple origin never chases the mouse (hover layer pinned to the
-  // button center in CSS, click layer fixed at the trigger point); pointermove
-  // only refreshes the cover diameter so size changes keep a covering circle.
-  updateCover(el)
-}
-
-function onDown(e) {
-  if (e.button !== 0) return
-  const el = e.currentTarget
-  if (isBlocked(el)) return
-  const p = toLocal(el, e.clientX, e.clientY)
-  ripple(el, p[0], p[1])
-}
-
-function onAnimEnd(e) {
-  if (e.animationName && e.animationName.indexOf('ui-ripple') === 0) {
-    e.target.classList.remove('is-rippling')
-  }
-}
-
-function onKeyDown(e) {
-  if (e.key !== 'Enter' && e.key !== ' ') return
-  if (e.repeat) return
-  const el = document.activeElement
-  if (!el || !el.dataset.ripple) return
-  if (e.key === ' ') e.preventDefault()
-  ripple(el, el.offsetWidth / 2, el.offsetHeight / 2)
-}
-
-if (typeof document !== 'undefined') {
-  document.addEventListener('keydown', onKeyDown)
+function resolveDisabled(binding) {
+  if (isRef(binding.value)) return () => binding.value.value
+  if (typeof binding.value === 'function') return binding.value
+  return () => Boolean(binding.value)
 }
 
 export const vRipple = {
   mounted(el, binding) {
-    updateCover(el)
-    el.dataset.ripple = '1'
-    // support dynamic disabled determination (binding.value can be () => boolean)
-    el.__rippleDisabled = isRef(binding.value)
-      ? () => binding.value.value
-      : typeof binding.value === 'function'
-        ? binding.value
-        : () => Boolean(binding.value)
-    el.addEventListener('pointermove', onMove, { passive: true })
-    el.addEventListener('pointerdown', onDown)
-    el.addEventListener('animationend', onAnimEnd)
+    el.__ripple = createRipple(el, { disabled: resolveDisabled(binding) })
+    el.__ripple.bind()
   },
   updated(el, binding) {
-    el.__rippleDisabled = isRef(binding.value)
-      ? () => binding.value.value
-      : typeof binding.value === 'function'
-        ? binding.value
-        : () => Boolean(binding.value)
+    if (el.__ripple) el.__ripple.unbind()
+    el.__ripple = createRipple(el, { disabled: resolveDisabled(binding) })
+    el.__ripple.bind()
   },
   unmounted(el) {
-    delete el.dataset.ripple
-    el.removeEventListener('pointermove', onMove)
-    el.removeEventListener('pointerdown', onDown)
-    el.removeEventListener('animationend', onAnimEnd)
+    if (el.__ripple) el.__ripple.unbind()
   },
 }
 

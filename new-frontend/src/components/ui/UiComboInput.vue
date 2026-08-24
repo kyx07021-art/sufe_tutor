@@ -113,6 +113,8 @@ function onSelect(value) {
 }
 
 .ui-combo__v {
+  /* ripple mask duration (single source for createRipple rAF + CSS fade) */
+  --btn-dur-click: var(--dur-sm);
   position: relative;
   flex: 0 0 48px;
   display: flex;
@@ -131,44 +133,53 @@ function onSelect(value) {
 }
 .ui-combo__v:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--brand); }
 
-/* ripple (same as button B) */
+/* ripple (single-path dynamics; the ripple IS the mask - TASK A) */
 .ui-combo__v::before,
 .ui-combo__v::after {
   content: "";
   position: absolute;
-  /* AK-H5: hover layer pinned to center; click layer owns --mx/--my. */
-  left: 50%;
-  top: 50%;
-  width: var(--btn-d, 200px);
-  height: var(--btn-d, 200px);
-  margin-left: calc(var(--btn-d, 200px) / -2);
-  margin-top: calc(var(--btn-d, 200px) / -2);
   border-radius: 50%;
-  transform: scale(0);
-  opacity: 0;
   pointer-events: none;
+  opacity: 0;
 }
 .ui-combo__v::before {
-  background: var(--gray-15);
+  left: 50%;
+  top: 50%;
+  width: var(--btn-d, 900px);
+  height: var(--btn-d, 900px);
+  margin-left: calc(var(--btn-d, 900px) / -2);
+  margin-top: calc(var(--btn-d, 900px) / -2);
+  background: var(--gray-10);
   transform: scale(1);
-  opacity: 0;
   transition: opacity var(--dur-md) var(--ease-out);
 }
 @media (hover: hover) and (pointer: fine) {
-  .ui-combo__v:hover::before,
-  .ui-combo__v:focus-visible::before {
+  .ui-combo__v:hover::before {
     opacity: 1;
-    animation: ui-combo-v-in var(--dur-xs) var(--ease-out) forwards;
+    animation: ui-fill-in var(--dur-xs) var(--ease-out) forwards;
   }
 }
-@keyframes ui-combo-v-in {
-  from { transform: scale(0); }
-  to { transform: scale(1); }
+.ui-combo__v::after {
+  left: var(--mx, 50%);
+  top: var(--my, 50%);
+  width: var(--ripple-unit, 2px);
+  height: var(--ripple-unit, 2px);
+  margin-left: 0;
+  margin-top: 0;
+  background: var(--gray-20);
+  transform: translate(-50%, -50%) scale(0);
 }
-.ui-combo__v::after { left: var(--mx, 50%); top: var(--my, 50%); background: var(--gray-30); }
 .ui-combo__v.is-rippling::after {
-  animation: ui-ripple var(--dur-sm) var(--ease-out) forwards; /* AK-H1: 0.1s spread */
+  transform: translate(-50%, -50%) scale(var(--r));
+  animation: ui-ripple var(--btn-dur-click) var(--ease-out) forwards;
 }
+.ui-combo__v.is-rippling::before {
+  opacity: 0;
+  transition: none;
+}
+/* disabled: no ripple layers (TASK B) */
+.ui-combo__v:disabled::before,
+.ui-combo__v:disabled::after { display: none; }
 
 .ui-combo__v-icon {
   position: relative;
@@ -182,8 +193,15 @@ function onSelect(value) {
 
 @media (prefers-reduced-motion: reduce) {
   .ui-combo,
+  .ui-combo__v,
   .ui-combo__v::before,
   .ui-combo__v::after,
-  .ui-combo__v.is-rippling::after { transition: none; animation: none; }
+  .ui-combo__v.is-rippling::after { transition: none; animation: none; transform: none; }
+  .ui-combo__v:hover::before { opacity: 1; transform: scale(1); }
+  .ui-combo__v.is-rippling::after {
+    transform: translate(-50%, -50%) scale(var(--r));
+    opacity: 1;
+  }
+  .ui-combo__v.is-rippling::before { opacity: 0; }
 }
 </style>
