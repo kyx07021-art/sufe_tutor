@@ -424,6 +424,12 @@ const hintPass = await page.evaluate(() => {
 check(hintPass && hintPass.isPass, 'AK-A3: hint should carry is-pass on success (G2 pass-fade lock)')
 check(hintPass && hintPass.opacity === '0', 'AK-A3: hint opacity should be 0 after pass, got ' + (hintPass && hintPass.opacity))
 check(await confirmBtn.isEnabled(), 'confirm should enable after code + puzzle pass')
+// AK-J1: an enabled brand confirm must render the brand purple (was paper-white —
+// the .ui-btn--fill-brand background lost the specificity battle and only the
+// disabled state looked right). Mutation: revert --btn-bg var to a direct
+// background: var(--brand) -> this turns red.
+const confirmBg = await confirmBtn.evaluate((el) => getComputedStyle(el).backgroundColor)
+check(confirmBg === 'rgb(108, 92, 231)', 'AK-J1: enabled confirm should fill brand purple #6c5ce7, got ' + confirmBg)
 
 // blocked path B: a covered behind-button is NOT triggered through the overlay
 // (whether the modal closes depends on whether the button sits under the backdrop
@@ -614,10 +620,15 @@ const roleStyle = (loc) =>
     const cs = getComputedStyle(el)
     return { bg: cs.backgroundColor, color: cs.color }
   })
-// resting (no selection yet): B variant transparent fill + ink text
+// AK-I1: the picker opens with student PRE-selected (default choice) — the
+// selected gray fill is visible on first sight (W43 first-visit view; the old
+// test locked the broken empty-default as the expectation). Teacher starts
+// unselected. Mutation: role default back to '' -> these turn red.
 let roleSt = await roleStyle(roleStudentBtn)
-check(roleSt.bg === 'rgba(0, 0, 0, 0)', 'AK-A10: unselected student button should have transparent fill, got ' + roleSt.bg)
-check(roleSt.color === 'rgb(26, 26, 26)', 'AK-A10: unselected student button text should be --ink, got ' + roleSt.color)
+check(roleSt.bg === 'rgb(230, 230, 230)', 'AK-I1: default-selected student button should fill --gray-10 rgb(230,230,230), got ' + roleSt.bg)
+check(roleSt.color === 'rgb(26, 26, 26)', 'AK-I1: default-selected student button text should be --ink, got ' + roleSt.color)
+roleSt = await roleStyle(roleTeacherBtn)
+check(roleSt.bg === 'rgba(0, 0, 0, 0)', 'AK-I1: teacher button starts unselected (transparent), got ' + roleSt.bg)
 // select student -> is-active: gray-10 fill, text stays ink (AK-B3 black-text principle)
 await roleStudentBtn.click()
 await page.waitForTimeout(250)
