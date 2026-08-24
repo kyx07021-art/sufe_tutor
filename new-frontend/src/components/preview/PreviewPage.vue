@@ -7,6 +7,7 @@ import UiCard from '@/components/ui/UiCard.vue'
 import UiIcon from '@/components/ui/UiIcon.vue'
 import UiDropdown from '@/components/ui/UiDropdown.vue'
 import UiCheckButton from '@/components/ui/UiCheckButton.vue'
+import UiCheckbox from '@/components/ui/UiCheckbox.vue'
 import UiInput from '@/components/ui/UiInput.vue'
 import UiCaptchaInput from '@/components/ui/UiCaptchaInput.vue'
 import UiComboInput from '@/components/ui/UiComboInput.vue'
@@ -148,6 +149,11 @@ function leaveStepHidden() {
       <div class="pv__row">
         <UiCheckButton v-model="checkVal" variant="A" label="Check button A" checked-label="Selected A" />
         <UiCheckButton v-model="checkBVal" variant="B" label="Check button B" />
+      </div>
+      <!-- TASK B #5 mutation guard: a disabled+checked checkbox must degrade its
+           brand fill to gray (verify-ripple-dual-path.mjs asserts the box color). -->
+      <div class="pv__row pv__mt">
+        <UiCheckbox model-value="true" disabled label="Disabled checked" />
       </div>
     </section>
 

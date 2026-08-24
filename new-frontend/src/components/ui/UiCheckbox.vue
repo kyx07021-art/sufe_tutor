@@ -140,6 +140,17 @@ function onChange(e) {
 .ui-checkbox.is-disabled .ui-checkbox__box {
   border-color: var(--gray-30);
 }
+/* disabled + checked: brand fill and white check degrade to gray (kept readable
+   but no longer saturated — TASK B #5) */
+.ui-checkbox.is-disabled .ui-checkbox__native:checked + .ui-checkbox__box {
+  border-color: var(--gray-30);
+  background: var(--gray-30);
+}
+.ui-checkbox.is-disabled .ui-checkbox__native:checked + .ui-checkbox__box .ui-checkbox__check {
+  color: var(--gray-50);
+  opacity: 1;
+  transform: scale(1);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .ui-checkbox__box,
