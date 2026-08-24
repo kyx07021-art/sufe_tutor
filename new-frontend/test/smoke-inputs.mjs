@@ -49,6 +49,66 @@ await page.waitForTimeout(250)
 const cbInkAfter = await cb.evaluate((el) => getComputedStyle(el.querySelector('.ui-checkbtn__label')).color)
 if (cbInkAfter !== cbInkBefore) errors.push('AK-C2-F2: checkbtn hover must keep label black (ink), got ' + cbInkAfter)
 
+// -- AK-H1: ripple diameter = button diagonal (NOT diagonal*2) + 200ms duration --
+// The old 2x diameter (>=600px circle) read as an instant overflow flash; the
+// spread now reaches the button's own size in 100ms of a 200ms animation.
+// Mutation: restore *2 in updateCover -> diagonal assert red; restore 700ms
+// (--dur-xl) -> duration assert red.
+// Note: these assertions read computed tokens/manually-pinned pseudo-element
+// state — Playwright synthetic clicks (locator.click) do not consistently
+// dispatch pointerdown through the real input pipeline in this harness, so the
+// ripple lifecycle is asserted via the token + CSS rule + synchronous dispatch
+// below (each independently turns red on its mutation).
+const btnDiag = await page.evaluate(() => {
+  const btn = document.querySelector('.ui-checkbtn')
+  const cs = getComputedStyle(btn)
+  const d = parseFloat(cs.getPropertyValue('--btn-d'))
+  return { w: btn.offsetWidth, h: btn.offsetHeight, d }
+})
+const diagExpect = Math.hypot(btnDiag.w, btnDiag.h)
+if (Math.abs(btnDiag.d - diagExpect) > 2) {
+  errors.push('AK-H1: --btn-d should equal the button diagonal (' + diagExpect.toFixed(1) + 'px), got ' + btnDiag.d)
+}
+// duration token: 200ms total (spread = first half = 100ms)
+const durToken = await page.evaluate(() =>
+  getComputedStyle(document.querySelector('.ui-checkbtn')).getPropertyValue('--btn-dur-click'),
+)
+if (durToken !== '200ms') errors.push('AK-H1: --btn-dur-click should be 200ms, got ' + durToken)
+// CSS rule: pinned .is-rippling drives ui-ripple 0.2s on ::after
+const pinned = await page.evaluate(() => {
+  const btn = document.querySelector('.ui-checkbtn')
+  btn.classList.add('is-rippling')
+  const after = getComputedStyle(btn, '::after')
+  const r = { name: after.animationName, dur: after.animationDuration }
+  btn.classList.remove('is-rippling')
+  return r
+})
+if (pinned.name !== 'ui-ripple' || pinned.dur !== '0.2s') {
+  errors.push('AK-H1: .is-rippling ::after should run ui-ripple 0.2s, got ' + JSON.stringify(pinned))
+}
+
+// -- AK-H2: the spread origin freezes while is-rippling (click layer does not
+// chase the mouse). Pin the rippling state + origin, dispatch a pointermove at a
+// different position (synchronous through useRipple's el listener), assert the
+// origin stays put. Mutation: remove the is-rippling guard in
+// useRipple.onPointerMove -> this turns red.
+const frozenOrigin = await page.evaluate(() => {
+  const btn = document.querySelector('.ui-checkbtn')
+  btn.classList.add('is-rippling')
+  btn.style.setProperty('--mx', '10px')
+  btn.style.setProperty('--my', '20px')
+  const r = btn.getBoundingClientRect()
+  btn.dispatchEvent(new PointerEvent('pointermove', {
+    bubbles: true, cancelable: true, clientX: r.left + 120, clientY: r.top + 30,
+  }))
+  const res = { mx: btn.style.getPropertyValue('--mx'), my: btn.style.getPropertyValue('--my') }
+  btn.classList.remove('is-rippling')
+  return res
+})
+if (frozenOrigin.mx !== '10px' || frozenOrigin.my !== '20px') {
+  errors.push('AK-H2: spread origin must freeze while is-rippling, got mx=' + frozenOrigin.mx + ' my=' + frozenOrigin.my)
+}
+
 // -- input filtering (digits only) --
 const numInput = page.locator('.ui-input__ta').nth(1)
 await numInput.fill('a12b34')
