@@ -411,6 +411,37 @@ async function browserChecks(base) {
       else ok('ended card computed gray background (gray-10)')
     }
 
+    // ---- AK-N-F2: empty state shows the current user's avatar ----
+    const empty = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+    const emptyErrs = []
+    empty.on('console', (m) => m.type() === 'error' && emptyErrs.push(m.text()))
+    empty.on('pageerror', (e) => emptyErrs.push('pageerror: ' + e.message))
+    await empty.route('**/api/my-relations', (route) =>
+      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ relations: [] }) }),
+    )
+    await empty.addInitScript(() => localStorage.setItem('authToken', 'smoke-token'))
+    await empty.goto(base + '/test/harness-relations.html', { waitUntil: 'networkidle' })
+    const emptyState = empty.locator('.rel-states--empty')
+    await emptyState.waitFor({ timeout: 8000 })
+    // Before the auth user is set, the empty state shows the fallback user icon.
+    if (!(await emptyState.locator('.rel-states__avatar-fallback').isVisible())) fail('empty state must show a fallback avatar icon when the user has no avatar')
+    else ok('empty state fallback avatar icon rendered')
+    // Set the signed-in user avatar -> the fallback is replaced by the real
+    // avatar img (reactive through authStore, AK-N-F2).
+    const AVATAR_URL = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" fill="#6c5ce7"/></svg>')
+    await empty.evaluate((src) => { window.__REL_TEST__.setUser({ id: 7, role: 'student', name: 'Self', avatar: src }) }, AVATAR_URL)
+    // Wait two animation frames so the reactive prop update flushes to the DOM.
+    await empty.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    const avatarImgCount = await emptyState.locator('.rel-states__avatar-img').count()
+    if (avatarImgCount !== 1) fail('empty state must render the current user avatar img (count=' + avatarImgCount + ')')
+    else ok('empty state shows the current user avatar')
+    const emptyText = ((await emptyState.locator('.rel-states__text').textContent()) || '').trim()
+    if (!emptyText) fail('empty state must render its copy')
+    else ok('empty state copy rendered: ' + emptyText)
+    if (emptyErrs.length) fail('empty state console/pageerror: ' + emptyErrs.join(' | '))
+    else ok('empty state zero console/pageerror')
+    await empty.close()
+
     // ---- mobile 375 geometry (dual-viewport discipline) ----
     const mobile = await browser.newPage({ viewport: { width: 375, height: 700 } })
     const mobileErrs = []
