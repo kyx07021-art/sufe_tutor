@@ -1,3 +1,4 @@
+// ZD-5（2026-08-26 休眠）：签约/合同全链路休眠——本文件函数保留（休眠非删除，my-contracts 页不注册、无 UI 触发点），恢复时同步路由契约/text 键。
 /**
  * contract feature actions: signing request and contract draft modals.
  */
