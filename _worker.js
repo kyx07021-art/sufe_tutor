@@ -1,5 +1,5 @@
 /**
- * 经途·伴学信息门户 - Cloudflare Pages Worker 入口（编排层）
+ * 经世知途·伴学信息门户 - Cloudflare Pages Worker 入口（编排层）
  * 本文件只做编排：CORS 预检 → 静态回退 → 初始化 → 体积闸门 → 限流 → 路由分发 → 留档包装。
  * 限流（security.rateGate）、CORS/安全头（security.*）、请求体解析（util.parseBody）、
  * 身份守卫（security.requireUser/requireAdmin）均为咽喉层实现，本文件不承载业务策略。
