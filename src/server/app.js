@@ -7,7 +7,9 @@ import { routes as teacherRoutes } from './domains/teacher/api.js';
 import { routes as settingsRoutes } from './domains/settings/api.js';
 import { routes as demandRoutes } from './domains/demand/api.js';
 import { routes as chatRoutes } from './domains/chat/api.js';
-import { routes as contractRoutes } from './domains/contract/api.js';
+// ZD-1（休眠，2026-08-26）：签约/合同全链路休眠——contract 域路由不再装配（11 端点 404）。
+// import 保留供未来恢复（休眠非删除）；domain 文件保留，路由表仅此处停用。
+// import { routes as contractRoutes } from './domains/contract/api.js';
 import { routes as awardsRoutes } from './domains/awards/api.js';
 import { routes as postsRoutes } from './domains/posts/api.js';
 import { routes as complaintsRoutes } from './domains/complaints/api.js';
@@ -39,7 +41,8 @@ export const routes = [
   ...settingsRoutes,
   ...demandRoutes,
   ...chatRoutes,
-  ...contractRoutes,
+  // ZD-1（休眠）：contract 域路由停用（签约/合同全链路休眠，11 端点 → 404；恢复时取消注释并同步路由契约数）
+  // ...contractRoutes,
   ...awardsRoutes,
   ...postsRoutes,
   ...complaintsRoutes,
