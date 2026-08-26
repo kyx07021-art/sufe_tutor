@@ -174,7 +174,7 @@ export const TEXT = {
   "NOTIF_PENALTY_ACTION_REMOVE": "移除内容",
   "NOTIF_RULE_FALLBACK": "平台规则",
   "CHAT_BTN_DRAFT_CONTRACT": "起草合同",
-  "CHAT_PLUS_ARIA": "附件与合同",
+  "CHAT_PLUS_ARIA": "发送附件",
   "CHAT_PREVIEW_CONTRACT": "[合同草案]",
   "CHAT_PREVIEW_SIGNING_REQ": "[签约请求]",
   "CHAT_PREVIEW_SIGNING_RESP": "[签约回应]",
