@@ -3,7 +3,7 @@
  * Session persistence, cache invalidation, prefs, UI-scale preview and
  * logout reset registry.
  */
-import { CONFIG } from '../../shared/config.js';
+import { CONFIG, THEME_DEFAULT } from '../../shared/config.js';
 import { STATUS, ROLES } from '../../shared/enums.js';
 import { uiScaleReflow } from './ui-scale-reflow.js';
 
@@ -128,7 +128,7 @@ export function getDeviceId() {
   } catch { return ''; }
 }
 
-export function getThemePref() { try { return safeGet(localStorage, CONFIG.THEME_KEY) || 'system'; } catch { return 'system'; } }
+export function getThemePref() { try { return safeGet(localStorage, CONFIG.THEME_KEY) || THEME_DEFAULT; } catch { return THEME_DEFAULT; } }
 export function storeThemePref(pref) { try { safeSet(localStorage, CONFIG.THEME_KEY, pref); } catch { /* ignore */ } }
 export function getOrbPref() { try { const v = safeGet(localStorage, CONFIG.ORB_KEY || 'sufe_orb'); return (v === 'elegant' || v === 'hidden') ? v : 'vivid'; } catch { return 'vivid'; } }
 export function setOrbPref(pref) { try { safeSet(localStorage, CONFIG.ORB_KEY || 'sufe_orb', pref); } catch { /* ignore */ } }

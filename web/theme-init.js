@@ -1,6 +1,11 @@
 /**
  * Synchronous first-frame theme/UI-scale/style injection for web/index.html.
  * No Chinese, no fetch, no inline scripts.
+ * NOTE (ZL): this is a classic IIFE (loaded via <script src> without type=module,
+ * CSP script-src 'self'), so it cannot import src/shared/config.js. The 'liquid' and
+ * 'system' fallbacks below mirror STYLE_DEFAULT / THEME_DEFAULT in src/shared/config.js;
+ * changing either default requires updating both places (parity locked by
+ * test/zl-defaults.test.js).
  */
 (function () {
   function read(key, fallback) { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } }

@@ -4,7 +4,7 @@
  * handled by web/theme-init.js for the first frame, this module handles runtime
  * switching and settings-page calls.
  */
-import { CONFIG } from '../../shared/config.js';
+import { CONFIG, STYLE_DEFAULT, THEME_DEFAULT } from '../../shared/config.js';
 import { THEME, STYLE_PACKS, LG } from '../constants/theme.js';
 import { getOrbPref } from './state.js';
 
@@ -17,7 +17,7 @@ export function themeIsDark(pref) {
 
 export function applyTheme() {
   if (typeof document === 'undefined') return;
-  const pref = readLS(CONFIG.THEME_KEY) || 'system';
+  const pref = readLS(CONFIG.THEME_KEY) || THEME_DEFAULT;
   const dark = themeIsDark(pref);
   const root = document.documentElement;
   root.dataset.theme = dark ? 'dark' : 'light';
@@ -142,11 +142,11 @@ function installMouseGlowFollow(glow) {
 
 export function getStylePref() {
   const v = readLS(CONFIG.STYLE_KEY);
-  return v === 'flat' ? 'flat' : 'liquid';
+  return v === 'flat' ? 'flat' : STYLE_DEFAULT;
 }
 
 export function setStylePref(pref) {
-  const p = pref === 'flat' ? 'flat' : 'liquid';
+  const p = pref === 'flat' ? 'flat' : STYLE_DEFAULT;
   writeLS(CONFIG.STYLE_KEY, p);
   applyPageStyle();
   document.querySelectorAll('.style-opt').forEach(b => b.classList.toggle('style-opt--on', b.dataset.pref === p));
@@ -154,7 +154,7 @@ export function setStylePref(pref) {
 }
 
 export function setThemePref(pref) {
-  const p = pref === 'dark' || pref === 'light' || pref === 'system' ? pref : 'system';
+  const p = pref === 'dark' || pref === 'light' || pref === 'system' ? pref : THEME_DEFAULT;
   writeLS(CONFIG.THEME_KEY, p);
   applyPageStyle();
   document.querySelectorAll('.theme-opt').forEach(b => b.classList.toggle('theme-opt--on', b.dataset.pref === p));
@@ -195,7 +195,7 @@ export function initAppearance() {
   applyPageStyle();
   if (typeof window !== 'undefined' && window.matchMedia) {
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      const pref = readLS(CONFIG.THEME_KEY) || 'system';
+      const pref = readLS(CONFIG.THEME_KEY) || THEME_DEFAULT;
       if (pref === 'system') applyPageStyle();
     });
   }

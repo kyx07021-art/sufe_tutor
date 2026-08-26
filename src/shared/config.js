@@ -244,6 +244,11 @@ export const INVITE_GATE_ENABLED = true;
 export const LEGACY_ADMIN_PASSWORD = "admin_sufe";
 export const INITIAL_RATING = 4.5;
 export const INITIAL_WEIGHT = 10;
+// ZL: default page-style / theme preferences single source. Consumed by core/appearance.js
+// and core/state.js; web/theme-init.js mirrors these two literals (classic IIFE cannot import —
+// parity locked by test/zl-defaults.test.js, change a default requires updating both places).
+export const STYLE_DEFAULT = 'liquid';   // default page-style pref (liquid/flat)
+export const THEME_DEFAULT = 'system';   // default theme pref (system/dark/light)
 export const NUM_T = "[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億]";
 export const NUM_SEP = "[-·、．.，, ]";
 export const ADDRESS_GUARD = /(?:(?:[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億][-·、．.，, ]?)+[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億][-·、．.，, ]?号(?!线)|(?:[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億][-·、．.，, ]?)*[0-9０-９一二三四五六七八九十百千万亿两〇零壹贰叁肆伍陆柒捌玖拾佰仟萬億][-·、．.，, ]?(?:号楼|室|栋|单元|门牌))/;
