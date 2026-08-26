@@ -2,7 +2,7 @@
  * 路由模块：教师（档案读写 / 教师列表）
  * 档案可见性三级（身份一律凭令牌）：
  *   本人       全字段（含联系方式/真实姓名/学信网截图，供编辑表单预填）
- *   双向匹配   公开档案 + 真实姓名 + 学信网截图（联系方式仍按「签约后展示」规则不下发）
+ *   双向匹配   公开档案 + 真实姓名 + 学信网截图 + 联系方式（ZD-2：建立会话后开放，不再等签约）
  *   公开/游客  仅公开档案（列表接口，联系方式与私密认证字段一律剥离）
  * 依赖：util / security（requireUser）/ constants（校验文案/限额/门牌守卫）/ db / log。
  */
@@ -103,8 +103,7 @@ export async function handleVerifyAdmission(db, body, req) {
 
 // ?userId= 缺省 = 本人（编辑预填）；传他人 id：
 //   未匹配 → 403（面板数据源是列表接口，不应走到这里）
-//   双向匹配 → 公开档案 + 真实姓名 + 学信网截图
-//   已签约   → 再追加联系方式（微信/邮箱，「签约后展示」规则的兑现层）
+//   双向匹配 → 公开档案 + 真实姓名 + 学信网截图 + 联系方式（微信/邮箱；ZD-2：建立会话后直接开放，不再等签约）
 export async function handleGetProfile(db, url, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
