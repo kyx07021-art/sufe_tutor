@@ -44,9 +44,10 @@ const DEMANDS_SELECT = `SELECT sd.*, u.username, u.avatar, COALESCE(ic.cnt, 0) A
     FROM demand_intents GROUP BY demand_id) ic
     ON ic.demand_id=sd.id`;
 
-// 需求行默认脱敏出口：parent_contact/student_contact（产品规则：签约后才向对方展示，服务端硬把关）、
-// address_detail（详细门牌号，合规停用）一律在此剥除，任何走 mapper 的出口都拿不到联系方式。
-// 需要联系方式的场景（本人「我的需求」、管理员全量）显式用 mapDemandRowFull。
+// 需求行默认脱敏出口：parent_contact/student_contact（ZD-3 2026-08-26：产品规则从「签约后展示」放宽为「建立会话后展示」——
+// 教师视角且该教师与需求学生已建立会话 → 显式走 mapDemandRowFull；未匹配/匿名仍经此默认出口剥除）、
+// address_detail（详细门牌号，合规停用）一律在此剥除，任何未匹配出口都拿不到联系方式。
+// 需要联系方式的场景（本人「我的需求」、管理员全量、教师已匹配）显式用 mapDemandRowFull。
 export function mapDemandRow(r) {
   // 警示：...rest 透传 student_demands 全部其余列——未来新增敏感列必须在此显式剥除，否则默认外泄
   const { parent_contact, student_contact, address_detail, ...rest } = r;
@@ -62,7 +63,7 @@ export function mapDemandRow(r) {
   };
 }
 
-// 含联系方式变体：仅「本人需求」与「管理员全量」两处显式调用（归属/角色已由调用方校验）。
+// 含联系方式变体：调用方 = 本人「我的需求」、管理员全量、教师已匹配分支（dbGetDemands teacherUserId 已建立会话），归属/角色已由调用方校验。
 // 网安报告 F-06：联系方式加密列，出门即解密（调用方均为 async）
 async function mapDemandRowFull(r) {
   const [parentContact, studentContact] = await Promise.all([decryptField(r.parent_contact), decryptField(r.student_contact)]);

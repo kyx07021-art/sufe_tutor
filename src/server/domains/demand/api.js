@@ -175,7 +175,7 @@ export async function handleCreateDemand(db, body, req) {
 }
 
 // 需求列表三视角，scope 显式选择（身份一律凭令牌，自报 id 的查询参数已废除）。
-// 联系方式脱敏已下沉 db.js mapDemandRow 默认出口（任何出口都拿不到），此处不再重复裁剪：
+// 联系方式脱敏已下沉 db.js mapDemandRow 默认出口（未匹配/匿名出口都拿不到；教师已建立会话分支经 ZD-3 放宽），此处不再重复裁剪：
 //   （缺省）      公开广场：排除 contracted/revoked，访客可用
 //   scope=mine        我的需求：含联系方式（mapDemandRowFull），仅本人
 //   scope=for-teacher 教师大厅视角：每条附本人 my_intent_status（按钮三态用）
