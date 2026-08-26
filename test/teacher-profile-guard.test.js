@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { handleSaveProfile } from '../src/server/domains/teacher/api.js';
+import { dbUpsertTeacherVerification } from '../src/server/domains/teacher/repo.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -57,6 +58,8 @@ async function seed(db, raw) {
   raw.exec(`INSERT INTO users (username,password_hash,salt,role) VALUES ('t1','h','s','teacher')`);
   // 注意：initDb 先建种子管理员（admin_sufe 占 id=1），教师 t1 的 id 须实测反查
   const tea = raw.prepare("SELECT id FROM users WHERE username='t1'").get().id;
+  // ZH-2（2026-08-26）：认证改为填资料前提，handleSaveProfile 读 teacher_verifications 表 approved 判定——测试教师写 approved 核验记录
+  await dbUpsertTeacherVerification(db, { userId: tea, verifyCode: 'TESTCODE123456', status: 'approved', school: '测试大学', level: '本科', verifyType: 'chsi' });
   const token = 'tea-token';
   raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
     .run(await tokenDigest(token), tea, 'x', '2099-01-01 00:00:00');
@@ -252,4 +255,59 @@ test('高考成绩白名单：subject 池过滤、score 钳到 [0,300]、非法 
   // 非数组 → 400
   r = await handleSaveProfile(db, { profile: { ...baseProfile, gaokao_scores: 'x' } }, reqOf(token));
   assert.equal(r.status, 400, 'gaokao_scores 非数组拒绝');
+});
+// ── ZH-2（2026-08-26）：认证改为填资料前提——未认证教师拒绝保存资料（DB 字段保留），已认证放行 ──
+test('ZH-2 认证门禁：未认证教师保存资料 → 403 CHSI_VERIFY_REQUIRED，DB 零写入', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  raw.exec("INSERT INTO users (username,password_hash,salt,role) VALUES ('t2','h','s','teacher')");
+  const tea = raw.prepare("SELECT id FROM users WHERE username='t2'").get().id;
+  const token = 't2-token';
+  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
+    .run(await tokenDigest(token), tea, 'x', '2099-01-01 00:00:00');
+  const r = await handleSaveProfile(db, { profile: { ...baseProfile } }, reqOf(token));
+  assert.equal(r.status, 403, '未认证教师保存应 403');
+  assert.equal((await r.json()).code, 'TEACHER_CHSI_VERIFY_REQUIRED');
+  const row = raw.prepare('SELECT id FROM teacher_profiles WHERE user_id=?').get(tea);
+  assert.equal(row, undefined, '未认证保存应零写入（DB 字段保留——本用例原本无档案，保持无档案）');
+});
+
+test('ZH-2 认证门禁：无核验记录教师保存资料 → 403 CHSI_VERIFY_REQUIRED', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  raw.exec("INSERT INTO users (username,password_hash,salt,role) VALUES ('t3','h','s','teacher')");
+  const tea = raw.prepare("SELECT id FROM users WHERE username='t3'").get().id;
+  const token = 't3-token';
+  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
+    .run(await tokenDigest(token), tea, 'x', '2099-01-01 00:00:00');
+  const r = await handleSaveProfile(db, { profile: { ...baseProfile } }, reqOf(token));
+  assert.equal(r.status, 403);
+  assert.equal((await r.json()).code, 'TEACHER_CHSI_VERIFY_REQUIRED');
+});
+
+test('ZH-2 认证门禁：已认证教师保存资料正常（原 10 个 guard 测试同款 seed 语义）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { token, tea } = await seed(db, raw);
+  const r = await handleSaveProfile(db, { profile: { ...baseProfile } }, reqOf(token));
+  assert.notEqual(r.status, 403, '已认证教师保存不应 403');
+  const row = rowOf(raw, tea);
+  assert.equal(row.grade, 'freshman', '已认证教师保存应落库');
+});
+
+// ZH-2（审计 GAP 补强）：已填资料的未认证教师再次保存 → 403 + 存量行逐字不变（用户「字段留着但也需要再走一遍认证」）
+test('ZH-2 认证门禁：已填资料未认证教师再次保存 403 + 存量行不变', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  raw.exec("INSERT INTO users (username,password_hash,salt,role) VALUES ('t4','h','s','teacher')");
+  const tea = raw.prepare("SELECT id FROM users WHERE username='t4'").get().id;
+  // 直接 INSERT 存量档案（无核验记录 = 未认证），模拟「填过资料但没认证」的教师
+  raw.prepare(`INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,price_min,price_max,intro)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(tea, 'shanghai', 'sophomore', 'female', '["math"]', '[]', 120, 180, '存量简介');
+  const token = 't4-token';
+  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')
+    .run(await tokenDigest(token), tea, 'x', '2099-01-01 00:00:00');
+  const r = await handleSaveProfile(db, { profile: { ...baseProfile, intro: '尝试修改' } }, reqOf(token));
+  assert.equal(r.status, 403, '已填资料未认证教师再次保存应 403');
+  const row = raw.prepare('SELECT intro FROM teacher_profiles WHERE user_id=?').get(tea);
+  assert.equal(row.intro, '存量简介', '存量字段保留不变（未认证不覆盖）');
 });

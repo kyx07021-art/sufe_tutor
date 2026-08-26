@@ -130,6 +130,10 @@ export async function handleSaveProfile(db, body, req) {
   const { user: me, err } = await requireUser(db, req);
   if (err) return err;
   if (me.role !== 'teacher') return errorMsg('NO_PERMISSION', 403); // 仅教师可建档案（防学生/管理员写 teacher_profiles）
+  // ZH-2（2026-08-26）：认证改为填资料的前提——未认证（teacher_verifications 非 approved）拒绝保存资料，
+  // DB 已填字段保留不清（只拒写，认证通过后可继续）。verification 表是状态真源，chsi_verified 是派生镜像。
+  const ver = await dbGetTeacherVerification(db, me.id);
+  if (!ver || ver.status !== 'approved') return errorMsg('CHSI_VERIFY_REQUIRED', 403);
   if (!p.province || !SUFE_REGIONS.isValidProvince(p.province)) return errorMsg('PROVINCE_REQUIRED');
 
   // R2-5 报价区间化：price_min/price_max 各自钳制，保留 null=未填语义（不转 0，完整性门槛据此拦截）；

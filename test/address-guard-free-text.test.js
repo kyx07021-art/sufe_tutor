@@ -12,6 +12,7 @@ import { initDb } from '../src/server/core/db.js';
 import { tokenDigest, decryptField } from '../src/server/core/crypto.js';
 import { handleCreateDemand } from '../src/server/domains/demand/api.js';
 import { handleSaveProfile } from '../src/server/domains/teacher/api.js';
+import { dbUpsertTeacherVerification } from '../src/server/domains/teacher/repo.js';
 import { bindTextAuditEnv } from '../src/server/core/text-audit.js';
 import { auditBeforeWrite } from '../src/server/core/audit-flow.js'; // Q-2c-F5：门牌守卫审计面 = _worker 全局断点
 import { TEST_SECRETS } from './_test-secrets.js';
@@ -61,6 +62,9 @@ async function seed(db, raw) {
   await initDb(db, ENV);
   raw.exec(`INSERT INTO users (username,password_hash,salt,role) VALUES ('stu','h','s','student'),('tea','h','s','teacher')`);
   const idOf = name => raw.prepare("SELECT id FROM users WHERE username=?").get(name).id;
+  // ZH-2（2026-08-26）：认证改为填资料前提，handleSaveProfile 读 teacher_verifications approved——tea 教师补核验记录
+  const teaId = idOf('tea');
+  await dbUpsertTeacherVerification(db, { userId: teaId, verifyCode: 'TESTCODE123456', status: 'approved', school: '测试大学', level: '本科', verifyType: 'chsi' });
   const mkToken = async name => {
     const token = `${name}-token`;
     raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at) VALUES (?,?,?,?)')

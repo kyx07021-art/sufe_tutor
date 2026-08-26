@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { tokenDigest } from '../src/server/core/crypto.js';
+import { dbUpsertTeacherVerification } from '../src/server/domains/teacher/repo.js';
 import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
@@ -89,6 +90,9 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   await handleCreatePost(db, { title: '物理笔记', bodyMd: '牛顿三大定律总结' }, req({ 'X-Auth-Token': sData.authToken }));
   const t = await registerWithContact(db, req(), { username: 'bobt', password: 'pass123456', role: 'teacher' });
   const tData = await t.json();
+  // ZH-2（2026-08-26）：认证改为填资料前提，handleSaveProfile 读 teacher_verifications approved
+  const bobtId = raw.prepare("SELECT id FROM users WHERE username='bobt'").get().id;
+  await dbUpsertTeacherVerification(db, { userId: bobtId, verifyCode: 'TESTCODE123456', status: 'approved', school: '测试大学', level: '本科', verifyType: 'chsi' });
   const prof = await (await import('../src/server/domains/teacher/api.js')).handleSaveProfile(db, {
     profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '注重方法', address: '浦东新区·花木街道', school: '上财' },
   }, req({ 'X-Auth-Token': tData.authToken }));
@@ -191,6 +195,9 @@ test('D1/D2：合同与签约请求提取 + 处罚（审查补丁覆盖）', asy
   semanticPass();
   const teaReg = await registerWithContact(db, req(), { username: 'teach0', password: 'pass123456', role: 'teacher' });
   const teaToken = (await teaReg.json()).authToken;
+  // ZH-2（2026-08-26）：认证改为填资料前提，teach0 补 approved 核验记录
+  const teach0Id = raw.prepare("SELECT id FROM users WHERE username='teach0'").get().id;
+  await dbUpsertTeacherVerification(db, { userId: teach0Id, verifyCode: 'TESTCODE123456', status: 'approved', school: '测试大学', level: '本科', verifyType: 'chsi' });
   await registerWithContact(db, req(), { username: 'stud0', password: 'pass123456', role: 'student' });
   // 建教师档案（teacher 类型处罚定位走 dbGetTeacherProfile，无档案行 → 404）
   const prof = await (await import('../src/server/domains/teacher/api.js')).handleSaveProfile(db, {
