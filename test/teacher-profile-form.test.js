@@ -129,7 +129,10 @@ test('F1c 空档案：profile null → 空表单默认值（无 undefined/null �
 
 test('F1c 进入链路：GET profile → 渲染表单 → time_slots 预填 → 地址 picker 挂载', async () => {
   setup();
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ profile: FULL_PROFILE }) });
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
+    return { ok: true, status: 200, json: async () => ({ profile: FULL_PROFILE }) };
+  };
   await actions.enterTeacherProfile();
   const el = dom.window.document.getElementById('teacher-profile-content');
   assert.ok(el.querySelector('#teacher-profile-form'), '表单已渲染');
@@ -166,7 +169,10 @@ test('F1c 进入链路：加载失败 → 错误态渲染（零 JS 抛错）', a
 
 async function setupForm(profile) {
   setup();
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ profile: profile || null }) });
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
+    return { ok: true, status: 200, json: async () => ({ profile: profile || null }) };
+  };
   await actions.enterTeacherProfile();
   return dom.window.document.getElementById('teacher-profile-content');
 }
@@ -437,6 +443,7 @@ test('F1d3 提交：payload shape 与服务端契约一致 + 成功回读', asyn
   setup();
   let postBody = null;
   globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
     if ((opts || {}).method === 'POST') { postBody = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ message: 'ok' }) }; }
     return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
   };
@@ -467,6 +474,7 @@ test('F1d3 必填校验：缺必填（空表单）→ toast + 零 POST', async (
   setup();
   let called = false;
   globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
     if ((opts || {}).method === 'POST') { called = true; return { ok: true, json: async () => ({}) }; }
     return { ok: true, status: 200, json: async () => ({ profile: null }) };
   };
@@ -483,6 +491,7 @@ test('F1d3 time_slots 必填：无时间段 → toast + 零 POST', async () => {
   let called = false;
   const profile = { province: 'shanghai', teaching_method: 'online', grade: 'sophomore', gender: 'female', subjects: ['math', 'english'], price_min: 100, price_max: 150 };
   globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
     if ((opts || {}).method === 'POST') { called = true; return { ok: true, json: async () => ({}) }; }
     return { ok: true, status: 200, json: async () => ({ profile }) };
   };
@@ -502,6 +511,7 @@ test('F1d3 GAP-A 凭证回传：有存量凭证原样回传（防保存清空）
   let postBody = null;
   const profile = { ...F3_SAVE_PROFILE, credential_image: 'data:image/png;base64,AAAA' };
   globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
     if ((opts || {}).method === 'POST') { postBody = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ message: 'ok' }) }; }
     return { ok: true, status: 200, json: async () => ({ profile }) };
   };
@@ -515,6 +525,7 @@ test('F1d3 GAP-B 价格区间：max<min → toast + 零 POST', async () => {
   setup();
   let called = false;
   globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
     if ((opts || {}).method === 'POST') { called = true; return { ok: true, json: async () => ({}) }; }
     return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
   };
@@ -533,6 +544,7 @@ test('F1d3 GAP-C 成功回读：保存后重拉档案并重渲染', async () => 
   setup();
   let getCount = 0;
   globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
     if ((opts || {}).method === 'POST') return { ok: true, status: 200, json: async () => ({ message: 'ok' }) };
     getCount++;
     return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
@@ -549,6 +561,7 @@ test('F1d3 GAP-D 缓存失效：保存后 invalidate(teachers) 清公开列表�
   setup();
   state.allTeachers = [{ user_id: 40 }]; // 预置陈旧缓存（G4：测试后重置）
   globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
     if ((opts || {}).method === 'POST') return { ok: true, status: 200, json: async () => ({ message: 'ok' }) };
     return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
   };
@@ -622,6 +635,7 @@ test('F1e admission 提交：未选照片 → toast + 零 POST', async () => {
   setup();
   let called = false;
   globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
     if ((opts || {}).method === 'POST') { called = true; return { ok: true, json: async () => ({}) }; }
     return { ok: true, status: 200, json: async () => ({ profile: null }) };
   };
@@ -645,5 +659,50 @@ test('F1e 集成：enterTeacherProfile 拉核验状态 + 渲染核验区块（pe
   const el = dom.window.document.getElementById('teacher-profile-content');
   assert.ok(el.querySelector('#teacher-verify'), '核验区块渲染');
   assert.ok(el.querySelector('#teacher-verify').textContent.includes(TEXT.CHSI_GATE_PENDING), 'pending 文案在位');
+  teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// ZH-4（2026-08-26）：认证前置分流——非 approved（none/pending/rejected/拉取失败 null）
+// 只渲染认证窗（表单零渲染、不 init），approved 才开放表单；横幅挂载点 #verify-banner-slot 恒在。
+test('ZH-4 认证前置：none 态只渲染认证窗 + 横幅挂载点，零表单', async () => {
+  setup();
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'none' }) };
+    return { ok: true, status: 200, json: async () => ({ profile: FULL_PROFILE }) };
+  };
+  await actions.enterTeacherProfile();
+  const el = dom.window.document.getElementById('teacher-profile-content');
+  assert.ok(!el.querySelector('#teacher-profile-form'), 'none 态零表单');
+  assert.ok(el.querySelector('#verify-banner-slot'), '横幅挂载点在位');
+  assert.ok(el.querySelector('#teacher-verify'), '认证窗在渲染');
+  teardown();
+});
+
+test('ZH-4 认证前置：pending / rejected / verify 拉取失败(null) 同属非 approved → 零表单', async () => {
+  for (const status of ['pending', 'rejected', null]) {
+    setup();
+    globalThis.fetch = async (url) => {
+      if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => (status ? { status } : { status: 'none' }) };
+      return { ok: true, status: 200, json: async () => ({ profile: FULL_PROFILE }) };
+    };
+    await actions.enterTeacherProfile();
+    const el = dom.window.document.getElementById('teacher-profile-content');
+    assert.ok(!el.querySelector('#teacher-profile-form'), `${String(status)} 态零表单`);
+    assert.ok(el.querySelector('#verify-banner-slot'), `${String(status)} 横幅挂载点在位`);
+    teardown();
+  }
+});
+
+test('ZH-4 认证前置：approved 态开放表单 + 横幅挂载点', async () => {
+  setup();
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
+    return { ok: true, status: 200, json: async () => ({ profile: FULL_PROFILE }) };
+  };
+  await actions.enterTeacherProfile();
+  const el = dom.window.document.getElementById('teacher-profile-content');
+  assert.ok(el.querySelector('#teacher-profile-form'), 'approved 态开放表单');
+  assert.ok(el.querySelector('#teacher-verify'), '认证窗仍在（状态展示）');
   teardown();
 });

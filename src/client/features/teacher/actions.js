@@ -277,8 +277,16 @@ export async function enterTeacherProfile() {
     ]);
     if (!el) return; // page switched away while loading
     _currentCredential = data.profile ? (data.profile.credential_image || '') : '';
-    el.innerHTML = renderTeacherProfileForm(data.profile || null) + renderTeacherVerifySection(verify || null);
-    initTeacherProfileForm(data.profile || null);
+    // ZH-4（2026-08-26）：认证改为填资料前提——未认证（none/pending/rejected 或 verify 拉取失败 null）
+    // 只渲染认证窗（表单零渲染、不 init），DB 已填字段保留、认证通过后重新进入自然回显；
+    // approved 才开放表单。横幅挂载点（#verify-banner-slot）由 ZH-5 填充渲染/显隐，本处只保证出口含挂载点。
+    const vStatus = (verify && verify.status) || 'none';
+    const verified = vStatus === 'approved';
+    const bannerSlot = `<div id="verify-banner-slot"></div>`;
+    el.innerHTML = bannerSlot
+      + (verified ? renderTeacherProfileForm(data.profile || null) + renderTeacherVerifySection(verify || null)
+                  : renderTeacherVerifySection(verify || null));
+    if (verified) initTeacherProfileForm(data.profile || null);
   } catch (err) {
     if (!el) return;
     el.innerHTML = `<div class="empty-state"><p>${TEXT.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
