@@ -52,6 +52,7 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（undeclared/历史 nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
     MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px（B4：max-height 注入已删，卡片随内容拉长）
     MATCH_DETAIL_EDGE_MARGIN: 8,          // 匹配明细卡距屏幕左右缘最小边距 px
+    CUSTOM_SELECT_EDGE_MARGIN: 8,         // ZG-1: 自定义选择器展开面板距视口四缘最小边距 px（左右空间不足时平移面板）
     TOAST_MS: 2500, TOAST_FADE_MS: 300,   // Toast 时长
     REVEAL_DELAY_BASE: 80, REVEAL_DELAY_STEP: 45, REVEAL_DELAY_MAX: 360, // 卡片浮入错峰
     REAUTH_FOCUS_MS: 50,                  // 二次认证弹窗聚焦延迟

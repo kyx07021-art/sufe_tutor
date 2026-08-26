@@ -83,9 +83,25 @@ export function positionCustomSelectPanel(wrap) {
   const panel = wrap._customPanel, trig = wrap.querySelector('.custom-select-trigger');
   if (!panel || !trig) return;
   const r = trig.getBoundingClientRect();
-  panel.style.left = `${r.left}px`;
-  panel.style.top = `${r.bottom + 6}px`;
+  const vw = document.documentElement.clientWidth;
+  const vh = document.documentElement.clientHeight;
+  const m = CONFIG.CUSTOM_SELECT_EDGE_MARGIN;
   panel.style.width = `${r.width}px`;
+  // ZG-1 (2026-08-26): the panel is visibility:hidden until .open, so offsetWidth/Height are real
+  // laid-out sizes (not display:none) — measure them for the viewport edge clamps below.
+  const pw = panel.offsetWidth || r.width;
+  const ph = panel.offsetHeight || 0;
+  // Horizontal: right space insufficient -> shift left (pin right edge inside viewport);
+  // left space insufficient -> shift right (pin left edge to the margin).
+  let left = r.left;
+  if (left + pw > vw - m) left = Math.max(vw - pw - m, m);
+  else if (left < m) left = m;
+  panel.style.left = `${left}px`;
+  // Vertical: keep the option list fully visible — open downward by default, shift above the
+  // trigger when the panel would run past the viewport bottom.
+  const top = r.bottom + 6;
+  if (top + ph > vh - m) panel.style.top = `${Math.max(r.top - ph - 6, m)}px`;
+  else panel.style.top = `${top}px`;
 }
 
 export function positionFloatCard(btn, card) {
