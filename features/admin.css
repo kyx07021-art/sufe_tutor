@@ -99,5 +99,11 @@
 .verif-form { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line-soft, var(--line)); }
 .verif-form-hint { font-size: .76rem; color: var(--muted); line-height: 1.6; margin-bottom: 10px; }
 .verif-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+/* B2：核验通过表单标签收缩 + 输入框占满整格——.form-label 固定 116px 在紧凑网格格内吃宽度，
+   输入框被挤到 ~60-130px（同「label 吃宽度」机制，CHSI 输入框同类已修于 features/teacher.css）。
+   标签收缩到内容宽、输入框 flex-basis 100% 换行占满整格 → 输入框宽度 = 网格列宽
+   （minmax(200px,1fr) 保证列宽 ≥200px → 输入框 ≥200px）。 */
+.verif-grid .form-label { flex: 0 0 auto; min-width: 0; }
+.verif-grid .form-input { flex: 1 1 100%; min-width: 0; }
 .verif-actions { display: flex; gap: 8px; margin-top: 10px; }
 .verif-admission-preview { margin: 6px 0 0; }
