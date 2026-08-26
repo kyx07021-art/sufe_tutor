@@ -4,7 +4,7 @@
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { encryptField, decryptField } from '../../core/crypto.js';
 import { safeJsonArray } from '../../core/json.js'; // Z-3-F3：safeJsonObject 零引用删除
-import { LIMITS } from '../../../shared/config.js'; // Z-3-F3：INITIAL_RATING/INITIAL_WEIGHT 真正使用方在 auth/repo.js，此处零引用删除
+import { LIMITS, INITIAL_RATING } from '../../../shared/config.js'; // ZO-1：INITIAL_RATING 本文件两个 INSERT 建行路径（dbUpsertTeacherProfile/dbApplyChsiToProfile）显式写默认评分——生产 teacher_profiles 表烤死 DEFAULT 4（旧 INITIAL_RATING=4.0 建表），不能依赖表默认
 
 // 教师档案
 // ============================================================
@@ -55,12 +55,16 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
       [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
         timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, userId]);
   } else {
+    // ZO-1（2026-08-26）：新档案显式写 rating=INITIAL_RATING——生产 teacher_profiles 表由旧版
+    // INITIAL_RATING=4.0 建表，`rating REAL DEFAULT 4` 烤死在表定义里，INSERT 不写 rating 则新教师恒 4.0
+    // （生产实证 8/18 教师 4.0）。写路径显式值 = 不依赖表 DEFAULT（A1 写路径一致）。
     await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,
         price,price_min,price_max,wechat,email,intro,address,school,real_name,credential_image,
-        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year,
+        rating)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
-        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear]);
+        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, INITIAL_RATING]);
   }
 }
 
@@ -198,14 +202,17 @@ export async function dbClearChsiFromProfile(db, userId) {
 /** 核验通过后把学信网字段自动填入教师档案（chsi_* 只读，禁手动改）。
  *  教师可能无档案行（注册不建 teacher_profiles）——INSERT 兜底（其他列默认/空，随档案编辑补齐）。 */
 export async function dbApplyChsiToProfile(db, userId, info) {
-  await dbRun(db, `INSERT INTO teacher_profiles (user_id, chsi_school, chsi_level, chsi_major, chsi_status, chsi_enroll_year, chsi_verified, school)
-      VALUES (?,?,?,?,?,?,1,?)
+  // ZO-1（2026-08-26）：INSERT 显式写 rating=INITIAL_RATING——ZH-2 认证前置后本函数是「新教师建档案」
+  // 的规范路径（注册无档案行 → verify-chsi → admin approve 经本函数 INSERT 建行），不写 rating 则吃
+  // 生产表烤死 DEFAULT 4 → 新教师恒 4.0（ZO-1 首版遗漏此路径，审计 FAIL 回滚重做补全，A1 双 INSERT 写路径一致）。
+  await dbRun(db, `INSERT INTO teacher_profiles (user_id, chsi_school, chsi_level, chsi_major, chsi_status, chsi_enroll_year, chsi_verified, school, rating)
+      VALUES (?,?,?,?,?,?,1,?,?)
     ON CONFLICT(user_id) DO UPDATE SET
       chsi_school=excluded.chsi_school, chsi_level=excluded.chsi_level, chsi_major=excluded.chsi_major,
       chsi_status=excluded.chsi_status, chsi_enroll_year=excluded.chsi_enroll_year, chsi_verified=1,
       school=CASE WHEN teacher_profiles.school='' OR teacher_profiles.school IS NULL THEN excluded.school ELSE teacher_profiles.school END`,
     [userId, info.school || '', info.level || '', info.major || '', info.enrollmentStatus || '',
-     info.enrollYear || '', info.school || '']);
+     info.enrollYear || '', info.school || '', INITIAL_RATING]);
 }
 
 /** 管理员核验队列：全部记录（pending 优先） */
