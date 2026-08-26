@@ -95,9 +95,11 @@ registerTeacherDomainRefresh();
 
 export async function openProfilePanel(userId) {
   let t = state.allTeachers.find(x => x.user_id === userId);
-  // ZD-7（2026-08-26 休眠签约）：写评价门控数据源 — GET /api/teacher/profile 携带服务端 `matched`
-  //（已建立会话；单一事实源，评价门禁 ZD-4 放宽后同步）；signed 字段退为历史兼容。
-  // 仅登录学生请求它：访客 401 被 api() 死令牌处理弹回登录视图；访客/非学生回落列表数据（无 matched，按钮隐藏）。
+  // ZD-7 (2026-08-26 dormancy): write-review gate data source -- GET /api/teacher/profile
+  // carries the server `matched` flag (conversation established; single source of truth,
+  // synced with the ZD-4 review-gate relaxation); `signed` is legacy.
+  // Only logged-in students request it: guest 401 bounces to the login view via the api()
+  // dead-token handler; guests/non-students fall back to list data (no matched, button hidden).
   if (state.user && state.user.role === ROLES.STUDENT) {
     try {
       const data = await api(`/api/teacher/profile?userId=${userId}`, { method: 'GET' });

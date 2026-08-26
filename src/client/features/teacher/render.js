@@ -75,8 +75,9 @@ export function renderProfilePanel(p, matched) {
     html += '</div>';
   }
   if (matched) html += `<div class="profile-match">${matched}</div>`;
-  // ZD-7（2026-08-26 休眠签约）：写评价入口门控从服务端 `signed`（已签约）改为 `matched`（已建立会话）——
-  // 服务端评价门禁已放宽为 dbIsMatched（ZD-4），前端按钮显隐与服务端一致；signed 字段退为历史兼容。
+  // ZD-7 (2026-08-26 dormancy): write-review gate now keys on the server `matched`
+  // flag (conversation established) instead of `signed` (contract signed) -- the server
+  // review gate relaxed to dbIsMatched (ZD-4), so the button mirrors the API; `signed` is legacy.
   if (p.matched) {
     html += `<div class="profile-review-entry"><button type="button" class="btn glass glass--pressable profile-review-btn" data-action="teacher.openReview">${TEXT.BTN_WRITE_REVIEW}</button></div>`;
   }

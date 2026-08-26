@@ -81,7 +81,7 @@ test('Z-10-F1: openReviewModal(explicitId) still overrides module state (legacy 
   globalThis.fetch = async (url, opts = {}) => {
     const u = String(url);
     calls.push({ url: u, opts });
-    if (u.startsWith('/api/teacher/profile')) return { ok: true, status: 200, json: async () => ({ profile: { ...BASE_PROFILE, user_id: 7, signed: true } }) };
+    if (u.startsWith('/api/teacher/profile')) return { ok: true, status: 200, json: async () => ({ profile: { ...BASE_PROFILE, user_id: 7, matched: true } }) };
     if (u.startsWith('/api/reviews')) return { ok: true, status: 200, json: async () => ({ ok: true }) };
     return { ok: true, status: 200, json: async () => ({}) };
   };
@@ -102,7 +102,7 @@ test('Z-10-F1: openReviewModal(explicitId) still overrides module state (legacy 
 });
 
 // Z-10-F1 复审 FAIL 修正：游客点教师卡不得被弹登录——profile 数据源仅学生发起（401 会触发 api()
-// 死令牌处理 → ensureAuth → 登录视图，复审实证的回归）；游客/非学生走列表数据（signed 恒缺 → 无按钮）
+// 死令牌处理 → ensureAuth → 登录视图，复审实证的回归）；游客/非学生走列表数据（matched 恒缺 → 无按钮）
 test('Z-10-F1: guest (no token) opens profile panel from list data without auth bounce', async () => {
   const calls = [];
   let ensureAuthCalls = 0;
