@@ -4,13 +4,13 @@
  */
 export const ASSET_MANIFEST = {
   "files": {
-    "theme-init.js": "theme-init.ca6d2d50.js",
+    "theme-init.js": "theme-init.66bdf0a9.js",
     "tokens.css": "tokens.197cd74f.css",
-    "base.css": "base.0f78ec73.css",
+    "base.css": "base.a61a0851.css",
     "features/complaints.css": "features/complaints.7bde5325.css",
     "features/browse.css": "features/browse.5c318665.css",
-    "features/admin.css": "features/admin.26e9e28d.css",
-    "features/teacher.css": "features/teacher.89abb39f.css",
+    "features/admin.css": "features/admin.08a626fe.css",
+    "features/teacher.css": "features/teacher.01d084ec.css",
     "features/notif.css": "features/notif.3302a503.css",
     "features/chart.css": "features/chart.d5150017.css",
     "features/demand.css": "features/demand.42d7da97.css",
@@ -18,7 +18,7 @@ export const ASSET_MANIFEST = {
     "features/chat.css": "features/chat.a954c137.css",
     "features/posts.css": "features/posts.40f7400d.css",
     "features/region.css": "features/region.e5577254.css",
-    "glass.css": "glass.d2e35948.css",
+    "glass.css": "glass.a87f8340.css",
     "async-css.js": "async-css.deb394aa.js"
   }
 };
