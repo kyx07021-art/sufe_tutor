@@ -136,7 +136,7 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
   const profiles = await dbAll(db, `SELECT tp.*, u.username, u.avatar, ${matchedSel},
     (SELECT COUNT(*) FROM teacher_awards a WHERE a.teacher_user_id=tp.user_id AND a.status='approved') AS award_count
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id${joinUs}
-    WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0${privWhere}
+    WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0 AND tp.chsi_verified=1${privWhere}
     ORDER BY tp.updated_at DESC`, params);
   // 广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
   // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经

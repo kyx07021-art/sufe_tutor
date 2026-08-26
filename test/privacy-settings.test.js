@@ -12,7 +12,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { dbGetPrivacySettings, dbSetPrivacySettings } from '../src/server/domains/settings/repo.js';
 import { dbGetDemands } from '../src/server/domains/demand/repo.js';
-import { dbGetTeachers } from '../src/server/domains/teacher/repo.js';
+import { dbGetTeachers, dbApplyChsiToProfile } from '../src/server/domains/teacher/repo.js';
 import { handleGetPrivacySettings, handleSetPrivacySettings } from '../src/server/domains/settings/api.js';
 import { handleGetDemands } from '../src/server/domains/demand/api.js';
 import { handleGetTeachers } from '../src/server/domains/teacher/api.js';
@@ -61,6 +61,8 @@ async function seed(db, raw) {
   const t1 = idOf('t1'), s1 = idOf('s1');
   raw.prepare(`INSERT INTO teacher_profiles (user_id,subjects,province,price_min,price_max) VALUES (?,?,?,?,?)`)
     .run(t1, '["math"]', 'shanghai', 150, 200);
+  // ZH-1（2026-08-26）：公开列表过滤 chsi_verified=1——本测试验证 allow_guest_profile 可见性，教师置认证
+  await dbApplyChsiToProfile(db, t1, { school: '测试大学', level: '本科', major: '', enrollmentStatus: '在校', enrollYear: '2024' });
   raw.prepare(`INSERT INTO student_demands (user_id,student_grade,student_gender,target_subjects,current_scores,submitter_type,parent_contact,student_contact,status,display_id)
     VALUES (?,?,?,?,?,?,?,?,?,?)`)
     .run(s1, 'senior1', 'female', '["math"]', '[]', 'self', '13800000000', '13800000000', 'open', 1);

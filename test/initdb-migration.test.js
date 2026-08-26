@@ -17,7 +17,7 @@ import { TEST_SECRETS } from './_test-secrets.js';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
-import { dbUpsertTeacherProfile, dbGetTeacherProfile, dbGetTeachers } from '../src/server/domains/teacher/repo.js';
+import { dbUpsertTeacherProfile, dbGetTeacherProfile, dbGetTeachers, dbApplyChsiToProfile } from '../src/server/domains/teacher/repo.js';
 import { dbGetContractById } from '../src/server/domains/contract/repo.js';
 import { dbCreateMessage, dbGetMessageAttachment } from '../src/server/domains/chat/repo.js';
 import { dbRun } from '../src/server/core/util.js';
@@ -385,6 +385,8 @@ test('dbGetTeachers：广场列表一律裁剪私密字段，管理端全量可�
   const stu = raw.prepare("SELECT id FROM users WHERE username='stu1'").get().id;
   const tea = raw.prepare("SELECT id FROM users WHERE username='t1'").get().id;
   await dbUpsertTeacherProfile(db, tea, { province: 'shanghai', grade: '', gender: '', subjects: ['数学'], gaokao_scores: [], price: 100, wechat: 'wx_test', email: 'e@t.com', intro: '', address: '', school: '', real_name: '实名甲', credential_image: 'data:image/png;base64,CRED123' });
+  // ZH-1（2026-08-26）：公开列表过滤 chsi_verified=1——本测试验证私密字段裁剪，教师须已认证才可见（测试教师置认证）
+  await dbApplyChsiToProfile(db, tea, { school: '测试大学', level: '本科', major: '', enrollmentStatus: '在校', enrollYear: '2024' });
   // 确认确实加密落库（裁剪后才有效验意义）
   const stored = raw.prepare('SELECT wechat FROM teacher_profiles WHERE user_id=?').get(tea);
   assert.ok(String(stored.wechat).startsWith('enc:v1:'), 'wechat 应加密落库');
