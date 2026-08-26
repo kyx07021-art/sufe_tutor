@@ -113,6 +113,15 @@ export async function dbGetDemands(db, { admin = false, cursor = null, teacherUs
   // 广场门控——已注销用户数据严禁入场（不依赖 purge 完整性，双保险）
   const rows = await dbAll(db, sel + extra + where + ' ORDER BY sd.created_at DESC LIMIT ?',
     [...params, LIMITS.PUBLIC_LIST_MAX]);
+  // ZD-3（2026-08-26 休眠签约）：需求联系方式从「签约后展示」放宽到「建立会话后展示」（用户「让用户自由沟通」）——
+  // 教师视角且该教师与该需求学生已建立会话（dbIsMatched）→ 需求附联系方式（mapDemandRowFull）；
+  // 未匹配教师/游客/匿名列表仍走 mapDemandRow 剥联系方式（陌生人防批量爬）。
+  // 批量判定单查询取会话学生 id 集合（避免 N+1；与 teacher/repo.js dbIsMatched 同一 conversations 元组口径）。
+  if (teacherUserId) {
+    const convs = await dbAll(db, 'SELECT DISTINCT student_user_id FROM conversations WHERE teacher_user_id=?', [teacherUserId]);
+    const matched = new Set(convs.map(r => r.student_user_id));
+    return await Promise.all(rows.map(r => matched.has(r.user_id) ? mapDemandRowFull(r) : mapDemandRow(r)));
+  }
   return rows.map(mapDemandRow);
 }
 
