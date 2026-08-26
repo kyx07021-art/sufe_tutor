@@ -251,10 +251,7 @@ async function walkScript(t, dom, scriptName) {
       const demoOk = await waitFor(() => doc.querySelector('#my-chats-list .tour-demo-conv'), 9000);
       assert.ok(demoOk, `${scriptName} step ${i + 1}: demo conversation injected`);
     }
-    if (hasDemo && cur.target && cur.target.sel === '#my-contracts-list .list-card') {
-      const demoOk = await waitFor(() => doc.querySelector('#my-contracts-list .tour-demo-contract'), 9000);
-      assert.ok(demoOk, `${scriptName} step ${i + 1}: demo contract injected`);
-    }
+    // ZD-8（2026-08-26 休眠）：my-contracts 教程步骤已停用，#my-contracts-list demo 分支删除（W18 沿引用清）。
     const ok = await waitFor(() => {
       const b = doc.querySelector('.tour-bubble-text');
       const c = stepOf(i);
@@ -426,11 +423,12 @@ test('revisit entry migrated: no sidebar button, only the about page keeps it', 
 });
 
 test('every module has >= 3 interactive steps per script (hard depth requirement)', () => {
+  // ZD-8（2026-08-26 休眠）：my-contracts 模块教程步骤全部停用（签约/合同休眠），从深度要求豁免。
   const expected = {
     teacherGuest: ['browse-demands', 'browse-teachers', 'resource-share', 'about'],
     studentGuest: ['browse-teachers', 'about'],
-    teacherUser: ['browse-demands', 'browse-teachers', 'resource-share', 'my-chats', 'my-contracts', 'notifications', 'account-settings', 'about'],
-    studentUser: ['my-demands', 'browse-teachers', 'my-chats', 'my-contracts', 'notifications', 'account-settings', 'about'],
+    teacherUser: ['browse-demands', 'browse-teachers', 'resource-share', 'my-chats', 'notifications', 'account-settings', 'about'],
+    studentUser: ['my-demands', 'browse-teachers', 'my-chats', 'notifications', 'account-settings', 'about'],
   };
   for (const [name, modules] of Object.entries(expected)) {
     const steps = TOUR_SCRIPTS[name]();
@@ -575,13 +573,14 @@ test('teacher username step: hole targets the whole card, not the name text', as
   assert.ok(card && !card.closest('.hidden'), 'whole card is the resolved target');
 });
 
-test('chat + feature bar: four pop items focused one by one (pass:false, no passthrough)', () => {
+test('chat + feature bar: two pop items focused one by one (pass:false, no passthrough)', () => {
+  // ZD-8（2026-08-26 休眠）：签约/起草按钮随合同功能休眠移除，pop 菜单仅剩 image/file 两项。
   const steps = TOUR_SCRIPTS.teacherUser();
   const idx = steps.findIndex(s => s.text === TEXT.TOUR_STEP_CHAT_PLUS);
   assert.ok(idx >= 0, 'chat plus step exists');
-  const items = steps.slice(idx + 1, idx + 5);
-  assert.equal(items.length, 4, 'four items follow the plus step');
-  const texts = [TEXT.TOUR_STEP_CHAT_PLUS_IMAGE, TEXT.TOUR_STEP_CHAT_PLUS_FILE, TEXT.TOUR_STEP_CHAT_PLUS_SIGNING, TEXT.TOUR_STEP_CHAT_PLUS_DRAFT];
+  const items = steps.slice(idx + 1, idx + 3);
+  assert.equal(items.length, 2, 'two items follow the plus step');
+  const texts = [TEXT.TOUR_STEP_CHAT_PLUS_IMAGE, TEXT.TOUR_STEP_CHAT_PLUS_FILE];
   items.forEach((s, i) => {
     assert.equal(s.text, texts[i], `item ${i + 1} text`);
     assert.equal(s.pass, false, 'feature bar items never pass through');
