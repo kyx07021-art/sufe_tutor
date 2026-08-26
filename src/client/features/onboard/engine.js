@@ -379,7 +379,9 @@ function _tourCleanup() {
   window.removeEventListener('keydown', _tourKeydown);
   _tourDemoDisabled = true;
   _tourDemoChatCleanup();
-  _tourDemoContractCleanup();
+  // ZD-9a（2026-08-26 休眠）：演示合同注入随签约/合同教程步骤停用（ZD-8）后零调用点，不再清理——
+  // _tourDemoContractEnsure/_tourDemoContractCleanup 函数保留（休眠非删除）；恢复教程 = 还原本行 + 重挂 my-contracts 步骤。
+  // _tourDemoContractCleanup();
 }
 
 /** Esc equals "skip" (keyboard reachability of the primary escape hatch). */
@@ -496,7 +498,9 @@ function _tourDemoChatCleanup() {
 
 /** Demo contract card: same idea as the demo conversation — fresh accounts have no
  *  contracts, so inject one to introduce the contract card + action buttons.
- *  Removed by _tourCleanup. */
+ *  Removed by _tourCleanup.
+ *  ZD-9a（2026-08-26 休眠）：签约/合同教程步骤停用（ZD-8）后无活跃调用点（仅休眠函数
+ *  tourStepContractCard 引用），函数保留休眠；恢复 = 还原 _tourCleanup 调用 + 重挂 my-contracts 教程步骤。 */
 function _tourDemoContractEnsure() {
   if (_tourDemoDisabled || !_tourActive) return; // poll only while a tour is active
   const list = document.getElementById('my-contracts-list');
@@ -520,6 +524,7 @@ function _tourDemoContractEnsure() {
   list.insertBefore(demo, list.firstChild);
 }
 
+// ZD-9a（2026-08-26 休眠）：_tourCleanup 不再调用本函数（演示合同注入随教程步骤停用），函数保留休眠非删除。
 function _tourDemoContractCleanup() {
   const list = document.getElementById('my-contracts-list');
   if (list) list.querySelectorAll('.tour-demo-contract').forEach(el => el.remove());
