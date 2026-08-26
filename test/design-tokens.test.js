@@ -41,7 +41,7 @@ test('卡片层次：chsi 门卡回归全站无边框玻璃语；教师/需求�
 });
 
 test('按钮层级：主按钮白调面+发丝边，次按钮弱一档，危险按钮红色染面', () => {
-  assert.ok(glass.includes('.btn:not(.btn-soft):not(.btn-outline):not(.btn-ghost):not(.btn-text-danger), .tc-push-btn, .chat-send {'));
+  assert.ok(glass.includes('.btn:not(.btn-soft):not(.btn-outline):not(.btn-ghost):not(.btn-text-danger):not(.btn-danger), .tc-push-btn, .chat-send {'));
   assert.ok(glass.includes("--g-fill: var(--g-btn-bg);"));
   assert.ok(glass.includes('--g-border: 1px solid var(--g-btn-line);'));
   assert.ok(glass.includes('.btn-text-danger { --g-fg: var(--danger-deep'));
