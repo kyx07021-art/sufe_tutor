@@ -142,9 +142,9 @@
   /* 需求四·4b：试课意向行移动端整行纵向排布——用户名+星级一行、状态 tag 独立一行在用户名下方 */
   .intent-row-line { flex-direction: column; align-items: flex-start; gap: 6px; }
   .intent-row-user { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  /* 需求四·4b（item7 纵向排布）：非学科项目报价行窄屏改纵向——项目名独占一行，两个报价输入全宽铺开 */
-  .nonacademic-price-row { flex-direction: column; align-items: stretch; gap: 6px; }
-  .na-project-name { flex: none; }
+  /* 需求四·4b（item7 纵向排布）：非学科项目报价行窄屏改纵向——项目名独占一行，两个报价输入全宽铺开（C4：改指 .price-row 契约） */
+  .price-row { flex-direction: column; align-items: stretch; gap: 6px; }
+  .price-row-name { flex: none; }
   /* 需求四·4b（item7 纵向排布）：账户设置行窄屏改纵向——标签/值在上、操作按钮在下左对齐，杜绝右侧按钮被顶出 */
   .settings-row:not(.settings-row--avatar) { flex-direction: column; align-items: flex-start; gap: var(--sp-3); }
   /* 需求六·item5：UI 大小滑块窄屏列向布局下 flex-basis 240px 落到主轴变控件盒高度——改定宽全宽（同 v0.25.1 复合组件隔离教训：布局值随容器方向泄漏） */

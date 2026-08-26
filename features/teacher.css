@@ -161,17 +161,24 @@
    JS 只切 .active/.hidden 类，零内联样式 */
 .demand-type-tabs { margin-bottom: 2px; }
 
-/* R2-4 非学科项目报价行：项目名(左) + min~max 区间(右，复用预算区间布局) */
-.nonacademic-price-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.na-project-name { flex: 0 0 88px; font-size: .8rem; font-weight: 600; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.na-range { flex: 1; display: flex; gap: 8px; align-items: center; min-width: 0; }
-.na-range .form-input { flex: 1; min-width: 0; }
+/* R2-4 非学科项目报价行：项目名(左) + min~max 区间(右，复用预算区间布局)。
+   C4：JS 渲染/收集的 DOM 契约是 .price-row/.price-row-name，CSS 配套该契约；
+   旧 .nonacademic-price-row/.na-project-name/.na-range 为无消费方孤儿死类，已删（W18） */
+.price-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.price-row-name { flex: 0 0 88px; font-size: .8rem; font-weight: 600; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.price-row .form-input { flex: 1; min-width: 0; }
 
 /* 卡片③：评价按钮三态（未签约灰禁 / 签约可写 / 已评价可改） */
 .profile-review-btn { margin-top: 10px; }
 .profile-review-btn[disabled] { opacity: .45; cursor: not-allowed; }
 .profile-review-hint { margin-top: 8px; font-size: .72rem; line-height: 1.5; color: var(--muted); }
 .profile-card .review-mine-note { margin-top: 10px; }
+
+/* C3 评价选星：可点击 ★ 按钮，空态 --star-empty / 选中 --star（复用 .stars 显示星同源 token，W6 不另造视觉） */
+.review-stars { display: inline-flex; gap: 4px; font-size: 1.5rem; }
+.review-stars .star { color: var(--star-empty); transition: transform var(--t-fast, .18s) var(--ease-out, ease), color var(--t-fast) var(--ease-out); }
+.review-stars .star:hover { color: var(--star); }
+.review-stars .star.selected { color: var(--star); }
 
 /* 学生需求卡：头像占与教师卡同宽的左区，卡身整体右移 */
 .list-card--demand { display: flex; gap: var(--sp-4); align-items: flex-start; --g-hover: var(--g-hover-wash); } /* v1.4.0：需求卡同款 hover 提亮（与 teacher 卡一致——整卡可点必须有反馈，原理#87） */
