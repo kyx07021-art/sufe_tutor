@@ -36,7 +36,6 @@ const SHELL_HTML = `<!doctype html><html><body>
   <div id="teachers-list"></div>
   <select id="filter-method"><option value="">全部</option><option value="online">线上</option><option value="offline">线下</option></select>
   <select id="filter-day"></select>
-  <select id="filter-verified"></select>
 </body></html>`;
 
 function setup() {
