@@ -1,6 +1,6 @@
 /**
  * 路由模块：评价（学生发表 / 修改 / 公开列表）
- * 规则：仅签约学生可评价（门禁经 dbIsContracted）；每名学生对每名教师限一条，
+ * 规则：仅与该教师建立会话的学生可评价（门禁经 dbIsMatched——ZD-4 2026-08-26 休眠签约后放宽，防签约门禁死锁）；每名学生对每名教师限一条，
  *       已有评价只能修改（修改后重回待审核）。
  * 依赖：util / security（requireUser）/ constants（校验文案/评分/评论限额）/ db / log。
  */
@@ -11,7 +11,7 @@ import { STATUS } from '../../../shared/enums.js';
 import { LIMITS } from '../../../shared/config.js';
 import {
   dbCreateReview, dbGetApprovedReviews, dbGetReviewByPair,
-  dbUpdateReview, dbIsContracted, dbGetReviewById,
+  dbUpdateReview, dbIsMatched, dbGetReviewById,
   dbGetReviewsAdmin, dbUpdateReviewStatus, dbRecomputeTeacherRating, dbDeleteReview,
 } from '../../../../server/db.js';
 import { logEvent } from '../../core/log.js';
@@ -25,7 +25,9 @@ export async function handleCreateReview(db, body, req) {
   const { user: reviewer, err } = await requireUser(db, req, 'student');
   if (err) return err;
   const reviewerUserId = reviewer.id;
-  if (!(await dbIsContracted(db, reviewerUserId, teacherUserId))) return errorMsg('REVIEW_CONTRACT_ONLY', 403);
+  // ZD-4（2026-08-26 休眠签约）：评价门禁从「签约后（dbIsContracted）」放宽到「建立会话后（dbIsMatched）」——
+  // 签约全链路休眠后 dbIsContracted 恒 false 会导致评价死锁；放宽为会话后评价（用户「让用户自由沟通」语义延伸）。
+  if (!(await dbIsMatched(db, reviewerUserId, teacherUserId))) return errorMsg('REVIEW_CONTRACT_ONLY', 403);
   if (await dbGetReviewByPair(db, reviewerUserId, teacherUserId)) return errorMsg('REVIEW_EXISTS', 409);
 
   let id;
