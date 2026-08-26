@@ -119,10 +119,10 @@ export async function handleGetProfile(db, url, req) {
   if (me.id === targetId) return json({ profile }); // 本人：全字段
   const { wechat, email, real_name, credential_image, ...publicPart } = profile;
   if (!(await dbIsMatched(db, me.id, targetId))) return errorMsg('NO_PERMISSION', 403);
-  // v1.4.14 用户拍板：联系方式统一按「已签约」（dbIsContracted = signing_request signed）开放；
-  // signed 字段随响应下发（前端展示/写评价判定的单一事实源，不再自算）
+  // ZD-2（2026-08-26 休眠签约）：联系方式从「已签约后开放」放宽到「建立会话后开放」（用户「让用户自由沟通」）——
+  // wechat/email 对已建立会话（dbIsMatched）的学生直接开放，不再等签约；signed 字段保留（前端写评价判定兼容，ZD-4/7 改 matched 后退为历史兼容）。
   const signed = me.role === 'student' && (await dbIsContracted(db, me.id, targetId));
-  return json({ profile: { ...publicPart, real_name, credential_image, ...(signed ? { wechat, email } : {}), signed, matched: true } });
+  return json({ profile: { ...publicPart, real_name, credential_image, wechat, email, signed, matched: true } });
 }
 
 export async function handleSaveProfile(db, body, req) {
