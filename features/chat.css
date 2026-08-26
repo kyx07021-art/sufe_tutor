@@ -193,7 +193,7 @@
   color: var(--accent-deep); border: 1px solid currentColor; border-radius: 999px; padding: 3px 11px;
   text-decoration: none; white-space: nowrap;
 }
-/* 大图查看器样式已迁至 style.css .image-viewer-modal（聊天图片/学信网截图预览共用） */
+/* ZK（2026-08-27）：大图查看器已迁至 core/ui-modal.js openImageViewer + glass.css .modal-overlay.image-viewer-modal（聊天图片/投诉附件/管理员凭证共用） */
 
 /* 附件懒加载骨架：与成图同尺寸的占位块 + 部分进度圈暗示加载中 */
 .chat-bubble--loading { display: flex; align-items: center; justify-content: center; }
