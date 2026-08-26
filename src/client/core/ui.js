@@ -9,10 +9,10 @@ import { showToast, toggleCustomSelect } from './anim.js';
 import { withCaptcha, openCaptchaModal } from './captcha.js';
 import {
   openModal, closeModal, closeAllModals, confirm, openPolicyModal,
-  openImageViewer, runPendingConfirm, runReAuth,
+  openImageViewer, closeImageViewer, runPendingConfirm, runReAuth,
 } from './ui-modal.js';
 
-export { openModal, closeModal, closeAllModals, confirm, openPolicyModal, openImageViewer, runPendingConfirm, runReAuth, withCaptcha, openCaptchaModal, showToast };
+export { openModal, closeModal, closeAllModals, confirm, openPolicyModal, openImageViewer, closeImageViewer, runPendingConfirm, runReAuth, withCaptcha, openCaptchaModal, showToast };
 
 export const CARET_SVG = '<svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.6"/></svg>';
 

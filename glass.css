@@ -498,3 +498,26 @@ body { background: transparent; }
   ::-webkit-scrollbar-thumb:active { background: var(--g-scroll-thumb-active); }
   ::-webkit-scrollbar-corner { background: transparent; }
 }
+
+/* ============================================================
+   ZK 图片大图查看器 lightbox——全屏灰化遮罩 + 占屏大图。
+   宿主复用 .modal-overlay（fixed inset 0 + flex + margin:auto 居中，overflow-y 可滚），
+   盖在普通 modal(200) 之上（z-index 400，同 onboarding 遮罩层）；
+   遮罩色走 --g-modal-dim 单源 token（禁用裸 hex）；图片 max 92vw/88vh object-fit contain。
+   点击遮罩（root）或 Esc 关闭、body 加 .image-viewer-lock 锁滚动（ui-modal.js 管理）。
+   特异性 .modal-overlay.image-viewer-modal（0,2,0）压过 features/teacher.css 旧
+   .image-viewer-modal（0,1,0）——旧规则是 openModal 面板时代遗留，新结构是纯遮罩层。
+   ============================================================ */
+.modal-overlay.image-viewer-modal {
+  z-index: 400;
+  background: var(--g-modal-dim);
+  max-width: none; width: auto;
+}
+.modal-overlay.image-viewer-modal img.image-viewer-img {
+  display: block; width: auto; height: auto; margin: auto;
+  max-width: 92vw; max-height: 88vh;
+  object-fit: contain;
+  border-radius: var(--lg-r-lg, 15px);
+  box-shadow: var(--g-lift), 0 0 0 1px var(--g-line-soft, var(--line));
+}
+body.image-viewer-lock { overflow: hidden; }

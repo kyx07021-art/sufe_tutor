@@ -12,6 +12,10 @@ import { registerLogoutReset } from './state.js';
 let _modalStack = [];
 let pendingConfirmAction = null;
 let reAuthAction = null;
+// ZK: full-screen image lightbox state — single instance (F3), Esc handler, body scroll lock counter.
+let _imageViewerOpen = false;
+let _imageViewerKey = null;
+let _bodyLockCount = 0;
 
 export function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '', replace = false } = {}) {
   const host = typeof document !== 'undefined' ? document.getElementById('modal-container') : null;
@@ -48,6 +52,7 @@ export function closeModal() {
 
 export function closeAllModals() {
   _modalStack.length = 0;
+  if (_imageViewerOpen) closeImageViewer(); // ZK: a full-screen lightbox must not survive a global close (logout/navigation)
   const host = typeof document !== 'undefined' ? document.getElementById('modal-container') : null;
   if (host) host.innerHTML = '';
 }
@@ -59,8 +64,47 @@ export function openPolicyModal(key) {
   openModal({ title: name, cls: 'modal--wide', bodyCls: 'contract-md policy-md', body: `<div class="policy-body">${mdRender(md)}</div>` });
 }
 
+// ZK: full-screen image lightbox — large contained image on a full-viewport dim overlay.
+// Click on the surrounding dim area or Esc closes; body scroll is locked while open.
+// Reuses the .modal-overlay host (fixed inset 0 + flex + margin:auto centering) and stacks
+// any underlying modal the same way openModal does. The old openModal-based image viewer
+// (title-less modal with a footer close button) is replaced — chat/complaints callers inherit
+// this via the same exported name.
 export function openImageViewer(src) {
-  openModal({ title: null, cls: 'image-viewer-modal', body: `<img src="${escHtml(src)}" alt="">` });
+  if (_imageViewerOpen) return; // F3: singleton — never stack two viewers
+  const host = typeof document !== 'undefined' ? document.getElementById('modal-container') : null;
+  if (!host) return;
+  closeHostOverlays(host);
+  const cur = host.firstElementChild;
+  if (cur) _modalStack.push(cur); // preserve an underlying modal (same stacking as openModal)
+  _imageViewerOpen = true;
+  _bodyLockCount += 1;
+  document.body.classList.add('image-viewer-lock');
+  const root = document.createElement('div');
+  root.className = 'modal-overlay image-viewer-modal';
+  const img = document.createElement('img');
+  img.className = 'image-viewer-img';
+  img.src = src;
+  img.alt = '';
+  root.appendChild(img);
+  root.addEventListener('click', e => { if (e.target === root) closeImageViewer(); });
+  _imageViewerKey = e => { if (e.key === 'Escape') closeImageViewer(); };
+  document.addEventListener('keydown', _imageViewerKey);
+  host.innerHTML = '';
+  host.appendChild(root);
+}
+
+export function closeImageViewer() {
+  if (!_imageViewerOpen) return;
+  _imageViewerOpen = false;
+  if (_imageViewerKey) { document.removeEventListener('keydown', _imageViewerKey); _imageViewerKey = null; }
+  _bodyLockCount = Math.max(0, _bodyLockCount - 1);
+  if (_bodyLockCount === 0) document.body.classList.remove('image-viewer-lock');
+  const host = typeof document !== 'undefined' ? document.getElementById('modal-container') : null;
+  if (!host) return;
+  host.innerHTML = '';
+  const prev = _modalStack.pop();
+  if (prev) host.appendChild(prev);
 }
 
 export function confirm({ title = null, message = '', needReAuth = false, okText = TEXT.BTN_CONFIRM, onConfirm } = {}) {

@@ -85,15 +85,14 @@ test('chatOpenImage：已带全图（data-full）→ 直开大图查看器；缩
   const { chatOpenImage } = await import('../src/client/features/chat/actions-misc.js');
   const { chat } = await import('../src/client/features/chat/chat-state.js');
   chat.convId = 9;
-  const viewed = [];
-  const { openImageViewer } = await import('../src/client/core/ui.js');
+  const { openImageViewer, closeImageViewer } = await import('../src/client/core/ui.js');
   const origOpen = openImageViewer;
   // We can't easily replace imported binding; use modal DOM instead.
   const fullImg = dom.window.document.createElement('img');
   fullImg.dataset.full = '1'; fullImg.src = 'data:image/jpeg;base64,FULL';
   await chatOpenImage(42, fullImg);
   assert.ok(dom.window.document.querySelector('.image-viewer-modal'), 'data-full 直开大图');
-  dom.window.document.getElementById('modal-container').innerHTML = '';
+  closeImageViewer(); // ZK: the viewer is a singleton — close properly before reopening
   const thumbImg = dom.window.document.createElement('img');
   thumbImg.src = 'data:image/jpeg;base64,THUMB';
   globalThis.fetch = async url => ({ ok: true, status: 200, json: async () => ({ body: 'data:image/jpeg;base64,FULL' }) });
