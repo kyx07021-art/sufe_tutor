@@ -1,7 +1,8 @@
 /**
  * Z-3-F1/U-2：admin 管理面板注册表恢复（B5 admin-panel parity）。
- * 锁真实行为（G2）：admin feature onLoad 注册 13 个管理页 + 每页 enter 进入不炸
+ * 锁真实行为（G2）：admin feature onLoad 注册 12 个管理页 + 每页 enter 进入不炸
  * （空数据 mock → 空态渲染）。删任一 registerPage 该断言必红。
+ * ZD-5 (2026-08-26 dormancy): admin-contracts 休眠停用（合同流程休眠），从注册表移除。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,7 +14,7 @@ import complaintsFeature from '../src/client/features/complaints/index.js'; // a
 
 const ADMIN_MANAGEMENT_PAGES = [
   'admin-stats', 'admin-traffic', 'admin-students', 'admin-teachers', 'admin-demands',
-  'admin-reviews', 'admin-awards', 'admin-verifications', 'admin-posts', 'admin-contracts',
+  'admin-reviews', 'admin-awards', 'admin-verifications', 'admin-posts',
   'admin-feedback', 'admin-content', 'admin-complaint',
 ];
 
@@ -33,12 +34,13 @@ function teardown() {
   delete globalThis.localStorage; delete globalThis.fetch;
 }
 
-test('U-2 注册表：admin onLoad 注册 13 个管理页（删任一 registerPage 变红）', () => {
+test('U-2 注册表：admin onLoad 注册 12 个管理页（删任一 registerPage 变红）', () => {
   setup();
   const ids = pagesForRole().map(p => p.id);
   for (const id of ADMIN_MANAGEMENT_PAGES) {
     assert.ok(ids.includes(id), `admin 管理页 ${id} 已注册`);
   }
+  assert.ok(!ids.includes('admin-contracts'), 'admin-contracts 休眠停用，不得出现在 admin 注册表');
   // 非 admin 角色不可见（roles 门禁）
   state.user = { id: 2, role: 'student' };
   const studentIds = pagesForRole().map(p => p.id);
@@ -48,11 +50,11 @@ test('U-2 注册表：admin onLoad 注册 13 个管理页（删任一 registerPa
   teardown();
 });
 
-test('U-2 进入链路：13 管理页 enter 空数据不炸（空态渲染）', async () => {
+test('U-2 进入链路：12 管理页 enter 空数据不炸（空态渲染）', async () => {
   const dom = setup();
   for (const id of ['admin-traffic', 'admin-students', 'admin-teachers', 'admin-demands',
     'admin-reviews', 'admin-awards', 'admin-verifications', 'admin-posts',
-    'admin-contracts', 'admin-feedback', 'admin-content']) {
+    'admin-feedback', 'admin-content']) {
     const list = document.createElement('div');
     list.id = id.replace('admin-', 'admin-') + (id.includes('traffic') ? '-box' : '-list');
     document.body.appendChild(list);
@@ -65,7 +67,7 @@ test('U-2 进入链路：13 管理页 enter 空数据不炸（空态渲染）', 
     ['admin-teachers', actions.loadAdminTeachers], ['admin-demands', actions.loadAdminDemands],
     ['admin-reviews', actions.loadAdminReviews], ['admin-awards', actions.loadAdminAwards],
     ['admin-verifications', actions.loadAdminVerifications], ['admin-posts', actions.loadAdminPosts],
-    ['admin-contracts', actions.loadAdminContracts], ['admin-feedback', actions.loadAdminFeedback],
+    ['admin-feedback', actions.loadAdminFeedback],
     ['admin-content', actions.loadAdminContent],
   ]) {
     await loader(); // 空数据 → 空态渲染，零抛错

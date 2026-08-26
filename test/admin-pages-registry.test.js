@@ -1,7 +1,9 @@
 /**
- * U-4: admin registry completeness — the 13 admin pages must all be registerPage'd with a
+ * U-4: admin registry completeness — the 12 admin pages must all be registerPage'd with a
  * real enter function (no dormant empty enter), visible for the admin role. Catches the
  * v2 "module defined but never assembled" / dormant-page class (Z-14-F2 / U-3 series).
+ * ZD-5 (2026-08-26 dormancy): admin-contracts registerPage is dormant (contract flow
+ * sleeps) -- asserted absent below; uncommenting it turns this test red (G2).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +13,7 @@ import { pagesForRole } from '../src/client/core/router.js';
 import adminFeature from '../src/client/features/admin/index.js';
 import complaintsFeature from '../src/client/features/complaints/index.js';
 
-test('U-4 admin 13 管理页 registerPage 接线 + enter 非空函数', () => {
+test('U-4 admin 12 管理页 registerPage 接线 + enter 非空函数', () => {
   const dom = new JSDOM('<!DOCTYPE html><html><body></body></html>');
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
@@ -24,7 +26,7 @@ test('U-4 admin 13 管理页 registerPage 接线 + enter 非空函数', () => {
   const ids = pages.map(p => p.id);
   const EXPECTED = [
     'admin-stats', 'admin-traffic', 'admin-students', 'admin-teachers', 'admin-demands', 'admin-reviews',
-    'admin-awards', 'admin-verifications', 'admin-posts', 'admin-contracts', 'admin-feedback', 'admin-content',
+    'admin-awards', 'admin-verifications', 'admin-posts', 'admin-feedback', 'admin-content',
     'admin-complaint', 'about',
   ];
   for (const id of EXPECTED) {
@@ -33,6 +35,7 @@ test('U-4 admin 13 管理页 registerPage 接线 + enter 非空函数', () => {
     assert.equal(typeof p.enter, 'function', `${id} enter 必须是函数（非休眠空 enter）`);
     assert.ok(p.auth !== undefined, `${id} auth 门禁已声明`);
   }
+  assert.ok(!ids.includes('admin-contracts'), 'admin-contracts 休眠停用，不得出现在 admin 注册表');
   teardownAdmin(); teardownComplaints();
   delete globalThis.document; delete globalThis.window; delete globalThis.MutationObserver;
 });
