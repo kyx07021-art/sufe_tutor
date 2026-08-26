@@ -41,11 +41,17 @@ export function loadTeachers() {
   const el = document.getElementById('browse-teachers-list') || document.getElementById('teachers-list');
   if (!el) return;
   fillTeacherFilters();
+  // ZF-2 (2026-08-26): entering the page pins the role default sort (student->match / teacher->rating)
+  // and mirrors it onto the sort select, so the first paint is already sorted (was server order).
+  const defSort = teacherSortMode(null);
+  state.teacherSort = defSort;
+  const sortSel = document.getElementById('teacher-sort');
+  if (sortSel) sortSel.value = defSort;
   el.innerHTML = `<div class="empty-state">${loaderHtml()}</div>`;
   return dhGet('/api/teachers', { domain: 'teachers' }).then(async data => {
     state.allTeachers = data.teachers || [];
     await attachStudentMatch(state.allTeachers);
-    renderTeachers();
+    sortTeachers(); // ZF-2: first paint applies the default sort (match falls back to server order when no match context)
   }).catch(err => {
     el.innerHTML = `<div class="empty-state"><p>${TEXT.ERROR_LOAD_PREFIX}${escHtml(err.message)}</p></div>`;
   });
@@ -193,12 +199,16 @@ export function sortTeachers(arrOrMode, maybeMode) {
   if (mode === 'price') arr.sort((a,b) => (a.price_min == null ? Infinity : a.price_min) - (b.price_min == null ? Infinity : b.price_min));
   else if (mode === 'rating') arr.sort((a,b) => (b.rating||0)-(a.rating||0));
   else if (mode === 'match') {
-    if (!arr.some(t => t._matchForStudent)) return; // no match context: keep server order
-    arr.sort((a,b) => {
-      const am = a._matchForStudent ? a._matchForStudent.md : -1;
-      const bm = b._matchForStudent ? b._matchForStudent.md : -1;
-      return bm - am;
-    });
+    // ZF-2 (2026-08-26): no match context (e.g. a new user with no demands) keeps the server
+    // order — the match sort is relegated to the default order — and still writes back + renders
+    // (the old early return left a no-arg call without a render).
+    if (arr.some(t => t._matchForStudent)) {
+      arr.sort((a,b) => {
+        const am = a._matchForStudent ? a._matchForStudent.md : -1;
+        const bm = b._matchForStudent ? b._matchForStudent.md : -1;
+        return bm - am;
+      });
+    }
   }
   if (Array.isArray(arrOrMode) || arrOrMode == null) { state.allTeachers = arr; } // Q-4a-M1c: write back on no-arg call too (sort control path was sorting a copy and never persisting)
   renderTeachers();
