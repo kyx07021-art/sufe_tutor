@@ -11,8 +11,9 @@ import { state } from '../src/client/core/state.js';
 import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { closeAllModals } from '../src/client/core/ui.js';
-import { toggleDemandIntents, showMatchDetail, closeMatchDetail, openDemandModal, handleSubmitDemand, doSubmitIntent, toggleDemandFilters, _wizardResetForTests } from '../src/client/features/student/actions.js';
+import { toggleDemandIntents, showMatchDetail, closeMatchDetail, openDemandModal, handleSubmitDemand, doSubmitIntent, toggleDemandFilters, initDemandControls, _wizardResetForTests } from '../src/client/features/student/actions.js';
 import { renderDemandCard } from '../src/client/features/student/render.js';
+import { mountShell } from '../src/client/core/shell.js';
 import studentFeature from '../src/client/features/student/index.js';
 import { TEXT } from '../src/client/constants/text.js';
 
@@ -258,5 +259,39 @@ test('student.editDemand 接线：点编辑按钮经委托打开编辑表单（�
   assert.ok(title, '弹窗已打开');
   assert.equal(title.textContent, TEXT.MODAL_TITLE_DEMAND_EDIT, '编辑标题（非「提交学生需求」新建）');
   uninstall();
+  teardown();
+});
+
+// ZO-3 (2026-08-26): demand-card avatars must be inert -- clicking a card opens the demand,
+// never the student's profile. renderDemandCard passes no profileUserId to renderAvatarHtml,
+// so the avatar renders as a decorative aria-hidden span (no .avatar-btn / open-profile action).
+test('ZO-3 需求卡头像非交互：renderDemandCard 输出零 open-profile/avatar-btn', () => {
+  setup();
+  const html = renderDemandCard({
+    id: 9, display_id: 4, username: '学生A', avatar: '', user_id: 5,
+    student_grade: 'senior1', target_type: 'academic', target_subjects: ['math'],
+    teaching_method: 'online', province: 'shanghai', budget_min: 100, budget_max: 200,
+    status: 'open', created_at: '2026-08-07 04:27:09',
+  }, {});
+  assert.ok(!html.includes('data-action="open-profile"'), '需求卡头像无 open-profile 动作');
+  assert.ok(!html.includes('avatar-btn'), '需求卡头像无 avatar-btn 包装');
+  assert.ok(!html.includes('data-profile-user-id'), '需求卡头像无 profile-user-id 数据');
+  // 变异推理：还原 renderDemandCard 的 profileUserId 第 4 参 → renderAvatarHtml 返回
+  // avatar-btn + data-action="open-profile" → 上方三断言全红（G2）。
+  teardown();
+});
+
+// ZO-4 (2026-08-26): demand-hall sort dropdown needs a visible title label, mirroring the
+// teacher sort label pattern (filter-*-label siblings populated by initDemandControls).
+test('ZO-4 需求大厅排序 label：shell 提供 #demand-sort-label + initDemandControls 填充', () => {
+  setup('<div id="app"></div>');
+  mountShell();
+  const label = document.getElementById('demand-sort-label');
+  assert.ok(label, 'shell 渲染 #demand-sort-label');
+  assert.equal(label.textContent, '', '初始为空（由 initDemandControls 填充）');
+  initDemandControls();
+  assert.equal(label.textContent, TEXT.LABEL_SORT, 'initDemandControls 填充 LABEL_SORT');
+  // 变异推理：还原 shell.js #demand-sort-label 移除 → getElementById 为 null → 首断言红；
+  // 还原 actions.js lbl('demand-sort-label',...) 移除 → textContent 空 → 末断言红（G2）。
   teardown();
 });

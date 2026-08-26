@@ -90,6 +90,7 @@ export function initDemandControls() {
   fill('demand-filter-method', TEACHING_METHODS.map(m => ({ value: m.id, label: m.name })));
   fill('demand-filter-province', (SUFE_REGIONS.provinces || []).map(p => ({ value: p.id, label: p.name })));
   const lbl = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  lbl('demand-sort-label', TEXT.LABEL_SORT); // ZO-4: sort dropdown title mirrors teacher sort label (LABEL_SORT)
   lbl('demand-filter-subject-label', TEXT.LABEL_SUBJECT);
   lbl('demand-filter-grade-label', TEXT.LABEL_GRADE);
   lbl('demand-filter-method-label', TEXT.LABEL_TEACHING_METHOD_PROFILE);

@@ -3,6 +3,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
 import { sortTeachers, teacherSortMode, applyFilters, hasDaySlot, loadTeachers, teacherSortFromSelect } from '../src/client/features/teacher/actions.js';
 import { state } from '../src/client/core/state.js';
@@ -17,7 +18,7 @@ const TEACHERS = [
 ];
 
 function setup() {
-  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="teachers-list"></div><select id="filter-method"></select><select id="filter-day"></select><select id="filter-verified"></select></body></html>', { url: 'http://localhost/' });
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="teachers-list"></div><select id="filter-method"></select><select id="filter-day"></select></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
   state.user = { role:'teacher', id:1, username:'t' };
   state.allTeachers = TEACHERS.map(t => ({...t}));
@@ -26,9 +27,6 @@ function setup() {
   const day = dom.window.document.getElementById('filter-day');
   const emptyDay = dom.window.document.createElement('option'); emptyDay.value=''; emptyDay.textContent=''; day.appendChild(emptyDay);
   [1,2,3,4,5,6,7].forEach(v => { const o = dom.window.document.createElement('option'); o.value=String(v); o.textContent=String(v); day.appendChild(o); });
-  const ver = dom.window.document.getElementById('filter-verified');
-  const emptyVer = dom.window.document.createElement('option'); emptyVer.value=''; emptyVer.textContent=''; ver.appendChild(emptyVer);
-  ['0','1'].forEach(v => { const o = dom.window.document.createElement('option'); o.value=v; o.textContent=v; ver.appendChild(o); });
   return dom;
 }
 
@@ -66,12 +64,18 @@ test('hasDaySlot：数组星期命中/非数组拒绝（Q-4a-M1a 误匹配修复
   delete globalThis.document;
 });
 
-test('applyFilters：方法/星期/认证叠加', () => {
+test('applyFilters：方法/星期叠加', () => {
   const dom = setup();
   dom.window.document.getElementById('filter-method').value = 'online';
   applyFilters();
   assert.deepEqual(state.allTeachers.map(t=>t.user_id), [1]);
   delete globalThis.document;
+});
+
+test('ZO-5 teacher actions 零 filter-verified 引用（grep 断言）', () => {
+  const src = readFileSync('./src/client/features/teacher/actions.js', 'utf8');
+  assert.ok(!src.includes('filter-verified'), 'fillTeacherFilters/applyFilters 零 filter-verified 读取');
+  // 变异推理：还原 fill('filter-verified',...) / applyFilters 的 verified 读取 → 本断言红（G2）。
 });
 
 test('Q-4a-M1c：sortTeachers() 无参也写回 state（排序控件路径，原排序恒不生效）', () => {
@@ -135,7 +139,7 @@ test('Q-4a 复审：筛选后保留排序态（原回退服务端序）', async 
 });
 
 test('Q-4a-M1b：loadTeachers 填充筛选/排序控件（原空死容器）', async () => {
-  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select><select id="filter-verified"></select><label id="teacher-sort-label"></label></body></html>', { url: 'http://localhost/' });
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select><label id="teacher-sort-label"></label></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
   globalThis.localStorage = dom.window.localStorage;
@@ -147,7 +151,7 @@ test('Q-4a-M1b：loadTeachers 填充筛选/排序控件（原空死容器）', a
   assert.ok(dom.window.document.getElementById('teacher-sort').options.length > 1, '排序控件已填充');
   assert.ok(dom.window.document.getElementById('filter-method').options.length > 1, '授课方式控件已填充');
   assert.ok(dom.window.document.getElementById('filter-day').options.length > 1, '星期控件已填充');
-  assert.ok(dom.window.document.getElementById('filter-verified').options.length > 1, '认证控件已填充');
+  assert.equal(dom.window.document.getElementById('filter-verified'), null, '认证控件已移除（ZO-5）');
   assert.equal(dom.window.document.getElementById('teacher-sort-label').textContent, TEXT.LABEL_SORT, '排序标签渲染');
   delete globalThis.document; delete globalThis.window;
   delete globalThis.localStorage; delete globalThis.sessionStorage; delete globalThis.MutationObserver; delete globalThis.fetch;

@@ -32,9 +32,9 @@ test('筛选面板 DOM（v2 源）：demand-filter-panel 四组筛选 + teacher-
   assert.ok(shell.includes('id="demand-filter-panel"'), 'shell.js 渲染需求筛选面板');
   assert.ok((shell.match(/id="demand-filter-/g) || []).length >= 4, '需求筛选 ≥4 组（subject/grade/method/province）');
   assert.ok(shell.includes('id="teacher-filters"'), 'shell.js 渲染教师筛选容器');
-  // 教师筛选 7 组 id 消费点仍在（actions.js 读取 filter-method/filter-day/filter-verified）
+  // 教师筛选消费点仍在（actions.js 读取 filter-method/filter-day；filter-verified 已按 ZO-5 移除）
   const teaActions = readFileSync('./src/client/features/teacher/actions.js', 'utf8');
-  for (const id of ['filter-method', 'filter-day', 'filter-verified']) {
+  for (const id of ['filter-method', 'filter-day']) {
     assert.ok(teaActions.includes(id), `教师筛选读取 ${id}`);
   }
 });

@@ -85,7 +85,7 @@ export function renderDemandCard(d, opts = {}) {
   const intentsBox = editable && d.status !== STATUS.REVOKED ? `<div class="intents-box" id="intents-box-${d.id}"><div class="intents-box-inner"></div></div>` : '';
   const contactNote = push ? `<span class="push-note-text">${TEXT.PUSH_NOTE_TEXT}</span>` : `<span class="contact-sign-note">${TEXT.CONTACT_AFTER_SIGN_NOTE}</span>`;
   return `<div class="list-card list-card--demand glass" data-demand-id="${d.id}"${push ? ` data-push-id="${push.push_id}"` : ''} data-action="student.openDemand" data-id="${d.id}">
-    ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar', d.user_id)}
+    ${renderAvatarHtml(d.avatar, d.username || '?', 'demand-avatar')}
     <div class="demand-card-main">
     <div class="list-card-header">
       <span class="list-card-title">${usernameHtml(d.username || '')}${deactivatedTag(d.username)}${typeBadge}${matchTag}${statusTag}</span>

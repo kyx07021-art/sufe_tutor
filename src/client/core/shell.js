@@ -91,7 +91,7 @@ export function mountShell() {
         ${page('my-demands', TEXT.PAGE_MY_DEMANDS, { actions: btnNewDemand, body: `<div class="browse-list" id="my-demands-list"></div>` })}
         ${page('browse-demands', TEXT.PAGE_BROWSE_DEMANDS, { actions: filterToggleBtn('student.toggleFilters', 'demand-filter-toggle-btn'), body: `
           <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">
-            <select class="filter-select" id="demand-sort" data-change="demand.applyControls"></select>
+            <label id="demand-sort-label"></label><select class="filter-select" id="demand-sort" data-change="demand.applyControls"></select>
             <label id="demand-filter-subject-label"></label><select class="filter-select" id="demand-filter-subject" data-change="demand.applyControls"></select>
             <label id="demand-filter-grade-label"></label><select class="filter-select" id="demand-filter-grade" data-change="demand.applyControls"></select>
             <label id="demand-filter-method-label"></label><select class="filter-select" id="demand-filter-method" data-change="demand.applyControls"></select>
@@ -103,7 +103,6 @@ export function mountShell() {
             <label id="teacher-sort-label"></label><select class="filter-select" id="teacher-sort" data-change="teacher.sort"></select>
             <label id="teacher-method-label"></label><select class="filter-select" id="filter-method" data-change="teacher.applyFilters"></select>
             <label id="teacher-day-label"></label><select class="filter-select" id="filter-day" data-change="teacher.applyFilters"></select>
-            <label id="teacher-verified-label"></label><select class="filter-select" id="filter-verified" data-change="teacher.applyFilters"></select>
           </div>
           <div class="browse-list" id="browse-teachers-list"></div>` })}
         ${page('my-chats', TEXT.PAGE_MY_CHATS, { flush: true, body: `

@@ -29,13 +29,11 @@ function fillTeacherFilters() {
   };
   fill('filter-method', TEACHING_METHODS.map(m => ({ value: m.id, label: m.name })));
   fill('filter-day', WEEKDAYS.map(d => ({ value: d.id, label: d.name })));
-  fill('filter-verified', [{ value: '1', label: TEXT.VERIFY_DONE }, { value: '0', label: TEXT.FILTER_UNVERIFIED }]);
   fill('teacher-sort', [{ value: 'match', label: TEXT.TEACHER_SORT_MATCH }, { value: 'rating', label: TEXT.TEACHER_SORT_RATING }, { value: 'price', label: TEXT.TEACHER_SORT_PRICE }]);
   const lbl = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   lbl('teacher-sort-label', TEXT.LABEL_SORT);
   lbl('teacher-method-label', TEXT.LABEL_TEACHING_METHOD_PROFILE);
   lbl('teacher-day-label', TEXT.LABEL_DAY);
-  lbl('teacher-verified-label', TEXT.LABEL_VERIFIED);
 }
 export function loadTeachers() {
   const el = document.getElementById('browse-teachers-list') || document.getElementById('teachers-list');
@@ -218,7 +216,6 @@ export function toggleFilters() { const el = document.getElementById('teacher-fi
 export function applyFilters() {
   const method = document.getElementById('filter-method')?.value || '';
   const day = document.getElementById('filter-day')?.value || '';
-  const verified = document.getElementById('filter-verified')?.value || '';
   // Q-4a-M1b audit FAIL fix: filter from the full cached source, NOT the previously-filtered
   // display state — clearing a filter must restore the full list (was sticky until reload).
   // Mirrors demand hall applyDemandControls. Falls back to state.allTeachers (first visit / no cache).
@@ -226,8 +223,6 @@ export function applyFilters() {
   let list = [...((full && full.length ? full : state.allTeachers) || [])];
   if (method) list = list.filter(t => (t.teaching_method || '') === method);
   if (day) list = list.filter(t => hasDaySlot(t.time_slots, Number(day)));
-  if (verified === '1') list = list.filter(t => t.verified === 1);
-  else if (verified === '0') list = list.filter(t => !t.verified);
   state.allTeachers = list;
   if (state.teacherSort) sortTeachers(); // re-apply sort after filtering (was falling back to server order)
   renderTeachers();
