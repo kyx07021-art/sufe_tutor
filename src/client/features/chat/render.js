@@ -94,8 +94,7 @@ export function renderChatFrame(conv) {
                <div class="chat-plus-pop glass glass--float">
                  <label class="chat-pop-item" for="chat-image-input">${TEXT.CHAT_ATTACH_IMAGE}</label>
                  <label class="chat-pop-item" for="chat-file-input">${TEXT.CHAT_ATTACH_FILE}</label>
-                 <button type="button" class="chat-pop-item" data-action="chat.plusSigning">${TEXT.SIGNING_MODAL_TITLE}</button>
-                 <button type="button" class="chat-pop-item" data-action="chat.plusDraft">${TEXT.CHAT_BTN_DRAFT_CONTRACT}</button>
+                 <!-- ZD-6（2026-08-26 休眠）：「发起签约」「起草合同」入口移除（签约/合同全链路休眠；恢复时取消注释并同步 actions-misc.js/路由契约） -->
                </div>
                <input type="file" id="chat-image-input" accept="image/*" class="sr-file-input" data-action="chat.image">
                <input type="file" id="chat-file-input" class="sr-file-input" data-action="chat.file">
@@ -169,11 +168,11 @@ function renderSigningRequestBubble(m, mine, msgCls, sideCls, time) {
   const price = Number(s.price) || 0;
   const methodName = signingMethodText(s.method);
   const title = signingRequestTitle(mine);
-  const actions = (pending && recipient && signingId && !chatClosedNow())
-    ? `<span class="signing-bubble-actions"><button type="button" class="btn btn-sm glass glass--pressable" data-action="chat.respond" data-id="${escHtml(signingId)}" data-accept="1">${TEXT.BTN_SIGNING_CONFIRM}</button><button type="button" class="btn btn-sm btn-outline glass glass--pressable" data-action="chat.respond" data-id="${escHtml(signingId)}" data-accept="0">${TEXT.BTN_SIGNING_REJECT}</button></span>`
-    : '';
+  // ZD-6（2026-08-26 休眠）：存量签约请求气泡的确认/拒绝按钮休眠（交互入口移除，信息展示保留；
+  // 恢复时恢复此段并同步 actions-misc.js respondSigning 接线）
+  const actions = '';
   const done = rejected ? ' signing-bubble--done' : '';
-  return `<div class="chat-msg ${msgCls}"><div class="chat-bubble glass ${sideCls} signing-bubble chat-bubble--breathe${done}" data-signing-id="${escHtml(signingId)}" data-mid="${m.id}"><div class="signing-bubble-title">${escHtml(title)}</div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_PRICE}</span><b>${price} ${TEXT.PRICE_UNIT}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(expectedTimeText(s.schedule))}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>${actions}${rejected ? `<p class="signing-bubble-status">${TEXT.SIGNING_REJECTED_TEXT}</p>` : ''}${signed ? `<p class="signing-bubble-signed-tip">${escHtml(TEXT.CHAT_SIGN_TIP)}</p>${!chatClosedNow() ? `<button type="button" class="btn glass glass--pressable signing-bubble-draft-btn" data-action="chat.plusDraft">${TEXT.CHAT_BTN_DRAFT_CONTRACT}</button>` : ''}` : ''}${signed ? '' : `<p class="signing-bubble-funds">${TEXT.FUNDS_NOTE_SHORT}</p>`}</div>${time}</div>`;
+  return `<div class="chat-msg ${msgCls}"><div class="chat-bubble glass ${sideCls} signing-bubble chat-bubble--breathe${done}" data-signing-id="${escHtml(signingId)}" data-mid="${m.id}"><div class="signing-bubble-title">${escHtml(title)}</div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_PRICE}</span><b>${price} ${TEXT.PRICE_UNIT}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_SCHEDULE}</span><b>${escHtml(expectedTimeText(s.schedule))}</b></div><div class="signing-bubble-row"><span>${TEXT.CHAT_SIGNING_METHOD}</span><b>${methodName}</b></div>${actions}${rejected ? `<p class="signing-bubble-status">${TEXT.SIGNING_REJECTED_TEXT}</p>` : ''}${signed ? `<p class="signing-bubble-signed-tip">${escHtml(TEXT.CHAT_SIGN_TIP)}</p>` : ''}${signed ? '' : `<p class="signing-bubble-funds">${TEXT.FUNDS_NOTE_SHORT}</p>`}</div>${time}</div>`;
 }
 
 function renderSigningResponseText(m, mine) {
