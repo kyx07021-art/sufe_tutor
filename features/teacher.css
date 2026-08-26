@@ -317,3 +317,10 @@
   line-height: 1.5;
 }
 
+/* ZH-X（2026-08-26 紧急）：用户报告学信网核验页文本输入框太短。标准布局下该输入随
+ * .form-input{flex:1} 已撑满（真实容器实测 872px 全宽，有/无此规则均全宽）——本规则是
+ * 对用户明确报告输入的显式兜底：form-group 恒 100% + input 恒 flex-basis 100%，防任何
+ * 未来 flex 上下文变化导致收缩。保留原因已诚实记录，非猜测性机制。 */
+.verify-pane .form-group { width: 100%; }
+.verify-pane #verify-chsi-code { width: 100%; flex: 1 1 100%; }
+
