@@ -357,7 +357,7 @@ export const TEXT = {
     "申请《学籍在线验证报告》",
     "复制在线验证码（有效期 180 天）"
   ],
-  "CHSI_GATE_HINT": "提交验证码后，管理员会人工核对你的学籍信息（院校、层次、专业、在读状态、入学年份），通过后开放接单资格。",
+  "CHSI_GATE_HINT": "提交验证码后，管理员会人工核对你的学籍信息（院校、层次、专业、在读状态、入学年份），通过后开放资料填写与教师广场展示。",
   "CHSI_GATE_PLACEHOLDER": "请输入学信网在线验证码",
   "CHSI_GATE_SUBMIT": "提交核验",
   "CHSI_GATE_PENDING": "验证码已提交，管理员核验中（一般 24 小时内完成），通过后开放接单资格",
@@ -376,6 +376,9 @@ export const TEXT = {
   "VERIF_PENDING": "待核验",
   "VERIF_APPROVED": "已通过",
   "VERIF_REJECTED": "已拒绝",
+  "VERIF_BANNER": "请先完成学信网认证，通过后你的档案才会展示在教师广场",
+  "VERIFY_INTENT_REQUIRED": "请先完成学信网认证，通过后才能提交试课意向",
+  "CHSI_VERIFY_REQUIRED": "请先完成学信网认证，通过后才能完善资料并展示在教师广场",
   "CONTRACT_STATUS_SIGNING": "待签约",
   "CONTRACT_STATUS_SIGNED": "已签约",
   "CONTRACT_STATUS_REVOKED": "已撤销",
