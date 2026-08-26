@@ -566,6 +566,16 @@ export async function resolvePush(pushId, accept) {
 // demand context line, optional textarea (maxlength synced to server GREETING_MSG_MAX), empty submittable
 export async function submitIntent(demandId) {
   if (!ensureAuth()) return; // guest teacher browsing the hall can see cards; intent click routes to login
+  // ZH-6 (2026-08-26): verification is now a prerequisite for taking orders — an unverified
+  // teacher clicking the trial-intent CTA is blocked with a toast (no greet modal). The server
+  // handleCreateIntent 403 stays as the second gate (A4 dual entry). Fetch failure fails closed
+  // to blocked, same stance as the profile page (ZH-4).
+  if (state.user && state.user.role === ROLES.TEACHER) {
+    let vStatus = 'none';
+    try { vStatus = ((await api('/api/teacher/verify-status', { method: 'GET' })) || {}).status || 'none'; }
+    catch { /* fail-closed below */ }
+    if (vStatus !== 'approved') { showToast(TEXT.VERIFY_INTENT_REQUIRED); return; }
+  }
   const d = (state.browseDemands || []).find(x => x.id === demandId);
   const demandDesc = d
     ? `${demandTargetNames(d.target_subjects, d.target_type) || '—'} · ${demandIdText(d.display_id || d.id)}`
