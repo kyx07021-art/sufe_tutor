@@ -75,9 +75,9 @@ export function renderProfilePanel(p, matched) {
     html += '</div>';
   }
   if (matched) html += `<div class="profile-match">${matched}</div>`;
-  // Z-10-F1: write-review entry gated by server-side `signed` (student has contracted this teacher).
-  // The button's data-action passes no arg — openReviewModal keeps the module state set by openProfilePanel.
-  if (p.signed) {
+  // ZD-7（2026-08-26 休眠签约）：写评价入口门控从服务端 `signed`（已签约）改为 `matched`（已建立会话）——
+  // 服务端评价门禁已放宽为 dbIsMatched（ZD-4），前端按钮显隐与服务端一致；signed 字段退为历史兼容。
+  if (p.matched) {
     html += `<div class="profile-review-entry"><button type="button" class="btn glass glass--pressable profile-review-btn" data-action="teacher.openReview">${TEXT.BTN_WRITE_REVIEW}</button></div>`;
   }
   html += `<div class="profile-reviews" id="profile-reviews"></div><div class="profile-awards" id="profile-awards"></div>`;

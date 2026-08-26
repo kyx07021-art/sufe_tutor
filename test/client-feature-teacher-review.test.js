@@ -1,5 +1,5 @@
 /**
- * Z-10-F1 回归：教师资料面板写评价入口（signed 门控 + 点击→提交链路）
+ * Z-10-F1 回归 + ZD-7：教师资料面板写评价入口（matched 门控（会话后，ZD-7）+ 点击→提交链路）
  *
  * 初审 FAIL 根因（1101 级）：ACTION_MAP 的 'teacher.openReview' 调 openReviewModal() 不传参，
  * 而 openReviewModal 无条件 `profilePanelUserId = teacherId`（undefined）→ 覆写 openProfilePanel
@@ -7,7 +7,7 @@
  * 修复 = openReviewModal 仅在参数非空时覆写（按钮无 data-id，读模块态）。
  *
  * 覆盖：
- *   - renderProfilePanel：signed:true 渲染写评价按钮 / signed 缺省不渲染（门控）；
+ *   - renderProfilePanel：matched:true 渲染写评价按钮（ZD-7：会话后评价门控） / matched 缺省不渲染（门控）；
  *   - 链路：openProfilePanel 查 /api/teacher/profile 数据源 → openReviewModal() 不清模块态 →
  *     submitReview POST body 含正确 teacherUserId（修复前为 undefined）；
  *   - openReviewModal(显式 id) 覆写仍生效（既有 v1 入口语义保留）。
@@ -33,21 +33,21 @@ const BASE_PROFILE = {
   price_min: 100, price_max: 200, time_slots: [], gender: 'male',
 };
 
-test('Z-10-F1: renderProfilePanel gates write-review button on server signed flag', () => {
-  const signedHtml = renderProfilePanel({ ...BASE_PROFILE, signed: true }, '');
-  assert.ok(signedHtml.includes('data-action="teacher.openReview"'), 'signed:true 渲染写评价按钮');
+test('Z-10-F1: renderProfilePanel gates write-review button on server matched flag（ZD-7）', () => {
+  const signedHtml = renderProfilePanel({ ...BASE_PROFILE, matched: true }, '');
+  assert.ok(signedHtml.includes('data-action="teacher.openReview"'), 'matched:true 渲染写评价按钮（ZD-7：会话后评价门控）');
   assert.ok(!/onclick=/.test(signedHtml), '无内联事件');
-  const unsignedHtml = renderProfilePanel({ ...BASE_PROFILE }, ''); // 列表数据无 signed
-  assert.ok(!unsignedHtml.includes('teacher.openReview'), '无 signed 不渲染按钮');
+  const unsignedHtml = renderProfilePanel({ ...BASE_PROFILE }, ''); // 列表数据无 matched
+  assert.ok(!unsignedHtml.includes('teacher.openReview'), '无 matched 不渲染按钮');
 });
 
-test('Z-10-F1: openProfilePanel reads signed from /api/teacher/profile then openReviewModal() keeps module state and submitReview posts correct teacherUserId', async () => {
+test('Z-10-F1: openProfilePanel reads matched from /api/teacher/profile（ZD-7） then openReviewModal() keeps module state and submitReview posts correct teacherUserId', async () => {
   const calls = [];
   globalThis.fetch = async (url, opts = {}) => {
     const u = String(url);
     calls.push({ url: u, opts });
     if (u.startsWith('/api/teacher/profile')) {
-      return { ok: true, status: 200, json: async () => ({ profile: { ...BASE_PROFILE, signed: true } }) };
+      return { ok: true, status: 200, json: async () => ({ profile: { ...BASE_PROFILE, matched: true } }) };
     }
     if (u.startsWith('/api/reviews')) {
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
