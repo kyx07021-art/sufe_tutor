@@ -14,10 +14,13 @@
  *   - Class prefix .tour-: never hit by scoped descendant selectors of forms/modals.
  *   - No inline handlers (archtest): the global skip button gets a direct listener
  *     (the overlay click handler stopPropagation would swallow document delegation).
- * Demo chat/contract: tours inject a demo conversation / contract card while the
- * tour is active so fresh accounts can be walked through the components; both are
- * removed by _tourCleanup. The demo conversation does NOT set chat.convId (avoids
- * the page-leave read-mark POST to a bogus id); a private flag tracks it instead.
+ * Demo chat: tours inject a demo conversation while the tour is active so fresh
+ * accounts can be walked through the chat component; removed by _tourCleanup.
+ * The demo conversation does NOT set chat.convId (avoids the page-leave read-mark
+ * POST to a bogus id); a private flag tracks it instead.
+ * ZD-9a (2026-08-26 dormancy): the demo CONTRACT card is no longer injected (the
+ * contract tour steps are disabled); _tourDemoContractEnsure/_tourDemoContractCleanup
+ * are kept dormant -- restore = revert the _tourCleanup call + re-attach the steps.
  * Register a script registry via setTourScripts (tours.js), called from actions.js.
  */
 import { TEXT } from '../../constants/text.js';
@@ -379,8 +382,8 @@ function _tourCleanup() {
   window.removeEventListener('keydown', _tourKeydown);
   _tourDemoDisabled = true;
   _tourDemoChatCleanup();
-  // ZD-9a（2026-08-26 休眠）：演示合同注入随签约/合同教程步骤停用（ZD-8）后零调用点，不再清理——
-  // _tourDemoContractEnsure/_tourDemoContractCleanup 函数保留（休眠非删除）；恢复教程 = 还原本行 + 重挂 my-contracts 步骤。
+  // ZD-9a (2026-08-26 dormancy): demo-contract injection has zero call sites since the contract tour steps were disabled (ZD-8), no longer cleaned up -
+  // _tourDemoContractEnsure/_tourDemoContractCleanup kept (dormant, not deleted); restore tour = revert this line + re-attach my-contracts steps.
   // _tourDemoContractCleanup();
 }
 
@@ -499,8 +502,8 @@ function _tourDemoChatCleanup() {
 /** Demo contract card: same idea as the demo conversation — fresh accounts have no
  *  contracts, so inject one to introduce the contract card + action buttons.
  *  Removed by _tourCleanup.
- *  ZD-9a（2026-08-26 休眠）：签约/合同教程步骤停用（ZD-8）后无活跃调用点（仅休眠函数
- *  tourStepContractCard 引用），函数保留休眠；恢复 = 还原 _tourCleanup 调用 + 重挂 my-contracts 教程步骤。 */
+ *  ZD-9a (2026-08-26 dormancy): no active call sites since the contract tour steps were disabled (ZD-8) (only the dormant
+ *  tourStepContractCard references it), functions kept dormant; restore = revert _tourCleanup call + re-attach my-contracts tour steps. */
 function _tourDemoContractEnsure() {
   if (_tourDemoDisabled || !_tourActive) return; // poll only while a tour is active
   const list = document.getElementById('my-contracts-list');
@@ -524,7 +527,7 @@ function _tourDemoContractEnsure() {
   list.insertBefore(demo, list.firstChild);
 }
 
-// ZD-9a（2026-08-26 休眠）：_tourCleanup 不再调用本函数（演示合同注入随教程步骤停用），函数保留休眠非删除。
+// ZD-9a (2026-08-26 dormancy): _tourCleanup no longer calls this (demo-contract injection disabled with the tour steps); kept dormant, not deleted.
 function _tourDemoContractCleanup() {
   const list = document.getElementById('my-contracts-list');
   if (list) list.querySelectorAll('.tour-demo-contract').forEach(el => el.remove());

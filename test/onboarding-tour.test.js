@@ -12,7 +12,8 @@
  *   - revisit entry migrated to the about page only (sidebar button removed)
  *   - per-module interaction depth >= 3 in every script (hard requirement)
  *   - script integrity: shapes valid, page ids registered, last step self
- *   - full walk-throughs of all four user scripts (demo chat/contract injection asserted)
+ *   - full walk-throughs of all four user scripts (demo chat injection asserted;
+ *     ZD-8/ZD-9a: contract injection dormant, no longer asserted)
  *   - first-visit modal: summarized policy + role-dependent primary button
  *   - pass:false interception (intent CTA / notif block do not pass through)
  *   - scroll architecture, animation stabilization, R27 dynamic hole binding
@@ -226,8 +227,8 @@ const expand = raw => { let st = raw; while (typeof st === 'function') st = st()
 
 /** Walk a script end-to-end: wait for the bubble text + placed hole, click to advance.
  *  Page-target steps get a jsdom timing compensation (manual selectPage if the
- *  pass-through click did not switch the page synchronously). Demo chat/contract
- *  injection is asserted for the two logged-in scripts. */
+ *  pass-through click did not switch the page synchronously). Demo chat injection
+ *  is asserted for the two logged-in scripts (ZD-8: contract injection dormant). */
 async function walkScript(t, dom, scriptName) {
   const doc = dom.window.document;
   const rawSteps = TOUR_SCRIPTS[scriptName]();
@@ -493,12 +494,12 @@ test('studentGuest full walk-through: teacher plaza -> about -> login step', asy
   await walkScript(t, dom, 'studentGuest');
 });
 
-test('teacherUser full walk-through: every module deep + demo chat/contract + final user bar', async (t) => {
+test('teacherUser full walk-through: every module deep + demo chat + final user bar', async (t) => {
   const { dom } = await setupClient(t, { user: { role: 'teacher', id: 3, username: 't', avatar: '' } });
   await walkScript(t, dom, 'teacherUser');
 });
 
-test('studentUser full walk-through: my demands -> teacher plaza (push) -> rest + demo chat/contract + user bar', async (t) => {
+test('studentUser full walk-through: my demands -> teacher plaza (push) -> rest + demo chat + user bar', async (t) => {
   const { dom } = await setupClient(t, { user: { role: 'student', id: 9, username: 's', avatar: '' } });
   await walkScript(t, dom, 'studentUser');
 });

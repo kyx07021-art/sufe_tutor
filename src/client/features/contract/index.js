@@ -1,7 +1,7 @@
 /**
  * contract feature registry: my-contracts page + data-action delegation.
- * ZD-5（2026-08-26 休眠）：签约/合同全链路休眠——my-contracts 页面不再注册（下方 registerPage 注释）。
- * 文件/函数/ACTION_MAP 保留（休眠非删除），恢复 = 取消注释 registerPage 并同步 text.js 键/路由契约。
+ * ZD-5 (2026-08-26 dormancy): contract flow sleeps - my-contracts is no longer registered (registerPage commented below).
+ * File/functions/ACTION_MAP kept (dormant, not deleted); restore = uncomment registerPage + sync text.js keys / route contract.
  */
 import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js';
@@ -54,7 +54,7 @@ function onScroll(e) {
 function onLoad() {
   if (installed || typeof document === 'undefined') return () => {};
   installed = true;
-  // ZD-5（休眠）：my-contracts 页注册停用（签约/合同全链路休眠；恢复时取消注释并同步路由契约/v1-5-route-contract）
+  // ZD-5 (dormant): my-contracts registration disabled (contract flow sleeps; restore = uncomment + sync route contract / v1-5-route-contract)
   // registerPage({
   //   id: 'my-contracts',
   //   roles: [ROLES.STUDENT, ROLES.TEACHER],

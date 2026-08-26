@@ -104,8 +104,8 @@ async function doCloseRelation(convId, capToken) {
   }
 }
 
-// ZD-6（2026-08-26 休眠）：「起草合同」入口休眠——加号菜单按钮已移除（chat/render.js），本函数零调用；
-// 保留供恢复（恢复时取消 render.js 按钮注释并同步契约）。chatPlusDraft 原逻辑：懒加载 contract 模块起草弹窗。
+// ZD-6 (2026-08-26 dormancy): draft-contract entry dormant - plus-menu button removed (chat/render.js), zero call sites;
+// kept for restore (uncomment render.js button + sync contract). Original chatPlusDraft logic: lazy-loads the contract draft modal.
 export async function chatPlusDraft() {
   closeChatPlus();
   // AI-9: closed-conversation pre-gate — avoid opening a draft modal doomed to 403 (stale-tab fallback)
@@ -123,7 +123,7 @@ export async function chatPlusDraft() {
   }
 }
 
-// ZD-6（2026-08-26 休眠）：「发起签约」入口休眠——加号菜单按钮已移除，本函数零调用；保留供恢复。
+// ZD-6 (2026-08-26 dormancy): start-signing entry dormant - plus-menu button removed, zero call sites; kept for restore.
 export async function chatPlusSigning() {
   closeChatPlus();
   if (chatClosedNow()) { showToast(TEXT.CHAT_CONV_CLOSED_MSG); return; } // AI-9: same as chatPlusDraft
@@ -137,8 +137,8 @@ export async function chatPlusSigning() {
   }
 }
 
-// ZD-6（2026-08-26 休眠）：签约请求确认/拒绝交互休眠——气泡按钮已移除（chat/render.js actions=''），本函数零调用；
-// 存量 pending 签约气泡仅信息展示。保留供恢复（恢复时还原 render.js actions 段并同步契约）。
+// ZD-6 (2026-08-26 dormancy): signing-request confirm/reject interaction dormant - bubble buttons removed (chat/render.js actions=''), zero call sites;
+// legacy pending signing bubbles show info only. Kept for restore (revert render.js actions block + sync contract).
 export async function respondSigning(signingId, accept) {
   const doRespond = async capToken => {
     try {

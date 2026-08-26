@@ -233,7 +233,7 @@ export async function chatPollTick() {
     fresh.filter(m => m.kind === 'signing_response').forEach(m => {
       let r = {};
       try { r = typeof m.body === 'string' ? JSON.parse(m.body) : (m.body || {}); } catch { /* bad body */ }
-      // ZD-6（2026-08-26 休眠）：存量 signing_response 轮询不再注入「已签署+起草合同」caption（签约交互入口休眠）
+      // ZD-6 (2026-08-26 dormancy): legacy signing_response polling no longer injects the 'signed + draft contract' caption (signing interaction dormant)
       // if (r.accept && /^\d+$/.test(String(r.requestId || ''))) chatInjectSignCaption(r.requestId);
     });
     // conversation on screen received the other side's messages -> mark read in place

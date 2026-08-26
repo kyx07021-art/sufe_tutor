@@ -1,4 +1,4 @@
-// ZD-5（2026-08-26 休眠）：签约/合同全链路休眠——本文件函数保留（休眠非删除，my-contracts 页不注册、无 UI 触发点），恢复时同步路由契约/text 键。
+// ZD-5 (2026-08-26 dormancy): contract flow sleeps - functions here are kept (dormant, not deleted; my-contracts page unregistered, no UI trigger), restore = sync route contract / text keys.
 /**
  * contract domain display mappings.
  * Pure functions; text from constants/text.js + shared enums single source only.

@@ -60,20 +60,21 @@ const tourStepChatPlus = () => ({ module: 'my-chats', target: { sel: '.chat-plus
 const tourStepChatPlusItem = (i, text) => ({ module: 'my-chats', target: { sel: `.chat-plus-pop .chat-pop-item:nth-child(${i})` }, text, pass: false });
 const tourStepChatPlusImage = () => tourStepChatPlusItem(1, TEXT.TOUR_STEP_CHAT_PLUS_IMAGE);
 const tourStepChatPlusFile = () => tourStepChatPlusItem(2, TEXT.TOUR_STEP_CHAT_PLUS_FILE);
-// ZD-8（2026-08-26 休眠）：签约/合同教程步骤停用（teacherUser/studentUser 脚本已移除引用）；函数保留供恢复。
+// ZD-8 (2026-08-26 dormancy): contract/signing tour steps disabled (removed from teacherUser/studentUser scripts); function kept for restore.
 const tourStepChatPlusSigning = () => tourStepChatPlusItem(3, TEXT.TOUR_STEP_CHAT_PLUS_SIGNING);
-// ZD-8（2026-08-26 休眠）：签约/合同教程步骤停用（teacherUser/studentUser 脚本已移除引用）；函数保留供恢复。
+// ZD-8 (2026-08-26 dormancy): contract/signing tour steps disabled (removed from teacherUser/studentUser scripts); function kept for restore.
 const tourStepChatPlusDraft = () => tourStepChatPlusItem(4, TEXT.TOUR_STEP_CHAT_PLUS_DRAFT);
 
-// ---- my contracts ----
-// Demo contract: same idea — inject one to introduce the contract card while active.
-// ZD-8（2026-08-26 休眠）：签约/合同教程步骤停用（teacherUser/studentUser 脚本已移除引用）；函数保留供恢复。
+// ---- my contracts (dormant) ----
+// ZD-8 (2026-08-26 dormancy): the steps below are disabled (removed from the scripts);
+// the demo-contract injection they used is also dormant (ZD-9a, engine.js).
+// ZD-8 (2026-08-26 dormancy): contract/signing tour steps disabled (removed from teacherUser/studentUser scripts); function kept for restore.
 const tourStepMyContracts = () => ({ module: 'my-contracts', target: { page: 'my-contracts' }, text: TEXT.TOUR_STEP_MY_CONTRACTS });
-// ZD-8（2026-08-26 休眠）：签约/合同教程步骤停用（teacherUser/studentUser 脚本已移除引用）；函数保留供恢复。
+// ZD-8 (2026-08-26 dormancy): contract/signing tour steps disabled (removed from teacherUser/studentUser scripts); function kept for restore.
 const tourStepContractsList = () => ({ module: 'my-contracts', target: { sel: '#my-contracts-list' }, text: TEXT.TOUR_STEP_CONTRACTS_LIST });
-// ZD-8（2026-08-26 休眠）：签约/合同教程步骤停用（teacherUser/studentUser 脚本已移除引用）；函数保留供恢复。
+// ZD-8 (2026-08-26 dormancy): contract/signing tour steps disabled (removed from teacherUser/studentUser scripts); function kept for restore.
 const tourStepContractCard = () => () => { _tourDemoContractEnsure(); return { module: 'my-contracts', target: { sel: '#my-contracts-list .list-card' }, text: TEXT.TOUR_STEP_CONTRACT_CARD }; };
-// ZD-8（2026-08-26 休眠）：签约/合同教程步骤停用（teacherUser/studentUser 脚本已移除引用）；函数保留供恢复。
+// ZD-8 (2026-08-26 dormancy): contract/signing tour steps disabled (removed from teacherUser/studentUser scripts); function kept for restore.
 const tourStepContractActions = () => ({ module: 'my-contracts', target: { sel: '#my-contracts-list .contract-actions' }, text: TEXT.TOUR_STEP_CONTRACT_ACTIONS });
 
 // ---- notifications ----

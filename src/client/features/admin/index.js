@@ -77,8 +77,8 @@ function onLoad() {
   registerPage({ id: 'admin-awards', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_AWARDS, desc: TEXT.PAGE_ADMIN_AWARDS_DESC, auth: true, enter: () => actions.loadAdminAwards() });
   registerPage({ id: 'admin-verifications', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_VERIFICATIONS, desc: TEXT.PAGE_ADMIN_VERIFICATIONS_DESC, auth: true, enter: () => actions.loadAdminVerifications() });
   registerPage({ id: 'admin-posts', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_POSTS, desc: TEXT.PAGE_ADMIN_POSTS_DESC, auth: true, enter: () => actions.loadAdminPosts() });
-  // ZD-5（休眠）：admin-contracts 页注册停用（签约/合同全链路休眠；恢复时取消注释并同步路由契约/v1-5-route-contract）。
-  // admin 内容审核 contract/signing tab 显式保留 = 历史数据管理视图（读存量 signing_contracts，零改动）。
+  // ZD-5 (dormant): admin-contracts registration disabled (contract flow sleeps; restore = uncomment + sync route contract / v1-5-route-contract).
+  // admin content-review contract/signing tabs kept = historical data management view (reads existing signing_contracts, zero change).
   // registerPage({ id: 'admin-contracts', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_CONTRACTS, desc: TEXT.PAGE_ADMIN_CONTRACTS_DESC, auth: true, enter: () => actions.loadAdminContracts() });
   registerPage({ id: 'admin-feedback', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_FEEDBACK, desc: TEXT.PAGE_ADMIN_FEEDBACK_DESC, auth: true, enter: () => actions.loadAdminFeedback() });
   registerPage({ id: 'admin-content', roles: [ROLES.ADMIN], label: TEXT.PAGE_ADMIN_CONTENT, desc: TEXT.PAGE_ADMIN_CONTENT_DESC, auth: true, enter: () => actions.loadAdminContent() });
