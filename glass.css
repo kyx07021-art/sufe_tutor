@@ -222,7 +222,7 @@ body { background: transparent; }
 }
 /* 按钮层级（R5-2）：主按钮（裸 .btn）= 白调面 + 发丝边，一眼可辨；
    次按钮 .btn-soft = 轻面 + 细边，弱一档；.btn-outline/.btn-ghost 只留文字层。 */
-.btn:not(.btn-soft):not(.btn-outline):not(.btn-ghost):not(.btn-text-danger):not(.btn-danger), .tc-push-btn, .chat-send {
+.btn:not(.btn-soft):not(.btn-outline):not(.btn-ghost):not(.btn-text-danger), .tc-push-btn, .chat-send {
   --g-fill: var(--g-btn-bg);
   --g-border: 1px solid var(--g-btn-line);
   --g-lift: var(--glass-lift-sm);
@@ -230,12 +230,6 @@ body { background: transparent; }
 .btn-outline { --g-fg: var(--ink); }
 .btn-ghost { --g-fg: var(--muted); }
 .btn-text-danger { --g-fg: var(--danger-deep, #9B2C2C); padding: 6px 12px; --g-fill: var(--g-danger-fill); --g-border: 1px solid var(--g-danger-line); --g-lift: var(--glass-lift-sm); }
-/* C2：危险操作实心按钮（settings 注销入口 / 注销确认弹窗）——危险色填充+描边，对齐
-   .btn-text-danger 的 --danger token 语义（--g-fg/--g-fill/--g-border），零 padding 覆盖
-   （保留 .btn 基类标准按钮内距）。级联机制：主按钮规则（特异性 (0,5,0)）以
-   :not(.btn-danger) 排除本类，故本类 (0,1,0) 的 --g-fill/--g-border 声明不被
-   --g-btn-bg/--g-btn-line 覆盖（源序不足以胜出更高特异性，必须排除链）。 */
-.btn-danger { --g-fg: var(--danger-deep); --g-fill: var(--g-danger-fill); --g-border: 1px solid var(--g-danger-line); --g-lift: var(--glass-lift-sm); }
 /* 次按钮（R11 卡片动作统一外观）：比主按钮弱一档——微透轻面 + 发丝细边。
    --g-btn-bg/--g-btn-line 主题双 token；flat 下 --g-fill-weak/全局 --g-border 同语义。 */
 .btn-soft {
