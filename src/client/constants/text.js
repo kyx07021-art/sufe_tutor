@@ -17,7 +17,6 @@ export const TEXT = {
   "BTN_DELETE_DEMAND": "删除需求",
   "BTN_REMOVE": "移除",
   "BTN_CONFIRM": "确定",
-  "VERIFY_DONE": "已通过学籍认证",
   "BTN_GENERATE_INVITE": "生成邀请码",
   "BTN_CANCEL": "取消",
   "INTENT_GREET_TITLE": "提交试课意向",
@@ -791,7 +790,6 @@ export const TEXT = {
   "BTN_CLOSE": "关闭",
   "A11Y_VIEW_PROFILE": "查看该用户资料",
   "VERIFIED_BADGE": "✓ 已认证",
-  "VERIFIED_TITLE": "已通过学籍认证",
   "POST_DELETE_TITLE": "删除帖子",
   "POST_DELETE_CONFIRM": "删除后不可恢复，点赞数据一并清空。确认删除这篇帖子？",
   "EMPTY_NO_NOTIFICATIONS": "还没有通知。试课意向和需求推送都会汇总到这里。",
@@ -1141,8 +1139,6 @@ export const TEXT = {
   "SIDEBAR_CLOSE": "关闭菜单",
   "BTN_NEW_DEMAND": "新建需求",
   "FILTER_TOGGLE": "筛选和排序",
-  "ADMIN_ADMISSION_IMAGE": "录取通知书",
-  "ADMIN_AWARD_PROOF": "奖状证明",
   "ADMIN_BAN": "封禁用户",
   "ADMIN_BAN_CONFIRM": "确认封禁？",
   "ADMIN_DELETE_CONFIRM": "确认删除？",
@@ -1184,7 +1180,5 @@ export const TEXT = {
   "INTENT_RESOLVED_TOAST": "已同意，可在「我的会话」中开始对话",
   "LABEL_SORT": "排序",           // Q-4a-M1b: teacher list filter/sort panel labels
   "LABEL_DAY": "可授课日",
-  "LABEL_VERIFIED": "认证状态",
-  "FILTER_UNVERIFIED": "未认证"
 };
 export default TEXT;
