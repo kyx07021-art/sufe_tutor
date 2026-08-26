@@ -288,6 +288,10 @@ test('意向浮窗：打招呼 textarea + 提交携带 message；缺省可直提
   const calls = [];
   globalThis.fetch = async (url, config = {}) => {
     const u = String(url);
+    if (u.includes('/api/teacher/verify-status')) {
+      // ZH-6（2026-08-26）：教师提交意向前端拦截——未认证 toast 零弹窗；本测试教师 fixture 须 approved 放行弹窗
+      return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
+    }
     if (u.includes('/api/demands/5/intents')) {
       calls.push({ url: u, opts: { method: config.method, body: config.body ? JSON.parse(config.body) : {} } });
       return { ok: true, status: 200, json: async () => ({ message: 'ok' }) };
