@@ -305,13 +305,14 @@
 .verify-admission-preview img { max-width: 100%; max-height: 260px; border-radius: var(--lg-r, 12px); border: 1px solid var(--g-line-soft, var(--line)); }
 
 /* ZH-5（2026-08-26）：认证前置——资料页顶部红色横栏（未认证教师提醒先去认证才能显示在教师广场）。
- * 红字为硬要求（用户原话「红色字体提醒」）；浅红底为渲染选择。approved 态挂载点恒空不显示。 */
+ * 红字为硬要求（用户原话「红色字体提醒」）；浅红底为渲染选择。approved 态挂载点恒空不显示。
+ * 红系消费 tokens.css --danger/--danger-tint（P4 单源，全站红字警示先例 base.css .captcha-tip--fail 等）。 */
 .verify-banner {
   margin-bottom: 18px;
   padding: 12px 16px;
   border-radius: var(--lg-r, 12px);
-  background: rgba(220, 38, 38, 0.08);
-  color: #dc2626;
+  background: var(--danger-tint);
+  color: var(--danger);
   font-size: .92rem;
   font-weight: 600;
   line-height: 1.5;
