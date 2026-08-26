@@ -277,12 +277,18 @@ export async function enterTeacherProfile() {
     ]);
     if (!el) return; // page switched away while loading
     _currentCredential = data.profile ? (data.profile.credential_image || '') : '';
-    // ZH-4（2026-08-26）：认证改为填资料前提——未认证（none/pending/rejected 或 verify 拉取失败 null）
-    // 只渲染认证窗（表单零渲染、不 init），DB 已填字段保留、认证通过后重新进入自然回显；
-    // approved 才开放表单。横幅挂载点（#verify-banner-slot）由 ZH-5 填充渲染/显隐，本处只保证出口含挂载点。
+    // ZH-4 (2026-08-26): verification is now a prerequisite for filling the profile.
+    // Unverified (none/pending/rejected, or verify fetch failure null) renders only the
+    // verify section (zero form render, no init); DB fields are preserved and re-echoed
+    // once approved re-enters. The banner mount (#verify-banner-slot) is filled by ZH-5;
+    // this only guarantees the mount exists in the non-approved output.
     const vStatus = (verify && verify.status) || 'none';
     const verified = vStatus === 'approved';
-    const bannerSlot = `<div id="verify-banner-slot"></div>`;
+    // ZH-5 (2026-08-26): full-width red banner at the top of the profile page for
+    // unverified teachers (red text is the hard requirement; light red bg is a rendering
+    // choice). Rendered only when not approved; empty mount when approved.
+    const bannerSlot = verified ? '<div id="verify-banner-slot"></div>'
+      : `<div id="verify-banner-slot"><div class="verify-banner">${escHtml(TEXT.VERIF_BANNER)}</div></div>`;
     el.innerHTML = bannerSlot
       + (verified ? renderTeacherProfileForm(data.profile || null) + renderTeacherVerifySection(verify || null)
                   : renderTeacherVerifySection(verify || null));

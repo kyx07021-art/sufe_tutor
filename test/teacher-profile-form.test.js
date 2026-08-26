@@ -675,6 +675,8 @@ test('ZH-4 认证前置：none 态只渲染认证窗 + 横幅挂载点，零表�
   const el = dom.window.document.getElementById('teacher-profile-content');
   assert.ok(!el.querySelector('#teacher-profile-form'), 'none 态零表单');
   assert.ok(el.querySelector('#verify-banner-slot'), '横幅挂载点在位');
+  assert.ok(el.querySelector('.verify-banner'), 'none 态渲染红色横栏（ZH-5）');
+  assert.ok(el.querySelector('.verify-banner').textContent.includes('学信网认证'), '横栏文案 VERIF_BANNER');
   assert.ok(el.querySelector('#teacher-verify'), '认证窗在渲染');
   teardown();
 });
@@ -703,6 +705,7 @@ test('ZH-4 认证前置：approved 态开放表单 + 横幅挂载点', async () 
   await actions.enterTeacherProfile();
   const el = dom.window.document.getElementById('teacher-profile-content');
   assert.ok(el.querySelector('#teacher-profile-form'), 'approved 态开放表单');
+  assert.ok(!el.querySelector('.verify-banner'), 'approved 态零红色横栏（ZH-5）');
   assert.ok(el.querySelector('#teacher-verify'), '认证窗仍在（状态展示）');
   teardown();
 });
