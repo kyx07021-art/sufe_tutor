@@ -86,12 +86,14 @@ test('路由表：104 条、method+path 唯一、关键路径字面量齐全', (
     assert.ok(keys.has(`${method} ${path}`), `关键路径缺失 ${method} ${path}`);
   }
   // ZD-1：contract 域 12 路径全部不在路由表（休眠 → 404 ROUTE_NOT_FOUND）
+  // LOW-1 修复（ZD-12 审计）：参数段用 :id 模式对齐 contract/api.js 实际 path，每条独立承重
+  //（写死 1 在恢复路由时也永不命中 = 空转断言；:id 形式恢复即红）。
   const dormant = [
-    'POST /api/contracts', 'GET /api/contracts/my', 'POST /api/contracts/1/sign', 'GET /api/contracts/1/verify',
-    'POST /api/contracts/1/revoke', 'PUT /api/contracts/1', 'DELETE /api/contracts/1',
-    'GET /api/admin/contracts', 'DELETE /api/admin/contracts/1',
-    'POST /api/conversations/1/signing', 'GET /api/conversations/1/bindable-demands',
-    'POST /api/signing-requests/1/respond',
+    'POST /api/contracts', 'GET /api/contracts/my', 'POST /api/contracts/:id/sign', 'GET /api/contracts/:id/verify',
+    'POST /api/contracts/:id/revoke', 'PUT /api/contracts/:id', 'DELETE /api/contracts/:id',
+    'GET /api/admin/contracts', 'DELETE /api/admin/contracts/:id',
+    'POST /api/conversations/:id/signing', 'GET /api/conversations/:id/bindable-demands',
+    'POST /api/signing-requests/:id/respond',
   ];
   for (const k of dormant) {
     assert.ok(!keys.has(k), `休眠路径不得在路由表: ${k}`);
