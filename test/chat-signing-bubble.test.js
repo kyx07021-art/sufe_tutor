@@ -8,7 +8,7 @@ import { state } from '../src/client/core/state.js';
 
 function render(msg) { return renderChatBubble(msg, 0); }
 
-test('signing_request：我方发起 → mine 侧大气泡 + 「你向对方发送」标题，无确认按钮', () => {
+test('signing_request：我方发起 → mine 侧大气泡 + 「你向对方发送」标题，无确认按钮（ZD-6 双方均无操作按钮）', () => {
   state.user = { id: 1, role: 'teacher', username: '甲' };
   const mine = render({ kind:'signing_request', sender_user_id:1, id:11, created_at:'2026-08-08 12:00:00', body:JSON.stringify({ id:'5', price:150, schedule:'每周六晚', method:'offline', status:'pending' }) });
   assert.ok(mine.includes('chat-msg--mine') && mine.includes('chat-bubble--mine'));
@@ -18,7 +18,8 @@ test('signing_request：我方发起 → mine 侧大气泡 + 「你向对方发�
   const theirs = render({ kind:'signing_request', sender_user_id:2, id:12, created_at:'2026-08-08 12:00:00', body:JSON.stringify({ id:'6', price:200, schedule:'周六下午', method:'online', status:'pending' }) });
   assert.ok(theirs.includes('chat-msg--theirs') && theirs.includes('chat-bubble--theirs'));
   assert.ok(theirs.includes('对方向你发送了签约请求'), '接收方标题');
-  assert.ok(theirs.includes('data-action="chat.respond"') && theirs.includes('data-accept="1"') && theirs.includes('data-accept="0"'));
+  // ZD-6（2026-08-26 休眠）：接收方确认/拒绝按钮随签约交互休眠移除（信息展示保留）
+  assert.ok(!theirs.includes('data-action="chat.respond"'), 'ZD-6 休眠：接收方不再有确认/拒绝按钮');
   assert.ok(theirs.includes('signing-bubble-row'), '报价/时间/方式信息行在');
   assert.ok(theirs.includes('150') === false && mine.includes('150'), 'mine 侧报价行在（theirs 是 200）');
   assert.ok(theirs.includes('200'), 'theirs 报价行在');
@@ -28,7 +29,7 @@ test('signing_request：我方发起 → mine 侧大气泡 + 「你向对方发�
   state.user = null;
 });
 
-test('signing_request 终态：rejected 灰化 + 状态文字；signed 提示 + 起草合同按钮', () => {
+test('signing_request 终态：rejected 灰化 + 状态文字；signed 提示（ZD-6 无起草按钮）', () => {
   state.user = { id: 1, role: 'teacher', username: '甲' };
   const rejected = render({ kind:'signing_request', sender_user_id:2, id:17, created_at:'2026-08-08 12:00:00', body:JSON.stringify({ id:'7', price:100, schedule:'周六', method:'offline', status:'rejected' }) });
   assert.ok(rejected.includes('signing-bubble--done'), 'rejected 带 done 灰化类');
@@ -36,7 +37,8 @@ test('signing_request 终态：rejected 灰化 + 状态文字；signed 提示 + 
   assert.ok(!rejected.includes('chat.respond'), 'rejected 无操作按钮');
   const signed = render({ kind:'signing_request', sender_user_id:2, id:18, created_at:'2026-08-08 12:00:00', body:JSON.stringify({ id:'8', price:100, schedule:'周六', method:'offline', status:'signed' }) });
   assert.ok(signed.includes('signing-bubble-signed-tip'), 'signed 带提示');
-  assert.ok(signed.includes('chat.plusDraft'), 'signed 带起草合同按钮');
+  // ZD-6（2026-08-26 休眠）：起草合同按钮随签约交互休眠移除（信息展示保留）
+  assert.ok(!signed.includes('chat.plusDraft'), 'ZD-6 休眠：signed 气泡不再有起草合同按钮');
   assert.ok(!signed.includes('平台不参与费用结算'), '已签约不再显示资金声明');
   state.user = null;
 });

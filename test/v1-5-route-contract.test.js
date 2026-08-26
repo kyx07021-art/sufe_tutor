@@ -69,20 +69,32 @@ async function call(method, path, body = null, token = null) {
   return routeApi(db, path, method, body, new URL(`http://x${path}`), { headers }, ENV);
 }
 
-test('路由表：116 条、method+path 唯一、关键路径字面量齐全', () => {
-  assert.equal(routes.length, 116, '迁移后路由数 116');
+test('路由表：104 条、method+path 唯一、关键路径字面量齐全', () => {
+  // ZD-1（2026-08-26 休眠）：contract 域 12 路由停用（/api/contracts 7 + admin 2 + signing + bindable + respond）→ 116-12=104。
+  assert.equal(routes.length, 104, 'ZD-1 休眠后路由数 104（116-12 contract 域）');
   const keys = new Set(routes.map(r => `${r.method} ${r.path}`));
   assert.equal(keys.size, routes.length, 'method+path 唯一');
   const required = [
     ['POST', '/api/auth/login'], ['POST', '/api/auth/register'], ['GET', '/api/teachers'],
     ['GET', '/api/teacher/profile'], ['POST', '/api/student/demands'], ['POST', '/api/demands/:id/intents'],
-    ['GET', '/api/conversations'], ['GET', '/api/conversations/:id/messages'], ['POST', '/api/contracts'],
+    ['GET', '/api/conversations'], ['GET', '/api/conversations/:id/messages'],
     ['GET', '/api/reviews'], ['POST', '/api/feedbacks'], ['POST', '/api/complaints'],
     ['GET', '/api/admin/stats'], ['GET', '/api/admin/content'], ['GET', '/api/data-version'],
     ['POST', '/api/captcha/verify'],
   ];
   for (const [method, path] of required) {
     assert.ok(keys.has(`${method} ${path}`), `关键路径缺失 ${method} ${path}`);
+  }
+  // ZD-1：contract 域 12 路径全部不在路由表（休眠 → 404 ROUTE_NOT_FOUND）
+  const dormant = [
+    'POST /api/contracts', 'GET /api/contracts/my', 'POST /api/contracts/1/sign', 'GET /api/contracts/1/verify',
+    'POST /api/contracts/1/revoke', 'PUT /api/contracts/1', 'DELETE /api/contracts/1',
+    'GET /api/admin/contracts', 'DELETE /api/admin/contracts/1',
+    'POST /api/conversations/1/signing', 'GET /api/conversations/1/bindable-demands',
+    'POST /api/signing-requests/1/respond',
+  ];
+  for (const k of dormant) {
+    assert.ok(!keys.has(k), `休眠路径不得在路由表: ${k}`);
   }
 });
 
@@ -117,8 +129,9 @@ test('routeApi 代表路径内存冒烟：认证/读列表/写反馈/管理端/�
 
   const convs = await call('GET', '/api/conversations', null, tokens.student);
   assert.equal(convs.status, 200);
+  // ZD-1：contract 域路由休眠 → 404 ROUTE_NOT_FOUND（不再可用）
   const contracts = await call('GET', '/api/contracts/my', null, tokens.student);
-  assert.equal(contracts.status, 200);
+  assert.equal(contracts.status, 404, 'contract 域休眠，GET /api/contracts/my 404');
   const reviews = await call('GET', '/api/reviews', null, tokens.student);
   assert.equal(reviews.status, 200);
   const posts = await call('GET', '/api/posts', null, tokens.student);

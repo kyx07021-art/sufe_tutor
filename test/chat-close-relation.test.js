@@ -75,15 +75,17 @@ test('renderChatFrame：active 含结束关系按钮 + 无 closed tag；closed �
   state.user = null;
 });
 
-test('renderSigningRequestBubble：closed 会话已成交签约气泡不渲染起草按钮', () => {
+test('renderSigningRequestBubble：签约气泡全链路不渲染起草按钮（ZD-6 休眠）', () => {
+  // ZD-6（2026-08-26 休眠）：起草合同按钮随签约交互全链路移除——active/closed 会话均不渲染
+  //（原「closed 隐藏起草按钮」断线场景随按钮整体消失而消解）；已成交提示保留（信息非操作）。
   state.user = { id: 40, role: 'teacher', username: '教师乙' };
   chat.convId = 5;
   const msg = { id: 9, sender_user_id: 9, kind: 'signing_request', body: JSON.stringify({ id: 7, status: 'signed', price: 150, schedule: 'x', method: 'online' }), created_at: '2026-08-07 12:00:00' };
   chat.list = [BASE_CONV]; // active
-  assert.ok(renderChatBubble(msg).includes('signing-bubble-draft-btn'), 'active 会话渲染起草按钮');
+  assert.ok(!renderChatBubble(msg).includes('signing-bubble-draft-btn'), 'ZD-6 休眠：active 会话也不渲染起草按钮');
   chat.list = [{ ...BASE_CONV, status: 'closed' }];
   const html = renderChatBubble(msg);
-  assert.ok(!html.includes('signing-bubble-draft-btn'), 'closed 会话隐藏起草按钮（点击恒 403 的入口收口）');
+  assert.ok(!html.includes('signing-bubble-draft-btn'), 'closed 会话无起草按钮');
   assert.ok(html.includes('signing-bubble-signed-tip'), '已成交提示仍保留（信息非操作）');
   chat.convId = null; chat.list = [];
   state.user = null;

@@ -264,7 +264,7 @@ test('chatPollTick：空会话轮询带回消息 → 清占位 + 追加气泡 + 
   teardown();
 });
 
-test('chatPollTick：签约回应 accept → 配对请求气泡注入签约提示并删资金声明', async () => {
+test('chatPollTick：签约回应 accept → 回应气泡追加；配对请求气泡不再注入起草/提示（ZD-6 休眠）', async () => {
   const dom = setup();
   chat.convId = 5;
   chat.list = [BASE_CONV];
@@ -283,11 +283,12 @@ test('chatPollTick：签约回应 accept → 配对请求气泡注入签约提�
   };
   await chatPollTick();
   const bubble = dom.window.document.querySelector('[data-signing-id="7"]');
-  assert.ok(bubble.querySelector('.signing-bubble-draft-btn'), '起草合同按钮已注入');
-  assert.ok(bubble.querySelector('.signing-bubble-signed-tip'), '签约提示已注入（status 复用为 tip）');
-  assert.equal(bubble.querySelector('.signing-bubble-funds'), null, '独立资金声明已删除');
+  // ZD-6（2026-08-26 休眠）：chatInjectSignCaption 随签约交互休眠，轮询不再改写存量请求气泡
+  assert.equal(bubble.querySelector('.signing-bubble-draft-btn'), null, 'ZD-6 休眠：不再注入起草合同按钮');
+  assert.equal(bubble.querySelector('.signing-bubble-signed-tip'), null, 'ZD-6 休眠：不再注入签约提示');
+  assert.ok(bubble.querySelector('.signing-bubble-funds'), '资金声明保留（不再被删除）');
   const box = dom.window.document.getElementById('chat-messages');
-  assert.ok(box.innerHTML.includes('对方已确认签约请求'), '回应气泡已追加');
+  assert.ok(box.innerHTML.includes('对方已确认签约请求'), '回应气泡仍追加（消息轮询不受影响）');
   teardown();
 });
 
