@@ -42,6 +42,7 @@ export function openModal({ title, titleId = '', body = '', footer = '', closabl
 }
 
 export function closeModal() {
+  if (_imageViewerOpen) { closeImageViewer(); return; } // ZK-L1: lightbox is the active overlay — close it, never corrupt stack/lock state
   const host = typeof document !== 'undefined' ? document.getElementById('modal-container') : null;
   if (!host) return;
   closeHostOverlays(host);

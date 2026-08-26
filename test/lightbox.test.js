@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { openImageViewer, closeImageViewer, closeAllModals } from '../src/client/core/ui.js';
+import { openImageViewer, closeImageViewer, closeAllModals, closeModal } from '../src/client/core/ui.js';
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 import { GLASS_CSS } from './_css.js';
@@ -135,5 +135,17 @@ test('ZK-4 P3：聊天图片气泡点击走 openImageViewer（新 lightbox）', 
   const viewer = dom.window.document.querySelector('.modal-overlay.image-viewer-modal');
   assert.ok(viewer, '聊天图片走新 lightbox');
   assert.ok(viewer.querySelector('img.image-viewer-img').getAttribute('src').includes('CHAT'), '聊天原图渲染');
+  teardown();
+});
+
+test('ZK-L1 closeModal 协调：lightbox 开启时 closeModal 关 viewer 不损坏栈/锁（审计 L1 建议）', () => {
+  const dom = setup();
+  openImageViewer('data:image/png;base64,AAA');
+  closeModal(); // 审计 L1：closeModal 须先关 lightbox（原实现会 pop 底层栈并留悬空态）
+  assert.ok(!dom.window.document.querySelector('.image-viewer-modal'), 'closeModal 关掉 lightbox');
+  assert.ok(!dom.window.document.body.classList.contains('image-viewer-lock'), 'closeModal 解锁 body');
+  // 无悬空态：可正常重开（单例标志已复位，Esc 监听已清）
+  openImageViewer('data:image/png;base64,BBB');
+  assert.ok(dom.window.document.body.classList.contains('image-viewer-lock'), '重开正常加锁');
   teardown();
 });
