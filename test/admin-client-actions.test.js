@@ -11,6 +11,7 @@ import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewR
 import adminFeature from '../src/client/features/admin/index.js'; // U-3j L3: seg-tab-change routing
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
+import { closeImageViewer } from '../src/client/core/ui.js';
 
 function setup() {
   const dom = new JSDOM('<!DOCTYPE html><html><body><div id="modal-container"></div><div id="toast-container"></div></body></html>', { url: 'http://localhost/' });
@@ -23,6 +24,7 @@ function setup() {
   return dom;
 }
 function teardown() {
+  closeImageViewer(); // ZK: the image viewer is a module-level singleton — close it so the next test can reopen
   delete globalThis.document; delete globalThis.window; delete globalThis.MutationObserver;
   delete globalThis.getComputedStyle;
   delete globalThis.fetch;
@@ -520,16 +522,16 @@ test('U-3d loadAdminAwards 无参数：读 #admin-awards-status 当前值保持�
   teardown();
 });
 
-test('U-3d viewAwardProof：GET /api/admin/awards/:id/proof → 图片 modal（凭证数据通道）', async () => {
+test('U-3d viewAwardProof：GET /api/admin/awards/:id/proof → ZK lightbox（凭证数据通道）', async () => {
   const dom = setup();
   globalThis.fetch = async (url) => {
     assert.ok(String(url).includes('/api/admin/awards/66/proof'), '凭证接口');
     return { ok: true, status: 200, json: async () => ({ dataUrl: 'data:image/png;base64,AAA' }) };
   };
   await viewAwardProof(66);
-  const modal = dom.window.document.querySelector('.modal');
-  assert.ok(modal, '凭证弹窗出现');
-  const img = modal.querySelector('.award-proof-img');
+  const viewer = dom.window.document.querySelector('.modal-overlay.image-viewer-modal');
+  assert.ok(viewer, 'ZK lightbox 出现');
+  const img = viewer.querySelector('img.image-viewer-img');
   assert.ok(img && img.getAttribute('src').includes('data:image/png;base64,AAA'), '图片 dataUrl 渲染');
   teardown();
 });
@@ -736,7 +738,7 @@ test('U-3e loadAdminVerifications 无参数：读 #admin-verif-status 当前值�
   teardown();
 });
 
-test('U-3e viewAdmissionImage：从缓存列表取 admission_image 显示原图 modal', async () => {
+test('U-3e viewAdmissionImage：从缓存列表取 admission_image 显示原图 ZK lightbox', async () => {
   const dom = setup();
   _dhResetForTests(); // datahub cache is module-level shared across tests — clear stale /api/admin/verifications
   // 先加载列表填缓存，再点预览
@@ -746,9 +748,9 @@ test('U-3e viewAdmissionImage：从缓存列表取 admission_image 显示原图 
   globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ verifications: [{ id: 88, username: '教师戊', user_id: 9, verify_type: 'admission', verify_code: '', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '', admission_image: 'data:image/png;base64,CCC' }] }) });
   await loadAdminVerifications();
   viewAdmissionImage(88);
-  const modal = dom.window.document.querySelector('.modal');
-  assert.ok(modal, '原图弹窗出现');
-  const img = modal.querySelector('.verif-admission-img');
+  const viewer = dom.window.document.querySelector('.modal-overlay.image-viewer-modal');
+  assert.ok(viewer, '原图 ZK lightbox 出现');
+  const img = viewer.querySelector('img.image-viewer-img');
   assert.ok(img && img.getAttribute('src').includes('data:image/png;base64,CCC'), '原图 dataUrl 渲染');
   teardown();
 });

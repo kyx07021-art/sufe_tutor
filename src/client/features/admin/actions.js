@@ -7,7 +7,7 @@ import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js';
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
-import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha, segTabsHtml } from '../../core/ui.js';
+import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha, segTabsHtml, openImageViewer } from '../../core/ui.js';
 import { escHtml, fmtDateTime, loaderHtml, mdRender } from '../../core/dom.js'; // U-3f: post full-text modal via shared mdRender
 import { renderGlassLineChart } from '../../core/chart.js'; // U-3j: traffic charts (W6 shared chart component)
 import { priceRangeText, methodName, roleLabel } from '../../core/display.js'; // U-3g: contract method label; U-3i: content author role tag
@@ -615,11 +615,13 @@ export function renderAdminAwardRow(a) {
   </div>`;
 }
 
-// U-3d: fetch the stored proof image and show it in a modal (GET /api/admin/awards/:id/proof).
+// U-3d: fetch the stored proof image and open it in the ZK full-screen lightbox
+// (GET /api/admin/awards/:id/proof). The old footer-close modal is replaced.
 export async function viewAwardProof(id) {
   try {
     const d = await api(`/api/admin/awards/${id}/proof`, { method: 'GET' });
-    openModal({ title: TEXT.ADMIN_AWARD_PROOF, body: d.dataUrl ? `<img class="award-proof-img" src="${escHtml(d.dataUrl)}" alt="">` : `<p>${escHtml(TEXT.ADMIN_AWARD_NONE)}</p>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
+    if (d.dataUrl) openImageViewer(d.dataUrl);
+    else showToast(TEXT.ADMIN_AWARD_NONE, 'error');
   } catch (err) { showToast(err.message); }
 }
 export function approveAward(id) {
@@ -750,7 +752,9 @@ export async function performVerifAction(id, body, { capToken } = {}) {
 export function viewAdmissionImage(id) {
   const v = _verifListCache.find(x => x.id === id);
   if (!v) { showToast(TEXT.ADMIN_VERIF_NOT_FOUND, 'error'); return; }
-  openModal({ title: TEXT.ADMIN_ADMISSION_IMAGE, body: v.admission_image ? `<img class="verif-admission-img" src="${escHtml(v.admission_image)}" alt="">` : `<p>${escHtml(TEXT.ADMIN_VERIF_EMPTY)}</p>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CLOSE)}</button>` });
+  // ZK: the admission image opens in the full-screen lightbox; the old footer-close modal is replaced.
+  if (v.admission_image) openImageViewer(v.admission_image);
+  else showToast(TEXT.ADMIN_VERIF_EMPTY, 'error');
 }
 
 // U-3a rework (audit F1): verify/unverify is a danger op (server handleVerifyTeacher requires
