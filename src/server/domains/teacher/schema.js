@@ -54,10 +54,7 @@ export async function migrate(db, ctx) {
   // R2-5 存量教师单报价转区间（幂等）
   await dbRun(db, `UPDATE teacher_profiles SET price_min=price, price_max=price WHERE price_min IS NULL AND price IS NOT NULL`);
   // R16：默认评分 4.0→4.5 回填 + 已评价教师按新公式全量重算（幂等）
-  // ZO-1（2026-08-26）：条件由 `rating < 4.5` 改 `rating IS NULL OR rating != 4.5`——生产表烤死
-  // DEFAULT 4 致新行恒 4.0（rating < 4.5 本可命中，但此前版本门控短路从未跑过；改不等号覆盖
-  // NULL 与一切非 4.5 值，含未来默认值再变的情形）。
-  await dbRun(db, `UPDATE teacher_profiles SET rating=${INITIAL_RATING} WHERE rating_count = 0 AND (rating IS NULL OR rating <> ${INITIAL_RATING})`);
+  await dbRun(db, `UPDATE teacher_profiles SET rating=${INITIAL_RATING} WHERE rating_count = 0 AND rating < ${INITIAL_RATING}`);
   await dbRun(db, `UPDATE teacher_profiles SET rating=(${INITIAL_RATING} * ${INITIAL_WEIGHT} + COALESCE(rating_sum,0)) / (${INITIAL_WEIGHT} + rating_count) WHERE rating_count > 0`);
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_tp_updated ON teacher_profiles(updated_at)');
 }

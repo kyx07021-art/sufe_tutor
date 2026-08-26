@@ -4,7 +4,7 @@
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { encryptField, decryptField } from '../../core/crypto.js';
 import { safeJsonArray } from '../../core/json.js'; // Z-3-F3：safeJsonObject 零引用删除
-import { LIMITS, INITIAL_RATING } from '../../../shared/config.js'; // ZO-1：INITIAL_RATING 本文件 INSERT 显式写默认评分（生产表烤死 DEFAULT 4，不能依赖表默认）
+import { LIMITS } from '../../../shared/config.js'; // Z-3-F3：INITIAL_RATING/INITIAL_WEIGHT 真正使用方在 auth/repo.js，此处零引用删除
 
 // 教师档案
 // ============================================================
@@ -55,16 +55,12 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
       [profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
         timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, userId]);
   } else {
-    // ZO-1（2026-08-26）：新档案显式写 rating=INITIAL_RATING——生产 teacher_profiles 表由旧版
-    // INITIAL_RATING=4.0 建表，`rating REAL DEFAULT 4` 烤死在表定义里，INSERT 不写 rating 则新教师恒 4.0
-    // （生产实证 8/18 教师 4.0）。写路径显式值 = 不依赖表 DEFAULT（A1 写路径一致）。
     await dbRun(db, `INSERT INTO teacher_profiles (user_id,province,grade,gender,subjects,gaokao_scores,
         price,price_min,price_max,wechat,email,intro,address,school,real_name,credential_image,
-        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year,
-        rating)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        time_slots,teaching_method,personality_tags,nonacademic_projects,nonacademic_prices,graduation_year)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [userId, profile.province || '', profile.grade, profile.gender, subjects, gaokao, priceMin, priceMin, priceMax, wechat, email, (profile.intro || '').slice(0, LIMITS.INTRO_MAX), (profile.address || '').slice(0, LIMITS.ADDRESS_FIELD_MAX), (profile.school || '').slice(0, LIMITS.SCHOOL_MAX), realName, credentialImage,
-        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear, INITIAL_RATING]);
+        timeSlots, teachingMethod, personalityTags, nonacademicProjects, nonacademicPrices, gradYear]);
   }
 }
 
