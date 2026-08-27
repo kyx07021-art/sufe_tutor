@@ -116,7 +116,7 @@ test('Q-4a-M1b 审计 FAIL：清除筛选恢复全量（非 sticky——从全�
 });
 
 test('Q-4a 复审：筛选后保留排序态（原回退服务端序）', async () => {
-  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select><select id="filter-verified"></select></body></html>', { url: 'http://localhost/' });
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
   globalThis.localStorage = dom.window.localStorage;

@@ -57,6 +57,7 @@ export function renderProfilePanel(p, matched) {
       [TEXT.LABEL_SCHOOL, p.school],
       [TEXT.LABEL_REAL_NAME, p.real_name],
       [TEXT.LABEL_GRADUATION_YEAR, p.graduation_year],
+      [TEXT.LABEL_INTRO, p.intro],
     ]},
     { title: TEXT.SECTION_SUBJECTS, rows: [
       [TEXT.LABEL_PRICE, priceRangeText(p.price_min, p.price_max)],
@@ -64,8 +65,19 @@ export function renderProfilePanel(p, matched) {
       [TEXT.LABEL_TIME_SLOTS, expectedTimeText(p.time_slots)],
     ]},
   ];
+  // ZM-1: header = avatar (left, decorative) + name / rating side by side (right).
+  // Rating is rendered only when present (list data always carries it; the /api/users/:id
+  // fallback path may not). starsHtml/ratingText are teacher-domain display mappers.
+  const ratingHtml = p.rating != null && p.rating !== ''
+    ? `<span class="profile-rating">${starsHtml(p.rating)}<span class="profile-rating-num">${ratingText(p.rating)}</span></span>` : '';
   let html = `<div class="profile-panel">
-    <div class="profile-header"><span class="profile-name">${escHtml(p.real_name || p.username)}${deactivatedTag(p.username)}</span></div>`;
+    <div class="profile-header">
+      ${renderAvatarHtml(p.avatar, p.username || p.real_name || '', 'profile-avatar')}
+      <div class="profile-identity">
+        <span class="profile-name">${escHtml(p.real_name || p.username)}</span>${deactivatedTag(p.username)}
+        ${ratingHtml}
+      </div>
+    </div>`;
   for (const g of groups) {
     html += `<div class="profile-group"><p class="profile-group-title">${escHtml(g.title)}</p>`;
     for (const [k,v] of g.rows) {

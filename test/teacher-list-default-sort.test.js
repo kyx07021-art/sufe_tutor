@@ -18,7 +18,7 @@ const TEACHERS = [
 ];
 
 function setupDom() {
-  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select><select id="filter-verified"></select></body></html>', { url: 'http://localhost/' });
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="browse-teachers-list"></div><select id="teacher-sort"></select><select id="filter-method"></select><select id="filter-day"></select></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
   globalThis.window = dom.window;
   globalThis.localStorage = dom.window.localStorage;

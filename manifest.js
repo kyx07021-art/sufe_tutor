@@ -10,7 +10,7 @@ export const ASSET_MANIFEST = {
     "features/complaints.css": "features/complaints.7bde5325.css",
     "features/browse.css": "features/browse.5c318665.css",
     "features/admin.css": "features/admin.2368b3f3.css",
-    "features/teacher.css": "features/teacher.de5066bd.css",
+    "features/teacher.css": "features/teacher.54e4162a.css",
     "features/notif.css": "features/notif.3302a503.css",
     "features/chart.css": "features/chart.d5150017.css",
     "features/demand.css": "features/demand.42d7da97.css",
@@ -18,7 +18,7 @@ export const ASSET_MANIFEST = {
     "features/chat.css": "features/chat.bef203f9.css",
     "features/posts.css": "features/posts.40f7400d.css",
     "features/region.css": "features/region.e5577254.css",
-    "glass.css": "glass.ade658e1.css",
+    "glass.css": "glass.0aacfc1f.css",
     "async-css.js": "async-css.deb394aa.js"
   }
 };
