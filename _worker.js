@@ -253,7 +253,7 @@ export default {
       // 路径遍历纵深防御（2026-08-09 审计 F-2）：点段一律 404——线上 CDN 边缘已拒（实测 400），
       // worker 侧再加一道，防未来边缘规范化行为变化后 server/ 源码泄露（p 此处已 decodeURIComponent）
       if (p.includes('..')) return applySecurityHeaders(new Response('Not Found', { status: 404 }), p);
-      if (p.startsWith('/server/') || p.startsWith('/server') || p.startsWith('/docs/') ||
+      if (p.startsWith('/server/') || p.startsWith('/server') || p.startsWith('/docs') ||
           p === '/secrets.js' ||
           p.startsWith('/.git/') || p.startsWith('/.wrangler/') || p.startsWith('/node_modules/') ||
           p === '/package.json' || p === '/package-lock.json' || p.endsWith('.md') ||
