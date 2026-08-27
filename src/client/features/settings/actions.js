@@ -172,8 +172,8 @@ export function handleAvatarUpload(input) {
   if (!file.type.startsWith('image/')) { showToast(TEXT.SETTINGS_AVATAR_INVALID, 'error'); return; }
   const reader = new FileReader();
   reader.onload = async () => {
-    // ZZ-5（2026-08-27，用户①）：超 AVATAR_MAX_BYTES 自动压缩到限额内（不再 400 报错让用户自压）；
-    // 未超限原样保留（PNG 透明头像不强制转 JPEG——字节预算不命中即零改动）。
+    // ZZ-5: compress to the avatar byte budget when over AVATAR_MAX_BYTES (no more 400 + user-side shrink);
+    // keep the original when within budget (transparent PNGs are not forced to JPEG — zero change when the budget is not hit).
     let dataUrl = String(reader.result || '');
     if (dataUrl.length > LIMITS.AVATAR_MAX_BYTES) {
       try {

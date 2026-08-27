@@ -405,8 +405,9 @@ export function stageAdmissionFile(input) {
   if (f.type && !/^image\/(jpeg|png|webp)$/i.test(f.type)) { showToast(TEXT.ADMISSION_IMAGE_INVALID, 'error'); return; }
   const reader = new FileReader();
   reader.onload = async () => {
-    // ZZ-4（2026-08-27，用户①「不再toast让用户自己压缩」）：超 ADMISSION_IMG_MAX 自动压缩到限额内，
-    // 压缩后仍超限（极难触发）才落既有 toast；预览用压缩后 dataURL（服务端 CREDENTIAL_MAX_BYTES 同口径）。
+    // ZZ-4: compress to the admission image budget when over ADMISSION_IMG_MAX (no user-side shrink toast);
+    // only if it still exceeds the budget (extremely rare) fall through to the existing toast. Preview uses the
+    // compressed dataURL (same sizing as the server CREDENTIAL_MAX_BYTES check).
     let dataUrl = String(reader.result || '');
     if (dataUrl.length > CONFIG.ADMISSION_IMG_MAX) {
       try {

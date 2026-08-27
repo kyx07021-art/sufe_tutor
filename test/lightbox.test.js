@@ -101,7 +101,11 @@ test('ZK-2/3 P1+P2：管理员录取通知书 / 奖学金凭证走新 lightbox',
     if (u.includes('/api/admin/awards/66/proof')) {
       return { ok: true, status: 200, json: async () => ({ dataUrl: 'data:image/png;base64,PROOF' }) };
     }
-    return { ok: true, status: 200, json: async () => ({ verifications: [{ id: 88, username: '教师戊', user_id: 9, verify_type: 'admission', verify_code: '', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '', admission_image: 'data:image/png;base64,ADM' }] }) };
+    // ZZ-1：列表零 admission_image（真实形状 G3），单点端点 /image 按需取图
+    if (u.includes('/api/admin/verifications/88/image')) {
+      return { ok: true, status: 200, json: async () => ({ admission_image: 'data:image/png;base64,ADM' }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ verifications: [{ id: 88, username: '教师戊', user_id: 9, verify_type: 'admission', verify_code: '', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '' }] }) };
   };
   // P2: viewAwardProof
   await viewAwardProof(66);
@@ -109,13 +113,13 @@ test('ZK-2/3 P1+P2：管理员录取通知书 / 奖学金凭证走新 lightbox',
   assert.ok(viewer, 'P2 奖学金凭证走 lightbox');
   assert.ok(viewer.querySelector('img.image-viewer-img').getAttribute('src').includes('PROOF'), 'P2 凭证图渲染');
   closeImageViewer();
-  // P1: viewAdmissionImage（先加载列表填 _verifListCache，再点预览）
+  // P1: viewAdmissionImage（ZZ-2 起 on-demand：先加载列表，点预览单点取图 + 留存缓存）
   _dhResetForTests();
   const list = document.createElement('div');
   list.id = 'admin-verifications-list';
   document.body.appendChild(list);
   await loadAdminVerifications();
-  viewAdmissionImage(88);
+  await viewAdmissionImage(88);
   viewer = dom.window.document.querySelector('.modal-overlay.image-viewer-modal');
   assert.ok(viewer, 'P1 录取通知书走 lightbox');
   assert.ok(viewer.querySelector('img.image-viewer-img').getAttribute('src').includes('ADM'), 'P1 原图渲染');

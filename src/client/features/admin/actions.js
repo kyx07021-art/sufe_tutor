@@ -655,7 +655,7 @@ export async function performAwardAction(id, action, { note = '' } = {}) {
 // verify code + meta + admission preview + structured approve form / reject / revoke). All
 // ops wrapped in plain confirm + captcha (ZR-A3: admin re-auth dormant).
 let _verifListCache = []; // v1 parity closure (not window)
-let _verifImageCache = new Map(); // ZZ-1/2: on-demand admission images, cached after first load (用户③「点开一个图片再加载并留存一个大图」)
+let _verifImageCache = new Map(); // ZZ-1/2: on-demand admission images, cached after first load (user: load on click + keep the big image)
 
 export async function loadAdminVerifications(status) {
   const el = document.getElementById('admin-verifications-list');
@@ -760,7 +760,7 @@ export async function performVerifAction(id, body) {
 }
 
 export async function viewAdmissionImage(id) {
-  // ZZ-1/2（用户③）：列表零图片，点开单点取图并留存缓存（Map 命中直接开 lightbox）。
+  // ZZ-1/2: the list carries no images; fetch by id on click and keep in cache (Map hit opens lightbox directly).
   try {
     const hit = _verifImageCache.get(id);
     const src = hit !== undefined ? hit : (await api(`/api/admin/verifications/${id}/image`)).admission_image || '';
