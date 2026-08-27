@@ -15,6 +15,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { TEST_SECRETS } from './_test-secrets.js';
 import { initDb } from '../src/server/core/db.js';
 import { dbUpsertTeacherProfile, dbGetTeacherProfile, dbGetTeachers, dbApplyChsiToProfile } from '../src/server/domains/teacher/repo.js';
+import { encryptField } from '../src/server/core/crypto.js';
 import { LIMITS } from '../src/shared/config.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -117,4 +118,23 @@ test('ZR-B1 adminView：real_name 明文直读', async () => {
   const row = adminList.find(t => t.user_id === tea);
   assert.equal(row.real_name, '管理名', '管理端明文直读');
   assert.equal(row.wechat, 'wx_zrb1', '管理端 wechat 解密口径不变');
+});
+
+// ── ZR-B7（2026-08-27）：存量密文兼容——B6 回填执行前生产 real_name 仍是 enc:v1: 密文，
+// mapper 读路径 decryptField-with-fallback 把密文解成明文（明文原样放行）。变异：还原解密 → 断言红。
+test('ZR-B7 存量密文：本人档案/广场列表/adminView 三出口解密为明文', async () => {
+  const { raw, db, tea } = await seedBase();
+  // 直接落密文（模拟 B6 前存量行，绕过明文写路径）
+  const cipher = await encryptField('存量密文名');
+  raw.prepare('INSERT INTO teacher_profiles (user_id, real_name) VALUES (?,?)').run(tea, cipher);
+  await dbApplyChsiToProfile(db, tea, { school: '测试大学', level: '本科', major: '', enrollmentStatus: '在籍', enrollYear: '2026' });
+
+  const prof = await dbGetTeacherProfile(db, tea);
+  assert.equal(prof.real_name, '存量密文名', '本人档案密文解密（变异：还原 decryptField → 密文串必红）');
+
+  const guestList = await dbGetTeachers(db, {});
+  assert.equal(guestList[0].real_name, '存量密文名', '广场列表密文解密（private:false 分支也解密——公开列不受裁剪门控）');
+
+  const adminList = await dbGetTeachers(db, { adminView: true });
+  assert.equal(adminList.find(t => t.user_id === tea).real_name, '存量密文名', 'adminView 密文解密');
 });

@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { dbGetMyConversations, dbGetConversationWithNames, dbGetMyRelations } from '../src/server/domains/chat/repo.js';
 import { handleGetMyRelations } from '../src/server/domains/chat/api.js';
-import { tokenDigest } from '../src/server/core/crypto.js';
+import { tokenDigest, encryptField } from '../src/server/core/crypto.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
@@ -112,4 +112,44 @@ test('关系清单 handler：学生视角 other.name = 平台内名称（映射�
   assert.equal(r.status, 200);
   const rel = (await r.json()).relations.find(x => x.conversationId === c1);
   assert.deepEqual(rel.other, { id: t1, role: 'teacher', name: '张知途', avatar: '' }, 'other.name = 教师平台内名称');
+});
+
+// ── ZR-B7（2026-08-27）：存量密文兼容——B6 回填执行前生产 real_name 仍是 enc:v1: 密文，
+// 三出口 teacher_name 读路径 decryptField-with-fallback 须把密文解成明文（明文原样放行）。
+// 变异守护：还原任一处 decryptField → 断言红。
+async function seedWithCipher(raw, db) {
+  const { s1, t1, c1 } = await seed(db, raw);
+  // 直接把 t1 档案 real_name 改写为密文（模拟 B6 前的存量行）
+  const cipher = await encryptField('密文老师');
+  raw.prepare('UPDATE teacher_profiles SET real_name=? WHERE user_id=?').run(cipher, t1);
+  return { s1, t1, c1, cipher };
+}
+
+test('ZR-B7 会话列表：存量密文 teacher_name → 解密显示明文（非 enc: 串）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1, c1, cipher } = await seedWithCipher(raw, db);
+  assert.ok(String(cipher).startsWith('enc:v1:'), '夹具真实密文（enc:v1: 前缀）');
+  const rows = await dbGetMyConversations(db, s1);
+  const row = rows.find(r => r.id === c1);
+  assert.equal(row.teacher_name, '密文老师', '存量密文解密为明文平台内名称（变异：还原 decryptField → 此处见 enc: 串必红）');
+});
+
+test('ZR-B7 dbGetConversationWithNames：存量密文 teacher_name → 明文', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { c1 } = await seedWithCipher(raw, db);
+  const named = await dbGetConversationWithNames(db, c1);
+  assert.equal(named.teacher_name, '密文老师', '会话行密文解密为明文（变异：还原 → 红）');
+});
+
+test('ZR-B7 关系清单：存量密文 teacher_name → 明文（含 handler 映射）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { s1, t1, c1 } = await seedWithCipher(raw, db);
+  const rows = await dbGetMyRelations(db, s1);
+  assert.equal(rows.find(r => r.id === c1).teacher_name, '密文老师', '关系清单密文解密为明文（变异：还原 → 红）');
+  const token = 's1-token';
+  raw.prepare('INSERT INTO auth_sessions (token_hash,user_id,label,expires_at,session_id) VALUES (?,?,?,?,?)')
+    .run(await tokenDigest(token), s1, 'x', '2099-01-01 00:00:00', 'sess-s1');
+  const r = await handleGetMyRelations(db, reqOf(token));
+  const rel = (await r.json()).relations.find(x => x.conversationId === c1);
+  assert.deepEqual(rel.other, { id: t1, role: 'teacher', name: '密文老师', avatar: '' }, 'handler other.name 解密为明文');
 });
