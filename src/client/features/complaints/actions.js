@@ -7,6 +7,7 @@ import { api, apiUpload, ensureAuth } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
 import { loadInto, setBadge } from '../../core/router.js';
 import { escHtml } from '../../core/dom.js';
+import { compressImage } from '../../core/image.js';
 import { openModal, closeModal, showToast, initCustomSelects, openImageViewer } from '../../core/ui.js';
 import { complaintModalBody, complaintCardHtml, chatFileExt } from './render.js';
 import { renderStageBox } from '../chat/render.js';
@@ -112,29 +113,6 @@ export function clearComplaintTarget(type) {
 }
 
 
-function shrinkImage(dataUrl, cb) {
-  const img = new Image();
-  img.onload = () => {
-    const max = CONFIG.CHAT_IMG_MAX_SIDE;
-    const k = Math.min(1, max / Math.max(img.width, img.height));
-    const w = Math.max(1, Math.round(img.width * k));
-    const h = Math.max(1, Math.round(img.height * k));
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    cv.getContext('2d').drawImage(img, 0, 0, w, h);
-    const url = cv.toDataURL('image/jpeg', CONFIG.CHAT_IMG_QUALITY);
-    const tv = document.createElement('canvas');
-    const ts = CONFIG.CHAT_IMG_THUMB_SIDE;
-    const tk = Math.min(1, ts / Math.max(w, h));
-    tv.width = Math.max(1, Math.round(w * tk));
-    tv.height = Math.max(1, Math.round(h * tk));
-    tv.getContext('2d').drawImage(cv, 0, 0, tv.width, tv.height);
-    cb(url, tv.toDataURL('image/jpeg', CONFIG.CHAT_IMG_THUMB_QUALITY));
-  };
-  img.onerror = () => cb(dataUrl, '');
-  img.src = dataUrl;
-}
-
 
 export function complaintStageFiles(input) {
   const files = input ? [...input.files] : [];
@@ -148,7 +126,15 @@ export function complaintStageFiles(input) {
       _cpStaged.push(item);
       renderComplaintStage();
       const reader = new FileReader();
-      reader.onload = () => shrinkImage(reader.result, (url, thumb) => complaintDoUpload(item, url, thumb));
+      reader.onload = async () => {
+        try {
+          const { dataUrl, thumb } = await compressImage(reader.result, {
+            maxSide: CONFIG.CHAT_IMG_MAX_SIDE, quality: CONFIG.CHAT_IMG_QUALITY,
+            thumbSide: CONFIG.CHAT_IMG_THUMB_SIDE, thumbQuality: CONFIG.CHAT_IMG_THUMB_QUALITY,
+          });
+          complaintDoUpload(item, dataUrl, thumb);
+        } catch { complaintUnstage(item.id); showToast(TEXT.CHAT_FILE_TOO_LARGE); }
+      };
       reader.onerror = () => { complaintUnstage(item.id); showToast(TEXT.CHAT_FILE_TOO_LARGE); };
       reader.readAsDataURL(f);
     } else {

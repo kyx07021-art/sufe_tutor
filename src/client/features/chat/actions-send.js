@@ -18,6 +18,7 @@ import { chat, chatClosedNow } from './chat-state.js';
 import { state } from '../../core/state.js';
 import { api, apiUpload } from '../../core/api.js';
 import { showToast, btnLoading, btnDone } from '../../core/ui.js';
+import { compressImage } from '../../core/image.js';
 import { renderChatBubble, renderStageBox, chatNowStamp } from './render.js';
 import { chatBumpConvPreview } from './actions-list.js';
 
@@ -191,7 +192,15 @@ export function chatStageFiles(files) {
       chat.staged.push(item);
       renderChatStage();
       const reader = new FileReader();
-      reader.onload = () => chatShrinkImage(reader.result, (url, thumb) => chatDoUpload(item, url, thumb));
+      reader.onload = async () => {
+        try {
+          const { dataUrl, thumb } = await compressImage(reader.result, {
+            maxSide: CONFIG.CHAT_IMG_MAX_SIDE, quality: CONFIG.CHAT_IMG_QUALITY,
+            thumbSide: CONFIG.CHAT_IMG_THUMB_SIDE, thumbQuality: CONFIG.CHAT_IMG_THUMB_QUALITY,
+          });
+          chatDoUpload(item, dataUrl, thumb);
+        } catch { chatUnstage(item.id); showToast(TEXT.CHAT_FILE_TOO_LARGE); }
+      };
       reader.onerror = () => { chatUnstage(item.id); showToast(TEXT.CHAT_FILE_TOO_LARGE); };
       reader.readAsDataURL(f);
     } else {
@@ -226,29 +235,6 @@ export async function chatDoUpload(item, dataUrl, thumbUrl) {
     chatUnstage(item.id);
     showToast(err.message);
   }
-}
-
-export function chatShrinkImage(src, cb) {
-  const img = new Image();
-  img.onload = () => {
-    const max = CONFIG.CHAT_IMG_MAX_SIDE;
-    const k = Math.min(1, max / Math.max(img.width, img.height));
-    const w = Math.max(1, Math.round(img.width * k));
-    const h = Math.max(1, Math.round(img.height * k));
-    const cv = document.createElement('canvas');
-    cv.width = w; cv.height = h;
-    cv.getContext('2d').drawImage(img, 0, 0, w, h);
-    const url = cv.toDataURL('image/jpeg', CONFIG.CHAT_IMG_QUALITY);
-    const tv = document.createElement('canvas');
-    const ts = CONFIG.CHAT_IMG_THUMB_SIDE;
-    const tk = Math.min(1, ts / Math.max(w, h));
-    tv.width = Math.max(1, Math.round(w * tk));
-    tv.height = Math.max(1, Math.round(h * tk));
-    tv.getContext('2d').drawImage(cv, 0, 0, tv.width, tv.height);
-    cb(url, tv.toDataURL('image/jpeg', CONFIG.CHAT_IMG_THUMB_QUALITY));
-  };
-  img.onerror = () => cb(src, '');
-  img.src = src;
 }
 
 export function chatUnstage(id) {
