@@ -1,5 +1,5 @@
 /** 跨栈数值/服务端非文案常量唯一源（V-1-1）。零依赖，纯数据。 */
-export const APP_VERSION = '2.1.0';   // ZD（2026-08-26）：休眠签约/合同全链路 + 联系方式会话后可见（大功能变更，P15 y+1）
+export const APP_VERSION = '2.1.1';   // ZH/ZK/ZL/ZN/ZO/ZM/扫描批（2026-08-27）：认证前置 + lightbox + 默认配置锁定 + 品牌 + 评分修复 + 详情卡排版 + 扫描修复批（P15 同反馈轮攒批 z+1）
 export const CONFIG = {
 TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过期判定；服务端签发同值共享 config SECURITY.TOKEN_TTL_MS）
     BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）
