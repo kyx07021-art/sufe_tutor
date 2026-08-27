@@ -29,7 +29,7 @@ export function isContentWrite(path, method) {
 // 按真实请求形状抽取内容域自由文本（body → string[]）。白名单内无自由文本承载的路径落 skip。
 const AUDIT_MAP = [
   { prefix: '/api/posts',           pick: b => [b.title, b.bodyMd] },
-  { prefix: '/api/auth/register',  pick: b => [b.username], l1Only: true }, // 用户名白名单可拼出门牌文本，L1 已守；L2 LLM 对短标识误判（2026-08-27 修复）
+  { prefix: '/api/auth/register',  pick: b => [b.username], l1Only: true }, // 用户名白名单可拼出门牌文本，L1 已守；LLM 对短标识无判定价值
   { prefix: '/api/student/demands', pick: b => [b.demand?.additional_info] },
   { prefix: '/api/demands/',        pick: b => [b.message] },
   { prefix: '/api/intents',         pick: b => [b.message] },

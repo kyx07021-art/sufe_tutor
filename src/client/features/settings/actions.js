@@ -133,9 +133,8 @@ export async function submitUsername() {
   try {
     confirm({ title: TEXT.SETTINGS_USERNAME_TITLE, message: TEXT.SETTINGS_USERNAME_CONFIRM, needReAuth: true, onConfirm: async capToken => {
       withCaptcha(async () => {
-        // 2026-08-27: catch around the write — without it a rejected POST (e.g. audit
-        // rejection / USERNAME_TAKEN / cooldown) is silently swallowed, the modal stack keeps
-        // the input dialog, and the user loops "puzzle done -> dialog again" with zero feedback.
+        // Write failures must surface via toast; a silently-swallowed rejection leaves the
+        // modal stack open and the user re-loops the flow with zero feedback.
         try {
           await api('/api/user/username', { method: 'POST', body: { newUsername: username, capToken } });
           closeModal(); showToast(TEXT.SETTINGS_USERNAME_CHANGED); invalidate('account'); loadUsernameStatus();

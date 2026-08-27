@@ -101,9 +101,7 @@ export async function auditFreeText(text, { l1Only = false } = {}) {
     return { ok: false, layer: 'rule', reason: 'ADDRESS_TOO_DETAILED' };
   }
   if (!TEXT_AUDIT.ENABLED) return { ok: true, layer: 'rule' }; // L2 开关关闭：L1 通过即放行，不送 LLM
-  // l1Only（用户名等短标识，2026-08-27）：白名单短标识的地址风险由 L1 正则全覆盖，
-  // 不送 LLM 语义审核——生产实测用户名修改被 DeepSeek L2 对中文名误判拒绝（400 + ~1s 耗时），
-  // 即「修改用户名走不通」根因；LLM 对 3-30 字符短标识判定不可靠且无语义价值。
+  // l1Only：白名单短标识的地址风险由 L1 正则全覆盖，LLM 对短标识无判定价值，不送语义层
   if (l1Only) return { ok: true, layer: 'rule' };
   return auditSemantic(s);
 }
