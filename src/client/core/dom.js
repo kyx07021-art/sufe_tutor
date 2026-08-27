@@ -83,7 +83,7 @@ export function mdRender(src) {
  *  visual viewport needs this delta subtracted from its translate. No-op when unsupported
  *  or offset is 0 (Chromium / desktop — strict identity there). */
 export function visualViewportOffset() {
-  const vv = window.visualViewport;
+  const vv = document.defaultView && document.defaultView.visualViewport; // defaultView = window in browsers; envs without a window global fall back to 0
   return { x: (vv && vv.offsetLeft) || 0, y: (vv && vv.offsetTop) || 0 };
 }
 
