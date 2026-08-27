@@ -174,7 +174,7 @@ export function renderTeacherProfileForm(profile) {
   return `<form id="teacher-profile-form" class="profile-form" novalidate>
     <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_BASIC}</h3>
     <div class="form-group">
-      <label class="form-label">${TEXT.LABEL_PROVINCE} <span class="req">*</span></label>
+      <label class="form-label">${TEXT.LABEL_GAOKAO_PROVINCE} <span class="req">*</span></label>
       <span id="tp-province-wrap">${renderProvinceSelect('tp-province', p.province || '')}</span>
     </div>
     <div class="form-group">

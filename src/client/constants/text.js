@@ -1033,6 +1033,7 @@ export const TEXT = {
     }
   ],
   "LABEL_PROVINCE": "省份",
+  "LABEL_GAOKAO_PROVINCE": "高考省份",
   "LABEL_STUDENT_GRADE": "学生年级",
   "LABEL_STUDENT_GENDER": "学生性别",
   "LABEL_TARGET_SUBJECTS": "目标科目",
