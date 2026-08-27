@@ -1,8 +1,10 @@
 // ZT 运行时几何验证（W43 被拦路径，Playwright 实机）。用法：node test/verify-zt-landing.mjs [BASE_URL]
-// 覆盖（对应 ZT 审计 FAIL1/FAIL2/FAIL3 闭合）：
-//   1) 短视口（375×480）：首访引导弹窗 header ✕ 不被 stage-nav 拦截（elementFromPoint 命中 ✕ 自身，可点关闭）；
-//   2) 桌面 + 短视口：右上角登录按钮不被 overlay 拦截（命中自身，点击关弹窗 + 进登录视图）；
-//   3) 点弹窗外 overlay（landing 空白处）仍可关闭弹窗（closable:true 保留）；
+// 覆盖（ZT 审计 FAIL1/FAIL2/FAIL3 闭合 + 窄屏 ✕/登录按钮物理重叠的 noClose 定案）：
+//   1) onboarding 首访引导弹窗 header 无 ✕（noClose:true）——窄屏下弹窗 header（width:100% 顶到右上角）
+//      与 stage-nav 登录/注册按钮物理重叠，可见但点不到的 ✕ 是审计 FAIL1 陷阱；关闭改由遮罩点击 + 底部按钮；
+//   2) 手机竖屏（375×667）横屏矮视口（375×480）桌面（1440×900）：右上角登录按钮可点（命中自身非 overlay），
+//      点击 → 关弹窗 + 进登录视图；
+//   3) 遮罩点击（弹窗外）关闭弹窗（closable:true 保留，Z-14-F1）；
 //   4) 全程零 console/pageerror。
 import { chromium } from 'playwright';
 
@@ -12,65 +14,62 @@ const ok = (name, cond, detail = '') => { results.push({ name, pass: !!cond, det
 
 const b = await chromium.launch();
 
-// ── 场景 1：短视口 375×480（弹窗 header ✕ 落在 stage-nav 带内）──
-{
-  const ctx = await b.newContext({ viewport: { width: 375, height: 480 } });
+async function assertViewport(name, width, height, { checkX = false } = {}) {
+  const ctx = await b.newContext({ viewport: { width, height } });
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push(String(e).slice(0, 120)));
   await page.goto(base, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(2500); // onboarding first-visit modal
-  const r1 = await page.evaluate(() => {
-    const modal = document.querySelector('#modal-container .modal');
-    const closeBtn = modal ? modal.querySelector('.modal-header [data-action="modal.close"], .modal-header .btn-icon, .modal-header button') : null;
-    if (!modal || !closeBtn) return { modal: !!modal, closeBtn: false };
-    const r = closeBtn.getBoundingClientRect();
-    const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return { modal: true, closeBtnText: (closeBtn.textContent || '').trim().slice(0, 4), hitSelf: el === closeBtn || (el && el.closest && el.closest('.modal-header') === closeBtn.closest('.modal-header')), hit: el ? (el.className || el.tagName) : 'null', btnTop: Math.round(r.top), btnBottom: Math.round(r.bottom) };
+  const modal = await page.evaluate(() => {
+    const m = document.querySelector('#modal-container .modal');
+    return { open: !!m, hasX: !!m && !!m.querySelector('.modal-header button'), footerBtns: m ? m.querySelectorAll('.modal-footer button').length : 0 };
   });
-  ok('短视口 375×480 弹窗开着', r1.modal, `closeBtn=${r1.closeBtnText || '无'} @y${r1.btnTop}-${r1.btnBottom} hit=${r1.hit}`);
-  ok('短视口 ✕ 可点（命中 header 自身，非 stage-nav）', r1.modal && r1.closeBtn && r1.hitSelf, `hit=${r1.hit}`);
-  // 实际点 ✕ 应关闭弹窗
-  if (r1.modal && r1.closeBtn) {
-    await page.click('.modal-header button, .modal-header [data-action]', { timeout: 3000 });
-    await page.waitForTimeout(600);
-    const closed = await page.evaluate(() => !document.querySelector('#modal-container .modal'));
-    ok('短视口点 ✕ 关闭弹窗', closed);
-  }
+  ok(`${name} onboarding 弹窗开着`, modal.open);
+  ok(`${name} onboarding 弹窗无 ✕（noClose 消除窄屏冲突源）`, modal.open && !modal.hasX, `footer 按钮 ${modal.footerBtns} 个兜底关闭`);
+  // 右上角登录按钮可点（命中自身）
   const loginHit = await page.evaluate(() => {
     const btn = document.querySelector('.stage-nav-actions [data-action="auth.viewLogin"]');
     const r = btn.getBoundingClientRect();
     const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
     return el === btn || (el && el.closest && el.closest('.stage-nav-actions'));
   });
-  ok('短视口登录按钮可点', loginHit);
-  ok('短视口零 pageerror', errs.length === 0, errs.slice(0, 2).join('; '));
-  await ctx.close();
-}
-
-// ── 场景 2：桌面 1440×900（登录按钮直达登录视图）──
-{
-  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await ctx.newPage();
-  const errs = [];
-  page.on('pageerror', e => errs.push(String(e).slice(0, 120)));
-  await page.goto(base, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(2500);
-  const loginHit = await page.evaluate(() => {
-    const btn = document.querySelector('.stage-nav-actions [data-action="auth.viewLogin"]');
-    const r = btn.getBoundingClientRect();
-    const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-    return el === btn || (el && el.closest && el.closest('.stage-nav-actions'));
-  });
-  ok('桌面登录按钮可点（弹窗开）', loginHit);
+  ok(`${name} 右上角登录按钮可点（非 overlay/死区）`, loginHit);
+  // 点登录 → 关弹窗 + 登录视图
   await page.click('.stage-nav-actions [data-action="auth.viewLogin"]', { timeout: 5000 });
   await page.waitForTimeout(900);
-  const s2 = await page.evaluate(() => {
+  const s = await page.evaluate(() => {
     const el = document.getElementById('view-login');
     return { login: !!el && !el.classList.contains('hidden'), modalClosed: !document.querySelector('#modal-container .modal') };
   });
-  ok('桌面点登录 → 关弹窗 + 登录视图', s2.login && s2.modalClosed);
-  ok('桌面零 pageerror', errs.length === 0, errs.slice(0, 2).join('; '));
+  ok(`${name} 点登录 → 关弹窗 + 登录视图`, s.login && s.modalClosed);
+  ok(`${name} 零 pageerror`, errs.length === 0, errs.slice(0, 2).join('; '));
+  await ctx.close();
+}
+
+// ── 场景 1：手机竖屏 375×667 ──
+await assertViewport('手机竖屏 375×667', 375, 667);
+// ── 场景 2：横屏矮视口 375×480（弹窗超高顶到 y20 与导航带重叠）──
+await assertViewport('横屏矮视口 375×480', 375, 480);
+// ── 场景 3：桌面 1440×900 ──
+await assertViewport('桌面 1440×900', 1440, 900);
+
+// ── 场景 4：遮罩点击关闭（closable:true 保留，桌面）──
+{
+  const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await page.goto(base, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(2500);
+  const hadModal = await page.evaluate(() => !!document.querySelector('#modal-container .modal'));
+  if (hadModal) {
+    // 点弹窗外遮罩（避开 stage-nav 区域与弹窗本体：弹窗 580 居中，点左上角落）
+    await page.mouse.click(40, 450);
+    await page.waitForTimeout(600);
+    const closed = await page.evaluate(() => !document.querySelector('#modal-container .modal'));
+    ok('遮罩点击关闭弹窗（closable:true）', closed);
+  } else {
+    ok('遮罩点击关闭弹窗（closable:true）', false, '弹窗未出现');
+  }
   await ctx.close();
 }
 

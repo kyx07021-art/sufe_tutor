@@ -26,6 +26,11 @@ function openOnboarding() {
     : `<button type="button" class="btn glass glass--pressable" data-action="onboard.browseGuest">${escHtml(TEXT.ONBOARD_CONFIRM_BROWSE)}</button>`;
   openModal({
     title: TEXT.ONBOARD_TITLE,
+    // ZT-1 (2026-08-27): noClose — on narrow viewports the modal-header x (top-right, modal
+    // width:100%) physically overlaps the stage-nav login/register buttons (also top-right);
+    // a visible-but-dead x was the ZT audit FAIL1 trap. The guide still closes via overlay
+    // click (closable:true, Z-14-F1) and the footer buttons, so the x is omitted entirely.
+    noClose: true,
     // Z-14-F1 (2026-08-19 user report: login/register clicks dead): the first-visit modal
     // must be dismissible by clicking the overlay. closable:false + transparent fullscreen
     // modal-overlay (z-index 200, zero background) swallowed every click on the page below

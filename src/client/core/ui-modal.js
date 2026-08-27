@@ -17,7 +17,7 @@ let _imageViewerOpen = false;
 let _imageViewerKey = null;
 let _bodyLockCount = 0;
 
-export function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '', replace = false } = {}) {
+export function openModal({ title, titleId = '', body = '', footer = '', closable = true, cls = '', style = '', bodyCls = '', replace = false, noClose = false } = {}) { // ZT-1 (2026-08-27): noClose hides the header x — the first-visit guide on narrow viewports shares the top-right corner with stage-nav login/register; the guide still closes via overlay click + footer buttons
   const host = typeof document !== 'undefined' ? document.getElementById('modal-container') : null;
   if (!host) return null;
   closeHostOverlays(host);
@@ -30,7 +30,9 @@ export function openModal({ title, titleId = '', body = '', footer = '', closabl
   modal.className = `modal glass glass--float${cls ? ` ${cls}` : ''}`;
   if (style) modal.style.cssText = style;
   const header = title != null
-    ? `<div class="modal-header"><h2${titleId ? ` id="${titleId}"` : ''}>${escHtml(title)}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${TEXT.BTN_CLOSE}">✕</button></div>`
+    ? (noClose
+        ? `<div class="modal-header"><h2${titleId ? ` id="${titleId}"` : ''}>${escHtml(title)}</h2></div>`
+        : `<div class="modal-header"><h2${titleId ? ` id="${titleId}"` : ''}>${escHtml(title)}</h2><button type="button" class="btn btn-ghost btn-icon glass glass--pressable" aria-label="${TEXT.BTN_CLOSE}">✕</button></div>`)
     : '';
   modal.innerHTML = `${header}<div class="modal-body${bodyCls ? ` ${bodyCls}` : ''}">${body}${footer ? `<div class="modal-footer">${footer}</div>` : ''}</div>`;
   const x = modal.querySelector('.modal-header button');
