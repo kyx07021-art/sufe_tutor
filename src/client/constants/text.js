@@ -31,8 +31,7 @@ export const TEXT = {
   "LOADING_REGISTER": "注册中...",
   "VALIDATE_PASSWORD": "密码至少 6 个字符",
   "VALIDATE_PASSWORD_MISMATCH": "两次密码不一致",
-  "REG_WIZARD_STEPS": [
-    "验证邀请码",
+  "REG_WIZARD_STEPS": [ // ZV-2（2026-08-27）：邀请码门控休眠——教师注册向导 3 步→2 步，删「验证邀请码」（stepper chips 靠本数组渲染，不裁剪则 3 圆点对 2 step 视觉错位）
     "填写账号信息",
     "验证手机或邮箱"
   ],

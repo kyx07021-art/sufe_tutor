@@ -112,23 +112,14 @@ export function registerViewHtml() {
 }
 
 export function teacherWizardHtml() {
+  // ZV-2 (2026-08-27): invite-gate dormant — 3-step wizard became 2 steps (account -> otp),
+  // the invite-code step is gone. Steps are renumbered 1..2 and REG_WIZARD_STEPS drives the chips.
   return `<div class="dw-stepper" id="reg-w-stepper">
     ${TEXT.REG_WIZARD_STEPS.map((s, i) =>
       `<div class="dw-step-chip" data-step="${i + 1}" title="${escHtml(s)}"><span class="dw-step-chip-dot"></span><span class="dw-step-chip-label">${escHtml(s)}</span></div>`).join('')}
   </div>
   <div class="dw-steps-viewport"><div class="dw-steps-track" id="reg-w-track">
     <div class="dw-step" data-step="1">
-      <div class="form-group">
-        <label class="form-label">${escHtml(TEXT.REG_INVITE_LABEL)} <span class="req">*</span></label>
-        <input type="text" class="form-input" id="reg-invite-code" placeholder="${escHtml(TEXT.REG_INVITE_PLACEHOLDER)}" maxlength="${CONFIG.INVITE_CODE_LEN}">
-        <p class="form-hint">${escHtml(TEXT.REG_INVITE_HINT)}</p>
-      </div>
-      <div class="form-actions">
-        <button type="button" class="btn btn-outline glass glass--pressable" data-action="auth.backLanding">${escHtml(TEXT.BTN_BACK_LANDING)}</button>
-        <button type="button" class="btn glass glass--pressable" id="reg-step1-next" data-action="auth.wizardNext">${escHtml(TEXT.BTN_NEXT_STEP)}</button>
-      </div>
-    </div>
-    <div class="dw-step" data-step="2">
       <div class="form-group">
         <label class="form-label">${escHtml(TEXT.REG_USERNAME_LABEL)} <span class="req">*</span></label>
         <input type="text" class="form-input" id="register-username" placeholder="${escHtml(TEXT.REG_USERNAME_PLACEHOLDER)}" required>
@@ -152,7 +143,7 @@ export function teacherWizardHtml() {
         <button type="button" class="btn glass glass--pressable" id="reg-step2-next" data-action="auth.wizardNext">${escHtml(TEXT.BTN_NEXT_STEP)}</button>
       </div>
     </div>
-    <div class="dw-step" data-step="3">
+    <div class="dw-step" data-step="2">
       <div id="register-code-group">
         ${codeFieldHtml({ prefix: 'register', channel: 'auto', label: TEXT.CODE_LABEL })}
       </div>

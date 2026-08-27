@@ -182,8 +182,9 @@ test('registry onLoad mounts views and delegates data-action + input + submit', 
 
   document.querySelector('#register-role-tabs [data-role="teacher"]').click();
   assert.equal(document.getElementById('register-role').value, 'teacher');
-  assert.ok(document.getElementById('teacher-wizard-root').innerHTML.includes('reg-invite-code'));
-  assert.equal(document.querySelectorAll('#reg-w-track .dw-step').length, 3);
+  // ZV-2 (2026-08-27): invite-code step dormant — wizard is 2 steps (account -> otp), no reg-invite-code DOM
+  assert.ok(!document.getElementById('teacher-wizard-root').innerHTML.includes('reg-invite-code'));
+  assert.equal(document.querySelectorAll('#reg-w-track .dw-step').length, 2);
 
   document.getElementById('login-identifier').value = '13800138000';
   document.getElementById('login-identifier').dispatchEvent(new dom.window.Event('input', { bubbles: true }));
@@ -215,30 +216,28 @@ test('login success: state/authToken set, client switched, remember-session pers
   stopRuntimeTimers();
 });
 
-test('teacher register wizard: role switch + invite validation + step validation', async (t) => {
+test('teacher register wizard: role switch + 2-step account->otp validation (invite step dormant)', async (t) => {
   resetRuntime();
   makeDom();
   mountFeature(t);
-  const calls = installFetch(defaultResponder({
-    '/api/auth/check-invite': { ok: true },
-  }));
+  const calls = installFetch(defaultResponder({}));
 
   auth.switchRegisterRole('teacher');
   assert.equal(document.getElementById('student-reg-group').innerHTML, '', 'student form cleared to avoid hidden-field submit');
   assert.ok(!document.getElementById('teacher-wizard-root').classList.contains('hidden'));
+  // ZV-2 (2026-08-27): invite-code step dormant — 2 steps, chips count = 2, zero check-invite calls
+  assert.ok(!document.getElementById('teacher-wizard-root').innerHTML.includes('reg-invite-code'), 'wizard has no invite-code field');
+  assert.equal(document.querySelectorAll('#reg-w-track .dw-step').length, 2, 'two wizard steps (account + otp)');
+  assert.equal(document.querySelectorAll('#reg-w-stepper .dw-step-chip').length, 2, 'two stepper chips');
+  assert.equal(calls.find(c => c.url === '/api/auth/check-invite'), undefined, 'no check-invite call (dormant)');
 
-  document.getElementById('reg-invite-code').value = 'INV12345';
-  await auth.regWizardNext();
-  assert.equal(state.validatedInviteCode, 'INV12345');
-  assert.ok(document.querySelector('#reg-w-track .dw-step[data-step="2"]').classList.contains('dw-step--active'));
-  assert.equal(calls.find(c => c.url === '/api/auth/check-invite').body.code, 'INV12345');
-
+  // step 0 (account) validates then advances to step 1 (otp)
   document.getElementById('register-username').value = 'tutor1';
   document.getElementById('register-password').value = 'pw123456';
   document.getElementById('register-password2').value = 'pw123456';
   document.getElementById('register-identifier').value = '13800138000';
-  auth.regWizardNext();
-  assert.ok(document.querySelector('#reg-w-track .dw-step[data-step="3"]').classList.contains('dw-step--active'));
+  await auth.regWizardNext();
+  assert.ok(document.querySelector('#reg-w-track .dw-step[data-step="2"]').classList.contains('dw-step--active'));
   auth.switchRegisterRole('student');
   assert.ok(document.getElementById('register-username'), 'student form restored');
   assert.equal(document.getElementById('register-role').value, 'student');
@@ -283,7 +282,6 @@ test('register success: body contract, session + client switch, invite cleared',
   const calls = installFetch(defaultResponder({
     '/api/auth/register': { user: { id: 2, username: 'tutor1', role: 'teacher' }, authToken: 'tok-reg' },
   }));
-  state.validatedInviteCode = 'INV12345';
   document.getElementById('register-submit').textContent = TEXT.BTN_REGISTER;
 
   await auth.doRegister('tutor1', 'pw123456', 'teacher', true, true,
@@ -292,7 +290,7 @@ test('register success: body contract, session + client switch, invite cleared',
   const body = calls.find(c => c.url === '/api/auth/register').body;
   assert.equal(body.username, 'tutor1');
   assert.equal(body.role, 'teacher');
-  assert.equal(body.inviteCode, 'INV12345');
+  assert.ok(!('inviteCode' in body), 'ZV-2: inviteCode not sent (gate dormant)');
   assert.equal(body.phone, '+8613800138000');
   assert.equal(body.otpChannel, 'sms');
   assert.equal(body.agreeAgreement, true);

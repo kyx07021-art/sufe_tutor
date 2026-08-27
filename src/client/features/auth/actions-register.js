@@ -2,7 +2,7 @@
  * auth feature register actions: student single form, teacher 3-step wizard
  * (invite -> account -> contact verification), submit and validation.
  */
-import { CONFIG, LIMITS, INVITE_GATE_DORMANT } from '../../../shared/config.js';
+import { CONFIG, LIMITS } from '../../../shared/config.js'; // ZV-2: INVITE_GATE_DORMANT import removed (dormant since ZV-1, no consumer left)
 import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js';
 import { state, saveSession, getDeviceId } from '../../core/state.js';
@@ -38,8 +38,7 @@ export function switchRegisterRole(role) {
 export function renderTeacherWizard() {
   const root = $('teacher-wizard-root');
   if (!root) return;
-  _regStep = 0;
-  state.validatedInviteCode = null;
+  _regStep = 0; // ZV-2: step 0 = account form (invite-code step dormant, state.validatedInviteCode no longer written)
   root.classList.remove('hidden');
   root.innerHTML = teacherWizardHtml();
   regWizardGoTo(0);
@@ -59,26 +58,8 @@ export function regWizardGoTo(idx) {
 }
 
 export async function regWizardNext() {
+  // ZV-2: invite-code step removed (dormant) — step 0 validates the account form, next -> otp step.
   if (_regStep === 0) {
-    const code = (($('reg-invite-code') || {}).value || '').trim();
-    if (!code) { showToast(TEXT.VALIDATE_INVITE_REQUIRED, 'error'); return; }
-    const btn = $('reg-step1-next');
-    btnLoading(btn, TEXT.LOADING_VERIFY);
-    try {
-      const r = await api('/api/auth/check-invite', { method: 'POST', body: { code } });
-      if (r && r.ok) {
-        state.validatedInviteCode = code;
-        showToast(TEXT.SUCCESS_INVITE_CONFIRMED, 'success');
-        regWizardGoTo(1);
-      }
-    } catch (err) {
-      showToast(err.message, 'error');
-    } finally {
-      btnDone(btn, TEXT.BTN_NEXT_STEP);
-    }
-    return;
-  }
-  if (_regStep === 1) {
     const username = $('register-username').value.trim();
     const password = $('register-password').value;
     const password2 = $('register-password2').value;
@@ -90,7 +71,7 @@ export async function regWizardNext() {
     if (password !== password2) { showToast(TEXT.VALIDATE_PASSWORD_MISMATCH, 'error'); return; }
     const kind = classifyIdentifier(ident);
     if (kind !== 'phone' && kind !== 'email') { showToast(TEXT.CRED_IDENT_INVALID, 'error'); return; }
-    regWizardGoTo(2);
+    regWizardGoTo(1);
   }
 }
 
@@ -113,11 +94,7 @@ export function handleRegister(e) {
     showToast(TEXT.AGREE_REQUIRED, 'error');
     return;
   }
-  if (role === ROLES.TEACHER && !INVITE_GATE_DORMANT && !state.validatedInviteCode) {
-    showToast(TEXT.VALIDATE_INVITE_FIRST, 'error');
-    regWizardGoTo(0);
-    return;
-  }
+  // ZV-2: invite-gate check removed (dormant since ZV-1) — teacher registration no longer requires an invite code.
   const ident = (($('register-identifier') || {}).value || '').trim();
   const code = (($('register-code') || {}).value || '').trim();
   const kind = classifyIdentifier(ident);
@@ -136,8 +113,7 @@ export async function doRegister(username, password, role, agreeAgreement, agree
   try {
     const btn = $('register-submit');
     btnLoading(btn, TEXT.LOADING_REGISTER);
-    const body = { username, password, role, deviceId: getDeviceId(), agreeAgreement, agreePrivacy };
-    if (role === ROLES.TEACHER && state.validatedInviteCode) body.inviteCode = state.validatedInviteCode;
+    const body = { username, password, role, deviceId: getDeviceId(), agreeAgreement, agreePrivacy }; // ZV-2: inviteCode no longer sent (gate dormant)
     if (contact.kind === 'phone') {
       body.phone = contact.ident.startsWith('+') ? contact.ident : '+86' + contact.ident;
       body.code = contact.code;
@@ -150,8 +126,7 @@ export async function doRegister(username, password, role, agreeAgreement, agree
     const data = await api('/api/auth/register', { method: 'POST', body });
     state.user = data.user;
     state.authToken = data.authToken || null;
-    if (role === ROLES.TEACHER) state.validatedInviteCode = null;
-    saveSession(false);
+    saveSession(false); // ZV-2: validatedInviteCode reset removed (field dormant)
     afterAuthSuccess(true).catch(err => console.warn('afterAuthSuccess', err));
   } catch (err) {
     showToast(err.message, 'error');

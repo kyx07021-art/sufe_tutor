@@ -188,7 +188,7 @@ export function handleLogout() {
   state.adminPosts = [];
   state.adminContracts = [];
   state.myContracts = [];
-  state.validatedInviteCode = null;
+  state.validatedInviteCode = null; // ZV-2: dormant (invite gate off) — logout reset keeps field symmetry
   clearSession(role);
   closeSidebar();
   closeAllModals();
