@@ -102,10 +102,10 @@ export async function openProfilePanel(userId) {
   // ZD-7 (2026-08-26 dormancy): write-review gate data source -- GET /api/teacher/profile
   // carries the server `matched` flag (conversation established; single source of truth,
   // synced with the ZD-4 review-gate relaxation); `signed` is legacy.
-  // Only logged-in students request it: guest 401 bounces to the login view via the api()
-  // dead-token handler; guests/non-students fall back to list data (no matched, button hidden).
-  // ZR-A2 (2026-08-27): admin also fetches the full profile (server-side admin pass-through,
-  // management/verification use) -- fixes the admin detail card that loaded nothing.
+  // Logged-in students and admins request the full profile (ZR-A2 2026-08-27: server-side
+  // admin pass-through for management/verification use -- fixes the admin detail card that
+  // loaded nothing). Guests 401-bounce to the login view via the api() dead-token handler;
+  // teachers fall back to list data (no matched flag, write-review button hidden).
   if (state.user && (state.user.role === ROLES.STUDENT || state.user.role === ROLES.ADMIN)) {
     try {
       const data = await api(`/api/teacher/profile?userId=${userId}`, { method: 'GET' });
