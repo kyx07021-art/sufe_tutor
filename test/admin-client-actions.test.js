@@ -793,20 +793,27 @@ test('U-3e loadAdminVerifications 无参数：读 #admin-verif-status 当前值�
   teardown();
 });
 
-test('U-3e viewAdmissionImage：从缓存列表取 admission_image 显示原图 ZK lightbox', async () => {
+test('ZZ-1/2 viewAdmissionImage：点开才按 id 单点取图 + 留存缓存（用户③），二次点击零请求', async () => {
   const dom = setup();
-  _dhResetForTests(); // datahub cache is module-level shared across tests — clear stale /api/admin/verifications
-  // 先加载列表填缓存，再点预览
-  const list = document.createElement('div');
-  list.id = 'admin-verifications-list';
-  document.body.appendChild(list);
-  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ verifications: [{ id: 88, username: '教师戊', user_id: 9, verify_type: 'admission', verify_code: '', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '', admission_image: 'data:image/png;base64,CCC' }] }) });
+  // 列表接口（元数据）与图片接口（单点）分流 mock：图片请求计数
+  let imgCalls = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/image')) { imgCalls++; return { ok: true, status: 200, json: async () => ({ admission_image: 'data:image/png;base64,CCC' }) }; }
+    return { ok: true, status: 200, json: async () => ({ verifications: [{ id: 88, username: '教师戊', user_id: 9, verify_type: 'admission', verify_code: '', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '' }] }) };
+  };
+  // 列表加载不触发图片请求（列表已零图）
   await loadAdminVerifications();
-  viewAdmissionImage(88);
-  const viewer = dom.window.document.querySelector('.modal-overlay.image-viewer-modal');
+  assert.equal(imgCalls, 0, '列表加载不应请求图片接口（变异：viewAdmissionImage 直接读列表图 → 0 断言红）');
+  // 第一次点击：单点取图 → lightbox + 缓存
+  await viewAdmissionImage(88);
+  assert.equal(imgCalls, 1, '第一次点击应单点取图（变异：改回缓存列表读图 → imgCalls 0 红）');
+  let viewer = dom.window.document.querySelector('.modal-overlay.image-viewer-modal');
   assert.ok(viewer, '原图 ZK lightbox 出现');
-  const img = viewer.querySelector('img.image-viewer-img');
+  let img = viewer.querySelector('img.image-viewer-img');
   assert.ok(img && img.getAttribute('src').includes('data:image/png;base64,CCC'), '原图 dataUrl 渲染');
+  // 第二次点击：命中留存缓存，零图片请求
+  await viewAdmissionImage(88);
+  assert.equal(imgCalls, 1, '二次点击应命中缓存零请求（留存语义）');
   teardown();
 });
 

@@ -224,15 +224,18 @@ export async function dbApplyChsiToProfile(db, userId, info) {
 export async function dbListTeacherVerifications(db, status) {
   const where = status && status !== 'all' ? ' WHERE v.status=?' : '';
   const args = status && status !== 'all' ? [status] : [];
-  const rows = await dbAll(db, `SELECT v.*, u.username FROM teacher_verifications v
-      JOIN users u ON u.id=v.user_id${where} ORDER BY v.created_at DESC`, args);
-  // 安全审计 M1：verify_code 加密落库，管理端列表解密（管理员核验需明文查证，同 wechat 管理端解密口径）。
-  // v1.4.16：admission_image（录取通知书）同样加密，管理端列表解密供预览。
+  // ZZ-1（2026-08-27，用户③）：列表显式列不下发 admission_image（大字段按需经
+  // /api/admin/verifications/:id/image 单点取图）——列表体量从 ~1.47MB 降到 KB 级，
+  // 消除慢网超时 NETWORK_ERROR。verify_code 保留（管理员核验需明文查证）。
+  const rows = await dbAll(db, `SELECT v.id, v.user_id, v.verify_code, v.status, v.school, v.level,
+      v.major, v.enrollment_status, v.enroll_year, v.provider, v.verified_by, v.verified_at,
+      v.created_at, v.verify_type, u.username
+      FROM teacher_verifications v JOIN users u ON u.id=v.user_id${where}
+      ORDER BY v.created_at DESC`, args);
   // map 返回新对象（不改原 row——D1 返回行可能只读，ESM 严格模式赋值抛 TypeError → 列表 500 生产实证）
   return Promise.all(rows.map(async r => ({
     ...r,
     verify_code: (await decryptField(r.verify_code)) || '',
-    admission_image: r.admission_image ? (await decryptField(r.admission_image)) || '' : '',
   })));
 }
 
