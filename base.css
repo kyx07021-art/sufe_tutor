@@ -38,7 +38,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 /* G8：landing 视图无上边栏——navbar 隐藏，logo+登录/注册由 .stage-nav 浮在舞台顶 */
 body:has(#view-landing:not(.hidden)) .navbar { display: none; }
 .stage-nav {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 300; /* ZT-1 (2026-08-27): above modal-overlay z-200 — onboarding first-visit overlay must not swallow the landing login/register clicks */
+  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
   display: flex; align-items: center; justify-content: space-between;
   padding: 18px clamp(20px, 4vw, 40px);
 }
@@ -197,7 +197,7 @@ label.btn { cursor: pointer; } /* 原生 label 充当按钮（头像上传等）
   color: var(--ink); margin-bottom: 22px;
   opacity: 0;
 }
-.entry-list { display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 300; /* ZT-1 (2026-08-27): above modal-overlay z-200 — hero entries clickable while the first-visit guide overlay is up */ }
+.entry-list { display: flex; flex-direction: column; gap: 14px; }
 
 /* 入口块：纯墨直角实心 */
 .entry {
