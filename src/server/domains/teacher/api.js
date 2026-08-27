@@ -116,6 +116,9 @@ export async function handleGetProfile(db, url, req) {
   const profile = await dbGetTeacherProfile(db, targetId);
   if (!profile) return json({ profile: null });
   if (me.id === targetId) return json({ profile }); // 本人：全字段
+  // ZR-A1（2026-08-27）：管理员查看任意教师档案（管理/核验用途），全字段放行、不校验会话匹配——
+  // 联系方式仅身份核验用途（用户②），管理员侧保留可见；学生侧仍走下方 dbIsMatched 门禁（ZR-C2 收回）。
+  if (me.role === 'admin') return json({ profile });
   const { wechat, email, real_name, credential_image, ...publicPart } = profile;
   if (!(await dbIsMatched(db, me.id, targetId))) return errorMsg('NO_PERMISSION', 403);
   // ZD-2（2026-08-26 休眠签约）：联系方式从「已签约后开放」放宽到「建立会话后开放」（用户「让用户自由沟通」）——

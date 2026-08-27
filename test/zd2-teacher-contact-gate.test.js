@@ -51,6 +51,8 @@ async function seed() {
     ('teacher1','h','s','teacher'),('student1','h','s','student'),('student2','h','s','student')`);
   const idOf = name => raw.prepare('SELECT id FROM users WHERE username=?').get(name).id;
   const t = idOf('teacher1'), s1 = idOf('student1'), s2 = idOf('student2');
+  // ZR-A1: admin_sufe 由 initDb seedAdmins（ADMIN_USERNAMES）播种，这里补会话 token 供 admin 请求
+  const a = idOf('admin_sufe');
   // 教师档案：联系方式加密落库（真实形状，走 encryptField）
   raw.prepare('INSERT INTO teacher_profiles (user_id, grade, verified, wechat, email, real_name, subjects) VALUES (?,?,?,?,?,?,?)')
     .run(t, 'freshman', 1, await encryptField('wx_teacher'), await encryptField('teacher@example.com'), await encryptField('王老师'), '["math"]');
@@ -62,7 +64,7 @@ async function seed() {
       .run(await tokenDigest(token), idOf(name), 'x', '2099-01-01 00:00:00');
     return token;
   };
-  return { db, t, s1, s2, tToken: await mkToken('teacher1'), s1Token: await mkToken('student1'), s2Token: await mkToken('student2') };
+  return { db, t, s1, s2, a, tToken: await mkToken('teacher1'), s1Token: await mkToken('student1'), s2Token: await mkToken('student2'), aToken: await mkToken('admin_sufe') };
 }
 
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
@@ -93,4 +95,17 @@ test('ZD-2 教师本人 → 200 全字段', async () => {
   assert.equal(r.status, 200);
   const body = JSON.parse(await r.text());
   assert.equal(body.profile.wechat, 'wx_teacher');
+});
+
+// ZR-A1（2026-08-27）：管理员查看任意教师档案 = 管理/身份核验用途，全字段放行、不校验会话匹配。
+// G2 变异：还原「admin 全字段放行」分支（改回仅本人/匹配学生可读）→ 本测试 admin 请求 403 断言必红。
+test('ZR-A1 admin 查看任意教师档案 → 200 全字段（核验用途，无需会话）', async () => {
+  const { db, t, aToken } = await seed();
+  const r = await handleGetProfile(db, urlOf(t), reqOf(aToken));
+  assert.equal(r.status, 200, `admin 应 200（实测 status=${r.status}）`);
+  const body = JSON.parse(await r.text());
+  assert.equal(body.profile.wechat, 'wx_teacher', 'admin 应见 wechat（身份核验用途）');
+  assert.equal(body.profile.email, 'teacher@example.com', 'admin 应见 email');
+  assert.equal(body.profile.real_name, '王老师', 'admin 应见 real_name');
+  assert.equal(body.profile.matched, false, 'admin 分支不经 dbIsMatched（mapper 默认 false，不附加 true 语义）');
 });
