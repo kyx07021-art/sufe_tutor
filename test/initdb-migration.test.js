@@ -355,10 +355,11 @@ test('流量监测聚合：dbGetTrafficBuckets 按桶统计请求数与平均耗
     ('2026-08-07 08:05:00', 'http.GET.ok', 100),
     ('2026-08-07 07:20:00', 'auth.login.success', NULL)`); // 业务留档不计入
   const hourly = await dbGetTrafficBuckets(db, 'hour', '2026-08-07 07:00:00');
-  const b07 = hourly.find(b => b.bucket === '2026-08-07 07:00');
+  // +8 时区对齐（c821983）：ts 为库内 UTC，桶标签为北京时刻（07:10 UTC → 15:10 北京）
+  const b07 = hourly.find(b => b.bucket === '2026-08-07 15:00');
   assert.equal(b07.requests, 2);
   assert.equal(b07.avg_ms, 100); // (50+150)/2，NULL duration 不影响
-  const b08 = hourly.find(b => b.bucket === '2026-08-07 08:00');
+  const b08 = hourly.find(b => b.bucket === '2026-08-07 16:00');
   assert.equal(b08.requests, 1);
   assert.equal(b08.avg_ms, 100);
   const daily = await dbGetTrafficBuckets(db, 'day', '2026-08-07');
