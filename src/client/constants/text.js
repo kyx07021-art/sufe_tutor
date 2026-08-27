@@ -354,7 +354,7 @@ export const TEXT = {
   "CHSI_GATE_PENDING": "验证码已提交，管理员核验中（一般 24 小时内完成），通过后开放接单资格",
   "ADMISSION_SWITCH_LINK": "我是大一新生，改为验证录取通知书",
   "ADMISSION_GATE_BACK": "← 返回学信网验证",
-  "ADMISSION_SHOOT_HINT": "请拍摄或上传录取通知书的完整整页照片，确保姓名、考生号、录取院校与专业清晰可读",
+  "ADMISSION_SHOOT_HINT": "请拍摄录取通知书的【内容页】（不要拍封面），确保姓名、考生号、录取院校与专业清晰可读",
   "ADMISSION_PRIVACY_NOTE": "隐私保护声明：录取通知书照片仅用于身份核验，管理员人工核对后将加密存储，不会公开展示，审核结束后仅保留核验结论。",
   "ADMISSION_UPLOAD_BTN": "选择录取通知书照片",
   "ADMISSION_SUBMIT": "提交核验",
