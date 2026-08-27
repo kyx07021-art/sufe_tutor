@@ -8,7 +8,7 @@ import { matchRowsHtml } from '../src/client/core/match.js';
 
 const dom = new JSDOM(`<!doctype html><html><body>
   <div id="view-landing"></div><div id="view-client" class="hidden"></div>
-  <div id="navbar-actions"></div><div id="sidebar-user"></div><div id="sidebar-nav"></div><div id="sidebar-invite"></div>
+  <div id="navbar-actions"></div><div id="sidebar-user"></div><div id="sidebar-nav"></div>
   <div id="client-main"><div class="client-page" data-page="about"><div id="about-page-title"></div><div id="about-content"></div></div></div>
   <div id="loader"></div><div id="sidebar-my-demo-dot" class="sidebar-dot"></div>
 </body></html>`, { url: 'http://localhost/' });

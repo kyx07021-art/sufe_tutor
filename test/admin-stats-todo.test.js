@@ -68,7 +68,7 @@ test('统计端点：有数据时待办计数非零', async () => {
   const target = '+8613911110001';
   const otp = await requestOtp(db, { channel: 'sms', target }, { headers: new Headers() });
   assert.ok(otp.ok);
-  // v1.2.0 T4：教师注册须邀请码——测试预置一枚
+  // ZV-1（2026-08-27）：邀请码门控休眠——注册仍接受 inviteCode 字段（兼容不消费），预置一枚验证注册成功
   const adminId = (db.prepare("SELECT id FROM users WHERE role='admin' LIMIT 1").first() || {}).id || 1;
   const invite = 'T' + Math.random().toString(36).slice(2, 8).toUpperCase();
   db.prepare('INSERT INTO invite_codes (code, created_by) VALUES (?,?)').run(invite, adminId);

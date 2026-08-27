@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { productionConfigChecks, productionReady, notReadyResponse } from '../server/startup.js';
-import { LEGACY_ADMIN_PASSWORD } from '../src/shared/config.js';
+import { LEGACY_ADMIN_PASSWORD, INVITE_GATE_ENABLED, INVITE_GATE_DORMANT } from '../src/shared/config.js'; // ZV-1: assert config terminal state
 
 const PROD = { CF_PAGES_URL: 'https://sufe-tutor.pages.dev' };
 
@@ -86,14 +86,13 @@ test('notReadyResponse：503 + 只暴露检查码，不暴露秘密值', async (
   assert.ok(!JSON.stringify(body).includes(goodSecrets.SMS_OTP_TEMPLATE_CODE));
 });
 
-test('邀请码两种一致态：启用态与开放注册态都 ready；不一致 not-ready', () => {
-  const enabled = { ...goodSecrets, CF_PAGES_URL: 'https://x' };
-  const g1 = productionConfigChecks(enabled);
-  assert.equal(g1.checks.find(c => c.code === 'INVITE_GATE_CONSISTENT').pass, true, '后端启用+前端未休眠 = 一致');
-  const open = productionConfigChecks({ ...enabled, INVITE_GATE_ENABLED: undefined });
-  // 前端 INVITE_GATE_DORMANT 由 constants 注入恒 false，无法在测试内改 global；仅验证当前启用态 + 不一致分支由代码路径覆盖：
-  const inconsistent = productionConfigChecks({ ...enabled, INVITE_GATE_ENABLED: undefined });
-  void open; void inconsistent;
+test('邀请码闸门一致态：当前 config 终态 (ENABLED=false, DORMANT=true) ready', () => {
+  // ZV-1（2026-08-27）：config 双开关翻转至开放注册终态。闸门读 shared config import（测试内不可注入），
+  // 单翻中间态由 ZV-1 变异实证拦截（还原 ENABLED=true → 本测试与 register-agreement 均红）；此处直接锁定终态值。
+  const g1 = productionConfigChecks({ ...goodSecrets, CF_PAGES_URL: 'https://x' });
+  assert.equal(g1.checks.find(c => c.code === 'INVITE_GATE_CONSISTENT').pass, true, '开放注册终态 = 一致（闸门不误伤 ready）');
+  assert.equal(INVITE_GATE_ENABLED, false, 'config 终态 ENABLED=false（ZV-1）');
+  assert.equal(INVITE_GATE_DORMANT, true, 'config 终态 DORMANT=true（ZV-1）');
 });
 
 test('CRYPTO_REENCRYPT_DONE=true 时无需旧钥也可 ready', () => {
