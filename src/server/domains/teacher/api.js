@@ -141,8 +141,9 @@ export async function handleSaveProfile(db, body, req) {
   if (!ver || ver.status !== 'approved') return errorMsg('CHSI_VERIFY_REQUIRED', 403);
   if (!p.province || !SUFE_REGIONS.isValidProvince(p.province)) return errorMsg('PROVINCE_REQUIRED');
 
-  // R2-5 报价区间化：price_min/price_max 各自钳制，保留 null=未填语义（不转 0，完整性门槛据此拦截）；
-  // 有值夹到 [0, LIMITS.BUDGET_MAX]；max < min 时以 min 为准（同 sanitizeDemand 预算口径）
+  // R2-5 报价（ZW-1，2026-08-27）：教师报价改单值——前端提交 price_min=price_max=单值，price_max 为恒等镜像；
+  // 各自钳制保留 null=未填语义（不转 0，完整性门槛据此拦截）；有值夹到 [0, LIMITS.BUDGET_MAX]。
+  // 「max < min 时以 min 为准」为存量区间兼容的防御兜底（单值提交恒等不触发，存量区间行迁移后也恒等）。
   const clampPrice = v => {
     if (v === '' || v == null) return null;
     const n = Number(v);
