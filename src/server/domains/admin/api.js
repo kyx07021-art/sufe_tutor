@@ -114,24 +114,18 @@ export async function handleAdminTraffic(db, url, req) {
   const range = ['24h', '7d', '30d'].includes(String(url.searchParams.get('range') || '')) ? url.searchParams.get('range') : '24h';
   const unit = range === '24h' ? 'hour' : 'day';
   const n = range === '24h' ? 24 : range === '7d' ? 7 : 30;
-  // 流量图表按北京时区（UTC+8）对齐（用户 2026-08-27）：桶边界/标签/查询起点三处协同 +8，
+  // 流量图表按北京时区（UTC+8）对齐（用户 2026-08-27）：桶标签/查询起点协同 +8，
   // activity_log ts 为库内 UTC（规则 42），分组用 strftime '+8 hours' 落北京小时/日期标签。
-  const nowMs = Date.now() + BEIJING_OFFSET_MS;
-  const fromMs = unit === 'hour'
-    ? Math.floor(nowMs / 3600e3) * 3600e3 - (n - 1) * 3600e3
-    : Math.floor(nowMs / 86400e3) * 86400e3 - (n - 1) * 86400e3;
-  const from = new Date(fromMs);
-  const fromTs = toDbTime(from);
+  // 2026-08-27 修复：nowMs 不再预加 BEIJING_OFFSET_MS——epoch 本身是 UTC 时刻，fmtTrafficBucket
+  // 已做 +8 转换；预加一次 + fmtTrafficBucket 再一次 = 双重 +8，窗口整体前移 8h（用户反馈「流量
+  // 监测表单含未来时间」根因，生产 24h 桶 17:00→00:00 全未来空桶实证）。
+  const { from, fromTs, labels } = trafficWindow(Date.now(), unit, n);
   const rows = await dbGetTrafficBuckets(db, unit, fromTs);
   const map = new Map(rows.map(r => [r.bucket, r]));
-  const step = unit === 'hour' ? 3600 * 1000 : 24 * 3600 * 1000;
-  const buckets = [];
-  for (let i = 0; i < n; i++) {
-    const t = from.getTime() + i * step;
-    const label = fmtTrafficBucket(t, unit);
+  const buckets = labels.map(label => {
     const row = map.get(label);
-    buckets.push({ label, requests: row ? Number(row.requests) : 0, avgMs: row && row.avg_ms != null ? Number(row.avg_ms) : null });
-  }
+    return { label, requests: row ? Number(row.requests) : 0, avgMs: row && row.avg_ms != null ? Number(row.avg_ms) : null };
+  });
   return json({ range, unit, buckets });
 }
 // 与 SQL strftime('...', ts, '+8 hours') 输出同格式（北京时区，'YYYY-MM-DD HH:00' / 'YYYY-MM-DD'）
@@ -142,6 +136,20 @@ const fmtTrafficBucket = (t, unit) => {
   const day = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
   return unit === 'hour' ? `${day} ${p(d.getUTCHours())}:00` : day;
 };
+/** 北京时区流量窗口（纯函数，2026-08-27 用户「流量监测含未来时间」修复后抽取可直测）：
+ *  now 为真实 epoch（UTC 时刻，勿预加偏移——fmtTrafficBucket 已做 +8 转换，预加+转换=双重 +8，
+ *  窗口整体前移 8h，24h 桶尾部出现未来空桶）；返回窗口起点 Date / UTC 边界串 / n 个北京标签。
+ *  末标签 = 当前小时（hour）/ 当前日期（day），绝不含未来。 */
+export function trafficWindow(now, unit, n) {
+  const fromMs = unit === 'hour'
+    ? Math.floor(now / 3600e3) * 3600e3 - (n - 1) * 3600e3
+    : Math.floor(now / 86400e3) * 86400e3 - (n - 1) * 86400e3;
+  const from = new Date(fromMs);
+  const step = unit === 'hour' ? 3600 * 1000 : 24 * 3600 * 1000;
+  const labels = [];
+  for (let i = 0; i < n; i++) labels.push(fmtTrafficBucket(from.getTime() + i * step, unit));
+  return { from, fromTs: toDbTime(from), labels };
+}
 
 export async function handleAdminUsers(db, url, req) {
   const { err } = await requireAdmin(db, req);
