@@ -40,11 +40,6 @@
 .avatar-btn:hover .avatar--link,
 .avatar-btn:focus-visible .avatar--link { transform: scale(1.09); box-shadow: 0 0 0 3px var(--g-ring); } /* G13：焦点环直写走引擎 --g-ring */
 
-/* 通用大图查看器（聊天图片放大 / 学信网截图预览共用，自 style-chat.css 迁入） */
-.image-viewer-modal { max-width: 92vw; width: auto; } /* G30：background 与 .modal 玻璃体重复，删 */
-.image-viewer-modal .modal-body { padding: 0; }
-.image-viewer-modal img { display: block; max-width: 88vw; max-height: 86vh; margin: 0 auto; }
-
 /* 教师档案页学信网截图控件：上传/查看按钮 + 内联「重新上传」小链 */
 .profile-credential-ctl { display: flex; align-items: center; gap: 12px; }
 /* 内联「重新上传」小链（glass 参数预设见 glass.css 按钮族；此处补结构样式） */
