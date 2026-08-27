@@ -4,9 +4,11 @@
  *   1) base.css .stage-nav z-index ≥ 300 + pointer-events:none（容器不拦截——短视口弹窗 header ✕
  *      落在导航带内，全宽点击陷阱会杀死 ✕；ZT 审计 FAIL1）+ .stage-nav-actions/.navbar-brand
  *      pointer-events:auto（登录/注册/logo 可点）——G2 变异：还原 z / 删 pointer-events → 红；
- *   2) auth/index.js 的 viewLogin/viewRegister/enterGuest 先 closeModal 再切视图 —— G2 变异：删 → 红。
- * 运行时几何断言（W43 被拦路径）在 test/verify-zt-landing.mjs（Playwright 实机：短视口 ✕ 可点、
- * 登录按钮可点、点登录关弹窗进登录）。
+ *   2) auth/index.js 的 viewLogin/viewRegister/enterGuest 先 closeModal 再切视图 —— G2 变异：删 → 红；
+ *   3) openModal 支持 noClose + onboarding 传 noClose:true —— 首访引导弹窗无 header ✕
+ *      （窄屏下 ✕ 与 stage-nav 登录/注册物理重叠，可见不可点的 ✕ 是死控件；关闭由遮罩 + 底部按钮）。
+ * 运行时几何断言（W43 被拦路径）在 test/verify-zt-landing.mjs（Playwright 实机：onboarding 无 ✕、
+ * 登录按钮可点、点登录关弹窗进登录、遮罩关闭）。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,6 +19,8 @@ import { fileURLToPath } from 'node:url';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const baseCss = fs.readFileSync(path.join(root, 'base.css'), 'utf8');
 const authIndex = fs.readFileSync(path.join(root, 'src/client/features/auth/index.js'), 'utf8');
+const uiModal = fs.readFileSync(path.join(root, 'src/client/core/ui-modal.js'), 'utf8');
+const onboardActions = fs.readFileSync(path.join(root, 'src/client/features/onboard/actions.js'), 'utf8');
 
 function ruleOf(css, name) {
   const start = css.indexOf(`.${name} {`);
@@ -48,4 +52,16 @@ test('ZT-2 auth.viewLogin / viewRegister / enterGuest 先 closeModal 再切视�
   assert.match(authIndex,
     /'auth\.enterGuest':\s*\(el\)\s*=>\s*\{\s*closeModal\(\);[^}]*handleFeatureClick/,
     'enterGuest 先 closeModal 再 handleFeatureClick（变异：删 closeModal → 红）');
+});
+
+test('ZT-3 openModal 支持 noClose + onboarding 首访弹窗无 header ✕', () => {
+  assert.match(uiModal,
+    /export function openModal\(\{[^}]*noClose = false[^}]*\}\s*=\s*\{\}\)\s*\{/,
+    'openModal 签名含 noClose = false（变异：删参数 → 红）');
+  assert.match(uiModal,
+    /noClose\n?        \? `<div class="modal-header"><h2[^<]*<\/h2><\/div>`/,
+    'noClose 分支渲染无 ✕ 的 header（变异：删分支 → 红）');
+  assert.match(onboardActions,
+    /noClose: true,/,
+    'onboarding openOnboarding 传 noClose:true（变异：删 → 窄屏 ✕ 死控件红）');
 });
