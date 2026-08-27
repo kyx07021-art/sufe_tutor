@@ -61,10 +61,14 @@ export async function dbGetAwardsAdmin(db, status) {
   const s = status || '';
   if (!['', ...Object.values(AWARD_STATUS)].includes(s)) return [];
   return await dbAll(db, s
-    ? `SELECT a.*, u.username AS teacher_username FROM teacher_awards a
-       LEFT JOIN users u ON u.id=a.teacher_user_id WHERE a.status=? ORDER BY a.id ASC`
-    : `SELECT a.*, u.username AS teacher_username FROM teacher_awards a
-       LEFT JOIN users u ON u.id=a.teacher_user_id ORDER BY a.id ASC`, s ? [s] : []);
+    ? `SELECT a.*, COALESCE(NULLIF(tp.real_name, ''), u.username) AS teacher_username FROM teacher_awards a
+       LEFT JOIN users u ON u.id=a.teacher_user_id
+       LEFT JOIN teacher_profiles tp ON tp.user_id=a.teacher_user_id
+       WHERE a.status=? ORDER BY a.id ASC`
+    : `SELECT a.*, COALESCE(NULLIF(tp.real_name, ''), u.username) AS teacher_username FROM teacher_awards a
+       LEFT JOIN users u ON u.id=a.teacher_user_id
+       LEFT JOIN teacher_profiles tp ON tp.user_id=a.teacher_user_id
+       ORDER BY a.id ASC`, s ? [s] : []);
 }
 
 export async function dbDeleteAward(db, id) {

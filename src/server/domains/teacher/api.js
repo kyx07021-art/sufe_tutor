@@ -288,7 +288,7 @@ export async function handleSaveProfile(db, body, req) {
 export async function handleGetTeachers(db, req) {
   const me = await authUser(db, req); // 访客可浏览公开列表，令牌非必需
   const teachers = (await dbGetTeachers(db, { viewerId: me ? me.id : null }))
-    .map(({ wechat, email, real_name, credential_image, ...rest }) => rest);
+    .map(({ wechat, email, credential_image, ...rest }) => rest);
   return json({ teachers });
 }
 

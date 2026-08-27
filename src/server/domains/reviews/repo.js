@@ -60,8 +60,10 @@ export async function dbIsContracted(db, studentUserId, teacherUserId) {
 
 // 管理端评价查询：可按状态 / 教师过滤（评价管理页与教师详情内评价栏共用）
 export async function dbGetReviewsAdmin(db, { status, teacherUserId } = {}) {
-  let sql = `SELECT r.*, u1.username as reviewer_name, u2.username as teacher_name
-    FROM reviews r JOIN users u1 ON r.reviewer_user_id=u1.id JOIN users u2 ON r.teacher_user_id=u2.id`;
+  let sql = `SELECT r.*, u1.username as reviewer_name,
+      COALESCE(NULLIF(tp.real_name, ''), u2.username) AS teacher_name
+    FROM reviews r JOIN users u1 ON r.reviewer_user_id=u1.id JOIN users u2 ON r.teacher_user_id=u2.id
+    LEFT JOIN teacher_profiles tp ON tp.user_id=u2.id`;
   const cond = [], params = [];
   if (status) { cond.push('r.status=?'); params.push(status); }
   if (teacherUserId) { cond.push('r.teacher_user_id=?'); params.push(teacherUserId); }

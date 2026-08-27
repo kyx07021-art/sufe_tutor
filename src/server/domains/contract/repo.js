@@ -21,10 +21,13 @@ export async function dbGetContractById(db, id) {
 export async function dbGetMyContracts(db, userId) {
   // AI-4b：行自持双方元组——去 conversation join，直接 JOIN users 取名；只出 stage='contract' 行（合同页语义）
   const rows = await dbAll(db, `SELECT sc.*, sc.contract_status AS status,
-      us.username AS student_name, ut.username AS teacher_name, sd.display_id AS demand_display_id
+      us.username AS student_name,
+      COALESCE(NULLIF(tp.real_name, ''), ut.username) AS teacher_name,
+      sd.display_id AS demand_display_id
     FROM signing_contracts sc
     JOIN users us ON us.id = sc.student_user_id
     JOIN users ut ON ut.id = sc.teacher_user_id
+    LEFT JOIN teacher_profiles tp ON tp.user_id = ut.id
     LEFT JOIN student_demands sd ON sd.id = sc.demand_id
     WHERE sc.stage='contract' AND (sc.student_user_id = ? OR sc.teacher_user_id = ?)
     ORDER BY sc.updated_at DESC`, [userId, userId]);
@@ -39,10 +42,13 @@ export async function dbGetMyContracts(db, userId) {
 export async function dbGetAllContractsAdmin(db) {
   // AI-4b：去 conversation join，自持元组 + users 取名；只出 stage='contract' 行（drafter_user_id 恒真实，INNER JOIN 安全）
   const rows = await dbAll(db, `SELECT sc.*, sc.contract_status AS status,
-      us.username AS student_name, ut.username AS teacher_name, du.username AS drafter_name
+      us.username AS student_name,
+      COALESCE(NULLIF(tp.real_name, ''), ut.username) AS teacher_name,
+      du.username AS drafter_name
     FROM signing_contracts sc
     JOIN users us ON us.id = sc.student_user_id
     JOIN users ut ON ut.id = sc.teacher_user_id
+    LEFT JOIN teacher_profiles tp ON tp.user_id = ut.id
     JOIN users du ON du.id = sc.drafter_user_id
     WHERE sc.stage='contract'
     ORDER BY sc.updated_at DESC`);

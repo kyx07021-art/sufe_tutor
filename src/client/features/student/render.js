@@ -264,7 +264,7 @@ export function renderIntentTeacherRow(t, demandId) {
   return `<div class="admin-row glass" data-intent-row data-teacher="${t.user_id}" data-intent-id="${t.intent_id}">
     <div class="admin-row-main">
       <div class="admin-row-line intent-row-line">
-        <span class="intent-row-user"><strong>${usernameHtml(t.username)}</strong> ${starsHtml(t.rating)}</span>${tag}
+        <span class="intent-row-user"><strong>${usernameHtml(t.real_name || t.username)}</strong> ${starsHtml(t.rating)}</span>${tag}
       </div>
       <div class="admin-row-meta">${[provName, priceLine].filter(Boolean).join(' · ')}</div>
       ${greetHtml}
