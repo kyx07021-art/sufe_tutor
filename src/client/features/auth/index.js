@@ -15,9 +15,9 @@ import { closeModal, openPolicyModal } from '../../core/ui.js';
 const ACTION_MAP = {
   'auth.back': actions.authGoBack,
   'auth.backLanding': () => showView('landing'),
-  'auth.viewLogin': () => { showView('login'); actions.refreshAuthHeader(); },
-  'auth.viewRegister': () => showView('register'),
-  'auth.enterGuest': (el) => handleFeatureClick(el.dataset.role), // landing entry: student/teacher guest preview
+  'auth.viewLogin': () => { closeModal(); showView('login'); actions.refreshAuthHeader(); }, // ZT-2 (2026-08-27): dismiss any open overlay (first-visit onboarding) so the login click lands
+  'auth.viewRegister': () => { closeModal(); showView('register'); }, // ZT-2 (2026-08-27): dismiss any open overlay before switching
+  'auth.enterGuest': (el) => { closeModal(); handleFeatureClick(el.dataset.role); }, // ZT-2 (2026-08-27): dismiss first-visit guide overlay first; landing entry: student/teacher guest preview
   'auth-required': () => showView('login'), // audit fix (2026-08-19): router sidebar guest bar data-action=auth-required had zero handler (v1 inline ensureAuth binding lost in ESM migration)
   'auth.toggleLoginMode': actions.toggleLoginMode,
   'auth.checkLoginUsername': actions.checkLoginUsernameDebounced,
