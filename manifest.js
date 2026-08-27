@@ -6,7 +6,7 @@ export const ASSET_MANIFEST = {
   "files": {
     "theme-init.js": "theme-init.66bdf0a9.js",
     "tokens.css": "tokens.197cd74f.css",
-    "base.css": "base.d76f3ef7.css",
+    "base.css": "base.9ab81e89.css",
     "features/complaints.css": "features/complaints.7bde5325.css",
     "features/browse.css": "features/browse.5c318665.css",
     "features/admin.css": "features/admin.2368b3f3.css",

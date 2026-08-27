@@ -38,11 +38,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 /* G8：landing 视图无上边栏——navbar 隐藏，logo+登录/注册由 .stage-nav 浮在舞台顶 */
 body:has(#view-landing:not(.hidden)) .navbar { display: none; }
 .stage-nav {
-  position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+  position: absolute; top: 0; left: 0; right: 0; z-index: 300; /* ZT-1 (2026-08-27): above modal-overlay z-200 — first-visit guide must not swallow the landing login/register clicks */
+  pointer-events: none; /* ZT-1: container never intercepts — short viewports put the guide modal-header x inside the nav band; a full-width click-trap would kill it (ZT audit FAIL1). Interactive children re-enable below. */
   display: flex; align-items: center; justify-content: space-between;
   padding: 18px clamp(20px, 4vw, 40px);
 }
-.stage-nav-actions { display: flex; align-items: center; gap: 12px; }
+.stage-nav-actions, .navbar-brand { pointer-events: auto; } /* ZT-1: login/register buttons + brand stay clickable above the overlay */
 /* 内层客户端：顶栏退场，侧边栏顶天立地（移动端恢复顶栏供汉堡开合抽屉） */
 body:has(#view-client:not(.hidden)) .navbar { display: none; }
 .navbar .container { display: flex; align-items: center; justify-content: space-between; min-height: 36px; }
