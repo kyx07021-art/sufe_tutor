@@ -23,7 +23,7 @@ import {
   dbDeleteContract, dbDeleteSigning,
 } from '../../../../server/db.js';
 import { logEvent, queryLog, decryptLogEntry, dbGetTrafficBuckets } from '../../core/log.js';
-import { confirmDangerOtp } from '../../core/danger-ops.js'; // 封禁/解封危险操作二次认证（同注销/签约口径）
+import { confirmDangerOtp } from '../../core/danger-ops.js'; // ZR-A3 后本文件消费点仅 reencrypt（运维密钥轮换）+ broadcast（公告）；封禁/解封/内容处罚已休眠二次认证
 import { reencryptChunk } from '../../../../server/reencrypt.js'; // v1.5.0 密钥轮换重加密（危险操作，capToken 门禁；A-12 分片续跑）
 import { getDashboardMetrics } from '../../../../server/telemetry.js'; // v1.5.0 观测 dashboard 数据
 import { dbBroadcastNotification, notifyUser } from '../../core/notify.js';
