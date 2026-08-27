@@ -1,5 +1,5 @@
 /** 跨栈数值/服务端非文案常量唯一源（V-1-1）。零依赖，纯数据。 */
-export const APP_VERSION = '2.1.6';   // v2.1.6（2026-08-27 部署批，P15 攒批）：ZT 登录入口修复链（重做+noClose+F1..F4 复审闭合）+ ZU 侧栏呼吸提示 + 流量未来时间修复 + admin 操作拼图休眠 + 录取通知书拍摄提示 + ZR-B7 存量 real_name 密文展示
+export const APP_VERSION = '2.1.7';   // v2.1.7（2026-08-27 部署批，P15 攒批）：ZV 邀请码门控休眠（教师注册 2 步 + check-invite/admin 邀请码路由 404）+ ZW 报价区间→单值（存量迁移 price_max:=price_min）+ ZX 简介 500 上限 + ZR-B8 平台内名称全量替换 + 擅长科目标题 + /docs 404 守卫
 export const CONFIG = {
 TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过期判定；服务端签发同值共享 config SECURITY.TOKEN_TTL_MS）
     BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）
