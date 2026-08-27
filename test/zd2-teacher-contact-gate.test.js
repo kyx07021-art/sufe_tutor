@@ -53,9 +53,9 @@ async function seed() {
   const t = idOf('teacher1'), s1 = idOf('student1'), s2 = idOf('student2');
   // ZR-A1: admin_sufe 由 initDb seedAdmins（ADMIN_USERNAMES）播种，这里补会话 token 供 admin 请求
   const a = idOf('admin_sufe');
-  // 教师档案：联系方式加密落库（真实形状，走 encryptField）
+  // 教师档案：联系方式加密落库（真实形状，走 encryptField）；real_name ZR-B1 起明文公开列，明文直存
   raw.prepare('INSERT INTO teacher_profiles (user_id, grade, verified, wechat, email, real_name, subjects) VALUES (?,?,?,?,?,?,?)')
-    .run(t, 'freshman', 1, await encryptField('wx_teacher'), await encryptField('teacher@example.com'), await encryptField('王老师'), '["math"]');
+    .run(t, 'freshman', 1, await encryptField('wx_teacher'), await encryptField('teacher@example.com'), '王老师', '["math"]');
   // 会话：仅 student1 ↔ teacher1（student2 未建立会话）
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)').run(s1, t, null);
   const mkToken = async name => {

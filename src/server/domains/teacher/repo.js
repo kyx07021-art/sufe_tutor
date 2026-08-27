@@ -14,7 +14,8 @@ export async function dbGetTeacherProfile(db, userId) {
   return row ? await mapTeacherProfileRow(row) : null;
 }
 
-// 双向匹配判定：两人间存在会话（意向被接受/推送被确认 = 建立联系）→ 真实姓名/学信网截图可见门槛
+// 双向匹配判定：两人间存在会话（意向被接受/推送被确认 = 建立联系）→ 联系方式/学信网截图可见门槛
+// （real_name 平台内名称 ZR-B1 起明文公开，不再走匹配门控）
 export async function dbIsMatched(db, userIdA, userIdB) {
   return !!(await dbGet(db,
     'SELECT id FROM conversations WHERE (student_user_id=? AND teacher_user_id=?) OR (student_user_id=? AND teacher_user_id=?)',
@@ -25,12 +26,14 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
   const existing = await dbGet(db, 'SELECT id FROM teacher_profiles WHERE user_id=?', [userId]);
   const subjects = JSON.stringify(profile.subjects);
   const gaokao = JSON.stringify(profile.gaokao_scores);
-  // 网安报告 F-06：wechat/email/real_name 加密落库（D1 泄露/备份不暴露教师私密信息；real_name 截断先于加密）
+  // 网安报告 F-06：wechat/email 加密落库（D1 泄露/备份不暴露教师私密信息）
   // 网安 N-05：credential_image（学信网截图 dataURL）同款加密——D1 泄露/备份不暴露证件图
-  const [wechat, email, realName, credentialImage] = await Promise.all([
-    encryptField(profile.wechat || ''), encryptField(profile.email || ''),
-    encryptField((profile.real_name || '').slice(0, LIMITS.REAL_NAME_MAX)), encryptField(profile.credential_image || ''),
+  const [wechat, email, credentialImage] = await Promise.all([
+    encryptField(profile.wechat || ''), encryptField(profile.email || ''), encryptField(profile.credential_image || ''),
   ]);
+  // ZR-B1（用户①裁决）：real_name（平台内名称）= 明文公开列——截断后明文直写，不再加密。
+  // 存量密文由 ZR-B6 迁移脚本幂等解密回填；在那之前库内旧密文按字面透传（部署顺序由主会话协调）。
+  const realName = (profile.real_name || '').slice(0, LIMITS.REAL_NAME_MAX);
 
   // R2-5 报价区间化：price_min/price_max 保留 null=未填语义（完整性门槛据此拦截，勿落 0）；0 是合法报价
   const priceMin = profile.price_min != null ? profile.price_min : null;
@@ -70,20 +73,21 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 
 // 教师行映射器：教师列表 / 意向教师列表 / 本人档案共用，返回形状永远一致
 // （JOIN 来的 username/avatar 在裸档案行上缺省为 undefined，JSON 序列化时自动略去）
-// 网安报告 F-06：wechat/email/real_name 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
+// 网安报告 F-06：wechat/email 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
 // 网安 N-05：credential_image 同款加密列，出门解密
-// 数据最小化：private:false 时私密字段不解密、置空——广场列表非匹配行（viewerId 缺省或未匹配）
-// 一律裁剪，服务端硬把关（前端仅按 matched/signed 门控显示，但数据此前已随列表发给所有人）
+// ZR-B1（用户①裁决）：real_name（平台内名称）= 明文公开列，直读不走解密、任何模式不裁剪
+// 数据最小化：private:false 时 wechat/email/credential_image 不解密、置空——广场列表非匹配行
+// （viewerId 缺省或未匹配）一律裁剪，服务端硬把关（前端仅按 matched 门控显示，但数据此前已随列表发给所有人）
 export async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) {
-  const [wechat, email, realName, credentialImage] = includePrivate
+  const [wechat, email, credentialImage] = includePrivate
     ? await Promise.all([
-        decryptField(p.wechat), decryptField(p.email), decryptField(p.real_name), decryptField(p.credential_image),
+        decryptField(p.wechat), decryptField(p.email), decryptField(p.credential_image),
       ])
-    : ['', '', '', ''];
+    : ['', '', ''];
   return {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
-    school: p.school || '', real_name: realName || '', credential_image: credentialImage || '',
+    school: p.school || '', real_name: p.real_name || '', credential_image: credentialImage || '',
     verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
     award_count: p.award_count != null ? Number(p.award_count) : 0, // 已审核荣誉奖项数（公开）
     subjects: safeJsonArray(p.subjects),
@@ -101,7 +105,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
     nonacademic_prices: safeJsonArray(p.nonacademic_prices),
     // R2-12 毕业年份（null = 未填，前端按最新政策渲染赋分组件）。
     // 网安审计 M1 决策：公开模式不裁剪——毕业年份仅能粗推成人教师年龄（远弱于联系方式/门牌），
-    // 且是学生判断「该教师高考分按哪套政策」的必读信息（2c 需求），刻意公开；不仿 real_name 门控。
+    // 且是学生判断「该教师高考分按哪套政策」的必读信息（2c 需求），刻意公开。
     graduation_year: p.graduation_year != null ? p.graduation_year : null,
     // v1.2.0 T1：学信网核验自动填入字段（只读，禁手动改；chsi_verified=1 才开放接单资格）
     chsi_school: p.chsi_school || '', chsi_level: p.chsi_level || '', chsi_major: p.chsi_major || '',
@@ -114,7 +118,7 @@ export async function mapTeacherProfileRow(p, { private: includePrivate = true }
 
 // 教师列表统一出口（合并 dbGetAllTeachers / dbGetTeacherUsersAdmin 双胞胎）：
 // 广场视图（默认）：viewerId 有值（登录态）时附 matched 标记（双向匹配 = 与该教师已建立会话），
-//   前端据此决定是否拉取真实姓名/学信网截图等仅匹配可见字段；
+//   前端据此决定是否拉取学信网截图等仅匹配可见字段（real_name ZR-B1 起明文公开，随列表下发）；
 // adminView：管理端教师管理列表——LEFT JOIN（无档案教师也显示）+ 附 role/banned/created_at
 export async function dbGetTeachers(db, { adminView = false, viewerId = null } = {}) {
   if (adminView) {
@@ -142,9 +146,10 @@ export async function dbGetTeachers(db, { adminView = false, viewerId = null } =
     FROM teacher_profiles tp JOIN users u ON tp.user_id=u.id${joinUs}
     WHERE u.role='teacher' AND u.banned=0 AND u.deactivated=0 AND tp.chsi_verified=1${privWhere}
     ORDER BY tp.updated_at DESC`, params);
-  // 广场列表一律裁剪私密字段（real_name/credential_image/wechat/email 置空不解密）——
-  // 对齐前端文档化契约「列表接口永不下发」（app-teachers.js:171 注释），私密字段仅经
-  // /api/teacher/profile 定点取回（该端点按 本人/双向匹配 门控，未匹配 403）。
+  // 广场列表一律裁剪私密字段（credential_image/wechat/email 置空不解密）——
+  // 私密字段仅经 /api/teacher/profile 定点取回（该端点按 本人/双向匹配 门控，未匹配 403）。
+  // ZR-B1：real_name（平台内名称）改明文公开列，不再裁剪——教师缩略卡/详情卡/会话名称
+  // 直接消费列表下发的平台内名称（用户①裁决，空值由前端回落 username）。
   // 收益：列表免逐行 AES 解密 + payload 瘦身（含 base64 学信网截图）+ 数据最小化。
   // award_count：已通过审核的荣誉奖项数（教师卡荣誉徽章；公开信息，无需解密）
   return await Promise.all(profiles.map(p => mapTeacherProfileRow(p, { private: false })));

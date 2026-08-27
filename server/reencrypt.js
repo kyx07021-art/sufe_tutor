@@ -27,7 +27,7 @@ import { LIMITS } from '../src/shared/config.js';
 // 字段加密列清单：表 → 列（单点维护，新加密列上线必须在此登记）
 const FIELD_TABLES = [
   { table: 'users', cols: ['phone', 'email'] },
-  { table: 'teacher_profiles', cols: ['wechat', 'email', 'real_name', 'credential_image'] },
+  { table: 'teacher_profiles', cols: ['wechat', 'email', 'credential_image'] }, // ZR-B1：real_name 改明文公开列，不参与密钥轮换重加密（明文重加密会腐坏）
   { table: 'student_demands', cols: ['parent_contact', 'student_contact'] },
   { table: 'teacher_verifications', cols: ['verify_code', 'admission_image'] },
   { table: 'uploads', cols: ['body', 'thumb'] },
