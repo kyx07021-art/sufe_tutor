@@ -63,3 +63,40 @@ test('流量桶日粒度：UTC 跨日 ts 落北京日期标签', async () => {
   assert.ok(!labels.includes('2026-08-26'), 'UTC 2026-08-26 18:00 → 北京 2026-08-27 02:00，属 27 日桶，26 日桶不应出现');
   raw.close();
 });
+
+// 2026-08-27 用户反馈「流量监测表单包含未来时间」：handleAdminTraffic 的 nowMs 预加 BEIJING_OFFSET_MS
+// 与 fmtTrafficBucket 的 +8 双重移位 → 窗口整体前移 8h（生产 24h 桶 17:00→00:00 全未来空桶实证）。
+// 修复 = 抽取 trafficWindow 纯函数，now 传真实 epoch（UTC），标签经 fmtTrafficBucket(+8h) 单次转北京。
+import { trafficWindow } from '../src/server/domains/admin/api.js';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const adminApiSrc = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'src/server/domains/admin/api.js'), 'utf8');
+
+test('流量窗口北京时区：末标签=当前北京小时，零未来标签（双重+8 修复锁定）', () => {
+  const now = Date.UTC(2026, 7, 27, 8, 20, 0); // 北京 2026-08-27 16:20
+  const { fromTs, labels } = trafficWindow(now, 'hour', 24);
+  assert.equal(fromTs, '2026-08-26 09:00:00', 'UTC 边界 = 窗口首桶对应 UTC 时刻（北京 17:00 前一日）');
+  assert.equal(labels.length, 24);
+  assert.equal(labels[0], '2026-08-26 17:00', '首标签 = 北京 2026-08-26 17:00');
+  assert.equal(labels[23], '2026-08-27 16:00', '末标签 = 当前北京小时 16:00（零未来）');
+  assert.ok(!labels.some(l => l > '2026-08-27 16:00'), '无未来标签（还原预加偏移 → 末标签 2026-08-28 00:00 → 红）');
+});
+
+test('流量窗口日粒度：末标签=当前北京日期，零未来日期', () => {
+  const now = Date.UTC(2026, 7, 27, 8, 20, 0); // 北京 2026-08-27 16:20
+  const { fromTs, labels } = trafficWindow(now, 'day', 7);
+  assert.equal(fromTs, '2026-08-21 00:00:00', 'UTC 边界 = 7 日前 UTC 零点');
+  assert.equal(labels.length, 7);
+  assert.equal(labels[6], '2026-08-27', '末标签 = 当前北京日期（零未来）');
+  assert.ok(!labels.some(l => l > '2026-08-27'), '无未来日期');
+});
+
+test('流量窗口调用点零预加偏移（源级契约：now 传真实 epoch，双 +8 禁止回归）', () => {
+  assert.match(adminApiSrc, /trafficWindow\(Date\.now\(\),\s*unit,\s*n\)/,
+    'handler 传原始 Date.now()（变异：改回 + BEIJING_OFFSET_MS → 红）');
+  assert.ok(!/Date\.now\(\)\s*\+\s*BEIJING_OFFSET_MS/.test(adminApiSrc),
+    '无 nowMs 预加偏移（双 +8 回归即红）');
+  assert.ok(!/const nowMs/.test(adminApiSrc), 'nowMs 局部变量已删除（重构残留即红）');
+});
