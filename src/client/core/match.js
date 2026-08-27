@@ -1,5 +1,5 @@
 /**
- * v2 match core: parity migration of app-demands.js five-dimension matching.
+ * v2 match core: parity migration of app-demands.js matching (ZJ-2: four-dimension — gender removed).
  * Pure functions; labels/hints come from constants/text.js, region policy data
  * from constants/region-data.js.
  */
