@@ -576,7 +576,7 @@ test('U-3d rejectAwardModal：驳回弹窗含理由输入 + 必填 hint + 确认
 
 // ─────────────────────────────────────────────────────────────
 // Z-3-F1/U-3e：学信网核验队列——v1-parity 卡片（四态 tag + 验证码 + admission 预览 +
-// 结构化 approve 表单 / reject / revoke），危险操作走普通 confirm + captcha（ZR-A3 验证休眠）。
+// 结构化 approve 表单 / reject / revoke），危险操作走普通 confirm 直接写（ZR-A3/A3c 验证+拼图休眠）。
 // ZR-A4a：表单删在读状态输入、院校/层次/入学年份预填平台默认值、留空可提交（服务端回落默认）。
 // G2：删 PENDING 表单/删 status tag/删 revoke 按钮必红。
 // ─────────────────────────────────────────────────────────────
@@ -645,17 +645,6 @@ test('U-3e loadAdminVerifications 空列表：空态文案', async () => {
   teardown();
 });
 
-// canvas 2d stub for the jsdom captcha leg (settings-state-sync.test.js 同款，W6 复用)
-function canvasStub() {
-  const o = {};
-  const mk = () => new Proxy(function () {}, {
-    get: (t, k) => (k in o ? o[k] : mk()),
-    set: (t, k, v) => { o[k] = v; return true; },
-    apply: () => mk(),
-  });
-  return mk();
-}
-
 test('ZR-A4a verifApprove 留空 school/level：无必填拦截（confirm 弹窗出现 + 零必填 toast + 确认前零请求）', async () => {
   const dom = setup();
   let apiCalls = 0;
@@ -668,15 +657,11 @@ test('ZR-A4a verifApprove 留空 school/level：无必填拦截（confirm 弹窗
   teardown();
 });
 
-test('ZR-A4a verifApprove 全链路留空提交：清空默认值后 confirm→captcha→请求发出，body 无 enrollment_status（fetch 捕获）', async () => {
+test('ZR-A4a verifApprove 全链路留空提交：清空默认值后 confirm→直接写路径（ZR-A3c 拼图休眠），body 无 enrollment_status（fetch 捕获）', async () => {
   const dom = setup();
-  dom.window.HTMLCanvasElement.prototype.getContext = canvasStub;
-  const realRandom = Math.random;
-  Math.random = () => 0; // captcha target 确定（16/240），指针拖到 17px 命中容差（settings-state-sync 同款）
   let postedBody = null;
   globalThis.fetch = async (url, opts = {}) => {
     const u = String(url);
-    if (u.includes('/api/captcha/verify')) return { ok: true, status: 200, json: async () => ({ ok: true }) };
     if (u.includes('/api/admin/verifications/91/action') && opts.method === 'POST') { postedBody = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
     return { ok: true, status: 200, json: async () => ({ verifications: [] }) };
   };
@@ -690,18 +675,10 @@ test('ZR-A4a verifApprove 全链路留空提交：清空默认值后 confirm→c
   assert.ok(modal, 'confirm 弹窗出现');
   modal.querySelector('[data-action="ui.runPendingConfirm"]').click();
   await new Promise(r => setTimeout(r, 30));
-  const knob = dom.window.document.getElementById('captcha-knob');
-  assert.ok(knob, 'captcha 弹窗出现');
-  knob.setPointerCapture = () => {};
-  const pointer = (el, type, x) => el.dispatchEvent(new dom.window.PointerEvent(type, { bubbles: true, clientX: x, pointerId: 1 }));
-  pointer(knob, 'pointerdown', 0);
-  pointer(knob, 'pointermove', 17);
-  pointer(knob, 'pointerup', 17);
-  await new Promise(r => setTimeout(r, 400)); // captcha onPass 延迟 260ms + 写路径余量
-  assert.ok(postedBody, '提交请求发出');
+  assert.ok(!dom.window.document.getElementById('captcha-knob'), '无拼图弹窗（ZR-A3c admin 拼图休眠，变异：还原 withCaptcha → 红）');
+  assert.ok(postedBody, '提交请求直接发出（无拼图关卡）');
   assert.deepEqual(postedBody, { action: 'approve', school: '', level: '', major: '', enroll_year: '' }, '留空 body 原样下发（服务端回落默认）');
   assert.ok(!('enrollment_status' in postedBody), 'body 无 enrollment_status 键（字段已删）');
-  Math.random = realRandom;
   teardown();
 });
 
