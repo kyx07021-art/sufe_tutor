@@ -12,7 +12,7 @@ test('CONFIG：核心常量在位且门控开关同源', () => {
   assert.ok(CONFIG.TOKEN_TTL_MS > 0);
   assert.ok(CONFIG.API_TIMEOUT_MS > 0);
   assert.ok(CONFIG.BATCH_GET_MAX > 0);
-  assert.equal(INVITE_GATE_DORMANT, false, '前端门控休眠开关同源');
+  assert.equal(INVITE_GATE_DORMANT, true, '前端门控休眠开关同源（ZV-1 2026-08-27：邀请码门控休眠）');
 });
 
 test('STATUS 与业务枚举：核心业务枚举全量在位', () => {

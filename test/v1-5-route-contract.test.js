@@ -69,9 +69,9 @@ async function call(method, path, body = null, token = null) {
   return routeApi(db, path, method, body, new URL(`http://x${path}`), { headers }, ENV);
 }
 
-test('路由表：104 条、method+path 唯一、关键路径字面量齐全', () => {
-  // ZD-1（2026-08-26 休眠）：contract 域 12 路由停用（/api/contracts 7 + admin 2 + signing + bindable + respond）→ 116-12=104。
-  assert.equal(routes.length, 105, 'ZZ-1 新增 GET /api/admin/verifications/:id/image 后路由数 105（104+1 单点取图）');
+test('路由表：101 条、method+path 唯一、关键路径字面量齐全', () => {
+  // ZD-1（2026-08-26 休眠）：contract 域 12 路由停用 → 116-12=104；ZZ-1 增单点取图 → 105；ZV-1（2026-08-27 邀请码门控休眠）：4 条邀请码路由注释（check-invite + admin 3）→ 101。
+  assert.equal(routes.length, 101, 'ZV-1 邀请码 4 路由休眠后路由数 101（105-4）');
   const keys = new Set(routes.map(r => `${r.method} ${r.path}`));
   assert.equal(keys.size, routes.length, 'method+path 唯一');
   const required = [
@@ -134,6 +134,11 @@ test('routeApi 代表路径内存冒烟：认证/读列表/写反馈/管理端/�
   // ZD-1：contract 域路由休眠 → 404 ROUTE_NOT_FOUND（不再可用）
   const contracts = await call('GET', '/api/contracts/my', null, tokens.student);
   assert.equal(contracts.status, 404, 'contract 域休眠，GET /api/contracts/my 404');
+  // ZV-1：邀请码路由休眠 → 404 ROUTE_NOT_FOUND（变异：还原路由 → 200/非 404 红）
+  const checkInvite = await call('POST', '/api/auth/check-invite', { code: 'x' }, null);
+  assert.equal(checkInvite.status, 404, 'check-invite 休眠，POST /api/auth/check-invite 404');
+  const genInvite = await call('POST', '/api/admin/invite', {}, tokens.admin);
+  assert.equal(genInvite.status, 404, 'admin 邀请码生成休眠，POST /api/admin/invite 404');
   const reviews = await call('GET', '/api/reviews', null, tokens.student);
   assert.equal(reviews.status, 200);
   const posts = await call('GET', '/api/posts', null, tokens.student);

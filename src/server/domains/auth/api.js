@@ -80,7 +80,8 @@ export async function handleRegister(db, body, req) {
     return errorMsg('PHONE_ALREADY_BOUND', 409);
   }
 
-  // 教师邀请码门控：后端 INVITE_GATE_ENABLED 决定是否需要邀请码（当前 true = 启用）
+  // ZV-1（2026-08-27，用户：不再需要邀请码，有资料核验）：邀请码门控休眠——INVITE_GATE_ENABLED=false 后
+  // needsInvite 恒 false，以下门禁分支代码保留（休眠）但不再触发；注册端点仍接受 inviteCode 字段（兼容不消费）。
   const needsInvite = role === 'teacher' && INVITE_GATE_ENABLED;
   if (needsInvite) {
     if (!inviteCode) return errorMsg('TEACHER_NEEDS_INVITE');
@@ -508,7 +509,9 @@ export const routes = [
   S('POST', '/api/user/username', c => handleChangeUsername(c.db, c.body, c.req)),
   S('GET', '/api/user/username/status', c => handleUsernameStatus(c.db, c.req)),
   S('GET', '/api/user/creds', c => handleGetMyCreds(c.db, c.req)),
-  S('POST', '/api/auth/check-invite', c => handleCheckInvite(c.db, c.body)),
+  // ZV-1（2026-08-27）：check-invite 端点休眠（教师注册不再要求邀请码）——handleCheckInvite 函数保留，
+  // 路由注释后经 404 ROUTE_NOT_FOUND。
+  // S('POST', '/api/auth/check-invite', c => handleCheckInvite(c.db, c.body)),
   S('POST', '/api/auth/logout', c => handleLogout(c.db, c.req)),
   S('GET', '/api/auth/sessions', c => handleListSessions(c.db, c.req)),
   S('POST', '/api/auth/sessions/revoke', c => handleRevokeSession(c.db, c.body, c.req)),

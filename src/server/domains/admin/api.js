@@ -368,9 +368,11 @@ async function doDeleteContent(db, type, id) {
 // ============================================================
 const S = (method, path, handler) => ({ method, path, handler });
 export const routes = [
-  S('POST', '/api/admin/invite', c => handleGenInvite(c.db, c.body, c.req)),
-  S('GET', '/api/admin/invites', c => handleListInvites(c.db, c.req)),
-  S('DELETE', '/api/admin/invites/:code', c => handleRevokeInvite(c.db, c.params.code, c.req)),
+  // ZV-1（2026-08-27，用户：不再需要邀请码，有资料核验）：admin 邀请码管理休眠——handler 函数保留，
+  // 路由注释后经 404 ROUTE_NOT_FOUND。
+  // S('POST', '/api/admin/invite', c => handleGenInvite(c.db, c.body, c.req)),
+  // S('GET', '/api/admin/invites', c => handleListInvites(c.db, c.req)),
+  // S('DELETE', '/api/admin/invites/:code', c => handleRevokeInvite(c.db, c.params.code, c.req)),
   S('GET', '/api/admin/stats', c => handleAdminStats(c.db, c.url, c.req)),
   S('GET', '/api/admin/dashboard', c => handleAdminDashboard(c.db, c.url, c.req)),
   S('GET', '/api/admin/traffic', c => handleAdminTraffic(c.db, c.url, c.req)),

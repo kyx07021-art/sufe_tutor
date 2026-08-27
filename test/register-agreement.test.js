@@ -9,6 +9,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { handleRegister as serverHandleRegister } from '../src/server/domains/auth/api.js';
+import { dbCreateInviteCode } from '../src/server/domains/auth/repo.js'; // ZV-1：预置邀请码验证门控休眠不消费
 import { lastOtpCode } from './_otp-stub.js';
 import { TEXT } from '../src/client/constants/text.js';
 import { studentRegisterFormHtml } from '../src/client/features/auth/render.js';
@@ -65,6 +66,21 @@ test('服务端：双同意 → 注册成功', async () => {
   const r = await serverHandleRegister(db, { username: 'u_ok', password: 'pass123456', role: 'student', deviceId: 'd1', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: lastOtpCode(target) }, reqOf());
   assert.equal(r.status, 200);
   assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM users WHERE username='u_ok'").get().c, 1);
+});
+
+test('ZV-1 教师注册带 inviteCode 不消费：注册成功 + 邀请码 used_by 仍 null（门控休眠）', async () => {
+  const raw = new DatabaseSync(':memory:'); raw.exec('PRAGMA foreign_keys = ON');
+  const db = d1Shim(raw); await initDb(db, ENV);
+  const adminId = raw.prepare("SELECT id FROM users WHERE role='admin'").get().id;
+  await dbCreateInviteCode(db, 'ZVCODE123', adminId); // 预置有效邀请码
+  const target = '+8613912345679';
+  await requestOtp(db, { channel: 'sms', target }, reqOf());
+  const r = await serverHandleRegister(db, { username: 'u_teacher', password: 'pass123456', role: 'teacher', deviceId: 'd1', agreeAgreement: true, agreePrivacy: true, phone: target, otpChannel: 'sms', code: lastOtpCode(target), inviteCode: 'ZVCODE123' }, reqOf());
+  // 变异守护：还原 INVITE_GATE_ENABLED=true → needsInvite 分支拦截 400 或消费 code → 断言红
+  assert.equal(r.status, 200, '教师注册成功（门控休眠不要求邀请码）');
+  assert.equal(raw.prepare("SELECT COUNT(*) AS c FROM users WHERE username='u_teacher'").get().c, 1);
+  const used = raw.prepare("SELECT used_by FROM invite_codes WHERE code='ZVCODE123'").get();
+  assert.equal(used.used_by, null, '邀请码未被消费（休眠不消费）');
 });
 
 test('Q-2a-F1 守护：check-then-act 窗口内并发插入 → dbCreateUser 撞 UNIQUE 分流 400 USERNAME_TAKEN', async () => {

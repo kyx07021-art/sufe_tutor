@@ -239,8 +239,10 @@ export const SECURITY_HEADERS = {
   'Permissions-Policy': "camera=(), microphone=(), geolocation=()",
 };
 // 前端教师注册门控休眠开关（shared config 单源；false=门控启用，true=开放注册休眠；v1 根 constants.js 镜像已随 V-4-1h 删除，消费方 server/startup.js + features/auth/actions-register.js 直读）
-export const INVITE_GATE_DORMANT = false;
-export const INVITE_GATE_ENABLED = true;
+// ZV-1（2026-08-27，用户：不再需要邀请码，有资料核验）：邀请码门控休眠。INVITE_GATE_CONSISTENT 启动闸门
+// 要求 (ENABLED=false, DORMANT=true) 组合——两开关必须同 commit 翻转，单翻中间态启动闸门失败全站 503。
+export const INVITE_GATE_DORMANT = true;
+export const INVITE_GATE_ENABLED = false;
 export const LEGACY_ADMIN_PASSWORD = "admin_sufe";
 export const INITIAL_RATING = 4.5;
 export const INITIAL_WEIGHT = 10;
