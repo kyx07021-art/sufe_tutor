@@ -134,6 +134,10 @@ export function getOrbPref() { try { const v = safeGet(localStorage, CONFIG.ORB_
 export function setOrbPref(pref) { try { safeSet(localStorage, CONFIG.ORB_KEY || 'sufe_orb', pref); } catch { /* ignore */ } }
 export function isReturning() { try { return !!safeGet(localStorage, 'sufe_returning'); } catch { return false; } }
 export function setReturning() { try { safeSet(localStorage, 'sufe_returning', '1'); } catch { /* ignore */ } }
+// ZU (2026-08-27): sidebar-first-open flag — mobile users who never opened the sidebar get a
+// breathing hint on the expand toggle until it has been opened once (single source of truth here).
+export function getSidebarOpened() { try { return !!safeGet(localStorage, CONFIG.SIDEBAR_OPENED_KEY); } catch { return false; } }
+export function markSidebarOpened() { try { safeSet(localStorage, CONFIG.SIDEBAR_OPENED_KEY, '1'); } catch { /* ignore */ } }
 
 export function uiScaleClamp(v) {
   const n = Number(v);

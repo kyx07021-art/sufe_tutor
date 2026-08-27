@@ -9,6 +9,7 @@ import { TEXT } from '../constants/text.js';
 import { escHtml } from './dom.js';
 import { CARET_SVG } from './ui.js';
 import { goHome } from './router.js';
+import { getSidebarOpened, markSidebarOpened } from './state.js'; // ZU: sidebar first-open hint
 import { ROLES, STATUS, AWARD_STATUS } from '../../shared/enums.js'; // review/award filter literals single source
 
 function page(id, title, { actions = '', body = '', flush = false } = {}) {
@@ -173,8 +174,15 @@ export function mountShell() {
   // Shell-level direct listeners (no inline onclick)
   const backdrop = document.getElementById('sidebar-backdrop');
   if (backdrop) backdrop.addEventListener('click', () => { document.body.classList.remove('sidebar-open'); });
-  document.querySelectorAll('#view-client [data-action="shell.toggleSidebar"]').forEach(b =>
-    b.addEventListener('click', () => document.body.classList.toggle('sidebar-open')));
+  document.querySelectorAll('#view-client [data-action="shell.toggleSidebar"]').forEach(b => {
+    // ZU (2026-08-27): first-open hint — breathe the toggle until the sidebar has been opened once
+    // (mobile-only discovery aid; the button is display:none on desktop so the hint never shows there).
+    if (!getSidebarOpened()) b.classList.add('sidebar-hint');
+    b.addEventListener('click', () => {
+      document.body.classList.toggle('sidebar-open');
+      if (document.body.classList.contains('sidebar-open')) { markSidebarOpened(); b.classList.remove('sidebar-hint'); }
+    });
+  });
   document.querySelectorAll('#view-client [data-action="shell.closeSidebar"]').forEach(b =>
     b.addEventListener('click', () => document.body.classList.remove('sidebar-open')));
   const brand = document.getElementById('navbar-brand');
