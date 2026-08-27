@@ -341,8 +341,6 @@ export async function saveProfile() {
     gaokao_scores: collectTeacherGaokao(),
     intro: val('tp-intro').trim(),
     address: val('tp-address'),
-    wechat: val('tp-wechat').trim(),
-    email: val('tp-email').trim(),
     credential_image: _currentCredential,
   }};
   const btn = document.querySelector('[data-action="teacher.saveProfile"]');

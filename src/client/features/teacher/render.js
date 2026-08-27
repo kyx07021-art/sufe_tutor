@@ -33,7 +33,7 @@ export function renderTeacherCard(t, i) {
     <div class="tc-head">
       ${renderAvatarHtml(t.avatar, t.username, 'tc-avatar')}
       <div class="tc-identity">
-        <span class="tc-name tc-username">${escHtml(t.username)}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${TEXT.AWARD_SECTION_TITLE}">${TEXT.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
+        <span class="tc-name tc-username">${escHtml(t.real_name || t.username)}${(t.award_count || 0) > 0 ? ` <span class="award-badge glass glass--solid" title="${TEXT.AWARD_SECTION_TITLE}">${TEXT.AWARD_COUNT_BADGE.replace('{n}', t.award_count)}</span>` : ''}</span>
         ${t.school || grade ? `<span class="tc-school">${escHtml([t.school, grade].filter(Boolean).join(' · '))}</span>` : ''}
       </div>
       <div class="tc-rating">${starsHtml(t.rating)}<span class="tc-rating-num">${ratingText(t.rating)}</span></div>
@@ -250,14 +250,6 @@ export function renderTeacherProfileForm(profile) {
       <label class="form-label">${TEXT.LABEL_ADDRESS}</label>
       <div id="tp-addr-picker" class="sh-addr-picker"></div>
       <input type="hidden" id="tp-address" value="${escHtml(p.address || '')}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">${TEXT.LABEL_WECHAT}</label>
-      <input type="text" class="form-input" id="tp-wechat" value="${escHtml(p.wechat || '')}" maxlength="${LIMITS.CONTACT_MAX}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">${TEXT.LABEL_EMAIL}</label>
-      <input type="text" class="form-input" id="tp-email" value="${escHtml(p.email || '')}" maxlength="${LIMITS.CONTACT_MAX}">
     </div>
     <div class="form-actions">
       <button type="button" class="btn glass glass--pressable" data-action="teacher.saveProfile">${TEXT.BTN_SAVE}</button>

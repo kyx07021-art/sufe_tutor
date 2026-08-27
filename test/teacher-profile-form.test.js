@@ -16,7 +16,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { renderTeacherProfileForm, renderTeacherVerifySection } from '../src/client/features/teacher/render.js';
+import { renderTeacherProfileForm, renderTeacherVerifySection, renderTeacherCard, renderProfilePanel } from '../src/client/features/teacher/render.js';
 import * as actions from '../src/client/features/teacher/actions.js';
 import { state } from '../src/client/core/state.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
@@ -80,8 +80,9 @@ test('F1c 渲染：四区结构 + 全部字段在位 + 零内联事件/样式', 
   assert.ok(html.includes('tp-intro'), '简介在位');
   assert.ok(html.includes('tp-addr-picker'), '上海地址 picker 容器在位');
   assert.ok(html.includes('tp-address'), '地址 hidden 在位');
-  assert.ok(html.includes('tp-wechat'), '微信在位');
-  assert.ok(html.includes('tp-email'), '邮箱在位');
+  // ZR-C1：联系方式只用于身份核验，表单零输入控件（变异守护：还原输入块必红）
+  assert.ok(!html.includes('tp-wechat'), '微信输入已删除');
+  assert.ok(!html.includes('tp-email'), '邮箱输入已删除');
   assert.ok(html.includes('teacher.saveProfile'), '保存按钮 data-action 在位');
   // 必填标记：province/grade/gender/subjects/price_min/method/time_slots
   const requiredFields = ['tp-province', 'tp-grade', 'tp-gender', 'tp-subjects', 'tp-price-min', 'tp-method', 'tp-time-slots'];
@@ -100,8 +101,6 @@ test('F1c 回显：已有档案预填 value/selected/checked', () => {
   assert.ok(html.includes('value="2022"'), '毕业年份回显');
   assert.ok(html.includes('value="上海财经大学"'), '学校回显');
   assert.ok(html.includes('value="王老师"'), '平台内名称回显');
-  assert.ok(html.includes('value="wx_teacher"'), '微信回显');
-  assert.ok(html.includes('value="teacher@example.com"'), '邮箱回显');
   assert.ok(html.includes('value="100"'), '报价下限回显');
   assert.ok(html.includes('value="150"'), '报价上限回显');
   assert.ok(html.includes('value="sophomore" selected'), '年级 selected 属性（锁 selected 非仅 option）');
@@ -112,12 +111,11 @@ test('F1c 回显：已有档案预填 value/selected/checked', () => {
 });
 
 test('F1c 转义：恶意服务端值 escHtml 后插值（XSS 纵深）', () => {
-  const evil = { school: '"><script>alert(1)</script>', real_name: '" onfocus=alert(1)', intro: '<img src=x onerror=alert(1)>', wechat: '"><svg onload=alert(1)>' };
+  const evil = { school: '"><script>alert(1)</script>', real_name: '" onfocus=alert(1)', intro: '<img src=x onerror=alert(1)>' };
   const html = renderTeacherProfileForm(evil);
   assert.ok(html.includes('&quot; onfocus=alert(1)'), '引号被转义（无法逃逸属性）');
   assert.ok(!html.includes('<script>alert(1)</script>'), 'script 标签被转义');
   assert.ok(!html.includes('<img src=x'), 'img 标签被转义');
-  assert.ok(!html.includes('<svg onload'), 'svg 标签被转义');
 });
 
 test('F1c 空档案：profile null → 空表单默认值（无 undefined/null 注入）', () => {
@@ -464,7 +462,9 @@ test('F1d3 提交：payload shape 与服务端契约一致 + 成功回读', asyn
   assert.equal(JSON.parse(p.time_slots)[0].dow, 1, 'time_slots JSON 串形状');
   assert.ok(Array.isArray(p.gaokao_scores) && p.gaokao_scores.some(g => g.subject === 'math' && g.score === 145), 'gaokao_scores 收集（数学 145）');
   assert.equal(p.credential_image, '', '空凭证回传空（不误清已有值）');
-  assert.equal(p.wechat, 'wx');
+  // ZR-C1：保存 body 零联系方式字段（变异守护：还原 collect 行必红）
+  assert.ok(!('wechat' in p), '保存 body 无 wechat 字段');
+  assert.ok(!('email' in p), '保存 body 无 email 字段');
   assert.equal(p.real_name, '王老师');
   assert.equal(p.address, '', '无地址回传空');
   teardown();
@@ -708,4 +708,43 @@ test('ZH-4 认证前置：approved 态开放表单 + 横幅挂载点', async () 
   assert.ok(!el.querySelector('.verify-banner'), 'approved 态零红色横栏（ZH-5）');
   assert.ok(el.querySelector('#teacher-verify'), '认证窗仍在（状态展示）');
   teardown();
+});
+
+// ─────────────────────────────────────────────────────────────
+// ZR-B4（用户①）：教师缩略卡名称接入平台内名称（real_name），未填回落 username。
+// ZR-C1/C3（用户②）：联系方式只用于身份核验——表单零输入控件、保存 body 零字段、
+// 详情卡零联系方式引用。均为锁定测试：还原输入块/collect 行/渲染引用必红。
+// ─────────────────────────────────────────────────────────────
+
+test('ZR-B4 缩略卡名称：real_name 在位显示平台内名称，空/缺失回落 username', () => {
+  state.user = null; // non-student view: no match hint / push btn noise
+  const withName = renderTeacherCard({ user_id: 1, username: 'login_name_a', real_name: '王老师甲', subjects: [], rating: 5 }, 0);
+  assert.ok(withName.includes('王老师甲'), '有 real_name → 显示平台内名称');
+  assert.ok(!withName.includes('login_name_a'), 'real_name 在位时用户名不上屏');
+  const emptyName = renderTeacherCard({ user_id: 2, username: 'login_name_b', real_name: '', subjects: [], rating: 5 }, 0);
+  assert.ok(emptyName.includes('login_name_b'), 'real_name 空串回落 username');
+  const missingName = renderTeacherCard({ user_id: 3, username: 'login_name_c', subjects: [], rating: 5 }, 0);
+  assert.ok(missingName.includes('login_name_c'), 'real_name 缺失回落 username');
+});
+
+test('ZR-C1 表单零联系方式：档案带 wechat/email 值也零控件零回显（变异守护）', () => {
+  const html = renderTeacherProfileForm({ wechat: 'wx_secret_val', email: 'mail_secret_val' });
+  assert.ok(!html.includes('tp-wechat'), '零微信输入控件（还原输入块必红）');
+  assert.ok(!html.includes('tp-email'), '零邮箱输入控件（还原输入块必红）');
+  assert.ok(!html.includes('wx_secret_val'), '微信值零回显');
+  assert.ok(!html.includes('mail_secret_val'), '邮箱值零回显');
+});
+
+test('ZR-C3 详情卡零联系方式引用：wechat/email/credential_image 值与字段名均不上屏', () => {
+  const html = renderProfilePanel({
+    user_id: 9, username: 't9', real_name: '张老师',
+    wechat: 'wx_secret_9', email: 'secret9@example.com',
+    credential_image: 'data:image/png;base64,SECRETIMG',
+  }, '');
+  assert.ok(html.includes('张老师'), '平台内名称正常渲染（对照面）');
+  assert.ok(!html.includes('wx_secret_9'), 'wechat 值零渲染');
+  assert.ok(!html.includes('secret9@example.com'), 'email 值零渲染');
+  assert.ok(!html.includes('SECRETIMG'), 'credential_image 值零渲染');
+  assert.ok(!/wechat|credential/i.test(html), '零 wechat/credential 字段引用');
+  assert.ok(!html.includes('email'), '零 email 字段引用');
 });
