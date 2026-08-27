@@ -501,7 +501,7 @@ export function reopenDemand(id) {
 export async function openSendDemandModal(teacherUserId) {
   if (!ensureAuth()) return;
   const t = state.allTeachers.find(x => x.user_id === teacherUserId);
-  const tName = t ? t.username : TEXT.PUSH_TEACHER_FALLBACK;
+  const tName = t ? (t.real_name || t.username) : TEXT.PUSH_TEACHER_FALLBACK;
   let demands = [];
   try { demands = (await dhGet('/api/student/demands?scope=mine', { domain: 'demands', forceRefresh: true })).demands || []; state.myDemands = demands; }
   catch { demands = state.myDemands; }

@@ -232,14 +232,19 @@ export async function dbListTeacherVerifications(db, status) {
   // ZZ-1（2026-08-27，用户③）：列表显式列不下发 admission_image（大字段按需经
   // /api/admin/verifications/:id/image 单点取图）——列表体量从 ~1.47MB 降到 KB 级，
   // 消除慢网超时 NETWORK_ERROR。verify_code 保留（管理员核验需明文查证）。
+  // ZR-B8-F2（2026-08-27）：LEFT JOIN teacher_profiles 下发 real_name（平台内名称）——admin 核验列表
+  // 显示平台内名称回落 username（教师实名，ZR-B8 平台内名称全量替换审计 FAIL 遗漏点 2）。
   const rows = await dbAll(db, `SELECT v.id, v.user_id, v.verify_code, v.status, v.school, v.level,
       v.major, v.enrollment_status, v.enroll_year, v.provider, v.verified_by, v.verified_at,
-      v.created_at, v.verify_type, u.username
-      FROM teacher_verifications v JOIN users u ON u.id=v.user_id${where}
+      v.created_at, v.verify_type, u.username, tp.real_name
+      FROM teacher_verifications v JOIN users u ON u.id=v.user_id
+      LEFT JOIN teacher_profiles tp ON tp.user_id=v.user_id${where}
       ORDER BY v.created_at DESC`, args);
   // map 返回新对象（不改原 row——D1 返回行可能只读，ESM 严格模式赋值抛 TypeError → 列表 500 生产实证）
+  // ZR-B8-F2：real_name 随行解密（B6 前密文 decryptField-with-fallback 显示真实名，B6 后明文原样放行）
   return Promise.all(rows.map(async r => ({
     ...r,
+    real_name: await decryptField(r.real_name),
     verify_code: (await decryptField(r.verify_code)) || '',
   })));
 }

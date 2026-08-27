@@ -153,7 +153,7 @@ export function renderAdminUserRow(u, role) {
   return `<div class="admin-row glass admin-user-row">
     <div class="admin-row-main">
       <div class="admin-row-line">
-        <strong>${escHtml(u.username)}</strong>
+        <strong>${escHtml(u.real_name || u.username)}</strong>
         ${u.verified ? `<span class="tag tag-ok glass glass--solid">${TEXT.VERIFIED_BADGE}</span>` : ''}
         ${u.banned ? `<span class="tag tag-danger glass glass--solid">${TEXT.TAG_BANNED}</span>` : ''}
       </div>
@@ -673,7 +673,7 @@ function verifStatusTag(status) {
 export function renderVerifCard(v) {
   return `<div class="list-card glass verif-card" data-id="${v.id}">
     <div class="verif-head">
-      <span class="verif-user">${escHtml(v.username || ('#' + v.user_id))}</span>
+      <span class="verif-user">${escHtml(v.real_name || v.username || ('#' + v.user_id))}</span>
       ${v.verify_type === VERIFY_TYPES.ADMISSION ? `<span class="tag tag-accent glass glass--solid">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_TAG)}</span>` : ''}
       ${verifStatusTag(v.status)}
       <span class="verif-code">${v.verify_type === VERIFY_TYPES.ADMISSION ? escHtml(TEXT.ADMIN_VERIF_ADMISSION_NO_CODE) : escHtml(v.verify_code)}</span>
