@@ -330,7 +330,7 @@ export const TEXT = {
   "DEMAND_FILTER_ALL": "全部",
   "DEMAND_FILTER_EMPTY": "没有符合筛选条件的需求",
   "LABEL_SCHOOL": "学校",
-  "LABEL_REAL_NAME": "真实姓名",
+  "LABEL_REAL_NAME": "平台内名称",
   "LABEL_WECHAT": "微信",
   "LABEL_EMAIL": "邮箱",
   "LABEL_PRICE_RANGE": "报价区间（元/小时）",

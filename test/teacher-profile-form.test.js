@@ -67,7 +67,7 @@ test('F1c 渲染：四区结构 + 全部字段在位 + 零内联事件/样式', 
   assert.ok(html.includes('tp-grade'), '年级下拉在位');
   assert.ok(html.includes('tp-gender'), '性别下拉在位');
   assert.ok(html.includes('tp-school'), '学校输入在位');
-  assert.ok(html.includes('tp-real-name'), '真实姓名在位');
+  assert.ok(html.includes('tp-real-name'), '平台内名称在位');
   assert.ok(html.includes('tp-grad-year'), '毕业年份在位');
   assert.ok(html.includes('tp-subjects'), '科目勾选在位');
   assert.ok(html.includes('tp-price-min'), '报价下限在位');
@@ -99,7 +99,7 @@ test('F1c 回显：已有档案预填 value/selected/checked', () => {
   const html = renderTeacherProfileForm(FULL_PROFILE);
   assert.ok(html.includes('value="2022"'), '毕业年份回显');
   assert.ok(html.includes('value="上海财经大学"'), '学校回显');
-  assert.ok(html.includes('value="王老师"'), '真实姓名回显');
+  assert.ok(html.includes('value="王老师"'), '平台内名称回显');
   assert.ok(html.includes('value="wx_teacher"'), '微信回显');
   assert.ok(html.includes('value="teacher@example.com"'), '邮箱回显');
   assert.ok(html.includes('value="100"'), '报价下限回显');
