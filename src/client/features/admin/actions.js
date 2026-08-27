@@ -331,27 +331,27 @@ const CONTENT_DOMAIN_BY_TYPE = {
   teacher: ['teachers', 'admin'],
 };
 
-export async function performContentPenalty(id, type, action, reason, rule, capToken) {
+export async function performContentPenalty(id, type, action, reason, rule) {
   // Write path exported for direct test (G1/G2): body shape matches server handleContentAction
   // exactly — action whitelist ['delete','remove','ban'], reason required.
-  return api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, rule, capToken } });
+  return api(`/api/admin/content/${type}/${id}/action`, { method: 'POST', body: { action, reason, rule } });
 }
 
 export async function doSubmitContentPenalty(id, type, action) {
   // F3: reason-required toast uses the dedicated ADMIN_REASON_REQUIRED key. Reads reason + rule
-  // from the penalty form, closes it, then runs the capToken re-auth confirm (danger op).
+  // from the penalty form, closes it, then runs the plain confirm.
+  // ZR-A3 (2026-08-27): admin re-auth dormant — needReAuth/capToken removed (user ④).
   const reason = document.getElementById('penalty-reason')?.value.trim();
   if (!reason) { showToast(TEXT.ADMIN_REASON_REQUIRED, 'error'); return; }
   const rule = document.getElementById('penalty-rule')?.value.trim() || '';
-  closeModal(); // close the penalty form before the re-auth confirm (two stacked modals are hostile)
+  closeModal(); // close the penalty form before the confirm (two stacked modals are hostile)
   confirm({
     title: TEXT.ADMIN_CONTENT_PENALTY_TITLE.replace('{type}', contentTypeName(type)).replace('{id}', id),
     message: TEXT.ADMIN_PENALTY_CONFIRM.replace('{action}', action === 'ban' ? TEXT.ADMIN_CONTENT_PENALTY_BAN : TEXT.ADMIN_CONTENT_PENALTY_DELETE),
-    needReAuth: true,
-    onConfirm: async capToken => {
+    onConfirm: () => {
       withCaptcha(async () => {
         try {
-          const r = await performContentPenalty(id, type, action, reason, rule, capToken);
+          const r = await performContentPenalty(id, type, action, reason, rule);
           showToast(r.message || TEXT.ADMIN_PENALTY_DONE, 'success');
           closeModal();
           (CONTENT_DOMAIN_BY_TYPE[type] || ['admin']).forEach(invalidate); // AF-7/AF-7b: invalidate every domain the deleted/penalized row was rendered from (server bumps only [ADMIN])
@@ -379,8 +379,8 @@ export async function loadAdminPosts() {
 }
 
 // U-3f: v1-parity admin post row — title + author + like count + created_at + view/remove
-// buttons (data-action delegation, zero inline). The remove button carries capToken via
-// adminDeletePost's needReAuth confirm (server now requires it for admin deletes).
+// buttons (data-action delegation, zero inline). The remove button goes through
+// adminDeletePost's plain confirm (ZR-A3: admin re-auth dormant).
 export function renderAdminPostRow(p) {
   return `<div class="admin-row glass admin-post-row">
     <div class="admin-row-main">
@@ -411,16 +411,17 @@ export function openPostViewModal(id) {
 }
 
 export function adminDeletePost(id) {
-  confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performPostDelete(id, capToken));
+  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm, no capToken (user ④).
+  confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, onConfirm: () => {
+    withCaptcha(() => performPostDelete(id));
   }});
 }
 // U-3f: actual post-delete write path (adminDeletePost confirm delegates here). Exported for
 // direct write-path testing — U-3f audit F1 (G1/G2): the confirm path is captcha-gated, so the
 // write path is exercised directly, mirroring performAwardAction/performVerifAction.
-export async function performPostDelete(id, capToken) {
+export async function performPostDelete(id) {
   try {
-    await api(`/api/posts/${id}`, { method: 'DELETE', body: { capToken } });
+    await api(`/api/posts/${id}`, { method: 'DELETE', body: {} });
     invalidate('posts'); // Q-3b-F3: invalidate after write (loadAdminPosts reads dhGet cache)
     showToast(TEXT.ADMIN_DONE);
     loadAdminPosts();
@@ -428,7 +429,7 @@ export async function performPostDelete(id, capToken) {
 }
 
 // U-3g: contract management — v1-parity row (student×teacher + status tag + drafter/method/
-// rate/time) + full-text modal with modification diff + remove (capToken via needReAuth confirm).
+// rate/time) + full-text modal with modification diff + remove (plain confirm; ZR-A3 dormant).
 let _adminContractsCache = []; // contract full-text/diff modal data source (closure, not window)
 
 export async function loadAdminContracts() {
@@ -477,9 +478,10 @@ export function adminViewContract(id) {
 }
 export async function adminRemoveContract(id) {
   // U-3g l1: v1-parity danger-op copy (permanent delete + audit trail kept) instead of the
-  // generic ADMIN_DELETE_CONFIRM — capToken ops should state the legal consequence.
-  confirm({ title: TEXT.BTN_DELETE, message: TEXT.CONFIRM_ADMIN_REMOVE_CONTRACT, needReAuth: true, onConfirm: async capToken => {
-    try { await api(`/api/admin/contracts/${id}`, { method: 'DELETE', body: { capToken } }); invalidate('contracts'); showToast(TEXT.ADMIN_CONTRACT_REMOVED_TOAST); loadAdminContracts(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
+  // generic ADMIN_DELETE_CONFIRM — the message states the legal consequence.
+  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm, no capToken (user ④).
+  confirm({ title: TEXT.BTN_DELETE, message: TEXT.CONFIRM_ADMIN_REMOVE_CONTRACT, onConfirm: async () => {
+    try { await api(`/api/admin/contracts/${id}`, { method: 'DELETE', body: {} }); invalidate('contracts'); showToast(TEXT.ADMIN_CONTRACT_REMOVED_TOAST); loadAdminContracts(); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write
   }});
 }
 
@@ -520,8 +522,9 @@ export async function resolveAdminFeedback(id) {
 }
 
 export function confirmBanUser(id, banned = true, role = ROLES.STUDENT) {
-  confirm({ title: TEXT.ADMIN_BAN, message: banned ? TEXT.ADMIN_BAN_CONFIRM : TEXT.ADMIN_UNBAN_CONFIRM, needReAuth: true, onConfirm: async capToken => {
-    try { await api(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned, capToken } }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminUsers(role); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write + refresh the list the ban came from (U-3a)
+  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm, no capToken (user ④).
+  confirm({ title: TEXT.ADMIN_BAN, message: banned ? TEXT.ADMIN_BAN_CONFIRM : TEXT.ADMIN_UNBAN_CONFIRM, onConfirm: async () => {
+    try { await api(`/api/admin/users/${id}/ban`, { method: 'POST', body: { banned } }); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminUsers(role); } catch (err) { showToast(err.message); } // Q-3b-F3: invalidate after write + refresh the list the ban came from (U-3a)
   }});
 }
 
@@ -625,32 +628,32 @@ export async function viewAwardProof(id) {
   } catch (err) { showToast(err.message); }
 }
 export function approveAward(id) {
-  // Server handleAdminAwardAction is a danger op (confirmDangerOtp) — re-auth + captcha,
-  // aligned with the ban/penalty paths.
-  confirm({ title: TEXT.ADMIN_AWARD_APPROVE, message: TEXT.ADMIN_AWARD_APPROVE_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performAwardAction(id, 'approve', { capToken }));
+  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
+  confirm({ title: TEXT.ADMIN_AWARD_APPROVE, message: TEXT.ADMIN_AWARD_APPROVE_CONFIRM, onConfirm: () => {
+    withCaptcha(() => performAwardAction(id, 'approve', {}));
   }});
 }
 export function rejectAwardModal(id) { openModal({ title: TEXT.ADMIN_AWARD_REJECT, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_AWARD_REJECT_HINT)}</label><textarea id="award-reject-note" class="form-input" placeholder="${escHtml(TEXT.ADMIN_AWARD_REJECT_PLACEHOLDER)}"></textarea></div>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.submitAwardReject" data-id="${id}">${TEXT.BTN_CONFIRM}</button>` }); }
 export function doAwardAction(id, action) {
   const note = document.getElementById('award-reject-note')?.value || '';
   if (action === 'reject' && !note.trim()) { showToast(TEXT.ADMIN_AWARD_REJECT_REQUIRED, 'error'); return; }
-  confirm({ title: TEXT.ADMIN_AWARD_REJECT, message: TEXT.ADMIN_AWARD_REJECT_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performAwardAction(id, action, { note, capToken }));
+  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
+  confirm({ title: TEXT.ADMIN_AWARD_REJECT, message: TEXT.ADMIN_AWARD_REJECT_CONFIRM, onConfirm: () => {
+    withCaptcha(() => performAwardAction(id, action, { note }));
   }});
 }
 // U-3d: actual award write path (both confirm flows delegate here). Exported for direct
 // write-path testing — Q-3b-F3b/F3c invalidate guard drives it, bypassing the confirm UI.
-export async function performAwardAction(id, action, { note = '', capToken } = {}) {
+export async function performAwardAction(id, action, { note = '' } = {}) {
   try {
-    await api(`/api/admin/awards/${id}/action`, { method: 'POST', body: { action, note, capToken } });
+    await api(`/api/admin/awards/${id}/action`, { method: 'POST', body: { action, note } });
     closeModal(); invalidate('admin'); showToast(TEXT.ADMIN_DONE); loadAdminAwards(); // Q-3b-F3: invalidate after write
   } catch (err) { showToast(err.message); }
 }
 
 // U-3e: verification review queue — v1-parity card (user + verify_type tag + status tag +
 // verify code + meta + admission preview + structured approve form / reject / revoke). All
-// danger ops wrapped in confirm needReAuth + captcha (server requires capToken per U-3e-s1).
+// ops wrapped in plain confirm + captcha (ZR-A3: admin re-auth dormant).
 let _verifListCache = []; // admission-image lookup for viewAdmissionImage (v1 parity: closure, not window)
 
 export async function loadAdminVerifications(status) {
@@ -716,33 +719,37 @@ export function verifApprove(id) {
     enroll_year: g(`verif-year-${id}`),
   };
   if (!body.school || !body.level) { showToast(TEXT.ADMIN_VERIF_APPROVE_REQUIRED, 'error'); return; }
-  confirm({ title: TEXT.ADMIN_VERIF_APPROVE_BTN, message: TEXT.ADMIN_VERIF_APPROVE_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performVerifAction(id, body, { capToken }));
+  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
+  confirm({ title: TEXT.ADMIN_VERIF_APPROVE_BTN, message: TEXT.ADMIN_VERIF_APPROVE_CONFIRM, onConfirm: () => {
+    withCaptcha(() => performVerifAction(id, body));
   }});
 }
 // L-1 (U-3e audit): reject collects an optional reason — server supports body.reason and sends
 // it in the VERIFY_REJECTED notification; without it the notified reason is always empty. The
-// optional reason is gathered in a modal, submit goes through needReAuth re-auth + captcha.
+// optional reason is gathered in a modal, submit goes through plain confirm + captcha
+// (ZR-A3 2026-08-27: admin re-auth dormant).
 export function verifReject(id) {
   openModal({ title: TEXT.ADMIN_VERIF_REJECT_BTN, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_VERIF_REASON_LABEL)}</label><textarea id="verif-reject-reason" class="form-input" rows="3" placeholder="${escHtml(TEXT.ADMIN_VERIF_REASON_PLACEHOLDER)}"></textarea></div>`, footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="admin.closeModal">${escHtml(TEXT.BTN_CANCEL)}</button><button type="button" class="btn glass glass--pressable" data-action="admin.verifRejectConfirm" data-id="${id}">${escHtml(TEXT.BTN_CONFIRM)}</button>` });
 }
 export function verifRejectConfirm(id) {
   const reason = document.getElementById('verif-reject-reason')?.value.trim() || '';
-  closeModal(); // close the reason modal before the reauth confirm (U-3e re-review obs: avoid two stacked modals)
-  confirm({ title: TEXT.ADMIN_VERIF_REJECT_BTN, message: TEXT.ADMIN_VERIF_REJECT_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performVerifAction(id, { action: 'reject', reason }, { capToken }));
+  closeModal(); // close the reason modal before the confirm (U-3e re-review obs: avoid two stacked modals)
+  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
+  confirm({ title: TEXT.ADMIN_VERIF_REJECT_BTN, message: TEXT.ADMIN_VERIF_REJECT_CONFIRM, onConfirm: () => {
+    withCaptcha(() => performVerifAction(id, { action: 'reject', reason }));
   }});
 }
 export function verifRevoke(id) {
-  confirm({ title: TEXT.ADMIN_VERIF_REVOKE_BTN, message: TEXT.ADMIN_VERIF_REVOKE_CONFIRM, needReAuth: true, onConfirm: capToken => {
-    withCaptcha(() => performVerifAction(id, { action: 'revoke' }, { capToken }));
+  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
+  confirm({ title: TEXT.ADMIN_VERIF_REVOKE_BTN, message: TEXT.ADMIN_VERIF_REVOKE_CONFIRM, onConfirm: () => {
+    withCaptcha(() => performVerifAction(id, { action: 'revoke' }));
   }});
 }
 // U-3e: actual verification write path (all three confirm flows delegate here). Exported for
 // direct write-path testing — cache-invalidate-guard drives it, bypassing the confirm UI.
-export async function performVerifAction(id, body, { capToken } = {}) {
+export async function performVerifAction(id, body) {
   try {
-    await api(`/api/admin/verifications/${id}/action`, { method: 'POST', body: { ...body, capToken } });
+    await api(`/api/admin/verifications/${id}/action`, { method: 'POST', body });
     invalidate('admin'); // Q-3b-F3: invalidate after write
     showToast(body.action === 'approve' ? TEXT.ADMIN_VERIF_APPROVED_OK : body.action === 'revoke' ? TEXT.ADMIN_VERIF_REVOKED_OK : TEXT.ADMIN_VERIF_REJECTED_OK, 'success');
     loadAdminVerifications();
@@ -757,13 +764,13 @@ export function viewAdmissionImage(id) {
   else showToast(TEXT.ADMIN_VERIF_EMPTY, 'error');
 }
 
-// U-3a rework (audit F1): verify/unverify is a danger op (server handleVerifyTeacher requires
-// confirmDangerOtp) — wrap in confirm needReAuth + withCaptcha, aligned with the ban path.
+// U-3a rework (audit F1): verify/unverify wrapped in confirm + withCaptcha, aligned with the
+// ban path. ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm, no capToken (user ④).
 export function toggleTeacherVerify(userId, verified = true) {
-  confirm({ title: TEXT.ADMIN_BAN, message: verified ? TEXT.VERIFY_TEACHER_CONFIRM : TEXT.UNVERIFY_CONFIRM, needReAuth: true, onConfirm: async capToken => {
+  confirm({ title: TEXT.ADMIN_BAN, message: verified ? TEXT.VERIFY_TEACHER_CONFIRM : TEXT.UNVERIFY_CONFIRM, onConfirm: () => {
     withCaptcha(async () => {
       try {
-        await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: !!verified, capToken } });
+        await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: !!verified } });
         invalidate('admin'); invalidate('teachers'); // AF-9: 'admin' refreshes the admin list; 'teachers' refreshes the public verified badge in the student browse list (server bumps both, Q-3b-L3)
         showToast(verified ? TEXT.ADMIN_DONE : TEXT.UNVERIFY_DONE); loadAdminTeachers();
       } catch (err) { showToast(err.message); }

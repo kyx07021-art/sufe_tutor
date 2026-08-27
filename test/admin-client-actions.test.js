@@ -226,16 +226,16 @@ test('U-3i doSubmitContentPenalty：reason 空直接提示（F3 专用键）不�
   teardown();
 });
 
-test('U-3i performContentPenalty：写路径 body shape 与服务端契约一致（G2 删字段必红）', async () => {
+test('U-3i performContentPenalty：写路径 body shape 与服务端契约一致（G2 删字段必红；ZR-A3 无 capToken）', async () => {
   const dom = setup();
   let captured = null;
   globalThis.fetch = async (url, opts) => {
     captured = { url: String(url), opts };
     return { ok: true, status: 200, json: async () => ({ message: '已处理' }) };
   };
-  const r = await performContentPenalty(21, 'post', 'ban', '含门牌号', '隐私红线', 'cap-xyz');
+  const r = await performContentPenalty(21, 'post', 'ban', '含门牌号', '隐私红线');
   assert.ok(captured.url.endsWith('/api/admin/content/post/21/action'), '端点路径');
-  assert.deepEqual(JSON.parse(captured.opts.body), { action: 'ban', reason: '含门牌号', rule: '隐私红线', capToken: 'cap-xyz' }, 'body 形状');
+  assert.deepEqual(JSON.parse(captured.opts.body), { action: 'ban', reason: '含门牌号', rule: '隐私红线' }, 'body 形状（ZR-A3：无 capToken）');
   assert.ok(captured.opts.method === 'POST', 'POST 方法');
   assert.equal(r.message, '已处理', '返回消息');
   teardown();
@@ -295,7 +295,7 @@ test('U-3a loadAdminUsers 搜索：带 q 参数 + 完整行形状渲染（G3 生
   teardown();
 });
 
-test('U-3a rework F1：toggleTeacherVerify 走 confirm needReAuth，未确认零 POST（锁 capToken 流程）', async () => {
+test('U-3a rework F1：toggleTeacherVerify 走普通 confirm（ZR-A3 验证休眠），未确认零 POST', async () => {
   const dom = setup();
   let verifyCalled = false;
   globalThis.fetch = async (url, opts) => {
@@ -306,9 +306,8 @@ test('U-3a rework F1：toggleTeacherVerify 走 confirm needReAuth，未确认零
   const modal = dom.window.document.querySelector('.modal');
   assert.ok(modal, 'confirm 弹窗出现（走二次确认而非直调）');
   assert.ok(modal.textContent.includes('确认通过该教师的学籍认证吗'), '确认文案在位');
-  assert.ok(modal.querySelector('#reauth-password'), 'needReAuth 密码输入在位');
+  assert.ok(!modal.querySelector('#reauth-password'), '普通 confirm 无密码输入（ZR-A3 验证休眠）');
   assert.equal(verifyCalled, false, '未确认前零 POST');
-  await new Promise(r => setTimeout(r, 80)); // let confirm's REAUTH_FOCUS_MS(50) timer settle before teardown clears document
   teardown();
 });
 
@@ -536,7 +535,7 @@ test('U-3d viewAwardProof：GET /api/admin/awards/:id/proof → ZK lightbox（�
   teardown();
 });
 
-test('U-3d approveAward：confirm needReAuth 弹窗（含密码输入），未确认零 POST（锁 capToken 流程）', async () => {
+test('U-3d approveAward：普通 confirm 弹窗（ZR-A3 验证休眠），未确认零 POST', async () => {
   const dom = setup();
   let posted = false;
   globalThis.fetch = async (url, opts) => {
@@ -547,9 +546,8 @@ test('U-3d approveAward：confirm needReAuth 弹窗（含密码输入），未�
   const modal = dom.window.document.querySelector('.modal');
   assert.ok(modal, 'confirm 弹窗出现');
   assert.ok(modal.textContent.includes('确定通过该奖项审核吗'), '通过确认文案');
-  assert.ok(modal.querySelector('#reauth-password'), 'needReAuth 密码输入在位（服务端 confirmDangerOtp）');
+  assert.ok(!modal.querySelector('#reauth-password'), '普通 confirm 无密码输入（ZR-A3 验证休眠）');
   assert.equal(posted, false, '未确认前零 POST');
-  await new Promise(r => setTimeout(r, 80)); // let confirm's REAUTH_FOCUS_MS(50) timer settle before teardown clears document
   teardown();
 });
 
@@ -646,7 +644,7 @@ test('U-3e verifApprove 空 school/level：必填拦截零请求', async () => {
   teardown();
 });
 
-test('U-3e verifApprove 带字段：confirm needReAuth 弹窗（含密码输入），未确认零 POST', async () => {
+test('U-3e verifApprove 带字段：普通 confirm 弹窗（ZR-A3 验证休眠），未确认零 POST', async () => {
   const dom = setup();
   let posted = false;
   globalThis.fetch = async (url, opts) => {
@@ -659,13 +657,12 @@ test('U-3e verifApprove 带字段：confirm needReAuth 弹窗（含密码输入�
   verifApprove(85);
   const modal = dom.window.document.querySelector('.modal');
   assert.ok(modal, 'confirm 弹窗出现');
-  assert.ok(modal.querySelector('#reauth-password'), 'needReAuth 密码输入在位');
+  assert.ok(!modal.querySelector('#reauth-password'), '普通 confirm 无密码输入（ZR-A3 验证休眠）');
   assert.equal(posted, false, '未确认前零 POST');
-  await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
   teardown();
 });
 
-test('U-3e verifReject：理由弹窗（可选 reason）→ confirm needReAuth 二次认证', async () => {
+test('U-3e verifReject：理由弹窗（可选 reason）→ 普通 confirm（ZR-A3 验证休眠）', async () => {
   const dom = setup();
   verifReject(86);
   let rm = dom.window.document.querySelector('.modal');
@@ -677,30 +674,27 @@ test('U-3e verifReject：理由弹窗（可选 reason）→ confirm needReAuth �
   verifRejectConfirm(86);
   const cm = dom.window.document.querySelector('.modal');
   assert.ok(cm && cm.textContent.includes('确认拒绝该核验申请吗'), 'reject 确认弹窗');
-  assert.ok(cm.querySelector('#reauth-password'), 'reject needReAuth');
-  await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
+  assert.ok(!cm.querySelector('#reauth-password'), '普通 confirm 无密码输入（ZR-A3 验证休眠）');
   teardown();
 });
 
-test('U-3e verifRevoke：confirm needReAuth 弹窗（二次认证）', async () => {
+test('U-3e verifRevoke：普通 confirm 弹窗（ZR-A3 验证休眠）', async () => {
   const dom = setup();
   verifRevoke(87);
   const vrm = dom.window.document.querySelector('.modal');
   assert.ok(vrm && vrm.textContent.includes('确认撤销该教师的核验资格吗'), 'revoke 确认弹窗');
-  assert.ok(vrm.querySelector('#reauth-password'), 'revoke needReAuth');
-  await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
+  assert.ok(!vrm.querySelector('#reauth-password'), '普通 confirm 无密码输入（ZR-A3 验证休眠）');
   teardown();
 });
 
-test('U-3e verifRejectConfirm：收集 reason → confirm needReAuth 弹窗', async () => {
+test('U-3e verifRejectConfirm：收集 reason → 普通 confirm 弹窗（ZR-A3 验证休眠）', async () => {
   const dom = setup();
   const reason = document.createElement('textarea'); reason.id = 'verif-reject-reason'; reason.value = '材料不清晰';
   document.body.appendChild(reason);
   verifRejectConfirm(89);
   const cm = dom.window.document.querySelector('.modal');
-  assert.ok(cm && cm.querySelector('#reauth-password'), 'needReAuth 确认弹窗');
+  assert.ok(cm && !cm.querySelector('#reauth-password'), '普通 confirm 弹窗（ZR-A3 验证休眠）');
   assert.ok(cm.textContent.includes('确认拒绝该核验申请吗'), 'reject 确认文案');
-  await new Promise(r => setTimeout(r, 80)); // REAUTH_FOCUS_MS timer settle
   teardown();
 });
 
@@ -711,10 +705,10 @@ test('U-3e performVerifAction reject：reason 透传到写路径 body（G2 删 r
     if (String(url).includes('/api/admin/verifications/89/action') && opts.method === 'POST') postedBody = JSON.parse(opts.body);
     return { ok: true, status: 200, json: async () => ({ ok: true }) };
   };
-  await performVerifAction(89, { action: 'reject', reason: '材料不清晰' }, { capToken: 'cap-1' });
+  await performVerifAction(89, { action: 'reject', reason: '材料不清晰' });
   assert.equal(postedBody.action, 'reject', 'action 透传');
   assert.equal(postedBody.reason, '材料不清晰', 'reason 透传（删透传必红）');
-  assert.equal(postedBody.capToken, 'cap-1', 'capToken 透传');
+  assert.ok(!('capToken' in postedBody), 'body 无 capToken（ZR-A3 验证休眠）');
   await new Promise(r => setTimeout(r, 10));
   teardown();
 });
@@ -815,7 +809,7 @@ test('U-3f openPostViewModal：从缓存取帖子 → mdRender 全文弹窗（mo
   teardown();
 });
 
-test('U-3f performPostDelete：DELETE body 带 capToken + invalidate(posts) + 列表重拉（G1/G2 写路径直测）', async () => {
+test('U-3f performPostDelete：DELETE 直调（ZR-A3 验证休眠）+ invalidate(posts) + 列表重拉（G1/G2 写路径直测）', async () => {
   const dom = setup();
   _dhResetForTests();
   const list = document.createElement('div');
@@ -826,13 +820,13 @@ test('U-3f performPostDelete：DELETE body 带 capToken + invalidate(posts) + �
     const u = String(url);
     if (u.includes('/api/posts/93') && opts.method === 'DELETE') {
       deleteCalled = true;
-      assert.equal(JSON.parse(opts.body).capToken, 'cap-post', 'capToken 透传（删 capToken 必红）');
+      assert.ok(!('capToken' in JSON.parse(opts.body)), 'body 无 capToken（ZR-A3 验证休眠）');
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
     }
     if (u.includes('/api/posts?sort=new')) { listFetches++; return { ok: true, status: 200, json: async () => ({ posts: [] }) }; }
     return { ok: true, status: 200, json: async () => ({}) };
   };
-  await performPostDelete(93, 'cap-post');
+  await performPostDelete(93);
   assert.equal(deleteCalled, true, 'DELETE 发出');
   assert.ok(listFetches >= 1, '删除后列表重拉');
   teardown();
