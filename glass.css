@@ -448,8 +448,6 @@ body { background: transparent; }
 .user-badge { --g-fill: var(--accent-tint); --g-fg: var(--accent-deep); }
 .admin-badge { --g-fill: var(--warn-tint); --g-fg: var(--warn-deep); }
 
-/* 邀请码盒 */
-.invite-code-box { --g-fill: var(--g-fill-mid); --g-r: var(--lg-r); --g-lift: var(--glass-lift-sm); }
 
 /* 关于平台：安全盾标 + 流程圆点（✓ 内容住 ::after） */
 .about-sec-mark { --g-fill: var(--accent-tint); --g-r: 50%; } /* G15：实变圆走参数 */

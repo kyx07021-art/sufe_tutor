@@ -781,20 +781,6 @@ textarea.form-input {
 .score-inline:focus { background-size: 100% 2px; }
 .score-max { font-size: .72rem; color: var(--muted); }
 
-/* 邀请码（管理员，写死在用户块正上方）：邀请码盒(左 2/3) + 复制按钮(右 1/3) 并排一行，
-   过期计时小字在下方左对齐；倒计时数字跳动只改自身文本，布局零抽搐 */
-.sidebar-invite { position: relative; z-index: 1; flex-shrink: 0; padding: 14px 10px 10px; }
-.sidebar-invite-btn { width: 100%; }
-.invite-display { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; animation: fade-in .2s ease; }
-.invite-code-row { display: flex; align-items: stretch; gap: 6px; }
-.invite-code-box {
-  flex: 2 1 0; min-width: 0; padding: 7px 9px;
-  display: flex; align-items: center; justify-content: center;
-}
-.invite-code-text { font-family: var(--mono); font-size: .85rem; font-weight: 700; letter-spacing: .12em; color: var(--ink); overflow-wrap: anywhere; }
-.invite-timer { font-size: .68rem; color: var(--warn-deep); font-weight: 700; text-align: left; min-height: 1em; }
-.invite-copy-btn { flex: 1 1 0; }
-
 /* ============================================================
    Client 壳 — 可扩展侧边栏 + 页面区
    侧边栏（主页右半同款淡紫）与页面区（米色）仅以颜色为界：无边框线、无投影。
@@ -1043,7 +1029,7 @@ body.sidebar-open .sidebar-backdrop { opacity: 1; pointer-events: auto; }
    v0.26.5 B3 UI 大小拖动真实页面分块缩放（用户返工 B3：删预览图 mockup，
    「原来的组件冻结、整体缩放逻辑是可以的，只是要分三块以保证边缘位置不动」）：
    拖动期 JS 只写 --ui-preview-scale + html[data-ui-previewing] 门控，真实页面
-   顶栏（.navbar）/侧栏（头 .sidebar-expand-toggle+.sidebar-scroll、脚 .sidebar-invite+.sidebar-user）/
+   顶栏（.navbar）/侧栏（头 .sidebar-expand-toggle+.sidebar-scroll、脚 .sidebar-user）/
    内容区（.client-main）由 CSS 分块 transform: scale(var(--ui-preview-scale)) 消费
    （transform 合成器只读——零 reflow 零重绘真实页面，帧率不受拖动影响）。
    区域锚点（用户要求）：顶栏/侧栏头 left top（左上）、侧栏脚 left bottom（左下）、
@@ -1058,7 +1044,6 @@ html[data-ui-previewing] .sidebar-scroll {
   transform-origin: left top;
   will-change: transform;
 }
-html[data-ui-previewing] .sidebar-invite,
 html[data-ui-previewing] .sidebar-user {
   transform: scale(var(--ui-preview-scale, 1));
   transform-origin: left bottom;

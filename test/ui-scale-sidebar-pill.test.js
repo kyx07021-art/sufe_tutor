@@ -10,7 +10,7 @@ import { state } from '../src/client/core/state.js';
 import { STYLE_CSS } from './_css.js';
 
 function setup() {
-  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="sidebar-nav"></div><div id="sidebar-user"></div><div id="sidebar-invite"></div></body></html>', { url: 'http://localhost/' });
+  const dom = new JSDOM('<!DOCTYPE html><html><body><div id="sidebar-nav"></div><div id="sidebar-user"></div></body></html>', { url: 'http://localhost/' });
   globalThis.document = dom.window.document;
   return dom;
 }

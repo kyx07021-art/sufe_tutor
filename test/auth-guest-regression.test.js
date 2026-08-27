@@ -31,7 +31,7 @@ const SHELL_HTML = `<!doctype html><html><body>
   <div id="view-register" class="hidden"></div>
   <div id="view-client" class="client-shell hidden">
     <aside class="client-sidebar" id="client-sidebar">
-      <div id="sidebar-user"></div><nav class="sidebar-nav" id="sidebar-nav"></nav><div id="sidebar-invite"></div>
+      <div id="sidebar-user"></div><nav class="sidebar-nav" id="sidebar-nav"></nav>
     </aside>
     <main id="client-main"><div id="navbar-actions"></div></main>
   </div>

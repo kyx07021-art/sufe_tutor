@@ -52,7 +52,7 @@
   .sidebar-nav { gap: calc(10px * var(--ui-scale, 1)); }
   .sidebar-item { grid-template-columns: 1fr; justify-items: center; padding: calc(11px * var(--ui-scale, 1)) 0; }
   .sidebar-item.active { padding: calc(13px * var(--ui-scale, 1)) 0; }
-  .sidebar-item-body, .sidebar-invite, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote { display: none; }
+  .sidebar-item-body, .sidebar-user-text, .sidebar-deco-grid, .sidebar-footnote { display: none; }
   .sidebar-item-index { font-size: 1rem; }
   .sidebar-user { padding: calc(10px * var(--ui-scale, 1)) 0; align-items: center; }
   .sidebar-user-avatar { width: calc(38px * var(--ui-scale, 1)); height: calc(38px * var(--ui-scale, 1)); font-size: 1.05rem; }
@@ -61,7 +61,6 @@
   body.sidebar-open .sidebar-item { grid-template-columns: auto 1fr; justify-items: stretch; padding: calc(13px * var(--ui-scale, 1)) calc(14px * var(--ui-scale, 1)); }
   body.sidebar-open .sidebar-item.active { padding: calc(17px * var(--ui-scale, 1)) calc(22px * var(--ui-scale, 1)) calc(19px * var(--ui-scale, 1)); }
   body.sidebar-open .sidebar-item-body { display: flex; animation: fade-in .22s ease .08s both; }
-  body.sidebar-open .sidebar-invite { display: block; }
   body.sidebar-open .sidebar-user-text { display: block; }
   body.sidebar-open .sidebar-deco-grid { display: block; }
   body.sidebar-open .sidebar-item-index { font-size: 1.25rem; }

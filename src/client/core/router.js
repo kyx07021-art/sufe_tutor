@@ -112,7 +112,7 @@ export async function enterClient(pageId) {
 }
 
 export function renderSidebar() {
-  const u = state.user; // ZV-3: isAdmin dead var removed (its only consumer, the sidebar-invite toggle, was deleted)
+  const u = state.user;
   const userTarget = document.getElementById('sidebar-user');
   if (userTarget) {
     const userBlock = u ? `<button type="button" class="sidebar-user-top sidebar-user-btn" data-action="open-profile" data-profile-user-id="${u.id}" title="${TEXT.PROFILE_PANEL_TITLE}">
@@ -136,7 +136,6 @@ export function renderSidebar() {
       ${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}</button>`).join('');
     nav.querySelectorAll('.sidebar-item').forEach(b => b.addEventListener('click', () => selectPage(b.dataset.page)));
   }
-  // ZV-3: sidebar-invite visibility logic removed (container + gate dormant)
 }
 
 // Page-header "i" info button (v1 parity): selectPage injects it next to the active page
