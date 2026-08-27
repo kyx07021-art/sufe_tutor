@@ -337,7 +337,7 @@ export async function handleGetVerificationImage(db, id, req) {
   const { err } = await requireAdmin(db, req);
   if (err) return err;
   const v = await dbGetTeacherVerificationById(db, id);
-  if (!v) return errorMsg('USER_NOT_FOUND', 404);
+  if (!v) return errorMsg('VERIFICATION_NOT_FOUND', 404); // D3: entity-specific not-found (missing verification, not a user)
   const admissionImage = v.admission_image ? await decryptField(v.admission_image) : '';
   return json({ admission_image: admissionImage });
 }
