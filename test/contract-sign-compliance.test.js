@@ -325,9 +325,9 @@ test('Z-5-F7 回归：prev_business 密文落库 + mapper 出口解密', async (
   assert.ok(String(mineCt.prev_business).includes('家教服务合同'), 'prev_business = 修改前业务部分（diff 基线）');
 });
 
-// U-3g：管理员移除合同 = 危险操作（删除行 + 释放绑定需求），P12 须 capToken 二次认证。
-// 变异：去掉 handleAdminRemoveContract 的 confirmDangerOtp → 无 capToken 分支 200 → 红。
-test('U-3g：handleAdminRemoveContract 无 capToken 403 + 带 capToken 200', async () => {
+// ZR-A3（2026-08-27）：admin 操作验证休眠——管理员移除合同直调放行（原 capToken 二次认证移除）。
+// 变异：还原 confirmDangerOtp 门禁 → 无 capToken 分支 403 → 红。
+test('U-3g：handleAdminRemoveContract 直调放行（admin 验证休眠）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   const { d1, idOf, t1S } = await seed(db, raw);
   // admin 用户 + 会话（danger_caps 会话绑定）
@@ -340,14 +340,9 @@ test('U-3g：handleAdminRemoveContract 无 capToken 403 + 带 capToken 200', asy
   const cr = await handleCreateContract(db, contractBody(convId, d1), reqOf(t1S.token));
   assert.equal(cr.status, 201, '合同创建');
   const cid = raw.prepare("SELECT id FROM signing_contracts WHERE stage='contract' ORDER BY id DESC LIMIT 1").get().id;
-  // 管理员无 capToken → 403，合同保留
+  // ZR-A3：管理员直调移除 → 200，合同删除 + 需求释放（contracted→revoked）
   const noCap = await handleAdminRemoveContract(db, cid, {}, reqOf(adminSession.token));
-  assert.equal(noCap.status, 403, '管理员无 capToken 拒绝');
-  assert.equal(raw.prepare("SELECT COUNT(*) c FROM signing_contracts WHERE stage='contract'").get().c, 1, '合同未被删');
-  // 管理员带 capToken → 200，合同删除 + 需求释放（contracted→revoked）
-  const cap = await capOf(raw, 'admin_x', adminSession.sessionId, idOf);
-  const withCap = await handleAdminRemoveContract(db, cid, { capToken: cap }, reqOf(adminSession.token));
-  assert.equal(withCap.status, 200, '管理员带 capToken 移除成功');
+  assert.equal(noCap.status, 200, '管理员直调移除成功（无需二次认证）');
   assert.equal(raw.prepare("SELECT COUNT(*) c FROM signing_contracts WHERE stage='contract'").get().c, 0, '合同已删');
   assert.equal(raw.prepare('SELECT status FROM student_demands WHERE id=?').get(d1).status, 'revoked', '绑定需求释放为 revoked');
 });

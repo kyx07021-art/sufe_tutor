@@ -8,7 +8,6 @@
  */
 import { json, error, errorMsg, parseIdParam } from '../../core/util.js';
 import { authUser, requireUser, requireAdminOrError } from '../../core/security.js';
-import { confirmDangerOtp } from '../../core/danger-ops.js'; // P12：管理员越权删除帖子须 capToken（U-3f）
 import { MSG, SERVER_TEXT } from '../../../shared/codes.js';
 import { LIMITS } from '../../../shared/config.js';
 import {
@@ -138,8 +137,7 @@ export async function handleDeletePost(db, postId, body, req) {
   if (!post) return errorMsg('POST_NOT_FOUND', 404, 'POST_NOT_FOUND');
   const isAdmin = requireAdminOrError(user) === null; // 管理员判定单点
   if (user.id !== Number(post.user_id) && !isAdmin) return error(UI().POST_DELETE_FORBIDDEN, 403, 'POST_DELETE_FORBIDDEN'); // 非作者且非管理员 → 拒
-  // P12：管理员越权删除帖子 = 危险操作，须 capToken 二次认证（作者本人删除为日常操作不触发；U-3f）
-  if (isAdmin && !(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
+  // ZR-A3（2026-08-27）：admin 操作验证休眠——管理员越权删帖 capToken 移除（requireUser/authority 门禁保留）
 
   await dbDeletePost(db, postId);
   await logEvent(db, {

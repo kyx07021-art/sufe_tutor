@@ -18,7 +18,6 @@ import { handleVerifyChsi, handleChsiStatus, acceptEligibility, handleVerifyAdmi
 import { handleCreateIntent } from '../src/server/domains/demand/api.js';
 import { handleVerificationAction } from '../src/server/domains/teacher/api.js';
 import { dbGetTeacherProfile, dbGetTeacherVerification } from '../src/server/domains/teacher/repo.js';
-import { issueCapToken } from '../src/server/core/danger-ops.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
@@ -67,11 +66,9 @@ async function adminTokenOf(db) {
   return (await r.json()).authToken;
 }
 
-// U-3e：handleVerificationAction 是危险操作（P12，补 confirmDangerOtp 后）——每次调用前
-// 用 adminToken 签发一次性 capToken 传入 body（confirmDangerOtp 命中即删，须逐次新签发）。
+// ZR-A3：admin 操作验证休眠——核验动作直调放行（原 capToken 二次认证移除）。
 async function verifAction(db, adminToken, id, body) {
-  const capToken = await issueCapToken(db, reqOf(adminToken));
-  return handleVerificationAction(db, id, { ...body, capToken }, reqOf(adminToken));
+  return handleVerificationAction(db, id, body, reqOf(adminToken));
 }
 
 test('学信网核验全链路（manual）：提交 → pending → 管理员 approve → 学籍自动填入 → 接单资格', async () => {
@@ -260,10 +257,10 @@ test('v1.4.16 录取通知书提交：pending 进队列 + svg/超限拒绝', asy
   assert.equal(r.status, 403, '学生角色拒绝');
 });
 
-// U-3e：P12 危险操作门禁——handleVerificationAction 无 capToken 必须 403
-// （变异：去掉 confirmDangerOtp → 200 → 红）。独立 test()，不嵌套进 v1.4.16 父测试
+// ZR-A3（2026-08-27）：admin 操作验证休眠——handleVerificationAction 无 capToken 直调放行
+// （变异：还原 confirmDangerOtp 门禁 → 403 → 红）。独立 test()，不嵌套进 v1.4.16 父测试
 // （U-3e 审计 M-1：嵌套会致父测试前序失败时本测试静默跳过，回归防线丢失）。
-test('U-3e 守护：handleVerificationAction 无 capToken → 403（危险操作二次认证）', async () => {
+test('ZR-A3 守护：handleVerificationAction 无 capToken 直调放行（admin 验证休眠）', async () => {
   const raw = rawOf(); const db = d1Shim(raw);
   await initDb(db, ENV);
   const token = await regTeacher(db, raw, 't_cap', '+8613900000106');
@@ -272,6 +269,6 @@ test('U-3e 守护：handleVerificationAction 无 capToken → 403（危险操作
   const tid = raw.prepare("SELECT id FROM users WHERE username='t_cap'").get().id;
   const v = await dbGetTeacherVerification(db, tid);
   const r = await handleVerificationAction(db, v.id, { action: 'approve', school: 'X大学', level: '本科' }, reqOf(adminToken));
-  assert.equal(r.status, 403, '无 capToken 拒绝');
-  assert.equal((await dbGetTeacherVerification(db, tid)).status, 'pending', '状态未被改动');
+  assert.equal(r.status, 200, '无 capToken 直调放行');
+  assert.equal((await dbGetTeacherVerification(db, tid)).status, 'approved', '状态推进 approved');
 });

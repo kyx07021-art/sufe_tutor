@@ -1,6 +1,5 @@
 import { json, errorMsg, parseIdParam } from '../../core/util.js';
 import { requireUser, requireAdmin } from '../../core/security.js';
-import { confirmDangerOtp } from '../../core/danger-ops.js';
 import { notifyUser } from '../../core/notify.js';
 import { logEvent } from '../../core/log.js';
 import { MSG } from '../../../shared/codes.js';
@@ -87,8 +86,7 @@ export async function handleAdminAwardAction(db, awardId, body, req) {
   if (action === 'reject' && !note) return errorMsg('AWARD_REJECT_NOTE_REQUIRED');
   const a = await dbGetAwardById(db, awardId);
   if (!a) return errorMsg('AWARD_NOT_FOUND', 404);
-  // 危险操作（审核结果不可逆）须 capToken 二次认证（同封禁/处罚口径）
-  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
+  // ZR-A3（2026-08-27）：admin 操作验证休眠——奖学金审核 capToken 移除（requireAdmin 门禁保留）
   const status = action === 'approve' ? AWARD_STATUS.APPROVED : AWARD_STATUS.REJECTED;
   if (!(await dbSetAwardStatus(db, awardId, status, note))) return errorMsg('AWARD_STATE_INVALID', 409); // 非 pending（已审/并发双审）
   await notifyUser(db, a.teacher_user_id,

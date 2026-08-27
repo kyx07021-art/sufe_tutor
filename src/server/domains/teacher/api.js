@@ -16,7 +16,6 @@ import { dbGetTeacherProfile, dbUpsertTeacherProfile, dbGetTeachers, dbIsMatched
 import { verifyChsiCode } from '../../../../server/chsi.js';
 import { logEvent } from '../../core/log.js';
 import { decryptField } from '../../core/crypto.js';
-import { confirmDangerOtp } from '../../core/danger-ops.js';
 import { notifyUser } from '../../core/notify.js';
 
 // ============================================================
@@ -311,8 +310,7 @@ export async function handleVerifyTeacher(db, userId, body, req) {
   const target = await dbGetUserById(db, userId);
   if (!target) return errorMsg('USER_NOT_FOUND', 404);
   if (target.role !== 'teacher') return errorMsg('TEACHER_ONLY', 403);
-  // 学籍认证 = 信任锚点操作（影响学生对教师的信任判断），须 capToken 二次认证
-  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
+  // ZR-A3（2026-08-27）：admin 操作验证休眠——学籍认证 capToken 移除（requireAdmin 门禁保留）
   const verified = body.verified ? 1 : 0;
   await dbSetTeacherVerified(db, userId, verified);
   await logEvent(db, { action: verified ? 'admin.teacher.verify' : 'admin.teacher.unverify', actorUserId: admin.id,
@@ -337,9 +335,7 @@ export async function handleVerificationAction(db, id, body, req) {
   if (err) return err;
   const v = await dbGetTeacherVerificationById(db, id);
   if (!v) return errorMsg('USER_NOT_FOUND', 404);
-  // P12 危险操作二次认证：批准/拒绝/撤销学籍核验资格均可逆影响接单资格，须 capToken
-  // （与 handleVerifyTeacher 同口径；U-3e 补齐此前缺口）
-  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
+  // ZR-A3（2026-08-27）：admin 操作验证休眠——核验批准/拒绝/撤销 capToken 移除（requireAdmin 门禁保留）
   const action = body.action;
   // 状态机（安全审计 H2 修复）：pending 才能 approve/reject；approved 才能 revoke（撤销已通过资格）
   if (action === 'approve' && v.status !== 'pending') return errorMsg('INVALID_ACTION', 409);

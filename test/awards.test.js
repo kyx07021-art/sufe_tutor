@@ -10,7 +10,6 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { dbGetUpload } from '../src/server/domains/chat/repo.js';
-import { tokenDigest } from '../src/server/core/crypto.js';
 import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
@@ -56,21 +55,12 @@ async function setup() {
   const teacherId = raw.prepare("SELECT id FROM users WHERE username='t_award'").get().id;
   const adminR = await handleLogin(db, { identifier: 'admin_sufe', password: 'test-pw-123' }, req());
   const adminToken = (await adminR.json()).authToken;
-  const capOf = async () => {
-    const sess = raw.prepare('SELECT user_id, session_id FROM auth_sessions WHERE token_hash=?').get(await tokenDigest(adminToken));
-    const cap = `cap-${Math.random().toString(36).slice(2)}`;
-    // danger_caps 主键 (user_id, session_id) 每会话仅一枚——先删旧行再插（模拟 issueCapToken 的 UPSERT 语义）
-    raw.prepare('DELETE FROM danger_caps WHERE user_id=? AND session_id=?').run(sess.user_id, sess.session_id);
-    raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
-      .run(sess.user_id, sess.session_id, await tokenDigest(cap), '2099-01-01 00:00:00');
-    return cap;
-  };
   const mkUpload = async (token, name) => {
     const r = await handleCreateUpload(db, { kind: 'image', fileData: 'data:image/png;base64,AAAA', fileName: name }, req({ 'X-Auth-Token': token }));
     const d = await r.json();
     return d.id;
   };
-  return { raw, db, req, teacherToken, otherTeacherToken, teacherId, adminToken, capOf, mkUpload };
+  return { raw, db, req, teacherToken, otherTeacherToken, teacherId, adminToken, mkUpload };
 }
 
 test('R2 提交：奖状证明必填 + 归属校验 + pending 初态 + 条数上限', async () => {
@@ -127,11 +117,8 @@ test('R2 公开视角仅 approved；本人全量；删除连带删奖状 upload�
   const aId = raw.prepare('SELECT id FROM teacher_awards ORDER BY id DESC LIMIT 1').get().id;
   const adminR = await handleLogin(db, { identifier: 'admin_sufe', password: 'test-pw-123' }, req());
   const adminToken = (await adminR.json()).authToken;
-  const sess = raw.prepare('SELECT user_id, session_id FROM auth_sessions WHERE token_hash=?').get(await tokenDigest(adminToken));
-  const cap = 'cap-approve-1';
-  raw.prepare('INSERT INTO danger_caps (user_id, session_id, token_hash, expires_at) VALUES (?,?,?,?)')
-    .run(sess.user_id, sess.session_id, await tokenDigest(cap), '2099-01-01 00:00:00');
-  const ap = await handleAdminAwardAction(db, aId, { action: 'approve', capToken: cap }, req({ 'X-Auth-Token': adminToken }));
+  // ZR-A3：admin 操作验证休眠——审核直调放行（原 capToken 二次认证移除）
+  const ap = await handleAdminAwardAction(db, aId, { action: 'approve' }, req({ 'X-Auth-Token': adminToken }));
   assert.equal(ap.status, 200);
   const pubOk = await handleGetAwards(db, new URL(`http://x/api/teacher/awards?userId=${teacherId}`), req());
   const pubList = (await pubOk.json()).awards;
@@ -152,23 +139,25 @@ test('R2 公开视角仅 approved；本人全量；删除连带删奖状 upload�
   assert.equal(raw.prepare('SELECT COUNT(*) AS c FROM uploads WHERE id=?').get(pid).c, 0, '奖状 upload 连带删除');
 });
 
-test('R2 审核：无 capToken 403 / 驳回必填理由 / 非 pending 409 / 重复审 409', async () => {
-  const { raw, db, req, teacherToken, adminToken, capOf, mkUpload } = await setup();
+test('R2 审核：直调放行（ZR-A3 验证休眠）/ 驳回必填理由 / 非 pending 409 / 重复审 409', async () => {
+  const { raw, db, req, teacherToken, adminToken, mkUpload } = await setup();
   const pid = await mkUpload(teacherToken, 'a2.png');
   await handleCreateAward(db, { title: '另一个奖', proofUploadId: pid }, req({ 'X-Auth-Token': teacherToken }));
   const aId = raw.prepare('SELECT id FROM teacher_awards ORDER BY id DESC LIMIT 1').get().id;
-  // 无 capToken → 403
+  // ZR-A3：admin 操作验证休眠——无 capToken 直调通过（变异：还原 confirmDangerOtp 门禁 → 403 → 红）
   const noCap = await handleAdminAwardAction(db, aId, { action: 'approve' }, req({ 'X-Auth-Token': adminToken }));
-  assert.equal(noCap.status, 403);
+  assert.equal(noCap.status, 200);
+  // 复位 pending，继续测驳回/重审语义
+  raw.prepare("UPDATE teacher_awards SET status='pending' WHERE id=?").run(aId);
   // 驳回缺理由 → 400
-  const noNote = await handleAdminAwardAction(db, aId, { action: 'reject', capToken: await capOf() }, req({ 'X-Auth-Token': adminToken }));
+  const noNote = await handleAdminAwardAction(db, aId, { action: 'reject' }, req({ 'X-Auth-Token': adminToken }));
   assert.equal(noNote.status, 400);
   // 驳回成功 → 通知含驳回理由
-  const rej = await handleAdminAwardAction(db, aId, { action: 'reject', note: '奖状模糊无法辨认', capToken: await capOf() }, req({ 'X-Auth-Token': adminToken }));
+  const rej = await handleAdminAwardAction(db, aId, { action: 'reject', note: '奖状模糊无法辨认' }, req({ 'X-Auth-Token': adminToken }));
   assert.equal(rej.status, 200);
   assert.equal(raw.prepare('SELECT status, admin_note FROM teacher_awards WHERE id=?').get(aId).status, 'rejected');
   // 重复审（已 rejected）→ 409
-  const dup = await handleAdminAwardAction(db, aId, { action: 'approve', capToken: await capOf() }, req({ 'X-Auth-Token': adminToken }));
+  const dup = await handleAdminAwardAction(db, aId, { action: 'approve' }, req({ 'X-Auth-Token': adminToken }));
   assert.equal(dup.status, 409);
   // 管理员队列过滤：pending 为空、rejected 一条
   const pendQ = await handleAdminAwards(db, new URL('http://x/api/admin/awards?status=pending'), req({ 'X-Auth-Token': adminToken }));

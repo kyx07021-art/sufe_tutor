@@ -161,9 +161,8 @@ export async function handleBanUser(db, userId, body, req) {
   const target = await dbGetUserById(db, userId);
   if (!target) return errorMsg('USER_NOT_FOUND', 404);
   if (target.role === 'admin') return errorMsg('NO_PERMISSION', 403);
-  // 封禁/解封 = 危险操作（同注销/签约口径），须 capToken 二次认证：管理员令牌被复用/泄露时封禁一击无效
-  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
-
+  // ZR-A3（2026-08-27）：admin 操作验证休眠（用户④「管理员账户握在我一个人手里很安全，我不需要每次都验证」）——
+  // capToken 二次认证移除；requireAdmin 门禁保留（非 admin 仍 403）
   const banned = body.banned ? 1 : 0;
   await dbSetUserBanned(db, userId, banned);
   await logEvent(db, { action: banned ? 'admin.ban' : 'admin.unban', actorUserId: admin.id,
@@ -317,8 +316,7 @@ export async function handleContentAction(db, type, id, body, req) {
   if (!authorId) return errorMsg('USER_NOT_FOUND', 404);
   const author = await dbGetUserById(db, authorId);
   const authorName = author ? author.username : MSG.CONTENT_USER_TAG + authorId;
-  // 处罚 = 危险操作（删除/封禁不可逆），须 capToken 二次认证；且不得处罚管理员账户
-  if (!(await confirmDangerOtp(db, req, body))) return errorMsg('REAUTH_FAILED', 403);
+  // ZR-A3（2026-08-27）：admin 操作验证休眠——capToken 二次认证移除；不得处罚管理员账户门禁保留
   if (author && author.role === 'admin') return errorMsg('NO_PERMISSION', 403);
 
   // 执行处罚（teacher 档案不硬删——ban 作者即可；其余类型删除/下架）
