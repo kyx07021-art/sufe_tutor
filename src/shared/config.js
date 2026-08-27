@@ -1,5 +1,5 @@
 /** 跨栈数值/服务端非文案常量唯一源（V-1-1）。零依赖，纯数据。 */
-export const APP_VERSION = '2.1.5';   // v2.1.4（2026-08-27 部署批次，P15 攒批）：ZR-A3/A4 真实上线（v2.1.3 陈旧 dist 未含）+ 流量图表北京时区 + ZS-1/3/3b + ZI 高考休眠 + ZJ 性别休眠 + B5/ZS-1 G2 断言 + 死键清理
+export const APP_VERSION = '2.1.6';   // v2.1.6（2026-08-27 部署批，P15 攒批）：ZT 登录入口修复链（重做+noClose+F1..F4 复审闭合）+ ZU 侧栏呼吸提示 + 流量未来时间修复 + admin 操作拼图休眠 + 录取通知书拍摄提示 + ZR-B7 存量 real_name 密文展示
 export const CONFIG = {
 TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过期判定；服务端签发同值共享 config SECURITY.TOKEN_TTL_MS）
     BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）
