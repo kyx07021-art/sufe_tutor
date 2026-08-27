@@ -68,6 +68,7 @@ test('F1c 渲染：四区结构 + 全部字段在位 + 零内联事件/样式', 
   assert.ok(html.includes('tp-gender'), '性别下拉在位');
   assert.ok(html.includes('tp-school'), '学校输入在位');
   assert.ok(html.includes('tp-real-name'), '平台内名称在位');
+  assert.ok(html.includes('平台内名称'), 'F1c label 文本 = 平台内名称（ZR-B5 G2 锁定值而非 input id）');
   assert.ok(html.includes('tp-grad-year'), '毕业年份在位');
   assert.ok(html.includes('tp-subjects'), '科目勾选在位');
   assert.ok(html.includes('tp-price-min'), '报价下限在位');
