@@ -289,22 +289,27 @@ test('ZI-1 高考编辑器休眠：表单零 gaokao 区 + collectTeacherGaokao �
   const el = await setupForm({ province: 'hebei', teaching_method: 'online', subjects: ['chinese', 'math'] });
   assert.equal(el.querySelector('#tp-gaokao'), null, '表单零 gaokao 区（变异：还原 form-group → 非 null 红）');
   assert.ok(!el.innerHTML.includes('高考成绩'), '零高考成绩文案');
-  // G2 牙齿：注入带值的假 #tp-gaokao（模拟残留 DOM）→ collect 仍必须恒 []（锁 stub 而非
-  // 「无 DOM 时自然为空」——还原旧收集器会读到假 DOM 值返回非空 → 红）
+  // G2 牙齿①：注入带值的假 #tp-gaokao（形状 = 旧收集器可读的 input[data-gk-type="score"][data-gk-subject]，
+  // ZI 复审审计实证：data-gk-role 不在旧收集器任何读取分支 → 假 DOM 需真实形状）→ collect 仍必须恒 []
+  //（锁 stub 而非「无 DOM 时自然为空」——还原旧收集器会读到该假 DOM 值返回非空 → 红）
   const gkEl = document.createElement('div');
   gkEl.id = 'tp-gaokao';
-  gkEl.innerHTML = '<input type="text" data-gk-role="main-score" value="145">';
+  gkEl.innerHTML = '<input type="text" data-gk-type="score" data-gk-subject="math" value="145">';
   el.appendChild(gkEl);
   assert.deepEqual(actions.collectTeacherGaokao(), [], 'collectTeacherGaokao 恒空数组（即便残留 gaokao DOM 带值）');
   assert.equal(typeof actions.refreshGaokaoEditor, 'function', 'refreshGaokaoEditor 保留导出（休眠）');
-  // G2 牙齿（F3）：勾选科目 change 不触发 gaokao 重渲染——若有人还原 subjects→refreshGaokaoEditor
-  // 监听，change 会经 refreshGaokaoEditor 重写 #tp-gaokao 内容（marker 丢失 → 红）
+  // G2 牙齿②（F3）：勾选科目 change 不触发 gaokao 重渲染——若有人还原 subjects→refreshGaokaoEditor
+  // 监听，change 会经 refreshGaokaoEditor 重写 #tp-gaokao 的 innerHTML（子节点 marker 丢失 → 红）。
+  // marker 必须挂子节点而非容器 dataset（refreshGaokaoEditor 只重写 innerHTML 不碰容器 dataset，
+  // 挂容器则变异不红——ZI 复审审计实证）
   const physCb = el.querySelector('#tp-subjects input[value="physics"]');
   assert.ok(physCb, '擅长科目复选框仍在（用户「只需选择自己擅长的科目」）');
-  gkEl.dataset.marker = 'unchanged';
+  const markerEl = document.createElement('span');
+  markerEl.dataset.marker = 'unchanged';
+  gkEl.appendChild(markerEl);
   physCb.checked = true;
   physCb.dispatchEvent(new window.Event('change', { bubbles: true }));
-  assert.equal(el.querySelector('#tp-gaokao').dataset.marker, 'unchanged', 'F3：勾选科目不触发 gaokao 重渲染（监听器已移除）');
+  assert.ok(el.querySelector('#tp-gaokao [data-marker="unchanged"]'), 'F3：勾选科目不触发 gaokao 重渲染（监听器已移除）');
   teardown();
 });
 
