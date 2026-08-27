@@ -1,11 +1,12 @@
 /**
- * ZD-2（2026-08-26 休眠签约）：教师档案联系方式门控放宽守护测试。
- * 用户原话：「解除所有禁止在会话中发布联系方式的提醒，让用户自由沟通」。
- * 语义 = 联系方式（wechat/email）从「签约后（dbIsContracted）」放宽到「建立会话后（dbIsMatched）」——
- * 已建立会话的学生直接可见教师联系方式；未建立会话仍 403（陌生人防骚扰边界）。
+ * ZR-C2（2026-08-27，用户②）：教师联系方式「只用于身份核验」——matched 分支收回守护测试。
+ * 用户原话：「把联系方式从教师详情页上彻底删掉，现在只用于身份核验」。
+ * 语义 = wechat/email/credential_image 仅 admin 全字段可见（核验用途，ZR-A1）；
+ * 已建立会话的学生也只能取公开字段（覆盖 ZD-2「建立会话后开放」语义，文件前身
+ * zd2-teacher-contact-gate.test.js 的放宽断言按新语义翻转）。
  *
- * G2 变异守护：还原旧条件 `...(signed ? { wechat, email } : {})`（把 wechat/email 从响应移除）
- * → 本文件「会话学生可见 wechat/email」断言必红。
+ * G2 变异守护：还原 matched 返回 `{ ...publicPart, credential_image, wechat, email, signed, matched: true }`
+ * → 本文件「会话学生零联系方式字段」断言必红；还原 admin 放行分支 → admin 用例 403 必红。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -54,8 +55,8 @@ async function seed() {
   // ZR-A1: admin_sufe 由 initDb seedAdmins（ADMIN_USERNAMES）播种，这里补会话 token 供 admin 请求
   const a = idOf('admin_sufe');
   // 教师档案：联系方式加密落库（真实形状，走 encryptField）；real_name ZR-B1 起明文公开列，明文直存
-  raw.prepare('INSERT INTO teacher_profiles (user_id, grade, verified, wechat, email, real_name, subjects) VALUES (?,?,?,?,?,?,?)')
-    .run(t, 'freshman', 1, await encryptField('wx_teacher'), await encryptField('teacher@example.com'), '王老师', '["math"]');
+  raw.prepare('INSERT INTO teacher_profiles (user_id, grade, verified, wechat, email, real_name, subjects, credential_image) VALUES (?,?,?,?,?,?,?,?)')
+    .run(t, 'freshman', 1, await encryptField('wx_teacher'), await encryptField('teacher@example.com'), '王老师', '["math"]', await encryptField('data:image/png;base64,CRED'));
   // 会话：仅 student1 ↔ teacher1（student2 未建立会话）
   raw.prepare('INSERT INTO conversations (student_user_id, teacher_user_id, demand_id) VALUES (?,?,?)').run(s1, t, null);
   const mkToken = async name => {
@@ -70,7 +71,7 @@ async function seed() {
 const reqOf = token => ({ headers: new Headers({ 'X-Auth-Token': token }) });
 const urlOf = uid => new URL(`http://x/api/teacher/profile?userId=${uid}`);
 
-test('ZD-2 未建立会话的学生 → 403，联系方式不可见', async () => {
+test('ZR-C2 未建立会话的学生 → 403，任何字段不可见', async () => {
   const { db, t, s2Token } = await seed();
   const r = await handleGetProfile(db, urlOf(t), reqOf(s2Token));
   assert.equal(r.status, 403, `非会话学生应 403（实测 status=${r.status}）`);
@@ -78,18 +79,20 @@ test('ZD-2 未建立会话的学生 → 403，联系方式不可见', async () =
   assert.equal(body.code, 'COMMON_NO_PERMISSION', `403 错误码应为 NO_PERMISSION（实测 ${body.code}）`);
 });
 
-test('ZD-2 已建立会话的学生 → 200 + wechat/email 可见（自由沟通）', async () => {
+test('ZR-C2 已建立会话的学生 → 200 公开字段，联系方式/凭证零下发', async () => {
   const { db, t, s1Token } = await seed();
   const r = await handleGetProfile(db, urlOf(t), reqOf(s1Token));
   assert.equal(r.status, 200, `会话学生应 200（实测 status=${r.status}）`);
   const body = JSON.parse(await r.text());
-  assert.equal(body.profile.wechat, 'wx_teacher', `会话学生应见 wechat（实测 ${body.profile.wechat}）`);
-  assert.equal(body.profile.email, 'teacher@example.com', `会话学生应见 email`);
   assert.equal(body.profile.matched, true);
-  assert.equal(body.profile.real_name, '王老师', `real_name 原本就对会话学生开放，不回归`);
+  assert.equal(body.profile.real_name, '王老师', 'real_name 公开字段不回归（ZR-B1/B2）');
+  // ZR-C2 核心：联系方式/凭证只用于身份核验，会话学生也不下发
+  assert.ok(!('wechat' in body.profile), 'wechat 字段不得下发（变异：还原 matched 返回 wechat → 红）');
+  assert.ok(!('email' in body.profile), 'email 字段不得下发');
+  assert.ok(!('credential_image' in body.profile), 'credential_image 凭证不得下发');
 });
 
-test('ZD-2 教师本人 → 200 全字段', async () => {
+test('ZR-C2 教师本人 → 200 全字段（含联系方式，本人档案管理不受影响）', async () => {
   const { db, t, tToken } = await seed();
   const r = await handleGetProfile(db, urlOf(t), reqOf(tToken));
   assert.equal(r.status, 200);
@@ -97,15 +100,16 @@ test('ZD-2 教师本人 → 200 全字段', async () => {
   assert.equal(body.profile.wechat, 'wx_teacher');
 });
 
-// ZR-A1（2026-08-27）：管理员查看任意教师档案 = 管理/身份核验用途，全字段放行、不校验会话匹配。
-// G2 变异：还原「admin 全字段放行」分支（改回仅本人/匹配学生可读）→ 本测试 admin 请求 403 断言必红。
-test('ZR-A1 admin 查看任意教师档案 → 200 全字段（核验用途，无需会话）', async () => {
+// ZR-A1（2026-08-27）：管理员查看任意教师档案 = 管理/身份核验用途（用户②「只用于身份核验」），
+// 全字段放行、不校验会话匹配——联系方式在核验侧保留可见。
+test('ZR-A1+C2 admin 查看任意教师档案 → 200 全字段（核验用途，无需会话）', async () => {
   const { db, t, aToken } = await seed();
   const r = await handleGetProfile(db, urlOf(t), reqOf(aToken));
   assert.equal(r.status, 200, `admin 应 200（实测 status=${r.status}）`);
   const body = JSON.parse(await r.text());
   assert.equal(body.profile.wechat, 'wx_teacher', 'admin 应见 wechat（身份核验用途）');
   assert.equal(body.profile.email, 'teacher@example.com', 'admin 应见 email');
+  assert.equal(body.profile.credential_image, 'data:image/png;base64,CRED', 'admin 应见 credential_image');
   assert.equal(body.profile.real_name, '王老师', 'admin 应见 real_name');
   assert.equal(body.profile.matched, false, 'admin 分支不经 dbIsMatched（mapper 默认 false，不附加 true 语义）');
 });
