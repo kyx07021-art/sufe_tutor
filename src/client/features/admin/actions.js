@@ -35,7 +35,7 @@ export async function loadAdminStats() {
     ]);
     const s = statsRes.stats || statsRes;
     const d = dashRes.dashboard || dashRes;
-    const u = s.users || {}, r = s.reviews || {}, inv = s.invites || {}, t = s.todo || {};
+    const u = s.users || {}, r = s.reviews || {}, t = s.todo || {}; // ZV-3: invites block removed (gate dormant)
     const dt = d.todo || {}, mt = (d.metrics || {}).total || {};
     const topPaths = (d.metrics || {}).topPaths || [];
     const status = (d.metrics || {}).status || [];
@@ -52,12 +52,6 @@ export async function loadAdminStats() {
           [TEXT.ADMIN_STAT_REVIEWS_TOTAL, r.total], [TEXT.ADMIN_STAT_REVIEWS_APPROVED, r.approved],
           [TEXT.ADMIN_STAT_REVIEWS_PENDING, r.pending], [TEXT.ADMIN_STAT_REVIEWS_REJECTED, r.rejected],
         ])}</div>` +
-        `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_INVITES)}</h4>${adminOpsRows([
-          [TEXT.ADMIN_STAT_INVITES_USED, inv.used], [TEXT.ADMIN_STAT_INVITES_ACTIVE, inv.active],
-        ])}<div class="ops-row ops-row--actions">
-          <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.genInvite">${escHtml(TEXT.BTN_GENERATE_INVITE)}</button>
-          <button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.openInviteManager">${escHtml(TEXT.ADMIN_INVITE)}</button>
-        </div></div>` +
         `<div class="ops-block"><h4>${escHtml(TEXT.ADMIN_SECTION_TODO)}</h4>${adminOpsRows([
           [TEXT.ADMIN_STAT_VERIFY_PENDING, dt.verificationsPending],
           [TEXT.ADMIN_STAT_REVIEWS_PENDING, dt.reviewsPending],
@@ -525,9 +519,9 @@ export function confirmBanUser(id, banned = true, role = ROLES.STUDENT) {
   }});
 }
 
-// U-3k: invite-code issuance/management — v1-parity but data-action delegated (zero inline
-// handlers, contract 6). Pure API consumers: POST /api/admin/invite, GET /api/admin/invites,
-// DELETE /api/admin/invites/:code (backend business capability, no frontend coupling).
+// ZV-3 (2026-08-27): invite-code management dormant — backend routes sleep since ZV-1 (404),
+// the admin-stats invites block and ACTION_MAP keys are removed. Functions below are kept
+// dormant (W1) for historical reference; no UI entry point remains (grep data-action).
 export async function generateInviteCode() {
   try {
     const data = await api('/api/admin/invite', { method: 'POST', body: {} });
@@ -563,13 +557,13 @@ export function openInviteManager() {
   }).catch(err => { const el = document.getElementById('invite-manager-body'); if (el) el.innerHTML = `<p class="profile-empty">${escHtml(err.message)}</p>`; });
 }
 
-export function revokeInvite(code) {
+export function revokeInvite(code) { // ZV-3: dormant (no UI entry, see header comment)
   confirm({ title: TEXT.INVITE_MANAGER_TITLE, message: TEXT.INVITE_REVOKE_CONFIRM, onConfirm: () => {
     api(`/api/admin/invites/${encodeURIComponent(code)}`, { method: 'DELETE' }).then(() => { showToast(TEXT.INVITE_MANAGER_REVOKED); closeAllModals(); openInviteManager(); }).catch(err => showToast(err.message)); // closeAllModals first: avoid stale manager modal stacking under the fresh one (U-3k audit LOW-1)
   }});
 }
 
-export function copyInviteCode(code) {
+export function copyInviteCode(code) { // ZV-3: dormant (no UI entry, see header comment)
   navigator.clipboard?.writeText(code).then(() => showToast(TEXT.SUCCESS_COPIED)).catch(() => showToast(TEXT.ERROR_COPY));
 }
 

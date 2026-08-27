@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback, doSubmitContentPenalty, performContentPenalty, contentTypeName, loadAdminTraffic } from '../src/client/features/admin/actions.js';
+import { loadAdminUsers, loadAdminContent, loadAdminFeedback, renderAdminReviewRow, renderAdminContentRow, openContentPenaltyModal, renderAdminUserRow, toggleTeacherVerify, generateInviteCode, openInviteManager, revokeInvite, loadAdminDemands, adminDeleteDemand, loadAdminReviews, renderAdminAwardRow, loadAdminAwards, viewAwardProof, approveAward, rejectAwardModal, doAwardAction, loadAdminVerifications, renderVerifCard, renderVerifForm, verifApprove, verifReject, verifRejectConfirm, verifRevoke, viewAdmissionImage, loadAdminPosts, renderAdminPostRow, openPostViewModal, performVerifAction, loadAdminContracts, renderAdminContractRow, adminViewContract, performPostDelete, renderAdminFeedbackRow, resolveAdminFeedback, doSubmitContentPenalty, performContentPenalty, contentTypeName, loadAdminTraffic, loadAdminStats } from '../src/client/features/admin/actions.js';
 import adminFeature from '../src/client/features/admin/index.js'; // U-3j L3: seg-tab-change routing
 import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
@@ -1050,5 +1050,22 @@ test('U-3i L4: seg-tab-change 委托路由 admin-content-tabs → loadAdminConte
   while (!list.innerHTML.includes('当前筛选条件下没有内容') && Date.now() - t0 < 3000) await new Promise(r => setTimeout(r, 15));
   assert.ok(seenUrl && seenUrl.includes('/api/admin/content?type=post'), 'content tab 路由 post: ' + seenUrl);
   teardownFn();
+  teardown();
+});
+
+test('ZV-3 admin 邀请码 UI 休眠：ACTION_MAP 零邀请码键 + stats 零邀请码块', async () => {
+  const dom = setup();
+  // 变异：还原 admin/index.js 任一邀请码键 → 本断言红；还原 admin/actions.js stats 邀请码块 → 渲染断言红
+  for (const k of ['admin.genInvite', 'admin.openInviteManager', 'admin.revokeInvite', 'admin.copyInvite']) {
+    assert.ok(!(k in adminFeature.actions), `ACTION_MAP 不得含邀请码键 ${k}（ZV-3 休眠）`);
+  }
+  const el = document.createElement('div');
+  el.id = 'admin-stats-box';
+  document.body.appendChild(el);
+  globalThis.fetch = async (url) => String(url).includes('/api/admin/stats') || String(url).includes('/api/admin/dashboard')
+    ? { ok: true, status: 200, json: async () => ({ stats: { users: { total: 1, students: 1, teachers: 1 }, profiles: 1, demands: 1, invites: { used: 2, active: 3 }, reviews: { total: 1, approved: 1, pending: 0, rejected: 0 }, todo: {} }, dashboard: { todo: {}, metrics: { total: {}, topPaths: [], status: [] } } }) }
+    : { ok: true, status: 200, json: async () => ({}) };
+  await loadAdminStats();
+  assert.ok(!el.innerHTML.includes('ADMIN_SECTION_INVITES') && !el.innerHTML.includes('邀请码管理'), 'admin-stats 零邀请码块（ZV-3 休眠）');
   teardown();
 });

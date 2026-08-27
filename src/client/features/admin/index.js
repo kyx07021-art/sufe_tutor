@@ -26,11 +26,7 @@ const ACTION_MAP = {
   'admin.viewProfile': el => actions.openProfilePanel(Number(el.dataset.id)),
   'admin.verifyTeacher': el => actions.toggleTeacherVerify(Number(el.dataset.id), true),
   'admin.unverify': el => actions.toggleTeacherVerify(Number(el.dataset.id), false),
-  // U-3k: invite-code issuance/management (admin-stats block + manager modal)
-  'admin.genInvite': actions.generateInviteCode,
-  'admin.openInviteManager': actions.openInviteManager,
-  'admin.revokeInvite': el => actions.revokeInvite(el.dataset.code),
-  'admin.copyInvite': el => actions.copyInviteCode(el.dataset.code),
+  // ZV-3: invite-code ACTION_MAP keys removed (gate dormant, no UI entry)
   // U-3b: demand management — admin remove (via /api/admin/demands/:id) + keyset load-more
   'admin.deleteDemand': el => actions.adminDeleteDemand(Number(el.dataset.id)),
   'admin.loadMoreDemands': actions.loadMoreAdminDemands,

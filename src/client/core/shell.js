@@ -84,8 +84,7 @@ export function mountShell() {
           <nav class="sidebar-nav" id="sidebar-nav" aria-label="${escHtml(TEXT.SIDEBAR_NAV_ARIA)}"></nav>
           <button type="button" class="sidebar-close" data-action="shell.closeSidebar">✕ ${escHtml(TEXT.SIDEBAR_CLOSE)}</button>
         </div>
-        <div class="sidebar-invite hidden" id="sidebar-invite"></div>
-        <div class="sidebar-user glass" id="sidebar-user"></div>
+        <div class="sidebar-user glass" id="sidebar-user"></div> <!-- ZV-3: sidebar-invite container removed (gate dormant) -->
       </aside>
       <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
       <main class="client-main" id="client-main">

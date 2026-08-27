@@ -137,8 +137,7 @@ export function renderSidebar() {
       ${BADGE_PAGES.includes(p.id) ? `<span class="sidebar-dot hidden" id="sidebar-${p.id}-dot"></span>` : ''}</button>`).join('');
     nav.querySelectorAll('.sidebar-item').forEach(b => b.addEventListener('click', () => selectPage(b.dataset.page)));
   }
-  const invite = document.getElementById('sidebar-invite');
-  if (invite) invite.classList.toggle('hidden', !isAdmin);
+  // ZV-3: sidebar-invite visibility logic removed (container + gate dormant)
 }
 
 // Page-header "i" info button (v1 parity): selectPage injects it next to the active page
