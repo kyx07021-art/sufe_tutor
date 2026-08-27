@@ -10,10 +10,11 @@ import { TEXT } from '../constants/text.js';
 import { provinceName } from './display.js';
 import { escHtml } from './dom.js';
 
+// ZJ-2 (2026-08-27): neutralized — gender is removed from matching (user: no gender
+// discrimination). Always 100 so any residual call site contributes zero. Kept exported
+// (dormancy, not deletion) for any legacy consumer.
 export function genderMatchScore(pref, teacherGender) {
-  if (!pref) return 100;
-  if (!teacherGender || teacherGender === 'undeclared' || teacherGender === 'nonbinary') return CONFIG.GENDER_MATCH_UNDISCLOSED;
-  return teacherGender === pref ? 100 : 0;
+  return 100; // ZJ-2: neutralized (user: no gender discrimination) — any residual call contributes zero
 }
 
 export function haversineKm(a, b) {
@@ -74,13 +75,10 @@ export function matchDims(t, d) {
   const budgetScore = budgetOn
     ? ((!d.budget_min || t.price_min >= d.budget_min) && (!d.budget_max || t.price_min <= d.budget_max) ? W.budget : 0) : null;
 
-  const prefGender = d.preferred_teacher_gender || '';
-  const gScore = genderMatchScore(prefGender, t.gender);
-  const genderScore = gScore / 100 * W.gender;
-  const genderHint = !prefGender ? TEXT.MATCH_GENDER_ANY
-    : gScore === CONFIG.GENDER_MATCH_UNDISCLOSED ? TEXT.MATCH_GENDER_UNDISCLOSED
-    : gScore === 100 ? TEXT.MATCH_GENDER_HIT : TEXT.MATCH_GENDER_MISS;
-
+  // ZJ-2 (2026-08-27): gender dimension removed from matching (user: no gender discrimination).
+  // Stored demand preferences (preferred_teacher_gender) no longer score at all — the dimension is
+  // dropped from matchDims, so stored rows are neutralized as well. genderMatchScore stays exported
+  // as a dormant 100 (any residual call contributes zero).
   return [
     { key: 'subject', label: TEXT.MATCH_ITEM_SUBJECT, score: subjScore, max: W.subject,
       hint: subjOn ? TEXT.MATCH_SUBJECT_HIT.replace('{hit}', hit).replace('{total}', dSubj.length) : TEXT.MATCH_DIM_SKIP },
@@ -89,7 +87,6 @@ export function matchDims(t, d) {
     { key: 'region', label: TEXT.MATCH_ITEM_REGION, score: regionScore, max: W.region, hint: regionHint },
     { key: 'budget', label: TEXT.MATCH_ITEM_BUDGET, score: budgetScore, max: W.budget,
       hint: !budgetOn ? TEXT.MATCH_DIM_SKIP : (budgetScore === W.budget ? TEXT.MATCH_BUDGET_HIT : TEXT.MATCH_BUDGET_MISS) },
-    { key: 'gender', label: TEXT.MATCH_ITEM_GENDER, score: genderScore, max: W.gender, hint: genderHint },
   ];
 }
 
@@ -158,7 +155,7 @@ export function matchNoteHtml() {
   const W = CONFIG.MATCH_WEIGHT;
   return TEXT.MATCH_NOTE
     .replace('{subject}', W.subject).replace('{region}', W.region).replace('{budget}', W.budget)
-    .replace('{personality}', W.personality).replace('{gender}', W.gender);
+    .replace('{personality}', W.personality); // ZJ-2: gender clause removed from the scoring note
 }
 
 export function matchDetailHtml(t, d, md) {

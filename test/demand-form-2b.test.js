@@ -89,15 +89,12 @@ test('需求表单偏好性格 tag-pick：全量渲染、上限 3、超限 toast
   teardown();
 });
 
-test('学生性别 select：空串=不愿透露默认/男/女，无 nonbinary，非必填；偏好老师性别 不限/男/女', () => {
+test('ZJ-1：需求表单学生性别/偏好老师性别两选择休眠（表单零性别字段）', () => {
   const { doc, mountForm } = setup();
   mountForm('');
-  const genderSel = doc.getElementById('d-gender');
-  assert.equal(genderSel.required, false, '学生性别非必填（空串 = 不愿透露合法）');
-  assert.deepEqual([...genderSel.options].map(o => o.value), ['', 'male', 'female'], '无 nonbinary');
-  assert.equal(genderSel.options[0].textContent, '不愿透露', '默认项 = 不愿透露');
-  const prefSel = doc.getElementById('d-pref-gender');
-  assert.deepEqual([...prefSel.options].map(o => o.value), ['', 'male', 'female'], '偏好老师性别：不限/男/女');
+  assert.equal(doc.getElementById('d-gender'), null, 'ZJ-1：学生性别选择休眠');
+  assert.equal(doc.getElementById('d-pref-gender'), null, 'ZJ-1：偏好老师性别选择休眠');
+  assert.ok(doc.getElementById('d-grade'), '年级选择仍渲染（非性别字段不受影响）');
   teardown();
 });
 
@@ -144,8 +141,8 @@ test('prefillDemandForm：非学科需求回填非学科勾选、偏好性格、
   assert.equal(doc.getElementById('d-section-nonacademic').classList.contains('hidden'), false, '非学科区块可见');
   assert.deepEqual([...doc.querySelectorAll('#d-nonacademic input:checked')].map(cb => cb.value), ['music', 'chess'], '非学科项目勾选回填');
   assert.deepEqual([...doc.querySelectorAll('#d-personality-tags .tag-pick.selected')].map(b => b.dataset.id), ['patience', 'strict'], '偏好性格回填');
-  assert.equal(doc.getElementById('d-pref-gender').value, 'female', '偏好老师性别回填');
-  assert.equal(doc.getElementById('d-gender').value, '', '学生性别空串回填（不愿透露）');
+  assert.equal(doc.getElementById('d-pref-gender'), null, 'ZJ-1：偏好老师性别休眠（prefill 零性别元素）');
+  assert.equal(doc.getElementById('d-gender'), null, 'ZJ-1：学生性别休眠（prefill 零性别元素）');
   teardown();
 });
 

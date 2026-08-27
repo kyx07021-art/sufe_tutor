@@ -19,32 +19,32 @@ const DEMAND = { id: 1, target_type: 'academic', target_subjects: ['math', 'phys
   budget_min: 100, budget_max: 200, preferred_personality_tags: ['patience', 'strict'], preferred_teacher_gender: 'male',
   teaching_method: 'offline', address: '嘉定区·嘉定镇街道' };
 
-test('matchDegree 五维综合（全命中口径）', () => {
-  assert.equal(matchDegree(TEACHER, DEMAND), 70);
+test('matchDegree 四维综合（全命中口径；ZJ-2 移除性别维度）', () => {
+  assert.equal(matchDegree(TEACHER, DEMAND), 67);
 });
 
-test('matchDegree 性别：教师 nonbinary（不愿透露）对明确偏好折半 50', () => {
-  assert.equal(matchDegree({ ...TEACHER, gender: 'nonbinary' }, DEMAND), 65);
-  assert.equal(matchDegree({ ...TEACHER, gender: '' }, DEMAND), 65);
-  assert.equal(matchDegree({ ...TEACHER, gender: 'female' }, DEMAND), 60);
-  assert.equal(matchDegree(TEACHER, { ...DEMAND, preferred_teacher_gender: '' }), 70);
+test('matchDegree 性别：ZJ-2 中和——教师/需求性别不再影响匹配度（恒等 base）', () => {
+  assert.equal(matchDegree({ ...TEACHER, gender: 'nonbinary' }, DEMAND), 67);
+  assert.equal(matchDegree({ ...TEACHER, gender: '' }, DEMAND), 67);
+  assert.equal(matchDegree({ ...TEACHER, gender: 'female' }, DEMAND), 67);
+  assert.equal(matchDegree(TEACHER, { ...DEMAND, preferred_teacher_gender: '' }), 67);
 });
 
 test('matchDegree 性格：需求无偏好 → 维度不适用；教师无 tag → 0；全中更高', () => {
-  assert.equal(matchDegree(TEACHER, { ...DEMAND, preferred_personality_tags: [] }), 74);
-  assert.equal(matchDegree({ ...TEACHER, personality_tags: [] }, DEMAND), 63);
-  assert.equal(matchDegree({ ...TEACHER, personality_tags: ['patience', 'strict'] }, DEMAND), 78);
+  assert.equal(matchDegree(TEACHER, { ...DEMAND, preferred_personality_tags: [] }), 70);
+  assert.equal(matchDegree({ ...TEACHER, personality_tags: [] }, DEMAND), 58);
+  assert.equal(matchDegree({ ...TEACHER, personality_tags: ['patience', 'strict'] }, DEMAND), 75);
 });
 
-test('genderMatchScore 单点口径（undeclared 同 nonbinary 未披露）', () => {
+test('genderMatchScore 单点口径：ZJ-2 中和后任意输入恒 100', () => {
   assert.equal(genderMatchScore('', 'male'), 100);
   assert.equal(genderMatchScore('', 'nonbinary'), 100);
   assert.equal(genderMatchScore('', 'undeclared'), 100);
   assert.equal(genderMatchScore('male', 'male'), 100);
-  assert.equal(genderMatchScore('male', 'female'), 0);
-  assert.equal(genderMatchScore('male', 'nonbinary'), 50);
-  assert.equal(genderMatchScore('male', 'undeclared'), 50);
-  assert.equal(genderMatchScore('female', ''), 50);
+  assert.equal(genderMatchScore('male', 'female'), 100);
+  assert.equal(genderMatchScore('male', 'nonbinary'), 100);
+  assert.equal(genderMatchScore('male', 'undeclared'), 100);
+  assert.equal(genderMatchScore('female', ''), 100);
 });
 
 test('genderName：undeclared/非binary/空 一律不显字，仅男/女出字', () => {
@@ -64,12 +64,12 @@ test('matchLevel 三色阈值', () => {
   assert.equal(matchLevel(0), 'lo');
 });
 
-test('matchDetailHtml：五维行齐全 + 计分口径内嵌当前权重', () => {
-  const html = matchDetailHtml(TEACHER, DEMAND, 70);
-  for (const k of ['科目匹配', '性格匹配', '区域匹配', '预算匹配', '性别匹配']) assert.ok(html.includes(k), `明细应含 ${k}`);
+test('matchDetailHtml：四维行齐全 + 计分口径内嵌当前权重（ZJ-2 无性别行/权重）', () => {
+  const html = matchDetailHtml(TEACHER, DEMAND, 67);
+  for (const k of ['科目匹配', '性格匹配', '区域匹配', '预算匹配']) assert.ok(html.includes(k), `明细应含 ${k}`);
+  assert.ok(!html.includes('性别'), '明细不出现性别维度');
   assert.ok(html.includes(`科目 ${CONFIG.MATCH_WEIGHT.subject} 分`), '计分口径应含科目权重');
   assert.ok(html.includes(`性格 ${CONFIG.MATCH_WEIGHT.personality} 分`), '计分口径应含性格权重');
-  assert.ok(html.includes(`性别 ${CONFIG.MATCH_WEIGHT.gender} 分`), '计分口径应含性别权重');
   assert.ok(html.includes('命中 1/2 个偏好性格'), '性格命中提示');
   assert.ok(html.includes('match-row'), '明细行结构');
 });
@@ -135,14 +135,14 @@ test('学生端教师列表：逐需求取最高匹配值、明细降序、排�
   assert.equal(T_HIGH._matchForStudent.items.length, 2);
   assert.equal(T_HIGH._matchForStudent.items[0].d.id, 11);
   assert.equal(T_HIGH._matchForStudent.items[1].d.id, 12);
-  assert.equal(T_LOW._matchForStudent.md, 75);
+  assert.equal(T_LOW._matchForStudent.md, 83);
   sortTeachers([T_HIGH, T_LOW], 'match');
   assert.deepEqual([T_HIGH.user_id, T_LOW.user_id], [1, 2]);
   const cardHtml = renderTeacherCard(T_HIGH);
   assert.ok(cardHtml.includes('match-btn--hi'), '100 → hi 绿');
   assert.ok(cardHtml.includes('匹配度 100%'), '卡上最高匹配度文案');
   assert.ok(cardHtml.includes('tc-match'), '徽章独立行不挤 username');
-  assert.ok(renderTeacherCard(T_LOW).includes('match-btn--mid'), '75 → mid 黄');
+  assert.ok(renderTeacherCard(T_LOW).includes('match-btn--hi'), '83 → hi 绿（ZJ-2 去性别后上浮）');
   // 明细卡
   dom.window.document.getElementById('teachers-list').innerHTML = renderTeacherCard(T_HIGH);
   const btn = dom.window.document.querySelector('[data-action="teacher.matchDetail"]');

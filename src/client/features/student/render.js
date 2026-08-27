@@ -16,7 +16,7 @@ import { matchDegree, matchLevel } from '../../core/match.js';
 import { CARET_SVG, segTabsHtml, checkboxItemsHtml } from '../../core/ui.js';
 import { renderTimeSlotContainerHtml } from '../../core/ui-form.js';
 import { gradeOptionsForProvince } from '../region/render.js';
-import { STATUS, DEMAND_TYPES, GENDERS, TEACHING_METHODS, SUBJECTS, NONACADEMIC_PROJECTS, TEACHING_GOALS, PERSONALITY_TAGS } from '../../../shared/enums.js';
+import { STATUS, DEMAND_TYPES, TEACHING_METHODS, SUBJECTS, NONACADEMIC_PROJECTS, TEACHING_GOALS, PERSONALITY_TAGS } from '../../../shared/enums.js';
 import { CONFIG } from '../../../shared/config.js';
 
 // v1 parity: 8 wizard step labels (P4 split teaching-goal into P4 + teacher-pref into P6).
@@ -113,9 +113,6 @@ export function renderDemandCard(d, opts = {}) {
 // No inline handlers: nav/delete/cancel via data-action delegation, submit via form submit listener,
 // type tabs via seg-tab-change, tag-picks via student.toggleTagPick (actions/index wiring).
 export function renderDemandModalHtml(demand) {
-  // R2-b student gender: '' = not-say (default) + GENDERS male/female; teacher-side undeclared/nonbinary excluded
-  const studentGenders = [{ id: '', name: TEXT.OPTION_GENDER_NOT_SAY }, ...GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary')];
-  const prefGenders = GENDERS.filter(g => g.id !== 'undeclared' && g.id !== 'nonbinary');
   const selProv = demand && demand.province ? demand.province : '';
   const tagPickBtn = (id, name, containerId, max) =>
     `<button type="button" class="tag-pick glass glass--solid" data-action="student.toggleTagPick" data-container="${containerId}" data-max="${max}" data-id="${escHtml(id)}">${escHtml(name)}</button>`;
@@ -149,12 +146,6 @@ export function renderDemandModalHtml(demand) {
       </div>
     </div>
     <div class="dw-step" data-step="3">
-      <div class="form-group">
-        <label class="form-label">${TEXT.LABEL_STUDENT_GENDER}</label>
-        <select class="form-select" id="d-gender">
-          ${studentGenders.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
-        </select>
-      </div>
       <div class="form-group">
         <label class="form-label">${TEXT.LABEL_STUDENT_GRADE} <span class="req">*</span></label>
         <select class="form-select" id="d-grade"${selProv ? '' : ' disabled'}>
@@ -197,12 +188,6 @@ export function renderDemandModalHtml(demand) {
       <div class="form-group">
         <label class="form-label">${TEXT.LABEL_PREFERRED_PERSONALITY}${TEXT.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
         <div id="d-personality-tags">${PERSONALITY_TAGS.map(tag => tagPickBtn(tag.id, tag.name, 'd-personality-tags', CONFIG.PERSONALITY_TAGS_MAX)).join('')}</div>
-      </div>
-      <div class="form-group">
-        <label class="form-label">${TEXT.LABEL_PREFERRED_GENDER}</label>
-        <select class="form-select" id="d-pref-gender">
-          <option value="">${TEXT.OPTION_PREF_GENDER_ANY}</option>${prefGenders.map(g => `<option value="${g.id}">${g.name}</option>`).join('')}
-        </select>
       </div>
     </div>
     <div class="dw-step" data-step="7">

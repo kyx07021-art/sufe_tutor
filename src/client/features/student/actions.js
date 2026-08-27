@@ -228,7 +228,7 @@ export function initDemandForm(selectedProvince) {
   }
   onDemandProvinceChange(); // initial run: region note + lock online + grade options + subject pool
   toggleAddressField();     // P2 address section visibility (shanghai+offline only)
-  initCustomSelects(form);  // province/grade/gender/method/identity custom dropdowns (idempotent)
+  initCustomSelects(form);  // province/grade/method/identity custom dropdowns (idempotent; gender selects removed — ZJ-1)
   demandWizardGoTo(1);      // always start from P1 (edit prefill re-lands on P1 at its end)
 }
 
@@ -312,7 +312,7 @@ export function updateDemandScores() {
 }
 
 // v1 parity: edit prefill -- full 8-step form. Order matters: province → grade → type section →
-// gender → target checks → score/skill rows → teaching goal + personality tag-picks → pref gender →
+// target checks → score/skill rows → teaching goal + personality tag-picks →
 // method → address (hidden value first, then picker hydrates district/unit) → time slots → budget →
 // submitter/contacts/info. Programmatic checkbox changes do not fire change events, so rows are
 // rebuilt/refilled manually. Ends back on P1 so the user can walk the pages (visited completion).
@@ -325,7 +325,6 @@ export function prefillDemandForm(d) {
   updateDemandSubjects();
   const isNa = d.target_type === DEMAND_TYPES.NONACADEMIC;
   setDemandType(isNa ? DEMAND_TYPES.NONACADEMIC : DEMAND_TYPES.ACADEMIC);
-  set('d-gender', d.student_gender || ''); // '' = not-say (prefill tolerant of legacy undefined)
   const checkById = (containerId, sid) => {
     const el = document.getElementById(containerId);
     if (!el) return null;
@@ -348,7 +347,6 @@ export function prefillDemandForm(d) {
     const btn = [...document.querySelectorAll('#d-personality-tags .tag-pick')].find(b => b.dataset.id === id);
     if (btn) btn.classList.add('selected');
   });
-  set('d-pref-gender', d.preferred_teacher_gender || '');
   set('d-method', d.teaching_method || 'offline');
   // Legacy free-text addresses that are not a valid district-unit pair are cleared for re-selection
   // (otherwise the save gate would 400-loop on a stale value).

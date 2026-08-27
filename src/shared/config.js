@@ -44,12 +44,11 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     SIDEBAR_INDEX_PAD: 2,                 // 侧边栏序号补零位数
     POST_TITLE_MAX: 60, POST_TITLE_WARN: 55, POST_SNIPPET: 80, // 帖子标题/摘要
     GREETING_MSG_MAX: 300,                // 打招呼消息上限（学生推送需求/教师试课意向附带；与服务端 LIMITS.GREETING_MSG_MAX 同值）
-    MATCH_WEIGHT: { subject: 45, region: 15, budget: 15, personality: 15, gender: 10 },     // 教师匹配度权重（合计 100；需求五并入性格/性别，科目仍为主权重）
+    MATCH_WEIGHT: { subject: 45, region: 15, budget: 15, personality: 15 },     // 教师匹配度权重（合计 100；ZJ-2 移除性别维度——用户：杜绝性别歧视，科目仍为主权重）
     MATCH_DISTANCE_MAX_KM: 20,            // 需求五：上海线下单镇间距离评分上限 km——20km 内随距离线性下降至 0，更远恒 0（用户定策）
     MATCH_MAX: 100,
     MATCH_COLOR_HIGH: 80,                 // 匹配度按钮三色阈值：≥80 绿（hi）
     MATCH_COLOR_MID: 60,                  // 60-79 黄（mid），<60 红（lo）
-    GENDER_MATCH_UNDISCLOSED: 50,         // 教师性别未透露（undeclared/历史 nonbinary/未填）对明确偏好需求的得分（需求五·性别匹配）
     MAX_MATCH_DETAIL_OFFSET: 6,           // 匹配明细卡下偏 px（B4：max-height 注入已删，卡片随内容拉长）
     MATCH_DETAIL_EDGE_MARGIN: 8,          // 匹配明细卡距屏幕左右缘最小边距 px
     CUSTOM_SELECT_EDGE_MARGIN: 8,         // ZG-1: 自定义选择器展开面板距视口四缘最小边距 px（左右空间不足时平移面板）

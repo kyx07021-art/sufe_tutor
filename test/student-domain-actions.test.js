@@ -155,7 +155,7 @@ test('编辑全字段表单：上海线下需求地址/提交者/标签/目标�
   assert.equal(calls[0].body.demand.submitter_type, 'parent', '提交者类型随表单提交');
   assert.equal(calls[0].body.demand.expected_time, '', '时间槽空 → 空串（v1 契约：空槽不写 JSON）');
   assert.deepEqual(calls[0].body.demand.preferred_personality_tags, ['patience'], '偏好性格随表单提交');
-  assert.equal(calls[0].body.demand.preferred_teacher_gender, 'female', '偏好老师性别随表单提交');
+  assert.equal(calls[0].body.demand.preferred_teacher_gender, '', 'ZJ-1：偏好老师性别休眠，恒提交空串（服务端白名单已含空串）');
   assert.deepEqual(calls[0].body.demand.teaching_goal, ['interest'], '教学目标随表单提交');
   teardown();
 });

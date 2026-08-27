@@ -1,5 +1,5 @@
 /**
- * B1 match core：五维匹配纯函数。无 DOM/网络依赖，直接导入验证。
+ * B1 match core：四维匹配纯函数（ZJ-2 移除性别维度）。无 DOM/网络依赖，直接导入验证。
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -41,11 +41,11 @@ function demand(overrides = {}) {
   };
 }
 
-test('genderMatchScore：无偏好满分；未披露中性分；不一致零分', () => {
+test('genderMatchScore：ZJ-2 中和——任何输入恒 100（性别维度移出匹配，杜绝性别歧视）', () => {
   assert.equal(genderMatchScore('', 'male'), 100);
-  assert.equal(genderMatchScore('female', 'undeclared'), CONFIG.GENDER_MATCH_UNDISCLOSED);
-  assert.equal(genderMatchScore('female', 'nonbinary'), CONFIG.GENDER_MATCH_UNDISCLOSED);
-  assert.equal(genderMatchScore('female', 'male'), 0);
+  assert.equal(genderMatchScore('female', 'undeclared'), 100);
+  assert.equal(genderMatchScore('female', 'nonbinary'), 100);
+  assert.equal(genderMatchScore('female', 'male'), 100);
 });
 
 test('haversineKm/distanceScore：同点 0；超上限 0；范围内线性衰减', () => {
@@ -58,20 +58,19 @@ test('haversineKm/distanceScore：同点 0；超上限 0；范围内线性衰减
   assert.equal(distanceScore(CONFIG.MATCH_DISTANCE_MAX_KM / 2), 0.5);
 });
 
-test('matchDims：五维全开全中的完美维度与空维度语义', () => {
+test('matchDims：四维全开全中的完美维度与空维度语义（ZJ-2 无 gender 维度）', () => {
   const dims = matchDims(teacher(), demand());
   const by = Object.fromEntries(dims.map(d => [d.key, d]));
   assert.equal(by.subject.score, W.subject);
   assert.equal(by.personality.score, W.personality);
   assert.equal(by.region.score, W.region);
   assert.equal(by.budget.score, W.budget);
-  assert.equal(by.gender.score, W.gender);
   assert.equal(by.region.max, W.region);
+  assert.ok(!('gender' in by), 'gender 维度已从 matchDims 移除');
 
-  const partial = matchDims(teacher({ price_min: null }), demand({ preferred_teacher_gender: 'female' }));
+  const partial = matchDims(teacher({ price_min: null }), demand());
   const pb = Object.fromEntries(partial.map(d => [d.key, d]));
   assert.equal(pb.budget.score, null, '教师未报价维度不参与计分');
-  assert.equal(pb.gender.score, 0, '性别不一致计 0 而非 null');
 });
 
 test('matchDims：非学科需求按项目/兴趣映射；线上无区域分', () => {
@@ -95,7 +94,7 @@ test('matchDims：非学科需求按项目/兴趣映射；线上无区域分', (
 
 test('matchDegree：完美 100；维度缺失按参与维度归一；无匹配 0；无维度 null', () => {
   assert.equal(matchDegree(teacher(), demand()), 100);
-  assert.equal(matchDegree(teacher({ price_min: null, subjects: [] }), demand({ target_subjects: ['math'], budget_min: null, budget_max: null, teaching_method: 'online', preferred_personality_tags: [], preferred_teacher_gender: 'female' })), 0);
+  assert.equal(matchDegree(teacher({ price_min: null, subjects: ['math'] }), demand({ target_subjects: ['english'], budget_min: null, budget_max: null, teaching_method: 'online', preferred_personality_tags: [] })), 0);
   assert.equal(matchDegree(null, demand()), null);
   assert.equal(matchDegree(teacher(), null), null);
 });
@@ -107,7 +106,7 @@ test('matchLevel 阈值与 matchRowsHtml 输出', () => {
   const html = matchRowsHtml([
     { label: 'subject', score: 45, max: 45 },
     { label: 'region', score: null, max: 15 },
-    { label: 'gender', score: 5, max: 10 },
+    { label: 'budget', score: 0, max: 15 },
   ]);
   assert.ok(html.includes('match-row--hi'));
   assert.ok(html.includes('match-row--lo'));

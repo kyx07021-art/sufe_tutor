@@ -73,7 +73,7 @@ test('wizard 渲染：8 步常驻 DOM、初始 P1 激活、步进器 8 芯片、
   assert.equal(submit1.disabled, true, 'P1 提交按钮禁用（防 Enter 隐式提交半截表单，审计 🟡3）');
   // v0.31.7 R1：P4 教学目标 tag-pick 渲染（学科/非学科通用）+ 偏好移入 P6
   assert.ok(doc.querySelectorAll('#d-teaching-goals .tag-pick').length >= 6, 'P4 教学目标标签渲染');
-  assert.equal(doc.getElementById('d-pref-gender').closest('.dw-step').dataset.step, '6', '偏好老师性别移入 P6 教师偏好页');
+  assert.equal(doc.getElementById('d-pref-gender'), null, 'ZJ-1：偏好老师性别选择休眠（表单零性别字段）');
   assert.equal(doc.getElementById('d-personality-tags').closest('.dw-step').dataset.step, '6', '偏好老师性格移入 P6');
   // v0.31.7 R3：sliding track 结构 + --dw-step-active 变量
   assert.ok(doc.querySelector('.dw-steps-track'), '滑动轨道容器存在');
@@ -186,9 +186,10 @@ test('wizard 编辑模式：prefill 后回 P1 且字段值跨页保留', () => {
   // 跨页值保留：跳到 P4 科目勾选仍在
   demandWizardGoTo(4);
   assert.deepEqual([...doc.querySelectorAll('#d-subjects input:checked')].map(cb => cb.value), ['math'], 'P4 科目勾选跨页保留');
-  // v0.31.7 R1：偏好移入 P6（教师偏好页）；教学目标回填
+  // v0.31.7 R1：偏好移入 P6（教师偏好页）；教学目标回填；ZJ-1 偏好性别休眠
   demandWizardGoTo(6);
-  assert.equal(doc.getElementById('d-pref-gender').value, 'female', 'P6 偏好性别回填（R1 移入教师偏好页）');
+  assert.equal(doc.getElementById('d-pref-gender'), null, 'ZJ-1：P6 偏好性别选择休眠');
+  assert.deepEqual([...doc.querySelectorAll('#d-personality-tags .tag-pick.selected')].map(b => b.dataset.id), ['patience'], 'P6 偏好性格回填');
   // 跳到 P8 联系方式
   demandWizardGoTo(8);
   assert.equal(doc.getElementById('d-parent-contact').value, '13800000000', 'P8 联系方式回填');
