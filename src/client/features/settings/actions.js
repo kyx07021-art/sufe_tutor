@@ -1,7 +1,8 @@
 /**
  * settings feature actions: account settings, privacy, username, avatar, devices, deactivate.
  */
-import { CONFIG } from '../../../shared/config.js';
+import { CONFIG, LIMITS } from '../../../shared/config.js';
+import { compressImage } from '../../core/image.js'; // ZZ-5: auto-compress oversized avatars
 import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js';
 import { state, getThemePref, getUiScale, uiScaleFillPct, setUiScaleLive, commitUiScale, getOrbPref } from '../../core/state.js';
@@ -170,9 +171,18 @@ export function handleAvatarUpload(input) {
   if (!file) return;
   if (!file.type.startsWith('image/')) { showToast(TEXT.SETTINGS_AVATAR_INVALID, 'error'); return; }
   const reader = new FileReader();
-  reader.onload = () => {
-    openModal({ title: TEXT.SETTINGS_AVATAR_TITLE, body: renderAvatarPreview(reader.result), footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="settings.closeModal">${TEXT.BTN_CANCEL}</button><button type="button" class="btn glass glass--pressable" data-action="settings.saveAvatar">${TEXT.BTN_SAVE}</button>` });
-    window._avatarDataUrl = reader.result;
+  reader.onload = async () => {
+    // ZZ-5（2026-08-27，用户①）：超 AVATAR_MAX_BYTES 自动压缩到限额内（不再 400 报错让用户自压）；
+    // 未超限原样保留（PNG 透明头像不强制转 JPEG——字节预算不命中即零改动）。
+    let dataUrl = String(reader.result || '');
+    if (dataUrl.length > LIMITS.AVATAR_MAX_BYTES) {
+      try {
+        const r = await compressImage(dataUrl, { maxBytes: LIMITS.AVATAR_MAX_BYTES });
+        dataUrl = r.dataUrl;
+      } catch { showToast(TEXT.SETTINGS_AVATAR_INVALID, 'error'); return; }
+    }
+    openModal({ title: TEXT.SETTINGS_AVATAR_TITLE, body: renderAvatarPreview(dataUrl), footer: `<button type="button" class="btn btn-outline glass glass--pressable" data-action="settings.closeModal">${TEXT.BTN_CANCEL}</button><button type="button" class="btn glass glass--pressable" data-action="settings.saveAvatar">${TEXT.BTN_SAVE}</button>` });
+    window._avatarDataUrl = dataUrl;
   };
   reader.readAsDataURL(file);
 }

@@ -9,7 +9,8 @@ import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects } from '../../core/ui.js';
-import { escHtml, loaderHtml } from '../../core/dom.js'; // Z-10-F5: loader placeholder via shared helper
+import { escHtml, loaderHtml } from '../../core/dom.js';
+import { compressImage } from '../../core/image.js'; // ZZ-4: auto-compress oversized uploads (single source)
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, renderProfileAwardsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor, renderTeacherVerifySection } from './render.js';
 import { matchDegree, matchDims, matchLevel, matchRowsHtml, matchNoteHtml } from '../../core/match.js';
 import { demandIsActive } from '../student/display.js';
@@ -403,9 +404,17 @@ export function stageAdmissionFile(input) {
   if (!f) return;
   if (f.type && !/^image\/(jpeg|png|webp)$/i.test(f.type)) { showToast(TEXT.ADMISSION_IMAGE_INVALID, 'error'); return; }
   const reader = new FileReader();
-  reader.onload = () => {
-    const dataUrl = String(reader.result || '');
-    if (dataUrl.length > CONFIG.ADMISSION_IMG_MAX) { showToast(TEXT.ADMISSION_IMAGE_TOO_LARGE, 'error'); return; }
+  reader.onload = async () => {
+    // ZZ-4（2026-08-27，用户①「不再toast让用户自己压缩」）：超 ADMISSION_IMG_MAX 自动压缩到限额内，
+    // 压缩后仍超限（极难触发）才落既有 toast；预览用压缩后 dataURL（服务端 CREDENTIAL_MAX_BYTES 同口径）。
+    let dataUrl = String(reader.result || '');
+    if (dataUrl.length > CONFIG.ADMISSION_IMG_MAX) {
+      try {
+        const r = await compressImage(dataUrl, { maxBytes: CONFIG.ADMISSION_IMG_MAX });
+        dataUrl = r.dataUrl;
+      } catch { showToast(TEXT.ADMISSION_IMAGE_TOO_LARGE, 'error'); return; }
+      if (dataUrl.length > CONFIG.ADMISSION_IMG_MAX) { showToast(TEXT.ADMISSION_IMAGE_TOO_LARGE, 'error'); return; }
+    }
     _pendingAdmission = dataUrl;
     const preview = document.getElementById('verify-admission-preview');
     if (preview) {
