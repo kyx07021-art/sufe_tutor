@@ -264,6 +264,8 @@ function gkVal(v) {
   return v === undefined || v === null || v === '' ? '' : escHtml(String(v));
 }
 
+// ZI-1/2 (2026-08-27): dormant — the gaokao editor no longer renders (#tp-gaokao removed, teachers
+// only pick subjects), so this mismatch counter has zero consumer. Kept for dormancy (not deletion).
 // Count saved grades that the current policy's grade system does not offer (province/year switch
 // leaves stale grade-tier values — warn instead of silently dropping on save).
 export function gaokaoPolicyMismatchCount(pol, gaokaoList) {

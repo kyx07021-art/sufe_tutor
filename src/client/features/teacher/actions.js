@@ -486,9 +486,8 @@ export function onTeacherProvinceChange() {
   if (isShanghai) {
     mountShanghaiAddrPicker('tp', addrInput ? addrInput.value : '', { hiddenId: 'tp-address' });
   }
-  // F1d2: gaokao editor re-render on province switch is a SEPARATE listener in
-  // initTeacherProfileForm — keeping it out of here avoids the init double-render that would
-  // collect away saved grades the current policy cannot render (and the mismatch warning).
+  // ZI-1 (2026-08-27): the gaokao editor is dormant (#tp-gaokao removed — teachers only pick
+  // subjects), so no editor re-render fires on province switch anymore.
 }
 
 // Graduation year clamp [CONFIG.GRAD_YEAR_MIN, CONFIG.GRAD_YEAR_MAX]; empty stays empty.
@@ -538,6 +537,8 @@ export function renderNonacademicPriceRows(prices) {
 
 // ── Z-3-F1 F1d2: teacher gaokao editor interactions ──────────────────────────
 
+// ZI-1/2 (2026-08-27): dormant — the gaokao editor no longer renders (#tp-gaokao removed, teachers
+// only pick subjects), so this pill-switch handler has zero trigger. Kept for dormancy (not deletion).
 // First/track pill switch (data-action=teacher.pickGkPill). Single-selection within the group.
 // For the 3+1+2 first-subject group the shared score input follows the pill: park the current
 // value on the outgoing pill (dataset, survives until re-render) and restore the incoming pill's
@@ -555,6 +556,8 @@ export function pickGkPill(el) {
   }
 }
 
+// ZI-1/2 (2026-08-27): dormant — the gaokao editor no longer renders (#tp-gaokao removed, teachers
+// only pick subjects), so this track-switch handler has zero trigger. Kept for dormancy (not deletion).
 // Track switch for the legacy science/arts tracks (data-action=teacher.pickGkTrack): pick the pill and
 // show only the chosen track's subject rows.
 export function pickGkTrack(el) {
