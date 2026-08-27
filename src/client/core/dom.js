@@ -78,6 +78,15 @@ export function mdRender(src) {
   return out.join('');
 }
 
+/** Visual viewport offset for fixed-positioned elements (iOS URL-bar class browsers).
+ *  getBoundingClientRect is layout-viewport-relative; a fixed element anchored to the
+ *  visual viewport needs this delta subtracted from its translate. No-op when unsupported
+ *  or offset is 0 (Chromium / desktop — strict identity there). */
+export function visualViewportOffset() {
+  const vv = window.visualViewport;
+  return { x: (vv && vv.offsetLeft) || 0, y: (vv && vv.offsetTop) || 0 };
+}
+
 export function loaderHtml(size) {
   const cls = size === 'sm' ? 'spinner' : 'loader';
   return `<span class="${cls}" role="status" aria-label="${TEXT.LOADING}"><i></i><i></i><i></i></span>`;

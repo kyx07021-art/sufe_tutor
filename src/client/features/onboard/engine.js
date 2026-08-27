@@ -27,7 +27,7 @@ import { TEXT } from '../../constants/text.js';
 import { CONFIG } from '../../../shared/config.js';
 import { STATUS, ROLES } from '../../../shared/enums.js';
 import { state, isReturning, registerLogoutReset } from '../../core/state.js';
-import { escHtml } from '../../core/dom.js';
+import { escHtml, visualViewportOffset } from '../../core/dom.js';
 import { closeModal } from '../../core/ui.js';
 import { chat } from '../chat/chat-state.js';
 import { stopChatPolling } from '../chat/actions-list.js';
@@ -119,11 +119,12 @@ function _tourShowBubble(text) {
 function _tourPlace(el) {
   const rect = el.getBoundingClientRect();
   const hole = _tourEls.hole;
+  const vo = visualViewportOffset(); // ZS-3: fixed elements anchor to the visual viewport on iOS-class browsers
   _tourEls.overlay.classList.remove('tour-overlay--dim'); // hole visible: drop the dim placeholder
   hole.classList.add('tour-hole--show');
   hole.style.width = `${rect.width}px`;
   hole.style.height = `${rect.height}px`;
-  hole.style.transform = `translate(${rect.left}px, ${rect.top}px)`; // fixed positioning
+  hole.style.transform = `translate(${rect.left - vo.x}px, ${rect.top - vo.y}px)`; // fixed positioning
   _tourPlaceBubble(rect);
 }
 
@@ -255,7 +256,8 @@ function _tourPlaceBubble(rect) {
     x = m;
     y = vh - bh - m;
   }
-  pos.style.transform = `translate(${x}px, ${y}px)`;
+  const vo = visualViewportOffset(); // ZS-3: same visual-viewport compensation as the hole
+  pos.style.transform = `translate(${x - vo.x}px, ${y - vo.y}px)`;
 }
 
 /** Whether the tour is still in the client shell view (logout / switch away loses

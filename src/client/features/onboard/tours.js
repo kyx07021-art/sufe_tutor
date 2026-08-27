@@ -87,7 +87,7 @@ const tourStepNotifBlock = () => ({ module: 'notifications', target: { sel: '#bt
 // ---- settings ----
 const tourStepAccountSettings = () => ({ module: 'account-settings', target: { page: 'account-settings' }, text: TEXT.TOUR_STEP_ACCOUNT_SETTINGS });
 const tourStepSettingsAccount = () => ({ module: 'account-settings', target: { sel: '.settings-row--avatar' }, text: TEXT.TOUR_STEP_SETTINGS_ACCOUNT });
-const tourStepSettingsTheme = () => ({ module: 'account-settings', target: { sel: '.theme-opt' }, text: TEXT.TOUR_STEP_SETTINGS_THEME });
+const tourStepSettingsTheme = () => ({ module: 'account-settings', target: { sel: '.theme-opt--on' }, text: TEXT.TOUR_STEP_SETTINGS_THEME }); // ZS-3: highlight the active theme option (default = system), not the first one
 const tourStepSettingsUiScale = () => ({ module: 'account-settings', target: { sel: '.ui-scale-slider' }, text: TEXT.TOUR_STEP_SETTINGS_UI_SCALE });
 const tourStepSettingsLogout = () => ({ module: 'account-settings', target: { sel: '.settings-logout' }, text: TEXT.TOUR_STEP_SETTINGS_LOGOUT });
 const tourStepSettingsLogoutModal = () => ({ module: 'account-settings', target: { closeModal: true }, text: TEXT.TOUR_STEP_SETTINGS_LOGOUT_MODAL });

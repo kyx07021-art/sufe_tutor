@@ -617,6 +617,28 @@ test('scroll architecture: far target scrolls in, in-band no scroll, edge-visibl
   skipTour();
 });
 
+test('ZS-3 visual viewport compensation: hole + bubble subtract visualViewport offset (iOS URL-bar class)', async (t) => {
+  // Chromium/jsdom offset is 0 (no-op); mock a 60px URL-bar offset to lock the compensation expression.
+  const { dom } = await setupClient(t, { guestRole: 'student' });
+  const doc = dom.window.document;
+  dom.window.visualViewport = { offsetLeft: 0, offsetTop: 60 };
+  const el = document.createElement('div');
+  el.id = 'vv-target';
+  el.getBoundingClientRect = () => ({ top: 300, left: 40, bottom: 380, right: 200, width: 160, height: 80 });
+  document.body.appendChild(el);
+  runTour([{ module: 'x', target: { sel: '#vv-target' }, text: 'VV' }]);
+  await waitFor(() => doc.querySelector('.tour-hole--show'));
+  const hole = doc.querySelector('.tour-hole');
+  assert.equal(hole.style.transform, 'translate(40px, 240px)',
+    'hole transform = rect - visualViewport.offsetTop (300-60) — G2 变异: 删补偿 → 300 红');
+  const pos = doc.querySelector('.tour-bubble-pos');
+  assert.ok(pos, 'bubble placed');
+  assert.equal(pos.style.transform, 'translate(216px, 240px)',
+    'bubble transform also subtracts the offset (x=40+160+gap16, y=300-60) — G2 变异: 删 bubble 补偿 → 300 红');
+  skipTour();
+  delete dom.window.visualViewport;
+});
+
 test('animation stabilization: running ancestor animation delays hole placement', async (t) => {
   const { dom } = await setupClient(t, { guestRole: 'student' });
   const doc = dom.window.document;

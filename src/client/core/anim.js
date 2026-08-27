@@ -4,6 +4,7 @@
  * float-card anchoring and global interaction listeners.
  */
 import { CONFIG } from '../../shared/config.js';
+import { visualViewportOffset } from './dom.js';
 
 let installed = false;
 let revealObserver = null;
@@ -86,6 +87,7 @@ export function positionCustomSelectPanel(wrap) {
   const vw = document.documentElement.clientWidth;
   const vh = document.documentElement.clientHeight;
   const m = CONFIG.CUSTOM_SELECT_EDGE_MARGIN;
+  const vo = visualViewportOffset(); // ZS-3: fixed panel anchored to the visual viewport on iOS-class browsers
   panel.style.width = `${r.width}px`;
   // ZG-1 (2026-08-26): the panel is visibility:hidden until .open, so offsetWidth/Height are real
   // laid-out sizes (not display:none) — measure them for the viewport edge clamps below.
@@ -96,12 +98,12 @@ export function positionCustomSelectPanel(wrap) {
   let left = r.left;
   if (left + pw > vw - m) left = Math.max(vw - pw - m, m);
   else if (left < m) left = m;
-  panel.style.left = `${left}px`;
+  panel.style.left = `${left - vo.x}px`;
   // Vertical: keep the option list fully visible — open downward by default, shift above the
   // trigger when the panel would run past the viewport bottom.
   const top = r.bottom + 6;
-  if (top + ph > vh - m) panel.style.top = `${Math.max(r.top - ph - 6, m)}px`;
-  else panel.style.top = `${top}px`;
+  if (top + ph > vh - m) panel.style.top = `${Math.max(r.top - ph - 6, m) - vo.y}px`;
+  else panel.style.top = `${top - vo.y}px`;
 }
 
 export function positionFloatCard(btn, card) {
@@ -110,10 +112,11 @@ export function positionFloatCard(btn, card) {
   const vw = document.documentElement.clientWidth;
   const w = card.offsetWidth;
   const m = CONFIG.MATCH_DETAIL_EDGE_MARGIN;
+  const vo = visualViewportOffset(); // ZS-3: fixed card anchored to the visual viewport on iOS-class browsers
   let left = r.left;
   if (w > 0 && vw > 0 && left + w > vw - m) left = Math.max(vw - w - m, m);
-  card.style.left = `${left}px`;
-  card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET}px`;
+  card.style.left = `${left - vo.x}px`;
+  card.style.top = `${r.bottom + CONFIG.MAX_MATCH_DETAIL_OFFSET - vo.y}px`;
 }
 
 // Regression fix (2026-08-20): the v1 entry-animation gate lived in the v1 shell's inline
