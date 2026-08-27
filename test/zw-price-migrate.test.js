@@ -35,12 +35,9 @@ test('ZW-2 迁移：price_max := price_min（区间行回填 + 恒等/NULL 行�
   assert.equal(r3.price_min, null); assert.equal(r3.price_max, null, 'NULL 行零触碰');
 });
 
-test('ZW-2 幂等：复跑零变更（变异：去 WHERE 守卫 → 恒等行被无谓 UPDATE → 红）', () => {
+test('ZW-2 幂等：复跑零变更（守卫承重面 = 测试 1 的 changes===1 与复跑 changes===0）', () => {
   const db = setup();
   db.prepare(MIGRATE_SQL).run();
   const again = db.prepare(MIGRATE_SQL).run();
   assert.equal(again.changes, 0, '复跑零变更（幂等）');
-  // 变异：还原 WHERE price_max != price_min → 恒等行(2)也被 UPDATE → changes=1 → 本断言红
-  const mutation = db.prepare('UPDATE teacher_profiles SET price_max = price_min WHERE price_max IS NOT NULL').run();
-  assert.notEqual(mutation.changes, 1, '变异：无守卫时恒等行被无谓 UPDATE（应 0 行命中）');
 });
