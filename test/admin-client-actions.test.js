@@ -576,16 +576,18 @@ test('U-3d rejectAwardModal：驳回弹窗含理由输入 + 必填 hint + 确认
 
 // ─────────────────────────────────────────────────────────────
 // Z-3-F1/U-3e：学信网核验队列——v1-parity 卡片（四态 tag + 验证码 + admission 预览 +
-// 结构化 approve 表单 / reject / revoke），危险操作走 needReAuth 二次认证。
+// 结构化 approve 表单 / reject / revoke），危险操作走普通 confirm + captcha（ZR-A3 验证休眠）。
+// ZR-A4a：表单删在读状态输入、院校/层次/入学年份预填平台默认值、留空可提交（服务端回落默认）。
 // G2：删 PENDING 表单/删 status tag/删 revoke 按钮必红。
 // ─────────────────────────────────────────────────────────────
 
-test('U-3e renderVerifCard pending：用户 + 验证码 + 待核验 tag + 结构化表单（5 输入 + approve/reject）', () => {
+test('U-3e renderVerifCard pending：用户 + 验证码 + 待核验 tag + 结构化表单（4 输入 + approve/reject，ZR-A4a 删在读状态）', () => {
   const html = renderVerifCard({ id: 80, username: '教师甲', user_id: 5, verify_type: 'chsi', verify_code: 'ABCD1234EFGH', status: 'pending', created_at: '2026-08-01 12:00:00', verified_at: null, school: '', level: '', major: '', enrollment_status: '', enroll_year: '', admission_image: '' });
   assert.ok(html.includes('教师甲'), '用户名');
   assert.ok(html.includes('ABCD1234EFGH'), '验证码明文（管理员核验用）');
   assert.ok(html.includes('待核验'), 'pending 状态 tag');
-  assert.ok(html.includes('verif-school-80') && html.includes('verif-level-80') && html.includes('verif-major-80') && html.includes('verif-status-80') && html.includes('verif-year-80'), '5 个结构化输入');
+  assert.ok(html.includes('verif-school-80') && html.includes('verif-level-80') && html.includes('verif-major-80') && html.includes('verif-year-80'), '4 个结构化输入');
+  assert.ok(!html.includes('verif-status-80'), '在读状态输入已删（ZR-A4a，服务端硬编码「在籍」）');
   assert.ok(html.includes('data-action="admin.verifApprove" data-id="80"'), 'approve 按钮委托');
   assert.ok(html.includes('data-action="admin.verifReject" data-id="80"'), 'reject 按钮委托');
   assert.ok(!html.includes('data-action="admin.verifRevoke"'), 'pending 无撤销按钮');
@@ -606,6 +608,16 @@ test('U-3e renderVerifCard admission：录取通知书 tag + 无验证码标记 
   assert.ok(html.includes('录取通知书'), 'admission tag');
   assert.ok(html.includes('录取通知书核验（无验证码）'), '无验证码标记');
   assert.ok(html.includes('data-action="admin.viewAdmissionImage" data-id="82"'), '原图预览按钮');
+});
+
+test('ZR-A4a renderVerifForm：院校/层次/入学年份预填三默认值 + 零在读状态输入（G2：删默认值/还原在读输入必红）', () => {
+  const html = renderVerifForm({ id: 90 });
+  assert.ok(/id="verif-school-90"[^>]*value="上海财经大学"/.test(html), '院校默认值预填');
+  assert.ok(/id="verif-level-90"[^>]*value="本科"/.test(html), '层次默认值预填');
+  assert.ok(/id="verif-year-90"[^>]*value="2026"/.test(html), '入学年份默认值预填');
+  assert.ok(!/id="verif-major-90"[^>]*value=/.test(html), '专业无默认值（管理员按报告填）');
+  assert.ok(!html.includes('verif-status-90'), '在读状态输入已删');
+  assert.equal((html.match(/class="form-input"/g) || []).length, 4, '恰 4 个输入');
 });
 
 test('U-3e loadAdminVerifications：带 status 参数请求 + 渲染 + 空态', async () => {
@@ -633,14 +645,63 @@ test('U-3e loadAdminVerifications 空列表：空态文案', async () => {
   teardown();
 });
 
-test('U-3e verifApprove 空 school/level：必填拦截零请求', async () => {
+// canvas 2d stub for the jsdom captcha leg (settings-state-sync.test.js 同款，W6 复用)
+function canvasStub() {
+  const o = {};
+  const mk = () => new Proxy(function () {}, {
+    get: (t, k) => (k in o ? o[k] : mk()),
+    set: (t, k, v) => { o[k] = v; return true; },
+    apply: () => mk(),
+  });
+  return mk();
+}
+
+test('ZR-A4a verifApprove 留空 school/level：无必填拦截（confirm 弹窗出现 + 零必填 toast + 确认前零请求）', async () => {
   const dom = setup();
   let apiCalls = 0;
   globalThis.fetch = async () => { apiCalls++; return { ok: true, status: 200, json: async () => ({}) }; };
-  verifApprove(84); // no school/level inputs -> required toast
+  verifApprove(84); // no school/level inputs -> ZR-A4a: required gate removed
   await new Promise(r => setTimeout(r, 20));
-  assert.equal(apiCalls, 0, '必填未填零请求');
-  assert.ok(document.getElementById('toast-container')?.textContent.includes('院校与层次为必填项'), '必填提示 toast');
+  assert.equal(apiCalls, 0, '确认前零请求');
+  assert.ok(!String(document.getElementById('toast-container')?.textContent || '').includes('院校与层次为必填项'), '无必填拦截 toast');
+  assert.ok(dom.window.document.querySelector('.modal'), 'confirm 弹窗正常出现（未被拦截）');
+  teardown();
+});
+
+test('ZR-A4a verifApprove 全链路留空提交：清空默认值后 confirm→captcha→请求发出，body 无 enrollment_status（fetch 捕获）', async () => {
+  const dom = setup();
+  dom.window.HTMLCanvasElement.prototype.getContext = canvasStub;
+  const realRandom = Math.random;
+  Math.random = () => 0; // captcha target 确定（16/240），指针拖到 17px 命中容差（settings-state-sync 同款）
+  let postedBody = null;
+  globalThis.fetch = async (url, opts = {}) => {
+    const u = String(url);
+    if (u.includes('/api/captcha/verify')) return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    if (u.includes('/api/admin/verifications/91/action') && opts.method === 'POST') { postedBody = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ ok: true }) }; }
+    return { ok: true, status: 200, json: async () => ({ verifications: [] }) };
+  };
+  // 管理员清空了预填默认值 → 四个输入全空串，留空提交
+  for (const part of ['school', 'level', 'major', 'year']) {
+    const inp = document.createElement('input'); inp.id = `verif-${part}-91`; inp.value = '';
+    document.body.appendChild(inp);
+  }
+  verifApprove(91);
+  const modal = dom.window.document.querySelector('.modal');
+  assert.ok(modal, 'confirm 弹窗出现');
+  modal.querySelector('[data-action="ui.runPendingConfirm"]').click();
+  await new Promise(r => setTimeout(r, 30));
+  const knob = dom.window.document.getElementById('captcha-knob');
+  assert.ok(knob, 'captcha 弹窗出现');
+  knob.setPointerCapture = () => {};
+  const pointer = (el, type, x) => el.dispatchEvent(new dom.window.PointerEvent(type, { bubbles: true, clientX: x, pointerId: 1 }));
+  pointer(knob, 'pointerdown', 0);
+  pointer(knob, 'pointermove', 17);
+  pointer(knob, 'pointerup', 17);
+  await new Promise(r => setTimeout(r, 400)); // captcha onPass 延迟 260ms + 写路径余量
+  assert.ok(postedBody, '提交请求发出');
+  assert.deepEqual(postedBody, { action: 'approve', school: '', level: '', major: '', enroll_year: '' }, '留空 body 原样下发（服务端回落默认）');
+  assert.ok(!('enrollment_status' in postedBody), 'body 无 enrollment_status 键（字段已删）');
+  Math.random = realRandom;
   teardown();
 });
 

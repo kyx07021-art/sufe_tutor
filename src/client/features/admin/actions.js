@@ -692,16 +692,17 @@ export function renderVerifCard(v) {
   </div>`;
 }
 
-// v1-parity structured approve form (5 fields; school+level required on submit).
+// Structured approve form. ZR-A4a (2026-08-27, user ⑤): 4 fields — enrollment_status removed
+// (server hardcodes it); school/level/enroll_year prefilled with the platform defaults (admin may
+// edit or clear them; blank submits fall back to the same server-side defaults).
 export function renderVerifForm(v) {
   return `<div class="verif-form">
     <p class="verif-form-hint">${escHtml(TEXT.ADMIN_VERIF_FORM_HINT)}</p>
     <div class="verif-grid">
-      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_SCHOOL_LABEL)}</label><input type="text" class="form-input" id="verif-school-${v.id}" maxlength="30" placeholder="${escHtml(TEXT.ADMIN_VERIF_SCHOOL_PLACEHOLDER)}"></div>
-      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_LEVEL_LABEL)}</label><input type="text" class="form-input" id="verif-level-${v.id}" maxlength="20" placeholder="${escHtml(TEXT.ADMIN_VERIF_LEVEL_PLACEHOLDER)}"></div>
+      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_SCHOOL_LABEL)}</label><input type="text" class="form-input" id="verif-school-${v.id}" maxlength="30" value="${escHtml(TEXT.ADMIN_VERIF_DEFAULT_SCHOOL)}" placeholder="${escHtml(TEXT.ADMIN_VERIF_SCHOOL_PLACEHOLDER)}"></div>
+      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_LEVEL_LABEL)}</label><input type="text" class="form-input" id="verif-level-${v.id}" maxlength="20" value="${escHtml(TEXT.ADMIN_VERIF_DEFAULT_LEVEL)}" placeholder="${escHtml(TEXT.ADMIN_VERIF_LEVEL_PLACEHOLDER)}"></div>
       <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_MAJOR_LABEL)}</label><input type="text" class="form-input" id="verif-major-${v.id}" maxlength="60" placeholder="${escHtml(TEXT.ADMIN_VERIF_MAJOR_PLACEHOLDER)}"></div>
-      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_STATUS_LABEL)}</label><input type="text" class="form-input" id="verif-status-${v.id}" maxlength="20" placeholder="${escHtml(TEXT.ADMIN_VERIF_STATUS_PLACEHOLDER)}"></div>
-      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_YEAR_LABEL)}</label><input type="text" class="form-input" id="verif-year-${v.id}" maxlength="10" placeholder="${escHtml(TEXT.ADMIN_VERIF_YEAR_PLACEHOLDER)}"></div>
+      <div class="form-group"><label class="form-label">${escHtml(TEXT.ADMIN_VERIF_YEAR_LABEL)}</label><input type="text" class="form-input" id="verif-year-${v.id}" maxlength="10" value="${escHtml(TEXT.ADMIN_VERIF_DEFAULT_YEAR)}" placeholder="${escHtml(TEXT.ADMIN_VERIF_YEAR_PLACEHOLDER)}"></div>
     </div>
     <div class="verif-actions">
       <button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.verifApprove" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_APPROVE_BTN)}</button>
@@ -712,13 +713,14 @@ export function renderVerifForm(v) {
 
 export function verifApprove(id) {
   const g = s => ((document.getElementById(s) || {}).value || '').trim();
+  // ZR-A4a (2026-08-27, user ⑤): enrollment_status no longer collected (server hardcodes it);
+  // school/level/enroll_year may be left blank — required gate removed, handleVerificationAction
+  // falls back to the platform defaults.
   const body = {
     action: 'approve',
     school: g(`verif-school-${id}`), level: g(`verif-level-${id}`),
-    major: g(`verif-major-${id}`), enrollment_status: g(`verif-status-${id}`),
-    enroll_year: g(`verif-year-${id}`),
+    major: g(`verif-major-${id}`), enroll_year: g(`verif-year-${id}`),
   };
-  if (!body.school || !body.level) { showToast(TEXT.ADMIN_VERIF_APPROVE_REQUIRED, 'error'); return; }
   // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
   confirm({ title: TEXT.ADMIN_VERIF_APPROVE_BTN, message: TEXT.ADMIN_VERIF_APPROVE_CONFIRM, onConfirm: () => {
     withCaptcha(() => performVerifAction(id, body));
