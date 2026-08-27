@@ -273,7 +273,7 @@ export async function loadAdminContent(type = '') {
 }
 
 export function renderAdminContentRow(it) {
-  const author = it.author && it.author.username ? escHtml(it.author.username) : escHtml(DEACTIVATED_USER_PREFIX);
+  const author = it.author && (it.author.displayName || it.author.username) ? escHtml(it.author.displayName || it.author.username) : escHtml(DEACTIVATED_USER_PREFIX); // ZR-B8-F4: teacher rows carry author.displayName = platform name (real_name||username); other types fall back to username
   const roleTag = it.author && it.author.role ? `<span class="tag glass glass--solid">${escHtml(roleLabel(it.author.role))}</span>` : '';
   // F4: rejected is a warn state too (a green 'approved-like' tag on rejected items was misleading)
   const warnStatus = it.status === STATUS.OPEN || it.status === STATUS.PENDING || it.status === STATUS.REJECTED;

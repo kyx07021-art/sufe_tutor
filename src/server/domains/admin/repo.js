@@ -6,6 +6,7 @@ import { safeJsonArray } from '../../core/json.js';
 import { LIMITS } from '../../../shared/config.js';
 import { MSG } from '../../../shared/codes.js'; // Q-2i-M5：内容审核 title 文案单源
 import { mapTeacherProfileRow } from '../teacher/repo.js'; // U-3a F2: single-source teacher row decrypt for admin search
+import { decryptField } from '../../core/crypto.js'; // ZR-B8-F4：内容审核 teacher 行 real_name 裸 SELECT 解密（不进 mapTeacherProfileRow）
 import { likeEscape } from '../posts/repo.js'; // U-3a F2: shared LIKE-escape (same single source as complaints search)
 
 // ============================================================
@@ -124,7 +125,7 @@ const CONTENT_SQL = {
     FROM posts p LEFT JOIN users u ON u.id=p.user_id ORDER BY p.id DESC LIMIT ?`,
   demand: `SELECT sd.id, sd.user_id, u.username, u.role, sd.status, sd.target_subjects, sd.address, sd.additional_info, sd.display_id, sd.created_at
     FROM student_demands sd LEFT JOIN users u ON u.id=sd.user_id ORDER BY sd.id DESC LIMIT ?`,
-  teacher: `SELECT tp.user_id, u.username, u.role, tp.intro, tp.address, tp.school, tp.verified, tp.updated_at
+  teacher: `SELECT tp.user_id, u.username, u.role, tp.intro, tp.address, tp.school, tp.verified, tp.updated_at, tp.real_name
     FROM teacher_profiles tp LEFT JOIN users u ON u.id=tp.user_id ORDER BY tp.updated_at DESC LIMIT ?`,
   review: `SELECT r.id, r.reviewer_user_id, u.username, u.role, r.rating, r.comment, r.status, r.created_at
     FROM reviews r LEFT JOIN users u ON u.id=r.reviewer_user_id ORDER BY r.id DESC LIMIT ?`,
@@ -151,7 +152,7 @@ const tpl = (t, vars) => t.replace(/\{(\w+)\}/g, (m, k) => (vars && vars[k] != n
 const CONTENT_MAPPER = {
   post: r => ({ type: 'post', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title, body: r.body_md, status: '', created_at: r.created_at, extra: { section: r.section, like_count: r.like_count } }),
   demand: r => ({ type: 'demand', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_DEMAND, { id: r.display_id || r.id }), body: [safeJsonArray(r.target_subjects).join('、'), r.address, r.additional_info].filter(Boolean).join(' · '), status: r.status, created_at: r.created_at, extra: {} }),
-  teacher: r => ({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_TEACHER, { name: r.username || '' }), body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} }),
+  teacher: r => ({ type: 'teacher', id: r.user_id, author: { id: r.user_id, username: r.username, displayName: r.real_name || r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_TEACHER, { name: r.real_name || r.username || '' }), body: [r.intro, r.address, r.school].filter(Boolean).join(' · '), status: r.verified ? 'verified' : '', created_at: r.updated_at, extra: {} }),
   review: r => ({ type: 'review', id: r.id, author: { id: r.reviewer_user_id, username: r.username, role: r.role }, title: tpl(MSG.CONTENT_TITLE_REVIEW, { rating: r.rating }), body: r.comment, status: r.status, created_at: r.created_at, extra: {} }),
   message: r => ({ type: 'message', id: r.id, author: { id: r.sender_user_id, username: r.username, role: r.role }, title: r.kind === 'text' ? MSG.CONTENT_TITLE_MESSAGE_TEXT : tpl(MSG.CONTENT_TITLE_MESSAGE_ATTACH, { kind: r.kind, name: r.name ? ' · ' + r.name : '' }), body: r.body, status: '', created_at: r.created_at, extra: { conversation_id: r.conversation_id, kind: r.kind } }),
   feedback: r => ({ type: 'feedback', id: r.id, author: { id: r.user_id, username: r.username, role: r.role }, title: r.title || tpl(MSG.CONTENT_TITLE_FEEDBACK, { kind: r.kind }), body: r.content, status: r.status, created_at: r.created_at, extra: { kind: r.kind } }),
@@ -177,7 +178,15 @@ export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUB
     // 真实 D1 空数组 batch 会抛错，空清单必须提前 return（mock shim 同行为回归拦截）
   const results = await db.batch(types.map(t => db.prepare(CONTENT_SQL[t]).bind(limit)));
   const out = [];
-  results.forEach((r, i) => mapContentRows(types[i], (r && r.results) || [], out));
+  // ZR-B8-F4：内容审核 teacher 行是裸 SELECT 不走 mapTeacherProfileRow——real_name 密文在此逐行解密
+  // （decryptField-with-fallback：B6 前密文显示真实名，B6 后明文原样放行）；其余类型零影响。
+  for (let i = 0; i < types.length; i++) {
+    const rows = (results[i] && results[i].results) || [];
+    if (types[i] === 'teacher') {
+      for (const row of rows) row.real_name = await decryptField(row.real_name);
+    }
+    mapContentRows(types[i], rows, out);
+  }
   return out;
 }
 

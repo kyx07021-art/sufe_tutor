@@ -57,6 +57,10 @@ async function seed() {
     .run(t1, await encryptField('ABCD1234EFGH'), 'pending', 'admission', await encryptField(bigImg));
   raw.prepare('INSERT INTO teacher_verifications (user_id, verify_code, status, verify_type) VALUES (?,?,?,?)')
     .run(t2, await encryptField('WXYZ9876ABCD'), 'approved', 'chsi');
+  // ZR-B8-F2 补漏 G2 锁：teacher_profiles 行（明文 + 密文两态）——核验列表 real_name 解密下发
+  // （变异：还原 LEFT JOIN tp / 还原 mapper decryptField → 断言必红）
+  raw.prepare('INSERT INTO teacher_profiles (user_id, real_name) VALUES (?,?)').run(t1, '王老师');
+  raw.prepare('INSERT INTO teacher_profiles (user_id, real_name) VALUES (?,?)').run(t2, await encryptField('李老师'));
   // ZZ-1：单点端点 :id = 核验记录 id（自增 1/2），非用户 id（t1=2/t2=3 实证）
   const ver1 = raw.prepare('SELECT id FROM teacher_verifications WHERE user_id=?').get(t1).id;
   const ver2 = raw.prepare('SELECT id FROM teacher_verifications WHERE user_id=?').get(t2).id;
@@ -77,6 +81,14 @@ test('ZZ-1 列表元数据化：零 admission_image 键 + verify_code 解密在�
     assert.ok(r.verify_code && !String(r.verify_code).startsWith('enc:v1:'), 'verify_code 解密在场（管理员核验需明文）');
     assert.ok('username' in r && 'status' in r && 'verify_type' in r, '元数据字段完整');
   }
+});
+
+test('ZR-B8-F2 核验列表 real_name：LEFT JOIN 下发 + 密文解密（变异：还原 JOIN/还原解密 → 红）', async () => {
+  const { db } = await seed();
+  const rows = await dbListTeacherVerifications(db, 'all');
+  const names = rows.map(r => r.real_name).sort();
+  assert.ok(names.includes('王老师'), '明文 real_name 原样下发');
+  assert.ok(names.includes('李老师'), '密文 real_name 经 decryptField 解密为明文');
 });
 
 test('ZZ-1 单点取图：按 id 返回解密 admission_image（点开再加载）', async () => {

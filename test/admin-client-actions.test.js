@@ -272,6 +272,12 @@ test('U-3a renderAdminUserRow 教师行：年级/评分/报价 meta + 认证徽�
   assert.ok(html.includes('data-action="admin.banUser"'), '封禁按钮');
 });
 
+test('ZR-B8 教师行 real_name：平台内名称优先显示（变异：还原 u.username → 红）', () => {
+  const html = renderAdminUserRow({ user_id: 42, username: '教师丙', real_name: '王老师', role: 'teacher', verified: 0, banned: 0, created_at: '2026-08-01 12:00:00', credential_image: 'data:image/png;base64,xxx' }, 'teacher');
+  assert.ok(html.includes('王老师'), '显示平台内名称');
+  assert.ok(!html.includes('教师丙'), '不显示用户名');
+});
+
 test('U-3a renderAdminUserRow 教师未认证：认证按钮（data-action=admin.verifyTeacher）', () => {
   const html = renderAdminUserRow({ user_id: 41, username: '待认证', role: 'teacher', verified: 0, banned: 0, created_at: '2026-08-01 12:00:00', credential_image: 'data:image/png;base64,xxx' }, 'teacher');
   assert.ok(html.includes('data-action="admin.verifyTeacher" data-id="41"'), '认证按钮');

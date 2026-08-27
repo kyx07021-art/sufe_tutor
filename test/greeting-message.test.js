@@ -264,10 +264,15 @@ test('推送浮窗：含打招呼 textarea（maxlength 同源）+ 提交携带 m
     return { ok: true, status: 200, json: async () => ({}) };
   };
   state.user = { id: 40, username: '学生A', role: 'student' };
-  state.allTeachers = [{ user_id: 38, username: 'kkkk' }];
+  // ZR-B8-F3 G2 锁：allTeachers 带 real_name（平台内名称）——push 弹窗标题显示 real_name
+  // （变异：还原 t.real_name||t.username → t.username → 标题 'kkkk' 断言红）
+  state.allTeachers = [{ user_id: 38, username: 'kkkk', real_name: '王老师' }];
   state.myDemands = [];
 
   await openSendDemandModal(38);
+  const modalContainer = document.querySelector('#modal-container');
+  assert.ok(modalContainer.innerHTML.includes('王老师'), 'push 弹窗标题显示平台内名称（real_name 优先）');
+  assert.ok(!modalContainer.innerHTML.includes('kkkk'), 'push 弹窗标题不显示用户名');
   const modalBody = document.querySelector('#modal-container .modal-body').innerHTML;
   assert.ok(modalBody.includes('push-greet'), '含打招呼 textarea');
   assert.ok(modalBody.includes('maxlength="300"'), 'maxlength 与服务端 GREETING_MSG_MAX 同源');
