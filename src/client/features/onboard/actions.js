@@ -66,6 +66,11 @@ export function openUsageGuide() {
       </div>`).join('');
   openModal({
     title: TEXT.USAGE_GUIDE_TITLE,
+    // ZT-F3 (2026-08-27, ZT re-audit FAIL1): noClose — same physical-overlap trap as the onboarding
+    // modal: on short viewports the modal-header x (top-right, width:100%) lands inside the
+    // stage-nav-actions band (z-300, pointer-events:auto) and becomes a visible-but-dead button.
+    // Closes via overlay click + the footer confirm (same as openOnboarding).
+    noClose: true,
     cls: 'modal--wide',
     body: `<div class="usage-guide">${sections}</div>`,
     footer: `<button type="button" class="btn glass glass--pressable" data-action="onboard.close">${escHtml(TEXT.ONBOARD_CONFIRM)}</button>`,

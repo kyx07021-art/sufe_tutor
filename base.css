@@ -43,7 +43,8 @@ body:has(#view-landing:not(.hidden)) .navbar { display: none; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 18px clamp(20px, 4vw, 40px);
 }
-.stage-nav-actions, .navbar-brand { pointer-events: auto; } /* ZT-1: login/register buttons + brand stay clickable above the overlay */
+.stage-nav-actions { display: flex; align-items: center; gap: 12px; pointer-events: auto; } /* ZT-1: login/register stay clickable above the overlay (ZT-F2 re-audit FAIL3: the original flex rule was replaced, not extended — buttons stacked vertically on mobile) */
+.navbar-brand { pointer-events: auto; } /* ZT-1: brand stays clickable (go home) above the overlay */
 /* 内层客户端：顶栏退场，侧边栏顶天立地（移动端恢复顶栏供汉堡开合抽屉） */
 body:has(#view-client:not(.hidden)) .navbar { display: none; }
 .navbar .container { display: flex; align-items: center; justify-content: space-between; min-height: 36px; }
