@@ -203,7 +203,7 @@ export function renderTeacherProfileForm(profile) {
 
     <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_ACADEMIC}</h3>
     <div class="form-group">
-      <label class="form-label">${TEXT.LABEL_SUBJECT} <span class="req">*</span>${TEXT.LABEL_MULTI_SUFFIX}</label>
+      <label class="form-label">${TEXT.LABEL_SUBJECTS} <span class="req">*</span>${TEXT.LABEL_MULTI_SUFFIX}</label>
       <div class="checkbox-grid" id="tp-subjects">${checkboxItemsHtml(subjOptions, p.subjects)}</div>
     </div>
     <div class="form-group">

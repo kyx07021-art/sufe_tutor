@@ -318,6 +318,7 @@ export const TEXT = {
   "LABEL_PRICE": "报价",
   "LABEL_INTRO": "简介",
   "LABEL_SUBJECT": "科目",
+  "LABEL_SUBJECTS": "擅长科目", // 教师资料页科目区块（用户 2026-08-27：title 语义要清晰）；LABEL_SUBJECT 保留给需求筛选等「科目」语境
   "DEMAND_SORT_MATCH": "匹配度最高",
   "DEMAND_SORT_NEWEST": "最新发布",
   "DEMAND_SORT_BUDGET": "预算从低到高",
