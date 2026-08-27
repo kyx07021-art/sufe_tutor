@@ -654,7 +654,8 @@ export async function performAwardAction(id, action, { note = '' } = {}) {
 // U-3e: verification review queue — v1-parity card (user + verify_type tag + status tag +
 // verify code + meta + admission preview + structured approve form / reject / revoke). All
 // ops wrapped in plain confirm + captcha (ZR-A3: admin re-auth dormant).
-let _verifListCache = []; // admission-image lookup for viewAdmissionImage (v1 parity: closure, not window)
+let _verifListCache = []; // v1 parity closure (not window)
+let _verifImageCache = new Map(); // ZZ-1/2: on-demand admission images, cached after first load (用户③「点开一个图片再加载并留存一个大图」)
 
 export async function loadAdminVerifications(status) {
   const el = document.getElementById('admin-verifications-list');
@@ -685,7 +686,7 @@ export function renderVerifCard(v) {
       <span class="verif-code">${v.verify_type === VERIFY_TYPES.ADMISSION ? escHtml(TEXT.ADMIN_VERIF_ADMISSION_NO_CODE) : escHtml(v.verify_code)}</span>
     </div>
     <div class="verif-meta">${fmtDateTime(v.created_at)}${v.verified_at ? ' · ' + fmtDateTime(v.verified_at) : ''}</div>
-    ${v.verify_type === VERIFY_TYPES.ADMISSION && v.admission_image ? `<div class="verif-admission-preview"><button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewAdmissionImage" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_VIEW_IMG)}</button></div>` : ''}
+    ${v.verify_type === VERIFY_TYPES.ADMISSION ? `<div class="verif-admission-preview"><button type="button" class="btn btn-soft btn-xs glass glass--pressable" data-action="admin.viewAdmissionImage" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_ADMISSION_VIEW_IMG)}</button></div>` : ''}
     ${v.status === STATUS.APPROVED ? `<div class="verif-result">${escHtml([v.school, v.level, v.major, v.enrollment_status, v.enroll_year].filter(Boolean).join(' · '))}</div>
       <div class="verif-actions"><button type="button" class="btn btn-soft btn-sm glass glass--pressable" data-action="admin.verifRevoke" data-id="${v.id}">${escHtml(TEXT.ADMIN_VERIF_REVOKE_BTN)}</button></div>` : ''}
     ${v.status === STATUS.PENDING ? renderVerifForm(v) : ''}
@@ -758,12 +759,15 @@ export async function performVerifAction(id, body) {
   } catch (err) { showToast(err.message); }
 }
 
-export function viewAdmissionImage(id) {
-  const v = _verifListCache.find(x => x.id === id);
-  if (!v) { showToast(TEXT.ADMIN_VERIF_NOT_FOUND, 'error'); return; }
-  // ZK: the admission image opens in the full-screen lightbox; the old footer-close modal is replaced.
-  if (v.admission_image) openImageViewer(v.admission_image);
-  else showToast(TEXT.ADMIN_VERIF_EMPTY, 'error');
+export async function viewAdmissionImage(id) {
+  // ZZ-1/2（用户③）：列表零图片，点开单点取图并留存缓存（Map 命中直接开 lightbox）。
+  try {
+    const hit = _verifImageCache.get(id);
+    const src = hit !== undefined ? hit : (await api(`/api/admin/verifications/${id}/image`)).admission_image || '';
+    if (!src) { showToast(TEXT.ADMIN_VERIF_EMPTY, 'error'); return; }
+    _verifImageCache.set(id, src);
+    openImageViewer(src); // ZK: full-screen lightbox (old footer-close modal replaced)
+  } catch (err) { showToast(err.message || TEXT.ADMIN_VERIF_NOT_FOUND); }
 }
 
 // U-3a rework (audit F1): verify/unverify wrapped in confirm + withCaptcha, aligned with the

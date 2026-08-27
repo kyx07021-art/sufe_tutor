@@ -71,7 +71,7 @@ async function call(method, path, body = null, token = null) {
 
 test('路由表：104 条、method+path 唯一、关键路径字面量齐全', () => {
   // ZD-1（2026-08-26 休眠）：contract 域 12 路由停用（/api/contracts 7 + admin 2 + signing + bindable + respond）→ 116-12=104。
-  assert.equal(routes.length, 104, 'ZD-1 休眠后路由数 104（116-12 contract 域）');
+  assert.equal(routes.length, 105, 'ZZ-1 新增 GET /api/admin/verifications/:id/image 后路由数 105（104+1 单点取图）');
   const keys = new Set(routes.map(r => `${r.method} ${r.path}`));
   assert.equal(keys.size, routes.length, 'method+path 唯一');
   const required = [

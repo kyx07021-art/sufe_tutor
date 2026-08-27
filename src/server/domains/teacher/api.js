@@ -330,6 +330,17 @@ export async function handleListVerifications(db, url, req) {
   return json({ verifications: list });
 }
 
+// ZZ-1（2026-08-27，用户③）：单点取图——核验列表不再加载全量录取通知图（连缩略图也不加载），
+// 点开某张图才按 id 拉取该图并留存。管理端核验用途，requireAdmin 门禁同列表。
+export async function handleGetVerificationImage(db, id, req) {
+  const { err } = await requireAdmin(db, req);
+  if (err) return err;
+  const v = await dbGetTeacherVerificationById(db, id);
+  if (!v) return errorMsg('USER_NOT_FOUND', 404);
+  const admissionImage = v.admission_image ? await decryptField(v.admission_image) : '';
+  return json({ admission_image: admissionImage });
+}
+
 // POST /api/admin/verifications/:id/action { action:'approve'|'reject'|'revoke', school, level, major, enrollment_status, enroll_year, reason }
 // approve：结构化录入学信网字段 + 自动填入教师档案 + 通知教师；reject：通知教师
 export async function handleVerificationAction(db, id, body, req) {
@@ -403,5 +414,6 @@ export const routes = [
   S('GET', '/api/teachers', c => handleGetTeachers(c.db, c.req)),
   S('POST', '/api/admin/teachers/:id/verify', c => handleVerifyTeacher(c.db, parseIdParam(c.params.id), c.body, c.req)),
   S('GET', '/api/admin/verifications', c => handleListVerifications(c.db, c.url, c.req)),
+  S('GET', '/api/admin/verifications/:id/image', c => handleGetVerificationImage(c.db, parseIdParam(c.params.id), c.req)),
   S('POST', '/api/admin/verifications/:id/action', c => handleVerificationAction(c.db, parseIdParam(c.params.id), c.body, c.req)),
 ];
