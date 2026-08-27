@@ -3,6 +3,7 @@
  */
 import { dbAll, dbGet, dbRun } from '../../core/util.js';
 import { mapDemandRow } from '../demand/repo.js';
+import { decryptField } from '../../core/crypto.js';
 import { LIMITS } from '../../../shared/config.js';
 import { STATUS } from '../../../shared/enums.js';
 
@@ -52,13 +53,17 @@ export async function dbDeleteConversation(db, conversationId) {
 // 会话行 + 双方用户名（合同模块的通知文案 / 对方判定 helper 共用；student_name/teacher_name 随行附带）
 // ZR-B3：teacher_name 接平台内名称——优先教师档案 real_name（明文公开列），空/无档案回落 username；
 // student_name 不动。LEFT JOIN teacher_profiles（user_id UNIQUE，至多一行不重复）。
+// ZR-B7：teacher_name 读路径走 decryptField-with-fallback——B6 回填前存量 real_name 仍是 enc:v1: 密文，
+// 会话名不能把密文串当名称显示（decryptField 对明文原样放行、密文解密）。
 export async function dbGetConversationWithNames(db, conversationId) {
-  return await dbGet(db, `SELECT c.*, us.username AS student_name, COALESCE(NULLIF(tp.real_name, ''), ut.username) AS teacher_name
+  const row = await dbGet(db, `SELECT c.*, us.username AS student_name, COALESCE(NULLIF(tp.real_name, ''), ut.username) AS teacher_name
     FROM conversations c
     JOIN users us ON us.id = c.student_user_id
     JOIN users ut ON ut.id = c.teacher_user_id
     LEFT JOIN teacher_profiles tp ON tp.user_id = ut.id
     WHERE c.id = ?`, [conversationId]);
+  if (row?.teacher_name) row.teacher_name = await decryptField(row.teacher_name);
+  return row;
 }
 
 // 会话可绑定需求下拉单源（需求四·第2/3条：发起签约 / 起草合同共用）：
@@ -88,13 +93,14 @@ export async function dbGetConversationBindableDemands(db, conversationId, phase
 
 // 我参与的会话列表（含对方用户名 + 最后一条消息预览 + 签约状态）
 // ZR-B3：teacher_name = 教师平台内名称（档案 real_name 优先，空/无档案回落 username）；student_name 不动。
+// ZR-B7：teacher_name 逐行 decryptField-with-fallback（存量密文兼容，见 dbGetConversationWithNames）。
 export async function dbGetMyConversations(db, userId) {
   // unread_count：对方发的、id 大于「我这一侧已读游标」的消息数（游标按我在会话中的角色取列）
   // contracted 字段连根拔——原仅供「签约确认后背景灰字提示」（.chat-sign-tip）判定，
   // 提示已并入签约请求气泡底下（status='signed' 模板渲染），会话列表字段无消费者后删除。
   // 显式列集（不用 c.*）：双方已读游标（student_last_read_id/teacher_last_read_id）不下发，
   // 避免向对方暴露己方已读位置（低敏信息泄露面收口）
-  return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.demand_id, c.status, c.created_at,
+  const rows = await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.demand_id, c.status, c.created_at,
       us.username AS student_name, COALESCE(NULLIF(tp.real_name, ''), ut.username) AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
@@ -116,6 +122,8 @@ export async function dbGetMyConversations(db, userId) {
     ) lm ON lm.conversation_id=c.id
     WHERE c.student_user_id=? OR c.teacher_user_id=?
     ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId, userId, userId]);
+  await Promise.all(rows.filter(r => r.teacher_name).map(r => decryptField(r.teacher_name).then(v => { r.teacher_name = v; })));
+  return rows;
 }
 
 // AI-7：统一关系清单——按双方元组聚合（会话 + 最后消息 + 最新 signing_contracts 状态），供连线图/关系管理。
@@ -123,8 +131,9 @@ export async function dbGetMyConversations(db, userId) {
 // （signing_contracts conversation_id 可能为 NULL——AI-4b 兜底 INSERT 行，故按元组聚合与 AI-1 级联口径一致）。
 // 显式列集（不用 c.*）：已读游标（student_last_read_id/teacher_last_read_id）不下发（同 dbGetMyConversations 低敏泄露收口）。
 // ZR-B3：teacher_name = 教师平台内名称（档案 real_name 优先，空/无档案回落 username）；student_name 不动。
+// ZR-B7：teacher_name 逐行 decryptField-with-fallback（存量密文兼容）。
 export async function dbGetMyRelations(db, userId) {
-  return await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.status, c.created_at,
+  const rows = await dbAll(db, `SELECT c.id, c.student_user_id, c.teacher_user_id, c.status, c.created_at,
       us.username AS student_name, COALESCE(NULLIF(tp.real_name, ''), ut.username) AS teacher_name,
       us.avatar AS student_avatar, ut.avatar AS teacher_avatar,
       CASE WHEN lm.kind IN ('image','file') THEN '' ELSE lm.body END AS last_body,
@@ -148,6 +157,8 @@ export async function dbGetMyRelations(db, userId) {
       WHERE sc2.student_user_id=c.student_user_id AND sc2.teacher_user_id=c.teacher_user_id)
     WHERE c.student_user_id=? OR c.teacher_user_id=?
     ORDER BY COALESCE(lm.created_at, c.created_at) DESC`, [userId, userId, userId, userId]);
+  await Promise.all(rows.filter(r => r.teacher_name).map(r => decryptField(r.teacher_name).then(v => { r.teacher_name = v; })));
+  return rows;
 }
 
 // 标记已读：把我在该会话的已读游标推到最新一条消息（按角色更新对应列）

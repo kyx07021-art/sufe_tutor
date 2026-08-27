@@ -76,18 +76,23 @@ export async function dbUpsertTeacherProfile(db, userId, profile) {
 // 网安报告 F-06：wechat/email 是加密列，出门即解密（调用方均为 async，Promise.all 收敛）
 // 网安 N-05：credential_image 同款加密列，出门解密
 // ZR-B1（用户①裁决）：real_name（平台内名称）= 明文公开列，直读不走解密、任何模式不裁剪
+// ZR-B7（2026-08-27）：存量密文兼容——B6 回填执行前，生产早期 real_name 仍是 enc:v1: 密文
+// （已核验教师 85/98/133 等），读路径对 real_name 走 decryptField（decryptField 对明文原样放行、
+// 对 enc:v1: 密文用 FIELD_ENC_KEY 解密）——B6 迁移前广场/详情/会话名即显示真实平台内名称而非密文串。
 // 数据最小化：private:false 时 wechat/email/credential_image 不解密、置空——广场列表非匹配行
 // （viewerId 缺省或未匹配）一律裁剪，服务端硬把关（前端仅按 matched 门控显示，但数据此前已随列表发给所有人）
 export async function mapTeacherProfileRow(p, { private: includePrivate = true } = {}) {
-  const [wechat, email, credentialImage] = includePrivate
+  const [wechat, email, credentialImage, realName] = includePrivate
     ? await Promise.all([
         decryptField(p.wechat), decryptField(p.email), decryptField(p.credential_image),
+        // ZR-B7：real_name 是公开列——所有模式均须解密（明文放行/密文解密），不受 private 门控影响
+        decryptField(p.real_name),
       ])
-    : ['', '', ''];
+    : ['', '', '', await decryptField(p.real_name)];
   return {
     id: p.id, user_id: p.user_id, username: p.username,
     province: p.province || '', grade: p.grade, gender: p.gender, intro: p.intro || '', address: p.address || '',
-    school: p.school || '', real_name: p.real_name || '', credential_image: credentialImage || '',
+    school: p.school || '', real_name: realName || '', credential_image: credentialImage || '',
     verified: p.verified ? true : false, // 学籍认证（管理员审核通过）
     award_count: p.award_count != null ? Number(p.award_count) : 0, // 已审核荣誉奖项数（公开）
     subjects: safeJsonArray(p.subjects),
