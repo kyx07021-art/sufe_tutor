@@ -342,12 +342,13 @@ export async function handleVerificationAction(db, id, body, req) {
   if (action === 'reject' && v.status !== 'pending') return errorMsg('INVALID_ACTION', 409);
   if (action === 'revoke' && v.status !== 'approved') return errorMsg('INVALID_ACTION', 409);
   if (action === 'approve') {
-    const school = String(body.school || '').trim().slice(0, LIMITS.SCHOOL_MAX);
-    const level = String(body.level || '').trim().slice(0, 20);
+    // ZR-A4b（2026-08-27，用户⑤）：核验表单院校/层次/入学年份允许留空——缺失回落默认值
+    // （上海财经大学/本科/2026，加快审核进度）；在读状态字段删除，默认填写「在籍」（来验证的没人不是在籍）。
+    const school = (String(body.school || '').trim() || '上海财经大学').slice(0, LIMITS.SCHOOL_MAX);
+    const level = (String(body.level || '').trim() || '本科').slice(0, 20);
     const major = String(body.major || '').trim().slice(0, 60);
-    const enrollmentStatus = String(body.enrollment_status || '').trim().slice(0, 20);
-    const enrollYear = String(body.enroll_year || '').trim().slice(0, 10);
-    if (!school || !level) return errorMsg('INVALID_PARAMS', 400); // 院校/层次必填（结构化输入）
+    const enrollmentStatus = '在籍';
+    const enrollYear = (String(body.enroll_year || '').trim() || '2026').slice(0, 10);
     const now = new Date().toISOString();
     // Q-2c-F1（回滚重做，审计 FINDING 修正）：approve/reject/revoke 三处透传链 admission_image
     // 必须先 decryptField 再交 repo（repo 会再 encryptField）——透传库中密文 enc1 会二次加密 enc2，

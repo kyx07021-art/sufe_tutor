@@ -272,3 +272,24 @@ test('ZR-A3 守护：handleVerificationAction 无 capToken 直调放行（admin 
   assert.equal(r.status, 200, '无 capToken 直调放行');
   assert.equal((await dbGetTeacherVerification(db, tid)).status, 'approved', '状态推进 approved');
 });
+
+// ZR-A4b（2026-08-27，用户⑤）：核验表单院校/层次/入学年份允许留空——缺失回落默认值
+// （上海财经大学/本科/2026）；在读状态字段删除，默认「在籍」。
+// 变异：还原必填校验（!school || !level → 400）或删除默认值回落 → 本测试红。
+test('ZR-A4b 守护：approve 留空院校/层次/入学年份 → 回落默认值 + 在读状态恒「在籍」', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const token = await regTeacher(db, raw, 't_default', '+8613900000107');
+  const adminToken = await adminTokenOf(db);
+  await handleVerifyChsi(db, { code: 'ABCD1234EFGH' }, reqOf(token));
+  const tid = raw.prepare("SELECT id FROM users WHERE username='t_default'").get().id;
+  const v = await dbGetTeacherVerification(db, tid);
+  // 全留空提交（管理员加快进度的真实路径）
+  const r = await handleVerificationAction(db, v.id, { action: 'approve' }, reqOf(adminToken));
+  assert.equal(r.status, 200, '留空可提交（原必填拦截已移除）');
+  const row = await dbGetTeacherVerification(db, tid);
+  assert.equal(row.school, '上海财经大学', '院校回落默认');
+  assert.equal(row.level, '本科', '层次回落默认');
+  assert.equal(row.enroll_year, '2026', '入学年份回落默认');
+  assert.equal(row.enrollment_status, '在籍', '在读状态默认在籍');
+});
