@@ -1,5 +1,5 @@
 /** 跨栈数值/服务端非文案常量唯一源（V-1-1）。零依赖，纯数据。 */
-export const APP_VERSION = '2.1.8';   // v2.1.8（2026-08-27，P15 攒批）：D2 关闭 DeepSeek L2 语义审核（TEXT_AUDIT.ENABLED=false，L1 门牌红线保留）+ 修改用户名流程修复（前端写路径报错反馈，杜绝循环弹窗）；v2.1.7：ZV 邀请码门控休眠 + ZW 报价单值化 + ZX 简介 500 上限 + ZR-B8 平台内名称 + 擅长科目标题 + /docs 404 守卫
+export const APP_VERSION = '2.1.9';   // v2.1.9（2026-08-27，P15 攒批）：ZP 匹配度科目维度修复（需求指定科目即激活，教师未填对应类别计 0 分计入分母——非学科需求不再虚高 100%）；v2.1.8：D2 关闭 DeepSeek L2 语义审核（TEXT_AUDIT.ENABLED=false，L1 门牌红线保留）+ 修改用户名流程修复；v2.1.7：ZV 邀请码门控休眠 + ZW 报价单值化 + ZX 简介 500 上限 + ZR-B8 平台内名称 + 擅长科目标题 + /docs 404 守卫
 export const CONFIG = {
 TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过期判定；服务端签发同值共享 config SECURITY.TOKEN_TTL_MS）
     BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）
