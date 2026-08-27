@@ -36,6 +36,11 @@
   }
   .sidebar-expand-toggle .expand-caret { transform: rotate(-90deg); transition: transform .32s var(--ease-snap); } /* 指右：点击展开 */
   body.sidebar-open .sidebar-expand-toggle .expand-caret { transform: rotate(90deg); }                          /* 指左：点击收起 */
+  /* ZU (2026-08-27): 移动端首访提示——侧栏从未打开过时，展开箭头品牌紫呼吸式淡入淡出（3s 循环）。
+     JS 首开时移除 .sidebar-hint + 写标记，动效即停；桌面按钮 display:none 零影响。 */
+  .sidebar-expand-toggle.sidebar-hint { color: var(--brand); animation: zu-breathe 3s ease-in-out infinite; }
+  @keyframes zu-breathe { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .sidebar-expand-toggle.sidebar-hint { animation: none; } }
   .client-sidebar {
     position: absolute; top: 0; bottom: 0; left: 0; z-index: 150;
     width: 64px; padding-top: 48px; /* 给顶部箭头让位 */

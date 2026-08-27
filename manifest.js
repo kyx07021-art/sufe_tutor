@@ -14,7 +14,7 @@ export const ASSET_MANIFEST = {
     "features/notif.css": "features/notif.3302a503.css",
     "features/chart.css": "features/chart.d5150017.css",
     "features/demand.css": "features/demand.42d7da97.css",
-    "responsive.css": "responsive.bcf6c2bf.css",
+    "responsive.css": "responsive.bd0b28e8.css",
     "features/chat.css": "features/chat.bef203f9.css",
     "features/posts.css": "features/posts.40f7400d.css",
     "features/region.css": "features/region.e5577254.css",

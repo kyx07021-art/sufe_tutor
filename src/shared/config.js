@@ -79,6 +79,7 @@ TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过
     ORB_KEY: 'sufe_orb',                  // 需求八·item3：背景光球偏好 localStorage 键（vivid/elegant/hidden）
     NOTIF_BLOCK_KEY: 'sufe_block_broadcast', // 屏蔽系统通知偏好 localStorage 键
     DEVICE_ID_KEY: 'sufe_device_id',      // 设备标识 localStorage 键
+    SIDEBAR_OPENED_KEY: 'sufe_sidebar_opened', // ZU (2026-08-27): 侧栏首次打开标记 localStorage 键（移动端「没发现侧栏可开」呼吸提示用）
     CONTRACT_SIGN_READ_SECONDS: 30,       // 签约加固：合同确认前须滚动到底 + 待够此时长（秒）
     CONTRACT_SIGN_SCROLL_EPS: 2,          // 签约加固：判定「滚到底」的底部容差 px（无溢出短合同视同已到底）
 };
