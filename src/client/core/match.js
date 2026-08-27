@@ -39,7 +39,9 @@ export function matchDims(t, d) {
     : (Array.isArray(t.subjects) ? t.subjects : []);
   const dSubj = Array.isArray(d.target_subjects) ? d.target_subjects : [];
   const hit = dSubj.filter(s => tSubj.includes(s)).length;
-  const subjOn = tSubj.length > 0 && dSubj.length > 0;
+  // ZP-1: 需求指定科目即维度激活——教师未填对应类别（tSubj 空）或无重合计 0 分计入分母，
+  // 而非跳过维度（旧语义导致非学科需求 + 教师未填 nonacademic 时 subject 不计分 → 虚高 100%）
+  const subjOn = dSubj.length > 0;
   const subjScore = subjOn ? hit / dSubj.length * W.subject : null;
 
   const prefTags = Array.isArray(d.preferred_personality_tags) ? d.preferred_personality_tags : [];
@@ -81,7 +83,9 @@ export function matchDims(t, d) {
   // as a dormant 100 (any residual call contributes zero).
   return [
     { key: 'subject', label: TEXT.MATCH_ITEM_SUBJECT, score: subjScore, max: W.subject,
-      hint: subjOn ? TEXT.MATCH_SUBJECT_HIT.replace('{hit}', hit).replace('{total}', dSubj.length) : TEXT.MATCH_DIM_SKIP },
+      hint: !subjOn ? TEXT.MATCH_DIM_SKIP
+        : (hit > 0 ? TEXT.MATCH_SUBJECT_HIT.replace('{hit}', hit).replace('{total}', dSubj.length)
+          : (tSubj.length > 0 ? TEXT.MATCH_SUBJECT_MISS : TEXT.MATCH_SUBJECT_NONE)) },
     { key: 'personality', label: TEXT.MATCH_ITEM_PERSONALITY, score: personalityScore, max: W.personality,
       hint: !personalityOn ? TEXT.MATCH_DIM_SKIP : (pHit > 0 ? TEXT.MATCH_PERSONALITY_HIT.replace('{hit}', pHit).replace('{total}', prefTags.length) : TEXT.MATCH_PERSONALITY_MISS) },
     { key: 'region', label: TEXT.MATCH_ITEM_REGION, score: regionScore, max: W.region, hint: regionHint },
