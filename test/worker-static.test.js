@@ -220,3 +220,11 @@ test('敏感路径与路径遍历 → 404', async () => {
   assert.equal((await get('/../' + oldDbPath)).status, 404, '路径遍历 404');
   assert.equal((await get('/app-shell.js')).status, 404, 'v1 壳脚本已删 → 404');
 });
+
+test('docs 敏感路径双形态 404（裸 /docs + /docs/，PA-3-F5 同型 v2 侧同步）', async () => {
+  // v2.1.6 线上验证抓出：_worker 守卫原为 p.startsWith('/docs/')（带斜杠），裸 /docs
+  // 漏拦 → SPA 回退 200 HTML 壳（与新站 PA-3-F5 同型缺口，新站修了 v2 未同步）。
+  // 修 = 改 p.startsWith('/docs')（与 /server 双形态对齐）。G2 变异：还原 '/docs/' → 本断言红。
+  assert.equal((await get('/docs')).status, 404, '裸 /docs → 404（变异：还原 startsWith("/docs/") → 红）');
+  assert.equal((await get('/docs/')).status, 404, '/docs/ → 404');
+});
