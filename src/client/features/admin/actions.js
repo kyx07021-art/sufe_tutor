@@ -7,7 +7,7 @@ import { TEXT } from '../../constants/text.js';
 import { ROLES } from '../../../shared/enums.js';
 import { api } from '../../core/api.js';
 import { dhGet, invalidate } from '../../core/datahub.js';
-import { openModal, closeModal, closeAllModals, showToast, confirm, withCaptcha, segTabsHtml, openImageViewer } from '../../core/ui.js';
+import { openModal, closeModal, closeAllModals, showToast, confirm, segTabsHtml, openImageViewer } from '../../core/ui.js';
 import { escHtml, fmtDateTime, loaderHtml, mdRender } from '../../core/dom.js'; // U-3f: post full-text modal via shared mdRender
 import { renderGlassLineChart } from '../../core/chart.js'; // U-3j: traffic charts (W6 shared chart component)
 import { priceRangeText, methodName, roleLabel } from '../../core/display.js'; // U-3g: contract method label; U-3i: content author role tag
@@ -348,16 +348,15 @@ export async function doSubmitContentPenalty(id, type, action) {
   confirm({
     title: TEXT.ADMIN_CONTENT_PENALTY_TITLE.replace('{type}', contentTypeName(type)).replace('{id}', id),
     message: TEXT.ADMIN_PENALTY_CONFIRM.replace('{action}', action === 'ban' ? TEXT.ADMIN_CONTENT_PENALTY_BAN : TEXT.ADMIN_CONTENT_PENALTY_DELETE),
-    onConfirm: () => {
-      withCaptcha(async () => {
-        try {
-          const r = await performContentPenalty(id, type, action, reason, rule);
-          showToast(r.message || TEXT.ADMIN_PENALTY_DONE, 'success');
-          closeModal();
-          (CONTENT_DOMAIN_BY_TYPE[type] || ['admin']).forEach(invalidate); // AF-7/AF-7b: invalidate every domain the deleted/penalized row was rendered from (server bumps only [ADMIN])
-          loadAdminContent(_adminContentType);
-        } catch (err) { showToast(err.message, 'error'); }
-      });
+    onConfirm: async () => {
+      // ZR-A3c (2026-08-27): admin op captcha dormant (user: admin ops must not require a puzzle) — direct write.
+      try {
+        const r = await performContentPenalty(id, type, action, reason, rule);
+        showToast(r.message || TEXT.ADMIN_PENALTY_DONE, 'success');
+        closeModal();
+        (CONTENT_DOMAIN_BY_TYPE[type] || ['admin']).forEach(invalidate); // AF-7/AF-7b: invalidate every domain the deleted/penalized row was rendered from (server bumps only [ADMIN])
+        loadAdminContent(_adminContentType);
+      } catch (err) { showToast(err.message, 'error'); }
     },
   });
 }
@@ -411,10 +410,8 @@ export function openPostViewModal(id) {
 }
 
 export function adminDeletePost(id) {
-  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm, no capToken (user ④).
-  confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, onConfirm: () => {
-    withCaptcha(() => performPostDelete(id));
-  }});
+  // ZR-A3/A3c (2026-08-27): admin re-auth + captcha dormant — plain confirm, direct write (user ④ / admin ops puzzle removal).
+  confirm({ title: TEXT.BTN_DELETE, message: TEXT.ADMIN_DELETE_CONFIRM, onConfirm: () => performPostDelete(id) });
 }
 // U-3f: actual post-delete write path (adminDeletePost confirm delegates here). Exported for
 // direct write-path testing — U-3f audit F1 (G1/G2): the confirm path is captcha-gated, so the
@@ -628,19 +625,15 @@ export async function viewAwardProof(id) {
   } catch (err) { showToast(err.message); }
 }
 export function approveAward(id) {
-  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
-  confirm({ title: TEXT.ADMIN_AWARD_APPROVE, message: TEXT.ADMIN_AWARD_APPROVE_CONFIRM, onConfirm: () => {
-    withCaptcha(() => performAwardAction(id, 'approve', {}));
-  }});
+  // ZR-A3/A3c (2026-08-27): admin re-auth + captcha dormant — plain confirm, direct write (user ④ / admin ops puzzle removal).
+  confirm({ title: TEXT.ADMIN_AWARD_APPROVE, message: TEXT.ADMIN_AWARD_APPROVE_CONFIRM, onConfirm: () => performAwardAction(id, 'approve', {}) });
 }
 export function rejectAwardModal(id) { openModal({ title: TEXT.ADMIN_AWARD_REJECT, body: `<div class="form-group"><label>${escHtml(TEXT.ADMIN_AWARD_REJECT_HINT)}</label><textarea id="award-reject-note" class="form-input" placeholder="${escHtml(TEXT.ADMIN_AWARD_REJECT_PLACEHOLDER)}"></textarea></div>`, footer: `<button type="button" class="btn glass glass--pressable" data-action="admin.submitAwardReject" data-id="${id}">${TEXT.BTN_CONFIRM}</button>` }); }
 export function doAwardAction(id, action) {
   const note = document.getElementById('award-reject-note')?.value || '';
   if (action === 'reject' && !note.trim()) { showToast(TEXT.ADMIN_AWARD_REJECT_REQUIRED, 'error'); return; }
-  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
-  confirm({ title: TEXT.ADMIN_AWARD_REJECT, message: TEXT.ADMIN_AWARD_REJECT_CONFIRM, onConfirm: () => {
-    withCaptcha(() => performAwardAction(id, action, { note }));
-  }});
+  // ZR-A3/A3c (2026-08-27): admin re-auth + captcha dormant — plain confirm, direct write (user ④ / admin ops puzzle removal).
+  confirm({ title: TEXT.ADMIN_AWARD_REJECT, message: TEXT.ADMIN_AWARD_REJECT_CONFIRM, onConfirm: () => performAwardAction(id, action, { note }) });
 }
 // U-3d: actual award write path (both confirm flows delegate here). Exported for direct
 // write-path testing — Q-3b-F3b/F3c invalidate guard drives it, bypassing the confirm UI.
@@ -722,10 +715,8 @@ export function verifApprove(id) {
     school: g(`verif-school-${id}`), level: g(`verif-level-${id}`),
     major: g(`verif-major-${id}`), enroll_year: g(`verif-year-${id}`),
   };
-  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
-  confirm({ title: TEXT.ADMIN_VERIF_APPROVE_BTN, message: TEXT.ADMIN_VERIF_APPROVE_CONFIRM, onConfirm: () => {
-    withCaptcha(() => performVerifAction(id, body));
-  }});
+  // ZR-A3/A3c (2026-08-27): admin re-auth + captcha dormant — plain confirm, direct write (user ④ / admin ops puzzle removal).
+  confirm({ title: TEXT.ADMIN_VERIF_APPROVE_BTN, message: TEXT.ADMIN_VERIF_APPROVE_CONFIRM, onConfirm: () => performVerifAction(id, body) });
 }
 // L-1 (U-3e audit): reject collects an optional reason — server supports body.reason and sends
 // it in the VERIFY_REJECTED notification; without it the notified reason is always empty. The
@@ -737,16 +728,12 @@ export function verifReject(id) {
 export function verifRejectConfirm(id) {
   const reason = document.getElementById('verif-reject-reason')?.value.trim() || '';
   closeModal(); // close the reason modal before the confirm (U-3e re-review obs: avoid two stacked modals)
-  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
-  confirm({ title: TEXT.ADMIN_VERIF_REJECT_BTN, message: TEXT.ADMIN_VERIF_REJECT_CONFIRM, onConfirm: () => {
-    withCaptcha(() => performVerifAction(id, { action: 'reject', reason }));
-  }});
+  // ZR-A3/A3c (2026-08-27): admin re-auth + captcha dormant — plain confirm, direct write (user ④ / admin ops puzzle removal).
+  confirm({ title: TEXT.ADMIN_VERIF_REJECT_BTN, message: TEXT.ADMIN_VERIF_REJECT_CONFIRM, onConfirm: () => performVerifAction(id, { action: 'reject', reason }) });
 }
 export function verifRevoke(id) {
-  // ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm + captcha, no capToken (user ④).
-  confirm({ title: TEXT.ADMIN_VERIF_REVOKE_BTN, message: TEXT.ADMIN_VERIF_REVOKE_CONFIRM, onConfirm: () => {
-    withCaptcha(() => performVerifAction(id, { action: 'revoke' }));
-  }});
+  // ZR-A3/A3c (2026-08-27): admin re-auth + captcha dormant — plain confirm, direct write (user ④ / admin ops puzzle removal).
+  confirm({ title: TEXT.ADMIN_VERIF_REVOKE_BTN, message: TEXT.ADMIN_VERIF_REVOKE_CONFIRM, onConfirm: () => performVerifAction(id, { action: 'revoke' }) });
 }
 // U-3e: actual verification write path (all three confirm flows delegate here). Exported for
 // direct write-path testing — cache-invalidate-guard drives it, bypassing the confirm UI.
@@ -771,16 +758,16 @@ export async function viewAdmissionImage(id) {
 }
 
 // U-3a rework (audit F1): verify/unverify wrapped in confirm + withCaptcha, aligned with the
-// ban path. ZR-A3 (2026-08-27): admin re-auth dormant — plain confirm, no capToken (user ④).
+// ban path. ZR-A3/A3c (2026-08-27): admin re-auth + captcha dormant — plain confirm, direct write
+// (user ④ / admin ops puzzle removal); the historical withCaptcha wrapper is removed, keep the
+// ban/verify/unverify flows consistent (direct write).
 export function toggleTeacherVerify(userId, verified = true) {
-  confirm({ title: TEXT.ADMIN_BAN, message: verified ? TEXT.VERIFY_TEACHER_CONFIRM : TEXT.UNVERIFY_CONFIRM, onConfirm: () => {
-    withCaptcha(async () => {
-      try {
-        await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: !!verified } });
-        invalidate('admin'); invalidate('teachers'); // AF-9: 'admin' refreshes the admin list; 'teachers' refreshes the public verified badge in the student browse list (server bumps both, Q-3b-L3)
-        showToast(verified ? TEXT.ADMIN_DONE : TEXT.UNVERIFY_DONE); loadAdminTeachers();
-      } catch (err) { showToast(err.message); }
-    });
+  confirm({ title: TEXT.ADMIN_BAN, message: verified ? TEXT.VERIFY_TEACHER_CONFIRM : TEXT.UNVERIFY_CONFIRM, onConfirm: async () => {
+    try {
+      await api(`/api/admin/teachers/${userId}/verify`, { method: 'POST', body: { verified: !!verified } });
+      invalidate('admin'); invalidate('teachers'); // AF-9: 'admin' refreshes the admin list; 'teachers' refreshes the public verified badge in the student browse list (server bumps both, Q-3b-L3)
+      showToast(verified ? TEXT.ADMIN_DONE : TEXT.UNVERIFY_DONE); loadAdminTeachers();
+    } catch (err) { showToast(err.message); }
   }});
 }
 
