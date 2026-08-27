@@ -73,8 +73,8 @@ test('F1c 渲染：四区结构 + 全部字段在位 + 零内联事件/样式', 
   assert.ok(html.includes('高考省份'), 'F1c 省份 label = 高考省份（ZS-1 G2 锁定值而非 select id）');
   assert.ok(html.includes('tp-grad-year'), '毕业年份在位');
   assert.ok(html.includes('tp-subjects'), '科目勾选在位');
-  assert.ok(html.includes('tp-price-min'), '报价下限在位');
-  assert.ok(html.includes('tp-price-max'), '报价上限在位');
+  assert.ok(html.includes('tp-price'), '报价单值输入在位（ZW-1：区间双输入→单值）');
+  assert.ok(!html.includes('tp-price-min') && !html.includes('tp-price-max'), '区间双输入零残留（ZW-1）');
   assert.ok(html.includes('tp-method'), '授课方式在位');
   assert.ok(html.includes('tp-time-slots'), '可授课时间段在位');
   // ZI-1（2026-08-27）：高考成绩编辑器休眠——教师只需选擅长科目，无需填写高考成绩
@@ -90,7 +90,7 @@ test('F1c 渲染：四区结构 + 全部字段在位 + 零内联事件/样式', 
   assert.ok(!html.includes('tp-email'), '邮箱输入已删除');
   assert.ok(html.includes('teacher.saveProfile'), '保存按钮 data-action 在位');
   // 必填标记：province/grade/gender/subjects/price_min/method/time_slots
-  const requiredFields = ['tp-province', 'tp-grade', 'tp-gender', 'tp-subjects', 'tp-price-min', 'tp-method', 'tp-time-slots'];
+  const requiredFields = ['tp-province', 'tp-grade', 'tp-gender', 'tp-subjects', 'tp-price', 'tp-method', 'tp-time-slots'];
   for (const id of requiredFields) {
     assert.ok(html.includes(`<span class="req">*</span>`), `必填标记存在（${id}）`);
   }
@@ -106,8 +106,7 @@ test('F1c 回显：已有档案预填 value/selected/checked', () => {
   assert.ok(html.includes('value="2022"'), '毕业年份回显');
   assert.ok(html.includes('value="上海财经大学"'), '学校回显');
   assert.ok(html.includes('value="王老师"'), '平台内名称回显');
-  assert.ok(html.includes('value="100"'), '报价下限回显');
-  assert.ok(html.includes('value="150"'), '报价上限回显');
+  assert.ok(html.includes('value="100"'), '报价单值回显（ZW-1：price_min=单值）');
   assert.ok(html.includes('value="sophomore" selected'), '年级 selected 属性（锁 selected 非仅 option）');
   assert.ok(html.includes('value="female" selected'), '性别 selected 属性');
   assert.ok(html.includes('value="online" selected'), '授课方式 selected 属性');
@@ -245,8 +244,7 @@ test('F1d1 非学科报价行：标签点选生成行 + 重渲染保留已填值
   actions.teacherTagPick(music);
   let rows = host.querySelectorAll('.price-row');
   assert.equal(rows.length, 1, '选中 music 生成 1 行');
-  rows[0].querySelector('[data-field="min"]').value = '200';
-  rows[0].querySelector('[data-field="max"]').value = '300';
+  rows[0].querySelector('[data-field="price"]').value = '200'; // ZW-1: single-value price per project
   // 再点 painting → 重渲染 → music 行已填值保留
   const painting = el.querySelector('#tp-nonacademic .tag-pick[data-id="painting"]');
   actions.teacherTagPick(painting);
@@ -254,8 +252,7 @@ test('F1d1 非学科报价行：标签点选生成行 + 重渲染保留已填值
   assert.equal(rows.length, 2, '两个选中项目两行');
   const musicRow = [...rows].find(r => r.dataset.project === 'music');
   assert.ok(musicRow, 'music 行在位');
-  assert.equal(musicRow.querySelector('[data-field="min"]').value, '200', 'min 已填值保留');
-  assert.equal(musicRow.querySelector('[data-field="max"]').value, '300', 'max 已填值保留');
+  assert.equal(musicRow.querySelector('[data-field="price"]').value, '200', '报价已填值保留（ZW-1 单值）');
   // 取消 music → 行移除
   actions.teacherTagPick(music);
   rows = host.querySelectorAll('.price-row');
@@ -348,8 +345,8 @@ test('F1d3 提交：payload shape 与服务端契约一致 + 成功回读', asyn
   assert.equal(p.grade, 'sophomore');
   assert.equal(p.gender, 'female');
   assert.deepEqual(p.subjects, ['math', 'english']);
-  assert.equal(p.price_min, '100');
-  assert.equal(p.price_max, '150');
+  assert.equal(p.price_min, '100', 'price_min = 单值');
+  assert.equal(p.price_max, '100', 'price_max = 单值镜像（ZW-1）');
   assert.equal(p.teaching_method, 'online');
   assert.equal(JSON.parse(p.time_slots)[0].dow, 1, 'time_slots JSON 串形状');
   assert.deepEqual(p.gaokao_scores, [], 'gaokao_scores 休眠提交空数组（ZI-1）');
@@ -433,7 +430,7 @@ test('ZX-1 简介 500 字内：保存成功（上限边界放行）', async () =
   teardown();
 });
 
-// F1d3 审计 GAP 补齐（独立审计 PASS 后覆盖空洞：GAP-A 凭证回传 / GAP-B 价格区间 /
+// F1d3 审计 GAP 补齐（独立审计 PASS 后覆盖空洞：GAP-A 凭证回传 / GAP-B 报价必填 /
 // GAP-C 回读刷新 / GAP-D 缓存失效——均锁真实行为，删逻辑必红）。
 
 test('F1d3 GAP-A 凭证回传：有存量凭证原样回传（防保存清空）', async () => {
@@ -451,7 +448,7 @@ test('F1d3 GAP-A 凭证回传：有存量凭证原样回传（防保存清空）
   teardown();
 });
 
-test('F1d3 GAP-B 价格区间：max<min → toast + 零 POST', async () => {
+test('F1d3 GAP-B 报价必填：tp-price 空 → toast + 零 POST（ZW-1 区间校验移除后替换）', async () => {
   setup();
   let called = false;
   globalThis.fetch = async (url, opts) => {
@@ -461,12 +458,12 @@ test('F1d3 GAP-B 价格区间：max<min → toast + 零 POST', async () => {
   };
   await actions.enterTeacherProfile();
   const el = dom.window.document.getElementById('teacher-profile-content');
-  el.querySelector('#tp-price-min').value = '150';
-  el.querySelector('#tp-price-max').value = '100';
+  // ZW-1: range validation removed — replaced with single-value required guard (G2: drop required -> red)
+  el.querySelector('#tp-price').value = '';
   await actions.saveProfile();
   assert.equal(called, false, '零 POST');
   const toast = dom.window.document.getElementById('toast-container');
-  assert.ok(toast.textContent.includes('最低价不能高于最高价'), '价格区间 toast');
+  assert.ok(toast.textContent.includes('请完善教师档案必填项'), '报价必填 toast');
   teardown();
 });
 

@@ -319,7 +319,7 @@ export const TEXT = {
   "DEMAND_FILTER_EMPTY": "没有符合筛选条件的需求",
   "LABEL_SCHOOL": "学校",
   "LABEL_REAL_NAME": "平台内名称",
-  "LABEL_PRICE_RANGE": "报价区间（元/小时）",
+  "LABEL_PRICE_RANGE": "报价（元/小时）", // ZW-1（2026-08-27）：报价区间改报价单值——label 同步单值语义
   "LABEL_TEACHING_METHOD_PROFILE": "授课方式",
   "LABEL_TIME_SLOTS": "可授课时间段",
   "LABEL_GRADUATION_YEAR": "毕业年份",
@@ -1037,6 +1037,7 @@ export const TEXT = {
   "LABEL_BUDGET": "预算区间（元/小时）",
   "PLACEHOLDER_MIN": "最低",
   "PLACEHOLDER_MAX": "最高",
+  "PLACEHOLDER_PRICE": "请输入报价", // ZW-1：单值报价 placeholder（教师侧区间双输入移除，学生预算区间保留）
   "LABEL_EXPECTED_TIME": "期望开课时间",
   "SLOT_ADD_LABEL": "新建时间段",
   "SLOT_DOW_PLACEHOLDER": "选择星期",

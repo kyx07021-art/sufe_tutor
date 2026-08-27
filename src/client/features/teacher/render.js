@@ -208,11 +208,7 @@ export function renderTeacherProfileForm(profile) {
     </div>
     <div class="form-group">
       <label class="form-label">${TEXT.LABEL_PRICE_RANGE} <span class="req">*</span></label>
-      <div class="range-row">
-        <input type="number" class="form-input" id="tp-price-min" value="${escNum(p.price_min)}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MIN}">
-        <span class="text-muted">~</span>
-        <input type="number" class="form-input" id="tp-price-max" value="${escNum(p.price_max)}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MAX}">
-      </div>
+      <input type="number" class="form-input" id="tp-price" value="${escNum(p.price_min)}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_PRICE}"> <!-- ZW-1: single-value price input (range -> single, min value is the single price) -->
     </div>
     <div class="form-group">
       <label class="form-label">${TEXT.LABEL_TEACHING_METHOD_PROFILE} <span class="req">*</span></label>

@@ -307,10 +307,9 @@ export async function saveProfile() {
   const grade = val('tp-grade');
   const gender = val('tp-gender');
   const subjects = [...document.querySelectorAll('#tp-subjects input:checked')].map(cb => cb.value);
-  const priceMin = val('tp-price-min');
-  const priceMax = val('tp-price-max');
+  const price = val('tp-price'); // ZW-1: single-value price — submitted as both price_min and price_max (server unchanged)
   const method = val('tp-method');
-  if (!province || !grade || !gender || !subjects.length || !priceMin || !method) {
+  if (!province || !grade || !gender || !subjects.length || !price || !method) {
     showToast(TEXT.VALIDATE_TEACHER_PROFILE_REQUIRED, 'error'); return;
   }
   const ts = document.getElementById('tp-time-slots');
@@ -318,14 +317,13 @@ export async function saveProfile() {
   if (timeErr) { showToast(timeErr, 'error'); return; }
   const timeSlots = ts ? collectTimeSlots(ts) : [];
   if (!timeSlots.length) { showToast(TEXT.VALIDATE_SELECT_TIME_SLOTS, 'error'); return; }
-  if (priceMin && priceMax && +priceMin > +priceMax) { showToast(TEXT.VALIDATE_BUDGET_RANGE, 'error'); return; }
+  // ZW-1: range validation removed (single-value price) — nonacademic rows also single-value per project
   const personalityTags = [...document.querySelectorAll('#tp-personality .tag-pick.selected')].map(b => b.dataset.id);
   const nonacademicProjects = [...document.querySelectorAll('#tp-nonacademic .tag-pick.selected')].map(b => b.dataset.id);
-  const nonacademicPrices = [...document.querySelectorAll('#tp-nonacademic-prices .price-row')].map(row => ({
-    project: row.dataset.project,
-    price_min: row.querySelector('[data-field="min"]').value,
-    price_max: row.querySelector('[data-field="max"]').value,
-  })).filter(r => r.price_min !== '' || r.price_max !== '');
+  const nonacademicPrices = [...document.querySelectorAll('#tp-nonacademic-prices .price-row')].map(row => {
+    const v = row.querySelector('[data-field="price"]').value;
+    return { project: row.dataset.project, price_min: v, price_max: v };
+  }).filter(r => r.price_min !== '');
   const intro = val('tp-intro').trim();
   // ZX-1 (2026-08-27, user: intro silently truncated with no toast — at least 500 chars and must toast):
   // validate before submit so over-long intros are rejected with a visible toast instead of being
@@ -337,8 +335,8 @@ export async function saveProfile() {
     real_name: val('tp-real-name').trim(),
     graduation_year: val('tp-grad-year'),
     subjects,
-    price_min: priceMin,
-    price_max: priceMax,
+    price_min: price,
+    price_max: price, // ZW-1: single value submitted as both bounds
     teaching_method: method,
     time_slots: JSON.stringify(timeSlots),
     personality_tags: personalityTags,
@@ -524,18 +522,15 @@ export function renderNonacademicPriceRows(prices) {
   const live = {};
   host.querySelectorAll('.price-row').forEach(row => {
     const project = row.dataset.project;
-    const minEl = row.querySelector('[data-field="min"]');
-    const maxEl = row.querySelector('[data-field="max"]');
-    if (project) live[project] = { project, price_min: minEl ? minEl.value : '', price_max: maxEl ? maxEl.value : '' };
+    const priceEl = row.querySelector('[data-field="price"]');
+    if (project) live[project] = { project, price_min: priceEl ? priceEl.value : '', price_max: priceEl ? priceEl.value : '' }; // ZW-1: single-value price
   });
   const byProject = new Map((prices || []).map(r => [r.project, r]));
   host.innerHTML = selected.map(id => {
     const r = live[id] || byProject.get(id) || {};
     return `<div class="price-row" data-project="${escHtml(id)}">
       <span class="price-row-name">${escHtml((NONACADEMIC_PROJECTS.find(n => n.id === id) || {}).name || id)}</span>
-      <input type="number" class="form-input" data-field="min" value="${r.price_min != null ? escHtml(String(r.price_min)) : ''}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MIN}">
-      <span class="text-muted">~</span>
-      <input type="number" class="form-input" data-field="max" value="${r.price_max != null ? escHtml(String(r.price_max)) : ''}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_MAX}">
+      <input type="number" class="form-input" data-field="price" value="${r.price_min != null ? escHtml(String(r.price_min)) : ''}" min="0" step="1" placeholder="${TEXT.PLACEHOLDER_PRICE}">
     </div>`;
   }).join('');
 }
