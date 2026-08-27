@@ -14,8 +14,8 @@ export const MSG = {
   LOGIN_REQUIRED: "请输入用户名和密码",
   LOGIN_FAILED: "用户名或密码错误",
   USERNAME_TAKEN: "用户名已被注册",
-  TEACHER_NEEDS_INVITE: "教师注册需要邀请码",
-  INVITE_INVALID: "邀请码无效或已被使用",
+  TEACHER_NEEDS_INVITE: "教师注册需要邀请码", // ZV-4: dormant (invite gate off since ZV-1, unreachable) — kept for MSG↔CODES symmetry
+  INVITE_INVALID: "邀请码无效或已被使用", // ZV-4: dormant (invite gate off since ZV-1, unreachable) — kept for MSG↔CODES symmetry
   CHSI_CODE_INVALID: "验证码格式不正确，请检查后重新输入",
   CHSI_UNAVAILABLE: "学籍核验服务暂不可用，请稍后再试",
   TEXT_AUDIT_UNAVAILABLE: "内容安全校验服务暂不可用，请稍后再试",
@@ -184,8 +184,8 @@ export const CODES = {
   LOGIN_REQUIRED: "AUTH_LOGIN_REQUIRED",
   LOGIN_FAILED: "AUTH_LOGIN_FAILED",
   USERNAME_TAKEN: "AUTH_USERNAME_TAKEN",
-  TEACHER_NEEDS_INVITE: "TEACHER_TEACHER_NEEDS_INVITE",
-  INVITE_INVALID: "AUTH_INVITE_INVALID",
+  TEACHER_NEEDS_INVITE: "TEACHER_TEACHER_NEEDS_INVITE", // ZV-4: dormant
+  INVITE_INVALID: "AUTH_INVITE_INVALID", // ZV-4: dormant
   CHSI_CODE_INVALID: "TEACHER_CHSI_CODE_INVALID",
   CHSI_UNAVAILABLE: "TEACHER_CHSI_UNAVAILABLE",
   TEXT_AUDIT_UNAVAILABLE: "COMMON_TEXT_AUDIT_UNAVAILABLE",

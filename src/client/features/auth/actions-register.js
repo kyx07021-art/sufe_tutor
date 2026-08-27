@@ -1,6 +1,6 @@
 /**
- * auth feature register actions: student single form, teacher 3-step wizard
- * (invite -> account -> contact verification), submit and validation.
+ * auth feature register actions: student single form, teacher 2-step wizard
+ * (account -> contact verification) — invite-code step dormant since ZV-2, submit and validation.
  */
 import { CONFIG, LIMITS } from '../../../shared/config.js'; // ZV-2: INVITE_GATE_DORMANT import removed (dormant since ZV-1, no consumer left)
 import { TEXT } from '../../constants/text.js';

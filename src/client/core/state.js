@@ -11,7 +11,7 @@ export const state = {
   user: null, authToken: null, view: 'landing', page: null,
   allTeachers: [], adminTeachers: [], intentTeachers: [],
   myDemands: [], editingDemandId: null, adminPosts: [], adminContracts: [], myContracts: [],
-  validatedInviteCode: null, // ZV-2: dormant (invite gate off) — kept only for logout reset symmetry, never written
+  validatedInviteCode: null, // ZV-2: dormant (invite gate off) — kept only for logout reset symmetry, no longer written with real values
   guestRole: null, guestAuthMode: false,
 };
 

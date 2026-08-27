@@ -140,7 +140,7 @@ export function teacherWizardHtml() {
       </div>
       <div class="form-actions">
         <button type="button" class="btn btn-outline glass glass--pressable" data-action="auth.wizardBack">${escHtml(TEXT.BTN_PREV_STEP)}</button>
-        <button type="button" class="btn glass glass--pressable" id="reg-step2-next" data-action="auth.wizardNext">${escHtml(TEXT.BTN_NEXT_STEP)}</button>
+        <button type="button" class="btn glass glass--pressable" id="reg-step1-next" data-action="auth.wizardNext">${escHtml(TEXT.BTN_NEXT_STEP)}</button>
       </div>
     </div>
     <div class="dw-step" data-step="2">
