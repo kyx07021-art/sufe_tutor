@@ -112,8 +112,7 @@ export async function enterClient(pageId) {
 }
 
 export function renderSidebar() {
-  const u = state.user;
-  const isAdmin = u && u.role === ROLES.ADMIN;
+  const u = state.user; // ZV-3: isAdmin dead var removed (its only consumer, the sidebar-invite toggle, was deleted)
   const userTarget = document.getElementById('sidebar-user');
   if (userTarget) {
     const userBlock = u ? `<button type="button" class="sidebar-user-top sidebar-user-btn" data-action="open-profile" data-profile-user-id="${u.id}" title="${TEXT.PROFILE_PANEL_TITLE}">
