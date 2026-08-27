@@ -114,11 +114,13 @@ export async function handleAdminTraffic(db, url, req) {
   const range = ['24h', '7d', '30d'].includes(String(url.searchParams.get('range') || '')) ? url.searchParams.get('range') : '24h';
   const unit = range === '24h' ? 'hour' : 'day';
   const n = range === '24h' ? 24 : range === '7d' ? 7 : 30;
-  const now = new Date();
-  // 从整点/整天边界起算 n 个完整桶（首桶不满的截断不出现）
-  const from = unit === 'hour'
-    ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours() - (n - 1)))
-    : new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (n - 1)));
+  // 流量图表按北京时区（UTC+8）对齐（用户 2026-08-27）：桶边界/标签/查询起点三处协同 +8，
+  // activity_log ts 为库内 UTC（规则 42），分组用 strftime '+8 hours' 落北京小时/日期标签。
+  const nowMs = Date.now() + BEIJING_OFFSET_MS;
+  const fromMs = unit === 'hour'
+    ? Math.floor(nowMs / 3600e3) * 3600e3 - (n - 1) * 3600e3
+    : Math.floor(nowMs / 86400e3) * 86400e3 - (n - 1) * 86400e3;
+  const from = new Date(fromMs);
   const fromTs = toDbTime(from);
   const rows = await dbGetTrafficBuckets(db, unit, fromTs);
   const map = new Map(rows.map(r => [r.bucket, r]));
@@ -132,9 +134,10 @@ export async function handleAdminTraffic(db, url, req) {
   }
   return json({ range, unit, buckets });
 }
-// 与 SQL strftime 输出同格式（UTC，'YYYY-MM-DD HH:00' / 'YYYY-MM-DD'）
+// 与 SQL strftime('...', ts, '+8 hours') 输出同格式（北京时区，'YYYY-MM-DD HH:00' / 'YYYY-MM-DD'）
+const BEIJING_OFFSET_MS = 8 * 3600 * 1000;
 const fmtTrafficBucket = (t, unit) => {
-  const d = new Date(t);
+  const d = new Date(t + BEIJING_OFFSET_MS); // UTC 分量 + 8h = 北京时刻
   const p = x => String(x).padStart(2, '0');
   const day = `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}`;
   return unit === 'hour' ? `${day} ${p(d.getUTCHours())}:00` : day;

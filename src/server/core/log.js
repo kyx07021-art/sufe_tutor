@@ -259,12 +259,14 @@ export async function logRequest(db, { method, path, body, status, req, duration
 }
 
 // 流量监测：按时间桶聚合 http.* 访问留档的请求数与平均耗时。
-// unit: 'hour'（24h 用）| 'day'（7d/30d 用）；duration_ms 历史桶 avg 为 null
+// unit: 'hour'（24h 用）| 'day'（7d/30d 用）；duration_ms 历史桶 avg 为 null。
+// 北京时区对齐（用户 2026-08-27）：ts 库内 UTC（规则 42），'+8 hours' 移位落北京小时/日期桶标签，
+// 与 handleAdminTraffic 的 from 边界/fmtTrafficBucket 三处协同。
 const TRAFFIC_BUCKET_FMT = { hour: '%Y-%m-%d %H:00', day: '%Y-%m-%d' };
 export async function dbGetTrafficBuckets(db, unit, fromTs) {
   const fmt = TRAFFIC_BUCKET_FMT[unit] || TRAFFIC_BUCKET_FMT.hour; // 白名单内插值，无注入面
   return await dbAll(db,
-    `SELECT strftime('${fmt}', ts) AS bucket, COUNT(*) AS requests, ROUND(AVG(duration_ms), 1) AS avg_ms
+    `SELECT strftime('${fmt}', ts, '+8 hours') AS bucket, COUNT(*) AS requests, ROUND(AVG(duration_ms), 1) AS avg_ms
      FROM activity_log WHERE action LIKE 'http.%' AND ts >= ?
      GROUP BY bucket ORDER BY bucket`, [fromTs]);
 }
