@@ -39,8 +39,9 @@ export function matchDims(t, d) {
     : (Array.isArray(t.subjects) ? t.subjects : []);
   const dSubj = Array.isArray(d.target_subjects) ? d.target_subjects : [];
   const hit = dSubj.filter(s => tSubj.includes(s)).length;
-  // ZP-1: 需求指定科目即维度激活——教师未填对应类别（tSubj 空）或无重合计 0 分计入分母，
-  // 而非跳过维度（旧语义导致非学科需求 + 教师未填 nonacademic 时 subject 不计分 → 虚高 100%）
+  // ZP-1: subject activates whenever the demand specifies subjects — a teacher with no matching
+  // category (empty tSubj) or zero overlap scores 0 (counted in denominator) instead of skipping
+  // the dimension (old skip semantics inflated non-academic demands with empty teacher categories)
   const subjOn = dSubj.length > 0;
   const subjScore = subjOn ? hit / dSubj.length * W.subject : null;
 
