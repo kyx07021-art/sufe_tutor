@@ -325,8 +325,6 @@ export const TEXT = {
   "DEMAND_FILTER_EMPTY": "没有符合筛选条件的需求",
   "LABEL_SCHOOL": "学校",
   "LABEL_REAL_NAME": "平台内名称",
-  "LABEL_WECHAT": "微信",
-  "LABEL_EMAIL": "邮箱",
   "LABEL_PRICE_RANGE": "报价区间（元/小时）",
   "LABEL_TEACHING_METHOD_PROFILE": "授课方式",
   "LABEL_TIME_SLOTS": "可授课时间段",
