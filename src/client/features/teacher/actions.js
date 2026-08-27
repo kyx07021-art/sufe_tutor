@@ -104,7 +104,9 @@ export async function openProfilePanel(userId) {
   // synced with the ZD-4 review-gate relaxation); `signed` is legacy.
   // Only logged-in students request it: guest 401 bounces to the login view via the api()
   // dead-token handler; guests/non-students fall back to list data (no matched, button hidden).
-  if (state.user && state.user.role === ROLES.STUDENT) {
+  // ZR-A2 (2026-08-27): admin also fetches the full profile (server-side admin pass-through,
+  // management/verification use) -- fixes the admin detail card that loaded nothing.
+  if (state.user && (state.user.role === ROLES.STUDENT || state.user.role === ROLES.ADMIN)) {
     try {
       const data = await api(`/api/teacher/profile?userId=${userId}`, { method: 'GET' });
       if (data && data.profile) t = data.profile;
