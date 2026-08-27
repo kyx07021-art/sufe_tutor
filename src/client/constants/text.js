@@ -322,7 +322,6 @@ export const TEXT = {
   "LABEL_GENDER": "性别",
   "LABEL_PRICE": "报价",
   "LABEL_INTRO": "简介",
-  "LABEL_GAOKAO_SCORES": "高考成绩",
   "LABEL_SUBJECT": "科目",
   "DEMAND_SORT_MATCH": "匹配度最高",
   "DEMAND_SORT_NEWEST": "最新发布",

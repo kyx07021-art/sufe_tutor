@@ -455,23 +455,12 @@ export function initTeacherProfileForm(profile) {
   if (ts && profile && profile.time_slots) prefillTimeSlots(ts, profile.time_slots);
   const prov = document.getElementById('tp-province');
   if (prov) prov.addEventListener('change', onTeacherProvinceChange);
-  // F1d2: gaokao editor re-renders when the province/year/subjects it depends on change.
-  // collectTeacherGaokao() preserves typed values across re-renders (same principle as the
-  // nonacademic price rows) so switching province never wipes the teacher's scores/grade tiers. This is a
-  // separate listener from onTeacherProvinceChange so the initial seed render is not re-collected
-  // (a second collect would drop saved grades the current policy cannot render, silently losing
-  // the gaokao-policy-mismatch warning and the stale grade).
-  if (prov) prov.addEventListener('change', refreshGaokaoEditor);
+  // ZI-1 (2026-08-27): gaokao editor dormant (user: teachers only pick subjects, no scores).
+  // The #tp-gaokao block is no longer rendered, so the three province/year/subjects re-render
+  // listeners and the seed call below are removed — no dormant listener accumulation (F3).
   const gradYear = document.getElementById('tp-grad-year');
   if (gradYear) gradYear.addEventListener('blur', clampGradYear);
-  if (gradYear) gradYear.addEventListener('change', refreshGaokaoEditor);
-  const subjects = document.getElementById('tp-subjects');
-  if (subjects) subjects.addEventListener('change', refreshGaokaoEditor);
   renderNonacademicPriceRows(profile && profile.nonacademic_prices);
-  // F1d2 seed: the editor starts from the saved scores (array from the safeJsonArray mapper) and
-  // renders once — province/subject/year changes re-render later. T-6-F3: dead string branch removed.
-  const gkExisting = Array.isArray(profile && profile.gaokao_scores) ? profile.gaokao_scores : [];
-  refreshGaokaoEditor(gkExisting);
   onTeacherProvinceChange(); // initial run: address area + method lock from saved province
 }
 
@@ -581,35 +570,14 @@ export function pickGkTrack(el) {
 // raw-score inputs (main/standard/first), the selected first pill + its score, and grade
 // selectors/selects (electives). Empty rows are skipped; hidden track rows are skipped.
 export function collectTeacherGaokao() {
-  const root = document.getElementById('tp-gaokao');
-  const out = [];
-  if (!root) return out;
-  root.querySelectorAll('input[data-gk-type="score"][data-gk-subject]').forEach(inp => {
-    if (inp.closest('.hidden') || inp.value === '') return;
-    out.push({ subject: inp.dataset.gkSubject, score: +inp.value });
-  });
-  const firstPill = root.querySelector('[data-gk-role="first"] .gk-pill.selected');
-  const firstInput = root.querySelector('input[data-gk-role="first-score"]');
-  if (firstPill && firstInput && firstInput.value !== '') {
-    out.push({ subject: firstPill.dataset.gkFirst, score: +firstInput.value });
-  }
-  root.querySelectorAll('.grade-selector[data-gk-subject]').forEach(sel => {
-    if (sel.closest('.hidden')) return;
-    const s = sel.querySelector('.grade-option.selected');
-    if (s) out.push({ subject: sel.dataset.gkSubject, grade: s.dataset.grade });
-  });
-  root.querySelectorAll('select.gk-grade-select[data-gk-subject]').forEach(sel => {
-    if (sel.closest('.hidden') || !sel.value) return;
-    out.push({ subject: sel.dataset.gkSubject, grade: sel.value });
-  });
-  return out;
+  // ZI-1/2 (2026-08-27): dormant — the gaokao editor no longer renders (#tp-gaokao removed), so
+  // saving always submits an empty array (user: teachers only pick subjects, no scores).
+  return [];
 }
 
-// Re-render the gaokao editor into #tp-gaokao from the live province/year/checked subjects,
-// preserving typed values. existing is only provided on the initial seed (saved scores from the
-// profile); afterwards the live editor is collected first so re-renders never drop user input.
-// Custom selects (ZJ/Beijing 21-tier grade dropdowns) are re-initialized explicitly; the global
-// MutationObserver sweep is a fallback for dynamically injected selects.
+// ZI-1 (2026-08-27): dormant — the gaokao editor no longer renders (#tp-gaokao removed, teachers
+// only pick subjects), so this re-render path has zero trigger. Kept for dormancy (not deletion).
+// Original doc: re-render the editor from live province/year/checked subjects preserving typed values.
 export function refreshGaokaoEditor(existing) {
   const el = document.getElementById('tp-gaokao');
   if (!el) return;

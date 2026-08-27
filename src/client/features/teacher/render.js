@@ -223,10 +223,6 @@ export function renderTeacherProfileForm(profile) {
       <div id="tp-time-slots" class="time-slots">${renderTimeSlotContainerHtml()}</div>
     </div>
     <div class="form-group">
-      <label class="form-label">${TEXT.LABEL_GAOKAO_SCORES}</label>
-      <div id="tp-gaokao"><p class="text-sm text-muted">${TEXT.OPTION_PLACEHOLDER}</p></div>
-    </div>
-    <div class="form-group">
       <label class="form-label">${TEXT.LABEL_PERSONALITY_TAGS}${TEXT.PERSONALITY_TAGS_HINT.replace('{max}', CONFIG.PERSONALITY_TAGS_MAX)}</label>
       <div id="tp-personality">${tags}</div>
     </div>
@@ -293,6 +289,8 @@ function gkMainSection(mainIds, exOf) {
   return html + '</div>';
 }
 
+// ZI-1 (2026-08-27): dormant — the gaokao editor no longer renders (#tp-gaokao form block removed,
+// teachers only pick subjects). Kept for dormancy (not deletion); zero callers since ZI-1.
 export function renderTeacherGaokaoEditor(provinceId, graduationYear, existing) {
   const R = SUFE_REGIONS;
   const names = R.subjectNames;
