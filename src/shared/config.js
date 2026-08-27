@@ -96,7 +96,7 @@ export const LIMITS = {
   RATING_MAX: 5,
   TITLE_MAX: CONFIG.POST_TITLE_MAX,
   SCHOOL_MAX: 30,
-  INTRO_MAX: 50,
+  INTRO_MAX: 500, // 2026-08-27（用户 ZX）：简介至少 500 字上限，前端 maxlength + 保存校验 toast 不静默，服务端 slice 防御兜底同源
   REAL_NAME_MAX: 20,
   CONTACT_MAX: 50,
   ADDITIONAL_INFO_MAX: 500,

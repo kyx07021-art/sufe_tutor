@@ -21,6 +21,7 @@ import * as actions from '../src/client/features/teacher/actions.js';
 import { state } from '../src/client/core/state.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { TEXT } from '../src/client/constants/text.js';
+import { LIMITS } from '../src/shared/config.js'; // ZX-1：INTRO_MAX 单源（maxlength 断言）
 
 const dom = new JSDOM('<!doctype html><html><body><div id="teacher-profile-content"></div><div id="toast-container"></div></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });
 globalThis.document = dom.window.document;
@@ -81,6 +82,7 @@ test('F1c 渲染：四区结构 + 全部字段在位 + 零内联事件/样式', 
   assert.ok(html.includes('tp-nonacademic'), '非学科项目在位');
   assert.ok(html.includes('tp-nonacademic-prices'), '非学科报价在位');
   assert.ok(html.includes('tp-intro'), '简介在位');
+  assert.ok(html.includes(`maxlength="${LIMITS.INTRO_MAX}"`), '简介 textarea maxlength=INTRO_MAX（ZX-1：输入即限制）');
   assert.ok(html.includes('tp-addr-picker'), '上海地址 picker 容器在位');
   assert.ok(html.includes('tp-address'), '地址 hidden 在位');
   // ZR-C1：联系方式只用于身份核验，表单零输入控件（变异守护：还原输入块必红）
@@ -390,6 +392,44 @@ test('F1d3 time_slots 必填：无时间段 → toast + 零 POST', async () => {
   assert.equal(called, false, '零 POST 请求');
   const toast = dom.window.document.getElementById('toast-container');
   assert.ok(toast.textContent.includes('可授课时间段'), '时间段必填提示');
+  teardown();
+});
+
+// ZX-1（2026-08-27，用户：简介静默截断 bug——至少 500 字上限且超限必须 toast）：超限保存
+// 必须 toast 拒绝零提交（不静默截断）。变异守护：删 actions.js intro 校验 → POST 发出断言红。
+
+test('ZX-1 简介超限：>500 字 → toast + 零 POST（不静默截断）', async () => {
+  setup();
+  let called = false;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
+    if ((opts || {}).method === 'POST') { called = true; return { ok: true, status: 200, json: async () => ({ message: 'ok' }) }; }
+    return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
+  };
+  await actions.enterTeacherProfile();
+  const el = dom.window.document.getElementById('teacher-profile-content');
+  el.querySelector('#tp-intro').value = 'x'.repeat(501);
+  await actions.saveProfile();
+  assert.equal(called, false, '简介超限零 POST');
+  const toast = dom.window.document.getElementById('toast-container');
+  assert.ok(toast.textContent.includes('简介最多 500 字'), '超限 toast 明确提示');
+  teardown();
+});
+
+test('ZX-1 简介 500 字内：保存成功（上限边界放行）', async () => {
+  setup();
+  let postBody = null;
+  globalThis.fetch = async (url, opts) => {
+    if (String(url).includes('/api/teacher/verify-status')) return { ok: true, status: 200, json: async () => ({ status: 'approved' }) };
+    if ((opts || {}).method === 'POST') { postBody = JSON.parse(opts.body); return { ok: true, status: 200, json: async () => ({ message: 'ok' }) }; }
+    return { ok: true, status: 200, json: async () => ({ profile: F3_SAVE_PROFILE }) };
+  };
+  await actions.enterTeacherProfile();
+  const el = dom.window.document.getElementById('teacher-profile-content');
+  el.querySelector('#tp-intro').value = 'x'.repeat(500);
+  await actions.saveProfile();
+  assert.ok(postBody, '500 字简介 POST 已发出');
+  assert.equal(postBody.profile.intro.length, 500, '500 字原样提交');
   teardown();
 });
 

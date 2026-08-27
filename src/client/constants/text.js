@@ -60,6 +60,7 @@ export const TEXT = {
   "VALIDATE_INVITE_FIRST": "请先验证邀请码",
   "VALIDATE_INVITE_REQUIRED": "请输入邀请码",
   "VALIDATE_SELECT_SUBJECT": "请至少选择一个科目",
+  "VALIDATE_INTRO_TOO_LONG": "简介最多 500 字，请精简后保存",
   "VALIDATE_SELECT_RATING": "请选择评分",
   "VALIDATE_COMMENT_TOO_SHORT": "评价内容太短",
   "CONFIRM_DELETE_DEMAND": "删除后不可恢复，相关教师意向也会一并清除。确定要删除这条需求吗？",

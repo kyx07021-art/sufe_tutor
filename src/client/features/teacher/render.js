@@ -240,7 +240,7 @@ export function renderTeacherProfileForm(profile) {
     <h3 class="profile-group-title">${TEXT.PROFILE_SECTION_PRIVATE}</h3>
     <div class="form-group">
       <label class="form-label">${TEXT.LABEL_INTRO}</label>
-      <textarea id="tp-intro" class="form-input" rows="4">${escHtml(p.intro || '')}</textarea>
+      <textarea id="tp-intro" class="form-input" rows="4" maxlength="${LIMITS.INTRO_MAX}">${escHtml(p.intro || '')}</textarea>
     </div>
     <div class="form-group">
       <label class="form-label">${TEXT.LABEL_ADDRESS}</label>

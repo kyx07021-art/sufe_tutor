@@ -3,7 +3,7 @@
  */
 import { TEXT } from '../../constants/text.js';
 import { ROLES, TEACHING_METHODS, WEEKDAYS, NONACADEMIC_PROJECTS } from '../../../shared/enums.js'; // filter options + price-row names
-import { CONFIG } from '../../../shared/config.js';
+import { CONFIG, LIMITS } from '../../../shared/config.js';
 import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: province policy single source
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
@@ -326,6 +326,11 @@ export async function saveProfile() {
     price_min: row.querySelector('[data-field="min"]').value,
     price_max: row.querySelector('[data-field="max"]').value,
   })).filter(r => r.price_min !== '' || r.price_max !== '');
+  const intro = val('tp-intro').trim();
+  // ZX-1 (2026-08-27, user: intro silently truncated with no toast — at least 500 chars and must toast):
+  // validate before submit so over-long intros are rejected with a visible toast instead of being
+  // silently sliced by the server on save.
+  if (intro.length > LIMITS.INTRO_MAX) { showToast(TEXT.VALIDATE_INTRO_TOO_LONG, 'error'); return; }
   const payload = { profile: {
     province, grade, gender,
     school: val('tp-school').trim(),
@@ -340,7 +345,7 @@ export async function saveProfile() {
     nonacademic_projects: nonacademicProjects,
     nonacademic_prices: nonacademicPrices,
     gaokao_scores: collectTeacherGaokao(),
-    intro: val('tp-intro').trim(),
+    intro,
     address: val('tp-address'),
     credential_image: _currentCredential,
   }};
