@@ -3,7 +3,7 @@
  *
  * 覆盖：
  *   - isContentWrite：内容域写路径白名单（帖子/需求/档案/评价/反馈/投诉/注册/聊天消息/附件）；
- *   - auditBeforeWrite：默认放行；语义层未配置拒绝写入；
+ *   - auditBeforeWrite：默认放行；L2 语义层经 TEXT_AUDIT.ENABLED 开关控制（当前关闭 → 未配置 key 也放行）；
  *   - L1 规则层（v0.30.0 S2-1）：按路径映射抽取自由文本字段交 auditFreeText——
  *     门牌号内容 → reject（ADDRESS_TOO_DETAILED）；正常文本放行；非内容写路径不过断点。
  */
@@ -55,13 +55,16 @@ test('auditBeforeWrite：正常文本经语义层放行；非内容路径直接�
   assert.equal(r2.ok, true, '非内容路径直接放行');
 });
 
-test('auditBeforeWrite fail-closed：语义层未配置 → 正常文本也拒绝', async () => {
+test('auditBeforeWrite：TEXT_AUDIT.ENABLED=false（L2 关闭）→ 未配置语义层 key 也放行、零 LLM 调用', async () => {
   bindTextAuditEnv(null);
+  let calls = 0;
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => { calls++; return { ok: true, json: async () => ({ choices: [{ message: { content: '{"flagged": false}' } }] }) }; };
   try {
     const r = await auditBeforeWrite({ path: '/api/posts', method: 'POST', body: { title: '学习笔记', bodyMd: '分享一轮复习方法' }, ip: '1.2.3.4', userId: 7 });
-    assert.ok(r.reject, '语义层未配置拒绝写入');
-    assert.ok(r.reject.includes('不可用'), '提示审核服务不可用');
-  } finally { bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' }); }
+    assert.equal(r.ok, true, 'L2 关闭：未配置 key 也 L1 通过即放行');
+    assert.equal(calls, 0, '零外部 LLM 调用');
+  } finally { bindTextAuditEnv({ TEXT_AUDIT_API_KEY: 'test-key' }); globalThis.fetch = origFetch; }
 });
 
 test('auditBeforeWrite L1 规则层（S2-1）：自由文本字段含门牌号 → reject；正常 → 放行', async () => {

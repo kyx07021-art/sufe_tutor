@@ -186,6 +186,7 @@ export const TEXT_AUDIT = {
   BASE_URL: "https://api.deepseek.com/chat/completions",
   MODEL: "deepseek-chat",
   TIMEOUT_MS: 4000,
+  ENABLED: false, // L2 语义审核开关（false=关闭，L1 门牌红线恒在）
 };
 export const RATE_LIMITS = {
   sweepSize: 4096,

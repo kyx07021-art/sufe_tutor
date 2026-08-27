@@ -133,9 +133,14 @@ export async function submitUsername() {
   try {
     confirm({ title: TEXT.SETTINGS_USERNAME_TITLE, message: TEXT.SETTINGS_USERNAME_CONFIRM, needReAuth: true, onConfirm: async capToken => {
       withCaptcha(async () => {
-        await api('/api/user/username', { method: 'POST', body: { newUsername: username, capToken } });
-        closeModal(); showToast(TEXT.SETTINGS_USERNAME_CHANGED); invalidate('account'); loadUsernameStatus();
-        if (state.user) { state.user.username = username; renderSidebar(); } // Q-4b-M2: sync state.user.username + sidebar (was stale until next login)
+        // 2026-08-27: catch around the write — without it a rejected POST (e.g. audit
+        // rejection / USERNAME_TAKEN / cooldown) is silently swallowed, the modal stack keeps
+        // the input dialog, and the user loops "puzzle done -> dialog again" with zero feedback.
+        try {
+          await api('/api/user/username', { method: 'POST', body: { newUsername: username, capToken } });
+          closeModal(); showToast(TEXT.SETTINGS_USERNAME_CHANGED); invalidate('account'); loadUsernameStatus();
+          if (state.user) { state.user.username = username; renderSidebar(); } // Q-4b-M2: sync state.user.username + sidebar (was stale until next login)
+        } catch (err) { showToast(err.message); }
       });
     }});
   } catch (err) { showToast(err.message); }

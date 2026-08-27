@@ -1,12 +1,9 @@
 /**
- * 文本审核咽喉 —— 全站自由文本字段统一审核入口（v1.5.0 起 fail-closed）
+ * 文本审核咽喉 —— 全站自由文本字段统一审核入口
  *
  * L1 规则层（确定性主闸）：ADDRESS_GUARD 增强正则 + 数字谐音后缀表——拦模式变体（2788好）。
- * L2 语义层（外接必配）：DeepSeek chat/completions（OpenAI 兼容）判断自由文本是否含可定位住址描述
- *   （门牌/楼栋/房间/方位描述）。密钥 env.TEXT_AUDIT_API_KEY。
- *
- * fail-closed 语义：生产未配置密钥 / 超时 / 接口异常 / 解析失败 → 拒绝写入
- * （返回 layer:'error'，调用方回 MSG.TEXT_AUDIT_UNAVAILABLE），绝不静默降级为仅 L1。
+ * L2 语义层（DeepSeek，可选）：判断自由文本是否含可定位住址描述。经 TEXT_AUDIT.ENABLED 开关控制——
+ * 关闭时 L1 通过即放行（零外部调用）；开启时未配置密钥/超时/异常 → 拒绝写入（fail-closed）。
  */
 import { ADDRESS_GUARD, NUM_T, NUM_SEP, TEXT_AUDIT } from '../../shared/config.js';
 import { getSecret } from '../../../server/secrets.js';
@@ -34,7 +31,7 @@ function isYearLike(numStr) {
 }
 
 // ============================================================
-// L2 语义层（v1.5.0：必配，fail-closed）
+// L2 语义层（DeepSeek，TEXT_AUDIT.ENABLED 开关）
 // ============================================================
 const AUDIT_TIMEOUT_MS = TEXT_AUDIT.TIMEOUT_MS; // 超时 = 拒绝写入（不再 fail-open）
 const auditModel = () => String(getSecret(AUDIT_ENV, 'TEXT_AUDIT_MODEL') || '').trim() || TEXT_AUDIT.MODEL;
@@ -95,7 +92,7 @@ async function auditSemantic(text) {
  *   ok=false：layer='rule' → 调用方回 MSG.ADDRESS_TOO_DETAILED；
  *             layer='error' → 调用方回 MSG.TEXT_AUDIT_UNAVAILABLE（审核服务不可用，fail-closed）。
  */
-export async function auditFreeText(text) {
+export async function auditFreeText(text, { l1Only = false } = {}) {
   const s = String(text || '').trim();
   if (!s) return { ok: true, layer: 'rule' }; // 空值放行（调用方自有必填校验）
   // Z-2-F8：谐音命中逐条排除 4 位 19xx/20xx 年份（任一非年份命中即拦——多命中场景不漏）
@@ -103,5 +100,10 @@ export async function auditFreeText(text) {
   if (ADDRESS_GUARD.test(s) || harmonicHits.some(m => !isYearLike(m[1]))) {
     return { ok: false, layer: 'rule', reason: 'ADDRESS_TOO_DETAILED' };
   }
+  if (!TEXT_AUDIT.ENABLED) return { ok: true, layer: 'rule' }; // L2 开关关闭：L1 通过即放行，不送 LLM
+  // l1Only（用户名等短标识，2026-08-27）：白名单短标识的地址风险由 L1 正则全覆盖，
+  // 不送 LLM 语义审核——生产实测用户名修改被 DeepSeek L2 对中文名误判拒绝（400 + ~1s 耗时），
+  // 即「修改用户名走不通」根因；LLM 对 3-30 字符短标识判定不可靠且无语义价值。
+  if (l1Only) return { ok: true, layer: 'rule' };
   return auditSemantic(s);
 }
