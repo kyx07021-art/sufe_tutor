@@ -10,14 +10,19 @@ import { loginViewHtml, registerViewHtml } from './render.js';
 import { state } from '../../core/state.js';
 import { setEnsureAuth } from '../../core/api.js';
 import { showView, setRouterAuthGuard } from '../../core/router.js';
-import { closeModal, openPolicyModal } from '../../core/ui.js';
+import { closeModal, closeAllModals, openPolicyModal } from '../../core/ui.js';
+// ZT-F1b (2026-08-27): closeModal kept for single-layer cancels (auth.closeModal — bind/policy
+// cancel buttons); the three nav entry handlers use closeAllModals (stack-clear, ZT-F1).
 
 const ACTION_MAP = {
   'auth.back': actions.authGoBack,
   'auth.backLanding': () => showView('landing'),
-  'auth.viewLogin': () => { closeModal(); showView('login'); actions.refreshAuthHeader(); }, // ZT-2 (2026-08-27): dismiss any open overlay (first-visit guide) so the login click lands
-  'auth.viewRegister': () => { closeModal(); showView('register'); }, // ZT-2 (2026-08-27): dismiss any open overlay before switching
-  'auth.enterGuest': (el) => { closeModal(); handleFeatureClick(el.dataset.role); }, // ZT-2 (2026-08-27): dismiss first-visit guide overlay first; landing entry: student/teacher guest preview
+  // ZT-F1 (2026-08-27, ZT re-audit FAIL2): closeAllModals, not closeModal — the guide's sub-modals
+  // (usage guide) stack the onboarding modal underneath; closing one layer would re-surface it and
+  // hide the login view behind it. Clearing the whole stack keeps "click login → see login".
+  'auth.viewLogin': () => { closeAllModals(); showView('login'); actions.refreshAuthHeader(); },
+  'auth.viewRegister': () => { closeAllModals(); showView('register'); },
+  'auth.enterGuest': (el) => { closeAllModals(); handleFeatureClick(el.dataset.role); },
   'auth-required': () => showView('login'), // audit fix (2026-08-19): router sidebar guest bar data-action=auth-required had zero handler (v1 inline ensureAuth binding lost in ESM migration)
   'auth.toggleLoginMode': actions.toggleLoginMode,
   'auth.checkLoginUsername': actions.checkLoginUsernameDebounced,
