@@ -118,12 +118,14 @@ export async function handleGetProfile(db, url, req) {
   // ZR-A1（2026-08-27）：管理员查看任意教师档案（管理/核验用途），全字段放行、不校验会话匹配——
   // 联系方式仅身份核验用途（用户②），管理员侧保留可见；学生侧仍走下方 dbIsMatched 门禁（ZR-C2 收回）。
   if (me.role === 'admin') return json({ profile });
-  const { wechat, email, real_name, credential_image, ...publicPart } = profile;
+  // ZR-B2（2026-08-27，用户①）：real_name（平台内名称）改公开字段——不再从私有字段解构，
+  // 随 publicPart 对已建立会话的对方返回（未建立会话仍 403，与档案面板整体口径一致）。
+  const { wechat, email, credential_image, ...publicPart } = profile;
   if (!(await dbIsMatched(db, me.id, targetId))) return errorMsg('NO_PERMISSION', 403);
   // ZD-2（2026-08-26 休眠签约）：联系方式从「已签约后开放」放宽到「建立会话后开放」（用户「让用户自由沟通」）——
   // wechat/email 对已建立会话（dbIsMatched）的学生直接开放，不再等签约；signed 字段保留（前端写评价判定兼容，ZD-4/7 改 matched 后退为历史兼容）。
   const signed = me.role === 'student' && (await dbIsContracted(db, me.id, targetId));
-  return json({ profile: { ...publicPart, real_name, credential_image, wechat, email, signed, matched: true } });
+  return json({ profile: { ...publicPart, credential_image, wechat, email, signed, matched: true } });
 }
 
 export async function handleSaveProfile(db, body, req) {
