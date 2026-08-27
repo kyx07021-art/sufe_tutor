@@ -183,7 +183,8 @@ export async function dbGetAllContentAdmin(db, { type = null, limit = LIMITS.PUB
   for (let i = 0; i < types.length; i++) {
     const rows = (results[i] && results[i].results) || [];
     if (types[i] === 'teacher') {
-      for (const row of rows) row.real_name = await decryptField(row.real_name);
+      // D1 返回行可能只读（ESM 严格模式就地赋值抛 TypeError → 500），用新对象映射（对齐 teacher/repo.js 先例）
+      for (let j = 0; j < rows.length; j++) rows[j] = { ...rows[j], real_name: await decryptField(rows[j].real_name) };
     }
     mapContentRows(types[i], rows, out);
   }

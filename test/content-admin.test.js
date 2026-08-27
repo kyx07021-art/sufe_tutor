@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { initDb } from '../src/server/core/db.js';
 import { dbUpsertTeacherVerification } from '../src/server/domains/teacher/repo.js';
+import { encryptField } from '../src/server/core/crypto.js'; // ZR-B8-F4 边界1：密文两态 G2 锁
 import { handleRegister, handleLogin } from '../src/server/domains/auth/api.js';
 import { requestOtp } from '../src/server/core/otp.js';
 import { lastOtpCode } from './_otp-stub.js'; // stub fetch 防真实发信（真实代码路径 + 捕获验证码）
@@ -83,9 +84,13 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   const bobtId = raw.prepare("SELECT id FROM users WHERE username='bobt'").get().id;
   await dbUpsertTeacherVerification(db, { userId: bobtId, verifyCode: 'TESTCODE123456', status: 'approved', school: '测试大学', level: '本科', verifyType: 'chsi' });
   const prof = await (await import('../src/server/domains/teacher/api.js')).handleSaveProfile(db, {
-    profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '注重方法', address: '浦东新区·花木街道', school: '上财' },
+    profile: { province: 'shanghai', grade: 'senior1', gender: 'female', subjects: ['math'], price_min: 150, price_max: 200, intro: '注重方法', address: '浦东新区·花木街道', school: '上财', real_name: '王老师' },
   }, req({ 'X-Auth-Token': tData.authToken }));
   assert.equal(prof.status, 200);
+  // ZR-B8-F4 边界1 G2 锁：admin 内容审核 teacher 行平台内名称（密文两态——模拟 B6 前存量 enc:v1: 密文）
+  // 变异：还原 CONTENT_SQL.teacher 的 tp.real_name → 回落 username 断言红；还原 CONTENT_MAPPER.teacher displayName
+  //       → author.displayName undefined 断言红；还原 dbGetAllContentAdmin teacher 解密循环 → enc:v1: 前缀断言红
+  await raw.prepare('UPDATE teacher_profiles SET real_name=? WHERE user_id=?').run(await encryptField('李老师'), bobtId);
 
   const token = await adminToken(db, raw);
   const r = await handleAdminContent(db, new URL('http://x/api/admin/content'), req({ 'X-Auth-Token': token }));
@@ -98,7 +103,9 @@ test('D1：统一内容提取（多类型归拢统一结构，私密字段不提
   assert.equal(post.title, '物理笔记');
   // Q-2i-M5d：CONTENT_MAPPER 派生 title 单源锁定（防模板/分隔符改动无测试拦截——审计发现 3）
   const teacher = data.items.find(i => i.type === 'teacher');
-  assert.equal(teacher.title, '教师档案 · bobt', 'CONTENT_TITLE_TEACHER 模板 {name} 单源');
+  assert.equal(teacher.author.displayName, '李老师', 'ZR-B8 边界1：teacher 行 author.displayName = 解密 real_name（非 username bobt）');
+  assert.equal(teacher.title, '教师档案 · 李老师', 'ZR-B8 边界1：title 模板 {name} 用平台内名称 real_name（非 username bobt）');
+  assert.ok(!String(teacher.author.displayName).startsWith('enc:v1:'), 'ZR-B8 边界1：real_name 密文已解密（enc:v1: 前缀零残留）');
   const carol = await registerWithContact(db, req(), { username: 'carol', password: 'pass123456', role: 'student' });
   const carolData = await carol.json();
   const demandApi = await import('../src/server/domains/demand/api.js');
