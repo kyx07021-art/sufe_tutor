@@ -63,3 +63,14 @@ test('ZM-3 死类清理（W18）：旧详情面板死类在 teacher.css 零规�
     assert.ok(!new RegExp(`\\.${cls}\\s*\\{`).test(CSS), `${cls} 规则已删`);
   }
 });
+
+test('ZM-O2 .profile-label/.profile-value 样式落位（源级契约，G2 变异锁）', () => {
+  const label = CSS.match(/\.profile-label \{[\s\S]*?\}/);
+  assert.ok(label, '.profile-label 规则存在');
+  assert.ok(label[0].includes('--muted'), '.profile-label 小灰降级消费 --muted');
+  assert.ok(label[0].includes('font-size: .68rem'), '.profile-label 小字号');
+  const value = CSS.match(/\.profile-value \{[\s\S]*?\}/);
+  assert.ok(value, '.profile-value 规则存在');
+  assert.ok(value[0].includes('--ink'), '.profile-value 主角色消费 --ink');
+  assert.ok(value[0].includes('overflow-wrap: anywhere'), '.profile-value 长内容换行');
+});

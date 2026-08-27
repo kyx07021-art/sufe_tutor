@@ -85,6 +85,12 @@
 /* 需求六·item1：条目小 title 由纵向居中改向上对齐（align-items: start = 对齐头部而非垂直居中）；
    行间距由 --profile-row-gap 承担（去分隔线后多拉空隙，值单源 CONFIG.PROFILE_ROW_GAP）。 */
 .profile-row { display: grid; grid-template-columns: calc(70px * var(--ui-scale, 1)) 1fr; column-gap: 10px; padding: calc(var(--profile-row-gap, 22px) / 2) 0; align-items: start; } /* 需求六·item5：title 列宽随滑块（防大字换行） */
+/* ZM-O2（2026-08-27，ZM 审计遗留观察②）：.profile-label/.profile-value 零规则——
+   render.js:85 渲染两 class 但旧 .profile-row-k/-v 死类已被 ZM-3 删除，行内字段裸排版
+   （用户「普通字体」主诉的行内部分）。对齐 Stripe 式 definition list：label 小灰降级、
+   value 为主角 ink。无 muted 变体需求（render.js 只渲染两 class，守卫已实测）。 */
+.profile-label { padding-top: 2px; font-size: .68rem; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+.profile-value { font-size: .9rem; line-height: 1.55; color: var(--ink); overflow-wrap: anywhere; }
 /* 需求六·item2：资料卡分组大 title —— 占满横向空位分隔不同类型资料（去行分隔线后的段分隔） */
 .profile-group-title {
   margin: 14px 0 8px; /* #156：组标题行距压紧（原 22px 0 10px） */
