@@ -295,7 +295,7 @@ export async function dbGetIntentTeachers(db, demandId) {
     ...(await mapTeacherProfileRow(r, { private: false })),
     intent_id: r.intent_id, intent_status: r.intent_status, intent_created_at: r.intent_created_at,
     intent_message: r.intent_message || '', // 教师打招呼消息（SELECT 已取，出口透传；空串统一）
-  })))).map(({ wechat, email, real_name, credential_image, matched, ...rest }) => rest);
+  })))).map(({ wechat, email, credential_image, matched, ...rest }) => rest); // real_name 公开平台内名称随行（ZR-B1）
 }
 
 export async function dbGetIntentWithDemand(db, intentId) {

@@ -145,6 +145,18 @@ test('访客教师过滤：allow_guest_profile=0 → 游客列表剔除、登录
   assert.equal((await routeAuthed.json()).teachers.length, 1, '路由登录分支可见');
 });
 
+test('ZR-B1 契约：/api/teachers 列表含 real_name（平台内名称）仍剥私密三件（wechat/email/credential_image）', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  const { t1, t1Token } = await seed(db, raw);
+  // 平台内名称明文公开列（ZR-B1 后 real_name 随列表下发）
+  raw.prepare('UPDATE teacher_profiles SET real_name=? WHERE user_id=?').run('广场名老师', t1);
+  const r = await handleGetTeachers(db, reqOf(t1Token));
+  const teachers = (await r.json()).teachers;
+  assert.equal(teachers.length, 1);
+  assert.equal(teachers[0].real_name, '广场名老师', '列表含 real_name（变异：还原 API 剥 real_name → undefined 红）');
+  assert.ok(!('wechat' in teachers[0]) && !('email' in teachers[0]) && !('credential_image' in teachers[0]), '私密三件仍剥');
+});
+
 test('隐私写 bump 版本域：teachers+demands 双域刷新（访客可见性变化影响两浏览面）', () => {
   const domains = versionDomainOf('/api/privacy-settings');
   assert.ok(domains.includes('teachers'), '教师域刷新');

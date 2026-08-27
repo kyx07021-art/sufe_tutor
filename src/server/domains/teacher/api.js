@@ -284,8 +284,9 @@ export async function handleSaveProfile(db, body, req) {
   return json({ message: MSG.PROFILE_SAVED });
 }
 
-// 教师广场列表：联系方式（签约后展示）与私密认证字段（真实姓名/学信网截图，双向匹配后按
-// /api/teacher/profile 定点取）永不下发列表；登录态附 matched 标记供前端判定可见性
+// 教师广场列表：联系方式与学信网截图（身份核验用途，经 /api/teacher/profile 或核验端点定点取）
+// 永不下发列表；real_name 自 ZR-B1 起为公开「平台内名称」（未填回落 username），随列表下发供
+// 缩略卡/详情卡消费。登录态附 matched 标记供前端判定可见性。
 export async function handleGetTeachers(db, req) {
   const me = await authUser(db, req); // 访客可浏览公开列表，令牌非必需
   const teachers = (await dbGetTeachers(db, { viewerId: me ? me.id : null }))
