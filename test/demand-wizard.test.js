@@ -261,14 +261,14 @@ test('R3：完成态集合（done∪visited）驱动进度条，不跟当前停�
   teardown();
 });
 
-// v0.31.8（生产验证抓出）：提交地址纵深防御须与 toggleAddressField 同口径「线下许可省+线下」——
-// 曾只按省份判断 → toggleAddressField 线上清地址 → 上海+线上提交被误拦（v0.31.5 改 gate 未同步提交兜底）。
-// 口径改为 SUFE_REGIONS.allowsOffline(province) 单源（无 'shanghai' 字面量硬编码）。
-test('v0.31.8 提交地址纵深防御含 method 判断（线下许可省+线上不拦）', () => {
-  const src = readFileSync('./src/client/features/student/actions.js', 'utf8');
+// 提交地址纵深防御须与 toggleAddressField 同口径「线下许可省+线下」——曾只按省份判断，
+// toggleAddressField 线上清地址会误拦「线下许可省+线上」提交。
+// 口径为 SUFE_REGIONS.allowsOffline(province) 单源（无省 id 字面量硬编码）。
+test('提交地址纵深防御含 method 判断（线下许可省+线上不拦）', () => {
+  const src = readFileSync('./src/client/features/student/form.js', 'utf8');
   assert.match(src,
     /SUFE_REGIONS\.allowsOffline\(province\) && document\.getElementById\('d-method'\)\.value === 'offline' && !document\.getElementById\('d-address'\)\.value\.trim\(\)/,
     'handleSubmitDemand 地址检查含 method==offline（与 toggleAddressField 同口径）');
   assert.doesNotMatch(src, /province === 'shanghai'/,
-    'T-6-F4：无省 id 字面量硬编码（allowsOffline 单源）');
+    '无省 id 字面量硬编码（allowsOffline 单源）');
 });
