@@ -675,3 +675,33 @@ test('ZR-C3 详情卡零联系方式引用：wechat/email/credential_image 值�
   assert.ok(!/wechat|credential/i.test(html), '零 wechat/credential 字段引用');
   assert.ok(!html.includes('email'), '零 email 字段引用');
 });
+
+// ZC-1/ZC-2（2026-08-28，用户「核验未通过肯定要带驳回理由」）：核验区 rejected 态内联显示驳回理由。
+// G2 变异：还原 render.js rejected 分支的 verify-reject-reason 行 → 本测试「含理由行」断言必红。
+test('ZC-2 渲染：rejected 态内联显示驳回理由（有/无 reason + none/pending 三态不误显）', () => {
+  // rejected + reason → 显示理由行 + 提交通道并存
+  const withReason = renderTeacherVerifySection({ status: 'rejected', verify_type: 'admission', reason: '录取通知书不清晰，请重传内容页' });
+  assert.ok(withReason.includes('verify-reject-reason'), 'rejected 态渲染理由行');
+  assert.ok(withReason.includes(TEXT.VERIF_REJECT_REASON), '含「驳回理由：」前缀');
+  assert.ok(withReason.includes('录取通知书不清晰，请重传内容页'), '含理由原文');
+  assert.ok(withReason.includes('verify-admission-pane'), '仍渲染重新提交通道');
+
+  // rejected + 空 reason（历史行无理由）→ 只显示 tag + 提交通道，不渲染理由行
+  const noReason = renderTeacherVerifySection({ status: 'rejected', verify_type: 'chsi', reason: '' });
+  assert.ok(!noReason.includes('verify-reject-reason'), 'reason 空不渲染理由行');
+  assert.ok(noReason.includes('verify-chsi-pane'), '仍渲染提交通道');
+
+  // none → 无理由行（现状分流不破坏）
+  const none = renderTeacherVerifySection({ status: 'none' });
+  assert.ok(!none.includes('verify-reject-reason'), 'none 态无理由行');
+  assert.ok(none.includes('verify-chsi-pane'), 'none 渲染提交通道');
+
+  // pending → 无理由行 + 待审文案
+  const pending = renderTeacherVerifySection({ status: 'pending', verify_type: 'admission' });
+  assert.ok(!pending.includes('verify-reject-reason'), 'pending 无理由行');
+  assert.ok(pending.includes(TEXT.ADMISSION_GATE_PENDING), 'pending 显示待审文案');
+
+  // approved → 无理由行
+  const approved = renderTeacherVerifySection({ status: 'approved' });
+  assert.ok(!approved.includes('verify-reject-reason'), 'approved 无理由行');
+});
