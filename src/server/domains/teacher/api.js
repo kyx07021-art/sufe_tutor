@@ -302,7 +302,8 @@ export async function handleChsiStatus(db, req) {
   const v = await dbGetTeacherVerification(db, me.id);
   if (!v) return json({ status: 'none' });
   // Q-2c-F7 BUG-I：回传 verify_type——前端需区分 chsi（验证码核验）与 admission（录取通知书）通道渲染对应 UI
-  return json({ status: v.status, provider: v.provider, verify_type: v.verify_type });
+  // ZC-1：回传 reason（rejected 时教师核验区内联显示驳回理由；none/pending/approved 为空）
+  return json({ status: v.status, provider: v.provider, verify_type: v.verify_type, reason: v.reason || '' });
 }
 
 // ============================================================
@@ -386,10 +387,11 @@ export async function handleVerificationAction(db, id, body, req) {
   if (action === 'reject' || action === 'revoke') {
     const reason = String(body.reason || '').trim().slice(0, 200);
     // Q-2c-F1（回滚重做）：reject/revoke 同款解密再重加密（与 approve 对称），防 enc2 叠层
+    // ZC-1：reason 落库（教师核验区 rejected 态内联显示驳回理由；approve 分支不传 reason → ON CONFLICT 清空旧理由）
     await dbUpsertTeacherVerification(db, {
       userId: v.user_id, verifyCode: await decryptField(v.verify_code), status: 'rejected', provider: v.provider || 'manual',
       verifyType: v.verify_type || 'chsi', admissionImage: v.admission_image ? await decryptField(v.admission_image) : '',
-      verifiedBy: admin.id, verifiedAt: new Date().toISOString(),
+      reason, verifiedBy: admin.id, verifiedAt: new Date().toISOString(),
     });
     // 安全审计 H2：reject/revoke 同步撤销接单资格 + 清空学信网展示字段（误批/欺诈核验可回收）
     await dbClearChsiFromProfile(db, v.user_id);

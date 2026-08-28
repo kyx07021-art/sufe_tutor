@@ -187,17 +187,17 @@ export async function dbUpsertTeacherVerification(db, v) {
   // 原实现直接再 encryptField → 调用方透传库中密文 enc1 二次加密 enc2，每次 admin 动作叠层（审核链数据腐坏）。
   const admissionImage = v.admissionImage ? await encryptField(String(v.admissionImage)) : '';
   await dbRun(db, `INSERT INTO teacher_verifications
-      (user_id, verify_code, status, school, level, major, enrollment_status, enroll_year, provider, verify_type, admission_image, verified_by, verified_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+      (user_id, verify_code, status, school, level, major, enrollment_status, enroll_year, provider, verify_type, admission_image, reason, verified_by, verified_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET
       verify_code=excluded.verify_code, status=excluded.status,
       school=excluded.school, level=excluded.level, major=excluded.major,
       enrollment_status=excluded.enrollment_status, enroll_year=excluded.enroll_year,
       provider=excluded.provider, verify_type=excluded.verify_type, admission_image=excluded.admission_image,
-      verified_by=excluded.verified_by, verified_at=excluded.verified_at`,
+      reason=excluded.reason, verified_by=excluded.verified_by, verified_at=excluded.verified_at`,
     [v.userId, verifyCode, v.status, v.school || '', v.level || '', v.major || '',
      v.enrollmentStatus || '', v.enrollYear || '', v.provider || 'manual', v.verifyType || 'chsi', admissionImage,
-     v.verifiedBy || null, v.verifiedAt || null]);
+     v.reason || '', v.verifiedBy || null, v.verifiedAt || null]);
 }
 
 /** 安全审计 H2：撤销接单资格（reject/revoke）——清空学信网字段与展示（chsi_verified=0、chsi_* 清空、

@@ -55,7 +55,7 @@ const adminNamesOf = v => Array.isArray(v) ? v : String(v || '').split(',').map(
 // 命中已最新即跳过全量迁移（全量跑 ≈13-20 次 D1 往返会让冷 isolate 首击超时）。
 // 纪律：任何建表/加列/迁移改动必须 SCHEMA_VERSION +1，否则冷 isolate 跳过迁移导致缺列（生产事故）。
 // ============================================================
-export const SCHEMA_VERSION = 14; // ZO-1: rating DEFAULT 修复——教师档案两个 INSERT 建行路径显式写 rating=INITIAL_RATING（生产表烤死 DEFAULT 4 致新教师恒 4.0，含 dbApplyChsiToProfile 规范建行路径）+ 回填条件改 `rating IS NULL OR rating <> 4.5`（存量 4.0 教师升 4.5）；此 bump 触发生产全量迁移跑 teacher migrate 回填（AI-5 13 之后 13→14）
+export const SCHEMA_VERSION = 15; // ZC-1: teacher_verifications 加 reason 列——admin reject/revoke 驳回理由落库，verify-status 回传，教师核验区 rejected 态内联显示（此前理由只进通知，教师不看通知就不知道驳回原因）
 
 export async function initDb(db, env = {}) {
   bindCryptoEnv(env); // 字段加密密钥（FIELD_ENC_KEY 优先回落 LOG_ENCRYPT_KEY），env 变更重派生

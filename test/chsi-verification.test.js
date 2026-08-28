@@ -293,3 +293,54 @@ test('ZR-A4b 守护：approve 留空院校/层次/入学年份 → 回落默认�
   assert.equal(row.enroll_year, '2026', '入学年份回落默认');
   assert.equal(row.enrollment_status, '在籍', '在读状态默认在籍');
 });
+
+// ZC-1（2026-08-28，用户「核验未通过肯定要带驳回理由」）：reject/revoke 驳回理由落库 →
+// verify-status 回传；approve 清空旧理由（教师核验区 rejected 态内联显示的数据底座）。
+// G2 变异：还原 repo 的 reason 写入（dbUpsertTeacherVerification 删 reason 传参/ON CONFLICT reason 行）→ 本测试 reason 断言必红。
+test('ZC-1 守护：reject 驳回理由落库 → verify-status 回传；approve 清空旧理由', async () => {
+  const raw = rawOf(); const db = d1Shim(raw);
+  await initDb(db, ENV);
+  const token = await regTeacher(db, raw, 'zc_teacher_1', '+8613900000108');
+  const adminToken = await adminTokenOf(db);
+  const uid = raw.prepare("SELECT id FROM users WHERE username='zc_teacher_1'").get().id;
+
+  // 提交验证码 → pending
+  const vc = await handleVerifyChsi(db, { code: '1234567890AB' }, reqOf(token));
+  assert.equal(vc.status, 200);
+  const v1 = await dbGetTeacherVerification(db, uid);
+  assert.equal(v1.status, 'pending');
+  assert.equal(v1.reason, '', 'pending 无理由');
+
+  // 管理员 reject 带理由 → 落库
+  const rj = await verifAction(db, adminToken, v1.id, { action: 'reject', reason: '录取通知书不清晰，请重传内容页' });
+  assert.equal(rj.status, 200);
+  const v2 = await dbGetTeacherVerification(db, uid);
+  assert.equal(v2.status, 'rejected');
+  assert.equal(v2.reason, '录取通知书不清晰，请重传内容页', 'reject 理由落库');
+
+  // verify-status 回传 reason（教师核验区内联显示的数据源）
+  const st = await handleChsiStatus(db, reqOf(token));
+  const body = await st.json();
+  assert.equal(body.status, 'rejected');
+  assert.equal(body.reason, '录取通知书不清晰，请重传内容页', 'verify-status 回传驳回理由');
+
+  // revoke 同款落库（撤销已通过资格也是驳回语义）
+  await handleVerifyChsi(db, { code: 'ABCDEF123456' }, reqOf(token)); // 重新提交 → pending
+  const v3 = await dbGetTeacherVerification(db, uid);
+  assert.equal(v3.status, 'pending');
+  await verifAction(db, adminToken, v3.id, { action: 'approve', school: '上海财经大学', level: '本科' });
+  await verifAction(db, adminToken, v3.id, { action: 'revoke', reason: '学信网截图与本人不符' });
+  const v4 = await dbGetTeacherVerification(db, uid);
+  assert.equal(v4.status, 'rejected');
+  assert.equal(v4.reason, '学信网截图与本人不符', 'revoke 理由落库');
+
+  // approve 清空旧理由（approved 不再显示旧驳回理由）
+  await handleVerifyChsi(db, { code: 'FEDCBA987654' }, reqOf(token)); // 再提交 → pending
+  const v5 = await dbGetTeacherVerification(db, uid);
+  const ap = await verifAction(db, adminToken, v5.id, { action: 'approve', school: '上海财经大学', level: '本科' });
+  assert.equal(ap.status, 200);
+  const v6 = await dbGetTeacherVerification(db, uid);
+  assert.equal(v6.reason, '', 'approve 清空旧驳回理由');
+  const st2 = await handleChsiStatus(db, reqOf(token));
+  assert.equal((await st2.json()).reason, '', 'approve 后 reason 不再回传');
+});

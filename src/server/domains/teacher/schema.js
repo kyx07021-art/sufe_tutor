@@ -25,6 +25,7 @@ export const TEACHER_VERIFICATIONS_DDL = `CREATE TABLE IF NOT EXISTS teacher_ver
       provider TEXT NOT NULL DEFAULT 'manual',
       verify_type TEXT NOT NULL DEFAULT 'chsi',
       admission_image TEXT DEFAULT '',
+      reason TEXT DEFAULT '',
       verified_by INTEGER DEFAULT NULL, verified_at DATETIME DEFAULT NULL,
       created_at DATETIME DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -35,6 +36,7 @@ export const createStatements = [TEACHER_PROFILES_DDL, TEACHER_VERIFICATIONS_DDL
 export const ensureColumns = [
   { table: 'teacher_verifications', columns: [
     ['verify_type', "TEXT NOT NULL DEFAULT 'chsi'"], ['admission_image', "TEXT DEFAULT ''"],
+    ['reason', "TEXT DEFAULT ''"], // ZC-1: admin reject/revoke 驳回理由落库（教师核验区内联显示）
   ] },
   { table: 'teacher_profiles', columns: [
     ['province', "TEXT DEFAULT ''"], ['intro', "TEXT DEFAULT ''"], ['address', "TEXT DEFAULT ''"],
