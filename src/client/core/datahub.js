@@ -1,18 +1,19 @@
 /**
- * v2 session data hub: parity migration of app-datahub.js.
- * Per-endpoint cache, single-flight dedupe, batched prefetch, epoch guard,
- * app/data version probing and module re-bind registry.
+ * v2 session data hub: per-endpoint cache, single-flight dedupe, batched prefetch,
+ * epoch guard and app-version invalidation.
+ *
+ * Cache invalidation has exactly two paths (no version-probe protocol):
+ *   - write path: a feature calls invalidate(domain) after a write, clearing that
+ *     domain's cache entries so the next read refetches;
+ *   - release path: dhCheckAppVersion detects an APP_VERSION change -> full clear
+ *     (stale cache from a previous deployment is dropped).
  */
 import { CONFIG, APP_VERSION } from '../../shared/config.js';
-import { TEXT } from '../constants/text.js';
 import { api, apiBatch } from './api.js';
 import { setDatahubInvalidator, registerLogoutReset, invalidate } from './state.js';
 
 const dhCache = new Map();
 const dhInflight = new Map();
-const dhRebinders = new Map();
-let dhLastVersions = {};
-let dhProbeTimer = null;
 let dhEpoch = 0;
 const DH_MAX_KEYS = 40;
 const DH_VERSION_KEY = 'sufe_app_version';
@@ -183,96 +184,22 @@ export function dhPrefetch(role) {
   return dhBatchGet(keys.map(([endpoint, domain]) => ({ path: endpoint, domain }))).catch(() => new Map());
 }
 
-export function dhOnDomainRefresh(domain, fn) {
-  if (typeof fn !== 'function') return;
-  if (!dhRebinders.has(domain)) dhRebinders.set(domain, []);
-  const list = dhRebinders.get(domain);
-  if (!list.includes(fn)) list.push(fn);
-}
-
-export async function dhRefreshDomain(domain) {
-  const entries = [...dhCache.entries()].filter(([, v]) => v.domain === domain);
-  if (!entries.length) return true;
-  const paths = entries.map(([k]) => k);
-  let ok = false;
-  try {
-    const fetched = await dhBatchGet(paths.map(p => ({ path: p, domain })), { forceRefresh: true });
-    ok = paths.every(p => fetched.has(p));
-  } catch { ok = false; }
-  const fns = dhRebinders.get(domain);
-  if (fns) for (const fn of fns) { try { fn(); } catch { /* rebind failure must not break main flow */ } }
-  return ok;
-}
-
-let dhProbeBusy = false;
-export function dhTouchAll() {
-  const now = Date.now();
-  for (const e of dhCache.values()) e.fetchedAt = now;
-}
-
-export async function dhProbeTick() {
-  if (dhProbeBusy) return;
-  if (typeof document !== 'undefined' && document.hidden) return;
-  dhProbeBusy = true;
-  try {
-    dhCheckAppVersion();
-    let versions;
-    try { versions = (await api('/api/data-version')).versions || {}; }
-    catch { return; }
-    dhTouchAll();
-    const next = {};
-    for (const [domain, counter] of Object.entries(versions)) {
-      next[domain] = counter;
-      const prev = dhLastVersions[domain];
-      if (prev === undefined) continue;
-      if (counter === prev) continue;
-      const ok = await dhRefreshDomain(domain);
-      if (!ok) next[domain] = prev;
-    }
-    dhLastVersions = next;
-  } finally {
-    dhProbeBusy = false;
-  }
-}
-
-export function startVersionProbe() {
-  if (dhProbeTimer) return;
-  dhProbeTick().catch(() => {});
-  dhProbeTimer = setInterval(() => dhProbeTick().catch(() => {}), CONFIG.VERSION_PROBE_MS);
-}
-
-export function stopVersionProbe() {
-  if (dhProbeTimer) { clearInterval(dhProbeTimer); dhProbeTimer = null; }
-}
-
 /** Test-only reset: clears cache/inflight/baselines so direct-import tests are isolated. */
 export function _dhResetForTests() {
   dhCache.clear();
   dhInflight.clear();
-  dhRebinders.clear();
-  dhLastVersions = {};
   dhEpoch = 0;
-  dhProbeBusy = false;
-  stopVersionProbe();
 }
 
 /**
- * Test-only seed (pattern: _dhResetForTests): pre-fill the cache and the version
- * baselines so probe-refresh tests start from a known stale state. cache entries
- * are {endpoint, domain, data}; versions maps domain -> counter.
+ * Test-only seed: pre-fill the cache so cache-hit tests start from a known state.
+ * entries are {endpoint, domain, data}.
  */
-export function _dhSeedForTests({ cache = [], versions = {} } = {}) {
+export function _dhSeedForTests({ cache = [] } = {}) {
   for (const e of cache) dhCache.set(e.endpoint, { domain: e.domain, data: e.data, fetchedAt: Date.now() });
-  dhLastVersions = { ...versions };
-}
-
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && dhProbeTimer) dhProbeTick().catch(() => {});
-  });
 }
 
 setDatahubInvalidator(dhInvalidateDomain);
-registerLogoutReset(() => { stopVersionProbe(); dhInvalidateAll(); });
+registerLogoutReset(() => { dhInvalidateAll(); });
 dhCheckAppVersion();
 export { invalidate };

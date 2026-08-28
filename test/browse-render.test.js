@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { state } from '../src/client/core/state.js';
-import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
+import { _dhResetForTests } from '../src/client/core/datahub.js';
 import { loadBrowseDemands, applyDemandControls } from '../src/client/features/student/actions.js';
 import { TEXT } from '../src/client/constants/text.js';
 
@@ -34,7 +34,6 @@ function setup() {
   return dom;
 }
 function teardown() {
-  stopVersionProbe();
   delete globalThis.fetch;
   delete globalThis.document; delete globalThis.window;
   delete globalThis.localStorage; delete globalThis.sessionStorage;

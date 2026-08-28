@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { state } from '../src/client/core/state.js';
-import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
+import { _dhResetForTests } from '../src/client/core/datahub.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { closeAllModals } from '../src/client/core/ui.js';
 import { toggleDemandIntents, showMatchDetail, closeMatchDetail, openDemandModal, handleSubmitDemand, doSubmitIntent, toggleDemandFilters, _wizardResetForTests } from '../src/client/features/student/actions.js';
@@ -33,7 +33,6 @@ function setup(extraHtml = '') {
   return dom;
 }
 function teardown() {
-  stopVersionProbe();
   closeAllModals();
   _wizardResetForTests();
   setEnsureAuth(null);

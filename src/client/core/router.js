@@ -14,7 +14,7 @@ import { initReveals } from './anim.js';
 import { applyTabBindings } from './ui.js';
 import { bindSegmentInputs, bindTimeSlotTree } from './ui-form.js';
 import { applyBarWidths } from './match.js';
-import { dhGet, dhPrefetch, startVersionProbe, stopVersionProbe } from './datahub.js';
+import { dhGet, dhPrefetch } from './datahub.js';
 import { enterAbout } from './about.js';
 
 const VIEWS = ['landing', 'login', 'register', 'client'];
@@ -101,9 +101,7 @@ export async function enterClient(pageId) {
   if (state.user) {
     dhPrefetch(state.user.role);
     startBadgePoll();
-    startVersionProbe();
   } else if (state.guestRole) {
-    startVersionProbe();
     dhPrefetch(state.guestRole === ROLES.TEACHER ? 'teacher-guest' : 'student-guest');
   }
   closeSidebar();

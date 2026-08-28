@@ -3,7 +3,6 @@
  * - /api/posts?sort=new 域标签统一 'posts'（admin 域争用 → invalidate('posts') 不命中永久陈旧）
  * - admin 写操作成功后 invalidate 对应域（loadAdminX 走 dhGet 缓存，不失效读旧）
  * - setPrivacyField 成功后 invalidate('account')（/api/privacy-settings 域 account 且服务端不 bump）
- * - 独立于 test/chat-rebind-guard.test.js（需依赖源码 import 注册存活，_dhResetForTests 会清 dhRebinders）
  * - 服务端数据版本映射随 删除（客户端数据版本协议零消费，server/version.js 已删）
  */
 import { test, before } from 'node:test';
@@ -40,7 +39,7 @@ test('Q-3b-F1：loadAdminPosts 用域 posts（/api/posts?sort=new 与 posts 域�
     const list = document.createElement('div'); list.id = 'admin-posts-list'; document.body.appendChild(list);
     globalThis.fetch = async url => ({ ok: true, status: 200, json: async () => ({ posts: [{ id: 5, title: '帖' }] }) });
     await loadAdminPosts();
-    // 缓存条目域必须是 'posts'——invalidate('posts')/dhRefreshDomain('posts') 命中
+    // 缓存条目域必须是 'posts'——invalidate('posts') 命中
     dhInvalidateDomain('posts');
     assert.equal(dhPeek('/api/posts?sort=new'), null, '域 posts 被失效（变异：域 admin → invalidate(posts) 不命中 → 非 null → 红）');
     // 对照：admin 域失效不影响它

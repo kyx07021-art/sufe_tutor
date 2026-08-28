@@ -9,7 +9,7 @@ import { escHtml, mdRender, delegate } from './core/dom.js';
 import { openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha, installUiBindings } from './core/ui.js';
 import { installFormBindings } from './core/ui-bindings.js';
 import { initReveals, installGlobalInteractions, installSiteReadyGate } from './core/anim.js';
-import { dhGet, dhBatchGet, dhInvalidateDomain, startVersionProbe } from './core/datahub.js';
+import { dhGet, dhBatchGet, dhInvalidateDomain } from './core/datahub.js';
 import { mountShell } from './core/shell.js';
 import { openCaptchaModal } from './core/captcha.js';
 import { matchDegree, matchDims, matchLevel, installBarWidthBindings } from './core/match.js';
@@ -61,7 +61,7 @@ export {
   state, api, apiBatch, apiUpload, setEnsureAuth,
   escHtml, mdRender, delegate,
   openModal, closeModal, closeAllModals, confirm, showToast, withCaptcha,
-  initReveals, dhGet, dhBatchGet, dhInvalidateDomain, startVersionProbe,
+  initReveals, dhGet, dhBatchGet, dhInvalidateDomain,
   openCaptchaModal, matchDegree, matchDims, matchLevel, renderGlassLineChart,
   subjectName, starsHtml, diffLines,
   registerPage, enterClient, selectPage, showView, goHome, renderSidebar, updateNavbar, loadInto, setBadge,

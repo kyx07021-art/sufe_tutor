@@ -7,7 +7,7 @@
 import { TEXT } from '../../constants/text.js';
 import { state, loadSeqs } from '../../core/state.js';
 import { api, ensureAuth } from '../../core/api.js';
-import { dhGet, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
+import { dhGet, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects, syncCustomSelectText, applyTabBindings } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js';
 import { initReveals, positionFloatCard } from '../../core/anim.js';
@@ -148,8 +148,6 @@ export function toggleDemandFilters() {
   const p = document.getElementById('demand-filter-panel');
   if (p) p.classList.toggle('hidden');
 }
-
-dhOnDomainRefresh('demands', () => { loadMyDemands(); loadBrowseDemands(); });
 
 // ============================================================
 // Demand create / edit modal

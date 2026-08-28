@@ -24,7 +24,7 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { state } from '../src/client/core/state.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
-import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
+import { _dhResetForTests } from '../src/client/core/datahub.js';
 import { stopBadgePoll } from '../src/client/core/router.js';
 import { CONFIG } from '../src/shared/config.js';
 import { renderPostCard } from '../src/client/features/posts/render.js';
@@ -157,7 +157,6 @@ function setup() {
 }
 function teardown() {
   stopBadgePoll();
-  stopVersionProbe();
   delete globalThis.fetch;
   delete globalThis.document; delete globalThis.window;
   delete globalThis.localStorage; delete globalThis.sessionStorage;

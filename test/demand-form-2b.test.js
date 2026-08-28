@@ -14,7 +14,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { state } from '../src/client/core/state.js';
-import { stopVersionProbe } from '../src/client/core/datahub.js';
 import { toggleTagPick } from '../src/client/core/ui.js';
 import { genderName } from '../src/client/core/display.js';
 import {
@@ -44,7 +43,6 @@ function setup() {
   return { dom, doc, mountForm, toasts };
 }
 function teardown() {
-  stopVersionProbe();
   _wizardResetForTests();
   delete globalThis.MutationObserver;
   delete globalThis.fetch;

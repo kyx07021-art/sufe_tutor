@@ -9,8 +9,7 @@
  * notify.invalid_type / notify.invalid_params — never silently stored (a stored row with a
  * bad type would render as an empty notification client-side, invisible corruption).
  * - S0 keeps the full v2 type set as an intermediate state (type reduction is S6-N2).
- * - A successful push stores a structured row (removed the version-domain bump:
- * the client data-version protocol is zero-consumed by the new frontend).
+ * - A successful push stores a structured row.
  *
  * Mutations (reverting each fix makes these assertions go red):
  * - initNotifyTable: remove IF NOT EXISTS -> second call throws "table already exists";

@@ -16,7 +16,6 @@ import { handleRegister, doRegister } from '../src/client/features/auth/actions-
 import { openPolicyModal } from '../src/client/core/ui.js';
 import { state } from '../src/client/core/state.js';
 import { stopBadgePoll } from '../src/client/core/router.js';
-import { stopVersionProbe } from '../src/client/core/datahub.js';
 
 const ENV = { ...TEST_SECRETS, ADMIN_USERNAMES: ['admin_sufe'], ADMIN_DEFAULT_PASSWORD: 'test-pw-123' };
 
@@ -110,9 +109,8 @@ function setupDom() {
   return dom;
 }
 function teardown() {
-  // afterAuthSuccess 会启动红点/版本探测轮询；测试结束必须清 interval，否则 node --test 进程挂起不退出
+  // afterAuthSuccess 会启动红点轮询；测试结束必须清 interval，否则 node --test 进程挂起不退出
   if (typeof document !== 'undefined') stopBadgePoll();
-  stopVersionProbe();
   delete globalThis.document; delete globalThis.window; delete globalThis.localStorage; delete globalThis.sessionStorage; delete globalThis.MutationObserver;
 }
 

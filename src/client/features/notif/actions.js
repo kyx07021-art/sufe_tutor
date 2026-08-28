@@ -4,26 +4,17 @@
  *   - markNotifRead: single-item POST with optimistic flip + rollback on failure
  *   - markAllNotifsRead: leave-page batch read (seen-removed), optimistic + rollback
  *   - toggleNotifBlock: client preference (localStorage) + instant list re-render
- * _notifList mirrors the datahub cache array (same reference via dhOnDomainRefresh re-hang)
- * so badge counts / block filtering / read flips stay consistent without refetch.
  */
 import { registerLogoutReset } from '../../core/state.js';
 import { api } from '../../core/api.js';
 import { escHtml } from '../../core/dom.js';
-import { dhGet, dhPeek, dhReady, dhOnDomainRefresh } from '../../core/datahub.js';
+import { dhGet, dhPeek, dhReady } from '../../core/datahub.js';
 import { loadInto, setBadge } from '../../core/router.js';
 import { notifBlockOn, setNotifBlock, isBroadcastNotif } from '../../core/notif-pref.js';
 import { renderNotifItem } from './render.js';
 import { TEXT } from '../../constants/text.js';
 
 let _notifList = [];
-
-// Probe refresh replaces the cache array -- re-hang so block filtering and read flips
-// keep working on the same reference (audit ).
-dhOnDomainRefresh('notifications', () => {
-  const c = dhPeek('/api/notifications');
-  if (c && c.notifications) _notifList = c.notifications;
-});
 
 // Re-render from _notifList by preference, no refetch.
 function renderNotifList() {

@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { state } from '../src/client/core/state.js';
-import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
+import { _dhResetForTests } from '../src/client/core/datahub.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { closeAllModals } from '../src/client/core/ui-modal.js';
 import { mountShell } from '../src/client/core/shell.js';
@@ -81,7 +81,6 @@ function baseSetup({ notifRows = [], demandRows = [], failRead = false } = {}) {
   return { dom, fetched };
 }
 function teardown() {
-  stopVersionProbe();
   if (typeof document !== 'undefined') { stopBadgePoll(); closeAllModals(); } // 幂等：重复 teardown（如 badge 测试双 enterNotifPage）安全
   setEnsureAuth(null);
   delete globalThis.fetch;

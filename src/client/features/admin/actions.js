@@ -368,8 +368,8 @@ export async function loadAdminPosts() {
   try {
     // `/api/posts?sort=new` is shared with the posts domain; the cache key must carry
     // domain 'posts' (datahub caches per-endpoint with a single domain slot). If an admin session
-    // writes domain='admin' first, invalidate('posts')/dhRefreshDomain('posts') miss and the list
-    // stays stale forever (server delete bumps only [POSTS]).
+    // writes domain='admin' first, invalidate('posts') misses and the list stays stale forever
+    // (server delete bumps only [POSTS]).
     const data = await dhGet('/api/posts?sort=new', { domain: 'posts' });
     _adminPostsCache = data.posts || []; // full-text modal data source (v1 parity: closure not window)
     const el = document.getElementById('admin-posts-list');

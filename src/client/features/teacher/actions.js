@@ -7,7 +7,7 @@ import { CONFIG } from '../../../shared/config.js';
 import { SUFE_REGIONS } from '../../constants/region-data.js'; // contract 9: province policy single source
 import { state } from '../../core/state.js';
 import { api } from '../../core/api.js';
-import { dhGet, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
+import { dhGet, dhPeek, invalidate } from '../../core/datahub.js';
 import { openModal, closeModal, showToast, btnLoading, btnDone, confirm, toggleTagPick, initCustomSelects } from '../../core/ui.js';
 import { escHtml, loaderHtml } from '../../core/dom.js'; // loader placeholder via shared helper
 import { renderTeacherCard, renderProfilePanel, renderProfileReviewsCard, studentMatchDetailHtml, reviewModalHtml, setStudentOpenDemand, renderTeacherProfileForm, renderTeacherGaokaoEditor, renderTeacherVerifySection } from './render.js';
@@ -75,23 +75,6 @@ export async function attachStudentMatch(teachers) {
     if (items.length) t._matchForStudent = { md: items[0].md, items };
   }
 }
-
-// v1 parity (app-teachers.js): probe refresh replaces the cached array then re-hangs
-// state.allTeachers — cross-feature readers (openProfilePanel/findCachedTeacher) mirror
-// it, and an open list re-renders under the user's current filter/sort controls instead
-// of keeping deactivated-teacher cards until the next tab switch.
-export function registerTeacherDomainRefresh() {
-  dhOnDomainRefresh('teachers', () => {
-    const c = dhPeek('/api/teachers');
-    if (c && c.teachers) state.allTeachers = c.teachers;
-    if (state.page === 'browse-teachers') {
-      attachStudentMatch(state.allTeachers) // async (non-student exits early with a resolved promise)
-        .then(() => { if (state.page === 'browse-teachers') applyFilters(); }) // read current controls, keep user filter
-        .catch(() => { /* network blip: keep current render, next probe retries */ });
-    }
-  });
-}
-registerTeacherDomainRefresh();
 
 export async function openProfilePanel(userId) {
   let t = state.allTeachers.find(x => x.user_id === userId);

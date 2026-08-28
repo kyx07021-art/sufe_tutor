@@ -16,7 +16,6 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { state } from '../src/client/core/state.js';
-import { stopVersionProbe } from '../src/client/core/datahub.js';
 import {
   initDemandForm, prefillDemandForm, setDemandType, updateDemandSubjects,
   onDemandProvinceChange, toggleAddressField,
@@ -45,7 +44,6 @@ function setup() {
   return { dom, doc, mountForm, toasts, active };
 }
 function teardown() {
-  stopVersionProbe();
   _wizardResetForTests();
   delete globalThis.MutationObserver;
   delete globalThis.fetch;

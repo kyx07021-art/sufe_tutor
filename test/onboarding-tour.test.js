@@ -35,7 +35,7 @@ import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 
 import { state } from '../src/client/core/state.js';
-import { _dhResetForTests, stopVersionProbe } from '../src/client/core/datahub.js';
+import { _dhResetForTests } from '../src/client/core/datahub.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { closeAllModals } from '../src/client/core/ui-modal.js';
 import { openModal } from '../src/client/core/ui.js';
@@ -143,7 +143,6 @@ function baseSetup({ demandRows = null } = {}) {
     if (u === '/api/contracts/my') return { ok: true, status: 200, json: async () => ({ contracts: [contract] }) };
     if (u === '/api/notifications') return { ok: true, status: 200, json: async () => ({ notifications: [notif] }) };
     if (u === '/api/posts?sort=new') return { ok: true, status: 200, json: async () => ({ posts: [post] }) };
-    if (u === '/api/data-version') return { ok: true, status: 200, json: async () => ({ versions: {} }) };
     return { ok: true, status: 200, json: async () => ({}) };
   };
   return { dom, fetched };
@@ -151,7 +150,6 @@ function baseSetup({ demandRows = null } = {}) {
 
 function teardown() {
   try { skipTour(); } catch { /* window already gone */ } // remove any active overlay + demo injections + listeners
-  stopVersionProbe();
   stopBadgePoll();
   stopChatPolling();
   chatTeardown();

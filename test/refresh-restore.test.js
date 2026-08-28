@@ -17,7 +17,6 @@ import { JSDOM } from 'jsdom';
 import { state } from '../src/client/core/state.js';
 import { handleFeatureClick, exitCurrentIdentity } from '../src/client/features/auth/flow.js';
 import { selectPage, stopBadgePoll } from '../src/client/core/router.js';
-import { stopVersionProbe } from '../src/client/core/datahub.js';
 
 const SHELL_HTML = `<!doctype html><html><body>
   <div id="view-landing" class="hidden"></div>
@@ -52,7 +51,6 @@ function setup() {
 async function settle() { await new Promise(r => setTimeout(r, 30)); } // /auth/me then 链收尾
 function teardown() {
   stopBadgePoll();
-  stopVersionProbe();
   delete globalThis.fetch;
   delete globalThis.document; delete globalThis.window;
   delete globalThis.localStorage; delete globalThis.sessionStorage;

@@ -11,7 +11,6 @@ import { JSDOM } from 'jsdom';
 import { CONFIG } from '../src/shared/config.js';
 import { state, registerLogoutReset } from '../src/client/core/state.js';
 import { stopBadgePoll } from '../src/client/core/router.js';
-import { stopVersionProbe } from '../src/client/core/datahub.js';
 import { closeAllModals } from '../src/client/core/ui.js';
 import authFeature from '../src/client/features/auth/index.js';
 import settingsFeature from '../src/client/features/settings/index.js';
@@ -67,7 +66,6 @@ function makeDom(html = SHELL_HTML) {
 
 function resetRuntime() {
   if (typeof document !== 'undefined') stopBadgePoll();
-  stopVersionProbe();
   Object.assign(state, {
     user: null, authToken: null, view: 'landing', page: null,
     allTeachers: [], adminTeachers: [], intentTeachers: [],
@@ -80,7 +78,6 @@ function resetRuntime() {
 
 function stopRuntimeTimers() {
   if (typeof document !== 'undefined') stopBadgePoll();
-  stopVersionProbe();
 }
 
 function mountFeature(t) {

@@ -5,8 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   dhGet, dhPeek, dhReady, dhBatchGet, dhInvalidateDomain, dhInvalidateAll,
-  dhCapCache, dhTouchAll, dhPrefetch, dhCheckAppVersion,
-  startVersionProbe, stopVersionProbe,
+  dhCapCache, dhPrefetch, dhCheckAppVersion,
 } from '../src/client/core/datahub.js';
 import { invalidate, runLogoutResets } from '../src/client/core/state.js';
 import { APP_VERSION } from '../src/shared/config.js';
@@ -84,7 +83,7 @@ test('domain invalidation / state invalidate / logout reset / version check', as
   assert.equal(dhReady('/api/teachers'), false, '登出清空缓存');
 });
 
-test('dhPrefetch(role) + version probe start/stop', async () => {
+test('dhPrefetch(role) fills cache', async () => {
   dhInvalidateAll();
   let batchN = 0;
   mockFetch(async (url, opts) => {
@@ -93,13 +92,10 @@ test('dhPrefetch(role) + version probe start/stop', async () => {
       const gets = JSON.parse(opts.body).gets;
       return { ok: true, status: 200, json: async () => ({ results: gets.map(p => ({ path: p, status: 200, data: { path: p } })) }) };
     }
-    return { ok: true, status: 200, json: async () => ({ versions: { teachers: 2 } }) };
+    return { ok: true, status: 200, json: async () => ({ ok: true }) };
   });
   const map = await dhPrefetch('student');
   assert.ok(map instanceof Map);
   assert.ok(dhReady('/api/teachers'));
   assert.ok(batchN >= 1);
-  startVersionProbe();
-  stopVersionProbe();
-  stopVersionProbe();
 });

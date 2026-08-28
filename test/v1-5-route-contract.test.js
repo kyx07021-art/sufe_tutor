@@ -66,22 +66,22 @@ after(() => {
 async function call(method, path, body = null, token = null) {
   const headers = new Headers({ 'Content-Type': 'application/json' });
   if (token) headers.set('X-Auth-Token', token);
-  // req 模拟真实 fetch Request：带 url（S4 起 handleGetTeachers 经 req.url 读 query 参数）。
+  // req 模拟真实 fetch Request：带 url（handleGetTeachers 经 req.url 读 query 参数）。
   return routeApi(db, path, method, body, new URL(`http://x${path}`), { headers, url: `http://x${path}` }, ENV);
 }
 
 test('路由表：108 条、method+path 唯一、关键路径字面量齐全', () => {
-  // S3 单科目 demand 模型：旧 /api/student/demands* 与 intents/pushes 已删（S2），
+  // 单科目 demand 模型：旧 /api/student/demands* 与 intents/pushes 已删，
   // demand 域只剩 8 条：POST/GET mine/GET/GET :id/PUT/DELETE/close/open。
-  assert.equal(routes.length, 108, '迁移后路由数 108（S3 demand 单科目 8 条 + S2 删 intents/pushes + S5 合同合并 + S1 auth/settings 收敛 + PA-1i-F1 删 GET /api/data-version + AK-A1b 删 POST /api/captcha/verify）');
+  assert.equal(routes.length, 108, '迁移后路由数 108（demand 单科目 8 条 + 删 intents/pushes + 合同合并 + auth/settings 收敛 + 删 GET /api/data-version + 删 POST /api/captcha/verify）');
   const keys = new Set(routes.map(r => `${r.method} ${r.path}`));
   assert.equal(keys.size, routes.length, 'method+path 唯一');
-  // S5 合同独立化：contract 域恰好 10 条（与 interfaces /45/46 对齐）。
+  // contract 独立化：contract 域恰好 10 条。
   // 旧 signing/bindable 路由（/api/conversations/:id/signing、/api/signing-requests/:id/respond、
-  // /api/conversations/:id/bindable-demands）与 /api/contracts/my 已随 删除；
+  // /api/conversations/:id/bindable-demands）与 /api/contracts/my 已删除；
   // /api/contracts/my → /api/contracts 1:1 改名，新增 GET /api/contracts/:id。
   const contractRoutes = routes.filter(r => r.path === '/api/contracts' || r.path.startsWith('/api/contracts/') || r.path.startsWith('/api/admin/contracts'));
-  assert.equal(contractRoutes.length, 10, 'contract 域 10 条路由（S5-14）');
+  assert.equal(contractRoutes.length, 10, 'contract 域 10 条路由');
   const contractKeys = new Set(contractRoutes.map(r => `${r.method} ${r.path}`));
   for (const [m, p] of [
     ['GET', '/api/contracts'], ['GET', '/api/contracts/:id'], ['POST', '/api/contracts'],
@@ -100,11 +100,11 @@ test('路由表：108 条、method+path 唯一、关键路径字面量齐全', (
   const required = [
     ['POST', '/api/auth/login'], ['POST', '/api/auth/register'], ['GET', '/api/teachers'],
     ['GET', '/api/teacher/profile'],
-    // S3 单科目 demand 路由（全量 8 条）
+    // 单科目 demand 路由（全量 8 条）
     ['POST', '/api/demands'], ['GET', '/api/demands/mine'], ['GET', '/api/demands'], ['GET', '/api/demands/:id'],
     ['PUT', '/api/demands/:id'], ['DELETE', '/api/demands/:id'], ['POST', '/api/demands/:id/close'], ['POST', '/api/demands/:id/open'],
     ['GET', '/api/conversations'], ['GET', '/api/conversations/:id/messages'],
-    // S5 合同独立化：新模型路由（含新增 GET /api/contracts/:id）
+    // 合同独立化：新模型路由（含新增 GET /api/contracts/:id）
     ['GET', '/api/contracts'], ['GET', '/api/contracts/:id'], ['POST', '/api/contracts'], ['GET', '/api/contracts/:id/verify'],
     ['GET', '/api/reviews'], ['POST', '/api/feedbacks'], ['POST', '/api/complaints'],
     ['GET', '/api/admin/stats'], ['GET', '/api/admin/content'],
@@ -131,19 +131,19 @@ test('routeApi 代表路径内存冒烟：认证/读列表/写反馈/管理端/�
   assert.equal(adminLogin.status, 200);
   tokens.admin = (await adminLogin.json()).authToken;
 
-  // 带登录态冒烟教师列表：S1 删 user_settings 死能力后匿名视图的 allow_guest_profile LEFT JOIN 仍引用
-  // 该表（S4 列表重构收口前 in-flight），登录视图（viewerId 非空）不走该 JOIN，可独立验证路由/数据层。
+  // 带登录态冒烟教师列表：匿名视图的 allow_guest_profile LEFT JOIN 仍引用该表，
+  // 登录视图（viewerId 非空）不走该 JOIN，可独立验证路由/数据层。
   const teachers = await call('GET', '/api/teachers', null, tokens.student);
   assert.equal(teachers.status, 200);
   assert.ok(Array.isArray((await teachers.json()).teachers));
 
-  // S3 单科目新模型：body 直传（无 v2 {demand} 包装），单科目 subject/grade/province/teachingMethod
+  // 单科目新模型：body 直传（无 v2 {demand} 包装），单科目 subject/grade/province/teachingMethod
   const demandBody = { subject: 'math', grade: 'senior1', province: 'shanghai', teachingMethod: 'online', currentScore: '', addressArea: '', expectedTime: '', preferredTags: [], preferredGender: '', budgetMin: 0, budgetMax: 0, additionalInfo: '希望周末上课' };
   const demand = await call('POST', '/api/demands', demandBody, tokens.student);
-  assert.equal(demand.status, 200, '发需求（S3 单科目）');
+  assert.equal(demand.status, 200, '发需求（单科目）');
   const demandId = (await demand.json()).id || 1;
 
-  // S3 新模型读/状态切换代表路径冒烟（intents/pushes 已随 S2 删除，不在此冒烟）
+  // 单科目新模型读/状态切换代表路径冒烟（intents/pushes 已删除，不在此冒烟）
   const mine = await call('GET', '/api/demands/mine', null, tokens.student);
   assert.equal(mine.status, 200, '我的需求');
   const plaza = await call('GET', '/api/demands', null, tokens.student);
@@ -159,7 +159,7 @@ test('routeApi 代表路径内存冒烟：认证/读列表/写反馈/管理端/�
   assert.equal(convs.status, 200);
   const contracts = await call('GET', '/api/contracts', null, tokens.student);
   assert.equal(contracts.status, 200);
-  // S5 新增 GET /api/contracts/:id：路由可达（无 id=1 合同 → 404 CONTRACT_NOT_FOUND，非 401/500）
+  // 新增 GET /api/contracts/:id：路由可达（无 id=1 合同 → 404 CONTRACT_NOT_FOUND，非 401/500）
   const contractDetail = await call('GET', '/api/contracts/1', null, tokens.student);
   assert.equal(contractDetail.status, 404, 'GET /api/contracts/:id 冒烟（无该合同 → 404）');
   const reviews = await call('GET', '/api/reviews', null, tokens.student);
@@ -182,7 +182,7 @@ test('routeApi 代表路径内存冒烟：认证/读列表/写反馈/管理端/�
   assert.equal(content.status, 200);
 });
 
-test('Q-5-F1: 畸形/双解码参数 404 而非 500（无二次解码 URIError）', async () => {
+test('畸形/双解码参数 404 而非 500（无二次解码 URIError）', async () => {
   // _worker 已对完整路径 decode 一次（畸形 % 保持原样）——routeApi 收到的 p 是已解码/保持原样的段；
   // router 参数段二次 decode 会：①畸形 % 抛 URIError → 500 ②%2F 双解码成 id=abc/def 形状失配。
   const malformed = await routeApi(db, '/api/users/%', 'GET', null, new URL('http://x/api/users/%'), { headers: new Headers() }, ENV);
@@ -191,7 +191,7 @@ test('Q-5-F1: 畸形/双解码参数 404 而非 500（无二次解码 URIError�
   assert.equal(double.status, 404, '已解码 %2F 参数 404（不二次解码成 id=abc/def）');
 });
 
-test('AF-6: route-level dirty id params return 404, never 500', async () => {
+test('route-level dirty id params return 404, never 500', async () => {
   // observation: parseIdParam strict parsing is locked at unit level
   // (test/parse-id-param.test.js); this locks the same guarantee at the route
   // dispatch level. A dirty segment still matches the route regex
@@ -210,7 +210,7 @@ test('AF-6: route-level dirty id params return 404, never 500', async () => {
     const res = await call('GET', path);
     assert.equal(res.status, 404, `${path} must be 404 (${why}), got ${res.status}`);
   }
-  // /api/demands/:id now has a GET route (S3 single-subject model). A dirty segment
+  // /api/demands/:id now has a GET route (single-subject model). A dirty segment
   // still matches the route regex, but parseIdParam('abc') === null -> the handler
   // returns DEMAND_NOT_FOUND 404 (never a 500). With no token the auth gate 401s
   // first, so pass the student token to exercise the parseIdParam 404 path.

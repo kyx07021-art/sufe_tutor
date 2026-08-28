@@ -5,7 +5,7 @@ import { CONFIG } from '../../../shared/config.js';
 import { TEXT } from '../../constants/text.js';
 import { state } from '../../core/state.js';
 import { api, ensureAuth } from '../../core/api.js';
-import { dhGet, dhReady, dhPeek, dhOnDomainRefresh, invalidate } from '../../core/datahub.js';
+import { dhGet, dhReady, dhPeek, invalidate } from '../../core/datahub.js';
 import { loadInto } from '../../core/router.js';
 import { escHtml, mdRender, fmtDateTime, loaderHtml } from '../../core/dom.js';
 import { usernameHtml, deactivatedTag } from '../../core/display.js';
@@ -25,11 +25,6 @@ const postFavSeq = {};
 // The private per-feature setter died with the ESM migration — tests that used
 // to stub it now wire core setEnsureAuth directly.
 export function postsAuth() { return ensureAuth(); }
-
-dhOnDomainRefresh('posts', () => {
-  const c = dhPeek(postsUrl);
-  if (c && c.posts) postsList = c.posts;
-});
 
 export function enterResourceShare() {
   clearTimeout(postsSearchTimer);

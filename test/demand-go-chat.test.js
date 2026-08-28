@@ -12,7 +12,6 @@ import { renderDemandCard } from '../src/client/features/student/render.js';
 import { goChatWithStudent, loadConversations, stopChatPolling } from '../src/client/features/chat/actions-list.js';
 import { chat } from '../src/client/features/chat/chat-state.js';
 import { state } from '../src/client/core/state.js';
-import { stopVersionProbe } from '../src/client/core/datahub.js';
 import { TEXT } from '../src/client/constants/text.js';
 
 const BASE_CONV = {
@@ -35,7 +34,6 @@ function setup() {
 }
 function teardown() {
   stopChatPolling();
-  stopVersionProbe();
   chat.convId = null; chat.list = []; chat.pendingOpen = null;
   delete globalThis.fetch;
   delete globalThis.document; delete globalThis.window;
