@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npx wrangler pages dev . --d1 DB --compatibility-date 2024-01-01",
+    "dev": "npm run build && npx wrangler pages dev dist --d1 DB --compatibility-date 2024-01-01",
     "deploy": "npm run build && npx wrangler pages deploy dist --project-name sufe-tutor",
     "test": "node --test \"test/*.test.js\"",
     "build": "node scripts/build.mjs",
