@@ -1,5 +1,5 @@
 /** 跨栈数值/服务端非文案常量唯一源（V-1-1）。零依赖，纯数据。 */
-export const APP_VERSION = '2.2.0';   // v2.2.0（2026-08-28，P15 攒批）：ZY 教师档案「毕业年份」→「高中毕业年份」文案统一（表单/详情/引导/高考政策警告）；v2.1.9：ZP 匹配度科目维度修复（需求指定科目即激活，教师未填对应类别计 0 分计入分母——非学科需求不再虚高 100%）；v2.1.8：D2 关闭 DeepSeek L2 语义审核（TEXT_AUDIT.ENABLED=false，L1 门牌红线保留）+ 修改用户名流程修复；v2.1.7：ZV 邀请码门控休眠 + ZW 报价单值化 + ZX 简介 500 上限 + ZR-B8 平台内名称 + 擅长科目标题 + /docs 404 守卫
+export const APP_VERSION = '2.2.1';   // v2.2.1（2026-08-28，P15 攒批）：ZC 核验驳回理由内联显示（teacher_verifications.reason 落库 + verify-status 回传 + 教师核验区 rejected 红字显示）+ real_name 存量密文迁移（ZR-B6，生产 11 行 enc:v1: 解密回填明文）；v2.2.0：ZY 教师档案「毕业年份」→「高中毕业年份」文案统一；v2.1.9：ZP 匹配度科目维度修复（需求指定科目即激活，教师未填对应类别计 0 分计入分母——非学科需求不再虚高 100%）；v2.1.8：D2 关闭 DeepSeek L2 语义审核（TEXT_AUDIT.ENABLED=false，L1 门牌红线保留）+ 修改用户名流程修复；v2.1.7：ZV 邀请码门控休眠 + ZW 报价单值化 + ZX 简介 500 上限 + ZR-B8 平台内名称 + 擅长科目标题 + /docs 404 守卫
 export const CONFIG = {
 TOKEN_TTL_MS: 7 * 24 * 3600 * 1000,   // 登录令牌有效期（前端本地过期判定；服务端签发同值共享 config SECURITY.TOKEN_TTL_MS）
     BREAKPOINT_MOBILE: 860,               // 移动端断点（与 style.css 主断点同口径）
