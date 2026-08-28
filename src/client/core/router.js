@@ -24,6 +24,12 @@ const builtinPages = [
 ];
 let authGuard = null;
 export function setRouterAuthGuard(fn) { authGuard = typeof fn === 'function' ? fn : null; }
+
+// shell.js registers a page-section materializer (lazy .client-page creation). selectPage
+// calls it so the target section exists before the hidden toggle. Kept as a provider
+// callback instead of a router->shell import to avoid the shell->router cycle.
+let pageSectionProvider = null;
+export function setPageSectionProvider(fn) { pageSectionProvider = typeof fn === 'function' ? fn : null; }
 export function registerPage(page) {
   if (!page || !page.id || typeof page.enter !== 'function') return;
   const idx = featurePages.findIndex(p => p.id === page.id);
@@ -188,6 +194,7 @@ function injectPageHeaderInfo(pageId) {
 export function selectPage(pageId) {
   const prevPage = state.page;
   closeAllModals();
+  if (pageSectionProvider) pageSectionProvider(pageId); // lazy-materialize the target section
   document.querySelectorAll('#client-main .client-page').forEach(s => s.classList.toggle('hidden', s.dataset.page !== pageId));
   document.querySelectorAll('#sidebar-nav .sidebar-item').forEach(b => b.classList.toggle('active', b.dataset.page === pageId));
   // leave hook: v1 parity — modules tear down page-local resources on switch

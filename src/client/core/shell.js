@@ -4,11 +4,15 @@
  * (auth.* / student.* / teacher.* / notif.*) or shell-level direct listeners
  * (sidebar toggle/close, brand goHome). Idempotent: mountShell() early-returns once
  * #view-client exists. auth owns #view-login/#view-register (mountView replaces them).
+ *
+ * Page sections are lazy: mountShell renders only the frame; each .client-page is
+ * materialized on first selectPage (ensurePageSection). Keeps the first-load DOM light
+ * — unvisited pages' static markup is never in the tree.
  */
 import { TEXT } from '../constants/text.js';
 import { escHtml } from './dom.js';
 import { CARET_SVG } from './ui.js';
-import { goHome } from './router.js';
+import { goHome, setPageSectionProvider } from './router.js';
 import { ROLES, STATUS } from '../../shared/enums.js'; // review/verify filter literals single source
 
 function page(id, title, { actions = '', body = '', flush = false } = {}) {
@@ -19,21 +23,110 @@ function page(id, title, { actions = '', body = '', flush = false } = {}) {
 }
 
 const filterToggleBtn = (action, id) => `<button type="button" class="btn btn-soft glass glass--pressable filter-toggle" id="${id}" data-action="${action}">${escHtml(TEXT.FILTER_TOGGLE)} <span class="drop-caret">${CARET_SVG}</span></button>`;
+const btnNewDemand = `<button type="button" class="btn btn-sm glass glass--pressable" id="btn-new-demand" data-action="student.openModal">+ ${escHtml(TEXT.BTN_NEW_DEMAND)}</button>`;
+const notifBlockBtn = `<button type="button" class="btn btn-sm glass glass--pressable notif-block-btn" id="btn-notif-block" data-action="notif.toggleBlock">${escHtml(TEXT.NOTIF_BLOCK_OFF)}</button>`;
+const entry = (idx, title, desc, role) => `<button type="button" class="entry glass" data-action="auth.enterGuest" data-role="${role}">
+  <span class="entry-glow" aria-hidden="true"></span>
+  <span class="entry-index">${idx}</span>
+  <span class="entry-body">
+    <span class="entry-title">${escHtml(title)}</span>
+    <span class="entry-desc">${escHtml(desc)}</span>
+  </span>
+  <span class="entry-arrow" aria-hidden="true">→</span>
+</button>`;
+
+// Static per-page layouts, materialized on first visit. Keys must cover every registered
+// page id (the shell-integrity guard validates coverage); pages never visited stay out of
+// the DOM.
+const PAGE_LAYOUTS = {
+  'my-demands': () => page('my-demands', TEXT.PAGE_MY_DEMANDS, { actions: btnNewDemand, body: `<div class="browse-list" id="my-demands-list"></div>` }),
+  'browse-demands': () => page('browse-demands', TEXT.PAGE_BROWSE_DEMANDS, { actions: filterToggleBtn('student.toggleFilters', 'demand-filter-toggle-btn'), body: `
+    <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">
+      <select class="filter-select" id="demand-sort" data-change="demand.applyControls"></select>
+      <label id="demand-filter-subject-label"></label><select class="filter-select" id="demand-filter-subject" data-change="demand.applyControls"></select>
+      <label id="demand-filter-grade-label"></label><select class="filter-select" id="demand-filter-grade" data-change="demand.applyControls"></select>
+      <label id="demand-filter-method-label"></label><select class="filter-select" id="demand-filter-method" data-change="demand.applyControls"></select>
+      <label id="demand-filter-province-label"></label><select class="filter-select" id="demand-filter-province" data-change="demand.applyControls"></select>
+    </div>
+    <div class="browse-list" id="browse-demands-list"></div>` }),
+  'browse-teachers': () => page('browse-teachers', TEXT.PAGE_BROWSE_TEACHERS, { actions: filterToggleBtn('teacher.toggleFilters', 'filter-toggle-btn'), body: `
+    <div class="filter-panel glass glass--solid hidden" id="teacher-filters"><!-- teacher sort/filter controls (filled by teacher feature fillTeacherFilters) -->
+      <label id="teacher-sort-label"></label><select class="filter-select" id="teacher-sort" data-change="teacher.sort"></select>
+      <label id="teacher-method-label"></label><select class="filter-select" id="filter-method" data-change="teacher.applyFilters"></select>
+      <label id="teacher-day-label"></label><select class="filter-select" id="filter-day" data-change="teacher.applyFilters"></select>
+      <label id="teacher-verified-label"></label><select class="filter-select" id="filter-verified" data-change="teacher.applyFilters"></select>
+    </div>
+    <div class="browse-list" id="browse-teachers-list"></div>` }),
+  'my-chats': () => page('my-chats', TEXT.PAGE_MY_CHATS, { flush: true, body: `
+    <div class="chats-shell">
+      <aside class="chats-list-pane">
+        <div class="chats-list-head">
+          <div class="chats-list-title-group">
+            <div class="chats-list-title">${escHtml(TEXT.CHAT_TITLE)}</div>
+          </div>
+        </div>
+        <div class="conv-list" id="my-chats-list"></div>
+      </aside>
+      <section class="chat-pane">
+        <div class="chat-frame" id="chat-frame"></div>
+      </section>
+    </div>` }),
+  'my-contracts': () => page('my-contracts', TEXT.PAGE_MY_CONTRACTS, { body: `<div class="browse-list" id="my-contracts-list"></div>` }),
+  'teacher-profile': () => page('teacher-profile', TEXT.PAGE_TEACHER_PROFILE, { body: `<div id="teacher-profile-content"></div>` }),
+  'resource-share': () => page('resource-share', TEXT.PAGE_RESOURCE_SHARE, { body: `<div id="posts-content"></div>` }),
+  notifications: () => page('notifications', TEXT.PAGE_NOTIFICATIONS, { actions: notifBlockBtn, body: `<div class="browse-list" id="notifications-content"></div>` }),
+  'account-settings': () => page('account-settings', TEXT.PAGE_ACCOUNT_SETTINGS, { body: `<div id="account-settings-content"></div>` }),
+  'admin-stats': () => page('admin-stats', TEXT.PAGE_ADMIN_STATS, { body: `<div id="admin-stats-box"></div><div id="admin-stats-content"></div>` }),
+  'admin-traffic': () => page('admin-traffic', TEXT.PAGE_ADMIN_TRAFFIC, { body: `<div id="admin-traffic-box"></div>` }),
+  'admin-students': () => page('admin-students', TEXT.PAGE_ADMIN_STUDENTS, { body: `<div class="admin-search-wrap"><input type="search" class="form-input admin-search" id="admin-students-search" placeholder="${escHtml(TEXT.ADMIN_USER_SEARCH_PLACEHOLDER)}" data-input-action="admin.searchStudents"></div><div class="browse-list" id="admin-students-list"></div>` }),
+  'admin-teachers': () => page('admin-teachers', TEXT.PAGE_ADMIN_TEACHERS, { body: `<div class="admin-search-wrap"><input type="search" class="form-input admin-search" id="admin-teachers-search" placeholder="${escHtml(TEXT.ADMIN_USER_SEARCH_PLACEHOLDER)}" data-input-action="admin.searchTeachers"></div><div class="browse-list" id="admin-teachers-list"></div>` }),
+  'admin-demands': () => page('admin-demands', TEXT.PAGE_ADMIN_DEMANDS, { body: `<div class="browse-list" id="admin-demands-list"></div>` }),
+  'admin-reviews': () => page('admin-reviews', TEXT.PAGE_ADMIN_REVIEWS, { body: `
+    <div class="filter-panel glass glass--solid" id="admin-reviews-filter">
+      <select class="filter-select" id="admin-reviews-status" data-change="admin.filterReviews">
+        <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
+        <option value="${STATUS.PENDING}">${escHtml(TEXT.STATUS_PENDING)}</option>
+        <option value="${STATUS.APPROVED}">${escHtml(TEXT.STATUS_APPROVED)}</option>
+        <option value="${STATUS.REJECTED}">${escHtml(TEXT.STATUS_REJECTED)}</option>
+      </select>
+    </div>
+    <div class="browse-list" id="admin-reviews-list"></div>` }),
+  'admin-verifications': () => page('admin-verifications', TEXT.PAGE_ADMIN_VERIFICATIONS, { body: `
+    <div class="filter-panel glass glass--solid" id="admin-verif-filter">
+      <select class="filter-select" id="admin-verif-status" data-change="admin.filterVerif">
+        <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
+        <option value="${STATUS.PENDING}">${escHtml(TEXT.STATUS_PENDING)}</option>
+        <option value="${STATUS.APPROVED}">${escHtml(TEXT.STATUS_APPROVED)}</option>
+        <option value="${STATUS.REJECTED}">${escHtml(TEXT.STATUS_REJECTED)}</option>
+      </select>
+    </div>
+    <div class="browse-list" id="admin-verifications-list"></div>` }),
+  'admin-posts': () => page('admin-posts', TEXT.PAGE_ADMIN_POSTS, { body: `<div class="browse-list" id="admin-posts-list"></div>` }),
+  'admin-contracts': () => page('admin-contracts', TEXT.PAGE_ADMIN_CONTRACTS, { body: `<div class="browse-list" id="admin-contracts-list"></div>` }),
+  'admin-feedback': () => page('admin-feedback', TEXT.PAGE_ADMIN_FEEDBACK, { body: `<div class="browse-list" id="admin-feedback-list"></div>` }),
+  'admin-content': () => page('admin-content', TEXT.PAGE_ADMIN_CONTENT, { body: `<div id="admin-content-tabs-slot"></div><div class="browse-list" id="admin-content-list"></div>` }),
+  'admin-complaint': () => page('admin-complaint', TEXT.PAGE_ADMIN_COMPLAINT, { body: `<div id="admin-complaint-list"></div>` }),
+  about: () => page('about', TEXT.PAGE_ABOUT, { body: `<div id="about-content"></div>` }),
+};
+
+// Materialize one page section on first visit (router.selectPage calls this before toggling).
+export function ensurePageSection(pageId) {
+  const main = document.getElementById('client-main');
+  if (!main || main.querySelector(`.client-page[data-page="${pageId}"]`)) return;
+  const layout = PAGE_LAYOUTS[pageId];
+  if (!layout) return;
+  main.insertAdjacentHTML('beforeend', layout());
+}
+
+// Test-only hook: materialize every static layout so tests can query sections without
+// navigating (production mount stays lazy).
+export function _materializeAllPages() {
+  for (const id of Object.keys(PAGE_LAYOUTS)) ensurePageSection(id);
+}
 
 export function mountShell() {
   const app = document.getElementById('app');
   if (!app || app.querySelector('#view-client')) return;
-  const btnNewDemand = `<button type="button" class="btn btn-sm glass glass--pressable" id="btn-new-demand" data-action="student.openModal">+ ${escHtml(TEXT.BTN_NEW_DEMAND)}</button>`;
-  const notifBlockBtn = `<button type="button" class="btn btn-sm glass glass--pressable notif-block-btn" id="btn-notif-block" data-action="notif.toggleBlock">${escHtml(TEXT.NOTIF_BLOCK_OFF)}</button>`;
-  const entry = (idx, title, desc, role) => `<button type="button" class="entry glass" data-action="auth.enterGuest" data-role="${role}">
-    <span class="entry-glow" aria-hidden="true"></span>
-    <span class="entry-index">${idx}</span>
-    <span class="entry-body">
-      <span class="entry-title">${escHtml(title)}</span>
-      <span class="entry-desc">${escHtml(desc)}</span>
-    </span>
-    <span class="entry-arrow" aria-hidden="true">→</span>
-  </button>`;
   app.innerHTML = `
     <main class="landing" id="view-landing">
       <section class="landing-stage">
@@ -87,76 +180,7 @@ export function mountShell() {
         <div class="sidebar-user glass" id="sidebar-user"></div>
       </aside>
       <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
-      <main class="client-main" id="client-main">
-        ${page('my-demands', TEXT.PAGE_MY_DEMANDS, { actions: btnNewDemand, body: `<div class="browse-list" id="my-demands-list"></div>` })}
-        ${page('browse-demands', TEXT.PAGE_BROWSE_DEMANDS, { actions: filterToggleBtn('student.toggleFilters', 'demand-filter-toggle-btn'), body: `
-          <div class="filter-panel glass glass--solid hidden" id="demand-filter-panel">
-            <select class="filter-select" id="demand-sort" data-change="demand.applyControls"></select>
-            <label id="demand-filter-subject-label"></label><select class="filter-select" id="demand-filter-subject" data-change="demand.applyControls"></select>
-            <label id="demand-filter-grade-label"></label><select class="filter-select" id="demand-filter-grade" data-change="demand.applyControls"></select>
-            <label id="demand-filter-method-label"></label><select class="filter-select" id="demand-filter-method" data-change="demand.applyControls"></select>
-            <label id="demand-filter-province-label"></label><select class="filter-select" id="demand-filter-province" data-change="demand.applyControls"></select>
-          </div>
-          <div class="browse-list" id="browse-demands-list"></div>` })}
-        ${page('browse-teachers', TEXT.PAGE_BROWSE_TEACHERS, { actions: filterToggleBtn('teacher.toggleFilters', 'filter-toggle-btn'), body: `
-          <div class="filter-panel glass glass--solid hidden" id="teacher-filters"><!-- teacher sort/filter controls (filled by teacher feature fillTeacherFilters) -->
-            <label id="teacher-sort-label"></label><select class="filter-select" id="teacher-sort" data-change="teacher.sort"></select>
-            <label id="teacher-method-label"></label><select class="filter-select" id="filter-method" data-change="teacher.applyFilters"></select>
-            <label id="teacher-day-label"></label><select class="filter-select" id="filter-day" data-change="teacher.applyFilters"></select>
-            <label id="teacher-verified-label"></label><select class="filter-select" id="filter-verified" data-change="teacher.applyFilters"></select>
-          </div>
-          <div class="browse-list" id="browse-teachers-list"></div>` })}
-        ${page('my-chats', TEXT.PAGE_MY_CHATS, { flush: true, body: `
-          <div class="chats-shell">
-            <aside class="chats-list-pane">
-              <div class="chats-list-head">
-                <div class="chats-list-title-group">
-                  <div class="chats-list-title">${escHtml(TEXT.CHAT_TITLE)}</div>
-                </div>
-              </div>
-              <div class="conv-list" id="my-chats-list"></div>
-            </aside>
-            <section class="chat-pane">
-              <div class="chat-frame" id="chat-frame"></div>
-            </section>
-          </div>` })}
-        ${page('my-contracts', TEXT.PAGE_MY_CONTRACTS, { body: `<div class="browse-list" id="my-contracts-list"></div>` })}
-        ${page('teacher-profile', TEXT.PAGE_TEACHER_PROFILE, { body: `<div id="teacher-profile-content"></div>` })}
-        ${page('resource-share', TEXT.PAGE_RESOURCE_SHARE, { body: `<div id="posts-content"></div>` })}
-        ${page('notifications', TEXT.PAGE_NOTIFICATIONS, { actions: notifBlockBtn, body: `<div class="browse-list" id="notifications-content"></div>` })}
-        ${page('account-settings', TEXT.PAGE_ACCOUNT_SETTINGS, { body: `<div id="account-settings-content"></div>` })}
-        ${page('admin-stats', TEXT.PAGE_ADMIN_STATS, { body: `<div id="admin-stats-box"></div><div id="admin-stats-content"></div>` })}
-        ${page('admin-traffic', TEXT.PAGE_ADMIN_TRAFFIC, { body: `<div id="admin-traffic-box"></div>` })}
-        ${page('admin-students', TEXT.PAGE_ADMIN_STUDENTS, { body: `<div class="admin-search-wrap"><input type="search" class="form-input admin-search" id="admin-students-search" placeholder="${escHtml(TEXT.ADMIN_USER_SEARCH_PLACEHOLDER)}" data-input-action="admin.searchStudents"></div><div class="browse-list" id="admin-students-list"></div>` })}
-        ${page('admin-teachers', TEXT.PAGE_ADMIN_TEACHERS, { body: `<div class="admin-search-wrap"><input type="search" class="form-input admin-search" id="admin-teachers-search" placeholder="${escHtml(TEXT.ADMIN_USER_SEARCH_PLACEHOLDER)}" data-input-action="admin.searchTeachers"></div><div class="browse-list" id="admin-teachers-list"></div>` })}
-        ${page('admin-demands', TEXT.PAGE_ADMIN_DEMANDS, { body: `<div class="browse-list" id="admin-demands-list"></div>` })}
-        ${page('admin-reviews', TEXT.PAGE_ADMIN_REVIEWS, { body: `
-          <div class="filter-panel glass glass--solid" id="admin-reviews-filter">
-            <select class="filter-select" id="admin-reviews-status" data-change="admin.filterReviews">
-              <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
-              <option value="${STATUS.PENDING}">${escHtml(TEXT.STATUS_PENDING)}</option>
-              <option value="${STATUS.APPROVED}">${escHtml(TEXT.STATUS_APPROVED)}</option>
-              <option value="${STATUS.REJECTED}">${escHtml(TEXT.STATUS_REJECTED)}</option>
-            </select>
-          </div>
-          <div class="browse-list" id="admin-reviews-list"></div>` })}
-        ${page('admin-verifications', TEXT.PAGE_ADMIN_VERIFICATIONS, { body: `
-          <div class="filter-panel glass glass--solid" id="admin-verif-filter">
-            <select class="filter-select" id="admin-verif-status" data-change="admin.filterVerif">
-              <option value="">${escHtml(TEXT.LABEL_FILTER_ALL)}</option>
-              <option value="${STATUS.PENDING}">${escHtml(TEXT.STATUS_PENDING)}</option>
-              <option value="${STATUS.APPROVED}">${escHtml(TEXT.STATUS_APPROVED)}</option>
-              <option value="${STATUS.REJECTED}">${escHtml(TEXT.STATUS_REJECTED)}</option>
-            </select>
-          </div>
-          <div class="browse-list" id="admin-verifications-list"></div>` })}
-        ${page('admin-posts', TEXT.PAGE_ADMIN_POSTS, { body: `<div class="browse-list" id="admin-posts-list"></div>` })}
-        ${page('admin-contracts', TEXT.PAGE_ADMIN_CONTRACTS, { body: `<div class="browse-list" id="admin-contracts-list"></div>` })}
-        ${page('admin-feedback', TEXT.PAGE_ADMIN_FEEDBACK, { body: `<div class="browse-list" id="admin-feedback-list"></div>` })}
-        ${page('admin-content', TEXT.PAGE_ADMIN_CONTENT, { body: `<div id="admin-content-tabs-slot"></div><div class="browse-list" id="admin-content-list"></div>` })}
-        ${page('admin-complaint', TEXT.PAGE_ADMIN_COMPLAINT, { body: `<div id="admin-complaint-list"></div>` })}
-        ${page('about', TEXT.PAGE_ABOUT, { body: `<div id="about-content"></div>` })}
-      </main>
+      <main class="client-main" id="client-main"></main>
     </div>
     <div id="modal-container"></div>
     <div id="toast-container"></div>
@@ -170,10 +194,10 @@ export function mountShell() {
     b.addEventListener('click', () => document.body.classList.remove('sidebar-open')));
   const brand = document.getElementById('navbar-brand');
   if (brand) brand.addEventListener('click', goHome);
-  // Regression fix (2026-08-20): v1 split the hero tagline into per-char spans for the 3-col
-  // grid + staggered rise animation (base.css .hero-title span / var(--i)). v2 rendered it as a
-  // single text node -> the 9 chars collapsed into one grid cell (broken layout). Re-split here with
-  // JS; --i is set via CSSOM setProperty (exempt from style-src-attr per h5a-g6), so no inline
+  // Regression fix: v1 split the hero tagline into per-char spans for the 3-col grid +
+  // staggered rise animation (base.css .hero-title span / var(--i)). v2 rendered it as a
+  // single text node -> the 9 chars collapsed into one grid cell (broken layout). Re-split
+  // here with JS; --i is set via CSSOM setProperty (exempt from style-src-attr), so no inline
   // style attribute is produced and strict CSP holds.
   const hero = app.querySelector('.hero-title');
   if (hero) {
@@ -187,5 +211,6 @@ export function mountShell() {
       return s;
     }));
   }
+  setPageSectionProvider(ensurePageSection);
   return app;
 }

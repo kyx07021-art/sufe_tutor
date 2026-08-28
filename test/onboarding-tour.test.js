@@ -39,7 +39,7 @@ import { _dhResetForTests } from '../src/client/core/datahub.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { closeAllModals } from '../src/client/core/ui-modal.js';
 import { openModal } from '../src/client/core/ui.js';
-import { mountShell } from '../src/client/core/shell.js';
+import { mountShell, _materializeAllPages } from '../src/client/core/shell.js';
 import { renderSidebar, selectPage, showView, pagesForRole, stopBadgePoll } from '../src/client/core/router.js';
 import { CONFIG } from '../src/shared/config.js';
 import { TEXT } from '../src/client/constants/text.js';
@@ -124,7 +124,8 @@ function baseSetup({ demandRows = null } = {}) {
   state.user = null; state.guestRole = null; state.page = null;
   state.myDemands = []; state.browseDemands = []; state.allTeachers = []; state.myContracts = [];
   chat.convId = null; chat.list = []; chat.staged = []; chat.lastMsgId = 0; chat.pollTimer = null; chat.pendingOpen = null;
-  mountShell(); // #view-landing + #view-client + per-page sections + #modal-container + #toast-container
+  mountShell(); // #view-landing + #view-client + #modal-container + #toast-container (frame only; sections lazy)
+  _materializeAllPages(); // test hook: page sections queryable without navigating
   const fetched = [];
   const demands = demandRows || [demand];
   globalThis.fetch = async (url, opts = {}) => {

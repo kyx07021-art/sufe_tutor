@@ -22,7 +22,7 @@ import { state } from '../src/client/core/state.js';
 import { _dhResetForTests } from '../src/client/core/datahub.js';
 import { setEnsureAuth } from '../src/client/core/api.js';
 import { closeAllModals } from '../src/client/core/ui-modal.js';
-import { mountShell } from '../src/client/core/shell.js';
+import { mountShell, _materializeAllPages } from '../src/client/core/shell.js';
 import { renderSidebar, selectPage, refreshBadges, stopBadgePoll, pagesForRole } from '../src/client/core/router.js';
 import { CONFIG } from '../src/shared/config.js';
 import { TEXT } from '../src/client/constants/text.js';
@@ -65,7 +65,8 @@ function baseSetup({ notifRows = [], demandRows = [], failRead = false } = {}) {
   closeAllModals();
   state.user = null; state.guestRole = null; state.page = null;
   state.myDemands = []; state.browseDemands = []; state.allTeachers = [];
-  mountShell(); // #view-client + #modal-container + #toast-container + per-page sections
+  mountShell(); // #view-client + #modal-container + #toast-container (frame only; page sections lazy)
+  _materializeAllPages(); // test hook: materialize every page section so tests can query them without navigating
   const fetched = [];
   globalThis.fetch = async (url, opts = {}) => {
     const u = String(url);
